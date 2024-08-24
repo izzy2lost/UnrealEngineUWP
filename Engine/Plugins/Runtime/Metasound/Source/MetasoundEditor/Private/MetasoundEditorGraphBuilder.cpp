@@ -1304,20 +1304,17 @@ namespace Metasound
 						const TArray<FMetasoundFrontendClassInputDefault>* ClassInputDefaults = Builder.FindNodeClassInputDefaults(InputHandle.NodeID, Vertex->Name);
 						if (ClassInputDefaults)
 						{
-							FGuid PageID;
-							if (Engine::FDocumentBuilderRegistry::GetChecked().TryResolveTargetPageID(*ClassInputDefaults, PageID))
+							const FGuid PageID = Engine::FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(*ClassInputDefaults);
+							auto MatchesPageID = [&PageID](const FMetasoundFrontendClassInputDefault& InputDefault) { return PageID == InputDefault.PageID; };
+							if (const FMetasoundFrontendClassInputDefault* ClassDefault = ClassInputDefaults->FindByPredicate(MatchesPageID))
 							{
-								auto MatchesPageID = [&PageID](const FMetasoundFrontendClassInputDefault& InputDefault) { return PageID == InputDefault.PageID; };
-								if (const FMetasoundFrontendClassInputDefault* ClassDefault = ClassInputDefaults->FindByPredicate(MatchesPageID))
+								if (ClassDefault->Literal.GetType() == EMetasoundFrontendLiteralType::None)
 								{
-									if (ClassDefault->Literal.GetType() == EMetasoundFrontendLiteralType::None)
-									{
-										OutDefaultLiteral.Clear();
-									}
-									else
-									{
-										OutDefaultLiteral = ClassDefault->Literal;
-									}
+									OutDefaultLiteral.Clear();
+								}
+								else
+								{
+									OutDefaultLiteral = ClassDefault->Literal;
 								}
 							}
 							return true;
@@ -2652,15 +2649,12 @@ namespace Metasound
 			const TArray<FMetasoundFrontendClassInputDefault>* ClassDefaults = InBuilder.FindNodeClassInputDefaults(InputHandle.NodeID, InputVertex->Name);
 			if (ClassDefaults)
 			{
-				FGuid PageID;
-				if (Engine::FDocumentBuilderRegistry::GetChecked().TryResolveTargetPageID(*ClassDefaults, PageID))
+				const FGuid PageID = Engine::FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(*ClassDefaults);
+				auto MatchesPageID = [&PageID](const FMetasoundFrontendClassInputDefault& InputDefault) { return InputDefault.PageID == PageID; };
+				if (const FMetasoundFrontendClassInputDefault* ClassDefault = ClassDefaults->FindByPredicate(MatchesPageID))
 				{
-					auto MatchesPageID = [&PageID](const FMetasoundFrontendClassInputDefault& InputDefault) { return InputDefault.PageID == PageID; };
-					if (const FMetasoundFrontendClassInputDefault* ClassDefault = ClassDefaults->FindByPredicate(MatchesPageID))
-					{
-						InPin.DefaultValue = ClassDefault->Literal.ToString();
-						return OldValue != InPin.DefaultValue;
-					}
+					InPin.DefaultValue = ClassDefault->Literal.ToString();
+					return OldValue != InPin.DefaultValue;
 				}
 			}
 

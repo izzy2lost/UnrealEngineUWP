@@ -16,6 +16,7 @@
 
 #if WITH_EDITORONLY_DATA
 #include "Algo/Transform.h"
+#include "Interfaces/ITargetPlatform.h"
 #include "MetasoundFrontendRegistryContainer.h"
 #include "Misc/DataValidation.h"
 #include "UObject/GarbageCollection.h"
@@ -210,9 +211,14 @@ namespace Metasound::Engine
 			const bool bCanEverExecute = Metasound::CanEverExecuteGraph(bIsCooking);
 			if (!bCanEverExecute)
 			{
+				FName PlatformName;
+				if (const ITargetPlatform* TargetPlatform = InSaveContext.GetTargetPlatform())
+				{
+					PlatformName = *TargetPlatform->PlatformName();
+				}
 				const bool bIsDeterministic = SerializationRequiresDeterminism(bIsCooking);
 				FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
-				InMetaSound.UpdateAndRegisterForSerialization();
+				InMetaSound.UpdateAndRegisterForSerialization(PlatformName);
 			}
  			else if (FApp::CanEverRenderAudio())
 			{

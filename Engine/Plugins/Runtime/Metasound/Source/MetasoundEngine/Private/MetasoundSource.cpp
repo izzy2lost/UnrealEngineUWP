@@ -1726,7 +1726,8 @@ UMetaSoundSource::FRuntimeInput UMetaSoundSource::CreateRuntimeInput(const Metas
 		UE_LOG(LogMetaSound, Warning, TEXT("Failed to find data type '%s' in registry. Assuming data type is not transmittable"), *Input.TypeName.ToString());
 	}
 
-	const FMetasoundFrontendLiteral& DefaultLiteral = Input.FindConstDefaultChecked(Frontend::DefaultPageID);
+	const FGuid PageID = Engine::FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(Input);
+	const FMetasoundFrontendLiteral& DefaultLiteral = Input.FindConstDefaultChecked(PageID);
 	FAudioParameter DefaultParameter = SourcePrivate::MakeAudioParameter(Registry, Input.Name, Input.TypeName, DefaultLiteral, bCreateUObjectProxies);
 
 	return FRuntimeInput { Input.Name, Input.TypeName, Input.AccessType, DefaultParameter, bIsTransmittable };

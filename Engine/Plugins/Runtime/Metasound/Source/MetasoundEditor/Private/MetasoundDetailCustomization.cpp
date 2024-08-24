@@ -558,7 +558,7 @@ namespace Metasound::Editor
 
 		const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
 		check(Settings);
-		for (const FMetaSoundPageSettings& PageSettings : Settings->GetPageSettings())
+		Settings->IteratePageSettings([&](const FMetaSoundPageSettings& PageSettings)
 		{
 			if (ImplementedGuids.Remove(PageSettings.UniqueId) > 0)
 			{
@@ -571,7 +571,7 @@ namespace Metasound::Editor
 					CreateEntryWidget(bIsDefault, PageSettings.UniqueId, PageSettings.Name)
 				];
 			}
-		}
+		});
 
 		for (const FGuid& MissingPageID : ImplementedGuids)
 		{
@@ -635,9 +635,13 @@ namespace Metasound::Editor
 			ImplementedGuids.Add(Graph.PageID);
 		});
 
-		auto GetStringName = [](const FMetaSoundPageSettings& Page) -> TSharedPtr<FString> { return MakeShared<FString>(Page.Name.ToString()); };
-		auto RemoveImplementedItem = [&ImplementedGuids](const FMetaSoundPageSettings& Page) { return !ImplementedGuids.Contains(Page.UniqueId); };
-		Algo::TransformIf(Settings->GetPageSettings(), AddableItems, RemoveImplementedItem, GetStringName);
+		Settings->IteratePageSettings([this, &ImplementedGuids](const FMetaSoundPageSettings& Page)
+		{
+			if (!ImplementedGuids.Contains(Page.UniqueId))
+			{
+				AddableItems.Add(MakeShared<FString>(Page.Name.ToString()));
+			}
+		});
 
 		auto GetPageName = [&Settings](const FGuid& PageID)
 		{

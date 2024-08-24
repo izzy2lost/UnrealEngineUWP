@@ -1124,7 +1124,6 @@ namespace Metasound
 			Builder.Reset(&Engine::FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*ObjectToEdit));
 			DocListener = MakeShared<FDocumentListener>(StaticCastSharedRef<FEditor>(AsShared()));
 			Builder->AddTransactionListener(DocListener->AsShared());
-			SyncFocusedPage();
 
 			if (FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(ObjectToEdit))
 			{
@@ -1859,22 +1858,14 @@ namespace Metasound
 
 		void FEditor::CreateAuditionPageSubMenuOptions(FMenuBuilder& MenuBuilder)
 		{
-			TWeakObjectPtr<const UMetaSoundSettings> SettingsPtr = GetDefault<UMetaSoundSettings>();
-			if (!SettingsPtr.IsValid())
+			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+			if (!Settings)
 			{
 				return;
 			}
 
-			const TArray<FMetaSoundPageSettings>& PageSettingsArray = SettingsPtr->GetPageSettings();
 			MenuBuilder.BeginSection("SetAuditionPlatformSectionHeader", LOCTEXT("SetAuditionPlatformDescription", "Platform"));
 			{
-				TSet<FName> ImplementedPlatforms;
-				for (const FMetaSoundPageSettings& PageSettings : PageSettingsArray)
-				{
-					auto PairToKey = [](const TPair<FName, int32>& PerPlatformPair) { return PerPlatformPair.Key; };
-					Algo::Transform(PageSettings.IsCooked.PerPlatform, ImplementedPlatforms, PairToKey);
-				}
-
 				auto CreatePlatformEntry = [this, &MenuBuilder](FName PlatformName, const FText& PlatformText)
 				{
 					FUIAction SetPlatformAction;
@@ -1903,8 +1894,8 @@ namespace Metasound
 						SetPlatformAction);
 				};
 
-				CreatePlatformEntry(FName(), LOCTEXT("DefaultPlatformDisplayName", "Default"));
-				for (const FName& PlatformName : ImplementedPlatforms)
+				const TArray<FName> AuditionPlatforms = UMetasoundEditorSettings::GetAuditionPlatformNames();
+				for (const FName& PlatformName : AuditionPlatforms)
 				{
 					const FText PlatformText = FText::FromName(PlatformName);
 					CreatePlatformEntry(PlatformName, PlatformText);
@@ -1953,19 +1944,18 @@ namespace Metasound
 						return ECheckBoxState::Unchecked;
 					})
 					.ToolTipText(FocusPageTooltip),
-					LOCTEXT("EnableFocusTargetPageSwap", "Set To Focused"),
+					LOCTEXT("EnableFocusTargetPageGraphSwap", "Set Target To Focused Graph"),
 					true,
 					true,
 					FocusPageTooltip
 				);
 
-				TSet<FName> PageNames;
-				Algo::Transform(PageSettingsArray, PageNames, [](const FMetaSoundPageSettings& PageSettings) { return PageSettings.Name; });
-
-				auto CreateTargetPageEntry = [this, &MenuBuilder](FName AuditionTargetPage, const FText& PageText)
+				auto TryAddPageEntry = [this, &MenuBuilder](const FMetaSoundPageSettings& PageSettings)
 				{
-					FUIAction SetPlatformAction;
-					SetPlatformAction.ExecuteAction = FExecuteAction::CreateLambda([this, AuditionTargetPage]()
+					const FName AuditionTargetPage = PageSettings.Name;
+					const FText PageText = FText::FromName(PageSettings.Name);
+					FUIAction SetTargetPageAction;
+					SetTargetPageAction.ExecuteAction = FExecuteAction::CreateLambda([this, AuditionTargetPage]()
 					{
 						if (UMetasoundEditorSettings* EditorSettings = GetMutableDefault<UMetasoundEditorSettings>())
 						{
@@ -1974,7 +1964,7 @@ namespace Metasound
 						}
 					});
 
-					SetPlatformAction.CanExecuteAction = FCanExecuteAction::CreateLambda([this, AuditionTargetPage]()
+					SetTargetPageAction.CanExecuteAction = FCanExecuteAction::CreateLambda([this, AuditionTargetPage]()
 					{
 						if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
 						{
@@ -1984,21 +1974,31 @@ namespace Metasound
 								return EditorSettings->AuditionTargetPage != AuditionTargetPage;
 							}
 						}
+						return false;
+					});
 
+					SetTargetPageAction.IsActionVisibleDelegate.BindLambda([PageName = PageSettings.Name]()
+					{
+						if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
+						{
+							if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+							{
+								if (const FMetaSoundPageSettings* PageSetting = Settings->FindPageSettings(PageName))
+								{
+									return PageSetting->PlatformCanTargetPage(EditorSettings->AuditionPlatform);
+								}
+							}
+						}
 						return false;
 					});
 
 					MenuBuilder.AddMenuEntry(PageText,
 						FText::Format(LOCTEXT("SetAuditionPageToolTip", "Sets the audition target page to '{0}'."), PageText),
 						FSlateIcon(),
-						SetPlatformAction);
+						SetTargetPageAction);
 				};
 
-				for (const FName& PageName : PageNames)
-				{
-					const FText PageText = FText::FromName(PageName);
-					CreateTargetPageEntry(PageName, PageText);
-				}
+				Settings->IteratePageSettings(TryAddPageEntry);
 			}
 			MenuBuilder.EndSection();
 		}
@@ -2412,6 +2412,8 @@ namespace Metasound
 				{
 					return;
 				}
+
+				SyncFocusedPage();
 
 				// Even though the MetaSoundSource will attempt to register via InitResources
 				// later in this execution (and deeper in the stack), this call forces

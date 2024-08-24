@@ -352,8 +352,7 @@ public:
 	void RemoveGraphOutput(FName Name, EMetaSoundBuilderResult& OutResult);
 
 #if WITH_EDITORONLY_DATA
-	// Removes a graph page with the given name, setting result to failed if the name was not found, was invalid,
-	// or was the default (which cannot be removed).
+	// Removes a graph page with the given name, setting result to failed if the name was not found or was invalid.
 	void RemoveGraphPage(FName Name, EMetaSoundBuilderResult& OutResult);
 #endif // WITH_EDITORONLY_DATA
 

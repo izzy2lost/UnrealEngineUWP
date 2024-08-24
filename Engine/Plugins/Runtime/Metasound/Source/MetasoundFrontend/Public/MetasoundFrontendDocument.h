@@ -40,7 +40,7 @@ namespace Metasound
 		constexpr TCHAR DefaultPageName[] = TEXT("Default");
 
 #if WITH_EDITORONLY_DATA
-		extern const FText METASOUNDFRONTEND_API DefaultGraphPageDisplayName;
+		extern const FText METASOUNDFRONTEND_API DefaultPageDisplayName;
 #endif // WITH_EDITORONLY_DATA
 
 		namespace DisplayStyle
@@ -1742,7 +1742,8 @@ public:
 
 	// Removes the page associated with the given PageID.  Returns true if removed, false if not.
 	// If provided an "AdjacentPageID," sets the value at the given pointer to a page ID adjacent to
-	// the removed page. If last page was removed, returns the default graph ID.
+	// the removed page. If last page was removed, returns the default graph ID (which may or may not
+	// exist).
 	bool RemoveGraphPage(const FGuid& InPageID, FGuid* OutAdjacentPageID = nullptr);
 
 	// Removes all graph pages except the default.  If bClearDefaultPage is true, clears the default graph page implementation.
@@ -1760,6 +1761,7 @@ public:
 	FMetasoundFrontendGraph& FindGraphChecked(const FGuid& InPageID);
 	const FMetasoundFrontendGraph* FindConstGraph(const FGuid& InPageID) const;
 	const FMetasoundFrontendGraph& FindConstGraphChecked(const FGuid& InPageID) const;
+	const TArray<FMetasoundFrontendGraph>& GetConstGraphPages() const { return PagedGraphs; };
 	FMetasoundFrontendGraph& GetDefaultGraph();
 	const FMetasoundFrontendGraph& GetConstDefaultGraph() const;
 	void ResetGraphs();

@@ -313,18 +313,24 @@ void FMetasoundAssetBase::UpdateAndRegisterForExecution(Metasound::Frontend::FMe
 		RegisterAssetDependencies(InRegistrationOptions);
 	}
 
+	UObject* Owner = GetOwningAsset();
+	check(Owner);
+
 	// This should not be necessary as it should be added on asset load,
 	// but currently registration is required to be called prior to adding
 	// an object-defined graph class to the registry so it was placed here.
-	if (UObject* OwningObject = GetOwningAsset())
-	{
-		IMetaSoundAssetManager::GetChecked().AddOrUpdateAsset(*OwningObject);
-	}
+	IMetaSoundAssetManager::GetChecked().AddOrUpdateAsset(*Owner);
 
 	// Auto update must be done after all referenced asset classes are registered
 	if (InRegistrationOptions.bAutoUpdate)
 	{
-		const bool bDidUpdate = AutoUpdate(InRegistrationOptions.bAutoUpdateLogWarningOnDroppedConnection);
+#if WITH_EDITORONLY_DATA
+		FMetaSoundFrontendDocumentBuilder& DocBuilder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(Owner);
+		const bool bDidUpdate = VersionDependencies(DocBuilder, InRegistrationOptions.bAutoUpdateLogWarningOnDroppedConnection);
+#else // !WITH_EDITORONLY_DATA
+		constexpr bool bDidUpdate = false;
+#endif // WITH_EDITORONLY_DATA
+
 #if WITH_EDITOR
 		if (bDidUpdate || InRegistrationOptions.bForceViewSynchronization)
 		{
@@ -348,10 +354,6 @@ void FMetasoundAssetBase::UpdateAndRegisterForExecution(Metasound::Frontend::FMe
 	CacheRegistryMetadata();
 #endif // WITH_EDITOR
 
-	UObject* Owner = GetOwningAsset();
-	check(Owner);
-	const FString AssetName = Owner->GetName();
-
 	GraphRegistryKey = FRegistryContainerImpl::Get().RegisterGraph(Owner);
 	if (GraphRegistryKey.IsValid())
 	{
@@ -364,6 +366,7 @@ void FMetasoundAssetBase::UpdateAndRegisterForExecution(Metasound::Frontend::FMe
 		UClass* Class = Owner->GetClass();
 		check(Class);
 		const FString ClassName = Class->GetName();
+		const FString AssetName = Owner->GetName();
 		UE_LOG(LogMetaSound, Error, TEXT("Registration failed for MetaSound node class '%s' of UObject class '%s'"), *AssetName, *ClassName);
 	}
 }
@@ -376,7 +379,7 @@ void FMetasoundAssetBase::CookMetaSound()
 }
 
 #if WITH_EDITORONLY_DATA
-void FMetasoundAssetBase::UpdateAndRegisterForSerialization()
+void FMetasoundAssetBase::UpdateAndRegisterForSerialization(FName CookPlatformName)
 {
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
@@ -389,11 +392,22 @@ void FMetasoundAssetBase::UpdateAndRegisterForSerialization()
 		return;
 	}
 
-	UpdateAndRegisterReferencesForSerialization();
+	UpdateAndRegisterReferencesForSerialization(CookPlatformName);
 	IMetaSoundAssetManager::GetChecked().AddOrUpdateAsset(*GetOwningAsset());
 
+	UObject* Owner = GetOwningAsset();
+	check(Owner);
+
+	bool bDidUpdate = false;
+
+	FMetaSoundFrontendDocumentBuilder& DocBuilder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(Owner);
+	if (CookPlatformName.IsValid())
+	{
+		bDidUpdate |= IDocumentBuilderRegistry::GetChecked().CookPages(CookPlatformName, DocBuilder);
+	}
+
 	// Auto update must be done after all referenced asset classes are registered
-	const bool bDidUpdate = AutoUpdate(/*bAutoUpdateLogWarningOnDroppedConnection=*/true);
+	bDidUpdate |= VersionDependencies(DocBuilder, /*bAutoUpdateLogWarningOnDroppedConnection=*/true);
 #if WITH_EDITOR
 	if (bDidUpdate)
 	{
@@ -407,12 +421,8 @@ void FMetasoundAssetBase::UpdateAndRegisterForSerialization()
 	CacheRegistryMetadata();
 #endif // WITH_EDITOR
 
-	UObject* Owner = GetOwningAsset();
-	check(Owner);
-
 	{
 		// Performs document transforms on local copy, which reduces document footprint & renders transforming unnecessary at runtime
-		FMetaSoundFrontendDocumentBuilder& DocBuilder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(Owner);
 		const bool bContainsTemplateDependency = DocBuilder.ContainsDependencyOfType(EMetasoundFrontendClassType::Template);
 		if (bContainsTemplateDependency)
 		{
@@ -935,12 +945,12 @@ void FMetasoundAssetBase::RegisterAssetDependencies(const Metasound::Frontend::F
 void FMetasoundAssetBase::CookReferencedMetaSounds()
 {
 #if WITH_EDITORONLY_DATA
-	UpdateAndRegisterReferencesForSerialization();
+	UpdateAndRegisterReferencesForSerialization({ });
 #endif // WITH_EDITORONLY_DATA
 }
 
 #if WITH_EDITORONLY_DATA
-void FMetasoundAssetBase::UpdateAndRegisterReferencesForSerialization()
+void FMetasoundAssetBase::UpdateAndRegisterReferencesForSerialization(FName CookPlatformName)
 {
 	using namespace Metasound::Frontend;
 
@@ -952,7 +962,7 @@ void FMetasoundAssetBase::UpdateAndRegisterReferencesForSerialization()
 		{
 			// TODO: Check for infinite recursion and error if so
 			AssetManager.AddOrUpdateAsset(*(Reference->GetOwningAsset()));
-			Reference->UpdateAndRegisterForSerialization();
+			Reference->UpdateAndRegisterForSerialization(CookPlatformName);
 		}
 	}
 }
@@ -962,9 +972,15 @@ bool FMetasoundAssetBase::AutoUpdate(bool bInLogWarningsOnDroppedConnection)
 {
 	using namespace Metasound::Frontend;
 
-	FString OwningAssetName = GetOwningAssetName();
-	const bool bAutoUpdated = FAutoUpdateRootGraph(MoveTemp(OwningAssetName), bInLogWarningsOnDroppedConnection).Transform(GetDocumentHandle());
-	return bAutoUpdated;
+	UObject* Owner = GetOwningAsset();
+	check(Owner);
+
+#if WITH_EDITORONLY_DATA
+	FMetaSoundFrontendDocumentBuilder& DocBuilder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(Owner);
+	return VersionDependencies(DocBuilder, bInLogWarningsOnDroppedConnection);
+#else // !WITH_EDITORONLY_DATA
+	return false;
+#endif // !WITH_EDITORONLY_DATA
 }
 
 #if WITH_EDITORONLY_DATA
@@ -1014,6 +1030,30 @@ bool FMetasoundAssetBase::TryUpdateInterfaceFromVersion(const FMetasoundFrontend
 	}
 
 	return false;
+}
+
+bool FMetasoundAssetBase::VersionDependencies(FMetaSoundFrontendDocumentBuilder& Builder, bool bInLogWarningsOnDroppedConnection)
+{
+	using namespace Metasound::Frontend;
+
+	bool bDocumentModified = false;
+
+#if WITH_EDITORONLY_DATA
+	const FGuid InitBuildPageID = Builder.GetBuildPageID();
+	Metasound::Frontend::FDocumentHandle DocHandle = GetDocumentHandle();
+	const FMetasoundFrontendGraphClass& RootGraph = Builder.GetConstDocumentChecked().RootGraph;
+	RootGraph.IterateGraphPages([&](const FMetasoundFrontendGraph& Graph)
+	{
+		// Set the build page ID to this graph as a hack to apply dependency versioning logic using
+		// the controller/handle API until auto-update is renamed & moved to use document builder API.
+		Builder.SetBuildPageID(Graph.PageID);
+		FString OwningAssetName = GetOwningAssetName();
+		bDocumentModified |= FAutoUpdateRootGraph(MoveTemp(OwningAssetName), bInLogWarningsOnDroppedConnection).Transform(DocHandle);
+	});
+	Builder.SetBuildPageID(InitBuildPageID);
+#endif // WITH_EDITORONLY_DATA
+
+	return bDocumentModified;
 }
 
 FMetasoundFrontendInterface FMetasoundAssetBase::GetInterfaceToVersion(const FMetasoundFrontendVersion& InterfaceVersion) const

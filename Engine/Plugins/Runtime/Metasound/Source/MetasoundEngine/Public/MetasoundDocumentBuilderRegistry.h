@@ -12,17 +12,22 @@
 #include "Misc/ScopeLock.h"
 
 
+// Forward Declarations
+class UMetaSoundSettings;
+
 namespace Metasound::Engine
 {
 #if WITH_EDITOR
-	struct FAuditionPageInfo
+	struct FPageResolutionEditorResults
 	{
 		FName PlatformName;
 		TOptional<FGuid> PageID;
 	};
 
-	DECLARE_DELEGATE_RetVal_OneParam(FAuditionPageInfo, FOnResolveAuditionPageInfo, const TSet<FGuid>& /* InPageIDs */);
+	DECLARE_DELEGATE_RetVal_OneParam(FPageResolutionEditorResults, FOnResolveEditorPage, const TArray<FGuid>& /* InPageIDs */);
 #endif // WITH_EDITOR
+
+	DECLARE_DELEGATE_RetVal_OneParam(FGuid, FOnResolvePage, const TArray<FGuid>& /* InPageIDs */);
 
 	class METASOUNDENGINE_API FDocumentBuilderRegistry : public Frontend::IDocumentBuilderRegistry
 	{
@@ -107,6 +112,12 @@ namespace Metasound::Engine
 
 		// Frontend::IDocumentBuilderRegistry Implementation
 #if WITH_EDITORONLY_DATA
+		// Given the provided builder, removes paged data within the associated document for a cooked build.
+		// This function removes graphs and input defaults which are not to ever be used by a given cook
+		// platform, allowing users to optimize away data and scale the amount of memory required for
+		// initial load of input UObjects and graph topology, which can also positively effect runtime
+		// performance as well, etc. Returns true if builder modified the document, false if not.
+		virtual bool CookPages(FName PlatformName, FMetaSoundFrontendDocumentBuilder& Builder) const override;
 		virtual FMetaSoundFrontendDocumentBuilder& FindOrBeginBuilding(TScriptInterface<IMetaSoundDocumentInterface> MetaSound) override;
 #endif // WITH_EDITORONLY_DATA
 
@@ -131,15 +142,17 @@ namespace Metasound::Engine
 		TArray<UMetaSoundBuilderBase*> FindBuilderObjects(const FMetasoundFrontendClassName& InClassName) const;
 
 #if WITH_EDITOR
-		FOnResolveAuditionPageInfo& GetOnResolveAuditionPageInfoDelegate();
+		FOnResolveEditorPage& GetOnResolveAuditionPageDelegate();
 #endif // WITH_EDITOR
+
+		FOnResolvePage& GetOnResolveProjectPageOverrideDelegate();
 
 		bool ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const override;
 
 		// Given the provided document and its respective pages, returns the PageID to be used for runtime IGraph and proxy generation.
-		virtual bool TryResolveTargetPageID(const FMetasoundFrontendGraphClass& InGraphClass, FGuid& OutResolvedPageID) const override;
-		virtual bool TryResolveTargetPageID(const FMetasoundFrontendClassInput& InClassInput, FGuid& OutResolvedPageID) const override;
-		virtual bool TryResolveTargetPageID(const TArray<FMetasoundFrontendClassInputDefault>& Defaults, FGuid& OutResolvedPageID) const override;
+		virtual FGuid ResolveTargetPageID(const FMetasoundFrontendGraphClass& InGraphClass) const override;
+		virtual FGuid ResolveTargetPageID(const FMetasoundFrontendClassInput& InClassInput) const override;
+		virtual FGuid ResolveTargetPageID(const TArray<FMetasoundFrontendClassInputDefault>& Defaults) const override;
 
 		void SetEventLogVerbosity(ELogEvent Event, ELogVerbosity::Type Verbosity);
 
@@ -147,11 +160,18 @@ namespace Metasound::Engine
 		void AddBuilderInternal(const FMetasoundFrontendClassName& InClassName, UMetaSoundBuilderBase* NewBuilder) const;
 		bool CanPostEventLog(ELogEvent Event, ELogVerbosity::Type Verbosity) const;
 		void FinishBuildingInternal(UMetaSoundBuilderBase& Builder, bool bForceUnregisterNodeClass) const;
-		bool TryResolveTargetPageID(const TSet<FGuid>& InPageIDs, FGuid& OutResolvedPageID) const;
+		FGuid ResolveTargetPageIDInternal() const;
+		FGuid ResolveTargetPageIDInternal(const UMetaSoundSettings& Settings, const FGuid& TargetPageID, FName PlatformName) const;
 
 #if WITH_EDITOR
-		FOnResolveAuditionPageInfo OnResolveAuditionPageInfo;
+		FOnResolveEditorPage OnResolveAuditionPage;
 #endif // WITH_EDITOR
+
+		FOnResolvePage OnResolveProjectPage;
+
+		// Reuseable scratch array of pages to resolve, which is used to
+		// optimize/reduce numboer of allocations required when resolving document.
+		mutable TArray<FGuid> TargetPageResolveScratch;
 
 		TSortedMap<ELogEvent, ELogVerbosity::Type> EventLogVerbosity;
 	};

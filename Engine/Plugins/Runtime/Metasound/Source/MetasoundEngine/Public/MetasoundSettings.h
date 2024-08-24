@@ -4,6 +4,8 @@
 #include "Delegates/DelegateCombinations.h"
 #include "Engine/DeveloperSettings.h"
 #include "MetasoundFrontendDocument.h"
+#include "Misc/Optional.h"
+#include "Misc/ScopeLock.h"
 #include "UObject/NoExportTypes.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
@@ -59,20 +61,33 @@ USTRUCT()
 struct METASOUNDENGINE_API FMetaSoundPageSettings
 {
 	GENERATED_BODY()
-	
-	UPROPERTY()
-	FGuid UniqueId;
 
-	/** Name of this page's setting. This will appear in the MetaSound Asset Editor's 'Page Selector'.
-		The names should be unique and adequately describe the Entry. "High", "Low" etc. **/
+	UPROPERTY()
+	FGuid UniqueId = Metasound::Frontend::DefaultPageID;
+
+	/** Name of this page's setting to be displayed in editors and used for identification from Blueprint/native API. */
 	UPROPERTY(EditAnywhere, Category = "Pages")
-	FName Name;
+	FName Name = Metasound::Frontend::DefaultPageName;
+
+private:
+	// When true, page can be targeted for the assigned platform(s)/platform group(s).
+	UPROPERTY(EditAnywhere, config, Category = "Pages")
+	FPerPlatformBool Target = true;
 
 #if WITH_EDITORONLY_DATA
-	// When true, page data defined on serialized MetaSounds are included in cooked build (for the assigned platform(s)).
+	// When true, exclude page data when cooking from the assigned platform(s)/platform group(s) (ignored if target is true).
 	UPROPERTY(EditAnywhere, config, Category = "Pages")
-	FPerPlatformBool IsCooked = true;
+	FPerPlatformBool Exclude = false;
 #endif //WITH_EDITORONLY_DATA
+
+public:
+#if WITH_EDITOR
+	bool ExcludePageFromCook(FName PlatformName) const;
+	TArray<FName> GetImplementedPlatforms() const;
+	bool PlatformCanTargetPage(FName PlatformName) const;
+#endif //WITH_EDITOR
+
+	friend class UMetaSoundSettings;
 };
 
 USTRUCT()
@@ -135,13 +150,14 @@ public:
 
 private:
 #if WITH_EDITORONLY_DATA
-	Metasound::Engine::FOnSettingsDefaultConformed OnDefaultConformed;
+	Metasound::Engine::FOnSettingsDefaultConformed OnDefaultRenamed;
 	Metasound::Engine::FOnPageSettingsUpdated OnPageSettingsUpdated;
 #endif //WITH_EDITORONLY_DATA
 
 	/** Page Name to target when attempting to execute MetaSound. If target page is not implemented (or cooked in a runtime build)
 	  * for the active platform, uses order of cooked pages (see 'Page Settings' for order) falling back to lower index-ordered page
-	  * implemented in MetaSound asset. */
+	  * implemented in MetaSound asset. If no fallback is found, uses default implementation. If any pages are specified, target
+	  * cannot be set directly to default (allows for removal of default implementation when cooking for performance reasons). */
 	UPROPERTY(EditAnywhere, config, Category = Pages, meta = (GetOptions = "MetasoundEngine.MetaSoundSettings.GetPageNames"))
 	FName TargetPageName = Metasound::Frontend::DefaultPageName;
 
@@ -152,9 +168,22 @@ private:
 	UPROPERTY(EditAnywhere, config, Category = Pages)
 	TArray<FMetaSoundPageSettings> PageSettings;
 
+	/** Default page settings to be used in editor and if no other page settings are targeted or defined. */
+	UPROPERTY()
+	FMetaSoundPageSettings DefaultPageSettings;
+
 	/** Array of possible quality settings for Metasounds to chose from */
 	UPROPERTY(EditAnywhere, config, Category = Quality)
 	TArray<FMetaSoundQualitySettings> QualitySettings;
+
+	/** Target page override to use set from code/script (supercedes serialized 'TargetPageName' field). */
+	TOptional<FName> TargetPageNameOverride;
+
+#if WITH_EDITORONLY_DATA
+	mutable FCriticalSection CookPlatformTargetCritSec;
+	mutable TArray<FGuid> CookPlatformTargetPageIDs;
+	mutable FName CookPlatformTargetPage;
+#endif // WITH_EDITORONLY_DATA
 
 public:
 	// Returns the page settings with the provided name. If there are multiple settings
@@ -171,22 +200,35 @@ public:
 	// Returns the quality settings with the unique ID given.
 	const FMetaSoundQualitySettings* FindQualitySettings(const FGuid& InQualityID) const;
 
-	// Returns the target page name.
-	const FName& GetTargetPageName() const { return TargetPageName; }
+	const FMetaSoundPageSettings& GetDefaultPageSettings() const;
 
-	// Returns the target page ID.
-	const FGuid& GetTargetPageID() const;
+#if WITH_EDITORONLY_DATA
+	const TArray<FGuid>& GetCookedTargetPageIDs(FName PlatformName) const;
+#endif // WITH_EDITORONLY_DATA
 
-	const TArray<FMetaSoundPageSettings>& GetPageSettings() const { return PageSettings; }
+#if WITH_EDITOR
+	// Returns superset of explicitly implemented page platforms (and groups) as
+	// defined in PageSettings.
+	TArray<FName> GetImplementedPagePlatforms() const;
+#endif // WITH_EDITOR
+
+	// Returns the currently targeted page settings.
+	const FMetaSoundPageSettings& GetTargetPageSettings() const;
+
 	const TArray<FMetaSoundQualitySettings>& GetQualitySettings() const { return QualitySettings; }
 
 #if WITH_EDITORONLY_DATA
-	Metasound::Engine::FOnSettingsDefaultConformed& GetOnDefaultConformedDelegate();
+	Metasound::Engine::FOnSettingsDefaultConformed& GetOnDefaultRenamedDelegate();
 	Metasound::Engine::FOnPageSettingsUpdated& GetOnPageSettingsUpdatedDelegate();
 
 	static FName GetPageSettingPropertyName();
 	static FName GetQualitySettingPropertyName();
 #endif // WITH_EDITORONLY_DATA
+
+	// Iterates possible page settings in order. Does not include default page settings. If optionally set
+	// to reverse, iterates in reverse. Does *not* include default setting (as fallback therein is not related
+	// to user-defined, ordered page settings).
+	void IteratePageSettings(TFunctionRef<void(const FMetaSoundPageSettings&)> Iter, bool bReverse = false) const;
 
 	// Sets the target page to the given name. Returns true if associated page settings were found
 	// and target set, false if not found and not set.
@@ -207,8 +249,9 @@ public:
 	*/
 	UFUNCTION()
 	static TArray<FName> GetQualityNames();
+
 private:
-	void ConformPageSettingsDefault(bool bNotifyDefaultConformed);
+	void ConformPageSettings(bool bNotifyDefaultRenamed);
 
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

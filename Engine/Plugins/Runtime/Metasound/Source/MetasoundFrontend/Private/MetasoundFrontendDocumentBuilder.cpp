@@ -2997,6 +2997,39 @@ void FMetaSoundFrontendDocumentBuilder::Reload(TSharedPtr<Metasound::Frontend::F
 	}
 }
 
+#if WITH_EDITORONLY_DATA
+bool FMetaSoundFrontendDocumentBuilder::RemoveGraphInputDefault(FName InputName, const FGuid& InPageID)
+{
+	using namespace Metasound;
+
+	auto NameMatchesInput = [&InputName](const FMetasoundFrontendClassInput& Input) { return Input.Name == InputName; };
+	FMetasoundFrontendDocument& Document = GetDocumentChecked();
+	TArray<FMetasoundFrontendClassInput>& Inputs = Document.RootGraph.Interface.Inputs;
+
+	const int32 Index = Inputs.IndexOfByPredicate(NameMatchesInput);
+	if (Index != INDEX_NONE)
+	{
+		FMetasoundFrontendClassInput& Input = Inputs[Index];
+		const bool bRemovedDefault = Input.RemoveDefault(InPageID);
+		if (bRemovedDefault)
+		{
+			DocumentDelegates->InterfaceDelegates.OnInputDefaultChanged.Broadcast(Index);
+
+			// Set the input as no longer inheriting default for presets
+			if (IsPreset())
+			{
+				constexpr bool bInputInheritsDefault = false;
+				return SetGraphInputInheritsDefault(InputName, bInputInheritsDefault);
+			}
+
+			return true;
+		}
+	}
+
+	return false;
+}
+#endif // WITH_EDITORONLY_DATA
+
 bool FMetaSoundFrontendDocumentBuilder::RemoveNodeInputDefault(const FGuid& InNodeID, const FGuid& InVertexID, const FGuid* InPageID)
 {
 	using namespace Metasound::Frontend;

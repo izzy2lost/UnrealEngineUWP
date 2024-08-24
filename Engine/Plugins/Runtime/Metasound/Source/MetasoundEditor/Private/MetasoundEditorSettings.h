@@ -2,6 +2,7 @@
 #pragma once
 
 #include "AudioSpectrumAnalyzer.h"
+#include "MetasoundFrontendDocument.h"
 #include "Misc/CoreDefines.h"
 #include "UObject/NoExportTypes.h"
 #include "UObject/Object.h"
@@ -20,7 +21,7 @@ struct FMetasoundFrontendDocument;
 
 namespace Metasound::Engine
 {
-	struct FAuditionPageInfo;
+	struct FPageResolutionEditorResults;
 } // namespace Metasound::Engine
 
 
@@ -148,6 +149,12 @@ public:
 	UPROPERTY(EditAnywhere, config, DisplayName = "Pin MetaSound Source in Asset Menu", Category = AssetMenu)
 	bool bPinMetaSoundSourceInAssetMenu = true;
 
+	/** If true, uses editor page/platform audition settings in PIE. If false, uses project's defined values (see 'MetaSound'
+	  * Developer Settings for TargetPage, which can be manipulated via code/Blueprint.)
+	  */
+	UPROPERTY(EditAnywhere, config, Category = Audition)
+	bool bApplyAuditionSettingsInPIE = true;
+
 	/** Default author title to use when authoring a new
 	  * MetaSound.  If empty, uses machine name by default.
 	  */
@@ -175,7 +182,7 @@ public:
 		EditConditionHides = true,
 		GetOptions = "MetasoundEngine.MetaSoundSettings.GetPageNames")
 	)
-	FName AuditionTargetPage;
+	FName AuditionTargetPage = Metasound::Frontend::DefaultPageName;
 
 	/** Maps Pin Category To Pin Color */
 	TMap<FName, FLinearColor> CustomPinTypeColors;
@@ -294,7 +301,7 @@ public:
 	/** Get the AudioMaterialMeter Style. If MeterStyleOverride is not set, returns default style.*/
 	const FAudioMaterialMeterStyle* GetMeterStyle() const;
 
-	Metasound::Engine::FAuditionPageInfo ResolveAuditionPageInfo(const TSet<FGuid>& InPageIDs) const;
+	Metasound::Engine::FPageResolutionEditorResults ResolveAuditionPage(const TArray<FGuid>& InPageIDs) const;
 
 	UFUNCTION()
 	static TArray<FName> GetAuditionPlatformNames();
