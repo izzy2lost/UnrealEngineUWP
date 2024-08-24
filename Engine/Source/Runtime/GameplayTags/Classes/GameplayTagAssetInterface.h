@@ -25,6 +25,7 @@ class IGameplayTagAssetInterface
 	 * 
 	 * @param OutTags	[OUT] Set of tags on the asset
 	 */
+	 UFUNCTION(BlueprintCallable, Category = GameplayTags)
 	virtual void GetOwnedGameplayTags(FGameplayTagContainer& TagContainer) const=0;
 
 	/**
