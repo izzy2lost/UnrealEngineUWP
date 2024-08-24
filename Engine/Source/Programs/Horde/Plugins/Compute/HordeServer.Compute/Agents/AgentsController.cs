@@ -141,7 +141,7 @@ namespace HordeServer.Agents
 			}
 
 			List<GetAgentLeaseResponse> leases = new List<GetAgentLeaseResponse>();
-			foreach (AgentLease agentLease in agent.Leases)
+			foreach (IAgentLease agentLease in agent.Leases)
 			{
 				try
 				{
