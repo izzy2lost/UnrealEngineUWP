@@ -31,7 +31,6 @@ void UActorParentDataStorageFactory::RegisterQueries(ITypedElementDataStorageInt
 
 void UActorParentDataStorageFactory::RegisterAddParentColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
-	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
 	using namespace UE::Editor::DataStorage;
 	
@@ -69,7 +68,6 @@ void UActorParentDataStorageFactory::RegisterAddParentColumn(ITypedElementDataSt
 
 void UActorParentDataStorageFactory::RegisterUpdateOrRemoveParentColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
-	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
 	using namespace UE::Editor::DataStorage;
 	

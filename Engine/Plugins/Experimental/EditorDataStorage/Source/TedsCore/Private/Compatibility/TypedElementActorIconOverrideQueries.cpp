@@ -10,7 +10,7 @@
 
 void UActorIconOverrideDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	using namespace TypedElementQueryBuilder;
 
 	DataStorage.RegisterQuery(

@@ -25,7 +25,6 @@ namespace UE::Editor::DataStorage::Private
 	template<typename TypeInfoType>
 	void PrintObjectTypeInformation(ITypedElementDataStorageInterface* DataStorage, FString Message, FOutputDevice& Output)
 	{
-		using namespace TypedElementDataStorage;
 		using namespace TypedElementQueryBuilder;
 
 		static QueryHandle Query = [DataStorage]
@@ -68,8 +67,6 @@ namespace UE::Editor::DataStorage::Private
 	void PrintObjectLabels(FOutputDevice& Output)
 	{
 		using namespace TypedElementQueryBuilder;
-		using namespace UE::Editor::DataStorage;
-		using DSI = ITypedElementDataStorageInterface;
 
 		if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 		{
@@ -97,7 +94,7 @@ namespace UE::Editor::DataStorage::Private
 			{
 				FString Message;
 				DataStorage->RunQuery(LabelQuery, CreateDirectQueryCallbackBinding(
-					[&Output, &Message](DSI::IDirectQueryContext& Context, const FTypedElementUObjectColumn* Objects, const FTypedElementLabelColumn* Labels)
+					[&Output, &Message](IDirectQueryContext& Context, const FTypedElementUObjectColumn* Objects, const FTypedElementLabelColumn* Labels)
 					{
 						const uint32 Count = Context.GetRowCount();
 
@@ -131,7 +128,7 @@ namespace UE::Editor::DataStorage::Private
 			}
 		}
 	}
-}
+} // namespace UE::Editor::DataStorage::Private
 
 FAutoConsoleCommandWithOutputDevice PrintObjectTypeInformationConsoleCommand(
 	TEXT("TEDS.Debug.PrintObjectTypeInfo"),
@@ -411,7 +408,6 @@ static FAutoConsoleCommand CVarPrintDynamicColumnWithQuery(
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
 		using namespace TypedElementQueryBuilder;
-		using DSI = ITypedElementDataStorageInterface;
 		using namespace UE::Editor::DataStorage;
 		
 		// Print column using query
@@ -528,8 +524,6 @@ static FAutoConsoleCommand CVarRegisterListDynamicColumnQuery(
 				
 		const FName Identifier(*Args[0]);
 		const FName ActivationGroup(*Args[1]);
-		
-		using namespace TypedElementDataStorage;
 
 		// Lists the rows processed that have 
 		DataStorage->RegisterQuery(
@@ -820,7 +814,7 @@ static FAutoConsoleCommand CVarMatchValueTagFromEnum(
 		
 		uint64 Count = 0;
 		
-		const TypedElementDataStorage::FQueryResult Result = DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding(
+		const FQueryResult Result = DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding(
 			[&Count](const IDirectQueryContext& Context, const RowHandle*)
 			{
 				Count += Context.GetRowCount();

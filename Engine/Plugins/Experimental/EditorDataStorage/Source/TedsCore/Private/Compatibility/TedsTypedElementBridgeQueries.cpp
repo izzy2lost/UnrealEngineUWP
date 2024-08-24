@@ -58,7 +58,6 @@ bool UTypedElementBridgeDataStorageFactory::IsEnabled()
 void UTypedElementBridgeDataStorageFactory::RegisterQuery_NewUObject(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
 	
 	RemoveTypedElementRowHandleQuery = DataStorage.RegisterQuery(
 		Select()
@@ -73,21 +72,21 @@ void UTypedElementBridgeDataStorageFactory::UnregisterQuery_NewUObject(ITypedEle
 void UTypedElementBridgeDataStorageFactory::CleanupTypedElementColumns(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	// Remove any TEv1 handles
 	{
-		TArray<UE::Editor::DataStorage::RowHandle> Handles;
+		TArray<RowHandle> Handles;
 		using namespace TypedElementQueryBuilder;
 		DataStorage.RunQuery(
 			RemoveTypedElementRowHandleQuery,
 			CreateDirectQueryCallbackBinding(
-				[&Handles](ITypedElementDataStorageInterface::IDirectQueryContext& Context)
+				[&Handles](IDirectQueryContext& Context)
 				{
 					Handles.Append(Context.GetRowHandles());
 				}));
 		
-		DataStorage.BatchAddRemoveColumns(TConstArrayView<UE::Editor::DataStorage::RowHandle>(Handles), {}, {UE::Editor::DataStorage::Compatibility::FTypedElementColumn::StaticStruct()});
+		DataStorage.BatchAddRemoveColumns(TConstArrayView<RowHandle>(Handles), {}, {Compatibility::FTypedElementColumn::StaticStruct()});
 	}
 }
 

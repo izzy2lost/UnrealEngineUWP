@@ -364,20 +364,20 @@ bool FTedsOutlinerImpl::CanDisplayRow(UE::Editor::DataStorage::RowHandle ItemRow
 void FTedsOutlinerImpl::CreateItemsFromQuery(TArray<FSceneOutlinerTreeItemPtr>& OutItems, ISceneOutlinerMode* InMode) const
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
+	using namespace UE::Editor::DataStorage;
 	
-	TArray<UE::Editor::DataStorage::RowHandle> Rows;
+	TArray<RowHandle> Rows;
 	
-	UE::Editor::DataStorage::DirectQueryCallback RowCollector = CreateDirectQueryCallbackBinding(
-		[&Rows](DSI::IDirectQueryContext& Context)
+	DirectQueryCallback RowCollector = CreateDirectQueryCallbackBinding(
+		[&Rows](IDirectQueryContext& Context)
 		{
-			TConstArrayView<UE::Editor::DataStorage::RowHandle> ContextRows = Context.GetRowHandles();
+			TConstArrayView<RowHandle> ContextRows = Context.GetRowHandles();
 			Rows.Append(ContextRows);
 		});
 
 	Storage->RunQuery(RowHandleQuery, RowCollector);
 	
-	for (const UE::Editor::DataStorage::RowHandle& Row : Rows)
+	for (const RowHandle& Row : Rows)
 	{
 		if (!CanDisplayRow(Row))
 		{
@@ -409,7 +409,7 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 	}
 
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
+	using namespace UE::Editor::DataStorage;
 	
 	const FTedsOutlinerTreeItem* TedsTreeItem = Item->CastTo<FTedsOutlinerTreeItem>();
 
@@ -419,7 +419,7 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 		return;
 	}
 		
-	UE::Editor::DataStorage::RowHandle ItemRowHandle = TedsTreeItem->GetRowHandle();
+	RowHandle ItemRowHandle = TedsTreeItem->GetRowHandle();
 
 	if(!Storage->IsRowAssigned(ItemRowHandle))
 	{
@@ -427,31 +427,31 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 	}
 
 
-	TSet<UE::Editor::DataStorage::RowHandle> MatchedRowsWithParentColumn;
+	TSet<RowHandle> MatchedRowsWithParentColumn;
 	
 	// Collect all entities that are owned by our entity
-	UE::Editor::DataStorage::DirectQueryCallback ChildRowCollector = CreateDirectQueryCallbackBinding(
-	[&MatchedRowsWithParentColumn] (const DSI::IDirectQueryContext& Context)
+	DirectQueryCallback ChildRowCollector = CreateDirectQueryCallbackBinding(
+	[&MatchedRowsWithParentColumn] (const IDirectQueryContext& Context)
 	{
 		MatchedRowsWithParentColumn.Append(Context.GetRowHandles());
 	});
 
 	Storage->RunQuery(ChildRowHandleQuery, ChildRowCollector);
 
-	TArray<UE::Editor::DataStorage::RowHandle> ChildItems;
+	TArray<RowHandle> ChildItems;
 
 	// Recursively get the children for each entity
-	TFunction<void(UE::Editor::DataStorage::RowHandle)> GetChildrenRecursive = [&ChildItems, &MatchedRowsWithParentColumn, DataStorage = Storage, &GetChildrenRecursive, InHierarchyData = HierarchyData]
-	(UE::Editor::DataStorage::RowHandle EntityRowHandle) -> void
+	TFunction<void(RowHandle)> GetChildrenRecursive = [&ChildItems, &MatchedRowsWithParentColumn, DataStorage = Storage, &GetChildrenRecursive, InHierarchyData = HierarchyData]
+	(RowHandle EntityRowHandle) -> void
 	{
-		for(UE::Editor::DataStorage::RowHandle ChildEntityRowHandle : MatchedRowsWithParentColumn)
+		for(RowHandle ChildEntityRowHandle : MatchedRowsWithParentColumn)
 		{
 			void* ParentColumnData = DataStorage->GetColumnData(ChildEntityRowHandle, InHierarchyData.GetValue().HierarchyColumn);
 
 			if (ensureMsgf(ParentColumnData, TEXT("We should always the a parent column since we only grabbed rows with those ")))
 			{
 				// Get the parent row handle
-				const UE::Editor::DataStorage::RowHandle ParentRowHandle = InHierarchyData.GetValue().GetParent.Execute(ParentColumnData);
+				const RowHandle ParentRowHandle = InHierarchyData.GetValue().GetParent.Execute(ParentColumnData);
 				
 				// Check if this entity is owned by the entity we are looking children for
 				if (ParentRowHandle == EntityRowHandle)
@@ -470,7 +470,7 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 	GetChildrenRecursive(ItemRowHandle);
 
 	// Actually create the items for the child entities 
-	for (UE::Editor::DataStorage::RowHandle ChildItemRowHandle : ChildItems)
+	for (RowHandle ChildItemRowHandle : ChildItems)
 	{
 		if (!CanDisplayRow(ChildItemRowHandle))
 		{
@@ -553,7 +553,6 @@ void FTedsOutlinerImpl::OnItemMoved(UE::Editor::DataStorage::RowHandle ItemRowHa
 void FTedsOutlinerImpl::RecompileQueries()
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
 
 	UnregisterQueries();
 
@@ -713,17 +712,17 @@ void FTedsOutlinerImpl::ClearSelection() const
 	}
 	
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
+	using namespace UE::Editor::DataStorage;
 
-	TArray<UE::Editor::DataStorage::RowHandle> RowsToRemoveSelectionColumn;
+	TArray<RowHandle> RowsToRemoveSelectionColumn;
 
 	// Query to remove the selection column from all rows that belong to this selection set
-	UE::Editor::DataStorage::DirectQueryCallback RowCollector = CreateDirectQueryCallbackBinding(
-	[this, &RowsToRemoveSelectionColumn](const DSI::IDirectQueryContext& Context, const UE::Editor::DataStorage::RowHandle* RowHandles)
+	DirectQueryCallback RowCollector = CreateDirectQueryCallbackBinding(
+	[this, &RowsToRemoveSelectionColumn](const IDirectQueryContext& Context, const RowHandle* RowHandles)
 	{
-		const TConstArrayView<UE::Editor::DataStorage::RowHandle> Rows(RowHandles, Context.GetRowCount());
+		const TConstArrayView<RowHandle> Rows(RowHandles, Context.GetRowCount());
 
-		for(const UE::Editor::DataStorage::RowHandle RowHandle : Rows)
+		for(const RowHandle RowHandle : Rows)
 		{
 			if (const FTypedElementSelectionColumn* SelectionColumn = Storage->GetColumn<FTypedElementSelectionColumn>(RowHandle))
 			{
@@ -737,7 +736,7 @@ void FTedsOutlinerImpl::ClearSelection() const
 
 	Storage->RunQuery(SelectedRowsQuery, RowCollector);
 
-	for(const UE::Editor::DataStorage::RowHandle RowHandle : RowsToRemoveSelectionColumn)
+	for(const RowHandle RowHandle : RowsToRemoveSelectionColumn)
 	{
 		Storage->RemoveColumn<FTypedElementSelectionColumn>(RowHandle);
 	}

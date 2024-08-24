@@ -19,6 +19,7 @@ class UScriptStruct;
 namespace UE::Editor::DataStorage
 {
 	struct FQueryDescription;
+	struct IQueryContext;
 	
 	using QueryCallback = TFunction<void(const FQueryDescription&, IQueryContext&)>;
 	using QueryCallbackRef = TFunctionRef<void(const FQueryDescription&, IQueryContext&)>;

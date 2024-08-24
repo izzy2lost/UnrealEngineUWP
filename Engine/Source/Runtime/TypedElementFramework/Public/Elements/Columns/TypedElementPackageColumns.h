@@ -6,6 +6,7 @@
 #include "Elements/Common/TypedElementCommonTypes.h"
 #include "Elements/Common/TypedElementHandles.h"
 #include "Elements/Common/TypedElementQueryTypes.h"
+#include "HAL/Platform.h"
 #include "IO/PackageId.h"
 #include "Misc/PackagePath.h"
 #include "UObject/ObjectMacros.h"
@@ -22,7 +23,7 @@ struct FTypedElementPackageUnresolvedReference final : public FEditorDataStorage
 
 	FString PathOnDisk;
 	
-	TypedElementDataStorage::IndexHash Index;
+	UE::Editor::DataStorage::IndexHash Index;
 };
 
 /**

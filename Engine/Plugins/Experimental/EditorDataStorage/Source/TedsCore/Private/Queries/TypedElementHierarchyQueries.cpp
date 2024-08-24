@@ -7,15 +7,14 @@
 
 void UTypedElementHiearchyQueriesFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
 
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Resolve hierarchy rows"),
-			FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::Default)),
-			[](DSI::IQueryContext& Context, RowHandle Row, const FUnresolvedTableRowParentColumn& UnresolvedParent)
+			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::Default)),
+			[](IQueryContext& Context, RowHandle Row, const FUnresolvedTableRowParentColumn& UnresolvedParent)
 			{
 				RowHandle ParentRow = Context.FindIndexedRow(UnresolvedParent.ParentIdHash);
 				if (Context.IsRowAvailable(ParentRow))

@@ -2,9 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "HAL/Platform.h"
+#include "Misc/EnumClassFlags.h"
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
 	using IndexHash = uint64;
 
@@ -129,4 +130,4 @@ namespace TypedElementDataStorage
 		uint32 Count{ 0 }; /** The number of rows were processed. */
 		ECompletion Completed{ ECompletion::Unavailable };
 	};
-} // namespace TypedElementDataStorage
+} // namespace UE::Editor::DataStorage

@@ -16,19 +16,19 @@
 
 #define TRACK_TEDSASSETDATA_MEMORY 0
 
-namespace UE::Editor
+namespace UE::Editor::AssetData::Private
 {
-	namespace AssetData::Private
-	{	
+using namespace DataStorage;
+
 constexpr int32 ParallelForMinBatchSize = 1024 * 4;
 
 struct FPopulateAssetDataRowArgs
 {
 	FAssetData AssetData;
 
-	TypedElementDataStorage::IndexHash ObjectPathHash;
-	TypedElementDataStorage::IndexHash PathHash;
-	DataStorage::RowHandle PathRow = DataStorage::InvalidRowHandle;
+	IndexHash ObjectPathHash;
+	IndexHash PathHash;
+	RowHandle PathRow = InvalidRowHandle;
 };
 
 // Only safe if the GT is blocked during the operation
@@ -36,7 +36,7 @@ template<typename TAssetData>
 FPopulateAssetDataRowArgs ThreadSafe_PopulateAssetDataTableRow(TAssetData&& InAssetData, const ITypedElementDataStorageInterface& Database)
 {
 	FPopulateAssetDataRowArgs Output;
-	Output.ObjectPathHash = TypedElementDataStorage::GenerateIndexHash(InAssetData.GetSoftObjectPath());
+	Output.ObjectPathHash = GenerateIndexHash(InAssetData.GetSoftObjectPath());
 
 	// Looks safe but might not be depending on the implementation of the database
 	if (Database.IsRowAssigned(Database.FindIndexedRow(Output.ObjectPathHash)))
@@ -45,7 +45,7 @@ FPopulateAssetDataRowArgs ThreadSafe_PopulateAssetDataTableRow(TAssetData&& InAs
 		return Output;
 	}
 
-	Output.PathHash = TypedElementDataStorage::GenerateIndexHash(InAssetData.PackagePath);
+	Output.PathHash = GenerateIndexHash(InAssetData.PackagePath);
 
 	// Looks safe but might not be depending on the implementation of the database
 	Output.PathRow = Database.FindIndexedRow(Output.PathHash);
@@ -55,9 +55,9 @@ FPopulateAssetDataRowArgs ThreadSafe_PopulateAssetDataTableRow(TAssetData&& InAs
 }
 
 
-void PopulateAssetDataTableRow(FPopulateAssetDataRowArgs&& InAssetDataRowArgs, ITypedElementDataStorageInterface& Database, DataStorage::RowHandle RowHandle)
+void PopulateAssetDataTableRow(FPopulateAssetDataRowArgs&& InAssetDataRowArgs, ITypedElementDataStorageInterface& Database, RowHandle RowHandle)
 {
-	if (InAssetDataRowArgs.PathRow !=  DataStorage::InvalidRowHandle)
+	if (InAssetDataRowArgs.PathRow !=  InvalidRowHandle)
 	{
 		Database.GetColumn<FAssetsInPathColumn_Experimental>(InAssetDataRowArgs.PathRow)->AssetsRow.Add(RowHandle);
 	}
@@ -75,8 +75,8 @@ void PopulateAssetDataTableRow(FPopulateAssetDataRowArgs&& InAssetDataRowArgs, I
 struct FPopulatePathRowArgs
 {
 	FName AssetRegistryPath;
-	TypedElementDataStorage::IndexHash AssetRegistryPathHash;
-	TypedElementDataStorage::IndexHash ParentAssetRegistryPathHash;
+	IndexHash AssetRegistryPathHash;
+	IndexHash ParentAssetRegistryPathHash;
 	uint32 PathDepth;
 
 	operator bool() const 
@@ -113,16 +113,16 @@ void GetPathDepthAndParentFolderIndex(FStringView Path, uint32& OutDepth, int32&
 }
 
 // Only thread safe if the game thread is blocked 
-FPopulatePathRowArgs ThreadSafe_PopulatePathRowArgs(TypedElementDataStorage::IndexHash AssetRegistryPathHash, FName InAssetRegistryPath, FStringView PathAsString)
+FPopulatePathRowArgs ThreadSafe_PopulatePathRowArgs(IndexHash AssetRegistryPathHash, FName InAssetRegistryPath, FStringView PathAsString)
 {
-	TypedElementDataStorage::IndexHash ParentAssetRegistryPathHash = DataStorage::InvalidRowHandle;
+	IndexHash ParentAssetRegistryPathHash = InvalidRowHandle;
 	int32 CharacterIndex;
 	uint32 Depth;
 	GetPathDepthAndParentFolderIndex(PathAsString, Depth, CharacterIndex);
 	if (CharacterIndex != INDEX_NONE)
 	{
 		FStringView ParentPath = PathAsString.Left(CharacterIndex);
-		ParentAssetRegistryPathHash = TypedElementDataStorage::GenerateIndexHash(FName(ParentPath));
+		ParentAssetRegistryPathHash = GenerateIndexHash(FName(ParentPath));
 	}
 
 	FPopulatePathRowArgs Args;
@@ -134,11 +134,11 @@ FPopulatePathRowArgs ThreadSafe_PopulatePathRowArgs(TypedElementDataStorage::Ind
 	return Args;
 }
 
-void PopulatePathDataTableRow(FPopulatePathRowArgs&& InPopulatePathRowArgs, ITypedElementDataStorageInterface& Database, DataStorage::RowHandle InRowHandle)
+void PopulatePathDataTableRow(FPopulatePathRowArgs&& InPopulatePathRowArgs, ITypedElementDataStorageInterface& Database, RowHandle InRowHandle)
 {
-	if (InPopulatePathRowArgs.ParentAssetRegistryPathHash != DataStorage::InvalidRowHandle)
+	if (InPopulatePathRowArgs.ParentAssetRegistryPathHash != InvalidRowHandle)
 	{
-		const DataStorage::RowHandle ParentRow = Database.FindIndexedRow(InPopulatePathRowArgs.ParentAssetRegistryPathHash);
+		const RowHandle ParentRow = Database.FindIndexedRow(InPopulatePathRowArgs.ParentAssetRegistryPathHash);
 		if (Database.IsRowAssigned(ParentRow))
 		{
 			Database.GetColumn<FChildrenAssetPathColumn_Experimental>(ParentRow)->ChildrenRows.Add(InRowHandle);
@@ -179,13 +179,13 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 
 	// Register data types to TEDS
 	PathsTable = Database.FindTable(FName(TEXT("Editor_AssetRegistryPathsTable")));
-	if (PathsTable == DataStorage::InvalidTableHandle)
+	if (PathsTable == InvalidTableHandle)
 	{
 		PathsTable = Database.RegisterTable<FAssetPathColumn_Experimental, FChildrenAssetPathColumn_Experimental, FParentAssetPathColumn_Experimental, FAssetsInPathColumn_Experimental>(FName(TEXT("Editor_AssetRegistryPathsTable")));
 	}
 
 	AssetsDataTable = Database.FindTable(FName(TEXT("Editor_AssetRegistryAssetDataTable")));
-	if (AssetsDataTable == DataStorage::InvalidTableHandle)
+	if (AssetsDataTable == InvalidTableHandle)
 	{
 		AssetsDataTable = Database.RegisterTable<FAssetDataColumn_Experimental, FUpdatedPathTag, FUpdatedAssetDataTag>(FName(TEXT("Editor_AssetRegistryAssetDataTable")));
 	}
@@ -194,10 +194,10 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 	RemoveUpdatedPathTagQuery = Database.RegisterQuery(
 			TypedElementQueryBuilder::Select(
 				TEXT("FTedsAssetData: Remove Updated Path Tag"),
-				TypedElementQueryBuilder::FPhaseAmble(TypedElementQueryBuilder::FPhaseAmble::ELocation::Postamble, TypedElementDataStorage::EQueryTickPhase::FrameEnd),
-				[](DataStorage::IQueryContext& Context, const DataStorage::RowHandle* Rows)
+				TypedElementQueryBuilder::FPhaseAmble(TypedElementQueryBuilder::FPhaseAmble::ELocation::Postamble, EQueryTickPhase::FrameEnd),
+				[](IQueryContext& Context, const RowHandle* Rows)
 				{
-					Context.RemoveColumns<FUpdatedPathTag>(TConstArrayView<DataStorage::RowHandle>(Rows, Context.GetRowCount()));
+					Context.RemoveColumns<FUpdatedPathTag>(TConstArrayView<RowHandle>(Rows, Context.GetRowCount()));
 				}
 			)
 			.Where()
@@ -208,10 +208,10 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 	RemoveUpdatedAssetDataTagQuery = Database.RegisterQuery(
 			TypedElementQueryBuilder::Select(
 				TEXT("FTedsAssetData: Remove Updated Asset Data Tag"),
-				TypedElementQueryBuilder::FPhaseAmble(TypedElementQueryBuilder::FPhaseAmble::ELocation::Postamble, TypedElementDataStorage::EQueryTickPhase::FrameEnd),
-				[](DataStorage::IQueryContext& Context, const DataStorage::RowHandle* Rows)
+				TypedElementQueryBuilder::FPhaseAmble(TypedElementQueryBuilder::FPhaseAmble::ELocation::Postamble, EQueryTickPhase::FrameEnd),
+				[](IQueryContext& Context, const RowHandle* Rows)
 				{
-					Context.RemoveColumns<FUpdatedAssetDataTag>(TConstArrayView<DataStorage::RowHandle>(Rows, Context.GetRowCount()));
+					Context.RemoveColumns<FUpdatedAssetDataTag>(TConstArrayView<RowHandle>(Rows, Context.GetRowCount()));
 				}
 			)
 			.Where()
@@ -228,14 +228,14 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 	ResolveMissingAssetInPathQuery = Database.RegisterQuery(
 		TypedElementQueryBuilder::Select(
 			TEXT("FTedsAssetData: Resolve Missing Asset In Path"),
-			TypedElementQueryBuilder::FProcessor(TypedElementDataStorage::EQueryTickPhase::FrameEnd, Database.GetQueryTickGroupName(TypedElementDataStorage::EQueryTickGroups::Default)),
-			[this](DataStorage::IQueryContext& Context, DataStorage::RowHandle Row, const FUnresolvedAssetsInPathColumn_Experimental& UnresolvedAssetPath)
+			TypedElementQueryBuilder::FProcessor(EQueryTickPhase::FrameEnd, Database.GetQueryTickGroupName(EQueryTickGroups::Default)),
+			[this](IQueryContext& Context, RowHandle Row, const FUnresolvedAssetsInPathColumn_Experimental& UnresolvedAssetPath)
 			{
 #if TRACK_TEDSASSETDATA_MEMORY
 				LLM_SCOPE_BYNAME(TEXT("FTedsAssetData"))
 #endif
 
-				const DataStorage::RowHandle PathRow = Context.FindIndexedRow(UnresolvedAssetPath.Hash);
+				const RowHandle PathRow = Context.FindIndexedRow(UnresolvedAssetPath.Hash);
 				if (Context.IsRowAssigned(PathRow))
 				{
 					Context.RemoveColumns<FUnresolvedAssetsInPathColumn_Experimental>(Row);
@@ -266,14 +266,14 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 	ResolveMissingParentPathQuery = Database.RegisterQuery(
 		TypedElementQueryBuilder::Select(
 			TEXT("FTedsAssetData: Resolve Missing Parent Path Row"),
-			TypedElementQueryBuilder::FProcessor(TypedElementDataStorage::EQueryTickPhase::FrameEnd, Database.GetQueryTickGroupName(TypedElementDataStorage::EQueryTickGroups::Default)),
-			[this](DataStorage::IQueryContext& Context, DataStorage::RowHandle Row, const FUnresolvedParentAssetPathColumn_Experimental& UnresolvedParentAssetPath, FParentAssetPathColumn_Experimental& ParentAssetPathColumn)
+			TypedElementQueryBuilder::FProcessor(EQueryTickPhase::FrameEnd, Database.GetQueryTickGroupName(EQueryTickGroups::Default)),
+			[this](IQueryContext& Context, RowHandle Row, const FUnresolvedParentAssetPathColumn_Experimental& UnresolvedParentAssetPath, FParentAssetPathColumn_Experimental& ParentAssetPathColumn)
 			{
 #if TRACK_TEDSASSETDATA_MEMORY
 				LLM_SCOPE_BYNAME(TEXT("FTedsAssetData"))
 #endif
 
-				const DataStorage::RowHandle ParentPathRow = Context.FindIndexedRow(UnresolvedParentAssetPath.Hash);
+				const RowHandle ParentPathRow = Context.FindIndexedRow(UnresolvedParentAssetPath.Hash);
 				if (Context.IsRowAssigned(ParentPathRow))
 				{
 					Context.RemoveColumns<FUnresolvedParentAssetPathColumn_Experimental>(Row);
@@ -317,27 +317,27 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 		{
 			FName Path = CachedPaths[Index];
 			Path.ToString(NameBuilder);
-			PopulatePathRowArgs[Index] = ThreadSafe_PopulatePathRowArgs(TypedElementDataStorage::GenerateIndexHash(Path), Path, NameBuilder);
+			PopulatePathRowArgs[Index] = ThreadSafe_PopulatePathRowArgs(GenerateIndexHash(Path), Path, NameBuilder);
 		});
 
-	TArray<DataStorage::RowHandle> ReservedRows;
+	TArray<RowHandle> ReservedRows;
 	ReservedRows.AddUninitialized(PopulatePathRowArgs.Num() + AssetsData.Num());
 	Database.BatchReserveRows(ReservedRows);
 
-	TArray<TPair<TypedElementDataStorage::IndexHash, DataStorage::RowHandle>> IndexesToReservedRows;
+	TArray<TPair<IndexHash, RowHandle>> IndexesToReservedRows;
 	IndexesToReservedRows.AddUninitialized(ReservedRows.Num());
 
 	// Index Reserved Path Rows
-	TConstArrayView<DataStorage::RowHandle> ReservedPopulatePathRows(ReservedRows.GetData(), PopulatePathRowArgs.Num());
-	TArrayView<TPair<TypedElementDataStorage::IndexHash, DataStorage::RowHandle>> IndexesToReservedPathRows(IndexesToReservedRows.GetData(), PopulatePathRowArgs.Num());
+	TConstArrayView<RowHandle> ReservedPopulatePathRows(ReservedRows.GetData(), PopulatePathRowArgs.Num());
+	TArrayView<TPair<IndexHash, RowHandle>> IndexesToReservedPathRows(IndexesToReservedRows.GetData(), PopulatePathRowArgs.Num());
 	ParallelFor(TEXT("Populating TEDS Asset Registry Path Data Indexes"), ReservedPopulatePathRows.Num(), ParallelForMinBatchSize, [&IndexesToReservedPathRows, &ReservedPopulatePathRows, &PopulatePathRowArgs](int32 Index)
 		{
-			IndexesToReservedPathRows[Index] = TPair<TypedElementDataStorage::IndexHash, DataStorage::RowHandle>(PopulatePathRowArgs[Index].AssetRegistryPathHash, ReservedPopulatePathRows[Index]);
+			IndexesToReservedPathRows[Index] = TPair<IndexHash, RowHandle>(PopulatePathRowArgs[Index].AssetRegistryPathHash, ReservedPopulatePathRows[Index]);
 		});
 	Database.BatchIndexRows(IndexesToReservedPathRows);
 
 	// Populate Path Rows
-	Database.BatchAddRow(PathsTable, ReservedPopulatePathRows, [PathRowArgs = MoveTemp(PopulatePathRowArgs), Index = 0, this](DataStorage::RowHandle InRowHandle) mutable
+	Database.BatchAddRow(PathsTable, ReservedPopulatePathRows, [PathRowArgs = MoveTemp(PopulatePathRowArgs), Index = 0, this](RowHandle InRowHandle) mutable
 		{
 			PopulatePathDataTableRow(MoveTemp(PathRowArgs[Index]), Database, InRowHandle);
 			++Index;
@@ -352,16 +352,16 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 		});
 
 	// Index Reserved Asset Data Rows
-	TConstArrayView<DataStorage::RowHandle> ReservedAssetDataRows(ReservedRows.GetData() + ReservedPopulatePathRows.Num(), AssetsData.Num());
-	TArrayView<TPair<TypedElementDataStorage::IndexHash, DataStorage::RowHandle>>  IndexesToResevedAssetRows(IndexesToReservedRows.GetData() + ReservedPopulatePathRows.Num(), ReservedAssetDataRows.Num());
+	TConstArrayView<RowHandle> ReservedAssetDataRows(ReservedRows.GetData() + ReservedPopulatePathRows.Num(), AssetsData.Num());
+	TArrayView<TPair<IndexHash, RowHandle>>  IndexesToResevedAssetRows(IndexesToReservedRows.GetData() + ReservedPopulatePathRows.Num(), ReservedAssetDataRows.Num());
 	ParallelFor(TEXT("Populating TEDS Asset Registry Asset Data Indexes"), PopulateAssetDataRowArgs.Num(), ParallelForMinBatchSize, [&PopulateAssetDataRowArgs, &ReservedAssetDataRows, &IndexesToResevedAssetRows](int32 Index)
 		{
-			IndexesToResevedAssetRows[Index] = TPair<TypedElementDataStorage::IndexHash, DataStorage::RowHandle>(PopulateAssetDataRowArgs[Index].ObjectPathHash, ReservedAssetDataRows[Index]);
+			IndexesToResevedAssetRows[Index] = TPair<IndexHash, RowHandle>(PopulateAssetDataRowArgs[Index].ObjectPathHash, ReservedAssetDataRows[Index]);
 		});
 	Database.BatchIndexRows(IndexesToResevedAssetRows);
 
 	// Populate Asset Rows
-	Database.BatchAddRow(AssetsDataTable, ReservedAssetDataRows,  [AssetDataRowArgs = MoveTemp(PopulateAssetDataRowArgs), Index = 0, this](DataStorage::RowHandle InRowHandle) mutable
+	Database.BatchAddRow(AssetsDataTable, ReservedAssetDataRows,  [AssetDataRowArgs = MoveTemp(PopulateAssetDataRowArgs), Index = 0, this](RowHandle InRowHandle) mutable
 		{
 			PopulateAssetDataTableRow(MoveTemp(AssetDataRowArgs[Index]), Database, InRowHandle);
 			++Index;
@@ -399,8 +399,8 @@ FTedsAssetData::~FTedsAssetData()
 	
 			AssetRegistry->EnumerateAllCachedPaths([this](FName InPath)
 				{
-					const TypedElementDataStorage::IndexHash PathHash = TypedElementDataStorage::GenerateIndexHash(InPath);
-					const DataStorage::RowHandle Row = Database.FindIndexedRow(PathHash);
+					const IndexHash PathHash = GenerateIndexHash(InPath);
+					const RowHandle Row = Database.FindIndexedRow(PathHash);
 					Database.RemoveRow(Row);
 					Database.RemoveIndex(PathHash);
 					return true;
@@ -408,8 +408,8 @@ FTedsAssetData::~FTedsAssetData()
 
 			AssetRegistry->EnumerateAllAssets([this](const FAssetData& InAssetData)
 				{
-					const TypedElementDataStorage::IndexHash AssetPathHash = TypedElementDataStorage::GenerateIndexHash(InAssetData.GetSoftObjectPath());
-					const DataStorage::RowHandle Row = Database.FindIndexedRow(AssetPathHash);
+					const IndexHash AssetPathHash = GenerateIndexHash(InAssetData.GetSoftObjectPath());
+					const RowHandle Row = Database.FindIndexedRow(AssetPathHash);
 					Database.RemoveRow(Row);
 					Database.RemoveIndex(AssetPathHash);
 					return true;
@@ -466,9 +466,9 @@ void FTedsAssetData::OnAssetsAdded(TConstArrayView<FAssetData> InAssetsAdded)
 	int32 Index = 0;
 	if (NewRowsCount > 0)
 	{
-		TArray<TPair<TypedElementDataStorage::IndexHash, DataStorage::RowHandle>> IndexToRow;
+		TArray<TPair<IndexHash, RowHandle>> IndexToRow;
 		IndexToRow.Reserve(NewRowsCount);
-		Database.BatchAddRow(AssetsDataTable, NewRowsCount, [RowArgs = MoveTemp(PopulateRowArgs), Index = 0, &IndexToRow, this](DataStorage::RowHandle InRowHandle) mutable
+		Database.BatchAddRow(AssetsDataTable, NewRowsCount, [RowArgs = MoveTemp(PopulateRowArgs), Index = 0, &IndexToRow, this](RowHandle InRowHandle) mutable
 			{
 				FPopulateAssetDataRowArgs ARowArgs = MoveTemp(RowArgs[Index]);
 				while (!ARowArgs.AssetData.IsValid())
@@ -496,14 +496,14 @@ void FTedsAssetData::OnAssetsRemoved(TConstArrayView<FAssetData> InAssetsRemoved
 
 	for (const FAssetData& Asset : InAssetsRemoved)
 	{
-		const TypedElementDataStorage::IndexHash AssetHash = TypedElementDataStorage::GenerateIndexHash(Asset.GetSoftObjectPath());
-		const DataStorage::RowHandle AssetRow = Database.FindIndexedRow(AssetHash);
+		const IndexHash AssetHash = GenerateIndexHash(Asset.GetSoftObjectPath());
+		const RowHandle AssetRow = Database.FindIndexedRow(AssetHash);
 		if (Database.IsRowAssigned(AssetRow))
 		{
 			if (const FAssetDataColumn_Experimental* AssetDataColunm = Database.GetColumn<FAssetDataColumn_Experimental>(AssetRow))
 			{
-				const TypedElementDataStorage::IndexHash FolderPathHash = TypedElementDataStorage::GenerateIndexHash(AssetDataColunm->AssetData.PackagePath);
-				const DataStorage::RowHandle FolderRow = Database.FindIndexedRow(FolderPathHash);
+				const IndexHash FolderPathHash = GenerateIndexHash(AssetDataColunm->AssetData.PackagePath);
+				const RowHandle FolderRow = Database.FindIndexedRow(FolderPathHash);
 				if (FAssetsInPathColumn_Experimental* AssetInFolder = Database.GetColumn<FAssetsInPathColumn_Experimental>(FolderRow))
 				{
 					AssetInFolder->AssetsRow.Remove(AssetRow);
@@ -525,8 +525,8 @@ void FTedsAssetData::OnAssetsUpdated(TConstArrayView<FAssetData> InAssetsUpdated
 
 	for (const FAssetData& Asset : InAssetsUpdated)
 	{
-		const TypedElementDataStorage::IndexHash AssetHash = TypedElementDataStorage::GenerateIndexHash(Asset.GetSoftObjectPath());
-		const DataStorage::RowHandle Row = Database.FindIndexedRow(AssetHash);
+		const IndexHash AssetHash = GenerateIndexHash(Asset.GetSoftObjectPath());
+		const RowHandle Row = Database.FindIndexedRow(AssetHash);
 		if (Database.IsRowAssigned(Row))
 		{
 			Database.GetColumn<FAssetDataColumn_Experimental>(Row)->AssetData = Asset;
@@ -545,8 +545,8 @@ void FTedsAssetData::OnAssetsUpdatedOnDisk(TConstArrayView<FAssetData> InAssetsU
 
 	for (const FAssetData& Asset : InAssetsUpdated)
 	{
-		const TypedElementDataStorage::IndexHash AssetHash = TypedElementDataStorage::GenerateIndexHash(Asset.GetSoftObjectPath());
-		const DataStorage::RowHandle Row = Database.FindIndexedRow(AssetHash);
+		const IndexHash AssetHash = GenerateIndexHash(Asset.GetSoftObjectPath());
+		const RowHandle Row = Database.FindIndexedRow(AssetHash);
 		if (Database.IsRowAssigned(Row))
 		{
 			Database.GetColumn<FAssetDataColumn_Experimental>(Row)->AssetData = Asset;
@@ -563,15 +563,15 @@ void FTedsAssetData::OnAssetRenamed(const FAssetData& InAsset, const FString& In
 	LLM_SCOPE_BYNAME(TEXT("FTedsAssetData"))
 #endif
 
-	const TypedElementDataStorage::IndexHash NewAssetHash = TypedElementDataStorage::GenerateIndexHash(InAsset.GetSoftObjectPath());
-	const TypedElementDataStorage::IndexHash OldAssetHash = TypedElementDataStorage::GenerateIndexHash(FSoftObjectPath(InOldObjectPath));
-	const DataStorage::RowHandle Row = Database.FindIndexedRow(OldAssetHash);
+	const IndexHash NewAssetHash = GenerateIndexHash(InAsset.GetSoftObjectPath());
+	const IndexHash OldAssetHash = GenerateIndexHash(FSoftObjectPath(InOldObjectPath));
+	const RowHandle Row = Database.FindIndexedRow(OldAssetHash);
 	if (Database.IsRowAssigned(Row))
 	{
 		Database.GetColumn<FAssetDataColumn_Experimental>(Row)->AssetData = InAsset;
 
 		// Update the asset in folder columns
-		const TypedElementDataStorage::IndexHash NewFolderHash = TypedElementDataStorage::GenerateIndexHash(InAsset.PackagePath);
+		const IndexHash NewFolderHash = GenerateIndexHash(InAsset.PackagePath);
 		FStringView OldPackagePath(InOldObjectPath);
 
 		{
@@ -580,12 +580,12 @@ void FTedsAssetData::OnAssetRenamed(const FAssetData& InAsset, const FString& In
 			OldPackagePath.LeftInline(CharacterIndex);
 		}
 
-		const TypedElementDataStorage::IndexHash OldFolderHash = TypedElementDataStorage::GenerateIndexHash(FName(OldPackagePath));
+		const IndexHash OldFolderHash = GenerateIndexHash(FName(OldPackagePath));
 
 		if (NewFolderHash != OldFolderHash)
 		{
-			const DataStorage::RowHandle NewPathRow = Database.FindIndexedRow(NewFolderHash);
-			if (NewPathRow !=  DataStorage::InvalidRowHandle)
+			const RowHandle NewPathRow = Database.FindIndexedRow(NewFolderHash);
+			if (NewPathRow !=  InvalidRowHandle)
 			{
 				Database.GetColumn<FAssetsInPathColumn_Experimental>(NewPathRow)->AssetsRow.Add(Row);
 			}
@@ -596,8 +596,8 @@ void FTedsAssetData::OnAssetRenamed(const FAssetData& InAsset, const FString& In
 				Database.AddColumn<FUnresolvedAssetsInPathColumn_Experimental>(Row, MoveTemp(UnresolvedAssetsInPathColumn));
 			}
 
-			const DataStorage::RowHandle OldPathRow = Database.FindIndexedRow(OldFolderHash);
-			if (NewPathRow !=  DataStorage::InvalidRowHandle)
+			const RowHandle OldPathRow = Database.FindIndexedRow(OldFolderHash);
+			if (NewPathRow !=  InvalidRowHandle)
 			{
 				Database.GetColumn<FAssetsInPathColumn_Experimental>(NewPathRow)->AssetsRow.Remove(Row);
 			}
@@ -628,10 +628,10 @@ void FTedsAssetData::OnPathsAdded(TConstArrayView<FStringView> InPathsAdded)
 		{
 			FStringView Path = InPathsAdded[Index];
 			FName PathName(Path);
-			const TypedElementDataStorage::IndexHash AssetRegistryPathHash = TypedElementDataStorage::GenerateIndexHash(PathName);
+			const IndexHash AssetRegistryPathHash = GenerateIndexHash(PathName);
 			FPopulatePathRowArgs RowArgs;
 
-			if (Database.FindIndexedRow(AssetRegistryPathHash) != DataStorage::InvalidRowHandle)
+			if (Database.FindIndexedRow(AssetRegistryPathHash) != InvalidRowHandle)
 			{
 				RowArgs.MarkAsInvalid();
 			}
@@ -653,11 +653,11 @@ void FTedsAssetData::OnPathsAdded(TConstArrayView<FStringView> InPathsAdded)
 
 	if (NewRowsCount > 0)
 	{
-		TArray<DataStorage::RowHandle> ReservedRow;
+		TArray<RowHandle> ReservedRow;
 		ReservedRow.AddUninitialized(NewRowsCount);
 		Database.BatchReserveRows(ReservedRow);
 
-		TArray<TPair<TypedElementDataStorage::IndexHash, DataStorage::RowHandle>> IndexesAndRows;
+		TArray<TPair<IndexHash, RowHandle>> IndexesAndRows;
 		IndexesAndRows.Reserve(NewRowsCount);
 
 		int32 RowCount = 0;
@@ -677,7 +677,7 @@ void FTedsAssetData::OnPathsAdded(TConstArrayView<FStringView> InPathsAdded)
 		Database.BatchIndexRows(IndexesAndRows);
 
 		int32 Index = 0;
-		Database.BatchAddRow(PathsTable, ReservedRow, [&PopulateRowArgs, &Index, this](DataStorage::RowHandle InRowHandle)
+		Database.BatchAddRow(PathsTable, ReservedRow, [&PopulateRowArgs, &Index, this](RowHandle InRowHandle)
 			{
 				FPopulatePathRowArgs RowArgs = MoveTemp(PopulateRowArgs[Index]);
 				while (!RowArgs)
@@ -702,12 +702,11 @@ void FTedsAssetData::OnPathsRemoved(TConstArrayView<FStringView> InPathsRemoved)
 
 	for (const FStringView Path : InPathsRemoved)
 	{
-		const TypedElementDataStorage::IndexHash PathHash = TypedElementDataStorage::GenerateIndexHash(FName(Path));
+		const IndexHash PathHash = GenerateIndexHash(FName(Path));
 		Database.RemoveRow(Database.FindIndexedRow(PathHash));
 		Database.RemoveIndex(PathHash);
 	}
 }
-} // namespace AssetData::Private
-} // namespace UE::Editor
+} // namespace UE::Editor::AssetData::Private
 
 #undef TRACK_TEDSASSETDATA_MEMORY

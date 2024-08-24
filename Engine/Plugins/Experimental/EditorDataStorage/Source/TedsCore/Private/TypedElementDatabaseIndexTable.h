@@ -20,32 +20,31 @@ namespace UE::Editor::DataStorage
 	public:
 		RowHandle FindIndexedRow(
 			EGlobalLockScope LockScope,
-			TypedElementDataStorage::IndexHash Index) const;
+			IndexHash Index) const;
 		void IndexRow(
 			EGlobalLockScope LockScope,
-			TypedElementDataStorage::IndexHash Index, 
+			IndexHash Index, 
 			RowHandle Row);
 		void BatchIndexRows(
 			EGlobalLockScope LockScope,
-			TConstArrayView<TPair<TypedElementDataStorage::IndexHash, 
-			RowHandle>> IndexRowPairs);
+			TConstArrayView<TPair<IndexHash, RowHandle>> IndexRowPairs);
 		void ReindexRow(
 			EGlobalLockScope LockScope,
-			TypedElementDataStorage::IndexHash OriginalIndex,
-			TypedElementDataStorage::IndexHash NewIndex,
+			IndexHash OriginalIndex,
+			IndexHash NewIndex,
 			RowHandle Row);
 		void RemoveIndex(
 			EGlobalLockScope LockScope,
-			TypedElementDataStorage::IndexHash Index);
+			IndexHash Index);
 		void RemoveRow(
 			EGlobalLockScope LockScope,
 			RowHandle Row);
 
 	private:
-		TMap<TypedElementDataStorage::IndexHash, RowHandle> IndexLookupMap;
-		TMultiMap<RowHandle, TypedElementDataStorage::IndexHash> ReverseIndexLookupMap;
+		TMap<IndexHash, RowHandle> IndexLookupMap;
+		TMultiMap<RowHandle, IndexHash> ReverseIndexLookupMap;
 	
-		void IndexRowUnguarded(TypedElementDataStorage::IndexHash Index, RowHandle Row);
-		void RemoveIndexUnguarded(TypedElementDataStorage::IndexHash Index);
+		void IndexRowUnguarded(IndexHash Index, RowHandle Row);
+		void RemoveIndexUnguarded(IndexHash Index);
 	};
 } // namespace UE::Editor::DataStorage

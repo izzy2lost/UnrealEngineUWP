@@ -9,9 +9,7 @@
 
 #include "Misc/AutomationTest.h"
 
-namespace UE::Editor::DataStorage
-{
-namespace Tests
+namespace UE::Editor::DataStorage::Tests
 {
 	BEGIN_DEFINE_SPEC(DynamicColumnTestFixture, "Editor.DataStorage.DynamicColumns", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 		ITypedElementDataStorageInterface* TedsInterface = nullptr;
@@ -193,7 +191,7 @@ namespace Tests
 								Compile());
 						
 							SetExpectedMatches({Rows[0]});
-							TypedElementDataStorage::FQueryResult Result = TedsInterface->RunQuery(Query, Callback);
+							FQueryResult Result = TedsInterface->RunQuery(Query, Callback);
 							TestEqual("Match Row[0]", Result.Count, GetMatchCount());
 						}
 						{
@@ -204,7 +202,7 @@ namespace Tests
 										All<FTestDynamicTag>(Identifiers[0]).
 								Compile());
 							SetExpectedMatches({Rows[0], Rows[1]});
-							TypedElementDataStorage::FQueryResult Result = TedsInterface->RunQuery(Query, Callback);
+							FQueryResult Result = TedsInterface->RunQuery(Query, Callback);
 							TestEqual("Match Row[0] and Row[1]", Result.Count, GetMatchCount());
 						}
 						{
@@ -216,7 +214,7 @@ namespace Tests
 										None<FTestDynamicTag>(Identifiers[1]).
 								Compile());
 							SetExpectedMatches({Rows[1]});
-							TypedElementDataStorage::FQueryResult Result = TedsInterface->RunQuery(Query, Callback);
+							FQueryResult Result = TedsInterface->RunQuery(Query, Callback);
 							TestEqual("Match Row[1]", Result.Count, GetMatchCount());
 						}
 						{
@@ -227,7 +225,7 @@ namespace Tests
 										All<FTestDynamicTag>(Identifiers[1]).
 								Compile());
 							SetExpectedMatches({Rows[0], Rows[2]});
-							TypedElementDataStorage::FQueryResult Result = TedsInterface->RunQuery(Query, Callback);
+							FQueryResult Result = TedsInterface->RunQuery(Query, Callback);
 							TestEqual("Match Row[0] and Row[2]", Result.Count, GetMatchCount());
 						}
 						{
@@ -239,7 +237,7 @@ namespace Tests
 										All<FTestDynamicTag>(Identifiers[1]).
 								Compile());
 							SetExpectedMatches({Rows[2]});
-							TypedElementDataStorage::FQueryResult Result = TedsInterface->RunQuery(Query, Callback);
+							FQueryResult Result = TedsInterface->RunQuery(Query, Callback);
 							TestEqual("Match Row[2]", Result.Count, GetMatchCount());
 						}
 						{
@@ -251,7 +249,7 @@ namespace Tests
 										Any<FTestDynamicTag>(Identifiers[1]).
 								Compile());
 							SetExpectedMatches({Rows[0], Rows[1], Rows[2]});
-							TypedElementDataStorage::FQueryResult Result = TedsInterface->RunQuery(Query, Callback);
+							FQueryResult Result = TedsInterface->RunQuery(Query, Callback);
 							TestEqual("Match All Rows", Result.Count, GetMatchCount());
 						}
 					}).Wait();
@@ -299,7 +297,6 @@ namespace Tests
 						};
 						
 						using namespace TypedElementQueryBuilder;
-						using namespace TypedElementDataStorage;
 						// Setup an activatable processor for the test
 						ActivationKeys.Emplace(TEXT("TEST: Match Row[0]"));
 						QueryExpectedMatchRows.Emplace(TArray({Rows[0]}));
@@ -488,7 +485,6 @@ namespace Tests
 					Async(EAsyncExecution::TaskGraphMainThread,[this, &ActivationKeys, &AllTestExpectations, &UnexpectedRowCount]()
 					{
 						using namespace TypedElementQueryBuilder;
-						using namespace TypedElementDataStorage;
 
 						auto RunTest = [this, &AllTestExpectations, &UnexpectedRowCount](IQueryContext& Context, const RowHandle* RowsPtr, int32 TestIndex)
 						{
@@ -613,7 +609,6 @@ namespace Tests
 			TedsInterface = nullptr;
 		});
 	}
-} // namespace Tests
-} // namespace UE::Editor::DataStorage
+} // namespace UE::Editor::DataStorage::Tests
 
 #endif // WITH_TESTS

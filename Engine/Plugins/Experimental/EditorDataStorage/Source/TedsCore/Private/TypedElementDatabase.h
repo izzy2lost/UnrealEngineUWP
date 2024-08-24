@@ -139,7 +139,7 @@ public:
 	const UScriptStruct* FindDynamicColumn(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const override;
 	const UScriptStruct* GenerateDynamicColumn(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) override;
 
-	void RegisterTickGroup(FName GroupName, EQueryTickPhase Phase, FName BeforeGroup, FName AfterGroup, TypedElementDataStorage::EExecutionMode ExecutionMode);
+	void RegisterTickGroup(FName GroupName, EQueryTickPhase Phase, FName BeforeGroup, FName AfterGroup, UE::Editor::DataStorage::EExecutionMode ExecutionMode);
 	void UnregisterTickGroup(FName GroupName, EQueryTickPhase Phase);
 
 	QueryHandle RegisterQuery(FQueryDescription&& Query) override;
@@ -152,15 +152,15 @@ public:
 		DirectQueryCallbackRef Callback) override;
 	virtual void ActivateQueries(FName ActivationName) override;
 
-	virtual RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override;
-	virtual void IndexRow(TypedElementDataStorage::IndexHash Index, RowHandle Row) override;
+	virtual RowHandle FindIndexedRow(UE::Editor::DataStorage::IndexHash Index) const override;
+	virtual void IndexRow(UE::Editor::DataStorage::IndexHash Index, RowHandle Row) override;
 	virtual void BatchIndexRows(
-		TConstArrayView<TPair<TypedElementDataStorage::IndexHash, RowHandle>> IndexRowPairs) override;
+		TConstArrayView<TPair<UE::Editor::DataStorage::IndexHash, RowHandle>> IndexRowPairs) override;
 	virtual void ReindexRow(
-		TypedElementDataStorage::IndexHash OriginalIndex, 
-		TypedElementDataStorage::IndexHash NewIndex, 
+		UE::Editor::DataStorage::IndexHash OriginalIndex, 
+		UE::Editor::DataStorage::IndexHash NewIndex, 
 		RowHandle Row) override;
-	virtual void RemoveIndex(TypedElementDataStorage::IndexHash Index) override;
+	virtual void RemoveIndex(UE::Editor::DataStorage::IndexHash Index) override;
 
 	virtual FTypedElementOnDataStorageUpdate& OnUpdate() override;
 	virtual FTypedElementOnDataStorageUpdate& OnUpdateCompleted() override;

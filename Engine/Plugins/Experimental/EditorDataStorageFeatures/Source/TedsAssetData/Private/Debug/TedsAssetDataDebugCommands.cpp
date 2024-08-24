@@ -23,9 +23,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogTEDSAssetRegistry, Log, All)
 
-namespace UE::Editor::DataStorage
-{
-namespace Debug::Private
+namespace UE::Editor::DataStorage::Debug::Private
 {
 	static FAutoConsoleCommand CCMDTestFolderRowData(
 		TEXT("TEDS.Debug.ShowDataOfAssetFolder"),
@@ -38,7 +36,7 @@ namespace Debug::Private
 				for (const FString& Path : InArgs)
 				{
 					FName PathAsName(*Path);
-					RowHandle Row = Database->FindIndexedRow(TypedElementDataStorage::GenerateIndexHash(PathAsName));
+					RowHandle Row = Database->FindIndexedRow(GenerateIndexHash(PathAsName));
 
 					if (Database->IsRowAssigned(Row))
 					{
@@ -100,7 +98,7 @@ namespace Debug::Private
 					AssetRegistry.GetAssetsByPath(PathAsName, Assets);
 					for (const FAssetData& Asset : Assets)
 					{
-						RowHandle AssetRow = Database->FindIndexedRow(TypedElementDataStorage::GenerateIndexHash(Asset.GetSoftObjectPath()));
+						RowHandle AssetRow = Database->FindIndexedRow(GenerateIndexHash(Asset.GetSoftObjectPath()));
 
 						if (const FUnresolvedAssetsInPathColumn_Experimental* UnresolvedAssetsInPathColumn = Database->GetColumn<FUnresolvedAssetsInPathColumn_Experimental>(AssetRow))
 						{
@@ -221,7 +219,6 @@ namespace Debug::Private
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.CreateDebugAssetRows);
 
-				using namespace TypedElementDataStorage;
 				using namespace TypedElementQueryBuilder;
 
 				ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
@@ -254,7 +251,6 @@ namespace Debug::Private
 		FConsoleCommandWithArgsDelegate::CreateLambda(
 			[](const TArray<FString>& Args)
 			{
-				using namespace TypedElementDataStorage;
 				using namespace TypedElementQueryBuilder;
 
 				ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
@@ -281,5 +277,4 @@ namespace Debug::Private
 				}
 			}
 		));
-} // namespace Debug::Private
-} // namespace UE::Editor::DataStorage
+} // namespace UE::Editor::DataStorage::Debug::Private

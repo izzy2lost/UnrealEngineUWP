@@ -2021,8 +2021,6 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 	auto UpdateDataStorage = [](const FPerforceSourceControlState& State)
 	{
 		using namespace TypedElementQueryBuilder;
-		using namespace TypedElementDataStorage;
-		using DSI = ITypedElementDataStorageInterface;
 		using namespace UE::Editor;
 
 		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
@@ -2031,7 +2029,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 			return;
 		}
 
-		DSI* DataStorage = Registry->GetMutableDataStorage();
+		ITypedElementDataStorageInterface* DataStorage = Registry->GetMutableDataStorage();
 		if (!DataStorage)
 		{
 			return;

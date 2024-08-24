@@ -19,8 +19,6 @@
 
 namespace UE::Editor::DataStorage::Debug::Private
 {
-	using namespace UE::Editor::DataStorage;
-
 	void OnNavigateHyperlink(const ITypedElementDataStorageInterface* DataStorage,  RowHandle TargetRowHandle, RowHandle UiRowHandle)
 	{
 		const FTedsOutlinerColumn* TedsOutlinerColumn = DataStorage->GetColumn<FTedsOutlinerColumn>(UiRowHandle);
@@ -109,7 +107,6 @@ void URowReferenceWidgetFactory::RegisterWidgetConstructors(ITypedElementDataSto
 void URowReferenceWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 	
 	const QueryHandle UpdateRowReferenceWidget = DataStorage.RegisterQuery(

@@ -104,7 +104,6 @@ namespace TypedElementDatabasePrivate
 
 void UEditorDataStorage::Initialize()
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	check(GEditor);
@@ -325,8 +324,6 @@ UE::Editor::DataStorage::RowHandle UEditorDataStorage::ReserveRow()
 
 void UEditorDataStorage::BatchReserveRows(int32 Count, TFunctionRef<void(RowHandle)> ReservationCallback)
 {
-	using namespace TypedElementDataStorage;
-
 	if (ActiveEditorEntityManager)
 	{
 		TArrayView<FMassEntityHandle> ReservedEntities(Environment->GetScratchBuffer().EmplaceArray<FMassEntityHandle>(Count), Count);
@@ -341,8 +338,6 @@ void UEditorDataStorage::BatchReserveRows(int32 Count, TFunctionRef<void(RowHand
 
 void UEditorDataStorage::BatchReserveRows(TArrayView<RowHandle> ReservedRows)
 {
-	using namespace TypedElementDataStorage;
-
 	if (ActiveEditorEntityManager)
 	{
 		// Depend on the fact that a row handle is an alias for an entity within the Mass powered backend. This
@@ -969,7 +964,7 @@ const UScriptStruct* UEditorDataStorage::GenerateDynamicColumn(const UE::Editor:
 }
 
 void UEditorDataStorage::RegisterTickGroup(
-	FName GroupName, EQueryTickPhase Phase, FName BeforeGroup, FName AfterGroup, TypedElementDataStorage::EExecutionMode ExecutionMode)
+	FName GroupName, EQueryTickPhase Phase, FName BeforeGroup, FName AfterGroup, UE::Editor::DataStorage::EExecutionMode ExecutionMode)
 {
 	Environment->GetQueryStore().RegisterTickGroup(GroupName, Phase, BeforeGroup, AfterGroup, ExecutionMode);
 }
@@ -1082,29 +1077,29 @@ void UEditorDataStorage::ActivateQueries(FName ActivationName)
 	}
 }
 
-UE::Editor::DataStorage::RowHandle UEditorDataStorage::FindIndexedRow(TypedElementDataStorage::IndexHash Index) const
+UE::Editor::DataStorage::RowHandle UEditorDataStorage::FindIndexedRow(UE::Editor::DataStorage::IndexHash Index) const
 {
 	return Environment->GetIndexTable().FindIndexedRow(UE::Editor::DataStorage::EGlobalLockScope::Public, Index);
 }
 
-void UEditorDataStorage::IndexRow(TypedElementDataStorage::IndexHash Index, RowHandle Row)
+void UEditorDataStorage::IndexRow(UE::Editor::DataStorage::IndexHash Index, RowHandle Row)
 {
 	Environment->GetIndexTable().IndexRow(UE::Editor::DataStorage::EGlobalLockScope::Public, Index, Row);
 }
 
 void UEditorDataStorage::BatchIndexRows(
-	TConstArrayView<TPair<TypedElementDataStorage::IndexHash, RowHandle>> IndexRowPairs)
+	TConstArrayView<TPair<UE::Editor::DataStorage::IndexHash, RowHandle>> IndexRowPairs)
 {
 	Environment->GetIndexTable().BatchIndexRows(UE::Editor::DataStorage::EGlobalLockScope::Public, IndexRowPairs);
 }
 
-void UEditorDataStorage::ReindexRow(TypedElementDataStorage::IndexHash OriginalIndex, TypedElementDataStorage::IndexHash NewIndex, 
+void UEditorDataStorage::ReindexRow(UE::Editor::DataStorage::IndexHash OriginalIndex, UE::Editor::DataStorage::IndexHash NewIndex, 
 	RowHandle RowHandle)
 {
 	Environment->GetIndexTable().ReindexRow(UE::Editor::DataStorage::EGlobalLockScope::Public, OriginalIndex, NewIndex, RowHandle);
 }
 
-void UEditorDataStorage::RemoveIndex(TypedElementDataStorage::IndexHash Index)
+void UEditorDataStorage::RemoveIndex(UE::Editor::DataStorage::IndexHash Index)
 {
 	Environment->GetIndexTable().RemoveIndex(UE::Editor::DataStorage::EGlobalLockScope::Public, Index);
 }

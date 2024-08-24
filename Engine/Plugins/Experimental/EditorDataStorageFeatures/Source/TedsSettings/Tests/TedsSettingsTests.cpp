@@ -33,9 +33,7 @@ namespace UE::Editor::Settings::Tests
 
 	uint32 CountSettingsRowsInDataStorage()
 	{
-		using DSI = ITypedElementDataStorageInterface;
-
-		DSI::FQueryResult Result = DataStorage->RunQuery(CountAllSettingsQuery);
+		DataStorage::FQueryResult Result = DataStorage->RunQuery(CountAllSettingsQuery);
 
 		return Result.Count;
 	}

@@ -20,7 +20,6 @@ namespace UE::Editor::DataStorage::Private
 		FConsoleCommandWithArgsAndOutputDeviceDelegate::CreateLambda([](const TArray<FString>& Args, FOutputDevice& Output)
 			{
 				using namespace TypedElementQueryBuilder;
-				using DSI = ITypedElementDataStorageInterface;
 				using namespace UE::Editor::DataStorage;
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddOverlayColorToSelectionCommand);
@@ -60,7 +59,7 @@ namespace UE::Editor::DataStorage::Private
 
 					TArray<RowHandle> RowHandles;
 				
-					DataStorage->RunQuery(OverlayQuery, [ColorIndex, &RowHandles](const DSI::FQueryDescription&, DSI::IDirectQueryContext& Context)
+					DataStorage->RunQuery(OverlayQuery, [ColorIndex, &RowHandles](const FQueryDescription&, IDirectQueryContext& Context)
 					{
 						RowHandles = Context.GetRowHandles();
 					});
@@ -80,7 +79,6 @@ namespace UE::Editor::DataStorage::Private
 		FConsoleCommandWithArgsAndOutputDeviceDelegate::CreateLambda([](const TArray<FString>& Args, FOutputDevice& Output)
 			{
 				using namespace TypedElementQueryBuilder;
-				using DSI = ITypedElementDataStorageInterface;
 				using namespace UE::Editor::DataStorage;
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddOverlayColorToSelectionCommand);
@@ -114,7 +112,7 @@ namespace UE::Editor::DataStorage::Private
 
 					TArray<RowHandle> RowHandles;
 				
-					DataStorage->RunQuery(OverlayQuery, [Color, &RowHandles](const DSI::FQueryDescription&, DSI::IDirectQueryContext& Context)
+					DataStorage->RunQuery(OverlayQuery, [Color, &RowHandles](const FQueryDescription&, IDirectQueryContext& Context)
 					{
 						RowHandles = Context.GetRowHandles();
 					});
@@ -133,7 +131,6 @@ namespace UE::Editor::DataStorage::Private
 		FConsoleCommandWithArgsAndOutputDeviceDelegate::CreateLambda([](const TArray<FString>& Args, FOutputDevice& Output)
 			{
 				using namespace TypedElementQueryBuilder;
-				using DSI = ITypedElementDataStorageInterface;
 				using namespace UE::Editor::DataStorage;
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddOverlayColorToSelectionCommand);
@@ -157,7 +154,7 @@ namespace UE::Editor::DataStorage::Private
 
 					TArray<RowHandle> RowHandles;
 				
-					DataStorage->RunQuery(OverlayQuery, [&RowHandles](const DSI::FQueryDescription&, DSI::IDirectQueryContext& Context)
+					DataStorage->RunQuery(OverlayQuery, [&RowHandles](const FQueryDescription&, IDirectQueryContext& Context)
 					{
 						RowHandles = Context.GetRowHandles();
 					});
@@ -179,7 +176,7 @@ void UActorViewportDataStorageFactory::RegisterQueries(ITypedElementDataStorageI
 void UActorViewportDataStorageFactory::RegisterOutlineColorColumnToActor(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	DataStorage.RegisterQuery(
 		Select(
@@ -207,7 +204,7 @@ void UActorViewportDataStorageFactory::RegisterOutlineColorColumnToActor(ITypedE
 void UActorViewportDataStorageFactory::RegisterOverlayColorColumnToActor(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
 		Select(

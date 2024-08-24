@@ -56,7 +56,7 @@ struct FUnresolvedParentAssetPathColumn_Experimental : public FEditorDataStorage
 {
 	GENERATED_BODY()
 	
-	TypedElementDataStorage::IndexHash Hash;
+	UE::Editor::DataStorage::IndexHash Hash;
 };
 
 USTRUCT()
@@ -64,7 +64,7 @@ struct FUnresolvedAssetsInPathColumn_Experimental : public FEditorDataStorageCol
 {
 	GENERATED_BODY()
 	
-	TypedElementDataStorage::IndexHash Hash;
+	UE::Editor::DataStorage::IndexHash Hash;
 };
 
 // Tag to identify assets

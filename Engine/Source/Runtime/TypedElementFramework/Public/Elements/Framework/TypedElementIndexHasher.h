@@ -11,7 +11,7 @@
 #include "UObject/StrongObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
 	template<typename T>
 	IndexHash GenerateIndexHash(const T* Object);
@@ -27,6 +27,6 @@ namespace TypedElementDataStorage
 	inline IndexHash GenerateIndexHash(FStringView Object);
 	inline IndexHash GenerateIndexHash(FName Object);
 	inline IndexHash GenerateIndexHash(const FSoftObjectPath& ObjectPath);
-} // namespace TypedElementDataStorage
+} // namespace UE::Editor::DataStorage
 
 #include "Elements/Framework/TypedElementIndexHasher.inl"

@@ -22,7 +22,7 @@ void UActorLabelDataStorageFactory::RegisterQueries(ITypedElementDataStorageInte
 void UActorLabelDataStorageFactory::RegisterActorLabelToColumnQuery(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
 		Select(
@@ -52,7 +52,7 @@ void UActorLabelDataStorageFactory::RegisterActorLabelToColumnQuery(ITypedElemen
 void UActorLabelDataStorageFactory::RegisterLabelColumnToActorQuery(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
 		Select(

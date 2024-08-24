@@ -18,7 +18,6 @@ void UActorTransformDataStorageFactory::RegisterQueries(ITypedElementDataStorage
 void UActorTransformDataStorageFactory::RegisterActorAddTransformColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
@@ -45,7 +44,6 @@ void UActorTransformDataStorageFactory::RegisterActorAddTransformColumn(ITypedEl
 void UActorTransformDataStorageFactory::RegisterActorLocalTransformToColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
@@ -75,7 +73,7 @@ void UActorTransformDataStorageFactory::RegisterActorLocalTransformToColumn(ITyp
 void UActorTransformDataStorageFactory::RegisterLocalTransformColumnToActor(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
 		Select(

@@ -33,8 +33,8 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 		TArray<const UScriptStruct*> Columns;
 		TArray<const UScriptStruct*> Tags;
 
-		UScriptStruct* ColumnType = UE::Editor::DataStorage::FColumn::StaticStruct();
-		UScriptStruct* TagType = UE::Editor::DataStorage::FTag::StaticStruct();
+		UScriptStruct* ColumnType = FColumn::StaticStruct();
+		UScriptStruct* TagType = FTag::StaticStruct();
 		// Not sure if there is a faster way to do this.  Would be nice to iterate only the derived classes
 		for(TObjectIterator< UScriptStruct > It; It; ++It)
 		{
@@ -136,7 +136,7 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 				if (Entry.OperatorType == EOperatorType::Select)
 				{
 					Description.SelectionMetaData.Emplace(FColumnMetaData());
-					Description.SelectionAccessTypes.Add(TypedElementDataStorage::EQueryAccessType::ReadOnly);
+					Description.SelectionAccessTypes.Add(EQueryAccessType::ReadOnly);
 					Description.SelectionTypes.Add(Target);
 				}
 				else
@@ -260,7 +260,7 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 			}
 		}
 
-		const UScriptStruct* TagType = UE::Editor::DataStorage::FTag::StaticStruct();
+		const UScriptStruct* TagType = FTag::StaticStruct();
 		for (FConditionEntryInternal& Entry : Conditions)
 		{
 			if (Entry.OperatorType == EOperatorType::Unset)
@@ -389,4 +389,4 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 	{
 		return Conditions.FindByPredicate([Handle](const FConditionEntryInternal& Entry){ return Entry.Id == Handle.Id; });
 	}
-}
+} // namespace UE::Editor::DataStorage::Debug::QueryEditor

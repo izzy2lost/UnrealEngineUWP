@@ -156,8 +156,6 @@ namespace UE::Editor::DataStorage
 	void FPatchData::RunPatch(CompatibilityCommandBuffer::FCollection& Commands, UEditorDataStorageCompatibility& StorageCompat,
 		FScratchBuffer& ScratchBuffer)
 	{
-		using namespace TypedElementDataStorage;
-
 		uint32 ReinstanceCount = Commands.GetCommandCount<FTypeInfoReinstanced>();
 		FTypeInfoReinstanced* ReinstanceArray = ScratchBuffer.EmplaceArray<FTypeInfoReinstanced>(ReinstanceCount);
 		TArrayView<FTypeInfoReinstanced> ReinstanceView(ReinstanceArray, ReinstanceCount);
@@ -236,7 +234,6 @@ namespace UE::Editor::DataStorage
 
 	void FPrepareCommands::operator()(FAddCompatibleUObject& Object)
 	{
-		using namespace TypedElementDataStorage;
 
 		UObject* ObjectPtr = Object.Object.Get();
 		if (ObjectPtr && Storage.IsRowAvailable(Object.Row))
@@ -255,8 +252,6 @@ namespace UE::Editor::DataStorage
 
 	void FPrepareCommands::operator()(FAddCompatibleExternalObject& Object)
 	{
-		using namespace TypedElementDataStorage;
-
 		if (Storage.IsRowAvailable(Object.Row) && Object.Object != nullptr)
 		{
 			Object.Table = StorageCompat.FindBestMatchingTable(Object.TypeInfo.Get());
@@ -270,8 +265,6 @@ namespace UE::Editor::DataStorage
 
 	void FPrepareCommands::operator()(FRemoveCompatibleUObject& Command)
 	{
-		using namespace TypedElementDataStorage;
-
 		if (Command.ObjectRow == InvalidRowHandle)
 		{
 			IndexHash Hash = GenerateIndexHash(Command.Object);
@@ -285,8 +278,6 @@ namespace UE::Editor::DataStorage
 
 	void FPrepareCommands::operator()(FRemoveCompatibleExternalObject& Command)
 	{
-		using namespace TypedElementDataStorage;
-
 		IndexHash Hash = GenerateIndexHash(Command.Object);
 		Command.ObjectRow = Storage.FindIndexedRow(Hash);
 		if (!Storage.IsRowAvailable(Command.ObjectRow))
@@ -297,8 +288,6 @@ namespace UE::Editor::DataStorage
 
 	void FPrepareCommands::operator()(FAddSyncFromWorldTag& Command)
 	{
-		using namespace TypedElementDataStorage;
-
 		Command.Row = StorageCompat.FindRowWithCompatibleObject(Command.Target);
 		if (!Storage.IsRowAvailable(Command.Row))
 		{
@@ -308,8 +297,6 @@ namespace UE::Editor::DataStorage
 
 	void FPrepareCommands::operator()(FRemoveInteractiveSyncFromWorldTag& Command)
 	{
-		using namespace TypedElementDataStorage;
-
 		Command.Row = StorageCompat.FindRowWithCompatibleObject(Command.Target);
 		if (!Storage.IsRowAvailable(Command.Row))
 		{
@@ -331,8 +318,6 @@ namespace UE::Editor::DataStorage
 
 	void FPrepareCommands::operator()(FAddInteractiveSyncFromWorldTag& Command)
 	{
-		using namespace TypedElementDataStorage;
-
 		Command.Row = StorageCompat.FindRowWithCompatibleObject(Command.Target);
 		if (!Storage.IsRowAvailable(Command.Row))
 		{
@@ -473,8 +458,6 @@ namespace UE::Editor::DataStorage
 
 	void FSorter::SortCommands(CompatibilityCommandBuffer::FCollection& Commands)
 	{
-		using namespace TypedElementDataStorage;
-
 		// First sort commands by the row they operate on, using stable sort so commands remain in the same range as they get processed.
 		// Within a row, commands that can't be reordered relative to each other are grouped together while the remaining commands are
 		// ordered in the order they were declared in the command buffer.
@@ -542,7 +525,6 @@ namespace UE::Editor::DataStorage
 
 	void FCommandProcessor::operator()(FTypeBatchInfoReinstanced& Command)
 	{
-		using namespace TypedElementDataStorage;
 		using namespace TypedElementQueryBuilder;
 
 		StorageCompatibility.Storage->RunQuery(StorageCompatibility.ClassTypeInfoQuery, CreateDirectQueryCallbackBinding(
@@ -595,8 +577,6 @@ namespace UE::Editor::DataStorage
 
 	void FCommandProcessor::operator()(FBatchAddCompatibleUObject& Batch)
 	{
-		using namespace TypedElementDataStorage;
-
 		TConstArrayView<RowHandle> Rows(Batch.RowArray, Batch.Count);
 		RowHandle* RowIterator = Batch.RowArray;
 		TWeakObjectPtr<UObject>* ObjectIterator = Batch.ObjectArray;
@@ -622,8 +602,6 @@ namespace UE::Editor::DataStorage
 
 	void FCommandProcessor::operator()(FBatchAddCompatibleExternalObject& Batch)
 	{
-		using namespace TypedElementDataStorage;
-
 		TConstArrayView<RowHandle> Rows(Batch.RowArray, Batch.Count);
 		RowHandle* RowIterator = Batch.RowArray;
 		void** ObjectIterator = Batch.ObjectArray;
@@ -844,8 +822,6 @@ namespace UE::Editor::DataStorage
 
 	void FCommandOptimizer::operator()(const FAddCompatibleUObject& Command)
 	{
-		using namespace TypedElementDataStorage;
-
 		int32 Count = FoldCommandsForAdd(Command);
 
 		// If there are more than 1 adds, batch them together into a batch call and nop the additional adds out.
@@ -883,8 +859,6 @@ namespace UE::Editor::DataStorage
 	
 	void FCommandOptimizer::operator()(const FAddCompatibleExternalObject& Command)
 	{
-		using namespace TypedElementDataStorage;
-
 		int32 Count = FoldCommandsForAdd(Command);
 
 		// If there are more than 1 adds, batch them together into a batch call and nop them out.
@@ -923,8 +897,6 @@ namespace UE::Editor::DataStorage
 
 	void FCommandOptimizer::operator()(const FRemoveCompatibleUObject& Command)
 	{
-		using namespace TypedElementDataStorage;
-
 		// Remove everything after the delete because no operation on a row is going to succeed after
 		// the row has been deleted.
 		while(Optimizer.IsValid())
@@ -944,9 +916,7 @@ namespace UE::Editor::DataStorage
 	}
 
 	void FCommandOptimizer::operator()(const FRemoveCompatibleExternalObject& Command)
-	{
-		using namespace TypedElementDataStorage;
-		
+	{		
 		// Remove everything after the delete because no operation on a row is going to succeed after
 		// the row has been deleted.
 		while (Optimizer.IsValid())
@@ -968,8 +938,6 @@ namespace UE::Editor::DataStorage
 	template<typename AddCommandType>
 	int32 FCommandOptimizer::FoldCommandsForAdd(const AddCommandType& Command)
 	{
-		using namespace TypedElementDataStorage;
-
 		// Discover the longest chain of adds for the same table and remove any async tag additions as it'll be included
 		// in the table for UObjects.
 		int32 Count = 1;

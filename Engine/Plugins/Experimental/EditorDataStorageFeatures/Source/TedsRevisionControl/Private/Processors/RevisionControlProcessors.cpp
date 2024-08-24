@@ -238,7 +238,7 @@ void URevisionControlDataStorageFactory::RegisterQueries(ITypedElementDataStorag
 void URevisionControlDataStorageFactory::RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	FSourceControlFileStatusMonitor& FileStatusMonitor = ISourceControlModule::Get().GetSourceControlFileStatusMonitor();
 
@@ -268,7 +268,6 @@ void URevisionControlDataStorageFactory::RegisterFetchUpdates(ITypedElementDataS
 
 void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
 	using namespace UE::Editor::DataStorage;
 	using namespace UE::Editor::RevisionControl::Private;
@@ -389,7 +388,6 @@ void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementData
 void URevisionControlDataStorageFactory::RegisterRemoveOverlays(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 	
 	if (RemoveOverlays == InvalidQueryHandle)

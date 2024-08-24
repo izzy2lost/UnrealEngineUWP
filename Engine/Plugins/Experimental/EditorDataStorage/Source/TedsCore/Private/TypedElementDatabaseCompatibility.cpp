@@ -66,7 +66,6 @@ namespace UE::Editor::DataStorage::Private
 
 void UEditorDataStorageCompatibility::Initialize(UEditorDataStorage* InStorage)
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	checkf(InStorage, TEXT("TEDS Compatibility is being initialized with an invalid storage target."));
@@ -220,7 +219,6 @@ UE::Editor::DataStorage::RowHandle UEditorDataStorageCompatibility::AddCompatibl
 
 UE::Editor::DataStorage::RowHandle UEditorDataStorageCompatibility::AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo)
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 	
 	checkf(Storage, TEXT("Trying to add an object to Typed Element's Data Storage before the storage is available."));
@@ -250,7 +248,6 @@ void UEditorDataStorageCompatibility::RemoveCompatibleObjectExplicit(UObject* Ob
 
 void UEditorDataStorageCompatibility::RemoveCompatibleObjectExplicit(void* Object)
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	checkf(Storage, TEXT("Removing compatible objects is not supported before Typed Element's Database compatibility manager has been initialized."));
@@ -279,7 +276,6 @@ void UEditorDataStorageCompatibility::RemoveCompatibleObjectExplicit(void* Objec
 
 UE::Editor::DataStorage::RowHandle UEditorDataStorageCompatibility::FindRowWithCompatibleObjectExplicit(const UObject* Object) const
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	if (Object && Storage && Storage->IsAvailable())
@@ -850,7 +846,6 @@ void UEditorDataStorageCompatibility::PendingRegistration<AddressType>::Reset()
 void UEditorDataStorageCompatibility::TickPendingCommands()
 {
 	using namespace UE::Editor::DataStorage;
-	using namespace TypedElementDataStorage;
 
 	// Thread safe because it's only called from functions that already lock.
 	SIZE_T CommandCount = QueuedCommands.Collect(PendingCommands);
@@ -1239,7 +1234,6 @@ UEditorDataStorageCompatibility::FRegistrationCommandChange::~FRegistrationComma
 
 void UEditorDataStorageCompatibility::FRegistrationCommandChange::Apply(UObject* Object)
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	checkf(Owner.IsValid() && Owner.Get() == Object, 
@@ -1264,7 +1258,6 @@ void UEditorDataStorageCompatibility::FRegistrationCommandChange::Apply(UObject*
 
 void UEditorDataStorageCompatibility::FRegistrationCommandChange::Revert(UObject* Object)
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	checkf(Owner.IsValid() && Owner.Get() == Object,
@@ -1308,7 +1301,6 @@ UEditorDataStorageCompatibility::FDeregistrationCommandChange::FDeregistrationCo
 	: Owner(InOwner)
 	, TargetObject(InTargetObject)
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	ITypedElementDataStorageInterface* DataStorage = InOwner->Storage;
@@ -1351,8 +1343,6 @@ void UEditorDataStorageCompatibility::FDeregistrationCommandChange::Apply(UObjec
 {
 	// All function calls are guaranteed to be thread safe.
 
-	using namespace TypedElementDataStorage;
-
 	checkf(Owner.IsValid() && Owner.Get() == Object,
 		TEXT("Applying deregistration transaction command within TEDS Compat was called after TEDS is not longer available."));
 	UEditorDataStorageCompatibility* DataStorageCompat = Owner.Get();
@@ -1364,7 +1354,6 @@ void UEditorDataStorageCompatibility::FDeregistrationCommandChange::Apply(UObjec
 
 void UEditorDataStorageCompatibility::FDeregistrationCommandChange::Revert(UObject* Object)
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	checkf(Owner.IsValid() && Owner.Get() == Object,

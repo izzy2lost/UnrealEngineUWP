@@ -328,12 +328,12 @@ public:
 	 * therefore recommended to try to simplify the query first before relying on extended query filtering in a processor.
 	 */
 
-	using EQueryTickPhase = TypedElementDataStorage::EQueryTickPhase;
-	using EQueryTickGroups = TypedElementDataStorage::EQueryTickGroups;
-	using EQueryCallbackType = TypedElementDataStorage::EQueryCallbackType;
-	using EQueryAccessType = TypedElementDataStorage::EQueryAccessType;
-	using EQueryDependencyFlags = TypedElementDataStorage::EQueryDependencyFlags;
-	using FQueryResult = TypedElementDataStorage::FQueryResult;
+	using EQueryTickPhase = UE::Editor::DataStorage::EQueryTickPhase;
+	using EQueryTickGroups = UE::Editor::DataStorage::EQueryTickGroups;
+	using EQueryCallbackType = UE::Editor::DataStorage::EQueryCallbackType;
+	using EQueryAccessType = UE::Editor::DataStorage::EQueryAccessType;
+	using EQueryDependencyFlags = UE::Editor::DataStorage::EQueryDependencyFlags;
+	using FQueryResult = UE::Editor::DataStorage::FQueryResult;
 
 	using IQueryContext = UE::Editor::DataStorage::IQueryContext;
 	using IDirectQueryContext = UE::Editor::DataStorage::IDirectQueryContext;
@@ -392,23 +392,23 @@ public:
 	 */
 
 	/** Retrieves the row for an indexed object. Returns an invalid row handle if the hash wasn't found. */
-	virtual RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const = 0;
+	virtual RowHandle FindIndexedRow(UE::Editor::DataStorage::IndexHash Index) const = 0;
 	/** 
 	 * Registers a row under the index hash. The same row can be registered multiple, but an index hash can only be associated 
 	 * with a single row.
 	 */
-	virtual void IndexRow(TypedElementDataStorage::IndexHash Index, RowHandle Row) = 0;
+	virtual void IndexRow(UE::Editor::DataStorage::IndexHash Index, RowHandle Row) = 0;
 	/**
 	 * Register multiple rows under their index hash. The same row can be registered multiple times,
 	 * but an index hash can only be associated with a single row.
 	 */
 	virtual void BatchIndexRows(
-		TConstArrayView<TPair<TypedElementDataStorage::IndexHash, RowHandle>> IndexRowPairs) = 0;
+		TConstArrayView<TPair<UE::Editor::DataStorage::IndexHash, RowHandle>> IndexRowPairs) = 0;
 	/** Updates the index of a row to a new value. Effectively this is the same as removing an index and adding a new one. */
 	virtual void ReindexRow(
-		TypedElementDataStorage::IndexHash OriginalIndex, TypedElementDataStorage::IndexHash NewIndex, RowHandle Row) = 0;
+		UE::Editor::DataStorage::IndexHash OriginalIndex, UE::Editor::DataStorage::IndexHash NewIndex, RowHandle Row) = 0;
 	/** Removes a previously registered index hash from the index lookup table or does nothing if the hash no longer exists. */
-	virtual void RemoveIndex(TypedElementDataStorage::IndexHash Index) = 0;
+	virtual void RemoveIndex(UE::Editor::DataStorage::IndexHash Index) = 0;
 
 	/**
 	 * @section Miscellaneous

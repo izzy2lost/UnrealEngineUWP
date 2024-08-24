@@ -46,7 +46,6 @@ namespace UE::Editor::RevisionControl::Private
 void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 	
 	UE::Editor::RevisionControl::Private::CVarAutoPopulateState->AsVariable()->OnChangedDelegate().AddLambda(
@@ -96,7 +95,6 @@ void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataSt
 void UTypedElementUObjectPackagePathFactory::RegisterTryAddPackageRef(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 	
 	TryAddPackageRef = DataStorage.RegisterQuery(
@@ -115,7 +113,7 @@ void UTypedElementUObjectPackagePathFactory::RegisterTryAddPackageRef(ITypedElem
 					{
 						FPaths::NormalizeFilename(PackageFilename);
 						FString FullPackageFilename = FPaths::ConvertRelativePathToFull(PackageFilename);
-						TypedElementDataStorage::IndexHash Index = TypedElementDataStorage::GenerateIndexHash(FullPackageFilename);
+						IndexHash Index = GenerateIndexHash(FullPackageFilename);
 						RowHandle PackageRow = Context.FindIndexedRow(Index);
 						if (Context.IsRowAvailable(PackageRow))
 						{

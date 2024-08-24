@@ -51,7 +51,7 @@ namespace UE::Editor::DataStorage
 
 			void GetColumns(TArrayView<char*> RetrievedAddresses,
 				TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
-				TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes)
+				TConstArrayView<EQueryAccessType> AccessTypes)
 			{
 				checkf(RetrievedAddresses.Num() == ColumnTypes.Num(), TEXT("Unable to retrieve a batch of columns as the number of addresses "
 					"doesn't match the number of requested column."));
@@ -65,7 +65,7 @@ namespace UE::Editor::DataStorage
 				int32 TypeCount,
 				char** RetrievedAddresses,
 				const TWeakObjectPtr<const UScriptStruct>* ColumnTypes,
-				const TypedElementDataStorage::EQueryAccessType* AccessTypes)
+				const EQueryAccessType* AccessTypes)
 			{
 				for (int32 Index = 0; Index < TypeCount; ++Index)
 				{
@@ -624,8 +624,8 @@ namespace UE::Editor::DataStorage
 			TConstArrayView<RowHandle> GetRowHandles() const override { return Implementation.GetRowHandles(); }
 			const void* GetColumn(const UScriptStruct* ColumnType) const override { return Implementation.GetColumn(ColumnType); }
 			void* GetMutableColumn(const UScriptStruct* ColumnType) override { return Implementation.GetMutableColumn(ColumnType); }
-			void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override { return Implementation.GetColumns(RetrievedAddresses, ColumnTypes, AccessTypes); }
-			void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes, const TypedElementDataStorage::EQueryAccessType* AccessTypes) override { return Implementation.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes); }
+			void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, TConstArrayView<EQueryAccessType> AccessTypes) override { return Implementation.GetColumns(RetrievedAddresses, ColumnTypes, AccessTypes); }
+			void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes, const EQueryAccessType* AccessTypes) override { return Implementation.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes); }
 			bool HasColumn(const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(ColumnType); }
 			bool HasColumn(RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
 			virtual const UScriptStruct* FindDynamicColumnType(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const override { return Implementation.FindDynamicColumnType(Description); }
@@ -644,8 +644,8 @@ namespace UE::Editor::DataStorage
 			TConstArrayView<RowHandle> GetRowHandles() const override { return Implementation.GetRowHandles(); }
 			const void* GetColumn(const UScriptStruct* ColumnType) const override { return Implementation.GetColumn(ColumnType); }
 			void* GetMutableColumn(const UScriptStruct* ColumnType) override { return Implementation.GetMutableColumn(ColumnType); }
-			void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override { return Implementation.GetColumns(RetrievedAddresses, ColumnTypes, AccessTypes); }
-			void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes, const TypedElementDataStorage::EQueryAccessType* AccessTypes) override { return Implementation.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes); }
+			void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, TConstArrayView<EQueryAccessType> AccessTypes) override { return Implementation.GetColumns(RetrievedAddresses, ColumnTypes, AccessTypes); }
+			void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes, const EQueryAccessType* AccessTypes) override { return Implementation.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes); }
 			bool HasColumn(const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(ColumnType); }
 			bool HasColumn(RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
 			uint64 GetUpdateCycleId() const override { return Implementation.GetUpdateCycleId(); }
@@ -721,7 +721,7 @@ namespace UE::Editor::DataStorage
 				}
 			}
 	
-			RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const
+			RowHandle FindIndexedRow(IndexHash Index) const
 			{
 				EGlobalLockScope Scope = FGlobalLock::GetLockStatus(EGlobalLockScope::Internal) == EGlobalLockStatus::Unlocked
 					? EGlobalLockScope::Public // There's no internal lock so use a public lock instead.
@@ -790,8 +790,8 @@ namespace UE::Editor::DataStorage
 			TConstArrayView<RowHandle> GetRowHandles() const override { return Implementation.GetRowHandles(); }
 			const void* GetColumn(const UScriptStruct* ColumnType) const override { return Implementation.GetColumn(ColumnType); }
 			void* GetMutableColumn(const UScriptStruct* ColumnType) override { return Implementation.GetMutableColumn(ColumnType); }
-			void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override { return Implementation.GetColumns(RetrievedAddresses, ColumnTypes, AccessTypes); }
-			void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes, const TypedElementDataStorage::EQueryAccessType* AccessTypes) override { return Implementation.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes); }
+			void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, TConstArrayView<EQueryAccessType> AccessTypes) override { return Implementation.GetColumns(RetrievedAddresses, ColumnTypes, AccessTypes); }
+			void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes, const EQueryAccessType* AccessTypes) override { return Implementation.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes); }
 			bool HasColumn(const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(ColumnType); }
 			bool HasColumn(RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
 			uint64 GetUpdateCycleId() const override { return Implementation.GetUpdateCycleId(); }
@@ -814,12 +814,12 @@ namespace UE::Editor::DataStorage
 
 			const UObject* GetDependency(const UClass* DependencyClass) override { return Implementation.GetDependency(DependencyClass); }
 			UObject* GetMutableDependency(const UClass* DependencyClass) override { return Implementation.GetMutableDependency(DependencyClass); }
-			void GetDependencies(TArrayView<UObject*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UClass>> DependencyTypes, TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override { return Implementation.GetDependencies(RetrievedAddresses, DependencyTypes, AccessTypes); }
-			RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override { return Implementation.FindIndexedRow(Index); }
-			TypedElementDataStorage::FQueryResult RunQuery(QueryHandle Query) override { return Implementation.RunQuery(Query); }
-			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex) override { return Implementation.RunSubquery(SubqueryIndex); }
-			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, UE::Editor::DataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Callback); }
-			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, RowHandle Row, UE::Editor::DataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Row, Callback); }
+			void GetDependencies(TArrayView<UObject*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UClass>> DependencyTypes, TConstArrayView<EQueryAccessType> AccessTypes) override { return Implementation.GetDependencies(RetrievedAddresses, DependencyTypes, AccessTypes); }
+			RowHandle FindIndexedRow(IndexHash Index) const override { return Implementation.FindIndexedRow(Index); }
+			FQueryResult RunQuery(QueryHandle Query) override { return Implementation.RunQuery(Query); }
+			FQueryResult RunSubquery(int32 SubqueryIndex) override { return Implementation.RunSubquery(SubqueryIndex); }
+			FQueryResult RunSubquery(int32 SubqueryIndex, UE::Editor::DataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Callback); }
+			FQueryResult RunSubquery(int32 SubqueryIndex, RowHandle Row, UE::Editor::DataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Row, Callback); }
 	
 			FMassQueryContextImplementation Implementation;
 		};
@@ -950,6 +950,8 @@ FString FTypedElementQueryProcessorData::GetProcessorName() const
 void FTypedElementQueryProcessorData::DebugOutputDescription(FOutputDevice& Ar, int32 Indent) const
 {
 #if WITH_MASSENTITY_DEBUG
+	using namespace UE::Editor::DataStorage;
+
 	if (const FExtendedQuery* StoredQuery = QueryStore ? QueryStore->Get(ParentQuery) : nullptr)
 	{
 		const ITypedElementDataStorageInterface::FQueryDescription& Description = StoredQuery->Description;
@@ -990,16 +992,16 @@ void FTypedElementQueryProcessorData::DebugOutputDescription(FOutputDevice& Ar, 
 
 		switch (Callback.ExecutionMode)
 		{
-		case TypedElementDataStorage::EExecutionMode::Default:
+		case EExecutionMode::Default:
 			Ar.Logf(TEXT("\n%*sExecution mode: Default"), Indent, TEXT(""));
 			break;
-		case TypedElementDataStorage::EExecutionMode::GameThread:
+		case EExecutionMode::GameThread:
 			Ar.Logf(TEXT("\n%*sExecution mode: Game Thread"), Indent, TEXT(""));
 			break;
-		case TypedElementDataStorage::EExecutionMode::Threaded:
+		case EExecutionMode::Threaded:
 			Ar.Logf(TEXT("\n%*sExecution mode: Threaded"), Indent, TEXT(""));
 			break;
-		case TypedElementDataStorage::EExecutionMode::ThreadedChunks:
+		case EExecutionMode::ThreadedChunks:
 			Ar.Logf(TEXT("\n%*sExecution mode: Threaded Chunks"), Indent, TEXT(""));
 			break;
 		default:
@@ -1234,9 +1236,11 @@ bool UTypedElementQueryProcessorCallbackAdapterProcessorBase::ConfigureQueryCall
 	FEnvironment& Environment,
 	TArrayView<FMassEntityQuery> Subqueries)
 {
+	using namespace UE::Editor::DataStorage;
+
 	bool Result = Data.CommonQueryConfiguration(*this, Query, QueryHandle, QueryStore, Environment, Subqueries);
 
-	bRequiresGameThreadExecution = Query.Description.Callback.ExecutionMode == TypedElementDataStorage::EExecutionMode::GameThread;
+	bRequiresGameThreadExecution = Query.Description.Callback.ExecutionMode == EExecutionMode::GameThread;
 	ExecutionFlags = static_cast<int32>(EProcessorExecutionFlags::Editor); 
 	ExecutionOrder.ExecuteInGroup = Query.Description.Callback.Group;
 	ExecutionOrder.ExecuteBefore = Query.Description.Callback.BeforeGroups;
@@ -1363,9 +1367,11 @@ bool UTypedElementQueryObserverCallbackAdapterProcessorBase::ConfigureQueryCallb
 	FExtendedQueryStore& QueryStore,
 	FEnvironment& Environment, TArrayView<FMassEntityQuery> Subqueries)
 {
+	using namespace UE::Editor::DataStorage;
+
 	bool Result = Data.CommonQueryConfiguration(*this, Query, QueryHandle, QueryStore, Environment, Subqueries);
 
-	bRequiresGameThreadExecution = Query.Description.Callback.ExecutionMode == TypedElementDataStorage::EExecutionMode::GameThread;
+	bRequiresGameThreadExecution = Query.Description.Callback.ExecutionMode == EExecutionMode::GameThread;
 	ExecutionFlags = static_cast<int32>(EProcessorExecutionFlags::Editor);
 	
 	ObservedType = const_cast<UScriptStruct*>(Query.Description.Callback.MonitoredType);

@@ -34,7 +34,6 @@ void UTypedElementActorHandleDataStorageFactory::RegisterQueries(ITypedElementDa
 	}
 
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
 	GetAllActorsQuery = DataStorage.RegisterQuery(
 	Select()
 		.ReadOnly<FTypedElementUObjectColumn>()
@@ -46,9 +45,9 @@ void UTypedElementActorHandleDataStorageFactory::RegisterQueries(ITypedElementDa
 void UTypedElementActorHandleDataStorageFactory::RegisterQuery_ActorHandlePopulate(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
-	using DSI = ITypedElementDataStorageInterface;
-	if (!ensureMsgf(ActorHandlePopulateQuery == UE::Editor::DataStorage::InvalidQueryHandle, TEXT("Already registered query")))
+	using namespace UE::Editor::DataStorage;
+
+	if (!ensureMsgf(ActorHandlePopulateQuery == InvalidQueryHandle, TEXT("Already registered query")))
 	{
 		return;
 	}
@@ -56,13 +55,13 @@ void UTypedElementActorHandleDataStorageFactory::RegisterQuery_ActorHandlePopula
 	ActorHandlePopulateQuery = DataStorage.RegisterQuery(
 	Select(TEXT("Populate actor typed element handles"),
 		FObserver::OnAdd<FTypedElementUObjectColumn>(),
-		[](DSI::IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row, const FTypedElementUObjectColumn& ObjectColumn)
+		[](IQueryContext& Context, RowHandle Row, const FTypedElementUObjectColumn& ObjectColumn)
 		{
 			if (UObject* Object = ObjectColumn.Object.Get())
 			{
 				checkSlow(Cast<AActor>(Object));
 				FTypedElementHandle Handle = UEngineElementsLibrary::AcquireEditorActorElementHandle(static_cast<AActor*>(Object));
-				Context.AddColumn(Row, UE::Editor::DataStorage::Compatibility::FTypedElementColumn
+				Context.AddColumn(Row, Compatibility::FTypedElementColumn
 				{
 					.Handle = Handle
 				});
@@ -83,8 +82,6 @@ void UTypedElementActorHandleDataStorageFactory::HandleBridgeEnabled(bool bEnabl
 	if (bEnabled)
 	{
 		using namespace TypedElementQueryBuilder;
-		using namespace TypedElementDataStorage;
-		using DSI = ITypedElementDataStorageInterface;
 		
 		// Populate all the rows
 		TArray<RowHandle> CollatedRowHandles;

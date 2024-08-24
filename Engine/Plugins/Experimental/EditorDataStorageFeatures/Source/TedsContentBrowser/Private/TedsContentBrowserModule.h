@@ -17,7 +17,7 @@ namespace UE::Editor::DataStorage
 
 class FAssetViewItem;
 
-namespace UE::Editor::DataStorage::ContentBrowser
+namespace UE::Editor::ContentBrowser
 {
 	// A custom view for the content browser that uses the TEDS asset registry integration to display rows with widgets using TEDS UI
 	class FTedsContentBrowserViewExtender : public IContentBrowserViewExtender
@@ -51,7 +51,7 @@ namespace UE::Editor::DataStorage::ContentBrowser
 		void AddRow(const TSharedPtr<FAssetViewItem>& Item);
 
 		// Get the internal FAssetViewItem from a row handle
-		TSharedPtr<FAssetViewItem> GetAssetViewItemFromRow(UE::Editor::DataStorage::RowHandle Row);
+		TSharedPtr<FAssetViewItem> GetAssetViewItemFromRow(DataStorage::RowHandle Row);
 
 
 	private:
@@ -60,16 +60,16 @@ namespace UE::Editor::DataStorage::ContentBrowser
 		ITypedElementDataStorageInterface* DataStorage;
 		
 		// The actual table viewer widget
-		TSharedPtr<STedsTableViewer> TableViewer;
+		TSharedPtr<DataStorage::STedsTableViewer> TableViewer;
 		
 		// Query stack used by the table viewer
-		TSharedPtr<FQueryStackNode_RowView> RowQueryStack;
+		TSharedPtr<DataStorage::FQueryStackNode_RowView> RowQueryStack;
 
 		// The row handles of the items currently in the list
-		TArray<UE::Editor::DataStorage::RowHandle> Rows;
+		TArray<DataStorage::RowHandle> Rows;
 
 		// A map from row handle -> FAssetView item for lookups
-		TMap<UE::Editor::DataStorage::RowHandle, TWeakPtr<FAssetViewItem>> ContentBrowserItemMap;
+		TMap<DataStorage::RowHandle, TWeakPtr<FAssetViewItem>> ContentBrowserItemMap;
 
 		// Delegates fired when specific events happen on the list
 		FOnSelectionChanged OnSelectionChangedDelegate;
@@ -97,4 +97,4 @@ namespace UE::Editor::DataStorage::ContentBrowser
 	private:
 		TSharedPtr<FTedsContentBrowserViewExtender> ViewExtender;
 	};
-}
+} // namespace UE::Editor::ContentBrowser

@@ -5,10 +5,8 @@
 namespace UE::Editor::DataStorage
 {
 	RowHandle FIndexTable::FindIndexedRow(
-		EGlobalLockScope LockScope, TypedElementDataStorage::IndexHash Index) const
-	{
-		using namespace TypedElementDataStorage;
-	
+		EGlobalLockScope LockScope, IndexHash Index) const
+	{	
 		FScopedSharedLock Lock(LockScope);
 	
 		const RowHandle* Result = IndexLookupMap.Find(Index);
@@ -16,10 +14,8 @@ namespace UE::Editor::DataStorage
 	}
 
 	void FIndexTable::BatchIndexRows(EGlobalLockScope LockScope,
-		TConstArrayView<TPair<TypedElementDataStorage::IndexHash, RowHandle>> IndexRowPairs)
+		TConstArrayView<TPair<IndexHash, RowHandle>> IndexRowPairs)
 	{
-		using namespace TypedElementDataStorage;
-
 		FScopedExclusiveLock Lock(LockScope);
 	
 		IndexLookupMap.Reserve(IndexLookupMap.Num() + IndexRowPairs.Num());
@@ -32,7 +28,7 @@ namespace UE::Editor::DataStorage
 	}
 
 	void FIndexTable::IndexRow(EGlobalLockScope LockScope,
-		TypedElementDataStorage::IndexHash Index, RowHandle Row)
+		IndexHash Index, RowHandle Row)
 	{
 
 		FScopedExclusiveLock Lock(LockScope);
@@ -40,7 +36,7 @@ namespace UE::Editor::DataStorage
 	}
 
 	void FIndexTable::ReindexRow(EGlobalLockScope LockScope,
-		TypedElementDataStorage::IndexHash OriginalIndex, TypedElementDataStorage::IndexHash NewIndex, 
+		IndexHash OriginalIndex, IndexHash NewIndex, 
 		RowHandle Row)
 	{
 		FScopedExclusiveLock Lock(LockScope);
@@ -49,7 +45,7 @@ namespace UE::Editor::DataStorage
 		IndexRowUnguarded(NewIndex, Row);
 	}
 
-	void FIndexTable::RemoveIndex(EGlobalLockScope LockScope, TypedElementDataStorage::IndexHash Index)
+	void FIndexTable::RemoveIndex(EGlobalLockScope LockScope, IndexHash Index)
 	{
 		FScopedExclusiveLock Lock(LockScope);
 		RemoveIndexUnguarded(Index);
@@ -57,8 +53,6 @@ namespace UE::Editor::DataStorage
 
 	void FIndexTable::RemoveRow(EGlobalLockScope LockScope, RowHandle Row)
 	{
-		using namespace TypedElementDataStorage;
-
 		FScopedExclusiveLock Lock(LockScope);
 	
 		if (TMultiMap<RowHandle, IndexHash>::TKeyIterator It = ReverseIndexLookupMap.CreateKeyIterator(Row); It)
@@ -72,17 +66,15 @@ namespace UE::Editor::DataStorage
 		}
 	}
 
-	void FIndexTable::IndexRowUnguarded(TypedElementDataStorage::IndexHash Index, RowHandle Row)
+	void FIndexTable::IndexRowUnguarded(IndexHash Index, RowHandle Row)
 	{
 		IndexLookupMap.Add(Index, Row);
 		ReverseIndexLookupMap.Add(Row, Index);
 	}
 
 
-	void FIndexTable::RemoveIndexUnguarded(TypedElementDataStorage::IndexHash Index)
+	void FIndexTable::RemoveIndexUnguarded(IndexHash Index)
 	{
-		using namespace TypedElementDataStorage;
-
 		if (const RowHandle* Row = IndexLookupMap.Find(Index))
 		{
 			IndexLookupMap.Remove(Index);

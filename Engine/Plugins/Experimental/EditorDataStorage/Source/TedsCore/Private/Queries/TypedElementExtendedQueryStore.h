@@ -54,7 +54,7 @@ namespace UE::Editor::DataStorage
 
 		/** Register the defaults for a tick group. These will be applied on top of any settings provided with a query registration. */
 		void RegisterTickGroup(FName GroupName, ITypedElementDataStorageInterface::EQueryTickPhase Phase,
-			FName BeforeGroup, FName AfterGroup, TypedElementDataStorage::EExecutionMode ExecutionMode);
+			FName BeforeGroup, FName AfterGroup, EExecutionMode ExecutionMode);
 		/** Removes a previously registered set of tick group defaults. */
 		void UnregisterTickGroup(FName GroupName, ITypedElementDataStorageInterface::EQueryTickPhase Phase);
 
@@ -152,7 +152,7 @@ namespace UE::Editor::DataStorage
 		{
 			TArray<FName> BeforeGroups;
 			TArray<FName> AfterGroups;
-			TypedElementDataStorage::EExecutionMode ExecutionMode = TypedElementDataStorage::EExecutionMode::Default;
+			EExecutionMode ExecutionMode = EExecutionMode::Default;
 		};
 
 		template<typename CallbackReference>

@@ -35,7 +35,6 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 		{
 			using namespace TypedElementQueryBuilder;
-			using namespace TypedElementDataStorage;
 			
 		    const FName WidgetPurposes[] = {TEXT("SceneOutliner.Cell"), TEXT("General.Cell")};
 

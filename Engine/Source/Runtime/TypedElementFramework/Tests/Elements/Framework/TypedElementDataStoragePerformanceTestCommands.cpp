@@ -77,7 +77,6 @@ void UTest_PingPongBetweenPhaseFactory::RegisterTables(ITypedElementDataStorageI
 void UTest_PingPongBetweenPhaseFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
 
 	Super::RegisterQueries(DataStorage);
 

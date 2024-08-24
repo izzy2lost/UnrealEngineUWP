@@ -17,8 +17,10 @@
 
 #define LOCTEXT_NAMESPACE "TedsContentBrowserModule"
 
-namespace UE::Editor::DataStorage::ContentBrowser
+namespace UE::Editor::ContentBrowser
 {
+	using namespace DataStorage;
+
 	static bool bEnableTedsContentBrowser = false;
 	
 	static FAutoConsoleVariableRef CVarUseTEDSOutliner(
@@ -91,12 +93,12 @@ namespace UE::Editor::DataStorage::ContentBrowser
 		
 		if (Item->GetItem().Legacy_TryGetAssetData(ItemAssetData))
 		{
-			TypedElementDataStorage::IndexHash IndexHash = TypedElementDataStorage::GenerateIndexHash(ItemAssetData.GetSoftObjectPath());
+			IndexHash IndexHash = GenerateIndexHash(ItemAssetData.GetSoftObjectPath());
 			RowHandle = DataStorage->FindIndexedRow(IndexHash);
 		}
 		else if(Item->GetItem().Legacy_TryGetPackagePath(PackagePath))
 		{
-			TypedElementDataStorage::IndexHash IndexHash = TypedElementDataStorage::GenerateIndexHash(PackagePath);
+			IndexHash IndexHash = GenerateIndexHash(PackagePath);
 			RowHandle = DataStorage->FindIndexedRow(IndexHash);
 		}
 		
@@ -128,7 +130,7 @@ namespace UE::Editor::DataStorage::ContentBrowser
 		RowQueryStack = MakeShared<FQueryStackNode_RowView>(&Rows);
 
 		// Create the table viewer widget
-		TableViewer = SNew(UE::Editor::DataStorage::STedsTableViewer)
+		TableViewer = SNew(STedsTableViewer)
 					.QueryStack(RowQueryStack)
 					.CellWidgetPurposes({TEXT("General.RowLabel"), TEXT("General.Cell")})
 					// Default list of columns to display
@@ -262,8 +264,8 @@ namespace UE::Editor::DataStorage::ContentBrowser
 		// CB 2.0 TODO: Implement using a Teds column
 		return false;
 	}
-}
+} // namespace UE::Editor::ContentBrowser
 
-IMPLEMENT_MODULE(UE::Editor::DataStorage::ContentBrowser::FTedsContentBrowserModule, TedsContentBrowser);
+IMPLEMENT_MODULE(UE::Editor::ContentBrowser::FTedsContentBrowserModule, TedsContentBrowser);
 
 #undef LOCTEXT_NAMESPACE

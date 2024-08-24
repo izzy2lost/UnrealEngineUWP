@@ -18,7 +18,6 @@ UTedsObjectReinstancingManager::UTedsObjectReinstancingManager()
 
 void UTedsObjectReinstancingManager::Initialize(UEditorDataStorage& InDataStorage, UEditorDataStorageCompatibility& InDataStorageCompatibility)
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	DataStorage = &InDataStorage;

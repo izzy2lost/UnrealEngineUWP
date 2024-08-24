@@ -234,7 +234,6 @@ void FTedsSettingsManager::UnregisterSettings()
 
 void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> SettingsCategory, UE::Editor::DataStorage::RowHandle ContainerRow, const bool bQueryExistingRows)
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(TedsSettingsManager.UpdateSettingsCategory);
@@ -276,11 +275,10 @@ void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> 
 	if (bQueryExistingRows)
 	{
 		using namespace TypedElementQueryBuilder;
-		using DSI = ITypedElementDataStorageInterface;
 
 		DataStorage->RunQuery(SelectAllSettingsQuery, CreateDirectQueryCallbackBinding(
 			[&OldRowHandles, &OldSectionNames, &ContainerName, &CategoryName](
-				DSI::IDirectQueryContext& Context,
+				IDirectQueryContext& Context,
 				const FSettingsContainerReferenceColumn* ContainerColumns,
 				const FSettingsCategoryReferenceColumn* CategoryColumns,
 				const FNameColumn* SectionNameColumns)

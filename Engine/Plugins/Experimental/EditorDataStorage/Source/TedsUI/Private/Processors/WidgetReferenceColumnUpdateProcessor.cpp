@@ -14,14 +14,13 @@ void UWidgetReferenceColumnUpdateFactory::RegisterQueries(ITypedElementDataStora
 void UWidgetReferenceColumnUpdateFactory::RegisterDeleteRowOnWidgetDeleteQuery(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-	using namespace UE::Editor;
+	using namespace UE::Editor::DataStorage;
 
 	DataStorage.RegisterQuery(
     	Select(
     		TEXT("Delete row with deleted widget"),
-    		FPhaseAmble(FPhaseAmble::ELocation::Preamble, DSI::EQueryTickPhase::FrameEnd),
-    		[](DSI::IQueryContext& Context, DataStorage::RowHandle Row, const FTypedElementSlateWidgetReferenceColumn& WidgetReference)
+    		FPhaseAmble(FPhaseAmble::ELocation::Preamble, EQueryTickPhase::FrameEnd),
+    		[](IQueryContext& Context, RowHandle Row, const FTypedElementSlateWidgetReferenceColumn& WidgetReference)
     		{
     			if (!WidgetReference.TedsWidget.IsValid())
     			{
@@ -38,14 +37,13 @@ void UWidgetReferenceColumnUpdateFactory::RegisterDeleteRowOnWidgetDeleteQuery(I
 void UWidgetReferenceColumnUpdateFactory::RegisterDeleteColumnOnWidgetDeleteQuery(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-	using namespace UE::Editor;
+	using namespace UE::Editor::DataStorage;
 
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Delete widget columns for deleted widget"),
-			FPhaseAmble(FPhaseAmble::ELocation::Preamble, DSI::EQueryTickPhase::FrameEnd),
-			[](DSI::IQueryContext& Context, DataStorage::RowHandle Row, const FTypedElementSlateWidgetReferenceColumn& WidgetReference)
+			FPhaseAmble(FPhaseAmble::ELocation::Preamble, EQueryTickPhase::FrameEnd),
+			[](IQueryContext& Context, RowHandle Row, const FTypedElementSlateWidgetReferenceColumn& WidgetReference)
 			{
 				if (!WidgetReference.TedsWidget.IsValid())
 				{

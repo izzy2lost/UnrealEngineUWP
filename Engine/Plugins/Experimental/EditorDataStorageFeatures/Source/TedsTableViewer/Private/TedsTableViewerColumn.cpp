@@ -157,7 +157,6 @@ namespace UE::Editor::DataStorage
 	void FTedsTableViewerColumn::RegisterQueries()
 	{
 		using namespace TypedElementQueryBuilder;
-		using namespace TypedElementDataStorage;
 
 		const TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes = GetMatchedColumns();
 		
@@ -268,7 +267,6 @@ namespace UE::Editor::DataStorage
 		});
 		
 		using namespace TypedElementQueryBuilder;
-		using namespace TypedElementDataStorage;
 
 		// Query to find all widgets that belong to the row handles that need updates
 		DirectQueryCallback RowCollector = CreateDirectQueryCallbackBinding(

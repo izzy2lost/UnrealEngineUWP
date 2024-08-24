@@ -16,8 +16,6 @@ class UScriptStruct;
 
 namespace UE::Editor::DataStorage
 {
-	using namespace TypedElementDataStorage;
-
 	struct FQueryDescription;
 	struct ISubqueryContext;
 

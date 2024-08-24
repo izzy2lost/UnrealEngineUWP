@@ -9,7 +9,6 @@
 
 namespace UE::Editor::DataStorage::Legacy
 {
-	using namespace UE::Editor::DataStorage;
 	// 
 	// Commands section
 	//
@@ -302,8 +301,6 @@ namespace UE::Editor::DataStorage::Legacy
 
 	void FCommandBuffer::ProcessCommands()
 	{
-		using namespace TypedElementDataStorage;
-
 		Commands.StableSort(
 			[](const FCommand& Lhs, const FCommand& Rhs)
 			{

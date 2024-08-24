@@ -17,7 +17,6 @@ FAutoConsoleCommand AddRandomAlertToRowConsoleCommand(
 	FConsoleCommandDelegate::CreateLambda(
 		[]()
 		{
-			using namespace TypedElementDataStorage;
 			using namespace TypedElementQueryBuilder;
 			using namespace UE::Editor::DataStorage;
 
@@ -77,7 +76,6 @@ FAutoConsoleCommand ClearAllAlertsConsoleCommand(
 	FConsoleCommandDelegate::CreateLambda(
 		[]()
 		{
-			using namespace TypedElementDataStorage;
 			using namespace TypedElementQueryBuilder;
 			using namespace UE::Editor::DataStorage;
 
@@ -118,7 +116,6 @@ FAutoConsoleCommand ClearSelectedAlertsConsoleCommand(
 	FConsoleCommandDelegate::CreateLambda(
 		[]()
 		{
-			using namespace TypedElementDataStorage;
 			using namespace TypedElementQueryBuilder;
 			using namespace UE::Editor::DataStorage;
 
@@ -177,7 +174,7 @@ void UTypedElementAlertQueriesFactory::RegisterSubQueries(ITypedElementDataStora
 
 void UTypedElementAlertQueriesFactory::RegisterParentUpdatesQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	using namespace TypedElementQueryBuilder;
 
 	DataStorage.RegisterQuery(
@@ -215,7 +212,7 @@ void UTypedElementAlertQueriesFactory::RegisterParentUpdatesQueries(ITypedElemen
 
 void UTypedElementAlertQueriesFactory::RegisterChildAlertUpdatesQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	using namespace TypedElementQueryBuilder;
 
 	DataStorage.RegisterQuery(
@@ -276,7 +273,6 @@ void UTypedElementAlertQueriesFactory::RegisterChildAlertUpdatesQueries(ITypedEl
 
 void UTypedElementAlertQueriesFactory::RegisterOnAddQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
 	using namespace UE::Editor::DataStorage;
 	
@@ -307,7 +303,6 @@ void UTypedElementAlertQueriesFactory::RegisterOnAddQueries(ITypedElementDataSto
 
 void UTypedElementAlertQueriesFactory::RegisterOnRemoveQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
 	using namespace UE::Editor::DataStorage;
 	
@@ -361,7 +356,6 @@ void UTypedElementAlertQueriesFactory::IncrementParents(
 	UE::Editor::DataStorage::IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row, FTypedElementAlertColumnType AlertType,
 	int32 ChildAlertQueryIndex)
 {
-	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
 	using namespace UE::Editor::DataStorage;
 	
@@ -390,7 +384,7 @@ void UTypedElementAlertQueriesFactory::ResetChildAlertCounters(FTypedElementChil
 bool UTypedElementAlertQueriesFactory::MoveToNextParent(
 	UE::Editor::DataStorage::RowHandle& Parent, UE::Editor::DataStorage::IQueryContext& Context, int32 SubQueryIndex)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	using namespace TypedElementQueryBuilder;
 	
 	FQueryResult Result = Context.RunSubquery(SubQueryIndex, Parent, CreateSubqueryCallbackBinding(

@@ -5,7 +5,7 @@
 #include "Hash/CityHash.h"
 #include "UObject/TopLevelAssetPath.h"
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
 	template<typename T>
 	IndexHash GenerateIndexHash(const T* Object)
@@ -58,4 +58,4 @@ namespace TypedElementDataStorage
 		Hash = CityHash128to64({ Hash, GenerateIndexHash(TopLevelAssetPath.GetAssetName()) });
 		return CityHash128to64({ Hash, GenerateIndexHash(ObjectPath.GetSubPathString()) });
 	}
-} // namespace TypedElementDataStorage
+} // namespace UE::Editor::DataStorage

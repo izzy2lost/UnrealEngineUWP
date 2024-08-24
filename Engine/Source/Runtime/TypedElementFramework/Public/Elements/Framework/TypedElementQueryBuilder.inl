@@ -32,37 +32,37 @@ namespace TypedElementQueryBuilder
 		}
 
 		template<typename Type>
-		constexpr TypedElementDataStorage::EQueryAccessType GetAccessType()
+		constexpr EQueryAccessType GetAccessType()
 		{
 			using BaseType = typename std::remove_reference_t<Type>;
 			if constexpr (TIsConst<BaseType>::Value)
 			{
-				return TypedElementDataStorage::EQueryAccessType::ReadOnly;
+				return EQueryAccessType::ReadOnly;
 			}
 			else
 			{
-				return TypedElementDataStorage::EQueryAccessType::ReadWrite;
+				return EQueryAccessType::ReadWrite;
 			}
 		}
 
 		template<typename Type>
-		constexpr TypedElementDataStorage::EQueryDependencyFlags GetDependencyFlags()
+		constexpr EQueryDependencyFlags GetDependencyFlags()
 		{
 			using BaseType = typename std::remove_reference_t<Type>;
 			using SubsystemTraits = TTypedElementSubsystemTraits<std::remove_const_t<BaseType>>;
 
-			TypedElementDataStorage::EQueryDependencyFlags Result = TypedElementDataStorage::EQueryDependencyFlags::None;
+			EQueryDependencyFlags Result = EQueryDependencyFlags::None;
 			if constexpr (SubsystemTraits::RequiresGameThread())
 			{
-				EnumAddFlags(Result, TypedElementDataStorage::EQueryDependencyFlags::GameThreadBound);
+				EnumAddFlags(Result, EQueryDependencyFlags::GameThreadBound);
 			}
 			if constexpr (SubsystemTraits::IsHotReloadable())
 			{
-				EnumAddFlags(Result, TypedElementDataStorage::EQueryDependencyFlags::AlwaysRefresh);
+				EnumAddFlags(Result, EQueryDependencyFlags::AlwaysRefresh);
 			}
 			if constexpr (TIsConst<BaseType>::Value)
 			{
-				EnumAddFlags(Result, TypedElementDataStorage::EQueryDependencyFlags::ReadOnly);
+				EnumAddFlags(Result, EQueryDependencyFlags::ReadOnly);
 			}
 			
 			return Result;
@@ -116,8 +116,8 @@ namespace TypedElementQueryBuilder
 	//
 
 	FQueryContextForwarder::FQueryContextForwarder(
-		const UE::Editor::DataStorage::FQueryDescription& InDescription,
-		UE::Editor::DataStorage::IQueryContext& InParentContext)
+		const FQueryDescription& InDescription,
+		IQueryContext& InParentContext)
 		: ParentContext(InParentContext)
 		, Description(InDescription)
 	{}
@@ -133,13 +133,13 @@ namespace TypedElementQueryBuilder
 	}
 
 	void FQueryContextForwarder::GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
-		TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes)
+		TConstArrayView<EQueryAccessType> AccessTypes)
 	{
 		ParentContext.GetColumns(RetrievedAddresses, ColumnTypes, AccessTypes);
 	}
 
 	void FQueryContextForwarder::GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes,
-		const TypedElementDataStorage::EQueryAccessType* AccessTypes)
+		const EQueryAccessType* AccessTypes)
 	{
 		ParentContext.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes);
 	}
@@ -160,7 +160,7 @@ namespace TypedElementQueryBuilder
 	}
 
 	void FQueryContextForwarder::GetDependencies(TArrayView<UObject*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UClass>> DependencyTypes,
-		TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes)
+		TConstArrayView<EQueryAccessType> AccessTypes)
 	{
 		ParentContext.GetDependencies(RetrievedAddresses, DependencyTypes, AccessTypes);
 	}
@@ -205,24 +205,24 @@ namespace TypedElementQueryBuilder
 		ParentContext.RemoveColumns(Rows, ColumnTypes);
 	}
 
-	TypedElementDataStorage::FQueryResult FQueryContextForwarder::RunQuery(QueryHandle Query)
+	FQueryResult FQueryContextForwarder::RunQuery(QueryHandle Query)
 	{
 		return ParentContext.RunQuery(Query);
 	}
 	
-	TypedElementDataStorage::FQueryResult FQueryContextForwarder::RunSubquery(int32 SubqueryIndex)
+	FQueryResult FQueryContextForwarder::RunSubquery(int32 SubqueryIndex)
 	{
 		return ParentContext.RunSubquery(SubqueryIndex);
 	}
 
-	TypedElementDataStorage::FQueryResult FQueryContextForwarder::RunSubquery(int32 SubqueryIndex,
-		UE::Editor::DataStorage::SubqueryCallbackRef Callback)
+	FQueryResult FQueryContextForwarder::RunSubquery(int32 SubqueryIndex,
+		SubqueryCallbackRef Callback)
 	{
 		return ParentContext.RunSubquery(SubqueryIndex, Callback);
 	}
 
-	TypedElementDataStorage::FQueryResult FQueryContextForwarder::RunSubquery(int32 SubqueryIndex,
-		RowHandle Row, UE::Editor::DataStorage::SubqueryCallbackRef Callback)
+	FQueryResult FQueryContextForwarder::RunSubquery(int32 SubqueryIndex,
+		RowHandle Row, SubqueryCallbackRef Callback)
 	{
 		return ParentContext.RunSubquery(SubqueryIndex, Row, Callback);
 	}
@@ -233,13 +233,13 @@ namespace TypedElementQueryBuilder
 	
 	template<typename... Dependencies>
 	FCachedQueryContext<Dependencies...>::FCachedQueryContext(
-		const UE::Editor::DataStorage::FQueryDescription& InDescription,
-		UE::Editor::DataStorage::IQueryContext& InParentContext)
+		const FQueryDescription& InDescription,
+		IQueryContext& InParentContext)
 		: FQueryContextForwarder(InDescription, InParentContext)
 	{}
 
 	template<typename... Dependencies>
-	void FCachedQueryContext<Dependencies...>::Register(UE::Editor::DataStorage::FQueryDescription& Query)
+	void FCachedQueryContext<Dependencies...>::Register(FQueryDescription& Query)
 	{
 		Query.DependencyTypes.Reserve(sizeof...(Dependencies));
 		Query.DependencyFlags.Reserve(sizeof...(Dependencies));
@@ -291,7 +291,7 @@ namespace TypedElementQueryBuilder
 
 		template<typename Context>
 		concept SourceQueryContext = requires(Context& Ctx, int32 TypeCount, char** RetrievedAddresses,
-			const TWeakObjectPtr<const UScriptStruct>*ColumnTypes, const TypedElementDataStorage::EQueryAccessType * AccessTypes)
+			const TWeakObjectPtr<const UScriptStruct>*ColumnTypes, const EQueryAccessType * AccessTypes)
 		{
 			{ Ctx.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes) };
 			{ Ctx.GetRowHandles() } -> UE::convertible_to<TConstArrayView<RowHandle>>;
@@ -386,7 +386,7 @@ namespace TypedElementQueryBuilder
 			static constexpr bool bArePointerColumns = AreAllColumnsPointers<ColumnTypes...>();
 
 			template<typename Column>
-			bool CheckValidity(const UE::Editor::DataStorage::FQueryDescription& Description)
+			bool CheckValidity(const FQueryDescription& Description)
 			{
 				const UScriptStruct* ColumnType = Column::StaticStruct();
 				if (const TWeakObjectPtr<const UScriptStruct>* Match = Description.SelectionTypes.FindByPredicate(
@@ -396,7 +396,7 @@ namespace TypedElementQueryBuilder
 					}); Match != nullptr)
 				{
 					size_t Index = Match - Description.SelectionTypes.GetData();
-					if (Description.SelectionAccessTypes[Index] == TypedElementDataStorage::EQueryAccessType::ReadOnly)
+					if (Description.SelectionAccessTypes[Index] == EQueryAccessType::ReadOnly)
 					{
 						if (std::is_const_v<Column>)
 						{
@@ -424,7 +424,7 @@ namespace TypedElementQueryBuilder
 				}
 			}
 
-			FFunctionColumnInfo(const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context)
+			FFunctionColumnInfo(const FQueryDescription& Description, SourceContext& Context)
 			{
 				if constexpr (ValidateColumns)
 				{
@@ -448,7 +448,7 @@ namespace TypedElementQueryBuilder
 		template<SourceQueryContext SourceContext, bool ValidateColumns>
 		struct FFunctionColumnInfo<SourceContext, ValidateColumns>
 		{
-			FFunctionColumnInfo(const UE::Editor::DataStorage::FQueryDescription&, SourceContext&) {}
+			FFunctionColumnInfo(const FQueryDescription&, SourceContext&) {}
 			static constexpr bool bArePointerColumns = false;
 		};
 
@@ -459,7 +459,7 @@ namespace TypedElementQueryBuilder
 			using BaseContextType = std::remove_reference_t<TargetType>;
 			BaseContextType ContextWrapper;
 
-			FContextInfo(const UE::Editor::DataStorage::FQueryDescription& Description, SourceType& Context)
+			FContextInfo(const FQueryDescription& Description, SourceType& Context)
 				: ContextWrapper(Description, Context)
 			{}
 		};
@@ -469,7 +469,7 @@ namespace TypedElementQueryBuilder
 		{
 			const SourceType& ContextWrapper;
 
-			FContextInfo(const UE::Editor::DataStorage::FQueryDescription& Description, SourceType& Context)
+			FContextInfo(const FQueryDescription& Description, SourceType& Context)
 				: ContextWrapper(Context)
 			{}
 		};
@@ -479,7 +479,7 @@ namespace TypedElementQueryBuilder
 		{
 			SourceType& ContextWrapper;
 
-			FContextInfo(const UE::Editor::DataStorage::FQueryDescription& Description, SourceType& Context)
+			FContextInfo(const FQueryDescription& Description, SourceType& Context)
 				: ContextWrapper(Context)
 			{}
 		};
@@ -493,7 +493,7 @@ namespace TypedElementQueryBuilder
 			using SuperColumn = FFunctionColumnInfo<SourceContext, ValidateColumns, Args...>;
 			using SuperContext = FContextInfo<SourceContext, TargetContext>;
 
-			FContextRowHandleColumnsFunction(const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context)
+			FContextRowHandleColumnsFunction(const FQueryDescription& Description, SourceContext& Context)
 				: SuperColumn(Description, Context)
 				, SuperContext(Description, Context)
 			{}
@@ -546,7 +546,7 @@ namespace TypedElementQueryBuilder
 			using SuperColumn = FFunctionColumnInfo<SourceContext, ValidateColumns, Args...>;
 			using SuperContext = FContextInfo<SourceContext, TargetContext>;
 
-			FContextColumnsFunction(const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context)
+			FContextColumnsFunction(const FQueryDescription& Description, SourceContext& Context)
 				: SuperColumn(Description, Context)
 				, SuperContext(Description, Context)
 			{}
@@ -594,7 +594,7 @@ namespace TypedElementQueryBuilder
 		{
 			using Super = FFunctionColumnInfo<SourceContext, ValidateColumns, Columns...>;
 
-			FRowHandleColumnsFunction(const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context)
+			FRowHandleColumnsFunction(const FQueryDescription& Description, SourceContext& Context)
 				: Super(Description, Context)
 			{}
 
@@ -642,7 +642,7 @@ namespace TypedElementQueryBuilder
 		{
 			using Super = FFunctionColumnInfo<SourceContext, ValidateColumns, Args...>;
 			
-			FColumnsFunction(const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context)
+			FColumnsFunction(const FQueryDescription& Description, SourceContext& Context)
 				: Super(Description, Context)
 			{}
 
@@ -716,105 +716,105 @@ namespace TypedElementQueryBuilder
 		{
 			using Super = typename FFunctionInfoHelper<SourceContext, ValidateColumns, Args...>::BaseClass;
 
-			FFunctionInfo(const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context)
+			FFunctionInfo(const FQueryDescription& Description, SourceContext& Context)
 				: Super(Description, Context)
 			{}
 		};
 
 		template<SourceQueryContext SourceContext, bool ValidateColumns, typename... Args>
-		void BindQueryFunction(UE::Editor::DataStorage::QueryCallback& Function,
+		void BindQueryFunction(QueryCallback& Function,
 			void (*Callback)(Args...))
 		{
-			Function = [Callback](const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context)
+			Function = [Callback](const FQueryDescription& Description, SourceContext& Context)
 			{
 				FFunctionInfo<SourceContext, ValidateColumns, Args...>(Description, Context).Call(Context, Callback);
 			};
 		}
 
 		template<SourceQueryContext SourceContext, bool ValidateColumns, typename Class, typename... Args>
-		void BindQueryFunction(UE::Editor::DataStorage::QueryCallback& Function, Class* Target,
+		void BindQueryFunction(QueryCallback& Function, Class* Target,
 			void (Class::*Callback)(Args...))
 		{
-			Function = [Target, Callback](const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context)
+			Function = [Target, Callback](const FQueryDescription& Description, SourceContext& Context)
 			{
 				FFunctionInfo<SourceContext, ValidateColumns, Args...>(Description, Context).Call(Context, (Target->*Callback));
 			};
 		}
 
 		template<SourceQueryContext SourceContext, bool ValidateColumns, typename Class, typename... Args>
-		void BindQueryFunction(UE::Editor::DataStorage::QueryCallback& Function, Class* Target,
+		void BindQueryFunction(QueryCallback& Function, Class* Target,
 			void (Class::*Callback)(Args...) const)
 		{
-			Function = [Target, Callback](const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context)
+			Function = [Target, Callback](const FQueryDescription& Description, SourceContext& Context)
 			{
 				FFunctionInfo<SourceContext, ValidateColumns, Args...>(Description, Context).Call(Context, (Target->*Callback));
 			};
 		}
 
 		template<SourceQueryContext SourceContext, bool ValidateColumns, typename Functor, typename Class, typename... Args>
-		void BindQueryFunction_Expand(UE::Editor::DataStorage::QueryCallback& Function, Functor&& CallbackObject,
+		void BindQueryFunction_Expand(QueryCallback& Function, Functor&& CallbackObject,
 			void (Class::*Callback)(Args...) const)
 		{
-			Function = [CallbackObject = std::forward<Functor>(CallbackObject)](const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context)
+			Function = [CallbackObject = std::forward<Functor>(CallbackObject)](const FQueryDescription& Description, SourceContext& Context)
 			{
 				FFunctionInfo<SourceContext, ValidateColumns, Args...>(Description, Context).Call(Context, CallbackObject);
 			};
 		}
 
 		template<SourceQueryContext SourceContext, bool ValidateColumns, typename Functor, typename Class, typename... Args>
-		void BindQueryFunction_Expand(UE::Editor::DataStorage::QueryCallback& Function, Functor&& CallbackObject,
+		void BindQueryFunction_Expand(QueryCallback& Function, Functor&& CallbackObject,
 			void (Class::*Callback)(Args...))
 		{
-			Function = [CallbackObject = std::forward<Functor>(CallbackObject)](const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context)
+			Function = [CallbackObject = std::forward<Functor>(CallbackObject)](const FQueryDescription& Description, SourceContext& Context)
 			{
 				FFunctionInfo<SourceContext, ValidateColumns, Args...>(Description, Context).Call(Context, CallbackObject);
 			};
 		}
 
 		template<SourceQueryContext SourceContext, bool ValidateColumns, typename Functor>
-		void BindQueryFunction(UE::Editor::DataStorage::QueryCallback& Function, Functor&& Callback)
+		void BindQueryFunction(QueryCallback& Function, Functor&& Callback)
 		{
 			BindQueryFunction_Expand<SourceContext, ValidateColumns>(Function, std::forward<Functor>(Callback), &Functor::operator());
 		}
 
 		
 		template<bool ValidateColumns, SourceQueryContext SourceContext, typename... Args>
-		void CallQueryFunction(const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context,
-			UE::Editor::DataStorage::QueryCallback& Function, void (*Callback)(Args...))
+		void CallQueryFunction(const FQueryDescription& Description, SourceContext& Context,
+			QueryCallback& Function, void (*Callback)(Args...))
 		{
 			FFunctionInfo<SourceContext, ValidateColumns, Args...>(Description, Context).Call(Context, Callback);
 		}
 
 		template<bool ValidateColumns, SourceQueryContext SourceContext, typename Class, typename... Args>
-		void CallQueryFunction(const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context,
+		void CallQueryFunction(const FQueryDescription& Description, SourceContext& Context,
 			Class* Target, void (Class::* Callback)(Args...))
 		{
 			FFunctionInfo<SourceContext, ValidateColumns, Args...>(Description, Context).Call(Context, (Target->*Callback));
 		}
 
 		template<bool ValidateColumns, SourceQueryContext SourceContext, typename Class, typename... Args>
-		void CallQueryFunction(const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context,
+		void CallQueryFunction(const FQueryDescription& Description, SourceContext& Context,
 			Class* Target, void (Class::* Callback)(Args...) const)
 		{
 			FFunctionInfo<SourceContext, ValidateColumns, Args...>(Description, Context).Call(Context, (Target->*Callback));
 		}
 
 		template<bool ValidateColumns, SourceQueryContext SourceContext, typename Functor, typename Class, typename... Args>
-		void CallQueryFunction_Expand(const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context,
+		void CallQueryFunction_Expand(const FQueryDescription& Description, SourceContext& Context,
 			const Functor& CallbackObject, void (Class::* Callback)(Args...) const)
 		{
 			FFunctionInfo<SourceContext, ValidateColumns, Args...>(Description, Context).Call(Context, CallbackObject);
 		}
 
 		template<bool ValidateColumns, SourceQueryContext SourceContext, typename Functor, typename Class, typename... Args>
-		void CallQueryFunction_Expand(const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context,
+		void CallQueryFunction_Expand(const FQueryDescription& Description, SourceContext& Context,
 			const Functor& CallbackObject, void (Class::* Callback)(Args...))
 		{
 			FFunctionInfo<SourceContext, ValidateColumns, Args...>(Description, Context).Call(Context, CallbackObject);
 		}
 
 		template<bool ValidateColumns, SourceQueryContext SourceContext, typename Functor>
-		void CallQueryFunction(const UE::Editor::DataStorage::FQueryDescription& Description, SourceContext& Context,
+		void CallQueryFunction(const FQueryDescription& Description, SourceContext& Context,
 			const Functor& Callback)
 		{
 			CallQueryFunction_Expand<ValidateColumns>(Description, Context, Callback, &Functor::operator());
@@ -834,7 +834,7 @@ namespace TypedElementQueryBuilder
 			}
 		}
 
-		template<typename ContextType> void RegisterDependencies(UE::Editor::DataStorage::FQueryDescription& Query)
+		template<typename ContextType> void RegisterDependencies(FQueryDescription& Query)
 		{
 			using BaseType = typename TRemoveReference<ContextType>::Type;
 			if constexpr (TIsDerivedFrom<BaseType, FQueryContextForwarder>::Value)
@@ -846,7 +846,7 @@ namespace TypedElementQueryBuilder
 		template<SourceQueryContext SourceContext, typename... Args>
 		struct RegisterFunctionArgumentsHelper
 		{
-			void Register(UE::Editor::DataStorage::FQueryDescription&, Select& Target)
+			void Register(FQueryDescription&, Select& Target)
 			{
 				(AddColumnToSelect<Args>(Target), ...);
 			}
@@ -855,13 +855,13 @@ namespace TypedElementQueryBuilder
 		template<SourceQueryContext SourceContext>
 		struct RegisterFunctionArgumentsHelper<SourceContext>
 		{
-			static void Register(UE::Editor::DataStorage::FQueryDescription&, Select&) {}
+			static void Register(FQueryDescription&, Select&) {}
 		};
 
 		template<SourceQueryContext SourceContext, typename Arg0>
 		struct RegisterFunctionArgumentsHelper<SourceContext, Arg0>
 		{
-			static void Register(UE::Editor::DataStorage::FQueryDescription& Query, Select& Target)
+			static void Register(FQueryDescription& Query, Select& Target)
 			{
 				if constexpr (IsCompatibleTargetContextType<SourceContext, Arg0>)
 				{
@@ -878,7 +878,7 @@ namespace TypedElementQueryBuilder
 		template<SourceQueryContext SourceContext, typename Arg0, typename Arg1, typename... Args>
 		struct RegisterFunctionArgumentsHelper<SourceContext, Arg0, Arg1, Args...>
 		{
-			static void Register(UE::Editor::DataStorage::FQueryDescription& Query, Select& Target)
+			static void Register(FQueryDescription& Query, Select& Target)
 			{
 				if constexpr (IsCompatibleTargetContextType<SourceContext, Arg0>)
 				{
@@ -901,25 +901,25 @@ namespace TypedElementQueryBuilder
 		};
 
 		template<SourceQueryContext SourceContext, typename... Args>
-		void RegisterFunctionArguments(UE::Editor::DataStorage::FQueryDescription& Query, Select& Target, void (*)(Args...))
+		void RegisterFunctionArguments(FQueryDescription& Query, Select& Target, void (*)(Args...))
 		{
 			RegisterFunctionArgumentsHelper<SourceContext, Args...>::Register(Query, Target);
 		}
 
 		template<SourceQueryContext SourceContext, typename Class, typename... Args>
-		void RegisterFunctionArguments(UE::Editor::DataStorage::FQueryDescription& Query, Select& Target, void (Class::*)(Args...))
+		void RegisterFunctionArguments(FQueryDescription& Query, Select& Target, void (Class::*)(Args...))
 		{
 			RegisterFunctionArgumentsHelper<SourceContext, Args...>::Register(Query, Target);
 		}
 
 		template<SourceQueryContext SourceContext, typename Class, typename... Args>
-		void RegisterFunctionArguments(UE::Editor::DataStorage::FQueryDescription& Query, Select& Target, void (Class::*)(Args...) const)
+		void RegisterFunctionArguments(FQueryDescription& Query, Select& Target, void (Class::*)(Args...) const)
 		{
 			RegisterFunctionArgumentsHelper<SourceContext, Args...>::Register(Query, Target);
 		}
 
 		template<SourceQueryContext SourceContext, typename Functor>
-		void RegisterFunctionArguments(UE::Editor::DataStorage::FQueryDescription& Query, Select& Target, Functor)
+		void RegisterFunctionArguments(FQueryDescription& Query, Select& Target, Functor)
 		{
 			RegisterFunctionArguments<SourceContext>(Query, Target, &Functor::operator());
 		}
@@ -1025,9 +1025,9 @@ namespace TypedElementQueryBuilder
 			}
 		};
 		
-		inline void PrepareForQueryBinding(UE::Editor::DataStorage::FQueryDescription& Query, const FProcessor& Processor)
+		inline void PrepareForQueryBinding(FQueryDescription& Query, const FProcessor& Processor)
 		{
-			Query.Callback.Type = TypedElementDataStorage::EQueryCallbackType::Processor;
+			Query.Callback.Type = EQueryCallbackType::Processor;
 			Query.Callback.Phase = Processor.Phase;
 			Query.Callback.Group = Processor.Group;
 			Query.Callback.ActivationName = Processor.ActivationName;
@@ -1043,15 +1043,15 @@ namespace TypedElementQueryBuilder
 			Query.Callback.ExecutionMode = Processor.ExecutionMode;
 		}
 
-		inline void PrepareForQueryBinding(UE::Editor::DataStorage::FQueryDescription& Query, const FObserver& Observer)
+		inline void PrepareForQueryBinding(FQueryDescription& Query, const FObserver& Observer)
 		{
 			switch (Observer.Event)
 			{
 			case FObserver::EEvent::Add:
-				Query.Callback.Type = TypedElementDataStorage::EQueryCallbackType::ObserveAdd;
+				Query.Callback.Type = EQueryCallbackType::ObserveAdd;
 				break;
 			case FObserver::EEvent::Remove:
-				Query.Callback.Type = TypedElementDataStorage::EQueryCallbackType::ObserveRemove;
+				Query.Callback.Type = EQueryCallbackType::ObserveRemove;
 				break;
 			}
 			Query.Callback.ActivationName = Observer.ActivationName;
@@ -1060,15 +1060,15 @@ namespace TypedElementQueryBuilder
 			Query.Callback.ExecutionMode = Observer.ExecutionMode;
 		}
 
-		inline void PrepareForQueryBinding(UE::Editor::DataStorage::FQueryDescription& Query, const FPhaseAmble& PhaseAmble)
+		inline void PrepareForQueryBinding(FQueryDescription& Query, const FPhaseAmble& PhaseAmble)
 		{
 			switch (PhaseAmble.Location)
 			{
 			case FPhaseAmble::ELocation::Preamble:
-				Query.Callback.Type = TypedElementDataStorage::EQueryCallbackType::PhasePreparation;
+				Query.Callback.Type = EQueryCallbackType::PhasePreparation;
 				break;
 			case FPhaseAmble::ELocation::Postamble:
-				Query.Callback.Type = TypedElementDataStorage::EQueryCallbackType::PhaseFinalization;
+				Query.Callback.Type = EQueryCallbackType::PhaseFinalization;
 				break;
 			}
 			Query.Callback.ActivationName = PhaseAmble.ActivationName;
@@ -1078,12 +1078,12 @@ namespace TypedElementQueryBuilder
 		}
 		
 		template<typename CallbackType, typename Function>
-		void PrepareForQueryBinding(Select& Target, UE::Editor::DataStorage::FQueryDescription& Query, FName Name,
+		void PrepareForQueryBinding(Select& Target, FQueryDescription& Query, FName Name,
 			const CallbackType& Type, Function Callback)
 		{
 			static_assert(TIsDerivedFrom<CallbackType, FQueryCallbackType>::Value, "The callback type provided isn't one of the available "
 				"classes derived from FQueryCallbackType.");
-			static_assert(IsValidSelectFunctionSignature<UE::Editor::DataStorage::IQueryContext, Function>(),
+			static_assert(IsValidSelectFunctionSignature<IQueryContext, Function>(),
 				R"(The function provided to the Query Builder's Select call wasn't invocable or doesn't contain a supported combination of arguments.
 The following options are supported:
 - void([const]Column&...) 
@@ -1092,10 +1092,10 @@ The following options are supported:
 - void(<Context>&, RowHandle, [const]Column&...) 
 - void(<Context>&, [const]Column*...) 
 - void(<Context>&, const RowHandle*, [const]Column*...) 
-Where <Context> is UE::Editor::DataStorage::IQueryContext or FCachedQueryContext<...>
+Where <Context> is IQueryContext or FCachedQueryContext<...>
 e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, RowHandle Row, ColumnType0& ColumnA, const ColumnType1& ColumnB) {...}
 )");
-			RegisterFunctionArguments<UE::Editor::DataStorage::IQueryContext>(Query, Target, Callback);
+			RegisterFunctionArguments<IQueryContext>(Query, Target, Callback);
 			PrepareForQueryBinding(Query, Type);
 			Query.Callback.Name = Name;
 		}
@@ -1107,7 +1107,7 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, RowHandle 
 	{
 		static constexpr bool ValidateColumns = false;
 		Private::PrepareForQueryBinding(*this, Query, Name, Type, Callback);
-		Private::BindQueryFunction<UE::Editor::DataStorage::IQueryContext, ValidateColumns>(Query.Callback.Function, std::forward<Function>(Callback));
+		Private::BindQueryFunction<IQueryContext, ValidateColumns>(Query.Callback.Function, std::forward<Function>(Callback));
 	}
 
 	template<typename CallbackType, typename Class, typename Function>
@@ -1116,7 +1116,7 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, RowHandle 
 	{
 		static constexpr bool ValidateColumns = false;
 		Private::PrepareForQueryBinding(*this, Query, Name, Type, Callback);
-		Private::BindQueryFunction<UE::Editor::DataStorage::IQueryContext, ValidateColumns>(Query.Callback.Function, Instance, Callback);
+		Private::BindQueryFunction<IQueryContext, ValidateColumns>(Query.Callback.Function, Instance, Callback);
 	}
 
 	template<TDataColumnType... TargetTypes>
@@ -1133,10 +1133,10 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, RowHandle 
 		return *this;
 	}
 
-	template<UE::Editor::DataStorage::TDataColumnType Target>
+	template<TDataColumnType Target>
 	Select& Select::ReadOnly(const FName& Identifier)
 	{
-		ReadOnly(UE::Editor::DataStorage::FDynamicColumnDescription
+		ReadOnly(FDynamicColumnDescription
 			{
 				.TemplateType = Target::StaticStruct(),
 				.Identifier = Identifier
@@ -1154,7 +1154,7 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, RowHandle 
 	template<TDataColumnType Target>
 	Select& Select::ReadWrite(const FName& Identifier)
 	{
-		ReadWrite(UE::Editor::DataStorage::FDynamicColumnDescription
+		ReadWrite(FDynamicColumnDescription
 			{
 				.TemplateType = Target::StaticStruct(),
 				.Identifier = Identifier
@@ -1184,7 +1184,7 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, RowHandle 
 	template <TColumnType DynamicColumnTemplate>
 	FSimpleQuery& FSimpleQuery::Any(const FName& Identifier)
 	{
-		return Any(UE::Editor::DataStorage::FDynamicColumnDescription
+		return Any(FDynamicColumnDescription
 		{
 			.TemplateType = DynamicColumnTemplate::StaticStruct(),
 			.Identifier = Identifier
@@ -1198,22 +1198,22 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, RowHandle 
 		return *this;
 	}
 
-	template<UE::Editor::DataStorage::TValueTagType>
+	template<TValueTagType>
 	FSimpleQuery& FSimpleQuery::All(const FName& Tag)
 	{
-		return All(UE::Editor::DataStorage::FValueTag(Tag));
+		return All(FValueTag(Tag));
 	}
 
-	template<UE::Editor::DataStorage::TValueTagType>
+	template<TValueTagType>
 	FSimpleQuery& FSimpleQuery::All(const FName& Tag, const FName& Value)
 	{
-		return All(UE::Editor::DataStorage::FValueTag(Tag), Value);
+		return All(FValueTag(Tag), Value);
 	}
 	
 	template <TColumnType DynamicColumnTemplate>
 	FSimpleQuery& FSimpleQuery::None(const FName& Identifier)
 	{
-		return None(UE::Editor::DataStorage::FDynamicColumnDescription
+		return None(FDynamicColumnDescription
 			{
 				.TemplateType = DynamicColumnTemplate::StaticStruct(),
 				.Identifier = Identifier
@@ -1223,7 +1223,7 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, RowHandle 
 	template <TColumnType DynamicColumnTemplate>
 	FSimpleQuery& FSimpleQuery::All(const FName& Identifier)
 	{
-		return All(UE::Editor::DataStorage::FDynamicColumnDescription
+		return All(FDynamicColumnDescription
 			{
 				.TemplateType = DynamicColumnTemplate::StaticStruct(),
 				.Identifier = Identifier
@@ -1252,9 +1252,9 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, RowHandle 
 	// External query bindings
 	//
 	template<typename Function>
-	UE::Editor::DataStorage::DirectQueryCallback CreateDirectQueryCallbackBinding(Function&& Callback)
+	DirectQueryCallback CreateDirectQueryCallbackBinding(Function&& Callback)
 	{
-		static_assert(Private::IsValidSelectFunctionSignature<UE::Editor::DataStorage::IDirectQueryContext, Function>(),
+		static_assert(Private::IsValidSelectFunctionSignature<IDirectQueryContext, Function>(),
 			R"(The function provided to the Query Builder's CreateDirectQueryCallbackBinding call wasn't invocable or doesn't contain a supported combination of arguments.
 The following options are supported:
 - void([const]Column&...) 
@@ -1263,13 +1263,13 @@ The following options are supported:
 - void(<Context>&, RowHandle, [const]Column&...) 
 - void(<Context>&, [const]Column*...) 
 - void(<Context>&, const RowHandle*, [const]Column*...) 
-Where <Context> is UE::Editor::DataStorage::IDirectQueryContext
+Where <Context> is IDirectQueryContext
 e.g. void(IDirectQueryContext& Context, RowHandle Row, ColumnType0& ColumnA, const ColumnType1& ColumnB) {...}
 )");
 
 		return [Callback = Forward<Function>(Callback)](
-			const UE::Editor::DataStorage::FQueryDescription& Description,
-			UE::Editor::DataStorage::IDirectQueryContext& Context)
+			const FQueryDescription& Description,
+			IDirectQueryContext& Context)
 		{
 			static constexpr bool ValidateColumns = true;
 			Private::CallQueryFunction<ValidateColumns>(Description, Context, Callback);
@@ -1277,9 +1277,9 @@ e.g. void(IDirectQueryContext& Context, RowHandle Row, ColumnType0& ColumnA, con
 	}
 
 	template<typename Function>
-	UE::Editor::DataStorage::SubqueryCallback CreateSubqueryCallbackBinding(Function&& Callback)
+	SubqueryCallback CreateSubqueryCallbackBinding(Function&& Callback)
 	{
-		static_assert(Private::IsValidSelectFunctionSignature<ITypedElementDataStorageInterface::ISubqueryContext, Function>(),
+		static_assert(Private::IsValidSelectFunctionSignature<ISubqueryContext, Function>(),
 			R"(The function provided to the Query Builder's CreateSubqueryCallbackBinding call wasn't invocable or doesn't contain a supported combination of arguments.
 The following options are supported:
 - void([const]Column&...) 
@@ -1288,13 +1288,13 @@ The following options are supported:
 - void(<Context>&, RowHandle, [const]Column&...) 
 - void(<Context>&, [const]Column*...) 
 - void(<Context>&, const RowHandle*, [const]Column*...) 
-Where <Context> is UE::Editor::DataStorage::ISubqueryContext
+Where <Context> is ISubqueryContext
 e.g. void(ISubqueryContext& Context, RowHandle Row, ColumnType0& ColumnA, const ColumnType1& ColumnB) {...}
 )");
 
 		return [Callback = Forward<Function>(Callback)](
-			const UE::Editor::DataStorage::FQueryDescription& Description,
-			UE::Editor::DataStorage::ISubqueryContext& Context)
+			const FQueryDescription& Description,
+			ISubqueryContext& Context)
 		{
 			static constexpr bool ValidateColumns = true;
 			Private::CallQueryFunction<ValidateColumns>(Description, Context, Callback);

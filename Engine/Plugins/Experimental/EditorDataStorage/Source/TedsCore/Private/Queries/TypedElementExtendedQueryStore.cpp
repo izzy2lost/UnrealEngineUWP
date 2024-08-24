@@ -11,10 +11,10 @@
 
 namespace UE::Editor::DataStorage
 {
-	const ITypedElementDataStorageInterface::FQueryDescription FExtendedQueryStore::EmptyDescription{};
+	const FQueryDescription FExtendedQueryStore::EmptyDescription{};
 
 	FExtendedQueryStore::Handle FExtendedQueryStore::RegisterQuery(
-		ITypedElementDataStorageInterface::FQueryDescription Query,
+		FQueryDescription Query,
 		FEnvironment& Environment,
 		FMassEntityManager& EntityManager,
 		FMassProcessingPhaseManager& PhaseManager)
@@ -66,8 +66,8 @@ namespace UE::Editor::DataStorage
 			});
 	}
 
-	void FExtendedQueryStore::RegisterTickGroup(FName GroupName, ITypedElementDataStorageInterface::EQueryTickPhase Phase,
-		FName BeforeGroup, FName AfterGroup, TypedElementDataStorage::EExecutionMode ExecutionMode)
+	void FExtendedQueryStore::RegisterTickGroup(FName GroupName, EQueryTickPhase Phase,
+		FName BeforeGroup, FName AfterGroup, EExecutionMode ExecutionMode)
 	{
 		FTickGroupDescription& Group = TickGroupDescriptions.FindOrAdd({ GroupName, Phase });
 
@@ -84,7 +84,7 @@ namespace UE::Editor::DataStorage
 		Group.ExecutionMode = ExecutionMode;
 	}
 
-	void FExtendedQueryStore::UnregisterTickGroup(FName GroupName, ITypedElementDataStorageInterface::EQueryTickPhase Phase)
+	void FExtendedQueryStore::UnregisterTickGroup(FName GroupName, EQueryTickPhase Phase)
 	{
 		TickGroupDescriptions.Remove({ GroupName, Phase });
 	}
@@ -119,7 +119,7 @@ namespace UE::Editor::DataStorage
 		return Queries.Get(Entry);
 	}
 
-	const ITypedElementDataStorageInterface::FQueryDescription& FExtendedQueryStore::GetQueryDescription(Handle Query) const
+	const FQueryDescription& FExtendedQueryStore::GetQueryDescription(Handle Query) const
 	{
 		const FExtendedQuery* QueryData = Get(Query);
 		return QueryData ? QueryData->Description : EmptyDescription;
@@ -178,12 +178,12 @@ namespace UE::Editor::DataStorage
 	}
 
 
-	TypedElementDataStorage::FQueryResult FExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, Handle Query)
+	FQueryResult FExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, Handle Query)
 	{
-		using ActionType = ITypedElementDataStorageInterface::FQueryDescription::EActionType;
-		using CompletionType = ITypedElementDataStorageInterface::FQueryResult::ECompletion;
+		using ActionType = FQueryDescription::EActionType;
+		using CompletionType = FQueryResult::ECompletion;
 
-		ITypedElementDataStorageInterface::FQueryResult Result;
+		FQueryResult Result;
 
 		if (FExtendedQuery* QueryData = Get(Query))
 		{
@@ -220,8 +220,6 @@ namespace UE::Editor::DataStorage
 		EDirectQueryExecutionFlags DirectExecutionFlags,
 		CallbackReference Callback)
 	{
-		using namespace UE::Editor::DataStorage;
-
 		FQueryResult Result;
 		if (FExtendedQuery* QueryData = Get(Query))
 		{
@@ -286,10 +284,10 @@ namespace UE::Editor::DataStorage
 		FEnvironment& Environment, FMassExecutionContext& ParentContext, Handle Query, RowHandle Row,
 		SubqueryCallbackRef Callback)
 	{
-		using ActionType = ITypedElementDataStorageInterface::FQueryDescription::EActionType;
-		using CompletionType = ITypedElementDataStorageInterface::FQueryResult::ECompletion;
+		using ActionType = FQueryDescription::EActionType;
+		using CompletionType = FQueryResult::ECompletion;
 
-		ITypedElementDataStorageInterface::FQueryResult Result;
+		FQueryResult Result;
 
 		if (FExtendedQuery* QueryData = Get(Query))
 		{
@@ -327,14 +325,14 @@ namespace UE::Editor::DataStorage
 		return Result;
 	}
 	void FExtendedQueryStore::RunPhasePreambleQueries(FMassEntityManager& EntityManager,
-		FEnvironment& Environment, ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime)
+		FEnvironment& Environment, EQueryTickPhase Phase, float DeltaTime)
 	{
 		RunPhasePreOrPostAmbleQueries(EntityManager, Environment, Phase, DeltaTime,
 			PhasePreparationQueries[static_cast<QueryTickPhaseType>(Phase)]);
 	}
 
 	void FExtendedQueryStore::RunPhasePostambleQueries(FMassEntityManager& EntityManager,
-		FEnvironment& Environment, ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime)
+		FEnvironment& Environment, EQueryTickPhase Phase, float DeltaTime)
 	{
 		RunPhasePreOrPostAmbleQueries(EntityManager, Environment, Phase, DeltaTime,
 			PhaseFinalizationQueries[static_cast<QueryTickPhaseType>(Phase)]);
@@ -371,10 +369,8 @@ namespace UE::Editor::DataStorage
 		Output.Log(TEXT("End of Typed Elements Data Storage query callback list."));
 	}
 
-	bool FExtendedQueryStore::SetupDynamicColumns(ITypedElementDataStorageInterface::FQueryDescription& Query, FEnvironment& Environment)
-	{
-		using namespace TypedElementDataStorage;
-	
+	bool FExtendedQueryStore::SetupDynamicColumns(FQueryDescription& Query, FEnvironment& Environment)
+	{	
 		const int32 SelectionCount = Query.DynamicSelectionTypes.Num();
 
 		for (int32 Index = 0, End = SelectionCount; Index < End; ++Index)
@@ -417,7 +413,7 @@ namespace UE::Editor::DataStorage
 	}
 
 	FMassEntityQuery& FExtendedQueryStore::SetupNativeQuery(
-		ITypedElementDataStorageInterface::FQueryDescription& Query, FExtendedQuery& StoredQuery)
+		FQueryDescription& Query, FExtendedQuery& StoredQuery)
 	{
 		/**
 		 * Mass verifies that queries that are used by processors are on the processor themselves. It does this by taking the address of the query
@@ -427,15 +423,13 @@ namespace UE::Editor::DataStorage
 		 * UHT doesn't allow for templates so it had to be done in an explicit way.
 		 */
 
-		using DSI = ITypedElementDataStorageInterface;
-
-		if (Query.Action == DSI::FQueryDescription::EActionType::Select)
+		if (Query.Action == FQueryDescription::EActionType::Select)
 		{
 			switch (Query.Callback.Type)
 			{
-			case DSI::EQueryCallbackType::None:
+			case EQueryCallbackType::None:
 				break;
-			case DSI::EQueryCallbackType::Processor:
+			case EQueryCallbackType::Processor:
 			{
 				UTypedElementQueryProcessorCallbackAdapterProcessorBase* Processor;
 				switch (Query.Subqueries.Num())
@@ -475,9 +469,9 @@ namespace UE::Editor::DataStorage
 				StoredQuery.Processor.Reset(Processor);
 				return Processor->GetQuery();
 			}
-			case DSI::EQueryCallbackType::ObserveAdd:
+			case EQueryCallbackType::ObserveAdd:
 				// Fall-through
-			case DSI::EQueryCallbackType::ObserveRemove:
+			case EQueryCallbackType::ObserveRemove:
 			{
 				UTypedElementQueryObserverCallbackAdapterProcessorBase* Observer;
 				switch (Query.Subqueries.Num())
@@ -517,9 +511,9 @@ namespace UE::Editor::DataStorage
 				StoredQuery.Processor.Reset(Observer);
 				return Observer->GetQuery();
 			}
-			case DSI::EQueryCallbackType::PhasePreparation:
+			case EQueryCallbackType::PhasePreparation:
 				break;
-			case DSI::EQueryCallbackType::PhaseFinalization:
+			case EQueryCallbackType::PhaseFinalization:
 				break;
 			default:
 				checkf(false, TEXT("Unsupported query callback type %i."), static_cast<int>(Query.Callback.Type));
@@ -529,16 +523,13 @@ namespace UE::Editor::DataStorage
 		return StoredQuery.NativeQuery;
 	}
 
-	bool FExtendedQueryStore::SetupSelectedColumns(
-		ITypedElementDataStorageInterface::FQueryDescription& Query, FMassEntityQuery& NativeQuery)
+	bool FExtendedQueryStore::SetupSelectedColumns(FQueryDescription& Query, FMassEntityQuery& NativeQuery)
 	{
-		using DSI = ITypedElementDataStorageInterface;
-
 		switch (Query.Action)
 		{
-		case DSI::FQueryDescription::EActionType::None:
+		case FQueryDescription::EActionType::None:
 			return true;
-		case DSI::FQueryDescription::EActionType::Select:
+		case FQueryDescription::EActionType::Select:
 		{
 			const int32 SelectionCount = Query.SelectionTypes.Num();
 			if (ensureMsgf(SelectionCount == Query.SelectionAccessTypes.Num(),
@@ -548,7 +539,7 @@ namespace UE::Editor::DataStorage
 				for (int SelectionIndex = 0; SelectionIndex < SelectionCount; ++SelectionIndex)
 				{
 					TWeakObjectPtr<const UScriptStruct>& Type = Query.SelectionTypes[SelectionIndex];
-					DSI::EQueryAccessType AccessType = Query.SelectionAccessTypes[SelectionIndex];
+					EQueryAccessType AccessType = Query.SelectionAccessTypes[SelectionIndex];
 					if (ensureMsgf(Type.IsValid(), TEXT("Provided query selection type can not be null.")) &&
 						ensureMsgf(
 							Type->IsChildOf(FColumn::StaticStruct()) ||
@@ -567,7 +558,7 @@ namespace UE::Editor::DataStorage
 			}
 			return false;
 		}
-		case DSI::FQueryDescription::EActionType::Count:
+		case FQueryDescription::EActionType::Count:
 		{
 			bool bIsSelectionEmpty = Query.SelectionTypes.IsEmpty();
 			bool bIsAccessTypesEmpty = Query.SelectionAccessTypes.IsEmpty();
@@ -581,11 +572,8 @@ namespace UE::Editor::DataStorage
 		}
 	}
 
-	bool FExtendedQueryStore::SetupConditions(
-		ITypedElementDataStorageInterface::FQueryDescription& Query, FMassEntityQuery& NativeQuery)
+	bool FExtendedQueryStore::SetupConditions(FQueryDescription& Query, FMassEntityQuery& NativeQuery)
 	{
-		using DSI = ITypedElementDataStorageInterface;
-
 		if (Query.ConditionTypes.IsEmpty())
 		{
 			return true;
@@ -594,19 +582,19 @@ namespace UE::Editor::DataStorage
 		if (ensureMsgf(Query.ConditionTypes.Num() == Query.ConditionOperators.Num(),
 			TEXT("The types and operators for a typed element query have gone out of sync.")))
 		{
-			const DSI::FQueryDescription::FOperator* Operand = Query.ConditionOperators.GetData();
-			for (DSI::FQueryDescription::EOperatorType Type : Query.ConditionTypes)
+			const FQueryDescription::FOperator* Operand = Query.ConditionOperators.GetData();
+			for (FQueryDescription::EOperatorType Type : Query.ConditionTypes)
 			{
 				EMassFragmentPresence Presence;
 				switch (Type)
 				{
-				case DSI::FQueryDescription::EOperatorType::SimpleAll:
+				case FQueryDescription::EOperatorType::SimpleAll:
 					Presence = EMassFragmentPresence::All;
 					break;
-				case DSI::FQueryDescription::EOperatorType::SimpleAny:
+				case FQueryDescription::EOperatorType::SimpleAny:
 					Presence = EMassFragmentPresence::Any;
 					break;
-				case DSI::FQueryDescription::EOperatorType::SimpleNone:
+				case FQueryDescription::EOperatorType::SimpleNone:
 					Presence = EMassFragmentPresence::None;
 					break;
 				default:
@@ -631,7 +619,7 @@ namespace UE::Editor::DataStorage
 
 	bool FExtendedQueryStore::SetupChunkFilters(
 		Handle QueryHandle,
-		ITypedElementDataStorageInterface::FQueryDescription& Query,
+		FQueryDescription& Query,
 		FEnvironment& Environment,
 		FMassEntityQuery& NativeQuery)
 	{
@@ -710,10 +698,8 @@ namespace UE::Editor::DataStorage
 	}
 
 	bool FExtendedQueryStore::SetupDependencies(
-		ITypedElementDataStorageInterface::FQueryDescription& Query, FMassEntityQuery& NativeQuery)
+		FQueryDescription& Query, FMassEntityQuery& NativeQuery)
 	{
-		using DSI = ITypedElementDataStorageInterface;
-
 		const int32 DependencyCount = Query.DependencyTypes.Num();
 		if (ensureMsgf(DependencyCount == Query.DependencyFlags.Num() && DependencyCount == Query.CachedDependencies.Num(),
 			TEXT("The number of query dependencies (%i) doesn't match the number of dependency access types (%i) and/or cached dependencies count (%i)."),
@@ -726,11 +712,11 @@ namespace UE::Editor::DataStorage
 					ensureMsgf(Type->IsChildOf<USubsystem>(), TEXT("Provided query dependency type '%s' is not based on USubSystem."),
 						*Type->GetStructPathName().ToString()))
 				{
-					DSI::EQueryDependencyFlags Flags = Query.DependencyFlags[DependencyIndex];
+					EQueryDependencyFlags Flags = Query.DependencyFlags[DependencyIndex];
 					NativeQuery.AddSubsystemRequirement(
 						const_cast<UClass*>(Type.Get()),
-						EnumHasAllFlags(Flags, DSI::EQueryDependencyFlags::ReadOnly) ? EMassFragmentAccess::ReadOnly : EMassFragmentAccess::ReadWrite,
-						EnumHasAllFlags(Flags, DSI::EQueryDependencyFlags::GameThreadBound));
+						EnumHasAllFlags(Flags, EQueryDependencyFlags::ReadOnly) ? EMassFragmentAccess::ReadOnly : EMassFragmentAccess::ReadWrite,
+						EnumHasAllFlags(Flags, EQueryDependencyFlags::GameThreadBound));
 				}
 				else
 				{
@@ -742,10 +728,8 @@ namespace UE::Editor::DataStorage
 		return false;
 	}
 
-	bool FExtendedQueryStore::SetupTickGroupDefaults(ITypedElementDataStorageInterface::FQueryDescription& Query)
+	bool FExtendedQueryStore::SetupTickGroupDefaults(FQueryDescription& Query)
 	{
-	using namespace TypedElementDataStorage;
-
 		const FTickGroupDescription* TickGroup = TickGroupDescriptions.Find({ Query.Callback.Group, Query.Callback.Phase });
 		if (TickGroup)
 		{
@@ -778,15 +762,13 @@ namespace UE::Editor::DataStorage
 	bool FExtendedQueryStore::SetupProcessors(Handle QueryHandle, FExtendedQuery& StoredQuery,
 		FEnvironment& Environment, FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager)
 	{
-		using DSI = ITypedElementDataStorageInterface;
-
 		// Register Phase processors locally.
 		switch (StoredQuery.Description.Callback.Type)
 		{
-		case DSI::EQueryCallbackType::PhasePreparation:
+		case EQueryCallbackType::PhasePreparation:
 			RegisterPreambleQuery(StoredQuery.Description.Callback.Phase, QueryHandle);
 			break;
-		case DSI::EQueryCallbackType::PhaseFinalization:
+		case EQueryCallbackType::PhaseFinalization:
 			RegisterPostambleQuery(StoredQuery.Description.Callback.Phase, QueryHandle);
 			break;
 		}
@@ -829,7 +811,7 @@ namespace UE::Editor::DataStorage
 		return true;
 	}
 
-	bool FExtendedQueryStore::SetupActivatable(Handle QueryHandle, ITypedElementDataStorageInterface::FQueryDescription& Query)
+	bool FExtendedQueryStore::SetupActivatable(Handle QueryHandle, FQueryDescription& Query)
 	{
 		if (!Query.Callback.ActivationName.IsNone())
 		{
@@ -838,15 +820,15 @@ namespace UE::Editor::DataStorage
 		return true;
 	}
 
-	EMassFragmentAccess FExtendedQueryStore::ConvertToNativeAccessType(ITypedElementDataStorageInterface::EQueryAccessType AccessType)
+	EMassFragmentAccess FExtendedQueryStore::ConvertToNativeAccessType(EQueryAccessType AccessType)
 	{
 		switch (AccessType)
 		{
-		case ITypedElementDataStorageInterface::EQueryAccessType::ReadOnly:
+		case EQueryAccessType::ReadOnly:
 			// Fall through
-		case ITypedElementDataStorageInterface::EQueryAccessType::OptionalReadOnly:
+		case EQueryAccessType::OptionalReadOnly:
 			return EMassFragmentAccess::ReadOnly;
-		case ITypedElementDataStorageInterface::EQueryAccessType::ReadWrite:
+		case EQueryAccessType::ReadWrite:
 			return EMassFragmentAccess::ReadWrite;
 		default:
 			checkf(false, TEXT("Invalid query access type: %i."), static_cast<uint32>(AccessType));
@@ -854,15 +836,15 @@ namespace UE::Editor::DataStorage
 		}
 	}
 
-	EMassFragmentPresence FExtendedQueryStore::ConvertToNativePresenceType(ITypedElementDataStorageInterface::EQueryAccessType AccessType)
+	EMassFragmentPresence FExtendedQueryStore::ConvertToNativePresenceType(EQueryAccessType AccessType)
 	{
 		switch (AccessType)
 		{
-		case ITypedElementDataStorageInterface::EQueryAccessType::ReadOnly:
+		case EQueryAccessType::ReadOnly:
 			return EMassFragmentPresence::All;
-		case ITypedElementDataStorageInterface::EQueryAccessType::OptionalReadOnly:
+		case EQueryAccessType::OptionalReadOnly:
 			return EMassFragmentPresence::Optional;
-		case ITypedElementDataStorageInterface::EQueryAccessType::ReadWrite:
+		case EQueryAccessType::ReadWrite:
 			return EMassFragmentPresence::All;
 		default:
 			checkf(false, TEXT("Invalid query access type: %i."), static_cast<uint32>(AccessType));
@@ -870,17 +852,17 @@ namespace UE::Editor::DataStorage
 		}
 	}
 
-	void FExtendedQueryStore::RegisterPreambleQuery(ITypedElementDataStorageInterface::EQueryTickPhase Phase, Handle Query)
+	void FExtendedQueryStore::RegisterPreambleQuery(EQueryTickPhase Phase, Handle Query)
 	{
 		PhasePreparationQueries[static_cast<QueryTickPhaseType>(Phase)].Add(Query);
 	}
 
-	void FExtendedQueryStore::RegisterPostambleQuery(ITypedElementDataStorageInterface::EQueryTickPhase Phase, Handle Query)
+	void FExtendedQueryStore::RegisterPostambleQuery(EQueryTickPhase Phase, Handle Query)
 	{
 		PhaseFinalizationQueries[static_cast<QueryTickPhaseType>(Phase)].Add(Query);
 	}
 
-	void FExtendedQueryStore::UnregisterPreambleQuery(ITypedElementDataStorageInterface::EQueryTickPhase Phase, Handle Query)
+	void FExtendedQueryStore::UnregisterPreambleQuery(EQueryTickPhase Phase, Handle Query)
 	{
 		int32 Index;
 		if (PhasePreparationQueries[static_cast<QueryTickPhaseType>(Phase)].Find(Query, Index))
@@ -889,7 +871,7 @@ namespace UE::Editor::DataStorage
 		}
 	}
 
-	void FExtendedQueryStore::UnregisterPostambleQuery(ITypedElementDataStorageInterface::EQueryTickPhase Phase, Handle Query)
+	void FExtendedQueryStore::UnregisterPostambleQuery(EQueryTickPhase Phase, Handle Query)
 	{
 		int32 Index;
 		if (PhaseFinalizationQueries[static_cast<QueryTickPhaseType>(Phase)].Find(Query, Index))
@@ -899,7 +881,7 @@ namespace UE::Editor::DataStorage
 	}
 
 	void FExtendedQueryStore::RunPhasePreOrPostAmbleQueries(FMassEntityManager& EntityManager,
-		FEnvironment& Environment, ITypedElementDataStorageInterface::EQueryTickPhase Phase,
+		FEnvironment& Environment, EQueryTickPhase Phase,
 		float DeltaTime, TArray<Handle>& QueryHandles)
 	{
 		if (!QueryHandles.IsEmpty())
@@ -943,11 +925,11 @@ namespace UE::Editor::DataStorage
 					*QueryData.Description.Callback.Name.ToString(), *QueryData.Processor->GetSparseClassDataStruct()->GetName());
 			}
 		}
-		else if (QueryData.Description.Callback.Type == ITypedElementDataStorageInterface::EQueryCallbackType::PhasePreparation)
+		else if (QueryData.Description.Callback.Type == EQueryCallbackType::PhasePreparation)
 		{
 			UnregisterPreambleQuery(QueryData.Description.Callback.Phase, Query);
 		}
-		else if (QueryData.Description.Callback.Type == ITypedElementDataStorageInterface::EQueryCallbackType::PhaseFinalization)
+		else if (QueryData.Description.Callback.Type == EQueryCallbackType::PhaseFinalization)
 		{
 			UnregisterPostambleQuery(QueryData.Description.Callback.Phase, Query);
 		}
