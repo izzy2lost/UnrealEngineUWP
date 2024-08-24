@@ -93,6 +93,18 @@ enum class EAvaBroadcastChannelChange : uint8
 ENUM_CLASS_FLAGS(EAvaBroadcastChannelChange);
 
 /**
+ * Action to perform when a media capture overrun (main vs render thread) occurs on a broadcast channel.
+ */
+UENUM()
+enum class EAvaBroadcastOutputOverrunAction : uint8
+{
+	/** Flush rendering thread such that all scheduled commands are executed. */
+	Flush,
+	/** Skip capturing a frame if readback is trailing too much. */
+	Skip
+};
+
+/**
  * The status of a playable object.
  *
  * This is related to the status of the transient playable object which is

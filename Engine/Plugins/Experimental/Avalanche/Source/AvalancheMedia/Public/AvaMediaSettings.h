@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AvaMediaDefines.h"
 #include "Containers/Array.h"
 #include "Containers/EnumAsByte.h"
 #include "Containers/StringFwd.h"
@@ -105,6 +106,12 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "Broadcast")
 	FIntPoint ChannelDefaultResolution = FIntPoint(1920, 1080);
 
+	/**
+	 * Action to perform when game thread overruns render thread and all frames are in flights being captured / readback. 
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "Broadcast")
+	EAvaBroadcastOutputOverrunAction ChannelOutputOverrunAction = EAvaBroadcastOutputOverrunAction::Skip;
+	
 	/**
 	 * Enables drawing the placeholder widget when there is no Motion Design asset playing.
 	 * If false, the channel is cleared to the background color.

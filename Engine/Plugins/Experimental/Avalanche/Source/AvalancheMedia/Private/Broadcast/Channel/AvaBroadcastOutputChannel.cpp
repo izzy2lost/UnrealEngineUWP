@@ -69,6 +69,19 @@ FAvaBroadcastOutputChannel::FAvaBroadcastOutputChannel(ENoInit NoInit)
 
 namespace UE::AvaMedia::Private
 {
+	EMediaCaptureOverrunAction GetCaptureOverrunAction()
+	{
+		const UAvaMediaSettings& Settings = UAvaMediaSettings::Get();
+		switch (Settings.ChannelOutputOverrunAction)
+		{
+		case EAvaBroadcastOutputOverrunAction::Skip:
+			return EMediaCaptureOverrunAction::Skip;
+		case EAvaBroadcastOutputOverrunAction::Flush:
+		default:
+			return EMediaCaptureOverrunAction::Flush;
+		}
+	}
+	
 	bool IsCapturing(const UMediaCapture* InMediaCapture)
 	{
 		if (IsValid(InMediaCapture))
@@ -724,6 +737,7 @@ bool FAvaBroadcastOutputChannel::StartChannelBroadcast()
 		CaptureOptions.bSkipFrameWhenRunningExpensiveTasks = false;
 		// Allow the formats to be converted if different.
 		CaptureOptions.bConvertToDesiredPixelFormat = true;
+		CaptureOptions.OverrunAction = UE::AvaMedia::Private::GetCaptureOverrunAction();
 		
 		check(RenderTarget);
 		if (MediaCapture->CaptureTextureRenderTarget2D(RenderTarget, CaptureOptions))
