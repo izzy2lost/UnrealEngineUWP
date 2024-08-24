@@ -3,9 +3,9 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
+#include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMNativeStruct.h"
-#include "VerseVM/Inline/VVMObjectInline.h"
 
 namespace Verse
 {
