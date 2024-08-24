@@ -62,6 +62,12 @@ protected:
 	FORCEINLINE VRestValue* GetFieldData(const VCppClassInfo& CppClassInfo);
 };
 
+inline VObject::VObject(FAllocationContext Context, VEmergentType& InEmergentType)
+	: VHeapValue(Context, &InEmergentType)
+{
+	// Leave initialization of the data to the subclasses
+}
+
 FORCEINLINE size_t VObject::DataOffset(const VCppClassInfo& CppClassInfo)
 {
 	return Align(CppClassInfo.SizeWithoutFields, DataAlignment);

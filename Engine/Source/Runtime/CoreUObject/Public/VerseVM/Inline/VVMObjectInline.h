@@ -94,11 +94,5 @@ inline FOpResult VObject::SetField(FAllocationContext Context, const VUniqueStri
 	return SetField(Context, *EmergentType->Shape, Name, GetData(*EmergentType->CppClassInfo), Value);
 }
 
-inline VObject::VObject(FAllocationContext Context, VEmergentType& InEmergentType)
-	: VHeapValue(Context, &InEmergentType)
-{
-	// Leave initialization of the data to the subclasses
-}
-
 } // namespace Verse
 #endif // WITH_VERSE_VM
