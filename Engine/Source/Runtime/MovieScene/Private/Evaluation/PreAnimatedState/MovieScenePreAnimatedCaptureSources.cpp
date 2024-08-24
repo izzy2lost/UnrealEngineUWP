@@ -14,10 +14,10 @@ namespace MovieScene
 
 
 // Explicit, exported template instantiation for these classes
-template struct MOVIESCENE_API TPreAnimatedCaptureSources<FObjectKey>;
-template struct MOVIESCENE_API TPreAnimatedCaptureSources<FPreAnimatedEvaluationKeyType>;
-template struct MOVIESCENE_API TPreAnimatedCaptureSources<FPreAnimatedEvalHookKeyType>;
-template struct MOVIESCENE_API TPreAnimatedCaptureSources<FMovieSceneEntityID>;
+template struct TPreAnimatedCaptureSources<FObjectKey>;
+template struct TPreAnimatedCaptureSources<FPreAnimatedEvaluationKeyType>;
+template struct TPreAnimatedCaptureSources<FPreAnimatedEvalHookKeyType>;
+template struct TPreAnimatedCaptureSources<FMovieSceneEntityID>;
 
 FPreAnimatedEntityCaptureSource::FPreAnimatedEntityCaptureSource(FPreAnimatedStateExtension* InOwner)
 	: TPreAnimatedCaptureSources<FMovieSceneEntityID>(InOwner)
