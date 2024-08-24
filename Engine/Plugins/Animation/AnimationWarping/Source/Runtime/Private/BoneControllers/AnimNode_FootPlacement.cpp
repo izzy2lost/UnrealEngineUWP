@@ -1230,6 +1230,17 @@ void FAnimNode_FootPlacement::EvaluateSkeletalControl_AnyThread(FComponentSpaceP
 	check(!PelvisTransformCS.ContainsNaN());
 	OutBoneTransforms.Add(FBoneTransform(PelvisData.Bones.FkBoneIndex, PelvisTransformCS));
 
+	if (InterpolationSettings.bSmoothRootBone)
+	{
+		// Smooth out the root by the same factor as the hips.
+		FTransform RootBoneTransform = Output.Pose.GetComponentSpaceTransform(FCompactPoseBoneIndex(0));
+		const FVector TranslationDelta = PelvisTransformCS.GetTranslation() - PelvisData.InputPose.FKTransformCS.GetTranslation();
+
+		RootBoneTransform.AddToTranslation(TranslationDelta);
+		check(!RootBoneTransform.ContainsNaN());
+		OutBoneTransforms.Add(FBoneTransform(FCompactPoseBoneIndex(0), RootBoneTransform));
+	}
+
 	for (int32 FootIndex = 0; FootIndex < LegsData.Num(); ++FootIndex)
 	{
 		UE::Anim::FootPlacement::FLegRuntimeData& LegData = LegsData[FootIndex];

@@ -261,6 +261,9 @@ public:
 	bool bEnableFloorInterpolation = true;
 	
 	UPROPERTY(EditAnywhere, Category = "Plant Settings")
+	bool bSmoothRootBone = false;
+
+	UPROPERTY(EditAnywhere, Category = "Plant Settings")
 	bool bEnableSeparationInterpolation = true;
 };
 
