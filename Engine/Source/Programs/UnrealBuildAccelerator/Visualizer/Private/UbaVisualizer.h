@@ -269,6 +269,7 @@ namespace uba
 		Thread m_thread;
 
 		void PostNewTrace(u32 replay, bool paused);
+		void PostNewTitle(const StringView& title);
 		void PostQuit();
 		LRESULT WinProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 		static LRESULT CALLBACK StaticWinProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
