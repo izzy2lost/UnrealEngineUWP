@@ -366,6 +366,25 @@ struct FOnDemandInstallResult
 /** Install completion callback. */
 using FOnDemandInstallCompleted = TUniqueFunction<void(FOnDemandInstallResult)>;
 
+/** Arguments for purging on-demand content. */
+struct FOnDemandPurgeArgs
+{
+	/** Purge options. */
+	EOnDemandInstallOptions Options = EOnDemandInstallOptions::None;
+};
+
+/** Holdes information about a purge request */
+struct FOnDemandPurgeResult
+{
+	/** The status of the purge request. */
+	FIoStatus Status;
+	/** Duration in seconds. */
+	double DurationInSeconds = 0.0;
+};
+
+/** Purge completion callback */
+using FOnDemandPurgeCompleted = TUniqueFunction<void(FOnDemandPurgeResult)>;
+
 /** Arguments for getting the size of on-demand content. */
 struct FOnDemandGetInstallSizeArgs 
 {
@@ -432,6 +451,8 @@ public:
 		FOnDemandInstallCompleted&& OnCompleted,
 		FOnDemandInstallProgressed&& OnProgress = nullptr,
 		const FOnDemandCancellationToken* CancellationToken = nullptr);
+
+	UE_API void Purge(FOnDemandPurgeArgs&& Args, FOnDemandPurgeCompleted&& OnCompleted);
 
 	UE_API TIoStatusOr<uint64> GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const;
 

@@ -22,6 +22,7 @@ public:
 	virtual bool		IsChunkCached(const FIoHash& ChunkHash) = 0;
 	virtual FIoStatus	PutChunk(FIoBuffer&& Chunk, const FIoHash& ChunkHash) = 0;
 	virtual FIoStatus	Purge(TMap<FIoHash, uint64>&& ChunksToInstall) = 0;
+	virtual FIoStatus	PurgeAllUnreferenced() = 0;
 	virtual FIoStatus	Flush() = 0;
 };
 

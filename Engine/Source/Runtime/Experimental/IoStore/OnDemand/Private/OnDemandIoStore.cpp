@@ -587,18 +587,12 @@ FIoStatus FOnDemandIoStore::Initialize()
 
 void FOnDemandIoStore::Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted)
 {
-	if (Args.MountId.IsEmpty())
+	FSharedMountRequest MountRequest = MakeShared<FMountRequest>();
+	MountRequest->Args = MoveTemp(Args);
+	MountRequest->OnCompleted = MoveTemp(OnCompleted);
+
+	UE_LOG(LogIoStoreOnDemand, Log, TEXT("Enqueing mount request, MountId='%s'"), *MountRequest->Args.MountId);
 	{
-		return OnCompleted(FOnDemandMountResult{ .Status = FIoStatus(EIoErrorCode::InvalidParameter, TEXT("Invalid mount ID")) });
-	}
-
-	{
-		FSharedMountRequest MountRequest = MakeShared<FMountRequest>();
-		MountRequest->Args = MoveTemp(Args);
-		MountRequest->OnCompleted = MoveTemp(OnCompleted);
-
-		UE_LOG(LogIoStoreOnDemand, Log, TEXT("Enqueing mount request, MountId='%s'"), *MountRequest->Args.MountId);
-
 		UE::TUniqueLock Lock(MountRequestMutex);
 		MountRequests.Add(MoveTemp(MountRequest));
 	}
@@ -613,14 +607,28 @@ void FOnDemandIoStore::Install(
 	const FOnDemandCancellationToken* CancellationToken)
 {
 	FSharedInstallRequest InstallRequest = MakeShared<FInstallRequest>();
-	InstallRequest->Args		= MoveTemp(Args);
-	InstallRequest->OnCompleted = MoveTemp(OnCompleted);
-	InstallRequest->OnProgressed = MoveTemp(OnProgress);
-	InstallRequest->CancellationToken = CancellationToken;
+	InstallRequest->Args				= MoveTemp(Args);
+	InstallRequest->OnCompleted			= MoveTemp(OnCompleted);
+	InstallRequest->OnProgressed		= MoveTemp(OnProgress);
+	InstallRequest->CancellationToken	= CancellationToken;
 
 	{
 		UE::TUniqueLock Lock(MountRequestMutex);
 		InstallRequests.Add(MoveTemp(InstallRequest));
+	}
+
+	TryEnterTickLoop();
+}
+
+void FOnDemandIoStore::Purge(FOnDemandPurgeArgs&& Args, FOnDemandPurgeCompleted&& OnCompleted)
+{
+	FSharedPurgeRequest PurgeRequest = MakeShared<FPurgeRequest>();
+	PurgeRequest->Args			= MoveTemp(Args);
+	PurgeRequest->OnCompleted	= MoveTemp(OnCompleted);
+
+	{
+		UE::TUniqueLock Lock(MountRequestMutex);
+		PurgeRequests.Add(MoveTemp(PurgeRequest));
 	}
 
 	TryEnterTickLoop();
@@ -969,6 +977,28 @@ bool FOnDemandIoStore::Tick()
 			});
 	}
 
+	TArray<FSharedPurgeRequest> LocalPurgeRequests;
+	{
+		UE::TUniqueLock Lock(MountRequestMutex);
+		LocalPurgeRequests = MoveTemp(PurgeRequests);
+		PurgeRequests.Empty();
+	}
+	
+	// Tick purge requests
+	if (LocalPurgeRequests.IsEmpty() == false)
+	{
+		FOnDemandPurgeResult PurgeResult;
+
+		const double StartTime = FPlatformTime::Seconds();
+		PurgeResult.Status = InstallCache->PurgeAllUnreferenced();
+		PurgeResult.DurationInSeconds = FPlatformTime::Seconds() - StartTime;
+
+		for (FSharedPurgeRequest& Request : LocalPurgeRequests)
+		{
+			CompletePurgeRequest(*Request, FOnDemandPurgeResult(PurgeResult));
+		}
+	}
+
 	TArray<FSharedInstallRequest> LocalInstallRequests;
 	{
 		UE::TUniqueLock Lock(MountRequestMutex);
@@ -1004,6 +1034,11 @@ FIoStatus FOnDemandIoStore::TickMountRequest(FMountRequest& MountRequest)
 	};
 
 	FOnDemandMountArgs& Args = MountRequest.Args;
+
+	if (Args.MountId.IsEmpty())
+	{
+		return FIoStatusBuilder(EIoErrorCode::InvalidParameter) << TEXT("Invalid mount ID");
+	}
 
 	bool bAnyPendingEncryptionKey = false;
 	bool bFoundContainers = false;
@@ -1550,6 +1585,29 @@ void FOnDemandIoStore::ProgressInstallRequest(const FInstallRequest& Request, co
 		{
 			Request.OnProgressed(Progress);
 		}
+	}
+}
+
+void FOnDemandIoStore::CompletePurgeRequest(FPurgeRequest& Request, FOnDemandPurgeResult&& Result)
+{
+	if (!Request.OnCompleted)
+	{
+		return;
+	}
+
+	if (EnumHasAnyFlags(Request.Args.Options, EOnDemandInstallOptions::CallbackOnGameThread))
+	{
+		ExecuteOnGameThread(
+			UE_SOURCE_LOCATION,
+			[OnCompleted = MoveTemp(Request.OnCompleted), Result = MoveTemp(Result)]() mutable
+			{
+				OnCompleted(MoveTemp(Result));
+			});
+	}
+	else
+	{
+		FOnDemandPurgeCompleted OnCompleted = MoveTemp(Request.OnCompleted);
+		OnCompleted(MoveTemp(Result));
 	}
 }
 

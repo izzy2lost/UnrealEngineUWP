@@ -257,7 +257,7 @@ class FOnDemandIoStore
 		double					DurationInSeconds = 0.0;
 	};
 
-	using FSharedMountRequest	= TSharedPtr<FMountRequest>;
+	using FSharedMountRequest	= TSharedRef<FMountRequest>;
 
 	struct FInstallRequest
 	{
@@ -267,7 +267,15 @@ class FOnDemandIoStore
 		const FOnDemandCancellationToken*	CancellationToken = nullptr;
 	};
 
-	using FSharedInstallRequest	= TSharedPtr<FInstallRequest>;
+	using FSharedInstallRequest	= TSharedRef<FInstallRequest>;
+
+	struct FPurgeRequest
+	{
+		FOnDemandPurgeArgs					Args;
+		FOnDemandPurgeCompleted				OnCompleted;
+	};
+
+	using FSharedPurgeRequest = TSharedRef<FPurgeRequest>;
 
 public:
 	FOnDemandIoStore();
@@ -284,6 +292,7 @@ public:
 								FOnDemandInstallCompleted&& OnCompleted,
 								FOnDemandInstallProgressed&& OnProgress = nullptr,
 								const FOnDemandCancellationToken* CancellationToken = nullptr);
+	void					Purge(FOnDemandPurgeArgs&& Args, FOnDemandPurgeCompleted&& OnCompleted);
 	FIoStatus				Unmount(FStringView MountId);
 	TIoStatusOr<uint64>		GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const;
 	FIoStatus				GetInstallSizesByMountId(const FOnDemandGetInstallSizeArgs& Args, TMap<FString, uint64>& OutSizesByMountId) const;
@@ -314,6 +323,7 @@ private:
 	FOnDemandInstallResult	TickInstallRequest(const FInstallRequest& InstallRequest);
 	void					CompleteInstallRequest(FInstallRequest& InstallRequest, FOnDemandInstallResult&& InstallResult);
 	void					ProgressInstallRequest(const FInstallRequest& InstallRequest, const FOnDemandInstallProgress& Progress);
+	void					CompletePurgeRequest(FPurgeRequest& PurgeRequest, FOnDemandPurgeResult&& Result);
 	void					OnEncryptionKeyAdded(const FGuid& Id, const FAES::FAESKey& Key);
 	static void				CreateContainersFromToc(
 								FStringView MountId,
@@ -330,6 +340,7 @@ private:
 
 	TArray<FSharedMountRequest>			MountRequests;
 	TArray<FSharedInstallRequest>		InstallRequests;
+	TArray<FSharedPurgeRequest>			PurgeRequests;
 	UE::FMutex							MountRequestMutex;
 
 	bool								bTicking = false;

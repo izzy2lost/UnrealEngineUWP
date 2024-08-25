@@ -44,6 +44,35 @@ DEFINE_LOG_CATEGORY(LogIas);
 namespace UE::IoStore
 {
 
+///////////////////////////////////////////////////////////////////////////////
+static FAutoConsoleCommand OnDemandPurgeCacheCommand(
+	TEXT("iostore.PurgeOnDemandInstallCache"),
+	TEXT("Purge On Demand Install Cache"),
+	FConsoleCommandDelegate::CreateStatic([]()
+	{
+		FIoStoreOnDemandModule* IOStoreOnDemandModule = FModuleManager::Get().GetModulePtr<FIoStoreOnDemandModule>(TEXT("IoStoreOnDemand"));
+		if(!IOStoreOnDemandModule)
+		{
+			UE_LOG(LogIoStoreOnDemand, Error, TEXT("Could not find IoStoreOnDemand module"));
+			return;
+		}
+
+		UE_LOG(LogIoStoreOnDemand, Display, TEXT("Purging on demand install cache"));
+		IOStoreOnDemandModule->Purge(FOnDemandPurgeArgs(), [](const FOnDemandPurgeResult& Result)
+		{
+			if (Result.Status.IsOk())
+			{
+				UE_LOG(LogIoStoreOnDemand, Display, TEXT("Purged on demand install cache"));
+			}
+			else
+			{
+				UE_LOG(LogIoStoreOnDemand, Error, TEXT("Failed Purged on demand install cache: %s"), *Result.Status.ToString());
+			}
+		});
+	}),
+	ECVF_Cheat
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 FString GIasOnDemandTocExt = TEXT(".uondemandtoc");
 
@@ -1082,6 +1111,22 @@ void FIoStoreOnDemandModule::Install(
 	}
 
 	IoStore->Install(MoveTemp(Args), MoveTemp(OnCompleted), MoveTemp(OnProgress), CancellationToken);
+}
+
+void FIoStoreOnDemandModule::Purge(FOnDemandPurgeArgs&& Args, FOnDemandPurgeCompleted&& OnCompleted)
+{
+	if (IoStore.IsValid() == false)
+	{
+		IoStore = MakeShared<FOnDemandIoStore>();
+		if (FIoStatus Status = IoStore->Initialize(); !Status.IsOk())
+		{
+			UE_LOG(LogIas, Error, TEXT("Failed to initialize I/O store on-demand, reason '%s'"), *Status.ToString());
+			IoStore.Reset();
+			return OnCompleted(FOnDemandPurgeResult{ .Status = Status });
+		}
+	}
+
+	IoStore->Purge(MoveTemp(Args), MoveTemp(OnCompleted));
 }
 
 FIoStatus FIoStoreOnDemandModule::Unmount(FStringView MountId)
