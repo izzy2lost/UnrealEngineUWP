@@ -3129,6 +3129,14 @@ BOOL Detoured_GetFileAttributesExA(LPCSTR lpFileName, GET_FILEEX_INFO_LEVELS fIn
 	return True_GetFileAttributesExA(lpFileName, fInfoLevelId, lpFileInformation);
 }
 
+HMODULE Detoured_LoadLibraryW(LPCWSTR lpLibFileName)
+{
+	DETOURED_CALL(LoadLibraryW);
+	DEBUG_LOG_TRUE(L"LoadLibraryW", L"(%ls)", lpLibFileName);
+	return True_LoadLibraryW(lpLibFileName);
+}
+
+
 DWORD Shared_GetModuleFileNameA(HMODULE hModule, const wchar_t* moduleName, u32 moduleNameLen, LPSTR lpFilename, DWORD nSize)
 {
 	if (nSize <= moduleNameLen)

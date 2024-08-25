@@ -237,6 +237,7 @@
 	DETOURED_FUNCTION(GetFullPathNameA) \
 	DETOURED_FUNCTION(GetFileAttributesA) \
 	DETOURED_FUNCTION(GetFileAttributesExA) \
+	DETOURED_FUNCTION(LoadLibraryW) \
 	DETOURED_FUNCTION(GetModuleFileNameA) \
 	DETOURED_FUNCTION(GetModuleFileNameExA) \
 	DETOURED_FUNCTION(GetModuleBaseNameA) \
