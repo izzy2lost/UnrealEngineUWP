@@ -629,6 +629,11 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 		}
 	);
 
+	if (IsValid(MaterialModel) && IsValid(MaterialModel->DynamicMaterialInstance))
+	{
+		MaterialModel->DynamicMaterialInstance->OnMaterialBuilt(MaterialModel);
+	}
+
 	/**
 	 * To generate the statistics, you need to force a material recompile. The build state object does this in its destructor.
 	 * Resetting the build state SharedPtr destroys the object and thus generates the material shaders.
@@ -638,11 +643,6 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	MaterialStats = UMaterialEditingLibrary::GetStatistics(MaterialModel->DynamicMaterial);
 
 	State = EDMState::Idle;
-
-	if (IsValid(MaterialModel) && IsValid(MaterialModel->DynamicMaterialInstance))
-	{
-		MaterialModel->DynamicMaterialInstance->OnMaterialBuilt(MaterialModel);
-	}
 
 	OnMaterialBuiltDelegate.Broadcast(MaterialModel);
 }
