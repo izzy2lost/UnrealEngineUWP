@@ -758,7 +758,7 @@ namespace uba
 		#endif
 
 		if (!zone.count)
-			zone.count = GetEnvironmentVariableW(TC("UBA_ZONE"), zone.data, zone.capacity);
+			GetZone(zone);
 
 		if (zone.count)
 			extraInfo.Append(TC(", ")).Append(zone);

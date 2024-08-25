@@ -265,6 +265,8 @@ namespace uba
 	};
 
 	void GenerateNameForProcess(StringBufferBase& out, const tchar* arguments, u32 counterSuffix);
+	bool GetZone(StringBufferBase& outZone);
+
 
 	using FileAccess = u8;
 
@@ -474,7 +476,6 @@ namespace uba
 		TString description;
 		TString logFile;
 	};
-
 }
 
 template<> struct std::hash<uba::ProcessHandle> { size_t operator()(const uba::ProcessHandle& g) const { return g.GetHash(); } };

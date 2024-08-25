@@ -2875,4 +2875,27 @@ namespace uba
 		if (counterSuffix)
 			out.Appendf(TC("_%03u"), counterSuffix);
 	}
+
+	bool GetZone(StringBufferBase& outZone)
+	{
+		outZone.count = GetEnvironmentVariableW(TC("UBA_ZONE"), outZone.data, outZone.capacity);
+		if (outZone.count)
+			return true;
+
+		// TODO: Remove.
+		#if PLATFORM_MAC
+		if (!GetComputerName(outZone.data, outZone.capacity))
+			return false;
+
+		outZone.count = TStrlen(outZone.data);
+		if (outZone.StartsWith(TC("dc4-mac")) || outZone.StartsWith(TC("rdu-mac")))
+		{
+			outZone.Resize(7);
+			return true;
+		}
+		outZone.count = 0;
+		#endif
+
+		return false;
+	}
 }

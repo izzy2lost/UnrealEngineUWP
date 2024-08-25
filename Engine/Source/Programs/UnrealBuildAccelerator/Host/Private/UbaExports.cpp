@@ -239,10 +239,8 @@ extern "C"
 
 		StringBuffer<256> zoneTemp;
 		if (!zone || !*zone)
-		{
-			zoneTemp.count = GetEnvironmentVariableW(TC("UBA_ZONE"), zoneTemp.data, zoneTemp.capacity);
-			zone = zoneTemp.data;
-		}
+			if (GetZone(zoneTemp))
+				zone = zoneTemp.data;
 
 		info.casCapacityBytes = casCapacityBytes;
 		info.storeCompressed = storeCompressed;
