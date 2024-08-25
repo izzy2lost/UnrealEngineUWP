@@ -24,6 +24,12 @@ SDMMaterialComponentPreview::SDMMaterialComponentPreview()
 
 SDMMaterialComponentPreview::~SDMMaterialComponentPreview()
 {
+	if (EndOfFrameDelegateHandle.IsValid())
+	{
+		FCoreDelegates::OnEndFrame.Remove(EndOfFrameDelegateHandle);
+		EndOfFrameDelegateHandle.Reset();
+	}
+
 	if (!FDynamicMaterialModule::AreUObjectsSafe())
 	{
 		return;
@@ -48,19 +54,6 @@ void SDMMaterialComponentPreview::Construct(const FArguments& InArgs, const TSha
 	PreviewMaterialBaseWeak = InEditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterial(InComponent);
 	PreviewMaterialDynamicWeak = InEditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterialDynamic(PreviewMaterialBaseWeak.Get());
 	MaterialModelBaseWeak = InEditorWidget->GetMaterialModelBase();
-
-	if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(MaterialModelBaseWeak.Get()))
-	{
-		MaterialModel->ApplyComponents(PreviewMaterialDynamicWeak.Get());
-	}
-	else if (UDynamicMaterialModelDynamic* MaterialModelDynamic = Cast<UDynamicMaterialModelDynamic>(MaterialModelBaseWeak.Get()))
-	{
-		MaterialModelDynamic->ApplyComponents(PreviewMaterialDynamicWeak.Get());
-	}
-	else
-	{
-		return;
-	}
 
 	SetCanTick(true);
 
@@ -90,6 +83,12 @@ void SDMMaterialComponentPreview::Tick(const FGeometry& AllottedGeometry, const 
 
 void SDMMaterialComponentPreview::OnComponentUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
+	// We're going to recreate the material anyway so this doesn't need to run.
+	if (EndOfFrameDelegateHandle.IsValid())
+	{
+		return;
+	}
+
 	if (InComponent != ComponentWeak.Get() || !IsValid(InComponent) || !InComponent->IsComponentValid())
 	{
 		return;
@@ -102,16 +101,9 @@ void SDMMaterialComponentPreview::OnComponentUpdated(UDMMaterialComponent* InCom
 		return;
 	}
 
-	UMaterial* PreviewMaterialBase = PreviewMaterialBaseWeak.Get();
-
-	if (!PreviewMaterialBase)
-	{
-		PreviewMaterialBase = EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterial(InComponent);
-	}
-
 	UMaterialInstanceDynamic* MID = PreviewMaterialDynamicWeak.Get();
 
-	if (!MID || !EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
+	if (MID && !EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
 		if (UDMMaterialValue* Value = Cast<UDMMaterialValue>(InSource))
 		{
@@ -130,7 +122,47 @@ void SDMMaterialComponentPreview::OnComponentUpdated(UDMMaterialComponent* InCom
 			TextureUVDynamic->SetMIDParameters(MID);
 		}
 	}
-	else if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(InComponent))
+	else if (!EndOfFrameDelegateHandle.IsValid())
+	{
+		EndOfFrameDelegateHandle = FCoreDelegates::OnEndFrame.AddSP(this, &SDMMaterialComponentPreview::OnEndOfFrame);
+	}
+}
+
+void SDMMaterialComponentPreview::OnEndOfFrame()
+{
+	if (EndOfFrameDelegateHandle.IsValid())
+	{
+		FCoreDelegates::OnEndFrame.Remove(EndOfFrameDelegateHandle);
+		EndOfFrameDelegateHandle.Reset();
+	}
+
+	RecreateMaterial();
+}
+
+void SDMMaterialComponentPreview::RecreateMaterial()
+{
+	TSharedPtr<SDMMaterialEditor> EditorWidget = EditorWidgetWeak.Pin();
+
+	if (!EditorWidget.IsValid())
+	{
+		return;
+	}
+
+	UDMMaterialComponent* Component = ComponentWeak.Get();
+
+	if (!Component)
+	{
+		return;
+	}
+
+	UMaterial* PreviewMaterialBase = PreviewMaterialBaseWeak.Get();
+
+	if (!PreviewMaterialBase)
+	{
+		PreviewMaterialBase = EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterial(Component);
+	}
+
+	if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(Component))
 	{
 		Stage->GeneratePreviewMaterial(PreviewMaterialBase);
 
@@ -150,7 +182,7 @@ void SDMMaterialComponentPreview::OnComponentUpdated(UDMMaterialComponent* InCom
 
 		Brush.SetMaterial(PreviewMaterialDynamicWeak.Get());
 	}
-	else if (UDMMaterialProperty* Property = Cast<UDMMaterialProperty>(InComponent))
+	else if (UDMMaterialProperty* Property = Cast<UDMMaterialProperty>(Component))
 	{
 		Property->GeneratePreviewMaterial(PreviewMaterialBase);
 

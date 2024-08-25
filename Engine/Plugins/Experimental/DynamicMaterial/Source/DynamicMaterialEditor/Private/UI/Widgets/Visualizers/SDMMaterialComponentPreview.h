@@ -4,6 +4,7 @@
 
 #include "Widgets/SCompoundWidget.h"
 
+#include "Delegates/IDelegateInstance.h"
 #include "DMEDefs.h"
 #include "SlateMaterialBrush.h"
 #include "UObject/WeakObjectPtr.h"
@@ -45,6 +46,11 @@ protected:
 	TWeakObjectPtr<UMaterial> PreviewMaterialBaseWeak;
 	TWeakObjectPtr<UMaterialInstanceDynamic> PreviewMaterialDynamicWeak;
 	FSlateMaterialBrush Brush;
+	FDelegateHandle EndOfFrameDelegateHandle;
 
 	void OnComponentUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType);
+
+	void OnEndOfFrame();
+
+	void RecreateMaterial();
 };
