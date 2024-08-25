@@ -339,6 +339,12 @@ public:
 	/** Updates the current system's fixed bounds with its current dynamic bounds. */
 	void UpdateSystemFixedBounds();
 
+	/** Returns whether the current system is in a state that supports PerformanceMode/stats collection. */
+	NIAGARAEDITOR_API bool SupportsPerformanceMode() const;
+
+	/** Clear the captures stats for the current system. */
+	void ClearSystemStats();
+
 	/** Clear the captures stats for all the emitters in the current system. */
 	void ClearEmitterStats();
 

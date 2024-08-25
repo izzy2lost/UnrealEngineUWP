@@ -1928,6 +1928,8 @@ void FNiagaraSystemViewModel::RefreshAll()
 	ResetSystem(ETimeResetMode::AllowResetTime, EMultiResetMode::AllowResetAllInstances, EReinitMode::ReinitializeSystem);
 	RefreshEmitterHandleViewModels();
 	RefreshSequencerTracks();
+	ClearSystemStats();
+	ClearEmitterStats();
 	InvalidateCachedCompileStatus();
 	ScriptScratchPadViewModel->RefreshScriptViewModels();
 	CurveSelectionViewModel->Refresh();
@@ -3194,6 +3196,18 @@ void FNiagaraSystemViewModel::UpdateSystemFixedBounds()
 		PreviewComponent->MarkRenderTransformDirty();
 		ResetSystem(ETimeResetMode::KeepCurrentTime, EMultiResetMode::ResetThisInstance, EReinitMode::ResetSystem);
 	}
+}
+
+bool FNiagaraSystemViewModel::SupportsPerformanceMode() const
+{
+	return System->SupportsStatScopedPerformanceMode();
+}
+
+void FNiagaraSystemViewModel::ClearSystemStats()
+{
+#if STATS
+	System->GetStatData().ClearStatCaptures();
+#endif
 }
 
 void FNiagaraSystemViewModel::ClearEmitterStats()

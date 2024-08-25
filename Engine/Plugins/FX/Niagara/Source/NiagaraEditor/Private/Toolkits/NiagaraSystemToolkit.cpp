@@ -426,11 +426,9 @@ void FNiagaraSystemToolkit::SetupCommands()
 	GetToolkitCommands()->MapAction(
 		FNiagaraEditorCommands::Get().ToggleStatPerformance,
 		FExecuteAction::CreateSP(this, &FNiagaraSystemToolkit::ToggleStatPerformance),
-		FCanExecuteAction::CreateLambda([this]()
-		{
-			return System && System->SupportsStatScopedPerformanceMode();
-		}),
-		FIsActionChecked::CreateSP(this, &FNiagaraSystemToolkit::IsStatPerformanceChecked));
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FNiagaraSystemToolkit::IsStatPerformanceChecked),
+		FIsActionButtonVisible::CreateSP(this, &FNiagaraSystemToolkit::SupportsStatPerformance));
 	GetToolkitCommands()->MapAction(
         FNiagaraEditorCommands::Get().ClearStatPerformance,
         FExecuteAction::CreateSP(this, &FNiagaraSystemToolkit::ClearStatPerformance));
@@ -1007,10 +1005,20 @@ void FNiagaraSystemToolkit::OnToggleBoundsSetFixedBounds_System()
 	SystemViewModel->UpdateSystemFixedBounds();
 }
 
+bool FNiagaraSystemToolkit::SupportsStatPerformance() const
+{
+#if STATS
+	return SystemViewModel->GetSystem().SupportsStatScopedPerformanceMode();
+#else
+	return false;
+#endif
+}
+
+
 void FNiagaraSystemToolkit::ClearStatPerformance()
 {
 #if STATS
-	SystemViewModel->GetSystem().GetStatData().ClearStatCaptures();
+	SystemViewModel->ClearSystemStats();
 	SystemViewModel->ClearEmitterStats();
 #endif
 }

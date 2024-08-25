@@ -2525,15 +2525,21 @@ void UNiagaraScript::GenerateStatIDs()
 #elif ENABLE_STATNAMEDEVENTS
 	StatNamedEvents.Empty();
 
-	static const IConsoleVariable* CVarOptimizeVMDetailedStats = IConsoleManager::Get().FindConsoleVariable(TEXT("vm.DetailedVMScriptStats"));
-	if (CVarOptimizeVMDetailedStats && CVarOptimizeVMDetailedStats->GetInt() != 0)
+	if (UNiagaraSystem* RootSystem = FindRootSystem())
 	{
-		if (IsReadyToRun(ENiagaraSimTarget::CPUSim))
+		if (RootSystem->SupportsStatScopedPerformanceMode())
 		{
-			StatNamedEvents.Reserve(CachedScriptVM.StatScopes.Num());
-			for (FNiagaraStatScope& StatScope : CachedScriptVM.StatScopes)
+			static const IConsoleVariable* CVarOptimizeVMDetailedStats = IConsoleManager::Get().FindConsoleVariable(TEXT("vm.DetailedVMScriptStats"));
+			if (CVarOptimizeVMDetailedStats && CVarOptimizeVMDetailedStats->GetInt() != 0)
 			{
-				StatNamedEvents.Add(StatScope.FriendlyName.ToString());
+				if (IsReadyToRun(ENiagaraSimTarget::CPUSim))
+				{
+					StatNamedEvents.Reserve(CachedScriptVM.StatScopes.Num());
+					for (FNiagaraStatScope& StatScope : CachedScriptVM.StatScopes)
+					{
+						StatNamedEvents.Add(StatScope.FriendlyName.ToString());
+					}
+				}
 			}
 		}
 	}
