@@ -250,12 +250,20 @@ void FReadOnlyMeshDrawSingleShaderBindings::SetShaderBindings(
 		if (SRVType[TypeByteIndex] & (1 << TypeBitIndex))
 		{
 			FRHIShaderResourceView* SRV = (FRHIShaderResourceView*)SRVBindings[SRVIndex];
-			SetSrvParameter(BatchedParameters, Parameter, SRV);
+
+			if (SRV)
+			{
+				SetSrvParameter(BatchedParameters, Parameter, SRV);
+			}
 		}
 		else
 		{
 			FRHITexture* Texture = (FRHITexture*)SRVBindings[SRVIndex];
-			SetTextureParameter(BatchedParameters, Parameter, Texture);
+
+			if (Texture)
+			{
+				SetTextureParameter(BatchedParameters, Parameter, Texture);
+			}
 		}
 	}
 
