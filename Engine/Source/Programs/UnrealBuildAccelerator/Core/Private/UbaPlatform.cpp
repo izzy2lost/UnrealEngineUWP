@@ -123,8 +123,7 @@ namespace uba
 		DWORD nSize = bufferLen;
 		return ::GetComputerNameW(buffer, &nSize);
 		#else
-		gethostname(buffer, bufferLen);
-		return true;
+		return gethostname(buffer, bufferLen) == 0;
 		#endif
 	}
 
