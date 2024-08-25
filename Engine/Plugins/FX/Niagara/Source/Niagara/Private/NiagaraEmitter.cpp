@@ -1520,6 +1520,12 @@ bool FVersionedNiagaraEmitterData::IsReadyToRunInternal() const
 
 	if (SimTarget == ENiagaraSimTarget::GPUComputeSim)
 	{
+		// event scripts on GPU emitters are not currently supported
+		if (!EventHandlerScriptProps.IsEmpty())
+		{
+			return false;
+		}
+
 		if (GPUComputeScript->IsScriptCompilationPending(true))
 		{
 			return false;
