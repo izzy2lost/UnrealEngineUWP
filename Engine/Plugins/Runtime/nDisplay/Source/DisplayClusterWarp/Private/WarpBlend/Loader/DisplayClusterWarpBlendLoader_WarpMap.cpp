@@ -4,15 +4,15 @@
 #include "DisplayClusterWarpLog.h"
 
 THIRD_PARTY_INCLUDES_START
-#include "mpcdiProfile.h"
-#include "mpcdiReader.h"
-#include "mpcdiDisplay.h"
-#include "mpcdiBuffer.h"
-#include "mpcdiRegion.h"
 #include "mpcdiAlphaMap.h"
 #include "mpcdiBetaMap.h"
+#include "mpcdiBuffer.h"
+#include "mpcdiDisplay.h"
 #include "mpcdiDistortionMap.h"
 #include "mpcdiGeometryWarpFile.h"
+#include "mpcdiProfile.h"
+#include "mpcdiReader.h"
+#include "mpcdiRegion.h"
 THIRD_PARTY_INCLUDES_END
 
 #include "RHIGlobals.h"
@@ -39,7 +39,7 @@ namespace UE::DisplayClusterWarp::PFMHelpers
 			return 30.48f;
 		case mpcdi::GeometricUnityd:
 			return 91.44f;
-		case mpcdi::GeometricUnitunkown:
+		case mpcdi::GeometricUnitunknown:
 			return 1.f;
 		default:
 			check(false);
