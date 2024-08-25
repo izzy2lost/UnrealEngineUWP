@@ -176,7 +176,7 @@ public:
 
 	static void WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding);
 
-#if USE_ANDROID_SWAPPY
+#if USE_ANDROID_VULKAN_SWAPPY
 	static bool bSwappyEnabledAtRHIInit;
 #endif
 
