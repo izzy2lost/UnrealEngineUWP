@@ -2884,7 +2884,7 @@ namespace uba
 
 		// TODO: Remove.
 		#if PLATFORM_MAC
-		if (!GetComputerName(outZone.data, outZone.capacity))
+		if (!GetComputerNameW(outZone.data, outZone.capacity))
 			return false;
 
 		outZone.count = TStrlen(outZone.data);
