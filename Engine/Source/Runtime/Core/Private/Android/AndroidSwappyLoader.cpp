@@ -2,8 +2,6 @@
 
 #include "AndroidSwappyLoader.h"
 
-#if USE_ANDROID_OPENGL_SWAPPY || USE_ANDROID_VULKAN_SWAPPY
-
 #undef VK_NO_PROTOTYPES
 #include "swappy/swappyVk.h"
 #include "swappy/swappyGL.h"
@@ -358,5 +356,3 @@ void SwappyGL_uninjectTracer(const SwappyTracer* t)
 {
 	fpSwappyGL_uninjectTracer(t);
 }
-
-#endif // USE_ANDROID_OPENGL_SWAPPY || USE_ANDROID_VULKAN_SWAPPY
