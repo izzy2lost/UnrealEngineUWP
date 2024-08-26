@@ -17,6 +17,11 @@ FSlateAtlasedTextureResource::~FSlateAtlasedTextureResource()
 	}
 }
 
+bool FSlateAtlasedTextureResource::IsResourceValid() const
+{
+	return TextureObject && TextureObject->IsValidLowLevel();
+}
+
 FSlateShaderResourceProxy* FSlateAtlasedTextureResource::FindOrCreateAtlasedProxy(UObject* InAtlasedObject, const FSlateAtlasData& AtlasData)
 {
 	FSlateShaderResourceProxy* Proxy = ProxyMap.FindRef(InAtlasedObject);
