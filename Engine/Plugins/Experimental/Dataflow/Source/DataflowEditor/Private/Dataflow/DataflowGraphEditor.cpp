@@ -37,7 +37,6 @@ void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetO
 	AppearanceInfo.CornerText = FText::FromString("Dataflow");
 
 	FGraphEditorCommands::Register();
-	FDataflowEditorCommands::Register();
 	if (!GraphEditorCommands.IsValid())
 	{
 		GraphEditorCommands = MakeShareable(new FUICommandList);

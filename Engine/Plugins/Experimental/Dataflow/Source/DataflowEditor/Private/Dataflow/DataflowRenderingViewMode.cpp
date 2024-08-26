@@ -2,6 +2,7 @@
 
 #include "Dataflow/DataflowRenderingViewMode.h"
 #include "Misc/LazySingleton.h"
+#include "Dataflow/DataflowEditorCommands.h"
 
 #define LOCTEXT_NAMESPACE "DataflowRenderingViewMode"
 
@@ -81,6 +82,10 @@ namespace Dataflow
 
 	void FRenderingViewModeFactory::RegisterViewMode(TUniquePtr<IDataflowConstructionViewMode>&& ViewMode)
 	{
+		ensureMsgf(!FDataflowEditorCommands::IsRegistered(), TEXT("FRenderingViewModeFactory: DataflowEditorCommands have already been registered. \
+			Newly registered View Modes may not be available in the Editor. \
+			Ensure that RegisterViewMode is called before the DataflowEditor module is loaded."));
+
 		const FName NewViewModeName = ViewMode->GetName();
 		if (ViewModeMap.Contains(NewViewModeName))
 		{

@@ -19,7 +19,7 @@
 		{
 			"Name": "DataflowEditor",
 			"Type": "Editor",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "PostDefault"
 		},
 		{
 			"Name": "DataflowAssetTools",

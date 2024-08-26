@@ -139,6 +139,12 @@ void FDataflowEditorCommands::Unregister()
 	return FDataflowEditorCommandsImpl::Unregister();
 }
 
+bool FDataflowEditorCommands::IsRegistered()
+{
+	return FDataflowEditorCommandsImpl::IsRegistered();
+}
+
+
 const FDataflowNode* FDataflowEditorCommands::EvaluateNode(Dataflow::FContext& Context, Dataflow::FTimestamp& InOutLastNodeTimestamp,
 	const UDataflow* Dataflow, const FDataflowNode* Node, const FDataflowOutput* Output, const FString& NodeName, UObject* Asset)
 {

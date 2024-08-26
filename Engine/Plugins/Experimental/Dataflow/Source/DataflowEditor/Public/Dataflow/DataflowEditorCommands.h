@@ -103,6 +103,7 @@ public:
 
 	static void Register();
 	static void Unregister();
+	static bool IsRegistered();
 
 	static const FDataflowEditorCommandsImpl& Get();
 

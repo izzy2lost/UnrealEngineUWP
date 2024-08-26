@@ -3,6 +3,7 @@
 #include "Dataflow/DataflowToolRegistry.h"
 #include "Misc/LazySingleton.h"
 #include "Framework/Commands/UICommandInfo.h"
+#include "Dataflow/DataflowEditorCommands.h"
 
 namespace Dataflow
 {
@@ -19,6 +20,10 @@ namespace Dataflow
 
 	void FDataflowToolRegistry::AddNodeToToolMapping(const FName& NodeName, TObjectPtr<UInteractiveToolBuilder> ToolBuilder, const TSharedRef<const IDataflowToolActionCommands>& ToolActionRegistry)
 	{
+		ensureMsgf(!FDataflowEditorCommands::IsRegistered(), TEXT("FDataflowToolRegistry: DataflowEditorCommands have already been registered. \
+				Newly registered Tools may not be available in the Editor. \
+				Ensure that AddNodeToToolMapping is called before the DataflowEditor module is loaded."));
+
 		// FUICommandInfo is uninitialized, it will be created later in FDataflowEditorCommandsImpl::RegisterCommands
 		NodeTypeToToolMap.Add(NodeName, { ToolBuilder, ToolActionRegistry, nullptr });
 	}
