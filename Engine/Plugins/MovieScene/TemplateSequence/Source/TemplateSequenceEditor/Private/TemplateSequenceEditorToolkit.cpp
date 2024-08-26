@@ -6,11 +6,13 @@
 #include "LevelEditor.h"
 #include "LevelEditorSequencerIntegration.h"
 #include "Misc/TemplateSequenceEditorPlaybackContext.h"
+#include "Misc/TemplateSequenceEditorSettings.h"
 #include "Misc/TemplateSequenceEditorSpawnRegister.h"
 #include "Modules/ModuleManager.h"
 #include "MovieScene.h"
 #include "ScopedTransaction.h"
 #include "Selection.h"
+#include "Systems/TemplateSequenceCameraPreviewSystem.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "TemplateSequence.h"
 
@@ -117,6 +119,13 @@ void FTemplateSequenceEditorToolkit::Initialize(const EToolkitMode::Type Mode, c
 			LevelEditorTabManager->TryInvokeTab(FName("LevelEditorSceneOutliner"))->RequestCloseTab();
 			LevelEditorTabManager->TryInvokeTab(FName("LevelEditorSceneOutliner"));
 		}
+	}
+
+	// If we are viewing a camera animation, see if we want to base it on the viewport transform from the start.
+	const UTemplateSequenceEditorSettings* Settings = GetDefault<UTemplateSequenceEditorSettings>();
+	if (Settings->bCameraInitiallyAdditiveToViewport)
+	{
+		UTemplateSequenceCameraPreviewSystem::EnableNextFrame();
 	}
 
 	TSharedPtr<SDockTab> DockTab = LevelEditorModule.AttachSequencer(Sequencer->GetSequencerWidget(), SharedThis(this));

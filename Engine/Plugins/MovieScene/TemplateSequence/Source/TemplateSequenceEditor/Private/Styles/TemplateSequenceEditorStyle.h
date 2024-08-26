@@ -34,8 +34,10 @@ public:
 		Set("ClassThumbnail.TemplateSequence", new IMAGE_BRUSH("TemplateSequence_64x", Icon64x64));
 
 		// toolbar icons
-		Set("TemplateSequenceEditor.Chain", new IMAGE_BRUSH("Chain_16x", Icon16x16));
-		Set("TemplateSequenceEditor.Chain.Small", new IMAGE_BRUSH("Chain_24x", Icon24x24));
+		Set("TemplateSequenceEditor.Chain", new IMAGE_BRUSH("Chain_24x", Icon24x24));
+		Set("TemplateSequenceEditor.Chain.Small", new IMAGE_BRUSH("Chain_16x", Icon16x16));
+		Set("SetViewportPreviewOffset", new IMAGE_BRUSH("SetViewportPreviewOffset_24x", Icon24x24));
+		Set("SetViewportPreviewOffset.Small", new IMAGE_BRUSH("SetViewportPreviewOffset_16x", Icon16x16));
 
 		FSlateStyleRegistry::RegisterSlateStyle(*this);
 	}
