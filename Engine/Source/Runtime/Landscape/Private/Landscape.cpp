@@ -3759,6 +3759,17 @@ void ALandscapeProxy::PreSave(FObjectPreSaveContext ObjectSaveContext)
 
 void ALandscapeProxy::Serialize(FArchive& Ar)
 {
+	FGuid InstanceLandscapeGuid = this->LandscapeGuid;
+	if (Ar.IsSaving() && Ar.IsPersistent())
+	{
+		// if we're using an instance-modified landscape guid, we need to restore the original before saving to persistent storage
+		// (this can happen when you are cooking a level containing level instances in a commandlet)
+		if ((LandscapeGuid != OriginalLandscapeGuid) && OriginalLandscapeGuid.IsValid())
+		{
+			this->LandscapeGuid = this->OriginalLandscapeGuid;
+		}
+	}
+
 	Super::Serialize(Ar);
 
 	Ar.UsingCustomVersion(FLandscapeCustomVersion::GUID);
@@ -3790,8 +3801,13 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
-
 #endif
+
+	if (Ar.IsSaving() && Ar.IsPersistent())
+	{
+		// restore the instance guid
+		this->LandscapeGuid = InstanceLandscapeGuid;
+	}
 }
 
 void ALandscapeProxy::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
@@ -4003,7 +4019,7 @@ bool ULandscapeInfo::UpdateLayerInfoMap(ALandscapeProxy* Proxy /*= nullptr*/, bo
 void ChangeLandscapeGuidIfObjectIsInstanced(FGuid& InOutGuid, UObject* InObject)
 {
 	// we shouldn't be dealing with any instanced landscapes in these cases, early out
-	if (InObject->IsTemplate() || IsRunningCookCommandlet())
+	if (InObject->IsTemplate())
 	{
 		return;
 	}
