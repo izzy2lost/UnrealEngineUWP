@@ -4,6 +4,7 @@
 #include "DetailLayoutBuilder.h"
 #include "Editor.h"
 #include "IPropertyUtilities.h"
+#include "PropertyCustomizationHelpers.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
@@ -58,6 +59,36 @@ namespace UE::StructUtils::Private
 
 bool FInstancedStructFilter::IsStructAllowed(const FStructViewerInitializationOptions& InInitOptions, const UScriptStruct* InStruct, TSharedRef<FStructViewerFilterFuncs> InFilterFuncs)
 {
+	bool bStructAllowed = true;
+	if (!AllowedStructs.IsEmpty())
+	{
+		bStructAllowed = false;
+		for (const TSoftObjectPtr<const UScriptStruct> AllowedStruct : AllowedStructs)
+		{
+			if (InStruct->IsChildOf(AllowedStruct.Get()))
+			{
+				bStructAllowed = true;
+				break;
+			}
+		}
+	}
+	if (!DisallowedStructs.IsEmpty())
+	{
+		for (const TSoftObjectPtr<const UScriptStruct> DisallowedStruct : DisallowedStructs)
+		{
+			if (InStruct->IsChildOf(DisallowedStruct.Get()))
+			{
+				bStructAllowed = false;
+				break;
+			}
+		}
+	}
+
+	if (!bStructAllowed)
+	{
+		return false;
+	}
+	
 	if (InStruct->IsA<UUserDefinedStruct>())
 	{
 		return bAllowUserDefinedStructs;
@@ -228,6 +259,44 @@ TSharedRef<SWidget> SInstancedStructPicker::GenerateStructPicker()
 		}
 
 		StructFilter->AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
+
+		auto SoftPointerTransform = [](const UScriptStruct* InStruct) -> TSoftObjectPtr<const UScriptStruct>
+		{
+			return InStruct;
+		};
+		
+		Algo::Transform(PropertyCustomizationHelpers::GetStructsFromMetadataString(StructProperty->GetMetaData("AllowedClasses")), StructFilter->AllowedStructs, SoftPointerTransform);
+		Algo::Transform(PropertyCustomizationHelpers::GetStructsFromMetadataString(StructProperty->GetMetaData("DisallowedClasses")), StructFilter->DisallowedStructs, SoftPointerTransform);
+
+		TArray<UObject*> OwningObjects;
+		StructProperty->GetOuterObjects(OwningObjects);
+		for (UObject* OwningObject : OwningObjects)
+		{
+			if (OwningObject != nullptr)
+			{
+				const FString GetAllowedClassesFunctionName = StructProperty->GetMetaData("GetAllowedClasses");
+				if (!GetAllowedClassesFunctionName.IsEmpty())
+				{
+					const UFunction* GetAllowedClassesFunction = OwningObject ? OwningObject->FindFunction(*GetAllowedClassesFunctionName) : nullptr;
+					if (GetAllowedClassesFunction != nullptr)
+					{
+						DECLARE_DELEGATE_RetVal(TArray<TSoftObjectPtr<UScriptStruct>>, FGetAllowedClasses);
+						StructFilter->AllowedStructs.Append(FGetAllowedClasses::CreateUFunction(OwningObject, GetAllowedClassesFunction->GetFName()).Execute());
+					}
+				}
+		
+				const FString GetDisallowedClassesFunctionName = StructProperty->GetMetaData("GetDisallowedClasses");
+				if (!GetDisallowedClassesFunctionName.IsEmpty())
+				{
+					const UFunction* GetDisallowedClassesFunction = OwningObject ? OwningObject->FindFunction(*GetDisallowedClassesFunctionName) : nullptr;
+					if (GetDisallowedClassesFunction != nullptr)
+					{
+						DECLARE_DELEGATE_RetVal(TArray<TSoftObjectPtr<UScriptStruct>>, FGetDisallowedClasses);
+						StructFilter->DisallowedStructs.Append(FGetDisallowedClasses::CreateUFunction(OwningObject, GetDisallowedClassesFunction->GetFName()).Execute());
+					}
+				}
+			}
+		}
 	}
 
 	const UScriptStruct* SelectedStruct = nullptr;

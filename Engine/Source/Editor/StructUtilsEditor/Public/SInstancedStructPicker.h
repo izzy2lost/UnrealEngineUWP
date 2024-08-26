@@ -20,6 +20,12 @@ public:
 	/** The base struct for the property that classes must be a child-of. */
 	TWeakObjectPtr<const UScriptStruct> BaseStruct = nullptr;
 
+	/** The array of allowed structs */
+	TArray<TSoftObjectPtr<const UScriptStruct>> AllowedStructs;
+
+	/** The array of disallowed structs */
+	TArray<TSoftObjectPtr<const UScriptStruct>> DisallowedStructs;
+
 	// A flag controlling whether we allow UserDefinedStructs
 	bool bAllowUserDefinedStructs = false;
 

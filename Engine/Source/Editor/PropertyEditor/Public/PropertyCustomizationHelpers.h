@@ -228,6 +228,12 @@ namespace PropertyCustomizationHelpers
 	PROPERTYEDITOR_API TArray<const UClass*> GetClassesFromMetadataString(const FString& MetadataString);
 
 	/**
+	 * Parse and load the given metadata string into a list of allowed structs.
+	 * The metadata string is likely from something like AllowedClasses or DisallowedClasses.
+	 */
+	PROPERTYEDITOR_API TArray<const UScriptStruct*> GetStructsFromMetadataString(const FString& MetadataString);
+	
+	/**
 	 *
 	 */
 	PROPERTYEDITOR_API void GetCallInEditorFunctionsForClass(const UClass* InClass, TArray<UFunction*>& OutCallInEditorFunctions, EFieldIterationFlags InIterationFlags = EFieldIterationFlags::IncludeSuper);

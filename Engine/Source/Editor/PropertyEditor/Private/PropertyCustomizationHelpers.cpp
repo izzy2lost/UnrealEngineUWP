@@ -1197,6 +1197,42 @@ TArray<const UClass*> PropertyCustomizationHelpers::GetClassesFromMetadataString
 	return Classes;
 }
 
+TArray<const UScriptStruct*> PropertyCustomizationHelpers::GetStructsFromMetadataString(const FString& MetadataString)
+{
+	if (MetadataString.IsEmpty())
+	{
+		return TArray<const UScriptStruct*>();
+	}
+
+	auto FindClass = [](const FString& InStructName) -> const UScriptStruct*
+	{
+		const UScriptStruct* Struct = UClass::TryFindTypeSlow<const UScriptStruct>(InStructName, EFindFirstObjectOptions::EnsureIfAmbiguous);
+		if (!Struct)
+		{
+			Struct = LoadObject<const UScriptStruct>(nullptr, *InStructName);
+		}
+		return Struct;
+	};
+		
+	TArray<FString> StructNames;
+	MetadataString.ParseIntoArrayWS(StructNames, TEXT(","), true);
+
+	TArray<const UScriptStruct*> Structs;
+	Structs.Reserve(StructNames.Num());
+
+	for (const FString& StructName : StructNames)
+	{
+		const UScriptStruct* Struct = FindClass(StructName);
+		if (!Struct)
+		{
+			continue;
+		}
+
+		Structs.Add(Struct);
+	}
+
+	return Structs;
+}
 
 
 TSharedRef<SWidget> PropertyCustomizationHelpers::MakeEditInlineObjectClassPicker(TSharedRef<IPropertyHandle> PropertyHandle, FOnClassPicked OnClassPicked, TSharedPtr<IClassViewerFilter> AdditionalClassFilter)
