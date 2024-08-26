@@ -14,6 +14,9 @@
 #include "EditMode/SControlRigDetails.h"
 #include "EditMode/SControlRigOutliner.h"
 #include "ISequencer.h"
+#include "ISequencer.h"
+#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/Selection/Selection.h"
 #include "MovieScene.h"
 #include "Editor.h"
 #include "EditorViewportClient.h"
@@ -1462,6 +1465,14 @@ bool FControlRigEditMode::HandleClick(FEditorViewportClient* InViewportClient, H
 							{
 								GEditor->SelectNone(false, true);
 								GEditor->NoteSelectionChange();
+							}
+							//also need to clear explicitly in sequencer
+							if (WeakSequencer.IsValid())
+							{
+								if (ISequencer* SequencerPtr = WeakSequencer.Pin().Get())
+								{
+									SequencerPtr->GetViewModel()->GetSelection()->Empty();
+								}
 							}
 						}
 						ClearRigElementSelection(ValidControlTypeMask());

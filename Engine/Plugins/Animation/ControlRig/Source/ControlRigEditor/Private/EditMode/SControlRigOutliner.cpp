@@ -17,6 +17,8 @@
 #include "EditMode/ControlRigEditMode.h"
 #include "EditorModeManager.h"
 #include "ISequencer.h"
+#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/Selection/Selection.h"
 #include "LevelSequence.h"
 #include "Selection.h"
 #include "Editor.h"
@@ -896,14 +898,25 @@ TArray<URigHierarchy*> SMultiRigHierarchyTreeView::GetHierarchy() const
 void SMultiRigHierarchyTreeView::SetControlRigs(TArrayView < TWeakObjectPtr<UControlRig>>& InControlRigs)
 {
 	ControlRigs.SetNum(0);
+	TArray < TPair<UControlRig*, TArray<FName>>> SelectedControls;
 	for (TWeakObjectPtr<UControlRig>& ControlRig : InControlRigs)
 	{
 		if (ControlRig.IsValid())
 		{
 			ControlRigs.Add(ControlRig.Get());
+			SelectedControls.Add(TPair<UControlRig*, TArray<FName>>(ControlRig.Get(), ControlRig->CurrentControlSelection()));
 		}
 	}
+	
 	RefreshTreeView(true);
+	//reselect controls that will have gotten cleared by the refresh, this situation can happen on save
+	for (TPair<UControlRig*, TArray<FName>>& CRS : SelectedControls)
+	{
+		for (const FName& Name : CRS.Value)
+		{
+			CRS.Key->SelectControl(Name, true);
+		}
+	}
 }
 
 //////////////////////////////////////////////////////////////
@@ -1137,6 +1150,15 @@ void SControlRigOutliner::HandleSelectionChanged(TSharedPtr<FMultiRigTreeElement
 				// Replicating the UEditorEngine::HandleSelectCommand, without the transaction to avoid ensure(!GIsTransacting)
 				GEditor->SelectNone(true, true);
 				GEditor->RedrawLevelEditingViewports();
+			}
+			const TWeakPtr<ISequencer>& WeakSequencer = EditMode->GetWeakSequencer();
+			//also need to clear explicitly in sequencer
+			if (WeakSequencer.IsValid())
+			{
+				if (ISequencer* SequencerPtr = WeakSequencer.Pin().Get())
+				{
+					SequencerPtr->GetViewModel()->GetSelection()->Empty();
+				}
 			}
 		}
 	}
