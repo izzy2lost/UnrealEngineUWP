@@ -3234,8 +3234,24 @@ void FHttpCacheStoreParams::Parse(const TCHAR* NodeName, const TCHAR* Config)
 
 	FParse::Value(Config, TEXT("OAuthScope="), OAuthScope);
 
+    // OAuth Provider Identifier
 	FParse::Value(Config, TEXT("OAuthProviderIdentifier="), OAuthProviderIdentifier);
-
+	if (FParse::Value(Config, TEXT("EnvOAuthProviderIdentifierOverride="), OverrideName))
+	{
+		FString ProviderEnv = FPlatformMisc::GetEnvironmentVariable(*OverrideName);
+		if (!ProviderEnv.IsEmpty())
+		{
+			OAuthProviderIdentifier = ProviderEnv;
+			UE_LOG(LogDerivedDataCache, Log, TEXT("%s: Found environment override for OAuthProviderIdentifier %s=%s"), NodeName, *OverrideName, *OAuthProviderIdentifier);
+		}
+	}
+	if (FParse::Value(Config, TEXT("CommandLineOAuthProviderIdentifierOverride="), OverrideName))
+	{
+		if (FParse::Value(FCommandLine::Get(), *(OverrideName + TEXT("=")), OAuthProviderIdentifier))
+		{
+			UE_LOG(LogDerivedDataCache, Log, TEXT("%s: Found command line override for OAuthProviderIdentifier %s=%s"), NodeName, *OverrideName, *OAuthProviderIdentifier);
+		}
+	}
 	FParse::Value(Config, TEXT("OAuthAccess="), OAuthAccessToken);
 	if (FParse::Value(Config, TEXT("OAuthAccessTokenEnvOverride="), OverrideName))
 	{
