@@ -7,50 +7,8 @@
 #include "RayTracingMeshDrawCommands.h"
 #include "SceneUniformBuffer.h"
 #include "Nanite/NaniteShared.h"
-#include "RayTracingDefinitions.h"
-#include "RayTracingShaderBindingTable.h"
 
 #if RHI_RAYTRACING
-
-void FDynamicRayTracingMeshCommandContext::FinalizeCommand(FRayTracingMeshCommand& RayTracingMeshCommand)
-{
-	check(GeometrySegmentIndex == RayTracingMeshCommand.GeometrySegmentIndex);
-
-	if (SBTAllocation)
-	{
-		if (SBTAllocation->HasLayer(ERayTracingSceneLayer::Base))
-		{
-			const bool bHidden = RayTracingMeshCommand.bDecal;
-			const uint32 RecordIndex = SBTAllocation->GetRecordIndex(ERayTracingSceneLayer::Base, RayTracingMeshCommand.GeometrySegmentIndex);
-			FRayTracingShaderBindingData DirtyShaderBinding(&RayTracingMeshCommand, RayTracingGeometry, RecordIndex, bHidden);
-			DirtyShaderBindings.Add(DirtyShaderBinding);
-		}
-
-		if (SBTAllocation->HasLayer(ERayTracingSceneLayer::Decals))
-		{
-			const bool bHidden = !RayTracingMeshCommand.bDecal;
-			const uint32 RecordIndex = SBTAllocation->GetRecordIndex(ERayTracingSceneLayer::Decals, RayTracingMeshCommand.GeometrySegmentIndex);
-			FRayTracingShaderBindingData DirtyShaderBinding(&RayTracingMeshCommand, RayTracingGeometry, RecordIndex, bHidden);
-			DirtyShaderBindings.Add(DirtyShaderBinding);
-		}
-	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		if (RayTracingInstanceIndex != INDEX_NONE)
-		{
-			const bool bHidden = RayTracingMeshCommand.bDecal;
-			FRayTracingShaderBindingData DirtyShaderBinding(&RayTracingMeshCommand, RayTracingInstanceIndex, bHidden);
-			DirtyShaderBindings.Add(DirtyShaderBinding);
-		}
-
-	if (RayTracingDecalInstanceIndex != INDEX_NONE)
-	{
-		const bool bHidden = !RayTracingMeshCommand.bDecal;
-		FRayTracingShaderBindingData DirtyShaderBinding(&RayTracingMeshCommand, RayTracingDecalInstanceIndex, bHidden);
-		DirtyShaderBindings.Add(DirtyShaderBinding);
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
 
 void FRayTracingMeshCommand::SetRayTracingShaderBindingsForHitGroup(
 	FRayTracingLocalShaderBindingWriter* BindingWriter,
@@ -135,20 +93,6 @@ void FRayTracingMeshCommand::SetShaders(const FMeshProcessorShaders& Shaders)
 bool FRayTracingMeshCommand::IsUsingNaniteRayTracing() const
 {
 	return NaniteUniformBufferParameter.IsBound();
-}
-
-void FRayTracingMeshCommand::UpdateFlags(FRayTracingCachedMeshCommandFlags& Flags) const
-{
-	Flags.InstanceMask |= InstanceMask;
-	Flags.bAllSegmentsOpaque &= bOpaque;
-	Flags.bAllSegmentsCastShadow &= bCastRayTracedShadows;
-	Flags.bAnySegmentsCastShadow |= bCastRayTracedShadows;
-	Flags.bAnySegmentsDecal |= bDecal;
-	Flags.bAllSegmentsDecal &= bDecal;
-	Flags.bTwoSided |= bTwoSided;
-	Flags.bIsSky |= bIsSky;
-	Flags.bAllSegmentsTranslucent &= bIsTranslucent;
-	Flags.bAllSegmentsReverseCulling &= bReverseCulling;
 }
 
 void FRayTracingShaderCommand::SetRayTracingShaderBindings(

@@ -16,7 +16,6 @@
 #include "RendererInterface.h"
 #include "ShaderParameterMacros.h"
 #include "MeshPassProcessor.h"
-#include "RayTracingMeshDrawCommands.h"
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "Engine/Scene.h"
@@ -49,7 +48,6 @@ struct FNaniteMaterialSlot;
 struct FNaniteRasterBin;
 struct FNaniteShadingBin;
 struct FRayTracingInstance;
-struct FRayTracingSBTAllocation;
 
 template<typename ElementType,typename OctreeSemantics> class TOctree2;
 
@@ -703,14 +701,9 @@ public:
 	Nanite::CoarseMeshStreamingHandle CoarseMeshStreamingHandle;
 	RayTracing::GeometryGroupHandle RayTracingGeometryGroupHandle;
 
-	struct FRayTracingLODData
-	{
-		FRayTracingCachedMeshCommandFlags CachedMeshCommandFlags;
-		TArray<int32, TInlineAllocator<2>> CachedMeshCommandIndices;
-		FRayTracingSBTAllocation* SBTAllocation = nullptr;
-	};
-	TArray<FRayTracingLODData> RayTracingLODData;
+	TArray<TArray<int32, TInlineAllocator<2>>> CachedRayTracingMeshCommandIndicesPerLOD;
 
+	TArray<uint64> CachedRayTracingMeshCommandsHashPerLOD;
 	// TODO: this should be placed in FRayTracingScene and we have a pointer/handle here. It's here for now for PoC
 	FRayTracingGeometryInstance CachedRayTracingInstance;
 #endif

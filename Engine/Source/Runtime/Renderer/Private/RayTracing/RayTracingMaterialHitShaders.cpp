@@ -788,33 +788,33 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 
 	// material hit groups
 	{
-		const uint32 NumTotalDirtyBindings = View.DirtyRayTracingShaderBindings.Num();
-		const uint32 TargetBindingsPerTask = 1024;
-		const uint32 NumTasks = FMath::Max(1u, FMath::DivideAndRoundUp(NumTotalDirtyBindings, TargetBindingsPerTask));
-		const uint32 BindingsPerTask = FMath::DivideAndRoundUp(NumTotalDirtyBindings, NumTasks); // Evenly divide commands between tasks (avoiding potential short last task)
+		const uint32 NumTotalMeshCommands = ReferenceView.VisibleRayTracingMeshCommands.Num();
+		const uint32 TargetCommandsPerTask = 4096; // Granularity chosen based on profiling Infiltrator scene to balance wall time speedup and total CPU thread time.
+		const uint32 NumTasks = FMath::Max(1u, FMath::DivideAndRoundUp(NumTotalMeshCommands, TargetCommandsPerTask));
+		const uint32 CommandsPerTask = FMath::DivideAndRoundUp(NumTotalMeshCommands, NumTasks); // Evenly divide commands between tasks (avoiding potential short last task)
 		
 		View.RayTracingMaterialBindings.SetNum(NumTasks);
 
 		FRHIUniformBuffer* SceneUB = GetSceneUniforms().GetBufferRHI(GraphBuilder);
 		for (uint32 TaskIndex = 0; TaskIndex < NumTasks; ++TaskIndex)
 		{
-			const uint32 FirstTaskBindingIndex = TaskIndex * BindingsPerTask;
-			const FRayTracingShaderBindingData* DirtyShaderBindings = View.DirtyRayTracingShaderBindings.GetData() + FirstTaskBindingIndex;
-			const uint32 NumBindings = FMath::Min(BindingsPerTask, NumTotalDirtyBindings - FirstTaskBindingIndex);
+			const uint32 FirstTaskCommandIndex = TaskIndex * CommandsPerTask;
+			const FVisibleRayTracingMeshCommand* MeshCommands = ReferenceView.VisibleRayTracingMeshCommands.GetData() + FirstTaskCommandIndex;
+			const uint32 NumCommands = FMath::Min(CommandsPerTask, NumTotalMeshCommands - FirstTaskCommandIndex);
 
 			FRayTracingLocalShaderBindingWriter* BindingWriter = new FRayTracingLocalShaderBindingWriter();
 			View.RayTracingMaterialBindings[TaskIndex] = BindingWriter;
 
 			GraphBuilder.AddSetupTask(
-				[&View, SceneUB, bIsPathTracing, PipelineState, BindingWriter, DirtyShaderBindings, NumBindings, bEnableMaterials, bEnableShadowMaterials, bSupportMeshDecals,
+				[&View, SceneUB, bIsPathTracing, PipelineState, BindingWriter, MeshCommands, NumCommands, bEnableMaterials, bEnableShadowMaterials, bSupportMeshDecals,
 				OpaqueShadowMaterialIndex, HiddenMaterialIndex, OpaqueMeshDecalHitGroupIndex, HiddenMeshDecalHitGroupIndex, TaskIndex]()
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(BindRayTracingMaterialPipelineTask);
 
-					for (uint32 CommandIndex = 0; CommandIndex < NumBindings; ++CommandIndex)
+					for (uint32 CommandIndex = 0; CommandIndex < NumCommands; ++CommandIndex)
 					{
-						const FRayTracingShaderBindingData DirtyShaderBinding = DirtyShaderBindings[CommandIndex];
-						const FRayTracingMeshCommand& MeshCommand = *DirtyShaderBinding.RayTracingMeshCommand;
+						const FVisibleRayTracingMeshCommand VisibleMeshCommand = MeshCommands[CommandIndex];
+						const FRayTracingMeshCommand& MeshCommand = *VisibleMeshCommand.RayTracingMeshCommand;
 
 						const bool bIsMeshDecalShader = MeshCommand.MaterialShader->RayTracingPayloadType == (uint32)ERayTracingPayloadType::Decals;
 
@@ -828,17 +828,17 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 						if (bIsMeshDecalShader)
 						{
 							checkf(bSupportMeshDecals && MeshCommand.bDecal, TEXT("Unexpected ray tracing mesh command using Mesh Decal payload. Fix logic adding the command or update bSupportMeshDecals as appropriate."));
-							HitGroupIndex = DirtyShaderBinding.bHidden ? HiddenMeshDecalHitGroupIndex : OpaqueMeshDecalHitGroupIndex;
+							HitGroupIndex = VisibleMeshCommand.bHidden ? HiddenMeshDecalHitGroupIndex : OpaqueMeshDecalHitGroupIndex;
 						}
 						else
 						{
 							checkf((!bIsPathTracing && MeshCommand.MaterialShader->RayTracingPayloadType == (uint32)ERayTracingPayloadType::RayTracingMaterial)
 								|| (bIsPathTracing && MeshCommand.MaterialShader->RayTracingPayloadType == (uint32)ERayTracingPayloadType::PathTracingMaterial),
 								TEXT("Incorrectly using RayTracingMaterial when path tracer is enabled or vice-versa."));
-							HitGroupIndex = DirtyShaderBinding.bHidden ? HiddenMaterialIndex : OpaqueShadowMaterialIndex;
+							HitGroupIndex = VisibleMeshCommand.bHidden ? HiddenMaterialIndex : OpaqueShadowMaterialIndex;
 						}
 
-						if (bEnableMaterials && !DirtyShaderBinding.bHidden)
+						if (bEnableMaterials && !VisibleMeshCommand.bHidden)
 						{
 							const int32 FoundIndex = FindRayTracingHitGroupIndex(PipelineState, MeshCommand.MaterialShader, false);
 							if (FoundIndex != INDEX_NONE)
@@ -847,8 +847,6 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 							}
 						}
 
-						uint32 BaseRecordIndex = DirtyShaderBinding.SBTRecordIndex;
-
 						// Bind primary material shader
 
 						{
@@ -856,8 +854,8 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 								View.ViewUniformBuffer,
 								SceneUB,
 								Nanite::GRayTracingManager.GetUniformBuffer(),
-								BaseRecordIndex + RAY_TRACING_SHADER_SLOT_MATERIAL,
-								DirtyShaderBinding.RayTracingGeometry,
+								RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, RAY_TRACING_SHADER_SLOT_MATERIAL),
+								VisibleMeshCommand.RayTracingGeometry,
 								MeshCommand.GeometrySegmentIndex,
 								HitGroupIndex);
 						}
@@ -867,19 +865,19 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 						{
 							// mesh decals do not use the shadow slot, so do minimal work
 							FRayTracingLocalShaderBindings& Binding = BindingWriter->AddWithExternalParameters();
-							Binding.RecordIndex = BaseRecordIndex + RAY_TRACING_SHADER_SLOT_SHADOW;
-							Binding.Geometry = DirtyShaderBinding.RayTracingGeometry;
+							Binding.RecordIndex = RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, + RAY_TRACING_SHADER_SLOT_SHADOW);
+							Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 							Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
 							Binding.ShaderIndexInPipeline = OpaqueMeshDecalHitGroupIndex;
 
 						}
-						else if (MeshCommand.bCastRayTracedShadows && !DirtyShaderBinding.bHidden)
+						else if (MeshCommand.bCastRayTracedShadows && !VisibleMeshCommand.bHidden)
 						{
 							if (MeshCommand.bOpaque || !bEnableShadowMaterials)
 							{
 								FRayTracingLocalShaderBindings& Binding = BindingWriter->AddWithExternalParameters();
-								Binding.RecordIndex = BaseRecordIndex + RAY_TRACING_SHADER_SLOT_SHADOW;
-								Binding.Geometry = DirtyShaderBinding.RayTracingGeometry;
+								Binding.RecordIndex = RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, + RAY_TRACING_SHADER_SLOT_SHADOW);
+								Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 								Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
 								Binding.ShaderIndexInPipeline = OpaqueShadowMaterialIndex;
 							}
@@ -891,8 +889,8 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 									View.ViewUniformBuffer,
 									SceneUB,
 									Nanite::GRayTracingManager.GetUniformBuffer(),
-									BaseRecordIndex + RAY_TRACING_SHADER_SLOT_SHADOW,
-									DirtyShaderBinding.RayTracingGeometry,
+									RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, + RAY_TRACING_SHADER_SLOT_SHADOW),
+									VisibleMeshCommand.RayTracingGeometry,
 									MeshCommand.GeometrySegmentIndex,
 									HitGroupIndex);
 							}
@@ -900,8 +898,8 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 						else
 						{
 							FRayTracingLocalShaderBindings& Binding = BindingWriter->AddWithExternalParameters();
-							Binding.RecordIndex = BaseRecordIndex + RAY_TRACING_SHADER_SLOT_SHADOW;
-							Binding.Geometry = DirtyShaderBinding.RayTracingGeometry;
+							Binding.RecordIndex = RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, + RAY_TRACING_SHADER_SLOT_SHADOW);
+							Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 							Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
 							Binding.ShaderIndexInPipeline = HiddenMaterialIndex;
 						}

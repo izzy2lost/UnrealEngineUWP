@@ -260,11 +260,11 @@ static void BindNiagaraRayTracingMeshCommands(
 	FRHICommandList& RHICmdList,
 	FRHIShaderBindingTable* SBT,
 	FRHIUniformBuffer* ViewUniformBuffer,
-	TConstArrayView<FRayTracingShaderBindingData> DirtyShaderBindings,
+	TConstArrayView<FVisibleRayTracingMeshCommand> RayTracingMeshCommands,
 	FRayTracingPipelineState* Pipeline,
 	TFunctionRef<uint32(const FRayTracingMeshCommand&)> PackUserData)
 {
-	const int32 NumTotalBindings = DirtyShaderBindings.Num();
+	const int32 NumTotalBindings = RayTracingMeshCommands.Num();
 
 	const uint32 MergedBindingsSize = sizeof(FRayTracingLocalShaderBindings) * NumTotalBindings;
 
@@ -291,13 +291,13 @@ static void BindNiagaraRayTracingMeshCommands(
 	const uint32 NumShaderSlotsPerGeometrySegment = SBT->GetInitializer().NumShaderSlotsPerGeometrySegment;
 
 	uint32 BindingIndex = 0;
-	for (const FRayTracingShaderBindingData DirtyShaderBinding : DirtyShaderBindings)
+	for (const FVisibleRayTracingMeshCommand VisibleMeshCommand : RayTracingMeshCommands)
 	{
-		const FRayTracingMeshCommand& MeshCommand = *DirtyShaderBinding.RayTracingMeshCommand;
+		const FRayTracingMeshCommand& MeshCommand = *VisibleMeshCommand.RayTracingMeshCommand;
 
 		FRayTracingLocalShaderBindings Binding = {};
-		Binding.RecordIndex = DirtyShaderBinding.SBTRecordIndex;
-		Binding.Geometry = DirtyShaderBinding.RayTracingGeometry;
+		Binding.RecordIndex = VisibleMeshCommand.GlobalSegmentIndex * NumShaderSlotsPerGeometrySegment;
+		Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 		Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
 		Binding.UserData = PackUserData(MeshCommand);
 		Binding.UniformBuffers = UniformBufferArray;
@@ -400,7 +400,7 @@ void FNiagaraAsyncGpuTraceProviderHwrt::PostRenderOpaque(FRHICommandList& RHICmd
 				RHICmdList,
 				RayTracingSBT,
 				ViewUniformBuffer,
-				UE::FXRenderingUtils::RayTracing::GetDirtyRayTracingShaderBindings(ReferenceView),
+				UE::FXRenderingUtils::RayTracing::GetVisibleRayTracingMeshCommands(ReferenceView),
 				RayTracingPipelineState,
 				BakeDefault);
 		}

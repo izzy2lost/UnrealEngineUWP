@@ -987,12 +987,11 @@ void FPrimitiveSceneInfo::UpdateCachedRayTracingInstances(FScene* Scene, const T
 	}
 }
 
-struct FDeferredRayTracingMeshCommandData
+struct DeferredMeshLODCommandIndex
 {
 	FPrimitiveSceneInfo* SceneInfo;
-	TArray<int8, TInlineAllocator<2>> MeshLODIndices;
-	TArray<int32, TInlineAllocator<2>> CommandIndices;
-
+	int8 MeshLODIndex;
+	int32 CommandIndex;
 };
 
 template<class T>
@@ -1007,7 +1006,7 @@ public:
 	FTempRayTracingMeshCommandStorage Commands;
 	FCachedRayTracingMeshCommandContext<T> CommandContext;
 	FRayTracingMeshProcessor RayTracingMeshProcessor;
-	TArray<FDeferredRayTracingMeshCommandData> DeferredMeshCommandDatas;
+	TArray<DeferredMeshLODCommandIndex> DeferredMeshLODCommandIndices;
 };
 
 template<bool bDeferLODCommandIndices, class T>
@@ -1017,7 +1016,7 @@ void CacheRayTracingMeshBatch(
 	T& Commands,
 	FCachedRayTracingMeshCommandContext<T>& CommandContext,
 	FRayTracingMeshProcessor& RayTracingMeshProcessor,
-	FDeferredRayTracingMeshCommandData* DeferredMeshCommandData,
+	TArray<DeferredMeshLODCommandIndex>* DeferredMeshLODCommandIndices,
 	bool bMustEmitCommand)
 {
 	// Why do we pass a full mask here when the dynamic case only uses a mask of 1?
@@ -1029,34 +1028,26 @@ void CacheRayTracingMeshBatch(
 
 	if (bMustEmitCommand || CommandContext.CommandIndex >= 0)
 	{
-		FRayTracingMeshCommand& RTMeshCommand = Commands[CommandContext.CommandIndex];
-		FPrimitiveSceneInfo::FRayTracingLODData& LODData = SceneInfo->RayTracingLODData[MeshBatch.LODIndex];
+		uint64& Hash = SceneInfo->CachedRayTracingMeshCommandsHashPerLOD[MeshBatch.LODIndex];
 
-		RTMeshCommand.UpdateFlags(LODData.CachedMeshCommandFlags);
-
-		// Update the hash
-		uint64& Hash = LODData.CachedMeshCommandFlags.CachedMeshCommandHash;
-	
 		// We want the hash to change if either the shader or the binding contents change. This is used by the autoinstance feature.
-		const FRHIShader* Shader = RTMeshCommand.MaterialShader;
+		const FRHIShader* Shader = Commands[CommandContext.CommandIndex].MaterialShader;
 
 		// TODO: It would be better to use 64 bits for both of these to reduce the chance of hash collisions
 		//       but GetDynamicInstancingHash is currently a public function, so changing the return type would be an API change
 		uint32 ShaderHash = Shader != nullptr ? GetTypeHash(Shader->GetHash()) : 0;
-		uint32 ShaderBindingsHash = RTMeshCommand.ShaderBindings.GetDynamicInstancingHash();
+		uint32 ShaderBindingsHash = Commands[CommandContext.CommandIndex].ShaderBindings.GetDynamicInstancingHash();
 
 		Hash <<= 1; // TODO: It would probably be better to use some kind of proper 64 bit mix here?
 		Hash ^= (uint64(ShaderBindingsHash) << 32) | uint64(ShaderHash);
-		
+
 		if (bDeferLODCommandIndices)
 		{
-			DeferredMeshCommandData->SceneInfo = SceneInfo;
-			DeferredMeshCommandData->MeshLODIndices.Add(MeshBatch.LODIndex);
-			DeferredMeshCommandData->CommandIndices.Add(CommandContext.CommandIndex);
+			DeferredMeshLODCommandIndices->Add({ SceneInfo, MeshBatch.LODIndex, CommandContext.CommandIndex });
 		}
 		else
 		{
-			SceneInfo->RayTracingLODData[MeshBatch.LODIndex].CachedMeshCommandIndices.Add(CommandContext.CommandIndex);
+			SceneInfo->CachedRayTracingMeshCommandIndicesPerLOD[MeshBatch.LODIndex].Add(CommandContext.CommandIndex);
 		}
 
 		CommandContext.CommandIndex = -1;
@@ -1070,7 +1061,7 @@ void CacheRayTracingPrimitive(
 	T& Commands,
 	FCachedRayTracingMeshCommandContext<T>& CommandContext,
 	FRayTracingMeshProcessor& RayTracingMeshProcessor,
-	TArray<FDeferredRayTracingMeshCommandData>* DeferredMeshCommandDatas,
+	TArray<DeferredMeshLODCommandIndex>* DeferredMeshLODCommandIndices,
 	FRayTracingInstance& OutCachedRayTracingInstance, 
 	ERayTracingPrimitiveFlags& OutFlags)
 {
@@ -1103,65 +1094,47 @@ void CacheRayTracingPrimitive(
 	{
 		// Cache ray tracing mesh commands in FPrimitiveSceneInfo
 
-		int32 LODCount = 0;
+		int32 MaxLOD = -1;
 
 		if (OutCachedRayTracingInstance.Materials.Num() > 0)
 		{
 			// TODO: LOD w/ screen size support. Probably needs another array parallel to OutRayTracingInstances
 			// We assume it is exactly 1 LOD now (true for Nanite proxies)
-			LODCount = 1;
+			MaxLOD = 0;
 		}
 		else
 		{
 			for (const FStaticMeshBatch& Mesh : SceneInfo->StaticMeshes)
 			{
-				LODCount = LODCount < (Mesh.LODIndex + 1) ? (Mesh.LODIndex + 1) : LODCount;
+				MaxLOD = MaxLOD < Mesh.LODIndex ? Mesh.LODIndex : MaxLOD;
 			}
 		}
 
-		check(SceneInfo->RayTracingLODData.IsEmpty());
-		SceneInfo->RayTracingLODData.Empty(LODCount);
-		SceneInfo->RayTracingLODData.AddDefaulted(LODCount);
+		check(SceneInfo->CachedRayTracingMeshCommandIndicesPerLOD.IsEmpty());
+		SceneInfo->CachedRayTracingMeshCommandIndicesPerLOD.Empty(MaxLOD + 1);
+		SceneInfo->CachedRayTracingMeshCommandIndicesPerLOD.AddDefaulted(MaxLOD + 1); // should be initialized to -1?
 
-		FDeferredRayTracingMeshCommandData* DeferredMeshCommandData = bDeferLODCommandIndices ? &DeferredMeshCommandDatas->AddZeroed_GetRef() : nullptr;
-		
+		check(SceneInfo->CachedRayTracingMeshCommandsHashPerLOD.IsEmpty());
+		SceneInfo->CachedRayTracingMeshCommandsHashPerLOD.Empty(MaxLOD + 1);
+		SceneInfo->CachedRayTracingMeshCommandsHashPerLOD.AddZeroed(MaxLOD + 1);
+
 		if (OutCachedRayTracingInstance.Materials.Num() > 0)
 		{
 			// The material section must emit a command. Otherwise, it should have been excluded earlier
 			const bool bMustEmitCommand = true;
+
 			for (const FMeshBatch& Mesh : OutCachedRayTracingInstance.Materials)
 			{
-				CacheRayTracingMeshBatch<bDeferLODCommandIndices>(Mesh, SceneInfo, Commands, CommandContext, RayTracingMeshProcessor, DeferredMeshCommandData, bMustEmitCommand);
+				CacheRayTracingMeshBatch<bDeferLODCommandIndices>(Mesh, SceneInfo, Commands, CommandContext, RayTracingMeshProcessor, DeferredMeshLODCommandIndices, bMustEmitCommand);
 			}
 		}
 		else
 		{
 			const bool bMustEmitCommand = false;
+
 			for (const FStaticMeshBatch& Mesh : SceneInfo->StaticMeshes)
 			{
-				CacheRayTracingMeshBatch<bDeferLODCommandIndices>(Mesh, SceneInfo, Commands, CommandContext, RayTracingMeshProcessor, DeferredMeshCommandData, bMustEmitCommand);
-			}
-		}
-		
-		// Setup the instance mask on the LOD data
-		const ERayTracingViewMaskMode MaskMode = static_cast<ERayTracingViewMaskMode>(Scene->CachedRayTracingMeshCommandsMode);
-		if (EnumHasAllFlags(OutFlags, ERayTracingPrimitiveFlags::FarField))
-		{
-			for (int32 LODIndex = 0; LODIndex < LODCount; ++LODIndex)
-			{
-				FPrimitiveSceneInfo::FRayTracingLODData& LODData = SceneInfo->RayTracingLODData[LODIndex];
-				LODData.CachedMeshCommandFlags.InstanceMask = ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::FarField, MaskMode);
-			}
-		}
-
-		// Allocate the SBT data if not deferred
-		if (!bDeferLODCommandIndices)
-		{
-			for (int32 LODIndex = 0; LODIndex < LODCount; ++LODIndex)
-			{
-				FPrimitiveSceneInfo::FRayTracingLODData& LODData = SceneInfo->RayTracingLODData[LODIndex];				
-				const FRayTracingGeometry* RayTracingGeometry = OutCachedRayTracingInstance.Materials.Num() ? OutCachedRayTracingInstance.Geometry : SceneInfo->GetStaticRayTracingGeometry(LODIndex);	
-				LODData.SBTAllocation = Scene->RayTracingSBT.AllocateStaticRange(RayTracingGeometry, LODData.CachedMeshCommandFlags);
+				CacheRayTracingMeshBatch<bDeferLODCommandIndices>(Mesh, SceneInfo, Commands, CommandContext, RayTracingMeshProcessor, DeferredMeshLODCommandIndices, bMustEmitCommand);
 			}
 		}
 	}
@@ -1192,7 +1165,7 @@ void FPrimitiveSceneInfo::CacheRayTracingPrimitives(FScene* Scene, const TArrayV
 					FPrimitiveSceneInfo* SceneInfo = SceneInfos[Index];
 					FRayTracingInstance CachedInstance;
 					ERayTracingPrimitiveFlags& Flags = Scene->PrimitiveRayTracingFlags[SceneInfo->GetIndex()];
-					CacheRayTracingPrimitive<true>(Scene, SceneInfo, Context.Commands, Context.CommandContext, Context.RayTracingMeshProcessor, &Context.DeferredMeshCommandDatas, CachedInstance, Flags);
+					CacheRayTracingPrimitive<true>(Scene, SceneInfo, Context.Commands, Context.CommandContext, Context.RayTracingMeshProcessor, &Context.DeferredMeshLODCommandIndices, CachedInstance, Flags);
 					UpdateCachedRayTracingInstance(SceneInfo, CachedInstance, Flags);
 					SceneInfo->bCachedRaytracingDataDirty = false;
 				}
@@ -1205,28 +1178,12 @@ void FPrimitiveSceneInfo::CacheRayTracingPrimitives(FScene* Scene, const TArrayV
 
 				// copy commands generated by multiple threads to the sparse array in FScene
 				// and set each mesh LOD command index
-				// Also allocate the actual SBT data for each LOD
 				for (const auto& Context : Contexts)
 				{
-					for (const FDeferredRayTracingMeshCommandData& Entry : Context.DeferredMeshCommandDatas)
+					for (const DeferredMeshLODCommandIndex& Entry : Context.DeferredMeshLODCommandIndices)
 					{
-						if (Entry.SceneInfo)
-						{
-							// Multiple segments per LOD possible
-							for (int32 Index = 0; Index < Entry.MeshLODIndices.Num(); ++Index)
-							{
-								int32 CommandIndex = CachedRayTracingMeshCommands.Add(Context.Commands[Entry.CommandIndices[Index]]);
-								Entry.SceneInfo->RayTracingLODData[Entry.MeshLODIndices[Index]].CachedMeshCommandIndices.Add(CommandIndex);
-							}
-
-							// Single SBT allocation per LOD (shared betweens segments)						
-							for (int32 LODIndex = 0; LODIndex < Entry.SceneInfo->RayTracingLODData.Num(); ++LODIndex)
-							{
-								FPrimitiveSceneInfo::FRayTracingLODData& LODData = Entry.SceneInfo->RayTracingLODData[LODIndex];
-								const FRayTracingGeometry* RayTracingGeometry = Entry.SceneInfo->CachedRayTracingGeometry ? Entry.SceneInfo->CachedRayTracingGeometry : Entry.SceneInfo->GetStaticRayTracingGeometry(LODIndex);
-								LODData.SBTAllocation = Scene->RayTracingSBT.AllocateStaticRange(RayTracingGeometry, LODData.CachedMeshCommandFlags);
-							}
-						}
+						int32 CommandIndex = CachedRayTracingMeshCommands.Add(Context.Commands[Entry.CommandIndex]);
+						Entry.SceneInfo->CachedRayTracingMeshCommandIndicesPerLOD[Entry.MeshLODIndex].Add(CommandIndex);
 					}
 				}
 			}
@@ -1339,24 +1296,24 @@ void FPrimitiveSceneInfo::RemoveCachedRayTracingPrimitives()
 {
 	if (IsRayTracingAllowed())
 	{
-		for (auto& LODData : RayTracingLODData)
+		for (auto& CachedRayTracingMeshCommandIndices : CachedRayTracingMeshCommandIndicesPerLOD)
 		{
-			for (auto CommandIndex : LODData.CachedMeshCommandIndices)
+			for (auto CommandIndex : CachedRayTracingMeshCommandIndices)
 			{
 				if (CommandIndex >= 0)
 				{
 					Scene->CachedRayTracingMeshCommands.RemoveAt(CommandIndex);
 				}
 			}
-		
-			Scene->RayTracingSBT.FreeStaticRange(LODData.SBTAllocation);
 		}
 
-		RayTracingLODData.Empty();
+		CachedRayTracingMeshCommandIndicesPerLOD.Empty();
+		CachedRayTracingMeshCommandsHashPerLOD.Empty();
 	}
 	else
 	{
-		check(RayTracingLODData.IsEmpty());
+		check(CachedRayTracingMeshCommandIndicesPerLOD.IsEmpty());
+		check(CachedRayTracingMeshCommandsHashPerLOD.IsEmpty());
 	}
 }
 #endif

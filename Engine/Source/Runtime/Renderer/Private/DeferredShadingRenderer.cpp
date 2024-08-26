@@ -610,7 +610,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 
 		for (int32 TaskIndex = 0; TaskIndex < ReferenceView.AddRayTracingMeshBatchTaskList.Num(); TaskIndex++)
 		{
-			ReferenceView.DirtyRayTracingShaderBindings.Append(*ReferenceView.DirtyRayTracingShaderBindingsPerTask[TaskIndex]);
+			ReferenceView.VisibleRayTracingMeshCommands.Append(*ReferenceView.VisibleRayTracingMeshCommandsPerTask[TaskIndex]);
 		}
 
 		ReferenceView.AddRayTracingMeshBatchTaskList.Empty();
@@ -677,9 +677,20 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 			// Create RTPSO and kick off high-level material parameter binding tasks which will be consumed during RDG execution in BindRayTracingMaterialPipeline()			
 			uint32 MaxLocalBindingDataSize = 0;
 			CreateRayTracingMaterialPipeline(GraphBuilder, ReferenceView, RayGenShaders, MaxLocalBindingDataSize);
-			
-			const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
-			ReferenceView.RayTracingSBT = Scene->RayTracingSBT.AllocateRHI(RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, MaxLocalBindingDataSize);
+
+			{
+				const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
+
+				FRayTracingShaderBindingTableInitializer SBTInitializer;
+				SBTInitializer.bAllowHitGroupIndexing = true;
+				SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
+				SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
+				SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
+				SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+				SBTInitializer.LocalBindingDataSize = MaxLocalBindingDataSize;
+
+				ReferenceView.RayTracingSBT = RHICreateShaderBindingTable(SBTInitializer);
+			}
 		}
 	}
 
@@ -714,9 +725,20 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 		{
 			uint32 MaxLocalBindingDataSize = 0;
 			CreateLumenHardwareRayTracingMaterialPipeline(GraphBuilder, ReferenceView, LumenHardwareRayTracingRayGenShaders, MaxLocalBindingDataSize);
-				
-			const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
-			ReferenceView.LumenHardwareRayTracingSBT = Scene->RayTracingSBT.AllocateRHI(RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, MaxLocalBindingDataSize);			
+
+			{
+				const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
+
+				FRayTracingShaderBindingTableInitializer SBTInitializer;
+				SBTInitializer.bAllowHitGroupIndexing = true;
+				SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
+				SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
+				SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
+				SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots; // TODO: Could be set to 0?
+				SBTInitializer.LocalBindingDataSize = MaxLocalBindingDataSize;
+
+				ReferenceView.LumenHardwareRayTracingSBT = RHICreateShaderBindingTable(MoveTemp(SBTInitializer));
+			}
 		}
 	}
 
@@ -1622,7 +1644,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	const int32 ReferenceViewIndex = 0;
 	FViewInfo& ReferenceView = Views[ReferenceViewIndex];
 	FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
-	FRayTracingShaderBindingTable& RayTracingSBT = Scene->RayTracingSBT;
 #endif
 
 	if (RendererOutput == ERendererOutput::FinalSceneColor)
@@ -1799,7 +1820,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				GetViewPipelineState(ReferenceView).DiffuseIndirectMethod,
 				GetViewPipelineState(ReferenceView).ReflectionsMethod,
 				RayTracingScene,
-				RayTracingSBT,
 				DynamicReadBufferForRayTracing,
 				Allocator, 
 				*InitViewTaskDatas.RayTracingRelevantPrimitives->List);

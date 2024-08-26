@@ -137,39 +137,38 @@ void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingHitGroupBuffer(F
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::BuildLumenHardwareRayTracingHitGroupData);
 
-	const uint32 NumTotalSegments = FMath::Max(Scene->RayTracingSBT.GetNumGeometrySegments(), 1u);
+	const uint32 NumTotalSegments = FMath::Max(Scene->RayTracingScene.GetTotalNumSegments(), 1u);
 
 	FRDGUploadData<Lumen::FHitGroupRootConstants> HitGroupData(GraphBuilder, NumTotalSegments);
 
-	const uint32 NumTotalDirtyShaderBindings = View.DirtyRayTracingShaderBindings.Num();
+	const uint32 NumTotalMeshCommands = View.VisibleRayTracingMeshCommands.Num();
 
-	if(NumTotalDirtyShaderBindings > 0)
+	if(NumTotalMeshCommands > 0)
 	{
-		const uint32 TargetBindingsPerTask = 512;
+		const uint32 TargetCommandsPerTask = 512;
 
-		// Distribute work evenly to the available task graph workers based on NumTotalDirtyShaderBindings.
+		// Distribute work evenly to the available task graph workers based on NumTotalMeshCommands.
 		const uint32 NumThreads = FMath::Min(FTaskGraphInterface::Get().GetNumWorkerThreads(), CVarRHICmdWidth.GetValueOnRenderThread());
-		const uint32 NumTasks = FMath::Min(NumThreads, FMath::DivideAndRoundUp(NumTotalDirtyShaderBindings, TargetBindingsPerTask));
-		const uint32 NumBindingsPerTask = FMath::DivideAndRoundUp(NumTotalDirtyShaderBindings, NumTasks);
+		const uint32 NumTasks = FMath::Min(NumThreads, FMath::DivideAndRoundUp(NumTotalMeshCommands, TargetCommandsPerTask));
+		const uint32 NumCommandsPerTask = FMath::DivideAndRoundUp(NumTotalMeshCommands, NumTasks);
 
 		for (uint32 TaskIndex = 0; TaskIndex < NumTasks; ++TaskIndex)
 		{
-			const uint32 FirstTaskBindingIndex = TaskIndex * NumBindingsPerTask;
-			const FRayTracingShaderBindingData* RTShaderBindings = View.DirtyRayTracingShaderBindings.GetData() + FirstTaskBindingIndex;
-			const uint32 NumBindings = FMath::Min(NumBindingsPerTask, NumTotalDirtyShaderBindings - FirstTaskBindingIndex);
+			const uint32 FirstTaskCommandIndex = TaskIndex * NumCommandsPerTask;
+			const FVisibleRayTracingMeshCommand* MeshCommands = View.VisibleRayTracingMeshCommands.GetData() + FirstTaskCommandIndex;
+			const uint32 NumCommands = FMath::Min(NumCommandsPerTask, NumTotalMeshCommands - FirstTaskCommandIndex);
 
-			GraphBuilder.AddSetupTask([RTShaderBindings, NumBindings, HitGroupData]()
+			GraphBuilder.AddSetupTask([MeshCommands, NumCommands, HitGroupData]()
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(BuildLumenHardwareRayTracingHitGroupDataTask);
 
-					for (uint32 BindingIndex = 0; BindingIndex < NumBindings; ++BindingIndex)
+					for (uint32 CommandIndex = 0; CommandIndex < NumCommands; ++CommandIndex)
 					{
-						const FRayTracingShaderBindingData& RTShaderBinding = RTShaderBindings[BindingIndex];
-						const FRayTracingMeshCommand& MeshCommand = *RTShaderBinding.RayTracingMeshCommand;
+						const FVisibleRayTracingMeshCommand VisibleMeshCommand = MeshCommands[CommandIndex];
+						const FRayTracingMeshCommand& MeshCommand = *VisibleMeshCommand.RayTracingMeshCommand;
 
-						// Only store hit group data for single shader slot for lightwight SBT
-						// NOTE: InstanceContributionToHitGroupIndex stored in instance data is also divided by RAY_TRACING_NUM_SHADER_SLOTS in the shader
-						const uint32 HitGroupIndex = RTShaderBinding.SBTRecordIndex / RAY_TRACING_NUM_SHADER_SLOTS;
+						const uint32 HitGroupIndex = VisibleMeshCommand.GlobalSegmentIndex;
+
 						HitGroupData[HitGroupIndex].UserData = CalculateLumenHardwareRayTracingUserData(MeshCommand);
 					}
 				});
@@ -324,31 +323,31 @@ void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipelin
 		}
 
 		{
-			const uint32 NumTotalDirtyBindings = View.DirtyRayTracingShaderBindings.Num();
-			const uint32 TargetBindingsPerTask = 1024;
-			const uint32 NumTasks = FMath::Max(1u, FMath::DivideAndRoundUp(NumTotalDirtyBindings, TargetBindingsPerTask));
-			const uint32 BindingsPerTask = FMath::DivideAndRoundUp(NumTotalDirtyBindings, NumTasks); // Evenly divide commands between tasks (avoiding potential short last task)
+			const uint32 NumTotalMeshCommands = View.VisibleRayTracingMeshCommands.Num();
+			const uint32 TargetCommandsPerTask = 4096; // Granularity chosen based on profiling Infiltrator scene to balance wall time speedup and total CPU thread time.
+			const uint32 NumTasks = FMath::Max(1u, FMath::DivideAndRoundUp(NumTotalMeshCommands, TargetCommandsPerTask));
+			const uint32 CommandsPerTask = FMath::DivideAndRoundUp(NumTotalMeshCommands, NumTasks); // Evenly divide commands between tasks (avoiding potential short last task)
 
 			View.LumenRayTracingMaterialBindings.SetNum(NumTasks);
 
 			for (uint32 TaskIndex = 0; TaskIndex < NumTasks; ++TaskIndex)
 			{
-				const uint32 FirstTaskBindingIndex = TaskIndex * BindingsPerTask;
-				const FRayTracingShaderBindingData* RTShaderBindings = View.DirtyRayTracingShaderBindings.GetData() + FirstTaskBindingIndex;
-				const uint32 NumBindings = FMath::Min(BindingsPerTask, NumTotalDirtyBindings - FirstTaskBindingIndex);
+				const uint32 FirstTaskCommandIndex = TaskIndex * CommandsPerTask;
+				const FVisibleRayTracingMeshCommand* MeshCommands = View.VisibleRayTracingMeshCommands.GetData() + FirstTaskCommandIndex;
+				const uint32 NumCommands = FMath::Min(CommandsPerTask, NumTotalMeshCommands - FirstTaskCommandIndex);
 
 				FRayTracingLocalShaderBindingWriter* BindingWriter = new FRayTracingLocalShaderBindingWriter();
 				View.LumenRayTracingMaterialBindings[TaskIndex] = BindingWriter;
 
 				GraphBuilder.AddSetupTask(
-					[ShaderBindings, ShaderBindingsNaniteRT, BindingWriter, RTShaderBindings, NumBindings, TaskIndex]()
+					[ShaderBindings, ShaderBindingsNaniteRT, BindingWriter, MeshCommands, NumCommands, TaskIndex]()
 					{
 						TRACE_CPUPROFILER_EVENT_SCOPE(BuildLumenHardwareRayTracingMaterialBindingsTask);
 
-						for (uint32 BindingIndex = 0; BindingIndex < NumBindings; ++BindingIndex)
+						for (uint32 CommandIndex = 0; CommandIndex < NumCommands; ++CommandIndex)
 						{
-							const FRayTracingShaderBindingData& RTShaderBindingData = RTShaderBindings[BindingIndex];
-							const FRayTracingMeshCommand& MeshCommand = *RTShaderBindingData.RayTracingMeshCommand;
+							const FVisibleRayTracingMeshCommand VisibleMeshCommand = MeshCommands[CommandIndex];
+							const FRayTracingMeshCommand& MeshCommand = *VisibleMeshCommand.RayTracingMeshCommand;
 
 							for (uint32 SlotIndex = 0; SlotIndex < LumenHardwareRayTracing::NumHitGroups; ++SlotIndex)
 							{
@@ -356,8 +355,8 @@ void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipelin
 
 								FRayTracingLocalShaderBindings& Binding = BindingWriter->AddWithExternalParameters();
 								Binding.ShaderIndexInPipeline = LumenBinding.ShaderIndexInPipeline;
-								Binding.RecordIndex = RTShaderBindingData.SBTRecordIndex + SlotIndex;
-								Binding.Geometry = RTShaderBindingData.RayTracingGeometry;
+								Binding.RecordIndex = RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, SlotIndex);
+								Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 								Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
 								Binding.UserData = CalculateLumenHardwareRayTracingUserData(MeshCommand);
 								Binding.UniformBuffers = LumenBinding.UniformBufferArray;

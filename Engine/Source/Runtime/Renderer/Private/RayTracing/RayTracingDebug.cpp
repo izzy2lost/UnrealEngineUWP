@@ -589,7 +589,7 @@ void BindRayTracingDebugHitStatsCHSMaterialBindings(FRHICommandList& RHICmdList,
 			: RHICmdList.Alloc(Size, Align);
 	};
 
-	const int32 NumTotalBindings = View.DirtyRayTracingShaderBindings.Num();
+	const int32 NumTotalBindings = View.VisibleRayTracingMeshCommands.Num();
 	const uint32 MergedBindingsSize = sizeof(FRayTracingLocalShaderBindings) * NumTotalBindings;
 	FRayTracingLocalShaderBindings* Bindings = (FRayTracingLocalShaderBindings*)Alloc(MergedBindingsSize, alignof(FRayTracingLocalShaderBindings));
 
@@ -649,16 +649,16 @@ void BindRayTracingDebugHitStatsCHSMaterialBindings(FRHICommandList& RHICmdList,
 	const uint32 NumShaderSlotsPerGeometrySegment = SBT->GetInitializer().NumShaderSlotsPerGeometrySegment;
 
 	uint32 BindingIndex = 0;
-	for (const FRayTracingShaderBindingData DirtyShaderBinding : View.DirtyRayTracingShaderBindings)
+	for (const FVisibleRayTracingMeshCommand VisibleMeshCommand : View.VisibleRayTracingMeshCommands)
 	{
-		const FRayTracingMeshCommand& MeshCommand = *DirtyShaderBinding.RayTracingMeshCommand;
+		const FRayTracingMeshCommand& MeshCommand = *VisibleMeshCommand.RayTracingMeshCommand;
 
 		const FBinding& HelperBinding = ShaderBinding;
 
 		FRayTracingLocalShaderBindings Binding = {};
 		Binding.ShaderIndexInPipeline = HelperBinding.ShaderIndexInPipeline;
-		Binding.RecordIndex = DirtyShaderBinding.SBTRecordIndex;
-		Binding.Geometry = DirtyShaderBinding.RayTracingGeometry;
+		Binding.RecordIndex = VisibleMeshCommand.GlobalSegmentIndex * NumShaderSlotsPerGeometrySegment;
+		Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 		Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
 		Binding.UniformBuffers = HelperBinding.UniformBufferArray;
 		Binding.NumUniformBuffers = HelperBinding.NumUniformBuffers;
@@ -686,7 +686,7 @@ void BindRayTracingDebugCHSMaterialBindings(FRHICommandList& RHICmdList, FRHISha
 			: RHICmdList.Alloc(Size, Align);
 	};
 
-	const int32 NumTotalBindings = View.DirtyRayTracingShaderBindings.Num();
+	const int32 NumTotalBindings = View.VisibleRayTracingMeshCommands.Num();
 	const uint32 MergedBindingsSize = sizeof(FRayTracingLocalShaderBindings) * NumTotalBindings;
 	FRayTracingLocalShaderBindings* Bindings = (FRayTracingLocalShaderBindings*)Alloc(MergedBindingsSize, alignof(FRayTracingLocalShaderBindings));
 
@@ -743,16 +743,16 @@ void BindRayTracingDebugCHSMaterialBindings(FRHICommandList& RHICmdList, FRHISha
 	const uint32 NumShaderSlotsPerGeometrySegment = SBT->GetInitializer().NumShaderSlotsPerGeometrySegment;
 
 	uint32 BindingIndex = 0;
-	for (const FRayTracingShaderBindingData DirtyShaderBinding : View.DirtyRayTracingShaderBindings)
+	for (const FVisibleRayTracingMeshCommand VisibleMeshCommand : View.VisibleRayTracingMeshCommands)
 	{
-		const FRayTracingMeshCommand& MeshCommand = *DirtyShaderBinding.RayTracingMeshCommand;
+		const FRayTracingMeshCommand& MeshCommand = *VisibleMeshCommand.RayTracingMeshCommand;
 
 		const FBinding& HelperBinding = MeshCommand.IsUsingNaniteRayTracing() ? ShaderBindingNaniteRT : ShaderBinding;
 
 		FRayTracingLocalShaderBindings Binding = {};
 		Binding.ShaderIndexInPipeline = HelperBinding.ShaderIndexInPipeline;
-		Binding.RecordIndex = DirtyShaderBinding.SBTRecordIndex;
-		Binding.Geometry = DirtyShaderBinding.RayTracingGeometry;
+		Binding.RecordIndex = VisibleMeshCommand.GlobalSegmentIndex * NumShaderSlotsPerGeometrySegment;
+		Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 		Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
 		Binding.UniformBuffers = HelperBinding.UniformBufferArray;
 		Binding.NumUniformBuffers = HelperBinding.NumUniformBuffers;
