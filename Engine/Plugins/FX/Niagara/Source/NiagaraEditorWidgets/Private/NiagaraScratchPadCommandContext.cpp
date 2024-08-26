@@ -44,6 +44,9 @@ void FNiagaraScratchPadCommandContext::AddMenuItems(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.BeginSection("ScriptEdit", LOCTEXT("ScriptEditActions", "Edit"));
 	{
+		TAttribute<FText> CanRenameToolTip = TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateSP(this, &FNiagaraScratchPadCommandContext::GetCanRenameSelectedScriptToolTip));
+		MenuBuilder.AddMenuEntry(FGenericCommands::Get().Rename, NAME_None, TAttribute<FText>(), CanRenameToolTip);
+		
 		TAttribute<FText> CanCutToolTip = TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateSP(this, &FNiagaraScratchPadCommandContext::GetCanCutSelectedScriptsToolTip));
 		MenuBuilder.AddMenuEntry(FGenericCommands::Get().Cut, NAME_None, TAttribute<FText>(), CanCutToolTip);
 
@@ -70,6 +73,9 @@ void FNiagaraScratchPadCommandContext::AddMenuItems(FMenuBuilder& MenuBuilder)
 
 void FNiagaraScratchPadCommandContext::SetupCommands()
 {
+	Commands->MapAction(FGenericCommands::Get().Rename, FUIAction(
+		FExecuteAction::CreateSP(this, &FNiagaraScratchPadCommandContext::RenameSelectedScript),
+		FCanExecuteAction::CreateSP(this, &FNiagaraScratchPadCommandContext::CanRenameSelectedScript)));
 	Commands->MapAction(FGenericCommands::Get().Cut, FUIAction(
 		FExecuteAction::CreateSP(this, &FNiagaraScratchPadCommandContext::CutSelectedScripts),
 		FCanExecuteAction::CreateSP(this, &FNiagaraScratchPadCommandContext::CanCutSelectedScripts)));
@@ -94,6 +100,21 @@ void FNiagaraScratchPadCommandContext::SetupCommands()
 	Commands->MapAction(FNiagaraEditorModule::Get().Commands().CreateAssetFromSelection, FUIAction(
 		FExecuteAction::CreateSP(this, &FNiagaraScratchPadCommandContext::CreateAssetFromSelectedScript),
 		FCanExecuteAction::CreateSP(this, &FNiagaraScratchPadCommandContext::CanCreateAssetFromSelectedScript)));
+}
+
+void FNiagaraScratchPadCommandContext::RenameSelectedScript() const
+{
+	ScratchPadViewModel->GetActiveScriptViewModel()->SetIsPendingRename(true);
+}
+
+bool FNiagaraScratchPadCommandContext::CanRenameSelectedScript() const
+{
+	return ScratchPadViewModel->GetActiveScriptViewModel().IsValid();
+}
+
+FText FNiagaraScratchPadCommandContext::GetCanRenameSelectedScriptToolTip() const
+{
+	return LOCTEXT("RenameToolTip", "Rename the selected scratch pad script");
 }
 
 bool FNiagaraScratchPadCommandContext::CanCutSelectedScripts() const
