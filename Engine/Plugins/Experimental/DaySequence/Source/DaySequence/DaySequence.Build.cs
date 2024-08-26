@@ -27,5 +27,7 @@ public class DaySequence : ModuleRules
 				"DeveloperSettings",
 			}
 			);
+
+		SetupIrisSupport(Target);
 	}
 }

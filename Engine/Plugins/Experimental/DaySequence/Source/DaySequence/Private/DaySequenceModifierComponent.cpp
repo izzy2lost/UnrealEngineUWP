@@ -6,6 +6,7 @@
 #include "DaySequence.h"
 #include "DaySequenceCollectionAsset.h"
 #include "DaySequenceModule.h"
+#include "DaySequencePlayer.h"
 #include "DaySequenceTrack.h"
 
 #include "Engine/World.h"
@@ -250,6 +251,7 @@ UDaySequenceModifierComponent::UDaySequenceModifierComponent(const FObjectInitia
 	bUseVolume = true;
 	bPreview = true;
 	bUseCollection = false;
+	bSmoothBlending = false;
 	bCachedExternalShapesInvalid = true;
 	Bias = 1000;
 	DayNightCycleTime = 12.f;
@@ -418,6 +420,20 @@ void UDaySequenceModifierComponent::DaySequenceUpdate()
 	// Force expensive update
 	const float DistanceBlendFactor = UpdateBlendWeight();
 
+	// This block begins overriding the update interval if necessary.
+	if (OverrideUpdateIntervalHandle)
+	{
+		if (bSmoothBlending &&
+			FMath::IsWithin(DistanceBlendFactor, 0.f + UE_KINDA_SMALL_NUMBER, 1.f - UE_KINDA_SMALL_NUMBER))
+		{
+			OverrideUpdateIntervalHandle->StartOverriding();
+		}
+		else
+		{
+			OverrideUpdateIntervalHandle->StopOverriding();
+		}
+	}
+	
 	if (bIsComponentEnabled && bUseVolume)
 	{
 		if (DistanceBlendFactor > UE_SMALL_NUMBER)
@@ -485,6 +501,11 @@ void UDaySequenceModifierComponent::BindToDaySequenceActor(ADaySequenceActor* Da
 
 	if (ensureMsgf(DaySequenceActor, TEXT("BindToDaySequenceActor called with a null Day Sequence Actor.")))
 	{
+		if (IDaySequencePlayer* Player = DaySequenceActor->GetSequencePlayer())
+		{
+			OverrideUpdateIntervalHandle = Player->GetOverrideUpdateIntervalHandle();
+		}
+		
 		DaySequenceActor->GetOnPostInitializeDaySequences().AddUObject(this, &UDaySequenceModifierComponent::ReinitializeSubSequence);
 		DaySequenceActor->GetOnDaySequenceUpdate().AddUObject(this, &UDaySequenceModifierComponent::DaySequenceUpdate);
 #if ENABLE_DRAW_DEBUG
@@ -504,6 +525,11 @@ void UDaySequenceModifierComponent::UnbindFromDaySequenceActor()
 	DisableModifier();
 	RemoveSubSequenceTrack();
 
+	if (OverrideUpdateIntervalHandle)
+	{
+		OverrideUpdateIntervalHandle.Reset();
+	}
+	
 	if (TargetActor)
 	{
 		TargetActor->GetOnPostInitializeDaySequences().RemoveAll(this);

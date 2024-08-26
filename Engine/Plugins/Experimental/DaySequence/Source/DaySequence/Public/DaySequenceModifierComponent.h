@@ -366,6 +366,9 @@ protected:
 	UPROPERTY(Transient, BlueprintReadWrite, Category="Day Sequence")
 	TObjectPtr<ADaySequenceActor> TargetActor;
 
+	/** A handle used to force an override of the TargetActor's evaluation interval. */
+	TSharedPtr<UE::DaySequence::FOverrideUpdateIntervalHandle> OverrideUpdateIntervalHandle;
+	
 	/** When set, the shape components will be used for the modifier volume, otherwise the default Box component will be used. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence", meta=(UseComponentPicker, AllowedClasses="/Script/Engine.ShapeComponent", AllowAnyActor))
 	TArray<FComponentReference> VolumeShapeComponents;
@@ -446,6 +449,10 @@ protected:
 	/** If true, hide UserDaySequence and expose DaySequenceCollection. */
 	UPROPERTY(EditAnywhere, Category="Day Sequence")
 	uint8 bUseCollection : 1;
+
+	/** If true, day sequence evaluation while within the blending region will be smooth. Note: Can be very expensive. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Day Sequence")
+	uint8 bSmoothBlending : 1;
 
 private:
 	/**

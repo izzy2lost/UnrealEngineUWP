@@ -7,6 +7,7 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogDaySequence, Log, All);
 CSV_DECLARE_CATEGORY_EXTERN(DaySequence);
+DECLARE_STATS_GROUP(TEXT("Day Sequence Evaluation"), STATGROUP_DaySequenceEval, STATCAT_Advanced);
 
 class FDaySequenceModule : public IDaySequenceModule
 {

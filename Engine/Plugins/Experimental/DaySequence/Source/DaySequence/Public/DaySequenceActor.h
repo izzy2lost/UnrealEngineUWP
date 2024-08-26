@@ -5,6 +5,7 @@
 #include "GameFramework/Info.h"
 #include "DaySequenceConditionSet.h"
 #include "DrawDebugHelpers.h"	// Defines ENABLE_DRAW_DEBUG
+#include "IDaySequencePlayer.h"
 #include "IMovieScenePlaybackClient.h"
 #include "MovieSceneBindingOwnerInterface.h"
 
@@ -13,12 +14,7 @@
 
 #include "DaySequenceActor.generated.h"
 
-class FDebugDisplayInfo;
-class UDaySequencePlayer;
-class UMovieSceneBindingOverrides;
-class UMovieSceneSequencePlayer;
 namespace EEndPlayReason { enum Type : int; }
-struct FMovieSceneSequencePlaybackSettings;
 
 #if ENABLE_DRAW_DEBUG
 class AHUD;
@@ -28,10 +24,14 @@ class UCurveFloat;
 class UDaySequence;
 class UDaySequenceCollectionAsset;
 class UDaySequenceConditionTag;
+class UDaySequencePlayer;
 class UDaySequenceTrack;
+class UMovieSceneBindingOverrides;
 class UMovieSceneSubSection;
 
+class FDebugDisplayInfo;
 struct FDaySequenceCollectionEntry;
+struct FMovieSceneSequencePlaybackSettings;
 
 #ifndef ROOT_SEQUENCE_RECONSTRUCTION_ENABLED
 	#define ROOT_SEQUENCE_RECONSTRUCTION_ENABLED WITH_EDITOR
@@ -83,8 +83,7 @@ public:
 	ADaySequenceActor(const FObjectInitializer& Init);
 
 	/** Access this actor's sequence player, or None if it is invalid (not yet initialized or already destroyed) */
-	UFUNCTION(BlueprintGetter)
-	UDaySequencePlayer* GetSequencePlayer() const;
+	IDaySequencePlayer* GetSequencePlayer() const;
 
 	/**
 	 * Returns true if the given InDaySequence is referenced by any entry in the DaySequences map property.
@@ -352,11 +351,11 @@ protected:
 	virtual bool CanChangeIsSpatiallyLoadedFlag() const override { return false; }
 #endif
 	
-#if WITH_EDITOR || ENABLE_DRAW_DEBUG	// This expression redundantly checks WITH_EDITOR but is expressing the intended behavior
+#if WITH_EDITOR
 	virtual void OnConstruction(const FTransform& Transform) override;
+#endif
 	virtual void Tick(float DeltaTime) override;
 	virtual bool ShouldTickIfViewportsOnly() const override;
-#endif
 	//~ End AActor interface
 
 	//~ Begin IMovieScenePlaybackClient interface
@@ -379,6 +378,9 @@ protected:
 	/** Initialize SequencePlayer with transient root sequence */
 	void InitializePlayer();
 	void InitializeRootSequence();
+
+	/* Internal getter that validates the player. */
+	UDaySequencePlayer* GetSequencePlayerInternal() const;
 
 #if ROOT_SEQUENCE_RECONSTRUCTION_ENABLED
 	/**
@@ -403,7 +405,7 @@ protected:
 	/** Compute PlaybackSettings from day cycle properties */
 	FMovieSceneSequencePlaybackSettings GetPlaybackSettings(const UDaySequence* Sequence) const;
 
-	void OnSequencePlayerUpdate(const UMovieSceneSequencePlayer& Player, FFrameTime CurrentTime, FFrameTime PreviousTime);
+	void OnSequencePlayerUpdate(const UDaySequencePlayer& Player, FFrameTime CurrentTime, FFrameTime PreviousTime);
 	virtual void SequencePlayerUpdated(float CurrentTime, float PreviousTime);
 
 public:
@@ -468,7 +470,7 @@ public:
 #endif
 	
 protected:
-	UPROPERTY(Instanced, transient, replicated, BlueprintReadOnly, BlueprintGetter=GetSequencePlayer, Category="Playback", meta=(ExposeFunctionCategories="Sequencer|Player"))
+	UPROPERTY(Instanced, transient, replicated)
 	TObjectPtr<UDaySequencePlayer> SequencePlayer;
 	
 	UPROPERTY(Transient)

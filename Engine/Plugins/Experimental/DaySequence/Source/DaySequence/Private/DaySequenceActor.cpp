@@ -143,13 +143,13 @@ ADaySequenceActor::ADaySequenceActor(const FObjectInitializer& Init)
 	TimeOfDayPreview = FDaySequenceTime(6, 0, 0);
 #endif // WITH_EDITORONLY_DATA
 
-#if WITH_EDITOR || ENABLE_DRAW_DEBUG
 	// The DaySequenceActor is ticked separately in LevelTick. However, in Editor, we tick to allow
 	// deferred initialization of the root sequence outside of actor construction / BP reinstancing.
 	// Comment from Nick: We also now tick in dev builds + Editor to catch changes to
 	// GDaySequenceDebugLevel which is set via a CVar.
 	PrimaryActorTick.bCanEverTick = true;
-#endif
+	PrimaryActorTick.TickGroup = TG_DuringPhysics;
+	PrimaryActorTick.EndTickGroup = TG_DuringPhysics;
 	
 	// SequencePlayer must be a default sub object for it to be replicated correctly
 	SequencePlayer = Init.CreateDefaultSubobject<UDaySequencePlayer>(this, "AnimationPlayer", true);
@@ -173,6 +173,11 @@ ADaySequenceActor::ADaySequenceActor(const FObjectInitializer& Init)
 #endif
 }
 
+IDaySequencePlayer* ADaySequenceActor::GetSequencePlayer() const
+{
+	return GetSequencePlayerInternal();
+}
+
 void ADaySequenceActor::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
@@ -184,24 +189,20 @@ void ADaySequenceActor::PostInitializeComponents()
 
 	if (IsValid(SequencePlayer))
 	{
-		// Initialize this player for tick as soon as possible to ensure that a persistent
-		// reference to the tick manager is maintained
-		SequencePlayer->InitializeForTick(this);
 		SequencePlayer->OnSequenceUpdated().AddUObject(this, &ADaySequenceActor::OnSequencePlayerUpdate);
 	}
 	
 	InitializePlayer();
 }
 
-#if WITH_EDITOR || ENABLE_DRAW_DEBUG
+#if WITH_EDITOR
 void ADaySequenceActor::OnConstruction(const FTransform& Transform)
 {
-#if WITH_EDITOR
 	// It is unsafe to update the root sequence (incl. its delegates)
 	// during actor construction. Defer to the next tick.
 	bUpdateRootSequenceOnTick = true;
-#endif
 }
+#endif
 
 void ADaySequenceActor::Tick(float DeltaTime)
 {
@@ -216,10 +217,18 @@ void ADaySequenceActor::Tick(float DeltaTime)
 	}
 #endif
 
+#if ENABLE_DRAW_DEBUG
 	if (UE::DaySequence::GDaySequenceDebugLevel != CachedDebugLevel)
 	{
 		OnDebugLevelChanged.Broadcast(UE::DaySequence::GDaySequenceDebugLevel);
 		CachedDebugLevel = UE::DaySequence::GDaySequenceDebugLevel;
+	}
+#endif
+
+	// Can only occur in game worlds (proper games and PIE)
+	if (UDaySequencePlayer* Player = GetSequencePlayerInternal())
+	{
+		Player->Tick(DeltaTime);
 	}
 }
 
@@ -227,9 +236,8 @@ bool ADaySequenceActor::ShouldTickIfViewportsOnly() const
 {
 	return GetWorld() != nullptr && GetWorld()->WorldType == EWorldType::Editor;
 }
-#endif
 
-UDaySequencePlayer* ADaySequenceActor::GetSequencePlayer() const
+UDaySequencePlayer* ADaySequenceActor::GetSequencePlayerInternal() const
 {
 	return SequencePlayer && SequencePlayer->IsValid() ? SequencePlayer : nullptr;
 }
@@ -309,7 +317,7 @@ void ADaySequenceActor::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (UDaySequencePlayer* Player = GetSequencePlayer())
+	if (UDaySequencePlayer* Player = GetSequencePlayerInternal())
 	{
 		AddReplicatedSubObject(Player);
 
@@ -339,7 +347,7 @@ void ADaySequenceActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	StopDaySequenceUpdateTimer();
 	
-	if (UDaySequencePlayer* Player = GetSequencePlayer())
+	if (UDaySequencePlayer* Player = GetSequencePlayerInternal())
 	{
 		RemoveReplicatedSubObject(Player);
 
@@ -361,7 +369,7 @@ void ADaySequenceActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void ADaySequenceActor::RewindForReplay()
 {
-	if (UDaySequencePlayer* Player = GetSequencePlayer())
+	if (UDaySequencePlayer* Player = GetSequencePlayerInternal())
 	{
 		Player->RewindForReplay();
 	}
@@ -516,8 +524,7 @@ void ADaySequenceActor::InitializePlayer()
 			SequencePlayer->Initialize(RootSequence, this, GetPlaybackSettings(RootSequence));
 		}
 
-		UDaySequencePlayer* Player = GetSequencePlayer();
-		if (Player)
+		if (UDaySequencePlayer* Player = GetSequencePlayerInternal())
 		{
 			if (OldTimeControllerOverride && OldTimeControllerOverride != Player->GetTimeController())
 			{
@@ -872,7 +879,7 @@ void ADaySequenceActor::UpdateSubSectionTimeScale(UMovieSceneSubSection* InSubSe
 	InSubSection->SetIsLocked(bSubsectionWasLocked);
 }
 
-void ADaySequenceActor::OnSequencePlayerUpdate(const UMovieSceneSequencePlayer& Player, FFrameTime CurrentTime, FFrameTime PreviousTime)
+void ADaySequenceActor::OnSequencePlayerUpdate(const UDaySequencePlayer& Player, FFrameTime CurrentTime, FFrameTime PreviousTime)
 {
 	CSV_SCOPED_TIMING_STAT(DaySequence, OnSequencePlayerUpdate);
 	
@@ -911,7 +918,7 @@ void ADaySequenceActor::StartDaySequenceUpdateTimer()
 		World->GetTimerManager().SetTimer(DaySequenceUpdateTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]()
 		{
 			OnDaySequenceUpdate.Broadcast();
-		}), PrimaryActorTick.TickInterval, TimerParameters);
+		}), SequenceUpdateInterval, TimerParameters);
 	}
 }
 
@@ -1132,7 +1139,7 @@ void ADaySequenceActor::Multicast_SetTimePerCycle_Implementation(float InHours)
 			const FFrameNumber StartingFrame = ConvertFrameTime(SrcStartFrame, TickResolution, DisplayRate).FloorToFrame();
 			const FFrameNumber EndingFrame   = EndingTime.FloorToFrame();
 
-			if (UDaySequencePlayer* Player = GetSequencePlayer())
+			if (UDaySequencePlayer* Player = GetSequencePlayerInternal())
 			{
 				Player->SetFrameRange(StartingFrame.Value, (EndingFrame - StartingFrame).Value, EndingTime.GetSubFrame());
 			}
@@ -1158,7 +1165,7 @@ float ADaySequenceActor::GetTimeOfDay() const
 {
 	float Result;
 	UWorld* World = GetWorld();
-	const UDaySequencePlayer* Player = GetSequencePlayer();
+	const UDaySequencePlayer* Player = GetSequencePlayerInternal();
 	if (HasValidRootSequence() && Player && World && World->IsGameWorld())
 	{
 		const FQualifiedFrameTime CurrentFrameTime = Player->GetCurrentTime();
@@ -1178,7 +1185,7 @@ bool ADaySequenceActor::SetTimeOfDay(float InHours)
 {
 	// Only set time of day if we have a valid playing day sequence.
 	UWorld* World = GetWorld();
-	UDaySequencePlayer* Player = GetSequencePlayer();
+	UDaySequencePlayer* Player = GetSequencePlayerInternal();
 	if (HasValidRootSequence() && Player && World && World->IsGameWorld())
 	{
 		// Convert the day time to sequence time
@@ -1188,9 +1195,8 @@ bool ADaySequenceActor::SetTimeOfDay(float InHours)
 		const float DayCycleSeconds = TimePerCycle.ToSeconds() * DayLengthRatio;
 
 		// Update the playback position of the sequence.
-		FMovieSceneSequencePlaybackParams PlaybackParams;
+		FDaySequencePlaybackParams PlaybackParams;
 		PlaybackParams.Frame = FrameRate.AsFrameTime(DayCycleSeconds); 
-		PlaybackParams.PositionType = EMovieScenePositionType::Frame;
 		PlaybackParams.UpdateMethod = EUpdatePositionMethod::Play;
 		Player->SetPlaybackPosition(PlaybackParams);
 		return true;
@@ -1248,7 +1254,7 @@ void ADaySequenceActor::SetStaticTimeOfDay(float InHours)
 	}
 	else
 	{
-		if (UDaySequencePlayer* Player = GetSequencePlayer())
+		if (UDaySequencePlayer* Player = GetSequencePlayerInternal())
 		{
 			TSharedRef<FStaticTimeControllerOverride> TimeControllerOverride =
 				MakeShared<FStaticTimeControllerOverride>(StaticFrameTime, Player->GetTimeController());
@@ -1279,7 +1285,7 @@ void ADaySequenceActor::RemoveStaticTimeOfDay(bool bResumeFromStaticTime)
 #endif
 	
 	TSharedPtr<FStaticTimeControllerOverride> TimeControllerOverride = WeakTimeControllerOverride.Pin();
-	UDaySequencePlayer* Player = GetSequencePlayer();
+	UDaySequencePlayer* Player = GetSequencePlayerInternal();
 	if (TimeControllerOverride && Player)
 	{
 		if (bResumeFromStaticTime && TimeControllerOverride->PreviousTimeController)
@@ -1311,7 +1317,7 @@ void ADaySequenceActor::RemoveStaticTimeOfDay(bool bResumeFromStaticTime)
 
 void ADaySequenceActor::Play()
 {
-	UDaySequencePlayer* Player = GetSequencePlayer();
+	UDaySequencePlayer* Player = GetSequencePlayerInternal();
 	UWorld* World = GetWorld();
 	if (HasValidRootSequence() && Player && World && World->IsGameWorld())
 	{
@@ -1322,7 +1328,7 @@ void ADaySequenceActor::Play()
 
 void ADaySequenceActor::Pause()
 {
-	UDaySequencePlayer* Player = GetSequencePlayer();
+	UDaySequencePlayer* Player = GetSequencePlayerInternal();
 	UWorld* World = GetWorld();
 	if (HasValidRootSequence() && Player && World && World->IsGameWorld())
 	{
@@ -1332,7 +1338,7 @@ void ADaySequenceActor::Pause()
 
 bool ADaySequenceActor::IsPlaying() const
 {
-	if (const UDaySequencePlayer* Player = GetSequencePlayer())
+	if (const UDaySequencePlayer* Player = GetSequencePlayerInternal())
 	{
 		return Player->IsPlaying();
 	}
@@ -1342,7 +1348,7 @@ bool ADaySequenceActor::IsPlaying() const
 
 bool ADaySequenceActor::IsPaused() const
 {
-	if (const UDaySequencePlayer* Player = GetSequencePlayer())
+	if (const UDaySequencePlayer* Player = GetSequencePlayerInternal())
 	{
 		return Player->IsPaused();
 	}
@@ -1402,11 +1408,13 @@ FMovieSceneSequencePlaybackSettings ADaySequenceActor::GetPlaybackSettings(const
 	Settings.PlayRate = 1.0f;
 	Settings.StartTime = 0.0f;
 
-	// Always explicitly inherit the tick interval from this actor by initializing with 'this'
-	Settings.TickInterval = FMovieSceneSequenceTickInterval(this);
+	// User configurable update interval.
+	Settings.TickInterval.TickIntervalSeconds = SequenceUpdateInterval;
+	
 	// Set explicit frame budget based on the cvar
 	Settings.TickInterval.EvaluationBudgetMicroseconds = UE::DaySequence::GFrameBudgetMicroseconds;
-	// No longer inherit the tick interval since that would wipe out our budget
+
+	// Tick interval is configured above
 	Settings.bInheritTickIntervalFromOwner = false;
 
 	if (Sequence && Sequence->GetMovieScene())
