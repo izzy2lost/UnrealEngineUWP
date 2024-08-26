@@ -9,8 +9,7 @@
 class ACameraActor;
 class UCameraComponent;
 
-
-UCLASS()
+UCLASS(meta = (DisplayName = "VP Camera Base"))
 class AVPCameraBase : public ACineCameraActor
 {
 	GENERATED_BODY()

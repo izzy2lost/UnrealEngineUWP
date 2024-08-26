@@ -2428,7 +2428,7 @@ void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName)
 
 					CreateSection.AddSubMenu(
 						"CreateCamera",
-						LOCTEXT("CameraSubMenu", "Create Camera Here"),
+						LOCTEXT("CameraSubMenu", "Create Camera"),
 						LOCTEXT("CameraSubMenu_ToolTip", "Select a camera type to create at current viewport's location"),
 						FNewToolMenuDelegate::CreateLambda(
 							[](UToolMenu* InMenu)
