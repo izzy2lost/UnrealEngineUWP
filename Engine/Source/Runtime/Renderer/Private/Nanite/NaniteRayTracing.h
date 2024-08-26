@@ -18,7 +18,6 @@
 
 class FScene;
 class FRayTracingScene;
-class FVisibleRayTracingMeshCommand;
 
 namespace Nanite
 {

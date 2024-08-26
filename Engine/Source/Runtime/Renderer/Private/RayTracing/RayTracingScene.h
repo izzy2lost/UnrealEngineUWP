@@ -16,7 +16,7 @@
 #include "Misc/MemStack.h"
 #include "Containers/ArrayView.h"
 #include "MeshPassProcessor.h"
-#include "RayTracingMeshDrawCommands.h"
+#include "RayTracingShaderBindingTable.h"
 #include "RayTracingInstanceBufferUtil.h"
 #include "RayTracingDebugTypes.h"
 
@@ -31,14 +31,6 @@ namespace Nanite
 {
 	using CoarseMeshStreamingHandle = int16;
 }
-
-enum class ERayTracingSceneLayer : uint8
-{
-	Base,
-	Decals,
-
-	NUM
-};
 
 /**
 * Persistent representation of the scene for ray tracing.

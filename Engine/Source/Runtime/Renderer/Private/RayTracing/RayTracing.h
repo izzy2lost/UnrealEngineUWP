@@ -11,6 +11,7 @@
 enum class EDiffuseIndirectMethod;
 enum class EReflectionsMethod;
 class FRayTracingScene;
+class FRayTracingShaderBindingTable;
 class FScene;
 class FViewInfo;
 class FViewFamilyInfo;
@@ -62,21 +63,12 @@ namespace RayTracing
 		EDiffuseIndirectMethod DiffuseIndirectMethod,
 		EReflectionsMethod ReflectionsMethod,
 		FRayTracingScene& RayTracingScene,
+		FRayTracingShaderBindingTable& RayTracingSBT,
 		FGlobalDynamicReadBuffer& InDynamicReadBuffer,
 		FSceneRenderingBulkObjectAllocator& InBulkAllocator,
 		FRelevantPrimitiveList& RelevantPrimitiveList);
 
 	bool ShouldExcludeDecals();
-
-	inline uint32 CalculateHitGroupIndex(uint32 GlobalSegmentIndex, uint32 SlotIndex)
-	{
-		return GlobalSegmentIndex * RAY_TRACING_NUM_SHADER_SLOTS + SlotIndex;
-	}
-
-	inline uint32 CalculateInstanceContributionToHitGroupIndex(uint32 GlobalSegmentIndex)
-	{
-		return GlobalSegmentIndex * RAY_TRACING_NUM_SHADER_SLOTS;
-	}
 }
 
 #endif // RHI_RAYTRACING
