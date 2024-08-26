@@ -88,6 +88,7 @@ public class LyraGame : ModuleRules
 		// Basic setup for External RPC Framework.
 		// Functionality within framework will be stripped in shipping to remove vulnerabilities.
 		PrivateDependencyModuleNames.Add("ExternalRpcRegistry");
+		PrivateDependencyModuleNames.Add("HTTPServer"); // Dependency for ExternalRpcRegistry
 		if (Target.Configuration == UnrealTargetConfiguration.Shipping)
 		{
 			PublicDefinitions.Add("WITH_RPC_REGISTRY=0");
@@ -95,7 +96,6 @@ public class LyraGame : ModuleRules
 		}
 		else
 		{
-			PrivateDependencyModuleNames.Add("HTTPServer");
 			PublicDefinitions.Add("WITH_RPC_REGISTRY=1");
 			PublicDefinitions.Add("WITH_HTTPSERVER_LISTENERS=1");
 		}
