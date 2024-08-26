@@ -114,14 +114,21 @@ class FLumenReflectionHardwareRayTracing : public FLumenHardwareRayTracingShader
 	class FRecursiveReflectionTraces : SHADER_PERMUTATION_BOOL("RECURSIVE_REFLECTION_TRACES");
 	class FRecursiveRefractionTraces : SHADER_PERMUTATION_BOOL("RECURSIVE_REFRACTION_TRACES");
 	class FSurfaceCacheAlphaMasking : SHADER_PERMUTATION_BOOL("SURFACE_CACHE_ALPHA_MASKING");
-	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FRayTracingPass, FWriteDataForHitLightingPass, FRadianceCache, FHairStrandsOcclusionDim, FRecursiveReflectionTraces, FRecursiveRefractionTraces, FSurfaceCacheAlphaMasking>;
+	class FDistantScreenTraces : SHADER_PERMUTATION_BOOL("DISTANT_SCREEN_TRACES");
+	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FRayTracingPass, FWriteDataForHitLightingPass, FRadianceCache, FHairStrandsOcclusionDim, FRecursiveReflectionTraces, FRecursiveRefractionTraces, FSurfaceCacheAlphaMasking, FDistantScreenTraces>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHardwareRayTracingShaderBase::FSharedParameters, SharedParameters)
 		RDG_BUFFER_ACCESS(HardwareRayTracingIndirectArgs, ERHIAccess::IndirectArgs | ERHIAccess::SRVCompute)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, CompactedTraceTexelAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, CompactedTraceTexelData)
+
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHZBScreenTraceParameters, HZBScreenTraceParameters)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DistantScreenTraceFurthestHZBTexture)
+		SHADER_PARAMETER(float, DistantScreenTraceSlopeCompareTolerance)
+		SHADER_PARAMETER(float, DistantScreenTraceMaxTraceDistance)
+		SHADER_PARAMETER(float, DistantScreenTracesStartDistance)
+
 		SHADER_PARAMETER(float, RelativeDepthThickness)
 		SHADER_PARAMETER(float, SampleSceneColorNormalTreshold)
 		SHADER_PARAMETER(int32, SampleSceneColor)
@@ -157,16 +164,25 @@ class FLumenReflectionHardwareRayTracing : public FLumenHardwareRayTracingShader
 			PermutationVector.Set<FHairStrandsOcclusionDim>(false);
 			PermutationVector.Set<FRecursiveRefractionTraces>(false); // Translucent meshes are only with during near and hit-lighting passes for now.
 			PermutationVector.Set<FSurfaceCacheAlphaMasking>(false);
+			PermutationVector.Set<FDistantScreenTraces>(false);
 		}
 		else if (PermutationVector.Get<FRayTracingPass>() == LumenReflections::ERayTracingPass::HitLighting)
 		{
 			PermutationVector.Set<FWriteDataForHitLightingPass>(false);
 			PermutationVector.Set<FSurfaceCacheAlphaMasking>(false);
+			PermutationVector.Set<FDistantScreenTraces>(false);
 		}
 
 		if (PermutationVector.Get<FWriteDataForHitLightingPass>())
 		{
 			PermutationVector.Set<FSurfaceCacheAlphaMasking>(false);
+		}
+
+		// When radiance cache is used, rays are clipped short and fall back to radiance cache if no hit.
+		// Since the rays are short, we will get mostly SSR reflections if distant screen traces is enabled.
+		if (PermutationVector.Get<FRadianceCache>())
+		{
+			PermutationVector.Set<FDistantScreenTraces>(false);
 		}
 
 		return PermutationVector;
@@ -269,6 +285,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingReflections(co
 				PermutationVector.Set<FLumenReflectionHardwareRayTracingRGS::FRecursiveReflectionTraces>(LumenReflections::GetMaxReflectionBounces(View) > 1);
 				PermutationVector.Set<FLumenReflectionHardwareRayTracingRGS::FRecursiveRefractionTraces>(RayTracingTranslucent > 0);
 				PermutationVector.Set<FLumenReflectionHardwareRayTracingRGS::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
+				PermutationVector.Set<FLumenReflectionHardwareRayTracingRGS::FDistantScreenTraces>(false);
 				PermutationVector = FLumenReflectionHardwareRayTracingRGS::RemapPermutation(PermutationVector);
 
 				TShaderRef<FLumenReflectionHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenReflectionHardwareRayTracingRGS>(PermutationVector);
@@ -282,7 +299,6 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingReflectionsLum
 {
 	if (Lumen::UseHardwareRayTracedReflections(*View.Family))
 	{
-		const bool bUseFarField = LumenReflections::UseFarField(*View.Family);
 		const bool bUseHitLighting = LumenReflections::UseHitLighting(View, GetViewPipelineState(View).DiffuseIndirectMethod);
 		const bool bUseInlineRayTracing = Lumen::UseHardwareInlineRayTracing(*View.Family);
 
@@ -291,6 +307,11 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingReflectionsLum
 			return;
 		}
 		
+		const bool bUseFarField = LumenReflections::UseFarField(*View.Family);
+		const bool bUseDistantScreenTraces = !bUseFarField
+			&& LumenReflections::UseDistantScreenTraces(View)
+			&& RayTracing::GetCullingMode(View.Family->EngineShowFlags) != RayTracing::ECullingMode::Disabled;
+
 		// Default
 		for (int RadianceCache = 0; RadianceCache < 2; ++RadianceCache)
 		{
@@ -306,6 +327,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingReflectionsLum
 					PermutationVector.Set<FLumenReflectionHardwareRayTracingRGS::FRecursiveReflectionTraces>(false);
 					PermutationVector.Set<FLumenReflectionHardwareRayTracingRGS::FRecursiveRefractionTraces>(RayTracingTranslucent > 0);
 					PermutationVector.Set<FLumenReflectionHardwareRayTracingRGS::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
+					PermutationVector.Set<FLumenReflectionHardwareRayTracingRGS::FDistantScreenTraces>(bUseDistantScreenTraces);
 					PermutationVector = FLumenReflectionHardwareRayTracingRGS::RemapPermutation(PermutationVector);
 
 					TShaderRef<FLumenReflectionHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenReflectionHardwareRayTracingRGS>(PermutationVector);
@@ -325,6 +347,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingReflectionsLum
 			PermutationVector.Set<FLumenReflectionHardwareRayTracingRGS::FRecursiveReflectionTraces>(false);
 			PermutationVector.Set<FLumenReflectionHardwareRayTracingRGS::FRecursiveRefractionTraces>(false);
 			PermutationVector.Set<FLumenReflectionHardwareRayTracingRGS::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
+			PermutationVector.Set<FLumenReflectionHardwareRayTracingRGS::FDistantScreenTraces>(false);
 			PermutationVector = FLumenReflectionHardwareRayTracingRGS::RemapPermutation(PermutationVector);
 
 			TShaderRef<FLumenReflectionHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenReflectionHardwareRayTracingRGS>(PermutationVector);
@@ -399,6 +422,13 @@ void DispatchRayGenOrComputeShader(
 		{
 			Parameters->SharedParameters.SceneTextures.GBufferVelocityTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
 		}
+
+		extern float GLumenReflectionDistantScreenTraceSlopeCompareTolerance;
+		extern float GLumenReflectionDistantScreenTraceMaxTraceDistance;
+		Parameters->DistantScreenTraceFurthestHZBTexture = View.HZB;
+		Parameters->DistantScreenTraceSlopeCompareTolerance = GLumenReflectionDistantScreenTraceSlopeCompareTolerance;
+		Parameters->DistantScreenTraceMaxTraceDistance = GLumenReflectionDistantScreenTraceMaxTraceDistance;
+		Parameters->DistantScreenTracesStartDistance = RayTracing::GetCullingMode(View.Family->EngineShowFlags) != RayTracing::ECullingMode::Disabled ? GetRayTracingCullingRadius() : FLT_MAX;
 
 		extern float GLumenReflectionSampleSceneColorRelativeDepthThreshold;
 		Parameters->RelativeDepthThickness = GLumenReflectionSampleSceneColorRelativeDepthThreshold * View.ViewMatrices.GetPerProjectionDepthThicknessScale();
@@ -484,6 +514,9 @@ void RenderLumenHardwareRayTracingReflections(
 	extern int32 GLumenReflectionHairStrands_VoxelTrace;
 	const bool bNeedTraceHairVoxel = HairStrands::HasViewHairStrandsVoxelData(View) && GLumenReflectionHairStrands_VoxelTrace > 0;
 	const bool bTraceTranslucent = bUseHitLighting && LumenReflections::UseTranslucentRayTracing(View);
+	const bool bUseDistantScreenTraces = !bUseFarFieldForReflections
+		&& LumenReflections::UseDistantScreenTraces(View)
+		&& RayTracing::GetCullingMode(View.Family->EngineShowFlags) != RayTracing::ECullingMode::Disabled;
 
 	checkf(ComputePassFlags != ERDGPassFlags::AsyncCompute || bInlineRayTracing, TEXT("Async Lumen HWRT is only supported for inline ray tracing"));
 
@@ -513,6 +546,7 @@ void RenderLumenHardwareRayTracingReflections(
 		PermutationVector.Set<FLumenReflectionHardwareRayTracing::FRecursiveReflectionTraces>(false);
 		PermutationVector.Set<FLumenReflectionHardwareRayTracing::FRecursiveRefractionTraces>(bTraceTranslucent);
 		PermutationVector.Set<FLumenReflectionHardwareRayTracing::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
+		PermutationVector.Set<FLumenReflectionHardwareRayTracing::FDistantScreenTraces>(bUseDistantScreenTraces);
 		PermutationVector = FLumenReflectionHardwareRayTracing::RemapPermutation(PermutationVector);
 
 		DispatchRayGenOrComputeShader(GraphBuilder, SceneTextures, SceneTextureParameters, Scene, View, TracingParameters, ReflectionTracingParameters, ReflectionTileParameters, CompactedTraceParameters, RadianceCacheParameters,
@@ -544,6 +578,7 @@ void RenderLumenHardwareRayTracingReflections(
 		PermutationVector.Set<FLumenReflectionHardwareRayTracing::FRecursiveReflectionTraces>(false);
 		PermutationVector.Set<FLumenReflectionHardwareRayTracing::FRecursiveRefractionTraces>(false);
 		PermutationVector.Set<FLumenReflectionHardwareRayTracing::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
+		PermutationVector.Set<FLumenReflectionHardwareRayTracing::FDistantScreenTraces>(false);
 		PermutationVector = FLumenReflectionHardwareRayTracing::RemapPermutation(PermutationVector);
 
 		// Trace continuation rays
@@ -580,6 +615,7 @@ void RenderLumenHardwareRayTracingReflections(
 			PermutationVector.Set<FLumenReflectionHardwareRayTracing::FRecursiveReflectionTraces>(ReflectionTracingParameters.MaxReflectionBounces > 1);
 			PermutationVector.Set<FLumenReflectionHardwareRayTracing::FRecursiveRefractionTraces>(bTraceTranslucent);
 			PermutationVector.Set<FLumenReflectionHardwareRayTracing::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
+			PermutationVector.Set<FLumenReflectionHardwareRayTracing::FDistantScreenTraces>(false);
 			PermutationVector = FLumenReflectionHardwareRayTracing::RemapPermutation(PermutationVector);
 
 			DispatchRayGenOrComputeShader(GraphBuilder, SceneTextures, SceneTextureParameters, Scene, View, TracingParameters, ReflectionTracingParameters, ReflectionTileParameters, CompactedTraceParameters, RadianceCacheParameters,

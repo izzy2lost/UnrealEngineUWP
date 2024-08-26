@@ -153,6 +153,16 @@ static TAutoConsoleVariable<int32> CVarLumenReflectionsHardwareRayTracingTranslu
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+bool LumenReflections::UseScreenTraces(const FViewInfo& View)
+{
+	return GLumenReflectionScreenTraces != 0 && View.Family->EngineShowFlags.LumenScreenTraces && View.FinalPostProcessSettings.LumenReflectionsScreenTraces;
+}
+
+bool LumenReflections::UseDistantScreenTraces(const FViewInfo& View)
+{
+	return GLumenReflectionsDistantScreenTraces != 0 && UseScreenTraces(View);
+}
+
 float LumenReflections::GetSampleSceneColorNormalTreshold()
 {
 	const float Radians = FMath::DegreesToRadians(FMath::Clamp(CVarLumenReflectionsSampleSceneColorNormalTreshold.GetValueOnRenderThread(), 0.0f, 180.0f));
@@ -924,9 +934,9 @@ void TraceReflections(
 
 	const FSceneTextureParameters& SceneTextureParameters = GetSceneTextureParameters(GraphBuilder, SceneTextures);
 
-	const bool bScreenTraces = GLumenReflectionScreenTraces != 0 && View.Family->EngineShowFlags.LumenScreenTraces && View.FinalPostProcessSettings.LumenReflectionsScreenTraces;
+	const bool bScreenTraces = LumenReflections::UseScreenTraces(View);
 	const bool bSampleSceneColorAtHit = (GLumenReflectionsSampleSceneColorAtHit != 0 && bScreenTraces) || GLumenReflectionsSampleSceneColorAtHit == 2;
-	const bool bDistantScreenTraces = GLumenReflectionsDistantScreenTraces && bScreenTraces;
+	const bool bDistantScreenTraces = LumenReflections::UseDistantScreenTraces(View);
 
 	if (bScreenTraces)
 	{

@@ -109,6 +109,8 @@ namespace LumenReflections
 	bool UseTranslucentRayTracing(const FViewInfo& View);
 	bool IsHitLightingForceEnabled(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
 	bool UseSurfaceCacheFeedback();
+	bool UseScreenTraces(const FViewInfo& View);
+	bool UseDistantScreenTraces(const FViewInfo& View);
 	float GetSampleSceneColorNormalTreshold();
 	uint32 GetMaxReflectionBounces(const FViewInfo& View);
 	uint32 GetMaxRefractionBounces(const FViewInfo& View);
