@@ -224,9 +224,6 @@ protected:
 	UPROPERTY(Transient, NonTransactional)
 	TMap<TObjectPtr<UTexture2D>, FPaintComponentOverride> PaintComponentsOverride;
 
-	/** Texture paint: Will hold a list of texture items that we can paint on */
-	TArray<FTextureTargetListInfo> TexturePaintTargetList;
-
 	/** Texture paint: The mesh components that we're currently painting */
 	UPROPERTY(Transient)
 	TObjectPtr<UMeshComponent> TexturePaintingCurrentMeshComponent;

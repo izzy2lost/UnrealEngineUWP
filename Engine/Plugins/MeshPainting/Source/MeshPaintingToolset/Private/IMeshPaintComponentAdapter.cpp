@@ -87,6 +87,10 @@ void IMeshPaintComponentAdapter::DefaultQueryPaintableTextures(int32 MaterialInd
 							// Store the uv channel, this is set when the texture is selected. 
 							PaintableTexture.UVChannelIndex = TextureCoords->CoordinateIndex;
 						}
+						else
+						{
+							PaintableTexture.UVChannelIndex = TextureSample->ConstCoordinate;
+						}
 
 						// Handle texture parameter expressions
 						UMaterialExpressionTextureSampleParameter* TextureSampleParameter = Cast<UMaterialExpressionTextureSampleParameter>(TextureSample);
