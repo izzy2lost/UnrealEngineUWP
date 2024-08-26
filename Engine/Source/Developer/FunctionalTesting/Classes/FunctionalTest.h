@@ -208,16 +208,6 @@ enum class EFunctionalTestResult : uint8
 /* Return a readable string of the provided EFunctionalTestResult enum */
 FString FUNCTIONALTESTING_API LexToString(const EFunctionalTestResult TestResult);
 
-/** Return a dot-separated path prefix string representing the map that contains a test */
-FString FUNCTIONALTESTING_API MapPackageToAutomationPath(const FString& MapPackageName);
-
-/** Registration information for an individual test */
-struct FFunctionalTestInfo
-{
-	FString BeautifiedName;
-	FString TestCommand;
-	FString TestTags;
-};
 
 UENUM(BlueprintType)
 enum class EFunctionalTestLogHandling : uint8
@@ -258,13 +248,6 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Functional Testing", meta = (MultiLine = "true"))
 	FString Description;
-
-	/**
-	 * Tags describing this test separated by square brackets, such as '[dog]' or '[cat]' or '[Graphics][prio0][unstable]'.
-	 * Tags can be used to run subsets of tests, or to categorize data in test reports.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Functional Testing")
-	FString TestTags;
 
 private:
 	UPROPERTY()
