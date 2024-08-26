@@ -1906,6 +1906,7 @@ void FNiagaraSystemViewModel::SetupPreviewComponentAndInstance()
 		PreviewComponent->SetAsset(System);
 		PreviewComponent->SetForceSolo(true);
 		PreviewComponent->SetAgeUpdateMode(ENiagaraAgeUpdateMode::DesiredAge);
+		PreviewComponent->SetSeekDelta((float)GetEditorData().GetPlaybackFrameRate().AsInterval());
 		PreviewComponent->SetCanRenderWhileSeeking(false);
 		PreviewComponent->Activate(true);
 
@@ -2816,6 +2817,10 @@ void FNiagaraSystemViewModel::SequencerMovieSceneModified(const UMovieScene* Mov
 	if (SystemEditorData.GetPlaybackFrameRate() != MovieScene->GetDisplayRate())
 	{
 		SystemEditorData.SetPlaybackFrameRate(MovieScene->GetDisplayRate());
+		if (PreviewComponent != nullptr)
+		{
+			PreviewComponent->SetSeekDelta((float)SystemEditorData.GetPlaybackFrameRate().AsInterval());
+		}
 	}
 
 	bool bMovieSceneIsFrameLocked = MovieScene->GetEvaluationType() == EMovieSceneEvaluationType::FrameLocked;
