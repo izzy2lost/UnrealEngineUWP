@@ -15,16 +15,23 @@ class SDMMaterialEditor_TopVertical : public SDMMaterialEditor_TopBase
 	SLATE_END_ARGS()
 
 public:
+	SDMMaterialEditor_TopVertical();
+
 	virtual ~SDMMaterialEditor_TopVertical() override = default;
 
 	void Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialDesigner>& InDesignerWidget);
 
 protected:
+	FSlotBase* SplitterSlot_Top;
+
+	void OnTopSplitterResized();
+
 	//~ Begin SDMMaterialEditor_TopBase
 	virtual TSharedRef<SWidget> CreateSlot_Top() override;
 	//~ End SDMMaterialEditor_TopBase
 
 	//~ Begin SDMMaterialEditor
+	virtual TSharedRef<SWidget> CreateSlot_Main() override;
 	virtual TSharedRef<SDMMaterialPropertySelector> CreateSlot_PropertySelector_Impl() override;
 	//~ End SDMMaterialEditor
 };

@@ -45,7 +45,8 @@ void SDMMaterialEditor::PrivateRegisterAttributes(FSlateAttributeDescriptor::FIn
 }
 
 SDMMaterialEditor::SDMMaterialEditor()
-	: CommandList(MakeShared<FUICommandList>())
+	: SplitterSlot(nullptr)
+	, CommandList(MakeShared<FUICommandList>())
 	, PreviewMaterialManager(MakeShared<FDMPreviewMaterialManager>())
 	, EditMode(EDMMaterialEditorMode::GlobalSettings)
 {
@@ -911,13 +912,14 @@ void SDMMaterialEditor::OnEnginePreExit()
 
 void SDMMaterialEditor::OnEditorSplitterResized()
 {
-	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
-
 	if (SplitterSlot)
 	{
-		const float SplitterLocation = static_cast<SSplitter::FSlot*>(SplitterSlot)->GetSizeValue();
-		Settings->SplitterLocation = SplitterLocation;
-		Settings->SaveConfig();
+		if (UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get())
+		{
+			const float SplitterLocation = static_cast<SSplitter::FSlot*>(SplitterSlot)->GetSizeValue();
+			Settings->SplitterLocation = SplitterLocation;
+			Settings->SaveConfig();
+		}
 	}
 }
 

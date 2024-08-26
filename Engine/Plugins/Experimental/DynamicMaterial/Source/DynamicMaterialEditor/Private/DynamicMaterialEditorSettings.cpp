@@ -301,7 +301,8 @@ void UDynamicMaterialEditorSettings::ResetAllLayoutSettings()
 {
 	Layout = EDMMaterialEditorLayout::Left;
 	bUseFullChannelNamesInTopSlimLayout = false;
-	SplitterLocation = 240;
+	SplitterLocation = 0.5;
+	PreviewSplitterLocation = 0.333;
 	ThumbnailSize = 256.f;
 	PreviewMesh = EDMMaterialPreviewMesh::Plane;
 	bShowPreviewBackground = true;

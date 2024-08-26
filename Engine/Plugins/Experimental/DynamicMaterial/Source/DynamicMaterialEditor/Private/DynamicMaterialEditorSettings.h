@@ -179,6 +179,11 @@ public:
 		ClampMin = "0.05", UIMin = "0.05", ClampMax = "0.95", UIMax = "0.95"))
 	float SplitterLocation;
 
+	/** Adjusts the vertical size of the material layer view. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout", meta = (
+		ClampMin = "0.05", UIMin = "0.05", ClampMax = "0.95", UIMax = "0.95"))
+	float PreviewSplitterLocation;
+
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout")
 	bool bUVVisualizerVisible;
 
