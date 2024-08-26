@@ -2525,9 +2525,9 @@ void UNiagaraScript::GenerateStatIDs()
 #elif ENABLE_STATNAMEDEVENTS
 	StatNamedEvents.Empty();
 
-	if (UNiagaraSystem* RootSystem = FindRootSystem())
+	if (UNiagaraSystem* OuterSystem = GetTypedOuter<UNiagaraSystem>())
 	{
-		if (RootSystem->SupportsStatScopedPerformanceMode())
+		if (OuterSystem->SupportsStatScopedPerformanceMode())
 		{
 			static const IConsoleVariable* CVarOptimizeVMDetailedStats = IConsoleManager::Get().FindConsoleVariable(TEXT("vm.DetailedVMScriptStats"));
 			if (CVarOptimizeVMDetailedStats && CVarOptimizeVMDetailedStats->GetInt() != 0)
