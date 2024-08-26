@@ -34,6 +34,10 @@ public:
 	/** True if this is going from hard to soft, false for opposite or unknown */
 	bool IsConvertToSoft() const;
 
+	/** Pin Accessors */
+	UEdGraphPin* GetInputPin() const;
+	UEdGraphPin* GetOutputPin() const;
+
 	// UEdGraphNode interface
 	virtual void AllocateDefaultPins() override;
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
