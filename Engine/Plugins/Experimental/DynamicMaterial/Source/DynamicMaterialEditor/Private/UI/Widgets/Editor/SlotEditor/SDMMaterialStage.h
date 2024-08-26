@@ -41,6 +41,8 @@ protected:
 
 	const FSlateBrush* GetBorderBrush() const;
 
+	EVisibility GetDisabledOverlayVisibility() const;
+
 	/** Drag and drop. */
 	bool OnAssetDraggedOver(TArrayView<FAssetData> InAssets);
 
