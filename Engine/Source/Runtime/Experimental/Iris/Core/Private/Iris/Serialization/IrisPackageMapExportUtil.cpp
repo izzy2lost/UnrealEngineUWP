@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Iris/Serialization/IrisPackageMapExportutil.h"
+#include "Iris/Serialization/IrisPackageMapExportUtil.h"
 
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Serialization/NetBitStreamReader.h"
