@@ -591,12 +591,7 @@ namespace mu
 					{
 						Result = SystemPrivate->WorkingMemoryManager.LoadMesh(FCacheAddress(RootAddress, 0, 0), true);
 					}
-
-					if (!Result)
-					{
-						Result = new Mesh();
-					}
-
+					
 					SystemPrivate->WorkingMemoryManager.EndRunnerThread();
 					SystemPrivate->WorkingMemoryManager.CurrentInstanceCache = nullptr;
 					

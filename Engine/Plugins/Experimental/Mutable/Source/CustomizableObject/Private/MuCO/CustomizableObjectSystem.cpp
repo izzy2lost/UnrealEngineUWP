@@ -1917,8 +1917,12 @@ namespace impl
 				const FInstanceUpdateData::FComponent& Component = UpdateData.Components[ComponentIndex];
 				const FInstanceUpdateData::FLOD& LOD = UpdateData.LODs[Component.FirstLOD+LODIndex];
 				check(LOD.bGenerated);
-				check(LOD.Mesh);
 
+				if (!LOD.Mesh)
+				{
+					continue;
+				}
+				
 				const mu::FMeshBufferSet& MeshSet = LOD.Mesh->GetVertexBuffers();
 
 				int32 VertexMorphsInfoIndexAndCountBufferIndex, VertexMorphsInfoIndexAndCountBufferChannel;
@@ -2401,7 +2405,8 @@ namespace impl
 
 		LOD.Mesh = GetMeshTask.GetResult();
 
-		if (LOD.Mesh->IsReference())
+		if (LOD.Mesh &&
+			LOD.Mesh->IsReference())
 		{
 			const UCustomizableObjectInstance* Instance = OperationData->Instance.Get();
 			const UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject();
