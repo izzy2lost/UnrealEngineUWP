@@ -433,6 +433,10 @@ public:
 	/** Delete selected edge, implicitly merging any connected faces */
 	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Delete Edges", DisplayPriority = 8))
 	void DeleteEdge() { PostAction(EEditMeshPolygonsToolActions::Delete); }
+
+	/** Collapse the selected edges, deleting the attached triangles and merging their vertices into one */
+	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Collapse", DisplayPriority = 5))
+	void Collapse() { PostAction(EEditMeshPolygonsToolActions::CollapseEdge); }
 };
 
 
@@ -459,7 +463,7 @@ public:
 
 	/** Collapse the selected edges, deleting the attached triangles and merging its two vertices into one */
 	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Collapse", DisplayPriority = 5))
-	void Collapse() { PostAction(EEditMeshPolygonsToolActions::CollapseSingleEdge); }
+	void Collapse() { PostAction(EEditMeshPolygonsToolActions::CollapseEdge); }
 
 	/** Flip the selected (non-border, non-seam) edges, replacing them with new edges in the crossing direction */
 	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Flip", DisplayPriority = 6))
@@ -684,6 +688,7 @@ protected:
 	void ApplySimplifyAlongEdges();
 
 	void ApplyFlipSingleEdge();
+	UE_DEPRECATED(5.5, "Use ApplyCollapseEdge instead.")
 	void ApplyCollapseSingleEdge();
 	void ApplySplitSingleEdge();
 

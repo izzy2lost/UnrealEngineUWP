@@ -11,11 +11,14 @@ namespace Geometry
 class FDynamicMesh3;
 
 /**
-* Weld a pair of group edges.
-* 
-* User can optionally allow triangle deletion which handles cases
-* where the group edges are connected by an edge at the end points.
-*/
+ * Weld a pair of group edges. The two input spans must be boundary spans. Their
+ *  position in the world is irrelevant, as the welding will always be done to
+ *  preserve appropriate triangle winding, i.e. so that the newly welded triangles
+ *  are not flipped relative to their neighbor.
+ * 
+ * User can optionally allow triangle deletion which handles cases
+ *  where the group edges are connected by an edge at the end points.
+ */
 
 class DYNAMICMESH_API FWeldEdgeSequence
 {

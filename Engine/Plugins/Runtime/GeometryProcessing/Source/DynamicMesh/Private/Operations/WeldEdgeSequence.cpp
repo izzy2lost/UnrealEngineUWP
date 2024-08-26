@@ -47,7 +47,7 @@ FWeldEdgeSequence::EWeldResult FWeldEdgeSequence::CheckInput()
 	// Selected edges must be boundary edges
 	for (int Edge : EdgeSpanToDiscard.Edges)
 	{
-		if (Mesh->IsBoundaryEdge(Edge) == false)
+		if (!ensure(Mesh->IsEdge(Edge)) || !Mesh->IsBoundaryEdge(Edge))
 		{
 			return EWeldResult::Failed_EdgesNotBoundaryEdges;
 		}
@@ -55,7 +55,7 @@ FWeldEdgeSequence::EWeldResult FWeldEdgeSequence::CheckInput()
 
 	for (int Edge : EdgeSpanToKeep.Edges)
 	{
-		if (Mesh->IsBoundaryEdge(Edge) == false)
+		if (!ensure(Mesh->IsEdge(Edge)) || !Mesh->IsBoundaryEdge(Edge))
 		{
 			return EWeldResult::Failed_EdgesNotBoundaryEdges;
 		}
@@ -191,7 +191,13 @@ FWeldEdgeSequence::EWeldResult FWeldEdgeSequence::WeldEdgeSequence()
 		if (Mesh->IsEdge(EdgeA) && Mesh->IsEdge(EdgeB))
 		{
 			FDynamicMesh3::FMergeEdgesInfo MergeInfo;
-			EMeshResult Result = Mesh->MergeEdges(EdgeB, EdgeA, MergeInfo);
+			EMeshResult Result = Mesh->MergeEdges(EdgeB, EdgeA, MergeInfo, 
+				// This is bCheckValidOrientation, which, roughly speaking, checks to see if the direction
+				//  of EdgeB in world space approximately flips in order to match the winding order of its new
+				//  neighbor. We don't want this, in part because our edges temoporarily move anyway as we
+				//  go along and weld them, potentially temporarily flipping. We always weld according to
+				//  winding order, irregardless of original edge position in world space. 
+				false);
 			if (Result != EMeshResult::Ok)
 			{
 				if (Result == EMeshResult::Failed_InvalidNeighbourhood && bAllowFailedMerge == true)
