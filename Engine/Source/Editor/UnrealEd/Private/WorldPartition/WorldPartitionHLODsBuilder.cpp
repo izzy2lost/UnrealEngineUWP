@@ -393,45 +393,42 @@ bool UWorldPartitionHLODsBuilder::BuildHLODActors()
 			return false;
 		}
 
-		if (0)
+		UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("#### Building %d HLOD actors ####"), HLODActorsToBuild.Num());
+		if (bResumeBuild)
 		{
-			UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("#### Building %d HLOD actors ####"), HLODActorsToBuild.Num());
-			if (bResumeBuild)
+			UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("#### Resuming build at %d ####"), ResumeBuildIndex);
+		}
+
+		for (int32 CurrentActor = ResumeBuildIndex; CurrentActor < HLODActorsToBuild.Num(); ++CurrentActor)
+		{
+			TRACE_BOOKMARK(TEXT("BuildHLOD Start - %d"), CurrentActor);
+
 			{
-				UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("#### Resuming build at %d ####"), ResumeBuildIndex);
+				const FGuid& HLODActorGuid = HLODActorsToBuild[CurrentActor];
+
+				FWorldPartitionReference ActorRef(WorldPartition, HLODActorGuid);
+
+				AWorldPartitionHLOD* HLODActor = CastChecked<AWorldPartitionHLOD>(ActorRef.GetActor());
+
+				UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("[%d / %d] Building HLOD actor %s..."), CurrentActor + 1, HLODActorsToBuild.Num(), *HLODActor->GetActorLabel());
+
+				// Simulate an engine tick to make sure engine & render resources that are queued for deletion are processed.
+				FWorldPartitionHelpers::FakeEngineTick(World);
+
+				HLODActor->BuildHLOD(bForceBuild);
+
+				bool bSaved = SaveHLODActor(HLODActor);
+				if (!bSaved)
+				{
+					return false;
+				}
 			}
 
-			for (int32 CurrentActor = ResumeBuildIndex; CurrentActor < HLODActorsToBuild.Num(); ++CurrentActor)
+			TRACE_BOOKMARK(TEXT("BuildHLOD End - %d"), CurrentActor);
+
+			if (FWorldPartitionHelpers::ShouldCollectGarbage())
 			{
-				TRACE_BOOKMARK(TEXT("BuildHLOD Start - %d"), CurrentActor);
-
-				{
-					const FGuid& HLODActorGuid = HLODActorsToBuild[CurrentActor];
-
-					FWorldPartitionReference ActorRef(WorldPartition, HLODActorGuid);
-
-					AWorldPartitionHLOD* HLODActor = CastChecked<AWorldPartitionHLOD>(ActorRef.GetActor());
-
-					UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("[%d / %d] Building HLOD actor %s..."), CurrentActor + 1, HLODActorsToBuild.Num(), *HLODActor->GetActorLabel());
-
-					// Simulate an engine tick to make sure engine & render resources that are queued for deletion are processed.
-					FWorldPartitionHelpers::FakeEngineTick(World);
-
-					HLODActor->BuildHLOD(bForceBuild);
-
-					bool bSaved = SaveHLODActor(HLODActor);
-					if (!bSaved)
-					{
-						return false;
-					}
-				}
-
-				TRACE_BOOKMARK(TEXT("BuildHLOD End - %d"), CurrentActor);
-
-				if (FWorldPartitionHelpers::ShouldCollectGarbage())
-				{
-					FWorldPartitionHelpers::DoCollectGarbage();
-				}
+				FWorldPartitionHelpers::DoCollectGarbage();
 			}
 		}
 
