@@ -8,6 +8,9 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#define CHECK_EQ(A, B) \
+	UTEST_EQUAL(TEXT(__FILE__ ":" UE_STRINGIZE(__LINE__) ": UTEST_EQUAL_EXPR(" #A ", " #B ")"), A, B)
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutoRTFMChaosRefCountedObject, "AutoRTFM + ChaosRefCountedObject", \
 	                             EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ClientContext | \
 								 EAutomationTestFlags::ServerContext | EAutomationTestFlags::CommandletContext)
@@ -35,6 +38,49 @@ bool FAutoRTFMChaosRefCountedObject::RunTest(const FString& Parameters)
 				TransientObject->AddRef();
 				TransientObject->Release();
 			});
+	}
+
+	// AddRef on an object with non-zero refcount is rolled back properly when a transaction is aborted.
+	{
+		auto* TransientObject = new Chaos::FChaosRefCountedObject();
+		TransientObject->AddRef();
+		CHECK_EQ(TransientObject->GetRefCount(), 1);
+		int RefCountInsideTransaction;
+		AutoRTFM::Transact([&]
+			{
+				TransientObject->AddRef();
+				RefCountInsideTransaction = TransientObject->GetRefCount();
+				AutoRTFM::AbortTransaction();
+			});
+		CHECK_EQ(RefCountInsideTransaction, 2);
+		CHECK_EQ(TransientObject->GetRefCount(), 1);
+		TransientObject->Release();
+	}
+
+	// Release is rolled back properly when a transaction is aborted.
+	{
+		auto* TransientObject = new Chaos::FChaosRefCountedObject();
+		TransientObject->AddRef();
+		CHECK_EQ(TransientObject->GetRefCount(), 1);
+		AutoRTFM::Transact([&]
+			{
+				TransientObject->Release();
+				AutoRTFM::AbortTransaction();
+			});
+		CHECK_EQ(TransientObject->GetRefCount(), 1);
+		TransientObject->Release();
+	}
+
+	// AddRef on a zero-refcount object is rolled back properly when a transaction is aborted.
+	// (That is, the refcount is restored and the object is not destroyed.)
+	{
+		auto TransientObject = MakeUnique<Chaos::FChaosRefCountedObject>();
+		AutoRTFM::Transact([&]
+			{
+				TransientObject->AddRef();
+				AutoRTFM::AbortTransaction();
+			});
+		CHECK_EQ(TransientObject->GetRefCount(), 0);
 	}
 
 	// Adding and releasing a reference to a persistent object will not delete it.
