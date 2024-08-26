@@ -4,24 +4,26 @@
 
 #include "Widgets/SCompoundWidget.h"
 
+#include "Containers/Array.h"
 #include "UI/Utils/DMWidgetSlot.h"
 
+class ICustomDetailsViewItem;
 class SDMMaterialEditor;
-class SWrapBox;
+class SVerticalBox;
 class UDMMaterialProperty;
 class UDMMaterialSlot;
 enum class ECheckBoxState : uint8;
 enum class EDMMaterialPropertyType : uint8;
 
-class SDMMaterialPropertyPreviews : public SCompoundWidget
+class SDMMaterialProperties : public SCompoundWidget
 {
-	SLATE_DECLARE_WIDGET(SDMMaterialPropertyPreviews, SCompoundWidget)
+	SLATE_DECLARE_WIDGET(SDMMaterialProperties, SCompoundWidget)
 
-	SLATE_BEGIN_ARGS(SDMMaterialPropertyPreviews) {}
+	SLATE_BEGIN_ARGS(SDMMaterialProperties) {}
 	SLATE_END_ARGS()
 
 public:
-	virtual ~SDMMaterialPropertyPreviews() override = default;
+	virtual ~SDMMaterialProperties() override = default;
 
 	void Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialEditor>& InEditorWidget);
 
@@ -32,9 +34,11 @@ protected:
 
 	TDMWidgetSlot<SWidget> Content;
 
+	TArray<TSharedRef<ICustomDetailsViewItem>> GlobalItems;
+
 	TSharedRef<SWidget> CreateSlot_Content();
 
-	void AddPropertyPreview(const TSharedRef<SWrapBox>& InContainer, UDMMaterialProperty* InProperty);
+	void AddProperty(const TSharedRef<SVerticalBox>& InList, UDMMaterialProperty* InProperty);
 
 	TSharedRef<SWidget> CreateSlot_EnabledButton(EDMMaterialPropertyType InMaterialProperty);
 
@@ -44,5 +48,7 @@ protected:
 	ECheckBoxState GetPropertyEnabledState(EDMMaterialPropertyType InMaterialProperty) const;
 	void OnPropertyEnabledStateChanged(ECheckBoxState InState, EDMMaterialPropertyType InMaterialProperty);
 
-	FReply OnPreviewClicked(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, EDMMaterialPropertyType InMaterialProperty);
+	FReply OnPropertyClicked(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, EDMMaterialPropertyType InMaterialProperty);
+
+	TSharedRef<SWidget> CreateGlobalSlider(UDMMaterialProperty* InProperty);
 };

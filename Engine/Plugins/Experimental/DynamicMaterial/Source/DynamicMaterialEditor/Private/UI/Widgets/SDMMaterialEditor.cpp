@@ -23,7 +23,7 @@
 #include "UI/Widgets/Editor/SDMMaterialComponentEditor.h"
 #include "UI/Widgets/Editor/SDMMaterialGlobalSettingsEditor.h"
 #include "UI/Widgets/Editor/SDMMaterialPreview.h"
-#include "UI/Widgets/Editor/SDMMaterialPropertyPreviews.h"
+#include "UI/Widgets/Editor/SDMMaterialProperties.h"
 #include "UI/Widgets/Editor/SDMMaterialPropertySelector.h"
 #include "UI/Widgets/Editor/SDMMaterialSlotEditor.h"
 #include "UI/Widgets/Editor/SDMStatusBar.h"
@@ -320,7 +320,7 @@ void SDMMaterialEditor::EditComponent(UDMMaterialComponent* InComponent, bool bI
 		SlotEditorSlot.Invalidate();
 		SplitterSlot = nullptr;
 		GlobalSettingsEditorSlot.Invalidate();
-		MaterialPropertyPreviewsSlot.Invalidate();
+		MaterialPropertiesSlot.Invalidate();
 	}
 
 	EditMode = EDMMaterialEditorMode::EditSlot;
@@ -341,7 +341,7 @@ void SDMMaterialEditor::EditGlobalSettings(bool bInForceRefresh)
 		SlotEditorSlot.Invalidate();
 		SplitterSlot = nullptr;
 		ComponentEditorSlot.Invalidate();
-		MaterialPropertyPreviewsSlot.Invalidate();
+		MaterialPropertiesSlot.Invalidate();
 	}
 
 	EditMode = EDMMaterialEditorMode::GlobalSettings;
@@ -370,7 +370,7 @@ void SDMMaterialEditor::EditProperties(bool bInForceRefresh)
 	EditMode = EDMMaterialEditorMode::Properties;
 	SelectedMaterialProperty = EDMMaterialPropertyType::None;
 
-	MaterialPropertyPreviewsSlot.Invalidate();
+	MaterialPropertiesSlot.Invalidate();
 
 	PageHistoryAdd(FDMMaterialEditorPage::Properties);
 }
@@ -745,13 +745,13 @@ void SDMMaterialEditor::ValidateSlots()
 		}
 		else if (EditMode == EDMMaterialEditorMode::Properties)
 		{
-			if (MaterialPropertyPreviewsSlot.HasBeenInvalidated())
+			if (MaterialPropertiesSlot.HasBeenInvalidated())
 			{
-				MaterialPropertyPreviewsSlot << CreateSlot_MaterialPropertyPreviews();
+				MaterialPropertiesSlot << CreateSlot_MaterialProperties();
 			}
 			else
 			{
-				MaterialPropertyPreviewsSlot->Validate();
+				MaterialPropertiesSlot->Validate();
 			}
 		}
 		else
@@ -941,9 +941,9 @@ TSharedRef<SDMMaterialGlobalSettingsEditor> SDMMaterialEditor::CreateSlot_Global
 	return SNew(SDMMaterialGlobalSettingsEditor, SharedThis(this), GetMaterialModelBase());
 }
 
-TSharedRef<SDMMaterialPropertyPreviews> SDMMaterialEditor::CreateSlot_MaterialPropertyPreviews()
+TSharedRef<SDMMaterialProperties> SDMMaterialEditor::CreateSlot_MaterialProperties()
 {
-	return SNew(SDMMaterialPropertyPreviews, SharedThis(this));
+	return SNew(SDMMaterialProperties, SharedThis(this));
 }
 
 TSharedRef<SDMMaterialPreview> SDMMaterialEditor::CreateSlot_Preview()

@@ -6,7 +6,7 @@
 #include "UI/Widgets/Editor/SDMMaterialComponentEditor.h"
 #include "UI/Widgets/Editor/SDMMaterialGlobalSettingsEditor.h"
 #include "UI/Widgets/Editor/SDMMaterialPreview.h"
-#include "UI/Widgets/Editor/SDMMaterialPropertyPreviews.h"
+#include "UI/Widgets/Editor/SDMMaterialProperties.h"
 #include "UI/Widgets/Editor/SDMMaterialPropertySelector.h"
 #include "UI/Widgets/Editor/SDMMaterialSlotEditor.h"
 #include "Widgets/Layout/SBorder.h"
@@ -244,7 +244,7 @@ TSharedRef<SWidget> SDMMaterialEditor_TopBase::CreateSlot_Bottom_PropertyPreview
 			]
 		];
 
-	MaterialPropertyPreviewsSlot = TDMWidgetSlot<SDMMaterialPropertyPreviews>(PropertyPreviewsSlotPtr, CreateSlot_MaterialPropertyPreviews());
+	MaterialPropertiesSlot = TDMWidgetSlot<SDMMaterialProperties>(PropertyPreviewsSlotPtr, CreateSlot_MaterialProperties());
 
 	return NewBottom;
 }

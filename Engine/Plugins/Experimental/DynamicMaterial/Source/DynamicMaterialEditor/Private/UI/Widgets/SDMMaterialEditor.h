@@ -19,7 +19,7 @@ class SDMMaterialComponentEditor;
 class SDMMaterialDesigner;
 class SDMMaterialGlobalSettingsEditor;
 class SDMMaterialPreview;
-class SDMMaterialPropertyPreviews;
+class SDMMaterialProperties;
 class SDMMaterialPropertySelector;
 class SDMMaterialSlotEditor;
 class SDMStatusBar;
@@ -163,7 +163,7 @@ protected:
 	TDMWidgetSlot<SDMMaterialPreview> MaterialPreviewSlot;
 	TDMWidgetSlot<SDMMaterialPropertySelector> PropertySelectorSlot;
 	TDMWidgetSlot<SDMMaterialGlobalSettingsEditor> GlobalSettingsEditorSlot;
-	TDMWidgetSlot<SDMMaterialPropertyPreviews> MaterialPropertyPreviewsSlot;
+	TDMWidgetSlot<SDMMaterialProperties> MaterialPropertiesSlot;
 	FSlotBase* SplitterSlot;
 	TDMWidgetSlot<SDMMaterialSlotEditor> SlotEditorSlot;
 	TDMWidgetSlot<SDMMaterialComponentEditor> ComponentEditorSlot;
@@ -227,7 +227,7 @@ protected:
 
 	TSharedRef<SDMMaterialGlobalSettingsEditor> CreateSlot_GlobalSettingsEditor();
 
-	TSharedRef<SDMMaterialPropertyPreviews> CreateSlot_MaterialPropertyPreviews();
+	TSharedRef<SDMMaterialProperties> CreateSlot_MaterialProperties();
 
 	TSharedRef<SDMMaterialPreview> CreateSlot_Preview();
 
