@@ -6,12 +6,16 @@
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreMisc.h"
+#include "UbaControllerModule.h"
 #include "UbaHordeAgentManager.h"
 #include "UbaProcessStartInfo.h"
 #include "UbaSessionServerCreateInfo.h"
+#include "UbaStringConversion.h"
+
+#if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
-#include "UbaControllerModule.h"
 #include "Windows/HideWindowsPlatformTypes.h"
+#endif
 
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
@@ -120,26 +124,26 @@ FUbaJobProcessor::FUbaJobProcessor(
 	LastTimeCheckedForTasks(0),
 	bShouldProcessJobs(false),
 	bIsWorkDone(false),
-	LogWriter([]() {}, []() {}, [](uba::LogEntryType type, const wchar_t* str, uba::u32 strlen)
+	LogWriter([]() {}, []() {}, [](uba::LogEntryType type, const uba::tchar* str, uba::u32 /*strlen*/)
 	{
 			switch (type)
 			{
 			case uba::LogEntryType_Error:
-				UE_LOG(LogUbaController, Error, TEXT("%s"), str);
+				UE_LOG(LogUbaController, Error, TEXT("%s"), UBASTRING_TO_TCHAR(str));
 				break;
 			case uba::LogEntryType_Warning:
-				UE_LOG(LogUbaController, Warning, TEXT("%s"), str);
+				UE_LOG(LogUbaController, Warning, TEXT("%s"), UBASTRING_TO_TCHAR(str));
 				break;
 			case uba::LogEntryType_Info:
 				if (UbaJobProcessorOptions::UbaLogVerbosity >= UbaJobProcessorOptions::UbaLogVerbosity_High)
 				{
-					UE_LOG(LogUbaController, Display, TEXT("%s"), str);
+					UE_LOG(LogUbaController, Display, TEXT("%s"), UBASTRING_TO_TCHAR(str));
 				}
 				break;
 			default:
 				if (UbaJobProcessorOptions::UbaLogVerbosity >= UbaJobProcessorOptions::UbaLogVerbosity_Max)
 				{
-					UE_LOG(LogUbaController, Display, TEXT("%s"), str);
+					UE_LOG(LogUbaController, Display, TEXT("%s"), UBASTRING_TO_TCHAR(str));
 				}
 				break;
 			}
@@ -147,7 +151,7 @@ FUbaJobProcessor::FUbaJobProcessor(
 {
 	Uba_SetCustomAssertHandler([](const uba::tchar* text)
 		{
-			checkf(false, TEXT("%s"), text);
+			checkf(false, TEXT("%s"), UBASTRING_TO_TCHAR(text));
 		});
 
 	if (!GConfig->GetInt(TEXT("UbaController"), TEXT("MaxLocalParallelJobs"), MaxLocalParallelJobs, GEngineIni))
@@ -231,23 +235,28 @@ void FUbaJobProcessor::CalculateKnownInputs()
 void FUbaJobProcessor::RunTaskWithUba(FTask* Task)
 {
 	FTaskCommandData& Data = Task->CommandData;
-	SessionServer_RegisterNewFile(UbaSessionServer, *Data.InputFileName);
+	SessionServer_RegisterNewFile(UbaSessionServer, TCHAR_TO_UBASTRING(*Data.InputFileName));
 
 	FString InputFileName = FPaths::GetCleanFilename(Data.InputFileName);
 	FString OutputFileName = FPaths::GetCleanFilename(Data.OutputFileName);
 	FString Parameters = FString::Printf(TEXT("\"%s/\" %d 0 \"%s\" \"%s\" %s "), *Data.WorkingDirectory, Data.DispatcherPID, *InputFileName, *OutputFileName, *Data.ExtraCommandArgs);
 	FString AppDir = FPaths::GetPath(Data.Command);
+	
+	FStringToUbaStringConversion UbaCommandStr(*Data.Command);
+	FStringToUbaStringConversion UbaParametersStr(*Parameters);
+	FStringToUbaStringConversion UbaInputFileNameStr(*InputFileName);
+	FStringToUbaStringConversion UbaWorkingDirStr(*AppDir);
 
 	uba::ProcessStartInfo ProcessInfo;
-	ProcessInfo.application = *Data.Command;
-	ProcessInfo.arguments = *Parameters;
-	ProcessInfo.description = *InputFileName;
-	ProcessInfo.workingDir = *AppDir;
+	ProcessInfo.application = UbaCommandStr.Get();
+	ProcessInfo.arguments = UbaParametersStr.Get();
+	ProcessInfo.description = UbaInputFileNameStr.Get();
+	ProcessInfo.workingDir = UbaWorkingDirStr.Get();
 	ProcessInfo.writeOutputFilesOnFail = true;
 
 	if (UbaJobProcessorOptions::bProcessLogEnabled)
 	{
-		ProcessInfo.logFile = *InputFileName;
+		ProcessInfo.logFile = UbaInputFileNameStr.Get();
 	}
 	
 	struct ExitedInfo
@@ -270,17 +279,17 @@ void FUbaJobProcessor::RunTaskWithUba(FTask* Task)
 			uint32 logLineIndex = 0;
 			while (const uba::tchar* line = ProcessHandle_GetLogLine(&ph, logLineIndex++))
 			{
-				UE_LOG(LogUbaController, Display, TEXT("%s"), line);
+				UE_LOG(LogUbaController, Display, TEXT("%s"), UBASTRING_TO_TCHAR(line));
 			}
 
 			if (auto Info = (ExitedInfo*)userData) // It can be null if custom message has already handled all of them
 			{
 				IFileManager::Get().Delete(*Info->InputFile);
-				SessionServer_RegisterDeleteFile(Info->Processor->UbaSessionServer, *Info->InputFile);
+				SessionServer_RegisterDeleteFile(Info->Processor->UbaSessionServer, TCHAR_TO_UBASTRING(*Info->InputFile));
 				Info->Processor->HandleUbaJobFinished(Info->Task);
 
-				StorageServer_DeleteFile(Info->Processor->UbaStorageServer, *Info->InputFile);
-				StorageServer_DeleteFile(Info->Processor->UbaStorageServer, *Info->OutputFile);
+				StorageServer_DeleteFile(Info->Processor->UbaStorageServer, TCHAR_TO_UBASTRING(*Info->InputFile));
+				StorageServer_DeleteFile(Info->Processor->UbaStorageServer, TCHAR_TO_UBASTRING(*Info->OutputFile));
 
 				delete Info;
 			}
@@ -302,11 +311,12 @@ void FUbaJobProcessor::StartUba()
 	IFileManager::Get().MakeDirectory(*RootDir, true);
 
 	uba::u64 casCapacityBytes = 32llu * 1024 * 1024 * 1024;
-	UbaStorageServer = StorageServer_Create(*UbaServer, *RootDir, casCapacityBytes, true, LogWriter);
+	UbaStorageServer = StorageServer_Create(*UbaServer, TCHAR_TO_UBASTRING(*RootDir), casCapacityBytes, true, LogWriter);
 
 	uba::SessionServerCreateInfo info(*(uba::Storage*)UbaStorageServer, *UbaServer, LogWriter);
 	info.launchVisualizer = UbaJobProcessorOptions::bAutoLaunchVisualizer;
-	info.rootDir = *RootDir;
+	const FStringToUbaStringConversion UbaRootDirStr(*RootDir);
+	info.rootDir = UbaRootDirStr.Get();
 	info.allowMemoryMaps = false; // Skip using memory maps
 	info.remoteLogEnabled = UbaJobProcessorOptions::bProcessLogEnabled;
 
@@ -317,10 +327,12 @@ void FUbaJobProcessor::StartUba()
 		static uint32 UbaSessionCounter;
 		TraceOutputFile = ControllerModule.GetDebugInfoPath() / FString::Printf(TEXT("UbaController.MultiprocessId-%u.Session-%u.uba"), UE::GetMultiprocessId(), UbaSessionCounter++);
 	}
-	info.traceOutputFile = *TraceOutputFile;
+	const FStringToUbaStringConversion UbaTraceOutputFileStr(*TraceOutputFile);
+	info.traceOutputFile = UbaTraceOutputFileStr.Get();
 	info.detailedTrace = UbaJobProcessorOptions::bDetailedTrace;
 	FString TraceName = FString::Printf(TEXT("UbaController_%s"), *FGuid::NewGuid().ToString(EGuidFormats::Digits));
-	info.traceName = *TraceName;
+	const FStringToUbaStringConversion UbaTraceNameStr(*TraceName);
+	info.traceName = UbaTraceNameStr.Get();
 
 
 	//info.remoteLogEnabled = true;
@@ -546,7 +558,7 @@ bool FUbaJobProcessor::ProcessOutputFile(FTask* CompileTask)
 	}
 	else
 	{
-		const FString OutputFileName = CompileTask != nullptr ? CompileTask->CommandData.OutputFileName : TEXT("Invalid CompileTask, cannot retrieve name");
+		const FString OutputFileName = CompileTask != nullptr ? *CompileTask->CommandData.OutputFileName : TEXT("Invalid CompileTask, cannot retrieve name");
 		UE_LOG(LogUbaController, Error, TEXT("Output File [%s] is invalid or does not exist"), *OutputFileName);
 		return false;
 	}

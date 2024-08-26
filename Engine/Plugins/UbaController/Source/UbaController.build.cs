@@ -30,11 +30,24 @@ public class UbaController : ModuleRules
         PublicIncludePaths.Add(Path.Combine(UbaSourcePath, "Host", "Public"));
         PublicIncludePathModuleNames.Add("BLAKE3");
 
-		string UbaBinariesPath = Path.Combine(EngineDirectory, "Binaries", "Win64", "UnrealBuildAccelerator", Arch);
+		string UbaBinariesPath = Path.Combine(EngineDirectory, "Binaries", Target.Platform.ToString(), "UnrealBuildAccelerator");
+		
+		if (Target.Platform == UnrealTargetPlatform.Win64)
+		{
+			UbaBinariesPath = Path.Combine(UbaBinariesPath, Arch);
+			
+			PublicAdditionalLibraries.Add(Path.Combine(UbaBinariesPath, "UbaHost.lib"));
+			PrivateRuntimeLibraryPaths.Add(Path.Combine(ModuleDirectory, "lib"));
 
-		PublicAdditionalLibraries.Add(Path.Combine(UbaBinariesPath, "UbaHost.lib"));
-		PrivateRuntimeLibraryPaths.Add(Path.Combine(ModuleDirectory, "lib"));
-
-		PublicDelayLoadDLLs.Add("UbaHost.dll");
+			PublicDelayLoadDLLs.Add("UbaHost.dll");
+		}
+		else if (Target.Platform == UnrealTargetPlatform.Mac)
+		{
+			PublicDelayLoadDLLs.Add(Path.Combine(UbaBinariesPath, "libUbaHost.dylib"));
+		}
+		else if (Target.Platform == UnrealTargetPlatform.Linux)
+		{
+			PublicDelayLoadDLLs.Add(Path.Combine(UbaBinariesPath, "libUbaHost.so"));
+		}
 	}
 }

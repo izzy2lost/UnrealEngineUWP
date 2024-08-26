@@ -202,19 +202,27 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 		FScopeLock ScopeLock(&BundleRefPathsLock);
 		if (BundleRefPaths.IsEmpty())
 		{
-			struct BundleRec { const char* File; const TCHAR* BundleRef; };
-			BundleRec BundleRecs[] =
+			struct FBundleRec
 			{
-				{ AppName, TEXT("UbaAgent.Bundle.ref") },
-#if PLATFORM_LINUX
-				{ "UbaAgent.debug", TEXT("UbaAgent.debug.Bundle.ref") },
-				{ "libclang_rt.tsan.so", TEXT("Tsan.Bundle.ref") },
+				const TCHAR* Filename;
+				const TCHAR* BundleRef;
+			};
+			const FBundleRec BundleRecs[] =
+			{
+#if PLATFORM_WINDOWS
+				{ TEXT("UbaAgent.exe"), TEXT("UbaAgent.Bundle.ref") },
+#elif PLATFORM_LINUX
+				{ TEXT("UbaAgent"), TEXT("UbaAgent.Bundle.ref") },
+				{ TEXT("UbaAgent.debug"), TEXT("UbaAgent.debug.Bundle.ref") },
+//				{ TEXT("libclang_rt.tsan.so"), TEXT("Tsan.Bundle.ref") }, // for debugging
+#elif PLATFORM_MAC
+				{ TEXT("UbaAgent"), TEXT("UbaAgent.Bundle.ref") },
 #endif
 			};
 
-			for (const BundleRec& Rec : BundleRecs)
+			for (const FBundleRec& Rec : BundleRecs)
 			{
-				const FString FilePath = FPaths::Combine(BinariesPath, ANSI_TO_TCHAR(Rec.File));
+				const FString FilePath = FPaths::Combine(BinariesPath, Rec.Filename);
 				FString BundlePath = FPaths::Combine(WorkingDir, Rec.BundleRef);
 
 				if (!CreateHordeBundleFromFile(*FilePath, *BundlePath))

@@ -120,14 +120,9 @@ bool FUbaControllerModule::IsSupported()
 		return bSupported;
 	}
 	
-#if PLATFORM_WINDOWS
 	const bool bEnabled = IsUbaControllerEnabled();
 
 	bSupported = FPlatformProcess::SupportsMultithreading() && bEnabled;
-#else
-	// Not supported on other platforms.
-	bSupported = false;
-#endif
 	return bSupported;
 }
 
@@ -156,12 +151,20 @@ bool FUbaControllerModule::HasTasksDispatchedOrPending() const
 
 FString GetUbaBinariesPath()
 {
+#if PLATFORM_WINDOWS
 #if PLATFORM_CPU_ARM_FAMILY
 	const TCHAR* BinariesArch = TEXT("arm64");
 #else
 	const TCHAR* BinariesArch = TEXT("x64");
 #endif
-	return FPaths::Combine(FPaths::EngineDir(), "Binaries/Win64/UnrealBuildAccelerator", BinariesArch);
+	return FPaths::Combine(FPaths::EngineDir(), TEXT("Binaries"), TEXT("Win64"), TEXT("UnrealBuildAccelerator"), BinariesArch);
+#elif PLATFORM_MAC
+    return FPaths::Combine(FPaths::EngineDir(), TEXT("Binaries"), TEXT("Mac"), TEXT("UnrealBuildAccelerator"));
+#elif PLATFORM_LINUX
+    return FPaths::Combine(FPaths::EngineDir(), TEXT("Binaries"), TEXT("Linux"), TEXT("UnrealBuildAccelerator"));
+#else
+#error Unsupported platform to compile UbaController plugin. Only Win64, Mac, and Linux are supported!
+#endif
 }
 
 void FUbaControllerModule::LoadDependencies()
