@@ -59,13 +59,13 @@ protected:
 class FOnlineError
 {
 public:
-	FOnlineError(ErrorCodeType InErrorCode, TSharedPtr<const IOnlineErrorDetails, ESPMode::ThreadSafe> InDetails = nullptr, TSharedPtr<const FOnlineError, ESPMode::ThreadSafe> InInner = nullptr)
+	explicit FOnlineError(ErrorCodeType InErrorCode, TSharedPtr<const IOnlineErrorDetails, ESPMode::ThreadSafe> InDetails = nullptr, TSharedPtr<const FOnlineError, ESPMode::ThreadSafe> InInner = nullptr)
 		: Details(InDetails)
 		, Inner(InInner)
 		, ErrorCode(InErrorCode)
 	{
 	}
-
+	explicit FOnlineError(bool) = delete;
 
 	FText GetText() const
 	{

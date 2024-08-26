@@ -229,6 +229,7 @@ public:
 
 	FOnlineEventDelegateHandle& operator=(FOnlineEventDelegateHandle&& Other)
 	{
+		Unbind();
 		DelegateUnbinder = MoveTemp(Other.DelegateUnbinder);
 		return *this;
 	}
