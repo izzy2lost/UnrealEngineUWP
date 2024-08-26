@@ -4,6 +4,7 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Widgets/SNullWidget.h"
 
 #if WITH_EDITOR
 #include "Engine/BlueprintGeneratedClass.h"
@@ -19,6 +20,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "BlueprintActionDatabase.h"
 #include "Preferences/PersonaOptions.h"
+#include "Styling/SlateTypes.h"
 
 #define LOCTEXT_NAMESPACE "PropertyBinding"
 
@@ -59,6 +61,15 @@ void SPropertyBinding::Construct(const FArguments& InArgs, UBlueprint* InBluepri
 			BuildContextStructCategoryRecursive(Categories, Section->SubCategories, Index);
 		}
 	}
+	TSharedRef<SWidget> LinkIcon = Args.bUseLinkIconStyle ?
+		SNew(SBox)
+		.HeightOverride(16.0f)
+		[
+			SNew(SImage)
+			.Image(this, &SPropertyBinding::GetLinkIcon)
+		]
+		:
+		SNullWidget::NullWidget;
 
 	ChildSlot
 	[
@@ -72,10 +83,17 @@ void SPropertyBinding::Construct(const FArguments& InArgs, UBlueprint* InBluepri
 			.ToolTipText(this, &SPropertyBinding::GetCurrentBindingToolTipText)
 			.OnGetMenuContent(this, &SPropertyBinding::OnGenerateDelegateMenu)
 			.ContentPadding(1)
+			.HasDownArrow(!Args.bUseLinkIconStyle)
 			.ButtonContent()
 			[
 				SNew(SHorizontalBox)
 				.Clipping(EWidgetClipping::ClipToBounds)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					LinkIcon
+				]
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
@@ -1048,6 +1066,12 @@ void SPropertyBinding::FillCategoryMenu(FMenuBuilder& MenuBuilder, const FBindin
 	MenuBuilder.EndSection();
 }
 
+const FSlateBrush* SPropertyBinding::GetLinkIcon() const
+{
+	bool CheckState = HasAnyBindings();
+	return (CheckState) ? FAppStyle::GetBrush("Icons.Link") : FAppStyle::GetBrush("Icons.Unlink");
+}
+
 const FSlateBrush* SPropertyBinding::GetCurrentBindingImage() const
 {
 	if(Args.CurrentBindingImage.IsSet())
@@ -1295,6 +1319,16 @@ FReply SPropertyBinding::OnDrop(const FGeometry& MyGeometry, const FDragDropEven
 	}
 
 	return FReply::Unhandled();
+}
+
+bool SPropertyBinding::HasAnyBindings() const
+{
+	if (Args.OnHasAnyBindings.IsBound())
+	{
+		return Args.OnHasAnyBindings.Execute();
+	}
+
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

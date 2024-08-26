@@ -108,7 +108,7 @@ DECLARE_DELEGATE_RetVal(FString, FOnGenerateBindingName);
 /** Delegate used to open a binding (e.g. a function) */
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnGotoBinding, FName /*InPropertyName*/);
 
-/** Delegate used to se if we can open a binding (e.g. a function) */
+/** Delegate used to see if we can open a binding (e.g. a function) */
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanGotoBinding, FName /*InPropertyName*/);
 
 /** Delegate used to check whether a property is considered for binding. Returning false will discard the property and all child properties. */
@@ -144,7 +144,7 @@ DECLARE_DELEGATE_TwoParams(FOnAddBinding, FName /*InPropertyName*/, const TArray
 /** Delegate called to remove a binding */
 DECLARE_DELEGATE_OneParam(FOnRemoveBinding, FName /*InPropertyName*/);
 
-/** Delegate called to see if we can remove remove a binding (ie. if it exists) */
+/** Delegate called to see if we can remove a binding (ie. if it exists) */
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanRemoveBinding, FName /*InPropertyName*/);
 
 /** Delegate called once a new function binding has been created */
@@ -155,6 +155,9 @@ DECLARE_DELEGATE_RetVal_OneParam(UStruct*, FOnResolveIndirection, const TArray<F
 
 /** Delegate called once a drag-drop event is dropped on the binding widget */
 DECLARE_DELEGATE_RetVal_TwoParams(FReply, FOnDrop, const FGeometry&, const FDragDropEvent&);
+
+/** Delegate called to see if the property has any bindings */
+DECLARE_DELEGATE_RetVal(bool, FOnHasAnyBindings);
 
 /** Setup arguments structure for a property binding widget */
 struct FPropertyBindingWidgetArgs
@@ -219,6 +222,9 @@ struct FPropertyBindingWidgetArgs
 	/** Delegate called to see if we can remove remove a binding (ie. if it exists) */
 	FOnCanRemoveBinding OnCanRemoveBinding;
 
+	/** Delegate called to see if the property has any bindings */
+	FOnHasAnyBindings OnHasAnyBindings;
+
 	/** Delegate called once a new function binding has been created */
 	FOnNewFunctionBindingCreated OnNewFunctionBindingCreated;
 
@@ -278,6 +284,9 @@ struct FPropertyBindingWidgetArgs
 
 	/** Whether to allow UScriptStruct functions as non-leaf nodes */
 	bool bAllowStructFunctions = false;	
+
+	/** Whether to format the SPropertyBinding widget to use a link icon (versus the standard combo button) */
+	bool bUseLinkIconStyle = false;
 };
 
 /** Enum describing the result of ResolvePropertyAccess */

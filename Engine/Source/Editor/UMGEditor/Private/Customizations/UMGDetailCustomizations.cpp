@@ -38,6 +38,7 @@
 #include "UMGEditorModule.h"
 #include "WidgetBlueprintEditor.h"
 #include "Animation/WidgetAnimation.h"
+#include "Styling/SlateTypes.h"
 
 #define LOCTEXT_NAMESPACE "UMG"
 
@@ -149,6 +150,8 @@ TSharedRef<SWidget> FBlueprintWidgetCustomization::MakePropertyBindingWidget(TWe
 	Args.MenuExtender = FExtender::Combine(MenuExtenders);
 	Args.Property = InPropertyHandle->GetProperty();
 	Args.BindableSignature = SignatureFunction;
+	Args.BindButtonStyle = &FCoreStyle::Get().GetWidgetStyle<FButtonStyle>("Button");
+
 	Args.OnGenerateBindingName = FOnGenerateBindingName::CreateLambda([WidgetName]()
 	{
 		return WidgetName;
@@ -314,6 +317,39 @@ TSharedRef<SWidget> FBlueprintWidgetCustomization::MakePropertyBindingWidget(TWe
 		// Ignore any properties that are widgets, we don't want users binding widgets to other widgets.
 		return InClass->IsChildOf(UWidget::StaticClass());
 	});
+
+	Args.OnHasAnyBindings = FOnHasAnyBindings::CreateLambda([InEditor, InPropertyHandle]()
+		{
+			return HasPropertyBindings(InEditor, InPropertyHandle);
+		});
+
+	Args.CurrentBindingColor = MakeAttributeLambda([InEditor, Objects, InPropertyHandle, ActiveExtensions]()
+		{
+			UWidgetBlueprint* ThisBlueprint = InEditor.Pin()->GetWidgetBlueprintObj();
+			for (const TWeakObjectPtr<UObject>& ObjectPtr : Objects)
+			{
+				UObject* Object = ObjectPtr.Get();
+
+				// Ignore null outer objects
+				if (Object == nullptr)
+				{
+					continue;
+				}
+				if (UWidget* Widget = Cast<UWidget>(Object))
+				{
+					for (const TSharedPtr<IPropertyBindingExtension>& Extension : ActiveExtensions)
+					{
+						TOptional<FLinearColor> Color = Extension->GetCurrentIconColor(ThisBlueprint, Widget, InPropertyHandle->GetProperty());
+						if (Color.IsSet())
+						{
+							return Color.GetValue();
+						}
+					}
+				}
+			}
+
+			return FLinearColor::White;
+		});
 
 	Args.OnAddBinding = FOnAddBinding::CreateLambda([InEditor, Objects](FName InPropertyName, const TArray<FBindingChainElement>& InBindingChain)
 	{
@@ -550,7 +586,7 @@ TSharedRef<SWidget> FBlueprintWidgetCustomization::MakePropertyBindingWidget(TWe
 			break;
 		}
 
-		return LOCTEXT("Bind", "Bind");
+		return FText::GetEmpty();
 	});
 
 	Args.CurrentBindingImage = MakeAttributeLambda([InEditor, Objects, InPropertyHandle, ActiveExtensions]() -> const FSlateBrush*
@@ -607,6 +643,7 @@ TSharedRef<SWidget> FBlueprintWidgetCustomization::MakePropertyBindingWidget(TWe
 
 	Args.bGeneratePureBindings = bInGeneratePureBindings;
 	Args.bAllowNewBindings = bAllowDetailsPanelLegacyBinding;
+	Args.bUseLinkIconStyle = true;
 
 	IPropertyAccessEditor& PropertyAccessEditor = IModularFeatures::Get().GetModularFeature<IPropertyAccessEditor>("PropertyAccessEditor");
 	return PropertyAccessEditor.MakePropertyBindingWidget(InEditor.Pin()->GetBlueprintObj(), Args);
