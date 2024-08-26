@@ -837,6 +837,11 @@ bool FPropertyBagRepository::WasPropertyValueSerialized(const UStruct* Struct, c
 
 void FPropertyBagRepository::AddReferencedObjects(FReferenceCollector& Collector)
 {
+	for (TPair<const UObject*, TObjectPtr<UObject>>& Element : Namespaces)
+	{
+		Collector.AddReferencedObject(Element.Value);
+	}
+
 	FPropertyBagPlaceholderTypeRegistry::Get().AddReferencedObjects(Collector);
 }
 
