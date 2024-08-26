@@ -185,7 +185,7 @@ namespace Jupiter.FunctionalTests.Replication
 			}
 
 			// Build snapshot
-			ReplicationLogSnapshot snapshot = ReplicationLogFactory.CreateEmptySnapshot(TestNamespace);
+			using ReplicationLogSnapshot snapshot = ReplicationLogFactory.CreateEmptySnapshot(TestNamespace);
 			foreach (ReplicationLogEvent logEvent in replicationEvents)
 			{
 				snapshot.ProcessEvent(logEvent);
@@ -275,7 +275,7 @@ namespace Jupiter.FunctionalTests.Replication
 			}
 
 			// Build snapshot
-			ReplicationLogSnapshot snapshot = ReplicationLogFactory.CreateEmptySnapshot(TestNamespace);
+			using ReplicationLogSnapshot snapshot = ReplicationLogFactory.CreateEmptySnapshot(TestNamespace);
 			foreach (ReplicationLogEvent logEvent in snapshotEvents)
 			{
 				snapshot.ProcessEvent(logEvent);
@@ -357,7 +357,7 @@ namespace Jupiter.FunctionalTests.Replication
 			}
 
 			// Build snapshot
-			ReplicationLogSnapshot snapshot = ReplicationLogFactory.CreateEmptySnapshot(TestNamespace);
+			using ReplicationLogSnapshot snapshot = ReplicationLogFactory.CreateEmptySnapshot(TestNamespace);
 			foreach (ReplicationLogEvent logEvent in snapshotEvents)
 			{
 				snapshot.ProcessEvent(logEvent);

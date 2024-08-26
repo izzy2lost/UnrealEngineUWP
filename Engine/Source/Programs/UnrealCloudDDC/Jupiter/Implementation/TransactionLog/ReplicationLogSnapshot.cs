@@ -66,13 +66,18 @@ namespace Jupiter.Implementation.TransactionLog
 			_bufferedPayload = null;
 		}
 
-		public override void Dispose()
+		protected override void Dispose(bool disposing)
 		{
-			if (_bufferedPayload != null)
+			if (disposing)
 			{
-				_bufferedPayload.Dispose();
-				_bufferedPayload = null;
+				if (_bufferedPayload != null)
+				{
+					_bufferedPayload.Dispose();
+					_bufferedPayload = null;
+				}
 			}
+
+			base.Dispose(disposing);
 		}
 
 		public static ReplicationLogSnapshot FromStream(BufferedPayloadFactory payloadFactory, Stream stream)
@@ -199,7 +204,7 @@ namespace Jupiter.Implementation.TransactionLog
 		public BlobId Blob { get; set; }
 	}
 
-	public abstract class ReplicationLogSnapshot
+	public abstract class ReplicationLogSnapshot : IDisposable
 	{
 		private readonly List<SnapshotLiveObject> _addedObjects = new List<SnapshotLiveObject>();
 		private readonly HashSet<(BucketId, RefId)> _removedObjects = new HashSet<(BucketId, RefId)>();
@@ -318,9 +323,14 @@ namespace Jupiter.Implementation.TransactionLog
 			_removedObjects.Add((bucket, key));
 		}
 
-		public virtual void Dispose()
+		protected virtual void Dispose(bool disposing)
 		{
+		}
 
+		public void Dispose()
+		{
+			Dispose(true);
+			GC.SuppressFinalize(this);
 		}
 	}
 }
