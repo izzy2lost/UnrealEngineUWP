@@ -7,6 +7,95 @@
 #include "HAL/MallocBinnedCommon.h"
 #include "Misc/App.h"
 #include "Stats/Stats.h"
+#include "FramePro/FrameProProfiler.h"
+
+
+#if FRAMEPRO_ENABLED
+//	Pushes a profiler scope if it's safe to do so without any new allocations.
+	class FNoAllocScopeCycleCounter
+	{
+	public:
+		FORCEINLINE FNoAllocScopeCycleCounter(const ANSICHAR* InStatString)
+		{
+			if (FFrameProProfiler::IsThreadContextReady() && GCycleStatsShouldEmitNamedEvents)
+			{
+				StatString = InStatString;
+				FFrameProProfiler::PushEvent(StatString);
+			}
+		}
+
+		FORCEINLINE ~FNoAllocScopeCycleCounter()
+		{
+			if (StatString)
+			{
+				FFrameProProfiler::PopEvent(StatString);
+			}
+		}
+	private:
+		const ANSICHAR* StatString = nullptr;
+	};
+
+#	define NOALLOC_SCOPE_CYCLE_COUNTER(Stat) FNoAllocScopeCycleCounter NoAllocCycleCounter_##Stat(#Stat)
+#else
+#	define NOALLOC_SCOPE_CYCLE_COUNTER(Stat)
+#endif	// ~FRAMEPRO_ENABLED
+
+namespace MallocBinnedPrivate
+{
+	template<int NumSmallPools>
+	struct TGlobalRecycler
+	{
+		bool PushBundle(uint32 InPoolIndex, FMallocBinnedCommonBase::FBundleNode* InBundle)
+		{
+			const uint32 NumCachedBundles = FMath::Min<uint32>(GMallocBinnedMaxBundlesBeforeRecycle, UE_DEFAULT_GMallocBinnedMaxBundlesBeforeRecycle);
+			for (uint32 Slot = 0; Slot < NumCachedBundles; Slot++)
+			{
+				if (!Bundles[InPoolIndex].FreeBundles[Slot])
+				{
+					if (!FPlatformAtomics::InterlockedCompareExchangePointer((void**)&Bundles[InPoolIndex].FreeBundles[Slot], InBundle, nullptr))
+					{
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		FMallocBinnedCommonBase::FBundleNode* PopBundle(uint32 InPoolIndex)
+		{
+			const uint32 NumCachedBundles = FMath::Min<uint32>(GMallocBinnedMaxBundlesBeforeRecycle, UE_DEFAULT_GMallocBinnedMaxBundlesBeforeRecycle);
+			for (uint32 Slot = 0; Slot < NumCachedBundles; Slot++)
+			{
+				FMallocBinnedCommonBase::FBundleNode* Result = Bundles[InPoolIndex].FreeBundles[Slot];
+				if (Result)
+				{
+					if (FPlatformAtomics::InterlockedCompareExchangePointer((void**)&Bundles[InPoolIndex].FreeBundles[Slot], nullptr, Result) == Result)
+					{
+						return Result;
+					}
+				}
+			}
+			return nullptr;
+		}
+
+	private:
+		struct FPaddedBundlePointer
+		{
+			FMallocBinnedCommonBase::FBundleNode* FreeBundles[UE_DEFAULT_GMallocBinnedMaxBundlesBeforeRecycle];
+#if (4 + (4 * PLATFORM_64BITS)) * UE_DEFAULT_GMallocBinnedMaxBundlesBeforeRecycle < PLATFORM_CACHE_LINE_SIZE
+#	define UE_MBC_BUNDLE_PADDING (PLATFORM_CACHE_LINE_SIZE - sizeof(FMallocBinnedCommonBase::FBundleNode*) * UE_DEFAULT_GMallocBinnedMaxBundlesBeforeRecycle)
+			uint8 Padding[UE_MBC_BUNDLE_PADDING];
+#endif
+			FPaddedBundlePointer()
+			{
+				DefaultConstructItems<FMallocBinnedCommonBase::FBundleNode*>(FreeBundles, UE_DEFAULT_GMallocBinnedMaxBundlesBeforeRecycle);
+			}
+		};
+		static_assert(sizeof(FPaddedBundlePointer) == PLATFORM_CACHE_LINE_SIZE, "FPaddedBundlePointer should be the same size as a cache line");
+		MS_ALIGN(PLATFORM_CACHE_LINE_SIZE) FPaddedBundlePointer Bundles[NumSmallPools] GCC_ALIGN(PLATFORM_CACHE_LINE_SIZE);
+	};
+}
+
 
 class FMallocBinnedCommonUtils
 {
@@ -41,11 +130,11 @@ public:
 
 				const double StartTimeInner = FPlatformTime::Seconds();
 				TrimThreadFreeBlockLists(Allocator, Lists);
-				const double WaitForMutexAndTrimTime = FPlatformTime::Seconds() - StartTimeInner;
+				const double WaitForTrimTime = FPlatformTime::Seconds() - StartTimeInner;
 
-				if (WaitForMutexAndTrimTime > GMallocBinnedFlushThreadCacheMaxWaitTime)
+				if (WaitForTrimTime > GMallocBinnedFlushThreadCacheMaxWaitTime)
 				{
-					UE_LOG(LogMemory, Warning, TEXT("FMalloc%s took %6.2fms to wait for mutex AND trim."), Allocator.GetDescriptiveName(), WaitForMutexAndTrimTime * 1000.0f);
+					UE_LOG(LogMemory, Warning, TEXT("FMalloc%s took %6.2fms to wait for mutex AND trim."), Allocator.GetDescriptiveName(), WaitForTrimTime * 1000.0f);
 				}
 			}
 		}

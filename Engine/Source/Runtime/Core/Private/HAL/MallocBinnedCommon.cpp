@@ -11,8 +11,6 @@
 
 PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 
-#if PLATFORM_HAS_FPlatformVirtualMemoryBlock
-
 // Bin sizes are based around getting the maximum amount of allocations per block, with as little alignment waste as possible.
 // Bin sizes should be close to even divisors of the system page size, and well distributed.
 // They must be 16-byte aligned as well.
@@ -89,10 +87,11 @@ static constexpr uint32 BinnedCommonSmallBinSizes28k[] = // 6 total
 	28672  // /1
 };
 
-FSizeTableEntry::FSizeTableEntry(uint32 InBinSize, uint64 PlatformPageSize, uint8 Num4kbPages, uint32 BasePageSize, uint32 MinimumAlignment)
+FSizeTableEntry::FSizeTableEntry(uint32 InBinSize, uint64 PlatformPageSize, uint8 Num4kbPages, uint32 BasePageSize)
 	: BinSize(InBinSize)
 {
-	check((PlatformPageSize & (BasePageSize - 1)) == 0 && PlatformPageSize >= BasePageSize && InBinSize % MinimumAlignment == 0);
+	check((PlatformPageSize & (BasePageSize - 1)) == 0 && PlatformPageSize >= BasePageSize);
+	checkf(InBinSize % UE_MBC_MIN_SMALL_POOL_ALIGNMENT == 0, TEXT("Small bin size must be a multiple of UE_MBC_MINIMUM_ALIGNMENT"));
 
 	const uint64 NumBasePagesPerPlatformPage = PlatformPageSize / BasePageSize;
 
@@ -114,28 +113,28 @@ FSizeTableEntry::FSizeTableEntry(uint32 InBinSize, uint64 PlatformPageSize, uint
 	check((PlatformPageSize * NumMemoryPagesPerBlock) / BinSize <= MAX_uint32);
 }
 
-static inline void FillTable(FSizeTableEntry* SizeTable, int32& Index, const uint32* BinsList, uint32 BinListSize, uint32 Num4kbPages, uint64 PlatformPageSize, uint32 BasePageSize, uint32 MinimumAlignment)
+static inline void FillTable(FSizeTableEntry* SizeTable, int32& Index, const uint32* BinsList, uint32 BinListSize, uint32 Num4kbPages, uint64 PlatformPageSize, uint32 BasePageSize)
 {
 	for (uint32 Sub = 0; Sub < BinListSize; Sub++)
 	{
 		// if we override UE_MBC_MAX_LISTED_SMALL_POOL_SIZE externally, we need to filter out predefined bins of a larger size
 		if (BinsList[Sub] <= UE_MBC_MAX_LISTED_SMALL_POOL_SIZE)
 		{
-			SizeTable[Index++] = FSizeTableEntry(BinsList[Sub], PlatformPageSize, Num4kbPages, BasePageSize, MinimumAlignment);
+			SizeTable[Index++] = FSizeTableEntry(BinsList[Sub], PlatformPageSize, Num4kbPages, BasePageSize);
 		}
 	}
 }
 
-uint8 FSizeTableEntry::FillSizeTable(uint64 PlatformPageSize, FSizeTableEntry* SizeTable, uint32 BasePageSize, uint32 MinimumAlignment, uint32 MaxSize, uint32 SizeIncrement)
+uint8 FSizeTableEntry::FillSizeTable(uint64 PlatformPageSize, FSizeTableEntry* SizeTable, uint32 BasePageSize, uint32 MaxSize, uint32 SizeIncrement)
 {
 	int32 Index = 0;
-	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes4k,  UE_ARRAY_COUNT(BinnedCommonSmallBinSizes4k),  1, PlatformPageSize, BasePageSize, MinimumAlignment);
-	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes8k,  UE_ARRAY_COUNT(BinnedCommonSmallBinSizes8k),  2, PlatformPageSize, BasePageSize, MinimumAlignment);
-	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes12k, UE_ARRAY_COUNT(BinnedCommonSmallBinSizes12k), 3, PlatformPageSize, BasePageSize, MinimumAlignment);
-	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes16k, UE_ARRAY_COUNT(BinnedCommonSmallBinSizes16k), 4, PlatformPageSize, BasePageSize, MinimumAlignment);
-	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes20k, UE_ARRAY_COUNT(BinnedCommonSmallBinSizes20k), 5, PlatformPageSize, BasePageSize, MinimumAlignment);
-	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes24k, UE_ARRAY_COUNT(BinnedCommonSmallBinSizes24k), 6, PlatformPageSize, BasePageSize, MinimumAlignment);
-	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes28k, UE_ARRAY_COUNT(BinnedCommonSmallBinSizes28k), 7, PlatformPageSize, BasePageSize, MinimumAlignment);
+	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes4k,  UE_ARRAY_COUNT(BinnedCommonSmallBinSizes4k),  1, PlatformPageSize, BasePageSize);
+	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes8k,  UE_ARRAY_COUNT(BinnedCommonSmallBinSizes8k),  2, PlatformPageSize, BasePageSize);
+	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes12k, UE_ARRAY_COUNT(BinnedCommonSmallBinSizes12k), 3, PlatformPageSize, BasePageSize);
+	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes16k, UE_ARRAY_COUNT(BinnedCommonSmallBinSizes16k), 4, PlatformPageSize, BasePageSize);
+	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes20k, UE_ARRAY_COUNT(BinnedCommonSmallBinSizes20k), 5, PlatformPageSize, BasePageSize);
+	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes24k, UE_ARRAY_COUNT(BinnedCommonSmallBinSizes24k), 6, PlatformPageSize, BasePageSize);
+	FillTable(SizeTable, Index, BinnedCommonSmallBinSizes28k, UE_ARRAY_COUNT(BinnedCommonSmallBinSizes28k), 7, PlatformPageSize, BasePageSize);
 
 	check(Index == UE_MBC_NUM_LISTED_SMALL_POOLS);
 
@@ -144,7 +143,7 @@ uint8 FSizeTableEntry::FillSizeTable(uint64 PlatformPageSize, FSizeTableEntry* S
 	check(IsAligned(UE_MBC_MAX_LISTED_SMALL_POOL_SIZE, BasePageSize));
 	for (uint32 Size = UE_MBC_MAX_LISTED_SMALL_POOL_SIZE + BasePageSize; Size <= MaxSize; Size += SizeIncrement)
 	{
-		SizeTable[Index++] = FSizeTableEntry(Size, PlatformPageSize, Size / BasePageSize, BasePageSize, MinimumAlignment);
+		SizeTable[Index++] = FSizeTableEntry(Size, PlatformPageSize, Size / BasePageSize, BasePageSize);
 	}
 	check(Index < 256);
 	return (uint8)Index;
@@ -519,7 +518,7 @@ uint32 FBitTree::Slow_NextAllocBits(uint32 NumBits, uint64 StartIndex)
 	return MAX_uint32;
 }
 
-#endif
+uint32 FMallocBinnedCommonBase::OsAllocationGranularity = 0;
 
 float GMallocBinnedFlushThreadCacheMaxWaitTime = 0.2f;
 static FAutoConsoleVariableRef GMallocBinnedFlushThreadCacheMaxWaitTimeCVar(
@@ -537,26 +536,45 @@ static FAutoConsoleVariableRef GMallocBinnedFlushRegisteredThreadCachesOnOneThre
 
 #if UE_MBC_ALLOW_RUNTIME_TWEAKING
 
-int32 GMallocBinnedBundleSize = UE_DEFAULT_GMallocBinnedBundleSize;
-static FAutoConsoleVariableRef GMallocBinned3BundleSizeCVar(
-	TEXT("MallocBinned.BundleSize"),
-	GMallocBinnedBundleSize,
-	TEXT("Max size in bytes of per-block bundles used in the recycling process")
-);
+	int32 GMallocBinnedPerThreadCaches = UE_DEFAULT_GMallocBinnedPerThreadCaches;
+	static FAutoConsoleVariableRef GMallocBinned3PerThreadCachesCVar(
+		TEXT("MallocBinned.PerThreadCaches"),
+		GMallocBinnedPerThreadCaches,
+		TEXT("Enables per-thread caches of small (<= 32768 byte) allocations from FMallocBinned2/3")
+	);
 
-int32 GMallocBinnedBundleCount = UE_DEFAULT_GMallocBinnedBundleCount;
-static FAutoConsoleVariableRef GMallocBinned3BundleCountCVar(
-	TEXT("MallocBinned.BundleCount"),
-	GMallocBinnedBundleCount,
-	TEXT("Max count in blocks per-block bundles used in the recycling process")
-);
+	int32 GMallocBinnedBundleSize = UE_DEFAULT_GMallocBinnedBundleSize;
+	static FAutoConsoleVariableRef GMallocBinned3BundleSizeCVar(
+		TEXT("MallocBinned.BundleSize"),
+		GMallocBinnedBundleSize,
+		TEXT("Max size in bytes of per-block bundles used in the recycling process")
+	);
 
-#endif
+	int32 GMallocBinnedBundleCount = UE_DEFAULT_GMallocBinnedBundleCount;
+	static FAutoConsoleVariableRef GMallocBinned3BundleCountCVar(
+		TEXT("MallocBinned.BundleCount"),
+		GMallocBinnedBundleCount,
+		TEXT("Max count in blocks per-block bundles used in the recycling process")
+	);
+
+	int32 GMallocBinnedMaxBundlesBeforeRecycle = UE_DEFAULT_GMallocBinnedMaxBundlesBeforeRecycle;
+	static FAutoConsoleVariableRef GMallocBinned3MaxBundlesBeforeRecycleCVar(
+		TEXT("MallocBinned.BundleRecycleCount"),
+		GBinned3MaxBundlesBeforeRecycle,
+		TEXT("Number of freed bundles in the global recycler before it returns them to the system, per-block size. Limited by UE_DEFAULT_GBinned3MaxBundlesBeforeRecycle (currently 4)")
+	);
+
+#endif	//~UE_MBC_ALLOW_RUNTIME_TWEAKING
 
 uint32 FMallocBinnedCommonBase::BinnedTlsSlot = FPlatformTLS::InvalidTlsSlot;
 #if UE_MBC_ALLOCATOR_STATS
 	std::atomic<int64> FMallocBinnedCommonBase::TLSMemory(0);
 	std::atomic<int64> FMallocBinnedCommonBase::ConsolidatedMemory(0);
+
+	std::atomic<int64> FMallocBinnedCommonBase::AllocatedSmallPoolMemory(0); // memory that's requested to be allocated by the game
+
+	int64 FMallocBinnedCommonBase::PoolInfoMemory = 0;
+	int64 FMallocBinnedCommonBase::HashMemory = 0;
 #endif
 
 PRAGMA_RESTORE_UNSAFE_TYPECAST_WARNINGS

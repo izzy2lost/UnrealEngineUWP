@@ -28,12 +28,6 @@ struct FGenericMemoryStats;
 #endif
 
 #define UE_MB3_BASE_PAGE_SIZE						4096			// Minimum "page size" for binned3
-#define UE_MB3_MINIMUM_ALIGNMENT_SHIFT				4				// Alignment of bins, expressed as a shift
-#define UE_MB3_MINIMUM_ALIGNMENT					16				// Alignment of bins
-
-#ifndef BINNED3_MAX_SMALL_POOL_ALIGNMENT
-#	define BINNED3_MAX_SMALL_POOL_ALIGNMENT			128
-#endif
 
 
 #ifndef UE_MB3_MAX_SMALL_POOL_SIZE
@@ -60,26 +54,6 @@ struct FGenericMemoryStats;
 #	else
 #		define BINNED3_USE_SEPARATE_VM_PER_POOL		(0)
 #	endif
-#endif
-
-#if !defined(UE_DEFAULT_GMallocBinnedPerThreadCaches)
-#	define UE_DEFAULT_GBinned3PerThreadCaches		1
-#else
-#	define UE_DEFAULT_GBinned3PerThreadCaches		UE_DEFAULT_GMallocBinnedPerThreadCaches
-#endif
-
-#define UE_DEFAULT_GBinned3AllocExtra				32
-#define UE_DEFAULT_GBinned3MaxBundlesBeforeRecycle	8
-
-#define UE_MB3_ALLOW_RUNTIME_TWEAKING				UE_MBC_ALLOW_RUNTIME_TWEAKING
-#if UE_MB3_ALLOW_RUNTIME_TWEAKING
-	extern CORE_API int32 GBinned3PerThreadCaches;
-	extern CORE_API int32 GBinned3MaxBundlesBeforeRecycle;
-	extern CORE_API int32 GBinned3AllocExtra;
-#else
-	#define GBinned3PerThreadCaches					UE_DEFAULT_GBinned3PerThreadCaches
-	#define GBinned3MaxBundlesBeforeRecycle			UE_DEFAULT_GBinned3MaxBundlesBeforeRecycle
-	#define GBinned3AllocExtra						UE_DEFAULT_GBinned3AllocExtra
 #endif
 
 #define UE_MB3_ALLOCATOR_STATS						UE_MBC_ALLOCATOR_STATS
@@ -109,70 +83,51 @@ PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 //    Memory is allocated top down in a Block
 // 
 // 2. For large allocations we go directly to OS, unless UE_MB3_USE_CACHED_PAGE_ALLOCATOR_FOR_LARGE_ALLOCS is defined to 1
-//    Each allocation is handled via FPlatformVirtualMemoryBlock and information about it is stored in FPoolInfoLarge
-//    FPoolInfoLarge stores the original allocation size and how much memory was committed by the OS in case we need to realloc that allocation and there's enough tail waste to do that in place
-//    All FPoolInfoLarge are stored in the PoolHashBucket and HashBucketFreeList
+//    Each allocation is handled via FPlatformVirtualMemoryBlock and information about it is stored in FPoolInfo
+//    FPoolInfo stores the original allocation size and how much memory was committed by the OS in case we need to realloc that allocation and there's enough tail waste to do that in place
+//    All FPoolInfo are stored in the PoolHashBucket and HashBucketFreeList
 //
-class CORE_API FMallocBinned3 : public TMallocBinnedCommon<FMallocBinned3, UE_MB3_MINIMUM_ALIGNMENT, BINNED3_MAX_SMALL_POOL_ALIGNMENT, UE_MB3_MINIMUM_ALIGNMENT_SHIFT, UE_MB3_SMALL_POOL_COUNT, UE_MB3_MAX_SMALL_POOL_SIZE>
-{	
-	// Forward declarations
-	struct FPoolInfoLarge;
-	struct FPoolInfoSmall;
-	struct FPoolTable;
-	using PoolHashBucket = TPoolHashBucket<FPoolInfoLarge>;
-	struct Private;
-
-
-	/** Information about a piece of free memory. */
-	struct FFreeBlock
+class FMallocBinned3 : public TMallocBinnedCommon<FMallocBinned3, UE_MB3_SMALL_POOL_COUNT, UE_MB3_MAX_SMALL_POOL_SIZE>
+{
+public:
+	struct FPoolInfo
 	{
-		enum
+		enum class ECanary : uint32
 		{
-			CANARY_VALUE = 0xe7
+			LargeUnassigned = 0x39431234,
+			LargeAssigned = 0x17ea5678,
 		};
 
-		FORCEINLINE FFreeBlock(uint32 InBlockSize, uint32 InBinSize, uint8 InPoolIndex)
-			: BinSizeShifted(InBinSize >> UE_MB3_MINIMUM_ALIGNMENT_SHIFT)
-			, PoolIndex(InPoolIndex)
-			, Canary(CANARY_VALUE)
-			, NextFreeBlockIndex(MAX_uint32)
+		FPoolInfo();
+
+		void CheckCanary(ECanary ShouldBe) const;
+		void SetCanary(ECanary ShouldBe, bool bPreexisting, bool bGuarnteedToBeNew);
+
+		uint32 GetOSRequestedBytes() const;
+		uint32 GetOsCommittedBytes() const;
+
+		// And alias for GetOsCommittedBytes() to align with MB2 naming convention
+		uint32 GetOsAllocatedBytes() const
 		{
-			check(InPoolIndex < MAX_uint8 && (InBinSize >> UE_MB3_MINIMUM_ALIGNMENT_SHIFT) <= MAX_uint16);
-			NumFreeBins = InBlockSize / InBinSize;
+			return GetOsCommittedBytes();
 		}
 
-		FORCEINLINE uint32 GetNumFreeBins() const
-		{
-			return NumFreeBins;
-		}
+		uint32 GetOsVMPages() const;
+		void SetOSAllocationSize(uint32 InRequestedBytes);
+		void SetOSAllocationSizes(uint32 InRequestedBytes, UPTRINT InCommittedBytes, uint32 InVMSizeDivVirtualSizeAlignment);
 
-		FORCEINLINE bool IsCanaryOk() const
-		{
-			return Canary == FFreeBlock::CANARY_VALUE;
-		}
-
-		FORCEINLINE void CanaryTest() const
-		{
-			if (!IsCanaryOk())
-			{
-				CanaryFail();
-			}
-			//checkSlow(PoolIndex == BoundSizeToPoolIndex(uint32(BinSizeShifted) << UE_MB3_MINIMUM_ALIGNMENT_SHIFT));
-		}
-		void CanaryFail() const;
-
-		FORCEINLINE void* AllocateBin()
-		{
-			--NumFreeBins;
-			return (uint8*)this + NumFreeBins * (uint32(BinSizeShifted) << UE_MB3_MINIMUM_ALIGNMENT_SHIFT);
-		}
-
-		uint16 BinSizeShifted;		// Size of the bins that this list points to >> UE_MB3_MINIMUM_ALIGNMENT_SHIFT
-		uint8  PoolIndex;			// Index of this pool
-		uint8  Canary;				// Constant value of 0xe3
-		uint32 NumFreeBins;			// Number of consecutive free bins here, at least 1.
-		uint32 NextFreeBlockIndex;	// Next free block or MAX_uint32
+	private:
+		ECanary	Canary;
+		uint32 AllocSize;						// Number of bytes allocated
+		uint32 VMSizeDivVirtualSizeAlignment;	// Number of VM bytes allocated aligned for OS
+		uint32 CommitSize;						// Number of bytes committed by the OS
 	};
+
+private:
+	// Forward declarations
+	struct FPoolInfoSmall;
+	struct FPoolTable;
+	struct Private;
 
 	/** Pool table. */
 	struct FPoolTable
@@ -221,12 +176,6 @@ class CORE_API FMallocBinned3 : public TMallocBinnedCommon<FMallocBinned3, UE_MB
 	FPoolTable SmallPoolTables[UE_MB3_SMALL_POOL_COUNT];
 
 	uint32 SmallPoolInfosPerPlatformPage;
-
-	PoolHashBucket* HashBuckets;			// Hash buckets for external allocations, reserved in constructor based on the platform constants like page size and virtual address high\low hints
-	PoolHashBucket* HashBucketFreeList;		// Hash buckets for allocations that were allocated outside of the platform constants virtual address high\low hints
-	uint64 NumLargePoolsPerPage;
-
-	FCriticalSection Mutex;
 
 #if !BINNED3_USE_SEPARATE_VM_PER_POOL
 	FORCEINLINE uint64 PoolIndexFromPtr(const void* Ptr) const		// returns a uint64 for it can also be used to check if it is an OS allocation
@@ -337,21 +286,21 @@ class CORE_API FMallocBinned3 : public TMallocBinnedCommon<FMallocBinned3, UE_MB
 
 public:
 
-	FMallocBinned3();
+	CORE_API FMallocBinned3();
 
-	virtual ~FMallocBinned3();
+	CORE_API virtual ~FMallocBinned3();
 
 	// FMalloc interface.
-	virtual bool IsInternallyThreadSafe() const override;
+	CORE_API virtual bool IsInternallyThreadSafe() const override;
 	FORCEINLINE virtual void* Malloc(SIZE_T Size, uint32 Alignment) override
 	{
 		void* Result = nullptr;
 	
 		// Only allocate from the small pools if the size is small enough and the alignment isn't crazy large.
 		// With large alignments, we'll waste a lot of memory allocating an entire page, but such alignments are highly unlikely in practice.
-		if ((Size <= UE_MB3_MAX_SMALL_POOL_SIZE) & (Alignment <= UE_MB3_MINIMUM_ALIGNMENT)) // one branch, not two
+		if ((Size <= UE_MB3_MAX_SMALL_POOL_SIZE) & (Alignment <= UE_MBC_MIN_SMALL_POOL_ALIGNMENT)) // one branch, not two
 		{
-			FPerThreadFreeBlockLists* Lists = GBinned3PerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
+			FPerThreadFreeBlockLists* Lists = GMallocBinnedPerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
 			if (Lists)
 			{
 				const uint32 PoolIndex = BoundSizeToPoolIndex(Size, MemSizeToPoolIndex);
@@ -376,9 +325,9 @@ public:
 
 	FORCEINLINE virtual void* Realloc(void* Ptr, SIZE_T NewSize, uint32 Alignment) override
 	{
-		if (NewSize <= UE_MB3_MAX_SMALL_POOL_SIZE && Alignment <= UE_MB3_MINIMUM_ALIGNMENT) // one branch, not two
+		if (NewSize <= UE_MB3_MAX_SMALL_POOL_SIZE && Alignment <= UE_MBC_MIN_SMALL_POOL_ALIGNMENT) // one branch, not two
 		{
-			FPerThreadFreeBlockLists* Lists = GBinned3PerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
+			FPerThreadFreeBlockLists* Lists = GMallocBinnedPerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
 
 			const uint64 PoolIndex = PoolIndexFromPtr(Ptr);
 			if ((!!Lists) & ((!Ptr) | (PoolIndex < UE_MB3_SMALL_POOL_COUNT)))
@@ -442,7 +391,7 @@ public:
 		const uint64 PoolIndex = PoolIndexFromPtr(Ptr);
 		if (PoolIndex < UE_MB3_SMALL_POOL_COUNT)
 		{
-			FPerThreadFreeBlockLists* Lists = GBinned3PerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
+			FPerThreadFreeBlockLists* Lists = GMallocBinnedPerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
 			if (Lists)
 			{
 				const int32 BinSize = PoolIndexToBinSize(PoolIndex);
@@ -459,12 +408,22 @@ public:
 		FreeExternal(Ptr);
 	}
 
-	FORCEINLINE virtual bool GetAllocationSize(void *Ptr, SIZE_T &SizeOut) override
+	FORCEINLINE bool GetSmallAllocationSize(void* Ptr, SIZE_T& SizeOut) const
 	{
 		const uint64 PoolIndex = PoolIndexFromPtr(Ptr);
 		if (PoolIndex < UE_MB3_SMALL_POOL_COUNT)
 		{
 			SizeOut = PoolIndexToBinSize(PoolIndex);
+			return true;
+		}
+
+		return false;
+	}
+
+	FORCEINLINE virtual bool GetAllocationSize(void *Ptr, SIZE_T &SizeOut) override
+	{
+		if (GetSmallAllocationSize(Ptr, SizeOut))
+		{
 			return true;
 		}
 		return GetAllocationSizeExternal(Ptr, SizeOut);
@@ -475,37 +434,23 @@ public:
 		return QuantizeSizeCommon(Count, Alignment, *this);
 	}
 
-	virtual bool ValidateHeap() override;
-	virtual void Trim(bool bTrimThreadCaches) override;
-	virtual void SetupTLSCachesOnCurrentThread() override;
-	virtual void MarkTLSCachesAsUsedOnCurrentThread() override;
-	virtual void MarkTLSCachesAsUnusedOnCurrentThread() override;
-	virtual void ClearAndDisableTLSCachesOnCurrentThread() override;
-	virtual const TCHAR* GetDescriptiveName() override;
+	CORE_API virtual bool ValidateHeap() override;
+	CORE_API virtual void Trim(bool bTrimThreadCaches) override;
+	CORE_API virtual const TCHAR* GetDescriptiveName() override;
 	// End FMalloc interface.
 
-	void* MallocExternal(SIZE_T Size, uint32 Alignment);
-	void* ReallocExternal(void* Ptr, SIZE_T NewSize, uint32 Alignment);
-	void FreeExternal(void *Ptr);
-	bool GetAllocationSizeExternal(void* Ptr, SIZE_T& SizeOut);
+	CORE_API void* MallocExternal(SIZE_T Size, uint32 Alignment);
+	CORE_API void* ReallocExternal(void* Ptr, SIZE_T NewSize, uint32 Alignment);
+	CORE_API void FreeExternal(void *Ptr);
 
-#if UE_MB3_ALLOCATOR_STATS
-	int64 GetTotalAllocatedSmallPoolMemory() const;
-#endif
-	virtual void GetAllocatorStats( FGenericMemoryStats& out_Stats ) override;
+	CORE_API virtual void GetAllocatorStats( FGenericMemoryStats& out_Stats ) override;
 	/** Dumps current allocator stats to the log. */
-	virtual void DumpAllocatorStats(class FOutputDevice& Ar) override;
+	CORE_API virtual void DumpAllocatorStats(class FOutputDevice& Ar) override;
 	
 	// +1 enables PoolIndexToBinSize(~0u / -1) dummy access that helps avoid PoolIndex == 0 branching in Realloc(),
 	// see ((!PoolIndex) | (NewSize > PoolIndexToBinSize(static_cast<uint32>(PoolIndex - 1)))
 	static uint16 SmallBinSizesReversedShifted[UE_MB3_SMALL_POOL_COUNT + 1]; // this is reversed to get the smallest elements on our main cache line
 	static FMallocBinned3* MallocBinned3;
-	static uint32 OsAllocationGranularity;
-
-	static void RegisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists);
-	static void UnregisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists);
-	static FCriticalSection& GetFreeBlockListsRegistrationMutex();
-	static TArray<FPerThreadFreeBlockLists*>& GetRegisteredFreeBlockLists();
 
 #if !BINNED3_USE_SEPARATE_VM_PER_POOL
 	static uint8* Binned3BaseVMPtr;
@@ -517,17 +462,19 @@ public:
 	FPlatformMemory::FPlatformVirtualMemoryBlock PoolBaseVMBlock[UE_MB3_SMALL_POOL_COUNT];
 #endif
 	// Mapping of sizes to small table indices
-	static uint8 MemSizeToPoolIndex[1 + (UE_MB3_MAX_SMALL_POOL_SIZE >> UE_MB3_MINIMUM_ALIGNMENT_SHIFT)];
+	static uint8 MemSizeToPoolIndex[1 + (UE_MB3_MAX_SMALL_POOL_SIZE >> UE_MBC_MIN_SMALL_POOL_ALIGNMENT_SHIFT)];
 
 	FORCEINLINE uint32 PoolIndexToBinSize(uint32 PoolIndex) const
 	{
-		return uint32(SmallBinSizesReversedShifted[UE_MB3_SMALL_POOL_COUNT - PoolIndex - 1]) << UE_MB3_MINIMUM_ALIGNMENT_SHIFT;
+		return uint32(SmallBinSizesReversedShifted[UE_MB3_SMALL_POOL_COUNT - PoolIndex - 1]) << UE_MBC_MIN_SMALL_POOL_ALIGNMENT_SHIFT;
 	}
 
 	void FreeBundles(FBundleNode* Bundles, uint32 PoolIndex);
 
 	void Commit(uint32 InPoolIndex, void *Ptr, SIZE_T Size);
 	void Decommit(uint32 InPoolIndex, void *Ptr, SIZE_T Size);
+
+	void FlushCurrentThreadCacheInternal(bool bNewEpochOnly = false);
 
 	static void* AllocateMetaDataMemory(SIZE_T Size);
 	static void FreeMetaDataMemory(void *Ptr, SIZE_T Size);

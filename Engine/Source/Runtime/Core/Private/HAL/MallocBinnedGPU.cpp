@@ -574,7 +574,7 @@ void FMallocBinnedGPU::InitMallocBinned()
 	if (ArenaParams.bUseStandardSmallPoolSizes)
 	{
 		SizeTable.AddZeroed(UE_MBC_NUM_LISTED_SMALL_POOLS + ArenaParams.MaxStandardPoolSize / ArenaParams.BasePageSize); // overestimate
-		ArenaParams.PoolCount = FSizeTableEntry::FillSizeTable(ArenaParams.AllocationGranularity, &SizeTable[0], ArenaParams.BasePageSize, ArenaParams.MinimumAlignment, ArenaParams.MaxStandardPoolSize, ArenaParams.BasePageSize);
+		ArenaParams.PoolCount = FSizeTableEntry::FillSizeTable(ArenaParams.AllocationGranularity, &SizeTable[0], ArenaParams.BasePageSize, ArenaParams.MaxStandardPoolSize, ArenaParams.BasePageSize);
 		SizeTable.RemoveAt(ArenaParams.PoolCount, SizeTable.Num() - ArenaParams.PoolCount);
 	}
 	else
@@ -587,12 +587,12 @@ void FMallocBinnedGPU::InitMallocBinned()
 		{
 			check(Size % 4096 == 0); // calculations are done assume 4k is the smallest page size we will ever see
 			check(Size / 4096 <= std::numeric_limits<uint8>::max())		// Make sure we don't try to allocate more pages than fits in our counter.
-			SizeTable.Emplace(Size, ArenaParams.AllocationGranularity, (uint8)(Size / 4096), ArenaParams.BasePageSize, ArenaParams.MinimumAlignment);
+			SizeTable.Emplace(Size, ArenaParams.AllocationGranularity, (uint8)(Size / 4096), ArenaParams.BasePageSize);
 		}
 		else
 		{
 			// it is difficult to test what would actually make a good bucket size here, wouldn't want a prime number, 33 for example because that would take 33 pages a slab
-			SizeTable.Emplace(Size, ArenaParams.AllocationGranularity, (uint8)1, ArenaParams.BasePageSize, ArenaParams.MinimumAlignment);
+			SizeTable.Emplace(Size, ArenaParams.AllocationGranularity, (uint8)1, ArenaParams.BasePageSize);
 		}
 		ArenaParams.PoolCount++;
 	}

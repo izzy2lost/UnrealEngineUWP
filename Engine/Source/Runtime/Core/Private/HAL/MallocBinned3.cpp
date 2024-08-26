@@ -1,12 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HAL/MallocBinned3.h"
-#include "HAL/MallocBinnedCommonUtils.h"
 
 PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 
 #if PLATFORM_64BITS && PLATFORM_HAS_FPlatformVirtualMemoryBlock
-#include "Logging/LogMacros.h"
 #include "Misc/ScopeLock.h"
 #include "Templates/Function.h"
 #include "GenericPlatform/GenericPlatformProcess.h"
@@ -14,6 +12,8 @@ PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 #include "HAL/IConsoleManager.h"
 #include "HAL/MemoryMisc.h"
 #include "HAL/PlatformMisc.h"
+#include "HAL/MallocBinnedCommonUtils.h"
+
 
 #if UE_MB3_USE_CACHED_PAGE_ALLOCATOR_FOR_LARGE_ALLOCS
 #include "HAL/Allocators/CachedOSPageAllocator.h"
@@ -30,31 +30,7 @@ TBinned3CachedOSPageAllocator& GetCachedOSPageAllocator()
 
 #endif
 
-#if UE_MB3_ALLOW_RUNTIME_TWEAKING
-	int32 GBinned3PerThreadCaches = UE_DEFAULT_GBinned3PerThreadCaches;
-	static FAutoConsoleVariableRef GMallocBinned3PerThreadCachesCVar(
-		TEXT("MallocBinned3.PerThreadCaches"),
-		GBinned3PerThreadCaches,
-		TEXT("Enables per-thread caches of small (<= 32768 byte) allocations from FMallocBinned3")
-		);
-
-	int32 GBinned3MaxBundlesBeforeRecycle = UE_DEFAULT_GBinned3MaxBundlesBeforeRecycle;
-	static FAutoConsoleVariableRef GMallocBinned3MaxBundlesBeforeRecycleCVar(
-		TEXT("MallocBinned3.BundleRecycleCount"),
-		GBinned3MaxBundlesBeforeRecycle,
-		TEXT("Number of freed bundles in the global recycler before it returns them to the system, per-block size. Limited by UE_DEFAULT_GBinned3MaxBundlesBeforeRecycle (currently 4)")
-		);
-
-	int32 GBinned3AllocExtra = UE_DEFAULT_GBinned3AllocExtra;
-	static FAutoConsoleVariableRef GMallocBinned3AllocExtraCVar(
-		TEXT("MallocBinned3.AllocExtra"),
-		GBinned3AllocExtra,
-		TEXT("When we do acquire the lock, how many bins cached in TLS caches. In no case will we grab more than a page.")
-		);
-#endif
-
 #if UE_MB3_ALLOCATOR_STATS
-	std::atomic<int64> Binned3AllocatedSmallPoolMemory(0); // memory that's requested to be allocated by the game
 	int64 Binned3AllocatedOSSmallPoolMemory = 0;
 
 	int64 Binned3AllocatedLargePoolMemory = 0; // memory requests to the OS which don't fit in the small pool
@@ -62,8 +38,7 @@ TBinned3CachedOSPageAllocator& GetCachedOSPageAllocator()
 
 	TAtomic<int64> Binned3Commits;
 	TAtomic<int64> Binned3Decommits;
-	int64 Binned3PoolInfoMemory = 0;
-	int64 Binned3HashMemory = 0;
+
 	int64 Binned3FreeBitsMemory = 0;
 	TAtomic<int64> Binned3TotalPoolSearches;
 	TAtomic<int64> Binned3TotalPointerTests;
@@ -80,7 +55,6 @@ TBinned3CachedOSPageAllocator& GetCachedOSPageAllocator()
 #endif
 
 uint16 FMallocBinned3::SmallBinSizesReversedShifted[UE_MB3_SMALL_POOL_COUNT + 1] = { 0 };
-uint32 FMallocBinned3::OsAllocationGranularity = 0;
 
 #if !BINNED3_USE_SEPARATE_VM_PER_POOL
 	uint8* FMallocBinned3::Binned3BaseVMPtr = nullptr;
@@ -92,7 +66,63 @@ uint32 FMallocBinned3::OsAllocationGranularity = 0;
 
 FMallocBinned3* FMallocBinned3::MallocBinned3 = nullptr;
 // Mapping of sizes to small table indices
-uint8 FMallocBinned3::MemSizeToPoolIndex[1 + (UE_MB3_MAX_SMALL_POOL_SIZE >> UE_MB3_MINIMUM_ALIGNMENT_SHIFT)] = { 0 };
+uint8 FMallocBinned3::MemSizeToPoolIndex[1 + (UE_MB3_MAX_SMALL_POOL_SIZE >> UE_MBC_MIN_SMALL_POOL_ALIGNMENT_SHIFT)] = { 0 };
+
+/** Information about a piece of free memory. */
+struct FFreeBlock
+{
+	enum
+	{
+		CANARY_VALUE = 0xe7
+	};
+
+	FORCEINLINE FFreeBlock(uint32 InBlockSize, uint32 InBinSize, uint8 InPoolIndex)
+		: BinSizeShifted(InBinSize >> UE_MBC_MIN_SMALL_POOL_ALIGNMENT_SHIFT)
+		, PoolIndex(InPoolIndex)
+		, Canary(CANARY_VALUE)
+		, NextFreeBlockIndex(MAX_uint32)
+	{
+		check(InPoolIndex < MAX_uint8 && (InBinSize >> UE_MBC_MIN_SMALL_POOL_ALIGNMENT_SHIFT) <= MAX_uint16);
+		NumFreeBins = InBlockSize / InBinSize;
+	}
+
+	FORCEINLINE uint32 GetNumFreeBins() const
+	{
+		return NumFreeBins;
+	}
+
+	FORCEINLINE bool IsCanaryOk() const
+	{
+		return Canary == FFreeBlock::CANARY_VALUE;
+	}
+
+	FORCEINLINE void CanaryTest() const
+	{
+		if (!IsCanaryOk())
+		{
+			CanaryFail();
+		}
+		//checkSlow(PoolIndex == BoundSizeToPoolIndex(uint32(BinSizeShifted) << UE_MBC_MIN_SMALL_POOL_ALIGNMENT_SHIFT));
+	}
+
+	FORCEINLINE void CanaryFail() const
+	{
+		UE_LOG(LogMemory, Fatal, TEXT("FMallocBinned3 Attempt to realloc an unrecognized pointer %p   canary == 0x%x != 0x%x"), (void*)this, (int32)Canary, (int32)CANARY_VALUE);
+	}
+
+	FORCEINLINE void* AllocateBin()
+	{
+		--NumFreeBins;
+		return (uint8*)this + NumFreeBins * (uint32(BinSizeShifted) << UE_MBC_MIN_SMALL_POOL_ALIGNMENT_SHIFT);
+	}
+
+	uint16 BinSizeShifted;		// Size of the bins that this list points to >> UE_MBC_MIN_SMALL_POOL_ALIGNMENT_SHIFT
+	uint8  PoolIndex;			// Index of this pool
+	uint8  Canary;				// Constant value of 0xe3
+	uint32 NumFreeBins;			// Number of consecutive free bins here, at least 1.
+	uint32 NextFreeBlockIndex;	// Next free block or MAX_uint32
+};
+
 
 struct FMallocBinned3::FPoolInfoSmall		//This is more like BlockInfoSmall as it stores info per block
 {
@@ -193,117 +223,93 @@ struct FMallocBinned3::FPoolInfoSmall		//This is more like BlockInfoSmall as it 
 	}
 };
 
-struct FMallocBinned3::FPoolInfoLarge
+FMallocBinned3::FPoolInfo::FPoolInfo()
+	: Canary(ECanary::LargeUnassigned)
+	, AllocSize(0)
+	, VMSizeDivVirtualSizeAlignment(0)
+	, CommitSize(0)
 {
-	enum class ECanary : uint32
-	{
-		LargeUnassigned = 0x39431234,
-		LargeAssigned = 0x17ea5678,
-	};
+}
 
-public:
-	ECanary	Canary;
-private:
-	uint32 AllocSize;						// Number of bytes allocated
-	uint32 VMSizeDivVirtualSizeAlignment;	// Number of VM bytes allocated aligned for OS
-	uint32 CommitSize;						// Number of bytes committed by the OS
-
-public:
-	FPoolInfoLarge() :
-		Canary(ECanary::LargeUnassigned),
-		AllocSize(0),
-		VMSizeDivVirtualSizeAlignment(0),
-		CommitSize(0)
+void FMallocBinned3::FPoolInfo::CheckCanary(ECanary ShouldBe) const
+{
+	if (Canary != ShouldBe)
 	{
+		UE_LOG(LogMemory, Fatal, TEXT("MallocBinned3 Corruption Canary was 0x%x, should be 0x%x"), int32(Canary), int32(ShouldBe));
 	}
+}
 
-	void CheckCanary(ECanary ShouldBe) const
+void FMallocBinned3::FPoolInfo::SetCanary(ECanary ShouldBe, bool bPreexisting, bool bGuarnteedToBeNew)
+{
+	if (bPreexisting)
 	{
-		if (Canary != ShouldBe)
+		if (bGuarnteedToBeNew)
 		{
-			UE_LOG(LogMemory, Fatal, TEXT("MallocBinned3 Corruption Canary was 0x%x, should be 0x%x"), int32(Canary), int32(ShouldBe));
+			UE_LOG(LogMemory, Fatal, TEXT("MallocBinned3 Corruption Canary was 0x%x, should be 0x%x. This block is both preexisting and guaranteed to be new; which makes no sense."), int32(Canary), int32(ShouldBe));
 		}
-	}
-
-	void SetCanary(ECanary ShouldBe, bool bPreexisting, bool bGuarnteedToBeNew)
-	{
-		if (bPreexisting)
+		if (ShouldBe == ECanary::LargeUnassigned)
 		{
-			if (bGuarnteedToBeNew)
+			if (Canary != ECanary::LargeAssigned)
 			{
-				UE_LOG(LogMemory, Fatal, TEXT("MallocBinned3 Corruption Canary was 0x%x, should be 0x%x. This block is both preexisting and guaranteed to be new; which makes no sense."), int32(Canary), int32(ShouldBe));
-			}
-			if (ShouldBe == ECanary::LargeUnassigned)
-			{
-				if (Canary != ECanary::LargeAssigned)
-				{
-					UE_LOG(LogMemory, Fatal, TEXT("MallocBinned3 Corruption Canary was 0x%x, will be 0x%x because this block should be preexisting and in use."), int32(Canary), int32(ShouldBe));
-				}
-			}
-			else if (Canary != ShouldBe)
-			{
-				UE_LOG(LogMemory, Fatal, TEXT("MallocBinned3 Corruption Canary was 0x%x, should be 0x%x because this block should be preexisting."), int32(Canary), int32(ShouldBe));
+				UE_LOG(LogMemory, Fatal, TEXT("MallocBinned3 Corruption Canary was 0x%x, will be 0x%x because this block should be preexisting and in use."), int32(Canary), int32(ShouldBe));
 			}
 		}
-		else
+		else if (Canary != ShouldBe)
 		{
-			if (bGuarnteedToBeNew)
+			UE_LOG(LogMemory, Fatal, TEXT("MallocBinned3 Corruption Canary was 0x%x, should be 0x%x because this block should be preexisting."), int32(Canary), int32(ShouldBe));
+		}
+	}
+	else
+	{
+		if (bGuarnteedToBeNew)
+		{
+			if (Canary != ECanary::LargeUnassigned)
 			{
-				if (Canary != ECanary::LargeUnassigned)
-				{
-					UE_LOG(LogMemory, Fatal, TEXT("MallocBinned3 Corruption Canary was 0x%x, will be 0x%x. This block is guaranteed to be new yet is it already assigned."), int32(Canary), int32(ShouldBe));
-				}
-			}
-			else if (Canary != ShouldBe && Canary != ECanary::LargeUnassigned)
-			{
-				UE_LOG(LogMemory, Fatal, TEXT("MallocBinned3 Corruption Canary was 0x%x, will be 0x%x does not have an expected value."), int32(Canary), int32(ShouldBe));
+				UE_LOG(LogMemory, Fatal, TEXT("MallocBinned3 Corruption Canary was 0x%x, will be 0x%x. This block is guaranteed to be new yet is it already assigned."), int32(Canary), int32(ShouldBe));
 			}
 		}
-		Canary = ShouldBe;
+		else if (Canary != ShouldBe && Canary != ECanary::LargeUnassigned)
+		{
+			UE_LOG(LogMemory, Fatal, TEXT("MallocBinned3 Corruption Canary was 0x%x, will be 0x%x does not have an expected value."), int32(Canary), int32(ShouldBe));
+		}
 	}
+	Canary = ShouldBe;
+}
 
-	uint32 GetOSRequestedBytes() const
-	{
-		return AllocSize;
-	}
+uint32 FMallocBinned3::FPoolInfo::GetOSRequestedBytes() const
+{
+	return AllocSize;
+}
 
-	uint32 GetOsCommittedBytes() const
-	{
-		return CommitSize;
-	}
+uint32 FMallocBinned3::FPoolInfo::GetOsCommittedBytes() const
+{
+	return CommitSize;
+}
 
-	uint32 GetOsVMPages() const
-	{
-		CheckCanary(ECanary::LargeAssigned);
-		return VMSizeDivVirtualSizeAlignment;
-	}
+uint32 FMallocBinned3::FPoolInfo::GetOsVMPages() const
+{
+	CheckCanary(ECanary::LargeAssigned);
+	return VMSizeDivVirtualSizeAlignment;
+}
 
-	void SetOSAllocationSize(uint32 InRequestedBytes)
-	{
-		CheckCanary(ECanary::LargeAssigned);
-		AllocSize = InRequestedBytes;
-		check(AllocSize > 0 && CommitSize >= AllocSize && VMSizeDivVirtualSizeAlignment * FPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment() >= CommitSize);
-	}
+void FMallocBinned3::FPoolInfo::SetOSAllocationSize(uint32 InRequestedBytes)
+{
+	CheckCanary(ECanary::LargeAssigned);
+	AllocSize = InRequestedBytes;
+	check(AllocSize > 0 && CommitSize >= AllocSize && VMSizeDivVirtualSizeAlignment * FPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment() >= CommitSize);
+}
 
-	void SetOSAllocationSizes(uint32 InRequestedBytes, UPTRINT InCommittedBytes, uint32 InVMSizeDivVirtualSizeAlignment)
-	{
-		CheckCanary(ECanary::LargeAssigned);
-		AllocSize = InRequestedBytes;
-		CommitSize = InCommittedBytes;
-		VMSizeDivVirtualSizeAlignment = InVMSizeDivVirtualSizeAlignment;
-		check(AllocSize > 0 && CommitSize >= AllocSize && VMSizeDivVirtualSizeAlignment * FPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment() >= CommitSize);
-	}
-};
+void FMallocBinned3::FPoolInfo::SetOSAllocationSizes(uint32 InRequestedBytes, UPTRINT InCommittedBytes, uint32 InVMSizeDivVirtualSizeAlignment)
+{
+	CheckCanary(ECanary::LargeAssigned);
+	AllocSize = InRequestedBytes;
+	CommitSize = InCommittedBytes;
+	VMSizeDivVirtualSizeAlignment = InVMSizeDivVirtualSizeAlignment;
+	check(AllocSize > 0 && CommitSize >= AllocSize && VMSizeDivVirtualSizeAlignment * FPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment() >= CommitSize);
+}
 
 struct FMallocBinned3::Private
 {
-	// Implementation. 
-	static CA_NO_RETURN void OutOfMemory(uint64 Size, uint32 Alignment=0)
-	{
-		// this is expected not to return
-		FPlatformMemory::OnOutOfMemory(Size, Alignment);
-	}
-
 	/**
 	* Gets the FPoolInfoSmall for a small block memory address. If no valid info exists one is created.
 	*/
@@ -317,7 +323,7 @@ struct FMallocBinned3::Private
 		{
 			InfoBlock = (FPoolInfoSmall*)Allocator.AllocateMetaDataMemory(Allocator.OsAllocationGranularity);
 #if UE_MB3_ALLOCATOR_STATS
-			Binned3PoolInfoMemory += Allocator.OsAllocationGranularity;
+			PoolInfoMemory += Allocator.OsAllocationGranularity;
 #endif
 			DefaultConstructItems<FPoolInfoSmall>((void*)InfoBlock, InfosPerPage);
 		}
@@ -334,178 +340,7 @@ struct FMallocBinned3::Private
 		return Result;
 	}
 
-	/**
-	 * Gets the FPoolInfoLarge for a large block memory address. If no valid info exists one is created.
-	 */
-	static FPoolInfoLarge* GetOrCreatePoolInfoLarge(FMallocBinned3& Allocator, void* InPtr)
-	{
-		/** 
-		 * Creates an array of FPoolInfo structures for tracking allocations.
-		 */
-		auto CreatePoolArray = [&Allocator](uint64 NumPools)
-		{
-			const uint64 PoolArraySize = NumPools * sizeof(FPoolInfoLarge);
-
-			void* Result = Allocator.AllocateMetaDataMemory(PoolArraySize);
-#if UE_MB3_ALLOCATOR_STATS
-			Binned3PoolInfoMemory += PoolArraySize;
-#endif
-			if (!Result)
-			{
-				OutOfMemory(PoolArraySize);
-			}
-
-			DefaultConstructItems<FPoolInfoLarge>(Result, NumPools);
-			return (FPoolInfoLarge*)Result;
-		};
-
-		uint32  BucketIndex;
-		UPTRINT BucketIndexCollision;
-		uint32  PoolIndex;
-		Allocator.PtrToPoolMapping.GetHashBucketAndPoolIndices(InPtr, BucketIndex, BucketIndexCollision, PoolIndex);
-
-		PoolHashBucket* FirstBucket = &Allocator.HashBuckets[BucketIndex];
-		PoolHashBucket* Collision   = FirstBucket;
-		do
-		{
-			if (!Collision->FirstPool)
-			{
-				Collision->BucketIndex = BucketIndexCollision;
-				Collision->FirstPool = CreatePoolArray(Allocator.NumLargePoolsPerPage);
-				Collision->FirstPool[PoolIndex].SetCanary(FPoolInfoLarge::ECanary::LargeAssigned, false, true);
-				return &Collision->FirstPool[PoolIndex];
-			}
-
-			if (Collision->BucketIndex == BucketIndexCollision)
-			{
-				Collision->FirstPool[PoolIndex].SetCanary(FPoolInfoLarge::ECanary::LargeAssigned, false, false);
-				return &Collision->FirstPool[PoolIndex];
-			}
-
-			Collision = Collision->Next;
-		}
-		while (Collision != FirstBucket);
-
-		// Create a new hash bucket entry
-		if (!Allocator.HashBucketFreeList)
-		{
-			{
-				Allocator.HashBucketFreeList = (PoolHashBucket*)Allocator.AllocateMetaDataMemory(FMallocBinned3::OsAllocationGranularity);
-#if UE_MB3_ALLOCATOR_STATS
-				Binned3HashMemory += FMallocBinned3::OsAllocationGranularity;
-#endif
-			}
-
-			for (UPTRINT i = 0, n = FMallocBinned3::OsAllocationGranularity / sizeof(PoolHashBucket); i < n; ++i)
-			{
-				Allocator.HashBucketFreeList->Link(new (Allocator.HashBucketFreeList + i) PoolHashBucket());
-			}
-		}
-
-		PoolHashBucket* NextFree  = Allocator.HashBucketFreeList->Next;
-		PoolHashBucket* NewBucket = Allocator.HashBucketFreeList;
-
-		NewBucket->Unlink();
-
-		if (NextFree == NewBucket)
-		{
-			NextFree = nullptr;
-		}
-		Allocator.HashBucketFreeList = NextFree;
-
-		if (!NewBucket->FirstPool)
-		{
-			NewBucket->FirstPool = CreatePoolArray(Allocator.NumLargePoolsPerPage);
-			NewBucket->FirstPool[PoolIndex].SetCanary(FPoolInfoLarge::ECanary::LargeAssigned, false, true);
-		}
-		else
-		{
-			NewBucket->FirstPool[PoolIndex].SetCanary(FPoolInfoLarge::ECanary::LargeAssigned, false, false);
-		}
-
-		NewBucket->BucketIndex = BucketIndexCollision;
-
-		FirstBucket->Link(NewBucket);
-
-		return &NewBucket->FirstPool[PoolIndex];
-	}
-
-	static FPoolInfoLarge* FindPoolInfo(FMallocBinned3& Allocator, void* InPtr)
-	{
-		uint32  BucketIndex;
-		UPTRINT BucketIndexCollision;
-		uint32  PoolIndex;
-		Allocator.PtrToPoolMapping.GetHashBucketAndPoolIndices(InPtr, BucketIndex, BucketIndexCollision, PoolIndex);
-
-		PoolHashBucket* FirstBucket = &Allocator.HashBuckets[BucketIndex];
-		PoolHashBucket* Collision   = FirstBucket;
-		do
-		{
-			if (Collision->BucketIndex == BucketIndexCollision)
-			{
-				return &Collision->FirstPool[PoolIndex];
-			}
-
-			Collision = Collision->Next;
-		}
-		while (Collision != FirstBucket);
-
-		return nullptr;
-	}
-
-	struct FGlobalRecycler
-	{
-		bool PushBundle(uint32 InPoolIndex, FBundleNode* InBundle)
-		{
-			const uint32 NumCachedBundles = FMath::Min<uint32>(GBinned3MaxBundlesBeforeRecycle, UE_DEFAULT_GBinned3MaxBundlesBeforeRecycle);
-			for (uint32 Slot = 0; Slot < NumCachedBundles; Slot++)
-			{
-				if (!Bundles[InPoolIndex].FreeBundles[Slot])
-				{
-					if (!FPlatformAtomics::InterlockedCompareExchangePointer((void**)&Bundles[InPoolIndex].FreeBundles[Slot], InBundle, nullptr))
-					{
-						return true;
-					}
-				}
-			}
-			return false;
-		}
-
-		FBundleNode* PopBundle(uint32 InPoolIndex)
-		{
-			const uint32 NumCachedBundles = FMath::Min<uint32>(GBinned3MaxBundlesBeforeRecycle, UE_DEFAULT_GBinned3MaxBundlesBeforeRecycle);
-			for (uint32 Slot = 0; Slot < NumCachedBundles; Slot++)
-			{
-				FBundleNode* Result = Bundles[InPoolIndex].FreeBundles[Slot];
-				if (Result)
-				{
-					if (FPlatformAtomics::InterlockedCompareExchangePointer((void**)&Bundles[InPoolIndex].FreeBundles[Slot], nullptr, Result) == Result)
-					{
-						return Result;
-					}
-				}
-			}
-			return nullptr;
-		}
-
-	private:
-		struct FPaddedBundlePointer
-		{
-			FBundleNode* FreeBundles[UE_DEFAULT_GBinned3MaxBundlesBeforeRecycle];
-#if (4 + (4 * PLATFORM_64BITS)) * UE_DEFAULT_GBinned3MaxBundlesBeforeRecycle < PLATFORM_CACHE_LINE_SIZE
-#	define UE_MB3_BUNDLE_PADDING (PLATFORM_CACHE_LINE_SIZE - sizeof(FBundleNode*) * UE_DEFAULT_GBinned3MaxBundlesBeforeRecycle)
-			uint8 Padding[UE_MB3_BUNDLE_PADDING];
-#endif
-			FPaddedBundlePointer()
-			{
-				DefaultConstructItems<FBundleNode*>(FreeBundles, UE_DEFAULT_GBinned3MaxBundlesBeforeRecycle);
-			}
-		};
-		static_assert(sizeof(FPaddedBundlePointer) == PLATFORM_CACHE_LINE_SIZE, "FPaddedBundlePointer should be the same size as a cache line");
-		MS_ALIGN(PLATFORM_CACHE_LINE_SIZE) FPaddedBundlePointer Bundles[UE_MB3_SMALL_POOL_COUNT] GCC_ALIGN(PLATFORM_CACHE_LINE_SIZE);
-	};
-
-	static FGlobalRecycler GGlobalRecycler;
+	static MallocBinnedPrivate::TGlobalRecycler<UE_MB3_SMALL_POOL_COUNT> GGlobalRecycler;
 
 	static void FreeBundles(FMallocBinned3& Allocator, FBundleNode* BundlesToRecycle, uint32 InBinSize, uint32 InPoolIndex)
 	{
@@ -541,7 +376,7 @@ struct FMallocBinned3::Private
 				FFreeBlock* Free = (FFreeBlock*)Node;
 				Free->NumFreeBins = 1;
 				Free->NextFreeBlockIndex = NodePool->NoFirstFreeIndex ? MAX_uint32 : NodePool->FirstFreeIndex;
-				Free->BinSizeShifted = (InBinSize >> UE_MB3_MINIMUM_ALIGNMENT_SHIFT);
+				Free->BinSizeShifted = (InBinSize >> UE_MBC_MIN_SMALL_POOL_ALIGNMENT_SHIFT);
 				Free->Canary = FFreeBlock::CANARY_VALUE;
 				Free->PoolIndex = InPoolIndex;
 				NodePool->FirstFreeIndex = BinIndexWithinBlock;
@@ -578,50 +413,13 @@ struct FMallocBinned3::Private
 			Bundle = NextBundle;
 		}
 	}
-
-	static FCriticalSection& GetFreeBlockListsRegistrationMutex()
-	{
-		static FCriticalSection FreeBlockListsRegistrationMutex;
-		return FreeBlockListsRegistrationMutex;
-	}
-
-	static TArray<FPerThreadFreeBlockLists*>& GetRegisteredFreeBlockLists()
-	{
-		static TArray<FPerThreadFreeBlockLists*> RegisteredFreeBlockLists;
-		return RegisteredFreeBlockLists;
-	}
-
-	static void RegisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists)
-	{
-		FScopeLock Lock(&GetFreeBlockListsRegistrationMutex());
-		GetRegisteredFreeBlockLists().Add(FreeBlockLists);
-	}
-
-	static void UnregisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists)
-	{
-		FScopeLock Lock(&GetFreeBlockListsRegistrationMutex());
-		GetRegisteredFreeBlockLists().Remove(FreeBlockLists);
-#if UE_MB3_ALLOCATOR_STATS
-		ConsolidatedMemory.fetch_add(FreeBlockLists->AllocatedMemory, std::memory_order_relaxed);
-#endif
-	}
 };
 
-FMallocBinned3::Private::FGlobalRecycler FMallocBinned3::Private::GGlobalRecycler;
+MallocBinnedPrivate::TGlobalRecycler<UE_MB3_SMALL_POOL_COUNT> FMallocBinned3::Private::GGlobalRecycler;
 
 void FMallocBinned3::FreeBundles(FBundleNode* Bundles, uint32 PoolIndex)
 {
 	Private::FreeBundles(*this, Bundles, PoolIndexToBinSize(PoolIndex), PoolIndex);
-}
-
-void FMallocBinned3::RegisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists)
-{
-	Private::RegisterThreadFreeBlockLists(FreeBlockLists);
-}
-
-void FMallocBinned3::UnregisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists)
-{
-	Private::UnregisterThreadFreeBlockLists(FreeBlockLists);
 }
 
 FMallocBinned3::FPoolInfoSmall* FMallocBinned3::PushNewPoolToFront(FMallocBinned3::FPoolTable& Table, uint32 InBinSize, uint32 InPoolIndex, uint32& OutBlockIndex)
@@ -673,7 +471,6 @@ FMallocBinned3::FPoolInfoSmall* FMallocBinned3::GetFrontPool(FPoolTable& Table, 
 
 
 FMallocBinned3::FMallocBinned3()
-	: HashBucketFreeList(nullptr)
 {
 	static bool bOnce = false;
 	check(!bOnce); // this is now a singleton-like thing and you cannot make multiple copies
@@ -759,20 +556,20 @@ FMallocBinned3::FMallocBinned3()
 #endif
 
 	// large slab sizes are possible OsAllocationGranularity = 65536;
-	NumLargePoolsPerPage = OsAllocationGranularity / sizeof(FPoolInfoLarge);
-	check(OsAllocationGranularity % sizeof(FPoolInfoLarge) == 0);  // these need to divide evenly!
-	PtrToPoolMapping.Init(OsAllocationGranularity, NumLargePoolsPerPage, Constants.AddressStart, Constants.AddressLimit);
+	NumPoolsPerPage = OsAllocationGranularity / sizeof(FPoolInfo);
+	check(OsAllocationGranularity % sizeof(FPoolInfo) == 0);  // these need to divide evenly!
+	PtrToPoolMapping.Init(OsAllocationGranularity, NumPoolsPerPage, Constants.AddressStart, Constants.AddressLimit);
 
 	checkf(Constants.AddressLimit > OsAllocationGranularity, TEXT("OS address limit must be greater than the page size")); // Check to catch 32 bit overflow in AddressLimit
 	static_assert(UE_MB3_SMALL_POOL_COUNT <= 256, "Small bins size array size must fit in a byte");
-	static_assert(sizeof(FFreeBlock) <= UE_MB3_MINIMUM_ALIGNMENT, "Free block struct must be small enough to fit into the smallest bin");
+	static_assert(sizeof(FFreeBlock) <= UE_MBC_MIN_SMALL_POOL_ALIGNMENT, "Free block struct must be small enough to fit into the smallest bin");
 
 	// Init pool tables.
 	FSizeTableEntry SizeTable[UE_MB3_SMALL_POOL_COUNT];
 
-	verify(FSizeTableEntry::FillSizeTable(OsAllocationGranularity, SizeTable, UE_MB3_BASE_PAGE_SIZE, UE_MB3_MINIMUM_ALIGNMENT, UE_MB3_MAX_SMALL_POOL_SIZE, UE_MB3_BASE_PAGE_SIZE) == UE_MB3_SMALL_POOL_COUNT);
+	verify(FSizeTableEntry::FillSizeTable(OsAllocationGranularity, SizeTable, UE_MB3_BASE_PAGE_SIZE, UE_MB3_MAX_SMALL_POOL_SIZE, UE_MB3_BASE_PAGE_SIZE) == UE_MB3_SMALL_POOL_COUNT);
 	checkf(SizeTable[UE_MB3_SMALL_POOL_COUNT - 1].BinSize == UE_MB3_MAX_SMALL_POOL_SIZE, TEXT("UE_MB3_MAX_SMALL_POOL_SIZE must be equal to the largest bin size"));
-	checkf(sizeof(FMallocBinned3::FFreeBlock) <= SizeTable[0].BinSize, TEXT("Pool header must be able to fit into the smallest bin"));
+	checkf(sizeof(FFreeBlock) <= SizeTable[0].BinSize, TEXT("Pool header must be able to fit into the smallest bin"));
 
 	SmallPoolInfosPerPlatformPage = OsAllocationGranularity / sizeof(FPoolInfoSmall);
 
@@ -780,7 +577,6 @@ FMallocBinned3::FMallocBinned3()
 	for (uint32 Index = 0; Index < UE_MB3_SMALL_POOL_COUNT; ++Index)
 	{
 		checkf(Index == 0 || SizeTable[Index - 1].BinSize < SizeTable[Index].BinSize, TEXT("Small bin sizes must be strictly increasing"));
-		checkf(SizeTable[Index].BinSize % UE_MB3_MINIMUM_ALIGNMENT == 0, TEXT("Small bin size must be a multiple of UE_MB3_MINIMUM_ALIGNMENT"));
 
 		SmallPoolTables[Index].BinSize = SizeTable[Index].BinSize;
 		SmallPoolTables[Index].NumMemoryPagesPerBlock = SizeTable[Index].NumMemoryPagesPerBlock;
@@ -797,7 +593,7 @@ FMallocBinned3::FMallocBinned3()
 		const uint32 Size = Align(sizeof(FPoolInfoSmall**) * (TotalNumberOfBlocks + SmallPoolInfosPerPlatformPage - 1) / SmallPoolInfosPerPlatformPage, PLATFORM_CACHE_LINE_SIZE);
 		RequiredMetaMem += Size;
 #if UE_MB3_ALLOCATOR_STATS
-		Binned3PoolInfoMemory += Size;
+		PoolInfoMemory += Size;
 #endif
 
 		const int64 AllocationSize = Align(FBitTree::GetMemoryRequirements(TotalNumberOfBlocks), PLATFORM_CACHE_LINE_SIZE);
@@ -832,9 +628,9 @@ FMallocBinned3::FMallocBinned3()
 	// Set up pool mappings
 	uint8* IndexEntry = MemSizeToPoolIndex;
 	uint32 PoolIndex  = 0;
-	for (uint32 Index = 0; Index != 1 + (UE_MB3_MAX_SMALL_POOL_SIZE >> UE_MB3_MINIMUM_ALIGNMENT_SHIFT); ++Index)
+	for (uint32 Index = 0; Index != 1 + (UE_MB3_MAX_SMALL_POOL_SIZE >> UE_MBC_MIN_SMALL_POOL_ALIGNMENT_SHIFT); ++Index)
 	{
-		const uint32 BinSize = Index << UE_MB3_MINIMUM_ALIGNMENT_SHIFT; // inverse of int32 Index = int32((Size >> UE_MB3_MINIMUM_ALIGNMENT_SHIFT));
+		const uint32 BinSize = Index << UE_MBC_MIN_SMALL_POOL_ALIGNMENT_SHIFT; // inverse of int32 Index = int32((Size >> UE_MBC_MIN_SMALL_POOL_ALIGNMENT_SHIFT));
 		while (SizeTable[PoolIndex].BinSize < BinSize)
 		{
 			++PoolIndex;
@@ -848,20 +644,11 @@ FMallocBinned3::FMallocBinned3()
 	for (uint32 Index = 0; Index != UE_MB3_SMALL_POOL_COUNT; ++Index)
 	{
 		uint32 Partner = UE_MB3_SMALL_POOL_COUNT - Index - 1;
-		SmallBinSizesReversedShifted[Index] = (SizeTable[Partner].BinSize >> UE_MB3_MINIMUM_ALIGNMENT_SHIFT);
+		SmallBinSizesReversedShifted[Index] = (SizeTable[Partner].BinSize >> UE_MBC_MIN_SMALL_POOL_ALIGNMENT_SHIFT);
 	}
 
-	uint64 MaxHashBuckets = PtrToPoolMapping.GetMaxHashBuckets();
-	{
-		int64 HashAllocSize = Align(MaxHashBuckets * sizeof(PoolHashBucket), OsAllocationGranularity);
-		HashBuckets = (PoolHashBucket*)AllocateMetaDataMemory(HashAllocSize);
-#if UE_MB3_ALLOCATOR_STATS
-		Binned3HashMemory += HashAllocSize;
-#endif
-		verify(HashBuckets);
-	}
+	AllocateHashBuckets();
 
-	DefaultConstructItems<PoolHashBucket>(HashBuckets, MaxHashBuckets);
 	MallocBinned3 = this;
 	GFixedMallocLocationPtr = (FMalloc**)(&MallocBinned3);
 }
@@ -930,17 +717,17 @@ bool FMallocBinned3::IsInternallyThreadSafe() const
 
 void* FMallocBinned3::MallocExternal(SIZE_T Size, uint32 Alignment)
 {
-	static_assert(DEFAULT_ALIGNMENT <= UE_MB3_MINIMUM_ALIGNMENT, "DEFAULT_ALIGNMENT is assumed to be zero"); // used below
+	static_assert(DEFAULT_ALIGNMENT <= UE_MBC_MIN_SMALL_POOL_ALIGNMENT, "DEFAULT_ALIGNMENT is assumed to be zero"); // used below
 
 	// Fast path: Allocate from the small pools if the size is small enough and the alignment <= binned3 min alignment.
 	//            Larger alignments can waste a lot of memory allocating an entire page, so some smaller alignments are 
 	//			  handled in the fallback path if less than a predefined max small pool alignment. 
 
-	bool UsePools = (Size <= UE_MB3_MAX_SMALL_POOL_SIZE) && (Alignment <= UE_MB3_MINIMUM_ALIGNMENT);
+	bool UsePools = (Size <= UE_MB3_MAX_SMALL_POOL_SIZE) && (Alignment <= UE_MBC_MIN_SMALL_POOL_ALIGNMENT);
 	
 	if (!UsePools)
 	{
-		// check if allocations that require alignment larger than UE_MB3_MINIMUM_ALIGNMENT can be promoted to a bin with a natural alignment that matches
+		// check if allocations that require alignment larger than UE_MBC_MIN_SMALL_POOL_ALIGNMENT can be promoted to a bin with a natural alignment that matches
 		// i.e. 16 bytes allocation with 128 bytes alignment can be promoted to 128 bytes bin
 		// this will save us a lot of memory as otherwise allocations will be promoted to OS allocs that are at least 64 KB large, depending on a UE_MB3_MAX_SMALL_POOL_SIZE
 		UsePools = PromoteToLargerBin(Size, Alignment, *this);
@@ -949,7 +736,7 @@ void* FMallocBinned3::MallocExternal(SIZE_T Size, uint32 Alignment)
 	if (UsePools) 
 	{
 		const uint32 PoolIndex = BoundSizeToPoolIndex(Size, MemSizeToPoolIndex);
-		FPerThreadFreeBlockLists* Lists = GBinned3PerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
+		FPerThreadFreeBlockLists* Lists = GMallocBinnedPerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
 		if (Lists)
 		{
 			if (Lists->ObtainRecycledPartial(PoolIndex, Private::GGlobalRecycler))
@@ -965,6 +752,8 @@ void* FMallocBinned3::MallocExternal(SIZE_T Size, uint32 Alignment)
 				}
 			}
 		}
+
+		NOALLOC_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned3_MallocExternalSmall);
 
 		// Allocate from small object pool.
 		FPoolTable& Table = SmallPoolTables[PoolIndex];
@@ -997,14 +786,14 @@ void* FMallocBinned3::MallocExternal(SIZE_T Size, uint32 Alignment)
 		void* Result = Pool->AllocateBin(BlockPtr, Table.BinSize);
 #if UE_MB3_ALLOCATOR_STATS
 		Table.HeadEndAlloc(Size);
-		Binned3AllocatedSmallPoolMemory.fetch_add(PoolIndexToBinSize(PoolIndex), std::memory_order_relaxed);
+		AllocatedSmallPoolMemory.fetch_add(PoolIndexToBinSize(PoolIndex), std::memory_order_relaxed);
 #endif
-		if (GBinned3AllocExtra)
+		if (GMallocBinnedAllocExtra)
 		{
 			if (Lists)
 			{
 				// prefill the free list with some allocations so we are less likely to hit this slow path with the mutex 
-				for (int32 Index = 0; Index < GBinned3AllocExtra && Pool->HasFreeBin(); Index++)
+				for (int32 Index = 0; Index < GMallocBinnedAllocExtra && Pool->HasFreeBin(); Index++)
 				{
 					if (!Lists->Free(Result, PoolIndex, Table.BinSize))
 					{
@@ -1021,7 +810,7 @@ void* FMallocBinned3::MallocExternal(SIZE_T Size, uint32 Alignment)
 
 		return Result;
 	}
-	Alignment = FMath::Max<uint32>(Alignment, UE_MB3_MINIMUM_ALIGNMENT);
+	Alignment = FMath::Max<uint32>(Alignment, UE_MBC_MIN_SMALL_POOL_ALIGNMENT);
 	Size = Align(FMath::Max((SIZE_T)1, Size), Alignment);
 
 	check(FMath::IsPowerOfTwo(Alignment));
@@ -1034,6 +823,8 @@ void* FMallocBinned3::MallocExternal(SIZE_T Size, uint32 Alignment)
 #endif
 
 	LLM_PLATFORM_SCOPE(ELLMTag::FMalloc);
+
+	NOALLOC_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned3_MallocExternalLarge);
 
 #if UE_MB3_USE_CACHED_PAGE_ALLOCATOR_FOR_LARGE_ALLOCS
 	FScopeLock Lock(&Mutex);
@@ -1061,12 +852,12 @@ void* FMallocBinned3::MallocExternal(SIZE_T Size, uint32 Alignment)
 
 	if (!Result)
 	{
-		Private::OutOfMemory(AlignedSize);
+		OutOfMemory(AlignedSize);
 	}
 	check(IsOSAllocation(Result));
 
 #if! UE_MB3_USE_CACHED_PAGE_ALLOCATOR_FOR_LARGE_ALLOCS
-	FScopeLock Lock(&Mutex);
+	FScopeLock Lock(&ExternalAllocMutex);
 #endif
 
 #if UE_MB3_ALLOCATOR_STATS
@@ -1075,7 +866,7 @@ void* FMallocBinned3::MallocExternal(SIZE_T Size, uint32 Alignment)
 #endif
 
 	// Create pool.
-	FPoolInfoLarge* Pool = Private::GetOrCreatePoolInfoLarge(*this, Result);
+	FPoolInfo* Pool = Internal::GetOrCreatePoolInfo(*this, Result, FPoolInfo::ECanary::LargeAssigned, false);
 	check(Size > 0 && Size <= AlignedSize && AlignedSize >= FPlatformMemory::FPlatformVirtualMemoryBlock::GetCommitAlignment());
 #if UE_MB3_USE_CACHED_PAGE_ALLOCATOR_FOR_LARGE_ALLOCS
 	Pool->SetOSAllocationSizes(Size, AlignedSize, AlignedSize / FPlatformMemory::FPlatformVirtualMemoryBlock::GetCommitAlignment());
@@ -1093,7 +884,7 @@ void* FMallocBinned3::ReallocExternal(void* Ptr, SIZE_T NewSize, uint32 Alignmen
 		FMallocBinned3::FreeExternal(Ptr);
 		return nullptr;
 	}
-	static_assert(DEFAULT_ALIGNMENT <= UE_MB3_MINIMUM_ALIGNMENT, "DEFAULT_ALIGNMENT is assumed to be zero"); // used below
+	static_assert(DEFAULT_ALIGNMENT <= UE_MBC_MIN_SMALL_POOL_ALIGNMENT, "DEFAULT_ALIGNMENT is assumed to be zero"); // used below
 	check(FMath::IsPowerOfTwo(Alignment));
 	check(Alignment <= OsAllocationGranularity);
 
@@ -1125,10 +916,12 @@ void* FMallocBinned3::ReallocExternal(void* Ptr, SIZE_T NewSize, uint32 Alignmen
 		return Result;
 	}
 
-	Mutex.Lock();
+	NOALLOC_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned3_ReallocExternal);
+
+	ExternalAllocMutex.Lock();
 
 	// Allocated from OS.
-	FPoolInfoLarge* Pool = Private::FindPoolInfo(*this, Ptr);
+	FPoolInfo* Pool = Internal::FindPoolInfo(*this, Ptr);
 	if (!Pool)
 	{
 		UE_LOG(LogMemory, Fatal, TEXT("FMallocBinned3 Attempt to realloc an unrecognized pointer %p"), Ptr);
@@ -1137,10 +930,10 @@ void* FMallocBinned3::ReallocExternal(void* Ptr, SIZE_T NewSize, uint32 Alignmen
 	const uint32 PoolOSRequestedBytes = Pool->GetOSRequestedBytes();
 	checkf(PoolOSRequestedBytes <= PoolOsBytes, TEXT("FMallocBinned3::ReallocExternal %u %u"), PoolOSRequestedBytes, PoolOsBytes);
 	if (NewSize > PoolOsBytes || // can't fit in the old block
-		(NewSize <= UE_MB3_MAX_SMALL_POOL_SIZE && Alignment <= UE_MB3_MINIMUM_ALIGNMENT) || // can switch to the small bin allocator
+		(NewSize <= UE_MB3_MAX_SMALL_POOL_SIZE && Alignment <= UE_MBC_MIN_SMALL_POOL_ALIGNMENT) || // can switch to the small bin allocator
 		Align(NewSize, OsAllocationGranularity) < PoolOsBytes) // we can get some pages back
 	{
-		Mutex.Unlock();
+		ExternalAllocMutex.Unlock();
 		// Grow or shrink.
 		void* Result = FMallocBinned3::MallocExternal(NewSize, Alignment);
 		SIZE_T CopySize = FMath::Min<SIZE_T>(NewSize, PoolOSRequestedBytes);
@@ -1155,12 +948,14 @@ void* FMallocBinned3::ReallocExternal(void* Ptr, SIZE_T NewSize, uint32 Alignmen
 #endif
 	
 	Pool->SetOSAllocationSize(NewSize);
-	Mutex.Unlock();
+	ExternalAllocMutex.Unlock();
 	return Ptr;
 }
 
 void FMallocBinned3::FreeExternal(void* Ptr)
 {
+	NOALLOC_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned3_FreeExternal);
+
 	const uint64 PoolIndex = PoolIndexFromPtr(Ptr);
 	if (PoolIndex < UE_MB3_SMALL_POOL_COUNT)
 	{
@@ -1168,7 +963,7 @@ void FMallocBinned3::FreeExternal(void* Ptr)
 		const uint32 BinSize = PoolIndexToBinSize(PoolIndex);
 
 		FBundleNode* BundlesToRecycle = nullptr;
-		FPerThreadFreeBlockLists* Lists = GBinned3PerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
+		FPerThreadFreeBlockLists* Lists = GMallocBinnedPerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
 		if (Lists)
 		{
 			BundlesToRecycle = Lists->RecycleFullBundle(PoolIndex, Private::GGlobalRecycler);
@@ -1193,7 +988,7 @@ void FMallocBinned3::FreeExternal(void* Ptr)
 			{
 				SmallPoolTables[PoolIndex].HeadEndFree();
 				// lists track their own stat track them instead in the global stat if we don't have lists
-				Binned3AllocatedSmallPoolMemory.fetch_sub((int64)BinSize, std::memory_order_relaxed);
+				AllocatedSmallPoolMemory.fetch_sub((int64)BinSize, std::memory_order_relaxed);
 			}
 #endif
 		}
@@ -1206,9 +1001,9 @@ void FMallocBinned3::FreeExternal(void* Ptr)
 		uint32 VMPages;
 		{
 #if !UE_MB3_USE_CACHED_PAGE_ALLOCATOR_FOR_LARGE_ALLOCS
-			FScopeLock Lock(&Mutex);
+			FScopeLock Lock(&ExternalAllocMutex);
 #endif
-			FPoolInfoLarge* Pool = Private::FindPoolInfo(*this, Ptr);
+			FPoolInfo* Pool = Internal::FindPoolInfo(*this, Ptr);
 			if (!Pool)
 			{
 				UE_LOG(LogMemory, Fatal, TEXT("FMallocBinned3 Attempt to free an unrecognized pointer %p"), Ptr);
@@ -1223,7 +1018,7 @@ void FMallocBinned3::FreeExternal(void* Ptr)
 #endif
 
 			checkf(PoolOSRequestedBytes <= PoolOsBytes, TEXT("FMallocBinned3::FreeExternal %u %u"), int32(PoolOSRequestedBytes), int32(PoolOsBytes));
-			Pool->SetCanary(FPoolInfoLarge::ECanary::LargeUnassigned, true, false);
+			Pool->SetCanary(FPoolInfo::ECanary::LargeUnassigned, true, false);
 		}
 
 		// Free an OS allocation.
@@ -1251,37 +1046,6 @@ void FMallocBinned3::FreeExternal(void* Ptr)
 	}
 }
 
-bool FMallocBinned3::GetAllocationSizeExternal(void* Ptr, SIZE_T& SizeOut)
-{
-	const uint64 PoolIndex = PoolIndexFromPtr(Ptr);
-	if (PoolIndex < UE_MB3_SMALL_POOL_COUNT)
-	{
-		check(Ptr); // null is an OS allocation because it will not fall in our VM block
-		SizeOut = PoolIndexToBinSize(PoolIndex);
-		return true;
-	}
-	if (!Ptr)
-	{
-		return false;
-	}
-
-	FPoolInfoLarge* Pool;
-	{
-		FScopeLock Lock(&Mutex);
-		Pool = Private::FindPoolInfo(*this, Ptr);
-	}
-
-	if (!Pool)
-	{
-		UE_LOG(LogMemory, Fatal, TEXT("FMallocBinned3 Attempt to GetAllocationSizeExternal an unrecognized pointer %p"), Ptr);
-	}
-	const uint32 PoolOsBytes = Pool->GetOsCommittedBytes();
-	const uint32 PoolOSRequestedBytes = Pool->GetOSRequestedBytes();
-	checkf(PoolOSRequestedBytes <= PoolOsBytes, TEXT("FMallocBinned3::GetAllocationSizeExternal %u %u"), PoolOSRequestedBytes, PoolOsBytes);
-	SizeOut = PoolOsBytes;
-	return true;
-}
-
 bool FMallocBinned3::ValidateHeap()
 {
 	// Not implemented
@@ -1296,92 +1060,17 @@ const TCHAR* FMallocBinned3::GetDescriptiveName()
 
 void FMallocBinned3::Trim(bool bTrimThreadCaches)
 {
-	if (GBinned3PerThreadCaches && bTrimThreadCaches)
+	if (GMallocBinnedPerThreadCaches && bTrimThreadCaches)
 	{
 		// Trim memory and increase the Epoch.
 		FMallocBinnedCommonUtils::Trim(*this);
 	}
 }
 
-FCriticalSection& FMallocBinned3::GetFreeBlockListsRegistrationMutex()
+void FMallocBinned3::FlushCurrentThreadCacheInternal(bool bNewEpochOnly)
 {
-	return Private::GetFreeBlockListsRegistrationMutex();
-}
-
-TArray<FMallocBinned3::FPerThreadFreeBlockLists*>& FMallocBinned3::GetRegisteredFreeBlockLists()
-{
-	return Private::GetRegisteredFreeBlockLists();
-}
-
-void FMallocBinned3::SetupTLSCachesOnCurrentThread()
-{
-	if (!UE_MB3_ALLOW_RUNTIME_TWEAKING && !GBinned3PerThreadCaches)
-	{
-		return;
-	}
-	if (!FPlatformTLS::IsValidTlsSlot(FMallocBinned3::BinnedTlsSlot))
-	{
-		FMallocBinned3::BinnedTlsSlot = FPlatformTLS::AllocTlsSlot();
-	}
-	check(FPlatformTLS::IsValidTlsSlot(FMallocBinned3::BinnedTlsSlot));
-	FPerThreadFreeBlockLists::SetTLS();
-}
-
-void FMallocBinned3::ClearAndDisableTLSCachesOnCurrentThread()
-{
-	if (!UE_MB3_ALLOW_RUNTIME_TWEAKING && !GBinned3PerThreadCaches)
-	{
-		return;
-	}
-
-	FMallocBinnedCommonUtils::FlushCurrentThreadCache(*this);
-	FPerThreadFreeBlockLists::ClearTLS();
-}
-
-void FMallocBinned3::MarkTLSCachesAsUsedOnCurrentThread()
-{
-	if (!UE_MB3_ALLOW_RUNTIME_TWEAKING && !GBinned3PerThreadCaches)
-	{
-		return;
-	}
-
-	FPerThreadFreeBlockLists::LockTLS();
-}
-
-void FMallocBinned3::MarkTLSCachesAsUnusedOnCurrentThread()
-{
-	if (!UE_MB3_ALLOW_RUNTIME_TWEAKING && !GBinned3PerThreadCaches)
-	{
-		return;
-	}
-
-	// Will only flush if memory trimming has been called while the thread was active.
-	const bool bNewEpochOnly = true;
 	FMallocBinnedCommonUtils::FlushCurrentThreadCache(*this, bNewEpochOnly);
-	FPerThreadFreeBlockLists::UnlockTLS();
 }
-
-void FMallocBinned3::FFreeBlock::CanaryFail() const
-{
-	UE_LOG(LogMemory, Fatal, TEXT("FMallocBinned3 Attempt to realloc an unrecognized pointer %p   canary == 0x%x != 0x%x"), (void*)this, (int32)Canary, (int32)FMallocBinned3::FFreeBlock::CANARY_VALUE);
-}
-
-#if UE_MB3_ALLOCATOR_STATS
-int64 FMallocBinned3::GetTotalAllocatedSmallPoolMemory() const
-{
-	int64 FreeBlockAllocatedMemory = 0;
-	{
-		FScopeLock Lock(&Private::GetFreeBlockListsRegistrationMutex());
-		for (const FPerThreadFreeBlockLists* FreeBlockLists : Private::GetRegisteredFreeBlockLists())
-		{
-			FreeBlockAllocatedMemory += FreeBlockLists->AllocatedMemory;
-		}
-		FreeBlockAllocatedMemory += ConsolidatedMemory.load(std::memory_order_relaxed);
-	}
-
-	return Binned3AllocatedSmallPoolMemory.load(std::memory_order_relaxed) + FreeBlockAllocatedMemory;
-}
-#endif
 
 void FMallocBinned3::GetAllocatorStats(FGenericMemoryStats& OutStats)
 {
@@ -1424,8 +1113,8 @@ void FMallocBinned3::DumpAllocatorStats(class FOutputDevice& Ar)
 	Ar.Logf(TEXT("Small Pool OS Allocated: %fmb"), ((double)Binned3AllocatedOSSmallPoolMemory) / (1024.0f * 1024.0f));
 	Ar.Logf(TEXT("Large Pool Requested Allocations: %fmb"), ((double)Binned3AllocatedLargePoolMemory) / (1024.0f * 1024.0f));
 	Ar.Logf(TEXT("Large Pool OS Allocated: %fmb"), ((double)Binned3AllocatedLargePoolMemoryWAlignment) / (1024.0f * 1024.0f));
-	Ar.Logf(TEXT("PoolInfo: %fmb"), ((double)Binned3PoolInfoMemory) / (1024.0f * 1024.0f));
-	Ar.Logf(TEXT("Hash: %fmb"), ((double)Binned3HashMemory) / (1024.0f * 1024.0f));
+	Ar.Logf(TEXT("PoolInfo: %fmb"), ((double)PoolInfoMemory) / (1024.0f * 1024.0f));
+	Ar.Logf(TEXT("Hash: %fmb"), ((double)HashMemory) / (1024.0f * 1024.0f));
 	Ar.Logf(TEXT("Free Bits: %fmb"), ((double)Binned3FreeBitsMemory) / (1024.0f * 1024.0f));
 	Ar.Logf(TEXT("TLS: %fmb"), ((double)TLSMemory.load(std::memory_order_relaxed)) / (1024.0f * 1024.0f));
 	Ar.Logf(TEXT("Slab Commits: %llu"), Binned3Commits.Load());
@@ -1444,7 +1133,7 @@ void FMallocBinned3::DumpAllocatorStats(class FOutputDevice& Ar)
 #endif
 	Ar.Logf(TEXT("Total allocated from OS: %fmb"), 
 		((double)
-			Binned3AllocatedOSSmallPoolMemory + Binned3AllocatedLargePoolMemoryWAlignment + Binned3PoolInfoMemory + Binned3HashMemory + Binned3FreeBitsMemory + TLSMemory.load(std::memory_order_relaxed)
+			Binned3AllocatedOSSmallPoolMemory + Binned3AllocatedLargePoolMemoryWAlignment + PoolInfoMemory + HashMemory + Binned3FreeBitsMemory + TLSMemory.load(std::memory_order_relaxed)
 			) / (1024.0f * 1024.0f));
 
 
