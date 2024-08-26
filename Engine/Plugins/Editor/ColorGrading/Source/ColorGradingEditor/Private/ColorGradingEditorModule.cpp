@@ -23,8 +23,6 @@ void FColorGradingEditorModule::StartupModule()
 	FColorGradingEditorDataModel::RegisterColorGradingDataModelGenerator<APostProcessVolume>(
 		FGetDetailsDataModelGenerator::CreateStatic(&FColorGradingDataModelGenerator_PostProcessVolume::MakeInstance));
 
-	FColorGradingListItem::RegisterColorGradingListItemGenerator<FColorGradingListItemGenerator_PostProcessVolume>();
-
 	FColorGradingMixerObjectFilterRegistry::RegisterActorClassToPlace(APostProcessVolume::StaticClass());
 
 	FColorGradingMixerObjectFilterRegistry::RegisterObjectClassToFilter(APostProcessVolume::StaticClass());

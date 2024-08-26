@@ -9,7 +9,6 @@
 #include "SelectionInterface/IObjectMixerSelectionInterface.h"
 
 #include "ColorGradingPanelState.h"
-#include "ColorGradingListItem.h"
 
 class FColorGradingEditorDataModel;
 class FObjectMixerEditorList;

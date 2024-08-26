@@ -5,8 +5,6 @@
 #include "CoreMinimal.h"
 #include "PropertyEditorDelegates.h"
 
-#include "ColorGradingListItem.h"
-
 class IPropertyHandle;
 class IPropertyRowGenerator;
 class SWidget;

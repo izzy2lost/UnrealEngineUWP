@@ -26,9 +26,6 @@ void FDisplayClusterColorGradingModule::StartupModule()
 	FColorGradingEditorDataModel::RegisterColorGradingDataModelGenerator<UDisplayClusterICVFXCameraComponent>(
 		FGetDetailsDataModelGenerator::CreateStatic(&FDisplayClusterColorGradingGenerator_ICVFXCamera::MakeInstance));
 
-	FColorGradingListItem::RegisterColorGradingListItemGenerator<FDisplayClusterColorGradingListItemGenerator_RootActor>();
-	FColorGradingListItem::RegisterColorGradingListItemGenerator<FDisplayClusterColorGradingListItemGenerator_ICVFXCamera>();
-
 	FColorGradingMixerObjectFilterRegistry::RegisterActorClassToPlace(ADisplayClusterRootActor::StaticClass());
 
 	FColorGradingMixerObjectFilterRegistry::RegisterObjectClassToFilter(ADisplayClusterRootActor::StaticClass());

@@ -25,8 +25,6 @@ void FColorCorrectRegionsEditorModule::StartupModule()
 	FColorGradingEditorDataModel::RegisterColorGradingDataModelGenerator<AColorCorrectRegion>(
 		FGetDetailsDataModelGenerator::CreateStatic(&FColorGradingDataModelGenerator_ColorCorrectRegion::MakeInstance));
 
-	FColorGradingListItem::RegisterColorGradingListItemGenerator<FColorGradingListItemGenerator_ColorCorrectRegion>();
-
 	FColorGradingMixerObjectFilterRegistry::RegisterActorClassToPlace(AColorCorrectionRegion::StaticClass());
 	FColorGradingMixerObjectFilterRegistry::RegisterActorClassToPlace(AColorCorrectionWindow::StaticClass());
 

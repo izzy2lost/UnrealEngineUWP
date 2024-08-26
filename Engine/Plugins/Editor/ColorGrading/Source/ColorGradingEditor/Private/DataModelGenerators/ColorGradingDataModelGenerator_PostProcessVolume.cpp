@@ -218,21 +218,4 @@ void FColorGradingDataModelGenerator_PostProcessVolume::AddPropertyToColorGradin
 	}
 }
 
-TArray<TSubclassOf<AActor>> FColorGradingListItemGenerator_PostProcessVolume::GetActorClassesForListItems() const
-{
-	return { APostProcessVolume::StaticClass() };
-}
-
-void FColorGradingListItemGenerator_PostProcessVolume::GenerateColorGradingListItems(AActor* InActor, TArray<FColorGradingListItemRef>& OutList) const
-{
-	if (APostProcessVolume* PostProcessVolume = Cast<APostProcessVolume>(InActor))
-	{
-		FColorGradingListItemRef ListItemRef = MakeShared<FColorGradingListItem>(PostProcessVolume);
-		ListItemRef->IsItemEnabled = CREATE_IS_ENABLED_LAMBDA(PostProcessVolume, PostProcessVolume->bEnabled);
-		ListItemRef->OnItemEnabledChanged = CREATE_ON_ENABLED_CHANGED_LAMBDA(PostProcessVolume, PostProcessVolume->bEnabled);
-
-		OutList.Add(ListItemRef);
-	}
-}
-
 #undef LOCTEXT_NAMESPACE

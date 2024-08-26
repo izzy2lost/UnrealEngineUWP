@@ -22,12 +22,3 @@ public:
 private:
 	void AddPropertyToColorGradingElement(const TSharedPtr<IPropertyHandle>& PropertyHandle, FColorGradingEditorDataModel::FColorGradingElement& ColorGradingElement);
 };
-
-/** Color grading list item generator for an APostProcessVolume */
-class FColorGradingListItemGenerator_PostProcessVolume : public IColorGradingListItemGenerator
-{
-	//~ IColorGradingListItemGenerator interface
-	virtual TArray<TSubclassOf<AActor>> GetActorClassesForListItems() const override;
-	virtual void GenerateColorGradingListItems(AActor* InActor, TArray<FColorGradingListItemRef>& OutList) const override;
-	//~ End IColorGradingListItemGenerator interface
-};

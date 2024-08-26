@@ -1353,41 +1353,4 @@ TSharedRef<SWidget> FDisplayClusterColorGradingGenerator_ICVFXCamera::GetNodeCom
 	return MenuBuilder.MakeWidget();
 }
 
-TArray<TSubclassOf<AActor>> FDisplayClusterColorGradingListItemGenerator_RootActor::GetActorClassesForListItems() const
-{
-	return { ADisplayClusterRootActor::StaticClass() };
-}
-
-void FDisplayClusterColorGradingListItemGenerator_RootActor::GenerateColorGradingListItems(AActor* InActor, TArray<FColorGradingListItemRef>& OutList) const
-{
-	if (ADisplayClusterRootActor* RootActor = Cast<ADisplayClusterRootActor>(InActor))
-	{
-		FColorGradingListItemRef ListItemRef = MakeShared<FColorGradingListItem>(RootActor);
-		ListItemRef->IsItemEnabled = CREATE_IS_ENABLED_LAMBDA(RootActor, RootActor->GetConfigData()->StageSettings.EnableColorGrading);
-		ListItemRef->OnItemEnabledChanged = CREATE_ON_ENABLED_CHANGED_LAMBDA(RootActor, RootActor->GetConfigData()->StageSettings.EnableColorGrading);
-
-		OutList.Add(ListItemRef);
-	}
-}
-
-TArray<TSubclassOf<AActor>> FDisplayClusterColorGradingListItemGenerator_ICVFXCamera::GetActorClassesForListItems() const
-{
-	return { ADisplayClusterRootActor::StaticClass() };
-}
-
-void FDisplayClusterColorGradingListItemGenerator_ICVFXCamera::GenerateColorGradingListItems(AActor* InActor, TArray<FColorGradingListItemRef>& OutList) const
-{
-	if (ADisplayClusterRootActor* RootActor = Cast<ADisplayClusterRootActor>(InActor))
-	{
-		RootActor->ForEachComponent<UDisplayClusterICVFXCameraComponent>(false, [this, RootActor, &OutList](UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent)
-		{
-			FColorGradingListItemRef ICVFXCameraListItemRef = MakeShared<FColorGradingListItem>(RootActor, ICVFXCameraComponent);
-			ICVFXCameraListItemRef->IsItemEnabled = CREATE_IS_ENABLED_LAMBDA(ICVFXCameraComponent, ICVFXCameraComponent->CameraSettings.EnableInnerFrustumColorGrading);
-			ICVFXCameraListItemRef->OnItemEnabledChanged = CREATE_ON_ENABLED_CHANGED_LAMBDA(ICVFXCameraComponent, ICVFXCameraComponent->CameraSettings.EnableInnerFrustumColorGrading);
-
-			OutList.Add(ICVFXCameraListItemRef);
-		});
-	}
-}
-
 #undef LOCTEXT_NAMESPACE

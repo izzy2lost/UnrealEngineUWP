@@ -103,21 +103,3 @@ private:
 	/** A list of camera components that are being represented by the data model */
 	TArray<TWeakObjectPtr<UDisplayClusterICVFXCameraComponent>> CameraComponents;
 };
-
-/** Color grading list item generator for an nDisplay root actor */
-class FDisplayClusterColorGradingListItemGenerator_RootActor : public IColorGradingListItemGenerator
-{
-	//~ IColorGradingListItemGenerator interface
-	virtual TArray<TSubclassOf<AActor>> GetActorClassesForListItems() const override;
-	virtual void GenerateColorGradingListItems(AActor* InActor, TArray<FColorGradingListItemRef>& OutList) const override;
-	//~ End IColorGradingListItemGenerator interface
-};
-
-/** Color grading list item generator for an nDisplay ICVFX camera component */
-class FDisplayClusterColorGradingListItemGenerator_ICVFXCamera : public IColorGradingListItemGenerator
-{
-	//~ IColorGradingListItemGenerator interface
-	virtual TArray<TSubclassOf<AActor>> GetActorClassesForListItems() const override;
-	virtual void GenerateColorGradingListItems(AActor* InActor, TArray<FColorGradingListItemRef>& OutList) const override;
-	//~ End IColorGradingListItemGenerator interface
-};

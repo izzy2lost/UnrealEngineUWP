@@ -25,12 +25,3 @@ private:
 
 	bool FilterDetailsViewProperties(const TSharedRef<IDetailTreeNode>& InDetailTreeNode);
 };
-
-/** Color grading list item generator for an AColorCorrectionRegion */
-class FColorGradingListItemGenerator_ColorCorrectRegion : public IColorGradingListItemGenerator
-{
-	//~ IColorGradingListItemGenerator interface
-	virtual TArray<TSubclassOf<AActor>> GetActorClassesForListItems() const override;
-	virtual void GenerateColorGradingListItems(AActor* InActor, TArray<FColorGradingListItemRef>& OutList) const override;
-	//~ End IColorGradingListItemGenerator interface
-};

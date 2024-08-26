@@ -203,21 +203,4 @@ bool FColorGradingDataModelGenerator_ColorCorrectRegion::FilterDetailsViewProper
 	}
 }
 
-TArray<TSubclassOf<AActor>> FColorGradingListItemGenerator_ColorCorrectRegion::GetActorClassesForListItems() const
-{ 
-	return { AColorCorrectionRegion::StaticClass() };
-}
-
-void FColorGradingListItemGenerator_ColorCorrectRegion::GenerateColorGradingListItems(AActor* InActor, TArray<FColorGradingListItemRef>& OutList) const
-{
-	if (AColorCorrectionRegion* ColorCorrectRegion = Cast<AColorCorrectionRegion>(InActor))
-	{
-		FColorGradingListItemRef ListItemRef = MakeShared<FColorGradingListItem>(ColorCorrectRegion);
-		ListItemRef->IsItemEnabled = CREATE_IS_ENABLED_LAMBDA(ColorCorrectRegion, ColorCorrectRegion->Enabled);
-		ListItemRef->OnItemEnabledChanged = CREATE_ON_ENABLED_CHANGED_LAMBDA(ColorCorrectRegion, ColorCorrectRegion->Enabled);
-
-		OutList.Add(ListItemRef);
-	}
-}
-
 #undef LOCTEXT_NAMESPACE
