@@ -43,6 +43,23 @@ namespace PCGComputeHelpers
 	}
 
 #if PCG_KERNEL_LOGGING_ENABLED
+	void LogKernelWarning(const FPCGContext* Context, const UPCGSettings* Settings, const FText& InText)
+	{
+#if WITH_EDITOR
+		if (Context && ensure(Context->SourceComponent.IsValid() && Context->SourceComponent.Get()))
+		{
+			if (UPCGSubsystem* Subsystem = Context->SourceComponent->GetSubsystem())
+			{
+				FPCGStack StackWithNode = Context->Stack ? *Context->Stack : FPCGStack();
+				StackWithNode.PushFrame(Settings->GetOuter());
+
+				Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, ELogVerbosity::Warning, InText);
+			}
+		}
+#endif
+		PCGE_LOG_C(Warning, LogOnly, Context, InText);
+	}
+
 	void LogKernelError(const FPCGContext* Context, const UPCGSettings* Settings, const FText& InText)
 	{
 #if WITH_EDITOR

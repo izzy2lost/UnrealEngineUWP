@@ -109,7 +109,8 @@ public:
 	//~Begin UPCGSettings interface
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return InputPins; }
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
-	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const { return true; }
+	virtual bool HasOverridableParams() const override { return false; }
+	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return true; }
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("CustomHLSL")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGCustomHLSLElement", "NodeTitle", "Custom HLSL"); }

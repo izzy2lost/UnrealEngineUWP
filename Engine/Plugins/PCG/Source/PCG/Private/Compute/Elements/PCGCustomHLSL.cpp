@@ -1001,7 +1001,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 {
 	if (OutputPins.IsEmpty())
 	{
-		PCG_KERNEL_VALIDATION(InContext, this, bQuiet, LOCTEXT("NoOutputs", "Custom HLSL nodes must have at least one output."));
+		PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, LOCTEXT("NoOutputs", "Custom HLSL nodes must have at least one output."));
 		return false;
 	}
 
@@ -1009,7 +1009,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 	{
 		if (PinLabel == NAME_None)
 		{
-			PCG_KERNEL_VALIDATION(InContext, This, bQuiet, LOCTEXT("InvalidPinLabelNone", "Pin label 'None' is not a valid pin label."));
+			PCG_KERNEL_VALIDATION_ERR(InContext, This, bQuiet, LOCTEXT("InvalidPinLabelNone", "Pin label 'None' is not a valid pin label."));
 			return false;
 		}
 
@@ -1021,7 +1021,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 			{
 				if (bFoundPinLabel)
 				{
-					PCG_KERNEL_VALIDATION(InContext, This, bQuiet, FText::Format(LOCTEXT("DuplicatedPinLabels", "Duplicate pin label '{0}', all labels must be unique."), FText::FromName(PinLabel)));
+					PCG_KERNEL_VALIDATION_ERR(InContext, This, bQuiet, FText::Format(LOCTEXT("DuplicatedPinLabels", "Duplicate pin label '{0}', all labels must be unique."), FText::FromName(PinLabel)));
 					return true;
 				}
 
@@ -1063,7 +1063,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 		{
 			if (Properties.AllowedTypes != EPCGDataType::Point)
 			{
-				PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
+				PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(
 					LOCTEXT("InvalidNonPointPrimaryInput", "'Point Processor' nodes require primary input pin to be of type 'Point', but found '{0}'."),
 					FText::FromString(PCGHLSLElement::GetDataTypeString(Properties.AllowedTypes))));
 
@@ -1073,7 +1073,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 
 		if (!PCGComputeHelpers::IsTypeAllowedAsInput(Properties.AllowedTypes))
 		{
-			PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
+			PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(
 				LOCTEXT("InvalidInputType", "Unsupported input type '{0}', found on pin '{1}'."),
 				FText::FromString(PCGHLSLElement::GetDataTypeString(Properties.AllowedTypes)),
 				FText::FromName(Properties.Label)));
@@ -1099,7 +1099,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 		{
 			if (Properties.AllowedTypes != EPCGDataType::Point)
 			{
-				PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
+				PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(
 					LOCTEXT("InvalidNonPointPrimaryOutput", "'Point Processor' and 'Point Generator' nodes require primary output pin to be of type 'Point', but found '{0}'."),
 					FText::FromString(PCGHLSLElement::GetDataTypeString(Properties.AllowedTypes))));
 
@@ -1109,7 +1109,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 
 		if (!PCGComputeHelpers::IsTypeAllowedAsOutput(Properties.AllowedTypes))
 		{
-			PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
+			PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(
 				LOCTEXT("InvalidOutputType", "Unsupported output type '{0}', found on pin '{1}'."),
 				FText::FromString(PCGHLSLElement::GetDataTypeString(Properties.AllowedTypes)),
 				FText::FromName(Properties.Label)));
@@ -1123,7 +1123,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 			{
 				if (Properties.FixedBufferElementCount <= 0)
 				{
-					PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
+					PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(
 						LOCTEXT("InvalidFixedBufferSize", "Fixed GPU buffer size on '{0}' was invalid (%d)."),
 						FText::FromName(Properties.Label),
 						Properties.FixedBufferElementCount));
@@ -1133,7 +1133,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 
 				if (Properties.AllowedTypes == EPCGDataType::Param && Properties.InitializeFromPin != NAME_None && !GetInputPin(Properties.InitializeFromPin))
 				{
-					PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
+					PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(
 						LOCTEXT("InvalidInitFromPin", "Tried to initialize attribute set pin '{0}' from non-existent pin '{1}'. Must reference a valid input pin or be 'None'."),
 						FText::FromName(Properties.Label),
 						FText::FromName(Properties.InitializeFromPin)));
@@ -1145,7 +1145,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 			{
 				if (InputPins.IsEmpty())
 				{
-					PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
+					PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(
 						LOCTEXT("InvalidBufferSizeNoInputPin", "GPU buffer size for pin '{0}' could not be computed as there are no input pins."),
 						FText::FromName(Properties.Label)));
 
@@ -1154,7 +1154,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 
 				if (!GetFirstInputPin())
 				{
-					PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
+					PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(
 						LOCTEXT("MissingPrimaryInputPin", "GPU buffer size for pin '{0}' could not be computed, because it refers to the primary input pin, which does not exist."),
 						FText::FromName(Properties.Label)));
 
@@ -1165,7 +1165,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 			{
 				if (InputPins.IsEmpty())
 				{
-					PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
+					PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(
 						LOCTEXT("InvalidBufferSizeNoInputPins", "GPU buffer size for pin '{0}' could not be computed as there are no input pins on this node."),
 						FText::FromName(Properties.Label)));
 
@@ -1174,7 +1174,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 
 				if (Properties.BufferSizeInputPinLabels.IsEmpty())
 				{
-					PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
+					PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(
 						LOCTEXT("InvalidBufferSizeNoBufferPins", "GPU buffer size for pin '{0}' could not be computed as input pins are specified in the pin settings."),
 						FText::FromName(Properties.Label)));
 
@@ -1185,7 +1185,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 				{
 					if (!GetInputPin(Label))
 					{
-						PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
+						PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(
 							LOCTEXT("MissingBufferSizePin", "GPU buffer size for pin '{0}' could not be computed. Invalid pin specified in Input Pins array: '{1}'."),
 							FText::FromName(Properties.Label),
 							FText::FromName(Label)));
@@ -1203,7 +1203,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 	{
 		if (ThreadCountInputPinLabels.IsEmpty())
 		{
-			PCG_KERNEL_VALIDATION(InContext, this, bQuiet, LOCTEXT("MissingThreadCountPins", "Dispatch thread count is based on input pins but no labels have been set in Input Pins array."));
+			PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, LOCTEXT("MissingThreadCountPins", "Dispatch thread count is based on input pins but no labels have been set in Input Pins array."));
 			return false;
 		}
 
@@ -1211,7 +1211,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 		{
 			if (!GetInputPin(Label))
 			{
-				PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(LOCTEXT("MissingThreadCountPin", "Invalid pin specified in Input Pins array: '{0}'."), FText::FromName(Label)));
+				PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(LOCTEXT("MissingThreadCountPin", "Invalid pin specified in Input Pins array: '{0}'."), FText::FromName(Label)));
 				return false;
 			}
 		}
@@ -1221,7 +1221,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 	{
 		if (ThreadCountMultiplier < 1)
 		{
-			PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(LOCTEXT("InvalidThreadCountMultiplier", "Thread Count Multiplier has invalid value ({0}). Must be greater than 0."), ThreadCountMultiplier));
+			PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(LOCTEXT("InvalidThreadCountMultiplier", "Thread Count Multiplier has invalid value ({0}). Must be greater than 0."), ThreadCountMultiplier));
 			return false;
 		}
 	}
@@ -1231,7 +1231,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 	{
 		if (AttributeKey.Name == NAME_None)
 		{
-			PCG_KERNEL_VALIDATION(InContext, this, bQuiet, LOCTEXT("InvalidAttributeNameNone", "'None' is not a valid GPU attribute name, check the 'Attributes to Create' array on your pins."));
+			PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, LOCTEXT("InvalidAttributeNameNone", "'None' is not a valid GPU attribute name, check the 'Attributes to Create' array on your pins."));
 			return false;
 		}
 	}
@@ -1248,7 +1248,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 		{
 			if (ErrorTextPtr)
 			{
-				PCG_KERNEL_VALIDATION(InContext, this, bQuiet, *ErrorTextPtr);
+				PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, *ErrorTextPtr);
 			}
 			return false;
 		}

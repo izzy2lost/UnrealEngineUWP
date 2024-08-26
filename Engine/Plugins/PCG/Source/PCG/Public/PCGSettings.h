@@ -517,7 +517,7 @@ public:
 	/** Whether this node should be executed on the GPU. */
 	virtual bool ShouldExecuteOnGPU() const { return bExecuteOnGPU; }
 
-	virtual bool IsKernelValid(FPCGContext* InContext = nullptr, bool bQuiet = true) const { return true; }
+	virtual bool IsKernelValid(FPCGContext* InContext = nullptr, bool bQuiet = true) const;
 	virtual FString GetCookedKernelSource(const TMap<FPCGKernelAttributeKey, int>& GlobalAttributeLookupTable) const { return TEXT(""); }
 	virtual FString GetKernelEntryPoint() const { return TEXT("Main"); }
 	virtual FIntVector GetThreadGroupSize() const { return FIntVector(64, 1, 1); }

@@ -11,6 +11,7 @@
 #include "PCGPin.h"
 #include "PCGSubgraph.h"
 #include "PCGSubsystem.h"
+#include "Compute/PCGComputeCommon.h"
 #include "Compute/PCGComputeGraph.h"
 #include "Compute/PCGDataBinding.h"
 #include "Compute/PCGDataForGPU.h"
@@ -45,6 +46,11 @@ namespace PCGSettings
 		TEXT("pcg.Graph.WarnPinNameCollisions"),
 		false,
 		TEXT("Enables warnings when there are name collision between pin names and overrides/user parameters."));
+
+	static TAutoConsoleVariable<bool> CVarWarnOnOverridePinUsage(
+		TEXT("pcg.Graph.GPU.WarnOnOverridePinUsage"),
+		true,
+		TEXT("Enables warnings when parameters are overidden on GPU nodes."));
 }
 
 /** Custom Crc computation that ignores properties that will not affect the computed result of a node. */
@@ -193,6 +199,29 @@ void UPCGSettingsInterface::SetEnabled(bool bInEnabled)
 		}
 #endif
 	}
+}
+
+bool UPCGSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) const
+{
+	if (PCGSettings::CVarWarnOnOverridePinUsage.GetValueOnAnyThread() && !bQuiet)
+	{
+		for (const FPCGSettingsOverridableParam& Param : OverridableParams())
+		{
+			if (ensure(!Param.PropertiesNames.IsEmpty()))
+			{
+				const FName PropertyName = Param.PropertiesNames[0];
+
+				if (IsPropertyOverriddenByPin(PropertyName))
+				{
+					PCG_KERNEL_VALIDATION_WARN(InContext, this, bQuiet, FText::Format(
+						LOCTEXT("ParamOverrideGPU", "Tried to override pin '{0}', but overrides are not supported on GPU nodes."),
+						FText::FromName(PropertyName)));
+				}
+			}
+		}
+	}
+
+	return true;
 }
 
 FPCGDataCollectionDesc UPCGSettings::ComputeInputPinDataDesc(const UPCGPin* InputPin, const UPCGDataBinding* Binding) const

@@ -11,9 +11,11 @@ struct FPCGContext;
 #define PCG_KERNEL_LOGGING_ENABLED (!(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING)
 
 #if PCG_KERNEL_LOGGING_ENABLED
-#define PCG_KERNEL_VALIDATION(Context, Settings, bQuiet, ValidationMessage) if (!bQuiet) PCGComputeHelpers::LogKernelError(Context, Settings, ValidationMessage);
+#define PCG_KERNEL_VALIDATION_WARN(Context, Settings, bQuiet, ValidationMessage) if (!bQuiet) PCGComputeHelpers::LogKernelWarning(Context, Settings, ValidationMessage);
+#define PCG_KERNEL_VALIDATION_ERR(Context, Settings, bQuiet, ValidationMessage) if (!bQuiet) PCGComputeHelpers::LogKernelError(Context, Settings, ValidationMessage);
 #else
-#define PCG_KERNEL_VALIDATION(Context, Settings, bQuiet, ValidationMessage) // Log removed
+#define PCG_KERNEL_VALIDATION_WARN(Context, Settings, bQuiet, ValidationMessage) // Log removed
+#define PCG_KERNEL_VALIDATION_ERR(Context, Settings, bQuiet, ValidationMessage) // Log removed
 #endif
 
 namespace PCGComputeConstants
@@ -68,6 +70,7 @@ namespace PCGComputeHelpers
 	bool IsTypeAllowedInDataCollection(EPCGDataType Type);
 
 #if PCG_KERNEL_LOGGING_ENABLED
+	void LogKernelWarning(const FPCGContext* Context, const UPCGSettings* Settings, const FText& InText);
 	void LogKernelError(const FPCGContext* Context, const UPCGSettings* Settings, const FText& InText);
 #endif
 }
