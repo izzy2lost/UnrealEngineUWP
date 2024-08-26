@@ -208,7 +208,7 @@ void UStateTreeEditorMode::Exit()
 	{
 		if (UStateTreeEditingSubsystem* StateTreeEditingSubsystem = GEditor->GetEditorSubsystem<UStateTreeEditingSubsystem>())
 		{		
-			TSharedRef<FStateTreeViewModel> ViewModel = StateTreeEditingSubsystem->FindOrAddViewModel(CachedStateTree.Get());				
+			TSharedRef<FStateTreeViewModel> ViewModel = StateTreeEditingSubsystem->FindOrAddViewModel(CachedStateTree.Get());
 			{
 				ViewModel->GetOnAssetChanged().RemoveAll(this);
 				ViewModel->GetOnStateAdded().RemoveAll(this);
@@ -217,7 +217,7 @@ void UStateTreeEditorMode::Exit()
 				ViewModel->GetOnSelectionChanged().RemoveAll(this);
 				ViewModel->GetOnBringNodeToFocus().RemoveAll(this);
 			}
-		}			
+		}
 	}
 
 	UE::StateTree::Delegates::OnIdentifierChanged.RemoveAll(this);
@@ -243,7 +243,7 @@ void UStateTreeEditorMode::OnStateTreeChanged()
 		{
 			if (CachedStateTree.IsValid())
 			{
-				TSharedRef<FStateTreeViewModel> OldViewModel = StateTreeEditingSubsystem->FindOrAddViewModel(CachedStateTree.Get());				
+				TSharedRef<FStateTreeViewModel> OldViewModel = StateTreeEditingSubsystem->FindOrAddViewModel(CachedStateTree.Get());
 				{
 					OldViewModel->GetOnAssetChanged().RemoveAll(this);
 					OldViewModel->GetOnStateAdded().RemoveAll(this);
@@ -257,6 +257,7 @@ void UStateTreeEditorMode::OnStateTreeChanged()
 
 		UStateTree* StateTree = Context->EditorHostInterface->GetStateTree();
 		CachedStateTree = StateTree;
+		UpdateAsset();
 
 		if (TSharedPtr<IDetailsView> AssetDetailsView = GetAssetDetailsView())
 		{

@@ -54,6 +54,7 @@ protected:
 	void HandleStateAdded(UStateTreeState* , UStateTreeState*) { UpdateAsset(); }
 	void HandleStatesRemoved(const TSet<UStateTreeState*>&) { UpdateAsset(); }
 	void HandleOnStatesMoved(const TSet<UStateTreeState*>&, const TSet<UStateTreeState*>&) { UpdateAsset(); }
+	/** Resolve the internal editor data and fixup the StateTree nodes. */
 	void UpdateAsset();
 
 	TSharedPtr<IDetailsView> GetDetailsView() const;
