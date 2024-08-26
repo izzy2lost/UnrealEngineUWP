@@ -783,6 +783,12 @@ UEdGraphPin* FKismetCompilerUtilities::GenerateAssignmentNodes(class FKismetComp
 	{
 		// Only create 'set param by name' node if this pin is linked to something
 		UEdGraphPin* OrgPin = SpawnNode->Pins[PinIdx];
+
+		if (OrgPin->Direction == EGPD_Output)
+		{
+			continue;
+		}
+		
 		if (!CallBeginSpawnNode->FindPin(OrgPin->PinName))
 		{
 			FProperty* Property = FindFProperty<FProperty>(ForClass, OrgPin->PinName);
