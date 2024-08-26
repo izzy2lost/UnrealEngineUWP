@@ -56,6 +56,14 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VKValidationCallback(
 	return VK_FALSE;
 }
 
+// gets current time in seconds
+double now_s() 
+{
+	struct timespec res;
+	clock_gettime(CLOCK_REALTIME, &res);
+	return (double) res.tv_sec + (double) res.tv_nsec / 1e9;
+}
+
 class FVulkanPSOCompiler
 {
 	bool bInitialized = false;
@@ -989,9 +997,11 @@ void ExitTest()
 	}
 }
 
-JNI_METHOD jobject Java_com_epicgames_unreal_psoservices_PSOProgramService_CompileVKGFXPSO(JNIEnv* jenv, jobject thiz, jbyteArray jVS, jbyteArray jPS, jbyteArray jPSO, jbyteArray jPSOCacheDataSource)
+JNI_METHOD jobject Java_com_epicgames_unreal_psoservices_PSOProgramService_CompileVKGFXPSO(JNIEnv* jenv, jobject thiz, jbyteArray jVS, jbyteArray jPS, jbyteArray jPSO, jbyteArray jPSOCacheDataSource, jfloatArray jCompilationDuration)
 {
 	ExitTest();
+
+	double CompilationStartTime = now_s();
 
 	const uint8_t* VS = (const uint8_t*)jenv->GetByteArrayElements(jVS, nullptr);
 	uint64_t VSSize = jenv->GetArrayLength(jVS);
@@ -1018,14 +1028,26 @@ JNI_METHOD jobject Java_com_epicgames_unreal_psoservices_PSOProgramService_Compi
 		free(BinaryData);
 	}
 
+	double CompilationDuration = now_s() - CompilationStartTime;
+
+	float *CDA = jenv->GetFloatArrayElements(jCompilationDuration, nullptr);
+	if (CDA != nullptr)
+	{
+		CDA[0] = (float)CompilationDuration;
+		jenv->ReleaseFloatArrayElements(jCompilationDuration, CDA, 0);
+	}
+
 	return Data;
 }
 
 // the shared mem version takes an FD and a bunch of offsets.
 // another shared FD containing the result is returned.
-JNI_METHOD jint Java_com_epicgames_unreal_psoservices_PSOProgramService_CompileVKGFXPSOSHM(JNIEnv* jenv, jobject thiz, jint SHMemFD, jlong jVSSize, jlong jPSSize, jlong jPSOSize, jlong jPSOCacheDataSourceSize)
+JNI_METHOD jint Java_com_epicgames_unreal_psoservices_PSOProgramService_CompileVKGFXPSOSHM(JNIEnv* jenv, jobject thiz, jint SHMemFD, jlong jVSSize, jlong jPSSize, jlong jPSOSize, jlong jPSOCacheDataSourceSize, jfloatArray jCompilationDuration)
 {
 	ExitTest();
+
+	double CompilationStartTime = now_s();
+
 	{
 		BEGIN_TRACE("CompileVKGFXPSOSHM");
 		BEGIN_TRACE("CompileVKGFXPSOSHM_1");
@@ -1109,6 +1131,16 @@ JNI_METHOD jint Java_com_epicgames_unreal_psoservices_PSOProgramService_CompileV
 	{
 		LOG_ERROR( "Mem alloc %d bytes failed (errno %d) ", AllocSize, errno);
 	}
+
+	double CompilationDuration = now_s() - CompilationStartTime;
+
+	float* CDA = jenv->GetFloatArrayElements(jCompilationDuration, nullptr);
+	if (CDA != nullptr)
+	{
+		CDA[0] = (float)CompilationDuration;
+		jenv->ReleaseFloatArrayElements(jCompilationDuration, CDA, 0);
+	}
+
 
 	END_TRACE();
 

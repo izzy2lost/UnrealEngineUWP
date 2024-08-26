@@ -19,6 +19,7 @@
 #include <sys/mman.h>
 #include "ProfilingDebugging/ScopedTimers.h"
 #include "Android/AndroidDynamicRHI.h"
+#include "PSOMetrics.h"
 
 #if USE_ANDROID_VULKAN_SWAPPY
 #undef VK_NO_PROTOTYPES
@@ -1390,6 +1391,7 @@ struct FVKRemoteProgramCompileJNI
 	jfieldID ProgramResponse_ErrorField = 0;
 	jfieldID ProgramResponse_SHMOutputHandleField = 0;
 	jfieldID ProgramResponse_CompiledBinaryField = 0;
+	jfieldID ProgramResponse_CompilationDurationField = 0;
 	bool bAllFound = false;
 
 	void Init(JNIEnv* Env)
@@ -1434,9 +1436,11 @@ struct FVKRemoteProgramCompileJNI
 			CHECK_JNI_EXCEPTIONS(Env);
 			ProgramResponse_SHMOutputHandleField = FJavaWrapper::FindField(Env, ProgramResponseClass, "SHMOutputHandle", "I", true);
 			CHECK_JNI_EXCEPTIONS(Env);
+			ProgramResponse_CompilationDurationField = FJavaWrapper::FindField(Env, ProgramResponseClass, "CompilationDuration", "F", true);
+			CHECK_JNI_EXCEPTIONS(Env);
 		}
 
-		bAllFound = PSOServiceAccessor && DispatchPSOCompile && DispatchPSOCompileShm && StartRemoteProgramLink && HaveServicesFailed && AreProgramServicesReady && StopRemoteProgramLink && ProgramResponseClass && ProgramResponse_SuccessField && ProgramResponse_CompiledBinaryField && ProgramResponse_ErrorField && ProgramResponse_SHMOutputHandleField;
+		bAllFound = PSOServiceAccessor && DispatchPSOCompile && DispatchPSOCompileShm && StartRemoteProgramLink && HaveServicesFailed && AreProgramServicesReady && StopRemoteProgramLink && ProgramResponseClass && ProgramResponse_SuccessField && ProgramResponse_CompiledBinaryField && ProgramResponse_ErrorField && ProgramResponse_SHMOutputHandleField && ProgramResponse_CompilationDurationField;
 		UE_CLOG(!bAllFound, LogRHI, Fatal, TEXT("Failed to find JNI Vulkan remote program compiler."));
 	}
 }VKRemoteProgramCompileJNI;
@@ -1633,6 +1637,8 @@ VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(
 			if (bSucceeded)
 			{
 				const int ProgramResultSharedHandle = Env->GetIntField(*ProgramResponseObj, VKRemoteProgramCompileJNI.ProgramResponse_SHMOutputHandleField);
+				const float ProgramResultCompilationDuration = Env->GetFloatField(*ProgramResponseObj, VKRemoteProgramCompileJNI.ProgramResponse_CompilationDurationField);
+				GetPSOMetricsDelegate().ExecuteIfBound(ProgramResultCompilationDuration);
 				if(ensure(ProgramResultSharedHandle > -1))
 				{
 					const uint32 ResultMemSize = (uint32)ASharedMemory_getSize(ProgramResultSharedHandle);

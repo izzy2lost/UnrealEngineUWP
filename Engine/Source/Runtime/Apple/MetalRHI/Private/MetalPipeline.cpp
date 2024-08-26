@@ -17,6 +17,7 @@
 #include "RenderUtils.h"
 #include "Misc/ScopeRWLock.h"
 #include "HAL/PThreadEvent.h"
+#include "PSOMetrics.h"
 #include <objc/runtime.h>
 
 static int32 GMetalCacheShaderPipelines = 1;
@@ -282,7 +283,12 @@ public:
 
 				if (bCompile)
 				{
+					const double CompilationStartTime = FPlatformTime::Seconds();
 					Desc = CreateMTLRenderPipeline(Device, bSync, Key, Init, State);
+					const double CompilationDuration = FPlatformTime::Seconds() - CompilationStartTime;
+
+					GetPSOMetricsDelegate().ExecuteIfBound((float)CompilationDuration);
+
 
 					if (Desc != nullptr)
 					{

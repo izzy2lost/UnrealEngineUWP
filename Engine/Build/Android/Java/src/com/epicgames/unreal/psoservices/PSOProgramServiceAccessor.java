@@ -120,6 +120,8 @@ public class PSOProgramServiceAccessor
 					byte[] JobContext = msg.getData().getByteArray(PSOProgramService.JobContext_Key);
 					int JobID = msg.getData().getInt(PSOProgramService.JobID_Key, -1);
 					int ServiceID = msg.getData().getInt(PSOProgramService.ServiceID_Key, -1);
+					// not needed here, since we'll just respond with the same data (Bundle)
+					//float CompilationDuration = msg.getData().getFloat(PSOProgramService.CompilationDuration_Key, -1.0f);
 
 					try
 					{
@@ -361,6 +363,7 @@ public class PSOProgramServiceAccessor
 		String ErrorMessage;
 		byte[] CompiledProgram;
 		int SHMOutputHandle;
+		float CompilationDuration;
 	}
 
 	static final private Object ProgramLinkLock = new Object();
@@ -528,6 +531,7 @@ public class PSOProgramServiceAccessor
 			byte[] EngineJobContext = pendingResponse.data.getByteArray(PSOProgramService.JobContext_Key);
 			byte[] CompiledBinary = pendingResponse.data.getByteArray(PSOProgramService.CompiledProgram_Key);
 			int JobID = pendingResponse.data.getInt(PSOProgramService.JobID_Key);
+			float CompilationDuration = pendingResponse.data.getFloat(PSOProgramService.CompilationDuration_Key);
 
 			//Log.verbose("OGLRemoteProgramLink handoff ("+JobID+"), ("+(EngineJobContext == null ? 0 : EngineJobContext.length)+", "+(CompiledBinary==null?0:CompiledBinary.length)+")");
 
@@ -536,6 +540,7 @@ public class PSOProgramServiceAccessor
 			jniResponse.bCompileSuccess = fail == null || fail.isEmpty();
 			jniResponse.ErrorMessage = fail;
 			jniResponse.CompiledProgram = CompiledBinary;
+			jniResponse.CompilationDuration = CompilationDuration;
 
 			return jniResponse;
 		}
@@ -746,6 +751,7 @@ public class PSOProgramServiceAccessor
 			byte[] EngineJobContext = pendingResponse.data.getByteArray(PSOProgramService.JobContext_Key);
 			byte[] CompiledBinary = pendingResponse.data.getByteArray(PSOProgramService.CompiledProgram_Key);
 			int JobID = pendingResponse.data.getInt(PSOProgramService.JobID_Key);
+			float CompilationDuration = pendingResponse.data.getFloat(PSOProgramService.CompilationDuration_Key);
 
 			//Log.verbose("OGLRemoteProgramLink handoff ("+JobID+"), ("+(EngineJobContext == null ? 0 : EngineJobContext.length)+", "+(CompiledBinary==null?0:CompiledBinary.length)+")");
 
@@ -754,6 +760,7 @@ public class PSOProgramServiceAccessor
 			jniResponse.bCompileSuccess = fail == null || fail.isEmpty();
 			jniResponse.ErrorMessage = fail;
 			jniResponse.CompiledProgram = CompiledBinary;
+			jniResponse.CompilationDuration = CompilationDuration;
 
 			return jniResponse;
 		}
@@ -915,6 +922,8 @@ public class PSOProgramServiceAccessor
 
 			int JobID = pendingResponse.data.getInt(PSOProgramService.JobID_Key);
 
+			float CompilationDuration = pendingResponse.data.getFloat(PSOProgramService.CompilationDuration_Key);
+
 			//Log.verbose("OGLRemoteProgramLink handoff ("+JobID+"), ("+(EngineJobContext == null ? 0 : EngineJobContext.length)+")");
 
 			JNIProgramLinkResponse jniResponse = new JNIProgramLinkResponse();
@@ -922,6 +931,7 @@ public class PSOProgramServiceAccessor
 			jniResponse.bCompileSuccess = fail == null || fail.isEmpty();
 			jniResponse.ErrorMessage = fail;
 			jniResponse.SHMOutputHandle = CompiledBinarySharedFD;
+			jniResponse.CompilationDuration = CompilationDuration;
 
 			return jniResponse;
 		}
