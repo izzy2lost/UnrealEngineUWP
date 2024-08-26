@@ -83,7 +83,7 @@ void URigVMEdGraph::HandleRigVMGraphRenamed(const FString& InOldNodePath, const 
 	else if(ModelNodePath.StartsWith(OldPrefix))
 	{
 		Modify();
-		ModelNodePath = NewPrefix + ModelNodePath.RightChop(OldPrefix.Len() - 1);
+		ModelNodePath = NewPrefix + ModelNodePath.RightChop(OldPrefix.Len());
 	}
 	else
 	{
