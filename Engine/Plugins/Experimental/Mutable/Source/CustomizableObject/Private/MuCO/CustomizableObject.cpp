@@ -697,6 +697,7 @@ void UCustomizableObjectPrivate::SaveCompiledData(FObjectAndNameAsStringProxyArc
 	MemoryWriter << CustomizableObjectPathMap;
 	MemoryWriter << GroupNodeMap;
 	MemoryWriter << ParticipatingObjects;
+	MemoryWriter << LocalModelResources.TableToParamNames;
 
 	if (!bIsCooking)
 	{
@@ -850,6 +851,7 @@ void UCustomizableObjectPrivate::LoadCompiledData(FObjectAndNameAsStringProxyArc
 			MemoryReader << CustomizableObjectPathMap;
 			MemoryReader << GroupNodeMap;
 			MemoryReader << ParticipatingObjects;
+			MemoryReader << LocalModelResource.TableToParamNames;
 
 			if (!bIsCooking)
 			{
@@ -3097,6 +3099,14 @@ bool FCompilationRequest::operator==(const FCompilationRequest& Other) const
 	return CustomizableObject == Other.CustomizableObject && Options.TargetPlatform == Other.Options.TargetPlatform;
 }
 #endif
+
+
+FArchive& operator<<(FArchive& Ar, FMutableParamNameSet& MutableParamNameSet)
+{
+	Ar << MutableParamNameSet.ParamNames;
+
+	return Ar;
+}
 
 
 #undef LOCTEXT_NAMESPACE

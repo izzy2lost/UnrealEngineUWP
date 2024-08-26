@@ -850,7 +850,7 @@ struct FMutableGraphGenerationContext
 	TMap<FString, FString> ParamNamesToSelectedOptions;
 
 	// Stores what param names use a certain table as a table can be used from multiple table nodes, useful for partial compilations to restrict params
-	TMap<TObjectPtr<const UDataTable>, TSet<FString>> TableToParamNames;
+	TMap<FString, FMutableParamNameSet> TableToParamNames;
 
 	TArray<const UEdGraphNode*> LimitedParameters;
 	int32 ParameterLimitationCount = 0;

@@ -868,6 +868,17 @@ public:
 	TSharedPtr<FModelStreamableBulkData> StreamingData;
 };
 
+USTRUCT()
+struct FMutableParamNameSet
+{
+	GENERATED_BODY()
+
+	TSet<FString> ParamNames;
+
+	friend FArchive& operator<<(FArchive& Ar, FMutableParamNameSet& MutableParamNameSet);
+};
+
+
 // Referenced materials, skeletons, passthrough textures...
 USTRUCT()
 struct FModelResources
@@ -974,7 +985,8 @@ struct FModelResources
 	TArray<FCustomizableObjectMeshToMeshVertData> EditorOnlyClothingMeshToMeshVertData;
 
 	// Stores what param names use a certain table as a table can be used from multiple table nodes, useful for partial compilations to restrict params
-	TMap<TObjectPtr<const UDataTable>, TSet<FString>> TableToParamNames;
+	UPROPERTY()
+	TMap<FString, FMutableParamNameSet> TableToParamNames;
 #endif
 
 	/** Max number of components in the compiled Model. */

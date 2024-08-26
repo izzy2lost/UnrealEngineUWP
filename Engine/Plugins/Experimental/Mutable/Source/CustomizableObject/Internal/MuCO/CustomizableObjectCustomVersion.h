@@ -132,6 +132,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 
 		AddModifierPin, // Move the modifiers output pin from Material to Modifier
 
+		CorrectlySerializeTableToParamNames,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

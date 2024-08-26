@@ -775,20 +775,23 @@ void RestrictRowNamesToSelectedOption(TArray<FName>& InOutRowNames, const UCusto
 {
 	if (!GenerationContext.ParamNamesToSelectedOptions.IsEmpty())
 	{
-		TSet<FString>* ParamNames = GenerationContext.TableToParamNames.Find(TableNode.Table);
+		FMutableParamNameSet* ParamNameSet = GenerationContext.TableToParamNames.Find(TableNode.Table->GetPathName());
 
-		if (ParamNames && !ParamNames->IsEmpty())
+		if (ParamNameSet && !ParamNameSet->ParamNames.IsEmpty())
 		{
 			TSet<FName> SelectedOptionNames;
 
-			for (const FString& ParamName : *ParamNames)
+			for (const FString& ParamName : ParamNameSet->ParamNames)
 			{
 				// If the param is in the map restrict to only the selected option
 				FString* SelectedOptionString = GenerationContext.ParamNamesToSelectedOptions.Find(ParamName);
 
 				if (SelectedOptionString)
 				{
-					SelectedOptionNames.Add(FName(*SelectedOptionString));
+					if (!(*SelectedOptionString == FString("None") && TableNode.bAddNoneOption))
+					{
+						SelectedOptionNames.Add(FName(*SelectedOptionString));
+					}
 				}
 			}
 
@@ -1069,14 +1072,14 @@ mu::TablePtr GenerateMutableSourceTable(const UDataTable* DataTable, const UCust
 
 	if (GenerationContext.ParamNamesToSelectedOptions.IsEmpty())
 	{
-		TSet<FString>* ParamNames = GenerationContext.TableToParamNames.Find(DataTable);
+		FMutableParamNameSet* ParamNameSet = GenerationContext.TableToParamNames.Find(DataTable->GetPathName());
 
-		if (!ParamNames)
+		if (!ParamNameSet)
 		{
-			ParamNames = &GenerationContext.TableToParamNames.Add(DataTable);
+			ParamNameSet = &GenerationContext.TableToParamNames.Add(DataTable->GetPathName());
 		}
 
-		ParamNames->Add(TableNode->ParameterName);
+		ParamNameSet->ParamNames.Add(TableNode->ParameterName);
 	}
 
 	// Checking if the table is in the cache
