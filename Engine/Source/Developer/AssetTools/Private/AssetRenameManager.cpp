@@ -1289,7 +1289,7 @@ void FAssetRenameManager::SetupPublicAssets(TArray<FAssetRenameDataWithReference
 		return;
 	}
 
-	FScopedSlowTask SlowTask((float)AssetsToRename.Num(), LOCTEXT("SetupPublicAssets", "Setting up public assets..."));
+	FScopedSlowTask SlowTask(static_cast<float>(AssetsToRename.Num()), LOCTEXT("SetupPublicAssets", "Setting up public assets..."));
 	SlowTask.MakeDialog();
 
 	IAssetTools& AssetTools = IAssetTools::Get();
@@ -1693,7 +1693,7 @@ void FAssetRenameManager::PerformAssetRename(TArray<FAssetRenameDataWithReferenc
 
 	TArray<UPackage*> PackagesToSave = ReferencingPackagesToSave;
 	TArray<UPackage*> PotentialPackagesToDelete;
-	float ProgressStep = 2.0f / (float)AssetsToRename.Num();
+	float ProgressStep = 2.0f / static_cast<float>(AssetsToRename.Num());
 	for (int32 AssetIdx = 0; AssetIdx < AssetsToRename.Num(); ++AssetIdx)
 	{
 		RenamingSlowTask.EnterProgressFrame(ProgressStep);
@@ -1903,7 +1903,7 @@ void FAssetRenameManager::PerformAssetRename(TArray<FAssetRenameDataWithReferenc
 	FScopedSlowTask BuildingRelationshipSlowTask(5.0f, LOCTEXT("BranchingRenamedAssetsSlowTask", "Building a relationship between the renamed files in Revision Control..."));
 
 	// Now branch the files in source control if possible
-	ProgressStep = 2.9f / (float)AssetsToRename.Num();
+	ProgressStep = 2.9f / static_cast<float>(AssetsToRename.Num());
 	for (const FAssetRenameDataWithReferencers& RenameData : AssetsToRename)
 	{
 		BuildingRelationshipSlowTask.EnterProgressFrame(ProgressStep);
