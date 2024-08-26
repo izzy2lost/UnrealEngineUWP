@@ -924,7 +924,7 @@ void AWaterBrushManager::DisplacementSettings(const FBrushActorRenderContext& Br
 	float BrushTexHeightValue = DisableBrushTextureEffects ? 0.0f : Displacement.DisplacementHeight;
 	BrushActorRenderContext.MID->SetScalarParameterValue(FName(TEXT("BrushTexHeight")), BrushTexHeightValue);
 	BrushActorRenderContext.MID->SetScalarParameterValue(FName(TEXT("T")), Displacement.DisplacementTiling);
-	BrushActorRenderContext.MID->SetTextureParameterValue(FName(TEXT("BrushRT")), Displacement.Texture);
+	BrushActorRenderContext.MID->SetTextureParameterValue(FName(TEXT("BrushRT")), Displacement.Texture.Get());
 	BrushActorRenderContext.MID->SetScalarParameterValue(FName(TEXT("Displacement Midpoint")), Displacement.Midpoint);
 	BrushActorRenderContext.MID->SetVectorParameterValue(FName(TEXT("DisplacementChannel")), Displacement.Channel);
 }
@@ -941,7 +941,7 @@ void AWaterBrushManager::ApplyWeightmapSettings(const FBrushRenderContext& Brush
 	float EdgeOffsetValue = WMSettings.EdgeOffset - (SplineMeshExtension / 2.0f);
 	WeightmapMID->SetScalarParameterValue(FName(TEXT("EdgeOffset")), EdgeOffsetValue);
 
-	WeightmapMID->SetTextureParameterValue(FName(TEXT("BrushRT")), WMSettings.ModulationTexture);
+	WeightmapMID->SetTextureParameterValue(FName(TEXT("BrushRT")), WMSettings.ModulationTexture.Get());
 	WeightmapMID->SetScalarParameterValue(FName(TEXT("T")), WMSettings.TextureTiling);
 
 	float WeightmapInfluenceValue = WMSettings.TextureInfluence * (float)!DisableBrushTextureEffects;

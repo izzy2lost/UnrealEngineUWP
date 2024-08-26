@@ -73,7 +73,6 @@ public:
 	void UpdateActorIcon();
 #endif // WITH_EDITOR
 
-#if WITH_EDITORONLY_DATA
 	UPROPERTY(Category = Terrain, EditAnywhere, BlueprintReadWrite)
 	FWaterCurveSettings WaterCurveSettings;
 
@@ -83,6 +82,7 @@ public:
 	UPROPERTY(Category = Terrain, EditAnywhere, BlueprintReadWrite)
 	TMap<FName, FWaterBodyWeightmapSettings> WaterWeightmapSettings;
 
+#if WITH_EDITORONLY_DATA
 	UPROPERTY(Transient)
 	TObjectPtr<UBillboardComponent> ActorIcon;
 #endif

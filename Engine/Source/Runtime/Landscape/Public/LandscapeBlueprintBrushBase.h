@@ -55,10 +55,6 @@ class ALandscapeBlueprintBrushBase : public AActor
 	GENERATED_UCLASS_BODY()
 
 protected:
-#if WITH_EDITORONLY_DATA
-	UPROPERTY(Transient)
-	TObjectPtr<class ALandscape> OwningLandscape;
-
 	UPROPERTY(Category = "Settings", EditAnywhere, BlueprintReadWrite)
 	bool UpdateOnPropertyChange;
 
@@ -74,6 +70,10 @@ protected:
 	UPROPERTY(Category = "Settings", EditAnywhere, BlueprintReadWrite)
 	TArray<FName> AffectedWeightmapLayers;
 
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(Transient)
+	TObjectPtr<class ALandscape> OwningLandscape;
+
 	UPROPERTY(Transient)
 	bool bIsVisible;
 
@@ -84,7 +84,7 @@ protected:
 	FIntPoint CurrentRenderTargetSize = FIntPoint(MAX_int32, MAX_int32);
 
 	bool bCaptureBoundaryNormals = false;	// HACK [chris.tchou] remove once we have a better boundary normal solution
-#endif
+#endif // WITH_EDITORONLY_DATA
 
 public:
 	UFUNCTION(BlueprintNativeEvent, meta = (DeprecatedFunction, DeprecationMessage = "Please use RenderLayer instead."))
@@ -158,5 +158,5 @@ public:
 	virtual bool CanChangeIsSpatiallyLoadedFlag() const override { return false; }
 
 	bool GetCaptureBoundaryNormals() { return bCaptureBoundaryNormals; }	// HACK [chris.tchou] remove once we have a better boundary normal solution
-#endif
+#endif // WITH_EDITOR
 };

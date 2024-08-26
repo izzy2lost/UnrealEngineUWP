@@ -539,8 +539,30 @@ void AWaterBody::DeprecateData()
 
 	if (GetLinkerCustomVersion(FWaterCustomVersion::GUID) < FWaterCustomVersion::MoveTerrainCarvingSettingsToWater)
 	{
-		static_assert(sizeof(WaterHeightmapSettings_DEPRECATED) == sizeof(TerrainCarvingSettings_DEPRECATED), "Both old and old water heightmap settings struct should be exactly similar");
-		FMemory::Memcpy((void*)&WaterHeightmapSettings_DEPRECATED, (void*)&TerrainCarvingSettings_DEPRECATED, sizeof(WaterHeightmapSettings_DEPRECATED));
+		// This horrific piece of code is for salvaging data from the old struct (TerrainCarvingSettings_DEPRECATED, of type FLandmassTerrainCarvingSettings), to the 
+		//  "new" struct (WaterHeightmapSettings_DEPRECATED, of type FWaterBodyHeightmapSettings) (which is also deprecated, mind you, since it has moved into UWaterBodyComponent). 
+		//  A straight-up Memcpy used to be enough, but now the Effects.Displacement.Texture has gone from TObjectPtr to TSoftObjectPtr, so we cannot do this anymore and we have to copy 
+		//  each sub-struct one by one... The code is still there for perfect backwards-compatibility, but should not ever be exercised, since FLandmassTerrainCarvingSettings was only used 
+		//  before Water became public... 
+#define COPY_SIMILAR_SETTINGS(MemberName) \
+		static_assert(sizeof(WaterHeightmapSettings_DEPRECATED.MemberName) == sizeof(TerrainCarvingSettings_DEPRECATED.MemberName), "Both old and new settings struct should be exactly similar"); \
+		FMemory::Memcpy((void*)&WaterHeightmapSettings_DEPRECATED.MemberName, (void*)&TerrainCarvingSettings_DEPRECATED.MemberName, sizeof(WaterHeightmapSettings_DEPRECATED.MemberName));
+
+		COPY_SIMILAR_SETTINGS(BlendMode);
+		WaterHeightmapSettings_DEPRECATED.bInvertShape = TerrainCarvingSettings_DEPRECATED.bInvertShape;
+		COPY_SIMILAR_SETTINGS(FalloffSettings);
+		COPY_SIMILAR_SETTINGS(Effects.Blurring);
+		COPY_SIMILAR_SETTINGS(Effects.CurlNoise);
+		// Copy FWaterBrushEffects from FLandmassBrushEffectsList by hand because it is not binary-compatible : 
+		WaterHeightmapSettings_DEPRECATED.Effects.Displacement.DisplacementHeight = TerrainCarvingSettings_DEPRECATED.Effects.Displacement.DisplacementHeight;
+		WaterHeightmapSettings_DEPRECATED.Effects.Displacement.DisplacementTiling = TerrainCarvingSettings_DEPRECATED.Effects.Displacement.DisplacementTiling;
+		WaterHeightmapSettings_DEPRECATED.Effects.Displacement.Texture = TerrainCarvingSettings_DEPRECATED.Effects.Displacement.Texture;
+		WaterHeightmapSettings_DEPRECATED.Effects.Displacement.Midpoint = TerrainCarvingSettings_DEPRECATED.Effects.Displacement.Midpoint;
+		WaterHeightmapSettings_DEPRECATED.Effects.Displacement.Channel = TerrainCarvingSettings_DEPRECATED.Effects.Displacement.Channel;
+		WaterHeightmapSettings_DEPRECATED.Effects.Displacement.WeightmapInfluence = TerrainCarvingSettings_DEPRECATED.Effects.Displacement.WeightmapInfluence;
+		COPY_SIMILAR_SETTINGS(Effects.SmoothBlending);
+		COPY_SIMILAR_SETTINGS(Effects.Terracing);
+		WaterHeightmapSettings_DEPRECATED.Priority_DEPRECATED = TerrainCarvingSettings_DEPRECATED.Priority;
 	}
 
 	if (GIsEditor && !HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject | RF_DefaultSubObject))

@@ -47,12 +47,12 @@ FLandscapeBrushParameters::FLandscapeBrushParameters(bool bInIsHeightmapMerge, c
 // ----------------------------------------------------------------------------------
 
 ALandscapeBlueprintBrushBase::ALandscapeBlueprintBrushBase(const FObjectInitializer& ObjectInitializer)
-#if WITH_EDITORONLY_DATA
-	: OwningLandscape(nullptr)
-	, UpdateOnPropertyChange(true)
+	: UpdateOnPropertyChange(true)
 	, AffectHeightmap(false)
 	, AffectWeightmap(false)
 	, AffectVisibilityLayer(false)
+#if WITH_EDITORONLY_DATA
+	, OwningLandscape(nullptr)
 	, bIsVisible(true)
 	, LastRequestLayersContentUpdateFrameNumber(InvalidLastRequestLayersContentUpdateFrameNumber)
 #endif // WITH_EDITORONLY_DATA
@@ -172,6 +172,51 @@ void ALandscapeBlueprintBrushBase::RequestLandscapeUpdate(bool bInUserTriggered)
 		}
 	}
 #endif // WITH_EDITOR
+}
+
+void ALandscapeBlueprintBrushBase::SetCanAffectHeightmap(bool bInCanAffectHeightmap)
+{
+#if WITH_EDITORONLY_DATA
+	if (bInCanAffectHeightmap != AffectHeightmap)
+	{
+		Modify();
+		AffectHeightmap = bInCanAffectHeightmap;
+		if (OwningLandscape)
+		{
+			OwningLandscape->OnBlueprintBrushChanged();
+		}
+	}
+#endif // WITH_EDITORONLY_DATA
+}
+
+void ALandscapeBlueprintBrushBase::SetCanAffectWeightmap(bool bInCanAffectWeightmap)
+{
+#if WITH_EDITORONLY_DATA
+	if (bInCanAffectWeightmap != AffectWeightmap)
+	{
+		Modify();
+		AffectWeightmap = bInCanAffectWeightmap;
+		if (OwningLandscape)
+		{
+			OwningLandscape->OnBlueprintBrushChanged();
+		}
+	}
+#endif // WITH_EDITORONLY_DATA
+}
+
+void ALandscapeBlueprintBrushBase::SetCanAffectVisibilityLayer(bool bInCanAffectVisibilityLayer)
+{
+#if WITH_EDITORONLY_DATA
+	if (bInCanAffectVisibilityLayer != AffectVisibilityLayer)
+	{
+		Modify();
+		AffectVisibilityLayer = bInCanAffectVisibilityLayer;
+		if (OwningLandscape)
+		{
+			OwningLandscape->OnBlueprintBrushChanged();
+		}
+	}
+#endif // WITH_EDITORONLY_DATA
 }
 
 #if WITH_EDITOR
@@ -433,54 +478,7 @@ void ALandscapeBlueprintBrushBase::SetIsVisible(bool bInIsVisible)
 		OwningLandscape->OnBlueprintBrushChanged();
 	}
 }
-#endif // WITH_EDITOR
 
-void ALandscapeBlueprintBrushBase::SetCanAffectHeightmap(bool bInCanAffectHeightmap)
-{
-#if WITH_EDITOR
-	if (bInCanAffectHeightmap != AffectHeightmap)
-	{
-		Modify();
-		AffectHeightmap = bInCanAffectHeightmap;
-		if (OwningLandscape)
-		{
-			OwningLandscape->OnBlueprintBrushChanged();
-		}
-	}
-#endif // WITH_EDITOR
-}
-
-void ALandscapeBlueprintBrushBase::SetCanAffectWeightmap(bool bInCanAffectWeightmap)
-{
-#if WITH_EDITOR
-	if (bInCanAffectWeightmap != AffectWeightmap)
-	{
-		Modify();
-		AffectWeightmap = bInCanAffectWeightmap;
-		if (OwningLandscape)
-		{
-			OwningLandscape->OnBlueprintBrushChanged();
-		}
-	}
-#endif // WITH_EDITOR
-}
-
-void ALandscapeBlueprintBrushBase::SetCanAffectVisibilityLayer(bool bInCanAffectVisibilityLayer)
-{
-#if WITH_EDITOR
-	if (bInCanAffectVisibilityLayer != AffectVisibilityLayer)
-	{
-		Modify();
-		AffectVisibilityLayer = bInCanAffectVisibilityLayer;
-		if (OwningLandscape)
-		{
-			OwningLandscape->OnBlueprintBrushChanged();
-		}
-	}
-#endif // WITH_EDITOR
-}
-
-#if WITH_EDITOR
 bool ALandscapeBlueprintBrushBase::CanAffectWeightmapLayer(const FName& InLayerName) const
 {
 	if (!CanAffectWeightmap())
