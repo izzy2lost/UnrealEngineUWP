@@ -1117,7 +1117,7 @@ void FMediaIOCorePlayerBase::AddVideoSample(const TSharedRef<FMediaIOCoreTexture
 		const bool bCanUseGPUTextureTransfer = CanUseGPUTextureTransfer();
 		const bool bIsAwaitingForGPUTransfer = Sample->IsAwaitingForGPUTransfer();
 
-		// So, when GPUDirect is availalbe we transfer data on the rendering thread. The callback AddVideoSampleAfterGPUTransfer_RenderThread
+		// So, when GPUDirect is available we transfer data on the rendering thread. The callback AddVideoSampleAfterGPUTransfer_RenderThread
 		// will put the sample to the pool when finished.
 		if (bCanUseGPUTextureTransfer && bIsAwaitingForGPUTransfer)
 		{
