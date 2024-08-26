@@ -27,7 +27,9 @@
 #include "GeometryCollection/GeometryCollectionProximityUtility.h"
 #include "FractureEngineClustering.h"
 #include "FractureEngineSelection.h"
-#include "FractureEngineFracturing.h"
+#include "GeometryCollection/Facades/CollectionTransformSelectionFacade.h"
+#include "GeometryCollection/Facades/CollectionBoundsFacade.h"
+#include "Dataflow/DataflowSelection.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionFracturingNodes)
 
@@ -39,10 +41,17 @@ namespace Dataflow
 		static const FLinearColor CDefaultNodeBodyTintColor = FLinearColor(0.f, 0.f, 0.f, 0.5f);
 
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FUniformScatterPointsDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FUniformScatterPointsDataflowNode_v2);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FRadialScatterPointsDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FRadialScatterPointsDataflowNode_v2);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGridScatterPointsDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FVoronoiFractureDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FVoronoiFractureDataflowNode_v2);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FPlaneCutterDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FPlaneCutterDataflowNode_v2);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FExplodedViewDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSliceCutterDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FBrickCutterDataflowNode);
 
 		// GeometryCollection|Fracture
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY_NODE_COLORS_BY_CATEGORY("GeometryCollection|Fracture", FLinearColor(1.f, 1.f, 0.8f), CDefaultNodeBodyTintColor);
@@ -57,6 +66,35 @@ void FUniformScatterPointsDataflowNode::Evaluate(Dataflow::FContext& Context, co
 		if (BBox.GetVolume() > 0.f)
 		{
 			FRandomStream RandStream(GetValue<float>(Context, &RandomSeed));
+
+			const FVector Extent(BBox.Max - BBox.Min);
+			const int32 NumPoints = RandStream.RandRange(GetValue<int32>(Context, &MinNumberOfPoints), GetValue<int32>(Context, &MaxNumberOfPoints));
+
+			TArray<FVector> PointsArr;
+			PointsArr.Reserve(NumPoints);
+			for (int32 Idx = 0; Idx < NumPoints; ++Idx)
+			{
+				PointsArr.Emplace(BBox.Min + FVector(RandStream.FRand(), RandStream.FRand(), RandStream.FRand()) * Extent);
+			}
+
+			SetValue(Context, MoveTemp(PointsArr), &Points);
+		}
+		else
+		{
+			// ERROR: Invalid BoundingBox input
+			SetValue(Context, TArray<FVector>(), &Points);
+		}
+	}
+}
+
+void FUniformScatterPointsDataflowNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<TArray<FVector>>(&Points))
+	{
+		const FBox& BBox = GetValue<FBox>(Context, &BoundingBox);
+		if (BBox.GetVolume() > 0.f)
+		{
+			FRandomStream RandStream(GetValue<int32>(Context, &RandomSeed));
 
 			const FVector Extent(BBox.Max - BBox.Min);
 			const int32 NumPoints = RandStream.RandRange(GetValue<int32>(Context, &MinNumberOfPoints), GetValue<int32>(Context, &MaxNumberOfPoints));
@@ -108,6 +146,175 @@ void FRadialScatterPointsDataflowNode::Evaluate(Dataflow::FContext& Context, con
 	}
 }
 
+void FRadialScatterPointsDataflowNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<TArray<FVector>>(&Points))
+	{
+		const FBox InBoundingBox = GetValue<FBox>(Context, &BoundingBox);
+		const FVector InCenter = GetValue<FVector>(Context, &Center);
+		const FVector InNormal = GetValue<FVector>(Context, &Normal);
+		const int32 InRandomSeed = GetValue<int32>(Context, &RandomSeed);
+		const int32 InAngularSteps = GetValue<int32>(Context, &AngularSteps);
+		const float InAngleOffset = GetValue<float>(Context, &AngleOffset);
+		const float InAngularNoise = GetValue<float>(Context, &AngularNoise);
+		const float InRadius = GetValue<float>(Context, &Radius);
+		const int32 InRadialSteps = GetValue<int32>(Context, &RadialSteps);
+		const float InRadialStepExponent = GetValue<float>(Context, &RadialStepExponent);
+		const float InRadialMinStep = GetValue<float>(Context, &RadialMinStep);
+		const float InRadialNoise = GetValue<float>(Context, &RadialNoise);
+		const float InRadialVariability = GetValue<float>(Context, &RadialVariability);
+		const float InAngularVariability = GetValue<float>(Context, &AngularVariability);
+		const float InAxialVariability = GetValue<float>(Context, &AxialVariability);
+
+		TArray<FVector> PointsArr;
+
+		const FVector::FReal AngularStep = 2 * PI / InAngularSteps;
+
+		FVector CenterVal(InBoundingBox.GetCenter() + InCenter);
+
+		FRandomStream RandStream(InRandomSeed);
+		FVector UpVector(InNormal);
+		UpVector.Normalize();
+		FVector BasisX, BasisY;
+		UpVector.FindBestAxisVectors(BasisX, BasisY);
+
+		// Precompute consistent noise for each angular step
+		TArray<FVector::FReal> AngleStepOffsets;
+		AngleStepOffsets.SetNumUninitialized(InAngularSteps);
+		for (int32 AngleIdx = 0; AngleIdx < InAngularSteps; ++AngleIdx)
+		{
+			AngleStepOffsets[AngleIdx] = FMath::DegreesToRadians(RandStream.FRandRange(-1, 1) * InAngularNoise);
+		}
+
+		// Compute radial positions following an (idx+1)^exp curve, and then re-normalize back to the Radius range
+		TArray<FVector::FReal> RadialPositions;
+		RadialPositions.SetNumUninitialized(InRadialSteps);
+		FVector::FReal StepOffset = 0;
+		for (int32 RadIdx = 0; RadIdx < InRadialSteps; ++RadIdx)
+		{
+			FVector::FReal RadialPos = FMath::Pow(RadIdx + 1, InRadialStepExponent) + StepOffset;
+			if (RadIdx == 0)
+			{
+				// Note we bring the first point a half-step toward the center, and shift all subsequent points accordingly
+				// so that for Exponent==1, the step from center to first boundary is the same distance as the step between each boundary
+				// (this is only necessary because there is no Voronoi site at the center)
+				RadialPos *= .5;
+				StepOffset = -RadialPos;
+			}
+
+			RadialPositions[RadIdx] = RadialPos;
+		}
+		// Normalize positions so that the diagram fits in the target radius
+		FVector::FReal RadialPosNorm = InRadius / RadialPositions.Last();
+		for (FVector::FReal& RadialPos : RadialPositions)
+		{
+			RadialPos = RadialPos * RadialPosNorm;
+		}
+		// Add radial noise 
+		for (int32 RadIdx = 0; RadIdx < InRadialSteps; ++RadIdx)
+		{
+			FVector::FReal& RadialPos = RadialPositions[RadIdx];
+			// Offset by RadialNoise, but don't allow noise to take the value below 0
+			RadialPos += RandStream.FRandRange(-FMath::Min(RadialPos, InRadialNoise), InRadialNoise);
+		}
+		// make sure the positions remain in increasing order
+		RadialPositions.Sort();
+		// Adjust positions so they are never closer than the RadialMinStep
+		FVector::FReal LastRadialPos = 0;
+		for (int32 RadIdx = 0; RadIdx < InRadialSteps; ++RadIdx)
+		{
+			FVector::FReal MinStep = InRadialMinStep;
+			if (RadIdx == 0)
+			{
+				MinStep *= .5;
+			}
+			if (RadialPositions[RadIdx] - LastRadialPos < MinStep)
+			{
+				RadialPositions[RadIdx] = LastRadialPos + MinStep;
+			}
+			LastRadialPos = RadialPositions[RadIdx];
+		}
+
+		// Add a bit of noise to work around failure case in Voro++
+		// TODO: fix the failure case in Voro++ and remove this
+		float MinRadialVariability = InRadius > 1.f ? .0001f : 0.f;
+		float UseRadialVariability = FMath::Max(MinRadialVariability, InRadialVariability);
+
+		// Create the radial Voronoi sites
+		for (int32 ii = 0; ii < InRadialSteps; ++ii)
+		{
+			FVector::FReal Len = RadialPositions[ii];
+			FVector::FReal Angle = FMath::DegreesToRadians(InAngleOffset);
+			for (int32 kk = 0; kk < InAngularSteps; ++kk, Angle += AngularStep)
+			{
+				// Add the global noise and the per-point noise into the angle
+				FVector::FReal UseAngle = Angle + AngleStepOffsets[kk] + FMath::DegreesToRadians(RandStream.FRand() * InAngularVariability);
+				// Add per point noise into the radial position
+				FVector::FReal UseRadius = Len + FVector::FReal(RandStream.FRand() * UseRadialVariability);
+				FVector RotatingOffset = UseRadius * (FMath::Cos(UseAngle) * BasisX + FMath::Sin(UseAngle) * BasisY);
+				PointsArr.Emplace(CenterVal + RotatingOffset + UpVector * (RandStream.FRandRange(-1, 1) * InAxialVariability));
+			}
+		}
+
+		SetValue(Context, MoveTemp(PointsArr), &Points);
+	}
+}
+
+void FGridScatterPointsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<TArray<FVector>>(&Points))
+	{
+		const FBox& BBox = GetValue<FBox>(Context, &BoundingBox);
+		if (BBox.GetVolume() > 0.f)
+		{
+			const FVector Extent(BBox.Max - BBox.Min);
+			const int32 NumPointsInX = GetValue<int32>(Context, &NumberOfPointsInX);
+			const int32 NumPointsInY = GetValue<int32>(Context, &NumberOfPointsInY);
+			const int32 NumPointsInZ = GetValue<int32>(Context, &NumberOfPointsInZ);
+			
+			if (NumPointsInX >= 2 && NumPointsInY >= 2 && NumPointsInZ >= 2)
+			{
+				const int32 NumPoints = NumPointsInX * NumPointsInY * NumPointsInZ;
+				const float dX = Extent.X / (float)NumPointsInX;
+				const float dY = Extent.Y / (float)NumPointsInY;
+				const float dZ = Extent.Z / (float)NumPointsInZ;
+
+				FRandomStream RandStream(GetValue<int32>(Context, &RandomSeed));
+
+				TArray<FVector> PointsArr;
+				PointsArr.Reserve(NumPoints);
+				for (int32 Idx_X = 0; Idx_X < NumPointsInX; ++Idx_X)
+				{
+					for (int32 Idx_Y = 0; Idx_Y < NumPointsInY; ++Idx_Y)
+					{
+						for (int32 Idx_Z = 0; Idx_Z < NumPointsInZ; ++Idx_Z)
+						{
+							FVector RandomDisplacement = FVector(RandStream.FRandRange(-1.f, 1.f) * GetValue<float>(Context, &MaxRandomDisplacementX),
+								RandStream.FRandRange(-1.f, 1.f) * GetValue<float>(Context, &MaxRandomDisplacementY),
+								RandStream.FRandRange(-1.f, 1.f) * GetValue<float>(Context, &MaxRandomDisplacementZ));
+
+							PointsArr.Emplace(BBox.Min.X + 0.5f * dX + (float)Idx_X * dX + RandomDisplacement.X,
+								BBox.Min.Y + 0.5f * dY + (float)Idx_Y * dY + RandomDisplacement.Y,
+								BBox.Min.Z + 0.5f * dZ + (float)Idx_Z * dZ + RandomDisplacement.Z);
+						}
+					}
+				}
+
+				SetValue(Context, MoveTemp(PointsArr), &Points);
+			}
+			else
+			{
+				// ERROR: Invalid number of points
+				SetValue(Context, TArray<FVector>(), &Points);
+			}
+		}
+		else
+		{
+			// ERROR: Invalid BoundingBox input
+			SetValue(Context, TArray<FVector>(), &Points);
+		}
+	}
+}
 
 void FVoronoiFractureDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
@@ -124,9 +331,10 @@ void FVoronoiFractureDataflowNode::Evaluate(Dataflow::FContext& Context, const F
 				FFractureEngineFracturing::VoronoiFracture(InCollection,
 					InTransformSelection,
 					GetValue<TArray<FVector>>(Context, &Points),
-					GetValue<float>(Context, &RandomSeed),
+					FTransform::Identity,
+					(int32)GetValue<float>(Context, &RandomSeed),
 					GetValue<float>(Context, &ChanceToFracture),
-					GroupFracture,
+					true,
 					GetValue<float>(Context, &Grout),
 					GetValue<float>(Context, &Amplitude),
 					GetValue<float>(Context, &Frequency),
@@ -148,6 +356,94 @@ void FVoronoiFractureDataflowNode::Evaluate(Dataflow::FContext& Context, const F
 	}
 }
 
+void FVoronoiFractureDataflowNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<FManagedArrayCollection>(&Collection) ||
+		Out->IsA<FDataflowTransformSelection>(&TransformSelection) ||
+		Out->IsA<FDataflowTransformSelection>(&NewGeometryTransformSelection))
+	{
+		FDataflowTransformSelection InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
+
+		//
+		// If not connected select everything by default
+		//
+		if (!IsConnected<FDataflowTransformSelection>(&TransformSelection))
+		{
+			const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+
+			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
+			const TArray<int32>& SelectionArr = TransformSelectionFacade.SelectAll();
+
+			FDataflowTransformSelection NewTransformSelection;
+			NewTransformSelection.Initialize(InCollection.NumElements(FGeometryCollection::TransformGroup), false);
+			NewTransformSelection.SetFromArray(SelectionArr);
+
+			InTransformSelection = NewTransformSelection;
+		}
+
+		if (InTransformSelection.AnySelected())
+		{
+			FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+
+			int32 ResultGeometryIndex = FFractureEngineFracturing::VoronoiFracture(InCollection,
+				InTransformSelection,
+				GetValue<TArray<FVector>>(Context, &Points),
+				GetValue<FTransform>(Context, &Transform),
+				GetValue<int32>(Context, &RandomSeed),
+				GetValue<float>(Context, &ChanceToFracture),
+				SplitIslands,
+				GetValue<float>(Context, &Grout),
+				GetValue<float>(Context, &Amplitude),
+				GetValue<float>(Context, &Frequency),
+				GetValue<float>(Context, &Persistence),
+				GetValue<float>(Context, &Lacunarity),
+				GetValue<int32>(Context, &OctaveNumber),
+				GetValue<float>(Context, &PointSpacing),
+				AddSamplesForCollision,
+				GetValue<float>(Context, &CollisionSampleSpacing));
+
+			FDataflowTransformSelection NewSelection;
+			FDataflowTransformSelection OriginalSelection;
+
+			if (ResultGeometryIndex != INDEX_NONE)
+			{
+				if (InCollection.HasAttribute("TransformIndex", FGeometryCollection::GeometryGroup))
+				{
+					const TManagedArray<int32>& TransformIndices = InCollection.GetAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+
+					NewSelection.Initialize(TransformIndices.Num(), false);
+					OriginalSelection.Initialize(TransformIndices.Num(), false);
+
+					// The newly fractured pieces are added to the end of the transform array (starting position is ResultGeometryIndex)
+					for (int32 Idx = ResultGeometryIndex; Idx < TransformIndices.Num(); ++Idx)
+					{
+						int32 BoneIdx = TransformIndices[Idx];
+						NewSelection.SetSelected(BoneIdx);
+					}
+
+					for (int32 Idx = 0; Idx < InTransformSelection.Num(); ++Idx)
+					{
+						if (InTransformSelection.IsSelected(Idx))
+						{
+							OriginalSelection.SetSelected(Idx);
+						}
+					}
+
+				}
+			}
+
+			SetValue(Context, MoveTemp(InCollection), &Collection);
+			SetValue(Context, OriginalSelection, &TransformSelection);
+			SetValue(Context, NewSelection, &NewGeometryTransformSelection);
+
+			return;
+		}
+
+		SafeForwardInput(Context, &Collection, &Collection);
+		SetValue(Context, InTransformSelection, &TransformSelection);
+		SetValue(Context, FDataflowTransformSelection(), &NewGeometryTransformSelection);
+	}
+}
 
 void FPlaneCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
@@ -164,8 +460,11 @@ void FPlaneCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 				FFractureEngineFracturing::PlaneCutter(InCollection,
 					InTransformSelection,
 					GetValue<FBox>(Context, &BoundingBox),
+					FTransform::Identity,
 					NumPlanes,
-					GetValue<float>(Context, &RandomSeed),
+					(int32)GetValue<float>(Context, &RandomSeed),
+					1.f,
+					true,
 					GetValue<float>(Context, &Grout),
 					GetValue<float>(Context, &Amplitude),
 					GetValue<float>(Context, &Frequency),
@@ -187,6 +486,95 @@ void FPlaneCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 	}
 }
 
+void FPlaneCutterDataflowNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<FManagedArrayCollection>(&Collection) ||
+		Out->IsA<FDataflowTransformSelection>(&TransformSelection) ||
+		Out->IsA<FDataflowTransformSelection>(&NewGeometryTransformSelection))
+	{
+		FDataflowTransformSelection InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
+
+		//
+		// If not connected select everything by default
+		//
+		if (!IsConnected<FDataflowTransformSelection>(&TransformSelection))
+		{
+			const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+
+			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
+			const TArray<int32>& SelectionArr = TransformSelectionFacade.SelectAll();
+
+			FDataflowTransformSelection NewTransformSelection;
+			NewTransformSelection.Initialize(InCollection.NumElements(FGeometryCollection::TransformGroup), false);
+			NewTransformSelection.SetFromArray(SelectionArr);
+
+			InTransformSelection = NewTransformSelection;
+		}
+
+		if (InTransformSelection.AnySelected())
+		{
+			FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+
+			int32 ResultGeometryIndex = FFractureEngineFracturing::PlaneCutter(InCollection,
+				InTransformSelection,
+				GetValue<FBox>(Context, &BoundingBox),
+				GetValue<FTransform>(Context, &Transform),
+				NumPlanes,
+				GetValue<int32>(Context, &RandomSeed),
+				GetValue<float>(Context, &ChanceToFracture),
+				SplitIslands,
+				GetValue<float>(Context, &Grout),
+				GetValue<float>(Context, &Amplitude),
+				GetValue<float>(Context, &Frequency),
+				GetValue<float>(Context, &Persistence),
+				GetValue<float>(Context, &Lacunarity),
+				GetValue<int32>(Context, &OctaveNumber),
+				GetValue<float>(Context, &PointSpacing),
+				AddSamplesForCollision,
+				GetValue<float>(Context, &CollisionSampleSpacing));
+
+			FDataflowTransformSelection NewSelection;
+			FDataflowTransformSelection OriginalSelection;
+
+			if (ResultGeometryIndex != INDEX_NONE)
+			{
+				if (InCollection.HasAttribute("TransformIndex", FGeometryCollection::GeometryGroup))
+				{
+					const TManagedArray<int32>& TransformIndices = InCollection.GetAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+
+					NewSelection.Initialize(TransformIndices.Num(), false);
+					OriginalSelection.Initialize(TransformIndices.Num(), false);
+
+					// The newly fractured pieces are added to the end of the transform array (starting position is ResultGeometryIndex)
+					for (int32 Idx = ResultGeometryIndex; Idx < TransformIndices.Num(); ++Idx)
+					{
+						int32 BoneIdx = TransformIndices[Idx];
+						NewSelection.SetSelected(BoneIdx);
+					}
+
+					for (int32 Idx = 0; Idx < InTransformSelection.Num(); ++Idx)
+					{
+						if (InTransformSelection.IsSelected(Idx))
+						{
+							OriginalSelection.SetSelected(Idx);
+						}
+					}
+
+				}
+			}
+
+			SetValue(Context, MoveTemp(InCollection), &Collection);
+			SetValue(Context, OriginalSelection, &TransformSelection);
+			SetValue(Context, NewSelection, &NewGeometryTransformSelection);
+
+			return;
+		}
+
+		SafeForwardInput(Context, &Collection, &Collection);
+		SetValue(Context, InTransformSelection, &TransformSelection);
+		SetValue(Context, FDataflowTransformSelection(), &NewGeometryTransformSelection);
+	}
+}
 
 void FExplodedViewDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
@@ -200,6 +588,204 @@ void FExplodedViewDataflowNode::Evaluate(Dataflow::FContext& Context, const FDat
 	}
 }
 
+void FSliceCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<FManagedArrayCollection>(&Collection) ||
+		Out->IsA<FDataflowTransformSelection>(&TransformSelection) ||
+		Out->IsA<FDataflowTransformSelection>(&NewGeometryTransformSelection))
+	{
+		FDataflowTransformSelection InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
+
+		//
+		// If not connected select everything by default
+		//
+		if (!IsConnected<FDataflowTransformSelection>(&TransformSelection))
+		{
+			const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+
+			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
+			const TArray<int32>& SelectionArr = TransformSelectionFacade.SelectAll();
+
+			FDataflowTransformSelection NewTransformSelection;
+			NewTransformSelection.Initialize(InCollection.NumElements(FGeometryCollection::TransformGroup), false);
+			NewTransformSelection.SetFromArray(SelectionArr);
+
+			InTransformSelection = NewTransformSelection;
+		}
+
+		if (InTransformSelection.AnySelected())
+		{
+			FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+
+			int32 ResultGeometryIndex = FFractureEngineFracturing::SliceCutter(InCollection,
+				InTransformSelection,
+				GetValue<FBox>(Context, &BoundingBox),
+				GetValue<int32>(Context, &SlicesX),
+				GetValue<int32>(Context, &SlicesY),
+				GetValue<int32>(Context, &SlicesZ),
+				GetValue<float>(Context, &SliceAngleVariation),
+				GetValue<float>(Context, &SliceOffsetVariation),
+				GetValue<int32>(Context, &RandomSeed),
+				GetValue<float>(Context, &ChanceToFracture),
+				SplitIslands,
+				GetValue<float>(Context, &Grout),
+				GetValue<float>(Context, &Amplitude),
+				GetValue<float>(Context, &Frequency),
+				GetValue<float>(Context, &Persistence),
+				GetValue<float>(Context, &Lacunarity),
+				GetValue<int32>(Context, &OctaveNumber),
+				GetValue<float>(Context, &PointSpacing),
+				AddSamplesForCollision,
+				GetValue<float>(Context, &CollisionSampleSpacing));
+
+			FDataflowTransformSelection NewSelection;
+			FDataflowTransformSelection OriginalSelection;
+
+			if (ResultGeometryIndex != INDEX_NONE)
+			{
+				if (InCollection.HasAttribute("TransformIndex", FGeometryCollection::GeometryGroup))
+				{
+					const TManagedArray<int32>& TransformIndices = InCollection.GetAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+
+					NewSelection.Initialize(TransformIndices.Num(), false);
+					OriginalSelection.Initialize(TransformIndices.Num(), false);
+
+					// The newly fractured pieces are added to the end of the transform array (starting position is ResultGeometryIndex)
+					for (int32 Idx = ResultGeometryIndex; Idx < TransformIndices.Num(); ++Idx)
+					{
+						int32 BoneIdx = TransformIndices[Idx];
+						NewSelection.SetSelected(BoneIdx);
+					}
+
+					for (int32 Idx = 0; Idx < InTransformSelection.Num(); ++Idx)
+					{
+						if (InTransformSelection.IsSelected(Idx))
+						{
+							OriginalSelection.SetSelected(Idx);
+						}
+					}
+
+				}
+			}
+
+			SetValue(Context, MoveTemp(InCollection), &Collection);
+			SetValue(Context, OriginalSelection, &TransformSelection);
+			SetValue(Context, NewSelection, &NewGeometryTransformSelection);
+
+			return;
+		}
+
+		SafeForwardInput(Context, &Collection, &Collection);
+		SetValue(Context, InTransformSelection, &TransformSelection);
+		SetValue(Context, FDataflowTransformSelection(), &NewGeometryTransformSelection);
+	}
+}
+
+void FBrickCutterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<FManagedArrayCollection>(&Collection) ||
+		Out->IsA<FDataflowTransformSelection>(&TransformSelection) ||
+		Out->IsA<FDataflowTransformSelection>(&NewGeometryTransformSelection))
+	{
+		FDataflowTransformSelection InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
+		//
+		// If not connected select everything by default
+		//
+		if (!IsConnected<FDataflowTransformSelection>(&TransformSelection))
+		{
+			const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+
+			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
+			const TArray<int32>& SelectionArr = TransformSelectionFacade.SelectAll();
+
+			FDataflowTransformSelection NewTransformSelection;
+			NewTransformSelection.Initialize(InCollection.NumElements(FGeometryCollection::TransformGroup), false);
+			NewTransformSelection.SetFromArray(SelectionArr);
+
+			InTransformSelection = NewTransformSelection;
+		}
+
+		FBox InBoundingBox = GetValue<FBox>(Context, &BoundingBox);
+		//
+		// If not connected set bounds to collection bounds
+		//
+		if (!IsConnected<FBox>(&BoundingBox))
+		{
+			const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+
+			GeometryCollection::Facades::FBoundsFacade BoundsFacade(InCollection);
+			const FBox& BoundingBoxInCollectionSpace = BoundsFacade.GetBoundingBoxInCollectionSpace();
+
+			InBoundingBox = BoundingBoxInCollectionSpace;
+		}
+
+		if (InTransformSelection.AnySelected())
+		{
+			FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+
+			int32 ResultGeometryIndex = FFractureEngineFracturing::BrickCutter(InCollection,
+				InTransformSelection,
+				InBoundingBox,
+				GetValue<FTransform>(Context, &Transform),
+				Bond,
+				GetValue<float>(Context, &BrickLength),
+				GetValue<float>(Context, &BrickHeight),
+				GetValue<float>(Context, &BrickDepth),
+				GetValue<int32>(Context, &RandomSeed),
+				GetValue<float>(Context, &ChanceToFracture),
+				SplitIslands,
+				GetValue<float>(Context, &Grout),
+				GetValue<float>(Context, &Amplitude),
+				GetValue<float>(Context, &Frequency),
+				GetValue<float>(Context, &Persistence),
+				GetValue<float>(Context, &Lacunarity),
+				GetValue<int32>(Context, &OctaveNumber),
+				GetValue<float>(Context, &PointSpacing),
+				AddSamplesForCollision,
+				GetValue<float>(Context, &CollisionSampleSpacing));
+
+			FDataflowTransformSelection NewSelection;
+			FDataflowTransformSelection OriginalSelection;
+
+			if (ResultGeometryIndex != INDEX_NONE)
+			{
+				if (InCollection.HasAttribute("TransformIndex", FGeometryCollection::GeometryGroup))
+				{
+					const TManagedArray<int32>& TransformIndices = InCollection.GetAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+
+					NewSelection.Initialize(TransformIndices.Num(), false);
+					OriginalSelection.Initialize(TransformIndices.Num(), false);
+
+					// The newly fractured pieces are added to the end of the transform array (starting position is ResultGeometryIndex)
+					for (int32 Idx = ResultGeometryIndex; Idx < TransformIndices.Num(); ++Idx)
+					{
+						int32 BoneIdx = TransformIndices[Idx];
+						NewSelection.SetSelected(BoneIdx);
+					}
+
+					for (int32 Idx = 0; Idx < InTransformSelection.Num(); ++Idx)
+					{
+						if (InTransformSelection.IsSelected(Idx))
+						{
+							OriginalSelection.SetSelected(Idx);
+						}
+					}
+
+				}
+			}
+
+			SetValue(Context, MoveTemp(InCollection), &Collection);
+			SetValue(Context, OriginalSelection, &TransformSelection);
+			SetValue(Context, NewSelection, &NewGeometryTransformSelection);
+
+			return;
+		}
+
+		SafeForwardInput(Context, &Collection, &Collection);
+		SetValue(Context, InTransformSelection, &TransformSelection);
+		SetValue(Context, FDataflowTransformSelection(), &NewGeometryTransformSelection);
+	}
+}
 
 
 
