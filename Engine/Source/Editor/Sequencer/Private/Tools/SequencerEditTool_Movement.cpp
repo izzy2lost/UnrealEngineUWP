@@ -153,6 +153,8 @@ TSharedPtr<UE::Sequencer::ISequencerEditToolDragOperation> FSequencerEditTool_Mo
 	using namespace UE::Sequencer;
 
 	FSequencerSelection& Selection = *Sequencer.GetViewModel()->GetSelection();
+	FSelectionEventSuppressor SuppressEvents = Selection.SuppressEvents();
+
 	TSharedRef<SSequencer> SequencerWidget = StaticCastSharedRef<SSequencer>(Sequencer.GetSequencerWidget());
 
 	GetHotspotTime(OriginalHotspotTime);
@@ -253,6 +255,7 @@ TSharedPtr<UE::Sequencer::ISequencerEditToolDragOperation> FSequencerEditTool_Mo
 				if (!Selection.KeySelection.IsSelected(Key.KeyHandle))
 				{
 					bUniqueDrag = true;
+					break;
 				}
 			};
 
