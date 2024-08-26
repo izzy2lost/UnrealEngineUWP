@@ -86,7 +86,7 @@ namespace EpicGames.Horde.Artifacts
 		public ArtifactType Type { get; set; }
 
 		/// <inheritdoc cref="IArtifact.Description"/>
-		public string? Description { get; }
+		public string? Description { get; set; }
 
 		/// <inheritdoc cref="IArtifact.StreamId"/>
 		public StreamId StreamId { get; set; }
@@ -123,7 +123,7 @@ namespace EpicGames.Horde.Artifacts
 		public RefName RefName { get; set; }
 
 		/// <inheritdoc cref="IArtifact.CreatedAtUtc"/>
-		public DateTime CreatedAtUtc { get; }
+		public DateTime CreatedAtUtc { get; set; }
 
 		/// <summary>
 		/// Default constructor
