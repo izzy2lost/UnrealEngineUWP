@@ -2080,10 +2080,13 @@ TSharedRef<SWidget> SSequencer::MakeActionsMenu()
 	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
 	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = Sequencer->GetViewModel();
 
+	TArray<TSharedPtr<FExtender>> AllExtenders;
 	ISequencerModule& SequencerModule = FModuleManager::GetModuleChecked<ISequencerModule>("Sequencer");
-	TSharedPtr<FExtender> ActionsMenuExtender = SequencerModule.GetActionsMenuExtensibilityManager()->GetAllExtenders();
+	AllExtenders.Add(SequencerModule.GetActionsMenuExtensibilityManager()->GetAllExtenders());
+	AllExtenders.Append(ActionsMenuExtenders);
 
-	FMenuBuilder MenuBuilder(true, Sequencer->GetCommandBindings(), ActionsMenuExtender);
+	TSharedPtr<FExtender> Extender = FExtender::Combine(AllExtenders);
+	FMenuBuilder MenuBuilder(true, Sequencer->GetCommandBindings(), Extender);
 
 	MenuBuilder.BeginSection("SequenceOptions", LOCTEXT("SequenceOptionsHeader", "Sequence"));
 	{
@@ -2266,9 +2269,16 @@ void SSequencer::FillAdvancedMenu(FMenuBuilder& MenuBuilder)
 
 TSharedRef<SWidget> SSequencer::MakeViewMenu()
 {
-	FMenuBuilder MenuBuilder( true, SequencerPtr.Pin()->GetCommandBindings() );
 	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
 
+	TArray<TSharedPtr<FExtender>> AllExtenders;
+	ISequencerModule& SequencerModule = FModuleManager::GetModuleChecked<ISequencerModule>("Sequencer");
+	AllExtenders.Add(SequencerModule.GetViewMenuExtensibilityManager()->GetAllExtenders());
+	AllExtenders.Append(ActionsMenuExtenders);
+
+	TSharedPtr<FExtender> Extender = FExtender::Combine(AllExtenders);
+	FMenuBuilder MenuBuilder(true, Sequencer->GetCommandBindings(), Extender);
+	
 	if (Sequencer->GetHostCapabilities().bSupportsSidebar)
 	{
 		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleSidebarVisible );
@@ -2276,52 +2286,60 @@ TSharedRef<SWidget> SSequencer::MakeViewMenu()
 
 	if (Sequencer->IsLevelEditorSequencer())
 	{
-		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().TogglePilotCamera );
-		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleRestoreOriginalViewportOnCameraCutUnlock );
+		MenuBuilder.BeginSection("PilotCamera", LOCTEXT("PilotCamera", "Pilot Camera"));
+		{
+			MenuBuilder.AddMenuEntry(FSequencerCommands::Get().TogglePilotCamera);
+			MenuBuilder.AddMenuEntry(FSequencerCommands::Get().ToggleRestoreOriginalViewportOnCameraCutUnlock);
+		}
+		MenuBuilder.EndSection();
 	}
 
-	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleAutoScroll );
-	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleShowRangeSlider );
-	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleShowSelectedNodesOnly );
-	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleLayerBars );
-	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleKeyBars );
-	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleChannelColors );
-	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleShowInfoButton );
-	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleShowPreAndPostRoll );
-
-	// Menu entry for zero padding
-	auto OnZeroPadChanged = [this](uint8 NewValue) {
-		GetSequencerSettings()->SetZeroPadFrames(NewValue);
-	};
-
-	MenuBuilder.AddSubMenu(LOCTEXT("ViewDensityMenuLabel", "View Density"), FText::GetEmpty(), FNewMenuDelegate::CreateRaw(this, &SSequencer::FillViewDensityMenu));
-
-	// Menu Entry for Outliner Column Visibilities
-	if (OutlinerColumnVisibilities.Num() > 0)
+	MenuBuilder.BeginSection("SequencerSettings", LOCTEXT("SequencerSettings", "Sequencer Settings"));
 	{
-		MenuBuilder.AddSubMenu(LOCTEXT("ColumnVisibilityHeader", "Columns"), FText::GetEmpty(), FNewMenuDelegate::CreateRaw(this, &SSequencer::FillColumnVisibilityMenu));
-	}
+		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleAutoScroll );
+		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleShowRangeSlider );
+		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleShowSelectedNodesOnly );
+		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleLayerBars );
+		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleKeyBars );
+		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleChannelColors );
+		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleShowInfoButton );
+		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleShowPreAndPostRoll );
 
-	MenuBuilder.AddWidget(
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-			[
-				SNew(SSpacer)
-			]
-		+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				SNew(SSpinBox<uint8>)
-				.Style(&FAppStyle::GetWidgetStyle<FSpinBoxStyle>("Sequencer.HyperlinkSpinBox"))
-			.OnValueCommitted_Lambda([=](uint8 Value, ETextCommit::Type) { OnZeroPadChanged(Value); })
-			.OnValueChanged_Lambda(OnZeroPadChanged)
-			.MinValue(0)
-			.MaxValue(8)
-			.Value_Lambda([this]() -> uint8 {
-			return GetSequencerSettings()->GetZeroPadFrames();
-		})
-		],
-		LOCTEXT("ZeroPaddingText", "Zero Pad Frame Numbers"));
+		MenuBuilder.AddSubMenu(LOCTEXT("ViewDensityMenuLabel", "View Density"), FText::GetEmpty(), FNewMenuDelegate::CreateRaw(this, &SSequencer::FillViewDensityMenu));
+
+		// Menu Entry for Outliner Column Visibilities
+		if (OutlinerColumnVisibilities.Num() > 0)
+		{
+			MenuBuilder.AddSubMenu(LOCTEXT("ColumnVisibilityHeader", "Columns"), FText::GetEmpty(), FNewMenuDelegate::CreateRaw(this, &SSequencer::FillColumnVisibilityMenu));
+		}
+
+		// Menu entry for zero padding
+		auto OnZeroPadChanged = [this](uint8 NewValue) {
+			GetSequencerSettings()->SetZeroPadFrames(NewValue);
+		};
+
+		MenuBuilder.AddWidget(
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+				[
+					SNew(SSpacer)
+				]
+			+ SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(SSpinBox<uint8>)
+					.Style(&FAppStyle::GetWidgetStyle<FSpinBoxStyle>("Sequencer.HyperlinkSpinBox"))
+					.OnValueCommitted_Lambda([=](uint8 Value, ETextCommit::Type) { OnZeroPadChanged(Value); })
+					.OnValueChanged_Lambda(OnZeroPadChanged)
+					.MinValue(0)
+					.MaxValue(8)
+					.Value_Lambda([this]() -> uint8 {
+						return GetSequencerSettings()->GetZeroPadFrames();
+					})
+				],
+			LOCTEXT("ZeroPaddingText", "Zero Pad Frame Numbers"));
+	}
+	MenuBuilder.EndSection();
 
 	MenuBuilder.BeginSection("OrganizeAndSort", LOCTEXT("OrganizeAndSortHeader", "Organize and Sort"));
 	{
@@ -4251,6 +4269,8 @@ void SSequencer::ApplySequencerCustomizations(const TArrayView<const FSequencerC
 {
 	AddMenuExtenders.Reset();
 	ToolbarExtenders.Reset();
+	ActionsMenuExtenders.Reset();
+	ViewMenuExtenders.Reset();
 
 	OnReceivedDragOver.Reset();
 	OnReceivedDrop.Reset();
@@ -4277,6 +4297,14 @@ void SSequencer::ApplySequencerCustomization(const FSequencerCustomizationInfo& 
 	if (Customization.ToolbarExtender != nullptr)
 	{
 		ToolbarExtenders.Add(Customization.ToolbarExtender);
+	}
+	if (Customization.ActionsMenuExtender != nullptr)
+	{
+		ActionsMenuExtenders.Add(Customization.ActionsMenuExtender);
+	}
+	if (Customization.ViewMenuExtender != nullptr)
+	{
+		ViewMenuExtenders.Add(Customization.ViewMenuExtender);
 	}
 
 	if (Customization.OnReceivedDragOver.IsBound())

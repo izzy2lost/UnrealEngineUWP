@@ -820,6 +820,12 @@ private:
 	/** Extender to use for the toolbar */
 	TArray<TSharedPtr<FExtender>> ToolbarExtenders;
 
+	/** Extender to use for the actions menu */
+	TArray<TSharedPtr<FExtender>> ActionsMenuExtenders;
+
+	/** Extender to use for the view menu */
+	TArray<TSharedPtr<FExtender>> ViewMenuExtenders;
+
 	/** Numeric type interface used for converting parsing and generating strings from numbers */
 	TSharedPtr<INumericTypeInterface<double>> NumericTypeInterface;
 

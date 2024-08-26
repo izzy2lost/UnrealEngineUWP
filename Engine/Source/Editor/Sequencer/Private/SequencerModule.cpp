@@ -427,6 +427,7 @@ public:
 		AddTrackMenuExtensibilityManager = MakeShareable( new FExtensibilityManager );
 		ToolBarExtensibilityManager = MakeShareable(new FExtensibilityManager);
 		ActionsMenuExtensibilityManager = MakeShareable(new FExtensibilityManager);
+		ViewMenuExtensibilityManager = MakeShareable(new FExtensibilityManager);
 		SidebarExtensibilityManager = MakeShareable(new FExtensibilityManager);
 
 		SequencerCustomizationManager = MakeShareable(new FSequencerCustomizationManager);
@@ -515,6 +516,7 @@ public:
 	virtual TSharedPtr<FExtensibilityManager> GetAddTrackMenuExtensibilityManager() const override { return AddTrackMenuExtensibilityManager; }
 	virtual TSharedPtr<FExtensibilityManager> GetToolBarExtensibilityManager() const override { return ToolBarExtensibilityManager; }
 	virtual TSharedPtr<FExtensibilityManager> GetActionsMenuExtensibilityManager() const override { return ActionsMenuExtensibilityManager; }
+	virtual TSharedPtr<FExtensibilityManager> GetViewMenuExtensibilityManager() const override { return ViewMenuExtensibilityManager; }
 	virtual TSharedPtr<FExtensibilityManager> GetSidebarExtensibilityManager() const override { return SidebarExtensibilityManager; }
 
 	virtual TSharedPtr<FSequencerCustomizationManager> GetSequencerCustomizationManager() const override { return SequencerCustomizationManager; }
@@ -628,6 +630,7 @@ private:
 	TSharedPtr<FExtensibilityManager> AddTrackMenuExtensibilityManager;
 	TSharedPtr<FExtensibilityManager> ToolBarExtensibilityManager;
 	TSharedPtr<FExtensibilityManager> ActionsMenuExtensibilityManager;
+	TSharedPtr<FExtensibilityManager> ViewMenuExtensibilityManager;
 	TSharedPtr<FExtensibilityManager> SidebarExtensibilityManager;
 
 	TSharedPtr<FSequencerCustomizationManager> SequencerCustomizationManager;

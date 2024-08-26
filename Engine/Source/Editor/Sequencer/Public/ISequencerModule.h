@@ -353,7 +353,14 @@ public:
 	virtual TSharedPtr<FExtensibilityManager> GetToolBarExtensibilityManager() const = 0;
 
 	/**
-	 * Get the extensibility manager for toolbars.
+	 * Get the extensibility manager for the view options menu.
+	 *
+	 * @return Toolbar extensibility manager.
+	 */
+	virtual TSharedPtr<FExtensibilityManager> GetViewMenuExtensibilityManager() const = 0;
+
+	/**
+	 * Get the extensibility manager for the actions menu.
 	 *
 	 * @return Toolbar extensibility manager.
 	 */
