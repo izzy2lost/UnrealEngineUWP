@@ -376,7 +376,7 @@ void FIrisPackageMapExportsUtil::CollectNetReferences(FNetSerializationContext& 
 
 bool FIrisPackageMapExportsUtil::Validate(FNetSerializationContext& Context, const QuantizedType& SourceValue)
 {
-	if ((SourceValue.ObjectReferenceStorage.Num() > MaxExports) || (SourceValue.NameStorage.Num() > MaxExports) || (SourceValue.NameStorage.Num() > MaxExports))
+	if ((SourceValue.ObjectReferenceStorage.Num() > MaxExports) || (SourceValue.NameStorage.Num() > MaxExports) || (SourceValue.NetTokenStorage.Num() > MaxExports))
 	{
 		return false;
 	}
