@@ -97,6 +97,9 @@ FAvaMediaEditorStyle::FAvaMediaEditorStyle()
 	Set("AvaMediaEditor.MediaOutputLiveWarn"  , new IMAGE_BRUSH_SVG("Icons/MediaIcons/MediaOutputLiveWarn"	, Icon16x16));
 	Set("AvaMediaEditor.MediaOutputError"     , new IMAGE_BRUSH_SVG("Icons/MediaIcons/MediaOutputError"	, Icon16x16));
 
+	// Transition Logic Mode
+	Set("AvaMediaEditor.TransitionModeReuse", new IMAGE_BRUSH_SVG("Icons/MediaIcons/Recycling", Icon16x16));
+	
 	// Motion Design Preview
 	Set("AvaMediaEditor.Checkerboard" , new IMAGE_BRUSH("Images/AvaPreviewCheckerboard", Icon16x16, FLinearColor::White, ESlateBrushTileType::Both));
 
