@@ -7522,7 +7522,7 @@ private:
         return X == _Program->_getterClass || X == _Program->_setterClass;
     }
     
-    bool FindAccessorFunctions(const TSPtr<CExpressionBase> Expr, const TArray<SAttribute>& Attributes, SClassVarAccessorFunctions& Result)
+    bool FindAccessorFunctions(const TSPtr<CExprDataDefinition> Expr, const TArray<SAttribute>& Attributes, SClassVarAccessorFunctions& Result)
     {
         int NumGetterAttrs{}, NumSetterAttrs{};
         for (const SAttribute& Attr : Attributes)
@@ -7584,6 +7584,15 @@ private:
             AppendGlitch(*Expr,
                          EDiagnostic::ErrSemantic_InvalidAttribute,
                          "<getter(...)> and <setter(...)> may appear at most once.");
+            return false;
+        }
+
+        if (Result && Expr->_DataMember->IsNative())
+        {
+            AppendGlitch(*Expr,
+                         EDiagnostic::ErrSemantic_InvalidAttribute,
+                         "Data definitions that use <getter(...)> and <setter(...)> "
+                         "cannot also be <native> (it has no effect).");
             return false;
         }
 
