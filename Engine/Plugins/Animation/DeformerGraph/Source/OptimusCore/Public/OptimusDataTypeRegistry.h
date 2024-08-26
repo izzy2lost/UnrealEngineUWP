@@ -44,6 +44,7 @@ public:
 
 	static FName GetTypeName(const FFieldClass& InFieldClass);
 	static FName GetTypeName(UScriptStruct* InStruct);
+	static FName GetTypeName(const FAssetData& InStructAsset);
 	
 	static FName GetArrayTypeName(const FFieldClass& InFieldClass);
 	static FName GetArrayTypeName(UScriptStruct* InStruct);

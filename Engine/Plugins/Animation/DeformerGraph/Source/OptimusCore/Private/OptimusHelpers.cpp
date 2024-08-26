@@ -158,17 +158,39 @@ FName Optimus::GetMemberPropertyShaderName(UScriptStruct* InStruct, const FPrope
 	return InMemberProperty->GetFName();
 }
 
+namespace Optimus::Private
+{
+	FName GetTypeNameForGuid(const FGuid& Guid)
+	{
+		return FName(*FString::Printf(TEXT("FUserDefinedStruct_%s"), *Guid.ToString()));
+	}
+}
+
 FName Optimus::GetTypeName(UScriptStruct* InStructType, bool bInShouldGetUniqueNameForUserDefinedStruct)
 {
 	if (UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(InStructType))
 	{
 		if (bInShouldGetUniqueNameForUserDefinedStruct)
 		{
-			return FName(*FString::Printf(TEXT("FUserDefinedStruct_%s"), *UserDefinedStruct->GetCustomGuid().ToString()));
+			return Optimus::Private::GetTypeNameForGuid(UserDefinedStruct->GetCustomGuid());
 		}
 	}
-	
+
 	return FName(*InStructType->GetStructCPPName());
+}
+
+FName Optimus::GetTypeName(const FAssetData& InStructAsset)
+{
+	check(InStructAsset.AssetClassPath == UUserDefinedStruct::StaticClass()->GetClassPathName());
+
+	FGuid Guid;
+
+	// UUserDefinedStruct::Guid is asset registry searchable, we can find it without loading the actual asset
+	static const FName NAME_Guid = GET_MEMBER_NAME_CHECKED(UUserDefinedStruct, Guid);
+
+	ensure(InStructAsset.GetTagValue(NAME_Guid, Guid));
+
+	return Optimus::Private::GetTypeNameForGuid(Guid);
 }
 
 void Optimus::ConvertObjectPathToShaderFilePath(FString& InOutPath)

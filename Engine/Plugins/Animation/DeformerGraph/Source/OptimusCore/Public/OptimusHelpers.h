@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AssetRegistry/AssetData.h"
 #include "Math/TransformCalculus.h"
 #include "Serialization/ObjectReader.h"
 #include "Serialization/ObjectWriter.h"
@@ -108,6 +109,10 @@ namespace Optimus
 		Otherise, it returns the friendly name for user-facing shader text display*/
 	OPTIMUSCORE_API FName GetTypeName(UScriptStruct* InStruct, bool bInShouldGetUniqueNameForUserDefinedStruct = true);
 	
+	/** Return the unique type name for registry and kernel code generation.
+	    Similar to the UScriptStruct version (with bInShouldGetUniqueNameForUserDefinedStruct true) but doesn't require loading the asset. */
+	OPTIMUSCORE_API FName GetTypeName(const FAssetData& InStructAsset);
+
 	/** Return the display name for the struct to be shown in type pickers*/
 	OPTIMUSCORE_API FText GetTypeDisplayName(UScriptStruct* InStruct);
 

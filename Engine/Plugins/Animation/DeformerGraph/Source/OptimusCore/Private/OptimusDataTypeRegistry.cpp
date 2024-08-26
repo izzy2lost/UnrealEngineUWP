@@ -509,6 +509,11 @@ FName FOptimusDataTypeRegistry::GetTypeName(UScriptStruct* InStruct)
 	return Optimus::GetTypeName(InStruct, true);
 }
 
+FName FOptimusDataTypeRegistry::GetTypeName(const FAssetData& InStructAsset)
+{
+	return Optimus::GetTypeName(InStructAsset);
+}
+
 FName FOptimusDataTypeRegistry::GetArrayTypeName(const FFieldClass& InFieldClass)
 {
 	return GetArrayTypeName(GetTypeName(InFieldClass));
@@ -1603,11 +1608,8 @@ void FOptimusDataTypeRegistry::OnAssetRemoved(const FAssetData& InAssetData)
 {
 	if (InAssetData.AssetClassPath == UUserDefinedStruct::StaticClass()->GetClassPathName())
 	{
-		if (UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(InAssetData.GetAsset()))
-		{
-			FName TypeName = GetTypeName(UserDefinedStruct);
-			UnregisterType(TypeName);
-		}
+		// Avoid using InAssetData.GetAsset() here, the asset's module/plugin may have just been unloaded
+		UnregisterType(GetTypeName(InAssetData));
 	}
 }
 
