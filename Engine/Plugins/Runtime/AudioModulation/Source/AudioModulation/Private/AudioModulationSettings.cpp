@@ -74,3 +74,19 @@ void UAudioModulationSettings::RegisterParameters() const
 		}
 	}
 }
+
+TObjectPtr<USoundModulationParameter> UAudioModulationSettings::GetModulationParameter(const FString& InName) const
+{
+	for (const FSoftObjectPath& Path : Parameters)
+	{
+		if (USoundModulationParameter* Param = Cast<USoundModulationParameter>(Path.TryLoad()))
+		{
+			if (Param->GetName() == InName)
+			{
+				return Param;
+			}
+		}
+	}
+
+	return nullptr;
+}

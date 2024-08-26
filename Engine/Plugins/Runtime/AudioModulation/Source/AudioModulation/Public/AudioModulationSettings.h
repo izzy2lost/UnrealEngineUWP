@@ -3,6 +3,7 @@
 
 #include "Engine/DeveloperSettings.h"
 #include "Misc/Build.h"
+#include "SoundModulationParameter.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/UnrealType.h"
@@ -21,6 +22,8 @@ public:
 	TArray<FSoftObjectPath> Parameters;
 
 	void RegisterParameters() const;
+
+	TObjectPtr<USoundModulationParameter> GetModulationParameter(const FString& InName) const;
 
 #if WITH_EDITOR
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
