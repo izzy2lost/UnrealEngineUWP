@@ -105,6 +105,8 @@ void FGLTFSplineMeshConverter::Sanitize(const UStaticMesh*& StaticMesh, const US
 
 	FGLTFMeshUtilities::ResolveMaterials(Materials, SplineMeshComponent, StaticMesh);
 	Builder.ResolveProxies(Materials);
+
+	LODIndex = Builder.SanitizeLOD(StaticMesh, SplineMeshComponent, LODIndex);
 }
 
 FGLTFJsonMesh* FGLTFSplineMeshConverter::Convert(const UStaticMesh* StaticMesh, const USplineMeshComponent* SplineMeshComponent, FGLTFMaterialArray Materials, int32 LODIndex)
@@ -124,7 +126,7 @@ FGLTFJsonMesh* FGLTFSplineMeshConverter::Convert(const UStaticMesh* StaticMesh, 
 
 	if (StaticMesh && SplineMeshComponent)
 	{
-		Builder.ScheduleSlowTask<FGLTFDelayedSplineMeshTask>(Builder, /*PositionBuffer,*/ MeshSectionConverter, *StaticMesh, *SplineMeshComponent, Materials, LODIndex, JsonMesh);
+		Builder.ScheduleSlowTask<FGLTFDelayedSplineMeshTask>(Builder, /*PositionBuffer,*/ MeshSectionConverter, StaticMesh, SplineMeshComponent, Materials, LODIndex, JsonMesh);
 	}
 	
 	return JsonMesh;

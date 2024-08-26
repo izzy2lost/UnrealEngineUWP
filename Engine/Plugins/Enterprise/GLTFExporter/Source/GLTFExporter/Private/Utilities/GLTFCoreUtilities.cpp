@@ -51,6 +51,14 @@ FGLTFVector4 FGLTFCoreUtilities::ConvertTangent(const FVector3f& Tangent, const 
 	return { SafeTangent.X, SafeTangent.Z, SafeTangent.Y, Normal.W >= 0 ? 1.0f : -1.0f };
 }
 
+FGLTFVector4 FGLTFCoreUtilities::ConvertTangent(const FVector4f& Tangent)
+{
+	// Unreal keeps the binormal sign in the normal's w-component.
+	// glTF keeps the binormal sign in the tangent's w-component.
+	const FVector3f SafeTangent = FVector3f(Tangent).GetSafeNormal();
+	return { SafeTangent.X, SafeTangent.Z, SafeTangent.Y, Tangent.W >= 0 ? 1.0f : -1.0f };
+}
+
 FGLTFInt8Vector4 FGLTFCoreUtilities::ConvertTangent(const FPackedNormal& Tangent, const FPackedNormal& Normal)
 {
 	const FPackedNormal SafeTangent = Tangent.ToFVector3f().GetSafeNormal();

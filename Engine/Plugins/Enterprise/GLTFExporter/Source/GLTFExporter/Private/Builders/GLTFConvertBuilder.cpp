@@ -8,8 +8,7 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "LandscapeComponent.h"
 #include "Components/SplineMeshComponent.h"
-#include "Converters/GLTFNormalArray.h"
-#include "Converters/GLTFUVArray.h"
+#include "Converters/GLTFMeshAttributesArray.h"
 
 FGLTFConvertBuilder::FGLTFConvertBuilder(const FString& FileName, const UGLTFExportOptions* ExportOptions, const TSet<AActor*>& SelectedActors)
 	: FGLTFAnalyticsBuilder(FileName, ExportOptions)
@@ -38,13 +37,8 @@ FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniquePositionAccessor(const FGLTFMes
 	return PositionBufferConverter->GetOrAdd(MeshSection, VertexBuffer);
 }
 
-FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniquePositionAccessor(const FPositionVertexBuffer* VertexBuffer)
+FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniquePositionAccessor(const FGLTFPositionArray& VertexBuffer)
 {
-	if (VertexBuffer == nullptr)
-	{
-		return nullptr;
-	}
-
 	return PositionBufferConverterRaw->GetOrAdd(VertexBuffer);
 }
 
@@ -58,6 +52,11 @@ FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueColorAccessor(const FGLTFMeshSe
 	return ColorBufferConverter->GetOrAdd(MeshSection, VertexBuffer);
 }
 
+FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueColorAccessor(const FGLTFColorArray& VertexColorBuffer)
+{
+	return ColorBufferConverterRaw->GetOrAdd(VertexColorBuffer);
+}
+
 FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueNormalAccessor(const FGLTFMeshSection* MeshSection, const FStaticMeshVertexBuffer* VertexBuffer)
 {
 	if (VertexBuffer == nullptr)
@@ -68,13 +67,8 @@ FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueNormalAccessor(const FGLTFMeshS
 	return NormalBufferConverter->GetOrAdd(MeshSection, VertexBuffer);
 }
 
-FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueNormalAccessor(const FGLTFNormalArray* Normals)
+FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueNormalAccessor(const FGLTFNormalArray& Normals)
 {
-	if (Normals == nullptr)
-	{
-		return nullptr;
-	}
-
 	return NormalBufferConverterRaw->GetOrAdd(Normals);
 }
 
@@ -88,6 +82,11 @@ FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueTangentAccessor(const FGLTFMesh
 	return TangentBufferConverter->GetOrAdd(MeshSection, VertexBuffer);
 }
 
+FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueTangentAccessor(const FGLTFTangentArray& Tangents)
+{
+	return TangentBufferConverterRaw->GetOrAdd(Tangents);
+}
+
 FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueUVAccessor(const FGLTFMeshSection* MeshSection, const FStaticMeshVertexBuffer* VertexBuffer, int32 UVIndex)
 {
 	if (VertexBuffer == nullptr)
@@ -98,13 +97,8 @@ FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueUVAccessor(const FGLTFMeshSecti
 	return UVBufferConverter->GetOrAdd(MeshSection, VertexBuffer, UVIndex);
 }
 
-FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueUVAccessor(const FGLTFUVArray* UVs)
+FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueUVAccessor(const FGLTFUVArray& UVs)
 {
-	if (UVs == nullptr)
-	{
-		return nullptr;
-	}
-
 	return UVBufferConverterRaw->GetOrAdd(UVs);
 }
 
@@ -128,6 +122,17 @@ FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueWeightAccessor(const FGLTFMeshS
 	return BoneWeightBufferConverter->GetOrAdd(MeshSection, VertexBuffer, InfluenceOffset);
 }
 
+FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueJointAccessor(const FGLTFJointInfluenceArray& BoneIndices)
+{
+	return BoneIndexBufferConverterRaw->GetOrAdd(BoneIndices);
+}
+
+FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueWeightAccessor(const FGLTFJointWeightArray& Weights)
+{
+	return BoneWeightBufferConverterRaw->GetOrAdd(Weights);
+}
+
+
 FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueIndexAccessor(const FGLTFMeshSection* MeshSection)
 {
 	if (MeshSection == nullptr)
@@ -138,13 +143,8 @@ FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueIndexAccessor(const FGLTFMeshSe
 	return IndexBufferConverter->GetOrAdd(MeshSection);
 }
 
-FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueIndexAccessor(const FGLTFIndexArray* IndexBuffer, const FString& MeshName)
+FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueIndexAccessor(const FGLTFIndexArray& IndexBuffer, const FString& MeshName)
 {
-	if (IndexBuffer == nullptr)
-	{
-		return nullptr;
-	}
-
 	return IndexBufferConverterRaw->GetOrAdd(IndexBuffer, MeshName);
 }
 

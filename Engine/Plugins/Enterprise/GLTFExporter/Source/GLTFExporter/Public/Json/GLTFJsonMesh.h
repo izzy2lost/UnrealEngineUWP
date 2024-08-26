@@ -25,6 +25,8 @@ struct GLTFEXPORTER_API FGLTFJsonAttributes : IGLTFJsonObject
 	}
 
 	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
+
+	bool HasValue() const;
 };
 
 struct GLTFEXPORTER_API FGLTFJsonPrimitive : IGLTFJsonObject
@@ -44,6 +46,8 @@ struct GLTFEXPORTER_API FGLTFJsonPrimitive : IGLTFJsonObject
 	}
 
 	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
+
+	bool HasValue() const;
 };
 
 struct GLTFEXPORTER_API FGLTFJsonMesh : IGLTFJsonIndexedObject
@@ -53,6 +57,8 @@ struct GLTFEXPORTER_API FGLTFJsonMesh : IGLTFJsonIndexedObject
 	TArray<FGLTFJsonPrimitive> Primitives;
 
 	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
+
+	bool HasValue() const;
 
 protected:
 

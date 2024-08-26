@@ -6,7 +6,7 @@
 #include "Converters/GLTFConverter.h"
 #include "Converters/GLTFBuilderContext.h"
 #include "Converters/GLTFMeshData.h"
-#include "Converters/GLTFIndexArray.h"
+#include "Converters/GLTFMeshAttributesArray.h"
 #include "Converters/GLTFUVOverlapChecker.h"
 #include "Converters/GLTFUVBoundsCalculator.h"
 #include "Converters/GLTFUVDegenerateChecker.h"
