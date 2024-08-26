@@ -83,19 +83,17 @@ namespace HordeAgent.Services
 			ILogger logger = _logger;
 
 			// Create the primary device
-			RpcDeviceCapabilities primaryDevice = new RpcDeviceCapabilities();
-			primaryDevice.Handle = KnownPropertyNames.PrimaryDeviceHandle;
+			RpcAgentCapabilities capabilities = new RpcAgentCapabilities();
 
-			List<RpcDeviceCapabilities> otherDevices = new List<RpcDeviceCapabilities>();
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
 				using IScope winScope = GlobalTracer.Instance.BuildSpan("GetWindowsCapabilities").StartActive();
-				primaryDevice.Properties.Add("Platform=Win64");
-				primaryDevice.Properties.Add("PlatformGroup=Windows");
-				primaryDevice.Properties.Add("PlatformGroup=Microsoft");
-				primaryDevice.Properties.Add("PlatformGroup=Desktop");
+				capabilities.Properties.Add("Platform=Win64");
+				capabilities.Properties.Add("PlatformGroup=Windows");
+				capabilities.Properties.Add("PlatformGroup=Microsoft");
+				capabilities.Properties.Add("PlatformGroup=Desktop");
 
-				primaryDevice.Properties.Add("OSFamily=Windows");
+				capabilities.Properties.Add("OSFamily=Windows");
 
 				// WMI doesn't work currently on ARM64, due to reliance on a NET Framework assembly.
 				using (CimSession session = CimSession.Create(null))
@@ -113,11 +111,11 @@ namespace HordeAgent.Services
 								string name = property.Name;
 								if (name.Equals("Caption", StringComparison.OrdinalIgnoreCase))
 								{
-									primaryDevice.Properties.Add($"OSDistribution={property.Value}");
+									capabilities.Properties.Add($"OSDistribution={property.Value}");
 								}
 								else if (name.Equals("Version", StringComparison.OrdinalIgnoreCase))
 								{
-									primaryDevice.Properties.Add($"OSKernelVersion={property.Value}");
+									capabilities.Properties.Add($"OSKernelVersion={property.Value}");
 								}
 							}
 						}
@@ -160,7 +158,7 @@ namespace HordeAgent.Services
 							}
 						}
 						
-						AddCpuInfo(primaryDevice, cpuNameToCount, totalLogicalCores, totalPhysicalCores);
+						AddCpuInfo(capabilities, cpuNameToCount, totalLogicalCores, totalPhysicalCores);
 					}
 					
 					{
@@ -177,8 +175,8 @@ namespace HordeAgent.Services
 								}
 							}
 						}
-						
-						primaryDevice.Properties.Add($"RAM={totalCapacity / (1024 * 1024 * 1024)}");
+
+						capabilities.Resources.Add(KnownResourceNames.Ram, (int)(totalCapacity / (1024 * 1024 * 1024)));
 					}
 					
 					{
@@ -205,11 +203,11 @@ namespace HordeAgent.Services
 							if (name != null)
 							{
 								string prefix = $"GPU-{++index}";
-								primaryDevice.Properties.Add($"{prefix}-Name={name}");
+								capabilities.Properties.Add($"{prefix}-Name={name}");
 								
 								if (driverVersion != null)
 								{
-									primaryDevice.Properties.Add($"{prefix}-DriverVersion={driverVersion}");
+									capabilities.Properties.Add($"{prefix}-DriverVersion={driverVersion}");
 								}
 							}
 						}
@@ -219,35 +217,35 @@ namespace HordeAgent.Services
 				// Add EC2 properties if needed
 				if (_settings.EnableAwsEc2Support)
 				{
-					await AddAwsPropertiesAsync(primaryDevice.Properties, logger);
+					await AddAwsPropertiesAsync(capabilities.Properties, logger);
 				}
 
 				// Add session information
-				primaryDevice.Properties.Add($"User={Environment.UserName}");
-				primaryDevice.Properties.Add($"Domain={Environment.UserDomainName}");
-				primaryDevice.Properties.Add($"Interactive={Environment.UserInteractive}");
-				primaryDevice.Properties.Add($"Elevated={IsUserAdministrator()}");
+				capabilities.Properties.Add($"User={Environment.UserName}");
+				capabilities.Properties.Add($"Domain={Environment.UserDomainName}");
+				capabilities.Properties.Add($"Interactive={Environment.UserInteractive}");
+				capabilities.Properties.Add($"Elevated={IsUserAdministrator()}");
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 			{
 				using IScope _ = GlobalTracer.Instance.BuildSpan("GetLinuxCapabilities").StartActive();
-				primaryDevice.Properties.Add("Platform=Linux");
-				primaryDevice.Properties.Add("PlatformGroup=Linux");
-				primaryDevice.Properties.Add("PlatformGroup=Unix");
-				primaryDevice.Properties.Add("PlatformGroup=Desktop");
+				capabilities.Properties.Add("Platform=Linux");
+				capabilities.Properties.Add("PlatformGroup=Linux");
+				capabilities.Properties.Add("PlatformGroup=Unix");
+				capabilities.Properties.Add("PlatformGroup=Desktop");
 
-				primaryDevice.Properties.Add("OSFamily=Linux");
-				primaryDevice.Properties.Add("OSVersion=Linux");
+				capabilities.Properties.Add("OSFamily=Linux");
+				capabilities.Properties.Add("OSVersion=Linux");
 
 				// Add EC2 properties if needed
 				if (_settings.EnableAwsEc2Support)
 				{
-					await AddAwsPropertiesAsync(primaryDevice.Properties, logger);
+					await AddAwsPropertiesAsync(capabilities.Properties, logger);
 				}
 				
 				if (_settings.WineExecutablePath != null)
 				{
-					primaryDevice.Properties.Add($"{KnownPropertyNames.WineEnabled}=true");
+					capabilities.Properties.Add($"{KnownPropertyNames.WineEnabled}=true");
 				}
 				
 				// Parse the CPU info
@@ -284,7 +282,7 @@ namespace HordeAgent.Services
 						}
 					}
 
-					AddCpuInfo(primaryDevice, nameToCount, logicalCores.Count, physicalCores.Count);
+					AddCpuInfo(capabilities, nameToCount, logicalCores.Count, physicalCores.Count);
 				}
 
 				// Parse the RAM info
@@ -295,25 +293,25 @@ namespace HordeAgent.Services
 					if (match.Success)
 					{
 						long totalCapacity = Int64.Parse(match.Groups[1].Value) * 1024;
-						primaryDevice.Properties.Add($"RAM={totalCapacity / (1024 * 1024 * 1024)}");
+						capabilities.Resources.Add(KnownResourceNames.Ram, (int)(totalCapacity / (1024 * 1024 * 1024)));
 					}
 				}
 
 				// Add session information
-				primaryDevice.Properties.Add($"User={Environment.UserName}");
-				primaryDevice.Properties.Add($"Domain={Environment.UserDomainName}");
-				primaryDevice.Properties.Add($"Interactive={Environment.UserInteractive}");
-				primaryDevice.Properties.Add($"Elevated={IsUserAdministrator()}");
+				capabilities.Properties.Add($"User={Environment.UserName}");
+				capabilities.Properties.Add($"Domain={Environment.UserDomainName}");
+				capabilities.Properties.Add($"Interactive={Environment.UserInteractive}");
+				capabilities.Properties.Add($"Elevated={IsUserAdministrator()}");
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 			{
 				using IScope _ = GlobalTracer.Instance.BuildSpan("GetMacCapabilities").StartActive();
-				primaryDevice.Properties.Add("Platform=Mac");
-				primaryDevice.Properties.Add("PlatformGroup=Apple");
-				primaryDevice.Properties.Add("PlatformGroup=Desktop");
+				capabilities.Properties.Add("Platform=Mac");
+				capabilities.Properties.Add("PlatformGroup=Apple");
+				capabilities.Properties.Add("PlatformGroup=Desktop");
 
-				primaryDevice.Properties.Add("OSFamily=MacOS");
-				primaryDevice.Properties.Add("OSVersion=MacOS");
+				capabilities.Properties.Add("OSFamily=MacOS");
+				capabilities.Properties.Add("OSVersion=MacOS");
 
 				string output;
 				using (Process process = new Process())
@@ -338,7 +336,7 @@ namespace HordeAgent.Services
 					XmlNode? model = hardwareNode.SelectSingleNode("key[. = 'machine_model']/following-sibling::string");
 					if (model != null)
 					{
-						primaryDevice.Properties.Add($"Model={model.InnerText}");
+						capabilities.Properties.Add($"Model={model.InnerText}");
 					}
 
 					XmlNode? cpuTypeNode = hardwareNode.SelectSingleNode("key[. = 'cpu_type']/following-sibling::string");
@@ -346,24 +344,24 @@ namespace HordeAgent.Services
 					XmlNode? cpuPackagesNode = hardwareNode.SelectSingleNode("key[. = 'packages']/following-sibling::integer");
 					if (cpuTypeNode != null && cpuSpeedNode != null && cpuPackagesNode != null)
 					{
-						primaryDevice.Properties.Add((cpuPackagesNode.InnerText != "1") ? $"CPU={cpuPackagesNode.InnerText} x {cpuTypeNode.InnerText} @ {cpuSpeedNode.InnerText}" : $"CPU={cpuTypeNode.InnerText} @ {cpuSpeedNode.InnerText}");
+						capabilities.Properties.Add((cpuPackagesNode.InnerText != "1") ? $"CPU={cpuPackagesNode.InnerText} x {cpuTypeNode.InnerText} @ {cpuSpeedNode.InnerText}" : $"CPU={cpuTypeNode.InnerText} @ {cpuSpeedNode.InnerText}");
 					}
 
-					primaryDevice.Properties.Add($"LogicalCores={Environment.ProcessorCount}");
+					capabilities.Resources.Add(KnownResourceNames.LogicalCores, Environment.ProcessorCount);
 
 					XmlNode? cpuCountNode = hardwareNode.SelectSingleNode("key[. = 'number_processors']/following-sibling::integer");
 					if (cpuCountNode != null)
 					{
-						primaryDevice.Properties.Add($"PhysicalCores={cpuCountNode.InnerText}");
+						capabilities.Properties.Add($"PhysicalCores={cpuCountNode.InnerText}");
 					}
 
 					XmlNode? memoryNode = hardwareNode.SelectSingleNode("key[. = 'physical_memory']/following-sibling::string");
 					if (memoryNode != null)
 					{
 						string[] parts = memoryNode.InnerText.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-						if (parts.Length == 2 && parts[1] == "GB")
+						if (parts.Length == 2 && parts[1] == "GB" && Int32.TryParse(parts[0], out int ramGb))
 						{
-							primaryDevice.Properties.Add($"RAM={parts[0]}");
+							capabilities.Resources.Add(KnownResourceNames.Ram, ramGb);
 						}
 					}
 				}
@@ -374,13 +372,13 @@ namespace HordeAgent.Services
 					XmlNode? osVersionNode = softwareNode.SelectSingleNode("key[. = 'os_version']/following-sibling::string");
 					if (osVersionNode != null)
 					{
-						primaryDevice.Properties.Add($"OSDistribution={osVersionNode.InnerText}");
+						capabilities.Properties.Add($"OSDistribution={osVersionNode.InnerText}");
 					}
 
 					XmlNode? kernelVersionNode = softwareNode.SelectSingleNode("key[. = 'kernel_version']/following-sibling::string");
 					if (kernelVersionNode != null)
 					{
-						primaryDevice.Properties.Add($"OSKernelVersion={kernelVersionNode.InnerText}");
+						capabilities.Properties.Add($"OSKernelVersion={kernelVersionNode.InnerText}");
 					}
 				}
 			}
@@ -395,11 +393,11 @@ namespace HordeAgent.Services
 				{
 					if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
 					{
-						primaryDevice.Properties.Add($"Ipv4={address}");
+						capabilities.Properties.Add($"Ipv4={address}");
 					}
 					else if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
 					{
-						primaryDevice.Properties.Add($"Ipv6={address}");
+						capabilities.Properties.Add($"Ipv6={address}");
 					}
 				}
 			}
@@ -426,13 +424,13 @@ namespace HordeAgent.Services
 			// Add the compute configuration
 			if (ip != null && _settings.ComputePort != 0)
 			{
-				primaryDevice.Properties.Add($"ComputeIp={ip}");
-				primaryDevice.Properties.Add($"ComputePort={_settings.ComputePort}");
+				capabilities.Properties.Add($"ComputeIp={ip}");
+				capabilities.Properties.Add($"ComputePort={_settings.ComputePort}");
 			}
 
 			// Get the time that the machine booted
-			primaryDevice.Properties.Add($"BootTime={s_bootTime}");
-			primaryDevice.Properties.Add($"StartTime={s_startTime}");
+			capabilities.Properties.Add($"BootTime={s_bootTime}");
+			capabilities.Properties.Add($"StartTime={s_startTime}");
 
 			// Add information about the current session
 			if (workingDir != null)
@@ -453,39 +451,34 @@ namespace HordeAgent.Services
 					try
 					{
 						DriveInfo info = new DriveInfo(driveName);
-						primaryDevice.Properties.Add($"{KnownPropertyNames.DiskFreeSpace}={info.AvailableFreeSpace}");
-						primaryDevice.Properties.Add($"{KnownPropertyNames.DiskTotalSize}={info.TotalSize}");
+						capabilities.Properties.Add($"{KnownPropertyNames.DiskFreeSpace}={info.AvailableFreeSpace}");
+						capabilities.Properties.Add($"{KnownPropertyNames.DiskTotalSize}={info.TotalSize}");
 					}
 					catch (Exception ex)
 					{
 						logger.LogWarning(ex, "Unable to query disk info for path '{DriveName}'", driveName);
 					}
 				}
-				primaryDevice.Properties.Add($"WorkingDir={workingDir}");
+				capabilities.Properties.Add($"WorkingDir={workingDir}");
 			}
 
 			// Add any horde. env vars for custom properties.
 			IEnumerable<string> envVars = Environment.GetEnvironmentVariables().Keys.Cast<string>();
 			foreach (string envVar in envVars.Where(x => x.StartsWith("horde.", StringComparison.InvariantCultureIgnoreCase)))
 			{
-				primaryDevice.Properties.Add($"{envVar}={Environment.GetEnvironmentVariable(envVar)}");
+				capabilities.Properties.Add($"{envVar}={Environment.GetEnvironmentVariable(envVar)}");
 			}
 
-			// Create the worker
-			RpcAgentCapabilities agent = new();
-			agent.Devices.Add(primaryDevice);
-			agent.Devices.AddRange(otherDevices);
-
 			// Add the max supported compute protocol version
-			agent.Properties.Add($"ComputeProtocol={(int)ComputeProtocol.Latest}");
+			capabilities.Properties.Add($"ComputeProtocol={(int)ComputeProtocol.Latest}");
 
 			// Whether the agent is packaged as a self-contained .NET app
 			// Used during the transition period over from multi-platform, non-self-contained agent packages.
-			agent.Properties.Add($"SelfContained={AgentApp.IsSelfContained}");
+			capabilities.Properties.Add($"SelfContained={AgentApp.IsSelfContained}");
 
 			// Add any additional properties from the config file
-			agent.Properties.AddRange(_settings.Properties.Select(kvp => $"{kvp.Key}={kvp.Value}"));
-			return agent;
+			capabilities.Properties.AddRange(_settings.Properties.Select(kvp => $"{kvp.Key}={kvp.Value}"));
+			return capabilities;
 		}
 
 		/// <summary>
@@ -542,21 +535,21 @@ namespace HordeAgent.Services
 			}
 		}
 
-		static void AddCpuInfo(RpcDeviceCapabilities primaryDevice, Dictionary<string, int> nameToCount, int numLogicalCores, int numPhysicalCores)
+		static void AddCpuInfo(RpcAgentCapabilities capabilities, Dictionary<string, int> nameToCount, int numLogicalCores, int numPhysicalCores)
 		{
 			if (nameToCount.Count > 0)
 			{
-				primaryDevice.Properties.Add("CPU=" + String.Join(", ", nameToCount.Select(x => (x.Value > 1) ? $"{x.Key} x {x.Value}" : x.Key)));
+				capabilities.Properties.Add("CPU=" + String.Join(", ", nameToCount.Select(x => (x.Value > 1) ? $"{x.Key} x {x.Value}" : x.Key)));
 			}
 
 			if (numLogicalCores > 0)
 			{
-				primaryDevice.Properties.Add($"LogicalCores={numLogicalCores}");
+				capabilities.Resources.Add("LogicalCores", numLogicalCores);
 			}
 
 			if (numPhysicalCores > 0)
 			{
-				primaryDevice.Properties.Add($"PhysicalCores={numPhysicalCores}");
+				capabilities.Properties.Add($"PhysicalCores={numPhysicalCores}");
 			}
 		}
 

@@ -13,41 +13,47 @@ namespace HordeCommon.Rpc.Messages
 			Properties.AddRange(properties);
 		}
 
-		public void Flatten(out List<string> properties, out Dictionary<string, int> resources)
+		public RpcAgentCapabilities MergeDevices()
 		{
-			properties = new List<string>();
-			resources = new Dictionary<string, int>();
-
-			properties.AddRange(Properties);
-
-			if (Devices.Count <= 0)
+#pragma warning disable CS0612 // Type or member is obsolete
+			if (Devices.Count == 0)
 			{
-				return;
+				return this;
 			}
-
-			RpcDeviceCapabilities device = Devices[0];
-			if (device.Properties == null)
+			else
 			{
-				return;
+				RpcAgentCapabilities other = new RpcAgentCapabilities();
+				other.Properties.Add(Properties);
+				other.Resources.Add(Resources);
+
+				if (Devices.Count > 0)
+				{
+					RpcDeviceCapabilities? primaryDevice = Devices[0];
+					other.Properties.Add(primaryDevice.Properties);
+					other.Resources.Add(primaryDevice.Resources);
+				}
+
+				other.CopyPropertyToResource(KnownResourceNames.LogicalCores);
+				other.CopyPropertyToResource(KnownResourceNames.Ram);
+
+				return other;
 			}
-
-			properties.AddRange(device.Properties);
-			properties.Sort(StringComparer.OrdinalIgnoreCase);
-
-			CopyPropertyToResource(KnownPropertyNames.LogicalCores, properties, resources);
-			CopyPropertyToResource(KnownPropertyNames.Ram, properties, resources);
+#pragma warning restore CS0612 // Type or member is obsolete
 		}
 
-		static void CopyPropertyToResource(string name, List<string> properties, Dictionary<string, int> resources)
+		void CopyPropertyToResource(string name)
 		{
-			foreach (string property in properties)
+			if (!Resources.ContainsKey(name))
 			{
-				if (property.Length > name.Length && property.StartsWith(name, StringComparison.OrdinalIgnoreCase) && property[name.Length] == '=')
+				foreach (string property in Properties)
 				{
-					int value;
-					if (Int32.TryParse(property.AsSpan(name.Length + 1), out value))
+					if (property.Length > name.Length && property.StartsWith(name, StringComparison.OrdinalIgnoreCase) && property[name.Length] == '=')
 					{
-						resources[name] = value;
+						int value;
+						if (Int32.TryParse(property.AsSpan(name.Length + 1), out value))
+						{
+							Resources.Add(name, value);
+						}
 					}
 				}
 			}

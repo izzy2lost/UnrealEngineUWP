@@ -36,16 +36,6 @@ public static class KnownPropertyNames
 	/// Pools requested by the agent to join when registering with server
 	/// </summary>
 	public const string RequestedPools = "RequestedPools";
-
-	/// <summary>
-	/// Number of logical cores
-	/// </summary>
-	public const string LogicalCores = "LogicalCores";
-
-	/// <summary>
-	/// Amount of RAM, in GB
-	/// </summary>
-	public const string Ram = "RAM";
 	
 	/// <summary>
 	/// The total size of storage space on drive, in bytes

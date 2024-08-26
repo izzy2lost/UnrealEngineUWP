@@ -98,7 +98,7 @@ namespace HordeServer.Agents.Fleet
 
 			Dictionary<string, List<MetricDatum>> metricsPerCloudWatchNamespace = new();
 			int numAgents = agents.Count;
-			int totalCpuCores = agents.Select(x => x.Resources.TryGetValue(KnownPropertyNames.LogicalCores, out int numCpuCores) ? numCpuCores : 0).Sum();
+			int totalCpuCores = agents.Select(x => x.Resources.TryGetValue(KnownResourceNames.LogicalCores, out int numCpuCores) ? numCpuCores : 0).Sum();
 			int numQueuedComputeTasks = await _computeTaskSource.GetNumQueuedTasksForPoolAsync(new ClusterId(_settings.ComputeClusterId), pool);
 
 			double numQueuedTasksPerAgent = numQueuedComputeTasks / (double)Math.Max(numAgents, 1);

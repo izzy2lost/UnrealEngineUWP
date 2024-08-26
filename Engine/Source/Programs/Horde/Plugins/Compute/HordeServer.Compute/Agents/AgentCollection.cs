@@ -827,11 +827,11 @@ namespace HordeServer.Agents
 				List<string> newProperties = newDocument.Properties ?? new List<string>();
 				if (options.Capabilities != null)
 				{
-					options.Capabilities.Flatten(out newProperties, out Dictionary<string, int> newResources);
+					newProperties = new List<string>(options.Capabilities.Properties);
 
-					if (!ResourcesEqual(newResources, newDocument.Resources))
+					if (!ResourcesEqual(options.Capabilities.Resources, newDocument.Resources))
 					{
-						updates.Add(updateBuilder.Set(x => x.Resources, newResources));
+						updates.Add(updateBuilder.Set(x => x.Resources, options.Capabilities.Resources.ToDictionary()));
 					}
 				}
 				if (options.DynamicPools != null)
@@ -1065,14 +1065,19 @@ namespace HordeServer.Agents
 			AgentId agentId = agent.Id;
 			SessionId sessionId = SessionIdUtils.GenerateNewId();
 
-			options.Capabilities.Flatten(out List<string> newProperties, out Dictionary<string, int> newResources);
+			List<string> newProperties = options.Capabilities.Properties.ToList();
+			Dictionary<string, int> newResources = options.Capabilities.Resources.ToDictionary();
 
 			List<PoolId> newDynamicPools = new(options.DynamicPools);
 			List<PoolId> newPools = CreatePoolsList(agent.Document.ExplicitPools, newDynamicPools, newProperties);
 			SetPoolProperties(newProperties, newPools);
 
+			RpcAgentCapabilities capabilities = new RpcAgentCapabilities();
+			capabilities.Properties.Add(newProperties);
+			capabilities.Resources.Add(options.Capabilities.Resources);
+
 			// Attempt to create the session in Redis
-			RpcSession? newSession = await _scheduler.TryCreateSessionAsync(agentId, sessionId, options.Capabilities, cancellationToken);
+			RpcSession? newSession = await _scheduler.TryCreateSessionAsync(agentId, sessionId, capabilities, cancellationToken);
 			if (newSession == null)
 			{
 				return null;

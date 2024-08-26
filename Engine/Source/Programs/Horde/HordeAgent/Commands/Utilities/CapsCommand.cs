@@ -27,14 +27,21 @@ namespace HordeAgent.Commands.Utilities
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
 			RpcAgentCapabilities capabilities = await _capabilitiesService.GetCapabilitiesAsync(null);
-			foreach (RpcDeviceCapabilities device in capabilities.Devices)
+
+			logger.LogInformation("Properties:");
+			foreach (string property in capabilities.Properties)
 			{
-				logger.LogInformation("Device: {Name}", device.Handle);
-				foreach (string property in device.Properties)
-				{
-					logger.LogInformation("  {Property}", property);
-				}
+				logger.LogInformation("  {Property}", property);
 			}
+
+			logger.LogInformation("");
+
+			logger.LogInformation("Resources:");
+			foreach ((string name, int value) in capabilities.Resources)
+			{
+				logger.LogInformation("  {Name}={Value}", name, value);
+			}
+
 			return 0;
 		}
 	}

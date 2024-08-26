@@ -220,7 +220,7 @@ namespace HordeServer.Server
 			}
 
 			// Create a new session
-			agent = await _agentService.CreateSessionAsync(agent, request.Capabilities, request.Version, context.CancellationToken);
+			agent = await _agentService.CreateSessionAsync(agent, request.Capabilities.MergeDevices(), request.Version, context.CancellationToken);
 			if (agent == null)
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Agent {AgentId} not found", agentId);
@@ -285,7 +285,7 @@ namespace HordeServer.Server
 					// Update the session
 					try
 					{
-						agent = await _agentService.UpdateSessionWithWaitAsync(agent, sessionId, (AgentStatus)request.Status, request.Capabilities, request.Leases, cancellationSource.Token);
+						agent = await _agentService.UpdateSessionWithWaitAsync(agent, sessionId, (AgentStatus)request.Status, request.Capabilities?.MergeDevices(), request.Leases, cancellationSource.Token);
 					}
 					catch (OperationCanceledException)
 					{

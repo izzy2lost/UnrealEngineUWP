@@ -315,6 +315,8 @@ namespace HordeServer.Tests.Server
 			Assert.IsTrue(agent.Properties.Contains("fooKey=barValue"));
 		}
 
+#pragma warning disable CA1041
+#pragma warning disable CS0612
 		[TestMethod]
 		public async Task PropertiesFromDeviceCapabilitiesAsync()
 		{
@@ -329,11 +331,13 @@ namespace HordeServer.Tests.Server
 		public async Task KnownPropertiesAreSetAsResourcesAsync()
 		{
 			RpcCreateSessionRequest req = new() { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new RpcAgentCapabilities() };
-			req.Capabilities.Devices.Add(new RpcDeviceCapabilities { Handle = "someHandle", Properties = { $"{KnownPropertyNames.LogicalCores}=10" } });
+			req.Capabilities.Devices.Add(new RpcDeviceCapabilities { Handle = "someHandle", Properties = { $"{KnownResourceNames.LogicalCores}=10" } });
 			RpcCreateSessionResponse res = await RpcService.CreateSession(req, _adminContext);
 			IAgent agent = (await AgentService.GetAgentAsync(new AgentId(res.AgentId)))!;
-			Assert.AreEqual(10, agent.Resources[KnownPropertyNames.LogicalCores]);
+			Assert.AreEqual(10, agent.Resources[KnownResourceNames.LogicalCores]);
 		}
+#pragma warning restore CS0612
+#pragma warning restore CA1041
 
 		[TestMethod]
 		public async Task UpdateSessionTestAsync()

@@ -117,18 +117,18 @@ namespace HordeAgent.Services
 			RpcAgentCapabilities capabilities = await capabilitiesService.GetCapabilitiesAsync(workingDir);
 			if (capabilities.Properties.Count > 0)
 			{
-				logger.LogInformation("Global:");
+				logger.LogInformation("Properties:");
 				foreach (string property in capabilities.Properties)
 				{
 					logger.LogInformation("  {AgentProperty}", property);
 				}
 			}
-			foreach (RpcDeviceCapabilities device in capabilities.Devices)
+			if (capabilities.Resources.Count > 0)
 			{
-				logger.LogInformation("{DeviceName} Device:", device.Handle);
-				foreach (string property in device.Properties)
+				logger.LogInformation("Resources:");
+				foreach ((string name, int value) in capabilities.Resources)
 				{
-					logger.LogInformation("   {DeviceProperty}", property);
+					logger.LogInformation("  {Name}={Value}", name, value);
 				}
 			}
 
@@ -313,7 +313,7 @@ namespace HordeAgent.Services
 
 		static string? GetProperty(RpcAgentCapabilities capabilities, string name)
 		{
-			foreach (string property in capabilities.Devices[0].Properties)
+			foreach (string property in capabilities.Properties)
 			{
 				if (property.Length > name.Length && property[name.Length] == '=' && property.StartsWith(name, StringComparison.OrdinalIgnoreCase))
 				{
