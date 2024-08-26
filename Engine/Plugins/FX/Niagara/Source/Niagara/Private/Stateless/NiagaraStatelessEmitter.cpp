@@ -359,9 +359,13 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 			StatelessEmitterData->ParticleSimExecData
 		);
 
+		FNiagaraStatelessShaderParametersBuilder ShaderParametersBuilder;
+		ShaderParametersBuilder.AddParameterNestedStruct<NiagaraStateless::FCommonShaderParameters>();
+
 		for (const UNiagaraStatelessModule* Module : Modules)
 		{
-			EmitterBuildContext.PreModuleBuild();
+			EmitterBuildContext.PreModuleBuild(ShaderParametersBuilder.GetParametersStructSize());
+			Module->BuildShaderParameters(ShaderParametersBuilder);
 			Module->BuildEmitterData(EmitterBuildContext);
 		}
 		StatelessEmitterData->bModulesHaveRendererBindings = StatelessEmitterData->RendererBindings.Num() > 0;

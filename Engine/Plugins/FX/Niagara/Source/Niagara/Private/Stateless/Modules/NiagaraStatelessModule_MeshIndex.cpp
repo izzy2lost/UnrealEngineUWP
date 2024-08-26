@@ -133,6 +133,11 @@ void UNiagaraStatelessModule_MeshIndex::BuildEmitterData(const FNiagaraStateless
 	BuildContext.AddParticleSimulationExecSimulate(&ParticleSimulate);
 }
 
+void UNiagaraStatelessModule_MeshIndex::BuildShaderParameters(FNiagaraStatelessShaderParametersBuilder& ShaderParametersBuilder) const
+{
+	ShaderParametersBuilder.AddParameterNestedStruct<FParameters>();
+}
+
 void UNiagaraStatelessModule_MeshIndex::SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const
 {
 	using namespace NSMMeshIndexPrivate;

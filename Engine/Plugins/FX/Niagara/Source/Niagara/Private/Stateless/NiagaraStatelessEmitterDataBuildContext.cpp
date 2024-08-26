@@ -8,9 +8,10 @@
 #include "NiagaraParameterStore.h"
 #include "NiagaraParameterStore.h"
 
-void FNiagaraStatelessEmitterDataBuildContext::PreModuleBuild()
+void FNiagaraStatelessEmitterDataBuildContext::PreModuleBuild(int32 InShaderParameterOffset)
 {
 	ModuleBuiltDataOffset = BuiltData.Num();
+	ShaderParameterOffset = InShaderParameterOffset;
 	++RandomSeedOffest;
 }
 
@@ -105,7 +106,7 @@ void FNiagaraStatelessEmitterDataBuildContext::AddParticleSimulationExecSimulate
 		return;
 	}
 
-	ParticleExecData->SimulateFunctions.Emplace(MoveTemp(Func), ModuleBuiltDataOffset, RandomSeedOffest);
+	ParticleExecData->SimulateFunctions.Emplace(MoveTemp(Func), ModuleBuiltDataOffset, ShaderParameterOffset, RandomSeedOffest);
 }
 
 int32 FNiagaraStatelessEmitterDataBuildContext::FindParticleVariableIndex(const FNiagaraVariableBase& Variable) const

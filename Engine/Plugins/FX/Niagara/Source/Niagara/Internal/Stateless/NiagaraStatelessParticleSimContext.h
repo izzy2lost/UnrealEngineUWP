@@ -5,6 +5,8 @@
 #include "NiagaraStatelessCommon.h"
 #include "NiagaraStatelessBuiltDistribution.h"
 
+#include "ShaderParameterMacros.h"
+
 class FNiagaraDataBuffer;
 struct FNiagaraStatelessEmitterData;
 struct FNiagaraStatelessRuntimeSpawnInfo;
@@ -29,7 +31,7 @@ enum class EParticleComponent
 class FParticleSimulationContext
 {
 public:
-	explicit FParticleSimulationContext(const FNiagaraStatelessEmitterData* EmitterData, TConstArrayView<uint8> DynamicBufferData);
+	explicit FParticleSimulationContext(const FNiagaraStatelessEmitterData* EmitterData, const void* InShaderParametersData, TConstArrayView<uint8> DynamicBufferData);
 
 	void Simulate(int32 EmitterRandomSeed, float EmitterAge, float DeltaTime, TConstArrayView<FNiagaraStatelessRuntimeSpawnInfo> SpawnInfos, FNiagaraDataBuffer* DestinationData);
 	void SimulateGPU(FRHICommandListBase& RHICmdList, int32 EmitterRandomSeed, float EmitterAge, float DeltaTime, TConstArrayView<FNiagaraStatelessRuntimeSpawnInfo> SpawnInfos, FNiagaraDataBuffer* DestinationData);
@@ -179,6 +181,14 @@ public:
 		return reinterpret_cast<const T*>(BuiltData.GetData() + Offset);
 	}
 
+	template<typename T>
+	const T* ReadParameterNestedStruct() const
+	{
+		const uint32 Offset = Align(ShaderParameterOffset, TShaderParameterStructTypeInfo<T>::Alignment);
+		ShaderParameterOffset = Offset + TShaderParameterStructTypeInfo<T>::GetStructMetadata()->GetSize();
+		return reinterpret_cast<const T*>(ShaderParametersData + Offset);
+	}
+
 	static FQuat4f RotatorToQuat(FVector3f Rotator)
 	{
 		Rotator.X = FMath::Fractional(Rotator.X) * UE_PI;
@@ -216,6 +226,8 @@ private:
 
 	const TConstArrayView<uint8>			BuiltData;
 	mutable int32							BuiltDataOffset = 0;
+	const uint8*							ShaderParametersData = nullptr;
+	mutable int32							ShaderParameterOffset = 0;
 	const TConstArrayView<float>			StaticFloatData;
 	const TConstArrayView<uint8>			DynamicBufferData;
 };

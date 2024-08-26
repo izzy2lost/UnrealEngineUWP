@@ -30,7 +30,7 @@ public:
 	{
 	}
 
-	void PreModuleBuild();
+	void PreModuleBuild(int32 InShaderParameterOffset);
 
 	uint32 AddStaticData(TConstArrayView<float> FloatData) const;
 	uint32 AddStaticData(TConstArrayView<FVector2f> FloatData) const;
@@ -152,6 +152,7 @@ private:
 	NiagaraStateless::FParticleSimulationExecData*	ParticleExecData = nullptr;
 
 	int32											ModuleBuiltDataOffset = 0;
+	int32											ShaderParameterOffset = 0;
 	int32											RandomSeedOffest = 0;
 
 	struct FTransientObject

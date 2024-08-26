@@ -58,6 +58,11 @@ public:
 		}
 	}
 
+	virtual void BuildShaderParameters(FNiagaraStatelessShaderParametersBuilder& ShaderParametersBuilder) const override
+	{
+		ShaderParametersBuilder.AddParameterNestedStruct<FParameters>();
+	}
+
 	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override
 	{
 		const FModuleBuiltData* ModuleBuiltData = SetShaderParameterContext.ReadBuiltData<FModuleBuiltData>();
@@ -134,34 +139,35 @@ public:
 	static void ParticleSimulate(const NiagaraStateless::FParticleSimulationContext& ParticleSimulationContext)
 	{
 		const FModuleBuiltData* ModuleBuiltData = ParticleSimulationContext.ReadBuiltData<FModuleBuiltData>();
+		const FParameters* Parameters = ParticleSimulationContext.ReadParameterNestedStruct<FParameters>();
 
 		const float* AgeData			= ParticleSimulationContext.GetParticleAge();
 		const float* PreviousAgeData	= ParticleSimulationContext.GetParticlePreviousAge();
 
 		for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
 		{
-			const float Mass				= ParticleSimulationContext.RandomScaleBiasFloat(i, 0, ModuleBuiltData->PhysicsData.MassRange);
-			const float Drag				= ParticleSimulationContext.RandomScaleBiasFloat(i, 1, ModuleBuiltData->PhysicsData.DragRange);
-			FVector3f InitialVelocity		= ParticleSimulationContext.RandomScaleBiasFloat(i, 2, ModuleBuiltData->PhysicsData.VelocityRange);
-			const FVector3f Wind			= ParticleSimulationContext.RandomScaleBiasFloat(i, 3, ModuleBuiltData->PhysicsData.WindRange);
-			const FVector3f Acceleration	= ParticleSimulationContext.RandomScaleBiasFloat(i, 4, ModuleBuiltData->PhysicsData.AccelerationRange);
+			const float Mass				= ParticleSimulationContext.RandomScaleBiasFloat(i, 0, Parameters->SolveVelocitiesAndForces_MassScale, Parameters->SolveVelocitiesAndForces_MassBias);
+			const float Drag				= ParticleSimulationContext.RandomScaleBiasFloat(i, 1, Parameters->SolveVelocitiesAndForces_DragScale, Parameters->SolveVelocitiesAndForces_DragBias);
+			FVector3f InitialVelocity		= ParticleSimulationContext.RandomScaleBiasFloat(i, 2, Parameters->SolveVelocitiesAndForces_VelocityScale, Parameters->SolveVelocitiesAndForces_VelocityBias);
+			const FVector3f Wind			= ParticleSimulationContext.RandomScaleBiasFloat(i, 3, Parameters->SolveVelocitiesAndForces_WindScale, Parameters->SolveVelocitiesAndForces_WindBias);
+			const FVector3f Acceleration	= ParticleSimulationContext.RandomScaleBiasFloat(i, 4, Parameters->SolveVelocitiesAndForces_AccelerationScale, Parameters->SolveVelocitiesAndForces_AccelerationBias);
 
 			FVector3f Position			= ParticleSimulationContext.ReadParticleVariable(ModuleBuiltData->PositionVariableOffset, i, FVector3f::ZeroVector);
 			FVector3f PreviousPosition	= ParticleSimulationContext.ReadParticleVariable(ModuleBuiltData->PreviousPositionVariableOffset, i, FVector3f::ZeroVector);
 
 			if (ModuleBuiltData->PhysicsData.bConeVelocity)
 			{
-				const float ConeAngle = ParticleSimulationContext.RandomScaleBiasFloat(i, 5, FNiagaraStatelessRangeFloat(ModuleBuiltData->PhysicsData.ConeInnerAngle, ModuleBuiltData->PhysicsData.ConeOuterAngle)) * (UE_PI / 360.0f);
+				const float ConeAngle = ParticleSimulationContext.RandomScaleBiasFloat(i, 5, Parameters->SolveVelocitiesAndForces_ConeAngleScale, Parameters->SolveVelocitiesAndForces_ConeAngleBias);
 				const float ConeRotation = ParticleSimulationContext.RandomFloat(i, 6) * UE_TWO_PI;
 				const FVector2f scAng = FVector2f(FMath::Sin(ConeAngle), FMath::Cos(ConeAngle));
 				const FVector2f scRot = FVector2f(FMath::Sin(ConeRotation), FMath::Cos(ConeRotation));
 				const FVector3f Direction = FVector3f(scRot.X * scAng.X, scRot.Y * scAng.X, scAng.Y);
 
-				float VelocityScale = ParticleSimulationContext.RandomScaleBiasFloat(i, 7, ModuleBuiltData->PhysicsData.ConeVelocityRange);
+				float VelocityScale = ParticleSimulationContext.RandomScaleBiasFloat(i, 7, Parameters->SolveVelocitiesAndForces_ConeVelocityScale, Parameters->SolveVelocitiesAndForces_ConeVelocityBias);
 				if (ModuleBuiltData->PhysicsData.bConeVelocity)
 				{
-					const float pf = FMath::Pow(FMath::Clamp(scAng.Y, 0.0f, 1.0f), ModuleBuiltData->PhysicsData.ConeVelocityFalloff * 10.0f);
-					VelocityScale *= FMath::Lerp(1.0f, pf, ModuleBuiltData->PhysicsData.ConeVelocityFalloff);
+					const float pf = FMath::Pow(FMath::Clamp(scAng.Y, 0.0f, 1.0f), Parameters->SolveVelocitiesAndForces_ConeVelocityFalloff * 10.0f);
+					VelocityScale *= FMath::Lerp(1.0f, pf, Parameters->SolveVelocitiesAndForces_ConeVelocityFalloff);
 				}
 
 				InitialVelocity += ModuleBuiltData->PhysicsData.ConeQuat.RotateVector(Direction) * VelocityScale;
@@ -170,9 +176,9 @@ public:
 			if (ModuleBuiltData->PhysicsData.bPointVelocity)
 			{
 				const FVector3f FallbackDir	= ParticleSimulationContext.RandomUnitFloat3(i, 8);
-				const FVector3f Delta		= Position - ModuleBuiltData->PhysicsData.PointOrigin;
+				const FVector3f Delta		= Position - Parameters->SolveVelocitiesAndForces_PointOrigin;
 				const FVector3f Direction	= ParticleSimulationContext.SafeNormalize(Delta, FallbackDir);
-				const float		VelocityScale = ParticleSimulationContext.RandomScaleBiasFloat(i, 9, ModuleBuiltData->PhysicsData.PointVelocityRange);
+				const float		VelocityScale = ParticleSimulationContext.RandomScaleBiasFloat(i, 9, Parameters->SolveVelocitiesAndForces_PointVelocityScale, Parameters->SolveVelocitiesAndForces_PointVelocityBias);
 
 				InitialVelocity += Direction * VelocityScale;
 			}

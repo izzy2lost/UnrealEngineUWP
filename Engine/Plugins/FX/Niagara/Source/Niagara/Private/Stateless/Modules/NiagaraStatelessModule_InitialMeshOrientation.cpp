@@ -105,6 +105,11 @@ void UNiagaraStatelessModule_InitialMeshOrientation::BuildEmitterData(const FNia
 	}
 }
 
+void UNiagaraStatelessModule_InitialMeshOrientation::BuildShaderParameters(FNiagaraStatelessShaderParametersBuilder& ShaderParametersBuilder) const
+{
+	ShaderParametersBuilder.AddParameterNestedStruct<FParameters>();
+}
+
 void UNiagaraStatelessModule_InitialMeshOrientation::SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const
 {
 	using namespace NSMInitialMeshOrientationPrivate;

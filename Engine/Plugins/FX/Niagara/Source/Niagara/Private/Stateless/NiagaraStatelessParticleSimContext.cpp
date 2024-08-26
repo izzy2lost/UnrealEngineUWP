@@ -49,9 +49,10 @@ namespace NiagaraStateless
 		return v;
 	}
 
-	FParticleSimulationContext::FParticleSimulationContext(const FNiagaraStatelessEmitterData* InEmitterData, TConstArrayView<uint8> InDynamicBufferData)
+	FParticleSimulationContext::FParticleSimulationContext(const FNiagaraStatelessEmitterData* InEmitterData, const void* InShaderParametersData, TConstArrayView<uint8> InDynamicBufferData)
 		: EmitterData(InEmitterData)
 		, BuiltData(EmitterData->BuiltData)
+		, ShaderParametersData(static_cast<const uint8*>(InShaderParametersData))
 		, StaticFloatData(EmitterData->StaticFloatData)
 		, DynamicBufferData(InDynamicBufferData)
 	{
@@ -224,6 +225,7 @@ namespace NiagaraStateless
 		for (const auto& Callback : ExecData->SimulateFunctions)
 		{
 			BuiltDataOffset = Callback.BuiltDataOffset;
+			ShaderParameterOffset = Callback.ShaderParameterOffset;
 			ModuleRandomSeed = Callback.RandomSeedOffset;
 			Callback.Function(*this);
 		}

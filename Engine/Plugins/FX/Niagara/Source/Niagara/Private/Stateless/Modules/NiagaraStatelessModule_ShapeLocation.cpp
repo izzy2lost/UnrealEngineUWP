@@ -180,6 +180,11 @@ void UNiagaraStatelessModule_ShapeLocation::BuildEmitterData(const FNiagaraState
 	BuildContext.AddParticleSimulationExecSimulate(&ParticleSimulate);
 }
 
+void UNiagaraStatelessModule_ShapeLocation::BuildShaderParameters(FNiagaraStatelessShaderParametersBuilder& ShaderParametersBuilder) const
+{
+	ShaderParametersBuilder.AddParameterNestedStruct<FParameters>();
+}
+
 void UNiagaraStatelessModule_ShapeLocation::SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const
 {
 	using namespace NSMShapeLocationPrivate;
