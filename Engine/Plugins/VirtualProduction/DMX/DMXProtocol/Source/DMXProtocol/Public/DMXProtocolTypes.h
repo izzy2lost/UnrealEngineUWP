@@ -65,7 +65,7 @@ public:
 
 	int32 ExternUniverseID;
 
-	int32 Priority;
+	int32 Priority = 100;
 
 	TArray<uint8> ChannelData;
 };
