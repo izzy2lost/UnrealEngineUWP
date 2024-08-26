@@ -8,7 +8,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogActorModifierCoreLibrary, Log, All);
 
-bool UActorModifierCoreLibrary::FindOrAddModifierStack(AActor* InActor, UActorModifierCoreStack*& OutModifierStack, bool bInCreateIfNone)
+bool UActorModifierCoreLibrary::FindModifierStack(AActor* InActor, UActorModifierCoreStack*& OutModifierStack, bool bInCreateIfNone)
 {
 	OutModifierStack = nullptr;
 	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
@@ -458,6 +458,15 @@ bool UActorModifierCoreLibrary::FindModifiers(UActorModifierCoreStack* InModifie
 	}
 
 	return !OutFoundModifiers.IsEmpty();
+}
+
+UActorModifierCoreBase* UActorModifierCoreLibrary::FindModifierOfClass(UActorModifierCoreStack* InModifierStack, TSubclassOf<UActorModifierCoreBase> InModifierClass)
+{
+	if (IsValid(InModifierStack))
+	{
+		return InModifierStack->FindModifier(InModifierClass);
+	}
+	return nullptr;
 }
 
 bool UActorModifierCoreLibrary::GetSupportedModifiers(AActor* InActor, TSet<TSubclassOf<UActorModifierCoreBase>>& OutSupportedModifierClasses, EActorModifierCoreStackPosition InContextPosition, UActorModifierCoreBase* InContextModifier)

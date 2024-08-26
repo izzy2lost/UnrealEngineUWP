@@ -24,7 +24,7 @@ public:
 	 * @return true when a valid modifier stack is returned
 	 */
 	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
-	static ACTORMODIFIERCORE_API bool FindOrAddModifierStack(AActor* InActor, UActorModifierCoreStack*& OutModifierStack, bool bInCreateIfNone = false);
+	static ACTORMODIFIERCORE_API bool FindModifierStack(AActor* InActor, UActorModifierCoreStack*& OutModifierStack, bool bInCreateIfNone = false);
 
 	/**
 	 * Creates and insert a new modifier into a modifier stack
@@ -207,6 +207,15 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
 	static ACTORMODIFIERCORE_API bool FindModifiers(UActorModifierCoreStack* InModifierStack, const FActorModifierCoreSearchOperation& InOperation, TSet<UActorModifierCoreBase*>& OutFoundModifiers);
+
+	/**
+	 * Returns the first modifier of a specified class in the stack
+	 * @param InModifierStack The modifier stack to search
+	 * @param InModifierClass The class of the modifier to look for
+	 * @return the Modifier of the specified class, if any.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility", meta=(DeterminesOutputType="InModifierClass"))
+	static ACTORMODIFIERCORE_API UActorModifierCoreBase* FindModifierOfClass(UActorModifierCoreStack* InModifierStack, TSubclassOf<UActorModifierCoreBase> InModifierClass);
 
 	/**
 	 * Gets all modifier classes supported by this actor at a specific position
