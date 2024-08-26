@@ -6,6 +6,7 @@
 #include "Misc/Paths.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/LatentActionManager.h"
+#include "Engine/Level.h"
 #include "Components/BillboardComponent.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
@@ -114,6 +115,21 @@ FString LexToString(const EFunctionalTestResult TestResult)
 			return FString("Succeeded");
 	}
 	return FString("Unhandled EFunctionalTestResult Enum!");
+}
+
+
+FString MapPackageToAutomationPath(const FString& MapPackageName)
+{
+	FString PartialSuiteName;
+	if (MapPackageName.StartsWith(TEXT("/Game/")))
+	{
+		PartialSuiteName = MapPackageName.RightChop(6); // Remove "/Game/" from the name, it is not descriptive
+	}
+	else
+	{
+		PartialSuiteName = MapPackageName.RightChop(1); // Remove leading slash
+	}
+	return PartialSuiteName.Replace(TEXT("/"), TEXT(".")); // use dot syntax
 }
 
 
@@ -262,6 +278,7 @@ bool AFunctionalTest::RunTest(const TArray<FString>& Params)
 		{
 			AddInfo(FString::Printf(TEXT("[Owner] %s"), *Author));
 			AddInfo(FString::Printf(TEXT("[Description] %s"), *Description));
+			AddInfo(FString::Printf(TEXT("[TestTags] %s"), *TestTags));
 		}
 	}
 
@@ -569,9 +586,10 @@ void AFunctionalTest::RegisterAutoDestroyActor(AActor* ActorToAutoDestroy)
 
 void AFunctionalTest::PostEditChangeProperty( struct FPropertyChangedEvent& PropertyChangedEvent)
 {
-	static const FName NAME_FunctionalTesting = FName(TEXT("FunctionalTesting"));
+	static const FName NAME_FunctionalTesting = FName(TEXT("Functional Testing"));
 	static const FName NAME_TimeLimit = FName(TEXT("TimeLimit"));
 	static const FName NAME_TimesUpResult = FName(TEXT("TimesUpResult"));
+	static const FName NAME_TestTags = FName(TEXT("TestTags"));
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
@@ -594,6 +612,18 @@ void AFunctionalTest::PostEditChangeProperty( struct FPropertyChangedEvent& Prop
 					TimesUpResult = EFunctionalTestResult::Failed;
 				}
 			}
+			else if (PropertyChangedEvent.Property->GetFName() == NAME_TestTags)
+			{
+				// re-register existing tags for the loaded test
+				FString CurrentMapPackageName = this->GetLevel()->GetPackage()->GetName();
+				FString PartialSuiteName = MapPackageToAutomationPath(CurrentMapPackageName);
+				FString FullBeautifiedName(PartialSuiteName + TEXT(".") + *GetActorLabel());
+				FString FullTestName(TEXT("Project.Functional Tests." + FullBeautifiedName));
+
+				FAutomationTestFramework& TestFramework = FAutomationTestFramework::Get();
+				TestFramework.UnregisterAutomationTestTags(FullTestName);
+				TestFramework.RegisterAutomationTestTags(FullTestName, TestTags);
+			}
 		}
 	}
 }
@@ -611,7 +641,7 @@ void AFunctionalTest::GetAssetRegistryTags(FAssetRegistryTagsContext Context) co
 
 	if (IsPackageExternal() && IsEnabled())
 	{
-		const FString TestActor = GetActorLabel() + TEXT("|") + GetName();
+		const FString TestActor = GetActorLabel() + TEXT("|") + GetName() + TEXT("|") + TestTags;
 		const TCHAR* TestCategory = IsEditorOnlyObject(this) ? TEXT("TestNameEditor") : TEXT("TestName");
 		Context.AddTag(UObject::FAssetRegistryTag(TestCategory, TestActor, UObject::FAssetRegistryTag::TT_Hidden));
 	}

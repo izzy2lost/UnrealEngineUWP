@@ -1514,10 +1514,18 @@ public:
 		}
 	}
 
+	/**
+	 * No-op default ctor performs no registration
+	 */
+	FAutomationTestTags() {}
+
 	~FAutomationTestTags()
 	{
-		//ignore failure to unregister due to already being unregistered
-		FAutomationTestFramework::Get().UnregisterAutomationTestTags(TestFullName);
+		if (!TestFullName.IsEmpty())
+		{
+			//ignore failure to unregister due to already being unregistered
+			FAutomationTestFramework::Get().UnregisterAutomationTestTags(TestFullName);
+		}
 	}
 private:
 	FString TestFullName;
