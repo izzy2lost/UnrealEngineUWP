@@ -42,29 +42,69 @@ enum EValueFlags
 	VF_InstructionAnalyzed = 2,
 };
 
+//
 struct FValue
 {
 	EValueKind Kind : 8{};
 	EValueFlags Flags : 8{};
 	FTypePtr  Type{};
 
-	void SetFlags(EValueFlags InFlags) { Flags = (EValueFlags)(Flags | InFlags); }
-	bool IsA(EValueKind InKind) const { return Kind == InKind; }
-	FInstruction* AsInstruction();
-	const FInstruction* AsInstruction() const;
-	bool Equals(const FValue* Other) const;
+	// Returns the size in bytes of this value instance.
 	uint32 GetSizeInBytes() const;
-	TArrayView<const FValue*> GetUses() const;
-	TArrayView<FValue*> GetUses();
-	UTexture* GetTexture();
-	bool IsConstantTrue() const;
-	bool IsConstantFalse() const;
-	bool IsConstantZero() const;
-	bool IsConstantOne() const;
+	
+	// Sets the specified value flags.
+	void SetFlags(EValueFlags InFlags) { Flags = (EValueFlags)(Flags | InFlags); }
 
+	// Returns whether this value is of specified kind.
+	bool IsA(EValueKind InKind) const { return Kind == InKind; }
+
+	// Tries to cast this value to an instruction and returns it (nullptr otherwise).
+	FInstruction* AsInstruction();
+
+	// Tries to cast this value to an instruction and returns it (nullptr otherwise).
+	const FInstruction* AsInstruction() const;
+
+	// Returns the array of this value's uses. An use is another value referenced by this one (e.g. the operands of a binary expression).
+	TArrayView<const FValue*> GetUses() const;
+
+	// Returns the array of this value's uses. An use is another value referenced by this one (e.g. the operands of a binary expression).
+	TArrayView<FValue*> GetUses();
+
+	// Returns whether this value exactly equals Other.
+	bool Equals(const FValue* Other) const;
+
+	// Returns whether this value is a scalar (its type is Primitive with exactly 1 component).
+	bool IsScalar() const;
+
+	// Returns whether this value is a vector (tis type is Primitive with 1-4 rows and exactly 1 column).
+	bool IsVector() const;
+
+	// Returns whether this value is a constant boolean with value true.
+	bool IsTrue() const;
+
+	// Returns whether this value is a constant boolean with value false.
+	bool IsFalse() const;
+
+	// Returns whether this value is arithmetic and exactly zero.
+	bool IsExactlyZero() const;
+
+	// Returns whether this value is arithmetic and approximately zero.
+	bool IsNearlyZero() const;
+
+	// Returns whether this value is arithmetic and exactly one.
+	bool IsExactlyOne() const;
+
+	// Returns whether this value is arithmetic and approximately one.
+	bool IsNearlyOne() const;
+	
+	// Returns this value's textures if it has one (nullptr otherwise).
+	UTexture* GetTexture();
+
+	// Tries to cast this value to specified type T and returns the casted pointer, if possible (nullptr otherwise).
 	template <typename T>
 	T* As() { return this && IsA(T::TypeKind) ? static_cast<T*>(this) : nullptr; }
 
+	// Tries to cast this value to specified type T and returns the casted pointer, if possible (nullptr otherwise).
 	template <typename T>
 	const T* As() const { return this && IsA(T::TypeKind) ? static_cast<const T*>(this) : nullptr; }
 };

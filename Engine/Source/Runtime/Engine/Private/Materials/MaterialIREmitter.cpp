@@ -620,22 +620,22 @@ static FValue* TryFoldBinaryOperatorScalar(FEmitter* Emitter, EBinaryOperator Op
 	switch (Operator)
 	{
 		case BO_Add:
-			if (Lhs->IsConstantZero())
+			if (Lhs->IsNearlyZero())
 			{
 				return Rhs;
 			}
-			else if (Rhs->IsConstantZero())
+			else if (Rhs->IsNearlyZero())
 			{
 				return Lhs;
 			}
 			break;
 
 		case BO_Subtract:
-			if (Rhs->IsConstantZero())
+			if (Rhs->IsNearlyZero())
 			{
 				return Lhs;
 			}
-			else if (Lhs->IsConstantZero())
+			else if (Lhs->IsNearlyZero())
 			{
 				// return Emitter->EmitUnaryOperator(UO_Minus, Rhs);
 				UE_MIR_TODO();
@@ -643,18 +643,18 @@ static FValue* TryFoldBinaryOperatorScalar(FEmitter* Emitter, EBinaryOperator Op
 			break;
 
 		case BO_Multiply:
-			if (Lhs->IsConstantZero() || Rhs->IsConstantOne())
+			if (Lhs->IsNearlyZero() || Rhs->IsNearlyOne())
 			{
 				return Lhs;
 			}
-			else if (Lhs->IsConstantOne() || Rhs->IsConstantZero())
+			else if (Lhs->IsNearlyOne() || Rhs->IsNearlyZero())
 			{
 				return Rhs;
 			}
 			break;
 
 		case BO_Divide:
-			if (Lhs->IsConstantZero() || Rhs->IsConstantOne())
+			if (Lhs->IsNearlyZero() || Rhs->IsNearlyOne())
 			{
 				return Lhs;
 			}
@@ -734,26 +734,21 @@ static FValue* TryFoldBinaryOperatorScalar(FEmitter* Emitter, EBinaryOperator Op
 FValue* FEmitter::EmitBinaryOperator(EBinaryOperator Operator, FValue* Lhs, FValue* Rhs)
 {
 	// Argument value types must always match.
-	check(Lhs->Type == Rhs->Type);
+	if (Lhs->Type != Rhs->Type)
+	{
+		Errorf(TEXT("operands of binary operator `%s` do not have the same type."), BinaryOperatorToString(Operator));
+		return nullptr;
+	}
 
 	// Get the operands primitive type.
 	FPrimitiveTypePtr PrimitiveType = Lhs->Type->AsPrimitive();
-	check(PrimitiveType);
-
-	// Try converting operands to scalar constants
-	FConstant* ScalarLhs = Lhs->As<FConstant>();
-	FConstant* ScalarRhs = Rhs->As<FConstant>();
-
-	//  If they're both so, fold the binary operator right away and return the result.
-	if (ScalarLhs && ScalarRhs)
+	if (!PrimitiveType)
 	{
-		if (FValue* Value = TryFoldBinaryOperatorScalar(this, Operator, ScalarLhs, ScalarRhs))
-		{
-			return Value;
-		}
+		Errorf(TEXT("invalid binary operator on non primitive types."));
+		return nullptr;
 	}
 
-	// Determine the result type. If the operator is primitive, the result type will be the same
+	// Determine the result type. If the operator is arithmetic, the result type will be the same
 	// as the operands type. Otherwise it will have the same number of components but bool.
 	FPrimitiveTypePtr ResultType = IsArithmeticOperator(Operator)
 		? PrimitiveType
@@ -766,7 +761,11 @@ FValue* FEmitter::EmitBinaryOperator(EBinaryOperator Operator, FValue* Lhs, FVal
 	bool bSomeResultComponentWasFolded = false;
 	bool bResultIsIdenticalToLhs = true;
 	bool bResultIsIdenticalToRhs = true;
-	FValue* TempResultComponents[FDimensional::MaxNumComponents];
+
+	// Allocate the temporary array to store the folded component results
+	FMemMark Mark(FMemStack::Get());
+	TArrayView<FValue*> TempResultComponents = MakeTemporaryArray<FValue*>(Mark, ResultType->GetNumComponents());
+	
 	for (int i = 0; i < ResultType->GetNumComponents(); ++i)
 	{
 		// Extract the arguments individual components
@@ -803,6 +802,13 @@ FValue* FEmitter::EmitBinaryOperator(EBinaryOperator Operator, FValue* Lhs, FVal
 	// so that we retain as much compile-time information as possible.
 	if (bSomeResultComponentWasFolded)
 	{
+		// If result type is scalar, simply return the single folded result (instead of creating a dimensional value)
+		if (ResultType->IsScalar())
+		{
+			check(TempResultComponents[0]);
+			return TempResultComponents[0];
+		}
+
 		// Make the new dimensional value
 		FDimensional* Result = NewDimensionalValue(this, ResultType);
 		TArrayView<FValue*> ResultComponents = Result->GetComponents();

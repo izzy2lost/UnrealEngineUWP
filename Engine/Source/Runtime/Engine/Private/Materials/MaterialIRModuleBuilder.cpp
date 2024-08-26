@@ -60,7 +60,6 @@ struct FMaterialIRModuleBuilderImpl
 	FMaterialIRModule* Module;
 	MIR::FEmitter* Emitter;
 	TArray<FAnalysisContext> AnalysisContextStack;
-	TArray<MIR::FValue*> AuxValueList;
 	TArray<MIR::FInstruction*> InstructionStack{};
 
 	void Step_Initialize()
@@ -196,7 +195,8 @@ struct FMaterialIRModuleBuilderImpl
 
 	void PushFunctionCall(UMaterialExpressionMaterialFunctionCall* Call)
 	{
-		AuxValueList.Empty(Call->FunctionInputs.Num()); /* todo: is there a better (and idiomatic) way to allocate temp dynamic array on the stack? */
+		FMemMark Mark(FMemStack::Get());
+		TArrayView<MIR::FValue*> CallInputValues = MakeTemporaryArray<MIR::FValue*>(Mark, Call->FunctionInputs.Num());
 
 		// Make sure each function input is connected and has a value. If so, cache the values flowing into this
 		// funcion call inside the auxiliary value array.
@@ -207,7 +207,7 @@ struct FMaterialIRModuleBuilderImpl
 			if (Value)
 			{
 				MIR::FTypePtr Type = MIR::FType::FromMaterialValueType((EMaterialValueType)FunctionInput.ExpressionInput->GetInputType(0));
-				AuxValueList.Push(Emitter->EmitConstruct(Type, Value));
+				CallInputValues[i] = Emitter->EmitConstruct(Type, Value);
 			}
 		}
 
@@ -230,11 +230,10 @@ struct FMaterialIRModuleBuilderImpl
 		for (int i = 0; i < Call->FunctionInputs.Num(); ++i)
 		{
 			FFunctionExpressionInput& FunctionInput = Call->FunctionInputs[i];
-			MIR::FValue* Value = AuxValueList[i];
 
 			// Bind the value flowing into the function call input to the function input
 			// expression (inside the function) in the new context.
-			NewContext.SetOutputValue(FunctionInput.ExpressionInput->GetOutput(0), Value);
+			NewContext.SetOutputValue(FunctionInput.ExpressionInput->GetOutput(0), CallInputValues[i]);
 
 			// Mark the function input as built.
 			NewContext.BuiltExpressions.Add(FunctionInput.ExpressionInput.Get());

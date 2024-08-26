@@ -532,9 +532,15 @@ void UMaterialExpressionTextureSample::Build(UE::MIR::FEmitter& Emitter)
 
 void UMaterialExpressionTextureCoordinate::Build(UE::MIR::FEmitter& Emitter)
 {
-	MIR::FValue* OutputValue = Emitter.GetExternalInput(MIR::TexCoordIndexToExternalInput(CoordinateIndex));
+	if (UnMirrorU || UnMirrorV)
+	{
+		Emitter.Error("unmirroring unsupported");
+	}
 
-	// todo: add tiling support
+	MIR::FValue* OutputValue = Emitter.GetExternalInput(MIR::TexCoordIndexToExternalInput(CoordinateIndex));
+	
+	// Multiply the UV input by the UV tiling constants
+	OutputValue = Emitter.EmitBinaryOperator(MIR::BO_Multiply, OutputValue, Emitter.EmitConstantFloat2({ UTiling, VTiling }));
 	
 	Emitter.Put(GetOutput(0), OutputValue);
 }

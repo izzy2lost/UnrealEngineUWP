@@ -27,6 +27,24 @@ const TCHAR* ValueKindToString(EValueKind Kind)
 	};
 }
 
+uint32 FValue::GetSizeInBytes() const
+{
+	switch (Kind)
+	{
+		case VK_Constant: return sizeof(FConstant);
+		case VK_ExternalInput: return sizeof(FExternalInput);
+		case VK_MaterialParameter: return sizeof(FMaterialParameter);
+		case VK_SetMaterialOutput: return sizeof(FSetMaterialOutput);
+		case VK_BinaryOperator: return sizeof(FBinaryOperator);
+		case VK_Dimensional: return sizeof(FDimensional) + sizeof(FValue*) * static_cast<const FDimensional*>(this)->GetComponents().Num();
+		case VK_Branch: return sizeof(FBranch);
+		case VK_Subscript: return sizeof(FSubscript);
+		case VK_Cast: return sizeof(FCast);
+		case VK_TextureSample: return sizeof(FTextureSample);
+		default: UE_MIR_UNREACHABLE();
+	}
+}
+
 FInstruction* FValue::AsInstruction()
 {
 	return this && (Kind > VK_InstructionBegin && Kind < VK_InstructionEnd) ? static_cast<FInstruction*>(this) : nullptr;
@@ -62,24 +80,6 @@ bool FValue::Equals(const FValue* Other) const
 
 	// Values are PODs by design, therefore simply comparing bytes is sufficient.
 	return FMemory::Memcmp(this, Other, SizeInBytes) == 0;
-}
-
-uint32 FValue::GetSizeInBytes() const
-{
-	switch (Kind)
-	{
-		case VK_Constant: return sizeof(FConstant);
-		case VK_ExternalInput: return sizeof(FExternalInput);
-		case VK_MaterialParameter: return sizeof(FMaterialParameter);
-		case VK_SetMaterialOutput: return sizeof(FSetMaterialOutput);
-		case VK_BinaryOperator: return sizeof(FBinaryOperator);
-		case VK_Dimensional: return sizeof(FDimensional) + sizeof(FValue*) * static_cast<const FDimensional*>(this)->GetComponents().Num();
-		case VK_Branch: return sizeof(FBranch);
-		case VK_Subscript: return sizeof(FSubscript);
-		case VK_Cast: return sizeof(FCast);
-		case VK_TextureSample: return sizeof(FTextureSample);
-		default: UE_MIR_UNREACHABLE();
-	}
 }
 
 TArrayView<const FValue*> FValue::GetUses() const
@@ -138,6 +138,68 @@ TArrayView<FValue*> FValue::GetUses()
 	}
 }
 
+bool FValue::IsScalar() const
+{
+	return Type->AsScalar() != nullptr;
+}
+
+bool FValue::IsVector() const
+{
+	return Type->AsVector() != nullptr;
+}
+
+bool FValue::IsTrue() const
+{
+	const MIR::FConstant* Constant = As<MIR::FConstant>();
+	return Constant && Constant->IsBool() && Constant->Boolean == true;
+}
+
+bool FValue::IsFalse() const
+{
+	const MIR::FConstant* Constant = As<MIR::FConstant>();
+	return Constant && Constant->IsBool() && Constant->Boolean == false;
+}
+
+bool FValue::IsExactlyZero() const
+{
+	if (const MIR::FConstant* Constant = As<MIR::FConstant>())
+	{
+		return (Constant->IsInteger() && Constant->Integer == 0)
+			|| (Constant->IsFloat() && Constant->Float == 0.0f);
+	}
+	return false;
+}
+
+bool FValue::IsNearlyZero() const
+{
+	if (const MIR::FConstant* Constant = As<MIR::FConstant>())
+	{
+		return (Constant->IsInteger() && Constant->Integer == 0)
+			|| (Constant->IsFloat() && FMath::IsNearlyZero(Constant->Float));
+	}
+	return false;
+}
+
+bool FValue::IsExactlyOne() const
+{
+	if (const MIR::FConstant* Constant = As<MIR::FConstant>())
+	{
+		return (Constant->IsInteger() && Constant->Integer == 1)
+			|| (Constant->IsFloat() && Constant->Float == 1.0f);
+	}
+	return false;
+}
+
+bool FValue::IsNearlyOne() const
+{
+	if (const MIR::FConstant* Constant = As<MIR::FConstant>())
+	{
+		return (Constant->IsInteger() && Constant->Integer == 1)
+			|| (Constant->IsFloat() && FMath::IsNearlyEqual(Constant->Float, 1.0f));
+	}
+	return false;
+}
+
 UTexture* FValue::GetTexture()
 {
 	if (auto Parameter = As<FMaterialParameter>())
@@ -150,42 +212,6 @@ UTexture* FValue::GetTexture()
 	}
 
 	return nullptr;
-}
-
-bool FValue::IsConstantTrue() const
-{
-	const MIR::FConstant* Constant = As<MIR::FConstant>();
-	return Constant && Constant->IsBool() && Constant->Boolean == true;
-}
-
-bool FValue::IsConstantFalse() const
-{
-	const MIR::FConstant* Constant = As<MIR::FConstant>();
-	return Constant && Constant->IsBool() && Constant->Boolean == false;
-}
-
-bool FValue::IsConstantZero() const
-{
-	const MIR::FConstant* Constant = As<MIR::FConstant>();
-	if (!Constant)
-	{
-		return false;
-	}
-
-	return (Constant->IsInteger() && Constant->Integer == 0)
-		|| (Constant->IsFloat() && Constant->Float == 0.0f);
-}
-
-bool FValue::IsConstantOne() const
-{
-	const MIR::FConstant* Constant = As<MIR::FConstant>();
-	if (!Constant)
-	{
-		return false;
-	}
-
-	return (Constant->IsInteger() && Constant->Integer == 1)
-		|| (Constant->IsFloat() && Constant->Float == 1.0f);
 }
 
 bool FConstant::IsBool() const

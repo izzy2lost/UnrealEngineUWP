@@ -6,6 +6,13 @@
 
 #if WITH_EDITOR
 
+template <typename T>
+TArrayView<T> MakeTemporaryArray(FMemMark&, int Count)
+{
+	auto Ptr = (T*)FMemStack::Get().Alloc(sizeof(T) * Count, alignof(T));
+	return { Ptr, Count };
+}
+
 namespace UE::MIR::Internal {
 
 //
