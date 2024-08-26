@@ -97,4 +97,11 @@ void UMassDistanceVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildCont
 	BuildContext.AddTag<FMassVisualizationProcessorTag>();
 }
 
-
+void UMassDistanceVisualizationTrait::DestroyTemplate(const UWorld& World) const
+{
+	if (UMassRepresentationSubsystem* RepresentationSubsystem = Cast<UMassRepresentationSubsystem>(World.GetSubsystemBase(RepresentationSubsystemClass)))
+	{
+		RepresentationSubsystem->ReleaseTemplate(HighResTemplateActor);
+		RepresentationSubsystem->ReleaseTemplate(LowResTemplateActor);
+	}
+}

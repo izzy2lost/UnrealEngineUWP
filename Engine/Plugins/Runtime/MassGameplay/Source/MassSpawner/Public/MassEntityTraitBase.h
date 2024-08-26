@@ -49,7 +49,10 @@ public:
 	/** Appends items into the entity template required for the trait. */
 	virtual void BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const PURE_VIRTUAL(UMassEntityTraitBase::BuildTemplate, return; );
 
+	UE_DEPRECATED(5.5, "This flavor of DestroyTemplate has been deprecated, use the version taking the World parameter")
 	virtual void DestroyTemplate() const;
+
+	virtual void DestroyTemplate(const UWorld& World) const {}
 
 	/**
 	 * Called once all traits have been processed and fragment requirements have been checked. Override this function

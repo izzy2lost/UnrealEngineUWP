@@ -150,6 +150,13 @@ namespace UE::InstancedActors
 			TEXT("IA.UpdateNextTickTimeFragments"),
 			bUpdateNextTickTimeFragments,
 			TEXT("If enabled (default) forces LOD updated for newly re-spawned entities (i.e. spawned by IAD that has been reloaded)"),
+			ECVF_Default);		
+
+		bool bEnableReleasingEntityTemplatesAndExemplarActors = true;
+		FAutoConsoleVariableRef CVarEnableReleasingEntityTemplatesAndExemplarActors(
+			TEXT("IA.EnableReleasingEntityTemplatesAndExemplarActors"),
+			bEnableReleasingEntityTemplatesAndExemplarActors,
+			TEXT("If enabled (default) instanced actors will release created entity templates and exemplar actors from central systems. Allows resources that are no longer in use to be garbage collected."),
 			ECVF_Default);
 	} // CVars
 
@@ -164,6 +171,22 @@ namespace UE::InstancedActors
 			InstanceTransform.SetIdentityZeroScale();
 		}
 	} // Helpers
+
+	//-----------------------------------------------------------------------------
+	// FExemplarActorData
+	//-----------------------------------------------------------------------------
+	FExemplarActorData::~FExemplarActorData()
+	{
+		if (CVars::bEnableReleasingEntityTemplatesAndExemplarActors)
+		{
+			AActor* ExemplarActor = Actor.Get();
+			check(ExemplarActor);
+	
+			InstancedActorsSubsystem.UnregisterExemplarActorClass(ExemplarActor->GetClass());
+
+			ExemplarActor->Destroy();
+		}
+	}
 } // namespace InstancedActors
 
 //-----------------------------------------------------------------------------
@@ -217,18 +240,31 @@ void UInstancedActorsData::Initialize()
 	}
 
 	// Get or create exemplar actor to derive entities from
-	const AActor& ExemplarActor = InstancedActorSubsystem.GetOrCreateExemplarActor(ActorClass);
+	check(!ExemplarActorData.IsValid());
+	ExemplarActorData = InstancedActorSubsystem.GetOrCreateExemplarActor(ActorClass);
+	const AActor* const ExemplarActor = ExemplarActorData->Actor.Get();
+	check(ExemplarActor);
 
 	// Add default visualization at index 0
 	//FInstancedActorsVisualizationDesc DefaultVisualiation = FInstancedActorsVisualizationDesc::FromActor(ExemplarActor, &UE::InstancedActors::VisualizationDescrFromActorAdditionalSteps);
-	FInstancedActorsVisualizationDesc DefaultVisualiation = InstancedActorSubsystem.CreateVisualDescriptionFromActor(ExemplarActor);
+	FInstancedActorsVisualizationDesc DefaultVisualiation = InstancedActorSubsystem.CreateVisualDescriptionFromActor(*ExemplarActor);
 	const uint8 VisualizationIndex = AddVisualization(DefaultVisualiation);
 	check(VisualizationIndex == 0);
 
 	// Create entity template
-	CreateEntityTemplate(ExemplarActor);
+	CreateEntityTemplate(*ExemplarActor);
 
 	bHasEverInitialized = true;
+}
+
+void UInstancedActorsData::Deinitialize()
+{
+	if (bHasEverInitialized && UE::InstancedActors::CVars::bEnableReleasingEntityTemplatesAndExemplarActors)
+	{
+		ReleaseEntityTemplate();
+
+		ExemplarActorData.Reset();
+	}
 }
 
 void UInstancedActorsData::CreateEntityTemplate(const AActor& ExemplarActor)
@@ -238,7 +274,7 @@ void UInstancedActorsData::CreateEntityTemplate(const AActor& ExemplarActor)
 
 	FMassEntityManager& MassEntityManager = GetMassEntityManagerChecked();
 
-	FMassEntityConfig EntityConfig(*this);
+	EntityConfig = FMassEntityConfig(*this);
 
 	UMassDistanceLODCollectorTrait* LODCollectorTrait = NewObject<UMassDistanceLODCollectorTrait>(this);
 	EntityConfig.AddTrait(*LODCollectorTrait);
@@ -251,7 +287,7 @@ void UInstancedActorsData::CreateEntityTemplate(const AActor& ExemplarActor)
 	EntityConfig.AddTrait(*VisTrait);
 
 	// Allow UInstancedActorsComponent's to extend entity config
-	ExemplarActor.ForEachComponent<UInstancedActorsComponent>(/*bIncludeFromChildActors*/ false, [this, &MassEntityManager, &EntityConfig](const UInstancedActorsComponent* InstancedActorComponent)
+	ExemplarActor.ForEachComponent<UInstancedActorsComponent>(/*bIncludeFromChildActors*/ false, [this, &MassEntityManager](const UInstancedActorsComponent* InstancedActorComponent)
 		{ InstancedActorComponent->ModifyMassEntityConfig(MassEntityManager, this, EntityConfig); });
 
 	const FMassEntityTemplate& BaseEntityTemplate = EntityConfig.GetOrCreateEntityTemplate(*World);
@@ -280,6 +316,14 @@ void UInstancedActorsData::ModifyEntityTemplate(FMassEntityTemplateData& Modifie
 	ModifiedTemplate.RemoveTag<FMassVisualizationProcessorTag>();
 	// not needed really, since we don't add it in any of the traits but leaving here for the reference
 	// ModifiedTemplate.RemoveTag<FMassStationaryISMSwitcherProcessorTag>();
+}
+
+void UInstancedActorsData::ReleaseEntityTemplate()
+{
+	UWorld* World = GetWorld();
+	check(World);
+
+	EntityConfig.DestroyEntityTemplate(*World);
 }
 
 void UInstancedActorsData::SpawnEntities()

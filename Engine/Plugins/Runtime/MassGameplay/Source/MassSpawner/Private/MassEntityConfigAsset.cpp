@@ -93,7 +93,7 @@ void FMassEntityConfig::DestroyEntityTemplate(const UWorld& World) const
 	for (const UMassEntityTraitBase* Trait : CombinedTraits)
 	{
 		check(Trait);
-		Trait->DestroyTemplate();
+		Trait->DestroyTemplate(World);
 	}
 
 	// TODO - The templates are not being torn down completely, resulting in traits that leave data in various subsystems. (Representation system)

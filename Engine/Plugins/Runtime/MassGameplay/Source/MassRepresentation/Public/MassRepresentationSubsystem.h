@@ -142,6 +142,11 @@ public:
 	bool IsCollisionLoaded(const FName TargetGrid, const FTransform& Transform) const;
 
 	/**
+	 * Responds to the FMassEntityTemplate getting destroyed, and releases reference to corresponding Actor in TemplateActors
+	 */
+	void ReleaseTemplate(const TSubclassOf<AActor>& ActorClass);
+
+	/**
 	 * Release all references to static meshes and template actors
 	 * Use with caution, all entities using this representation subsystem must be destroy otherwise they will point to invalid resources */
 	void ReleaseAllResources();
@@ -163,11 +168,30 @@ protected:
 	bool ReleaseTemplateActorInternal(const int16 TemplateActorIndex, AActor* ActorToRelease, bool bImmediate);
 	bool CancelSpawningInternal(const int16 TemplateActorIndex, FMassActorSpawnRequestHandle& SpawnRequestHandle);
 
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
 protected:
 
+	struct FTemplateActorData
+	{
+		TSubclassOf<AActor> Actor;
+		uint32 RefCount{0u};
+	};
+	
+	struct FTemplateActorEqualsPredicate
+	{
+		const TSubclassOf<AActor>& ActorClass;
+
+		FTemplateActorEqualsPredicate(const TSubclassOf<AActor>& ActorClass) : ActorClass(ActorClass) {}
+
+		bool operator()(const FTemplateActorData& ActorData) const
+		{
+			return ActorData.Actor == ActorClass;
+		}
+	};
+
 	/** The array of all the template actors */
-	UPROPERTY(Transient)
-	TArray<TSubclassOf<AActor>> TemplateActors;
+	TSparseArray<FTemplateActorData> TemplateActors;
 	UE_MT_DECLARE_RW_ACCESS_DETECTOR(TemplateActorsMTAccessDetector);
 
 	/** The component that handles all the static mesh instances */

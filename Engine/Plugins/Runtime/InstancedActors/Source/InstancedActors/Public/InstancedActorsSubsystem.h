@@ -22,6 +22,11 @@ struct FInstancedActorsManagerHandle;
 struct FInstancedActorsModifierVolumeHandle;
 class UInstancedActorsProjectSettings;
 
+namespace UE::InstancedActors
+{
+struct FExemplarActorData;
+} // UE::InstancedActors
+
 /**
  * Instanced Actor subsystem used to spawn AInstancedActorsManager's and populate their instance data.
  * It also keeps track of all InstancedActorDatas and can be queried for them
@@ -117,8 +122,13 @@ public:
 	 * the main game world.
 	 *
 	 * These 'exemplar' actors are fully constructed, including BP construction scripts up to (but not including) BeginPlay.
-	 */ 
-	INSTANCEDACTORS_API AActor& GetOrCreateExemplarActor(TSubclassOf<AActor> ActorClass);
+	 */
+	INSTANCEDACTORS_API TSharedRef<UE::InstancedActors::FExemplarActorData> GetOrCreateExemplarActor(TSubclassOf<AActor> ActorClass);
+	
+	/**
+	 * Removes exemplar actor class from the map
+	 */
+	INSTANCEDACTORS_API void UnregisterExemplarActorClass(TSubclassOf<AActor> ActorClass);
 
 	/** 
 	 * Compiles and caches finalized settings for ActorClass based off FInstancedActorsClassSettingsBase found in 
@@ -254,7 +264,7 @@ protected:
 
 	// Lazily created exemplar actors for instance actor classes
 	// @see GetOrCreateExemplarActor
-	TMap<TObjectKey<const UClass>, TObjectPtr<AActor>> ExemplarActors;
+	TMap<TObjectKey<const UClass>, TWeakPtr<UE::InstancedActors::FExemplarActorData>> ExemplarActors;
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UScriptStruct> SettingsType;

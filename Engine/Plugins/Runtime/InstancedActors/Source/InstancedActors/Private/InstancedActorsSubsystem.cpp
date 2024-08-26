@@ -619,25 +619,28 @@ bool UInstancedActorsSubsystem::HasInstancesOfClass(const FBox& QueryBounds, TSu
 	return bHasInstances;
 }
 
-AActor& UInstancedActorsSubsystem::GetOrCreateExemplarActor(TSubclassOf<AActor> ActorClass)
+TSharedRef<UE::InstancedActors::FExemplarActorData> UInstancedActorsSubsystem::GetOrCreateExemplarActor(TSubclassOf<AActor> ActorClass)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInstancedActorsSubsystem GetOrCreateExemplarActor);
 
-	check(ActorClass.Get());
+	const UClass* const ActorClassPtr = ActorClass.Get();
+	check(ActorClassPtr);
 
 	// Return existing?
-	TObjectPtr<AActor>* CachedExemplarActor = ExemplarActors.Find(ActorClass.Get());
-	if (CachedExemplarActor)
+	const uint32 ActorClassHash = GetTypeHash(TObjectKey<const UClass>(ActorClassPtr));
+	
+	if (const TWeakPtr<UE::InstancedActors::FExemplarActorData>* CachedExemplarActorDataPtr = ExemplarActors.FindByHash(ActorClassHash, ActorClassPtr))
 	{
 		// This can fail in editor with undo/redo in the mix.
-		if (IsValid(*CachedExemplarActor))
+		TSharedPtr<UE::InstancedActors::FExemplarActorData> CachedExemplarActorData = CachedExemplarActorDataPtr->Pin();
+		if (CachedExemplarActorData.IsValid() && CachedExemplarActorData->Actor.Get() != nullptr)
 		{
-			return **CachedExemplarActor;
+			return CachedExemplarActorData.ToSharedRef();
 		}
 		else
 		{
 			// The examplar is not valid, we'll remove it and then re-create it below.
-			ExemplarActors.Remove(ActorClass.Get());
+			ExemplarActors.RemoveByHash(ActorClassHash, ActorClassPtr);
 		}
 	}
 
@@ -685,9 +688,22 @@ AActor& UInstancedActorsSubsystem::GetOrCreateExemplarActor(TSubclassOf<AActor> 
 	check(NewExemplarActor);
 
 	// Cache for subsequent calls
-	ExemplarActors.Add(ActorClass.Get(), NewExemplarActor);
+	TSharedPtr<UE::InstancedActors::FExemplarActorData> NewExemplarActorDataPtr{new UE::InstancedActors::FExemplarActorData{*NewExemplarActor, *this}};
+	ExemplarActors.AddByHash(ActorClassHash, ActorClassPtr, NewExemplarActorDataPtr);
 
-	return *NewExemplarActor;
+	return NewExemplarActorDataPtr.ToSharedRef();
+}
+
+void UInstancedActorsSubsystem::UnregisterExemplarActorClass(TSubclassOf<AActor> ActorClass)
+{
+	const UClass* const ActorClassPtr = ActorClass.Get();
+	check(ActorClassPtr);
+	
+	const uint32 ActorClassHash = GetTypeHash(TObjectKey<const UClass>(ActorClassPtr));	
+	if (const TWeakPtr<UE::InstancedActors::FExemplarActorData>* CachedExemplarActorDataPtr = ExemplarActors.FindByHash(ActorClassHash, ActorClassPtr))
+	{
+		ExemplarActors.RemoveByHash(ActorClassHash, ActorClassPtr);
+	}
 }
 
 FSharedStruct UInstancedActorsSubsystem::GetOrCompileSettingsForActorClass(TSubclassOf<AActor> ActorClass)

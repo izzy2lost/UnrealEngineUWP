@@ -22,6 +22,7 @@ public:
 	UMassDistanceVisualizationTrait();
 
 	virtual void BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const override;
+	virtual void DestroyTemplate(const UWorld& World) const override;
 
 	/** Instanced static mesh information for this agent */
 	UPROPERTY(EditAnywhere, Category = "Mass|Visual")

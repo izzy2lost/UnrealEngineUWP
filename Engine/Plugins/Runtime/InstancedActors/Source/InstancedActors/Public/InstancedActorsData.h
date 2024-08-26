@@ -4,12 +4,33 @@
 
 #include "InstancedActorsTypes.h"
 #include "InstancedActorsReplication.h"
+#include "MassEntityConfigAsset.h"
 #include "MassEntityTemplate.h"
 
 #include "InstancedActorsData.generated.h"
 
 class AInstancedActorsManager;
 struct FInstancedActorsSettings;
+
+namespace UE::InstancedActors
+{
+struct FExemplarActorData
+{
+	~FExemplarActorData();
+
+	TObjectPtr<AActor> Actor;
+private:
+	FExemplarActorData(AActor& InActor, UInstancedActorsSubsystem& InInstancedActorSubsystem)
+		: Actor(InActor)
+		, InstancedActorsSubsystem(InInstancedActorSubsystem)
+	{
+	}
+
+	UInstancedActorsSubsystem& InstancedActorsSubsystem;
+
+	friend class ::UInstancedActorsSubsystem;
+};
+} // UE::InstancedActors
 
 // @todo there's a lot of public variables in this class, and properties are mixed with functions. A refactor is coming soon.
 
@@ -36,6 +57,9 @@ public:
 	// Called early in AInstancedActorsManager::EndPlay to reconstruct cooked data state from runtime Mass entities as best we can,
 	// then despawn all Mass entities and reset any other runtime instance data
 	void DespawnEntities();
+
+	// Called from the parent's AInstancedActorsManager::EndPlay. Can release the entity template and exemplar Actor from memory 
+	void Deinitialize();
 
 	UFUNCTION(BlueprintPure, Category = InstancedActors)
 	AInstancedActorsManager* GetManager() const;
@@ -381,6 +405,9 @@ protected:
 	void CreateEntityTemplate(const AActor& ExemplarActor);
 	virtual void ModifyEntityTemplate(FMassEntityTemplateData& ModifiedTemplate, const AActor& ExemplarActor);
 
+	// Called from Deinitialize to destroy the owned FMassEntityTemplate  
+	void ReleaseEntityTemplate();
+
 	// Helper function used in ApplyInstanceDeltas to apply a single delta
 	// @see ApplyInstanceDeltas
 	virtual void ApplyInstanceDelta(FMassEntityManager& EntityManager, const FInstancedActorsDelta& InstanceDelta, TArray<FInstancedActorsInstanceIndex>& OutEntitiesToRemove);
@@ -449,4 +476,9 @@ private:
 	// @see Serialize
 	UPROPERTY(Replicated, SaveGame, Transient)
 	FInstancedActorsDeltaList InstanceDeltas;
+
+	UPROPERTY(Transient)
+	FMassEntityConfig EntityConfig;
+
+	TSharedPtr<UE::InstancedActors::FExemplarActorData> ExemplarActorData;
 };

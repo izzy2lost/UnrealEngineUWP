@@ -304,6 +304,12 @@ void AInstancedActorsManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	DespawnAllEntities();
 
+	for (TObjectPtr<UInstancedActorsData>& InstanceData : PerActorClassInstanceData)
+	{
+		check(InstanceData);
+		InstanceData->Deinitialize();
+	}
+
 	// Deregister with UInstancedActorsSubsystem
 	if (InstancedActorSubsystem)
 	{
@@ -518,8 +524,10 @@ void AInstancedActorsManager::SerializeInstancePersistenceData(FStructuredArchiv
 	int32 NumPersistedIACs = 0;
 	if (InstanceData)
 	{
-		const AActor& ExemplarActor = GetInstancedActorSubsystemChecked().GetOrCreateExemplarActor(InstanceData->ActorClass);
-		ExemplarActor.ForEachComponent<UInstancedActorsComponent>(/*bIncludeFromChildActors*/ false, [&](UInstancedActorsComponent* InstancedActorComponent)
+		TSharedPtr<UE::InstancedActors::FExemplarActorData> ExemplarActorData = GetInstancedActorSubsystemChecked().GetOrCreateExemplarActor(InstanceData->ActorClass);
+		const AActor* const ExemplarActor = ExemplarActorData->Actor.Get();
+		check(ExemplarActor);
+		ExemplarActor->ForEachComponent<UInstancedActorsComponent>(/*bIncludeFromChildActors*/ false, [&](UInstancedActorsComponent* InstancedActorComponent)
 			{
 				// Skip IAC's that don't want / need serialization. When writing this ensures we don't waste space by writing empty entries.
 				if (InstancedActorComponent->ShouldSerializeInstancePersistenceData(UnderlyingArchive, InstanceData, TimeDelta))
@@ -694,11 +702,17 @@ UInstancedActorsData& AInstancedActorsManager::GetOrCreateActorInstanceData(TSub
 	check(World);
 	UInstancedActorsSubsystem* EditorInstancedActorSubsystem = UE::InstancedActors::Utils::GetInstancedActorsSubsystem(*World);
 	check(EditorInstancedActorSubsystem);
-	const AActor& ExemplarActor = EditorInstancedActorSubsystem->GetOrCreateExemplarActor(ActorClass);
+	// @todo For performance reasons it would be helpful to be able to cache this into UInstancedActorsData::ExemplarActorData
+	// This would mean that undo-ing a conversion of actors to IAM in Editor will not clear or destroy the exemplar actor/map entry,
+	// which is the reason for the sanity-check of the actor ptr in UInstancedActorsSubsystem::GetOrCreateExemplarActor().
+	// We need to also investigate why converting the IAM to actors (destroying the IAM) does not seem to trigger GC on the UInstancedActorsData
+	TSharedPtr<UE::InstancedActors::FExemplarActorData> ExemplarActorData = EditorInstancedActorSubsystem->GetOrCreateExemplarActor(ActorClass);
+	const AActor* const ExemplarActor = ExemplarActorData->Actor.Get();
+	check(ExemplarActor);
 
 	// Create stand-in 'editor only' ISMC's to preview instances in the level editor. These will be stripped
 	// out at cook time and in PostLoad for game worlds (PIE)
-	FInstancedActorsVisualizationDesc DefaultVisualiation = EditorInstancedActorSubsystem->CreateVisualDescriptionFromActor(ExemplarActor);
+	FInstancedActorsVisualizationDesc DefaultVisualiation = EditorInstancedActorSubsystem->CreateVisualDescriptionFromActor(*ExemplarActor);
 	CreateISMComponents(DefaultVisualiation, NewInstanceData->SharedSettings, NewInstanceData->EditorPreviewISMComponents, /*bEditorPreviewISMCs*/ true);
 
 	// Add EditorPreviewISMComponents to the known ISMComponent-to-InstanceData map (ISMComponentToInstanceDataMap)
