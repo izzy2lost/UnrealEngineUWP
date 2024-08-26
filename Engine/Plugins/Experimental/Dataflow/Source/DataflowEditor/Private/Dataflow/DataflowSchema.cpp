@@ -28,7 +28,7 @@ UDataflowSchema::UDataflowSchema()
 
 void UDataflowSchema::GetContextMenuActions(class UToolMenu* Menu, class UGraphNodeContextMenuContext* Context) const
 {
-	if (Context->Node)
+	if (Context->Node && !Context->Pin)
 	{
 		{
 			FToolMenuSection& Section = Menu->AddSection("TestGraphSchemaNodeActions", LOCTEXT("GraphSchemaNodeActions_MenuHeader", "Node Actions"));
