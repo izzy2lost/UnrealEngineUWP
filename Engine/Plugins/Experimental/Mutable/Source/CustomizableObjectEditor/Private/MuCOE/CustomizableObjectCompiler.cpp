@@ -32,6 +32,7 @@
 #include "MuR/Model.h"
 #include "MuR/ModelPrivate.h"
 #include "MuCOE/CustomizableObjectVersionBridge.h"
+#include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 
 class UTexture2D;
 
@@ -1013,6 +1014,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 
 		ModelResources.ParameterUIDataMap = MoveTemp(GenerationContext.ParameterUIDataMap);
 		ModelResources.StateUIDataMap = MoveTemp(GenerationContext.StateUIDataMap);
+		ModelResources.IntParameterOptionDataTable = MoveTemp(GenerationContext.IntParameterOptionDataTable);
 
 		// Create the RealTimeMorphsTargets Blocks from the per mesh Morph data.
 		uint64 RealTimeMorphDataSize = 0;
@@ -1471,7 +1473,8 @@ void FCustomizableObjectCompiler::FinishSavingDerivedDataTask()
 
 		// Cache CO data and mu::Model
 		FMemoryWriter64 MemoryWriter(Data.ModelData);
-		CurrentObject->GetPrivate()->SaveCompiledData(MemoryWriter, true);
+		FObjectAndNameAsStringProxyArchive ObjectWriter(MemoryWriter, true);
+		CurrentObject->GetPrivate()->SaveCompiledData(ObjectWriter, true);
 		Data.ModelData.Append(SaveDDTask->ModelBytes);
 
 		// Cache streamable bulk data

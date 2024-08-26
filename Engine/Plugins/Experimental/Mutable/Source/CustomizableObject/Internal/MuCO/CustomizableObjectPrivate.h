@@ -37,6 +37,7 @@ class UCustomizableObject;
 class USkeletalMeshLODSettings;
 struct FModelResources;
 struct FModelStreamableBulkData;
+struct FObjectAndNameAsStringProxyArchive;
 
 FGuid CUSTOMIZABLEOBJECT_API GenerateIdentifier(const UCustomizableObject& CustomizableObject);
 
@@ -949,6 +950,11 @@ struct FModelResources
 	UPROPERTY()
 	TMap<FString, FMutableStateData> StateUIDataMap;
 
+#if WITH_EDITORONLY_DATA
+	/** DataTable used by an int parameter and its value. */
+	TMap<TTuple<FString, FString>, TSet<TSoftObjectPtr<UDataTable>>> IntParameterOptionDataTable;
+#endif
+	
 	UPROPERTY()
 	TArray<FCustomizableObjectClothConfigData> ClothSharedConfigsData;	
 
@@ -1113,8 +1119,8 @@ public:
 	static FString GetCompiledDataFolderPath();
 
 	/** Generic Save/Load methods to write/read compiled data */
-	void SaveCompiledData(FArchive& Ar, bool bSkipEditorOnlyData = false);
-	void LoadCompiledData(FArchive& Ar, const ITargetPlatform* InTargetPlatform, bool bSkipEditorOnlyData = false);
+	void SaveCompiledData(FObjectAndNameAsStringProxyArchive& Ar, bool bSkipEditorOnlyData = false);
+	void LoadCompiledData(FObjectAndNameAsStringProxyArchive& Ar, const ITargetPlatform* InTargetPlatform, bool bSkipEditorOnlyData = false);
 
 	/** Load compiled data for the running platform from disk, this is used to load Editor Compilations. */
 	void LoadCompiledDataFromDisk();
@@ -1314,12 +1320,14 @@ public:
 		ModelStreamableBulkData,
 
 		LayoutBlocksAsInt32,
+		
+		IntParameterOptionDataTable,
 
 		RemoveLODCountLimit,
 
 		IntParameterOptionDataTablePartialBackout,
 
-		IntParameterOptionDataTableBackout,
+		IntParameterOptionDataTablePartialRestore,
 		
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion

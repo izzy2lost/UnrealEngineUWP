@@ -34,6 +34,7 @@
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
+#include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
 #include "MuCO/ICustomizableObjectEditorModule.h"
@@ -282,7 +283,8 @@ bool UCustomizableObjectPrivate::TryLoadCompiledCookDataForPlatform(const ITarge
 	}
 
 	FMemoryReaderView MemoryReader(PlatformData->ModelData);
-	LoadCompiledData(MemoryReader, TargetPlatform, true);
+	FObjectAndNameAsStringProxyArchive ObjectReader(MemoryReader, true);
+	LoadCompiledData(ObjectReader, TargetPlatform, true);
 	return true;
 }
 
@@ -588,7 +590,7 @@ void SerializeStreamedResources(FArchive& Ar, UObject* Object, TArray<FCustomiza
 }
 
 
-void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool bIsCooking)
+void UCustomizableObjectPrivate::SaveCompiledData(FObjectAndNameAsStringProxyArchive& MemoryWriter, bool bIsCooking)
 {
 	int32 InternalVersion = UCustomizableObjectPrivate::CurrentSupportedVersion;
 	MutableCompiledDataStreamHeader Header(InternalVersion, GetVersionId());
@@ -599,7 +601,7 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 	MemoryWriter << LocalModelResources.ReferenceSkeletalMeshesData;
 
 	SerializeStreamedResources(MemoryWriter, GetPublic(), GetPublic()->StreamedResourceData, bIsCooking);
-
+	
 	int32 NumReferencedMaterials = LocalModelResources.Materials.Num();
 	MemoryWriter << NumReferencedMaterials;
 
@@ -677,6 +679,10 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 	MemoryWriter << LocalModelResources.ParameterUIDataMap;
 	MemoryWriter << LocalModelResources.StateUIDataMap;
 
+#if WITH_EDITORONLY_DATA
+	MemoryWriter << LocalModelResources.IntParameterOptionDataTable;
+#endif
+	
 	MemoryWriter << LocalModelResources.ClothingAssetsData;
 	MemoryWriter << LocalModelResources.ClothSharedConfigsData;
 
@@ -705,7 +711,7 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 }
 
 
-void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const ITargetPlatform* InTargetPlatform, bool bIsCooking)
+void UCustomizableObjectPrivate::LoadCompiledData(FObjectAndNameAsStringProxyArchive& MemoryReader, const ITargetPlatform* InTargetPlatform, bool bIsCooking)
 {
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> LoadedModel;
 	ClearCompiledData(bIsCooking);
@@ -823,6 +829,10 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 		MemoryReader << LocalModelResource.ParameterUIDataMap;
 		MemoryReader << LocalModelResource.StateUIDataMap;
 
+#if WITH_EDITORONLY_DATA
+		MemoryReader << LocalModelResource.IntParameterOptionDataTable;
+#endif
+
 		MemoryReader << LocalModelResource.ClothingAssetsData; 
 		MemoryReader << LocalModelResource.ClothSharedConfigsData; 
 
@@ -936,7 +946,8 @@ void UCustomizableObjectPrivate::LoadCompiledDataFromDisk()
 				CompiledDataFileHandle->Read(CompiledDataBytes.GetData(), CompiledDataSize);
 
 				FMemoryReaderView MemoryReader(CompiledDataBytes);
-				LoadCompiledData(MemoryReader, RunningPlatform);
+				FObjectAndNameAsStringProxyArchive ObjectReader(MemoryReader, true);
+				LoadCompiledData(ObjectReader, RunningPlatform);
 			}
 		}
 	}
@@ -1684,6 +1695,17 @@ FMutableStateUIMetadata UCustomizableObject::GetStateUIMetadata(const FString& S
 	const FMutableStateData* StateData = Private->GetModelResources().StateUIDataMap.Find(StateName);
 	return StateData ? StateData->StateUIMetadata : FMutableStateUIMetadata();
 }
+
+
+#if WITH_EDITOR
+TSet<TSoftObjectPtr<UDataTable>> UCustomizableObject::GetIntParameterOptionDataTable(FString& ParamName, const FString& OptionName)
+{
+	const FModelResources& ModelResources = GetPrivate()->GetModelResources();
+	const TSet<TSoftObjectPtr<UDataTable>>* Result = ModelResources.IntParameterOptionDataTable.Find(MakeTuple(ParamName, OptionName));
+	
+	return Result ? *Result : TSet<TSoftObjectPtr<UDataTable>>();
+}
+#endif
 
 
 float UCustomizableObject::GetFloatParameterDefaultValue(const FString& InParameterName) const

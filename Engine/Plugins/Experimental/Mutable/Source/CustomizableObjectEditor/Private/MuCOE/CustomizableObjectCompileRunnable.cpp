@@ -13,6 +13,7 @@
 #include "Serialization/MemoryWriter.h"
 #include "Async/Async.h"
 #include "Containers/Ticker.h"
+#include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 #include "Trace/Trace.inl"
 
 class ITargetPlatform;
@@ -285,7 +286,8 @@ FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable(UCustomizab
 
 		// Serialize Customizable Object's data
 		FMemoryWriter64 MemoryWriter(ModelBytes);
-		CustomizableObject->GetPrivate()->SaveCompiledData(MemoryWriter, Options.bIsCooking);
+		FObjectAndNameAsStringProxyArchive ObjectWriter(MemoryWriter, true);
+		CustomizableObject->GetPrivate()->SaveCompiledData(ObjectWriter, Options.bIsCooking);
 	}
 #if WITH_EDITORONLY_DATA
 	else
