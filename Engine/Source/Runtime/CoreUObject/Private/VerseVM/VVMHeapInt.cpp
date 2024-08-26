@@ -717,7 +717,7 @@ VHeapInt* VHeapInt::Modulo(FAllocationContext Context, VHeapInt& X, VHeapInt& Y)
 
 	if (VHeapInt::AbsoluteCompare(X, Y) == ComparisonResult::LessThan)
 	{
-		return CreateZero(Context);
+		return &X;
 	}
 
 	VHeapInt* Remainder = nullptr;
@@ -731,13 +731,13 @@ VHeapInt* VHeapInt::Modulo(FAllocationContext Context, VHeapInt& X, VHeapInt& Y)
 		}
 
 		Digit RemainderDigit;
-		AbsoluteDivWithDigitDivisor(Context, X, Divisor, &Result, RemainderDigit);
+		AbsoluteDivWithDigitDivisor(Context, X, Divisor, nullptr, RemainderDigit);
 		Remainder = CreateWithLength(Context, 1);
 		Remainder->SetDigit(0, RemainderDigit);
 	}
 	else
 	{
-		AbsoluteDivWithHeapIntDivisor(Context, X, Y, &Result, &Remainder);
+		AbsoluteDivWithHeapIntDivisor(Context, X, Y, nullptr, &Remainder);
 	}
 
 	Remainder->SetSign(X.GetSign());
