@@ -33,6 +33,8 @@ public:
 	EType GetPresentationType() const override;
 	TSharedPtrTS<const FLowLatencyDescriptor> GetLowLatencyDescriptor() const override
 	{ return nullptr; }
+	FTimeValue CalculateCurrentLiveLatency(const FTimeValue& InCurrentPlaybackPosition, const FTimeValue& InEncoderLatency, bool bViaLatencyElement) const override
+	{ return FTimeValue(); }
 	FTimeValue GetAnchorTime() const override
 	{ return FTimeValue::GetZero(); }
 	FTimeRange GetTotalTimeRange() const override

@@ -229,6 +229,34 @@ TSharedPtrTS<const FLowLatencyDescriptor> FManifestMPEGAudioInternal::GetLowLate
 	return LatencyDescriptor;
 }
 
+FTimeValue FManifestMPEGAudioInternal::CalculateCurrentLiveLatency(const FTimeValue& InCurrentPlaybackPosition, const FTimeValue& InEncoderLatency, bool bViaLatencyElement) const
+{
+	FTimeValue LiveLatency;
+	if (GetPresentationType() != IManifest::EType::OnDemand)
+	{
+		FTimeValue UTCNow = PlayerSessionServices->GetSynchronizedUTCTime()->GetTime();
+		LiveLatency = UTCNow - InCurrentPlaybackPosition;
+
+		if (bViaLatencyElement)
+		{
+			TSharedPtrTS<const FLowLatencyDescriptor> llDesc = GetLowLatencyDescriptor();
+			if (llDesc.IsValid())
+			{
+				// Low latency Live
+				TSharedPtrTS<IProducerReferenceTimeInfo> ProdRefTime = GetProducerReferenceTimeInfo(llDesc->Latency.ReferenceID);
+				if (ProdRefTime.IsValid())
+				{
+					if (InEncoderLatency.IsValid())
+					{
+						LiveLatency += InEncoderLatency;
+					}
+				}
+			}
+		}
+	}
+	return LiveLatency;
+}
+
 
 TSharedPtrTS<IProducerReferenceTimeInfo> FManifestMPEGAudioInternal::GetProducerReferenceTimeInfo(int64 ID) const
 {

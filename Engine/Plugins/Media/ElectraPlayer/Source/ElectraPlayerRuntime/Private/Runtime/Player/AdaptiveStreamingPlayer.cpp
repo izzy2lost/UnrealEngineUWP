@@ -2078,7 +2078,7 @@ void FAdaptiveStreamingPlayer::HandleSessionMessage(TSharedPtrTS<IPlayerMessage>
 			{
 				if (!Result.WasAborted())
 				{
-					if (pMsg->GetListType() == Playlist::EListType::Master && pMsg->GetLoadType() == Playlist::ELoadType::Initial)
+					if (pMsg->GetListType() == Playlist::EListType::Main && pMsg->GetLoadType() == Playlist::ELoadType::Initial)
 					{
 						DispatchEvent(FMetricEvent::ReportReceivedMasterPlaylist(pMsg->GetConnectionInfo().EffectiveURL));
 					}
@@ -2112,8 +2112,12 @@ void FAdaptiveStreamingPlayer::HandleSessionMessage(TSharedPtrTS<IPlayerMessage>
 		Metrics::FLicenseKeyStats stats;
 		stats.bWasSuccessful = !pMsg->GetResult().IsError();
 		stats.URL   		 = pMsg->GetConnectionInfo().EffectiveURL;
-		stats.FailureReason  = pMsg->GetResult().IsError() ? pMsg->GetResult().GetPrintable() : FString(); //pMsg->GetConnectionInfo().StatusInfo.ErrorDetail.GetMessage();
+		stats.FailureReason  = pMsg->GetResult().IsError() ? pMsg->GetResult().GetPrintable() : FString();
 		DispatchEvent(FMetricEvent::ReportLicenseKey(stats));
+		if (pMsg->GetResult().IsError())
+		{
+			PostError(pMsg->GetResult());
+		}
 	}
 	// Decoder message?
 	else if (SessionMessage->GetType() == FDecoderMessage::Type())
@@ -2138,30 +2142,7 @@ FTimeValue FAdaptiveStreamingPlayer::CalculateCurrentLiveLatency(bool bViaLatenc
 	FTimeValue LiveLatency;
 	if (Manifest.IsValid())
 	{
-		if (Manifest->GetPresentationType() != IManifest::EType::OnDemand)
-		{
-			FTimeValue UTCNow = GetSynchronizedUTCTime()->GetTime();
-			FTimeValue PlayPosNow = PlaybackState.GetPlayPosition();
-			LiveLatency = UTCNow - PlayPosNow;
-
-			if (bViaLatencyElement)
-			{
-				TSharedPtrTS<const FLowLatencyDescriptor> llDesc = Manifest->GetLowLatencyDescriptor();
-				if (llDesc.IsValid())
-				{
-					// Low latency Live
-					TSharedPtrTS<IProducerReferenceTimeInfo> ProdRefTime = Manifest->GetProducerReferenceTimeInfo(llDesc->Latency.ReferenceID);
-					if (ProdRefTime.IsValid())
-					{
-						FTimeValue EncoderLatency = PlaybackState.GetEncoderLatency();
-						if (EncoderLatency.IsValid())
-						{
-							LiveLatency += EncoderLatency;
-						}
-					}
-				}
-			}
-		}
+		LiveLatency = Manifest->CalculateCurrentLiveLatency(PlaybackState.GetPlayPosition(), PlaybackState.GetEncoderLatency(), bViaLatencyElement);
 	}
 	return LiveLatency;
 }

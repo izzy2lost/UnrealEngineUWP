@@ -146,6 +146,17 @@ TSharedPtrTS<const FLowLatencyDescriptor> FManifestHLS::GetLowLatencyDescriptor(
 	return nullptr;
 }
 
+FTimeValue FManifestHLS::CalculateCurrentLiveLatency(const FTimeValue& InCurrentPlaybackPosition, const FTimeValue& InEncoderLatency, bool bViaLatencyElement) const
+{
+	FTimeValue LiveLatency;
+	if (GetPresentationType() != IManifest::EType::OnDemand)
+	{
+		FTimeValue UTCNow = SessionServices->GetSynchronizedUTCTime()->GetTime();
+		LiveLatency = UTCNow - InCurrentPlaybackPosition;
+	}
+	return LiveLatency;
+}
+
 FTimeValue FManifestHLS::GetAnchorTime() const
 {
 	return FTimeValue::GetZero();

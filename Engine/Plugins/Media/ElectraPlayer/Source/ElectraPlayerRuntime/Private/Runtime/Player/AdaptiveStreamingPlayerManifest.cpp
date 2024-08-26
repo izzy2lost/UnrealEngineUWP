@@ -41,6 +41,7 @@ FString FixLocalFileSchemeURL(const FString& InURL)
 	if (URL.StartsWith("file:", ESearchCase::IgnoreCase))
 	{
 		URL.ReplaceCharInline(TCHAR('\\'), TCHAR('/'));
+		URL.ReplaceInline(TEXT(":///"), TEXT("://"));
 		URL.ReplaceInline(TEXT(" "), TEXT("%20"));
 	}
 	return URL;

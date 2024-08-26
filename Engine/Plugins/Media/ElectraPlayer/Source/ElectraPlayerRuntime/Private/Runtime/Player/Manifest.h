@@ -188,6 +188,15 @@ namespace Electra
 				RetryAgainAtTime = MEDIAutcTime::Current() + FTimeValue().SetFromMilliseconds(Milliseconds);
 				return *this;
 			}
+			FResult& RetryAfter(const FTimeValue& InAfter)
+			{
+				if (InAfter.IsValid())
+				{
+					Type = EType::TryAgainLater;
+					RetryAgainAtTime = MEDIAutcTime::Current() + InAfter;
+				}
+				return *this;
+			}
 			FResult& SetErrorDetail(const FErrorDetail& InErrorDetail)
 			{
 				ErrorDetail = InErrorDetail;
@@ -247,6 +256,9 @@ namespace Electra
 
 		//! Returns the low-latency descriptor, if any. May return nullptr if there is none.
 		virtual TSharedPtrTS<const FLowLatencyDescriptor> GetLowLatencyDescriptor() const = 0;
+
+		//! Calculates the live latency given the current playback position and optional encoder latency.
+		virtual FTimeValue CalculateCurrentLiveLatency(const FTimeValue& InCurrentPlaybackPosition, const FTimeValue& InEncoderLatency, bool bViaLatencyElement) const = 0;
 
 
 		//-------------------------------------------------------------------------

@@ -1449,8 +1449,6 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 									AccessUnit->LatestPTS += TimeOffset;
 									AccessUnit->LatestPTS.SetSequenceIndex(Request->TimestampSequenceIndex);
 
-									AccessUnit->OffsetFromSegmentStart = TimelineOffset;
-
 									AccessUnit->ProducerReferenceTime = ProducerTime.Base + FTimeValue(AUDTS - ProducerTime.Media, TrackTimescale);
 
 									ElectraCDM::FMediaCDMSampleInfo SampleEncryptionInfo;

@@ -351,6 +351,34 @@ TSharedPtrTS<const FLowLatencyDescriptor> FManifestDASH::GetLowLatencyDescriptor
 	return Manifest.IsValid() ? Manifest->GetLowLatencyDescriptor() : nullptr;
 }
 
+FTimeValue FManifestDASH::CalculateCurrentLiveLatency(const FTimeValue& InCurrentPlaybackPosition, const FTimeValue& InEncoderLatency, bool bViaLatencyElement) const
+{
+	FTimeValue LiveLatency;
+	if (GetPresentationType() != IManifest::EType::OnDemand)
+	{
+		FTimeValue UTCNow = PlayerSessionServices->GetSynchronizedUTCTime()->GetTime();
+		LiveLatency = UTCNow - InCurrentPlaybackPosition;
+
+		if (bViaLatencyElement)
+		{
+			TSharedPtrTS<const FLowLatencyDescriptor> llDesc = GetLowLatencyDescriptor();
+			if (llDesc.IsValid())
+			{
+				// Low latency Live
+				TSharedPtrTS<IProducerReferenceTimeInfo> ProdRefTime = GetProducerReferenceTimeInfo(llDesc->Latency.ReferenceID);
+				if (ProdRefTime.IsValid())
+				{
+					if (InEncoderLatency.IsValid())
+					{
+						LiveLatency += InEncoderLatency;
+					}
+				}
+			}
+		}
+	}
+	return LiveLatency;
+}
+
 FTimeValue FManifestDASH::GetAnchorTime() const
 {
 	TSharedPtrTS<FManifestDASHInternal> Manifest(CurrentManifest);

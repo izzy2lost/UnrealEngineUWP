@@ -239,6 +239,12 @@ namespace Electra
 			return WritePos;
 		}
 
+		void SetLinearReadSize(int64 InNewSize)
+		{
+			FScopeLock Lock(&AccessLock);
+			WritePos = InNewSize;
+		}
+
 		// Must control Lock()/Unlock() externally!
 		const uint8* GetLinearReadData() const
 		{
