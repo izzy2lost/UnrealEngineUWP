@@ -146,8 +146,6 @@ TSharedRef<ICustomDetailsViewItem> SDMObjectEditorWidgetBase::GetDefaultCategory
 {
 	if (!DefaultCategoryItem.IsValid())
 	{
-		constexpr const TCHAR* DefaultCategoryName = TEXT("General");
-
 		DefaultCategoryItem = InDetailsView->CreateCustomCategoryItem(DefaultCategoryName, LOCTEXT("General", "General"))->AsItem();
 		DefaultCategoryItem->RefreshItemId();
 		InDetailsView->ExtendTree(InRootId, ECustomDetailsTreeInsertPosition::Child, DefaultCategoryItem.ToSharedRef());

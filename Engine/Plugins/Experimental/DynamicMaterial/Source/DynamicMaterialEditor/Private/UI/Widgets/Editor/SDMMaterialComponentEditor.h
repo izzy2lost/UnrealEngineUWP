@@ -26,6 +26,8 @@ protected:
 	void OnComponentUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType);
 
 	//~ Begin SDMObjectEditorWidgetBase
+	virtual TSharedRef<ICustomDetailsViewItem> GetDefaultCategory(const TSharedRef<ICustomDetailsView>& InDetailsView,
+		const FCustomDetailsViewItemId& InRootId) override;
 	virtual TArray<FDMPropertyHandle> GetPropertyRows() override;
 	virtual void OnUndo() override;
 	//~ End SDMObjectEditorWidgetBase

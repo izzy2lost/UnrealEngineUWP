@@ -45,6 +45,8 @@ public:
 	//~ End FUndoClient
 
 protected:
+	static constexpr const TCHAR* DefaultCategoryName = TEXT("General");
+
 	TWeakPtr<SDMMaterialEditor> EditorWidgetWeak;
 	TWeakObjectPtr<UObject> ObjectWeak;
 
@@ -57,7 +59,7 @@ protected:
 
 	TSharedRef<SWidget> CreateWidget();
 
-	TSharedRef<ICustomDetailsViewItem> GetDefaultCategory(const TSharedRef<ICustomDetailsView>& InDetailsView,
+	virtual TSharedRef<ICustomDetailsViewItem> GetDefaultCategory(const TSharedRef<ICustomDetailsView>& InDetailsView,
 		const FCustomDetailsViewItemId& InRootId);
 
 	TSharedRef<ICustomDetailsViewItem> GetCategoryForRow(const TSharedRef<ICustomDetailsView>& InDetailsView, 
