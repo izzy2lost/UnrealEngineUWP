@@ -56,6 +56,7 @@
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/ReleaseObjectVersion.h"
 #include "GPUSkinCacheVisualizationData.h"
+#include "MeshPaintVisualize.h"
 
 #if WITH_EDITOR
 #include "AssetRegistry/IAssetRegistry.h"
@@ -7106,7 +7107,7 @@ void FSkeletalMeshSceneProxy::GetDynamicElementsSection(const TArray<const FScen
 			if (bIsSelected && ViewFamily.EngineShowFlags.VertexColors && AllowDebugViewmodes())
 			{
 				// Note: static mesh renderer does something more complicated involving per-section selection, but whole component selection seems ok for now.
-				if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetMeshPaintVisualizeMaterialRenderProxy(bIsSelected, IsHovered()))
+				if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = MeshPaintVisualize::GetMaterialRenderProxy(bIsSelected, IsHovered()))
 				{
 					Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
 					Mesh.MaterialRenderProxy = VertexColorVisualizationMaterialInstance;

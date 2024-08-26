@@ -38,6 +38,7 @@
 #include "RenderCore.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "EngineModule.h"
+#include "MeshPaintVisualize.h"
 #include "VT/MeshPaintVirtualTexture.h"
 #include "TextureResource.h"
 
@@ -1606,7 +1607,7 @@ void FStaticMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView
 										// Override the mesh's material with our material that draws vertex color
 										if (!bDebugMaterialRenderProxySet && bProxyIsSelected && EngineShowFlags.VertexColors && AllowDebugViewmodes())
 										{
-											if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetMeshPaintVisualizeMaterialRenderProxy(bSectionIsSelected, IsHovered()))
+											if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = MeshPaintVisualize::GetMaterialRenderProxy(bSectionIsSelected, IsHovered()))
 											{
 												Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
 												MeshElement.MaterialRenderProxy = VertexColorVisualizationMaterialInstance;

@@ -15,6 +15,7 @@
 #include "DebugViewModeHelpers.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialRenderProxy.h"
+#include "MeshPaintVisualize.h"
 #include "NaniteSceneProxy.h"
 #include "ShaderPrint.h"
 #include "InstanceDataSceneProxy.h"
@@ -82,10 +83,10 @@ static uint32 GetMeshPaintVisualizationModeArg()
 {
 	// Pack for shader unpacking in GetMeshPaintingShowMode(), GetMeshPaintingChannelMode() and GetMeshPaintingTextureMode().
 	// Assumes that EMeshPaintVisualizeShowMode matches NANITE_MESH_PAINTING_SHOW_*
-	const uint32 ShowMode = GetMeshPaintVisualizeShowMode();
+	const uint32 ShowMode = MeshPaintVisualize::GetShowMode();
 	// Assumes EVertexColorViewMode enums matches NANITE_MESH_PAINTING_CHANNELS_*
-	const uint32 ChannelMode = GetMeshPaintVisualizeChannels();
-	const uint32 TextureMode = GetMeshPaintVisualizeTexture_RenderThread() == nullptr ? NANITE_MESH_PAINTING_TEXTURE_DEFAULT : NANITE_MESH_PAINTING_TEXTURE_ASSET;
+	const uint32 ChannelMode = MeshPaintVisualize::GetChannelMode();
+	const uint32 TextureMode = MeshPaintVisualize::GetTextureAsset_RenderThread() == nullptr ? NANITE_MESH_PAINTING_TEXTURE_DEFAULT : NANITE_MESH_PAINTING_TEXTURE_ASSET;
 	return (ShowMode & 0x1) | ((ChannelMode & 0x7) << 1) | ((TextureMode & 0x1) << 4);
 }
 
@@ -359,7 +360,7 @@ static FRDGTextureRef GetFastClearTileVis(FRDGBuilder& GraphBuilder)
 
 static FRHITexture* GetMeshPaintTexture()
 {
-	if (FRHITexture* TextureRHI = GetMeshPaintVisualizeTexture_RenderThread())
+	if (FRHITexture* TextureRHI = MeshPaintVisualize::GetTextureAsset_RenderThread())
 	{
 		return TextureRHI;
 	}
@@ -806,7 +807,7 @@ void AddVisualizationPasses(
 						PassParameters->DebugOutput = GraphBuilder.CreateUAV(Visualization.ModeOutput);
 						PassParameters->EditorSelectedHitProxyIds = Nanite::GetEditorSelectedHitProxyIdsSRV(GraphBuilder, View);
 						PassParameters->MeshPaintTexture = GetMeshPaintTexture();
-						PassParameters->MeshPaintTextureCoordinate = GetMeshPaintVisualizeTextureCoordinateIndex();
+						PassParameters->MeshPaintTextureCoordinate = MeshPaintVisualize::GetTextureCoordinateIndex();
 
 						auto ComputeShader = View.ShaderMap->GetShader<FNaniteVisualizeCS>();
 						FComputeShaderUtils::AddPass(

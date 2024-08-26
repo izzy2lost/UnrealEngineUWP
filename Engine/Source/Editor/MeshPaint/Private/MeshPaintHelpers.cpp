@@ -8,6 +8,7 @@
 #include "MeshPaintSettings.h"
 #include "IMeshPaintGeometryAdapter.h"
 #include "MeshPaintAdapterFactory.h"
+#include "MeshPaintVisualize.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -1047,7 +1048,7 @@ void MeshPaintHelpers::SetViewportColorMode(EMeshPaintColorViewMode ColorViewMod
 
 					// Restore the vertex color mode flags that were set when we last entered vertex color mode
 					ApplyViewMode(ViewportClient->GetViewMode(), ViewportClient->IsPerspective(), ViewportClient->EngineShowFlags);
-					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Color);
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Color);
 				}
 			}
 			else
@@ -1063,31 +1064,31 @@ void MeshPaintHelpers::SetViewportColorMode(EMeshPaintColorViewMode ColorViewMod
 				{
 					case EMeshPaintColorViewMode::RGB:
 					{
-						SetMeshPaintVisualizeChannels(EVertexColorViewMode::Color);
+						MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Color);
 					}
 					break;
 
 					case EMeshPaintColorViewMode::Alpha:
 					{
-						SetMeshPaintVisualizeChannels(EVertexColorViewMode::Alpha);
+						MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Alpha);
 					}
 					break;
 
 					case EMeshPaintColorViewMode::Red:
 					{
-						SetMeshPaintVisualizeChannels(EVertexColorViewMode::Red);
+						MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Red);
 					}
 					break;
 
 					case EMeshPaintColorViewMode::Green:
 					{
-						SetMeshPaintVisualizeChannels(EVertexColorViewMode::Green);
+						MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Green);
 					}
 					break;
 
 					case EMeshPaintColorViewMode::Blue:
 					{
-						SetMeshPaintVisualizeChannels(EVertexColorViewMode::Blue);
+						MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Blue);
 					}
 					break;
 				}

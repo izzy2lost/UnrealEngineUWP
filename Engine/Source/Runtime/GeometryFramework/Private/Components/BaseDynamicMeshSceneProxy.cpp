@@ -15,6 +15,7 @@
 #include "MeshCardBuild.h"
 #include "DistanceFieldAtlas.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "MeshPaintVisualize.h"
 
 #include "Implicit/SweepingMeshSDF.h"
 #include "DynamicMesh/DynamicMeshAABBTree3.h"
@@ -156,7 +157,7 @@ FMaterialRenderProxy* FBaseDynamicMeshSceneProxy::GetEngineVertexColorMaterialPr
 	if (bProxyIsSelected && EngineShowFlags.VertexColors && AllowDebugViewmodes())
 	{
 		// Note: static mesh renderer does something more complicated involving per-section selection, but whole component selection seems ok for now.
-		if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetMeshPaintVisualizeMaterialRenderProxy(bProxyIsSelected, bIsHovered))
+		if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = MeshPaintVisualize::GetMaterialRenderProxy(bProxyIsSelected, bIsHovered))
 		{
 			Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
 			ForceOverrideMaterialProxy = VertexColorVisualizationMaterialInstance;

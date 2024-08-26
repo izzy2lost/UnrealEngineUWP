@@ -22,6 +22,7 @@
 #include "ComponentReregisterContext.h"
 #include "ComponentRecreateRenderStateContext.h"
 #include "RenderGraphBuilder.h"
+#include "MeshPaintVisualize.h"
 
 #if RHI_RAYTRACING
 #include "RayTracingInstance.h"
@@ -674,7 +675,7 @@ void FGeometryCollectionSceneProxy::GetDynamicMeshElements(const TArray<const FS
 		if (!bDebugMaterialRenderProxySet && bProxyIsSelected && EngineShowFlags.VertexColors && AllowDebugViewmodes())
 		{
 			// Note: static mesh renderer does something more complicated involving per-section selection, but whole component selection seems ok for now.
-			if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetMeshPaintVisualizeMaterialRenderProxy(bProxyIsSelected, IsHovered()))
+			if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = MeshPaintVisualize::GetMaterialRenderProxy(bProxyIsSelected, IsHovered()))
 			{
 				Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
 				Mesh.MaterialRenderProxy = VertexColorVisualizationMaterialInstance;

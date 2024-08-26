@@ -36,6 +36,7 @@
 
 #include "Rendering/SkeletalMeshModel.h"
 #include "MeshPaintMode.h"
+#include "MeshPaintVisualize.h"
 #include "MeshTexturePaintingTool.h"
 #include "InterchangeAssetImportData.h"
 #include "InterchangeGenericAssetsPipeline.h"
@@ -72,10 +73,10 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 					// Restore the vertex color mode flags that were set when we last entered vertex color mode
 					ApplyViewMode(ViewportClient->GetViewMode(), ViewportClient->IsPerspective(), ViewportClient->EngineShowFlags);
 					
-					SetMeshPaintVisualizeShowMode(EMeshPaintVisualizeShowMode::ShowAll);
-					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::VertexColor);
-					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Color);
-					SetMeshPaintVisualizeTexture(nullptr);
+					MeshPaintVisualize::SetPaintMode(EMeshPaintVisualizePaintMode::VertexColor);
+					MeshPaintVisualize::SetShowMode(EMeshPaintVisualizeShowMode::ShowAll);
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Color);
+					MeshPaintVisualize::SetTextureAsset(nullptr);
 				}
 			}
 			else
@@ -87,24 +88,24 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 				ViewportClient->EngineShowFlags.SetPostProcessing(false);
 				ViewportClient->EngineShowFlags.SetHMDDistortion(false);
 
-				SetMeshPaintVisualizeShowMode(EMeshPaintVisualizeShowMode::ShowSelected);
+				MeshPaintVisualize::SetShowMode(EMeshPaintVisualizeShowMode::ShowSelected);
 
 				switch (ColorViewMode)
 				{
 				case EMeshPaintDataColorViewMode::RGB:
-					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Color);
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Color);
 					break;
 				case EMeshPaintDataColorViewMode::Alpha:
-					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Alpha);
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Alpha);
 					break;
 				case EMeshPaintDataColorViewMode::Red:
-					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Red);
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Red);
 					break;
 				case EMeshPaintDataColorViewMode::Green:
-					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Green);
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Green);
 					break;
 				case EMeshPaintDataColorViewMode::Blue:
-					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Blue);
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Blue);
 					break;
 				}
 
@@ -128,24 +129,24 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 				{
 				case EMeshPaintActiveMode::VertexColor:
 				case EMeshPaintActiveMode::VertexWeights:
-					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::VertexColor);
+					MeshPaintVisualize::SetPaintMode(EMeshPaintVisualizePaintMode::VertexColor);
 					ViewportClient->EngineShowFlags.SetVisualizeNanite(true);
 					ViewportClient->CurrentNaniteVisualizationMode = NAME_VertexColor;
 					break;
 				case EMeshPaintActiveMode::TextureColor:
-					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::TextureColor);
+					MeshPaintVisualize::SetPaintMode(EMeshPaintVisualizePaintMode::TextureColor);
 					ViewportClient->EngineShowFlags.SetVisualizeNanite(true);
 					ViewportClient->CurrentNaniteVisualizationMode = NAME_MeshPaintTexture;
 					break;
 				case EMeshPaintActiveMode::Texture:
-					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::TextureAsset);
+					MeshPaintVisualize::SetPaintMode(EMeshPaintVisualizePaintMode::TextureAsset);
 					ViewportClient->EngineShowFlags.SetVisualizeNanite(SelectedTexture != nullptr);
 					ViewportClient->CurrentNaniteVisualizationMode = SelectedTexture != nullptr ? NAME_MeshPaintTexture : NAME_None;
 					break;
 				}
 
-				SetMeshPaintVisualizeTexture(SelectedTexture);
-				SetMeshPaintVisualizeTextureCoordinateIndex(UVChannel);
+				MeshPaintVisualize::SetTextureAsset(SelectedTexture);
+				MeshPaintVisualize::SetTextureCoordinateIndex(UVChannel);
 			}
 		}
 	}

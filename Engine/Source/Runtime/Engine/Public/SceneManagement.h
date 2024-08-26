@@ -2739,73 +2739,6 @@ void BuildCylinderVerts(const FVector& Base, const FVector& XAxis, const FVector
 extern ENGINE_API FLinearColor GetSelectionColor(const FLinearColor& BaseColor,bool bSelected,bool bHovered, bool bUseOverlayIntensity = true);
 extern ENGINE_API FLinearColor GetViewSelectionColor(const FLinearColor& BaseColor, const FSceneView& View, bool bSelected, bool bHovered, bool bUseOverlayIntensity, bool bIndividuallySelected);
 
-/** Mesh painting visualization channels. (Used for all mesh painting modes not just vertex color.) */
-namespace EVertexColorViewMode
-{
-	enum Type
-	{
-		/** Invalid or undefined */
-		Invalid,
-		/** Color only */
-		Color,
-		/** Alpha only */
-		Alpha,
-		/** Red only */
-		Red,
-		/** Green only */
-		Green,
-		/** Blue only */
-		Blue,
-	};
-}
-
-UE_DEPRECATED(5.5, "Use SetMeshPaintVisualizeChannels() instead.")
-extern ENGINE_API EVertexColorViewMode::Type GVertexColorViewMode;
-UE_DEPRECATED(5.5, "Use SetMeshPaintVisualizeTexture() instead.")
-extern ENGINE_API TWeakObjectPtr<UTexture> GVertexViewModeOverrideTexture;
-UE_DEPRECATED(5.5, "Use SetMeshPaintVisualizeTextureCoordinateIndex() instead.")
-extern ENGINE_API float GVertexViewModeOverrideUVChannel;
-UE_DEPRECATED(5.5, "We no longer use names to enable visualization.")
-extern ENGINE_API FString GVertexViewModeOverrideOwnerName;
-UE_DEPRECATED(5.5, "We no longer use names to enable visualization.")
-extern bool ShouldProxyUseVertexColorVisualization(FName OwnerName);
-
-/** Visualization modes for different mesh painting tools. */
-namespace EMeshPaintVisualizePaintMode
-{
-	enum Type
-	{
-		VertexColor,
-		TextureColor,
-		TextureAsset,
-	};
-}
-
-/** Visualization modes for mesh painting tools to define where the visualisation is applied. */
-namespace EMeshPaintVisualizeShowMode
-{
-	enum Type
-	{
-		/* Apply visualization to all items. */
-		ShowAll,
-		/* Only apply visualization to selected items. */
-		ShowSelected,
-	};
-}
-
-/** Interface to set mesh paint visualization settings used when the SHOW_VertexColors show flag is set. */
-extern ENGINE_API void SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::Type PaintMode);
-extern ENGINE_API void SetMeshPaintVisualizeShowMode(EMeshPaintVisualizeShowMode::Type ShowMode);
-extern ENGINE_API EMeshPaintVisualizeShowMode::Type GetMeshPaintVisualizeShowMode();
-extern ENGINE_API void SetMeshPaintVisualizeChannels(EVertexColorViewMode::Type Channels);
-extern ENGINE_API EVertexColorViewMode::Type GetMeshPaintVisualizeChannels();
-extern ENGINE_API void SetMeshPaintVisualizeTexture(TWeakObjectPtr<UTexture> Texture);
-extern ENGINE_API FRHITexture* GetMeshPaintVisualizeTexture_RenderThread();
-extern ENGINE_API void SetMeshPaintVisualizeTextureCoordinateIndex(int32 Index);
-extern ENGINE_API int32 GetMeshPaintVisualizeTextureCoordinateIndex();
-/** Get the mesh paint visualization material proxy based on the current global settings. */
-extern ENGINE_API FMaterialRenderProxy* GetMeshPaintVisualizeMaterialRenderProxy(bool bIsSelected, bool bIsHovered);
-
 /**
  * Returns true if the given view is "rich", and all primitives should be forced down the dynamic drawing path so that ApplyViewModeOverrides can implement the rich view feature.
  * A view is rich if is missing the EngineShowFlags.Materials showflag, or has any of the render mode affecting showflags.
@@ -3043,3 +2976,7 @@ extern ENGINE_API FSharedSamplerState* Clamp_WorldGroupSettings;
 
 /** Initializes the shared sampler states. */
 extern ENGINE_API void InitializeSharedSamplerStates();
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "MeshPaintVisualize.h"
+#endif
