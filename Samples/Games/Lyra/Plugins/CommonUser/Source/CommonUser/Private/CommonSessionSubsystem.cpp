@@ -530,17 +530,17 @@ void UCommonSessionSubsystem::CreateOnlineSessionInternalOSSv1(ULocalPlayer* Loc
 	//@TODO: You can get here on some platforms while trying to do a LAN session, does that require a valid user id?
 	if (ensure(UserId.IsValid()))
 	{
-		HostSettings = MakeShareable(new FCommonSession_OnlineSessionSettings(Request->OnlineMode == ECommonSessionOnlineMode::LAN, Request->bUsePresence, MaxPlayers));
-		HostSettings->bUseLobbiesIfAvailable = Request->bUseLobbies;
-		HostSettings->bUseLobbiesVoiceChatIfAvailable = Request->bUseLobbiesVoiceChat;
-		HostSettings->Set(SETTING_GAMEMODE, Request->ModeNameForAdvertisement, EOnlineDataAdvertisementType::ViaOnlineService);
-		HostSettings->Set(SETTING_MAPNAME, Request->GetMapName(), EOnlineDataAdvertisementType::ViaOnlineService);
-		//@TODO: HostSettings->Set(SETTING_MATCHING_HOPPER, FString("TeamDeathmatch"), EOnlineDataAdvertisementType::DontAdvertise);
-		HostSettings->Set(SETTING_MATCHING_TIMEOUT, 120.0f, EOnlineDataAdvertisementType::ViaOnlineService);
-		HostSettings->Set(SETTING_SESSION_TEMPLATE_NAME, FString(TEXT("GameSession")), EOnlineDataAdvertisementType::ViaOnlineService);
-		HostSettings->Set(SETTING_ONLINESUBSYSTEM_VERSION, true, EOnlineDataAdvertisementType::ViaOnlineService);
+		FCommonSession_OnlineSessionSettings HostSettings(Request->OnlineMode == ECommonSessionOnlineMode::LAN, Request->bUsePresence, MaxPlayers);
+		HostSettings.bUseLobbiesIfAvailable = Request->bUseLobbies;
+		HostSettings.bUseLobbiesVoiceChatIfAvailable = Request->bUseLobbiesVoiceChat;
+		HostSettings.Set(SETTING_GAMEMODE, Request->ModeNameForAdvertisement, EOnlineDataAdvertisementType::ViaOnlineService);
+		HostSettings.Set(SETTING_MAPNAME, Request->GetMapName(), EOnlineDataAdvertisementType::ViaOnlineService);
+		//@TODO: HostSettings.Set(SETTING_MATCHING_HOPPER, FString("TeamDeathmatch"), EOnlineDataAdvertisementType::DontAdvertise);
+		HostSettings.Set(SETTING_MATCHING_TIMEOUT, 120.0f, EOnlineDataAdvertisementType::ViaOnlineService);
+		HostSettings.Set(SETTING_SESSION_TEMPLATE_NAME, FString(TEXT("GameSession")), EOnlineDataAdvertisementType::ViaOnlineService);
+		HostSettings.Set(SETTING_ONLINESUBSYSTEM_VERSION, true, EOnlineDataAdvertisementType::ViaOnlineService);
 
-		Sessions->CreateSession(*UserId, SessionName, *HostSettings);
+		Sessions->CreateSession(*UserId, SessionName, HostSettings);
 		NotifySessionInformationUpdated(ECommonSessionInformationState::InGame, Request->ModeNameForAdvertisement, Request->GetMapName());
 	}
 	else
@@ -938,7 +938,6 @@ void UCommonSessionSubsystem::HandleQuickPlaySearchFinished(bool bSucceeded, con
 void UCommonSessionSubsystem::CleanUpSessions()
 {
 	bWantToDestroyPendingSession = true;
-	HostSettings.Reset();
 
 	if (bUseBeacons)
 	{
@@ -1583,14 +1582,16 @@ void UCommonSessionSubsystem::HandlePostLoadMap(UWorld* World)
 	const IOnlineSessionPtr SessionInterface = OnlineSub->GetSessionInterface();
 	check(SessionInterface.IsValid());
 
-	// If we're hosting a session, update the advertised map name.
-	if (HostSettings.IsValid())
-	{
-		// This needs to be the full package path to match the host GetMapName function, World->GetMapName is currently the short name
-		HostSettings->Set(SETTING_MAPNAME, UWorld::RemovePIEPrefix(World->GetOutermost()->GetName()), EOnlineDataAdvertisementType::ViaOnlineService);
+	const FName SessionName(NAME_GameSession);
+	FNamedOnlineSession* CurrentSession = SessionInterface->GetNamedSession(SessionName);
 
-		const FName SessionName(NAME_GameSession);
-		SessionInterface->UpdateSession(SessionName, *HostSettings, true);
+	// If we're hosting a session, update the advertised map name.
+	if (CurrentSession != nullptr && CurrentSession->bHosting)
+	{
+		// This needs to be the full package path to match the host GetMapName function, World->GetMapName is currently the short name - update host settings
+		CurrentSession->SessionSettings.Set(SETTING_MAPNAME, UWorld::RemovePIEPrefix(World->GetOutermost()->GetName()), EOnlineDataAdvertisementType::ViaOnlineService);
+
+		SessionInterface->UpdateSession(SessionName, CurrentSession->SessionSettings, true);
 
 		if (bUseBeacons)
 		{

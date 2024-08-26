@@ -429,9 +429,6 @@ protected:
 	/** Settings for the current search */
 	TSharedPtr<FCommonOnlineSearchSettings> SearchSettings;
 
-	/** Settings for the current host request */
-	TSharedPtr<FCommonSession_OnlineSessionSettings> HostSettings;
-
 	/** General beacon listener for registering beacons with */
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AOnlineBeaconHost> BeaconHostListener;
