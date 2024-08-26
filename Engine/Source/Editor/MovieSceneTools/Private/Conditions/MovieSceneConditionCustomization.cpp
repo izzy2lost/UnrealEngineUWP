@@ -36,6 +36,12 @@ public:
 	{
 		if (InClass && InClass->IsChildOf(UMovieSceneCondition::StaticClass()))
 		{
+			// Don't show the director blueprint condition here, as we call it out separately
+			if (InClass == UMovieSceneDirectorBlueprintCondition::StaticClass())
+			{
+				return false;
+			}
+
 			if (MovieScene.IsValid())
 			{
 				return MovieScene->IsConditionClassAllowed(InClass);
@@ -146,19 +152,16 @@ void FMovieSceneConditionCustomization::CustomizeChildren(TSharedRef<IPropertyHa
 	if (NumChildren == 1)
 	{
 		TSharedRef<IPropertyHandle> ObjectHandle = ConditionPropertyHandle->GetChildHandle(0).ToSharedRef();
-		// Now show the properties on the object
-		uint32 NumObjectChildren;
-		ObjectHandle->GetNumChildren(NumObjectChildren);
-		for (uint32 ChildIndex = 0; ChildIndex < NumObjectChildren; ++ChildIndex)
+		TArray<void*> ConditionRawArray;
+		ObjectHandle->AccessRawData(ConditionRawArray);
+		if (ConditionRawArray.Num() > 0)
 		{
-			TSharedRef<IPropertyHandle> ChildHandle = ObjectHandle->GetChildHandle(ChildIndex).ToSharedRef();
-
-			// Skip properties that are already marked hidden
-			if (ChildHandle->IsCustomized())
+			UMovieSceneCondition* Condition = reinterpret_cast<UMovieSceneCondition*>(ConditionRawArray[0]);
 			{
-				continue;
+				TArray<UObject*> ObjectArray;
+				ObjectArray.Add(Condition);
+				IDetailPropertyRow* ExternalRow = ChildBuilder.AddExternalObjects(ObjectArray, FAddPropertyParams().HideRootObjectNode(true).AllowChildren(true));
 			}
-			ChildBuilder.AddProperty(ChildHandle);
 		}
 	}
 }

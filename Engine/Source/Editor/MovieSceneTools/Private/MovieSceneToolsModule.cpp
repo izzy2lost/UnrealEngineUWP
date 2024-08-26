@@ -131,6 +131,7 @@
 #include "Conditions/MovieSceneDirectorBlueprintCondition.h"
 #include "Conditions/MovieSceneDirectorBlueprintConditionUtils.h"
 #include "Conditions/MovieSceneDirectorBlueprintConditionCustomization.h"
+#include "Conditions/MovieScenePlatformConditionCustomization.h"
 
 #define LOCTEXT_NAMESPACE "FMovieSceneToolsModule"
 
@@ -222,6 +223,7 @@ void FMovieSceneToolsModule::StartupModule()
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneCVarOverrides", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&UE::MovieScene::FCVarOverridesPropertyTypeCustomization::MakeInstance));
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneTimeWarpVariant", FOnGetPropertyTypeCustomizationInstance::CreateLambda(&MakeShared<UE::MovieScene::FMovieSceneTimeWarpVariantCustomization>));
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneConditionContainer", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneConditionCustomization::MakeInstance));
+		PropertyModule.RegisterCustomClassLayout("MovieScenePlatformCondition", FOnGetDetailCustomizationInstance::CreateStatic(&FMovieScenePlatformConditionCustomization::MakeInstance));
 
 
 		SequencerModule.RegisterChannelInterface<FMovieSceneBoolChannel>();
@@ -398,6 +400,7 @@ void FMovieSceneToolsModule::ShutdownModule()
 		PropertyModule.UnregisterCustomPropertyTypeLayout("MovieSceneDynamicBinding");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("MovieSceneDirectorBlueprintConditionData");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("MovieSceneConditionContainer");
+		PropertyModule.UnregisterCustomClassLayout("MovieScenePlatformCondition");
 	}
 
 	FEditorModeRegistry::Get().UnregisterMode(FSkeletalAnimationTrackEditMode::ModeName);

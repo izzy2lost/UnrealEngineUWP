@@ -28,8 +28,8 @@ enum class EMovieSceneConditionScope : uint8
 	Global,
 	/* Condition may have different results for different object bindings. */
 	Binding,
-	/* Condition may have different results for different entities (tracks, sections) in the Sequence.*/
-	Entity,
+	/* Condition may have different results for each different outer object owner (i.e. track, section) in the Sequence.*/
+	OwnerObject,
 };
 
 /* Defines how often a condition needs to be checked. 
@@ -74,7 +74,7 @@ struct MOVIESCENE_API FMovieSceneConditionContainer
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category="Sequencer|Condition")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category="Sequencer|Condition", meta = (EditInline, AllowEditInlineCustomization))
 	TObjectPtr<UMovieSceneCondition> Condition = nullptr;
 };
 

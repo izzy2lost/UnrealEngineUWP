@@ -29,7 +29,7 @@ enum class EMovieSceneGroupConditionOperator : uint8
 /**
  * Condition class that allows the grouping of other conditions using 'and', 'or', or 'xor'.
  */ 
-UCLASS(BlueprintType, DefaultToInstanced, EditInlineNew, Meta=(DisplayName="Group"))
+UCLASS(BlueprintType, DefaultToInstanced, EditInlineNew, Meta=(DisplayName="Group Condition"))
 class MOVIESCENE_API UMovieSceneGroupCondition
 	: public UMovieSceneCondition
 {

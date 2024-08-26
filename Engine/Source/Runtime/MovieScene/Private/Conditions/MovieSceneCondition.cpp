@@ -33,7 +33,7 @@ uint32 UMovieSceneCondition::ComputeCacheKey(FGuid BindingGuid, FMovieSceneSeque
 	{
 		HashResult = HashCombineFast(HashCombineFast(HashResult, GetTypeHash(BindingGuid)), GetTypeHash(SequenceID));
 	}
-	else if (Scope == EMovieSceneConditionScope::Entity && EntityOwner != nullptr)
+	else if (Scope == EMovieSceneConditionScope::OwnerObject && EntityOwner != nullptr)
 	{
 		HashResult = HashCombineFast(HashResult, GetTypeHash(EntityOwner));
 	}
