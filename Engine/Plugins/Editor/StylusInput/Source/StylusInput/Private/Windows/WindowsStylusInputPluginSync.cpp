@@ -13,8 +13,13 @@ namespace UE::StylusInput::Private::Windows
 	FWindowsStylusInputPluginSync::FWindowsStylusInputPluginSync(FGetWindowContextCallback&& GetWindowContext,
 	                                                             FUpdateTabletContextsCallback&& UpdateTabletContextsCallback,
 	                                                             IStylusInputEventHandler* EventHandler)
-		: FWindowsStylusInputPluginBase(MoveTemp(GetWindowContext), MoveTemp(UpdateTabletContextsCallback), EventHandler)
+		: FWindowsStylusInputPluginBase(MoveTemp(GetWindowContext), MoveTemp(UpdateTabletContextsCallback))
 	{
+		if (EventHandler)
+		{
+			// Immediately install an event handler during construction to capture events coming through during plugin initialization.
+			AddEventHandler(EventHandler);
+		}
 	}
 
 	FWindowsStylusInputPluginSync::~FWindowsStylusInputPluginSync()

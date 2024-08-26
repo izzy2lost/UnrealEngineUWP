@@ -39,8 +39,7 @@ namespace UE::StylusInput::Private::Windows
 		float GetPacketsPerSecond() const { return PacketStats.GetPacketsPerSecond(); }
 
 	protected:
-		FWindowsStylusInputPluginBase(FGetWindowContextCallback&& GetWindowContextCallback, FUpdateTabletContextsCallback&& UpdateTabletContextsCallback,
-		                              IStylusInputEventHandler* EventHandler);
+		FWindowsStylusInputPluginBase(FGetWindowContextCallback&& GetWindowContextCallback, FUpdateTabletContextsCallback&& UpdateTabletContextsCallback);
 		~FWindowsStylusInputPluginBase() = default;
 
 		virtual FString GetName() const = 0;

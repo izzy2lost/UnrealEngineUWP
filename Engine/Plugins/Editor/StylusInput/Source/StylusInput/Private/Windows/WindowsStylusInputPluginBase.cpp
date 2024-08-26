@@ -514,19 +514,12 @@ namespace UE::StylusInput::Private::Windows
 	}
 
 	FWindowsStylusInputPluginBase::FWindowsStylusInputPluginBase(FGetWindowContextCallback&& GetWindowContextCallback,
-	                                                             FUpdateTabletContextsCallback&& UpdateTabletContextsCallback,
-	                                                             IStylusInputEventHandler* EventHandler)
+	                                                             FUpdateTabletContextsCallback&& UpdateTabletContextsCallback)
 		: GetWindowContextCallback(MoveTemp(GetWindowContextCallback))
 		, UpdateTabletContextsCallback(MoveTemp(UpdateTabletContextsCallback)) 
 	{
 		check(this->GetWindowContextCallback.IsBound());
 		check(this->UpdateTabletContextsCallback.IsBound());
-
-		if (EventHandler)
-		{
-			// Immediately install an event handler during construction to capture events coming through during plugin initialization.
-			AddEventHandler(EventHandler);
-		}
 	}
 
 	void FWindowsStylusInputPluginBase::DebugEvent(const FString& Message) const
