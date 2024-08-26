@@ -44,6 +44,11 @@ ECADInterfaceAvailability ICADInterfacesModule::GetAvailability()
 	return ECADInterfaceAvailability::Unavailable;
 }
 
+const TCHAR* ICADInterfacesModule::GetLibraryVersion()
+{
+	return CADLibrary::FTechSoftInterface::Get().GetVersion();
+}
+
 void FCADInterfacesModule::StartupModule()
 {
 

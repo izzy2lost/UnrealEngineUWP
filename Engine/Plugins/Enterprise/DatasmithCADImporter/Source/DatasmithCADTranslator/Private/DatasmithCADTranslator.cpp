@@ -158,7 +158,7 @@ bool FDatasmithCADTranslator::LoadScene(TSharedRef<IDatasmithScene> DatasmithSce
 	CADLibrary::FFileDescriptor FileDescriptor(*FPaths::ConvertRelativePathToFull(GetSource().GetSourceFile()));
 
 	UE_LOG(LogCADTranslator, Display, TEXT("CAD translation [%s]."), *FileDescriptor.GetSourcePath());
-	UE_LOG(LogCADTranslator, Display, TEXT(" - Parsing Library:      %s"), TEXT("TechSoft"));
+	UE_LOG(LogCADTranslator, Display, TEXT(" - Parsing Library:      %s"), ICADInterfacesModule::GetLibraryVersion());
 	UE_LOG(LogCADTranslator, Display, TEXT(" - Tessellation Library: %s")
 		, FImportParameters::bGDisableCADKernelTessellation ? TEXT("TechSoft") : TEXT("CADKernel"));
 	UE_LOG(LogCADTranslator, Display, TEXT(" - Cache mode:           %s")

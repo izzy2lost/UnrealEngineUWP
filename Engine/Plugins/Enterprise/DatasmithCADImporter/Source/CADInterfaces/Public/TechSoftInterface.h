@@ -60,6 +60,7 @@ public:
 	}
 
 	bool InitializeKernel(const TCHAR* = TEXT(""));
+	const TCHAR* GetVersion();
 
 private:
 
