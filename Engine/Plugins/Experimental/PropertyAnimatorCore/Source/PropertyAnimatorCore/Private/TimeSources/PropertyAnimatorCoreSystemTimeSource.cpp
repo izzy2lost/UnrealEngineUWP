@@ -1,32 +1,32 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TimeSources/PropertyAnimatorCoreMachineClockTimeSource.h"
+#include "TimeSources/PropertyAnimatorCoreSystemTimeSource.h"
 
 #include "Internationalization/Regex.h"
 #include "Misc/DateTime.h"
 
-double UPropertyAnimatorCoreMachineClockTimeSource::GetTimeElapsed()
+double UPropertyAnimatorCoreSystemTimeSource::GetTimeElapsed()
 {
 	double TimeElapsedSeconds = 0;
 
 	switch(Mode)
 	{
-	case EPropertyAnimatorCoreMachineClockMode::LocalTime:
+	case EPropertyAnimatorCoreSystemMode::LocalTime:
 		{
 			TimeElapsedSeconds = (FDateTime::Now() - FDateTime::MinValue()).GetTotalSeconds();
 		}
 		break;
-	case EPropertyAnimatorCoreMachineClockMode::UtcTime:
+	case EPropertyAnimatorCoreSystemMode::UtcTime:
 		{
 			TimeElapsedSeconds = (FDateTime::UtcNow() - FDateTime::MinValue()).GetTotalSeconds();
 		}
 		break;
-	case EPropertyAnimatorCoreMachineClockMode::Countdown:
+	case EPropertyAnimatorCoreSystemMode::Countdown:
 		{
 			TimeElapsedSeconds = (CountdownTimeSpan - (FDateTime::Now() - ActivationTime)).GetTotalSeconds();
 		}
 		break;
-	case EPropertyAnimatorCoreMachineClockMode::Stopwatch:
+	case EPropertyAnimatorCoreSystemMode::Stopwatch:
 		{
 			TimeElapsedSeconds = (FDateTime::Now() - ActivationTime).GetTotalSeconds();
 		}
@@ -36,12 +36,12 @@ double UPropertyAnimatorCoreMachineClockTimeSource::GetTimeElapsed()
 	return TimeElapsedSeconds;
 }
 
-bool UPropertyAnimatorCoreMachineClockTimeSource::IsTimeSourceReady() const
+bool UPropertyAnimatorCoreSystemTimeSource::IsTimeSourceReady() const
 {
 	return true;
 }
 
-void UPropertyAnimatorCoreMachineClockTimeSource::OnTimeSourceActive()
+void UPropertyAnimatorCoreSystemTimeSource::OnTimeSourceActive()
 {
 	Super::OnTimeSourceActive();
 
@@ -49,7 +49,7 @@ void UPropertyAnimatorCoreMachineClockTimeSource::OnTimeSourceActive()
 	OnModeChanged();
 }
 
-void UPropertyAnimatorCoreMachineClockTimeSource::SetMode(EPropertyAnimatorCoreMachineClockMode InMode)
+void UPropertyAnimatorCoreSystemTimeSource::SetMode(EPropertyAnimatorCoreSystemMode InMode)
 {
 	if (Mode == InMode)
 	{
@@ -60,7 +60,7 @@ void UPropertyAnimatorCoreMachineClockTimeSource::SetMode(EPropertyAnimatorCoreM
 	OnModeChanged();
 }
 
-void UPropertyAnimatorCoreMachineClockTimeSource::SetCountdownDuration(const FTimespan& InTimeSpan)
+void UPropertyAnimatorCoreSystemTimeSource::SetCountdownDuration(const FTimespan& InTimeSpan)
 {
 	if (InTimeSpan == CountdownTimeSpan)
 	{
@@ -70,7 +70,7 @@ void UPropertyAnimatorCoreMachineClockTimeSource::SetCountdownDuration(const FTi
 	SetCountdownDuration(InTimeSpan.ToString(TEXT("%h:%m:%s")));
 }
 
-void UPropertyAnimatorCoreMachineClockTimeSource::SetCountdownDuration(const FString& InDuration)
+void UPropertyAnimatorCoreSystemTimeSource::SetCountdownDuration(const FString& InDuration)
 {
 	if (CountdownDuration == InDuration)
 	{
@@ -82,29 +82,29 @@ void UPropertyAnimatorCoreMachineClockTimeSource::SetCountdownDuration(const FSt
 }
 
 #if WITH_EDITOR
-void UPropertyAnimatorCoreMachineClockTimeSource::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
+void UPropertyAnimatorCoreSystemTimeSource::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(InPropertyChangedEvent);
 
 	const FName MemberName = InPropertyChangedEvent.GetMemberPropertyName();
 
-	if (MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreMachineClockTimeSource, Mode)
-		|| MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreMachineClockTimeSource, CountdownDuration))
+	if (MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreSystemTimeSource, Mode)
+		|| MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreSystemTimeSource, CountdownDuration))
 	{
 		OnModeChanged();
 	}
 }
 #endif
 
-void UPropertyAnimatorCoreMachineClockTimeSource::OnModeChanged()
+void UPropertyAnimatorCoreSystemTimeSource::OnModeChanged()
 {
-	if (Mode == EPropertyAnimatorCoreMachineClockMode::Countdown)
+	if (Mode == EPropertyAnimatorCoreSystemMode::Countdown)
 	{
 		CountdownTimeSpan = ParseTime(CountdownDuration);
 	}
 }
 
-FTimespan UPropertyAnimatorCoreMachineClockTimeSource::ParseTime(const FString& InFormat)
+FTimespan UPropertyAnimatorCoreSystemTimeSource::ParseTime(const FString& InFormat)
 {
 	// Regex patterns for different formats
 	static const FRegexPattern HHMMSSPattern(TEXT("^(?:(\\d{2}):)?(\\d{2}):(\\d{2})$")); // 01:00 00:01:00

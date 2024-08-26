@@ -8,6 +8,8 @@
 UENUM(BlueprintType)
 enum class EPropertyAnimatorCycleMode : uint8
 {
+	/** Don't cycle time at all */
+	None	UMETA(Hidden),
 	/** Cycle only once then stop */
 	DoOnce,
 	/** Cycle and repeat once we reached the end */
@@ -33,16 +35,28 @@ public:
 		return Magnitude;
 	}
 
+	PROPERTYANIMATOR_API void SetCycleMode(EPropertyAnimatorCycleMode InMode);
+	EPropertyAnimatorCycleMode GetCycleMode() const
+	{
+		return CycleMode;
+	}
+
 	PROPERTYANIMATOR_API void SetCycleDuration(float InCycleDuration);
 	float GetCycleDuration() const
 	{
 		return CycleDuration;
 	}
 
-	PROPERTYANIMATOR_API void SetCycleMode(EPropertyAnimatorCycleMode InMode);
-	EPropertyAnimatorCycleMode GetCycleMode() const
+	PROPERTYANIMATOR_API void SetCycleGapDuration(float InCycleGap);
+	float GetCycleGapDuration() const
 	{
-		return CycleMode;
+		return CycleGapDuration;
+	}
+
+	PROPERTYANIMATOR_API void SetCycleRate(float InFrequency);
+	float GetCycleRate() const
+	{
+		return CycleRate;
 	}
 
 	PROPERTYANIMATOR_API void SetTimeOffset(double InOffset);
@@ -81,6 +95,7 @@ protected:
 	virtual EPropertyAnimatorPropertySupport IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const override;
 	virtual void EvaluateProperties(FInstancedPropertyBag& InParameters) override;
 	virtual void OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty, EPropertyAnimatorPropertySupport InSupport) override;
+	virtual bool IsTimeSourceSupported(UPropertyAnimatorCoreTimeSourceBase* InTimeSource) const override;
 	//~ End UPropertyAnimatorCoreBase
 
 	/** Evaluate and return float value for a property */
@@ -93,17 +108,21 @@ protected:
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0"))
 	float Magnitude = 1.f;
 
-	/** Duration of one cycle for the effect = period of the effect */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0", Units=Seconds))
-	float CycleDuration = 1.f;
-
 	/** Cycle mode for the effect */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="CycleMode != EPropertyAnimatorCycleMode::None", EditConditionHides))
 	EPropertyAnimatorCycleMode CycleMode = EPropertyAnimatorCycleMode::Loop;
 
+	/** Duration of one cycle for the effect = period of the effect */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0", Units=Seconds, EditCondition="CycleMode != EPropertyAnimatorCycleMode::None", EditConditionHides))
+	float CycleDuration = 1.f;
+
 	/** Time gap between each cycle */
-	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(ClampMin="0", Units=Seconds, EditCondition="CycleMode != EPropertyAnimatorCycleMode::DoOnce", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0", Units=Seconds, EditCondition="CycleMode != EPropertyAnimatorCycleMode::DoOnce && CycleMode != EPropertyAnimatorCycleMode::None", EditConditionHides))
 	float CycleGapDuration = 0.f;
+
+	/** Frequency for the effect, higher values will give you faster movements */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", DisplayName="Frequency", meta=(ClampMin="0", Units=Hz, EditCondition="CycleMode == EPropertyAnimatorCycleMode::None", EditConditionHides))
+	float CycleRate = 1.f;
 
 	/** Use random time offset to add variation in animation */
 	UPROPERTY(EditInstanceOnly, Setter="SetRandomTimeOffset", Getter="GetRandomTimeOffset", Category="Animator", meta=(InlineEditConditionToggle))

@@ -232,11 +232,6 @@ void UPropertyAnimatorCoreComponent::OnComponentCreated()
 {
 	Super::OnComponentCreated();
 
-	if (const UPropertyAnimatorCoreSettings* AnimatorSettings = UPropertyAnimatorCoreSettings::Get())
-	{
-		SetAnimatorsTimeSourceName(AnimatorSettings->GetDefaultTimeSourceName());
-	}
-
 	if (AActor* OwningActor = GetOwner())
 	{
 		// For spawnable templates, restore and resolve properties owner
@@ -301,6 +296,11 @@ UPropertyAnimatorCoreComponent::UPropertyAnimatorCoreComponent()
 
 		// Used to toggle animators state in world
 		UPropertyAnimatorCoreSubsystem::OnAnimatorsSetEnabledDelegate.AddUObject(this, &UPropertyAnimatorCoreComponent::OnAnimatorsSetEnabled);
+
+		if (const UPropertyAnimatorCoreSettings* AnimatorSettings = UPropertyAnimatorCoreSettings::Get())
+		{
+			SetAnimatorsTimeSourceName(AnimatorSettings->GetDefaultTimeSourceName());
+		}
 	}
 }
 

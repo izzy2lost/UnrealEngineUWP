@@ -5,11 +5,11 @@
 #include "Misc/DateTime.h"
 #include "Misc/Timespan.h"
 #include "PropertyAnimatorCoreTimeSourceBase.h"
-#include "PropertyAnimatorCoreMachineClockTimeSource.generated.h"
+#include "PropertyAnimatorCoreSystemTimeSource.generated.h"
 
 /** Enumerates all possible modes for the machine clock time source */
 UENUM(BlueprintType)
-enum class EPropertyAnimatorCoreMachineClockMode : uint8
+enum class EPropertyAnimatorCoreSystemMode : uint8
 {
 	/** Local time of the machine */
 	LocalTime,
@@ -21,15 +21,15 @@ enum class EPropertyAnimatorCoreMachineClockMode : uint8
 	Stopwatch
 };
 
-/** Machine clock time source that support various option */
+/** System time source that support various option */
 UCLASS(MinimalAPI)
-class UPropertyAnimatorCoreMachineClockTimeSource : public UPropertyAnimatorCoreTimeSourceBase
+class UPropertyAnimatorCoreSystemTimeSource : public UPropertyAnimatorCoreTimeSourceBase
 {
 	GENERATED_BODY()
 
 public:
-	UPropertyAnimatorCoreMachineClockTimeSource()
-		: UPropertyAnimatorCoreTimeSourceBase(TEXT("MachineClock"))
+	UPropertyAnimatorCoreSystemTimeSource()
+		: UPropertyAnimatorCoreTimeSourceBase(TEXT("System"))
 	{}
 
 	//~ Begin UPropertyAnimatorTimeSourceBase
@@ -38,8 +38,8 @@ public:
 	virtual void OnTimeSourceActive() override;
 	//~ End UPropertyAnimatorTimeSourceBase
 
-	void SetMode(EPropertyAnimatorCoreMachineClockMode InMode);
-	EPropertyAnimatorCoreMachineClockMode GetMode() const
+	void SetMode(EPropertyAnimatorCoreSystemMode InMode);
+	EPropertyAnimatorCoreSystemMode GetMode() const
 	{
 		return Mode;
 	}
@@ -69,7 +69,7 @@ protected:
 
 	/** Machine time mode to use */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
-	EPropertyAnimatorCoreMachineClockMode Mode = EPropertyAnimatorCoreMachineClockMode::LocalTime;
+	EPropertyAnimatorCoreSystemMode Mode = EPropertyAnimatorCoreSystemMode::LocalTime;
 
 	/**
 	* Countdown duration format : 
@@ -80,7 +80,7 @@ protected:
 	* 1h = 1 hour
 	* 120s = 2 minutes
 	*/
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="Mode == EPropertyAnimatorCoreMachineClockMode::Countdown", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="Mode == EPropertyAnimatorCoreSystemMode::Countdown", EditConditionHides))
 	FString CountdownDuration = TEXT("1m");
 
 private:

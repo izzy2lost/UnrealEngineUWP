@@ -93,8 +93,11 @@ public:
 	/** Check time source class is registered */
 	PROPERTYANIMATORCORE_API bool IsTimeSourceClassRegistered(UClass* InTimeSourceClass) const;
 
-	/** Get all time sources available */
+	/** Get all time source names available */
 	TArray<FName> GetTimeSourceNames() const;
+
+	/** Get all time sources available */
+	TArray<UPropertyAnimatorCoreTimeSourceBase*> GetTimeSources() const;
 
 	/** Get a registered time source using its name */
 	UPropertyAnimatorCoreTimeSourceBase* GetTimeSource(FName InTimeSourceName) const;

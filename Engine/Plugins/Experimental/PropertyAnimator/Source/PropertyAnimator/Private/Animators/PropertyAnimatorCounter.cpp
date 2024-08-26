@@ -280,7 +280,7 @@ void UPropertyAnimatorCounter::EvaluateProperties(FInstancedPropertyBag& InParam
 {
 	const double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
 
-	EvaluateEachLinkedProperty<UPropertyAnimatorCoreContext>([this, TimeElapsed](
+	EvaluateEachLinkedProperty([this, TimeElapsed](
 		UPropertyAnimatorCoreContext* InContext
 		, const FPropertyAnimatorCoreData& InResolvedProperty
 		, FInstancedPropertyBag& InEvaluatedValues

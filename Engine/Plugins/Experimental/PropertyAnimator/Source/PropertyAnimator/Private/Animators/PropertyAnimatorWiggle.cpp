@@ -14,6 +14,7 @@ UPropertyAnimatorWiggle::UPropertyAnimatorWiggle()
 
 	bRandomTimeOffset = true;
 	Seed = SeedIncrement++;
+	CycleMode = EPropertyAnimatorCycleMode::None;
 }
 
 bool UPropertyAnimatorWiggle::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const

@@ -83,21 +83,23 @@ protected:
 	void OnEaseOutChanged();
 	virtual void OnCycleDurationChanged() override;
 
-	/** The wave curve to sample for the animation */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
+	/** The wave curve to sample for the animation, base curve */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Base Curve", Category="Animator")
 	TObjectPtr<UPropertyAnimatorWaveCurve> WaveCurve;
 
-	UPROPERTY(EditInstanceOnly, Setter="SetEaseInEnabled", Getter="GetEaseInEnabled", Category="Animator", meta=(InlineEditConditionToggle))
+	/** Use ease in effect */
+	UPROPERTY(EditInstanceOnly, Setter="SetEaseInEnabled", Getter="GetEaseInEnabled", DisplayName="InEnabled", Category="Animator", meta=(InlineEditConditionToggle))
 	bool bEaseInEnabled = false;
 
 	/** Ease in for this effect */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="bEaseInEnabled"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="In", Category="Animator", meta=(EditCondition="bEaseInEnabled"))
 	FPropertyAnimatorCurveEasing EaseIn;
 
-	UPROPERTY(EditInstanceOnly, Setter="SetEaseOutEnabled", Getter="GetEaseOutEnabled", Category="Animator", meta=(InlineEditConditionToggle))
+	/** Use ease out effect */
+	UPROPERTY(EditInstanceOnly, Setter="SetEaseOutEnabled", Getter="GetEaseOutEnabled", DisplayName="OutEnabled", Category="Animator", meta=(InlineEditConditionToggle))
 	bool bEaseOutEnabled = false;
 
 	/** Ease out for this effect */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="bEaseOutEnabled"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", DisplayName="Out", meta=(EditCondition="bEaseOutEnabled"))
     FPropertyAnimatorCurveEasing EaseOut;
 };

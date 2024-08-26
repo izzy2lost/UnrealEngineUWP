@@ -8,6 +8,8 @@
 #include "Properties/Converters/PropertyAnimatorCoreConverterBase.h"
 #include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
+#include "TimeSources/PropertyAnimatorCoreSystemTimeSource.h"
+#include "TimeSources/PropertyAnimatorCoreTimeSourceBase.h"
 
 #if WITH_EDITOR
 void UPropertyAnimatorNumericBase::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
@@ -47,6 +49,16 @@ void UPropertyAnimatorNumericBase::SetCycleDuration(float InCycleDuration)
 
 	CycleDuration = InCycleDuration;
 	OnCycleDurationChanged();
+}
+
+void UPropertyAnimatorNumericBase::SetCycleGapDuration(float InCycleGap)
+{
+	CycleGapDuration = FMath::Max(0, InCycleGap);
+}
+
+void UPropertyAnimatorNumericBase::SetCycleRate(float InFrequency)
+{
+	CycleRate = FMath::Max(0, InFrequency);
 }
 
 void UPropertyAnimatorNumericBase::SetCycleMode(EPropertyAnimatorCycleMode InMode)
@@ -156,7 +168,7 @@ void UPropertyAnimatorNumericBase::EvaluateProperties(FInstancedPropertyBag& InP
 	double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
 	RandomStream = FRandomStream(Seed);
 
-	EvaluateEachLinkedProperty<UPropertyAnimatorCoreContext>([this, &TimeElapsed, &AnimatorMagnitude, &InParameters](
+	EvaluateEachLinkedProperty([this, &TimeElapsed, &AnimatorMagnitude, &InParameters](
 		UPropertyAnimatorCoreContext* InOptions
 		, const FPropertyAnimatorCoreData& InResolvedProperty
 		, FInstancedPropertyBag& InEvaluatedValues
@@ -168,6 +180,7 @@ void UPropertyAnimatorNumericBase::EvaluateProperties(FInstancedPropertyBag& InP
 		const double AbsTimeOffset = FMath::Abs(TimeOffset);
 		const double MaxTimeOffset = InRangeMax * AbsTimeOffset;
 		double PropertyTimeElapsed = TimeElapsed - MaxTimeOffset + RandomTimeOffset;
+		double Frequency = CycleDuration != 0.f ? 1.f / CycleDuration : 0.f;
 
 		if (TimeOffset >= 0)
 		{
@@ -213,6 +226,10 @@ void UPropertyAnimatorNumericBase::EvaluateProperties(FInstancedPropertyBag& InP
 				PropertyTimeElapsed = FMath::Fmod(PropertyTimeElapsed, CycleDuration);
 			}
 		}
+		else if (CycleMode == EPropertyAnimatorCycleMode::None)
+		{
+			Frequency = CycleRate;
+		}
 
 		if (Magnitude != 0
 			&& CycleDuration > 0
@@ -220,7 +237,7 @@ void UPropertyAnimatorNumericBase::EvaluateProperties(FInstancedPropertyBag& InP
 		{
 			// Frequency
 			InParameters.AddProperty(FrequencyParameterName, EPropertyBagPropertyType::Float);
-			InParameters.SetValueFloat(FrequencyParameterName, 1.f / CycleDuration);
+			InParameters.SetValueFloat(FrequencyParameterName, Frequency);
 
 			// Time Elapsed
 			InParameters.SetValueDouble(TimeElapsedParameterName, PropertyTimeElapsed);
@@ -253,4 +270,9 @@ void UPropertyAnimatorNumericBase::OnPropertyLinked(UPropertyAnimatorCoreContext
 			InLinkedProperty->SetConverterClass(Converters.Array()[0]->GetClass());
 		}
 	}
+}
+
+bool UPropertyAnimatorNumericBase::IsTimeSourceSupported(UPropertyAnimatorCoreTimeSourceBase* InTimeSource) const
+{
+	return !InTimeSource->IsA<UPropertyAnimatorCoreSystemTimeSource>();
 }

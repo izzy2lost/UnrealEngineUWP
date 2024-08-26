@@ -544,7 +544,13 @@ TArray<FName> UPropertyAnimatorCoreBase::GetTimeSourceNames() const
 
 	if (const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
 	{
-		TimeSourceNames = AnimatorSubsystem->GetTimeSourceNames();
+		for (UPropertyAnimatorCoreTimeSourceBase* TimeSource : AnimatorSubsystem->GetTimeSources())
+		{
+			if (TimeSource && IsTimeSourceSupported(TimeSource))
+			{
+				TimeSourceNames.Add(TimeSource->GetTimeSourceName());
+			}
+		}
 	}
 
 	return TimeSourceNames;

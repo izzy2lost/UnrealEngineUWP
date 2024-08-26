@@ -897,6 +897,26 @@ TArray<FName> UPropertyAnimatorCoreSubsystem::GetTimeSourceNames() const
 	return TimeSourceNames;
 }
 
+TArray<UPropertyAnimatorCoreTimeSourceBase*> UPropertyAnimatorCoreSubsystem::GetTimeSources() const
+{
+	TArray<UPropertyAnimatorCoreTimeSourceBase*> TimeSources;
+
+	Algo::TransformIf(
+		TimeSourcesWeak
+		, TimeSources
+		, [](const TWeakObjectPtr<UPropertyAnimatorCoreTimeSourceBase>& InTimeSourceWeak)
+		{
+			return InTimeSourceWeak.IsValid();
+		}
+		, [](const TWeakObjectPtr<UPropertyAnimatorCoreTimeSourceBase>& InTimeSourceWeak)
+		{
+			return InTimeSourceWeak.Get();
+		}
+	);
+
+	return TimeSources;
+}
+
 UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreSubsystem::GetTimeSource(FName InTimeSourceName) const
 {
 	if (InTimeSourceName.IsNone())

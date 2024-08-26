@@ -6,7 +6,7 @@
 #include "PropertyAnimatorWiggle.generated.h"
 
 /**
- * Applies an additive random wiggle movement with various options on supported float properties
+ * Applies a random wiggle movement with various options on supported numeric properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
 class UPropertyAnimatorWiggle : public UPropertyAnimatorNumericBase

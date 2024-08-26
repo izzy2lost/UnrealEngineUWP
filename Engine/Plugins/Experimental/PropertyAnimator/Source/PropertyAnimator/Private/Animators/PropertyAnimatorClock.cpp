@@ -117,7 +117,7 @@ void UPropertyAnimatorClock::EvaluateProperties(FInstancedPropertyBag& InParamet
 	const FDateTime DateTime(ElapsedTimeSpan > FTimespan::Zero() ? ElapsedTimeSpan.GetTicks() : 0);
 	const FString FormattedDateTime = FormatDateTime(DateTime, DisplayFormat);
 
-	EvaluateEachLinkedProperty<UPropertyAnimatorCoreContext>([this, FormattedDateTime](
+	EvaluateEachLinkedProperty([this, FormattedDateTime](
 		UPropertyAnimatorCoreContext* InContext
 		, const FPropertyAnimatorCoreData& InResolvedProperty
 		, FInstancedPropertyBag& InEvaluatedValues

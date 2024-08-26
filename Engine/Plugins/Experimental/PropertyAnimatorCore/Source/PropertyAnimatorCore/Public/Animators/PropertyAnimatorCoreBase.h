@@ -146,6 +146,12 @@ public:
 		return EPropertyAnimatorPropertySupport::None;
 	}
 
+	/** Checks whether a time source is supported on this animator */
+	virtual bool IsTimeSourceSupported(UPropertyAnimatorCoreTimeSourceBase* InTimeSource) const
+	{
+		return true;
+	}
+
 	/** Get the context for the linked property */
 	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreContext* GetLinkedPropertyContext(const FPropertyAnimatorCoreData& InProperty) const;
 
@@ -212,11 +218,9 @@ protected:
 	void UpdateAnimatorDisplayName();
 
 	/** Used to evaluate linked properties, assign the result in the property bag and return true on success to update property value */
-	template<typename InContextClass
-		UE_REQUIRES(TIsDerivedFrom<InContextClass, UPropertyAnimatorCoreContext>::Value)>
 	void EvaluateEachLinkedProperty(
 		TFunctionRef<bool(
-			InContextClass* /** InPropertyContext */
+			UPropertyAnimatorCoreContext* /** InPropertyContext */
 			, const FPropertyAnimatorCoreData& /** InResolvedProperty */
 			, FInstancedPropertyBag& /** OutEvaluation */
 			, int32 InRangeIndex
@@ -227,28 +231,27 @@ protected:
 
 		for (const TObjectPtr<UPropertyAnimatorCoreContext>& LinkedProperty : LinkedProperties)
 		{
-			if (InContextClass* PropertyContext = Cast<InContextClass>(LinkedProperty.Get()))
+			UPropertyAnimatorCoreContext* PropertyContext = LinkedProperty.Get();
+
+			if (!PropertyContext || !PropertyContext->IsAnimated())
 			{
-				if (!PropertyContext->IsAnimated())
+				continue;
+			}
+
+			const TArray<FPropertyAnimatorCoreData> ResolvedProperties = PropertyContext->ResolveProperty(/** ForEvaluation */true);
+
+			for (int32 Index = 0; Index < ResolvedProperties.Num(); Index++)
+			{
+				const FPropertyAnimatorCoreData& ResolvedPropertyData = ResolvedProperties[Index];
+
+				if (!ResolvedPropertyData.IsResolved())
 				{
 					continue;
 				}
 
-				const TArray<FPropertyAnimatorCoreData> ResolvedProperties = PropertyContext->ResolveProperty(true);
-
-				for (int32 Index = 0; Index < ResolvedProperties.Num(); Index++)
+				if (InFunction(PropertyContext, ResolvedPropertyData, EvaluatedPropertyValues, Index, ResolvedProperties.Num() - 1))
 				{
-					const FPropertyAnimatorCoreData& ResolvedPropertyData = ResolvedProperties[Index];
-
-					if (!ResolvedPropertyData.IsResolved())
-					{
-						continue;
-					}
-
-					if (InFunction(PropertyContext, ResolvedPropertyData, EvaluatedPropertyValues, Index, ResolvedProperties.Num() - 1))
-					{
-						PropertyContext->CommitEvaluationResult(ResolvedPropertyData, EvaluatedPropertyValues);
-					}
+					PropertyContext->CommitEvaluationResult(ResolvedPropertyData, EvaluatedPropertyValues);
 				}
 			}
 		}
@@ -329,7 +332,7 @@ private:
 	TArray<TObjectPtr<UPropertyAnimatorCoreContext>> LinkedProperties;
 
 	/** Groups for properties linked to this Animator */
-	UPROPERTY(EditInstanceOnly, NoClear, Export, Instanced, Category="Animator")
+	UPROPERTY()
 	TArray<TObjectPtr<UPropertyAnimatorCoreGroupBase>> PropertyGroups;
 
 	/** Use the global time source or override it on this animator */
