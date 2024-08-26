@@ -27,6 +27,7 @@
 #include "Camera/CameraComponent.h"
 #include "Camera/CameraTypes.h"
 #include "UObject/Interface.h"
+#include "TextureResource.h"
 
 DEFINE_LOG_CATEGORY(LogBufferVisualization);
 DEFINE_LOG_CATEGORY(LogNaniteVisualization);
@@ -424,14 +425,36 @@ EVertexColorViewMode::Type GetMeshPaintVisualizeChannels()
 	return GMeshPaintVisualizeChannels;
 }
 static TWeakObjectPtr<UTexture> GMeshPaintVisualizeTexture = nullptr;
+static FRHITexture* GMeshPaintVisualizeTextureRHI_GameThread = nullptr;
+static FRHITexture* GMeshPaintVisualizeTextureRHI_RenderThread = nullptr;
 void SetMeshPaintVisualizeTexture(TWeakObjectPtr<UTexture> Texture)
 {
 	GMeshPaintVisualizeTexture = Texture;
+		
+	UTexture* TexturePtr = Texture.Get();
+	FTextureResource* TextureResource = TexturePtr != nullptr ? TexturePtr->GetResource() : nullptr;
+	FRHITexture* TextureRHI = TextureResource != nullptr ? TextureResource->GetTexture2DRHI() : nullptr;
+	if (TextureRHI != GMeshPaintVisualizeTextureRHI_GameThread)
+	{
+		GMeshPaintVisualizeTextureRHI_GameThread = TextureRHI;
+		ENQUEUE_RENDER_COMMAND(SetMeshPaintVisualizeTexture)([TextureRHI](FRHICommandListImmediate& RHICmdList)
+		{
+			GMeshPaintVisualizeTextureRHI_RenderThread = TextureRHI;
+		});
+	}
+}
+FRHITexture* GetMeshPaintVisualizeTexture_RenderThread()
+{
+	return GMeshPaintVisualizeTextureRHI_RenderThread;
 }
 static int32 GMeshPaintVisualizeUVChannel = 0;
 void SetMeshPaintVisualizeTextureCoordinateIndex(int32 Index)
 {
 	GMeshPaintVisualizeUVChannel = Index;
+}
+int32 GetMeshPaintVisualizeTextureCoordinateIndex()
+{
+	return GMeshPaintVisualizeUVChannel;
 }
 
 FMaterialRenderProxy* GetMeshPaintVisualizeMaterialRenderProxy(bool bIsSelected, bool bIsHovered)
