@@ -7,8 +7,6 @@
 #include "Engine/AssetUserData.h"
 #include "Animation/AnimCurveTypes.h"
 
-#include "DNAIndexMapping.generated.h"
-
 class IDNAReader;
 class USkeleton;
 class USkeletalMesh;
@@ -37,11 +35,4 @@ struct FDNAIndexMapping
 	void MapJoints(const IDNAReader* DNAReader, const USkeletalMesh* SkeletalMesh);
 	void MapMorphTargets(const IDNAReader* DNAReader, const USkeleton* Skeleton, const USkeletalMesh* SkeletalMesh);
 	void MapMaskMultipliers(const IDNAReader* DNAReader, const USkeleton* Skeleton);
-
-};
-
-UCLASS(NotBlueprintable, hidecategories = (Object), deprecated)
-class UDEPRECATED_DNAIndexMapping : public UAssetUserData
-{
-	GENERATED_BODY()
 };
