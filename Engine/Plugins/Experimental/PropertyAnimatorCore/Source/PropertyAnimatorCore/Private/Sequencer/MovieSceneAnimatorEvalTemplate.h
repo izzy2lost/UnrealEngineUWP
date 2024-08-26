@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include "MovieSceneAnimatorExecutionToken.h"
 #include "Evaluation/MovieSceneEvalTemplate.h"
+#include "MovieSceneAnimatorExecutionToken.h"
+#include "Sequencer/MovieSceneAnimatorTypes.h"
 #include "MovieSceneAnimatorEvalTemplate.generated.h"
 
 USTRUCT()
@@ -13,8 +14,8 @@ struct FMovieSceneAnimatorEvalTemplate : public FMovieSceneEvalTemplate
 
 	FMovieSceneAnimatorEvalTemplate() = default;
 
-	explicit FMovieSceneAnimatorEvalTemplate(uint8 InChannel)
-		: Channel(InChannel)
+	explicit FMovieSceneAnimatorEvalTemplate(const FMovieSceneAnimatorSectionData& InSectionData)
+		: SectionData(InSectionData)
 	{}
 
 	//~ Begin FMovieSceneEvalTemplate
@@ -25,11 +26,11 @@ struct FMovieSceneAnimatorEvalTemplate : public FMovieSceneEvalTemplate
 
 	virtual void Evaluate(const FMovieSceneEvaluationOperand& InOperand, const FMovieSceneContext& InContext, const FPersistentEvaluationData& InPersistentData, FMovieSceneExecutionTokens& InExecutionTokens) const override
 	{
-		FMovieSceneAnimatorExecutionToken ExecutionToken(Channel);
+		FMovieSceneAnimatorExecutionToken ExecutionToken(SectionData);
 		InExecutionTokens.Add(MoveTemp(ExecutionToken));
 	}
 	//~ End FMovieSceneEvalTemplate
 
 private:
-	uint8 Channel = 0;
+	FMovieSceneAnimatorSectionData SectionData;
 };

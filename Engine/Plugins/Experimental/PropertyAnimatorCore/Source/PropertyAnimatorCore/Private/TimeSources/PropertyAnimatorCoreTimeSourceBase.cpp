@@ -24,23 +24,23 @@ void UPropertyAnimatorCoreTimeSourceBase::DeactivateTimeSource()
 	OnTimeSourceInactive();
 }
 
-TOptional<double> UPropertyAnimatorCoreTimeSourceBase::GetConditionalTimeElapsed()
+EPropertyAnimatorCoreTimeSourceResult UPropertyAnimatorCoreTimeSourceBase::FetchEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutEvaluationData)
 {
-	if (!IsTimeSourceReady())
+	if (!UpdateEvaluationData(OutEvaluationData))
 	{
-		return TOptional<double>();
+		// Reset evaluation state
+		return EPropertyAnimatorCoreTimeSourceResult::Reset;
 	}
 
-	double NewTimeElapsed = GetTimeElapsed();
-
-	if (!IsValidTimeElapsed(NewTimeElapsed))
+	if (!IsFramerateAllowed(OutEvaluationData.TimeElapsed))
 	{
-		return TOptional<double>();
+		// Skip evaluation for this run
+		return EPropertyAnimatorCoreTimeSourceResult::Skip;
 	}
 
-	LastTimeElapsed = NewTimeElapsed;
+	LastTimeElapsed = OutEvaluationData.TimeElapsed;
 
-	return LastTimeElapsed;
+	return EPropertyAnimatorCoreTimeSourceResult::Evaluate;
 }
 
 void UPropertyAnimatorCoreTimeSourceBase::SetFrameRate(float InFrameRate)
@@ -53,7 +53,12 @@ void UPropertyAnimatorCoreTimeSourceBase::SetUseFrameRate(bool bInUseFrameRate)
 	bUseFrameRate = bInUseFrameRate;
 }
 
-bool UPropertyAnimatorCoreTimeSourceBase::IsValidTimeElapsed(double InTimeElapsed) const
+bool UPropertyAnimatorCoreTimeSourceBase::UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData)
 {
-	return !bUseFrameRate || FMath::IsNearlyZero(FrameRate) || FMath::Abs(InTimeElapsed - LastTimeElapsed) > FMath::Abs(1.f / FrameRate);
+	return false;
+}
+
+bool UPropertyAnimatorCoreTimeSourceBase::IsFramerateAllowed(double InNewTime) const
+{
+	return !bUseFrameRate || FMath::IsNearlyZero(FrameRate) || FMath::Abs(InNewTime - LastTimeElapsed) > FMath::Abs(1.f / FrameRate);
 }

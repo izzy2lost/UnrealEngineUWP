@@ -134,11 +134,11 @@ protected:
 	bool bAnimatorsEnabled = true;
 
 	/** Global magnitude for all animators controlled by this component */
-	UPROPERTY(EditInstanceOnly, Getter, Setter, Category="Animator", meta=(ClampMin="0", ClampMax="1", UIMin="0", UIMax="1", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Getter, Setter, DisplayName="Global Magnitude", Category="Animator", meta=(ClampMin="0", ClampMax="1", UIMin="0", UIMax="1", AllowPrivateAccess="true"))
 	float AnimatorsMagnitude = 1.f;
 
 	/** The global time source to use, can be overriden in animator */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(GetOptions="GetTimeSourceNames"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Global Time Source Name", Category="Animator", meta=(GetOptions="GetTimeSourceNames"))
 	FName AnimatorsTimeSourceName = NAME_None;
 
 	/** Active time source with its options, determined by its name */

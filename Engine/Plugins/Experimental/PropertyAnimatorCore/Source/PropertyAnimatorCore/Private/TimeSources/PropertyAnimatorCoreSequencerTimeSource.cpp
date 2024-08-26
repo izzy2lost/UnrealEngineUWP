@@ -4,13 +4,16 @@
 
 UPropertyAnimatorCoreSequencerTimeSource::FOnAnimatorTimeEvaluated UPropertyAnimatorCoreSequencerTimeSource::OnAnimatorTimeEvaluated;
 
-double UPropertyAnimatorCoreSequencerTimeSource::GetTimeElapsed()
+bool UPropertyAnimatorCoreSequencerTimeSource::UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData)
 {
-	return EvalTime.Get(0);
-}
+	if (!EvalTime.IsSet() || !EvalMagnitude.IsSet())
+	{
+		return false;
+	}
 
-bool UPropertyAnimatorCoreSequencerTimeSource::IsTimeSourceReady() const
-{
+	OutData.TimeElapsed = EvalTime.GetValue();
+	OutData.Magnitude = EvalMagnitude.GetValue();
+
 	return true;
 }
 
@@ -33,10 +36,11 @@ void UPropertyAnimatorCoreSequencerTimeSource::SetChannel(uint8 InChannel)
 	ChannelData.Channel = InChannel;
 }
 
-void UPropertyAnimatorCoreSequencerTimeSource::OnSequencerTimeEvaluated(uint8 InChannel, double InTimeEval)
+void UPropertyAnimatorCoreSequencerTimeSource::OnSequencerTimeEvaluated(uint8 InChannel, const TOptional<double>& InTimeEval, const TOptional<float>& InMagnitudeEval)
 {
 	if (ChannelData.Channel == InChannel)
 	{
 		EvalTime = InTimeEval;
+		EvalMagnitude = InMagnitudeEval;
 	}
 }

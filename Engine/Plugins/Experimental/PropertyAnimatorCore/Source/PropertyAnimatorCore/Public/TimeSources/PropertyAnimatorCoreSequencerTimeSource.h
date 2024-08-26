@@ -21,7 +21,7 @@ class UPropertyAnimatorCoreSequencerTimeSource : public UPropertyAnimatorCoreTim
 	GENERATED_BODY()
 
 public:
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAnimatorTimeEvaluated, uint8 /** Channel */, double /** EvalTime */)
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnAnimatorTimeEvaluated, uint8 /** Channel */, const TOptional<double>& /** EvalTime */, const TOptional<float>& /** EvalMagnitude */)
 	static FOnAnimatorTimeEvaluated OnAnimatorTimeEvaluated;
 
 	UPropertyAnimatorCoreSequencerTimeSource()
@@ -29,8 +29,7 @@ public:
 	{}
 
 	//~ Begin UPropertyAnimatorTimeSourceBase
-	virtual double GetTimeElapsed() override;
-	virtual bool IsTimeSourceReady() const override;
+	virtual bool UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData) override;
 	virtual void OnTimeSourceActive() override;
 	virtual void OnTimeSourceInactive() override;
 	//~ End UPropertyAnimatorTimeSourceBase
@@ -42,7 +41,7 @@ public:
 	}
 
 protected:
-	void OnSequencerTimeEvaluated(uint8 InChannel, double InTimeEval);
+	void OnSequencerTimeEvaluated(uint8 InChannel, const TOptional<double>& InTimeEval, const TOptional<float>& InMagnitudeEval);
 
 	/** Channel to sample time from */
 	UPROPERTY(EditInstanceOnly, DisplayName="Channel", Category="Animator")
@@ -50,4 +49,7 @@ protected:
 
 	/** Last evaluated time received */
 	TOptional<double> EvalTime;
+
+	/** Last evaluated magnitude received */
+	TOptional<float> EvalMagnitude;
 };

@@ -5,39 +5,32 @@
 #include "Internationalization/Regex.h"
 #include "Misc/DateTime.h"
 
-double UPropertyAnimatorCoreSystemTimeSource::GetTimeElapsed()
+bool UPropertyAnimatorCoreSystemTimeSource::UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData)
 {
-	double TimeElapsedSeconds = 0;
-
 	switch(Mode)
 	{
 	case EPropertyAnimatorCoreSystemMode::LocalTime:
 		{
-			TimeElapsedSeconds = (FDateTime::Now() - FDateTime::MinValue()).GetTotalSeconds();
+			OutData.TimeElapsed = (FDateTime::Now() - FDateTime::MinValue()).GetTotalSeconds();
 		}
 		break;
 	case EPropertyAnimatorCoreSystemMode::UtcTime:
 		{
-			TimeElapsedSeconds = (FDateTime::UtcNow() - FDateTime::MinValue()).GetTotalSeconds();
+			OutData.TimeElapsed = (FDateTime::UtcNow() - FDateTime::MinValue()).GetTotalSeconds();
 		}
 		break;
 	case EPropertyAnimatorCoreSystemMode::Countdown:
 		{
-			TimeElapsedSeconds = (CountdownTimeSpan - (FDateTime::Now() - ActivationTime)).GetTotalSeconds();
+			OutData.TimeElapsed = (CountdownTimeSpan - (FDateTime::Now() - ActivationTime)).GetTotalSeconds();
 		}
 		break;
 	case EPropertyAnimatorCoreSystemMode::Stopwatch:
 		{
-			TimeElapsedSeconds = (FDateTime::Now() - ActivationTime).GetTotalSeconds();
+			OutData.TimeElapsed = (FDateTime::Now() - ActivationTime).GetTotalSeconds();
 		}
 		break;
 	}
 
-	return TimeElapsedSeconds;
-}
-
-bool UPropertyAnimatorCoreSystemTimeSource::IsTimeSourceReady() const
-{
 	return true;
 }
 

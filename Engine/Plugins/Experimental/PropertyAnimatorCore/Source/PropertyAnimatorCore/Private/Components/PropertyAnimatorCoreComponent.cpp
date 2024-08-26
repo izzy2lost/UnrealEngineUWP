@@ -482,12 +482,15 @@ bool UPropertyAnimatorCoreComponent::EvaluateAnimators()
 	const UWorld* World = GetWorld();
 	const bool bIsSupportedWorld = IsValid(World) && (World->IsGameWorld() || World->IsEditorWorld());
 
-	if (!bIsSupportedWorld)
+	if (!bIsSupportedWorld || !ActiveAnimatorsTimeSource)
 	{
 		return false;
 	}
 
 	FInstancedPropertyBag Parameters;
+
+	FPropertyAnimatorCoreTimeSourceEvaluationData GlobalEvaluationData;
+	EPropertyAnimatorCoreTimeSourceResult GlobalTimeResult = ActiveAnimatorsTimeSource->FetchEvaluationData(GlobalEvaluationData);
 
 	for (const TObjectPtr<UPropertyAnimatorCoreBase>& Animator : PropertyAnimators)
 	{
@@ -503,10 +506,21 @@ bool UPropertyAnimatorCoreComponent::EvaluateAnimators()
 			continue;
 		}
 
-		const TOptional<double> TimeElapsed = AnimatorTimeSource->GetConditionalTimeElapsed();
+		FPropertyAnimatorCoreTimeSourceEvaluationData AnimatorEvaluationData = GlobalEvaluationData;
+		EPropertyAnimatorCoreTimeSourceResult AnimatorTimeResult = GlobalTimeResult;
 
-		if (!TimeElapsed.IsSet())
+		if (Animator->GetOverrideTimeSource())
 		{
+			AnimatorTimeResult = AnimatorTimeSource->FetchEvaluationData(AnimatorEvaluationData);
+		}
+
+		if (AnimatorTimeResult != EPropertyAnimatorCoreTimeSourceResult::Evaluate)
+		{
+			if (AnimatorTimeResult == EPropertyAnimatorCoreTimeSourceResult::Reset)
+			{
+				Animator->RestoreProperties(/** Force */true);
+			}
+
 			continue;
 		}
 
@@ -514,10 +528,10 @@ bool UPropertyAnimatorCoreComponent::EvaluateAnimators()
 		Parameters.Reset();
 
 		Parameters.AddProperty(UPropertyAnimatorCoreBase::MagnitudeParameterName, EPropertyBagPropertyType::Float);
-		Parameters.SetValueFloat(UPropertyAnimatorCoreBase::MagnitudeParameterName, AnimatorsMagnitude);
+		Parameters.SetValueFloat(UPropertyAnimatorCoreBase::MagnitudeParameterName, AnimatorsMagnitude * AnimatorEvaluationData.Magnitude);
 
 		Parameters.AddProperty(UPropertyAnimatorCoreBase::TimeElapsedParameterName, EPropertyBagPropertyType::Double);
-		Parameters.SetValueDouble(UPropertyAnimatorCoreBase::TimeElapsedParameterName, TimeElapsed.GetValue());
+		Parameters.SetValueDouble(UPropertyAnimatorCoreBase::TimeElapsedParameterName, AnimatorEvaluationData.TimeElapsed);
 
 		Animator->EvaluateAnimator(Parameters);
 	}

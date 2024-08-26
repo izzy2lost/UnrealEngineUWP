@@ -30,6 +30,12 @@ void FMovieSceneAnimatorTrackEditor::BuildAddTrackMenu(FMenuBuilder& InMenuBuild
 	);
 }
 
+TSharedPtr<SWidget> FMovieSceneAnimatorTrackEditor::BuildOutlinerEditWidget(const FGuid& InObjectBinding, UMovieSceneTrack* InTrack, const FBuildEditWidgetParams& InParams)
+{
+	// Empty, do not allow the creation of new sections, only one to rule them all
+	return nullptr;
+}
+
 void FMovieSceneAnimatorTrackEditor::BindDelegates()
 {
 	OnAddAnimatorTrack.AddSP(this, &FMovieSceneAnimatorTrackEditor::ExecuteAddTrack);

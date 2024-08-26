@@ -36,7 +36,7 @@ void UPropertyAnimatorCoreManualTimeSource::SetState(const FPropertyAnimatorCore
 	OnStateChanged();
 }
 
-double UPropertyAnimatorCoreManualTimeSource::GetTimeElapsed()
+bool UPropertyAnimatorCoreManualTimeSource::UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData)
 {
 	if (!bOverrideTime)
 	{
@@ -52,19 +52,15 @@ double UPropertyAnimatorCoreManualTimeSource::GetTimeElapsed()
 		{
 			CustomTime -= FApp::GetDeltaTime();
 		}
+
+		OutData.TimeElapsed = CustomTime;
+
+		return ActiveStatus != EPropertyAnimatorCoreManualStatus::Stopped;
 	}
 
-	return CustomTime;
-}
+	OutData.TimeElapsed = CustomTime;
 
-bool UPropertyAnimatorCoreManualTimeSource::IsTimeSourceReady() const
-{
-	if (bOverrideTime)
-	{
-		return true;
-	}
-
-	return ActiveStatus != EPropertyAnimatorCoreManualStatus::Stopped;
+	return true;
 }
 
 void UPropertyAnimatorCoreManualTimeSource::OnTimeSourceActive()

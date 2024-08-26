@@ -33,8 +33,7 @@ public:
 	{}
 
 	//~ Begin UPropertyAnimatorTimeSourceBase
-	virtual double GetTimeElapsed() override;
-	virtual bool IsTimeSourceReady() const override;
+	virtual bool UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData) override;
 	virtual void OnTimeSourceActive() override;
 	//~ End UPropertyAnimatorTimeSourceBase
 

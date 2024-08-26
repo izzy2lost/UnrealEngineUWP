@@ -31,6 +31,7 @@ public:
 private:
 	//~ Begin FMovieSceneTrackEditor
 	virtual void BuildAddTrackMenu(FMenuBuilder& InMenuBuilder) override;
+	virtual TSharedPtr<SWidget> BuildOutlinerEditWidget(const FGuid& InObjectBinding, UMovieSceneTrack* InTrack, const FBuildEditWidgetParams& InParams) override;
 	//~ End FMovieSceneTrackEditor
 
 	void BindDelegates();

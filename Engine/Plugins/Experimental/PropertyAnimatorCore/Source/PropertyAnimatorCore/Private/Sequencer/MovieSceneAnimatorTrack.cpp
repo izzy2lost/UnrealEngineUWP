@@ -13,7 +13,8 @@
 UMovieSceneAnimatorTrack::UMovieSceneAnimatorTrack()
 	: UMovieSceneNameableTrack()
 {
-	SupportedBlendTypes = FMovieSceneBlendTypeField::None();
+	// Needed for easing
+	SupportedBlendTypes.Add(EMovieSceneBlendType::Absolute);
 }
 
 int32 UMovieSceneAnimatorTrack::GetChannelCount(uint8 InChannel) const
@@ -47,6 +48,10 @@ UMovieSceneSection* UMovieSceneAnimatorTrack::CreateNewSection()
 	{
 		NewSection->SetStartFrame(MovieScene->GetPlaybackRange().GetLowerBound());
 		NewSection->SetEndFrame(MovieScene->GetPlaybackRange().GetUpperBound());
+
+		// For easing
+		NewSection->SetBlendType(EMovieSceneBlendType::Absolute);
+		UpdateEasing();
 	}
 
 	return NewSection;
@@ -116,7 +121,12 @@ FMovieSceneEvalTemplatePtr UMovieSceneAnimatorTrack::CreateTemplateForSection(co
 		return FMovieSceneEvalTemplatePtr();
 	}
 
-	return FMovieSceneAnimatorEvalTemplate(AnimatorSection->GetChannel());
+	FMovieSceneAnimatorSectionData SectionData;
+	SectionData.Channel = AnimatorSection->GetChannel();
+	SectionData.bUseSectionTime = AnimatorSection->GetUseSectionTime();
+	SectionData.Section = AnimatorSection;
+
+	return FMovieSceneAnimatorEvalTemplate(SectionData);
 }
 
 #undef LOCTEXT_NAMESPACE

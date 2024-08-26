@@ -6,6 +6,27 @@
 
 class UPropertyAnimatorCoreBase;
 
+/** Enumerates all possible outcomes for the time source */
+enum class EPropertyAnimatorCoreTimeSourceResult
+{
+	/** Time is the same as previous, evaluation can be skipped */
+	Skip,
+	/** Time is in an invalid state or out of range, restore values */
+	Reset,
+	/** Time is valid and in range, evaluate time */
+	Evaluate
+};
+
+/** Stores all the data used by animators during evaluation */
+struct FPropertyAnimatorCoreTimeSourceEvaluationData
+{
+	/** Time elapsed for animators evaluation */
+	double TimeElapsed = 0.0;
+
+	/** Time magnitude for animators to fade in/out effect based on time */
+	float Magnitude = 1.f;
+};
+
 /**
  * Abstract base class for time source used by property animators
  * Can be transient or saved to disk if contains user set data
@@ -34,7 +55,7 @@ public:
 		return bTimeSourceActive;
 	}
 
-	TOptional<double> GetConditionalTimeElapsed();
+	EPropertyAnimatorCoreTimeSourceResult FetchEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutEvaluationData);
 
 	FName GetTimeSourceName() const
 	{
@@ -53,21 +74,14 @@ public:
 		return bUseFrameRate;
 	}
 
+	double GetLastTimeElapsed() const
+	{
+		return LastTimeElapsed;
+	}
+
 protected:
-	/** Returns the time elapsed for animators */
-	virtual double GetTimeElapsed()
-	{
-		return 0;
-	}
-
-	/** Checks if this time source is ready to be used by the animator */
-	virtual bool IsTimeSourceReady() const
-	{
-		return false;
-	}
-
-	/** Check if the time elapsed is valid based on the context */
-	PROPERTYANIMATORCORE_API virtual bool IsValidTimeElapsed(double InTimeElapsed) const;
+	/** Retrieve evaluation data to provide animators, return true if data is valid, false otherwise */
+	PROPERTYANIMATORCORE_API virtual bool UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData);
 
 	/** Time source CDO is registered by subsystem */
 	virtual void OnTimeSourceRegistered() {}
@@ -82,6 +96,8 @@ protected:
 	virtual void OnTimeSourceInactive() {}
 
 private:
+	bool IsFramerateAllowed(double InNewTime) const;
+
 	/** Use a specific framerate */
 	UPROPERTY(EditInstanceOnly, Setter="SetUseFrameRate", Getter="GetUseFrameRate", Category="Animator", meta=(InlineEditConditionToggle))
 	bool bUseFrameRate = false;
