@@ -539,7 +539,10 @@ namespace Audio
 		{				
 			if( XAudio2System )
 			{
+				const uint64 StartCycles = FPlatformTime::Cycles64();						
 				XAudio2System->StopEngine();
+				UE_LOG(LogAudioMixer, Display, TEXT("XAudio2System StopEngine(), taking '%2.2f' ms"),
+					FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartCycles));
 				StartRunningNullDevice();
 				bIsSuspended = true;
 			}					
@@ -576,6 +579,8 @@ namespace Audio
 				if(SUCCEEDED(Result))
 				{		
 					bIsSuspended = false;								
+					UE_CLOG(StartAttempt == 1, LogAudioMixer, Display, 
+						TEXT("XAudio2System StartEngine() - Sucessfully started, taking '%2.2f' ms"), FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartCycles));
 					UE_CLOG(StartAttempt > 1, LogAudioMixer, Warning, 
 						TEXT("StartEngine() took %d attempts to start, taking '%f' ms"), 
 						StartAttempt, FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartCycles));
