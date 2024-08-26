@@ -139,7 +139,11 @@ void FLevelEditorMenu::RegisterLevelEditorMenus()
 				{
 					IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
 					const FMainMRUFavoritesList& RecentsAndFavorites = *MainFrameModule.GetMRUFavoritesList();
-					if (RecentsAndFavorites.GetNumItems() > 0)
+
+					// Only show the Favorite Levels menu if either 1) the current level could be favorited (it's saved)
+					// or 2) there are 1 or more favorite levels.
+					if (FLevelEditorActionCallbacks::ToggleFavorite_CanExecute()
+						|| RecentsAndFavorites.GetNumFavorites() > 0)
 					{
 						InSection.AddSubMenu(
 							"FavoriteLevelsSubMenu",
