@@ -12,6 +12,8 @@
 #include "NNERuntimeORTSettings.h"
 #include "UObject/WeakInterfacePtr.h"
 
+DEFINE_LOG_CATEGORY(LogNNEOnnxruntime);
+
 namespace UE::NNERuntimeORT::Private
 {
 	namespace DllHelper

@@ -27,7 +27,14 @@
 
 #include "HAL/Platform.h"
 #include "HAL/PlatformProcess.h"
+#include "Logging/LogMacros.h"
 #include "Templates/UniquePtr.h"
+
+// Log category declaration
+DECLARE_LOG_CATEGORY_EXTERN(LogNNEOnnxruntime, Log, All);
+
+// Add log catecory definition to client cpp:
+// DEFINE_LOG_CATEGORY(LogNNEOnnxruntime);
 
 // Helper macro to convert a CPP variable to a string literal.
 #define UE_ORT_INTERNAL_DO_TOKEN_STR(x) #x
@@ -58,6 +65,12 @@ static_assert(UE_ORT_INTERNAL_INLINE_NAMESPACE_STR[0] != '\0',
 #define UE_ORT_NAMESPACE_END }
 #else
 #error Onnxruntime.Build.cs is misconfigured.
+#endif
+
+// We register our own error handler for the case when exceptions are diabled
+#ifdef ORT_NO_EXCEPTIONS
+#define ORT_CXX_API_THROW(string, code) \
+	UE_LOG(LogNNEOnnxruntime, Fatal, TEXT("%hs"), Ort::Exception(string, code).what());
 #endif
 
 #if PLATFORM_WINDOWS
