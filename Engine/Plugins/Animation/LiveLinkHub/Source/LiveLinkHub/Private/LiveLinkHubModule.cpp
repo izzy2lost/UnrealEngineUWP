@@ -46,13 +46,13 @@ void FLiveLinkHubModule::StartLiveLinkHub(bool bLauncherDistribution)
 
 void FLiveLinkHubModule::ShutdownLiveLinkHub()
 {
-	LiveLinkHub.Reset();
-
 	if (!GetDefault<ULiveLinkHubSettings>()->bTickOnGameThread)
 	{
 		Ticker.Exit();
 		Ticker.Stop();
 	}
+
+	LiveLinkHub.Reset();
 }
 
 void FLiveLinkHubModule::StartupModule()
