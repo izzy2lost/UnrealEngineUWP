@@ -253,7 +253,7 @@ public:
 	static TArray<FString> Permitted4CCs;
 };
 TSharedPtr<FElectraCommonAudioFlacDecoderFactory, ESPMode::ThreadSafe> FElectraCommonAudioFlacDecoderFactory::Self;
-TArray<FString> FElectraCommonAudioFlacDecoderFactory::Permitted4CCs = { TEXT("mp4a.6b"), TEXT(".mp3") };
+TArray<FString> FElectraCommonAudioFlacDecoderFactory::Permitted4CCs = { TEXT("mp4a.6b"), TEXT("mp4a.40.34"), TEXT(".mp3") };
 
 /*********************************************************************************************************************/
 /*********************************************************************************************************************/
