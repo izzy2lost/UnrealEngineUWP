@@ -77,7 +77,7 @@ void PackShaderPrintConfig(FShaderPrintConfig In)
 	UEDiagnosticBuffer[Offset+7] = In.MaxCharacterCount;
 	UEDiagnosticBuffer[Offset+8] = In.MaxSymbolCount;
 	UEDiagnosticBuffer[Offset+9] = In.MaxStateCount;
-	UEDiagnosticBuffer[Offset+10]= In.MaxLineCount;
+	UEDiagnosticBuffer[Offset+10]= (In.MaxLineCount << 1) | (In.bIsDrawLocked ? 1 : 0);
 	UEDiagnosticBuffer[Offset+11]= In.MaxTriangleCount;
 }
 
@@ -96,7 +96,8 @@ FShaderPrintConfig UnpackShaderPrintConfig()
 	Out.MaxCharacterCount		= UEDiagnosticBuffer[Offset+7];
 	Out.MaxSymbolCount			= UEDiagnosticBuffer[Offset+8];
 	Out.MaxStateCount			= UEDiagnosticBuffer[Offset+9];
-	Out.MaxLineCount			= UEDiagnosticBuffer[Offset+10];
+	Out.MaxLineCount			= UEDiagnosticBuffer[Offset+10] >> 1;
+	Out.bIsDrawLocked			= (UEDiagnosticBuffer[Offset+10] & 1) != 0;
 	Out.MaxTriangleCount		= UEDiagnosticBuffer[Offset+11];
 
 	// Dummy write to avoid the pass to be culled when using explicit ShaderPrint parameter bindings
@@ -141,6 +142,7 @@ FShaderPrintConfig InitShaderPrintContextConfig()
 	Config.MaxStateCount = ShaderPrintData.MaxStateCount;
 	Config.MaxLineCount = ShaderPrintData.MaxLineCount;
 	Config.MaxTriangleCount = ShaderPrintData.MaxTriangleCount;
+	Config.bIsDrawLocked = ShaderPrintData.IsDrawLocked;
 	return Config;
 #endif
 }
