@@ -253,6 +253,10 @@ ECommonInputType FCommonInputPreprocessor::GetInputType(const FKey& Key)
 
 ECommonInputType FCommonInputPreprocessor::GetInputType(const FPointerEvent& PointerEvent)
 {
+#if WITH_EDITOR
+	const ULocalPlayer& LocalPlayer = *InputSubsystem.GetLocalPlayerChecked();
+#endif
+
 	if (PointerEvent.IsTouchEvent())
 	{
 		return ECommonInputType::Touch;
@@ -261,5 +265,11 @@ ECommonInputType FCommonInputPreprocessor::GetInputType(const FPointerEvent& Poi
 	{
 		return ECommonInputType::Gamepad;
 	}
+#if WITH_EDITOR
+	else if (LocalPlayer.ViewportClient && LocalPlayer.ViewportClient->GetUseMouseForTouch())
+	{
+		return ECommonInputType::Touch;
+	}
+#endif
 	return ECommonInputType::MouseAndKeyboard;
 }
