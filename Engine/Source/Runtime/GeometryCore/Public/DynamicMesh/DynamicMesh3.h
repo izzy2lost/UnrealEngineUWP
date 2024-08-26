@@ -1309,8 +1309,34 @@ public:
 	 */
 	GEOMETRYCORE_API virtual bool SplitVertexWouldLeaveIsolated(int VertexID, const TArrayView<const int>& TrianglesToUpdate);
 
+	struct FEdgeCollapseOptions
+	{
+		/**
+		 * When false, collapse is disallowed if the edge is the boundary of a single triangle hole,
+		 *  such that collapsing it would clse the hole. I.e. collapse is dissallowed if there
+		 *  is some vertex that connects vKeep and vRemove that is not part of the triangle(s) being
+		 *  collapsed (note that if such a vertex is connected by a non-boundary edge, collapse will
+		 *  always be disallowed regardless of bAllowHoleCollapse, as it would create non-manifold geometry).
+		 */ 
+		bool bAllowHoleCollapse = false;
+		/**
+		 * When false, collapse is disallowed if the edge is an interior edge, yet both vertices are
+		 *  connected to boundary edges. In some circumstances this could create a bowtie. In other
+		 *  cases, it could disconnected parts of a mesh that were connected by a bowtie.
+		 */
+		bool bAllowCollapsingInternalEdgeWithExternalVertices = false;
+		/**
+		 * When false, collapse is disallowed if we are collapsing the side of a tetrahedron. Note
+		 *  that a base edge of an open-base tetrahedron could be collapsed even if bAllowTetrahedronCollapse
+		 *  is false if bAllowBorderVerticesWhenInternal is true.
+		 */
+		bool bAllowTetrahedronCollapse = false;
+	};
+	GEOMETRYCORE_API virtual EMeshResult CanCollapseEdge(int vKeep, int vRemove, const FEdgeCollapseOptions& Options) const;
+
 	/**
-	 * Tests whether collapsing the specified edge using the CollapseEdge function would succeed
+	 * Tests whether collapsing the specified edge using the CollapseEdge function would succeed.
+	 *  Equivalent to calling the options overload with default options.
 	 * @param KeepVertID index of the vertex that should be kept
 	 * @param RemoveVertID index of the vertex that should be removed
 	 * @param EdgeParameterT vKeep is moved to Lerp(KeepPos, RemovePos, EdgeParameterT). Note: Does not currently affect whether the edge is collapsable.
@@ -1323,11 +1349,37 @@ public:
 	 * @param KeepVertID index of the vertex that should be kept
 	 * @param RemoveVertID index of the vertex that should be removed
 	 * @param EdgeParameterT vKeep is moved to Lerp(KeepPos, RemovePos, EdgeParameterT)
+	 * @param Options Sets options for the collapse
+	 * @param CollapseInfo returned information about new and modified mesh elements
+	 * @return Ok on success, or enum value indicates why operation cannot be applied. Mesh remains unmodified on error.
+	 */
+	GEOMETRYCORE_API virtual EMeshResult CollapseEdge(int KeepVertID, int RemoveVertID, double EdgeParameterT, 
+		const FEdgeCollapseOptions& Options, FEdgeCollapseInfo& CollapseInfo);
+
+	/**
+	 * Collapse the edge between the two vertices, if topologically possible. Equivalent to
+	 *  using the other overload with 0 for EdgeParameterT.
+	 */
+	virtual EMeshResult CollapseEdge(int KeepVertID, int RemoveVertID, const FEdgeCollapseOptions& Options, FEdgeCollapseInfo& CollapseInfo)
+	{
+		return CollapseEdge(KeepVertID, RemoveVertID, 0, Options, CollapseInfo);
+	}
+
+	/**
+	 * Collapse the edge between the two vertices, if topologically possible. Equivalent to calling
+	 *  the options overload with default options.
+	 * @param KeepVertID index of the vertex that should be kept
+	 * @param RemoveVertID index of the vertex that should be removed
+	 * @param EdgeParameterT vKeep is moved to Lerp(KeepPos, RemovePos, EdgeParameterT)
 	 * @param CollapseInfo returned information about new and modified mesh elements
 	 * @return Ok on success, or enum value indicates why operation cannot be applied. Mesh remains unmodified on error.
 	 */
 	GEOMETRYCORE_API virtual EMeshResult CollapseEdge(int KeepVertID, int RemoveVertID, double EdgeParameterT,
 	                                 FEdgeCollapseInfo& CollapseInfo);
+	/**
+	 * Collapse the edge between the two vertices, if topologically possible. Equivalent to calling
+	 *  the options overload with default options and using 0 for EdgeParameterT.
+	 */
 	virtual EMeshResult CollapseEdge(int KeepVertID, int RemoveVertID, FEdgeCollapseInfo& CollapseInfo)
 	{
 		return CollapseEdge(KeepVertID, RemoveVertID, 0, CollapseInfo);
@@ -1669,7 +1721,9 @@ protected:
 
 	/* We keep this version of CanCollapseEdge internal because the CollapseInfo struct may only be partially filled out by the function */
 	virtual EMeshResult CanCollapseEdgeInternal(int vKeep, int vRemove, double collapse_t, FEdgeCollapseInfo* OutCollapseInfo) const;
-
+private:
+	virtual EMeshResult CanCollapseEdgeInternal(int vKeep, int vRemove, double collapse_t,
+		const FEdgeCollapseOptions& Options, FEdgeCollapseInfo* OutCollapseInfo) const;
 };
 
 
