@@ -7,7 +7,6 @@
 #include "GameFramework/HUD.h"
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystemComponent.h"
-#include "GameplayAbilitiesDeveloperSettings.h"
 
 #if WITH_GAMEPLAY_DEBUGGER
 #include "GameplayDebugger.h"
@@ -27,8 +26,7 @@ class FGameplayAbilitiesModule : public IGameplayAbilitiesModule
 		if (!AbilitySystemGlobals)
 		{
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_IGameplayAbilitiesModule_GetAbilitySystemGlobals_LoadModule);
-			const UGameplayAbilitiesDeveloperSettings* Settings = GetDefault<UGameplayAbilitiesDeveloperSettings>();
-			FSoftClassPath AbilitySystemClassName = Settings->AbilitySystemGlobalsClassName;
+			FSoftClassPath AbilitySystemClassName = (UAbilitySystemGlobals::StaticClass()->GetDefaultObject<UAbilitySystemGlobals>())->AbilitySystemGlobalsClassName;
 
 			UClass* SingletonClass = AbilitySystemClassName.TryLoadClass<UObject>();
 			checkf(SingletonClass != nullptr, TEXT("Ability config value AbilitySystemGlobalsClassName is not a valid class name."));

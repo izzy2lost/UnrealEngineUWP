@@ -11,7 +11,6 @@
 #include "AbilitySystemComponent.h"
 #include "Engine/NetConnection.h"
 #include "Engine/PackageMapClient.h"
-#include "GameplayAbilitiesDeveloperSettings.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -1325,8 +1324,7 @@ void FMinimalReplicationTagCountMap::RemoveTag(const FGameplayTag& Tag)
 // WARNING: Changes to this implementation REQUIRES making sure FMinimalReplicationTagCountMapNetSerializer and FMinimalReplicationTagCountMapReplicationFragment remains compatible.
 bool FMinimalReplicationTagCountMap::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
-	const UGameplayAbilitiesDeveloperSettings* DeveloperSettings = GetDefault<UGameplayAbilitiesDeveloperSettings>();
-	const int32 CountBits = DeveloperSettings->MinimalReplicationTagCountBits;
+	const int32 CountBits = UAbilitySystemGlobals::Get().MinimalReplicationTagCountBits;
 	const int32 MaxCount = ((1 << CountBits)-1);
 
 	if (Ar.IsSaving())

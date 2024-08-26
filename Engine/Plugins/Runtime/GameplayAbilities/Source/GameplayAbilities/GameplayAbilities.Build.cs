@@ -19,7 +19,6 @@ namespace UnrealBuildTool.Rules
 					"GameplayTasks",
 					"MovieScene",
 					"PhysicsCore",
-					"DeveloperSettings",
 					"DataRegistry"
 				}
 				);

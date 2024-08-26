@@ -4,7 +4,6 @@
 #include "Abilities/GameplayAbilityTypes.h"
 #include "AbilitySystemStats.h"
 #include "Engine/Blueprint.h"
-#include "GameplayAbilitiesDeveloperSettings.h"
 #include "GameFramework/Pawn.h"
 #include "GameplayCueInterface.h"
 #include "AbilitySystemComponent.h"
@@ -42,6 +41,18 @@ namespace UE::AbilitySystemGlobals
 UAbilitySystemGlobals::UAbilitySystemGlobals(const FObjectInitializer& ObjectInitializer)
 : Super(ObjectInitializer)
 {
+	AbilitySystemGlobalsClassName = FSoftClassPath(TEXT("/Script/GameplayAbilities.AbilitySystemGlobals"));
+
+	bUseDebugTargetFromHud = false;
+
+	PredictTargetGameplayEffects = true;
+
+	ReplicateActivationOwnedTags = true;
+
+	MinimalReplicationTagCountBits = 5;
+
+	bAllowGameplayModEvaluationChannels = false;
+
 #if WITH_EDITORONLY_DATA
 	RegisteredReimportCallback = false;
 #endif // #if WITH_EDITORONLY_DATA
@@ -50,11 +61,6 @@ UAbilitySystemGlobals::UAbilitySystemGlobals(const FObjectInitializer& ObjectIni
 bool UAbilitySystemGlobals::IsAbilitySystemGlobalsInitialized() const
 {
 	return bInitialized;
-}
-
-bool UAbilitySystemGlobals::ShouldUseDebugTargetFromHud()
-{
-	return GetDefault<UGameplayAbilitiesDeveloperSettings>()->bUseDebugTargetFromHud;
 }
 
 void UAbilitySystemGlobals::InitGlobalData()
@@ -71,12 +77,10 @@ void UAbilitySystemGlobals::InitGlobalData()
 	GetGlobalAttributeMetaDataTable();
 	
 	InitAttributeDefaults();
-	ReloadAttributeDefaults();
 
 	GetGameplayCueManager();
 	GetGameplayTagResponseTable();
 	InitGlobalTags();
-	PerformDeveloperSettingsUpgrade();
 
 	InitTargetDataScriptStructCache();
 
@@ -95,26 +99,18 @@ void UAbilitySystemGlobals::InitGlobalData()
 
 UCurveTable * UAbilitySystemGlobals::GetGlobalCurveTable()
 {
-	if (!GlobalCurveTable)
+	if (!GlobalCurveTable && GlobalCurveTableName.IsValid())
 	{
-		const UGameplayAbilitiesDeveloperSettings* DeveloperSettings = GetDefault<UGameplayAbilitiesDeveloperSettings>();
-		if (DeveloperSettings->GlobalCurveTableName.IsValid())
-		{
-			GlobalCurveTable = Cast<UCurveTable>(DeveloperSettings->GlobalCurveTableName.TryLoad());
-		}
+		GlobalCurveTable = Cast<UCurveTable>(GlobalCurveTableName.TryLoad());
 	}
 	return GlobalCurveTable;
 }
 
 UDataTable * UAbilitySystemGlobals::GetGlobalAttributeMetaDataTable()
-{	
-	if (!GlobalAttributeMetaDataTable)
+{
+	if (!GlobalAttributeMetaDataTable && GlobalAttributeMetaDataTableName.IsValid())
 	{
-		const UGameplayAbilitiesDeveloperSettings* DeveloperSettings = GetDefault<UGameplayAbilitiesDeveloperSettings>();
-		if (DeveloperSettings->GlobalAttributeMetaDataTableName.IsValid())
-		{
-			GlobalAttributeMetaDataTable = Cast<UDataTable>(DeveloperSettings->GlobalAttributeMetaDataTableName.TryLoad());
-		}
+		GlobalAttributeMetaDataTable = Cast<UDataTable>(GlobalAttributeMetaDataTableName.TryLoad());
 	}
 	return GlobalAttributeMetaDataTable;
 }
@@ -152,7 +148,7 @@ bool UAbilitySystemGlobals::DeriveGameplayCueTagFromAssetName(FString AssetName,
 
 bool UAbilitySystemGlobals::ShouldAllowGameplayModEvaluationChannels() const
 {
-	return GetDefault<UGameplayAbilitiesDeveloperSettings>()->bAllowGameplayModEvaluationChannels;
+	return bAllowGameplayModEvaluationChannels;
 }
 
 bool UAbilitySystemGlobals::IsGameplayModEvaluationChannelValid(EGameplayModEvaluationChannel Channel) const
@@ -169,34 +165,18 @@ const FName& UAbilitySystemGlobals::GetGameplayModEvaluationChannelAlias(EGamepl
 
 const FName& UAbilitySystemGlobals::GetGameplayModEvaluationChannelAlias(int32 Index) const
 {
-	const UGameplayAbilitiesDeveloperSettings* DeveloperSettings = GetDefault<UGameplayAbilitiesDeveloperSettings>();
-	check(Index >= 0 && Index < UE_ARRAY_COUNT(DeveloperSettings->GameplayModEvaluationChannelAliases));
-	return DeveloperSettings->GameplayModEvaluationChannelAliases[Index];
-}
-
-TArray<FString> UAbilitySystemGlobals::GetGameplayCueNotifyPaths()
-{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	//Use set so we can append just unique paths
-	TSet<FString> ReturnPaths = TSet(GameplayCueNotifyPaths);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	ReturnPaths.Append(GetDefault<UGameplayAbilitiesDeveloperSettings>()->GameplayCueNotifyPaths);
-	return ReturnPaths.Array();
+	check(Index >= 0 && Index < UE_ARRAY_COUNT(GameplayModEvaluationChannelAliases));
+	return GameplayModEvaluationChannelAliases[Index];
 }
 
 void UAbilitySystemGlobals::AddGameplayCueNotifyPath(const FString& InPath)
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	GameplayCueNotifyPaths.AddUnique(InPath);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 int32 UAbilitySystemGlobals::RemoveGameplayCueNotifyPath(const FString& InPath)
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return GameplayCueNotifyPaths.Remove(InPath);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 #if WITH_EDITOR
@@ -250,12 +230,12 @@ UAbilitySystemComponent* UAbilitySystemGlobals::GetAbilitySystemComponentFromAct
 
 bool UAbilitySystemGlobals::ShouldPredictTargetGameplayEffects() const
 {
-	return GetDefault<UGameplayAbilitiesDeveloperSettings>()->PredictTargetGameplayEffects;
+	return PredictTargetGameplayEffects;
 }
 
 bool UAbilitySystemGlobals::ShouldReplicateActivationOwnedTags() const
 {
-	return GetDefault<UGameplayAbilitiesDeveloperSettings>()->ReplicateActivationOwnedTags;
+	return ReplicateActivationOwnedTags;
 }
 
 // --------------------------------------------------------------------
@@ -297,63 +277,6 @@ UFunction* UAbilitySystemGlobals::GetGameplayCueFunction(const FGameplayTag& Chi
 	}
 
 	return nullptr;
-}
-
-void UAbilitySystemGlobals::InitGlobalTags()
-{
-	auto TagFromDeprecatedName = [](FGameplayTag& Tag, FName DeprecatedName)
-	{
-		if (!Tag.IsValid() && !DeprecatedName.IsNone())
-		{
-			Tag = FGameplayTag::RequestGameplayTag(DeprecatedName);
-			return true;
-		}
-
-		return false;
-	};
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	TagFromDeprecatedName(ActivateFailIsDeadTag, ActivateFailIsDeadName);
-	TagFromDeprecatedName(ActivateFailCooldownTag, ActivateFailCooldownName);
-	TagFromDeprecatedName(ActivateFailCostTag, ActivateFailCostName);
-	TagFromDeprecatedName(ActivateFailTagsBlockedTag, ActivateFailTagsBlockedName);
-	TagFromDeprecatedName(ActivateFailTagsMissingTag, ActivateFailTagsMissingName);
-	TagFromDeprecatedName(ActivateFailNetworkingTag, ActivateFailNetworkingName);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
-
-void UAbilitySystemGlobals::PerformDeveloperSettingsUpgrade()
-{
-	auto SyncToDeveloperSettings = [](FGameplayTag& DeveloperSettingsTag, const FGameplayTag& OurTag)
-	{
-		if (DeveloperSettingsTag != OurTag)
-		{
-			DeveloperSettingsTag = OurTag;
-			return true;
-		}
-
-		return false;
-	};
-
-	UGameplayAbilitiesDeveloperSettings* DeveloperSettings = GetMutableDefault<UGameplayAbilitiesDeveloperSettings>();
-
-	bool bUpgraded = false;
-	bUpgraded |= SyncToDeveloperSettings(DeveloperSettings->ActivateFailCooldownTag, ActivateFailCooldownTag);
-	bUpgraded |= SyncToDeveloperSettings(DeveloperSettings->ActivateFailCostTag, ActivateFailCostTag);
-	bUpgraded |= SyncToDeveloperSettings(DeveloperSettings->ActivateFailNetworkingTag, ActivateFailNetworkingTag);
-	bUpgraded |= SyncToDeveloperSettings(DeveloperSettings->ActivateFailTagsBlockedTag, ActivateFailTagsBlockedTag);
-	bUpgraded |= SyncToDeveloperSettings(DeveloperSettings->ActivateFailTagsMissingTag, ActivateFailTagsMissingTag);
-
-	if (bUpgraded)
-	{
-		UE_LOG(LogAbilitySystem, Warning, TEXT("AbilitySystemGlobals' Tags did not agree with GameplayAbilitiesDeveloperSettings.  Updating GameplayAbilitiesDeveloperSettings Config to use Tags from AbilitySystemGlobals"));
-
-		bool bSuccess = DeveloperSettings->TryUpdateDefaultConfigFile();
-		if (!bSuccess)
-		{
-			UE_LOG(LogAbilitySystem, Warning, TEXT("AbilitySystemGlobals config file (DefaultGame.ini) couldn't be saved. Make sure the file is writable to update it."));
-		}
-	}
 }
 
 void UAbilitySystemGlobals::InitTargetDataScriptStructCache()
@@ -441,7 +364,6 @@ FAttributeSetInitter* UAbilitySystemGlobals::GetAttributeSetInitter() const
 
 void UAbilitySystemGlobals::AddAttributeDefaultTables(const FName OwnerName, const TArray<FSoftObjectPath>& AttribDefaultTableNames)
 {
-	bool bModified = false;
 	for (const FSoftObjectPath& TableName : AttribDefaultTableNames)
 	{
 		if (TArray<FName>* Found = GlobalAttributeSetDefaultsTableNamesWithOwners.Find(TableName))
@@ -452,26 +374,16 @@ void UAbilitySystemGlobals::AddAttributeDefaultTables(const FName OwnerName, con
 		{
 			TArray<FName> Owners = { OwnerName };
 			GlobalAttributeSetDefaultsTableNamesWithOwners.Add(TableName, MoveTemp(Owners));
-
-			UCurveTable* AttribTable = Cast<UCurveTable>(TableName.TryLoad());
-			if (AttribTable)
-			{
-				GlobalAttributeDefaultsTables.AddUnique(AttribTable);
-				bModified = true;
-			}
 		}
 	}
 
-	if (bModified)
-	{
-		ReloadAttributeDefaults();
-	}
+	InitAttributeDefaults();
 }
 
 void UAbilitySystemGlobals::RemoveAttributeDefaultTables(const FName OwnerName, const TArray<FSoftObjectPath>& AttribDefaultTableNames)
 {
 	bool bModified = false;
-	const UGameplayAbilitiesDeveloperSettings* DeveloperSettings = GetDefault<UGameplayAbilitiesDeveloperSettings>();
+
 	for (const FSoftObjectPath& TableName : AttribDefaultTableNames)
 	{
 		if (TableName.IsValid())
@@ -486,7 +398,7 @@ void UAbilitySystemGlobals::RemoveAttributeDefaultTables(const FName OwnerName, 
 					GlobalAttributeSetDefaultsTableNamesWithOwners.Remove(TableName);
 
 					// Only if not listed in config file
-					if (!DeveloperSettings->GlobalAttributeSetDefaultsTableNames.Contains(TableName))
+					if (!GlobalAttributeSetDefaultsTableNames.Contains(TableName))
 					{
 						// Remove reference to allow GC so package can be unloaded
 						if (UCurveTable* AttribTable = Cast<UCurveTable>(TableName.ResolveObject()))
@@ -508,47 +420,52 @@ void UAbilitySystemGlobals::RemoveAttributeDefaultTables(const FName OwnerName, 
 	}
 }
 
-TArray<FSoftObjectPath> UAbilitySystemGlobals::GetGlobalAttributeSetDefaultsTablePaths() const
+void UAbilitySystemGlobals::InitAttributeDefaults()
 {
-	TArray<FSoftObjectPath> AttribSetDefaultsTables;
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
+ 	bool bLoadedAnyDefaults = false;
+ 
 	// Handle deprecated, single global table name
 	if (GlobalAttributeSetDefaultsTableName.IsValid())
 	{
-		AttribSetDefaultsTables.Add(GlobalAttributeSetDefaultsTableName);
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	const UGameplayAbilitiesDeveloperSettings* DeveloperSettings = GetDefault<UGameplayAbilitiesDeveloperSettings>();
-	AttribSetDefaultsTables.Append(DeveloperSettings->GlobalAttributeSetDefaultsTableNames);
-
-	return AttribSetDefaultsTables;
-}
-
-void UAbilitySystemGlobals::InitAttributeDefaults()
-{
-	TArray<FSoftObjectPath> AttribSetDefaultsTables = GetGlobalAttributeSetDefaultsTablePaths();
-	for (const FSoftObjectPath& AttribSetDefaultsTablePath : AttribSetDefaultsTables)
-	{
-		if (AttribSetDefaultsTablePath.IsValid())
+		UCurveTable* AttribTable = Cast<UCurveTable>(GlobalAttributeSetDefaultsTableName.TryLoad());
+		if (AttribTable)
 		{
-			UCurveTable* AttribTable = Cast<UCurveTable>(AttribSetDefaultsTablePath.TryLoad());
-			if (ensureMsgf(AttribTable, TEXT("Could not load Global AttributeSet Defaults Table: %s"), *AttribSetDefaultsTablePath.ToString()))
+			GlobalAttributeDefaultsTables.AddUnique(AttribTable);
+			bLoadedAnyDefaults = true;
+		}
+	}
+
+	// Handle array of global curve tables for attribute defaults
+ 	for (const FSoftObjectPath& AttribDefaultTableName : GlobalAttributeSetDefaultsTableNames)
+ 	{
+		if (AttribDefaultTableName.IsValid())
+		{
+			UCurveTable* AttribTable = Cast<UCurveTable>(AttribDefaultTableName.TryLoad());
+			if (AttribTable)
 			{
 				GlobalAttributeDefaultsTables.AddUnique(AttribTable);
+				bLoadedAnyDefaults = true;
+			}
+		}
+ 	}
+	
+	// Handle global curve tables for attribute defaults not defined by config file (registered by plugins or other systems calling AddAttributeDefaultTables)
+	for (const TPair<FSoftObjectPath, TArray<FName>>& It : GlobalAttributeSetDefaultsTableNamesWithOwners)
+	{
+		const FSoftObjectPath& AttribDefaultTableName = It.Key;
+		if (AttribDefaultTableName.IsValid() && !GlobalAttributeSetDefaultsTableNames.Contains(AttribDefaultTableName))
+		{
+			UCurveTable* AttribTable = Cast<UCurveTable>(AttribDefaultTableName.TryLoad());
+			if (AttribTable)
+			{
+				GlobalAttributeDefaultsTables.AddUnique(AttribTable);
+				bLoadedAnyDefaults = true;
 			}
 		}
 	}
-}
 
-void UAbilitySystemGlobals::ReloadAttributeDefaults()
-{
-	if (!GlobalAttributeDefaultsTables.IsEmpty())
+	if (bLoadedAnyDefaults)
 	{
-		AllocAttributeSetInitter();
-		GetAttributeSetInitter()->PreloadAttributeSetData(GlobalAttributeDefaultsTables);
-
 		// Subscribe for reimports if in the editor
 #if WITH_EDITOR
 		if (GIsEditor && !RegisteredReimportCallback)
@@ -557,7 +474,16 @@ void UAbilitySystemGlobals::ReloadAttributeDefaults()
 			RegisteredReimportCallback = true;
 		}
 #endif
+
+
+		ReloadAttributeDefaults();
 	}
+}
+
+void UAbilitySystemGlobals::ReloadAttributeDefaults()
+{
+	AllocAttributeSetInitter();
+	GlobalAttributeSetInitter->PreloadAttributeSetData(GlobalAttributeDefaultsTables);
 }
 
 // --------------------------------------------------------------------
@@ -566,27 +492,26 @@ UGameplayCueManager* UAbilitySystemGlobals::GetGameplayCueManager()
 {
 	if (GlobalGameplayCueManager == nullptr)
 	{
-		const UGameplayAbilitiesDeveloperSettings* DeveloperSettings = GetDefault<UGameplayAbilitiesDeveloperSettings>();
-		// Loads mud specific gameplaycue manager object if specified
-		if (GlobalGameplayCueManager == nullptr && DeveloperSettings->GlobalGameplayCueManagerName.IsValid())
+		// Load specific gameplaycue manager object if specified
+		if (GlobalGameplayCueManagerName.IsValid())
 		{
-			GlobalGameplayCueManager = LoadObject<UGameplayCueManager>(nullptr, *DeveloperSettings->GlobalGameplayCueManagerName.ToString(), nullptr, LOAD_None, nullptr);
+			GlobalGameplayCueManager = LoadObject<UGameplayCueManager>(nullptr, *GlobalGameplayCueManagerName.ToString(), nullptr, LOAD_None, nullptr);
 			if (GlobalGameplayCueManager == nullptr)
 			{
-				ABILITY_LOG(Error, TEXT("Unable to Load GameplayCueManager %s"), *DeveloperSettings->GlobalGameplayCueManagerName.ToString() );
+				ABILITY_LOG(Error, TEXT("Unable to Load GameplayCueManager %s"), *GlobalGameplayCueManagerName.ToString() );
 			}
 		}
-		
+
 		// Load specific gameplaycue manager class if specified
-		if ( GlobalGameplayCueManager == nullptr && DeveloperSettings->GlobalGameplayCueManagerClass.IsValid() )
+		if ( GlobalGameplayCueManager == nullptr && GlobalGameplayCueManagerClass.IsValid() )
 		{
-			UClass* GCMClass = LoadClass<UObject>(nullptr, *DeveloperSettings->GlobalGameplayCueManagerClass.ToString(), nullptr, LOAD_None, nullptr);
+			UClass* GCMClass = LoadClass<UObject>(NULL, *GlobalGameplayCueManagerClass.ToString(), NULL, LOAD_None, NULL);
 			if (GCMClass)
 			{
 				GlobalGameplayCueManager = NewObject<UGameplayCueManager>(this, GCMClass, NAME_None);
 			}
 		}
-		
+
 		if ( GlobalGameplayCueManager == nullptr)
 		{
 			// Fallback to base native class
@@ -595,9 +520,9 @@ UGameplayCueManager* UAbilitySystemGlobals::GetGameplayCueManager()
 
 		GlobalGameplayCueManager->OnCreated();
 
-		if (GetGameplayCueNotifyPaths().IsEmpty())
+		if (GameplayCueNotifyPaths.Num() == 0)
 		{
-			AddGameplayCueNotifyPath(TEXT("/Game"));
+			GameplayCueNotifyPaths.Add(TEXT("/Game"));
 			ABILITY_LOG(Warning, TEXT("No GameplayCueNotifyPaths were specified in DefaultGame.ini under [/Script/GameplayAbilities.AbilitySystemGlobals]. Falling back to using all of /Game/. This may be slow on large projects. Consider specifying which paths are to be searched."));
 		}
 		
@@ -613,10 +538,9 @@ UGameplayCueManager* UAbilitySystemGlobals::GetGameplayCueManager()
 
 UGameplayTagReponseTable* UAbilitySystemGlobals::GetGameplayTagResponseTable()
 {
-	const UGameplayAbilitiesDeveloperSettings* DeveloperSettings = GetDefault<UGameplayAbilitiesDeveloperSettings>();
-	if (GameplayTagResponseTable == nullptr && DeveloperSettings->GameplayTagResponseTableName.IsValid())
+	if (GameplayTagResponseTable == nullptr && GameplayTagResponseTableName.IsValid())
 	{
-		GameplayTagResponseTable = LoadObject<UGameplayTagReponseTable>(nullptr, *DeveloperSettings->GameplayTagResponseTableName.ToString(), nullptr, LOAD_None, nullptr);
+		GameplayTagResponseTable = LoadObject<UGameplayTagReponseTable>(nullptr, *GameplayTagResponseTableName.ToString(), nullptr, LOAD_None, nullptr);
 	}
 
 	return GameplayTagResponseTable;
