@@ -3800,6 +3800,22 @@ void FBlueprintGraphArgumentLayout::GenerateChildContent( IDetailChildrenBuilder
 					.OnCheckStateChanged(this, &FBlueprintGraphArgumentLayout::OnRefCheckStateChanged)
 					.IsEnabled(!ShouldPassByRefBeReadOnly())
 				];
+
+			ChildrenBuilder.AddCustomRow(LOCTEXT("FunctionArgDetailsConst", "Const"))
+				.NameContent()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("FunctionArgDetailsConst", "Const"))
+					.ToolTipText(LOCTEXT("FunctionArgDetailsConstTooltip", "When passing by reference a parameter can be specified as const (not writable)"))
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+				]
+			.ValueContent()
+				[
+					SNew(SCheckBox)
+					.IsChecked(this, &FBlueprintGraphArgumentLayout::IsConstChecked)
+					.OnCheckStateChanged(this, &FBlueprintGraphArgumentLayout::OnConstCheckStateChanged)
+					.IsEnabled(this, &FBlueprintGraphArgumentLayout::CanChangeConst)
+				];
 		}
 	}
 		
@@ -3950,14 +3966,49 @@ ECheckBoxState FBlueprintGraphArgumentLayout::IsRefChecked() const
 	return (PinType.bIsReference || PinType.IsArray())  ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
+ECheckBoxState FBlueprintGraphArgumentLayout::IsConstChecked() const
+{
+	return OnGetPinInfo().bIsConst ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
 void FBlueprintGraphArgumentLayout::OnRefCheckStateChanged(ECheckBoxState InState)
 {
 	const FScopedTransaction Transaction(LOCTEXT("ChangeByRef", "Change Pass By Reference"));
 
+	const bool bIsReference = (InState == ECheckBoxState::Checked);
 	FEdGraphPinType PinType = OnGetPinInfo();
-	PinType.bIsReference = (InState == ECheckBoxState::Checked) ? true : false;
-	
+	PinType.bIsReference = bIsReference;
+	if(!bIsReference)
+	{
+		// constness is not meaningful for non reference types,
+		// reset constness when refness is toggled off:
+		PinType.bIsConst = ShouldBeForceConst();
+	}
+
 	PinInfoChanged(PinType);
+}
+
+void FBlueprintGraphArgumentLayout::OnConstCheckStateChanged(ECheckBoxState InState)
+{
+	FEdGraphPinType PinType = OnGetPinInfo();
+
+	PinType.bIsConst = ShouldBeForceConst() || (InState == ECheckBoxState::Checked);
+
+	PinInfoChanged(PinType);
+}
+
+bool FBlueprintGraphArgumentLayout::ShouldBeForceConst() const
+{
+	// Const-ness is not meaningful unless we're passing by reference, including all arrays 
+	// which are implicitly passed by reference. If we have a reference pin type (implicit or
+	// otherwise) we want to honor ShouldUseConstRefParams:
+	FEdGraphPinType PinType = OnGetPinInfo();
+	return (PinType.bIsReference || PinType.IsArray()) && TargetNode && TargetNode->ShouldUseConstRefParams();
+}
+
+bool FBlueprintGraphArgumentLayout::CanChangeConst() const
+{
+	return !ShouldBeForceConst() && IsRefChecked() == ECheckBoxState::Checked;
 }
 
 void FBlueprintGraphArgumentLayout::PinInfoChanged(const FEdGraphPinType& PinType)

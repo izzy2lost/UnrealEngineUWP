@@ -561,9 +561,14 @@ private:
 
 	/** Returns whether the "Pass-by-Reference" checkbox is checked or not */
 	ECheckBoxState IsRefChecked() const;
+	ECheckBoxState IsConstChecked() const;
 
 	/** Handles toggling the "Pass-by-Reference" checkbox */
 	void OnRefCheckStateChanged(ECheckBoxState InState);
+
+	void OnConstCheckStateChanged(ECheckBoxState InState);
+	bool ShouldBeForceConst() const;
+	bool CanChangeConst() const;
 
 private:
 	/** The parent graph action details customization */
