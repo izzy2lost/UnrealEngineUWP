@@ -45,8 +45,7 @@ namespace UE::Editor::RevisionControl::Private
 
 void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	UE::Editor::RevisionControl::Private::CVarAutoPopulateState->AsVariable()->OnChangedDelegate().AddLambda(
 		[this, &DataStorage](IConsoleVariable* AutoPopulate)
@@ -81,10 +80,8 @@ void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataSt
 				Context.RemoveColumns(Row, { FTypedElementPackageUnresolvedReference::StaticStruct() });
 
 				UE::Editor::RevisionControl::Private::ResolvePackageReference(Context, Package, Row, PackageRow);
-			}
-		)
-		.Compile()
-	);
+			})
+		.Compile());
 
 	if (UE::Editor::RevisionControl::Private::CVarAutoPopulateState->GetBool())
 	{
@@ -94,8 +91,7 @@ void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataSt
 
 void UTypedElementUObjectPackagePathFactory::RegisterTryAddPackageRef(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	TryAddPackageRef = DataStorage.RegisterQuery(
 		Select(
@@ -129,8 +125,6 @@ void UTypedElementUObjectPackagePathFactory::RegisterTryAddPackageRef(ITypedElem
 						}
 					}
 				}
-			}
-		)
-		.Compile()
-	);
+			})
+		.Compile());
 }

@@ -48,7 +48,7 @@ FTedsOutlinerImpl::FTedsOutlinerImpl(const FTedsOutlinerParams& InParams, IScene
 
 void FTedsOutlinerImpl::CreateLabelWidgetConstructors()
 {
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	// Create and assign the widget constructors for the label column
 	
@@ -95,10 +95,9 @@ void FTedsOutlinerImpl::CreateLabelWidgetConstructors()
 	};
 	
 	UE::Editor::DataStorage::QueryHandle LabelColumnQueryHandle = Storage->RegisterQuery(
-																	Select()
-																		.ReadWrite<FTypedElementLabelColumn, FTypedElementClassTypeInfoColumn>()
-																	.Compile()
-																	);
+		Select()
+			.ReadWrite<FTypedElementLabelColumn, FTypedElementClassTypeInfoColumn>()
+		.Compile());
 
 	if (TSharedPtr<FTypedElementWidgetConstructor> LabelColumnWidgetConstructor = CreateWidgetConstructorForQuery(Storage->GetQueryDescription(LabelColumnQueryHandle)))
 	{
@@ -108,7 +107,7 @@ void FTedsOutlinerImpl::CreateLabelWidgetConstructors()
 
 void FTedsOutlinerImpl::CreateFilterQueries()
 {
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	if (CreationParams.bUseDefaultTedsFilters)
 	{
@@ -363,8 +362,7 @@ bool FTedsOutlinerImpl::CanDisplayRow(UE::Editor::DataStorage::RowHandle ItemRow
 
 void FTedsOutlinerImpl::CreateItemsFromQuery(TArray<FSceneOutlinerTreeItemPtr>& OutItems, ISceneOutlinerMode* InMode) const
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	TArray<RowHandle> Rows;
 	
@@ -408,8 +406,7 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 		return;
 	}
 
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	const FTedsOutlinerTreeItem* TedsTreeItem = Item->CastTo<FTedsOutlinerTreeItem>();
 
@@ -552,7 +549,7 @@ void FTedsOutlinerImpl::OnItemMoved(UE::Editor::DataStorage::RowHandle ItemRowHa
 
 void FTedsOutlinerImpl::RecompileQueries()
 {
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	UnregisterQueries();
 
@@ -570,13 +567,13 @@ void FTedsOutlinerImpl::RecompileQueries()
 	// Row to track addition of rows to the Outliner
 	FQueryDescription RowAdditionQueryDescription =
 		Select(
-				TEXT("Add Row to Outliner"),
-				FObserver::OnAdd<FTypedElementLabelColumn>().SetExecutionMode(EExecutionMode::GameThread),
-				[this](IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row)
-				{
-					OnItemAdded(Row);
-				})
-			.Compile();
+			TEXT("Add Row to Outliner"),
+			FObserver::OnAdd<FTypedElementLabelColumn>().SetExecutionMode(EExecutionMode::GameThread),
+			[this](IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row)
+			{
+				OnItemAdded(Row);
+			})
+		.Compile();
 
 	// Add the conditions from FinalQueryDescription to ensure we are tracking addition of the rows the user requested
 	AppendQuery(RowAdditionQueryDescription, FinalQueryDescription);
@@ -710,9 +707,8 @@ void FTedsOutlinerImpl::ClearSelection() const
 	{
 		return;
 	}
-	
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+
+	using namespace UE::Editor::DataStorage::Queries;
 
 	TArray<RowHandle> RowsToRemoveSelectionColumn;
 

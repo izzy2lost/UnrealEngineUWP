@@ -10,8 +10,7 @@
 
 void UActorIconOverrideDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace UE::Editor::DataStorage;
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	DataStorage.RegisterQuery(
 		Select(
@@ -27,13 +26,11 @@ void UActorIconOverrideDataStorageFactory::RegisterQueries(ITypedElementDataStor
 						Context.AddColumn(Row, FTypedElementIconOverrideColumn{ .IconName = IconName });
 					}
 				}
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementSyncFromWorldTag, FTypedElementActorTag>()
 			.None<FTypedElementIconOverrideColumn>()
-		.Compile()
-	);
+		.Compile());
 
 	DataStorage.RegisterQuery(
 		Select(
@@ -56,10 +53,8 @@ void UActorIconOverrideDataStorageFactory::RegisterQueries(ITypedElementDataStor
 						Context.RemoveColumns<FTypedElementIconOverrideColumn>(Row);
 					}
 				}
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementSyncFromWorldTag, FTypedElementActorTag>()
-		.Compile()
-	);
+		.Compile());
 }

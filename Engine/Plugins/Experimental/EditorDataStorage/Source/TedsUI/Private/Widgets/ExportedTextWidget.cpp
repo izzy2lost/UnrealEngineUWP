@@ -54,8 +54,8 @@ namespace UE::Editor
 		
 		static DataStorage::RowHandle RegisterUpdateCallback(ITypedElementDataStorageInterface& DataStorage, const UScriptStruct* Target)
 		{
-			using namespace TypedElementQueryBuilder;
-			using namespace UE::Editor::DataStorage;
+			using namespace UE::Editor::DataStorage::Queries;
+
 			
 			QueryHandle TypeDataQuery = DataStorage.RegisterQuery(
 				Select()

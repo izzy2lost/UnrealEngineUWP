@@ -7,7 +7,7 @@
 #include "Elements/Framework/TypedElementMetaData.h"
 #include "GenericPlatform/GenericPlatformMath.h"
 
-namespace TypedElementQueryBuilder
+namespace UE::Editor::DataStorage::Queries
 {
 	using namespace UE::Editor::DataStorage;
 
@@ -521,4 +521,4 @@ namespace TypedElementQueryBuilder
 	{
 		return FDependency{ &Query };
 	}
-}
+} // namespace UE::Editor::DataStorage::Queries

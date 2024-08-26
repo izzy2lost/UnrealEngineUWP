@@ -525,7 +525,7 @@ namespace UE::Editor::DataStorage
 
 	void FCommandProcessor::operator()(FTypeBatchInfoReinstanced& Command)
 	{
-		using namespace TypedElementQueryBuilder;
+		using namespace UE::Editor::DataStorage::Queries;
 
 		StorageCompatibility.Storage->RunQuery(StorageCompatibility.ClassTypeInfoQuery, CreateDirectQueryCallbackBinding(
 			[Range = Command.Batch](IDirectQueryContext& Context, FTypedElementClassTypeInfoColumn& Type)

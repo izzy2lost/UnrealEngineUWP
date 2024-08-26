@@ -2020,8 +2020,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 
 	auto UpdateDataStorage = [](const FPerforceSourceControlState& State)
 	{
-		using namespace TypedElementQueryBuilder;
-		using namespace UE::Editor;
+		using namespace UE::Editor::DataStorage::Queries;
 
 		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 		if (!Registry)
@@ -2035,25 +2034,25 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 			return;
 		}
 
-		auto GetRevisionControlRow = [DataStorage](const FString& InFilename) -> DataStorage::RowHandle
+		auto GetRevisionControlRow = [DataStorage](const FString& InFilename) -> RowHandle
 		{
 			FString Filename = FPaths::SetExtension(InFilename, "");
 			FPaths::NormalizeFilename(Filename);
 			Filename = FPaths::ConvertRelativePathToFull(Filename);
 			
 			uint64 Index = GenerateIndexHash(Filename);
-			DataStorage::RowHandle Row = DataStorage->FindIndexedRow(Index);
+			RowHandle Row = DataStorage->FindIndexedRow(Index);
 
 			if (!DataStorage->IsRowAvailable(Row))
 			{
-				static DataStorage::RowHandle Table = DataStorage->FindTable(FName("Editor_RevisionControlTable"));
+				static RowHandle Table = DataStorage->FindTable(FName("Editor_RevisionControlTable"));
 				Row = DataStorage->AddRow(Table);
 				DataStorage->IndexRow(Index, Row);
 			}
 			return Row;
 		};
 
-		DataStorage::RowHandle Row = GetRevisionControlRow(State.GetFilename());
+		RowHandle Row = GetRevisionControlRow(State.GetFilename());
 
 		if (!State.IsSourceControlled())
 		{
@@ -2124,10 +2123,10 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		
         if (FTypedElementPackageReference* BackReference = DataStorage->GetColumn<FTypedElementPackageReference>(Row))
         {
-        	if (DataStorage::RowHandle ObjectRow = BackReference->Row; ObjectRow != InvalidRowHandle)
+        	if (RowHandle ObjectRow = BackReference->Row; ObjectRow != InvalidRowHandle)
         	{
         		static TableHandle Table = DataStorage->FindTable(FName("Editor_PackageUpdateTable"));
-        		DataStorage::RowHandle UpdateRow = DataStorage->AddRow(Table);
+        		RowHandle UpdateRow = DataStorage->AddRow(Table);
         		DataStorage->AddColumn(UpdateRow, FTypedElementPackageUpdateColumn{ .ObjectRow = ObjectRow, .PackageRow = Row });
         	}
         }

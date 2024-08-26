@@ -7,8 +7,7 @@
 
 void UTypedElementHiearchyQueriesFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace UE::Editor::DataStorage;
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	DataStorage.RegisterQuery(
 		Select(
@@ -22,8 +21,6 @@ void UTypedElementHiearchyQueriesFactory::RegisterQueries(ITypedElementDataStora
 					Context.RemoveColumns<FUnresolvedTableRowParentColumn>(Row);
 					Context.AddColumn(Row, FTableRowParentColumn{ .Parent = ParentRow });
 				}
-			}
-		)
-		.Compile()
-	);
+			})
+		.Compile());
 }

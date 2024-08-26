@@ -160,6 +160,7 @@ void PopulatePathDataTableRow(FPopulatePathRowArgs&& InPopulatePathRowArgs, ITyp
 FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 	: Database(InDatabase)
 {
+	using namespace UE::Editor::DataStorage::Queries;
 	TRACE_CPUPROFILER_EVENT_SCOPE(FTedsAssetData::FTedsAssetData);
 
 #if TRACK_TEDSASSETDATA_MEMORY
@@ -192,43 +193,38 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 
 
 	RemoveUpdatedPathTagQuery = Database.RegisterQuery(
-			TypedElementQueryBuilder::Select(
-				TEXT("FTedsAssetData: Remove Updated Path Tag"),
-				TypedElementQueryBuilder::FPhaseAmble(TypedElementQueryBuilder::FPhaseAmble::ELocation::Postamble, EQueryTickPhase::FrameEnd),
-				[](IQueryContext& Context, const RowHandle* Rows)
-				{
-					Context.RemoveColumns<FUpdatedPathTag>(TConstArrayView<RowHandle>(Rows, Context.GetRowCount()));
-				}
-			)
-			.Where()
-				.All<FUpdatedPathTag>()
-			.Compile()
-		);
+		Select(
+			TEXT("FTedsAssetData: Remove Updated Path Tag"),
+			FPhaseAmble(FPhaseAmble::ELocation::Postamble, EQueryTickPhase::FrameEnd),
+			[](IQueryContext& Context, const RowHandle* Rows)
+			{
+				Context.RemoveColumns<FUpdatedPathTag>(TConstArrayView<RowHandle>(Rows, Context.GetRowCount()));
+			})
+		.Where()
+			.All<FUpdatedPathTag>()
+		.Compile());
 
 	RemoveUpdatedAssetDataTagQuery = Database.RegisterQuery(
-			TypedElementQueryBuilder::Select(
-				TEXT("FTedsAssetData: Remove Updated Asset Data Tag"),
-				TypedElementQueryBuilder::FPhaseAmble(TypedElementQueryBuilder::FPhaseAmble::ELocation::Postamble, EQueryTickPhase::FrameEnd),
-				[](IQueryContext& Context, const RowHandle* Rows)
-				{
-					Context.RemoveColumns<FUpdatedAssetDataTag>(TConstArrayView<RowHandle>(Rows, Context.GetRowCount()));
-				}
-			)
-			.Where()
-				.All<FUpdatedAssetDataTag>()
-				.Compile()
-		);
+		Select(
+			TEXT("FTedsAssetData: Remove Updated Asset Data Tag"),
+			FPhaseAmble(FPhaseAmble::ELocation::Postamble, EQueryTickPhase::FrameEnd),
+			[](IQueryContext& Context, const RowHandle* Rows)
+			{
+				Context.RemoveColumns<FUpdatedAssetDataTag>(TConstArrayView<RowHandle>(Rows, Context.GetRowCount()));
+			})
+		.Where()
+			.All<FUpdatedAssetDataTag>()
+		.Compile());
 
 	UpdateAssetsInPathQuery = Database.RegisterQuery(
-		TypedElementQueryBuilder::Select()
+		Select()
 			.ReadWrite<FAssetsInPathColumn_Experimental>()
-			.Compile()
-		);
+		.Compile());
 
 	ResolveMissingAssetInPathQuery = Database.RegisterQuery(
-		TypedElementQueryBuilder::Select(
+		Select(
 			TEXT("FTedsAssetData: Resolve Missing Asset In Path"),
-			TypedElementQueryBuilder::FProcessor(EQueryTickPhase::FrameEnd, Database.GetQueryTickGroupName(EQueryTickGroups::Default)),
+			FProcessor(EQueryTickPhase::FrameEnd, Database.GetQueryTickGroupName(EQueryTickGroups::Default)),
 			[this](IQueryContext& Context, RowHandle Row, const FUnresolvedAssetsInPathColumn_Experimental& UnresolvedAssetPath)
 			{
 #if TRACK_TEDSASSETDATA_MEMORY
@@ -240,33 +236,29 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 				{
 					Context.RemoveColumns<FUnresolvedAssetsInPathColumn_Experimental>(Row);
 					Context.RunSubquery(0, PathRow, 
-							TypedElementQueryBuilder::CreateSubqueryCallbackBinding([Row](FAssetsInPathColumn_Experimental& AssetsInPath)
-							{
+						CreateSubqueryCallbackBinding([Row](FAssetsInPathColumn_Experimental& AssetsInPath)
+						{
 #if TRACK_TEDSASSETDATA_MEMORY
-								LLM_SCOPE_BYNAME(TEXT("FTedsAssetData"))
+							LLM_SCOPE_BYNAME(TEXT("FTedsAssetData"))
 #endif
 
-								AssetsInPath.AssetsRow.Add(Row);
-							})
-						);
+							AssetsInPath.AssetsRow.Add(Row);
+						}));
 				}
-			}
-		)
+			})
 		.DependsOn()
 			.SubQuery(UpdateAssetsInPathQuery)
-		.Compile()
-	);
+		.Compile());
 
 	UpdateParentToChildrenAssetPathQuery = Database.RegisterQuery(
-		TypedElementQueryBuilder::Select()
+		Select()
 			.ReadWrite<FChildrenAssetPathColumn_Experimental>()
-			.Compile()
-		);
+		.Compile());
 
 	ResolveMissingParentPathQuery = Database.RegisterQuery(
-		TypedElementQueryBuilder::Select(
+		Select(
 			TEXT("FTedsAssetData: Resolve Missing Parent Path Row"),
-			TypedElementQueryBuilder::FProcessor(EQueryTickPhase::FrameEnd, Database.GetQueryTickGroupName(EQueryTickGroups::Default)),
+			FProcessor(EQueryTickPhase::FrameEnd, Database.GetQueryTickGroupName(EQueryTickGroups::Default)),
 			[this](IQueryContext& Context, RowHandle Row, const FUnresolvedParentAssetPathColumn_Experimental& UnresolvedParentAssetPath, FParentAssetPathColumn_Experimental& ParentAssetPathColumn)
 			{
 #if TRACK_TEDSASSETDATA_MEMORY
@@ -280,21 +272,18 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 					ParentAssetPathColumn.ParentRow = ParentPathRow;
 
 					Context.RunSubquery(0, ParentPathRow, 
-							TypedElementQueryBuilder::CreateSubqueryCallbackBinding([Row](FChildrenAssetPathColumn_Experimental& ChildrenPathColumn)
-							{
+						CreateSubqueryCallbackBinding([Row](FChildrenAssetPathColumn_Experimental& ChildrenPathColumn)
+						{
 #if TRACK_TEDSASSETDATA_MEMORY
-								LLM_SCOPE_BYNAME(TEXT("FTedsAssetData"))
+							LLM_SCOPE_BYNAME(TEXT("FTedsAssetData"))
 #endif
-								ChildrenPathColumn.ChildrenRows.Add(Row);
-							})
-						);
+							ChildrenPathColumn.ChildrenRows.Add(Row);
+						}));
 				}
-			}
-		)
+			})
 		.DependsOn()
 			.SubQuery(UpdateParentToChildrenAssetPathQuery)
-		.Compile()
-	);
+		.Compile());
 
 	// Init with the data existing at moment in asset registry
 

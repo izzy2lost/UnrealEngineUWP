@@ -87,11 +87,11 @@ namespace UE::Editor::Settings::Tests
 			check(DataStorageCompatibility != nullptr);
 
 			{
-				using namespace TypedElementQueryBuilder;
+				using namespace UE::Editor::DataStorage::Queries;
 				CountAllSettingsQuery = DataStorage->RegisterQuery(
 					Count()
 					.Where()
-					.All<FSettingsSectionTag>()
+						.All<FSettingsSectionTag>()
 					.Compile());
 			}
 

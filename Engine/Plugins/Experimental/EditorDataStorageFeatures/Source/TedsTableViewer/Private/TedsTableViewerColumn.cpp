@@ -156,7 +156,7 @@ namespace UE::Editor::DataStorage
 
 	void FTedsTableViewerColumn::RegisterQueries()
 	{
-		using namespace TypedElementQueryBuilder;
+		using namespace UE::Editor::DataStorage::Queries;
 
 		const TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes = GetMatchedColumns();
 		
@@ -179,8 +179,7 @@ namespace UE::Editor::DataStorage
 						})
 				.Where()
 					.All(ColumnType.Get())
-				.Compile()
-				);
+				.Compile());
 			
 			InternalObserverQueries.Add(AddQueryHandle);
 
@@ -200,8 +199,7 @@ namespace UE::Editor::DataStorage
 						})
 				.Where()
 					.All(ColumnType.Get())
-				.Compile()
-			);
+				.Compile());
 			
 			InternalObserverQueries.Add(RemoveQueryHandle);
 		}
@@ -217,11 +215,11 @@ namespace UE::Editor::DataStorage
 		
 		// Query to get all widgets that were created by this column
 		WidgetQuery = Storage->RegisterQuery(
-				Select()
-					.ReadOnly(SelectionColumns)
-				.Where()
-					.All(AdditionalWidgetColumns)
-				.Compile());
+			Select()
+				.ReadOnly(SelectionColumns)
+			.Where()
+				.All(AdditionalWidgetColumns)
+			.Compile());
 	}
 
 	void FTedsTableViewerColumn::UnRegisterQueries()
@@ -265,8 +263,8 @@ namespace UE::Editor::DataStorage
 			// stops matching, there is a potential need for widget update
 			return (bMatchesQueryConditions && Pair.Value) || (!bMatchesQueryConditions && !Pair.Value);
 		});
-		
-		using namespace TypedElementQueryBuilder;
+
+		using namespace UE::Editor::DataStorage::Queries;
 
 		// Query to find all widgets that belong to the row handles that need updates
 		DirectQueryCallback RowCollector = CreateDirectQueryCallbackBinding(

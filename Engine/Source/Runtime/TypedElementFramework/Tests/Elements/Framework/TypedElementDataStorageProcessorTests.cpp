@@ -26,8 +26,9 @@ namespace UE::Editor::DataStorage::Debug::ProcessorTests
 
 	void RegisterProcessors()
 	{
+		using namespace UE::Editor::DataStorage::Queries;
+
 		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
-		using namespace TypedElementQueryBuilder;
 
 		if (PrimaryTable == InvalidTableHandle)
 		{
@@ -42,28 +43,28 @@ namespace UE::Editor::DataStorage::Debug::ProcessorTests
 
 		// Test creation of a row from within a query processor
 		QueryHandle PrimaryRowQuery = DataStorage->RegisterQuery(
-			Select(TEXT("TEST: Creating a row for primary reference column"),
-			FProcessor(EQueryTickPhase::PrePhysics, DataStorage->GetQueryTickGroupName(EQueryTickGroups::Default)),
-			[](IQueryContext& Context, const RowHandle* Rows, FTEDSProcessorTestsReferenceColumn* ReferenceColumns)
-			{
-				const int32 RowCount = Context.GetRowCount();
-				TConstArrayView<RowHandle> RowsView = MakeArrayView(Rows, RowCount);
-				TArrayView<FTEDSProcessorTestsReferenceColumn> ReferenceColumnsView = MakeArrayView(ReferenceColumns, RowCount);
-
-				for (int32 Index = 0; Index < RowCount; ++Index)
+			Select(
+				TEXT("TEST: Creating a row for primary reference column"),
+				FProcessor(EQueryTickPhase::PrePhysics, DataStorage->GetQueryTickGroupName(EQueryTickGroups::Default)),
+				[](IQueryContext& Context, const RowHandle* Rows, FTEDSProcessorTestsReferenceColumn* ReferenceColumns)
 				{
-					FTEDSProcessorTestsReferenceColumn& PrimaryReferenceColumn = ReferenceColumnsView[Index];
-					// Auto-create a secondary row if this points to no row
-					if (!Context.IsRowAvailable(PrimaryReferenceColumn.Reference))
+					const int32 RowCount = Context.GetRowCount();
+					TConstArrayView<RowHandle> RowsView = MakeArrayView(Rows, RowCount);
+					TArrayView<FTEDSProcessorTestsReferenceColumn> ReferenceColumnsView = MakeArrayView(ReferenceColumns, RowCount);
+
+					for (int32 Index = 0; Index < RowCount; ++Index)
 					{
-						RowHandle SecondaryRow = Context.AddRow(SecondaryTable);
-						// Initialize bi-directional row references
-						PrimaryReferenceColumn.Reference = SecondaryRow;
-						Context.AddColumn(SecondaryRow, FTEDSProcessorTestsReferenceColumn{.Reference = RowsView[Index]});
+						FTEDSProcessorTestsReferenceColumn& PrimaryReferenceColumn = ReferenceColumnsView[Index];
+						// Auto-create a secondary row if this points to no row
+						if (!Context.IsRowAvailable(PrimaryReferenceColumn.Reference))
+						{
+							RowHandle SecondaryRow = Context.AddRow(SecondaryTable);
+							// Initialize bi-directional row references
+							PrimaryReferenceColumn.Reference = SecondaryRow;
+							Context.AddColumn(SecondaryRow, FTEDSProcessorTestsReferenceColumn{.Reference = RowsView[Index]});
+						}
 					}
-				}
-			}
-			)
+				})
 			.Where()
 				.All<FTEDSProcessorTests_PrimaryTag>()
 				.None<FTEDSProcessorTests_Linked>()
@@ -83,33 +84,32 @@ namespace UE::Editor::DataStorage::Debug::ProcessorTests
 
 		QueryHandle SecondaryRowQuery = DataStorage->RegisterQuery(
 			Select(TEXT("TEST: Creating a row for secondary reference column"),
-			FProcessor(EQueryTickPhase::DuringPhysics, DataStorage->GetQueryTickGroupName(EQueryTickGroups::Default)),
-			[](IQueryContext& Context, const RowHandle* Rows, FTEDSProcessorTestsReferenceColumn* ReferenceColumns)
-			{
-				const int32 RowCount = Context.GetRowCount();
-				TConstArrayView<RowHandle> RowsView = MakeArrayView(Rows, RowCount);
-				TArrayView<FTEDSProcessorTestsReferenceColumn> ReferenceColumnsView = MakeArrayView(ReferenceColumns, RowCount);
-
-				for (int32 Index = 0; Index < RowCount; ++Index)
+				FProcessor(EQueryTickPhase::DuringPhysics, DataStorage->GetQueryTickGroupName(EQueryTickGroups::Default)),
+				[](IQueryContext& Context, const RowHandle* Rows, FTEDSProcessorTestsReferenceColumn* ReferenceColumns)
 				{
-					const RowHandle& SecondaryRow = RowsView[Index];
-					Context.RunSubquery(
-						0,
-						ReferenceColumnsView[Index].Reference,
-						CreateSubqueryCallbackBinding(
-						[SecondaryRow](ISubqueryContext& SubqueryContext, RowHandle PrimaryRow, const FTEDSProcessorTestsReferenceColumn& ReferenceColumn)
-						{
-							if (ReferenceColumn.Reference == SecondaryRow)
+					const int32 RowCount = Context.GetRowCount();
+					TConstArrayView<RowHandle> RowsView = MakeArrayView(Rows, RowCount);
+					TArrayView<FTEDSProcessorTestsReferenceColumn> ReferenceColumnsView = MakeArrayView(ReferenceColumns, RowCount);
+
+					for (int32 Index = 0; Index < RowCount; ++Index)
+					{
+						const RowHandle& SecondaryRow = RowsView[Index];
+						Context.RunSubquery(
+							0,
+							ReferenceColumnsView[Index].Reference,
+							CreateSubqueryCallbackBinding(
+							[SecondaryRow](ISubqueryContext& SubqueryContext, RowHandle PrimaryRow, const FTEDSProcessorTestsReferenceColumn& ReferenceColumn)
 							{
-								// Add these tags to prevent further processing
-								SubqueryContext.AddColumns<FTEDSProcessorTests_Linked>(SecondaryRow);
-								SubqueryContext.AddColumns<FTEDSProcessorTests_Linked>(PrimaryRow);
+								if (ReferenceColumn.Reference == SecondaryRow)
+								{
+									// Add these tags to prevent further processing
+									SubqueryContext.AddColumns<FTEDSProcessorTests_Linked>(SecondaryRow);
+									SubqueryContext.AddColumns<FTEDSProcessorTests_Linked>(PrimaryRow);
+								}
 							}
-						}
-					));
-				}
-			}
-			)
+						));
+					}
+				})
 			.Where()
 				.All<FTEDSProcessorTests_SecondaryTag>()
 				.None<FTEDSProcessorTests_Linked>()

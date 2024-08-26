@@ -237,8 +237,7 @@ void URevisionControlDataStorageFactory::RegisterQueries(ITypedElementDataStorag
 
 void URevisionControlDataStorageFactory::RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	FSourceControlFileStatusMonitor& FileStatusMonitor = ISourceControlModule::Get().GetSourceControlFileStatusMonitor();
 
@@ -259,17 +258,14 @@ void URevisionControlDataStorageFactory::RegisterFetchUpdates(ITypedElementDataS
 						EmptyDelegate
 						
 					);
-				}
-			)
-			.Compile()
-		);
+				})
+			.Compile());
 	}
 }
 
 void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	using namespace UE::Editor::RevisionControl::Private;
 	
 	if (ApplyOverlaysObjectToSCC == InvalidQueryHandle)
@@ -279,7 +275,7 @@ void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementData
 				.ReadOnly<FTypedElementPackagePathColumn>()
 				.ReadOnly<FSCCStatusColumn>(EOptional::Yes)
 			.Compile());
-		}
+	}
 
 	if (ApplyNewOverlays == InvalidQueryHandle)
 	{
@@ -289,8 +285,7 @@ void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementData
 			.Where()
 				.All<FTypedElementActorTag>()
 				.None<FTypedElementViewportOverlayColorColumn>()
-			.Compile()
-		);
+			.Compile());
 	}
 
 	if (ChangeOverlay == InvalidQueryHandle)
@@ -300,8 +295,7 @@ void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementData
 			.ReadOnly<FTypedElementUObjectColumn, FTypedElementPackageReference, FTypedElementViewportOverlayColorColumn>()
 			.Where()
 				.All<FTypedElementActorTag>()
-			.Compile()
-		);
+			.Compile());
 	}
 
 	if (FlushPackageUpdates == InvalidQueryHandle)
@@ -376,19 +370,16 @@ void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementData
 						}
 					));
 					Context.RemoveRow(Row);
-				}
-			)
+				})
 			.DependsOn()
 				.SubQuery(Subqueries)
-			.Compile()
-		);
+			.Compile());
 	}
 }
 
 void URevisionControlDataStorageFactory::RegisterRemoveOverlays(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	if (RemoveOverlays == InvalidQueryHandle)
 	{
@@ -406,11 +397,9 @@ void URevisionControlDataStorageFactory::RegisterRemoveOverlays(ITypedElementDat
 				[](IQueryContext& Context, RowHandle ObjectRow, FTypedElementUObjectColumn& Actor, const FTypedElementViewportOverlayColorColumn& ViewportColor)
 				{
 					Context.RemoveColumns<FTypedElementViewportOverlayColorColumn>(ObjectRow);
-				}
-			)
+				})
 			.Where()
 				.All<FTypedElementActorTag>()
-			.Compile()
-		);
+			.Compile());
 	}
 }

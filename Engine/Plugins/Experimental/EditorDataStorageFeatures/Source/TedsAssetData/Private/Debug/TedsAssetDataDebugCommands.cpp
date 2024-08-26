@@ -219,7 +219,6 @@ namespace UE::Editor::DataStorage::Debug::Private
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.CreateDebugAssetRows);
 
-				using namespace TypedElementQueryBuilder;
 
 				ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
@@ -251,7 +250,7 @@ namespace UE::Editor::DataStorage::Debug::Private
 		FConsoleCommandWithArgsDelegate::CreateLambda(
 			[](const TArray<FString>& Args)
 			{
-				using namespace TypedElementQueryBuilder;
+				using namespace UE::Editor::DataStorage::Queries;
 
 				ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
@@ -271,7 +270,7 @@ namespace UE::Editor::DataStorage::Debug::Private
 						Rows.Append(Context.GetRowHandles());
 					}));
 
-				for(const RowHandle Row : Rows)
+				for (const RowHandle Row : Rows)
 				{
 					DataStorage->RemoveRow(Row);
 				}

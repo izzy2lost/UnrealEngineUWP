@@ -112,8 +112,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 			.Text(INVTEXT("You need to enable the Typed Element Data Storage plugin to see the table viewer!"));
 	}
 
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	if (!ensure(HierarchyTable->TableType))
 	{
@@ -132,7 +131,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 
 	FQueryDescription ColumnQueryDescription =
 		Select()
-		.ReadOnly(HierarchyTableTypeColumns)
+			.ReadOnly(HierarchyTableTypeColumns)
 		.Compile();
 
 	InitialColumnQuery = Registry->GetMutableDataStorage()->RegisterQuery(MoveTemp(ColumnQueryDescription));

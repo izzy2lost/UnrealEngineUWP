@@ -7,8 +7,7 @@
 
 void UTypedElementRemoveSyncToWorldTagFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	DataStorage.RegisterQuery(
 		Select(
@@ -21,20 +20,18 @@ void UTypedElementRemoveSyncToWorldTagFactory::RegisterQueries(ITypedElementData
 		)
 		.Where()
 			.All<FTypedElementSyncBackToWorldTag>()
-		.Compile()
-	);
+		.Compile());
 
 	DataStorage.RegisterQuery(
-	Select(
-		TEXT("Remove 'sync from world' tag"),
-		FPhaseAmble(FPhaseAmble::ELocation::Postamble, EQueryTickPhase::FrameEnd),
-		[](IQueryContext& Context, const RowHandle* Rows)
-		{
-			Context.RemoveColumns<FTypedElementSyncFromWorldTag>(TConstArrayView<RowHandle>(Rows, Context.GetRowCount()));
-		}
-	)
-	.Where()
-		.All<FTypedElementSyncFromWorldTag>()
-	.Compile()
-);
+		Select(
+			TEXT("Remove 'sync from world' tag"),
+			FPhaseAmble(FPhaseAmble::ELocation::Postamble, EQueryTickPhase::FrameEnd),
+			[](IQueryContext& Context, const RowHandle* Rows)
+			{
+				Context.RemoveColumns<FTypedElementSyncFromWorldTag>(TConstArrayView<RowHandle>(Rows, Context.GetRowCount()));
+			}
+		)
+		.Where()
+			.All<FTypedElementSyncFromWorldTag>()
+		.Compile());
 }

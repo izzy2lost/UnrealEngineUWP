@@ -154,8 +154,7 @@ static void UpdateTransformHeadsUpDisplay(FTypedElementSlateWidgetReferenceColum
 
 void UTransformHeadsUpWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 		
 	UE::Editor::DataStorage::QueryHandle UpdateTransformWidget = DataStorage.RegisterQuery(
 		Select()
@@ -165,20 +164,18 @@ void UTransformHeadsUpWidgetFactory::RegisterQueries(ITypedElementDataStorageInt
 		.Compile());
 
 	DataStorage.RegisterQuery(
-		Select(TEXT("Sync Transform column to heads up display"),
-		FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncWidgets))
-			.SetExecutionMode(EExecutionMode::GameThread),
-			[](IQueryContext& Context,
-				FTypedElementSlateWidgetReferenceColumn& Widget,
-				const FTypedElementRowReferenceColumn& ReferenceColumn)
+		Select(
+			TEXT("Sync Transform column to heads up display"),
+			FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncWidgets))
+				.SetExecutionMode(EExecutionMode::GameThread),
+			[](IQueryContext& Context, FTypedElementSlateWidgetReferenceColumn& Widget, const FTypedElementRowReferenceColumn& ReferenceColumn)
 			{
 				Context.RunSubquery(0, ReferenceColumn.Row, CreateSubqueryCallbackBinding(
 					[&Widget](const FTypedElementLocalTransformColumn& Transform)
 					{
 						UpdateTransformHeadsUpDisplay(Widget, UE::Editor::DataStorage::Widgets::Private::GetAbnormalTransformTypes(Transform.Transform));
 					}));
-			}
-		)
+			})
 	.Where()
 		.All<FTransformHeadsUpWidgetTag>()
 	.DependsOn()

@@ -100,7 +100,7 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 
 	void SResultsView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 	{
-		using namespace TypedElementQueryBuilder;
+		using namespace UE::Editor::DataStorage::Queries;
 
 		ITypedElementDataStorageInterface& TedsInterface = Model->GetTedsInterface();
 
@@ -154,9 +154,9 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 
 			FQueryResult QueryResult = Model->GetTedsInterface().RunQuery(TableViewerQueryHandle,
 				CreateDirectQueryCallbackBinding([&NewTableViewerRows_Set](const ITypedElementDataStorageInterface::IDirectQueryContext& Context, const RowHandle*)
-			{
-				NewTableViewerRows_Set.Append(Context.GetRowHandles());
-			}));
+				{
+					NewTableViewerRows_Set.Append(Context.GetRowHandles());
+				}));
 		}
 	
 		// Check if the two sets are equal, i.e not changes and no need to update the table viewer

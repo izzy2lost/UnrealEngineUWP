@@ -168,8 +168,7 @@ void UAlertWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& Dat
 
 void UAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	QueryHandle UpdateWidget_OnlyAlert = DataStorage.RegisterQuery(
 		Select()
@@ -250,8 +249,7 @@ void UAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStorageInterface
 
 void UAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	QueryHandle AlertCount = DataStorage.RegisterQuery(
 		Count()
@@ -274,8 +272,7 @@ void UAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDataStorageInt
 						Context.AddColumns<FAlertHeaderActiveWidgetTag>(Row);
 					}
 				}
-			}
-		)
+			})
 		.Where()
 			.All<FAlertHeaderWidgetTag>()
 			.None<FAlertHeaderActiveWidgetTag>()

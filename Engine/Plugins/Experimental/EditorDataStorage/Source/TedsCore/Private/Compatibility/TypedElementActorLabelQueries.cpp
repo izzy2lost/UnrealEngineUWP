@@ -21,8 +21,7 @@ void UActorLabelDataStorageFactory::RegisterQueries(ITypedElementDataStorageInte
 
 void UActorLabelDataStorageFactory::RegisterActorLabelToColumnQuery(ITypedElementDataStorageInterface& DataStorage) const
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	DataStorage.RegisterQuery(
 		Select(
@@ -45,14 +44,12 @@ void UActorLabelDataStorageFactory::RegisterActorLabelToColumnQuery(ITypedElemen
 		)
 		.Where()
 			.All<FTypedElementActorTag, FTypedElementSyncFromWorldTag>()
-		.Compile()
-	);
+		.Compile());
 }
 
 void UActorLabelDataStorageFactory::RegisterLabelColumnToActorQuery(ITypedElementDataStorageInterface& DataStorage) const
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	DataStorage.RegisterQuery(
 		Select(
@@ -75,8 +72,7 @@ void UActorLabelDataStorageFactory::RegisterLabelColumnToActorQuery(ITypedElemen
 		)
 		.Where()
 			.All<FTypedElementActorTag, FTypedElementSyncBackToWorldTag>()
-		.Compile()
-	);
+		.Compile());
 }
 
 #undef LOCTEXT_NAMESPACE

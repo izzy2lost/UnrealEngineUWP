@@ -17,8 +17,7 @@ FAutoConsoleCommand AddRandomAlertToRowConsoleCommand(
 	FConsoleCommandDelegate::CreateLambda(
 		[]()
 		{
-			using namespace TypedElementQueryBuilder;
-			using namespace UE::Editor::DataStorage;
+			using namespace UE::Editor::DataStorage::Queries;
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddRandomAlertToSelectedRows);
 
@@ -76,8 +75,7 @@ FAutoConsoleCommand ClearAllAlertsConsoleCommand(
 	FConsoleCommandDelegate::CreateLambda(
 		[]()
 		{
-			using namespace TypedElementQueryBuilder;
-			using namespace UE::Editor::DataStorage;
+			using namespace UE::Editor::DataStorage::Queries;
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.ClearAllAlertInfo);
 
@@ -90,9 +88,9 @@ FAutoConsoleCommand ClearAllAlertsConsoleCommand(
 				{
 					return DataStorage->RegisterQuery(
 						Select()
-							.Where()
-						.Any<FTypedElementAlertColumn, FTypedElementChildAlertColumn>()
-							.Compile());
+						.Where()
+							.Any<FTypedElementAlertColumn, FTypedElementChildAlertColumn>()
+						.Compile());
 				}();
 				TArray<RowHandle> Rows;
 				DataStorage->RunQuery(AlertInfoQuery, CreateDirectQueryCallbackBinding(
@@ -116,8 +114,7 @@ FAutoConsoleCommand ClearSelectedAlertsConsoleCommand(
 	FConsoleCommandDelegate::CreateLambda(
 		[]()
 		{
-			using namespace TypedElementQueryBuilder;
-			using namespace UE::Editor::DataStorage;
+			using namespace UE::Editor::DataStorage::Queries;
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.ClearSelectedAlerts);
 
@@ -159,7 +156,7 @@ void UTypedElementAlertQueriesFactory::RegisterQueries(ITypedElementDataStorageI
 
 void UTypedElementAlertQueriesFactory::RegisterSubQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	ChildAlertColumnReadWriteQuery = DataStorage.RegisterQuery(
 		Select()
@@ -174,8 +171,7 @@ void UTypedElementAlertQueriesFactory::RegisterSubQueries(ITypedElementDataStora
 
 void UTypedElementAlertQueriesFactory::RegisterParentUpdatesQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace UE::Editor::DataStorage;
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	DataStorage.RegisterQuery(
 		Select(
@@ -212,8 +208,7 @@ void UTypedElementAlertQueriesFactory::RegisterParentUpdatesQueries(ITypedElemen
 
 void UTypedElementAlertQueriesFactory::RegisterChildAlertUpdatesQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace UE::Editor::DataStorage;
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	DataStorage.RegisterQuery(
 		Select(
@@ -273,8 +268,7 @@ void UTypedElementAlertQueriesFactory::RegisterChildAlertUpdatesQueries(ITypedEl
 
 void UTypedElementAlertQueriesFactory::RegisterOnAddQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	DataStorage.RegisterQuery(
 		Select(
@@ -303,7 +297,7 @@ void UTypedElementAlertQueriesFactory::RegisterOnAddQueries(ITypedElementDataSto
 
 void UTypedElementAlertQueriesFactory::RegisterOnRemoveQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
@@ -356,8 +350,7 @@ void UTypedElementAlertQueriesFactory::IncrementParents(
 	UE::Editor::DataStorage::IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row, FTypedElementAlertColumnType AlertType,
 	int32 ChildAlertQueryIndex)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	while (Context.IsRowAvailable(Row))
 	{
@@ -384,8 +377,7 @@ void UTypedElementAlertQueriesFactory::ResetChildAlertCounters(FTypedElementChil
 bool UTypedElementAlertQueriesFactory::MoveToNextParent(
 	UE::Editor::DataStorage::RowHandle& Parent, UE::Editor::DataStorage::IQueryContext& Context, int32 SubQueryIndex)
 {
-	using namespace UE::Editor::DataStorage;
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	FQueryResult Result = Context.RunSubquery(SubQueryIndex, Parent, CreateSubqueryCallbackBinding(
 		[&Parent](const FTableRowParentColumn& NextParent)

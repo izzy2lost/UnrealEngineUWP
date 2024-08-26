@@ -100,7 +100,7 @@ void FTedsSettingsManager::RegisterTables(ITypedElementDataStorageInterface& Dat
 
 void FTedsSettingsManager::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	if (SelectAllSettingsQuery == UE::Editor::DataStorage::InvalidQueryHandle)
 	{
@@ -274,7 +274,7 @@ void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> 
 	// Gather all existing rows for the given { ContainerName, CategoryName } pair.
 	if (bQueryExistingRows)
 	{
-		using namespace TypedElementQueryBuilder;
+		using namespace UE::Editor::DataStorage::Queries;
 
 		DataStorage->RunQuery(SelectAllSettingsQuery, CreateDirectQueryCallbackBinding(
 			[&OldRowHandles, &OldSectionNames, &ContainerName, &CategoryName](

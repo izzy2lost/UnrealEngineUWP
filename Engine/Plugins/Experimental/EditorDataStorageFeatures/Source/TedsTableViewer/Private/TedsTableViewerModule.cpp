@@ -71,30 +71,29 @@ public:
 		}
 
 		ITypedElementDataStorageInterface* DataStorage = Registry->GetMutableDataStorage();
-		
-		using namespace TypedElementQueryBuilder;
+
+		using namespace UE::Editor::DataStorage::Queries;
 
 		// We'll just create a test table viewer that views all actor rows without actually updating it dynamically for now
 		static QueryHandle QueryHandle =
 			DataStorage->RegisterQuery(
-						Select()
-						.Where()
-							.All<FTypedElementActorTag>()
-						.Compile()
-				);
+				Select()
+				.Where()
+					.All<FTypedElementActorTag>()
+				.Compile());
 
 		Rows.Empty();
 		
 		UE::Editor::DataStorage::FQueryResult QueryResult = DataStorage->RunQuery(QueryHandle,
 			CreateDirectQueryCallbackBinding([this](const ITypedElementDataStorageInterface::IDirectQueryContext& Context, const UE::Editor::DataStorage::RowHandle* RowHandles)
-		{
-			Rows.Append(RowHandles, Context.GetRowCount());
-		}));
+			{
+				Rows.Append(RowHandles, Context.GetRowCount());
+			}));
 
 		return SNew(UE::Editor::DataStorage::STedsTableViewer)
-				.QueryStack(MakeShared<UE::Editor::DataStorage::FQueryStackNode_RowView>(&Rows))
-				.Columns({FTypedElementLabelColumn::StaticStruct(), FTypedElementSelectionColumn::StaticStruct(),
-					FTypedElementAlertColumn::StaticStruct(), FTypedElementChildAlertColumn::StaticStruct()});
+			.QueryStack(MakeShared<UE::Editor::DataStorage::FQueryStackNode_RowView>(&Rows))
+			.Columns({FTypedElementLabelColumn::StaticStruct(), FTypedElementSelectionColumn::StaticStruct(),
+				FTypedElementAlertColumn::StaticStruct(), FTypedElementChildAlertColumn::StaticStruct()});
 	}
 	
 	FDelegateHandle LevelEditorTabManagerChangedHandle;

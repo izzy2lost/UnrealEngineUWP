@@ -13,8 +13,7 @@ void UWidgetReferenceColumnUpdateFactory::RegisterQueries(ITypedElementDataStora
 
 void UWidgetReferenceColumnUpdateFactory::RegisterDeleteRowOnWidgetDeleteQuery(ITypedElementDataStorageInterface& DataStorage) const
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	DataStorage.RegisterQuery(
     	Select(
@@ -26,18 +25,15 @@ void UWidgetReferenceColumnUpdateFactory::RegisterDeleteRowOnWidgetDeleteQuery(I
     			{
     				Context.RemoveRow(Row);
     			}
-    		}
-    	)
+    		})
     	.Where()
     		.All<FTypedElementSlateWidgetReferenceDeletesRowTag>()
-    	.Compile()
-    	);
+    	.Compile());
 }
 
 void UWidgetReferenceColumnUpdateFactory::RegisterDeleteColumnOnWidgetDeleteQuery(ITypedElementDataStorageInterface& DataStorage) const
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	DataStorage.RegisterQuery(
 		Select(
@@ -49,10 +45,8 @@ void UWidgetReferenceColumnUpdateFactory::RegisterDeleteColumnOnWidgetDeleteQuer
 				{
 					Context.RemoveColumns<FTypedElementSlateWidgetReferenceColumn>(Row);
 				}
-			}
-		)
+			})
 		.Where()
 			.None<FTypedElementSlateWidgetReferenceDeletesRowTag>()
-		.Compile()
-	);
+		.Compile());
 }

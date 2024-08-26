@@ -17,9 +17,7 @@
 
 void UInstanceDataObjectFixupToolTedsQueryFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace UE;
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	DataStorage.RegisterQuery(
 		Select(
@@ -28,8 +26,7 @@ void UInstanceDataObjectFixupToolTedsQueryFactory::RegisterQueries(ITypedElement
 			[](IQueryContext& Context, RowHandle Row, const FTypedElementUObjectColumn& Object)
 			{
 				Context.AddColumn(Row, FTypedElementAlertActionColumn{ .Action = ShowFixUpToolForPlaceholders });
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementSyncFromWorldTag, FTypedElementAlertColumn, FTypedElementPropertyBagPlaceholderTag>()
 			.None<FTypedElementAlertActionColumn>()
@@ -42,8 +39,7 @@ void UInstanceDataObjectFixupToolTedsQueryFactory::RegisterQueries(ITypedElement
 			[](IQueryContext& Context, RowHandle Row, const FTypedElementUObjectColumn& Object)
 			{
 				Context.AddColumn(Row, FTypedElementAlertActionColumn{ .Action = ShowFixUpToolForLooseProperties });
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementSyncFromWorldTag, FTypedElementAlertColumn, FTypedElementLoosePropertyTag>()
 			.None<FTypedElementAlertActionColumn>()

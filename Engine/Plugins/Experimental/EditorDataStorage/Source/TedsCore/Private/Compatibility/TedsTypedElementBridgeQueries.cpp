@@ -57,7 +57,7 @@ bool UTypedElementBridgeDataStorageFactory::IsEnabled()
 
 void UTypedElementBridgeDataStorageFactory::RegisterQuery_NewUObject(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	RemoveTypedElementRowHandleQuery = DataStorage.RegisterQuery(
 		Select()
@@ -71,13 +71,11 @@ void UTypedElementBridgeDataStorageFactory::UnregisterQuery_NewUObject(ITypedEle
 
 void UTypedElementBridgeDataStorageFactory::CleanupTypedElementColumns(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	// Remove any TEv1 handles
 	{
 		TArray<RowHandle> Handles;
-		using namespace TypedElementQueryBuilder;
 		DataStorage.RunQuery(
 			RemoveTypedElementRowHandleQuery,
 			CreateDirectQueryCallbackBinding(

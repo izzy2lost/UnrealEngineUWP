@@ -25,15 +25,12 @@ namespace UE::Editor::DataStorage::Private
 	template<typename TypeInfoType>
 	void PrintObjectTypeInformation(ITypedElementDataStorageInterface* DataStorage, FString Message, FOutputDevice& Output)
 	{
-		using namespace TypedElementQueryBuilder;
+		using namespace UE::Editor::DataStorage::Queries;
 
-		static QueryHandle Query = [DataStorage]
-		{
-			return DataStorage->RegisterQuery(
-				Select()
-					.ReadOnly<TypeInfoType>()
-				.Compile());
-		}();
+		static QueryHandle Query = DataStorage->RegisterQuery(
+			Select()
+				.ReadOnly<TypeInfoType>()
+			.Compile());
 
 		if (Query != InvalidQueryHandle)
 		{
@@ -66,7 +63,7 @@ namespace UE::Editor::DataStorage::Private
 	template<typename... Conditions>
 	void PrintObjectLabels(FOutputDevice& Output)
 	{
-		using namespace TypedElementQueryBuilder;
+		using namespace UE::Editor::DataStorage::Queries;
 
 		if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 		{
@@ -407,8 +404,7 @@ static FAutoConsoleCommand CVarPrintDynamicColumnWithQuery(
 	TEXT("Argument: Identifier\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		using namespace TypedElementQueryBuilder;
-		using namespace UE::Editor::DataStorage;
+		using namespace UE::Editor::DataStorage::Queries;
 		
 		// Print column using query
 		if (Args.Num() != 1)
@@ -468,8 +464,7 @@ static FAutoConsoleCommand CVarCountDynamicTagWithQuery(
 	TEXT("Argument: Identifier\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		using namespace TypedElementQueryBuilder;
-		using namespace UE::Editor::DataStorage;
+		using namespace UE::Editor::DataStorage::Queries;
 				
 		// Print column using query
 		if (Args.Num() != 1)
@@ -510,8 +505,7 @@ static FAutoConsoleCommand CVarRegisterListDynamicColumnQuery(
 	TEXT("Argument: Identifier ActivationGroup\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		using namespace TypedElementQueryBuilder;
-		using namespace UE::Editor::DataStorage;
+		using namespace UE::Editor::DataStorage::Queries;
 				
 		// Print column using query
 		if (Args.Num() != 2)
@@ -527,21 +521,21 @@ static FAutoConsoleCommand CVarRegisterListDynamicColumnQuery(
 
 		// Lists the rows processed that have 
 		DataStorage->RegisterQuery(
-				Select(
-					TEXT("ProcessDynamicTagColumns"),
-					FProcessor(EQueryTickPhase::FrameEnd, DataStorage->GetQueryTickGroupName(EQueryTickGroups::Default))
-						.MakeActivatable(ActivationGroup),
-					[](IQueryContext& Context, const RowHandle* Rows)
+			Select(
+				TEXT("ProcessDynamicTagColumns"),
+				FProcessor(EQueryTickPhase::FrameEnd, DataStorage->GetQueryTickGroupName(EQueryTickGroups::Default))
+					.MakeActivatable(ActivationGroup),
+				[](IQueryContext& Context, const RowHandle* Rows)
+				{
+					auto RowView = MakeConstArrayView(Rows, Context.GetRowCount());
+					for (RowHandle Row : RowView)
 					{
-						auto RowView = MakeConstArrayView(Rows, Context.GetRowCount());
-						for (RowHandle Row : RowView)
-						{
-							UE_LOG(LogEditorDataStorage, Warning, TEXT("- '%llu'\n"), Row);
-						}
-					})
-					.Where()
-						.All<FTestDynamicTag>(Identifier)
-				.Compile());
+						UE_LOG(LogEditorDataStorage, Warning, TEXT("- '%llu'\n"), Row);
+					}
+				})
+			.Where()
+				.All<FTestDynamicTag>(Identifier)
+			.Compile());
 
 		UE_LOG(LogEditorDataStorage, Warning, TEXT("Query registered for Dynamic Column FTestDynamicTag::%s with activation group '%s'"), *Identifier.ToString(), *ActivationGroup.ToString());
 	}),
@@ -637,8 +631,7 @@ static FAutoConsoleCommand CVarMatchValueTag(
 	TEXT("Argument: Tag, [optional] Value\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		using namespace TypedElementQueryBuilder;
-		using namespace UE::Editor::DataStorage;
+		using namespace UE::Editor::DataStorage::Queries;
 		
 		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
@@ -654,12 +647,12 @@ static FAutoConsoleCommand CVarMatchValueTag(
 			{
 				// Matches all rows with the 
 				return DataStorage->RegisterQuery(
-					Select().
-						Where().
-							// Match all rows with a value tag of type Tag (ie. all rows with a value tag of "Color")
-							All<FValueTag>(Tag).
-							All<FTestColumnA>().
-						Compile());
+					Select()
+					.Where()
+						// Match all rows with a value tag of type Tag (ie. all rows with a value tag of "Color")
+						.All<FValueTag>(Tag)
+						.All<FTestColumnA>()
+					.Compile());
 			}
 			else
 			{
@@ -752,8 +745,7 @@ static FAutoConsoleCommand CVarMatchValueTagFromEnum(
 	TEXT("Argument: [optional] EnumValue\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		using namespace TypedElementQueryBuilder;
-		using namespace UE::Editor::DataStorage;
+		using namespace UE::Editor::DataStorage::Queries;
 		
 		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
@@ -780,11 +772,11 @@ static FAutoConsoleCommand CVarMatchValueTagFromEnum(
 			{
 				// Matches all rows with the 
 				return DataStorage->RegisterQuery(
-					Select().
-						Where().
-							// Match all rows with an enum value tag of the hardcoded enum type
-							All<ETedsDebugEnum>().
-						Compile());
+					Select()
+					.Where()
+						// Match all rows with an enum value tag of the hardcoded enum type
+						.All<ETedsDebugEnum>()
+					.Compile());
 			}
 			else if (Args.Num() == 1)
 			{

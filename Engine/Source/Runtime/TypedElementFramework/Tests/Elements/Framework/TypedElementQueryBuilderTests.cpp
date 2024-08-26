@@ -11,11 +11,10 @@
 #include "Tests/TestHarnessAdapter.h"
 #include "UObject/Class.h"
 
-namespace UE::Editor::DataStorage
+namespace UE::Editor::DataStorage::Tests
 {
-	using namespace Queries;
-namespace Tests
-{
+	using namespace UE::Editor::DataStorage::Queries;
+
 static void AppendColumnName(FString& Output, TWeakObjectPtr<const UScriptStruct> TypeInfo)
 {
 #if WITH_EDITORONLY_DATA
@@ -101,7 +100,7 @@ static bool TestMatching(const FConditions& TestQuery, const TArray<FColumnBase>
 	return (Result == Expected);
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions_NoColumn, "TypedElementQueryBuilder::FTypedElementQueryConditions_NoColumn", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions_NoColumn, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions_NoColumn", "[ApplicationContextMask][EngineFilter]")
 {
 	FConditions Example;
 	
@@ -110,7 +109,7 @@ TEST_CASE_NAMED(FTypedElementQueryConditions_NoColumn, "TypedElementQueryBuilder
 	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, true));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions_OneColumn, "TypedElementQueryBuilder::FTypedElementQueryConditions_OneColumn", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions_OneColumn, "Editor::DataStorage::Queries::FTypedElementQueryConditions_OneColumn", "[ApplicationContextMask][EngineFilter]")
 {
 	FConditions Example{ TColumn<FTestColumnA>() };
 
@@ -118,7 +117,7 @@ TEST_CASE_NAMED(FTypedElementQueryConditions_OneColumn, "TypedElementQueryBuilde
 	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, true));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions1, "TypedElementQueryBuilder::FTypedElementQueryConditions A && B && C", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions1, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions A && B && C", "[ApplicationContextMask][EngineFilter]")
 {
 	TColumn<FTestColumnA> TestA;
 	
@@ -129,7 +128,7 @@ TEST_CASE_NAMED(FTypedElementQueryConditions1, "TypedElementQueryBuilder::FTyped
 	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>(), TColumn<FTestColumnD>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions2, "TypedElementQueryBuilder::FTypedElementQueryConditions A || B || C", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions2, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions A || B || C", "[ApplicationContextMask][EngineFilter]")
 {
 	FConditions Example = TColumn<FTestColumnA>() || TColumn<FTestColumnB>() || TColumn<FTestColumnC>();
 	
@@ -139,7 +138,7 @@ TEST_CASE_NAMED(FTypedElementQueryConditions2, "TypedElementQueryBuilder::FTyped
 	CHECK(TestMatching(Example, { TColumn<FTestColumnD>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions3, "TypedElementQueryBuilder::FTypedElementQueryConditions A && (B || C)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions3, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions A && (B || C)", "[ApplicationContextMask][EngineFilter]")
 {
 	FConditions Example = TColumn<FTestColumnA>() && (TColumn<FTestColumnB>() || TColumn<FTestColumnC>());
 	
@@ -150,7 +149,7 @@ TEST_CASE_NAMED(FTypedElementQueryConditions3, "TypedElementQueryBuilder::FTyped
 	CHECK(TestMatching(Example, { TColumn<FTestColumnD>(), TColumn<FTestColumnB>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions4, "TypedElementQueryBuilder::FTypedElementQueryConditions A && (B || C) && (D || E)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions4, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions A && (B || C) && (D || E)", "[ApplicationContextMask][EngineFilter]")
 {
 	FConditions Example = 
 		TColumn<FTestColumnA>() && 
@@ -171,7 +170,7 @@ TEST_CASE_NAMED(FTypedElementQueryConditions4, "TypedElementQueryBuilder::FTyped
 	CHECK(TestMatching(Example, { TColumn<FTestColumnB>(), TColumn<FTestColumnC>(), TColumn<FTestColumnD>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions5, "TypedElementQueryBuilder::FTypedElementQueryConditions (A || B) && (C || D) && (E || F)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions5, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions (A || B) && (C || D) && (E || F)", "[ApplicationContextMask][EngineFilter]")
 {
 	FConditions Example =
 		(TColumn<FTestColumnA>() || TColumn<FTestColumnB>()) &&
@@ -191,7 +190,7 @@ TEST_CASE_NAMED(FTypedElementQueryConditions5, "TypedElementQueryBuilder::FTyped
 	CHECK(TestMatching(Example, { TColumn<FTestColumnG>(), TColumn<FTestColumnC>(), TColumn<FTestColumnD>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions6, "TypedElementQueryBuilder::FTypedElementQueryConditions ((A || B) && (C || D)) || (E && F)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions6, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions ((A || B) && (C || D)) || (E && F)", "[ApplicationContextMask][EngineFilter]")
 {
 	FConditions Example =
 		(
@@ -209,7 +208,7 @@ TEST_CASE_NAMED(FTypedElementQueryConditions6, "TypedElementQueryBuilder::FTyped
 	CHECK(TestMatching(Example, { TColumn<FTestColumnG>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions7, "TypedElementQueryBuilder::FTypedElementQueryConditions (A && B) || (C && D) || (E && F)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions7, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions (A && B) || (C && D) || (E && F)", "[ApplicationContextMask][EngineFilter]")
 {
 	FConditions Example =
 		(TColumn<FTestColumnA>() && TColumn<FTestColumnB>()) ||
@@ -230,7 +229,7 @@ TEST_CASE_NAMED(FTypedElementQueryConditions7, "TypedElementQueryBuilder::FTyped
 	CHECK(TestMatching(Example, { TColumn<FTestColumnG>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions_MultiMatch, "TypedElementQueryBuilder::FTypedElementQueryConditions_MultiMatch", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions_MultiMatch, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions_MultiMatch", "[ApplicationContextMask][EngineFilter]")
 {
 	FConditions Example =
 		(TColumn<FTestColumnA>() || TColumn<FTestColumnB>()) &&
@@ -256,7 +255,7 @@ TEST_CASE_NAMED(FTypedElementQueryConditions_MultiMatch, "TypedElementQueryBuild
 		}, true));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions_Sorted, "TypedElementQueryBuilder::FTypedElementQueryConditions_Sorted", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions_Sorted, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions_Sorted", "[ApplicationContextMask][EngineFilter]")
 {
 	FConditions Example =
 		(TColumn<FTestColumnA>() && TColumn<FTestColumnB>()) ||
@@ -271,7 +270,6 @@ TEST_CASE_NAMED(FTypedElementQueryConditions_Sorted, "TypedElementQueryBuilder::
 
 	CHECK(TestMatching(Example, { TColumn<FTestColumnC>(), TColumn<FTestColumnD>(), TColumn<FTestColumnE>(), TColumn<FTestColumnF>() }, true, true));
 }
-} // namespace Tests
-} // namespace UE::Editor::DataStorage
+} // namespace UE::Editor::DataStorage::Tests
 
 #endif // WITH_TESTS

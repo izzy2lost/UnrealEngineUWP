@@ -23,7 +23,7 @@ namespace UE::Editor::AssetData::Private
 FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageInterface& InDatabase)
 	: Database(InDatabase)
 {
-	using namespace TypedElementQueryBuilder;
+	using namespace Queries;
 
 	InitVirtualPathProcessor();
 
@@ -61,12 +61,10 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 						Context.AddColumn(Rows[Index], MoveTemp(VirtualPathColumn));
 					}
 				}
-			}
-		)
+			})
 		.Where()
 			.All<FUpdatedPathTag>()
-		.Compile()
-		);
+		.Compile());
 
 	ProcessAssetDataPathUpdateQuery = Database.RegisterQuery(
 		Select(
@@ -88,13 +86,11 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 					// Todo investigate for a batch add Maybe?
 					Context.AddColumn(Row, MoveTemp(VirtualPathColumn));
 				}
-			}
-		)
+			})
 		.Where()
 				.All<FUpdatedPathTag>()
 			.None<FUpdatedAssetDataTag>()
-		.Compile()
-		);
+		.Compile());
 
 
 	// For now just add the columns one by one but this should be rework to work in batch
@@ -176,8 +172,7 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 		)
 		.Where()
 			.All<FUpdatedAssetDataTag, FUpdatedPathTag>()
-			.Compile()
-		);
+		.Compile());
 
 	ProcessAssetDataUpdateQuery = Database.RegisterQuery(
 		Select(
@@ -205,8 +200,7 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 		.Where()
 			.All<FUpdatedAssetDataTag>()
 			.None<FUpdatedPathTag>()
-		.Compile()
-		);
+		.Compile());
 
 }
 

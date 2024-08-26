@@ -27,9 +27,7 @@ namespace UE::EditorDataStorage::Outliner::Private
 
 FTedsOutlinerMode::FTedsOutlinerMode(const FTedsOutlinerParams& InParams)
 	: ISceneOutlinerMode(InParams.SceneOutliner)
-{
-	using namespace TypedElementQueryBuilder;
-	
+{	
 	TedsOutlinerImpl = MakeShared<FTedsOutlinerImpl>(InParams, this);
 	TedsOutlinerImpl->Init();
 	TedsOutlinerImpl->OnSelectionChanged().AddRaw(this, &FTedsOutlinerMode::OnSelectionChanged);

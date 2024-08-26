@@ -151,7 +151,7 @@ namespace UE::Editor::DataStorage::Tests
 				{
 					Async(EAsyncExecution::TaskGraphMainThread,[this]()
 					{
-						using namespace TypedElementQueryBuilder;
+						using namespace UE::Editor::DataStorage::Queries;
 
 						TArray<RowHandle> RowsToMatch;
 						TBitArray WasMatched;
@@ -295,8 +295,8 @@ namespace UE::Editor::DataStorage::Tests
 								}
 							}
 						};
-						
-						using namespace TypedElementQueryBuilder;
+
+						using namespace UE::Editor::DataStorage::Queries;
 						// Setup an activatable processor for the test
 						ActivationKeys.Emplace(TEXT("TEST: Match Row[0]"));
 						QueryExpectedMatchRows.Emplace(TArray({Rows[0]}));
@@ -484,7 +484,7 @@ namespace UE::Editor::DataStorage::Tests
 					
 					Async(EAsyncExecution::TaskGraphMainThread,[this, &ActivationKeys, &AllTestExpectations, &UnexpectedRowCount]()
 					{
-						using namespace TypedElementQueryBuilder;
+						using namespace UE::Editor::DataStorage::Queries;
 
 						auto RunTest = [this, &AllTestExpectations, &UnexpectedRowCount](IQueryContext& Context, const RowHandle* RowsPtr, int32 TestIndex)
 						{
@@ -547,11 +547,10 @@ namespace UE::Editor::DataStorage::Tests
 								ActivationKeys.Last(),
 								FProcessor(EQueryTickPhase::FrameEnd, TedsInterface->GetQueryTickGroupName(EQueryTickGroups::SyncDataStorageToExternal))
 									.MakeActivatable(ActivationKeys.Last()),
-									[this, TestIndex = AllTestExpectations.Num() - 1, &RunTest](IQueryContext& Context, const RowHandle* RowsPtr)
-									{
-										RunTest(Context, RowsPtr, TestIndex);
-									}
-							)
+								[this, TestIndex = AllTestExpectations.Num() - 1, &RunTest](IQueryContext& Context, const RowHandle* RowsPtr)
+								{
+									RunTest(Context, RowsPtr, TestIndex);
+								})
 							.ReadOnly<FTestDynamicColumn>(Identifiers[0])
 							.Compile());
 					});

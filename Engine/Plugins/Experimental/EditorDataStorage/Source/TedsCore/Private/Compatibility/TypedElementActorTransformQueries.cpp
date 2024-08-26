@@ -17,14 +17,13 @@ void UActorTransformDataStorageFactory::RegisterQueries(ITypedElementDataStorage
 
 void UActorTransformDataStorageFactory::RegisterActorAddTransformColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
+
 	
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Add transform column to actor"),
-			FProcessor(EQueryTickPhase::PrePhysics,
-				DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
+			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
 				.SetExecutionMode(EExecutionMode::GameThread),
 			[](IQueryContext& Context, RowHandle Row, const FTypedElementUObjectColumn& Actor)
 			{
@@ -32,19 +31,17 @@ void UActorTransformDataStorageFactory::RegisterActorAddTransformColumn(ITypedEl
 				{
 					Context.AddColumn(Row, FTypedElementLocalTransformColumn{ .Transform = ActorInstance->GetActorTransform() });
 				}
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementSyncFromWorldTag, FTypedElementActorTag>()
 			.None<FTypedElementLocalTransformColumn>()
-		.Compile()
-	);
+		.Compile());
 }
 
 void UActorTransformDataStorageFactory::RegisterActorLocalTransformToColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
+
 	
 	DataStorage.RegisterQuery(
 		Select(
@@ -61,19 +58,16 @@ void UActorTransformDataStorageFactory::RegisterActorLocalTransformToColumn(ITyp
 				{
 					Context.RemoveColumns<FTypedElementLocalTransformColumn>(Row);
 				}
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementActorTag>()
 			.Any<FTypedElementSyncFromWorldTag, FTypedElementSyncFromWorldInteractiveTag>()
-		.Compile()
-	);
+		.Compile());
 }
 
 void UActorTransformDataStorageFactory::RegisterLocalTransformColumnToActor(ITypedElementDataStorageInterface& DataStorage) const
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	DataStorage.RegisterQuery(
 		Select(
@@ -86,10 +80,8 @@ void UActorTransformDataStorageFactory::RegisterLocalTransformColumnToActor(ITyp
 				{
 					ActorInstance->SetActorTransform(Transform.Transform);
 				}
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementActorTag, FTypedElementSyncBackToWorldTag>()
-		.Compile()
-	);
+		.Compile());
 }

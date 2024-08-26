@@ -376,7 +376,7 @@ void UEditorDataStorageCompatibility::RegisterTypeInformationQueries()
 {
 	// Thread-safe as this is only called from a function that has an exclusive lock.
 
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	ClassTypeInfoQuery = Storage->RegisterQuery(
 		Select()
@@ -603,8 +603,7 @@ void UEditorDataStorageCompatibility::FPendingTypeInformationUpdate::AddTypeInfo
 
 void UEditorDataStorageCompatibility::FPendingTypeInformationUpdate::Process(UEditorDataStorageCompatibility& Compatibility)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	if (bHasPendingUpdate)
 	{
@@ -1104,8 +1103,7 @@ void UEditorDataStorageCompatibility::OnObjectReinstanced(const FCoreUObjectDele
 
 void UEditorDataStorageCompatibility::OnPostGcUnreachableAnalysis()
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	using namespace UE::Editor::DataStorage::Private;
 
 	if (bIntegrateWithGC)

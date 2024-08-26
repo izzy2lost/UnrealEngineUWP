@@ -15,8 +15,7 @@ void UObjectWorldDataStorageFactory::RegisterQueries(ITypedElementDataStorageInt
 
 void UObjectWorldDataStorageFactory::RegisterAddWorldColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	DataStorage.RegisterQuery(
 		Select(
@@ -34,19 +33,16 @@ void UObjectWorldDataStorageFactory::RegisterAddWorldColumn(ITypedElementDataSto
 						Context.AddColumn(Row, FTypedElementWorldColumn{ .World = World });
 					}
 				}
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementSyncFromWorldTag>()
 			.None<FTypedElementWorldColumn, FTypedElementClassDefaultObjectTag>()
-		.Compile()
-	);
+		.Compile());
 }
 
 void UObjectWorldDataStorageFactory::RegisterUpdateOrRemoveWorldColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	DataStorage.RegisterQuery(
 		Select(
@@ -66,10 +62,8 @@ void UObjectWorldDataStorageFactory::RegisterUpdateOrRemoveWorldColumn(ITypedEle
 					}
 				}
 				Context.RemoveColumns<FTypedElementWorldColumn>(Row);
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementSyncFromWorldTag>()
-		.Compile()
-	);
+		.Compile());
 }

@@ -10,7 +10,7 @@
 #include "Elements/Common/TypedElementQueryDescription.h"
 #include "Elements/Common/TypedElementQueryTypes.h"
 
-namespace TypedElementQueryBuilder
+namespace UE::Editor::DataStorage::Queries
 {
 	using namespace UE::Editor::DataStorage;
 
@@ -1300,4 +1300,4 @@ e.g. void(ISubqueryContext& Context, RowHandle Row, ColumnType0& ColumnA, const 
 			Private::CallQueryFunction<ValidateColumns>(Description, Context, Callback);
 		};
 	}
-} // namespace TypedElementQueryBuilder
+} // namespace UE::Editor::DataStorage::Queries

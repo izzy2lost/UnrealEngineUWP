@@ -33,7 +33,7 @@ void UTypedElementActorHandleDataStorageFactory::RegisterQueries(ITypedElementDa
 		RegisterQuery_ActorHandlePopulate(DataStorage);
 	}
 
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 	GetAllActorsQuery = DataStorage.RegisterQuery(
 	Select()
 		.ReadOnly<FTypedElementUObjectColumn>()
@@ -44,8 +44,7 @@ void UTypedElementActorHandleDataStorageFactory::RegisterQueries(ITypedElementDa
 
 void UTypedElementActorHandleDataStorageFactory::RegisterQuery_ActorHandlePopulate(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	if (!ensureMsgf(ActorHandlePopulateQuery == InvalidQueryHandle, TEXT("Already registered query")))
 	{
@@ -66,8 +65,7 @@ void UTypedElementActorHandleDataStorageFactory::RegisterQuery_ActorHandlePopula
 					.Handle = Handle
 				});
 			}
-		}
-	)
+		})
 	.Where()
 		.All<FTypedElementActorTag>()
 	.Compile());
@@ -81,7 +79,7 @@ void UTypedElementActorHandleDataStorageFactory::HandleBridgeEnabled(bool bEnabl
 
 	if (bEnabled)
 	{
-		using namespace TypedElementQueryBuilder;
+		using namespace Queries;
 		
 		// Populate all the rows
 		TArray<RowHandle> CollatedRowHandles;

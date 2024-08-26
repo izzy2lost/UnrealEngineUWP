@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Elements/Common/TypedElementCommonTypes.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Templates/SubclassOf.h"
@@ -104,7 +103,7 @@ class USubsystem;
  * and store its compiled form for repeated use instead of rebuilding the query on every update.
  */
 
-namespace TypedElementQueryBuilder
+namespace UE::Editor::DataStorage::Queries
 {
 	using namespace UE::Editor::DataStorage;
 
@@ -433,6 +432,6 @@ namespace TypedElementQueryBuilder
 	template<typename Function>
 	SubqueryCallback CreateSubqueryCallbackBinding(Function&& Callback);
 
-} // namespace TypedElementQueryBuilder
+} // namespace UE::Editor::DataStorage::Queries
 
 #include "Elements/Framework/TypedElementQueryBuilder.inl"

@@ -31,8 +31,7 @@ void UActorParentDataStorageFactory::RegisterQueries(ITypedElementDataStorageInt
 
 void UActorParentDataStorageFactory::RegisterAddParentColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	DataStorage.RegisterQuery(
 		Select(
@@ -57,19 +56,16 @@ void UActorParentDataStorageFactory::RegisterAddParentColumn(ITypedElementDataSt
 						}
 					}
 				}
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementSyncFromWorldTag, FTypedElementActorTag>()
 			.None<FTableRowParentColumn, FUnresolvedTableRowParentColumn>()
-		.Compile()
-	);
+		.Compile());
 }
 
 void UActorParentDataStorageFactory::RegisterUpdateOrRemoveParentColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	DataStorage.RegisterQuery(
 		Select(
@@ -101,10 +97,8 @@ void UActorParentDataStorageFactory::RegisterUpdateOrRemoveParentColumn(ITypedEl
 					}
 				}
 				Context.RemoveColumns<FTableRowParentColumn>(Row);
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementActorTag, FTypedElementSyncFromWorldTag>()
-		.Compile()
-	);
+		.Compile());
 }

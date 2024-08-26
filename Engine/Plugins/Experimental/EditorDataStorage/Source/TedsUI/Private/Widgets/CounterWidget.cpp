@@ -45,8 +45,7 @@ UCounterWidgetFactory::UCounterWidgetFactory()
 
 void UCounterWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	DataStorage.RegisterQuery(Select(TEXT("Sync counter widgets"), 
 		FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncWidgets))
@@ -74,8 +73,8 @@ void UCounterWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& D
 				WidgetInstance->SetText(FText::Format(Counter.LabelTextFormatter, Result.Count));
 				Comparison.Value = Result.Count;
 			}
-		}
-	).Compile());
+		})
+	.Compile());
 }
 
 void UCounterWidgetFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const
@@ -87,7 +86,7 @@ void UCounterWidgetFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiInt
 void UCounterWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	TUniquePtr<FCounterWidgetConstructor> WidgetCounter = MakeUnique<FCounterWidgetConstructor>();
 	WidgetCounter->LabelText = LOCTEXT("WidgetCounterStatusBarLabel", "{0} {0}|plural(one=Widget, other=Widgets)");

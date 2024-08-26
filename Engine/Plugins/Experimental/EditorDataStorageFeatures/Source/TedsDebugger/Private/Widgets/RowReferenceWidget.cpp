@@ -106,8 +106,7 @@ void URowReferenceWidgetFactory::RegisterWidgetConstructors(ITypedElementDataSto
 
 void URowReferenceWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	const QueryHandle UpdateRowReferenceWidget = DataStorage.RegisterQuery(
 		Select()
@@ -135,8 +134,7 @@ void URowReferenceWidgetFactory::RegisterQueries(ITypedElementDataStorageInterfa
 			})
 		.DependsOn()
 			.SubQuery( UpdateRowReferenceWidget )
-		.Compile()
-	);
+		.Compile());
 }
 
 FRowReferenceWidgetConstructor::FRowReferenceWidgetConstructor()

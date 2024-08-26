@@ -56,9 +56,9 @@ namespace UE::Editor::DataStorage
 		template<typename ColumnType>
 		void RegisterTestObserver(
 			FName ObserverName,
-			ITypedElementDataStorageInterface* TedsInterface, TypedElementQueryBuilder::FObserver::EEvent EventType, int64* QueryCallCountPtr, QueryHandle* QueryHandleInOut)
+			ITypedElementDataStorageInterface* TedsInterface, Queries::FObserver::EEvent EventType, int64* QueryCallCountPtr, QueryHandle* QueryHandleInOut)
 		{
-			using namespace TypedElementQueryBuilder;
+			using namespace UE::Editor::DataStorage::Queries;
 			FQueryDescription QueryDescription = TedsInterface->GetQueryDescription(*QueryHandleInOut);
 
 			// Check if it is empty... If not then we need to register
@@ -72,7 +72,8 @@ namespace UE::Editor::DataStorage
 						[QueryCallCountPtr](IQueryContext& Context, RowHandle Row)
 						{
 							++(*QueryCallCountPtr);
-						}).Compile());
+						})
+					.Compile());
 			}
 		}
 	
@@ -211,13 +212,15 @@ namespace UE::Editor::DataStorage
 						 */
 						BeforeEach([this]()
 						{
+							using namespace Queries;
+
 							TestTableHandleA = RegisterTestTableA(TedsInterface);
 							TestNotEqual("Expecting valid table handle", TestTableHandleA, InvalidTableHandle);
 
 							RegisterTestObserver<FTestColumnA>(
 								TEXT("Increment CallCount when FTestColumnA added"),
 								TedsInterface,
-								TypedElementQueryBuilder::FObserver::EEvent::Add,
+								FObserver::EEvent::Add,
 								&DataColumnA_AddObserverCallCount,
 								&DataColumnA_AddObserverHandle);
 							TestTrue("Expect valid query observer handle", DataColumnA_AddObserverHandle != InvalidQueryHandle);
@@ -225,7 +228,7 @@ namespace UE::Editor::DataStorage
 							RegisterTestObserver<FTestColumnC>(
 								TEXT("Increment CallCount when FTestColumnC added"),
 								TedsInterface,
-								TypedElementQueryBuilder::FObserver::EEvent::Add,
+								FObserver::EEvent::Add,
 								&DataColumnC_AddObserverCallCount,
 								&DataColumnC_AddObserverHandle);
 							TestTrue("Expect valid query observer handle", DataColumnC_AddObserverHandle != InvalidQueryHandle);
@@ -233,7 +236,7 @@ namespace UE::Editor::DataStorage
 							RegisterTestObserver<FTestColumnB>(
 								TEXT("Increment CallCount when FTestColumnB removed"),
 								TedsInterface,
-								TypedElementQueryBuilder::FObserver::EEvent::Remove,
+								FObserver::EEvent::Remove,
 								&DataColumnB_RemoveObserverCallCount,
 								&DataColumnB_RemoveObserverHandle);
 							TestTrue("Expect valid query observer handle", DataColumnB_RemoveObserverHandle != InvalidQueryHandle);
@@ -241,7 +244,7 @@ namespace UE::Editor::DataStorage
 							RegisterTestObserver<FTestTagColumnA>(
 								TEXT("Increment CallCount when FTestColumnA added"),
 								TedsInterface,
-								TypedElementQueryBuilder::FObserver::EEvent::Add,
+								FObserver::EEvent::Add,
 								&TagColumnA_AddObserverCallCount,
 								&TagColumnA_AddObserverHandle);
 							TestTrue("Expect valid query observer handle", TagColumnA_AddObserverHandle != InvalidQueryHandle);
@@ -249,14 +252,14 @@ namespace UE::Editor::DataStorage
 							RegisterTestObserver<FTestTagColumnC>(
 								TEXT("Increment CallCount when FTestTagColumnC added"),
 								TedsInterface,
-								TypedElementQueryBuilder::FObserver::EEvent::Add,
+								FObserver::EEvent::Add,
 								&TagColumnC_AddObserverCallCount, 
 								&TagColumnC_AddObserverHandle);
 							TestTrue("Expect valid query observer handle", TagColumnC_AddObserverHandle != InvalidQueryHandle);
 
 							RegisterTestObserver<FTestTagColumnB>(
 								TEXT("Increment CallCount when FTestTagColumnB removed"),
-								TedsInterface, TypedElementQueryBuilder::FObserver::EEvent::Remove,
+								TedsInterface, FObserver::EEvent::Remove,
 								&TagColumnB_RemoveObserverCallCount,
 								&TagColumnB_RemoveObserverHandle);
 							TestTrue("Expect valid query observer handle", TagColumnB_RemoveObserverHandle != InvalidQueryHandle);					

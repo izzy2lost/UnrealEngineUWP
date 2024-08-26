@@ -34,7 +34,7 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 	TEXT("An example input to show a label column is 'TEDS.UI.BindColumnsToSceneOutliner /Script/TypedElementFramework.TypedElementLabelColumn'."),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 		{
-			using namespace TypedElementQueryBuilder;
+			using namespace UE::Editor::DataStorage::Queries;
 			
 		    const FName WidgetPurposes[] = {TEXT("SceneOutliner.Cell"), TEXT("General.Cell")};
 

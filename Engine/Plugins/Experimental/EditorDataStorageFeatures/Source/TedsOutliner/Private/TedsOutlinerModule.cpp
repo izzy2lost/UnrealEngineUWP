@@ -72,7 +72,6 @@ TSharedRef<ISceneOutliner> FTedsOutlinerModule::CreateTedsOutliner(const FSceneO
 
 	InitOptions.ModeFactory = FCreateSceneOutlinerMode::CreateLambda([&InitTedsOptions](SSceneOutliner* Outliner)
 	{
-		using namespace TypedElementQueryBuilder;
 		InitTedsOptions.SceneOutliner = Outliner;
 		
 		return new FTedsOutlinerMode(InitTedsOptions);
@@ -115,7 +114,7 @@ UE::Editor::DataStorage::QueryHandle FTedsOutlinerModule::GetLevelEditorTedsOutl
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 	ITypedElementDataStorageInterface* Storage = Registry->GetMutableDataStorage();
 		
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	static UE::Editor::DataStorage::QueryHandle ColumnQuery = Storage->RegisterQuery(
 		Select()
@@ -143,14 +142,14 @@ TSharedRef<SWidget> FTedsOutlinerModule::CreateLevelEditorTedsOutliner()
 		.Text(LOCTEXT("TEDSPluginNotEnabledText", "You need to enable the Typed Element Data Storage plugin to see the table viewer!"));
 	}
 
-	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	// The Outliner is populated with Actors and Entities
 	UE::Editor::DataStorage::FQueryDescription OutlinerQueryDescription =
-						Select()
-						.Where()
-							.All<FTypedElementClassTypeInfoColumn>() // TEDS-Outliner TODO: Currently looking at all entries with type info in TEDS
-						.Compile();
+		Select()
+		.Where()
+			.All<FTypedElementClassTypeInfoColumn>() // TEDS-Outliner TODO: Currently looking at all entries with type info in TEDS
+		.Compile();
 
 	FSceneOutlinerInitializationOptions InitOptions;
 	InitOptions.bShowHeaderRow = true;
@@ -164,10 +163,10 @@ TSharedRef<SWidget> FTedsOutlinerModule::CreateLevelEditorTedsOutliner()
 
 	// Example Query to filter for actors
 	UE::Editor::DataStorage::FQueryDescription ActorFilterQuery =
-					Select()
-					.Where()
-						.All<FTypedElementActorTag>()
-					.Compile();
+		Select()
+		.Where()
+			.All<FTypedElementActorTag>()
+		.Compile();
 	Params.FilterQueries.Emplace("Actors", ActorFilterQuery);
 		
 	// Empty selection set name is currently the level editor

@@ -19,8 +19,7 @@ namespace UE::Editor::DataStorage::Private
 		TEXT("Adds an outline color to selected objects."),
 		FConsoleCommandWithArgsAndOutputDeviceDelegate::CreateLambda([](const TArray<FString>& Args, FOutputDevice& Output)
 			{
-				using namespace TypedElementQueryBuilder;
-				using namespace UE::Editor::DataStorage;
+				using namespace UE::Editor::DataStorage::Queries;
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddOverlayColorToSelectionCommand);
 
@@ -78,8 +77,7 @@ namespace UE::Editor::DataStorage::Private
 		TEXT("Adds an overlay color to selected objects."),
 		FConsoleCommandWithArgsAndOutputDeviceDelegate::CreateLambda([](const TArray<FString>& Args, FOutputDevice& Output)
 			{
-				using namespace TypedElementQueryBuilder;
-				using namespace UE::Editor::DataStorage;
+				using namespace UE::Editor::DataStorage::Queries;
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddOverlayColorToSelectionCommand);
 
@@ -130,8 +128,7 @@ namespace UE::Editor::DataStorage::Private
 		TEXT("Removes an overlay color to selected objects."),
 		FConsoleCommandWithArgsAndOutputDeviceDelegate::CreateLambda([](const TArray<FString>& Args, FOutputDevice& Output)
 			{
-				using namespace TypedElementQueryBuilder;
-				using namespace UE::Editor::DataStorage;
+				using namespace UE::Editor::DataStorage::Queries;
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddOverlayColorToSelectionCommand);
 
@@ -175,8 +172,7 @@ void UActorViewportDataStorageFactory::RegisterQueries(ITypedElementDataStorageI
 
 void UActorViewportDataStorageFactory::RegisterOutlineColorColumnToActor(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 
 	DataStorage.RegisterQuery(
 		Select(
@@ -193,18 +189,15 @@ void UActorViewportDataStorageFactory::RegisterOutlineColorColumnToActor(ITypedE
 						PrimitiveComponent->SetSelectionOutlineColorIndex(ViewportColor.SelectionOutlineColorIndex);
 					});
 				}
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementActorTag, FTypedElementSyncBackToWorldTag>()
-		.Compile()
-	);
+		.Compile());
 }
 
 void UActorViewportDataStorageFactory::RegisterOverlayColorColumnToActor(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Queries;
 	
 	DataStorage.RegisterQuery(
 		Select(
@@ -222,12 +215,10 @@ void UActorViewportDataStorageFactory::RegisterOverlayColorColumnToActor(ITypedE
 						PrimitiveComponent->MarkRenderStateDirty();
 					});
 				}
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementActorTag>()
-		.Compile()
-	);
+		.Compile());
 
 	DataStorage.RegisterQuery(
 		Select(
@@ -244,10 +235,8 @@ void UActorViewportDataStorageFactory::RegisterOverlayColorColumnToActor(ITypedE
 						PrimitiveComponent->MarkRenderStateDirty();
 					});
 				}
-			}
-		)
+			})
 		.Where()
 			.All<FTypedElementActorTag>()
-		.Compile()
-	);
+		.Compile());
 }
