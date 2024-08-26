@@ -25,7 +25,7 @@ namespace EpicGames.Redis
 	/// Typed implementation of <see cref="SortedSetEntry"/>
 	/// </summary>
 	/// <typeparam name="T">The element type</typeparam>
-	public readonly struct SortedSetEntry<T>
+	public readonly struct SortedSetEntry<T> : IEquatable<SortedSetEntry<T>>, IComparable, IComparable<SortedSetEntry<T>>
 	{
 		/// <summary>
 		/// Accessor for the element type
@@ -75,6 +75,50 @@ namespace EpicGames.Redis
 			outElement = Element;
 			outScore = Score;
 		}
+
+		/// <inheritdoc/>
+		public override bool Equals(object? obj) 
+			=> obj is SortedSetEntry ssObj && Equals(ssObj);
+
+		/// <inheritdoc/>
+		public override int GetHashCode()
+			=> HashCode.Combine(Score, Element);
+
+		/// <inheritdoc/>
+		public bool Equals(SortedSetEntry<T> other) 
+			=> Score == other.Score && Equals(Element, other.Element);
+
+		/// <inheritdoc/>
+		public int CompareTo(SortedSetEntry<T> other) 
+			=> Score.CompareTo(other.Score);
+
+		/// <inheritdoc/>
+		public int CompareTo(object? obj) 
+			=> obj is SortedSetEntry<T> ssObj ? CompareTo(ssObj) : -1;
+
+		/// <inheritdoc/>
+		public static bool operator ==(SortedSetEntry<T> a, SortedSetEntry<T> b)
+			=> a.Equals(b);
+
+		/// <inheritdoc/>
+		public static bool operator !=(SortedSetEntry<T> a, SortedSetEntry<T> b)
+			=> !a.Equals(b);
+
+		/// <inheritdoc/>
+		public static bool operator <=(SortedSetEntry<T> a, SortedSetEntry<T> b)
+			=> a.CompareTo(b) <= 0;
+
+		/// <inheritdoc/>
+		public static bool operator <(SortedSetEntry<T> a, SortedSetEntry<T> b)
+			=> a.CompareTo(b) < 0;
+
+		/// <inheritdoc/>
+		public static bool operator >=(SortedSetEntry<T> a, SortedSetEntry<T> b)
+			=> a.CompareTo(b) >= 0;
+
+		/// <inheritdoc/>
+		public static bool operator >(SortedSetEntry<T> a, SortedSetEntry<T> b)
+			=> a.CompareTo(b) > 0;
 	}
 
 	/// <summary>
@@ -191,7 +235,7 @@ namespace EpicGames.Redis
 		#region SortedSetRangeByRankWithScoresAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.SortedSetRangeByRankWithScoresAsync(RedisKey, Int64, Int64, Order, CommandFlags)"/>
-		public static async Task<SortedSetEntry<TElement>[]> SortedSetRangeByRankWithScoresAsync<TElement>(this IDatabaseAsync target, RedisSortedSetKey<TElement> key, long start, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+		public static async Task<SortedSetEntry<TElement>[]> SortedSetRangeByRankWithScoresAsync<TElement>(this IDatabaseAsync target, RedisSortedSetKey<TElement> key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
 		{
 			SortedSetEntry[] values = await target.SortedSetRangeByRankWithScoresAsync(key.Inner, start, stop, order, flags);
 			return Array.ConvertAll(values, x => new SortedSetEntry<TElement>(x));

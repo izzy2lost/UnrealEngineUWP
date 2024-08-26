@@ -2,9 +2,11 @@
 
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Sessions;
 using HordeCommon;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
+using HordeServer.Agents;
 using HordeServer.Agents.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -78,6 +80,134 @@ namespace HordeServer.Tests.Agents
 
 			RpcSession? session3 = await AgentScheduler.TryGetSessionAsync(session.SessionId);
 			Assert.IsNull(session3);
+		}
+
+		[TestMethod]
+		public async Task AddSessionsToNewQueueTestAsync()
+		{
+			AgentScheduler scheduler = (AgentScheduler)AgentScheduler;
+			await scheduler.StartAsync(default);
+
+			// First session
+			for (int idx = 0; idx < 3; idx++)
+			{
+				RpcAgentCapabilities caps1 = new RpcAgentCapabilities();
+				caps1.Properties.Add("Platform=Windows");
+
+				RpcSession? session1 = await AgentScheduler.TryCreateSessionAsync(new AgentId("foo"), SessionIdUtils.GenerateNewId(), caps1);
+				Assert.IsNotNull(session1);
+			}
+
+			// Second session
+			for (int idx = 0; idx < 5; idx++)
+			{
+				RpcAgentCapabilities caps2 = new RpcAgentCapabilities();
+				caps2.Properties.Add("Platform=MacOS");
+
+				RpcSession? session2 = await AgentScheduler.TryCreateSessionAsync(new AgentId("bar"), SessionIdUtils.GenerateNewId(), caps2);
+				Assert.IsNotNull(session2);
+			}
+
+			// Create the first queue
+			RpcAgentRequirements reqs1 = new RpcAgentRequirements();
+			reqs1.Properties.Add("Platform=Windows");
+
+			IoHash queueHash1 = await scheduler.CreateFilterAsync(reqs1);
+
+			// Create the second queue
+			RpcAgentRequirements reqs2 = new RpcAgentRequirements();
+			reqs2.Properties.Add("Platform=MacOS");
+
+			IoHash queueHash2 = await scheduler.CreateFilterAsync(reqs2);
+
+			// Update the cached queues
+			await scheduler.ForceUpdateFiltersAsync(CancellationToken.None);
+
+			SessionId[] sessionIds1 = await scheduler.GetAllFilteredSessionsAsync(queueHash1);
+			Assert.AreEqual(3, sessionIds1.Length);
+
+			SessionId[] sessionIds2 = await scheduler.GetAllFilteredSessionsAsync(queueHash2);
+			Assert.AreEqual(5, sessionIds2.Length);
+		}
+
+		[TestMethod]
+		public async Task AddSessionsToExistingQueueTestAsync()
+		{
+			FakeClock clock = ServiceProvider.GetRequiredService<FakeClock>();
+			AgentScheduler scheduler = (AgentScheduler)AgentScheduler;
+			await scheduler.StartAsync(default);
+
+			// Create the first queue
+			RpcAgentRequirements reqs1 = new RpcAgentRequirements();
+			reqs1.Properties.Add("Platform=Windows");
+
+			IoHash queueHash1 = await scheduler.CreateFilterAsync(reqs1);
+
+			// Create the second queue
+			RpcAgentRequirements reqs2 = new RpcAgentRequirements();
+			reqs2.Properties.Add("Platform=MacOS");
+
+			IoHash queueHash2 = await scheduler.CreateFilterAsync(reqs2);
+
+			// Update the cached queues
+			await clock.AdvanceAsync(TimeSpan.FromMinutes(1.0));
+
+			// First session
+			for (int idx = 0; idx < 3; idx++)
+			{
+				RpcAgentCapabilities caps1 = new RpcAgentCapabilities();
+				caps1.Properties.Add("Platform=Windows");
+
+				RpcSession? session1 = await AgentScheduler.TryCreateSessionAsync(new AgentId("foo"), SessionIdUtils.GenerateNewId(), caps1);
+				Assert.IsNotNull(session1);
+			}
+
+			// Second session
+			for (int idx = 0; idx < 5; idx++)
+			{
+				RpcAgentCapabilities caps2 = new RpcAgentCapabilities();
+				caps2.Properties.Add("Platform=MacOS");
+
+				RpcSession? session2 = await AgentScheduler.TryCreateSessionAsync(new AgentId("bar"), SessionIdUtils.GenerateNewId(), caps2);
+				Assert.IsNotNull(session2);
+			}
+
+			//
+			SessionId[] sessionIds1 = await scheduler.GetAllFilteredSessionsAsync(queueHash1);
+			Assert.AreEqual(3, sessionIds1.Length);
+
+			SessionId[] sessionIds2 = await scheduler.GetAllFilteredSessionsAsync(queueHash2);
+			Assert.AreEqual(5, sessionIds2.Length);
+		}
+
+		[TestMethod]
+		public async Task ExpireQueuesTestAsync()
+		{
+			FakeClock clock = ServiceProvider.GetRequiredService<FakeClock>();
+			AgentScheduler scheduler = (AgentScheduler)AgentScheduler;
+			await scheduler.StartAsync(default);
+
+			// Create the first queue
+			RpcAgentRequirements reqs1 = new RpcAgentRequirements();
+			reqs1.Properties.Add("Platform=Windows");
+
+			IoHash reqsHash1 = await scheduler.CreateFilterAsync(reqs1);
+			Assert.AreEqual(1, (await scheduler.GetFiltersAsync()).Length);
+
+			// Check that the queue exists
+			await clock.AdvanceAsync(HordeServer.Agents.AgentScheduler.ExpireFiltersTime / 2);
+			await scheduler.TouchFilterAsync(reqsHash1);
+			Assert.AreEqual(1, (await scheduler.GetFiltersAsync()).Length);
+
+			await clock.AdvanceAsync(HordeServer.Agents.AgentScheduler.ExpireFiltersTime / 2);
+			await scheduler.TouchFilterAsync(reqsHash1);
+			Assert.AreEqual(1, (await scheduler.GetFiltersAsync()).Length);
+
+			await clock.AdvanceAsync(HordeServer.Agents.AgentScheduler.ExpireFiltersTime / 2);
+			Assert.AreEqual(1, (await scheduler.GetFiltersAsync()).Length);
+
+			await clock.AdvanceAsync(HordeServer.Agents.AgentScheduler.ExpireFiltersTime);
+			Assert.AreEqual(0, (await scheduler.GetFiltersAsync()).Length);
 		}
 	}
 }

@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
@@ -54,6 +55,46 @@ namespace HordeServer.Agents
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New session object</returns>
 		Task<RpcSession?> TryUpdateSessionAsync(RpcSession session, RpcSession? newSession = null, RpcAgentCapabilities? newCapabilities = null, CancellationToken cancellationToken = default);
+
+		#endregion
+		#region Filters
+
+		/// <summary>
+		/// Create a new filter for agents matching  with the given requirements
+		/// </summary>
+		/// <param name="requirements">Requirements for the filter</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task<IoHash> CreateFilterAsync(RpcAgentRequirements requirements, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Update the timestamp on the given filter
+		/// </summary>
+		/// <param name="requirementsHash">Hash of the requirements for the filter to remove</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task TouchFilterAsync(IoHash requirementsHash, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Gets the hash of all current filters
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Array of filter hashes</returns>
+		Task<IoHash[]> GetFiltersAsync(CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Gets the requirements for a particular filter
+		/// </summary>
+		/// <param name="requirementsHash">Hash of the requirements object</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Requirements object</returns>
+		ValueTask<RpcAgentRequirements?> TryGetFilterRequirementsAsync(IoHash requirementsHash, CancellationToken cancellationToken);
+
+		/// <summary>
+		/// Finds all sessions currently included in a filter
+		/// </summary>
+		/// <param name="requirementsHash">Hash of the requirements object</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Array of sessions</returns>
+		Task<SessionId[]> GetAllFilteredSessionsAsync(IoHash requirementsHash, CancellationToken cancellationToken = default);
 
 		#endregion
 		#region Stats
