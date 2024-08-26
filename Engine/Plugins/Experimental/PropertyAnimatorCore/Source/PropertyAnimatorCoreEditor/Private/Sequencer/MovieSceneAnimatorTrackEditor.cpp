@@ -25,7 +25,8 @@ void FMovieSceneAnimatorTrackEditor::BuildAddTrackMenu(FMenuBuilder& InMenuBuild
 		LOCTEXT("AddAnimatorTrack.Tooltip", "Adds a new track that uses the time of the current sequence to drive animators."),
 		FSlateIconFinder::FindIconForClass(UMovieSceneAnimatorTrack::StaticClass()),
 		FUIAction(
-			FExecuteAction::CreateSP(this, &FMovieSceneAnimatorTrackEditor::ExecuteAddTrack, Channel)
+			FExecuteAction::CreateSP(this, &FMovieSceneAnimatorTrackEditor::ExecuteAddTrack, Channel),
+			FCanExecuteAction::CreateSP(this, &FMovieSceneAnimatorTrackEditor::CanExecuteAddTrack)
 		)
 	);
 }
@@ -34,6 +35,19 @@ TSharedPtr<SWidget> FMovieSceneAnimatorTrackEditor::BuildOutlinerEditWidget(cons
 {
 	// Empty, do not allow the creation of new sections, only one to rule them all
 	return nullptr;
+}
+
+bool FMovieSceneAnimatorTrackEditor::SupportsSequence(UMovieSceneSequence* InSequence) const
+{
+	const ETrackSupport TrackSupported = InSequence ? InSequence->IsTrackSupported(UMovieSceneAnimatorTrack::StaticClass()) : ETrackSupport::NotSupported;
+
+	if (TrackSupported == ETrackSupport::NotSupported)
+	{
+		return false;
+	}
+
+	// UNiagaraSequence is private so check against class name
+	return InSequence->GetClass()->GetFName() != TEXT("NiagaraSequence");
 }
 
 void FMovieSceneAnimatorTrackEditor::BindDelegates()
@@ -57,6 +71,11 @@ void FMovieSceneAnimatorTrackEditor::GetTrackCount(uint8 InChannel, int32& OutCo
 			OutCount += AnimatorTrack->GetChannelCount(InChannel);
 		}
 	}
+}
+
+bool FMovieSceneAnimatorTrackEditor::CanExecuteAddTrack() const
+{
+	return GetSequencer() && GetFocusedMovieScene();
 }
 
 void FMovieSceneAnimatorTrackEditor::ExecuteAddTrack(uint8 InChannel)

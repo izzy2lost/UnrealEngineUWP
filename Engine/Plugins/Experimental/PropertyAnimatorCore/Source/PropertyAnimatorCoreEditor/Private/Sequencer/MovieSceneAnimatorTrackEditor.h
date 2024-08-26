@@ -5,6 +5,8 @@
 #include "KeyframeTrackEditor.h"
 #include "Sequencer/MovieSceneAnimatorTrack.h"
 
+class UMovieSceneSequence;
+
 /** Animator track editor to add animator track and section */
 class FMovieSceneAnimatorTrackEditor : public FKeyframeTrackEditor<UMovieSceneAnimatorTrack>
 {
@@ -32,11 +34,13 @@ private:
 	//~ Begin FMovieSceneTrackEditor
 	virtual void BuildAddTrackMenu(FMenuBuilder& InMenuBuilder) override;
 	virtual TSharedPtr<SWidget> BuildOutlinerEditWidget(const FGuid& InObjectBinding, UMovieSceneTrack* InTrack, const FBuildEditWidgetParams& InParams) override;
+	virtual bool SupportsSequence(UMovieSceneSequence* InSequence) const override;
 	//~ End FMovieSceneTrackEditor
 
 	void BindDelegates();
 
 	void GetTrackCount(uint8 InChannel, int32& OutCount) const;
 
+	bool CanExecuteAddTrack() const;
 	void ExecuteAddTrack(uint8 InChannel);
 };
