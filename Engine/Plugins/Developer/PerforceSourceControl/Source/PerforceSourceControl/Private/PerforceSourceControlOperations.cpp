@@ -268,16 +268,17 @@ static void ParseRecordSet(const FP4RecordSet& InRecords, TArray<FText>& OutResu
 }
 
 /** Simple parsing of a record set to update state */
-static void ParseRecordSetForState(const FP4RecordSet& InRecords, TMap<FString, EPerforceState::Type>& OutResults)
+static void ParseRecordSetForState(const FP4RecordSet& InRecords, TMap<FString, EPerforceState::Type>& OutResults, bool bConsiderDepotFile = false)
 {
 	// Iterate over each record found as a result of the command, parsing it for relevant information
 	for (const FP4Record& ClientRecord : InRecords)
 	{
-		const FString& FileName = ClientRecord(TEXT("clientFile"));
+		const FString& ClientFileName = ClientRecord(TEXT("clientFile"));
+		const FString& DepotFileName = ClientRecord(TEXT("depotFile"));
 		const FString& Action = ClientRecord(TEXT("action"));
 
-		check(FileName.Len());
-		FString FullPath(FileName);
+		check(ClientFileName.Len() || bConsiderDepotFile ? DepotFileName.Len() : false);
+		FString FullPath = ClientFileName.Len() ? ClientFileName : (bConsiderDepotFile ? DepotFileName : FString());
 		FPaths::NormalizeFilename(FullPath);
 
 		if(Action.Len() > 0)
@@ -805,10 +806,14 @@ bool FPerforceGetFileListWorker::Execute(FPerforceSourceControlCommand& InComman
 			Parameters.Add(TEXT("-e"));
 		}
 		Parameters.Append(InCommand.Files);
-		AppendMaskParameter(Parameters);
+		if (Operation->GetMethodUsed() == FGetFileList::FolderSearch)
+		{
+			AppendMaskParameter(Parameters);
+		}
 		FP4RecordSet Records;
 		InCommand.bCommandSuccessful = Connection.RunCommand(TEXT("files"), Parameters, Records, InCommand.ResultInfo, FOnIsCancelled::CreateRaw(&InCommand, &FPerforceSourceControlCommand::IsCanceled), InCommand.bConnectionDropped);
-		ParseRecordSetForState(Records, OutResults);
+		bool bConsiderDepotFiles = Operation->GetMethodUsed() == FGetFileList::FileRegexSearch;
+		ParseRecordSetForState(Records, OutResults, bConsiderDepotFiles);
 
 		TArray<FString> FilesList;
 		FilesList.Reserve(OutResults.Num());

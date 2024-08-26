@@ -144,11 +144,17 @@ public:
 };
 
 /**
- * Operation used to get the file list of a folder out of source control
+ * Operation used to get a file list out of source control
  */
 class FGetFileList : public FSourceControlOperationBase
 {
 public:
+	enum EGetFileListMethod
+	{
+		FolderSearch,
+		FileRegexSearch // Note: Only works for Perforce for now
+	};
+
 	// ISourceControlOperation interface
 	virtual FName GetName() const override
 	{
@@ -170,6 +176,16 @@ public:
 		return bIncludeDeleted;
 	}
 
+	void SetMethodUsed(const EGetFileListMethod& InMethodUsed)
+	{
+		MethodUsed = InMethodUsed;
+	}
+
+	EGetFileListMethod GetMethodUsed()
+	{
+		return MethodUsed;
+	}
+
 	const TArray<FString>& GetFilesList() const
 	{
 		return FilesList;
@@ -180,25 +196,28 @@ public:
 		FilesList = MoveTemp(InFilesList);
 	}
 
-	const FString& GetSearchPattern() const
+	const TArray<FString>& GetSearchPatterns() const
 	{
-		return SearchPattern;
+		return SearchPatterns;
 	}
 
-	void SetSearchPattern(const FString& InSearchPattern)
+	void SetSearchPattern(const TArray<FString>& InSearchPatterns)
 	{
-		SearchPattern = InSearchPattern;
+		SearchPatterns = InSearchPatterns;
 	}
 
 protected:
+	/** Method used to get file list */
+	EGetFileListMethod MethodUsed = EGetFileListMethod::FolderSearch;
+
 	/** Include deleted files in the list. */
 	bool bIncludeDeleted = false;
 
 	/** Stored result of the operation */
 	TArray<FString> FilesList;
 
-	/** The search pattern for the file list */
-	FString SearchPattern;
+	/** The search patterns for the file list */
+	TArray<FString> SearchPatterns;
 };
 
 /**

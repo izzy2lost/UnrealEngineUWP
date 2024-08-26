@@ -494,18 +494,32 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Editor Revision Control Helpers", meta = (Keywords = "Source Control"))
 	static void AsyncQueryFileState(FQueryFileStateDelegate FileStateCallback, const FString& InFile, bool bSilent = false);
-
+	
 	/**
 	 * Use currently set source control provider to query the list of files in the depot under a certain path.
 	 * @note	Blocks until action is complete.
 	 *
-	 * @param	PathToDirectory	The path which we want to query the list of files from.
-	 * @param	OutFilesList	An array containing the list of files under the queried path.
-	 * @param	bIncludeDeleted	Include files that have been deleted from the depot.
-	 * @param	bSilent			if false (default) then write out any error info to the Log. Any error text can be retrieved by LastErrorMsg() regardless.
+	 * @param	Path				The path which we want to query the list of files from.
+	 * @param	OutFilesList		An array containing the list of files under the queried path.
+	 * @param	bIncludeDeleted		Include files that have been deleted from the depot.
+	 * @param	bSilent				If false (default) then write out any error info to the Log. Any error text can be retrieved by LastErrorMsg() regardless.
+	 * @param	bIsFileRegexSearch	If false, it is a folder search. If true, it is a file regex search
 	 * @return	Success or failure of the operation
 	 */
-	static bool GetFilesInDepotAtPath(const FString& PathToDirectory, TArray<FString>& OutFilesList, bool bIncludeDeleted = false, bool bSilent = false);
+	static bool GetFilesInDepotAtPath(const FString& Path, TArray<FString>& OutFilesList, bool bIncludeDeleted = false, bool bSilent = false, bool bIsFileRegexSearch = false);
+
+	/**
+	 * Use currently set source control provider to query the list of files in the depot under a list of paths.
+	 * @note	Blocks until action is complete.
+	 *
+	 * @param	Paths				The paths which we want to query the list of files from.
+	 * @param	OutFilesList		An array containing the list of files under the queried path.
+	 * @param	bIncludeDeleted		Include files that have been deleted from the depot.
+	 * @param	bSilent				If false (default) then write out any error info to the Log. Any error text can be retrieved by LastErrorMsg() regardless.
+	 * @param	bIsFileRegexSearch	If false, it is a folder search. If true, it is a file regex search
+	 * @return	Success or failure of the operation
+	 */
+	static bool GetFilesInDepotAtPaths(const TArray<FString>& Paths, TArray<FString>& OutFilesList, bool bIncludeDeleted = false, bool bSilent = false, bool bIsFileRegexSearch = false);
 
 	/**
 	 * Helper function to get a filename for a package name.

@@ -98,6 +98,7 @@
 #include "PackageMigrationContext.h"
 #include "ComponentReregisterContext.h"
 #include "AssetViewUtils.h"
+#include "LocalizedAssetTools.h"
 
 #if WITH_EDITOR
 #include "Subsystems/AssetEditorSubsystem.h"
@@ -1340,6 +1341,7 @@ UAssetTools::UAssetTools(const class FObjectInitializer& ObjectInitializer)
 UAssetToolsImpl::UAssetToolsImpl(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, AssetRenameManager(MakeShareable(new FAssetRenameManager))
+	, LocalizedAssetTools(MakeShareable(new FLocalizedAssetTools))
 	, AssetFixUpRedirectors(MakeShareable(new FAssetFixUpRedirectors))
 	, NextUserCategoryBit(EAssetTypeCategories::FirstUser)
 	, AssetClassPermissionList_DEPRECATED(MakeShared<FNamePermissionList>())
@@ -1572,21 +1574,14 @@ TWeakPtr<IAssetTypeActions> UAssetToolsImpl::GetAssetTypeActionsForClass(const U
 	return nullptr;
 }
 
+TSharedPtr<ILocalizedAssetTools> UAssetToolsImpl::GetLocalizedAssetTools() const
+{
+	return LocalizedAssetTools;
+}
+
 bool UAssetToolsImpl::CanLocalize(const UClass* Class) const
 {
-	if (const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForClass(Class))
-	{
-		return AssetDefinition->CanLocalize(FAssetData()).IsSupported();
-	}
-	else
-	{
-		if (TSharedPtr<IAssetTypeActions> AssetActions = GetAssetTypeActionsForClass(Class).Pin())
-		{
-			return AssetActions->CanLocalize();
-		}
-	}
-
-	return false;
+	return LocalizedAssetTools->CanLocalize(Class);
 }
 
 TOptional<FLinearColor> UAssetToolsImpl::GetTypeColor(const UClass* Class) const

@@ -21,6 +21,7 @@ struct FAssetData;
 class IAssetTools;
 class IAssetTypeActions;
 class IClassTypeActions;
+class ILocalizedAssetTools;
 class UFactory;
 class UAssetImportTask;
 class UAdvancedCopyCustomization;
@@ -106,9 +107,14 @@ struct FAssetRenameData
 	/** If true, only fix soft references. This will work even if Asset is null because it has already been renamed */
 	UPROPERTY()
 	bool bOnlyFixSoftReferences;
+	
+	/** If true, will also try to rename all localized variants with corresponding paths */
+	UPROPERTY()
+	bool bAlsoRenameLocalizedVariants;
 
 	FAssetRenameData()
 		: bOnlyFixSoftReferences(false)
+		, bAlsoRenameLocalizedVariants(false) // This should probably always be true but it is false for backward compatibility reasons
 	{}
 
 	/** These constructors leave some fields empty, they are fixed up inside AssetRenameManager */
@@ -117,13 +123,24 @@ struct FAssetRenameData
 		, NewPackagePath(InNewPackagePath)
 		, NewName(InNewName)
 		, bOnlyFixSoftReferences(false)
+		, bAlsoRenameLocalizedVariants(false) // This should probably always be true but it is false for backward compatibility reasons
+	{
+	}
+	/** These constructors leave some fields empty, they are fixed up inside AssetRenameManager */
+	FAssetRenameData(const TWeakObjectPtr<UObject>& InAsset, const FString& InNewPackagePath, const FString& InNewName, bool bInOnlyFixSoftReferences, bool bInAlsoRenameLocalizedVariants)
+		: Asset(InAsset)
+		, NewPackagePath(InNewPackagePath)
+		, NewName(InNewName)
+		, bOnlyFixSoftReferences(bInOnlyFixSoftReferences)
+		, bAlsoRenameLocalizedVariants(bInAlsoRenameLocalizedVariants)
 	{
 	}
 	
-	FAssetRenameData(const FSoftObjectPath& InOldObjectPath, const FSoftObjectPath& InNewObjectPath, bool bInOnlyFixSoftReferences = false)
+	FAssetRenameData(const FSoftObjectPath& InOldObjectPath, const FSoftObjectPath& InNewObjectPath, bool bInOnlyFixSoftReferences = false, bool bInAlsoRenameLocalizedVariants = false)
 		: OldObjectPath(InOldObjectPath)
 		, NewObjectPath(InNewObjectPath)
 		, bOnlyFixSoftReferences(bInOnlyFixSoftReferences)
+		, bAlsoRenameLocalizedVariants(bInAlsoRenameLocalizedVariants) // This should probably be true by default but it is false for backward compatibility reasons
 	{
 	}
 };
@@ -271,6 +288,8 @@ public:
 
 	/** Gets the appropriate AssetTypeActions for the supplied class */
 	virtual TWeakPtr<IAssetTypeActions> GetAssetTypeActionsForClass(const UClass* Class) const = 0;
+
+	virtual TSharedPtr<ILocalizedAssetTools> GetLocalizedAssetTools() const = 0;
 
 	virtual bool CanLocalize(const UClass* Class) const = 0;
 

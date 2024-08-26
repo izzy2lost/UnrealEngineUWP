@@ -69,7 +69,10 @@ public:
 	virtual void UnregisterAssetTypeActions(const TSharedRef<IAssetTypeActions>& ActionsToRemove) override;
 	virtual void GetAssetTypeActionsList( TArray<TWeakPtr<IAssetTypeActions>>& OutAssetTypeActionsList ) const override;
 	virtual TWeakPtr<IAssetTypeActions> GetAssetTypeActionsForClass(const UClass* Class) const override;
-	virtual bool CanLocalize(const UClass* Class) const;
+
+	virtual TSharedPtr<ILocalizedAssetTools> GetLocalizedAssetTools() const override;
+	virtual bool CanLocalize(const UClass* Class) const override;
+
 	virtual TOptional<FLinearColor> GetTypeColor(const UClass* Class) const override;
 	
 	virtual TArray<TWeakPtr<IAssetTypeActions>> GetAssetTypeActionsListForClass(const UClass* Class) const override;
@@ -165,6 +168,9 @@ public:
 
 	/** The manager to handle renaming assets */
 	TSharedPtr<FAssetRenameManager> AssetRenameManager;
+
+	/** The tools to manage localized variants */
+	TSharedPtr<ILocalizedAssetTools> LocalizedAssetTools;
 
 	/** The manager to handle fixing up redirectors */
 	TSharedPtr<FAssetFixUpRedirectors> AssetFixUpRedirectors;

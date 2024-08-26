@@ -411,7 +411,9 @@ void AssetViewUtils::MoveAssets(const TArray<UObject*>& Assets, const FString& D
 			PackagePath = DestPath;
 		}
 
-		new(AssetsAndNames) FAssetRenameData(Asset, PackagePath, ObjectName);
+		const bool bSoftReferenceOnly = false;
+		const bool bAlsoRenameLocalizedVariants = true;
+		new(AssetsAndNames) FAssetRenameData(Asset, PackagePath, ObjectName, bSoftReferenceOnly, bAlsoRenameLocalizedVariants);
 	}
 
 	if ( AssetsAndNames.Num() > 0 )

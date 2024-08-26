@@ -1099,7 +1099,9 @@ bool RenameAssetFileItem(IAssetTools* InAssetTools, const FContentBrowserAssetFi
 		const FString PackagePath = FPackageName::GetLongPackagePath(Asset->GetOutermost()->GetName());
 
 		TArray<FAssetRenameData> AssetsAndNames;
-		AssetsAndNames.Emplace(FAssetRenameData(Asset, PackagePath, InNewName));
+		const bool bSoftReferenceOnly = false;
+		const bool bAlsoRenameLocalizedVariants = true;
+		AssetsAndNames.Emplace(FAssetRenameData(Asset, PackagePath, InNewName, bSoftReferenceOnly, bAlsoRenameLocalizedVariants));
 		// Note: This also returns false for Pending results as the rename may yet fail or be canceled, so the change has to be detected later via the asset registry
 		return InAssetTools->RenameAssetsWithDialog(AssetsAndNames) == EAssetRenameResult::Success;
 	}

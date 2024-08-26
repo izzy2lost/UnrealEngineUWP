@@ -18,6 +18,7 @@
 #include "Misc/PackageName.h"
 #include "Logging/MessageLog.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "Internationalization/PackageLocalizationUtil.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SourceControlHelpers)
 
@@ -1696,9 +1697,16 @@ void USourceControlHelpers::AsyncQueryFileState(FQueryFileStateDelegate FileStat
 	}
 }
 
-bool USourceControlHelpers::GetFilesInDepotAtPath(const FString& PathToDirectory, TArray<FString>& OutFilesList, bool bIncludeDeleted, bool bSilent)
+bool USourceControlHelpers::GetFilesInDepotAtPath(const FString& Path, TArray<FString>& OutFilesList, bool bIncludeDeleted, bool bSilent, bool bIsFileRegexSearch)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(USourceControlHelpers::GetFilesInDepotAtPath);
+	TArray<FString> Paths;
+	Paths.Add(Path);
+	return GetFilesInDepotAtPaths(Paths, OutFilesList, bIncludeDeleted, bSilent, bIsFileRegexSearch);
+}
+
+bool USourceControlHelpers::GetFilesInDepotAtPaths(const TArray<FString>& Paths, TArray<FString>& OutFilesList, bool bIncludeDeleted, bool bSilent, bool bIsFileRegexSearch)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(USourceControlHelpers::GetFilesInDepotAtPaths);
 
 	bool bSuccess = false;
 	if (ISourceControlModule::Get().IsEnabled())
@@ -1706,25 +1714,34 @@ bool USourceControlHelpers::GetFilesInDepotAtPath(const FString& PathToDirectory
 		ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
 		if (SourceControlProvider.IsAvailable())
 		{
-			FString CorrectedPath = PathToDirectory.Replace(TEXT("/Game"), TEXT(""), ESearchCase::CaseSensitive);
-			FString FullPath = FPaths::ProjectContentDir() / CorrectedPath;
-			FPaths::RemoveDuplicateSlashes(FullPath);
+			TArray<FString> PathsToQuery;
+			for (const FString& Path : Paths)
+			{
+				FString RelativePath;
+				FPackageName::TryConvertLongPackageNameToFilename(Path, RelativePath);
+				FPaths::RemoveDuplicateSlashes(RelativePath);
+				PathsToQuery.Add(RelativePath);
+			}
 
-			TArray<FString> FileArray;
-			FileArray.Add(FullPath);
-			
 			TSharedRef<FGetFileList, ESPMode::ThreadSafe> Operation = ISourceControlOperation::Create<FGetFileList>();
 			Operation->SetIncludeDeleted(bIncludeDeleted);
-			Operation->SetSearchPattern(PathToDirectory);
+			Operation->SetSearchPattern(PathsToQuery);
+			if (bIsFileRegexSearch)
+			{
+				Operation->SetMethodUsed(FGetFileList::EGetFileListMethod::FileRegexSearch);
+			}
 
-			ECommandResult::Type Result = SourceControlProvider.Execute(Operation, FileArray, EConcurrency::Synchronous);
+			ECommandResult::Type Result = SourceControlProvider.Execute(Operation, PathsToQuery, EConcurrency::Synchronous);
 			bSuccess = (Result == ECommandResult::Succeeded);
 
 			if (!bSuccess)
 			{
-				FFormatNamedArguments Arguments;
-				Arguments.Add(TEXT("PathToDirectory"), FText::FromString(PathToDirectory));
-				SourceControlHelpersInternal::LogError(FText::Format(LOCTEXT("CouldNotGetFileList", "Could not get file list under path: {PathToDirectory}."), Arguments), bSilent);
+				for (const FString& Path : Paths)
+				{
+					FFormatNamedArguments Arguments;
+					Arguments.Add(TEXT("Path"), FText::FromString(Path));
+					SourceControlHelpersInternal::LogError(FText::Format(LOCTEXT("CouldNotGetFileList", "Could not get file list at path: {Path}."), Arguments), bSilent);
+				}
 			}
 			else
 			{
