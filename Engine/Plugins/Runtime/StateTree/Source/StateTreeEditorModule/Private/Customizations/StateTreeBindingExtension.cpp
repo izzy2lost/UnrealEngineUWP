@@ -623,7 +623,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 
 		const FGuid StructID = InStructDesc.ID;
 
-		const FScopedTransaction Transaction(LOCTEXT("PromoteToParameter", "Promote To Parameter"));
+		const FScopedTransaction Transaction(LOCTEXT("PromoteToParameter", "Promote to Parameter"));
 
 		TArray<FStateTreeEditorPropertyCreationDesc, TFixedAllocator<1>> PropertyCreationDescs;
 		{
