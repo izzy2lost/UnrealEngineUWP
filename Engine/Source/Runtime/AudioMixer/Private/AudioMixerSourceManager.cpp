@@ -2594,6 +2594,7 @@ namespace Audio
 			AudioPluginInputData.NumChannels = SourceInfo.NumInputChannels;
 			AudioPluginInputData.SourceId = SourceId;
 			AudioPluginInputData.SpatializationParams = &SourceInfo.SpatParams;
+			AudioPluginInputData.AudioComponentId = SourceInfo.AudioComponentID;
 
 			if (!SpatialInterfaceInfo.bSpatializationIsExternalSend)
 			{
