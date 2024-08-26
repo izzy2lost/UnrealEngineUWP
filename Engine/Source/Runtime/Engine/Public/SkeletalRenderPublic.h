@@ -245,13 +245,6 @@ public:
 	 * @param MaterialIdx - index of the material section to check
 	 */
 	bool IsMaterialHidden(int32 InLODIndex,int32 MaterialIdx) const;
-
-	/**
-	 * Determine if any material section entry for an LOD is hidden or not
-	 *
-	 * @param InLODIndex - LOD entry to get hidden material flags for
-	 */
-	bool IsAnyMaterialHidden(int32 InLODIndex) const;
 	
 	/**
 	 * Initialize the array of LODInfo based on the settings of the current skel mesh component

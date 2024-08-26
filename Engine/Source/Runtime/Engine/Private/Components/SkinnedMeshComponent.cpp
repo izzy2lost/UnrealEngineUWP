@@ -3521,6 +3521,8 @@ void USkinnedMeshComponent::ShowMaterialSection(int32 MaterialID, int32 SectionI
 				InMeshObject->SetHiddenMaterials(LODIndex, HiddenMaterials);
 			});
 		}
+
+		MarkRenderStateDirty();
 	}
 }
 
@@ -3550,6 +3552,7 @@ void USkinnedMeshComponent::ShowAllMaterialSections(int32 LODIndex)
 						InMeshObject->SetHiddenMaterials(LODIndex, HiddenMaterials);
 					});
 			}
+			MarkRenderStateDirty();
 		}
 	}
 }
