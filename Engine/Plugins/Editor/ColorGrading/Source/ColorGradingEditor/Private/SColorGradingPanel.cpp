@@ -11,7 +11,6 @@
 #include "ActorTreeItem.h"
 #include "Algo/Compare.h"
 #include "ComponentTreeItem.h"
-#include "ColorCorrectRegion.h"
 #include "Editor.h"
 #include "Engine/Blueprint.h"
 #include "Engine/Engine.h"

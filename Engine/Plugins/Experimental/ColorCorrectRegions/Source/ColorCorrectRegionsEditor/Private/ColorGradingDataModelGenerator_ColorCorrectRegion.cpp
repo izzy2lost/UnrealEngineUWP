@@ -16,7 +16,7 @@
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "Widgets/Text/STextBlock.h"
 
-#define LOCTEXT_NAMESPACE "ColorGradingEditor"
+#define LOCTEXT_NAMESPACE "FColorGradingDataModelGenerator_ColorCorrectRegion"
 
 TSharedRef<IColorGradingEditorDataModelGenerator> FColorGradingDataModelGenerator_ColorCorrectRegion::MakeInstance()
 {

@@ -10,10 +10,10 @@
 	"DocsURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "",
-	"EnabledByDefault": false,
+	"EnabledByDefault": true,
 	"CanContainContent": false,
 	"IsBetaVersion": false,
-	"Installed": false,
+	"Hidden": true,
 	"Modules": [
 		{
 			"Name": "ColorGradingEditor",
@@ -22,10 +22,6 @@
 		}
 	],
 	"Plugins": [
-		{
-			"Name": "ColorCorrectRegions",
-			"Enabled": true
-		},
 		{
 			"Name": "ObjectMixer",
 			"Enabled": true

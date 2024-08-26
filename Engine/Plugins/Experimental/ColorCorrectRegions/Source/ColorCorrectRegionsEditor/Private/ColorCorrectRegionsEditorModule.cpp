@@ -7,6 +7,9 @@
 #include "ColorCorrectRegionCustomization.h"
 #include "ColorCorrectRegionsStyle.h"
 #include "ColorCorrectWindow.h"
+#include "ColorGradingDataModelGenerator_ColorCorrectRegion.h"
+#include "ColorGradingEditorDataModel.h"
+#include "ColorGradingMixerObjectFilterRegistry.h"
 #include "IPlacementModeModule.h"
 
 #define LOCTEXT_NAMESPACE "FColorCorrectRegionsModule"
@@ -18,6 +21,16 @@ void FColorCorrectRegionsEditorModule::StartupModule()
 
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyModule.RegisterCustomClassLayout(AColorCorrectRegion::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FColorCorrectWindowDetails::MakeInstance));
+
+	FColorGradingEditorDataModel::RegisterColorGradingDataModelGenerator<AColorCorrectRegion>(
+		FGetDetailsDataModelGenerator::CreateStatic(&FColorGradingDataModelGenerator_ColorCorrectRegion::MakeInstance));
+
+	FColorGradingListItem::RegisterColorGradingListItemGenerator<FColorGradingListItemGenerator_ColorCorrectRegion>();
+
+	FColorGradingMixerObjectFilterRegistry::RegisterActorClassToPlace(AColorCorrectionRegion::StaticClass());
+	FColorGradingMixerObjectFilterRegistry::RegisterActorClassToPlace(AColorCorrectionWindow::StaticClass());
+
+	FColorGradingMixerObjectFilterRegistry::RegisterObjectClassToFilter(AColorCorrectRegion::StaticClass());
 
 	ContextMenu = MakeShared<FColorCorrectionActorContextMenu>();
 	ContextMenu->RegisterContextMenuExtender();

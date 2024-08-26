@@ -20,7 +20,6 @@ public class ColorGradingEditor : ModuleRules
 			new string[] {
 				"ApplicationCore",
 				"AppFramework",
-				"ColorCorrectRegions",
 				"Core",
 				"CoreUObject",
 				"DetailCustomizations",
