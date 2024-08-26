@@ -32,4 +32,6 @@ private:
 	static void AddLayerInputsMenu_Slots(UToolMenu* InMenu);
 
 	static void AddLayerMenu_Gradients(UToolMenu* InMenu);
+
+	static void AddLayerMenu_Advanced(UToolMenu* InMenu);
 };

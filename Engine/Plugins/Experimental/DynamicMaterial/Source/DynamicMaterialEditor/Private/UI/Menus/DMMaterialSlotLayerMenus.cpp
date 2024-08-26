@@ -112,36 +112,6 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		return;
 	}
 
-	bool bHasValidSlot = false;
-
-	if constexpr (UE::DynamicMaterialEditor::bAdvancedSlotsEnabled)
-	{
-		const TArray<UDMMaterialSlot*>& Slots = ModelEditorOnlyData->GetSlots();
-
-		for (UDMMaterialSlot* SlotIter : Slots)
-		{
-			if (Slot == SlotIter)
-			{
-				continue;
-			}
-
-			if (SlotIter->GetLayers().IsEmpty())
-			{
-				continue;
-			}
-
-			TArray<EDMMaterialPropertyType> SlotProperties = ModelEditorOnlyData->GetMaterialPropertiesForSlot(SlotIter);
-
-			if (SlotProperties.IsEmpty())
-			{
-				continue;
-			}
-
-			bHasValidSlot = true;
-			break;
-		}
-	}
-
 	FToolMenuSection& NewSection = InMenu->AddSection(SlotLayerAddSectionName, LOCTEXT("AddLayer", "Add Layer"));
 
 	NewSection.AddMenuEntry(
@@ -160,51 +130,6 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 
 	NewSection.AddMenuEntry(
 		NAME_None,
-		LOCTEXT("AddTextureSampleBaseOnly", "Texture (No alpha)"),
-		LOCTEXT("AddTextureSampleBaseOnlyTooltip", "Add a Material Stage based on a Texture with the Alpha disabled."),
-		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateWeakLambda(
-			Slot,
-			[Slot, ExpressionClass = TSubclassOf<UDMMaterialStageExpression>(UDMMaterialStageExpressionTextureSample::StaticClass())]
-			{
-				UDMMaterialLayerObject* NewLayer = UDMMaterialSlotFunctionLibrary::AddNewLayer_Expression(Slot, ExpressionClass);
-
-				NewLayer->ForEachValidStage(
-					EDMMaterialLayerStage::All,
-					[NewLayer](UDMMaterialStage* InStage)
-					{
-						InStage->SetEnabled(InStage->SetEnabled(NewLayer->GetStageType(InStage) != EDMMaterialLayerStage::Mask));
-					});
-			}
-		))
-	);
-
-	if (Slot->GetLayers().IsEmpty() == false)
-	{
-		NewSection.AddMenuEntry(
-			NAME_None,
-			LOCTEXT("AddAlphaOnly", "Alpha Only"),
-			LOCTEXT("AddAlphaOnlyTooltip", "Add an Alpha-Only Material Layer.\n\nThe base layer will be disabled by default. It can still be re-enabled later."),
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateWeakLambda(
-				Slot,
-				[Slot, ExpressionClass = TSubclassOf<UDMMaterialStageExpression>(UDMMaterialStageExpressionTextureSample::StaticClass())]
-				{
-					UDMMaterialLayerObject* NewLayer = UDMMaterialSlotFunctionLibrary::AddNewLayer_Expression(Slot, ExpressionClass);
-
-					NewLayer->ForEachValidStage(
-						EDMMaterialLayerStage::All,
-						[NewLayer](UDMMaterialStage* InStage)
-						{
-							InStage->SetEnabled(InStage->SetEnabled(NewLayer->GetStageType(InStage) == EDMMaterialLayerStage::Mask));
-						});
-				}
-			))
-		);
-	}
-
-	NewSection.AddMenuEntry(
-		NAME_None,
 		LOCTEXT("AddColor", "Solid Color"),
 		LOCTEXT("AddColorTooltip", "Add a new Material Layer with a solid RGB color."),
 		FSlateIcon(),
@@ -213,20 +138,6 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 			[Slot]
 			{
 				UDMMaterialSlotFunctionLibrary::AddNewLayer_NewLocalValue(Slot, EDMValueType::VT_Float3_RGB);
-			}
-		))
-	);
-
-	NewSection.AddMenuEntry(
-		NAME_None,
-		LOCTEXT("AddColorAtlas", "Color Atlas"),
-		LOCTEXT("AddColorAtlasTooltip", "Add a new Material Layer with a Color Atlas."),
-		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateWeakLambda(
-			Slot,
-			[Slot]
-			{
-				UDMMaterialSlotFunctionLibrary::AddNewLayer_NewLocalValue(Slot, EDMValueType::VT_ColorAtlas);
 			}
 		))
 	);
@@ -247,48 +158,6 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 
 	NewSection.AddMenuEntry(
 		NAME_None,
-		LOCTEXT("AddSceneTexture", "Scene Texture"),
-		LOCTEXT("AddSceneTextureTooltip", "Add a new Material Layer that represents the Scene Texture for a post process material."),
-		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateWeakLambda(
-			Slot,
-			[Slot]
-			{
-				UDMMaterialSlotFunctionLibrary::AddNewLayer_SceneTexture(Slot);
-			}
-		))
-	);
-
-	NewSection.AddMenuEntry(
-		NAME_None,
-		LOCTEXT("AddText", "Text"),
-		LOCTEXT("AddTextTooltip", "Add a Material Stage based on a Text Renderer."),
-		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateWeakLambda(
-			Slot,
-			[Slot]
-			{
-				UDMMaterialSlotFunctionLibrary::AddNewLayer_Renderer(Slot, TSubclassOf<UDMRenderTargetRenderer>(UDMRenderTargetTextRenderer::StaticClass()));
-			}
-		))
-	);
-
-	NewSection.AddMenuEntry(
-		NAME_None,
-		LOCTEXT("AddWidget", "Widget"),
-		LOCTEXT("AddWidgetTooltip", "Add a Material Stage based on a Widget Renderer."),
-		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateWeakLambda(
-			Slot,
-			[Slot]
-			{
-				UDMMaterialSlotFunctionLibrary::AddNewLayer_Renderer(Slot, TSubclassOf<UDMRenderTargetRenderer>(UDMRenderTargetUMGWidgetRenderer::StaticClass()));
-			}
-		))
-	);
-
-	NewSection.AddMenuEntry(
-		NAME_None,
 		LOCTEXT("AddNoise", "Noise"),
 		LOCTEXT("AddNoiseTooltip", "Add a new Material Layer with a noise pattern."),
 		FSlateIcon(),
@@ -301,17 +170,21 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		))
 	);
 
-	if constexpr (UE::DynamicMaterialEditor::bAdvancedSlotsEnabled)
+	if (ModelEditorOnlyData->GetDomain() == EMaterialDomain::MD_PostProcess)
 	{
-		if (bHasValidSlot)
-		{
-			NewSection.AddSubMenu(
-				NAME_None,
-				LOCTEXT("AddSlotStage", "Slot Output"),
-				LOCTEXT("AddSlotStageTooltip", "Add a Material Stage based on the output of another Material Slot."),
-				FNewToolMenuDelegate::CreateStatic(&AddLayerInputsMenu_Slots)
-			);
-		}
+		NewSection.AddMenuEntry(
+			NAME_None,
+			LOCTEXT("AddSceneTexture", "Post Process"),
+			LOCTEXT("AddSceneTextureTooltip", "Add a new Material Layer that represents the Scene Texture for a post process material."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateWeakLambda(
+				Slot,
+				[Slot]
+				{
+					UDMMaterialSlotFunctionLibrary::AddNewLayer_SceneTexture(Slot);
+				}
+			))
+		);
 	}
 
 	const TArray<TStrongObjectPtr<UClass>>& Gradients = UDMMaterialStageGradient::GetAvailableGradients();
@@ -326,24 +199,17 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		);
 	}
 
-	NewSection.AddMenuEntry(
-		NAME_None,
-		LOCTEXT("AddMaterialFunction", "Material Function"),
-		LOCTEXT("AddMaterialFunctionTooltip", "Add a new Material Layer based on a Material Function."),
-		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateWeakLambda(
-			Slot,
-			[Slot]
-			{
-				UDMMaterialSlotFunctionLibrary::AddNewLayer_MaterialFunction(Slot);
-			}
-		))
-	);
-
 	if constexpr (UE::DynamicMaterialEditor::bGlobalValuesEnabled)
 	{
 		AddGlobalValueSection(InMenu);
 	}
+
+	NewSection.AddSubMenu(
+		NAME_None,
+		LOCTEXT("AddAdvancedStage", "Advanced"),
+		LOCTEXT("AddAdvancedStageTooltip", "Add an advanced Material Stage."),
+		FNewToolMenuDelegate::CreateStatic(&AddLayerMenu_Advanced)
+	);
 }
 
 void FDMMaterialSlotLayerMenus::AddLayerModifySection(UToolMenu* InMenu)
@@ -736,6 +602,154 @@ void FDMMaterialSlotLayerMenus::AddLayerMenu_Gradients(UToolMenu* InMenu)
 				))
 			)
 		);
+	}
+
+	InMenu->AddMenuEntry(
+		NAME_None,
+		FToolMenuEntry::InitMenuEntry(
+			NAME_None,
+			LOCTEXT("AddColorAtlas", "Color Atlas"),
+			LOCTEXT("AddColorAtlasTooltip", "Add a new Material Layer with a Color Atlas."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateWeakLambda(
+				Slot,
+				[Slot]
+				{
+					UDMMaterialSlotFunctionLibrary::AddNewLayer_NewLocalValue(Slot, EDMValueType::VT_ColorAtlas);
+				}
+			))
+		)
+	);
+}
+
+void FDMMaterialSlotLayerMenus::AddLayerMenu_Advanced(UToolMenu* InMenu)
+{
+	using namespace UE::DynamicMaterialEditor::Private;
+
+	if (!IsValid(InMenu))
+	{
+		return;
+	}
+
+	UDMMenuContext* MenuContext = InMenu->FindContext<UDMMenuContext>();
+
+	if (!MenuContext)
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialEditor> EditorWidget = MenuContext->GetEditorWidget();
+
+	if (!EditorWidget.IsValid())
+	{
+		return;
+	}
+
+	UDMMaterialSlot* Slot = EditorWidget->GetSlotEditorWidget()->GetSlot();
+
+	if (!Slot)
+	{
+		return;
+	}
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
+
+	if (!ModelEditorOnlyData)
+	{
+		return;
+	}
+
+	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
+
+	if (!MaterialModel)
+	{
+		return;
+	}
+
+	FToolMenuSection& NewSection = InMenu->AddSection(
+		NAME_None,
+		LOCTEXT("Advanced", "Advanced")
+	);
+
+	NewSection.AddMenuEntry(
+		NAME_None,
+		LOCTEXT("AddText", "Text"),
+		LOCTEXT("AddTextTooltip", "Add a Material Stage based on a Text Renderer."),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateWeakLambda(
+			Slot,
+			[Slot]
+			{
+				UDMMaterialSlotFunctionLibrary::AddNewLayer_Renderer(Slot, TSubclassOf<UDMRenderTargetRenderer>(UDMRenderTargetTextRenderer::StaticClass()));
+			}
+		))
+	);
+
+	NewSection.AddMenuEntry(
+		NAME_None,
+		LOCTEXT("AddWidget", "Widget"),
+		LOCTEXT("AddWidgetTooltip", "Add a Material Stage based on a Widget Renderer."),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateWeakLambda(
+			Slot,
+			[Slot]
+			{
+				UDMMaterialSlotFunctionLibrary::AddNewLayer_Renderer(Slot, TSubclassOf<UDMRenderTargetRenderer>(UDMRenderTargetUMGWidgetRenderer::StaticClass()));
+			}
+		))
+	);
+
+	NewSection.AddMenuEntry(
+		NAME_None,
+		LOCTEXT("AddMaterialFunction", "Material Function"),
+		LOCTEXT("AddMaterialFunctionTooltip", "Add a new Material Layer based on a Material Function."),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateWeakLambda(
+			Slot,
+			[Slot]
+			{
+				UDMMaterialSlotFunctionLibrary::AddNewLayer_MaterialFunction(Slot);
+			}
+		))
+	);
+
+	if constexpr (UE::DynamicMaterialEditor::bAdvancedSlotsEnabled)
+	{
+		bool bHasValidSlot = false;
+		const TArray<UDMMaterialSlot*>& Slots = ModelEditorOnlyData->GetSlots();
+
+		for (UDMMaterialSlot* SlotIter : Slots)
+		{
+			if (Slot == SlotIter)
+			{
+				continue;
+			}
+
+			if (SlotIter->GetLayers().IsEmpty())
+			{
+				continue;
+			}
+
+			TArray<EDMMaterialPropertyType> SlotProperties = ModelEditorOnlyData->GetMaterialPropertiesForSlot(SlotIter);
+
+			if (SlotProperties.IsEmpty())
+			{
+				continue;
+			}
+
+			bHasValidSlot = true;
+			break;
+		}
+
+		if (bHasValidSlot)
+		{
+			NewSection.AddSubMenu(
+				NAME_None,
+				LOCTEXT("AddSlotStage", "Slot Output"),
+				LOCTEXT("AddSlotStageTooltip", "Add a Material Stage based on the output of another Material Slot."),
+				FNewToolMenuDelegate::CreateStatic(&AddLayerInputsMenu_Slots)
+			);
+		}
 	}
 }
 

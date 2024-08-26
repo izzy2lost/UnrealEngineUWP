@@ -41,6 +41,8 @@ private:
 
 	static void GenerateChangeSourceMenu_Gradients(UToolMenu* const InMenu);
 
+	static void GenerateChangeSourceMenu_Advanced(UToolMenu* const InMenu);
+
 	static void ChangeSourceToTextureSampleFromContext(UDMMenuContext* InMenuContext);
 
 	static void ChangeSourceToNoiseFromContext(UDMMenuContext* InMenuContext);

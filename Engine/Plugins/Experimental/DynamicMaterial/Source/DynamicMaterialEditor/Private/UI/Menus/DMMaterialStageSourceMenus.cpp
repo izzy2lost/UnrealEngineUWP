@@ -708,57 +708,188 @@ void FDMMaterialStageSourceMenus::GenerateChangeSourceMenu_Gradients(UToolMenu* 
 		{
 			const FText MenuName = GradientCDO->GetDescription();
 
-			InMenu->AddMenuEntry(NAME_None, FToolMenuEntry::InitMenuEntry(NAME_None,
-				MenuName,
-				LOCTEXT("ChangeSourceGradientTooltip", "Change the source of this stage to a Material Gradient."),
-				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateWeakLambda(
-					MenuContext,
-					[MenuContext, GradientClass]()
-					{
-						UDMMaterialStage* const Stage = MenuContext->GetStage();
-						if (!Stage)
+			InMenu->AddMenuEntry(
+				NAME_None,
+				FToolMenuEntry::InitMenuEntry(
+					NAME_None,
+					MenuName,
+					LOCTEXT("ChangeSourceGradientTooltip", "Change the source of this stage to a Material Gradient."),
+					FSlateIcon(),
+					FUIAction(FExecuteAction::CreateWeakLambda(
+						MenuContext,
+						[MenuContext, GradientClass]()
 						{
-							return;
-						}
+							UDMMaterialStage* const Stage = MenuContext->GetStage();
+							if (!Stage)
+							{
+								return;
+							}
 
-						UDMMaterialStageSource* const StageSource = Stage->GetSource();
-						if (!StageSource)
-						{
-							return;
-						}
+							UDMMaterialStageSource* const StageSource = Stage->GetSource();
+							if (!StageSource)
+							{
+								return;
+							}
 
-						if (StageSource->IsA<UDMMaterialStageBlend>())
-						{
-							FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
-							Stage->Modify();
+							if (StageSource->IsA<UDMMaterialStageBlend>())
+							{
+								FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
+								Stage->Modify();
 
-							UDMMaterialStageInputGradient::ChangeStageInput_Gradient(
-								Stage,
-								GradientClass.Get(), UDMMaterialStageBlend::InputB,
-								FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-								FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
-							);
-						}
-						else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
-						{
-							FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
-							Stage->Modify();
-							UDMMaterialStageInputGradient::ChangeStageInput_Gradient(
-								Stage,
-								GradientClass.Get(), 
-								UDMMaterialStageThroughputLayerBlend::InputMaskSource,
-								FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-								FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
-							);
-						}
-						else
-						{
-							ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
-						}
-					})
-				)
+								UDMMaterialStageInputGradient::ChangeStageInput_Gradient(
+									Stage,
+									GradientClass.Get(), UDMMaterialStageBlend::InputB,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+								);
+							}
+							else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
+							{
+								FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
+								Stage->Modify();
+								UDMMaterialStageInputGradient::ChangeStageInput_Gradient(
+									Stage,
+									GradientClass.Get(), 
+									UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+								);
+							}
+							else
+							{
+								ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
+							}
+						})
+					)
 			));
+		}
+	}
+
+	InMenu->AddMenuEntry(
+		NAME_None,
+		FToolMenuEntry::InitMenuEntry(
+			NAME_None,
+			LOCTEXT("ChangeSourceColorAtlas", "Color Atlas"),
+			LOCTEXT("ChangeSourceColorAtlasTooltip", "Change the source of this stage to a Color Atlas."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateStatic(
+					&ChangeSourceToColorAtlasFromContext,
+					MenuContext
+				)
+			)
+		)
+	);
+}
+
+void FDMMaterialStageSourceMenus::GenerateChangeSourceMenu_Advanced(UToolMenu* const InMenu)
+{
+	if (!ensure(IsValid(InMenu)))
+	{
+		return;
+	}
+
+	UDMMenuContext* MenuContext = InMenu->FindContext<UDMMenuContext>();
+	if (!ensure(MenuContext))
+	{
+		return;
+	}
+
+	UDMMaterialSlot* Slot = MenuContext->GetSlot();
+
+	UDynamicMaterialModel* MaterialModel = MenuContext->GetModel();
+
+	if (!ensure(MaterialModel))
+	{
+		return;
+	}
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+
+	if (!ensure(ModelEditorOnlyData))
+	{
+		return;
+	}
+
+	FToolMenuSection& NewSection = InMenu->AddSection(
+		NAME_None,
+		LOCTEXT("Advanced", "Advanced")
+	);
+
+	NewSection.AddMenuEntry("Text",
+		LOCTEXT("ChangeSourceText", "Text"),
+		LOCTEXT("ChangeSourceTextTooltip", "Change the source of this stage to a Text Renderer."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateStatic(
+				&ChangeSourceToTextFromContext,
+				MenuContext
+			)
+		)
+	);
+
+	NewSection.AddMenuEntry("Widget",
+		LOCTEXT("ChangeSourceWidget", "Widget"),
+		LOCTEXT("ChangeSourceWidgetTooltip", "Change the source of this stage to a Widget Renderer."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateStatic(
+				&ChangeSourceToWidgetFromContext,
+				MenuContext
+			)
+		)
+	);
+
+	NewSection.AddMenuEntry("MaterialFunction",
+		LOCTEXT("ChangeSourceMaterialFunction", "Material Function"),
+		LOCTEXT("ChangeSourceMaterialFunctionTooltip", "Change the source of this stage to a Material Function."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateStatic(
+				&ChangeSourceToMaterialFunctionFromContext,
+				MenuContext
+			)
+		)
+	);
+
+	if constexpr (UE::DynamicMaterialEditor::bAdvancedSlotsEnabled)
+	{
+		bool bHasValidSlot = false;
+
+		if constexpr (UE::DynamicMaterialEditor::bAdvancedSlotsEnabled)
+		{
+			const TArray<UDMMaterialSlot*>& Slots = ModelEditorOnlyData->GetSlots();
+
+			for (UDMMaterialSlot* SlotIter : Slots)
+			{
+				if (SlotIter == Slot)
+				{
+					continue;
+				}
+
+				if (SlotIter->GetLayers().IsEmpty())
+				{
+					continue;
+				}
+
+				bHasValidSlot = true;
+				break;
+			}
+		}
+
+		if (bHasValidSlot)
+		{
+			NewSection.AddDynamicEntry(
+				NAME_None,
+				FNewToolMenuSectionDelegate::CreateLambda(
+					[](FToolMenuSection& InSection)
+					{
+						InSection.AddSubMenu("SlotOutput",
+							LOCTEXT("ChangeSourceSlotOuptut", "Slot Output"),
+							LOCTEXT("ChangeSourceSlotOutputTooltip", "Change the source of this stage to the output from another Material Slot."),
+							FNewToolMenuDelegate::CreateStatic(&GenerateChangeSourceMenu_Slots)
+							);
+					}));
 		}
 	}
 }
@@ -1328,29 +1459,6 @@ void FDMMaterialStageSourceMenus::CreateChangeMaterialStageSource(FToolMenuSecti
 
 	const TArray<TStrongObjectPtr<UClass>>& Gradients = UDMMaterialStageGradient::GetAvailableGradients();
 
-	bool bHasValidSlot = false;
-
-	if constexpr (UE::DynamicMaterialEditor::bAdvancedSlotsEnabled)
-	{
-		const TArray<UDMMaterialSlot*>& Slots = ModelEditorOnlyData->GetSlots();
-
-		for (UDMMaterialSlot* SlotIter : Slots)
-		{
-			if (SlotIter == Slot)
-			{
-				continue;
-			}
-
-			if (SlotIter->GetLayers().IsEmpty())
-			{
-				continue;
-			}
-
-			bHasValidSlot = true;
-			break;
-		}
-	}
-
 	InSection.AddMenuEntry("TextureSample",
 		LOCTEXT("TextureSample", "Texture"),
 		LOCTEXT("ChangeSourceTextureSampleTooltip", "Change the source of this stage to a texture."),
@@ -1375,18 +1483,6 @@ void FDMMaterialStageSourceMenus::CreateChangeMaterialStageSource(FToolMenuSecti
 		)
 	);
 
-	InSection.AddMenuEntry("ColorAtlas",
-		LOCTEXT("ChangeSourceColorAtlas", "Color Atlas"),
-		LOCTEXT("ChangeSourceColorAtlasTooltip", "Change the source of this stage to a Color Atlas."),
-		FSlateIcon(),
-		FUIAction(
-			FExecuteAction::CreateStatic(
-				&ChangeSourceToColorAtlasFromContext,
-				MenuContext
-			)
-		)
-	);
-
 	InSection.AddMenuEntry("TextureSample_EdgeColor",
 		LOCTEXT("AddTextureSampleEgdeColor", "Texture Edge Color"),
 		LOCTEXT("ChangeSourceTextureSampleEdgeColorTooltip", "Change the source of this stage to the edge color of a texture."),
@@ -1399,8 +1495,20 @@ void FDMMaterialStageSourceMenus::CreateChangeMaterialStageSource(FToolMenuSecti
 		)
 	);
 
+	InSection.AddMenuEntry("Noise",
+		LOCTEXT("ChangeSourceNoise", "Noise"),
+		LOCTEXT("ChangeSourceNoiseTooltip", "Change the source of this stage to a Noise Renderer."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateStatic(
+				&ChangeSourceToNoiseFromContext,
+				MenuContext
+			)
+		)
+	);
+
 	InSection.AddMenuEntry("SceneTexture",
-		LOCTEXT("AddSceneTexture", "Scene Texture"),
+		LOCTEXT("AddSceneTexture", "Post Process"),
 		LOCTEXT("ChangeSourceSceneTextureTooltip", "Change the source of this stage to Scene Texture in post process materials."),
 		FSlateIcon(),
 		FUIAction(
@@ -1410,42 +1518,6 @@ void FDMMaterialStageSourceMenus::CreateChangeMaterialStageSource(FToolMenuSecti
 			),
 			FCanExecuteAction::CreateStatic(
 				&CanChangeSourceToSceneTextureFromContext,
-				MenuContext
-			)
-		)
-	);
-
-	InSection.AddMenuEntry("Text",
-		LOCTEXT("ChangeSourceText", "Text"),
-		LOCTEXT("ChangeSourceTextTooltip", "Change the source of this stage to a Text Renderer."),
-		FSlateIcon(),
-		FUIAction(
-			FExecuteAction::CreateStatic(
-				&ChangeSourceToTextFromContext,
-				MenuContext
-			)
-		)
-	);
-
-	InSection.AddMenuEntry("Widget",
-		LOCTEXT("ChangeSourceWidget", "Widget"),
-		LOCTEXT("ChangeSourceWidgetTooltip", "Change the source of this stage to a Widget Renderer."),
-		FSlateIcon(),
-		FUIAction(
-			FExecuteAction::CreateStatic(
-				&ChangeSourceToWidgetFromContext,
-				MenuContext
-			)
-		)
-	);
-
-	InSection.AddMenuEntry("Noise",
-		LOCTEXT("ChangeSourceNoise", "Noise"),
-		LOCTEXT("ChangeSourceNoiseTooltip", "Change the source of this stage to a Noise Renderer."),
-		FSlateIcon(),
-		FUIAction(
-			FExecuteAction::CreateStatic(
-				&ChangeSourceToNoiseFromContext,
 				MenuContext
 			)
 		)
@@ -1486,35 +1558,11 @@ void FDMMaterialStageSourceMenus::CreateChangeMaterialStageSource(FToolMenuSecti
 		);
 	}
 
-	InSection.AddMenuEntry("MaterialFunction",
-		LOCTEXT("ChangeSourceMaterialFunction", "Material Function"),
-		LOCTEXT("ChangeSourceMaterialFunctionTooltip", "Change the source of this stage to a Material Function."),
-		FSlateIcon(),
-		FUIAction(
-			FExecuteAction::CreateStatic(
-				&ChangeSourceToMaterialFunctionFromContext,
-				MenuContext
-			)
-		)
+	InSection.AddSubMenu("Advanced",
+		LOCTEXT("ChangeSourceAdvanced", "Advanced"),
+		LOCTEXT("ChangeSourceAdvancedTooltip", "Add an advanced Material Stage."),
+		FNewToolMenuDelegate::CreateStatic(&GenerateChangeSourceMenu_Advanced)
 	);
-
-	if constexpr (UE::DynamicMaterialEditor::bAdvancedSlotsEnabled)
-	{
-		if (bHasValidSlot)
-		{
-			InSection.AddDynamicEntry(
-				NAME_None,
-				FNewToolMenuSectionDelegate::CreateLambda(
-					[](FToolMenuSection& InSection)
-					{
-						InSection.AddSubMenu("SlotOutput",
-						LOCTEXT("ChangeSourceSlotOuptut", "Slot Output"),
-						LOCTEXT("ChangeSourceSlotOutputTooltip", "Change the source of this stage to the output from another Material Slot."),
-						FNewToolMenuDelegate::CreateStatic(&GenerateChangeSourceMenu_Slots)
-						);
-					}));
-		}
-	}
 }
 
 #undef LOCTEXT_NAMESPACE
