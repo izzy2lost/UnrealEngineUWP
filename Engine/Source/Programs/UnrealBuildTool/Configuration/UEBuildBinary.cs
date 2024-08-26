@@ -878,13 +878,7 @@ namespace UnrealBuildTool
 				bStripUnusedExports = true;
 
 				string Name = OutputFilePaths.First().GetFileNameWithoutExtension();
-				string Ext = "obj";
-				if (CompileEnvironment.Platform.IsInGroup(UnrealPlatformGroup.Nintendo) || CompileEnvironment.Platform.IsInGroup(UnrealPlatformGroup.Sony))
-					Ext = "ldscript";
-				else if (!CompileEnvironment.Platform.IsInGroup(UnrealPlatformGroup.Microsoft))
-					Ext = "o";
-
-				FileReference extraObj = FileReference.Combine(IntermediateDirectory!, $"{Name}.extra.{Ext}");
+				FileReference extraObj = FileReference.Combine(IntermediateDirectory!, $"{Name}.extra.{(Target.Platform.IsInGroup(UnrealPlatformGroup.Microsoft) ? "obj" : "o")}");
 				BinaryLinkEnvironment.InputFiles.Add(FileItem.GetItemByFileReference(extraObj));
 			}
 
