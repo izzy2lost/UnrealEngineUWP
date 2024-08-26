@@ -243,7 +243,7 @@ namespace UnrealGameSync
 
 		async Task RunTcpAsync(int portNumber, CancellationToken cancellationToken)
 		{
-			TcpListener listener = new TcpListener(IPAddress.Loopback, portNumber);
+			using TcpListener listener = new TcpListener(IPAddress.Loopback, portNumber);
 			using (IDisposable disposable = cancellationToken.Register(() => listener.Stop()))
 			{
 				listener.Start();
@@ -371,7 +371,7 @@ namespace UnrealGameSync
 
 		public async ValueTask DisposeAsync()
 		{
-			_cancellationSource.Cancel();
+			await _cancellationSource.CancelAsync();
 
 			try
 			{

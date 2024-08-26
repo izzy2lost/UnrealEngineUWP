@@ -464,7 +464,7 @@ namespace UnrealGameSync
 						notifyTask = Task.Delay(TimeSpan.FromSeconds(5.0), cancellationSource.Token).ContinueWith(_ => _synchronizationContext.Post(_ => OnUpdateMetadata?.Invoke(), null), cancellationSource.Token, new TaskContinuationOptions(), TaskScheduler.Default);
 					}
 				}
-				cancellationSource.Cancel();
+				await cancellationSource.CancelAsync();
 				await notifyTask.ContinueWith(_ => { }, TaskScheduler.Default); // Ignore exceptions
 			}
 

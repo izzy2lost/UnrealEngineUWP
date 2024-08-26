@@ -142,7 +142,7 @@ namespace UnrealGameSync
 
 			if (_workerTask != null)
 			{
-				_cancellationSource.Cancel();
+				await _cancellationSource.CancelAsync();
 
 				await _workerTask;
 				_workerTask = null;

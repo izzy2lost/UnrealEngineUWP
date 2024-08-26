@@ -49,19 +49,17 @@ namespace UnrealGameSync
 				StopAsync().Wait();
 			}
 
-			Task StopAsync()
+			async Task StopAsync()
 			{
-				Task stopTask = Task.CompletedTask;
 				if (_backgroundTask != null)
 				{
 					_onComplete = null;
 
-					_cancellationSource.Cancel();
-					stopTask = _backgroundTask;
+					await _cancellationSource.CancelAsync();
+					await _backgroundTask;
 
 					_backgroundTask = null!;
 				}
-				return stopTask;
 			}
 
 			public void FetchChanges(string userName)
