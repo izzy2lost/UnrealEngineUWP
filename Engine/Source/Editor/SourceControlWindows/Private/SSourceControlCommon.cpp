@@ -23,6 +23,7 @@
 #include "Framework/Docking/TabManager.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Logging/MessageLog.h"
+#include "Misc/PathViews.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Modules/ModuleManager.h"
 #include "Editor.h"
@@ -124,6 +125,7 @@ static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, co
 {
 	// Initialize display-related members
 	FString Filename = InFilename;
+	FString Extension = FPaths::GetExtension(Filename);
 	FString TempAssetName = SSourceControlCommon::GetDefaultAssetName().ToString();
 	FString TempAssetPath = Filename;
 	FString TempAssetType = SSourceControlCommon::GetDefaultAssetType().ToString();
@@ -134,6 +136,11 @@ static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, co
 		127 + FColor::Red.G / 2,
 		127 + FColor::Red.B / 2,
 		200); // Opacity
+
+
+	bool bIsPackageExtension = 
+		FPackageName::IsPackageExtension(*Extension) ||
+		FPackageName::IsVerseExtension(*Extension);
 
 	if (Assets.Num() > 0)
 	{
@@ -179,7 +186,7 @@ static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, co
 		// Beautify the package name
 		TempPackageName = TempAssetPath + "." + TempAssetName;
 	}
-	else if (FPackageName::TryConvertFilenameToLongPackageName(Filename, TempPackageName))
+	else if (bIsPackageExtension && FPackageName::TryConvertFilenameToLongPackageName(Filename, TempPackageName))
 	{
 		// Fake asset name, asset path from the package name
 		TempAssetPath = TempPackageName;
@@ -194,9 +201,21 @@ static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, co
 	else
 	{
 		TempAssetName = FPaths::GetCleanFilename(Filename);
-		TempPackageName = Filename; // put back original package name if the try failed
+		TempPackageName = Filename; // Put back original package name if the try failed
 		TempAssetType = FText::Format(SSourceControlCommon::GetDefaultUnknownAssetType(), FText::FromString(FPaths::GetExtension(Filename).ToUpper())).ToString();
 		TempAssetTypeName = TempAssetType;
+
+		// Attempt to make package name relative to one of the project roots instead of a full absolute path
+		TArray<FSourceControlProjectInfo> CustomProjects = ISourceControlModule::Get().GetCustomProjects();
+		for (const FSourceControlProjectInfo& ProjectInfo : CustomProjects)
+		{
+			FStringView RelativePackageName;
+			if (FPathViews::TryMakeChildPathRelativeTo(TempPackageName, ProjectInfo.ProjectDirectory, RelativePackageName))
+			{
+				TempPackageName = FPaths::Combine(TEXT("/"), FPaths::GetBaseFilename(ProjectInfo.ProjectDirectory), RelativePackageName);
+				break;
+			}
+		}
 	}
 
 	// Finally, assign the temp variables to the member variables

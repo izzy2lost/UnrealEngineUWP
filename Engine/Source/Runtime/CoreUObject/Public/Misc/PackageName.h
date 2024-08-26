@@ -600,6 +600,15 @@ public:
 	 */
 	static COREUOBJECT_API bool IsMapPackageExtension(const TCHAR* Ext);
 
+	/**
+	 * Returns whether the passed in extension is a valid verse extension.
+	 * Extensions with and without trailing dots are supported.
+	 *
+	 * @param	Extension to test.
+	 * @return	True if Ext is a verse extension, otherwise false
+	 */
+	static COREUOBJECT_API bool IsVerseExtension(const TCHAR* Ext);
+
 	/** 
 	 * Returns whether the passed in filename ends with any of the known
 	 * package extensions.

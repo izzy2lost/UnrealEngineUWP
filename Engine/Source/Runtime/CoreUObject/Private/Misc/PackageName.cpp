@@ -2567,6 +2567,20 @@ bool FPackageName::IsMapPackageExtension(const TCHAR* Ext)
 	}
 }
 
+bool FPackageName::IsVerseExtension(const TCHAR* Ext)
+{
+	FStringView VerseExtension = TEXTVIEW(".verse");
+	FStringView VModuleExtension = TEXTVIEW(".vmodule");
+	if (*Ext != TEXT('.'))
+	{
+		return (VerseExtension.RightChop(1) == Ext) || (VModuleExtension.RightChop(1) == Ext);
+	}
+	else
+	{
+		return (VerseExtension == Ext) || (VModuleExtension == Ext);
+	}
+}
+
 const TCHAR* FPackageName::GetGeneratedPackageSubPath()
 {
 	return TEXT("_Generated_");
