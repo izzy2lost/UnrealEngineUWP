@@ -3,7 +3,10 @@
 #pragma once
 
 #include "Subsystems/EngineSubsystem.h"
+
 #include "ConcertPropertyChainWrapper.h"
+#include "Data/MultiUserClientDisplayInfo.h"
+
 #include "MultiUserReplicationSubsystem.generated.h"
 
 struct FMultiUserObjectReplicationSettings;
@@ -73,6 +76,23 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Multi-user")
 	TArray<FSoftObjectPath> GetReplicatedObjects(const FGuid& ClientId) const;
+
+	/**
+	 * A list of offline clients that, upon rejoining a session, will attempt to reclaim properties 
+	 * they previously registered for an object, regardless of whether the client left gracefully or due to a crash.
+	 * 
+	 * By default, when a client disconnects (either gracefully or due to a crash) and later rejoins a session,
+	 * the client attempts to re-register the properties it had previously registered for the object.
+	 * 
+	 * @return A list of client descriptions representing offline clients that will attempt to reclaim properties 
+	 * associated with the object when they rejoin.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Multi-user", meta = (Keywords = "Owning Offline Reclaim Join Rejoin Client Find Stream Registered"))
+	TArray<FMultiUserClientDisplayInfo> GetOwningOfflineClients(const FSoftObjectPath& ObjectPath) const;
+
+	/** @return Whether any offline clients will try to register properties for ObjectPath upon rejoining.*/
+	UFUNCTION(BlueprintPure, Category = "Multi-user", meta = (Keywords = "Owning Offline Reclaim Join Rejoin Client Find Stream Registered"))
+	bool IsOwnedByOfflineClient(const FSoftObjectPath& ObjectPath) const { return !GetOwningOfflineClients(ObjectPath).IsEmpty(); }
 	
 	//~ Begin USubsystem Interface
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;

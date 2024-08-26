@@ -5,11 +5,13 @@
 #include "Replication/Async/ChangeClientBlueprintParams.h"
 
 #if WITH_CONCERT
-#include "UObjectAdapterReplicationDiscoverer.h"
+#include "Data/MultiUserClientDisplayInfo.h"
 #include "IMultiUserClientModule.h"
 #include "Replication/Data/ObjectReplicationMap.h"
 #include "Replication/Data/ReplicationFrequencySettings.h"
 #include "Replication/IMultiUserReplication.h"
+#include "Replication/IOfflineReplicationClient.h"
+#include "UObjectAdapterReplicationDiscoverer.h"
 
 #include "Algo/Transform.h"
 #endif
@@ -122,6 +124,28 @@ TArray<FSoftObjectPath> UMultiUserReplicationSubsystem::GetReplicatedObjects(con
 	}
 #endif
 	return {};
+}
+
+TArray<FMultiUserClientDisplayInfo> UMultiUserReplicationSubsystem::GetOwningOfflineClients(const FSoftObjectPath& ObjectPath) const
+{
+	TArray<FMultiUserClientDisplayInfo> Result;
+	
+#if WITH_CONCERT
+	UE::MultiUserClient::IMultiUserReplication* ReplicationInterface = IMultiUserClientModule::Get().GetReplication();
+	if (ensureMsgf(ReplicationInterface, TEXT("We expected it to always be valid.")))
+	{
+		ReplicationInterface->ForEachOfflineClient([&ObjectPath, &Result](const UE::MultiUserClient::IOfflineReplicationClient& Client)
+		{
+			if (Client.GetPredictedStream().ReplicationMap.HasProperties(ObjectPath))
+			{
+				Result.Emplace(Client.GetClientInfo());
+			}
+			return EBreakBehavior::Continue;
+		});
+	}
+#endif
+
+	return Result;
 }
 
 void UMultiUserReplicationSubsystem::Initialize(FSubsystemCollectionBase& Collection)

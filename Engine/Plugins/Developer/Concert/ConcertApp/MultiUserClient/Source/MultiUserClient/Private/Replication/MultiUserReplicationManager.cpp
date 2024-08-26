@@ -6,6 +6,8 @@
 #include "IConcertSyncClient.h"
 #include "Replication/ChangeOperationTypes.h"
 #include "Replication/IConcertClientReplicationManager.h"
+#include "Replication/IOfflineReplicationClient.h"
+#include "Replication/Misc/StreamAndAuthorityPredictionUtils.h"
 
 #include "Containers/Ticker.h"
 #include "Framework/Application/SlateApplication.h"
@@ -14,6 +16,25 @@
 #include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "FMultiUserReplicationManager"
+
+namespace UE::MultiUserClient::Replication::PrivateReplicationManager
+{
+	class FOfflineClientAdapter : public IOfflineReplicationClient
+	{
+		const FOfflineClient& Client;
+	public:
+		
+		FOfflineClientAdapter(const FOfflineClient& Client)
+			: Client(Client)
+		{}
+
+		//~ Begin IOfflineReplicationClient Interface
+		virtual const FConcertClientInfo& GetClientInfo() const override { return Client.GetClientInfo(); }
+		virtual const FGuid& GetLastAssociatedEndpoint() const override { return Client.GetLastAssociatedEndpoint(); }
+		virtual const FConcertBaseStreamInfo& GetPredictedStream() const override { return Client.GetPredictedStream(); }
+		//~ End IOfflineReplicationClient Interface
+	};
+}
 
 namespace UE::MultiUserClient::Replication
 {
@@ -230,6 +251,36 @@ namespace UE::MultiUserClient::Replication
 				: FExternalClientChangeRequestHandler::MakeFailedOperation(EChangeStreamOperationResult::UnknownClient, EChangeAuthorityOperationResult::UnknownClient);
 		}
 		return FExternalClientChangeRequestHandler::MakeFailedOperation(EChangeStreamOperationResult::NotInSession, EChangeAuthorityOperationResult::NotInSession);
+	}
+	
+	void FMultiUserReplicationManager::ForEachOfflineClient(TFunctionRef<EBreakBehavior(const IOfflineReplicationClient&)> Callback) const
+	{
+		if (ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed."))
+			&& ConnectedState)
+		{
+			ConnectedState->OfflineClientManager.ForEachClient([&Callback](FOfflineClient& Client)
+			{
+				return Callback(PrivateReplicationManager::FOfflineClientAdapter(Client));
+			});
+		}
+	}
+
+	bool FMultiUserReplicationManager::FindOfflineClient(const FGuid& ClientId, TFunctionRef<void(const IOfflineReplicationClient&)> Callback) const
+	{
+		if (!ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed."))
+			|| !ConnectedState)
+		{
+			return false;
+		}
+
+		const FOfflineClient* OfflineClient = ConnectedState->OfflineClientManager.FindClient(ClientId);
+		if (OfflineClient)
+		{
+			Callback(PrivateReplicationManager::FOfflineClientAdapter(*OfflineClient));
+			return true;
+		}
+		
+		return false;
 	}
 
 	FMultiUserReplicationManager::FConnectedState::FConnectedState(TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer)
