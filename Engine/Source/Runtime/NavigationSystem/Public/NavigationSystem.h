@@ -1210,6 +1210,15 @@ public:
 			;
 	}
 
+	/**
+	 * Indicates if navigation is allowed for a given world.
+	 * @param World The world in which the navigation would be used
+	 * @param bRequiresNavigationSystemInstance Indicates if the method relies only on an existing navigation system instance ('true')
+	 * or if it should also look in the engine default setting in case the system is missing ('false').
+	 * @return True if the navigation system can be used in the work, false otherwise
+	 */
+	static NAVIGATIONSYSTEM_API bool IsNavigationAllowed(const UWorld* World, bool bRequiresNavigationSystemInstance);
+
 	static FORCEINLINE bool IsNavigationSystemStatic()
 	{
 #if WITH_EDITOR

@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NavigationObjectRepository.h"
+#include "NavigationSystem.h"
 #include "NavLinkCustomInterface.h"
 #include "AI/NavigationSystemBase.h"
 #include "AI/Navigation/NavigationElement.h"
@@ -62,6 +63,12 @@ void UNavigationObjectRepository::ForEachNavigationElement(TFunctionRef<void(con
 TSharedPtr<const FNavigationElement> UNavigationObjectRepository::RegisterNavRelevantObject(const INavRelevantInterface& NavRelevantObject)
 {
 	return RegisterNavRelevantObjectInternal(NavRelevantObject, *Cast<UObject>(&NavRelevantObject), ENotifyOnSuccess::Yes);
+}
+
+bool UNavigationObjectRepository::ShouldCreateSubsystem(UObject* Outer) const
+{
+	return (Super::ShouldCreateSubsystem(Outer))
+		&& UNavigationSystemV1::IsNavigationAllowed(Cast<UWorld>(Outer), /** bRequiresNavigationSystemInstance */ false);
 }
 
 TSharedPtr<const FNavigationElement> UNavigationObjectRepository::RegisterNavRelevantObjectInternal(

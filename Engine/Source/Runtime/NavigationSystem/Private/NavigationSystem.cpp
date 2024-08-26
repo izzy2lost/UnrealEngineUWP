@@ -758,10 +758,7 @@ UNavigationSystemV1::UNavigationSystemV1(const FObjectInitializer& ObjectInitial
 			UNavigationSystemBase::OnComponentTransformChangedDelegate().BindLambda([](USceneComponent& Comp) {
 				if (UNavigationSystemV1::ShouldUpdateNavOctreeOnComponentChange())
 				{
-					UWorld* World = Comp.GetWorld();
-					UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
-					if (NavSys != nullptr
-						&& (NavSys->ShouldAllowClientSideNavigation() || !World->IsNetMode(ENetMode::NM_Client)))
+					if (UNavigationSystemV1::IsNavigationAllowed(Comp.GetWorld(), /** bRequiresNavigationSystemInstance */ true))
 					{
 						// use propagated component's transform update in editor OR server game with additional navsys check
 						UNavigationSystemV1::UpdateNavOctreeAfterMove(&Comp);
@@ -3230,13 +3227,34 @@ void UNavigationSystemV1::ResetCachedFilter(TSubclassOf<UNavigationQueryFilter> 
 	}
 }
 
+bool UNavigationSystemV1::IsNavigationAllowed(const UWorld* World, const bool bRequiresNavigationSystemInstance)
+{
+	if (World)
+	{
+		if (World->GetNetMode() != NM_Client)
+		{
+			return true;
+		}
+
+		if (const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World))
+		{
+			return NavSys->ShouldAllowClientSideNavigation();
+		}
+
+		return bRequiresNavigationSystemInstance == false
+			&& (*GEngine->NavigationSystemClass != nullptr)
+			&& GEngine->NavigationSystemClass->GetDefaultObject<UNavigationSystemV1>()->ShouldAllowClientSideNavigation();
+	}
+
+	return false;
+}
+
 UNavigationSystemV1* UNavigationSystemV1::CreateNavigationSystem(UWorld* WorldOwner)
 {
 	UNavigationSystemV1* NavSys = nullptr;
 
 	// create navigation system for editor and server targets, but remove it from game clients
-	if (WorldOwner && (*GEngine->NavigationSystemClass != nullptr) 
-		&& (GEngine->NavigationSystemClass->GetDefaultObject<UNavigationSystemV1>()->bAllowClientSideNavigation || WorldOwner->GetNetMode() != NM_Client))
+	if (UNavigationSystemV1::IsNavigationAllowed(WorldOwner, /** bRequiresNavigationSystemInstance */ false))
 	{
 		AWorldSettings* WorldSettings = WorldOwner->GetWorldSettings();
 		if (WorldSettings == nullptr || WorldSettings->IsNavigationSystemEnabled())

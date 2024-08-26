@@ -163,6 +163,9 @@ public:
 	/** Delegate executed when a custom navigation link is unregistered with the repository. */
 	FOnCustomNavLinkObjectRegistrationEvent OnCustomNavLinkObjectUnregistered;
 
+protected:
+	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
+
 private:
 
 	TSharedPtr<const FNavigationElement> RegisterNavRelevantObjectInternal(const INavRelevantInterface& NavRelevantInterface, const UObject& NavRelevantObject, ENotifyOnSuccess NotifyOnSuccess);
