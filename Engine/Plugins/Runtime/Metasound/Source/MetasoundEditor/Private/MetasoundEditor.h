@@ -463,7 +463,7 @@ namespace Metasound::Editor
 		void ConvertFromPreset();
 
 		/* Whether or not page details should be visible. */
-		bool ShowPageDetails() const;
+		bool ShowPageGraphDetails() const;
 
 		/** Creates audition menu options */
 		TSharedRef<SWidget> CreateAuditionMenuOptions();
