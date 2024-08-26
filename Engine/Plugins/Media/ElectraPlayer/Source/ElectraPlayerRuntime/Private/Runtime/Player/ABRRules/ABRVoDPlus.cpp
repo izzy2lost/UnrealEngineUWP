@@ -430,6 +430,10 @@ FABRDownloadProgressDecision FABROnDemandPlus::ReportDownloadProgress(const Metr
 
 void FABROnDemandPlus::ReportDownloadEnd(const Metrics::FSegmentDownloadStats& SegmentDownloadStats)
 {
+	if (SegmentDownloadStats.bWasSkipped)
+	{
+		return;
+	}
 	FStreamWorkVars* WorkVars = GetWorkVars(SegmentDownloadStats.StreamType);
 
 	if (WorkVars && SegmentDownloadStats.SegmentType == Metrics::ESegmentType::Media)
@@ -853,7 +857,7 @@ IAdaptiveStreamSelector::ESegmentAction FABROnDemandPlus::PerformSelection(const
 	{
 		FStreamWorkVars* WorkVars = GetWorkVars(StreamType);
 
-		int32 NewQualityIndex = 0;
+		int32 NewQualityIndex = -1;
 
 		bool bEOS = false;
 		const double AvailableDuration = GetPlayablePlayerDuration(bEOS, StreamType);
@@ -904,6 +908,13 @@ IAdaptiveStreamSelector::ESegmentAction FABROnDemandPlus::PerformSelection(const
 				{
 					NewQualityIndex = Can->QualityIndex;
 				}
+			}
+
+			// None of the candidates is deemed feasible. This may happen if all low quality streams have issues and ended up
+			// on the deny list. Pick the lowest quality one, even if this is one that may not be playable without rebuffering.
+			if (NewQualityIndex < 0)
+			{
+				NewQualityIndex = InCandidates[0]->QualityIndex;
 			}
 
 			/*
