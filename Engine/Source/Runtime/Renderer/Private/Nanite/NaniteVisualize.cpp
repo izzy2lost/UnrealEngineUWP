@@ -80,10 +80,13 @@ FAutoConsoleVariableRef CVarNanitePixelProgrammableVisMode(
 
 static uint32 GetMeshPaintVisualizationModeArg()
 {
-	// Pack for shader unpacking in GetMeshPaintingShowMode() and GetMeshPaintingChannelMode().
+	// Pack for shader unpacking in GetMeshPaintingShowMode(), GetMeshPaintingChannelMode() and GetMeshPaintingTextureMode().
 	// Assumes that EMeshPaintVisualizeShowMode matches NANITE_MESH_PAINTING_SHOW_*
-	// and EVertexColorViewMode enums matches NANITE_MESH_PAINTING_CHANNELS_*
-	return (GetMeshPaintVisualizeShowMode() & 1) | ((uint32)GetMeshPaintVisualizeChannels() << 2);
+	const uint32 ShowMode = GetMeshPaintVisualizeShowMode();
+	// Assumes EVertexColorViewMode enums matches NANITE_MESH_PAINTING_CHANNELS_*
+	const uint32 ChannelMode = GetMeshPaintVisualizeChannels();
+	const uint32 TextureMode = GetMeshPaintVisualizeTexture_RenderThread() == nullptr ? NANITE_MESH_PAINTING_TEXTURE_DEFAULT : NANITE_MESH_PAINTING_TEXTURE_ASSET;
+	return (ShowMode & 0x1) | ((ChannelMode & 0x7) << 1) | ((TextureMode & 0x1) << 4);
 }
 
 static FIntVector4 GetVisualizeConfig(int32 ModeID, bool bCompositeScene, bool bEdgeDetect)
@@ -164,6 +167,7 @@ class FNaniteVisualizeCS : public FNaniteGlobalShader
 		SHADER_PARAMETER(uint32, FixedFunctionBin)
 		SHADER_PARAMETER(FIntPoint, PickingPixelPos)
 		SHADER_PARAMETER(uint32, NumEditorSelectedHitProxyIds)
+		SHADER_PARAMETER(uint32, MeshPaintTextureCoordinate)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
@@ -181,6 +185,7 @@ class FNaniteVisualizeCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, FastClearTileVis)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, MaterialHitProxyTable)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, EditorSelectedHitProxyIds)
+		SHADER_PARAMETER_TEXTURE(Texture2D<float4>, MeshPaintTexture)
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FNaniteVisualizeCS, "/Engine/Private/Nanite/NaniteVisualize.usf", "VisualizeCS", SF_Compute);
@@ -350,6 +355,15 @@ static FRDGTextureRef GetFastClearTileVis(FRDGBuilder& GraphBuilder)
 	}
 
 	return FastClearTileVis;
+}
+
+static FRHITexture* GetMeshPaintTexture()
+{
+	if (FRHITexture* TextureRHI = GetMeshPaintVisualizeTexture_RenderThread())
+	{
+		return TextureRHI;
+	}
+	return GWhiteTexture->TextureRHI.GetReference();
 }
 
 static FRDGBufferRef PerformPicking(
@@ -791,6 +805,8 @@ void AddVisualizationPasses(
 						PassParameters->RasterBinMeta = GraphBuilder.CreateSRV(RasterBinMeta);
 						PassParameters->DebugOutput = GraphBuilder.CreateUAV(Visualization.ModeOutput);
 						PassParameters->EditorSelectedHitProxyIds = Nanite::GetEditorSelectedHitProxyIdsSRV(GraphBuilder, View);
+						PassParameters->MeshPaintTexture = GetMeshPaintTexture();
+						PassParameters->MeshPaintTextureCoordinate = GetMeshPaintVisualizeTextureCoordinateIndex();
 
 						auto ComputeShader = View.ShaderMap->GetShader<FNaniteVisualizeCS>();
 						FComputeShaderUtils::AddPass(

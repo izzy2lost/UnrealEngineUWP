@@ -110,10 +110,10 @@ public:
 	bool bWriteAlpha = false;
 
 	/** When unchecked the painting on the base LOD will be propagate automatically to all other LODs when exiting the mode or changing the selection */
-	UPROPERTY(EditAnywhere, Category = VertexPainting, meta = (TransientToolProperty))
+	UPROPERTY(EditAnywhere, Category = VertexPainting, meta = (InlineEditConditionToggle, TransientToolProperty))
 	bool bPaintOnSpecificLOD = false;
 
-	/** LOD Index to which should specifically be painted */
+	/** Index of LOD to paint. If not set then paint is applied to all LODs. */
 	UPROPERTY(EditAnywhere, Category = VertexPainting, meta = (UIMin = "0", ClampMin = "0", EditCondition = "bPaintOnSpecificLOD", TransientToolProperty))
 	int32 LODIndex = 0;
 };

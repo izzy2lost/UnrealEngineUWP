@@ -306,6 +306,9 @@
 #define NANITE_MESH_PAINTING_CHANNELS_G			4
 #define NANITE_MESH_PAINTING_CHANNELS_B			5
 
+#define NANITE_MESH_PAINTING_TEXTURE_DEFAULT	0
+#define NANITE_MESH_PAINTING_TEXTURE_ASSET		1
+
 #if defined(__cplusplus)
 #define UINT_TYPE unsigned int
 #define  INT_TYPE int

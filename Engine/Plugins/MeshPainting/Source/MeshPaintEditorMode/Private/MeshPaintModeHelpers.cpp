@@ -75,6 +75,7 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 					SetMeshPaintVisualizeShowMode(EMeshPaintVisualizeShowMode::ShowAll);
 					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::VertexColor);
 					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Color);
+					SetMeshPaintVisualizeTexture(nullptr);
 				}
 			}
 			else
@@ -87,27 +88,6 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 				ViewportClient->EngineShowFlags.SetHMDDistortion(false);
 
 				SetMeshPaintVisualizeShowMode(EMeshPaintVisualizeShowMode::ShowSelected);
-
-				switch (ActiveMode)
-				{
-				case EMeshPaintActiveMode::VertexColor:
-				case EMeshPaintActiveMode::VertexWeights:
-					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::VertexColor);
-					ViewportClient->EngineShowFlags.SetVisualizeNanite(true);
-					ViewportClient->CurrentNaniteVisualizationMode = FName("VertexColor");
-					break;
-				case EMeshPaintActiveMode::TextureColor:
-					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::TextureColor);
-					ViewportClient->EngineShowFlags.SetVisualizeNanite(true);
-					ViewportClient->CurrentNaniteVisualizationMode = FName("MeshPaintTexture");
-					break;
-				case EMeshPaintActiveMode::Texture:
-					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::TextureAsset);
-					// todo: Nanite visualization support for texture asset painting.
-					ViewportClient->EngineShowFlags.SetVisualizeNanite(false);
-					ViewportClient->CurrentNaniteVisualizationMode = NAME_None;
-					break;
-				}
 
 				switch (ColorViewMode)
 				{
@@ -139,6 +119,29 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 						SelectedTexture = TextureTool->GetSelectedPaintTextureWithOverride();
 						UVChannel = TextureTool->GetSelectedUVChannel(nullptr);
 					}
+				}
+
+				static FName NAME_VertexColor("VertexColor");
+				static FName NAME_MeshPaintTexture("MeshPaintTexture");
+
+				switch (ActiveMode)
+				{
+				case EMeshPaintActiveMode::VertexColor:
+				case EMeshPaintActiveMode::VertexWeights:
+					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::VertexColor);
+					ViewportClient->EngineShowFlags.SetVisualizeNanite(true);
+					ViewportClient->CurrentNaniteVisualizationMode = NAME_VertexColor;
+					break;
+				case EMeshPaintActiveMode::TextureColor:
+					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::TextureColor);
+					ViewportClient->EngineShowFlags.SetVisualizeNanite(true);
+					ViewportClient->CurrentNaniteVisualizationMode = NAME_MeshPaintTexture;
+					break;
+				case EMeshPaintActiveMode::Texture:
+					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::TextureAsset);
+					ViewportClient->EngineShowFlags.SetVisualizeNanite(SelectedTexture != nullptr);
+					ViewportClient->CurrentNaniteVisualizationMode = SelectedTexture != nullptr ? NAME_MeshPaintTexture : NAME_None;
+					break;
 				}
 
 				SetMeshPaintVisualizeTexture(SelectedTexture);
