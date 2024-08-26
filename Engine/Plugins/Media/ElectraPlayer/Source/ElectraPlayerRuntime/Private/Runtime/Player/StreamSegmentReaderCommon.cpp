@@ -2775,7 +2775,21 @@ FStreamSegmentReaderCommon::FStreamHandler::EHandleResult FStreamSegmentReaderCo
 							CurrentlyActiveTrackData->DefaultDurationFromCSD.SetFromND(1, 30);
 						}
 						// Some decoders need the ISO/IEC 14496-15 decoder configuration record, which we need to construct.
-						if (CurrentlyActiveTrackData->CSD->ParsedInfo.GetCodec() == FStreamCodecInformation::ECodec::H265 &&
+						if (CurrentlyActiveTrackData->CSD->ParsedInfo.GetCodec() == FStreamCodecInformation::ECodec::H264 &&
+							CurrentlyActiveTrackData->CSD->RawCSD.IsEmpty())
+						{
+							ElectraDecodersUtil::MPEG::FAVCDecoderConfigurationRecord dcr;
+							if (dcr.CreateFromCodecSpecificData(CurrentlyActiveTrackData->CSD->CodecSpecificData))
+							{
+								CurrentlyActiveTrackData->CSD->RawCSD = dcr.GetRawData();
+							}
+							else
+							{
+								SetError(FString::Printf(TEXT("Failed to create the H.264 decoder configuration record from the inband CSD")), INTERNAL_SEG_ERROR_BAD_MEDIA_SEGMENT);
+								return EHandleResult::Failed;
+							}
+						}
+						else if (CurrentlyActiveTrackData->CSD->ParsedInfo.GetCodec() == FStreamCodecInformation::ECodec::H265 &&
 							CurrentlyActiveTrackData->CSD->RawCSD.IsEmpty())
 						{
 							ElectraDecodersUtil::MPEG::FHEVCDecoderConfigurationRecord dcr;
