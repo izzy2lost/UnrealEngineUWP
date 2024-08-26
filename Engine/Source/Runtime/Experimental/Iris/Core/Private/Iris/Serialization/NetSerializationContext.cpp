@@ -80,4 +80,29 @@ UObject* FNetSerializationContext::GetLocalConnectionUserData(uint32 ConnectionI
 	return UserData;
 }
 
+const FNetTokenStore* FNetSerializationContext:: GetNetTokenStore() const
+{
+	if (InternalContext == nullptr)
+	{
+		return nullptr;
+	}
+
+	const UReplicationSystem* ReplicationSystem = InternalContext->ReplicationSystem;
+
+	return ReplicationSystem ? ReplicationSystem->GetNetTokenStore() : nullptr;
+}
+
+FNetTokenStore* FNetSerializationContext::GetNetTokenStore()
+{
+	if (InternalContext == nullptr)
+	{
+		return nullptr;
+	}
+
+	UReplicationSystem* ReplicationSystem = InternalContext->ReplicationSystem;
+
+	return ReplicationSystem ? ReplicationSystem->GetNetTokenStore() : nullptr;
+}
+
+
 }

@@ -31,6 +31,7 @@
 #if UE_WITH_IRIS
 #include "Net/Iris/ReplicationSystem/ReplicationSystemUtil.h"
 #include "Net/Iris/ReplicationSystem/ActorReplicationBridge.h"
+#include "Iris/ReplicationSystem/ReplicationSystem.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CharacterMovementComponent)
@@ -8849,7 +8850,7 @@ void UCharacterMovementComponent::ReplicateMoveToServer(float DeltaTime, const F
 namespace UE::Private
 {
 
-static UIrisObjectReferencePackageMap* GetIrisPackageMapToCaptureReferences(UNetConnection* NetConnection, UIrisObjectReferencePackageMap::FObjectReferenceArray* InObjectReferences)
+static UIrisObjectReferencePackageMap* GetIrisPackageMapToCaptureReferences(UNetConnection* NetConnection, FCharacterNetworkSerializationPackedBits& PackedBits)
 {
 	using namespace UE::Net;
 
@@ -8857,7 +8858,12 @@ static UIrisObjectReferencePackageMap* GetIrisPackageMapToCaptureReferences(UNet
 	{
 		if (UIrisObjectReferencePackageMap* ObjectReferencePackageMap = Bridge->GetObjectReferencePackageMap())
 		{
-			ObjectReferencePackageMap->InitForWrite(InObjectReferences);
+			ObjectReferencePackageMap->InitForWrite(&PackedBits.PackageMapExports);
+
+			// $IRIS: $TODO: figure out how this should be done
+			//UReplicationSystem* ReplicationSystem = UE::Net::FReplicationSystemUtil::GetReplicationSystem(NetConnection->GetDriver());
+			//ReplicationSystem->InitNetTokenExportContext(*ObjectReferencePackageMap->GetNetTokenExportContext(), NetConnection->GetConnectionId());
+
 			return ObjectReferencePackageMap;
 		}
 	}
@@ -8865,14 +8871,19 @@ static UIrisObjectReferencePackageMap* GetIrisPackageMapToCaptureReferences(UNet
 	return nullptr;
 }
 
-static UIrisObjectReferencePackageMap* GetIrisPackageMapToReadReferences(const UNetConnection* NetConnection, const UIrisObjectReferencePackageMap::FObjectReferenceArray* InObjectReferences)
+static UIrisObjectReferencePackageMap* GetIrisPackageMapToReadReferences(const UNetConnection* NetConnection, const FCharacterNetworkSerializationPackedBits& PackedBits)
 {
 	using namespace UE::Net;
 	if (const UActorReplicationBridge* Bridge = FReplicationSystemUtil::GetActorReplicationBridge(NetConnection))
 	{
 		if (UIrisObjectReferencePackageMap* ObjectReferencePackageMap = Bridge->GetObjectReferencePackageMap())
 		{
-			ObjectReferencePackageMap->InitForRead(InObjectReferences);
+			ObjectReferencePackageMap->InitForRead(&PackedBits.PackageMapExports);
+
+			// $IRIS: $TODO: figure out how this should be done
+			//UReplicationSystem* ReplicationSystem = UE::Net::FReplicationSystemUtil::GetReplicationSystem(NetConnection->GetDriver());
+			//ReplicationSystem->InitNetTokenExportContext(*ObjectReferencePackageMap->GetNetTokenExportContext(), NetConnection->GetConnectionId());
+
 			return ObjectReferencePackageMap;
 		}
 	}
@@ -8898,7 +8909,7 @@ void UCharacterMovementComponent::CallServerMovePacked(const FSavedMove_Characte
 	UNetConnection* NetConnection = CharacterOwner->GetNetConnection();	
 
 #if UE_WITH_IRIS
-	if (UPackageMap* PackageMap = UE::Private::GetIrisPackageMapToCaptureReferences(NetConnection, &PackedBits.ObjectReferences))
+	if (UPackageMap* PackageMap = UE::Private::GetIrisPackageMapToCaptureReferences(NetConnection, PackedBits))
 	{
 		ServerMoveBitWriter.PackageMap = PackageMap;
 	}
@@ -9629,7 +9640,7 @@ void UCharacterMovementComponent::ServerMovePacked_ServerReceive(const FCharacte
 	ServerMoveBitReader.SetData((uint8*)PackedBits.DataBits.GetData(), NumBits);
 
 #if UE_WITH_IRIS
-	if (UPackageMap* PackageMap = UE::Private::GetIrisPackageMapToReadReferences(CharacterOwner->GetNetConnection(), &PackedBits.ObjectReferences))
+	if (UIrisObjectReferencePackageMap* PackageMap = UE::Private::GetIrisPackageMapToReadReferences(CharacterOwner->GetNetConnection(), PackedBits))
 	{
 		ServerMoveBitReader.PackageMap = PackageMap;
 	}
@@ -10492,7 +10503,7 @@ void UCharacterMovementComponent::MoveResponsePacked_ClientReceive(const FCharac
 	MoveResponseBitReader.SetData((uint8*)PackedBits.DataBits.GetData(), NumBits);
 
 #if UE_WITH_IRIS
-	if (UPackageMap* PackageMap = UE::Private::GetIrisPackageMapToReadReferences(CharacterOwner->GetNetConnection(), &PackedBits.ObjectReferences))
+	if (UPackageMap* PackageMap = UE::Private::GetIrisPackageMapToReadReferences(CharacterOwner->GetNetConnection(), PackedBits))
 	{
 		MoveResponseBitReader.PackageMap = PackageMap;
 	}
@@ -10537,7 +10548,7 @@ void UCharacterMovementComponent::ServerSendMoveResponse(const FClientAdjustment
 
 	// Extract the net package map used for serializing object references.
 #if UE_WITH_IRIS
-	if (UPackageMap* PackageMap = UE::Private::GetIrisPackageMapToCaptureReferences(NetConnection, &PackedBits.ObjectReferences))	
+	if (UPackageMap* PackageMap = UE::Private::GetIrisPackageMapToCaptureReferences(NetConnection, PackedBits))	
 	{
 		MoveResponseBitWriter.PackageMap = PackageMap;
 	}

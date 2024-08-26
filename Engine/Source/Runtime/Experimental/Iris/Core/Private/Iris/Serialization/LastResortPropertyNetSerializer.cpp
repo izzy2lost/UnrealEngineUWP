@@ -10,6 +10,8 @@
 #include "Iris/Serialization/NetReferenceCollector.h"
 #include "Iris/Serialization/NetSerializerArrayStorage.h"
 #include "Iris/Serialization/IrisObjectReferencePackageMap.h"
+#include "Iris/Serialization/IrisPackageMapExportUtil.h"
+#include "Iris/Serialization/NetExportContext.h"
 #include "Net/Core/Trace/NetTrace.h"
 
 namespace UE::Net
@@ -17,10 +19,7 @@ namespace UE::Net
 
 struct FFLastResortPropertyNetSerializerQuantizedType
 {
-	static constexpr uint32 MaxInlinedObjectRefs = 4;
-	typedef FNetSerializerArrayStorage<FNetObjectReference, AllocationPolicies::TInlinedElementAllocationPolicy<MaxInlinedObjectRefs>> FObjectReferenceStorage;
-
-	FObjectReferenceStorage ObjectReferenceStorage;
+	FIrisPackageMapExportsQuantizedType QuantizedExports;
 
 	// How many bytes the current allocation can hold.
 	uint16 ByteCapacity = 0;
@@ -73,8 +72,6 @@ private:
 	static void GrowDynamicStateInternal(FNetSerializationContext&, QuantizedType& Value, uint16 NewBitCount);
 	static void ShrinkDynamicStateInternal(FNetSerializationContext&, QuantizedType& Value, uint16 NewBitCount);
 	static void AdjustStorageSize(FNetSerializationContext&, QuantizedType& Value, uint16 NewBitCount);
-
-	static inline const FNetSerializer* ObjectNetSerializer = &UE_NET_GET_SERIALIZER(FObjectNetSerializer);
 };
 UE_NET_IMPLEMENT_SERIALIZER_INTERNAL(FLastResortPropertyNetSerializer);
 
@@ -83,25 +80,13 @@ void FLastResortPropertyNetSerializer::Serialize(FNetSerializationContext& Conte
 	const ConfigType* Config = static_cast<const ConfigType*>(Args.NetSerializerConfig);
 	const QuantizedType& Value = *reinterpret_cast<const QuantizedType*>(Args.Source);
 	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
-	const uint32 NumReferences = Value.ObjectReferenceStorage.Num();
 
 	UE_NET_TRACE_DYNAMIC_NAME_SCOPE(Config->Property.Get()->GetName(), *Writer, Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
 
-	// If we have any references, export them!
-	if (Writer->WriteBool(NumReferences != 0))
-	{
-		UE::Net::WritePackedUint32(Writer, NumReferences);		
-		FObjectNetSerializerConfig ObjectSerializerConfig;
-		for (const FNetObjectReference& Ref : MakeArrayView(Value.ObjectReferenceStorage.GetData(), NumReferences))
-		{
-			FNetSerializeArgs ObjectArgs;
-			ObjectArgs.NetSerializerConfig = &ObjectSerializerConfig;
-			ObjectArgs.Source = NetSerializerValuePointer(&Ref);
+	// If we have any captured exports, serialize them.
+	FIrisPackageMapExportsUtil::Serialize(Context, Value.QuantizedExports);
 
-			ObjectNetSerializer->Serialize(Context, ObjectArgs);
-		}
-	}
-
+	// Write data.
 	WritePackedUint32(Writer, Value.BitCount);
 	if (Value.BitCount > 0)
 	{
@@ -119,35 +104,10 @@ void FLastResortPropertyNetSerializer::Deserialize(FNetSerializationContext& Con
 
 	UE_NET_TRACE_DYNAMIC_NAME_SCOPE(Config->Property.Get()->GetName(), *Reader, Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
 
-	// Read any object references
-	const bool bHasObjectReferences = Reader->ReadBool();
-	if (bHasObjectReferences)
-	{
-		const uint32 NumReferences = UE::Net::ReadPackedUint32(Reader);
+	// Read exports for packagemap.
+	FIrisPackageMapExportsUtil::Deserialize(Context, Value.QuantizedExports);
 
-		if (NumReferences > Config->MaxAllowedObjectReferences)
-		{
-			Context.SetError(GNetError_ArraySizeTooLarge);
-			return;
-		}
-
-		Value.ObjectReferenceStorage.AdjustSize(Context, NumReferences);
-
-		FObjectNetSerializerConfig ObjectSerializerConfig;
-		for (FNetObjectReference& Ref : MakeArrayView(Value.ObjectReferenceStorage.GetData(), Value.ObjectReferenceStorage.Num()))
-		{
-			FNetDeserializeArgs ObjectArgs;
-			ObjectArgs.NetSerializerConfig = &ObjectSerializerConfig;
-			ObjectArgs.Target = NetSerializerValuePointer(&Ref);
-
-			ObjectNetSerializer->Deserialize(Context, ObjectArgs);
-		}
-	}
-	else
-	{
-		Value.ObjectReferenceStorage.Free(Context);
-	}
-
+	// Read the data
 	const uint32 NewBitCount = ReadPackedUint32(Reader);
 	if (NewBitCount > 65535U)
 	{
@@ -159,20 +119,29 @@ void FLastResortPropertyNetSerializer::Deserialize(FNetSerializationContext& Con
 
 	Reader->ReadBitStream(static_cast<uint32*>(Value.Storage), NewBitCount);
 }
+
 void FLastResortPropertyNetSerializer::Quantize(FNetSerializationContext& Context, const FNetQuantizeArgs& Args)
 {
 	const ConfigType* Config = static_cast<const ConfigType*>(Args.NetSerializerConfig);
 	const FProperty* Property = Config->Property.Get();
 	QuantizedType& Value = *reinterpret_cast<QuantizedType*>(Args.Target);
 
-	// Capture references
+	// Setup UIrisObjectReferencePackageMap to capture exports
 	Private::FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
 	UIrisObjectReferencePackageMap* PackageMap = InternalContext ? InternalContext->PackageMap : nullptr;
-	
-	UIrisObjectReferencePackageMap::FObjectReferenceArray ObjectReferences;
+
+	UE::Net::FIrisPackageMapExports PackageMapExports;
+
 	if (PackageMap)
 	{
-		PackageMap->InitForWrite(&ObjectReferences);
+		PackageMap->InitForWrite(&PackageMapExports);
+
+		// $IRIS: $TODO: TBD: how to propagate context
+		//{
+		//	UE::Net::FNetTokenExportContext* NetTokenExportContext = PackageMap->GetNetTokenExportContext();
+		//	NetTokenExportContext->TokenStore = Context.GetNetTokenStore();
+		//	NetTokenExportContext->RemoteState = Context.GetInternalContext()->ResolveContext.RemoteNetTokenStoreState;
+		//}
 	}
 
 	// Use the Property serialization and store as binary blob.
@@ -186,25 +155,8 @@ void FLastResortPropertyNetSerializer::Quantize(FNetSerializationContext& Contex
 		return;
 	}
 
-
-	// Capture any references
-	const uint32 NumObjectReferences = ObjectReferences.Num();
-	Value.ObjectReferenceStorage.AdjustSize(Context, NumObjectReferences);
-	if (NumObjectReferences > 0)
-	{
-		FObjectNetSerializerConfig ObjectNetSerializerConfig;
-		const TObjectPtr<UObject>* SourceReferences = ObjectReferences.GetData();
-		FNetObjectReference* TargetReferences = Value.ObjectReferenceStorage.GetData();
-		for (uint32 ReferenceIndex = 0; ReferenceIndex < NumObjectReferences; ++ReferenceIndex)
-		{
-			FNetQuantizeArgs ObjectArgs;
-			ObjectArgs.NetSerializerConfig = &ObjectNetSerializerConfig;
-			ObjectArgs.Source = NetSerializerValuePointer(SourceReferences + ReferenceIndex);
-			ObjectArgs.Target = NetSerializerValuePointer(TargetReferences + ReferenceIndex);
-
-			ObjectNetSerializer->Quantize(Context, ObjectArgs);
-		}
-	}
+	// Quantize captured exports
+	FIrisPackageMapExportsUtil::Quantize(Context, PackageMapExports, Value.QuantizedExports);
 
 	// Deal with serialized data
 	AdjustStorageSize(Context, Value, static_cast<uint16>(BitCount));
@@ -221,33 +173,24 @@ void FLastResortPropertyNetSerializer::Dequantize(FNetSerializationContext& Cont
 
 	QuantizedType& Source = *reinterpret_cast<QuantizedType*>(Args.Source);
 
-	// Inject references
+	// Dequantize and inject exports
 	Private::FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
 	UIrisObjectReferencePackageMap* PackageMap = InternalContext ? InternalContext->PackageMap : nullptr;
-	UIrisObjectReferencePackageMap::FObjectReferenceArray ObjectReferences;
 
-	// References
-	const uint32 NumObjectReferences = Source.ObjectReferenceStorage.Num();
-	if (NumObjectReferences > 0U && ensureAlwaysMsgf(PackageMap, TEXT("FLastResortPropertyNetSerializer::Dequantize must have a packagemap to be able to dequantize object references. Make sure it is set in the InternalContext.")))
-	{		
-		ObjectReferences.SetNumUninitialized(NumObjectReferences);
+	UE::Net::FIrisPackageMapExports PackageMapExports;
 
-		FObjectNetSerializerConfig ObjectNetSerializerConfig;
-		const FNetObjectReference* SourceReferences = Source.ObjectReferenceStorage.GetData();
-		TObjectPtr<UObject>* TargetReferences = ObjectReferences.GetData();
-		for (uint32 ReferenceIndex = 0; ReferenceIndex < NumObjectReferences; ++ReferenceIndex)
-		{
-			FNetDequantizeArgs ObjectArgs;
-			ObjectArgs.NetSerializerConfig = &ObjectNetSerializerConfig;
-			ObjectArgs.Source = NetSerializerValuePointer(SourceReferences + ReferenceIndex);
-			ObjectArgs.Target = NetSerializerValuePointer(TargetReferences + ReferenceIndex);
+	FIrisPackageMapExportsUtil::Dequantize(Context, Source.QuantizedExports, PackageMapExports);	
 
-			ObjectNetSerializer->Dequantize(Context, ObjectArgs);
-		}
+	PackageMap->InitForRead(&PackageMapExports);
 
-		PackageMap->InitForRead(&ObjectReferences);
-	}
+	// $IRIS: $TODO: TBD: how to propagate context
+	//{
+	//	UE::Net::FNetTokenExportContext* NetTokenExportContext = PackageMap->GetNetTokenExportContext();
+	//	NetTokenExportContext->TokenStore = Context.GetNetTokenStore();
+	//	NetTokenExportContext->RemoteState = Context.GetInternalContext()->ResolveContext.RemoteNetTokenStoreState;
+	//}
 
+	// Read data
 	if (Source.BitCount)
 	{
 		FNetBitReader Archive(PackageMap, static_cast<uint8*>(Source.Storage), Source.BitCount);
@@ -265,12 +208,12 @@ bool FLastResortPropertyNetSerializer::IsEqual(FNetSerializationContext& Context
 	{
 		const QuantizedType& Value0 = *reinterpret_cast<const QuantizedType*>(Args.Source0);
 		const QuantizedType& Value1 = *reinterpret_cast<const QuantizedType*>(Args.Source1);
-		if ((Value0.BitCount != Value1.BitCount) || (Value0.ObjectReferenceStorage.Num() != Value1.ObjectReferenceStorage.Num()))
+		if ((Value0.BitCount != Value1.BitCount))
 		{
 			return false;
 		}
 
-		if (Value0.ObjectReferenceStorage.Num() > 0 && FMemory::Memcmp(Value0.ObjectReferenceStorage.GetData(), Value1.ObjectReferenceStorage.GetData(), sizeof(FNetObjectReference) * Value0.ObjectReferenceStorage.Num()) != 0)
+		if (!FIrisPackageMapExportsUtil::IsEqual(Context, Value0.QuantizedExports, Value1.QuantizedExports))
 		{
 			return false;
 		}
@@ -295,6 +238,9 @@ void FLastResortPropertyNetSerializer::CloneDynamicState(FNetSerializationContex
 	QuantizedType& Target = *reinterpret_cast<QuantizedType*>(Args.Target);
 	const QuantizedType& Source = *reinterpret_cast<const QuantizedType*>(Args.Source);
 
+	// Clone captured exports
+	FIrisPackageMapExportsUtil::CloneDynamicState(Context, Target.QuantizedExports, Source.QuantizedExports);
+
 	const uint16 ByteCount = static_cast<uint16>(Align((Source.BitCount + 7U)/8U, AllocationAlignment));
 
 	void* Storage = nullptr;
@@ -307,7 +253,6 @@ void FLastResortPropertyNetSerializer::CloneDynamicState(FNetSerializationContex
 	Target.BitCount = Source.BitCount;
 	Target.Storage = Storage;
 
-	Target.ObjectReferenceStorage.Clone(Context, Source.ObjectReferenceStorage);
 }
 
 void FLastResortPropertyNetSerializer::FreeDynamicState(FNetSerializationContext& Context, const FNetFreeDynamicStateArgs& Args)
@@ -318,7 +263,10 @@ void FLastResortPropertyNetSerializer::FreeDynamicState(FNetSerializationContext
 void FLastResortPropertyNetSerializer::FreeDynamicStateInternal(FNetSerializationContext& Context, QuantizedType& Value)
 {
 	// Clear all info
-	Value.ObjectReferenceStorage.Free(Context);
+
+	// Free captured export data.
+	FIrisPackageMapExportsUtil::FreeDynamicState(Context, Value.QuantizedExports);
+	
 	Context.GetInternalContext()->Free(Value.Storage);
 
 	Value.BitCount = 0;
@@ -381,11 +329,7 @@ void FLastResortPropertyNetSerializer::CollectNetReferences(FNetSerializationCon
 	const QuantizedType& Value = *reinterpret_cast<const QuantizedType*>(Args.Source);
 	FNetReferenceCollector& Collector = *reinterpret_cast<UE::Net::FNetReferenceCollector*>(Args.Collector);
 
-	const FNetReferenceInfo ReferenceInfo(FNetReferenceInfo::EResolveType::ResolveOnClient);	
-	for (const FNetObjectReference& Ref : MakeArrayView(Value.ObjectReferenceStorage.GetData(), Value.ObjectReferenceStorage.Num()))
-	{
-		Collector.Add(ReferenceInfo, Ref, Args.ChangeMaskInfo);
-	}
+	FIrisPackageMapExportsUtil::CollectNetReferences(Context, Value.QuantizedExports, Args.ChangeMaskInfo, Collector);
 }
 
 

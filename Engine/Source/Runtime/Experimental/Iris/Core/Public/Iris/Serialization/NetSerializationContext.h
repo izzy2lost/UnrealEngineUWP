@@ -13,6 +13,7 @@ namespace UE::Net
 	class FNetBitArrayView;
 	class FNetBitStreamReader;
 	class FNetBitStreamWriter;
+	class FNetTokenStore;
 
 	namespace Private
 	{
@@ -87,6 +88,9 @@ public:
 	 * @return The user data object associated with the connection.
 	 */
 	IRISCORE_API UObject* GetLocalConnectionUserData(uint32 ConnectionId);
+
+	IRISCORE_API const UE::Net::FNetTokenStore* GetNetTokenStore() const;
+	IRISCORE_API UE::Net::FNetTokenStore* GetNetTokenStore();
 
 	void SetInternalContext(Private::FInternalNetSerializationContext* InInternalContext) { InternalContext = InInternalContext; }
 	Private::FInternalNetSerializationContext* GetInternalContext() { return InternalContext; }

@@ -74,7 +74,7 @@ void UNetTokenDataStream::Init(const FInitParameters& Params)
 		NetTokensPendingExport.Reserve(LocalTokenCount - 1);
 		for (uint32 Index = 1; Index < LocalTokenCount; ++Index)
 		{
-			NetTokensPendingExport.Add(FNetToken::MakeNetToken(Index));
+			NetTokensPendingExport.Add(FNetToken::MakeNetToken(Index, NetTokenStore->IsAuthority() ? FNetToken::ENetTokenAuthority::Authority : FNetToken::ENetTokenAuthority::None));
 		}
 	}
 }
@@ -103,8 +103,7 @@ UDataStream::EWriteResult UNetTokenDataStream::WriteData(UE::Net::FNetSerializat
 		return EWriteResult::NoData;
 	}
 
-	UReplicationSystem* ReplicationSystem = UE::Net::GetReplicationSystem(ReplicationSystemId);
-	const FStringTokenStore* StringTokenStore = ReplicationSystem->GetStringTokenStore();
+	const FStringTokenStore* StringTokenStore = NetTokenStore->GetDataStore<const FStringTokenStore>();
 	FNetExportContext* ExportContext = Context.GetExportContext();
 
 	// Write data until we have no more data to write or it does not fit
@@ -116,6 +115,7 @@ UDataStream::EWriteResult UNetTokenDataStream::WriteData(UE::Net::FNetSerializat
 	FNetBitStreamWriter SubStream = Writer->CreateSubstream(Writer->GetBitsLeft() - 1U);
 	FNetSerializationContext SubContext = Context.MakeSubContext(&SubStream);
 
+	const bool bIsNetTokenAuthority = NetTokenStore->IsAuthority();
 	while (NetTokensPendingExport.Num())
 	{
 		FNetBitStreamRollbackScope SequenceRollback(SubStream);
@@ -124,12 +124,13 @@ UDataStream::EWriteResult UNetTokenDataStream::WriteData(UE::Net::FNetSerializat
 		// Peek at front index
 		const FNetToken& Token = NetTokensPendingExport.GetAtIndexNoCheck(0);
 
-		if (!ExportContext->IsExported(Token))
+		// We do not need to export tokens assigned by authority unless we are the authority.
+		if (!(Token.IsAssignedByAuthority() && !bIsNetTokenAuthority) && !ExportContext->IsExported(Token))
 		{
 			UE_NET_TRACE_NAMED_SCOPE(ExportScope, NetTokenExport, SubStream, SubContext.GetTraceCollector(), ENetTraceVerbosity::Verbose);
 
 			SubStream.WriteBool(true);
-			WriteNetToken(&SubStream, Token);
+			WriteNetToken(SubContext, Token);
 			NetTokenStore->WriteTokenData(SubContext, Token);
 
 			if (SubStream.IsOverflown())
@@ -199,7 +200,7 @@ void UNetTokenDataStream::ReadData(UE::Net::FNetSerializationContext& Context)
 			break;
 		}
 
-		FNetToken Token = ReadNetToken(Reader);
+		FNetToken Token = ReadNetToken(Context);
 		if (Token.IsValid())
 		{
 			NetTokenStore->ReadTokenData(Context, Token, *RemoteNetTokenStoreState);

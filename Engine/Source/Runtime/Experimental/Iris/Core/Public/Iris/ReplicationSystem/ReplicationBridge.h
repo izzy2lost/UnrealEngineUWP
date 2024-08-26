@@ -29,6 +29,8 @@ namespace UE::Net
 	struct FReplicationInstanceProtocol;
 	struct FReplicationProtocol;
 	class FNetSerializationContext;
+	class FNetBitStreamReader;
+	class FNetBitStreamWriter;
 	namespace Private
 	{
 		typedef uint32 FInternalNetRefIndex;

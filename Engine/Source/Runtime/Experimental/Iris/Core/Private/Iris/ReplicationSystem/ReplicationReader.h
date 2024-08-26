@@ -19,6 +19,9 @@ namespace UE::Net
 	class FNetSerializationContext;
 	class FNetTokenStoreState;
 	class FReplicationStateStorage;
+	class FNetBitStreamReader;
+	class FNetBitStreamWriter;
+
 	namespace Private
 	{
 		class FReplicationSystemInternal;

@@ -32,6 +32,7 @@ namespace UE::Net
 	class FNetObjectAttachment;	
 	class FNetObjectReference;
 	class FReplicationSystemFactory;
+	class FNetTokenStore;
 	class FStringTokenStore;
 	class FNameTokenStore;
 	class FWorldLocations;
@@ -46,6 +47,8 @@ namespace UE::Net
 	enum class ENetObjectDeltaCompressionStatus : unsigned;
 	enum class ENetRefHandleError : uint32;
 	enum class EReplicationCondition : uint32;
+
+	struct FNetTokenExportContext;
 
 	namespace Private
 	{
@@ -330,29 +333,22 @@ public:
 	T* GetReplicationBridgeAs() const { return Cast<T>(GetReplicationBridge()); }
 
 	/**
-	 * @return A const version of the string token store.
-	 * @see UE::Net::FStringTokenStore
+	 * @return The Net token store.
+	 * @see UE::Net::FNetTokenStore
 	 */
-	IRISCORE_API const UE::Net::FStringTokenStore* GetStringTokenStore() const;
+	IRISCORE_API UE::Net::FNetTokenStore* GetNetTokenStore();
 
 	/**
-	 * @return The string token store.
-	 * @see UE::Net::FStringTokenStore
+	 * @return A const version of the NetTokenStore.
+	 * @see UE::Net::FNetTokenStore
 	 */
-	IRISCORE_API UE::Net::FStringTokenStore* GetStringTokenStore();
+	IRISCORE_API const UE::Net::FNetTokenStore* GetNetTokenStore() const;
 
 	/**
-	 * @return A const version of the FName token store.
-	 * @see UE::Net::FFNameTokenStore
+	 * Init NetTokenExportContext required to quantize and resolve NetTokens
+	 * @see UE::Net::FNetTokenStore
 	 */
-	IRISCORE_API const UE::Net::FNameTokenStore* GetNameTokenStore() const;
-
-	/**
-	 * @return The string token store.
-	 * @see UE::Net::FNameTokenStore
-	 */
-	IRISCORE_API UE::Net::FNameTokenStore* GetNameTokenStore();
-
+	IRISCORE_API void InitNetTokenExportContext(UE::Net::FNetTokenExportContext& NetTokenExportContext, uint32 ConnectionId);
 
 	/**
 	 * Check whether a FNetRefHandle is still associated with a replicated object.

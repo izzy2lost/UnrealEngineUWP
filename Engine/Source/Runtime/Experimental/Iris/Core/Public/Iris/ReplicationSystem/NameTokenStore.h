@@ -18,26 +18,27 @@ class FNameTokenStore : public FNetTokenDataStore
 public:
 	explicit FNameTokenStore(FNetTokenStore& TokenStore);
 
-	// Create a string token for the provided string
+	// Create a NetToken for the provided name
 	IRISCORE_API FNetToken GetOrCreateToken(FName Name);
 
-	// Resolve a local token
-	IRISCORE_API FName ResolveToken(FNetToken Token) const;
+	// Resolve NetToken, to resolve remote tokens RemoteTokenStoreState must be valid
+	IRISCORE_API FName ResolveToken(FNetToken Token, const FNetTokenStoreState* RemoteTokenStoreState = nullptr) const;	
 
-	// Resolve a token received from remote
-	IRISCORE_API FName ResolveRemoteToken(FNetToken Token, const FNetTokenStoreState& NetTokenStoreState) const;
+	static FName GetTokenStoreName() { return NameTokenStoreName; }
 
 protected:
 	// Serialize data for a token, note there is not validation in this function
 	virtual void WriteTokenData(FNetSerializationContext& Context, FNetTokenStoreKey TokenStoreKey) const override;
 
 	// Read data for a token, returns a valid StoreKey if successful read
-	virtual FNetTokenStoreKey ReadTokenData(FNetSerializationContext& Context) override;
+	virtual FNetTokenStoreKey ReadTokenData(FNetSerializationContext& Context, const FNetToken& NetToken) override;
 
 	// Create a persistent string
 	FNetTokenStoreKey GetOrCreateTokenStoreKey(FName Name);
 
 private:
+	inline static FName NameTokenStoreName = TEXT("NameTokenStore");
+
 	FNetTokenStore& TokenStore;
 	TMap<FName, FNetTokenStoreKey> FNameToKey;
 	TArray<FName> StoredFNames;

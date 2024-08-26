@@ -59,8 +59,9 @@ struct FCharacterNetworkSerializationPackedBits
 	TBitArray<TInlineAllocator<CHARACTER_SERIALIZATION_PACKEDBITS_RESERVED_SIZE / NumBitsPerDWORD>> DataBits;
 
 #if UE_WITH_IRIS
-	// Since this struct uses custom serialization path we need to explicitly capture object references, this is managed by the use of a custom packagemap.
-	UIrisObjectReferencePackageMap::FObjectReferenceArray ObjectReferences;
+	// Since this struct uses custom serialization path we need to explicitly capture exports in order to forward them to iris
+	// This is managed by the use of a custom packagemap.
+	UE::Net::FIrisPackageMapExports PackageMapExports;
 #endif
 
 private:

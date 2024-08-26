@@ -9,6 +9,7 @@
 #include "Iris/Serialization/NetSerializationContext.h"
 #include "Iris/Serialization/InternalNetSerializationContext.h"
 #include "Iris/Serialization/NetExportContext.h"
+#include "Net/Core/Trace/NetTrace.h"
 
 namespace UE::Net
 {
@@ -36,7 +37,7 @@ FNetTokenStoreKey FNetTokenDataStore::GetTokenKey(FNetToken Token, const FNetTok
 	return FNetTokenStoreKey();
 }
 
-FNetToken FNetTokenDataStore::CreateToken(FNetTokenStoreKey Key, FNetTokenStoreState& TokenStoreState)
+FNetToken FNetTokenDataStore::CreateToken(FNetToken::ENetTokenAuthority Authority, FNetTokenStoreKey Key, FNetTokenStoreState& TokenStoreState)
 {
 	const uint32 NextTokenIndex = TokenStoreState.TokenInfos.Num();
 
@@ -48,26 +49,35 @@ FNetToken FNetTokenDataStore::CreateToken(FNetTokenStoreKey Key, FNetTokenStoreS
 	// Store token info
 	TokenStoreState.TokenInfos.Add(Key);
 
-	return FNetToken::MakeNetToken(NextTokenIndex);
+	return FNetToken::MakeNetToken(NextTokenIndex, Authority);
 }
 
-FNetToken ReadNetToken(FNetBitStreamReader* Reader)
+FNetToken ReadNetToken(UE::Net::FNetSerializationContext& Context)
 {
-	uint32 Index = ReadPackedUint32(Reader);
+	UE_NET_TRACE_NAMED_DYNAMIC_NAME_SCOPE(TokenScope, FName(), *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
+	FNetBitStreamReader* Reader = Context.GetBitStreamReader();
+
+	const uint32 Index = ReadPackedUint32(Reader);
+	const bool bIsAssignedByAuthority = Reader->ReadBool();
+
+	FNetToken ReadToken;
 	
 	if (!Reader->IsOverflown())
 	{
-		return FNetToken(Index);
+		ReadToken = FNetToken::MakeNetToken(Index, bIsAssignedByAuthority ? FNetToken::ENetTokenAuthority::Authority : FNetToken::ENetTokenAuthority::None);
+		UE_NET_TRACE_SET_SCOPE_NAME(TokenScope, *ReadToken.ToString());
 	}
-	else
-	{
-		return FNetToken();
-	}
+
+	return ReadToken;
 }
 
-void WriteNetToken(FNetBitStreamWriter* Writer, FNetToken Token)
+void WriteNetToken(UE::Net::FNetSerializationContext& Context, FNetToken Token)
 {
+	UE_NET_TRACE_DYNAMIC_NAME_SCOPE(*Token.ToString(), *Context.GetBitStreamWriter(), Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
+	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
+
 	WritePackedUint32(Writer, Token.GetIndex());
+	Writer->WriteBool(Token.IsAssignedByAuthority());
 }
 
 FNetTokenStore::FNetTokenStore()
@@ -80,7 +90,24 @@ FNetTokenStore::~FNetTokenStore()
 	delete LocalNetTokenStoreState;
 }
 
-bool FNetTokenStore::RegisterDataStore(FNetTokenDataStore* DataStore)
+void FNetTokenStore::Init(FNetTokenStore::FInitParams& InParams)
+{
+	Params = InParams;
+}
+
+const FNetTokenDataStore* FNetTokenStore::GetDataStore(FName Name) const
+{
+	const TTuple<FName, FNetTokenDataStore*>* Entry = TokenDataStores.FindByPredicate([Name](const TTuple<FName, FNetTokenDataStore*>& Entry){ return Name == Entry.Get<0>(); });
+	return Entry ? Entry->Get<1>() : nullptr;
+}
+
+ FNetTokenDataStore* FNetTokenStore::GetDataStore(FName Name)
+{
+	TTuple<FName, FNetTokenDataStore*>* Entry = TokenDataStores.FindByPredicate([Name](TTuple<FName, FNetTokenDataStore*>& Entry){ return Name == Entry.Get<0>(); });
+	return Entry ? Entry->Get<1>() : nullptr;
+}
+
+bool FNetTokenStore::RegisterDataStore(FNetTokenDataStore* DataStore, FName TokenStoreName)
 {
 	if (TokenDataStores.Num() >= FNetToken::MaxTypeIdCount)
 	{
@@ -92,6 +119,12 @@ bool FNetTokenStore::RegisterDataStore(FNetTokenDataStore* DataStore)
 		return false;
 	}
 
+	if (!ensure(GetDataStore(TokenStoreName) == nullptr))
+	{
+		// Already registered
+		return false;
+	}
+
 	if (!ensure(DataStore->GetTypeId() == FNetToken::InvalidTokenTypeId))
 	{
 		// Already registered
@@ -99,85 +132,82 @@ bool FNetTokenStore::RegisterDataStore(FNetTokenDataStore* DataStore)
 	}
 
 	DataStore->TypeId = TokenDataStores.Num();
-	TokenDataStores.Add(DataStore);
+	TokenDataStores.Emplace(TokenStoreName, DataStore);
 
 	return true;
 }
 
-void FNetTokenStore::WriteTokenData(FNetSerializationContext& Context, const FNetToken& NetToken) const
+void FNetTokenStore::WriteTokenData(FNetSerializationContext& Context, const FNetToken NetToken) const
 {
 	if (NetToken.IsValid())
 	{
-		WriteTokenDataForIndex(Context, NetToken.GetIndex());
+		FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
+
+		// Write type
+		const FNetTokenStoreKey& TokenKey = LocalNetTokenStoreState->TokenInfos[NetToken.GetIndex()];
+		Writer->WriteBits(TokenKey.TypeId, FNetToken::TokenTypeIdBits);
+
+		// Write token data
+		TokenDataStores[TokenKey.TypeId].Get<1>()->WriteTokenData(Context, TokenKey);
 	}
 }
 
-void FNetTokenStore::ReadTokenData(FNetSerializationContext& Context, const FNetToken& NetToken, FNetTokenStoreState& RemoteNetTokenStoreState)
+void FNetTokenStore::ReadTokenData(FNetSerializationContext& Context, const FNetToken NetToken, FNetTokenStoreState& RemoteNetTokenStoreState)
 {
 	if (NetToken.IsValid())
 	{
+		FNetBitStreamReader* Reader = Context.GetBitStreamReader();
+
 		// TODO: Guard this better, a map might be better after-all!
 		// Also need to protect this if we process inbound data in parallel.
 		if (!RemoteNetTokenStoreState.ReserveTokenCount(NetToken.GetIndex() + 1))
 		{
-			Context.GetBitStreamReader()->DoOverflow();
+			Reader->DoOverflow();
 			return;
 		}
 
-		ReadTokenDataForIndex(Context, NetToken.GetIndex(), RemoteNetTokenStoreState);
-	}
-}
+		// Read type
+		FNetToken::FTypeId TokenTypeId = (FNetToken::FTypeId)Reader->ReadBits(FNetToken::TokenTypeIdBits);
 
-void FNetTokenStore::WriteTokenDataForIndex(FNetSerializationContext& Context, uint32 TokenIndex) const
-{
-	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
+		// Validate that we managed to read and verify the type
+		if (Reader->IsOverflown() || TokenTypeId >= (uint32)TokenDataStores.Num() )
+		{
+			Reader->DoOverflow();
+			return;
+		}
 
-	// Write type
-	const FNetTokenStoreKey& TokenKey = LocalNetTokenStoreState->TokenInfos[TokenIndex];
-	Writer->WriteBits(TokenKey.TypeId, FNetToken::TokenTypeIdBits);
+		const FNetTokenStoreKey StoreKey = TokenDataStores[TokenTypeId].Get<1>()->ReadTokenData(Context, NetToken);
 
-	// Write token data
-	TokenDataStores[TokenKey.TypeId]->WriteTokenData(Context, TokenKey);
-}
+		// Validate that we managed to read the data for the key
+		if (Reader->IsOverflown() || !StoreKey.IsValid())
+		{
+			Reader->DoOverflow();
+			return;
+		}
 
-void FNetTokenStore::ReadTokenDataForIndex(FNetSerializationContext& Context, uint32 TokenIndex, FNetTokenStoreState& TokenStoreState)
-{
-	FNetBitStreamReader* Reader = Context.GetBitStreamReader();
-
-	// Read type
-	FNetToken::FTypeId TokenTypeId = (FNetToken::FTypeId)Reader->ReadBits(FNetToken::TokenTypeIdBits);
-
-	// Validate that we managed to read and verify the type
-	if (Reader->IsOverflown() || TokenTypeId >= (uint32)TokenDataStores.Num() )
-	{
-		Reader->DoOverflow();
-		return;
-	}
-
-	const FNetTokenStoreKey StoreKey = TokenDataStores[TokenTypeId]->ReadTokenData(Context);
-
-	// Validate that we managed to read the data for the key
-	if (Reader->IsOverflown() || !StoreKey.IsValid())
-	{
-		Reader->DoOverflow();
-		return;
-	}
-
-	// Since the same tokendata might be exported multiple times we better validate that it is the same data
-	const FNetTokenStoreKey& ExistingStoreKey = TokenStoreState.TokenInfos[TokenIndex];
-	if (!ensureAlways(!ExistingStoreKey.IsValid() || StoreKey == ExistingStoreKey))
-	{
-		Reader->DoOverflow();
-		return;
-	}
+		// Since the same tokendata might be exported multiple times we better validate that it is the same data
+		const FNetTokenStoreKey& ExistingStoreKey = RemoteNetTokenStoreState.TokenInfos[NetToken.GetIndex()];
+		if (!ensureAlways(!ExistingStoreKey.IsValid() || StoreKey == ExistingStoreKey))
+		{
+			Reader->DoOverflow();
+			return;
+		}
 	
-	// Store
-	TokenStoreState.TokenInfos[TokenIndex] = StoreKey;
+		// Store
+		RemoteNetTokenStoreState.TokenInfos[NetToken.GetIndex()] = StoreKey;
+	}
 }
 
-void FNetTokenStore::ConditionalWriteNetTokenData(FNetSerializationContext& Context, Private::FNetExportContext* ExportContext, const FNetToken& NetToken) const
+void FNetTokenStore::ConditionalWriteNetTokenData(FNetSerializationContext& Context, Private::FNetExportContext* ExportContext, const FNetToken NetToken) const
 {
 	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
+
+	// We should not try to export tokens received from remote
+	if (IsAuthority() != NetToken.IsAssignedByAuthority())
+	{
+		Writer->WriteBool(false);
+		return;
+	}
 
 	if (ExportContext)
 	{
@@ -194,7 +224,7 @@ void FNetTokenStore::ConditionalWriteNetTokenData(FNetSerializationContext& Cont
 	}
 }
 
-void FNetTokenStore::ConditionalReadNetTokenData(FNetSerializationContext& Context, const FNetToken& NetToken)
+void FNetTokenStore::ConditionalReadNetTokenData(FNetSerializationContext& Context, const FNetToken NetToken)
 {
 	FNetBitStreamReader* Reader = Context.GetBitStreamReader();
 
@@ -209,6 +239,38 @@ void FNetTokenStore::ConditionalReadNetTokenData(FNetSerializationContext& Conte
 		FNetObjectResolveContext& ResolveContext = Context.GetInternalContext()->ResolveContext;
 	
 		ReadTokenData(Context, NetToken, *ResolveContext.RemoteNetTokenStoreState);
+	}
+}
+
+void FNetTokenStore::AppendExportOrWriteInlinedExportData(FNetSerializationContext& Context, FNetToken NetToken)
+{
+	using namespace UE::Net::Private;
+
+	FNetExportContext* ExportContext = Context.GetExportContext();
+	const FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
+	
+	if (InternalContext->bInlineObjectReferenceExports == 0U)
+	{
+		ExportContext->AddPendingExport(NetToken);
+	}
+	else
+	{
+		FNetTokenStore* NetTokenStore = Context.GetNetTokenStore();
+		NetTokenStore->ConditionalWriteNetTokenData(Context, ExportContext, NetToken);
+	}
+}
+
+void FNetTokenStore::ReadInlinedExportData(FNetSerializationContext& Context, FNetToken NetToken)
+{
+	using namespace UE::Net::Private;
+
+	const FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
+
+	// Conditionally import if using inlined exports
+	if (InternalContext->bInlineObjectReferenceExports == 1U)
+	{
+		FNetTokenStore* NetTokenStore = Context.GetNetTokenStore();
+		NetTokenStore->ConditionalReadNetTokenData(Context, NetToken);
 	}
 }
 

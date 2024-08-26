@@ -51,6 +51,8 @@ struct FNameNetSerializer
 		void* ElementStorage;
 	};
 
+	static_assert(GetNameNetSerializerSafeQuantizedSize() >= sizeof(FQuantizedType));
+
 	typedef FName SourceType;
 	typedef FQuantizedType QuantizedType;
 	typedef FNameNetSerializerConfig ConfigType;
@@ -435,10 +437,9 @@ struct FNameAsNetTokenNetSerializerQuantizedType
 	uint32 bIsString : 1U;
 	// When serializing/deserializing the number is expressed as (MAX_int32 - number)
 	uint32 bEncodeNumberFromIntMax : 1U;
-
-	// if this is a local (obtained from quantize)
-	uint32 bIsLocal : 1U;
 };
+
+static_assert(GetNameNetSerializerSafeQuantizedSize() >= sizeof(FNameAsNetTokenNetSerializerQuantizedType));
 
 } // End of namespace UE::Net
 
@@ -475,10 +476,7 @@ struct FNameAsNetTokenNetSerializer
 private:
 
 	// Utility methods, consolidate with other changes to NetTokenStore as next step.
-	static FName ResolveNetToken(FNetSerializationContext&, FNetToken NetToken, bool bIsLocal);
-
-	static void AppendExportOrWriteInlinedExportData(FNetSerializationContext&, FNetToken NetToken);
-	static void ReadInlinedExportData(FNetSerializationContext&, FNetToken NetToken);
+	static FName ResolveNetToken(FNetSerializationContext&, FNetToken NetToken);
 
 	static const uint32 BitCountNeededForEName;
 };
@@ -503,13 +501,11 @@ void FNameAsNetTokenNetSerializer::Serialize(FNetSerializationContext& Context, 
 	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
 	if (Writer->WriteBool(Value.bIsString))
 	{
-		//UE_NET_TRACE_DYNAMIC_NAME_SCOPE(*FString::Printf(TEXT("%u"), Value.NetToken.GetIndex()), *Context.GetBitStreamWriter(), Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
-
 		// Always write the token
-		WriteNetToken(Writer, Value.NetToken);
+		WriteNetToken(Context, Value.NetToken);
 
 		// Export or add to pending exports for later export
-		FNameAsNetTokenNetSerializer::AppendExportOrWriteInlinedExportData(Context, Value.NetToken);
+		FNetTokenStore::AppendExportOrWriteInlinedExportData(Context, Value.NetToken);
 	}
 	else
 	{
@@ -535,7 +531,7 @@ void FNameAsNetTokenNetSerializer::Deserialize(FNetSerializationContext& Context
 		Target.bIsString = 1;
 
 		// Always Read the token
-		FNetToken NetToken = ReadNetToken(Reader);
+		FNetToken NetToken = ReadNetToken(Context);
 
 		if (Reader->IsOverflown())
 		{
@@ -543,10 +539,9 @@ void FNameAsNetTokenNetSerializer::Deserialize(FNetSerializationContext& Context
 		}
 
 		// Read inlined exports if there are any
-		ReadInlinedExportData(Context, NetToken);
+		FNetTokenStore::ReadInlinedExportData(Context, NetToken);
 
 		Target.NetToken = NetToken;
-		Target.bIsLocal = 0U;
 	}
 	else
 	{
@@ -562,7 +557,6 @@ void FNameAsNetTokenNetSerializer::Deserialize(FNetSerializationContext& Context
 		Target.ENameOrNumber = ENameNumber;
 	
 		Target.NetToken = FNetToken();
-		Target.bIsLocal = 0U;
 	}
 }
 
@@ -582,11 +576,8 @@ void FNameAsNetTokenNetSerializer::Quantize(FNetSerializationContext& Context, c
 		TargetName.bEncodeNumberFromIntMax = 0;
 
 		// Store as NetToken
-		FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
-		using namespace UE::Net::Private;
-			
-		TargetName.NetToken = InternalContext->ReplicationSystem->GetNameTokenStore()->GetOrCreateToken(SourceName);
-		TargetName.bIsLocal = 1U;
+		FNameTokenStore* NameTokenStore = Context.GetNetTokenStore()->GetDataStore<FNameTokenStore>();
+		TargetName.NetToken = NameTokenStore->GetOrCreateToken(SourceName);
 	}
 	else
 	{
@@ -596,53 +587,17 @@ void FNameAsNetTokenNetSerializer::Quantize(FNetSerializationContext& Context, c
 		// The EName we do care about!
 		TargetName.ENameOrNumber = static_cast<int32>(static_cast<uint32>(*AsEName));
 
-		TargetName.bIsLocal = 0;
 		TargetName.NetToken = FNetToken();
 	}
 }
 
-FName FNameAsNetTokenNetSerializer::ResolveNetToken(FNetSerializationContext& Context, FNetToken NetToken, bool bIsLocal)
+FName FNameAsNetTokenNetSerializer::ResolveNetToken(FNetSerializationContext& Context, FNetToken NetToken)
 {
 	using namespace UE::Net::Private;
 
-	FName Result;
 	FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
-	FNameTokenStore* NameTokenStore = InternalContext->ReplicationSystem->GetNameTokenStore();
-
-	return bIsLocal ? NameTokenStore->ResolveToken(NetToken) : NameTokenStore->ResolveRemoteToken(NetToken, *InternalContext->ResolveContext.RemoteNetTokenStoreState);
-}
-
-void FNameAsNetTokenNetSerializer::AppendExportOrWriteInlinedExportData(FNetSerializationContext& Context, FNetToken NetToken)
-{
-	using namespace UE::Net::Private;
-
-	FNetExportContext* ExportContext = Context.GetExportContext();
-	const FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
-	
-	if (InternalContext->bInlineObjectReferenceExports == 0U)
-	{
-		ExportContext->AddPendingExport(NetToken);
-	}
-	else
-	{
-		FNetTokenStore& NetTokenStore = InternalContext->ReplicationSystem->GetReplicationSystemInternal()->GetNetTokenStore();
-
-		NetTokenStore.ConditionalWriteNetTokenData(Context, ExportContext, NetToken);
-	}
-}
-
-void FNameAsNetTokenNetSerializer::ReadInlinedExportData(FNetSerializationContext& Context, FNetToken NetToken)
-{
-	using namespace UE::Net::Private;
-
-	const FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
-
-	// Conditionally import if using inlined exports
-	if (InternalContext->bInlineObjectReferenceExports == 1U)
-	{
-		FNetTokenStore& NetTokenStore = InternalContext->ReplicationSystem->GetReplicationSystemInternal()->GetNetTokenStore();
-		NetTokenStore.ConditionalReadNetTokenData(Context, NetToken);
-	}
+	FNameTokenStore* NameTokenStore = Context.GetNetTokenStore()->GetDataStore<FNameTokenStore>();
+	return NameTokenStore->ResolveToken(NetToken, InternalContext->ResolveContext.RemoteNetTokenStoreState);
 }
 
 void FNameAsNetTokenNetSerializer::Dequantize(FNetSerializationContext& Context, const FNetDequantizeArgs& Args)
@@ -655,7 +610,7 @@ void FNameAsNetTokenNetSerializer::Dequantize(FNetSerializationContext& Context,
 	if (Source.bIsString)
 	{
 		// Resolve from RemoteNetToken
-		Target = FNameAsNetTokenNetSerializer::ResolveNetToken(Context, Source.NetToken, Source.bIsLocal);
+		Target = FNameAsNetTokenNetSerializer::ResolveNetToken(Context, Source.NetToken);
 	}
 	else
 	{
@@ -679,14 +634,14 @@ bool FNameAsNetTokenNetSerializer::IsEqual(FNetSerializationContext& Context, co
 			return false;
 		}
 
-		// We are pessimistic here
+		// Need to compare actual FNames to properly compare non-auth and auth token
 		if (Value0.bIsString)
 		{
-			if (Value0.bIsLocal != Value1.bIsLocal)
+			if (Value0.NetToken.IsAssignedByAuthority() != Value1.NetToken.IsAssignedByAuthority())
 			{
-				const FName Name0 = FNameAsNetTokenNetSerializer::ResolveNetToken(Context, Value0.NetToken, Value0.bIsLocal);
-				const FName Name1 = FNameAsNetTokenNetSerializer::ResolveNetToken(Context, Value1.NetToken, Value1.bIsLocal);;
-				// Need to compare actual FNames to handle compare of local and remote data.
+				const FName Name0 = FNameAsNetTokenNetSerializer::ResolveNetToken(Context, Value0.NetToken);
+				const FName Name1 = FNameAsNetTokenNetSerializer::ResolveNetToken(Context, Value1.NetToken);
+				
 				if (Name0 != Name1)
 				{
 					return false;

@@ -37,10 +37,10 @@ FNetToken FStringTokenStore::GetOrCreateToken(const TCHAR* Name, uint32 Length)
 		}
 		else
 		{
-			const FNetToken NewToken = CreateToken(Key, *TokenStore.GetLocalNetTokenStoreState());
+			const FNetToken NewToken = CreateToken(TokenStore.IsAuthority() ? FNetToken::ENetTokenAuthority::Authority : FNetToken::ENetTokenAuthority::None, Key, *TokenStore.GetLocalNetTokenStoreState());
 			StoredTokens[StringIndex] = NewToken;
 
-			UE_LOG_STRINGTOKEN(TEXT("FStringTokenStore::GetOrCreateToken - Created new token %u for %s"), NewToken.GetIndex(), Name);
+			UE_LOG_STRINGTOKEN(TEXT("FStringTokenStore::GetOrCreateToken - Created %s for %s"), *NewToken.ToString(), Name);
 
 			return NewToken;
 		}
@@ -94,21 +94,19 @@ FStringTokenStore::FStringTokenStore(FNetTokenStore& InTokenStore)
 	StoredTokens.Add(FNetToken());
 
 	// Register
-	TokenStore.RegisterDataStore(this);
+	TokenStore.RegisterDataStore(this, GetTokenStoreName());
 }
 
-const TCHAR* FStringTokenStore::ResolveToken(FNetToken Token) const
+const TCHAR* FStringTokenStore::ResolveToken(FNetToken Token, const FNetTokenStoreState* NetTokenStoreState) const
 {
-	return ResolveRemoteToken(Token, *TokenStore.GetLocalNetTokenStoreState());
-}
-
-const TCHAR* FStringTokenStore::ResolveRemoteToken(FNetToken Token, const FNetTokenStoreState& NetTokenStoreState) const
-{
-	const FNetTokenStoreKey StoreKey = GetTokenKey(Token, NetTokenStoreState);
-
-	if (StoreKey.IsValid() && StoreKey.GetKeyValue() < (uint32)StoredStrings.Num())
+	const FNetTokenStoreState* TokenStoreState = TokenStore.IsLocalToken(Token) ? TokenStore.GetLocalNetTokenStoreState() : NetTokenStoreState;
+	if (Token.IsValid() && ensureMsgf(TokenStoreState, TEXT("FStringTokenStore::ResolveToken Needs valid remote NetTokenStoreState to resolve remote %s"), *Token.ToString()))
 	{
-		return StoredStrings[StoreKey.GetKeyValue()];
+		const FNetTokenStoreKey StoreKey = GetTokenKey(Token, *TokenStoreState);
+		if (StoreKey.IsValid() && StoreKey.GetKeyValue() < (uint32)StoredStrings.Num())
+		{
+			return StoredStrings[StoreKey.GetKeyValue()];
+		}
 	}
 
 	return nullptr;
@@ -120,7 +118,7 @@ void FStringTokenStore::WriteTokenData(FNetSerializationContext& Context, FNetTo
 	WriteString(Context.GetBitStreamWriter(), FStringView(StoredStrings[TokenStoreKey.GetKeyValue()]));
 }
 
-FNetTokenStoreKey FStringTokenStore::ReadTokenData(FNetSerializationContext& Context)
+FNetTokenStoreKey FStringTokenStore::ReadTokenData(FNetSerializationContext& Context, const FNetToken& NetToken)
 {
 	FNetBitStreamReader* Reader = Context.GetBitStreamReader();
 
@@ -130,7 +128,17 @@ FNetTokenStoreKey FStringTokenStore::ReadTokenData(FNetSerializationContext& Con
 
 	if (!Reader->IsOverflown())
 	{
-		return GetOrCreatePersistentString(*Temp, Temp.Len());
+		FNetTokenStoreKey Key = GetOrCreatePersistentString(*Temp, Temp.Len());
+
+		// If this is an authtoken and we are not the authority, update the stored key
+		if (Key.IsValid() && NetToken.IsAssignedByAuthority() && !TokenStore.IsAuthority())
+		{
+			UE_LOG_STRINGTOKEN(TEXT("FStringTokenStore::ReadTokenData - Replaced local key %s with %s for string %s"), *StoredTokens[Key.GetKeyValue()].ToString(), *NetToken.ToString(), *Temp);	
+
+			// This way the next time we lookup this key during assignment use the imported authoritative key which we do not have to export
+			StoredTokens[Key.GetKeyValue()] = NetToken;
+		}
+		return Key;
 	}
 	else
 	{

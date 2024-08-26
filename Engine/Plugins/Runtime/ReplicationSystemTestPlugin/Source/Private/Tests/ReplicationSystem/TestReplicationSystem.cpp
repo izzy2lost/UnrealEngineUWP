@@ -492,11 +492,20 @@ public:
 	FStringTokenStore* ClientStringTokenStore = nullptr;
 	FReplicationSystemTestClient* Client = nullptr;
 	const FNetTokenStoreState* ClientRemoteNetTokenState;
+	const FNetTokenStoreState* ServerRemoteNetTokenState;
 
 	FNetToken CreateAndExportNetToken(const FString& TokenString)
 	{
 		FNetToken Token = ServerStringTokenStore->GetOrCreateToken(TokenString);
 		Server->GetConnectionInfo(Client->ConnectionIdOnServer).NetTokenDataStream->AddNetTokenForExplicitExport(Token);
+
+		return Token;
+	}
+
+	FNetToken CreateAndExportNetTokenOnClient(const FString& TokenString)
+	{
+		FNetToken Token = ClientStringTokenStore->GetOrCreateToken(TokenString);
+		Client->GetConnectionInfo(Client->LocalConnectionId).NetTokenDataStream->AddNetTokenForExplicitExport(Token);
 
 		return Token;
 	}
@@ -507,13 +516,12 @@ public:
 
 		Client = CreateClient();
 
-		ServerStringTokenStore = Server->GetReplicationSystem()->GetStringTokenStore();
-		ClientStringTokenStore = Client->GetReplicationSystem()->GetStringTokenStore();
+		ServerStringTokenStore = Server->GetReplicationSystem()->GetNetTokenStore()->GetDataStore<FStringTokenStore>();
+		ServerRemoteNetTokenState = Server->GetConnectionInfo(Client->ConnectionIdOnServer).NetTokenDataStream->GetRemoteNetTokenStoreState();
+		ClientStringTokenStore = Client->GetReplicationSystem()->GetNetTokenStore()->GetDataStore<FStringTokenStore>();
 		ClientRemoteNetTokenState = Client->GetConnectionInfo(Client->LocalConnectionId).NetTokenDataStream->GetRemoteNetTokenStoreState();
 	}
 };
-
-
 
 UE_NET_TEST_FIXTURE(FTestNetTokensFixture, NetToken)
 {
@@ -702,6 +710,62 @@ UE_NET_TEST_FIXTURE(FTestNetTokensFixture, NetTokenResendAndDataInSamePacketTest
 	UE_NET_ASSERT_EQ(TestStrings[1], FString(ClientStringTokenStore->ResolveRemoteToken(StringTokenB, *ClientRemoteNetTokenState)));
 }
 
+UE_NET_TEST_FIXTURE(FTestNetTokensFixture, NetTokenAuthority)
+{
+	// Create token
+	FString TokenStringA(TEXT("MyStringToken"));
+	FNetToken NonAuthToken = CreateAndExportNetTokenOnClient(TokenStringA);
+
+	UE_NET_ASSERT_EQ(NonAuthToken.IsAssignedByAuthority(), false);
+
+	// Send from server
+	Server->UpdateAndSend({Client});
+
+	// Send from client
+	Client->UpdateAndSend(Server);
+
+	// We should be able to resolve the token on the server using remote
+	UE_NET_ASSERT_EQ(TokenStringA, FString(ServerStringTokenStore->ResolveToken(NonAuthToken, ServerRemoteNetTokenState)));
+
+	// Find server token.
+	FNetToken AuthToken = CreateAndExportNetToken(TokenStringA);
+
+	// It should be a different token as the server is authoriative
+	UE_NET_ASSERT_FALSE(AuthToken == NonAuthToken);
+
+	// Send from server
+	Server->UpdateAndSend({Client});
+
+	// Client should be able to resolve ServerToken
+	UE_NET_ASSERT_EQ(TokenStringA, FString(ClientStringTokenStore->ResolveToken(AuthToken, ClientRemoteNetTokenState)));
+
+	// If we now try to create a token for the string also received from the authority we expect it to give us the server token and allow us to use that instead of the local exported token.
+	FNetToken NewClientToken = ClientStringTokenStore->GetOrCreateToken(TokenStringA);
+
+	// We expect the tokens to be identical.
+	UE_NET_ASSERT_TRUE(AuthToken == NewClientToken);
+}
+
+UE_NET_TEST_FIXTURE(FTestNetTokensFixture, NetTokenAuthTokenIsNotExportedFromClient)
+{
+	// Create token
+	FString TokenStringA(TEXT("MyStringToken"));
+	FNetToken AuthToken = CreateAndExportNetToken(TokenStringA);
+
+	UE_NET_ASSERT_EQ(AuthToken.IsAssignedByAuthority(), true);
+
+	// Send from server
+	Server->UpdateAndSend({Client});
+
+	// Expect to get auth token
+	FNetToken ClientExpectedAuthToken = CreateAndExportNetTokenOnClient(TokenStringA);
+	UE_NET_ASSERT_EQ(ClientExpectedAuthToken.IsAssignedByAuthority(), true);
+
+	// Send from client
+	Client->UpdateAndSend(Server);
+
+	// $TODO: Expose some stats that we can query for exports.
+}
 
 UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, AddRemoveFromConnectionScopeTest)
 {

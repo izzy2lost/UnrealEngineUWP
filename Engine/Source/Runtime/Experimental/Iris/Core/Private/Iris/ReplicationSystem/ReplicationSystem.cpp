@@ -107,6 +107,13 @@ public:
 #endif
 		const uint32 ReplicationSystemId = ReplicationSystem->GetId();
 
+		FNetTokenStore& NetTokenStore = ReplicationSystemInternal.GetNetTokenStore();
+		{
+			FNetTokenStore::FInitParams NetTokenStoreInitParams;
+			NetTokenStoreInitParams.Authority = Params.bIsServer ? FNetToken::ENetTokenAuthority::Authority : FNetToken::ENetTokenAuthority::None;
+			NetTokenStore.Init(NetTokenStoreInitParams);
+		}
+
 		FNetRefHandleManager& NetRefHandleManager = ReplicationSystemInternal.GetNetRefHandleManager();
 		{
 			FNetRefHandleManager::FInitParams NetRefHandleManagerInitParams;
@@ -1016,24 +1023,20 @@ UNetObjectPrioritizer* UReplicationSystem::GetPrioritizer(const FName Prioritize
 	return Impl->ReplicationSystemInternal.GetPrioritization().GetPrioritizer(PrioritizerName);
 }
 
-const UE::Net::FStringTokenStore* UReplicationSystem::GetStringTokenStore() const
+const UE::Net::FNetTokenStore* UReplicationSystem::GetNetTokenStore() const
 {
-	return &Impl->ReplicationSystemInternal.GetStringTokenStore();
+	return &Impl->ReplicationSystemInternal.GetNetTokenStore();
 }
 
-UE::Net::FStringTokenStore* UReplicationSystem::GetStringTokenStore()
+UE::Net::FNetTokenStore* UReplicationSystem::GetNetTokenStore()
 {
-	return &Impl->ReplicationSystemInternal.GetStringTokenStore();
+	return &Impl->ReplicationSystemInternal.GetNetTokenStore();
 }
 
-const UE::Net::FNameTokenStore* UReplicationSystem::GetNameTokenStore() const
+void UReplicationSystem::InitNetTokenExportContext(UE::Net::FNetTokenExportContext& Context, uint32 ConnectionId)
 {
-	return &Impl->ReplicationSystemInternal.GetNameTokenStore();
-}
-
-UE::Net::FNameTokenStore* UReplicationSystem::GetNameTokenStore()
-{
-	return &Impl->ReplicationSystemInternal.GetNameTokenStore();
+	Context.TokenStore = &Impl->ReplicationSystemInternal.GetNetTokenStore();
+	Context.RemoteState = &Impl->ReplicationSystemInternal.GetConnections().GetRemoteNetTokenStoreState(ConnectionId);
 }
 
 bool UReplicationSystem::RegisterNetBlobHandler(UNetBlobHandler* Handler)
