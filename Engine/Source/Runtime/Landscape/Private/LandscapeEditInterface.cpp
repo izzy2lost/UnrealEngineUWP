@@ -4574,7 +4574,7 @@ void FLandscapeEditDataInterface::SetSelectData(int32 X1, int32 Y1, int32 X2, in
 		check(Component);
 		return static_cast<UTexture2D*&>(Component->EditToolRenderData.DataTexture);
 	};
-	SetEditToolTextureData(X1, Y1, X2, Y2, Data, Stride, ReturnComponentTexture);
+	SetEditToolTextureData(X1, Y1, X2, Y2, Data, Stride, ReturnComponentTexture, TEXTUREGROUP_8BitData);
 }
 
 template<typename TStoreData>
@@ -4612,7 +4612,7 @@ void FLandscapeEditDataInterface::SetLayerContributionData(int32 X1, int32 Y1, i
 		check(Component);
 		return static_cast<UTexture2D*&>(Component->EditToolRenderData.LayerContributionTexture);
 	};
-	SetEditToolTextureData(X1, Y1, X2, Y2, Data, Stride, ReturnComponentTexture);
+	SetEditToolTextureData(X1, Y1, X2, Y2, Data, Stride, ReturnComponentTexture, TEXTUREGROUP_8BitData);
 }
 
 template<typename TStoreData>

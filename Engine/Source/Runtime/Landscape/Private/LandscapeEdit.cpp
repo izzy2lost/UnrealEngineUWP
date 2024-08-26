@@ -8084,6 +8084,8 @@ UTexture2D* ALandscapeProxy::CreateLandscapeToolTexture(int32 InSizeX, int32 InS
 	NewTexture->Source.Init(InSizeX, InSizeY, 1, 1, InFormat, ZeroBuffer);
 	FMemory::Free(ZeroBuffer);
 
+	// Note : for TSF_G8, use TC_Grayscale even though CompressionNone is set to true, otherwise, the texture ends up being created as BGRA instead 
+	NewTexture->CompressionSettings = (InFormat == TSF_G8) ? TC_Grayscale : TC_Default;
 	NewTexture->SRGB = false;
 	NewTexture->CompressionNone = true;
 	NewTexture->MipGenSettings = TMGS_NoMipmaps;
