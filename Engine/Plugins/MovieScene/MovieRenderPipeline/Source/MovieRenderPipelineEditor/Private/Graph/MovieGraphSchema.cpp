@@ -16,6 +16,8 @@
 #include "UObject/UObjectIterator.h"
 #include "ScopedTransaction.h"
 #include "GraphEditor.h"
+#include "MovieEdGraphInputNode.h"
+#include "MovieEdGraphOutputNode.h"
 #include "MovieEdGraphVariableNode.h"
 #include "MoviePipelineEdGraphSubgraphNode.h"
 
@@ -116,6 +118,79 @@ bool UMovieGraphSchema::ShouldHidePinDefaultValue(UEdGraphPin* Pin) const
 {
 	// The graph doesn't support editing default values for pins yet
 	return true;
+}
+
+bool UMovieGraphSchema::SupportsDropPinOnNode(UEdGraphNode* InTargetNode, const FEdGraphPinType& InSourcePinType, EEdGraphPinDirection InSourcePinDirection, FText& OutErrorMessage) const
+{
+	bool bIsSupported = false;
+
+	if ((InSourcePinDirection == EGPD_Input) && Cast<UMoviePipelineEdGraphNodeInput>(InTargetNode))
+	{
+		bIsSupported = true;
+		OutErrorMessage = LOCTEXT("AddPinToInputNode", "Add Pin to Input Node");
+	}
+	else if ((InSourcePinDirection == EGPD_Output) && Cast<UMoviePipelineEdGraphNodeOutput>(InTargetNode))
+	{
+		bIsSupported = true;
+		OutErrorMessage = LOCTEXT("AddPinToOutputNode", "Add Pin to Output Node");
+	}
+	
+	return bIsSupported;
+}
+
+UEdGraphPin* UMovieGraphSchema::DropPinOnNode(UEdGraphNode* InTargetNode, const FName& InSourcePinName, const FEdGraphPinType& InSourcePinType, EEdGraphPinDirection InSourcePinDirection) const
+{
+	UEdGraphPin* NewEdPin = nullptr;
+	
+	const UMoviePipelineEdGraphNodeBase* EdNode = Cast<UMoviePipelineEdGraphNodeBase>(InTargetNode);
+	if (!EdNode)
+	{
+		return nullptr;
+	}
+
+	const UMovieGraphNode* RuntimeNode = EdNode->GetRuntimeNode();
+	if (!RuntimeNode)
+	{
+		return nullptr;
+	}
+
+	if (UMovieGraphConfig* GraphConfig = RuntimeNode->GetGraph())
+	{
+		FText NewMemberName;
+		if (InSourcePinName == NAME_None)
+		{
+			NewMemberName = (InSourcePinDirection == EGPD_Input) ? LOCTEXT("NewInputName", "NewInput") : LOCTEXT("NewOutputName", "NewOutput");
+		}
+		else
+		{
+			NewMemberName = FText::FromName(InSourcePinName);
+		}
+
+		UMovieGraphInterfaceBase* NewMember;
+		if (InSourcePinDirection == EGPD_Input)
+		{
+			NewMember = GraphConfig->AddInput(NewMemberName);
+		}
+		else
+		{
+			NewMember = GraphConfig->AddOutput(NewMemberName);
+		}
+		
+		if (NewMember)
+		{
+			NewMember->bIsBranch = InSourcePinType.PinCategory == PC_Branch;
+
+			if (!NewMember->bIsBranch)
+			{
+				NewMember->SetValueType(UMoviePipelineEdGraphNode::GetValueTypeFromPinType(InSourcePinType), InSourcePinType.PinSubCategoryObject.Get());
+			}
+
+			// Return the last pin on the node (which was just added above)
+			NewEdPin = EdNode->GetPinAt(EdNode->GetAllPins().Num() - 1);
+		}
+	}
+
+	return NewEdPin; 
 }
 
 void UMovieGraphSchema::InitMoviePipelineNodeClasses()

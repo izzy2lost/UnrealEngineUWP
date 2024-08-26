@@ -71,6 +71,17 @@ void SMovieGraphMembersTabContent::Construct(const FArguments& InArgs)
 	// Update the UI whenever the graph adds/updates variables. In this case it's not known which variable is added/updated, so just pass nullptr.
 	UMovieGraphMember* UpdatedMember = nullptr;
 	CurrentGraph->OnGraphVariablesChangedDelegate.AddSP(this, &SMovieGraphMembersTabContent::RefreshMemberActions, UpdatedMember);
+
+	// Also update the UI when inputs/outputs are added to the graph.
+	CurrentGraph->OnGraphInputAddedDelegate.AddSPLambda(this, [this](UMovieGraphInput* InInput)
+	{
+		RefreshMemberActions(InInput);
+	});
+
+	CurrentGraph->OnGraphOutputAddedDelegate.AddSPLambda(this, [this](UMovieGraphOutput* InOutput)
+	{
+		RefreshMemberActions(InOutput);
+	});
 	
 	ChildSlot
 	[
@@ -431,8 +442,6 @@ FReply SMovieGraphMembersTabContent::OnAddButtonClickedOnSection(const int32 InS
 		FScopedTransaction Transaction(LOCTEXT("AddNewVariable", "Add New Variable"));
 		CurrentGraph->AddVariable();
 	}
-
-	RefreshMemberActions();
 
 	return FReply::Handled();
 }

@@ -136,7 +136,7 @@ FEdGraphPinType UMoviePipelineEdGraphNodeBase::GetPinType(EMovieGraphValueType V
 
 FEdGraphPinType UMoviePipelineEdGraphNodeBase::GetPinType(const UMovieGraphPin* InPin)
 {
-	return GetPinType(InPin->Properties.Type, InPin->Properties.bIsBranch);
+	return GetPinType(InPin->Properties.Type, InPin->Properties.bIsBranch, InPin->Properties.TypeObject);
 }
 
 EMovieGraphValueType UMoviePipelineEdGraphNodeBase::GetValueTypeFromPinType(const FEdGraphPinType& InPinType)
@@ -564,6 +564,20 @@ void UMoviePipelineEdGraphNodeBase::OnRuntimeNodeChanged(const UMovieGraphNode* 
 void UMoviePipelineEdGraphNodeBase::PostLoad()
 {
 	Super::PostLoad();
+
+	// Some older nodes did not have the pin type properly set on the editor pin (specifically the value type object).
+	for (UEdGraphPin* Pin : GetAllPins())
+	{
+		const UMovieGraphPin* RuntimePin = Pin->Direction == EGPD_Input
+			? RuntimeNode->GetInputPin(Pin->PinName)
+			: RuntimeNode->GetOutputPin(Pin->PinName);
+		
+		if (RuntimePin)
+		{
+			UObject* NonConstValueTypeObject = const_cast<UObject*>(RuntimePin->Properties.TypeObject.Get());
+			Pin->PinType.PinSubCategoryObject = MakeWeakObjectPtr(NonConstValueTypeObject);
+		}
+	}
 
 	RegisterDelegates();	
 }

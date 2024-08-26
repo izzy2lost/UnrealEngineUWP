@@ -677,13 +677,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Movie Graph")
 	UMovieGraphVariable* AddVariable(const FName InCustomBaseName = NAME_None);
 
-	/** Adds a new input member to the graph. Returns the new input on success, else nullptr. */
+	/**
+	 * Adds a new input member to the graph. Returns the new input on success, else nullptr.
+	 *
+	 * The default name of the input is "Input". Optionally, InBaseName can be specified to add the input with a specific name. If the name "Input"
+	 * (or the custom InBaseName) isn't available, a numerical suffix will be added.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
-	UMovieGraphInput* AddInput();
+	UMovieGraphInput* AddInput(const FText& InBaseName = FText::GetEmpty());
 
-	/** Adds a new output member to the graph. Returns the new output on success, else nullptr. */
+	/**
+	 * Adds a new output member to the graph. Returns the new output on success, else nullptr.
+	 *
+	 * The default name of the output is "Output". Optionally, InBaseName can be specified to add the output with a specific name. If the name "Output"
+	 * (or the custom InBaseName) isn't available, a numerical suffix will be added.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
-	UMovieGraphOutput* AddOutput();
+	UMovieGraphOutput* AddOutput(const FText& InBaseName = FText::GetEmpty());
 
 	/** Gets the variable in the graph with the specified GUID, else nullptr if one could not be found. */
 	UMovieGraphVariable* GetVariableByGuid(const FGuid& InGuid) const;

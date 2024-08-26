@@ -865,11 +865,13 @@ UMovieGraphVariable* UMovieGraphConfig::AddVariable(const FName InCustomBaseName
 	return NewVariable;
 }
 
-UMovieGraphInput* UMovieGraphConfig::AddInput()
+UMovieGraphInput* UMovieGraphConfig::AddInput(const FText& InBaseName)
 {
 	static const FText InputBaseName = LOCTEXT("InputBaseName", "Input");
 
-	UMovieGraphInput* NewInput = AddMember<UMovieGraphInput>(Inputs, FName(*InputBaseName.ToString()));
+	const FText NewInputName = !InBaseName.IsEmpty() ? InBaseName : InputBaseName;
+	
+	UMovieGraphInput* NewInput = AddMember<UMovieGraphInput>(Inputs, FName(*NewInputName.ToString()));
 	InputNode->UpdatePins();
 	
 #if WITH_EDITOR
@@ -879,11 +881,13 @@ UMovieGraphInput* UMovieGraphConfig::AddInput()
 	return NewInput;
 }
 
-UMovieGraphOutput* UMovieGraphConfig::AddOutput()
+UMovieGraphOutput* UMovieGraphConfig::AddOutput(const FText& InBaseName)
 {
 	static const FText OutputBaseName = LOCTEXT("OutputBaseName", "Output");
 	
-	UMovieGraphOutput* NewOutput = AddMember<UMovieGraphOutput>(Outputs, FName(*OutputBaseName.ToString()));
+	const FText NewOutputName = !InBaseName.IsEmpty() ? InBaseName : OutputBaseName;
+	
+	UMovieGraphOutput* NewOutput = AddMember<UMovieGraphOutput>(Outputs, FName(*NewOutputName.ToString()));
 	OutputNode->UpdatePins();
 
 #if WITH_EDITOR
