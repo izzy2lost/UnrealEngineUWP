@@ -68,6 +68,11 @@ SDMMaterialEditor::~SDMMaterialEditor()
 		EditorOnlyData->GetOnPropertyUpdateDelegate().RemoveAll(this);
 		EditorOnlyData->GetOnSlotListUpdateDelegate().RemoveAll(this);
 	}
+
+	if (UDynamicMaterialEditorSettings* Settings = GetMutableDefault<UDynamicMaterialEditorSettings>())
+	{
+		Settings->GetOnSettingsChanged().RemoveAll(this);
+	}
 }
 
 void SDMMaterialEditor::Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialDesigner>& InDesignerWidget)
@@ -94,6 +99,11 @@ void SDMMaterialEditor::Construct(const FArguments& InArgs, const TSharedRef<SDM
 	}
 
 	FCoreDelegates::OnEnginePreExit.AddSP(this, &SDMMaterialEditor::OnEnginePreExit);
+
+	if (UDynamicMaterialEditorSettings* Settings = GetMutableDefault<UDynamicMaterialEditorSettings>())
+	{
+		Settings->GetOnSettingsChanged().AddSP(this, &SDMMaterialEditor::OnSettingsChanged);
+	}
 }
 
 TSharedPtr<SDMMaterialDesigner> SDMMaterialEditor::GetDesignerWidget() const
@@ -938,6 +948,21 @@ void SDMMaterialEditor::OnPropertyUpdate(UDynamicMaterialModelBase* InMaterialMo
 void SDMMaterialEditor::OnSlotListUpdate(UDynamicMaterialModelBase* InMaterialModelBase)
 {
 	PropertySelectorSlot.Invalidate();
+}
+
+void SDMMaterialEditor::OnSettingsChanged(const FPropertyChangedEvent& InPropertyChangedEvent)
+{
+	if (!PropertySelectorSlot.IsValid())
+	{
+		return;
+	}
+
+	const FName MemberName = InPropertyChangedEvent.GetMemberPropertyName();
+
+	if (MemberName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, bUseFullChannelNamesInTopSlimLayout))
+	{
+		PropertySelectorSlot.Invalidate();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

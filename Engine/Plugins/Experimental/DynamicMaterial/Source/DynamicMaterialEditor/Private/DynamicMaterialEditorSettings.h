@@ -182,6 +182,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout")
 	bool bUVVisualizerVisible;
 
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout")
+	bool bUseFullChannelNamesInTopSlimLayout;
+
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Thumnnails")
 	double ThumbnailSize;
 

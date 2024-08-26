@@ -170,8 +170,8 @@ FText SDMMaterialPropertySelector::GetSelectButtonText(EDMMaterialEditorMode InE
 
 		case EDMMaterialEditorMode::PropertyPreviews:
 			return bInShortName
-				? LOCTEXT("Properties", "Props")
-				: LOCTEXT("PropertyPreviews", "Properties");
+				? LOCTEXT("ChannelsShort", "Chans")
+				: LOCTEXT("Channels", "Channels");
 
 		case EDMMaterialEditorMode::EditSlot:
 			return bInShortName
@@ -194,11 +194,11 @@ FText SDMMaterialPropertySelector::GetButtonToolTip(EDMMaterialEditorMode InEdit
 			return LOCTEXT("GeneralSettingsToolTip", "Edit the Material Global Settings.");
 
 		case EDMMaterialEditorMode::PropertyPreviews:
-			return LOCTEXT("PropertyPreviewsToolTip", "Preview and toggle all the Material Properties.");
+			return LOCTEXT("PropertyPreviewsToolTip", "Preview and toggle the Material Channels.");
 
 		case EDMMaterialEditorMode::EditSlot:
 		{
-			const FText Format = LOCTEXT("PropertySelectFormat", "Edit the {0} property.");
+			const FText Format = LOCTEXT("PropertySelectFormat", "Edit the {0} channel.");
 			return FText::Format(Format, GetSelectButtonText(InEditMode, InMaterialProperty, /* Short Name */ false));
 		}
 

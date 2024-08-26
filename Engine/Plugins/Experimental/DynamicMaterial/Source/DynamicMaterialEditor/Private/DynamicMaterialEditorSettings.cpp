@@ -268,6 +268,7 @@ void UDynamicMaterialEditorSettings::PostEditChangeProperty(FPropertyChangedEven
 	const FName PropertyName = InPropertyChangedEvent.GetMemberPropertyName();
 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, Layout)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, bUseFullChannelNamesInTopSlimLayout)
 		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, SplitterLocation)
 		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, bPreviewImagesUseTextureUVs)
 		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, PreviewMesh)
@@ -299,6 +300,7 @@ void UDynamicMaterialEditorSettings::OpenEditorSettingsWindow() const
 void UDynamicMaterialEditorSettings::ResetAllLayoutSettings()
 {
 	Layout = EDMMaterialEditorLayout::Left;
+	bUseFullChannelNamesInTopSlimLayout = false;
 	SplitterLocation = 240;
 	ThumbnailSize = 256.f;
 	PreviewMesh = EDMMaterialPreviewMesh::Plane;

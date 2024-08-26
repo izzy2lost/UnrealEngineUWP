@@ -33,6 +33,7 @@ class UDynamicMaterialModelBase;
 class UDynamicMaterialModelEditorOnlyData;
 enum class EDMMaterialPropertyType : uint8;
 enum class EDMUpdateType : uint8;
+struct InPropertyChangedEvent;
 
 namespace UE::DynamicMaterialEditor::Private
 {
@@ -230,4 +231,6 @@ protected:
 	void OnPropertyUpdate(UDynamicMaterialModelBase* InMaterialModelBase);
 
 	void OnSlotListUpdate(UDynamicMaterialModelBase* InMaterialModelBase);
+
+	void OnSettingsChanged(const FPropertyChangedEvent& InPropertyChangedEvent);
 };

@@ -4,6 +4,7 @@
 
 #include "Components/DMMaterialProperty.h"
 #include "DetailLayoutBuilder.h"
+#include "DynamicMaterialEditorSettings.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "UI/Widgets/SDMMaterialEditor.h"
 #include "Utils/DMPrivate.h"
@@ -82,6 +83,14 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_WrapSlim::CreateSlot_PropertyLis
 
 TSharedRef<SWidget> SDMMaterialPropertySelector_WrapSlim::CreateSlot_SelectButton(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty)
 {
+	if (const UDynamicMaterialEditorSettings* Settings = GetDefault<UDynamicMaterialEditorSettings>())
+	{
+		if (Settings->bUseFullChannelNamesInTopSlimLayout)
+		{
+			return SDMMaterialPropertySelector_WrapBase::CreateSlot_SelectButton(InEditMode, InMaterialProperty);
+		}
+	}
+
 	const FText ButtonText = GetSelectButtonText(InEditMode, InMaterialProperty, /* Short Name */ true);
 	const FText ToolTip = GetButtonToolTip(InEditMode, InMaterialProperty);
 
