@@ -160,6 +160,8 @@ namespace Metrics
 		bool bDidTimeout;						//!< true if a timeout occurred. Only set if timeouts are enabled. Usually the ABR will monitor and abort.
 		bool bParseFailure;						//!< true if the segment could not be parsed
 		bool bIsMissingSegment;					//!< true if the segment was not actually downloaded because it is missing on the timeline.
+		bool bWasSkipped;						//!< true if the segment was skipped over due to internal timestamps being less than expected
+		bool bWasFalloffSegment;				//!< true if the segment was no longer present on the timeline.
 		bool bInsertedFillerData;
 		bool bIsCachedResponse;
 		TArray<IElectraHTTPStreamResponse::FTimingTrace> TimingTraces;
@@ -203,6 +205,8 @@ namespace Metrics
 			bDidTimeout = false;
 			bParseFailure = false;
 			bIsMissingSegment = false;
+			bWasSkipped = false;
+			bWasFalloffSegment = false;
 			bInsertedFillerData = false;
 			bIsCachedResponse = false;
 			TimingTraces.Empty();

@@ -34,6 +34,18 @@ namespace Electra
 		return TEXT("n/a");
 	}
 
+	static inline constexpr int32 StreamTypeToArrayIndex(EStreamType StreamType)
+	{
+		return StreamType == EStreamType::Video ? 0 :
+			   StreamType == EStreamType::Audio ? 1 :
+			   StreamType == EStreamType::Subtitle ? 2 : 3;
+	}
+
+	static inline constexpr int32 StreamTypeToArrayIndex0(EStreamType StreamType)
+	{
+		check(StreamType != EStreamType::Unsupported);
+		return StreamType == EStreamType::Audio ? 1 : StreamType == EStreamType::Subtitle ? 2 : 0;
+	}
 
 
 	class FStreamCodecInformation
@@ -54,6 +66,7 @@ namespace Electra
 			// --- Audio ---
 			AAC = 100,
 			EAC3,
+			AC3,
 			Audio4CC,
 			// --- Subtitle / Caption ---
 			WebVTT = 200,
@@ -125,6 +138,7 @@ namespace Electra
 			{
 				case ECodec::AAC:
 				case ECodec::EAC3:
+				case ECodec::AC3:
 				case ECodec::Audio4CC:
 					return true;
 				default:
@@ -144,6 +158,26 @@ namespace Electra
 				default:
 					return false;
 			}
+		}
+
+		bool IsCodec(EStreamType InType) const
+		{
+			switch(InType)
+			{
+				case EStreamType::Video:
+				{
+					return IsVideoCodec();
+				}
+				case EStreamType::Audio:
+				{
+					return IsAudioCodec();
+				}
+				case EStreamType::Subtitle:
+				{
+					return IsSubtitleCodec();
+				}
+			}
+			return false;
 		}
 
 		const FString& GetCodecSpecifierRFC6381() const
@@ -708,9 +742,10 @@ namespace Electra
 		FStreamCodecInformation		CodecInformation;					//!< Stream codec information
 		FString						ID;									//!< ID of this stream
 		int32						Bandwidth;							//!< Bandwidth required for this stream in bits per second
+		int32						QualityIndex = 0;
 		bool Equals(const FStreamMetadata& Other) const
 		{
-			return ID == Other.ID && Bandwidth == Other.Bandwidth && CodecInformation.Equals(Other.CodecInformation);
+			return ID == Other.ID && Bandwidth == Other.Bandwidth && QualityIndex == Other.QualityIndex && CodecInformation.Equals(Other.CodecInformation);
 		}
 	};
 

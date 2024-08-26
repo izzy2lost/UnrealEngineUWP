@@ -166,13 +166,73 @@ namespace Electra
 		{
 			FUTF8ToTCHAR cnv((const ANSICHAR*)InArray.GetData(), InArray.Num());
 			FString UTF8Text = FString::ConstructFromPtrSize(cnv.Get(), cnv.Length());
-			//return (TCHAR*)FUTF8ToTCHAR((const ANSICHAR*)InArray.GetData(), InArray.Num()).Get();
-			//FString UTF8Text(InArray.Num(), (TCHAR*)FUTF8ToTCHAR((const ANSICHAR*)InArray.GetData(), InArray.Num()).Get());
 			return MoveTemp(UTF8Text);
 		}
 
+		bool ArrayToString(FString& OutString, const TConstArrayView<const uint8>& InArray)
+		{
+			int32 nb = InArray.Num();
+			const uint8* Data = InArray.GetData();
+			// Check for potential BOMs
+			if (nb > 3 && Data[0] == 0xEF && Data[1] == 0xBB && Data[2] == 0xBF)
+			{
+				// UTF-8 BOM
+				nb -= 3;
+				Data += 3;
+			}
+			else if (nb >= 2 && Data[0] == 0xFE && Data[1] == 0xFF)
+			{
+				// UTF-16 BE BOM
+				return false;
+			}
+			else if (nb >= 2 && Data[0] == 0xFF && Data[1] == 0xFE)
+			{
+				// UTF-16 LE BOM
+				auto cnv = StringCast<TCHAR>(reinterpret_cast<const UCS2CHAR*>(Data+2), nb/2-1);
+				FString UTF8Text = FString::ConstructFromPtrSize(cnv.Get(), cnv.Length());
+				OutString = MoveTemp(UTF8Text);
+				return true;
+			}
+			else if (nb >= 4 && Data[0] == 0x00 && Data[1] == 0x00 && Data[2] == 0xFE && Data[3] == 0xFF)
+			{
+				// UTF-32 BE BOM
+				return false;
+			}
+			else if (nb >= 4 && Data[0] == 0xFF && Data[1] == 0xFE && Data[2] == 0x00 && Data[3] == 0x00)
+			{
+				// UTF-32 LE BOM
+				return false;
+			}
+			FUTF8ToTCHAR cnv((const ANSICHAR*)Data, nb);
+			FString UTF8Text = FString::ConstructFromPtrSize(cnv.Get(), cnv.Length());
+			OutString = MoveTemp(UTF8Text);
+			return true;
+		}
+
+
+		FString GetLongestCommonPrefix(TArray<FString>& InOutTempArrayOfInputs)
+		{
+			if (InOutTempArrayOfInputs.IsEmpty())
+			{
+				return FString();
+			}
+			else if (InOutTempArrayOfInputs.Num() == 1)
+			{
+				return InOutTempArrayOfInputs[0];
+			}
+			InOutTempArrayOfInputs.Sort();
+			const int32 l1 =InOutTempArrayOfInputs[0].Len();
+			const int32 l2 =InOutTempArrayOfInputs.Last().Len();
+			const int32 CommonSize = l1 < l2 ? l1 : l2;
+			const TCHAR* s1 = *InOutTempArrayOfInputs[0];
+			const TCHAR* s2 = *InOutTempArrayOfInputs.Last();
+			int32 NumSame = 0;
+			while(NumSame < CommonSize && s1[NumSame] == s2[NumSame])
+			{
+				++NumSame;
+			}
+			return FString::ConstructFromPtrSize(s1, NumSame);
+		}
 
 	} // namespace StringHelpers
 } // namespace Electra
-
-

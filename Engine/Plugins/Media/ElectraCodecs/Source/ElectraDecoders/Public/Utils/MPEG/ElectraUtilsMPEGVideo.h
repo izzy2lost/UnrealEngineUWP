@@ -375,6 +375,7 @@ namespace ElectraDecodersUtil
 		public:
 			void SetRawData(const void* Data, int64 Size);
 			const TArray<uint8>& GetRawData() const;
+			bool CreateFromCodecSpecificData(const TArray<uint8>& InFromCSD);
 
 			void Reset();
 

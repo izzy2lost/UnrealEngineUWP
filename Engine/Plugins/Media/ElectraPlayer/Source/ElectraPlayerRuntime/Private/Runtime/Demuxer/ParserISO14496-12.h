@@ -294,6 +294,8 @@ namespace Electra
 
 		virtual TSharedPtrTS<IAllTrackIterator> CreateAllTrackIteratorByFilePos(int64 InFromFilePos) const = 0;
 
+		virtual TSharedPtrTS<IAllTrackIterator> CreateAllTrackIteratorForTrackIDs(const TArray<uint32>& InTrackIDs) const = 0;
+
 		virtual const ITrack* GetTrackByIndex(int32 Index) const = 0;
 		virtual const ITrack* GetTrackByTrackID(int32 TrackID) const = 0;
 

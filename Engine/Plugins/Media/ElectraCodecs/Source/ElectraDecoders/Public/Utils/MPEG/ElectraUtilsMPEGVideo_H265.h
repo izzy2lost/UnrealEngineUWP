@@ -128,6 +128,7 @@ namespace ElectraDecodersUtil
 					general_profile_idc = 0;
 					FMemory::Memzero(general_profile_compatibility_flag);
 					general_profile_compatibility_flags = 0;
+					general_constraint_indicator_flags = 0;
 					general_progressive_source_flag = 0;
 					general_interlaced_source_flag = 0;
 					general_non_packed_constraint_flag = 0;
@@ -208,6 +209,7 @@ namespace ElectraDecodersUtil
 				uint8 general_profile_idc;								// u(5)
 				uint8 general_profile_compatibility_flag[32];			// u(1)
 				uint32 general_profile_compatibility_flags;				// u(32), same as general_profile_compatibility_flag[32] but in a single word
+				uint64 general_constraint_indicator_flags;				// u(48), bits starting with `general_progressive_source_flag` and extending through the 44 constraint bits
 				uint8 general_progressive_source_flag;					// u(1)
 				uint8 general_interlaced_source_flag;					// u(1)
 				uint8 general_non_packed_constraint_flag;				// u(1)

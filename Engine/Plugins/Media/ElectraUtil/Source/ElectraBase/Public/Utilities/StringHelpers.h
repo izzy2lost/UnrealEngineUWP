@@ -32,6 +32,10 @@ namespace Electra
 
 		FString ELECTRABASE_API ArrayToString(const TArray<uint8>& InArray);
 
+		bool ELECTRABASE_API ArrayToString(FString& OutString, const TConstArrayView<const uint8>& InArray);
+
+		FString ELECTRABASE_API GetLongestCommonPrefix(TArray<FString>& InOutTempArrayOfInputs);
+
 		/**
 		 * There is a known anomaly in the FString::TConstIterator. It iterates all TCHARs in the string *including* the terminating zero character.
 		 * This is not the behaviour we want and setup some helper iterator here which is not including the terminating zero.

@@ -209,8 +209,8 @@ private:
 
 	struct FDTSPTS
 	{
-		TOptional<int64> DTS;
-		TOptional<int64> PTS;
+		TOptional<uint64> DTS;
+		TOptional<uint64> PTS;
 	};
 
 	struct FResidualPESData
@@ -238,10 +238,10 @@ private:
 	void DeselectAllPESStreams();
 	void ActivateUserStreamSelection();
 
-	EPESPacketResult ParseADTSAAC(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData);
-	EPESPacketResult ParseMPEGAudio(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData);
-	EPESPacketResult ParseAVC(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData);
-	EPESPacketResult ParseHEVC(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData);
+	EPESPacketResult ParseADTSAAC(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData, bool bFlushResiduals);
+	EPESPacketResult ParseMPEGAudio(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData, bool bFlushResiduals);
+	EPESPacketResult ParseAVC(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData, bool bFlushResiduals);
+	EPESPacketResult ParseHEVC(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData, bool bFlushResiduals);
 
 	TUniquePtr<FStaticInitSegReader> InitSegReader;
 
@@ -256,13 +256,14 @@ private:
 	TSharedPtrTS<FProgramTable> CurrentProgramTable;
 
 	TOptional<FUserProgramSelection> PendingUserProgramSelection;
-	TSharedPtrTS<FPESData> AvailablePESPacket;
+	TArray<TSharedPtrTS<FPESData>> AvailablePESPackets;
 
 	TMap<int32, FResidualPESData> ResidualPESDataMap;
 
 	FErrorDetail ErrorDetail;
 	EParseState ParseState = EParseState::Continue;
 	int64 FileOffset = 0;
+	uint64 TimestampOffset = 0;
 
 
 	static const uint32 CRCTable[256];
@@ -321,11 +322,12 @@ IParserISO13818_1::EParseState FParserISO13818_1::BeginParsing(IPlayerSessionSer
 	PIDStreamData.Empty();
 	CurrentProgramTable.Reset();
 	PendingUserProgramSelection.Reset();
-	AvailablePESPacket.Reset();
+	AvailablePESPackets.Empty();
 	Current.Reset();
 	ErrorDetail.Clear();
 	ParseState = EParseState::Continue;
 	FileOffset = 0;
+	TimestampOffset = InSourceInfo.TimestampOffset;
 
 	if (InSourceInfo.InitSegmentData.IsValid() && InSourceInfo.InitSegmentData->Num())
 	{
@@ -583,7 +585,6 @@ IParserISO13818_1::EParseState FParserISO13818_1::ParseNextPacket(IPlayerSession
 							{
 								ResidualPESDataMap.Remove((int32) PID);
 							}
-							check(Payloads.Num() <= 1);	// if there are several, which should only happen in PSI sections, do we need to break up their handling?
 							for(int32 i=0; i<Payloads.Num(); ++i)
 							{
 								switch(Payloads[i].Type)
@@ -599,7 +600,7 @@ IParserISO13818_1::EParseState FParserISO13818_1::ParseNextPacket(IPlayerSession
 									}
 									case EPayloadType::PES:
 									{
-										AvailablePESPacket = MoveTemp(Payloads[i].PESData);
+										AvailablePESPackets.Emplace(MoveTemp(Payloads[i].PESData));
 										NextParseState = EParseState::HavePESPacket;
 										break;
 									}
@@ -637,7 +638,7 @@ IParserISO13818_1::EParseState FParserISO13818_1::ParseNextPacket(IPlayerSession
 		}
 		else
 		{
-			NextParseState = EParseState::Failed;
+			NextParseState = EParseState::ReadError;
 		}
 	}
 
@@ -682,12 +683,10 @@ IParserISO13818_1::EParseState FParserISO13818_1::Parse(IPlayerSessionServices* 
 		}
 		case EParseState::HavePESPacket:
 		{
-			if (AvailablePESPacket.IsValid())
+			if (AvailablePESPackets.IsEmpty())
 			{
-				UE_LOG(LogElectraMPEGTSParser, Log, TEXT("Received new PES packet, but user did not handle it."));
-				AvailablePESPacket.Reset();
+				ParseState = EParseState::Continue;
 			}
-			ParseState = EParseState::Continue;
 			break;
 		}
 		case EParseState::Failed:
@@ -704,8 +703,22 @@ IParserISO13818_1::EParseState FParserISO13818_1::Parse(IPlayerSessionServices* 
 				pidPes->FinishCurrentPESPacket(PESPacket);
 				if (PESPacket.IsValid())
 				{
-					AvailablePESPacket = MoveTemp(PESPacket);
+					AvailablePESPackets.Emplace(MoveTemp(PESPacket));
 					return EParseState::HavePESPacket;
+				}
+				else
+				{
+					// Are there residuals that, at least for video PES streams will most likely
+					// contain the last frame? We assume the residuals to be a complete frame and
+					// not partial data that carries over into the next segment.
+					if (ResidualPESDataMap.Contains(pesIt.Key))
+					{
+						PESPacket = MakeShared<FPESData, ESPMode::ThreadSafe>();
+						PESPacket->PID = pesIt.Key;
+						PESPacket->StreamType = pidPes->StreamInfo.StreamType;
+						AvailablePESPackets.Emplace(MoveTemp(PESPacket));
+						return EParseState::HavePESPacket;
+					}
 				}
 			}
 			// Flush any residuals. We do not expect consecutive segments to need them.
@@ -796,7 +809,10 @@ void FParserISO13818_1::SelectProgramStreams(int32 InProgramNumber, const TArray
 
 TSharedPtrTS<FParserISO13818_1::FPESData> FParserISO13818_1::GetPESPacket()
 {
-	return MoveTemp(AvailablePESPacket);
+	check(AvailablePESPackets.Num());
+	TSharedPtrTS<FParserISO13818_1::FPESData> Next(AvailablePESPackets[0]);
+	AvailablePESPackets.RemoveAt(0);
+	return MoveTemp(Next);
 }
 
 
@@ -933,11 +949,7 @@ void FParserISO13818_1::FPIDStream::ExtractValidPESPackets(TArray<TSharedPtrTS<F
 				InNumBytesAddedNow = 0;
 			}
 
-			// The size is unknown. This means that we collect data until we get a packet that does not have `payload_unit_start_indicator` set
-			// AND uses an adaptation field to skip over initial bytes, because the data is to end with the last byte of the packet.
-			// Safety check that the accumulation buffer does not contain more than we have just added prior to getting here.
-			// If that is so, then the payload probably ended exactly on the last byte of the previous packet, with or
-			// without having an adaptation field.
+			// The size is unknown. This means that we collect data until we get a packet that has `payload_unit_start_indicator` set.
 			if (InCurrent.bIsStart && AccumulationBuffer.Num() > InNumBytesAddedNow)
 			{
 				GatheringSection.TotalSize = AccumulationBuffer.Num() - InNumBytesAddedNow;
@@ -955,26 +967,6 @@ void FParserISO13818_1::FPIDStream::ExtractValidPESPackets(TArray<TSharedPtrTS<F
 				GatheringSection.bRandomAccessIndicator = InCurrent.bRandomAccessIndicator;
 				GatheringSection.PCR = InCurrent.PCR;
 				continue;
-			}
-
-			// Last block?
-			bool bLastBlock = InCurrent.BytesSkippedUntilPayload > 0;
-			// We also treat a packet that is not a start and has an adaptation field that is all zero as the last packet for this PES stream.
-			// This may not be quite right, but this appears to be a common case and an adaptation field that is not setting anything seems to
-			// be pointless, other than to realize a 2-byte "stuffing".
-			bLastBlock |= !InCurrent.bIsStart && InCurrent.AdaptationFieldSize == 1 && InCurrent.AdaptationFieldFirstByte == 0;
-			if (bLastBlock)
-			{
-				// Move the entire accumulation buffer over.
-				TSharedPtrTS<FPESData> NewPES = MakeSharedTS<FPESData>();
-				NewPES->PID = PID;
-				NewPES->StreamType = StreamInfo.StreamType;
-				NewPES->PacketData = MoveTemp(PacketDataBuffer);
-				NewPES->bRandomAccessIndicator = GatheringSection.bRandomAccessIndicator;
-				NewPES->PCR = GatheringSection.PCR;
-				OutPESSections.Emplace(MoveTemp(NewPES));
-				GatheringSection.Reset();
-				PacketDataBuffer = MakeSharedTS<TArray<uint8>>();
 			}
 			return;
 		}
@@ -1598,136 +1590,175 @@ void FParserISO13818_1::ProcessDescriptor(ElectraDecodersUtil::FElectraBitstream
 
 IParserISO13818_1::EPESPacketResult FParserISO13818_1::ParsePESPacket(TArray<IParserISO13818_1::FESPacket>& OutPackets, TSharedPtrTS<IParserISO13818_1::FPESData> InPESPacket)
 {
-	if (!InPESPacket.IsValid() || !InPESPacket->PacketData.IsValid() || InPESPacket->PacketData->Num() < 6)
+	if (!InPESPacket.IsValid() || (InPESPacket->PacketData.IsValid() && InPESPacket->PacketData->Num() < 6))
 	{
 		return EPESPacketResult::Invalid;
 	}
-	// Check that this packet has the proper start code.
-	const TArray<uint8>& PESData = *(InPESPacket->PacketData);
-	const uint8* Data = PESData.GetData();
-	if (Data[0] != 0 || Data[1] != 0 || Data[2] != 1)
+	if (!InPESPacket->PacketData.IsValid() && ParseState != EParseState::EOS)
 	{
 		return EPESPacketResult::Invalid;
 	}
-	const uint8 stream_id = Data[3];
-	const int32 PES_packet_length = (int32) (((uint32)Data[4] << 8) | Data[5]);
-	if (PES_packet_length && PES_packet_length+6 != PESData.Num())
-	{
-		// Packet size mismatch.
-		return PES_packet_length+6 > PESData.Num() ? EPESPacketResult::Truncated : EPESPacketResult::Invalid;
-	}
-	if (stream_id != 0xbc /* program_stream_map */ &&
-		stream_id != 0xbe /* padding_stream */ &&
-		stream_id != 0xbf /* private_stream_2 */ &&
-		stream_id != 0xf0 /* ECM */ &&
-		stream_id != 0xf1 /* EMM */ &&
-		stream_id != 0xff /* program_stream_directory */ &&
-		stream_id != 0xf2 /* Rec. ITU-T H.222.0 | ISO/IEC 13818-1 Annex A or ISO/IEC 13818-6_DSMCC_stream */ &&
-		stream_id != 0xf8 /* Rec. ITU-T H.222.1 type E */)
-	{
-		FDTSPTS DTSPTS;
-		ElectraDecodersUtil::FElectraBitstreamReader br(Data, PESData.NumBytes(), 6);
-		const uint32 OneZero = br.GetBits(2);
-		const uint32 PES_scrambling_control = br.GetBits(2);
-		const uint32 PES_priority = br.GetBits(1);
-		const uint32 data_alignment_indicator = br.GetBits(1);
-		const uint32 copyright = br.GetBits(1);
-		const uint32 original_or_copy = br.GetBits(1);
-		const uint32 PTS_DTS_flags = br.GetBits(2);
-		const uint32 ESCR_flag = br.GetBits(1);
-		const uint32 ES_rate_flag = br.GetBits(1);
-		const uint32 DSM_trick_mode_flag = br.GetBits(1);
-		const uint32 additional_copy_info_flag = br.GetBits(1);
-		const uint32 PES_CRC_flag = br.GetBits(1);
-		const uint32 PES_extension_flag = br.GetBits(1);
-		const uint32 PES_header_data_length = br.GetBits(8);
-		ElectraDecodersUtil::FElectraBitstreamReader opt(br);
-		br.SkipBytes(PES_header_data_length);
-		if (PTS_DTS_flags == 2)
-		{
-			const uint32 ZeroZeroOneZero = opt.GetBits(4);
-			const uint32 PTS_32_30 = opt.GetBits(3);
-			opt.SkipBits(1);
-			const uint32 PTS_29_15 = opt.GetBits(15);
-			opt.SkipBits(1);
-			const uint32 PTS_14_0 = opt.GetBits(15);
-			opt.SkipBits(1);
-			DTSPTS.PTS = (int64) (((uint64)PTS_32_30 << 30U) | ((uint64)PTS_29_15 << 15U) | (uint64)PTS_14_0);
-		}
-		else if (PTS_DTS_flags == 3)
-		{
-			const uint32 ZeroZeroOneOne = opt.GetBits(4);
-			const uint32 PTS_32_30 = opt.GetBits(3);
-			opt.SkipBits(1);
-			const uint32 PTS_29_15 = opt.GetBits(15);
-			opt.SkipBits(1);
-			const uint32 PTS_14_0 = opt.GetBits(15);
-			opt.SkipBits(1);
-			const uint32 ZeroZeroZeroOne = opt.GetBits(4);
-			const uint32 DTS_32_30 = opt.GetBits(3);
-			opt.SkipBits(1);
-			const uint32 DTS_29_15 = opt.GetBits(15);
-			opt.SkipBits(1);
-			const uint32 DTS_14_0 = opt.GetBits(15);
-			opt.SkipBits(1);
-			DTSPTS.PTS = (int64) (((uint64)PTS_32_30 << 30U) | ((uint64)PTS_29_15 << 15U) | (uint64)PTS_14_0);
-			DTSPTS.DTS = (int64) (((uint64)DTS_32_30 << 30U) | ((uint64)DTS_29_15 << 15U) | (uint64)DTS_14_0);
-		}
-		if (ESCR_flag)
-		{
-			opt.SkipBits(2); // reserved
-			const uint32 ESCR_base_32_30 = opt.GetBits(3);
-			opt.SkipBits(1);
-			const uint32 ESCR_base_29_15 = opt.GetBits(15);
-			opt.SkipBits(1);
-			const uint32 ESCR_base_14_0 = opt.GetBits(15);
-			opt.SkipBits(1);
-			const uint32 ESCR_extension = opt.GetBits(9);
-			opt.SkipBits(1);
-		}
-		if (ES_rate_flag)
-		{
-			opt.SkipBits(1);
-			const uint32 ES_rate = opt.GetBits(22);
-			opt.SkipBits(1);
-		}
-		if (DSM_trick_mode_flag)
-		{
-			const uint32 trick_mode_control = opt.GetBits(3);
-			// ...
-			opt.SkipBits(5);
-		}
-		if (additional_copy_info_flag)
-		{
-			opt.SkipBits(1);
-			const uint32 additional_copy_info = opt.GetBits(7);
-		}
-		if (PES_CRC_flag)
-		{
-			const uint32 previous_PES_packet_CRC = opt.GetBits(16);
-		}
 
+	FDTSPTS DTSPTS;
+	ElectraDecodersUtil::FElectraBitstreamReader br;
+	uint8 stream_id = 0xbe;
+	bool bHandleStreamId = false;
+	if (InPESPacket->PacketData.IsValid())
+	{
+		// Check that this packet has the proper start code.
+		const TArray<uint8>& PESData = *(InPESPacket->PacketData);
+		const uint8* Data = PESData.GetData();
+		if (Data[0] != 0 || Data[1] != 0 || Data[2] != 1)
+		{
+			return EPESPacketResult::Invalid;
+		}
+		stream_id = Data[3];
+		const int32 PES_packet_length = (int32) (((uint32)Data[4] << 8) | Data[5]);
+		if (PES_packet_length && PES_packet_length+6 != PESData.Num())
+		{
+			// Packet size mismatch.
+			return PES_packet_length+6 > PESData.Num() ? EPESPacketResult::Truncated : EPESPacketResult::Invalid;
+		}
+		if (stream_id != 0xbc /* program_stream_map */ &&
+			stream_id != 0xbe /* padding_stream */ &&
+			stream_id != 0xbf /* private_stream_2 */ &&
+			stream_id != 0xf0 /* ECM */ &&
+			stream_id != 0xf1 /* EMM */ &&
+			stream_id != 0xff /* program_stream_directory */ &&
+			stream_id != 0xf2 /* Rec. ITU-T H.222.0 | ISO/IEC 13818-1 Annex A or ISO/IEC 13818-6_DSMCC_stream */ &&
+			stream_id != 0xf8 /* Rec. ITU-T H.222.1 type E */)
+		{
+			br.SetData(Data, PESData.NumBytes(), 6);
+			const uint32 OneZero = br.GetBits(2);
+			const uint32 PES_scrambling_control = br.GetBits(2);
+			const uint32 PES_priority = br.GetBits(1);
+			const uint32 data_alignment_indicator = br.GetBits(1);
+			const uint32 copyright = br.GetBits(1);
+			const uint32 original_or_copy = br.GetBits(1);
+			const uint32 PTS_DTS_flags = br.GetBits(2);
+			const uint32 ESCR_flag = br.GetBits(1);
+			const uint32 ES_rate_flag = br.GetBits(1);
+			const uint32 DSM_trick_mode_flag = br.GetBits(1);
+			const uint32 additional_copy_info_flag = br.GetBits(1);
+			const uint32 PES_CRC_flag = br.GetBits(1);
+			const uint32 PES_extension_flag = br.GetBits(1);
+			const uint32 PES_header_data_length = br.GetBits(8);
+			ElectraDecodersUtil::FElectraBitstreamReader opt(br);
+			br.SkipBytes(PES_header_data_length);
+			if (PTS_DTS_flags == 2)
+			{
+				const uint32 ZeroZeroOneZero = opt.GetBits(4);
+				const uint32 PTS_32_30 = opt.GetBits(3);
+				opt.SkipBits(1);
+				const uint32 PTS_29_15 = opt.GetBits(15);
+				opt.SkipBits(1);
+				const uint32 PTS_14_0 = opt.GetBits(15);
+				opt.SkipBits(1);
+				DTSPTS.PTS = ((((uint64)PTS_32_30 << 30U) | ((uint64)PTS_29_15 << 15U) | (uint64)PTS_14_0) + TimestampOffset) & 0x1ffffffffULL;
+			}
+			else if (PTS_DTS_flags == 3)
+			{
+				const uint32 ZeroZeroOneOne = opt.GetBits(4);
+				const uint32 PTS_32_30 = opt.GetBits(3);
+				opt.SkipBits(1);
+				const uint32 PTS_29_15 = opt.GetBits(15);
+				opt.SkipBits(1);
+				const uint32 PTS_14_0 = opt.GetBits(15);
+				opt.SkipBits(1);
+				const uint32 ZeroZeroZeroOne = opt.GetBits(4);
+				const uint32 DTS_32_30 = opt.GetBits(3);
+				opt.SkipBits(1);
+				const uint32 DTS_29_15 = opt.GetBits(15);
+				opt.SkipBits(1);
+				const uint32 DTS_14_0 = opt.GetBits(15);
+				opt.SkipBits(1);
+				DTSPTS.PTS = ((((uint64)PTS_32_30 << 30U) | ((uint64)PTS_29_15 << 15U) | (uint64)PTS_14_0) + TimestampOffset) & 0x1ffffffffULL;
+				DTSPTS.DTS = ((((uint64)DTS_32_30 << 30U) | ((uint64)DTS_29_15 << 15U) | (uint64)DTS_14_0) + TimestampOffset) & 0x1ffffffffULL;
+			}
+			if (ESCR_flag)
+			{
+				opt.SkipBits(2); // reserved
+				const uint32 ESCR_base_32_30 = opt.GetBits(3);
+				opt.SkipBits(1);
+				const uint32 ESCR_base_29_15 = opt.GetBits(15);
+				opt.SkipBits(1);
+				const uint32 ESCR_base_14_0 = opt.GetBits(15);
+				opt.SkipBits(1);
+				const uint32 ESCR_extension = opt.GetBits(9);
+				opt.SkipBits(1);
+			}
+			if (ES_rate_flag)
+			{
+				opt.SkipBits(1);
+				const uint32 ES_rate = opt.GetBits(22);
+				opt.SkipBits(1);
+			}
+			if (DSM_trick_mode_flag)
+			{
+				const uint32 trick_mode_control = opt.GetBits(3);
+				// ...
+				opt.SkipBits(5);
+			}
+			if (additional_copy_info_flag)
+			{
+				opt.SkipBits(1);
+				const uint32 additional_copy_info = opt.GetBits(7);
+			}
+			if (PES_CRC_flag)
+			{
+				const uint32 previous_PES_packet_CRC = opt.GetBits(16);
+			}
+
+			bHandleStreamId = true;
+		}
+	}
+	else
+	{
+		// This is called to process the residuals from a previous packet, so this needs to be handled.
+		bHandleStreamId = true;
+	}
+
+	if (bHandleStreamId)
+	{
 		TArray<FESPacket> NewPackets;
 		EPESPacketResult PESResult = EPESPacketResult::NotSupported;
 		bool bSuccess = false;
-		check(br.IsByteAligned());
+		bool bFlushResiduals = ParseState == EParseState::EOS;
+		check(br.IsByteAligned());	// even an unset bitstream reader is aligned, so this works when flushing residuals as well
 		switch(InPESPacket->StreamType)
 		{
 			// MPEG audio (layer 1, 2 or 3)
 			case 0x03:
 			// MPEG audio in ADTS format (AAC)
 			case 0x0f:
+			// AVC
+			case 0x1b:
+			// HEVC
+			case 0x24:
 			{
 				FResidualPESData* Residuals = ResidualPESDataMap.Find(InPESPacket->PID);
 				if (InPESPacket->StreamType == 0x0f)
 				{
-					PESResult = ParseADTSAAC(NewPackets, br, DTSPTS, Residuals);
+					PESResult = ParseADTSAAC(NewPackets, br, DTSPTS, Residuals, bFlushResiduals);
+				}
+				else if (InPESPacket->StreamType == 0x03)
+				{
+					PESResult = ParseMPEGAudio(NewPackets, br, DTSPTS, Residuals, bFlushResiduals);
+				}
+				else if (InPESPacket->StreamType == 0x1b)
+				{
+					PESResult = ParseAVC(NewPackets, br, DTSPTS, Residuals, bFlushResiduals);
 				}
 				else
 				{
-					PESResult = ParseMPEGAudio(NewPackets, br, DTSPTS, Residuals);
+					PESResult = ParseHEVC(NewPackets, br, DTSPTS, Residuals, bFlushResiduals);
 				}
-				if (PESResult == EPESPacketResult::Truncated && br.GetRemainingByteLength())
+
+				if (PESResult == EPESPacketResult::Ok)
+				{
+					ResidualPESDataMap.Remove(InPESPacket->PID);
+				}
+				else if (PESResult == EPESPacketResult::Truncated && br.GetRemainingByteLength())
 				{
 					if (!Residuals)
 					{
@@ -1754,18 +1785,10 @@ IParserISO13818_1::EPESPacketResult FParserISO13818_1::ParsePESPacket(TArray<IPa
 					}
 					PESResult = EPESPacketResult::Ok;
 				}
-				break;
-			}
-			// AVC
-			case 0x1b:
-			{
-				PESResult = ParseAVC(NewPackets, br, DTSPTS, nullptr);
-				break;
-			}
-			// HEVC
-			case 0x24:
-			{
-				PESResult = ParseHEVC(NewPackets, br, DTSPTS, nullptr);
+				if (bFlushResiduals)
+				{
+					ResidualPESDataMap.Remove(InPESPacket->PID);
+				}
 				break;
 			}
 			// Dolby
@@ -1802,7 +1825,7 @@ IParserISO13818_1::EPESPacketResult FParserISO13818_1::ParsePESPacket(TArray<IPa
 	return EPESPacketResult::Invalid;
 }
 
-FParserISO13818_1::EPESPacketResult FParserISO13818_1::ParseADTSAAC(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData)
+FParserISO13818_1::EPESPacketResult FParserISO13818_1::ParseADTSAAC(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData, bool bFlushResiduals)
 {
 	ElectraDecodersUtil::FElectraBitstreamReader br(InOutBR);
 	FDTSPTS DTSPTS(InDTSPTS);
@@ -1848,10 +1871,6 @@ FParserISO13818_1::EPESPacketResult FParserISO13818_1::ParseADTSAAC(TArray<FESPa
 		const int32 FrameSize = frame_length - (prot_absent ? 7 : 9);
 		if (FrameSize < 0 || br.GetRemainingByteLength() < FrameSize)
 		{
-			if (!InResidualData)
-			{
-				UE_LOG(LogElectraMPEGTSParser, Warning, TEXT("Remaining PES packet data too small for a complete ADTS frame. Incorrect multiplex?"));
-			}
 			return EPESPacketResult::Truncated;
 		}
 		if (num_frames > 0)
@@ -1907,7 +1926,7 @@ FParserISO13818_1::EPESPacketResult FParserISO13818_1::ParseADTSAAC(TArray<FESPa
 	return EPESPacketResult::Ok;
 }
 
-FParserISO13818_1::EPESPacketResult FParserISO13818_1::ParseMPEGAudio(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData)
+FParserISO13818_1::EPESPacketResult FParserISO13818_1::ParseMPEGAudio(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData, bool bFlushResiduals)
 {
 	ElectraDecodersUtil::FElectraBitstreamReader br(InOutBR);
 	FDTSPTS DTSPTS(InDTSPTS);
@@ -2005,174 +2024,295 @@ FParserISO13818_1::EPESPacketResult FParserISO13818_1::ParseMPEGAudio(TArray<FES
 	return EPESPacketResult::Ok;
 }
 
-FParserISO13818_1::EPESPacketResult FParserISO13818_1::ParseAVC(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData)
+FParserISO13818_1::EPESPacketResult FParserISO13818_1::ParseAVC(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData, bool bFlushResiduals)
 {
-	TArray<ElectraDecodersUtil::MPEG::H264::FNaluInfo> NALUs;
-	const uint8* InData = reinterpret_cast<const uint8*>(InOutBR.GetRemainingData());
-	uint64 InDataLength = InOutBR.GetRemainingByteLength();
-	InOutBR.SkipBytes(InDataLength);
-	// We get an Annex-B stream here which we need to decompose, remove the AUD NALU and separate the SPS and PPS NALUs.
-	if (ElectraDecodersUtil::MPEG::H264::ParseBitstreamForNALUs(NALUs, InData, InDataLength))
+	ElectraDecodersUtil::FElectraBitstreamReader br(InOutBR);
+	FDTSPTS DTSPTS(InDTSPTS);
+
+	// Are we dealing with residuals?
+	if (InResidualData && InResidualData->RemainingData.Num())
 	{
-		// In a first pass calculate the size of the final data.
-		const int32 kSizeOfSizeField = 4;
-		int32 SizeCSD = 0;
-		int32 SizeData = 0;
-		bool bIsIDR = false;
-		bool bHaveAUD = false;
-		for(int32 i=0; i<NALUs.Num(); ++i)
+		if (!bFlushResiduals)
 		{
-			if (NALUs[i].Type == 9)
+			InResidualData->RemainingData.Append(reinterpret_cast<const uint8*>(InOutBR.GetRemainingData()), (int32)InOutBR.GetRemainingByteLength());
+		}
+		br.SetData(InResidualData->RemainingData.GetData(), InResidualData->RemainingData.Num());
+		DTSPTS = InResidualData->PreviousDTSPTS;
+	}
+
+	// Deal with potentially multiple frames
+	for(int32 npkt=0; ; ++npkt)
+	{
+		TArray<ElectraDecodersUtil::MPEG::H264::FNaluInfo> NALUs;
+		const uint8* InData = reinterpret_cast<const uint8*>(br.GetRemainingData());
+		uint64 InDataLength = br.GetRemainingByteLength();
+		if (InDataLength == 0)
+		{
+			break;
+		}
+		// We get an Annex-B stream here which we need to decompose, remove the AUD NALU and separate the SPS and PPS NALUs.
+		if (ElectraDecodersUtil::MPEG::H264::ParseBitstreamForNALUs(NALUs, InData, InDataLength))
+		{
+			// Because of some streams splitting video across multiple PES packets of smaller sizes (instead of 0)
+			// and therefore several start flag and PES headers, we need to reassemble the packets.
+			// In order to do this we need to take data enclosed between two AUD NALUs and thus need to have
+			// an additional frame (AUD denotes the start of a frame, not the end).
+			int32 NumAUDNalus = 0;
+			for(int32 i=0; i<NALUs.Num(); ++i)
 			{
-				// AUD
-				if (bHaveAUD)
+				NumAUDNalus += NALUs[i].Type == 9 ? 1 : 0;
+			}
+			if (NumAUDNalus >= (bFlushResiduals ? 1 : 2))
+			{
+				int32 FirstNALUIndex = -1;
+				int32 LastNALUIndex = -1;
+				const int32 kSizeOfSizeField = 4;
+				int32 SizeCSD = 0;
+				int32 SizeData = 0;
+				bool bIsIDR = false;
+				// In a first pass calculate the size of the final data.
+				for(int32 i=0; i<NALUs.Num(); ++i)
 				{
-					UE_LOG(LogElectraMPEGTSParser, Warning, TEXT("More than one AUD NALU found in AVC packet"));
+					// First NALU we need must be AUD. If not, skip it.
+					if (FirstNALUIndex < 0 && NALUs[i].Type != 9)
+					{
+						continue;
+					}
+					// Take note of the indices of the first and second AUD.
+					if (NALUs[i].Type == 9)
+					{
+						FirstNALUIndex = FirstNALUIndex < 0 ? i : FirstNALUIndex;
+						LastNALUIndex = LastNALUIndex < 0 && i > FirstNALUIndex ? i : LastNALUIndex;
+						if (LastNALUIndex > 0)
+						{
+							break;
+						}
+						continue;
+					}
+
+					if (NALUs[i].Type == 7 || NALUs[i].Type == 8)
+					{
+						// SPS or PPS
+						SizeCSD += NALUs[i].Size + kSizeOfSizeField;
+					}
+					else if (NALUs[i].Type == 12)
+					{
+						// Filler data
+					}
+					else
+					{
+						// Other
+						SizeData += NALUs[i].Size + kSizeOfSizeField;
+						if (NALUs[i].Type == 5)
+						{
+							bIsIDR = true;
+						}
+					}
 				}
-				bHaveAUD = true;
-			}
-			else if (NALUs[i].Type == 7 || NALUs[i].Type == 8)
-			{
-				// SPS or PPS
-				SizeCSD += NALUs[i].Size + kSizeOfSizeField;
-			}
-			else if (NALUs[i].Type == 12)
-			{
-				// Filler data
+				if (FirstNALUIndex != 0)
+				{
+					UE_LOG(LogElectraMPEGTSParser, Warning, TEXT("First NALU in AVC packet is not an AUD"));
+				}
+
+				FESPacket& pkt = OutPackets.Emplace_GetRef();
+				pkt.bIsSyncFrame = bIsIDR;
+				pkt.SubPacketNum = npkt;
+				pkt.DTS = DTSPTS.DTS;
+				pkt.PTS = DTSPTS.PTS;
+				pkt.CSD = MakeSharedTS<TArray<uint8>>();
+				pkt.CSD->SetNumUninitialized(SizeCSD);
+				pkt.Data = MakeSharedTS<TArray<uint8>>();
+				pkt.Data->SetNumUninitialized(SizeData);
+				uint8* CSDPtr = pkt.CSD->GetData();
+				uint8* DataPtr = pkt.Data->GetData();
+
+				// Second pass, copy the data.
+				for(int32 i=FirstNALUIndex, iMax=bFlushResiduals?NALUs.Num():LastNALUIndex; i<iMax; ++i)
+				{
+					if (NALUs[i].Type == 9 || NALUs[i].Type == 12)
+					{
+						// Skip AUD and filler data
+						continue;
+					}
+					const bool bCSD = NALUs[i].Type == 7 || NALUs[i].Type == 8;
+					uint8** DstPtr = bCSD ? &CSDPtr : &DataPtr;
+					uint32 Size = (uint32)NALUs[i].Size;
+					*((uint32*)(*DstPtr)) = bCSD ? MEDIA_TO_BIG_ENDIAN((uint32)1) : MEDIA_TO_BIG_ENDIAN(Size);
+					(*DstPtr) += 4;
+					uint32 Pos = NALUs[i].Offset + NALUs[i].UnitLength;
+					FMemory::Memcpy((*DstPtr), InData + Pos, Size);
+					(*DstPtr) += Size;
+				}
+				// Remove the data we processed from the residuals
+				int32 ConsumedSize = bFlushResiduals ? (int32) br.GetRemainingByteLength() : (int32) NALUs[LastNALUIndex].Offset;
+				br.SkipBytes(ConsumedSize);
+				InOutBR = br;
+				// Update the DTS and PTS in the residual data
+				if (InResidualData)
+				{
+					InResidualData->PreviousDTSPTS = InDTSPTS;
+				}
 			}
 			else
 			{
-				// Other
-				SizeData += NALUs[i].Size + kSizeOfSizeField;
-				if (NALUs[i].Type == 5)
-				{
-					bIsIDR = true;
-				}
+				// Not enough data yet. Need an additional AUD NALU.
+				InOutBR = br;
+				return EPESPacketResult::Truncated;
 			}
 		}
-
-		FESPacket& pkt = OutPackets.Emplace_GetRef();
-		pkt.bIsSyncFrame = bIsIDR;
-		pkt.SubPacketNum = 0;
-		pkt.DTS = InDTSPTS.DTS;
-		pkt.PTS = InDTSPTS.PTS;
-		pkt.CSD = MakeSharedTS<TArray<uint8>>();
-		pkt.CSD->SetNumUninitialized(SizeCSD);
-		pkt.Data = MakeSharedTS<TArray<uint8>>();
-		pkt.Data->SetNumUninitialized(SizeData);
-		uint8* CSDPtr = pkt.CSD->GetData();
-		uint8* DataPtr = pkt.Data->GetData();
-
-		// Second pass, copy the data.
-		for(int32 i=0; i<NALUs.Num(); ++i)
+		else
 		{
-			if (NALUs[i].Type == 9 || NALUs[i].Type == 12)
-			{
-				// Skip AUD and filler data
-				continue;
-			}
-			const bool bCSD = NALUs[i].Type == 7 || NALUs[i].Type == 8;
-			uint8** DstPtr = bCSD ? &CSDPtr : &DataPtr;
-			uint32 Size = (uint32)NALUs[i].Size;
-			*((uint32*)(*DstPtr)) = bCSD ? MEDIA_TO_BIG_ENDIAN((uint32)1) : MEDIA_TO_BIG_ENDIAN(Size);
-			(*DstPtr) += 4;
-			uint32 Pos = NALUs[i].Offset + NALUs[i].UnitLength;
-			FMemory::Memcpy((*DstPtr), InData + Pos, Size);
-			(*DstPtr) += Size;
+			UE_LOG(LogElectraMPEGTSParser, Warning, TEXT("Failed to parse the AVC packet for NALUs"));
+			return EPESPacketResult::Invalid;
 		}
-		return EPESPacketResult::Ok;
 	}
-	else
-	{
-		UE_LOG(LogElectraMPEGTSParser, Warning, TEXT("Failed to parse the AVC packet for NALUs"));
-	}
-	return EPESPacketResult::Invalid;
+	return EPESPacketResult::Ok;
 }
 
-FParserISO13818_1::EPESPacketResult FParserISO13818_1::ParseHEVC(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData)
+FParserISO13818_1::EPESPacketResult FParserISO13818_1::ParseHEVC(TArray<FESPacket>& OutPackets, ElectraDecodersUtil::FElectraBitstreamReader& InOutBR, const FDTSPTS& InDTSPTS, FResidualPESData* InResidualData, bool bFlushResiduals)
 {
-	TArray<ElectraDecodersUtil::MPEG::H265::FNaluInfo> NALUs;
-	const uint8* InData = reinterpret_cast<const uint8*>(InOutBR.GetRemainingData());
-	uint64 InDataLength = InOutBR.GetRemainingByteLength();
-	InOutBR.SkipBytes(InDataLength);
-	// We get an Annex-B stream here which we need to decompose, remove the AUD NUT and separate the VPS, SPS and PPS NUTs.
-	if (ElectraDecodersUtil::MPEG::H265::ParseBitstreamForNALUs(NALUs, InData, (uint64)InDataLength))
+	ElectraDecodersUtil::FElectraBitstreamReader br(InOutBR);
+	FDTSPTS DTSPTS(InDTSPTS);
+
+	// Are we dealing with residuals?
+	if (InResidualData && InResidualData->RemainingData.Num())
 	{
-		// In a first pass calculate the size of the final data.
-		const int32 kSizeOfSizeField = 4;
-		int32 SizeCSD = 0;
-		int32 SizeData = 0;
-		bool bIsSync = false;
-		bool bHaveAUD = false;
-		for(int32 i=0; i<NALUs.Num(); ++i)
+		if (!bFlushResiduals)
 		{
-			if (NALUs[i].Type == 35)
+			InResidualData->RemainingData.Append(reinterpret_cast<const uint8*>(InOutBR.GetRemainingData()), (int32)InOutBR.GetRemainingByteLength());
+		}
+		br.SetData(InResidualData->RemainingData.GetData(), InResidualData->RemainingData.Num());
+		DTSPTS = InResidualData->PreviousDTSPTS;
+	}
+
+	// Deal with potentially multiple frames
+	for(int32 npkt=0; ; ++npkt)
+	{
+		TArray<ElectraDecodersUtil::MPEG::H265::FNaluInfo> NALUs;
+		const uint8* InData = reinterpret_cast<const uint8*>(br.GetRemainingData());
+		uint64 InDataLength = br.GetRemainingByteLength();
+		if (InDataLength == 0)
+		{
+			break;
+		}
+		// We get an Annex-B stream here which we need to decompose, remove the AUD NUT and separate the VPS, SPS and PPS NUTs.
+		if (ElectraDecodersUtil::MPEG::H265::ParseBitstreamForNALUs(NALUs, InData, InDataLength))
+		{
+			// Because of some streams splitting video across multiple PES packets of smaller sizes (instead of 0)
+			// and therefore several start flag and PES headers, we need to reassemble the packets.
+			// In order to do this we need to take data enclosed between two AUD NUTs and thus need to have
+			// an additional frame (AUD denotes the start of a frame, not the end).
+			int32 NumAUDNalus = 0;
+			for(int32 i=0; i<NALUs.Num(); ++i)
 			{
-				// AUD
-				if (bHaveAUD)
+				NumAUDNalus += NALUs[i].Type == 35 ? 1 : 0;
+			}
+			if (NumAUDNalus >= (bFlushResiduals ? 1 : 2))
+			{
+				int32 FirstNALUIndex = -1;
+				int32 LastNALUIndex = -1;
+				const int32 kSizeOfSizeField = 4;
+				int32 SizeCSD = 0;
+				int32 SizeData = 0;
+				bool bIsSync = false;
+				// In a first pass calculate the size of the final data.
+				for(int32 i=0; i<NALUs.Num(); ++i)
 				{
-					UE_LOG(LogElectraMPEGTSParser, Warning, TEXT("More than one AUD NUT found in HEVC packet"));
+					// First NUT we need must be AUD. If not, skip it.
+					if (FirstNALUIndex < 0 && NALUs[i].Type != 35)
+					{
+						continue;
+					}
+					// Take note of the indices of the first and second AUD.
+					if (NALUs[i].Type == 35)
+					{
+						FirstNALUIndex = FirstNALUIndex < 0 ? i : FirstNALUIndex;
+						LastNALUIndex = LastNALUIndex < 0 && i > FirstNALUIndex ? i : LastNALUIndex;
+						if (LastNALUIndex > 0)
+						{
+							break;
+						}
+						continue;
+					}
+
+					if (NALUs[i].Type == 32 || NALUs[i].Type == 33 || NALUs[i].Type == 34)
+					{
+						// VPS, SPS or PPS
+						SizeCSD += NALUs[i].Size + kSizeOfSizeField;
+					}
+					else if (NALUs[i].Type == 38)
+					{
+						// Filler data
+					}
+					else
+					{
+						// Other
+						SizeData += NALUs[i].Size + kSizeOfSizeField;
+						// IDR, CRA or BLA frame?
+						if (NALUs[i].Type >= 16 && NALUs[i].Type <= 21)
+						{
+							bIsSync = true;
+						}
+					}
 				}
-				bHaveAUD = true;
-			}
-			else if (NALUs[i].Type == 32 || NALUs[i].Type == 33 || NALUs[i].Type == 34)
-			{
-				// VPS, SPS or PPS
-				SizeCSD += NALUs[i].Size + kSizeOfSizeField;
-			}
-			else if (NALUs[i].Type == 38)
-			{
-				// Filler data.
+				if (FirstNALUIndex != 0)
+				{
+					UE_LOG(LogElectraMPEGTSParser, Warning, TEXT("First NUT in HEVC packet is not an AUD"));
+				}
+
+				FESPacket& pkt = OutPackets.Emplace_GetRef();
+				pkt.bIsSyncFrame = bIsSync;
+				pkt.SubPacketNum = npkt;
+				pkt.DTS = DTSPTS.DTS;
+				pkt.PTS = DTSPTS.PTS;
+				pkt.CSD = MakeSharedTS<TArray<uint8>>();
+				pkt.CSD->SetNumUninitialized(SizeCSD);
+				pkt.Data = MakeSharedTS<TArray<uint8>>();
+				pkt.Data->SetNumUninitialized(SizeData);
+				uint8* CSDPtr = pkt.CSD->GetData();
+				uint8* DataPtr = pkt.Data->GetData();
+
+				// Second pass, copy the data.
+				for(int32 i=FirstNALUIndex, iMax=bFlushResiduals?NALUs.Num():LastNALUIndex; i<iMax; ++i)
+				{
+					if (NALUs[i].Type == 35 || NALUs[i].Type == 38)
+					{
+						// Skip AUD and filler data
+						continue;
+					}
+					const bool bCSD = NALUs[i].Type == 32 || NALUs[i].Type == 33 || NALUs[i].Type == 34;
+					uint8** DstPtr = bCSD ? &CSDPtr : &DataPtr;
+					uint32 Size = (uint32)NALUs[i].Size;
+					*((uint32*)(*DstPtr)) = bCSD ? MEDIA_TO_BIG_ENDIAN((uint32)1) : MEDIA_TO_BIG_ENDIAN(Size);
+					(*DstPtr) += 4;
+					uint32 Pos = NALUs[i].Offset + NALUs[i].UnitLength;
+					FMemory::Memcpy((*DstPtr), InData + Pos, Size);
+					(*DstPtr) += Size;
+				}
+				// Remove the data we processed from the residuals
+				int32 ConsumedSize = bFlushResiduals ? (int32) br.GetRemainingByteLength() : (int32) NALUs[LastNALUIndex].Offset;
+				br.SkipBytes(ConsumedSize);
+				InOutBR = br;
+				// Update the DTS and PTS in the residual data
+				if (InResidualData)
+				{
+					InResidualData->PreviousDTSPTS = InDTSPTS;
+				}
 			}
 			else
 			{
-				// Other
-				SizeData += NALUs[i].Size + kSizeOfSizeField;
-
-				// IDR, CRA or BLA frame?
-				if (NALUs[i].Type >= 16 && NALUs[i].Type <= 21)
-				{
-					bIsSync = true;
-				}
+				// Not enough data yet. Need an additional AUD NALU.
+				InOutBR = br;
+				return EPESPacketResult::Truncated;
 			}
 		}
-
-		FESPacket& pkt = OutPackets.Emplace_GetRef();
-		pkt.bIsSyncFrame = bIsSync;
-		pkt.SubPacketNum = 0;
-		pkt.DTS = InDTSPTS.DTS;
-		pkt.PTS = InDTSPTS.PTS;
-		pkt.CSD = MakeSharedTS<TArray<uint8>>();
-		pkt.CSD->SetNumUninitialized(SizeCSD);
-		pkt.Data = MakeSharedTS<TArray<uint8>>();
-		pkt.Data->SetNumUninitialized(SizeData);
-		uint8* CSDPtr = pkt.CSD->GetData();
-		uint8* DataPtr = pkt.Data->GetData();
-
-		// Second pass, copy the data.
-		for(int32 i=0; i<NALUs.Num(); ++i)
+		else
 		{
-			if (NALUs[i].Type == 35 || NALUs[i].Type == 38)
-			{
-				// Skip AUD and filler data
-				continue;
-			}
-			const bool bCSD = NALUs[i].Type == 32 || NALUs[i].Type == 33 || NALUs[i].Type == 34;
-			uint8** DstPtr = bCSD ? &CSDPtr : &DataPtr;
-			uint32 Size = (uint32)NALUs[i].Size;
-			*((uint32*)(*DstPtr)) = bCSD ? MEDIA_TO_BIG_ENDIAN((uint32)1) : MEDIA_TO_BIG_ENDIAN(Size);
-			(*DstPtr) += 4;
-			uint32 Pos = NALUs[i].Offset + NALUs[i].UnitLength;
-			FMemory::Memcpy((*DstPtr), InData + Pos, Size);
-			(*DstPtr) += Size;
+			UE_LOG(LogElectraMPEGTSParser, Warning, TEXT("Failed to parse the HEVC packet for NUTs"));
+			return EPESPacketResult::Invalid;
 		}
-		return EPESPacketResult::Ok;
 	}
-	else
-	{
-		UE_LOG(LogElectraMPEGTSParser, Warning, TEXT("Failed to parse the HEVC packet for NUTs"));
-	}
-	return EPESPacketResult::Invalid;
+	return EPESPacketResult::Ok;
 }
 
 
@@ -2198,7 +2338,7 @@ bool FParserISO13818_1::ParseCSD(FStreamCodecInformation& OutParsedCSD, const FE
 				OutParsedCSD.SetCodec4CC(Utils::Make4CC('m','p','g','a'));
 				OutParsedCSD.SetProfile(ElectraDecodersUtil::MPEG::UtilsMPEG123::GetVersion(HeaderValue));
 				OutParsedCSD.SetProfileLevel(ElectraDecodersUtil::MPEG::UtilsMPEG123::GetLayer(HeaderValue));
-				OutParsedCSD.SetCodecSpecifierRFC6381(TEXT("mp4a.6b"));
+				OutParsedCSD.SetCodecSpecifierRFC6381(TEXT("mp4a.6b"));	// alternatively "mp4a.40.34"
 				OutParsedCSD.SetSamplingRate(ElectraDecodersUtil::MPEG::UtilsMPEG123::GetSamplingRate(HeaderValue));
 				OutParsedCSD.SetNumberOfChannels(ElectraDecodersUtil::MPEG::UtilsMPEG123::GetChannelCount(HeaderValue));
 				OutParsedCSD.GetExtras().Set(StreamCodecInformationOptions::SamplesPerBlock, FVariantValue((int64)ElectraDecodersUtil::MPEG::UtilsMPEG123::GetSamplesPerFrame(HeaderValue)));

@@ -169,14 +169,24 @@ public:
 		else if (Error == 3)					return FString(TEXT("Connection closed"));
 		else if (Error == 4)					return FString(TEXT("No connection"));
 		else if (Error >= 100 && Error < 600)	return FString::Printf(TEXT("HTTP status code %d"), Error);
+		else if (Error == -1)					return FString(TEXT("Could not connect"));
 		else									return FString::Printf(TEXT("Unknown <code %d>"), Error);
 	}
+
+	virtual bool GetHasFinished() const
+	{ return bHasFinished; }
 
 	virtual bool GetWasCanceled() const
 	{ return bWasCanceled; }
 
 	virtual FString GetURL() const
 	{ return Request.IsValid() ? Request->Parameters.URL : FString(); }
+
+	virtual FTimeValue GetConnectionTimeout() const
+	{ return Request.IsValid() ? Request->Parameters.ConnectTimeout : FTimeValue(); }
+
+	virtual FTimeValue GetNoDataTimeout() const
+	{ return Request.IsValid() ? Request->Parameters.NoDataTimeout : FTimeValue(); }
 
 	virtual IAdaptiveStreamingPlayerResourceRequest::EPlaybackResourceType GetStaticQuery() const
 	{ return StaticQueryType.GetWithDefault(IAdaptiveStreamingPlayerResourceRequest::EPlaybackResourceType::Empty); }
@@ -189,7 +199,7 @@ public:
 
 	virtual const HTTP::FConnectionInfo* GetConnectionInfo() const
 	{ return &ConnectionInfo; }
-	
+
 	virtual TSharedPtrTS<IElectraHttpManager::FRequest> GetRequest() const
 	{ return Request; }
 
@@ -275,5 +285,3 @@ private:
 };
 
 } // namespace Electra
-
-

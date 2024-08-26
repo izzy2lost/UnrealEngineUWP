@@ -100,10 +100,13 @@ namespace Electra
 				// Profile and level follow?
 				if (CodecOTI.Len() > 5 && CodecOTI[4] == TCHAR('.'))
 				{
+					int32 DotPos;
+					CodecOTI.FindLastChar(TCHAR('.'), DotPos);
+
 					FString Temp;
 					int32 TempValue;
-					// We recognize the expected format avcC.xxyyzz and for legacy reasons also avcC.xx.zz
-					if (CodecOTI.Len() == 11)
+					// We recognize the expected format avcC.xxyyzz and for legacy reasons also avcC.xxx.zz
+					if (CodecOTI.Len() == 11 && DotPos == 4)
 					{
 						Temp = CodecOTI.Mid(5, 2);
 						LexFromStringHex(TempValue, *Temp);
@@ -115,13 +118,13 @@ namespace Electra
 						LexFromStringHex(TempValue, *Temp);
 						SetProfileLevel(TempValue);
 					}
-					else if (CodecOTI.Len() == 10 && CodecOTI[7] == TCHAR('.'))
+					else if (DotPos != INDEX_NONE)
 					{
-						Temp = CodecOTI.Mid(5, 2);
-						LexFromStringHex(TempValue, *Temp);
+						Temp = CodecOTI.Mid(5, DotPos-5);
+						LexFromString(TempValue, *Temp);
 						SetProfile(TempValue);
-						Temp = CodecOTI.Mid(8, 2);
-						LexFromStringHex(TempValue, *Temp);
+						Temp = CodecOTI.Mid(DotPos+1);
+						LexFromString(TempValue, *Temp);
 						SetProfileLevel(TempValue);
 						// Change the string to the expected format.
 						SetCodecSpecifierRFC6381(FString::Printf(TEXT("avc%c.%02x00%02x"), CodecOTI[3], GetProfile(), GetProfileLevel()));
@@ -211,6 +214,15 @@ namespace Electra
 			}
 			return false;
 		}
+		else if (CodecOTI.StartsWith(TEXT("dvh1")) || CodecOTI.StartsWith(TEXT("dvhe")))
+		{
+			// Dolby Vision only recognized as a generic Video 4CC for now.
+			StreamType = EStreamType::Video;
+			CodecSpecifier = CodecOTI;
+			Codec = ECodec::Video4CC;
+			Codec4CC = CodecOTI[3] == TCHAR('1') ? Make4CC('d','v','h','1') : Make4CC('d','v','h','e');
+			return true;
+		}
 		else if (CodecOTI.StartsWith(TEXT("mp4a")))
 		{
 			StreamType = EStreamType::Audio;
@@ -219,20 +231,39 @@ namespace Electra
 			// Object and profile follow?
 			if (CodecOTI.Len() > 6 && CodecOTI[4] == TCHAR('.'))
 			{
-				// mp4a.40.d is recognized.
+				// mp4a.40.d and mp4a.6b are recognized.
 				FString OT, Profile;
 				int32 DotPos = CodecOTI.Find(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromStart, 5);
 				OT = CodecOTI.Mid(5, DotPos != INDEX_NONE ? DotPos - 5 : DotPos);
 				Profile = CodecOTI.Mid(DotPos != INDEX_NONE ? DotPos + 1 : DotPos);
-				if (!OT.Equals(TEXT("40")))
+				if (OT.Equals(TEXT("40")))
 				{
-					return false;
+					int32 ProfileValue = 0;
+					LexFromString(ProfileValue, *Profile);
+					SetProfile(ProfileValue);
+					// AAC-LC, AAC-HE (SBR), AAC-HEv2 (PS), MP3
+					if (!(ProfileValue == 2 || ProfileValue == 5 || ProfileValue == 29 || ProfileValue == 34))
+					{
+						return false;
+					}
+					if (ProfileValue == 34)
+					{
+						Codec = ECodec::Audio4CC;
+						Codec4CC = Make4CC('m','p','g','a');
+						MimeType = TEXT("audio/mpeg");
+						SetProfile(1);
+						SetProfileLevel(3);
+					}
 				}
-				int32 ProfileValue = 0;
-				LexFromString(ProfileValue, *Profile);
-				SetProfile(ProfileValue);
-				// AAC-LC, AAC-HE (SBR), AAC-HEv2 (PS)
-				if (!(ProfileValue == 2 || ProfileValue == 5 || ProfileValue == 29))
+				else if (OT.Equals(TEXT("6b"), ESearchCase::IgnoreCase))
+				{
+					Codec = ECodec::Audio4CC;
+					Codec4CC = Make4CC('m','p','g','a');
+					MimeType = TEXT("audio/mpeg");
+					SetProfile(1);
+					SetProfileLevel(3);
+				}
+				else
 				{
 					return false;
 				}
@@ -244,6 +275,14 @@ namespace Electra
 			StreamType = EStreamType::Audio;
 			CodecSpecifier = CodecOTI;
 			Codec = ECodec::EAC3;
+			// Presently not supported.
+			return false;
+		}
+		else if (CodecOTI.StartsWith(TEXT("ac-3")) || CodecOTI.StartsWith(TEXT("ac3")))
+		{
+			StreamType = EStreamType::Audio;
+			CodecSpecifier = CodecOTI;
+			Codec = ECodec::AC3;
 			// Presently not supported.
 			return false;
 		}
@@ -305,7 +344,6 @@ namespace Electra
 			SetCodecSpecifierRFC6381(FString::Printf(TEXT("vp09.%02d.%02d.%02d"), 0, 0, 8));
 			return true;
 		}
-
 		else if (CodecOTI.Equals(TEXT("wvtt")))
 		{
 			StreamType = EStreamType::Subtitle;
@@ -673,6 +711,12 @@ namespace Electra
 
 	int32 FCodecSelectionPriorities::GetClassPriority(const FString& CodecSpecifierRFC6381) const
 	{
+		// If no priorities are given then all have the same priority of 0.
+		if (!ClassPriorities.Num())
+		{
+			return 0;
+		}
+		// Otherwise apply the priority filter. If no match then return -1.
 		for(auto &CodecClass : ClassPriorities)
 		{
 			if (CodecSpecifierRFC6381.StartsWith(CodecClass.Prefix, ESearchCase::IgnoreCase))

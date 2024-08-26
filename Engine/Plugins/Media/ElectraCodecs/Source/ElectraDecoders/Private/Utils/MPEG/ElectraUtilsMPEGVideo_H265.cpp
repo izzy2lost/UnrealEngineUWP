@@ -615,6 +615,7 @@ namespace ElectraDecodersUtil
 					{
 						general_profile_compatibility_flag[i] = br.GetBits(1);
 					}
+					general_constraint_indicator_flags = FBitstreamReader(br).GetBits64(48);	// elaborate PeekBits(48)
 					general_progressive_source_flag = br.GetBits(1);
 					general_interlaced_source_flag = br.GetBits(1);
 					general_non_packed_constraint_flag = br.GetBits(1);

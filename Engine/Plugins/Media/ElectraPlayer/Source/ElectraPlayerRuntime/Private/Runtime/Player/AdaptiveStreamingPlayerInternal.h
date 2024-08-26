@@ -55,22 +55,6 @@ namespace Electra
 {
 class FAdaptiveStreamingPlayer;
 
-inline int32 StreamTypeToArrayIndex(EStreamType StreamType)
-{
-	switch(StreamType)
-	{
-		case EStreamType::Video:
-			return 0;
-		case EStreamType::Audio:
-			return 1;
-		case EStreamType::Subtitle:
-			return 2;
-		default:
-			return 3;
-	}
-}
-
-
 
 class IAdaptiveStreamingWrappedRenderer : public IMediaRenderer
 {

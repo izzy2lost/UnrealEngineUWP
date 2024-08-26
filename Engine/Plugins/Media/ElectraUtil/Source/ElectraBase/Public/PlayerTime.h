@@ -523,6 +523,23 @@ public:
 		return Result;
 	}
 
+	inline FTimeValue operator - () const
+	{
+		FTimeValue Result(*this);
+		Result.HNS = -Result.HNS;
+		return Result;
+	}
+
+	inline FTimeValue Abs() const
+	{
+		FTimeValue Result(*this);
+		if (Result.HNS < 0)
+		{
+			Result.HNS = -Result.HNS;
+		}
+		return Result;
+	}
+
 private:
 	static inline bool WillOverflow(int64& OutTemp, const int64 InA, const int64 InB)
 	{

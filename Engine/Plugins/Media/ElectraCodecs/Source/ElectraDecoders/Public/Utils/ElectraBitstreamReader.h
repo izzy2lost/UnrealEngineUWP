@@ -294,6 +294,18 @@ public:
 			Mask >>= 1;
 		}
 	}
+	void PutBits64(uint64 InValue, uint32 InNumBits)
+	{
+		uint32 Upper = static_cast<uint32>(InValue >> 32U);
+		uint32 Lower = static_cast<uint32>(InValue);
+		if (InNumBits > 32)
+		{
+			const uint32 nb = InNumBits - 32;
+			PutBits(Upper, nb);
+			InNumBits -= nb;
+		}
+		PutBits(Lower, InNumBits);
+	}
 	void AlignToBytes(uint32 InFillBitsWith)
 	{
 		if (BitPosition)

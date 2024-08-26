@@ -87,7 +87,7 @@ namespace Electra
 			struct FItem
 			{
 				FString Language;				// ISO 639-2; if not set (all zero) the default entry for all languages
-				FString MimeType;
+				FString MimeType;				// Mime type or Owner ID for private item.
 				FVariant Value;
 				int32 ItemType = -1;
 			};
@@ -97,8 +97,10 @@ namespace Electra
 			bool GetTag(FItem& OutValue, uint32 InTag);
 			const TMap<uint32, FItem>& GetTags() const;
 			TMap<uint32, FItem>& GetTags();
+			const TArray<FItem>& GetPrivateItems() const;
 		private:
 			TMap<uint32, FItem> Tags;
+			TArray<FItem> PrivateItems;
 		};
 
 	} // namespace MPEG

@@ -34,7 +34,6 @@ namespace Electra
 			ParseFlag_Default = 0,
 			// Ignore PAT/PMT from the actual stream and rely on info from the init segment (if present)
 			ParseFlag_IgnoreProgramStream = 1 << 0,
-			ParseFlag_Continuation = 1 << 1,
 		};
 
 		struct FSourceInfo
@@ -42,6 +41,7 @@ namespace Electra
 			TSharedPtr<const TArray<uint8>, ESPMode::ThreadSafe> InitSegmentData;
 			int64 InFirstFileByteOffset = -1;
 			int64 InLastFileByteOffset = -1;
+			uint64 TimestampOffset = 0;
 		};
 
 		enum class EParseState
@@ -54,6 +54,8 @@ namespace Electra
 			HavePESPacket,
 			// Failed
 			Failed,
+			// Read error
+			ReadError,
 			// Reached the end of the stream.
 			EOS
 		};
@@ -143,8 +145,8 @@ namespace Electra
 
 		struct FESPacket
 		{
-			TOptional<int64> DTS;
-			TOptional<int64> PTS;
+			TOptional<uint64> DTS;
+			TOptional<uint64> PTS;
 			TSharedPtrTS<TArray<uint8>> CSD;
 			TSharedPtrTS<TArray<uint8>> Data;
 			int32 SubPacketNum = 0;

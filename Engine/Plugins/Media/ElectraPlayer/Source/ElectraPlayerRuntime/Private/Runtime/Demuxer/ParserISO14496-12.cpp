@@ -5737,6 +5737,7 @@ namespace Electra
 		const IMetadata* GetMetadata(EBaseBoxType InFromBox) const override;
 
 		TSharedPtrTS<IAllTrackIterator> CreateAllTrackIteratorByFilePos(int64 InFromFilePos) const override;
+		TSharedPtrTS<IAllTrackIterator> CreateAllTrackIteratorForTrackIDs(const TArray<uint32>& InTrackIDs) const override;
 
 	private:
 		class FTrack;
@@ -8308,7 +8309,7 @@ namespace Electra
 						if (TFHDBox)
 						{
 							FTrack* Track = NewParsedTrackInfo->GetTrackByID(TFHDBox->GetTrackID());
-							check(Track);
+							// We may not find it because the track is not of a supported type.
 							if (Track)
 							{
 								// The fragmented track needs to have a trex box.
@@ -8411,8 +8412,9 @@ namespace Electra
 							}
 							else
 							{
-								// There needs to be a track with that ID in the moov box
-								return UEMEDIA_ERROR_FORMAT_ERROR;
+								// Either the track is not a supported type or the moov really does not specify
+								// a track with that ID, which would be an error.
+								// We assume that the file itself is ok and that the track is not supported.
 							}
 						}
 						else
@@ -8620,6 +8622,38 @@ namespace Electra
 					}
 				}
 				if (err == UEMEDIA_ERROR_OK && (!ti->CurrentIterator.IsValid() || TrkIt->GetSampleFileOffset() < LowestFilePos))
+				{
+					LowestFilePos = TrkIt->GetSampleFileOffset();
+					ti->CurrentIterator = SafeTrkIt;
+				}
+			}
+			else if (err == UEMEDIA_ERROR_END_OF_STREAM)
+			{
+				ti->NewlyReachedEOS.Add(TrkIt);
+			}
+		}
+		return ti;
+	}
+
+	TSharedPtrTS<IParserISO14496_12::IAllTrackIterator> FParserISO14496_12::CreateAllTrackIteratorForTrackIDs(const TArray<uint32>& InTrackIDs) const
+	{
+		TSharedPtrTS<FParserISO14496_12::FAllTrackIterator> ti = MakeShared<FParserISO14496_12::FAllTrackIterator, ESPMode::ThreadSafe>();
+
+		int64 LowestFilePos = TNumericLimits<int64>::Max();
+		for(int32 nTrk=0, nTrkMax=InTrackIDs.Num(); nTrk<nTrkMax; ++nTrk)
+		{
+			const FTrack* Track = ParsedTrackInfo->GetTrackByID(InTrackIDs[nTrk]);
+			if (!Track)
+			{
+				continue;
+			}
+			FTrackIterator* TrkIt = static_cast<FTrackIterator*>(Track->CreateIterator());
+			TSharedPtrTS<ITrackIterator> SafeTrkIt(TrkIt);
+			ti->TrackIterators.Add(SafeTrkIt);
+			UEMediaError err = TrkIt->StartAtFirstInteral();
+			if (err == UEMEDIA_ERROR_OK)
+			{
+				if (TrkIt->GetSampleFileOffset() < LowestFilePos)
 				{
 					LowestFilePos = TrkIt->GetSampleFileOffset();
 					ti->CurrentIterator = SafeTrkIt;

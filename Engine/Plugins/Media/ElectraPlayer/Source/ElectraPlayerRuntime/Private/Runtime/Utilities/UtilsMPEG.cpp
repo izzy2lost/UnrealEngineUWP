@@ -337,6 +337,19 @@ namespace Electra
 							}
 							break;
 						}
+						// Private data
+						case Utils::Make4CC('P','R','I','V'):
+						{
+							int32 TextEncoding = 0;
+							const uint8* NextData = InData + 10;
+							FString Owner(GetString(NextData, FrameEnd - NextData, &NextData, &TextEncoding));
+							int32 PrivateSize = FrameEnd - NextData;
+							TArray<uint8> PrivateData(NextData, PrivateSize);
+							FItem& Item = PrivateItems.Emplace_GetRef();
+							Item.MimeType = MoveTemp(Owner);
+							Item.Value = FVariant(MoveTemp(PrivateData));
+							break;
+						}
 						// Recognized text fields
 						case Utils::Make4CC('T','A','L','B'):
 						case Utils::Make4CC('T','C','O','M'):
@@ -399,6 +412,11 @@ namespace Electra
 		TMap<uint32, FID3V2Metadata::FItem>& FID3V2Metadata::GetTags()
 		{
 			return Tags;
+		}
+
+		const TArray<FID3V2Metadata::FItem>& FID3V2Metadata::GetPrivateItems() const
+		{
+			return PrivateItems;
 		}
 
 	} // namespace MPEG
