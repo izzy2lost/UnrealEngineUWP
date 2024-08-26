@@ -313,7 +313,10 @@ void FNiagaraStatelessComputeManager::GenerateDataBufferForDebugging(FRHICommand
 			DataCache.ActiveParticles	= ActiveParticlesEstimate;
 
 			FStatelessDataCache* DataCachePtr = &DataCache;
+
+			RHICmdList.BeginUAVOverlap();
 			GenerateGPUData(RHICmdList, ComputeInterface, MakeConstArrayView(&DataCachePtr, 1));
+			RHICmdList.EndUAVOverlap();
 
 			// Copy to CPU data
 			//TransferGPUToCPU(RHICmdList, ComputeInterface, GPUDataBuffer, DataBuffer);
