@@ -228,6 +228,14 @@ void UClothEditorWeightMapPaintTool::Setup()
 			UMeshSculptToolBase::BrushProperties->BrushSize.AdaptiveSize = NewSize; 
 			CalculateBrushRadius();
 		});
+
+	FilterProperties->WatchProperty(FilterProperties->Falloff, [this](double NewFalloff)
+		{
+			// Brush indicator rendering uses this value
+			GetActiveBrushOp()->PropertySet->SetFalloff(NewFalloff);
+		});
+
+
 	FilterProperties->BrushSize = UMeshSculptToolBase::BrushProperties->BrushSize.AdaptiveSize;
 	FilterProperties->RestoreProperties(this);
 	AddToolPropertySource(FilterProperties);
@@ -513,6 +521,7 @@ void UClothEditorWeightMapPaintTool::Setup()
 	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
 	GetToolManager()->PostInvalidation();
 
+	SetPrimaryFalloffType(EMeshSculptFalloffType::Smooth);
 }
 
 void UClothEditorWeightMapPaintTool::InitializeBrushSizeRange(const UE::Geometry::FAxisAlignedBox3d& TargetBounds)
@@ -713,6 +722,7 @@ void UClothEditorWeightMapPaintTool::OnBeginStroke(const FRay& WorldRay)
 	if (SmoothBrushOpProperties)
 	{
 		SmoothBrushOpProperties->Strength = FilterProperties->Strength * FilterProperties->Strength;
+		SmoothBrushOpProperties->Falloff = FilterProperties->Falloff;
 	}
 
 	// initialize first "Last Stamp", so that we can assume all stamps in stroke have a valid previous stamp
@@ -870,6 +880,21 @@ void UClothEditorWeightMapPaintTool::UpdateROI(const FSculptBrushStamp& BrushSta
 				}
 			}
 		}
+	}
+
+	// If we are Smoothing, expand the set of vertices to consider. Otherwise vertices near the brush bounds will not use the expected neighborhood to get an average weight.
+	const bool bExpandVertexROI = (FilterProperties->SubToolType == EClothEditorWeightMapPaintInteractionType::Brush && FilterProperties->PrimaryBrushType == EClothEditorWeightMapPaintBrushType::Smooth);
+	if (bExpandVertexROI)
+	{
+		TSet<int32> NewVertexSetBuffer = VertexSetBuffer;
+		for (const int32 Vert : VertexSetBuffer)
+		{
+			for (const int32 NeighborVert : Mesh->VtxVerticesItr(Vert))
+			{
+				NewVertexSetBuffer.Add(NeighborVert);
+			}
+		}
+		VertexSetBuffer = MoveTemp(NewVertexSetBuffer);
 	}
 
 
