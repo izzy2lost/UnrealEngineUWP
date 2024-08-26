@@ -9,19 +9,19 @@ struct FHarmonixPeakTamerSettings
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadWrite, Category="AudioAnalysis")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AudioAnalysis")
 	float PeakAttackTimeSeconds = 0.01f;
 
-	UPROPERTY(BlueprintReadWrite, Category="AudioAnalysis")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AudioAnalysis")
 	float PeakReleaseTimeSeconds = 2.0f;
 
-	UPROPERTY(BlueprintReadWrite, Category="AudioAnalysis")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AudioAnalysis")
 	bool bEnableValueSmoothing = true;
 
-	UPROPERTY(BlueprintReadWrite, Category="AudioAnalysis")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AudioAnalysis")
 	float ValueAttackTimeSeconds = 0.01f;
 	
-	UPROPERTY(BlueprintReadWrite, Category="AudioAnalysis")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AudioAnalysis")
 	float ValueReleaseTimeSeconds = 0.01f;
 };
 
