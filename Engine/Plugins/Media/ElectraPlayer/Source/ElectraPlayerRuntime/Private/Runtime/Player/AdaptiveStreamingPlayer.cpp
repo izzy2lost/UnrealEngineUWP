@@ -1917,7 +1917,7 @@ void FAdaptiveStreamingPlayer::HandleSeeking()
 void FAdaptiveStreamingPlayer::HandleMetadataChanges()
 {
 	// The timeline can change dynamically. Refresh it on occasion.
-	if (Manifest.IsValid() && ManifestType == EMediaFormatType::DASH)
+	if (Manifest.IsValid() && (ManifestType == EMediaFormatType::DASH || ManifestType == EMediaFormatType::HLS))
 	{
 		PlaybackState.SetSeekableRange(Manifest->GetSeekableTimeRange());
 		PlaybackState.SetTimelineRange(Manifest->GetTotalTimeRange());
