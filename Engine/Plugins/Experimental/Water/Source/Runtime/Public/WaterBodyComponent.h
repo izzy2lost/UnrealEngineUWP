@@ -9,6 +9,7 @@
 #include "WaterCurveSettings.h"
 #include "WaterBodyStaticMeshSettings.h"
 #include "WaterSplineMetadata.h"
+#include "BakedShallowWaterSimulationComponent.h"
 #include "WaterZoneActor.h"
 #include "WaterBodyTypes.h"
 
@@ -425,6 +426,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category=Water, meta=(Deprecated = "5.2"))
 	void OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged = false, bool bUserTriggeredChanged = false) {}
 
+	/** Get the baked shallow water simulation for this water body */
+	UBakedShallowWaterSimulationComponent* GetBakedShallowWaterSimulation() { return BakedShallowWaterSim.Get(); }
+	
+	/** Set the baked shallow water simulation for this water body */
+	void SetBakedShallowWaterSimulation(TObjectPtr<UBakedShallowWaterSimulationComponent> BakedSim) { BakedShallowWaterSim = BakedSim; }
+
+	/** Query for if the baked shallow water sim is valid for use */
+	bool UseBakedShallowWaterSimulationForBuoyancy() const { return bUseBakedSimForPhysics && BakedShallowWaterSim.IsValid() && BakedShallowWaterSim->SimulationData.IsValid(); }
+
 protected:
 	//~ Begin UActorComponent interface.
 	virtual bool IsHLODRelevant() const override;
@@ -675,6 +685,14 @@ protected:
 	/** If the Water Material assigned to this component has Fixed Depth enabled, this is the depth that is passed. */
 	UPROPERTY(Category = Water, EditAnywhere, AdvancedDisplay)
 	double FixedWaterDepth = 512.0;
+
+	/**  Baked simulation data for this water body, owned by a UShallowWaterRiverComponent */
+	UPROPERTY(Category = BakedSimulation, AdvancedDisplay, VisibleAnywhere)
+	TWeakObjectPtr<UBakedShallowWaterSimulationComponent> BakedShallowWaterSim;
+
+	/**  Override to disable use of the baked shallow water simulation for collisons and other uses */
+	UPROPERTY(Category = BakedSimulation, AdvancedDisplay, EditAnywhere)
+	bool bUseBakedSimForPhysics = true;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
