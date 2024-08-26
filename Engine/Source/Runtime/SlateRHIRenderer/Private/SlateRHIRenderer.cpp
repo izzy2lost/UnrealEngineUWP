@@ -920,6 +920,9 @@ FSlateDrawWindowPassOutputs FSlateRHIRenderer::DrawWindow_RenderThread(FRDGBuild
 		}
 	}
 
+	// Dispatch work after each window since certain RHI's can't record commands for multiple swap chains.
+	GraphBuilder.AddDispatchHint();
+
 	FSlateDrawWindowPassOutputs Outputs;
 	Outputs.ViewportRHI = ViewportInfo.ViewportRHI;
 	Outputs.ViewportTextureRHI = ViewportTextureRHI;

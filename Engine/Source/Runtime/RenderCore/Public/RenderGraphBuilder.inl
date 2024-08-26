@@ -493,7 +493,11 @@ inline void FRDGBuilder::QueueBufferExtraction(FRDGBufferRef Buffer, TRefCountPt
 
 inline void FRDGBuilder::AddDispatchHint()
 {
-	if (Passes.Num() > 0)
+	if (IsImmediateMode())
+	{
+		RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
+	}
+	else if (Passes.Num() > 0)
 	{
 		Passes[Passes.Last()]->bDispatchAfterExecute = 1;
 	}
