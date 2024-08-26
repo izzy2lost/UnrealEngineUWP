@@ -103,7 +103,7 @@ public:
 protected:
 	void Tick(float DeltaSeconds);
 
-	void UnloadWorld();
+	void UnloadWorld(bool bInShutdown);
 	void EndPlayWorld();
 	void OnEndFrameTick();
 	void OnEnginePreExit();
