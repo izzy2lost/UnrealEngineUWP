@@ -67,19 +67,19 @@ void SDMMaterialEditor_LeftBase::EditGlobalSettings(bool bInForceRefresh)
 	SDMMaterialEditor::EditGlobalSettings(bInForceRefresh);
 }
 
-void SDMMaterialEditor_LeftBase::ShowPropertyPreviews(bool bInForceRefresh)
+void SDMMaterialEditor_LeftBase::EditProperties(bool bInForceRefresh)
 {
-	if (EditMode == EDMMaterialEditorMode::PropertyPreviews && !bInForceRefresh)
+	if (EditMode == EDMMaterialEditorMode::Properties && !bInForceRefresh)
 	{
 		return;
 	}
 
-	if (EditMode != EDMMaterialEditorMode::PropertyPreviews)
+	if (EditMode != EDMMaterialEditorMode::Properties)
 	{
 		RightSlot.Invalidate();
 	}
 
-	SDMMaterialEditor::ShowPropertyPreviews(bInForceRefresh);
+	SDMMaterialEditor::EditProperties(bInForceRefresh);
 }
 
 void SDMMaterialEditor_LeftBase::ValidateSlots_Main()
@@ -186,7 +186,7 @@ TSharedRef<SWidget> SDMMaterialEditor_LeftBase::CreateSlot_Right()
 			Content = CreateSlot_Right_GlobalSettings();
 			break;
 
-		case EDMMaterialEditorMode::PropertyPreviews:
+		case EDMMaterialEditorMode::Properties:
 			Content = CreateSlot_Right_PropertyPreviews();
 			break;
 

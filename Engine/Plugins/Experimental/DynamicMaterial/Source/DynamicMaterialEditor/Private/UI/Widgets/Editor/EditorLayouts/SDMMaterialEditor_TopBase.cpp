@@ -65,19 +65,19 @@ void SDMMaterialEditor_TopBase::EditGlobalSettings(bool bInForceRefresh)
 	SDMMaterialEditor::EditGlobalSettings(bInForceRefresh);
 }
 
-void SDMMaterialEditor_TopBase::ShowPropertyPreviews(bool bInForceRefresh)
+void SDMMaterialEditor_TopBase::EditProperties(bool bInForceRefresh)
 {
-	if (EditMode == EDMMaterialEditorMode::PropertyPreviews && !bInForceRefresh)
+	if (EditMode == EDMMaterialEditorMode::Properties && !bInForceRefresh)
 	{
 		return;
 	}
 
-	if (EditMode != EDMMaterialEditorMode::PropertyPreviews)
+	if (EditMode != EDMMaterialEditorMode::Properties)
 	{
 		BottomSlot.Invalidate();
 	}
 
-	SDMMaterialEditor::ShowPropertyPreviews(bInForceRefresh);
+	SDMMaterialEditor::EditProperties(bInForceRefresh);
 }
 
 void SDMMaterialEditor_TopBase::ValidateSlots_Main()
@@ -184,7 +184,7 @@ TSharedRef<SWidget> SDMMaterialEditor_TopBase::CreateSlot_Bottom()
 			Content = CreateSlot_Bottom_GlobalSettings();
 			break;
 
-		case EDMMaterialEditorMode::PropertyPreviews:
+		case EDMMaterialEditorMode::Properties:
 			Content = CreateSlot_Bottom_PropertyPreviews();
 			break;
 

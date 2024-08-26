@@ -40,6 +40,15 @@
 
 #define LOCTEXT_NAMESPACE "SDMMaterialEditor"
 
+FDMMaterialEditorPage FDMMaterialEditorPage::Preview = {EDMMaterialEditorMode::MaterialPreview, EDMMaterialPropertyType::None};
+FDMMaterialEditorPage FDMMaterialEditorPage::GlobalSettings = {EDMMaterialEditorMode::GlobalSettings, EDMMaterialPropertyType::None};
+FDMMaterialEditorPage FDMMaterialEditorPage::Properties = {EDMMaterialEditorMode::Properties, EDMMaterialPropertyType::None};
+
+bool FDMMaterialEditorPage::operator==(const FDMMaterialEditorPage& InOther) const
+{
+	return EditMode == InOther.EditMode && MaterialProperty == InOther.MaterialProperty;
+}
+
 void SDMMaterialEditor::PrivateRegisterAttributes(FSlateAttributeDescriptor::FInitializer&)
 {
 }
@@ -49,7 +58,12 @@ SDMMaterialEditor::SDMMaterialEditor()
 	, CommandList(MakeShared<FUICommandList>())
 	, PreviewMaterialManager(MakeShared<FDMPreviewMaterialManager>())
 	, EditMode(EDMMaterialEditorMode::GlobalSettings)
+	, PageHistoryActive(0)
+	, PageHistoryCount(1)
 {
+	// Some small number to get us going
+	PageHistory.Reserve(20);
+	PageHistory.Add(FDMMaterialEditorPage::GlobalSettings);
 }
 
 SDMMaterialEditor::~SDMMaterialEditor()
@@ -251,6 +265,8 @@ void SDMMaterialEditor::SelectProperty(EDMMaterialPropertyType InProperty, bool 
 	}
 
 	EditSlot(Slot);
+
+	PageHistoryAdd({EDMMaterialEditorMode::EditSlot, InProperty});
 }
 
 const TSharedRef<FUICommandList>& SDMMaterialEditor::GetCommandList() const
@@ -332,16 +348,18 @@ void SDMMaterialEditor::EditGlobalSettings(bool bInForceRefresh)
 	SelectedMaterialProperty = EDMMaterialPropertyType::None;
 
 	GlobalSettingsEditorSlot.Invalidate();
+
+	PageHistoryAdd(FDMMaterialEditorPage::GlobalSettings);
 }
 
-void SDMMaterialEditor::ShowPropertyPreviews(bool bInForceRefresh)
+void SDMMaterialEditor::EditProperties(bool bInForceRefresh)
 {
-	if (EditMode == EDMMaterialEditorMode::PropertyPreviews && !bInForceRefresh)
+	if (EditMode == EDMMaterialEditorMode::Properties && !bInForceRefresh)
 	{
 		return;
 	}
 
-	if (EditMode != EDMMaterialEditorMode::PropertyPreviews)
+	if (EditMode != EDMMaterialEditorMode::Properties)
 	{
 		SlotEditorSlot.Invalidate();
 		SplitterSlot = nullptr;
@@ -349,10 +367,12 @@ void SDMMaterialEditor::ShowPropertyPreviews(bool bInForceRefresh)
 		GlobalSettingsEditorSlot.Invalidate();
 	}
 
-	EditMode = EDMMaterialEditorMode::PropertyPreviews;
+	EditMode = EDMMaterialEditorMode::Properties;
 	SelectedMaterialProperty = EDMMaterialPropertyType::None;
 
 	MaterialPropertyPreviewsSlot.Invalidate();
+
+	PageHistoryAdd(FDMMaterialEditorPage::Properties);
 }
 
 void SDMMaterialEditor::OpenMaterialPreviewTab()
@@ -563,6 +583,16 @@ FReply SDMMaterialEditor::OnKeyDown(const FGeometry& InMyGeometry, const FKeyEve
 	return FReply::Unhandled();
 }
 
+FReply SDMMaterialEditor::OnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent)
+{
+	if (CommandList->ProcessCommandBindings(InPointerEvent))
+	{
+		return FReply::Handled();
+	}
+
+	return SCompoundWidget::OnMouseButtonDown(InGeometry, InPointerEvent);
+}
+
 void SDMMaterialEditor::PostUndo(bool bInSuccess)
 {
 	OnUndo();
@@ -576,8 +606,21 @@ void SDMMaterialEditor::PostRedo(bool bInSuccess)
 void SDMMaterialEditor::BindCommands(SDMMaterialSlotEditor* InSlotEditor)
 {
 	const FGenericCommands& GenericCommands = FGenericCommands::Get();
+	const FDynamicMaterialEditorCommands& DMEditorCommands = FDynamicMaterialEditorCommands::Get();
 
 	CommandList = MakeShared<FUICommandList>();
+
+	CommandList->MapAction(
+		DMEditorCommands.NavigateForward,
+		FExecuteAction::CreateSP(this, &SDMMaterialEditor::NavigateForward_Execute),
+		FCanExecuteAction::CreateSP(this, &SDMMaterialEditor::NavigateForward_CanExecute)
+	);
+
+	CommandList->MapAction(
+		DMEditorCommands.NavigateBack,
+		FExecuteAction::CreateSP(this, &SDMMaterialEditor::NavigateBack_Execute),
+		FCanExecuteAction::CreateSP(this, &SDMMaterialEditor::NavigateBack_CanExecute)
+	);
 
 	CommandList->MapAction(
 		FDynamicMaterialEditorCommands::Get().AddDefaultLayer,
@@ -700,7 +743,7 @@ void SDMMaterialEditor::ValidateSlots()
 				GlobalSettingsEditorSlot->Validate();
 			}
 		}
-		else if (EditMode == EDMMaterialEditorMode::PropertyPreviews)
+		else if (EditMode == EDMMaterialEditorMode::Properties)
 		{
 			if (MaterialPropertyPreviewsSlot.HasBeenInvalidated())
 			{
@@ -753,6 +796,93 @@ void SDMMaterialEditor::ClearSlots()
 	StatusBarSlot.ClearWidget();
 
 	ClearSlots_Main();
+}
+
+void SDMMaterialEditor::PageHistoryAdd(const FDMMaterialEditorPage& InPage)
+{
+	if (PageHistory.IsValidIndex(PageHistoryActive) && PageHistory[PageHistoryActive] == InPage)
+	{
+		return;
+	}
+
+	const int32 NewPageIndex = PageHistoryActive + 1;
+
+	if (!PageHistory.IsValidIndex(NewPageIndex))
+	{
+		PageHistory.Add(InPage);
+	}
+	else
+	{
+		PageHistory[NewPageIndex] = InPage;
+	}	
+
+	PageHistoryActive = NewPageIndex;
+	PageHistoryCount = NewPageIndex + 1;
+}
+
+bool SDMMaterialEditor::SetActivePage(const FDMMaterialEditorPage& InPage)
+{
+	switch (InPage.EditMode)
+	{
+		// This is not a valid page
+		case EDMMaterialEditorMode::MaterialPreview:
+		default:
+			return false;
+
+		case EDMMaterialEditorMode::GlobalSettings:
+			EditGlobalSettings();
+			return true;
+
+		case EDMMaterialEditorMode::Properties:
+			EditProperties();
+			return true;
+
+		case EDMMaterialEditorMode::EditSlot:
+			SelectProperty(InPage.MaterialProperty);
+			return true;
+	}
+}
+
+bool SDMMaterialEditor::PageHistoryBack()
+{
+	const int32 NewPageIndex = PageHistoryActive - 1;
+
+	if (!PageHistory.IsValidIndex(NewPageIndex))
+	{
+		return false;
+	}
+
+	const int32 OldPageIndex = PageHistoryActive;
+	PageHistoryActive = NewPageIndex;
+
+	if (!SetActivePage(PageHistory[NewPageIndex]))
+	{
+		PageHistoryActive = OldPageIndex;
+		return false;
+	}
+
+	return true;
+}
+
+bool SDMMaterialEditor::PageHistoryForward()
+{
+	const int32 NewPageIndex = PageHistoryActive + 1;
+
+	if (NewPageIndex >= PageHistoryCount || !PageHistory.IsValidIndex(NewPageIndex))
+	{
+		return false;
+	}
+
+	const int32 OldPageIndex = PageHistoryActive;
+	PageHistoryActive = NewPageIndex;
+
+	if (!SetActivePage(PageHistory[NewPageIndex]))
+	{
+		PageHistoryActive = OldPageIndex;
+		return false;
+	}
+
+	return true;
 }
 
 void SDMMaterialEditor::CreateLayout()
@@ -965,6 +1095,26 @@ void SDMMaterialEditor::OnSettingsChanged(const FPropertyChangedEvent& InPropert
 	{
 		PropertySelectorSlot.Invalidate();
 	}
+}
+
+void SDMMaterialEditor::NavigateForward_Execute()
+{
+	PageHistoryForward();
+}
+
+bool SDMMaterialEditor::NavigateForward_CanExecute()
+{
+	return (PageHistoryActive + 1) < PageHistoryCount;
+}
+
+void SDMMaterialEditor::NavigateBack_Execute()
+{
+	PageHistoryBack();
+}
+
+bool SDMMaterialEditor::NavigateBack_CanExecute()
+{
+	return PageHistoryActive > 0;
 }
 
 #undef LOCTEXT_NAMESPACE

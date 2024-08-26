@@ -39,7 +39,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalSlim::CreateSlot_Propert
 
 	const FMargin Padding = FMargin(0.f, 1.f);
 
-	TSharedRef<SWidget> PreviewButton = CreateSlot_SelectButton(EDMMaterialEditorMode::MaterialPreview, EDMMaterialPropertyType::None);
+	TSharedRef<SWidget> PreviewButton = CreateSlot_SelectButton(FDMMaterialEditorPage::Preview);
 	SetupMaterialPreviewButton(PreviewButton);
 
 	NewSlotList->AddSlot()
@@ -53,14 +53,14 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalSlim::CreateSlot_Propert
 		.AutoHeight()
 		.Padding(Padding)
 		[
-			CreateSlot_SelectButton(EDMMaterialEditorMode::GlobalSettings, EDMMaterialPropertyType::None)
+			CreateSlot_SelectButton(FDMMaterialEditorPage::GlobalSettings)
 		];
 
 	NewSlotList->AddSlot()
 		.AutoHeight()
 		.Padding(Padding)
 		[
-			CreateSlot_SelectButton(EDMMaterialEditorMode::PropertyPreviews, EDMMaterialPropertyType::None)
+			CreateSlot_SelectButton(FDMMaterialEditorPage::Properties)
 		];
 
 	// Valid model properties
@@ -87,7 +87,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalSlim::CreateSlot_Propert
 			.AutoHeight()
 			.Padding(Padding)
 			[
-				CreateSlot_SelectButton(EDMMaterialEditorMode::EditSlot, PropertyPair.Key)
+				CreateSlot_SelectButton({EDMMaterialEditorMode::EditSlot, PropertyPair.Key})
 			];
 	}
 
@@ -115,7 +115,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalSlim::CreateSlot_Propert
 			.AutoHeight()
 			.Padding(Padding)
 			[
-				CreateSlot_SelectButton(EDMMaterialEditorMode::EditSlot, PropertyPair.Key)
+				CreateSlot_SelectButton({EDMMaterialEditorMode::EditSlot, PropertyPair.Key})
 			];
 	}
 
@@ -137,26 +137,25 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalSlim::CreateSlot_Propert
 			.AutoHeight()
 			.Padding(Padding)
 			[
-				CreateSlot_SelectButton(EDMMaterialEditorMode::EditSlot, PropertyPair.Key)
+				CreateSlot_SelectButton({EDMMaterialEditorMode::EditSlot, PropertyPair.Key})
 			];
 	}
 
 	return NewSlotList;
 }
 
-TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalSlim::CreateSlot_SelectButton(EDMMaterialEditorMode InEditMode, 
-	EDMMaterialPropertyType InMaterialProperty)
+TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalSlim::CreateSlot_SelectButton(const FDMMaterialEditorPage& InPage)
 {
-	const FText ButtonText = GetSelectButtonText(InEditMode, InMaterialProperty, /* Short Name */ true);
-	const FText ToolTip = GetButtonToolTip(InEditMode, InMaterialProperty);
+	const FText ButtonText = GetSelectButtonText(InPage, /* Short Name */ true);
+	const FText ToolTip = GetButtonToolTip(InPage);
 
 	return SNew(SCheckBox)
 		.Style(FAppStyle::Get(), "DetailsView.SectionButton")
 		.HAlign(EHorizontalAlignment::HAlign_Center)
 		.Padding(0.f)
-		.IsEnabled(this, &SDMMaterialPropertySelector_VerticalSlim::GetPropertySelectEnabled, InEditMode, InMaterialProperty)
-		.IsChecked(this, &SDMMaterialPropertySelector_VerticalSlim::GetPropertySelectState, InEditMode, InMaterialProperty)
-		.OnCheckStateChanged(this, &SDMMaterialPropertySelector_VerticalSlim::OnPropertySelectStateChanged, InEditMode, InMaterialProperty)
+		.IsEnabled(this, &SDMMaterialPropertySelector_VerticalSlim::GetPropertySelectEnabled, InPage)
+		.IsChecked(this, &SDMMaterialPropertySelector_VerticalSlim::GetPropertySelectState, InPage)
+		.OnCheckStateChanged(this, &SDMMaterialPropertySelector_VerticalSlim::OnPropertySelectStateChanged, InPage)
 		.ToolTipText(ToolTip)
 		.Content()
 		[
@@ -171,7 +170,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalSlim::CreateSlot_SelectB
 				[
 					SNew(SImage)
 					.Image(FAppStyle::Get().GetBrush("FilterBar.FilterImage"))
-					.ColorAndOpacity(this, &SDMMaterialPropertySelector_VerticalSlim::GetPropertySelectButtonChipColor, InEditMode, InMaterialProperty)
+					.ColorAndOpacity(this, &SDMMaterialPropertySelector_VerticalSlim::GetPropertySelectButtonChipColor, InPage)
 					.DesiredSizeOverride(FVector2D(8, 17))
 				]
 				+SHorizontalBox::Slot()

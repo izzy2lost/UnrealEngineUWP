@@ -44,9 +44,21 @@ namespace UE::DynamicMaterialEditor::Private
 enum class EDMMaterialEditorMode : uint8
 {
 	GlobalSettings,
-	PropertyPreviews,
+	Properties,
 	EditSlot,
 	MaterialPreview
+};
+
+struct FDMMaterialEditorPage
+{
+	static FDMMaterialEditorPage Preview;
+	static FDMMaterialEditorPage GlobalSettings;
+	static FDMMaterialEditorPage Properties;
+
+	EDMMaterialEditorMode EditMode;
+	EDMMaterialPropertyType MaterialProperty;
+
+	bool operator==(const FDMMaterialEditorPage& InOther) const;
 };
 
 class SDMMaterialEditor : public SCompoundWidget, public FSelfRegisteringEditorUndoClient
@@ -107,7 +119,7 @@ public:
 
 	virtual void EditGlobalSettings(bool bInForceRefresh = false);
 
-	virtual void ShowPropertyPreviews(bool bInForceRefresh = false);
+	virtual void EditProperties(bool bInForceRefresh = false);
 
 	void OpenMaterialPreviewTab();
 
@@ -125,9 +137,16 @@ public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnEditedComponentChanged, const TSharedRef<SDMMaterialComponentEditor>&, UDMMaterialComponent*);
 	FOnEditedComponentChanged::RegistrationType& GetOnEditedComponentChanged();
 
+	bool PageHistoryBack();
+
+	bool PageHistoryForward();
+
+	bool SetActivePage(const FDMMaterialEditorPage& InPage);
+
 	//~ Begin SWidget
 	virtual bool SupportsKeyboardFocus() const override;
 	virtual FReply OnKeyDown(const FGeometry& InMyGeometry, const FKeyEvent& InKeyEvent) override;
+	virtual FReply OnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent) override;
 	//~ End SWidget
 
 	//~ Begin FUndoClient
@@ -165,6 +184,10 @@ protected:
 	TWeakObjectPtr<UDMMaterialSlot> SlotToEdit;
 	TWeakObjectPtr<UDMMaterialComponent> ComponentToEdit;
 
+	TArray<FDMMaterialEditorPage> PageHistory;
+	int32 PageHistoryActive;
+	int32 PageHistoryCount;
+
 	FOnEditedSlotChanged OnEditedSlotChanged;
 	FOnEditedComponentChanged OnEditedComponentChanged;
 
@@ -190,6 +213,8 @@ protected:
 	void ClearSlots();
 
 	virtual void ClearSlots_Main() = 0;
+
+	void PageHistoryAdd(const FDMMaterialEditorPage& InPage);
 
 	/** Slots */
 	void CreateLayout();
@@ -233,4 +258,10 @@ protected:
 	void OnSlotListUpdate(UDynamicMaterialModelBase* InMaterialModelBase);
 
 	void OnSettingsChanged(const FPropertyChangedEvent& InPropertyChangedEvent);
+
+	void NavigateForward_Execute();
+	bool NavigateForward_CanExecute();
+
+	void NavigateBack_Execute();
+	bool NavigateBack_CanExecute();
 };

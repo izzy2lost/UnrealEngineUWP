@@ -22,4 +22,7 @@ public:
 	TSharedPtr<FUICommandInfo> MoveLayerDown;
 
 	TSharedPtr<FUICommandInfo> SetShaderBallPreview;
+
+	TSharedPtr<FUICommandInfo> NavigateForward;
+	TSharedPtr<FUICommandInfo> NavigateBack;
 };

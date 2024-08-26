@@ -4,6 +4,8 @@
 
 #include "UI/Widgets/Editor/PropertySelectorLayouts/SDMMaterialPropertySelector_VerticalBase.h"
 
+struct FDMMaterialEditorPage;
+
 class SDMMaterialPropertySelector_Vertical : public SDMMaterialPropertySelector_VerticalBase
 {
 	SLATE_BEGIN_ARGS(SDMMaterialPropertySelector_Vertical) {}
@@ -16,6 +18,6 @@ public:
 
 protected:
 	//~ Begin SDMMaterialPropertySelector
-	virtual TSharedRef<SWidget> CreateSlot_SelectButton(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty) override;
+	virtual TSharedRef<SWidget> CreateSlot_SelectButton(const FDMMaterialEditorPage& InPage) override;
 	//~ End SDMMaterialPropertySelector
 };

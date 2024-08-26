@@ -16,6 +16,7 @@ class UDynamicMaterialModelEditorOnlyData;
 enum class ECheckBoxState : uint8;
 enum class EDMMaterialEditorMode : uint8;
 enum class EDMMaterialPropertyType : uint8;
+struct FDMMaterialEditorPage;
 
 namespace UE::DynamicMaterialEditor::Private
 {
@@ -34,9 +35,9 @@ class SDMMaterialPropertySelector : public SCompoundWidget
 	SLATE_END_ARGS()
 
 public:
-	static FText GetSelectButtonText(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty, bool bInShortName);
+	static FText GetSelectButtonText(const FDMMaterialEditorPage& InPage, bool bInShortName);
 
-	static FText GetButtonToolTip(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty);
+	static FText GetButtonToolTip(const FDMMaterialEditorPage& InPage);
 
 	virtual ~SDMMaterialPropertySelector() override = default;
 
@@ -55,7 +56,7 @@ protected:
 
 	TSharedRef<SWidget> CreateSlot_EnabledButton(EDMMaterialPropertyType InMaterialProperty);
 
-	virtual TSharedRef<SWidget> CreateSlot_SelectButton(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty) = 0;
+	virtual TSharedRef<SWidget> CreateSlot_SelectButton(const FDMMaterialEditorPage& InPage) = 0;
 
 	bool IsPropertyEnabled(EDMMaterialPropertyType InMaterialProperty) const;
 
@@ -67,12 +68,12 @@ protected:
 	ECheckBoxState GetPropertyEnabledState(EDMMaterialPropertyType InMaterialProperty) const;
 	void OnPropertyEnabledStateChanged(ECheckBoxState InState, EDMMaterialPropertyType InMaterialProperty);
 
-	bool GetPropertySelectEnabled(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty) const;
-	ECheckBoxState GetPropertySelectState(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty) const;
-	void OnPropertySelectStateChanged(ECheckBoxState InState, EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty);
-	FSlateColor GetPropertySelectButtonChipColor(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty) const;
+	bool GetPropertySelectEnabled(FDMMaterialEditorPage InPage) const;
+	ECheckBoxState GetPropertySelectState(FDMMaterialEditorPage InPage) const;
+	void OnPropertySelectStateChanged(ECheckBoxState InState, FDMMaterialEditorPage InPage);
+	FSlateColor GetPropertySelectButtonChipColor(FDMMaterialEditorPage InPage) const;
 
-	void SetSelectedProperty(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty);
+	void SetSelectedProperty(const FDMMaterialEditorPage& InPage);
 
 	void SetupMaterialPreviewButton(const TSharedRef<SWidget>& InSelectButton);
 

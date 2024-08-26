@@ -42,7 +42,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalBase::CreateSlot_Propert
 	NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
 		.Padding(Padding)
 		[
-			CreateSlot_SelectButton(EDMMaterialEditorMode::GlobalSettings, EDMMaterialPropertyType::None)
+			CreateSlot_SelectButton(FDMMaterialEditorPage::GlobalSettings)
 		];
 
 	++Row;
@@ -50,7 +50,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalBase::CreateSlot_Propert
 	NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
 		.Padding(Padding)
 		[
-			CreateSlot_SelectButton(EDMMaterialEditorMode::PropertyPreviews, EDMMaterialPropertyType::None)
+			CreateSlot_SelectButton(FDMMaterialEditorPage::Properties)
 		];
 
 	++Row;
@@ -83,7 +83,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalBase::CreateSlot_Propert
 		NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
 			.Padding(Padding)
 			[
-				CreateSlot_SelectButton(EDMMaterialEditorMode::EditSlot, PropertyPair.Key)
+				CreateSlot_SelectButton({EDMMaterialEditorMode::EditSlot, PropertyPair.Key})
 			];
 
 		++Row;
@@ -117,7 +117,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalBase::CreateSlot_Propert
 		NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
 			.Padding(Padding)
 			[
-				CreateSlot_SelectButton(EDMMaterialEditorMode::EditSlot, PropertyPair.Key)
+				CreateSlot_SelectButton({EDMMaterialEditorMode::EditSlot, PropertyPair.Key})
 			];
 
 		++Row;
@@ -145,7 +145,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalBase::CreateSlot_Propert
 		NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
 			.Padding(Padding)
 			[
-				CreateSlot_SelectButton(EDMMaterialEditorMode::EditSlot, PropertyPair.Key)
+				CreateSlot_SelectButton({EDMMaterialEditorMode::EditSlot, PropertyPair.Key})
 			];
 
 		++Row;

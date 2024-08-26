@@ -478,8 +478,8 @@ void SDMMaterialDesigner::OnLayoutChanged()
 			NewEditor->EditGlobalSettings();
 			break;
 
-		case EDMMaterialEditorMode::PropertyPreviews:
-			NewEditor->ShowPropertyPreviews();
+		case EDMMaterialEditorMode::Properties:
+			NewEditor->EditProperties();
 			break;
 
 		case EDMMaterialEditorMode::EditSlot:

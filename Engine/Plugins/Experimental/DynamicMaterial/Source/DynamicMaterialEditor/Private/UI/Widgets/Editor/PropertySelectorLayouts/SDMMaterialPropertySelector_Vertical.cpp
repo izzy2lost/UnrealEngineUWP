@@ -4,6 +4,7 @@
 
 #include "DetailLayoutBuilder.h"
 #include "DMDefs.h"
+#include "UI/Widgets/SDMMaterialEditor.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SBox.h"
@@ -21,19 +22,18 @@ void SDMMaterialPropertySelector_Vertical::Construct(const FArguments& InArgs, c
 	);
 }
 
-TSharedRef<SWidget> SDMMaterialPropertySelector_Vertical::CreateSlot_SelectButton(EDMMaterialEditorMode InEditMode, 
-	EDMMaterialPropertyType InMaterialProperty)
+TSharedRef<SWidget> SDMMaterialPropertySelector_Vertical::CreateSlot_SelectButton(const FDMMaterialEditorPage& InPage)
 {
-	const FText ButtonText = GetSelectButtonText(InEditMode, InMaterialProperty, /* Short Name */ false);
-	const FText ToolTip = GetButtonToolTip(InEditMode, InMaterialProperty);
+	const FText ButtonText = GetSelectButtonText(InPage, /* Short Name */ false);
+	const FText ToolTip = GetButtonToolTip(InPage);
 
 	return SNew(SCheckBox)
 		.Style(FAppStyle::Get(), "DetailsView.SectionButton")
 		.HAlign(EHorizontalAlignment::HAlign_Center)
 		.Padding(0.f)
-		.IsEnabled(this, &SDMMaterialPropertySelector_Vertical::GetPropertySelectEnabled, InEditMode, InMaterialProperty)
-		.IsChecked(this, &SDMMaterialPropertySelector_Vertical::GetPropertySelectState, InEditMode, InMaterialProperty)
-		.OnCheckStateChanged(this, &SDMMaterialPropertySelector_Vertical::OnPropertySelectStateChanged, InEditMode, InMaterialProperty)
+		.IsEnabled(this, &SDMMaterialPropertySelector_Vertical::GetPropertySelectEnabled, InPage)
+		.IsChecked(this, &SDMMaterialPropertySelector_Vertical::GetPropertySelectState, InPage)
+		.OnCheckStateChanged(this, &SDMMaterialPropertySelector_Vertical::OnPropertySelectStateChanged, InPage)
 		.ToolTipText(ToolTip)
 		.Content()
 		[
@@ -48,7 +48,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_Vertical::CreateSlot_SelectButto
 				[
 					SNew(SImage)
 					.Image(FAppStyle::Get().GetBrush("FilterBar.FilterImage"))
-					.ColorAndOpacity(this, &SDMMaterialPropertySelector_Vertical::GetPropertySelectButtonChipColor, InEditMode, InMaterialProperty)
+					.ColorAndOpacity(this, &SDMMaterialPropertySelector_Vertical::GetPropertySelectButtonChipColor, InPage)
 						.DesiredSizeOverride(FVector2D(8, 17))
 				]
 				+SHorizontalBox::Slot()

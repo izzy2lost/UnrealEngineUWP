@@ -47,7 +47,7 @@ TSharedPtr<SDMMaterialEditor> SDMMaterialPropertySelector::GetEditorWidget() con
 	return EditorWidgetWeak.Pin();
 }
 
-void SDMMaterialPropertySelector::SetSelectedProperty(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty)
+void SDMMaterialPropertySelector::SetSelectedProperty(const FDMMaterialEditorPage& InPage)
 {
 	TSharedPtr<SDMMaterialEditor> EditorWidget = GetEditorWidget();
 
@@ -56,25 +56,14 @@ void SDMMaterialPropertySelector::SetSelectedProperty(EDMMaterialEditorMode InEd
 		return;
 	}
 
-	switch (InEditMode)
+	switch (InPage.EditMode)
 	{
 		case EDMMaterialEditorMode::MaterialPreview:
 			OpenMaterialPreviewTab();
 			break;
 
-		case EDMMaterialEditorMode::GlobalSettings:
-			EditorWidget->EditGlobalSettings();
-			break;
-
-		case EDMMaterialEditorMode::PropertyPreviews:
-			EditorWidget->ShowPropertyPreviews();
-			break;
-
-		case EDMMaterialEditorMode::EditSlot:
-			EditorWidget->SelectProperty(InMaterialProperty);
-			break;
-
 		default:
+			EditorWidget->SetActivePage(InPage);
 			break;
 	}
 }
@@ -144,7 +133,7 @@ TSharedPtr<SDMMaterialSlotEditor> SDMMaterialPropertySelector::GetSlotEditorWidg
 TSharedRef<SWidget> SDMMaterialPropertySelector::CreateSlot_EnabledButton(EDMMaterialPropertyType InMaterialProperty)
 {
 	const FText Format = LOCTEXT("PropertyEnableFormat", "Toggle the {0} property.\n\nProperty must be valid for the Material Type.");
-	const FText ToolTip = FText::Format(Format, GetSelectButtonText(EDMMaterialEditorMode::EditSlot, InMaterialProperty, /* Short Name */ false));
+	const FText ToolTip = FText::Format(Format, GetSelectButtonText({EDMMaterialEditorMode::EditSlot, InMaterialProperty}, /* Short Name */ false));
 
 	return SNew(SCheckBox)
 		.IsEnabled(this, &SDMMaterialPropertySelector::GetPropertyEnabledEnabled, InMaterialProperty)
@@ -153,10 +142,10 @@ TSharedRef<SWidget> SDMMaterialPropertySelector::CreateSlot_EnabledButton(EDMMat
 		.ToolTipText(ToolTip);
 }
 
-FText SDMMaterialPropertySelector::GetSelectButtonText(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty, 
+FText SDMMaterialPropertySelector::GetSelectButtonText(const FDMMaterialEditorPage& InPage, 
 	bool bInShortName)
 {
-	switch (InEditMode)
+	switch (InPage.EditMode)
 	{
 		case EDMMaterialEditorMode::MaterialPreview:
 			return bInShortName
@@ -168,24 +157,24 @@ FText SDMMaterialPropertySelector::GetSelectButtonText(EDMMaterialEditorMode InE
 				? LOCTEXT("GlobalSettingsShort", "Global")
 				: LOCTEXT("GlobalSettings", "Global Settings");
 
-		case EDMMaterialEditorMode::PropertyPreviews:
+		case EDMMaterialEditorMode::Properties:
 			return bInShortName
 				? LOCTEXT("ChannelsShort", "Chans")
 				: LOCTEXT("Channels", "Channels");
 
 		case EDMMaterialEditorMode::EditSlot:
 			return bInShortName
-				? UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(InMaterialProperty)
-				: UE::DynamicMaterialEditor::Private::GetMaterialPropertyLongDisplayName(InMaterialProperty);
+				? UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(InPage.MaterialProperty)
+				: UE::DynamicMaterialEditor::Private::GetMaterialPropertyLongDisplayName(InPage.MaterialProperty);
 
 		default:
 			return FText::GetEmpty();
 	}
 }
 
-FText SDMMaterialPropertySelector::GetButtonToolTip(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty)
+FText SDMMaterialPropertySelector::GetButtonToolTip(const FDMMaterialEditorPage& InPage)
 {
-	switch (InEditMode)
+	switch (InPage.EditMode)
 	{
 		case EDMMaterialEditorMode::MaterialPreview:
 			return LOCTEXT("MaterialPreviewToolTip", "Show a preview of the Material.");
@@ -193,13 +182,13 @@ FText SDMMaterialPropertySelector::GetButtonToolTip(EDMMaterialEditorMode InEdit
 		case EDMMaterialEditorMode::GlobalSettings:
 			return LOCTEXT("GeneralSettingsToolTip", "Edit the Material Global Settings.");
 
-		case EDMMaterialEditorMode::PropertyPreviews:
+		case EDMMaterialEditorMode::Properties:
 			return LOCTEXT("PropertyPreviewsToolTip", "Preview and toggle the Material Channels.");
 
 		case EDMMaterialEditorMode::EditSlot:
 		{
 			const FText Format = LOCTEXT("PropertySelectFormat", "Edit the {0} channel.");
-			return FText::Format(Format, GetSelectButtonText(InEditMode, InMaterialProperty, /* Short Name */ false));
+			return FText::Format(Format, GetSelectButtonText(InPage, /* Short Name */ false));
 		}
 
 		default:
@@ -241,7 +230,7 @@ bool SDMMaterialPropertySelector::SetPropertyEnabled(EDMMaterialPropertyType InM
 	{
 		if (InMaterialProperty == EditorWidget->GetSelectedPropertyType())
 		{
-			SetSelectedProperty(EDMMaterialEditorMode::GlobalSettings, EDMMaterialPropertyType::None);
+			SetSelectedProperty(FDMMaterialEditorPage::GlobalSettings);
 		}
 	}
 
@@ -317,25 +306,24 @@ void SDMMaterialPropertySelector::OnPropertyEnabledStateChanged(ECheckBoxState I
 	{
 		if (bSetEnabled)
 		{
-			SetSelectedProperty(EDMMaterialEditorMode::EditSlot, InMaterialProperty);
+			SetSelectedProperty({EDMMaterialEditorMode::EditSlot, InMaterialProperty});
 		}
 	}
 }
 
-bool SDMMaterialPropertySelector::GetPropertySelectEnabled(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty) const
+bool SDMMaterialPropertySelector::GetPropertySelectEnabled(FDMMaterialEditorPage InPage) const
 {
-	switch (InEditMode)
+	switch (InPage.EditMode)
 	{
 		case EDMMaterialEditorMode::EditSlot:
-			return GetPropertyEnabledEnabled(InMaterialProperty) && DoesPropertySlotExist(InMaterialProperty);
+			return GetPropertyEnabledEnabled(InPage.MaterialProperty) && DoesPropertySlotExist(InPage.MaterialProperty);
 
 		default:
 			return true;
 	}	
 }
 
-ECheckBoxState SDMMaterialPropertySelector::GetPropertySelectState(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType 
-	InMaterialProperty) const
+ECheckBoxState SDMMaterialPropertySelector::GetPropertySelectState(FDMMaterialEditorPage InPage) const
 {
 	TSharedPtr<SDMMaterialEditor> EditorWidget = GetEditorWidget();
 
@@ -344,10 +332,10 @@ ECheckBoxState SDMMaterialPropertySelector::GetPropertySelectState(EDMMaterialEd
 		return ECheckBoxState::Undetermined;
 	}
 
-	switch (InEditMode)
+	switch (InPage.EditMode)
 	{
 		default:
-			return EditorWidget->GetEditMode() == InEditMode
+			return EditorWidget->GetEditMode() == InPage.EditMode
 				? ECheckBoxState::Checked
 				: ECheckBoxState::Unchecked;
 
@@ -355,35 +343,33 @@ ECheckBoxState SDMMaterialPropertySelector::GetPropertySelectState(EDMMaterialEd
 			return ECheckBoxState::Unchecked;
 
 		case EDMMaterialEditorMode::EditSlot:
-			return InMaterialProperty == EditorWidget->GetSelectedPropertyType()
+			return InPage.MaterialProperty == EditorWidget->GetSelectedPropertyType()
 				? ECheckBoxState::Checked
 				: ECheckBoxState::Unchecked;
 	}
 }
 
-void SDMMaterialPropertySelector::OnPropertySelectStateChanged(ECheckBoxState InState, EDMMaterialEditorMode InEditMode, 
-	EDMMaterialPropertyType InMaterialProperty)
+void SDMMaterialPropertySelector::OnPropertySelectStateChanged(ECheckBoxState InState, FDMMaterialEditorPage InPage)
 {
 	if (InState != ECheckBoxState::Checked)
 	{
 		return;
 	}
 
-	SetSelectedProperty(InEditMode, InMaterialProperty);
+	SetSelectedProperty(InPage);
 }
 
-FSlateColor SDMMaterialPropertySelector::GetPropertySelectButtonChipColor(EDMMaterialEditorMode InEditMode, 
-	EDMMaterialPropertyType InMaterialProperty) const
+FSlateColor SDMMaterialPropertySelector::GetPropertySelectButtonChipColor(FDMMaterialEditorPage InPage) const
 {
-	switch (InEditMode)
+	switch (InPage.EditMode)
 	{
 		case EDMMaterialEditorMode::MaterialPreview:
 		case EDMMaterialEditorMode::GlobalSettings:
-		case EDMMaterialEditorMode::PropertyPreviews:
+		case EDMMaterialEditorMode::Properties:
 			return FStyleColors::AccentGreen;
 
 		case EDMMaterialEditorMode::EditSlot:
-			if (GetPropertySelectEnabled(EDMMaterialEditorMode::EditSlot, InMaterialProperty))
+			if (GetPropertySelectEnabled({EDMMaterialEditorMode::EditSlot, InPage.MaterialProperty}))
 			{
 				return FStyleColors::Primary;
 			}

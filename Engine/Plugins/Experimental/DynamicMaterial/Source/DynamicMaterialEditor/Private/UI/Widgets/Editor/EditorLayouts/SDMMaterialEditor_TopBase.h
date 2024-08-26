@@ -23,7 +23,7 @@ public:
 	virtual void EditSlot(UDMMaterialSlot* InSlot, bool bInForceRefresh = false) override;
 	virtual void EditComponent(UDMMaterialComponent* InComponent, bool bInForceRefresh = false) override;
 	virtual void EditGlobalSettings(bool bInForceRefresh = false) override;
-	virtual void ShowPropertyPreviews(bool bInForceRefresh = false) override;
+	virtual void EditProperties(bool bInForceRefresh = false) override;
 	//~ End SDMMaterialEditor
 
 protected:

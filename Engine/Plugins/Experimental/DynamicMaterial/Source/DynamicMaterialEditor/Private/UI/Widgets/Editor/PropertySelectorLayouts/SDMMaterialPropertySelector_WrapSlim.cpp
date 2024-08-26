@@ -41,7 +41,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_WrapSlim::CreateSlot_PropertyLis
 
 	const FMargin Padding = FMargin(0.f, 1.f);
 
-	TSharedRef<SWidget> PreviewButton = CreateSlot_SelectButton(EDMMaterialEditorMode::MaterialPreview, EDMMaterialPropertyType::None);
+	TSharedRef<SWidget> PreviewButton = CreateSlot_SelectButton(FDMMaterialEditorPage::Preview);
 	SetupMaterialPreviewButton(PreviewButton);
 
 	NewSlotList->AddSlot()
@@ -53,13 +53,13 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_WrapSlim::CreateSlot_PropertyLis
 	NewSlotList->AddSlot()
 		.Padding(Padding)
 		[
-			CreateSlot_SelectButton(EDMMaterialEditorMode::GlobalSettings, EDMMaterialPropertyType::None)
+			CreateSlot_SelectButton(FDMMaterialEditorPage::GlobalSettings)
 		];
 
 	NewSlotList->AddSlot()
 		.Padding(Padding)
 		[
-			CreateSlot_SelectButton(EDMMaterialEditorMode::PropertyPreviews, EDMMaterialPropertyType::None)
+			CreateSlot_SelectButton(FDMMaterialEditorPage::Properties)
 		];
 
 	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& PropertyPair : EditorOnlyData->GetMaterialProperties())
@@ -74,33 +74,34 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_WrapSlim::CreateSlot_PropertyLis
 		NewSlotList->AddSlot()
 			.Padding(Padding)
 			[
-				CreateSlot_SelectButton(EDMMaterialEditorMode::EditSlot, PropertyPair.Key)
+				CreateSlot_SelectButton({EDMMaterialEditorMode::EditSlot, PropertyPair.Key})
 			];
 	}
 
 	return NewSlotList;
 }
 
-TSharedRef<SWidget> SDMMaterialPropertySelector_WrapSlim::CreateSlot_SelectButton(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty)
+TSharedRef<SWidget> SDMMaterialPropertySelector_WrapSlim::CreateSlot_SelectButton(const FDMMaterialEditorPage& InPage)
 {
 	if (const UDynamicMaterialEditorSettings* Settings = GetDefault<UDynamicMaterialEditorSettings>())
 	{
 		if (Settings->bUseFullChannelNamesInTopSlimLayout)
 		{
-			return SDMMaterialPropertySelector_WrapBase::CreateSlot_SelectButton(InEditMode, InMaterialProperty);
+			return SDMMaterialPropertySelector_WrapBase::CreateSlot_SelectButton(InPage);
 		}
 	}
 
-	const FText ButtonText = GetSelectButtonText(InEditMode, InMaterialProperty, /* Short Name */ true);
-	const FText ToolTip = GetButtonToolTip(InEditMode, InMaterialProperty);
+	const FText ButtonText = GetSelectButtonText(InPage, /* Short Name */ true);
+	const FText ToolTip = GetButtonToolTip(InPage);
+
 
 	return SNew(SCheckBox)
 		.Style(FAppStyle::Get(), "DetailsView.SectionButton")
 		.HAlign(EHorizontalAlignment::HAlign_Center)
 		.Padding(0.f)
-		.IsEnabled(this, &SDMMaterialPropertySelector_WrapSlim::GetPropertySelectEnabled, InEditMode, InMaterialProperty)
-		.IsChecked(this, &SDMMaterialPropertySelector_WrapSlim::GetPropertySelectState, InEditMode, InMaterialProperty)
-		.OnCheckStateChanged(this, &SDMMaterialPropertySelector_WrapSlim::OnPropertySelectStateChanged, InEditMode, InMaterialProperty)
+		.IsEnabled(this, &SDMMaterialPropertySelector_WrapSlim::GetPropertySelectEnabled, InPage)
+		.IsChecked(this, &SDMMaterialPropertySelector_WrapSlim::GetPropertySelectState, InPage)
+		.OnCheckStateChanged(this, &SDMMaterialPropertySelector_WrapSlim::OnPropertySelectStateChanged, InPage)
 		.ToolTipText(ToolTip)
 		.Content()
 		[
@@ -111,7 +112,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_WrapSlim::CreateSlot_SelectButto
 			[
 				SNew(SImage)
 				.Image(FAppStyle::Get().GetBrush("FilterBar.FilterImage"))
-				.ColorAndOpacity(this, &SDMMaterialPropertySelector_WrapSlim::GetPropertySelectButtonChipColor, InEditMode, InMaterialProperty)
+				.ColorAndOpacity(this, &SDMMaterialPropertySelector_WrapSlim::GetPropertySelectButtonChipColor, InPage)
 				.DesiredSizeOverride(FVector2D(8, 17))
 			]
 			+SHorizontalBox::Slot()

@@ -63,6 +63,18 @@ void FDynamicMaterialEditorCommands::RegisterCommands()
 		, "Sets the preview mesh to the Shader Ball."
 		, EUserInterfaceActionType::ToggleButton
 		, FInputChord());
+
+	UI_COMMAND(NavigateForward
+		, "Navigate Forward"
+		, "Navigates forward in the page history."
+		, EUserInterfaceActionType::Button
+		, FInputChord(EKeys::ThumbMouseButton2));
+
+	UI_COMMAND(NavigateBack
+		, "Navigate Back"
+		, "Navigates back in the page history."
+		, EUserInterfaceActionType::Button
+		, FInputChord(EKeys::ThumbMouseButton));
 }
 
 #undef LOCTEXT_NAMESPACE

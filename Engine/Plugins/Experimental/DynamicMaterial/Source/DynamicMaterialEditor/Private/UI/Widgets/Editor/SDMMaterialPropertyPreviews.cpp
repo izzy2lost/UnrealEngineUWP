@@ -228,8 +228,9 @@ void SDMMaterialPropertyPreviews::AddPropertyPreview(const TSharedRef<SWrapBox>&
 
 TSharedRef<SWidget> SDMMaterialPropertyPreviews::CreateSlot_EnabledButton(EDMMaterialPropertyType InMaterialProperty)
 {
+	const FDMMaterialEditorPage Page = {EDMMaterialEditorMode::EditSlot, InMaterialProperty};
 	const FText Format = LOCTEXT("PropertyEnableFormat", "Toggle the {0} property.\n\nProperty must be valid for the Material Type.");
-	const FText ToolTip = FText::Format(Format, SDMMaterialPropertySelector::GetSelectButtonText(EDMMaterialEditorMode::EditSlot, InMaterialProperty, /* Short Name */ false));
+	const FText ToolTip = FText::Format(Format, SDMMaterialPropertySelector::GetSelectButtonText(Page, /* Short Name */ false));
 
 	return SNew(SCheckBox)
 		.IsEnabled(this, &SDMMaterialPropertyPreviews::GetPropertyEnabledEnabled, InMaterialProperty)
@@ -240,10 +241,12 @@ TSharedRef<SWidget> SDMMaterialPropertyPreviews::CreateSlot_EnabledButton(EDMMat
 
 TSharedRef<SWidget> SDMMaterialPropertyPreviews::CreateSlot_PropertyName(EDMMaterialPropertyType InMaterialProperty)
 {
+	const FDMMaterialEditorPage Page = {EDMMaterialEditorMode::EditSlot, InMaterialProperty};
+
 	return SNew(STextBlock)
 		.Font(IDetailLayoutBuilder::GetDetailFont())
-		.Text(SDMMaterialPropertySelector::GetSelectButtonText(EDMMaterialEditorMode::EditSlot, InMaterialProperty, /* Short Name */ true))
-		.ToolTipText(SDMMaterialPropertySelector::GetSelectButtonText(EDMMaterialEditorMode::EditSlot, InMaterialProperty, /* Short Name */ false));
+		.Text(SDMMaterialPropertySelector::GetSelectButtonText(Page, /* Short Name */ true))
+		.ToolTipText(SDMMaterialPropertySelector::GetSelectButtonText(Page, /* Short Name */ false));
 }
 
 bool SDMMaterialPropertyPreviews::GetPropertyEnabledEnabled(EDMMaterialPropertyType InMaterialProperty) const
@@ -361,7 +364,7 @@ void SDMMaterialPropertyPreviews::OnPropertyEnabledStateChanged(ECheckBoxState I
 	Content.Invalidate();
 
 	// Make sure we go back to the property previews
-	EditorWidget->ShowPropertyPreviews();
+	EditorWidget->EditProperties();
 }
 
 FReply SDMMaterialPropertyPreviews::OnPreviewClicked(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, 
