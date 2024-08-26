@@ -104,7 +104,7 @@ protected:
 	//~ End UObject
 
 	/** Called once, when the property is linked to this context */
-	virtual void OnAnimatedPropertyLinked() {}
+	PROPERTYANIMATORCORE_API virtual void OnAnimatedPropertyLinked();
 
 	/** Called when the animated property owner is updated */
 	virtual void OnAnimatedPropertyOwnerUpdated(UObject* InPreviousOwner, UObject* InNewOwner) {}
@@ -147,8 +147,12 @@ private:
 	UPROPERTY(EditInstanceOnly, Setter="SetAnimated", Getter="IsAnimated", Category="Animator", meta=(AllowPrivateAccess="true"))
 	bool bAnimated = true;
 
+	/** Edit condition for Magnitude */
+	UPROPERTY(Transient)
+	bool bEditMagnitude = true;
+
 	/** Magnitude of the effect on this property */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0.0", ClampMax="1.0"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0.0", ClampMax="1.0", HideEditConditionToggle, EditCondition="bEditMagnitude", EditConditionHides, AllowPrivateAccess="true"))
 	float Magnitude = 1.f;
 
 	/** Edit condition for modes */
@@ -168,7 +172,7 @@ private:
 	FInstancedStruct ConverterRule;
 
 	/** The unique group name that manages this property */
-	UPROPERTY(EditInstanceOnly, Category="Animator", Setter, Getter, meta=(GetOptions="GetSupportedGroupNames", AllowPrivateAccess="true"))
+	UPROPERTY()
 	FName GroupName = NAME_None;
 
 	/** Active group of this property */

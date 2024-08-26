@@ -143,6 +143,7 @@ struct FPropertyAnimatorCoreData
 	/** Returns the top most parent / member property if there is one */
 	PROPERTYANIMATORCORE_API TOptional<FPropertyAnimatorCoreData> GetRootParent() const;
 
+	/** Checks if this property is of a specific type */
 	template<typename InPropertyClass
 		UE_REQUIRES(std::is_base_of_v<FProperty, InPropertyClass>)>
 	bool IsA() const
@@ -150,6 +151,25 @@ struct FPropertyAnimatorCoreData
 		if (const FProperty* LeafProperty = GetLeafProperty())
 		{
 			return LeafProperty->IsA(InPropertyClass::StaticClass());
+		}
+
+		return false;
+	}
+
+	/** Gets the children of this property */
+	TArray<FPropertyAnimatorCoreData> GetChildrenProperties(int32 InDepthSearch = 3) const;
+
+	/** Checks if this property contains a specific type */
+	template<typename InPropertyClass
+		UE_REQUIRES(std::is_base_of_v<FProperty, InPropertyClass>)>
+	bool HasA() const
+	{
+		for (const FPropertyAnimatorCoreData& ChildProperty : GetChildrenProperties())
+		{
+			if (ChildProperty.IsA<InPropertyClass>())
+			{
+				return true;
+			}
 		}
 
 		return false;

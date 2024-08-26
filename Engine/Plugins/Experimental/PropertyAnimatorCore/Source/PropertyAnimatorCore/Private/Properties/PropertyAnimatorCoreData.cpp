@@ -327,6 +327,44 @@ TOptional<FPropertyAnimatorCoreData> FPropertyAnimatorCoreData::GetRootParent() 
 	return FPropertyAnimatorCoreData(GetOwner(), ParentChainProperties, GetPropertyResolverClass());
 }
 
+TArray<FPropertyAnimatorCoreData> FPropertyAnimatorCoreData::GetChildrenProperties(int32 InDepthSearch) const
+{
+	TArray<FPropertyAnimatorCoreData> ChildrenProperties;
+	FProperty* LeafProperty = GetLeafProperty();
+
+	if (!LeafProperty || InDepthSearch-- <= 0)
+	{
+		return ChildrenProperties;
+	}
+
+	if (const FStructProperty* StructProperty = CastField<FStructProperty>(LeafProperty))
+	{
+		if (const UScriptStruct* Struct = StructProperty->Struct)
+		{
+			TArray<FProperty*> Properties;
+			Algo::Transform(ChainProperties, Properties, [](const TFieldPath<FProperty>& InProperty)
+			{
+				return InProperty.Get();
+			});
+
+			for (FProperty* ChildProperty : TFieldRange<FProperty>(Struct))
+			{
+				if (ChildProperty)
+				{
+					FPropertyAnimatorCoreData ChildPropertyData(GetOwner(), Properties, ChildProperty, GetPropertyResolverClass());
+
+					ChildrenProperties.Add(ChildPropertyData);
+					ChildrenProperties.Append(ChildPropertyData.GetChildrenProperties(InDepthSearch));
+				}
+			}
+		}
+	}
+
+	// We don't handle object, array, map, set container for now
+
+	return ChildrenProperties;
+}
+
 UPropertyAnimatorCoreHandlerBase* FPropertyAnimatorCoreData::GetPropertyHandler() const
 {
 	// Cache it once

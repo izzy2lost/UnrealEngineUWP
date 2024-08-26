@@ -190,6 +190,11 @@ void UPropertyAnimatorCoreContext::PostEditChangeProperty(FPropertyChangedEvent&
 }
 #endif
 
+void UPropertyAnimatorCoreContext::OnAnimatedPropertyLinked()
+{
+	bEditMagnitude = AnimatedProperty.IsA<FNumericProperty>() || AnimatedProperty.HasA<FNumericProperty>();
+}
+
 void UPropertyAnimatorCoreContext::OnModeChanged()
 {
 	if (const UPropertyAnimatorCoreHandlerBase* Handler = GetHandler())
