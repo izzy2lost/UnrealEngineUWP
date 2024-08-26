@@ -248,10 +248,10 @@ namespace uba
 		{
 			CriticalSection cs;
 			Atomic<bool> success = true;
-			UnorderedSymbols allNeededImports; // Imports needed from the outside of the stripped obj files
+			UnorderedSymbols allExternalImports; // Imports needed from the outside of the stripped obj files
 
 			for (auto imp : NeededImports)
-				allNeededImports.insert(imp);
+				allExternalImports.insert(imp);
 
 			u32 workerCount = DefaultProcessorCount;
 			WorkManagerImpl workManager(workerCount);
@@ -266,13 +266,13 @@ namespace uba
 						return;
 					}
 					ScopedCriticalSection _(cs);
-					allNeededImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
+					allExternalImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
 				});
 			if (!success)
 				return -1;
 
-			UnorderedSymbols allSharedImports; // Imports from all the obj files about to be stripped
-			UnorderedExports allSharedExports; // Exports from all the obj files about to be stripped
+			UnorderedSymbols allInternalImports; // Imports that the obj files has. Note these could be existing in the obj files and then we might need to create loopbacks
+			UnorderedExports allExports; // Exports from all the obj files.
 
 			Map<TString, ObjectFile*> objectFiles;
 			auto g = MakeGuard([&]() { for (auto& kv : objectFiles) delete kv.second; });
@@ -287,16 +287,34 @@ namespace uba
 						return;
 					}
 					ScopedCriticalSection _(cs);
-					allSharedImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
-					allSharedExports.insert(symbolFile.exports.begin(), symbolFile.exports.end());
+					allInternalImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
+					allExports.insert(symbolFile.exports.begin(), symbolFile.exports.end());
 				});
 			if (!success)
 				return -1;
 
 			if (!extraObjFile.empty())
-				if (!ObjectFile::CreateExtraFile(logger, extraObjFile, platform, allNeededImports, allSharedImports, allSharedExports, true))
-					return -1;
+			{
+				{
+					// Ugly hack. These symbols are exported from PosixShim and used by libcrypto.a but since we don't have an .exi file for libcrypto
+					// we do it this way for now
+					const char* symbolsToNeverStrip[] = 
+					{
+						"read_system_certificates_NP",
+						"inet_ntoa",
+						"gethostbyname",
+						"h_errno",
+						"getservbyname",
+						"ioctl",
+						"fcntl_shim",
+					};
+					for (auto symbol : symbolsToNeverStrip)
+						allExternalImports.insert(symbol);
+				}
 
+				if (!ObjectFile::CreateExtraFile(logger, extraObjFile, platform, allExternalImports, allInternalImports, allExports, true))
+					return -1;
+			}
 			//logger.Info(TC("Reduced export count from %llu to %llu"), totalExportCount.load(), totalKeptExportCount.size());
 		}
 		else if (writeImpLib)

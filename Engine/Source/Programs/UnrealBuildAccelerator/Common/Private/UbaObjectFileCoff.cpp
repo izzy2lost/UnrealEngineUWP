@@ -354,7 +354,7 @@ namespace uba
 		}
 	}
 
-	bool ObjectFileCoff::StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports)
+	bool ObjectFileCoff::StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allExternalImports)
 	{
 		if (!m_info.directiveSectionMemOffset)
 			return true;
@@ -424,10 +424,10 @@ namespace uba
 			}
 
 			tmp.assign(exportStr, exportEnd - exportStr);
-			if (allNeededImports.find(tmp) != allNeededImports.end())
+			if (allExternalImports.find(tmp) != allExternalImports.end())
 				continue;
 			tmp.assign("__imp_").append(exportStr, exportEnd - exportStr);
-			if (allNeededImports.find(tmp) != allNeededImports.end())
+			if (allExternalImports.find(tmp) != allExternalImports.end())
 				continue;
 			
 			u64 toCopy = startPos - lastCopyPos - 1;
@@ -451,18 +451,18 @@ namespace uba
 		return true;
 	}
 
-	bool ObjectFileCoff::CreateExtraFile(Logger& logger, const StringView& platform, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
+	bool ObjectFileCoff::CreateExtraFile(Logger& logger, const StringView& platform, MemoryBlock& memoryBlock, const UnorderedSymbols& allExternalImports, const UnorderedSymbols& allInternalImports, const UnorderedExports& allExports, bool includeExportsInFile)
 	{
 		std::string tmp;
 
 		u32 totalStringSize = 0;
 		UnorderedSymbols neededLoopbacks;
-		for (auto& symbol : allSharedImports)
+		for (auto& symbol : allInternalImports)
 		{
 			if (strncmp(symbol.data(), "__imp_", 6) != 0)
 				continue;
 			tmp = symbol.substr(6);
-			if (allSharedExports.find(tmp) == allSharedExports.end())
+			if (allExports.find(tmp) == allExports.end())
 				continue;
 			if (neededLoopbacks.insert(symbol).second)
 				totalStringSize += u32(symbol.size()) + 1;
@@ -498,14 +498,14 @@ namespace uba
 			u32 directiveRawDataStart = u32(memoryBlock.writtenSize);
 			directiveSection.PointerToRawData = directiveRawDataStart;
 			char slashExport[] = "/EXPORT:";
-			for (auto& kv : allSharedExports)
+			for (auto& kv : allExports)
 			{
 				auto& symbol = kv.first;
 
-				if (allNeededImports.find(symbol) == allNeededImports.end())
+				if (allExternalImports.find(symbol) == allExternalImports.end())
 				{
 					tmp.assign("__imp_").append(symbol);
-					if (allNeededImports.find(tmp) == allNeededImports.end())
+					if (allExternalImports.find(tmp) == allExternalImports.end())
 						continue;
 				}
 

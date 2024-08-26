@@ -218,7 +218,7 @@ namespace uba
 		return m_potentialDuplicates;
 	}
 
-	bool ObjectFile::CreateExtraFile(Logger& logger, const StringView& extraObjFilename, const StringView& platform, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
+	bool ObjectFile::CreateExtraFile(Logger& logger, const StringView& extraObjFilename, const StringView& platform, const UnorderedSymbols& allExternalImports, const UnorderedSymbols& allInternalImports, const UnorderedExports& allExports, bool includeExportsInFile)
 	{
 		ObjectFileCoff objectFileCoff;
 		ObjectFileElf objectFileElf;
@@ -227,9 +227,11 @@ namespace uba
 
 		bool res;
 		if (platform.Equals(TC("win64")) || platform.Equals(TC("wingdk")) || platform.Equals(TC("xb1")) || platform.Equals(TC("xsx"))) 
-			res = ObjectFileCoff::CreateExtraFile(logger, platform, memoryBlock, allNeededImports, allSharedImports, allSharedExports, includeExportsInFile);
+			res = ObjectFileCoff::CreateExtraFile(logger, platform, memoryBlock, allExternalImports, allInternalImports, allExports, includeExportsInFile);
+		else if (extraObjFilename.EndsWith(TC("ldscript")))
+			res = CreateDynamicListFile(logger, memoryBlock, allExternalImports, allInternalImports, allExports, includeExportsInFile);
 		else
-			res = ObjectFileElf::CreateExtraFile(logger, platform, memoryBlock, allNeededImports, allSharedImports, allSharedExports, includeExportsInFile);
+			res = ObjectFileElf::CreateExtraFile(logger, platform, memoryBlock, allExternalImports, allInternalImports, allExports, includeExportsInFile);
 
 		if (!res)
 			return false;
@@ -277,6 +279,35 @@ namespace uba
 			exports.emplace(std::string(readPos, readPos + strEnd), info);
 			readPos = readPos + strEnd + 1;
 		}
+		return true;
+	}
+
+	bool ObjectFile::CreateDynamicListFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allExternalImports, const UnorderedSymbols& allInternalImports, const UnorderedExports& allExports, bool includeExportsInFile)
+	{
+		auto WriteString = [&](const char* str, u64 strLen)
+			{
+				memcpy(memoryBlock.Allocate(strLen, 1, TC("")), str, strLen);
+			};
+
+		//WriteString("VERSION ", 8);
+		WriteString("{", 1);
+
+		bool isFirst = true;
+		for (auto& symbol : allExports)
+		{
+			//if (strncmp(symbol.first.c_str(), "_ZTV", 4) != 0)
+			//	continue;
+			if (allExternalImports.find(symbol.first) == allExternalImports.end())
+				continue;
+			if (isFirst)
+				WriteString("global: ", 8);
+			WriteString(symbol.first.c_str(), symbol.first.size());
+			WriteString(";", 1);
+			isFirst = false;
+		}
+		//WriteString("local: *;", 9);
+		WriteString("};", 2);
+
 		return true;
 	}
 }
