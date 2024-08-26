@@ -71,6 +71,8 @@ public:
 		return TEXT("r.Shadow.Virtual.Visualize");
 	}
 
+	int SelectAdjacentVisualizeLight = 0;
+
 private:
 	/** Internal helper function for creating the VirtualShadowMap visualization system console commands. */
 	void ConfigureConsoleCommand();

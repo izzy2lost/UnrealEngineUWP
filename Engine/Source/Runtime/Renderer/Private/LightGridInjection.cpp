@@ -98,7 +98,7 @@ FAutoConsoleVariableRef CVarLightCullingMaxDistanceOverride(
 	ECVF_RenderThreadSafe
 );
 
-extern TAutoConsoleVariable<int32> CVarVirtualShadowOnePassProjection;
+extern bool IsVSMOnePassProjectionEnabled(const FEngineShowFlags& ShowFlags);
 
 bool ShouldVisualizeLightGrid()
 {
@@ -950,7 +950,7 @@ FComputeLightGridOutput FDeferredShadingSceneRenderer::GatherLightsAndComputeLig
 	FComputeLightGridOutput Result = {};
 
 	bool bShadowedLightsInClustered = ShouldUseClusteredDeferredShading()
-		&& CVarVirtualShadowOnePassProjection.GetValueOnRenderThread()
+		&& IsVSMOnePassProjectionEnabled(ViewFamily.EngineShowFlags)
 		&& VirtualShadowMapArray.IsEnabled();
 
 	GatherAndSortLights(SortedLightSet, bShadowedLightsInClustered);

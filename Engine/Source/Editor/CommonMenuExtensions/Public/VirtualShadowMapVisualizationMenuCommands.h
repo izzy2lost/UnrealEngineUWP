@@ -66,4 +66,6 @@ private:
 
 private:
 	TVirtualShadowMapVisualizationModeCommandMap CommandMap;
+	TSharedPtr<FUICommandInfo> VisualizeNextLightCommand;
+	TSharedPtr<FUICommandInfo> VisualizePrevLightCommand;
 };

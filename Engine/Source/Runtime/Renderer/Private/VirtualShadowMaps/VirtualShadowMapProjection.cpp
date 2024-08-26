@@ -64,7 +64,13 @@ static TAutoConsoleVariable<int32> CVarTestPermutation(
 );
 #endif
 
-extern int32 GNaniteVisualizeOverdrawScale;
+int32 GVisualizeCachedPagesOnly = 0;
+FAutoConsoleVariableRef CVarVisualizeCachedPagesOnly(
+	TEXT("r.Shadow.Virtual.Visualize.ShowCachedPagesOnly"),
+	GVisualizeCachedPagesOnly,
+	TEXT("When true, shows the cached pages for all lights and hides uncached pages."),
+	ECVF_RenderThreadSafe
+);
 
 // The tile size in pixels for VSM projection with tile list.
 // Is also used as the workgroup size for the CS without tile list.
@@ -137,8 +143,8 @@ class FVirtualShadowMapProjectionCS : public FGlobalShader
 		// Visualization output
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< FPhysicalPageMetaData >, PhysicalPageMetaData)
 		SHADER_PARAMETER(int32, VisualizeModeId)
+		SHADER_PARAMETER(int32, bVisualizeCachedPagesOnly)
 		SHADER_PARAMETER(int32, VisualizeVirtualShadowMapId)
-		SHADER_PARAMETER(float, VisualizeNaniteOverdrawScale)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutVisualize)
 		// Optional tile list
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, TileListData)
@@ -257,14 +263,14 @@ static void RenderVirtualShadowMapProjectionCommon(
  	
 	bool bDebugOutput = false;
 #if !UE_BUILD_SHIPPING
-	if ( !VirtualShadowMapArray.DebugVisualizationOutput.IsEmpty() && InputType == EVirtualShadowMapProjectionInputType::GBuffer && VirtualShadowMapArray.VisualizeLight[ViewIndex].IsValid())
+	if ( !VirtualShadowMapArray.DebugVisualizationOutput.IsEmpty() && InputType == EVirtualShadowMapProjectionInputType::GBuffer)
 	{
 		const FVirtualShadowMapVisualizationData& VisualizationData = GetVirtualShadowMapVisualizationData();
 
 		bDebugOutput = true;
 		PassParameters->VisualizeModeId = VisualizationData.GetActiveModeID();
+		PassParameters->bVisualizeCachedPagesOnly = GVisualizeCachedPagesOnly;
 		PassParameters->VisualizeVirtualShadowMapId = VirtualShadowMapArray.VisualizeLight[ViewIndex].GetVirtualShadowMapId();
-		PassParameters->VisualizeNaniteOverdrawScale = GNaniteVisualizeOverdrawScale;
 		PassParameters->PhysicalPageMetaData = GraphBuilder.CreateSRV( VirtualShadowMapArray.PhysicalPageMetaDataRDG );
 		PassParameters->OutVisualize = GraphBuilder.CreateUAV( VirtualShadowMapArray.DebugVisualizationOutput[ViewIndex] );
 	}

@@ -78,6 +78,13 @@ static TAutoConsoleVariable<float> CVarResolutionLodBiasLocalMoving(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+bool IsVSMOnePassProjectionEnabled(const FEngineShowFlags& ShowFlags)
+{
+	return CVarVirtualShadowOnePassProjection.GetValueOnAnyThread() 
+		// Debug outputs from projection pass do not support one pass projection
+		&& (ShowFlags.VisualizeVirtualShadowMap == 0);
+}
+
 DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Total Raster Bins"), STAT_VSMNaniteBasePassTotalRasterBins, STATGROUP_ShadowRendering);
 DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Visible Raster Bins"), STAT_VSMNaniteBasePassVisibleRasterBins, STATGROUP_ShadowRendering);
 
@@ -477,7 +484,7 @@ void FShadowSceneRenderer::RenderVirtualShadowMapProjectionMaskBits(
 	// VSM one pass projection (done first as it may be needed by clustered shading)
 	bShouldUseVirtualShadowMapOnePassProjection =
 		VirtualShadowMapArray.IsAllocated() &&
-		CVarVirtualShadowOnePassProjection.GetValueOnRenderThread();
+		IsVSMOnePassProjectionEnabled(SceneRenderer.ViewFamily.EngineShowFlags);
 
 	if (!VirtualShadowMapArray.HasAnyShadowData())
 	{

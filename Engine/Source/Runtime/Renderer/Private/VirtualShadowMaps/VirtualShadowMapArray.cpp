@@ -282,11 +282,19 @@ FAutoConsoleCommand CmdDumpVSMLightNames(
 	FConsoleCommandDelegate::CreateStatic(DumpVSMLightNames)
 );
 
+UPTRINT GVirtualShadowMapLastSelectedVisualizeLightId = 0;
+UPTRINT GVirtualShadowMapVisualizeLightId = 0;
+bool GVirtualShadowMapVisualizeByLightId = false;
+
 FString GVirtualShadowMapVisualizeLightName;
 FAutoConsoleVariableRef CVarVisualizeLightName(
 	TEXT("r.Shadow.Virtual.Visualize.LightName"),
 	GVirtualShadowMapVisualizeLightName,
 	TEXT("Sets the name of a specific light to visualize (for developer use in non-shipping builds)"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Variable)
+	{
+		GVirtualShadowMapVisualizeByLightId = false;
+	}),
 	ECVF_RenderThreadSafe
 );
 
@@ -1244,20 +1252,82 @@ void FVirtualShadowMapVisualizeLightSearch::CheckLight(const FLightSceneProxy* C
 		UE_LOG(LogRenderer, Display, TEXT("%s"), *CheckLightName);
 	}
 
-	// Fill out new sort key and compare to our best found so far
-	SortKey CheckKey;
-	CheckKey.Packed = 0;
-	CheckKey.Fields.bExactNameMatch = (CheckLightName == GVirtualShadowMapVisualizeLightName);
-	CheckKey.Fields.bPartialNameMatch = CheckKey.Fields.bExactNameMatch || CheckLightName.Contains(GVirtualShadowMapVisualizeLightName);
-	CheckKey.Fields.bSelected = CheckProxy->IsSelected();
-	CheckKey.Fields.bDirectionalLight = CheckProxy->GetLightType() == LightType_Directional;
-	CheckKey.Fields.bExists = 1;
+	const UPTRINT CheckProxyId = (UPTRINT)(CheckProxy->GetLightComponent());
 
-	if (CheckKey.Packed > FoundKey.Packed)		//-V547
+	const int SelectAdjacentVisualizeLight = GetVirtualShadowMapVisualizationData().SelectAdjacentVisualizeLight;
+	const bool SelectNextLight = SelectAdjacentVisualizeLight > 0;
+	const bool SelectPrevLight = SelectAdjacentVisualizeLight < 0;
+	GVirtualShadowMapVisualizeByLightId = GVirtualShadowMapVisualizeByLightId || SelectAdjacentVisualizeLight != 0;
+
+	// When the user clicks a light, visualize the selected light.
+	if (CheckProxy->IsSelected() && CheckProxyId != GVirtualShadowMapLastSelectedVisualizeLightId)
 	{
-		FoundKey = CheckKey;
-		FoundProxy = CheckProxy;
-		FoundVirtualShadowMapId = CheckVirtualShadowMapId;
+		GVirtualShadowMapVisualizeByLightId = false;
+		GVirtualShadowMapLastSelectedVisualizeLightId = CheckProxyId;
+	}
+
+	if (GVirtualShadowMapVisualizeByLightId)
+	{
+		UPTRINT FoundAdjacentLightId = FoundProxy ? (UPTRINT)(FoundProxy->GetLightComponent()) : 0;
+		bool bIsFoundAdjacentLightInvalid = FoundAdjacentLightId == 0;
+
+		if (SelectPrevLight
+			// Light comes before current selection
+			&& CheckProxyId < GVirtualShadowMapVisualizeLightId
+			// Light comes after best match so far
+			&& FoundAdjacentLightId < CheckProxyId)
+		{
+			FoundProxy = CheckProxy;
+			FoundVirtualShadowMapId = CheckVirtualShadowMapId;
+		}
+		else if (SelectNextLight
+			// Light comes after current selection
+			&& GVirtualShadowMapVisualizeLightId < CheckProxyId
+			// Light comes before best match so far
+			&& (CheckProxyId < FoundAdjacentLightId || bIsFoundAdjacentLightInvalid))
+		{
+			FoundProxy = CheckProxy;
+			FoundVirtualShadowMapId = CheckVirtualShadowMapId;
+		}
+		else if (SelectAdjacentVisualizeLight == 0 
+			&& CheckProxyId == GVirtualShadowMapVisualizeLightId)
+		{
+			FoundProxy = CheckProxy;
+			FoundVirtualShadowMapId = CheckVirtualShadowMapId;
+		}
+	}
+	else
+	{
+		// Fill out new sort key and compare to our best found so far
+		SortKey CheckKey;
+		CheckKey.Packed = 0;
+		CheckKey.Fields.bExactNameMatch = (CheckLightName == GVirtualShadowMapVisualizeLightName);
+		CheckKey.Fields.bPartialNameMatch = CheckKey.Fields.bExactNameMatch || (!GVirtualShadowMapVisualizeLightName.IsEmpty() && CheckLightName.Contains(GVirtualShadowMapVisualizeLightName));
+		CheckKey.Fields.bSelected = CheckProxy->IsSelected();
+
+		if (CheckKey.Packed > FoundKey.Packed)		//-V547
+		{
+			FoundKey = CheckKey;
+			FoundProxy = CheckProxy;
+			FoundVirtualShadowMapId = CheckVirtualShadowMapId;
+		}
+	}
+#endif
+}
+
+void FVirtualShadowMapVisualizeLightSearch::ChooseLight()
+{
+#if !UE_BUILD_SHIPPING
+	const int SelectAdjacentVisualizeLight = GetVirtualShadowMapVisualizationData().SelectAdjacentVisualizeLight;
+	GetVirtualShadowMapVisualizationData().SelectAdjacentVisualizeLight = 0;
+
+	if (FoundProxy)
+	{
+		GVirtualShadowMapVisualizeLightId = (UPTRINT)(FoundProxy->GetLightComponent());
+	}
+	else if (SelectAdjacentVisualizeLight) // selected past first or last light, select none
+	{
+		GVirtualShadowMapVisualizeLightId = 0;
 	}
 #endif
 }
@@ -1273,7 +1343,7 @@ static FRDGTextureRef CreateDebugVisualizationTexture(FRDGBuilder& GraphBuilder,
 
 	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
 		Extent,
-		PF_R8G8B8A8,
+		PF_FloatRGBA,
 		FClearValueBinding(ClearColor),
 		TexCreate_ShaderResource | TexCreate_UAV);
 
@@ -1327,6 +1397,11 @@ void FVirtualShadowMapArray::UpdateVisualizeLight(
 				}
 			}
 		}
+	}
+
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		VisualizeLight[ViewIndex].ChooseLight();
 	}
 #endif
 }
@@ -3626,6 +3701,23 @@ class FDesaturatePS : public FGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FDesaturatePS, "/Engine/Private/VirtualShadowMaps/Desaturate.usf", "DesaturatePS", SF_Pixel);
+
+class FTonemapProjectionDebugTexturePS : public FVirtualShadowMapPageManagementShader
+{
+	DECLARE_GLOBAL_SHADER(FTonemapProjectionDebugTexturePS);
+	SHADER_USE_PARAMETER_STRUCT(FTonemapProjectionDebugTexturePS, FVirtualShadowMapPageManagementShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DebugTexture)
+		SHADER_PARAMETER(uint32, VisualizeModeId)
+		SHADER_PARAMETER(int32, VisualizeVirtualShadowMapId)
+		SHADER_PARAMETER(float, VisualizeNaniteOverdrawScale)
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FTonemapProjectionDebugTexturePS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapDebug.usf", "TonemapProjectionDebugTexturePS", SF_Pixel);
+
+extern int32 GNaniteVisualizeOverdrawScale;
 #endif //!UE_BUILD_SHIPPING
 
 FScreenPassTexture FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, EVSMVisualizationPostPass Pass, FScreenPassTexture& SceneColor, FScreenPassRenderTarget& OverrideOutput)
@@ -3651,7 +3743,7 @@ FScreenPassTexture FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBu
 	}
 
 	const FVirtualShadowMapVisualizationData& VisualizationData = GetVirtualShadowMapVisualizationData();
-	if (!VisualizationData.IsActive() || !VisualizeLight[ViewIndex].IsValid())
+	if (!VisualizationData.IsActive())
 	{
 		return MoveTemp(FinalizeOutput(GraphBuilder, View, Output, OverrideOutput));
 	}
@@ -3663,6 +3755,7 @@ FScreenPassTexture FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBu
 	FScreenPassRenderTarget OutputTarget(Output.Texture, OutputViewport.Rect, ERenderTargetLoadAction::ELoad);
 
 	int ActiveModeId = VisualizationData.GetActiveModeID();
+	int VisualizeVirtualShadowMapId = VisualizeLight[ViewIndex].GetVirtualShadowMapId();
 
 	// Resize viewport for layout
 	const int32 VisualizeLayout = CVarVisualizeLayout.GetValueOnRenderThread();
@@ -3685,11 +3778,13 @@ FScreenPassTexture FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBu
 	auto DrawDebugVisualizationOutput = [&]()
 	{
 		TShaderMapRef<FScreenPassVS> VertexShader(View.ShaderMap);
-		TShaderMapRef<FCopyRectPS> PixelShader(View.ShaderMap);
+		TShaderMapRef<FTonemapProjectionDebugTexturePS> PixelShader(View.ShaderMap);
 
-		FCopyRectPS::FParameters* Parameters = GraphBuilder.AllocParameters<FCopyRectPS::FParameters>();
-		Parameters->InputTexture = DebugVisualizationOutput[ViewIndex];
-		Parameters->InputSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		FTonemapProjectionDebugTexturePS::FParameters* Parameters = GraphBuilder.AllocParameters<FTonemapProjectionDebugTexturePS::FParameters>();
+		Parameters->DebugTexture = DebugVisualizationOutput[ViewIndex];
+		Parameters->VisualizeModeId = ActiveModeId;
+		Parameters->VisualizeVirtualShadowMapId = VisualizeVirtualShadowMapId;
+		Parameters->VisualizeNaniteOverdrawScale = GNaniteVisualizeOverdrawScale;
 		Parameters->RenderTargets[0] = FRenderTargetBinding(Output.Texture, ERenderTargetLoadAction::ENoAction);
 
 		// Blend with scene color if fullscreen, use black background otherwise
@@ -3744,18 +3839,66 @@ FScreenPassTexture FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBu
 		}
 
 		AddDrawCanvasPass(GraphBuilder, RDG_EVENT_NAME("Labels"), View, OutputTarget,
-			[&VisualizeLight = VisualizeLight[ViewIndex], &OutputViewport = OutputViewport](FCanvas& Canvas)
+			[&VisualizeLight = VisualizeLight[ViewIndex], &OutputViewport = OutputViewport, VisualizeVirtualShadowMapId=VisualizeVirtualShadowMapId](FCanvas& Canvas)
 			{
 				const float DPIScale = Canvas.GetDPIScale();
 				Canvas.SetBaseTransform(FMatrix(FScaleMatrix(DPIScale) * Canvas.CalcBaseTransform2D(Canvas.GetViewRect().Width(), Canvas.GetViewRect().Height())));
 
-				const FLinearColor LabelColor(1, 1, 0);
-				Canvas.DrawShadowedString(
-					(OutputViewport.Rect.Min.X + 8) / DPIScale,
-					(OutputViewport.Rect.Max.Y - 19) / DPIScale,
-					*VisualizeLight.GetLightName(),
-					GetStatsFont(),
-					LabelColor);
+				auto DrawColorTile = [&](float X, float Y, float Width, float Height, const FLinearColor& Color)
+				{
+					Canvas.DrawTile(X/DPIScale, Y/DPIScale, Width/DPIScale, Height/DPIScale, 0, 0, 0, 0, Color);
+				};
+
+				auto DrawShadowedString = [&](float X, float Y, FStringView Text, const FLinearColor& Color = FLinearColor::White)
+				{
+					Canvas.DrawShadowedString(X / DPIScale, Y / DPIScale, Text, GetStatsFont(), Color);
+				};
+
+				const FVirtualShadowMapVisualizationData& VisualizationData = GetVirtualShadowMapVisualizationData();
+				FString ModeName = VisualizationData.GetActiveModeName().ToString();
+				int32 ActiveModeId = VisualizationData.GetActiveModeID();
+
+				// Legend
+				FVector2D LegendSize = FVector2D(300, 30);
+				if (ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SHADOW_FACTOR)		LegendSize.Y = 60;
+				else if (ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CACHED_PAGE)	LegendSize.Y = 100;
+
+				FVector2D LegendPosition = FVector2D(OutputViewport.Rect.Min.X + 8, OutputViewport.Rect.Max.Y - LegendSize.Y - 100);
+				DrawColorTile(LegendPosition.X, LegendPosition.Y, LegendSize.X, LegendSize.Y, FLinearColor(0.1f,0.1f,0.1f,0.8f));
+
+				FString HeaderLabel = ModeName;
+				if (VisualizeLight.IsValid())
+				{
+					HeaderLabel = FString::Printf(TEXT("%s (%s)"), *ModeName, *VisualizeLight.GetLightName());
+				}
+
+				DrawShadowedString(LegendPosition.X + 5, LegendPosition.Y + 5, HeaderLabel);
+
+				if (ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SHADOW_FACTOR)
+				{
+					DrawColorTile(LegendPosition.X + 5, LegendPosition.Y + 25, 10, 10, FLinearColor(1,1,0));
+					DrawShadowedString(LegendPosition.X + 20, LegendPosition.Y + 22, TEXT("Lit"));
+					DrawColorTile(LegendPosition.X + 5, LegendPosition.Y + 45, 10, 10, FLinearColor(0,0,1));
+					DrawShadowedString(LegendPosition.X + 20, LegendPosition.Y + 42, TEXT("Shadow"));
+				}
+				else if (ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CACHED_PAGE) 
+				{
+					extern int32 GVisualizeCachedPagesOnly;
+					if (VisualizeVirtualShadowMapId != INDEX_NONE || GVisualizeCachedPagesOnly)
+					{
+						DrawColorTile(LegendPosition.X + 5, LegendPosition.Y + 25, 10, 10, FLinearColor(0,1,0));
+						DrawShadowedString(LegendPosition.X + 20, LegendPosition.Y + 22, TEXT("Cached"));
+					}
+					if (!GVisualizeCachedPagesOnly)
+					{
+						DrawColorTile(LegendPosition.X + 5, LegendPosition.Y + 45, 10, 10, FLinearColor(1,0,0));
+						DrawShadowedString(LegendPosition.X + 20, LegendPosition.Y + 42, TEXT("All Invalidated"));
+						DrawColorTile(LegendPosition.X + 5, LegendPosition.Y + 65, 10, 10, FLinearColor(0,0,1));
+						DrawShadowedString(LegendPosition.X + 20, LegendPosition.Y + 62, TEXT("Dynamic Invalidated"));
+						DrawColorTile(LegendPosition.X + 5, LegendPosition.Y + 85, 10, 10, FLinearColor(0.75,1,0));
+						DrawShadowedString(LegendPosition.X + 20, LegendPosition.Y + 82, TEXT("Force cached"));
+					}
+				}
 			});
 	}
 

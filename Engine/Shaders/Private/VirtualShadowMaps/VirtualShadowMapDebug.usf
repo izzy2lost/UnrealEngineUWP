@@ -154,4 +154,35 @@ void DebugVisualizeVirtualSmCS(uint2 PixelPos : SV_DispatchThreadID)
 	}
 }
 
+int VisualizeVirtualShadowMapId;
+float VisualizeNaniteOverdrawScale;
+Texture2D DebugTexture;
 
+float4 TonemapProjectionDebugTexturePS(
+	noperspective float4 UVAndScreenPos : TEXCOORD0,
+	float4 Position : SV_POSITION
+) : SV_Target0
+{
+	bool bOneLightVisible = VisualizeVirtualShadowMapId >= 0;
+
+	float4 Output = DebugTexture.Load(uint3(Position.xy, 0));
+	if (VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SMRT_RAY_COUNT)
+	{
+		if (Output.a > 0)
+		{
+			float TotalRayCount = Output.r;
+			float TotalMaxRayCount = Output.g;
+			float IntensityMultiplier = bOneLightVisible ? 1.0 : smoothstep(0, 64, TotalMaxRayCount)+0.5;
+			Output.rgb = GreenToRedTurbo(IntensityMultiplier * TotalRayCount / TotalMaxRayCount);
+		}
+	}
+	else if (VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_NANITE_OVERDRAW)
+	{
+		const float OverdrawScale = clamp(VisualizeNaniteOverdrawScale / 100.0f, 0.0f, 1.0f);
+		const float OverdrawCount = Output.r;
+		const float OverdrawColor = 1 - exp2(-OverdrawCount * OverdrawScale);
+		Output = float4(ColorMapInferno(OverdrawColor), 0.0);
+		Output.a = smoothstep(-0.1, 0.1, dot(Output.rgb, 1.0/3.0));
+	}
+	return Output;
+}

@@ -114,6 +114,26 @@ void FVirtualShadowMapVisualizationData::ConfigureConsoleCommand()
 		TEXT(""),
 		*ConsoleDocumentationVisualizationMode,
 		ECVF_Cheat);
+
+	IConsoleManager::Get().RegisterConsoleCommand(
+		TEXT("r.Shadow.Virtual.Visualize.NextLight"),
+		TEXT("Set `r.Shadow.Virtual.Visualize.LightName` to the next light."),
+		FConsoleCommandWithArgsAndOutputDeviceDelegate::CreateLambda(
+			[this](const TArray<FString>& Arguments, FOutputDevice& Output)
+			{
+				SelectAdjacentVisualizeLight = 1;
+			}),
+		ECVF_Cheat);
+
+	IConsoleManager::Get().RegisterConsoleCommand(
+		TEXT("r.Shadow.Virtual.Visualize.PrevLight"),
+		TEXT("Set `r.Shadow.Virtual.Visualize.LightName` to the previous light."),
+		FConsoleCommandWithArgsAndOutputDeviceDelegate::CreateLambda(
+			[this](const TArray<FString>& Arguments, FOutputDevice& Output)
+			{
+				SelectAdjacentVisualizeLight = -1;
+			}),
+		ECVF_Cheat);
 }
 
 void FVirtualShadowMapVisualizationData::SetActiveMode(int32 ModeID, const FName& ModeName)
