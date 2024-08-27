@@ -24,7 +24,7 @@ RWTexture2D<float3> RWResolvedDiffuseLighting;
 RWTexture2D<float3> RWResolvedSpecularLighting;
 RWTexture2D<UNORM float> RWShadingConfidence;
 
-RWStructuredBuffer<uint> RWVisibleLightMask;
+RWStructuredBuffer<uint> RWVisibleLightHash;
 uint2 LightMaskSizeInTiles;
 
 int2 SampleViewMin;
@@ -47,6 +47,7 @@ groupshared uint SharedSamples[SHARED_TILE_SIZE_X][SHARED_TILE_SIZE_Y];
 // Light scalarization
 groupshared uint SharedLightHiMask;
 groupshared uint SharedLightMask[SHARED_LIGHT_MASK_SIZE];
+groupshared uint SharedVisibleLightHash;
 
 void AccumulateLightSample(uint2 SharedSampleCoord, uint LocalLightIndex, float UpsampleWeight, inout float SampleWeightSum, inout float WeightRatioSum)
 {
@@ -82,6 +83,7 @@ void ShadeLightSamplesCS(
 	if (LinearThreadIndex == 0)
 	{
 		SharedLightHiMask = 0;
+		SharedVisibleLightHash = 0;
 	}
 
 	if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
@@ -119,6 +121,7 @@ void ShadeLightSamplesCS(
 						uint DWORDIndex = LightSample.LocalLightIndex / 32;
 						uint BitMask = 1u << (LightSample.LocalLightIndex % 32);
 						InterlockedOr(SharedLightMask[DWORDIndex], BitMask);
+						InterlockedOr(SharedVisibleLightHash, BitMask);
 
 						uint HiBitMask = 1u << DWORDIndex;
 						LocalLightHiMask |= HiBitMask;
@@ -285,10 +288,10 @@ void ShadeLightSamplesCS(
 		}
 
 #if OUTPUT_VISIBLE_LIGHT_MASK
-		if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
+		if (LinearThreadIndex == 0)
 		{
-			RWVisibleLightMask[(TileCoord.y * LightMaskSizeInTiles.x + TileCoord.x) * SHARED_LIGHT_MASK_SIZE + LinearThreadIndex] = SharedLightMask[LinearThreadIndex];
-		}
+			RWVisibleLightHash[(TileCoord.y * LightMaskSizeInTiles.x + TileCoord.x)] = SharedVisibleLightHash;
+		}	
 #endif
 	}
 }

@@ -86,8 +86,10 @@ RWTexture2D<float> RWDownsampledSceneDepth;
 RWTexture2D<UNORM float3> RWDownsampledSceneWorldNormal;
 RWTexture2D<uint> RWLightSamples;
 
+Texture2D MegaLightsDepthHistory;
 float4 HistoryScreenPositionScaleBias;
 float4 HistoryUVMinMax;
+float4 HistoryGatherUVMinMax;
 
 groupshared uint SharedCandidateLightHiMask;
 groupshared uint SharedCandidateLightMask[SHARED_LIGHT_MASK_SIZE];
@@ -95,9 +97,9 @@ groupshared uint SharedCandidateLightMask[SHARED_LIGHT_MASK_SIZE];
 StructuredBuffer<uint> DownsampledTileAllocator;
 StructuredBuffer<uint> DownsampledTileData;
 
-StructuredBuffer<uint> VisibleLightMaskHistory;
+StructuredBuffer<uint> VisibleLightHashHistory;
 uint2 LightMaskSizeInTiles;
-float LightWasHiddenPDFWeight;
+float LightWasHiddenPDFWeightScale;
 
 uint DownsampledTileDataStride;
 float2 DownsampledBufferInvSize;
@@ -114,8 +116,8 @@ bool WasLightVisibleInHistoryScreenTile(uint2 TileCoordinate, int2 TileOffset, u
 
 	if (all(LightMaskHistoryTileCoord >= 0) && all(LightMaskHistoryTileCoord < (int2)LightMaskSizeInTiles))
 	{
-		uint LightMaskHistoryBase = (LightMaskHistoryTileCoord.y * LightMaskSizeInTiles.x + LightMaskHistoryTileCoord.x) * SHARED_LIGHT_MASK_SIZE;
-		bVisible = (VisibleLightMaskHistory[LightMaskHistoryBase + PrevDwordIndex] & PrevBitMask) != 0;
+		uint LightMaskHistoryBase = (LightMaskHistoryTileCoord.y * LightMaskSizeInTiles.x + LightMaskHistoryTileCoord.x);
+		bVisible = (VisibleLightHashHistory[LightMaskHistoryBase] & PrevBitMask) != 0;
 	}
 	return bVisible;
 }
@@ -233,6 +235,47 @@ void GenerateLightSamplesCS(
 					}
 				}
 
+				bool bHasValidHistory = true;
+				uint2 PrevScreenCoord = ScreenCoord;
+
+#define REPROJECT_HISTORY_FOR_GUIDING 1
+#if GUIDE_BY_HISTORY && REPROJECT_HISTORY_FOR_GUIDING
+				{
+					bHasValidHistory = false;
+
+					float2 ScreenPosition = (ScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
+					float3 HistoryScreenPosition = GetHistoryScreenPosition(ScreenPosition, ScreenUV, ConvertToDeviceZ(SceneDepth));
+					float2 HistoryScreenUV = HistoryScreenPosition.xy * HistoryScreenPositionScaleBias.xy + HistoryScreenPositionScaleBias.wz;
+
+					bool bHistoryWasOnScreen = all(HistoryScreenUV >= HistoryUVMinMax.xy) && all(HistoryScreenUV <= HistoryUVMinMax.zw);
+
+					HistoryScreenUV = clamp(HistoryScreenUV, HistoryGatherUVMinMax.xy, HistoryGatherUVMinMax.zw);
+
+					uint2 HistoryScreenCoord = floor(HistoryScreenUV * View.BufferSizeAndInvSize.xy - 0.5f);
+					float2 HistoryBilinearWeights = frac(HistoryScreenUV * View.BufferSizeAndInvSize.xy - 0.5f);
+					float2 HistoryGatherUV = (HistoryScreenCoord + 1.0f) * View.BufferSizeAndInvSize.zw;
+
+					float4 HistorySampleSceneDepth4 = MegaLightsDepthHistory.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy;
+					HistorySampleSceneDepth4.x = ConvertFromDeviceZ(HistorySampleSceneDepth4.x);
+					HistorySampleSceneDepth4.y = ConvertFromDeviceZ(HistorySampleSceneDepth4.y);
+					HistorySampleSceneDepth4.z = ConvertFromDeviceZ(HistorySampleSceneDepth4.z);
+					HistorySampleSceneDepth4.w = ConvertFromDeviceZ(HistorySampleSceneDepth4.w);
+
+					float ReprojectedSceneDepth = ConvertFromDeviceZ(HistoryScreenPosition.z);
+					float DisocclusionDistanceThreshold = 0.03f;
+					const float4 DistanceToHistoryValue = abs(HistorySampleSceneDepth4 - ReprojectedSceneDepth);
+					float4 DepthWeights = select(DistanceToHistoryValue >= ReprojectedSceneDepth * DisocclusionDistanceThreshold, 0.0f, 1.0f);
+
+					// If we are in a disoccluded region, ignore history
+					// If our history was off-screen, it's still better to use the history at the edge of the screen
+					if (any(DepthWeights > 0.01f) || !bHistoryWasOnScreen)
+					{
+						bHasValidHistory = true;
+						PrevScreenCoord = HistoryScreenCoord;
+					}
+				}
+#endif
+
 				#if DEBUG_MODE
 				if (Debug.bActive)
 				{
@@ -309,21 +352,21 @@ void GenerateLightSamplesCS(
 						bool bVisibleInLastFrameTile = true;
 
 						#if GUIDE_BY_HISTORY
-						if (LightTargetPDF.Weight > MinSampleWeight && LocalLightData.PrevLocalLightIndex >= 0)
+						if (bHasValidHistory && LightTargetPDF.Weight > MinSampleWeight && LocalLightData.PrevLocalLightIndex >= 0)
 						{
 							uint PrevBitMask = 1u << (LocalLightData.PrevLocalLightIndex % 32);
 							uint PrevDwordIndex = LocalLightData.PrevLocalLightIndex / SHARED_LIGHT_MASK_SIZE;
-							uint2 ScreenTileCoord = ScreenCoord / TILE_SIZE;
+							uint2 PrevScreenTileCoord = PrevScreenCoord / TILE_SIZE;
 
-							bVisibleInLastFrameTile = WasLightVisibleInHistoryScreenTile(ScreenTileCoord, int2(0, 0), PrevDwordIndex, PrevBitMask);
+							bVisibleInLastFrameTile = WasLightVisibleInHistoryScreenTile(PrevScreenTileCoord, int2(0, 0), PrevDwordIndex, PrevBitMask);
 							
 							// Check neighboring screen tiles
-							bVisibleInLastFrameTile = bVisibleInLastFrameTile || WasLightVisibleInHistoryScreenTile(ScreenTileCoord, int2(1, 0), PrevDwordIndex, PrevBitMask);
-							bVisibleInLastFrameTile = bVisibleInLastFrameTile || WasLightVisibleInHistoryScreenTile(ScreenTileCoord, int2(-1, 0), PrevDwordIndex, PrevBitMask);
-							bVisibleInLastFrameTile = bVisibleInLastFrameTile || WasLightVisibleInHistoryScreenTile(ScreenTileCoord, int2(0, 1), PrevDwordIndex, PrevBitMask);
-							bVisibleInLastFrameTile = bVisibleInLastFrameTile || WasLightVisibleInHistoryScreenTile(ScreenTileCoord, int2(0, -1), PrevDwordIndex, PrevBitMask);
+							bVisibleInLastFrameTile = bVisibleInLastFrameTile || WasLightVisibleInHistoryScreenTile(PrevScreenTileCoord, int2(1, 0), PrevDwordIndex, PrevBitMask);
+							bVisibleInLastFrameTile = bVisibleInLastFrameTile || WasLightVisibleInHistoryScreenTile(PrevScreenTileCoord, int2(-1, 0), PrevDwordIndex, PrevBitMask);
+							bVisibleInLastFrameTile = bVisibleInLastFrameTile || WasLightVisibleInHistoryScreenTile(PrevScreenTileCoord, int2(0, 1), PrevDwordIndex, PrevBitMask);
+							bVisibleInLastFrameTile = bVisibleInLastFrameTile || WasLightVisibleInHistoryScreenTile(PrevScreenTileCoord, int2(0, -1), PrevDwordIndex, PrevBitMask);
 
-							LightTargetPDF.Weight *= bVisibleInLastFrameTile ? 1.0f : LightWasHiddenPDFWeight;
+							LightTargetPDF.Weight *= bVisibleInLastFrameTile ? 1.0f : LightWasHiddenPDFWeightScale;
 						}
 						#endif
 
