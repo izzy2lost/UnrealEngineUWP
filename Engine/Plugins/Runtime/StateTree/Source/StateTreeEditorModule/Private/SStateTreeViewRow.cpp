@@ -293,6 +293,7 @@ void SStateTreeViewRow::Construct(const FArguments& InArgs, const TSharedRef<STa
 														return !NewLabel.IsEmptyOrWhitespace();
 													})
 												.OnTextCommitted(this, &SStateTreeViewRow::HandleNodeLabelTextCommitted)
+												.OnVerifyTextChanged(this, &SStateTreeViewRow::HandleVerifyNodeLabelTextChanged)
 												.Text(this, &SStateTreeViewRow::GetStateDesc)
 												.ToolTipText(this, &SStateTreeViewRow::GetStateTypeTooltip)
 												.Clipping(EWidgetClipping::ClipToBounds)
@@ -1964,13 +1965,36 @@ bool SStateTreeViewRow::IsStateSelected() const
 	return false;
 }
 
+bool SStateTreeViewRow::HandleVerifyNodeLabelTextChanged(const FText& InText, FText& OutErrorMessage) const
+{
+	if (StateTreeViewModel)
+	{
+		if (const UStateTreeState* State = WeakState.Get())
+		{
+			const FString NewName = FText::TrimPrecedingAndTrailing(InText).ToString();
+			if (NewName.Len() >= NAME_SIZE)
+			{
+				OutErrorMessage = LOCTEXT("VerifyNodeLabelFailed_MaxLength", "Max length exceeded");
+				return false;
+			}
+			return FName::IsValidXName(NewName, INVALID_NAME_CHARACTERS, &OutErrorMessage);
+		}
+	}
+	OutErrorMessage = LOCTEXT("VerifyNodeLabelFailed", "Invalid State Tree");
+	return false;
+}
+
 void SStateTreeViewRow::HandleNodeLabelTextCommitted(const FText& NewLabel, ETextCommit::Type CommitType) const
 {
 	if (StateTreeViewModel)
 	{
 		if (UStateTreeState* State = WeakState.Get())
 		{
-			StateTreeViewModel->RenameState(State, FName(*FText::TrimPrecedingAndTrailing(NewLabel).ToString()));
+			const FString NewName = FText::TrimPrecedingAndTrailing(NewLabel).ToString();
+			if (FName::IsValidXName(NewName, INVALID_NAME_CHARACTERS) && NewName.Len() < NAME_SIZE)
+			{
+				StateTreeViewModel->RenameState(State, FName(NewName));
+			}
 		}
 	}
 }

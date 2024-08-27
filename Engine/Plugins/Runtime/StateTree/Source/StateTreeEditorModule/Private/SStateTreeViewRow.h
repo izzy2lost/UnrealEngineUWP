@@ -109,6 +109,7 @@ private:
 	bool IsLeafState() const;
 	bool IsStateSelected() const;
 
+	bool HandleVerifyNodeLabelTextChanged(const FText& InText, FText& OutErrorMessage) const;
 	void HandleNodeLabelTextCommitted(const FText& NewLabel, ETextCommit::Type CommitType) const;
 
 	FReply HandleDragDetected(const FGeometry&, const FPointerEvent&) const;
