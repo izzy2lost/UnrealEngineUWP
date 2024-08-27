@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Containers/ContainerHelpers.h"
+#include "Containers/ContainerAllocationPolicies.h"
 #include "HAL/PlatformMath.h"
 #include "HAL/UnrealMemory.h"
 #include "Math/NumericLimits.h"
