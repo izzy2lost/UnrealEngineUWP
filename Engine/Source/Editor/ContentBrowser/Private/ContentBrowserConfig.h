@@ -4,6 +4,7 @@
 
 #include "AssetThumbnail.h"
 #include "EditorConfigBase.h"
+#include "Engine/DeveloperSettings.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/UObjectGlobals.h"
 
@@ -113,4 +114,14 @@ public:
 
 private:
 	static TObjectPtr<UContentBrowserConfig> Instance;
+};
+
+UCLASS(minimalapi, Config=Editor, DisplayName="Content Browser")
+class UContentBrowserCollectionProjectSettings : public UDeveloperSettings
+{
+	GENERATED_BODY()
+public:
+
+	UPROPERTY(config, EditAnywhere, Category=Collections, meta = (DisplayName="Exclude these collections from Content Browser"))
+	TArray<FName> ExcludedCollectionsFromView;
 };

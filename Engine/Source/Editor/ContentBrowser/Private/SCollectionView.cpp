@@ -8,6 +8,7 @@
 #include "CollectionManagerModule.h"
 #include "CollectionViewTypes.h"
 #include "CollectionViewUtils.h"
+#include "ContentBrowserConfig.h"
 #include "ContentBrowserDelegates.h"
 #include "ContentBrowserModule.h"
 #include "ContentBrowserPluginFilters.h"
@@ -51,6 +52,7 @@
 #include "SourcesSearch.h"
 #include "SourcesViewWidgets.h"
 #include "TelemetryRouter.h"
+#include "Settings/ContentBrowserSettings.h"
 #include "Styling/AppStyle.h"
 #include "Styling/ISlateStyle.h"
 #include "Styling/SlateColor.h"
@@ -177,6 +179,14 @@ void SCollectionView::Construct( const FArguments& InArgs )
 	ExternalSearchPtr = InArgs._ExternalSearch;
 	TitleContent = SNew(SHorizontalBox);
 
+	UContentBrowserCollectionProjectSettings* CollectionProjectSettings = GetMutableDefault<UContentBrowserCollectionProjectSettings>();
+	if (CollectionProjectSettings)
+	{
+		CollectionProjectSettings->OnSettingChanged().AddSPLambda(this, [this](UObject* CollectionProjectSettings_, struct FPropertyChangedEvent&)
+		{
+			UpdateFilteredCollectionItems();
+		});
+	}
 
 	PreventSelectionChangedDelegateCount = 0;
 
@@ -493,8 +503,20 @@ void SCollectionView::UpdateFilteredCollectionItems()
 	VisibleCollections.Reset();
 	VisibleRootCollectionItems.Reset();
 
-	auto AddVisibleCollection = [&](const TSharedPtr<FCollectionItem>& InCollectionItem)
+	const UContentBrowserCollectionProjectSettings* CollectionProjectSettings = GetDefault<UContentBrowserCollectionProjectSettings>();
+	const UContentBrowserSettings* ContentBrowserSettings = GetDefault<UContentBrowserSettings>();
+
+	auto AddVisibleCollection = [&](const FCollectionNameType& NameTypePair, const TSharedPtr<FCollectionItem>& InCollectionItem)
 	{
+		if (!ContentBrowserSettings->bDisplayExcludedCollections)
+		{
+			const int32 FoundIndex = CollectionProjectSettings->ExcludedCollectionsFromView.Find(NameTypePair.Name);
+			if (FoundIndex != INDEX_NONE)
+			{
+				return;
+			}
+		}
+		
 		VisibleCollections.Add(FCollectionNameType(InCollectionItem->CollectionName, InCollectionItem->CollectionType));
 		if (!InCollectionItem->ParentCollection.IsValid())
 		{
@@ -502,12 +524,12 @@ void SCollectionView::UpdateFilteredCollectionItems()
 		}
 	};
 
-	auto AddVisibleCollectionRecursive = [&](const TSharedPtr<FCollectionItem>& InCollectionItem)
+	auto AddVisibleCollectionRecursive = [&](const FCollectionNameType& NameTypePair, const TSharedPtr<FCollectionItem>& InCollectionItem)
 	{
 		TSharedPtr<FCollectionItem> CollectionItemToAdd = InCollectionItem;
 		do
 		{
-			AddVisibleCollection(CollectionItemToAdd);
+			AddVisibleCollection(NameTypePair, CollectionItemToAdd);
 			CollectionItemToAdd = CollectionItemToAdd->ParentCollection.Pin();
 		}
 		while(CollectionItemToAdd.IsValid());
@@ -519,7 +541,7 @@ void SCollectionView::UpdateFilteredCollectionItems()
 		// No filter, just mark everything as visible
 		for (const auto& AvailableCollectionInfo : AvailableCollections)
 		{
-			AddVisibleCollection(AvailableCollectionInfo.Value);
+			AddVisibleCollection(AvailableCollectionInfo.Key, AvailableCollectionInfo.Value);
 		}
 	}
 	else
@@ -532,7 +554,7 @@ void SCollectionView::UpdateFilteredCollectionItems()
 			const TSharedPtr<FCollectionItem>& CollectionItem = AvailableCollectionInfo.Value;
 			if (CollectionItemTextFilter->PassesFilter(*CollectionItem))
 			{
-				AddVisibleCollectionRecursive(CollectionItem);
+				AddVisibleCollectionRecursive(AvailableCollectionInfo.Key, CollectionItem);
 				CollectionsToExpandTo.Add(CollectionItem.ToSharedRef());
 			}
 		}
@@ -543,6 +565,8 @@ void SCollectionView::UpdateFilteredCollectionItems()
 			ExpandParentItems(CollectionItem);
 		}
 	}
+	
+	UContentBrowserSettings::OnSettingChanged().AddSP(this, &SCollectionView::HandleSettingChanged);
 
 	VisibleRootCollectionItems.Sort(FCollectionItem::FCompareFCollectionItemByName());
 	CollectionTreePtr->RequestTreeRefresh();
@@ -1394,6 +1418,14 @@ FReply SCollectionView::HandleDragDropOnCollectionItem(TSharedRef<FCollectionIte
 	}
 
 	return FReply::Unhandled();
+}
+
+void SCollectionView::HandleSettingChanged(FName PropertyName)
+{
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UContentBrowserSettings, bDisplayExcludedCollections))
+	{
+		UpdateFilteredCollectionItems();
+	}
 }
 
 void SCollectionView::ExpandParentItems(const TSharedRef<FCollectionItem>& InCollectionItem)

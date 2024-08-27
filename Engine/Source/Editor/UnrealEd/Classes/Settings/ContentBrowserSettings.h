@@ -65,6 +65,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = ContentBrowser)
 	bool bEnableRealtimeMaterialInstanceThumbnails = true;
 
+	/** Displays collections in the Collections window that were excluded by project settings */
+	UPROPERTY(Config, EditAnywhere, Category=Collections, meta = (DisplayName="Display excluded collections in Content Browser"))
+	bool bDisplayExcludedCollections = false;
+
 public:
 
 	/** Sets whether we are allowed to display the engine folder or not, optional flag for setting override instead */
