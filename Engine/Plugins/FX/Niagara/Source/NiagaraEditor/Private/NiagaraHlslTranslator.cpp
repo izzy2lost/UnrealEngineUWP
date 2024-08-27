@@ -8667,11 +8667,27 @@ void TNiagaraHlslTranslator<GraphBridge>::HandleDataInterfaceCall(FNiagaraScript
 				AllowedContexts.Append(TEXT(", "));
 			}
 			check(EnumClass != nullptr);
-			AllowedContexts.Append(EnumClass->GetNameByValue((int64)Usage).ToString());
+			AllowedContexts.Append(EnumClass->GetNameByValue(static_cast<int64>(Usage)).ToString());
 		}
 		
-		FText ThisContextText = FText::FromName(EnumClass->GetNameByValue((int64)TranslationStages[ActiveStageIdx].ScriptUsage));
+		FText ThisContextText = FText::FromName(EnumClass->GetNameByValue(static_cast<int64>(TranslationStages[ActiveStageIdx].ScriptUsage)));
 		Error(FText::Format(LOCTEXT("FunctionCallDataInterfaceWrongContext", "Function call \"{0}\" is not allowed for stack context {1}. Allowed: {2}"), FText::FromName(InMatchingSignature.Name), ThisContextText, FText::FromString(AllowedContexts)), CurNode, nullptr);
+	}
+
+	// register structs used by DI parameters
+	for (const FNiagaraVariable& Input : InMatchingSignature.Inputs)
+	{
+		if (!AddStructToDefinitionSet(Input.GetType()))
+		{
+			Error(FText::Format(LOCTEXT("DIFunctionInputTypeError", "Cannot handle type {0} in DI function input. Function {1}, Input {2}"), Input.GetType().GetNameText(), FText::FromName(InMatchingSignature.Name), FText::FromName(Input.GetName())), CurNode, nullptr);
+		}
+	}
+	for (const FNiagaraVariableBase& Output : InMatchingSignature.Outputs)
+	{
+		if (!AddStructToDefinitionSet(Output.GetType()))
+		{
+			Error(FText::Format(LOCTEXT("DIFunctionOutputTypeError", "Cannot handle type {0} in DI function output. Function {1}, Output {2}"), Output.GetType().GetNameText(), FText::FromName(InMatchingSignature.Name), FText::FromName(Output.GetName())), CurNode, nullptr);
+		}
 	}
 	
 	//UE_LOG(LogNiagaraEditor, Log, TEXT("HandleDataInterfaceCall %d %s %s %s"), ActiveStageIdx, *InMatchingSignature.Name.ToString(), InMatchingSignature.bWriteFunction ? TEXT("true") : TEXT("False"), *Info.Name.ToString());
@@ -10769,18 +10785,21 @@ bool FNiagaraHlslTranslator::AddStructToDefinitionSet(const FNiagaraTypeDefiniti
 		return true;
 	}
 
+	if (StructsToDefine.Contains(TypeDef))
+	{
+		return true;
+	}
+
 	// Now make sure that we don't have any other struct types within our struct. Add them prior to the struct in question to make sure
 	// that the syntax works out properly.
-	UScriptStruct* Struct = FNiagaraTypeHelper::FindNiagaraFriendlyTopLevelStruct(TypeDef.GetScriptStruct(), ENiagaraStructConversion::Simulation);
-	if (Struct != nullptr)
+	if (UScriptStruct* Struct = FNiagaraTypeHelper::FindNiagaraFriendlyTopLevelStruct(TypeDef.GetScriptStruct(), ENiagaraStructConversion::Simulation))
 	{
 		// We need to recursively dig through the struct to get at the lowest level of the input struct, which
 		// could be a native type.
 		for (TFieldIterator<FProperty> PropertyIt(Struct, EFieldIteratorFlags::IncludeSuper); PropertyIt; ++PropertyIt)
 		{
 			const FProperty* Property = *PropertyIt;
-			const FStructProperty* StructProp = CastField<const FStructProperty>(Property);
-			if (StructProp)
+			if (const FStructProperty* StructProp = CastField<const FStructProperty>(Property))
 			{
 				if (!AddStructToDefinitionSet(StructProp->Struct.Get()))
 				{
