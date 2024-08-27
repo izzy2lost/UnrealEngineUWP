@@ -254,3 +254,65 @@ uint8 FBuildPatchUtils::VerifyFile(IFileSystem* FileSystem, const FString& FileT
 	ProgressDelegate.ExecuteIfBound(1.0f);
 	return ReturnValue;
 }
+
+
+uint64 FBuildPatchUtils::CalculateDiskSpaceRequirementsWithDeleteDuringInstall(
+	const TArray<FString>& InFilesToConstruct, 
+	int32 InCompletedFileCount, 
+	IBuildManifestSet* InManifestSet,
+	const TArray<uint64>& InChunkDbSizesAtPosition,
+	uint64 InTotalChunkDbSize
+	)
+{
+	uint64 TotalDeletedSize = 0;
+	uint64 TotalWrittenSize = 0;
+
+	uint64 MaxDiskSize = 0;
+	int32 MaxDiskSizeFileIndex = 0;
+
+	// We start off with full chunk db size.
+	uint64 TotalChunkDbSizeAtLastFile = InTotalChunkDbSize;
+
+	for (int32 FileIndex = InCompletedFileCount; FileIndex < InFilesToConstruct.Num(); FileIndex++)
+	{
+		uint64 ChunkDbSize = InChunkDbSizesAtPosition[FileIndex];
+
+		// We've completed this file
+		uint64 NewFileSize = 0;
+		{
+			const FFileManifest* IncomingFileManifest = InManifestSet->GetNewFileManifest(InFilesToConstruct[FileIndex]);			
+			if (IncomingFileManifest)
+			{
+				NewFileSize = IncomingFileManifest->FileSize;
+			}
+		}
+
+		TotalWrittenSize += NewFileSize;
+
+		// We delete the chunkdbs _after_ we write the output so we can't use this size until 
+		// the next file gets done. Be sure to handle the case where we've deleted so much data
+		// we are below the waterline.
+		if (TotalDeletedSize < (TotalWrittenSize + TotalChunkDbSizeAtLastFile) &&
+			(TotalChunkDbSizeAtLastFile + TotalWrittenSize - TotalDeletedSize) > MaxDiskSize)
+		{
+			MaxDiskSize = TotalChunkDbSizeAtLastFile + TotalWrittenSize - TotalDeletedSize;
+			MaxDiskSizeFileIndex = FileIndex;
+		}
+
+		//UE_LOG(LogTemp, Display, TEXT("...@ file %d chunks = %llu, install = %llu"), FileIndex, TotalChunkDbSizeAtLastFile, TotalWrittenSize);
+
+		// If we are patching, we can now delete the output file, which decreases our disk presence, however
+		// we update this after the check because we can't delete until after we have the file fully constructed.
+		const FFileManifest* OnDiskFileManifest = InManifestSet->GetCurrentFileManifest(InFilesToConstruct[FileIndex]);
+		if (OnDiskFileManifest)
+		{
+			TotalDeletedSize += OnDiskFileManifest->FileSize;
+		}
+
+		TotalChunkDbSizeAtLastFile = ChunkDbSize;
+	}
+
+	//UE_LOG(LogTemp, Display, TEXT("Max disk use %llu (+%llu after d/l) (install size: %llu: +%llu) after file %d"), MaxDiskSize, PostDlSize, TotalWrittenSize, MaxDiskSize - TotalWrittenSize, MaxDiskSizeFileIndex);
+
+	return MaxDiskSize;
+}

@@ -164,4 +164,11 @@ struct FBuildPatchUtils
 	 * @return		0 if no match, 1 for match with Hash1, and 2 for match with Hash2
 	 */
 	static uint8 VerifyFile(BuildPatchServices::IFileSystem* FileSystem, const FString& FileToVerify, const FSHAHash& Hash1, const FSHAHash& Hash2);
+
+	static uint64 CalculateDiskSpaceRequirementsWithDeleteDuringInstall(
+		const TArray<FString>& InFilesToConstruct, 
+		int32 InCompletedFileCount, 
+		BuildPatchServices::IBuildManifestSet* InManifestSet, 
+		const TArray<uint64>& InChunkDbSizesAtPosition, 
+		uint64 InTotalChunkDbSize);
 };

@@ -15,6 +15,7 @@
 #include "Common/SpeedRecorder.h"
 #include "Common/FileSystem.h"
 #include "Installer/ChunkSource.h"
+#include "Installer/ChunkDbChunkSource.h"
 #include "Installer/ChunkReferenceTracker.h"
 #include "Installer/InstallerError.h"
 #include "Installer/InstallerAnalytics.h"
@@ -66,6 +67,12 @@ namespace FileConstructorHelpers
 				bContinueConstruction = false;
 			}
 		}
+		else
+		{
+			// If we can't get the disk space free then the most likely reason is the drive is no longer around...
+			bContinueConstruction = false;
+		}
+
 		return bContinueConstruction;
 	}
 
@@ -252,7 +259,10 @@ public:
 
 /* FBuildPatchFileConstructor implementation
  *****************************************************************************/
-FBuildPatchFileConstructor::FBuildPatchFileConstructor(FFileConstructorConfig InConfiguration, IFileSystem* InFileSystem, IChunkSource* InChunkSource, IChunkReferenceTracker* InChunkReferenceTracker, IInstallerError* InInstallerError, IInstallerAnalytics* InInstallerAnalytics, IFileConstructorStat* InFileConstructorStat)
+FBuildPatchFileConstructor::FBuildPatchFileConstructor(
+	FFileConstructorConfig InConfiguration, IFileSystem* InFileSystem, IChunkSource* InChunkSource, 
+	IChunkDbChunkSource* InChunkDbChunkSource, IChunkReferenceTracker* InChunkReferenceTracker, IInstallerError* InInstallerError, 
+	IInstallerAnalytics* InInstallerAnalytics, IFileConstructorStat* InFileConstructorStat)
 	: Configuration(MoveTemp(InConfiguration))
 	, bIsDownloadStarted(false)
 	, bInitialDiskSizeCheck(false)
@@ -262,6 +272,7 @@ FBuildPatchFileConstructor::FBuildPatchFileConstructor(FFileConstructorConfig In
 	, ConstructionStack()
 	, FileSystem(InFileSystem)
 	, ChunkSource(InChunkSource)
+	, ChunkDbSource(InChunkDbChunkSource)
 	, ChunkReferenceTracker(InChunkReferenceTracker)
 	, InstallerError(InInstallerError)
 	, InstallerAnalytics(InInstallerAnalytics)
@@ -275,6 +286,11 @@ FBuildPatchFileConstructor::FBuildPatchFileConstructor(FFileConstructorConfig In
 	const int32 ConstructListNum = Configuration.ConstructList.Num();
 	ConstructionStack.Reserve(ConstructListNum);
 	ConstructionStack.AddDefaulted(ConstructListNum);
+
+	// Track when we will complete files in the reference chain.
+	int32 CurrentPosition = 0;
+	FileCompletionPositions.Reserve(ConstructListNum);
+
 	for (int32 ConstructListIdx = 0; ConstructListIdx < ConstructListNum ; ++ConstructListIdx)
 	{
 		const FString& ConstructListElem = Configuration.ConstructList[ConstructListIdx];
@@ -282,7 +298,14 @@ FBuildPatchFileConstructor::FBuildPatchFileConstructor(FFileConstructorConfig In
 		if (FileManifest)
 		{
 			TotalJobSize += FileManifest->FileSize;
+		
+			// We will be advancing the chunk reference tracker by this many chunks.
+			int32 AdvanceCount = FileManifest->ChunkParts.Num();
+			CurrentPosition += AdvanceCount;
+
+			FileCompletionPositions.Add(CurrentPosition);
 		}
+
 		ConstructionStack[(ConstructListNum - 1) - ConstructListIdx] = ConstructListElem;
 	}
 
@@ -486,14 +509,12 @@ void FBuildPatchFileConstructor::Run()
 
 uint64 FBuildPatchFileConstructor::GetRequiredDiskSpace()
 {
-	FScopeLock Lock(&ThreadLock);
-	return RequiredDiskSpace;
+	return RequiredDiskSpace.load(std::memory_order_relaxed);
 }
 
 uint64 FBuildPatchFileConstructor::GetAvailableDiskSpace()
 {
-	FScopeLock Lock(&ThreadLock);
-	return AvailableDiskSpace;
+	return AvailableDiskSpace.load(std::memory_order_relaxed);
 }
 
 FBuildPatchFileConstructor::FOnBeforeDeleteFile& FBuildPatchFileConstructor::OnBeforeDeleteFile()
@@ -524,16 +545,29 @@ int64 FBuildPatchFileConstructor::GetRemainingBytes()
 	return Configuration.ManifestSet->GetTotalNewFileSize(ConstructionStack);
 }
 
-uint64 FBuildPatchFileConstructor::CalculateRequiredDiskSpace(const FFileManifest& InProgressFileManifest, uint64 InProgressFileSize)
+uint64 FBuildPatchFileConstructor::CalculateInProgressDiskSpaceRequired(const FFileManifest& InProgressFileManifest, uint64 InProgressFileAmountWritten)
 {
-	int64 DiskSpaceDeltaPeak = InProgressFileSize;
 	if (Configuration.InstallMode == EInstallMode::DestructiveInstall)
 	{
 		// The simplest method will be to run through each high level file operation, tracking peak disk usage delta.
-		int64 DiskSpaceDelta = InProgressFileSize;
 
-		// Can remove old in progress file.
-		DiskSpaceDelta -= InProgressFileManifest.FileSize;
+		// We know we need enough space to finish writing this file
+		uint64 RemainingThisFileSpace = InProgressFileManifest.FileSize - InProgressFileAmountWritten;
+		
+		int64 DiskSpaceDeltaPeak = RemainingThisFileSpace;
+		int64 DiskSpaceDelta = RemainingThisFileSpace;
+
+		// Then we move this file over.
+		{
+			const FFileManifest* OldFileManifest = Configuration.ManifestSet->GetCurrentFileManifest(InProgressFileManifest.Filename);
+			if (OldFileManifest)
+			{
+				DiskSpaceDelta -= OldFileManifest->FileSize;
+			}
+
+			// We've already accounted for the new file above, so we could be pretty negative if we resumed the file
+			// almost at the end and had an existing file we're deleting.
+		}
 
 		// Loop through all files to be made next, in order.
 		for (int32 ConstructionStackIdx = ConstructionStack.Num() - 1; ConstructionStackIdx >= 0; --ConstructionStackIdx)
@@ -553,13 +587,49 @@ uint64 FBuildPatchFileConstructor::CalculateRequiredDiskSpace(const FFileManifes
 				DiskSpaceDelta -= OldFileManifest->FileSize;
 			}
 		}
+		return DiskSpaceDeltaPeak;
 	}
 	else
 	{
 		// When not destructive, we always stage all new and changed files.
-		DiskSpaceDeltaPeak += Configuration.ManifestSet->GetTotalNewFileSize(ConstructionStack);
+		uint64 RemainingFilesSpace = Configuration.ManifestSet->GetTotalNewFileSize(ConstructionStack);
+		uint64 RemainingThisFileSpace = InProgressFileManifest.FileSize - InProgressFileAmountWritten;
+		return RemainingFilesSpace + RemainingThisFileSpace;
 	}
-	return FMath::Max<int64>(DiskSpaceDeltaPeak, 0);
+}
+
+
+
+uint64 FBuildPatchFileConstructor::CalculateDiskSpaceRequirementsWithDeleteDuringInstall(const TArray<FString>& InBackwardsFilesLeftToConstruct)
+{
+	if (ChunkDbSource == nullptr)
+	{
+		// invalid use.
+		return 0;
+	}
+
+	// These are the sizes at after each file that we _started_ with. This is the size after retirement for the
+	// file at those positions.
+	TArray<uint64> ChunkDbSizesAtPosition;
+	uint64 TotalChunkDbSize = ChunkDbSource->GetChunkDbSizesAtIndexes(FileCompletionPositions, ChunkDbSizesAtPosition);
+
+	// Strip off the files we've completed.
+	int32 CompletedFileCount = Configuration.ConstructList.Num() - InBackwardsFilesLeftToConstruct.Num();
+
+	// Since we are called after the first file is popped (but before it's actually done), we have one less completed.
+	CompletedFileCount--;
+
+	uint64 MaxDiskSize = FBuildPatchUtils::CalculateDiskSpaceRequirementsWithDeleteDuringInstall(
+		Configuration.ConstructList, CompletedFileCount, Configuration.ManifestSet, ChunkDbSizesAtPosition, TotalChunkDbSize);
+
+	// Strip off the data we already have on disk.
+	uint64 PostDlSize = 0;
+	if (MaxDiskSize > TotalChunkDbSize)
+	{
+		PostDlSize = MaxDiskSize - TotalChunkDbSize;
+	}
+
+	return PostDlSize;
 }
 
 bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFilename, const FFileManifest& FileManifest, bool bResumeExisting)
@@ -651,22 +721,43 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 		}
 	}
 
-	// If we haven't done so yet, make the initial disk space check
+	// If we haven't done so yet, make the initial disk space check. We do this after resume
+	// so that we know how much to discount from our current file size.
 	if (!bInitialDiskSizeCheck)
 	{
 		bInitialDiskSizeCheck = true;
-		const uint64 RequiredSpace = CalculateRequiredDiskSpace(FileManifest, FileManifest.FileSize - StartPosition);
-		// ThreadLock protects access to members RequiredDiskSpace and AvailableDiskSpace;
-		FScopeLock Lock(&ThreadLock);
-		RequiredDiskSpace = RequiredSpace;
-		if (!FileConstructorHelpers::CheckRemainingDiskSpace(Configuration.InstallDirectory, RequiredSpace, AvailableDiskSpace))
+
+		// Normal operation can just use the classic calculation
+		uint64 LocalDiskSpaceRequired = CalculateInProgressDiskSpaceRequired(FileManifest, StartPosition);
+
+		// If we are delete-during-install this gets more complicated because we'll be freeing up
+		// space as we add.
+		if (Configuration.bDeleteChunkDBFilesAfterUse)
 		{
-			UE_LOG(LogBuildPatchServices, Error, TEXT("Out of HDD space. Needs %llu bytes, Free %llu bytes"), RequiredSpace, AvailableDiskSpace);
+			LocalDiskSpaceRequired = CalculateDiskSpaceRequirementsWithDeleteDuringInstall(ConstructionStack);
+		}
+
+		uint64 LocalDiskSpaceAvailable = 0;
+		{
+			uint64 TotalSize = 0;
+			uint64 AvailableSpace = 0;
+			if (FPlatformMisc::GetDiskTotalAndFreeSpace(Configuration.InstallDirectory, TotalSize, AvailableSpace))
+			{
+				LocalDiskSpaceAvailable = AvailableSpace;
+			}
+		}
+
+		AvailableDiskSpace.store(LocalDiskSpaceAvailable, std::memory_order_release);
+		RequiredDiskSpace.store(LocalDiskSpaceRequired, std::memory_order_release);	
+
+		if (!FileConstructorHelpers::CheckRemainingDiskSpace(Configuration.InstallDirectory, LocalDiskSpaceRequired, LocalDiskSpaceAvailable))
+		{
+			UE_LOG(LogBuildPatchServices, Error, TEXT("Out of HDD space. Needs %llu bytes, Free %llu bytes"), LocalDiskSpaceRequired, LocalDiskSpaceAvailable);
 			InstallerError->SetError(
 				EBuildPatchInstallError::OutOfDiskSpace,
 				DiskSpaceErrorCodes::InitialSpaceCheck,
 				0,
-				BuildPatchServices::GetDiskSpaceMessage(Configuration.InstallDirectory, RequiredSpace, AvailableDiskSpace));
+				BuildPatchServices::GetDiskSpaceMessage(Configuration.InstallDirectory, LocalDiskSpaceRequired, LocalDiskSpaceAvailable));
 			return false;
 		}
 	}
@@ -678,6 +769,7 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 		FileConstructorStat->OnResumeCompleted();
 	}
 
+	// Returns false if the write failed in some way (almost certainly disk space, could be drive disconnection)
 	auto FlushToAsyncWriter = [this](FArchive& DestinationFile, FSHA1& HashState)
 	{
 		if (bStallWhenFileSystemThrottled)
@@ -818,6 +910,9 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 
 		bSuccess = !NewFile->IsError();
 
+		// Update this for disk space requirements tracking below on error
+		StartPosition = NewFile->Tell();
+
 		// Close the file writer
 		FileConstructorStat->OnBeforeAdminister();
 		ActivityRecord.CyclesStart = FStatsCollector::GetCycles();
@@ -843,33 +938,75 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 	// Check for error state
 	if (!bSuccess)
 	{
-		// Recalculate disk space first
-		int64 InProgressFileSize = FileManifest.FileSize;
-		FileSystem->GetFileSize(*NewFilename, InProgressFileSize);
-		const uint64 RemainingRequiredSpace = CalculateRequiredDiskSpace(FileManifest, FileManifest.FileSize - InProgressFileSize);
-		uint64 RemainingAvailableDiskSpace = 0;
-		if (!FileConstructorHelpers::CheckRemainingDiskSpace(Configuration.InstallDirectory, RemainingRequiredSpace, RemainingAvailableDiskSpace))
+		if (ConstructionError == EConstructionError::SerializeError)
 		{
-			// ThreadLock protects access to members RequiredDiskSpace and AvailableDiskSpace
-			ThreadLock.Lock();
-			RequiredDiskSpace = RemainingRequiredSpace;
-			AvailableDiskSpace = RemainingAvailableDiskSpace;
-			ThreadLock.Unlock();
-			// Convert error to disk space rather than reported.
-			UE_LOG(LogBuildPatchServices, Error, TEXT("Out of HDD space. Needs %llu bytes, Free %llu bytes"), RemainingRequiredSpace, RemainingAvailableDiskSpace);
-			InstallerError->SetError(
-				EBuildPatchInstallError::OutOfDiskSpace,
-				DiskSpaceErrorCodes::DuringInstallation,
-				0,
-				BuildPatchServices::GetDiskSpaceMessage(Configuration.InstallDirectory, RemainingRequiredSpace, RemainingAvailableDiskSpace));
-			ConstructionError = EConstructionError::OutOfDiskSpace;
-		}
-		else
-		{
-			const bool bReportAnalytic = InstallerError->HasError() == false;
-			switch (ConstructionError)
+			// Serialize error is our catchall file error right now. This should probably get
+			// migrated such that it's when we fail to load an existing chunk (i.e. corruption)
+			// but instead that shows up as a missing chunk.
+
+
+		// HOTFIX - we disable this check for delete during install
+			
+			uint64 TotalSize = 0;
+			uint64 FreeSize = 0;
+			if (FPlatformMisc::GetDiskTotalAndFreeSpace(Configuration.InstallDirectory, TotalSize, FreeSize))
 			{
-			case EConstructionError::CannotCreateFile:
+				// We're responding to an actual failure, which would have happened because we literally weren't able
+				// to write our write butter. Because of transient stuff this might not be correct so we double our
+				// write buffer size for this check.
+				if (FreeSize < (2 * WriteBufferSize))
+				{
+					// We've already failed so it makes sense to reevaluate how much extra we need. 
+					// I'm not sure I like using the same error wording for initial and ongoing disk space failure, but whatevs
+					{
+						uint64 LocalDiskSpaceRequired = CalculateInProgressDiskSpaceRequired(FileManifest, StartPosition);
+
+						// If we are delete-during-install this gets more complicated because we'll be freeing up
+						// space as we add.
+		if (!Configuration.bDeleteChunkDBFilesAfterUse &&
+			!FileConstructorHelpers::CheckRemainingDiskSpace(Configuration.InstallDirectory, RemainingRequiredSpace, RemainingAvailableDiskSpace))
+						{
+							LocalDiskSpaceRequired = CalculateDiskSpaceRequirementsWithDeleteDuringInstall(ConstructionStack);
+						}
+
+						AvailableDiskSpace.store(FreeSize, std::memory_order_release);
+						RequiredDiskSpace.store(LocalDiskSpaceRequired, std::memory_order_release);
+
+					}
+
+					ConstructionError = EConstructionError::OutOfDiskSpace;
+				}
+				else
+				{
+					// If it looks like we had enough disk space to write the last buffer, then 
+					// leave it as serialize.
+				}
+			}
+			else
+			{
+				// If we can't get the free space then likely the disk has disconnected or otherwise had a Bad Error, leave
+				// as serialize.
+			}
+		}
+
+		// \todo not exactly sure why this only reports on a file creation error?
+		const bool bReportAnalytic = InstallerError->HasError() == false;
+		switch (ConstructionError)
+		{
+		case EConstructionError::OutOfDiskSpace:
+			{
+				uint64 LocalAvailableDiskSpace = AvailableDiskSpace.load(std::memory_order_acquire);
+				uint64 LocalRequiredDiskSpace = RequiredDiskSpace.load(std::memory_order_acquire);
+				UE_LOG(LogBuildPatchServices, Error, TEXT("Out of HDD space. Needs %llu bytes, Free %llu bytes"), LocalRequiredDiskSpace, LocalAvailableDiskSpace);
+				InstallerError->SetError(
+					EBuildPatchInstallError::OutOfDiskSpace,
+					DiskSpaceErrorCodes::DuringInstallation,
+					0,
+					BuildPatchServices::GetDiskSpaceMessage(Configuration.InstallDirectory, LocalRequiredDiskSpace, LocalAvailableDiskSpace));
+				break;
+			}
+		case EConstructionError::CannotCreateFile:
+			{
 				if (bReportAnalytic)
 				{
 					InstallerAnalytics->RecordConstructionError(BuildFilename, LastError, TEXT("Could Not Create File"));
@@ -877,13 +1014,19 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 				}
 				InstallerError->SetError(EBuildPatchInstallError::FileConstructionFail, ConstructionErrorCodes::FileCreateFail, LastError);
 				break;
-			case EConstructionError::MissingChunk:
+			}
+		case EConstructionError::MissingChunk:
+			{
 				InstallerError->SetError(EBuildPatchInstallError::FileConstructionFail, ConstructionErrorCodes::MissingChunkData);
 				break;
-			case EConstructionError::SerializeError:
+			}
+		case EConstructionError::SerializeError:
+			{
 				InstallerError->SetError(EBuildPatchInstallError::FileConstructionFail, ConstructionErrorCodes::SerializationError);
 				break;
-			case EConstructionError::TrackingError:
+			}
+		case EConstructionError::TrackingError:
+			{
 				InstallerError->SetError(EBuildPatchInstallError::FileConstructionFail, ConstructionErrorCodes::TrackingError);
 				break;
 			}
@@ -985,6 +1128,7 @@ bool FBuildPatchFileConstructor::AppendChunkData(const FChunkPart& ChunkPart, TA
 	}
 	else
 	{
+		// We'd really like to know if this was because it's missing or because it failed in some way.
 		ConstructionError = EConstructionError::MissingChunk;
 	}
 	return ConstructionError == EConstructionError::None;

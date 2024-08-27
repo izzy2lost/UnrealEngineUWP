@@ -160,6 +160,7 @@ namespace BuildPatchServices
 
 		// IInstallChunkSource interface begin.
 		virtual const TSet<FGuid>& GetAvailableChunks() const override;
+		virtual uint64 GetChunkDbSizesAtIndexes(const TArray<int32>& FileCompletionIndexes, TArray<uint64>& OutChunkDbSizesAtCompletion) const override;
 		// IInstallChunkSource interface end.
 
 		static void LoadChunkDbFiles(
@@ -209,6 +210,9 @@ namespace BuildPatchServices
 		TSet<FGuid> FailedToLoad;
 		// Communication between the incoming AddRepeatRequirement calls, and our worker thread.
 		TQueue<FGuid, EQueueMode::Mpsc> RepeatRequirementMessages;
+
+		// Number of chunks to process in this manifest when we started.
+		int32 OriginalChunkCount = 0;
 	};
 
 	// Read in the headers, evalutate the list of chunks, and determine when we'll be done with our chunk dbs.
@@ -306,32 +310,31 @@ namespace BuildPatchServices
 			}
 		}
 	}
-
-
-	uint64 IChunkDbChunkSource::GetChunkDbSizesAtIndexes(const TArray<FString>& ChunkDbFiles, IFileSystem* FileSystem, const TArray<FGuid>& ChunkAccessOrderedList, const TArray<int32>& FileCompletionIndexes, TArray<uint64>& OutChunkDbSizesAtCompletion)
+	
+	// Get how many bytes of chunkdbs will still exist on disk after the given indexes (i.e. will not have been retired)
+	// Return is the total size of given chunkdbs.
+	static uint64 GetChunkDbSizesAtIndexesInternal(const TArray<FChunkDbDataAccess>& InOpenedChunkDbs, int32 InOriginalChunkCount, const TArray<int32>& InFileCompletionIndexes, TArray<uint64>& OutChunkDbSizesAtCompletion)
 	{
-		TArray<FChunkDbDataAccess> ChunkFiles;
-		TMap<FGuid, FChunkAccessLookup> ChunkGuidLookup;
-
-		FChunkDbChunkSource::LoadChunkDbFiles(ChunkDbFiles, FileSystem, ChunkAccessOrderedList, ChunkFiles, ChunkGuidLookup, nullptr);
-
 		uint64 AllChunkDbSize = 0;
-		for (const FChunkDbDataAccess& ChunkFile : ChunkFiles)
+		for (const FChunkDbDataAccess& ChunkFile : InOpenedChunkDbs)
 		{
-			AllChunkDbSize += ChunkFile.Archive->TotalSize();
+			if (!ChunkFile.bIsRetired)
+			{
+				AllChunkDbSize += ChunkFile.Archive->TotalSize();
+			}
 		}
-
 		
 		// Go over the list of completions and evalute how many chunk dbs are left over.
-		for (int32 FileCompletionIndex : FileCompletionIndexes)
+		for (int32 FileCompletionIndex : InFileCompletionIndexes)
 		{
 			// retiring happens as the list is _popped_, so everything is backwards.
-			int32 RetireAtEquivalent = ChunkAccessOrderedList.Num() - FileCompletionIndex;
+			int32 RetireAtEquivalent = InOriginalChunkCount - FileCompletionIndex;
 
 			uint64 TotalSizeAtIndex = 0;
-			for (const FChunkDbDataAccess& ChunkFile : ChunkFiles)
+			for (const FChunkDbDataAccess& ChunkFile : InOpenedChunkDbs)
 			{
-				if (ChunkFile.RetireAt < RetireAtEquivalent)
+				if (!ChunkFile.bIsRetired &&
+					ChunkFile.RetireAt < RetireAtEquivalent)
 				{
 					TotalSizeAtIndex += ChunkFile.Archive->TotalSize();
 				}
@@ -340,6 +343,22 @@ namespace BuildPatchServices
 			OutChunkDbSizesAtCompletion.Add(TotalSizeAtIndex);
 		}
 		return AllChunkDbSize;
+	}
+
+
+	uint64 FChunkDbChunkSource::GetChunkDbSizesAtIndexes(const TArray<int32>& FileCompletionIndexes, TArray<uint64>& OutChunkDbSizesAtCompletion) const
+	{
+		return GetChunkDbSizesAtIndexesInternal(ChunkDbDataAccesses, OriginalChunkCount, FileCompletionIndexes, OutChunkDbSizesAtCompletion);
+	}
+
+	uint64 IChunkDbChunkSource::GetChunkDbSizesAtIndexes(const TArray<FString>& ChunkDbFiles, IFileSystem* FileSystem, const TArray<FGuid>& ChunkAccessOrderedList, const TArray<int32>& FileCompletionIndexes, TArray<uint64>& OutChunkDbSizesAtCompletion)
+	{
+		TArray<FChunkDbDataAccess> ChunkFiles;
+		TMap<FGuid, FChunkAccessLookup> ChunkGuidLookup;
+
+		FChunkDbChunkSource::LoadChunkDbFiles(ChunkDbFiles, FileSystem, ChunkAccessOrderedList, ChunkFiles, ChunkGuidLookup, nullptr);
+
+		return GetChunkDbSizesAtIndexesInternal(ChunkFiles, ChunkAccessOrderedList.Num(), FileCompletionIndexes, OutChunkDbSizesAtCompletion);
 	}
 
 	FChunkDbChunkSource::FChunkDbChunkSource(FChunkDbSourceConfig InConfiguration, IPlatform* InPlatform, IFileSystem* InFileSystem, IChunkStore* InChunkStore, IChunkReferenceTracker* InChunkReferenceTracker, IChunkDataSerialization* InChunkDataSerialization, IMessagePump* InMessagePump, IInstallerError* InInstallerError, IChunkDbChunkSourceStat* InChunkDbChunkSourceStat)
@@ -359,7 +378,12 @@ namespace BuildPatchServices
 		TArray<FGuid> OrderedGuidList;
 		InChunkReferenceTracker->CopyOutOrderedUseList(OrderedGuidList);
 
+		OriginalChunkCount = OrderedGuidList.Num();
+
 		LoadChunkDbFiles(Configuration.ChunkDbFiles, FileSystem, OrderedGuidList, ChunkDbDataAccesses, ChunkDbDataAccessLookup, &AvailableChunks);
+
+		// Immediately retire any chunkdbs we don't need so they don't eat disk space during the first file.
+		FChunkDbChunkSource::ReportFileCompletion();
 
 		// Start threaded load worker.
 		if (ChunkDbDataAccesses.Num() > 0)

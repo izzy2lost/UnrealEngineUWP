@@ -1256,13 +1256,12 @@ namespace BuildPatchServices
 		int32 CurrentPosition = 0;
 
 		TArray<int32> FileCompletionPositions;
-		TArray<FString> OrderedFiles;
-
 		for (const FString& FileToConstruct : FilesToConstruct)
 		{
 			const FFileManifest* FileManifest = ManifestSet->GetNewFileManifest(FileToConstruct);
 			if (!FileManifest)
 			{
+				// This is an error condition that will fail to install, but we don't want to crash here...
 				continue;
 			}
 
@@ -1271,61 +1270,15 @@ namespace BuildPatchServices
 
 			CurrentPosition += AdvanceCount;
 
-			OrderedFiles.Add(FileToConstruct);
 			FileCompletionPositions.Add(CurrentPosition);
 		}
 
 		TArray<uint64> ChunkDbSizesAtPosition;
 		uint64 TotalChunkDbSize = IChunkDbChunkSource::GetChunkDbSizesAtIndexes(ChunkDbFiles, FileSystem, ReferenceChain, FileCompletionPositions, ChunkDbSizesAtPosition);
 
-		uint64 TotalDeletedSize = 0;
-		uint64 TotalWrittenSize = 0;
-
-		uint64 MaxDiskSize = 0;
-
-		int32 MaxDiskSizeFileIndex = 0;
-		int32 FileIndex = 0;
-
-		// We start off with full chunk db size.
-		uint64 TotalChunkDbSizeAtLastFile = TotalChunkDbSize;
-
-		for (uint64 FileSize : ChunkDbSizesAtPosition)
-		{
-			// We've completed this file:
-			const FFileManifest* IncomingFileManifest = ManifestSet->GetNewFileManifest(OrderedFiles[FileIndex]);
-			uint64 NewFileSize = 0;
-			if (IncomingFileManifest)
-			{
-				NewFileSize = IncomingFileManifest->FileSize;
-			}
-
-			TotalWrittenSize += NewFileSize;
-
-			// We delete the chunkdbs _after_ we write the output so we can't use this size until 
-			// the next file gets done. Be sure to handle the case where we've deleted so much data
-			// we are below the waterline.
-			if (TotalDeletedSize < (TotalWrittenSize + TotalChunkDbSizeAtLastFile) &&
-				(TotalChunkDbSizeAtLastFile + TotalWrittenSize - TotalDeletedSize) > MaxDiskSize)
-			{
-				MaxDiskSize = TotalChunkDbSizeAtLastFile + TotalWrittenSize - TotalDeletedSize;
-				MaxDiskSizeFileIndex = FileIndex;
-			}
-
-			//UE_LOG(LogTemp, Display, TEXT("Max disk use %llu (total written: %llu -- total deleted: +%llu)"), MaxDiskSize, TotalWrittenSize, TotalDeletedSize);
-
-			// If we are patching, we can now delete the output file, which decreases our disk presence, however
-			// we update this after the check because we can't delete until after we have the file fully constructed.
-			const FFileManifest* OnDiskFileManifest = ManifestSet->GetCurrentFileManifest(FilesToConstruct[FileIndex]);
-			if (OnDiskFileManifest)
-			{
-				TotalDeletedSize += OnDiskFileManifest->FileSize;
-			}
-
-			FileIndex++;
-			TotalChunkDbSizeAtLastFile = FileSize;
-		}
-
-		//UE_LOG(LogTemp, Display, TEXT("Max disk use %llu (install size: %llu: +%llu) after file %s"), MaxDiskSize, TotalWrittenSize, MaxDiskSize - TotalWrittenSize, *OrderedFiles[AtFile]);
+		uint64 MaxDiskSize = FBuildPatchUtils::CalculateDiskSpaceRequirementsWithDeleteDuringInstall(
+			FilesToConstruct, 0, ManifestSet,
+			ChunkDbSizesAtPosition, TotalChunkDbSize);
 
 		return MaxDiskSize;
 	}
@@ -1582,9 +1535,8 @@ namespace BuildPatchServices
 			FCC.SharedContext = Configuration.SharedContext.Get();
 			FCC.StagingDirectory = InstallStagingDir;
 
-
 			TUniquePtr<FBuildPatchFileConstructor> FileConstructor(
-				new FBuildPatchFileConstructor(FCC, FileSystem.Get(), ChainedChunkSource.Get(), ChunkReferenceTracker.Get(), InstallerError.Get(),InstallerAnalytics.Get(),FileConstructorStatistics.Get())
+				new FBuildPatchFileConstructor(FCC, FileSystem.Get(), ChainedChunkSource.Get(), ChunkDbChunkSource.Get(), ChunkReferenceTracker.Get(), InstallerError.Get(),InstallerAnalytics.Get(),FileConstructorStatistics.Get())
 			);
 			FDelegateHandle OnBeforeDeleteFileHandle = FileConstructor->OnBeforeDeleteFile().AddLambda([this, &InstallChunkSource](const FString& FilePath)
 			{
