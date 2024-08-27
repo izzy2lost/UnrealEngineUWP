@@ -851,9 +851,12 @@ int32 FTimingExporter::ExportTimerCalleesAsText(const FString& Filename, const F
 
 		const bool bIncludeGpu = Params.ThreadFilter(FGpuTimingTrack::Gpu1ThreadId) || Params.ThreadFilter(FGpuTimingTrack::Gpu2ThreadId);
 	
+		// The region end interval may be inf if the capture ended before the region was closed.
+		const double ClampedEndTime = FMath::Min(Session.GetDurationSeconds(), Params.IntervalEndTime);
+
 		return TUniquePtr<TraceServices::ITimingProfilerButterfly>
 		{
-			TimingProfilerProvider->CreateButterfly(Params.IntervalStartTime, Params.IntervalEndTime, Params.ThreadFilter, bIncludeGpu)
+			TimingProfilerProvider->CreateButterfly(Params.IntervalStartTime, ClampedEndTime, Params.ThreadFilter, bIncludeGpu)
 		};
 	}();
 
