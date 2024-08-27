@@ -56,6 +56,8 @@ namespace BuildPatchServices
 		EInstallMode InstallMode;
 
 		IBuildInstallerSharedContext* SharedContext;
+
+		bool bDeleteChunkDBFilesAfterUse = false;
 	};
 
 	/**
