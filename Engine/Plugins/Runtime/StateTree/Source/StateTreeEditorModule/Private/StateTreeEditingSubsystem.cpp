@@ -10,6 +10,19 @@
 #include "StateTreeEditorModule.h"
 #include "StateTreeObjectHash.h"
 #include "StateTreeTaskBase.h"
+#include "UObject/UObjectGlobals.h"
+
+
+UStateTreeEditingSubsystem::UStateTreeEditingSubsystem()
+{
+	PostGarbageCollectHandle = FCoreUObjectDelegates::GetPostGarbageCollect().AddUObject(this, &UStateTreeEditingSubsystem::HandlePostGarbageCollect);
+}
+
+void UStateTreeEditingSubsystem::BeginDestroy()
+{
+	FCoreUObjectDelegates::GetPostGarbageCollect().Remove(PostGarbageCollectHandle);
+	Super::BeginDestroy();
+}
 
 bool UStateTreeEditingSubsystem::CompileStateTree(const TNonNullPtr<UStateTree> InStateTree, FStateTreeCompilerLog& InOutLog)
 {
@@ -41,12 +54,24 @@ bool UStateTreeEditingSubsystem::CompileStateTree(const TNonNullPtr<UStateTree> 
 
 TSharedRef<FStateTreeViewModel> UStateTreeEditingSubsystem::FindOrAddViewModel(const TNonNullPtr<UStateTree> InStateTree)
 {
-	if(TSharedPtr<FStateTreeViewModel>* ModelPtr = StateTreeViewModels.Find(InStateTree.Get()))
+	const FObjectKey StateTreeKey = InStateTree;
+	TSharedPtr<FStateTreeViewModel> ViewModelPtr = StateTreeViewModels.FindRef(StateTreeKey);
+	if (ViewModelPtr)
 	{
-		return ModelPtr->ToSharedRef();
+		// The StateTree could be re-instantiated. Can occur when the object is destroyed and recreated in a pool or when reloaded in editor.
+		//The object might have the same pointer value or the same path but it's a new object and all weakptr are now invalid.
+		if (ViewModelPtr->GetStateTree() == InStateTree)
+		{
+			return ViewModelPtr.ToSharedRef();
+		}
+		else
+		{
+			StateTreeViewModels.Remove(StateTreeKey);
+			ViewModelPtr = nullptr;
+		}
 	}
 
-	TSharedRef<FStateTreeViewModel> SharedModel = StateTreeViewModels.Add(InStateTree.Get(), MakeShared<FStateTreeViewModel>()).ToSharedRef();
+	TSharedRef<FStateTreeViewModel> SharedModel = StateTreeViewModels.Add(StateTreeKey, MakeShared<FStateTreeViewModel>()).ToSharedRef();
 	UStateTreeEditorData* EditorData = Cast<UStateTreeEditorData>(InStateTree->EditorData);
 	if (EditorData == nullptr)
 	{
@@ -285,4 +310,20 @@ uint32 UStateTreeEditingSubsystem::CalculateStateTreeHash(const TNonNullPtr<cons
 	}
 
 	return EditorDataHash;
+}
+
+void UStateTreeEditingSubsystem::HandlePostGarbageCollect()
+{
+	// Remove the stale viewmodels
+	for (TMap<FObjectKey, TSharedPtr<FStateTreeViewModel>>::TIterator It(StateTreeViewModels); It; ++It)
+	{
+		if (!It.Key().ResolveObjectPtr())
+		{
+			It.RemoveCurrent();
+		}
+		else if (!It.Value() || !It.Value()->GetStateTree())
+		{
+			It.RemoveCurrent();
+		}
+	}
 }
