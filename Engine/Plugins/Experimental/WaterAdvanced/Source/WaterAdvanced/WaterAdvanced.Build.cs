@@ -34,7 +34,8 @@ public class WaterAdvanced : ModuleRules
 				"Water",
 				"DeveloperSettings",
 				"Projects",
-				"GameplayTags"
+				"GameplayTags",
+				"Landscape"
 			}
 		);
 

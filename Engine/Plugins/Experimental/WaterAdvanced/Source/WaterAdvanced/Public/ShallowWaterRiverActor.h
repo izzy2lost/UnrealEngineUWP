@@ -6,7 +6,7 @@
 #include "Engine/EngineTypes.h"
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
-
+#include "BakedShallowWaterSimulationComponent.h"
 #include "Math/Float16Color.h"
 #include "CoreMinimal.h"
 #include "Engine/EngineTypes.h"
@@ -20,6 +20,15 @@ class UNiagaraComponent;
 class UNiagaraSystem;
 class AWaterBody;
 class UTextureRenderTarget2D;
+
+UENUM(BlueprintType)
+enum EShallowWaterRenderState : int
+{
+	WaterComponent,
+	LiveSim,
+	BakedSim
+};
+
 
 UCLASS(BlueprintType, HideCategories = (Physics, Replication, Input, Collision))
 class WATERADVANCED_API UShallowWaterRiverComponent : public UPrimitiveComponent
@@ -50,18 +59,21 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Water", meta = (DisplayName = "Additional River Water Bodies"))
 	TArray<TObjectPtr<AWaterBody>> AdditonalRiverWaterBodies;
-
-	UPROPERTY(EditAnywhere, Category = "Baking", meta = (DisplayName = "Preview Baked Sim"))
-	bool PreviewBakedSim = false;
+	
+	UPROPERTY(EditAnywhere, Category = "Rendering", meta = (DisplayName = "Render State"))
+	TEnumAsByte<EShallowWaterRenderState> RenderState = EShallowWaterRenderState::WaterComponent;
 
 	UPROPERTY(EditAnywhere, Category = "Shallow Water")
 	TObjectPtr<UTexture2D> BakedWaterSurfaceTexture;
+	
+	UPROPERTY(EditAnywhere, Category = "Collisions")
+	bool bUseCapture = false;
 
 	UPROPERTY(EditAnywhere, Category = "Collisions")
 	TArray<TObjectPtr<AActor>> BottomContourActors;
 
 	UPROPERTY(EditAnywhere, Category = "Collisions")
-	float BottomContourCaptureOffset = 0.f;
+	float BottomContourCaptureOffset = 1000.f;
 
 	virtual void PostLoad() override;
 
@@ -89,6 +101,9 @@ protected:
 	UPROPERTY(BlueprintReadOnly, VisibleDefaultsOnly, Category = "Shallow Water")
 	TObjectPtr<UTextureRenderTarget2D> BakedWaterSurfaceRT;
 
+	UPROPERTY(BlueprintReadOnly, VisibleDefaultsOnly, Category = "Shallow Water")
+	TObjectPtr<UBakedShallowWaterSimulationComponent> BakedSim;
+
 	bool QueryWaterAtSplinePoint(TObjectPtr<AWaterBody> WaterBody, int SplinePoint, FVector& OutPos, FVector& OutTangent, float& OutWidth, float& OutDepth);
 
 private:
@@ -103,9 +118,6 @@ private:
 
 	UPROPERTY()
 	FVector SystemPos;
-
-	UPROPERTY()
-	TArray<FVector4> ShallowWaterSimArrayValues;
 };
 
 UCLASS(BlueprintType, HideCategories = (Physics, Replication, Input, Collision))
