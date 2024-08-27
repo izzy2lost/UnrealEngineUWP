@@ -13,9 +13,7 @@ class SViewportToolBarComboMenu;
 
 namespace UE::ImageWidgets
 {
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 	class FImageABComparison;
-#endif
 	class FImageViewportClient;
 
 	/**
@@ -39,9 +37,7 @@ namespace UE::ImageWidgets
 			FHasImage HasImage;
 			FNumMips NumMips;
 			FImageGuid ImageGuid;
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 			FImageABComparison* ABComparison = nullptr;
-#endif
 			TSharedPtr<FExtender> ToolbarExtender;
 		};
 		
@@ -50,11 +46,7 @@ namespace UE::ImageWidgets
 
 	private:
 		TSharedRef<SWidget> MakeLeftToolbar(const TSharedPtr<FExtender>& Extender);
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 		TSharedRef<SWidget> MakeCenterToolbar(const TSharedPtr<FExtender>& Extender, bool bEnableABComparison);
-#else
-		TSharedRef<SWidget> MakeCenterToolbar(const TSharedPtr<FExtender>& Extender);
-#endif
 		TSharedRef<SWidget> MakeRightToolbar(const TSharedPtr<FExtender>& Extender);
 
 		EVisibility GetMipMenuVisibility() const;
@@ -70,8 +62,6 @@ namespace UE::ImageWidgets
 		FHasImage HasImage;
 		FNumMips NumMips;
 		FImageGuid ImageGuid;
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 		FImageABComparison* ABComparison = nullptr;
-#endif
 	};
 }

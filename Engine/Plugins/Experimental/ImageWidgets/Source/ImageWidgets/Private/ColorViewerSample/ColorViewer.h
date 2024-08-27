@@ -61,10 +61,8 @@ namespace UE::ImageWidgets::Sample
 		virtual void DrawCurrentImage(FViewport* Viewport, FCanvas* Canvas, const FDrawProperties& Properties) override;
 		virtual TOptional<TVariant<FColor, FLinearColor>> GetCurrentImagePixelColor(FIntPoint PixelCoords, int32 MipLevel) const override;
 		virtual void OnImageSelected(const FGuid& Guid) override;
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 		virtual bool IsValidImage(const FGuid& Guid) const override;
 		virtual FText GetImageName(const FGuid& Guid) const override;
-#endif
 		// IImageViewer overrides - end
 
 		/** Adds a color item. */

@@ -51,9 +51,7 @@ namespace UE::ImageWidgets::Sample
 									.bBackgroundColorEnabled = false,
 									.bBackgroundCheckerEnabled = false
 								})
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 								.bABComparisonEnabled(true)
-#endif
 						]
 			];
 	}
@@ -100,12 +98,7 @@ namespace UE::ImageWidgets::Sample
 
 	TTuple<FText, FText, FText> GetColorItemMetaData(const FColorViewer& ColorViewer, const FColorViewer::FColorItem* ColorItem)
 	{
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 		const FText Name = ColorViewer.GetImageName(ColorItem->Guid);
-#else
-		const FString HexColor = FString::Printf(TEXT("#%02X%02X%02X"), ColorItem->Color.R, ColorItem->Color.G, ColorItem->Color.B);
-		const FText Name = FText::FromString(HexColor);
-#endif
 
 		const FText Info = FText::Format(
 			LOCTEXT("ColorEntryInfoLabel", "{0}"), FText::AsTime(ColorItem->DateTime, EDateTimeStyle::Short, FText::GetInvariantTimeZone()));

@@ -10,9 +10,7 @@ class SViewportToolBar;
 
 namespace UE::ImageWidgets
 {
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 	class FImageABComparison;
-#endif
 	class FImageViewportClient;
 	class FStatusBarExtension;
 	class IImageViewer;
@@ -118,12 +116,8 @@ namespace UE::ImageWidgets
 		DECLARE_DELEGATE(FOnLeftMouseButtonReleased);
 
 		SLATE_BEGIN_ARGS(SImageViewport)
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 			: _bABComparisonEnabled(false)
 			, _MouseCaptureMode(EMouseCaptureMode::CapturePermanently)
-#else
-			: _MouseCaptureMode(EMouseCaptureMode::CapturePermanently)
-#endif
 			{
 			}
 
@@ -136,10 +130,8 @@ namespace UE::ImageWidgets
 			/** Settings for drawing viewport contents other than the actual image */
 			SLATE_ATTRIBUTE(FDrawSettings, DrawSettings)
 
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 			/** Enables AB comparison controls in the toolbar */
 			SLATE_ARGUMENT(bool, bABComparisonEnabled)
-#endif
 
 			/** Settings for controlling the viewport */
 			SLATE_ARGUMENT(FControllerSettings, ControllerSettings)
@@ -231,13 +223,11 @@ namespace UE::ImageWidgets
 		/** Makes the draw setting available either as fixed values or via a callback to the outside of the viewport. */
 		TAttribute<FDrawSettings> DrawSettings;
 
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 		/** Flag that determines is AB comparison widgets are enabled or not. The value does not change after the call to @see Construct(). */
 		bool bABComparisonEnabled = false;
 
 		/** Data and logic related to AB comparisons. This is effectively unused when @see bABComparisonEnabled is set to false. */
 		TPimplPtr<FImageABComparison> ABComparison;
-#endif
 
 		/** The image viewer that holds and draws the actual images. */
 		TSharedPtr<IImageViewer> ImageViewer;

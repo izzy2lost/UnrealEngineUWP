@@ -2,8 +2,6 @@
 
 #pragma once
 
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
-
 #include "Delegates/Delegate.h"
 #include "Internationalization/Text.h"
 #include "Misc/Guid.h"
@@ -83,6 +81,3 @@ namespace UE::ImageWidgets
 		FGetImageName GetImageName;
 	};
 }
-#else
-#pragma message("Do not include this header!")
-#endif

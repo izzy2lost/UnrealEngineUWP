@@ -68,7 +68,6 @@ namespace UE::ImageWidgets
 				float MipLevel;
 			};
 
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 			/**
 			 * Information necessary for rendering AB comparisons.
 			 */
@@ -91,13 +90,10 @@ namespace UE::ImageWidgets
 				 */
 				double Threshold;
 			};
-#endif
 
 			FPlacement Placement;
 			FMip Mip;
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 			FABComparison ABComparison;
-#endif
 		};
 
 		/**
@@ -131,7 +127,6 @@ namespace UE::ImageWidgets
 		 */
 		virtual void OnImageSelected(const FGuid& Guid) = 0;
 
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 		/**
 		 * Returns if a given GUID represents a currently available image.
 		 * @param Guid Unique identifier of the potentially available image
@@ -145,7 +140,6 @@ namespace UE::ImageWidgets
 		 * @return Name of the image if the GUID represents a currently available image
 		 */
 		virtual FText GetImageName(const FGuid& Guid) const = 0;
-#endif
 
 	protected:
 		~IImageViewer() = default;

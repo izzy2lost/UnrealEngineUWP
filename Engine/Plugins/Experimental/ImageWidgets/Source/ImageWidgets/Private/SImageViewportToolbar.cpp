@@ -2,9 +2,7 @@
 
 #include "SImageViewportToolbar.h"
 
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 #include "ImageABComparison.h"
-#endif
 #include "ImageViewportClient.h"
 #include "ImageWidgetsCommands.h"
 #include "SEditorViewportToolBarMenu.h"
@@ -38,9 +36,7 @@ namespace UE::ImageWidgets
 		check(NumMips.IsBound());
 		check(ImageGuid.IsBound());
 
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 		ABComparison = Parameters.ABComparison;
-#endif
 
 		ChildSlot
 		[
@@ -58,11 +54,7 @@ namespace UE::ImageWidgets
 				  .FillWidth(1.0f)
 				  .HAlign(HAlign_Center)
 				[
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
-MakeCenterToolbar(Parameters.ToolbarExtender, ABComparison != nullptr)
-#else
-					MakeCenterToolbar(Parameters.ToolbarExtender)
-#endif
+					MakeCenterToolbar(Parameters.ToolbarExtender, ABComparison != nullptr)
 				]
 				+ SHorizontalBox::Slot()
 				  .AutoWidth()
@@ -121,7 +113,6 @@ MakeCenterToolbar(Parameters.ToolbarExtender, ABComparison != nullptr)
 		return ToolbarBuilder.MakeWidget();
 	}
 
-	#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 	TSharedRef<SWidget> SImageViewportToolbar::MakeCenterToolbar(const TSharedPtr<FExtender>& Extender, bool bEnableABComparison)
 	{
 		FSlimHorizontalToolBarBuilder ToolbarBuilder = GetToolbarBuilder(CommandList, Extender);
@@ -183,23 +174,6 @@ MakeCenterToolbar(Parameters.ToolbarExtender, ABComparison != nullptr)
 
 		return ToolbarBuilder.MakeWidget();
 	}
-#else
-	TSharedRef<SWidget> SImageViewportToolbar::MakeCenterToolbar(const TSharedPtr<FExtender>& Extender)
-	{
-		FSlimHorizontalToolBarBuilder ToolbarBuilder = GetToolbarBuilder(CommandList, Extender);
-
-		ToolbarBuilder.BeginSection("ToolbarCenter");
-		{
-			// This is deliberately left empty.
-			// Toolbar extenders use this section to add additional widgets.
-		}
-		ToolbarBuilder.EndSection();
-
-		ToolbarBuilder.AddSeparator();
-
-		return ToolbarBuilder.MakeWidget();
-	}
-#endif
 
 	TSharedRef<SWidget> SImageViewportToolbar::MakeRightToolbar(const TSharedPtr<FExtender>& Extender)
 	{

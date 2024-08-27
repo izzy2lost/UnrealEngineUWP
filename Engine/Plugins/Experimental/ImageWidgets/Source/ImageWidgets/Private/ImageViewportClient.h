@@ -27,10 +27,8 @@ namespace UE::ImageWidgets
 		FImageViewportClient(const TWeakPtr<SEditorViewport>& InViewport, FGetImageSize&& InGetImageSize, FDrawImage&& InDrawImage,
 		                     FGetDrawSettings&& InGetDrawSettings, FGetDPIScaleFactor&& InGetDPIScaleFactor,
 		                     FOnLeftMouseButtonPressed&& InOnLeftMouseButtonPressed, FOnLeftMouseButtonReleased&& InOnLeftMouseButtonReleased,
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
-							 const FImageABComparison* ABComparison,
-#endif
-		                     SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode, EMouseCaptureMode InMouseCaptureMode = EMouseCaptureMode::CapturePermanently);
+		                     const FImageABComparison* ABComparison, SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode,
+		                     EMouseCaptureMode InMouseCaptureMode);
 		virtual ~FImageViewportClient() override;
 
 		virtual void Draw(FViewport* InViewport, FCanvas* Canvas) override;
@@ -68,9 +66,7 @@ namespace UE::ImageWidgets
 		IImageViewer::FDrawProperties::FMip GetMipProperties() const;
 
 		void CreateOrDestroyCheckerTextureIfSettingsChanged(const SImageViewport::FDrawSettings& DrawSettings);
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 		bool MouseIsOverABComparisonDivider(FIntPoint MousePos) const;
-#endif
 
 		FVector2d GetViewportSizeWithDPIScaling() const;
 		
@@ -80,9 +76,7 @@ namespace UE::ImageWidgets
 		FGetDPIScaleFactor GetDPIScaleFactor;
 		FOnLeftMouseButtonPressed OnLeftMouseButtonPressed;
 		FOnLeftMouseButtonReleased OnLeftMouseButtonReleased;
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 		const FImageABComparison* ABComparison;
-#endif
 		
 		bool bDragging = false;
 		FIntPoint DraggingStart;
@@ -98,10 +92,8 @@ namespace UE::ImageWidgets
 		TStrongObjectPtr<UTexture2D> CheckerTexture;
 		FCheckerTextureSettings CachedCheckerTextureSettings;
 
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 		double ABComparisonDivider = 0.5;
 		bool bDraggingABComparisonDivider = false;
-#endif
 		
 		EMouseCaptureMode MouseCaptureMode;
 	};

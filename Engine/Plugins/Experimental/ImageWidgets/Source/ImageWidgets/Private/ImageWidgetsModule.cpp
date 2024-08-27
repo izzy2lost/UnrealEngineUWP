@@ -37,7 +37,7 @@ namespace UE::ImageWidgets
 
 	private:
 		TSharedRef<SDockTab> MakeColorViewerTab(const FSpawnTabArgs&);
-		TSharedRef<SWidget> GetColorViewer(const TSharedRef<SDockTab>& InParentTab);
+		TSharedRef<SWidget> GetColorViewer();
 
 		bool bHasRegisteredTabSpawners = false;
 		TWeakPtr<Sample::SColorViewerWidget> ColorViewerPtr;
@@ -91,11 +91,11 @@ namespace UE::ImageWidgets
 	{
 		TSharedRef<SDockTab> WidgetReflectorTab = SNew(SDockTab)
 			.TabRole(NomadTab);
-		WidgetReflectorTab->SetContent(GetColorViewer(WidgetReflectorTab));
+		WidgetReflectorTab->SetContent(GetColorViewer());
 		return WidgetReflectorTab;
 	}
 
-	TSharedRef<SWidget> FImageWidgetsModule::GetColorViewer(const TSharedRef<SDockTab>& InParentTab)
+	TSharedRef<SWidget> FImageWidgetsModule::GetColorViewer()
 	{
 		TSharedPtr<Sample::SColorViewerWidget> ColorViewer = ColorViewerPtr.Pin();
 

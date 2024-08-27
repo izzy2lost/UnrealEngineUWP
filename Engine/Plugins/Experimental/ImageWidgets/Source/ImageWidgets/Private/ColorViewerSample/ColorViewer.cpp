@@ -22,7 +22,6 @@ namespace UE::ImageWidgets::Sample
 
 	void FColorViewer::DrawCurrentImage(FViewport* Viewport, FCanvas* Canvas, const FDrawProperties& Properties)
 	{
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 		if (Properties.ABComparison.IsActive())
 		{
 			DrawImage(Properties.ABComparison.GuidA.B, Canvas, Properties.Placement, {0.0, 0.0}, {Properties.ABComparison.Threshold, 1.0});
@@ -30,11 +29,8 @@ namespace UE::ImageWidgets::Sample
 		}
 		else
 		{
-#endif
 			DrawImage(SelectedColorIndex, Canvas, Properties.Placement, {0.0, 0.0}, {1.0, 1.0});
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 		}
-#endif
 	}
 
 	TOptional<TVariant<FColor, FLinearColor>> FColorViewer::GetCurrentImagePixelColor(FIntPoint PixelCoords, int32 MipLevel) const
@@ -56,7 +52,6 @@ namespace UE::ImageWidgets::Sample
 		}
 	}
 
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 	bool FColorViewer::IsValidImage(const FGuid& Guid) const
 	{
 		return ColorIsValid(Guid.B) && Colors[Guid.B].Guid == Guid;
@@ -72,7 +67,6 @@ namespace UE::ImageWidgets::Sample
 		}
 		return {};
 	}
-#endif
 
 	const FColorViewer::FColorItem* FColorViewer::AddColor()
 	{
