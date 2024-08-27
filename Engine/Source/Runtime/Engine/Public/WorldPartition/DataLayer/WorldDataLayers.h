@@ -245,6 +245,14 @@ protected:
 	ENGINE_API void OnRep_EffectiveLoadedDataLayerNames();
 
 private:
+	enum class ESetDataLayerRuntimeStateError
+	{
+		NotRuntime,
+		ClientOnlyFromServer,
+		ServerOnlyFromClient,
+		AuthoritativeFromClient
+	};
+
 	ENGINE_API const FWorldDataLayersEffectiveStates& GetEffectiveStates() const;
 
 	// External Data Layers
@@ -261,6 +269,7 @@ private:
 	ENGINE_API void OnDataLayerManagerDeinitialized();
 	ENGINE_API void ResolveEffectiveRuntimeState(const UDataLayerInstance* InDataLayer, bool bInNotifyChange = true);
 	ENGINE_API void DumpDataLayerRecursively(const UDataLayerInstance* DataLayer, FString Prefix, FOutputDevice& OutputDevice) const;
+	bool CanChangeDataLayerRuntimeState(const UDataLayerInstance* InDataLayerInstance, ESetDataLayerRuntimeStateError* OutReason = nullptr) const;
 
 	//~ Begin IDataLayerInstanceProvider interface
 	ENGINE_API virtual TSet<TObjectPtr<UDataLayerInstance>>& GetDataLayerInstances() override;
