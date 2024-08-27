@@ -121,7 +121,7 @@ private:
 	TObjectPtr<UDataflowSimulationSceneDescription> SceneDescription;
 
 	/** Simulation generator to record the simulation result */
-	TSharedPtr<Dataflow::FDataflowSimulationGenerator> SimulationGenerator;
+	TSharedPtr<UE::Dataflow::FDataflowSimulationGenerator> SimulationGenerator;
 
 	/** Cache time range in seconds */
 	FVector2f TimeRange;

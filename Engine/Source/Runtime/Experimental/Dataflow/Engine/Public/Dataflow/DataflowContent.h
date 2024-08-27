@@ -5,7 +5,9 @@
 #include "DataflowContextObject.h"
 #include "UObject/Interface.h"
 #include "Templates/SharedPointer.h"
+#include "GameFramework/Actor.h"
 #include "DataflowContent.generated.h"
+
 
 class FDataflowEditorToolkit;
 class USkeletalMesh;
@@ -15,7 +17,6 @@ class UAnimationAsset;
 class UDataflowBaseContent;
 class FPreviewScene;
 class UAnimSingleNodeInstance;
-class AActor;
 
 namespace DataflowContextHelpers
 {
@@ -169,7 +170,35 @@ protected:
 
 	/** Preview actor class that could be used to visualize the result */
 	TSubclassOf<AActor> PreviewClass = nullptr;
+
+	/** override actor properties from BP */
+	static void OverrideActorProperty(const TObjectPtr<AActor>& PreviewActor, TObjectPtr<UObject> PropertyValue, const FName& PropertyName);
+
+	/** override struct properties from BP */
+	template<typename StructType>
+	static void OverrideStructProperty(const TObjectPtr<AActor>& PreviewActor, const StructType& PropertyValue, const FName& PropertyName);
 };
+
+template<typename StructType>
+void UDataflowBaseContent::OverrideStructProperty(const TObjectPtr<AActor>& PreviewActor, const StructType& PropertyValue, const FName& PropertyName)
+{
+	if(PreviewActor)
+	{
+		if(const FProperty* DataflowProperty = PreviewActor->GetClass()->FindPropertyByName(PropertyName))
+		{
+			if (const FStructProperty* StructProperty = CastField<FStructProperty>(DataflowProperty))
+			{
+				if(StructProperty->Struct == StructType::StaticStruct())
+				{
+					if(StructType* PropertyStruct = DataflowProperty->ContainerPtrToValuePtr<StructType>(PreviewActor))
+					{
+						(*PropertyStruct) = PropertyValue;
+					}
+				}
+			}
+		}
+	}
+}
 
 /** 
  * Dataflow content owning dataflow and skelmesh assets that that will be used to evaluate the graph

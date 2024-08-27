@@ -101,7 +101,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Render")
 	TObjectPtr<UMaterial> Material = nullptr;
 
-	UPROPERTY(EditAnywhere, Category = "Evaluation")
+	UPROPERTY(EditAnywhere, Category = "Evaluation",meta=(EditConditionHides))
 	EDataflowType Type = EDataflowType::Construction;
 
 public:

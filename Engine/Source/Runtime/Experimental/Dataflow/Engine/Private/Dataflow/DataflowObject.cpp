@@ -12,15 +12,14 @@
 
 #define LOCTEXT_NAMESPACE "UDataflow"
 
-
-namespace Dataflow
+namespace UE::Dataflow::CVars
 {
-	namespace CVars
-	{
-		/** Enable the simulation dataflow (for now WIP) */
-        DATAFLOWENGINE_API bool bEnableSimulationDataflow = false;
-        FAutoConsoleVariableRef CVarEnableSimulationDataflow(TEXT("p.Dataflow.EnableSimulation"), bEnableSimulationDataflow, TEXT("If true enable the use of simulation dataflow (WIP)"));
-	}
+	/** Enable the simulation dataflow (for now WIP) */
+	TAutoConsoleVariable<bool> CVarEnableSimulationDataflow(
+			TEXT("p.Dataflow.EnableSimulation"),
+			false,
+			TEXT("If true enable the use of simulation dataflow (WIP)"),
+			ECVF_Default);
 }
 
 FDataflowAssetEdit::FDataflowAssetEdit(UDataflow* InAsset, FPostEditFunctionCallback InCallback)
@@ -224,7 +223,7 @@ bool UDataflow::CanEditChange(const FProperty* InProperty) const
 
 	if (Name == GET_MEMBER_NAME_CHECKED(ThisClass, Type))
 	{
-		return Dataflow::CVars::bEnableSimulationDataflow == true;
+		return UE::Dataflow::CVars::CVarEnableSimulationDataflow.GetValueOnGameThread();
 	}
 
 	return true;

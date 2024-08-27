@@ -176,6 +176,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		CompleteParallelSimulation_GameThread();
 	}
+	
+	void FClothSimulationProxy::PreSolveProxy(const float DeltaTime)
+	{
+		SetupSimulationData(DeltaTime);
+	}
 
 	bool FClothSimulationProxy::SetupSimulationData(float DeltaTime)
 	{

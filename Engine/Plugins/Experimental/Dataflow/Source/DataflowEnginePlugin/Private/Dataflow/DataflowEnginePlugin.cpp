@@ -29,6 +29,7 @@ IMPLEMENT_MODULE( FDataflowEnginePlugin, DataflowEnginePlugin)
 void FDataflowEnginePlugin::StartupModule()
 {
 	Dataflow::ContextCachingCallbacks();
+	FModuleManager::Get().LoadModule("DataflowSimulation");
 }
 
 

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Components/SkinnedMeshComponent.h"
-#include "Interfaces/DataflowPhysicsSolver.h"
+#include "Dataflow/Interfaces/DataflowPhysicsSolver.h"
 #include "ClothComponent.generated.h"
 
 class UChaosClothAsset;
@@ -153,6 +153,7 @@ protected:
 	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
 #endif // WITH_EDITOR
 	//~ End UObject Interface
 
@@ -190,6 +191,7 @@ protected:
 	virtual void ResetSimulationProxy() override;
 	virtual void WriteToSimulation(const float DeltaTime) override;
 	virtual void ReadFromSimulation(const float DeltaTime) override;
+	virtual void PreProcessSimulation(const float DeltaTime) override;
 	// End IDataflowPhysicsSolverInterface overrides
 
 	/** Override this function for setting up custom simulation proxies when the component is registered. */
@@ -216,7 +218,7 @@ private:
 #endif
 
 	/* Solver dataflow asset used to advance in time */
-	UPROPERTY(EditAnywhere, Category = ClothComponent)
+	UPROPERTY(EditAnywhere, Category = ClothComponent, meta=(EditConditionHides), AdvancedDisplay)
 	FDataflowSimulationAsset SimulationAsset;
 	
 	/** If enabled, and the parent is another Skinned Mesh Component (e.g. another Cloth Component, Poseable Mesh Component, Skeletal Mesh Component, ...etc.), use its pose. */

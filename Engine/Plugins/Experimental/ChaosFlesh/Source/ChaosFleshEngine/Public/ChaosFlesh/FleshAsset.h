@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "ChaosFlesh/ChaosDeformableSolverGroups.h"
 #include "ChaosFlesh/FleshCollection.h"
 #include "Dataflow/DataflowNodeParameters.h"
 #include "Dataflow/DataflowEngineTypes.h"
@@ -161,7 +162,70 @@ public:
 	/** Animation asset used in this asset */
 	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
 	TSoftObjectPtr<UAnimationAsset> PreviewAnimationAsset = nullptr;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverTimingGroup PreviewSolverTiming;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverEvolutionGroup PreviewSolverEvolution;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverCollisionsGroup PreviewSolverCollisions;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverConstraintsGroup PreviewSolverConstraints;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverForcesGroup PreviewSolverForces;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverDebuggingGroup PreviewSolverDebugging;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverMuscleActivationGroup PreviewSolverMuscleActivation;
 	
 #endif // WITH_EDITORONLY_DATA
 
 };
+
+
+/** 
+ * Dataflow content owning dataflow and solver properties that will be used to evaluate the graph
+ */
+UCLASS()
+class CHAOSFLESHENGINE_API  UDataflowFleshContent : public UDataflowSkeletalContent
+{
+	GENERATED_BODY()
+
+public:
+	UDataflowFleshContent();
+	virtual ~UDataflowFleshContent() override {}
+
+	//~ UObject interface
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
+	/** Set all the preview actor exposed properties */
+	virtual void SetActorProperties(TObjectPtr<AActor>& PreviewActor) const override;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverTimingGroup SolverTiming;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverEvolutionGroup SolverEvolution;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverCollisionsGroup SolverCollisions;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverConstraintsGroup SolverConstraints;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverForcesGroup SolverForces;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverDebuggingGroup SolverDebugging;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverMuscleActivationGroup SolverMuscleActivation;
+};
+

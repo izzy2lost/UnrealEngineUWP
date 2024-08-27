@@ -27,6 +27,6 @@ public :
 	FVector2f TimeRange = FVector2f(0.0f, 5.0f);
 
 	/** Boolean to check if the caching will be done on an async thread (if yes no GT dependency) */
-	UPROPERTY(EditAnywhere, Category = "Caching")
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Caching")
 	bool bBackgroundTask = true;
 };

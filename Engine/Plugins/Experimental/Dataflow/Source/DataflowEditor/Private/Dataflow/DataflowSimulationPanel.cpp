@@ -33,7 +33,7 @@ void SDataflowSimulationPanel::Construct( const SDataflowSimulationPanel::FArgum
 	this->ChildSlot
 	[
 		SNew(SHorizontalBox)
-		.AddMetaData<FTagMetaData>(TEXT("ClothAnimScrub.Scrub"))
+		.AddMetaData<FTagMetaData>(TEXT("DataflowSimulationScrub.Scrub"))
 		+SHorizontalBox::Slot()
 		.HAlign(HAlign_Fill) 
 		.VAlign(VAlign_Center)
@@ -136,7 +136,7 @@ FReply SDataflowSimulationPanel::OnClick_Forward_End()
 {
 	if (const TSharedPtr<FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		PreviewScene->SimulationTime = GetSequenceLength();
+		PreviewScene->SimulationTime = PreviewScene->GetTimeRange()[1];
 	}
 
 	return FReply::Handled();
@@ -157,7 +157,7 @@ FReply SDataflowSimulationPanel::OnClick_Backward_End()
 {
 	if (const TSharedPtr<FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		PreviewScene->SimulationTime = 0.0f;
+		PreviewScene->SimulationTime = PreviewScene->GetTimeRange()[0];
 	}
 
 	return FReply::Handled();
@@ -229,23 +229,23 @@ void SDataflowSimulationPanel::OnTickPlayback(double InCurrentTime, float InDelt
 		
 		if(PreviewPlaybackMode == EDataflowPlaybackMode::Looping)
 		{
-			PreviewScene->SimulationTime = SimulationTime - SequenceLength * FMath::Floor(SimulationTime / SequenceLength);
+			PreviewScene->SimulationTime = SimulationTime - SequenceLength * FMath::Floor((SimulationTime-PreviewScene->GetTimeRange()[0]) / SequenceLength);
 		}
 		else
 		{
 			if(PreviewPlaybackMode == EDataflowPlaybackMode::PingPong)
 			{
-				if((PlaybackMode == EPlaybackMode::PlayingForward) && (SimulationTime >= SequenceLength))
+				if((PlaybackMode == EPlaybackMode::PlayingForward) && (SimulationTime >= PreviewScene->GetTimeRange()[1]))
 				{
 					PlaybackMode = EPlaybackMode::PlayingReverse;
 				}
 
-				if((PlaybackMode == EPlaybackMode::PlayingReverse) && (SimulationTime <= 0.0f))
+				if((PlaybackMode == EPlaybackMode::PlayingReverse) && (SimulationTime <= PreviewScene->GetTimeRange()[0]))
 				{
 					PlaybackMode = EPlaybackMode::PlayingForward;
 				}
 			}
-			PreviewScene->SimulationTime = FMath::Clamp(SimulationTime, 0.0f,  SequenceLength);
+			PreviewScene->SimulationTime = FMath::Clamp(SimulationTime, PreviewScene->GetTimeRange()[0],  PreviewScene->GetTimeRange()[1]);
 		}
 	}
 }
@@ -259,7 +259,7 @@ void SDataflowSimulationPanel::OnValueChanged(float NewValue)
 {
 	if (const TSharedPtr<FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		PreviewScene->SimulationTime = NewValue;
+		PreviewScene->SimulationTime = NewValue + PreviewScene->GetTimeRange()[0];
 	}
 }
 
@@ -289,7 +289,7 @@ float SDataflowSimulationPanel::GetScrubValue() const
 {
 	if (const TSharedPtr<const FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		return PreviewScene->SimulationTime;
+		return PreviewScene->SimulationTime-PreviewScene->GetTimeRange()[0];
 	}
 
 	return 0.0f;
@@ -299,7 +299,7 @@ bool SDataflowSimulationPanel::GetDisplayDrag() const
 {
 	if (const TSharedPtr<const FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-			return true;
+		return true;
 	}
 	return false;
 }

@@ -7,7 +7,7 @@
 #include "Math/Transform.h"
 #include "Templates/UniquePtr.h"
 #include "ClothingSystemRuntimeTypes.h"
-#include "Interfaces/DataflowPhysicsSolver.h"
+#include "Dataflow/Interfaces/DataflowPhysicsSolver.h"
 
 namespace Chaos
 {
@@ -83,6 +83,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		float GetLinearSolveError() const { return LastLinearSolveError; }
 		float GetSimulationTime() const { return SimulationTime; }
 		bool IsTeleported() const { return bIsTeleported; }
+		bool HasCacheData() const { return CacheData.IsValid(); }
 
 	protected:
 		void Tick();
@@ -97,6 +98,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Begin FDataflowPhysicsSolverProxy overrides
 		virtual void AdvanceSolverDatas(const float DeltaTime) override {Tick();}
+		virtual void PreSolveProxy(const float DeltaTime);
 		// End FDataflowPhysicsSolverProxy overrides
 
 		// Internal physics thread object

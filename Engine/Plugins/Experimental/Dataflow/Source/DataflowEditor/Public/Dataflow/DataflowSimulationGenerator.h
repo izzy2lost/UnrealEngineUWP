@@ -9,14 +9,13 @@
 #include "Misc/AsyncTaskNotification.h"
 #include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowPreview.h"
-#include "Dataflow/DataflowSimulationUtils.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogDataflowSimulationGenerator, Log, All);
 
 class UChaosCacheCollection;
 class AChaosCacheManager;
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	/** Simulation Task to be run on the async thread */
 	class FDataflowSimulationTask : public FNonAbandonableTask

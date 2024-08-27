@@ -171,12 +171,12 @@ void SDataflowSimulationViewport::OnFloatingButtonClicked()
 
 float SDataflowSimulationViewport::GetViewMinInput() const
 {
-	return GetSimulationScene()->GetTimeRange()[0];
+	return 0.0f;
 }
 
 float SDataflowSimulationViewport::GetViewMaxInput() const
 {
-	return GetSimulationScene()->GetTimeRange()[1];
+	return GetSimulationScene()->GetTimeRange()[1]-GetSimulationScene()->GetTimeRange()[0];
 }
 
 

@@ -75,7 +75,8 @@ void UFleshAsset::Serialize(FArchive& Ar)
 
 TObjectPtr<UDataflowBaseContent> UFleshAsset::CreateDataflowContent()
 {
-	TObjectPtr<UDataflowSkeletalContent> SkeletalContent = DataflowContextHelpers::CreateNewDataflowContent<UDataflowSkeletalContent>(this);
+	TObjectPtr<UDataflowFleshContent> SkeletalContent = NewObject<UDataflowFleshContent>(this, UDataflowFleshContent::StaticClass());
+	SkeletalContent->SetIsSaved(false);
 
 	SkeletalContent->SetDataflowOwner(this);
 	SkeletalContent->SetTerminalAsset(this);
@@ -87,7 +88,7 @@ TObjectPtr<UDataflowBaseContent> UFleshAsset::CreateDataflowContent()
 
 void UFleshAsset::WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const
 {
-	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent))
+	if(const TObjectPtr<UDataflowFleshContent> SkeletalContent = Cast<UDataflowFleshContent>(DataflowContent))
 	{
 		SkeletalContent->SetDataflowAsset(DataflowAsset);
 		SkeletalContent->SetDataflowTerminal(DataflowTerminal);
@@ -97,16 +98,30 @@ void UFleshAsset::WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& D
 
 #if WITH_EDITORONLY_DATA
 		SkeletalContent->SetAnimationAsset(PreviewAnimationAsset.Get());
+		SkeletalContent->SolverTiming = PreviewSolverTiming;
+		SkeletalContent->SolverEvolution = PreviewSolverEvolution;
+		SkeletalContent->SolverCollisions = PreviewSolverCollisions;
+		SkeletalContent->SolverConstraints = PreviewSolverConstraints;
+		SkeletalContent->SolverForces = PreviewSolverForces;
+		SkeletalContent->SolverDebugging = PreviewSolverDebugging;
+		SkeletalContent->SolverMuscleActivation = PreviewSolverMuscleActivation;
 #endif
 	}
 }
 
 void UFleshAsset::ReadDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent)
 {
-	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent))
+	if(const TObjectPtr<UDataflowFleshContent> SkeletalContent = Cast<UDataflowFleshContent>(DataflowContent))
 	{
 #if WITH_EDITORONLY_DATA
 		PreviewAnimationAsset = SkeletalContent->GetAnimationAsset();
+		PreviewSolverTiming = SkeletalContent->SolverTiming;
+		PreviewSolverEvolution = SkeletalContent->SolverEvolution;
+		PreviewSolverCollisions = SkeletalContent->SolverCollisions;
+		PreviewSolverConstraints = SkeletalContent->SolverConstraints;
+		PreviewSolverForces = SkeletalContent->SolverForces;
+		PreviewSolverDebugging = SkeletalContent->SolverDebugging;
+		PreviewSolverMuscleActivation = SkeletalContent->SolverMuscleActivation;
 #endif
 	}
 }
@@ -136,5 +151,33 @@ void UFleshAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedE
 	InvalidateDataflowContents();
 }
 #endif //if WITH_EDITOR
+
+UDataflowFleshContent::UDataflowFleshContent() : Super()
+{
+	bHideSkeletalMesh = false;
+	bHideAnimationAsset = false;
+}
+
+void UDataflowFleshContent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
+{
+	Super::AddReferencedObjects(InThis, Collector);
+	UDataflowFleshContent* This = CastChecked<UDataflowFleshContent>(InThis);
+	Super::AddReferencedObjects(InThis, Collector);
+}
+
+void UDataflowFleshContent::SetActorProperties(TObjectPtr<AActor>& PreviewActor) const
+{
+	Super::SetActorProperties(PreviewActor);
+	OverrideStructProperty(PreviewActor, SolverTiming, TEXT("SolverTiming"));
+	OverrideStructProperty(PreviewActor, SolverEvolution, TEXT("SolverEvolution"));
+	OverrideStructProperty(PreviewActor, SolverCollisions, TEXT("SolverCollisions"));
+	OverrideStructProperty(PreviewActor, SolverConstraints, TEXT("SolverConstraints"));
+	OverrideStructProperty(PreviewActor, SolverForces, TEXT("SolverForces"));
+	OverrideStructProperty(PreviewActor, SolverDebugging, TEXT("SolverDebugging"));
+	OverrideStructProperty(PreviewActor, SolverMuscleActivation, TEXT("SolverMuscleActivation"));
+}
+
+
+
 
 

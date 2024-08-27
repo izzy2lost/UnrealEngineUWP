@@ -2,6 +2,8 @@
 
 #include "Dataflow/DataflowSimulationGenerator.h"
 #include "Dataflow/DataflowSimulationManager.h"
+#include "Dataflow/DataflowSimulationControls.h"
+#include "Dataflow/DataflowSimulationUtils.h"
 #include "Chaos/CacheManagerActor.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
@@ -11,12 +13,13 @@ DEFINE_LOG_CATEGORY(LogDataflowSimulationGenerator);
 
 #define LOCTEXT_NAMESPACE "DataflowSimulationGenerator"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 void FDataflowSimulationTask::DoWork()
 {
+	const int32 StartFrame = bBackgroundTask ? 1 : 0;
 	const int32 NumFrames = (MaxTime-MinTime) / DeltaTime;
-	for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
+	for (int32 FrameIndex = StartFrame; FrameIndex < NumFrames; ++FrameIndex)
 	{
 		if (!TaskManager->bCancelled.load())
 		{
@@ -25,9 +28,20 @@ void FDataflowSimulationTask::DoWork()
 
 			if(bBackgroundTask)
 			{
+				// Compute all the skelmesh animations at the simulation time
+				Dataflow::ComputeSkeletonAnimation(TaskManager->PreviewActor, SimulationTime);
+				
 				// Background task : run directly the advance simulation data without coming back to the game thread
 				UDataflowSimulationManager* DataflowManager = SimulationWorld->GetSubsystem<UDataflowSimulationManager>();
-                DataflowManager->AdvanceSimulationData(DeltaTime, SimulationTime);
+
+				// Pre advance the proxies
+				DataflowManager->PreAdvanceProxies(DeltaTime);
+
+				// Advance the simulation proxies
+                DataflowManager->AdvanceSimulationProxies(DeltaTime, SimulationTime);
+
+				// Post advanc e the simulation proxies
+				DataflowManager->PostAdvanceProxies(DeltaTime);
 			}
 			else
 			{
@@ -59,6 +73,7 @@ bool FDataflowTaskManager::AllocateSimulationResource(const FVector2f& TimeRange
 	CacheManager = SimulationWorld->SpawnActor<AChaosCacheManager>();
 
 	PreviewActor = Dataflow::SpawnSimulatedActor(ActorClass, CacheManager, CacheAsset, true, DataflowContent);
+	Dataflow::SetupSkeletonAnimation(PreviewActor);
 
 	// Init the cache manager
 	CacheManager->SetObservedComponentProperties(CacheManager->CacheMode);
@@ -77,10 +92,19 @@ bool FDataflowTaskManager::AllocateSimulationResource(const FVector2f& TimeRange
 		SimulationTask->GetTask().DeltaTime = (TimeRange[1]-TimeRange[0]) / NumFrames;
 
 		UDataflowSimulationManager* DataflowManager = SimulationWorld->GetSubsystem<UDataflowSimulationManager>();
+		if(SimulationTask->GetTask().bBackgroundTask)
+		{
+			// Update all the skelmesh animations at the simulation time
+			Dataflow::UpdateSkeletonAnimation(PreviewActor, SimulationTask->GetTask().MinTime+SimulationTask->GetTask().DeltaTime);
+				
+			// Foreground task : Run the world ticking 
+			SimulationWorld->Tick(ELevelTick::LEVELTICK_All, SimulationTask->GetTask().DeltaTime);
+
+			// Init simulation proxies from interface
+			DataflowManager->InitSimulationInterfaces();
+		}
 		DataflowManager->SetSimulationEnabled(!SimulationTask->GetTask().bBackgroundTask);
-		DataflowManager->WriteSimulationData(SimulationTask->GetTask().DeltaTime);
 	}
-	Dataflow::SetupSkeletonAnimation(PreviewActor);
 
 	return true;
 }
@@ -90,9 +114,12 @@ void FDataflowTaskManager::FreeSimulationResource()
 	if (SimulationTask.IsValid())
 	{
 		SimulationTask->EnsureCompletion();
-		
-		UDataflowSimulationManager* DataflowManager = SimulationWorld->GetSubsystem<UDataflowSimulationManager>();
-		DataflowManager->ReadSimulationData(SimulationTask->GetTask().DeltaTime);
+
+		if(SimulationTask->GetTask().bBackgroundTask)
+		{
+			UDataflowSimulationManager* DataflowManager = SimulationWorld->GetSubsystem<UDataflowSimulationManager>();
+			DataflowManager->ResetSimulationInterfaces();
+		}
 	}
 
 	if(CacheManager)

@@ -187,6 +187,24 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
+
+bool UChaosClothComponent::CanEditChange(const FProperty* InProperty) const
+{
+	if (!Super::CanEditChange(InProperty))
+	{
+		return false;
+	}
+
+	const FName& Name = InProperty->GetFName();
+
+	if (Name == GET_MEMBER_NAME_CHECKED(ThisClass, SimulationAsset))
+	{
+		static const auto CVarEnableSimulationDataflow = IConsoleManager::Get().FindConsoleVariable(TEXT("p.Dataflow.EnableSimulation"));
+		return CVarEnableSimulationDataflow->GetBool();
+	}
+
+	return true;
+}
 #endif // WITH_EDITOR
 
 void UChaosClothComponent::OnRegister()
@@ -210,7 +228,7 @@ void UChaosClothComponent::OnRegister()
 	UpdateVisibility();
 
 	// Register the dataflow simulation interface
-	Dataflow::RegisterSimulationInterface(this);
+	UE::Dataflow::RegisterSimulationInterface(this);
 }
 
 void UChaosClothComponent::OnUnregister()
@@ -226,7 +244,7 @@ void UChaosClothComponent::OnUnregister()
 	PropertyCollections.Empty();
 
 	// Unregister the dataflow simulation interface
-	Dataflow::UnregisterSimulationInterface(this);
+	UE::Dataflow::UnregisterSimulationInterface(this);
 }
 
 bool UChaosClothComponent::IsComponentTickEnabled() const
@@ -637,6 +655,14 @@ void UChaosClothComponent::WriteToSimulation(const float DeltaTime)
 		{
 			CollectionPropertyFacades[CurrentLOD]->ClearDirtyFlags();
 		}
+	}
+}
+
+void UChaosClothComponent::PreProcessSimulation(const float DeltaTime)
+{
+	if (ClothSimulationProxy.IsValid() && ClothSimulationProxy->HasCacheData())
+	{
+		WriteToSimulation(DeltaTime);
 	}
 }
 

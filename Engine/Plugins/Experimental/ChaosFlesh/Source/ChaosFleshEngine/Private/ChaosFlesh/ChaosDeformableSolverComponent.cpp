@@ -207,6 +207,59 @@ void UDeformableSolverComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 	}
 }
 
+void UDeformableSolverComponent::ResetSimulationProperties(const FSolverTimingGroup& TimingGroup, const FSolverEvolutionGroup& EvolutionGroup,
+		FSolverCollisionsGroup CollisionsGroup, FSolverConstraintsGroup ConstraintsGroup, FSolverForcesGroup ForcesGroup,
+		FSolverDebuggingGroup DebuggingGroup, FSolverMuscleActivationGroup MuscleActivationGroup)
+{
+	SolverTiming = TimingGroup;
+	SolverEvolution = EvolutionGroup;
+	SolverCollisions = CollisionsGroup;
+	SolverConstraints = ConstraintsGroup;
+	SolverForces = ForcesGroup;
+	SolverDebugging = DebuggingGroup;
+	SolverMuscleActivation = MuscleActivationGroup;
+
+	if(FleshSolverProxy.IsValid())
+	{
+		FDeformableSolver::FPhysicsThreadAccess PhysicsThreadSolver = PhysicsThreadAccess();
+		PhysicsThreadSolver.Reset(Chaos::Softs::FDeformableSolverProperties(
+			SolverTiming.NumSubSteps
+			, SolverTiming.NumSolverIterations
+			, SolverTiming.FixTimeStep
+			, SolverTiming.TimeStepSize
+			, SolverDebugging.CacheToFile
+			, SolverConstraints.bEnableKinematics
+			, SolverCollisions.bUseFloor
+			, false /*SolverCollisions.SolverGridBasedCollisions.bUseGridBasedConstraints*/
+			, 25. /*SolverCollisions.SolverGridBasedCollisions.GridDx*/
+			, SolverEvolution.SolverQuasistatics.bDoQuasistatics
+			, SolverForces.YoungModulus
+			, SolverConstraints.CorotatedConstraints.bDoBlended
+			, SolverConstraints.CorotatedConstraints.BlendedZeta
+			, SolverForces.Damping
+			, SolverForces.bEnableGravity
+			, SolverConstraints.CorotatedConstraints.bEnableCorotatedConstraint
+			, SolverConstraints.bEnablePositionTargets
+			, SolverConstraints.GaussSeidelConstraints.bUseGaussSeidelConstraints
+			, SolverConstraints.GaussSeidelConstraints.bUseSOR
+			, SolverConstraints.GaussSeidelConstraints.OmegaSOR
+			, SolverConstraints.GaussSeidelConstraints.bUseGSNeohookean
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.bDoSpringCollision
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.InComponentSpringCollision.bDoInComponentSpringCollision
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.InComponentSpringCollision.NRingExcluded
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.CollisionSearchRadius
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.SpringCollisionStiffness
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.bAllowSliding
+			, SolverConstraints.GaussSeidelConstraints.SphereRepulsion.bDoSphereRepulsion
+			, SolverConstraints.GaussSeidelConstraints.SphereRepulsion.SphereRepulsionRadius
+			, SolverConstraints.GaussSeidelConstraints.SphereRepulsion.SphereRepulsionStiffness
+			, SolverMuscleActivation.bDoMuscleActivation
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.bCollideWithFullmesh
+			, SolverConstraints.GaussSeidelConstraints.bEnableDynamicSprings
+		));
+	}
+}
+
 void UDeformableSolverComponent::BuildSimulationProxy()
 {
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_Reset);
@@ -385,6 +438,28 @@ void UDeformableSolverComponent::ReadFromSimulation(float DeltaTime)
 		}
 	}
 }
+
+#if WITH_EDITOR
+
+bool UDeformableSolverComponent::CanEditChange(const FProperty* InProperty) const
+{
+	if (!Super::CanEditChange(InProperty))
+	{
+		return false;
+	}
+
+	const FName& Name = InProperty->GetFName();
+
+	if (Name == GET_MEMBER_NAME_CHECKED(ThisClass, SimulationAsset))
+	{
+		static const auto CVarEnableSimulationDataflow = IConsoleManager::Get().FindConsoleVariable(TEXT("p.Dataflow.EnableSimulation"));
+		return CVarEnableSimulationDataflow->GetBool();
+	}
+
+	return true;
+}
+
+#endif
 
 
 
