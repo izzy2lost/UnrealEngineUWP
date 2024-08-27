@@ -280,7 +280,7 @@ void GenerateLightSamplesCS(
 					}
 					AddCrossTWS(Debug.Context, TranslatedWorldPosition, 5.0f, float4(1, 1, 0, 1));
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("LightId  | SampleWeight | LFAtlasIndex | IESAtlasIndex"));
+					Print(Debug.Context, TEXT("LightId   | Weight    | LFAtlas   | IESAtlas  | History"));
 				}
 				#endif
 
@@ -306,6 +306,8 @@ void GenerateLightSamplesCS(
 					
 						FLightTargetPDF LightTargetPDF = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, Material, ScreenCoord, Debug);
 
+						bool bVisibleInLastFrameTile = true;
+
 						#if GUIDE_BY_HISTORY
 						if (LightTargetPDF.Weight > MinSampleWeight && LocalLightData.PrevLocalLightIndex >= 0)
 						{
@@ -313,7 +315,7 @@ void GenerateLightSamplesCS(
 							uint PrevDwordIndex = LocalLightData.PrevLocalLightIndex / SHARED_LIGHT_MASK_SIZE;
 							uint2 ScreenTileCoord = ScreenCoord / TILE_SIZE;
 
-							bool bVisibleInLastFrameTile = WasLightVisibleInHistoryScreenTile(ScreenTileCoord, int2(0, 0), PrevDwordIndex, PrevBitMask);
+							bVisibleInLastFrameTile = WasLightVisibleInHistoryScreenTile(ScreenTileCoord, int2(0, 0), PrevDwordIndex, PrevBitMask);
 							
 							// Check neighboring screen tiles
 							bVisibleInLastFrameTile = bVisibleInLastFrameTile || WasLightVisibleInHistoryScreenTile(ScreenTileCoord, int2(1, 0), PrevDwordIndex, PrevBitMask);
@@ -333,6 +335,7 @@ void GenerateLightSamplesCS(
 							Print(Debug.Context, LightTargetPDF.Weight);
 							Print(Debug.Context, LightData.LightFunctionAtlasLightIndex);
 							Print(Debug.Context, LightData.IESAtlasIndex);
+							Print(Debug.Context, bVisibleInLastFrameTile ? 1u: 0u);
 						}
 						#endif
 

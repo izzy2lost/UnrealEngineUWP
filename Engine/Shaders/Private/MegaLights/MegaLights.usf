@@ -166,6 +166,11 @@ float2 DownsampledBufferInvSize;
 
 #ifdef InitCompositeUpsampleWeightsCS
 
+bool IsValidDownsampledCoord(uint2 DownsampledScreenCoord)
+{
+	return all(DownsampledScreenCoord.xy < DownsampledViewMin + DownsampledViewSize);
+}	
+
 /**
  * Prepare weights for upsampling in order to pull out common per pixel composite work into a separate dispatch.
  */
@@ -232,8 +237,16 @@ void InitCompositeUpsampleWeightsCS(
 		}
 		#endif
 
-		float Epsilon = 0.001f;
 		InterpolationWeights *= DepthWeights;
+
+		// Skip out of view samples
+		InterpolationWeights.x = IsValidDownsampledCoord(DownsampledScreenCoord00.xy + uint2(0, 0)) ? InterpolationWeights.x : 0.0f;
+		InterpolationWeights.y = IsValidDownsampledCoord(DownsampledScreenCoord00.xy + uint2(1, 0)) ? InterpolationWeights.y : 0.0f;
+		InterpolationWeights.z = IsValidDownsampledCoord(DownsampledScreenCoord00.xy + uint2(0, 1)) ? InterpolationWeights.z : 0.0f;
+		InterpolationWeights.w = IsValidDownsampledCoord(DownsampledScreenCoord00.xy + uint2(1, 1)) ? InterpolationWeights.w : 0.0f;
+
+		// Renormalize
+		float Epsilon = 0.001f;
 		InterpolationWeights /= max(dot(InterpolationWeights, 1), Epsilon);
 
 		RWCompositeUpsampleWeights[ScreenCoord] = InterpolationWeights;
