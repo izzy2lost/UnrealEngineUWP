@@ -2028,7 +2028,10 @@ void SSequencerSection::OnMouseLeave( const FPointerEvent& MouseEvent )
 	SCompoundWidget::OnMouseLeave( MouseEvent );
 
 	TSharedPtr<FTrackAreaViewModel> TrackAreaViewModel = GetTrackAreaViewModel();
-	TrackAreaViewModel->SetHotspot(nullptr);
+	if (TrackAreaViewModel)
+	{
+		TrackAreaViewModel->SetHotspot(nullptr);
+	}
 }
 
 static float SectionThrobDurationSeconds = 1.f;

@@ -377,7 +377,11 @@ void STrackAreaView::UpdateHoverStates( const FGeometry& MyGeometry, const FPoin
 
 	// Set the node that we are hovering
 	TViewModelPtr<IOutlinerExtension> NewHoveredItem = PinnedOutliner->HitTestNode(MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()).Y);
-	PinnedOutliner->GetOutlinerModel()->SetHoveredItem(NewHoveredItem);
+	TSharedPtr<FOutlinerViewModel> OutlinerModel = PinnedOutliner->GetOutlinerModel();
+	if (OutlinerModel)
+	{
+		OutlinerModel->SetHoveredItem(NewHoveredItem);
+	}
 
 	TSharedPtr<ITrackAreaHotspot> Hotspot = ViewModel->GetHotspot();
 	if (Hotspot.IsValid())
@@ -458,7 +462,11 @@ void STrackAreaView::OnMouseLeave(const FPointerEvent& MouseEvent)
 {
 	if (TSharedPtr<SOutlinerView> Outliner = WeakOutliner.Pin())
 	{
-		Outliner->GetOutlinerModel()->SetHoveredItem(nullptr);
+		TSharedPtr<FOutlinerViewModel> OutlinerModel = Outliner->GetOutlinerModel();
+		if (OutlinerModel)
+		{
+			OutlinerModel->SetHoveredItem(nullptr);
+		}
 	}
 
 	if (TSharedPtr<FTrackAreaViewModel> TrackArea = WeakViewModel.Pin())
