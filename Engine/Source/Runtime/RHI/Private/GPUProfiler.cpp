@@ -687,13 +687,13 @@ namespace UE::RHI::GPUProfiler
 		GetSinks().RemoveSingle(this);
 	}
 
-	void ProcessEvents(FQueue Queue, TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events)
+	void ProcessEvents(FQueue Queue, FEventStream const& EventStream)
 	{
-		if (!Events.IsEmpty())
+		if (!EventStream.IsEmpty())
 		{
 			for (FEventSink* Sink : GetSinks())
 			{
-				Sink->ProcessEvents(Queue, Events);
+				Sink->ProcessEvents(Queue, EventStream);
 			}
 		}
 	}
@@ -742,11 +742,11 @@ namespace UE::RHI::GPUProfiler
 			}
 		}
 
-		void ProcessEvents(FQueue Queue, TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events) override
+		void ProcessEvents(FQueue Queue, FEventStream const& EventStream) override
 		{
 			FQueueState& QueueState = QueueStates.FindChecked(Queue);
 
-			for (auto const& Event : Events)
+			for (FEvent const* Event : EventStream)
 			{
 				switch (Event->GetType())
 				{
@@ -755,7 +755,7 @@ namespace UE::RHI::GPUProfiler
 						check(!QueueState.bBusy);
 						QueueState.bBusy = true;
 						uint64 Value = Event->Value.Get<FEvent::FBeginWork>().GPUTimestampTOP;
-							
+
 						if (!QueueState.Timestamps.IsEmpty() && Value <= QueueState.Timestamps.Last())
 						{
 							//
@@ -787,7 +787,7 @@ namespace UE::RHI::GPUProfiler
 				case FEvent::EType::FrameBoundary:
 					{
 						check(!QueueState.bBusy);
-						auto const& FrameBoundary = Event->Value.Get<FEvent::FFrameBoundary>();
+						FEvent::FFrameBoundary const& FrameBoundary = Event->Value.Get<FEvent::FFrameBoundary>();
 
 						FFrameState& FrameState = Frames.FindOrAdd(FrameBoundary.FrameNumber);
 						FrameState.Emplace(Queue, MoveTemp(QueueState.Timestamps));
@@ -935,7 +935,7 @@ namespace UE::RHI::GPUProfiler
 				Current = Current->Parent;
 			}
 
-			void ProcessEvents(TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events);
+			void ProcessEvents(FEventStream const& EventStream);
 
 			void LogTree(uint32 FrameNumber);
 		};
@@ -951,9 +951,9 @@ namespace UE::RHI::GPUProfiler
 			}
 		}
 
-		void ProcessEvents(FQueue Queue, TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events) override
+		void ProcessEvents(FQueue Queue, FEventStream const& EventStream) override
 		{
-			QueueStates.FindChecked(Queue)->ProcessEvents(Events);
+			QueueStates.FindChecked(Queue)->ProcessEvents(EventStream);
 		}
 
 		void ProfileNextFrame()
@@ -966,9 +966,11 @@ namespace UE::RHI::GPUProfiler
 
 	} GGPUProfilerSink_ProfileGPU;
 
-	void FGPUProfilerSink_ProfileGPU::FQueueState::ProcessEvents(TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events)
+	void FGPUProfilerSink_ProfileGPU::FQueueState::ProcessEvents(FEventStream const& EventStream)
 	{
-		int32 Index = 0;
+		auto Iterator = std::begin(EventStream);
+		auto End = std::end(EventStream);
+
 	Restart:
 		if (State == EState::Idle && bTriggerProfile.exchange(false))
 		{
@@ -978,14 +980,14 @@ namespace UE::RHI::GPUProfiler
 		if (State == EState::WaitingFrame)
 		{
 			// Discard all received events until we reach a FrameBoundary event
-			for (; Index < Events.Num(); ++Index)
+			for (; Iterator != End; ++Iterator)
 			{
-				if (Events[Index]->GetType() == FEvent::EType::FrameBoundary)
+				if ((*Iterator)->GetType() == FEvent::EType::FrameBoundary)
 				{
 					// Start profiling until we receive another FrameBoundary event
 					State = EState::Active;
 
-					FEvent::FFrameBoundary& FrameBoundary = Events[Index]->Value.Get<FEvent::FFrameBoundary>();
+					FEvent::FFrameBoundary const& FrameBoundary = (*Iterator)->Value.Get<FEvent::FFrameBoundary>();
 
 					// Build the node tree 
 					PushNode(TEXT("<root>"));
@@ -1006,7 +1008,7 @@ namespace UE::RHI::GPUProfiler
 					Recurse(Recurse, FrameBoundary.Breadcrumb);
 				#endif // WITH_RHI_BREADCRUMBS
 
-					++Index;
+					++Iterator;
 					break;
 				}
 			}
@@ -1014,9 +1016,9 @@ namespace UE::RHI::GPUProfiler
 
 		if (State == EState::Active)
 		{
-			for (; Index < Events.Num(); ++Index)
+			for (; Iterator != End; ++Iterator)
 			{
-				auto const& Event = Events[Index];
+				FEvent const* Event = *Iterator;
 
 				switch (Event->GetType())
 				{
@@ -1043,7 +1045,7 @@ namespace UE::RHI::GPUProfiler
 			#if WITH_RHI_BREADCRUMBS
 				case FEvent::EType::BeginBreadcrumb:
 					{
-						auto& BeginBreadcrumb = Event->Value.Get<FEvent::FBeginBreadcrumb>();
+						FEvent::FBeginBreadcrumb const& BeginBreadcrumb = Event->Value.Get<FEvent::FBeginBreadcrumb>();
 
 						// Push a new node
 						FRHIBreadcrumb::FBuffer Buffer;
@@ -1055,7 +1057,7 @@ namespace UE::RHI::GPUProfiler
 
 				case FEvent::EType::EndBreadcrumb:
 					{
-						auto& EndBreadcrumb = Event->Value.Get<FEvent::FEndBreadcrumb>();
+						FEvent::FEndBreadcrumb const& EndBreadcrumb = Event->Value.Get<FEvent::FEndBreadcrumb>();
 						Current->Timestamps.Add(EndBreadcrumb.GPUTimestampBOP);
 
 						PopNode();
@@ -1065,7 +1067,7 @@ namespace UE::RHI::GPUProfiler
 
 				case FEvent::EType::Stats:
 					{
-						auto& Stats = Event->Value.Get<FEvent::FStats>();
+						FEvent::FStats const& Stats = Event->Value.Get<FEvent::FStats>();
 						Current->NumDraws += Stats.NumDraws;
 						Current->NumPrimitives += Stats.NumPrimitives;
 					}
@@ -1073,7 +1075,7 @@ namespace UE::RHI::GPUProfiler
 
 				case FEvent::EType::FrameBoundary:
 					{
-						FEvent::FFrameBoundary& FrameBoundary = Event->Value.Get<FEvent::FFrameBoundary>();
+						FEvent::FFrameBoundary const& FrameBoundary = Event->Value.Get<FEvent::FFrameBoundary>();
 						LogTree(FrameBoundary.FrameNumber);
 
 						// Reset tracking
@@ -1188,6 +1190,8 @@ namespace UE::RHI::GPUProfiler
 		{
 			GGPUProfilerSink_ProfileGPU.ProfileNextFrame();
 		}));
+
+	TLockFreePointerListUnordered<void, PLATFORM_CACHE_LINE_SIZE> FEventStream::FChunk::MemoryPool;
 }
 
 #endif // RHI_NEW_GPU_PROFILER

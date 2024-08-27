@@ -89,25 +89,44 @@ namespace UE::RHI::GPUProfiler
 			// Very first frame of the engine is frame 0 (from boot to first call to RHIEndFrame).
 			uint32 FrameNumber;
 
-#if WITH_RHI_BREADCRUMBS
+		#if WITH_RHI_BREADCRUMBS
 			// The RHI breadcrumb currently at the top of the stack at the frame boundary.
 			FRHIBreadcrumbNode* Breadcrumb;
-#endif
+		#endif
+
+			FFrameBoundary(uint32 FrameNumber
+			#if WITH_RHI_BREADCRUMBS
+				, FRHIBreadcrumbNode* Breadcrumb
+			#endif
+				)
+				: FrameNumber(FrameNumber)
+			#if WITH_RHI_BREADCRUMBS
+				, Breadcrumb(Breadcrumb)
+			#endif
+			{}
 		};
 
-#if WITH_RHI_BREADCRUMBS
+	#if WITH_RHI_BREADCRUMBS
 		struct FBeginBreadcrumb
 		{
 			FRHIBreadcrumbNode* Breadcrumb;
-			uint64 GPUTimestampTOP;
+			uint64 GPUTimestampTOP = 0;
+
+			FBeginBreadcrumb(FRHIBreadcrumbNode* Breadcrumb)
+				: Breadcrumb(Breadcrumb)
+			{}
 		};
 
 		struct FEndBreadcrumb
 		{
 			FRHIBreadcrumbNode* Breadcrumb;
-			uint64 GPUTimestampBOP;
+			uint64 GPUTimestampBOP = 0;
+
+			FEndBreadcrumb(FRHIBreadcrumbNode* Breadcrumb)
+				: Breadcrumb(Breadcrumb)
+			{}
 		};
-#endif // WITH_RHI_BREADCRUMBS
+	#endif
 
 		// Inserted when the GPU starts work on a queue.
 		struct FBeginWork
@@ -116,13 +135,17 @@ namespace UE::RHI::GPUProfiler
 			uint64 CPUTimestamp;
 
 			// TOP timestamp of when the work actually started on the GPU.
-			uint64 GPUTimestampTOP;
+			uint64 GPUTimestampTOP = 0;
+
+			FBeginWork(uint64 CPUTimestamp)
+				: CPUTimestamp(CPUTimestamp)
+			{}
 		};
 
 		// Inserted when the GPU completes work on a queue and goes idle.
 		struct FEndWork
 		{
-			uint64 GPUTimestampBOP;
+			uint64 GPUTimestampBOP = 0;
 		};
 
 		struct FStats
@@ -160,10 +183,10 @@ namespace UE::RHI::GPUProfiler
 		
 		using FStorage = TVariant<
 			  FFrameBoundary
-#if WITH_RHI_BREADCRUMBS
+		#if WITH_RHI_BREADCRUMBS
 			, FBeginBreadcrumb
 			, FEndBreadcrumb
-#endif
+		#endif
 			, FBeginWork
 			, FEndWork
 			, FStats
@@ -176,10 +199,10 @@ namespace UE::RHI::GPUProfiler
 		enum class EType
 		{
 			FrameBoundary   = FStorage::IndexOfType<FFrameBoundary  >(),
-#if WITH_RHI_BREADCRUMBS
+		#if WITH_RHI_BREADCRUMBS
 			BeginBreadcrumb = FStorage::IndexOfType<FBeginBreadcrumb>(),
 			EndBreadcrumb   = FStorage::IndexOfType<FEndBreadcrumb  >(),
-#endif
+		#endif
 			BeginWork       = FStorage::IndexOfType<FBeginWork      >(),
 			EndWork         = FStorage::IndexOfType<FEndWork        >(),
 			Stats           = FStorage::IndexOfType<FStats          >(),
@@ -200,6 +223,174 @@ namespace UE::RHI::GPUProfiler
 		FEvent(T const& Value)
 			: Value(TInPlaceType<T>(), Value)
 		{}
+
+		FEvent(FEvent const&) = delete;
+		FEvent(FEvent&&) = delete;
+	};
+
+	class FEventStream
+	{
+	private:
+		struct FChunk
+		{
+			struct FHeader
+			{
+				FChunk* Next = nullptr;
+				uint32 Num = 0;
+			} Header;
+
+			static constexpr uint32 ChunkSizeInBytes = 16 * 1024;
+			static constexpr uint32 RemainingBytes = ChunkSizeInBytes - Align<uint32>(sizeof(FHeader), alignof(FHeader));
+			static constexpr uint32 MaxEventsPerChunk = RemainingBytes / Align<uint32>(sizeof(FEvent), alignof(FEvent));
+
+			TStaticArray<TTypeCompatibleBytes<FEvent>, MaxEventsPerChunk> Elements;
+
+			static RHI_API TLockFreePointerListUnordered<void, PLATFORM_CACHE_LINE_SIZE> MemoryPool;
+
+			void* operator new(size_t Size)
+			{
+				check(Size == sizeof(FChunk));
+
+				void* Memory = MemoryPool.Pop();
+				if (!Memory)
+				{
+					Memory = FMemory::Malloc(sizeof(FChunk), alignof(FChunk));
+				}
+				return Memory;
+			}
+
+			void operator delete(void* Pointer)
+			{
+				MemoryPool.Push(Pointer);
+			}
+
+			FEvent* GetElement(uint32 Index)
+			{
+				return Elements[Index].GetTypedPtr();
+			}
+		};
+
+		static_assert(sizeof(FChunk) == FChunk::ChunkSizeInBytes, "Incorrect FChunk size.");
+
+		FChunk* First = nullptr;
+		FChunk* Current = nullptr;
+
+	public:
+		FEventStream() = default;
+		FEventStream(FEventStream const&) = delete;
+
+		FEventStream(FEventStream&& Other)
+			: First(Other.First)
+			, Current(Other.Current)
+		{
+			Other.First = nullptr;
+			Other.Current = nullptr;
+		}
+
+		~FEventStream()
+		{
+			while (First)
+			{
+				FChunk* Next = First->Header.Next;
+				delete First;
+				First = Next;
+			}
+		}
+
+		template <typename TEventType, typename... TArgs>
+		TEventType& Emplace(TArgs&&... Args)
+		{
+			static_assert(TIsTrivial<TEventType>::Value, "Destructors are not called on GPU profiler events, so the types must be trivial.");
+
+			if (!Current)
+			{
+				Current = new FChunk;
+				if (!First)
+				{
+					First = Current;
+				}
+			}
+
+			if (Current->Header.Num >= FChunk::MaxEventsPerChunk)
+			{
+				FChunk* NewChunk = new FChunk;
+				Current->Header.Next = NewChunk;
+				Current = NewChunk;
+			}
+
+			FEvent* Event = Current->GetElement(Current->Header.Num++);
+			new (Event) FEvent(TEventType(Forward<TArgs>(Args)...));
+
+			return Event->Value.Get<TEventType>();
+		}
+
+		bool IsEmpty() const
+		{
+			return First == nullptr;
+		}
+
+		void Append(FEventStream&& Other)
+		{
+			if (IsEmpty())
+			{
+				Current = Other.Current;
+				First = Other.First;
+			}
+			else if (!Other.IsEmpty())
+			{
+				Current->Header.Next = Other.First;
+				Current = Other.Current;
+			}
+
+			Other.Current = nullptr;
+			Other.First = nullptr;
+		}
+
+		auto begin() const
+		{
+			class FIterator
+			{
+				friend FEventStream;
+
+				FChunk* Current;
+				uint32 Index = 0;
+
+				FIterator(FChunk* Current)
+					: Current(Current)
+				{}
+
+			public:
+				FIterator& operator++()
+				{
+					++Index;
+
+					while (Current && Index >= Current->Header.Num)
+					{
+						Current = Current->Header.Next;
+						Index = 0;
+					}
+
+					return *this;
+				}
+
+				bool operator != (std::nullptr_t) const
+				{
+					return Current != nullptr;
+				}
+
+				FEvent const* operator*() const
+				{
+					return Current->GetElement(Index);
+				}
+			};
+
+			return FIterator(First);
+		}
+
+		std::nullptr_t end() const
+		{
+			return nullptr;
+		}
 	};
 
 	struct FEventSink
@@ -212,11 +403,11 @@ namespace UE::RHI::GPUProfiler
 		FEventSink(FEventSink&&) = delete;
 
 	public:
-		virtual void ProcessEvents(FQueue Queue, TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events) = 0;
+		virtual void ProcessEvents(FQueue Queue, FEventStream const& EventStream) = 0;
 		virtual void InitializeQueues(TConstArrayView<FQueue> Queues) = 0;
 	};
 
-	RHI_API void ProcessEvents(FQueue Queue, TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events);
+	RHI_API void ProcessEvents(FQueue Queue, FEventStream const& EventStream);
 	RHI_API void InitializeQueues(TConstArrayView<FQueue> Queues);
 }
 

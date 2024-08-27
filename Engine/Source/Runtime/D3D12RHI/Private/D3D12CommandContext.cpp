@@ -202,9 +202,7 @@ void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSi
 		{
 			FlushProfilerStats();
 
-			auto& Event = GetCommandList().EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FBeginBreadcrumb>();
-			Event.Breadcrumb = Breadcrumb;
-
+			auto& Event = GetCommandList().EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FBeginBreadcrumb>(Breadcrumb);
 			FD3D12QueryLocation TimestampQuery = AllocateQuery(ED3D12QueryType::ProfilerTimestampTOP, &Event.GPUTimestampTOP);
 			EndQuery(TimestampQuery);
 		}
@@ -226,9 +224,7 @@ void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSi
 		{
 			FlushProfilerStats();
 
-			auto& Event = GetCommandList().EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FEndBreadcrumb>();
-			Event.Breadcrumb = Breadcrumb;
-
+			auto& Event = GetCommandList().EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FEndBreadcrumb>(Breadcrumb);
 			FD3D12QueryLocation TimestampQuery = AllocateQuery(ED3D12QueryType::ProfilerTimestampBOP, &Event.GPUTimestampBOP);
 			EndQuery(TimestampQuery);
 		}

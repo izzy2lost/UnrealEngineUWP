@@ -116,17 +116,29 @@ public:
 #endif // ENABLE_RESIDENCY_MANAGEMENT
 
 #if RHI_NEW_GPU_PROFILER
-	template <typename TEventType>
-	TEventType& EmplaceEvent()
+	template <typename TEventType, typename... TArgs>
+	TEventType& EmplaceProfilerEvent(TArgs&&... Args)
 	{
-		return State.EmplaceEvent<TEventType>();
+		TEventType& Data = State.EventStream.Emplace<TEventType>(Forward<TArgs>(Args)...);
+
+		if constexpr (std::is_same_v<UE::RHI::GPUProfiler::FEvent::FBeginWork, TEventType>)
+		{
+			State.BeginEvents.Add(&Data);
+		}
+
+		return Data;
 	}
 
-	TArray<TUniquePtr<UE::RHI::GPUProfiler::FEvent>>&& RetrieveEvents()
+	void FlushProfilerEvents(UE::RHI::GPUProfiler::FEventStream& Destination, uint64 CPUTimestamp)
 	{
-		return MoveTemp(State.Events);
+		for (UE::RHI::GPUProfiler::FEvent::FBeginWork* BeginEvent : State.BeginEvents)
+		{
+			BeginEvent->CPUTimestamp = CPUTimestamp;
+		}
+
+		Destination.Append(MoveTemp(State.EventStream));
 	}
-#endif // RHI_NEW_GPU_PROFILER
+#endif
 
 private:
 	struct FInterfaces
@@ -302,18 +314,16 @@ private:
 		uint32 NumCommands = 0;
 
 		bool IsClosed = false;
+
+	#if DO_CHECK
 		bool bLocalQueriesBegun = false;
 		bool bLocalQueriesEnded = false;
+	#endif
 
-#if RHI_NEW_GPU_PROFILER
-		TArray<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events; // @todo dev-pr : optimize storage
-
-		template <typename TEventType>
-		TEventType& EmplaceEvent()
-		{
-			return Events.Emplace_GetRef(MakeUnique<UE::RHI::GPUProfiler::FEvent>(TEventType()))->Value.Get<TEventType>();
-		}
-#endif
+	#if RHI_NEW_GPU_PROFILER
+		UE::RHI::GPUProfiler::FEventStream EventStream;
+		TArray<UE::RHI::GPUProfiler::FEvent::FBeginWork*, TInlineAllocator<8>> BeginEvents;
+	#endif
 		
 	} State;
 };

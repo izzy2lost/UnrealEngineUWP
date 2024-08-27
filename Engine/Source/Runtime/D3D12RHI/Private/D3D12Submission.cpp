@@ -955,14 +955,7 @@ void FD3D12DynamicRHI::FlushBatchedPayloads(FD3D12Queue::FPayloadArray& Payloads
 				check(CommandList->IsClosed());
 
 #if RHI_NEW_GPU_PROFILER
-				{
-					TArray<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events = CommandList->RetrieveEvents();
-					if (Events.Num() > 0)
-					{
-						Events[0]->Value.Get<UE::RHI::GPUProfiler::FEvent::FBeginWork>().CPUTimestamp = Time;
-						Payload->Events.Append(MoveTemp(Events));
-					}
-				}
+				CommandList->FlushProfilerEvents(Payload->EventStream, Time);
 #endif // RHI_NEW_GPU_PROFILER
 
 				D3DCommandLists.Add(CommandList->Interfaces.CommandList);
@@ -1415,10 +1408,10 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 				CurrentQueue.Timing->BreadcrumbAllocators.Append(MoveTemp(Payload->BatchedObjects.BreadcrumbAllocators));
 			}
 
-			if (Payload->Events.Num())
+			if (!Payload->EventStream.IsEmpty())
 			{
 				check(CurrentQueue.Timing);
-				CurrentQueue.Timing->Events.Append(MoveTemp(Payload->Events));
+				CurrentQueue.Timing->EventStream.Append(MoveTemp(Payload->EventStream));
 			}
 #endif
 
@@ -1486,7 +1479,7 @@ void FD3D12DynamicRHI::ProcessTimestamps(FD3D12TimingArray const& TimingPerQueue
 
 	for (auto const& Timing : TimingPerQueue)
 	{
-		UE::RHI::GPUProfiler::ProcessEvents(Timing->Queue.GetProfilerQueue(), Timing->Events);
+		UE::RHI::GPUProfiler::ProcessEvents(Timing->Queue.GetProfilerQueue(), Timing->EventStream);
 	}
 
 #else

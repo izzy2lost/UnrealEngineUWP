@@ -287,7 +287,9 @@ void FD3D12CommandList::Reset(FD3D12CommandAllocator* NewCommandAllocator, FD3D1
 	}
 	D3DX12Residency::Open(ResidencySet);
 
-	State = FState(NewCommandAllocator, TimestampAllocator, PipelineStatsAllocator);
+	(&State)->~FState();
+	new (&State) FState(NewCommandAllocator, TimestampAllocator, PipelineStatsAllocator);
+
 	BeginLocalQueries();
 }
 
@@ -315,47 +317,48 @@ void FD3D12CommandList::Close()
 
 void FD3D12CommandList::BeginLocalQueries()
 {
-	if (!State.bLocalQueriesBegun)
-	{
-		if (State.BeginTimestamp)
-		{
-#if RHI_NEW_GPU_PROFILER
-			auto& Event = EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FBeginWork>();
-			State.BeginTimestamp.Target = &Event.GPUTimestampTOP;
+#if DO_CHECK
+	check(!State.bLocalQueriesBegun);
+	State.bLocalQueriesBegun = true;
 #endif
 
-			EndQuery(State.BeginTimestamp);
-		}
+	if (State.BeginTimestamp)
+	{
+#if RHI_NEW_GPU_PROFILER
+		// CPUTimestamp is filled in at submission time in FlushProfilerEvents
+		auto& Event = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FBeginWork>(0);
+		State.BeginTimestamp.Target = &Event.GPUTimestampTOP;
+#endif
 
-		if (State.PipelineStats)
-		{
-			BeginQuery(State.PipelineStats);
-		}
+		EndQuery(State.BeginTimestamp);
+	}
 
-		State.bLocalQueriesBegun = true;
+	if (State.PipelineStats)
+	{
+		BeginQuery(State.PipelineStats);
 	}
 }
 
 void FD3D12CommandList::EndLocalQueries()
 {
-	if (!State.bLocalQueriesEnded)
-	{
-		if (State.PipelineStats)
-		{
-			EndQuery(State.PipelineStats);
-		}
-
-		if (State.EndTimestamp)
-		{
-#if RHI_NEW_GPU_PROFILER
-			auto& Event = EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FEndWork>();
-			State.EndTimestamp.Target = &Event.GPUTimestampBOP;
+#if DO_CHECK
+	check(!State.bLocalQueriesEnded);
+	State.bLocalQueriesEnded = true;
 #endif
 
-			EndQuery(State.EndTimestamp);
-		}
+	if (State.PipelineStats)
+	{
+		EndQuery(State.PipelineStats);
+	}
 
-		State.bLocalQueriesEnded = true;
+	if (State.EndTimestamp)
+	{
+#if RHI_NEW_GPU_PROFILER
+		auto& Event = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FEndWork>();
+		State.EndTimestamp.Target = &Event.GPUTimestampBOP;
+#endif
+
+		EndQuery(State.EndTimestamp);
 	}
 }
 

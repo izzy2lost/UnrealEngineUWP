@@ -437,18 +437,20 @@ void FD3D12DynamicRHI::FlushTiming(bool bCreateNew, const FRHIEndFrameArgs& Args
 #if RHI_NEW_GPU_PROFILER
 		if (bHasTiming && Payload.Queue.QueueType != ED3D12QueueType::Copy)
 		{
-			UE::RHI::GPUProfiler::FEvent::FFrameBoundary Boundary;
-			Boundary.FrameNumber = Args.FrameNumber;
-
-		#if WITH_RHI_BREADCRUMBS
+			ERHIPipeline Pipeline;
 			switch (Payload.Queue.QueueType)
 			{
-			case ED3D12QueueType::Direct: Boundary.Breadcrumb = Args.GPUBreadcrumbs[ERHIPipeline::Graphics    ]; break;
-			case ED3D12QueueType::Async : Boundary.Breadcrumb = Args.GPUBreadcrumbs[ERHIPipeline::AsyncCompute]; break;
+			default: checkNoEntry(); [[fallthrough]];
+			case ED3D12QueueType::Direct: Pipeline = ERHIPipeline::Graphics; break;
+			case ED3D12QueueType::Async:  Pipeline = ERHIPipeline::AsyncCompute; break;
 			}
-		#endif
 
-			Payload.Events.Emplace(MakeUnique<UE::RHI::GPUProfiler::FEvent>(Boundary));
+			Payload.EventStream.Emplace<UE::RHI::GPUProfiler::FEvent::FFrameBoundary>(
+				Args.FrameNumber
+		#if WITH_RHI_BREADCRUMBS
+				, Args.GPUBreadcrumbs[Pipeline]
+		#endif
+			);
 		}
 #endif // RHI_NEW_GPU_PROFILER
 	});

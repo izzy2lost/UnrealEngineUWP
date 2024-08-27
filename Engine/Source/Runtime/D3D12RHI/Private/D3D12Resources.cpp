@@ -1666,12 +1666,13 @@ void FD3D12ResourceBarrierBatcher::FlushIntoCommandList(FD3D12CommandList& Comma
 #if RHI_NEW_GPU_PROFILER
 		if (bBegin)
 		{
-			auto& Event = CommandList.EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FEndWork>();
+			auto& Event = CommandList.EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FEndWork>();
 			CommandList.EndQuery(TimestampAllocator.Allocate(ED3D12QueryType::ProfilerTimestampBOP, &Event.GPUTimestampBOP));
 		}
 		else
 		{
-			auto& Event = CommandList.EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FBeginWork>();
+			// CPUTimestamp is filled in at submission time in FlushProfilerEvents
+			auto& Event = CommandList.EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FBeginWork>(0);
 			CommandList.EndQuery(TimestampAllocator.Allocate(ED3D12QueryType::ProfilerTimestampTOP, &Event.GPUTimestampTOP));
 		}
 #else

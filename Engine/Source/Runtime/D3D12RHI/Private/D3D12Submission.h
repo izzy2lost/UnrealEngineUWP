@@ -246,7 +246,7 @@ struct FD3D12PayloadBase : public FD3D12PayloadBaseFixLayout
 	FRHIBreadcrumbRange BreadcrumbRange {};
 #endif
 #if RHI_NEW_GPU_PROFILER
-	TArray<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events;
+	UE::RHI::GPUProfiler::FEventStream EventStream;
 #endif
 
 	virtual ~FD3D12PayloadBase();

@@ -533,7 +533,7 @@ public:
 		// Flush accumulated draw stats
 		if (StatEvent)
 		{
-			GetCommandList().EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FStats>() = StatEvent;
+			GetCommandList().EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FStats>() = StatEvent;
 			StatEvent = {};
 		}
 	}

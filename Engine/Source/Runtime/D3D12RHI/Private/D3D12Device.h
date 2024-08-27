@@ -77,7 +77,7 @@ public:
 	TArray<TSharedPtr<FRHIBreadcrumbAllocatorArray>> BreadcrumbAllocators {};
 	#endif
 
-	TArray<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events;
+	UE::RHI::GPUProfiler::FEventStream EventStream;
 
 #else
 
