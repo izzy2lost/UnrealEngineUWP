@@ -650,7 +650,7 @@ namespace Audio
 		checkSlow(MixerDevice);
 		checkSlow(MixerDevice->IsAudioRenderingThread());
 
-		if (CommandPtr && MixerDevice && !OwningClockName.IsNone())
+		if (CommandPtr && !OwningClockName.IsNone())
 		{
 			UE_LOG(LogAudioQuartz, Verbose, TEXT("OnQueued() called for quantized event type: [%s]"), *CommandPtr->GetCommandName().ToString());
 			return MixerDevice->QuantizedEventClockManager.CancelCommandOnClock(OwningClockName, CommandPtr);

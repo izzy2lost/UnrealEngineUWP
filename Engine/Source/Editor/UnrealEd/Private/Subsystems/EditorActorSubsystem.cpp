@@ -1791,11 +1791,12 @@ void UEditorActorSubsystem::ConvertSelectedBrushesToVolumes(UClass* InVolumeClas
 	{
 		GEditor->GetSelectedActors()->BeginBatchSelectOperation();
 
+		checkSlow(InVolumeClass && InVolumeClass->IsChildOf(AVolume::StaticClass()));
+
 		const FScopedTransaction Transaction(FText::Format(
 			NSLOCTEXT("UnrealEd", "Transaction_ConvertToVolume", "Convert to Volume: {0}"),
 			FText::FromString(InVolumeClass->GetName())
 		));
-		checkSlow(InVolumeClass && InVolumeClass->IsChildOf(AVolume::StaticClass()));
 
 		TArray<UWorld*> WorldsAffected;
 		TArray<ULevel*> LevelsAffected;

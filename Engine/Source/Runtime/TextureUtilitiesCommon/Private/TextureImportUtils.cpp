@@ -189,17 +189,18 @@ namespace UE
 
 			static bool IsOpaque(const ColorDataType InColor)
 			{
-				if ( sizeof(ColorDataType) == 4 )
+				if constexpr (sizeof(ColorDataType) == 4)
 				{
 					return InColor >= 0xFF000000U;
 				}
-				else if ( sizeof(ColorDataType) == 8 )
+				else if constexpr (sizeof(ColorDataType) == 8)
 				{
 					return InColor >= 0xFFFF000000000000ULL;
 				}
 				else
 				{
-					check(false);
+					static_assert(sizeof(ColorDataType) == 0);
+					return false;
 				}
 			}
 
