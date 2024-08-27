@@ -1884,7 +1884,7 @@ bool PathPassesCompiledDataFilterRecursive(const FContentBrowserCompiledAssetDat
 	if (!EnumHasAnyFlags(InOutFilterState, EFolderFilterState::SkipPermissionList))
 	{
 		EPathPermissionPrefixResult PermissionResult =
-			InFilter.PathPermissionList.PassesStartsWithFilterRecursive(Path);
+			InFilter.PathPermissionList.PassesStartsWithFilterRecursive(Path, /*bAllowParentPaths*/ true);
 		if (!UpdateFilterState(PermissionResult, EFolderFilterState::SkipPermissionList))
 		{
 			return false;
