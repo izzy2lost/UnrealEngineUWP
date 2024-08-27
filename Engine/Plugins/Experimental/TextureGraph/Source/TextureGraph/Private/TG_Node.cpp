@@ -147,8 +147,12 @@ void UTG_Node::OnExpressionChangedWithoutVar(const FPropertyChangedEvent& Proper
 		if (PinId.IsValid())
 		{
 			auto ModifiedPin = GetPin(PinId);
-			auto Arg = ModifiedPin->GetArgument();
-			ModifiedPin->EditSelfVar()->CopyFrom(GetExpression(), Arg);
+
+			if(ModifiedPin)
+			{
+				auto Arg = ModifiedPin->GetArgument();
+				ModifiedPin->EditSelfVar()->CopyFrom(GetExpression(), Arg);
+			}
 		}
 	}
 

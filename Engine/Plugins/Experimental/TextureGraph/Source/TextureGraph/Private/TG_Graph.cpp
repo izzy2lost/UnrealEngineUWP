@@ -219,7 +219,8 @@ void UTG_Graph::RegenerateNode(UTG_Node* InNode)
 	{
 		// The pin is still valid so kill it
 		UTG_Pin* Pin = InNode->Pins[i].Get();
-		if (Pin)
+		
+		if (Pin && IsValidPin(Pin->GetId()))
 		{
 			KillPin(Pin->GetId()); // This also remove the Pin from the Params
 		}

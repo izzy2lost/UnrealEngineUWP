@@ -83,7 +83,7 @@ private:
 	void NotifyNodePostEvaluate(UTG_Node* InNode, const FTG_EvaluationContext* InContext);
 
 	bool IsValidNode(FTG_Id NodeId) const { return (NodeId != FTG_Id::INVALID && Nodes.IsValidIndex(NodeId.NodeIdx())); }
-	bool IsValidPin(FTG_Id PinId) const { return IsValidNode(PinId) && Nodes[PinId.NodeIdx()]->Pins.IsValidIndex(PinId.PinIdx()); }
+	bool IsValidPin(FTG_Id PinId) const { return IsValidNode(PinId) && Nodes[PinId.NodeIdx()] && Nodes[PinId.NodeIdx()]->Pins.IsValidIndex(PinId.PinIdx()); }
 	
 protected:
 	friend class UTG_Node;
