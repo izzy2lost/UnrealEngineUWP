@@ -27,7 +27,7 @@ class FModelInstanceORTBase : public NNE::Internal::FModelInstanceBase<ModelInte
 
 public:
 	FModelInstanceORTBase(const FRuntimeConf& InRuntimeConf, TSharedRef<FEnvironment> InEnvironment);
-	virtual ~FModelInstanceORTBase() = default;
+	virtual ~FModelInstanceORTBase();
 
 	virtual typename ModelInterface::ESetInputTensorShapesStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
 
@@ -40,6 +40,7 @@ protected:
 	bool ConfigureTensors(const bool InIsInput);
 
 	FRuntimeConf RuntimeConf;
+	FString TempDirForModelWithExternalData;
 
 	/** ORT-related variables */
 	TSharedRef<FEnvironment> Environment;
@@ -131,7 +132,7 @@ public:
 
 	FModelInstanceORTDmlRDG(TSharedRef<UE::NNE::FSharedModelData> InModelData, const FRuntimeConf& InRuntimeConf, TSharedRef<FEnvironment> InEnvironment);
 
-	virtual ~FModelInstanceORTDmlRDG() = default;
+	virtual ~FModelInstanceORTDmlRDG();
 
 	virtual ESetInputTensorShapesStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
 
@@ -145,6 +146,7 @@ protected:
 
 	TSharedRef<UE::NNE::FSharedModelData> ModelData;
 	FRuntimeConf RuntimeConf;
+	FString TempDirForModelWithExternalData;
 
 	/** ORT-related variables */
 	TSharedRef<FEnvironment> Environment;

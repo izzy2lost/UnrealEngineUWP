@@ -10,6 +10,7 @@
 #include "NNEModelData.h"
 #include "NNEModelOptimizerInterface.h"
 #include "NNERuntimeORTModel.h"
+#include "NNERuntimeORTModelFormat.h"
 #include "NNERuntimeORTUtils.h"
 
 #if PLATFORM_WINDOWS
@@ -19,10 +20,61 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NNERuntimeORT)
 
 FGuid UNNERuntimeORTCpu::GUID = FGuid((int32)'O', (int32)'C', (int32)'P', (int32)'U');
-int32 UNNERuntimeORTCpu::Version = 0x00000002;
+int32 UNNERuntimeORTCpu::Version = 0x00000003;
 
 FGuid UNNERuntimeORTDml::GUID = FGuid((int32)'O', (int32)'D', (int32)'M', (int32)'L');
-int32 UNNERuntimeORTDml::Version = 0x00000002;
+int32 UNNERuntimeORTDml::Version = 0x00000003;
+
+namespace UE::NNERuntimeORT::Private::Details
+{
+	//Should be kept in sync with OnnxFileLoaderHelper::InitUNNEModelDataFromFile()
+	static FString OnnxExternalDataDescriptorKey(TEXT("OnnxExternalDataDescriptor"));
+	static FString OnnxExternalDataBytesKey(TEXT("OnnxExternalDataBytes"));
+
+	FOnnxDataDescriptor MakeOnnxDataDescriptor(TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData)
+	{
+		FOnnxDataDescriptor OnnxDataDescriptor = {};
+		OnnxDataDescriptor.OnnxModelDataSize = FileData.Num();
+
+		if (AdditionalFileData.Contains(OnnxExternalDataDescriptorKey))
+		{
+			TConstArrayView<uint8> OnnxExternalDataDescriptorBuffer = AdditionalFileData[OnnxExternalDataDescriptorKey];
+			FMemoryReaderView OnnxExternalDataDescriptorReader(OnnxExternalDataDescriptorBuffer, /*bIsPersistent = */true);
+			TMap<FString, int64> ExternalDataSizes;
+
+			OnnxExternalDataDescriptorReader << ExternalDataSizes;
+
+			int64 CurrentBucketOffset = OnnxDataDescriptor.OnnxModelDataSize;
+			for (const auto& Element : ExternalDataSizes)
+			{
+				const FString DataFilePath = Element.Key;
+				OnnxDataDescriptor.AdditionalDataDescriptors.Emplace(
+					DataFilePath,
+					CurrentBucketOffset,
+					Element.Value);
+				CurrentBucketOffset += Element.Value;
+			}
+		}
+		return OnnxDataDescriptor;
+	}
+
+	void WriteOnnxModelData(FMemoryWriter Writer, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData)
+	{
+		FOnnxDataDescriptor Descriptor = MakeOnnxDataDescriptor(FileData, AdditionalFileData);
+		check(FileData.Num() == Descriptor.OnnxModelDataSize);
+		Writer << Descriptor;
+
+		Writer.Serialize(const_cast<uint8*>(FileData.GetData()), FileData.Num());
+
+		if (!Descriptor.AdditionalDataDescriptors.IsEmpty())
+		{
+			
+
+			check(AdditionalFileData.Contains(OnnxExternalDataBytesKey));
+			Writer.Serialize(const_cast<uint8*>(AdditionalFileData[OnnxExternalDataBytesKey].GetData()), AdditionalFileData[OnnxExternalDataBytesKey].Num());
+		}
+	}
+} // namespace UE::NNERuntimeORT::Private::Details
 
 UNNERuntimeORTCpu::ECanCreateModelDataStatus UNNERuntimeORTCpu::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
@@ -39,24 +91,30 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(const F
 		return {};
 	}
 
-	FNNEModelRaw InputModel{TArray<uint8>{FileData}, ENNEInferenceFormat::ONNX};
-	if (GraphOptimizationLevel OptimizationLevel = GetGraphOptimizationLevelForCPU(false, IsRunningCookCommandlet()); OptimizationLevel > GraphOptimizationLevel::ORT_DISABLE_ALL)
-	{
-		TUniquePtr<Ort::SessionOptions> SessionOptions = CreateSessionOptionsDefault(Environment.ToSharedRef());
-		SessionOptions->SetGraphOptimizationLevel(OptimizationLevel);
-		SessionOptions->EnableCpuMemArena();
+	FNNEModelRaw InputModel{ TArray<uint8>{FileData}, ENNEInferenceFormat::ONNX };
 
-		if (!OptimizeModel(Environment.ToSharedRef(), *SessionOptions, ENNEInferenceFormat::ONNX, InputModel))
+	//For now only optimize model if there is no external data (as additional data are serialized from the unoptimized model below)
+	if (AdditionalFileData.IsEmpty())
+	{
+		if (GraphOptimizationLevel OptimizationLevel = GetGraphOptimizationLevelForCPU(false, IsRunningCookCommandlet()); OptimizationLevel > GraphOptimizationLevel::ORT_DISABLE_ALL)
 		{
-			return {};
+			TUniquePtr<Ort::SessionOptions> SessionOptions = CreateSessionOptionsDefault(Environment.ToSharedRef());
+			SessionOptions->SetGraphOptimizationLevel(OptimizationLevel);
+			SessionOptions->EnableCpuMemArena();
+
+			if (!OptimizeModel(Environment.ToSharedRef(), *SessionOptions, ENNEInferenceFormat::ONNX, InputModel))
+			{
+				return {};
+			}
 		}
 	}
 
 	TArray<uint8> Result;
-	FMemoryWriter Writer(Result);
+	FMemoryWriter Writer(Result, /*bIsPersitent =*/ true);
 	Writer << UNNERuntimeORTCpu::GUID;
 	Writer << UNNERuntimeORTCpu::Version;
-	Writer.Serialize(InputModel.Data.GetData(), InputModel.Data.Num());
+
+	Details::WriteOnnxModelData(Writer, InputModel.Data, AdditionalFileData);
 
 	return MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Result)), 0);
 }
@@ -161,25 +219,31 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTDml::CreateModelData(const F
 		return {};
 	}
 
-	FNNEModelRaw InputModel{TArray<uint8>{FileData}, ENNEInferenceFormat::ONNX};
-	if (GraphOptimizationLevel OptimizationLevel = GetGraphOptimizationLevelForDML(false, IsRunningCookCommandlet()); OptimizationLevel > GraphOptimizationLevel::ORT_DISABLE_ALL)
+	FNNEModelRaw InputModel{ TArray<uint8>{FileData}, ENNEInferenceFormat::ONNX };
+
+	//For now only optimize model if there is no external data (as additional data are serialized from the unoptimized model below)
+	if (AdditionalFileData.IsEmpty())
 	{
-		TUniquePtr<Ort::SessionOptions> SessionOptions = CreateSessionOptionsDefault(Environment.ToSharedRef());
-		SessionOptions->SetGraphOptimizationLevel(OptimizationLevel);
-		SessionOptions->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
-		SessionOptions->DisableMemPattern();
-		
-		if (!OptimizeModel(Environment.ToSharedRef(), *SessionOptions, ENNEInferenceFormat::ONNX, InputModel))
+		if (GraphOptimizationLevel OptimizationLevel = GetGraphOptimizationLevelForDML(false, IsRunningCookCommandlet()); OptimizationLevel > GraphOptimizationLevel::ORT_DISABLE_ALL)
 		{
-			return {};
+			TUniquePtr<Ort::SessionOptions> SessionOptions = CreateSessionOptionsDefault(Environment.ToSharedRef());
+			SessionOptions->SetGraphOptimizationLevel(OptimizationLevel);
+			SessionOptions->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+			SessionOptions->DisableMemPattern();
+
+			if (!OptimizeModel(Environment.ToSharedRef(), *SessionOptions, ENNEInferenceFormat::ONNX, InputModel))
+			{
+				return {};
+			}
 		}
 	}
 
 	TArray<uint8> Result;
-	FMemoryWriter Writer(Result);
+	FMemoryWriter Writer(Result, /*bIsPersitent =*/ true);
 	Writer << UNNERuntimeORTDml::GUID;
 	Writer << UNNERuntimeORTDml::Version;
-	Writer.Serialize(InputModel.Data.GetData(), InputModel.Data.Num());
+
+	Details::WriteOnnxModelData(Writer, InputModel.Data, AdditionalFileData);
 
 	return MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Result)), 0);
 }

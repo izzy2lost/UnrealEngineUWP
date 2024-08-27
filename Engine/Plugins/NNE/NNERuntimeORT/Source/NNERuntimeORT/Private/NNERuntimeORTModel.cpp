@@ -3,7 +3,11 @@
 #include "NNERuntimeORTModel.h"
 
 #include "HAL/PlatformMisc.h"
+#include "HAL/PlatformFileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "NNERuntimeORT.h"
+#include "NNERuntimeORTModelFormat.h"
 #include "NNERuntimeORTSettings.h"
 #include "NNERuntimeORTUtils.h"
 #include "RenderGraphUtils.h"
@@ -45,6 +49,92 @@ namespace Detail
 		return Result;
 	}
 
+	FString CreateTempDirPath(const FString& BasePath)
+	{
+		FString UniqueDirName;
+		do
+		{
+			UniqueDirName = FPaths::Combine(BasePath, *FString::Printf(TEXT("ORTModel_%s"), *FGuid::NewGuid().ToString()));
+		} while (IFileManager::Get().DirectoryExists(*UniqueDirName));
+
+		return UniqueDirName;
+	}
+
+	bool CreateSession(
+		TConstArrayView<uint8> ModelData,
+		const Ort::SessionOptions& SessionOptions,
+		const FEnvironment& Environment,
+		TUniquePtr<Ort::Session>& Session, FString& TempDirForModelWithExternalData)
+	{
+		FMemoryReaderView Reader(ModelData, /*bIsPersitent =*/ true);
+		FGuid GUID;
+		int32 Version;
+		Reader << GUID;
+		Reader << Version;
+
+		FOnnxDataDescriptor Descriptor;
+		Reader << Descriptor;
+
+		int64 BaseDataOffset = Reader.Tell();
+		TConstArrayView<uint8> ModelBuffer = TConstArrayView<uint8>(&(ModelData.GetData()[BaseDataOffset]), Descriptor.OnnxModelDataSize);
+
+		if (ModelBuffer.Num() == 0)
+		{
+			UE_LOG(LogNNE, Error, TEXT("NNERuntimeORT::Private::Details::CreateSession(): Input model data is empty."));
+			return false;
+		}
+
+		// Starting with ORT v18 we will get AddExternalInitializersFromFilesInMemory() via onnxruntime_c_api.h
+		// however for now we use temp files when working with model with external data.
+		if (Descriptor.AdditionalDataDescriptors.Num() > 0)
+		{
+			FString Filepath;
+			if (TempDirForModelWithExternalData.IsEmpty())
+			{
+				FString ProjIntermediateDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectIntermediateDir());
+				TempDirForModelWithExternalData = Detail::CreateTempDirPath(ProjIntermediateDir);
+				Filepath = FPaths::Combine(TempDirForModelWithExternalData, TEXT("OnnxModel.onnx"));
+
+				// Note: SaveArrayToFile() will create the needed folders as needed both for the Onnx model and the additional data files.
+				if (!FFileHelper::SaveArrayToFile(ModelBuffer, *Filepath))
+				{
+					IFileManager::Get().DeleteDirectory(*TempDirForModelWithExternalData, false, true);
+					UE_LOG(LogNNE, Error, TEXT("NNERuntimeORT::Private::Details::CreateSession() could not write model to disk at %s."), *Filepath);
+					return false;
+				}
+
+				for (const FOnnxAdditionalDataDescriptor& AdditionalDataDescriptor : Descriptor.AdditionalDataDescriptors)
+				{
+					FString AdditionalDataFilename = FPaths::Combine(TempDirForModelWithExternalData, *AdditionalDataDescriptor.Path);
+					TConstArrayView<uint8> AdditionalDataBuffer = TConstArrayView<uint8>(&(ModelData.GetData()[BaseDataOffset + AdditionalDataDescriptor.Offset]), AdditionalDataDescriptor.Size);
+
+					if (!FFileHelper::SaveArrayToFile(AdditionalDataBuffer, *AdditionalDataFilename))
+					{
+						IFileManager::Get().DeleteDirectory(*TempDirForModelWithExternalData, false, true);
+						UE_LOG(LogNNE, Error, TEXT("NNERuntimeORT::Private::Details::CreateSession() could not write additional data to disk at %s."), *AdditionalDataFilename);
+						return false;
+					}
+				}
+			}
+			else
+			{
+				Filepath = FPaths::Combine(TempDirForModelWithExternalData, TEXT("OnnxModel.onnx"));
+			}
+
+#if PLATFORM_WINDOWS
+			Session = MakeUnique<Ort::Session>(Environment.GetOrtEnv(), *Filepath, SessionOptions);
+#else
+			Session = MakeUnique<Ort::Session>(Environment.GetOrtEnv(), TCHAR_TO_ANSI(*Filepath), SessionOptions);
+#endif
+		}
+		else
+		{
+			Session = MakeUnique<Ort::Session>(Environment.GetOrtEnv(), ModelBuffer.GetData(), ModelBuffer.Num(), SessionOptions);
+		}
+
+		return Session.IsValid();
+	}
+
 } // namespace Detail
 
 template <class ModelInterface, class TensorBinding> 
@@ -54,19 +144,22 @@ FModelInstanceORTBase<ModelInterface, TensorBinding>::FModelInstanceORTBase(cons
 
 }
 
+template <class ModelInterface, class TensorBinding>
+FModelInstanceORTBase<ModelInterface, TensorBinding>::~FModelInstanceORTBase()
+{
+	Session.Reset();
+	if (!TempDirForModelWithExternalData.IsEmpty())
+	{
+		if (!IFileManager::Get().DeleteDirectory(*TempDirForModelWithExternalData, false, true))
+		{
+			UE_LOG(LogNNE, Warning, TEXT("FModelInstanceORTBase could not delete temp directy %s on model instance destruction."), *TempDirForModelWithExternalData);
+		}
+	}
+}
+
 template <class ModelInterface, class TensorBinding> 
 bool FModelInstanceORTBase<ModelInterface, TensorBinding>::Init(TConstArrayView<uint8> ModelData)
 {
-	constexpr int32 GuidSize = sizeof(UNNERuntimeORTDml::GUID);
-	constexpr int32 VersionSize = sizeof(UNNERuntimeORTDml::Version);
-	TConstArrayView<uint8> ModelBuffer = TConstArrayView<uint8>(&(ModelData.GetData()[GuidSize + VersionSize]), ModelData.Num() - GuidSize - VersionSize);
-
-	if (ModelBuffer.Num() == 0)
-	{
-		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::Init(): Input model data is empty."));
-		return false;
-	}
-
 #if WITH_EDITOR
 	try
 #endif // WITH_EDITOR
@@ -77,7 +170,11 @@ bool FModelInstanceORTBase<ModelInterface, TensorBinding>::Init(TConstArrayView<
 			return false;
 		}
 
-		Session = MakeUnique<Ort::Session>(Environment->GetOrtEnv(), ModelBuffer.GetData(), ModelBuffer.Num(), *SessionOptions);
+		if (!Detail::CreateSession(ModelData, *SessionOptions, *Environment, Session, TempDirForModelWithExternalData))
+		{
+			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::Init(): Session creation failed."));
+			return false;
+		}
 
 		if (!ConfigureTensors(true))
 		{
@@ -440,18 +537,20 @@ FModelInstanceORTDmlRDG::FModelInstanceORTDmlRDG(TSharedRef<UE::NNE::FSharedMode
 	:  ModelData(InModelData), RuntimeConf(InRuntimeConf), Environment(InEnvironment)
 {}
 
+FModelInstanceORTDmlRDG::~FModelInstanceORTDmlRDG()
+{
+	Session.Reset();
+	if (!TempDirForModelWithExternalData.IsEmpty())
+	{
+		if (!IFileManager::Get().DeleteDirectory(*TempDirForModelWithExternalData, false, true))
+		{
+			UE_LOG(LogNNE, Warning, TEXT("FModelInstanceORTDmlRDG could not delete temp directy %s on model instance destruction."), *TempDirForModelWithExternalData);
+		}
+	}
+}
+
 bool FModelInstanceORTDmlRDG::Init()
 {
-	constexpr int32 GuidSize = sizeof(UNNERuntimeORTDml::GUID);
-	constexpr int32 VersionSize = sizeof(UNNERuntimeORTDml::Version);
-	TConstArrayView<uint8> ModelBuffer = TConstArrayView<uint8>(&(ModelData->GetView().GetData()[GuidSize + VersionSize]), ModelData->GetView().Num() - GuidSize - VersionSize);
-
-	if (ModelBuffer.IsEmpty())
-	{
-		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::Init(): Input model data is empty."));
-		return false;
-	}
-
 #if WITH_EDITOR
 	try
 #endif // WITH_EDITOR
@@ -467,7 +566,11 @@ bool FModelInstanceORTDmlRDG::Init()
 		
 		SessionOptions->SetGraphOptimizationLevel(GetGraphOptimizationLevelForDML(true));
 
-		Session = MakeUnique<Ort::Session>(Environment->GetOrtEnv(), ModelBuffer.GetData(), ModelBuffer.Num(), *SessionOptions);
+		if (!Detail::CreateSession(ModelData->GetView(), *SessionOptions, *Environment, Session, TempDirForModelWithExternalData))
+		{
+			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::Init(): Session creation failed."));
+			return false;
+		}
 
 		if (!ConfigureTensors(*Session))
 		{
@@ -660,16 +763,15 @@ FModelInstanceORTDmlRDG::ESetInputTensorShapesStatus FModelInstanceORTDmlRDG::Se
 		}
 	}
 
-	constexpr int32 GuidSize = sizeof(UNNERuntimeORTDml::GUID);
-	constexpr int32 VersionSize = sizeof(UNNERuntimeORTDml::Version);
-	TConstArrayView<uint8> ModelBuffer = TConstArrayView<uint8>(&(ModelData->GetView().GetData()[GuidSize + VersionSize]), ModelData->GetView().Num() - GuidSize - VersionSize);
-	check(!ModelBuffer.IsEmpty());
-
 #if WITH_EDITOR
 	try
 #endif // WITH_EDITOR
 	{
-		Session = MakeUnique<Ort::Session>(Environment->GetOrtEnv(), ModelBuffer.GetData(), ModelBuffer.Num(), *SessionOptions);
+		if (!Detail::CreateSession(ModelData->GetView(), *SessionOptions, *Environment, Session, TempDirForModelWithExternalData))
+		{
+			UE_LOG(LogNNE, Error, TEXT("Failed to recreate session!"));
+			return ESetInputTensorShapesStatus::Fail;
+		}
 	}
 #if WITH_EDITOR
 	catch (const Ort::Exception& Exception)
