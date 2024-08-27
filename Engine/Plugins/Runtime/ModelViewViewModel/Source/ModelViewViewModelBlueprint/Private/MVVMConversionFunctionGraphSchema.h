@@ -24,7 +24,7 @@ public:
  * 
  * Note: Keep in private header.
  */
-UCLASS()
+UCLASS(Hidden, HideDropDown)
 class UMVVMFakeTestUbergraphSchema : public UEdGraphSchema_K2
 {
 	GENERATED_BODY()
@@ -38,7 +38,7 @@ public:
  *
  * Note: Keep in private header.
  */
-UCLASS()
+UCLASS(Hidden, HideDropDown)
 class UMVVMFakeTestUbergraph : public UEdGraph
 {
 	GENERATED_BODY()
@@ -52,7 +52,7 @@ public:
  *
  * Note: Keep in private header.
  */
-UCLASS()
+UCLASS(Hidden, HideDropDown)
 class UMVVMFakeTestFunctiongraph : public UEdGraph
 {
 	GENERATED_BODY()

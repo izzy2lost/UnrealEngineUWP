@@ -12,10 +12,12 @@ public class ModelViewViewModelEditor : ModuleRules
 			new string[]
 			{
 				"Engine",
+				"BlueprintGraph",
 				"Core",
 				"CoreUObject",
 				"EditorSubsystem",
 				"FieldNotification",
+				"KismetCompiler",
 				"ModelViewViewModel",
 				"ModelViewViewModelBlueprint",
 				"PropertyPath",
@@ -27,7 +29,6 @@ public class ModelViewViewModelEditor : ModuleRules
 				"AdvancedWidgets",
 				"AssetTools",
 				"EditorWidgets",
-				"BlueprintGraph",
 				"GraphEditor",
 				"InputCore",
 				"Kismet",

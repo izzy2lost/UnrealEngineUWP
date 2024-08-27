@@ -19,8 +19,8 @@ class UEdGraph;
 class UEdGraphPin;
 class UObject;
 
-UCLASS(MinimalAPI)
-class UK2Node_LoadAsset : public UK2Node
+UCLASS()
+class BLUEPRINTGRAPH_API UK2Node_LoadAsset : public UK2Node
 {
 	GENERATED_BODY()
 public:
@@ -41,14 +41,14 @@ public:
 	virtual void ReallocatePinsDuringReconstruction(TArray<UEdGraphPin*>& OldPins) override;
 	// End of UK2Node interface
 
+	virtual const FName& GetInputPinName() const;
+	virtual const FName& GetOutputPinName() const;
+
 protected:
 	virtual FName NativeFunctionName() const;
 
 	virtual const FName& GetInputCategory() const;
 	virtual const FName& GetOutputCategory() const;
-
-	virtual const FName& GetInputPinName() const;
-	virtual const FName& GetOutputPinName() const;
 };
 
 UCLASS(MinimalAPI)
