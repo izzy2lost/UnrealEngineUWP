@@ -1426,7 +1426,7 @@ void AppendAssetPackageName(const FAssetData& AssetData, FString& InOutStr)
 	{
 		InOutStr += LINE_TERMINATOR;
 	}
-	InOutStr += AssetData.PackageName.ToString();
+	AssetData.PackageName.AppendString(InOutStr);
 }
 
 bool AppendAssetFolderItemReference(IAssetRegistry* InAssetRegistry, const FContentBrowserAssetFolderItemDataPayload& InFolderPayload, FString& InOutStr)
