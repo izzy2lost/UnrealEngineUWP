@@ -13,6 +13,7 @@ struct CHOOSER_API FAssetChooser : public FObjectChooserBase
 	
 	// FObjectChooserBase interface
 	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const final override;
+	virtual EIteratorStatus IterateObjects(FObjectChooserIteratorCallback Callback) const final override;
 
 #if WITH_EDITOR
 	virtual UObject* GetReferencedObject() const override { return Asset; }
@@ -29,6 +30,7 @@ struct CHOOSER_API FSoftAssetChooser : public FObjectChooserBase
 
 	// FObjectChooserBase interface
 	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const final override;
+	virtual EIteratorStatus IterateObjects(FObjectChooserIteratorCallback Callback) const final override;
 	
 #if WITH_EDITOR
 	virtual UObject* GetReferencedObject() const override { return Asset.LoadSynchronous(); }

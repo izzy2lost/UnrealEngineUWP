@@ -108,6 +108,7 @@ public:
 		return EIteratorStatus::Continue;
 	}
 
+	virtual EIteratorStatus IterateObjects(FObjectChooserIteratorCallback Callback) const { return EIteratorStatus::Continue; }
 	virtual void GetDebugName(FString& OutDebugName) const {};
 
 #if WITH_EDITOR

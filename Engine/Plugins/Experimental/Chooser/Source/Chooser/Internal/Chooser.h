@@ -188,6 +188,7 @@ public:
 
 	bool IsCookedData() const { return !CookedResults.IsEmpty(); }
 	static FObjectChooserBase::EIteratorStatus EvaluateChooser(FChooserEvaluationContext& Context, const UChooserTable* Chooser, FObjectChooserBase::FObjectChooserIteratorCallback Callback);
+	static FObjectChooserBase::EIteratorStatus IterateChooser(const UChooserTable* Chooser, FObjectChooserBase::FObjectChooserIteratorCallback Callback);
 };
 
 USTRUCT(BlueprintType, DisplayName = "Nested Chooser")
@@ -197,6 +198,7 @@ struct CHOOSER_API FNestedChooser : public FObjectChooserBase
 
 	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const final override;
 	virtual EIteratorStatus ChooseMulti(FChooserEvaluationContext &Context, FObjectChooserIteratorCallback Callback) const final override;
+	virtual EIteratorStatus IterateObjects(FObjectChooserIteratorCallback Callback) const final override;
 	virtual void GetDebugName(FString& OutDebugName) const override;
 	
 	public:
@@ -214,6 +216,7 @@ struct CHOOSER_API FEvaluateChooser : public FObjectChooserBase
 
 	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const final override;
 	virtual EIteratorStatus ChooseMulti(FChooserEvaluationContext &Context, FObjectChooserIteratorCallback Callback) const final override;
+	virtual EIteratorStatus IterateObjects(FObjectChooserIteratorCallback Callback) const final override;
 	virtual void GetDebugName(FString& OutDebugName) const override;
 	
 	public:

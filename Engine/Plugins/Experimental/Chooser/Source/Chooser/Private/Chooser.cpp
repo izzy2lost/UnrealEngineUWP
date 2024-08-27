@@ -534,6 +534,59 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 	return bSetOutputs ? FObjectChooserBase::EIteratorStatus::ContinueWithOutputs : FObjectChooserBase::EIteratorStatus::Continue;
 }
 
+FObjectChooserBase::EIteratorStatus UChooserTable::IterateChooser(const UChooserTable* Chooser, FObjectChooserBase::FObjectChooserIteratorCallback Callback)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(IterateChooser);
+
+	if (Chooser == nullptr)
+	{
+		return FObjectChooserBase::EIteratorStatus::Continue;
+	}
+
+	const TArray<FInstancedStruct>* ResultsArray = &Chooser->CookedResults;
+
+#if WITH_EDITORONLY_DATA
+	if (!Chooser->IsCookedData())
+	{
+		ResultsArray = &Chooser->ResultsStructs;
+	}
+#endif
+	
+	uint32 Count = ResultsArray->Num();
+	uint32 BufferSize = Count * sizeof(FChooserIndexArray::FIndexData);
+
+	FChooserIndexArray Indices(static_cast<FChooserIndexArray::FIndexData*>(FMemory_Alloca(BufferSize)), Count);
+
+	for(uint32 i=0;i<Count;i++)
+	{
+		if (!Chooser->IsRowDisabled(i))
+		{
+			Indices.Push({i, 0});
+		}
+	}
+
+	for (FChooserIndexArray::FIndexData& SelectedIndexData : Indices)
+	{
+		if (ResultsArray->IsValidIndex(SelectedIndexData.Index))
+		{
+			const FObjectChooserBase& SelectedResult = (*ResultsArray)[SelectedIndexData.Index].Get<FObjectChooserBase>();
+			FObjectChooserBase::EIteratorStatus Status = SelectedResult.IterateObjects(Callback);
+			if (Status == FObjectChooserBase::EIteratorStatus::Stop)
+			{
+				return FObjectChooserBase::EIteratorStatus::Stop;
+			}
+		}
+	}
+
+	if (Chooser->FallbackResult.IsValid())
+	{
+		const FObjectChooserBase& SelectedResult = Chooser->FallbackResult.Get<FObjectChooserBase>();
+		return SelectedResult.IterateObjects(Callback);
+	}
+
+	return FObjectChooserBase::EIteratorStatus::Continue;
+}
+
 UObject* FEvaluateChooser::ChooseObject(FChooserEvaluationContext& Context) const
 {
 	UObject* Result = nullptr;
@@ -549,6 +602,11 @@ UObject* FEvaluateChooser::ChooseObject(FChooserEvaluationContext& Context) cons
 FObjectChooserBase::EIteratorStatus FEvaluateChooser::ChooseMulti(FChooserEvaluationContext& Context, FObjectChooserIteratorCallback Callback) const
 {
 	return UChooserTable::EvaluateChooser(Context, Chooser, Callback);
+}
+
+FObjectChooserBase::EIteratorStatus FEvaluateChooser::IterateObjects(FObjectChooserIteratorCallback Callback) const
+{
+	return UChooserTable::IterateChooser(Chooser, Callback);
 }
 
 void FEvaluateChooser::GetDebugName(FString& OutDebugName) const
@@ -579,6 +637,11 @@ UObject* FNestedChooser::ChooseObject(FChooserEvaluationContext& Context) const
 FObjectChooserBase::EIteratorStatus FNestedChooser::ChooseMulti(FChooserEvaluationContext& Context, FObjectChooserIteratorCallback Callback) const
 {
 	return UChooserTable::EvaluateChooser(Context, Chooser, Callback);
+}
+
+FObjectChooserBase::EIteratorStatus FNestedChooser::IterateObjects(FObjectChooserIteratorCallback Callback) const
+{
+	return UChooserTable::IterateChooser(Chooser, Callback);
 }
 
 void FNestedChooser::GetDebugName(FString& OutDebugName) const

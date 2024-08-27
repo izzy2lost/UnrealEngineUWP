@@ -252,6 +252,21 @@ FObjectChooserBase::EIteratorStatus UProxyTable::FindProxyObjectMulti(const FGui
     return FObjectChooserBase::EIteratorStatus::Continue;
 }
 
+FObjectChooserBase::EIteratorStatus UProxyTable::IterateProxyObjects(const FGuid& Key, FObjectChooserBase::FObjectChooserIteratorCallback Callback) const
+{
+	const int FoundIndex = Algo::BinarySearch(Keys, Key);
+	if (FoundIndex != INDEX_NONE)
+	{
+		const FRuntimeProxyValue& EntryValueData = RuntimeValues[FoundIndex];
+		const FObjectChooserBase& EntryValue = EntryValueData.Value.Get<const FObjectChooserBase>();
+
+		FObjectChooserBase::EIteratorStatus Result = EntryValue.IterateObjects(Callback);
+		return Result;
+	}
+
+	return FObjectChooserBase::EIteratorStatus::Continue;
+}
+
 UProxyTable::UProxyTable(const FObjectInitializer& Initializer)
 	:Super(Initializer)
 {

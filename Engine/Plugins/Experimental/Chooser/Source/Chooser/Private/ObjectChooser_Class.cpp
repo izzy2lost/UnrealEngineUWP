@@ -6,3 +6,8 @@ UObject* FClassChooser::ChooseObject(FChooserEvaluationContext& Context) const
 {
 	return Class;
 }
+
+FObjectChooserBase::EIteratorStatus FClassChooser::IterateObjects(FObjectChooserIteratorCallback Callback) const
+{
+	return Callback.Execute(Class);
+}

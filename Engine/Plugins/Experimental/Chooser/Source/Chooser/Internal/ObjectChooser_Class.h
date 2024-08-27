@@ -13,6 +13,7 @@ struct CHOOSER_API FClassChooser : public FObjectChooserBase
 	
 	// FObjectChooserBase interface
 	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const final override;
+	virtual EIteratorStatus IterateObjects(FObjectChooserIteratorCallback Callback) const final override;
 public: 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TObjectPtr<UClass> Class;
