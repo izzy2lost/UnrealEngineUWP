@@ -33,14 +33,15 @@ typedef TSharedPtr<TArray<ANSICHAR>, ESPMode::ThreadSafe> FShaderSharedAnsiStrin
 // this is for the protocol, not the data, bump if FShaderCompilerInput/FShaderPreprocessOutput serialization, SerializeWorkerInput or ProcessInputFromArchive changes.
 inline const int32 ShaderCompileWorkerInputVersion = 28;
 // this is for the protocol, not the data, bump if FShaderCompilerOutput or WriteToOutputArchive changes.
-inline const int32 ShaderCompileWorkerOutputVersion = 22;
+inline const int32 ShaderCompileWorkerOutputVersion = 23;
 // this is for the protocol, not the data.
 inline const int32 ShaderCompileWorkerSingleJobHeader = 'S';
 // this is for the protocol, not the data.
 inline const int32 ShaderCompileWorkerPipelineJobHeader = 'P';
 
-// modify this for changes to the FShaderCompilerOutput data structure (in addition to ShaderCompileWorkerOutputVersion)
-inline const int32 FShaderCompilerOutputStructVersion = 4;
+// Modify this to invalidate _just_ the cache/DDC entries for individual shaders (will not cause shadermaps to rebuild if they are not otherwise out-of-date).
+// This should be bumped for changes to the FShaderCompilerOutput data structure (in addition to ShaderCompileWorkerOutputVersion)
+inline static const FGuid UE_SHADER_CACHE_VERSION = FGuid("DB7CA032-63BC-4D95-8F65-64C6B39EF882");
 
 namespace UE::ShaderCompiler
 {
@@ -553,7 +554,7 @@ struct FShaderCompilerError
 
 /**
  *	The output of the shader compiler.
- *	Bump FShaderCompilerOutputStructVersion and ShaderCompileWorkerOutputVersion if FShaderCompilerOutput changes
+ *	Bump UE_SHADER_CACHE_VERSION and ShaderCompileWorkerOutputVersion if FShaderCompilerOutput changes
  */
 struct FShaderCompilerOutput
 {
@@ -574,6 +575,7 @@ struct FShaderCompilerOutput
 	FShaderTarget Target;
 	FShaderCode ShaderCode;
 	FSHAHash OutputHash;
+	FShaderCompilerInputHash ValidateInputHash;
 	uint32 NumInstructions;
 	uint32 NumTextureSamplers;
 	double CompileTime;
@@ -656,6 +658,7 @@ struct FShaderCompilerOutput
 		}
 		Ar << Output.PlatformDebugData;
 		Ar << Output.ShaderStatistics;
+		Ar << Output.ValidateInputHash;
 
 		return Ar;
 	}

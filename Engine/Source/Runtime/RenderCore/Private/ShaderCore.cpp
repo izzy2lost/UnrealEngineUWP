@@ -1691,6 +1691,8 @@ public:
 				Job.Output.bSucceeded = Job.Output.bSucceeded && Job.SecondaryOutput->bSucceeded;
 				// ensure the target field is set on the job output struct as we use it for validation during serialization
 				Job.SecondaryOutput->Target = Job.Input.Target;
+				// also set the job input hash on the output struct for validation purposes
+				Job.SecondaryOutput->ValidateInputHash = Job.Input.Hash;
 				if (Job.Output.bSucceeded)
 				{
 					Job.SecondaryOutput->GenerateOutputHash();
@@ -1705,6 +1707,8 @@ public:
 
 		// ensure the target field is set on the job output struct as we use it for validation during serialization
 		Job.Output.Target = Job.Input.Target;
+		// also set the job input hash on the output struct for validation purposes
+		Job.Output.ValidateInputHash = Job.Input.Hash;
 		if (Job.Output.bSucceeded)
 		{
 			Job.Output.GenerateOutputHash();
@@ -1820,6 +1824,13 @@ void CompileShaderPipeline(const TArray<const IShaderFormat*>& ShaderFormats, FS
 	if (!CurrentJob->Output.bSucceeded)
 	{
 		// Can't carry on compiling the pipeline
+		// Set values used for validation on the pipeline jobs that we're skipping before returning
+		for (int32 Index = 1; Index < PipelineJob->StageJobs.Num(); ++Index)
+		{
+			FShaderCompileJob& Job = *PipelineJob->StageJobs[Index];
+			Job.Output.Target = Job.Input.Target;
+			Job.Output.ValidateInputHash = Job.Input.Hash;
+		}
 		return;
 	}
 
@@ -3948,8 +3959,8 @@ FShaderCompilerInputHash FShaderCompileJob::GetInputHash()
 
 	FMemoryHasherBlake3 Hasher;
 
-	int32 FShaderCompilerOutputStructVersionLocal = FShaderCompilerOutputStructVersion;
-	Hasher << FShaderCompilerOutputStructVersionLocal;
+	FGuid ShaderCacheVersionLocal = UE_SHADER_CACHE_VERSION;
+	Hasher << ShaderCacheVersionLocal;
 
 	uint32 FormatVersion = GetTargetPlatformManagerRef().ShaderFormatVersion(Input.ShaderFormat);
 	Hasher << FormatVersion;
@@ -4090,6 +4101,10 @@ void FShaderCompileJob::SerializeWorkerOutput(FArchive& Ar)
 	bool bSecondaryOutput = SecondaryOutput.IsValid();
 	Ar << bSecondaryOutput;
 
+	checkf(Output.ValidateInputHash == Input.Hash, TEXT("Output.ValidateInputHash does not match Input.Hash; incorrect results associated with job?"));
+	// empty validation hash after running validation to avoid impacting output deduplication
+	Output.ValidateInputHash = FShaderCompilerInputHash();
+
 	if (bSecondaryOutput)
 	{
 		if (Ar.IsLoading())
@@ -4097,6 +4112,9 @@ void FShaderCompileJob::SerializeWorkerOutput(FArchive& Ar)
 			SecondaryOutput = MakeUnique<FShaderCompilerOutput>();
 		}
 		Ar << *SecondaryOutput;
+		checkf(SecondaryOutput->ValidateInputHash == Input.Hash, TEXT("SecondaryOutput.ValidateInputHash does not match Input.Hash; incorrect results associated with job?"));
+		// empty validation hash after running validation to avoid impacting output deduplication
+		SecondaryOutput->ValidateInputHash = FShaderCompilerInputHash();
 	}
 
 	bool bSucceededTemp = (bool)bSucceeded;
@@ -4106,7 +4124,7 @@ void FShaderCompileJob::SerializeWorkerOutput(FArchive& Ar)
 	checkf(Output.Target == Input.Target, TEXT("Output FShaderTarget does not match the input struct; incorrect results associated with job?"));
 	if (bSecondaryOutput)
 	{
-		checkf(SecondaryOutput->Target == Input.Target, TEXT("Output FShaderTarget does not match the input struct; incorrect results associated with job?"));
+		checkf(SecondaryOutput->Target == Input.Target, TEXT("SecondaryOutput FShaderTarget does not match the input struct; incorrect results associated with job?"));
 	}
 }
 
