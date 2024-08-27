@@ -28,6 +28,7 @@
 #include "NiagaraCullProxyComponent.h"
 #include "SceneInterface.h"
 #include "UObject/UObjectIterator.h"
+#include "UObject/UObjectThreadContext.h"
 #include "PrimitiveUniformShaderParametersBuilder.h"
 #include "NiagaraActor.h"
 
@@ -1644,6 +1645,12 @@ void UNiagaraComponent::UnregisterWithScalabilityManager()
 void UNiagaraComponent::PostSystemTick_GameThread()
 {
 	check(SystemInstanceController.IsValid()); // sanity
+
+	if (FUObjectThreadContext::Get().IsRoutingPostLoad)
+	{
+		// return early when we're in the middle of another object's postload phase, as ticking data interfaces and renderers might lead to failed assertions
+		return;
+	}
 
 #if WITH_EDITOR
 	if (SystemInstanceController->HandleNeedsUIResync())
