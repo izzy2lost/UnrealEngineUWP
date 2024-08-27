@@ -80,6 +80,9 @@ struct FAbstractVisitor
 	// called in any other situation.
 	virtual void VisitEmergentType(const VEmergentType* InEmergentType);
 
+	virtual void VisitObject(const TCHAR* ElementName, FUtf8StringView TypeName, TFunctionRef<void()> VisitBody);
+	void VisitObject(const TCHAR* ElementName, TFunctionRef<void()> VisitBody) { VisitObject(ElementName, "", VisitBody); }
+	virtual void VisitPair(TFunctionRef<void()> VisitBody);
 	virtual void VisitClass(FUtf8StringView ClassName, TFunctionRef<void()> VisitBody);
 	virtual void VisitFunction(FUtf8StringView FunctionName, TFunctionRef<void()> VisitBody);
 	virtual void VisitConstrainedInt(TFunctionRef<void()> VisitBody);
@@ -97,8 +100,7 @@ struct FAbstractVisitor
 	virtual void Visit(int8& Value, const TCHAR* ElementName);
 	virtual void Visit(VFloat&, const TCHAR* ElementName);
 
-	// Override the following methods to handle nesting of elements.  Begin/EndObject are intended for when
-	// objects are elements in arrays.
+	// Override the following methods to handle nesting of elements.
 	virtual void BeginArray(const TCHAR* ElementName, uint64& NumElements);
 	virtual void EndArray();
 	virtual void BeginString(const TCHAR* ElementName, uint64& NumElements);
@@ -107,13 +109,8 @@ struct FAbstractVisitor
 	virtual void EndSet();
 	virtual void BeginMap(const TCHAR* ElementName, uint64& NumElements);
 	virtual void EndMap();
-	virtual void BeginObject(const TCHAR* ElementName, FUtf8StringView TypeName);
-	void BeginObject(const TCHAR* ElementName) { BeginObject(ElementName, ""); }
-	virtual void EndObject();
 	virtual void BeginOption();
 	virtual void EndOption();
-	virtual void BeginPair();
-	virtual void EndPair();
 
 	// Override for blocks of bulk binary data
 	virtual void VisitBulkData(void* Data, uint64 DataSize, const TCHAR* ElementName);

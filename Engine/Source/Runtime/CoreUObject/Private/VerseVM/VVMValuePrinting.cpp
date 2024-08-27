@@ -95,15 +95,12 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		Builder.Append(TEXT(")"));
 	}
 
-	virtual void BeginObject(const TCHAR* ElementName, FUtf8StringView) override
+	virtual void VisitObject(const TCHAR* ElementName, FUtf8StringView, TFunctionRef<void()> VisitBody) override
 	{
 		BeginElement(ElementName);
 		PushNesting(ENestingType::Object);
 		Builder.Append(TEXT("("));
-	}
-
-	virtual void EndObject() override
-	{
+		VisitBody();
 		PopNesting(ENestingType::Object);
 		Builder.Append(TEXT(")"));
 	}

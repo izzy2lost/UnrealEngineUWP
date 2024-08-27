@@ -49,9 +49,9 @@ inline FLocation EmptyLocation()
 template <>
 inline void Visit(FAbstractVisitor& Visitor, FLocation& Value, const TCHAR* ElementName)
 {
-	Visitor.BeginObject(ElementName);
-	Visitor.Visit(Value.Line, TEXT("Line"));
-	Visitor.EndObject();
+	Visitor.VisitObject(ElementName, [&Visitor, &Value] {
+		Visitor.Visit(Value.Line, TEXT("Line"));
+	});
 }
 } // namespace Verse
 

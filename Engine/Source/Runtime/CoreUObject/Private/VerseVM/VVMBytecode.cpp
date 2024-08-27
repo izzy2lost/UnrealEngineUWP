@@ -55,28 +55,28 @@ const Verse::FLocation* Verse::GetLocation(FOpLocation* First, FOpLocation* Last
 template <>
 void Verse::Visit(FAbstractVisitor& Visitor, FOpLocation& Value, const TCHAR* ElementName)
 {
-	Visitor.BeginObject(ElementName);
-	Visitor.Visit(Value.Begin, TEXT("Begin"));
-	Visit(Visitor, Value.Location, TEXT("Location"));
-	Visitor.EndObject();
+	Visitor.VisitObject(ElementName, [&Visitor, &Value] {
+		Visitor.Visit(Value.Begin, TEXT("Begin"));
+		Visit(Visitor, Value.Location, TEXT("Location"));
+	});
 }
 
 template <>
 void Verse::Visit(FAbstractVisitor& Visitor, FRegisterName& Value, const TCHAR* ElementName)
 {
-	Visitor.BeginObject(ElementName);
-	Visit(Visitor, Value.Index, TEXT("Index"));
-	Visit(Visitor, Value.Name, TEXT("Name"));
-	Visitor.EndObject();
+	Visitor.VisitObject(ElementName, [&Visitor, &Value] {
+		Visit(Visitor, Value.Index, TEXT("Index"));
+		Visit(Visitor, Value.Name, TEXT("Name"));
+	});
 }
 
 template <>
 void Verse::Visit(FAbstractVisitor& Visitor, FNamedParam& Value, const TCHAR* ElementName)
 {
-	Visitor.BeginObject(ElementName);
-	Visit(Visitor, Value.Index, TEXT("Index"));
-	Visit(Visitor, Value.Name, TEXT("Name"));
-	Visitor.EndObject();
+	Visitor.VisitObject(ElementName, [&Visitor, &Value] {
+		Visit(Visitor, Value.Index, TEXT("Index"));
+		Visit(Visitor, Value.Name, TEXT("Name"));
+	});
 }
 
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

@@ -120,10 +120,10 @@ FORCEINLINE void FAbstractVisitor::Visit(TMap<KeyType, ValueType, SetAllocator, 
 	BeginMap(ElementName, ScratchNumElements);
 	for (auto& Kvp : Values)
 	{
-		BeginPair();
-		::Verse::Visit(*this, Kvp.Key, TEXT("Key"));
-		::Verse::Visit(*this, Kvp.Value, TEXT("Value"));
-		EndPair();
+		VisitPair([this, &Kvp] {
+			::Verse::Visit(*this, Kvp.Key, TEXT("Key"));
+			::Verse::Visit(*this, Kvp.Value, TEXT("Value"));
+		});
 	}
 	EndMap();
 }

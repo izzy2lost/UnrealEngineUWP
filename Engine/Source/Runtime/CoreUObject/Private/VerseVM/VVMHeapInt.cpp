@@ -744,6 +744,27 @@ VHeapInt* VHeapInt::Modulo(FAllocationContext Context, VHeapInt& X, VHeapInt& Y)
 	return Remainder->RightTrim(Context);
 }
 
+TTuple<VHeapInt*, VHeapInt::Digit> VHeapInt::DivideModulo(FAllocationContext Context, VHeapInt& X, Digit Y)
+{
+	if (Y == 0)
+	{
+		return {nullptr, 0};
+	}
+	if (VHeapInt::AbsoluteCompare(X, Y) == ComparisonResult::LessThan)
+	{
+		return {CreateZero(Context), X.GetDigit(0)};
+	}
+	if (Y == 1)
+	{
+		return {&X, 0};
+	}
+	VHeapInt* Quotient = nullptr;
+	Digit Remainder;
+	AbsoluteDivWithDigitDivisor(Context, X, Y, &Quotient, Remainder);
+	Quotient->SetSign(X.GetSign());
+	return {Quotient->RightTrim(Context), Remainder};
+}
+
 // Returns whether (factor1 * factor2) > (high << digitBits) + low.
 bool VHeapInt::ProductGreaterThan(Digit Factor1, Digit Factor2, Digit High, Digit Low)
 {
@@ -1157,6 +1178,24 @@ VHeapInt::ComparisonResult VHeapInt::Compare(VHeapInt& X, VHeapInt& Y)
 	}
 
 	return ComparisonResult::Equal;
+}
+
+VHeapInt::ComparisonResult VHeapInt::AbsoluteCompare(const VHeapInt& X, Digit Y)
+{
+	check(!X.GetLength() || X.GetDigit(X.GetLength() - 1));
+	if (X.GetLength() - 1)
+	{
+		return ComparisonResult::GreaterThan;
+	}
+	if (X.GetDigit(0) == Y)
+	{
+		return ComparisonResult::Equal;
+	}
+	if (X.GetDigit(0) > Y)
+	{
+		return ComparisonResult::GreaterThan;
+	}
+	return ComparisonResult::LessThan;
 }
 
 VHeapInt* VHeapInt::AbsoluteAdd(FAllocationContext Context,

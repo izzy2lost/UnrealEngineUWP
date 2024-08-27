@@ -21,35 +21,35 @@ void VValueObject::VisitReferencesImpl(TVisitor& Visitor)
 	const VEmergentType* EmergentType = GetEmergentType();
 	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
-		Visitor.BeginObject(TEXT(""), EmergentType->Type->StaticCast<VClass>().GetName());
-		const VCppClassInfo* CppClassInfo = EmergentType->CppClassInfo;
-		for (VShape::FieldsMap::TConstIterator I = EmergentType->Shape->Fields; I; ++I)
-		{
-			FString Key = I->Key->AsString();
-			switch (I->Value.Type)
+		Visitor.VisitObject(TEXT(""), EmergentType->Type->StaticCast<VClass>().GetName(), [this, &Visitor, EmergentType] {
+			const VCppClassInfo* CppClassInfo = EmergentType->CppClassInfo;
+			for (VShape::FieldsMap::TConstIterator I = EmergentType->Shape->Fields; I; ++I)
 			{
-				case EFieldType::Offset:
+				FString Key = I->Key->AsString();
+				switch (I->Value.Type)
 				{
-					VRestValue& Value = GetFieldData(*CppClassInfo)[I->Value.Index];
-					::Verse::Visit(Visitor, Value, *Key);
-					break;
-				}
-				case EFieldType::FProperty:
-				{
-					check(I->Value.UProperty->IsA<FVRestValueProperty>());
-					VRestValue& Value = *I->Value.UProperty->ContainerPtrToValuePtr<VRestValue>(GetData(*CppClassInfo));
-					::Verse::Visit(Visitor, Value, *Key);
-					break;
-				}
-				case EFieldType::Constant:
-				{
-					VValue Value = I->Value.Value.Get();
-					::Verse::Visit(Visitor, Value, *Key);
-					break;
+					case EFieldType::Offset:
+					{
+						VRestValue& Value = GetFieldData(*CppClassInfo)[I->Value.Index];
+						::Verse::Visit(Visitor, Value, *Key);
+						break;
+					}
+					case EFieldType::FProperty:
+					{
+						check(I->Value.UProperty->IsA<FVRestValueProperty>());
+						VRestValue& Value = *I->Value.UProperty->ContainerPtrToValuePtr<VRestValue>(GetData(*CppClassInfo));
+						::Verse::Visit(Visitor, Value, *Key);
+						break;
+					}
+					case EFieldType::Constant:
+					{
+						VValue Value = I->Value.Value.Get();
+						::Verse::Visit(Visitor, Value, *Key);
+						break;
+					}
 				}
 			}
-		}
-		Visitor.EndObject();
+		});
 	}
 	else
 	{

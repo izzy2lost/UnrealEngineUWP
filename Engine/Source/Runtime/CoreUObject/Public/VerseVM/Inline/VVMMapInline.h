@@ -95,10 +95,10 @@ inline void VMapBase::Serialize(MapType*& This, FAllocationContext Context, FAbs
 		for (uint64 I = (uint32)NumElements; I != 0; --I)
 		{
 			VValue Key, Value;
-			Visitor.BeginPair();
-			Visitor.Visit(Key, TEXT("Key"));
-			Visitor.Visit(Value, TEXT("Value"));
-			Visitor.EndPair();
+			Visitor.VisitPair([&Visitor, &Key, &Value] {
+				Visitor.Visit(Key, TEXT("Key"));
+				Visitor.Visit(Value, TEXT("Value"));
+			});
 			This->Add(Context, Key, Value);
 		}
 		Visitor.EndArray();
@@ -109,10 +109,10 @@ inline void VMapBase::Serialize(MapType*& This, FAllocationContext Context, FAbs
 		Visitor.BeginMap(TEXT("Values"), NumElements);
 		for (auto MapIt : *This)
 		{
-			Visitor.BeginPair();
-			Visitor.Visit(MapIt.Key, TEXT("Key"));
-			Visitor.Visit(MapIt.Value, TEXT("Value"));
-			Visitor.EndPair();
+			Visitor.VisitPair([&Visitor, &MapIt] {
+				Visitor.Visit(MapIt.Key, TEXT("Key"));
+				Visitor.Visit(MapIt.Value, TEXT("Value"));
+			});
 		}
 		Visitor.EndMap();
 	}

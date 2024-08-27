@@ -79,6 +79,8 @@ struct VHeapInt final : VHeapValue
 	COREUOBJECT_API static VHeapInt* Multiply(FAllocationContext, VHeapInt& X, VHeapInt& Y);
 	COREUOBJECT_API static VHeapInt* Divide(FAllocationContext, VHeapInt& X, VHeapInt& Y, bool* bOutHasNonZeroRemainder = nullptr);
 	COREUOBJECT_API static VHeapInt* Modulo(FAllocationContext, VHeapInt& X, VHeapInt& Y);
+	// Note, modulo result is always positive, even where `Modulo` would produce a negative result.
+	COREUOBJECT_API static TTuple<VHeapInt*, Digit> DivideModulo(FAllocationContext, VHeapInt&, Digit);
 	COREUOBJECT_API static VHeapInt* UnaryMinus(FAllocationContext, VHeapInt& X);
 
 	enum class ComparisonResult
@@ -146,6 +148,7 @@ private:
 	static_assert(MaxLengthBits % DigitBits == 0);
 
 	static ComparisonResult AbsoluteCompare(const VHeapInt& X, const VHeapInt& Y);
+	static ComparisonResult AbsoluteCompare(const VHeapInt&, Digit);
 	static void MultiplyAccumulate(const VHeapInt& Multiplicand, Digit Multiplier, VHeapInt* Accumulator, uint32 AccumulatorIndex);
 
 	// Digit arithmetic helpers.

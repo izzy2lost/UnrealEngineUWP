@@ -54,11 +54,11 @@ void Visit(FMarkStackVisitor& Visitor, const TOperandRange<T>& Value, FMarkStack
 template <>
 void Visit(FAbstractVisitor& Visitor, FUnwindEdge& Value, const TCHAR* ElementName)
 {
-	Visitor.BeginObject(ElementName);
-	Visitor.Visit(Value.Begin, TEXT("Begin"));
-	Visitor.Visit(Value.End, TEXT("End"));
-	Visit(Visitor, Value.OnUnwind, TEXT("OnUnwind"));
-	Visitor.EndObject();
+	Visitor.VisitObject(ElementName, [&Visitor, &Value] {
+		Visitor.Visit(Value.Begin, TEXT("Begin"));
+		Visitor.Visit(Value.End, TEXT("End"));
+		Visit(Visitor, Value.OnUnwind, TEXT("OnUnwind"));
+	});
 }
 
 template <>

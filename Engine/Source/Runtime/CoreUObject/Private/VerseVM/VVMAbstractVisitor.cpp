@@ -98,30 +98,12 @@ void FAbstractVisitor::EndMap()
 {
 }
 
-void FAbstractVisitor::BeginObject(const TCHAR* ElementName, FUtf8StringView TypeName)
-{
-}
-
-void FAbstractVisitor::EndObject()
-{
-}
-
 void FAbstractVisitor::BeginOption()
 {
 }
 
 void FAbstractVisitor::EndOption()
 {
-}
-
-void FAbstractVisitor::BeginPair()
-{
-	BeginObject(TEXT(""), "");
-}
-
-void FAbstractVisitor::EndPair()
-{
-	EndObject();
 }
 
 void FAbstractVisitor::VisitBulkData(void* Data, uint64 DataSize, const TCHAR* ElementName)
@@ -132,6 +114,16 @@ void FAbstractVisitor::VisitEmergentType(const VEmergentType* InEmergentType)
 {
 	VCell* Scratch = const_cast<VEmergentType*>(InEmergentType);
 	VisitNonNull(Scratch, TEXT("EmergentType"));
+}
+
+void FAbstractVisitor::VisitObject(const TCHAR* ElementName, FUtf8StringView TypeName, TFunctionRef<void()> VisitBody)
+{
+	VisitBody();
+}
+
+void FAbstractVisitor::VisitPair(TFunctionRef<void()> VisitBody)
+{
+	VisitObject(TEXT(""), VisitBody);
 }
 
 void FAbstractVisitor::VisitClass(FUtf8StringView ClassName, TFunctionRef<void()> VisitBody)

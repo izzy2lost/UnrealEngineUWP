@@ -631,13 +631,10 @@ void FStructuredArchiveVisitor::EndMap()
 	LeaveArray(ENestingType::Map);
 }
 
-void FStructuredArchiveVisitor::BeginObject(const TCHAR* ElementName, FUtf8StringView TypeName)
+void FStructuredArchiveVisitor::VisitObject(const TCHAR* ElementName, FUtf8StringView TypeName, TFunctionRef<void()> VisitBody)
 {
 	EnterObject(ElementName);
-}
-
-void FStructuredArchiveVisitor::EndObject()
-{
+	VisitBody();
 	LeaveObject();
 }
 
