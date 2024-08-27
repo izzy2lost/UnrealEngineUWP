@@ -335,7 +335,7 @@ void FChaosScene::SetUpForFrame(const FVector* NewGrav,float InDeltaSeconds /*= 
 
 	if(bSubstepping)
 	{
-		MDeltaTime = FMath::Min(InDeltaSeconds, InMaxSubsteps * InMaxSubstepDeltaTime);
+		MDeltaTime = InMaxSubstepDeltaTime > 0.f ? FMath::Min(InDeltaSeconds, InMaxSubsteps * InMaxSubstepDeltaTime) : InDeltaSeconds;
 	}
 	else
 	{

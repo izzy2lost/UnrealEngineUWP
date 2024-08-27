@@ -257,6 +257,49 @@ void FRewindData::ApplyTargets(const int32 Frame, const bool bResetSimulation)
 	}
 }
 
+const int32 FRewindData::CompareTargetsToLastFrame()
+{
+	int32 RewindFrame = INDEX_NONE;
+	const FFrameAndPhase FrameAndPhase{ CurrentFrame() - 1, FFrameAndPhase::PostPushData };
+
+	if (LatestTargetFrame < FrameAndPhase.Frame)
+	{
+		// Early out if we only have targets earlier than the previous simulated frame
+		// NOTE: This is the normal flow, we should only run this logic when the client is desynced behind the server and we receive targets from the server ahead of time.
+		return RewindFrame;
+	}
+
+	// Iterate over targets that exist for current frame
+	for (FDirtyParticleInfo& DirtyParticleInfo : DirtyParticles)
+	{
+		// TODO: Only iterate targets that are not predicted/interpolated
+		FGeometryParticleHandle* PTParticle = DirtyParticleInfo.GetObjectPtr();
+		if (PTParticle)
+		{
+			FGeometryParticleStateBase& History = DirtyParticleInfo.GetHistory();
+			if (!History.TargetPositions.IsEmpty())
+			{
+				// Compare with particle for this frame and mark resim if needed from CurrentFrame()
+				if (const FParticlePositionRotation* TargetState = History.TargetPositions.Read(FrameAndPhase, PropertiesPool))
+				{
+					if (const FParticlePositionRotation* XRState = History.ParticlePositionRotation.Read(FrameAndPhase, PropertiesPool))
+					{
+						const FVec3 ErrorOffset = TargetState->GetX() - XRState->GetX();
+						const bool ShouldTriggerResim = ErrorOffset.Size() >= FPhysicsSolverBase::ResimulationErrorThreshold();
+
+						if (ShouldTriggerResim)
+						{
+							RewindFrame = CurrentFrame() - 1;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return RewindFrame;
+}
+
 CHAOS_API bool bResimAllowRewindToResimulatedFrames = false;
 FAutoConsoleVariableRef CVarResimAllowRewindToResimulatedFrames(TEXT("p.Resim.AllowRewindToResimulatedFrames"), bResimAllowRewindToResimulatedFrames, TEXT("Allow rewinding back to a frame that was previously part of a resimulation. If a resimulation is performed between frame 100-110, allow a new resim from 105-115 if needed, else next resim will be able to start from frame 111."));
 
@@ -999,6 +1042,9 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 			}
 		}
 		
+/*
+* todo: Only check input and state histories for actors that will actively resimulate
+
 		if (bHasTargetHistory)
 		{
 			for (TWeakPtr<FBaseRewindHistory>& InputHistory : InputHistories)
@@ -1026,6 +1072,7 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 				}
 			}
 		}
+*/
 
 		if (bHasTargetHistory)
 		{
@@ -1053,6 +1100,7 @@ void FRewindData::PushStateAtFrame(FGeometryParticleHandle& Handle, int32 Frame,
 	FDirtyParticleInfo& Info = FindOrAddDirtyObj(Handle);
 	FGeometryParticleStateBase& Latest = Info.GetHistory();
 	const FFrameAndPhase FrameAndPhase{ Frame, Phase };
+	LatestTargetFrame = bRecordingHistory ? FMath::Max(LatestTargetFrame, Frame) : LatestTargetFrame;
 
 	if (bRecordingHistory || Latest.TargetPositions.IsClean(FrameAndPhase))
 	{

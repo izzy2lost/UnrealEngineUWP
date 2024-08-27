@@ -1513,6 +1513,7 @@ public:
 	, DataIdxOffset(0)
 	, bNeedsSave(false)
 	, bResimOptimization(InResimOptimization)
+	, LatestTargetFrame(0)
 	{
 	}
 
@@ -1522,6 +1523,7 @@ public:
 		CurFrame = InCurrentFrame;
 		LatestFrame = InCurrentFrame;
 		bResimOptimization = InResimOptimization;
+		LatestTargetFrame = 0;
 		Managers = TCircularBuffer<FFrameManagerInfo>(NumFrames + 1);
 	}
 
@@ -1717,6 +1719,11 @@ public:
 	/** Get the latest frame resim has been blocked from rewinding past */
 	int32 GetBlockedResimFrame() { return BlockResimFrame; }
 
+	/** Check if we have received targets already for the last frame simulated,
+	* if so compare those with the result of the simulation and if they desync return the frame value to request a rewind for to correct the desync
+	* NOTE: This only happens when the client has desynced and is behind the server, so we receive server states for frames not yet simulated */
+	const int32 CHAOS_API CompareTargetsToLastFrame();
+
 private:
 	friend class FPBDRigidsSolver;
 
@@ -1872,9 +1879,8 @@ private:
 		return TObjState(State, Handle, PropertiesPool, { Frame, Phase });
 	}
 
+	/** Apply the cached history state for the given frame cached particles and joints */
 	bool RewindToFrame(int32 RewindFrame);
-	
-
 
 	/** Apply targets positions and velocities while resimulating */
 	void ApplyTargets(const int32 Frame, const bool bResetSimulation);
@@ -1904,6 +1910,7 @@ private:
 	bool bNeedsSave;	//Indicates that some data is pointing at head and requires saving before a rewind
 	bool bResimOptimization;
 	int32 ResimFrame = INDEX_NONE;
+	int32 LatestTargetFrame;
 
 	// Used to block rewinding past a physics change we currently don't handle
 	int32 BlockResimFrame = INDEX_NONE;

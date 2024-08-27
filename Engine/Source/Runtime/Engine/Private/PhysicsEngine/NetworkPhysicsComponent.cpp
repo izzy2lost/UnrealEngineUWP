@@ -214,6 +214,9 @@ int32 FNetworkPhysicsCallback::TriggerRewindIfNeeded_Internal(int32 LatestStepCo
 
 	if (RewindData)
 	{
+		const int32 TargetStateComparisonFrame = RewindData->CompareTargetsToLastFrame();
+		ResimFrame = (ResimFrame == INDEX_NONE) ? TargetStateComparisonFrame : (TargetStateComparisonFrame == INDEX_NONE) ? ResimFrame : FMath::Min(TargetStateComparisonFrame, ResimFrame);
+
 		const int32 ReplicationFrame = RewindData->GetResimFrame();
 		ResimFrame = (ResimFrame == INDEX_NONE) ? ReplicationFrame : (ReplicationFrame == INDEX_NONE) ? ResimFrame : FMath::Min(ReplicationFrame, ResimFrame);
 
@@ -221,7 +224,7 @@ int32 FNetworkPhysicsCallback::TriggerRewindIfNeeded_Internal(int32 LatestStepCo
 		{
 			const int32 ValidFrame = RewindData->FindValidResimFrame(ResimFrame);
 #if DEBUG_NETWORK_PHYSICS || DEBUG_REWIND_DATA
-			UE_LOG(LogChaos, Log, TEXT("CLIENT | PT | TriggerRewindIfNeeded_Internal | Requested Resim Frame = %d | Valid Resim Frame = %d"), ResimFrame, ValidFrame);
+			UE_LOG(LogChaos, Log, TEXT("CLIENT | PT | TriggerRewindIfNeeded_Internal | Requested Resim Frame = %d (%d / %d) | Valid Resim Frame = %d"), ResimFrame, TargetStateComparisonFrame, ReplicationFrame, ValidFrame);
 #endif
 			ResimFrame = ValidFrame;
 		}
@@ -682,6 +685,7 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedStates()
 			AsyncInput->StateData = StateHelper->CreateUniqueRewindHistory(StateRedundancy);
 		}
 
+		AsyncInput->StateData->ResetFast();
 		ReplicatedStates.History->CopyAllData(*AsyncInput->StateData.Get(), /*bIncludeUnimportant*/ true, /*bIncludeImportant*/ true);
 	}
 
@@ -718,6 +722,7 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedInputs()
 			AsyncInput->InputData = InputHelper->CreateUniqueRewindHistory(InputRedundancy);
 		}
 
+		AsyncInput->InputData->ResetFast();
 		ReplicatedInputs.History->CopyAllData(*AsyncInput->InputData.Get(), /*bIncludeUnimportant*/ true, /*bIncludeImportant*/ true);
 	}
 }
@@ -748,6 +753,7 @@ void UNetworkPhysicsComponent::ServerReceiveInputData_Implementation(const FNetw
 			ClientInputs.History->ValidateDataInHistory(ActorComponent);
 		}
 
+		AsyncInput->InputData->ResetFast();
 		ClientInputs.History->CopyAllData(*AsyncInput->InputData.Get(), /*bIncludeUnimportant*/ true, /*bIncludeImportant*/ true);
 	}
 }
@@ -1080,7 +1086,7 @@ const FNetworkPhysicsSettingsNetworkPhysicsComponent& FAsyncNetworkPhysicsCompon
 	return SettingsComponent ? SettingsComponent->Settings.NetworkPhysicsComponentSettings : SettingsNetworkPhysicsComponent_Default;
 };
 
-void FAsyncNetworkPhysicsComponent::ConsumeAsyncInput()
+void FAsyncNetworkPhysicsComponent::ConsumeAsyncInput(const int32 PhysicsStep)
 {
 	if (const FAsyncNetworkPhysicsComponentInput* AsyncInput = GetConsumerInput_Internal())
 	{
@@ -1129,8 +1135,9 @@ void FAsyncNetworkPhysicsComponent::ConsumeAsyncInput()
 				// Setup rewind data if not already done, and get history size
 				const int32 NumFrames = SetupRewindData();
 
-				// Create input data and history
+				// Create input history and local data properties
 				InputData = (*AsyncInput->InputHelper)->CreateUniqueData();
+				LatestInputReceiveData = (*AsyncInput->InputHelper)->CreateUniqueData();
 				InputHistory = MakeShareable((*AsyncInput->InputHelper)->CreateUniqueRewindHistory(NumFrames).Release());
 				RegisterDataHistoryInRewindData();
 			}
@@ -1139,7 +1146,7 @@ void FAsyncNetworkPhysicsComponent::ConsumeAsyncInput()
 				// Setup rewind data if not already done, and get history size
 				const int32 NumFrames = SetupRewindData();
 
-				// Create state data and history
+				// Create state history and local property
 				StateData = (*AsyncInput->StateHelper)->CreateUniqueData();
 				StateHistory = MakeShareable((*AsyncInput->StateHelper)->CreateUniqueRewindHistory(NumFrames).Release());
 				RegisterDataHistoryInRewindData();
@@ -1157,23 +1164,61 @@ void FAsyncNetworkPhysicsComponent::ConsumeAsyncInput()
 				{
 					TriggerResimulation(ResimFrame);
 				}
+
 #if DEBUG_NETWORK_PHYSICS
 				{
 					FString NetRoleString = IsServer() ? FString("SERVER") : (IsLocallyControlled() ? FString("AUTONO") : FString("PROXY "));
-					ReceiveData->DebugData(FString::Printf(TEXT("%s | PT | RECEIVE DATA | bImportant: %d | Name: %s"), *NetRoleString, bImportant, *GetActorName()));
+					ReceiveData->DebugData(FString::Printf(TEXT("%s | PT | RECEIVE DATA | LatestFrame: %d | bImportant: %d | Name: %s"), *NetRoleString, ReceiveData->GetLatestFrame(), bImportant, *GetActorName()));
 				}
 #endif
+
+				// Reset the received data after having consumed it
+				ReceiveData->ResetFast();
 			};
 
 			// Receive Inputs
 			if (AsyncInput->InputData && AsyncInput->InputData->HasDataInHistory())
 			{
+				/* Extract latest received input from client on the server, to be used if input buffer runs empty
+				* TODO, improve flow to not require this before ReceiveHelper */
+				FNetworkPhysicsData* PhysicsData = nullptr;
+				if (IsServer() && LatestInputReceiveData)
+				{
+					PhysicsData = LatestInputReceiveData.Get();
+					if (AsyncInput->InputData->ExtractData(AsyncInput->InputData->GetLatestFrame(), false, PhysicsData, true) == false)
+					{
+						// Extraction failed
+						ensureMsgf(false, TEXT("Failed to extract latest input data from received inputs"));
+						PhysicsData = nullptr;
+
+#if DEBUG_NETWORK_PHYSICS
+						AsyncInput->InputData->DebugData(FString::Printf(TEXT("SERVER | PT | Failed to extract | LatestFrame: %d | Name: %s"), AsyncInput->InputData->GetLatestFrame(), *GetActorName()));
+#endif
+					}
+				}
+
 				// Validate data in the received inputs on the server
 				if (!ComponentSettings.GetValidateDataOnGameThread() && IsServer() && ActorComponent.IsValid() && ActorComponent.Get()->IsBeingDestroyed() == false)
 				{
 					AsyncInput->InputData->ValidateDataInHistory(ActorComponent.Get());
 				}
 				ReceiveHelper(InputHistory.Get(), AsyncInput->InputData.Get(), /*bImportant*/false, ComponentSettings.GetCompareInputToTriggerRewind());
+
+				/* If the server-side input history doesn't have any entries ahead of the current physics tick, the input buffer is empty, inject the latest received input as the input for the current tick.
+				* This happens during a desync where the client is far behind the server */
+				if (IsServer() && InputHistory->GetLatestFrame() < PhysicsStep && PhysicsData)
+				{
+#if DEBUG_NETWORK_PHYSICS
+					UE_LOG(LogChaos, Log, TEXT("SERVER | PT | Input Buffer Empty, Injecting Received Input at frame %d || LocalFrame = %d || ServerFrame = %d || InputFrame = %d || Data: %s || Actor: %s")
+						, PhysicsStep, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame, *PhysicsData->DebugData(), *GetActorName());
+#endif
+					
+					// Record data in InputHistory
+					PhysicsData->LocalFrame = PhysicsStep;
+					PhysicsData->ServerFrame = PhysicsStep;
+					InputHistory->RecordData(PhysicsStep, PhysicsData);
+				}
+
 			}
 
 			// Receive States
@@ -1229,7 +1274,7 @@ FAsyncNetworkPhysicsComponentOutput& FAsyncNetworkPhysicsComponent::GetAsyncOutp
 
 void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 PhysicsStep)
 {
-	ConsumeAsyncInput();
+	ConsumeAsyncInput(PhysicsStep);
 
 	const FNetworkPhysicsSettingsNetworkPhysicsComponent& ComponentSettings = GetComponentSettings();
 	const bool bIsServer = IsServer();
@@ -1400,8 +1445,8 @@ void FAsyncNetworkPhysicsComponent::OnPostProcessInputs_Internal(const int32 Phy
 
 	if (ActorComponent.IsValid() && ActorComponent.Get()->IsBeingDestroyed() == false)
 	{
+		// Cache current input if we are locally controlled
 		const bool bShouldCacheInputHistory = IsLocallyControlled() && !bIsSolverResim;
-		// For the inputs client local ones are ground truth otherwise use the replicated ones coming from the server
 		if (bShouldCacheInputHistory && (InputData != nullptr))
 		{
 			// Prepare to gather input data
@@ -1422,6 +1467,7 @@ void FAsyncNetworkPhysicsComponent::OnPostProcessInputs_Internal(const int32 Phy
 #endif
 		}
 
+		// Cache current state if this is the server of we are comparing predicted states on autonomous proxy
 		const bool bShouldCacheStateHistory = bIsServer || (ComponentSettings.GetCompareStateToTriggerRewind() && bShouldCacheInputHistory);
 		if (StateHistory && StateData && bShouldCacheStateHistory)
 		{
@@ -1458,12 +1504,12 @@ void FAsyncNetworkPhysicsComponent::OnPostProcessInputs_Internal(const int32 Phy
 
 	// Marshal inputs and states from PT to GT for networking
 	FAsyncNetworkPhysicsComponentOutput& AsyncOutput = GetAsyncOutput_Internal();
-	SendInputData_Internal(AsyncOutput);
-	SendStateData_Internal(AsyncOutput);
+	SendInputData_Internal(AsyncOutput, PhysicsStep);
+	SendStateData_Internal(AsyncOutput, PhysicsStep);
 	FinalizeOutputData_Internal();
 }
 
-void FAsyncNetworkPhysicsComponent::SendInputData_Internal(FAsyncNetworkPhysicsComponentOutput& AsyncOutput)
+void FAsyncNetworkPhysicsComponent::SendInputData_Internal(FAsyncNetworkPhysicsComponentOutput& AsyncOutput, const int32 PhysicsStep)
 {
 	const bool bIsServer = IsServer();
 
@@ -1473,7 +1519,7 @@ void FAsyncNetworkPhysicsComponent::SendInputData_Internal(FAsyncNetworkPhysicsC
 		const FNetworkPhysicsSettingsNetworkPhysicsComponent& ComponentSettings = GetComponentSettings();
 
 		// Send latest N frames from history
-		const int32 ToFrame = FMath::Max(0, InputHistory->GetLatestFrame());
+		const int32 ToFrame = FMath::Max(0, PhysicsStep);
 
 		// -- Default / Unreliable Flow --
 		if (ComponentSettings.GetEnableUnreliableFlow())
@@ -1532,14 +1578,14 @@ void FAsyncNetworkPhysicsComponent::SendInputData_Internal(FAsyncNetworkPhysicsC
 	}
 }
 
-void FAsyncNetworkPhysicsComponent::SendStateData_Internal(FAsyncNetworkPhysicsComponentOutput& AsyncOutput)
+void FAsyncNetworkPhysicsComponent::SendStateData_Internal(FAsyncNetworkPhysicsComponentOutput& AsyncOutput, const int32 PhysicsStep)
 {
 	if (IsServer() && StateHistory && AsyncOutput.StateData)
 	{
 		const FNetworkPhysicsSettingsNetworkPhysicsComponent& ComponentSettings = GetComponentSettings();
 
 		// Send latest N frames from history
-		const int32 ToFrame = FMath::Max(0, StateHistory->GetLatestFrame());
+		const int32 ToFrame = FMath::Max(0, PhysicsStep);
 
 		// -- Default / Unreliable Flow --
 		if (ComponentSettings.GetEnableUnreliableFlow())

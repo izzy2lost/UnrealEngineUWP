@@ -1135,7 +1135,7 @@ private:
 	void OnPostProcessInputs_Internal(const int32 PhysicsStep);
 
 	// Consume data from async input
-	void ConsumeAsyncInput();
+	void ConsumeAsyncInput(const int32 PhysicsStep);
 
 	/** Get the rigid solver */
 	Chaos::FPBDRigidsSolver* GetRigidSolver();
@@ -1153,10 +1153,10 @@ private:
 	const float GetCurrentInputDecay(const FNetworkPhysicsData* PhysicsData);
 
 	/** Populate input data in AsyncOutput to send over the network */
-	void SendInputData_Internal(FAsyncNetworkPhysicsComponentOutput& AsyncOutput);
+	void SendInputData_Internal(FAsyncNetworkPhysicsComponentOutput& AsyncOutput, const int32 PhysicsStep);
 
 	/** Populate state data in AsyncOutput to send over the network */
-	void SendStateData_Internal(FAsyncNetworkPhysicsComponentOutput& AsyncOutput);
+	void SendStateData_Internal(FAsyncNetworkPhysicsComponentOutput& AsyncOutput, const int32 PhysicsStep);
 
 private:
 	friend UNetworkPhysicsComponent;
@@ -1190,6 +1190,9 @@ private:
 
 	// Local temporary inputs data used by pre/post process inputs functions
 	TUniquePtr<FNetworkPhysicsData> InputData;
+	
+	// Local temporary inputs data used by ConsumeAsyncInput
+	TUniquePtr<FNetworkPhysicsData> LatestInputReceiveData;
 
 	// Local temporary states data used by pre/post process inputs functions
 	TUniquePtr<FNetworkPhysicsData> StateData;

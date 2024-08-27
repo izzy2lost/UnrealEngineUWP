@@ -116,32 +116,47 @@ namespace UE::Gameplay::CVars
 
 namespace NetworkPhysicsCvars
 {
-	/* DEPRECATED 5.4 */
-	int32 NumRedundantCmds = 3;
-	FAutoConsoleVariableRef CVarNumRedundantCmds(TEXT("np2.NumRedundantCmds"), NumRedundantCmds, TEXT("(DEPRECATED 5.4, only part of the legacy physics frame offset logic) Number of redundant user cmds to send per frame"));
+		/* DEPRECATED 5.4 */
+		int32 NumRedundantCmds = 3;
+		FAutoConsoleVariableRef CVarNumRedundantCmds(TEXT("np2.NumRedundantCmds"), NumRedundantCmds, TEXT("(DEPRECATED 5.4, only part of the legacy physics frame offset logic) Number of redundant user cmds to send per frame"));
 
 #if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	int32 EnableDebugRPC = 0;
+		int32 EnableDebugRPC = 0;
 #else
-	int32 EnableDebugRPC = 1;
+		int32 EnableDebugRPC = 1;
 #endif
-	/* DEPRECATED 5.4 */
-	FAutoConsoleVariableRef CVarEnableDebugRPC(TEXT("np2.EnableDebugRPC"), EnableDebugRPC, TEXT("(DEPRECATED 5.4, only part of the legacy physics frame offset logic) Sends extra debug information to clients about server side input buffering"));
-	
-	/* DEPRECATED 5.4 */
-	int32 NetworkPhysicsPredictionFrameOffset = 4;
-	FAutoConsoleVariableRef CVarNetworkPhysicsPredictionFrameOffset(TEXT("np2.NetworkPhysicsPredictionFrameOffset"), NetworkPhysicsPredictionFrameOffset, TEXT("(DEPRECATED 5.4, use np2.PredictionAsyncFrameBuffer instead) Additional frame offset to be added to the local to server offset used by network prediction"));
-	
-	int32 PredictionAsyncFrameBuffer = 3;
-	FAutoConsoleVariableRef CVarPredictionAsyncFrameBuffer(TEXT("np2.PredictionAsyncFrameBuffer"), PredictionAsyncFrameBuffer, TEXT("Additional frame offset to be added to the local to server offset used by network prediction"));
+		/* DEPRECATED 5.4 */
+		FAutoConsoleVariableRef CVarEnableDebugRPC(TEXT("np2.EnableDebugRPC"), EnableDebugRPC, TEXT("(DEPRECATED 5.4, only part of the legacy physics frame offset logic) Sends extra debug information to clients about server side input buffering"));
 
-	int32 TickOffsetUpdateInterval = 10;
-	FAutoConsoleVariableRef CVarTickOffsetUpdateInterval(TEXT("np2.TickOffsetUpdateInterval"), TickOffsetUpdateInterval, TEXT("How many physics ticks to wait between each tick offset update. Lowest viable value = 1, which means update each tick. Deactivate physics offset updates by setting to 0 or negative value."));
-	
-	int32 TickOffsetCorrectionLimit = 10;
-	FAutoConsoleVariableRef CVarTickOffsetCorrectionLimit(TEXT("np2.TickOffsetCorrectionLimit"), TickOffsetCorrectionLimit, TEXT("If the client gets out of sync with physics ticks more than this limit, cut the losses and reset the offset."));
-	
-	float TimeDilationAmount = 0.01f;
+		/* DEPRECATED 5.4 */
+		int32 NetworkPhysicsPredictionFrameOffset = 4;
+		FAutoConsoleVariableRef CVarNetworkPhysicsPredictionFrameOffset(TEXT("np2.NetworkPhysicsPredictionFrameOffset"), NetworkPhysicsPredictionFrameOffset, TEXT("(DEPRECATED 5.4, use np2.PredictionAsyncFrameBuffer instead) Additional frame offset to be added to the local to server offset used by network prediction"));
+
+		/* DEPRECATED 5.5 */
+		int32 PredictionAsyncFrameBuffer = 3;
+		FAutoConsoleVariableRef CVarPredictionAsyncFrameBuffer(TEXT("np2.PredictionAsyncFrameBuffer"), PredictionAsyncFrameBuffer, TEXT("(DEPRECATED 5.5, Use np2.TickOffsetBufferTime instead) Additional frame offset to be added to the local to server offset used by network prediction"));
+
+		/* DEPRECATED 5.5 */
+		int32 TickOffsetUpdateInterval = 10;
+		FAutoConsoleVariableRef CVarTickOffsetUpdateInterval(TEXT("np2.TickOffsetUpdateInterval"), TickOffsetUpdateInterval, TEXT("(DEPRECATED 5.5, Use np2.TickOffsetUpdateIntervalTime instead) How many physics ticks to wait between each tick offset update. Lowest viable value = 1, which means update each tick. Deactivate physics offset updates by setting to 0 or negative value."));
+
+		/* DEPRECATED 5.5 */
+		int32 TickOffsetCorrectionLimit = 10;
+		FAutoConsoleVariableRef CVarTickOffsetCorrectionLimit(TEXT("np2.TickOffsetCorrectionLimit"), TickOffsetCorrectionLimit, TEXT("(DEPRECATED 5.5, Use np2.TickOffsetCorrectionSizeTimeLimit instead) If the client gets out of sync with physics ticks more than this limit, cut the losses and reset the offset."));
+
+	int32 TickOffsetUpdateIntervalTime = 100;
+	FAutoConsoleVariableRef CVarTickOffsetUpdateIntervalTime(TEXT("np2.TickOffsetUpdateIntervalTime"), TickOffsetUpdateIntervalTime, TEXT("Value in milliseconds, default 100. How long time between syncing the tick offset between client and server. Deactivate syncing by setting value 0."));
+
+	int32 TickOffsetBufferTime = 60;
+	FAutoConsoleVariableRef CVarTickOffsetBufferTime(TEXT("np2.TickOffsetBufferTime"), TickOffsetBufferTime, TEXT("Value in milliseconds, default 60. Additional offset to be added to the local to server offset used by network prediction, this results in a buffer server-side for incoming data that uses the client/server physics offset."));
+
+	int32 TickOffsetCorrectionSizeTimeLimit = 200;
+	FAutoConsoleVariableRef CVarTickOffsetCorrectionSizeTimeLimit(TEXT("np2.TickOffsetCorrectionSizeTimeLimit"), TickOffsetCorrectionSizeTimeLimit, TEXT("Value in milliseconds, Default 200. Note: Keep this equal to or larger than np2.TickOffsetBufferTime. If the client gets out of sync with physics ticks and the desync is larger than this value, reset the offset."));
+
+	int32 TickOffsetCorrectionTimeLimit = 1000;
+	FAutoConsoleVariableRef CVarTickOffsetCorrectionTimeLimit(TEXT("np2.TickOffsetCorrectionTimeLimit"), TickOffsetCorrectionTimeLimit, TEXT("Value in milliseconds, Default 1000. If the client gets out of sync with physics ticks and can't get in sync again for this amount of time, reset the offset."));
+
+	float TimeDilationAmount = 0.02f;
 	FAutoConsoleVariableRef CVarTimeDilationAmount(TEXT("np2.TimeDilationAmount"), TimeDilationAmount, TEXT("Server-side CVar, Disable TimeDilation by setting to 0 | Default: 0.01 | Value is in percent where 0.01 = 1% dilation. Example: 1.0/0.01 = 100, meaning that over the time it usually takes to tick 100 physics steps we will tick 99 or 101 depending on if we dilate up or down."));
 
 	bool TimeDilationEscalation = true;
@@ -153,10 +168,10 @@ namespace NetworkPhysicsCvars
 	float TimeDilationEscalationDecayMax = 0.5f;
 	FAutoConsoleVariableRef CVarTimeDilationEscalationDecayMax(TEXT("np2.TimeDilationEscalationDecayMax"), TimeDilationEscalationDecayMax, TEXT("Value is a multiplier, Default: 0.5. The max decay value for escalated time dilation. Lower value means higher decay."));
 
-	float TimeDilationMax = 1.1f;
+	float TimeDilationMax = 1.25f;
 	FAutoConsoleVariableRef CVarTimeDilationMax(TEXT("np2.TimeDilationMax"), TimeDilationMax, TEXT("Max value of the time dilation multiplier."));
 
-	float TimeDilationMin = 0.9f;
+	float TimeDilationMin = 0.75f;
 	FAutoConsoleVariableRef CVarTimeDilationMin(TEXT("np2.TimeDilationMin"), TimeDilationMin, TEXT("Min value of the time dilation multiplier"));
 }
 
@@ -6224,7 +6239,9 @@ FAsyncPhysicsTimestamp APlayerController::GetPhysicsTimestamp(float DeltaSeconds
 void APlayerController::UpdateServerAsyncPhysicsTickOffset()
 {
 	FAsyncPhysicsTimestamp Timestamp = GetPhysicsTimestamp();
-	if (NetworkPhysicsCvars::TickOffsetUpdateInterval <= 0 || ClientLatestAsyncPhysicsStepSent + NetworkPhysicsCvars::TickOffsetUpdateInterval > Timestamp.LocalFrame)
+	const int32 TickOffsetUpdateIntervalSteps = (NetworkPhysicsCvars::TickOffsetUpdateIntervalTime / 1000.f) / UPhysicsSettings::Get()->AsyncFixedTimeStepSize;
+
+	if (TickOffsetUpdateIntervalSteps <= 0 || ClientLatestAsyncPhysicsStepSent + TickOffsetUpdateIntervalSteps > Timestamp.LocalFrame)
 	{
 		//Only send a new timestamp if enough physics ticks have passed, based on CVar.
 		//If GT is running faster than physics sim the physics timestep will not have changed, so no need to send another update to server
@@ -6260,18 +6277,27 @@ void APlayerController::ServerSendLatestAsyncPhysicsTimestamp_Implementation(FAs
 
 	// Get current server timestamp and add the frame buffer to the ServerFrame
 	FAsyncPhysicsTimestamp ActualTimestamp = GetPhysicsTimestamp();
-	ActualTimestamp.ServerFrame += NetworkPhysicsCvars::PredictionAsyncFrameBuffer;
+	const int32 BufferTickSize = FMath::CeilToInt((NetworkPhysicsCvars::TickOffsetBufferTime / 1000.f) / UPhysicsSettings::Get()->AsyncFixedTimeStepSize);
+	ActualTimestamp.ServerFrame += BufferTickSize;
 
 	// Mark offset as assigned when we get a valid predicted server frame.
 	const int32 PredictedServerFrame = Timestamp.ServerFrame;
 	bNetworkPhysicsTickOffsetAssigned |= PredictedServerFrame != INDEX_NONE;
 
-	// Send update to client if offset is not assigned or over correction limit
+	const float CurrentTime = GetWorld()->GetTimeSeconds();
+	const int32 TimestampDiff = FMath::Abs(PredictedServerFrame - ActualTimestamp.ServerFrame);
+	const float TimestampTimeDiff = TimestampDiff * UPhysicsSettings::Get()->AsyncFixedTimeStepSize;
+	NetworkPhysicsTickOffsetDesyncAccumulatedTime = (TimestampDiff == 0) ? CurrentTime : NetworkPhysicsTickOffsetDesyncAccumulatedTime;
+
+	// Send update to client if offset is not assigned or over correction limits
 	// Note that we are sending the current ServerFrame along with the frame buffer added, to the client.
-	if (!bNetworkPhysicsTickOffsetAssigned || FMath::Abs(PredictedServerFrame - ActualTimestamp.ServerFrame) > NetworkPhysicsCvars::TickOffsetCorrectionLimit)
+	if (!bNetworkPhysicsTickOffsetAssigned
+		|| TimestampTimeDiff > (NetworkPhysicsCvars::TickOffsetCorrectionSizeTimeLimit / 1000.f)
+		|| CurrentTime - NetworkPhysicsTickOffsetDesyncAccumulatedTime > (NetworkPhysicsCvars::TickOffsetCorrectionTimeLimit / 1000.0f))
 	{
 		Timestamp.ServerFrame = ActualTimestamp.ServerFrame;
 		NetworkPhysicsTickOffset = Timestamp.ServerFrame - Timestamp.LocalFrame;
+		NetworkPhysicsTickOffsetDesyncAccumulatedTime = CurrentTime;
 		ClientSetupNetworkPhysicsTimestamp(Timestamp); /* Reliable RPC */
 	}
 
@@ -6355,7 +6381,7 @@ void APlayerController::ClientAckTimeDilation_Implementation(float TimeDilation,
 	}
 	ClientLatestTimeDilationServerStep = ServerStep;
 
-	if(UWorld* World = GetWorld())
+	if (UWorld* World = GetWorld())
 	{
 		World->GetPhysicsScene()->SetNetworkDeltaTimeScale(TimeDilation);
 	}

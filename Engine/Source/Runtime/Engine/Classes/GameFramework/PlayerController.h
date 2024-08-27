@@ -2428,6 +2428,9 @@ private:
 	/** The latest physics step we've received from the client. */
 	int32 ServerLatestAsyncPhysicsStepReceived = INDEX_NONE;
 
+	/** Time that tick offset has been desynced for since it was last in sync, used to trigger a correction */
+	float NetworkPhysicsTickOffsetDesyncAccumulatedTime = 0.0f;
+
 public:
 
 	/** Update the tick offset in between the local client and the server */
