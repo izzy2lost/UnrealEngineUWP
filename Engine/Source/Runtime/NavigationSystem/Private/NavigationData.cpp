@@ -13,6 +13,7 @@
 #include "NavFilters/NavigationQueryFilter.h"
 #include "NavigationSystem.h"
 #include "VisualLogger/VisualLogger.h"
+#include "Misc/TransactionallySafeScopeLock.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NavigationData)
 
@@ -423,7 +424,7 @@ void ANavigationData::PurgeUnusedPaths()
 
 	// Paths can be registered from async pathfinding thread 
 	// while unused paths are purged in main thread (actor tick)
-	FScopeLock PathLock(&ActivePathsLock);
+	FTransactionallySafeScopeLock PathLock(&ActivePathsLock);
 
 	const int32 Count = ActivePaths.Num();
 	for (int32 PathIndex = Count - 1; PathIndex >= 0; --PathIndex)
@@ -434,6 +435,13 @@ void ANavigationData::PurgeUnusedPaths()
 			ActivePaths.RemoveAtSwap(PathIndex, EAllowShrinking::No);
 		}
 	}
+}
+
+void ANavigationData::RegisterActivePath(FNavPathSharedPtr SharedPath)
+{
+	// Paths can be registered from main thread and async pathfinding thread
+	FTransactionallySafeScopeLock PathLock(&ActivePathsLock);
+	ActivePaths.Add(SharedPath);
 }
 
 #if WITH_EDITOR
@@ -853,7 +861,7 @@ uint32 ANavigationData::LogMemUsed() const
 	{
 		// Paths can be registered from async pathfinding thread
 		// while logging is requested on main thread (console command)
-		FScopeLock PathLock(&ActivePathsLock);
+		FTransactionallySafeScopeLock PathLock(&ActivePathsLock);
 		ActivePathsMemSize = ActivePaths.GetAllocatedSize();
 	}
 

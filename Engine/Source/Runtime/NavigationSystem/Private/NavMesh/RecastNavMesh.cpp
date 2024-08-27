@@ -24,6 +24,7 @@
 #include "Math/Color.h"
 #include "NavigationDataHandler.h"
 #include "BaseGeneratedNavLinksProxy.h"
+#include "Misc/TransactionallySafeScopeLock.h"
 
 #if WITH_EDITOR
 #include "EditorSupportDelegates.h"
@@ -2769,7 +2770,7 @@ void ARecastNavMesh::InvalidateAffectedPaths(const TArray<FNavTileRef>& ChangedT
 	// before starting async queries task but protecting ActivePaths will make
 	// the system safer in case of future timing changes.
 	{
-		FScopeLock PathLock(&ActivePathsLock);
+		FTransactionallySafeScopeLock PathLock(&ActivePathsLock);
 
 		for (int32 PathIndex = PathsCount - 1; PathIndex >= 0; --PathIndex)
 		{

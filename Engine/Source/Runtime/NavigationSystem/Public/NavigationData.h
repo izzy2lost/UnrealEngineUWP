@@ -18,6 +18,8 @@
 #include "NavigationSystemTypes.h"
 #include "EngineDefines.h"
 #include "AI/Navigation/NavigationDataInterface.h"
+#include "Misc/TransactionallySafeScopeLock.h"
+
 #include "NavigationData.generated.h"
 
 class ANavigationData;
@@ -732,12 +734,7 @@ protected:
 	/** removes from ActivePaths all paths that no longer have shared references (and are invalid in fact) */
 	NAVIGATIONSYSTEM_API void PurgeUnusedPaths();
 
-	void RegisterActivePath(FNavPathSharedPtr SharedPath)
-	{
-		// Paths can be registered from main thread and async pathfinding thread
-		FScopeLock PathLock(&ActivePathsLock);
-		ActivePaths.Add(SharedPath);
-	}
+	NAVIGATIONSYSTEM_API void RegisterActivePath(FNavPathSharedPtr SharedPath);
 
 public:
 	/** Returns bounding box for the navmesh. */
@@ -1041,7 +1038,7 @@ protected:
 	TArray<FNavPathWeakPtr> ActivePaths;
 
 	/** Synchronization object for paths registration from main thread and async pathfinding thread */
-	mutable FCriticalSection ActivePathsLock;
+	mutable FTransactionallySafeCriticalSection ActivePathsLock;
 
 	/**
 	 *	Contains paths that requested observing its goal's location. These paths will be 
