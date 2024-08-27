@@ -109,6 +109,7 @@ namespace UE::Mass
 	class FSingleThreadedEntityStorage final : public IEntityStorageInterface
 	{
 	public:
+		void Initialize(const FMassEntityManager_InitParams_SingleThreaded&);
 		virtual FMassArchetypeData* GetArchetype(int32 Index) override;
 		virtual const FMassArchetypeData* GetArchetype(int32 Index) const override;
 		virtual TSharedPtr<FMassArchetypeData>& GetArchetypeAsShared(int32 Index) override;

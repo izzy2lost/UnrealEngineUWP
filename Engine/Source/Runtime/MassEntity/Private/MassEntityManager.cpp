@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MassEntityManager.h"
+#include "MassEntityManagerConstants.h"
 #include "MassArchetypeData.h"
 #include "MassCommandBuffer.h"
 #include "MassEntityManagerStorage.h"
@@ -39,9 +40,6 @@ namespace UE::Mass::Private
 			}
 		}
 	}
-
-	// Index 0 is a sentinel for an Empty/Unset EntityHandle
-	constexpr int32 InvalidEntityIndex = 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -293,6 +291,7 @@ namespace UE::Mass::Private
 		void operator()(const FMassEntityManager_InitParams_SingleThreaded& Params)
 		{
 			EntityStorage->Emplace<UE::Mass::FSingleThreadedEntityStorage>();
+			EntityStorage->Get<FSingleThreadedEntityStorage>().Initialize(Params);
 		}
 		void operator()(const FMassEntityManager_InitParams_Concurrent& Params)
 		{
@@ -318,10 +317,6 @@ void FMassEntityManager::Initialize(const FMassEntityManagerStorageInitParams& I
 	}
 
 	Visit(UE::Mass::Private::FEntityStorageInitializer{&EntityStorage}, InitializationParams);
-
-	// Index 0 is reserved so we can treat that index as an invalid entity handle
-	const FMassEntityHandle SentinelEntity = GetEntityStorageInterface().AcquireOne();
-	check(SentinelEntity.Index == UE::Mass::Private::InvalidEntityIndex);
 
 	for (TSharedPtr<FMassCommandBuffer>& CommandBuffer : DeferredCommandBuffers)
 	{

@@ -2,6 +2,7 @@
 
 #include "MassEntityManagerStorage.h"
 
+#include "MassEntityManagerConstants.h"
 #include "MassEntityTypes.h"
 #include "Templates/SharedPointer.h"
 
@@ -30,7 +31,14 @@ namespace UE::Mass
 	//-----------------------------------------------------------------------------
 	// FSingleThreadedEntityStorage
 	//-----------------------------------------------------------------------------
-	
+
+	void FSingleThreadedEntityStorage::Initialize(const FMassEntityManager_InitParams_SingleThreaded&)
+	{
+		// Index 0 is reserved so we can treat that index as an invalid entity handle
+		const FMassEntityHandle SentinelEntity = AcquireOne();
+		check(SentinelEntity.Index == UE::Mass::Private::InvalidEntityIndex);
+	}
+
 	FMassArchetypeData* FSingleThreadedEntityStorage::GetArchetype(int32 Index)
 	{
 		return Entities[Index].CurrentArchetype.Get();
@@ -361,15 +369,28 @@ namespace UE::Mass
 		EntityPages[PageCount] = Page;
 		++PageCount;
 
-		const int32 NewEntityIndexStart = NewPageIndex * MaxEntitiesPerPage;
-		const int32 NewEntityIndexEnd = (NewPageIndex + 1) * MaxEntitiesPerPage;
-
-		EntityFreeIndexList.Reserve(MaxEntitiesPerPage);
-
 		// Somewhat tricksy thing here to be aware of
 		// MassEntityManager expects the very first allocated entity to be at index 0
-		// However, EntityFreeIndexList.Pop() will return the last one added to the list
-		// Therefore, populate the free list backwards
+		static_assert(UE::Mass::Private::InvalidEntityIndex == 0, "Free Entity list algorithm depends on InvalidEntityIndex being 0");
+		int32 NewEntityIndexStart;
+		if (LIKELY(NewPageIndex != 0))
+		{
+			NewEntityIndexStart = NewPageIndex * MaxEntitiesPerPage;
+		}
+		else
+		{
+			NewEntityIndexStart = 1;
+			// Allocate the 0th entity. It will always be the sentinel entity that InvalidEntityIndex points to.
+			FEntityData* SentinelEntity = new (Page + UE::Mass::Private::InvalidEntityIndex) FEntityData();
+			SentinelEntity->bIsAllocated = 1;
+			++SentinelEntity->GenerationId;
+		}
+		
+		const int32 NewEntityIndexEnd = (NewPageIndex + 1) * MaxEntitiesPerPage;
+
+		EntityFreeIndexList.Reserve(NewEntityIndexEnd - NewEntityIndexStart);
+
+		// Push free entities indices onto the stack backwards so new entities pop off in order
 		for (int32 NewEntityIndex = NewEntityIndexEnd - 1; NewEntityIndex >= NewEntityIndexStart; --NewEntityIndex)
 		{
 			// Setup the free list
