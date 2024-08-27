@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AdvancedPreviewSceneModule.h"
 #include "ITG_Editor.h"
 #include "EdGraph/EdGraphPin.h"
 #include "EditorUndoClient.h"
@@ -201,6 +202,9 @@ private:
 	/** Gets the current TG_ Graph's appearance */
 	FGraphAppearanceInfo							GetGraphAppearance() const;
 
+	/** Builds the sub-tools that are a part of the texture graph editor. */
+	void											BuildSubTools();
+	
 	/** Called when the Viewport Layout has changed. */
 	void											OnEditorLayoutChanged();
 
@@ -314,6 +318,8 @@ private:
 	/** Storage for our viewport creation function that will be passed to the viewport layout system*/
 	AssetEditorViewportFactoryFunction				MakeViewportFunc;
 
+	FAdvancedPreviewSceneModule::FOnPreviewSceneChanged OnPreviewSceneChangedDelegate;
+
 	// Tracking the active viewports in this editor.
 	TSharedPtr<class FEditorViewportTabContent>		ViewportTabContent;
 
@@ -321,10 +327,14 @@ private:
 	TWeakPtr<SDockTab>								SpawnedDetailsTab;	
 	TWeakPtr<SDockTab>								NodeHistogramTab;	
 	TWeakPtr<SDockTab>								PaletteTab;	
-
+	TWeakPtr<SDockTab>								PreviewSceneSettingsDockTab;
+	
 	/** Stats log, with the log listing that it reflects */
 	TSharedPtr<class SWidget>						ErrorsWidget;
 	TSharedPtr<class IMessageLogListing>			ErrorsListing;
+
+	/** Scene preview settings widget */
+	TSharedPtr<SWidget>								AdvancedPreviewSettingsWidget;
 
 	/** Hashed error code use to refresh the error displaying widget when this will change */
 	FString											ErrorHash;
