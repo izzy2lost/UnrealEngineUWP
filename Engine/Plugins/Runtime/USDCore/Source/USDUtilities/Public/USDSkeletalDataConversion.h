@@ -38,6 +38,7 @@ class UAnimSequence;
 class UMovieScene;
 class UMovieSceneControlRigParameterSection;
 class USkeletalMesh;
+class USkeletalMeshComponent;
 struct FUsdStageInfo;
 struct FMovieSceneInverseSequenceTransform;
 
@@ -123,6 +124,9 @@ namespace UsdUtils
 		float& OutPrimaryWeight,
 		TArray<float>& OutInbetweenWeights
 	);
+
+	USDUTILITIES_API void GetBoneTransforms(USkeletalMeshComponent* Component, TArray<FTransform>& BoneTransforms);
+	USDUTILITIES_API void RefreshSkeletalMeshComponent(USkeletalMeshComponent& Component);
 
 #if USE_USD_SDK
 	/** Allows creation of a skinning query from the underlying skinned mesh and skeleton. Adapted from the USD SDK implementation */

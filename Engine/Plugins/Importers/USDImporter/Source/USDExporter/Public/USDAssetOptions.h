@@ -89,6 +89,10 @@ struct USDEXPORTER_API FUsdMeshAssetOptions
 	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Mesh options")
 	bool bExportStaticMeshSourceData = true;
 
+	/** Whether to convert skeletal data to non-skeletal, ie. skeletal mesh to static mesh, anim sequence to animated mesh */
+	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Mesh options")
+	bool bConvertSkeletalToNonSkeletal = false;
+
 	/** Lowest of the LOD indices to export static and skeletal meshes with (use 0 for full detail) */
 	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Mesh options", meta = (ClampMin = "0"))
 	int32 LowestMeshLOD = 0;

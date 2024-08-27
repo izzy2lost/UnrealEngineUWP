@@ -29,7 +29,9 @@
 #include "AnimEncoding.h"
 #include "Async/ParallelFor.h"
 #include "BoneWeights.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "ControlRig.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "Evaluation/MovieSceneSequenceTransform.h"
 #include "IMovieScenePlayer.h"
@@ -3130,6 +3132,70 @@ void UsdUtils::ResolveWeightsForBlendShape(
 		OutInbetweenWeights[UpperIndex] = UpperWeight;
 		OutInbetweenWeights[LowerIndex] = LowerWeight;
 	}
+}
+
+// Returns bone-space joint transforms from the SkeletalMeshComponent while paying attention to whether
+// it has a LeaderPoseComponent or not.
+//
+// References:
+// - FMLDeformerEditorToolkit::GetDebugActorComponentSpaceTransforms
+// - FAnimationRecorder::GetBoneTransforms
+void UsdUtils::GetBoneTransforms(USkeletalMeshComponent* Component, TArray<FTransform>& BoneTransforms)
+{
+	if (!Component)
+	{
+		return;
+	}
+
+	int32 NumBones = INDEX_NONE;
+	if (USkeletalMesh* Mesh = Component->GetSkeletalMeshAsset())
+	{
+		const FReferenceSkeleton& RefSkel = Mesh->GetRefSkeleton();
+		NumBones = RefSkel.GetNum();
+	}
+	if (NumBones == INDEX_NONE)
+	{
+		return;
+	}
+
+	if (USkeletalMeshComponent* Leader = Cast<USkeletalMeshComponent>(Component->LeaderPoseComponent.Get()))
+	{
+		const TArray<FTransform>& LeaderTransforms = Leader->GetBoneSpaceTransforms();
+		const TArray<FTransform>& FollowerTransforms = Component->GetBoneSpaceTransforms();
+
+		const TArray<int32>& BoneMap = Component->GetLeaderBoneMap();
+
+		BoneTransforms.SetNumUninitialized(NumBones);
+		for (int32 BoneIndex = 0; BoneIndex < NumBones; BoneIndex++)
+		{
+			if (BoneMap.IsValidIndex(BoneIndex) && LeaderTransforms.IsValidIndex(BoneMap[BoneIndex]))
+			{
+				BoneTransforms[BoneIndex] = LeaderTransforms[BoneMap[BoneIndex]];
+			}
+			else if (FollowerTransforms.IsValidIndex(BoneIndex))
+			{
+				BoneTransforms[BoneIndex] = FollowerTransforms[BoneIndex];
+			}
+		}
+	}
+	else
+	{
+		BoneTransforms = Component->GetBoneSpaceTransforms();
+	}
+}
+
+void UsdUtils::RefreshSkeletalMeshComponent(USkeletalMeshComponent& Component)
+{
+	// This whole incantation is required or else the component will really not update until the next frame.
+	// Note: This will also cause the update of morph target weights.
+	Component.TickAnimation(0.f, false);
+	Component.UpdateLODStatus();
+	Component.RefreshBoneTransforms();
+	Component.RefreshFollowerComponents();
+	Component.UpdateComponentToWorld();
+	Component.FinalizeBoneTransform();
+	Component.MarkRenderTransformDirty();
+	Component.MarkRenderDynamicDataDirty();
 }
 
 #if USE_USD_SDK

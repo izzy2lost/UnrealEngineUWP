@@ -25,9 +25,12 @@ PXR_NAMESPACE_OPEN_SCOPE
 PXR_NAMESPACE_CLOSE_SCOPE
 #endif	  // USE_USD_SDK
 
+class UAnimSequence;
 class UGeometryCache;
 class UMaterialInstanceConstant;
 class UMaterialInstanceDynamic;
+class USkeletalMesh;
+class USkeletalMeshComponent;
 class UStaticMesh;
 struct FMeshDescription;
 struct FStaticMeshLODResources;
@@ -241,7 +244,7 @@ namespace UnrealToUsd
 	/**
 	 * Extracts animated mesh data from GeometryCache and places the results in UsdPrim.
 	 * @param GeometryCache - GeometryCache to convert
-	 * @param UsdPrim - Prim to receive the mesh data or LOD variant set
+	 * @param UsdPrim - Prim to receive the mesh data
 	 * @param StageForMaterialAssignments - Stage to use when authoring material assignments (we use this when we want to export the mesh to a payload
 	 * layer, but the material assignments to an asset layer)
 	 * @return Whether the conversion was successful or not.
@@ -251,6 +254,26 @@ namespace UnrealToUsd
 		pxr::UsdPrim& UsdPrim,
 		UE::FUsdStage* StageForMaterialAssignments = nullptr
 	);
+
+	USDUTILITIES_API bool ConvertSkeletalMeshToStaticMesh(
+		const USkeletalMesh* SkeletalMesh,
+		pxr::UsdPrim& UsdPrim,
+		const pxr::UsdTimeCode TimeCode = pxr::UsdTimeCode::Default(),
+		UE::FUsdStage* StageForMaterialAssignments = nullptr
+	);
+
+	USDUTILITIES_API bool ConvertAnimSequenceToAnimatedMesh(
+		UAnimSequence* AnimSequence,
+		USkeletalMesh* SkeletalMesh,
+		pxr::UsdPrim& UsdPrim,
+		UE::FUsdStage* StageForMaterialAssignments = nullptr
+	);
+
+	/**
+	 * Creates a baker responsible for baking the skinned mesh of a skeletal mesh component to a Mesh prim,
+	 * returning true if a EBakingType::Skeletal baker was created
+	 */
+	USDUTILITIES_API bool CreateSkeletalAnimationToMeshBaker(UE::FUsdPrim& MeshPrim, USkeletalMeshComponent& Component, struct FComponentBaker& OutBaker);
 }
 #endif	  // USE_USD_SDK
 

@@ -6,6 +6,7 @@
 
 #include "UnrealUSDWrapper.h"
 #include "USDAttributeUtils.h"
+#include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDDrawModeComponent.h"
 #include "USDLayerUtils.h"
@@ -22,6 +23,10 @@
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdStage.h"
 
+#include "Animation/AnimSequence.h"
+#include "Animation/SkeletalMeshActor.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "GeometryCache.h"
 #include "GeometryCacheMeshData.h"
@@ -30,6 +35,8 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "MeshDescription.h"
 #include "Misc/Paths.h"
+#include "Rendering/SkeletalMeshRenderData.h"
+#include "SkeletalRenderPublic.h"
 #include "StaticMeshAttributes.h"
 #include "StaticMeshOperations.h"
 #include "StaticMeshResources.h"
@@ -4196,7 +4203,11 @@ namespace UE::UsdGeometryCacheConversion::Private
 			FrameRate = (InclusiveEndFrame - GeometryCache.GetStartFrame()) / GeometryCache.CalculateDuration();
 		}
 
-		const TArray<FName>& SlotNames;
+		FGeometryCacheExportContext(const TArray<FName>& InSlotNames)
+			: SlotNames(InSlotNames)
+		{}
+
+		TArray<FName> SlotNames;
 		int32 InclusiveEndFrame;
 		float FrameRate;
 
@@ -4207,13 +4218,266 @@ namespace UE::UsdGeometryCacheConversion::Private
 		pxr::VtArray<int> FaceVertexIndices;
 	};
 
-	void ConvertGeometryCacheMeshData(
-		const FGeometryCacheMeshData& MeshData,
-		pxr::UsdGeomMesh& UsdMesh,
+	class IUnrealMeshData
+	{
+	public:
+		virtual int32 GetNumVertices() const = 0;
+		virtual int32 GetNumIndices() const = 0;
+		virtual FVector3f GetVertexPosition(int32 Index) const = 0;
+		virtual int32 GetVertexIndex(int32 Index) const = 0;
+		virtual bool IsValid() const = 0;
+		virtual bool HasNormals() const = 0;
+		virtual FVector GetNormal(int32 Index) const = 0;
+		virtual bool HasUV() const = 0;
+		virtual FVector2D GetUV(int32 Index) const = 0;
+		virtual bool HasVertexColors() const = 0;
+		virtual FColor GetVertexColor(int32 Index) const = 0;
+		virtual bool HasVelocities() const = 0;
+		virtual FVector3f GetVelocity(int32 Index) const = 0;
+		virtual int32 GetNumSections() const = 0;
+		virtual uint32 GetSectionNumTriangles(int32 SectionIndex) const = 0;
+		virtual uint32 GetSectionStartIndex(int32 SectionIndex) const = 0;
+		virtual uint32 GetSectionMaterialIndex(int32 SectionIndex) const = 0;
+		virtual bool HasMaterialAssignment() const = 0;
+		virtual ~IUnrealMeshData()
+		{
+		}
+	};
+
+	class FGeometryCacheMeshDataWrapper : public IUnrealMeshData
+	{
+	public:
+		FGeometryCacheMeshDataWrapper(const FGeometryCacheMeshData& InMeshData)
+			: MeshData(InMeshData)
+		{
+		}
+
+		int32 GetNumVertices() const override
+		{
+			return MeshData.Positions.Num();
+		}
+		int32 GetNumIndices() const override
+		{
+			return MeshData.Indices.Num();
+		}
+		FVector3f GetVertexPosition(int32 Index) const override
+		{
+			return MeshData.Positions[Index];
+		}
+		int32 GetVertexIndex(int32 Index) const override
+		{
+			return MeshData.Indices[Index];
+		}
+		bool IsValid() const override
+		{
+			return MeshData.Positions.Num() > 0;
+		};
+		bool HasNormals() const override
+		{
+			return MeshData.VertexInfo.bHasTangentZ;
+		}
+		FVector GetNormal(int32 Index) const override
+		{
+			return MeshData.TangentsZ[Index].ToFVector();
+		}
+		bool HasUV() const override
+		{
+			return MeshData.VertexInfo.bHasUV0;
+		}
+		FVector2D GetUV(int32 Index) const override
+		{
+			return FVector2D(MeshData.TextureCoordinates[Index]);
+		}
+		bool HasVertexColors() const override
+		{
+			return MeshData.VertexInfo.bHasColor0;
+		}
+		FColor GetVertexColor(int32 Index) const override
+		{
+			return MeshData.Colors[Index];
+		}
+		bool HasVelocities() const override
+		{
+			return MeshData.VertexInfo.bHasMotionVectors;
+		}
+		FVector3f GetVelocity(int32 Index) const override
+		{
+			return MeshData.MotionVectors[Index];
+		}
+		int32 GetNumSections() const override
+		{
+			return MeshData.BatchesInfo.Num();
+		}
+		uint32 GetSectionNumTriangles(int32 SectionIndex) const override
+		{
+			return MeshData.BatchesInfo[SectionIndex].NumTriangles;
+		}
+		uint32 GetSectionStartIndex(int32 SectionIndex) const override
+		{
+			return MeshData.BatchesInfo[SectionIndex].StartIndex;
+		}
+		uint32 GetSectionMaterialIndex(int32 SectionIndex) const override
+		{
+			return MeshData.BatchesInfo[SectionIndex].MaterialIndex;
+		}
+		bool HasMaterialAssignment() const override
+		{
+			return true;
+		}
+
+	private:
+		const FGeometryCacheMeshData& MeshData;
+	};
+
+	class FSkeletalMeshDataWrapper : public IUnrealMeshData
+	{
+	public:
+		FSkeletalMeshDataWrapper(const FSkeletalMeshLODRenderData& InLODData, bool bVertexColors)
+			: LODData(InLODData)
+			, bHasVertexColors(bVertexColors)
+		{
+		}
+
+		int32 GetNumVertices() const override
+		{
+			return LODData.GetNumVertices();
+		}
+		int32 GetNumIndices() const override
+		{
+			return LODData.MultiSizeIndexContainer.GetIndexBuffer()->Num();
+		}
+		FVector3f GetVertexPosition(int32 Index) const override
+		{
+			return LODData.StaticVertexBuffers.PositionVertexBuffer.VertexPosition(Index);
+		}
+		int32 GetVertexIndex(int32 Index) const override
+		{
+			return LODData.MultiSizeIndexContainer.GetIndexBuffer()->Get(Index);
+		}
+		bool IsValid() const override
+		{
+			return GetNumVertices() > 0;
+		};
+		bool HasNormals() const override
+		{
+			return true;
+		}
+		FVector GetNormal(int32 Index) const override
+		{
+			return FVector(LODData.StaticVertexBuffers.StaticMeshVertexBuffer.VertexTangentZ(Index));
+		}
+		bool HasUV() const override
+		{
+			return LODData.StaticVertexBuffers.StaticMeshVertexBuffer.GetNumTexCoords() > 0;
+		}
+		FVector2D GetUV(int32 Index) const override
+		{
+			const int32 UVIndex = 0;
+			return FVector2D(LODData.StaticVertexBuffers.StaticMeshVertexBuffer.GetVertexUV(Index, UVIndex));
+		}
+		bool HasVertexColors() const override
+		{
+			return bHasVertexColors;
+		}
+		FColor GetVertexColor(int32 Index) const override
+		{
+			return LODData.StaticVertexBuffers.ColorVertexBuffer.VertexColor(Index);
+		}
+		bool HasVelocities() const override
+		{
+			return false;
+		}
+		FVector3f GetVelocity(int32 Index) const override
+		{
+			return {};
+		}
+		int32 GetNumSections() const override
+		{
+			return LODData.RenderSections.Num();
+		}
+		uint32 GetSectionNumTriangles(int32 SectionIndex) const override
+		{
+			return LODData.RenderSections[SectionIndex].NumTriangles;
+		}
+		uint32 GetSectionStartIndex(int32 SectionIndex) const override
+		{
+			return LODData.RenderSections[SectionIndex].BaseIndex;
+		}
+		uint32 GetSectionMaterialIndex(int32 SectionIndex) const override
+		{
+			return LODData.RenderSections[SectionIndex].MaterialIndex;
+		}
+		bool HasMaterialAssignment() const override
+		{
+			return true;
+		}
+
+	private:
+		const FSkeletalMeshLODRenderData& LODData;
+		bool bHasVertexColors;
+	};
+
+	// Wrapper for skinned vertices of a skeletal mesh as rendered through a skeletal mesh component
+	class FSkinnedVerticesDataWrapper : public FSkeletalMeshDataWrapper
+	{
+	public:
+		FSkinnedVerticesDataWrapper(const TArray<FFinalSkinVertex>& InSkinnedVertices, const FSkeletalMeshLODRenderData& InLODData, bool bVertexColors)
+			: FSkeletalMeshDataWrapper(InLODData, bVertexColors)
+			, SkinnedVertices(InSkinnedVertices)
+		{
+		}
+
+		int32 GetNumVertices() const override
+		{
+			return SkinnedVertices.Num();
+		}
+		FVector3f GetVertexPosition(int32 Index) const override
+		{
+			return SkinnedVertices[Index].Position;
+		}
+		bool HasNormals() const override
+		{
+			return true;
+		}
+		FVector GetNormal(int32 Index) const override
+		{
+			return SkinnedVertices[Index].TangentZ.ToFVector();
+		}
+		bool HasUV() const override
+		{
+			// Use the UV of the skeletal mesh
+			return false;
+		}
+		// In case we want to use the UV from the skinned vertices, but they are not animated anyway
+		//FVector2D GetUV(int32 Index) const override
+		//{
+		//	return SkinnedVertices[Index].TextureCoordinates[0];
+		//}
+		bool HasVertexColors() const override
+		{
+			return false;
+		}
+		FColor GetVertexColor(int32 Index) const override
+		{
+			return {};
+		}
+		bool HasMaterialAssignment() const override
+		{
+			// Use the material assignment/section info of the skeletal mesh
+			return false;
+		}
+
+	private:
+		const TArray<FFinalSkinVertex>& SkinnedVertices;
+	};
+
+	void ConvertMeshData(
+		const IUnrealMeshData& MeshData,
 		const TArray<FString>& MaterialAssignments,
 		const pxr::UsdTimeCode TimeCode,
 		pxr::UsdPrim PrimToReceiveMaterialAssignments,
-		FGeometryCacheExportContext& ExportContext
+		FGeometryCacheExportContext& ExportContext,
+		pxr::UsdGeomMesh& UsdMesh
 	)
 	{
 		pxr::UsdPrim MeshPrim = UsdMesh.GetPrim();
@@ -4226,7 +4490,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 
 		// Vertices
 		{
-			const int32 VertexCount = MeshData.Positions.Num();
+			const int32 VertexCount = MeshData.GetNumVertices();
 
 			// Points
 			{
@@ -4238,7 +4502,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 
 					for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 					{
-						PointsArray.push_back(UnrealToUsd::ConvertVectorFloat(StageInfo, (FVector)MeshData.Positions[VertexIndex]));
+						PointsArray.push_back(UnrealToUsd::ConvertVectorFloat(StageInfo, (FVector)MeshData.GetVertexPosition(VertexIndex)));
 					}
 
 					Points.Set(PointsArray, TimeCode);
@@ -4246,7 +4510,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 			}
 
 			// Normals
-			if (MeshData.VertexInfo.bHasTangentZ)
+			if (MeshData.HasNormals())
 			{
 				// We need to emit this if we're writing normals (which we always are) because any DCC that can
 				// actually subdivide (like usdview) will just discard authored normals and fully recompute them
@@ -4265,7 +4529,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 
 					for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 					{
-						FVector VertexNormal = MeshData.TangentsZ[VertexIndex].ToFVector();
+						FVector VertexNormal = MeshData.GetNormal(VertexIndex);
 						Normals.push_back(UnrealToUsd::ConvertVectorFloat(StageInfo, VertexNormal));
 					}
 
@@ -4274,14 +4538,14 @@ namespace UE::UsdGeometryCacheConversion::Private
 			}
 
 			// UVs
-			if (MeshData.VertexInfo.bHasUV0)
+			if (MeshData.HasUV())
 			{
 				// Only one UV set is supported
 				const int32 TexCoordSourceIndex = 0;
 				pxr::TfToken UsdUVSetName = UsdUtils::GetUVSetName(TexCoordSourceIndex).Get();
 
 				pxr::UsdGeomPrimvar PrimvarST = pxr::UsdGeomPrimvarsAPI(MeshPrim)
-													.CreatePrimvar(UsdUVSetName, pxr::SdfValueTypeNames->TexCoord2fArray, pxr::UsdGeomTokens->vertex);
+					.CreatePrimvar(UsdUVSetName, pxr::SdfValueTypeNames->TexCoord2fArray, pxr::UsdGeomTokens->vertex);
 
 				if (PrimvarST)
 				{
@@ -4289,7 +4553,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 
 					for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 					{
-						FVector2D TexCoord = FVector2D(MeshData.TextureCoordinates[VertexIndex]);
+						FVector2D TexCoord = FVector2D(MeshData.GetUV(VertexIndex));
 						TexCoord[1] = 1.f - TexCoord[1];
 
 						UVs.push_back(UnrealToUsd::ConvertVectorFloat(TexCoord));
@@ -4300,7 +4564,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 			}
 
 			// Vertex colors
-			if (MeshData.VertexInfo.bHasColor0)
+			if (MeshData.HasVertexColors())
 			{
 				pxr::UsdGeomPrimvar DisplayColorPrimvar = UsdMesh.CreateDisplayColorPrimvar(pxr::UsdGeomTokens->vertex);
 				pxr::UsdGeomPrimvar DisplayOpacityPrimvar = UsdMesh.CreateDisplayOpacityPrimvar(pxr::UsdGeomTokens->vertex);
@@ -4315,7 +4579,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 
 					for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 					{
-						const FColor& VertexColor = MeshData.Colors[VertexIndex];
+						const FColor& VertexColor = MeshData.GetVertexColor(VertexIndex);
 
 						// The color in the MeshData is already stored as linear
 						pxr::GfVec4f Color = UnrealToUsd::ConvertColor(VertexColor.ReinterpretAsLinear());
@@ -4329,7 +4593,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 			}
 
 			// Velocities
-			if (MeshData.VertexInfo.bHasMotionVectors)
+			if (MeshData.HasVelocities())
 			{
 				pxr::UsdAttribute VelocitiesAttribute = UsdMesh.CreateVelocitiesAttr();
 				if (VelocitiesAttribute)
@@ -4341,7 +4605,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 					{
 						// The motion vectors in the MeshData are stored as unit per frame so convert it back to unit per second
 						Velocities.push_back(
-							UnrealToUsd::ConvertVectorFloat(StageInfo, (FVector)-MeshData.MotionVectors[VertexIndex] * ExportContext.FrameRate)
+							UnrealToUsd::ConvertVectorFloat(StageInfo, (FVector)-MeshData.GetVelocity(VertexIndex) * ExportContext.FrameRate)
 						);
 					}
 
@@ -4352,7 +4616,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 
 		// Faces
 		{
-			const int32 NumIndices = MeshData.Indices.Num();
+			const int32 NumIndices = MeshData.GetNumIndices();
 			const int32 FaceCount = NumIndices / 3;
 			// Face Vertex Counts
 			{
@@ -4387,7 +4651,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 
 					for (int32 Index = 0; Index < NumIndices; ++Index)
 					{
-						FaceVertexIndices.push_back(MeshData.Indices[Index]);
+						FaceVertexIndices.push_back(MeshData.GetVertexIndex(Index));
 					}
 
 					if (ExportContext.FaceVertexIndices != FaceVertexIndices)
@@ -4400,6 +4664,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 		}
 
 		// Material assignments
+		if (MeshData.HasMaterialAssignment())
 		{
 			// This LOD has a single material assignment, just create/bind an UnrealMaterial child prim directly
 			if (MaterialAssignments.Num() == 1)
@@ -4411,10 +4676,8 @@ namespace UE::UsdGeometryCacheConversion::Private
 			{
 				TSet<FString> UsedSectionNames;
 				// Need to fetch all triangles of a section, and add their indices
-				for (int32 SectionIndex = 0; SectionIndex < MeshData.BatchesInfo.Num(); ++SectionIndex)
+				for (int32 SectionIndex = 0; SectionIndex < MeshData.GetNumSections(); ++SectionIndex)
 				{
-					const FGeometryCacheMeshBatchInfo& Section = MeshData.BatchesInfo[SectionIndex];
-
 					// Note that we will continue authoring the GeomSubsets on even if we later find out we have no material assignment (just
 					// "") for this section, so as to satisfy the "partition" family condition (below)
 					FString SectionName;
@@ -4444,7 +4707,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 						);
 					}
 
-					pxr::UsdGeomSubset GeomSubsetSchema{GeomSubsetPrim};
+					pxr::UsdGeomSubset GeomSubsetSchema{ GeomSubsetPrim };
 
 					// Element type attribute
 					// Write the geomsubset attributes only once since they are at Default time anyway
@@ -4454,8 +4717,8 @@ namespace UE::UsdGeometryCacheConversion::Private
 						ElementTypeAttr.Set(pxr::UsdGeomTokens->face);
 
 						// Indices attribute
-						const uint32 TriangleCount = Section.NumTriangles;
-						const uint32 FirstTriangleIndex = Section.StartIndex / 3;	 // StartIndex is the first *vertex* instance index
+						const uint32 TriangleCount = MeshData.GetSectionNumTriangles(SectionIndex);
+						const uint32 FirstTriangleIndex = MeshData.GetSectionStartIndex(SectionIndex) / 3;	 // StartIndex is the first *vertex* instance index
 						pxr::VtArray<int> IndicesAttrValue;
 						for (uint32 TriangleIndex = FirstTriangleIndex; TriangleIndex - FirstTriangleIndex < TriangleCount; ++TriangleIndex)
 						{
@@ -4478,9 +4741,10 @@ namespace UE::UsdGeometryCacheConversion::Private
 						pxr::UsdGeomSubset::SetFamilyType(UsdMesh, pxr::UsdShadeTokens->materialBind, pxr::UsdGeomTokens->partition);
 
 						// material:binding relationship
-						if (MaterialAssignments.IsValidIndex(Section.MaterialIndex))
+						uint32 MaterialIndex = MeshData.GetSectionMaterialIndex(SectionIndex);
+						if (MaterialAssignments.IsValidIndex(MaterialIndex))
 						{
-							UsdUtils::AuthorUnrealMaterialBinding(MaterialGeomSubsetPrim, MaterialAssignments[Section.MaterialIndex]);
+							UsdUtils::AuthorUnrealMaterialBinding(MaterialGeomSubsetPrim, MaterialAssignments[MaterialIndex]);
 						}
 					}
 				}
@@ -4491,7 +4755,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 
 bool UnrealToUsd::ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr::UsdPrim& UsdPrim, UE::FUsdStage* StageForMaterialAssignments)
 {
-	namespace UsdGeometryCacheImpl = UE::UsdGeometryCacheConversion::Private;
+	using namespace UE::UsdGeometryCacheConversion::Private;
 
 	FScopedUsdAllocs UsdAllocs;
 
@@ -4502,8 +4766,6 @@ bool UnrealToUsd::ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr:
 	}
 
 	const FUsdStageInfo StageInfo(Stage);
-
-	pxr::SdfPath ParentPrimPath = UsdPrim.GetPath();
 
 	// Collect all material assignments, referenced by the sections' material indices
 	bool bHasMaterialAssignments = false;
@@ -4543,14 +4805,14 @@ bool UnrealToUsd::ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr:
 	pxr::UsdPrim MaterialPrim = MaterialStage->OverridePrim(UsdPrim.GetPath());
 	pxr::UsdAttribute ExtentsAttr = TargetMesh ? TargetMesh.CreateExtentAttr() : pxr::UsdAttribute{};
 
-	UsdGeometryCacheImpl::FGeometryCacheExportContext ExportContext(*GeometryCache);
+	FGeometryCacheExportContext ExportContext(*GeometryCache);
 	const int32 StartFrame = GeometryCache->GetStartFrame();
 	const int32 EndFrame = ExportContext.InclusiveEndFrame;
 	int32 ActualStartFrame = -1;
 
 	for (int32 FrameIndex = StartFrame; FrameIndex <= EndFrame; ++FrameIndex)
 	{
-		FGeometryCacheMeshData MeshData = UsdGeometryCacheImpl::GetFlattenedGeometryCacheMeshData(GeometryCache, FrameIndex - StartFrame);
+		FGeometryCacheMeshData MeshData = GetFlattenedGeometryCacheMeshData(GeometryCache, FrameIndex - StartFrame);
 		// First frame of the animation cannot be empty otherwise the geometry cache translator would not be able to detect the animation
 		// It is allowed to have empty frames during or at the end of the animation, eg. for fluid sim or FX that disappear
 		const bool bIsValidFrame = MeshData.Positions.Num() > 0 || ActualStartFrame > 0;
@@ -4562,7 +4824,7 @@ bool UnrealToUsd::ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr:
 				ActualStartFrame = FrameIndex;
 			}
 			const float TimeCode = FrameIndex;
-			UsdGeometryCacheImpl::ConvertGeometryCacheMeshData(MeshData, TargetMesh, MaterialAssignments, TimeCode, MaterialPrim, ExportContext);
+			ConvertMeshData(FGeometryCacheMeshDataWrapper(MeshData), MaterialAssignments, TimeCode, MaterialPrim, ExportContext, TargetMesh);
 		}
 
 		if (MeshData.BoundingBox.IsValid && ExtentsAttr)
@@ -4576,6 +4838,283 @@ bool UnrealToUsd::ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr:
 	UE::FUsdStage UsdStage(MaterialStage);
 	UsdUtils::AddTimeCodeRangeToLayer(UsdStage.GetRootLayer(), ActualStartFrame, EndFrame);
 	UsdStage.SetTimeCodesPerSecond(ExportContext.FrameRate);
+
+	return true;
+}
+
+bool UnrealToUsd::ConvertSkeletalMeshToStaticMesh(
+	const USkeletalMesh* SkeletalMesh,
+	pxr::UsdPrim& UsdPrim,
+	const pxr::UsdTimeCode TimeCode,
+	UE::FUsdStage* StageForMaterialAssignments
+)
+{
+	using namespace UE::UsdGeometryCacheConversion::Private;
+
+	if (!SkeletalMesh)
+	{
+		return false;
+	}
+
+	FScopedUsdAllocs UsdAllocs;
+
+	pxr::UsdGeomMesh MeshPrim(UsdPrim);
+	if (!MeshPrim)
+	{
+		return false;
+	}
+
+	pxr::UsdStageRefPtr Stage = UsdPrim.GetStage();
+	if (!Stage)
+	{
+		return false;
+	}
+
+	const FUsdStageInfo StageInfo(Stage);
+
+	// Collect all material assignments, referenced by the sections' material indices
+	bool bHasMaterialAssignments = false;
+	TArray<FString> MaterialAssignments;
+	TArray<FName> SlotNames;
+	for (const FSkeletalMaterial& Material : SkeletalMesh->GetMaterials())
+	{
+		FString AssignedMaterialPathName;
+		if (Material.MaterialInterface->GetOutermost() != GetTransientPackage())
+		{
+			AssignedMaterialPathName = Material.MaterialInterface->GetPathName();
+			SlotNames.Add(Material.MaterialSlotName);
+			bHasMaterialAssignments = true;
+		}
+
+		MaterialAssignments.Add(AssignedMaterialPathName);
+	}
+	if (!bHasMaterialAssignments)
+	{
+		// Prevent creation of the unrealMaterials attribute in case we don't have any assignments at all
+		MaterialAssignments.Reset();
+	}
+
+	// Author material bindings on the dedicated stage if we have one
+	pxr::UsdStageRefPtr MaterialStage;
+	if (StageForMaterialAssignments)
+	{
+		MaterialStage = static_cast<pxr::UsdStageRefPtr>(*StageForMaterialAssignments);
+	}
+	else
+	{
+		MaterialStage = Stage;
+	}
+
+	const FSkeletalMeshRenderData& SkelMeshRenderData = *SkeletalMesh->GetResourceForRendering();
+
+	const int32 LODLevel = 0;
+	const FSkeletalMeshLODRenderData& LODData = SkelMeshRenderData.LODRenderData[LODLevel];
+
+	FGeometryCacheExportContext ExportContext(SlotNames);
+	pxr::UsdPrim MaterialPrim = MaterialStage->OverridePrim(UsdPrim.GetPath());
+	ConvertMeshData(FSkeletalMeshDataWrapper(LODData, SkeletalMesh->GetHasVertexColors()), MaterialAssignments, TimeCode, MaterialPrim, ExportContext, MeshPrim);
+
+	pxr::UsdAttribute ExtentsAttr = MeshPrim.CreateExtentAttr();
+	const FBox BoundingBox = SkeletalMesh->GetBounds().GetBox();
+	if (BoundingBox.IsValid && ExtentsAttr)
+	{
+		TUsdStore<pxr::VtArray<pxr::GfVec3f>> USDBounds = UnrealToUsd::ConvertBounds(StageInfo, BoundingBox);
+		ExtentsAttr.Set(USDBounds.Get(), TimeCode);
+	}
+
+	return true;
+}
+
+bool UnrealToUsd::ConvertAnimSequenceToAnimatedMesh(
+	UAnimSequence* AnimSequence,
+	USkeletalMesh* SkeletalMesh,
+	pxr::UsdPrim& UsdPrim,
+	UE::FUsdStage* StageForMaterialAssignments
+)
+{
+	using namespace UE::UsdGeometryCacheConversion::Private;
+
+	UWorld* World = IUsdClassesModule::GetCurrentWorld();
+	if (!AnimSequence || !SkeletalMesh || !World)
+	{
+		return false;
+	}
+
+	FScopedUsdAllocs UsdAllocs;
+
+	pxr::UsdGeomMesh MeshPrim(UsdPrim);
+	if (!MeshPrim)
+	{
+		return false;
+	}
+
+	pxr::UsdStageRefPtr Stage = UsdPrim.GetStage();
+	if (!Stage)
+	{
+		return false;
+	}
+
+	// Collect all material assignments, referenced by the sections' material indices
+	bool bHasMaterialAssignments = false;
+	TArray<FString> MaterialAssignments;
+	TArray<FName> SlotNames;
+	for (const FSkeletalMaterial& Material : SkeletalMesh->GetMaterials())
+	{
+		FString AssignedMaterialPathName;
+		if (Material.MaterialInterface->GetOutermost() != GetTransientPackage())
+		{
+			AssignedMaterialPathName = Material.MaterialInterface->GetPathName();
+			SlotNames.Add(Material.MaterialSlotName);
+			bHasMaterialAssignments = true;
+		}
+
+		MaterialAssignments.Add(AssignedMaterialPathName);
+	}
+	if (!bHasMaterialAssignments)
+	{
+		// Prevent creation of the unrealMaterials attribute in case we don't have any assignments at all
+		MaterialAssignments.Reset();
+	}
+
+	// Author material bindings on the dedicated stage if we have one
+	pxr::UsdStageRefPtr MaterialStage;
+	if (StageForMaterialAssignments)
+	{
+		MaterialStage = static_cast<pxr::UsdStageRefPtr>(*StageForMaterialAssignments);
+	}
+	else
+	{
+		MaterialStage = Stage;
+	}
+
+	pxr::UsdPrim MaterialPrim = MaterialStage->OverridePrim(UsdPrim.GetPath());
+
+	// Create a temp SkeletalMeshActor on which to play back the AnimSequence and get the skinned vertices to bake
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.ObjectFlags = RF_Transient;
+	SpawnParameters.Name = *UsdToUnreal::ConvertString(UsdPrim.GetName());
+	SpawnParameters.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;	 // Will generate a unique name in case of a conflict
+
+	ASkeletalMeshActor* SkelMeshActor = Cast<ASkeletalMeshActor>(World->SpawnActor(ASkeletalMeshActor::StaticClass(), nullptr, SpawnParameters));
+
+	USkeletalMeshComponent* SkelMeshComponent = SkelMeshActor->GetSkeletalMeshComponent();
+	SkelMeshComponent->SetSkeletalMeshAsset(SkeletalMesh);
+	SkelMeshComponent->OverrideAnimationData(AnimSequence);
+
+	const FSkeletalMeshRenderData& SkelMeshRenderData = *SkeletalMesh->GetResourceForRendering();
+
+	const int32 LODLevel = 0;
+	const FSkeletalMeshLODRenderData& LODData = SkelMeshRenderData.LODRenderData[LODLevel];
+
+	const int32 StartFrame = 0;
+	const int32 EndFrame = AnimSequence->GetNumberOfSampledKeys() - 1;
+	const double FPS = AnimSequence->GetSamplingFrameRate().AsDecimal();
+	const bool bHasVertexColors = SkeletalMesh->GetHasVertexColors();
+	FGeometryCacheExportContext ExportContext(SlotNames);
+	for (int32 FrameIndex = StartFrame; FrameIndex <= EndFrame; ++FrameIndex)
+	{
+		double Time = FrameIndex / FPS;
+		SkelMeshComponent->SetPosition((float)Time);
+
+		if (USkeletalMeshComponent* Leader = Cast<USkeletalMeshComponent>(SkelMeshComponent->LeaderPoseComponent.Get()))
+		{
+			UsdUtils::RefreshSkeletalMeshComponent(*Leader);
+		}
+		UsdUtils::RefreshSkeletalMeshComponent(*SkelMeshComponent);
+
+		if (AActor* Owner = SkelMeshComponent->GetOwner())
+		{
+			Owner->Tick(0.0f);
+		}
+
+		TArray<FFinalSkinVertex> SkinnedVertices;
+		SkelMeshComponent->GetCPUSkinnedVertices(SkinnedVertices, LODLevel);
+
+		ConvertMeshData(FSkinnedVerticesDataWrapper(SkinnedVertices, LODData, bHasVertexColors), MaterialAssignments, FrameIndex, MaterialPrim, ExportContext, MeshPrim);
+	}
+
+	World->DestroyActor(SkelMeshActor);
+
+	return true;
+}
+
+bool UnrealToUsd::CreateSkeletalAnimationToMeshBaker(UE::FUsdPrim& UsdPrim, USkeletalMeshComponent& SkelMeshComponent, UnrealToUsd::FComponentBaker& OutBaker)
+{
+	using namespace UE::UsdGeometryCacheConversion::Private;
+
+	USkeletalMesh* SkeletalMesh = SkelMeshComponent.GetSkeletalMeshAsset();
+	if (!SkeletalMesh)
+	{
+		return false;
+	}
+
+	FScopedUsdAllocs Allocs;
+
+	pxr::UsdGeomMesh MeshPrim(UsdPrim);
+	if (!MeshPrim)
+	{
+		return false;
+	}
+
+	pxr::UsdStageRefPtr Stage = UsdPrim.GetStage();
+	if (!Stage)
+	{
+		return false;
+	}
+
+	// Collect all material assignments, referenced by the sections' material indices
+	bool bHasMaterialAssignments = false;
+	TArray<FString> MaterialAssignments;
+	TArray<FName> SlotNames;
+	for (const FSkeletalMaterial& Material : SkeletalMesh->GetMaterials())
+	{
+		FString AssignedMaterialPathName;
+		if (Material.MaterialInterface->GetOutermost() != GetTransientPackage())
+		{
+			AssignedMaterialPathName = Material.MaterialInterface->GetPathName();
+			SlotNames.Add(Material.MaterialSlotName);
+			bHasMaterialAssignments = true;
+		}
+
+		MaterialAssignments.Add(AssignedMaterialPathName);
+	}
+	if (!bHasMaterialAssignments)
+	{
+		// Prevent creation of the unrealMaterials attribute in case we don't have any assignments at all
+		MaterialAssignments.Reset();
+	}
+
+	OutBaker.ComponentPath = SkelMeshComponent.GetPathName();
+	OutBaker.BakerType = UnrealToUsd::EBakingType::Skeletal;
+
+	const FSkeletalMeshRenderData& SkelMeshRenderData = *SkeletalMesh->GetResourceForRendering();
+
+	const int32 LODLevel = 0;
+	const FSkeletalMeshLODRenderData& LODData = SkelMeshRenderData.LODRenderData[LODLevel];
+
+	const bool bHasVertexColors = SkeletalMesh->GetHasVertexColors();
+	OutBaker.BakerFunction = [&SkelMeshComponent, &LODData, MaterialAssignments, UsdPrim, bHasVertexColors, ExportContext = FGeometryCacheExportContext(SlotNames)](double UsdTimeCode) mutable
+	{
+		FScopedUsdAllocs InnerAllocs;
+
+		if (USkeletalMeshComponent* Leader = Cast<USkeletalMeshComponent>(SkelMeshComponent.LeaderPoseComponent.Get()))
+		{
+			UsdUtils::RefreshSkeletalMeshComponent(*Leader);
+		}
+		UsdUtils::RefreshSkeletalMeshComponent(SkelMeshComponent);
+
+		if (AActor* Owner = SkelMeshComponent.GetOwner())
+		{
+			Owner->Tick(0.0f);
+		}
+
+		const int32 LODLevel = 0;
+		TArray<FFinalSkinVertex> SkinnedVertices;
+		SkelMeshComponent.GetCPUSkinnedVertices(SkinnedVertices, LODLevel);
+
+		pxr::UsdGeomMesh MeshPrim(UsdPrim);
+		ConvertMeshData(FSkinnedVerticesDataWrapper(SkinnedVertices, LODData, bHasVertexColors), MaterialAssignments, UsdTimeCode, UsdPrim, ExportContext, MeshPrim);
+	};
 
 	return true;
 }

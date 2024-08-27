@@ -273,7 +273,8 @@ bool USkeletalMeshExporterUsd::ExportBinary(
 
 	FString RootPrimPath = (TEXT("/") + UsdUtils::SanitizeUsdIdentifier(*SkeletalMesh->GetName()));
 
-	UE::FUsdPrim RootPrim = UsdStage.DefinePrim(UE::FSdfPath(*RootPrimPath), TEXT("SkelRoot"));
+	const bool bExportAsSkeletal = !Options->MeshAssetOptions.bConvertSkeletalToNonSkeletal;
+	UE::FUsdPrim RootPrim = UsdStage.DefinePrim(UE::FSdfPath(*RootPrimPath), bExportAsSkeletal ? TEXT("SkelRoot") : TEXT("Mesh"));
 	if (!RootPrim)
 	{
 		return false;
@@ -307,14 +308,26 @@ bool USkeletalMeshExporterUsd::ExportBinary(
 		AssetStage = UsdStage;
 	}
 
-	UnrealToUsd::ConvertSkeletalMesh(
-		SkeletalMesh,
-		RootPrim,
-		UsdUtils::GetDefaultTimeCode(),
-		&AssetStage,
-		Options->MeshAssetOptions.LowestMeshLOD,
-		Options->MeshAssetOptions.HighestMeshLOD
-	);
+	if (bExportAsSkeletal)
+	{
+		UnrealToUsd::ConvertSkeletalMesh(
+			SkeletalMesh,
+			RootPrim,
+			UsdUtils::GetDefaultTimeCode(),
+			&AssetStage,
+			Options->MeshAssetOptions.LowestMeshLOD,
+			Options->MeshAssetOptions.HighestMeshLOD
+		);
+	}
+	else
+	{
+		UnrealToUsd::ConvertSkeletalMeshToStaticMesh(
+			SkeletalMesh,
+			RootPrim,
+			UsdUtils::GetDefaultTimeCode(),
+			&AssetStage
+		);
+	}
 
 	if (UE::FUsdPrim AssetDefaultPrim = AssetStage.GetDefaultPrim())
 	{

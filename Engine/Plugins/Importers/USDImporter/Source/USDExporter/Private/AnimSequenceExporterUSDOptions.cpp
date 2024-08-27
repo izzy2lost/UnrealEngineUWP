@@ -21,4 +21,8 @@ void UsdUtils::HashForAnimSequenceExport(const UAnimSequenceExporterUSDOptions& 
 	UsdUtils::HashForExport(Options.StageOptions, HashToUpdate);
 	UsdUtils::HashForExport(Options.MetadataOptions, HashToUpdate);
 	HashToUpdate.Update(reinterpret_cast<const uint8*>(&Options.bExportPreviewMesh), sizeof(Options.bExportPreviewMesh));
+	if (Options.bExportPreviewMesh)
+	{
+		HashToUpdate.Update(reinterpret_cast<const uint8*>(&Options.PreviewMeshOptions.bConvertSkeletalToNonSkeletal), sizeof(Options.PreviewMeshOptions.bConvertSkeletalToNonSkeletal));
+	}
 }

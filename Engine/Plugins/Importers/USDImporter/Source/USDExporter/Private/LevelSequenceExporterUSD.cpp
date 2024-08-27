@@ -9,6 +9,7 @@
 #include "USDConversionUtils.h"
 #include "USDErrorUtils.h"
 #include "USDExporterModule.h"
+#include "USDGeomMeshConversion.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
 #include "USDObjectUtils.h"
@@ -1138,25 +1139,35 @@ namespace UE::LevelSequenceExporterUSD::Private
 					}
 				};
 
+			const bool bBakeAsSkeletal = !Context.ExportOptions->LevelExportOptions.AssetOptions.bConvertSkeletalToNonSkeletal;
 			TFunction<void(UnrealToUsd::FComponentBaker&)> GenerateSkeletalBaker =
-				[&UsdStage, &BoundComponent, &PrimPath](UnrealToUsd::FComponentBaker& InOutBaker)
+				[&UsdStage, &BoundComponent, &PrimPath, &Prim, bBakeAsSkeletal](UnrealToUsd::FComponentBaker& InOutBaker)
 				{
 					if (USkeletalMeshComponent* SkeletalBoundComponent = Cast<USkeletalMeshComponent>(BoundComponent))
 					{
-						UE::FUsdPrim SkelAnimPrim = UsdStage.DefinePrim(UE::FSdfPath{ *PrimPath }.AppendChild(TEXT("Anim")), TEXT("SkelAnimation"));
-
-						UE::FUsdPrim SkeletonPrim = UsdStage.DefinePrim(
-							UE::FSdfPath{ *PrimPath }.AppendChild(UnrealIdentifiers::ExportedSkeletonPrimName),
-							TEXT("Skeleton")
-						);
-
-						if (SkelAnimPrim && SkeletonPrim)
+						if (bBakeAsSkeletal)
 						{
-							UnrealToUsd::CreateSkeletalAnimationBaker(SkeletonPrim, SkelAnimPrim, *SkeletalBoundComponent, InOutBaker);
+							UE::FUsdPrim SkelAnimPrim = UsdStage.DefinePrim(UE::FSdfPath{ *PrimPath }.AppendChild(TEXT("Anim")), TEXT("SkelAnimation"));
+
+							UE::FUsdPrim SkeletonPrim = UsdStage.DefinePrim(
+								UE::FSdfPath{ *PrimPath }.AppendChild(UnrealIdentifiers::ExportedSkeletonPrimName),
+								TEXT("Skeleton")
+							);
+
+							if (SkelAnimPrim && SkeletonPrim)
+							{
+								UnrealToUsd::CreateSkeletalAnimationBaker(SkeletonPrim, SkelAnimPrim, *SkeletalBoundComponent, InOutBaker);
+							}
+							else
+							{
+								UE_LOG(LogUsd, Warning, TEXT("Failed to generate Skeleton or SkelAnimation prim when baking out SkelRoot '%s'"), *PrimPath);
+							}
 						}
 						else
 						{
-							UE_LOG(LogUsd, Warning, TEXT("Failed to generate Skeleton or SkelAnimation prim when baking out SkelRoot '%s'"), *PrimPath);
+							// Convert the prim for the skeletal mesh component from SkelRoot to Mesh
+							Prim.SetTypeName(TEXT("Mesh"));
+							UnrealToUsd::CreateSkeletalAnimationToMeshBaker(Prim, *SkeletalBoundComponent, InOutBaker);
 						}
 					}
 				};

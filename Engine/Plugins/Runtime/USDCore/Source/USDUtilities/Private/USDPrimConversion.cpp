@@ -4377,73 +4377,6 @@ bool UnrealToUsd::CreateComponentPropertyBaker(
 	return false;
 }
 
-namespace UE::USDPrimConversion::Private
-{
-	// Returns bone-space joint transforms from the SkeletalMeshComponent while paying attention to whether
-	// it has a LeaderPoseComponent or not.
-	//
-	// References:
-	// - FMLDeformerEditorToolkit::GetDebugActorComponentSpaceTransforms
-	// - FAnimationRecorder::GetBoneTransforms
-	void GetBoneTransforms(USkeletalMeshComponent* Component, TArray<FTransform>& BoneTransforms)
-	{
-		if (!Component)
-		{
-			return;
-		}
-
-		int32 NumBones = INDEX_NONE;
-		if (USkeletalMesh* Mesh = Component->GetSkeletalMeshAsset())
-		{
-			const FReferenceSkeleton& RefSkel = Mesh->GetRefSkeleton();
-			NumBones = RefSkel.GetNum();
-		}
-		if (NumBones == INDEX_NONE)
-		{
-			return;
-		}
-
-		if (USkeletalMeshComponent* Leader = Cast<USkeletalMeshComponent>(Component->LeaderPoseComponent.Get()))
-		{
-			const TArray<FTransform>& LeaderTransforms = Leader->GetBoneSpaceTransforms();
-			const TArray<FTransform>& FollowerTransforms = Component->GetBoneSpaceTransforms();
-
-			const TArray<int32>& BoneMap = Component->GetLeaderBoneMap();
-
-			BoneTransforms.SetNumUninitialized(NumBones);
-			for (int32 BoneIndex = 0; BoneIndex < NumBones; BoneIndex++)
-			{
-				if (BoneMap.IsValidIndex(BoneIndex) && LeaderTransforms.IsValidIndex(BoneMap[BoneIndex]))
-				{
-					BoneTransforms[BoneIndex] = LeaderTransforms[BoneMap[BoneIndex]];
-				}
-				else if (FollowerTransforms.IsValidIndex(BoneIndex))
-				{
-					BoneTransforms[BoneIndex] = FollowerTransforms[BoneIndex];
-				}
-			}
-		}
-		else
-		{
-			BoneTransforms = Component->GetBoneSpaceTransforms();
-		}
-	}
-
-	void RefreshSkeletalMeshComponent(USkeletalMeshComponent& Component)
-	{
-		// This whole incantation is required or else the component will really not update until the next frame.
-		// Note: This will also cause the update of morph target weights.
-		Component.TickAnimation(0.f, false);
-		Component.UpdateLODStatus();
-		Component.RefreshBoneTransforms();
-		Component.RefreshFollowerComponents();
-		Component.UpdateComponentToWorld();
-		Component.FinalizeBoneTransform();
-		Component.MarkRenderTransformDirty();
-		Component.MarkRenderDynamicDataDirty();
-	}
-}	 // namespace UE::USDPrimConversion::Private
-
 bool UnrealToUsd::CreateSkeletalAnimationBaker(
 	UE::FUsdPrim& SkeletonPrim,
 	UE::FUsdPrim& SkelAnimation,
@@ -4571,9 +4504,9 @@ bool UnrealToUsd::CreateSkeletalAnimationBaker(
 
 		if (USkeletalMeshComponent* Leader = Cast<USkeletalMeshComponent>(Component.LeaderPoseComponent.Get()))
 		{
-			RefreshSkeletalMeshComponent(*Leader);
+			UsdUtils::RefreshSkeletalMeshComponent(*Leader);
 		}
-		RefreshSkeletalMeshComponent(Component);
+		UsdUtils::RefreshSkeletalMeshComponent(Component);
 
 		// I'm not entirely sure why this is needed but FFbxExporter::ExportAnimTrack and FFbxExporter::ExportLevelSequenceBaked3DTransformTrack
 		// do this so for safety maybe we should as well?
@@ -4583,7 +4516,7 @@ bool UnrealToUsd::CreateSkeletalAnimationBaker(
 		}
 
 		TArray<FTransform> LocalBoneTransforms;
-		GetBoneTransforms(&Component, LocalBoneTransforms);
+		UsdUtils::GetBoneTransforms(&Component, LocalBoneTransforms);
 
 		// For whatever reason it seems that sometimes this is not ready for us, so let's force it to be recalculated
 		if (LocalBoneTransforms.Num() == 0)
