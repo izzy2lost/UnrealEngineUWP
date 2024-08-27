@@ -382,12 +382,13 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvaluationContext& Context, const UChooserTable* Chooser, FObjectChooserBase::FObjectChooserIteratorCallback Callback)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(EvaluateChooser);
-	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*Chooser->GetName());
 
 	if (Chooser == nullptr)
 	{
 		return FObjectChooserBase::EIteratorStatus::Continue;
 	}
+	
+	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*Chooser->GetName());
 
 	VALIDATE_CHOOSER_CONTEXT(Chooser, Chooser->ContextData, Context);
 
