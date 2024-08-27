@@ -7,8 +7,6 @@
 #include "DNAReader.h"
 #include "RigLogic.h"
 
-static constexpr uint16 NUM_ATTRS_PER_JOINT = 9;
-
 void FSharedRigRuntimeContext::CacheVariableJointIndices()
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/RigLogic"));
@@ -24,6 +22,10 @@ void FSharedRigRuntimeContext::CacheVariableJointIndices()
 		DistinctVariableJointIndices.Reserve(VariableAttributeIndices.Num());
 		for (const uint16 AttrIndex : VariableAttributeIndices)
 		{
+			// In DNA, the number of joint attributes is always 9 (only RigLogic has the ability to switch this)
+			// and since the variable indices are queried from the DNA here, we deal with 9 as well, regardless of
+			// the state elsewhere where we switched to 10 since the introduction of quaternion outputs from RigLogic.
+			static constexpr uint16 NUM_ATTRS_PER_JOINT = 9;
 			const uint16 JointIndex = AttrIndex / NUM_ATTRS_PER_JOINT;
 			DistinctVariableJointIndices.Add(JointIndex);
 		}

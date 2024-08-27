@@ -18,7 +18,7 @@
 #include "Units/RigUnitTest.h"
 #include "RigUnit_RigLogic.h"
 
-const uint8 FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT = 9;
+const uint8 FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT = 10;
 
 FRigUnit_RigLogic::TestAccessor::TestAccessor(FRigUnit_RigLogic* Unit)
 {
@@ -186,7 +186,7 @@ void FRigUnit_RigLogic::TestAccessor::AddToTransformArray(float* InArray, FTrans
 }
 
 
-FTransformArrayView FRigUnit_RigLogic::TestAccessor::CreateTwoJointNeutralTransforms(float *InValueArray)
+TArrayView<const float> FRigUnit_RigLogic::TestAccessor::CreateTwoJointNeutralTransforms(float *InValueArray)
 {
 	float* Transform1Ptr = InValueArray;
 
@@ -204,7 +204,7 @@ FTransformArrayView FRigUnit_RigLogic::TestAccessor::CreateTwoJointNeutralTransf
 	AddToTransformArray(Transform2Ptr, Joint2Transform);
 
 	const float* ValuesPtr = InValueArray;
-	return FTransformArrayView(ValuesPtr, sizeof(FTransform));
+	return TArrayView<const float>(ValuesPtr, 2 * MAX_ATTRS_PER_JOINT);
 }
 
 TArrayView<const uint16> FRigUnit_RigLogic::TestAccessor::CreateTwoJointVariableAttributes(uint16* InVariableAttributeIndices, uint8 LOD)
@@ -757,7 +757,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_RigLogic)
 	//create neutral transforms for two bones
 	const uint8 TransformArraySize = 2 * FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT;
 	float NeutralValues[TransformArraySize];  //two bones, nine attributes
-	FTransformArrayView TwoJointNeutralTransforms = Test.CreateTwoJointNeutralTransforms(NeutralValues);
+	TArrayView<const float> TwoJointNeutralTransforms = Test.CreateTwoJointNeutralTransforms(NeutralValues);
 	//create delta transforms
 	float DeltaTransformData[TransformArraySize] = { 0.f };
 	//first bone translation
@@ -768,7 +768,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_RigLogic)
 	DeltaTransformData[9] = 1.f;
 	DeltaTransformData[10] = 2.f;
 	DeltaTransformData[11] = 7.f;
-	FTransformArrayView DeltaTransforms = FTransformArrayView(DeltaTransformData, TransformArraySize);
+	TArrayView<const float> DeltaTransforms = TArrayView<const float>(DeltaTransformData, TransformArraySize);
 	//create variable joint index arrays for two bones
 	SharedRigRuntimeContext->VariableJointIndicesPerLOD.Reset();
 	SharedRigRuntimeContext->VariableJointIndicesPerLOD.AddDefaulted(1);

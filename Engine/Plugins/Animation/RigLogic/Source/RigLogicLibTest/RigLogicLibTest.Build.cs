@@ -12,6 +12,8 @@ namespace UnrealBuildTool.Rules
 			bUseUnity = false; // A windows include is preprocessing some method names causing compile failures.
 			bDisableStaticAnalysis = true;
 
+			PrivateDefinitions.Add("RL_BUILD_WITH_XYZ_ROTATION_ORDER=1");
+
 			if (Target.Platform == UnrealTargetPlatform.Win64 && Target.Architecture == UnrealArch.X64)
 			{
 				PrivateDefinitions.Add("RL_BUILD_WITH_SSE=1");

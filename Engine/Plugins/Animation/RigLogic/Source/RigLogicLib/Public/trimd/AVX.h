@@ -309,6 +309,31 @@ inline F256 andnot(const F256& lhs, const F256& rhs) {
     return F256{_mm256_andnot_ps(lhs.data, rhs.data)};
 }
 
+inline F256 rsqrt(const F256& rhs) {
+    #ifndef TRIMD_ENABLE_FAST_INVERSE_SQRT
+    return F256{_mm256_rsqrt_ps(rhs.data)};
+    #else
+    // Pure AVX2-only implementation:
+    //
+    // const __m256i shifted = _mm256_srli_epi32(_mm256_castps_si256(rhs.data), 1);
+    // const __m256i subtracted = _mm256_sub_epi32(_mm256_set1_epi32(0x5f1ffff9), shifted);
+    // F256 result{_mm256_castsi256_ps(subtracted)};
+    // result *= F256{0.703952253f} * (F256{2.38924456f} - rhs * result * result);
+    // return result;
+    //
+    // Combination of SSE and AVX:
+    const __m128 lower = _mm256_castps256_ps128(rhs.data);
+    const __m128 upper = _mm256_extractf128_ps(rhs.data, 1);
+    const __m128i shiftedLower = _mm_srli_epi32(_mm_castps_si128(lower), 1);
+    const __m128i shiftedUpper = _mm_srli_epi32(_mm_castps_si128(upper), 1);
+    const __m128i subtractedLower = _mm_sub_epi32(_mm_set1_epi32(0x5f1ffff9), shiftedLower);
+    const __m128i subtractedUpper = _mm_sub_epi32(_mm_set1_epi32(0x5f1ffff9), shiftedUpper);
+    F256 result{_mm256_insertf128_ps(_mm256_castps128_ps256(_mm_castsi128_ps(subtractedLower)), _mm_castsi128_ps(subtractedUpper), 1)};
+    result *= F256{0.703952253f} * (F256{2.38924456f} - rhs * result * result);
+    return result;
+    #endif  // TRIMD_ENABLE_FAST_INVERSE_SQRT
+}
+
 } // namespace avx
 
 } // namespace trimd

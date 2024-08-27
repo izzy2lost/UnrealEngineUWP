@@ -13,7 +13,10 @@ enum class DataLayerBitmask {
     Behavior = 4,
     GeometryBlendShapesOnly = 8,
     GeometryRest = 16,
-    MachineLearnedBehavior = 32
+    MachineLearnedBehavior = 32,
+    RBFBehavior = 64,
+    JointBehaviorMetadata = 128,
+    TwistSwingBehavior = 256
 };
 
 inline DataLayerBitmask computeDataLayerBitmask(DataLayer layer) {
@@ -24,6 +27,9 @@ inline DataLayerBitmask computeDataLayerBitmask(DataLayer layer) {
         result |= DataLayerBitmask::GeometryBlendShapesOnly;
         result |= DataLayerBitmask::GeometryRest;
         result |= DataLayerBitmask::MachineLearnedBehavior;
+        result |= DataLayerBitmask::RBFBehavior;
+        result |= DataLayerBitmask::JointBehaviorMetadata;
+        result |= DataLayerBitmask::TwistSwingBehavior;
         return result;
     }
 
@@ -46,6 +52,18 @@ inline DataLayerBitmask computeDataLayerBitmask(DataLayer layer) {
 
     if (contains(layer, DataLayer::MachineLearnedBehavior)) {
         result |= DataLayerBitmask::MachineLearnedBehavior;
+    }
+
+    if (contains(layer, DataLayer::RBFBehavior)) {
+        result |= DataLayerBitmask::RBFBehavior;
+    }
+
+    if (contains(layer, DataLayer::JointBehaviorMetadata)) {
+        result |= DataLayerBitmask::JointBehaviorMetadata;
+    }
+
+    if (contains(layer, DataLayer::TwistSwingBehavior)) {
+        result |= DataLayerBitmask::TwistSwingBehavior;
     }
 
     return result;

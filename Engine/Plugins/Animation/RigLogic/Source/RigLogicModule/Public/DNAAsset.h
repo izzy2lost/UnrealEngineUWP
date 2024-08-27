@@ -91,6 +91,8 @@ public:
 	  * deleted without affecting the other.
 	 **/
 	void InitializeForRuntimeFrom(UDNAAsset* Other);
+	TSharedPtr<FSharedRigRuntimeContext> GetRigRuntimeContext();
+	TSharedPtr<FDNAIndexMapping> GetDNAIndexMapping(const USkeleton* Skeleton, const USkeletalMesh* SkeletalMesh);
 
 	TSharedPtr<FSharedRigRuntimeContext> GetRigRuntimeContext();
 	TSharedPtr<FDNAIndexMapping> GetDNAIndexMapping(const USkeleton* Skeleton,

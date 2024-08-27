@@ -14,6 +14,12 @@ TYPED_TEST(TestArrayView, DefaultCtor) {
     EXPECT_EQ(arr.size(), 0ul);
 }
 
+TYPED_TEST(TestArrayView, NullCtor) {
+    ArrayView<TypeParam> arr{nullptr, 0ul};
+    EXPECT_EQ(arr.data(), nullptr);
+    EXPECT_EQ(arr.size(), 0ul);
+}
+
 TYPED_TEST(TestArrayView, CopyCtor) {
     auto src1 = this->template initArray<length>();
     auto src2 = this->template initArray<length>();

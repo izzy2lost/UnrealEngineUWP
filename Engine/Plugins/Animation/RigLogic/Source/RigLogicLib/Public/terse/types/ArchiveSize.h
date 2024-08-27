@@ -39,9 +39,16 @@ struct ArchiveSize {
         Anchor<TOffset>* base;
 
         Proxy(ArchiveSize& size, Anchor<TOffset>& offset) : target{std::addressof(size)}, base{std::addressof(offset)} {
+            #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+                #pragma GCC diagnostic push
+                #pragma GCC diagnostic ignored "-Wdangling-pointer"
+            #endif
             #if !defined(__clang_analyzer__)
                 target->proxy = this;
                 base->onMove(onBaseMoved, this);
+            #endif
+            #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+                #pragma GCC diagnostic pop
             #endif
         }
 
@@ -60,15 +67,29 @@ struct ArchiveSize {
         Proxy(Proxy&& rhs) : target{nullptr}, base{nullptr} {
             std::swap(target, rhs.target);
             std::swap(base, rhs.base);
+            #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+                #pragma GCC diagnostic push
+                #pragma GCC diagnostic ignored "-Wdangling-pointer"
+            #endif
             target->proxy = this;
             base->onMove(onBaseMoved, this);
+            #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+                #pragma GCC diagnostic pop
+            #endif
         }
 
         Proxy& operator=(Proxy&& rhs) {
             std::swap(target, rhs.target);
             std::swap(base, rhs.base);
+            #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+                #pragma GCC diagnostic push
+                #pragma GCC diagnostic ignored "-Wdangling-pointer"
+            #endif
             target->proxy = this;
             base->onMove(onBaseMoved, this);
+            #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+                #pragma GCC diagnostic pop
+            #endif
             return *this;
         }
 

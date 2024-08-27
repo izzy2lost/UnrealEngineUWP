@@ -20,6 +20,15 @@
     #pragma warning(pop)
 #endif
 
+#ifdef _MSC_VER
+    #pragma warning(push)
+    #pragma warning(disable : 4365 4987)
+#endif
+#include <cmath>
+#ifdef _MSC_VER
+    #pragma warning(pop)
+#endif
+
 #ifndef INSTANTIATE_TEST_SUITE_P
     #define INSTANTIATE_TEST_SUITE_P INSTANTIATE_TEST_CASE_P
 #endif
@@ -63,3 +72,17 @@
             EXPECT_NEAR(result[i], expected[i], threshold);             \
         }
 #endif
+
+template<typename TVec>
+inline bool near(const TVec& lhs, const TVec& rhs, float threshold) {
+    float ls[TVec::size()];
+    float rs[TVec::size()];
+    lhs.unalignedStore(ls);
+    rhs.unalignedStore(rs);
+    for (std::size_t i = {}; i < lhs.size(); ++i) {
+        if (std::abs(ls[i] - rs[i]) > threshold) {
+            return false;
+        }
+    }
+    return true;
+}

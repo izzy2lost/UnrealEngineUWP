@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "riglogic/joints/cpu/bpcm/RotationAdapters.h"
 #include "riglogic/riglogic/Configuration.h"
 
 #include <cstddef>
@@ -31,6 +32,33 @@ struct TCalculationType {
 
     static constexpr rl4::CalculationType get() {
         return CalcType;
+    }
+
+};
+
+template<class TRotationAdapter>
+struct BPCMRotationOutputTypeSelector;
+
+template<>
+struct BPCMRotationOutputTypeSelector<rl4::bpcm::NoopAdapter> {
+    static constexpr std::size_t value() {
+        return 1ul;
+    }
+
+    static constexpr rl4::RotationType rotation() {
+        return rl4::RotationType::EulerAngles;
+    }
+
+};
+
+template<typename T>
+struct BPCMRotationOutputTypeSelector<rl4::bpcm::EulerAnglesToQuaternions<T, tdm::rot_seq::xyz> > {
+    static constexpr std::size_t value() {
+        return 0ul;
+    }
+
+    static constexpr rl4::RotationType rotation() {
+        return rl4::RotationType::Quaternions;
     }
 
 };

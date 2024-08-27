@@ -12,10 +12,23 @@
 #include "RigUnit_RigLogic.generated.h"
 
 class IBehaviorReader;
-class FTransformArrayView;
 struct FSharedRigRuntimeContext;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogRigLogicUnit, Log, All);
+
+/* A helper struct used inside of the RigUnit_RigLogic to map bone indices to DNA driver joint indices. */
+USTRUCT(meta = (DocumentationPolicy = "Strict"))
+struct FBoneIndexControlAttributeMapping
+{
+	GENERATED_BODY()
+
+	int32 BoneIndex;
+	int32 DNAJointIndex;
+	int32 RotationX;
+	int32 RotationY;
+	int32 RotationZ;
+	int32 RotationW;
+};
 
 /* A helper struct used inside of the RigUnit_RigLogic to store arrays of arrays of integers. */
 USTRUCT(meta = (DocumentationPolicy = "Strict"))
@@ -23,9 +36,9 @@ struct FRigUnit_RigLogic_IntArray
 {
 	GENERATED_BODY()
 
-		// The values stored within this array.
-		UPROPERTY(transient)
-		TArray<int32> Values;
+	// The values stored within this array.
+	UPROPERTY(transient)
+	TArray<int32> Values;
 };
 
 /* The work data used by the FRigUnit_RigLogic */
@@ -68,6 +81,10 @@ struct FRigUnit_RigLogic_Data
 	UPROPERTY(transient)
 	TArray<int32> HierarchyBoneIndices;
 
+	/** RL driver joint index to ControlRig's hierarchy bone index and RigLogic control attribute mapping **/
+	UPROPERTY(transient)
+	TArray<FBoneIndexControlAttributeMapping> DriverJointsToControlAttributesMap;
+
 	/** RL mesh blend shape index to ControlRig's output blendshape curve index for each LOD **/
 	UPROPERTY(transient)
 	TArray<FRigUnit_RigLogic_IntArray> MorphTargetCurveIndices;
@@ -107,7 +124,7 @@ struct FRigUnit_RigLogic_Data
 	void MapMaskMultipliers(const URigHierarchy* InHierarchy);
 
 	/** Calculates joint positions, orientation and scale based on inputs curves of the control rig **/
-	void CalculateRigLogic(const URigHierarchy* InHierarchy);
+	void CalculateRigLogic(const URigHierarchy* InHierarchy, TArrayView<const float> NeutralJointValues);
 	/** Updates joint positions in the hierarchy based on inputs curves of the control rig **/
 	void UpdateJoints(URigHierarchy* Hierarchy, TArrayView<const float> NeutralJointValues, TArrayView<const float> DeltaJointValues);
 	/** Updates morph target curve values based on values of input curves of the control rig **/

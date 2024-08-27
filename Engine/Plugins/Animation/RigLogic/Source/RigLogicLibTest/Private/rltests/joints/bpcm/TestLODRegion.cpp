@@ -2,7 +2,7 @@
 
 #include "rltests/Defs.h"
 
-#include "riglogic/joints/bpcm/LODRegion.h"
+#include "riglogic/joints/cpu/bpcm/JointGroup.h"
 
 #include <cstdint>
 
@@ -13,8 +13,8 @@ struct LODTestSetup {
     std::uint32_t lodEndRow;
     std::uint32_t blockHeight;
     std::uint32_t padTo;
-    std::uint32_t lodEndRowAlignedToLastFullBlock;
-    std::uint32_t lodEndRowAlignedToSecondLastFullBlock;
+    std::uint32_t lodEndRowPaddedToLastFullBlock;
+    std::uint32_t lodEndRowPaddedToSecondLastFullBlock;
 };
 
 class LODRegionTest : public ::testing::TestWithParam<LODTestSetup> {
@@ -26,16 +26,16 @@ TEST(LODRegionTest, ConstructFromFixtures) {
     rl4::bpcm::LODRegion lod{1, 2, 3};
 
     ASSERT_EQ(lod.size, 1u);
-    ASSERT_EQ(lod.sizeAlignedToLastFullBlock, 2u);
-    ASSERT_EQ(lod.sizeAlignedToSecondLastFullBlock, 3u);
+    ASSERT_EQ(lod.sizePaddedToLastFullBlock, 2u);
+    ASSERT_EQ(lod.sizePaddedToSecondLastFullBlock, 3u);
 }
 
 TEST_P(LODRegionTest, ConstructLODRegionFromVaryingParameters) {
     auto params = GetParam();
     rl4::bpcm::LODRegion lod{params.lodEndRow, params.rowCount, params.blockHeight, params.padTo};
     ASSERT_EQ(lod.size, params.lodEndRow);
-    ASSERT_EQ(lod.sizeAlignedToLastFullBlock, params.lodEndRowAlignedToLastFullBlock);
-    ASSERT_EQ(lod.sizeAlignedToSecondLastFullBlock, params.lodEndRowAlignedToSecondLastFullBlock);
+    ASSERT_EQ(lod.sizePaddedToLastFullBlock, params.lodEndRowPaddedToLastFullBlock);
+    ASSERT_EQ(lod.sizePaddedToSecondLastFullBlock, params.lodEndRowPaddedToSecondLastFullBlock);
 }
 
 INSTANTIATE_TEST_SUITE_P(

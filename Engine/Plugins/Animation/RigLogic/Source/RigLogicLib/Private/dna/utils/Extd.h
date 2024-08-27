@@ -28,7 +28,7 @@ inline T clamp(T value, T low, T high) {
 
 template<typename T>
 inline T roundUp(T number, T multiple) {
-    return ((number + multiple - 1) / multiple) * multiple;
+    return static_cast<T>(((number + multiple - 1) / multiple) * multiple);
 }
 
 template<typename T>
@@ -106,6 +106,22 @@ inline impl::LUTFilter<TLookUpTable, impl::LUTStrategy::ByValue> byValue(const T
 template<typename TLookUpTable>
 inline impl::LUTFilter<TLookUpTable, impl::LUTStrategy::ByPosition> byPosition(const TLookUpTable& lookUpTable) {
     return impl::LUTFilter<TLookUpTable, impl::LUTStrategy::ByPosition>{lookUpTable};
+}
+
+template<class TContainer, class TComparator>
+inline typename TContainer::value_type minOf(const TContainer& container, TComparator&& comparator) {
+    using ValueType = typename TContainer::value_type;
+    const auto it = std::min_element(container.begin(), container.end(), comparator);
+    return (it == container.end() ? ValueType{} : *it);
+}
+
+template<class TContainer>
+inline typename TContainer::value_type minOf(const TContainer& container) {
+    using ValueType = typename TContainer::value_type;
+    const auto compare = [](const ValueType& lhs, const ValueType& rhs) {
+            return lhs < rhs;
+        };
+    return minOf(container, compare);
 }
 
 template<class TContainer, class TComparator>

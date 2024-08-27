@@ -8,6 +8,7 @@
 
 namespace rl4 {
 
+class JointBehaviorFilter;
 struct RigMetrics;
 
 class JointsBuilder {
@@ -17,12 +18,12 @@ class JointsBuilder {
     public:
         virtual ~JointsBuilder();
 
-        static Pointer create(Configuration config, MemoryResource* memRes);
+        static Pointer create(const Configuration& config, MemoryResource* memRes);
 
         virtual void computeStorageRequirements(const RigMetrics& source) = 0;
-        virtual void computeStorageRequirements(const dna::BehaviorReader* source) = 0;
-        virtual void allocateStorage(const dna::BehaviorReader* source) = 0;
-        virtual void fillStorage(const dna::BehaviorReader* source) = 0;
+        virtual void computeStorageRequirements(const JointBehaviorFilter& source) = 0;
+        virtual void allocateStorage(const JointBehaviorFilter& source) = 0;
+        virtual void fillStorage(const JointBehaviorFilter& source) = 0;
         virtual JointsEvaluator::Pointer build() = 0;
 };
 

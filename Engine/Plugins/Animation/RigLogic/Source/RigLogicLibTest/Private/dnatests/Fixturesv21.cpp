@@ -990,6 +990,10 @@ const unsigned char RawV21::footer[] = {
 };
 
 std::vector<char> RawV21::getBytes() {
+    #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wstringop-overflow"
+    #endif
     std::vector<char> bytes;
     // Header
     bytes.insert(bytes.end(), header, header + sizeof(header));
@@ -1014,6 +1018,9 @@ std::vector<char> RawV21::getBytes() {
     // Footer
     bytes.insert(bytes.end(), footer, footer + sizeof(footer));
     return bytes;
+    #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+        #pragma GCC diagnostic pop
+    #endif
 }
 
 #ifdef __clang__
@@ -1317,14 +1324,14 @@ const pma::Vector<std::uint16_t> DecodedV21::jointRowCount = {
 const std::uint16_t DecodedV21::jointColumnCount = 10u;
 const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV21::jointVariableIndices = {
     {  // MaxLOD-0 - MinLOD-1
-        {2, 3, 5, 18, 20, 36, 38, 55, 56, 63, 45, 46, 71},
+        {2, 3, 5, 18, 20, 36, 38, 45, 46, 55, 56, 63, 71},
         {2, 3, 5, 18, 20, 55, 56}
     },
     {  // MaxLOD-1 - MinLOD-1
         {2, 3, 5, 18, 20, 37, 38}
     },
     {  // MaxLOD-0 - MinLOD-0
-        {2, 3, 5, 18, 20, 36, 38, 55, 56, 63, 45, 46, 71}
+        {2, 3, 5, 18, 20, 36, 38, 45, 46, 55, 56, 63, 71}
     }
 };
 const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV21::jointGroupLODs = {

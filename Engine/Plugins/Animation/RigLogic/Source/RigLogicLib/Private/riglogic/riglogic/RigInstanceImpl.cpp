@@ -20,10 +20,8 @@
 #include <cassert>
 #include <cstdint>
 #include <numeric>
-#ifdef _MSC_VER
-#if (_MSC_VER >= 1900)
-#include <span>
-#endif
+#if defined(_MSC_VER) && !defined(__clang__) && (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
+    #include <span>
 #endif
 #ifdef _MSC_VER
     #pragma warning(pop)
@@ -32,9 +30,6 @@
 namespace rl4 {
 
 namespace {
-
-const float controlsMin = 0.0f;
-const float controlsMax = 1.0f;
 
 inline std::uint16_t getMaxLODLevel(std::uint16_t lodCount) {
     return (lodCount > 0u ? static_cast<std::uint16_t>(lodCount - 1) : static_cast<std::uint16_t>(0));
@@ -66,9 +61,11 @@ RigInstanceImpl::RigInstanceImpl(const RigMetrics& metrics, RigLogicImpl* rigLog
     rawControlCount{metrics.rawControlCount},
     psdControlCount{metrics.psdControlCount},
     mlControlCount{metrics.mlControlCount},
+    rbfControlCount{metrics.rbfControlCount},
     neuralNetworkCount{metrics.neuralNetworkCount},
     controlsInstance{rigLogic->createControlsInstance(memRes)},
     machineLearnedBehaviorInstance{rigLogic->createMachineLearnedBehaviorInstance(memRes)},
+    rbfBehaviorInstance{rigLogic->createRBFBehaviorInstance(memRes)},
     jointsInstance{rigLogic->createJointsInstance(memRes)},
     blendShapesInstance{rigLogic->createBlendShapesInstance(memRes)},
     animatedMapsInstance{rigLogic->createAnimatedMapsInstance(memRes)} {
@@ -93,10 +90,16 @@ ConstArrayView<float> RigInstanceImpl::getGUIControlValues() const {
 
 void RigInstanceImpl::setGUIControlValues(const float* values) {
     auto guiControlBuffer = controlsInstance->getGUIControlBuffer();
-    #if (defined(_MSC_VER) && _MSC_VER >= 1900)
-        std::copy(values,
-                  values + guiControlCount,
-                  std::span{guiControlBuffer.data(), guiControlBuffer.size()}.begin());
+    #if defined(_MSC_VER) && !defined(__clang__)
+        #if (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
+            std::copy(values,
+                      values + guiControlCount,
+                      std::span{guiControlBuffer.data(), guiControlBuffer.size()}.begin());
+        #else
+            std::copy(values,
+                      values + guiControlCount,
+                      stdext::make_checked_array_iterator(guiControlBuffer.data(), guiControlBuffer.size()));
+        #endif
     #else
         std::copy(values, values + guiControlCount, guiControlBuffer.begin());
     #endif
@@ -112,7 +115,7 @@ float RigInstanceImpl::getRawControl(std::uint16_t index) const {
 
 void RigInstanceImpl::setRawControl(std::uint16_t index, float value) {
     auto inputBuffer = controlsInstance->getInputBuffer();
-    inputBuffer[index] = extd::clamp(value, controlsMin, controlsMax);
+    inputBuffer[index] = value;
 }
 
 ConstArrayView<float> RigInstanceImpl::getRawControlValues() const {
@@ -120,18 +123,19 @@ ConstArrayView<float> RigInstanceImpl::getRawControlValues() const {
 }
 
 void RigInstanceImpl::setRawControlValues(const float* values) {
-    auto clamper = [](float v) {
-            return extd::clamp(v, controlsMin, controlsMax);
-        };
     auto inputBuffer = controlsInstance->getInputBuffer();
-
-    #if (defined(_MSC_VER) && _MSC_VER >= 1900)
-        std::transform(values,
-                       values + rawControlCount,
-                       std::span{inputBuffer.data(), inputBuffer.size()}.begin(),
-                       clamper);
+    #if defined(_MSC_VER) && !defined(__clang__)
+        #if (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
+            std::copy(values,
+                      values + rawControlCount,
+                      std::span{inputBuffer.data(), inputBuffer.size()}.begin());
+        #else
+            std::copy(values,
+                      values + rawControlCount,
+                      stdext::make_checked_array_iterator(inputBuffer.data(), inputBuffer.size()));
+        #endif
     #else
-        std::transform(values, values + rawControlCount, inputBuffer.begin(), clamper);
+        std::copy(values, values + rawControlCount, inputBuffer.begin());
     #endif
 }
 
@@ -160,6 +164,20 @@ ConstArrayView<float> RigInstanceImpl::getMLControlValues() const {
     return controlsInstance->getInputBuffer().subview(mlControlsOffset, mlControlCount);
 }
 
+std::uint16_t RigInstanceImpl::getRBFControlCount() const {
+    return rbfControlCount;
+}
+
+float RigInstanceImpl::getRBFControl(std::uint16_t index) const {
+    return getRBFControlValues()[index];
+}
+
+ConstArrayView<float> RigInstanceImpl::getRBFControlValues() const {
+    const auto rbfControlsOffset = static_cast<std::size_t>(rawControlCount) + static_cast<std::size_t>(psdControlCount) +
+        static_cast<std::size_t>(mlControlCount);
+    return controlsInstance->getInputBuffer().subview(rbfControlsOffset, rbfControlCount);
+}
+
 std::uint16_t RigInstanceImpl::getNeuralNetworkCount() const {
     return neuralNetworkCount;
 }
@@ -182,23 +200,15 @@ std::uint16_t RigInstanceImpl::getLOD() const {
 
 void RigInstanceImpl::setLOD(std::uint16_t level) {
     if (level != lodLevel) {
-        auto jointOutputs = jointsInstance->getOutputBuffer();
-        auto blendShapeOutputs = blendShapesInstance->getOutputBuffer();
-        auto animatedMapOutputs = animatedMapsInstance->getOutputBuffer();
-        std::fill(jointOutputs.begin(), jointOutputs.end(), 0.0f);
-        std::fill(blendShapeOutputs.begin(), blendShapeOutputs.end(), 0.0f);
-        std::fill(animatedMapOutputs.begin(), animatedMapOutputs.end(), 0.0f);
+        jointsInstance->resetOutputBuffer();
+        blendShapesInstance->resetOutputBuffer();
+        animatedMapsInstance->resetOutputBuffer();
     }
     lodLevel = extd::clamp(level, static_cast<std::uint16_t>(0), lodMaxLevel);
 }
 
-ConstArrayView<float> RigInstanceImpl::getRawJointOutputs() const {
+ConstArrayView<float> RigInstanceImpl::getJointOutputs() const {
     return jointsInstance->getOutputBuffer();
-}
-
-TransformationArrayView RigInstanceImpl::getJointOutputs() const {
-    auto jointOutputs = jointsInstance->getOutputBuffer();
-    return TransformationArrayView{jointOutputs.data(), jointOutputs.size()};
 }
 
 ConstArrayView<float> RigInstanceImpl::getBlendShapeOutputs() const {
@@ -215,6 +225,10 @@ ControlsInputInstance* RigInstanceImpl::getControlsInputInstance() {
 
 MachineLearnedBehaviorOutputInstance* RigInstanceImpl::getMachineLearnedBehaviorOutputInstance() {
     return machineLearnedBehaviorInstance.get();
+}
+
+RBFBehaviorOutputInstance* RigInstanceImpl::getRBFBehaviorOutputInstance() {
+    return rbfBehaviorInstance.get();
 }
 
 JointsOutputInstance* RigInstanceImpl::getJointsOutputInstance() {

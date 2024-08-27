@@ -33,22 +33,14 @@ class MachineLearnedBehavior {
 
         template<class Archive>
         void load(Archive& archive) {
-            #ifdef RL_BUILD_WITH_ML_EVALUATOR
-                evaluator->load(archive);
-                archive >> neuralNetworkIndicesPerMeshRegion;
-            #else
-                UNUSED(archive);
-            #endif  // RL_BUILD_WITH_ML_EVALUATOR
+            evaluator->load(archive);
+            archive >> neuralNetworkIndicesPerMeshRegion;
         }
 
         template<class Archive>
         void save(Archive& archive) {
-            #ifdef RL_BUILD_WITH_ML_EVALUATOR
-                evaluator->save(archive);
-                archive << neuralNetworkIndicesPerMeshRegion;
-            #else
-                UNUSED(archive);
-            #endif  // RL_BUILD_WITH_ML_EVALUATOR
+            evaluator->save(archive);
+            archive << neuralNetworkIndicesPerMeshRegion;
         }
 
         std::uint16_t getMeshCount() const;

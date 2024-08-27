@@ -9,6 +9,7 @@ namespace rl4 {
 class JointsNullOutputInstance : public JointsOutputInstance {
     public:
         ArrayView<float> getOutputBuffer() override;
+        void resetOutputBuffer() override;
 
 };
 

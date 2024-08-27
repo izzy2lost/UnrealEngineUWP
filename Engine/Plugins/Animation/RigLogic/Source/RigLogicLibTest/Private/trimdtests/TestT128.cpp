@@ -388,6 +388,18 @@ TEST(T128Test, AndNotScalar) {
     ASSERT_TRUE(equal(result2, e2));
 }
 
+TEST(T128Test, RsqrtScalar) {
+    trimd::scalar::F128 v{1.0f, 2.0f, 3.0f, 9.0f};
+    v = trimd::scalar::rsqrt(v);
+    trimd::scalar::F128 e{1.0f, 0.70710678f, 0.57735026f, 0.33333333f};
+    #ifdef TRIMD_ENABLE_FAST_INVERSE_SQRT
+    static constexpr float threshold = 0.0004f;
+    #else
+    static constexpr float threshold = 0.0002f;
+    #endif  // TRIMD_ENABLE_FAST_INVERSE_SQRT
+    ASSERT_TRUE(near(v, e, threshold));
+}
+
 #ifdef TRIMD_ENABLE_SSE
     TEST(T128Test, TransposeSquareSSE) {
         trimd::sse::F128 v1{1.0f, 2.0f, 3.0f, 4.0f};
@@ -425,6 +437,18 @@ TEST(T128Test, AndNotScalar) {
         trimd::sse::F128 e2{0.0f, 0.0f, 0.0f, 0.0f};
         ASSERT_TRUE(equal(result1, e1));
         ASSERT_TRUE(equal(result2, e2));
+    }
+
+    TEST(T128Test, RsqrtSSE) {
+        trimd::sse::F128 v{1.0f, 2.0f, 3.0f, 9.0f};
+        v = trimd::sse::rsqrt(v);
+        trimd::sse::F128 e{1.0f, 0.70710678f, 0.57735026f, 0.33333333f};
+        #ifdef TRIMD_ENABLE_FAST_INVERSE_SQRT
+        static constexpr float threshold = 0.0004f;
+        #else
+        static constexpr float threshold = 0.0003f;
+        #endif  // TRIMD_ENABLE_FAST_INVERSE_SQRT
+        ASSERT_TRUE(near(v, e, threshold));
     }
 
     #ifdef TRIMD_ENABLE_F16C
@@ -511,6 +535,18 @@ TEST(T128Test, AndNotScalar) {
         trimd::neon::F128 e2{0.0f, 0.0f, 0.0f, 0.0f};
         ASSERT_TRUE(equal(result1, e1));
         ASSERT_TRUE(equal(result2, e2));
+    }
+
+    TEST(T128Test, RsqrtNEON) {
+        trimd::neon::F128 v{1.0f, 2.0f, 3.0f, 9.0f};
+        v = trimd::neon::rsqrt(v);
+        trimd::neon::F128 e{1.0f, 0.70710678f, 0.57735026f, 0.33333333f};
+        #ifdef TRIMD_ENABLE_FAST_INVERSE_SQRT
+        static constexpr float threshold = 0.0004f;
+        #else
+        static constexpr float threshold = 0.0002f;
+        #endif  // TRIMD_ENABLE_FAST_INVERSE_SQRT
+        ASSERT_TRUE(near(v, e, threshold));
     }
 
     #ifdef TRIMD_ENABLE_NEON_FP16

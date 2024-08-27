@@ -4,7 +4,6 @@
 
 #include "riglogic/joints/JointsEvaluator.h"
 #include "riglogic/riglogic/RigInstance.h"
-#include "riglogic/transformation/Transformation.h"
 #include "riglogic/types/Aliases.h"
 
 #include <cstdint>
@@ -43,12 +42,8 @@ void Joints::calculate(const ControlsInputInstance* inputs,
     evaluator->calculate(inputs, outputs, lod, jointGroupIndex);
 }
 
-ConstArrayView<float> Joints::getRawNeutralValues() const {
+ConstArrayView<float> Joints::getNeutralValues() const {
     return ConstArrayView<float>{neutralValues};
-}
-
-TransformationArrayView Joints::getNeutralValues() const {
-    return TransformationArrayView{neutralValues.data(), neutralValues.size()};
 }
 
 std::uint16_t Joints::getJointGroupCount() const {

@@ -10,6 +10,7 @@ namespace rl4 {
 class AnimatedMapsNullOutputInstance : public AnimatedMapsOutputInstance {
     public:
         ArrayView<float> getOutputBuffer() override;
+        void resetOutputBuffer() override;
 
 };
 

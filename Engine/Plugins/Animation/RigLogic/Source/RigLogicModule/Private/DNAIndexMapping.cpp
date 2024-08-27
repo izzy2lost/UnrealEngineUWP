@@ -77,6 +77,68 @@ void FDNAIndexMapping::MapNeuralNetworkMaskCurves(const IDNAReader* DNAReader, c
 	}
 }
 
+void FDNAIndexMapping::MapDriverJoints(const IDNAReader* DNAReader, const USkeletalMesh* SkeletalMesh)
+{
+	LLM_SCOPE_BYNAME(TEXT("Animation/RigLogic"));
+
+	const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetRefSkeleton();
+	const uint32 ControlCount = DNAReader->GetRawControlCount();
+
+	DriverJointsToControlAttributesMap.Empty();
+	// This is a correct approximation as long as only 4 (rotation) attributes are used as driver joint attributes
+	// and no regular raw controls are present in the DNA
+	DriverJointsToControlAttributesMap.Reserve(ControlCount / 4);
+
+	for (uint32_t ControlIndex = 0; ControlIndex < ControlCount; ++ControlIndex)
+	{
+		const FString DriverJointAttrName = DNAReader->GetRawControlName(ControlIndex);
+		if (DriverJointAttrName.Len() < 2)
+		{
+			continue;
+		}
+		const FString DriverJointName = DriverJointAttrName.Mid(0, DriverJointAttrName.Len() - 2);
+		const FName BoneName = FName(*DriverJointName);
+		const int32 BoneIndex = RefSkeleton.FindBoneIndex(BoneName);
+		if (BoneIndex == INDEX_NONE)
+		{
+			// Mixed DNAs will contain both driver joints and normal raw controls in this list, and those will
+			// not be found in the joint hierarchy
+			continue;
+		}
+
+		int32 MappingIndex = DriverJointsToControlAttributesMap.FindLastByPredicate([BoneIndex](const FMeshPoseBoneControlAttributeMapping& Element)
+		{
+			return Element.MeshPoseBoneIndex.GetInt() == BoneIndex;
+		});
+		if (MappingIndex == INDEX_NONE)
+		{
+			FMeshPoseBoneControlAttributeMapping NewMapping{FMeshPoseBoneIndex{BoneIndex}, INDEX_NONE, INDEX_NONE , INDEX_NONE , INDEX_NONE, INDEX_NONE};
+			// BoneIndex may be INDEX_NONE, but it's handled properly by the Evaluate method
+			MappingIndex = DriverJointsToControlAttributesMap.Add(NewMapping);
+		}
+
+		FMeshPoseBoneControlAttributeMapping& Mapping = DriverJointsToControlAttributesMap[MappingIndex];
+		Mapping.DNAJointIndex = JointsMapDNAIndicesToMeshPoseBoneIndices.Find(Mapping.MeshPoseBoneIndex);
+
+		if (DriverJointAttrName.EndsWith(TEXT(".x")))
+		{
+			Mapping.RotationX = ControlIndex;
+		}
+		else if (DriverJointAttrName.EndsWith(TEXT(".y")))
+		{
+			Mapping.RotationY = ControlIndex;
+		}
+		else if (DriverJointAttrName.EndsWith(TEXT(".z")))
+		{
+			Mapping.RotationZ = ControlIndex;
+		}
+		else if (DriverJointAttrName.EndsWith(TEXT(".w")))
+		{
+			Mapping.RotationW = ControlIndex;
+		}
+	}
+}
+
 void FDNAIndexMapping::MapJoints(const IDNAReader* DNAReader, const USkeletalMesh* SkeletalMesh)
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/RigLogic"));

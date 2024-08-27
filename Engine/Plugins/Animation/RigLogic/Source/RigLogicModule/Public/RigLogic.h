@@ -9,7 +9,6 @@
 #include "UObject/ObjectMacros.h"
 
 #include "FMemoryResource.h"
-#include "TransformArrayView.h"
 
 #include "RigLogic.generated.h"
 
@@ -28,13 +27,124 @@ enum class ERigLogicCalculationType: uint8
 {
 	Scalar,
 	SSE,
-	AVX
+	AVX,
+	NEON,
+	AnyVector
+};
+
+UENUM(BlueprintType)
+enum class ERigLogicTranslationType : uint8 {
+	None,
+	Vector = 3
+};
+
+UENUM(BlueprintType)
+enum class ERigLogicRotationType : uint8 {
+	None,
+	EulerAngles = 3,
+	Quaternions = 4
+};
+
+UENUM(BlueprintType)
+enum class ERigLogicRotationOrder : uint8 {
+	XYZ,
+	XZY,
+	YXZ,
+	YZX,
+	ZXY,
+	ZYX
+};
+
+UENUM(BlueprintType)
+enum class ERigLogicScaleType : uint8 {
+	None,
+	Vector = 3
+};
+
+USTRUCT(BlueprintType)
+struct FRigLogicConfiguration
+{
+	GENERATED_BODY()
+
+	FRigLogicConfiguration() :
+		CalculationType(ERigLogicCalculationType::AnyVector),
+		LoadJoints(true),
+		LoadBlendShapes(true),
+		LoadAnimatedMaps(true),
+		LoadMachineLearnedBehavior(true),
+		LoadRBFBehavior(true),
+		LoadTwistSwingBehavior(true),
+		TranslationType(ERigLogicTranslationType::Vector),
+		RotationType(ERigLogicRotationType::Quaternions),
+		RotationOrder(ERigLogicRotationOrder::ZYX),
+		ScaleType(ERigLogicScaleType::Vector)
+	{
+	}
+
+	FRigLogicConfiguration(ERigLogicCalculationType CalculationType,
+							bool LoadJoints,
+							bool LoadBlendShapes,
+							bool LoadAnimatedMaps,
+							bool LoadMachineLearnedBehavior,
+							bool LoadRBFBehavior,
+							bool LoadTwistSwingBehavior,
+							ERigLogicTranslationType TranslationType,
+							ERigLogicRotationType RotationType,
+							ERigLogicRotationOrder RotationOrder,
+							ERigLogicScaleType ScaleType) :
+		CalculationType(CalculationType),
+		LoadJoints(LoadJoints),
+		LoadBlendShapes(LoadBlendShapes),
+		LoadAnimatedMaps(LoadAnimatedMaps),
+		LoadMachineLearnedBehavior(LoadMachineLearnedBehavior),
+		LoadRBFBehavior(LoadRBFBehavior),
+		LoadTwistSwingBehavior(LoadTwistSwingBehavior),
+		TranslationType(TranslationType),
+		RotationType(RotationType),
+		RotationOrder(RotationOrder),
+		ScaleType(ScaleType
+	)
+	{
+	}
+
+	UPROPERTY(BlueprintReadOnly, Category = "RigLogic")
+	ERigLogicCalculationType CalculationType;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RigLogic")
+	bool LoadJoints;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RigLogic")
+	bool LoadBlendShapes;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RigLogic")
+	bool LoadAnimatedMaps;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RigLogic")
+	bool LoadMachineLearnedBehavior;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "RigLogic")
+	bool LoadRBFBehavior;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "RigLogic")
+	bool LoadTwistSwingBehavior;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "RigLogic")
+	ERigLogicTranslationType TranslationType;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "RigLogic")
+	ERigLogicRotationType RotationType;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "RigLogic")
+	ERigLogicRotationOrder RotationOrder;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RigLogic")
+	ERigLogicScaleType ScaleType;
 };
 
 class RIGLOGICMODULE_API FRigLogic
 {
 public:
-	FRigLogic(const IDNAReader* Reader, ERigLogicCalculationType CalculationType = ERigLogicCalculationType::SSE);
+	explicit FRigLogic(const IDNAReader* Reader, FRigLogicConfiguration Config = FRigLogicConfiguration());
 	~FRigLogic();
 
 	FRigLogic(const FRigLogic&) = delete;
@@ -44,11 +154,11 @@ public:
 	FRigLogic& operator=(FRigLogic&&) = default;
 
 	uint16 GetLODCount() const;
-	TArrayView<const float> GetRawNeutralJointValues() const;
-	FTransformArrayView GetNeutralJointValues() const;
+	TArrayView<const float> GetNeutralJointValues() const;
 	TArrayView<const uint16> GetJointVariableAttributeIndices(uint16 LOD) const;
 	uint16 GetJointGroupCount() const;
 	uint16 GetNeuralNetworkCount() const;
+	uint16 GetRBFSolverCount() const;
 	uint16 GetMeshCount() const;
 	uint16 GetMeshRegionCount(uint16 MeshIndex) const;
 	TArrayView<const uint16> GetNeuralNetworkIndices(uint16 MeshIndex, uint16 RegionIndex) const;
@@ -58,6 +168,8 @@ public:
 	void CalculateControls(FRigInstance* Instance) const;
 	void CalculateMachineLearnedBehaviorControls(FRigInstance* Instance) const;
 	void CalculateMachineLearnedBehaviorControls(FRigInstance* Instance, uint16 NeuralNetIndex) const;
+	void CalculateRBFControls(FRigInstance* Instance) const;
+	void CalculateRBFControls(FRigInstance* Instance, uint16 SolverIndex) const;
 	void CalculateJoints(FRigInstance* Instance) const;
 	void CalculateJoints(FRigInstance* Instance, uint16 JointGroupIndex) const;
 	void CalculateBlendShapes(FRigInstance* Instance) const;

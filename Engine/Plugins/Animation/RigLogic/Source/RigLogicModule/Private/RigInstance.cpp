@@ -119,16 +119,26 @@ void FRigInstance::SetNeuralNetworkMask(uint16 NeuralNetIndex, float Value)
 	RigInstance->setNeuralNetworkMask(NeuralNetIndex, Value);
 }
 
-TArrayView<const float> FRigInstance::GetRawJointOutputs() const
+uint16 FRigInstance::GetRBFControlCount() const
 {
-	rl4::ConstArrayView<float> Outputs = RigInstance->getRawJointOutputs();
-	return TArrayView<const float>{Outputs.data(), static_cast<int32>(Outputs.size())};
+	return RigInstance->getRBFControlCount();
 }
 
-FTransformArrayView FRigInstance::GetJointOutputs() const
+float FRigInstance::GetRBFControl(uint16 Index) const
 {
-	rl4::ConstArrayView<float> Outputs = RigInstance->getRawJointOutputs();
-	return FTransformArrayView(Outputs.data(), Outputs.size());
+	return RigInstance->getRBFControl(Index);
+}
+
+TArrayView<const float> FRigInstance::GetRBFControlValues() const
+{
+	rl4::ConstArrayView<float> Values = RigInstance->getRBFControlValues();
+	return TArrayView<const float>{Values.data(), static_cast<int32>(Values.size())};
+}
+
+TArrayView<const float> FRigInstance::GetJointOutputs() const
+{
+	rl4::ConstArrayView<float> Outputs = RigInstance->getJointOutputs();
+	return TArrayView<const float>{Outputs.data(), static_cast<int32>(Outputs.size())};
 }
 
 TArrayView<const float> FRigInstance::GetBlendShapeOutputs() const

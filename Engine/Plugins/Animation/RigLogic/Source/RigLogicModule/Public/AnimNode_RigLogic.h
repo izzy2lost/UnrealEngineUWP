@@ -37,9 +37,9 @@ public:
 	FPoseLink AnimSequence;
 
 private:
-	void UpdateControlCurves(const FPoseContext& OutputContext, const FDNAIndexMapping* DNAIndexMapping);
+	void UpdateControlCurves(const FPoseContext& OutputContext, const FDNAIndexMapping* DNAIndexMapping, TArrayView<const float> NeutralJointValues);
 	void CalculateRigLogic(FRigLogic* RigLogic);
-	void UpdateJoints(TArrayView<const uint16> VariableJointIndices, TArrayView<const float> NeutralJointValues, TArrayView<const float> DeltaJointValues, FPoseContext& OutputContext);
+	void UpdateJoints(TArrayView<const float> NeutralJointValues, TArrayView<const float> DeltaJointValues, FPoseContext& OutputContext);
 	void UpdateBlendShapeCurves(const FDNAIndexMapping* DNAIndexMapping, TArrayView<const float> BlendShapeValues, FPoseContext& OutputContext);
 	void UpdateAnimMapCurves(const FDNAIndexMapping* DNAIndexMapping, TArrayView<const float> AnimMapOutputs, FPoseContext& OutputContext);
 
@@ -47,6 +47,15 @@ private:
 	struct FJointCompactPoseBoneMapping {
 		uint16 JointIndex;
 		FCompactPoseBoneIndex CompactPoseBoneIndex;
+	};
+
+	struct FCompactPoseBoneControlAttributeMapping {
+		FCompactPoseBoneIndex CompactPoseBoneIndex;
+		int32 DNAJointIndex;
+		int32 RotationX;
+		int32 RotationY;
+		int32 RotationZ;
+		int32 RotationW;
 	};
 
 private:
@@ -63,4 +72,6 @@ private:
 	TSharedPtr<FDNAIndexMapping> LocalDNAIndexMapping;
 	FRigInstance* RigInstance;
 	TArray<FJointCompactPoseBoneMapping> JointsMapDNAIndicesToCompactPoseBoneIndices;
+	TArray<FCompactPoseBoneControlAttributeMapping> SparseDriverJointsToControlAttributesMap;
+	TArray<FCompactPoseBoneControlAttributeMapping> DenseDriverJointsToControlAttributesMap;
 };

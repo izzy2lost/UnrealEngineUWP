@@ -13,6 +13,7 @@ class AnimatedMapsImplOutputInstance : public AnimatedMapsOutputInstance {
     public:
         AnimatedMapsImplOutputInstance(std::uint16_t animatedMapCount, MemoryResource* memRes);
         ArrayView<float> getOutputBuffer() override;
+        void resetOutputBuffer() override;
 
     private:
         Vector<float> outputBuffer;

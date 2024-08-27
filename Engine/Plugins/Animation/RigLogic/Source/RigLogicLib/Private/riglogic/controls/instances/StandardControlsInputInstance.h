@@ -15,6 +15,7 @@ class StandardControlsInputInstance : public ControlsInputInstance {
                                       std::uint16_t rawControlCount,
                                       std::uint16_t psdControlCount,
                                       std::uint16_t mlControlCount,
+                                      std::uint16_t rbfControlCount,
                                       MemoryResource* memRes);
 
         ArrayView<float> getGUIControlBuffer() override;

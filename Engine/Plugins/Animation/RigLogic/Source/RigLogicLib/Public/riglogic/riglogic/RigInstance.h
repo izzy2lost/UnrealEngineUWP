@@ -3,7 +3,6 @@
 #pragma once
 
 #include "riglogic/Defs.h"
-#include "riglogic/transformation/Transformation.h"
 #include "riglogic/types/Aliases.h"
 
 #include <cstdint>
@@ -74,22 +73,17 @@ class RLAPI RigInstance {
         virtual float getNeuralNetworkMask(std::uint16_t neuralNetIndex) const = 0;
         virtual void setNeuralNetworkMask(std::uint16_t neuralNetIndex, float value) = 0;
 
+        virtual std::uint16_t getRBFControlCount() const = 0;
+        virtual float getRBFControl(std::uint16_t index) const = 0;
+        virtual ConstArrayView<float> getRBFControlValues() const = 0;
+
         /**
             @brief Calculated values for joint transformations.
             @note
                 This is just a primitive array of floats, providing access to all the values of all transformations.
             @return View over the array of values.
         */
-        virtual ConstArrayView<float> getRawJointOutputs() const = 0;
-        /**
-            @brief Calculated values for joint transformations.
-            @note
-                A more user-friendly representation that groups values belonging to separate transformations into
-                single units, while providing accessors to the actual values they represent.
-            @return View over the array of transformations.
-            @see Transformation
-        */
-        virtual TransformationArrayView getJointOutputs() const = 0;
+        virtual ConstArrayView<float> getJointOutputs() const = 0;
         /**
             @brief Calculated values for blend shape deformations.
             @return View over the array of floats.

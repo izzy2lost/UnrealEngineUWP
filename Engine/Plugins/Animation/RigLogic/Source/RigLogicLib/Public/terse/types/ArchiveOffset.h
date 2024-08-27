@@ -32,8 +32,15 @@ struct ArchiveOffset {
         ArchiveOffset* target;
 
         explicit Proxy(ArchiveOffset& ptr) : target{std::addressof(ptr)} {
+            #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+                #pragma GCC diagnostic push
+                #pragma GCC diagnostic ignored "-Wdangling-pointer"
+            #endif
             #if !defined(__clang_analyzer__)
                 target->proxy = this;
+            #endif
+            #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+                #pragma GCC diagnostic pop
             #endif
         }
 
@@ -48,12 +55,26 @@ struct ArchiveOffset {
 
         Proxy(Proxy&& rhs) : target{nullptr} {
             std::swap(target, rhs.target);
+            #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+                #pragma GCC diagnostic push
+                #pragma GCC diagnostic ignored "-Wdangling-pointer"
+            #endif
             target->proxy = this;
+            #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+                #pragma GCC diagnostic pop
+            #endif
         }
 
         Proxy& operator=(Proxy&& rhs) {
             std::swap(target, rhs.target);
+            #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+                #pragma GCC diagnostic push
+                #pragma GCC diagnostic ignored "-Wdangling-pointer"
+            #endif
             target->proxy = this;
+            #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+                #pragma GCC diagnostic pop
+            #endif
             return *this;
         }
 

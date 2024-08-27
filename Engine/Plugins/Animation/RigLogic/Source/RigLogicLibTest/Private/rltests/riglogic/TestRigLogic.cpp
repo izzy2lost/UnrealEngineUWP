@@ -44,15 +44,22 @@ TEST_F(RigLogicTest, EvaluateRigInstance) {
 
     rigLogic->calculate(rigInstance.get());
 
-    ASSERT_EQ(rigInstance->getRawJointOutputs().size(), reader->getJointRowCount());
+    ASSERT_EQ(rigInstance->getJointOutputs().size(), reader->getJointRowCount());
     ASSERT_EQ(rigInstance->getBlendShapeOutputs().size(), reader->getBlendShapeChannelCount());
     ASSERT_EQ(rigInstance->getAnimatedMapOutputs().size(), reader->getAnimatedMapCount());
 }
 
 TEST_F(RigLogicTest, AccessJointVariableAttributeIndices) {
     for (std::uint16_t lod = 0u; lod < rigLogic->getLODCount(); ++lod) {
-        ASSERT_EQ(rigLogic->getJointVariableAttributeIndices(lod),
-                  (rl4::ConstArrayView<std::uint16_t>{rltests::decoded::jointVariableIndices[0ul][lod]}));
+        auto actual = rigLogic->getJointVariableAttributeIndices(lod);
+        auto expected = rl4::ConstArrayView<std::uint16_t>{rltests::decoded::jointVariableIndices[0ul][lod]};
+        ASSERT_EQ(actual.size(), expected.size());
+        // Since implementation relies on std::set which has different implementations across compilers we cannot guarantee order
+        // of elements
+        for (const auto attrIndex : expected) {
+            ASSERT_NE(std::find(actual.begin(), actual.end(), attrIndex),
+                      actual.end());
+        }
     }
 }
 
@@ -76,11 +83,11 @@ TEST_F(RigLogicTest, DumpStateThenRestore) {
         cloneRigLogic->mapGUIToRawControls(cloneRigInstance);
         cloneRigLogic->calculate(cloneRigInstance);
 
-        auto origJointOutputs = rigInstance->getRawJointOutputs();
+        auto origJointOutputs = rigInstance->getJointOutputs();
         auto origBlendShapeOutputs = rigInstance->getBlendShapeOutputs();
         auto origAnimatedMapOutputs = rigInstance->getAnimatedMapOutputs();
 
-        auto cloneJointOutputs = cloneRigInstance->getRawJointOutputs();
+        auto cloneJointOutputs = cloneRigInstance->getJointOutputs();
         auto cloneBlendShapeOutputs = cloneRigInstance->getBlendShapeOutputs();
         auto cloneAnimatedMapOutputs = cloneRigInstance->getAnimatedMapOutputs();
 

@@ -11,9 +11,10 @@ StandardControlsInputInstance::StandardControlsInputInstance(std::uint16_t guiCo
                                                              std::uint16_t rawControlCount,
                                                              std::uint16_t psdControlCount,
                                                              std::uint16_t mlControlCount,
+                                                             std::uint16_t rbfControlCount,
                                                              MemoryResource* memRes) :
     guiControlBuffer{guiControlCount, {}, memRes},
-    inputBuffer{static_cast<std::size_t>(rawControlCount + psdControlCount + mlControlCount), {}, memRes} {
+    inputBuffer{static_cast<std::size_t>(rawControlCount + psdControlCount + mlControlCount + rbfControlCount), {}, memRes} {
 }
 
 ArrayView<float> StandardControlsInputInstance::getGUIControlBuffer() {

@@ -10,4 +10,7 @@ ArrayView<float> AnimatedMapsNullOutputInstance::getOutputBuffer() {
     return {};
 }
 
+void AnimatedMapsNullOutputInstance::resetOutputBuffer() {
+}
+
 }  // namespace rl4

@@ -11,5 +11,6 @@ struct ControlsFactory {
     static rl4::ControlsInputInstance::Factory getInstanceFactory(std::uint16_t guiControlCount,
                                                                   std::uint16_t rawControlCount,
                                                                   std::uint16_t psdControlCount,
-                                                                  std::uint16_t mlControlCount);
+                                                                  std::uint16_t mlControlCount,
+                                                                  std::uint16_t rbfControlCount);
 };

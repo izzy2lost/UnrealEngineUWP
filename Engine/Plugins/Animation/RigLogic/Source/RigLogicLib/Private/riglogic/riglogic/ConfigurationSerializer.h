@@ -12,7 +12,13 @@ void serialize(Archive& archive, Configuration& config) {
             config.loadJoints,
             config.loadBlendShapes,
             config.loadAnimatedMaps,
-            config.loadMachineLearnedBehavior);
+            config.loadMachineLearnedBehavior,
+            config.loadRBFBehavior,
+            config.loadTwistSwingBehavior,
+            config.translationType,
+            config.rotationType,
+            config.rotationOrder,
+            config.scaleType);
 }
 
 }  // namespace rl4

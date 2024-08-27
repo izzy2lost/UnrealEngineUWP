@@ -248,10 +248,25 @@ inline F128 andnot(const F128& lhs, const F128& rhs) {
     return F128{vreinterpretq_f32_u32(vbicq_u32(vreinterpretq_u32_f32(rhs.data), vreinterpretq_u32_f32(lhs.data)))};
 }
 
+inline F128 rsqrt(const F128& rhs) {
+    #ifndef TRIMD_ENABLE_FAST_INVERSE_SQRT
+    const float32x4_t reciprocal0 = vrsqrteq_f32(rhs.data);
+    const float32x4_t reciprocal1 = vmulq_f32(vrsqrtsq_f32(vmulq_f32(reciprocal0, reciprocal0), rhs.data), reciprocal0);
+    return F128{reciprocal1};
+    #else
+    const uint32x4_t shifted = vshrq_n_u32(vreinterpretq_u32_f32(rhs.data), 1);
+    const uint32x4_t subtracted = vsubq_u32(vdupq_n_u32(0x5f1ffff9), shifted);
+    F128 result{vreinterpretq_f32_u32(subtracted)};
+    result *= F128{0.703952253f} * (F128{2.38924456f} - rhs * result * result);
+    return result;
+    #endif  // TRIMD_ENABLE_FAST_INVERSE_SQRT
+}
+
 using F256 = fallback::T256<F128>;
 using fallback::transpose;
 using fallback::abs;
 using fallback::andnot;
+using fallback::rsqrt;
 
 } // namespace neon
 

@@ -13,3 +13,4 @@ class UDEPRECATED_DNAIndexMapping : public UAssetUserData
 {
 	GENERATED_BODY()
 };
+

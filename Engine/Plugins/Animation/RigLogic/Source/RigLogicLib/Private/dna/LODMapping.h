@@ -10,6 +10,7 @@
 #endif
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
@@ -32,9 +33,20 @@ class LODMapping {
         std::uint16_t getIndexListCount() const;
         void clearIndices(std::uint16_t index);
         void addIndices(std::uint16_t index, const std::uint16_t* source, std::uint16_t count);
+
+        template<class TIterator>
+        void addIndices(std::uint16_t index, TIterator begin, TIterator end) {
+            if (index >= indices.size()) {
+                indices.resize(index + 1ul);
+            }
+            indices[index].reserve(indices[index].size() + static_cast<std::size_t>(std::distance(begin, end)));
+            indices[index].insert(indices[index].end(), begin, end);
+        }
+
         void associateLODWithIndices(std::uint16_t lod, std::uint16_t index);
         void mapIndices(std::function<std::uint16_t(std::uint16_t)> mapper);
         void filterIndices(std::function<bool(std::uint16_t)> filterer);
+        void sortIndices();
         UnorderedSet<std::uint16_t> getCombinedDistinctIndices(MemoryResource* memRes) const;
 
     private:

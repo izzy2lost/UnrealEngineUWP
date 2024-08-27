@@ -6,9 +6,7 @@
 #include "riglogic/utils/Extd.h"
 #include "riglogic/ml/MachineLearnedBehaviorEvaluator.h"
 #include "riglogic/ml/MachineLearnedBehaviorNullEvaluator.h"
-#ifdef RL_BUILD_WITH_ML_EVALUATOR
-    #include "riglogic/ml/cpu/Factory.h"
-#endif  // RL_BUILD_WITH_ML_EVALUATOR
+#include "riglogic/ml/cpu/CPUMachineLearnedBehaviorFactory.h"
 #include "riglogic/riglogic/Configuration.h"
 #include "riglogic/riglogic/RigMetrics.h"
 #include "riglogic/system/simd/SIMD.h"
@@ -17,33 +15,44 @@
 
 namespace rl4 {
 
-// *INDENT-OFF*
-#ifdef RL_BUILD_WITH_ML_EVALUATOR
+MachineLearnedBehaviorEvaluator::Pointer createMLEvaluator(const Configuration& config,
+                                                           const dna::MachineLearnedBehaviorReader* reader,
+                                                           MemoryResource* memRes) {
+    #if defined(__clang__)
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Wunused-local-typedef"
+    #endif
+    #if !defined(__clang__) && defined(__GNUC__)
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wunused-local-typedefs"
+    #endif
+    #ifdef RL_USE_HALF_FLOATS
+        using StorageValueType = std::uint16_t;
+    #else
+        using StorageValueType = float;
+    #endif  // RL_USE_HALF_FLOATS
+    #if !defined(__clang__) && defined(__GNUC__)
+        #pragma GCC diagnostic pop
+    #endif
+    #if defined(__clang__)
+        #pragma clang diagnostic pop
+    #endif
 
-#ifdef RL_USE_HALF_FLOATS
-    using StorageValueType = std::uint16_t;
-#else
-    using StorageValueType = float;
-#endif  // RL_USE_HALF_FLOATS
-
-MachineLearnedBehaviorEvaluator::Pointer createEvaluator(const Configuration& config,
-                                                         const dna::MachineLearnedBehaviorReader* reader,
-                                                         MemoryResource* memRes) {
     // Work around unused parameter warning when building without SSE and AVX
     static_cast<void>(config);
     #ifdef RL_BUILD_WITH_SSE
-        if (config.calculationType == CalculationType::SSE) {
+        if ((config.calculationType == CalculationType::SSE) || (config.calculationType == CalculationType::AnyVector)) {
             return ml::cpu::Factory<StorageValueType, trimd::sse::F256, trimd::sse::F128>::create(reader, memRes);
         }
     #endif  // RL_BUILD_WITH_SSE
     #ifdef RL_BUILD_WITH_AVX
-        if (config.calculationType == CalculationType::AVX) {
+        if ((config.calculationType == CalculationType::AVX) || (config.calculationType == CalculationType::AnyVector)) {
             // Use 256-bit AVX registers and whatever 128-bit width type is available
             return ml::cpu::Factory<StorageValueType, trimd::avx::F256, trimd::sse::F128>::create(reader, memRes);
         }
     #endif  // RL_BUILD_WITH_AVX
     #ifdef RL_BUILD_WITH_NEON
-        if (config.calculationType == CalculationType::NEON) {
+        if ((config.calculationType == CalculationType::NEON) || (config.calculationType == CalculationType::AnyVector)) {
             return ml::cpu::Factory<StorageValueType, trimd::neon::F256, trimd::neon::F128>::create(reader, memRes);
         }
     #endif  // RL_BUILD_WITH_NEON
@@ -70,34 +79,19 @@ MachineLearnedBehavior::Pointer MachineLearnedBehaviorFactory::create(const Conf
         }
     }
 
-    return moduleFactory.create(createEvaluator(config, reader, memRes), std::move(neuralNetworkIndicesPerMeshRegion));
+    return moduleFactory.create(createMLEvaluator(config, reader, memRes), std::move(neuralNetworkIndicesPerMeshRegion));
 }
 
-MachineLearnedBehavior::Pointer MachineLearnedBehaviorFactory::create(const Configuration& config, MemoryResource* memRes) {
+MachineLearnedBehavior::Pointer MachineLearnedBehaviorFactory::create(const Configuration& config,
+                                                                      const RigMetrics& metrics,
+                                                                      MemoryResource* memRes) {
     auto moduleFactory = UniqueInstance<MachineLearnedBehavior>::with(memRes);
-    if (!config.loadMachineLearnedBehavior) {
+    if (!config.loadMachineLearnedBehavior || (metrics.neuralNetworkCount == 0u)) {
         auto evaluator =
             UniqueInstance<MachineLearnedBehaviorNullEvaluator, MachineLearnedBehaviorEvaluator>::with(memRes).create();
         return moduleFactory.create(std::move(evaluator), memRes);
     }
-    return moduleFactory.create(createEvaluator(config, nullptr, memRes), memRes);
+    return moduleFactory.create(createMLEvaluator(config, nullptr, memRes), memRes);
 }
-
-#else
-
-MachineLearnedBehavior::Pointer MachineLearnedBehaviorFactory::create(const Configuration&  /*unused*/,
-                                                                      const dna::MachineLearnedBehaviorReader*  /*unused*/,
-                                                                      MemoryResource* memRes) {
-    auto moduleFactory = UniqueInstance<MachineLearnedBehavior>::with(memRes);
-    auto evaluator = UniqueInstance<MachineLearnedBehaviorNullEvaluator, MachineLearnedBehaviorEvaluator>::with(memRes).create();
-    return moduleFactory.create(std::move(evaluator), memRes);
-}
-
-MachineLearnedBehavior::Pointer MachineLearnedBehaviorFactory::create(const Configuration& config, MemoryResource* memRes) {
-    return create(config, nullptr, memRes);
-}
-
-#endif  // RL_BUILD_WITH_ML_EVALUATOR
-// *INDENT-ON*
 
 }  // namespace rl4

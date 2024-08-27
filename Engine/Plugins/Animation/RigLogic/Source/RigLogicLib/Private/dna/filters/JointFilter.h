@@ -10,7 +10,9 @@ namespace dna {
 
 struct RawBehavior;
 struct RawDefinition;
+struct RawJointBehaviorMetadata;
 struct RawLODMapping;
+struct RawTwistSwingBehavior;
 struct RawVertexSkinWeights;
 
 class JointFilter {
@@ -26,9 +28,11 @@ class JointFilter {
         void apply(RawDefinition& dest);
         void apply(RawBehavior& dest);
         void apply(RawVertexSkinWeights& dest);
+        void apply(RawJointBehaviorMetadata& dest);
+        void apply(RawTwistSwingBehavior& dest);
         bool passes(std::uint16_t index) const;
         std::uint16_t remapped(std::uint16_t oldIndex) const;
-        std::uint16_t maxRemappedIndex() const;
+        std::uint16_t filteredJointCount() const;
 
     private:
         MemoryResource* memRes;

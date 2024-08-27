@@ -10,6 +10,7 @@ namespace rl4 {
 class BlendShapesNullOutputInstance : public BlendShapesOutputInstance {
     public:
         ArrayView<float> getOutputBuffer() override;
+        void resetOutputBuffer() override;
 
 };
 

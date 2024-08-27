@@ -13,7 +13,10 @@ enum class DataLayer : std::uint32_t {
     Geometry = 8 | Definition,  // Implicitly loads Descriptor and Definition
     GeometryWithoutBlendShapes = 16 | Definition,  // Implicitly loads Descriptor and Definition
     MachineLearnedBehavior = 32 | Definition,  // Implicitly loads Definition
-    All = Behavior | Geometry | MachineLearnedBehavior
+    RBFBehavior = 64 | Behavior,  // Implicitly loads Behavior
+    JointBehaviorMetadata = 128 | Definition,  // Implicitly loads Definition
+    TwistSwingBehavior = 256 | Definition,  // Implicitly loads Definition
+    All = RBFBehavior | Geometry | MachineLearnedBehavior | JointBehaviorMetadata | TwistSwingBehavior
 };
 
 inline DataLayer operator|(DataLayer lhs, DataLayer rhs) {

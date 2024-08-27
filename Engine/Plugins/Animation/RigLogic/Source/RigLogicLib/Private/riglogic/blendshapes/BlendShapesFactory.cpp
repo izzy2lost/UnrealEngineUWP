@@ -33,7 +33,7 @@ static BlendShapesOutputInstance::Factory createBlendShapesOutputInstanceFactory
 }
 
 BlendShapes::Pointer BlendShapesFactory::create(const Configuration& config, const RigMetrics& metrics, MemoryResource* memRes) {
-    if (!config.loadBlendShapes) {
+    if (!config.loadBlendShapes || (metrics.blendShapeCount == 0u)) {
         return UniqueInstance<BlendShapesNull, BlendShapes>::with(memRes).create();
     }
     auto instanceFactory = createBlendShapesOutputInstanceFactory(config, metrics.blendShapeCount);
@@ -47,7 +47,7 @@ BlendShapes::Pointer BlendShapesFactory::create(const Configuration& config, con
 BlendShapes::Pointer BlendShapesFactory::create(const Configuration& config,
                                                 const dna::BehaviorReader* reader,
                                                 MemoryResource* memRes) {
-    if (!config.loadBlendShapes) {
+    if (!config.loadBlendShapes || (reader->getBlendShapeChannelCount() == 0u)) {
         return UniqueInstance<BlendShapesNull, BlendShapes>::with(memRes).create();
     }
 

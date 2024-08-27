@@ -62,7 +62,7 @@ static void verifyDefinition(const dna::DNA& result, const DNAParameters& dnaPar
                        TDecodedDNA::jointHierarchy[index],
                        TDecodedDNA::jointHierarchy[index].size());
 
-    for (std::uint16_t lod = 0u; lod < result.descriptor.lodCount; ++lod) {
+    for (std::uint16_t lod = {}; lod < result.descriptor.lodCount; ++lod) {
         auto jointIndices = result.definition.lodJointMapping.getIndices(lod);
         ASSERT_EQ(jointIndices.size(), TDecodedDNA::jointNames[index][lod].size());
         for (std::size_t i = 0ul; i < jointIndices.size(); ++i) {

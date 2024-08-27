@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
 #include "UObject/ObjectMacros.h"
+#include "RBF/RBFSolver.h"
 
 #include "DNACommon.generated.h"
 
@@ -53,6 +54,75 @@ enum class EDirection: uint8
 };
 
 UENUM(BlueprintType)
+enum class ETranslationRepresentation : uint8
+{
+	Vector
+};
+
+UENUM(BlueprintType)
+enum class ERotationRepresentation : uint8
+{
+	EulerAngles,
+	Quaternion
+};
+
+UENUM(BlueprintType)
+enum class EScaleRepresentation : uint8
+{
+	Vector
+};
+
+/*
+UENUM(BlueprintType)
+enum class ERBFSolverType : uint8
+{
+	Additive,
+	Interpolative
+};
+
+UENUM(BlueprintType)
+enum class ERBFFunctionType : uint8
+{
+	Gaussian,
+	Exponential,
+	Linear,
+	Cubic,
+	Quintic,
+};
+
+UENUM(BlueprintType)
+enum class ERBFDistanceMethod : uint8
+{
+	Euclidean,
+	Quaternion,
+	SwingAngle,
+	TwistAngle,
+};
+
+UENUM(BlueprintType)
+enum class ERBFNormalizeMethod : uint8
+{
+	OnlyNormalizeAboveOne,
+	AlwaysNormalize
+};
+*/
+
+UENUM(BlueprintType)
+enum class EAutomaticRadius : uint8
+{
+	On,
+	Off
+};
+
+UENUM(BlueprintType)
+enum class ETwistAxis : uint8
+{
+	X,
+	Y,
+	Z
+};
+
+UENUM(BlueprintType)
 enum class EDNADataLayer : uint8
 {
 	None,
@@ -62,13 +132,10 @@ enum class EDNADataLayer : uint8
 	Geometry = 8 | Definition,  // Implicitly loads Descriptor and Definition
 	GeometryWithoutBlendShapes = 16 | Definition,  // Implicitly loads Descriptor and Definition
 	MachineLearnedBehavior = 32 | Definition,  // Implicitly loads Definition
-	All = Behavior | Geometry | MachineLearnedBehavior
+	RBFBehavior = 64 | Behavior,  // Implicitly loads Behavior and all body-rig related layers
+	All = RBFBehavior | Geometry | MachineLearnedBehavior
 };
-
-inline EDNADataLayer operator|(EDNADataLayer LHS, EDNADataLayer RHS)
-{
-	return static_cast<EDNADataLayer>(static_cast<uint8>(LHS) | static_cast<uint8>(RHS));
-}
+ENUM_CLASS_FLAGS(EDNADataLayer);
 
 UENUM(BlueprintType)
 enum class EActivationFunction : uint8

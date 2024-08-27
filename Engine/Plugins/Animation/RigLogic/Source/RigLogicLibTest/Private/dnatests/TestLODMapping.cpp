@@ -36,7 +36,7 @@ class LODMappingTest : public ::testing::Test {
 }  // namespace
 
 #define ASSERT_LODMAPPING_EQ(result, expected)   \
-    for (std::uint16_t lod = 0u; lod < result.getLODCount(); ++lod) {               \
+    for (std::uint16_t lod = {}; lod < result.getLODCount(); ++lod) {               \
         dna::ConstArrayView<std::uint16_t> resultIndices = result.getIndices(lod);  \
         dna::ConstArrayView<std::uint16_t> expectedIndices{expected[lod]};          \
         ASSERT_EQ(resultIndices, expectedIndices);                                  \

@@ -7,10 +7,9 @@
 #include "rltests/dna/FakeReader.h"
 
 #include "riglogic/TypeDefs.h"
-#include "riglogic/joints/bpcm/Evaluator.h"
-#include "riglogic/joints/bpcm/JointGroup.h"
-#include "riglogic/joints/bpcm/LODRegion.h"
-#include "riglogic/riglogic/RigLogic.h"
+#include "riglogic/joints/cpu/bpcm/BPCMJointsEvaluator.h"
+#include "riglogic/joints/cpu/bpcm/JointGroup.h"
+#include "riglogic/riglogic/Configuration.h"
 #include "riglogic/types/Extent.h"
 
 #ifdef _MSC_VER
@@ -36,7 +35,6 @@ extern const Matrix<float> values;
 extern const Matrix<std::uint16_t> inputIndices;
 extern const Matrix<std::uint16_t> outputIndices;
 extern const Matrix<std::uint16_t> lods;
-extern const Vector<Extent> subMatrices;
 extern const Vector<float> neutralJointTranslationXs;
 extern const Vector<float> neutralJointTranslationYs;
 extern const Vector<float> neutralJointTranslationZs;
@@ -52,8 +50,10 @@ extern const Extent dimensions;
 extern const AlignedMatrix<float> floatValues;
 extern const AlignedMatrix<std::uint16_t> halfFloatValues;
 extern const AlignedMatrix<std::uint16_t> inputIndices;
-extern const AlignedMatrix<std::uint16_t> outputIndices;
-extern const Vector<bpcm::JointGroup> jointGroups;
+extern const Vector<Vector<AlignedVector<std::uint16_t> > > outputIndices;
+extern const Vector<Vector<AlignedVector<std::uint16_t> > > outputRotationIndices;
+extern const Vector<Vector<AlignedVector<std::uint16_t> > > outputRotationLODs;
+extern const Vector<Vector<bpcm::JointGroup> > jointGroups;
 extern const Matrix<bpcm::LODRegion> lodRegions;
 
 }  // namespace optimized
@@ -68,7 +68,7 @@ extern const Vector<float> values;
 namespace output {
 
 // Calculation output values
-extern const Matrix<float> valuesPerLOD;
+extern const Vector<Matrix<float> > valuesPerLOD;
 
 }  // namespace output
 
@@ -117,7 +117,7 @@ class CanonicalReader : public dna::FakeReader {
         }
 
         std::uint16_t getJointGroupCount() const override {
-            return static_cast<std::uint16_t>(unoptimized::subMatrices.size());
+            return static_cast<std::uint16_t>(unoptimized::values.size());
         }
 
         ConstArrayView<std::uint16_t> getJointGroupLODs(std::uint16_t jointGroupIndex) const override {
@@ -140,11 +140,18 @@ class CanonicalReader : public dna::FakeReader {
 
 template<typename TValue>
 struct OptimizedStorage {
-    using StrategyPtr = std::unique_ptr<bpcm::JointCalculationStrategy<TValue>,
-                                        std::function<void (bpcm::JointCalculationStrategy<TValue>*)> >;
+    using StrategyPtr = std::unique_ptr<bpcm::JointGroupLinearCalculationStrategy<TValue>,
+                                        std::function<void (bpcm::JointGroupLinearCalculationStrategy<TValue>*)> >;
 
-    static bpcm::Evaluator<TValue> create(StrategyPtr strategy, rl4::MemoryResource* memRes);
-    static bpcm::Evaluator<TValue> create(StrategyPtr strategy, std::uint16_t jointGroupIndex, rl4::MemoryResource* memRes);
+    static bpcm::Evaluator<TValue> create(StrategyPtr strategy,
+                                          std::size_t rotationSelectorIndex,
+                                          rl4::RotationType rotationType,
+                                          MemoryResource* memRes);
+    static bpcm::Evaluator<TValue> create(StrategyPtr strategy,
+                                          std::size_t rotationSelectorIndex,
+                                          rl4::RotationType rotationType,
+                                          std::uint16_t jointGroupIndex,
+                                          MemoryResource* memRes);
 
 };
 

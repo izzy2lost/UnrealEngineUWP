@@ -4,10 +4,11 @@
 
 #include "dna/DataLayer.h"
 #include "dna/Defs.h"
-#include "dna/layers/BehaviorWriter.h"
 #include "dna/layers/GeometryWriter.h"
+#include "dna/layers/JointBehaviorMetadataWriter.h"
+#include "dna/layers/RBFBehaviorWriter.h"
 #include "dna/layers/MachineLearnedBehaviorWriter.h"
-#include "dna/types/Aliases.h"
+#include "dna/layers/TwistSwingBehaviorWriter.h"
 
 namespace dna {
 
@@ -21,7 +22,8 @@ class Reader;
         structure of the Reader hierarchy, as it's not possible to selectively write only
         specific layers.
 */
-class DNAAPI Writer : public BehaviorWriter, public GeometryWriter, public MachineLearnedBehaviorWriter {
+class DNAAPI Writer : public RBFBehaviorWriter, public GeometryWriter, public MachineLearnedBehaviorWriter,
+    public JointBehaviorMetadataWriter, public TwistSwingBehaviorWriter {
     public:
         ~Writer() override;
         /**
