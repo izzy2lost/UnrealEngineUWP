@@ -1318,8 +1318,6 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API const FGeometryDynamicCollection* GetDynamicCollection() const;
 	GEOMETRYCOLLECTIONENGINE_API FGeometryDynamicCollection* GetDynamicCollection();  // TEMP HACK?
 
-	GEOMETRYCOLLECTIONENGINE_API TArray<UStaticMeshComponent*> CreateProxyComponents() const;
-
 	GEOMETRYCOLLECTIONENGINE_API void SetUpdateNavigationInTick(const bool bUpdateInTick) { bUpdateNavigationInTick = bUpdateInTick; }
 
 	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
@@ -1893,6 +1891,7 @@ public:
 #if WITH_EDITOR
 	//~ Begin UActorComponent interface.
 	GEOMETRYCOLLECTIONENGINE_API virtual bool IsHLODRelevant() const override;
+	GEOMETRYCOLLECTIONENGINE_API virtual TArray<UActorComponent*> GetHLODProxyComponents() const override;
 	//~ End UActorComponent interface.
 #endif
 

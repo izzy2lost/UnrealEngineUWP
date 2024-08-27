@@ -58,17 +58,16 @@ static uint32 ComputeHLODHash(AWorldPartitionHLOD* InHLODActor, const TArray<UAc
 	}
 	
 	// Min Visible Distance
-	uint32 HLODMinVisibleDistanceHash = GetTypeHash(InHLODActor->GetMinVisibleDistance());
-	UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - HLOD Min Visible Distance (%.02f) = %x"), InHLODActor->GetMinVisibleDistance(), HLODMinVisibleDistanceHash);
-	Ar << HLODMinVisibleDistanceHash;
+	double MinVisibleDistance = InHLODActor->GetMinVisibleDistance();
+	UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - HLOD Min Visible Distance = %.02f"), InHLODActor->GetMinVisibleDistance());
+	Ar << MinVisibleDistance;
 
 	// ISM Component Class
 	TSubclassOf<UHLODInstancedStaticMeshComponent> HLODISMComponentClass = UHLODBuilder::GetInstancedStaticMeshComponentClass();
 	if (HLODISMComponentClass != UHLODInstancedStaticMeshComponent::StaticClass())
 	{
-		uint32 HLODISMComponentClassHash = GetTypeHash(HLODISMComponentClass);
-		UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - HLOD ISM Component Class (%s) = %x"), *HLODISMComponentClass->GetName(), HLODISMComponentClassHash);
-		Ar << HLODISMComponentClassHash;
+		UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - HLOD ISM Component Class = %s"), *HLODISMComponentClass->GetName());
+		Ar << HLODISMComponentClass;
 	}
 
 	// Append all components CRCs
@@ -178,12 +177,12 @@ TArray<AWorldPartitionHLOD*> FWorldPartitionHLODUtilities::CreateHLODActors(FHLO
 		{
 			const uint32 HLODLayerNameHash = FCrc::StrCrc32(*HLODLayer->GetName());
 			const uint32 CellGuidHash = GetTypeHash(CellGuid);
-			uint32 HLODActorHash = HashCombine(HLODLayerNameHash, CellGuidHash);
+			uint32 HLODActorHash = HashCombineFast(HLODLayerNameHash, CellGuidHash);
 
 			if (HLODLayer->GetHLODActorClass() != AWorldPartitionHLOD::StaticClass())
 			{
 				const uint32 HLODActorClassHash = FCrc::StrCrc32(*HLODLayer->GetHLODActorClass()->GetPathName());
-				HLODActorHash = HashCombine(HLODActorHash, HLODActorClassHash);
+				HLODActorHash = HashCombineFast(HLODActorHash, HLODActorClassHash);
 			}
 
 			return HLODActorHash;
@@ -618,7 +617,22 @@ static TArray<UActorComponent*> GatherHLODRelevantComponents(const TArray<AActor
 			continue;
 		}
 
-		HLODRelevantComponents.Append(Actor->GetHLODRelevantComponents());
+		// Extract components to be used as input for the HLOD generation process
+		for (UActorComponent* HLODRelevantComponentForActor : Actor->GetHLODRelevantComponents())
+		{
+			// Components can return proxy components to be used in their place while building HLODs
+			TArray<UActorComponent*> HLODProxyComponents = HLODRelevantComponentForActor->GetHLODProxyComponents();
+			if (!HLODProxyComponents.IsEmpty())
+			{
+				// Use proxy components
+				HLODRelevantComponents.Append(HLODProxyComponents);
+			}
+			else
+			{
+				// Use the original component
+				HLODRelevantComponents.Add(HLODRelevantComponentForActor);
+			}
+		}
 	}
 
 	return HLODRelevantComponents.Array();

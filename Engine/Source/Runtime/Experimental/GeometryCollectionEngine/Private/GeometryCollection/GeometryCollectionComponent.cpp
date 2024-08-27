@@ -6380,30 +6380,6 @@ void UGeometryCollectionComponent::RefreshCustomRenderer()
 	}
 }
 
-TArray<UStaticMeshComponent*> UGeometryCollectionComponent::CreateProxyComponents() const
-{
-	TArray<UStaticMeshComponent*> Components;
-
-	if (RestCollection)
-	{
-		for (int32 MeshIndex = 0; MeshIndex < RestCollection->RootProxyData.ProxyMeshes.Num(); MeshIndex++)
-		{
-			const TObjectPtr<UStaticMesh>& Mesh = RestCollection->RootProxyData.ProxyMeshes[MeshIndex];
-			if (Mesh != nullptr)
-			{
-				UStaticMeshComponent* NewComponent = NewObject<UStaticMeshComponent>(GetOwner());
-				NewComponent->SetStaticMesh(Mesh);
-				NewComponent->SetRelativeTransform(GetComponentTransform());
-				NewComponent->RegisterComponent();
-
-				Components.Add(NewComponent);
-			}
-		}
-	}
-
-	return Components;
-}
-
 void UGeometryCollectionComponent::SetUseStaticMeshCollisionForTraces(const bool bInUseStaticMeshCollisionForTraces)
 {
 	if (bUseStaticMeshCollisionForTraces != bInUseStaticMeshCollisionForTraces)
@@ -7343,12 +7319,7 @@ const FTransform& UGeometryCollectionComponent::GetPreviousComponentToWorld() co
 
 bool UGeometryCollectionComponent::IsHLODRelevant() const
 {
-	if (!RestCollection)
-	{
-		return false;
-	}
-
-	if (RestCollection->RootProxyData.ProxyMeshes.IsEmpty())
+	if (RestCollection == nullptr || !IsCustomRendererAvailable())
 	{
 		return false;
 	}
@@ -7370,7 +7341,27 @@ bool UGeometryCollectionComponent::IsHLODRelevant() const
 	}
 #endif
 
+	if (GetHLODProxyComponents().IsEmpty())
+	{
+		return false;
+	}
+
 	return true;
+}
+
+TArray<UActorComponent*> UGeometryCollectionComponent::GetHLODProxyComponents() const
+{
+	TArray<UActorComponent*> HLODProxyComponents;
+
+	ForEachObjectWithOuter(this, [&HLODProxyComponents](UObject* InObject)
+	{
+		if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(InObject))
+		{
+			HLODProxyComponents.Add(StaticMeshComponent);
+		}
+	});
+
+	return HLODProxyComponents;
 }
 
 #endif // #if WITH_EDITOR
