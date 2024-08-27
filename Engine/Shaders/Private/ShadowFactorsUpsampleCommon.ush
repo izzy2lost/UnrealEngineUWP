@@ -13,12 +13,13 @@
 
 void UpsampleShadowFactors(
 	float4 SVPos, 
-	int4 ScissorRectMinAndSize, 
+	int4 ScissorRectMinAndSize,
 	float OneOverDownsampleFactor, 
 	float ShadowFactorsMinDepth, 
 	float ShadowFactorsMaxDepth, 
 	Texture2D ShadowFactorsTexture, 
-	SamplerState ShadowFactorsSampler, 
+	SamplerState ShadowFactorsSampler,
+	float2 ShadowFactorsUVBilinearMax,
 	out float ShadowFactor, 
 	out float SceneDepth)
 {
@@ -46,10 +47,10 @@ void UpsampleShadowFactors(
 	// Sample low res texture using UVs at center of low-res texels since we are interpolating manually
 	float2 Corner00SampleUV = Corner00UVBase + 0.5f * LowResTexelSize;
 
-	float2 TextureValues00 = Texture2DSampleLevel(ShadowFactorsTexture, ShadowFactorsSampler, Corner00SampleUV, 0).xy;
-	float2 TextureValues10 = Texture2DSampleLevel(ShadowFactorsTexture, ShadowFactorsSampler, Corner00SampleUV + float2(LowResTexelSize.x, 0), 0).xy;
-	float2 TextureValues01 = Texture2DSampleLevel(ShadowFactorsTexture, ShadowFactorsSampler, Corner00SampleUV + float2(0, LowResTexelSize.y), 0).xy;
-	float2 TextureValues11 = Texture2DSampleLevel(ShadowFactorsTexture, ShadowFactorsSampler, Corner00SampleUV + LowResTexelSize, 0).xy;
+	float2 TextureValues00 = Texture2DSampleLevel(ShadowFactorsTexture, ShadowFactorsSampler, min(Corner00SampleUV, ShadowFactorsUVBilinearMax), 0).xy;
+	float2 TextureValues10 = Texture2DSampleLevel(ShadowFactorsTexture, ShadowFactorsSampler, min(Corner00SampleUV + float2(LowResTexelSize.x, 0), ShadowFactorsUVBilinearMax), 0).xy;
+	float2 TextureValues01 = Texture2DSampleLevel(ShadowFactorsTexture, ShadowFactorsSampler, min(Corner00SampleUV + float2(0, LowResTexelSize.y), ShadowFactorsUVBilinearMax), 0).xy;
+	float2 TextureValues11 = Texture2DSampleLevel(ShadowFactorsTexture, ShadowFactorsSampler, min(Corner00SampleUV + LowResTexelSize, 0), ShadowFactorsUVBilinearMax).xy;
 
 	float4 CornerWeights = float4(
 		(1 - BilinearWeights.y) * (1 - BilinearWeights.x), 

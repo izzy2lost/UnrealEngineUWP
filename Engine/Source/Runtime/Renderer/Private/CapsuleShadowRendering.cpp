@@ -330,6 +330,7 @@ public:
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ShadowFactorsTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, ShadowFactorsSampler)
 		SHADER_PARAMETER(FIntRect, ScissorRectMinAndSize)
+		SHADER_PARAMETER(FVector2f, ShadowFactorsUVBilinearMax)
 		SHADER_PARAMETER(float, OutputtingToLightAttenuation)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -493,10 +494,10 @@ bool FDeferredShadingSceneRenderer::RenderCapsuleDirectShadows(
 
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_RenderCapsuleShadows);
 
-	FRDGTextureRef RayTracedShadowsRT = nullptr;
+	const FIntPoint BufferSize = GetBufferSizeForCapsuleShadows(Views[0]);
 
+	FRDGTextureRef RayTracedShadowsRT = nullptr;
 	{
-		const FIntPoint BufferSize = GetBufferSizeForCapsuleShadows(Views[0]);
 		const FRDGTextureDesc Desc(FRDGTextureDesc::Create2D(BufferSize, PF_G16R16F, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV));
 		RayTracedShadowsRT = GraphBuilder.CreateTexture(Desc, TEXT("CapsuleShadows.ShadowFactors"));
 	}
@@ -549,9 +550,12 @@ bool FDeferredShadingSceneRenderer::RenderCapsuleDirectShadows(
 				ScissorRect = View.ViewRect;
 			}
 
+			// CapsuleShadowingCS always outputs at rect with min = (0,0)
+			const FIntRect DownsampledViewRect(0, 0, ScissorRect.Width() / GetCapsuleShadowDownsampleFactor(), ScissorRect.Height() / GetCapsuleShadowDownsampleFactor());
+
 			const FIntPoint GroupSize = FIntPoint(
-				FMath::DivideAndRoundUp(ScissorRect.Size().X / GetCapsuleShadowDownsampleFactor(), GShadowShapeTileSize),
-				FMath::DivideAndRoundUp(ScissorRect.Size().Y / GetCapsuleShadowDownsampleFactor(), GShadowShapeTileSize))
+				FMath::DivideAndRoundUp(DownsampledViewRect.Width(), GShadowShapeTileSize),
+				FMath::DivideAndRoundUp(DownsampledViewRect.Height(), GShadowShapeTileSize))
 				.ComponentMax(FIntPoint(1, 1));
 
 			FRDGBufferRef CapsuleTileIntersectionCountsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), GroupSize.X * GroupSize.Y), TEXT("CapsuleTileIntersectionCountsBuffer"));
@@ -607,6 +611,10 @@ bool FDeferredShadingSceneRenderer::RenderCapsuleDirectShadows(
 			}
 
 			{
+				const FVector2f RayTracedShadowsTextureExtent(RayTracedShadowsRT->Desc.Extent);
+				const FVector2f RayTracedShadowsTextureExtentInverse(1.0f / RayTracedShadowsTextureExtent.X, 1.0f / RayTracedShadowsTextureExtent.Y);
+				const FVector2f RayTracedShadowsTextureViewportMax(DownsampledViewRect.Max);
+
 				auto VertexShader = View.ShaderMap->GetShader<FCapsuleShadowingUpsampleVS>();
 
 				FCapsuleShadowingUpsamplePS::FPermutationDomain PermutationVector;
@@ -629,6 +637,7 @@ bool FDeferredShadingSceneRenderer::RenderCapsuleDirectShadows(
 				PassParameters->PS.ShadowFactorsTexture = RayTracedShadowsRT;
 				PassParameters->PS.ShadowFactorsSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 				PassParameters->PS.ScissorRectMinAndSize = FIntRect(ScissorRect.Min, ScissorRect.Size());
+				PassParameters->PS.ShadowFactorsUVBilinearMax = (RayTracedShadowsTextureViewportMax - 0.5f) * RayTracedShadowsTextureExtentInverse;
 				PassParameters->PS.OutputtingToLightAttenuation = 1.0f;
 
 				ClearUnusedGraphResources(VertexShader, &PassParameters->VS);
@@ -980,10 +989,10 @@ void FDeferredShadingSceneRenderer::RenderIndirectCapsuleShadows(FRDGBuilder& Gr
 
 	RDG_EVENT_SCOPE(GraphBuilder, "IndirectCapsuleShadows");
 
-	FRDGTextureRef RayTracedShadowsRT = nullptr;
+	const FIntPoint BufferSize = GetBufferSizeForCapsuleShadows(Views[0]);
 
+	FRDGTextureRef RayTracedShadowsRT = nullptr;
 	{
-		const FIntPoint BufferSize = GetBufferSizeForCapsuleShadows(Views[0]);
 		const FRDGTextureDesc Desc(FRDGTextureDesc::Create2D(BufferSize, PF_G16R16F, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV));
 		RayTracedShadowsRT = GraphBuilder.CreateTexture(Desc, TEXT("CapsuleShadows.ShadowFactors"));
 	}
@@ -1021,9 +1030,12 @@ void FDeferredShadingSceneRenderer::RenderIndirectCapsuleShadows(FRDGBuilder& Gr
 
 			const FIntRect ScissorRect = View.ViewRect;
 
+			// CapsuleShadowingCS always outputs at rect with min = (0,0)
+			const FIntRect DownsampledViewRect(0, 0, ScissorRect.Width() / GetCapsuleShadowDownsampleFactor(), ScissorRect.Height() / GetCapsuleShadowDownsampleFactor());
+
 			const FIntPoint GroupSize(
-				FMath::DivideAndRoundUp(ScissorRect.Size().X / GetCapsuleShadowDownsampleFactor(), GShadowShapeTileSize),
-				FMath::DivideAndRoundUp(ScissorRect.Size().Y / GetCapsuleShadowDownsampleFactor(), GShadowShapeTileSize));
+				FMath::DivideAndRoundUp(DownsampledViewRect.Width(), GShadowShapeTileSize),
+				FMath::DivideAndRoundUp(DownsampledViewRect.Height(), GShadowShapeTileSize));
 
 			FRDGBufferRef CapsuleTileIntersectionCountsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), GroupSize.X * GroupSize.Y), TEXT("CapsuleTileIntersectionCountsBuffer"));
 			FRDGBufferUAVRef CapsuleTileIntersectionCountsUAV = GraphBuilder.CreateUAV(CapsuleTileIntersectionCountsBuffer);
@@ -1088,6 +1100,10 @@ void FDeferredShadingSceneRenderer::RenderIndirectCapsuleShadows(FRDGBuilder& Gr
 			}
 
 			{
+				const FVector2f RayTracedShadowsTextureExtent(RayTracedShadowsRT->Desc.Extent);
+				const FVector2f RayTracedShadowsTextureExtentInverse(1.0f / RayTracedShadowsTextureExtent.X, 1.0f / RayTracedShadowsTextureExtent.Y);
+				const FVector2f RayTracedShadowsTextureViewportMax(DownsampledViewRect.Max);
+
 				const int32 RenderTargetCount = RenderTargets.Num();
 
 				auto VertexShader = View.ShaderMap->GetShader<FCapsuleShadowingUpsampleVS>();
@@ -1118,6 +1134,7 @@ void FDeferredShadingSceneRenderer::RenderIndirectCapsuleShadows(FRDGBuilder& Gr
 				PassParameters->PS.ShadowFactorsTexture = RayTracedShadowsRT;
 				PassParameters->PS.ShadowFactorsSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 				PassParameters->PS.ScissorRectMinAndSize = FIntRect(ScissorRect.Min, ScissorRect.Size());
+				PassParameters->PS.ShadowFactorsUVBilinearMax = (RayTracedShadowsTextureViewportMax - 0.5f) * RayTracedShadowsTextureExtentInverse;
 				PassParameters->PS.OutputtingToLightAttenuation = 0.0f;
 
 				ClearUnusedGraphResources(VertexShader, &PassParameters->VS);

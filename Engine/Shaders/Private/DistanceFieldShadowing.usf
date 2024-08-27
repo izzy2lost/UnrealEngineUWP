@@ -820,6 +820,7 @@ float NearFadePlaneOffset;
 float InvNearFadePlaneLength;
 
 float OneOverDownsampleFactor;
+float2 ShadowFactorsUVBilinearMax;
 
 void DistanceFieldShadowingUpsamplePS(
 	in float4 SVPos : SV_POSITION,
@@ -827,7 +828,7 @@ void DistanceFieldShadowingUpsamplePS(
 {
 	float Output;
 	float SceneDepth;
-	UpsampleShadowFactors(SVPos, ScissorRectMinAndSize, OneOverDownsampleFactor, MinDepth, MaxDepth, ShadowFactorsTexture, ShadowFactorsSampler, Output, SceneDepth);
+	UpsampleShadowFactors(SVPos, ScissorRectMinAndSize, OneOverDownsampleFactor, MinDepth, MaxDepth, ShadowFactorsTexture, ShadowFactorsSampler, ShadowFactorsUVBilinearMax, Output, SceneDepth);
 
 	float FarBlendFactor = 1.0f - saturate((SceneDepth - FadePlaneOffset) * InvFadePlaneLength);
 	Output = lerp(1, Output, FarBlendFactor);

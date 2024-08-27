@@ -620,7 +620,7 @@ public:
 	* Output texture is cached per view. This is useful to support async compute.
 	* (ie: kick off distance field shadows early in the frame using async compute, and then combine result into shadow mask texture when necessary)
 	*/
-	FRDGTextureRef RenderRayTracedDistanceFieldProjection(
+	FScreenPassTexture RenderRayTracedDistanceFieldProjection(
 		FRDGBuilder& GraphBuilder,
 		bool bAsyncCompute,
 		const FMinimalSceneTextures& SceneTextures,

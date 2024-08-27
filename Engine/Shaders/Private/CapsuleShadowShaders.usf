@@ -1146,6 +1146,7 @@ void CapsuleShadowingUpsampleVS(
 
 Texture2D ShadowFactorsTexture;
 SamplerState ShadowFactorsSampler;
+float2 ShadowFactorsUVBilinearMax;
 
 float OutputtingToLightAttenuation;
 
@@ -1161,7 +1162,7 @@ void CapsuleShadowingUpsamplePS(
 
 	float Output;
 	float SceneDepth;
-	UpsampleShadowFactors(SVPos, ScissorRectMinAndSize, 1.0f / DOWNSAMPLE_FACTOR, 0, POSITIVE_INFINITY, ShadowFactorsTexture, ShadowFactorsSampler, Output, SceneDepth);
+	UpsampleShadowFactors(SVPos, ScissorRectMinAndSize, 1.0f / DOWNSAMPLE_FACTOR, 0, POSITIVE_INFINITY, ShadowFactorsTexture, ShadowFactorsSampler, ShadowFactorsUVBilinearMax, Output, SceneDepth);
 
 	if (OutputtingToLightAttenuation > 0)
 	{

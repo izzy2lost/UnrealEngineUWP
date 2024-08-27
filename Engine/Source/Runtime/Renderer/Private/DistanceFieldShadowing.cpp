@@ -152,11 +152,13 @@ int32 GetDFShadowDownsampleFactor()
 
 FIntPoint GetBufferSizeForDFShadows(const FViewInfo& View)
 {
+	// TODO: Use GetDownscaledExtent(...) but need to check different rounding doesn't cause issues
 	return FIntPoint::DivideAndRoundDown(View.GetSceneTexturesConfig().Extent, GetDFShadowDownsampleFactor());
 }
 
 FIntRect GetScissorRectForDFShadows(FIntRect ScissorRect)
 {
+	// TODO: Use GetDownscaledRect(...) but need to check different rounding doesn't cause issues
 	return ScissorRect / GetDFShadowDownsampleFactor();
 }
 
@@ -395,6 +397,7 @@ class FDistanceFieldShadowingUpsamplePS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ShadowFactorsTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, ShadowFactorsSampler)
 		SHADER_PARAMETER(FIntRect, ScissorRectMinAndSize)
+		SHADER_PARAMETER(FVector2f, ShadowFactorsUVBilinearMax)
 		SHADER_PARAMETER(float, FadePlaneOffset)
 		SHADER_PARAMETER(float, InvFadePlaneLength)
 		SHADER_PARAMETER(float, NearFadePlaneOffset)
@@ -902,7 +905,7 @@ void RayTraceShadows(
 	}
 }
 
-FRDGTextureRef FProjectedShadowInfo::RenderRayTracedDistanceFieldProjection(
+FScreenPassTexture FProjectedShadowInfo::RenderRayTracedDistanceFieldProjection(
 	FRDGBuilder& GraphBuilder,
 	bool bAsyncCompute, 
 	const FMinimalSceneTextures& SceneTextures,
@@ -911,18 +914,19 @@ FRDGTextureRef FProjectedShadowInfo::RenderRayTracedDistanceFieldProjection(
 {
 	DistanceFieldShadowViewGPUData& SDFShadowViewGPUData = CachedDistanceFieldShadowViewGPUData.FindOrAdd(&View);
 
+	FIntRect DownsampledScissorRect = GetScissorRectForDFShadows(ScissorRect);
+	DownsampledScissorRect -= DownsampledScissorRect.Min; // DistanceFieldShadowingCS always outputs at rect with min = (0,0)
+
 	if (SDFShadowViewGPUData.RayTracedShadowsTexture)
 	{
 		// Ray traced distance field shadows were already calculated, simply return previous result.
-		return SDFShadowViewGPUData.RayTracedShadowsTexture;
+		return FScreenPassTexture(SDFShadowViewGPUData.RayTracedShadowsTexture, DownsampledScissorRect);
 	}
-
-	const FIntRect DownsampledScissorRect = GetScissorRectForDFShadows(ScissorRect);
 
 	if (DownsampledScissorRect.Area() <= 0)
 	{
 		// skip calculating DF shadows
-		return nullptr;
+		return FScreenPassTexture();
 	}
 
 	const bool bDFShadowSupported = SupportsDistanceFieldShadows(View.GetFeatureLevel(), View.GetShaderPlatform());
@@ -1100,7 +1104,7 @@ FRDGTextureRef FProjectedShadowInfo::RenderRayTracedDistanceFieldProjection(
 			*SDFShadowViewGPUData.HeightFieldLightTileIntersectionParameters);
 	}
 
-	return SDFShadowViewGPUData.RayTracedShadowsTexture;
+	return FScreenPassTexture(SDFShadowViewGPUData.RayTracedShadowsTexture, DownsampledScissorRect);
 }
 
 BEGIN_SHADER_PARAMETER_STRUCT(FDistanceFieldShadowingUpsample, )
@@ -1123,19 +1127,24 @@ void FProjectedShadowInfo::RenderRayTracedDistanceFieldProjection(
 	check(ScissorRect.Area() > 0);
 	const bool bRunTiled = UseShadowIndirectDraw(View.GetShaderPlatform()) && TiledShadowRendering != nullptr;
 
-	FRDGTextureRef RayTracedShadowsTexture = RenderRayTracedDistanceFieldProjection(GraphBuilder, false, SceneTextures, View, ScissorRect);
+	FScreenPassTexture RayTracedShadowsTexture = RenderRayTracedDistanceFieldProjection(GraphBuilder, false, SceneTextures, View, ScissorRect);
 
-	if (RayTracedShadowsTexture)
+	if (RayTracedShadowsTexture.IsValid())
 	{
+		const FVector2f RayTracedShadowsTextureExtent(RayTracedShadowsTexture.Texture->Desc.Extent);
+		const FVector2f RayTracedShadowsTextureExtentInverse(1.0f / RayTracedShadowsTextureExtent.X, 1.0f / RayTracedShadowsTextureExtent.Y);
+		const FVector2f RayTracedShadowsTextureViewportMax(RayTracedShadowsTexture.ViewRect.Max);
+
 		FDistanceFieldShadowingUpsample* PassParameters = GraphBuilder.AllocParameters<FDistanceFieldShadowingUpsample>();
 		PassParameters->RenderTargets[0] = FRenderTargetBinding(ScreenShadowMaskTexture, ERenderTargetLoadAction::ELoad);
 		PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneTextures.Depth.Target, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilRead);
 		
 		PassParameters->PS.View = GetShaderBinding(View.ViewUniformBuffer);
 		PassParameters->PS.SceneTextures = SceneTextures.GetSceneTextureShaderParameters(View.GetFeatureLevel());
-		PassParameters->PS.ShadowFactorsTexture = RayTracedShadowsTexture;
+		PassParameters->PS.ShadowFactorsTexture = RayTracedShadowsTexture.Texture;
 		PassParameters->PS.ShadowFactorsSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 		PassParameters->PS.ScissorRectMinAndSize = FIntRect(ScissorRect.Min, ScissorRect.Size());
+		PassParameters->PS.ShadowFactorsUVBilinearMax = (RayTracedShadowsTextureViewportMax - 0.5f) * RayTracedShadowsTextureExtentInverse;
 		PassParameters->PS.OneOverDownsampleFactor = 1.0f / GetDFShadowDownsampleFactor();
 
 		GetDistanceFieldShadowRange(this, DFPT_SignedDistanceField, PassParameters->PS.MinDepth, PassParameters->PS.MaxDepth);
