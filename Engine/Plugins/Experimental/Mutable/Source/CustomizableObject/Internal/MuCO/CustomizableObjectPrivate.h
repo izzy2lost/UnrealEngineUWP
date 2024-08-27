@@ -1340,6 +1340,8 @@ public:
 		IntParameterOptionDataTablePartialBackout,
 
 		IntParameterOptionDataTablePartialRestore,
+
+		CorrectlySerializeTableToParamNames,
 		
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
