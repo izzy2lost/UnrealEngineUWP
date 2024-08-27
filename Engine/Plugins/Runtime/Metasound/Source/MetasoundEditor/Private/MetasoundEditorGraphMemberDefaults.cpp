@@ -541,16 +541,16 @@ bool UMetasoundEditorGraphMemberDefaultBoolArray::Synchronize()
 
 	auto LiteralToMember = [](const TArray<bool>& Values)
 	{
-		TArray<FMetasoundEditorGraphMemberDefaultBoolRef> Defaults;
-		Algo::Transform(Values, Defaults, [](bool Value) { FMetasoundEditorGraphMemberDefaultBoolRef Ref; Ref.Value = Value; return Ref; });
-		return Defaults;
+		TArray<FMetasoundEditorGraphMemberDefaultBoolRef> DefaultValues;
+		Algo::Transform(Values, DefaultValues, [](bool Value) { FMetasoundEditorGraphMemberDefaultBoolRef Ref; Ref.Value = Value; return Ref; });
+		return DefaultValues;
 	};
 
 	auto MemberToLiteral = [](const TArray<FMetasoundEditorGraphMemberDefaultBoolRef>& Values)
 	{
-		TArray<bool> Defaults;
-		Algo::Transform(Values, Defaults, [](const FMetasoundEditorGraphMemberDefaultBoolRef& Ref) { return Ref.Value; });
-		return Defaults;
+		TArray<bool> DefaultValues;
+		Algo::Transform(Values, DefaultValues, [](const FMetasoundEditorGraphMemberDefaultBoolRef& Ref) { return Ref.Value; });
+		return DefaultValues;
 	};
 
 	return MemberDefaultsPrivate::SynchronizePageDefault<FMetasoundEditorMemberPageDefaultBoolArray, TArray<FMetasoundEditorGraphMemberDefaultBoolRef>, TArray<bool>>(
@@ -1120,16 +1120,16 @@ bool UMetasoundEditorGraphMemberDefaultIntArray::Synchronize()
 
 	auto LiteralToMember = [](const TArray<int32>& Values)
 	{
-		TArray<FMetasoundEditorGraphMemberDefaultIntRef> Defaults;
-		Algo::Transform(Values, Defaults, [](const int32& Value) { FMetasoundEditorGraphMemberDefaultIntRef Ref; Ref.Value = Value; return Ref; });
-		return Defaults;
+		TArray<FMetasoundEditorGraphMemberDefaultIntRef> DefaultValues;
+		Algo::Transform(Values, DefaultValues, [](const int32& Value) { FMetasoundEditorGraphMemberDefaultIntRef Ref; Ref.Value = Value; return Ref; });
+		return DefaultValues;
 	};
 
 	auto MemberToLiteral = [](const TArray<FMetasoundEditorGraphMemberDefaultIntRef>& Values)
 	{
-		TArray<int32> Defaults;
-		Algo::Transform(Values, Defaults, [](const FMetasoundEditorGraphMemberDefaultIntRef& Ref) { return Ref.Value; });
-		return Defaults;
+		TArray<int32> DefaultValues;
+		Algo::Transform(Values, DefaultValues, [](const FMetasoundEditorGraphMemberDefaultIntRef& Ref) { return Ref.Value; });
+		return DefaultValues;
 	};
 
 	return MemberDefaultsPrivate::SynchronizePageDefault<FMetasoundEditorMemberPageDefaultIntArray, TArray<FMetasoundEditorGraphMemberDefaultIntRef>, TArray<int32>>(
@@ -1478,16 +1478,16 @@ bool UMetasoundEditorGraphMemberDefaultObjectArray::Synchronize()
 
 	auto LiteralToMember = [](const TArray<UObject*>& Values)
 	{
-		TArray<FMetasoundEditorGraphMemberDefaultObjectRef> Defaults;
-		Algo::Transform(Values, Defaults, [](UObject* Value) { FMetasoundEditorGraphMemberDefaultObjectRef Ref; Ref.Object = Value; return Ref; });
-		return Defaults;
+		TArray<FMetasoundEditorGraphMemberDefaultObjectRef> DefaultValues;
+		Algo::Transform(Values, DefaultValues, [](UObject* Value) { FMetasoundEditorGraphMemberDefaultObjectRef Ref; Ref.Object = Value; return Ref; });
+		return DefaultValues;
 	};
 
 	auto MemberToLiteral = [](const TArray<FMetasoundEditorGraphMemberDefaultObjectRef>& Values)
 	{
-		TArray<UObject*> Defaults;
-		Algo::Transform(Values, Defaults, [](const FMetasoundEditorGraphMemberDefaultObjectRef& Ref) { return Ref.Object; });
-		return Defaults;
+		TArray<UObject*> DefaultValues;
+		Algo::Transform(Values, DefaultValues, [](const FMetasoundEditorGraphMemberDefaultObjectRef& Ref) { return Ref.Object; });
+		return DefaultValues;
 	};
 
 	return MemberDefaultsPrivate::SynchronizePageDefault<FMetasoundEditorMemberPageDefaultObjectArray, TArray<FMetasoundEditorGraphMemberDefaultObjectRef>, TArray<UObject*>>(

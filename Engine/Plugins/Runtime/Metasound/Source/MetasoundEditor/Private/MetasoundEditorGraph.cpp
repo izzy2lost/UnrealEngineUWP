@@ -1267,7 +1267,7 @@ void UMetasoundEditorGraphOutput::UpdateFrontendDefaultLiteral(bool bPostTransac
 		{
 			FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();
 			const FGuid& VertexID = FrontendNode->Interface.Inputs.Last().VertexID;
-			const FMetasoundFrontendVertexHandle VertexHandle(NodeID, VertexID);
+			const FMetasoundFrontendVertexHandle VertexHandle { NodeID, VertexID };
 			GraphPrivate::SetOrClearIfLiteralMatchesNodeVertexDefault(Builder, VertexHandle, DefaultLiteral);
 		}
 	}
@@ -1848,7 +1848,7 @@ void UMetasoundEditorGraphVariable::UpdateFrontendDefaultLiteral(bool bPostTrans
 		const FMetasoundFrontendVertex* Input = MutatorNode->Interface.Inputs.FindByPredicate([](const FMetasoundFrontendVertex& Vertex) { return Vertex.Name == METASOUND_GET_PARAM_NAME(InputData); });
 		if (ensure(Input))
 		{
-			const FMetasoundFrontendVertexHandle VertexHandle(MutatorNode->GetID(), Input->VertexID);
+			const FMetasoundFrontendVertexHandle VertexHandle { MutatorNode->GetID(), Input->VertexID };
 			GraphPrivate::SetOrClearIfLiteralMatchesNodeVertexDefault(Builder, VertexHandle, DefaultLiteral);
 		}
 	}

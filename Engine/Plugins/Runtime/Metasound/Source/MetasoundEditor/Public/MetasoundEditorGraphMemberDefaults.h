@@ -78,6 +78,12 @@ struct FMetasoundEditorMemberPageDefaultBool : public FMetasoundEditorMemberPage
 {
 	GENERATED_BODY()
 
+	FMetasoundEditorMemberPageDefaultBool() = default;
+	FMetasoundEditorMemberPageDefaultBool(const FGuid& InPageID)
+		: FMetasoundEditorMemberPageDefault(InPageID)
+	{
+	}
+
 	UPROPERTY(EditAnywhere, Category = DefaultValue, meta = (DisplayName = "Default"))
 	FMetasoundEditorGraphMemberDefaultBoolRef Value;
 };
@@ -126,6 +132,12 @@ USTRUCT()
 struct FMetasoundEditorMemberPageDefaultBoolArray : public FMetasoundEditorMemberPageDefault
 {
 	GENERATED_BODY()
+
+	FMetasoundEditorMemberPageDefaultBoolArray() = default;
+	FMetasoundEditorMemberPageDefaultBoolArray(const FGuid& InPageID)
+		: FMetasoundEditorMemberPageDefault(InPageID)
+	{
+	}
 
 	UPROPERTY(EditAnywhere, Category = DefaultValue, meta = (DisplayName = "Default"))
 	TArray<FMetasoundEditorGraphMemberDefaultBoolRef> Value;
@@ -179,6 +191,12 @@ struct FMetasoundEditorMemberPageDefaultInt : public FMetasoundEditorMemberPageD
 {
 	GENERATED_BODY()
 
+	FMetasoundEditorMemberPageDefaultInt() = default;
+	FMetasoundEditorMemberPageDefaultInt(const FGuid& InPageID)
+		: FMetasoundEditorMemberPageDefault(InPageID)
+	{
+	}
+
 	UPROPERTY(EditAnywhere, Category = DefaultValue)
 	FMetasoundEditorGraphMemberDefaultIntRef Value;
 };
@@ -219,6 +237,12 @@ USTRUCT()
 struct FMetasoundEditorMemberPageDefaultIntArray : public FMetasoundEditorMemberPageDefault
 {
 	GENERATED_BODY()
+
+	FMetasoundEditorMemberPageDefaultIntArray() = default;
+	FMetasoundEditorMemberPageDefaultIntArray(const FGuid& InPageID)
+		: FMetasoundEditorMemberPageDefault(InPageID)
+	{
+	}
 
 	UPROPERTY(EditAnywhere, Category = DefaultValue, meta = (DisplayName = "Default"))
 	TArray<FMetasoundEditorGraphMemberDefaultIntRef> Value;
@@ -275,6 +299,12 @@ USTRUCT()
 struct FMetasoundEditorMemberPageDefaultFloat : public FMetasoundEditorMemberPageDefault
 {
 	GENERATED_BODY()
+
+	FMetasoundEditorMemberPageDefaultFloat() = default;
+	FMetasoundEditorMemberPageDefaultFloat(const FGuid& InPageID)
+		: FMetasoundEditorMemberPageDefault(InPageID)
+	{
+	}
 
 	UPROPERTY(EditAnywhere, Category = DefaultValue, meta = (DisplayName = "Default"))
 	float Value = 0.0f;
@@ -368,6 +398,12 @@ struct FMetasoundEditorMemberPageDefaultFloatArray : public FMetasoundEditorMemb
 {
 	GENERATED_BODY()
 
+	FMetasoundEditorMemberPageDefaultFloatArray() = default;
+	FMetasoundEditorMemberPageDefaultFloatArray(const FGuid& InPageID)
+		: FMetasoundEditorMemberPageDefault(InPageID)
+	{
+	}
+
 	UPROPERTY(EditAnywhere, Category = DefaultValue, meta = (DisplayName = "Default"))
 	TArray<float> Value;
 };
@@ -409,6 +445,12 @@ struct FMetasoundEditorMemberPageDefaultString : public FMetasoundEditorMemberPa
 {
 	GENERATED_BODY()
 
+	FMetasoundEditorMemberPageDefaultString() = default;
+	FMetasoundEditorMemberPageDefaultString(const FGuid& InPageID)
+		: FMetasoundEditorMemberPageDefault(InPageID)
+	{
+	}
+
 	UPROPERTY(EditAnywhere, Category = DefaultValue, meta = (DisplayName = "Default"))
 	FString Value;
 };
@@ -449,6 +491,12 @@ USTRUCT()
 struct FMetasoundEditorMemberPageDefaultStringArray : public FMetasoundEditorMemberPageDefault
 {
 	GENERATED_BODY()
+
+	FMetasoundEditorMemberPageDefaultStringArray() = default;
+	FMetasoundEditorMemberPageDefaultStringArray(const FGuid& InPageID)
+		: FMetasoundEditorMemberPageDefault(InPageID)
+	{
+	}
 
 	UPROPERTY(EditAnywhere, Category = DefaultValue, meta = (DisplayName = "Default"))
 	TArray<FString> Value;
@@ -500,6 +548,12 @@ struct FMetasoundEditorMemberPageDefaultObjectRef : public FMetasoundEditorMembe
 {
 	GENERATED_BODY()
 
+	FMetasoundEditorMemberPageDefaultObjectRef() = default;
+	FMetasoundEditorMemberPageDefaultObjectRef(const FGuid& InPageID)
+		: FMetasoundEditorMemberPageDefault(InPageID)
+	{
+	}
+
 	UPROPERTY(EditAnywhere, Category = DefaultValue, meta = (ShowOnlyInnerProperties))
 	FMetasoundEditorGraphMemberDefaultObjectRef Value;
 };
@@ -537,6 +591,12 @@ USTRUCT()
 struct FMetasoundEditorMemberPageDefaultObjectArray : public FMetasoundEditorMemberPageDefault
 {
 	GENERATED_BODY()
+
+	FMetasoundEditorMemberPageDefaultObjectArray() = default;
+	FMetasoundEditorMemberPageDefaultObjectArray(const FGuid& InPageID)
+		: FMetasoundEditorMemberPageDefault(InPageID)
+	{
+	}
 
 	UPROPERTY(EditAnywhere, Category = DefaultValue, meta = (DisplayName = "Default"))
 	TArray<FMetasoundEditorGraphMemberDefaultObjectRef> Value;
