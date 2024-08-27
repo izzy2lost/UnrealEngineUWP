@@ -589,9 +589,6 @@ bool FShaderCompileThreadRunnable::LaunchWorkersIfNeeded()
 		LastCheckForWorkersTime = CurrentTime;
 	}
 
-	bool bClearStaleOutputs = Manager->bClearStaleWorkerOutputs;
-	Manager->bClearStaleWorkerOutputs = false;
-
 	FScopeLock WorkerScopeLock(&WorkerInfosLock);
 	for (int32 WorkerIndex = 0; WorkerIndex < WorkerInfos.Num(); WorkerIndex++)
 	{
@@ -645,12 +642,6 @@ bool FShaderCompileThreadRunnable::LaunchWorkersIfNeeded()
 			{
 				constexpr bool bRelativePath = true;
 				const FString WorkingDirectory = GetWorkingDirectoryForWorker(WorkerIndex, bRelativePath);
-				
-				if (bClearStaleOutputs)
-				{
-					// Delete any potential stale output files; these can persist if we had previously abandoned running with workers due to an unexpected SCW termination.
-					DiscardWorkerOutputFile(WorkerIndex);
-				}
 
 				// Store the handle with this thread so that we will know not to launch it again
 				CurrentWorkerInfo.WorkerProcess = Manager->LaunchWorker(WorkingDirectory, Manager->ProcessId, WorkerIndex, GWorkerInputFilename, GWorkerOutputFilename);
@@ -1253,6 +1244,14 @@ int32 FShaderCompileThreadRunnable::CompilingLoop()
 
 			if (bAbandonWorkers)
 			{
+				// Immediately terminate all worker processes and delete any output files they may have generated;
+				// we will re-run all these jobs locally instead.
+				for (int32 WorkerIndex = 0; WorkerIndex < WorkerInfos.Num(); ++WorkerIndex)
+				{
+					WorkerInfos[WorkerIndex]->TerminateWorkerProcess();
+					DiscardWorkerOutputFile(WorkerIndex);
+				}
+
 				// Fall back to local compiles if the SCW crashed.
 				// This is nasty but needed to work around issues where message passing through files to SCW is unreliable on random PCs
 				Manager->bAllowCompilingThroughWorkers = false;
@@ -1297,7 +1296,6 @@ int32 FShaderCompileThreadRunnable::CompilingLoop()
 				if (Manager->NumSingleThreadedRunsBeforeRetry == 0)
 				{
 					UE_LOG(LogShaderCompilers, Display, TEXT("Retry shader compiling through workers."));
-					Manager->bClearStaleWorkerOutputs = true;
 					Manager->bAllowCompilingThroughWorkers = true;
 				}
 			}
