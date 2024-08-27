@@ -796,6 +796,7 @@ FDataflowInput& FDataflowNode::RegisterInputConnectionInternal(const Dataflow::F
 	check(Input->RealAddress() == Reference.Reference);
 	AddInput(Input);
 	check(FindInput(Reference) == Input);
+
 	return *Input;
 }
 
@@ -976,6 +977,7 @@ bool FDataflowNode::ValidateConnections()
 				{
 					if (!FindInput(PropertyIt.Value()))
 					{
+						ensure(false);
 						UE_LOG(LogChaos, Warning, TEXT("Missing dataflow RegisterInputConnection in constructor for (%s:%s)"), *GetName().ToString(), *PropName.ToString())
 							bHasValidConnections = false;
 					}
@@ -985,6 +987,7 @@ bool FDataflowNode::ValidateConnections()
 					const FDataflowOutput* const OutputConnection = FindOutput(PropertyIt.Value());
 					if(!OutputConnection)
 					{
+						ensure(false);
 						UE_LOG(LogChaos, Warning, TEXT("Missing dataflow RegisterOutputConnection in constructor for (%s:%s)"), *GetName().ToString(),*PropName.ToString());
 						bHasValidConnections = false;
 					}
@@ -1006,6 +1009,7 @@ bool FDataflowNode::ValidateConnections()
 						const FDataflowInput* const PassthroughConnectionInput = OutputConnection->GetPassthroughInput();
 						if (PassthroughConnectionInput == nullptr)
 						{
+							ensure(false);
 							UE_LOG(LogChaos, Warning, TEXT("Missing DataflowPassthrough registration for (%s:%s)"), *GetName().ToString(), *PropName.ToString());
 							bHasValidConnections = false;
 						}
@@ -1014,29 +1018,67 @@ bool FDataflowNode::ValidateConnections()
 
 						if(PassthroughConnectionInput != PassthroughConnectionInputFromMetadata)
 						{
+							ensure(false);
 							UE_LOG(LogChaos, Warning, TEXT("Mismatch in declared and registered DataflowPassthrough connection; (%s:%s vs %s)"), *GetName().ToString(), *FullPassthroughName, *PassthroughConnectionInput->GetName().ToString());
 							bHasValidConnections = false;
 						}
 
 						if(!PassthroughConnectionInputFromMetadata)
 						{
+							ensure(false);
 							UE_LOG(LogChaos, Warning, TEXT("Incorrect DataflowPassthrough Connection set for (%s:%s)"), *GetName().ToString(), *PropName.ToString());
 							bHasValidConnections = false;
 						}
 
 						else if(OutputConnection->GetType() != PassthroughConnectionInput->GetType())
 						{
+							ensure(false);
 							UE_LOG(LogChaos, Warning, TEXT("DataflowPassthrough connection types mismatch for (%s:%s)"), *GetName().ToString(), *PropName.ToString());
 							bHasValidConnections = false;
 						}
 					}
 					else if(OutputConnection->GetPassthroughInput()) 
 					{
+						ensure(false);
 						UE_LOG(LogChaos, Warning, TEXT("Missing DataflowPassthrough declaration for (%s:%s)"), *GetName().ToString(), *PropName.ToString());
 						bHasValidConnections = false;
 					}
 				}
 			}
+
+#if 0
+		 // disabling this out this for now as this fail all over the place for some dataflow graphs 
+		 // we may get rid of the metadata constraints we may not need it anymore ( to be decided later )
+			for (const TPair<Dataflow::FConnectionKey, FDataflowInput*>& ExpandedInput : ExpandedInputs)
+			{
+				const FDataflowInput* Input = ExpandedInput.Value;
+
+				if (const FProperty* Property = Input->GetProperty())
+				{
+					if (!Property->HasMetaData(FDataflowNode::DataflowInput))
+					{
+						ensure(false);
+						UE_LOG(LogChaos, Warning, TEXT("Missing dataflow DataflowInput declaration for (%s:%s)"), *GetName().ToString(), *Property->GetFName().ToString());
+					}
+				}
+			}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS  // Until Outputs becomes private
+			for (const TPair<int, FDataflowOutput*>& Output : Outputs)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			{
+				FDataflowOutput* OutputVal = Output.Value;
+
+				if (const FProperty* Property = OutputVal->GetProperty())
+				{
+					if (!Property->HasMetaData(FDataflowNode::DataflowOutput))
+					{
+						ensure(false);
+						UE_LOG(LogChaos, Warning, TEXT("Missing dataflow DataflowOutput declaration for (%s:%s)"), *GetName().ToString(), *Property->GetFName().ToString());
+					}
+				}
+			}
+#endif	
 		}
 	}
 #endif
