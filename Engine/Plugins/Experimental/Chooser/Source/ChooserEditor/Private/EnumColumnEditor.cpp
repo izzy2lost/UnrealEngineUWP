@@ -61,7 +61,7 @@ TSharedRef<SWidget> CreateEnumColumnWidget(UChooserTable* Chooser, FChooserColum
 							return LOCTEXT("CompEqual", "=");
 
 						case EEnumColumnCellValueComparison::MatchNotEqual:
-							return LOCTEXT("CompNotEqual", "!=");
+							return LOCTEXT("CompNotEqual", "Not");
 
 						case EEnumColumnCellValueComparison::MatchAny:
 							return LOCTEXT("CompAny", "Any");
@@ -114,7 +114,7 @@ TSharedRef<SWidget> CreateOutputEnumColumnWidget(UChooserTable* Chooser, FChoose
 	if (Row == ColumnWidget_SpecialIndex_Header)
 	{
 		const FSlateBrush* ColumnIcon = FCoreStyle::Get().GetBrush("Icons.ArrowRight");
-		const FText ColumnTooltip = LOCTEXT("Output Enum", "Output Enum:  writes the value from cell in the result row to the bound variable");
+		const FText ColumnTooltip = LOCTEXT("Output Enum Tooltip", "Output Enum:  writes the value from cell in the result row to the bound variable");
 		const FText ColumnName = LOCTEXT("Output Enum","Output Enum");
 		
 		TSharedPtr<SWidget> DebugWidget = nullptr;

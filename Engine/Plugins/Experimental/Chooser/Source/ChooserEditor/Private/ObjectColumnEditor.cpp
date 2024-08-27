@@ -155,7 +155,7 @@ namespace UE::ChooserEditor
 									return LOCTEXT("CompEqual", "=");
 
 								case EObjectColumnCellValueComparison::MatchNotEqual:
-									return LOCTEXT("CompNotEqual", "!=");
+									return LOCTEXT("CompNotEqual", "Not");
 
 								case EObjectColumnCellValueComparison::MatchAny:
 									return LOCTEXT("CompAny", "Any");
