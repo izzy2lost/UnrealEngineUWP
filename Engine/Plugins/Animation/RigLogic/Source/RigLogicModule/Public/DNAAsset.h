@@ -94,10 +94,6 @@ public:
 	TSharedPtr<FSharedRigRuntimeContext> GetRigRuntimeContext();
 	TSharedPtr<FDNAIndexMapping> GetDNAIndexMapping(const USkeleton* Skeleton, const USkeletalMesh* SkeletalMesh);
 
-	TSharedPtr<FSharedRigRuntimeContext> GetRigRuntimeContext();
-	TSharedPtr<FDNAIndexMapping> GetDNAIndexMapping(const USkeleton* Skeleton,
-		const USkeletalMesh* SkeletalMesh);
-
 private:
 	friend struct FAnimNode_RigLogic;
 	friend struct FRigUnit_RigLogic;
