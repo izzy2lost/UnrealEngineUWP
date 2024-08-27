@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DuplicateUserNotifier.h"
 #include "MutingNotifier.h"
 #include "Replication/Submission/Notification/SubmissionNotifier.h"
 
@@ -17,7 +18,11 @@ namespace UE::MultiUserClient::Replication
 	{
 	public:
 
-		FReplicationUserNotifier(FOnlineClientManager& InReplicationClientManager UE_LIFETIMEBOUND, FMuteStateManager& InMuteManager UE_LIFETIMEBOUND);
+		FReplicationUserNotifier(
+			IConcertClient& InClient UE_LIFETIMEBOUND,
+			FOnlineClientManager& InReplicationClientManager UE_LIFETIMEBOUND,
+			FMuteStateManager& InMuteManager UE_LIFETIMEBOUND
+			);
 
 	private:
 		
@@ -26,6 +31,8 @@ namespace UE::MultiUserClient::Replication
 		
 		/** Informs the user of things that went wrong with muting requests. */
 		const FMutingNotifier MutingNotifier;
+		/** Informs the user if they are using the same name as another client. */
+		const FDuplicateUserNotifier DuplicateClientNameNotifier;
 	};
 }
 

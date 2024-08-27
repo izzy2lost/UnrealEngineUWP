@@ -136,29 +136,7 @@ namespace UE::MultiUserClient::Replication
 			{
 				.Flags = EConcertReplicationRestoreContentFlags::All | EConcertReplicationRestoreContentFlags::ValidateUniqueClient
 			}
-		)
-		.Next([ClientInfo = Client->GetConcertClient()->GetClientInfo()](FConcertReplication_RestoreContent_Response&& Response)
-		{
-			UE_LOG(LogConcert, Log, TEXT("Content restoration completed with result '%s'"), *ConcertSyncCore::LexToString(Response.ErrorCode));
-			const bool bIsTimeout = !IsInGameThread() || Response.ErrorCode == EConcertReplicationRestoreErrorCode::Timeout;
-			if (Response.IsSuccess() || bIsTimeout || !FSlateApplication::IsInitialized())
-			{
-				return;
-			}
-
-			FSlateNotificationManager& NotificationManager = FSlateNotificationManager::Get();
-			FNotificationInfo NotificationInfo(LOCTEXT("RestoreFailed.Main", "Replication Content Restore"));
-			NotificationInfo.SubText = FText::Format(
-				LOCTEXT("RestoreFailed.SubTextFmt", "Display name {0} and device name {1} already taken by another client in session."),
-				FText::FromString(ClientInfo.DisplayName),
-				FText::FromString(ClientInfo.DeviceName)
-				);
-			NotificationInfo.bFireAndForget = true;
-			NotificationInfo.bUseSuccessFailIcons = true;
-			NotificationInfo.ExpireDuration = 4.f;
-			NotificationManager.AddNotification(NotificationInfo)
-				->SetCompletionState(SNotificationItem::CS_Fail);
-		});
+		);
 	}
 
 	void FMultiUserReplicationManager::SetupClientConnectionEvents()
@@ -295,7 +273,7 @@ namespace UE::MultiUserClient::Replication
 		, PropertySelector(OnlineClientManager, OfflineClientManager)
 		, ChangeLevelHandler(OnlineClientManager.GetLocalClient().GetClientEditModel().Get())
 		, PreventReplicatedPropertyTransaction(*InClient, OnlineClientManager, MuteManager)
-		, UserNotifier(OnlineClientManager, MuteManager)
+		, UserNotifier(*InClient->GetConcertClient(), OnlineClientManager, MuteManager)
 	{}
 }
 

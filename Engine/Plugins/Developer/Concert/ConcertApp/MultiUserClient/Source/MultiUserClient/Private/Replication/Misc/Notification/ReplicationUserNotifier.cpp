@@ -4,8 +4,13 @@
 
 namespace UE::MultiUserClient::Replication
 {
-	FReplicationUserNotifier::FReplicationUserNotifier(FOnlineClientManager& InReplicationClientManager, FMuteStateManager& InMuteManager)
+	FReplicationUserNotifier::FReplicationUserNotifier(
+		IConcertClient& InClient,
+		FOnlineClientManager& InReplicationClientManager,
+		FMuteStateManager& InMuteManager
+		)
 		: SubmissionNotifier(InReplicationClientManager)
 		, MutingNotifier(InMuteManager)
+		, DuplicateClientNameNotifier(InClient, InReplicationClientManager)
 	{}
 }
