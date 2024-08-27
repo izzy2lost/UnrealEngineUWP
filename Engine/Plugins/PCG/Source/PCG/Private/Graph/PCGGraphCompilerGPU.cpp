@@ -394,12 +394,19 @@ void FPCGGraphCompilerGPU::WireGPUGraphNode(
 
 				++InputCount;
 
-				if (const UPCGNode* UpstreamNode = InOutCompiledTasks[Input.TaskId].Node)
+				const FPCGGraphTask& UpstreamTask = InOutCompiledTasks[Input.TaskId];
+				const UPCGPin* OutputPin = UpstreamTask.Node ? UpstreamTask.Node->GetOutputPin(AddedInput.UpstreamPin->Label) : nullptr;
+
+				// Grid Linkages don't have a node associated, so ask the GridLinkageElement for the output pin instead.
+				if (!OutputPin && UpstreamTask.Element && UpstreamTask.Element->IsGridLinkage())
 				{
-					if (const UPCGPin* OutputPin = UpstreamNode->GetOutputPin(AddedInput.UpstreamPin->Label))
-					{
-						OutOutputCPUPinToVirtualPin.Add(OutputPin, VirtualLabel);
-					}
+					const PCGGraphExecutor::FPCGGridLinkageElement* LinkageElement = static_cast<const PCGGraphExecutor::FPCGGridLinkageElement*>(UpstreamTask.Element.Get());
+					OutputPin = LinkageElement->GetUpstreamPin();
+				}
+
+				if (OutputPin)
+				{
+					OutOutputCPUPinToVirtualPin.Add(OutputPin, VirtualLabel);
 				}
 			}
 		}

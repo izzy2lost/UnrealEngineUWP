@@ -494,19 +494,25 @@ namespace PCGGraphExecutor
 	class FPCGGridLinkageElement : public FPCGGenericElement
 	{
 	public:
-		FPCGGridLinkageElement(TFunction<bool(FPCGContext*)> InOperation, const FContextAllocator& InContextAllocator, EPCGHiGenGrid InFromGrid, EPCGHiGenGrid InToGrid, const FString& InResourceKey)
+		FPCGGridLinkageElement(TFunction<bool(FPCGContext*)> InOperation, const FContextAllocator& InContextAllocator, EPCGHiGenGrid InFromGrid, EPCGHiGenGrid InToGrid, const FString& InResourceKey, const UPCGPin* InUpstreamPin)
 			: FPCGGenericElement(InOperation, InContextAllocator)
 			, FromGrid(InFromGrid)
 			, ToGrid(InToGrid)
 			, ResourceKey(InResourceKey)
 		{
+			if (IsValid(InUpstreamPin))
+			{
+				UpstreamPin = TWeakObjectPtr(InUpstreamPin);
+			}
 		}
 
-#if WITH_EDITOR
 		//~Begin IPCGElement interface
 		virtual bool IsGridLinkage() const override { return true; }
 		//~End IPCGElement interface
 
+		const UPCGPin* GetUpstreamPin() const { return UpstreamPin.Get(); }
+
+#if WITH_EDITOR
 		/** Return true if the grid sizes & path match. */
 		bool operator==(const FPCGGridLinkageElement& Other) const;
 #endif
@@ -516,6 +522,7 @@ namespace PCGGraphExecutor
 		EPCGHiGenGrid FromGrid = EPCGHiGenGrid::Uninitialized;
 		EPCGHiGenGrid ToGrid = EPCGHiGenGrid::Uninitialized;
 		FString ResourceKey;
+		TWeakObjectPtr<const UPCGPin> UpstreamPin = nullptr;
 	};
 
 	/** Compares InFromGrid and InToGrid and performs data storage/retrieval as necessary to marshal data across execution grids. */
@@ -524,7 +531,5 @@ namespace PCGGraphExecutor
 		EPCGHiGenGrid InFromGrid,
 		EPCGHiGenGrid InToGrid,
 		const FString& InResourceKey,
-		const FName& InOutputPinLabel,
-		const UPCGNode* InDownstreamNode,
 		FPCGGridLinkageContext* InContext);
 }

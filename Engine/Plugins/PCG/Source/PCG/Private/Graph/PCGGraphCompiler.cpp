@@ -420,22 +420,33 @@ void FPCGGraphCompiler::CreateGridLinkages(
 				LinkTask.NodeId = InOutCompiledTasks.Num() - 1;
 				LinkTask.StackIndex = InOutCompiledTasks[TaskId].StackIndex;
 
-				LinkTask.Inputs.Emplace(TaskInput.TaskId, UpstreamPin->Properties);
+				FPCGPinProperties UpstreamPinProps = UpstreamPin->Properties;
+
+				// Make sure we have the correct type in the case of dynamically typed pins.
+				if (const UPCGSettings* UpstreamSettings = InOutCompiledTasks[TaskInput.TaskId].Node ? InOutCompiledTasks[TaskInput.TaskId].Node->GetSettings() : nullptr)
+				{
+					UpstreamPinProps.AllowedTypes = UpstreamSettings->GetCurrentPinTypes(UpstreamPin);
+				}
+
+				// Create pin properties for the input of the LinkTask to convey type information. Since we also need to give a pin label, use the default input pin label.
+				// So, effectively, Link Elements have a default input pin and output pin. These will forward the type of the upstream pin, which is required to preserve the
+				// type of the upstream node, which will be culled from the graph.
+				FPCGPinProperties DownstreamPinProps = UpstreamPinProps;
+				DownstreamPinProps.Label = PCGPinConstants::DefaultInputLabel;
+
+				LinkTask.Inputs.Emplace(TaskInput.TaskId, UpstreamPinProps, DownstreamPinProps);
 
 				const EPCGHiGenGrid FromGrid = InOutTaskGenerationGrid[TaskInput.TaskId];
 				const EPCGHiGenGrid ToGrid = InOutTaskGenerationGrid[TaskId];
 
 				// This lambda runs at execution time and attempts to retrieve the data from a larger grid. Capture by value is intentional.
-				auto GridLinkageOperation = [FromGrid, ToGrid, ResourceKey, OutputPinLabel = TaskInput.UpstreamPin.GetValue().Label,
-					DownstreamNode = InOutCompiledTasks[TaskId].Node, InGenerationGrid](FPCGContext* InContext)
+				auto GridLinkageOperation = [FromGrid, ToGrid, ResourceKey, InGenerationGrid](FPCGContext* InContext)
 				{
 					return PCGGraphExecutor::ExecuteGridLinkage(
 						InGenerationGrid,
 						FromGrid,
 						ToGrid,
 						ResourceKey,
-						OutputPinLabel,
-						DownstreamNode,
 						static_cast<FPCGGridLinkageContext*>(InContext));
 				};
 
@@ -444,10 +455,13 @@ void FPCGGraphCompiler::CreateGridLinkages(
 					return new FPCGGridLinkageContext();
 				};
 
-				LinkTask.Element = MakeShared<PCGGraphExecutor::FPCGGridLinkageElement>(GridLinkageOperation, ContextAllocator, FromGrid, ToGrid, ResourceKey);
+				LinkTask.Element = MakeShared<PCGGraphExecutor::FPCGGridLinkageElement>(GridLinkageOperation, ContextAllocator, FromGrid, ToGrid, ResourceKey, UpstreamPin);
 
 				// Now splice in the new task - redirect the downstream task to grab its input from the link task.
 				TaskInput.TaskId = LinkTask.NodeId;
+
+				// Set the task input's UpstreamPin so that it has the correct type.
+				TaskInput.UpstreamPin = UpstreamPinProps;
 
 				// The link needs to execute at both FROM grid size (store) and TO grid size (retrieve).
 				InOutTaskGenerationGrid.Add(FromGrid | ToGrid);

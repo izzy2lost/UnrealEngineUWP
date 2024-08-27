@@ -131,10 +131,10 @@ public:
 	/** Public function called when an element is cancelled, passing its current context if any. */
 	void Abort(FPCGContext* Context) const;
 
-#if WITH_EDITOR
-	/** Is this element used for marshalling data across higen grids. Used as rudimentary RTTI for element object comparisons (editor only). */
+	/** Is this element used for marshaling data across higen grids. Used as rudimentary RTTI for element object comparisons (editor only). */
 	virtual bool IsGridLinkage() const { return false; }
 
+#if WITH_EDITOR
 	/** Is this element used for dispatching compute graphs. Used as rudimentary RTTI for element object comparisons (editor only). */
 	virtual bool IsComputeGraphElement() const { return false; }
 
