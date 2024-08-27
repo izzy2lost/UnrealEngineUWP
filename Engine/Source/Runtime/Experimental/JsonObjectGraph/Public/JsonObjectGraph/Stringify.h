@@ -44,7 +44,7 @@ namespace UE::JsonObjectGraph
 {
 	/** 
 	 * ! EXPERIMENTAL ! contents of return string will change. Currently this is used
-	 * as a debugging faculty.
+	 * as a debugging facility.
 	 * 
 	 * @return: A string containing single JSON object with serialized representations of the 
 	 * provided Objects in that single object's __RootObjects field.
