@@ -306,7 +306,7 @@ static bool IsSaveOnCompileOptionSet(const EStateTreeSaveOnCompile Option)
 
 static IConsoleVariable* GetLogResultOnSuccessCVar()
 {
-	static IConsoleVariable* FoundVariable = IConsoleManager::Get().FindConsoleVariable(TEXT("StateTree.Compiler.LogResultOnSuccess"));
+	static IConsoleVariable* FoundVariable = IConsoleManager::Get().FindConsoleVariable(TEXT("StateTree.Compiler.LogResultOnCompilationCompleted"));
 	return FoundVariable;
 }
 

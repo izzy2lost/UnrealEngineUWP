@@ -373,7 +373,7 @@ void FillDynamicDeveloperMenu(FToolMenuSection& Section)
 			false);
 	}
 }
-}
+} // UE::StateTree::Editor::Private
 
 void FStateTreeEditor::RegisterMenu()
 {
