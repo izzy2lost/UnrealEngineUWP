@@ -5274,8 +5274,9 @@ void APlayerController::TickActor( float DeltaSeconds, ELevelTick TickType, FAct
 	// Clear old axis inputs since we are done with them. 
 	RotationInput = FRotator::ZeroRotator;
 
-	if(UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction && GetLocalRole() == ROLE_AutonomousProxy && bIsClient)
+	if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction && GetLocalRole() == ROLE_AutonomousProxy && bIsClient)
 	{
+		TickOffsetSyncCountdown += DeltaSeconds;
 		UpdateServerAsyncPhysicsTickOffset();
 	}
 
@@ -6238,18 +6239,13 @@ FAsyncPhysicsTimestamp APlayerController::GetPhysicsTimestamp(float DeltaSeconds
 
 void APlayerController::UpdateServerAsyncPhysicsTickOffset()
 {
-	FAsyncPhysicsTimestamp Timestamp = GetPhysicsTimestamp();
-	const int32 TickOffsetUpdateIntervalSteps = (NetworkPhysicsCvars::TickOffsetUpdateIntervalTime / 1000.f) / UPhysicsSettings::Get()->AsyncFixedTimeStepSize;
-
-	if (TickOffsetUpdateIntervalSteps <= 0 || ClientLatestAsyncPhysicsStepSent + TickOffsetUpdateIntervalSteps > Timestamp.LocalFrame)
+	if (NetworkPhysicsCvars::TickOffsetUpdateIntervalTime <= 0 || TickOffsetSyncCountdown < (NetworkPhysicsCvars::TickOffsetUpdateIntervalTime / 1000.0f))
 	{
-		//Only send a new timestamp if enough physics ticks have passed, based on CVar.
-		//If GT is running faster than physics sim the physics timestep will not have changed, so no need to send another update to server
-		//This ensures monotonic increase
 		return;
 	}
+	TickOffsetSyncCountdown = 0.0f;
 
-	ClientLatestAsyncPhysicsStepSent = Timestamp.LocalFrame;
+	FAsyncPhysicsTimestamp Timestamp = GetPhysicsTimestamp();
 	Timestamp.ServerFrame = bNetworkPhysicsTickOffsetAssigned ? Timestamp.ServerFrame : INDEX_NONE; // If offset is not yet assigned, set an invalid ServerFrame
 	ServerSendLatestAsyncPhysicsTimestamp(Timestamp);
 }
@@ -6257,15 +6253,6 @@ void APlayerController::UpdateServerAsyncPhysicsTickOffset()
 void APlayerController::ServerSendLatestAsyncPhysicsTimestamp_Implementation(FAsyncPhysicsTimestamp Timestamp)
 {
 	ensure(UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction);
-
-	//This tells the server how the client thinks the async physics tick will line up.
-	//If we have already received a more up to date timestamp from the client, early out
-	if (Timestamp.LocalFrame <= ServerLatestAsyncPhysicsStepReceived)
-	{
-		return;
-	}
-
-	ServerLatestAsyncPhysicsStepReceived = Timestamp.LocalFrame;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// Only cache the most up to date timestamp based on LocalFrame
@@ -6375,12 +6362,6 @@ void APlayerController::ClientSetupNetworkPhysicsTimestamp_Implementation(FAsync
 
 void APlayerController::ClientAckTimeDilation_Implementation(float TimeDilation, int32 ServerStep)
 {
-	if (ServerStep <= ClientLatestTimeDilationServerStep)
-	{
-		return;
-	}
-	ClientLatestTimeDilationServerStep = ServerStep;
-
 	if (UWorld* World = GetWorld())
 	{
 		World->GetPhysicsScene()->SetNetworkDeltaTimeScale(TimeDilation);

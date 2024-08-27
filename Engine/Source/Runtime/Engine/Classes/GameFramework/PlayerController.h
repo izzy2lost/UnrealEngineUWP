@@ -2419,14 +2419,8 @@ private:
 	int32 NetworkPhysicsTickOffset = INDEX_NONE;
 	bool bNetworkPhysicsTickOffsetAssigned = false;
 
-	/** The latest server step we've received a time dilation for. Needed for out of order updates */
-	int32 ClientLatestTimeDilationServerStep = INDEX_NONE;
-
-	/** The latest physics step we've sent to the server. Due to async we need to avoid duplicate sends */
-	int32 ClientLatestAsyncPhysicsStepSent = INDEX_NONE;
-
-	/** The latest physics step we've received from the client. */
-	int32 ServerLatestAsyncPhysicsStepReceived = INDEX_NONE;
+	/** Tick Offset sync interval timer */
+	float TickOffsetSyncCountdown = 0.f;
 
 	/** Time that tick offset has been desynced for since it was last in sync, used to trigger a correction */
 	float NetworkPhysicsTickOffsetDesyncAccumulatedTime = 0.0f;
