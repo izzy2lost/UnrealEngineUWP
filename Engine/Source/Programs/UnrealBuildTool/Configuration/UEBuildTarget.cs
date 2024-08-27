@@ -2666,7 +2666,7 @@ namespace UnrealBuildTool
 
 			if (Rules.bStripExports)
 			{
-				CreateStripExportsActions(MakefileBuilder, Makefile, GlobalCompileEnvironment);
+				CreateStripExportsActions(TargetToolChain, MakefileBuilder, Makefile, GlobalCompileEnvironment);
 			}
 
 			// Cache inline gen cpp data
@@ -3005,7 +3005,7 @@ namespace UnrealBuildTool
 			return Makefile;
 		}
 
-		void CreateStripExportsActions(TargetMakefileBuilder MakefileBuilder, TargetMakefile Makefile, CppCompileEnvironment CompileEnvironment)
+		void CreateStripExportsActions(UEToolChain TargetToolChain, TargetMakefileBuilder MakefileBuilder, TargetMakefile Makefile, CppCompileEnvironment CompileEnvironment)
 		{
 			FileReference commandPath;
 			if (OperatingSystem.IsWindows())
@@ -3048,13 +3048,11 @@ namespace UnrealBuildTool
 				arguments.AddRange(toStrip.Select(path => $"/S:{path.Location.ChangeExtension(".exi")}").OrderBy(x => x));
 				arguments.AddRange(otherObjects.Select(path => $"/D:{path.Location.ChangeExtension(".exi")}").OrderBy(x => x));
 
-				string Ext = "obj";
-				if (!CompileEnvironment.Platform.IsInGroup(UnrealPlatformGroup.Microsoft))
-					Ext = "ldscript";
-
+				string Ext = TargetToolChain.GetExtraLinkFileExtension();
 				FileReference extraObj = FileReference.Combine(IntermediateDirectory, $"{Name}.extra.{Ext}");
 				arguments.Add($"/O:{extraObj}");
 				arguments.Add($"/T:{Platform}");
+				arguments.Add($"/M:{Name}");
 
 				MakefileBuilder.CreateIntermediateTextFile(stripRsp, arguments);
 

@@ -3197,6 +3197,11 @@ namespace UnrealBuildTool
 			return IncludePaths.ToString();
 		}
 
+		public override string GetExtraLinkFileExtension()
+		{
+			return Target.WindowsPlatform.Compiler.IsClang() ? "dynlist" : "obj";
+		}
+
 		public override void ModifyBuildProducts(ReadOnlyTargetRules Target, UEBuildBinary Binary, IEnumerable<string> Libraries, IEnumerable<UEBuildBundleResource> BundleResources, Dictionary<FileReference, BuildProductType> BuildProducts)
 		{
 			if (Binary.Type == UEBuildBinaryType.DynamicLinkLibrary)

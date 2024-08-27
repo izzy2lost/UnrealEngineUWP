@@ -267,6 +267,15 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// This is the extension of the file that is added as extra link object. It can be an obj file but also a dynamic list.. depends on the platform
+		/// </summary>
+		/// <returns>The extension (without dot)</returns>
+		public virtual string GetExtraLinkFileExtension()
+		{
+			throw new NotSupportedException("This platform does not support merged modules.");
+		}
+
+		/// <summary>
 		/// Runs the provided tool and argument. Returns the output, using a rexex capture if one is provided
 		/// </summary>
 		/// <param name="Command">Full path to the tool to run</param>
