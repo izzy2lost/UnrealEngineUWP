@@ -48,6 +48,8 @@ namespace uba
 		logger.Info(TC("    /S:<objfile>             Obj file to strip. Will produce a .strip.obj file. Multiple allowed"));
 		logger.Info(TC("    /D:<objfile>             Obj file depending on obj files to strip. Multiple allowed"));
 		logger.Info(TC("    /O:<objfile>             Obj file to output containing exports and loopbacks"));
+		logger.Info(TC("    /T:<platform>            Target platform"));
+		logger.Info(TC("    /M:<module>              Name of module. Needed in emd files"));
 		logger.Info(TC("    /COMPRESS                Write '/O' file compressed"));
 		logger.Info(TC(""));
 		return -1;
@@ -80,6 +82,7 @@ namespace uba
 		std::string impLibName;
 		TString impLibFile;
 		TString platform;
+		TString moduleName;
 
 		auto parseArg = [&](const tchar* arg, bool isRsp)
 			{
@@ -173,6 +176,10 @@ namespace uba
 				else if (name.StartsWith(TC("/T")))
 				{
 					platform = value.data;
+				}
+				else if (name.StartsWith(TC("/M")))
+				{
+					moduleName = value.data;
 				}
 				else if (name.Equals(TC("-printsymbols")))
 				{
@@ -312,7 +319,7 @@ namespace uba
 						allExternalImports.insert(symbol);
 				}
 
-				if (!ObjectFile::CreateExtraFile(logger, extraObjFile, platform, allExternalImports, allInternalImports, allExports, true))
+				if (!ObjectFile::CreateExtraFile(logger, extraObjFile, moduleName, platform, allExternalImports, allInternalImports, allExports, true))
 					return -1;
 			}
 			//logger.Info(TC("Reduced export count from %llu to %llu"), totalExportCount.load(), totalKeptExportCount.size());

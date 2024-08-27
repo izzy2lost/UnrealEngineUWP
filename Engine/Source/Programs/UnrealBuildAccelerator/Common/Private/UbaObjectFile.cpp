@@ -218,7 +218,7 @@ namespace uba
 		return m_potentialDuplicates;
 	}
 
-	bool ObjectFile::CreateExtraFile(Logger& logger, const StringView& extraObjFilename, const StringView& platform, const UnorderedSymbols& allExternalImports, const UnorderedSymbols& allInternalImports, const UnorderedExports& allExports, bool includeExportsInFile)
+	bool ObjectFile::CreateExtraFile(Logger& logger, const StringView& extraObjFilename, const StringView& moduleName, const StringView& platform, const UnorderedSymbols& allExternalImports, const UnorderedSymbols& allInternalImports, const UnorderedExports& allExports, bool includeExportsInFile)
 	{
 		ObjectFileCoff objectFileCoff;
 		ObjectFileElf objectFileElf;
@@ -230,6 +230,8 @@ namespace uba
 			res = ObjectFileCoff::CreateExtraFile(logger, platform, memoryBlock, allExternalImports, allInternalImports, allExports, includeExportsInFile);
 		else if (extraObjFilename.EndsWith(TC("ldscript")))
 			res = CreateDynamicListFile(logger, memoryBlock, allExternalImports, allInternalImports, allExports, includeExportsInFile);
+		else if (extraObjFilename.EndsWith(TC("emd")))
+			res = CreateEmdFile(logger, memoryBlock, moduleName, allExternalImports, allInternalImports, allExports, includeExportsInFile);
 		else
 			res = ObjectFileElf::CreateExtraFile(logger, platform, memoryBlock, allExternalImports, allInternalImports, allExports, includeExportsInFile);
 
@@ -284,10 +286,7 @@ namespace uba
 
 	bool ObjectFile::CreateDynamicListFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allExternalImports, const UnorderedSymbols& allInternalImports, const UnorderedExports& allExports, bool includeExportsInFile)
 	{
-		auto WriteString = [&](const char* str, u64 strLen)
-			{
-				memcpy(memoryBlock.Allocate(strLen, 1, TC("")), str, strLen);
-			};
+		auto WriteString = [&](const char* str, u64 strLen) { memcpy(memoryBlock.Allocate(strLen, 1, TC("")), str, strLen); };
 
 		//WriteString("VERSION ", 8);
 		WriteString("{", 1);
@@ -307,6 +306,34 @@ namespace uba
 		}
 		//WriteString("local: *;", 9);
 		WriteString("};", 2);
+
+		return true;
+	}
+
+	bool ObjectFile::CreateEmdFile(Logger& logger, MemoryBlock& memoryBlock, const StringView& moduleName, const UnorderedSymbols& allExternalImports, const UnorderedSymbols& allInternalImports, const UnorderedExports& allExports, bool includeExportsInFile)
+	{
+		auto WriteString = [&](const char* str, u64 strLen) { memcpy(memoryBlock.Allocate(strLen, 1, TC("")), str, strLen); };
+
+		char moduleName2[256];
+		u32 moduleNameLen = StringBuffer<>(moduleName.data).Parse(moduleName2, 256) - 1;
+
+		WriteString("Library: ", 9);
+		WriteString(moduleName2, moduleNameLen);
+		WriteString(" { export: {\r\n", 14);
+
+		bool symbolAdded = false;
+		for (auto& symbol : allExports)
+			if (allExternalImports.find(symbol.first) != allExternalImports.end())
+			{
+				WriteString(symbol.first.c_str(), symbol.first.size());
+				WriteString("\r\n", 2);
+				symbolAdded = true;
+			}
+
+		if (!symbolAdded)
+			WriteString("ThisIsAnUnrealEngineModule\r\n", 28); // Workaround for tool not liking empty lists
+
+		WriteString("}}", 2);
 
 		return true;
 	}
