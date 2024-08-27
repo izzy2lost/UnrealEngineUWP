@@ -13,6 +13,12 @@ public class UnixCommonStartup : ModuleRules
 
 		PrivateDependencyModuleNames.Add("Slate");
 
+		// Only include Engine if necessary
+		if (Target.bCompileAgainstEngine)
+		{
+			PublicDependencyModuleNames.Add("Engine");
+		}
+
 		if (Target.Type == TargetType.Editor)
 		{
 			PrivateDependencyModuleNames.AddRange(
