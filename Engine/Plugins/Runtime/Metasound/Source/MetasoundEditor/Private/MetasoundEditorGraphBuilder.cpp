@@ -39,6 +39,7 @@
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundFrontendTransform.h"
 #include "MetasoundLiteral.h"
+#include "MetasoundSettings.h"
 #include "MetasoundTime.h"
 #include "MetasoundUObjectRegistry.h"
 #include "MetasoundVariableNodes.h"
@@ -1380,7 +1381,7 @@ namespace Metasound
 			return true;
 		}
 
-		FMetasoundFrontendClassInput FGraphBuilder::CreateUniqueClassInput(UObject& InMetaSound, const FCreateNodeVertexParams& InParams, const FMetasoundFrontendLiteral* InDefaultValue, const FName* InNameBase)
+		FMetasoundFrontendClassInput FGraphBuilder::CreateUniqueClassInput(UObject& InMetaSound, const FCreateNodeVertexParams& InParams, const TArray<FMetasoundFrontendClassInputDefault>& InDefaultLiterals, const FName* InNameBase)
 		{
 			FMetasoundFrontendClassInput ClassInput;
 			ClassInput.Name = GenerateUniqueNameByClassType(InMetaSound, EMetasoundFrontendClassType::Input, InNameBase ? InNameBase->ToString() : TEXT("Input"));
@@ -1391,14 +1392,28 @@ namespace Metasound
 			// Can be unset if attempting to mirror parameters from a reroute, so default to reference
 			ClassInput.AccessType = InParams.AccessType == EMetasoundFrontendVertexAccessType::Unset ? EMetasoundFrontendVertexAccessType::Reference : InParams.AccessType;
 
-			if (InDefaultValue)
+			// Should always have at least one value
+			if (InDefaultLiterals.IsEmpty())
 			{
-				ClassInput.InitDefault(*InDefaultValue);
+				ClassInput.InitDefault();
 			}
 			else
 			{
-				Metasound::FLiteral Literal = Frontend::IDataTypeRegistry::Get().CreateDefaultLiteral(InParams.DataType);
-				ClassInput.InitDefault().SetFromLiteral(Literal);
+				if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+				{
+					TSet<FGuid> ValidPageIDs;
+					Settings->IteratePageSettings([&ValidPageIDs](const FMetaSoundPageSettings& PageSetting)
+					{
+						ValidPageIDs.Add(PageSetting.UniqueId);
+					});
+					for (const FMetasoundFrontendClassInputDefault& InputDefault : InDefaultLiterals)
+					{
+						if (ValidPageIDs.Contains(InputDefault.PageID))
+						{
+							ClassInput.AddDefault(InputDefault.PageID) = InputDefault.Literal;
+						}
+					}
+				}
 			}
 
 			return ClassInput;
@@ -2719,6 +2734,11 @@ namespace Metasound
 				}
 			}
 
+			for (TObjectPtr<UMetasoundEditorGraphInput> Input : OutGraph.Inputs)
+			{
+				bEditorGraphModified |= Input->Synchronize();
+			}
+
 			// Collect all editor graph outputs with corresponding frontend outputs. 
 			GraphHandle->IterateConstNodes([&](FConstNodeHandle NodeHandle)
 			{
@@ -2751,87 +2771,10 @@ namespace Metasound
 				}
 			}
 
-			UMetasoundEditorGraphMember* Member = nullptr;
-
-			auto SynchronizeMemberDataType = [&](UMetasoundEditorGraphVertex& InVertex)
+			for (TObjectPtr<UMetasoundEditorGraphOutput> Output : OutGraph.Outputs)
 			{
-				FConstNodeHandle NodeHandle = InVertex.GetConstNodeHandle();
-				TArray<FConstInputHandle> InputHandles = NodeHandle->GetConstInputs();
-				if (ensure(InputHandles.Num() == 1))
-				{
-					FConstInputHandle InputHandle = InputHandles.Last();
-					const FName NewDataType = InputHandle->GetDataType();
-					if (InVertex.GetDataType() != NewDataType)
-					{
-						constexpr bool bIncludeNamespace = true;
-						FText NodeDisplayName = FGraphBuilder::GetDisplayName(*NodeHandle, bIncludeNamespace);
-						UE_LOG(LogMetasoundEditor, Verbose, TEXT("Synchronizing Member '%s': Updating DataType to '%s'."), *NodeDisplayName.ToString(), *NewDataType.ToString());
-
-						FMetasoundFrontendLiteral DefaultLiteral;
-						DefaultLiteral.SetFromLiteral(IDataTypeRegistry::Get().CreateDefaultLiteral(NewDataType));
-						if (const FMetasoundFrontendLiteral* InputLiteral = InputHandle->GetLiteral())
-						{
-							DefaultLiteral = *InputLiteral;
-						}
-
-						InVertex.ClassName = NodeHandle->GetClassMetadata().GetClassName();
-
-						constexpr bool bPostTransaction = false;
-						InVertex.SetDataType(NewDataType, bPostTransaction);
-
-						if (DefaultLiteral.IsValid())
-						{
-							UMetasoundEditorGraphMemberDefaultLiteral* Literal = InVertex.GetLiteral();
-							Literal->SetFromLiteral(DefaultLiteral);
-							bEditorGraphModified = true;
-						}
-					}
-				}
-			};
-
-			// Synchronize data types & default values for input nodes.
-			GraphHandle->IterateConstNodes([&](FConstNodeHandle NodeHandle)
-			{
-				if (UMetasoundEditorGraphInput* Input = OutGraph.FindInput(NodeHandle->GetID()))
-				{
-					SynchronizeMemberDataType(*Input);
-
-					if (UMetasoundEditorGraphMemberDefaultLiteral* Literal = Input->GetLiteral())
-					{
-						const FName NodeName = NodeHandle->GetNodeName();
-						const FGuid VertexID = GraphHandle->GetVertexIDForInputVertex(NodeName);
-						FMetasoundFrontendLiteral DefaultLiteral = GraphHandle->GetDefaultInput(VertexID);
-						if (!DefaultLiteral.IsEqual(Literal->GetDefault()))
-						{
-							if (DefaultLiteral.GetType() != EMetasoundFrontendLiteralType::None)
-							{
-								UE_LOG(LogMetasoundEditor, Verbose, TEXT("Synchronizing default value to '%s' for input '%s'"), *DefaultLiteral.ToString(), *NodeName.ToString());
-								Literal->SetFromLiteral(DefaultLiteral);
-								bEditorGraphModified = true;
-							}
-						}
-					}
-					else
-					{
-						Input->InitializeLiteral();
-					}
-				}
-			}, EMetasoundFrontendClassType::Input);
-
-			// Synchronize data types of output nodes.
-			GraphHandle->IterateConstNodes([&](FConstNodeHandle NodeHandle)
-			{
-				if (UMetasoundEditorGraphOutput* Output = OutGraph.FindOutput(NodeHandle->GetID()))
-				{
-					SynchronizeMemberDataType(*Output);
-
-					// Fix up members with no literal set
-					if (!Output->GetLiteral())
-					{
-						Output->InitializeLiteral();
-					}
-				}
-			}, EMetasoundFrontendClassType::Output);
+				bEditorGraphModified |= Output->Synchronize();
+			}
 
 			// Enforce all variables exists in the edgraph
 			TSet<FGuid> VariableIDs;

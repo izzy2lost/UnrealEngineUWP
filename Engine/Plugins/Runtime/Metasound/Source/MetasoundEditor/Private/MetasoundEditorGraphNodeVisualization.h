@@ -91,7 +91,9 @@ namespace Metasound::Editor
 
 							if (const UMetasoundEditorGraphMemberDefaultLiteral* MemberDefaultLiteral = Member->GetLiteral())
 							{
-								const FMetasoundFrontendLiteral DefaultLiteral = MemberDefaultLiteral->GetDefault();
+								FMetaSoundFrontendDocumentBuilder& Builder = Member->GetFrontendBuilderChecked();
+								FMetasoundFrontendLiteral DefaultLiteral;
+								MemberDefaultLiteral->TryFindDefault(DefaultLiteral, &Builder.GetBuildPageID());
 								if (DefaultLiteral.TryGet(OutValue))
 								{
 									return true;

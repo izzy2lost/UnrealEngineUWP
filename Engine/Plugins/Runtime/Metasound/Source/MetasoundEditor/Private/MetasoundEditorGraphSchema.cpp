@@ -416,7 +416,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				return nullptr;
 			}
 
-			const FMetasoundFrontendVertex* InputVertex = Builder.FindNodeInput(InputVertexHandle.NodeID, InputVertexHandle.VertexID);;
+			const FMetasoundFrontendVertex* InputVertex = Builder.FindNodeInput(InputVertexHandle.NodeID, InputVertexHandle.VertexID);
 			if (!ensure(InputVertex))
 			{
 				return nullptr;
@@ -426,14 +426,25 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			ParentMetasound.Modify();
 			MetasoundGraph->Modify();
 
-			FMetasoundFrontendLiteral DefaultValue;
-			FGraphBuilder::GetPinLiteral(*FromPin, DefaultValue);
+			TArray<FMetasoundFrontendClassInputDefault> DefaultLiterals;
+			if (const FMetasoundFrontendVertexLiteral* VertexLiteral = Builder.FindNodeInputDefault(InputVertexHandle.NodeID, InputVertexHandle.VertexID))
+			{
+				DefaultLiterals.Add_GetRef(Builder.GetBuildPageID()).Literal = VertexLiteral->Value;
+			}
+			if (DefaultLiterals.IsEmpty())
+			{
+				if (const TArray<FMetasoundFrontendClassInputDefault>* ClassDefaults = Builder.FindNodeClassInputDefaults(InputVertexHandle.NodeID, InputVertex->Name))
+				{
+					DefaultLiterals = *ClassDefaults;
+				}
+			}
+
 			const FCreateNodeVertexParams VertexParams =
 			{
 				InputVertex->TypeName,
 				Builder.GetNodeInputAccessType(InputVertexHandle.NodeID, InputVertex->VertexID)
 			};
-			FMetasoundFrontendClassInput ClassInput = FGraphBuilder::CreateUniqueClassInput(ParentMetasound, VertexParams, &DefaultValue, &InputVertex->Name);
+			FMetasoundFrontendClassInput ClassInput = FGraphBuilder::CreateUniqueClassInput(ParentMetasound, VertexParams, DefaultLiterals, &InputVertex->Name);
 			if (const FMetasoundFrontendNode* NewNode = Builder.AddGraphInput(ClassInput))
 			{
 				UMetasoundEditorGraphInput* Input = MetasoundGraph->FindOrAddInput(NewNode->GetID());
@@ -579,7 +590,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			return nullptr;
 		}
-
 
 		UEdGraphNode* PromoteToMutatorVariable(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D InLocation, bool bSelectNewNode)
 		{

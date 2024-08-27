@@ -273,52 +273,63 @@ namespace Metasound
 			}
 		}
 
-		TArray<IDetailPropertyRow*> FMetasoundFloatLiteralCustomization::CustomizeLiteral(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout)
+		void FMetasoundFloatLiteralCustomization::CustomizeDefaults(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout)
 		{
 			check(DefaultCategoryBuilder);
 
-			UMetasoundEditorGraphMemberDefaultFloat* DefaultFloat = Cast<UMetasoundEditorGraphMemberDefaultFloat>(&InLiteral);
-			if (!ensure(DefaultFloat))
+			TArray<UObject*> EditLiterals;
+			if (UMetasoundEditorGraphMemberDefaultFloat* CastLiteral = Cast<UMetasoundEditorGraphMemberDefaultFloat>(&InLiteral); ensure(CastLiteral))
 			{
-				return { };
+				EditLiterals = { CastLiteral };
+				FloatLiteral = CastLiteral;
 			}
-			FloatLiteral = DefaultFloat;
-
-			TArray<IDetailPropertyRow*> DefaultRows;
-			TSharedPtr<IPropertyHandle> DefaultValueHandle;
-			IDetailPropertyRow* Row = DefaultCategoryBuilder->AddExternalObjectProperty(TArray<UObject*>({ DefaultFloat }), UMetasoundEditorGraphMemberDefaultFloat::GetDefaultPropertyName());
-			if (ensure(Row))
+			else
 			{
-				DefaultRows.Add(Row);
-				DefaultValueHandle = Row->GetPropertyHandle();
+				FloatLiteral.Reset();
+				return;
 			}
 
-			// Apply the clamp range to the default value if not using a widget and ClampDefault is true
-			const bool bUsingWidget = DefaultFloat->WidgetType != EMetasoundMemberDefaultWidget::None;
-			const bool bShouldClampDefaultValue = bUsingWidget || (!bUsingWidget && DefaultFloat->ClampDefault);
+			FMetasoundDefaultLiteralCustomizationBase::CustomizeDefaults(InLiteral, InDetailLayout);
 
-			IDetailPropertyRow* ClampRow = DefaultCategoryBuilder->AddExternalObjectProperty(TArray<UObject*>({ DefaultFloat }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, ClampDefault));
-			if (ensure(ClampRow))
+			TAttribute<EVisibility> DefaultVisibility = GetDefaultVisibility();
+
+			IDetailCategoryBuilder& EditorOptionsBuilder = InDetailLayout.EditCategory("DefaultEditorOptions");
+			auto AddOptionPropRow = [&](FName PropertyName)
 			{
-				DefaultRows.Add(ClampRow);
-
-				if (DefaultValueHandle.IsValid())
+				IDetailPropertyRow* Row = EditorOptionsBuilder.AddExternalObjectProperty(EditLiterals, PropertyName);
+				if (ensure(Row))
 				{
-					if (bShouldClampDefaultValue)
+					Row->Visibility(DefaultVisibility);
+				}
+				return Row;
+			};
+
+			if (IDetailPropertyRow* ClampRow = AddOptionPropRow(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, ClampDefault)))
+			{
+				// Apply the clamp range to the default value if not using a widget and ClampDefault is true
+				const bool bUsingWidget = FloatLiteral->WidgetType != EMetasoundMemberDefaultWidget::None;
+				const bool bShouldClampDefaultValue = bUsingWidget || (!bUsingWidget && FloatLiteral->ClampDefault);
+				ClampRow->Visibility(DefaultVisibility);
+				for (TSharedPtr<IPropertyHandle>& DefaultValueHandle : DefaultProperties)
+				{
+					if (DefaultValueHandle.IsValid())
 					{
-						FVector2D Range = DefaultFloat->GetRange();
-						DefaultValueHandle->SetInstanceMetaData("ClampMin", FString::Printf(TEXT("%f"), Range.X));
-						DefaultValueHandle->SetInstanceMetaData("ClampMax", FString::Printf(TEXT("%f"), Range.Y));
-					}
-					else // Stop clamping
-					{
-						DefaultValueHandle->SetInstanceMetaData("ClampMin", "");
-						DefaultValueHandle->SetInstanceMetaData("ClampMax", "");
+						if (bShouldClampDefaultValue)
+						{
+							FVector2D Range = FloatLiteral->GetRange();
+							DefaultValueHandle->SetInstanceMetaData("ClampMin", FString::Printf(TEXT("%f"), Range.X));
+							DefaultValueHandle->SetInstanceMetaData("ClampMax", FString::Printf(TEXT("%f"), Range.Y));
+						}
+						else // Stop clamping
+						{
+							DefaultValueHandle->SetInstanceMetaData("ClampMin", "");
+							DefaultValueHandle->SetInstanceMetaData("ClampMax", "");
+						}
 					}
 				}
 
-				DefaultFloat->OnClampChanged.Remove(OnClampChangedDelegateHandle);
-				OnClampChangedDelegateHandle = DefaultFloat->OnClampChanged.AddLambda([this](bool ClampInput)
+				FloatLiteral->OnClampChanged.Remove(OnClampChangedDelegateHandle);
+				OnClampChangedDelegateHandle = FloatLiteral->OnClampChanged.AddLambda([this](bool ClampInput)
 				{
 					if (FloatLiteral.IsValid())
 					{
@@ -333,11 +344,7 @@ namespace Metasound
 
 				if (bShouldClampDefaultValue)
 				{
-					IDetailPropertyRow* RangeRow = DefaultCategoryBuilder->AddExternalObjectProperty(TArray<UObject*>({ DefaultFloat }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, Range));
-					if (ensure(RangeRow))
-					{
-						DefaultRows.Add(RangeRow);
-					}
+					AddOptionPropRow(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, Range));
 				}
 			}
 
@@ -354,45 +361,43 @@ namespace Metasound
 			// add input widget properties
 			if (bShowWidgetOptions)
 			{
-				IDetailCategoryBuilder& WidgetCategoryBuilder = InDetailLayout.EditCategory("EditorOptions");
-				DefaultRows.Add(WidgetCategoryBuilder.AddExternalObjectProperty(TArray<UObject*>({ DefaultFloat }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, WidgetType)));
-				DefaultRows.Add(WidgetCategoryBuilder.AddExternalObjectProperty(TArray<UObject*>({ DefaultFloat }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, WidgetOrientation)));
-				DefaultRows.Add(WidgetCategoryBuilder.AddExternalObjectProperty(TArray<UObject*>({ DefaultFloat }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, WidgetUnitValueType)));
-				if (DefaultFloat->WidgetType != EMetasoundMemberDefaultWidget::None && DefaultFloat->WidgetUnitValueType == EAudioUnitsValueType::Volume)
+				AddOptionPropRow(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, WidgetType));
+				AddOptionPropRow(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, WidgetOrientation));
+				AddOptionPropRow(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, WidgetUnitValueType));
+				if (FloatLiteral->WidgetType != EMetasoundMemberDefaultWidget::None && FloatLiteral->WidgetUnitValueType == EAudioUnitsValueType::Volume)
 				{
-					DefaultRows.Add(WidgetCategoryBuilder.AddExternalObjectProperty(TArray<UObject*>({ DefaultFloat }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, VolumeWidgetUseLinearOutput)));
-					if (DefaultFloat->VolumeWidgetUseLinearOutput)
+					AddOptionPropRow(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, VolumeWidgetUseLinearOutput));
+					if (FloatLiteral->VolumeWidgetUseLinearOutput)
 					{
-						DefaultRows.Add(WidgetCategoryBuilder.AddExternalObjectProperty(TArray<UObject*>({ DefaultFloat }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, VolumeWidgetDecibelRange)));
+						AddOptionPropRow(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, VolumeWidgetDecibelRange));
 					}
 				}
 			}
-
-			return DefaultRows;
 		}
 
 		FMetasoundBoolLiteralCustomization::~FMetasoundBoolLiteralCustomization()
 		{
 		}
 
-		TArray<IDetailPropertyRow*> FMetasoundBoolLiteralCustomization::CustomizeLiteral(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout)
+		void FMetasoundBoolLiteralCustomization::CustomizeDefaults(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout)
 		{
 			check(DefaultCategoryBuilder);
+
+			DefaultProperties.Reset();
 
 			UMetasoundEditorGraphMemberDefaultBool* DefaultBool = Cast<UMetasoundEditorGraphMemberDefaultBool>(&InLiteral);
 			if (!ensure(DefaultBool))
 			{
-				return { };
+				return;
 			}
 			BoolLiteral = DefaultBool;
 
-			TArray<IDetailPropertyRow*> DefaultRows;
-			TSharedPtr<IPropertyHandle> DefaultValueHandle;
+			TArray<TSharedPtr<IPropertyHandle>> DefaultValueHandles;
 			IDetailPropertyRow* Row = DefaultCategoryBuilder->AddExternalObjectProperty(TArray<UObject*>({ DefaultBool }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultBool, Default));
 			if (ensure(Row))
 			{
-				DefaultRows.Add(Row);
-				DefaultValueHandle = Row->GetPropertyHandle();
+				DefaultValueHandles = { Row->GetPropertyHandle() };
+				Row->Visibility(GetDefaultVisibility());
 			}
 
 			// Enable widget options for editable inputs only 
@@ -409,7 +414,7 @@ namespace Metasound
 			if (bShowWidgetOptions)
 			{
 				Frontend::FDataTypeRegistryInfo DataTypeInfo;
-				MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(DefaultValueHandle, DataTypeInfo);
+				MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(DefaultValueHandles.Last(), DataTypeInfo);
 
 				const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
 				check(EditorSettings)
@@ -418,96 +423,111 @@ namespace Metasound
 				{
 					if (MemberCustomizationPrivate::GetPrimitiveTypeName(DataTypeInfo) != Metasound::GetMetasoundDataTypeName<Metasound::FTrigger>())
 					{
-						IDetailCategoryBuilder& WidgetCategoryBuilder = InDetailLayout.EditCategory("EditorOptions");
-						DefaultRows.Add(WidgetCategoryBuilder.AddExternalObjectProperty(TArray<UObject*>({ DefaultBool }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultBool, WidgetType)));
+						IDetailCategoryBuilder& EditorOptionsBuilder = InDetailLayout.EditCategory("DefaultEditorOptions");
+						if (IDetailPropertyRow* TypeRow = EditorOptionsBuilder.AddExternalObjectProperty(TArray<UObject*>({ DefaultBool }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultBool, WidgetType)))
+						{
+							DefaultValueHandles.Add(Row->GetPropertyHandle());
+							TypeRow->Visibility(GetDefaultVisibility());
+						}
 					}
 				}
 			}
-
-			return DefaultRows;
 		}
 
-		TArray<IDetailPropertyRow*> FMetasoundObjectArrayLiteralCustomization::CustomizeLiteral(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout)
+		void FMetasoundObjectArrayLiteralCustomization::CustomizeDefaults(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout)
 		{
 			check(DefaultCategoryBuilder);
 
-			TSharedPtr<IPropertyHandle> DefaultValueHandle;
-			IDetailPropertyRow* Row = DefaultCategoryBuilder->AddExternalObjectProperty(TArray<UObject*>({ &InLiteral }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultObjectArray, Default));
-			if (ensure(Row))
+			FOnDefaultPageRowAdded OnDefaultPageRowAdded = [this, &InDetailLayout](IDetailPropertyRow& ValueRow, TSharedRef<IPropertyHandle> PageDefaultProperty)
 			{
-				DefaultValueHandle = Row->GetPropertyHandle();
-			}
-
-			constexpr bool bShowChildren = true;
-			Row->ShowPropertyButtons(false)
-			.CustomWidget(bShowChildren)
-			.NameContent()
-			[
-				DefaultValueHandle->CreatePropertyNameWidget()
-			]
-			.ValueContent()
-			[
-				SNew(SAssetDropTarget)
-				.bSupportsMultiDrop(true)
-				.OnAreAssetsAcceptableForDropWithReason_Lambda([this, DefaultValueHandle](TArrayView<FAssetData> InAssets, FText& OutReason)
+				TSharedPtr<IPropertyHandle> ValueProperty = PageDefaultProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMetasoundEditorMemberPageDefaultObjectArray, Value));
+				if (ValueProperty.IsValid())
 				{
-					Frontend::FDataTypeRegistryInfo DataTypeInfo;
-					const bool bMemberFound = MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(DefaultValueHandle, DataTypeInfo);
-					bool bCanDrop = bMemberFound;
-					if (UClass* ProxyGenClass = DataTypeInfo.ProxyGeneratorClass; bCanDrop && bMemberFound)
+					TSharedPtr<IPropertyHandleArray> ArrayProperty = ValueProperty->AsArray();
+					if (ArrayProperty.IsValid())
 					{
-						bCanDrop = true;
-						for (const FAssetData& AssetData : InAssets)
+						uint32 NumElements = 0;
+						ArrayProperty->GetNumElements(NumElements);
+						for (uint32 Index = 0; Index < NumElements; ++Index)
 						{
-							if (UClass* Class = AssetData.GetClass())
+							TSharedPtr<IPropertyHandle> ElementProperty = ArrayProperty->GetElement(Index);
+							if (ElementProperty.IsValid())
 							{
+								TSharedPtr<IPropertyHandle> DefaultValueProperty = ElementProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMetasoundEditorGraphMemberDefaultObjectRef, Object));
+
+								IDetailPropertyRow& Row = DefaultCategoryBuilder->AddProperty(ElementProperty);
+								constexpr bool bShowChildren = false;
+								Row.ShowPropertyButtons(false)
+								.CustomWidget(bShowChildren);
+								(*Row.CustomNameWidget())
+								[
+									ElementProperty->CreatePropertyNameWidget()
+								];
+								(*Row.CustomValueWidget())
+								[
+									SNew(SAssetDropTarget)
+									.bSupportsMultiDrop(true)
+									.OnAreAssetsAcceptableForDropWithReason_Lambda([this, DefaultValueProperty](TArrayView<FAssetData> InAssets, FText& OutReason)
+									{
+										Frontend::FDataTypeRegistryInfo DataTypeInfo;
+										const bool bMemberFound = MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(DefaultValueProperty, DataTypeInfo);
+										bool bCanDrop = bMemberFound;
+										if (UClass* ProxyGenClass = DataTypeInfo.ProxyGeneratorClass; bCanDrop && bMemberFound)
+										{
+											bCanDrop = true;
+											for (const FAssetData& AssetData : InAssets)
+											{
+												if (UClass* Class = AssetData.GetClass())
+												{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-								const IMetasoundEditorModule& EditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
-								if (EditorModule.IsExplicitProxyClass(*DataTypeInfo.ProxyGeneratorClass))
-								{
-									bCanDrop &= Class == DataTypeInfo.ProxyGeneratorClass;
-									continue;
-								}
+													const IMetasoundEditorModule& EditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
+													if (EditorModule.IsExplicitProxyClass(*DataTypeInfo.ProxyGeneratorClass))
+													{
+														bCanDrop &= Class == DataTypeInfo.ProxyGeneratorClass;
+														continue;
+													}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-								if (DataTypeInfo.bIsExplicit)
-								{
-									bCanDrop &= Class == DataTypeInfo.ProxyGeneratorClass;
-								}
-								else
-								{
-									bCanDrop &= Class->IsChildOf(DataTypeInfo.ProxyGeneratorClass);
-								}
+													if (DataTypeInfo.bIsExplicit)
+													{
+														bCanDrop &= Class == DataTypeInfo.ProxyGeneratorClass;
+													}
+													else
+													{
+														bCanDrop &= Class->IsChildOf(DataTypeInfo.ProxyGeneratorClass);
+													}
+												}
+											}
+										}
+
+										return bCanDrop;
+									})
+									.OnAssetsDropped_Lambda([this, ArrayProperty](const FDragDropEvent& DragDropEvent, TArrayView<FAssetData> InAssets)
+									{
+										if (ArrayProperty.IsValid())
+										{
+											FScopedTransaction Transaction(LOCTEXT("DragDropInputAssets", "Drop Asset(s) on MetaSound Input"));
+											for (const FAssetData& AssetData : InAssets)
+											{
+												uint32 AddIndex = INDEX_NONE;
+												ArrayProperty->GetNumElements(AddIndex);
+												ArrayProperty->AddItem();
+												TSharedPtr<IPropertyHandle> ElementHandle = ArrayProperty->GetElement(static_cast<int32>(AddIndex));
+												TSharedPtr<IPropertyHandle> ObjectHandle = ElementHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMetasoundEditorGraphMemberDefaultObjectRef, Object));
+												ObjectHandle->SetValue(AssetData.GetAsset());
+											}
+										}
+									})
+									[
+										DefaultValueProperty->CreatePropertyValueWidget()
+									]
+								];
+								Row.Visibility(GetDefaultVisibility());
 							}
 						}
 					}
-
-					return bCanDrop;
-				})
-				.OnAssetsDropped_Lambda([this, DefaultValueHandle](const FDragDropEvent& DragDropEvent, TArrayView<FAssetData> InAssets)
-				{
-					if (DefaultValueHandle.IsValid())
-					{
-						TSharedPtr<IPropertyHandleArray> ArrayHandle = DefaultValueHandle->AsArray();
-						if (ensure(ArrayHandle.IsValid()))
-						{
-							for (const FAssetData& AssetData : InAssets)
-							{
-								uint32 AddIndex = INDEX_NONE;
-								ArrayHandle->GetNumElements(AddIndex);
-								ArrayHandle->AddItem();
-								TSharedPtr<IPropertyHandle> ElementHandle = ArrayHandle->GetElement(static_cast<int32>(AddIndex));
-								TSharedPtr<IPropertyHandle> ObjectHandle = ElementHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMetasoundEditorGraphMemberDefaultObjectRef, Object));
-								ObjectHandle->SetValue(AssetData.GetAsset());
-							}
-						}
-					}
-				})
-				[
-					DefaultValueHandle->CreatePropertyValueWidget()
-				]
-			];
-
-			return { Row };
+				}
+			};
+			FMetasoundDefaultLiteralCustomizationBase::CustomizePageDefaultRows(InLiteral, InDetailLayout, &OnDefaultPageRowAdded);
 		}
 
 		FText FMetasoundMemberDefaultBoolDetailCustomization::GetPropertyNameOverride() const
@@ -786,13 +806,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			if (ElementPropertyHandle.IsValid())
 			{
 				TSharedPtr<IPropertyHandle> ParentProperty = ElementPropertyHandle->GetParentHandle();
-				while (ParentProperty.IsValid() && ParentProperty->GetProperty() != nullptr)
+				if (ParentProperty.IsValid() && ParentProperty->GetProperty() != nullptr)
 				{
 					ParentPropertyHandleArray = ParentProperty->AsArray();
 					if (ParentPropertyHandleArray.IsValid())
 					{
 						ElementPropertyHandle = ParentProperty;
-						break;
 					}
 				}
 			}
@@ -1102,13 +1121,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 		}
 
-		TArray<IDetailPropertyRow*> FMetasoundMemberDetailCustomization::CustomizeDefaultCategory(IDetailLayoutBuilder& InDetailLayout)
+		void FMetasoundMemberDetailCustomization::CustomizeDefaultCategory(IDetailLayoutBuilder& InDetailLayout)
 		{
-			TArray<IDetailPropertyRow*> DefaultPropertyRows;
-
 			if (!GraphMember.IsValid())
 			{
-				return DefaultPropertyRows;
+				return;
 			}
 
 			UpdateRenameDelegate(*GraphMember);
@@ -1120,33 +1137,32 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 				IDetailCategoryBuilder& DefaultCategoryBuilder = GetDefaultCategoryBuilder(InDetailLayout);
 				IMetasoundEditorModule& EditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
-				TUniquePtr<FMetasoundDefaultLiteralCustomizationBase> LiteralCustomization = EditorModule.CreateMemberDefaultLiteralCustomization(*MemberClass, DefaultCategoryBuilder);
+				LiteralCustomization = EditorModule.CreateMemberDefaultLiteralCustomization(*MemberClass, DefaultCategoryBuilder);
+
+				TAttribute<EVisibility> Visibility = TAttribute<EVisibility>::CreateLambda([this]()
+				{
+					return GetDefaultVisibility();
+				});
+
 				if (LiteralCustomization.IsValid())
 				{
-					DefaultPropertyRows = LiteralCustomization->CustomizeLiteral(*MemberDefaultLiteral, InDetailLayout);
+					LiteralCustomization->SetDefaultVisibility(Visibility);
+					LiteralCustomization->SetEnabled(GetEnabled());
+					LiteralCustomization->SetResetOverride(GetResetOverride());
+					LiteralCustomization->CustomizeDefaults(*MemberDefaultLiteral, InDetailLayout);
 				}
 				else
 				{
 					IDetailPropertyRow* DefaultPropertyRow = DefaultCategoryBuilder.AddExternalObjectProperty(TArray<UObject*>({ MemberDefaultLiteral }), "Default");
-					ensureMsgf(DefaultPropertyRow, TEXT("Class '%s' missing expected 'Default' member."
+					if (ensureMsgf(DefaultPropertyRow, TEXT("Class '%s' missing expected 'Default' member."
 						"Either add/rename default member or register customization to display default value/opt out appropriately."),
-						*MemberClass->GetName());
-					DefaultPropertyRows.Add(DefaultPropertyRow);
-				}
-			}
-
-			for (IDetailPropertyRow* Row : DefaultPropertyRows)
-			{
-				if (ensure(Row))
-				{
-					Row->Visibility(TAttribute<EVisibility>::CreateLambda([this]()
+						*MemberClass->GetName()))
 					{
-						return GetDefaultVisibility();
-					}));
+						DefaultPropertyRow->Visibility(Visibility);
+						DefaultPropertyRow->IsEnabled(GetEnabled());
+					}
 				}
 			}
-
-			return DefaultPropertyRows;
 		}
 
 		void FMetasoundMemberDetailCustomization::CustomizeGeneralCategory(IDetailLayoutBuilder& InDetailLayout)
@@ -1724,31 +1740,27 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				];
 			}
 
-			TArray<IDetailPropertyRow*> DefaultPropertyRows = CustomizeDefaultCategory(InDetailLayout);
-
-			if (bIsPreset && !bIsDefaultConstructed && !bIsTriggerDataType)
+			if (bIsPreset)
 			{
-				const UMetasoundEditorGraphInput* Input = Cast<UMetasoundEditorGraphInput>(MemberDefaultLiteral->FindMember());
-				if (Input)
+				if (!bIsDefaultConstructed && !bIsTriggerDataType)
 				{
-					auto PropertyEnabled = TAttribute<bool>::CreateLambda([this] { return !GetInputInheritsDefault(); });
-					for (IDetailPropertyRow* DefaultPropertyRow : DefaultPropertyRows)
+					const UMetasoundEditorGraphInput* Input = Cast<UMetasoundEditorGraphInput>(MemberDefaultLiteral->FindMember());
+					if (Input)
 					{
-						DefaultPropertyRow->EditCondition(PropertyEnabled, { });
-						FResetToDefaultOverride ResetOverride = FResetToDefaultOverride::Create(
+						Enabled = TAttribute<bool>::CreateLambda([this] { return !GetInputInheritsDefault(); });
+						ResetOverride = FResetToDefaultOverride::Create(
 							FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> /* PropertyHandle */) { return !GetInputInheritsDefault(); }),
 							FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> /* PropertyHandle */) { SetInputInheritsDefault(); }));
-						DefaultPropertyRow->OverrideResetToDefault(ResetOverride);
 					}
 				}
 			}
-			else if (!bIsPreset)
+			else
 			{
 				// Make default value uneditable while playing for constructor inputs
 				const UMetasoundEditorGraphInput* Input = Cast<UMetasoundEditorGraphInput>(MemberDefaultLiteral->FindMember());
 				if (Input)
 				{
-					auto PropertyEnabled = TAttribute<bool>::CreateLambda([this, Input]
+					Enabled = TAttribute<bool>::CreateLambda([this, Input]
 					{
 						if (Input->GetVertexAccessType() == EMetasoundFrontendVertexAccessType::Value)
 						{
@@ -1760,12 +1772,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 						}
 						return true;
 					});
-					for (IDetailPropertyRow* DefaultPropertyRow : DefaultPropertyRows)
-					{
-						DefaultPropertyRow->EditCondition(PropertyEnabled, { });
-					}
 				}
 			}
+
+			CustomizeDefaultCategory(InDetailLayout);
+		}
+
+		TAttribute<bool> FMetasoundInputDetailCustomization::GetEnabled() const
+		{
+			return Enabled;
 		}
 
 		bool FMetasoundInputDetailCustomization::IsDefaultEditable() const

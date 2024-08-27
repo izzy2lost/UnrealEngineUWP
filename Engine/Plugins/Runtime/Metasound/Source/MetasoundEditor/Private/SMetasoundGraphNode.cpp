@@ -18,6 +18,7 @@
 #include "KismetPins/SGraphPinObject.h"
 #include "KismetPins/SGraphPinString.h"
 #include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorGraphInputNode.h"
@@ -58,6 +59,7 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/SWidget.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
+
 
 #define LOCTEXT_NAMESPACE "MetasoundEditor"
 
@@ -276,15 +278,9 @@ namespace Metasound
 			];
 		}
 
-		UMetasoundEditorGraphNode& SMetaSoundGraphNode::GetMetaSoundNode()
+		UMetasoundEditorGraphNode& SMetaSoundGraphNode::GetMetaSoundNode() const
 		{
 			return *CastChecked<UMetasoundEditorGraphNode>(GraphNode);
-		}
-
-		const UMetasoundEditorGraphNode& SMetaSoundGraphNode::GetMetaSoundNode() const
-		{
-			check(GraphNode);
-			return *Cast<UMetasoundEditorGraphNode>(GraphNode);
 		}
 
 		TSharedPtr<SGraphPin> SMetaSoundGraphNode::CreatePinWidget(UEdGraphPin* InPin) const
@@ -749,19 +745,35 @@ namespace Metasound
 			return nullptr;
 		}
 
-		UMetasoundEditorGraphMemberNode* SMetaSoundGraphNode::GetMetaSoundMemberNode()
+		TAttribute<bool> SMetaSoundGraphNode::GetInputWidgetEnabled() const
+		{
+			return TAttribute<bool>::Create([this]()
+			{
+				if (const UMetasoundEditorGraphMemberNode* Node = GetMetaSoundMemberNode())
+				{
+					return Node->EnableInteractWidgets();
+				}
+				return false;
+			});
+		}
+
+		UMetasoundEditorGraphMemberNode* SMetaSoundGraphNode::GetMetaSoundMemberNode() const
 		{
 			return Cast<UMetasoundEditorGraphMemberNode>(&GetMetaSoundNode());
 		}
 
-		TSharedRef<SWidget> SMetaSoundGraphNode::CreateNodeContentArea()
+		TSharedPtr<SWidget> SMetaSoundGraphNode::CreateInputNodeContentArea(const FMetaSoundFrontendDocumentBuilder& InBuilder, TSharedRef<SHorizontalBox> ContentBox)
 		{
-			using namespace Frontend;
+			using namespace Engine;
 
-			FConstNodeHandle NodeHandle = GetMetaSoundNode().GetConstNodeHandle();
-			const FMetasoundFrontendClassStyleDisplay& StyleDisplay = NodeHandle->GetClassStyle().Display;
-			TSharedPtr<SHorizontalBox> ContentBox = SNew(SHorizontalBox);
-			TSharedPtr<SWidget> OuterContentBox; // currently only used for input float nodes to accommodate the input widget
+			TWeakObjectPtr<UMetasoundEditorGraphInput> GraphMember;
+			{
+				GraphMember = Cast<UMetasoundEditorGraphInput>(GetMetaSoundMember());
+				if (!GraphMember.IsValid())
+				{
+					return { };
+				}
+			}
 
 			bool bUseAudioMaterialWidgets = false;
 			if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
@@ -769,408 +781,449 @@ namespace Metasound
 				bUseAudioMaterialWidgets = EditorSettings->bUseAudioMaterialWidgets;
 			}
 
-			// If input node, check if custom widget required
-			bool bShowContentWidget = false;
-			if (UMetasoundEditorGraphInput* GraphMember = Cast<UMetasoundEditorGraphInput>(GetMetaSoundMember()))
+			const UMetasoundEditorGraph* OwningGraph = GraphMember->GetOwningGraph();
+			if (!OwningGraph || !OwningGraph->IsEditable() || GraphMember->GetVertexAccessType() == EMetasoundFrontendVertexAccessType::Unset)
 			{
-				const UMetasoundEditorGraph* OwningGraph = GraphMember->GetOwningGraph();
-				if (OwningGraph && OwningGraph->IsEditable() && GraphMember->GetVertexAccessType() != EMetasoundFrontendVertexAccessType::Unset)
+				return { };
+			}
+
+			TSharedPtr<SWidget> OuterContentBox;
+
+			TWeakObjectPtr<UMetasoundEditorGraphMemberDefaultFloat> DefaultFloat = Cast<UMetasoundEditorGraphMemberDefaultFloat>(GraphMember->GetLiteral());
+			if (DefaultFloat.IsValid() && DefaultFloat->WidgetType != EMetasoundMemberDefaultWidget::None)
+			{
+				constexpr float WidgetPadding = 3.0f;
+				static const FVector2D SliderDesiredSizeVertical = FVector2D(30.0f, 250.0f);
+				static const FVector2D RadialSliderDesiredSize = FVector2D(56.0f, 87.0f);
+
+				auto OnValueChangedLambda = [DefaultFloat, GraphMember, this](float Value)
 				{
-					UMetasoundEditorGraphMemberDefaultFloat* DefaultFloat = Cast<UMetasoundEditorGraphMemberDefaultFloat>(GraphMember->GetLiteral());
-					if (DefaultFloat && DefaultFloat->WidgetType != EMetasoundMemberDefaultWidget::None)
+					if (DefaultFloat.IsValid() && FloatInputWidget.IsValid())
 					{
-						constexpr float WidgetPadding = 3.0f;
-						static const FVector2D SliderDesiredSizeVertical = FVector2D(30.0f, 250.0f);
-						static const FVector2D RadialSliderDesiredSize = FVector2D(56.0f, 87.0f);
-
-						bShowContentWidget = true;
-
-						auto OnValueChangedLambda = [DefaultFloat, GraphMember, this](float Value)
+						if (!bIsInputWidgetTransacting)
 						{
-							if (InputWidget.IsValid())
-							{
-								if (!bIsInputWidgetTransacting)
-								{
-									GEditor->BeginTransaction(LOCTEXT("MetasoundGraphNode_MetasoundSetInputDefault", "Set MetaSound Input Default"));
-									bIsInputWidgetTransacting = true;
-								}
-								GraphMember->GetOwningGraph()->GetMetasound()->Modify();
-								DefaultFloat->Modify();
-
-								constexpr bool bPostTransaction = true;
-								float Output = InputWidget->GetOutputValue(Value);
-								DefaultFloat->SetDefault(Output);
-								GraphMember->UpdateFrontendDefaultLiteral(bPostTransaction);
-							}
-						};
-
-						auto OnValueCommittedLambda = [DefaultFloat, GraphMember, this](float Value)
-						{
-							if (InputWidget.IsValid())
-							{
-								bool bPostTransaction = false;
-								float Output = InputWidget->GetOutputValue(Value);
-								DefaultFloat->SetDefault(Output);
-
-								if (bIsInputWidgetTransacting)
-								{
-									GEditor->EndTransaction();
-									bIsInputWidgetTransacting = false;
-								}
-								else
-								{
-									bPostTransaction = true;
-									UE_LOG(LogMetaSound, Warning, TEXT("Unmatched MetaSound editor widget transaction."));
-								}
-
-								GraphMember->UpdateFrontendDefaultLiteral(bPostTransaction);
-
-								if (UMetasoundEditorGraph* Graph = GraphMember->GetOwningGraph())
-								{
-									FGraphBuilder::GetOutermostMetaSoundChecked(*Graph).GetModifyContext().AddMemberIDsModified({ GraphMember->GetMemberID() });
-								}
-							}
-						};
-
-						if (DefaultFloat->WidgetType == EMetasoundMemberDefaultWidget::Slider)
-						{
-							if (bUseAudioMaterialWidgets)
-							{
-								const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
-								check(EditorSettings)
-
-								SAssignNew(InputWidget, SAudioMaterialLabeledSlider)
-									.Owner(GraphMember->GetOwningGraph())
-									.Style(EditorSettings->GetSliderStyle())
-									.AudioUnitsValueType(DefaultFloat->WidgetUnitValueType)
-									.bUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput)
-									.OnValueChanged_Lambda(OnValueChangedLambda)
-									.OnValueCommitted_Lambda(OnValueCommittedLambda);
-							}
-							else
-							{
-								// Create slider 
-								if (DefaultFloat->WidgetUnitValueType == EAudioUnitsValueType::Frequency)
-								{
-									SAssignNew(InputWidget, SAudioFrequencySlider)
-										.OnValueChanged_Lambda(OnValueChangedLambda)
-										.OnValueCommitted_Lambda(OnValueCommittedLambda);
-								}
-								else if (DefaultFloat->WidgetUnitValueType == EAudioUnitsValueType::Volume)
-								{
-									SAssignNew(InputWidget, SAudioVolumeSlider)
-										.OnValueChanged_Lambda(OnValueChangedLambda)
-										.OnValueCommitted_Lambda(OnValueCommittedLambda);
-									StaticCastSharedPtr<SAudioVolumeSlider>(InputWidget)->SetUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput);
-								}
-								else
-								{
-									SAssignNew(InputWidget, SAudioSlider)
-										.OnValueChanged_Lambda(OnValueChangedLambda)
-										.OnValueCommitted_Lambda(OnValueCommittedLambda);
-									InputWidget->SetShowUnitsText(false);
-								}
-							}
-							// Slider layout 
-							if (DefaultFloat->WidgetOrientation == Orient_Vertical)
-							{
-								SAssignNew(OuterContentBox, SVerticalBox)
-									+ SVerticalBox::Slot()
-									.HAlign(HAlign_Right)
-									.VAlign(VAlign_Center)
-									.AutoHeight()
-									[
-										ContentBox.ToSharedRef()
-									]
-								+ SVerticalBox::Slot()
-									.HAlign(HAlign_Fill)
-									.VAlign(VAlign_Top)
-									.Padding(WidgetPadding, 0.0f, WidgetPadding, WidgetPadding)
-									.AutoHeight()
-									[
-										InputWidget.ToSharedRef()
-									];
-
-									if (!bUseAudioMaterialWidgets)
-									{
-										InputWidget->SetDesiredSizeOverride(SliderDesiredSizeVertical);
-									}
-							}
-							else // horizontal orientation
-							{
-								UMetasoundEditorGraphMemberNode* MemberNode = GetMetaSoundMemberNode();
-								TSharedPtr<SWidget> Slot1;
-								TSharedPtr<SWidget> Slot2;
-								if (MemberNode->IsA<UMetasoundEditorGraphInputNode>())
-								{
-									Slot1 = InputWidget;
-									Slot2 = ContentBox;
-								}
-								else
-								{
-									Slot1 = ContentBox;
-									Slot2 = InputWidget;
-								}
-
-								SAssignNew(OuterContentBox, SHorizontalBox)
-									+ SHorizontalBox::Slot()
-									.HAlign(HAlign_Fill)
-									.VAlign(VAlign_Center)
-									.Padding(WidgetPadding, 0.0f, WidgetPadding, 0.0f)
-									.AutoWidth()
-									[
-										Slot1.ToSharedRef()
-									]
-								+ SHorizontalBox::Slot()
-									.HAlign(HAlign_Center)
-									.VAlign(VAlign_Fill)
-									.AutoWidth()
-									[
-										Slot2.ToSharedRef()
-									];
-
-									if (!bUseAudioMaterialWidgets)
-									{
-										InputWidget->SetDesiredSizeOverride(FVector2D(SliderDesiredSizeVertical.Y, SliderDesiredSizeVertical.X));
-									}
-								}
-
-								if (bUseAudioMaterialWidgets)
-								{
-									// safe downcast because the ptr was just assigned above 
-									StaticCastSharedPtr<SAudioMaterialLabeledSlider>(InputWidget)->SetOrientation(DefaultFloat->WidgetOrientation);
-								}
-								else
-								{
-									// safe downcast because the ptr was just assigned above 
-									StaticCastSharedPtr<SAudioSliderBase>(InputWidget)->SetOrientation(DefaultFloat->WidgetOrientation);
-								}
-						}
-						else if (DefaultFloat->WidgetType == EMetasoundMemberDefaultWidget::RadialSlider)
-						{
-							auto OnRadialSliderMouseCaptureBeginLambda = [this]()
-							{
-								if (!bIsInputWidgetTransacting)
-								{
-									GEditor->BeginTransaction(LOCTEXT("MetasoundSetRadialSliderInputDefault", "Set MetaSound Input Default"));
-									bIsInputWidgetTransacting = true;
-								}
-							};
-
-							auto OnRadialSliderMouseCaptureEndLambda = [this]()
-							{
-								if (bIsInputWidgetTransacting)
-								{
-									GEditor->EndTransaction();
-									bIsInputWidgetTransacting = false;
-								}
-								else
-								{
-									UE_LOG(LogMetaSound, Warning, TEXT("Unmatched MetaSound editor widget transaction."));
-								}
-							};
-
-							if (bUseAudioMaterialWidgets)
-							{
-								const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
-								check(EditorSettings)
-
-								SAssignNew(InputWidget, SAudioMaterialLabeledKnob)
-									.Owner(GraphMember->GetOwningGraph())
-									.Style(EditorSettings->GetKnobStyle())
-									.OnValueChanged_Lambda(OnValueChangedLambda)
-									.AudioUnitsValueType(DefaultFloat->WidgetUnitValueType)
-									.bUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput)
-									.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
-									.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
-							}
-							else
-							{
-								// Create slider 
-								if (DefaultFloat->WidgetUnitValueType == EAudioUnitsValueType::Frequency)
-								{
-									SAssignNew(InputWidget, SAudioFrequencyRadialSlider)
-										.OnValueChanged_Lambda(OnValueChangedLambda)
-										.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
-										.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
-								}
-								else if (DefaultFloat->WidgetUnitValueType == EAudioUnitsValueType::Volume)
-								{
-									SAssignNew(InputWidget, SAudioVolumeRadialSlider)
-										.OnValueChanged_Lambda(OnValueChangedLambda)
-										.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
-										.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
-									StaticCastSharedPtr<SAudioVolumeRadialSlider>(InputWidget)->SetUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput);
-								}
-								else
-								{
-									SAssignNew(InputWidget, SAudioRadialSlider)
-										.OnValueChanged_Lambda(OnValueChangedLambda)
-										.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
-										.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
-									InputWidget->SetShowUnitsText(false);
-								}
-							}
-							// Only vertical layout for radial slider
-							SAssignNew(OuterContentBox, SVerticalBox)
-								+ SVerticalBox::Slot()
-								.HAlign(HAlign_Right)
-								.VAlign(VAlign_Center)
-								.AutoHeight()
-								[
-									ContentBox.ToSharedRef()
-								]
-							+ SVerticalBox::Slot()
-								.HAlign(HAlign_Fill)
-								.VAlign(VAlign_Top)
-								.Padding(WidgetPadding, 0.0f, WidgetPadding, WidgetPadding)
-								.AutoHeight()
-								[
-									InputWidget.ToSharedRef()
-								];
-								InputWidget->SetDesiredSizeOverride(RadialSliderDesiredSize);
+							GEditor->BeginTransaction(LOCTEXT("MetasoundGraphNode_MetasoundSetInputDefault", "Set MetaSound Input Default"));
+							bIsInputWidgetTransacting = true;
 						}
 
-						InputWidget->SetOutputRange(DefaultFloat->GetRange());
-						InputWidget->SetUnitsTextReadOnly(true);
-						InputWidget->SetSliderValue(InputWidget->GetSliderValue(DefaultFloat->GetDefault()));
-						InputWidget->SetEnabled(TAttribute<bool>::Create([this]()
-						{
-							if (UMetasoundEditorGraphMemberNode* Node = GetMetaSoundMemberNode())
-							{
-								return Node->EnableInteractWidgets();
-							}
-							return false;
-						}));
+						FMetaSoundFrontendDocumentBuilder& Builder = GraphMember->GetFrontendBuilderChecked();
+						Builder.CastDocumentObjectChecked<UObject>().Modify();
+						DefaultFloat->Modify();
 
-						// Setup & clear delegate if necessary (ex. if was just saved)
-						if (InputSliderOnValueChangedDelegateHandle.IsValid())
-						{
-							DefaultFloat->OnDefaultValueChanged.Remove(InputSliderOnValueChangedDelegateHandle);
-							InputSliderOnValueChangedDelegateHandle.Reset();
-						}
+						FMetasoundFrontendLiteral OutputLiteral;
+						OutputLiteral.Set(FloatInputWidget->GetOutputValue(Value));
 
-						InputSliderOnValueChangedDelegateHandle = DefaultFloat->OnDefaultValueChanged.AddLambda([Widget = InputWidget](float Value)
-						{
-							if (Widget.IsValid())
-							{
-								const float SliderValue = Widget->GetSliderValue(Value);
-								Widget->SetSliderValue(SliderValue);
-							}
-						});
+						const FGuid BuildPageID = Builder.GetBuildPageID();
+						DefaultFloat->SetFromLiteral(OutputLiteral, BuildPageID);
 
-						if (InputSliderOnRangeChangedDelegateHandle.IsValid())
-						{
-							DefaultFloat->OnRangeChanged.Remove(InputSliderOnRangeChangedDelegateHandle);
-							InputSliderOnRangeChangedDelegateHandle.Reset();
-						}
-
-						InputSliderOnRangeChangedDelegateHandle = DefaultFloat->OnRangeChanged.AddLambda([Widget = InputWidget](FVector2D Range)
-						{
-							if (Widget.IsValid())
-							{
-								Widget->SetOutputRange(Range);
-							}
-						});
+						constexpr bool bPostTransaction = true;
+						GraphMember->UpdateFrontendDefaultLiteral(bPostTransaction, &BuildPageID);
 					}
-					else if (UMetasoundEditorGraphMemberDefaultBool* DefaultBool = Cast<UMetasoundEditorGraphMemberDefaultBool>(GraphMember->GetLiteral()))
+				};
+
+				auto OnValueCommittedLambda = [DefaultFloat, GraphMember, this](float Value)
+				{
+					if (DefaultFloat.IsValid() && FloatInputWidget.IsValid())
 					{
+						bool bPostTransaction = false;
+						FMetasoundFrontendLiteral OutputLiteral;
+						OutputLiteral.Set(FloatInputWidget->GetOutputValue(Value));
+						const FGuid BuildPageID = GraphMember->GetFrontendBuilderChecked().GetBuildPageID();
+						DefaultFloat->SetFromLiteral(OutputLiteral, BuildPageID);
+						DefaultFloat->OnDefaultValueChanged.Broadcast(BuildPageID, Value);
+
+						if (bIsInputWidgetTransacting)
+						{
+							GEditor->EndTransaction();
+							bIsInputWidgetTransacting = false;
+						}
+						else
+						{
+							bPostTransaction = true;
+							UE_LOG(LogMetaSound, Warning, TEXT("Unmatched MetaSound editor widget transaction."));
+						}
+
+						GraphMember->UpdateFrontendDefaultLiteral(bPostTransaction);
+
+						if (UMetasoundEditorGraph* Graph = GraphMember->GetOwningGraph())
+						{
+							FGraphBuilder::GetOutermostMetaSoundChecked(*Graph).GetModifyContext().AddMemberIDsModified({ GraphMember->GetMemberID() });
+						}
+					}
+				};
+
+				if (DefaultFloat->WidgetType == EMetasoundMemberDefaultWidget::Slider)
+				{
+					if (bUseAudioMaterialWidgets)
+					{
+						const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
+						check(EditorSettings)
+
+						SAssignNew(FloatInputWidget, SAudioMaterialLabeledSlider)
+							.Owner(GraphMember->GetOwningGraph())
+							.Style(EditorSettings->GetSliderStyle())
+							.AudioUnitsValueType(DefaultFloat->WidgetUnitValueType)
+							.bUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput)
+							.OnValueChanged_Lambda(OnValueChangedLambda)
+							.OnValueCommitted_Lambda(OnValueCommittedLambda);
+					}
+					else
+					{
+						// Create slider 
+						if (DefaultFloat->WidgetUnitValueType == EAudioUnitsValueType::Frequency)
+						{
+							SAssignNew(FloatInputWidget, SAudioFrequencySlider)
+								.OnValueChanged_Lambda(OnValueChangedLambda)
+								.OnValueCommitted_Lambda(OnValueCommittedLambda);
+						}
+						else if (DefaultFloat->WidgetUnitValueType == EAudioUnitsValueType::Volume)
+						{
+							SAssignNew(FloatInputWidget, SAudioVolumeSlider)
+								.OnValueChanged_Lambda(OnValueChangedLambda)
+								.OnValueCommitted_Lambda(OnValueCommittedLambda);
+							StaticCastSharedPtr<SAudioVolumeSlider>(FloatInputWidget)->SetUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput);
+						}
+						else
+						{
+							SAssignNew(FloatInputWidget, SAudioSlider)
+								.OnValueChanged_Lambda(OnValueChangedLambda)
+								.OnValueCommitted_Lambda(OnValueCommittedLambda);
+							FloatInputWidget->SetShowUnitsText(false);
+						}
+					}
+					// Slider layout 
+					if (DefaultFloat->WidgetOrientation == Orient_Vertical)
+					{
+						SAssignNew(OuterContentBox, SVerticalBox)
+							+ SVerticalBox::Slot()
+							.HAlign(HAlign_Right)
+							.VAlign(VAlign_Center)
+							.AutoHeight()
+							[
+								ContentBox
+							]
+						+ SVerticalBox::Slot()
+							.HAlign(HAlign_Fill)
+							.VAlign(VAlign_Top)
+							.Padding(WidgetPadding, 0.0f, WidgetPadding, WidgetPadding)
+							.AutoHeight()
+							[
+								FloatInputWidget.ToSharedRef()
+							];
+
+							if (!bUseAudioMaterialWidgets)
+							{
+								FloatInputWidget->SetDesiredSizeOverride(SliderDesiredSizeVertical);
+							}
+					}
+					else // horizontal orientation
+					{
+						UMetasoundEditorGraphMemberNode* MemberNode = GetMetaSoundMemberNode();
+						TSharedPtr<SWidget> Slot1;
+						TSharedPtr<SWidget> Slot2;
+						if (MemberNode->IsA<UMetasoundEditorGraphInputNode>())
+						{
+							Slot1 = FloatInputWidget;
+							Slot2 = ContentBox;
+						}
+						else
+						{
+							Slot1 = ContentBox;
+							Slot2 = FloatInputWidget;
+						}
+
+						SAssignNew(OuterContentBox, SHorizontalBox)
+							+ SHorizontalBox::Slot()
+							.HAlign(HAlign_Fill)
+							.VAlign(VAlign_Center)
+							.Padding(WidgetPadding, 0.0f, WidgetPadding, 0.0f)
+							.AutoWidth()
+							[
+								Slot1.ToSharedRef()
+							]
+						+ SHorizontalBox::Slot()
+							.HAlign(HAlign_Center)
+							.VAlign(VAlign_Fill)
+							.AutoWidth()
+							[
+								Slot2.ToSharedRef()
+							];
+
+							if (!bUseAudioMaterialWidgets)
+							{
+								FloatInputWidget->SetDesiredSizeOverride(FVector2D(SliderDesiredSizeVertical.Y, SliderDesiredSizeVertical.X));
+							}
+						}
+
 						if (bUseAudioMaterialWidgets)
 						{
-							bool bIsNotTriggerNode = GraphMember->GetDataType() != Metasound::GetMetasoundDataTypeName<Metasound::FTrigger>();
+							// safe downcast because the ptr was just assigned above 
+							StaticCastSharedPtr<SAudioMaterialLabeledSlider>(FloatInputWidget)->SetOrientation(DefaultFloat->WidgetOrientation);
+						}
+						else
+						{
+							// safe downcast because the ptr was just assigned above 
+							StaticCastSharedPtr<SAudioSliderBase>(FloatInputWidget)->SetOrientation(DefaultFloat->WidgetOrientation);
+						}
+				}
+				else if (DefaultFloat->WidgetType == EMetasoundMemberDefaultWidget::RadialSlider)
+				{
+					auto OnRadialSliderMouseCaptureBeginLambda = [this]()
+					{
+						if (!bIsInputWidgetTransacting)
+						{
+							GEditor->BeginTransaction(LOCTEXT("MetasoundSetRadialSliderInputDefault", "Set MetaSound Input Default"));
+							bIsInputWidgetTransacting = true;
+						}
+					};
 
-							if ((bIsNotTriggerNode && IsValid(DefaultBool)) && DefaultBool->WidgetType != EMetasoundBoolMemberDefaultWidget::None)
+					auto OnRadialSliderMouseCaptureEndLambda = [this]()
+					{
+						if (bIsInputWidgetTransacting)
+						{
+							GEditor->EndTransaction();
+							bIsInputWidgetTransacting = false;
+						}
+						else
+						{
+							UE_LOG(LogMetaSound, Warning, TEXT("Unmatched MetaSound editor widget transaction."));
+						}
+					};
+
+					if (bUseAudioMaterialWidgets)
+					{
+						const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
+						check(EditorSettings)
+
+						SAssignNew(FloatInputWidget, SAudioMaterialLabeledKnob)
+							.Owner(GraphMember->GetOwningGraph())
+							.Style(EditorSettings->GetKnobStyle())
+							.OnValueChanged_Lambda(OnValueChangedLambda)
+							.AudioUnitsValueType(DefaultFloat->WidgetUnitValueType)
+							.bUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput)
+							.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
+							.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
+					}
+					else
+					{
+						// Create slider 
+						if (DefaultFloat->WidgetUnitValueType == EAudioUnitsValueType::Frequency)
+						{
+							SAssignNew(FloatInputWidget, SAudioFrequencyRadialSlider)
+								.OnValueChanged_Lambda(OnValueChangedLambda)
+								.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
+								.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
+						}
+						else if (DefaultFloat->WidgetUnitValueType == EAudioUnitsValueType::Volume)
+						{
+							SAssignNew(FloatInputWidget, SAudioVolumeRadialSlider)
+								.OnValueChanged_Lambda(OnValueChangedLambda)
+								.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
+								.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
+							StaticCastSharedPtr<SAudioVolumeRadialSlider>(FloatInputWidget)->SetUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput);
+						}
+						else
+						{
+							SAssignNew(FloatInputWidget, SAudioRadialSlider)
+								.OnValueChanged_Lambda(OnValueChangedLambda)
+								.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
+								.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
+							FloatInputWidget->SetShowUnitsText(false);
+						}
+					}
+					// Only vertical layout for radial slider
+					SAssignNew(OuterContentBox, SVerticalBox)
+						+ SVerticalBox::Slot()
+						.HAlign(HAlign_Right)
+						.VAlign(VAlign_Center)
+						.AutoHeight()
+						[
+							ContentBox
+						]
+					+ SVerticalBox::Slot()
+						.HAlign(HAlign_Fill)
+						.VAlign(VAlign_Top)
+						.Padding(WidgetPadding, 0.0f, WidgetPadding, WidgetPadding)
+						.AutoHeight()
+						[
+							FloatInputWidget.ToSharedRef()
+						];
+						FloatInputWidget->SetDesiredSizeOverride(RadialSliderDesiredSize);
+				}
+
+				const FMetasoundFrontendClassInput* ClassInput = InBuilder.FindGraphInput(GraphMember->GetMemberName());
+				FGuid ResolvedPageID = Frontend::DefaultPageID;
+				if (ensure(ClassInput))
+				{
+					ResolvedPageID = Engine::FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(*ClassInput);
+				}
+
+				FloatInputWidget->SetOutputRange(DefaultFloat->GetRange());
+				FloatInputWidget->SetUnitsTextReadOnly(true);
+				FloatInputWidget->SetSliderValue(FloatInputWidget->GetSliderValue(DefaultFloat->GetDefaultAs<float>(ResolvedPageID)));
+				FloatInputWidget->SetEnabled(GetInputWidgetEnabled());
+
+				// Setup & clear delegate if necessary (ex. if was just saved)
+				if (InputSliderOnValueChangedDelegateHandle.IsValid())
+				{
+					DefaultFloat->OnDefaultValueChanged.Remove(InputSliderOnValueChangedDelegateHandle);
+					InputSliderOnValueChangedDelegateHandle.Reset();
+				}
+
+				InputSliderOnValueChangedDelegateHandle = DefaultFloat->OnDefaultValueChanged.AddLambda([this, Widget = FloatInputWidget](const FGuid& PageID, float Value)
+				{
+					using namespace Metasound::Engine;
+
+					if (Widget.IsValid())
+					{
+						UMetasoundEditorGraphNode& EdNode = GetMetaSoundNode();
+						UObject& MetaSound = EdNode.GetMetasoundChecked();
+						UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(MetaSound);
+
+						if (Builder.GetConstBuilder().GetBuildPageID() == PageID)
+						{
+							const float SliderValue = Widget->GetSliderValue(Value);
+							Widget->SetSliderValue(SliderValue);
+						}
+					}
+				});
+
+				if (InputSliderOnRangeChangedDelegateHandle.IsValid())
+				{
+					DefaultFloat->OnRangeChanged.Remove(InputSliderOnRangeChangedDelegateHandle);
+					InputSliderOnRangeChangedDelegateHandle.Reset();
+				}
+
+				InputSliderOnRangeChangedDelegateHandle = DefaultFloat->OnRangeChanged.AddLambda([Widget = FloatInputWidget](FVector2D Range)
+				{
+					if (Widget.IsValid())
+					{
+						Widget->SetOutputRange(Range);
+					}
+				});
+			}
+			else
+			{
+				TWeakObjectPtr<UMetasoundEditorGraphMemberDefaultBool> DefaultBool = Cast<UMetasoundEditorGraphMemberDefaultBool>(GraphMember->GetLiteral());
+				if (DefaultBool.IsValid())
+				{
+					if (bUseAudioMaterialWidgets)
+					{
+						bool bIsNotTriggerNode = GraphMember->GetDataType() != Metasound::GetMetasoundDataTypeName<Metasound::FTrigger>();
+
+						if ((bIsNotTriggerNode && DefaultBool.IsValid()) && DefaultBool->WidgetType != EMetasoundBoolMemberDefaultWidget::None)
+						{
+							constexpr float WidgetPadding = 3.0f;
+							static const FVector2D ButtonDesiredSize = FVector2D(56.0f, 87.0f);
+
+							auto OnBoolValueChangedLambda = [DefaultBool, GraphMember, this](bool Value)
 							{
-								bShowContentWidget = true;
-								constexpr float WidgetPadding = 3.0f;
-								static const FVector2D ButtonDesiredSize = FVector2D(56.0f, 87.0f);
-
-								auto OnboolValueChangedLambda = [DefaultBool, GraphMember, this](bool Value)
-									{
-										if (MaterialButtonWidget.IsValid())
-										{
-											if (!bIsInputWidgetTransacting)
-											{
-												GEditor->BeginTransaction(LOCTEXT("MetasoundGraphNode_MetasoundSetInputDefault", "Set MetaSound Input Default"));
-												bIsInputWidgetTransacting = true;
-											}
-											GraphMember->GetOwningGraph()->GetMetasound()->Modify();
-											DefaultBool->Modify();
-
-											constexpr bool bPostTransaction = true;
-											DefaultBool->SetDefault(Value);
-											GraphMember->UpdateFrontendDefaultLiteral(bPostTransaction);
-										}
-									};
-
-								auto OnboolMouseCaptureEndLambda = [this]()
-									{
-										if (bIsInputWidgetTransacting)
-										{
-											GEditor->EndTransaction();
-											bIsInputWidgetTransacting = false;
-										}
-										else
-										{
-											UE_LOG(LogMetaSound, Warning, TEXT("Unmatched MetaSound editor widget transaction."));
-										}
-									};
-
-								const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
-								check(EditorSettings)
-
-									SAssignNew(MaterialButtonWidget, SAudioMaterialButton)
-									.AudioMaterialButtonStyle(EditorSettings->GetButtonStyle())
-									.OnBooleanValueChanged_Lambda(OnboolValueChangedLambda)
-									.OnMouseCaptureEnd_Lambda(OnboolMouseCaptureEndLambda)
-									.bIsPressedAttribute(DefaultBool->GetDefault());
-
-								SAssignNew(OuterContentBox, SVerticalBox)
-									+ SVerticalBox::Slot()
-									.HAlign(HAlign_Right)
-									.VAlign(VAlign_Center)
-									.AutoHeight()
-									[
-										ContentBox.ToSharedRef()
-									]
-									+ SVerticalBox::Slot()
-									.HAlign(HAlign_Fill)
-									.VAlign(VAlign_Top)
-									.Padding(WidgetPadding, 0.0f, WidgetPadding, WidgetPadding)
-									.AutoHeight()
-									[
-										MaterialButtonWidget.ToSharedRef()										
-									];
-
-								MaterialButtonWidget->SetDesiredSizeOverride(ButtonDesiredSize);
-								MaterialButtonWidget->SetEnabled(TAttribute<bool>::Create([this]()
-									{
-										if (UMetasoundEditorGraphMemberNode* Node = GetMetaSoundMemberNode())
-										{
-											return Node->EnableInteractWidgets();
-										}
-										return false;
-									}));
-
-								// Setup & clear delegate if necessary (ex. if was just saved)
-								if (InputButtonOnStateChangedDelegateHandle.IsValid())
+								if (DefaultBool.IsValid() && MaterialButtonWidget.IsValid())
 								{
-									DefaultBool->OnDefaultStateChanged.Remove(InputButtonOnStateChangedDelegateHandle);
-									InputButtonOnStateChangedDelegateHandle.Reset();
-								}
-
-								InputButtonOnStateChangedDelegateHandle = DefaultBool->OnDefaultStateChanged.AddLambda([Widget = MaterialButtonWidget](bool Value)
+									if (!bIsInputWidgetTransacting)
 									{
-										if (Widget.IsValid())
-										{
-											Widget->SetPressedState(Value);
-										}
-									});
+										GEditor->BeginTransaction(FText::Format(LOCTEXT("MetasoundGraphNode_MetasoundSetBoolInput", "Set MetaSound Input '{0}' Boolean Default"), GraphMember->GetDisplayName()));
+										bIsInputWidgetTransacting = true;
+									}
+
+									FMetaSoundFrontendDocumentBuilder& Builder = GraphMember->GetFrontendBuilderChecked();
+									Builder.CastDocumentObjectChecked<UObject>().Modify();
+									DefaultBool->Modify();
+
+									FMetasoundFrontendLiteral OutputLiteral;
+									OutputLiteral.Set(FloatInputWidget->GetOutputValue(Value));
+
+									const FGuid BuildPageID = Builder.GetBuildPageID();
+									DefaultBool->SetFromLiteral(OutputLiteral, BuildPageID);
+									DefaultBool->OnDefaultStateChanged.Broadcast(Value, BuildPageID);
+
+									constexpr bool bPostTransaction = true;
+									GraphMember->UpdateFrontendDefaultLiteral(bPostTransaction, &BuildPageID);
+								}
+							};
+
+							auto OnBoolMouseCaptureEndLambda = [this]()
+							{
+								if (bIsInputWidgetTransacting)
+								{
+									GEditor->EndTransaction();
+									bIsInputWidgetTransacting = false;
+								}
+								else
+								{
+									UE_LOG(LogMetaSound, Warning, TEXT("Unmatched MetaSound editor widget transaction."));
+								}
+							};
+
+							const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
+							check(EditorSettings);
+
+							SAssignNew(MaterialButtonWidget, SAudioMaterialButton)
+								.AudioMaterialButtonStyle(EditorSettings->GetButtonStyle())
+								.OnBooleanValueChanged_Lambda(OnBoolValueChangedLambda)
+								.OnMouseCaptureEnd_Lambda(OnBoolMouseCaptureEndLambda)
+								.bIsPressedAttribute(DefaultBool->GetDefaultAs<bool>());
+
+							SAssignNew(OuterContentBox, SVerticalBox)
+							+ SVerticalBox::Slot()
+							.HAlign(HAlign_Right)
+							.VAlign(VAlign_Center)
+							.AutoHeight()
+							[
+								ContentBox
+							]
+							+ SVerticalBox::Slot()
+							.HAlign(HAlign_Fill)
+							.VAlign(VAlign_Top)
+							.Padding(WidgetPadding, 0.0f, WidgetPadding, WidgetPadding)
+							.AutoHeight()
+							[
+								MaterialButtonWidget.ToSharedRef()
+							];
+
+							MaterialButtonWidget->SetDesiredSizeOverride(ButtonDesiredSize);
+							MaterialButtonWidget->SetEnabled(GetInputWidgetEnabled());
+
+							// Setup & clear delegate if necessary (ex. if was just saved)
+							if (InputButtonOnStateChangedDelegateHandle.IsValid())
+							{
+								DefaultBool->OnDefaultStateChanged.Remove(InputButtonOnStateChangedDelegateHandle);
+								InputButtonOnStateChangedDelegateHandle.Reset();
 							}
+
+							InputButtonOnStateChangedDelegateHandle = DefaultBool->OnDefaultStateChanged.AddLambda([this, Widget = MaterialButtonWidget](bool bValue, const FGuid& InPageID)
+							{
+								UMetasoundEditorGraphNode& EdNode = GetMetaSoundNode();
+								UObject& MetaSound = EdNode.GetMetasoundChecked();
+								UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(MetaSound);
+								const FGuid& BuildPageID = Builder.GetConstBuilder().GetBuildPageID();
+								if (Widget.IsValid() && BuildPageID == InPageID)
+								{
+									Widget->SetPressedState(bValue);
+								}
+							});
 						}
 					}
 				}
 			}
+
+			return OuterContentBox;
+		}
+
+		TSharedRef<SWidget> SMetaSoundGraphNode::CreateNodeContentArea()
+		{
+			using namespace Engine;
+			using namespace Frontend;
+
+			FConstNodeHandle NodeHandle = GetMetaSoundNode().GetConstNodeHandle();
+			const FMetasoundFrontendClassStyleDisplay& StyleDisplay = NodeHandle->GetClassStyle().Display;
+			TSharedRef<SHorizontalBox> ContentBox = SNew(SHorizontalBox);
+
+			UMetasoundEditorGraphNode& EdNode = GetMetaSoundNode();
+			UObject& MetaSound = EdNode.GetMetasoundChecked();
+			UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(MetaSound);
+
+			TSharedPtr<SWidget> InputContent = CreateInputNodeContentArea(Builder.GetConstBuilder(), ContentBox);
 	
 			// Gives more space for user to grab a bit easier as variables do not have any title area nor icon
 			const float GrabPadding = IsVariableMutator() ? 28.0f : 0.0f;
@@ -1216,7 +1269,7 @@ namespace Metasound
 				.VAlign(VAlign_Fill)
 				.Padding(FMargin(0,3))
 				[
-					(bShowContentWidget ? OuterContentBox : ContentBox).ToSharedRef()
+					InputContent.IsValid() ? InputContent.ToSharedRef() : ContentBox
 				];
 		}
 

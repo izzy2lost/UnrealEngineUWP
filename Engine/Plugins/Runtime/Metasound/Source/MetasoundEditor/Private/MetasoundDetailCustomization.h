@@ -112,7 +112,6 @@ namespace Metasound
 
 			TSet<FName> ImplementedInterfaceNames;
 			TSharedPtr<SSearchableComboBox> InterfaceComboBox;
-			TAttribute<bool> IsGraphEditableAttribute;
 		};
 	} // namespace Editor
 } // namespace Metasound

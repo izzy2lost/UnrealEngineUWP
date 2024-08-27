@@ -949,23 +949,11 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassInputDefault
 	GENERATED_BODY()
 
 	FMetasoundFrontendClassInputDefault() = default;
+	FMetasoundFrontendClassInputDefault(FMetasoundFrontendLiteral InLiteral);
+	FMetasoundFrontendClassInputDefault(const FGuid& InPageID, FMetasoundFrontendLiteral InLiteral = { });
+	FMetasoundFrontendClassInputDefault(const FAudioParameter& InParameter);
 
-	FMetasoundFrontendClassInputDefault(const FMetasoundFrontendLiteral& InLiteral)
-		: Literal(InLiteral)
-		, PageID(Metasound::Frontend::DefaultPageID)
-	{
-	}
-
-	FMetasoundFrontendClassInputDefault(const FGuid& InPageID, FMetasoundFrontendLiteral InLiteral = { })
-		: Literal(MoveTemp(InLiteral))
-		, PageID(InPageID)
-	{
-	}
-
-	FMetasoundFrontendClassInputDefault(const FAudioParameter& InParameter)
-		: Literal(InParameter)
-	{
-	}
+	static bool IsFunctionalEquivalent(const FMetasoundFrontendClassInputDefault& InLHS, const FMetasoundFrontendClassInputDefault& InRHS);
 
 	UPROPERTY()
 	FMetasoundFrontendLiteral Literal;
@@ -988,6 +976,8 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassInput : public FMetasoundFro
 	UPROPERTY(meta = (DeprecationMessage = "5.5 - Direct access will be revoked and page manipulation limited to public API in future builds. Field has been rolled into DefaultLiterals Array."))
 	FMetasoundFrontendLiteral DefaultLiteral;
 #endif // WITH_EDITORONLY_DATA
+
+	static bool IsFunctionalEquivalent(const FMetasoundFrontendClassInput& InLHS, const FMetasoundFrontendClassInput& InRHS);
 
 private:
 	UPROPERTY(EditAnywhere, Category = Parameters)
@@ -1786,14 +1776,18 @@ class METASOUNDFRONTEND_API UMetaSoundFrontendMemberMetadata : public UObject
 {
 	GENERATED_BODY()
 
-#if WITH_EDITOR
 public:
+	UE_DEPRECATED(5.5, "Implementation moved to child editor class instead of compiled out (not required by Frontend representation")
 	virtual void ForceRefresh() { }
-	virtual FMetasoundFrontendLiteral GetDefault() const { return FMetasoundFrontendLiteral(); }
-	virtual void IterateDefaults(TFunctionRef<void(const FGuid&, FMetasoundFrontendLiteral)> Iter) const;
+
+	UE_DEPRECATED(5.5, "Default is no longer required to be stored or represented in metadata and may differ in paged or non-paged implementation")
+	FMetasoundFrontendLiteral GetDefault() const { return FMetasoundFrontendLiteral(); }
+
+	UE_DEPRECATED(5.5, "Implementation moved to child editor class instead of compiled out (not required by Frontend representation")
 	virtual EMetasoundFrontendLiteralType GetLiteralType() const { return EMetasoundFrontendLiteralType::None; }
-	virtual void SetFromLiteral(const FMetasoundFrontendLiteral& InLiteral) { }
-#endif // WITH_EDITOR
+
+	UE_DEPRECATED(5.5, "Default is no longer required to be stored or represented in metadata and may differ in paged or non-paged implementation")
+	virtual void SetFromLiteral(const FMetasoundFrontendLiteral& InLiteral, const FGuid& InPageID = Metasound::Frontend::DefaultPageID) { }
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()

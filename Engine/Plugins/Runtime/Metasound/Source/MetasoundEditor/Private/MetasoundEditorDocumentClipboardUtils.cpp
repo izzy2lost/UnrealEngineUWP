@@ -39,18 +39,18 @@ namespace Metasound::Editor
 				bool bNameMatchFound = false;
 				const FMetasoundEditorGraphVertexNodeBreadcrumb& Breadcrumb = InputNode->GetBreadcrumb();
 				Graph.IterateInputs([&Input, &InputNode, &Graph, &Breadcrumb, &bNameMatchFound](UMetasoundEditorGraphInput& TestInput)
+				{
+					FConstNodeHandle InputHandle = TestInput.GetConstNodeHandle();
+					FConstOutputHandle TestOutput = InputHandle->GetConstOutputs().Last();
+					const bool bTypeMatches = TestOutput->GetDataType() == Breadcrumb.DataType;
+					const bool bAccessMatches = TestOutput->GetVertexAccessType() == Breadcrumb.AccessType;
+					const bool bNameMatches = InputHandle->GetNodeName() == Breadcrumb.MemberName;
+					bNameMatchFound |= bNameMatches;
+					if (bTypeMatches && bAccessMatches && bNameMatches)
 					{
-						FConstNodeHandle InputHandle = TestInput.GetConstNodeHandle();
-						FConstOutputHandle TestOutput = InputHandle->GetConstOutputs().Last();
-						const bool bTypeMatches = TestOutput->GetDataType() == Breadcrumb.DataType;
-						const bool bAccessMatches = TestOutput->GetVertexAccessType() == Breadcrumb.AccessType;
-						const bool bNameMatches = InputHandle->GetNodeName() == Breadcrumb.MemberName;
-						bNameMatchFound |= bNameMatches;
-						if (bTypeMatches && bAccessMatches && bNameMatches)
-						{
-							Input = &TestInput;
-						}
-					});
+						Input = &TestInput;
+					}
+				});
 
 				if (!Input)
 				{
@@ -67,7 +67,13 @@ namespace Metasound::Editor
 							FCreateNodeVertexParams VertexParams;
 							VertexParams.DataType = Breadcrumb.DataType;
 
-							FMetasoundFrontendClassInput ClassInput = FGraphBuilder::CreateUniqueClassInput(*OutAsset.GetOwningAsset(), VertexParams, &Breadcrumb.DefaultLiterals.FindChecked(Frontend::DefaultPageID), &Breadcrumb.MemberName);
+							TArray<FMetasoundFrontendClassInputDefault> InputDefaults;
+							Algo::Transform(Breadcrumb.DefaultLiterals, InputDefaults, [](const TPair<FGuid, FMetasoundFrontendLiteral>& Pair)
+							{
+								return FMetasoundFrontendClassInputDefault(Pair.Key, Pair.Value);
+							});
+
+							FMetasoundFrontendClassInput ClassInput = FGraphBuilder::CreateUniqueClassInput(*OutAsset.GetOwningAsset(), VertexParams, InputDefaults, &Breadcrumb.MemberName);
 							if (const FMetasoundFrontendNode* NewNode = Builder.AddGraphInput(ClassInput))
 							{
 								Input = Graph.FindOrAddInput(NewNode->GetID());

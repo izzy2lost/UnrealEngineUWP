@@ -4,6 +4,8 @@
 #include "DetailCategoryBuilder.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
+#include "IDetailPropertyRow.h"
+#include "MetasoundDefaultLiteralCustomization.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendLiteral.h"
 #include "MetasoundFrontendRegistries.h"
@@ -15,10 +17,13 @@
 // Forward Declarations
 class IDetailLayoutBuilder;
 class IDetailPropertyRow;
+class IPropertyHandle;
+class SSearchableComboBox;
 class UEdGraphPin;
 class UMetasoundEditorGraph;
 class UMetasoundEditorGraphMemberDefaultLiteral;
 class UMetasoundEditorGraphNode;
+
 namespace Metasound::Engine 
 {
 	enum class EAssetScanStatus : uint8;
@@ -48,32 +53,6 @@ namespace Metasound
 			const FLinearColor* PinColor = nullptr;
 			const FSlateBrush* PinConnectedIcon = nullptr;
 			const FSlateBrush* PinDisconnectedIcon = nullptr;
-		};
-
-		class METASOUNDEDITOR_API FMetasoundDefaultLiteralCustomizationBase
-		{
-		protected:
-			IDetailCategoryBuilder* DefaultCategoryBuilder = nullptr;
-
-		public:
-			FMetasoundDefaultLiteralCustomizationBase(IDetailCategoryBuilder& InDefaultCategoryBuilder)
-				: DefaultCategoryBuilder(&InDefaultCategoryBuilder)
-			{
-			}
-
-			virtual ~FMetasoundDefaultLiteralCustomizationBase() = default;
-
-			// Customizes the given literal for the provided DetailLayoutBuilder.
-			// @return the DetailPropertyRow created for the default parameter set by this customization.
-			virtual TArray<IDetailPropertyRow*> CustomizeLiteral(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout) { return { }; };
-		};
-
-		class METASOUNDEDITOR_API IMemberDefaultLiteralCustomizationFactory
-		{
-		public:
-			virtual ~IMemberDefaultLiteralCustomizationFactory() = default;
-
-			virtual TUniquePtr<FMetasoundDefaultLiteralCustomizationBase> CreateLiteralCustomization(IDetailCategoryBuilder& DefaultCategoryBuilder) const = 0;
 		};
 
 

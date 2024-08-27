@@ -961,18 +961,12 @@ namespace Metasound
 				}
 			}
 
-			Algo::Transform(OutInterfaceUpdates.RegistryClass.Interface.Inputs, OutInterfaceUpdates.AddedInputs, [&](const FMetasoundFrontendClassInput& Input) { return &Input; });
+			Algo::Transform(OutInterfaceUpdates.RegistryClass.Interface.Inputs, OutInterfaceUpdates.AddedInputs, [](const FMetasoundFrontendClassInput& Input) { return &Input; });
 			for (const FMetasoundFrontendClassInput& Input : NodeClassInterface.Inputs)
 			{
-				const FMetasoundFrontendLiteral& NodeClassDefault = Input.FindConstDefaultChecked(Frontend::DefaultPageID);
-				auto IsEquivalent = [&NodeClassDefault, &Input](const FMetasoundFrontendClassInput* Iter)
+				auto IsEquivalent = [&Input](const FMetasoundFrontendClassInput* RegistryInput)
 				{
-					const bool bDefaultEquivalent = Iter->FindConstDefaultChecked(Frontend::DefaultPageID).IsEqual(NodeClassDefault);
-					if (bDefaultEquivalent)
-					{
-						return FMetasoundFrontendClassVertex::IsFunctionalEquivalent(Input, *Iter);
-					}
-					return false;
+					return FMetasoundFrontendClassInput::IsFunctionalEquivalent(Input, *RegistryInput);
 				};
 
 				const int32 Index = OutInterfaceUpdates.AddedInputs.FindLastByPredicate(IsEquivalent);
@@ -986,12 +980,13 @@ namespace Metasound
 				}
 			}
 
-			Algo::Transform(OutInterfaceUpdates.RegistryClass.Interface.Outputs, OutInterfaceUpdates.AddedOutputs, [&](const FMetasoundFrontendClassOutput& Output) { return &Output; });
+
+			Algo::Transform(OutInterfaceUpdates.RegistryClass.Interface.Outputs, OutInterfaceUpdates.AddedOutputs, [](const FMetasoundFrontendClassOutput& Output) { return &Output; });
 			for (const FMetasoundFrontendClassOutput& Output : NodeClassInterface.Outputs)
 			{
-				auto IsFunctionalEquivalent = [NodeClassOutput = &Output](const FMetasoundFrontendClassOutput* Iter)
+				auto IsFunctionalEquivalent = [&Output](const FMetasoundFrontendClassOutput* Iter)
 				{
-					return FMetasoundFrontendClassVertex::IsFunctionalEquivalent(*NodeClassOutput, *Iter);
+					return FMetasoundFrontendClassVertex::IsFunctionalEquivalent(Output, *Iter);
 				};
 
 				const int32 Index = OutInterfaceUpdates.AddedOutputs.FindLastByPredicate(IsFunctionalEquivalent);

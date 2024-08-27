@@ -180,7 +180,7 @@ namespace Metasound
 			static FMetasoundFrontendClassInput CreateUniqueClassInput(
 				UObject& InMetaSound,
 				const FCreateNodeVertexParams& InVertexParams,
-				const FMetasoundFrontendLiteral* InDefaultValue = nullptr,
+				const TArray<FMetasoundFrontendClassInputDefault>& InDefaultLiterals = { },
 				const FName* InNameBase = nullptr);
 
 			// Creates a unique class output with the given default data. Output is not assigned a NodeID.

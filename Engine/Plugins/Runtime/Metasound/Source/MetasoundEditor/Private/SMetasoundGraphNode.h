@@ -64,26 +64,31 @@ namespace Metasound::Editor
 		FLinearColor GetNodeTitleColorOverride() const;
 
 		FName GetLiteralDataType() const;
-		UMetasoundEditorGraphNode& GetMetaSoundNode();
-		const UMetasoundEditorGraphNode& GetMetaSoundNode() const;
+		UMetasoundEditorGraphNode& GetMetaSoundNode() const;
 
 	public:
 		static void ExecuteTrigger(UMetasoundEditorGraphMemberDefaultLiteral& Literal);
 		static TSharedRef<SWidget> CreateTriggerSimulationWidget(UMetasoundEditorGraphMemberDefaultLiteral& Literal, TAttribute<EVisibility>&& InVisibility, TAttribute<bool>&& InEnablement, const FText* InToolTip = nullptr);
 
 	private:
+		// Returns attribute that returns whether or not the input widget should be enabled.
+		TAttribute<bool> GetInputWidgetEnabled() const;
+
 		// If this node represents a graph member node, returns corresponding member.
 		UMetasoundEditorGraphMember* GetMetaSoundMember();
 
 		// If this node represents a graph member node, returns cast node.
-		UMetasoundEditorGraphMemberNode* GetMetaSoundMemberNode();
+		UMetasoundEditorGraphMemberNode* GetMetaSoundMemberNode() const;
 
 		TAttribute<EVisibility> GetSimulationVisibilityAttribute() const;
 
-		// Slider widget for float input
-		TSharedPtr<SAudioInputWidget> InputWidget;
+		// Input node should be moved to own implementation
+		TSharedPtr<SWidget> CreateInputNodeContentArea(const FMetaSoundFrontendDocumentBuilder& InBuilder, TSharedRef<SHorizontalBox> ContentBox);
 
-		//Button Widget for bool input.
+		// Slider widget for float input
+		TSharedPtr<SAudioInputWidget> FloatInputWidget;
+
+		// Button Widget for bool input.
 		TSharedPtr<SAudioMaterialButton> MaterialButtonWidget;
 
 		// Handle for on state changed delegate for Button 

@@ -443,7 +443,7 @@ namespace Metasound::Editor
 					UpdateItemNames();
 					ComboBox->RefreshOptions();
 					FGraphBuilder::RegisterGraphWithFrontend(MetaSound);
-				}), LOCTEXT("ResetGraphPagesTooltip", "Removes all page graphs from the given MetaSound less the default."))
+				}), LOCTEXT("ResetGraphPagesTooltip", "Removes all page graphs from the given MetaSound defined in the MetaSound project settings (does not remove the required 'Default' graph)."))
 			];
 
 		Utilities->SetEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMetaSoundDetailCustomizationBase::IsGraphEditable)));
@@ -738,6 +738,7 @@ namespace Metasound::Editor
 		{
 			return;
 		}
+
 		if (UMetasoundInterfacesView* InterfacesView = CastChecked<UMetasoundInterfacesView>(Objects.Last()))
 		{
 			if (UObject* MetaSound = InterfacesView->GetMetasound())
@@ -745,6 +746,11 @@ namespace Metasound::Editor
 				InitBuilder(*MetaSound);
 			}
 		}
+
+		TAttribute<bool> IsGraphEditableAttribute = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP
+		(
+			this, &FMetaSoundDetailCustomizationBase::IsGraphEditable
+		));
 
 		UpdateInterfaceNames();
 

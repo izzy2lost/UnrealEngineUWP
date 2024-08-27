@@ -988,7 +988,9 @@ void UMetasoundEditorGraphOutputNode::CacheBreadcrumb()
 
 		if (const UMetasoundEditorGraphMemberDefaultLiteral* Literal = Output->GetLiteral())
 		{
-			Breadcrumb.DefaultLiterals.Add(Metasound::Frontend::DefaultPageID, Literal->GetDefault());
+			FMetasoundFrontendLiteral DefaultLiteral;
+			Literal->TryFindDefault(DefaultLiteral);
+			Breadcrumb.DefaultLiterals.Add(Metasound::Frontend::DefaultPageID, DefaultLiteral);
 		}
 	}
 }

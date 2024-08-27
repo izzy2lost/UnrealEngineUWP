@@ -16,6 +16,7 @@
 #include "MetasoundEditorGraphValidation.h"
 #include "MetasoundEditorModule.h"
 #include "MetasoundEditorSubsystem.h"
+#include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendSearchEngine.h"
@@ -50,10 +51,10 @@ namespace Metasound::Editor
 			return *FString::Printf(TEXT("Member_%s"), *FGuid::NewGuid().ToString());
 		}
 
-		void OnLiteralChanged(UMetasoundEditorGraphMember& InMember, EPropertyChangeType::Type InChangeType)
+		void OnLiteralChanged(UMetasoundEditorGraphMember& InMember, const FGuid* InPageID, EPropertyChangeType::Type InChangeType)
 		{
 			constexpr bool bPostTransaction = false;
-			InMember.UpdateFrontendDefaultLiteral(bPostTransaction);
+			InMember.UpdateFrontendDefaultLiteral(bPostTransaction, InPageID);
 
 			const bool bCommitChange = InChangeType != EPropertyChangeType::Interactive;
 			if (bCommitChange)
@@ -69,9 +70,44 @@ namespace Metasound::Editor
 			}
 		}
 
-		void SetAndUpdatePreviewLiteral(FMetaSoundFrontendDocumentBuilder& Builder, UMetasoundEditorGraph* MetaSoundGraph, FName MemberName, UMetasoundEditorGraphMemberDefaultLiteral& Literal)
+		// Avoids member literal setting the node literal if its not required (which in turn
+		// avoids 'Reset To Default' action from being enabled when the default is equal)
+		void SetOrClearIfLiteralMatchesNodeVertexDefault(FMetaSoundFrontendDocumentBuilder& InBuilder, const FMetasoundFrontendVertexHandle& VertexHandle, const FMetasoundFrontendLiteral& InDefaultLiteral)
 		{
-			Builder.SetGraphInputDefault(MemberName, Literal.GetDefault());
+			const FMetasoundFrontendVertex* Vertex = InBuilder.FindNodeInput(VertexHandle.NodeID, VertexHandle.VertexID);
+			check(Vertex);
+
+			bool bClearLiteral = false;
+			const TArray<FMetasoundFrontendClassInputDefault>* ClassDefaults = InBuilder.FindNodeClassInputDefaults(VertexHandle.NodeID, Vertex->Name);
+			if (ClassDefaults)
+			{
+				const FGuid PageID = Engine::FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(*ClassDefaults);
+				auto MatchesPageID = [&PageID](const FMetasoundFrontendClassInputDefault& InputDefault) { return InputDefault.PageID == PageID; };
+				if (const FMetasoundFrontendClassInputDefault* ClassDefault = ClassDefaults->FindByPredicate(MatchesPageID))
+				{
+					bClearLiteral = ClassDefault->Literal.IsEqual(InDefaultLiteral);
+				}
+			}
+
+			if (!bClearLiteral)
+			{
+				FMetasoundFrontendLiteral DefaultTypeLiteral;
+				DefaultTypeLiteral.SetFromLiteral(Frontend::IDataTypeRegistry::Get().CreateDefaultLiteral(Vertex->TypeName));
+				bClearLiteral = InDefaultLiteral.IsEqual(DefaultTypeLiteral);
+			}
+
+			if (bClearLiteral)
+			{
+				InBuilder.RemoveNodeInputDefault(VertexHandle.NodeID, VertexHandle.VertexID);
+			}
+			else
+			{
+				InBuilder.SetNodeInputDefault(VertexHandle.NodeID, VertexHandle.VertexID, InDefaultLiteral);
+			}
+		}
+
+		void UpdatePreviewParameter(UMetasoundEditorGraph* MetaSoundGraph, FName MemberName, UMetasoundEditorGraphMemberDefaultLiteral& Literal)
+		{
 			if (GEditor)
 			{
 				if (MetaSoundGraph && MetaSoundGraph->IsPreviewing())
@@ -84,35 +120,6 @@ namespace Metasound::Editor
 						Literal.UpdatePreviewInstance(MemberName, ParamInterface);
 					}
 				}
-			}
-		}
-
-		void SetLiteralOrClearIfMatchesDefault(Frontend::FInputHandle& InInputHandle, const FMetasoundFrontendLiteral& InDefaultLiteral)
-		{
-			using namespace Frontend;
-
-			// Avoids member literal setting the node literal if its not required (which in turn
-			// avoids 'Reset To Default' action from being enabled when the default is equal)
-			bool bClearLiteral = false;
-			if (const FMetasoundFrontendLiteral* ClassDefault = InInputHandle->GetClassDefaultLiteral())
-			{
-				bClearLiteral = ClassDefault->IsEqual(InDefaultLiteral);
-			}
-
-			if (!bClearLiteral)
-			{
-				FMetasoundFrontendLiteral DefaultTypeLiteral;
-				DefaultTypeLiteral.SetFromLiteral(IDataTypeRegistry::Get().CreateDefaultLiteral(InInputHandle->GetDataType()));
-				bClearLiteral = InDefaultLiteral.IsEqual(DefaultTypeLiteral);
-			}
-
-			if (bClearLiteral)
-			{
-				InInputHandle->ClearLiteral();
-			}
-			else
-			{
-				InInputHandle->SetLiteral(InDefaultLiteral);
 			}
 		}
 	} // namespace GraphPrivate
@@ -188,27 +195,24 @@ void UMetasoundEditorGraphMember::PostEditUndo()
 
 	if (IsValid(this))
 	{
-		SetDataType(TypeName);
-
 		constexpr bool bPostTransaction = false;
+		SetDataType(TypeName, bPostTransaction);
 		UpdateFrontendDefaultLiteral(bPostTransaction);
-
-		if (UMetasoundEditorGraph* Graph = GetOwningGraph())
-		{
-			if (IsValid(Graph))
-			{
-				UObject* MetaSound = Graph->GetMetasound();
-				if (IsValid(MetaSound))
-				{
-					FMetasoundAssetBase* MetasoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(MetaSound);
-					check(MetasoundAsset);
-					MetasoundAsset->GetModifyContext().SetDocumentModified();
-				}
-			}
-		}
 	}
 }
 #endif // WITH_EDITOR
+
+bool UMetasoundEditorGraphMember::Synchronize()
+{
+	bool bModified = false;
+	if (!Literal)
+	{
+		bModified = true;
+		InitializeLiteral();
+	}
+
+	return bModified;
+}
 
 void UMetasoundEditorGraphVertex::InitMember(FName InDataType, const FMetasoundFrontendLiteral& InDefaultLiteral, FGuid InNodeID, FMetasoundFrontendClassName&& InClassName)
 {
@@ -572,12 +576,44 @@ bool UMetasoundEditorGraphVertex::CanRename(const FText& InNewText, FText& OutEr
 	return bIsNameValid;
 }
 
-const UMetasoundEditorGraphMember* UMetasoundEditorGraphMemberDefaultLiteral::FindMember() const
+bool UMetasoundEditorGraphVertex::Synchronize()
+{
+	bool bModified = Super::Synchronize();
+
+	if (const FMetasoundFrontendClassVertex* Vertex = GetFrontendClassVertex(); ensure(Vertex))
+	{
+		if (TypeName != Vertex->TypeName)
+		{
+			bModified = true;
+			TypeName = Vertex->TypeName;
+
+			InitializeLiteral();
+		}
+
+		FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();
+		if (const FMetasoundFrontendNode* Node = Builder.FindNode(NodeID); ensure(Node))
+		{
+			if (const FMetasoundFrontendClass* Class = Builder.FindDependency(Node->ClassID); ensure(Class))
+			{
+				const FMetasoundFrontendClassName& FrontendClassName = Class->Metadata.GetClassName();
+				if (ClassName != FrontendClassName)
+				{
+					bModified = true;
+					ClassName = FrontendClassName;
+				}
+			}
+		}
+	}
+
+	return bModified;
+}
+
+UMetasoundEditorGraphMember* UMetasoundEditorGraphMemberDefaultLiteral::FindMember() const
 {
 	using namespace Metasound;
 
 	const FMetasoundAssetBase& MetaSound = Editor::FGraphBuilder::GetOutermostConstMetaSoundChecked(*this);
-	if (const UMetasoundEditorGraph* Graph = Cast<UMetasoundEditorGraph>(MetaSound.GetGraph()))
+	if (UMetasoundEditorGraph* Graph = Cast<UMetasoundEditorGraph>(MetaSound.GetGraph()))
 	{
 		return Graph->FindMember(MemberID);
 	}
@@ -585,18 +621,50 @@ const UMetasoundEditorGraphMember* UMetasoundEditorGraphMemberDefaultLiteral::Fi
 	return nullptr;
 }
 
-UMetasoundEditorGraphMember* UMetasoundEditorGraphMemberDefaultLiteral::FindMember()
+void UMetasoundEditorGraphMemberDefaultLiteral::ForceRefresh()
 {
-	using namespace Metasound;
+}
 
-	FMetasoundAssetBase* MetasoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(GetOutermostObject());
-	check(MetasoundAsset);
-	if (UMetasoundEditorGraph* Graph = Cast<UMetasoundEditorGraph>(MetasoundAsset->GetGraph()))
+FName UMetasoundEditorGraphMemberDefaultLiteral::GetDataType() const
+{
+	return { };
+}
+
+EMetasoundFrontendLiteralType UMetasoundEditorGraphMemberDefaultLiteral::GetLiteralType() const
+{
+	return EMetasoundFrontendLiteralType::None;
+}
+
+void UMetasoundEditorGraphMemberDefaultLiteral::InitDefault(const FGuid& InPageID)
+{
+}
+
+void UMetasoundEditorGraphMemberDefaultLiteral::IterateDefaults(TFunctionRef<void(const FGuid&, FMetasoundFrontendLiteral)> Iter) const
+{
+	FMetasoundFrontendLiteral Literal;
+	if (TryFindDefault(Literal))
 	{
-		return Graph->FindMember(MemberID);
+		Iter(Metasound::Frontend::DefaultPageID, MoveTemp(Literal));
 	}
+}
 
-	return nullptr;
+bool UMetasoundEditorGraphMemberDefaultLiteral::RemoveDefault(const FGuid& InPageID)
+{
+	return false;
+}
+
+void UMetasoundEditorGraphMemberDefaultLiteral::ResetDefaults()
+{
+}
+
+void UMetasoundEditorGraphMemberDefaultLiteral::SetFromLiteral(const FMetasoundFrontendLiteral& InLiteral, const FGuid& InPageID)
+{
+}
+
+bool UMetasoundEditorGraphMemberDefaultLiteral::TryFindDefault(FMetasoundFrontendLiteral& OutLiteral, const FGuid* InPageID) const
+{
+	OutLiteral = { };
+	return true;
 }
 
 #if WITH_EDITOR
@@ -604,15 +672,28 @@ void UMetasoundEditorGraphMemberDefaultLiteral::PostEditChangeProperty(FProperty
 {
 	if (UMetasoundEditorGraphMember* Member = FindMember())
 	{
-		Metasound::Editor::GraphPrivate::OnLiteralChanged(*Member, InPropertyChangedEvent.ChangeType);
+		Metasound::Editor::GraphPrivate::OnLiteralChanged(*Member, nullptr, InPropertyChangedEvent.ChangeType);
 	}
 }
 
 void UMetasoundEditorGraphMemberDefaultLiteral::PostEditChangeChainProperty(FPropertyChangedChainEvent& InPropertyChangedEvent)
 {
+	if (const FEditPropertyChain::TDoubleLinkedListNode* MemberNode = InPropertyChangedEvent.PropertyChain.GetActiveMemberNode())
+	{
+		if (const FProperty* ChildProperty = MemberNode->GetValue())
+		{
+			const FName ChildPropertyName = ChildProperty->GetFName();
+			if (ChildPropertyName.IsEqual(GetDefaultsPropertyName()) || ChildPropertyName.IsEqual(GetDefaultPropertyName()))
+			{
+				ResolvePageDefaults();
+				SortPageDefaults();
+			}
+		}
+	}
+
 	if (UMetasoundEditorGraphMember* Member = FindMember())
 	{
-		Metasound::Editor::GraphPrivate::OnLiteralChanged(*Member, InPropertyChangedEvent.ChangeType);
+		Metasound::Editor::GraphPrivate::OnLiteralChanged(*Member, nullptr, InPropertyChangedEvent.ChangeType);
 	}
 }
 
@@ -631,10 +712,35 @@ void UMetasoundEditorGraphMemberDefaultLiteral::PostEditUndo()
 	if (UMetasoundEditorGraphMember* Member = FindMember())
 	{
 		Member->UpdateFrontendDefaultLiteral(bPostTransaction);
-		FGraphBuilder::GetOutermostMetaSoundChecked(*this).GetModifyContext().SetDocumentModified();
 	}
 }
 #endif // WITH_EDITOR
+
+bool UMetasoundEditorGraphMemberDefaultLiteral::TryGetPreviewPageID(FGuid& OutPreviewPageID) const
+{
+	using namespace Metasound::Engine;
+
+	const UMetasoundEditorGraphMember* Member = FindMember();
+	if (!ensure(Member))
+	{
+		OutPreviewPageID = Metasound::Frontend::DefaultPageID;
+		return false;
+	}
+
+	const FMetaSoundFrontendDocumentBuilder& Builder = Member->GetFrontendBuilderChecked();
+	if (const FMetasoundFrontendClassInput* Input = Builder.FindGraphInput(Member->GetMemberName()))
+	{
+		const FGuid PageID = FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(*Input);
+		if (PageID == Builder.GetBuildPageID())
+		{
+			OutPreviewPageID = PageID;
+			return true;
+		}
+	}
+
+	OutPreviewPageID = Metasound::Frontend::DefaultPageID;
+	return false;
+}
 
 Metasound::Editor::ENodeSection UMetasoundEditorGraphInput::GetSectionID() const 
 {
@@ -656,7 +762,7 @@ Metasound::Frontend::FNodeHandle UMetasoundEditorGraphInput::AddNodeHandle(const
 	FMetasoundAssetBase* MetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSound);
 	check(MetaSoundAsset);
 
-	FMetasoundFrontendClassInput ClassInput = FGraphBuilder::CreateUniqueClassInput(MetaSound, InParams, nullptr, &InName);
+	FMetasoundFrontendClassInput ClassInput = FGraphBuilder::CreateUniqueClassInput(MetaSound, InParams, { }, &InName);
 	return MetaSoundAsset->GetRootGraphHandle()->AddInputVertex(ClassInput);
 }
 
@@ -681,6 +787,11 @@ const FText& UMetasoundEditorGraphInput::GetGraphMemberLabel() const
 {
 	static const FText Label = LOCTEXT("GraphMemberLabel_Input", "Input");
 	return Label;
+}
+
+const FMetasoundFrontendClassVertex* UMetasoundEditorGraphInput::GetFrontendClassVertex() const
+{
+	return GetFrontendBuilderChecked().FindGraphInput(GetMemberName());
 }
 
 FText UMetasoundEditorGraphInput::GetDescription() const
@@ -727,6 +838,11 @@ TArray<UMetasoundEditorGraphMemberNode*> UMetasoundEditorGraphInput::GetNodes() 
 	}
 
 	return Nodes;
+}
+
+bool UMetasoundEditorGraphInput::IsDefaultPaged() const
+{
+	return true;
 }
 
 bool UMetasoundEditorGraphInput::IsInterfaceMember(FMetasoundFrontendInterface* OutInterface) const
@@ -779,8 +895,8 @@ void UMetasoundEditorGraphInput::SetSortOrderIndex(int32 InSortOrderIndex)
 
 void UMetasoundEditorGraphInput::ResetToClassDefault()
 {
+	using namespace Metasound;
 	using namespace Metasound::Editor;
-	using namespace Metasound::Frontend;
 
 	if (ensure(Literal))
 	{
@@ -789,12 +905,13 @@ void UMetasoundEditorGraphInput::ResetToClassDefault()
 		Builder.CastDocumentObjectChecked<UObject>().Modify();
 		Literal->Modify();
 
-		FMetasoundFrontendLiteral DefaultLiteral;
-		DefaultLiteral.SetFromLiteral(IDataTypeRegistry::Get().CreateDefaultLiteral(GetDataType()));
-		Literal->SetFromLiteral(DefaultLiteral);
-
 		const FName MemberName = GetMemberName();
-		GraphPrivate::SetAndUpdatePreviewLiteral(Builder, GetOwningGraph(), MemberName, *Literal);
+		Builder.ResetGraphInputDefault(MemberName);
+
+		constexpr bool bPostTransaction = false;
+		UpdateFrontendDefaultLiteral(bPostTransaction);
+
+		GraphPrivate::UpdatePreviewParameter(GetOwningGraph(), MemberName, *Literal);
 	}
 }
 
@@ -813,13 +930,20 @@ void UMetasoundEditorGraphInput::SetDataType(FName InNewType, bool bPostTransact
 			Graph->Modify();
 			Modify();
 
-			EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
-			Graph->GetBuilderChecked().SetGraphInputDataType(GetMemberName(), InNewType, Result);
-			ensure(Result == EMetaSoundBuilderResult::Succeeded);
+			FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();
+			const bool bSuccess = Builder.SetGraphInputDataType(GetMemberName(), InNewType);
+			ensure(bSuccess);
 
 			// Cached TypeName here must be set prior to re-initializing literal below
 			TypeName = InNewType;
-			ClassName = GetConstNodeHandle()->GetClassMetadata().GetClassName();
+
+			if (const FMetasoundFrontendNode* Node = Builder.FindNode(NodeID); ensure(Node))
+			{
+				if (const FMetasoundFrontendClass* Dependency = Builder.FindDependency(Node->ClassID); ensure(Dependency))
+				{
+					ClassName = Dependency->Metadata.GetClassName();
+				}
+			}
 
 			InitializeLiteral();
 
@@ -867,7 +991,19 @@ void UMetasoundEditorGraphInput::SetMemberName(const FName& InNewName, bool bPos
 	Super::SetMemberName(InNewName, bPostTransaction);
 }
 
-void UMetasoundEditorGraphInput::UpdateFrontendDefaultLiteral(bool bPostTransaction)
+bool UMetasoundEditorGraphInput::Synchronize()
+{
+	bool bModified = Super::Synchronize();
+
+	if (ensure(Literal))
+	{
+		bModified |= Literal->Synchronize();
+	}
+
+	return bModified;
+}
+
+void UMetasoundEditorGraphInput::UpdateFrontendDefaultLiteral(bool bPostTransaction, const FGuid* InPageID)
 {
 	using namespace Metasound::Editor;
 
@@ -875,12 +1011,30 @@ void UMetasoundEditorGraphInput::UpdateFrontendDefaultLiteral(bool bPostTransact
 	{
 		FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();
 
-		const FScopedTransaction Transaction(LOCTEXT("Set Input Default", "Set MetaSound Input Default"), bPostTransaction);
+		const FScopedTransaction Transaction(FText::Format(LOCTEXT("Set Input Defaults", "Set MetaSound Input '{0}' Default(s)"), GetDisplayName()), bPostTransaction);
 		Builder.CastDocumentObjectChecked<UObject>().Modify();
 		Literal->Modify();
 
 		const FName MemberName = GetMemberName();
-		GraphPrivate::SetAndUpdatePreviewLiteral(Builder, GetOwningGraph(), MemberName, *Literal);
+		if (InPageID)
+		{
+			FMetasoundFrontendLiteral Default;
+			if (Literal->TryFindDefault(Default, InPageID))
+			{
+				Builder.SetGraphInputDefault(MemberName, Default, InPageID);
+			}
+		}
+		else
+		{
+			TArray<FMetasoundFrontendClassInputDefault> NewDefaults;
+			Literal->IterateDefaults([&NewDefaults](const FGuid& PageID, FMetasoundFrontendLiteral Default)
+			{
+				NewDefaults.Add(FMetasoundFrontendClassInputDefault(PageID, MoveTemp(Default)));
+			});
+			Builder.SetGraphInputDefaults(MemberName, MoveTemp(NewDefaults));
+		}
+
+		GraphPrivate::UpdatePreviewParameter(GetOwningGraph(), MemberName, *Literal);
 	}
 }
 
@@ -933,6 +1087,11 @@ FText UMetasoundEditorGraphOutput::GetDescription() const
 	}
 
 	return { };
+}
+
+const FMetasoundFrontendClassVertex* UMetasoundEditorGraphOutput::GetFrontendClassVertex() const
+{
+	return GetFrontendBuilderChecked().FindGraphOutput(GetMemberName());
 }
 
 int32 UMetasoundEditorGraphOutput::GetSortOrderIndex() const
@@ -1009,23 +1168,16 @@ void UMetasoundEditorGraphOutput::ResetToClassDefault()
 	using namespace Metasound::Editor;
 	using namespace Metasound::Frontend;
 
+	FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();
 	TArray<UMetasoundEditorGraphMemberNode*> Nodes = GetNodes();
 	for (UMetasoundEditorGraphMemberNode* Node : Nodes)
 	{
-		TArray<FInputHandle> Inputs = Node->GetNodeHandle()->GetInputs();
-		if (ensure(!Inputs.IsEmpty()))
+		TArray<const FMetasoundFrontendVertex*> InputVertices = Builder.FindNodeInputs(Node->GetNodeID());
+		if (ensure(InputVertices.Num() == 1))
 		{
-			Inputs.Last()->ClearLiteral();
+			Builder.RemoveNodeInputDefault(Node->GetNodeID(), InputVertices.Last()->VertexID);
 		}
 	}
-
-	FMetasoundFrontendLiteral DefaultLiteral;
-	DefaultLiteral.SetFromLiteral(IDataTypeRegistry::Get().CreateDefaultLiteral(GetDataType()));
-
-	Literal->Modify();
-	Literal->SetFromLiteral(DefaultLiteral);
-
-	FGraphBuilder::GetOutermostMetaSoundChecked(*this).GetModifyContext().AddMemberIDsModified({ GetMemberID() });
 }
 
 void UMetasoundEditorGraphOutput::SetDataType(FName InNewType, bool bPostTransaction)
@@ -1082,7 +1234,7 @@ void UMetasoundEditorGraphOutput::SetVertexAccessType(EMetasoundFrontendVertexAc
 	}
 }
 
-void UMetasoundEditorGraphOutput::UpdateFrontendDefaultLiteral(bool bPostTransaction)
+void UMetasoundEditorGraphOutput::UpdateFrontendDefaultLiteral(bool bPostTransaction, const FGuid* InPageID)
 {
 	using namespace Metasound;
 	using namespace Metasound::Editor;
@@ -1105,18 +1257,18 @@ void UMetasoundEditorGraphOutput::UpdateFrontendDefaultLiteral(bool bPostTransac
 		return;
 	}
 
-	const FScopedTransaction Transaction(LOCTEXT("Set Output Default", "Set MetaSound Output Default"), bPostTransaction);
-	Metasound->Modify();
-
-	const FMetasoundFrontendLiteral DefaultLiteral = Literal->GetDefault();
-
-	TArray<UMetasoundEditorGraphMemberNode*> Nodes = GetNodes();
-	for (UMetasoundEditorGraphMemberNode* Node : Nodes)
+	FMetasoundFrontendLiteral DefaultLiteral;
+	if (ensure(Literal->TryFindDefault(DefaultLiteral)))
 	{
-		TArray<FInputHandle> Inputs = Node->GetNodeHandle()->GetInputs();
-		if (ensure(!Inputs.IsEmpty()))
+		const FScopedTransaction Transaction(FText::Format(LOCTEXT("Set Output Default", "Set MetaSound Output '{0}' Default"), GetDisplayName()), bPostTransaction);
+		Metasound->Modify();
+
+		if (const FMetasoundFrontendNode* FrontendNode = GetFrontendNode())
 		{
-			GraphPrivate::SetLiteralOrClearIfMatchesDefault(Inputs.Last(), DefaultLiteral);
+			FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();
+			const FGuid& VertexID = FrontendNode->Interface.Inputs.Last().VertexID;
+			const FMetasoundFrontendVertexHandle VertexHandle(NodeID, VertexID);
+			GraphPrivate::SetOrClearIfLiteralMatchesNodeVertexDefault(Builder, VertexHandle, DefaultLiteral);
 		}
 	}
 }
@@ -1136,6 +1288,54 @@ EMetasoundFrontendVertexAccessType UMetasoundEditorGraphOutput::GetVertexAccessT
 Metasound::Editor::ENodeSection UMetasoundEditorGraphOutput::GetSectionID() const 
 {
 	return Metasound::Editor::ENodeSection::Outputs;
+}
+
+bool UMetasoundEditorGraphOutput::Synchronize()
+{
+	using namespace Metasound;
+
+	bool bModified = Super::Synchronize();
+
+	FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();
+	const FName MemberName = GetMemberName();
+	if (const FMetasoundFrontendClassOutput* ClassOutput = Builder.FindGraphOutput(MemberName))
+	{
+		if (ensure(Literal))
+		{
+			TOptional<FMetasoundFrontendLiteral> NewDefault;
+			if (const FMetasoundFrontendNode* OutputNode = Builder.FindGraphOutputNode(GetMemberName()); ensure(OutputNode))
+			{
+				FMetasoundFrontendLiteral DefaultLiteral;
+				Literal->TryFindDefault(DefaultLiteral);
+				if (!OutputNode->InputLiterals.IsEmpty())
+				{
+					const FMetasoundFrontendVertexLiteral& VertexLiteral = OutputNode->InputLiterals.Last();
+					if (!VertexLiteral.Value.IsEqual(DefaultLiteral))
+					{
+						NewDefault = VertexLiteral.Value;
+					}
+				}
+				else
+				{
+					FMetasoundFrontendLiteral TypeDefault;
+					TypeDefault.SetFromLiteral(Frontend::IDataTypeRegistry::Get().CreateDefaultLiteral(TypeName));
+					if (!TypeDefault.IsEqual(DefaultLiteral))
+					{
+						NewDefault = TypeDefault;
+					}
+				}
+			}
+
+			if (NewDefault.IsSet())
+			{
+				bModified = true;
+				Literal->ResetDefaults();
+				Literal->SetFromLiteral(*NewDefault);
+			}
+		}
+	}
+
+	return bModified;
 }
 
 void UMetasoundEditorGraphVariable::InitMember(FName InDataType, const FMetasoundFrontendLiteral& InDefaultLiteral, FGuid InVariableID)
@@ -1565,44 +1765,91 @@ void UMetasoundEditorGraphVariable::ResetToClassDefault()
 	FGraphBuilder::GetOutermostMetaSoundChecked(*this).GetModifyContext().AddMemberIDsModified({ GetMemberID() });
 }
 
-void UMetasoundEditorGraphVariable::UpdateFrontendDefaultLiteral(bool bPostTransaction)
+bool UMetasoundEditorGraphVariable::Synchronize()
+{
+	using namespace Metasound;
+
+	bool bModified = Super::Synchronize();
+
+	FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();
+	const FMetasoundFrontendGraph& Graph = Builder.FindConstBuildGraphChecked();
+	const FName MemberName = GetMemberName();
+	auto IsVariable = [&MemberName] (const FMetasoundFrontendVariable& Var) { return Var.Name == MemberName; };
+	if (const FMetasoundFrontendVariable* Variable = Graph.Variables.FindByPredicate(IsVariable))
+	{
+		if (ensure(Literal))
+		{
+			TOptional<FMetasoundFrontendLiteral> NewDefault;
+			if (const FMetasoundFrontendNode* MutatorNode = Builder.FindNode(Variable->MutatorNodeID); ensure(MutatorNode))
+			{
+				FMetasoundFrontendLiteral DefaultLiteral;
+				Literal->TryFindDefault(DefaultLiteral);
+				if (!MutatorNode->InputLiterals.IsEmpty())
+				{
+					const FMetasoundFrontendVertexLiteral& VertexLiteral = MutatorNode->InputLiterals.Last();
+					if (!VertexLiteral.Value.IsEqual(DefaultLiteral))
+					{
+						NewDefault = VertexLiteral.Value;
+					}
+				}
+				else
+				{
+					FMetasoundFrontendLiteral TypeDefault;
+					TypeDefault.SetFromLiteral(Frontend::IDataTypeRegistry::Get().CreateDefaultLiteral(TypeName));
+					if (!TypeDefault.IsEqual(DefaultLiteral))
+					{
+						NewDefault = TypeDefault;
+					}
+				}
+			}
+
+			if (NewDefault.IsSet())
+			{
+				bModified = true;
+				Literal->ResetDefaults();
+				Literal->SetFromLiteral(*NewDefault);
+			}
+		}
+	}
+
+	return bModified;
+}
+
+void UMetasoundEditorGraphVariable::UpdateFrontendDefaultLiteral(bool bPostTransaction, const FGuid* InPageID)
 {
 	using namespace Metasound;
 	using namespace Metasound::Editor;
 	using namespace Metasound::Frontend;
 	using namespace Metasound::VariableNames;
 
-	UObject* Metasound = nullptr;
-	UMetasoundEditorGraph* MetaSoundGraph = GetOwningGraph();
-	if (ensure(MetaSoundGraph))
-	{
-		Metasound = MetaSoundGraph->GetMetasound();
-	}
-
-	if (!ensure(Metasound))
-	{
-		return;
-	}
-
 	if (!ensure(Literal))
 	{
 		return;
 	}
 
-	const FScopedTransaction Transaction(LOCTEXT("Set Variable Default", "Set MetaSound Variable Default"), bPostTransaction);
-	Metasound->Modify();
-
-	const FMetasoundFrontendLiteral DefaultLiteral = Literal->GetDefault();
-	FVariableHandle VariableHandle = GetVariableHandle();
-	VariableHandle->SetLiteral(DefaultLiteral);
-
-	FNodeHandle MutatorNode = VariableHandle->FindMutatorNode();
-	if (MutatorNode->IsValid())
+	FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();
+	const FMetasoundFrontendVariable* Variable = Builder.FindGraphVariable(GetMemberName());
+	if (!ensure(Variable))
 	{
-		FInputHandle InputHandle = MutatorNode->GetInputWithVertexName(METASOUND_GET_PARAM_NAME(InputData));
-		if (ensure(InputHandle->IsValid()))
+		return;
+	}
+
+	const FScopedTransaction Transaction(LOCTEXT("Set Variable Default", "Set MetaSound Variable Default"), bPostTransaction);
+	Builder.CastDocumentObjectChecked<UObject>().Modify();
+
+	FMetasoundFrontendLiteral DefaultLiteral;
+	Literal->TryFindDefault(DefaultLiteral, &Builder.GetBuildPageID());
+
+	// Swap once variable support is added to document builder API
+	Builder.SetGraphVariableDefault(GetMemberName(), DefaultLiteral);
+
+	if (const FMetasoundFrontendNode* MutatorNode = Builder.FindNode(Variable->MutatorNodeID))
+	{
+		const FMetasoundFrontendVertex* Input = MutatorNode->Interface.Inputs.FindByPredicate([](const FMetasoundFrontendVertex& Vertex) { return Vertex.Name == METASOUND_GET_PARAM_NAME(InputData); });
+		if (ensure(Input))
 		{
-			GraphPrivate::SetLiteralOrClearIfMatchesDefault(InputHandle, DefaultLiteral);
+			const FMetasoundFrontendVertexHandle VertexHandle(MutatorNode->GetID(), Input->VertexID);
+			GraphPrivate::SetOrClearIfLiteralMatchesNodeVertexDefault(Builder, VertexHandle, DefaultLiteral);
 		}
 	}
 }

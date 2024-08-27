@@ -831,6 +831,33 @@ FMetasoundFrontendClassMetadata FMetasoundFrontendClassMetadata::GenerateClassMe
 	return NewMetadata;
 }
 
+FMetasoundFrontendClassInputDefault::FMetasoundFrontendClassInputDefault(FMetasoundFrontendLiteral InLiteral)
+	: Literal(InLiteral)
+	, PageID(Metasound::Frontend::DefaultPageID)
+{
+}
+
+FMetasoundFrontendClassInputDefault::FMetasoundFrontendClassInputDefault(const FGuid& InPageID, FMetasoundFrontendLiteral InLiteral)
+	: Literal(MoveTemp(InLiteral))
+	, PageID(InPageID)
+{
+}
+
+FMetasoundFrontendClassInputDefault::FMetasoundFrontendClassInputDefault(const FAudioParameter& InParameter)
+	: Literal(InParameter)
+{
+}
+
+bool FMetasoundFrontendClassInputDefault::IsFunctionalEquivalent(const FMetasoundFrontendClassInputDefault& InLHS, const FMetasoundFrontendClassInputDefault& InRHS)
+{
+	if (InLHS.PageID != InRHS.PageID)
+	{
+		return false;
+	}
+
+	return InLHS.Literal.IsEqual(InRHS.Literal);
+}
+
 FMetasoundFrontendClassInput::FMetasoundFrontendClassInput(const FMetasoundFrontendClassVertex& InOther)
 :	FMetasoundFrontendClassVertex(InOther)
 {
@@ -860,12 +887,33 @@ FMetasoundFrontendClassInput::FMetasoundFrontendClassInput(const Audio::FParamet
 #endif // WITH_EDITOR
 }
 
+bool FMetasoundFrontendClassInput::IsFunctionalEquivalent(const FMetasoundFrontendClassInput& InLHS, const FMetasoundFrontendClassInput& InRHS)
+{
+	if (!FMetasoundFrontendClassVertex::IsFunctionalEquivalent(InLHS, InRHS))
+	{
+		return false;
+	}
+
+	const TArray<FMetasoundFrontendClassInputDefault>& LHSDefaults = InLHS.GetDefaults();
+	const TArray<FMetasoundFrontendClassInputDefault>& RHSDefaults = InRHS.GetDefaults();
+	if (LHSDefaults.Num() != RHSDefaults.Num())
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < LHSDefaults.Num(); ++Index)
+	{
+		if (!FMetasoundFrontendClassInputDefault::IsFunctionalEquivalent(LHSDefaults[Index], RHSDefaults[Index]))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 FMetasoundFrontendLiteral& FMetasoundFrontendClassInput::AddDefault(const FGuid& InPageID)
 {
-#if WITH_EDITORONLY_DATA
-	checkf(InPageID == Metasound::Frontend::DefaultPageID, TEXT("Non-default page mutation is not supported without editor data loaded."));
-#endif // WITH_EDITORONLY_DATA
-
 	checkf(!ContainsDefault(InPageID), TEXT("Page default with given ID already exists"));
 	return Defaults.Add_GetRef(FMetasoundFrontendClassInputDefault { InPageID }).Literal;
 }
@@ -919,8 +967,19 @@ const TArray<FMetasoundFrontendClassInputDefault>& FMetasoundFrontendClassInput:
 
 FMetasoundFrontendLiteral& FMetasoundFrontendClassInput::InitDefault()
 {
+	using namespace Metasound::Frontend;
+
 	checkf(Defaults.IsEmpty(), TEXT("Default(s) already initialized"));
-	return Defaults.Add_GetRef(FMetasoundFrontendClassInputDefault { Metasound::Frontend::DefaultPageID }).Literal;
+	FMetasoundFrontendLiteral& NewLiteral = Defaults.Add_GetRef(FMetasoundFrontendClassInputDefault
+	{
+		::Metasound::Frontend::DefaultPageID
+	}).Literal;
+
+	if (IDataTypeRegistry::Get().IsRegistered(TypeName))
+	{
+		NewLiteral.SetFromLiteral(IDataTypeRegistry::Get().CreateDefaultLiteral(TypeName));
+	}
+	return NewLiteral;
 }
 
 void FMetasoundFrontendClassInput::InitDefault(FMetasoundFrontendLiteral InitLiteral)
@@ -956,9 +1015,7 @@ void FMetasoundFrontendClassInput::ResetDefaults()
 	using namespace Metasound::Frontend;
 
 	Defaults.Reset();
-	FMetasoundFrontendLiteral TypeDefault;
-	TypeDefault.SetFromLiteral(IDataTypeRegistry::Get().CreateDefaultLiteral(TypeName));
-	InitDefault(MoveTemp(TypeDefault));
+	InitDefault();
 	Defaults.Shrink();
 }
 
@@ -1172,13 +1229,6 @@ TArray<FMetasoundFrontendGraph>& FMetasoundFrontendGraphClass::IPropertyVersionT
 {
 	return GraphClass.PagedGraphs;
 }
-
-void UMetaSoundFrontendMemberMetadata::IterateDefaults(TFunctionRef<void(const FGuid&, FMetasoundFrontendLiteral)> Iter) const
-{
-	// TODO: Replace with follow-up change using page-addressed defaults
-	Iter(Metasound::Frontend::DefaultPageID, GetDefault());
-}
-
 
 FMetasoundFrontendVersionNumber FMetasoundFrontendDocument::GetMaxVersion()
 {

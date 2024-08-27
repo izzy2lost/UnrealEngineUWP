@@ -7,6 +7,7 @@
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorGraphInputNode.h"
 #include "MetasoundEditorModule.h"
+#include "MetasoundFrontendDocumentBuilder.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SSearchBox.h"
@@ -181,7 +182,9 @@ namespace Metasound::Editor
 			if (Member->GetDataType() != GetMetasoundDataTypeName<FTrigger>())
 			{
 				// Only list number of items for arrays to avoid string issues 
-				const FMetasoundFrontendLiteral& DefaultLiteral = Member->GetLiteral()->GetDefault();
+				FMetaSoundFrontendDocumentBuilder& Builder = Member->GetFrontendBuilderChecked();
+				FMetasoundFrontendLiteral DefaultLiteral;
+				Member->GetLiteral()->TryFindDefault(DefaultLiteral, &Builder.GetBuildPageID());
 				ValueText = FText::FromString(DefaultLiteral.ToString());
 				if (DefaultLiteral.IsArray())
 				{
@@ -321,7 +324,9 @@ namespace Metasound::Editor
 		if (const UMetasoundEditorGraphMember* Member = GetMetaSoundGraphMember(MemberNode))
 		{
 			// Get full object names and array contents (GetValueText shortens these)
-			const FMetasoundFrontendLiteral& DefaultLiteral = Member->GetLiteral()->GetDefault();
+			FMetaSoundFrontendDocumentBuilder& Builder = Member->GetFrontendBuilderChecked();
+			FMetasoundFrontendLiteral DefaultLiteral;
+			Member->GetLiteral()->TryFindDefault(DefaultLiteral, &Builder.GetBuildPageID());
 			return FText::FromString(DefaultLiteral.ToString());
 		}
 		// Get value from pin's external node 

@@ -52,13 +52,37 @@ class METASOUNDEDITOR_API UMetasoundEditorGraphMemberDefaultLiteral : public UMe
 	GENERATED_BODY()
 
 public:
+	// Returns the default literal casted as the given template type. Asserts if
+	// literal is not provided type and enforces type is supported by literal.
+	template <typename T>
+	T GetDefaultAs(const FGuid& InPageID = Metasound::Frontend::DefaultPageID) const
+	{
+		T Value;
+		FMetasoundFrontendLiteral Val;
+		bool bSuccess = TryFindDefault(Val, &InPageID);
+		checkf(bSuccess, TEXT("Value assigned to PageID not found"));
+		bSuccess = Val.TryGet(Value);
+		checkf(bSuccess, TEXT("Literal type not supported"));
+		return Value;
+	}
+
+	virtual void ForceRefresh() override;
+	virtual FName GetDataType() const;
+	virtual EMetasoundFrontendLiteralType GetLiteralType() const override;
+	virtual void InitDefault(const FGuid& InPageID = Metasound::Frontend::DefaultPageID);
+	virtual void Initialize() { };
+	virtual void IterateDefaults(TFunctionRef<void(const FGuid&, FMetasoundFrontendLiteral)> Iter) const;
+	virtual bool RemoveDefault(const FGuid& InPageID);
+	virtual void ResetDefaults();
+	virtual void SetFromLiteral(const FMetasoundFrontendLiteral& InLiteral, const FGuid& InPageID = Metasound::Frontend::DefaultPageID) override;
+	virtual bool TryFindDefault(FMetasoundFrontendLiteral& OutLiteral, const FGuid* InPageID = nullptr) const;
+
 	virtual void UpdatePreviewInstance(const Metasound::FVertexName& InParameterName, TScriptInterface<IAudioParameterControllerInterface>& InParameterInterface) const
 	{
 	}
 
 	// Called when literal is initialized for the first time to allow for setting
 	// initial editor-only fields based on context within editor/document model.
-	virtual void Initialize() { };
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
@@ -66,8 +90,21 @@ public:
 	virtual void PostEditUndo() override;
 #endif // WITH_EDITOR
 
-	const UMetasoundEditorGraphMember* FindMember() const;
-	UMetasoundEditorGraphMember* FindMember();
+	// Synchronizes local transient editor-only member data with changes made to the
+	// associated Frontend Document member. Returns whether or not object was modified.
+	virtual bool Synchronize() { return false; };
+
+	UMetasoundEditorGraphMember* FindMember() const;
+
+	static FName GetDefaultPropertyName()
+	{
+		return "Default";
+	}
+
+	static FName GetDefaultsPropertyName()
+	{
+		return "Defaults";
+	}
 
 	UE_DEPRECATED(5.5, "Due to serialization optimization, literals now inherit from LiteralMetadata and are no longer parented under members. Use FindMember instead")
 	const UMetasoundEditorGraphMember* GetParentMember() const
@@ -80,6 +117,11 @@ public:
 	{
 		return Cast<UMetasoundEditorGraphMember>(GetOuter());
 	}
+
+protected:
+	virtual void ResolvePageDefaults() { }
+	virtual void SortPageDefaults() { }
+	bool TryGetPreviewPageID(FGuid& OutPreviewPageID) const;
 };
 
 /** UMetasoundEditorGraphMember is a base class for non-node graph level members 
@@ -136,7 +178,10 @@ public:
 	/** Update the frontend with the given member's default UObject value.
 	 * @param bPostTransaction - Post as editor transaction if true
 	 */
-	virtual void UpdateFrontendDefaultLiteral(bool bPostTransaction) PURE_VIRTUAL(UMetasoundEditorGraphMember::UpdateFrontendDefaultLiteral, );
+	virtual void UpdateFrontendDefaultLiteral(bool bPostTransaction, const FGuid* InPageID = nullptr) PURE_VIRTUAL(UMetasoundEditorGraphMember::UpdateFrontendDefaultLiteral, );
+
+	// Synchronizes cached data with the frontend representation on the represented document.
+	virtual bool Synchronize();
 
 	FMetaSoundFrontendDocumentBuilder& GetFrontendBuilderChecked() const;
 
@@ -150,6 +195,9 @@ public:
 
 	/* Whether this member can be renamed. */
 	virtual bool CanRename() const PURE_VIRTUAL(UMetasoundEditorGraphMember::CanRename, return false;);
+
+	/** Whether the displayed default supports paged values or is a single default value (i.e. characterized per page). */
+	virtual bool IsDefaultPaged() const { return false; }
 
 #if WITH_EDITOR
 	virtual void PostEditUndo() override;
@@ -222,6 +270,7 @@ public:
 	virtual void SetDescription(const FText& InDescription, bool bPostTransaction) override;
 	virtual void SetMemberName(const FName& InNewName, bool bPostTransaction) override;
 	virtual void SetDisplayName(const FText& InNewName, bool bPostTransaction) override;
+	virtual bool Synchronize() override;
 	/* ~End UMetasoundEditorGraphMember interface */
 
 	/** Version of interface membership, or invalid version if not an interface member. */
@@ -232,6 +281,8 @@ public:
 
 	/** Returns the Metasound class type of the associated node */
 	virtual EMetasoundFrontendClassType GetClassType() const PURE_VIRTUAL(UMetasoundEditorGraphVertex::GetClassType, return EMetasoundFrontendClassType::Invalid; )
+
+	virtual const FMetasoundFrontendClassVertex* GetFrontendClassVertex() const PURE_VIRTUAL(UMetasoundEditorGraphVertex::GetFrontendClassVertex, return nullptr; );
 
 	/** Returns the SortOrderIndex assigned to this member. */
 	virtual int32 GetSortOrderIndex() const PURE_VIRTUAL(UMetasoundEditorGraphVertex::GetSortOrderIndex, return 0; )
@@ -270,17 +321,20 @@ class METASOUNDEDITOR_API UMetasoundEditorGraphInput : public UMetasoundEditorGr
 
 public:
 	virtual FText GetDescription() const override;
+	virtual const FMetasoundFrontendClassVertex* GetFrontendClassVertex() const override;
 	virtual int32 GetSortOrderIndex() const override;
 	virtual void SetSortOrderIndex(int32 InSortOrderIndex) override;
 	virtual TArray<UMetasoundEditorGraphMemberNode*> GetNodes() const override;
 
 	virtual const FText& GetGraphMemberLabel() const override;
+	virtual bool IsDefaultPaged() const override;
 	virtual bool IsInterfaceMember(FMetasoundFrontendInterface* OutInterface = nullptr) const override;
 	virtual void ResetToClassDefault() override;
 	virtual void SetDataType(FName InNewType, bool bPostTransaction) override;
 	virtual void SetVertexAccessType(EMetasoundFrontendVertexAccessType InNewAccessType, bool bPostTransaction) override;
 	virtual void SetMemberName(const FName& InNewName, bool bPostTransaction) override;
-	virtual void UpdateFrontendDefaultLiteral(bool bPostTransaction) override;
+	virtual bool Synchronize() override;
+	virtual void UpdateFrontendDefaultLiteral(bool bPostTransaction, const FGuid* InPageID = nullptr) override;
 	virtual EMetasoundFrontendVertexAccessType GetVertexAccessType() const override;
 
 protected:
@@ -302,6 +356,7 @@ class METASOUNDEDITOR_API UMetasoundEditorGraphOutput : public UMetasoundEditorG
 
 public:
 	virtual FText GetDescription() const override;
+	virtual const FMetasoundFrontendClassVertex* GetFrontendClassVertex() const override;
 	virtual int32 GetSortOrderIndex() const override;
 	virtual bool IsInterfaceMember(FMetasoundFrontendInterface* OutInterface = nullptr) const override;
 	virtual void SetSortOrderIndex(int32 InSortOrderIndex) override;
@@ -309,7 +364,8 @@ public:
 	virtual void ResetToClassDefault() override;
 	virtual void SetDataType(FName InNewType, bool bPostTransaction) override;
 	virtual void SetVertexAccessType(EMetasoundFrontendVertexAccessType InNewAccessType, bool bPostTransaction) override;
-	virtual void UpdateFrontendDefaultLiteral(bool bPostTransaction) override;
+	virtual bool Synchronize() override;
+	virtual void UpdateFrontendDefaultLiteral(bool bPostTransaction, const FGuid* InPageID = nullptr) override;
 	virtual EMetasoundFrontendVertexAccessType GetVertexAccessType() const override;
 
 protected:
@@ -350,7 +406,8 @@ public:
 	virtual void SetDisplayName(const FText& InNewName, bool bPostTransaction) override;
 
 	virtual void ResetToClassDefault() override;
-	virtual void UpdateFrontendDefaultLiteral(bool bPostTransaction) override;
+	virtual bool Synchronize() override;
+	virtual void UpdateFrontendDefaultLiteral(bool bPostTransaction, const FGuid* InPageID = nullptr) override;
 
 	virtual TArray<UMetasoundEditorGraphMemberNode*> GetNodes() const override;
 
