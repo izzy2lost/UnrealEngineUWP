@@ -2,6 +2,7 @@
 
 #include "Tasks/AvaTransitionWaitForLayerTask.h"
 #include "AvaTransitionLayerUtils.h"
+#include "AvaTransitionTree.h"
 #include "Behavior/AvaTransitionBehaviorInstance.h"
 #include "Engine/Level.h"
 #include "Rendering/AvaTransitionRenderingSubsystem.h"
@@ -55,11 +56,9 @@ EStateTreeRunStatus FAvaTransitionWaitForLayerTask::WaitForLayer(FStateTreeExecu
 
 	if (bIsLayerRunning)
 	{
-		// Hide Level Primitives while Waiting for other Layers
-		if (InstanceData.bHideSceneWhileWaiting && InstanceData.HiddenLevel == nullptr)
+		if (ShouldHideLevel(InContext, InstanceData))
 		{
-			const FAvaTransitionContext& TransitionContext = InContext.GetExternalData(TransitionContextHandle);
-			if (const FAvaTransitionScene* TransitionScene = TransitionContext.GetTransitionScene())
+			if (const FAvaTransitionScene* TransitionScene = InContext.GetExternalData(TransitionContextHandle).GetTransitionScene())
 			{
 				InstanceData.HiddenLevel = TransitionScene->GetLevel();
 				RenderingSubsystem.HideLevel(InstanceData.HiddenLevel);
@@ -72,6 +71,29 @@ EStateTreeRunStatus FAvaTransitionWaitForLayerTask::WaitForLayer(FStateTreeExecu
 	// Restore Level Visibility
 	RenderingSubsystem.ShowLevel(InstanceData.HiddenLevel);
 	return EStateTreeRunStatus::Succeeded;
+}
+
+bool FAvaTransitionWaitForLayerTask::ShouldHideLevel(const FStateTreeExecutionContext& InContext, const FAvaTransitionWaitForLayerTask::FInstanceDataType& InInstanceData) const
+{
+	if (!InInstanceData.bHideSceneWhileWaiting)
+	{
+		return false;	
+	}
+
+	// If Hidden Level is non-null, it means the level has already been hidden / processed. Skip
+	if (InInstanceData.HiddenLevel != nullptr)
+	{
+		return false;
+	}
+
+	// If Instancing Mode is set to Reuse, and user set to Hide Level regardless, allow Hiding Reused Level
+	const UAvaTransitionTree* TransitionTree = Cast<UAvaTransitionTree>(InContext.GetStateTree());
+	if (TransitionTree && TransitionTree->GetInstancingMode() == EAvaTransitionInstancingMode::Reuse)
+	{
+		return InInstanceData.bHideOnLevelReuse;
+	}
+
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -17,6 +17,10 @@ struct FAvaTransitionWaitForLayerTaskInstanceData : public FAvaTransitionLayerTa
 	UPROPERTY(EditAnywhere, Category="Transition Logic")
 	bool bHideSceneWhileWaiting = true;
 
+	/** Whether to hide level even if set to Re-use. Requires Hide Scene While Waiting to be enabled */
+	UPROPERTY(EditAnywhere, Category="Transition Logic", meta=(EditCondition="bHideSceneWhileWaiting", EditConditionHides))
+	bool bHideOnLevelReuse = false;
+
 	TObjectKey<ULevel> HiddenLevel;
 };
 
@@ -41,6 +45,8 @@ struct AVALANCHETRANSITION_API FAvaTransitionWaitForLayerTask : public FAvaTrans
 	//~ End FStateTreeTaskBase
 
 	EStateTreeRunStatus WaitForLayer(FStateTreeExecutionContext& InContext) const;
+
+	bool ShouldHideLevel(const FStateTreeExecutionContext& InContext, const FAvaTransitionWaitForLayerTask::FInstanceDataType& InInstanceData) const;
 
 	TStateTreeExternalDataHandle<UAvaTransitionRenderingSubsystem> RenderingSubsystemHandle;
 };
