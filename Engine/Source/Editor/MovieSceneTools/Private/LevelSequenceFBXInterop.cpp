@@ -27,13 +27,19 @@
 
 #define LOCTEXT_NAMESPACE "LevelSequenceFBXInterop"
 
-FLevelSequenceFBXInterop::FLevelSequenceFBXInterop(TSharedPtr<ISequencer> InSequencer)
-	: Sequencer(InSequencer)
+FLevelSequenceFBXInterop::FLevelSequenceFBXInterop(TSharedRef<ISequencer> InSequencer)
+	: WeakSequencer(InSequencer)
 {
 }
 
 void FLevelSequenceFBXInterop::ImportFBX()
 {
+	const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+	if (!Sequencer)
+	{
+		return;
+	}
+
 	using namespace UE::Sequencer;
 
 	TMap<FGuid, FString> ObjectBindingNameMap;
@@ -57,6 +63,12 @@ void FLevelSequenceFBXInterop::ImportFBX()
 
 void FLevelSequenceFBXInterop::ImportFBXOntoSelectedNodes()
 {
+	const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+	if (!Sequencer)
+	{
+		return;
+	}
+
 	using namespace UE::Sequencer;
 
 	// The object binding and names to match when importing from fbx
@@ -74,6 +86,12 @@ void FLevelSequenceFBXInterop::ImportFBXOntoSelectedNodes()
 
 void FLevelSequenceFBXInterop::ExportFBX()
 {
+	const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+	if (!Sequencer)
+	{
+		return;
+	}
+
 	using namespace UE::Sequencer;
 
 	TArray<UExporter*> Exporters;
@@ -203,6 +221,12 @@ void FLevelSequenceFBXInterop::ExportFBX()
 
 void FLevelSequenceFBXInterop::ExportFBXInternal(const FString& ExportFilename, const TArray<FGuid>& Bindings, const TArray<UMovieSceneTrack*>& Tracks)
 {
+	const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+	if (!Sequencer)
+	{
+		return;
+	}
+
 	UnFbx::FFbxExporter* Exporter = UnFbx::FFbxExporter::GetInstance();
 	//Show the fbx export dialog options
 	bool ExportCancel = false;

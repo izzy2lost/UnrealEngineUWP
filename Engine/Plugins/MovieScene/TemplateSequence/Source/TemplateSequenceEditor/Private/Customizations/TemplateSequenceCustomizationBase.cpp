@@ -15,8 +15,10 @@
 
 void FTemplateSequenceCustomizationBase::RegisterSequencerCustomization(FSequencerCustomizationBuilder& Builder)
 {
-	Sequencer = &Builder.GetSequencer();
+	WeakSequencer = Builder.GetSequencer().AsShared();
 	TemplateSequence = Cast<UTemplateSequence>(&Builder.GetFocusedSequence());
+
+	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 
 	Sequencer->OnCloseEvent().AddRaw(this, &FTemplateSequenceCustomizationBase::OnSequencerClosed);
 	Sequencer->OnMovieSceneDataChanged().AddRaw(this, &FTemplateSequenceCustomizationBase::OnMovieSceneDataChanged);
@@ -29,13 +31,15 @@ void FTemplateSequenceCustomizationBase::RegisterSequencerCustomization(FSequenc
 
 void FTemplateSequenceCustomizationBase::UnregisterSequencerCustomization()
 {
-	if (Sequencer)
+	if (WeakSequencer.IsValid())
 	{
+		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+
 		Sequencer->OnCloseEvent().RemoveAll(this);
 		Sequencer->OnMovieSceneDataChanged().RemoveAll(this);
 	}
 
-	Sequencer = nullptr;
+	WeakSequencer = nullptr;
 	TemplateSequence = nullptr;
 }
 
@@ -58,6 +62,7 @@ void FTemplateSequenceCustomizationBase::OnBoundActorClassPicked(UClass* ChosenC
 	{
 		ChangeActorBinding(ChosenClass);
 
+		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 		Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 	}
 }
@@ -65,6 +70,8 @@ void FTemplateSequenceCustomizationBase::OnBoundActorClassPicked(UClass* ChosenC
 void FTemplateSequenceCustomizationBase::ChangeActorBinding(UObject* Object, UActorFactory* ActorFactory, bool bSetupDefaults)
 {
 	const FScopedTransaction Transaction(LOCTEXT("ChangeActorBinding", "Change Template Sequence Actor Binding"));
+
+	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 
 	FTemplateSequenceEditorUtil Util(TemplateSequence, *Sequencer);
 	Util.ChangeActorBinding(Object, ActorFactory, bSetupDefaults);
@@ -94,15 +101,19 @@ void FTemplateSequenceCustomizationBase::ExtendObjectBindingContextMenu(FMenuBui
 
 	MenuBuilder.BeginSection("Import/Export", LOCTEXT("ImportExportMenuSectionName", "Import/Export"));
 
-	TSharedPtr<ISequencer> SequencerPtr = Sequencer->AsShared();
-
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("ImportFBX", "Import..."),
 		LOCTEXT("ImportFBXTooltip", "Import FBX animation to this object"),
 		FSlateIcon(),
 		FUIAction(
-			FExecuteAction::CreateLambda([=] {
-					FLevelSequenceFBXInterop Interop(SequencerPtr);
+			FExecuteAction::CreateLambda([this] {
+				const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+				if (!Sequencer.IsValid())
+				{
+					return;
+				}
+
+				FLevelSequenceFBXInterop Interop(Sequencer.ToSharedRef());
 					Interop.ImportFBXOntoSelectedNodes();
 				})
 		));
@@ -112,8 +123,14 @@ void FTemplateSequenceCustomizationBase::ExtendObjectBindingContextMenu(FMenuBui
 		LOCTEXT("ExportFBXTooltip", "Export FBX animation from this object"),
 		FSlateIcon(),
 		FUIAction(
-			FExecuteAction::CreateLambda([=] {
-					FLevelSequenceFBXInterop Interop(SequencerPtr);
+			FExecuteAction::CreateLambda([this] {
+				const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+				if (!Sequencer.IsValid())
+				{
+					return;
+				}
+				
+				FLevelSequenceFBXInterop Interop(Sequencer.ToSharedRef());
 					Interop.ExportFBX();
 				})
 		));
@@ -152,12 +169,17 @@ void FTemplateSequenceCustomizationBase::OnMovieSceneDataChanged(EMovieSceneData
 
 void FTemplateSequenceCustomizationBase::OnSequencerClosed(TSharedRef<ISequencer> InSequencer)
 {
-	if (&InSequencer.Get() == Sequencer)
+	if (WeakSequencer.IsValid())
 	{
-		Sequencer->OnCloseEvent().RemoveAll(this);
-		Sequencer->OnMovieSceneDataChanged().RemoveAll(this);
+		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 
-		Sequencer = nullptr;
+		if (InSequencer == Sequencer)
+		{
+			Sequencer->OnCloseEvent().RemoveAll(this);
+			Sequencer->OnMovieSceneDataChanged().RemoveAll(this);
+		}
+
+		WeakSequencer = nullptr;
 	}
 }
 

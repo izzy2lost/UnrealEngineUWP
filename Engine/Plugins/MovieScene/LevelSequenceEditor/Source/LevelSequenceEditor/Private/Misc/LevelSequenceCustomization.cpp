@@ -96,13 +96,13 @@ void FLevelSequenceCustomization::OnSaveMovieSceneAsClicked()
 
 void FLevelSequenceCustomization::ImportFBX()
 {
-	FLevelSequenceFBXInterop Interop(WeakSequencer.Pin());
+	FLevelSequenceFBXInterop Interop(WeakSequencer.Pin().ToSharedRef());
 	Interop.ImportFBX();
 }
 
 void FLevelSequenceCustomization::ExportFBX()
 {
-	FLevelSequenceFBXInterop Interop(WeakSequencer.Pin());
+	FLevelSequenceFBXInterop Interop(WeakSequencer.Pin().ToSharedRef());
 	Interop.ExportFBX();
 }
 
@@ -247,8 +247,14 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 		LOCTEXT("ImportFBXTooltip", "Import FBX animation to this object"),
 		FSlateIcon(),
 		FUIAction(
-			FExecuteAction::CreateLambda([=] {
-					FLevelSequenceFBXInterop Interop(EditorViewModel->GetSequencer());
+			FExecuteAction::CreateLambda([this] {
+				const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+				if (!Sequencer.IsValid())
+				{
+					return;
+				}
+				
+				FLevelSequenceFBXInterop Interop(Sequencer.ToSharedRef());
 					Interop.ImportFBXOntoSelectedNodes();
 				})
 		));
@@ -258,8 +264,14 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 		LOCTEXT("ExportFBXTooltip", "Export FBX animation from this object"),
 		FSlateIcon(),
 		FUIAction(
-			FExecuteAction::CreateLambda([=] {
-					FLevelSequenceFBXInterop Interop(EditorViewModel->GetSequencer());
+			FExecuteAction::CreateLambda([this] {
+				const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+				if (!Sequencer.IsValid())
+				{
+					return;
+				}
+				
+				FLevelSequenceFBXInterop Interop(Sequencer.ToSharedRef());
 					Interop.ExportFBX();
 				})
 		));

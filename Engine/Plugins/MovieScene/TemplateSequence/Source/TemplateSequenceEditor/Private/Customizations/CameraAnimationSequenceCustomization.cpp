@@ -129,7 +129,7 @@ bool FCameraAnimationSequenceCustomization::IsCameraInitiallyAdditiveToViewport(
 void FCameraAnimationSequenceCustomization::SetCameraAdditiveToViewportOffset()
 {
 	UTemplateSequenceCameraPreviewSystem::EnableNextFrame();
-	if (ISequencer* SequencerPtr = GetSequencer())
+	if (TSharedPtr<ISequencer> SequencerPtr = GetSequencer())
 	{
 		SequencerPtr->ForceEvaluate();
 	}
