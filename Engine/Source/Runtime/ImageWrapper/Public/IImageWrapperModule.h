@@ -7,6 +7,9 @@
 #include "Templates/SharedPointer.h"
 #include "ImageCore.h"
 #include "IImageWrapper.h"
+#include "ImageWrapperOutputTypes.h"
+
+
 
 
 /**
@@ -61,6 +64,16 @@ public:
 	 * @param OutImage			Filled with Image that is read.  Allocated.
 	 */
 	virtual bool DecompressImage(const void* InCompressedData, int64 InCompressedSize, FImage & OutImage) = 0;
+
+	/* Read an image from file format encoded data.
+	 * ImageWrapper calls this a "decompress"
+	 * OutImage is allocated and filled, any existing contents are discarded
+	 *
+	 * @param InCompressedData					Image format encoded bytes to read; format is automatically deduced from the content
+	 * @param InCompressedSize					Size of InCompressedData in bytes
+	 * @param OutDecompressedImageData			Filled with Image along with other meta data and mip images that is read.  Allocated.
+	 */
+	virtual bool DecompressImage(const void* InCompressedData, int64 InCompressedSize, FDecompressedImageOutput& OutDecompressedImage) = 0;
 
 	/**  
 	 * Create an IImageWrapper helper of a specific type 

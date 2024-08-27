@@ -447,54 +447,117 @@ namespace UE::ImageWrapper::Private
 
 	void FTiffImageWrapper::Uncompress(const ERGBFormat InFormat, int32 InBitDepth)
 	{
-		if ( Tiff == nullptr )
+		ON_SCOPE_EXIT{
+			ReleaseTiffImage();
+		};
+
+		if (Tiff == nullptr)
 		{
 			SetError(TEXT("Tiff invalid."));
 			return;
 		}
+
+		// We just want mip 0
+		const bool bUncompressResult = Uncompress_Internal(InFormat, InBitDepth);
+		if (bUncompressResult && SubImageBuffer.Num())
+		{
+			// Append the current sub-image to the base byte buffer that reads all the 
+			RawData.Append(MoveTemp(SubImageBuffer));
+		}
+		else
+		{
+			Width = 0;
+			Height = 0;
+		}
+
+		CurrSubImageWidth = 0;
+		CurrSubImageHeight = 0;
+	}
+
+	void FTiffImageWrapper::Uncompress(const ERGBFormat InFormat, int32 InBitDepth, FDecompressedImageOutput& OutDecompressedImage)
+	{
+		ON_SCOPE_EXIT{
+			ReleaseTiffImage();
+		};
+
+		if (Tiff == nullptr)
+		{
+			SetError(TEXT("Tiff invalid."));
+			return;
+		}
+
+		do
+		{
+			const bool bUncompressResult = Uncompress_Internal(InFormat, InBitDepth);
+			if (bUncompressResult && SubImageBuffer.Num())
+			{
+				static bool bExactMatch = false;
+
+				const int64 SubImageOffset = RawData.Num();
+				// Append the current sub-image to the base byte buffer that reads all the 
+				OutDecompressedImage.MipMapImage.AddMipImage(MoveTemp(SubImageBuffer), CurrSubImageWidth, CurrSubImageHeight);
+			}
+			else
+			{
+				Width = 0;
+				Height = 0;
+				break;
+			}
+
+		} while (TIFFReadDirectory(Tiff)); // This will go to the next directory if available. Next Directory will contain the next sub-image.
+
+		CurrSubImageWidth = 0;
+		CurrSubImageHeight = 0;
+	}
+
+	bool FTiffImageWrapper::Uncompress_Internal(const ERGBFormat InFormat, int32 InBitDepth)
+	{
+		// SubImageBuffer gets emptied in the respective calls to UnpackIntoRawBuffer
+		TIFFGetField(Tiff, TIFFTAG_IMAGEWIDTH, &CurrSubImageWidth);
+		TIFFGetField(Tiff, TIFFTAG_IMAGELENGTH, &CurrSubImageHeight);
 
 		if (InFormat == Format && InBitDepth == BitDepth)
 		{
 			// Read using RGBA
 			if (Format == ERGBFormat::BGRA && BitDepth == 8)
 			{
-				FGuardedInt64 GuardedBufferSize = FGuardedInt64(Width) * Height * sizeof(uint32);
+				FGuardedInt64 GuardedBufferSize = FGuardedInt64(CurrSubImageWidth) * CurrSubImageHeight * sizeof(uint32);
 				if (GuardedBufferSize.IsValid() == false)
 				{
 					SetError(TEXT("Tiff image is massive - likely corrupted file."));
-					return;
+					return false;
 				}
 
 				const int64 BufferSize = GuardedBufferSize.Get(0);
 				const int Flags = 0;
-	
-				RawData.Empty(BufferSize);
-				RawData.AddUninitialized(BufferSize);
 
-				if (TIFFReadRGBAImageOriented(Tiff, Width, Height, static_cast<uint32*>(static_cast<void*>(RawData.GetData())), 0, ORIENTATION_LEFTTOP) != 0)
+				SubImageBuffer.Empty(BufferSize);
+				SubImageBuffer.AddUninitialized(BufferSize);
+
+				if (TIFFReadRGBAImageOriented(Tiff, CurrSubImageWidth, CurrSubImageHeight, static_cast<uint32*>(static_cast<void*>(SubImageBuffer.GetData())), ORIENTATION_LEFTTOP, 0) != 0)
 				{
 					// @@ use ImageCore TransposeImageRGBABGRA
 					EParallelForFlags ParallelForFlags = IsInGameThread() ? EParallelForFlags::None : EParallelForFlags::BackgroundPriority;
-					ParallelFor(Height, [this](int32 HeightIndex)
+					ParallelFor(CurrSubImageHeight, [this](int32 HeightIndex)
 						{
-							const int64 HeightOffset = HeightIndex * Width;
-							for (int32 WidthIndex = 0; WidthIndex < Width; WidthIndex++)
+							const int64 HeightOffset = HeightIndex * CurrSubImageWidth;
+							for (int32 WidthIndex = 0; WidthIndex < CurrSubImageWidth; WidthIndex++)
 							{
 								// Swap from RGBA to BGRA
-								const int64 CurrentPixelIndex = (WidthIndex + HeightOffset)* sizeof(uint32);
-								uint8 Red = RawData[CurrentPixelIndex];
-								RawData[CurrentPixelIndex] = RawData[CurrentPixelIndex + 2];
-								RawData[CurrentPixelIndex + 2] = Red;
+								const int64 CurrentPixelIndex = (WidthIndex + HeightOffset) * sizeof(uint32);
+								uint8 Red = SubImageBuffer[CurrentPixelIndex];
+								SubImageBuffer[CurrentPixelIndex] = SubImageBuffer[CurrentPixelIndex + 2];
+								SubImageBuffer[CurrentPixelIndex + 2] = Red;
 							}
 						}
-						, ParallelForFlags);
+					, ParallelForFlags);
 				}
-				else 
+				else
 				{
 					UnpackIntoRawBuffer<uint8>(4);
 				}
 			}
-			else if (Format == ERGBFormat::RGBA && BitDepth == 16 )
+			else if (Format == ERGBFormat::RGBA && BitDepth == 16)
 			{
 				UnpackIntoRawBuffer<uint16>(4);
 			}
@@ -525,14 +588,16 @@ namespace UE::ImageWrapper::Private
 			else
 			{
 				SetError(TEXT("Unsupported requested format for the input image. Can't uncompress the tiff image."));
+				return false;
 			}
 		}
 		else
 		{
 			SetError(TEXT("Unsupported requested format for the input image. Can't uncompress the tiff image."));
+			return false;
 		}
 
-		ReleaseTiffImage();
+		return true;
 	}
 
 	bool FTiffImageWrapper::SetCompressed(const void* InCompressedData, int64 InCompressedSize)
@@ -722,6 +787,8 @@ namespace UE::ImageWrapper::Private
 
 	}
 
+	
+
 	void FTiffImageWrapper::ReleaseTiffImage()
 	{
 		if (Tiff)
@@ -794,13 +861,13 @@ namespace UE::ImageWrapper::Private
 	template<class DataTypeDest>
 	void FTiffImageWrapper::UnpackIntoRawBuffer(const uint8 NumOfChannelDest)
 	{
-		const int64 PixelSize = sizeof(DataTypeDest) * NumOfChannelDest;;
-		const int64 RowSize = PixelSize * int64(Width);
-		const int64 BufferSize = RowSize * int64(Height);
+		const int64 PixelSize = sizeof(DataTypeDest) * NumOfChannelDest;
+		const int64 RowSize = PixelSize * int64(CurrSubImageWidth);
+		const int64 BufferSize = RowSize * int64(CurrSubImageHeight);
 		const int Flags = 0;
 	
-		RawData.Empty(BufferSize);
-		RawData.AddUninitialized(BufferSize);
+		SubImageBuffer.Empty(BufferSize);
+		SubImageBuffer.AddUninitialized(BufferSize);
 
 		const bool bIsTiled = TIFFIsTiled(Tiff) != 0;
 
@@ -912,8 +979,8 @@ namespace UE::ImageWrapper::Private
 				// it's unclear if you should invert against 1.f or something else?
 				UE_LOG(LogImageWrapper, Warning, TEXT("Tiff MINISWHITE floating point?  This is probably wrong."));
 
-				TArrayView64<DataTypeDest> FinalImage(static_cast<DataTypeDest*>(static_cast<void*>(RawData.GetData())), RawData.Num());
-				ParallelFor(Width * Height, [&FinalImage](int32 Index)
+				TArrayView64<DataTypeDest> FinalImage(static_cast<DataTypeDest*>(static_cast<void*>(SubImageBuffer.GetData())), SubImageBuffer.Num());
+				ParallelFor(CurrSubImageWidth* CurrSubImageHeight, [&FinalImage](int32 Index)
 					{
 						DataTypeDest& FinalValue = FinalImage[Index];
 						FinalValue = 1.f - FinalValue; // uses implicit operator float() on FFloat16
@@ -921,8 +988,8 @@ namespace UE::ImageWrapper::Private
 			}
 			else
 			{
-				TArrayView64<DataTypeDest> FinalImage(static_cast<DataTypeDest*>(static_cast<void*>(RawData.GetData())), RawData.Num());
-				ParallelFor(Width * Height, [&FinalImage](int32 Index)
+				TArrayView64<DataTypeDest> FinalImage(static_cast<DataTypeDest*>(static_cast<void*>(SubImageBuffer.GetData())), SubImageBuffer.Num());
+				ParallelFor(CurrSubImageWidth* CurrSubImageHeight, [&FinalImage](int32 Index)
 					{
 						DataTypeDest& FinalValue = FinalImage[Index];
 						FinalValue = TNumericLimits<DataTypeDest>::Max() - FinalValue;
@@ -939,7 +1006,7 @@ namespace UE::ImageWrapper::Private
 		const uint64 LineSizeScr = TIFFScanlineSize64(Tiff);
 		const uint64 StripByteSize = TIFFStripSize64(Tiff);
 
-		TArrayView64<DataTypeDest> WriteArray(static_cast<DataTypeDest*>(static_cast<void*>(RawData.GetData())), RawData.Num() / sizeof(DataTypeDest));
+		TArrayView64<DataTypeDest> WriteArray(static_cast<DataTypeDest*>(static_cast<void*>(SubImageBuffer.GetData())), SubImageBuffer.Num() / sizeof(DataTypeDest));
 
 		uint16 PlanarConfig = 0;
 		TIFFGetFieldDefaulted(Tiff, TIFFTAG_PLANARCONFIG, &PlanarConfig);
@@ -948,8 +1015,8 @@ namespace UE::ImageWrapper::Private
 		const uint8 StepDest = bIsPlanarConfigSepareted ? NumOfChannelDest : 1;
 		const uint8 NumberOfChannelInReadArray =  bIsPlanarConfigSepareted ? 1 : SamplesPerPixel;
 
-		int32 TileWidth = Width;
-		int32 TileHeight = Height;
+		int32 TileWidth = CurrSubImageWidth;
+		int32 TileHeight = CurrSubImageHeight;
 
 		if constexpr (bIsTiled)
 		{
@@ -967,7 +1034,7 @@ namespace UE::ImageWrapper::Private
 				(int32 NumberOfColumnRead, int32 NumberOfRowRead, TArray64<uint8>& ReadBuffer, uint8 SampleIndex, int32 BlockX, int32 BlockY)
 				{
 					TArrayView64<const DataTypeSrc> ReadArray(static_cast<DataTypeSrc*>(static_cast<void*>(ReadBuffer.GetData())), ReadBuffer.Num() / sizeof(DataTypeSrc));
-					uint64 CurrentOffset = int64(BlockY) * Width * NumOfChannelDest;
+					uint64 CurrentOffset = int64(BlockY) * CurrSubImageWidth * NumOfChannelDest;
 					if constexpr (bIsTiled)
 					{
 						CurrentOffset *= TileHeight;
@@ -984,7 +1051,7 @@ namespace UE::ImageWrapper::Private
 								{
 									const int32 PositionXInTile = PixelReadIndex % NumberOfColumnRead;
 									const int32 PositionYInTile = PixelReadIndex / NumberOfColumnRead;
-									WriteIndex = CurrentOffset + PositionXInTile * NumOfChannelDest + PositionYInTile * Width * NumOfChannelDest + SampleIndex;
+									WriteIndex = CurrentOffset + PositionXInTile * NumOfChannelDest + PositionYInTile * CurrSubImageWidth* NumOfChannelDest + SampleIndex;
 
 									// The end of tile in X can be some garbage that act as padding data so that all tiles are the same size
 									ReadIndex = PositionXInTile * NumberOfChannelInReadArray + PositionYInTile * TileWidth * NumberOfChannelInReadArray;
@@ -1029,11 +1096,11 @@ namespace UE::ImageWrapper::Private
 
 			for (uint8 SampleIndex = 0; SampleIndex < NumOfPlanes; SampleIndex++)
 			{ 
-				for (int32 Y = 0, TileY = 0; Y < Height; Y += TileHeight, ++TileY)
+				for (int32 Y = 0, TileY = 0; Y < CurrSubImageHeight; Y += TileHeight, ++TileY)
 				{
-					const int32 NumberOfRow = Y + TileHeight > Height ? Height - Y : TileHeight;
+					const int32 NumberOfRow = Y + TileHeight > CurrSubImageHeight ? CurrSubImageHeight - Y : TileHeight;
 
-					for (int32 X = 0, TileX = 0; X < Width; X += TileWidth, ++TileX)
+					for (int32 X = 0, TileX = 0; X < CurrSubImageWidth; X += TileWidth, ++TileX)
 					{
 						TSharedPtr<TArray64<uint8>, ESPMode::ThreadSafe> BufferPtr;
 						if (!UsableBufferQueue.Dequeue(BufferPtr))
@@ -1048,7 +1115,7 @@ namespace UE::ImageWrapper::Private
 							return false;
 						}
 
-						const int32 NumberOfColumn = X + TileWidth > Width ? Width - X : TileWidth;
+						const int32 NumberOfColumn = X + TileWidth > CurrSubImageWidth ? CurrSubImageWidth - X : TileWidth;
 						Tasks.Add(TGraphTask<FProcessDecodedDataTask>::CreateTask().ConstructAndDispatchWhenReady([&UsableBufferQueue, &ProcessDecodedData, NumberOfColumn, NumberOfRow, BufferPtr, SampleIndex, TileX, TileY]()
 							{
 								ProcessDecodedData(NumberOfColumn, NumberOfRow, *(BufferPtr.Get()), SampleIndex, TileX, TileY);
@@ -1063,8 +1130,8 @@ namespace UE::ImageWrapper::Private
 			uint16 RowPerStrip = 0;
 			TIFFGetField(Tiff, TIFFTAG_ROWSPERSTRIP, &RowPerStrip);
 
-			const int32 NumberOfRow = RowPerStrip > Height || RowPerStrip == 0  ? Height : RowPerStrip;
-			if (StripByteSize < NumberOfRow * Width * sizeof(DataTypeSrc) * NumberOfChannelInReadArray / ReadWriteAdapter::ChannelPerReadIndex)
+			const int32 NumberOfRow = RowPerStrip > CurrSubImageHeight || RowPerStrip == 0  ? CurrSubImageHeight : RowPerStrip;
+			if (StripByteSize < NumberOfRow * CurrSubImageWidth * sizeof(DataTypeSrc) * NumberOfChannelInReadArray / ReadWriteAdapter::ChannelPerReadIndex)
 			{
 				// Lib tiff and this code is not able to deal with channel of different bit sizes
 				SetError(TEXT("Tiff strips are smaller then expected. This generaly due to channels of different size which is not supported by UE"));
@@ -1079,7 +1146,7 @@ namespace UE::ImageWrapper::Private
 			{
 				if (RowPerStrip != 0)
 				{ 
-					for (int32 Y = 0; Y < Height; Y += RowPerStrip)
+					for (int32 Y = 0; Y < CurrSubImageHeight; Y += RowPerStrip)
 					{
 						TSharedPtr<TArray64<uint8>, ESPMode::ThreadSafe> BufferPtr;
 						if (!UsableBufferQueue.Dequeue(BufferPtr))
@@ -1089,7 +1156,7 @@ namespace UE::ImageWrapper::Private
 						}
 
 						// The last strip might be smaller
-						int32 NumberOfRowRead = Y + RowPerStrip > Height ? Height - Y : RowPerStrip;
+						int32 NumberOfRowRead = Y + RowPerStrip > CurrSubImageHeight ? CurrSubImageHeight - Y : RowPerStrip;
 						if (TIFFReadEncodedStrip(Tiff, TIFFComputeStrip(Tiff, Y, SampleIndex), BufferPtr->GetData(), NumberOfRowRead * LineSizeScr) == -1)
 						{
 							SetError(ErrorMessage);
@@ -1100,7 +1167,7 @@ namespace UE::ImageWrapper::Private
 						Tasks.Add(TGraphTask<FProcessDecodedDataTask>::CreateTask().ConstructAndDispatchWhenReady([this, &ProcessDecodedData, &UsableBufferQueue, NumberOfRowRead, BufferPtr, Y, SampleIndex]()
 							{
 								// Consider the strip to be a tile that as the full with of the image.
-								ProcessDecodedData(Width, NumberOfRowRead, *(BufferPtr.Get()), SampleIndex, 0, Y);
+								ProcessDecodedData(CurrSubImageWidth, NumberOfRowRead, *(BufferPtr.Get()), SampleIndex, 0, Y);
 								UsableBufferQueue.Enqueue(BufferPtr);
 							}));
 					}
@@ -1123,7 +1190,7 @@ namespace UE::ImageWrapper::Private
 					Tasks.Add(TGraphTask<FProcessDecodedDataTask>::CreateTask().ConstructAndDispatchWhenReady([this, &UsableBufferQueue, &ProcessDecodedData, BufferPtr, SampleIndex]()
 						{
 							// Consider the image to be one big tile.
-							ProcessDecodedData(Width, Height, *(BufferPtr.Get()), SampleIndex, 0, 0);
+							ProcessDecodedData(CurrSubImageWidth, CurrSubImageHeight, *(BufferPtr.Get()), SampleIndex, 0, 0);
 							UsableBufferQueue.Enqueue(BufferPtr);
 						}));
 				}
@@ -1144,7 +1211,7 @@ namespace UE::ImageWrapper::Private
 			//todo: would be better to do this in the ProcessDecodedData tasks, so that we write the memory only once
 
 			//todo: ParallelFor over individual pixels is not great, better to do on rows; use ImageCore ImageParallelFor
-			ParallelFor(Width * Height, [NumOfChannelDest, &WriteArray](int32 Index)
+			ParallelFor(CurrSubImageWidth * CurrSubImageHeight, [NumOfChannelDest, &WriteArray](int32 Index)
 				{
 					const int64 WriteIndex = int64(NumOfChannelDest) * Index + NumOfChannelDest-1;
 					if constexpr (std::is_same_v<DataTypeDest, FFloat16> || TIsFloatingPoint<DataTypeDest>::Value)

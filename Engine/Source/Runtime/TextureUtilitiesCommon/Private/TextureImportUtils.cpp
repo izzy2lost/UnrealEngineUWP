@@ -12,12 +12,8 @@ namespace UE
 {
 	namespace TextureUtilitiesCommon
 	{
-		/**
-		 * Detect the existence of gray scale image in some formats and convert those to a gray scale equivalent image
-		 * 
-		 * @return true if the image was converted
-		 */
-		bool AutoDetectAndChangeGrayScale(FImage& Image)
+		template<typename TImageClass>
+		bool AutoDetectAndChangeGrayScale(TImageClass& Image)
 		{
 			if (Image.Format != ERawImageFormat::BGRA8)
 			{
@@ -35,7 +31,7 @@ namespace UE
 					Colors[i].R != Colors[i].B ||
 					Colors[i].G != Colors[i].B)
 				{
-					return false ;
+					return false;
 				}
 			}
 
@@ -44,6 +40,9 @@ namespace UE
 
 			return true;
 		}
+
+		template TEXTUREUTILITIESCOMMON_API bool AutoDetectAndChangeGrayScale(FImage& Image);
+		template TEXTUREUTILITIESCOMMON_API bool AutoDetectAndChangeGrayScale(FMipMapImage& Image);
 
 		/**
 		 * This fills any pixels of a texture with have an alpha value of zero and RGB=white,

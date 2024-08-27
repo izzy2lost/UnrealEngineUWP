@@ -285,7 +285,8 @@ public:
 			return EImageFormat::HDR;
 		}
 		else if ( FCString::Stricmp(Name,TEXT("tiff")) == 0 ||
-			 FCString::Stricmp(Name,TEXT("tif")) == 0 )
+			 FCString::Stricmp(Name,TEXT("tif")) == 0 ||
+			FCString::Stricmp(Name, TEXT("tx")) == 0)
 		{
 			return EImageFormat::TIFF;
 		}
@@ -410,6 +411,37 @@ public:
 		}
 
 		if ( ! ImageWrapper->GetRawImage(OutImage) )
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	virtual bool DecompressImage(const void* InCompressedData, int64 InCompressedSize, FDecompressedImageOutput& OutDecompressedImage) override
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ImageWrapper.Decompress);
+
+		OutDecompressedImage = FDecompressedImageOutput();
+
+		EImageFormat ImageFormat = DetectImageFormat(InCompressedData, InCompressedSize);
+		if (ImageFormat == EImageFormat::Invalid)
+		{
+			return false;
+		}
+
+		TSharedPtr<IImageWrapper> ImageWrapper = CreateImageWrapper(ImageFormat);
+		if (!ImageWrapper.IsValid())
+		{
+			return false;
+		}
+
+		if (!ImageWrapper->SetCompressed(InCompressedData, InCompressedSize))
+		{
+			return false;
+		}
+
+		if (!ImageWrapper->GetRawImage(OutDecompressedImage))
 		{
 			return false;
 		}

@@ -77,10 +77,23 @@ public:
 	 * Function to uncompress our data 
 	 *
 	 * @param InFormat How we want to manipulate the RGB data
+	 * @param InBitDepth The bit depth per-channel of the image.
 	 * 
 	 * returns void. call SetError() in your implementation if you fail.
 	 */
 	virtual void Uncompress(const ERGBFormat InFormat, int32 InBitDepth) = 0;
+
+	/**
+	 * Function to uncompress our data and retrive meta info along with it.
+	 *
+	 * @param InFormat				How we want to manipulate the RGB data
+	 * @param InBitDepth			The bit depth per-channel of the image.
+	 * @param OutDecompressedImage	Holds decompressed image, its mip-maps if available along with meta 
+	 *								data that can be retrived during the decompression of the image.
+	 * 
+	 * returns void. call SetError() in your implementation if you fail.
+	 */
+	virtual void Uncompress(const ERGBFormat InFormat, int32 InBitDepth, FDecompressedImageOutput& OutDecompressedImage);
 
 public:
 
@@ -104,6 +117,9 @@ public:
 	}
 
 	virtual bool GetRaw(const ERGBFormat InFormat, int32 InBitDepth, TArray64<uint8>& OutRawData) override;
+
+	// Use this version when you expect more information such as mipmaps, etc. 
+	virtual bool GetRaw(const ERGBFormat InFormat, int32 InBitDepth, FDecompressedImageOutput& OutDecompressedImage) override;
 
 	virtual int64 GetWidth() const override
 	{

@@ -715,6 +715,135 @@ struct FSharedImage : public FImage, public FThreadSafeRefCountedObject
 	virtual ~FSharedImage() = default;
 };
 
+/**
+ * Structure for raw image data used for Image formats that support Mip Maps.
+ */
+struct FMipMapImage
+{
+	struct FMipInfo
+	{
+		/** Size of the mip image in Pixels*/
+		int32 Width = 0;
+
+		/** Size of the mip image in Pixels*/
+		int32 Height = 0;
+
+		/** Offset into RawData */
+		int64 Offset = 0;
+
+		/** Size of the mip image in Bytes*/
+		int64 Size = 0;
+	};
+
+	/** Raw image data. */
+	TArray64<uint8> RawData;
+
+	/** Holds information about the sub images some image formats support. */
+	TArray<FMipInfo> SubImages;
+
+	/** Format in which the images is stored. */
+	ERawImageFormat::Type Format = ERawImageFormat::BGRA8;
+
+	/** The gamma space the image is stored in. */
+	EGammaSpace GammaSpace = EGammaSpace::sRGB;
+
+public:
+	/**
+	 * Initializes the Mip Map Image with parameters with uninitialized SubImages.
+	 * 
+	 * @param InFormat Raw Image Format
+	 * @param InGammaSpace Gamma Space
+	 */
+	IMAGECORE_API void Init(ERawImageFormat::Type InFormat, EGammaSpace InGammaSpace);
+
+	/**
+	 * Initializes the Mip Map Image with reserving space for mip maps.
+	 *
+	 * @param InFormat Raw Image Format
+	 * @param InGammaSpace Gamma Space
+	 */
+	IMAGECORE_API void Init(int32 MipZeroWidth, int32 MipZeroHeight, int32 NumMips, ERawImageFormat::Type InFormat, EGammaSpace InGammaSpace);
+
+	/**
+	 * Copies the image to a destination image with the specified format.
+	 *
+	 * @param DestImage - The destination image.  Will be allocated.  Any existing contents are replaced.
+	 * @param DestFormat - The destination image format.
+	 * @param DestSRGB - Whether the destination image is in SRGB format.
+	 */
+	IMAGECORE_API void CopyTo(FMipMapImage& DestImage, ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace);
+
+	void CopyTo(FMipMapImage& DestImage)
+	{
+		CopyTo(DestImage, Format, GammaSpace);
+	}
+
+	/**
+	 * In - place format change
+	 * does nothing if already in the desired format
+	 */ 
+	IMAGECORE_API void ChangeFormat(ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace);
+
+
+	FORCEINLINE bool IsValid() const
+	{
+		bool bMipInfoValid = true;
+		for (const FMipInfo& MipInfo : SubImages)
+		{
+			bMipInfoValid &= (MipInfo.Width > 0 && MipInfo.Height > 0 && MipInfo.Size > 0);
+		}
+
+		if (!bMipInfoValid) return false;
+		if (Format == ERawImageFormat::Invalid) return false;
+		if (GammaSpace == EGammaSpace::Invalid) return false;
+		if (!GetFormatNeedsGammaSpace(Format) && GammaSpace != EGammaSpace::Linear) return false;
+		return true;
+	}
+
+	FORCEINLINE bool GetMipDimensions(int32 MipLevel, int32& OutWidth, int32& OutHeight) const
+	{
+		if (!SubImages.IsValidIndex(MipLevel))
+		{
+			OutWidth = 0;
+			OutHeight = 0;
+			return false;
+		}
+
+		OutWidth = SubImages[MipLevel].Width;
+		OutHeight = SubImages[MipLevel].Height;
+		return true;
+	}
+
+	FORCEINLINE int32 GetMipCount() const 
+	{
+		return SubImages.Num();
+	}
+
+	IMAGECORE_API FImageView GetMipImage(int32 MipLevel)
+	{
+		check(SubImages.IsValidIndex(MipLevel));
+		return FImageView(static_cast<void*>(RawData.GetData() + SubImages[MipLevel].Offset), SubImages[MipLevel].Width, SubImages[MipLevel].Height, 1, Format, GammaSpace);
+	}
+
+	IMAGECORE_API void AddMipImage(TArray64<uint8>&& Buffer, int32 Width, int32 Height)
+	{
+		FMipInfo MipInfo;
+		{
+			MipInfo.Width = Width;
+			MipInfo.Height = Height;
+			MipInfo.Offset = RawData.Num();
+			MipInfo.Size = Width * Height * ERawImageFormat::GetBytesPerPixel(Format);
+		}
+		SubImages.Add(MipInfo);
+		RawData.Append(MoveTemp(Buffer));
+	}
+
+	FORCEINLINE int64 GetNumPixels()
+	{
+		return (RawData.Num() / ERawImageFormat::GetBytesPerPixel(Format));
+	}
+
+};
 
 
 /* Functions

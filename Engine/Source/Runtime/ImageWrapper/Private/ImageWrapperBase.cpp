@@ -2,6 +2,7 @@
 
 #include "ImageWrapperBase.h"
 #include "ImageWrapperPrivate.h"
+#include "ImageWrapperOutputTypes.h"
 
 
 /* FImageWrapperBase structors
@@ -41,6 +42,13 @@ void FImageWrapperBase::SetError(const TCHAR* ErrorMessage)
 /* IImageWrapper structors
  *****************************************************************************/
 
+void FImageWrapperBase::Uncompress(const ERGBFormat InFormat, int32 InBitDepth, FDecompressedImageOutput& OutDecompressedImage)
+{
+	OutDecompressedImage = FDecompressedImageOutput();
+	Uncompress(InFormat, InBitDepth);
+	OutDecompressedImage.MipMapImage.AddMipImage(MoveTemp(RawData), GetWidth(), GetHeight());
+}
+
 TArray64<uint8> FImageWrapperBase::GetCompressed(int32 Quality)
 {
 	LastError.Empty();
@@ -55,19 +63,40 @@ bool FImageWrapperBase::GetRaw(const ERGBFormat InFormat, int32 InBitDepth, TArr
 	LastError.Empty();
 	Uncompress(InFormat, InBitDepth);
 
-	if ( ! LastError.IsEmpty())
+	if (!LastError.IsEmpty())
 	{
 		UE_LOG(LogImageWrapper, Warning, TEXT("ImageWrapper GetRaw failed: %s"), *LastError);
 		return false;
 	}
-	
-	if ( RawData.IsEmpty() )
+
+	if (RawData.IsEmpty())
 	{
 		return false;
 	}
 
 	OutRawData = MoveTemp(RawData);
-	
+
+	return true;
+}
+
+bool FImageWrapperBase::GetRaw(const ERGBFormat InFormat, int32 InBitDepth, FDecompressedImageOutput& OutDecompressedImage)
+{
+	LastError.Empty();
+
+	// Uncompress should add data directly to the mip map image through FMipMapImage::AddMipImage
+	Uncompress(InFormat, InBitDepth, OutDecompressedImage);
+
+	if (!LastError.IsEmpty())
+	{
+		UE_LOG(LogImageWrapper, Warning, TEXT("ImageWrapper GetRaw failed: %s"), *LastError);
+		return false;
+	}
+
+	if (OutDecompressedImage.MipMapImage.RawData.IsEmpty())
+	{
+		return false;
+	}
+
 	return true;
 }
 
@@ -391,7 +420,7 @@ bool FImageWrapperBase::GetImageViewOfSetRawForCompress(FImageView & OutImage) c
 bool IImageWrapper::GetRawImage(FImage & OutImage)
 {
 	TArray64<uint8> OutRawData;
-	if ( ! GetRaw(OutRawData) )
+	if (!GetRaw(OutRawData))
 	{
 		return false;
 	}
@@ -403,8 +432,8 @@ bool IImageWrapper::GetRawImage(FImage & OutImage)
 
 	bool bExactMatch;
 	ERawImageFormat::Type RawFormat = GetClosestRawImageFormat(&bExactMatch);
-	
-	if ( RawFormat == ERawImageFormat::Invalid )
+
+	if (RawFormat == ERawImageFormat::Invalid)
 	{
 		return false;
 	}
@@ -413,7 +442,7 @@ bool IImageWrapper::GetRawImage(FImage & OutImage)
 	//	just assume they are Default for now :
 	EGammaSpace GammaSpace = ERawImageFormat::GetDefaultGammaSpace(RawFormat);
 
-	if ( bExactMatch )
+	if (bExactMatch)
 	{
 		// no conversion required
 
@@ -426,34 +455,103 @@ bool IImageWrapper::GetRawImage(FImage & OutImage)
 	}
 	else
 	{
-		OutImage.Init( Width, Height, RawFormat, GammaSpace );
+		OutImage.Init(Width, Height, RawFormat, GammaSpace);
 
 		FImageView SrcImage = OutImage;
 		SrcImage.RawData = OutRawData.GetData();
 
-		switch(RGBFormat)
+		switch (RGBFormat)
 		{
 		case ERGBFormat::RGBA:
 		{
 			// RGBA8 -> BGRA8
-			check( BitDepth == 8 );
-			check( RawFormat == ERawImageFormat::BGRA8 );
-			FImageCore::CopyImageRGBABGRA(SrcImage, OutImage );
+			check(BitDepth == 8);
+			check(RawFormat == ERawImageFormat::BGRA8);
+			FImageCore::CopyImageRGBABGRA(SrcImage, OutImage);
 			break;
 		}
-			
+
 		case ERGBFormat::BGRA:
 		{
 			// BGRA16 -> RGBA16
-			check( BitDepth == 16 );
-			check( RawFormat == ERawImageFormat::RGBA16 );
-			FImageCore::CopyImageRGBABGRA(SrcImage, OutImage );
+			check(BitDepth == 16);
+			check(RawFormat == ERawImageFormat::RGBA16);
+			FImageCore::CopyImageRGBABGRA(SrcImage, OutImage);
 			break;
 		}
 
 		default:
 			check(0);
-			return false;			
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool IImageWrapper::GetRawImage(FDecompressedImageOutput& OutDecomressedImage)
+{
+	
+	if (!GetRaw(OutDecomressedImage))
+	{
+		return false;
+	}
+
+	int64 Width = GetWidth();
+	int64 Height = GetHeight();
+	ERGBFormat RGBFormat = GetFormat();
+	int32 BitDepth = GetBitDepth();
+
+	bool bExactMatch;
+	ERawImageFormat::Type RawFormat = GetClosestRawImageFormat(&bExactMatch);
+
+	if (RawFormat == ERawImageFormat::Invalid)
+	{
+		return false;
+	}
+
+	// ImageWrapper RGBFormat doesn't track if pixels are Gamma/sRGB or not
+	//	just assume they are Default for now :
+	EGammaSpace GammaSpace = ERawImageFormat::GetDefaultGammaSpace(RawFormat);
+
+	if (bExactMatch)
+	{
+		// no conversion required
+		OutDecomressedImage.MipMapImage.Format = RawFormat;
+		OutDecomressedImage.MipMapImage.GammaSpace = GammaSpace;
+	}
+	else
+	{
+		FMipMapImage& MipMapImage = OutDecomressedImage.MipMapImage;
+
+		for (int32 MipLevelIndex = 0; MipLevelIndex < MipMapImage.GetMipCount(); ++MipLevelIndex)
+		{
+			FImageView SrcImage = MipMapImage.GetMipImage(MipLevelIndex);
+
+			switch (RGBFormat)
+			{
+			case ERGBFormat::RGBA:
+			{
+				// RGBA8 -> BGRA8
+				check(BitDepth == 8);
+				check(RawFormat == ERawImageFormat::BGRA8);
+				FImageCore::TransposeImageRGBABGRA(SrcImage);
+				break;
+			}
+
+			case ERGBFormat::BGRA:
+			{
+				// BGRA16 -> RGBA16
+				check(BitDepth == 16);
+				check(RawFormat == ERawImageFormat::RGBA16);
+				FImageCore::TransposeImageRGBABGRA(SrcImage);
+				break;
+			}
+
+			default:
+				check(0);
+				return false;
+			}
 		}
 	}
 

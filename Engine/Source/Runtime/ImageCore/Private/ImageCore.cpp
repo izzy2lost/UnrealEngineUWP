@@ -1386,6 +1386,86 @@ void FImage::Linearize(uint8 SourceEncoding, FImage& DestImage) const
 	}
 }
 
+
+
+void FMipMapImage::Init(ERawImageFormat::Type InFormat, EGammaSpace InGammaSpace)
+{
+	Format = InFormat;
+	GammaSpace = InGammaSpace;
+	SubImages.Empty();
+	RawData.Empty();
+}
+
+void FMipMapImage::Init(int32 MipZeroWidth, int32 MipZeroHeight, int32 NumMips, ERawImageFormat::Type InFormat, EGammaSpace InGammaSpace)
+{
+	Format = InFormat;
+	GammaSpace = InGammaSpace;
+
+	const int32 BytesPerPixel = ERawImageFormat::GetBytesPerPixel(Format);
+	int64 BufferSizeBytes = 0;
+
+	int32 CurrMipWidth = MipZeroWidth;
+	int32 CurrMipHeight = MipZeroHeight;
+
+	SubImages.Empty(NumMips);
+	
+	do 
+	{
+		const int32 MipSizeBytes = CurrMipWidth * CurrMipHeight * BytesPerPixel;
+		SubImages.Add(FMipInfo{ CurrMipWidth, CurrMipHeight, BufferSizeBytes, MipSizeBytes });
+
+		BufferSizeBytes += MipSizeBytes;
+		CurrMipWidth = CurrMipWidth >> 1;
+		CurrMipHeight = CurrMipHeight >> 1;
+		NumMips--;
+	} while ((NumMips > 0) && (CurrMipWidth > 0) && (CurrMipHeight > 0));
+
+	RawData.Empty(BufferSizeBytes);
+	RawData.AddUninitialized(BufferSizeBytes);
+}
+
+void FMipMapImage::CopyTo(FMipMapImage& DestImage, ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace)
+{
+	// if gamma correction is done, it's always *TO* sRGB , not to Pow22
+	// so if Pow22 was requested, change to sRGB
+	// so that Float->int->Float roundtrips correctly
+	if (DestGammaSpace == EGammaSpace::Pow22 && GammaSpace != EGammaSpace::Pow22)
+	{
+		// fix call sites that hit this
+		UE_LOG(LogImageCore, Warning, TEXT("Pow22 should not be used as a Dest GammaSpace.  Pow22 Source should encode to sRGB Dest."));
+		DestGammaSpace = EGammaSpace::sRGB;
+	}
+
+	constexpr int32 MipLevel = 0;
+	int32 Width, Height;
+	if (GetMipDimensions(MipLevel, Width, Height))
+	{
+		// existing contents of DestImage are freed and replaced
+		DestImage.Init(Width, Height, GetMipCount(), DestFormat, DestGammaSpace);
+		ParallelFor(GetMipCount(), [this, &DestImage](int32 MipLevel) 
+		{
+			FImageView SrcMipImageView = GetMipImage(MipLevel);
+			FImageView DestMipImageView = DestImage.GetMipImage(MipLevel);
+			FImageCore::CopyImage(SrcMipImageView, DestMipImageView);
+		});
+	}
+}
+
+void FMipMapImage::ChangeFormat(ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace)
+{
+	if (Format == DestFormat &&
+		(GammaSpace == DestGammaSpace || !ERawImageFormat::GetFormatNeedsGammaSpace(Format)))
+	{
+		// no action needed
+	}
+	else
+	{
+		FMipMapImage Temp;
+		CopyTo(Temp, DestFormat, DestGammaSpace);
+		::Swap(*this, Temp);
+	}
+}
+
 const FUtf8StringView ERawImageFormat::GetNameView(Type Format)
 {
 	switch (Format)
@@ -2331,3 +2411,5 @@ IMAGECORE_API void FImageCore::ResizeImageInPlace(FImage & Image,int32 DestSizeX
 
 //} resize
 //----------------------
+
+

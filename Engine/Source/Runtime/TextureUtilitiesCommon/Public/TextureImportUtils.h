@@ -5,16 +5,15 @@
 #include "CoreTypes.h"
 #include "Engine/TextureDefines.h"
 
-struct FImage;
-
 namespace UE::TextureUtilitiesCommon
 {
 	/**
 	 * Detect the existence of gray scale image in some formats and convert those to a gray scale equivalent image
-	 * 
+	 *
 	 * @return true if the image was converted
 	 */
-	TEXTUREUTILITIESCOMMON_API bool AutoDetectAndChangeGrayScale(FImage& Image);
+	template<typename TImageClass>
+	TEXTUREUTILITIESCOMMON_API bool AutoDetectAndChangeGrayScale(TImageClass& Image);
 
 	/**
 	 * For PNG texture importing, this ensures that any pixels with an alpha value of zero have an RGB

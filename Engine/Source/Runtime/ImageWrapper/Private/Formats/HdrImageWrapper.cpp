@@ -234,6 +234,17 @@ bool FHdrImageWrapper::GetRaw(const ERGBFormat InFormat, int32 InBitDepth, TArra
 	return true;
 }
 
+IMAGEWRAPPER_API bool FHdrImageWrapper::GetRaw(const ERGBFormat InFormat, int32 InBitDepth, FDecompressedImageOutput& OutDecompressedImage)
+{
+	TArray64<uint8> OutRawBuffer;
+	if (!GetRaw(InFormat, InBitDepth, OutRawBuffer))
+	{
+		return false;
+	}
+	OutDecompressedImage.MipMapImage.AddMipImage(MoveTemp(OutRawBuffer), GetWidth(), GetHeight());
+	return true;
+}
+
 int64 FHdrImageWrapper::GetWidth() const
 {
 	return Width;
