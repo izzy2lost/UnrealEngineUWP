@@ -116,6 +116,7 @@ int32 FIOSAudioSoundBuffer::GetCurrentChunkOffset() const
 bool FIOSAudioSoundBuffer::ReadCompressedInfo(USoundWave* InWave)
 {
 	check(DecompressionState != nullptr);
+	check(InWave->SoundWaveDataPtr.IsValid());
 
 	FSoundQualityInfo QualityInfo = { 0 };
 	if(bStreaming)
