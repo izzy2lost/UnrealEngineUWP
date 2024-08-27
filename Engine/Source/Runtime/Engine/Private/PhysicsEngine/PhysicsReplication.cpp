@@ -387,7 +387,7 @@ void FPhysicsReplication::OnTick(float DeltaSeconds, TMap<TWeakObjectPtr<UPrimit
 
 	int32 LocalFrameOffset = 0; // LocalFrame = ServerFrame + LocalFrameOffset;
 
-	if (FPhysicsSolverBase::IsNetworkPhysicsPredictionEnabled())
+	if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction)
 	{
 		if (UWorld* World = GetOwningWorld())
 		{
@@ -921,7 +921,7 @@ void FPhysicsReplicationAsync::OnPreSimulate_Internal()
 			if (!bRewindDataExist && Input.RepMode == EPhysicsReplicationMode::Resimulation)
 			{
 				// We don't have rewind data but an actor is set to replicate using resimulation; we need to enable rewind capture.
-				if (ensure(Chaos::FPBDRigidsSolver::IsNetworkPhysicsPredictionEnabled()))
+				if (ensure(Chaos::FPBDRigidsSolver::IsNetworkPhysicsPredictionEnabled() && RigidsSolver->IsUsingFixedDt()))
 				{
 					const int32 NumFrames = FMath::Max<int32>(1, Chaos::FPBDRigidsSolver::GetPhysicsHistoryCount());
 					RigidsSolver->EnableRewindCapture(NumFrames, true);

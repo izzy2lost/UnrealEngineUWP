@@ -93,7 +93,8 @@ struct FPhysicsPredictionSettings
 
 	/** Enable networked physics prediction (experimental)
 	* Note: If an AActor::PhysicsReplicationMode is set to use Resimulation this will allow physics to cache history which is required by resimulation replication.
-	* Note: This can also affect how physics is solved even when not using resimulation. */
+	* Note: This can also affect how physics is solved even when not using resimulation. 
+	* Note: Physics Prediction only works when Physics -> Framerate -> Tick Physics Async is enabled */
 	UPROPERTY(EditAnywhere, Category = "Replication")
 	bool bEnablePhysicsPrediction;
 

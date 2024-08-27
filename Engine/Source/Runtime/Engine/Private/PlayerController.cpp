@@ -5274,10 +5274,22 @@ void APlayerController::TickActor( float DeltaSeconds, ELevelTick TickType, FAct
 	// Clear old axis inputs since we are done with them. 
 	RotationInput = FRotator::ZeroRotator;
 
-	if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction && GetLocalRole() == ROLE_AutonomousProxy && bIsClient)
+	if (bIsClient && UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction && GetLocalRole() == ROLE_AutonomousProxy)
 	{
-		TickOffsetSyncCountdown += DeltaSeconds;
-		UpdateServerAsyncPhysicsTickOffset();
+		if (UWorld* World = GetWorld())
+		{
+			if (FPhysScene* PhysScene = World->GetPhysicsScene())
+			{
+				if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
+				{
+					if (Solver->IsUsingFixedDt())
+					{
+						TickOffsetSyncCountdown += DeltaSeconds;
+						UpdateServerAsyncPhysicsTickOffset();
+					}
+				}
+			}
+		}
 	}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
