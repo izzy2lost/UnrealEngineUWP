@@ -1470,16 +1470,16 @@ void FDeferredShadingSceneRenderer::RenderOcclusion(
 		TrimAllOcclusionHistory(Views);
 	}
 
+	if (bIsOcclusionTesting)
+	{
+		FenceOcclusionTests(GraphBuilder);
+	}
+
 	const bool bUseHzbOcclusion = RenderHzb(GraphBuilder, SceneTextures.Depth.Resolve, BuildHZBAsyncComputeParams);
 
 	if (bUseHzbOcclusion || bIsOcclusionTesting)
 	{
 		GraphBuilder.AddDispatchHint();
-	}
-
-	if (bIsOcclusionTesting)
-	{
-		FenceOcclusionTests(GraphBuilder);
 	}
 }
 
@@ -1510,7 +1510,7 @@ static uint32 GetViewStateUniqueID(const FSceneRenderer* SceneRenderer)
 	return SceneRenderer->Views.Num() && SceneRenderer->Views[0].ViewState ? SceneRenderer->Views[0].ViewState->UniqueID : 0;
 }
 
-void FSceneRenderer::FenceOcclusionTestsInternal(FRHICommandList& RHICmdList)
+void FSceneRenderer::FenceOcclusionTestsInternal(FRHICommandListImmediate& RHICmdList)
 {
 	SCOPE_CYCLE_COUNTER(STAT_OcclusionSubmittedFence_Dispatch);
 
@@ -1547,10 +1547,12 @@ void FSceneRenderer::FenceOcclusionTests(FRDGBuilder& GraphBuilder)
 {
 	if (DoOcclusionQueries() && IsRunningRHIInSeparateThread())
 	{
-		AddPass(GraphBuilder, RDG_EVENT_NAME("FenceOcclusionTests"), [this](FRHICommandList& RHICmdList)
+		AddPass(GraphBuilder, RDG_EVENT_NAME("FenceOcclusionTests"), [this](FRHICommandListImmediate& RHICmdList)
 		{
 			FenceOcclusionTestsInternal(RHICmdList);
 		});
+
+		GraphBuilder.AddDispatchHint();
 	}
 }
 
