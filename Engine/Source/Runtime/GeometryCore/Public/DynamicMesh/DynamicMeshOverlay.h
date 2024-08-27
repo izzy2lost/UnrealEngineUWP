@@ -773,6 +773,7 @@ public:
 #define UE_EXTERN_TEMPLATE_API
 #endif
 
+#if !IS_MERGEDMODULES
 extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<float, 1>;
 extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<double, 1>;
 extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<int, 1>;
@@ -793,6 +794,7 @@ extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<double, 3
 extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<int, 3, FVector3i>;
 extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<float, 4, FVector4f>;
 extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<double, 4, FVector4d>;
+#endif
 
 #undef UE_EXTERN_TEMPLATE_API
 

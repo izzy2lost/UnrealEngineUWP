@@ -144,17 +144,17 @@ namespace Geometry
 {
 
 // because ::ApplyReplaceChange() is in the .cpp we need to declare possible attribute types here
-template class GEOMETRYCORE_API TDynamicMeshAttributeChange<float, 1>;
-template class GEOMETRYCORE_API TDynamicMeshAttributeChange<double, 1>;
-template class GEOMETRYCORE_API TDynamicMeshAttributeChange<int, 1>;
-template class GEOMETRYCORE_API TDynamicMeshAttributeChange<float, 2>;
-template class GEOMETRYCORE_API TDynamicMeshAttributeChange<double, 2>;
-template class GEOMETRYCORE_API TDynamicMeshAttributeChange<int, 2>;
-template class GEOMETRYCORE_API TDynamicMeshAttributeChange<float, 3>;
-template class GEOMETRYCORE_API TDynamicMeshAttributeChange<double, 3>;
-template class GEOMETRYCORE_API TDynamicMeshAttributeChange<int, 3>;
-template class GEOMETRYCORE_API TDynamicMeshAttributeChange<float, 4>;
-template class GEOMETRYCORE_API TDynamicMeshAttributeChange<double, 4>;
+template class TDynamicMeshAttributeChange<float, 1>;
+template class TDynamicMeshAttributeChange<double, 1>;
+template class TDynamicMeshAttributeChange<int, 1>;
+template class TDynamicMeshAttributeChange<float, 2>;
+template class TDynamicMeshAttributeChange<double, 2>;
+template class TDynamicMeshAttributeChange<int, 2>;
+template class TDynamicMeshAttributeChange<float, 3>;
+template class TDynamicMeshAttributeChange<double, 3>;
+template class TDynamicMeshAttributeChange<int, 3>;
+template class TDynamicMeshAttributeChange<float, 4>;
+template class TDynamicMeshAttributeChange<double, 4>;
 
 } // end namespace UE::Geometry
 } // end namespace UE

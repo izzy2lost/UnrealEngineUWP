@@ -26,6 +26,8 @@ namespace Chaos
 	    MaxDirtyElements,
 	    TEXT("The max number of dirty elements. This forces a flush which is very expensive"));
 
+#if !IS_MERGEDMODULES
 	template class CHAOS_API Chaos::TBoundingVolume<int32, FReal, 3>;
 	template class CHAOS_API Chaos::TBoundingVolume<FAccelerationStructureHandle, FReal, 3>;
+#endif
 }

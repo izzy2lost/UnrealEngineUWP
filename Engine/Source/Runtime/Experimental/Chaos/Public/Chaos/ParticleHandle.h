@@ -2694,7 +2694,7 @@ public:
 		return Geometry && Geometry->IsValidGeometry();	//todo: if we want support for sample particles without geometry we need to adjust this
 	}
 
-	static TGeometryParticle<T, d>* SerializationFactory(FChaosArchive& Ar, TGeometryParticle<T, d>* Serializable);
+	static inline TGeometryParticle<T, d>* SerializationFactory(FChaosArchive& Ar, TGeometryParticle<T, d>* Serializable);
 
 	const TVector<T, d>& X() const { return MXR.Read().X(); }
 	const TVector<T, d>& GetX() const { return MXR.Read().X(); }
@@ -3923,6 +3923,7 @@ inline void SetObjectStateHelper(IPhysicsProxyBase& Proxy, FPBDRigidParticle& Ri
 
 CHAOS_API void SetObjectStateHelper(IPhysicsProxyBase& Proxy, FPBDRigidParticleHandle& Rigid, EObjectStateType InState, bool bAllowEvents = false, bool bInvalidate = true);
 
+#if !IS_MERGEDMODULES
 #if PLATFORM_COMPILER_CLANG
 extern template class CHAOS_API ISpatialAcceleration<FAccelerationStructureHandle, FReal, 3>;
 extern template class CHAOS_API ISpatialVisitor<FAccelerationStructureHandle, FReal>;
@@ -3930,7 +3931,7 @@ extern template class CHAOS_API ISpatialVisitor<FAccelerationStructureHandle, FR
 extern template class ISpatialAcceleration<FAccelerationStructureHandle, FReal, 3>;
 extern template class ISpatialVisitor<FAccelerationStructureHandle, FReal>;
 #endif
-
+#endif
 
 } // namespace Chaos
 

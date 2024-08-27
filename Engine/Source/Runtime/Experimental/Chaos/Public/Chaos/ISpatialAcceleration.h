@@ -259,7 +259,7 @@ class ISpatialAcceleration;
 template<ESpatialAcceleration SpatialType, typename TPayloadType, typename T, int d>
 struct TSpatialAccelerationSerializationFactory
 {
-	static ISpatialAcceleration<TPayloadType, T, d>* Create();
+	static CHAOS_API ISpatialAcceleration<TPayloadType, T, d>* Create();
 };
 
 template <typename TPayloadType, typename T, int d>
@@ -1020,12 +1020,14 @@ FORCEINLINE bool PrePreFilterHelper(const int32 Payload, const TVisitor& Visitor
 	return false;
 }
 
+#if !IS_MERGEDMODULES
 #if PLATFORM_COMPILER_CLANG
 extern template class CHAOS_API ISpatialAcceleration<int32, FReal, 3>;
 extern template class CHAOS_API ISpatialVisitor<int32, FReal>;
 #else
 extern template class ISpatialAcceleration<int32, FReal, 3>;
 extern template class ISpatialVisitor<int32, FReal>;
+#endif
 #endif
 
 }
