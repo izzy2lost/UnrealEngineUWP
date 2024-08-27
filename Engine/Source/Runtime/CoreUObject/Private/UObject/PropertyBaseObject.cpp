@@ -743,7 +743,7 @@ void FObjectPropertyBase::CheckValidObject(void* ValueAddress, TObjectPtr<UObjec
 					TEXT("Serialized %s for a property of %s. Reference will be nullptred.\n    ReferencingObject = %s\n    Property = %s\n    Item = %s"),
 					*ObjectClass->GetFullName(),
 					*PropertyClass->GetFullName(),
-					*GetFullNameSafe(SerializeContext->SerializedObject),
+					*GetFullNameSafe(SerializeContext ? SerializeContext->SerializedObject : nullptr),
 					*GetFullName(),
 					*Object.GetFullName()
 				);
@@ -758,7 +758,7 @@ void FObjectPropertyBase::CheckValidObject(void* ValueAddress, TObjectPtr<UObjec
 					*ObjectClass->GetFullName(),
 					*PropertyClass->GetFullName(),
 					DefaultValue ? *DefaultValue->GetFullName() : TEXT("None"),
-					*GetFullNameSafe(SerializeContext->SerializedObject),
+					*GetFullNameSafe(SerializeContext ? SerializeContext->SerializedObject : nullptr),
 					*GetFullName(),
 					*Object.GetFullName()
 				);
