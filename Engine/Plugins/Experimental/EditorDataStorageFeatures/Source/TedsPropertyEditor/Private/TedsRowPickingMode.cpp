@@ -4,7 +4,7 @@
 
 #include "TedsOutlinerItem.h"
 
-FTedsRowPickingMode::FTedsRowPickingMode(const FTedsOutlinerParams& Params, FOnSceneOutlinerItemPicked OnItemPickedDelegate)
+FTedsRowPickingMode::FTedsRowPickingMode(const UE::Editor::Outliner::FTedsOutlinerParams& Params, FOnSceneOutlinerItemPicked OnItemPickedDelegate)
 	: FTedsOutlinerMode(Params)
 	, OnItemPicked(OnItemPickedDelegate)
 {
@@ -32,7 +32,7 @@ void FTedsRowPickingMode::OnFilterTextCommited(FSceneOutlinerItemSelection& Sele
 	// In picking mode, we check to see if we have any Typed Element items, and if so, fire
 	// off the notification to whoever is listening. This may often cause the widget itself
 	// to be enqueued for destruction
-	TArray<FTedsOutlinerTreeItem*> OutlinerRows;
+	TArray<UE::Editor::Outliner::FTedsOutlinerTreeItem*> OutlinerRows;
 	Selection.Get(OutlinerRows);
 	if (OutlinerRows.Num() == 1 && OutlinerRows[0])
 	{

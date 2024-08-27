@@ -12,10 +12,10 @@ DECLARE_DELEGATE_RetVal_OneParam(bool, FOnShouldFilterTedsRow, const UE::Editor:
 /*
 * Picking mode for TEDs Scene Outliner Widgets. Based off of FActorPickingMode
 */
-class TEDSPROPERTYEDITOR_API FTedsRowPickingMode : public FTedsOutlinerMode
+class TEDSPROPERTYEDITOR_API FTedsRowPickingMode : public UE::Editor::Outliner::FTedsOutlinerMode
 {
 public:
-	FTedsRowPickingMode(const FTedsOutlinerParams& Params, FOnSceneOutlinerItemPicked OnItemPickedDelegate);
+	FTedsRowPickingMode(const UE::Editor::Outliner::FTedsOutlinerParams& Params, FOnSceneOutlinerItemPicked OnItemPickedDelegate);
 
 	virtual ~FTedsRowPickingMode() = default;
 public:

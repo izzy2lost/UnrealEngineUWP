@@ -25,6 +25,8 @@
 
 #define LOCTEXT_NAMESPACE "TedsOutliner"
 
+namespace UE::Editor::Outliner
+{
 FTedsOutlinerImpl::FTedsOutlinerImpl(const FTedsOutlinerParams& InParams, ISceneOutlinerMode* InMode)
 	: CreationParams(InParams)
 	, CellWidgetPurposes(InParams.CellWidgetPurposes)
@@ -52,7 +54,7 @@ void FTedsOutlinerImpl::CreateLabelWidgetConstructors()
 
 	// Create and assign the widget constructors for the label column
 	
-	auto CreateWidgetConstructorForQuery = [this](UE::Editor::DataStorage::FQueryDescription InQueryDescription) -> TSharedPtr<FTypedElementWidgetConstructor>
+	auto CreateWidgetConstructorForQuery = [this](DataStorage::FQueryDescription InQueryDescription) -> TSharedPtr<FTypedElementWidgetConstructor>
 	{
 		// Create the Widget Constructor for the item label column
 		using MatchApproach = ITypedElementDataStorageUiInterface::EMatchApproach;
@@ -94,7 +96,7 @@ void FTedsOutlinerImpl::CreateLabelWidgetConstructors()
 		return OutWidgetConstructorPtr;
 	};
 	
-	UE::Editor::DataStorage::QueryHandle LabelColumnQueryHandle = Storage->RegisterQuery(
+	DataStorage::QueryHandle LabelColumnQueryHandle = Storage->RegisterQuery(
 		Select()
 			.ReadWrite<FTypedElementLabelColumn, FTypedElementClassTypeInfoColumn>()
 		.Compile());
@@ -115,8 +117,8 @@ void FTedsOutlinerImpl::CreateFilterQueries()
 		TSharedRef<FFilterCategory> TedsColumnFilterCategory = MakeShared<FFilterCategory>(LOCTEXT("TedsColumnFilters", "TEDS Columns"), LOCTEXT("TedsColumnFiltersTooltip", "Filter by TEDS columns"));
 		TSharedRef<FFilterCategory> TedsTagFilterCategory = MakeShared<FFilterCategory>(LOCTEXT("TedsTagFilters", "TEDS Tags"), LOCTEXT("TedsTagFiltersTooltip", "Filter by TEDS Tags"));
 
-		const UStruct* TedsColumn = UE::Editor::DataStorage::FColumn::StaticStruct();
-		const UStruct* TedsTag = UE::Editor::DataStorage::FTag::StaticStruct();
+		const UStruct* TedsColumn = DataStorage::FColumn::StaticStruct();
+		const UStruct* TedsTag = DataStorage::FTag::StaticStruct();
 
 		// Grab all UStruct types to see if they derive from FColumn or FTag
 		ForEachObjectOfClass(UScriptStruct::StaticClass(), [&](UObject* Obj)
@@ -126,7 +128,7 @@ void FTedsOutlinerImpl::CreateFilterQueries()
 				if (Struct->IsChildOf(TedsColumn) || Struct->IsChildOf(TedsTag))
 				{
 					// Create a query description to filter for this tag/column
-					UE::Editor::DataStorage::FQueryDescription FilterQueryDesc =
+					DataStorage::FQueryDescription FilterQueryDesc =
 					Select()
 					.Where()
 						.All(Struct)
@@ -144,7 +146,7 @@ void FTedsOutlinerImpl::CreateFilterQueries()
 	// Custom filters input by the user
 	TSharedRef<FFilterCategory> CustomFiltersCategory = MakeShared<FFilterCategory>(LOCTEXT("TedsFilters", "TEDS Custom Filters"), LOCTEXT("TedsFiltersTooltip", "Filter by custom TEDS queries"));
 
-	for(const TPair<FName, const UE::Editor::DataStorage::FQueryDescription>& FilterQuery : CreationParams.FilterQueries)
+	for(const TPair<FName, const DataStorage::FQueryDescription>& FilterQuery : CreationParams.FilterQueries)
 	{
 		// TEDS-Outliner TODO: Custom filters need a localizable display name instead of using the FName, but we need to change how they are added first
 		// to see if it can be consolidated with the SFilterBar API
@@ -177,7 +179,7 @@ FTedsOutlinerImpl::~FTedsOutlinerImpl()
 
 	// This is done outside of unregister queries because that is called when the internal query changes (i.e filter) but we don't want to unregister the
 	// label widget queries until shutdown
-	for(const TPair<UE::Editor::DataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair : QueryToWidgetConstructorMap)
+	for(const TPair<DataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair : QueryToWidgetConstructorMap)
 	{
 		Storage->UnregisterQuery(QueryConstructorPair.Key);
 	}
@@ -190,7 +192,7 @@ FTedsOutlinerImpl::FIsItemCompatible& FTedsOutlinerImpl::IsItemCompatible()
 	return IsItemCompatibleWithTeds;
 }
 
-void FTedsOutlinerImpl::SetSelection(const TArray<UE::Editor::DataStorage::RowHandle>& InSelectedRows)
+void FTedsOutlinerImpl::SetSelection(const TArray<DataStorage::RowHandle>& InSelectedRows)
 {
 	if (!SelectionSetName.IsSet())
 	{
@@ -199,33 +201,33 @@ void FTedsOutlinerImpl::SetSelection(const TArray<UE::Editor::DataStorage::RowHa
 	
 	ClearSelection();
 
-	for(UE::Editor::DataStorage::RowHandle Row : InSelectedRows)
+	for(DataStorage::RowHandle Row : InSelectedRows)
 	{
 		Storage->AddColumn(Row, FTypedElementSelectionColumn{ .SelectionSet = SelectionSetName.GetValue() });
 	}
 }
 
-TSharedRef<SWidget> FTedsOutlinerImpl::CreateLabelWidgetForItem(UE::Editor::DataStorage::RowHandle InRowHandle, const STableRow<FSceneOutlinerTreeItemPtr>& InRow) const
+TSharedRef<SWidget> FTedsOutlinerImpl::CreateLabelWidgetForItem(DataStorage::RowHandle InRowHandle, const STableRow<FSceneOutlinerTreeItemPtr>& InRow) const
 {
-	auto CreateWidgetForQuery = [InRowHandle, this, &InRow](const TPair<UE::Editor::DataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair) -> TSharedPtr<SWidget>
+	auto CreateWidgetForQuery = [InRowHandle, this, &InRow](const TPair<DataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair) -> TSharedPtr<SWidget>
 	{
-		UE::Editor::DataStorage::FQueryDescription QueryDescription = Storage->GetQueryDescription(QueryConstructorPair.Key);
+		DataStorage::FQueryDescription QueryDescription = Storage->GetQueryDescription(QueryConstructorPair.Key);
 		
 		// Create a generic metadata view for the Type Widget
-		UE::Editor::DataStorage::FMetaData QueryWideMetaData;
+		DataStorage::FMetaData QueryWideMetaData;
 		QueryWideMetaData.AddImmutableData("TypeInfoWidget_bUseIcon", true);
-		UE::Editor::DataStorage::FGenericMetaDataView GenericMetaDataView(QueryWideMetaData);
+		DataStorage::FGenericMetaDataView GenericMetaDataView(QueryWideMetaData);
 
 		// Create metadata for the query itself
-		UE::Editor::DataStorage::FQueryMetaDataView QueryMetaDataView(QueryDescription);
+		DataStorage::FQueryMetaDataView QueryMetaDataView(QueryDescription);
 
 		// Combine the two metadata
-		UE::Editor::DataStorage::FComboMetaDataView MetaDataArgs(GenericMetaDataView, QueryMetaDataView);
+		DataStorage::FComboMetaDataView MetaDataArgs(GenericMetaDataView, QueryMetaDataView);
 
 		TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypes(QueryDescription.SelectionTypes);
 		TSharedPtr<FTypedElementWidgetConstructor> CellWidgetConstructor = QueryConstructorPair.Value;
 
-		UE::Editor::DataStorage::RowHandle UiRowHandle = Storage->AddRow(Storage->FindTable(UE::Editor::DataStorage::TableViewerUtils::GetWidgetTableName()));
+		DataStorage::RowHandle UiRowHandle = Storage->AddRow(Storage->FindTable(DataStorage::TableViewerUtils::GetWidgetTableName()));
 
 		if (FTypedElementRowReferenceColumn* RowReference = Storage->GetColumn<FTypedElementRowReferenceColumn>(UiRowHandle))
 		{
@@ -246,7 +248,7 @@ TSharedRef<SWidget> FTedsOutlinerImpl::CreateLabelWidgetForItem(UE::Editor::Data
 	
 	TSharedRef<SHorizontalBox> CombinedWidget = SNew(SHorizontalBox);
 
-	for(const TPair<UE::Editor::DataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair : QueryToWidgetConstructorMap)
+	for(const TPair<DataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair : QueryToWidgetConstructorMap)
 	{
 		if (TSharedPtr<SWidget> WidgetForQuery = CreateWidgetForQuery(QueryConstructorPair))
 		{
@@ -264,13 +266,13 @@ TSharedRef<SWidget> FTedsOutlinerImpl::CreateLabelWidgetForItem(UE::Editor::Data
 	return CombinedWidget;
 }
 
-void FTedsOutlinerImpl::AppendQuery(UE::Editor::DataStorage::FQueryDescription& Query1, const UE::Editor::DataStorage::FQueryDescription& Query2)
+void FTedsOutlinerImpl::AppendQuery(DataStorage::FQueryDescription& Query1, const DataStorage::FQueryDescription& Query2)
 {
 	// TEDS-Outliner TODO: We simply discard duplicate types for now but we probably want a more robust system to detect duplicates and conflicting conditions
 	for(int32 i = 0; i < Query2.ConditionOperators.Num(); ++i)
 	{
 		// Make sure we don't add duplicate conditions
-		UE::Editor::DataStorage::FQueryDescription::FOperator* FoundCondition = Query1.ConditionOperators.FindByPredicate([&Query2, i](const UE::Editor::DataStorage::FQueryDescription::FOperator& Op)
+		DataStorage::FQueryDescription::FOperator* FoundCondition = Query1.ConditionOperators.FindByPredicate([&Query2, i](const DataStorage::FQueryDescription::FOperator& Op)
 		{
 			return Op.Type == Query2.ConditionOperators[i].Type;
 		});
@@ -289,7 +291,7 @@ void FTedsOutlinerImpl::AppendQuery(UE::Editor::DataStorage::FQueryDescription& 
 	}
 }
 
-void FTedsOutlinerImpl::AddExternalQuery(FName QueryName, const UE::Editor::DataStorage::FQueryDescription& InQueryDescription)
+void FTedsOutlinerImpl::AddExternalQuery(FName QueryName, const DataStorage::FQueryDescription& InQueryDescription)
 {
 	ExternalQueries.Emplace(QueryName, InQueryDescription);
 
@@ -301,15 +303,15 @@ void FTedsOutlinerImpl::RemoveExternalQuery(FName QueryName)
 	ExternalQueries.Remove(QueryName);
 }
 
-void FTedsOutlinerImpl::AppendExternalQueries(UE::Editor::DataStorage::FQueryDescription& OutQuery)
+void FTedsOutlinerImpl::AppendExternalQueries(DataStorage::FQueryDescription& OutQuery)
 {
-	for(const TPair<FName, UE::Editor::DataStorage::FQueryDescription>& ExternalQuery : ExternalQueries)
+	for(const TPair<FName, DataStorage::FQueryDescription>& ExternalQuery : ExternalQueries)
 	{
 		AppendQuery(OutQuery, ExternalQuery.Value);
 	}
 }
 
-bool FTedsOutlinerImpl::HasItemParentChanged(UE::Editor::DataStorage::RowHandle InRowHandle, UE::Editor::DataStorage::RowHandle ParentRowHandle) const
+bool FTedsOutlinerImpl::HasItemParentChanged(DataStorage::RowHandle InRowHandle, DataStorage::RowHandle ParentRowHandle) const
 {
 	const FSceneOutlinerTreeItemPtr Item = SceneOutliner->GetTreeItem(InRowHandle, true);
 
@@ -338,7 +340,7 @@ bool FTedsOutlinerImpl::HasItemParentChanged(UE::Editor::DataStorage::RowHandle 
 	return false;
 }
 
-bool FTedsOutlinerImpl::CanDisplayRow(UE::Editor::DataStorage::RowHandle ItemRowHandle) const
+bool FTedsOutlinerImpl::CanDisplayRow(DataStorage::RowHandle ItemRowHandle) const
 {
 	/*
 	 * Don't display widgets that are created for rows in this table viewer. Widgets are only created for rows that are currently visible, so if we
@@ -481,12 +483,12 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 	}
 }
 
-UE::Editor::DataStorage::RowHandle FTedsOutlinerImpl::GetParentRow(UE::Editor::DataStorage::RowHandle InRowHandle)
+DataStorage::RowHandle FTedsOutlinerImpl::GetParentRow(DataStorage::RowHandle InRowHandle)
 {
 	// No parent if there is no hierarchy data specified
 	if (!HierarchyData.IsSet())
 	{
-		return UE::Editor::DataStorage::InvalidRowHandle;
+		return DataStorage::InvalidRowHandle;
 	}
 	
 	// If this entity does not have a parent entity, return InvalidRowHandle
@@ -494,26 +496,26 @@ UE::Editor::DataStorage::RowHandle FTedsOutlinerImpl::GetParentRow(UE::Editor::D
 	
 	if (!ParentColumnData)
 	{
-		return UE::Editor::DataStorage::InvalidRowHandle;
+		return DataStorage::InvalidRowHandle;
 	}
 
 	// If the parent is invalid for some reason, return InvalidRowHandle
-	const UE::Editor::DataStorage::RowHandle ParentRowHandle = HierarchyData.GetValue().GetParent.Execute(ParentColumnData);
+	const DataStorage::RowHandle ParentRowHandle = HierarchyData.GetValue().GetParent.Execute(ParentColumnData);
 	
 	if (!Storage->IsRowAvailable(ParentRowHandle))
 	{
-		return UE::Editor::DataStorage::InvalidRowHandle;
+		return DataStorage::InvalidRowHandle;
 	}
 	
 	if (!CanDisplayRow(ParentRowHandle))
 	{
-		return UE::Editor::DataStorage::InvalidRowHandle;
+		return DataStorage::InvalidRowHandle;
 	}
 
 	return ParentRowHandle;
 }
 
-void FTedsOutlinerImpl::OnItemAdded(UE::Editor::DataStorage::RowHandle ItemRowHandle)
+void FTedsOutlinerImpl::OnItemAdded(DataStorage::RowHandle ItemRowHandle)
 {
 	if (!CanDisplayRow(ItemRowHandle))
 	{
@@ -526,7 +528,7 @@ void FTedsOutlinerImpl::OnItemAdded(UE::Editor::DataStorage::RowHandle ItemRowHa
 	HierarchyChangedEvent.Broadcast(EventData);
 }
 
-void FTedsOutlinerImpl::OnItemRemoved(UE::Editor::DataStorage::RowHandle ItemRowHandle)
+void FTedsOutlinerImpl::OnItemRemoved(DataStorage::RowHandle ItemRowHandle)
 {
 	FSceneOutlinerHierarchyChangedData EventData;
 	EventData.Type = FSceneOutlinerHierarchyChangedData::Removed;
@@ -534,7 +536,7 @@ void FTedsOutlinerImpl::OnItemRemoved(UE::Editor::DataStorage::RowHandle ItemRow
 	HierarchyChangedEvent.Broadcast(EventData);
 }
 
-void FTedsOutlinerImpl::OnItemMoved(UE::Editor::DataStorage::RowHandle ItemRowHandle)
+void FTedsOutlinerImpl::OnItemMoved(DataStorage::RowHandle ItemRowHandle)
 {
 	if (!CanDisplayRow(ItemRowHandle))
 	{
@@ -569,7 +571,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 		Select(
 			TEXT("Add Row to Outliner"),
 			FObserver::OnAdd<FTypedElementLabelColumn>().SetExecutionMode(EExecutionMode::GameThread),
-			[this](IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row)
+			[this](IQueryContext& Context, DataStorage::RowHandle Row)
 			{
 				OnItemAdded(Row);
 			})
@@ -583,7 +585,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 		Select(
 				TEXT("Remove Row from Outliner"),
 				FObserver::OnRemove<FTypedElementLabelColumn>().SetExecutionMode(EExecutionMode::GameThread),
-				[this](IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row)
+				[this](IQueryContext& Context, DataStorage::RowHandle Row)
 				{
 					OnItemRemoved(Row);
 				})
@@ -612,9 +614,9 @@ void FTedsOutlinerImpl::RecompileQueries()
 			TEXT("Update item parent"),
 			FProcessor(EQueryTickPhase::DuringPhysics, Storage->GetQueryTickGroupName(EQueryTickGroups::Update))
 				.SetExecutionMode(EExecutionMode::GameThread),
-			[this](IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row)
+			[this](IQueryContext& Context, DataStorage::RowHandle Row)
 			{
-				UE::Editor::DataStorage::RowHandle ParentRowHandle = InvalidRowHandle;
+				DataStorage::RowHandle ParentRowHandle = InvalidRowHandle;
 
 				if (const FTableRowParentColumn* ParentColumn = Context.GetColumn<FTableRowParentColumn>())
 				{
@@ -652,7 +654,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 							Select(
 							TEXT("Row selected"),
 							FObserver::OnAdd<FTypedElementSelectionColumn>().SetExecutionMode(EExecutionMode::GameThread),
-							[this](IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row)
+							[this](IQueryContext& Context, DataStorage::RowHandle Row)
 							{
 								bSelectionDirty = true;
 							})
@@ -666,7 +668,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 							Select(
 							TEXT("Row deselected"),
 							FObserver::OnRemove<FTypedElementSelectionColumn>().SetExecutionMode(EExecutionMode::GameThread),
-							[this](IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row)
+							[this](IQueryContext& Context, DataStorage::RowHandle Row)
 							{
 								bSelectionDirty = true;
 							})
@@ -782,5 +784,6 @@ const TOptional<FTedsOutlinerHierarchyData>& FTedsOutlinerImpl::GetHierarchyData
 {
 	return HierarchyData;
 }
+} // namespace UE::Editor::Outliner
 
 #undef LOCTEXT_NAMESPACE

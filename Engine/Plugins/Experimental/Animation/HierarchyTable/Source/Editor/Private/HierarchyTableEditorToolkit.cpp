@@ -113,6 +113,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 	}
 
 	using namespace UE::Editor::DataStorage::Queries;
+	using namespace UE::Editor::Outliner;
 
 	if (!ensure(HierarchyTable->TableType))
 	{

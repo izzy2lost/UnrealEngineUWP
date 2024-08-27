@@ -51,7 +51,7 @@ const TSharedRef<SWidget> FSceneOutlinerRowHandleColumn::ConstructRowWidget(FSce
 	auto SceneOutliner = WeakSceneOutliner.Pin();
 	check(SceneOutliner.IsValid());
 
-	if (const FTedsOutlinerTreeItem* OutlinerTreeItem = TreeItem->CastTo<FTedsOutlinerTreeItem>())
+	if (const UE::Editor::Outliner::FTedsOutlinerTreeItem* OutlinerTreeItem = TreeItem->CastTo<UE::Editor::Outliner::FTedsOutlinerTreeItem>())
 	{
 		const UE::Editor::DataStorage::RowHandle RowHandle = OutlinerTreeItem->GetRowHandle();
 
@@ -65,7 +65,7 @@ const TSharedRef<SWidget> FSceneOutlinerRowHandleColumn::ConstructRowWidget(FSce
 
 void FSceneOutlinerRowHandleColumn::PopulateSearchStrings(const ISceneOutlinerTreeItem& Item, TArray<FString>& OutSearchStrings) const
 {
-	if (const FTedsOutlinerTreeItem* OutlinerTreeItem = Item.CastTo<FTedsOutlinerTreeItem>())
+	if (const UE::Editor::Outliner::FTedsOutlinerTreeItem* OutlinerTreeItem = Item.CastTo<UE::Editor::Outliner::FTedsOutlinerTreeItem>())
 	{
 		OutSearchStrings.Add(LexToString<FString>(OutlinerTreeItem->GetRowHandle()));
 	}
@@ -78,7 +78,7 @@ void FSceneOutlinerRowHandleColumn::SortItems(TArray<FSceneOutlinerTreeItemPtr>&
 		/** Sort by type first */
 		.Primary([this](const ISceneOutlinerTreeItem& Item)
 		{
-			if (const FTedsOutlinerTreeItem* OutlinerTreeItem = Item.CastTo<FTedsOutlinerTreeItem>())
+			if (const UE::Editor::Outliner::FTedsOutlinerTreeItem* OutlinerTreeItem = Item.CastTo<UE::Editor::Outliner::FTedsOutlinerTreeItem>())
 			{
 				return OutlinerTreeItem->GetRowHandle();
 			}

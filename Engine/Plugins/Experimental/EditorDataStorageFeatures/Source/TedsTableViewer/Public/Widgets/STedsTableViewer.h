@@ -23,7 +23,7 @@ namespace UE::Editor::DataStorage
 	 * Example usage:
 	 * 
 	 *	SNew(STedsTableViewer)
-     *		.QueryStack(MakeShared<UE::EditorDataStorage::FQueryStackNode_RowView>(&Rows))
+     *		.QueryStack(MakeShared<UE::Editor::DataStorage::FQueryStackNode_RowView>(&Rows))
 	 *		.Columns({FTypedElementLabelColumn::StaticStruct(), FTypedElementClassTypeInfoColumn::StaticStruct());
 	 */
 	class STedsTableViewer : public SCompoundWidget
@@ -31,7 +31,7 @@ namespace UE::Editor::DataStorage
 	public:
 		
 		// Delegate fired when the selection in the table viewer changes
-		DECLARE_DELEGATE_OneParam(FOnSelectionChanged, UE::Editor::DataStorage::RowHandle)
+		DECLARE_DELEGATE_OneParam(FOnSelectionChanged, RowHandle)
 
 		SLATE_BEGIN_ARGS(STedsTableViewer)
 			: _CellWidgetPurposes({TEXT("General.Cell")})
@@ -74,10 +74,10 @@ namespace UE::Editor::DataStorage
 		TEDSTABLEVIEWER_API void AddCustomColumn(const TSharedRef<FTedsTableViewerColumn>& InColumn);
 
 		// Execute the given callback for each row that is selected in the table viewer
-		TEDSTABLEVIEWER_API void ForEachSelectedRow(TFunctionRef<void(UE::Editor::DataStorage::RowHandle)> InCallback) const;
+		TEDSTABLEVIEWER_API void ForEachSelectedRow(TFunctionRef<void(RowHandle)> InCallback) const;
 
 		// Get the row handle for the widget row the table viewer's contents are stored in
-		TEDSTABLEVIEWER_API UE::Editor::DataStorage::RowHandle GetWidgetRowHandle() const;
+		TEDSTABLEVIEWER_API RowHandle GetWidgetRowHandle() const;
 
 	protected:
 		

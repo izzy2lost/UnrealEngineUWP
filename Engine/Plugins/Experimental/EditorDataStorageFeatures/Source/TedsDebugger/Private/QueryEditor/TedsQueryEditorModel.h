@@ -6,9 +6,7 @@
 
 class ITypedElementDataStorageInterface;
 
-namespace UE::Editor::DataStorage
-{
-namespace Debug::QueryEditor
+namespace UE::Editor::DataStorage::Debug::QueryEditor
 {
 	class FTedsQueryEditorModel;
 
@@ -118,5 +116,4 @@ namespace Debug::QueryEditor
 		uint64 GeneratedVersion = 0;
 		QueryHandle QueryHandle;
 	};
-} // namespace Debug::QueryEditor
-} // namespace UE::Editor::DataStorage
+} // namespace UE::Editor::DataStorage::Debug::QueryEditor

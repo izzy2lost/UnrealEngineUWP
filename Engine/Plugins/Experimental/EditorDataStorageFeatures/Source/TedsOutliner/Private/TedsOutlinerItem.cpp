@@ -8,9 +8,11 @@
 
 #define LOCTEXT_NAMESPACE "TedsOutliner"
 
+namespace UE::Editor::Outliner
+{
 const FSceneOutlinerTreeItemType FTedsOutlinerTreeItem::Type(&ISceneOutlinerTreeItem::Type);
 
-FTedsOutlinerTreeItem::FTedsOutlinerTreeItem(const UE::Editor::DataStorage::RowHandle& InRowHandle,
+FTedsOutlinerTreeItem::FTedsOutlinerTreeItem(const DataStorage::RowHandle& InRowHandle,
 	const TSharedRef<const FTedsOutlinerImpl>& InTedsOutlinerImpl)
 	: ISceneOutlinerTreeItem(Type)
 	, RowHandle(InRowHandle)
@@ -65,9 +67,10 @@ void FTedsOutlinerTreeItem::GenerateContextMenu(UToolMenu* Menu, SSceneOutliner&
 	);
 }
 
-UE::Editor::DataStorage::RowHandle FTedsOutlinerTreeItem::GetRowHandle() const
+DataStorage::RowHandle FTedsOutlinerTreeItem::GetRowHandle() const
 {
 	return RowHandle;
 }
+} // namespace UE::Editor::Outliner
 
 #undef LOCTEXT_NAMESPACE

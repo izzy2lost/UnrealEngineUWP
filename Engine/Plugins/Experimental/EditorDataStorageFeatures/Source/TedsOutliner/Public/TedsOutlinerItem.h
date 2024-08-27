@@ -5,10 +5,12 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "TedsOutlinerMode.h"
 
+namespace UE::Editor::Outliner
+{
 class FTedsOutlinerImpl;
 
 /*
- * A generic item in the TEDS driven Outliner, that uses a UE::Editor::DataStorage::RowHandle to uniquely identify the object it is
+ * A generic item in the TEDS driven Outliner, that uses a DataStorage::RowHandle to uniquely identify the object it is
  * looking at. Functionality should be added through TEDS queries instead of having a different TreeItem type for each
  * type of object you are looking at (i.e. Actor vs Folder)
  * Inherits from ISceneOutlinerItem - which determines what type of item you are looking at. E.G FActorTreeItem for actors
@@ -17,14 +19,14 @@ struct FTedsOutlinerTreeItem : ISceneOutlinerTreeItem
 {
 public:
 	
-	DECLARE_DELEGATE_RetVal_OneParam(bool, FFilterPredicate, const UE::Editor::DataStorage::RowHandle);
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FFilterPredicate, const DataStorage::RowHandle);
 
 	TEDSOUTLINER_API bool Filter(FFilterPredicate Pred) const
 	{
 		return Pred.Execute(RowHandle);
 	}
 
-	TEDSOUTLINER_API FTedsOutlinerTreeItem(const UE::Editor::DataStorage::RowHandle& InRowHandle, const TSharedRef<const FTedsOutlinerImpl>& InTedsOutlinerImpl);
+	TEDSOUTLINER_API FTedsOutlinerTreeItem(const DataStorage::RowHandle& InRowHandle, const TSharedRef<const FTedsOutlinerImpl>& InTedsOutlinerImpl);
 
 	/* Begin ISceneOutlinerTreeItem Implementation */
 	TEDSOUTLINER_API virtual bool IsValid() const override;
@@ -38,9 +40,10 @@ public:
 
 	TEDSOUTLINER_API static const FSceneOutlinerTreeItemType Type;
 
-	TEDSOUTLINER_API UE::Editor::DataStorage::RowHandle GetRowHandle() const;
+	TEDSOUTLINER_API DataStorage::RowHandle GetRowHandle() const;
 
 private:
-	const UE::Editor::DataStorage::RowHandle RowHandle;
+	const DataStorage::RowHandle RowHandle;
 	const TSharedRef<const FTedsOutlinerImpl> TedsOutlinerImpl;
 };
+} // namespace UE::Editor::Outliner

@@ -7,6 +7,8 @@
 #include "Elements/Common/TypedElementQueryDescription.h"
 #include "Elements/Framework/TypedElementMetaData.h"
 
+namespace UE::Editor::Outliner
+{
 class FTedsOutlinerImpl;
 
 // TEDS-Outliner TODO: Lots of minor missing functionality for icon, tooltip, color etc
@@ -14,7 +16,7 @@ class FTedsOutlinerFilter : public FFilterBase<SceneOutliner::FilterBarType>
 {
 public:
 	FTedsOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName, TSharedPtr<FFilterCategory> InCategory,
-		TSharedRef<FTedsOutlinerImpl> InTedsOutlinerImpl, const UE::Editor::DataStorage::FQueryDescription& InFilterQuery);
+		TSharedRef<FTedsOutlinerImpl> InTedsOutlinerImpl, const DataStorage::FQueryDescription& InFilterQuery);
 
 	/** Returns the system name for this filter */
 	virtual FString GetName() const override;
@@ -57,5 +59,6 @@ protected:
 	FText FilterDisplayName;
 
 	TSharedRef<FTedsOutlinerImpl> TedsOutlinerImpl;
-	const UE::Editor::DataStorage::FQueryDescription FilterQuery;
+	const DataStorage::FQueryDescription FilterQuery;
 };
+} // namespace UE::Editor::Outliner

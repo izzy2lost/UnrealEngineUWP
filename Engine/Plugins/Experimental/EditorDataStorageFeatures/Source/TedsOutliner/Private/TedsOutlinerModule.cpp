@@ -21,9 +21,12 @@
 
 #define LOCTEXT_NAMESPACE "TedsOutlinerModule"
 
-namespace UE::EditorDataStorage::Outliner::Private
+namespace UE::Editor::Outliner
 {
-	static bool bUseNewRevisionControlWidgets = false;
+	namespace Private
+	{
+		static bool bUseNewRevisionControlWidgets = false;
+	} // namespace Private
 
 	void RefreshLevelEditorTedsOutliner(bool bAlwaysInvoke)
 	{
@@ -40,7 +43,7 @@ namespace UE::EditorDataStorage::Outliner::Private
 	
 	static FAutoConsoleVariableRef CVarUseNewRevisionControlWidgets(
 		TEXT("TEDS.UI.UseNewRevisionControlWidgets"),
-		bUseNewRevisionControlWidgets,
+		Private::bUseNewRevisionControlWidgets,
 		TEXT("Use new TEDS-based source control widgets in the Outliner (requires TEDS-Outliner to be enabled)")
 		, FConsoleVariableDelegate::CreateLambda([](IConsoleVariable*)
 		{
@@ -55,13 +58,12 @@ namespace UE::EditorDataStorage::Outliner::Private
 		{
 			RefreshLevelEditorTedsOutliner(true);
 		}));
-}
 
 FTedsOutlinerModule::FTedsOutlinerModule()
 {
 }
 
-TSharedRef<ISceneOutliner> FTedsOutlinerModule::CreateTedsOutliner(const FSceneOutlinerInitializationOptions& InInitOptions, const FTedsOutlinerParams& InInitTedsOptions, UE::Editor::DataStorage::QueryHandle ColumnQuery) const
+TSharedRef<ISceneOutliner> FTedsOutlinerModule::CreateTedsOutliner(const FSceneOutlinerInitializationOptions& InInitOptions, const FTedsOutlinerParams& InInitTedsOptions, DataStorage::QueryHandle ColumnQuery) const
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 
@@ -109,25 +111,25 @@ void FTedsOutlinerModule::ShutdownModule()
 	IModuleInterface::ShutdownModule();
 }
 
-UE::Editor::DataStorage::QueryHandle FTedsOutlinerModule::GetLevelEditorTedsOutlinerColumnQuery()
+DataStorage::QueryHandle FTedsOutlinerModule::GetLevelEditorTedsOutlinerColumnQuery()
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 	ITypedElementDataStorageInterface* Storage = Registry->GetMutableDataStorage();
 		
-	using namespace UE::Editor::DataStorage::Queries;
+	using namespace DataStorage::Queries;
 
-	static UE::Editor::DataStorage::QueryHandle ColumnQuery = Storage->RegisterQuery(
+	static DataStorage::QueryHandle ColumnQuery = Storage->RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementAlertColumn, FTypedElementChildAlertColumn>()
 		.Compile());
 
 	// Query to also include revision control info
-	static UE::Editor::DataStorage::QueryHandle RevisionControlQuery = Storage->RegisterQuery(
+	static DataStorage::QueryHandle RevisionControlQuery = Storage->RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementPackageReference, FTypedElementAlertColumn>()
 		.Compile());
 
-	return UE::EditorDataStorage::Outliner::Private::bUseNewRevisionControlWidgets ? RevisionControlQuery : ColumnQuery;
+	return Private::bUseNewRevisionControlWidgets ? RevisionControlQuery : ColumnQuery;
 	
 }
 
@@ -142,10 +144,10 @@ TSharedRef<SWidget> FTedsOutlinerModule::CreateLevelEditorTedsOutliner()
 		.Text(LOCTEXT("TEDSPluginNotEnabledText", "You need to enable the Typed Element Data Storage plugin to see the table viewer!"));
 	}
 
-	using namespace UE::Editor::DataStorage::Queries;
+	using namespace DataStorage::Queries;
 
 	// The Outliner is populated with Actors and Entities
-	UE::Editor::DataStorage::FQueryDescription OutlinerQueryDescription =
+	DataStorage::FQueryDescription OutlinerQueryDescription =
 		Select()
 		.Where()
 			.All<FTypedElementClassTypeInfoColumn>() // TEDS-Outliner TODO: Currently looking at all entries with type info in TEDS
@@ -162,7 +164,7 @@ TSharedRef<SWidget> FTedsOutlinerModule::CreateLevelEditorTedsOutliner()
 	Params.bUseDefaultTedsFilters = true;
 
 	// Example Query to filter for actors
-	UE::Editor::DataStorage::FQueryDescription ActorFilterQuery =
+	DataStorage::FQueryDescription ActorFilterQuery =
 		Select()
 		.Where()
 			.All<FTypedElementActorTag>()
@@ -217,7 +219,8 @@ FName FTedsOutlinerModule::GetTedsOutlinerTabName()
 {
 	return TedsOutlinerTabName;
 }
+} // namsepace UE::Editor::Outliner
 
-IMPLEMENT_MODULE(FTedsOutlinerModule, TedsOutliner);
+IMPLEMENT_MODULE(UE::Editor::Outliner::FTedsOutlinerModule, TedsOutliner);
 
 #undef LOCTEXT_NAMESPACE // TedsOutlinerModule

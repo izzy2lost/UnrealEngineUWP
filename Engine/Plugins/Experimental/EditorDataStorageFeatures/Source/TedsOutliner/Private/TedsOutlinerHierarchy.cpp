@@ -14,6 +14,8 @@
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 
+namespace UE::Editor::Outliner
+{
 FTedsOutlinerHierarchy::FTedsOutlinerHierarchy(FTedsOutlinerMode* InMode,
 	const TSharedRef<FTedsOutlinerImpl>& InTedsOutlinerImpl)
 	: ISceneOutlinerHierarchy(InMode)
@@ -73,3 +75,4 @@ FSceneOutlinerTreeItemPtr FTedsOutlinerHierarchy::FindOrCreateParentItem(const I
 	
 	return nullptr;
 }
+} // namespace UE::Editor::Outliner

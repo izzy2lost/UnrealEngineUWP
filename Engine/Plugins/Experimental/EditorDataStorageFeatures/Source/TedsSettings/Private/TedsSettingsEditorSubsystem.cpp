@@ -6,13 +6,13 @@
 #include "TedsSettingsLog.h"
 #include "TedsSettingsManager.h"
 
-namespace UE::EditorDataStorage::Settings
+namespace UE::Editor::Settings::Private
 {
 	static TAutoConsoleVariable<bool> CVarTedsSettingsEnable(
 		TEXT("TEDS.Feature.Settings.Enable"),
 		false,
 		TEXT("When true, settings objects from the ISettingsModule will be mirrored to rows in the editor data storage."));
-}
+} // namespace UE::Editor::Settings::Private
 
 UTedsSettingsEditorSubsystem::UTedsSettingsEditorSubsystem()
 	: UEditorSubsystem()
@@ -23,7 +23,7 @@ UTedsSettingsEditorSubsystem::UTedsSettingsEditorSubsystem()
 
 const bool UTedsSettingsEditorSubsystem::IsEnabled() const
 {
-	return UE::EditorDataStorage::Settings::CVarTedsSettingsEnable.GetValueOnGameThread();
+	return UE::Editor::Settings::Private::CVarTedsSettingsEnable.GetValueOnGameThread();
 }
 
 UTedsSettingsEditorSubsystem::FOnEnabledChanged& UTedsSettingsEditorSubsystem::OnEnabledChanged()
@@ -37,7 +37,7 @@ void UTedsSettingsEditorSubsystem::Initialize(FSubsystemCollectionBase& Collecti
 
 	UE_LOG(LogTedsSettings, Log, TEXT("UTedsSettingsEditorSubsystem::Initialize"));
 
-	UE::EditorDataStorage::Settings::CVarTedsSettingsEnable->SetOnChangedCallback(
+	UE::Editor::Settings::Private::CVarTedsSettingsEnable->SetOnChangedCallback(
 		FConsoleVariableDelegate::CreateLambda([this](IConsoleVariable* Variable)
 		{
 			const bool bIsEnabled = Variable->GetBool();
@@ -54,7 +54,7 @@ void UTedsSettingsEditorSubsystem::Initialize(FSubsystemCollectionBase& Collecti
 			EnabledChangedDelegate.Broadcast();
 		}));
 
-	if (UE::EditorDataStorage::Settings::CVarTedsSettingsEnable.GetValueOnGameThread())
+	if (UE::Editor::Settings::Private::CVarTedsSettingsEnable.GetValueOnGameThread())
 	{
 		SettingsManager->Initialize();
 	}
@@ -64,7 +64,7 @@ void UTedsSettingsEditorSubsystem::Deinitialize()
 {
 	UE_LOG(LogTedsSettings, Log, TEXT("UTedsSettingsEditorSubsystem::Deinitialize"));
 
-	if (UE::EditorDataStorage::Settings::CVarTedsSettingsEnable.GetValueOnGameThread())
+	if (UE::Editor::Settings::Private::CVarTedsSettingsEnable.GetValueOnGameThread())
 	{
 		SettingsManager->Shutdown();
 	}

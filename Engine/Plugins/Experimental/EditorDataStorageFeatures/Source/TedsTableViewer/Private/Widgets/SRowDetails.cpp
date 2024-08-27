@@ -188,7 +188,7 @@ namespace UE::Editor::DataStorage
 	
 	}
 	
-} // namespace UE::EditorDataStorage
+} // namespace UE::Editor::DataStorage
 
 
 #undef LOCTEXT_NAMESPACE // "SRowDetails"

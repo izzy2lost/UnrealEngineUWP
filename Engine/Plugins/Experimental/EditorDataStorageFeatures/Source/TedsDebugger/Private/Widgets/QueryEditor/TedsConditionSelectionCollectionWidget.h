@@ -3,7 +3,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Templates/SharedPointerFwd.h"
 
-namespace UE::EditorDataStorage::Debug::QueryEditor
+namespace UE::Editor::DataStorage::Debug::QueryEditor
 {
 	class FTedsQueryEditorModel;
 	
@@ -21,4 +21,4 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 	private:
 		FTedsQueryEditorModel* Model = nullptr;
 	};
-}
+} // namespace UE::Editor::DataStorage::Debug::QueryEditor

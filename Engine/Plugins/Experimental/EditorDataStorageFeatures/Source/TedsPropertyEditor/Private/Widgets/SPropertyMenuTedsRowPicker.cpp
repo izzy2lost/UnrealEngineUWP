@@ -35,6 +35,8 @@ void SPropertyMenuTedsRowPicker::Construct(const FArguments& InArgs)
 	{
 		TSharedPtr<SWidget> MenuContent;
 		{
+			using namespace UE::Editor::Outliner;
+
 			// TEDS-Outliner TODO: Taken from private implementation of PropertyEditorAssetConstants.
 			//                     Should be centralized when TEDS is moved to core
 			static const FVector2D ContentBrowserWindowSize(300.0f, 300.0f);

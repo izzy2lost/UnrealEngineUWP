@@ -4,6 +4,8 @@
 
 #include "TedsOutlinerImpl.h"
 
+namespace UE::Editor::Outliner
+{
 FTedsOutlinerFilter::FTedsOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName,
 	TSharedPtr<FFilterCategory> InCategory, TSharedRef<FTedsOutlinerImpl> InTedsOutlinerImpl,
 	const UE::Editor::DataStorage::FQueryDescription& InFilterQuery)
@@ -85,3 +87,4 @@ bool FTedsOutlinerFilter::PassesFilter(SceneOutliner::FilterBarType InItem) cons
 	// The filter is applied through a TEDS query and this is just a dummy to activate it, so we can simply return true otherwise
 	return false;
 }
+} // namespace UE::Editor::Outliner

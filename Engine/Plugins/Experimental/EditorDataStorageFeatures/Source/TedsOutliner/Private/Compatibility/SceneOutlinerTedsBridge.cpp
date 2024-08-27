@@ -262,6 +262,7 @@ public:
 	const TSharedRef<SWidget> ConstructRowWidget(FSceneOutlinerTreeItemRef TreeItem, const STableRow<FSceneOutlinerTreeItemPtr>& Row) override
 	{
 		using namespace UE::Editor::DataStorage;
+		using namespace UE::Editor::Outliner;
 		
 		RowHandle RowHandle = InvalidRowHandle;
 

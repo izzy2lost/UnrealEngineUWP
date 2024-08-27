@@ -9,6 +9,8 @@
 
 #include "TedsOutlinerMode.generated.h"
 
+namespace UE::Editor::Outliner
+{
 // TEDS-Outliner TODO: This can probably be moved to a more generic location for all TEDS related drag drops?
 class FTedsRowDragDropOp : public FDecoratedDragDropOp
 {
@@ -16,14 +18,14 @@ public:
 	DRAG_DROP_OPERATOR_TYPE(FTedsRowDragDropOp, FDecoratedDragDropOp)
 
 	/** Rows we are dragging */
-	TArray<UE::Editor::DataStorage::RowHandle> DraggedRows;
+	TArray<DataStorage::RowHandle> DraggedRows;
 
-	void Init(const TArray<UE::Editor::DataStorage::RowHandle>& InRowHandles)
+	void Init(const TArray<DataStorage::RowHandle>& InRowHandles)
 	{
 		DraggedRows = InRowHandles;
 	}
 
-	static TSharedRef<FTedsRowDragDropOp> New(const TArray<UE::Editor::DataStorage::RowHandle>& InRowHandles)
+	static TSharedRef<FTedsRowDragDropOp> New(const TArray<DataStorage::RowHandle>& InRowHandles)
 	{
 		TSharedRef<FTedsRowDragDropOp> Operation = MakeShareable(new FTedsRowDragDropOp);
 		
@@ -33,16 +35,6 @@ public:
 		
 		return Operation;
 	}
-};
-
-// Class to hold the owning scene outliner for a menu
-// TEDS-Outliner TODO: Once menus go through TEDS UI this can be done using the FTableViewerColumn on the widget row instead
-UCLASS()
-class UTedsOutlinerMenuContext : public UObject
-{
-	GENERATED_BODY()
-public:
-	SSceneOutliner* OwningSceneOutliner = nullptr;
 };
 
 /*
@@ -79,4 +71,15 @@ protected:
 
 	// The actual model for the TEDS Outliner
 	TSharedPtr<FTedsOutlinerImpl> TedsOutlinerImpl;
+};
+} // namespace UE::Editor::Outliner
+
+// Class to hold the owning scene outliner for a menu
+// TEDS-Outliner TODO: Once menus go through TEDS UI this can be done using the FTableViewerColumn on the widget row instead
+UCLASS()
+class UTedsOutlinerMenuContext : public UObject
+{
+	GENERATED_BODY()
+public:
+	SSceneOutliner* OwningSceneOutliner = nullptr;
 };

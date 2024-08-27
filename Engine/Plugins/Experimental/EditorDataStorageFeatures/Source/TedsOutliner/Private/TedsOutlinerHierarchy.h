@@ -5,6 +5,8 @@
 #include "ISceneOutlinerHierarchy.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 
+namespace UE::Editor::Outliner
+{
 class FTedsOutlinerMode;
 class FTedsOutlinerImpl;
 
@@ -36,3 +38,4 @@ protected:
 	// Delegate called by TedsOutlinerImpl when the hierarchy changes
 	FDelegateHandle HierarchyChangedHandle;
 };
+} // namespace UE::Editor::Outliner

@@ -9,10 +9,13 @@
 
 class ISceneOutliner;
 struct FSceneOutlinerInitializationOptions;
-struct FTedsOutlinerParams;
 class SDockTab;
 class SWidget;
 class FSpawnTabArgs;
+
+namespace UE::Editor::Outliner
+{
+	struct FTedsOutlinerParams;
 
 /**
  * Implements the Scene Outliner module.
@@ -57,3 +60,4 @@ private:
 	FName TedsOutlinerTabName;
 	FDelegateHandle LevelEditorTabManagerChangedHandle;
 };
+} // namespace UE::Editor::Outliner
