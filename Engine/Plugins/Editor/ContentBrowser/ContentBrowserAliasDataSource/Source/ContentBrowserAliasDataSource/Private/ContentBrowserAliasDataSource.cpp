@@ -338,6 +338,11 @@ TArray<FContentBrowserItemPath> UContentBrowserAliasDataSource::GetAliasesForPat
 	return OutAliases;
 }
 
+bool UContentBrowserAliasDataSource::HasAliasesForPath(const FSoftObjectPath& ObjectPath) const
+{
+	return AliasesForObjectPath.Contains(ObjectPath);
+}
+
 void UContentBrowserAliasDataSource::AddAliases(const FAssetData& Asset, const TArray<FName>& Aliases, const bool bInIsFromMetaData, const bool bSkipPrimaryAssetValidation)
 {
 	AddAliasesImpl(Asset, Aliases, bInIsFromMetaData, bSkipPrimaryAssetValidation);
