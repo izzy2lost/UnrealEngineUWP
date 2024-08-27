@@ -7,7 +7,7 @@
 #pragma once
 
 // Update this GUID to invalidate shader recompilation for only Metal shaders
-#pragma message("UESHADERMETADATA_VERSION E4FA73AD-5066-4067-8B47-814FDC0D6332")
+#pragma message("UESHADERMETADATA_VERSION 8C6A7A49-B8C0-4561-9D8B-1E0C755D93F7")
 
 #if VERTEXSHADER && HULLSHADER
 #ifndef TESSELLATIONSHADER

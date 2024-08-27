@@ -101,4 +101,4 @@ struct FMetalShaderOutputMetaData
 };
 
 // Replace the special texture "gl_LastFragData" to a native subpass fetch operation. Returns true if the input source has been modified.
-extern bool PatchSpecialTextureInHlslSource(std::string& SourceData, uint32* OutSubpassInputsDim, uint32 SubpassInputDimCount);
+bool PatchSpecialTextureInHlslSource(FAnsiString& SourceData, uint32* OutSubpassInputsDim, uint32 SubpassInputDimCount);

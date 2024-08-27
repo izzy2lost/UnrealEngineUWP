@@ -1547,8 +1547,14 @@ bool FinalizeLibrary_Metal(FName const& Format, FString const& WorkingDir, FStri
 	return bOK;
 }
 
+static void ReplaceString(FAnsiString& Str, int32 Pos, int Len, const FAnsiString& NewStr)
+{
+	Str.RemoveAt(Pos, Len, EAllowShrinking::No);
+	Str.InsertAt(Pos, NewStr);
+}
+
 // Replace the special texture "gl_LastFragData" to a native subpass fetch operation. Returns true if the input source has been modified.
-bool PatchSpecialTextureInHlslSource(std::string& SourceData, uint32* OutSubpassInputsDim, uint32 SubpassInputDimCount)
+bool PatchSpecialTextureInHlslSource(FAnsiString& SourceData, uint32* OutSubpassInputsDim, uint32 SubpassInputDimCount)
 {
 	bool bSourceDataWasModified = false;
 
@@ -1556,13 +1562,13 @@ bool PatchSpecialTextureInHlslSource(std::string& SourceData, uint32* OutSubpass
 	FMemory::Memzero(OutSubpassInputsDim, sizeof(uint32) * SubpassInputDimCount);
 	
 	// Check if special texture is present in the code
-	static const std::string GSpecialTextureLastFragData = "gl_LastFragData";
-	if (SourceData.find(GSpecialTextureLastFragData) != std::string::npos)
+	const char* GSpecialTextureLastFragData = "gl_LastFragData";
+	if (SourceData.Find(GSpecialTextureLastFragData, ESearchCase::CaseSensitive) != INDEX_NONE)
 	{
 		struct FHlslVectorType
 		{
-			std::string TypenameIdent;
-			std::string TypenameSuffix;
+			const char* TypenameIdent;
+			const char* TypenameSuffix;
 			uint32 Dimension;
 		};
 		const FHlslVectorType FragDeclTypes[4] =
@@ -1579,36 +1585,34 @@ bool PatchSpecialTextureInHlslSource(std::string& SourceData, uint32* OutSubpass
 			for (const FHlslVectorType& FragDeclType : FragDeclTypes)
 			{
 				// Try to find "Texture2D<T>" or "Texture2D< T >" (where T is the vector type), because a rewritten HLSL might have changed the formatting.
-				std::string LastFragDataN = GSpecialTextureLastFragData + FragDeclType.TypenameSuffix + "_" + std::to_string(SubpassIndex);
-				std::string FragDecl = "Texture2D<" + FragDeclType.TypenameIdent + "> " + LastFragDataN + ";";
-				size_t FragDeclIncludePos = SourceData.find(FragDecl);
+				FAnsiString LastFragDataN = FAnsiString::Printf("%s%s_%u", GSpecialTextureLastFragData, FragDeclType.TypenameSuffix, SubpassIndex);
+				FAnsiString FragDecl = FAnsiString::Printf("Texture2D<%s> %s;", FragDeclType.TypenameIdent, *LastFragDataN);
+				int32 FragDeclIncludePos = SourceData.Find(FragDecl, ESearchCase::CaseSensitive);
 			
-				if (FragDeclIncludePos == std::string::npos)
+				if (FragDeclIncludePos == INDEX_NONE)
 				{
-					FragDecl = "Texture2D< " + FragDeclType.TypenameIdent + " > " + LastFragDataN + ";";
-					FragDeclIncludePos = SourceData.find(FragDecl);
+					FragDecl = FAnsiString::Printf("Texture2D< %s > %s;", FragDeclType.TypenameIdent, *LastFragDataN);
+					FragDeclIncludePos = SourceData.Find(FragDecl, ESearchCase::CaseSensitive);
 				}
 			
-				if (FragDeclIncludePos != std::string::npos)
+				if (FragDeclIncludePos != INDEX_NONE)
 				{
 					// Replace declaration of Texture2D<T> with SubpassInput<T>
-					SourceData.replace(
+					ReplaceString(SourceData,
 						FragDeclIncludePos,
-						FragDecl.length(),
-						("[[vk::input_attachment_index(" + std::to_string(SubpassIndex) + ")]] SubpassInput<" + FragDeclType.TypenameIdent + "> " + LastFragDataN + ";")
-					);
+						FragDecl.Len(),
+						FAnsiString::Printf("[[vk::input_attachment_index(%d)]] SubpassInput<%s> %s;", SubpassIndex, FragDeclType.TypenameIdent, *LastFragDataN));
 
 					OutSubpassInputsDim[SubpassIndex] = FragDeclType.Dimension;
 
 					// Replace all uses of special texture by 'SubpassLoad' operation
-					std::string FragLoad = LastFragDataN + ".Load(uint3(0, 0, 0), 0)";
-					for (size_t FragLoadIncludePos = 0; (FragLoadIncludePos = SourceData.find(FragLoad, FragLoadIncludePos)) != std::string::npos;)
+					FAnsiString FragLoad = FAnsiString::Printf("%s.Load(uint3(0, 0, 0), 0)", *LastFragDataN);
+					for (int32 FragLoadIncludePos = 0; (FragLoadIncludePos = SourceData.Find(FragLoad, ESearchCase::CaseSensitive, ESearchDir::FromStart, FragLoadIncludePos)) != INDEX_NONE;)
 					{
-						SourceData.replace(
+						ReplaceString(SourceData,
 							FragLoadIncludePos,
-							FragLoad.length(),
-							(LastFragDataN + ".SubpassLoad()")
-						);
+							FragLoad.Len(),
+							FAnsiString::Printf("%s.SubpassLoad()", *LastFragDataN));
 					}
 
 					// Mark source data as being modified

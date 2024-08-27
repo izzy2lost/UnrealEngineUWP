@@ -15,6 +15,7 @@
 #include "ShaderCompilerDefinitions.h"
 #include "SpirvReflectCommon.h"
 #include "ShaderParameterParser.h"
+#include "Containers/AnsiString.h"
 
 #include <regex>
 
@@ -516,7 +517,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 		CompilerContext.LoadSource(PreprocessedShader, Input.VirtualSourceFilePath, Input.EntryPointName, Frequency);
 
 		// Convert shader source to ANSI string
-		std::string SourceData(CompilerContext.GetSourceString(), static_cast<size_t>(CompilerContext.GetSourceLength()));
+		FAnsiString SourceData = FAnsiString::ConstructFromPtrSize(CompilerContext.GetSourceString(), CompilerContext.GetSourceLength());
 
 		// Replace special case texture "gl_LastFragData" by native subpass fetch operation
 		static const uint32 MaxMetalSubpasses = 8;
@@ -527,12 +528,12 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 		// If source data was modified, reload it into the compiler context
 		if (bSourceDataWasModified)
 		{
-			CompilerContext.LoadSource(FAnsiStringView(SourceData.c_str(), SourceData.length()), Input.VirtualSourceFilePath, Input.EntryPointName, Frequency);
+			CompilerContext.LoadSource(SourceData, Input.VirtualSourceFilePath, Input.EntryPointName, Frequency);
 		}
 
 		if (bDumpDebugInfo)
 		{
-			DumpDebugShaderText(Input, &SourceData[0], SourceData.size(), TEXT("rewritten.hlsl"));
+			DumpDebugShaderText(Input, &SourceData[0], SourceData.Len(), TEXT("rewritten.hlsl"));
 		}
 		
 		CrossCompiler::FHlslccHeaderWriter CCHeaderWriter;
@@ -630,7 +631,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 #endif
 		 
 		// TODO: Is there a flag we could check to avoid this string lookup?
-		bool bUsesDualSourceBlending = (SourceData.find("vk::location") != std::string::npos);
+		bool bUsesDualSourceBlending = (SourceData.Find("vk::location") != INDEX_NONE);
 		if (bUsesDualSourceBlending)
 		{
 			IRCompilerSetDualSourceBlendingConfiguration(CompilerInstance, IRDualSourceBlendingConfigurationForceEnabled);
