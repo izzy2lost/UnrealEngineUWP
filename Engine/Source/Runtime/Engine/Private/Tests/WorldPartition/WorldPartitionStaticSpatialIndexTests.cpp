@@ -38,7 +38,8 @@ namespace WorldPartitionTests
 		const double StartTime = FPlatformTime::Seconds();
 		for (int32 ListNumTests = 0; ListNumTests < Tests.Num(); ListNumTests++)
 		{
-			SpatialIndex.ForEachIntersectingElement(Tests[ListNumTests], [&Results](const int32& Value) { Results.Add(Value); });
+			FStaticSpatialIndex::FSphere Sphere(Tests[ListNumTests].Center, Tests[ListNumTests].W);
+			SpatialIndex.ForEachIntersectingElement(Sphere, [&Results](const int32& Value) { Results.Add(Value); });
 		}
 		const double RunTime = FPlatformTime::Seconds() - StartTime;
 

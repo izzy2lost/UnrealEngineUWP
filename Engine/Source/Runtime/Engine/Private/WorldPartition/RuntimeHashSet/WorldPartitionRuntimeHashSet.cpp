@@ -16,6 +16,8 @@
 #include "Misc/HashBuilder.h"
 #include "Misc/ArchiveMD5.h"
 
+#include "WorldPartition/RuntimeHashSet/StaticSpatialIndex.h"
+
 void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 {
 	if (!SpatialIndex)
@@ -505,17 +507,29 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsQuery(const FWorldParti
 		{
 			QuerySource.ForEachShape(InLoadingRange, InGridName, false, [InSpatialIndex, QueryCache, &ShouldAddCell, &QuerySource, &Func](const FSphericalSector& Shape)
 			{
-				const FSphere ShapeSphere(Shape.GetCenter(), Shape.GetRadius());
-
-				InSpatialIndex->ForEachIntersectingElement(ShapeSphere, [QueryCache, &ShouldAddCell, &Shape, &QuerySource, &Func](UWorldPartitionRuntimeCell* RuntimeCell)
+				auto ForEachIntersectingElement = [InSpatialIndex, QueryCache, &ShouldAddCell, &Shape, &QuerySource, &Func]<typename ShapeType>(const ShapeType& InShape)
 				{
-					if (QueryCache)
+					InSpatialIndex->ForEachIntersectingElement(InShape, [QueryCache, &ShouldAddCell, &Shape, &QuerySource, &Func](UWorldPartitionRuntimeCell* RuntimeCell)
 					{
-						QueryCache->AddCellInfo(RuntimeCell, Shape);
-					}
+						if (QueryCache)
+						{
+							QueryCache->AddCellInfo(RuntimeCell, Shape);
+						}
 
-					return !ShouldAddCell(RuntimeCell, QuerySource) || Func(RuntimeCell);
-				});
+						return !ShouldAddCell(RuntimeCell, QuerySource) || Func(RuntimeCell);
+					});
+				};
+
+				if (Shape.IsSphere())
+				{
+					const FStaticSpatialIndex::FSphere Sphere(Shape.GetCenter(), Shape.GetRadius());
+					ForEachIntersectingElement(Sphere);
+				}
+				else
+				{
+					const FStaticSpatialIndex::FCone Cone(Shape.GetCenter(), Shape.GetAxis(), Shape.GetRadius(), Shape.GetAngle());
+					ForEachIntersectingElement(Cone);
+				}
 			});
 		}
 
@@ -610,8 +624,6 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 				{
 					Source.ForEachShape(StreamingData->GetLoadingRange(), false, [this, &Source, StreamingData, &Context, &Func](const FSphericalSector& Shape)
 					{
-						const FSphere ShapeSphere(Shape.GetCenter(), Shape.GetRadius());
-
 						auto ForEachIntersectingElementFunc = [this, &Source, &Shape, &Context, &Func](UWorldPartitionRuntimeCell* Cell)
 						{
 #if WITH_EDITOR
@@ -630,21 +642,35 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 							}
 						};
 
-						if (StreamingData->SpatialIndex.IsValid())
+						auto ForEachIntersectingElement = [&StreamingData, &Source, &ForEachIntersectingElementFunc]<typename ShapeType>(const ShapeType& Shape)
 						{
-							if (Source.bForce2D)
+							if (StreamingData->SpatialIndex.IsValid())
 							{
-								StreamingData->SpatialIndexForce2D->ForEachIntersectingElement(ShapeSphere, ForEachIntersectingElementFunc);
+								if (Source.bForce2D)
+								{
+									StreamingData->SpatialIndexForce2D->ForEachIntersectingElement(Shape, ForEachIntersectingElementFunc);
+								}
+								else
+								{
+									StreamingData->SpatialIndex->ForEachIntersectingElement(Shape, ForEachIntersectingElementFunc);
+								}
 							}
-							else
-							{
-								StreamingData->SpatialIndex->ForEachIntersectingElement(ShapeSphere, ForEachIntersectingElementFunc);
-							}
-						}
 
-						if (StreamingData->SpatialIndex2D.IsValid())
+							if (StreamingData->SpatialIndex2D.IsValid())
+							{
+								StreamingData->SpatialIndex2D->ForEachIntersectingElement(Shape, ForEachIntersectingElementFunc);
+							}
+						};
+
+						if (Shape.IsSphere())
 						{
-							StreamingData->SpatialIndex2D->ForEachIntersectingElement(ShapeSphere, ForEachIntersectingElementFunc);
+							const FStaticSpatialIndex::FSphere ShapeSphere(Shape.GetCenter(), Shape.GetRadius());
+							ForEachIntersectingElement(ShapeSphere);
+						}
+						else
+						{
+							const FStaticSpatialIndex::FCone ShapeCone(Shape.GetCenter(), Shape.GetAxis(), Shape.GetRadius(), Shape.GetAngle());
+							ForEachIntersectingElement(ShapeCone);
 						}
 					});
 				}

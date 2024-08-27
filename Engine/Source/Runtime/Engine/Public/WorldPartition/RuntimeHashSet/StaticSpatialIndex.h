@@ -35,6 +35,128 @@ namespace FStaticSpatialIndex
 		const typename Profile::FVector ClosestPoint = Profile::FVector::Max(InBox.Min, Profile::FVector::Min(InCenter, InBox.Max));
 		return (ClosestPoint - InCenter).SizeSquared() <= InRadiusSquared;
 	}
+
+	struct FSphere
+	{
+		FSphere(const FVector& InCenter, const FVector::FReal InRadius)
+			: Center(InCenter)
+			, Radius(InRadius)
+		{}
+
+		FVector Center;
+		FVector::FReal Radius;
+	};
+
+	struct FCone : FSphere
+	{
+		FCone(const FVector& InCenter, const FVector& InAxis, const FVector::FReal InRadius, const FVector::FReal InAngle)
+			: FSphere(InCenter, InRadius)
+			, Axis(InAxis)
+			, Angle(InAngle)
+		{}
+
+		FVector Axis;
+		FVector::FReal Angle;
+	};
+
+	template <typename Profile>
+	inline bool FastConeAABBIntersection(const typename Profile::FVector& InCenter, const typename Profile::FReal InRadiusSquared, const typename Profile::FVector& InAxis, const typename Profile::FReal InAngle, const typename Profile::FReal InSinHalfAngle, const typename Profile::FReal InCosHalfAngle, const typename Profile::FBox& InBox)
+	{
+		if (FastSphereAABBIntersection<Profile>(InCenter, InRadiusSquared, InBox))
+		{
+			if constexpr (Profile::Is3D)
+			{
+				const typename Profile::FVector BoxExtent = InBox.GetExtent();
+				const typename Profile::FReal BoxExtentSizeSqr = BoxExtent.SizeSquared();
+				const typename Profile::FReal BoxExtentSize = FMath::Sqrt(BoxExtentSizeSqr);
+				const typename Profile::FVector U = InCenter - (BoxExtentSize / InSinHalfAngle) * InAxis;
+			
+				typename Profile::FVector D = InBox.GetCenter() - U;
+				typename Profile::FReal DSqr = D | D;
+				typename Profile::FReal E = InAxis | D;
+
+				if(E > 0.0f && E * E >= DSqr * FMath::Square(InCosHalfAngle))
+				{
+					D = InBox.GetCenter() - InCenter;
+					DSqr = D | D;
+					E = -(InAxis | D);
+					if(E > 0.0f && E * E >= DSqr * FMath::Square(InSinHalfAngle))
+					{
+						return DSqr <= BoxExtentSizeSqr;
+					}
+
+					return true;
+				}
+
+				return false;
+			}
+			else
+			{
+				const FVector2D CenterToMinXMinY((FVector2D(InBox.Min.X, InBox.Min.Y) - InCenter).GetSafeNormal());
+				const FVector2D CenterToMaxXMinY((FVector2D(InBox.Max.X, InBox.Min.Y) - InCenter).GetSafeNormal());
+				const FVector2D CenterToMaxXMaxY((FVector2D(InBox.Max.X, InBox.Max.Y) - InCenter).GetSafeNormal());
+				const FVector2D CenterToMinXMaxY((FVector2D(InBox.Min.X, InBox.Max.Y) - InCenter).GetSafeNormal());
+
+				if (InAngle <= 180.0f)
+				{
+					const Profile::FReal SinAngleMinXMinY = FVector2D::CrossProduct(InAxis, CenterToMinXMinY);
+					const Profile::FReal SinAngleMaxXMinY = FVector2D::CrossProduct(InAxis, CenterToMaxXMinY);
+					const Profile::FReal SinAngleMaxXMaxY = FVector2D::CrossProduct(InAxis, CenterToMaxXMaxY);
+					const Profile::FReal SinAngleMinXMaxY = FVector2D::CrossProduct(InAxis, CenterToMinXMaxY);
+
+					if (SinAngleMinXMinY < -InSinHalfAngle && SinAngleMaxXMinY < -InSinHalfAngle && SinAngleMaxXMaxY < -InSinHalfAngle && SinAngleMinXMaxY < -InSinHalfAngle)
+					{
+						return false;
+					}
+
+					if (SinAngleMinXMinY > InSinHalfAngle && SinAngleMaxXMinY > InSinHalfAngle && SinAngleMaxXMaxY > InSinHalfAngle && SinAngleMinXMaxY > InSinHalfAngle)
+					{
+						return false;
+					}
+
+					const Profile::FReal CosAngleMinXMinY = FVector2D::DotProduct(InAxis, CenterToMinXMinY);
+					const Profile::FReal CosAngleMaxXMinY = FVector2D::DotProduct(InAxis, CenterToMaxXMinY);
+					const Profile::FReal CosAngleMaxXMaxY = FVector2D::DotProduct(InAxis, CenterToMaxXMaxY);
+					const Profile::FReal CosAngleMinXMaxY = FVector2D::DotProduct(InAxis, CenterToMinXMaxY);
+
+					if (CosAngleMinXMinY < 0 && CosAngleMaxXMinY < 0 && CosAngleMaxXMaxY < 0 && CosAngleMinXMaxY < 0)
+					{
+						return false;
+					}
+
+					return true;
+				}
+				else
+				{
+					const Profile::FReal CosAngleMinXMinY = FVector2D::DotProduct(InAxis,CenterToMinXMinY);
+					const Profile::FReal CosAngleMaxXMinY = FVector2D::DotProduct(InAxis,CenterToMaxXMinY);
+					const Profile::FReal CosAngleMaxXMaxY = FVector2D::DotProduct(InAxis,CenterToMaxXMaxY);
+					const Profile::FReal CosAngleMinXMaxY = FVector2D::DotProduct(InAxis,CenterToMinXMaxY);
+
+					if (CosAngleMinXMinY >= 0 || CosAngleMaxXMinY >= 0 || CosAngleMaxXMaxY >= 0 || CosAngleMinXMaxY >= 0)
+					{
+						return true;
+					}
+
+					const Profile::FReal InvInSinHalfAngle = FMath::Sin((360.0 - InAngle) * 0.5 * UE_PI / 180.0);
+					const Profile::FReal InvSinAngleMinXMinY = FVector2D::CrossProduct(-InAxis, CenterToMinXMinY);
+					const Profile::FReal InvSinAngleMaxXMinY = FVector2D::CrossProduct(-InAxis, CenterToMaxXMinY);
+					const Profile::FReal InvSinAngleMaxXMaxY = FVector2D::CrossProduct(-InAxis, CenterToMaxXMaxY);
+					const Profile::FReal InvSinAngleMinXMaxY = FVector2D::CrossProduct(-InAxis, CenterToMinXMaxY);
+
+					if (InvSinAngleMinXMinY > -InvInSinHalfAngle && InvSinAngleMaxXMinY > -InvInSinHalfAngle && InvSinAngleMaxXMaxY > -InvInSinHalfAngle && InvSinAngleMinXMaxY > -InvInSinHalfAngle &&
+						InvSinAngleMinXMinY < InvInSinHalfAngle && InvSinAngleMaxXMinY < InvInSinHalfAngle && InvSinAngleMaxXMaxY < InvInSinHalfAngle && InvSinAngleMinXMaxY < InvInSinHalfAngle)
+					{
+						return false;
+					}
+
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
 }
 
 template <typename Profile>
@@ -92,11 +214,22 @@ public:
 	}
 
 	template <class Func>
-	void ForEachIntersectingElement(const FSphere& InSphere, Func InFunc) const
+	void ForEachIntersectingElement(const FStaticSpatialIndex::FSphere& InSphere, Func InFunc) const
 	{
 		TOverrideVoidReturnInvoker Invoker(true, InFunc);
 
 		SpatialIndex.ForEachIntersectingElement(InSphere, [this, &Invoker](uint32 ValueIndex)
+		{
+			return Invoker(Elements[ValueIndex].Value);
+		});
+	}
+
+	template <class Func>
+	void ForEachIntersectingElement(const FStaticSpatialIndex::FCone& InCone, Func InFunc) const
+	{
+		TOverrideVoidReturnInvoker Invoker(true, InFunc);
+
+		SpatialIndex.ForEachIntersectingElement(InCone, [this, &Invoker](uint32 ValueIndex)
 		{
 			return Invoker(Elements[ValueIndex].Value);
 		});
@@ -214,15 +347,36 @@ namespace FStaticSpatialIndex
 
 		}
 
-		bool ForEachIntersectingElement(const FSphere& InSphere, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const
+		bool ForEachIntersectingElement(const FStaticSpatialIndex::FSphere& InSphere, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const
 		{
-			const FSphere::FReal RadiusSquared = FMath::Square(InSphere.W);
+			const typename Profile::FReal RadiusSquared = FMath::Square(InSphere.Radius);
 
 			uint32 BoxStride;
 			const FBox* Box = this->DataInterface.GetBoxes(0, BoxStride);
 			for (int32 ValueIndex = 0; ValueIndex < this->DataInterface.GetNumBox(); ValueIndex++, *(uint8**)&Box += BoxStride)
 			{
 				if (FastSphereAABBIntersection<Profile>(FVector(InSphere.Center), RadiusSquared, *Box))
+				{
+					if (!InFunc(ValueIndex))
+					{
+						return false;
+					}
+				}
+			}
+			return true;
+		}
+
+		bool ForEachIntersectingElement(const FStaticSpatialIndex::FCone& InCone, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const
+		{
+			const typename Profile::FReal RadiusSquared = FMath::Square(InCone.Radius);
+			const typename Profile::FReal HalfSinAngle = FMath::Sin(InCone.Angle * 0.5 * UE_PI / 180.0);
+			const typename Profile::FReal HalfCosAngle = FMath::Cos(InCone.Angle * 0.5 * UE_PI / 180.0);
+
+			uint32 BoxStride;
+			const FBox* Box = this->DataInterface.GetBoxes(0, BoxStride);
+			for (int32 ValueIndex = 0; ValueIndex < this->DataInterface.GetNumBox(); ValueIndex++, *(uint8**)&Box += BoxStride)
+			{
+				if (FastConeAABBIntersection<Profile>(FVector(InCone.Center), RadiusSquared, InCone.Axis, InCone.Angle, HalfSinAngle, HalfCosAngle, *Box))
 				{
 					if (!InFunc(ValueIndex))
 					{
@@ -337,10 +491,18 @@ namespace FStaticSpatialIndex
 			return ForEachIntersectingElementRecursive(&RootNode, InBox, InFunc);
 		}
 
-		bool ForEachIntersectingElement(const FSphere& InSphere, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const
+		bool ForEachIntersectingElement(const FStaticSpatialIndex::FSphere& InSphere, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const
 		{
-			const FSphere::FReal RadiusSquared = FMath::Square(InSphere.W);
+			const typename Profile::FReal RadiusSquared = FMath::Square(InSphere.Radius);
 			return ForEachIntersectingElementRecursive(&RootNode, FVector(InSphere.Center), RadiusSquared, InFunc);
+		}
+
+		bool ForEachIntersectingElement(const FStaticSpatialIndex::FCone& InCone, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const
+		{
+			const typename Profile::FReal RadiusSquared = FMath::Square(InCone.Radius);
+			const typename Profile::FReal HalfSinAngle = FMath::Sin(InCone.Angle * 0.5 * UE_PI / 180.0);
+			const typename Profile::FReal HalfCosAngle = FMath::Cos(InCone.Angle * 0.5 * UE_PI / 180.0);
+			return ForEachIntersectingElementRecursive(&RootNode, FVector(InCone.Center), RadiusSquared, FVector(InCone.Axis), InCone.Angle, HalfSinAngle, HalfCosAngle, InFunc);
 		}
 
 		uint32 GetAllocatedSize() const
@@ -484,7 +646,7 @@ namespace FStaticSpatialIndex
 			return true;
 		}
 
-		bool ForEachIntersectingElementRecursive(const FNode* InNode, const FVector& InSphereCenter, FSphere::FReal InRadiusSquared, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const
+		bool ForEachIntersectingElementRecursive(const FNode* InNode, const FVector& InSphereCenter, typename Profile::FReal InRadiusSquared, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const
 		{
 			if (InNode->Content.template IsType<typename FNode::FNodeType>())
 			{
@@ -520,6 +682,41 @@ namespace FStaticSpatialIndex
 			return true;
 		}
 
+		bool ForEachIntersectingElementRecursive(const FNode* InNode, const FVector& InConeCenter, typename Profile::FReal InRadiusSquared, const FVector& InAxis, float InAngle, float InSinHalfAngle, float InCosHalfAngle, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const
+		{
+			if (InNode->Content.template IsType<typename FNode::FNodeType>())
+			{
+				for (auto& ChildNode : InNode->Content.template Get<typename FNode::FNodeType>())
+				{
+					if (FastSphereAABBIntersection<Profile>(FVector(InConeCenter), InRadiusSquared, ChildNode.GetBox()))
+					{
+						if (!ForEachIntersectingElementRecursive(&ChildNode, InConeCenter, InRadiusSquared, InAxis, InAngle, InSinHalfAngle, InCosHalfAngle, InFunc))
+						{
+							return false;
+						}
+					}
+				}
+			}
+			else
+			{
+				uint32 BoxStride;
+				const FBox* Box = this->DataInterface.GetBoxes(InNode->Content.template Get<typename FNode::FLeafType>().StartIndex, BoxStride);
+
+				for (uint32 ValueIndex : InNode->Content.template Get<typename FNode::FLeafType>())
+				{
+					if (FastConeAABBIntersection<Profile>(FVector(InConeCenter), InRadiusSquared, InAxis, InAngle, InSinHalfAngle, InCosHalfAngle, *Box))
+					{
+						if (!InFunc(ValueIndex))
+						{
+							return false;
+						}
+					}
+
+					*(uint8**)&Box += BoxStride;
+				}				
+			}
+			return true;
+		}
 		FNode RootNode;
 	};
 
