@@ -231,6 +231,7 @@ void SConsoleInputBox::Construct(const FArguments& InArgs)
 					.OnIsTypedCharValid(FOnIsTypedCharValid::CreateLambda([](const TCHAR InCh) { return true; })) // allow tabs to be typed into the field
 					.ClearKeyboardFocusOnCommit(false)
 					.ModiferKeyForNewLine(EModifierKey::Shift)
+					.ToolTipText(this, &SConsoleInputBox::GetInputHelpText)
 				]
 			]
 		]
@@ -254,6 +255,10 @@ void SConsoleInputBox::Construct(const FArguments& InArgs)
 			]
 		)
 	];
+
+	// Don't let tooltips appear on top of the text box since it hampers visibility while typing the command : 
+	InputText->EnableToolTipForceField(true);
+	SuggestionListView->EnableToolTipForceField(true);
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
@@ -353,18 +358,10 @@ void SConsoleInputBox::OnTextChanged(const FText& InText)
 		{
 			auto OnConsoleVariable = [&AutoCompleteList](const TCHAR *Name, IConsoleObject* CVar)
 			{
-#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-				if (CVar->TestFlags(ECVF_Cheat))
+				if (CVar->IsEnabled())
 				{
-					return;
+					AutoCompleteList.Add(FConsoleSuggestion(Name, CVar->GetDetailedHelp().ToString()));
 				}
-#endif // (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-				if (CVar->TestFlags(ECVF_Unregistered))
-				{
-					return;
-				}
-
-				AutoCompleteList.Add(FConsoleSuggestion(Name, CVar->GetHelp()));
 			};
 
 			IConsoleManager::Get().ForEachConsoleObjectThatContains(FConsoleObjectVisitor::CreateLambda(OnConsoleVariable), *InputTextStr);
@@ -482,6 +479,7 @@ FReply SConsoleInputBox::OnPreviewKeyDown(const FGeometry& MyGeometry, const FKe
 			const bool bShowHistory = InputText->GetText().IsEmpty() || KeyEvent.IsControlDown();
 			if (bShowHistory)
 			{
+				IConsoleManager& ConsoleManager = IConsoleManager::Get();
 				TArray<FString> HistoryNames;
 				if (ActiveCommandExecutor)
 				{
@@ -489,12 +487,20 @@ FReply SConsoleInputBox::OnPreviewKeyDown(const FGeometry& MyGeometry, const FKe
 				}
 				else
 				{
-					IConsoleManager::Get().GetConsoleHistory(TEXT(""), HistoryNames);
+					ConsoleManager.GetConsoleHistory(TEXT(""), HistoryNames);
 				}
 				TArray<FConsoleSuggestion> History;
 				for (const FString& Name : HistoryNames)
 				{
-					History.Add(FConsoleSuggestion(Name, FString()));
+					FString HelpString;
+					// Try to find a console object for this history entry in order to retrieve a help string if possible :
+					const TCHAR* NamePtr = *Name;
+					if (IConsoleObject* CObj = ConsoleManager.FindConsoleObject(*FParse::Token(NamePtr, /*UseEscape = */false), /*bTrackFrequentCalls = */false); CObj && CObj->IsEnabled())
+					{
+						HelpString = CObj->GetDetailedHelp().ToString();
+					}
+
+					History.Add(FConsoleSuggestion(Name, HelpString));
 				}
 				SetSuggestions(History, FText::GetEmpty());
 				
@@ -679,6 +685,22 @@ bool SConsoleInputBox::GetActiveCommandExecutorAllowMultiLine() const
 		return ActiveCommandExecutor->AllowMultiLine();
 	}
 	return false;
+}
+
+FText SConsoleInputBox::GetInputHelpText() const
+{
+	const FString& InputTextStr = InputText->GetText().ToString();
+	if (!InputTextStr.IsEmpty())
+	{
+		// Try to find a console object for this entry in order to retrieve a help string if possible :
+		IConsoleManager& ConsoleManager = IConsoleManager::Get();
+		const TCHAR* InputTextStrPtr = *InputTextStr;
+		if (IConsoleObject* CObj = ConsoleManager.FindConsoleObject(*FParse::Token(InputTextStrPtr, /*UseEscape = */false), /*bTrackFrequentCalls = */false); CObj && CObj->IsEnabled())
+		{
+			return CObj->GetDetailedHelp();
+		}
+	}
+	return FText::GetEmpty();
 }
 
 bool SConsoleInputBox::IsCommandExecutorMenuEnabled() const

@@ -262,18 +262,10 @@ void SConsoleVariablesEditorCustomConsoleInputBox::OnInputTextChanged(const FTex
 		
 		auto OnConsoleVariable = [&AutoCompleteList](const TCHAR *Name, IConsoleObject* CVar)
 		{
-#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (CVar->TestFlags(ECVF_Cheat))
-			{
-				return;
+			if (CVar->IsEnabled())
+			{	
+				AutoCompleteList.Add(Name);
 			}
-#endif // (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (CVar->TestFlags(ECVF_Unregistered))
-			{
-				return;
-			}
-
-			AutoCompleteList.Add(Name);
 		};
 
 		IConsoleManager::Get().ForEachConsoleObjectThatContains(FConsoleObjectVisitor::CreateLambda(OnConsoleVariable), *InputTextStr);

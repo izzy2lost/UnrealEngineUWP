@@ -348,6 +348,7 @@ public:
 	{
 		return *Help;
 	}
+	
 	virtual void SetHelp(const TCHAR* Value) override final
 	{
 		check(Value);
@@ -357,10 +358,19 @@ public:
 		// for now disabled as there is no good callstack when we crash early during engine init
 //		ensure(IsGoodHelpString(Value));
 	}
+
+	virtual FText GetDetailedHelp() const override
+	{
+		// Append the current value of the variable to provide more details :
+		const FString CurrentValueString = GetString();
+		return FText::Format(LOCTEXT("CVarDetailedHelp", "{0}\n\nCurrent value : {1}"), FText::FromString(GetHelp()), CurrentValueString.IsEmpty() ? LOCTEXT("CVarEmptyValueString", "<empty>") : FText::FromString(CurrentValueString));
+	}
+
 	virtual EConsoleVariableFlags GetFlags() const
 	{
 		return Flags;
 	}
+	
 	virtual void SetFlags(const EConsoleVariableFlags Value)
 	{
 		Flags = Value;
@@ -541,6 +551,7 @@ public:
 	{
 		return *Help;
 	}
+
 	virtual void SetHelp(const TCHAR* InValue)
 	{
 		check(InValue);
@@ -548,10 +559,12 @@ public:
 
 		Help = InValue;
 	}
+
 	virtual EConsoleVariableFlags GetFlags() const
 	{
 		return Flags;
 	}
+
 	virtual void SetFlags(const EConsoleVariableFlags Value)
 	{
 		Flags = Value;
@@ -2745,14 +2758,7 @@ bool FConsoleManager::ProcessUserConsoleInput(const TCHAR* InInput, FOutputDevic
 		return false;
 	}
 
-#if DISABLE_CHEAT_CVARS
-	if(CObj->TestFlags(ECVF_Cheat))
-	{
-		return false;
-	}
-#endif // DISABLE_CHEAT_CVARS
-
-	if(CObj->TestFlags(ECVF_Unregistered))
+	if (!CObj->IsEnabled())
 	{
 		return false;
 	}
@@ -4702,6 +4708,15 @@ public:
 		return TEXT("");
 	}
 
+	virtual FText GetDetailedHelp() const override
+	{
+		if (Bind())
+		{
+			return RealVariable->GetDetailedHelp();
+		}
+		return INVTEXT("");
+	}
+
 	virtual void SetHelp(const TCHAR* Value) override
 	{
 		if (Bind())
@@ -4914,6 +4929,16 @@ struct FConsoleCommandShadow : public FConsoleObjectShadowData, public IConsoleC
 			return RealCommand->SetHelp(InValue);
 		}
 	}
+
+	virtual FText GetDetailedHelp() const
+	{
+		if (Bind())
+		{
+			return RealCommand->GetDetailedHelp();
+		}
+		return INVTEXT("");
+	}
+
 	virtual EConsoleVariableFlags GetFlags() const override
 	{
 		if (Bind())
@@ -4923,6 +4948,7 @@ struct FConsoleCommandShadow : public FConsoleObjectShadowData, public IConsoleC
 		return (EConsoleVariableFlags)0;
 
 	}
+
 	virtual void SetFlags(const EConsoleVariableFlags Value) override
 	{
 		if (BindForUsage())

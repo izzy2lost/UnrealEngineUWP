@@ -12,6 +12,7 @@
 #include "Delegates/Delegate.h"
 #include "Features/IModularFeature.h"
 #include "Templates/EnableIf.h"
+#include "Internationalization/Text.h"
 
 #define TRACK_CONSOLE_FIND_COUNT !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
@@ -389,6 +390,14 @@ public:
 	 * Sets the internal flag state to the specified value.
 	 */
 	virtual void SetFlags(const EConsoleVariableFlags Value) = 0;
+	/** 
+	 *  @return a (potentially) more detailed help than GetHelp (e.g. current value for console variables)
+	 */
+	virtual FText GetDetailedHelp() const
+	{
+		// By default, just return the standard help message :
+		return FText::FromString(GetHelp());
+	}
 
 	// Convenience methods -------------------------------------
 
@@ -408,6 +417,25 @@ public:
 	{
 		return ((uint32)GetFlags() & (uint32)Value) != 0;
 	}
+
+	/**
+	 * Test the validity of the variable wrt its flags and current build type (e.g. ECVF_Cheat variables are disabled on some targets)
+	 */
+	bool IsEnabled() const
+	{
+#if DISABLE_CHEAT_CVARS
+		if (TestFlags(ECVF_Cheat))
+		{
+			return false;
+		}
+#endif // DISABLE_CHEAT_CVARS
+		if (TestFlags(ECVF_Unregistered))
+		{
+			return false;
+		}
+		return true;
+	}
+
 
 	/**
 	 * If the object has a parent (for instance the main cvar that owns an other-platform cvar), return it
@@ -1777,6 +1805,11 @@ public:
 	virtual const TCHAR* GetHelp() const override
 	{
 		return TEXT("NO_CVARS, no help");
+	}
+
+	virtual FText GetDetailedHelp() const override
+	{
+		return INVTEXT("NO_CVARS, no help");
 	}
 
 	virtual void SetHelp(const TCHAR* InHelp) override

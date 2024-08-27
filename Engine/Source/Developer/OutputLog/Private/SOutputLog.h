@@ -135,6 +135,8 @@ protected:
 
 	bool GetActiveCommandExecutorAllowMultiLine() const;
 
+	FText GetInputHelpText() const;
+
 	bool IsCommandExecutorMenuEnabled() const;
 
 	TSharedRef<SWidget> GetCommandExecutorMenuContent();

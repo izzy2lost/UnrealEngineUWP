@@ -85,13 +85,7 @@ public:
 	// @param CVar must not be 0
 	static void OnConsoleVariable(const TCHAR* Name, IConsoleObject* CVar, TArray<struct FAutoCompleteCommand>* Sink)
 	{
-#if DISABLE_CHEAT_CVARS
-		if (CVar->TestFlags(ECVF_Cheat))
-		{
-			return;
-		}
-#endif // DISABLE_CHEAT_CVARS
-		if (CVar->TestFlags(ECVF_Unregistered))
+		if (!CVar->IsEnabled())
 		{
 			return;
 		}

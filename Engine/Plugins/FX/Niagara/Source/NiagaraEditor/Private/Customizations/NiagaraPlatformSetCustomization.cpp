@@ -1472,13 +1472,7 @@ void SNiagaraConsoleInputBox::OnTextChanged(const FText& InText)
 
 		auto OnConsoleVariable = [&AutoCompleteList](const TCHAR* Name, IConsoleObject* CVar)
 		{
-#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (CVar->TestFlags(ECVF_Cheat))
-			{
-				return;
-			}
-#endif // (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (CVar->TestFlags(ECVF_Unregistered))
+			if (!CVar->IsEnabled())
 			{
 				return;
 			}

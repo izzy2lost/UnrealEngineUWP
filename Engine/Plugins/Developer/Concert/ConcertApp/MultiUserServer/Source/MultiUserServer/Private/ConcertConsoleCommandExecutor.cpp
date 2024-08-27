@@ -39,18 +39,24 @@ namespace UE::MultiUserServer
 	{
 		auto OnConsoleVariable = [&Out](const TCHAR *Name, IConsoleObject* CVar)
 		{
-			if (CVar->TestFlags(ECVF_Unregistered))
+			if (CVar->IsEnabled())
 			{
-				return;
+				Out.Add(FConsoleSuggestion(Name, CVar->GetDetailedHelp().ToString()));
 			}
-
-			Out.Add(FConsoleSuggestion(Name, CVar->GetHelp()));
 		};
 
-		IConsoleManager::Get().ForEachConsoleObjectThatContains(FConsoleObjectVisitor::CreateLambda(OnConsoleVariable), Input);
+		IConsoleManager& ConsoleManager = IConsoleManager::Get();
+		ConsoleManager.ForEachConsoleObjectThatContains(FConsoleObjectVisitor::CreateLambda(OnConsoleVariable), Input);
 		for (const FString& Name : GetDefault<UConsoleSettings>()->GetFilteredManualAutoCompleteCommands(Input))
 		{
-			Out.Add(FConsoleSuggestion(Name, FString()));
+			FString HelpString;
+			// Try to find a console object for this entry in order to retrieve a help string if possible :
+			const TCHAR* NamePtr = *Name;
+			if (IConsoleObject* CObj = ConsoleManager.FindConsoleObject(*FParse::Token(NamePtr, /*UseEscape = */false), /*bTrackFrequentCalls = */false); CObj && CObj->IsEnabled())
+			{
+				HelpString = CObj->GetDetailedHelp().ToString();
+			}
+			Out.Add(FConsoleSuggestion(Name, HelpString));
 		}
 	}
 
