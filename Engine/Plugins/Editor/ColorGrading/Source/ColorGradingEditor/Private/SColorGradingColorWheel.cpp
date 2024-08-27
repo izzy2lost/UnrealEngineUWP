@@ -49,6 +49,8 @@ void SColorGradingColorWheel::Construct(const FArguments& InArgs)
 		.MaxDesiredWidth(400.f)
 		.MinDesiredWidth(400.f);
 
+	HeaderBox = SNew(SBox);
+
 	ChildSlot
 	[
 		SNew(SBox)
@@ -60,7 +62,7 @@ void SColorGradingColorWheel::Construct(const FArguments& InArgs)
 			.AutoHeight()
 			.HAlign(HAlign_Fill)
 			[
-				SAssignNew(HeaderBox, SBox)
+				HeaderBox.ToSharedRef()
 			]
 
 			+ SVerticalBox::Slot()
@@ -74,7 +76,11 @@ void SColorGradingColorWheel::Construct(const FArguments& InArgs)
 			.AutoHeight()
 			.HAlign(HAlign_Center)
 			[
-				ColorSlidersBox.ToSharedRef()
+				SNew(SBox)
+				.Visibility(this, &SColorGradingColorWheel::GetSlidersVisibility)
+				[
+					ColorSlidersBox.ToSharedRef()
+				]
 			]
 		]
 	];
@@ -178,7 +184,7 @@ TSharedRef<SWidget> SColorGradingColorWheel::CreateColorComponentSliders()
 			);
 
 			ColorSlidersVerticalBox->AddSlot()
-			.Padding(FMargin(0.0f, 8.0f, 0.0f, 0.0f))
+			.Padding(FMargin(0.0f, 4.0f, 0.0f, 0.0f))
 			.AutoHeight()
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Fill)
@@ -331,6 +337,13 @@ bool SColorGradingColorWheel::IsPropertyEnabled() const
 	}
 
 	return false;
+}
+
+EVisibility SColorGradingColorWheel::GetSlidersVisibility() const
+{
+	return GetTickSpaceGeometry().GetLocalSize().Y >= 294
+		? EVisibility::Visible
+		: EVisibility::Collapsed;
 }
 
 bool SColorGradingColorWheel::GetColor(FVector4& OutCurrentColor)

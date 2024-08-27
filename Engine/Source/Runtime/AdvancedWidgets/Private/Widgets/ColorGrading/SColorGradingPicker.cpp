@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "Widgets/ColorGrading/SColorGradingPicker.h"
+
+#include "Styling/AdvancedWidgetsStyle.h"
 #include "Widgets/ColorGrading/SColorGradingWheel.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Layout/SBox.h"
@@ -54,6 +57,8 @@ void SColorGradingPicker::Construct(const FArguments& InArgs)
 	ExternalBeginMouseCaptureDelegate = InArgs._OnBeginMouseCapture;
 	ExternalEndMouseCaptureDelegate = InArgs._OnEndMouseCapture;
 
+	const auto& AdvancedWidgetsStyle = UE::AdvancedWidgets::FAdvancedWidgetsStyle::Get();
+
 	ChildSlot
 		[
 			SNew(SVerticalBox)
@@ -85,7 +90,8 @@ void SColorGradingPicker::Construct(const FArguments& InArgs)
 						.MinDesiredWidth(400.f)
 						[
 							SAssignNew(NumericEntryBoxWidget, SNumericEntryBox<float>)
-								.EditableTextBoxStyle(&FCoreStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>("DarkEditableTextBox"))
+								.EditableTextBoxStyle(&AdvancedWidgetsStyle.GetWidgetStyle<FEditableTextBoxStyle>("ColorGradingPicker.NumericEntry.TextBox"))
+								.Font(AdvancedWidgetsStyle.GetFontStyle("ColorGrading.NormalFont"))
 								.Value(this, &SColorGradingPicker::OnGetMainValue)
 								.OnValueCommitted(this, &SColorGradingPicker::OnMainValueCommitted)
 								.OnValueChanged(this, &SColorGradingPicker::OnMainValueChanged, false)

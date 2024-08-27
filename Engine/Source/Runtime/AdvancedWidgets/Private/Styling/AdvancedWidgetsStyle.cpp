@@ -93,6 +93,9 @@ void FAdvancedWidgetsStyle::Create()
 		);
 	}
 
+	Instance->Set("ColorGradingPicker.NumericEntry.TextBox", FCoreStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>("DarkEditableTextBox"));
+	Instance->Set("ColorGrading.NormalFont", FAppStyle::GetFontStyle("PropertyWindow.NormalFont"));
+
 	FLinearColor& VectorColor = ColorSettings.StructColors.FindOrAdd(TBaseStructure<FVector>::Get()->GetStructPathName().ToString());
 	VectorColor = FColorList::Yellow;
 	FLinearColor& RotatorColor = ColorSettings.StructColors.FindOrAdd(TBaseStructure<FRotator>::Get()->GetStructPathName().ToString());

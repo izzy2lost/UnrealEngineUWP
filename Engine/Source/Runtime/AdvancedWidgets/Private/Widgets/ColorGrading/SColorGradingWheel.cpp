@@ -182,13 +182,7 @@ int32 SColorGradingWheel::OnPaint(const FPaintArgs& Args, const FGeometry& Allot
 		AllottedGeometrySize = AllottedGeometry.GetLocalSize();
 	}
 
-	const float SelectorShrinkThreshold = 150.f;
-	FVector2f SelectorSize = SelectorImage->ImageSize;
-	if (AllottedGeometrySize.X < SelectorShrinkThreshold || AllottedGeometrySize.Y < SelectorShrinkThreshold)
-	{
-		SelectorSize *= 0.75f;
-	}
-
+	const FVector2f SelectorSize = SelectorImage->ImageSize;
 	const FVector2f CircleSize = AllottedGeometrySize - SelectorSize;
 
 	FSlateDrawElement::MakeBox(

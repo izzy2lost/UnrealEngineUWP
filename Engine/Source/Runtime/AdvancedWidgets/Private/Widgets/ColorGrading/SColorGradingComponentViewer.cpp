@@ -33,7 +33,7 @@ void SColorGradingComponentViewer::Construct(const FArguments& InArgs)
 	this->ChildSlot
 	[
 		SNew(SBox)
-		.HeightOverride(22)
+		.HeightOverride(20)
 		.HAlign(HAlign_Fill)
 		.ToolTipText(this, &SColorGradingComponentViewer::GetComponentToolTipText)
 		[
@@ -94,6 +94,7 @@ void SColorGradingComponentViewer::Construct(const FArguments& InArgs)
 	[
 		SAssignNew(NumericEntryBox, SNumericEntryBox<float>)
 		.SpinBoxStyle(&AdvancedWidgetsStyle.GetWidgetStyle<FSpinBoxStyle>("ColorGradingComponentViewer.NumericEntry"))
+		.Font(AdvancedWidgetsStyle.GetFontStyle("ColorGrading.NormalFont"))
 		.EditableTextBoxStyle(&AdvancedWidgetsStyle.GetWidgetStyle<FEditableTextBoxStyle>("ColorGradingComponentViewer.NumericEntry.TextBox"))
 		.UndeterminedString(NSLOCTEXT("PropertyEditor", "MultipleValues", "Multiple Values"))
 		.Value(InArgs._Value)

@@ -72,6 +72,7 @@ private:
 	FColorPropertyMetadata GetColorPropertyMetadata() const;
 
 	bool IsPropertyEnabled() const;
+	EVisibility GetSlidersVisibility() const;
 
 	bool GetColor(FVector4& OutCurrentColor);
 	void CommitColor(FVector4& NewValue, bool bShouldCommitValueChanges);
