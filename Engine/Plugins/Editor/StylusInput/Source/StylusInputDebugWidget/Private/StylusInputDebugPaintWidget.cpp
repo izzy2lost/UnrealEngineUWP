@@ -36,7 +36,7 @@ namespace UE::StylusInput::DebugWidget
 	void SStylusInputDebugPaintWidget::Add(const FStylusInputPacket& Packet)
 	{
 		PaintPackets.Emplace(FPaintPacket{
-			FVector2f{Packet.X, Packet.Y}, Packet.NormalPressure, FPlatformTime::ToMilliseconds(FPlatformTime::Cycles()), Packet.PenStatus
+			FVector2f{Packet.X, Packet.Y}, Packet.NormalPressure, Packet.PenStatus, FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64())
 		});
 	}
 
@@ -59,8 +59,8 @@ namespace UE::StylusInput::DebugWidget
 
 		constexpr float MinSize = 2.0f;
 		constexpr float MaxSize = 15.0f;
-		constexpr float FadeOutTimeMSPenDown = 3000.0f;
-		constexpr float FadeOutTimeMSPenUp = 1000.0f;
+		constexpr double FadeOutTimeMSPenDown = 3000.0;
+		constexpr double FadeOutTimeMSPenUp = 1000.0;
 
 		constexpr FLinearColor ColorPenDown = {0.0f, 0.2f, 1.0f};
 		constexpr FLinearColor ColorPenDownInverted = {1.0f, 0.1f, 0.0f};
@@ -79,33 +79,37 @@ namespace UE::StylusInput::DebugWidget
 		const Slate::FDeprecateVector2DResult PaintWidgetPosition = GetPaintSpaceGeometry().GetAbsolutePosition();
 		const FDeprecateSlateVector2D PositionOffset = PaintWidgetPosition - WindowPosition;
 
-		const float CurrentTimeMS = FPlatformTime::ToMilliseconds(FPlatformTime::Cycles());
+		const double CurrentTimeMS = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64());
 
-		auto GetOpacity = [FadeOutTimeMSPenDown, FadeOutTimeMSPenUp, CurrentTimeMS](const FPaintPacket& PaintPacket)
+		auto GetOpacity = [FadeOutTimeMSPenDown, FadeOutTimeMSPenUp, CurrentTimeMS](const FPaintPacket& PaintPacket) -> float
 		{
 			const bool bPenIsDown = (PaintPacket.PenStatus & EPenStatus::CursorIsTouching) != EPenStatus::None;
-			const float DeltaTimeMS = CurrentTimeMS - PaintPacket.TimeAddedMS;
-			const float FadeOutTimeMS = bPenIsDown ? FadeOutTimeMSPenDown : FadeOutTimeMSPenUp;
-			return (FadeOutTimeMS - DeltaTimeMS) / FadeOutTimeMS;
+			const double DeltaTimeMS = CurrentTimeMS - PaintPacket.TimeAddedMS;
+			const double FadeOutTimeMS = bPenIsDown ? FadeOutTimeMSPenDown : FadeOutTimeMSPenUp;
+			return static_cast<float>((FadeOutTimeMS - DeltaTimeMS) / FadeOutTimeMS);
 		};
-		
-		for (const FPaintPacket& PaintPacket : PaintPackets)
+
+		OutDrawElements.PushClip(FSlateClippingZone(AllottedGeometry));
 		{
-			const bool bPenIsDown = (PaintPacket.PenStatus & EPenStatus::CursorIsTouching) != EPenStatus::None;
-			const bool bPenIsInverted = (PaintPacket.PenStatus & EPenStatus::CursorIsInverted) != EPenStatus::None;
-
-			if (const float Opacity = GetOpacity(PaintPacket); Opacity > 0.0f)
+			for (const FPaintPacket& PaintPacket : PaintPackets)
 			{
-				FLinearColor Color = bPenIsDown ? (bPenIsInverted ? ColorPenDownInverted : ColorPenDown) : ColorPenUp;
-				Color.A = Opacity;
+				if (const float Opacity = GetOpacity(PaintPacket); Opacity > 0.0f)
+				{
+					const bool bPenIsDown = (PaintPacket.PenStatus & EPenStatus::CursorIsTouching) != EPenStatus::None;
+					const bool bPenIsInverted = (PaintPacket.PenStatus & EPenStatus::CursorIsInverted) != EPenStatus::None;
 
-				const float Size = FMath::Max(MinSize, PaintPacket.NormalPressure * MaxSize);
+					FLinearColor Color = bPenIsDown ? (bPenIsInverted ? ColorPenDownInverted : ColorPenDown) : ColorPenUp;
+					Color.A = Opacity;
 
-				const FVector2f TransformedPosition = (PaintPacket.Position - PositionOffset - Size / 2.0f) / DPIScaleFactor;
+					const float Size = FMath::Max(MinSize, PaintPacket.NormalPressure * MaxSize);
 
-				DrawCircle(TransformedPosition, Size, Color, AllottedGeometry, OutDrawElements, LayerId);
+					const FVector2f TransformedPosition = (PaintPacket.Position - PositionOffset - Size / 2.0f) / DPIScaleFactor;
+
+					DrawCircle(TransformedPosition, Size, Color, AllottedGeometry, OutDrawElements, LayerId);
+				}
 			}
 		}
+		OutDrawElements.PopClip();
 
 		PaintPackets.RemoveAll([&GetOpacity](const FPaintPacket& PaintPacket) { return GetOpacity(PaintPacket) <= 0.0f; });
 

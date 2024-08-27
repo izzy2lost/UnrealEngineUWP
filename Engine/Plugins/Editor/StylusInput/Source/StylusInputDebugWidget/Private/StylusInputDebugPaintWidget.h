@@ -34,8 +34,8 @@ namespace UE::StylusInput::DebugWidget
 		{
 			FVector2f Position = FVector2f::ZeroVector;
 			float NormalPressure = 0.0f;
-			float TimeAddedMS = 0.0f;
 			EPenStatus PenStatus = EPenStatus::None;
+			double TimeAddedMS = 0.0;
 		};
 
 		int32 DrawPaintPackets(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId) const;
