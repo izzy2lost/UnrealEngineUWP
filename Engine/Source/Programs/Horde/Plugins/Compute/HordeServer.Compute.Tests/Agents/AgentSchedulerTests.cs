@@ -33,7 +33,7 @@ namespace HordeServer.Tests.Agents
 			RpcSession? session2 = await AgentScheduler.TryGetSessionAsync(session.SessionId);
 			Assert.AreEqual(session, session2);
 
-			RpcAgentCapabilities? caps2 = await AgentScheduler.TryGetSessionCapabilitiesAsync(session);
+			RpcAgentCapabilities? caps2 = await AgentScheduler.TryGetCapabilitiesAsync(session);
 			Assert.AreEqual(caps2, caps);
 		}
 
@@ -47,7 +47,7 @@ namespace HordeServer.Tests.Agents
 			RpcSession? session = await AgentScheduler.TryCreateSessionAsync(new AgentId("foo"), SessionIdUtils.GenerateNewId(), caps);
 			Assert.IsNotNull(session);
 
-			RpcAgentCapabilities? caps2 = await AgentScheduler.TryGetSessionCapabilitiesAsync(session);
+			RpcAgentCapabilities? caps2 = await AgentScheduler.TryGetCapabilitiesAsync(session);
 			Assert.AreEqual(caps, caps2);
 
 			// Update them
@@ -57,10 +57,7 @@ namespace HordeServer.Tests.Agents
 			RpcSession? session2 = await AgentScheduler.TryUpdateSessionAsync(session, newCapabilities: caps3);
 			Assert.IsNotNull(session2);
 
-			RpcAgentCapabilities? caps4 = await AgentScheduler.TryGetSessionCapabilitiesAsync(session);
-			Assert.IsNull(caps4);
-
-			RpcAgentCapabilities? caps5 = await AgentScheduler.TryGetSessionCapabilitiesAsync(session2);
+			RpcAgentCapabilities? caps5 = await AgentScheduler.TryGetCapabilitiesAsync(session2);
 			Assert.AreEqual(caps3, caps5);
 		}
 

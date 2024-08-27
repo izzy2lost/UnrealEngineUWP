@@ -44,7 +44,7 @@ namespace HordeServer.Agents
 		/// <param name="session">The session object</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Matching capabilities object for the session</returns>
-		Task<RpcAgentCapabilities?> TryGetSessionCapabilitiesAsync(RpcSession session, CancellationToken cancellationToken = default);
+		Task<RpcAgentCapabilities?> TryGetCapabilitiesAsync(RpcSession session, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Attempts to create a new session for the given agent. Fails if the agent is already executing a session.
