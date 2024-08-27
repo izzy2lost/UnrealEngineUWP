@@ -117,7 +117,7 @@ static inline void FillTable(FSizeTableEntry* SizeTable, int32& Index, const uin
 {
 	for (uint32 Sub = 0; Sub < BinListSize; Sub++)
 	{
-		// if we override UE_MBC_MAX_LISTED_SMALL_POOL_SIZE externally, we need to filter out predefined bins of a larger size
+		// UE_MBC_MAX_LISTED_SMALL_POOL_SIZE will differ depending on the value AGGRESSIVE_MEMORY_SAVING
 		if (BinsList[Sub] <= UE_MBC_MAX_LISTED_SMALL_POOL_SIZE)
 		{
 			SizeTable[Index++] = FSizeTableEntry(BinsList[Sub], PlatformPageSize, Num4kbPages, BasePageSize);
