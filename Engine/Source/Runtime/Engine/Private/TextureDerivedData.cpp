@@ -728,7 +728,13 @@ static void ModifyMaxTextureResolutionBuildSettingsForPlatformLimit(
 {
 	check( ! OutSettings.bVirtualStreamable );
 	check( OutSettings.TextureFormatName != NAME_None );
-			
+	
+	if (!Texture.Source.IsValid())
+	{
+		// Nothing to do - texture can't be built.
+		return;
+	}
+
 	// GetBuiltTextureSize is the size after LODBias
 	int32 BuiltSizeX=0,BuiltSizeY=0,BuiltSizeZ=0;
 	Texture.GetBuiltTextureSize(TargetPlatform,BuiltSizeX,BuiltSizeY,BuiltSizeZ);
