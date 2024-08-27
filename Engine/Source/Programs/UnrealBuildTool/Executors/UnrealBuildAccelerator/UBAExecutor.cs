@@ -120,6 +120,8 @@ namespace UnrealBuildTool
 			List<UBAAgentCoordinatorHorde> hordeAgentCoordinators = new();
 			foreach (TargetDescriptor targetDescriptor in targetDescriptors)
 			{
+				if (targetDescriptor.HotReloadMode != HotReloadMode.Disabled)
+					UBAConfig.bStoreObjFilesCompressed = false;
 				targetDescriptor.AdditionalArguments.ApplyTo(this);
 				targetDescriptor.AdditionalArguments.ApplyTo(UBAConfig);
 				hordeAgentCoordinators.Add(new UBAAgentCoordinatorHorde(logger, UBAConfig, targetDescriptor.AdditionalArguments, targetDescriptor.ProjectFile?.Directory));
