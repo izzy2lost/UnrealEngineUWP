@@ -261,8 +261,8 @@ int32 FMaterialResource::CompilePropertyAndSetMaterialProperty(EMaterialProperty
 			}
 			else
 			{
-				FMaterialShadingModelField ShadingModels = Compiler->GetMaterialShadingModels();
-				Ret = Compiler->ShadingModel(ShadingModels.GetFirstShadingModel());
+				// if platform does not support per-pixel shading models, always fallback to DefaultLit
+				Ret = Compiler->ShadingModel(MSM_DefaultLit);
 			}
 			break;
 		case MP_MaterialAttributes:
@@ -4131,17 +4131,22 @@ void UMaterial::PostLoad()
 		bUseFullPrecision_DEPRECATED = false;
 	}
 
-	if (!GIsEditor)
+#if !WITH_EDITOR
+
+	if (GetFullName().Contains(TEXT("clearcoat_bn")))
 	{
-		// Filter out ShadingModels field to a current platform settings
-		FilterOutPlatformShadingModels(GMaxRHIShaderPlatform, ShadingModels);
-		// Override material shader model if it was filtered out
-		if (!ShadingModels.HasShadingModel(ShadingModel) &&
-			(ShadingModel != MSM_FromMaterialExpression || !AllowPerPixelShadingModels(GMaxRHIShaderPlatform)))
-		{
-			ShadingModel = ShadingModels.GetFirstShadingModel();
-		}
+		UE_LOG(LogMaterial, Display, TEXT("DEBUG break"));
 	}
+
+	// Filter out ShadingModels field to a current platform settings
+	FilterOutPlatformShadingModels(GMaxRHIShaderPlatform, ShadingModels);
+	// Override material shader model if it was filtered out
+	if (!ShadingModels.HasShadingModel(ShadingModel) &&
+		(ShadingModel != MSM_FromMaterialExpression || !AllowPerPixelShadingModels(GMaxRHIShaderPlatform)))
+	{
+		ShadingModel = ShadingModels.GetFirstShadingModel();
+	}
+#endif
 
 #if WITH_EDITOR
 	// Create exec flow expressions, if needed

@@ -1891,7 +1891,7 @@ void UMaterialInterface::FilterOutPlatformShadingModels(const EShaderPlatform In
 	const FStaticShaderPlatform Platform(InPlatform);
 	if (ShadingModels.CountShadingModels() > 1 && !AllowPerPixelShadingModels(Platform))
 	{
-		ShadingModels = FMaterialShadingModelField(ShadingModels.GetFirstShadingModel());
+		ShadingModels = FMaterialShadingModelField(MSM_DefaultLit);
 	}
 
 	uint32 ShadingModelsMask = GetPlatformShadingModelsMask(Platform);
@@ -1901,7 +1901,7 @@ void UMaterialInterface::FilterOutPlatformShadingModels(const EShaderPlatform In
 		ShadingModels.SetShadingModelField(FilteredShadingModels);
 		if (!ShadingModels.IsValid())
 		{
-			ShadingModels.AddShadingModel(MSM_DefaultLit);
+			ShadingModels = FMaterialShadingModelField(MSM_DefaultLit);
 		}
 	}
 }

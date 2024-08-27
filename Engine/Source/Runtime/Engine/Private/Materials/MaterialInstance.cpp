@@ -2405,11 +2405,10 @@ void UMaterialInstance::UpdateOverridableBaseProperties()
 		BasePropertyOverrides.BlendMode = BlendMode;
 	}
 
-	if (!GIsEditor)
-	{
-		// Filter out ShadingModels field to a current platform settings
-		FilterOutPlatformShadingModels(GMaxRHIShaderPlatform, ShadingModels);
-	}
+#if !WITH_EDITOR
+	// Filter out ShadingModels field to a current platform settings
+	FilterOutPlatformShadingModels(GMaxRHIShaderPlatform, ShadingModels);
+#endif
 
 	if (BasePropertyOverrides.bOverride_TwoSided)
 	{
@@ -3374,11 +3373,10 @@ void UMaterialInstance::PostLoad()
 		}
 	}
 
-	if (!GIsEditor)
-	{
-		// Filter out ShadingModels field to a current platform settings
-		FilterOutPlatformShadingModels(GMaxRHIShaderPlatform, ShadingModels);
-	}
+#if !WITH_EDITOR
+	// Filter out ShadingModels field to a current platform settings
+	FilterOutPlatformShadingModels(GMaxRHIShaderPlatform, ShadingModels);
+#endif
 
 #if WITH_EDITOR
 	UpdateCachedData();
