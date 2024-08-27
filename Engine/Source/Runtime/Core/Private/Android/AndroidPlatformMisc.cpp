@@ -146,8 +146,15 @@ extern void AndroidThunkCpp_ForceQuit();
 
 extern void AndroidThunkCpp_SetOrientation(int32 Value);
 
+#if USE_ANDROID_JNI
+extern bool AndroidThunkCpp_HasSharedPreference(const FString& Group, const FString& Key);
 extern void AndroidThunkCpp_SetSharedPreferenceInt(const FString& Group, const FString& Key, int32 Value);
 extern int32 AndroidThunkCpp_GetSharedPreferenceInt(const FString& Group, const FString& Key, int32 DefaultValue);
+extern void AndroidThunkCpp_SetSharedPreferenceString(const FString& Group, const FString& Key, const FString& Value);
+extern bool AndroidThunkCpp_GetSharedPreferenceStringTypeSafe(const FString& Group, const FString& Key, FString& OutValue);
+extern void AndroidThunkCpp_DeleteSharedPreference(const FString& Group, const FString& Key);
+extern void AndroidThunkCpp_DeleteSharedPreferenceGroup(const FString& Group);
+#endif
 
 // From AndroidFile.cpp
 extern FString GFontPathBase;
@@ -786,6 +793,70 @@ bool FAndroidMisc::HasPlatformFeature(const TCHAR* FeatureName)
 	}
 
 	return FGenericPlatformMisc::HasPlatformFeature(FeatureName);
+}
+
+static FString FixUpStoredValueSectionName(const FString& InSectionName)
+{
+	// We need to remove file separator character because SectionName is used as a file name by the OS
+	if (InSectionName.Contains(TEXT("/")))
+	{
+		// Use extended replacement to avoid foo/bar and foo_bar mapping to each other
+		return InSectionName.Replace(TEXT("/"), TEXT("___"));
+	}
+	else
+	{
+		return InSectionName;
+	}
+}
+
+bool FAndroidMisc::SetStoredValue(const FString& InStoreId, const FString& InSectionName, const FString& InKeyName, const FString& InValue)
+{
+#if USE_ANDROID_JNI
+	const FString FixedSectionValue = FixUpStoredValueSectionName(InSectionName);
+	AndroidThunkCpp_SetSharedPreferenceString(FixedSectionValue, InKeyName, InValue);
+	return true;
+#else
+	return FGenericPlatformMisc::SetStoredValue(InStoreId, InSectionName, InKeyName, InValue);
+#endif
+}
+
+bool FAndroidMisc::GetStoredValue(const FString& InStoreId, const FString& InSectionName, const FString& InKeyName, FString& OutValue)
+{
+#if USE_ANDROID_JNI
+	const FString FixedSectionValue = FixUpStoredValueSectionName(InSectionName);
+	if (AndroidThunkCpp_GetSharedPreferenceStringTypeSafe(FixedSectionValue, InKeyName, OutValue))
+	{
+		return true;
+	}
+#endif
+
+	// fallback to FGenericPlatformMisc::GetStoredValue
+	return FGenericPlatformMisc::GetStoredValue(InStoreId, InSectionName, InKeyName, OutValue);
+}
+
+bool FAndroidMisc::DeleteStoredValue(const FString& InStoreId, const FString& InSectionName, const FString& InKeyName)
+{
+	bool bResult = false;
+#if USE_ANDROID_JNI
+	const FString FixedSectionValue = FixUpStoredValueSectionName(InSectionName);
+	// delete doesn't have a return value, our best effort is to check for preference existence first
+	bResult = AndroidThunkCpp_HasSharedPreference(FixedSectionValue, InKeyName);
+	AndroidThunkCpp_DeleteSharedPreference(FixedSectionValue, InKeyName);
+#endif
+	// always delete in both places just in case
+	bResult |= FGenericPlatformMisc::DeleteStoredValue(InStoreId, InSectionName, InKeyName);
+	return bResult;
+}
+
+bool FAndroidMisc::DeleteStoredSection(const FString& InStoreId, const FString& InSectionName)
+{
+#if USE_ANDROID_JNI
+	const FString FixedSectionValue = FixUpStoredValueSectionName(InSectionName);
+	// can't easily check if section exists as Context.getSharedPreferences will create object if it doesn't exist
+	AndroidThunkCpp_DeleteSharedPreferenceGroup(FixedSectionValue);
+#endif
+	// always delete in both places just in case
+	return FGenericPlatformMisc::DeleteStoredSection(InStoreId, InSectionName);
 }
 
 bool FAndroidMisc::UseRenderThread()

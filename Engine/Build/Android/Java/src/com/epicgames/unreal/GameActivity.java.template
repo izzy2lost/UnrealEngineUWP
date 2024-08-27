@@ -4816,6 +4816,24 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		return preferences.getString(key, defaultValue);
 	}
 
+	public void AndroidThunkJava_DeleteSharedPreference(String group, String key)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		SharedPreferences.Editor editor = preferences.edit();
+		editor.remove(key);
+		editor.commit();
+	}
+
+	public void AndroidThunkJava_DeleteSharedPreferenceGroup(String group)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		SharedPreferences.Editor editor = preferences.edit();
+		editor.clear();
+		editor.commit();
+	}
+
 	// call back into native code from the Java UI thread, initializing any available VR HMD modules
 	public void AndroidThunkJava_InitHMDs()
 	{

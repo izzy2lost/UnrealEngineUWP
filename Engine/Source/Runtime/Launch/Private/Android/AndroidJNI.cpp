@@ -141,6 +141,8 @@ void FJavaWrapper::FindClassesAndMethods(JNIEnv* Env)
 	AndroidThunkJava_GetSharedPreferenceInt = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_GetSharedPreferenceInt", "(Ljava/lang/String;Ljava/lang/String;I)I", bIsOptional);
 	AndroidThunkJava_SetSharedPreferenceString = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_SetSharedPreferenceString", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V", bIsOptional);
 	AndroidThunkJava_GetSharedPreferenceString = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_GetSharedPreferenceString", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", bIsOptional);
+	AndroidThunkJava_DeleteSharedPreference = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_DeleteSharedPreference", "(Ljava/lang/String;Ljava/lang/String;)V", bIsOptional);
+	AndroidThunkJava_DeleteSharedPreferenceGroup = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_DeleteSharedPreferenceGroup", "(Ljava/lang/String;)V", bIsOptional);
 
 	// Screen capture/recording permission
 	AndroidThunkJava_IsScreenCaptureDisabled = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_IsScreenCaptureDisabled", "()Z", bIsOptional);
@@ -551,6 +553,8 @@ jmethodID FJavaWrapper::AndroidThunkJava_SetSharedPreferenceInt;
 jmethodID FJavaWrapper::AndroidThunkJava_GetSharedPreferenceInt;
 jmethodID FJavaWrapper::AndroidThunkJava_SetSharedPreferenceString;
 jmethodID FJavaWrapper::AndroidThunkJava_GetSharedPreferenceString;
+jmethodID FJavaWrapper::AndroidThunkJava_DeleteSharedPreference;
+jmethodID FJavaWrapper::AndroidThunkJava_DeleteSharedPreferenceGroup;
 
 jclass FJavaWrapper::InputDeviceInfoClass;
 jfieldID FJavaWrapper::InputDeviceInfo_VendorId;
@@ -1471,6 +1475,30 @@ bool AndroidThunkCpp_GetSharedPreferenceBool(const FString& Group, const FString
 	return Result;
 }
 
+bool AndroidThunkCpp_GetSharedPreferenceBoolTypeSafe(const FString& Group, const FString& Key, bool& OutValue)
+{
+	if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
+	{
+		auto GroupArg = FJavaHelper::ToJavaString(Env, Group);
+		auto KeyArg = FJavaHelper::ToJavaString(Env, Key);
+		bool bResult = FJavaWrapper::CallBooleanMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_GetSharedPreferenceBoolean, *GroupArg, *KeyArg, false);
+
+		// SharedPreferences.getBoolean will throw an exception if there is a type mismatch
+		if (!Env->ExceptionCheck())
+		{
+			OutValue = bResult;
+			return true;
+		}
+		else
+		{
+			Env->ExceptionClear();
+			return false;
+		}
+	}
+
+	return false;
+}
+
 void AndroidThunkCpp_SetSharedPreferenceInt(const FString& Group, const FString& Key, int32 Value)
 {
 	if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
@@ -1491,6 +1519,30 @@ int32 AndroidThunkCpp_GetSharedPreferenceInt(const FString& Group, const FString
 		Result = FJavaWrapper::CallIntMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_GetSharedPreferenceInt, *GroupArg, *KeyArg, DefaultValue);
 	}
 	return Result;
+}
+
+bool AndroidThunkCpp_GetSharedPreferenceIntTypeSafe(const FString& Group, const FString& Key, int32& OutValue)
+{
+	if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
+	{
+		auto GroupArg = FJavaHelper::ToJavaString(Env, Group);
+		auto KeyArg = FJavaHelper::ToJavaString(Env, Key);
+		int32 Result = FJavaWrapper::CallIntMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_GetSharedPreferenceInt, *GroupArg, *KeyArg, 0);
+
+		// SharedPreferences.getInt will throw an exception if there is a type mismatch
+		if (!Env->ExceptionCheck())
+		{
+			OutValue = Result;
+			return true;
+		}
+		else
+		{
+			Env->ExceptionClear();
+			return false;
+		}
+	}
+
+	return false;
 }
 
 void AndroidThunkCpp_SetSharedPreferenceString(const FString& Group, const FString& Key, const FString& Value)
@@ -1515,6 +1567,49 @@ FString AndroidThunkCpp_GetSharedPreferenceString(const FString& Group, const FS
 		Result = FJavaHelper::FStringFromLocalRef(Env, (jstring)FJavaWrapper::CallObjectMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_GetSharedPreferenceString, *GroupArg, *KeyArg, *DefaultValueArg));
 	}
 	return Result;
+}
+
+bool AndroidThunkCpp_GetSharedPreferenceStringTypeSafe(const FString& Group, const FString& Key, FString& OutValue)
+{
+	if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
+	{
+		auto GroupArg = FJavaHelper::ToJavaString(Env, Group);
+		auto KeyArg = FJavaHelper::ToJavaString(Env, Key);
+		auto ResultObject = FJavaWrapper::CallObjectMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_GetSharedPreferenceString, *GroupArg, *KeyArg, NULL);
+
+		// SharedPreferences.getString will throw an exception if there is a type mismatch
+		if (Env->ExceptionCheck())
+		{
+			Env->ExceptionClear();
+			return false;
+		}
+		else if (ResultObject && !Env->IsSameObject(ResultObject, NULL))
+		{
+			OutValue = FJavaHelper::FStringFromLocalRef(Env, (jstring)ResultObject);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void AndroidThunkCpp_DeleteSharedPreference(const FString& Group, const FString& Key)
+{
+	if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
+	{
+		auto GroupArg = FJavaHelper::ToJavaString(Env, Group);
+		auto KeyArg = FJavaHelper::ToJavaString(Env, Key);
+		FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_DeleteSharedPreference, *GroupArg, *KeyArg);
+	}
+}
+
+void AndroidThunkCpp_DeleteSharedPreferenceGroup(const FString& Group)
+{
+	if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
+	{
+		auto GroupArg = FJavaHelper::ToJavaString(Env, Group);
+		FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_DeleteSharedPreferenceGroup, *GroupArg);
+	}
 }
 
 bool AndroidThunkCpp_IsMusicActive()

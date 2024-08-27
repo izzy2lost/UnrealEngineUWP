@@ -80,6 +80,8 @@ public:
 	static jmethodID AndroidThunkJava_GetSharedPreferenceInt;
 	static jmethodID AndroidThunkJava_SetSharedPreferenceString;
 	static jmethodID AndroidThunkJava_GetSharedPreferenceString;
+	static jmethodID AndroidThunkJava_DeleteSharedPreference;
+	static jmethodID AndroidThunkJava_DeleteSharedPreferenceGroup;
 
 
 	// Screen capture/recording permission
