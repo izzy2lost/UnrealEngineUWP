@@ -110,8 +110,8 @@ struct FShotgridMenuEntryImpl
 			TEXT("Shotgrid"),
 			FUIAction(),
 			FOnGetContent::CreateRaw(this, &FShotgridMenuEntryImpl::GenerateShotgridToolbarMenu),
-			LOCTEXT("ShotgridCombo_Label", "ShotGrid"),
-			LOCTEXT("ShotgridCombo_Tooltip", "Available ShotGrid commands"),
+			LOCTEXT("ShotgridCombo_Label", "Flow Production Tracking"),
+			LOCTEXT("ShotgridCombo_Tooltip", "Available Flow Production commands"),
 			FSlateIcon(FShotgridStyle::GetStyleSetName(), "Shotgrid.Logo"));
 
 		Section.AddEntry(ShotgridComboEntry);
