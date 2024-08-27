@@ -970,9 +970,12 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				&& bGuideByHistory)
 			{
 				if (MegaLightsViewState.VisibleLightHashHistory
-					&& LightMaskBufferSize == MegaLightsViewState.HistoryLightMaskBufferSize)
+					&& StochasticLightingViewState.SceneDepthHistory
+					&& LightMaskBufferSize == MegaLightsViewState.HistoryLightMaskBufferSize
+					&& StochasticLightingViewState.SceneDepthHistory->GetDesc().Extent == SceneTextures.Depth.Resolve->Desc.Extent)
 				{
 					VisibleLightHashHistory = GraphBuilder.RegisterExternalBuffer(MegaLightsViewState.VisibleLightHashHistory);
+					SceneDepthHistory = GraphBuilder.RegisterExternalTexture(StochasticLightingViewState.SceneDepthHistory);
 				}
 			}
 		}
@@ -1219,7 +1222,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				PermutationVector.Set<FGenerateLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
 				PermutationVector.Set<FGenerateLightSamplesCS::FTexturedRectLights>(CVarMegaLightsTexturedRectLights.GetValueOnRenderThread() != 0);
 				PermutationVector.Set<FGenerateLightSamplesCS::FNumSamplesPerPixel1d>(NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y);
-				PermutationVector.Set<FGenerateLightSamplesCS::FGuideByHistory>(VisibleLightHashHistory != nullptr);
+				PermutationVector.Set<FGenerateLightSamplesCS::FGuideByHistory>(VisibleLightHashHistory != nullptr && SceneDepthHistory != nullptr);
 				PermutationVector.Set<FGenerateLightSamplesCS::FDebugMode>(bDebug);
 				auto ComputeShader = View.ShaderMap->GetShader<FGenerateLightSamplesCS>(PermutationVector);
 
