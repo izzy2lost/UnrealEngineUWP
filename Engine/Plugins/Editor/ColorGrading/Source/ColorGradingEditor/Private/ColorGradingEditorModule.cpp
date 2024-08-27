@@ -5,9 +5,11 @@
 #include "ColorGradingCommands.h"
 #include "ColorGradingEditorDataModel.h"
 #include "ColorGradingMixerObjectFilterRegistry.h"
+#include "DataModelGenerators/ColorGradingDataModelGenerator_CameraActor.h"
 #include "DataModelGenerators/ColorGradingDataModelGenerator_PostProcessVolume.h"
 #include "SColorGradingPanel.h"
 
+#include "Camera/CameraActor.h"
 #include "Engine/PostProcessVolume.h"
 #include "Framework/Docking/LayoutExtender.h"
 #include "LevelEditor.h"
@@ -23,9 +25,14 @@ void FColorGradingEditorModule::StartupModule()
 	FColorGradingEditorDataModel::RegisterColorGradingDataModelGenerator<APostProcessVolume>(
 		FGetDetailsDataModelGenerator::CreateStatic(&FColorGradingDataModelGenerator_PostProcessVolume::MakeInstance));
 
+	FColorGradingEditorDataModel::RegisterColorGradingDataModelGenerator<ACameraActor>(
+		FGetDetailsDataModelGenerator::CreateStatic(&FColorGradingDataModelGenerator_CameraActor::MakeInstance));
+
 	FColorGradingMixerObjectFilterRegistry::RegisterActorClassToPlace(APostProcessVolume::StaticClass());
+	FColorGradingMixerObjectFilterRegistry::RegisterActorClassToPlace(ACameraActor::StaticClass());
 
 	FColorGradingMixerObjectFilterRegistry::RegisterObjectClassToFilter(APostProcessVolume::StaticClass());
+	FColorGradingMixerObjectFilterRegistry::RegisterObjectClassToFilter(ACameraActor::StaticClass());
 
 	FColorGradingCommands::Register();
 
