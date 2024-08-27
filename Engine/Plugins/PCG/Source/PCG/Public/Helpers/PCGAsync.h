@@ -568,12 +568,13 @@ namespace FPCGAsync
 	* @param bAllowChunkSizeOverride - If true, ChunkSize can be overridden by 'pcg.AsyncOverrideChunkSize' CVar
 	* @returns true if the processing is done, false otherwise. Use this to know if you need to reschedule the task.
 	*/
-	template <typename OutputType, typename Func>
-	bool AsyncProcessing(FPCGAsyncState* AsyncState, int32 NumIterations, TArray<OutputType>& OutData, Func&& InFunc, const bool bEnableTimeSlicing, const int32 ChunkSize = 64, bool bAllowChunkSizeOverride = true)
+	template <typename OutputType, typename Func, typename AllocatorType = FDefaultAllocator>
+	bool AsyncProcessing(FPCGAsyncState* AsyncState, int32 NumIterations, TArray<OutputType, AllocatorType>& OutData, Func&& InFunc, const bool bEnableTimeSlicing, const int32 ChunkSize = 64, bool bAllowChunkSizeOverride = true)
 	{
 		auto Initialize = [&OutData, NumIterations]()
 		{
-			OutData.SetNumUninitialized(NumIterations);
+			// Array will be shrunk at the end of the processing.
+			OutData.SetNumUninitialized(NumIterations, EAllowShrinking::No);
 		};
 		
 		auto IterationInnerLoop = [Func = MoveTemp(InFunc), &OutData](int32 ReadIndex, int32 WriteIndex) -> int32

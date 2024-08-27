@@ -106,11 +106,17 @@ public:
 	TArray<FPCGPoint> GetPointsCopy() const { return Points; }
 
 	UFUNCTION(BlueprintCallable, Category = SpatialData)
+	int32 GetNumPoints() const { return Points.Num(); }
+
+	UFUNCTION(BlueprintCallable, Category = SpatialData)
+	bool IsEmpty() const { return Points.IsEmpty(); }
+
+	UFUNCTION(BlueprintCallable, Category = SpatialData)
 	FPCGPoint GetPoint(int32 Index) const;
 
 	UFUNCTION(BlueprintCallable, Category = SpatialData)
 	void SetPoints(const TArray<FPCGPoint>& InPoints);
-	
+
 	UFUNCTION(BlueprintCallable, Category = SpatialData)
 	void CopyPointsFrom(const UPCGPointData* InData, const TArray<int>& InDataIndices);
 
@@ -139,7 +145,3 @@ protected:
 	mutable bool bBoundsAreDirty = true;
 	mutable bool bOctreeIsDirty = true;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif
