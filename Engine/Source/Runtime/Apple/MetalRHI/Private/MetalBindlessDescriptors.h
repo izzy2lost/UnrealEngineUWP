@@ -80,11 +80,11 @@ public:
 
 	bool					IsSupported() {return bIsSupported;}
     
-	void 					UpdateDescriptorsWithGPU();
+	void 					UpdateDescriptorsWithGPU(FMetalRHICommandContext* Context);
     
 private:
 	void                    UpdateDescriptorsWithCompute();
-	void 					UpdateDescriptorsWithCopy();
+	void 					UpdateDescriptorsWithCopy(FMetalRHICommandContext* Context);
 	
 	bool 					bIsSupported = false;
 	FMetalDevice& 			Device;

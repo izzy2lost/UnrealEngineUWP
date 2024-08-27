@@ -141,7 +141,7 @@ void FMetalRHICommandContext::RHIBeginRenderPass(const FRHIRenderPassInfo& InInf
 	if(IsMetalBindlessEnabled())
 	{
 		check(!bWithinRenderPass);
-		Device.GetBindlessDescriptorManager()->UpdateDescriptorsWithGPU();
+		Device.GetBindlessDescriptorManager()->UpdateDescriptorsWithGPU(this);
 	}
 #endif
     
