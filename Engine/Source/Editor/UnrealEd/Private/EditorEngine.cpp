@@ -250,6 +250,7 @@
 #include "ToolMenus.h"
 #include "IToolMenusEditorModule.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "Subsystems/BrowseToAssetOverrideSubsystem.h"
 #include "LevelEditorSubsystem.h"
 #include "Engine/LevelScriptActor.h"
 #include "UObject/UnrealType.h"
@@ -3311,7 +3312,8 @@ void UEditorEngine::GetAssetsToSyncToContentBrowser(TArray<FAssetData>& Assets, 
 	{
 		if (UTypedElementSelectionSet* SelectionSet = GEditor->GetSelectedActors()->GetElementSelectionSet())
 		{
-			SelectionSet->ForEachSelectedElementHandle([&Assets, bAllowBrowseToAssetOverride](const FTypedElementHandle& SelectedHandle)
+			UBrowseToAssetOverrideSubsystem* BrowseToAssetOverrideSubsystem = UBrowseToAssetOverrideSubsystem::Get();
+			SelectionSet->ForEachSelectedElementHandle([&Assets, bAllowBrowseToAssetOverride, BrowseToAssetOverrideSubsystem](const FTypedElementHandle& SelectedHandle)
 			{
 				if (bAllowBrowseToAssetOverride)
 				{
@@ -3320,13 +3322,13 @@ void UEditorEngine::GetAssetsToSyncToContentBrowser(TArray<FAssetData>& Assets, 
 						if (AActor* Actor = ObjectInterface.GetObjectAs<AActor>())
 						{
 							// If BrowseToAssetOverride is set, then use the asset it points to instead of the selected asset
-							const FString& BrowseToAssetOverride = Actor->GetBrowseToAssetOverride();
-							if (!BrowseToAssetOverride.IsEmpty())
+							const FName BrowseToAssetOverride = BrowseToAssetOverrideSubsystem->GetBrowseToAssetOverride(Actor);
+							if (!BrowseToAssetOverride.IsNone())
 							{
 								if (IAssetRegistry* AssetRegistry = IAssetRegistry::Get())
 								{
 									TArray<FAssetData> FoundAssets;
-									if (AssetRegistry->GetAssetsByPackageName(*BrowseToAssetOverride, FoundAssets) && FoundAssets.Num() > 0)
+									if (AssetRegistry->GetAssetsByPackageName(BrowseToAssetOverride, FoundAssets) && FoundAssets.Num() > 0)
 									{
 										Assets.Add(FoundAssets[0]);
 										return true;
