@@ -1266,7 +1266,7 @@ public:
 	
 #if RHI_RAYTRACING // #yuriy_todo: Move to FRayTracingScene, as this is only valid for View[0]
 	TUniquePtr<FRayTracingMeshResourceCollector> RayTracingMeshResourceCollector;
-	FRayTracingMeshCommandOneFrameArray VisibleRayTracingMeshCommands;
+	FRayTracingShaderBindingDataOneFrameArray DirtyRayTracingShaderBindings;
 	FDynamicRayTracingMeshCommandStorage DynamicRayTracingMeshCommandStorage;
 
 	FRayTracingCullingParameters RayTracingCullingParameters;
@@ -1274,7 +1274,7 @@ public:
 	FGraphEventRef RayTracingSceneInitTask; // Task to asynchronously call RayTracingScene.BuildInitializationData()
 
 	FGraphEventArray AddRayTracingMeshBatchTaskList;
-	TArray<FRayTracingMeshCommandOneFrameArray*, SceneRenderingAllocator> VisibleRayTracingMeshCommandsPerTask;
+	TArray<FRayTracingShaderBindingDataOneFrameArray*, SceneRenderingAllocator> DirtyRayTracingShaderBindingsPerTask;
 	TArray<FDynamicRayTracingMeshCommandStorage*, SceneRenderingAllocator> DynamicRayTracingMeshCommandStoragePerTask;
 #endif
 

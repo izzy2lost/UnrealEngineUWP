@@ -8,6 +8,7 @@
 #include "Scene/Landscape.h"
 #include "MeshPassProcessor.h"
 #include "RayTracingMeshDrawCommands.h"
+#include "RayTracing/RayTracingShaderBindingTable.h"
 #include "IrradianceCaching.h"
 #include "GPULightmassSettings.h"
 #include "Templates/UniquePtr.h"
@@ -25,16 +26,16 @@ class FFullyCachedRayTracingMeshCommandContext : public FRayTracingMeshCommandCo
 public:
 	FFullyCachedRayTracingMeshCommandContext(
 		TChunkedArray<FRayTracingMeshCommand>& CommandStorage,
-		TArray<FVisibleRayTracingMeshCommand>& VisibleCommandStorage,
+		TArray<FRayTracingShaderBindingData>& InDirtyShaderBindingsStorage,
 		const FRHIRayTracingGeometry* InRayTracingGeometry,
-		uint32 InGeometrySegmentIndex = ~0u,
-		uint32 InGlobalSegmentIndex = ~0u
+		uint32 InGeometrySegmentIndex,
+		FRayTracingSBTAllocation* InSBTAllocation
 	)
 		: CommandStorage(CommandStorage)
-		, VisibleCommandStorage(VisibleCommandStorage)
+		, DirtyShaderBindingsStorage(InDirtyShaderBindingsStorage)
 		, RayTracingGeometry(InRayTracingGeometry)
 		, GeometrySegmentIndex(InGeometrySegmentIndex)
-		, GlobalSegmentIndex(InGlobalSegmentIndex) {}
+		, SBTAllocation(InSBTAllocation) {}
 
 	virtual FRayTracingMeshCommand& AddCommand(const FRayTracingMeshCommand& Initializer) override final
 	{
@@ -46,25 +47,31 @@ public:
 
 	virtual void FinalizeCommand(FRayTracingMeshCommand& RayTracingMeshCommand) override final 
 	{
-		FVisibleRayTracingMeshCommand NewVisibleMeshCommand(&RayTracingMeshCommand, RayTracingGeometry, GlobalSegmentIndex + GeometrySegmentIndex);
-		VisibleCommandStorage.Add(NewVisibleMeshCommand);
-		check(NewVisibleMeshCommand.RayTracingMeshCommand);
+		check(GeometrySegmentIndex == RayTracingMeshCommand.GeometrySegmentIndex);
+		bool bHidden = false;
+		const uint32 RecordIndex = SBTAllocation->GetRecordIndex(ERayTracingSceneLayer::Base, RayTracingMeshCommand.GeometrySegmentIndex);
+		FRayTracingShaderBindingData DirtyShaderBinding(&RayTracingMeshCommand, RayTracingGeometry, RecordIndex, bHidden);
+		DirtyShaderBindingsStorage.Add(DirtyShaderBinding);
+		check(DirtyShaderBinding.RayTracingMeshCommand);
 	}
 
 private:
 	TChunkedArray<FRayTracingMeshCommand>& CommandStorage;
-	TArray<FVisibleRayTracingMeshCommand>& VisibleCommandStorage;
+	TArray<FRayTracingShaderBindingData>& DirtyShaderBindingsStorage;
 
 	const FRHIRayTracingGeometry* RayTracingGeometry;
 	uint32 GeometrySegmentIndex;
-	uint32 GlobalSegmentIndex;
+	FRayTracingSBTAllocation* SBTAllocation;
 };
 
 struct FCachedRayTracingSceneData
 {
 	~FCachedRayTracingSceneData();
+
+	FRayTracingShaderBindingTable RaytracingSBT;
+	TArray<FRayTracingSBTAllocation*> StaticSBTAllocations;
 	
-	TArray<TArray<FVisibleRayTracingMeshCommand>> VisibleRayTracingMeshCommandsPerLOD;
+	TArray<TArray<FRayTracingShaderBindingData>> ShaderBindingsPerLOD;
 	TChunkedArray<FRayTracingMeshCommand> MeshCommandStorage;
 
 	FBufferRHIRef InstanceIdsIdentityBufferRHI;

@@ -296,9 +296,9 @@ FShaderBindingTableRHIRef UE::FXRenderingUtils::RayTracing::CreateShaderBindingT
 	return nullptr;
 }
 
-TConstArrayView<FVisibleRayTracingMeshCommand> UE::FXRenderingUtils::RayTracing::GetVisibleRayTracingMeshCommands(const FSceneView& View)
+TConstArrayView<FRayTracingShaderBindingData> UE::FXRenderingUtils::RayTracing::GetDirtyRayTracingShaderBindings(const FSceneView& View)
 {
-	return static_cast<const FViewInfo&>(View).VisibleRayTracingMeshCommands;
+	return static_cast<const FViewInfo&>(View).DirtyRayTracingShaderBindings;
 }
 
 #endif // RHI_RAYTRACING

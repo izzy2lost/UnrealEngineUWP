@@ -40,6 +40,7 @@
 #include "RayTracing/RaytracingOptions.h"
 #if RHI_RAYTRACING
 #include "RayTracing/RayTracingScene.h"
+#include "RayTracing/RayTracingShaderBindingTable.h"
 #endif
 #include "Nanite/Nanite.h"
 #include "Lumen/LumenViewState.h"
@@ -3297,6 +3298,9 @@ public:
 	/** Persistently-allocated ray tracing scene data. */
 	FRayTracingScene RayTracingScene;
 	FRayTracingScene HeterogeneousVolumesRayTracingScene;
+	
+	/** SBT object to be used with hardware ray tracing */
+	FRayTracingShaderBindingTable RayTracingSBT;
 
 	bool bHasLightsWithRayTracedShadows = false;
 	void UpdateRayTracedLights(const FSceneViewFamily& ViewFamily);
