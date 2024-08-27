@@ -4799,7 +4799,9 @@ void ALandscapeProxy::UpgradeSharedProperties(ALandscape* InParentLandscape)
 
 	if (!SynchronizedProperties.IsEmpty())
 	{
-		LandscapeInfo->MarkObjectDirty(/*InObject = */this, /*bInForceResave = */true);
+		// This function may be called from PostLoad, in which case InParentLandscape will be non-null. Pass it along to LandscapeInfo so that if the landscape actor has not registered to the 
+		//  landscape info yet, it can still retrieve it via this direct pointer : 
+		LandscapeInfo->MarkObjectDirty(/*InObject = */this, /*bInForceResave = */true, InParentLandscape);
 
 		if (!CVarSilenceSharedPropertyDeprecationFixup->GetBool())
 		{
