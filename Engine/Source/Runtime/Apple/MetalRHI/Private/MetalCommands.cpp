@@ -193,7 +193,7 @@ void FMetalRHICommandContext::RHISetComputePipelineState(FRHIComputePipelineStat
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if(!bWithinRenderPass && IsMetalBindlessEnabled())
 	{
-		Device.GetBindlessDescriptorManager()->UpdateDescriptorsWithGPU();
+		Device.GetBindlessDescriptorManager()->UpdateDescriptorsWithGPU(this);
 	}
 #endif
     
