@@ -935,8 +935,15 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 		}
 	}
 
+	// Add AI Move if it exists
+	FVector AIMoveVelocity = FVector::ZeroVector;
+	if (const FMoverAIInputs* MoverAIInputs = Input.InputCmd.InputCollection.FindDataByType<FMoverAIInputs>())
+	{
+		AIMoveVelocity = MoverAIInputs->RVOVelocityDelta;
+	}
+
 	FMoverDefaultSyncState& SyncState = Input.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-	SyncState.SetTransforms_WorldSpace(CharacterParticle->GetX(), FRotator(CharacterParticle->GetR()), CharacterParticle->GetV() - LocalGroundVelocity);
+	SyncState.SetTransforms_WorldSpace(CharacterParticle->GetX(), FRotator(CharacterParticle->GetR()), CharacterParticle->GetV() - LocalGroundVelocity + AIMoveVelocity);
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Update the simulation
