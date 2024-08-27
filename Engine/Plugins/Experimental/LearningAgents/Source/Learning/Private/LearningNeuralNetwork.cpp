@@ -170,6 +170,7 @@ namespace UE::Learning
 		const int32 MaxBatchSize,
 		const FNeuralNetworkInferenceSettings& Settings)
 	{
+
 		TSharedRef<FNeuralNetworkInference> InferenceObject = MakeShared<FNeuralNetworkInference>(
 			*Model,
 			MaxBatchSize,
@@ -177,7 +178,10 @@ namespace UE::Learning
 			OutputSize,
 			Settings);
 
-		InferenceObjects.Emplace(InferenceObject.ToWeakPtr());
+		{
+			UE::Learning::FScopeNullableWriteLock ScopeLock(&Lock);
+			InferenceObjects.Emplace(InferenceObject.ToWeakPtr());
+		}
 
 		return InferenceObject;
 	}
@@ -199,6 +203,8 @@ namespace UE::Learning
 
 	void FNeuralNetwork::UpdateModel(const TSharedPtr<NNE::IModelCPU>& InModel, const int32 InInputSize, const int32 InOutputSize)
 	{
+		UE::Learning::FScopeNullableWriteLock ScopeLock(&Lock);
+
 		// Update Model
 
 		InputSize = InInputSize;

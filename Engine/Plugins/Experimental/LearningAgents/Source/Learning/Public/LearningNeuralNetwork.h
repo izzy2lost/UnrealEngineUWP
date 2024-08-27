@@ -148,6 +148,7 @@ namespace UE::Learning
 		int32 OutputSize = 0;
 		TSharedPtr<NNE::IModelCPU> Model;
 		TArray<TWeakPtr<FNeuralNetworkInference>, TInlineAllocator<64>> InferenceObjects;
+		FRWLock Lock;
 	};
 
 	/**
