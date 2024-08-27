@@ -12,6 +12,8 @@ class UPoseSearchDatabase;
 
 namespace UE::Chimera
 {
+	struct FSearchContext;
+
 	struct FChimeraAvailabilityEx : public FChimeraAvailability
 	{
 		FChimeraAvailabilityEx(const FChimeraAvailability& InAvailability, FName InPoseHistoryName, const FAnimNode_PoseSearchHistoryCollector_Base* InHistoryCollector)
@@ -97,6 +99,8 @@ private:
 	void DestroyAllIslands();
 	void UninjectAllIslands();
 	bool ValidateAllIslands() const;
+
+	void PopulateContinuingProperties(UE::Chimera::FSearchContext& SearchContext, float DeltaSeconds) const;
 	UChimeraIslandComponent* FindIsland(UObject* InAnimInstance);
 	
 	void DebugDraw() const;

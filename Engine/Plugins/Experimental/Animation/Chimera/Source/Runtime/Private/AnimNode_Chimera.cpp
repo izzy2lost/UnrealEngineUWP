@@ -118,7 +118,7 @@ void FAnimNode_Chimera::UpdateAssetPlayer(const FAnimationUpdateContext& Context
 		}
 	}
 	
-	// calculating the translation and rotation warp lerps, used to wapr the root transform towards the last computed FullAlignedActorRootBoneTransform
+	// calculating the translation and rotation warp lerps, used to warp the root transform towards the last computed FullAlignedActorRootBoneTransform
 	const float Sign = bInteracting ? 1.f : -1.f;
 	if (BlendTime > UE_KINDA_SMALL_NUMBER)
 	{

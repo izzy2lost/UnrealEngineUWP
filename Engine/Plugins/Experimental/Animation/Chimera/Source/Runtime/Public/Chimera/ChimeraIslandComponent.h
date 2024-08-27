@@ -48,6 +48,12 @@ UCLASS(Experimental, Category="Animation|Chimera")
 class UChimeraIslandComponent : public UActorComponent
 {
 public:
+	bool DoSearch_AnyThread(UObject* AnimInstance, FChimeraBlueprintResult& Result);
+
+private:
+	// to minimize the usage of lock we expose only thread safe APIs and allow private calls only via the power of friendship
+	friend class UChimeraSubsystem;
+
 	GENERATED_BODY()
 
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
@@ -56,11 +62,11 @@ public:
 	void UninjectFromAllActors();
 	bool IsUninjected();
 
-	bool DoSearch_AnyThread(UObject* AnimInstance, FChimeraBlueprintResult& Result);
-
 	void AddSearchContext(const UE::Chimera::FSearchContext& SearchContext);
 	void ResetSearchContexts();
 	void ResetSearchResults();
+
+	bool GetResult_AnyThread(UObject* AnimInstance, FChimeraBlueprintResult& Result);
 
 	void DebugDraw(const FColor& Color = FColor::Red) const;
 
@@ -71,7 +77,6 @@ public:
 
 	const UE::Chimera::FSearchResult* FindSearchResult(const UE::Chimera::FSearchContext& SearchContext) const;
 
-private:
 	TArray<TWeakObjectPtr<UCharacterMovementComponent>> CharacterMovementComponents;
 	TArray<TWeakObjectPtr<USkeletalMeshComponent>> SkeletalMeshComponents;
 	

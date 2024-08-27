@@ -204,30 +204,6 @@ namespace UE::Chimera
 		}
 	}
 
-	static void PopulateContinuingProperties(FSearchContext& SearchContext, const FIslands& Islands, float DeltaSeconds)
-	{
-		// searching this SearchContext in all the islands to initialize its continuing pose
-		for (const UChimeraIslandComponent* Island : Islands)
-		{
-			if (const FSearchResult* SearchResult = Island->FindSearchResult(SearchContext))
-			{
-				// is still valid...
-				if (SearchResult->IsValid())
-				{
-					if (const UE::PoseSearch::FSearchIndexAsset* SearchIndexAsset = SearchResult->GetSearchIndexAsset())
-					{
-						if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = SearchResult->Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(*SearchIndexAsset))
-						{
-							SearchContext.ContinuingProperties.PlayingAsset = DatabaseAsset->GetAnimationAsset();
-							SearchContext.ContinuingProperties.PlayingAssetAccumulatedTime = SearchResult->AssetTime + DeltaSeconds;
-						}
-					}
-				}
-				break;
-			}
-		}
-	}
-
 	template <typename DataType, typename EvaluateCombinationType>
 	static void GeneratePermutationsRecursive(const TArrayView<DataType> Data, int32 DataIndex, TArrayView<int32> Combination, int32 CombinationIndex, EvaluateCombinationType EvaluateCombination)
 	{
@@ -299,6 +275,8 @@ void UChimeraSubsystem::DestroyAllIslands()
 
 void UChimeraSubsystem::UninjectAllIslands()
 {
+	check(IsInGameThread());
+
 	for (TObjectPtr<UChimeraIslandComponent>& IslandPtr : Islands)
 	{
 		UChimeraIslandComponent& Island = *IslandPtr.Get();
@@ -338,6 +316,32 @@ bool UChimeraSubsystem::ValidateAllIslands() const
 	}
 #endif // DO_CHECK
 	return true;
+}
+
+void UChimeraSubsystem::PopulateContinuingProperties(UE::Chimera::FSearchContext& SearchContext, float DeltaSeconds) const
+{
+	check(IsInGameThread());
+
+	// searching this SearchContext in all the islands to initialize its continuing pose
+	for (const UChimeraIslandComponent* Island : Islands)
+	{
+		if (const UE::Chimera::FSearchResult* SearchResult = Island->FindSearchResult(SearchContext))
+		{
+			// is still valid...
+			if (SearchResult->IsValid())
+			{
+				if (const UE::PoseSearch::FSearchIndexAsset* SearchIndexAsset = SearchResult->GetSearchIndexAsset())
+				{
+					if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = SearchResult->Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(*SearchIndexAsset))
+					{
+						SearchContext.ContinuingProperties.PlayingAsset = DatabaseAsset->GetAnimationAsset();
+						SearchContext.ContinuingProperties.PlayingAssetAccumulatedTime = SearchResult->AssetTime + DeltaSeconds;
+					}
+				}
+			}
+			break;
+		}
+	}
 }
 
 UChimeraIslandComponent* UChimeraSubsystem::FindIsland(UObject* InAnimInstance)
@@ -518,7 +522,7 @@ void UChimeraSubsystem::Tick(float DeltaSeconds)
 	// for each valid SearchContexts we try to figure out the continuing pose properties from the current Islands
 	for (FSearchContext& SearchContext : SearchContexts)
 	{
-		PopulateContinuingProperties(SearchContext, Islands, DeltaSeconds);
+		PopulateContinuingProperties(SearchContext, DeltaSeconds);
 	}
 
 	// grouping SearchContexts in different Islands
