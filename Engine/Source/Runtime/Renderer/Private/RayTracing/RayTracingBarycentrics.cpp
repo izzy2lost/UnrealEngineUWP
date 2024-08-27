@@ -173,16 +173,8 @@ void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FScene& Sc
 
 	FRayTracingPipelineState* Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(GraphBuilder.RHICmdList, Initializer);
 
-	FRayTracingShaderBindingTableInitializer SBTInitializer;
-	SBTInitializer.bAllowHitGroupIndexing = false; // Use the same hit shader for all geometry in the scene by disabling SBT indexing.
-	SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
-	SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
-	SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
-	SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
-	SBTInitializer.LocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
-
-	FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
-
+	FShaderBindingTableRHIRef SBT = Scene.RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Disallow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
+	   
 	FRayTracingBarycentricsRGS::FParameters* RayGenParameters = GraphBuilder.AllocParameters<FRayTracingBarycentricsRGS::FParameters>();
 
 	RayGenParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);

@@ -126,6 +126,7 @@ void RenderHardwareRayTracingShortRangeAO(
 
 	{
 		const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
+		const FRayTracingShaderBindingTable& RayTracingSBT = Scene->RayTracingSBT;
 
 		FLumenShortRangeAOHardwareRayTracing::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenShortRangeAOHardwareRayTracing::FParameters>();
 		PassParameters->RWScreenBentNormal = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(ScreenBentNormal));
@@ -155,7 +156,7 @@ void RenderHardwareRayTracingShortRangeAO(
 			RDG_EVENT_NAME("ShortRangeAO_HWRT(Rays=%u)", NumPixelRays),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[&View, RayGenerationShader, PassParameters, Resolution, &RayTracingScene](FRHICommandList& RHICmdList)
+			[&View, RayGenerationShader, PassParameters, Resolution, &RayTracingScene, &RayTracingSBT](FRHICommandList& RHICmdList)
 			{
 				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
@@ -183,16 +184,8 @@ void RenderHardwareRayTracingShortRangeAO(
 
 					FRayTracingPipelineState* Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
 
-					FRayTracingShaderBindingTableInitializer SBTInitializer;
-					SBTInitializer.bAllowHitGroupIndexing = false; // Use the same hit shader for all geometry in the scene by disabling SBT indexing.
-					SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
-					SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
-					SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
-					SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
-					SBTInitializer.LocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
-
-					FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
-
+					FShaderBindingTableRHIRef SBT = RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Disallow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
+					
 					RHICmdList.SetDefaultRayTracingHitGroup(SBT, Pipeline, 0);
 					RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 					RHICmdList.CommitShaderBindingTable(SBT);

@@ -281,16 +281,7 @@ FShaderBindingTableRHIRef UE::FXRenderingUtils::RayTracing::CreateShaderBindingT
 	if (const FScene* Scene = InScene->GetRenderScene())
 	{
 		const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
-
-		FRayTracingShaderBindingTableInitializer SBTInitializer;
-		SBTInitializer.bAllowHitGroupIndexing = true;
-		SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
-		SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
-		SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
-		SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
-		SBTInitializer.LocalBindingDataSize = LocalBindingDataSize;
-
-		return RHICreateShaderBindingTable(SBTInitializer);
+		return Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, LocalBindingDataSize);
 	}
 
 	return nullptr;

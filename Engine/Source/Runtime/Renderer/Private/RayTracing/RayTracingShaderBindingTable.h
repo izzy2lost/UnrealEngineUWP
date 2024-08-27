@@ -25,6 +25,12 @@ enum class ERayTracingSceneLayerMask
 	All = Base | Decals,
 };
 
+enum class ERayTracingHitGroupIndexingMode
+{
+	Allow,
+	Disallow,
+};
+
 struct FRayTracingSBTAllocation
 {
 public:
@@ -99,12 +105,12 @@ public:
 	/**
 	 * Allocate RHI shader binding table which can contain all static allocations and all current dynamic allocations - single frame SBT
 	 */
-	RENDERER_API FShaderBindingTableRHIRef AllocateRHI(uint32 NumMissShaderSlots, uint32 NumCallableShaderSlots, uint32 LocalBindingDataSize);
+	RENDERER_API FShaderBindingTableRHIRef AllocateRHI(ERayTracingHitGroupIndexingMode HitGroupIndexingMode, uint32 NumMissShaderSlots, uint32 NumCallableShaderSlots, uint32 LocalBindingDataSize) const;
 	 
 	/**
 	 * Get the total number of allocated geometry segments (static and dynamic)
 	 */
-	RENDERER_API uint32 GetNumGeometrySegments();
+	RENDERER_API uint32 GetNumGeometrySegments() const;
 
 	/**
 	 * Allocate single static range of records for the given SegmentCount for all layers in the AllocatedLayersMask
@@ -144,7 +150,7 @@ private:
 	/**
 	 * Get the maximum amount of static allocated segments (highest allocation index with free ranges included)
 	 */
-	uint32 GetMaxAllocatedStaticSegmentCount();
+	uint32 GetMaxAllocatedStaticSegmentCount() const;
 		
 	/**
 	* Allocate single static range of records for the given SegmentCount for all layers in the AllocatedLayersMask

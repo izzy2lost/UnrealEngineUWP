@@ -679,7 +679,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 			CreateRayTracingMaterialPipeline(GraphBuilder, ReferenceView, RayGenShaders, MaxLocalBindingDataSize);
 			
 			const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
-			ReferenceView.RayTracingSBT = Scene->RayTracingSBT.AllocateRHI(RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, MaxLocalBindingDataSize);
+			ReferenceView.RayTracingSBT = Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, MaxLocalBindingDataSize);
 		}
 	}
 
@@ -716,7 +716,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 			CreateLumenHardwareRayTracingMaterialPipeline(GraphBuilder, ReferenceView, LumenHardwareRayTracingRayGenShaders, MaxLocalBindingDataSize);
 				
 			const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
-			ReferenceView.LumenHardwareRayTracingSBT = Scene->RayTracingSBT.AllocateRHI(RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, MaxLocalBindingDataSize);			
+			ReferenceView.LumenHardwareRayTracingSBT = Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, MaxLocalBindingDataSize);			
 		}
 	}
 

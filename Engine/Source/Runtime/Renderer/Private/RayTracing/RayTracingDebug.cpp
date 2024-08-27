@@ -845,17 +845,9 @@ static FRDGBufferRef RayTracingPerformPicking(FRDGBuilder& GraphBuilder, const F
 	Initializer.SetMissShaderTable(MissTable);
 
 	FRayTracingPipelineState* PickingPipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(GraphBuilder.RHICmdList, Initializer);
-
-	FRayTracingShaderBindingTableInitializer SBTInitializer;
-	SBTInitializer.bAllowHitGroupIndexing = true; // Required for stable output using GetBaseInstanceIndex().
-	SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
-	SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
-	SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
-	SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
-	SBTInitializer.LocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
-
-	FShaderBindingTableRHIRef PickingSBT = RHICreateShaderBindingTable(SBTInitializer);
-
+		
+	FShaderBindingTableRHIRef PickingSBT = Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
+	   
 	FRDGBufferDesc PickingBufferDesc = FRDGBufferDesc::CreateStructuredDesc(sizeof(FRayTracingPickingFeedback), 1);
 	PickingBufferDesc.Usage = EBufferUsageFlags(PickingBufferDesc.Usage | BUF_SourceCopy);
 	FRDGBufferRef PickingBuffer = GraphBuilder.CreateBuffer(PickingBufferDesc, TEXT("RayTracingDebug.PickingBuffer"));
@@ -1105,15 +1097,7 @@ static FRDGBufferRef RayTracingPerformHitStatsPerPrimitive(FRDGBuilder& GraphBui
 
 	FRayTracingPipelineState* HitStatsPerPrimitivePipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(GraphBuilder.RHICmdList, Initializer);
 
-	FRayTracingShaderBindingTableInitializer SBTInitializer;
-	SBTInitializer.bAllowHitGroupIndexing = true; // Required for stable output using GetBaseInstanceIndex().
-	SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
-	SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
-	SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
-	SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
-	SBTInitializer.LocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
-
-	FShaderBindingTableRHIRef HitStatsSBT = RHICreateShaderBindingTable(SBTInitializer);
+	FShaderBindingTableRHIRef HitStatsSBT = Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
 
 	// TODO: Should check RayTracingScene for actual number of instances instead of max number in FRHIRayTracingScene initializer
 	const uint32 NumInstancesInTLAS = FMath::Max(RayTracingScene.GetRHIRayTracingSceneChecked(ERayTracingSceneLayer::Base)->GetInitializer().MaxNumInstances, (uint32)CVarRayTracingDebugHitCountTopKHits.GetValueOnRenderThread());
@@ -1121,7 +1105,6 @@ static FRDGBufferRef RayTracingPerformHitStatsPerPrimitive(FRDGBuilder& GraphBui
 	HitStatsPerPrimitiveBufferDesc.Usage = EBufferUsageFlags(HitStatsPerPrimitiveBufferDesc.Usage | BUF_SourceCopy);
 	FRDGBufferRef HitStatsBuffer = GraphBuilder.CreateBuffer(HitStatsPerPrimitiveBufferDesc, TEXT("RayTracingDebug.HitStatsBuffer"));
 	
-
 	FRayTracingDebugHitStatsUniformBufferParameters* DebugHitStatsUniformBufferParameters = GraphBuilder.AllocParameters<FRayTracingDebugHitStatsUniformBufferParameters>();
 	DebugHitStatsUniformBufferParameters->HitStatsOutput = GraphBuilder.CreateUAV(HitStatsBuffer);
 	DebugHitStatsUniformBuffer = GraphBuilder.CreateUniformBuffer(DebugHitStatsUniformBufferParameters);
@@ -1564,15 +1547,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 
 		Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(GraphBuilder.RHICmdList, Initializer);
 
-		FRayTracingShaderBindingTableInitializer SBTInitializer;
-		SBTInitializer.bAllowHitGroupIndexing = true; // Required for stable output using GetBaseInstanceIndex().
-		SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
-		SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
-		SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
-		SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
-		SBTInitializer.LocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
-
-		SBT = RHICreateShaderBindingTable(SBTInitializer);
+		SBT = Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
 
 		bRequiresBindings = true;
 	}

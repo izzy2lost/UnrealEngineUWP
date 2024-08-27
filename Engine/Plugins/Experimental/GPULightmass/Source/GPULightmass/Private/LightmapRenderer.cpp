@@ -1326,7 +1326,7 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 
 			uint32 NumMissShaderSlots = 1;
 			uint32 NumCallableShaderSlots = 0;
-			SBT = RayTracingSBT.AllocateRHI(NumMissShaderSlots, NumCallableShaderSlots, PSOInitializer.GetMaxLocalBindingDataSize());
+			SBT = RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Allow, NumMissShaderSlots, NumCallableShaderSlots, PSOInitializer.GetMaxLocalBindingDataSize());
 
 			const int32 HiddenMaterialIndex = FindRayTracingHitGroupIndex(RayTracingPipelineState, HiddenMaterialShader, true);
 

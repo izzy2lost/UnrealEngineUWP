@@ -565,16 +565,8 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 
 						FRayTracingPipelineState* Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
 
-						FRayTracingShaderBindingTableInitializer SBTInitializer;
-						SBTInitializer.bAllowHitGroupIndexing = false; // Use the same hit shader for all geometry in the scene by disabling SBT indexing.
-						SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
-						SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
-						SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
-						SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
-						SBTInitializer.LocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
-
-						FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
-
+						FShaderBindingTableRHIRef SBT = Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Disallow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
+						
 						RHICmdList.SetDefaultRayTracingHitGroup(SBT, Pipeline, 0);
 						RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 						RHICmdList.CommitShaderBindingTable(SBT);

@@ -63,20 +63,24 @@ void FRayTracingShaderBindingTable::ResetDynamicAllocationData()
 	ActiveDynamicAllocations.Empty(ActiveDynamicAllocations.Num());
 	NumDynamicGeometrySegments = 0;
 	
+	// Static allocations are not allowed anymore because dynamic allocations are stored right after all static allocations
+	bStaticAllocationsLocked = true;
+
 	// Dynamic segments will be stored right after the currently allocated 
 	uint32 AllocatedStaticSegmentSize = GetMaxAllocatedStaticSegmentCount();
 	CurrentDynamicRangeOffset = AllocatedStaticSegmentSize * NumShaderSlotsPerGeometrySegment;
-
-	// Static allocations are not allowed anymore because dynamic allocations are stored right after all static allocations
-	bStaticAllocationsLocked = true;
 }
 
-FShaderBindingTableRHIRef FRayTracingShaderBindingTable::AllocateRHI(uint32 NumMissShaderSlots, uint32 NumCallableShaderSlots, uint32 LocalBindingDataSize)
+FShaderBindingTableRHIRef FRayTracingShaderBindingTable::AllocateRHI(
+	ERayTracingHitGroupIndexingMode HitGroupIndexingMode, 
+	uint32 NumMissShaderSlots, 
+	uint32 NumCallableShaderSlots, 
+	uint32 LocalBindingDataSize) const
 {
 	uint32 AllocatedStaticSegmentSize = GetMaxAllocatedStaticSegmentCount();
 	
 	FRayTracingShaderBindingTableInitializer SBTInitializer;
-	SBTInitializer.bAllowHitGroupIndexing = true;
+	SBTInitializer.bAllowHitGroupIndexing = HitGroupIndexingMode == ERayTracingHitGroupIndexingMode::Allow;
 	SBTInitializer.NumGeometrySegments = AllocatedStaticSegmentSize + NumDynamicGeometrySegments;
 	SBTInitializer.NumShaderSlotsPerGeometrySegment = NumShaderSlotsPerGeometrySegment;
 	SBTInitializer.NumMissShaderSlots = NumMissShaderSlots;
@@ -86,14 +90,14 @@ FShaderBindingTableRHIRef FRayTracingShaderBindingTable::AllocateRHI(uint32 NumM
 	return RHICreateShaderBindingTable(SBTInitializer);
 }
 
-uint32 FRayTracingShaderBindingTable::GetNumGeometrySegments()
+uint32 FRayTracingShaderBindingTable::GetNumGeometrySegments() const
 {
 	return GetMaxAllocatedStaticSegmentCount() + NumDynamicGeometrySegments;
 }
 
-uint32 FRayTracingShaderBindingTable::GetMaxAllocatedStaticSegmentCount()
+uint32 FRayTracingShaderBindingTable::GetMaxAllocatedStaticSegmentCount() const
 {
-	FScopeLock ScopeLock(&StaticAllocationCS);
+	//ensure(bStaticAllocationsLocked);
 	return StaticRangeAllocator.GetMaxSize() / NumShaderSlotsPerGeometrySegment;
 }
 
@@ -104,7 +108,7 @@ FRayTracingSBTAllocation* FRayTracingShaderBindingTable::AllocateStaticRangeInte
 	FRayTracingCachedMeshCommandFlags Flags)
 {
 	// Should be allowed to make static SBT allocations
-	check(!bStaticAllocationsLocked);
+	ensure(!bStaticAllocationsLocked);
 
 	uint32 LayersCount = FMath::CountBits((uint32)AllocatedLayers);
 	uint32 RecordsPerLayer = SegmentCount * NumShaderSlotsPerGeometrySegment;
