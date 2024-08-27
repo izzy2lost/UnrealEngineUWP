@@ -197,6 +197,8 @@ void LightGridInjectionCS(
 
 		uint NumVisibleLights = 0;
 		uint NumVisibleMegaLights = 0;
+		uint bHasRectLights = false;
+		uint bHasTexturedLights = false;
 
 		LOOP
 		for (uint LocalLightIndex = 0; LocalLightIndex < NumLocalLights; LocalLightIndex++)
@@ -213,11 +215,12 @@ void LightGridInjectionCS(
 			{
 				float4 ViewSpaceDirAndPreprocAngle = LightViewSpaceDirAndPreprocAngle[LocalLightIndex];
 				bool bIsRectLight = asuint(ViewSpaceDirAndPreprocAngle.w) & 0x1;
+				bool bIsTexturedLight = asuint(ViewSpaceDirAndPreprocAngle.w) & 0x2;
 
 				bool bPassSpotLightTest = true;
 #if REFINE_SPOTLIGHT_BOUNDS
 				{
-					float TanConeAngle = asfloat(asuint(ViewSpaceDirAndPreprocAngle.w) & 0xFFFFFFFE);
+					float TanConeAngle = asfloat(asuint(ViewSpaceDirAndPreprocAngle.w) & 0xFFFFFFFC);
 
 					// Set to 0 for non-acute cones, or non-spot lights.
 					if (TanConeAngle > 0.0f)
@@ -243,6 +246,8 @@ void LightGridInjectionCS(
 #endif // REFINE_RECTLIGHT_BOUNDS
 				if (bPassSpotLightTest && bPassRectLightTest)
 				{
+					bHasRectLights |= bIsRectLight;
+					bHasTexturedLights |= bIsTexturedLight;
 
 #if USE_LINKED_CULL_LIST
 					uint NextLink;
@@ -272,8 +277,8 @@ void LightGridInjectionCS(
 			}
 		}
 
-		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = (NumVisibleMegaLights << 16) | NumVisibleLights;
-		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = GridIndex * MaxCulledLightsPerCell;
+		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(NumVisibleLights, NumVisibleMegaLights);
+		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(GridIndex * MaxCulledLightsPerCell, bHasRectLights, bHasTexturedLights);
 		
 		LOOP
 		for (uint ReflectionCaptureIndex = 0; ReflectionCaptureIndex < NumReflectionCaptures; ReflectionCaptureIndex++)
@@ -322,8 +327,8 @@ void LightGridInjectionCS(
 			}
 		}
 
-		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = (NumLocalLights - MegaLightsSupportedStartIndex) | NumLocalLights;
-		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = GridIndex * MaxCulledLightsPerCell;
+		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(NumLocalLights, NumLocalLights - MegaLightsSupportedStartIndex);
+		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(GridIndex * MaxCulledLightsPerCell, true, true); // TODO
 		
 		LOOP
 		for (uint ReflectionCaptureIndex = 0; ReflectionCaptureIndex < NumReflectionCaptures; ReflectionCaptureIndex++)
@@ -424,8 +429,14 @@ void CompactReverseLinkedList(uint GridIndex, uint SceneMax, bool FirstThread, b
 
 		if (bLocalLights)
 		{
-			RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = (NumMegaLights << 16) | NumCulledLights;
-			RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = CulledLightDataStart;
+			// Get bHasRectLights / bHasTexturedLights written by LightGridInjectionCS before updating CulledLightDataStart with packed offset
+			uint Unused;
+			bool bHasRectLights;
+			bool bHasTexturedLights;
+			UnpackCulledLightsGridHeader1(RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1], Unused, bHasRectLights, bHasTexturedLights);
+
+			RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(NumCulledLights, NumMegaLights);
+			RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(CulledLightDataStart, bHasRectLights, bHasTexturedLights);
 		}
 		else
 		{

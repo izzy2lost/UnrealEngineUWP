@@ -126,12 +126,37 @@ uint GetMaxLightsPerCell(uint EyeIndex)
 #endif
 }
 
+uint PackCulledLightsGridHeader0(uint NumVisibleLights, uint NumVisibleMegaLights)
+{
+	return (NumVisibleMegaLights << 16) | (NumVisibleLights & 0xFFFF);
+}
+
+uint PackCulledLightsGridHeader1(uint CulledLightDataStart, bool bHasRectLight, bool bHasTexturedLight)
+{
+	return (bHasTexturedLight << 31) | (bHasRectLight << 30) | (CulledLightDataStart & 0x3FFFFFFF);
+}
+
+void UnpackCulledLightsGridHeader0(uint PackedData0, out uint NumVisibleLights, out uint NumVisibleMegaLights)
+{
+	NumVisibleLights = PackedData0 & 0xFFFF;
+	NumVisibleMegaLights = (PackedData0 >> 16) & 0xFFFF;
+}
+
+void UnpackCulledLightsGridHeader1(uint PackedData1, out uint CulledLightDataStart, out bool bHasRectLight, out bool bHasTexturedLight)
+{
+	CulledLightDataStart = (PackedData1 & 0x3FFFFFFF);
+	bHasRectLight = (PackedData1 & 0x40000000) != 0;
+	bHasTexturedLight = (PackedData1 & 0x80000000) != 0;
+}
+
 struct FCulledLightsGridHeader
 {
 	uint NumLights;
 	uint NumMegaLights;
 	uint DataStartIndex;
 	uint MegaLightsDataStartIndex;
+	bool bHasRectLight;
+	bool bHasTexturedLight;
 };
 
 FCulledLightsGridHeader GetCulledLightsGridHeader(uint GridIndex, uint EyeIndex)
@@ -144,20 +169,28 @@ FCulledLightsGridHeader GetCulledLightsGridHeader(uint GridIndex, uint EyeIndex)
 	{
 #endif
 
-		const uint PackedNums = ForwardLightData.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0];
-		Result.NumLights = min(PackedNums & 0xFFFF, ForwardLightData.NumLocalLights);
-		Result.NumMegaLights = min((PackedNums >> 16) & 0xFFFF, ForwardLightData.NumLocalLights);
-		Result.DataStartIndex = ForwardLightData.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1];
+		const uint PackedData0 = ForwardLightData.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0];
+		UnpackCulledLightsGridHeader0(PackedData0, Result.NumLights, Result.NumMegaLights);
+		Result.NumLights = min(Result.NumLights, ForwardLightData.NumLocalLights);
+		Result.NumMegaLights = min(Result.NumMegaLights, ForwardLightData.NumLocalLights);
+
+		const uint PackedData1 = ForwardLightData.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1];
+		UnpackCulledLightsGridHeader1(PackedData1, Result.DataStartIndex, Result.bHasRectLight, Result.bHasTexturedLight);
+		
 		Result.MegaLightsDataStartIndex = Result.DataStartIndex + Result.NumLights - Result.NumMegaLights;
 
 #if (INSTANCED_STEREO || MOBILE_MULTI_VIEW)
 	}
 	else
 	{
-		const uint PackedNums = ForwardLightDataISR.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0];
-		Result.NumLights = min(PackedNums & 0xFFFF, ForwardLightDataISR.NumLocalLights);
-		Result.NumMegaLights = min((PackedNums >> 16) & 0xFFFF, ForwardLightDataISR.NumLocalLights);
-		Result.DataStartIndex = ForwardLightDataISR.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1];
+		const uint PackedData0 = ForwardLightDataISR.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0];
+		UnpackCulledLightsGridHeader0(PackedData0, Result.NumLights, Result.NumMegaLights);
+		Result.NumLights = min(Result.NumLights, ForwardLightDataISR.NumLocalLights);
+		Result.NumMegaLights = min(Result.NumMegaLights, ForwardLightDataISR.NumLocalLights);
+
+		const uint PackedData1 = ForwardLightDataISR.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1];
+		UnpackCulledLightsGridHeader1(PackedData1, Result.DataStartIndex, Result.bHasRectLight, Result.bHasTexturedLight);
+		
 		Result.MegaLightsDataStartIndex = Result.DataStartIndex + Result.NumLights - Result.NumMegaLights;
 	}
 #endif

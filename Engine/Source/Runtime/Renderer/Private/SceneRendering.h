@@ -1426,6 +1426,9 @@ public:
 	FForwardLightingViewResources ForwardLightingResources;
 	FVolumetricFogViewResources VolumetricFogResources;
 
+	bool bLightGridHasRectLights = false;
+	bool bLightGridHasTexturedLights = false;
+
 	FRDGTextureRef HeterogeneousVolumeRadiance = nullptr;
 	FRDGTextureRef HeterogeneousVolumeHoldout = nullptr;
 
