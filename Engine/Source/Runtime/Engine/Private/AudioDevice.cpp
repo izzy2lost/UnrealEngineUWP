@@ -1897,13 +1897,11 @@ bool FAudioDevice::HandleAudioMemoryInfo(const TCHAR* Cmd, FOutputDevice& Ar)
 					break;
 			}
 
-			// Calculate streaming cache size usage. 
-			uint32 MaxSizeInCache = 0;
-			uint32 MaxUnevictableSize = 0;
-			SoundWave->GetChunkSizeStats(MaxSizeInCache, MaxUnevictableSize);
+			check(SoundWave->SoundWaveDataPtr);
+			FSoundWaveData::MaxChunkSizeResults MaxChunkSizes = SoundWave->SoundWaveDataPtr->GetMaxChunkSizeResults();
 
 			// Add the info to the SoundWaveObjects array
-			SoundWaveObjects.Add(FSoundWaveInfo(SoundWave, TrueResourceSize, SoundGroupName, SoundWave->Duration, LoadType, MaxUnevictableSize, MaxSizeInCache));
+			SoundWaveObjects.Add(FSoundWaveInfo(SoundWave, TrueResourceSize, SoundGroupName, SoundWave->Duration, LoadType, MaxChunkSizes.MaxUnevictableSize, MaxChunkSizes.MaxSizeInCache));
 
 			// Track total resource usage
 			TotalResourceSize += TrueResourceSize;

@@ -411,8 +411,9 @@ TObjectPtr<USoundWave> FAudioRecordingManager::CreateSoundWaveAsset(const FRecor
 		NewSoundWave->SetSoundAssetCompressionType(ESoundAssetCompressionType::BinkAudio);
 		NewSoundWave->SetTimecodeInfo(GetTimecodeInfo(InSourceSettings));
 
-		// Post import initializes USoundWave internal data structures 
-		NewSoundWave->PostImport();
+		// Initialize SoundWaveData so that it is synchronized with the owning object
+		// (note that for serialized cases, this happens in PostLoad(), PostImport(), etc.)
+		NewSoundWave->SoundWaveDataPtr->InitializeDataFromSoundWave(*NewSoundWave);
 
 		if (bCreatedPackage)
 		{
