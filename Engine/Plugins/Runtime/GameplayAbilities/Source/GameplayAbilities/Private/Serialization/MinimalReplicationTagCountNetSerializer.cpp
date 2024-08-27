@@ -2,11 +2,12 @@
 
 #include "Serialization/MinimalReplicationTagCountNetSerializer.h"
 
+#include "GameplayAbilitiesDeveloperSettings.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MinimalReplicationTagCountNetSerializer)
 
 #if UE_WITH_IRIS
 
-#include "AbilitySystemGlobals.h"
 #include "GameplayEffectTypes.h"
 #include "Iris/Serialization/NetSerializerDelegates.h"
 #include "Iris/Serialization/NetSerializers.h"
@@ -227,7 +228,8 @@ void FMinimalReplicationTagCountMapNetSerializer::FreeDynamicState(FNetSerializa
 
 SIZE_T FMinimalReplicationTagCountMapNetSerializer::GetMaxReplicatedTagCount()
 {
-	const int32 BitCount = UAbilitySystemGlobals::Get().MinimalReplicationTagCountBits;
+	const UGameplayAbilitiesDeveloperSettings* DeveloperSettings = GetDefault<UGameplayAbilitiesDeveloperSettings>();
+	const int32 BitCount = DeveloperSettings->MinimalReplicationTagCountBits;
 	const int32 ClampedBitCount = FMath::Clamp(BitCount, 1, 16);
 
 	const uint32 MaxCount = (1U << static_cast<uint32>(ClampedBitCount)) - 1U;
