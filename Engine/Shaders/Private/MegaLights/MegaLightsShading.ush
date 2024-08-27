@@ -80,6 +80,7 @@ FMegaLightsMaterial LoadMaterial(float2 ScreenUV, uint2 ScreenCoord, bool bForce
 
 	if (bForceSimpleShading)
 	{
+		checkSlow(GBuffer.ShadingModelID == SHADINGMODELID_DEFAULT_LIT || GBuffer.ShadingModelID == SHADINGMODELID_UNLIT);
 		GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
 	}
 

@@ -49,18 +49,38 @@ void TileClassificationCS(
 #endif
 		FMegaLightsMaterial Material = LoadMaterial(ScreenUV, EffectiveScreenCoord);
 
+		uint TileMode = 0;
+
 		if (!Material.IsValid())
 		{
-			SharedTileMode[LinearThreadIndex] = 0x1;
+			TileMode = 0x1;
 		}
 		else if (Material.IsSimple())
 		{
-			SharedTileMode[LinearThreadIndex] = 0x2;
+			TileMode = 0x2;
 		}
 		else
 		{
-			SharedTileMode[LinearThreadIndex] = 0x4;
+			TileMode = 0x4;
 		}
+
+		const float SceneDepth = Material.Depth;
+
+		const uint EyeIndex = 0;
+		const uint GridIndex = ComputeLightGridCellIndex(EffectiveScreenCoord, SceneDepth, EyeIndex);
+		const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
+
+		if (CulledLightGridHeader.bHasRectLight)
+		{
+			TileMode |= 0x8;
+		}
+
+		if (CulledLightGridHeader.bHasTexturedLight)
+		{
+			TileMode |= 0x10;
+		}
+
+		SharedTileMode[LinearThreadIndex] = TileMode;
 	}
 
 	GroupMemoryBarrierWithGroupSync();
@@ -116,23 +136,50 @@ void TileClassificationCS(
 
 		uint2 TileCoord = ScreenCoord / TILE_SIZE;
 
+		int TileMode = -1;
+
 		if (SharedTileMode[0] & 0x4)
 		{
-			uint MegaLightsTileIndex = 0;
-			InterlockedAdd(RWTileAllocator[TILE_MODE_COMPLEX_SHADING], 1, MegaLightsTileIndex);
-			RWTileData[DataStride * TILE_MODE_COMPLEX_SHADING + MegaLightsTileIndex] = PackTile(TileCoord);
+			TileMode = TILE_MODE_COMPLEX_SHADING;
+
+			if (SharedTileMode[0] & 0x8)
+			{
+				if (SharedTileMode[0] & 0x10)
+				{
+					TileMode = TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED;
+				}
+				else
+				{
+					TileMode = TILE_MODE_COMPLEX_SHADING_RECT;
+				}
+			}
 		}
 		else if (SharedTileMode[0] & 0x2)
 		{
-			uint MegaLightsTileIndex = 0;
-			InterlockedAdd(RWTileAllocator[TILE_MODE_SIMPLE_SHADING], 1, MegaLightsTileIndex);
-			RWTileData[DataStride * TILE_MODE_SIMPLE_SHADING + MegaLightsTileIndex] = PackTile(TileCoord);
+			TileMode = TILE_MODE_SIMPLE_SHADING;
+
+			if (SharedTileMode[0] & 0x8)
+			{
+				if (SharedTileMode[0] & 0x10)
+				{
+					TileMode = TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED;
+				}
+				else
+				{
+					TileMode = TILE_MODE_SIMPLE_SHADING_RECT;
+				}
+			}
 		}
-		else if (SharedTileMode[0] == 0x1)
+		else if (SharedTileMode[0] & 0x1)
 		{
-			uint MegaLightsTileIndex = 0;
-			InterlockedAdd(RWTileAllocator[TILE_MODE_EMPTY], 1, MegaLightsTileIndex);
-			RWTileData[DataStride * TILE_MODE_EMPTY + MegaLightsTileIndex] = PackTile(TileCoord);
+			TileMode = TILE_MODE_EMPTY;
+		}
+
+		if (TileMode >= 0)
+		{
+			uint MegaLightsTileIndex;
+			InterlockedAdd(RWTileAllocator[TileMode], 1, MegaLightsTileIndex);
+			RWTileData[DataStride * TileMode + MegaLightsTileIndex] = PackTile(TileCoord);
 		}
 	}
 }

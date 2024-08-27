@@ -32,10 +32,28 @@
 #define SHARED_LIGHT_MASK_SIZE		(MAX_LOCAL_LIGHT_INDEX / 32)
 
 // Keep in sync with MegaLights::ETileType
-#define TILE_MODE_SIMPLE_SHADING	0
-#define TILE_MODE_COMPLEX_SHADING	1
-#define TILE_MODE_EMPTY				2
-#define TILE_MODE_MAX				3
+#define TILE_MODE_SIMPLE_SHADING				0
+#define TILE_MODE_COMPLEX_SHADING				1
+#define TILE_MODE_SIMPLE_SHADING_RECT			2
+#define TILE_MODE_COMPLEX_SHADING_RECT			3
+#define TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED	4
+#define TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED	5
+#define TILE_MODE_EMPTY							6
+#define TILE_MODE_MAX							7
+
+void PrintTileTypeString(inout FShaderPrintContext Context, uint TileType)
+{
+	switch (TileType)
+	{
+		case TILE_MODE_SIMPLE_SHADING:					Print(Context, TEXT("Simple               ")); break;
+		case TILE_MODE_SIMPLE_SHADING_RECT:				Print(Context, TEXT("Simple Rect          ")); break;
+		case TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED:	Print(Context, TEXT("Simple Textured Rect ")); break;
+		case TILE_MODE_COMPLEX_SHADING:					Print(Context, TEXT("Complex              ")); break;
+		case TILE_MODE_COMPLEX_SHADING_RECT:			Print(Context, TEXT("Complex Rect         ")); break;
+		case TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED:	Print(Context, TEXT("Complex Textured Rect")); break;
+		case TILE_MODE_EMPTY:							Print(Context, TEXT("Empty                ")); break;
+	}
+}
 
 struct FDebug
 {

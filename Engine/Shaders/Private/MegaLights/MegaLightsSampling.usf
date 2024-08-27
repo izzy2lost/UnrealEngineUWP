@@ -152,11 +152,16 @@ void GenerateLightSamplesCS(
 		uint2 DownsampledTileCoord = UnpackTile(DownsampledTileData[DownsampledTileIndex + TILE_TYPE * DownsampledTileDataStride]);
 		uint2 DownsampledScreenCoord = DownsampledTileCoord * TILE_SIZE + GroupThreadId.xy;
 
+		const bool bForceSimpleShading = 
+			TILE_TYPE == TILE_MODE_SIMPLE_SHADING 
+			|| TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT
+			|| TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED;
+
 		if (all(DownsampledScreenCoord < DownsampledViewMin + DownsampledViewSize))
 		{
 			uint2 ScreenCoord = DownsampledScreenCoordToScreenCoord(DownsampledScreenCoord);	
 			const float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-			const FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING/*bForceSimpleShading*/);
+			const FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, bForceSimpleShading);
 			const float SceneDepth = Material.Depth;
 
 			const uint EyeIndex = 0;
@@ -210,7 +215,7 @@ void GenerateLightSamplesCS(
 			}
 
 			const float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-			const FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING/*bForceSimpleShading*/);
+			const FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, bForceSimpleShading);
 			const float SceneDepth = Material.Depth;
 			float WeightSum = 0.0f;
 
@@ -283,17 +288,36 @@ void GenerateLightSamplesCS(
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("TileType  | Num      "));
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("Simple Shading: "));
+					PrintTileTypeString(Debug.Context, TILE_MODE_SIMPLE_SHADING);
+					Print(Debug.Context, TEXT(": "));
 					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_SIMPLE_SHADING]);
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("Complex Shading: "));
+					PrintTileTypeString(Debug.Context, TILE_MODE_SIMPLE_SHADING_RECT);
+					Print(Debug.Context, TEXT(": "));
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_SIMPLE_SHADING_RECT]);
+					Newline(Debug.Context);
+					PrintTileTypeString(Debug.Context, TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED);
+					Print(Debug.Context, TEXT(": "));
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED]);
+					Newline(Debug.Context);
+					PrintTileTypeString(Debug.Context, TILE_MODE_COMPLEX_SHADING);
+					Print(Debug.Context, TEXT(": "));
 					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_COMPLEX_SHADING]);
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("Empty: "));
+					PrintTileTypeString(Debug.Context, TILE_MODE_COMPLEX_SHADING_RECT);
+					Print(Debug.Context, TEXT(": "));
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_COMPLEX_SHADING_RECT]);
+					Newline(Debug.Context);
+					PrintTileTypeString(Debug.Context, TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED);
+					Print(Debug.Context, TEXT(": "));
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED]);
+					Newline(Debug.Context);
+					PrintTileTypeString(Debug.Context, TILE_MODE_EMPTY);
+					Print(Debug.Context, TEXT(": "));
 					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_EMPTY]);
 					Newline(Debug.Context);
 					Newline(Debug.Context);
-						
+
 					Print(Debug.Context, TEXT("GenerateSamplesCS"));
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("ScreenCoord: "));
@@ -304,7 +328,7 @@ void GenerateLightSamplesCS(
 					Print(Debug.Context, Material.Roughness);
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("TileType: "));
-					Print(Debug.Context, uint(TILE_TYPE));
+					PrintTileTypeString(Debug.Context, TILE_TYPE);
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("View.PreExposure: "));
 					Print(Debug.Context, View.PreExposure);
@@ -346,6 +370,18 @@ void GenerateLightSamplesCS(
 						const uint LocalLightIndex = MaskIndex * 32 + NextBitIndex;
 						const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 						FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
+						
+						const bool bTileHasRect = TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT || TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED;
+						if (!bTileHasRect)
+						{
+							LightData.bRectLight = false;
+						}
+
+						const bool bTileHasTextured = TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED;
+						if (!bTileHasTextured)
+						{
+							LightData.RectLightData.AtlasData.AtlasMaxLevel = MAX_RECT_ATLAS_MIP;
+						}
 					
 						FLightTargetPDF LightTargetPDF = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, Material, ScreenCoord, Debug);
 

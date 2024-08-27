@@ -150,7 +150,7 @@ static TAutoConsoleVariable<int32> CVarMegaLightsFixedStateFrameIndex(
 
 static TAutoConsoleVariable<int32> CVarMegaLightsTexturedRectLights(
 	TEXT("r.MegaLights.TexturedRectLights"),
-	0,
+	1,
 	TEXT("Whether to support textured rect lights."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
@@ -344,11 +344,52 @@ namespace MegaLights
 	{
 		SimpleShading = 0,
 		ComplexShading = 1,
-		SHADING_MAX = 2,
+		SimpleShading_Rect = 2,
+		ComplexShading_Rect = 3,
+		SimpleShading_Rect_Textured = 4,
+		ComplexShading_Rect_Textured = 5,
+		SHADING_MAX = 6,
 
-		Empty = 2,
-		MAX = 3
+		Empty = 6,
+		MAX = 7
 	};
+
+	const TCHAR* GetTileTypeString(ETileType TileType)
+	{
+		switch (TileType)
+		{
+		case ETileType::SimpleShading:
+			return TEXT("Simple");
+		case ETileType::ComplexShading:
+			return TEXT("Complex");
+		case ETileType::SimpleShading_Rect:
+			return TEXT("Simple Rect");
+		case ETileType::ComplexShading_Rect:
+			return TEXT("Complex Rect");
+		case ETileType::SimpleShading_Rect_Textured:
+			return TEXT("Simple Textured Rect");
+		case ETileType::ComplexShading_Rect_Textured:
+			return TEXT("Complex Textured Rect");
+		case ETileType::Empty:
+			return TEXT("Empty");
+		default:
+			return nullptr;
+		}
+	}
+
+	bool IsRectLightTileType(ETileType TileType)
+	{
+		return TileType == MegaLights::ETileType::SimpleShading_Rect
+			|| TileType == MegaLights::ETileType::ComplexShading_Rect
+			|| TileType == MegaLights::ETileType::SimpleShading_Rect_Textured
+			|| TileType == MegaLights::ETileType::ComplexShading_Rect_Textured;
+	}
+
+	bool IsTexturedLightTileType(ETileType TileType)
+	{
+		return TileType == MegaLights::ETileType::SimpleShading_Rect_Textured
+			|| TileType == MegaLights::ETileType::ComplexShading_Rect_Textured;
+	}
 };
 
 class FTileClassificationCS : public FGlobalShader
@@ -378,6 +419,7 @@ class FTileClassificationCS : public FGlobalShader
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		MegaLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 	}
 };
@@ -1196,6 +1238,16 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 
 			for (int32 TileType = 0; TileType < (int32)MegaLights::ETileType::SHADING_MAX; ++TileType)
 			{
+				if (!View.bLightGridHasRectLights && IsRectLightTileType((MegaLights::ETileType)TileType))
+				{
+					continue;
+				}
+
+				if (!View.bLightGridHasTexturedLights && IsTexturedLightTileType((MegaLights::ETileType)TileType))
+				{
+					continue;
+				}
+
 				FGenerateLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGenerateLightSamplesCS::FParameters>();
 				PassParameters->IndirectArgs = DownsampledTileIndirectArgs;
 				PassParameters->MegaLightsParameters = MegaLightsParameters;
@@ -1228,7 +1280,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 
 				FComputeShaderUtils::AddPass(
 					GraphBuilder,
-					RDG_EVENT_NAME("GenerateSamples SamplesPerPixel:%dx%d TileType:%d", NumSamplesPerPixel2d.X, NumSamplesPerPixel2d.Y, TileType),
+					RDG_EVENT_NAME("GenerateSamples SamplesPerPixel:%dx%d TileType:%s", NumSamplesPerPixel2d.X, NumSamplesPerPixel2d.Y, MegaLights::GetTileTypeString((MegaLights::ETileType)TileType)),
 					ComputeShader,
 					PassParameters,
 					DownsampledTileIndirectArgs,
@@ -1346,6 +1398,16 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 
 			for (int32 TileType = 0; TileType < (int32)MegaLights::ETileType::SHADING_MAX; ++TileType)
 			{
+				if (!View.bLightGridHasRectLights && IsRectLightTileType((MegaLights::ETileType)TileType))
+				{
+					continue;
+				}
+
+				if (!View.bLightGridHasTexturedLights && IsTexturedLightTileType((MegaLights::ETileType)TileType))
+				{
+					continue;
+				}
+
 				FShadeLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadeLightSamplesCS::FParameters>();
 				PassParameters->RWResolvedDiffuseLighting = ResolvedDiffuseLightingUAV;
 				PassParameters->RWResolvedSpecularLighting = ResolvedSpecularLightingUAV;
@@ -1371,7 +1433,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 
 				FComputeShaderUtils::AddPass(
 					GraphBuilder,
-					RDG_EVENT_NAME("ShadeLightSamples TileType:%d", TileType),
+					RDG_EVENT_NAME("ShadeLightSamples TileType:%s", MegaLights::GetTileTypeString((MegaLights::ETileType)TileType)),
 					ComputeShader,
 					PassParameters,
 					TileIndirectArgs,

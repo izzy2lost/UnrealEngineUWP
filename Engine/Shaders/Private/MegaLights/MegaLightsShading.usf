@@ -152,8 +152,12 @@ void ShadeLightSamplesCS(
 			FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.05));
 	#endif
 
-			float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-			FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING /*bForceSimpleShading*/);
+			const float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
+			const bool bForceSimpleShading = 
+				TILE_TYPE == TILE_MODE_SIMPLE_SHADING 
+				|| TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT
+				|| TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED;
+			FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, bForceSimpleShading);
 
 			// #ml_todo: handle this path when shadows are disabled
 			float ScreenSpaceAO = 1.0f;//Texture2DSampleLevel(SceneTexturesStruct.ScreenSpaceAOTexture, SceneTexturesStruct_ScreenSpaceAOTextureSampler, ScreenUV, 0).x;
@@ -205,6 +209,18 @@ void ShadeLightSamplesCS(
 
 						const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 						FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
+						
+						const bool bTileHasRect = TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT || TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED;
+						if (!bTileHasRect)
+						{
+							LightData.bRectLight = false;
+						}
+
+						const bool bTileHasTextured = TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED;
+						if (!bTileHasTextured)
+						{
+							LightData.RectLightData.AtlasData.AtlasMaxLevel = MAX_RECT_ATLAS_MIP;
+						}
 
 						const uint2 SharedSampleCoord00 = (GroupThreadId.xy + 1) / DOWNSAMPLE_FACTOR;
 
