@@ -727,6 +727,32 @@ bool ShouldCacheVoxelGrids(const FScene* Scene, FSceneViewState* ViewState)
 	return false;
 }
 
+void RenderHeterogeneousVolumeShadows(
+	FRDGBuilder& GraphBuilder,
+	FScene* Scene,
+	const FSceneTextures& SceneTextures,
+	FViewInfo& View,
+	const FSceneViewFamily& ViewFamily,
+	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos
+)
+{
+	RDG_EVENT_SCOPE(GraphBuilder, "HeterogeneousVolumeShadows");
+	RDG_GPU_STAT_SCOPE(GraphBuilder, HeterogeneousVolumeShadowsStat);
+	SCOPED_NAMED_EVENT(HeterogeneousVolumes, FColor::Emerald);
+
+	if (HeterogeneousVolumes::GetShadowMode() == HeterogeneousVolumes::EShadowMode::LiveShading)
+	{
+		RenderAdaptiveVolumetricShadowMapWithLiveShading(
+			GraphBuilder,
+			SceneTextures,
+			Scene,
+			ViewFamily,
+			View,
+			VisibleLightInfos
+		);
+	}
+}
+
 void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures
@@ -793,6 +819,8 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 		{
 			if (HeterogeneousVolumes::GetShadowMode() == HeterogeneousVolumes::EShadowMode::LiveShading)
 			{
+				// This path is taken care of now in ShadowDepthRendering
+#if 0
 				RenderAdaptiveVolumetricShadowMapWithLiveShading(
 					GraphBuilder,
 					// Scene data
@@ -803,6 +831,7 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 					// Light data
 					VisibleLightInfos
 				);
+#endif
 			}
 			else
 			{

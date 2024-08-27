@@ -47,6 +47,7 @@
 #include "Rendering/NaniteResources.h"
 #include "Rendering/NaniteStreamingManager.h"
 #include "Shadows/ShadowSceneRenderer.h"
+#include "HeterogeneousVolumes/HeterogeneousVolumes.h"
 #include "RenderCore.h"
 #include "ShaderPlatformCachedIniValue.h"
 #include "UnrealEngine.h"
@@ -1931,6 +1932,21 @@ void FSceneRenderer::RenderShadowDepthMaps(FRDGBuilder& GraphBuilder, FDynamicSh
 		InstanceCullingManager.BeginDeferredCulling(GraphBuilder, Scene->GPUScene);
 	}
 
+	if (ShouldRenderHeterogeneousVolumes(Scene) && ShouldHeterogeneousVolumesCastShadows())
+	{
+		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+		{
+			FViewInfo& View = Views[ViewIndex];
+			RenderAdaptiveVolumetricShadowMapWithLiveShading(
+				GraphBuilder,
+				View.GetSceneTextures(),
+				Scene,
+				ViewFamily,
+				View,
+				VisibleLightInfos
+			);
+		}
+	}
 
 	bShadowDepthRenderCompleted = true;
 }
