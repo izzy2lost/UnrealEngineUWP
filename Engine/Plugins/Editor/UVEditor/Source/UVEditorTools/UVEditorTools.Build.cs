@@ -47,6 +47,7 @@ public class UVEditorTools : ModuleRules
 					
 				"DynamicMesh",
 				"GeometryCore",
+				"InputCore", // EKey
 				"ModelingComponents",
 				"ModelingOperators",
 				"TextureUtilitiesCommon"

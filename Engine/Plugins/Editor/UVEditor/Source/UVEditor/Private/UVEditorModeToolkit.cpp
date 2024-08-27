@@ -492,6 +492,7 @@ void FUVEditorModeToolkit::BuildToolPalette(FName PaletteIndex, class FToolBarBu
 		ToolbarBuilder.AddToolBarButton(Commands.BeginSeamTool);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginParameterizeMeshTool);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginRecomputeUVsTool);
+		ToolbarBuilder.AddToolBarButton(Commands.BeginBrushSelectTool);
 	}
 }
 

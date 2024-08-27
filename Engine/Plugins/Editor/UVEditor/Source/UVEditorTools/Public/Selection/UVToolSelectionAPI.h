@@ -132,6 +132,12 @@ public:
 
 	// Selection mechanic controls:
 
+	/**
+	 * Most clients shouldn't need to touch the selection mechanic directly, but it can
+	 * be useful for certain utility functions that exist on the mechanic.
+	 */
+	const UUVEditorMeshSelectionMechanic* GetSelectionMechanic() const { return SelectionMechanic; }
+
 	void SetSelectionMechanicEnabled(bool bEnabled);
 
 	struct FSelectionMechanicOptions

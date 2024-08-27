@@ -4,6 +4,7 @@
 
 #include "Styling/AppStyle.h"
 #include "Framework/Commands/InputChord.h"
+#include "UVEditorBrushSelectTool.h"
 #include "UVEditorStyle.h"
 
 #define LOCTEXT_NAMESPACE "FUVEditorCommands"
@@ -80,9 +81,11 @@ void UE::Geometry::FUVEditorToolActionCommands::GetToolDefaultObjectList(TArray<
 }
 void UE::Geometry::FUVEditorToolActionCommands::RegisterAllToolActions()
 {
+	UE::Geometry::FUVEditorBrushSelectToolCommands::Register();
 }
 void UE::Geometry::FUVEditorToolActionCommands::UnregisterAllToolActions()
 {
+	UE::Geometry::FUVEditorBrushSelectToolCommands::Unregister();
 }
 void UE::Geometry::FUVEditorToolActionCommands::UpdateToolCommandBinding(UInteractiveTool* Tool, TSharedPtr<FUICommandList> UICommandList, bool bUnbind)
 {
@@ -90,6 +93,10 @@ void UE::Geometry::FUVEditorToolActionCommands::UpdateToolCommandBinding(UIntera
 	CommandsType::Get().BindCommandsForCurrentTool(UICommandList, Tool); \
 	else CommandsType::Get().UnbindActiveCommands(UICommandList);
 
+	if (ExactCast<UUVEditorBrushSelectTool>(Tool))
+	{
+		UPDATE_BINDING(UE::Geometry::FUVEditorBrushSelectToolCommands);
+	}
 }
 
 //~ Modeled on ModelingToolsActions.cpp
@@ -100,6 +107,8 @@ void UE::Geometry::CommandsClassName::GetToolDefaultObjectList(TArray<UInteracti
 {\
 	ToolCDOs.Add(GetMutableDefault<ToolClassName>()); \
 }
+
+DEFINE_TOOL_ACTION_COMMANDS(FUVEditorBrushSelectToolCommands, "UVBrushSelect", "UV Editor - Brush Select", UUVEditorBrushSelectTool);
 
 
 #undef LOCTEXT_NAMESPACE

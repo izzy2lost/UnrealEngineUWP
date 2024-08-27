@@ -84,4 +84,5 @@ public:\
 
 namespace UE::Geometry
 {
+	DECLARE_TOOL_ACTION_COMMANDS(FUVEditorBrushSelectToolCommands);
 }

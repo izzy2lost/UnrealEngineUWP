@@ -35,6 +35,8 @@
 #include "ToolTargetManager.h"
 #include "ToolTargets/UVEditorToolMeshInput.h"
 #include "UVEditor3DViewportMode.h"
+#include "UVEditorToolBase.h"
+#include "UVEditorBrushSelectTool.h"
 #include "UVEditorCommands.h"
 #include "UVEditorLayoutTool.h"
 #include "UVEditorTransformTool.h"
@@ -624,6 +626,12 @@ void UUVEditorMode::RegisterTools()
 	UUVEditorRecomputeUVsToolBuilder* UVEditorRecomputeUVsToolBuilder = NewObject<UUVEditorRecomputeUVsToolBuilder>();
 	UVEditorRecomputeUVsToolBuilder->Targets = &ToolInputObjects;
 	RegisterTool(CommandInfos.BeginRecomputeUVsTool, TEXT("BeginRecomputeUVsTool"), UVEditorRecomputeUVsToolBuilder);
+
+	FString BrushToolIdentifier = TEXT("BeginBrushSelectTool");
+	UGenericUVEditorToolBuilder* BrushToolBuilder = NewObject<UGenericUVEditorToolBuilder>();
+	BrushToolBuilder->Initialize(ToolInputObjects, UUVEditorBrushSelectTool::StaticClass());
+	RegisterTool(CommandInfos.BeginBrushSelectTool, BrushToolIdentifier, BrushToolBuilder);
+	ToolsThatAllowActions.Add(BrushToolIdentifier);
 }
 
 void UUVEditorMode::RegisterActions()
