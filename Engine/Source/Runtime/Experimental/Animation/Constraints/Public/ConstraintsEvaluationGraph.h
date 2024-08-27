@@ -61,7 +61,10 @@ public:
 
 	/* Should the graph be evaluated ? */
 	bool IsPendingEvaluation() const;
-	
+
+	/* Get Sorted Constraints */
+	bool GetSortedConstraints(TArray<TWeakObjectPtr<UTickableConstraint>>& OutConstraints);
+
 	static bool UseEvaluationGraph();
 	
 private:
@@ -102,3 +105,23 @@ private:
 	/* Current graph state. */
 	EGraphState	State = InvalidData;
 };
+
+namespace UE::Constraints::Graph
+{
+	
+using ConstraintPtr = TWeakObjectPtr<UTickableConstraint>;
+
+/** Builds a directed graph from a constraints array using the tick prerequisites to define dependencies.
+* @param InWorld - The UWorld in which tick functions are registered.
+* @param InConstraints - An array of constraints.
+* @param OutNodes - A ordered data structure storing constraints' dependencies. 
+*/
+void BuildGraph(UWorld* InWorld, const TArrayView<const ConstraintPtr>& InConstraints, TArray<FConstraintNode>& OutNodes);
+
+/** Sorts the constraint array by building a directed graph from it, using the tick prerequisites to define dependencies.
+* @param InWorld - The UWorld in which tick functions are registered.
+* @param InOutConstraints - An array of constraints that will be re-ordered from the constraints' dependencies.   
+*/
+void SortConstraints(UWorld* InWorld, TArray<ConstraintPtr>& InOutConstraints);
+
+}
