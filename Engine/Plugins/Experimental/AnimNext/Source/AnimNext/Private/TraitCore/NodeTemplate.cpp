@@ -104,7 +104,7 @@ namespace UE::AnimNext
 
 				// Base traits include the list of all latent property handles in its shared data
 				// Latent property offsets will point into that list
-				if (TraitTemplate.GetMode() == ETraitMode::Base && NumSubStackLatentProperties != 0)
+				if (TraitTemplate.GetMode() == ETraitMode::Base)
 				{
 					// Align our handles
 					SharedDataOffset = Align(SharedDataOffset, alignof(FLatentPropertiesHeader));

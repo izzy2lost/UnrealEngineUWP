@@ -133,11 +133,6 @@ namespace UE::AnimNext
 				*this << NumLatentProperties;
 				check(NumLatentProperties == TraitTemplate.GetNumLatentPropreties());
 
-				if (NumLatentProperties == 0)
-				{
-					continue;	// Nothing to do
-				}
-
 				const uint32 BaseTraitIndex = TraitIndex - TraitTemplate.GetTraitIndex();
 				const FTraitTemplate& BaseTraitTemplate = TraitTemplates[BaseTraitIndex];
 
@@ -150,6 +145,11 @@ namespace UE::AnimNext
 				{
 					LatentHeader.bHasValidLatentProperties = false;
 					LatentHeader.bCanAllPropertiesFreeze = true;
+				}
+
+				if (NumLatentProperties == 0)
+				{
+					continue;	// Nothing to do
 				}
 
 				bool bHasValidLatentProperties = !!LatentHeader.bHasValidLatentProperties;
