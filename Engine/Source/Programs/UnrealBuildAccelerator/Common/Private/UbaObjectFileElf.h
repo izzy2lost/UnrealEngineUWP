@@ -16,6 +16,10 @@ namespace uba
 
 	private:
 		virtual bool StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allExternalImports) override;
+
+		u64 m_symTableNamesOffset = 0;
+		u64 m_dynTableNamesOffset = 0;
+		bool m_useVisibilityForExports = true;
 	};
 
 	bool IsElfFile(const u8* data, u64 dataSize);
