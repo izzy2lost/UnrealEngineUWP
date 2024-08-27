@@ -79,8 +79,20 @@ public:
 	virtual void GetTests(TArray<FString>& OutBeautifiedNames, TArray<FString>& OutTestCommands) const override
 	{
 		bool bEditorOnlyTests = !(GetTestFlags() & EAutomationTestFlags::ClientContext);
-		TArray<FString> MapAssets;
-		IFunctionalTestingModule::Get().GetMapTests(bEditorOnlyTests, OutBeautifiedNames, OutTestCommands, MapAssets);
+		TArray<FString> MapAssetsUnused;
+		TArray<FFunctionalTestInfo> AllTestInfo;
+		IFunctionalTestingModule::Get().GetMapTests(bEditorOnlyTests, AllTestInfo, MapAssetsUnused);
+		FAutomationTestFramework& Framework = FAutomationTestFramework::Get();
+		for (const FFunctionalTestInfo& TestInfo : AllTestInfo)
+		{
+			OutBeautifiedNames.Add(TestInfo.BeautifiedName);
+			OutTestCommands.Add(TestInfo.TestCommand);
+			if (!TestInfo.TestTags.IsEmpty())
+			{
+				// Register new tags
+				Framework.RegisterComplexAutomationTestTags(this, TestInfo.BeautifiedName, TestInfo.TestTags);
+			}
+		}
 	}
 
 	/**
