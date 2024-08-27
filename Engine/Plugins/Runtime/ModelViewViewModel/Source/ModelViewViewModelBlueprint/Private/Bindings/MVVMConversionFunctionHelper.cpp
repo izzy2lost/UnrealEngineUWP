@@ -23,6 +23,7 @@
 #include "K2Node_VariableSet.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "MVVMConversionFunctionGraphSchema.h"
+#include "Node/MVVMK2Node_AreSourcesValidForBinding.h"
 
 #define LOCTEXT_NAMESPACE "MVVMConversionFunctionHelper"
 
@@ -1207,10 +1208,23 @@ TValueOrError<FCreateGraphResult, FText> CreateSetterGraph(UBlueprint* Blueprint
 			UK2Node* CallFunctionNode = *CallFunctionNodeItr;
 			UEdGraphPin* AsyncCompletedPin = CallFunctionNode->FindPinChecked(UEdGraphSchema_K2::PN_Completed);
 
-			// Link the Async result Exec with the setter
+			// Link the Async result Exec with the setter, adding a valid binding check should sources expire after the async
 			if (AsyncCompletedPin)
 			{
-				GraphSchema->TryCreateConnection(AsyncCompletedPin, SetterNode->GetExecPin());
+				UMVVMK2Node_AreSourcesValidForBinding* BranchNode = nullptr;
+				{
+					FGraphNodeCreator<UMVVMK2Node_AreSourcesValidForBinding> BranchNodeCreator(*LinkedSetterGraph.GetValue().NewGraph);
+					BranchNode = BranchNodeCreator.CreateNode(false, UMVVMK2Node_AreSourcesValidForBinding::StaticClass());
+					BranchNode->NodePosX = SetterNode->NodePosX;
+					BranchNode->NodePosY = SetterNode->NodePosY - 300;
+					BranchNodeCreator.Finalize();
+				}
+
+				if (ensure(BranchNode))
+				{
+					GraphSchema->TryCreateConnection(AsyncCompletedPin, BranchNode->GetExecPin());
+					GraphSchema->TryCreateConnection(BranchNode->GetThenPin(), SetterNode->GetExecPin());
+				}
 			}
 
 			// Link the Async result value with the setter args

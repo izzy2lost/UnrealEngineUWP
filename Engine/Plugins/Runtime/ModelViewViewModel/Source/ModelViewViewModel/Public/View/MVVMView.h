@@ -181,6 +181,13 @@ private:
 	UFUNCTION(BlueprintCallable, Category = "View", meta=(BlueprintInternalUseOnly="true"))
 	bool AreSourcesValidForEvent(int32 EventKey) const;
 
+	/**
+	 * Checks if all source bindings (Src / Dst objects) are valid for a binding
+	 * Currently used to verify if after effects of async conversion functions are safe to trigger.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "View", meta = (BlueprintInternalUseOnly = "true"))
+	bool AreSourcesValidForBinding(int32 BindingKey) const;
+
 private:
 	//~ Source
 	void InitializeSource(FMVVMView_SourceKey SourceKey);

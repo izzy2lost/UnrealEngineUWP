@@ -1237,4 +1237,37 @@ bool UMVVMView::AreSourcesValidForEvent(int32 EventKeyIndex) const
 	return false;
 }
 
+
+bool UMVVMView::AreSourcesValidForBinding(int32 InBindingKey) const
+{
+	FMVVMViewClass_BindingKey BindingKey = FMVVMViewClass_BindingKey(InBindingKey);
+	if (GeneratedViewClass)
+	{
+		const FMVVMViewClass_Binding& ClassBinding = GeneratedViewClass->GetBinding(BindingKey);
+		uint64 BindingSources = ClassBinding.GetSources();
+		if ((BindingSources & ValidSources) == BindingSources)
+		{
+			return true;
+		}
+		
+		const uint64 MissingSources = BindingSources & (~ValidSources);
+		if ((MissingSources & GeneratedViewClass->GetOptionalSources()) != MissingSources)
+		{
+			// Only log invalid bindings as info, since it is possible expected behavior for async functions
+#if UE_WITH_MVVM_DEBUGGING
+			UE::MVVM::FMessageLog Log(GetUserWidget());
+			Log.Info(FText::Format(LOCTEXT("ExecuteBindingFailInvalidSource", "The Binding '{0}' was not executed. There are invalid sources.")
+				, FText::FromString(ClassBinding.ToString(GeneratedViewClass, FMVVMViewClass_Binding::FToStringArgs::Short()))
+			));
+#else
+			UE::MVVM::FMessageLog Log(GetUserWidget());
+			Log.Info(FText::Format(LOCTEXT("ExecuteBindingFailInvalidSource", "The Binding '{0}' was not executed. There are invalid sources.")
+				, FText::AsNumber(BindingKey.GetIndex())
+			));
+#endif
+		}
+	}
+	return false;
+}
+
 #undef LOCTEXT_NAMESPACE
