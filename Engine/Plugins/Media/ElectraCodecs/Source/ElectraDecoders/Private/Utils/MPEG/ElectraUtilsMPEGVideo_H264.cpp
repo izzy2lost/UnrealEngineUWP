@@ -375,6 +375,16 @@ namespace ElectraDecodersUtil
 			}
 
 
+			bool ParseSequenceParameterSet(FSequenceParameterSet& OutSequenceParameterSet, const uint8* InBitstream, uint64 InBitstreamLenInBytes)
+			{
+				TMap<uint32, FSequenceParameterSet> spss;
+				if (!ParseSequenceParameterSet(spss, InBitstream, InBitstreamLenInBytes))
+				{
+					return false;
+				}
+				OutSequenceParameterSet = spss.CreateConstIterator().Value();
+				return true;
+			}
 
 			bool ParseSequenceParameterSet(TMap<uint32, FSequenceParameterSet>& InOutSequenceParameterSets, const uint8* InBitstream, uint64 InBitstreamLenInBytes)
 			{
