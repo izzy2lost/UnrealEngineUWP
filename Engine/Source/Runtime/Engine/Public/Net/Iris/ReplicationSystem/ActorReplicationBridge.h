@@ -36,8 +36,7 @@ ENGINE_API bool ShouldUseIrisReplication(const UObject* Actor);
 
 }
 
-/** Parameters passed to UActorReplicationBridge::BeginReplication. */
-struct FActorBeginReplicationParams
+struct FActorReplicationParams
 {
 	/** When true we ignore the configured dynamic filter for this actor type and use the explicit filter instead */
 	bool bOverrideDynamicFilterConfig = false;
@@ -68,19 +67,19 @@ public:
 	inline UNetDriver* GetNetDriver() const { return NetDriver; }
 
 	/** Begin replication of an actor and its registered ActorComponents and SubObjects. */
-	ENGINE_API FNetRefHandle BeginReplication(AActor* Instance, const FActorBeginReplicationParams& Params);
+	ENGINE_API FNetRefHandle StartReplicatingActor(AActor* Instance, const FActorReplicationParams& Params);
 
 	/** Stop replicating an actor. Will destroy handle for actor and registered subobjects. */
-	ENGINE_API void EndReplication(AActor* Actor, EEndPlayReason::Type EndPlayReason);
+	ENGINE_API void StopReplicatingActor(AActor* Actor, EEndPlayReason::Type EndPlayReason);
 		
 	/**
 	 * Begin replication of an ActorComponent and its registered SubObjects, 
 	 * if the ActorComponent already is replicated any set NetObjectConditions will be updated.
 	*/
-	ENGINE_API FNetRefHandle BeginReplication(FNetRefHandle OwnerHandle, UActorComponent* ActorComponent);
+	ENGINE_API FNetRefHandle StartReplicatingComponent(FNetRefHandle OwnerHandle, UActorComponent* ActorComponent);
 
 	/** Stop replicating an ActorComponent and its associated SubObjects. */
-	ENGINE_API void EndReplicationForActorComponent(UActorComponent* ActorComponent, EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::None);
+	ENGINE_API void StopReplicatingComponent(UActorComponent* ActorComponent, EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::None);
 
 	/** Get object reference packagemap. Used in special cases where serialization hasn't been converted to use NetSerializers.  */
 	UIrisObjectReferencePackageMap* GetObjectReferencePackageMap() const { return ObjectReferencePackageMap; }
@@ -100,8 +99,6 @@ public:
 	 * @param OutAttrs A list of Name/Value pairings that will be sent to an AnalyticsProvider
 	 */
 	ENGINE_API void ConsumeNetMetrics(TArray<FAnalyticsEventAttribute>& OutAttrs);
-
-	using UObjectReplicationBridge::EndReplication;
 
 protected:
 

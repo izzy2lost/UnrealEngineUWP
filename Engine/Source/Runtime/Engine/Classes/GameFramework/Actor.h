@@ -45,7 +45,7 @@ class UDataLayerInstance;
 class AWorldDataLayers;
 class IWorldPartitionCell;
 #if UE_WITH_IRIS
-struct FActorBeginReplicationParams;
+struct FActorReplicationParams;
 #endif // UE_WITH_IRIS
 class UActorFolder;
 struct FActorDataLayer;
@@ -3385,7 +3385,7 @@ protected:
 	 * Helper to BeginReplication passing on additional parameters to the ReplicationSystem, typically called from code overriding normal BeginReplication()
 	 * @param Params Additional parameters we want to pass on
 	 */
-	ENGINE_API void BeginReplication(const FActorBeginReplicationParams& Params);
+	ENGINE_API void BeginReplication(const FActorReplicationParams& Params);
 #endif // UE_WITH_IRIS
 
 	/**

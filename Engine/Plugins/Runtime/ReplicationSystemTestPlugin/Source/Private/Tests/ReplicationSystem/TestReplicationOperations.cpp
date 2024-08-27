@@ -537,7 +537,7 @@ UE_NET_TEST_FIXTURE(FTestReplicationOperationsForObjectsFixture, StaleObjectPoin
 	ReplicationSystem->PostSendUpdate();
 
 	// Destroy first object and invalidate references to it.
-	ReplicationBridge->EndReplication(HandleToObject0);
+	ReplicationBridge->EndReplication(Object0);
 	DestroyObject(Object0);
 	constexpr bool bPerformFullPurge = false;
 	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, bPerformFullPurge);

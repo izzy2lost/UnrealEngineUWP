@@ -121,7 +121,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestSubObjectsPol
 	// Spawn object on server polled every 3 frames
 	const uint32 PollPeriod = 3;
 	const float PollFrequency = Server->ConvertPollPeriodIntoFrequency(PollPeriod);
-	UObjectReplicationBridge::FCreateNetRefHandleParams Params;
+	UObjectReplicationBridge::FRootObjectReplicationParams Params;
 	Params.PollFrequency = PollFrequency;
 	Params.bUseClassConfigDynamicFilter = true;
 	Params.bNeedsPreUpdate = true;

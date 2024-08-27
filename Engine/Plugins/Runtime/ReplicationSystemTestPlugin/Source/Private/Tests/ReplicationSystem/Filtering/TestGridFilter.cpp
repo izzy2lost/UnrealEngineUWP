@@ -85,7 +85,7 @@ private:
 UE_NET_TEST_FIXTURE(FTestGridFilterFixture, TestWorldLocGridFilter)
 {
 	// Spawn object with WorldLocation's on server
-	UObjectReplicationBridge::FCreateNetRefHandleParams Params;
+	UObjectReplicationBridge::FRootObjectReplicationParams Params;
 	Params.bNeedsWorldLocationUpdate = true;
 	Params.bUseClassConfigDynamicFilter = true;
 
@@ -183,7 +183,7 @@ UE_NET_TEST_FIXTURE(FTestGridFilterFixture, TestWorldLocationIsFrequentlyUpdated
 	Server->ReplicationSystem->SetReplicationView(Client->ConnectionIdOnServer, ReplicationView);
 
 	// Spawn object with WorldLocation's on server
-	UObjectReplicationBridge::FCreateNetRefHandleParams Params;
+	UObjectReplicationBridge::FRootObjectReplicationParams Params;
 	Params.bNeedsWorldLocationUpdate = true;
 	Params.bIsDormant = false;
 	Params.bUseClassConfigDynamicFilter = false;
@@ -265,7 +265,7 @@ UE_NET_TEST_FIXTURE(FTestGridFilterFixture, TestFilterPerformance)
 	FGenericPlatformMath::SRandInit(0);
 	for (int32 i = 0; i < NUM_OBJECTS; i++)
 	{
-		UObjectReplicationBridge::FCreateNetRefHandleParams Params;
+		UObjectReplicationBridge::FRootObjectReplicationParams Params;
 		Params.bNeedsWorldLocationUpdate = true;
 		Params.bUseClassConfigDynamicFilter = true;
 

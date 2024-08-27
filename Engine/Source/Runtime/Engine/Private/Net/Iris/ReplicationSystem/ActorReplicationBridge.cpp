@@ -181,7 +181,7 @@ void UActorReplicationBridge::Deinitialize()
 	ObjectReferencePackageMap = nullptr;
 }
 
-UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, const FActorBeginReplicationParams& Params)
+UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingActor(AActor* Actor, const FActorReplicationParams& Params)
 {
 	using namespace UE::Net;
 
@@ -267,7 +267,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 	}
 
 	// Create handles for the registered fragments
-	Super::FCreateNetRefHandleParams CreateNetRefHandleParams = {
+	Super::FRootObjectReplicationParams RootObjectParams = {
 		.bNeedsPreUpdate = 1U,
 		.bNeedsWorldLocationUpdate = 1U,
 		.bIsDormant = Actor->NetDormancy > DORM_Awake,
@@ -276,10 +276,10 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 	};
 
 #if !UE_BUILD_SHIPPING
-	ensureMsgf(!(Actor->bAlwaysRelevant || Actor->bOnlyRelevantToOwner) || CreateNetRefHandleParams.StaticPriority >= 1.0f, TEXT("Very low NetPriority %.02f for always relevant or owner relevant Actor %s. Set it to 1.0f or higher."), Actor->NetPriority, ToCStr(Actor->GetName()));
+	ensureMsgf(!(Actor->bAlwaysRelevant || Actor->bOnlyRelevantToOwner) || RootObjectParams.StaticPriority >= 1.0f, TEXT("Very low NetPriority %.02f for always relevant or owner relevant Actor %s. Set it to 1.0f or higher."), Actor->NetPriority, ToCStr(Actor->GetName()));
 #endif
 
-	FNetRefHandle ActorRefHandle = Super::BeginReplication(Actor, CreateNetRefHandleParams);
+	FNetRefHandle ActorRefHandle = StartReplicatingRootObject(Actor, RootObjectParams);
 
 	if (!ActorRefHandle.IsValid())
 	{
@@ -287,7 +287,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 		return FNetRefHandle::GetInvalid();
 	}
 
-    UE_CLOG(Actor->bAlwaysRelevant, LogIrisBridge, Verbose, TEXT("BeginReplication of AlwaysRelevant actor %s"), *PrintObjectFromNetRefHandle(ActorRefHandle));
+    UE_CLOG(Actor->bAlwaysRelevant, LogIrisBridge, Verbose, TEXT("StartReplicatingActor of AlwaysRelevant actor %s"), *PrintObjectFromNetRefHandle(ActorRefHandle));
 
 	// Set owning connection filtering if actor is only relevant to owner
 	{
@@ -336,8 +336,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 			UObject* SubObjectToReplicate = SubObjectInfo.GetSubObject();
 			if (IsValid(SubObjectToReplicate) && SubObjectInfo.NetCondition != ELifetimeCondition::COND_Never)
 			{
-				const UObjectReplicationBridge::FCreateNetRefHandleParams CreateNetRefParams;
-				FNetRefHandle SubObjectRefHandle = UObjectReplicationBridge::BeginReplication(ActorRefHandle, SubObjectToReplicate, CreateNetRefParams);
+				FNetRefHandle SubObjectRefHandle = StartReplicatingSubObject(ActorRefHandle, SubObjectToReplicate);
 				if (SubObjectRefHandle.IsValid() && SubObjectInfo.NetCondition != ELifetimeCondition::COND_None)
 				{
 					UObjectReplicationBridge::SetSubObjectNetCondition(SubObjectRefHandle, SubObjectInfo.NetCondition);
@@ -360,7 +359,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 	return ActorRefHandle;
 }
 
-UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(FNetRefHandle OwnerHandle, UActorComponent* SubObject)
+UE::Net::FNetRefHandle UActorReplicationBridge::StartReplicatingComponent(FNetRefHandle OwnerHandle, UActorComponent* SubObject)
 {
 	using namespace UE::Net;
 
@@ -396,7 +395,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(FNetRefHandle O
 		}
 
 		// Start replicating the subobject with its owner.
-		ReplicatedComponentHandle = Super::BeginReplication(OwnerHandle, SubObject, UObjectReplicationBridge::FCreateNetRefHandleParams());
+		ReplicatedComponentHandle = StartReplicatingSubObject(OwnerHandle, SubObject);
 	}
 
 	if (!ReplicatedComponentHandle.IsValid())
@@ -412,13 +411,12 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(FNetRefHandle O
 	}
 
 	// Begin replication for any SubObjects registered by the component
-	const UObjectReplicationBridge::FCreateNetRefHandleParams CreateNetRefParams;
 	for (const FSubObjectRegistry::FEntry& SubObjectInfo : RepComponentInfo->SubObjects.GetRegistryList())
 	{
 		UObject* SubObjectToReplicate = SubObjectInfo.GetSubObject();
 		if (IsValid(SubObjectToReplicate) && SubObjectInfo.NetCondition != ELifetimeCondition::COND_Never)
 		{
-			FNetRefHandle SubObjectHandle = UObjectReplicationBridge::BeginReplication(OwnerHandle, SubObjectToReplicate, ReplicatedComponentHandle, CreateNetRefParams, UReplicationBridge::ESubObjectInsertionOrder::ReplicateWith);
+			FNetRefHandle SubObjectHandle = StartReplicatingSubObject(OwnerHandle, SubObjectToReplicate, ReplicatedComponentHandle, UReplicationBridge::ESubObjectInsertionOrder::ReplicateWith);
 			if (SubObjectHandle.IsValid() && SubObjectInfo.NetCondition != ELifetimeCondition::COND_None)
 			{
 				SetSubObjectNetCondition(SubObjectHandle, SubObjectInfo.NetCondition);
@@ -429,59 +427,62 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(FNetRefHandle O
 	return ReplicatedComponentHandle;
 }
 
-void UActorReplicationBridge::EndReplication(AActor* Actor, EEndPlayReason::Type EndPlayReason)
+void UActorReplicationBridge::StopReplicatingActor(AActor* Actor, EEndPlayReason::Type EndPlayReason)
 {
 	using namespace UE::Net;
 
 	FNetRefHandle RefHandle = GetReplicatedRefHandle(Actor, EGetRefHandleFlags::EvenIfGarbage);
-	if (RefHandle.IsValid())
+	if (!RefHandle.IsValid())
 	{
-		UE_LOG(LogIrisBridge, Verbose, TEXT("EndReplication for %s. Reason %s "), *PrintObjectFromNetRefHandle(RefHandle), *UEnum::GetValueAsString(TEXT("Engine.EEndPlayReason"), EndPlayReason));
-		ensureMsgf(IsValid(Actor), TEXT("Calling EndReplication for Invalid Object: %s."), *PrintObjectFromNetRefHandle(RefHandle));
-	
-		EEndReplicationFlags Flags = EEndReplicationFlags::None;
-		const bool bShouldDestroyObject = EndPlayReason == EEndPlayReason::Destroyed;		
-		if (bShouldDestroyObject)
-		{ 
-			Flags |= EEndReplicationFlags::Destroy | EEndReplicationFlags::DestroyNetHandle | EEndReplicationFlags::ClearNetPushId;
-		}
-
-		// If we are shutting down or the actor is a nettemporary we do not need to validate that we are not detaching remote instances by accident.
-		const bool bIsShuttingDown = (EndPlayReason == EEndPlayReason::EndPlayInEditor) || (EndPlayReason == EEndPlayReason::Quit);
-		if (bIsShuttingDown || Actor->bNetTemporary)
-		{
-			Flags |= EEndReplicationFlags::SkipPendingEndReplicationValidation;
-		}
-					
-		const bool bShouldCreateDestructionInfo = RefHandle.IsStatic() && bShouldDestroyObject && GetReplicationSystem()->IsServer();
-		if (bShouldCreateDestructionInfo)
-		{
-			UObjectReplicationBridge::FEndReplicationParameters EndReplicationParameters;
-
-			EndReplicationParameters.Location = Actor->GetActorLocation();
-			EndReplicationParameters.Level = Actor->GetLevel();
-			EndReplicationParameters.bUseDistanceBasedPrioritization = Actor->bAlwaysRelevant == false;
-
-			UObjectReplicationBridge::EndReplication(RefHandle, Flags, &EndReplicationParameters);		
-		}
-		else
-		{
-			UObjectReplicationBridge::EndReplication(RefHandle, Flags, nullptr);
-		}
+		// Already not replicated
+		return;
 	}
+
+	UE_LOG(LogIrisBridge, Verbose, TEXT("StopReplicatingActor %s. Reason %s "), *PrintObjectFromNetRefHandle(RefHandle), *UEnum::GetValueAsString(TEXT("Engine.EEndPlayReason"), EndPlayReason));
+	ensureMsgf(IsValid(Actor), TEXT("StopReplicatingActor called on invalid actor tied to handle: %s."), *PrintObjectFromNetRefHandle(RefHandle));
+	
+	EEndReplicationFlags Flags = EEndReplicationFlags::None;
+	const bool bShouldDestroyObject = EndPlayReason == EEndPlayReason::Destroyed;		
+	if (bShouldDestroyObject)
+	{ 
+		Flags |= EEndReplicationFlags::Destroy | EEndReplicationFlags::DestroyNetHandle | EEndReplicationFlags::ClearNetPushId;
+	}
+
+	// If we are shutting down or the actor is a nettemporary we do not need to validate that we are not detaching remote instances by accident.
+	const bool bIsShuttingDown = (EndPlayReason == EEndPlayReason::EndPlayInEditor) || (EndPlayReason == EEndPlayReason::Quit);
+	if (bIsShuttingDown || Actor->bNetTemporary)
+	{
+		Flags |= EEndReplicationFlags::SkipPendingEndReplicationValidation;
+	}
+					
+	const bool bShouldCreateDestructionInfo = RefHandle.IsStatic() && bShouldDestroyObject && GetReplicationSystem()->IsServer();
+	if (bShouldCreateDestructionInfo)
+	{
+		UObjectReplicationBridge::FEndReplicationParameters EndReplicationParameters
+		{
+			.Location = Actor->GetActorLocation(),
+			.Level = Actor->GetLevel(),
+			.bUseDistanceBasedPrioritization = (Actor->bAlwaysRelevant == false)
+		};
+
+		// Store this static actor destruction info so it can be replicated if a client can know to delete it in the future.
+		StoreDestructionInfo(RefHandle, EndReplicationParameters);
+	}
+
+	StopReplicatingNetRefHandle(RefHandle, Flags);
 }
 
-void UActorReplicationBridge::EndReplicationForActorComponent(UActorComponent* ActorComponent, EEndReplicationFlags EndReplicationFlags)
+void UActorReplicationBridge::StopReplicatingComponent(UActorComponent* ActorComponent, EEndReplicationFlags EndReplicationFlags)
 {
 	using namespace UE::Net;
 
 	FNetRefHandle ComponentHandle = GetReplicatedRefHandle(ActorComponent, EGetRefHandleFlags::EvenIfGarbage);
 	if (ComponentHandle.IsValid())
 	{
-		UE_LOG(LogIrisBridge, Verbose, TEXT("EndReplicationForActorComponent for %s %s."), *GetNameSafe(ActorComponent), *ComponentHandle.ToString());
-		ensureMsgf(IsValid(ActorComponent), TEXT("Calling EndReplication for Invalid Object for %s %s."), *GetNameSafe(ActorComponent), *ComponentHandle.ToString());
+		UE_LOG(LogIrisBridge, Verbose, TEXT("StopReplicatingComponent for %s %s."), *GetNameSafe(ActorComponent), *ComponentHandle.ToString());
+		ensureMsgf(IsValid(ActorComponent), TEXT("StopReplicatingActor called on invalid component tied to handle: %s."), *ComponentHandle.ToString());
 		
-		UObjectReplicationBridge::EndReplication(ComponentHandle, EndReplicationFlags, nullptr);
+		StopReplicatingNetRefHandle(ComponentHandle, EndReplicationFlags);
 	}
 }
 

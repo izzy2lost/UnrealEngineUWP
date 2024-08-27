@@ -50,8 +50,8 @@ const UE::Net::FReplicationInstanceProtocol* UReplicatedTestObjectBridge::GetRep
 UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(UReplicatedTestObject* Instance)
 {
 	// Create NetRefHandle for the registered fragments
-	Super::FCreateNetRefHandleParams Params;
-	FNetRefHandle Handle = Super::BeginReplication(Instance, Params);
+	FRootObjectReplicationParams Params;
+	FNetRefHandle Handle = StartReplicatingRootObject(Instance, Params);
 
 	// This is optional but typically we want to cache at least the NetRefHandle in the game instance to avoid doing map lookups to find it
 	if (Handle.IsValid())
@@ -62,10 +62,10 @@ UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(UReplicated
 	return Handle;
 }
 
-UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(UReplicatedTestObject* Instance, const UObjectReplicationBridge::FCreateNetRefHandleParams& Params)
+UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(UReplicatedTestObject* Instance, const UObjectReplicationBridge::FRootObjectReplicationParams& Params)
 {
 	// Create NetRefHandle for the registered fragments
-	FNetRefHandle Handle = Super::BeginReplication(Instance, Params);
+	FNetRefHandle Handle = Super::StartReplicatingRootObject(Instance, Params);
 
 	// This is optional but typically we want to cache at least the NetRefHandle in the game instance to avoid doing map lookups to find it
 	if (Handle.IsValid())
@@ -81,8 +81,7 @@ UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(FNetRefHand
 	check(OwnerHandle.IsValid());
 
 	// Create NetRefHandle for the registered fragments
-	Super::FCreateNetRefHandleParams Params;
-	FNetRefHandle Handle = Super::BeginReplication(OwnerHandle, SubObjectInstance, InsertRelativeToSubObjectHandle, Params, InsertionOrder);
+	FNetRefHandle Handle = Super::StartReplicatingSubObject(OwnerHandle, SubObjectInstance, InsertRelativeToSubObjectHandle, InsertionOrder);
 
 	if (Handle.IsValid())
 	{
@@ -94,6 +93,10 @@ UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(FNetRefHand
 	return Handle;
 }
 
+void UReplicatedTestObjectBridge::EndReplication(UReplicatedTestObject* Instance, EEndReplicationFlags Flags)
+{
+	StopReplicatingNetObject(Instance, Flags);
+}
 
 bool UReplicatedTestObjectBridge::WriteCreationHeader(UE::Net::FNetSerializationContext& Context, FNetRefHandle Handle)
 {

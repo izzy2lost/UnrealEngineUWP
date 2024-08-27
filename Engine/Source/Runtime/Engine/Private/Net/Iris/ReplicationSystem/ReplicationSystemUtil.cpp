@@ -116,7 +116,7 @@ FNetHandle FReplicationSystemUtil::GetNetHandle(const UObject* Object)
 	return NetHandle;
 }
 
-void FReplicationSystemUtil::BeginReplication(AActor* Actor, const FActorBeginReplicationParams& Params)
+void FReplicationSystemUtil::BeginReplication(AActor* Actor, const FActorReplicationParams& Params)
 {
 	if (const UWorld* World = Actor->GetWorld())
 	{
@@ -126,7 +126,7 @@ void FReplicationSystemUtil::BeginReplication(AActor* Actor, const FActorBeginRe
 			{
 				if (UActorReplicationBridge* Bridge = Cast<UActorReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
 				{
-					Bridge->BeginReplication(Actor, Params);
+					Bridge->StartReplicatingActor(Actor, Params);
 				}
 			}
 		});
@@ -135,7 +135,7 @@ void FReplicationSystemUtil::BeginReplication(AActor* Actor, const FActorBeginRe
 
 void FReplicationSystemUtil::BeginReplication(AActor* Actor)
 {
-	const FActorBeginReplicationParams BeginReplicationParams;
+	const FActorReplicationParams BeginReplicationParams;
 	return BeginReplication(Actor, BeginReplicationParams);
 }
 
@@ -147,7 +147,7 @@ void FReplicationSystemUtil::EndReplication(AActor* Actor, EEndPlayReason::Type 
 	{
 		if (UActorReplicationBridge* Bridge = Cast<UActorReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
 		{
-			Bridge->EndReplication(Actor, EndPlayReason);
+			Bridge->StopReplicatingActor(Actor, EndPlayReason);
 		}
 	});
 }
@@ -180,7 +180,7 @@ void FReplicationSystemUtil::BeginReplicationForActorComponent(FNetHandle ActorH
 						const FNetRefHandle OwnerRefHandle = Bridge->GetReplicatedRefHandle(ActorHandle);
 						if (OwnerRefHandle.IsValid())
 						{
-							Bridge->BeginReplication(OwnerRefHandle, ActorComp);
+							Bridge->StartReplicatingComponent(OwnerRefHandle, ActorComp);
 						}
 					}
 				}
@@ -209,7 +209,7 @@ void FReplicationSystemUtil::BeginReplicationForActorComponent(const AActor* Act
 					const FNetRefHandle ActorRefHandle = Bridge->GetReplicatedRefHandle(ActorHandle);
 					if (ActorRefHandle.IsValid())
 					{
-						Bridge->BeginReplication(ActorRefHandle, ActorComp);
+						Bridge->StartReplicatingComponent(ActorRefHandle, ActorComp);
 					}
 				}
 			}
@@ -242,8 +242,7 @@ void FReplicationSystemUtil::BeginReplicationForActorSubObject(const AActor* Act
 					const FNetRefHandle ActorRefHandle = Bridge->GetReplicatedRefHandle(ActorHandle);
 					if (ActorRefHandle.IsValid())
 					{
-						const UObjectReplicationBridge::FCreateNetRefHandleParams CreateNetRefParams;
-						const FNetRefHandle SubObjectRefHandle = Bridge->BeginReplication(ActorRefHandle, ActorSubObject, CreateNetRefParams);
+						const FNetRefHandle SubObjectRefHandle = Bridge->StartReplicatingSubObject(ActorRefHandle, ActorSubObject);
 						if (SubObjectRefHandle.IsValid() && NetCondition != ELifetimeCondition::COND_None)
 						{
 							Bridge->SetSubObjectNetCondition(SubObjectRefHandle, NetCondition);
@@ -278,9 +277,7 @@ void FReplicationSystemUtil::BeginReplicationForActorComponentSubObject(UActorCo
 						const FNetRefHandle ActorComponentRefHandle = Bridge->GetReplicatedRefHandle(ActorComponent);
 						if (ActorRefHandle.IsValid() && ActorComponentRefHandle.IsValid())
 						{
-							const UObjectReplicationBridge::FCreateNetRefHandleParams CreateNetRefParams;
-
-							const FNetRefHandle SubObjectRefHandle = Bridge->BeginReplication(ActorRefHandle, SubObject, ActorComponentRefHandle, CreateNetRefParams, UReplicationBridge::ESubObjectInsertionOrder::ReplicateWith);
+							const FNetRefHandle SubObjectRefHandle = Bridge->StartReplicatingSubObject(ActorRefHandle, SubObject, ActorComponentRefHandle, UReplicationBridge::ESubObjectInsertionOrder::ReplicateWith);
 							if (SubObjectRefHandle.IsValid() && NetCondition != ELifetimeCondition::COND_None)
 							{
 								Bridge->SetSubObjectNetCondition(SubObjectRefHandle, NetCondition);
@@ -300,7 +297,7 @@ void FReplicationSystemUtil::EndReplicationForActorComponent(UActorComponent* Ac
 		if (UActorReplicationBridge* Bridge = Cast<UActorReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
 		{
 			constexpr EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::DestroyNetHandle | EEndReplicationFlags::ClearNetPushId;
-			Bridge->EndReplicationForActorComponent(ActorComponent, EndReplicationFlags);
+			Bridge->StopReplicatingComponent(ActorComponent, EndReplicationFlags);
 		}
 	});
 }
@@ -312,7 +309,7 @@ void FReplicationSystemUtil::EndReplicationForActorSubObject(const AActor* Actor
 		if (UActorReplicationBridge* Bridge = Cast<UActorReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
 		{				
 			constexpr EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::Destroy | EEndReplicationFlags::DestroyNetHandle | EEndReplicationFlags::ClearNetPushId;
-			Bridge->EndReplication(SubObject, EndReplicationFlags);
+			Bridge->StopReplicatingNetObject(SubObject, EndReplicationFlags);
 		}
 	});
 }
@@ -351,8 +348,8 @@ void FReplicationSystemUtil::AddDependentActor(const AActor* Parent, AActor* Chi
 					FNetRefHandle ChildRefHandle = Bridge->GetReplicatedRefHandle(Child);
 					if (!ChildRefHandle.IsValid())
 					{
-						const FActorBeginReplicationParams BeginReplicationParams;
-						ChildRefHandle = Bridge->BeginReplication(Child, BeginReplicationParams);
+						const FActorReplicationParams BeginReplicationParams;
+						ChildRefHandle = Bridge->StartReplicatingActor(Child, BeginReplicationParams);
 					}
 					if (ensureMsgf(ChildRefHandle.IsValid(), TEXT("FReplicationSystemUtil::AddDependentActor Child %s is not replicated"), *GetPathNameSafe(Child)))
 					{

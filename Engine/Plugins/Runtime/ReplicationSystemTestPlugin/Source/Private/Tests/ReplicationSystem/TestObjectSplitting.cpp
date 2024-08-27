@@ -1111,7 +1111,7 @@ UE_NET_TEST_FIXTURE(FSplitObjectTestFixture, TestDependentObjectCannotBeDestroye
 	FReplicationSystemTestClient* Client = CreateClient();
 
 	UTestReplicatedIrisObject* ServerObject = CreateHugeObject(Server);
-	UTestReplicatedIrisObject* ServerDependentObject = Server->CreateObject(UObjectReplicationBridge::FCreateNetRefHandleParams{});
+	UTestReplicatedIrisObject* ServerDependentObject = Server->CreateObject(UObjectReplicationBridge::FRootObjectReplicationParams{});
 
 	ServerBridge->AddDependentObject(ServerObject->NetRefHandle, ServerDependentObject->NetRefHandle);
 

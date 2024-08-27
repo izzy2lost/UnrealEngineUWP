@@ -90,7 +90,7 @@ FTestNetObjectPrioritizerFixture::FPrioritizationResult FTestNetObjectPrioritize
 
 	// Begin replication for all created objects
 	{
-		UObjectReplicationBridge::FCreateNetRefHandleParams CreateNetRefHandleParams = { .bNeedsWorldLocationUpdate = true };
+		UObjectReplicationBridge::FRootObjectReplicationParams CreateNetRefHandleParams = { .bNeedsWorldLocationUpdate = true };
 
 		for (UTestPrioritizationWithWorldLocationObject* Object : WorldLocObjects)
 		{
@@ -223,7 +223,7 @@ FNetObjectPrioritizerImage FTestNetObjectPrioritizerFixture::Visualize(FNetObjec
 
 	// Begin replication for all created objects
 	{
-		UObjectReplicationBridge::FCreateNetRefHandleParams CreateNetRefHandleParams = { .bNeedsWorldLocationUpdate = true };
+		UObjectReplicationBridge::FRootObjectReplicationParams CreateNetRefHandleParams = { .bNeedsWorldLocationUpdate = true };
 
 		for (UTestPrioritizationWithWorldLocationObject* Object : WorldLocObjects)
 		{

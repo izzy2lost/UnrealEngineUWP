@@ -151,13 +151,16 @@ public:
 	};
 
 	/**
-	 * Stop replicating the NetObject associated with the handle and mark the handle to be destroyed.
-	 * If EEndReplication::TearOff is set the remote instance will be Torn-off rather than being destroyed on the receiving end, after the call, any state changes will not be replicated
-     * If EEndReplication::Flush is set all pending states will be delivered before the remote instance is destroyed, final state will be immediately copied so it is safe to remove the object after this call
-	 * If EEndReplication::Destroy is set the remote instance will be destroyed, if this is set for a static instance and the EndReplicationParameters are set a permanent destruction info will be added
-	 * Dynamic instances are always destroyed unless the TearOff flag is set.
-	 */
-	IRISCORE_API void EndReplication(FNetRefHandle Handle, EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::Destroy, FEndReplicationParameters* Parameters = nullptr);
+	* Stop replicating the NetObject associated with the handle and mark the handle to be destroyed.
+	* If EEndReplication::TearOff is set the remote instance will be Torn-off rather than being destroyed on the receiving end, after the call, any state changes will not be replicated
+	* If EEndReplication::Flush is set all pending states will be delivered before the remote instance is destroyed, final state will be immediately copied so it is safe to remove the object after this call
+	* If EEndReplication::Destroy is set the remote instance will be destroyed, if this is set for a static instance and the EndReplicationParameters are set a permanent destruction info will be added
+	* Dynamic instances are always destroyed unless the TearOff flag is set.
+	*/
+	IRISCORE_API void StopReplicatingNetRefHandle(FNetRefHandle Handle, EEndReplicationFlags EndReplicationFlags);
+
+	/** Store destruction info for the referenced object. */
+	IRISCORE_API FNetRefHandle StoreDestructionInfo(FNetRefHandle Handle, const FEndReplicationParameters& Parameters);
 
 	/** Returns true if the handle is replicated. */
 	IRISCORE_API bool IsReplicatedHandle(FNetRefHandle Handle) const;
@@ -255,9 +258,6 @@ protected:
 	
 	/** Add SubObjectHandle as SubObject to OwnerHandle. */
 	IRISCORE_API void InternalAddSubObject(FNetRefHandle OwnerHandle, FNetRefHandle SubObjectHandle, FNetRefHandle InsertRelativeToSubObjectHandle, ESubObjectInsertionOrder InsertionOrder);
-
-	/** Add destruction info for the referenced object. */
-	FNetRefHandle InternalAddDestructionInfo(FNetRefHandle Handle, const FEndReplicationParameters& Parameters);
 
 	inline UE::Net::Private::FReplicationProtocolManager* GetReplicationProtocolManager() const { return ReplicationProtocolManager; }
 	inline UReplicationSystem* GetReplicationSystem() const { return ReplicationSystem; }

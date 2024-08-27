@@ -4051,7 +4051,7 @@ void UNetDriver::DeleteSubObjectOnClients(AActor* Actor, UObject* SubObject)
 		if (UActorReplicationBridge* Bridge = Cast<UActorReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
 		{
 			constexpr EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::Destroy | EEndReplicationFlags::DestroyNetHandle | EEndReplicationFlags::ClearNetPushId;
-			Bridge->EndReplication(SubObject, EndReplicationFlags);
+			Bridge->StopReplicatingNetObject(SubObject, EndReplicationFlags);
 		}
 	}
 	else
@@ -4070,8 +4070,7 @@ void UNetDriver::TearOffSubObjectOnClients(AActor* Actor, UObject* SubObject)
 	{
 		if (UActorReplicationBridge* Bridge = Cast<UActorReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
 		{
-			constexpr EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::TearOff;
-			Bridge->EndReplication(SubObject, EndReplicationFlags);
+			Bridge->StopReplicatingNetObject(SubObject, EEndReplicationFlags::TearOff);
 		}
 	}
 	else

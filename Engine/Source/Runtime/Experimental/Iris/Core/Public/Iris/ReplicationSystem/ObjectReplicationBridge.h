@@ -26,6 +26,8 @@ namespace UE::Net
 
 	class FNetObjectReference;
 
+	enum class EReplicationFragmentTraits : uint32;
+
 	namespace Private
 	{
 		typedef uint32 FInternalNetRefIndex;
@@ -50,10 +52,10 @@ class UObjectReplicationBridge : public UReplicationBridge
 	GENERATED_BODY()
 
 public:
-	using UReplicationBridge::EndReplication;
+
 	using EGetRefHandleFlags = UE::Net::EGetRefHandleFlags;
 
-	struct FCreateNetRefHandleParams
+	struct FRootObjectReplicationParams
 	{
 		/** When true it means the object wants to receive a PreUpdate callback just before it gets polled. */
 		bool bNeedsPreUpdate = false;
@@ -113,19 +115,33 @@ public:
 	/** Get or create NetObjectReference for object identified by path relative to outer. */
 	IRISCORE_API UE::Net::FNetObjectReference GetOrCreateObjectReference(const FString& Path, const UObject* Outer) const;
 
-	/** Begin replicating the Instance and return a valid NetRefHandle for the Instance if successful. */
-	IRISCORE_API FNetRefHandle BeginReplication(UObject* Instance, const FCreateNetRefHandleParams& Params);
+	/** 
+	 * Start replicating a RootObject and return a valid NetRefHandle if successful. 
+	 * 
+	 * @param Instance The instance that needs to be replicated
+	 * @param Params Optional configuration parameters to specify how the root object will be replicated.
+	 * @return The NetRefHandle associated to this object if the operation succeeded.
+	 */
+	IRISCORE_API FNetRefHandle StartReplicatingRootObject(UObject* Instance, const FRootObjectReplicationParams& Params);
 
 	/**
-	 * Begin replicating the Instance as a subobject of the OwnerHandle. If InsertRelativeSubObjectHandle is valid
-	 * the new subobject will be inserted in the subobject replication list next to the specified handle and the wanted insertion order.
-	 * Default behavior is to always add new subobjects at the end of the list. Returns a valid NetRefHandle for the Instance if successful.
+	 * Start replicating a SubObject and return a valid NetRefHandle if successful.
+	 * 
+	 * @param OwnerHandle The owner of the subobject
+	 * @param Instance The instance that needs to be replicated
+	 * @param InsertRelativeToSubObjectHandle When valid the new subobject will be inserted in the subobject replication list next to the specified handle and the wanted insertion order.
+	 * @param InsertionOrder When none will always add the new subobject at the end of the list. 
+	 * @return The NetRefHandle of the subobject if successful.
 	 */
-	IRISCORE_API FNetRefHandle BeginReplication(FNetRefHandle OwnerHandle, UObject* Instance, FNetRefHandle InsertRelativeToSubObjectHandle, const FCreateNetRefHandleParams& Params, ESubObjectInsertionOrder InsertionOrder = UReplicationBridge::ESubObjectInsertionOrder::None);
+	IRISCORE_API FNetRefHandle StartReplicatingSubObject(FNetRefHandle OwnerHandle, UObject* Instance, FNetRefHandle InsertRelativeToSubObjectHandle = FNetRefHandle::GetInvalid(), ESubObjectInsertionOrder InsertionOrder = UReplicationBridge::ESubObjectInsertionOrder::None);
 
-	/** Create handle and start replicating the Instance as a SubObject of the OwnerHandle. */
-	/** Begin replicating the Instance as a subobject of the OwnerHandle and return a valid NetRefHandle for the Instance if successful. */
-	IRISCORE_API FNetRefHandle BeginReplication(FNetRefHandle OwnerHandle, UObject* Instance, const FCreateNetRefHandleParams& Params);
+	/** 
+	 * Stop replicating any type of NetObject. @see UReplicationBridge::StopReplicatingNetObject for more details.
+	 * @param Instance The instance that won't be replicated anymore
+	 * @param EndReplicationFlags Optional settings to modify the function behavior. Defaults to destroy the  instance on remote clients.
+	 * 
+	 * */
+	IRISCORE_API void StopReplicatingNetObject(UObject* Instance, EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::Destroy);
 
 	/** 
 	 * Set NetCondition for a subobject, the condition is used to determine if the SubObject should replicate or not.
@@ -136,9 +152,6 @@ public:
 
 	/** Get the handle of the root object of any replicated subobject. */
 	IRISCORE_API FNetRefHandle GetRootObjectOfSubObject(FNetRefHandle SubObjectHandle) const;
-
-	/** Stop replicating the object. */
-	IRISCORE_API void EndReplication(UObject* Instance, EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::Destroy, FEndReplicationParameters* Parameters = nullptr);
 
 	/** Add static destruction info, this is used when stably named objects are destroyed prior to starting replication */
 	IRISCORE_API void AddStaticDestructionInfo(const FString& ObjectPath, const UObject* Outer, const FEndReplicationParameters& Parameters);
@@ -379,6 +392,9 @@ private:
 	/** Tries to load the classes used in poll period overrides. */
 	void FindClassesInPollPeriodOverrides();
 
+	/** Does all that is necessary to replicate any given UObject. Returns the object's handle if successful  */
+	UE::Net::FNetRefHandle StartReplicatingNetObject(UObject* Instance, UE::Net::EReplicationFragmentTraits Traits);
+
 protected:
 	/** Retrieves the dynamic filter to set for the given class. Will return an invalid handle if no dynamic filter should be set. */
 	IRISCORE_API UE::Net::FNetObjectFilterHandle GetDynamicFilter(const UClass* Class, bool bRequireForceEnabled, FName& OutFilterProfile);
@@ -388,7 +404,7 @@ private:
 	UE::Net::FNetObjectPrioritizerHandle GetPrioritizer(const UClass* Class, bool bRequireForceEnabled);
 
 	/** Assign the proper dynamic filter to a new object */
-	void AssignDynamicFilter(UObject* Instance, const FCreateNetRefHandleParams& Params, FNetRefHandle RefHandle);
+	void AssignDynamicFilter(UObject* Instance, const FRootObjectReplicationParams& Params, FNetRefHandle RefHandle);
 
 	/** Returns true if instances of this class should be delta compressed */
 	bool ShouldClassBeDeltaCompressed(const UClass* Class);
@@ -487,15 +503,9 @@ private:
 	bool bHasPollOverrides = false;
 	bool bHasDirtyClassesInPollPeriodOverrides = false;
 
-	/** Set to true when the system does not allow new objects to begin replication at this moment. Useful when calling into user code and to warn them of illegal operations. */
-	bool bBlockBeginReplication = false;
+	/** Set to true when the system does not allow new root objects to be replicated at this moment. Useful when calling into user code and to warn them of illegal operations. */
+	bool bBlockStartRootObjectReplication = false;
 
 protected:
 	bool bSuppressCreateInstanceFailedEnsure = false;
 };
-
-
-inline UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(UE::Net::FNetRefHandle OwnerHandle, UObject* Instance, const FCreateNetRefHandleParams& Params)
-{
-	return BeginReplication(OwnerHandle, Instance, FNetRefHandle::GetInvalid(), Params, ESubObjectInsertionOrder::None);
-}

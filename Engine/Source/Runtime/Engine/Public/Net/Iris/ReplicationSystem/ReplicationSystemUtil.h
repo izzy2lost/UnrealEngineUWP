@@ -12,7 +12,7 @@
 
 class AActor;
 class UActorComponent;
-struct FActorBeginReplicationParams;
+struct FActorReplicationParams;
 class UActorReplicationBridge;
 class UObject;
 class FRepChangedPropertyTracker;
@@ -54,7 +54,7 @@ struct FReplicationSystemUtil
 	ENGINE_API static FNetHandle GetNetHandle(const UObject* Object);
 
 	/** Begins replication of an actor and all of its registered subobjects. If any ReplicationSystem wants to replicate the actor a NetHandle will be created. */
-	ENGINE_API static void BeginReplication(AActor* Actor, const FActorBeginReplicationParams& Params);
+	ENGINE_API static void BeginReplication(AActor* Actor, const FActorReplicationParams& Params);
 
 	/** Begins replication of an actor and all of its registered subobjects. If any ReplicationSystem wants to replicate the actor a NetHandle will be created. */
 	ENGINE_API static void BeginReplication(AActor* Actor);

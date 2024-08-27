@@ -1076,7 +1076,7 @@ void AActor::RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext&
 	}
 }
 
-void AActor::BeginReplication(const FActorBeginReplicationParams& Params)
+void AActor::BeginReplication(const FActorReplicationParams& Params)
 {
 	UE::Net::FReplicationSystemUtil::BeginReplication(this, Params);
 	UpdateOwningNetConnection();
@@ -1084,7 +1084,7 @@ void AActor::BeginReplication(const FActorBeginReplicationParams& Params)
 
 void AActor::BeginReplication()
 {
-	const FActorBeginReplicationParams BeginReplicationParams;
+	const FActorReplicationParams BeginReplicationParams;
 
 	BeginReplication(BeginReplicationParams);
 }

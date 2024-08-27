@@ -713,7 +713,7 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestDroppedPendingTearOffIsC
 	}
 
 	// Request tearoff
-	Server->ReplicationBridge->EndReplication(ServerObject->NetRefHandle, EEndReplicationFlags::TearOff);
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::TearOff);
 
 	// Send packet so that we have creationdata in flight
 	Server->PreSendUpdate();
@@ -721,7 +721,7 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestDroppedPendingTearOffIsC
 	Server->PostSendUpdate();
 
 	// Force destroy object already pending tearoff/flush. DestroyLocalNetHandle will invalidate cached creationinfo.
-	Server->ReplicationBridge->EndReplication(ServerObject->NetRefHandle, EEndReplicationFlags::Destroy);
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::Destroy);
 
 	// Drop and notify that the packet while object still is the state waitoncreateconfirmation as we have not yet updated scope.
 	// When this failed it did put the state of the object back in PendingCreate even though we no longer had any cached creationinfo.
@@ -772,14 +772,14 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestPendingCreateTearOffIsCa
 	}
 
 	// Request tearoff
-	Server->ReplicationBridge->EndReplication(ServerObject->NetRefHandle, EEndReplicationFlags::TearOff);
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::TearOff);
 
 	// PreUpdate to update scoping to get the object into the PendingCreate state.
 	Server->PreSendUpdate();
 	Server->PostSendUpdate();
 
 	// Force destroy object already pending tearoff/flush. DestroyLocalNetHandle will invalidate cached creationinfo.
-	Server->ReplicationBridge->EndReplication(ServerObject->NetRefHandle, EEndReplicationFlags::Destroy);
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::Destroy);
 
 	// Send a packet.
 	Server->PreSendUpdate();
@@ -811,14 +811,14 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestPendingCreateTearOffIsNo
 	}
 
 	// Request tearoff
-	Server->ReplicationBridge->EndReplication(ServerObject->NetRefHandle, EEndReplicationFlags::TearOff);
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::TearOff);
 
 	// PreUpdate to update scoping to get the object into the PendingCreate state.
 	Server->PreSendUpdate();
 	Server->PostSendUpdate();
 
 	// This should be ignored as we are already pending tear off.
-	Server->ReplicationBridge->EndReplication(ServerObject->NetRefHandle, EEndReplicationFlags::Destroy);
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::Destroy);
 
 	// Deliver a packet, this should flush the object and deliver the attachment
 	Server->PreSendUpdate();
@@ -854,7 +854,7 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestDroppedTearOffIsNotCance
 	}
 
 	// Request tearoff
-	Server->ReplicationBridge->EndReplication(ServerObject->NetRefHandle, EEndReplicationFlags::TearOff);
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::TearOff);
 
 	// Send packet so that we have creationdata in flight
 	Server->PreSendUpdate();
@@ -862,7 +862,7 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestDroppedTearOffIsNotCance
 	Server->PostSendUpdate();
 
 	// Force destroy object already pending tearoff/flush. This should be ignored
-	Server->ReplicationBridge->EndReplication(ServerObject->NetRefHandle, EEndReplicationFlags::Destroy);
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::Destroy);
 
 	// Drop and notify that the packet while object still is the state waitoncreateconfirmation as we have not yet updated scope.
 	Server->DeliverTo(Client, false);
