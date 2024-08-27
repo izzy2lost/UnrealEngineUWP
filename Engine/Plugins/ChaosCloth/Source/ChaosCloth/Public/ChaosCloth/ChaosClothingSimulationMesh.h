@@ -165,6 +165,7 @@ namespace Chaos
 	private:
 		void SkinPhysicsMesh(
 			int32 LODIndex,
+			const FReal LocalSpaceScale,
 			const FVec3& LocalSpaceLocation,
 			TArrayView<Softs::FSolverVec3>& OutPositions,
 			TArrayView<Softs::FSolverVec3>& OutNormals) const;

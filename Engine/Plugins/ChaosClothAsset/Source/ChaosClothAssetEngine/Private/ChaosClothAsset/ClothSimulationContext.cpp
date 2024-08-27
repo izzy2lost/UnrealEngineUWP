@@ -34,6 +34,9 @@ namespace UE::Chaos::ClothAsset
 		// Copy component transform
 		ComponentTransform = ClothComponent.GetComponentTransform();
 
+		// Copy solver geometry scale
+		SolverGeometryScale = ClothComponent.GetClothGeometryScale();;
+
 		// Update bone transforms
 		const UChaosClothAsset* const ClothAsset = ClothComponent.GetClothAsset();
 		const FReferenceSkeleton* const ReferenceSkeleton = ClothAsset ? &ClothAsset->GetRefSkeleton() : nullptr;

@@ -122,6 +122,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Setup startup transforms
 		constexpr bool bNeedsReset = true;
+		const FReal LocalSpaceScale = 1. / FMath::Max(ClothSimulationContext->SolverGeometryScale, UE_SMALL_NUMBER);
+		Solver->SetLocalSpaceScale(LocalSpaceScale, bNeedsReset);
 		Solver->SetLocalSpaceLocation((FVec3)ClothSimulationContext->ComponentTransform.GetLocation(), bNeedsReset);
 		Solver->SetLocalSpaceRotation((FQuat)ClothSimulationContext->ComponentTransform.GetRotation());
 
@@ -503,6 +505,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Get the solver's local space
 		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation(); // Note: Since the ReferenceSpaceTransform can be suspended with the simulation, it is important that the suspended local space location is used too in order to get the simulation data back into reference space
+		const FReal LocalSpaceScale = Solver->GetLocalSpaceScale();
 
 		// Retrieve the component's bones transforms
 		const TArray<FTransform>& ComponentSpaceTransforms = LeaderPoseComponent ? LeaderPoseComponent->GetComponentSpaceTransforms() : ClothComponent.GetComponentSpaceTransforms();
@@ -572,6 +575,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					(ispc::FVector3f*)Data.Positions.GetData(),
 					(ispc::FVector3f*)Data.Normals.GetData(),
 					(ispc::FTransform&)ReferenceSpaceTransform,
+					LocalSpaceScale,
 					Data.Positions.Num());
 			}
 			else
@@ -579,7 +583,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			{
 				for (int32 Index = 0; Index < Data.Positions.Num(); ++Index)
 				{
-					Data.Positions[Index] = FVec3f(ReferenceSpaceTransform.InverseTransformPosition(FVec3(Data.Positions[Index])));
+					Data.Positions[Index] = FVec3f(ReferenceSpaceTransform.InverseTransformPosition(LocalSpaceScale * FVec3(Data.Positions[Index])));
 					Data.Normals[Index] = FVec3f(ReferenceSpaceTransform.InverseTransformVector(FVec3(-Data.Normals[Index])));
 				}
 			}
@@ -612,7 +616,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			FBoxSphereBounds Bounds = Solver->CalculateBounds();
 
 			// The component could be moving while the simulation is suspended so getting the bounds
-			// in world space isn't good enough and the bounds origin needs to be continuously updated
+			// in world space isn't good enough and the bounds origin needs to be continuously updated.
+			// 
+			// This converts the bounds back to component space. Do not apply LocalSpaceScale, which may not match component space.
+			// TODO: this will not apply the component's actual scale either.
 			Bounds = Bounds.TransformBy(FTransform((FQuat)Solver->GetLocalSpaceRotation(), (FVector)Solver->GetLocalSpaceLocation()).Inverse());
 
 			return Bounds;

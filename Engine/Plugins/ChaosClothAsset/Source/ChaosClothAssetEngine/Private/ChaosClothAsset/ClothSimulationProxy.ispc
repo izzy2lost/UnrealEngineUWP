@@ -9,6 +9,7 @@
 export void TransformClothSimulData(uniform FVector3f Positions[],
 									uniform FVector3f Normals[],
 									const uniform FTransform &ReferenceSpaceTransform,
+									const uniform double LocalSpaceScale,
 									const uniform int NumPositions)
 {
 	const uniform FVector4 RotationInverse = QuatInverse(ReferenceSpaceTransform.Rotation);
@@ -26,7 +27,8 @@ export void TransformClothSimulData(uniform FVector3f Positions[],
 		const FVector3f InputNormalVectorFloat = NormalFloat * -FLOAT_ONE;
 		const FVector InputNormalVector = ConvertVector3fTo3Native(InputNormalVectorFloat);
 
-		const FVector TranslatedPosition = InputPositionVector - Translation;
+		const FVector ScaledPosition = InputPositionVector * LocalSpaceScale;
+		const FVector TranslatedPosition = ScaledPosition - Translation;
 
 		const FVector VRPosition = VectorQuaternionRotateVector(RotationInverse, TranslatedPosition);
 		const FVector VRNormal = VectorQuaternionRotateVector(RotationInverse, InputNormalVector);

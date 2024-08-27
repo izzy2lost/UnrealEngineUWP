@@ -47,6 +47,8 @@ namespace Chaos
 		const FVec3& GetLocalSpaceLocation() const { return LocalSpaceLocation; }
 		void SetLocalSpaceRotation(const FQuat& InLocalSpaceRotation) { LocalSpaceRotation = InLocalSpaceRotation; }
 		const FRotation3& GetLocalSpaceRotation() const { return LocalSpaceRotation; }
+		CHAOSCLOTH_API void SetLocalSpaceScale(FReal InLocalSpaceScale, bool bReset = false);
+		FReal GetLocalSpaceScale() const { return LocalSpaceScale; }
 		void SetVelocityScale(FReal InVelocityScale) { VelocityScale = InVelocityScale; }
 		FReal GetVelocityScale() const { return VelocityScale; }
 
@@ -473,10 +475,13 @@ namespace Chaos
 		TMap<int32, TUniquePtr<FClothConstraints>> ClothsConstraints;
 
 		// Local space simulation
+		FReal OldLocalSpaceScale = 1.; // Multiply this to simulation space coordinates to get world space coordinates.
+		FReal LocalSpaceScale = 1.;
 		FVec3 OldLocalSpaceLocation;  // This is used to translate between world space and simulation space,
 		FVec3 LocalSpaceLocation;     // add this to simulation space coordinates to get world space coordinates, must keep FReal as underlying type for LWC
-		FRotation3 LocalSpaceRotation;
+		FRotation3 LocalSpaceRotation; // NOTE: Currently the simulation does not apply LocalSpaceRotation.
 		FReal VelocityScale;
+
 
 		// Time stepping
 		FSolverReal Time;

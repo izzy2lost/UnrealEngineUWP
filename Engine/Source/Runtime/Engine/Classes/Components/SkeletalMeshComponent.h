@@ -888,6 +888,12 @@ public:
 
 	UPROPERTY(Interp, BlueprintReadWrite, Category=Clothing, meta=(UIMin = 0.0, UIMax = 10.0, ClampMin = 0.0, ClampMax = 10000.0))
 	float ClothMaxDistanceScale;
+	
+	/** This scale is applied to all cloth geometry (e.g., cloth meshes and collisions) in order to simulate in a different scale space than world.This scale is not applied to distance-based simulation parameters such as MaxDistance. 
+	* This property is currently only read by the cloth solver when creating cloth actors, but may become animatable in the future.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = Clothing, meta = (UIMin = 0.0, UIMax = 10.0, ClampMin = 0.0, ClampMax = 10000.0))
+	float ClothGeometryScale = 1.f;
 
 	/** Notification when constraint is broken. */
 	UPROPERTY(BlueprintAssignable)

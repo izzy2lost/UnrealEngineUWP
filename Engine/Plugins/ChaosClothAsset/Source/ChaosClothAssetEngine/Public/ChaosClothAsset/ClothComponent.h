@@ -135,6 +135,12 @@ public:
 
 	const UE::Chaos::ClothAsset::FClothSimulationProxy* GetClothSimulationProxy() const { return ClothSimulationProxy.Get(); }
 
+	/** This scale is applied to all cloth geometry (e.g., cloth meshes and collisions) in order to simulate in a different scale space than world.This scale is not applied to distance-based simulation parameters such as MaxDistance.
+	* This property is currently only read by the cloth solver when creating cloth actors, but may become animatable in the future.
+	*/
+	float GetClothGeometryScale() const { return ClothGeometryScale; }
+	void SetClothGeometryScale(float Scale) { ClothGeometryScale = Scale; }
+
 #if WITH_EDITOR
 	/** Update config properties from the asset. Will only update existing values.*/
 	void UpdateConfigProperties();
@@ -252,6 +258,12 @@ private:
 	/** Blend amount between the skinned (=0) and the simulated pose (=1). */
 	UPROPERTY(Interp, Category = ClothComponent)
 	float BlendWeight = 1.f;
+
+	/** This scale is applied to all cloth geometry (e.g., cloth meshes and collisions) in order to simulate in a different scale space than world.This scale is not applied to distance-based simulation parameters such as MaxDistance.
+	* This property is currently only read by the cloth solver when creating cloth actors, but may become animatable in the future.
+	*/
+	UPROPERTY(EditAnywhere, Category = ClothComponent, meta = (UIMin = 0.0, UIMax = 10.0, ClampMin = 0.0, ClampMax = 10000.0))
+	float ClothGeometryScale = 1.f;
 
 #if WITH_EDITOR
 	bool bTickOnceInEditor = false;

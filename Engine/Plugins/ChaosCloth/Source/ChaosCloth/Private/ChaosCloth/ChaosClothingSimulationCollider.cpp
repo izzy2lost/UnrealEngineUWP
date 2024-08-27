@@ -68,7 +68,7 @@ void FClothingSimulationCollider::FLODData::Add(
 	const FClothCollisionData& InClothCollisionData,
 	const TArray<FLevelSetCollisionData>& InLevelSetCollisionData,
 	const TArray<FSkinnedLevelSetCollisionData>& InSkinnedLevelSetCollisionData,
-	const FReal InScale,
+	const FReal InComponentScale,
 	const TArray<int32>& UsedBoneIndices)
 {
 	check(Solver);
@@ -76,6 +76,12 @@ void FClothingSimulationCollider::FLODData::Add(
 
 	// Keep a list of all collisions
 	ClothCollisionData = InClothCollisionData;
+
+	// Apply LocalScaleInv.
+	const FReal LocalSpaceScale = Solver->GetLocalSpaceScale();
+	check(LocalSpaceScale > UE_SMALL_NUMBER);
+	const FReal LocalSpaceScaleInv = 1. / LocalSpaceScale;
+	const FReal InScale = InComponentScale * LocalSpaceScaleInv;
 
 	// Calculate the number of geometries
 	int32 NumSpheres = ClothCollisionData.Spheres.Num();
@@ -400,6 +406,11 @@ void FClothingSimulationCollider::FLODData::Update(
 
 		FTransform ComponentToLocalSpaceReal = ComponentTransform;
 		ComponentToLocalSpaceReal.AddToTranslation(-Solver->GetLocalSpaceLocation());
+		const FReal LocalSpaceScale = Solver->GetLocalSpaceScale();
+		check(LocalSpaceScale > UE_SMALL_NUMBER);
+		const FReal LocalSpaceScaleInv = 1. / LocalSpaceScale;
+		ComponentToLocalSpaceReal.MultiplyScale3D(FVector(LocalSpaceScaleInv));
+		ComponentToLocalSpaceReal.ScaleTranslation(LocalSpaceScaleInv);
 		const Softs::FSolverTransform3 ComponentToLocalSpace(ComponentToLocalSpaceReal);  // LWC, now in local space, therefore it is safe to use the solver transform type
 	
 		// Update the collision transforms

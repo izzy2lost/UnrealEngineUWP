@@ -278,7 +278,10 @@ void FClothingSimulationCloth::FLODData::Add(FClothingSimulationSolver* Solver, 
 	const int32 ParticleRangeId = SolverDatum.ParticleRangeId;
 
 	// Retrieve the component's scale
-	const Softs::FSolverReal MeshScale = Cloth->Mesh->GetScale();
+	const FReal LocalSpaceScale = Solver->GetLocalSpaceScale();
+	check(LocalSpaceScale > UE_SMALL_NUMBER);
+	const FReal LocalSpaceScaleInv = 1. / LocalSpaceScale;
+	const Softs::FSolverReal MeshScale = Cloth->Mesh->GetScale() * LocalSpaceScaleInv;
 
 	const FTriangleMesh& TriangleMesh = Solver->IsLegacySolver() ? SolverDatum.OffsetTriangleMesh : NoOffsetTriangleMesh;
 
@@ -367,7 +370,10 @@ void FClothingSimulationCloth::FLODData::Update(FClothingSimulationSolver* Solve
 	FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 
 	check(Cloth->Config);
-	const Softs::FSolverReal MeshScale = Cloth->Mesh->GetScale();
+	const FReal LocalSpaceScale = Solver->GetLocalSpaceScale();
+	check(LocalSpaceScale > UE_SMALL_NUMBER);
+	const FReal LocalSpaceScaleInv = 1. / LocalSpaceScale;
+	const Softs::FSolverReal MeshScale = Cloth->Mesh->GetScale() * LocalSpaceScaleInv;
 	const Softs::FSolverReal MaxDistancesScale = (Softs::FSolverReal)Cloth->MaxDistancesMultiplier;
 	ClothConstraints.Update(Cloth->Config->GetProperties(SolverDatum.LODIndex), WeightMaps, VertexSets, FaceSets, FaceIntMaps, MeshScale, MaxDistancesScale, Solver->GetLocalSpaceRotation(), Cloth->ReferenceSpaceTransform.GetRotation());
 }
@@ -694,7 +700,7 @@ FAABB3 FClothingSimulationCloth::CalculateBoundingBox(const FClothingSimulationS
 	}
 
 	// Return world space bounding box
-	return FAABB3(BoundingBox).TransformedAABB(FRigidTransform3(Solver->GetLocalSpaceLocation(), FRotation3::Identity));
+	return FAABB3(BoundingBox).TransformedAABB(FTransform(FRotation3::Identity, Solver->GetLocalSpaceLocation(), FVector(Solver->GetLocalSpaceScale())));
 }
 
 int32 FClothingSimulationCloth::GetParticleRangeId(const FClothingSimulationSolver* Solver) const
@@ -926,7 +932,7 @@ void FClothingSimulationCloth::Update(FClothingSimulationSolver* Solver)
 			{
 				LODData[CoarseLODIndex]->ResetStartPose(Solver);
 			}
-			UE_LOG(LogChaosCloth, VeryVerbose, TEXT("Cloth in group Id %d Needs reset."), GroupId);
+			UE_LOG(LogChaosCloth, Verbose, TEXT("Cloth in group Id %d Needs reset."), GroupId);
 		}
 		else if (bNeedsTeleport)
 		{
@@ -937,7 +943,7 @@ void FClothingSimulationCloth::Update(FClothingSimulationSolver* Solver)
 			ReferenceSpaceAngularVelocity = FVec3(0.);
 			ReferenceSpaceVelocity = FVec3(0.);
 			bDisableFictitiousForces = true; // Disable fictitious forces. Otherwise they will be applied since AngularVelocityScale < 1.
-			UE_LOG(LogChaosCloth, VeryVerbose, TEXT("Cloth in group Id %d Needs teleport."), GroupId);
+			UE_LOG(LogChaosCloth, Verbose, TEXT("Cloth in group Id %d Needs teleport."), GroupId);
 		}
 		else
 		{
@@ -999,7 +1005,10 @@ void FClothingSimulationCloth::Update(FClothingSimulationSolver* Solver)
 			Solver->SetWindVelocity(GroupId, WindVelocity + Solver->GetWindVelocity());
 
 			// Update general solver properties
-			const Softs::FSolverReal MeshScale = Mesh->GetScale();
+			const FReal LocalSpaceScale = Solver->GetLocalSpaceScale();
+			check(LocalSpaceScale > UE_SMALL_NUMBER);
+			const FReal LocalSpaceScaleInv = 1. / LocalSpaceScale;
+			const Softs::FSolverReal MeshScale = Mesh->GetScale() * LocalSpaceScaleInv;
 
 			const FRealSingle DampingCoefficient = ConfigProperties.GetValue<float>(TEXT("DampingCoefficient"), ClothingSimulationClothDefault::DampingCoefficient);
 			const FRealSingle LocalDampingCoefficient = ConfigProperties.GetValue<float>(TEXT("LocalDampingCoefficient"));
@@ -1064,6 +1073,22 @@ TConstArrayView<Softs::FSolverVec3> FClothingSimulationCloth::GetAnimationPositi
 	const int32 LODIndex = LODIndices.FindChecked(Solver);
 	check(GetParticleRangeId(Solver, LODIndex) != INDEX_NONE);
 	return TConstArrayView<Softs::FSolverVec3>(Solver->GetAnimationPositions(GetParticleRangeId(Solver, LODIndex)), GetNumParticles(LODIndex));
+}
+
+TConstArrayView<Softs::FSolverVec3> FClothingSimulationCloth::GetOldAnimationPositions(const FClothingSimulationSolver* Solver) const
+{
+	check(Solver);
+	const int32 LODIndex = LODIndices.FindChecked(Solver);
+	check(GetParticleRangeId(Solver, LODIndex) != INDEX_NONE);
+	return TConstArrayView<Softs::FSolverVec3>(Solver->GetOldAnimationPositions(GetParticleRangeId(Solver, LODIndex)), GetNumParticles(LODIndex));
+}
+
+TConstArrayView<Softs::FSolverVec3> FClothingSimulationCloth::GetAnimationVelocities(const FClothingSimulationSolver* Solver) const
+{
+	check(Solver);
+	const int32 LODIndex = LODIndices.FindChecked(Solver);
+	check(GetParticleRangeId(Solver, LODIndex) != INDEX_NONE);
+	return TConstArrayView<Softs::FSolverVec3>(Solver->GetAnimationVelocities(GetParticleRangeId(Solver, LODIndex)), GetNumParticles(LODIndex));
 }
 
 TConstArrayView<Softs::FSolverVec3> FClothingSimulationCloth::GetAnimationNormals(const FClothingSimulationSolver* Solver) const

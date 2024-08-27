@@ -10,6 +10,7 @@ export void GetClothingSimulationData(uniform FVector3f Positions[],
 									uniform FVector3f Normals[],
 									const uniform FTransform &ReferenceSpaceTransform,
 									const uniform FVector &LocalSpaceLocation,
+									const uniform double LocalSpaceScale,
 									const uniform int NumPositions)
 {
 	const uniform FVector4 RotationInverse = QuatInverse(ReferenceSpaceTransform.Rotation);
@@ -23,7 +24,7 @@ export void GetClothingSimulationData(uniform FVector3f Positions[],
 		const FVector3f NormalFloat = VectorLoad(&Normals[Index]);
 
 		const FVector Position = ConvertVector3fTo3Native(PositionFloat);
-		const FVector InputPositionVector = Position + LocalSpaceLocation;
+		const FVector InputPositionVector = LocalSpaceScale * Position + LocalSpaceLocation;
 
 		const FVector3f InputNormalVectorFloat = NormalFloat * -FLOAT_ONE;
 		const FVector InputNormalVector = ConvertVector3fTo3Native(InputNormalVectorFloat);

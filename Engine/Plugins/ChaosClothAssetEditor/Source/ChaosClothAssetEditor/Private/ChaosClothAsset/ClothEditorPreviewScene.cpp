@@ -292,6 +292,13 @@ void FChaosClothPreviewScene::SceneDescriptionPropertyChanged(const FName& Prope
 		}
 	}
 
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UChaosClothPreviewSceneDescription, SolverGeometryScale))
+	{
+		if (ClothComponent)
+		{
+			ClothComponent->SetClothGeometryScale(PreviewSceneDescription->SolverGeometryScale);
+		}
+	}
 }
 
 UChaosClothComponent* FChaosClothPreviewScene::GetClothComponent()

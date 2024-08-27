@@ -40,6 +40,7 @@ protected:
 	CLOTHINGSYSTEMRUNTIMECOMMON_API virtual void FillDeltaSeconds(float InDeltaSeconds, float InMaxPhysicsDelta);
 	CLOTHINGSYSTEMRUNTIMECOMMON_API virtual void FillTeleportMode(const USkeletalMeshComponent* InComponent, float InDeltaSeconds, float InMaxPhysicsDelta);
 	CLOTHINGSYSTEMRUNTIMECOMMON_API virtual void FillMaxDistanceScale(const USkeletalMeshComponent* InComponent);
+	CLOTHINGSYSTEMRUNTIMECOMMON_API virtual void FillSolverGeometryScale(const USkeletalMeshComponent* InComponent);
 
 public:
 	// Component space bone transforms of the owning component
@@ -72,6 +73,9 @@ public:
 
 	// Scale for the max distance constraints of the simulation mesh
 	float MaxDistanceScale;
+
+	// Scale applied to all incoming geometry
+	float SolverGeometryScale = 1.f;
 
 	// The predicted LOD of the skeletal mesh component running the simulation
 	int32 PredictedLod;

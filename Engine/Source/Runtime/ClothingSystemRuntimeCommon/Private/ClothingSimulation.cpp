@@ -61,6 +61,7 @@ void FClothingSimulationContextCommon::Fill(const USkeletalMeshComponent* InComp
 	FillDeltaSeconds(InDeltaSeconds, InMaxPhysicsDelta);
 	FillTeleportMode(InComponent, InDeltaSeconds, InMaxPhysicsDelta);
 	FillMaxDistanceScale(InComponent);
+	FillSolverGeometryScale(InComponent);
 
 	PredictedLod = InComponent->GetPredictedLODLevel();
 }
@@ -183,6 +184,11 @@ void FClothingSimulationContextCommon::FillTeleportMode(const USkeletalMeshCompo
 void FClothingSimulationContextCommon::FillMaxDistanceScale(const USkeletalMeshComponent* InComponent)
 {
 	MaxDistanceScale = InComponent->GetClothMaxDistanceScale();
+}
+
+void FClothingSimulationContextCommon::FillSolverGeometryScale(const USkeletalMeshComponent* InComponent)
+{
+	SolverGeometryScale = InComponent->ClothGeometryScale;
 }
 
 //==============================================================================

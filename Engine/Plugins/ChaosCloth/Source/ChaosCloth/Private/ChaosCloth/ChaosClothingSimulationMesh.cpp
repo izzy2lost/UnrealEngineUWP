@@ -185,7 +185,7 @@ FORCEINLINE static void AddInfluence(FVector3f& OutPosition, FVector3f& OutNorma
 	OutNormal += BoneMatrix.TransformVector(RefNormal) * Weight;
 }
 
-void FClothingSimulationMesh::SkinPhysicsMesh(int32 LODIndex, const FVec3& LocalSpaceLocation, TArrayView<Softs::FSolverVec3>& OutPositions, TArrayView<Softs::FSolverVec3>& OutNormals) const
+void FClothingSimulationMesh::SkinPhysicsMesh(int32 LODIndex, const FReal LocalSpaceScale, const FVec3& LocalSpaceLocation, TArrayView<Softs::FSolverVec3>& OutPositions, TArrayView<Softs::FSolverVec3>& OutNormals) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FClothingSimulationMesh_SkinPhysicsMesh);
 	SCOPE_CYCLE_COUNTER(STAT_ChaosClothSkinPhysicsMesh);
@@ -193,6 +193,10 @@ void FClothingSimulationMesh::SkinPhysicsMesh(int32 LODIndex, const FVec3& Local
 
 	FTransform ComponentToLocalSpaceReal = GetComponentToWorldTransform();
 	ComponentToLocalSpaceReal.AddToTranslation(-LocalSpaceLocation);
+	check(LocalSpaceScale > UE_SMALL_NUMBER);
+	const FReal LocalSpaceScaleInv = 1. / LocalSpaceScale;
+	ComponentToLocalSpaceReal.MultiplyScale3D(FVec3(LocalSpaceScaleInv));
+	ComponentToLocalSpaceReal.ScaleTranslation(LocalSpaceScaleInv);
 	const FTransform3f ComponentToLocalSpace(ComponentToLocalSpaceReal);  // LWC: Now in local space, therefore it is safe to use single precision which is the asset data format
 
 	const int32* const RESTRICT BoneMap = GetBoneMap().GetData();
@@ -280,11 +284,12 @@ void FClothingSimulationMesh::Update(
 	}
 
 	// Skin current LOD positions
+	const FReal LocalSpaceScale = Solver->GetLocalSpaceScale();
 	const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
 	TArrayView<FSolverVec3> OutPositions = Solver->GetAnimationPositionsView(ParticleRangeId);
 	TArrayView<FSolverVec3> OutNormals = Solver->GetAnimationNormalsView(ParticleRangeId);
 	
-	SkinPhysicsMesh(LODIndex, LocalSpaceLocation, OutPositions, OutNormals);
+	SkinPhysicsMesh(LODIndex, LocalSpaceScale, LocalSpaceLocation, OutPositions, OutNormals);
 
 	// Update old positions after LOD Switching
 	if (LODIndex != PrevLODIndex)
