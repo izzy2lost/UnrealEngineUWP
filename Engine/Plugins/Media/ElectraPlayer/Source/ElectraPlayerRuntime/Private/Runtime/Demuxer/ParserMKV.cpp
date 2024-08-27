@@ -2449,6 +2449,7 @@ namespace Electra
 			{ TEXT("A_AAC/MPEG4/LC"), TEXT("aac") },
 			{ TEXT("A_AAC/MPEG4/LC/SBR"), TEXT("aac") },
 			{ TEXT("A_OPUS"), TEXT("Opus") },
+			{ TEXT("A_FLAC"), TEXT("FLAC") },
 			{ TEXT("A_MPEG/L3"), TEXT("MPEG") },
 			{ TEXT("A_MPEG/L2"), TEXT("MPEG") },
 			{ TEXT("A_MPEG/L1"), TEXT("MPEG") },
@@ -3218,6 +3219,48 @@ namespace Electra
 						InFromTrack->SetDefaultDurationNanos((uint64)nanos);
 					}
 				}
+			}
+			return true;
+		}
+		// FLAC audio?
+		else if (InFromTrack->GetTrackType() == EMKVTrackType::Audio && Codec4CC.Equals(TEXT("FLAC")))
+		{
+			// The Private Data contains all the header/metadata packets before the first data packet.
+			// These include the first header packet containing only the word fLaC as well as all metadata packets.
+			//   https://datatracker.ietf.org/doc/draft-ietf-cellar-codec/
+
+			TArray<uint8> FlacHead = InFromTrack->GetCodecPrivate();
+			const TArray<uint8> MagicFlacHeader {'f','L','a','C'};
+			if (FlacHead.Num() < 4 || FMemory::Memcmp(FlacHead.GetData(), MagicFlacHeader.GetData(), MagicFlacHeader.Num()))
+			{
+				return false;
+			}
+			// Replace the magic header with zeros, which is what the 'dfLa' box of an mp4 starts with
+			// (the version number 0 and flags of 0)
+			// Otherwise this is identical to the `dfLa` box.
+			FlacHead[0] = FlacHead[1] = FlacHead[2] = FlacHead[3] = 0;
+
+			TMKVElementPtr<FMKVAudio> Audio = InFromTrack->GetAudio();
+			if (!Audio.IsValid())
+			{
+				return false;
+			}
+
+			OutCodecInformation.GetExtras().Set(TEXT("dfLa_box"), FVariantValue(FlacHead));
+			OutCodecInformation.SetStreamType(EStreamType::Audio);
+			OutCodecInformation.SetMimeType(TEXT("audio/mp4"));
+			OutCodecInformation.SetCodec(FStreamCodecInformation::ECodec::Audio4CC);
+			OutCodecInformation.SetCodec4CC(Utils::Make4CC('f','L','a','C'));
+			OutCodecInformation.SetCodecSpecificData(FlacHead);
+			OutCodecInformation.SetStreamLanguageCode(InFromTrack->GetLanguage());
+			OutCodecInformation.SetCodecSpecifierRFC6381(TEXT("flac"));
+			OutCodecInformation.SetSamplingRate(Audio->GetOutputSampleRate());
+			OutCodecInformation.SetNumberOfChannels(Audio->GetNumberOfChannels());
+			// If there is no default duration set we try to calculate it from the sample rate.
+			if (InFromTrack->GetDefaultDurationNanos() == 0)
+			{
+				UE_LOG(LogElectraMKVParser, Error, TEXT("A_FLAC requires a sample default duration specified in the track!"));
+				return false;
 			}
 			return true;
 		}

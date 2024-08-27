@@ -532,6 +532,11 @@ namespace Electra
 						HumanReadableCodecName = TEXT("Opus");
 						return true;
 					}
+					case Make4CC('f','L','a','C'):
+					{
+						HumanReadableCodecName = TEXT("Free Lossless Audio Codec (FLAC)");
+						return true;
+					}
 					case Make4CC('m','p','g','a'):
 					{
 						if (GetProfileLevel())
