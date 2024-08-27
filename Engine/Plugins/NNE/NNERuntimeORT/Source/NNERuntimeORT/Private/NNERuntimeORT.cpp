@@ -26,7 +26,7 @@ FGuid UNNERuntimeORTDml::GUID = FGuid((int32)'O', (int32)'D', (int32)'M', (int32
 int32 UNNERuntimeORTDml::Version = 0x00000003;
 
 namespace UE::NNERuntimeORT::Private::Details
-{
+{ 
 	//Should be kept in sync with OnnxFileLoaderHelper::InitUNNEModelDataFromFile()
 	static FString OnnxExternalDataDescriptorKey(TEXT("OnnxExternalDataDescriptor"));
 	static FString OnnxExternalDataBytesKey(TEXT("OnnxExternalDataBytes"));
@@ -48,10 +48,12 @@ namespace UE::NNERuntimeORT::Private::Details
 			for (const auto& Element : ExternalDataSizes)
 			{
 				const FString DataFilePath = Element.Key;
-				OnnxDataDescriptor.AdditionalDataDescriptors.Emplace(
-					DataFilePath,
-					CurrentBucketOffset,
-					Element.Value);
+				FOnnxAdditionalDataDescriptor DataDescriptor;
+				DataDescriptor.Path = DataFilePath;
+				DataDescriptor.Offset = CurrentBucketOffset;
+				DataDescriptor.Size = Element.Value;
+
+				OnnxDataDescriptor.AdditionalDataDescriptors.Emplace(DataDescriptor);
 				CurrentBucketOffset += Element.Value;
 			}
 		}
