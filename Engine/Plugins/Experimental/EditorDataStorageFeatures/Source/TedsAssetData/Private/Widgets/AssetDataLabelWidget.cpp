@@ -25,6 +25,10 @@ FAssetDataLabelWidgetConstructor::FAssetDataLabelWidgetConstructor()
 {
 }
 
+FAssetDataLabelWidgetConstructor::FAssetDataLabelWidgetConstructor(const UScriptStruct* TypeInfo)
+	: FSimpleWidgetConstructor(TypeInfo)
+{
+}
 
 TSharedPtr<SWidget> FAssetDataLabelWidgetConstructor::CreateWidget(ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle TargetRow, UE::Editor::DataStorage::RowHandle WidgetRow,

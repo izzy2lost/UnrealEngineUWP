@@ -28,6 +28,11 @@ FUObjectLabelWidgetConstructor::FUObjectLabelWidgetConstructor()
 {
 }
 
+FUObjectLabelWidgetConstructor::FUObjectLabelWidgetConstructor(const UScriptStruct* TypeInfo)
+	: FSimpleWidgetConstructor(TypeInfo)
+{
+}
+
 TSharedPtr<SWidget> FUObjectLabelWidgetConstructor::CreateWidget(ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi, RowHandle TargetRow, RowHandle WidgetRow,
 	const UE::Editor::DataStorage::FMetaDataView& Arguments)

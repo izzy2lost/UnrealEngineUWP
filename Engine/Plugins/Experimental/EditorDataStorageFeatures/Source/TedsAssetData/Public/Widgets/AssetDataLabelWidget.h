@@ -32,6 +32,7 @@ struct FAssetDataLabelWidgetConstructor : public FSimpleWidgetConstructor
 
 public:
 	TEDSASSETDATA_API FAssetDataLabelWidgetConstructor();
+	TEDSASSETDATA_API explicit FAssetDataLabelWidgetConstructor(const UScriptStruct* TypeInfo);
 	~FAssetDataLabelWidgetConstructor() override = default;
 
 	TEDSASSETDATA_API virtual TSharedPtr<SWidget> CreateWidget(

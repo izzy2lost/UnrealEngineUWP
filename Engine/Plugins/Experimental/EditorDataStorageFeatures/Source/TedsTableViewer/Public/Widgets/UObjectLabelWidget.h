@@ -32,6 +32,7 @@ struct FUObjectLabelWidgetConstructor : public FSimpleWidgetConstructor
 
 public:
 	TEDSTABLEVIEWER_API FUObjectLabelWidgetConstructor();
+	TEDSTABLEVIEWER_API explicit FUObjectLabelWidgetConstructor(const UScriptStruct* TypeInfo);
 	~FUObjectLabelWidgetConstructor() override = default;
 
 	TEDSTABLEVIEWER_API virtual TSharedPtr<SWidget> CreateWidget(
