@@ -247,6 +247,55 @@ FMaterialRelevance UBaseDynamicMeshComponent::GetMaterialRelevance(ERHIFeatureLe
 	return Result;
 }
 
+// Note Dynamic Meshes don't really have named material slots, so we generate slot names from material + index
+namespace UE::Private::DynamicMeshMaterialSlotNameHelper
+{
+	static FName GetMaterialSlotName(const UMaterialInterface* Mat, int32 MaterialIndex)
+	{
+		return FName(FString::Printf(TEXT("%s_%d"), *((Mat) ? Mat->GetName() : TEXT("Material")), MaterialIndex));
+	}
+}
+TArray<FName> UBaseDynamicMeshComponent::GetMaterialSlotNames() const
+{
+	using namespace UE::Private::DynamicMeshMaterialSlotNameHelper;
+	TArray<FName> ToRet;
+	const int32 NumMaterials = GetNumMaterials();
+	ToRet.Reserve(NumMaterials);
+	for (int32 Idx = 0; Idx < NumMaterials; ++Idx)
+	{
+		ToRet.Add(GetMaterialSlotName(GetMaterial(Idx), Idx));
+	}
+	return ToRet;
+}
+
+bool UBaseDynamicMeshComponent::IsMaterialSlotNameValid(FName MaterialSlotName) const
+{
+	using namespace UE::Private::DynamicMeshMaterialSlotNameHelper;
+	const int32 NumMaterials = GetNumMaterials();
+	for (int32 Idx = 0; Idx < NumMaterials; ++Idx)
+	{
+		if (MaterialSlotName == GetMaterialSlotName(GetMaterial(Idx), Idx))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+UMaterialInterface* UBaseDynamicMeshComponent::GetMaterialByName(FName MaterialSlotName) const
+{
+	using namespace UE::Private::DynamicMeshMaterialSlotNameHelper;
+	const int32 NumMaterials = GetNumMaterials();
+	for (int32 Idx = 0; Idx < BaseMaterials.Num(); ++Idx)
+	{
+		if (MaterialSlotName == GetMaterialSlotName(GetMaterial(Idx), Idx))
+		{
+			return GetMaterial(Idx);
+		}
+	}
+	return nullptr;
+}
+
 void UBaseDynamicMeshComponent::SetMaterial(int32 ElementIndex, UMaterialInterface* Material)
 {
 	check(ElementIndex >= 0);

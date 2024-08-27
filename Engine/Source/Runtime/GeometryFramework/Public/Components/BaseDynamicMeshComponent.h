@@ -594,6 +594,15 @@ public:
 
 	GEOMETRYFRAMEWORK_API virtual void SetNumMaterials(int32 NumMaterials);
 
+	//~ Dynamic Mesh component just has an array of materials without managing slot names, but some methods expect
+	//~ to access materials via slot name, so we still implement the UPrimitiveComponent interface to do so
+	// @return an array of slot names generated from the current materials
+	GEOMETRYFRAMEWORK_API virtual TArray<FName> GetMaterialSlotNames() const override;
+	// @return true if the dynamic mesh has a material with this slot name
+	GEOMETRYFRAMEWORK_API virtual bool IsMaterialSlotNameValid(FName MaterialSlotName) const override;
+	// @return a material on this component with this slot name, or null not found
+	GEOMETRYFRAMEWORK_API virtual UMaterialInterface* GetMaterialByName(FName MaterialSlotName) const override;
+
 	//~ UObject Interface.
 #if WITH_EDITOR
 	GEOMETRYFRAMEWORK_API void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
