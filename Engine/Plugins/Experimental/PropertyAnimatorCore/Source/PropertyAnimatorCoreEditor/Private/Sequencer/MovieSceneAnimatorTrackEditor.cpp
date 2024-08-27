@@ -2,6 +2,7 @@
 
 #include "MovieSceneAnimatorTrackEditor.h"
 
+#include "LevelSequence.h"
 #include "Sequencer/MovieSceneAnimatorSection.h"
 #include "Styling/SlateIconFinder.h"
 
@@ -46,8 +47,7 @@ bool FMovieSceneAnimatorTrackEditor::SupportsSequence(UMovieSceneSequence* InSeq
 		return false;
 	}
 
-	// UNiagaraSequence is private so check against class name
-	return InSequence->GetClass()->GetFName() != TEXT("NiagaraSequence");
+	return InSequence->IsA(ULevelSequence::StaticClass());
 }
 
 void FMovieSceneAnimatorTrackEditor::BindDelegates()

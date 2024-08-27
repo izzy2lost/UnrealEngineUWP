@@ -24,6 +24,7 @@ public class PropertyAnimatorCoreEditor : ModuleRules
 		        "EditorWidgets",
 		        "Engine",
 		        "InputCore",
+				"LevelSequence",
 				"MovieScene",
 				"MovieSceneTools",
 		        "OperatorStackEditor",
