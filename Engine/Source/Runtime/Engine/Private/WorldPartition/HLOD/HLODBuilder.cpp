@@ -74,8 +74,9 @@ uint32 UHLODBuilder::ComputeHLODHash(const UActorComponent* InSourceComponent) c
 		// CRC static mesh
 		if (UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh())
 		{
-			ComponentCRC = UHLODProxy::GetCRC(StaticMesh, ComponentCRC);
-			UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Static Mesh (%s) = %x"), *StaticMesh->GetName(), ComponentCRC);
+			uint32 StaticMeshCRC = UHLODProxy::GetCRC(StaticMesh);
+			UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Static Mesh (%s) = %x"), *StaticMesh->GetName(), StaticMeshCRC);
+			ComponentCRC = HashCombineFast(ComponentCRC, StaticMeshCRC);
 		}
 
 		// CRC materials
@@ -85,29 +86,33 @@ uint32 UHLODBuilder::ComputeHLODHash(const UActorComponent* InSourceComponent) c
 			UMaterialInterface* MaterialInterface = StaticMeshComponent->GetMaterial(MaterialIndex);
 			if (MaterialInterface)
 			{
-				ComponentCRC = UHLODProxy::GetCRC(MaterialInterface, ComponentCRC);
-				UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Material (%s) = %x"), *MaterialInterface->GetName(), ComponentCRC);
+				uint32 MaterialInterfaceCRC = UHLODProxy::GetCRC(MaterialInterface);
+				UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Material (%s) = %x"), *MaterialInterface->GetName(), MaterialInterfaceCRC);
+				ComponentCRC = HashCombineFast(ComponentCRC, MaterialInterfaceCRC);
 
 				TArray<UTexture*> Textures;
 				MaterialInterface->GetUsedTextures(Textures, EMaterialQualityLevel::High, true, ERHIFeatureLevel::SM5, true);
 				for (UTexture* Texture : Textures)
 				{
-					ComponentCRC = UHLODProxy::GetCRC(Texture, ComponentCRC);
-					UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Texture (%s) = %x"), *Texture->GetName(), ComponentCRC);
+					uint32 TextureCRC = UHLODProxy::GetCRC(Texture);
+					UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Texture (%s) = %x"), *Texture->GetName(), TextureCRC);
+					ComponentCRC = HashCombineFast(ComponentCRC, TextureCRC);
 				}
 			}
 			UMaterialInterface* NaniteOverride = MaterialInterface ? MaterialInterface->GetNaniteOverride() : nullptr;
 			if (NaniteOverride)
 			{
-				ComponentCRC = UHLODProxy::GetCRC(NaniteOverride, ComponentCRC);
-				UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Material (%s) = %x"), *NaniteOverride->GetName(), ComponentCRC);
+				uint32 NaniteOverrideCRC = UHLODProxy::GetCRC(NaniteOverride);
+				UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Nanite Override Material (%s) = %x"), *NaniteOverride->GetName(), NaniteOverrideCRC);
+				ComponentCRC = HashCombineFast(ComponentCRC, NaniteOverrideCRC);
 
 				TArray<UTexture*> Textures;
 				NaniteOverride->GetUsedTextures(Textures, EMaterialQualityLevel::High, true, ERHIFeatureLevel::SM5, true);
 				for (UTexture* Texture : Textures)
 				{
-					ComponentCRC = UHLODProxy::GetCRC(Texture, ComponentCRC);
-					UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Texture (%s) = %x"), *Texture->GetName(), ComponentCRC);
+					uint32 TextureCRC = UHLODProxy::GetCRC(Texture);
+					UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Nanite Override Texture (%s) = %x"), *Texture->GetName(), TextureCRC);
+					ComponentCRC = HashCombineFast(ComponentCRC, TextureCRC);
 				}
 			}
 		}
