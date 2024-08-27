@@ -28,7 +28,8 @@ enum class EClothMeshSelectionToolActions
 
 	GrowSelection,
 	ShrinkSelection,
-	FloodSelection
+	FloodSelection,
+	ClearSelection
 };
 
 
@@ -84,6 +85,12 @@ public:
 	void FloodSelection()
 	{
 		PostAction(EClothMeshSelectionToolActions::FloodSelection);
+	}
+
+	UFUNCTION(CallInEditor, Category = Selection)
+	void ClearSelection()
+	{
+		PostAction(EClothMeshSelectionToolActions::ClearSelection);
 	}
 
 };
@@ -179,9 +186,5 @@ private:
 	virtual void ApplyAction(EClothMeshSelectionToolActions ActionType);
 
 	void ImportFromCollection(bool bImportFromSecondarySet);
-
-	void GrowSelection();
-	void ShrinkSelection();
-	void FloodSelection();
 };
 
