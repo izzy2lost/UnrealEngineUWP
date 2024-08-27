@@ -620,13 +620,17 @@ void FClothingSimulationSolver::ResetStartPose(int32 ParticleRangeId, int32 NumP
 	Softs::FSolverVec3* const Xs = GetParticleXs(ParticleRangeId);
 	Softs::FSolverVec3* const Vs = GetParticleVs(ParticleRangeId);
 	const Softs::FSolverVec3* const Positions = GetAnimationPositions(ParticleRangeId);
+	const Softs::FSolverVec3* const AnimNormals = GetAnimationNormals(ParticleRangeId);
 	Softs::FSolverVec3* const OldPositions = GetOldAnimationPositions(ParticleRangeId);
 	Softs::FSolverVec3* const InterpolatedPositions = GetInterpolatedAnimationPositions(ParticleRangeId);
 	Softs::FSolverVec3* const AnimationVs = GetAnimationVelocities(ParticleRangeId);
+	Softs::FSolverVec3* const OldAnimNormals = GetOldAnimationNormals(ParticleRangeId);
+	Softs::FSolverVec3* const InterpolatedNormals = GetInterpolatedAnimationNormals(ParticleRangeId);
 
 	for (int32 Index = 0; Index < NumParticles; ++Index)
 	{
 		PandInvMs[Index].P = Xs[Index] = OldPositions[Index] = InterpolatedPositions[Index] = Positions[Index];
+		OldAnimNormals[Index] = InterpolatedNormals[Index] = AnimNormals[Index];
 		Vs[Index] = AnimationVelocities[Index] = Softs::FSolverVec3(0.);
 	}
 }

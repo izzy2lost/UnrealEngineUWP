@@ -166,8 +166,16 @@ namespace Chaos
 		void SkinPhysicsMesh(
 			int32 LODIndex,
 			const FVec3& LocalSpaceLocation,
-			Softs::FSolverVec3* OutPositions,
-			Softs::FSolverVec3* OutNormals) const;
+			TArrayView<Softs::FSolverVec3>& OutPositions,
+			TArrayView<Softs::FSolverVec3>& OutNormals) const;
+
+		bool WrapDeformLOD(
+			int32 PrevLODIndex,
+			int32 LODIndex,
+			const TConstArrayView<Softs::FSolverVec3>& Positions,
+			const TConstArrayView<Softs::FSolverVec3>& Normals,
+			TArrayView<Softs::FSolverVec3>& OutPositions,
+			TArrayView<Softs::FSolverVec3>& OutNormals) const;
 
 #if !UE_BUILD_SHIPPING
 		/** Debug name of the source component. */
