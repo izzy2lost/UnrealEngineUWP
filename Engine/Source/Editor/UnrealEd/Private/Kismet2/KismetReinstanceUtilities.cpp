@@ -2437,7 +2437,12 @@ static void ReplaceActorHelper(AActor* OldActor, UClass* OldClass, UObject*& New
 	OldActor->UObject::Rename(nullptr, OldActor->GetOuter(), REN_DoNotDirty | REN_DontCreateRedirectors);
 
 	const bool bPackageNewlyCreated = OldActor->GetExternalPackage() && OldActor->GetExternalPackage()->HasAnyPackageFlags(PKG_NewlyCreated);
-	
+
+	// Unregister native components so we don't copy any sub-components they generate for themselves (like UCameraComponent does)
+	// Perform this before spawning the new one to avoid collisions for components registering to external systems (e.g., actor will reuse the same guid)
+	bool bHadRegisteredComponents = OldActor->HasActorRegisteredAllComponents();
+	OldActor->UnregisterAllComponents();
+
 	AActor* NewActor = nullptr;
 	{
 		FMakeClassSpawnableOnScope TemporarilySpawnable(SpawnClass);
@@ -2465,15 +2470,14 @@ static void ReplaceActorHelper(AActor* OldActor, UClass* OldClass, UObject*& New
 		}
 	}
 
-
-	NewUObject = NewActor;
 	// store the new actor for the second pass (NOTE: this detaches 
 	// OldActor from all child/parent attachments)
 	//
 	// running the NewActor's construction-script is saved for that 
 	// second pass (because the construction-script may reference 
 	// another instance that hasn't been replaced yet).
-	bool bHadRegisteredComponents = OldActor->HasActorRegisteredAllComponents();
+	NewUObject = NewActor;
+
 	FActorAttachmentData& CurrentAttachmentData = ActorAttachmentData.FindChecked(OldActor);
 	ReplacementActors.Add(FActorReplacementHelper(NewActor, OldActor, MoveTemp(CurrentAttachmentData)));
 	ActorAttachmentData.Remove(OldActor);
@@ -2481,8 +2485,6 @@ static void ReplaceActorHelper(AActor* OldActor, UClass* OldClass, UObject*& New
 	ReinstancedObjectsWeakReferenceMap.Add(OldActor, NewUObject);
 
 	OldActor->DestroyConstructedComponents(); // don't want to serialize components from the old actor
-												// Unregister native components so we don't copy any sub-components they generate for themselves (like UCameraComponent does)
-	OldActor->UnregisterAllComponents();
 
 	// Unregister any native components, might have cached state based on properties we are going to overwrite
 	NewActor->UnregisterAllComponents();
