@@ -305,48 +305,58 @@ private:
 	uint8 bAlias : 1;
 };
 
-
-/** D3D11 render query */
-class FD3D11RenderQuery : public FRHIRenderQuery
+class FD3D11RenderQuery
 {
-public:
-	/** The query resource. */
+private:
 	TRefCountPtr<ID3D11Query> Resource;
 
-	/** The cached query result. */
-	uint64 Result = 0;
-
-	enum class EState
-	{
-		None,
-		Ended,
-		Cached
-	};
-	std::atomic<EState> State { EState::None };
-
-	// todo: memory optimize
-	ERenderQueryType QueryType;
+	// Location the result is written to.
+	uint64* Target = nullptr;
 
 	// Linked list pointers. Used to build a list of "active" queries, i.e. queries that need data to be polled from the GPU.
 	FD3D11RenderQuery** Prev = nullptr;
 	FD3D11RenderQuery* Next = nullptr;
 
-	/** Initialization constructor. */
-	FD3D11RenderQuery(ID3D11Query* InResource, ERenderQueryType InQueryType)
-		: Resource(InResource)
-		, QueryType(InQueryType)
-	{}
-
-	virtual ~FD3D11RenderQuery()
+public:
+	enum class EState : uint8
 	{
-		Unlink();
-	}
+		None,
+		Ended,
+		Completed
+	};
+	std::atomic<EState> State { EState::None };
+
+	enum class EType : uint8
+	{
+		Timestamp,
+		Occlusion,
+		Profiler
+	} const Type;
+
+	FD3D11RenderQuery(EType Type);
+	~FD3D11RenderQuery();
 
 	bool CacheResult(class FD3D11DynamicRHI& RHI, bool bWait);
 
+	void Begin(ID3D11DeviceContext* Context);
+	void End(ID3D11DeviceContext* Context, uint64* Target);
+
 	bool IsLinked() const { return Prev != nullptr; }
+
+private:
 	void Link();
 	void Unlink();
+};
+
+/** D3D11 render query */
+class FD3D11RenderQuery_RHI : public FRHIRenderQuery, public FD3D11RenderQuery
+{
+public:
+	uint64 Result = 0;
+
+	FD3D11RenderQuery_RHI(EType Type)
+		: FD3D11RenderQuery(Type)
+	{}
 };
 
 /** Forward declare the constants ring buffer. */
@@ -537,7 +547,7 @@ struct TD3D11ResourceTraits<FRHIBoundShaderState>
 template<>
 struct TD3D11ResourceTraits<FRHIRenderQuery>
 {
-	typedef FD3D11RenderQuery TConcreteType;
+	typedef FD3D11RenderQuery_RHI TConcreteType;
 };
 template<>
 struct TD3D11ResourceTraits<FRHIUniformBuffer>

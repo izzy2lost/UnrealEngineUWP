@@ -267,13 +267,18 @@ void FD3D11DynamicRHI::Shutdown()
 
 		if (ShouldEmitBreadcrumbs())
 		{
+		#if RHI_NEW_GPU_PROFILER
+			FlushProfilerStats();
+
+			auto& Event = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FBeginBreadcrumb>(Breadcrumb);
+			InsertProfilerTimestamp(&Event.GPUTimestampTOP);
+		#else
 			// @todo dev-pr avoid TCHAR -> ANSI conversion
 			FRHIBreadcrumb::FBuffer Buffer;
 			TCHAR const* Name = Breadcrumb->Name.GetTCHAR(Buffer);
 
-#if (RHI_NEW_GPU_PROFILER == 0)
 			GPUProfilingData.PushEvent(Name, FColor::White);
-#endif
+		#endif
 		}
 	}
 
@@ -281,9 +286,14 @@ void FD3D11DynamicRHI::Shutdown()
 	{
 		if (ShouldEmitBreadcrumbs())
 		{
-#if (RHI_NEW_GPU_PROFILER == 0)
+		#if RHI_NEW_GPU_PROFILER
+			FlushProfilerStats();
+
+			auto& Event = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FEndBreadcrumb>(Breadcrumb);
+			InsertProfilerTimestamp(&Event.GPUTimestampBOP);
+		#else
 			GPUProfilingData.PopEvent();
-#endif
+		#endif
 		}
 
 	#if NV_AFTERMATH
@@ -547,6 +557,24 @@ void FD3D11DynamicRHI::SetupAfterDeviceCreation()
 			UE_LOG(LogD3D11RHI, Log, TEXT("Array index from any shader is supported"));
 		}
 	}
+
+	TimestampCalibration = CalibrateTimers();
+
+#if RHI_NEW_GPU_PROFILER
+	// Register the single graphics GPU queue we have access to in D3D11.
+	UE::RHI::GPUProfiler::FQueue Queue(UE::RHI::GPUProfiler::FQueue::EType::Graphics, 0, 0);
+	UE::RHI::GPUProfiler::InitializeQueues(MakeConstArrayView(&Queue, 1));
+
+	//
+	// Since we can't tell when the GPU is actually executing engine work in D3D11,
+	// just mark the GPU as always busy in the frame. We also push begin/end work
+	// markers in RHIEndFrame either side of the frame boundary.
+	//
+	{
+		auto& Event = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FBeginWork>(FPlatformTime::Cycles64());
+		InsertProfilerTimestamp(&Event.GPUTimestampTOP);
+	}
+#endif
 }
 
 void FD3D11DynamicRHI::UpdateMSAASettings()

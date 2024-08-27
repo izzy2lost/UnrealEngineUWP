@@ -424,7 +424,7 @@ public:
 	 * @param bStallRHIThread - if true, stall RHIT before accessing immediate context
 	 * @return true if the query finished.
 	 */
-	bool GetQueryData(ID3D11Query* Query, void* Data, SIZE_T DataSize, ERenderQueryType QueryType, bool bWait, bool bStallRHIThread);
+	bool GetQueryData(ID3D11Query* Query, void* Data, SIZE_T DataSize, bool bTimestamp, bool bWait, bool bStallRHIThread);
 
 	virtual FSamplerStateRHIRef RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer) final override;
 	virtual FRasterizerStateRHIRef RHICreateRasterizerState(const FRasterizerStateInitializerRHI& Initializer) final override;
@@ -793,6 +793,64 @@ protected:
 	} ActiveQueries;
 	friend class FD3D11RenderQuery;
 
+	struct FProfiler
+	{
+		struct FFrame
+		{
+			TRefCountPtr<ID3D11Query> CompletionQuery;
+
+		#if RHI_NEW_GPU_PROFILER
+			UE::RHI::GPUProfiler::FEventStream EventStream;
+		#endif
+
+		#if WITH_RHI_BREADCRUMBS
+			FRHIBreadcrumbAllocatorArray BreadcrumbAllocators{};
+		#endif
+		};
+
+		FFrame Current;
+		TQueue<TUniquePtr<FFrame>> Pending;
+
+		TArray<FD3D11RenderQuery*> TimestampPool;
+		TArray<TRefCountPtr<ID3D11Query>> EventPool;
+
+	} Profiler;
+
+#if RHI_NEW_GPU_PROFILER
+	template <typename TEventType, typename... TArgs>
+	TEventType& EmplaceProfilerEvent(TArgs&&... Args)
+	{
+		return Profiler.Current.EventStream.Emplace<TEventType>(Forward<TArgs>(Args)...);
+	}
+
+	void InsertProfilerTimestamp(uint64* Target);
+
+	void FlushProfilerStats()
+	{
+		// Flush accumulated draw stats
+		if (StatEvent)
+		{
+			EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FStats>() = StatEvent;
+			StatEvent = {};
+		}
+	}
+#endif // RHI_NEW_GPU_PROFILER
+
+public:
+	struct FTimestampCalibration
+	{
+		uint64 CPUTimestamp = 0;
+		uint64 CPUFrequency = 0;
+
+		uint64 GPUTimestamp = 0;
+		uint64 GPUFrequency = 0;
+	};
+
+	TOptional<FTimestampCalibration> CalibrateTimers();
+
+protected:
+	TOptional<FTimestampCalibration> TimestampCalibration;
+
 	/** D3D11 defines a maximum of 14 constant buffers per shader stage. */
 	enum { MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE = 14 };
 
@@ -832,8 +890,8 @@ protected:
 
 public:
 #if RHI_NEW_GPU_PROFILER
-	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ checkNoEntry(); } // @todo - new gpu profiler
-	void RegisterGPUDispatch(FIntVector GroupCount)	                        { checkNoEntry(); } // @todo - new gpu profiler
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ /*checkNoEntry();*/ } // @todo - new gpu profiler
+	void RegisterGPUDispatch(FIntVector GroupCount)	                        { /*checkNoEntry();*/ } // @todo - new gpu profiler
 #else
 	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ GPUProfilingData.RegisterGPUWork(NumPrimitives, NumVertices); }
 	void RegisterGPUDispatch(FIntVector GroupCount)	                        { GPUProfilingData.RegisterGPUDispatch(GroupCount); }

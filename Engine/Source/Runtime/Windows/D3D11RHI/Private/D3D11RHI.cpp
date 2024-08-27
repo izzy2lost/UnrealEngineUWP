@@ -32,9 +32,68 @@ extern void UniformBufferBeginFrame();
 void FD3D11DynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 {
 	// End Frame
-#if (RHI_NEW_GPU_PROFILER == 0)
+#if RHI_NEW_GPU_PROFILER
+	{
+		// End GPU work
+		auto& EndWork = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FEndWork>();
+		InsertProfilerTimestamp(&EndWork.GPUTimestampBOP);
+
+		// Insert frame boundary
+		EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FFrameBoundary>(Args.FrameNumber
+	#if WITH_RHI_BREADCRUMBS
+			, Args.GPUBreadcrumbs[ERHIPipeline::Graphics]
+	#endif
+		);
+
+		// Issue a completion query so we know when to readback these profiler results.
+		{
+			if (Profiler.EventPool.IsEmpty())
+			{
+				D3D11_QUERY_DESC QueryDesc {};
+				QueryDesc.Query = D3D11_QUERY_EVENT;
+				VERIFYD3D11RESULT(Direct3DDevice->CreateQuery(&QueryDesc, Profiler.Current.CompletionQuery.GetInitReference()));
+			}
+			else
+			{
+				Profiler.Current.CompletionQuery = Profiler.EventPool.Pop();
+			}
+
+			Direct3DDeviceIMContext->End(Profiler.Current.CompletionQuery);
+			Profiler.Pending.Enqueue(MakeUnique<FProfiler::FFrame>(MoveTemp(Profiler.Current)));
+		}
+
+		// Attempt to process historic results
+		while (TUniquePtr<FProfiler::FFrame>* PreviousFramePtr = Profiler.Pending.Peek())
+		{
+			TUniquePtr<FProfiler::FFrame>& PreviousFrame = *PreviousFramePtr;
+
+			BOOL EventComplete = false;
+			VERIFYD3D11RESULT(Direct3DDeviceIMContext->GetData(PreviousFrame->CompletionQuery, &EventComplete, sizeof(EventComplete), 0));
+			if (!EventComplete)
+			{
+				// Frame not yet finished on the GPU
+				break;
+			}
+
+			// Ensure we have the latest timestamp data
+			PollQueryResults();
+
+			// Previous frame has completed and the data is available. Publish the profiler events.
+			UE::RHI::GPUProfiler::ProcessEvents(UE::RHI::GPUProfiler::FQueue(UE::RHI::GPUProfiler::FQueue::EType::Graphics, 0, 0), PreviousFrame->EventStream);
+
+			Profiler.EventPool.Push(MoveTemp(PreviousFrame->CompletionQuery));
+			Profiler.Pending.Pop();
+		}
+
+		// Start the next frame's GPU work
+		auto& BeginWork = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FBeginWork>(FPlatformTime::Cycles64());
+		InsertProfilerTimestamp(&BeginWork.GPUTimestampTOP);
+	}
+
+#else
 	GPUProfilingData.EndFrame();
 #endif
+
 	UpdateMemoryStats();
 	CurrentComputeShader = nullptr;
 
@@ -638,3 +697,20 @@ void FD3D11DynamicRHI::RHIVerifyResult(ID3D11Device* Device, HRESULT Result, con
 {
 	VerifyD3D11Result(Result, Code, Filename, Line, Device);
 }
+
+#if RHI_NEW_GPU_PROFILER
+void FD3D11DynamicRHI::InsertProfilerTimestamp(uint64* Target)
+{
+	FD3D11RenderQuery* Query;
+	if (Profiler.TimestampPool.IsEmpty())
+	{
+		Query = new FD3D11RenderQuery(FD3D11RenderQuery::EType::Profiler);
+	}
+	else
+	{
+		Query = Profiler.TimestampPool.Pop();
+	}
+
+	Query->End(Direct3DDeviceIMContext, Target);
+}
+#endif // RHI_NEW_GPU_PROFILER

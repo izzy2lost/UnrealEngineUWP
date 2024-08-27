@@ -1397,13 +1397,27 @@ IRHIComputeContext* FD3D11DynamicRHI::RHIGetCommandContext(ERHIPipeline Pipeline
 	return nullptr;
 }
 
+struct FD3D11PlatformCommandList : public IRHIPlatformCommandList
+{
+	virtual ~FD3D11PlatformCommandList() = default;
+};
+
 void FD3D11DynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output)
 {
+#if RHI_NEW_GPU_PROFILER
+	FlushProfilerStats();
+#endif
+
 	// "Context" will always be the default context, since we don't implement parallel execution.
-	for(IRHIComputeContext* Context : Args.Contexts)
+	for (IRHIComputeContext* Context : Args.Contexts)
 	{
 		// "Context" will always be the default context, since we don't implement parallel execution.
 		check(Context == this);
+
+#if RHI_NEW_GPU_PROFILER && WITH_RHI_BREADCRUMBS
+		// We need platform command lists to contain the breadcrumb allocators
+		Output[Context->GetPipeline()] = new FD3D11PlatformCommandList;
+#endif
 	}
 
 	// Reset some context state
@@ -1422,6 +1436,22 @@ void FD3D11DynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 {
 	// Attempt to readback completed queries
 	PollQueryResults();
+
+#if RHI_NEW_GPU_PROFILER && WITH_RHI_BREADCRUMBS
+	for (IRHIPlatformCommandList* CmdList : Args.CommandLists)
+	{
+		FD3D11PlatformCommandList* D3DCmdList = static_cast<FD3D11PlatformCommandList*>(CmdList);
+
+		// Preserve the breadcrumb allocators in the profiler frame
+		// so they are kept alive until the frame's data is processed.
+		for (auto const& Allocator : D3DCmdList->BreadcrumbAllocators)
+		{
+			Profiler.Current.BreadcrumbAllocators.AddUnique(&Allocator.Get());
+		}
+
+		delete D3DCmdList;
+	}
+#endif
 }
 
 void FD3D11DynamicRHI::EnableUAVOverlap()
