@@ -55,6 +55,8 @@ def _hash(x):
     return ret
 
 
+TOC_SIZE        = 8192
+TOC_ENTRY_SIZE  = 128
 
 #-------------------------------------------------------------------------------
 class Blob(object):
@@ -68,12 +70,12 @@ class Blob(object):
             data = memoryview(data)
         self._set_data(data)
         self._ranges = []
-        self._toc_set = [0] * (len(self._toc) // 128)
+        self._toc_set = [0] * (len(self._toc) // TOC_ENTRY_SIZE)
 
     def _set_data(self, data):
         self._data = data.cast("B")
         self._lede = data[:256]
-        self._toc = data[256:4096]
+        self._toc = data[256:TOC_SIZE]
 
     def get_data(self) -> memoryview:
         return self._data
@@ -86,8 +88,8 @@ class Blob(object):
 
     def find(self, key:memoryview) -> Iterator[Tuple[str, memoryview]]:
         key, nonce, nonce_toc = self._diffuse(key)
-        for i in range(0, len(self._toc), 128):
-            piece = self._toc[i:i + 128]
+        for i in range(0, len(self._toc), TOC_ENTRY_SIZE):
+            piece = self._toc[i:i + TOC_ENTRY_SIZE]
             piece = _chacha20(piece, key=key, nonce=nonce_toc)
             piece = memoryview(piece).cast("L")
             name = piece[4:].cast("B")
@@ -106,11 +108,11 @@ class Blob(object):
 
         # find somewhere to store it or grow if we fail a lot
         offset = 0
-        space = len(self._data) - size - 4096
+        space = len(self._data) - size - TOC_SIZE
         assert space > 0
         for i in range(100):
             offset = secrets.randbelow(space)
-            offset += 4096
+            offset += TOC_SIZE
             for l,r in self._ranges:
                 if not (offset + size <= l or offset >= r):
                     offset = 0
@@ -137,7 +139,7 @@ class Blob(object):
         assert name_length <= 112
         name = name + secrets.token_bytes(112 - name_length)
 
-        toc_entry = bytearray(128)
+        toc_entry = bytearray(TOC_ENTRY_SIZE)
         toc_entry[16:] = name
         toc_entry = memoryview(toc_entry).cast("L")
         toc_entry[0] = offset
@@ -153,8 +155,10 @@ class Blob(object):
             if self._toc_set[toc_index] == 0:
                 self._toc_set[toc_index] = 1
                 break
+            if 0 not in self._toc_set:
+                raise RuntimeError("toc is full")
 
         # blit encrypted parts into blob
-        toc_index = toc_index * 128
+        toc_index = toc_index * TOC_ENTRY_SIZE
         self._data[offset:offset + size] = data
-        self._toc[toc_index:toc_index + 128] = toc_entry
+        self._toc[toc_index:toc_index + TOC_ENTRY_SIZE] = toc_entry

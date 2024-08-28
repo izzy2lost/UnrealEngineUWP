@@ -179,5 +179,5 @@ class Deploy(_Impl):
         self.args.build  = False
         self.args.cook   = False
         self.args.deploy = True
-        self.args.style  = 'nopak'
+        self.args.style  = "nopak"
         return super().main(skipstage=True)
