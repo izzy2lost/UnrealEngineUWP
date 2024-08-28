@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Misc/Attribute.h"
+#include "Misc/Optional.h"
 
 /**
  * Structure for optional floating point sizes.
@@ -24,6 +25,15 @@ struct FOptionalSize
 	 */
 	FOptionalSize( const float SpecifiedSize )
 		: Size(SpecifiedSize)
+	{ }
+
+	/**
+	 * Creates a size with the TOptional value.
+	 *
+	 * @param OptionalSize The optional size to set.
+	 */
+	FOptionalSize( const TOptional<float>& OptionalSize )
+		: Size(OptionalSize.Get(Unspecified))
 	{ }
 
 public:
