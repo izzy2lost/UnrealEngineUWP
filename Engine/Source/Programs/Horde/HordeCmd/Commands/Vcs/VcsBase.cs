@@ -4,7 +4,6 @@ using System.Diagnostics;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
-using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Commands.Vcs
