@@ -182,6 +182,13 @@ UDMXEntityFixtureType* UDMXEntityFixtureType::CreateFixtureTypeInLibrary(FDMXEnt
 		NewFixtureType->DMXCategory = ConstructionParams.DMXCategory;
 		NewFixtureType->Modes = ConstructionParams.Modes;
 
+		// Update the channel span for each mode
+		for (int32 ModeIndex = 0; ModeIndex < NewFixtureType->Modes.Num(); ModeIndex++)
+		{
+			NewFixtureType->UpdateChannelSpan(ModeIndex);
+		}
+
+
 #if WITH_EDITOR
 		if (bMarkDMXLibraryDirty)
 		{
