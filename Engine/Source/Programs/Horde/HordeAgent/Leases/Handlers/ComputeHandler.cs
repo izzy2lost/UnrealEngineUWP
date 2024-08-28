@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Globalization;
 using System.Net.Sockets;
 using EpicGames.Core;
 using EpicGames.Horde.Agents.Leases;
@@ -77,14 +78,17 @@ namespace HordeAgent.Leases.Handlers
 							try
 							{
 								DirectoryReference.CreateDirectory(sandboxDir);
-
 								DirectoryReference sharedDir = DirectoryReference.Combine(session.WorkingDir, "Saved");
 								DirectoryReference.CreateDirectory(sharedDir);
 
-								Dictionary<string, string?> newEnvVars = new Dictionary<string, string?>();
-								newEnvVars["UE_HORDE_SHARED_DIR"] = sharedDir.FullName;
-								newEnvVars["UE_HORDE_TERMINATION_SIGNAL_FILE"] = _settings.GetTerminationSignalFile().FullName;
-
+								Dictionary<string, string?> newEnvVars = new ()
+								{
+									["UE_HORDE_SHARED_DIR"] = sharedDir.FullName,
+									["UE_HORDE_TERMINATION_SIGNAL_FILE"] = _settings.GetTerminationSignalFile().FullName,
+									["UE_HORDE_CPU_COUNT"] = Convert.ToString(_settings.CpuCount),
+									["UE_HORDE_CPU_MULTIPLIER"] = Convert.ToString(_settings.CpuMultiplier, CultureInfo.InvariantCulture),
+								};
+								
 								AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, newEnvVars, false, _settings.WineExecutablePath, _settings.ContainerEngineExecutablePath, logger);
 								await worker.RunAsync(socket, cts.Token);
 								await socket.CloseAsync(cts.Token);

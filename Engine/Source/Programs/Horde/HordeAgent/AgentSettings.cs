@@ -192,6 +192,19 @@ namespace HordeAgent
 		/// Maximum size of the bundle cache, in megabytes.
 		/// </summary>
 		public long BundleCacheSize { get; set; } = 1024;
+		
+		/// <summary>
+		/// Maximum number of logical CPU cores workloads should use
+		/// Currently this is only provided as a hint and requires leases to respect this value as it's set via an env variable (UE_HORDE_CPU_COUNT).
+		/// </summary>
+		public int CpuCount { get; set; } = Environment.ProcessorCount;
+		
+		/// <summary>
+		/// CPU core multiplier applied to CPU core count setting
+		/// For example, 32 CPU cores and a multiplier of 0.5 results in max 16 CPU usage.
+		/// <see cref="CpuCount" />
+		/// </summary>
+		public double CpuMultiplier { get; set; } = 1.0;
 
 		/// <summary>
 		/// Key/value properties in addition to those set internally by the agent
