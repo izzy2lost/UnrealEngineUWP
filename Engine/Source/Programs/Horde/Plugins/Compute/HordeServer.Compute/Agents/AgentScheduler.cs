@@ -466,7 +466,6 @@ namespace HordeServer.Agents
 
 		async Task<bool> TryUpdateCachedFiltersAsync(CancellationToken cancellationToken)
 		{
-			DateTime utcNow = _clock.UtcNow;
 			IDatabase database = _redisService.GetDatabase();
 
 			IoHash[] filterHashes = await database.HashKeysAsync(Keys.Filters.Current);
@@ -559,7 +558,7 @@ namespace HordeServer.Agents
 			}
 		}
 
-		void UpdateFilters(ITransaction transaction, SessionId sessionId, IReadOnlyDictionary<IoHash, bool> oldFilters, IReadOnlyDictionary<IoHash, bool> newFilters)
+		static void UpdateFilters(ITransaction transaction, SessionId sessionId, IReadOnlyDictionary<IoHash, bool> oldFilters, IReadOnlyDictionary<IoHash, bool> newFilters)
 		{
 			// Create any new filters
 			foreach ((IoHash newFilter, bool newAvailable) in newFilters)

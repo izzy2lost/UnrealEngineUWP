@@ -1,15 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Diagnostics;
-using System.IO.Pipes;
 using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Text.Json;
 using EpicGames.Core;
-using HordeAgent;
-using HordeTrayApp.Forms;
 using HordeTrayApp.Properties;
-using Microsoft.Win32;
 
 namespace HordeTrayApp
 {

@@ -38,7 +38,6 @@ using HordeServer.Streams;
 using HordeServer.Users;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -911,7 +910,7 @@ namespace HordeServer.Notifications.Sinks
 		{
 			if (issue.FixCommitId != null)
 			{
-				foreach(IGrouping<StreamId, IIssueSpan> group in spans.GroupBy(x => x.StreamId))
+				foreach (IGrouping<StreamId, IIssueSpan> group in spans.GroupBy(x => x.StreamId))
 				{
 					IIssueStream? stream = issue.Streams.FirstOrDefault(x => x.StreamId == group.Key);
 					if (stream != null && (stream.ContainsFix ?? false))
@@ -935,7 +934,7 @@ namespace HordeServer.Notifications.Sinks
 			if (issue.FixCommitId != null)
 			{
 				HashSet<StreamId> originStreams = new HashSet<StreamId>(issue.Streams.Where(x => x.MergeOrigin ?? false).Select(x => x.StreamId));
-				foreach(IGrouping<StreamId, IIssueSpan> group in spans.GroupBy(x => x.StreamId).OrderBy(x => x.Key.ToString()))
+				foreach (IGrouping<StreamId, IIssueSpan> group in spans.GroupBy(x => x.StreamId).OrderBy(x => x.Key.ToString()))
 				{
 					if (originStreams.Contains(group.Key))
 					{

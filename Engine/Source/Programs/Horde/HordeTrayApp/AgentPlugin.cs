@@ -1,17 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO.Pipes;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 using EpicGames.Core;
-using HordeTrayApp.Forms;
 using HordeAgent;
+using HordeTrayApp.Forms;
 using Microsoft.Win32;
 
 namespace HordeTrayApp
