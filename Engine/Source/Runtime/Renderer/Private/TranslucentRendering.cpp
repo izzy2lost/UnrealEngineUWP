@@ -105,6 +105,45 @@ static TAutoConsoleVariable<int32> CVarParallelTranslucency(
 	TEXT("Toggles parallel translucency rendering. Parallel rendering must be enabled for this to have an effect."),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarRenderTranslucentHoldout(
+	TEXT("r.RenderTranslucentHoldout"),
+	-1,
+	TEXT("Toggles translucency holdout rendering.\n")
+	TEXT("   0: Disable the dedicated translucent holdout pass (legacy behavior). \n")
+	TEXT("Else: Automatically turn on/off the dedicated holdout pass based on whether Propagate Alpha is on/off\n"),
+	ECVF_RenderThreadSafe);
+
+bool IsTranslucentHoldoutEnabled(EShadingPath ShadingPath)
+{
+	const int32 RenderTranslucentHoldout = CVarRenderTranslucentHoldout.GetValueOnRenderThread();
+	bool bPropagateAlpha = false;
+
+	if (RenderTranslucentHoldout != 0)
+	{
+		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
+		// TODO: add support to Mobile renderer 
+		bPropagateAlpha = CVar->GetBool() && (ShadingPath != EShadingPath::Mobile);
+	}
+
+	return bPropagateAlpha;
+}
+
+static bool IsTranslucentHoldoutEnabled(TArrayView<const FViewInfo> Views)
+{
+	bool bPropagateAlpha = true;
+
+	for (int32 ViewId = 0; ViewId < Views.Num(); ++ViewId)
+	{
+		if (!IsTranslucentHoldoutEnabled(GetFeatureLevelShadingPath(Views[ViewId].GetFeatureLevel())))
+		{
+			bPropagateAlpha = false;
+			break;
+		}
+	}
+	
+	return bPropagateAlpha;
+}
+
 DynamicRenderScaling::FHeuristicSettings GetDynamicTranslucencyResolutionSettings()
 {
 	DynamicRenderScaling::FHeuristicSettings BucketSetting;
@@ -128,6 +167,7 @@ static const TCHAR* kTranslucencyPassName[] = {
 	TEXT("AfterDOF"),
 	TEXT("AfterDOFModulate"),
 	TEXT("AfterMotionBlur"),
+	TEXT("Holdout"),
 	TEXT("All"),
 };
 static_assert(UE_ARRAY_COUNT(kTranslucencyPassName) == int32(ETranslucencyPass::TPT_MAX), "Fix me");
@@ -138,6 +178,7 @@ static const TCHAR* kTranslucencyColorTextureName[] = {
 	TEXT("Translucency.AfterDOF.Color"),
 	TEXT("Translucency.AfterDOF.Modulate"),
 	TEXT("Translucency.AfterMotionBlur.Color"),
+	TEXT("Translucency.Holdout.Visibility"),
 	TEXT("Translucency.All.Color"),
 };
 static_assert(UE_ARRAY_COUNT(kTranslucencyColorTextureName) == int32(ETranslucencyPass::TPT_MAX), "Fix me");
@@ -148,6 +189,7 @@ static const TCHAR* kTranslucencyColorTextureMultisampledName[] = {
 	TEXT("Translucency.AfterDOF.ColorMS"),
 	TEXT("Translucency.AfterDOF.ModulateMS"),
 	TEXT("Translucency.AfterMotionBlur.ColorMS"),
+	TEXT("Translucency.Holdout.VisibilityMS"),
 	TEXT("Translucency.All.ColorMS"),
 };
 static_assert(UE_ARRAY_COUNT(kTranslucencyColorTextureMultisampledName) == UE_ARRAY_COUNT(kTranslucencyColorTextureName), "Fix me");
@@ -168,6 +210,7 @@ EMeshPass::Type TranslucencyPassToMeshPass(ETranslucencyPass::Type TranslucencyP
 	case ETranslucencyPass::TPT_TranslucencyAfterDOF:			TranslucencyMeshPass = EMeshPass::TranslucencyAfterDOF; break;
 	case ETranslucencyPass::TPT_TranslucencyAfterDOFModulate:	TranslucencyMeshPass = EMeshPass::TranslucencyAfterDOFModulate; break;
 	case ETranslucencyPass::TPT_TranslucencyAfterMotionBlur:	TranslucencyMeshPass = EMeshPass::TranslucencyAfterMotionBlur; break;
+	case ETranslucencyPass::TPT_TranslucencyHoldout:			TranslucencyMeshPass = EMeshPass::TranslucencyHoldout; break;
 	case ETranslucencyPass::TPT_AllTranslucency:				TranslucencyMeshPass = EMeshPass::TranslucencyAll; break;
 	}
 
@@ -313,7 +356,7 @@ public:
 
 IMPLEMENT_GLOBAL_SHADER(FCopySceneColorPS, "/Engine/Private/TranslucentLightingShaders.usf", "CopySceneColorMain", SF_Pixel);
 
-static FRDGTextureRef AddCopySceneColorPass(FRDGBuilder& GraphBuilder, TArrayView<const FViewInfo> Views, FRDGTextureMSAA SceneColor)
+static FRDGTextureRef AddCopySceneColorPass(FRDGBuilder& GraphBuilder, TArrayView<const FViewInfo> Views, FRDGTextureMSAA SceneColor,bool WithAlpha = false)
 {
 	FRDGTextureRef SceneColorCopyTexture = nullptr;
 	ERenderTargetLoadAction LoadAction = ERenderTargetLoadAction::ENoAction;
@@ -368,12 +411,93 @@ static FRDGTextureRef AddCopySceneColorPass(FRDGBuilder& GraphBuilder, TArrayVie
 				LoadAction = ERenderTargetLoadAction::ELoad;
 			}
 
+			FRHIBlendState* BlendState = nullptr;
+
+			if (WithAlpha)
+			{
+				BlendState = FScreenPassPipelineState::FDefaultBlendState::GetRHI();
+			}
+			else
+			{
+				// The original behavior sets alpha to zero.
+				BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_Zero, BF_One, BO_Add, BF_Zero, BF_Zero>::GetRHI();
+			}
+
 			AddDrawScreenPass(GraphBuilder, {}, View, Viewport, Viewport, VertexShader, PixelShader, PassParameters);
 		}
 	}
 
 	return SceneColorCopyTexture;
 }
+
+static void AddCopySceneColorAlphaPass(FRDGBuilder& GraphBuilder, TArrayView<const FViewInfo> Views, FRDGTextureRef SourceTexture, FRDGTextureRef TargetTexture)
+{
+	ERenderTargetLoadAction LoadAction = ERenderTargetLoadAction::ENoAction;
+
+	RDG_EVENT_SCOPE(GraphBuilder, "CopySceneColorAlpha");
+
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+	{
+		const FViewInfo& View = Views[ViewIndex];
+
+		if (View.IsUnderwater())
+		{
+			continue;
+		}
+
+		RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
+		RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1, "View%d", ViewIndex);
+
+		const FIntPoint SceneColorExtent = SourceTexture->Desc.Extent;
+
+		const FScreenPassTextureViewport Viewport(TargetTexture, View.ViewRect);
+
+		TShaderMapRef<FScreenVS> VertexShader(View.ShaderMap);
+		TShaderMapRef<FCopySceneColorPS> PixelShader(View.ShaderMap);
+
+		auto* PassParameters = GraphBuilder.AllocParameters<FCopySceneColorPS::FParameters>();
+		PassParameters->View = View.ViewUniformBuffer;
+		PassParameters->SceneColorTexture = SourceTexture;
+		PassParameters->RenderTargets[0] = FRenderTargetBinding(TargetTexture, LoadAction);
+
+		if (!View.Family->bMultiGPUForkAndJoin)
+		{
+			LoadAction = ERenderTargetLoadAction::ELoad;
+		}
+
+		FRHIBlendState* BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_Zero, BF_One, BO_Add, BF_One, BF_Zero>::GetRHI();
+		AddDrawScreenPass(GraphBuilder, {}, View, Viewport, Viewport, VertexShader, PixelShader, BlendState, PassParameters);
+	}
+}
+
+class FCopyBackgroundVisibilityPS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FCopyBackgroundVisibilityPS);
+	SHADER_USE_PARAMETER_STRUCT(FCopyBackgroundVisibilityPS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, TranslucentHoldoutPointTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, TranslucentHoldoutPointSampler)
+
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+
+	enum class EVisibilityCopyType :int32
+	{
+		FromSceneColor, // Copy alpha (background visibility) of scene color to any of the rgb
+		ToSceneColor, // Copy background visibility from any of the rgb to the alpha of an image for scene color composition.
+		MAX
+	};
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+	}
+
+	class FDimVisibilityCopyType :SHADER_PERMUTATION_ENUM_CLASS("VISIBILITY_COPY_TYPE", EVisibilityCopyType);
+	using FPermutationDomain = TShaderPermutationDomain<FDimVisibilityCopyType>;
+};
 
 class FComposeSeparateTranslucencyPS : public FGlobalShader
 {
@@ -392,6 +516,7 @@ class FComposeSeparateTranslucencyPS : public FGlobalShader
 		SHADER_PARAMETER(FVector2f, SeparateTranslucencyUVMax)
 		SHADER_PARAMETER(FVector2f, SeparateTranslucencyExtentInverse)
 		SHADER_PARAMETER(int32, bLensDistortion)
+		SHADER_PARAMETER(int32, bPassthroughAlpha)
 
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, SceneColorTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState,  SceneColorSampler)
@@ -445,9 +570,47 @@ class FTranslucencyUpsampleResponsiveAAPS : public FGlobalShader
 	}
 };
 
+IMPLEMENT_GLOBAL_SHADER(FCopyBackgroundVisibilityPS, "/Engine/Private/ComposeSeparateTranslucency.usf", "CopyBackgroundVisibilityPS", SF_Pixel);
 IMPLEMENT_GLOBAL_SHADER(FComposeSeparateTranslucencyPS, "/Engine/Private/ComposeSeparateTranslucency.usf", "MainPS", SF_Pixel);
 IMPLEMENT_GLOBAL_SHADER(FTranslucencyUpsampleResponsiveAAPS, "/Engine/Private/TranslucencyUpsampling.usf", "UpsampleResponsiveAAPS", SF_Pixel);
 
+static void AddCopyBackgroundVisibilityPass(
+	FRDGBuilder& GraphBuilder,
+	const FViewInfo& View,
+	FRDGTextureRef CopySource,
+	FRDGTextureRef CopyDestination,
+	FIntRect CopyRect,
+	FCopyBackgroundVisibilityPS::EVisibilityCopyType VisibilityCopyType)
+{
+	typedef FCopyBackgroundVisibilityPS SHADER;
+	SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
+	{
+		PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
+		PassParameters->TranslucentHoldoutPointTexture = CopySource;
+		PassParameters->TranslucentHoldoutPointSampler = TStaticSamplerState<SF_Point>::GetRHI();
+
+		PassParameters->RenderTargets[0] = FRenderTargetBinding(CopyDestination, ERenderTargetLoadAction::ENoAction);
+	}
+
+	SHADER::FPermutationDomain PixelShaderPermutationVector;
+	PixelShaderPermutationVector.Set<SHADER::FDimVisibilityCopyType>(VisibilityCopyType);
+	TShaderMapRef<SHADER> PixelShader(View.ShaderMap, PixelShaderPermutationVector);
+
+	FRHIBlendState* BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero>::GetRHI();
+
+	FPixelShaderUtils::AddFullscreenPass(
+		GraphBuilder,
+		View.ShaderMap,
+		RDG_EVENT_NAME(
+			"%s(%s) %dx%d",
+			TEXT("CopyBackgroundVisibility"),
+			TEXT("Holdout"),
+			CopyRect.Width(), CopyRect.Height()),
+		PixelShader,
+		PassParameters,
+		CopyRect,
+		BlendState);
+}
 
 FScreenPassTexture FTranslucencyComposition::AddPass(
 	FRDGBuilder& GraphBuilder,
@@ -500,6 +663,8 @@ FScreenPassTexture FTranslucencyComposition::AddPass(
 	RDG_GPU_STAT_SCOPE(GraphBuilder, Translucency);
 	DynamicRenderScaling::FRDGScope DynamicTranslucencyResolutionScope(GraphBuilder, GDynamicTranslucencyResolution);
 
+	bool bPassthroughAlpha = IsTranslucentHoldoutEnabled(GetFeatureLevelShadingPath(View.GetFeatureLevel()));
+
 	const TCHAR* OpName = nullptr;
 	FRHIBlendState* BlendState = nullptr;
 	FRDGTextureRef NewSceneColor = nullptr;
@@ -546,6 +711,25 @@ FScreenPassTexture FTranslucencyComposition::AddPass(
 		NewSceneColor = GraphBuilder.CreateTexture(
 			OutputDesc,
 			bPostMotionBlur ? TEXT("PostMotionBlurTranslucency.SceneColor") : TEXT("PostDOFTranslucency.SceneColor"));
+	}
+	else if (Operation == EOperation::ComposeToSceneColorAlpha)
+	{
+		check(SceneColor.IsValid());
+
+		// Now we copy any of RGB channel(background visibility) to alpha channel so we can compose against the holdout value of the background.
+		FRDGTextureRef ResolvedTranslucentHoldout = GraphBuilder.CreateTexture(SeparateTranslucencyTexture->Desc,TEXT("Translucency.Holdout.Resolved"));
+		AddCopyBackgroundVisibilityPass(GraphBuilder, View, SeparateTranslucencyTexture, ResolvedTranslucentHoldout,
+			TranslucencyTextures.ViewRect, FCopyBackgroundVisibilityPS::EVisibilityCopyType::ToSceneColor);
+		SeparateTranslucencyTexture = ResolvedTranslucentHoldout;
+
+		OpName = TEXT("ComposeToSceneColorAlpha");
+		// Keep the color of the target, but override the alpha channel
+		// Req: Alpha stores the background visibility of the holdout.
+		// If the background is opaque, it is 1, otherwise 0, use Max operator to clamp.
+		BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_Zero, BF_One, BO_Add, BF_One, BF_Zero>::GetRHI();
+		ensure(SceneColor.TextureSRV->Desc.Texture->Desc.Flags & TexCreate_RenderTargetable);
+		NewSceneColor = SceneColor.TextureSRV->Desc.Texture;
+		bPassthroughAlpha = false;
 	}
 	else
 	{
@@ -599,6 +783,8 @@ FScreenPassTexture FTranslucencyComposition::AddPass(
 	PassParameters->UndistortingDisplacementTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
 	PassParameters->UndistortingDisplacementSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	PassParameters->bLensDistortion = LensDistortionLUT.IsEnabled();
+	PassParameters->bPassthroughAlpha = bPassthroughAlpha;
+
 	if (LensDistortionLUT.IsEnabled())
 	{
 		PassParameters->UndistortingDisplacementTexture = LensDistortionLUT.UndistortingDisplacementTexture;
@@ -606,7 +792,7 @@ FScreenPassTexture FTranslucencyComposition::AddPass(
 
 	PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 
-	if (Operation == EOperation::ComposeToExistingSceneColor)
+	if (Operation == EOperation::ComposeToExistingSceneColor || Operation == EOperation::ComposeToSceneColorAlpha)
 	{
 		PassParameters->RenderTargets[0] = FRenderTargetBinding(NewSceneColor, ERenderTargetLoadAction::ELoad);
 	}
@@ -753,6 +939,13 @@ const FRDGTextureDesc GetPostDOFTranslucentTextureDesc(
 	EShaderPlatform ShaderPlatform)
 {
 	const bool bNeedUAV = SeparateTranslucencyDimensions.NumSamples == 1 && OIT::IsSortedPixelsEnabled(ShaderPlatform);
+	
+	FClearValueBinding ClearValueBinding = bIsModulate ? FClearValueBinding::White : FClearValueBinding::Black;
+	if (TranslucencyPass == ETranslucencyPass::TPT_TranslucencyHoldout)
+	{
+		ClearValueBinding = FClearValueBinding::Black;
+	}
+
 	return FRDGTextureDesc::Create2D(
 		SeparateTranslucencyDimensions.Extent,
 		bIsModulate ? PF_FloatR11G11B10 : PF_FloatRGBA,
@@ -823,7 +1016,8 @@ TRDGUniformBufferRef<FTranslucentBasePassUniformParameters> CreateTranslucentBas
 	FRDGTextureRef SceneColorCopyTexture,
 	const ESceneTextureSetupMode SceneTextureSetupMode,
 	bool bLumenGIEnabled,
-	const FOITData& OITData)
+	const FOITData& OITData,
+	ETranslucencyPass::Type TranslucencyPass)
 {
 	FTranslucentBasePassUniformParameters& BasePassParameters = *GraphBuilder.AllocParameters<FTranslucentBasePassUniformParameters>();
 
@@ -1017,6 +1211,9 @@ TRDGUniformBufferRef<FTranslucentBasePassUniformParameters> CreateTranslucentBas
 
 	BasePassParameters.AVSM = HeterogeneousVolumes::GetAdaptiveVolumetricCameraMapParameters(GraphBuilder, View.ViewState);
 
+	// Translucency pass for holdout
+	BasePassParameters.TranslucencyPass = TranslucencyPass == ETranslucencyPass::TPT_TranslucencyHoldout ? 1 : 0;
+
 	return GraphBuilder.CreateUniformBuffer(&BasePassParameters);
 }
 
@@ -1028,7 +1225,8 @@ TRDGUniformBufferRef<FTranslucentBasePassUniformParameters> CreateTranslucentBas
 	const FTranslucencyLightingVolumeTextures& TranslucencyLightingVolumeTextures,
 	FRDGTextureRef SceneColorCopyTexture,
 	const ESceneTextureSetupMode SceneTextureSetupMode,
-	bool bLumenGIEnabled)
+	bool bLumenGIEnabled,
+	ETranslucencyPass::Type TranslucencyPass)
 {
 	FOITData OITData = OIT::CreateOITData(GraphBuilder, View, OITPass_None);
 	return CreateTranslucentBasePassUniformBuffer(
@@ -1040,7 +1238,8 @@ TRDGUniformBufferRef<FTranslucentBasePassUniformParameters> CreateTranslucentBas
 		SceneColorCopyTexture,
 		SceneTextureSetupMode,
 		bLumenGIEnabled,
-		OITData);
+		OITData,
+		TranslucencyPass);
 }
 
 static FViewShaderParameters GetSeparateTranslucencyViewParameters(const FViewInfo& View, FIntPoint TextureExtent, float ViewportScale, ETranslucencyPass::Type TranslucencyPass)
@@ -1315,6 +1514,9 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyInner(
 	const bool bIsScalingTranslucency = SeparateTranslucencyDimensions.Scale < 1.0f;
 	const bool bIsStandardSeparatedTranslucency = bStandardTranslucentCanRenderSeparate && TranslucencyPass == ETranslucencyPass::TPT_TranslucencyStandard && ViewFamily.AllowStandardTranslucencySeparated();
 	const bool bRenderInSeparateTranslucency = IsSeparateTranslucencyEnabled(TranslucencyPass, SeparateTranslucencyDimensions.Scale) || bIsStandardSeparatedTranslucency;
+	
+	// Holdout rendering 
+	const bool bRenderTranslucencyHold = TranslucencyPass == ETranslucencyPass::TPT_TranslucencyHoldout;
 
 	// Can't reference scene color in scene textures. Scene color copy is used instead.
 	ESceneTextureSetupMode SceneTextureSetupMode = ESceneTextureSetupMode::All;
@@ -1376,7 +1578,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyInner(
 				SeparateTranslucencyColorTexture,
 				SeparateTranslucencyColorLoadAction,
 				SeparateTranslucencyDepthTexture.Target,
-				CreateTranslucentBasePassUniformBuffer(GraphBuilder, Scene, View, ViewIndex, TranslucentLightingVolumeTextures, SceneColorCopyTexture, SceneTextureSetupMode, bLumenGIEnabled, OITData),
+				CreateTranslucentBasePassUniformBuffer(GraphBuilder, Scene, View, ViewIndex, TranslucentLightingVolumeTextures, SceneColorCopyTexture, SceneTextureSetupMode, bLumenGIEnabled, OITData, TranslucencyPass),
 				TranslucencyPass,
 				!bCompositeBackToSceneColor,
 				bRenderInParallel,
@@ -1448,6 +1650,116 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyInner(
 
 			++NumProcessedViews;
 		}
+		else if (bRenderTranslucencyHold)
+		{
+			// Main logic:
+			// 1. Copy the holdout background visibility before any translucent pass to the translucent holdout texture.
+			// 2. Run the TranslucencyViewInner logic to accumulate the background visibility (bv) and path throughput (pt) from back to close.
+			// 3. Copy back the alpha channel of the SharedColorTexture.
+			// Notes:
+			// Since alpha will be polluted by alpha holdout blending mode, we cannot directly compose onto the scene color alpha.
+			// with SceneColor.A = SceneColor.A * pt + bv.
+			// E.g., alphaholdout material in front of a translucent material.
+			// Two step direct compose: bv = HoldoutOpacity*(1 - TranslucentOpacity)
+			// This three step copy compose: bv = HoldoutOpacity
+
+			RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
+			RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1, "View%d", ViewIndex);
+			
+			const FScreenPassTextureViewport SeparateTranslucencyViewport = SeparateTranslucencyDimensions.GetInstancedStereoViewport(View);
+			const bool bCompositeBackToSceneColor = true;
+			const bool bLumenGIEnabled = GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen;
+
+			/** Separate translucency color is either composited immediately or later during post processing. If done immediately, it's because the view doesn't support
+			 *  compositing (e.g. we're rendering an underwater view) or because we're downsampling the main translucency pass. In this case, we use a local set of
+			 *  textures instead of the external ones passed in.
+			 */
+			FRDGTextureMSAA SeparateTranslucencyColorTexture = SharedColorTexture;
+
+			if (NumProcessedViews == 0 || View.Family->bMultiGPUForkAndJoin)
+			{
+				FTranslucencyPassResources& TranslucencyPassResources = OutTranslucencyResourceMap->Get(ViewIndex, TranslucencyPass);
+				AddCopyBackgroundVisibilityPass(GraphBuilder, View, SceneColorCopyTexture/*SceneTextures.Color.Resolve*/, SeparateTranslucencyColorTexture.Target,
+					TranslucencyPassResources.ViewRect, FCopyBackgroundVisibilityPS::EVisibilityCopyType::FromSceneColor);
+			}
+
+			// NOTE: We need to read the depth texture for final fog accumulation, but
+			// in the current phase, we don't need depth texture.
+			const bool bAlphaHoldoutNeedDepthTest = true;
+			FRDGTextureMSAA SeparateTranslucencyDepthTexture;
+			if (bAlphaHoldoutNeedDepthTest)
+			{
+				SeparateTranslucencyDepthTexture = SharedDepthTexture;
+			}
+
+			// No scale is needed
+			const float ViewportScale = 1.0f;
+
+			// Simply load as we have already initialized the texture.
+			const ERenderTargetLoadAction SeparateTranslucencyColorLoadAction = ERenderTargetLoadAction::ELoad;
+
+			FOITData OITData = OIT::CreateOITData(GraphBuilder, View, OITPass_SeperateTranslucency);
+
+			RenderTranslucencyViewInner(
+				GraphBuilder,
+				*this,
+				View,
+				SeparateTranslucencyViewport,
+				ViewportScale,
+				SeparateTranslucencyColorTexture,
+				SeparateTranslucencyColorLoadAction,
+				SeparateTranslucencyDepthTexture.Target,
+				CreateTranslucentBasePassUniformBuffer(GraphBuilder, Scene, View, ViewIndex, TranslucentLightingVolumeTextures, SceneColorCopyTexture, SceneTextureSetupMode, bLumenGIEnabled, OITData, TranslucencyPass),
+				TranslucencyPass,
+				!bCompositeBackToSceneColor,
+				bRenderInParallel,
+				InstanceCullingManager);
+
+			{
+				FTranslucencyPassResources& TranslucencyPassResources = OutTranslucencyResourceMap->Get(ViewIndex, TranslucencyPass);
+				TranslucencyPassResources.ViewRect = View.ViewRect;
+				TranslucencyPassResources.ColorTexture = SharedColorTexture;
+				TranslucencyPassResources.DepthTexture = SharedDepthTexture;
+			}
+
+			if (OITData.PassType & OITPass_SeperateTranslucency)
+			{
+				OIT::AddOITComposePass(GraphBuilder, View, OITData, SeparateTranslucencyColorTexture.Target);
+			}
+
+			if (bCompositeBackToSceneColor)
+			{
+				FRDGTextureRef SeparateTranslucencyDepthResolve = nullptr;
+				FRDGTextureRef SceneDepthResolve = nullptr;
+				if (TranslucencyPass != ETranslucencyPass::TPT_TranslucencyAfterMotionBlur)
+				{
+					::AddResolveSceneDepthPass(GraphBuilder, View, SeparateTranslucencyDepthTexture);
+
+					SeparateTranslucencyDepthResolve = SeparateTranslucencyDepthTexture.Resolve;
+					SceneDepthResolve = SceneTextures.Depth.Resolve;
+				}
+
+				FTranslucencyPassResources& TranslucencyPassResources = OutTranslucencyResourceMap->Get(ViewIndex, TranslucencyPass);
+
+				FTranslucencyComposition TranslucencyComposition;
+				TranslucencyComposition.Operation = FTranslucencyComposition::EOperation::ComposeToSceneColorAlpha;
+				TranslucencyComposition.SceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, FScreenPassTexture(SceneTextures.Color.Target, View.ViewRect));
+				TranslucencyComposition.SceneDepth = FScreenPassTexture(SceneTextures.Depth.Resolve, View.ViewRect);
+				TranslucencyComposition.OutputViewport = FScreenPassTextureViewport(SceneTextures.Depth.Resolve, View.ViewRect);
+
+				FScreenPassTexture UpscaledTranslucency = TranslucencyComposition.AddPass(
+					GraphBuilder, View, TranslucencyPassResources);
+
+				ensure(View.ViewRect == UpscaledTranslucency.ViewRect);
+				ensure(UpscaledTranslucency.Texture == SceneTextures.Color.Target);
+
+				//Invalidate.
+				TranslucencyPassResources = FTranslucencyPassResources();
+				TranslucencyPassResources.Pass = TranslucencyPass;
+			}
+
+			++NumProcessedViews;
+		}
 		else
 		{
 			// When rendering translucent meshes under water, we skip modulate passes which are only required when compositing separate translucency passes from render target.
@@ -1476,7 +1788,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyInner(
 				SceneTextures.Color,
 				SceneColorLoadAction,
 				SceneTextures.Depth.Target,
-				CreateTranslucentBasePassUniformBuffer(GraphBuilder, Scene, View, ViewIndex, TranslucentLightingVolumeTextures, SceneColorCopyTexture, SceneTextureSetupMode, bLumenGIEnabled, OITData),
+				CreateTranslucentBasePassUniformBuffer(GraphBuilder, Scene, View, ViewIndex, TranslucentLightingVolumeTextures, SceneColorCopyTexture, SceneTextureSetupMode, bLumenGIEnabled, OITData, TranslucencyPass),
 				TranslucencyPass,
 				bResolveColorTexture,
 				bRenderInParallel,
@@ -1514,10 +1826,11 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(
 	DynamicRenderScaling::FRDGScope DynamicTranslucencyResolutionScope(GraphBuilder, GDynamicTranslucencyResolution);
 
 	FRDGTextureRef SceneColorCopyTexture = nullptr;
+	const bool bIsTranslucentHoldoutEnabled = IsTranslucentHoldoutEnabled(Views);
 
 	if (EnumHasAnyFlags(ViewsToRender, ETranslucencyView::AboveWater))
 	{
-		SceneColorCopyTexture = AddCopySceneColorPass(GraphBuilder, Views, SceneTextures.Color);
+		SceneColorCopyTexture = AddCopySceneColorPass(GraphBuilder, Views, SceneTextures.Color, /*WithAlpha*/ bIsTranslucentHoldoutEnabled);
 	}
 
 	// Create a shared depth texture at the correct resolution.
@@ -1582,6 +1895,12 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(
 	else // Otherwise render translucent primitives in a single bucket.
 	{
 		RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, OutSharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_AllTranslucency, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
+	}
+
+	if (bIsTranslucentHoldoutEnabled && SceneColorCopyTexture)
+	{
+		// Render the translucent holdout background visibility to the alpha channel of SceneColor.
+		RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, OutSharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_TranslucencyHoldout, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
 	}
 }
 

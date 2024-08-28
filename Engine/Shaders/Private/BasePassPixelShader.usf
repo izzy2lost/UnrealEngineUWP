@@ -130,6 +130,10 @@
 // Reroute for LumenRadianceCacheInterpolation.ush
 #define RadianceCacheInterpolation TranslucentBasePass
 #include "Lumen/LumenTranslucencyVolumeShared.ush"
+
+#define IsTranslucentHoldoutPass (TranslucentBasePass.TranslucencyPass == 1)
+#else
+#define IsTranslucentHoldoutPass false
 #endif
 
 #if TRANSLUCENT_SELF_SHADOWING
@@ -2177,8 +2181,9 @@ void FPixelShaderInOut_MainPS(
 #endif
 
 #if POST_PROCESS_ALPHA != 0 && MATERIAL_DOMAIN_SURFACE
+	const bool bIsHoldout = GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HOLDOUT;
 	// Only include the holdout logic if the Renderer is forwarding its alpha channel to post-processing
-	if (GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HOLDOUT)
+	if (bIsHoldout)
 	{
 		// Ignore primitive holdout during reflection captures
 		if(ResolvedView.RenderingReflectionCaptureMask == 0)
@@ -2188,8 +2193,23 @@ void FPixelShaderInOut_MainPS(
 #if MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED
 			// This catches the common case as well as handles cases where Opacity has a different meaning, such as for Subsurface materials
 			Out.MRT[0] = half4(0.0, 0.0, 0.0, 1.0);
+#elif MATERIALBLENDING_MODULATE
+			Out.MRT[0] = half4(0.0, 0.0, 0.0, Opacity);
+			// Alternative method. Keep MRT[0] as it is to get a closer look to path tracing:
+			//	Out.MRT[0] = half4(FoggedColor, Opacity);
+			// MATERIALBLENDING_MODULATE comments in the holdout pass.
+#elif SUBSTRATE_TRANSLUCENT_MATERIAL
+	#if SUBSTRATE_BLENDING_ALPHAHOLDOUT
+			//This is not the translucent holdout pass, do not reset Out.MRT[0] so holdout can accumulate color contribution.
+	#elif SUBSTRATE_BLENDING_TRANSLUCENT_COLOREDTRANSMITTANCE
+			Out.MRT[0] = half4(0.0, 0.0, 0.0, DualBlendSurfaceCoverage);
+	#elif SUBSTRATE_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE
+			Out.MRT[0] = half4(0.0, 0.0, 0.0, DualBlendSurfaceCoverage);
+	#endif
+			
 #else
-			// TODO: The translucent case doesn't seem to get the right alpha (compared to the path traced reference)
+			// TODO: Not all translucent cases get the right alpha (compared to the path traced reference)
+
 			Out.MRT[0] = half4(0.0, 0.0, 0.0, Opacity);
 #endif
 
@@ -2200,7 +2220,73 @@ void FPixelShaderInOut_MainPS(
 #endif
 		}
 	}
+
 #endif
+
+#if (MATERIALBLENDING_ANY_TRANSLUCENT || MATERIALBLENDING_ALPHACOMPOSITE || MATERIALBLENDING_ALPHAHOLDOUT) && MATERIAL_DOMAIN_SURFACE && POST_PROCESS_ALPHA!= 0
+	// If this is translucency holdout pass, calculate the background visibility and path throughput.
+	if (IsTranslucentHoldoutPass &&
+        ResolvedView.RenderingReflectionCaptureMask == 0)
+	{
+		// Default behavior is to preserve the destination alpha.
+		half BackgroundVisibilityAdd = 0.0f;
+		half PathThroughputMul = 1.0f;
+
+#if SUBSTRATE_TRANSLUCENT_MATERIAL
+	#if SUBSTRATE_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE
+		BackgroundVisibilityAdd = bIsHoldout ? DualBlendSurfaceCoverage : 0;
+		PathThroughputMul = 1 - DualBlendSurfaceCoverage;
+	#elif SUBSTRATE_BLENDING_TRANSLUCENT_COLOREDTRANSMITTANCE
+		BackgroundVisibilityAdd = bIsHoldout ? DualBlendSurfaceCoverage : 0;
+		PathThroughputMul = 1 - DualBlendSurfaceCoverage;
+	#elif SUBSTRATE_BLENDING_COLOREDTRANSMITTANCEONLY
+		// TODO
+	#elif MATERIALBLENDING_ALPHAHOLDOUT
+		//alpha holdout should always contribute to the background visibility.
+		BackgroundVisibilityAdd = 1 - AdjustedAlpha;
+		PathThroughputMul = AdjustedAlpha;
+	#endif 
+#else
+
+	#if MATERIAL_SHADINGMODEL_THIN_TRANSLUCENT
+		//thin translucent shading model uses surface coverage as opacity.
+		BackgroundVisibilityAdd = bIsHoldout ? DualBlendSurfaceCoverage : 0;
+		PathThroughputMul = 1 - DualBlendSurfaceCoverage;
+	#elif MATERIALBLENDING_ALPHAHOLDOUT
+		//alpha holdout should always contribute to the background visibility.
+		BackgroundVisibilityAdd = Opacity;
+		PathThroughputMul = (1 - Opacity);
+	#elif MATERIALBLENDING_TRANSLUCENT
+		// Use Opacity as it is.
+		BackgroundVisibilityAdd = bIsHoldout ? Opacity : 0;
+		PathThroughputMul = 1 - Opacity;
+	#endif
+#endif
+
+#if MATERIALBLENDING_ADDITIVE
+		// Not affecting alpha
+		BackgroundVisibilityAdd = 0.0f;
+		PathThroughputMul = 1.0f;
+#elif MATERIALBLENDING_MODULATE
+
+		BackgroundVisibilityAdd = bIsHoldout ? Opacity : 0;
+		PathThroughputMul = (1 - Opacity);
+		//---------------------------------------------------------------------
+		// Another solution: use fogged color to calcualte throughput and background visibility
+		// C = C * L + C * (1-L).
+		// BackgroundVisibilityAdd = bIsHoldout ? (1-Luminance(FoggedColor)) : 0;
+		// PathThroughputMul = Luminance(FoggedColor);
+		// Issue: Need to fix modulate layer stacking does not match patch tracing.
+		// Otherwise, we can only have one modulate in a scene that can be holdout as well.
+#endif
+
+		// Render far to close logic
+		Out.MRT[0].xyz = BackgroundVisibilityAdd;
+		Out.MRT[0].w = PathThroughputMul;
+		
+	}
+#endif
+
 }
 
 #if SUBSTRATE_OPAQUE_DEFERRED

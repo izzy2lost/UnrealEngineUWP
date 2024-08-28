@@ -20,7 +20,7 @@ static const tsr_half FilteringWeight = rcp(tsr_half(1.0 + 4 * 0.5 + 4 * 0.25));
 //------------------------------------------------------- PARAMETERS
 
 float FlickeringFramePeriod;
-
+uint bPassthroughAlpha;
 
 //------------------------------------------------------- COMPOSE SEPARATE TRANSLUCENCY
 
@@ -31,7 +31,7 @@ tsr_tensor_halfC ComposeTranslucency(tsr_tensor_halfC Color, tsr_tensor_half4 Tr
 	tsr_tensor_halfC ComposedColor;
 	ComposedColor = Color * tsr_tensor_halfC::Vectorize(Translucency[3]) + ResizeChannels<CONFIG_CHANNEL_COUNT>(Translucency);
 	#if CONFIG_SCENE_COLOR_ALPHA
-		ComposedColor.SetComponent(3, Color[3] * Translucency[3]);
+		ComposedColor.SetComponent(3, select(tsr_tensor_bool::Const(bPassthroughAlpha > 0), Color[3], Color[3] * Translucency[3]));
 	#endif
 	#if CONFIG_SCENE_COLOR_ALPHA
 		ComposedColor = min(ComposedColor, tsr_tensor_halfC::Const(LargestSceneColorRGBA));

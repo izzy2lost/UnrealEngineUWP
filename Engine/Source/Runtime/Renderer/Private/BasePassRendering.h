@@ -139,6 +139,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FTranslucentBasePassUniformParameters,)
 	SHADER_PARAMETER_SAMPLER(SamplerState, SceneColorCopySampler)
 	SHADER_PARAMETER_STRUCT(FBlueNoiseParameters, BlueNoise)
 	SHADER_PARAMETER_STRUCT(FAdaptiveVolumetricShadowMapUniformBufferParameters, AVSM)
+	SHADER_PARAMETER(int, TranslucencyPass)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 DECLARE_GPU_DRAWCALL_STAT_EXTERN(Basepass);
@@ -167,7 +168,8 @@ extern TRDGUniformBufferRef<FTranslucentBasePassUniformParameters> CreateTranslu
 	const FTranslucencyLightingVolumeTextures& TranslucencyLightingVolumeTextures = {},
 	FRDGTextureRef SceneColorCopyTexture = nullptr,
 	const ESceneTextureSetupMode SceneTextureSetupMode = ESceneTextureSetupMode::None,
-	bool bLumenGIEnabled = false);
+	bool bLumenGIEnabled = false,
+	ETranslucencyPass::Type TranslucencyPass = ETranslucencyPass::TPT_MAX);
 
 extern bool IsGBufferLayoutSupportedForMaterial(EGBufferLayout Layout, const FMeshMaterialShaderPermutationParameters& Params);
 extern void ModifyBasePassCSPSCompilationEnvironment(const FMeshMaterialShaderPermutationParameters& Params, EGBufferLayout GBufferLayout, bool bEnableSkyLight, FShaderCompilerEnvironment& OutEnvironment);

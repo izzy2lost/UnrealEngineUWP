@@ -1361,6 +1361,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 	const bool bMobileMaskedInEarlyPass = (ShadingPath == EShadingPath::Mobile) && Scene.EarlyZPassMode == DDM_MaskedOnly;
 	const bool bMobileBasePassAlwaysUsesCSM = (ShadingPath == EShadingPath::Mobile) && MobileBasePassAlwaysUsesCSM(Scene.GetShaderPlatform());
 	const bool bVelocityPassWritesDepth = Scene.EarlyZPassMode == DDM_AllOpaqueNoVelocity;
+	const bool bIsTranslucentHoldoutEnabled = IsTranslucentHoldoutEnabled(ShadingPath);
 	const bool bHLODActive = Scene.SceneLODHierarchy.IsActive();
 	const FHLODVisibilityState* const HLODState = bHLODActive && ViewState ? &ViewState->HLODVisibilityState : nullptr;
 	float MaxDrawDistanceScale = GetCachedScalabilityCVars().ViewDistanceScale;
@@ -1722,6 +1723,11 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 								DrawCommandPacket.AddCommandsForMesh(PrimitiveIndex, PrimitiveSceneInfo, StaticMeshRelevance, StaticMesh, CullingPayloadFlags, Scene, bCanCache, EMeshPass::TranslucencyAll);
 							}
 
+							if (bIsTranslucentHoldoutEnabled)
+							{
+								DrawCommandPacket.AddCommandsForMesh(PrimitiveIndex, PrimitiveSceneInfo, StaticMeshRelevance, StaticMesh, CullingPayloadFlags, Scene, bCanCache, EMeshPass::TranslucencyHoldout);
+							}
+
 							if (ViewRelevance.bTranslucentSurfaceLighting)
 							{
 								DrawCommandPacket.AddCommandsForMesh(PrimitiveIndex, PrimitiveSceneInfo, StaticMeshRelevance, StaticMesh, CullingPayloadFlags, Scene, bCanCache, EMeshPass::LumenTranslucencyRadianceCacheMark);
@@ -1952,6 +1958,11 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 			{
 				// When using all translucency, Standard and AfterDOF are sorted together instead of being rendered like 2 buckets.
 				TranslucentPrimCount.Add(ETranslucencyPass::TPT_AllTranslucency, ViewRelevance.bUsesSceneColorCopy);
+			}
+			
+			if (bIsTranslucentHoldoutEnabled)
+			{
+				TranslucentPrimCount.Add(ETranslucencyPass::TPT_TranslucencyHoldout, true); // use scene copy
 			}
 
 			if (ViewRelevance.bDistortion)
@@ -2390,6 +2401,11 @@ static void ComputeDynamicMeshRelevance(
 		{
 			PassMask.Set(EMeshPass::TranslucencyAll);
 			View.NumVisibleDynamicMeshElements[EMeshPass::TranslucencyAll] += NumElements;
+		}
+
+		{
+			PassMask.Set(EMeshPass::TranslucencyHoldout);
+			View.NumVisibleDynamicMeshElements[EMeshPass::TranslucencyHoldout] += NumElements;
 		}
 
 		if (ViewRelevance.bTranslucentSurfaceLighting)

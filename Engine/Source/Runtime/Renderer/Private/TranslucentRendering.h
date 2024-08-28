@@ -50,6 +50,9 @@ FSeparateTranslucencyDimensions UpdateSeparateTranslucencyDimensions(const FScen
 /** Returns whether the view family is requesting to render translucency. */
 bool ShouldRenderTranslucency(const FSceneViewFamily& ViewFamily);
 
+/** Check whether translucent holdout is enabled for a specific shading path. */
+bool IsTranslucentHoldoutEnabled(EShadingPath ShadingPath);
+
 /** Check if separate translucency pass is needed for given pass and downsample scale */
 bool IsSeparateTranslucencyEnabled(ETranslucencyPass::Type TranslucencyPass, float DownsampleScale);
 
@@ -68,6 +71,7 @@ struct FTranslucencyComposition
 		UpscaleOnly,
 		ComposeToExistingSceneColor,
 		ComposeToNewSceneColor,
+		ComposeToSceneColorAlpha
 	};
 
 	EOperation Operation = EOperation::UpscaleOnly;

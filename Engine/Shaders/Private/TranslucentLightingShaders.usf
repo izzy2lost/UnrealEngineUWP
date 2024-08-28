@@ -58,7 +58,7 @@ Texture2D SceneColorTexture;
 void CopySceneColorMain(FScreenVertexOutput Input, out float4 OutColor : SV_Target0)
 {
 	float4 LinearColor = Texture2DSample(SceneColorTexture, GlobalPointClampedSampler, Input.UV);
-	OutColor = float4(EncodeSceneColorForMaterialNode(LinearColor.rgb), 0);
+	OutColor = float4(EncodeSceneColorForMaterialNode(LinearColor.rgb), LinearColor.a);
 }
 
 /** Geometry shader that writes to a range of slices of a volume texture. */

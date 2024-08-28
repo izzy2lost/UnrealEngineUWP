@@ -16,7 +16,7 @@ namespace ETranslucencyPass
 		TPT_TranslucencyAfterDOF,
 		TPT_TranslucencyAfterDOFModulate,
 		TPT_TranslucencyAfterMotionBlur,
-
+		TPT_TranslucencyHoldout,
 		/** Drawing all translucency, regardless of separate or standard.  Used when drawing translucency outside of the main renderer, eg FRendererModule::DrawTile. */
 		TPT_AllTranslucency,
 		TPT_MAX
