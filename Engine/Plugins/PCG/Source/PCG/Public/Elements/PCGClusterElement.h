@@ -38,10 +38,8 @@ public:
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGClusterElement", "NodeTitle", "Cluster"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::PointOps; }
 	virtual FText GetNodeTooltipText() const override;
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 #endif
-	virtual void PostLoad() override;
+	virtual bool UseSeed() const override;
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;

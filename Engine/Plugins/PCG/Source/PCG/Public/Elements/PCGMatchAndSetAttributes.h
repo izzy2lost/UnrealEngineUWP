@@ -45,8 +45,6 @@ class UPCGMatchAndSetAttributesSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
-	UPCGMatchAndSetAttributesSettings();
-
 	// ~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override;
@@ -56,6 +54,7 @@ public:
 	virtual bool HasDynamicPins() const { return true; }
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins) override;
 #endif // WITH_EDITOR
+	virtual bool UseSeed() const override;
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;

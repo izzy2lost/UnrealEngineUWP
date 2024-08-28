@@ -257,13 +257,17 @@ public:
 	EPCGDataType GetTypeUnionOfIncidentEdges(const FName& PinLabel) const;
 
 	// Internal functions, should not be used by any user.
-	// Return a different subset for for input/output pin properties, in case of a default object.
+	// Return a different subset for input/output pin properties, in case of a default object.
 	virtual TArray<FPCGPinProperties> DefaultInputPinProperties() const;
 	virtual TArray<FPCGPinProperties> DefaultOutputPinProperties() const;
 
 	bool operator==(const UPCGSettings& Other) const;
-	
-	bool UseSeed() const { return bUseSeed; }
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	/** By default, settings do not use a seed. Override this in the settings subclass to enable usage of the seed. UFUNCTION to be used by EditCondition. */
+	UFUNCTION()
+	virtual bool UseSeed() const { return bUseSeed; }
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Get the seed, combined with optional PCGComponent seed
 	int GetSeed(const UPCGComponent* InSourceComponent = nullptr) const;
@@ -375,7 +379,7 @@ public:
 	*/
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta=(EditCondition=bUseSeed, EditConditionHides, PCG_Overridable))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta=(EditCondition="UseSeed()", EditConditionHides, PCG_Overridable))
 	int Seed = 0xC35A9631; // Default seed is a random prime number, but will be overriden for new settings based on the class type name hash, making each settings class have a different default seed.
 
 #if WITH_EDITORONLY_DATA
@@ -446,8 +450,8 @@ protected:
 	virtual bool CanEditChange(const FProperty* InProperty) const override;
 #endif
 
-	// By default, settings won't use a seed. Set this bool to true in the child ctor to allow edition and use it.
-	UPROPERTY(VisibleAnywhere, Transient, Category = Settings, meta = (EditCondition = false, EditConditionHides))
+	UE_DEPRECATED(5.5, "Implement the PCGSettings virtual UseSeed() override.")
+	UPROPERTY(Transient, meta = (DeprecatedProperty, DeprecationMessage = "Implement the PCGSettings virtual UseSeed() override."))
 	bool bUseSeed = false;
 
 	/** Methods to remove boilerplate code across settings */
@@ -475,7 +479,7 @@ private:
 
 	// Overridable param section
 public:
-	/** List of all the overridable params available for this settings. */
+	/** List of all the overridable params available for these settings. */
 	virtual const TArray<FPCGSettingsOverridableParam>& OverridableParams() const { return CachedOverridableParams; }
 
 	/** Check if we have some override. Can be overriden to force params pin for example */

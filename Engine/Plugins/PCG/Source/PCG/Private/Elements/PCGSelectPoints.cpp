@@ -14,11 +14,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGSelectPointsElement"
 
-UPCGSelectPointsSettings::UPCGSelectPointsSettings()
-{
-	bUseSeed = true;
-}
-
 #if WITH_EDITOR
 FText UPCGSelectPointsSettings::GetNodeTooltipText() const
 {

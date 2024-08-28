@@ -31,8 +31,6 @@ static TAutoConsoleVariable<bool> CVarAllowISMReuse(
 
 UPCGStaticMeshSpawnerSettings::UPCGStaticMeshSpawnerSettings(const FObjectInitializer &ObjectInitializer)
 {
-	bUseSeed = true;
-
 	MeshSelectorType = UPCGMeshSelectorWeighted::StaticClass();
 	// Implementation note: this should not have been done here (it should have been null), as it causes issues with copy & paste
 	// when the thing to paste does not have that class for its instance.

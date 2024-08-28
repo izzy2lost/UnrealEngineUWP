@@ -22,8 +22,6 @@ class UPCGRandomChoiceSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
-	UPCGRandomChoiceSettings();
-
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override;
@@ -31,7 +29,7 @@ public:
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Filter; }
 #endif
-
+	virtual bool UseSeed() const override { return true; }
 	virtual bool HasDynamicPins() const override { return true; }
 
 protected:

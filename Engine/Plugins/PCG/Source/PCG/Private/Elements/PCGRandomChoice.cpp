@@ -53,11 +53,6 @@ namespace PCGRandomChoice
 	}
 }
 
-UPCGRandomChoiceSettings::UPCGRandomChoiceSettings()
-{
-	bUseSeed = true;
-}
-
 #if WITH_EDITOR
 FName UPCGRandomChoiceSettings::GetDefaultNodeName() const
 {

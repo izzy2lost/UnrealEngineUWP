@@ -93,7 +93,6 @@ namespace PCGAttributeNoiseSettings
 
 UPCGAttributeNoiseSettings::UPCGAttributeNoiseSettings()
 {
-	bUseSeed = true;
 	InputSource.SetPointProperty(EPCGPointProperties::Density);
 }
 

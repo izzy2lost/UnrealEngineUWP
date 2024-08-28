@@ -35,7 +35,7 @@ public:
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spawner; }
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 #endif
-	
+	virtual bool UseSeed() const override { return true; }
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return Super::DefaultPointInputPinProperties(); }

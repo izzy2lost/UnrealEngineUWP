@@ -67,10 +67,10 @@ void UPCGMatchAndSetAttributesSettings::ApplyDeprecationBeforeUpdatePins(UPCGNod
 }
 #endif // WITH_EDITOR
 
-UPCGMatchAndSetAttributesSettings::UPCGMatchAndSetAttributesSettings()
+bool UPCGMatchAndSetAttributesSettings::UseSeed() const
 {
 	// Minor TODO: could mark use seed true only if we don't use the input weight attribute
-	bUseSeed = true;
+	return true;
 }
 
 TArray<FPCGPinProperties> UPCGMatchAndSetAttributesSettings::InputPinProperties() const

@@ -650,7 +650,7 @@ UPCGNode* UPCGSettings::CreateNode() const
 
 int UPCGSettings::GetSeed(const UPCGComponent* InSourceComponent) const
 {
-	return !bUseSeed ? 42 : (InSourceComponent ? PCGHelpers::ComputeSeed(Seed, InSourceComponent->Seed) : Seed);
+	return !UseSeed() ? 42 : (InSourceComponent ? PCGHelpers::ComputeSeed(Seed, InSourceComponent->Seed) : Seed);
 }
 
 #if WITH_EDITOR
@@ -751,7 +751,15 @@ bool UPCGSettings::CanEditChange(const FEditPropertyChain& InPropertyChain) cons
 
 bool UPCGSettings::CanEditChange(const FProperty* InProperty) const
 {
-	return Super::CanEditChange(InProperty);
+	if (!Super::CanEditChange(InProperty))
+		return false;
+
+	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, Seed))
+	{
+		return UseSeed();
+	}
+
+	return true;
 }
 
 void UPCGSettings::PostPaste()
@@ -954,7 +962,7 @@ EPCGDataType UPCGSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
 TArray<FPCGSettingsOverridableParam> UPCGSettings::GatherOverridableParams() const
 {
 	PCGSettingsHelpers::FPCGGetAllOverridableParamsConfig Config;
-	Config.bUseSeed = bUseSeed;
+	Config.bUseSeed = UseSeed();
 	Config.IncludeMetadataValues.Add(PCGObjectMetadata::Overridable);
 	Config.ExcludeMetadataValues.Add(PCGObjectMetadata::NotOverridable);
 

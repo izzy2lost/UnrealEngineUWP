@@ -16,8 +16,6 @@ class UPCGMutateSeedSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
-	UPCGMutateSeedSettings();
-
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("MutateSeed")); }
@@ -25,7 +23,7 @@ public:
 	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGMutateSeedElement", "NodeTooltip", "Applies a new random seed from point input."); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
 #endif
-	
+	virtual bool UseSeed() const override { return true; }
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return Super::DefaultPointInputPinProperties(); }

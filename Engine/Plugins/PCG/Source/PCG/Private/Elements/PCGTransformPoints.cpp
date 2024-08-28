@@ -15,11 +15,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGTransformPointsElement"
 
-UPCGTransformPointsSettings::UPCGTransformPointsSettings()
-{
-	bUseSeed = true;
-}
-
 FPCGElementPtr UPCGTransformPointsSettings::CreateElement() const
 {
 	return MakeShared<FPCGTransformPointsElement>();

@@ -365,40 +365,15 @@ namespace PCGClusterElement
 } // namespace PCGClusterElement
 
 #if WITH_EDITOR
-void UPCGClusterSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	if (PropertyChangedEvent.Property && (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGClusterSettings, InitialCentroidSelection)))
-	{
-		bUseSeed = (InitialCentroidSelection == EPCGInitialClusteringCentroidSelection::RandomPoints);
-	}
-
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-}
-
 FText UPCGClusterSettings::GetNodeTooltipText() const
 {
 	return LOCTEXT("NodeTooltip", "Given a desired number of clusters (categories), find the best fit cluster for each point by distance, using one of various clustering algorithms.");
 }
-
-void UPCGClusterSettings::PostDuplicate(bool bDuplicateForPIE)
-{
-	Super::PostDuplicate(bDuplicateForPIE);
-
-	if (InitialCentroidSelection == EPCGInitialClusteringCentroidSelection::RandomPoints)
-	{
-		bUseSeed = true;
-	}
-}
 #endif // WITH_EDITOR
 
-void UPCGClusterSettings::PostLoad()
+bool UPCGClusterSettings::UseSeed() const
 {
-	Super::PostLoad();
-
-	if (InitialCentroidSelection == EPCGInitialClusteringCentroidSelection::RandomPoints)
-	{
-		bUseSeed = true;
-	}
+	return InitialCentroidSelection == EPCGInitialClusteringCentroidSelection::RandomPoints;
 }
 
 TArray<FPCGPinProperties> UPCGClusterSettings::InputPinProperties() const

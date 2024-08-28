@@ -57,8 +57,6 @@ class PCGGEOMETRYSCRIPTINTEROP_API UPCGMeshSamplerSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
-	UPCGMeshSamplerSettings();
-
 	//~Begin UObject interface
 	virtual void PostLoad() override;
 	//~End UObject interface
@@ -70,7 +68,7 @@ public:
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Sampler; }
 #endif
-
+	virtual bool UseSeed() const override { return true; }
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 

@@ -265,11 +265,6 @@ namespace PCGSurfaceSampler
 #endif
 }
 
-UPCGSurfaceSamplerSettings::UPCGSurfaceSamplerSettings()
-{
-	bUseSeed = true;
-}
-
 #if WITH_EDITOR
 FText UPCGSurfaceSamplerSettings::GetNodeTooltipText() const
 {

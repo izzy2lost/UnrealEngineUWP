@@ -25,8 +25,6 @@ UPCGPointMatchAndSetSettings::UPCGPointMatchAndSetSettings(const FObjectInitiali
 	{
 		MatchAndSetInstance = ObjectInitializer.CreateDefaultSubobject<UPCGMatchAndSetWeighted>(this, TEXT("DefaultMatchAndSet"));
 	}
-
-	bUseSeed = MatchAndSetInstance && MatchAndSetInstance->UsesRandomProcess();
 }
 
 #if WITH_EDITOR
@@ -49,6 +47,11 @@ void UPCGPointMatchAndSetSettings::ApplyDeprecation(UPCGNode* InOutNode)
 	Super::ApplyDeprecation(InOutNode);
 }
 #endif // WITH_EDITOR
+
+bool UPCGPointMatchAndSetSettings::UseSeed() const
+{
+	return MatchAndSetInstance && MatchAndSetInstance->UsesRandomProcess();
+}
 
 TArray<FPCGPinProperties> UPCGPointMatchAndSetSettings::InputPinProperties() const
 {
@@ -81,7 +84,6 @@ void UPCGPointMatchAndSetSettings::PostLoad()
 	{
 		const EObjectFlags Flags = GetMaskedFlags(RF_PropagateToSubObjects) | RF_Transactional;
 		MatchAndSetInstance->SetFlags(Flags);
-		bUseSeed = MatchAndSetInstance->UsesRandomProcess();
 	}
 
 #if WITH_EDITOR
@@ -178,8 +180,6 @@ void UPCGPointMatchAndSetSettings::RefreshMatchAndSet()
 	{
 		MatchAndSetInstance = nullptr;
 	}
-
-	bUseSeed = MatchAndSetInstance && MatchAndSetInstance->UsesRandomProcess();
 }
 
 bool FPCGPointMatchAndSetElement::ExecuteInternal(FPCGContext* Context) const

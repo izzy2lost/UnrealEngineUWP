@@ -1443,11 +1443,6 @@ namespace PCGSplineSamplerHelpers
 	}
 }
 
-UPCGSplineSamplerSettings::UPCGSplineSamplerSettings()
-{
-	bUseSeed = true;
-}
-
 #if WITH_EDITOR
 FText UPCGSplineSamplerSettings::GetNodeTooltipText() const
 {

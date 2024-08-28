@@ -84,7 +84,6 @@ bool FPCGPinPropertiesGPU::CanEditChange(const FEditPropertyChain& PropertyChain
 UPCGCustomHLSLSettings::UPCGCustomHLSLSettings()
 {
 	bExecuteOnGPU = true;
-	bUseSeed = true;
 }
 
 #if WITH_EDITOR

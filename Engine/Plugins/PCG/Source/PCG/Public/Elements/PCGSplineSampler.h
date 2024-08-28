@@ -254,8 +254,6 @@ class UPCGSplineSamplerSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
-	UPCGSplineSamplerSettings();
-
 	// ~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("SplineSampler")); }
@@ -265,6 +263,8 @@ public:
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins) override;
 #endif
+	virtual bool UseSeed() const override { return true; }
+
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;

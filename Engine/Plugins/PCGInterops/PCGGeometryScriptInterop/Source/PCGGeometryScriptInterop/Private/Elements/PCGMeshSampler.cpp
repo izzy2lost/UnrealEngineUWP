@@ -291,12 +291,6 @@ void FPCGMeshSamplerContext::SetPointColorAndDensity(SetPointDensityFunc SetPoin
 	}
 }
 
-UPCGMeshSamplerSettings::UPCGMeshSamplerSettings()
-	: UPCGSettings()
-{
-	bUseSeed = true;
-}
-
 void UPCGMeshSamplerSettings::PostLoad()
 {
 	Super::PostLoad();

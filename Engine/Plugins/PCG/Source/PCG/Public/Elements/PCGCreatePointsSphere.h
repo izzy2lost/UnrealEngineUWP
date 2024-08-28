@@ -41,8 +41,6 @@ class UPCGCreatePointsSphereSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
-	UPCGCreatePointsSphereSettings() { bUseSeed = true; }
-
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("CreatePointsSphere")); }
@@ -50,6 +48,7 @@ public:
 	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGCreatePointsSphereElement", "NodeTooltip", "Generate points on the surface of a sphere."); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
 #endif // WITH_EDITOR
+	virtual bool UseSeed() const override { return true; }
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return {}; }

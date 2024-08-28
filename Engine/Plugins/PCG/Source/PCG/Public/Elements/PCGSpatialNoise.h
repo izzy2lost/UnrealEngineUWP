@@ -62,10 +62,6 @@ class UPCGSpatialNoiseSettings : public UPCGSettings
 
 public:
 	UPCGSpatialNoiseSettings();
-	//~Begin UObject interface
-	virtual void PostLoad() override;
-	virtual void PostEditImport() override;
-	//~End UObject interface
 
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
@@ -74,6 +70,7 @@ public:
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 #endif
+	virtual bool UseSeed() const override;
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
@@ -83,7 +80,6 @@ protected:
 	//~End UPCGSettings interface
 
 public:
-
 	// The noise method used
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	PCGSpatialNoiseMode Mode = PCGSpatialNoiseMode::Perlin2D;

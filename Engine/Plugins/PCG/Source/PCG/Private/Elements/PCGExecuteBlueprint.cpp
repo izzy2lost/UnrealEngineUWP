@@ -358,8 +358,6 @@ FRandomStream UPCGBlueprintElement::GetRandomStream(FPCGContext& InContext) cons
 
 UPCGBlueprintSettings::UPCGBlueprintSettings()
 {
-	bUseSeed = true;
-	
 #if WITH_EDITORONLY_DATA
 	bExposeToLibrary = HasAnyFlags(RF_ClassDefaultObject);
 #endif
