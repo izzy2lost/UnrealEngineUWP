@@ -219,6 +219,14 @@ void AInstancedActorsManager::OnAddedToSubsystem(UInstancedActorsSubsystem& InIn
 		DespawnAllEntities();
 		// and let registered modifiers go
 		RemoveAllModifierVolumes();
+		
+		// Since the old IASubsystem is part of a different exemplar world, to be safe we should release the IADs' references to their
+		// exemplar actors, since they were spawned under that old world
+		for (TObjectPtr<UInstancedActorsData>& InstanceData : PerActorClassInstanceData)
+		{
+			check(InstanceData);
+			InstanceData->ExemplarActorData.Reset();
+		}
 
 		InstancedActorSubsystem->RemoveManager(ManagerHandle);
 		InstancedActorSubsystem = nullptr;
