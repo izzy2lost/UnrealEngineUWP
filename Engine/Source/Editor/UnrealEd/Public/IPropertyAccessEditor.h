@@ -4,11 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
-#include "UObject/Field.h"
 #include "Misc/Attribute.h"
 #include "Features/IModularFeature.h"
-#include "UObject/UnrealType.h"
 #include "Input/Reply.h"
+#include "Styling/SlateColor.h"
+#include "UObject/Field.h"
+#include "UObject/UnrealType.h"
 
 class UBlueprint;
 class IPropertyHandle;
@@ -236,6 +237,9 @@ struct FPropertyBindingWidgetArgs
 
 	/** The current binding's text label */
 	TAttribute<FText> CurrentBindingText;
+	
+	/** The current binding's text label color */
+	TAttribute<FSlateColor> CurrentBindingTextColor;
 
 	/** The current binding's tooltip text label */
 	TAttribute<FText> CurrentBindingToolTipText;

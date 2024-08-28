@@ -113,7 +113,7 @@ void SPropertyBinding::Construct(const FArguments& InArgs, UBlueprint* InBluepri
 				[
 					SNew(STextBlock)
 					.Text(this, &SPropertyBinding::GetCurrentBindingText)
-					.ColorAndOpacity(FSlateColor::UseForeground())
+					.ColorAndOpacity(this, &SPropertyBinding::GetCurrentBindingTextColor)
 					.Font(IDetailLayoutBuilder::GetDetailFont())
 				]
 			]
@@ -1090,6 +1090,16 @@ FText SPropertyBinding::GetCurrentBindingText() const
 	}
 
 	return LOCTEXT("Bind", "Bind");
+}
+
+FSlateColor SPropertyBinding::GetCurrentBindingTextColor() const
+{
+	if (Args.CurrentBindingTextColor.IsSet())
+	{
+		return Args.CurrentBindingTextColor.Get();
+	}
+
+	return FSlateColor::UseForeground();
 }
 
 FText SPropertyBinding::GetCurrentBindingToolTipText() const

@@ -61,6 +61,7 @@ protected:
 	const FSlateBrush* GetLinkIcon() const;
 	const FSlateBrush* GetCurrentBindingImage() const;
 	FText GetCurrentBindingText() const;
+	FSlateColor GetCurrentBindingTextColor() const;
 	FText GetCurrentBindingToolTipText() const;
 	FSlateColor GetCurrentBindingColor() const;
 
