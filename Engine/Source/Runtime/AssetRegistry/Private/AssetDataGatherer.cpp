@@ -5778,18 +5778,23 @@ bool DoesPathContainInvalidCharacters(const EGatherableFileType FileType, FStrin
 		return true;
 	}
 
-	// NOTE: This is replicating the logic in `CSourceFileProject::IsValidModuleName`/`CSourceFileProject::IsValidSnippetFileName`
-	// because we cannot bring in the `uLang` string utilities here (as they assume `uLang` is initialized, which may not be the case).
+	// NOTE: This is replicating the logic in
+	// `CSourceFileProject::IsValidModuleName`/`CSourceFileProject::IsValidSnippetFileName` because we cannot bring in
+	// the `uLang` string utilities here (as they assume `uLang` is initialized, which may not be the case).  However,
+	// one difference is that here, we are more permissive with Verse snippet filenames than what should be allowed -
+	// the reason for that is we previously shipped with this behaviour, and need to continue supporting it. We reject
+	// these files later on in `CSourceFilePackage::GatherPackageSourceFiles` instead if needed, as we know the
+	// package's uploaded version at that point.
 	if (FileType == EGatherableFileType::VerseFile)
 	{
-		if (!FChar::IsAlpha(FilePath[0]) && FilePath[0] != '_')
+		for (const TCHAR* InvalidCharacters = INVALID_LONGPACKAGE_CHARACTERS; *InvalidCharacters; ++InvalidCharacters)
 		{
-			return true;
-		}
-
-		for (const auto& Char : FilePath)
-		{
-			if (!FChar::IsAlnum(Char) && Char != '_' && Char != '.')
+			if (*InvalidCharacters == '.')
+			{
+				continue;
+			}
+			int32 OutIndex;
+			if (FilePath.FindChar(*InvalidCharacters, OutIndex))
 			{
 				return true;
 			}

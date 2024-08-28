@@ -381,21 +381,27 @@ void CSourceFilePackage::GatherPackageSourceFiles(const CUTF8String& PackageFile
                 {
                     bool bIsVNIPackage = _Settings._VniDestDir.IsSet();
                     bool bHasNativeFileExtension = Snippet->GetFilePath().EndsWith(".native.verse");
-                    if (!VerseFN::UploadedAtFNVersion::AllowPeriodsInVerseSnippetFilenames(_Settings._UploadedAtFNVersion.Get(VerseFN::UploadedAtFNVersion::Latest))
+                    CUTF8StringView Dir;
+                    CUTF8StringView FileName;
+                    FilePathUtils::SplitPath(Snippet->GetFilePath(), Dir, FileName);
+                    CUTF8StringView Stem;
+                    CUTF8StringView Extension;
+                    FilePathUtils::SplitFileName(FileName, Stem, Extension);
+                    if (!VerseFN::UploadedAtFNVersion::EnforceSnippetNameValidity(_Settings._UploadedAtFNVersion.Get(VerseFN::UploadedAtFNVersion::Latest))
                         && !bHasNativeFileExtension)
                     {
-                        CUTF8StringView Dir;
-                        CUTF8StringView FileName;
-                        FilePathUtils::SplitPath(Snippet->GetFilePath(), Dir, FileName);
-                        CUTF8StringView Stem;
-                        CUTF8StringView Extension;
-                        FilePathUtils::SplitFileName(FileName, Stem, Extension);
                         if (Stem.Contains('.'))
                         {
                             return;
                         }
                     }
 
+                    if (VerseFN::UploadedAtFNVersion::EnforceSnippetNameValidity(_Settings._UploadedAtFNVersion.Get(VerseFN::UploadedAtFNVersion::Latest))
+                        && !CSourceFileProject::IsValidSnippetFileName(FileName))
+                    {
+                        Diagnostics->AppendGlitch({EDiagnostic::ErrSystem_BadSnippetFileName,
+                            CUTF8String("Verse file `%s` does not have a valid snippet name. Verse snippet names must end in `.verse` and cannot contain any of the following characters: %s.", *Snippet->GetPath(), CSourceFileSnippet::_InvalidSnippetCharacters)});
+                    }
                     if (bIsVNIPackage && !bHasNativeFileExtension)
                     {
                         Diagnostics->AppendGlitch({
@@ -743,15 +749,10 @@ bool CSourceFileProject::IsValidModuleName(const CUTF8StringView& ModuleName)
 
 bool CSourceFileProject::IsValidSnippetFileName(const CUTF8StringView& FileName)
 {
-    const UTF8Char FirstCh = FileName.FirstByte();
-    if (!CUnicode::IsAlphaASCII(FirstCh) && FirstCh != '_')
+    const char* InvalidCharacters = CSourceFileSnippet::_InvalidSnippetCharacters;
+    for (char Ch = *InvalidCharacters; Ch != '\0'; Ch = *(++InvalidCharacters))
     {
-        return false;
-    }
-
-    for (const UTF8Char* Ch = FileName._Begin; Ch < FileName._End; ++Ch)
-    {
-        if (!CUnicode::IsAlphaASCII(*Ch) && !CUnicode::IsDigitASCII(*Ch) && *Ch != '_' && *Ch != '.')
+        if (FileName.Contains(Ch))
         {
             return false;
         }

@@ -79,6 +79,7 @@ enum class EDiagnosticSeverity : uint8_t
     v(3011, Error,   ErrSystem_UnexpectedDigestFile,                "") \
     v(3012, Error,   ErrSystem_InconsistentNativeFileExtension,     "") \
     v(3013, Error,   ErrSystem_InvalidVerseVersion,                 "") \
+    v(3014, Error,   ErrSystem_BadSnippetFileName,                  "") \
     /* Syntax errors */ \
     v(3100, Error,   ErrSyntax_InternalError,                       "Internal parser error") \
     v(3101, Error,   ErrSyntax_Unimplemented,                       "Feature is not yet implemented.") \

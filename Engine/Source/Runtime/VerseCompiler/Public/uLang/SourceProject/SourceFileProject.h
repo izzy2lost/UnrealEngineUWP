@@ -5,6 +5,7 @@
 #include "uLang/SourceProject/SourceProject.h"
 #include "uLang/SourceProject/IFileSystem.h"
 
+
 namespace uLang
 {
 
@@ -20,6 +21,9 @@ public:
         : _FilePath(Move(FilePath))
         , _FileSystem(FileSystem)
     {}
+
+    // This mimics what Unreal allows for package names, except that we allow periods in filenames as well.
+    static constexpr char _InvalidSnippetCharacters[] = "\\:*?\"<>|' ,&!~\n\r\t@#";
 
     //~ Begin ISourceSnippet interface
     virtual CUTF8String GetPath() const override { return _FilePath; }
