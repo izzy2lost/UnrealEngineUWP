@@ -563,7 +563,7 @@ float4 TonemapCommonPS(
 		{
 			OutColor.xyz = ST2084ToScRGB(OutColor.xyz, GetOutputDevice(), OutputMaxLuminance);
 		}
-		if(GetOutputDevice() == TONEMAPPER_OUTPUT_LinearEXR)
+		else if(GetOutputDevice() == TONEMAPPER_OUTPUT_LinearEXR)
 		{
 			OutColor.xyz = ST2084ToLinear(OutColor.xyz);
 		}
