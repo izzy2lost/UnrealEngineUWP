@@ -1605,32 +1605,33 @@ private:
 	void RHIAsyncCacheConsolidation()
 	{
 		SCOPED_NAMED_EVENT(RHIAsyncCacheConsolidation, FColor::Purple);
-
-#if PIPELINESTATECACHE_VERIFYTHREADSAFE
-		FScopeVerifyDecrement S(VerifyMutex);
-#endif
-		
-		// Add new Render Thread pipeline states to the consolidated maps for the RHI Thread.
-		ConsolidateThreadCache(*CurrentMap, *BackfillMap, NewRenderThreadPipelineStates, false);
-
-		// New Render Thread pipeline states have already been consolidated on the Render Thread.
-		NewRenderThreadPipelineStates.Reset();
-
-		// Flush RHI Thread local caches and consolidate them into a single map.
-		ConsolidatePipelineStates(NewRHIThreadPipelineStates, RHIThreadsPipelineStateCache);
-
-		// Add new RHI Thread pipeline states to the consolidated maps for the RHI Thread.
-		ConsolidateThreadCache(*CurrentMap, *BackfillMap, NewRHIThreadPipelineStates, true);
-
-		// Check for completed tasks.
-		ManageIncompleteTasks();
-
-		if (bDiscardAndSwap)
 		{
-			// The Render Thread will discard the contents of the backfill map.
-			BackfillMap->Reset();
+#if PIPELINESTATECACHE_VERIFYTHREADSAFE
+			FScopeVerifyDecrement S(VerifyMutex);
+#endif
 
-			DiscardAndSwap(CurrentMap, BackfillMap);
+			// Add new Render Thread pipeline states to the consolidated maps for the RHI Thread.
+			ConsolidateThreadCache(*CurrentMap, *BackfillMap, NewRenderThreadPipelineStates, false);
+
+			// New Render Thread pipeline states have already been consolidated on the Render Thread.
+			NewRenderThreadPipelineStates.Reset();
+
+			// Flush RHI Thread local caches and consolidate them into a single map.
+			ConsolidatePipelineStates(NewRHIThreadPipelineStates, RHIThreadsPipelineStateCache);
+
+			// Add new RHI Thread pipeline states to the consolidated maps for the RHI Thread.
+			ConsolidateThreadCache(*CurrentMap, *BackfillMap, NewRHIThreadPipelineStates, true);
+
+			// Check for completed tasks.
+			ManageIncompleteTasks();
+
+			if (bDiscardAndSwap)
+			{
+				// The Render Thread will discard the contents of the backfill map.
+				BackfillMap->Reset();
+
+				DiscardAndSwap(CurrentMap, BackfillMap);
+			}
 		}
 
 		// Signal that the RHI cache consolidation is complete.
