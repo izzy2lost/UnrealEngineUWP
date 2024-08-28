@@ -38,7 +38,13 @@ public class libcurl : ModuleRules
 		}
 		else if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) && !Target.WindowsPlatform.bUseXCurl)
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(LibCurlPath, "lib", "Win64", "Release", "libcurl.lib"));
+			string PlatformSubdir = "Win64";
+			if (Target.Architecture == UnrealArch.Arm64)
+			{
+				// BuildForUE puts the arm64 in <Platform>/<Arch>
+				PlatformSubdir = Path.Combine(PlatformSubdir, "arm64");
+			}
+			PublicAdditionalLibraries.Add(Path.Combine(LibCurlPath, "lib", PlatformSubdir, "Release", "libcurl.lib"));
 		}
 
 		// Our build requires nghttp2, OpenSSL and zlib, so ensure they're linked in

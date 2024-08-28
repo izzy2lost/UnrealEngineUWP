@@ -18,10 +18,11 @@ public class OpenXR : ModuleRules
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
-			PublicAdditionalLibraries.Add(LoaderPath + "/win64/openxr_loader.lib");
+			string PlatformDir = (Target.Architecture == UnrealArch.Arm64) ? "WinArm64" : "win64";
+			PublicAdditionalLibraries.Add(Path.Combine(LoaderPath, PlatformDir, "openxr_loader.lib"));
 
 			PublicDelayLoadDLLs.Add("openxr_loader.dll");
-			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/OpenXR/win64/openxr_loader.dll");
+			RuntimeDependencies.Add(Path.Combine("$(EngineDir)/Binaries/ThirdParty/OpenXR", PlatformDir, "openxr_loader.dll"));
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Linux)
 		{

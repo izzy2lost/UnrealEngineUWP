@@ -12,9 +12,13 @@ public class BinkAudioDecoder : ModuleRules
     {
         if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
         {
-            return Path.Combine(ModuleDirectory, "..", "SDK", "BinkAudio", "Lib", "binka_ue_decode_win64_static.lib");
-        }
-        if (Target.Platform == UnrealTargetPlatform.Linux)
+			if (Target.Architecture == UnrealArch.Arm64)
+			{
+				return Path.Combine(ModuleDirectory, "..", "SDK", "BinkAudio", "Lib", "binka_ue_decode_winarm64_static.lib");
+			}
+			return Path.Combine(ModuleDirectory, "..", "SDK", "BinkAudio", "Lib", "binka_ue_decode_win64_static.lib");
+		}
+		if (Target.Platform == UnrealTargetPlatform.Linux)
         {
             if (Target.Architecture == UnrealArch.Arm64)
             {

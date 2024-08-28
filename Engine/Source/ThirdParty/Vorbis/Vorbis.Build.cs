@@ -21,10 +21,17 @@ public class Vorbis : ModuleRules
 
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(VorbisLibPath, "win64", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), "libvorbis_64.lib"));
-			PublicDelayLoadDLLs.Add("libvorbis_64.dll");
+			if (Target.Architecture == UnrealArch.Arm64)
+			{
+				PublicAdditionalLibraries.Add(Path.Combine(VorbisLibPath, "WinArm64", "libvorbis_64.lib"));
+			}
+			else
+			{
+				PublicAdditionalLibraries.Add(Path.Combine(VorbisLibPath, "win64", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), "libvorbis_64.lib"));
+				PublicDelayLoadDLLs.Add("libvorbis_64.dll");
 
-			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Vorbis/Win64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbis_64.dll");
+				RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Vorbis/Win64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbis_64.dll");
+			}
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{

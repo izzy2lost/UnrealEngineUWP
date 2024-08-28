@@ -14,19 +14,26 @@ public class AudioFormatBink : ModuleRules
 			}
 		);
 
-		PublicSystemIncludePaths.Add(Path.Combine(ModuleDirectory, "..", "..", "Runtime", "BinkAudioDecoder", "SDK", "BinkAudio", "Include"));
-
+		string SdkDir = Path.Combine(ModuleDirectory, "..", "..", "Runtime", "BinkAudioDecoder", "SDK", "BinkAudio");
+		
+		string LibName = null;
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(ModuleDirectory, "..", "..", "Runtime", "BinkAudioDecoder", "SDK", "BinkAudio", "Lib", "binka_ue_encode_win64_static.lib"));
+			LibName = (Target.Architecture == UnrealArch.Arm64) ? "binka_ue_encode_winarm64_static.lib" : "binka_ue_encode_win64_static.lib";
 		}
 		if (Target.Platform == UnrealTargetPlatform.Linux)
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(ModuleDirectory, "..", "..", "Runtime", "BinkAudioDecoder", "SDK", "BinkAudio", "Lib", "libbinka_ue_encode_lnx64_static.a"));
+			LibName = "libbinka_ue_encode_lnx64_static.a";
 		}
 		if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(ModuleDirectory, "..", "..", "Runtime", "BinkAudioDecoder", "SDK", "BinkAudio", "Lib", "libbinka_ue_encode_osx_static.a"));
+			LibName = "libbinka_ue_encode_osx_static.a";
+		}
+
+		PublicSystemIncludePaths.Add(Path.Combine(SdkDir, "Include"));
+		if (LibName != null)
+		{
+			PublicAdditionalLibraries.Add(Path.Combine(SdkDir, "Lib", LibName));
 		}
 	}
 }

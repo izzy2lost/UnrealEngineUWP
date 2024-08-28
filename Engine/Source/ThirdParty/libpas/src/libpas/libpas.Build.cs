@@ -36,7 +36,9 @@ public class libpas : ModuleRules
                     libpasConfigName = "ReleaseUE";
                     break;
             }
-			PublicAdditionalLibraries.Add(Path.Combine(libpasDirectory, "x64", libpasConfigName, "libpas.lib"));
+
+			string ArchName = Target.Architecture == UnrealArch.Arm64 ? "ARM64" : "x64";
+			PublicAdditionalLibraries.Add(Path.Combine(libpasDirectory, ArchName, libpasConfigName, "libpas.lib"));
 
 			// libpas will always be statically linked on Windows.
 			PublicDefinitions.Add("LIBPAS_API=");

@@ -11,7 +11,7 @@ public class dr_libs : ModuleRules
 	{
 		get
 		{
-			return Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) ||
+			return (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) && Target.Architecture != UnrealArch.Arm64) ||
 				   (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) && Target.Architecture != UnrealArch.Arm64) ||
 				   Target.Platform == UnrealTargetPlatform.Mac ||
 				   Target.Platform == UnrealTargetPlatform.IOS ||

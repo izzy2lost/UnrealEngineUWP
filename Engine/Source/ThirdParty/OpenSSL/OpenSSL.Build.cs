@@ -32,14 +32,21 @@ public class OpenSSL : ModuleRules
 		}
 		else if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
 		{
-			PlatformSubdir = "Win64";
-			string VSVersion = "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+			if (Target.Architecture == UnrealArch.Arm64)
+			{
+				PlatformSubdir = "WinArm64";
+			}
+			else
+			{
+				string VSVersion = "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+				PlatformSubdir = Path.Combine("Win64", VSVersion);
+			}
 
 			// Add includes
-			PublicSystemIncludePaths.Add(Path.Combine(IncOpenSSLPath, PlatformSubdir, VSVersion));
+			PublicSystemIncludePaths.Add(Path.Combine(IncOpenSSLPath, PlatformSubdir));
 
 			// Add Libs
-			string LibPath = Path.Combine(LibOpenSSLPath, PlatformSubdir, VSVersion, ConfigFolder);
+			string LibPath = Path.Combine(LibOpenSSLPath, PlatformSubdir, ConfigFolder);
 
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "libssl.lib"));
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "libcrypto.lib"));

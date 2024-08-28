@@ -1137,12 +1137,32 @@ namespace UnrealBuildTool
 							// WebRTC / VPX
 							"VirtualCamera",
 
-							// Boost
+							// Boost (some of these may not be needed, but it doesn't hurt to list)
 							"USDImporter",
 							"ChaosFlesh",
+							"Interchange",
+							"ChaosClothAssetEditor",
+							"GLTFExporter",
+							"InterchangeAudio",
+							"MetaHuman",
+							"DatasmithInterchange",
+							"InterchangeEditor",
+							"MeshPainting",
 
 							// DVP
 							"MediaIOFramework",
+							"Composure",
+
+							// OpenML
+							"NNE",
+							"MLDeformer",
+							"NNEDenoiser",
+
+							// Flite
+							"TextToSpeech",
+
+							// ICE in VS2022 14.34.31933 but not in 14.41.34120
+							"RigLogic",
 						});
 					}
 

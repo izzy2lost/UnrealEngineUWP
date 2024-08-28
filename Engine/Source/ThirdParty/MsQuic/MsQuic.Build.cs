@@ -19,7 +19,7 @@ public class MsQuic : ModuleRules
 
         bool bShouldUseMsQuic = false;
 
-        if (Target.Platform == UnrealTargetPlatform.Win64)
+        if (Target.Platform == UnrealTargetPlatform.Win64 && Target.Architecture != UnrealArch.Arm64)
         {
             bShouldUseMsQuic = true;
         }

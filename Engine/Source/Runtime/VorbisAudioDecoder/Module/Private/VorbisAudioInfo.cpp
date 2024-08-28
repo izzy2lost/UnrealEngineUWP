@@ -808,18 +808,19 @@ void LoadVorbisLibraries()
 		DLLNameStub = TEXT("_64.dll");
 #endif
 
+		// vorbis winarm64 libs are static for now, so no need to load anything
 #if PLATFORM_CPU_ARM_FAMILY && !defined(_M_ARM64EC)
-#if PLATFORM_64BITS
 		FString RootOggPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Ogg/") / PlatformString / VSVersion / TEXT("arm64/");
-		FString RootVorbisPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Vorbis/") / PlatformString / VSVersion / TEXT("arm64/");
-#else
-		FString RootOggPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Ogg/") / PlatformString / VSVersion / TEXT("arm/");
-		FString RootVorbisPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Vorbis/") / PlatformString / VSVersion / TEXT("arm/");
-#endif
+		FString DLLToLoad = RootOggPath + TEXT("libogg") + DLLNameStub;
+		void* LibOggHandle = FPlatformProcess::GetDllHandle(*DLLToLoad);
+		verifyf(LibOggHandle, TEXT("Failed to load DLL %s"), *DLLToLoad);
+
+		// Set that we successfully loaded everything so we can do nothing if it fails and avoid a crash
+		bDllLoaded = !!LibOggHandle;
+
 #else
 		FString RootOggPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Ogg/") / PlatformString / VSVersion;
 		FString RootVorbisPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Vorbis/") / PlatformString / VSVersion;
-#endif
 
 		FString DLLToLoad = RootOggPath + TEXT("libogg") + DLLNameStub;
 		void* LibOggHandle = FPlatformProcess::GetDllHandle(*DLLToLoad);
@@ -836,6 +837,7 @@ void LoadVorbisLibraries()
 
 		// Set that we successfully loaded everything so we can do nothing if it fails and avoid a crash
 		bDllLoaded = LibOggHandle && LibVorbisHandle && LibVorbisFileHandle;
+#endif
 
 		if (!bDllLoaded)
 		{

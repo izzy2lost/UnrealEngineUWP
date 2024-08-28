@@ -18,9 +18,16 @@ public class VorbisFile : ModuleRules
 		PublicSystemIncludePaths.Add(VorbisFileIncPath);
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(VorbisFileLibPath, "win64", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), "libvorbisfile_64.lib"));
-			PublicDelayLoadDLLs.Add("libvorbisfile_64.dll");
-			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Vorbis/Win64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbisfile_64.dll");
+			if (Target.Architecture == UnrealArch.Arm64)
+			{
+				PublicAdditionalLibraries.Add(Path.Combine(VorbisFileLibPath, "WinArm64", "libvorbisfile_64.lib"));
+			}
+			else
+			{
+				PublicAdditionalLibraries.Add(Path.Combine(VorbisFileLibPath, "win64", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), "libvorbisfile_64.lib"));
+				PublicDelayLoadDLLs.Add("libvorbisfile_64.dll");
+				RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Vorbis/Win64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbisfile_64.dll");
+			}
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Android))
 		{
