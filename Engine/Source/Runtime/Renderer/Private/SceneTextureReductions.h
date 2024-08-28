@@ -6,6 +6,11 @@
 #include "RenderGraphFwd.h"
 #include "RHIFwd.h"
 
+namespace Froxel
+{
+	struct FViewData;
+}
+
 struct FBuildHZBAsyncComputeParams
 {
 	FRDGPassRef Prerequisite = nullptr;
@@ -25,7 +30,8 @@ void BuildHZB(
 	const TCHAR* FurthestHZBName,
 	FRDGTextureRef* OutFurthestHZBTexture,
 	EPixelFormat Format = BuildHZBDefaultPixelFormat,
-	const FBuildHZBAsyncComputeParams* AsyncComputeParams = nullptr);
+	const FBuildHZBAsyncComputeParams* AsyncComputeParams = nullptr,
+	const Froxel::FViewData* OutFroxelData = nullptr);
 
 // Build only the furthest HZB
 void BuildHZBFurthest(

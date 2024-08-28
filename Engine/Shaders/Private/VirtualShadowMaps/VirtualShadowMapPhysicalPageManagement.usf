@@ -665,22 +665,6 @@ void MergePhysicalPixel(uint2 PixelCoord)
 		OutPhysicalPagePool[uint3(PixelCoord, GetVirtualShadowMapStaticArrayIndex())]);
 }
 
-RWBuffer<uint> OutIndirectArgsBuffer;
-uint NumIndirectArgs;
-uint IndirectArgStride;
-
-// Set dispatch Args to 0,1,1 (3D grid dim) ready for atomic adding on GPU
-[numthreads(64, 1, 1)]
-void ClearIndirectDispatchArgs1DCS(uint IndirectArgIndex : SV_DispatchThreadID)
-{
-	if (IndirectArgIndex < NumIndirectArgs)
-	{
-		OutIndirectArgsBuffer[IndirectArgIndex * IndirectArgStride + 0] = 0;
-		OutIndirectArgsBuffer[IndirectArgIndex * IndirectArgStride + 1] = 1;
-		OutIndirectArgsBuffer[IndirectArgIndex * IndirectArgStride + 2] = 1;
-	}
-}
-
 // Log2 2D dimension of thread group size, 2^4 == 16, 
 #define LOG2_TILE_THREAD_GROUP_SIZE_XY 4U
 #define TILE_THREAD_GROUP_SIZE_XY (1U << LOG2_TILE_THREAD_GROUP_SIZE_XY)

@@ -296,3 +296,46 @@ RENDERER_API FBufferRHIRef& GetOneTileQuadIndexBuffer()
 {
 	return GOneTileQuadIndexBuffer.IndexBufferRHI;
 }
+
+class FClearIndirectDispatchArgsCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FClearIndirectDispatchArgsCS);
+	SHADER_USE_PARAMETER_STRUCT(FClearIndirectDispatchArgsCS, FGlobalShader)
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, NumIndirectArgs)
+		SHADER_PARAMETER(uint32, IndirectArgStride)
+		SHADER_PARAMETER(FIntVector3, DimClearValue)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutIndirectArgsBuffer)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FClearIndirectDispatchArgsCS, "/Engine/Private/RendererUtils.usf", "ClearIndirectDispatchArgsCS", SF_Compute);
+
+void AddClearIndirectDispatchArgsPass(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, FRDGBufferRef IndirectArgsRDG, const FIntVector3 &DimClearValue, uint32 NumIndirectArgs, uint32 IndirectArgStride)
+{
+	// Need room for XYZ dims at least.
+	check(IndirectArgStride >= 3);
+
+	FClearIndirectDispatchArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FClearIndirectDispatchArgsCS::FParameters>();
+	PassParameters->NumIndirectArgs = NumIndirectArgs;
+	PassParameters->IndirectArgStride = IndirectArgStride;
+	PassParameters->DimClearValue = DimClearValue; 
+	PassParameters->OutIndirectArgsBuffer = GraphBuilder.CreateUAV(IndirectArgsRDG);
+
+	auto ComputeShader = GetGlobalShaderMap(FeatureLevel)->GetShader<FClearIndirectDispatchArgsCS>();
+
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("ClearIndirectDispatchArgs"),
+		ComputeShader,
+		PassParameters,
+		FComputeShaderUtils::GetGroupCount(NumIndirectArgs, 64)
+	);
+}
+
+FRDGBufferRef CreateAndClearIndirectDispatchArgs(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* Name, const FIntVector3& DimClearValue, uint32 NumIndirectArgs, uint32 IndirectArgStride)
+{
+	FRDGBufferRef IndirectArgsRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc(NumIndirectArgs * IndirectArgStride), Name);
+	AddClearIndirectDispatchArgsPass(GraphBuilder, FeatureLevel, IndirectArgsRDG, DimClearValue, NumIndirectArgs, IndirectArgStride);
+	return IndirectArgsRDG;
+}

@@ -26,6 +26,11 @@ struct FShaderCompilerEnvironment;
 struct FFrontLayerTranslucencyData;
 class FSceneInstanceCullingQuery;
 
+namespace Froxel
+{
+	class FRenderer;
+}
+
 namespace Nanite
 {
 	struct FPackedView;
@@ -47,6 +52,8 @@ constexpr uint32 CalcVirtualShadowMapLevelOffsets(uint32 Level, uint32 Log2Level
 	uint32 Mask = ((1U << NumBits) - 1U) << StartBit;
 	return 0x55555555U & Mask;
 }
+
+bool DoesVSMWantFroxels(EShaderPlatform ShaderPlatform);
 
 class FVirtualShadowMap
 {
@@ -325,7 +332,8 @@ public:
 		const FSortedLightSetSceneInfo& SortedLights, 
 		const TConstArrayView<FVisibleLightInfo>& VisibleLightInfos,
 		const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult,
-		const FFrontLayerTranslucencyData& FrontLayerTranslucencyData);
+		const FFrontLayerTranslucencyData& FrontLayerTranslucencyData,
+		const Froxel::FRenderer& FroxelRenderer);
 
 	bool IsAllocated() const
 	{
@@ -393,11 +401,6 @@ public:
 	 * This could occur fairly easily since it is possible to both set the values through console as well as scalability.
 	 */
 	static float InterpolateResolutionBias(float BiasNonMoving, float BiasMoving, float LightMobilityFactor);
-
-	/**
-	* Helper function to create and clear an indirect args buffer
-	*/
-	static FRDGBufferRef CreateAndInitializeDispatchIndirectArgs1D(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* Name);
 
 	// We keep a reference to the cache manager that was used to initialize this frame as it owns some of the buffers
 	FVirtualShadowMapArrayCacheManager* CacheManager = nullptr;

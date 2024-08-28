@@ -1345,11 +1345,16 @@ bool UseNanite(EShaderPlatform ShaderPlatform, bool bCheckForAtomicSupport /*= t
 	return bNaniteEnabled && DoesRuntimeSupportNanite(ShaderPlatform, bCheckForAtomicSupport, bCheckForProjectSetting);
 }
 
-bool UseVirtualShadowMaps(EShaderPlatform ShaderPlatform, const FStaticFeatureLevel FeatureLevel)
+bool UseVirtualShadowMaps(EShaderPlatform ShaderPlatform)
 {
 	static const auto EnableVirtualSMCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shadow.Virtual.Enable"));
 	const bool bVirtualShadowMapsEnabled = EnableVirtualSMCVar ? (EnableVirtualSMCVar->GetInt() != 0) : false;
 	return bVirtualShadowMapsEnabled && DoesRuntimeSupportNanite(ShaderPlatform, true /* check for atomics */, false /* check project setting */);
+}
+
+bool UseVirtualShadowMaps(EShaderPlatform ShaderPlatform, const FStaticFeatureLevel FeatureLevel)
+{
+	return UseVirtualShadowMaps(ShaderPlatform);
 }
 
 bool DoesPlatformSupportVirtualShadowMaps(EShaderPlatform Platform)

@@ -419,6 +419,12 @@ RENDERCORE_API bool UseNanite(EShaderPlatform ShaderPlatform, bool bCheckForAtom
  * Returns true if Virtual Shadow Maps should be used for the given shader platform.
  * Note: Virtual Shadow Maps require Nanite support.
  */
+RENDERCORE_API bool UseVirtualShadowMaps(EShaderPlatform ShaderPlatform);
+
+/**
+ * Returns true if Virtual Shadow Maps should be used for the given shader platform.
+ * Note: Virtual Shadow Maps require Nanite support.
+ */
 RENDERCORE_API bool UseVirtualShadowMaps(EShaderPlatform ShaderPlatform, const FStaticFeatureLevel FeatureLevel);
 
 /**

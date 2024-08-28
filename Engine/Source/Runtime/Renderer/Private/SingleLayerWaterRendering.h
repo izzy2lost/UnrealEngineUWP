@@ -6,6 +6,7 @@
 #include "PixelShaderUtils.h"
 #include "ScreenSpaceRayTracing.h"
 #include "SingleLayerWaterDefinitions.h"
+#include "Froxel/Froxel.h"
 
 class FViewInfo;
 
@@ -18,6 +19,7 @@ struct FSingleLayerWaterTileClassification
 
 struct FSingleLayerWaterPrePassResult
 {
+	Froxel::FRenderer Froxels;
 	FRDGTextureMSAA DepthPrepassTexture;
 	TArray<FSingleLayerWaterTileClassification> ViewTileClassification;
 };

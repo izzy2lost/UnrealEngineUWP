@@ -103,6 +103,7 @@
 #include "CustomRenderPassSceneCapture.h"
 #include "EnvironmentComponentsFlags.h"
 #include "GenerateMips.h"
+#include "Froxel/Froxel.h"
 
 #if !UE_BUILD_SHIPPING
 #include "RenderCaptureInterface.h"
@@ -412,7 +413,7 @@ bool FDeferredShadingSceneRenderer::ShouldRenderNanite() const
 	return UseNanite(ShaderPlatform) && ViewFamily.EngineShowFlags.NaniteMeshes && Nanite::GStreamingManager.HasResourceEntries();
 }
 
-bool FDeferredShadingSceneRenderer::RenderHzb(FRDGBuilder& GraphBuilder, FRDGTextureRef SceneDepthTexture, const FBuildHZBAsyncComputeParams* AsyncComputeParams)
+bool FDeferredShadingSceneRenderer::RenderHzb(FRDGBuilder& GraphBuilder, FRDGTextureRef SceneDepthTexture, const FBuildHZBAsyncComputeParams* AsyncComputeParams, Froxel::FRenderer& FroxelRenderer)
 {
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HZB);
 
@@ -445,7 +446,8 @@ bool FDeferredShadingSceneRenderer::RenderHzb(FRDGBuilder& GraphBuilder, FRDGTex
 				TEXT("HZBFurthest"),
 				/* OutFurthestHZBTexture = */ &FurthestHZBTexture,
 				BuildHZBDefaultPixelFormat,
-				AsyncComputeParams);
+				AsyncComputeParams,
+				FroxelRenderer.GetView(ViewIndex));
 
 			// Update the view.
 			{
@@ -2146,7 +2148,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		return GetViewPipelineState(Views[ViewIndex]).AmbientOcclusionMethod == EAmbientOcclusionMethod::SSAO;
 	});
 
-	const auto RenderOcclusionLambda = [&]()
+	const auto RenderOcclusionLambda = [&]() -> Froxel::FRenderer 
 	{
 		const int32 AsyncComputeMode = CVarSceneDepthHZBAsyncCompute.GetValueOnRenderThread();
 		bool bAsyncCompute = AsyncComputeMode != 0;
@@ -2157,10 +2159,16 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			AsyncComputeParams.Prerequisite = ComputeLightGridOutput.CompactLinksPass;
 		}
 
+		bool bShouldGenerateFroxels = DoesVSMWantFroxels(ShaderPlatform);
+
+		Froxel::FRenderer FroxelRenderer(bShouldGenerateFroxels, GraphBuilder, Views);
+
 		RenderOcclusion(GraphBuilder, SceneTextures, bIsOcclusionTesting,
-			bAsyncCompute ? &AsyncComputeParams : nullptr);
+			bAsyncCompute ? &AsyncComputeParams : nullptr, FroxelRenderer);
 
 		CompositionLighting.ProcessAfterOcclusion(GraphBuilder);
+
+		return FroxelRenderer;
 	};
 
 	const bool bShouldRenderVolumetricCloudBase = ShouldRenderVolumetricCloud(Scene, ViewFamily.EngineShowFlags);
@@ -2168,6 +2176,8 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	const bool bShouldVisualizeVolumetricCloud = bShouldRenderVolumetricCloudBase && (!!ViewFamily.EngineShowFlags.VisualizeVolumetricCloudConservativeDensity || !!ViewFamily.EngineShowFlags.VisualizeVolumetricCloudEmptySpaceSkipping);
 	const bool bAsyncComputeVolumetricCloud = IsVolumetricRenderTargetEnabled() && IsVolumetricRenderTargetAsyncCompute();
 	const bool bVolumetricRenderTargetRequired = bShouldRenderVolumetricCloud && !bHasRayTracedOverlay;
+
+	Froxel::FRenderer FroxelRenderer;
 
 	FRDGTextureRef ViewFamilyTexture = TryCreateViewFamilyTexture(GraphBuilder, ViewFamily);
 	FRDGTextureRef ViewFamilyDepthTexture = TryCreateViewFamilyDepthTexture(GraphBuilder, ViewFamily);
@@ -2186,7 +2196,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			bOcclusionBeforeBasePass = ((DepthPass.EarlyZPassMode == EDepthDrawingMode::DDM_AllOccluders) || bIsEarlyDepthComplete);
 			if (bOcclusionBeforeBasePass)
 			{
-				RenderOcclusionLambda();
+				FroxelRenderer = RenderOcclusionLambda();
 			}
 
 			SceneTextures.SetupMode |= ESceneTextureSetupMode::SceneColor;
@@ -2221,7 +2231,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		if (!bOcclusionBeforeBasePass)
 		{
-			RenderOcclusionLambda();
+			FroxelRenderer = RenderOcclusionLambda();
 		}
 
 		if (bUpdateNaniteStreaming)
@@ -2285,7 +2295,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		if (bOcclusionBeforeBasePass)
 		{
-			RenderOcclusionLambda();
+			FroxelRenderer = RenderOcclusionLambda();
 		}
 
 		// End early occlusion queries
@@ -2540,7 +2550,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		// Occlusion after base pass
 		if (!bOcclusionBeforeBasePass)
 		{
-			RenderOcclusionLambda();
+			FroxelRenderer = RenderOcclusionLambda();
 		}
 
 		// End occlusion after base
@@ -2649,7 +2659,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 					FFrontLayerTranslucencyData FrontLayerTranslucencyData = RenderFrontLayerTranslucency(GraphBuilder, Views, SceneTextures, true /*VSM page marking*/);
 
-					VirtualShadowMapArray.BuildPageAllocations(GraphBuilder, GetActiveSceneTextures(), Views, SortedLightSet, VisibleLightInfos, SingleLayerWaterPrePassResult, FrontLayerTranslucencyData);
+					VirtualShadowMapArray.BuildPageAllocations(GraphBuilder, GetActiveSceneTextures(), Views, SortedLightSet, VisibleLightInfos, SingleLayerWaterPrePassResult, FrontLayerTranslucencyData, FroxelRenderer);
 				}
 
 				RenderShadowDepthMaps(GraphBuilder, InitViewTaskDatas.DynamicShadows, InstanceCullingManager, ExternalAccessQueue);

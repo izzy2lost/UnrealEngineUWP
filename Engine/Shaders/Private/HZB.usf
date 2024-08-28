@@ -44,7 +44,7 @@ RWTexture2D<float> ClosestHZBOutput_1;
 RWTexture2D<float> ClosestHZBOutput_2;
 RWTexture2D<float> ClosestHZBOutput_3;
 
-groupshared float SharedMinDeviceZ[GROUP_TILE_SIZE * GROUP_TILE_SIZE];
+groupshared uint SharedMinDeviceZ[GROUP_TILE_SIZE * GROUP_TILE_SIZE];
 groupshared float SharedMaxDeviceZ[GROUP_TILE_SIZE * GROUP_TILE_SIZE];
 
 float RoundUpF16(float DeviceZ)
@@ -155,6 +155,23 @@ float4 Gather4VisZ(float2 BufferUV, uint2 PixelCoord)
 
 #endif
 
+#if DIM_FROXELS
+
+#define FROXEL_HASH_BUFFER_SIZE (GROUP_TILE_SIZE * GROUP_TILE_SIZE)
+#define FROXEL_HASH_THREAD_GROUP_SIZE (GROUP_TILE_SIZE * GROUP_TILE_SIZE)
+
+#define FROXEL_SHARED_HASH_BUFFER_VAR SharedMinDeviceZ
+
+#include "Froxel/FroxelBuild.ush"
+
+
+#if GROUP_TILE_SIZE != FROXEL_TILE_SIZE
+	#error "The froxel construction algorithm assumes the group size matches the tile size, if this is changed this code needs to be updated"
+#endif
+
+#endif // DIM_FROXELS
+
+
 [numthreads(GROUP_TILE_SIZE, GROUP_TILE_SIZE, 1)]
 void HZBBuildCS(
 	uint2 GroupId : SV_GroupID,
@@ -166,7 +183,12 @@ void HZBBuildCS(
 		uint2 GroupThreadId = InitialTilePixelPositionForReduction2x2(MAX_MIP_BATCH_SIZE - 1, GroupThreadIndex);
 	#endif
 
-	uint2 DispatchThreadId = GROUP_TILE_SIZE * GroupId + GroupThreadId;
+	uint2 GroupOffset = GROUP_TILE_SIZE * GroupId;
+	uint2 DispatchThreadId = GroupOffset + GroupThreadId;
+
+	// whether or not any of the threads in the group is going to look at valid pixels, a lot don't in the HZB build because of POT rounding.
+	uint2 MinPixelCoord = (GroupOffset << 1) + PixelViewPortMinMax.xy;
+	bool bValidGroup = all(MinPixelCoord < PixelViewPortMinMax.zw);
 
 	float2 BufferUV = (DispatchThreadId + 0.5) * DispatchThreadIdToBufferUV.xy + DispatchThreadIdToBufferUV.zw;
 	float4 DeviceZ = Gather4(ParentTextureMip, ParentTextureMipSampler, BufferUV);
@@ -180,6 +202,20 @@ void HZBBuildCS(
 
 	float MinDeviceZ = min(min3(DeviceZ.x, DeviceZ.y, DeviceZ.z), DeviceZ.w);
 	float MaxDeviceZ = max(max3(DeviceZ.x, DeviceZ.y, DeviceZ.z), DeviceZ.w);
+
+#if DIM_FROXELS
+	// 2x as each thread does 2x2 through Gather
+	uint2 LocalTileId = (2 * GroupThreadId) / (FROXEL_TILE_SIZE);
+	uint LocalLinearTileId = LocalTileId.y * 2 + LocalTileId.x;
+	 // 2x2 tiles per group
+	uint2 GroupTileOffset = GroupId * 2;
+	uint2 TileId = GroupTileOffset + LocalTileId;
+
+	if (bValidGroup)
+	{
+		HashBuildFroxelsFromDeviceZ(DeviceZ, GroupThreadIndex, LocalLinearTileId, GroupTileOffset);
+	}
+#endif
 	
 	uint2 OutputPixelPos = DispatchThreadId;
 	
@@ -197,7 +233,7 @@ void HZBBuildCS(
 	}
 	#else
 	{
-		SharedMinDeviceZ[GroupThreadIndex] = MinDeviceZ;
+		SharedMinDeviceZ[GroupThreadIndex] = asuint(MinDeviceZ);
 		SharedMaxDeviceZ[GroupThreadIndex] = MaxDeviceZ;
 #if FEATURE_LEVEL >= FEATURE_LEVEL_SM6 || PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS
 		const uint LaneCount = WaveGetLaneCount();
@@ -230,7 +266,7 @@ void HZBBuildCS(
 				for (uint i = 1; i < 4; i++)
 				{
 					uint LDSIndex = GroupThreadIndex + i * ReduceBankSize;
-					ParentMinDeviceZ[i] = SharedMinDeviceZ[LDSIndex];
+					ParentMinDeviceZ[i] = asfloat(SharedMinDeviceZ[LDSIndex]);
 					ParentMaxDeviceZ[i] = SharedMaxDeviceZ[LDSIndex];
 				}
 				
@@ -240,7 +276,7 @@ void HZBBuildCS(
 				OutputPixelPos = OutputPixelPos >> 1;
 				OutputMipLevel(MipLevel, OutputPixelPos, MinDeviceZ, MaxDeviceZ);
 				
-				SharedMinDeviceZ[GroupThreadIndex] = MinDeviceZ;
+				SharedMinDeviceZ[GroupThreadIndex] = asuint(MinDeviceZ);
 				SharedMaxDeviceZ[GroupThreadIndex] = MaxDeviceZ;
 			}
 		}

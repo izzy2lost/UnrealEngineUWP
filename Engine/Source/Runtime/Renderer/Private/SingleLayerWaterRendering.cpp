@@ -298,15 +298,18 @@ class FWaterTileCategorisationMarkCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FWaterTileCategorisationMarkCS, FGlobalShader)
 
 	class FUsePrepassStencil : SHADER_PERMUTATION_BOOL("USE_WATER_PRE_PASS_STENCIL");
-	using FPermutationDomain = TShaderPermutationDomain<FUsePrepassStencil>;
+	class FBuildFroxels : SHADER_PERMUTATION_BOOL("GENERATE_FROXELS");
+	using FPermutationDomain = TShaderPermutationDomain<FUsePrepassStencil, FBuildFroxels>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)	// Water scene texture
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, WaterDepthStencilTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, WaterDepthTexture)
 		SHADER_PARAMETER(FIntPoint, TiledViewRes)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, TileMaskBufferOut)
+		SHADER_PARAMETER_STRUCT_INCLUDE(Froxel::FBuilderParameters, FroxelBuilder)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
@@ -316,6 +319,15 @@ class FWaterTileCategorisationMarkCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		// No need for froxels on non-VSM platforms
+		if (PermutationVector.Get<FBuildFroxels>() 
+			// only compile if on a supported platform & we have depth stencil avaliable
+			&& (!DoesPlatformSupportVirtualShadowMaps(Parameters.Platform) || !PermutationVector.Get<FUsePrepassStencil>()))
+		{
+			return false;
+		}
+
 		return UseSingleLayerWaterIndirectDraw(Parameters.Platform);
 	}
 
@@ -450,7 +462,7 @@ static FSingleLayerWaterDepthPassParameters* GetSingleLayerWaterDepthPassParamet
  * Build lists of 8x8 tiles used by water pixels
  * Mark and build list steps are separated in order to build a more coherent list (z-ordered over a larger region), which is important for the performance of future passes like ray traced Lumen reflections
  */
-static FSingleLayerWaterTileClassification ClassifyTiles(FRDGBuilder& GraphBuilder, const FViewInfo &View, const FSceneTextures& SceneTextures, const FRDGTextureRef& DepthPrepassTexture)
+static FSingleLayerWaterTileClassification ClassifyTiles(FRDGBuilder& GraphBuilder, const FViewInfo &View, const FSceneTextures& SceneTextures, const FRDGTextureRef& DepthPrepassTexture, const Froxel::FViewData* OutFroxelViewData)
 {
 	FSingleLayerWaterTileClassification Result;
 	const bool bRunTiled = UseSingleLayerWaterIndirectDraw(View.GetShaderPlatform()) && CVarWaterSingleLayerTiledComposite.GetValueOnRenderThread();
@@ -477,10 +489,15 @@ static FSingleLayerWaterTileClassification ClassifyTiles(FRDGBuilder& GraphBuild
 		AddClearUAVPass(GraphBuilder, DrawIndirectParametersBufferUAV, 0);
 		AddClearUAVPass(GraphBuilder, DispatchIndirectParametersBufferUAV, 0);
 
+		// Can't produce froxels unless we have depth data
+		bool bProduceFroxelData = OutFroxelViewData != nullptr && DepthPrepassTexture != nullptr;
+
 		// Mark used tiles based on SHADING_MODEL_ID
 		{
 			FWaterTileCategorisationMarkCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FWaterTileCategorisationMarkCS::FUsePrepassStencil>(DepthPrepassTexture != nullptr);
+			PermutationVector.Set<FWaterTileCategorisationMarkCS::FBuildFroxels>(bProduceFroxelData);
+
 			TShaderMapRef<FWaterTileCategorisationMarkCS> ComputeShader(View.ShaderMap, PermutationVector);
 
 			FWaterTileCategorisationMarkCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FWaterTileCategorisationMarkCS::FParameters>();
@@ -490,8 +507,12 @@ static FSingleLayerWaterTileClassification ClassifyTiles(FRDGBuilder& GraphBuild
 			PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 			PassParameters->TiledViewRes = Result.TiledViewRes;
 			PassParameters->WaterDepthStencilTexture = DepthPrepassTexture ? GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateWithPixelFormat(DepthPrepassTexture, PF_X24_G8)) : nullptr;
+			PassParameters->WaterDepthTexture = DepthPrepassTexture ? DepthPrepassTexture : nullptr;
 			PassParameters->TileMaskBufferOut = TileMaskBufferUAV;
-
+			if (bProduceFroxelData)
+			{
+				PassParameters->FroxelBuilder = OutFroxelViewData->GetBuilderParameters(GraphBuilder);
+			}
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
 				RDG_EVENT_NAME("SLW::TileCategorisationMarkTiles"),
@@ -658,12 +679,14 @@ FSingleLayerWaterPrePassResult* FDeferredShadingSceneRenderer::RenderSingleLayer
 	AddResolveSceneDepthPass(GraphBuilder, InViews, OutDepthPrepassTexture);
 
 	// Run classification pass.
-	for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ++ViewIndex)
+	if (UseSingleLayerWaterIndirectDraw(ShaderPlatform) && CVarWaterSingleLayerTiledComposite.GetValueOnRenderThread())
 	{
-		FViewInfo& View = InViews[ViewIndex];
-		if (UseSingleLayerWaterIndirectDraw(View.GetShaderPlatform()) && CVarWaterSingleLayerTiledComposite.GetValueOnRenderThread())
+		Result->Froxels = Froxel::FRenderer(DoesVSMWantFroxels(ShaderPlatform), GraphBuilder, Views);
+
+		for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ++ViewIndex)
 		{
-			Result->ViewTileClassification[ViewIndex] = ClassifyTiles(GraphBuilder, View, SceneTextures, OutDepthPrepassTexture.Resolve);
+			FViewInfo& View = InViews[ViewIndex];
+			Result->ViewTileClassification[ViewIndex] = ClassifyTiles(GraphBuilder, View, SceneTextures, OutDepthPrepassTexture.Resolve, Result->Froxels.GetView(ViewIndex));
 		}
 	}
 
@@ -877,7 +900,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 			}
 			else
 			{
-				SingleLayerWaterTileClassification = ClassifyTiles(GraphBuilder, View, SceneTextures, nullptr);
+				SingleLayerWaterTileClassification = ClassifyTiles(GraphBuilder, View, SceneTextures, nullptr, nullptr);
 			}
 		}
 		FTiledReflection& TiledScreenSpaceReflection = SingleLayerWaterTileClassification.TiledReflection;

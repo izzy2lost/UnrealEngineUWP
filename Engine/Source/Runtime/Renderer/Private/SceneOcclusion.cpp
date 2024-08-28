@@ -1383,7 +1383,8 @@ void FDeferredShadingSceneRenderer::RenderOcclusion(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
 	bool bIsOcclusionTesting,
-	const FBuildHZBAsyncComputeParams* BuildHZBAsyncComputeParams)
+	const FBuildHZBAsyncComputeParams* BuildHZBAsyncComputeParams,
+	Froxel::FRenderer& FroxelRenderer)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::RenderOcclusion);
 
@@ -1475,7 +1476,7 @@ void FDeferredShadingSceneRenderer::RenderOcclusion(
 		FenceOcclusionTests(GraphBuilder);
 	}
 
-	const bool bUseHzbOcclusion = RenderHzb(GraphBuilder, SceneTextures.Depth.Resolve, BuildHZBAsyncComputeParams);
+	const bool bUseHzbOcclusion = RenderHzb(GraphBuilder, SceneTextures.Depth.Resolve, BuildHZBAsyncComputeParams, FroxelRenderer);
 
 	if (bUseHzbOcclusion || bIsOcclusionTesting)
 	{

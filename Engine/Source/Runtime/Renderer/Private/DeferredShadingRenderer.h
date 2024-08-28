@@ -65,6 +65,11 @@ struct FDBufferTextures;
 struct FILCUpdatePrimTaskData;
 struct FLumenDirectLightingTaskData;
 
+namespace Froxel
+{
+	class FFroxelRenderer;
+}
+
 class IVisibilityTaskData;
 
 #if RHI_RAYTRACING
@@ -424,9 +429,10 @@ public:
 		FRDGBuilder& GraphBuilder,
 		const FSceneTextures& SceneTextures,
 		bool bIsOcclusionTesting,
-		const FBuildHZBAsyncComputeParams* BuildHZBAsyncComputeParams = nullptr);
+		const FBuildHZBAsyncComputeParams* BuildHZBAsyncComputeParams,
+		Froxel::FRenderer& FroxelRenderer);
 
-	bool RenderHzb(FRDGBuilder& GraphBuilder, FRDGTextureRef SceneDepthTexture, const FBuildHZBAsyncComputeParams* AsyncComputeParams);
+	bool RenderHzb(FRDGBuilder& GraphBuilder, FRDGTextureRef SceneDepthTexture, const FBuildHZBAsyncComputeParams* AsyncComputeParams, Froxel::FRenderer& FroxelRenderer);
 
 	/** Renders the view family. */
 	virtual void Render(FRDGBuilder& GraphBuilder) override;
