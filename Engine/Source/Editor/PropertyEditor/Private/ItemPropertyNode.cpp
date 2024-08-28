@@ -125,24 +125,6 @@ TSharedPtr<FPropertyNode>& FItemPropertyNode::GetOrCreateOptionalValueNode(void)
 					InitParams.bForceHiddenPropertyVisibility = !!HasNodeFlags(EPropertyNodeFlags::ShouldShowHiddenProperties);
 					InitParams.bCreateDisableEditOnInstanceNodes = !!HasNodeFlags(EPropertyNodeFlags::ShouldShowDisableEditOnInstance);
 
-					OptionalValueNode->OnRebuildChildren().AddLambda([this]() {
-						CachedReadAddresses.Reset();
-						bool bDestroySelf = false;
-						DestroyTree(bDestroySelf);
-
-						for (int i = 0; i < OptionalValueNode->GetNumChildNodes(); i++)
-						{
-							AddChildNode(OptionalValueNode->GetChildNode(i));
-						}
-
-						// Children have been rebuilt, clear any pending rebuild requests
-						bRebuildChildrenRequested = false;
-						bChildrenRebuilt = true;
-
-						// Notify any listener that children have been rebuilt
-						OnRebuildChildrenEvent.Broadcast();
-					});
-
 					OptionalValueNode->InitNode(InitParams);
 				}
 			}
