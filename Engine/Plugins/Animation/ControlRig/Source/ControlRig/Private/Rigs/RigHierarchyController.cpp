@@ -299,6 +299,7 @@ FRigElementKey URigHierarchyController::AddNull(FName InName, FRigElementKey InP
 		}
 
 		NewElement->GetTransform().Current = NewElement->GetTransform().Initial;
+		NewElement->GetDirtyState().Current = NewElement->GetDirtyState().Initial;
 	}
 
 #if WITH_EDITOR
