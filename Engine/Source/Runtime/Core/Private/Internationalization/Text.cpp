@@ -45,7 +45,7 @@ TOptional<FString> FTextInspector::GetNamespace(const FText& Text)
 	const FTextId TextId = FTextInspector::GetTextId(Text);
 	if (!TextId.IsEmpty())
 	{
-		return FString(TextId.GetNamespace().GetChars());
+		return TextId.GetNamespace().ToString();
 	}
 	return TOptional<FString>();
 }
@@ -55,7 +55,7 @@ TOptional<FString> FTextInspector::GetKey(const FText& Text)
 	const FTextId TextId = FTextInspector::GetTextId(Text);
 	if (!TextId.IsEmpty())
 	{
-		return FString(TextId.GetKey().GetChars());
+		return TextId.GetKey().ToString();
 	}
 	return TOptional<FString>();
 }
@@ -81,7 +81,7 @@ bool FTextInspector::GetTableIdAndKey(const FText& Text, FName& OutTableId, FStr
 	FTextKey TmpKey;
 	if (GetTableIdAndKey(Text, OutTableId, TmpKey))
 	{
-		OutKey = TmpKey.GetChars();
+		TmpKey.ToString(OutKey);
 		return true;
 	}
 

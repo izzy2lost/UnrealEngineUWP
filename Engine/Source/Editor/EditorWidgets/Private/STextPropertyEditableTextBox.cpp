@@ -1021,8 +1021,8 @@ FText STextPropertyEditableTextBox::GetToolTipText() const
 			{
 				check(SourceString);
 
-				const FString Namespace = TextId.GetNamespace().GetChars();
-				const FString Key = TextId.GetKey().GetChars();
+				const FString Namespace = TextId.GetNamespace().ToString();
+				const FString Key = TextId.GetKey().ToString();
 
 				const FString PackageNamespace = TextNamespaceUtil::ExtractPackageNamespace(Namespace);
 				const FString TextNamespace = TextNamespaceUtil::StripPackageNamespace(Namespace);

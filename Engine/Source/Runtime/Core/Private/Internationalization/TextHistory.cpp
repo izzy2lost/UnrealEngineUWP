@@ -788,7 +788,7 @@ void FTextHistory_Base::Serialize(FStructuredArchive::FRecord Record)
 			const FString PackageNamespace = TextNamespaceUtil::GetPackageNamespace(BaseArchive);
 			if (!PackageNamespace.IsEmpty())
 			{
-				const FString NamespaceStr = Namespace.GetChars();
+				const FString NamespaceStr = Namespace.ToString();
 				const FString FullNamespace = TextNamespaceUtil::BuildFullNamespace(NamespaceStr, PackageNamespace);
 				if (!NamespaceStr.Equals(FullNamespace, ESearchCase::CaseSensitive))
 				{
@@ -804,7 +804,7 @@ void FTextHistory_Base::Serialize(FStructuredArchive::FRecord Record)
 		if (!GIsEditor)
 		{
 			// Strip the package localization ID to match how text works at runtime (properties do this when saving during cook)
-			Namespace = TextNamespaceUtil::StripPackageNamespace(Namespace.GetChars());
+			Namespace = TextNamespaceUtil::StripPackageNamespace(Namespace.ToString());
 		}
 #endif // WITH_EDITOR
 
@@ -820,7 +820,7 @@ void FTextHistory_Base::Serialize(FStructuredArchive::FRecord Record)
 		if (BaseArchive.IsCooking())
 		{
 			// We strip the package localization off the serialized text for a cooked game, as they're not used at runtime
-			Namespace = TextNamespaceUtil::StripPackageNamespace(Namespace.GetChars());
+			Namespace = TextNamespaceUtil::StripPackageNamespace(Namespace.ToString());
 		}
 		else
 		{
@@ -831,7 +831,7 @@ void FTextHistory_Base::Serialize(FStructuredArchive::FRecord Record)
 				const FString PackageNamespace = TextNamespaceUtil::GetPackageNamespace(BaseArchive);
 				if (!PackageNamespace.IsEmpty())
 				{
-					const FString NamespaceStr = Namespace.GetChars();
+					const FString NamespaceStr = Namespace.ToString();
 					const FString FullNamespace = TextNamespaceUtil::BuildFullNamespace(NamespaceStr, PackageNamespace);
 					if (!NamespaceStr.Equals(FullNamespace, ESearchCase::CaseSensitive))
 					{
@@ -1016,8 +1016,8 @@ bool FTextHistory_Base::WriteToBuffer(FString& Buffer, const bool bStripPackageN
 {
 	if (!TextId.IsEmpty())
 	{
-		FString Namespace = TextId.GetNamespace().GetChars();
-		FString Key = TextId.GetKey().GetChars();
+		FString Namespace = TextId.GetNamespace().ToString();
+		FString Key = TextId.GetKey().ToString();
 		if (bStripPackageNamespace)
 		{
 			TextNamespaceUtil::StripPackageNamespaceInline(Namespace);
@@ -2491,7 +2491,7 @@ bool FTextHistory_StringTableEntry::WriteToBuffer(FString& Buffer, const bool bS
 		FTextKey Key;
 		StringTableReferenceData->GetTableIdAndKey(TableId, Key);
 
-		FString KeyStr = Key.GetChars();
+		FString KeyStr = Key.ToString();
 
 #define LOC_DEFINE_REGION
 		// Produces LOCTABLE("...", "...")

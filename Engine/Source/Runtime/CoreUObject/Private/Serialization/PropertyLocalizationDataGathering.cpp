@@ -814,8 +814,8 @@ bool FPropertyLocalizationDataGatherer::ExtractTextIdentity(const FText& Text, F
 	const FTextId TextId = FTextInspector::GetTextId(Text);
 	if (!TextId.IsEmpty() && Text.ShouldGatherForLocalization())
 	{
-		OutNamespace = TextId.GetNamespace().GetChars();
-		OutKey = TextId.GetKey().GetChars();
+		TextId.GetNamespace().ToString(OutNamespace);
+		TextId.GetKey().ToString(OutKey);
 		if (bCleanNamespace)
 		{
 			OutNamespace = TextNamespaceUtil::StripPackageNamespace(OutNamespace);

@@ -332,8 +332,8 @@ bool UKismetTextLibrary::GetTextId(FText Text, FString& OutNamespace, FString& O
 	const FTextId TextId = FTextInspector::GetTextId(Text);
 	if (!TextId.IsEmpty())
 	{
-		OutNamespace = TextId.GetNamespace().GetChars();
-		OutKey = TextId.GetKey().GetChars();
+		TextId.GetNamespace().ToString(OutNamespace);
+		TextId.GetKey().ToString(OutKey);
 		return true;
 	}
 	return false;

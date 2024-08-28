@@ -218,7 +218,7 @@ int32 UGenerateTextLocalizationResourceCommandlet::Main(const FString& Params)
 		const FTextKey LocResId = DestinationPath / CultureName / ResourceName;
 		if (!FTextLocalizationResourceGenerator::GenerateLocRes(LocTextHelper, CultureName, GenerateFlags, LocResId, PlatformAgnosticLocRes, PerPlatformLocRes))
 		{
-			UE_LOG(LogGenerateTextLocalizationResourceCommandlet, Error, TEXT("Failed to generate LocRes %s"), LocResId.GetChars());
+			UE_LOG(LogGenerateTextLocalizationResourceCommandlet, Error, TEXT("Failed to generate LocRes %s"), *LocResId.ToString());
 			return false;
 		}
 	

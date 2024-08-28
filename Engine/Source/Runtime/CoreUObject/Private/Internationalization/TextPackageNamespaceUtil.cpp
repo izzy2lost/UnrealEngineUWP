@@ -291,7 +291,7 @@ bool TextNamespaceUtil::EditTextProperty(UObject* InTextOwner, const FTextProper
 		switch (InEditAction)
 		{
 		case ETextEditAction::Namespace:
-			if (const FString CurrentTextNamespace = StripPackageNamespace(CurrentTextId.GetNamespace().GetChars());
+			if (const FString CurrentTextNamespace = StripPackageNamespace(CurrentTextId.GetNamespace().ToString());
 				CurrentTextNamespace.Equals(InEditValue, ESearchCase::CaseSensitive))
 			{
 				return true;
@@ -299,7 +299,7 @@ bool TextNamespaceUtil::EditTextProperty(UObject* InTextOwner, const FTextProper
 			break;
 
 		case ETextEditAction::Key:
-			if (FCString::Strcmp(CurrentTextId.GetKey().GetChars(), *InEditValue) == 0)
+			if (CurrentTextId.GetKey().ToString().Equals(InEditValue, ESearchCase::CaseSensitive))
 			{
 				return true;
 			}
@@ -318,8 +318,8 @@ bool TextNamespaceUtil::EditTextProperty(UObject* InTextOwner, const FTextProper
 		}
 	}
 
-	const FString ProposedNamespace = (InEditAction == ETextEditAction::Namespace ? InEditValue : CurrentTextId.GetNamespace().GetChars());
-	const FString ProposedKey = (InEditAction == ETextEditAction::Key ? InEditValue : CurrentTextId.GetKey().GetChars());
+	const FString ProposedNamespace = (InEditAction == ETextEditAction::Namespace ? InEditValue : CurrentTextId.GetNamespace().ToString());
+	const FString ProposedKey = (InEditAction == ETextEditAction::Key ? InEditValue : CurrentTextId.GetKey().ToString());
 	const FString SourceString = (InEditAction == ETextEditAction::SourceString ? InEditValue : CurrentSourceString ? *CurrentSourceString : FString());
 
 	FString StableNamespace;

@@ -99,9 +99,9 @@ int32 UExtractLocResCommandlet::Main(const FString& Params)
 		// Write each row
 		for (const auto& LocResEntryPair : LocResFile.Entries)
 		{
-			WriteCSVStringValue(LocResEntryPair.Key.GetNamespace().GetChars());
+			WriteCSVStringValue(LocResEntryPair.Key.GetNamespace().ToString());
 			LocResCSV += TEXT(",");
-			WriteCSVStringValue(LocResEntryPair.Key.GetKey().GetChars());
+			WriteCSVStringValue(LocResEntryPair.Key.GetKey().ToString());
 			LocResCSV += TEXT(",");
 			LocResCSV += FString::Printf(TEXT("0x%08x"), LocResEntryPair.Value.SourceStringHash);
 			LocResCSV += TEXT(",");

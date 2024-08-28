@@ -36,7 +36,8 @@ int32 GetLocalizationTargetPathIdFromLocResId(const FTextKey& InLocResID)
 	if (!InLocResID.IsEmpty())
 	{
 		// LocResID would be "/Path/To/LocalizationTarget/Culture/LocalizationTarget.locres" so trim this back to "/Path/To/LocalizationTarget"
-		FStringView LocalizationTargetPath = InLocResID.GetChars();
+		const FString LocalizationTargetPathStr = InLocResID.ToString();
+		FStringView LocalizationTargetPath = LocalizationTargetPathStr;
 		LocalizationTargetPath = FPathViews::GetPath(LocalizationTargetPath); // Remove "LocalizationTarget.locres"
 		LocalizationTargetPath = FPathViews::GetPath(LocalizationTargetPath); // Remove "Culture"
 		LocalizationTargetPathId = FTextLocalizationManager::Get().GetLocalizationTargetPathId(LocalizationTargetPath);
@@ -270,13 +271,13 @@ bool FTextLocalizationResource::LoadFromArchive(FArchive& Archive, const FTextKe
 	{
 		// Legacy LocRes files lack the magic number, assume that's what we're dealing with, and seek back to the start of the file
 		Archive.Seek(0);
-		UE_LOG(LogTextLocalizationResource, Warning, TEXT("LocRes '%s' failed the magic number check! Assuming this is a legacy resource (please re-generate your localization resources!)"), LocResID.GetChars());
+		UE_LOG(LogTextLocalizationResource, Warning, TEXT("LocRes '%s' failed the magic number check! Assuming this is a legacy resource (please re-generate your localization resources!)"), *LocResID.ToString());
 	}
 
 	// Is this LocRes file too new to load?
 	if (VersionNumber > FTextLocalizationResourceVersion::ELocResVersion::Latest)
 	{
-		UE_LOG(LogTextLocalizationResource, Error, TEXT("LocRes '%s' is too new to be loaded (File Version: %d, Loader Version: %d)"), LocResID.GetChars(), (int32)VersionNumber, (int32)FTextLocalizationResourceVersion::ELocResVersion::Latest);
+		UE_LOG(LogTextLocalizationResource, Error, TEXT("LocRes '%s' is too new to be loaded (File Version: %d, Loader Version: %d)"), *LocResID.ToString(), (int32)VersionNumber, (int32)FTextLocalizationResourceVersion::ELocResVersion::Latest);
 		return false;
 	}
 
@@ -380,7 +381,7 @@ bool FTextLocalizationResource::LoadFromArchive(FArchive& Archive, const FTextKe
 				}
 				else
 				{
-					UE_LOG(LogTextLocalizationResource, Warning, TEXT("LocRes '%s' has an invalid localized string index for namespace '%s' and key '%s'. This entry will have no translation."), LocResID.GetChars(), Namespace.GetChars(), Key.GetChars());
+					UE_LOG(LogTextLocalizationResource, Warning, TEXT("LocRes '%s' has an invalid localized string index for namespace '%s' and key '%s'. This entry will have no translation."), *LocResID.ToString(), *Namespace.ToString(), *Key.ToString());
 				}
 			}
 			else
@@ -544,13 +545,13 @@ bool FTextLocalizationResource::ShouldReplaceEntry(const FTextKey& Namespace, co
 		if (bDidConflict)
 		{
 			const FString SummaryMessage = FString::Printf(TEXT("Text translation conflict for namespace \"%s\" and key \"%s\"."),
-				Namespace.GetChars(), Key.GetChars());
+				*Namespace.ToString(), *Key.ToString());
 			const FString DetailsMessage = FString::Printf(TEXT("The current translation is \"%s\" (from \"%s\" and source hash 0x%08x) and the conflicting translation of \"%s\" (from \"%s\" and source hash 0x%08x) will be ignored."), 
 				**CurrentEntry.LocalizedString,
-				CurrentEntry.LocResID.GetChars(),
+				*CurrentEntry.LocResID.ToString(),
 				CurrentEntry.SourceStringHash,
 				**NewEntry.LocalizedString,
-				NewEntry.LocResID.GetChars(),
+				*NewEntry.LocResID.ToString(),
 				NewEntry.SourceStringHash
 				);
 

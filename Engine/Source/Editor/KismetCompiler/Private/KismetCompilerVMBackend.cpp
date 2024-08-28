@@ -721,8 +721,8 @@ public:
 					{
 						// BP bytecode always removes the package localization ID to match how text works at runtime
 						// If we're gathering editor-only text then we'll pick up the version with the package localization ID from the property/pin rather than the bytecode
-						const FString Namespace = TextNamespaceUtil::StripPackageNamespace(TextId.GetNamespace().GetChars());
-						const FString Key = TextId.GetKey().GetChars();
+						const FString Namespace = TextNamespaceUtil::StripPackageNamespace(TextId.GetNamespace().ToString());
+						const FString Key = TextId.GetKey().ToString();
 
 						Writer << EBlueprintTextLiteralType::LocalizedText;
 						EmitStringLiteral(*SourceString);

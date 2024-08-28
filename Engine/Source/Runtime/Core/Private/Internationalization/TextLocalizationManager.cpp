@@ -182,7 +182,7 @@ FString KeyifyTextId(const FTextId& TextId)
 {
 	// We want to show the identity in terms of key, namespace. This is to try and fit into the constraints of UI text blocks and at least let the key component be visible to easily identify a piece of text.
 	// If the key/namespace pair is too long, the Slate.LogPaintedText cvar can be used to see the entire thing.
-	return FString::Printf(TEXT("%s, %s"), TextId.GetKey().GetChars(), TextId.GetNamespace().GetChars());
+	return FString::Printf(TEXT("%s, %s"), *TextId.GetKey().ToString(), *TextId.GetNamespace().ToString());
 }
 }
 
@@ -754,8 +754,8 @@ void FTextLocalizationManager::DumpLiveTableImpl(const FString* NamespaceFilter,
 		DisplayStringLookupTableToDump.Reserve(DisplayStringLookupTable.Num());
 		for (const auto& DisplayStringPair : DisplayStringLookupTable)
 		{
-			if (PassesFilter(DisplayStringPair.Key.GetNamespace().GetChars(), NamespaceFilter) &&
-				PassesFilter(DisplayStringPair.Key.GetKey().GetChars(), KeyFilter) &&
+			if (PassesFilter(DisplayStringPair.Key.GetNamespace().ToString(), NamespaceFilter) &&
+				PassesFilter(DisplayStringPair.Key.GetKey().ToString(), KeyFilter) &&
 				PassesFilter(**DisplayStringPair.Value.DisplayString, DisplayStringFilter))
 			{
 				DisplayStringLookupTableToDump.Add(DisplayStringPair.Key, DisplayStringPair.Value);
@@ -765,12 +765,12 @@ void FTextLocalizationManager::DumpLiveTableImpl(const FString* NamespaceFilter,
 
 	DisplayStringLookupTableToDump.KeySort([](const FTextId& A, const FTextId& B)
 	{
-		const int32 NamespaceResult = FCString::Strcmp(A.GetNamespace().GetChars(), B.GetNamespace().GetChars());
+		const int32 NamespaceResult = FCString::Strcmp(*A.GetNamespace().ToString(), *B.GetNamespace().ToString());
 		if (NamespaceResult != 0)
 		{
 			return NamespaceResult < 0;
 		}
-		return FCString::Strcmp(A.GetKey().GetChars(), B.GetKey().GetChars()) < 0;
+		return FCString::Strcmp(*A.GetKey().ToString(), *B.GetKey().ToString()) < 0;
 	});
 
 	for (const auto& DisplayStringPair : DisplayStringLookupTableToDump)
@@ -788,7 +788,7 @@ void FTextLocalizationManager::DumpLiveTable(const FString* NamespaceFilter, con
 
 	DumpLiveTableImpl(NamespaceFilter, KeyFilter, DisplayStringFilter, [&Category](const FTextId& Id, const FTextConstDisplayStringRef& DisplayString)
 	{
-		UE_LOG_REF(Category, Display, TEXT("LiveTableEntry: Namespace: '%s', Key: '%s', DisplayString: '%s'"), Id.GetNamespace().GetChars(), Id.GetKey().GetChars(), **DisplayString); //-V510
+		UE_LOG_REF(Category, Display, TEXT("LiveTableEntry: Namespace: '%s', Key: '%s', DisplayString: '%s'"), *Id.GetNamespace().ToString(), *Id.GetKey().ToString(), **DisplayString); //-V510
 	});
 
 	UE_LOG_REF(Category, Display, TEXT("----------------------------------------------------------------------"));
@@ -801,7 +801,7 @@ void FTextLocalizationManager::DumpLiveTable(const FString& OutputFilename, cons
 
 	DumpLiveTableImpl(NamespaceFilter, KeyFilter, DisplayStringFilter, [&DumpString](const FTextId& Id, const FTextConstDisplayStringRef& DisplayString)
 	{
-		DumpString += FString::Printf(TEXT("LiveTableEntry: Namespace: '%s', Key: '%s', DisplayString: '%s'"), Id.GetNamespace().GetChars(), Id.GetKey().GetChars(), **DisplayString);
+		DumpString += FString::Printf(TEXT("LiveTableEntry: Namespace: '%s', Key: '%s', DisplayString: '%s'"), *Id.GetNamespace().ToString(), *Id.GetKey().ToString(), **DisplayString);
 		DumpString += LINE_TERMINATOR;
 	});
 
@@ -1069,8 +1069,9 @@ FTextConstDisplayStringPtr FTextLocalizationManager::GetDisplayString(const FTex
 	// In builds with stable keys enabled, we want to find the display string for the "clean" version of the text (if the sources match) as this is the only version that is translated
 #if USE_STABLE_LOCALIZATION_KEYS
 	{
-		const FString DisplayNamespace = TextNamespaceUtil::StripPackageNamespace(TextId.GetNamespace().GetChars());
-		if (FCString::Strcmp(*DisplayNamespace, TextId.GetNamespace().GetChars()) != 0)
+		const FString FullNamespace = TextId.GetNamespace().ToString();
+		const FString DisplayNamespace = TextNamespaceUtil::StripPackageNamespace(FullNamespace);
+		if (!DisplayNamespace.Equals(FullNamespace, ESearchCase::CaseSensitive))
 		{
 			TextId = FTextId(DisplayNamespace, TextId.GetKey());
 		}
@@ -1122,7 +1123,7 @@ bool FTextLocalizationManager::GetLocResID(const FTextKey& Namespace, const FTex
 
 	if (LiveEntry != nullptr && !LiveEntry->LocResID.IsEmpty())
 	{
-		OutLocResId = LiveEntry->LocResID.GetChars();
+		LiveEntry->LocResID.ToString(OutLocResId);
 		return true;
 	}
 

@@ -154,7 +154,7 @@ void FStringTableRegistry::LogMissingStringTableEntry(const FName InTableId, con
 	FLocKeySet& LoggedMissingKeys = LoggedMissingEntries.FindOrAdd(InTableId);
 	LoggedMissingKeys.Add(InKey);
 
-	UE_LOG(LogStringTable, Warning, TEXT("Failed to find string table entry for '%s' '%s'. Did you forget to add a string table redirector?"), *InTableId.ToString(), InKey.GetChars());
+	UE_LOG(LogStringTable, Warning, TEXT("Failed to find string table entry for '%s' '%s'. Did you forget to add a string table redirector?"), *InTableId.ToString(), *InKey.ToString());
 }
 
 #if WITH_EDITOR

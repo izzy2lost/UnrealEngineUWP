@@ -135,8 +135,8 @@ public:
 			FTextId TextId = FTextInspector::GetTextId(PickedText);
 
 			// Clean the package localization ID from the namespace (to mirror what the text gatherer does when scraping for translation data)
-			FString EntryNamespace = TextNamespaceUtil::StripPackageNamespace(TextId.GetNamespace().GetChars());
-			FString EntryKey = TextId.GetKey().GetChars();
+			FString EntryNamespace = TextNamespaceUtil::StripPackageNamespace(TextId.GetNamespace().ToString());
+			FString EntryKey = TextId.GetKey().ToString();
 
 			const FString CopyString = FString::Printf(TEXT("%s,%s"), *EntryNamespace, *EntryKey);
 	

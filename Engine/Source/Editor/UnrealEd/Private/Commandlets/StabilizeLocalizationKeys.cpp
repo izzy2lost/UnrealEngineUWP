@@ -127,8 +127,8 @@ public:
 			return false;
 		}
 
-		const FString Namespace = TextId.GetNamespace().GetChars();
-		const FString Key = TextId.GetKey().GetChars();
+		const FString Namespace = TextId.GetNamespace().ToString();
+		const FString Key = TextId.GetKey().ToString();
 
 		const FString CurrentPackageNamespace = TextNamespaceUtil::ExtractPackageNamespace(Namespace);
 		if (CurrentPackageNamespace.Equals(PackageNamespace, ESearchCase::CaseSensitive))
