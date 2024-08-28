@@ -66,7 +66,7 @@ UDMXEntityFixturePatch* UDMXEntityFixturePatch::CreateFixturePatchInLibrary(FDMX
 			NewFixturePatch->SetUniverseID(ConstructionParams.UniverseID);
 			NewFixturePatch->SetStartingChannel(ConstructionParams.StartingAddress);
 			NewFixturePatch->SetActiveModeIndex(ConstructionParams.ActiveMode);
-
+			
 			if (ConstructionParams.MVRFixtureUUID.IsValid())
 			{
 				// Make sure the MVR UUID is truly unique across the DNX Library
@@ -503,14 +503,6 @@ void UDMXEntityFixturePatch::ValidateActiveMode()
 	}
 }
 
-bool UDMXEntityFixturePatch::CanReadActiveMode() const
-{
-	// DEPRECATED 4.27
-	return ParentFixtureTypeTemplate != nullptr
-		&& ParentFixtureTypeTemplate->IsValidLowLevelFast()
-		&& ParentFixtureTypeTemplate->Modes.IsValidIndex(ActiveMode);
-}
-
 const FDMXFixtureMode* UDMXEntityFixturePatch::GetActiveMode() const
 {
 	if (ParentFixtureTypeTemplate && 
@@ -545,27 +537,6 @@ void UDMXEntityFixturePatch::SetUniverseID(int32 NewUniverseID)
 
 	RebuildCache();
 }
-
-#if WITH_EDITOR
-void UDMXEntityFixturePatch::SetAutoStartingAddress(int32 NewAutoStartingAddress)
-{
-	// DEPRECATED 5.1
-	AutoStartingAddress_DEPRECATED = NewAutoStartingAddress;
-	ManualStartingAddress_DEPRECATED = NewAutoStartingAddress;
-
-	RebuildCache();
-}
-#endif // WITH_EDITOR
-
-#if WITH_EDITOR
-void UDMXEntityFixturePatch::SetManualStartingAddress(int32 NewManualStartingAddress)
-{
-	// DEPRECATED 5.1
-	ManualStartingAddress_DEPRECATED = NewManualStartingAddress;
-
-	RebuildCache();
-}
-#endif // WITH_EDITOR
 
 void UDMXEntityFixturePatch::SetStartingChannel(int32 NewStartingChannel)
 {
@@ -927,7 +898,13 @@ float UDMXEntityFixturePatch::GetNormalizedAttributeValue(FDMXAttributeName Attr
 
 void UDMXEntityFixturePatch::GetAttributesValues(TMap<FDMXAttributeName, int32>& AttributesValues)
 {
-	AttributesValues.Reset();
+	// DEPRECATED 5.5
+	GetAttributeValues(AttributesValues);
+}
+
+void UDMXEntityFixturePatch::GetAttributeValues(TMap<FDMXAttributeName, int32>& AttributeValues)
+{
+	AttributeValues.Reset();
 
 	// Update the cache if it isn't updated on tick
 	if (!IsTickable())
@@ -937,11 +914,17 @@ void UDMXEntityFixturePatch::GetAttributesValues(TMap<FDMXAttributeName, int32>&
 
 	if (const TMap<FDMXAttributeName, int32>* AttributeValuesPtr = Cache.GetAllRawAttributeValues())
 	{
-		AttributesValues = *AttributeValuesPtr;
+		AttributeValues = *AttributeValuesPtr;
 	}
 }
 
 void UDMXEntityFixturePatch::GetNormalizedAttributesValues(FDMXNormalizedAttributeValueMap& NormalizedAttributesValues)
+{
+	// DEPRECATED 5.5
+	GetNormalizedAttributeValues(NormalizedAttributesValues);
+}
+
+void UDMXEntityFixturePatch::GetNormalizedAttributeValues(FDMXNormalizedAttributeValueMap& NormalizedAttributeValues)
 {
 	// Update the cache if it isn't updated on tick
 	if (!IsTickable())
@@ -951,7 +934,7 @@ void UDMXEntityFixturePatch::GetNormalizedAttributesValues(FDMXNormalizedAttribu
 
 	if (const FDMXNormalizedAttributeValueMap* NormalizedAttributeValuesPtr = Cache.GetAllNormalizedAttributeValues())
 	{
-		NormalizedAttributesValues = *NormalizedAttributeValuesPtr;
+		NormalizedAttributeValues = *NormalizedAttributeValuesPtr;
 	}
 }
 

@@ -100,7 +100,7 @@ void UDMXComponent::SetupReceiveDMXBinding()
 			FixturePatch->OnFixturePatchReceivedDMX.AddDynamic(this, &UDMXComponent::OnFixturePatchReceivedDMX);
 
 			FDMXNormalizedAttributeValueMap NormalizeAttributeValues;
-			FixturePatch->GetNormalizedAttributesValues(NormalizeAttributeValues);
+			FixturePatch->GetNormalizedAttributeValues(NormalizeAttributeValues);
 
 			if (NormalizeAttributeValues.Map.Num() > 0)
 			{
@@ -166,7 +166,7 @@ void UDMXComponent::BeginPlay()
 	if (UDMXEntityFixturePatch* FixturePatch = GetFixturePatch())
 	{
 		FDMXNormalizedAttributeValueMap NormalizeAttributeValues;
-		FixturePatch->GetNormalizedAttributesValues(NormalizeAttributeValues);
+		FixturePatch->GetNormalizedAttributeValues(NormalizeAttributeValues);
 
 		if (NormalizeAttributeValues.Map.Num() > 0)
 		{

@@ -52,7 +52,7 @@ public:
 	void SetFixturePatch(UDMXEntityFixturePatch* InFixturePatch);
 
 	/** Sets whether the component receives dmx from the patch. Note, this is saved with the component when called in editor. */
-	UFUNCTION(BlueprintCallable, Category = "DMX")
+	UFUNCTION(BlueprintCallable, Category = "DMX", meta = (DisplayName = "Set Receive DMX From Patch"))
 	void SetReceiveDMXFromPatch(bool bReceive);
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "DMX", Meta = (ShowOnlyInnerProperties))

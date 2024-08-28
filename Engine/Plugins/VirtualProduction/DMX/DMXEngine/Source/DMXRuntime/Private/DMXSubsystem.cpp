@@ -439,50 +439,18 @@ UDMXEntityFixturePatch* UDMXSubsystem::GetFixturePatch(FDMXEntityFixturePatchRef
 
 bool UDMXSubsystem::GetFunctionsMap(UDMXEntityFixturePatch* InFixturePatch, TMap<FDMXAttributeName, int32>& OutAttributesMap)
 {
-	OutAttributesMap.Empty();
-
-	if (InFixturePatch == nullptr)
+	if (InFixturePatch)
 	{
-		UE_LOG(DMXSubsystemLog, Warning, TEXT("%hs: FixturePatch is null"), __FUNCTION__);
-
-		return false;
+		InFixturePatch->GetAttributeValues(OutAttributesMap);
+		return true;
 	}
-
-	const FDMXFixtureMode* ModePtr = InFixturePatch->GetActiveMode();
-	if (!ModePtr)
-	{
-		UE_LOG(DMXSubsystemLog, Warning, TEXT("Cannot get function map, fixture Patch %s has no valid active mode"), *InFixturePatch->Name);
-		return false;
-	}
-
-	const FDMXSignalSharedPtr& Signal = InFixturePatch->GetLastReceivedDMXSignal();
-
-	if(Signal.IsValid())
-	{ 
-		const TArray<uint8>& ChannelData = Signal->ChannelData;
-		
-		const int32 PatchStartingIndex = InFixturePatch->GetStartingChannel() - 1;
-
-		for (const FDMXFixtureFunction& Function : ModePtr->Functions)
-		{
-			const int32 FunctionStartIndex = Function.Channel - 1 + PatchStartingIndex;
-			const int32 FunctionLastIndex = FunctionStartIndex + FDMXConversions::GetSizeOfSignalFormat(Function.DataType) - 1;
-			if (FunctionLastIndex >= ChannelData.Num())
-			{
-				break;
-			}
-
-			const uint32 ChannelValue = UDMXEntityFixtureType::BytesToFunctionValue(Function, ChannelData.GetData() + FunctionStartIndex);
-			OutAttributesMap.Add(Function.Attribute, ChannelValue);
-		}
-	}
-
-	return true;
+	
+	return false;
 }
 
 bool UDMXSubsystem::GetFunctionsMapForPatch(UDMXEntityFixturePatch* InFixturePatch, TMap<FDMXAttributeName, int32>& OutAttributesMap)
 {
-	// TODO: This is a duplicate..
+	// DEPRECATED 5.5, duplicate of GetFunctionsMap
 	return GetFunctionsMap(InFixturePatch, OutAttributesMap);
 }
 
@@ -533,6 +501,7 @@ FName UDMXSubsystem::GetAttributeLabel(FDMXAttributeName AttributeName)
 
 /*static*/ UDMXSubsystem* UDMXSubsystem::GetDMXSubsystem_Pure()
 {
+	check(GEngine);
 	return GEngine->GetEngineSubsystem<UDMXSubsystem>();
 }
 

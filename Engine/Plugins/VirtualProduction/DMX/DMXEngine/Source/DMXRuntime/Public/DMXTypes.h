@@ -14,7 +14,7 @@ UE_DEPRECATED(5.5, "FDMXColorCIE1931xyY is deprecated. Please use FDMXGDTFColorC
 typedef FDMXGDTFColorCIE1931xyY FDMXColorCIE1931xyY;
 
 /** Holds an array Attribute Names with their normalized Values (expand the property to see the map) */
-USTRUCT(BlueprintType, Category = "DMX")
+USTRUCT(BlueprintType, Category = "DMX", meta = (DisplayName = "DMX Normalized Attribute Value Map"))
 struct DMXRUNTIME_API FDMXNormalizedAttributeValueMap
 {
 	GENERATED_BODY()
