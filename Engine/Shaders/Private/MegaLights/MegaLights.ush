@@ -5,8 +5,23 @@
 // Change this to force recompilation of all Mega Lights shaders
 #pragma message("UESHADERMETADATA_VERSION 6B9BA9CC-6798-4A69-9A12-3C63ECB0A328")
 
-#include "../LightGridCommon.ush"
+// Keep in sync with MegaLights::ETileType
+#define TILE_MODE_SIMPLE_SHADING				0
+#define TILE_MODE_COMPLEX_SHADING				1
+#define TILE_MODE_SIMPLE_SHADING_RECT			2
+#define TILE_MODE_COMPLEX_SHADING_RECT			3
+#define TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED	4
+#define TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED	5
+#define TILE_MODE_EMPTY							6
+#define TILE_MODE_MAX							7
 
+#if TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED
+	#define USE_SOURCE_TEXTURE 1
+#else
+	#define USE_SOURCE_TEXTURE 0
+#endif
+
+#include "../LightGridCommon.ush"
 #define SUPPORT_CONTACT_SHADOWS 0
 #define NON_DIRECTIONAL_DIRECT_LIGHTING 0
 #include "../DeferredLightingCommon.ush"
@@ -30,16 +45,6 @@
 // Limited by PackLightSample and SharedCandidateLightHiMask
 #define MAX_LOCAL_LIGHT_INDEX		1024
 #define SHARED_LIGHT_MASK_SIZE		(MAX_LOCAL_LIGHT_INDEX / 32)
-
-// Keep in sync with MegaLights::ETileType
-#define TILE_MODE_SIMPLE_SHADING				0
-#define TILE_MODE_COMPLEX_SHADING				1
-#define TILE_MODE_SIMPLE_SHADING_RECT			2
-#define TILE_MODE_COMPLEX_SHADING_RECT			3
-#define TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED	4
-#define TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED	5
-#define TILE_MODE_EMPTY							6
-#define TILE_MODE_MAX							7
 
 #if DEBUG_MODE
 void PrintTileTypeString(inout FShaderPrintContext Context, uint TileType)

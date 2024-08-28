@@ -81,6 +81,7 @@ uint2 DownsampledViewSize;
 float MinSampleWeight;
 uint2 NumSamplesPerPixel;
 int DebugMode;
+uint DebugLightId;
 
 RWTexture2D<float> RWDownsampledSceneDepth;
 RWTexture2D<UNORM float3> RWDownsampledSceneWorldNormal;
@@ -410,7 +411,14 @@ void GenerateLightSamplesCS(
 						if (Debug.bActive)
 						{
 							Newline(Debug.Context);
-							Print(Debug.Context, LocalLightData.LightSceneId);
+							if (LocalLightData.LightSceneId == DebugLightId)
+							{
+								Print(Debug.Context, LocalLightData.LightSceneId, FontYellow);
+							}
+							else
+							{
+								Print(Debug.Context, LocalLightData.LightSceneId, FontWhite);
+							}
 							Print(Debug.Context, LightTargetPDF.Weight);
 							Print(Debug.Context, LightData.LightFunctionAtlasLightIndex);
 							Print(Debug.Context, LightData.IESAtlasIndex);

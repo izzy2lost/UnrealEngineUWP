@@ -401,6 +401,7 @@ class FTileClassificationCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWTileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWTileData)
+		SHADER_PARAMETER(uint32, EnableTexturedRectLights)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FDownsampledClassification : SHADER_PERMUTATION_BOOL("DOWNSAMPLED_CLASSIFICATION");
@@ -482,11 +483,10 @@ class FGenerateLightSamplesCS : public FGlobalShader
 	class FTileType : SHADER_PERMUTATION_INT("TILE_TYPE", (int32)MegaLights::ETileType::SHADING_MAX);
 	class FIESProfile : SHADER_PERMUTATION_BOOL("USE_IES_PROFILE");
 	class FLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
-	class FTexturedRectLights : SHADER_PERMUTATION_BOOL("USE_SOURCE_TEXTURE");
 	class FNumSamplesPerPixel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL_1D", 2, 4, 16);
 	class FGuideByHistory : SHADER_PERMUTATION_BOOL("GUIDE_BY_HISTORY");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FTexturedRectLights, FNumSamplesPerPixel1d, FGuideByHistory, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FNumSamplesPerPixel1d, FGuideByHistory, FDebugMode>;
 
 	static int32 GetGroupSize()
 	{	
@@ -505,11 +505,6 @@ class FGenerateLightSamplesCS : public FGlobalShader
 		// precache all tile types
 
 		if (PermutationVector.Get<FIESProfile>() != (CVarMegaLightsIESProfiles.GetValueOnAnyThread() != 0))
-		{
-			return EShaderPermutationPrecacheRequest::NotUsed;
-		}
-		
-		if (PermutationVector.Get<FTexturedRectLights>() != (CVarMegaLightsTexturedRectLights.GetValueOnAnyThread() != 0))
 		{
 			return EShaderPermutationPrecacheRequest::NotUsed;
 		}
@@ -682,11 +677,10 @@ class FShadeLightSamplesCS : public FGlobalShader
 	class FTileType : SHADER_PERMUTATION_INT("TILE_TYPE", (int32)MegaLights::ETileType::SHADING_MAX);
 	class FIESProfile : SHADER_PERMUTATION_BOOL("USE_IES_PROFILE");
 	class FLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
-	class FTexturedRectLights : SHADER_PERMUTATION_BOOL("USE_SOURCE_TEXTURE");
 	class FNumSamplesPerPixel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL_1D", 2, 4, 16);
 	class FOutputVisibleLightMask : SHADER_PERMUTATION_BOOL("OUTPUT_VISIBLE_LIGHT_MASK");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FTexturedRectLights, FNumSamplesPerPixel1d, FOutputVisibleLightMask, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FNumSamplesPerPixel1d, FOutputVisibleLightMask, FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -698,11 +692,6 @@ class FShadeLightSamplesCS : public FGlobalShader
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
 
 		if (PermutationVector.Get<FIESProfile>() != (CVarMegaLightsIESProfiles.GetValueOnAnyThread() != 0))
-		{
-			return EShaderPermutationPrecacheRequest::NotUsed;
-		}
-
-		if (PermutationVector.Get<FTexturedRectLights>() != (CVarMegaLightsTexturedRectLights.GetValueOnAnyThread() != 0))
 		{
 			return EShaderPermutationPrecacheRequest::NotUsed;
 		}
@@ -1148,6 +1137,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				PassParameters->MegaLightsParameters = MegaLightsParameters;
 				PassParameters->RWTileAllocator = GraphBuilder.CreateUAV(TileAllocator);
 				PassParameters->RWTileData = GraphBuilder.CreateUAV(TileData);
+				PassParameters->EnableTexturedRectLights = CVarMegaLightsTexturedRectLights.GetValueOnRenderThread();
 
 				FTileClassificationCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FTileClassificationCS::FDownsampledClassification>(false);
@@ -1168,6 +1158,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				PassParameters->MegaLightsParameters = MegaLightsParameters;
 				PassParameters->RWTileAllocator = GraphBuilder.CreateUAV(DownsampledTileAllocator);
 				PassParameters->RWTileData = GraphBuilder.CreateUAV(DownsampledTileData);
+				PassParameters->EnableTexturedRectLights = CVarMegaLightsTexturedRectLights.GetValueOnRenderThread();
 
 				FTileClassificationCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FTileClassificationCS::FDownsampledClassification>(true);
@@ -1272,7 +1263,6 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				PermutationVector.Set<FGenerateLightSamplesCS::FTileType>(TileType);
 				PermutationVector.Set<FGenerateLightSamplesCS::FIESProfile>(CVarMegaLightsIESProfiles.GetValueOnRenderThread() != 0);
 				PermutationVector.Set<FGenerateLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
-				PermutationVector.Set<FGenerateLightSamplesCS::FTexturedRectLights>(CVarMegaLightsTexturedRectLights.GetValueOnRenderThread() != 0);
 				PermutationVector.Set<FGenerateLightSamplesCS::FNumSamplesPerPixel1d>(NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y);
 				PermutationVector.Set<FGenerateLightSamplesCS::FGuideByHistory>(VisibleLightHashHistory != nullptr && SceneDepthHistory != nullptr);
 				PermutationVector.Set<FGenerateLightSamplesCS::FDebugMode>(bDebug);
@@ -1425,7 +1415,6 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				PermutationVector.Set<FShadeLightSamplesCS::FTileType>(TileType);
 				PermutationVector.Set<FShadeLightSamplesCS::FIESProfile>(CVarMegaLightsIESProfiles.GetValueOnRenderThread() != 0);
 				PermutationVector.Set<FShadeLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
-				PermutationVector.Set<FShadeLightSamplesCS::FTexturedRectLights>(CVarMegaLightsTexturedRectLights.GetValueOnRenderThread() != 0);
 				PermutationVector.Set<FShadeLightSamplesCS::FNumSamplesPerPixel1d>(NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y);
 				PermutationVector.Set<FShadeLightSamplesCS::FOutputVisibleLightMask>(bGuideByHistory);
 				PermutationVector.Set<FShadeLightSamplesCS::FDebugMode>(bDebug);

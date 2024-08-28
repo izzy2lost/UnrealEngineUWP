@@ -14,6 +14,7 @@ uint TileDataStride;
 uint DownsampledTileDataStride;
 uint2 DownsampledViewMin;
 uint2 DownsampledViewSize;
+uint EnableTexturedRectLights;
 
 #ifdef TileClassificationCS
 
@@ -75,7 +76,7 @@ void TileClassificationCS(
 			TileMode |= 0x8;
 		}
 
-		if (CulledLightGridHeader.bHasTexturedLight)
+		if (CulledLightGridHeader.bHasTexturedLight && EnableTexturedRectLights != 0)
 		{
 			TileMode |= 0x10;
 		}
