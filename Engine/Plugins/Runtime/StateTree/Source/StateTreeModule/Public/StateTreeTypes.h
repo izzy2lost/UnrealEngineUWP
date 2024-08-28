@@ -50,6 +50,8 @@ namespace UE::StateTree
 		extern const STATETREEMODULE_API FColor DarkPurple;
 		extern const STATETREEMODULE_API FColor Magenta;
 		extern const STATETREEMODULE_API FColor DarkMagenta;
+		extern const STATETREEMODULE_API FColor Bronze;
+		extern const STATETREEMODULE_API FColor DarkBronze;
 	} // Colors
 
 }; // UE::StateTree
