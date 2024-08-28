@@ -17,12 +17,13 @@
 #include "DynamicMesh/DynamicMeshAABBTree3.h"
 #include "DynamicMesh/DynamicMeshOctree3.h"
 #include "DynamicMesh/DynamicMeshAttributeSet.h"
-#include "DynamicMesh/DynamicMeshChangeTracker.h"
 #include "DynamicMesh/MeshNormals.h"
 #include "TransformTypes.h"
 #include "ToolDataVisualizer.h"
 #include "GroupTopology.h"
 #include "Dataflow/DataflowObjectInterface.h"
+#include "Changes/IndexedAttributeChange.h"
+
 #include "ClothWeightMapPaintTool.generated.h"
 
 class UMeshElementsVisualizer;
@@ -377,6 +378,7 @@ protected:
 	virtual int32 FindHitTargetMeshTriangle(const FRay3d& LocalRay) override;
 
 	virtual void OnBeginStroke(const FRay& WorldRay) override;
+	virtual void OnCancelStroke() override;
 	virtual void OnEndStroke() override;
 
 	virtual TUniquePtr<FMeshSculptBrushOp>& GetActiveBrushOp();
@@ -539,9 +541,29 @@ protected:
 	bool SyncMeshWithWeightBuffer(FDynamicMesh3* Mesh);
 	bool SyncWeightBufferWithMesh(const FDynamicMesh3* Mesh);
 
-	TUniquePtr<UE::Geometry::FDynamicMeshChangeTracker> ActiveWeightEditChangeTracker;
+
+	// Undo/Redo change support
+
+	class FNodeBufferWeightChange : public TCustomIndexedValuesChange<float, int32>
+	{
+	public:
+		virtual FString ToString() const override
+		{
+			return FString(TEXT("Cloth Vertex Scalar Weight Change"));
+		}
+	};
+	TUniquePtr<TIndexedValuesChangeBuilder<float, FNodeBufferWeightChange>> ActiveChangeBuilder;
 	void BeginChange();
 	void EndChange();
+
+	// The corresponding FChaosClothAssetWeightMapNode has a buffer of scalar weights. Depending on bHaveDynamicMeshToWeightConversion, the 
+	// indexing of this buffer might be different than the mesh vertex indexing. This function returns the corresponding index in the node buffer for
+	// a given mesh vertex index.
+	int32 MeshIndexToNodeIndex(int32 MeshVertexIndex) const;
+
+	// Update the active weight map attribute from the map of indices/values. The inputs are given in "node buffer format" (see function above).
+	void UpdateMapValuesFromNodeValues(const TArray<int32>& Indices, const TArray<float>& Values);
+
 
 	FColor GetColorForWeightValue(double WeightValue);
 
