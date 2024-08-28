@@ -1082,7 +1082,7 @@ public:
 			if (Other.HasAllocation())
 			{
 				Data = Other.Data;
-				Other.Data = nullptr;
+				Other.Data = Other.GetInlineElements();
 			}
 			else
 			{
