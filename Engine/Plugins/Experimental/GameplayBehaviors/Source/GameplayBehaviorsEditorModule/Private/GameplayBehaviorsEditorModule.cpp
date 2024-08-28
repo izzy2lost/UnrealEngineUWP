@@ -22,7 +22,7 @@ void FGameplayBehaviorsEditorModule::StartupModule()
 	FGameplayBehaviorsEditorStyle::Get();
 
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyModule.RegisterCustomPropertyTypeLayout("ValueOrBBKey_GameplayTag", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FValueOrBBKeyDetails::MakeInstance));
+	PropertyModule.RegisterCustomPropertyTypeLayout("ValueOrBBKey_GameplayTagContainer", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FValueOrBBKeyDetails_WithChild::MakeInstance));
 	PropertyModule.NotifyCustomizationModuleChanged();
 }
 
@@ -31,7 +31,7 @@ void FGameplayBehaviorsEditorModule::ShutdownModule()
 	FGameplayBehaviorsEditorStyle::Shutdown();
 
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyModule.UnregisterCustomPropertyTypeLayout("ValueOrBBKey_GameplayTag");
+	PropertyModule.UnregisterCustomPropertyTypeLayout("ValueOrBBKey_GameplayTagContainer");
 	PropertyModule.NotifyCustomizationModuleChanged();
 }
 

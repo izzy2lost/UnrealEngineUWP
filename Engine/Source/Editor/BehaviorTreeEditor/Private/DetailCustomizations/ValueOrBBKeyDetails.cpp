@@ -65,6 +65,11 @@ TSharedRef<IPropertyTypeCustomization> FValueOrBBKeyDetails_Struct::MakeInstance
 	return MakeShareable(new FValueOrBBKeyDetails_Struct);
 }
 
+TSharedRef<IPropertyTypeCustomization> FValueOrBBKeyDetails_WithChild::MakeInstance()
+{
+	return MakeShareable(new FValueOrBBKeyDetails_WithChild);
+}
+
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void FValueOrBBKeyDetails::CustomizeHeader(TSharedRef<IPropertyHandle> StructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {
@@ -284,6 +289,13 @@ void FValueOrBBKeyDetails_Struct::CustomizeHeader(TSharedRef<class IPropertyHand
 }
 
 void FValueOrBBKeyDetails_Struct::CustomizeChildren(TSharedRef<class IPropertyHandle> StructPropertyHandle, class IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
+{
+	FValueOrBBKeyDetails::CustomizeChildren(StructPropertyHandle, StructBuilder, StructCustomizationUtils);
+	StructBuilder.AddProperty(DefaultValueProperty.ToSharedRef())
+	.IsEnabled(TAttribute<bool>(this, &FValueOrBBKeyDetails::CanEditDefaultValue));
+}
+
+void FValueOrBBKeyDetails_WithChild::CustomizeChildren(TSharedRef<class IPropertyHandle> StructPropertyHandle, class IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {
 	FValueOrBBKeyDetails::CustomizeChildren(StructPropertyHandle, StructBuilder, StructCustomizationUtils);
 	StructBuilder.AddProperty(DefaultValueProperty.ToSharedRef())

@@ -126,3 +126,11 @@ public:
 protected:
 	TSharedPtr<IPropertyHandle> EditDefaultsOnlyProperty;
 };
+
+class BEHAVIORTREEEDITOR_API FValueOrBBKeyDetails_WithChild : public FValueOrBBKeyDetails
+{
+public:
+	/** Makes a new instance of this detail layout class for a specific detail view requesting it */
+	static TSharedRef<IPropertyTypeCustomization> MakeInstance();
+	virtual void CustomizeChildren(TSharedRef<class IPropertyHandle> StructPropertyHandle, class IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
+};
