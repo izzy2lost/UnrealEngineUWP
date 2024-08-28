@@ -9497,14 +9497,15 @@ void FAsyncPackage2::FinishUPackage()
 void FAsyncLoadingThread2::ConditionalProcessEditorCallbacks()
 {
 	check(IsInGameThread());
-	
-	// Prevent objects still being loaded from being accessible from the game thread.
-	TGuardValue GuardVisibilityFilter(FUObjectThreadContext::Get().AsyncVisibilityFilter, EInternalObjectFlags::AsyncLoadingPhase1);
 
-	if (!GameThreadState->SyncLoadContextStack.IsEmpty())
+	FUObjectThreadContext& ThreadContext = FUObjectThreadContext::Get();
+	if (ThreadContext.IsRoutingPostLoad || !GameThreadState->SyncLoadContextStack.IsEmpty())
 	{
 		return;
 	}
+
+	// Prevent objects still being loaded from being accessible from the game thread.
+	TGuardValue GuardVisibilityFilter(ThreadContext.AsyncVisibilityFilter, EInternalObjectFlags::AsyncLoadingPhase1);
 
 	FBlueprintSupport::FlushReinstancingQueue();
 
