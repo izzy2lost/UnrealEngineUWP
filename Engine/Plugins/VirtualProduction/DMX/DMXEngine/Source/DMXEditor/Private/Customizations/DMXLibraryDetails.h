@@ -21,4 +21,8 @@ protected:
 	//~ Begin IDetailCustomization interface
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 	//~ End IDetailCustomization interface
+
+private:
+	/** Called when port references changed */
+	void OnPortReferencesChanged();
 };

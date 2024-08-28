@@ -222,7 +222,7 @@ UDMXEntity* UDMXLibrary::FindEntity(const FGuid& Id)
 {
 	for (UDMXEntity* Entity : Entities)
 	{
-		if (Entity && Entity->GetID() == Id)
+		if (IsValid(Entity) && Entity->GetID() == Id)
 		{
 			return Entity;
 		}

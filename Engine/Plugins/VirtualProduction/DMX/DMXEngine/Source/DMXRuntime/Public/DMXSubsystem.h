@@ -35,6 +35,14 @@ class DMXRUNTIME_API UDMXSubsystem
 	GENERATED_BODY()
 	
 public:
+	/** 
+	 * Clears all buffered DMX data of Ports and Fixture Patches. 
+	 * Note, this function clears the buffers, it does not zero them out.
+	 * To reset to default or zero, see Fixture Patch members Send Default Values and Send Zero Values.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "DMX", meta = (DisplayName = "Clear DMX Buffers"))
+	static void ClearDMXBuffers();
+
 	/** Send DMX using function names and integer values. */
 	UE_DEPRECATED(4.27, "Use UDMXEntityFixurePatch::SendDMX instead.")
 	UFUNCTION(BlueprintCallable, Category = "DMX", meta = (DeprecatedFunction, DeprecationMessage = "Deprecated 4.27. Use DMXEntityFixurePatch::SendDMX instead"))

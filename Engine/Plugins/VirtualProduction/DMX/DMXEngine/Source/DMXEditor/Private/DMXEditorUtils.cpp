@@ -446,20 +446,13 @@ bool FDMXEditorUtils::DoesLibraryHaveUniverseConflicts(UDMXLibrary* Library, FTe
 
 void FDMXEditorUtils::ClearAllDMXPortBuffers()
 {
-	for (const FDMXInputPortSharedRef& InputPort : FDMXPortManager::Get().GetInputPorts())
-	{
-		InputPort->ClearBuffers();
-	}
-
-	for (const FDMXOutputPortSharedRef& OutputPort : FDMXPortManager::Get().GetOutputPorts())
-	{
-		OutputPort->ClearBuffers();
-	}
+	// DEPRECATED 5.5
+	FDMXPortManager::Get().ClearBuffers();
 }
 
 void FDMXEditorUtils::ClearFixturePatchCachedData()
-{
-	// Clear patch buffers
+{	
+	// DEPRECATED 5.5
 	UDMXSubsystem* Subsystem = UDMXSubsystem::GetDMXSubsystem_Callable();
 	if (Subsystem && Subsystem->IsValidLowLevel())
 	{

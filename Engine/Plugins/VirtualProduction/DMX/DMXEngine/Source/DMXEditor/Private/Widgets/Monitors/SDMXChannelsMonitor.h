@@ -62,6 +62,9 @@ private:
 	/** Called when the clear bButton was clicked */
 	FReply OnClearButtonClicked();
 
+	/** Called when port buffers were cleared */
+	void OnPortBuffersCleared();
+
 	/** Horizontal box that contains the Source Selector and its Label */
 	TSharedPtr<SHorizontalBox> SourceSelectorBox;
 

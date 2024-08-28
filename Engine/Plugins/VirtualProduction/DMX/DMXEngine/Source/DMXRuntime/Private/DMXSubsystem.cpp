@@ -120,6 +120,28 @@ namespace
 #endif // WITH_EDITOR
 }
 
+void UDMXSubsystem::ClearDMXBuffers()
+{
+	// Clear port buffers
+	FDMXPortManager::Get().ClearBuffers();
+
+	// Rebuild fixture patch caches from cleared buffers, effectively clearing them as well.
+	UDMXSubsystem* Subsystem = UDMXSubsystem::GetDMXSubsystem_Callable();
+	if (Subsystem && Subsystem->IsValidLowLevel())
+	{
+		TArray<TSoftObjectPtr<UDMXLibrary>> DMXLibraries = Subsystem->GetDMXLibraries();
+		for (const TSoftObjectPtr<UDMXLibrary>& Library : DMXLibraries)
+		{
+			if (Library.IsValid())
+			{
+				Library.Get()->ForEachEntityOfType<UDMXEntityFixturePatch>([](UDMXEntityFixturePatch* Patch) {
+					Patch->RebuildCache();
+					});
+			}
+		}
+	}
+}
+
 void UDMXSubsystem::SendDMX(UDMXEntityFixturePatch* FixturePatch, TMap<FDMXAttributeName, int32> AttributeMap, EDMXSendResult& OutResult)
 {
 	OutResult = EDMXSendResult::Success;

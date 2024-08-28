@@ -2,8 +2,7 @@
 
 #include "DMXPIEManager.h"
 
-#include "DMXEditorUtils.h"
-
+#include "DMXSubsystem.h"
 #include "Editor.h"
 
 
@@ -21,12 +20,10 @@ FDMXPIEManager::~FDMXPIEManager()
 
 void FDMXPIEManager::OnBeginPIE(const bool bIsSimulating)
 {
-	FDMXEditorUtils::ClearAllDMXPortBuffers();
-	FDMXEditorUtils::ClearFixturePatchCachedData();
+	UDMXSubsystem::ClearDMXBuffers();
 }
 
 void FDMXPIEManager::OnEndPIE(const bool bIsSimulating)
 {
-	FDMXEditorUtils::ClearAllDMXPortBuffers();
-	FDMXEditorUtils::ClearFixturePatchCachedData();
+	UDMXSubsystem::ClearDMXBuffers();
 }

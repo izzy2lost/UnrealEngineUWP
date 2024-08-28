@@ -69,9 +69,17 @@ public:
 
 	static FDMXPortManager& Get();
 
+	/** Returns the current input ports */
 	const TArray<FDMXInputPortSharedRef>& GetInputPorts() const { return InputPorts; }
 
+	/** Returns the current output ports */
 	const TArray<FDMXOutputPortSharedRef>& GetOutputPorts() const { return OutputPorts; }
+
+	/** Clears all buffered data of Input Ports, Output Ports and Raw Listeners. Note, this clears the data, it does not zero it out.*/
+	void ClearBuffers();
+
+	/** Returns a delegate broadcast when port buffers were cleared */
+	FSimpleMulticastDelegate& GetOnBuffersCleared() { return OnBuffersClearedDelegate; }
 
 	/** Gets the input port that corresponds to the input port config. Checks the config is in the DMXProtocolSetting's InputPortConfigs array. */
 	FDMXInputPortSharedRef GetInputPortFromConfigChecked(const FDMXInputPortConfig& InputPortConfig);
@@ -141,6 +149,9 @@ private:
 
 	/** True when protocols are suspended */
 	bool bProtocolsSuspended = false;
+
+	/** Delegate raised when buffers were cleared */
+	FSimpleMulticastDelegate OnBuffersClearedDelegate;
 
 	////////////////////////////////////////////////////////////
 	// Initialization 

@@ -86,9 +86,11 @@ public:
 	static bool DoesLibraryHaveUniverseConflicts(UDMXLibrary* Library, FText& OutInputPortConflictMessage, FText& OutOutputPortConflictMessage);
 
 	/** Zeros memory in all active DMX buffers of all protocols */
+	UE_DEPRECATED(5.5, "Instead use FDMXPortManager::ClearPortBuffers")
 	static void ClearAllDMXPortBuffers();
 
 	/** Clears cached data fixture patches received */
+	UE_DEPRECATED(5.5, "Instead use UDMXSubsystem::ClearDMXBuffers.")
 	static void ClearFixturePatchCachedData();
 
 	/** Gets the package or creates a new one if it doesn't exist */

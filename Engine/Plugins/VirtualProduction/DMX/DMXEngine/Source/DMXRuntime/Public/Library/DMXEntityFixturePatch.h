@@ -113,14 +113,16 @@ public:
 
 	/** 
 	 * Sends the default value for all attributes, including matrix attributes. 
-	 * Note, this call will not raise send dmx traces.
+	 * Note, calls will not be considered by the DMX Conflict Monitor.
 	 */
+	UFUNCTION(BlueprintCallable, Category = "DMX")
 	void SendDefaultValues();
 
 	/** 
 	 * Sends zeroes for all attributes, including matrix attributes.
-	 * Note, this call will not raise send dmx traces.
+	 * Note, calls will not be considered by the DMX Conflict Monitor.
 	 */
+	UFUNCTION(BlueprintCallable, Category = "DMX")
 	void SendZeroValues();
 
 	/** 
