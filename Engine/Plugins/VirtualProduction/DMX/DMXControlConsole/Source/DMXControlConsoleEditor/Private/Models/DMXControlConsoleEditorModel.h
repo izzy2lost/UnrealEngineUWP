@@ -96,7 +96,7 @@ private:
 	void OnFaderGroupAddedToData(const UDMXControlConsoleFaderGroup* FaderGroup);
 
 	/** Called before the engine is shut down */
-	void OnEnginePreExit();
+	void OnEnginePreExit() const;
 
 	/** Called when a Fader Group Controller needs to be scrolled into view */
 	FDMXControlConsoleFaderGroupControllerDelegate OnScrollFaderGroupControllerIntoView;

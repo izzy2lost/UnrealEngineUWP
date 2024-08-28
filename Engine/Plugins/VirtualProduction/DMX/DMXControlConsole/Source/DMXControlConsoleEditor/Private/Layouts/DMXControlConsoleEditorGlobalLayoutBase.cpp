@@ -19,6 +19,7 @@
 #include "Library/DMXEntity.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
+#include "Misc/ScopedSlowTask.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleEditorGlobalLayoutBase"
@@ -251,8 +252,15 @@ void UDMXControlConsoleEditorGlobalLayoutBase::GenerateLayoutByControlConsoleDat
 	LayoutRows.Reset(LayoutRows.Num());
 
 	const TArray<UDMXControlConsoleFaderGroupRow*> FaderGroupRows = ControlConsoleData->GetFaderGroupRows();
+
+	const float NumSteps = FaderGroupRows.Num();
+	FScopedSlowTask Task(NumSteps, LOCTEXT("GenerateLayoutByDataSlowTask", "Updating Control Console..."));
+	Task.MakeDialogDelayed(.5f);
+
 	for (const UDMXControlConsoleFaderGroupRow* FaderGroupRow : FaderGroupRows)
 	{
+		Task.EnterProgressFrame();
+
 		if (!FaderGroupRow)
 		{
 			continue;
@@ -317,8 +325,15 @@ void UDMXControlConsoleEditorGlobalLayoutBase::SortLayoutByUniverseID()
 		}
 
 		const TArray<UDMXControlConsoleFaderGroupController*>& Controllers = UniverseIDToControllers.Value;
+
+		const float NumSteps = Controllers.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("SortLayoutSlowTask", "Updating Control Console..."));
+		Task.MakeDialogDelayed(.5f);
+
 		for (UDMXControlConsoleFaderGroupController* Controller : Controllers)
 		{
+			Task.EnterProgressFrame();
+
 			if (!Controller)
 			{
 				continue;

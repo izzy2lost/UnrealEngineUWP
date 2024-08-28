@@ -12,6 +12,7 @@
 #include "FixturePatchAutoAssignUtility.h"
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXLibrary.h"
+#include "Misc/ScopedSlowTask.h"
 #include "ScopedTransaction.h"
 #include "TimerManager.h"
 #include "UObject/Package.h"
@@ -535,10 +536,16 @@ namespace UE::DMXEditor::FixturePatchEditor
 
 		const int32 PatchToUniverse = Universe.IsSet() ? Universe.GetValue() : SharedData->GetSelectedUniverse();
 
+		const float NumSteps = NumFixturePatchesToAdd;
+		FScopedSlowTask Task(NumSteps, LOCTEXT("AddFixturePatchesSlowTask", "Adding Fixture Patches..."));
+		Task.MakeDialogDelayed(.5f);
+
 		TArray<UDMXEntityFixturePatch*> NewFixturePatches;
 		NewFixturePatches.Reserve(NumFixturePatchesToAdd);
 		for (uint32 iNumFixturePatchesAdded = 0; iNumFixturePatchesAdded < NumFixturePatchesToAdd; iNumFixturePatchesAdded++)
 		{
+			Task.EnterProgressFrame();
+
 			FDMXEntityFixturePatchConstructionParams FixturePatchConstructionParams;
 			FixturePatchConstructionParams.FixtureTypeRef = FDMXEntityFixtureTypeRef(FixtureType);
 			FixturePatchConstructionParams.ActiveMode = MenuData->ActiveModeIndex;

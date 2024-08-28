@@ -20,6 +20,7 @@
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
 #include "ToolMenus.h"
@@ -671,8 +672,15 @@ namespace UE::DMX::Private
 
 		// Ungroup all the grouped controllers
 		const TArray<UDMXControlConsoleFaderGroupController*> FaderGroupControllers = ActiveLayout->GetAllFaderGroupControllers();
+		
+		const float NumSteps = FaderGroupControllers.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("HandleAutoGroupSinglePatchSelectionSlowTask", "Updating Control Console..."));
+		Task.MakeDialogDelayed(.5f);
+		
 		for (UDMXControlConsoleFaderGroupController* FaderGroupController : FaderGroupControllers)
 		{
+			Task.EnterProgressFrame();
+
 			if (!FaderGroupController || !FaderGroupController->HasFixturePatch())
 			{
 				continue;

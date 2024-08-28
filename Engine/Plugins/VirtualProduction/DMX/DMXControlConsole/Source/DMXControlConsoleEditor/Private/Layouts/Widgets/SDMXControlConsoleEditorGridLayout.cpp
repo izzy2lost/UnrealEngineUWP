@@ -10,6 +10,7 @@
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "ScopedTransaction.h"
 #include "TimerManager.h"
@@ -123,8 +124,15 @@ namespace UE::DMX::Private
 		}
 
 		const TArray<UDMXControlConsoleEditorGlobalLayoutRow*>& LayoutRows = ActiveLayout->GetLayoutRows();
+
+		const float NumSteps = LayoutRows.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("OnGridLayoutElementAddedSlowTask", "Updating Control Console..."));
+		Task.MakeDialogDelayed(.5f);
+
 		for (UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow : LayoutRows)
 		{
+			Task.EnterProgressFrame();
+
 			if (!LayoutRow)
 			{
 				continue;

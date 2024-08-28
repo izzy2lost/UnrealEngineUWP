@@ -16,6 +16,7 @@
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/DMXControlConsoleElementControllerModel.h"
 #include "Models/DMXControlConsoleFaderGroupControllerModel.h"
@@ -299,8 +300,15 @@ namespace UE::DMX::Private
 		}
 
 		const TArray<UDMXControlConsoleElementController*>& ElementControllers = FaderGroupController->GetElementControllers();
+		
+		const float NumSteps = ElementControllers.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("OnElementControllerAddedSlowTask", "Updating Control Console..."));
+		Task.MakeDialogDelayed(.5f);
+		
 		for (UDMXControlConsoleElementController* ElementController : ElementControllers)
 		{
+			Task.EnterProgressFrame();
+
 			if (!ElementController)
 			{
 				continue;

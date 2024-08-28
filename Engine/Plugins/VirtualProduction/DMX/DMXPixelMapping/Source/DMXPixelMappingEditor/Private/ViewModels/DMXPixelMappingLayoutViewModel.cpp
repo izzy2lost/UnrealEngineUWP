@@ -9,6 +9,7 @@
 #include "Components/DMXPixelMappingRendererComponent.h"
 #include "DMXPixelMappingEditorLog.h"
 #include "LayoutScripts/DMXPixelMappingLayoutScript.h"
+#include "Misc/ScopedSlowTask.h"
 #include "ScopedTransaction.h"
 #include "Settings/DMXPixelMappingEditorSettings.h"
 #include "Toolkits/DMXPixelMappingToolkit.h"
@@ -399,8 +400,14 @@ void UDMXPixelMappingLayoutViewModel::InstantiateLayoutScripts()
 	}
 	else if (LayoutMode == EDMXPixelMappingLayoutViewModelMode::LayoutFixtureGroupComponentChildren)
 	{
+		const float NumSteps = FixtureGroupComponents.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("InstantiateLayoutScripts", "Updating Pixel Mapping Editor..."));
+		Task.MakeDialogDelayed(.5f);
+
 		for (TWeakObjectPtr<UDMXPixelMappingFixtureGroupComponent> FixtureGroupComponent : FixtureGroupComponents)
 		{
+			Task.EnterProgressFrame();
+
 			if (FixtureGroupComponent.IsValid() && 
 				(!FixtureGroupComponent->LayoutScript || FixtureGroupComponent->LayoutScript->GetClass() != StrongLayoutScriptClass))
 			{
@@ -419,8 +426,14 @@ void UDMXPixelMappingLayoutViewModel::InstantiateLayoutScripts()
 	}
 	else if (LayoutMode == EDMXPixelMappingLayoutViewModelMode::LayoutMatrixComponentChildren)
 	{
+		const float NumSteps = MatrixComponents.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("InstantiateLayoutScripts", "Updating Pixel Mapping Editor..."));
+		Task.MakeDialogDelayed(.5f);
+
 		for (TWeakObjectPtr<UDMXPixelMappingMatrixComponent> MatrixComponent : MatrixComponents)
 		{
+			Task.EnterProgressFrame();
+
 			if (MatrixComponent.IsValid() &&
 			   (!MatrixComponent->LayoutScript || MatrixComponent->LayoutScript->GetClass() != StrongLayoutScriptClass))
 			{

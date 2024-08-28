@@ -268,7 +268,7 @@ void UDMXControlConsoleEditorModel::OnFaderGroupAddedToData(const UDMXControlCon
 	RequestUpdateEditorModel();
 }
 
-void UDMXControlConsoleEditorModel::OnEnginePreExit()
+void UDMXControlConsoleEditorModel::OnEnginePreExit() const
 {
 	UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
 	if (ControlConsoleData)

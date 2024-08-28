@@ -17,6 +17,7 @@
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/DMXControlConsoleFaderGroupControllerModel.h"
 #include "Models/Filter/DMXControlConsoleGlobalFilterModel.h"
@@ -647,8 +648,15 @@ namespace UE::DMX::Private
 		TArray<UObject*> FaderGroupControllersToSelect;
 		TArray<UObject*> FaderGroupControllersToUnselect;
 		const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupControllers = SelectionHandler->GetSelectedFaderGroupControllers();
+		
+		const float NumSteps = SelectedFaderGroupControllers.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("OnUngroupControllersSlowTask", "Updating Control Console..."));
+		Task.MakeDialogDelayed(.5f);
+		
 		for (const TWeakObjectPtr<UObject> SelectFaderGroupControllerObject : SelectedFaderGroupControllers)
 		{
+			Task.EnterProgressFrame();
+
 			UDMXControlConsoleFaderGroupController* SelectedFaderGroupController = Cast<UDMXControlConsoleFaderGroupController>(SelectFaderGroupControllerObject);
 			if (!SelectedFaderGroupController || SelectedFaderGroupController->GetFaderGroups().Num() <= 1)
 			{

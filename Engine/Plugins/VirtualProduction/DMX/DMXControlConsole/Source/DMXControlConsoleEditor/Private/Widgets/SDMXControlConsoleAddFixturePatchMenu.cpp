@@ -12,6 +12,7 @@
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Library/DMXEntityFixturePatch.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "ScopedTransaction.h"
 
@@ -199,9 +200,15 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesToTheRight()
 		ColumnIndex = ActiveLayout->GetFaderGroupControllerColumnIndex(SelectedFaderGroupController);
 	}
 
+	const float NumSteps = SelectedFaderGroups.Num();
+	FScopedSlowTask Task(NumSteps, LOCTEXT("AddPatchesToTheRightSlowTask", "Updating Control Console..."));
+	Task.MakeDialogDelayed(.2);
+
 	// Add all fader groups from selected patches in the fixture patch list
 	for (UDMXControlConsoleFaderGroup* FaderGroup : SelectedFaderGroups)
 	{
+		Task.EnterProgressFrame();
+
 		if (!FaderGroup)
 		{
 			continue;
@@ -296,9 +303,15 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesOnNewRow()
 	UDMXControlConsoleEditorGlobalLayoutRow* NewLayoutRow = ActiveLayout->AddNewRowToLayout(NewRowIndex);
 	if (NewLayoutRow)
 	{
+		const float NumSteps = SelectedFaderGroups.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("AddPatchesOnNewRowSlowTask", "Updating Control Console..."));
+		Task.MakeDialogDelayed(.2);
+
 		NewLayoutRow->PreEditChange(nullptr);
 		for (UDMXControlConsoleFaderGroup* FaderGroup : SelectedFaderGroups)
 		{
+			Task.EnterProgressFrame();
+
 			UDMXControlConsoleFaderGroupController* NewController = NewLayoutRow->CreateFaderGroupController(FaderGroup, FaderGroup->GetFaderGroupName());
 			if (NewController)
 			{
@@ -364,10 +377,16 @@ void SDMXControlConsoleAddFixturePatchMenu::SetPatchOnFaderGroup()
 	const FScopedTransaction ReplaceSelectedFaderGroupTransaction(LOCTEXT("ReplaceSelectedFaderGroupTransaction", "Replace Fader Group"));
 	ActiveLayout->PreEditChange(nullptr);
 
+	const float NumSteps = SelectedFaderGroups.Num();
+	FScopedSlowTask Task(NumSteps, LOCTEXT("SetPatchOnFaderGroupSlowTask", "Updating Control Console..."));
+	Task.MakeDialogDelayed(.2);
+
 	TArray<UObject*> FaderGroupControllersToSelect;
 	int32 ColumnIndex = ActiveLayout->GetFaderGroupControllerColumnIndex(FirstSelectedFaderGroupController);
 	for (UDMXControlConsoleFaderGroup* FaderGroup : SelectedFaderGroups)
 	{
+		Task.EnterProgressFrame();
+
 		UDMXControlConsoleFaderGroupController*	NewController = ActiveLayout->AddToLayout(FaderGroup, FaderGroup->GetFaderGroupName(), RowIndex, ColumnIndex);
 		if (NewController)
 		{

@@ -5,6 +5,7 @@
 #include "Algo/Find.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/DMXControlConsoleFaderGroupControllerModel.h"
 #include "Views/SDMXControlConsoleEditorFaderGroupControllerView.h"
@@ -98,8 +99,15 @@ namespace UE::DMX::Private
 		}
 
 		const TArray<UDMXControlConsoleFaderGroupController*> FaderGroupControllers = LayoutRow->GetFaderGroupControllers();
+		
+		const float NumSteps = FaderGroupControllers.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("OnFaderGroupControllerAddedSlowTask", "Updating Control Console..."));
+		Task.MakeDialogDelayed(.5f);
+
 		for (UDMXControlConsoleFaderGroupController* FaderGroupController : FaderGroupControllers)
 		{
+			Task.EnterProgressFrame();
+
 			if (FaderGroupController && !ContainsFaderGroupController(FaderGroupController))
 			{
 				AddFaderGroupController(FaderGroupController);

@@ -11,6 +11,7 @@
 #include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Layouts/Controllers/DMXControlConsoleMatrixCellController.h"
 #include "Misc/Optional.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/DMXControlConsoleElementControllerModel.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
@@ -184,8 +185,15 @@ namespace UE::DMX::Private
 		}
 
 		const TArray<UDMXControlConsoleCellAttributeController*>& CellAttributeControllers = MatrixCellController->GetCellAttributeControllers();
+		
+		const float NumSteps = CellAttributeControllers.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("OnCellAttributeControllerAddedSlowTask", "Updating Control Console..."));
+		Task.MakeDialogDelayed(.5f);
+		
 		for (UDMXControlConsoleCellAttributeController* CellAttributeController : CellAttributeControllers)
 		{
+			Task.EnterProgressFrame();
+
 			if (!CellAttributeController)
 			{
 				continue;

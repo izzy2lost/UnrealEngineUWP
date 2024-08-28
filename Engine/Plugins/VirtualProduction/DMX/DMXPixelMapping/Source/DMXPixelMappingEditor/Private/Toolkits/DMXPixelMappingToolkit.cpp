@@ -22,6 +22,7 @@
 #include "K2Node_PixelMappingBaseComponent.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Modules/ModuleManager.h"
 #include "ScopedTransaction.h"
 #include "Settings/DMXPixelMappingEditorSettings.h"
@@ -504,8 +505,14 @@ TArray<UDMXPixelMappingBaseComponent*> FDMXPixelMappingToolkit::CreateComponents
 
 		if (ensureMsgf(RootComponent && Target, TEXT("Tried to create components from template but RootComponent or Target were invalid.")))
 		{
+			const float NumSteps = Templates.Num();
+			FScopedSlowTask Task(NumSteps, LOCTEXT("CreateComponentsFromTemplatesSlowTask", "Creating Components..."));
+			Task.MakeDialogDelayed(.5f);
+
 			for (const TSharedPtr<FDMXPixelMappingComponentTemplate>& Template : Templates)
 			{
+				Task.EnterProgressFrame();
+
 				if (UDMXPixelMappingBaseComponent* NewComponent = Template->CreateComponent<UDMXPixelMappingBaseComponent>(RootComponent))
 				{
 					NewComponents.Add(NewComponent);

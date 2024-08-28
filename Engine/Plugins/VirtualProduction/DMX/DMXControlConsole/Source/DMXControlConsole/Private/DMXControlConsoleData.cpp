@@ -14,8 +14,11 @@
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXLibrary.h"
+#include "Misc/ScopedSlowTask.h"
 #include "UObject/Package.h"
 
+
+#define LOCTEXT_NAMESPACE "DMXControlConsoleData"
 
 namespace UE::DMX::Private
 {
@@ -141,9 +144,20 @@ void UDMXControlConsoleData::GenerateFromDMXLibrary()
 	using namespace UE::DMX::Private;
 	Algo::StableSortBy(FixturePatchesInLibrary, TFunction<int64(UDMXEntityFixturePatch*)>(&GetFixturePatchChannelAbsolute));
 
+#if WITH_EDITOR
+	// Start slow task
+	const float NumSteps = FixturePatchesInLibrary.Num();
+	FScopedSlowTask Task(NumSteps, LOCTEXT("GenerateFromDMXLibrarySlowTask", "Updating Control Console..."));
+	Task.MakeDialogDelayed(.5f);
+#endif // WITH_EDITOR
+
 	int32 CurrentUniverseID = 0;
 	for (int32 FixturePatchIndex = 0; FixturePatchIndex < FixturePatchesInLibrary.Num(); ++FixturePatchIndex)
 	{
+#if WITH_EDITOR
+		Task.EnterProgressFrame();
+#endif // WITH_EDITOR
+
 		UDMXEntityFixturePatch* FixturePatch = FixturePatchesInLibrary[FixturePatchIndex];
 		if (!FixturePatch)
 		{
@@ -438,10 +452,20 @@ void UDMXControlConsoleData::OnFixturePatchAddedToLibrary(UDMXLibrary* Library, 
 	using namespace UE::DMX::Private;
 	Algo::StableSortBy(FixturePatches, TFunction<int64(UDMXEntityFixturePatch*)>(&GetFixturePatchChannelAbsolute));
 
+#if WITH_EDITOR
+	const float NumSteps = Entities.Num();
+	FScopedSlowTask Task(NumSteps, LOCTEXT("OnFixturePatchAddedToLibrarySlowTask", "Updating Control Console..."));
+	Task.MakeDialogDelayed(.5f);
+#endif // WITH_EDITOR
+
 	// Generate Fader Group for each new Entity in DMX Library
 	int32 CurrentUniverseID = 0;
 	for (UDMXEntity* Entity : Entities)
 	{
+#if WITH_EDITOR
+		Task.EnterProgressFrame();
+#endif // WITH_EDITOR
+
 		UDMXEntityFixturePatch* FixturePatch = Cast<UDMXEntityFixturePatch>(Entity);
 		if (!FixturePatch)
 		{
@@ -484,3 +508,5 @@ void UDMXControlConsoleData::OnFixturePatchAddedToLibrary(UDMXLibrary* Library, 
 		OnFaderGroupAdded.Broadcast(FaderGroup);
 	}
 }
+
+#undef LOCTEXT_NAMESPACE
