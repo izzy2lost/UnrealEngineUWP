@@ -4944,6 +4944,9 @@ export type GetToolSummaryResponse = {
 	/** Progress of the current deployment */
 	deploymentProgress?: number;
 
+	/** Whether the tool is bundled with the server */
+	bundled?: boolean;
+
 	/** Whether to show this tool for download inside UGS */
 	showInUGS: boolean;
 
@@ -4971,7 +4974,8 @@ export type GetToolResponse = {
 	platforms?: string[];
 	deployments: GetToolDeploymentResponse[];
 	public: boolean;
-	showInUgs: boolean;
+	bundled?: boolean;
+	showInUgs: boolean;	
 	showInDashboard: boolean;
 };
 
