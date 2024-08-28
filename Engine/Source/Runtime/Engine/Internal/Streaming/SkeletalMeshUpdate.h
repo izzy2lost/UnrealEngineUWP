@@ -15,6 +15,9 @@ SkeletalMeshUpdate.h: Helpers to stream in and out skeletal mesh LODs.
 #include "Serialization/BulkData.h"
 #include "RayTracingGeometry.h"
 
+
+struct FSkinWeightProfileStack;
+
 /**
 * A context used to update or proceed with the next update step.
 * The mesh and render data references could be stored in the update object
@@ -84,7 +87,7 @@ protected:
 		FSkinWeightRHIInfo SkinWeightVertexBuffer;
 		FBufferRHIRef ClothVertexBuffer;
 		FBufferRHIRef IndexBuffer;
-		TArray<TPair<FName, FSkinWeightRHIInfo>> AltSkinWeightVertexBuffers;
+		TArray<TPair<FSkinWeightProfileStack, FSkinWeightRHIInfo>> AltSkinWeightVertexBuffers;
 		FSkeletalMeshHalfEdgeBuffer::FRHIInfo HalfEdgeBuffer;
 
 		void CreateFromCPUData(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODResource);

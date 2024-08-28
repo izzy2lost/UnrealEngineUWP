@@ -581,7 +581,8 @@ void UOptimusAdvancedSkeletonDataProvider::ComputeBoneTransformsForLayeredSkinni
 		FSkinWeightVertexBuffer const* WeightBuffer = InLodRenderData->GetSkinWeightVertexBuffer();
 		if (InLodRenderData->SkinWeightProfilesData.ContainsProfile(SkinWeightProfile))
 		{
-			WeightBuffer = InLodRenderData->SkinWeightProfilesData.GetOverrideBuffer(SkinWeightProfile);
+			const FSkinWeightProfileStack ProfileStack{SkinWeightProfile};
+			WeightBuffer = InLodRenderData->SkinWeightProfilesData.GetOverrideBuffer(ProfileStack);
 		}
 
 		for (uint32 VertexIndex = 0; VertexIndex < WeightBuffer->GetNumVertices(); VertexIndex++)
@@ -700,7 +701,8 @@ FComputeDataProviderRenderProxy* UOptimusAdvancedSkeletonDataProvider::GetRender
 				if (LodRenderData.SkinWeightProfilesData.ContainsProfile(SkinWeightProfile))
 				{
 					// Retrieve this profile's skin weight buffer
-					FSkinWeightVertexBuffer* Buffer = LodRenderData.SkinWeightProfilesData.GetOverrideBuffer(SkinWeightProfile);
+					const FSkinWeightProfileStack ProfileStack{SkinWeightProfile};
+					FSkinWeightVertexBuffer* Buffer = LodRenderData.SkinWeightProfilesData.GetOverrideBuffer(ProfileStack);
 						
 					if (Buffer)
 					{
@@ -710,7 +712,7 @@ FComputeDataProviderRenderProxy* UOptimusAdvancedSkeletonDataProvider::GetRender
 					{
 						TWeakObjectPtr<USkinnedMeshComponent> WeakComponent = SkeletalMesh;
 						TWeakObjectPtr<UOptimusAdvancedSkeletonDataProvider> WeakThis = this;
-						FRequestFinished Callback = [WeakComponent, WeakThis](TWeakObjectPtr<USkeletalMesh> WeakMesh, FName ProfileName)
+						FRequestFinished Callback = [WeakComponent, WeakThis](TWeakObjectPtr<USkeletalMesh> WeakMesh, FSkinWeightProfileStack ProfileStack)
 						{
 							// Ensure that the request objects are still valid
 							if (WeakMesh.IsValid() && WeakComponent.IsValid() && WeakThis.IsValid())
@@ -724,7 +726,7 @@ FComputeDataProviderRenderProxy* UOptimusAdvancedSkeletonDataProvider::GetRender
 										FSkinWeightProfilesData& SkinweightData = LODRenderData.SkinWeightProfilesData;
 
 										// Retrieve this profile's skin weight buffer
-										FSkinWeightVertexBuffer* Buffer = SkinweightData.GetOverrideBuffer(ProfileName);
+										FSkinWeightVertexBuffer* Buffer = SkinweightData.GetOverrideBuffer(ProfileStack);
 										if (ensure(Buffer))
 										{
 											WeakThis->bSkinWeightBufferReady = true;
@@ -737,7 +739,7 @@ FComputeDataProviderRenderProxy* UOptimusAdvancedSkeletonDataProvider::GetRender
 						// Put in a skin weight profile request
 						if (FSkinWeightProfileManager* Manager = FSkinWeightProfileManager::Get(SkeletalMesh->GetWorld()))
 						{
-							Manager->RequestSkinWeightProfile(SkinWeightProfile, SkeletalMesh->GetSkinnedAsset(), this, Callback);
+							Manager->RequestSkinWeightProfileStack(ProfileStack, SkeletalMesh->GetSkinnedAsset(), this, Callback);
 						}
 					}
 				}	
@@ -868,7 +870,8 @@ bool FOptimusAdvancedSkeletonDataProviderProxy::IsValid(FValidationData const& I
 	FSkinWeightVertexBuffer const* WeightBuffer = LodRenderData->GetSkinWeightVertexBuffer();
 	if (LodRenderData->SkinWeightProfilesData.ContainsProfile(SkinWeightProfile))
 	{
-		WeightBuffer = LodRenderData->SkinWeightProfilesData.GetOverrideBuffer(SkinWeightProfile);
+		const FSkinWeightProfileStack ProfileStack{SkinWeightProfile};
+		WeightBuffer = LodRenderData->SkinWeightProfilesData.GetOverrideBuffer(ProfileStack);
 	}
 	
 	if (WeightBuffer == nullptr)
@@ -967,7 +970,8 @@ void FOptimusAdvancedSkeletonDataProviderProxy::GatherPermutations(FPermutationD
 		FSkinWeightVertexBuffer const* WeightBuffer = LodRenderData->GetSkinWeightVertexBuffer();
 		if (LodRenderData->SkinWeightProfilesData.ContainsProfile(SkinWeightProfile))
 		{
-			WeightBuffer = LodRenderData->SkinWeightProfilesData.GetOverrideBuffer(SkinWeightProfile);
+			const FSkinWeightProfileStack ProfileStack{SkinWeightProfile};
+			WeightBuffer = LodRenderData->SkinWeightProfilesData.GetOverrideBuffer(ProfileStack);
 		}
 		
 		check(WeightBuffer != nullptr);
@@ -1006,7 +1010,8 @@ void FOptimusAdvancedSkeletonDataProviderProxy::GatherDispatchData(FDispatchData
 		FSkinWeightVertexBuffer const* WeightBuffer = LodRenderData->GetSkinWeightVertexBuffer();
 		if (LodRenderData->SkinWeightProfilesData.ContainsProfile(SkinWeightProfile))
 		{
-			WeightBuffer = LodRenderData->SkinWeightProfilesData.GetOverrideBuffer(SkinWeightProfile);
+			const FSkinWeightProfileStack ProfileStack{SkinWeightProfile};
+			WeightBuffer = LodRenderData->SkinWeightProfilesData.GetOverrideBuffer(ProfileStack);
 		}
 		check(WeightBuffer != nullptr);
 		

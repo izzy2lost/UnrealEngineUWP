@@ -16,6 +16,7 @@
 #include "LODSyncInterface.h"
 #include "BoneContainer.h"
 #include "ClothingSystemRuntimeTypes.h"
+#include "Animation/SkinWeightProfile.h"
 #include "SkinnedMeshComponent.generated.h"
 
 enum class ESkinCacheUsage : uint8;
@@ -34,6 +35,7 @@ class UMorphTarget;
 class USkinnedAsset;
 struct FExternalMorphSet;
 struct FExternalMorphWeightData;
+struct FSkinWeightProfileStack;
 
 namespace Nanite
 {
@@ -130,6 +132,16 @@ namespace EBoneSpaces
 		//LocalSpace		UMETA( DisplayName = "Parent Bone Space" ),
 	};
 }
+
+
+/** Values for specifying which layer a skin weight profile is applied at.
+ */
+UENUM(BlueprintType)
+enum class ESkinWeightProfileLayer : uint8
+{
+	Primary,		/** Primary skin weight profile layer */
+	Secondary,		/** Secondary skin weight profile layer */
+};
 
 /** WeightIndex is an into the MorphTargetWeights array */
 using FMorphTargetWeightMap = TMap<const UMorphTarget* /* MorphTarget */, int32 /* WeightIndex */>;
@@ -1191,7 +1203,7 @@ public:
 	ENGINE_API virtual bool DoesSocketExist(FName InSocketName) const override;
 	ENGINE_API virtual bool HasAnySockets() const override;
 	ENGINE_API virtual void QuerySupportedSockets(TArray<FComponentSocketDescription>& OutSockets) const override;
-	ENGINE_API virtual bool UpdateOverlapsImpl(const TOverlapArrayView* PendingOverlaps=NULL, bool bDoNotifies=true, const TOverlapArrayView* OverlapsAtEndLocation=NULL) override;
+	ENGINE_API virtual bool UpdateOverlapsImpl(const TOverlapArrayView* PendingOverlaps=nullptr, bool bDoNotifies=true, const TOverlapArrayView* OverlapsAtEndLocation=nullptr) override;
 	//~ End USceneComponent Interface
 
 	//~ Begin UPrimitiveComponent Interface
@@ -1372,51 +1384,52 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
 	ENGINE_API void ClearSkinWeightOverride(int32 LODIndex);
 
-	/** Setup an override Skin Weight Profile for this component */
+	/** Set up an override skin weight profile for this component on the given layer.
+	 *  The values from the secondary layer (if set to have a profile) are applied first, followed by the values from the primary layer.
+	 *  Since skin weight profiles are stored as sparse data, where only weight values different from the base are kept in storage, it's
+	 *  possible to set up layers such that they don't interfere with one another.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	ENGINE_API bool SetSkinWeightProfile(FName InProfileName);
+	ENGINE_API bool SetSkinWeightProfile(FName InProfileName, ESkinWeightProfileLayer InLayer = ESkinWeightProfileLayer::Primary);
 
-	/** Clear the Skin Weight Profile from this component, in case it is set */
+	/** Clear the skin weight profile from the given layer on this component, in case it is set. If no profile is set for the layer,
+	 *  then this call does nothing. */
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	ENGINE_API void ClearSkinWeightProfile();
+	ENGINE_API void ClearSkinWeightProfile(ESkinWeightProfileLayer InLayer = ESkinWeightProfileLayer::Primary);
 
+	/** Clear the skin Weight Profile from all layers on this component. If no profiles are set for any layer, then this call does nothing. */
+	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
+	ENGINE_API void ClearAllSkinWeightProfiles();
+	
 	/** Unload a Skin Weight Profile's skin weight buffer (if created) */
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
 	ENGINE_API void UnloadSkinWeightProfile(FName InProfileName);
 
-	/** Return the name of the Skin Weight Profile that is currently set otherwise returns 'None' */
+	/** Return the name of the skin weight profile that is currently set on the given layer, otherwise returns 'None' */
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	ENGINE_API FName GetCurrentSkinWeightProfileName() const;
+	ENGINE_API FName GetCurrentSkinWeightProfileName(ESkinWeightProfileLayer InLayer = ESkinWeightProfileLayer::Primary) const;
 
-	/** Check whether or not a Skin Weight Profile is currently set */
+	/** Return the names of the skin weight profiles for all the layers */
+	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
+	ENGINE_API TArray<FName> GetCurrentSkinWeightProfileLayerNames() const;
+	
+	/** Check whether a skin weight profile is currently set on any layer. */
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
 	ENGINE_API bool IsUsingSkinWeightProfile() const;
 
-	UE_DEPRECATED(4.26, "GetVertexOffsetUsage() has been deprecated. Support will be dropped in the future.")
-	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	int32 GetVertexOffsetUsage(int32 LODIndex) const { return 0; }
-
-	UE_DEPRECATED(4.26, "SetVertexOffsetUsage() has been deprecated. Support will be dropped in the future.")
-	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	void SetVertexOffsetUsage(int32 LODIndex, int32 Usage) {}
-
-	UE_DEPRECATED(4.26, "SetPreSkinningOffsets() has been deprecated. Support will be dropped in the future.")
-	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	void SetPreSkinningOffsets(int32 LODIndex, TArray<FVector> Offsets) {}
-
-	UE_DEPRECATED(4.26, "SetPostSkinningOffsets() has been deprecated. Support will be dropped in the future.")
-	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	void SetPostSkinningOffsets(int32 LODIndex, TArray<FVector> Offsets) {}
-
-	/** Check whether or not a Skin Weight Profile is currently pending load / create */
-	bool IsSkinWeightProfilePending() const { return bSkinWeightProfilePending == 1; }
+	/** Check whether a skin weight profile is currently pending load / create */
+	bool IsSkinWeightProfilePending() const { return bSkinWeightProfilePending; }
 
 	/** Queues an update of the Skin Weight Buffer used by the current MeshObject */
 	ENGINE_API void UpdateSkinWeightOverrideBuffer();
-protected:	
+protected:
+	/** Set the currently active skin weight profile stack to the given stack. If the stack is empty, then the skin weight profile buffer
+	  * will be set to the base buffer for this mesh.
+	  */
+	bool SetSkinWeightProfileStack(const FSkinWeightProfileStack& InProfileStack);
 
-	/** Name of currently set up Skin Weight profile, otherwise is 'none' */
-	FName CurrentSkinWeightProfileName;
+	/** Name of currently set up Skin Weight layers, all set to NAME_None for no override */
+	FName CurrentSkinWeightProfileLayers[2] = {NAME_None};
 public:
 	/** Returns skin weight vertex buffer to use for specific LOD (will look at override) */
 	ENGINE_API FSkinWeightVertexBuffer* GetSkinWeightBuffer(int32 LODIndex) const;
@@ -1442,7 +1455,7 @@ public:
 	 * @param TickFunction Supplied as non null if we are running in a tick, allows us to create graph tasks for parallelism
 	 * 
 	 */
-	ENGINE_API virtual void RefreshBoneTransforms(FActorComponentTickFunction* TickFunction = NULL) PURE_VIRTUAL(USkinnedMeshComponent::RefreshBoneTransforms, );
+	ENGINE_API virtual void RefreshBoneTransforms(FActorComponentTickFunction* TickFunction = nullptr) PURE_VIRTUAL(USkinnedMeshComponent::RefreshBoneTransforms, );
 
 protected:
 	/** 
@@ -1475,7 +1488,7 @@ public:
 	FOnTickPose OnTickPose;
 
 	/** 
-	 * Update Follower Component. This gets called when LeaderPoseComponent!=NULL
+	 * Update Follower Component. This gets called when LeaderPoseComponent!=nullptr
 	 * 
 	 */
 	ENGINE_API virtual void UpdateFollowerComponent();
@@ -1723,13 +1736,13 @@ public:
 	 * @param InSocketName	The name of the socket to find
 	 * @param OutBoneIndex	The socket bone index in this skeletal mesh, or INDEX_NONE if the socket is not found or not a bone-relative socket
 	 * @param OutTransform	The socket local transform, or identity if the socket is not found.
-	 * @return SkeletalMeshSocket of named socket on the skeletal mesh component, or NULL if not found.
+	 * @return SkeletalMeshSocket of named socket on the skeletal mesh component, or nullptr if not found.
 	 */
 	ENGINE_API class USkeletalMeshSocket const* GetSocketInfoByName(FName InSocketName, FTransform& OutTransform, int32& OutBoneIndex) const;
 
 	/**
 	 * @param InSocketName	The name of the socket to find
-	 * @return SkeletalMeshSocket of named socket on the skeletal mesh component, or NULL if not found.
+	 * @return SkeletalMeshSocket of named socket on the skeletal mesh component, or nullptr if not found.
 	 */
 	ENGINE_API class USkeletalMeshSocket const* GetSocketByName( FName InSocketName ) const;
 
@@ -1864,7 +1877,7 @@ public:
 	 *
 	 * @return the name of the bone that was found, or 'None' if no bone was found
 	 */
-	ENGINE_API FName FindClosestBone(FVector TestLocation, FVector* BoneLocation = NULL, float IgnoreScale = 0.f, bool bRequirePhysicsAsset = false) const;
+	ENGINE_API FName FindClosestBone(FVector TestLocation, FVector* BoneLocation = nullptr, float IgnoreScale = 0.f, bool bRequirePhysicsAsset = false) const;
 
 	/** finds the closest bone to the given location
 	*
@@ -1883,7 +1896,7 @@ public:
 	 *
 	 * @param MorphTargetName Name of MorphTarget to look for.
 	 *
-	 * @return Pointer to found MorphTarget. Returns NULL if could not find target with that name.
+	 * @return Pointer to found MorphTarget. Returns nullptr if could not find target with that name.
 	 */
 	ENGINE_API virtual class UMorphTarget* FindMorphTarget( FName MorphTargetName ) const;
 
