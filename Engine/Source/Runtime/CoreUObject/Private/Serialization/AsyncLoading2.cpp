@@ -3182,7 +3182,9 @@ private:
 				check(!WaitListPackageState.PackagesWaitingForThisHead);
 				WaitListPackageState.PackagesWaitingForThisHead = PackageToAdd;
 			}
+
 			WaitListPackageState.PackagesWaitingForThisTail = PackageToAdd;
+			WaitListPackage->AddRef();
 			PackageToAddState.WaitingForPackage = WaitListPackage;
 		}
 
@@ -3205,6 +3207,7 @@ private:
 				check(WaitListPackageState.PackagesWaitingForThisHead == PackageToRemove);
 				WaitListPackageState.PackagesWaitingForThisHead = PackageToRemoveState.NextLink;
 			}
+
 			if (PackageToRemoveState.NextLink)
 			{
 				FAllDependenciesState& NextLinkState = PackageToRemoveState.NextLink->*StateMemberPtr;
@@ -3215,9 +3218,12 @@ private:
 				check(WaitListPackageState.PackagesWaitingForThisTail == PackageToRemove);
 				WaitListPackageState.PackagesWaitingForThisTail = PackageToRemoveState.PrevLink;
 			}
+
 			PackageToRemoveState.PrevLink = nullptr;
 			PackageToRemoveState.NextLink = nullptr;
+			FAsyncPackage2* WaitingForPackage = PackageToRemoveState.WaitingForPackage;
 			PackageToRemoveState.WaitingForPackage = nullptr;
+			WaitingForPackage->ReleaseRef();
 		}
 	};
 	FAllDependenciesState		AllDependenciesSetupState;
