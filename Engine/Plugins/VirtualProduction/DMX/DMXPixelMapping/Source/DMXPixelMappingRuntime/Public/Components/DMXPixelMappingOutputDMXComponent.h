@@ -13,11 +13,7 @@ class UDMXModulator;
 class UDMXPixelMappingColorSpace;
 
 
-/**
- * Base class for components that contain a fixture patch to send DMX.
- * 
- * For legacy reasons also used by deprecated DMXPixelMappingScreenComponent
- */
+/** Base class for components that contain a fixture patch to send DMX. */
 UCLASS(Abstract)
 class DMXPIXELMAPPINGRUNTIME_API UDMXPixelMappingOutputDMXComponent
 	: public UDMXPixelMappingOutputComponent

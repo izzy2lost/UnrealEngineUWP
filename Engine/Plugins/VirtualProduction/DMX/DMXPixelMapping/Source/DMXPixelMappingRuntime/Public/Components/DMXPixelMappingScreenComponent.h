@@ -19,20 +19,20 @@ class SDMXPixelMappingScreenComponentBox;
 class UTextureRenderTarget2D;
 class UDMXPixelMappingRendererComponent;
 
-/**
- * DMX Screen(Grid) rendering component
- */
-UCLASS()
-class DMXPIXELMAPPINGRUNTIME_API UDMXPixelMappingScreenComponent
+/** DMX Screen component. Fully deprecated as of 5.5. */
+class UE_DEPRECATED(5.5, "DMXScreenComponent is no longer supported in favor of a fully Fixture Patch based workflow.") UDMXPixelMappingScreenComponent;
+UCLASS(Deprecated, meta = (DeprecationMessage = "Deprecated 5.5. DMXScreenComponent is no longer supported in favor of a fully Fixture Patch based workflow."))
+class DMXPIXELMAPPINGRUNTIME_API UDEPRECATED_DMXPixelMappingScreenComponent
 	: public UDMXPixelMappingOutputDMXComponent
 {
 	GENERATED_BODY()
+
 public:
 	using ForEachPixelCallback = TFunctionRef<void(const int32 /* IndexXY */, const int32 /* IndexX */, const int32 /* IndexY */)>;
 
 public:
 	/** Default Constructor */
-	UDMXPixelMappingScreenComponent();
+	UDEPRECATED_DMXPixelMappingScreenComponent();
 
 	//~ Begin UObject implementation
 #if WITH_EDITOR

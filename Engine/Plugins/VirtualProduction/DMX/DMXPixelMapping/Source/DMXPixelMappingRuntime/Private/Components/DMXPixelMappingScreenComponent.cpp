@@ -23,11 +23,14 @@
 
 DECLARE_CYCLE_STAT(TEXT("Send Screen"), STAT_DMXPixelMaping_SendScreen, STATGROUP_DMXPIXELMAPPING);
 
-#define LOCTEXT_NAMESPACE "DMXPixelMappingScreenComponent"
+#define LOCTEXT_NAMESPACE "DEPRECATED_DMXPixelMappingScreenComponent"
 
-const FVector2D UDMXPixelMappingScreenComponent::MinGridSize = FVector2D(1.f);
+// DMXPixelMappingScreenComponent is fully deprecated, accept the deprecated implementation still makes use of it
+PRAGMA_DISABLE_DEPRECATION_WARNINGS 
 
-UDMXPixelMappingScreenComponent::UDMXPixelMappingScreenComponent()
+const FVector2D UDEPRECATED_DMXPixelMappingScreenComponent::MinGridSize = FVector2D(1.f);
+
+UDEPRECATED_DMXPixelMappingScreenComponent::UDEPRECATED_DMXPixelMappingScreenComponent()
 	: bSendToAllOutputPorts(true)
 {
 	SetSize(FVector2D(500.f, 500.f)); 
@@ -46,12 +49,12 @@ UDMXPixelMappingScreenComponent::UDMXPixelMappingScreenComponent()
 }
 
 #if WITH_EDITOR
-void UDMXPixelMappingScreenComponent::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedChainEvent)
+void UDEPRECATED_DMXPixelMappingScreenComponent::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedChainEvent)
 {
 	// Call the parent at the first place
 	Super::PostEditChangeChainProperty(PropertyChangedChainEvent);
 	
-	if (PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingScreenComponent, OutputPortReferences))
+	if (PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDEPRECATED_DMXPixelMappingScreenComponent, OutputPortReferences))
 	{
 		// Rebuild the set of ports
 		OutputPorts.Reset();
@@ -68,16 +71,14 @@ void UDMXPixelMappingScreenComponent::PostEditChangeChainProperty(FPropertyChang
 		}
 	}
 	
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingScreenComponent, NumXCells) ||
-		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingScreenComponent, NumYCells) ||
-		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingScreenComponent, LocalUniverse) ||
-		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingScreenComponent, StartAddress) ||
-		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingScreenComponent, Distribution) ||
-		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingScreenComponent, PixelFormat) ||
-		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingScreenComponent, bShowAddresses) ||
-		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingScreenComponent, bShowUniverse))
+	if (PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDEPRECATED_DMXPixelMappingScreenComponent, NumXCells) ||
+		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDEPRECATED_DMXPixelMappingScreenComponent, NumYCells) ||
+		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDEPRECATED_DMXPixelMappingScreenComponent, LocalUniverse) ||
+		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDEPRECATED_DMXPixelMappingScreenComponent, StartAddress) ||
+		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDEPRECATED_DMXPixelMappingScreenComponent, Distribution) ||
+		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDEPRECATED_DMXPixelMappingScreenComponent, PixelFormat) ||
+		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDEPRECATED_DMXPixelMappingScreenComponent, bShowAddresses) ||
+		PropertyChangedChainEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UDEPRECATED_DMXPixelMappingScreenComponent, bShowUniverse))
 	{
 		if (ScreenComponentBox.IsValid())
 		{
@@ -94,24 +95,23 @@ void UDMXPixelMappingScreenComponent::PostEditChangeChainProperty(FPropertyChang
 			ScreenComponentBox->RebuildGrid(GridParams);
 		}
 	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 #endif // WITH_EDITOR
 
 #if WITH_EDITOR
-const FText UDMXPixelMappingScreenComponent::GetPaletteCategory()
+const FText UDEPRECATED_DMXPixelMappingScreenComponent::GetPaletteCategory()
 {
 	return LOCTEXT("Common", "Common");
 }
 #endif // WITH_EDITOR
 
-const FName& UDMXPixelMappingScreenComponent::GetNamePrefix()
+const FName& UDEPRECATED_DMXPixelMappingScreenComponent::GetNamePrefix()
 {
 	static FName NamePrefix = TEXT("DEPRECATED DMX Screen");
 	return NamePrefix;
 }
 
-void UDMXPixelMappingScreenComponent::AddColorToSendBuffer(const FColor& InColor, TArray<uint8>& OutDMXSendBuffer)
+void UDEPRECATED_DMXPixelMappingScreenComponent::AddColorToSendBuffer(const FColor& InColor, TArray<uint8>& OutDMXSendBuffer)
 {
 	if (PixelFormat == EDMXCellFormat::PF_R)
 	{
@@ -209,15 +209,13 @@ void UDMXPixelMappingScreenComponent::AddColorToSendBuffer(const FColor& InColor
 	}
 }
 
-UDMXPixelMappingRendererComponent* UDMXPixelMappingScreenComponent::GetRendererComponent() const
+UDMXPixelMappingRendererComponent* UDEPRECATED_DMXPixelMappingScreenComponent::GetRendererComponent() const
 {
 	return Cast<UDMXPixelMappingRendererComponent>(GetParent());
 }
 
-void UDMXPixelMappingScreenComponent::SendDMX()
+void UDEPRECATED_DMXPixelMappingScreenComponent::SendDMX()
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
 	SCOPE_CYCLE_COUNTER(STAT_DMXPixelMaping_SendScreen);
 
 	UDMXPixelMappingRendererComponent* RendererComponent = GetRendererComponent();
@@ -315,15 +313,10 @@ void UDMXPixelMappingScreenComponent::SendDMX()
 			SendDMXIndex++;
 		}
 	}
-
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-void UDMXPixelMappingScreenComponent::QueueDownsample()
+void UDEPRECATED_DMXPixelMappingScreenComponent::QueueDownsample()
 {
-	// DEPRECATED 5.3
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
 	// Queue pixels into the downsample rendering
 	UDMXPixelMappingRendererComponent* RendererComponent = GetRendererComponent();
 	if (!ensure(RendererComponent))
@@ -375,27 +368,25 @@ void UDMXPixelMappingScreenComponent::QueueDownsample()
 
 	// End of downsample index
 	PixelDownsamplePositionRange.Value = PixelDownsamplePositionRange.Key + IterationCount;
-
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-void UDMXPixelMappingScreenComponent::RenderWithInputAndSendDMX()
+void UDEPRECATED_DMXPixelMappingScreenComponent::RenderWithInputAndSendDMX()
 {
 	// DEPRECATED 5.3
 	RenderAndSendDMX();
 }
 
-bool UDMXPixelMappingScreenComponent::CanBeMovedTo(const UDMXPixelMappingBaseComponent* Component) const
+bool UDEPRECATED_DMXPixelMappingScreenComponent::CanBeMovedTo(const UDMXPixelMappingBaseComponent* Component) const
 {
 	return Component && Component->IsA<UDMXPixelMappingRendererComponent>();
 }
 
-const FVector2D UDMXPixelMappingScreenComponent::GetScreenPixelSize() const
+const FVector2D UDEPRECATED_DMXPixelMappingScreenComponent::GetScreenPixelSize() const
 {
 	return FVector2D(GetSize().X / NumXCells, GetSize().Y / NumYCells);
 }
 
-void UDMXPixelMappingScreenComponent::ForEachPixel(ForEachPixelCallback InCallback)
+void UDEPRECATED_DMXPixelMappingScreenComponent::ForEachPixel(ForEachPixelCallback InCallback)
 {
 	int32 IndexXY = 0;
 	for (int32 NumYIndex = 0; NumYIndex < NumYCells; ++NumYIndex)
@@ -407,5 +398,7 @@ void UDMXPixelMappingScreenComponent::ForEachPixel(ForEachPixelCallback InCallba
 		}
 	}
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #undef LOCTEXT_NAMESPACE

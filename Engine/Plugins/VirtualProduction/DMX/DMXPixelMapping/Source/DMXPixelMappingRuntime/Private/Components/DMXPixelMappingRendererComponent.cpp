@@ -9,7 +9,6 @@
 #include "Components/DMXPixelMappingFixtureGroupItemComponent.h"
 #include "Components/DMXPixelMappingMatrixComponent.h"
 #include "Components/DMXPixelMappingRootComponent.h"
-#include "Components/DMXPixelMappingScreenComponent.h"
 #include "DMXPixelMapping.h"
 #include "DMXPixelMappingPixelMapRenderer.h"
 #include "DMXPixelMappingPreprocessRenderer.h"
@@ -496,24 +495,7 @@ void UDMXPixelMappingRendererComponent::RenderEditorPreviewTexture()
 	PixelPreviewParams.Reserve(DownsamplePixelCount_DEPRECATED);
 	
 	ForEachChild([this, &PixelPreviewParams](UDMXPixelMappingBaseComponent* InComponent) {
-		if(UDMXPixelMappingScreenComponent* ScreenComponent = Cast<UDMXPixelMappingScreenComponent>(InComponent))
-		{
-			const FVector2D SizePixel = ScreenComponent->GetScreenPixelSize();
-			const int32 DownsampleIndexStart = ScreenComponent->GetPixelDownsamplePositionRange().Key;
-			const int32 PositionX = ScreenComponent->GetPosition().X;
-			const int32 PositionY = ScreenComponent->GetPosition().Y;
-
-			ScreenComponent->ForEachPixel([this, &PixelPreviewParams, SizePixel, PositionX, PositionY, DownsampleIndexStart](const int32 InXYIndex, const int32 XIndex, const int32 YIndex)
-				{
-					FDMXPixelMappingDownsamplePixelPreviewParam PixelPreviewParam;
-					PixelPreviewParam.ScreenPixelSize = SizePixel;
-					PixelPreviewParam.ScreenPixelPosition = FVector2D(PositionX + SizePixel.X * XIndex, PositionY + SizePixel.Y * YIndex);
-					PixelPreviewParam.DownsamplePosition = GetPixelPosition(InXYIndex + DownsampleIndexStart);
-
-					PixelPreviewParams.Add(MoveTemp(PixelPreviewParam));
-				});
-		}
-		else if (UDMXPixelMappingOutputDMXComponent* Component = Cast<UDMXPixelMappingOutputDMXComponent>(InComponent))
+		if (UDMXPixelMappingOutputDMXComponent* Component = Cast<UDMXPixelMappingOutputDMXComponent>(InComponent))
 		{
 			FDMXPixelMappingDownsamplePixelPreviewParam PixelPreviewParam;
 			PixelPreviewParam.ScreenPixelSize = Component->GetSize();
@@ -743,13 +725,7 @@ int32 UDMXPixelMappingRendererComponent::GetTotalDownsamplePixelCount()
 	constexpr bool bIsRecursive = true;
 	ForEachChildOfClass<UDMXPixelMappingOutputComponent>([&](UDMXPixelMappingOutputComponent* InComponent)
 		{
-			// If that is screen component
-			if (UDMXPixelMappingScreenComponent* ScreenComponent = Cast<UDMXPixelMappingScreenComponent>(InComponent))
-			{
-				DownsamplePixelCount_DEPRECATED += (ScreenComponent->NumXCells * ScreenComponent->NumYCells);
-			}
-			// If that is single pixel component
-			else if (Cast<UDMXPixelMappingOutputDMXComponent>(InComponent))
+			if (Cast<UDMXPixelMappingOutputDMXComponent>(InComponent))
 			{
 				DownsamplePixelCount_DEPRECATED++;
 			}
