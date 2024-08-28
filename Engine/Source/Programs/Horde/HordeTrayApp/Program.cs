@@ -2,8 +2,12 @@
 
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using Avalonia;
+using Avalonia.Controls;
 using EpicGames.Core;
-using HordeTrayApp.Properties;
+
+#pragma warning disable CA1806 // Not checking return code from MessageBox
 
 namespace HordeTrayApp
 {
@@ -11,6 +15,9 @@ namespace HordeTrayApp
 	{
 		const string MutexName = "Horde.Agent.TrayApp-Mutex";
 		const string EventName = "Horde.Agent.TrayApp-Exit";
+
+		[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+		public static extern int MessageBox(IntPtr hWnd, string text, string? caption, uint type);
 
 		[STAThread]
 		public static int Main(string[] args)
@@ -54,14 +61,16 @@ namespace HordeTrayApp
 						}
 						catch (Exception ex)
 						{
-							MessageBox.Show($"Unable to copy app to temp location. Error:\n\n{ex}");
+							MessageBox(IntPtr.Zero, $"Unable to copy app to temp location. Error:\n\n{ex}", null, 0);
 							return 1;
 						}
 					}
 				}
 			}
 
-			MainAsync(closeEvent).GetAwaiter().GetResult();
+			BuildAvaloniaApp()
+				.StartWithClassicDesktopLifetime(Array.Empty<string>(), ShutdownMode.OnExplicitShutdown);
+
 			return 0;
 		}
 
@@ -80,14 +89,12 @@ namespace HordeTrayApp
 			}
 		}
 
-		static async Task MainAsync(EventWaitHandle closeEvent)
+		// Avalonia configuration, don't remove; also used by visual designer.
+		public static AppBuilder BuildAvaloniaApp()
 		{
-			ApplicationConfiguration.Initialize();
-
-			await using (CustomApplicationContext appContext = new CustomApplicationContext(closeEvent))
-			{
-				Application.Run(appContext);
-			}
+			return AppBuilder.Configure<App>()
+				.UsePlatformDetect()
+				.LogToTrace();
 		}
 	}
 
@@ -130,143 +137,6 @@ namespace HordeTrayApp
 		{
 			Release();
 			_mutex.Dispose();
-		}
-	}
-
-	class CustomApplicationContext : ApplicationContext, ITrayAppHost, IAsyncDisposable
-	{
-		readonly NotifyIcon _trayIcon;
-		readonly Control _mainThreadInvokeTarget;
-		readonly List<ITrayAppPlugin> _plugins = new List<ITrayAppPlugin>();
-		readonly BackgroundTask _waitForExitTask;
-
-		bool _disposed;
-
-		public CustomApplicationContext(EventWaitHandle eventHandle)
-		{
-			_plugins.Add(new AgentPlugin(this));
-
-			_mainThreadInvokeTarget = new Control();
-			_mainThreadInvokeTarget.CreateControl();
-
-			ToolStripMenuItem exitMenuItem = new ToolStripMenuItem("Exit");
-			exitMenuItem.Click += OnExit;
-
-			ContextMenuStrip menu = new ContextMenuStrip();
-			foreach (ITrayAppPlugin plugin in _plugins)
-			{
-				plugin.PopulateMenu(menu);
-			}
-			menu.Items.Add(new ToolStripSeparator());
-			menu.Items.Add(exitMenuItem);
-
-			_trayIcon = new NotifyIcon()
-			{
-				Icon = Resources.StatusNormal,
-				ContextMenuStrip = menu,
-				Visible = true
-			};
-			_trayIcon.Click += TrayIcon_Click;
-
-			_waitForExitTask = BackgroundTask.StartNew(ctx => WaitForExitAsync(eventHandle, ctx));
-		}
-
-		protected override void Dispose(bool disposing)
-		{
-			base.Dispose(disposing);
-
-			if (disposing)
-			{
-				_mainThreadInvokeTarget.Dispose();
-				_trayIcon.Dispose();
-				_disposed = true;
-			}
-		}
-
-		private void TrayIcon_Click(object? sender, EventArgs e)
-		{
-			foreach (AgentPlugin plugin in _plugins)
-			{
-				plugin.UpdateMenu();
-			}
-		}
-
-		public async ValueTask DisposeAsync()
-		{
-			await _waitForExitTask.DisposeAsync();
-
-			foreach (AgentPlugin plugin in _plugins)
-			{
-				await plugin.DisposeAsync();
-			}
-
-			Dispose();
-			GC.SuppressFinalize(this);
-		}
-
-		private void OnExit(object? sender, EventArgs e)
-		{
-			ExitThread();
-		}
-
-		public void UpdateStatus()
-		{
-			_mainThreadInvokeTarget.BeginInvoke(() => SetStatus_MainThread());
-		}
-
-		void SetStatus_MainThread()
-		{
-			if (!_disposed)
-			{
-				TrayAppPluginState state = TrayAppPluginState.Undefined;
-				List<string> messages = new List<string>();
-
-				foreach (ITrayAppPlugin plugin in _plugins)
-				{
-					TrayAppPluginStatus status = plugin.GetStatus();
-					if (status.State >= state)
-					{
-						if (status.State > state)
-						{
-							messages.Clear();
-							state = status.State;
-						}
-						if (status.Message != null)
-						{
-							messages.Add(status.Message);
-						}
-					}
-				}
-
-				_trayIcon.Icon = state switch
-				{
-					TrayAppPluginState.Busy => Resources.StatusBusy,
-					TrayAppPluginState.Paused => Resources.StatusPaused,
-					TrayAppPluginState.Error => Resources.StatusError,
-					_ => Resources.StatusNormal
-				};
-				_trayIcon.Text = String.Join("\n", messages);
-			}
-		}
-
-		async Task WaitForExitAsync(EventWaitHandle eventHandle, CancellationToken cancellationToken)
-		{
-			await eventHandle.WaitOneAsync(cancellationToken);
-			_mainThreadInvokeTarget.BeginInvoke(() => Exit_MainThread());
-		}
-
-		void Exit_MainThread()
-		{
-			if (!_disposed)
-			{
-				_trayIcon.Visible = false;
-				Application.Exit();
-			}
-		}
-
-		void Exit(object sender, EventArgs e)
-		{
-			Exit_MainThread();
 		}
 	}
 }

@@ -4,34 +4,33 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using Avalonia.Controls;
 using EpicGames.Core;
 using HordeAgent;
-using HordeTrayApp.Forms;
 using Microsoft.Win32;
 
 namespace HordeTrayApp
 {
-	record struct IdleStat(string Name, long Value, long MinValue);
-
 	class AgentPlugin : TrayAppPluginBase
 	{
+		record struct IdleStat(string Name, long Value, long MinValue);
+
 		readonly ITrayAppHost _host;
 
 		readonly BackgroundTask _clientTask;
 		readonly BackgroundTask _tickPauseStateTask;
 
-		readonly ToolStripMenuItem _enrollMenuItem;
-		readonly ToolStripMenuItem _statusEnabled;
-		readonly ToolStripMenuItem _statusDisabled;
-		readonly ToolStripMenuItem _statusWhenIdle;
+		readonly NativeMenuItem _enrollMenuItem;
+		readonly NativeMenuItem _statusEnabled;
+		readonly NativeMenuItem _statusDisabled;
+		readonly NativeMenuItem _statusWhenIdle;
 
-		readonly ToolStripMenuItem _statusMenuItem;
-		readonly ToolStripMenuItem _logsMenuItem;
+		readonly NativeMenuItem _statusMenuItem;
+		readonly NativeMenuItem _logsMenuItem;
 
 		readonly Settings _settings;
 
 		AgentSettingsMessage? _agentSettings;
-		IdleForm? _idleForm;
 
 		void EnrollWithServer()
 		{
@@ -47,33 +46,34 @@ namespace HordeTrayApp
 			_host = host;
 			_settings = LoadSettings();
 
-			_enrollMenuItem = new ToolStripMenuItem("Enroll with Server...");
+			_enrollMenuItem = new NativeMenuItem("Enroll with Server...");
 			_enrollMenuItem.Click += (s, e) => EnrollWithServer();
 
-			_statusEnabled = new ToolStripMenuItem("Enabled");
+			_statusEnabled = new NativeMenuItem("Enabled");
+			_statusEnabled.ToggleType = NativeMenuItemToggleType.CheckBox;
 			_statusEnabled.Click += (s, e) => SetUserStatus(UserStatus.Enabled);
 
-			_statusDisabled = new ToolStripMenuItem("Disabled");
+			_statusDisabled = new NativeMenuItem("Disabled");
+			_statusDisabled.ToggleType = NativeMenuItemToggleType.CheckBox;
 			_statusDisabled.Click += (s, e) => SetUserStatus(UserStatus.Disabled);
 
-			_statusWhenIdle = new ToolStripMenuItem("When Idle");
+			_statusWhenIdle = new NativeMenuItem("When Idle");
+			_statusWhenIdle.ToggleType = NativeMenuItemToggleType.CheckBox;
 			_statusWhenIdle.Click += (s, e) => SetUserStatus(UserStatus.WhenIdle);
 
-			ToolStripMenuItem showStatsMenuItem = new ToolStripMenuItem("Stats...");
-			showStatsMenuItem.Click += Status_Stats_OnClick;
+			_statusMenuItem = new NativeMenuItem("Status");
+			_statusMenuItem.Menu = new NativeMenu();
+			_statusMenuItem.Menu.Items.Add(_statusEnabled);
+			_statusMenuItem.Menu.Items.Add(_statusDisabled);
+			_statusMenuItem.Menu.Items.Add(_statusWhenIdle);
 
-			_statusMenuItem = new ToolStripMenuItem("Status");
-			_statusMenuItem.DropDownItems.Add(_statusEnabled);
-			_statusMenuItem.DropDownItems.Add(_statusDisabled);
-			_statusMenuItem.DropDownItems.Add(_statusWhenIdle);
-			_statusMenuItem.DropDownItems.Add(new ToolStripSeparator());
-			_statusMenuItem.DropDownItems.Add(showStatsMenuItem);
-
-			_logsMenuItem = new ToolStripMenuItem("Open logs dir");
+			_logsMenuItem = new NativeMenuItem("Open logs dir");
 			_logsMenuItem.Click += OnOpenLogs;
 
 			_clientTask = BackgroundTask.StartNew(StatusTaskAsync);
 			_tickPauseStateTask = BackgroundTask.StartNew(ctx => TickPauseStateAsync(ctx));
+
+			UpdateContextMenu(GetUserStatus());
 		}
 
 		private static Settings LoadSettings()
@@ -107,43 +107,26 @@ namespace HordeTrayApp
 			return result ?? new Settings();
 		}
 
-		public override void PopulateMenu(ContextMenuStrip contextMenu)
+		public override void PopulateContextMenu(NativeMenu contextMenu)
 		{
-			base.PopulateMenu(contextMenu);
+			base.PopulateContextMenu(contextMenu);
 
 			contextMenu.Items.Add(_enrollMenuItem);
 			contextMenu.Items.Add(_statusMenuItem);
-			contextMenu.Items.Add(new ToolStripSeparator());
+			contextMenu.Items.Add(new NativeMenuItemSeparator());
 			contextMenu.Items.Add(_logsMenuItem);
 		}
 
-		public override void UpdateMenu()
+		void UpdateContextMenu(UserStatus status)
 		{
-			base.UpdateMenu();
-
-			UserStatus status = GetUserStatus();
-			_statusEnabled.Checked = (status == UserStatus.Enabled);
-			_statusDisabled.Checked = (status == UserStatus.Disabled);
-			_statusWhenIdle.Checked = (status == UserStatus.WhenIdle);
+			_statusEnabled.IsChecked = (status == UserStatus.Enabled);
+			_statusDisabled.IsChecked = (status == UserStatus.Disabled);
+			_statusWhenIdle.IsChecked = (status == UserStatus.WhenIdle);
 		}
 
 		public override async ValueTask DisposeAsync()
 		{
 			await base.DisposeAsync();
-
-			if (_idleForm != null)
-			{
-				_idleForm.Dispose();
-				_idleForm = null;
-			}
-
-			_enrollMenuItem.Dispose();
-			_statusEnabled.Dispose();
-			_statusDisabled.Dispose();
-			_statusWhenIdle.Dispose();
-
-			_logsMenuItem.Dispose();
-			_statusMenuItem.Dispose();
 
 			await _tickPauseStateTask.DisposeAsync();
 			await _clientTask.DisposeAsync();
@@ -158,10 +141,6 @@ namespace HordeTrayApp
 				if (DirectoryReference.Exists(logsDir))
 				{
 					Process.Start(new ProcessStartInfo { FileName = logsDir.FullName, UseShellExecute = true });
-				}
-				else
-				{
-					MessageBox.Show("Unable to open logs dir " + logsDir.FullName, "Horde Tray App", MessageBoxButtons.OK, MessageBoxIcon.Error);
 				}
 			}
 		}
@@ -185,20 +164,7 @@ namespace HordeTrayApp
 		{
 			Registry.SetValue(RegistryKey, RegistryStatusValue, (int)status);
 			_statusChangedEvent.Set();
-		}
-
-		private void Status_Stats_OnClick(object? sender, EventArgs e)
-		{
-			if (_idleForm == null)
-			{
-				_idleForm = new IdleForm();
-				_idleForm.FormClosed += (s, e) =>
-				{
-					_idleForm.Dispose();
-					_idleForm = null;
-				};
-				_idleForm.Show();
-			}
+			UpdateContextMenu(status);
 		}
 
 		TrayAppPluginStatus? _status;
@@ -343,7 +309,7 @@ namespace HordeTrayApp
 				const int IdleTimeSecs = 30;
 				int stateChangeTime = (int)stateChangeTimer.Elapsed.TotalSeconds;
 				int stateChangeMaxTime = _enabled ? WakeTimeSecs : IdleTimeSecs;
-				_idleForm?.TickStats(_enabled, stateChangeTime, stateChangeMaxTime, idleStats);
+				//				_idleForm?.TickStats(_enabled, stateChangeTime, stateChangeMaxTime, idleStats);
 
 				if (userStatus == UserStatus.WhenIdle && stateChangeTime >= stateChangeMaxTime)
 				{

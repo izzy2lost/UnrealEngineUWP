@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using Avalonia.Controls;
+
 namespace HordeTrayApp
 {
 	enum TrayAppPluginState
@@ -29,12 +31,7 @@ namespace HordeTrayApp
 		/// <summary>
 		/// Allow the plugin to customize the tray icon context menu
 		/// </summary>
-		void PopulateMenu(ContextMenuStrip contextMenu);
-
-		/// <summary>
-		/// Update the menu state before it's shown
-		/// </summary>
-		void UpdateMenu();
+		void PopulateContextMenu(NativeMenu contextMenu);
 	}
 
 	/// <summary>
@@ -49,12 +46,7 @@ namespace HordeTrayApp
 		}
 
 		/// <inheritdoc/>
-		public virtual void PopulateMenu(ContextMenuStrip contextMenu)
-		{
-		}
-
-		/// <inheritdoc/>
-		public virtual void UpdateMenu()
+		public virtual void PopulateContextMenu(NativeMenu contextMenu)
 		{
 		}
 
