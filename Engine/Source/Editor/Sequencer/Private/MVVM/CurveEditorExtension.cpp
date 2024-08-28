@@ -604,6 +604,11 @@ void FCurveEditorExtension::RequestSyncSelection()
 		{
 			return;
 		}
+		TSharedPtr<ISequencer> Sequencer = RootViewModel->GetSequencer();
+		if (!Sequencer)
+		{
+			return;
+		}
 
 		FCurveEditorExtension* This = RootViewModel->CastDynamic<FCurveEditorExtension>();
 		if (This)
