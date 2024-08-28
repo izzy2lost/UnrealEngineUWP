@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "IDetailCustomization.h"
 #include "Graph/MovieGraphConfig.h"
@@ -50,6 +51,9 @@ protected:
 		{
 			DetailBuilder.HideCategory("Properties");
 		}
+
+		// Collapse the Tags category by default because it's not used by most users.
+		DetailBuilder.EditCategory("Tags").InitiallyCollapsed(true).SetSortOrder(1000 * ECategoryPriority::Uncommon);
 	}
 	//~ End IDetailCustomization interface
 };
