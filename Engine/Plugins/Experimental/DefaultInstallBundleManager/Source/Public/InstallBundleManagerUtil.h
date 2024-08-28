@@ -36,6 +36,9 @@ namespace InstallBundleManagerUtil
 	// Sets bSkippedUnknownBundles if a config section for InBundleName or a dependency can't be found.
 	DEFAULTINSTALLBUNDLEMANAGER_API TSet<FName> GetBundleDependenciesFromConfig(FName InBundleName, TSet<FName>* SkippedUnknownBundles /*= nullptr*/);
 
+	// adds all the known up to date bundles to the output array.
+	DEFAULTINSTALLBUNDLEMANAGER_API void GetAllUpToDateBundlesFromConfg(const FConfigFile& InstallBundleConfig, TArray<FName>& OutBundles);
+
 	// This class is a helper for parsing the buildinfo meta json file that should be either loadable from apk/ipa bundle or can be requested from CDN.
 	// It will eventually be completely replaced by, possible key-value lookup from apk/ipa bundle, or by a call to FN service backend to request similar info.
 #define JSON_MCI_VALUE(var) JSON_SERIALIZE(#var, var)

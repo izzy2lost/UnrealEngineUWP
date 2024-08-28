@@ -169,6 +169,28 @@ namespace InstallBundleManagerUtil
 		return BundlesToLoad;
 	}
 
+	void GetAllUpToDateBundlesFromConfg(const FConfigFile& InstallBundleConfig, TArray<FName>& OutBundles)
+	{
+		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+		if (BundleManager.IsValid())
+		{
+			TArray<TPair<FString, TArray<FRegexPattern>>> BundleRegexList = InstallBundleUtil::LoadBundleRegexFromConfig(InstallBundleConfig);
+			for (const TPair<FString, TArray<FRegexPattern>>& Pair : BundleRegexList)
+			{
+				const FName BundleName(Pair.Key);
+				TValueOrError<FInstallBundleCombinedInstallState, EInstallBundleResult> MaybeInstallState = BundleManager->GetInstallStateSynchronous(BundleName, false);
+				if (MaybeInstallState.HasValue())
+				{
+					const FInstallBundleCombinedInstallState& Value = MaybeInstallState.GetValue();
+					if (Value.GetAllBundlesHaveState(EInstallBundleInstallState::UpToDate))
+					{
+						OutBundles.Add(BundleName);
+					}
+				}
+			}
+		}
+	}
+
 	void LogBundleRequestStats(const TCHAR* BundleName, const InstallBundleUtil::FContentRequestStats& RequestStats, ELogVerbosity::Type LogVerbosityOverride)
 	{
 		LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Display, TEXT("------------------------------------------------------"));
