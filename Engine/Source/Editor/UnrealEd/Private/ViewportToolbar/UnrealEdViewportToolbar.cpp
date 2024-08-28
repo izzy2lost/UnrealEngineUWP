@@ -344,19 +344,7 @@ FToolMenuEntry CreateLocationSnapCheckboxMenu()
 		);
 	}
 
-	Entry.ToolbarLabelOverride = TAttribute<FText>::CreateLambda(
-		[]()
-		{
-			const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
-
-			const TArray<float> GridSizes = ViewportSettings->bUsePowerOf2SnapSize ? ViewportSettings->Pow2GridSizes
-																				   : ViewportSettings->DecimalGridSizes;
-
-			const float CurrentGridSize = GridSizes[ViewportSettings->CurrentPosGridSize];
-
-			return FText::AsNumber(CurrentGridSize);
-		}
-	);
+	Entry.ToolbarLabelOverride = TAttribute<FText>::Create(&UE::UnrealEd::GetLocationGridLabel);
 	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.LocationGridSnap");
 
 	return Entry;
@@ -374,19 +362,15 @@ FToolMenuEntry CreateRotationSnapCheckboxMenu()
 		);
 	}
 
-	FNewToolMenuDelegate MakeMenuDelegate = FNewToolMenuDelegate::CreateLambda(
+	const FNewToolMenuDelegate MakeMenuDelegate = FNewToolMenuDelegate::CreateLambda(
 		[RotationSnapName](UToolMenu* InToolMenu)
 		{
-			const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
-			TArray<float> GridSizes = ViewportSettings->bUsePowerOf2SnapSize ? ViewportSettings->Pow2GridSizes
-																			 : ViewportSettings->DecimalGridSizes;
-
-			UnrealEd::FRotationGridCheckboxListExecuteActionDelegate ExecuteDelegate =
+			const UnrealEd::FRotationGridCheckboxListExecuteActionDelegate ExecuteDelegate =
 				UnrealEd::FRotationGridCheckboxListExecuteActionDelegate::CreateUObject(
 					GEditor, &UEditorEngine::SetRotGridSize
 				);
 
-			UnrealEd::FRotationGridCheckboxListIsCheckedDelegate IsCheckedDelegate =
+			const UnrealEd::FRotationGridCheckboxListIsCheckedDelegate IsCheckedDelegate =
 				UnrealEd::FRotationGridCheckboxListIsCheckedDelegate::CreateLambda(
 					[](int CurrGridAngleIndex, ERotationGridMode InGridMode)
 					{
@@ -396,27 +380,21 @@ FToolMenuEntry CreateRotationSnapCheckboxMenu()
 					}
 				);
 
+			const TAttribute<bool> IsEnabledDelegate =
+				TAttribute<bool>::Create(&FLevelEditorActionCallbacks::RotationGridSnap_IsChecked);
+
 			InToolMenu->AddMenuEntry(
 				RotationSnapName,
 				FToolMenuEntry::InitWidget(
 					RotationSnapName,
-					UnrealEd::CreateRotationGridSnapMenu(
-						ExecuteDelegate,
-						IsCheckedDelegate,
-						TAttribute<bool>::CreateLambda(
-							[]()
-							{
-								return FLevelEditorActionCallbacks::RotationGridSnap_IsChecked();
-							}
-						)
-					),
+					UnrealEd::CreateRotationGridSnapMenu(ExecuteDelegate, IsCheckedDelegate, IsEnabledDelegate),
 					FText()
 				)
 			);
 		}
 	);
 
-	return UnrealEd::CreateCheckboxSubmenu(
+	FToolMenuEntry Entry = UnrealEd::CreateCheckboxSubmenu(
 		"RotationSnapping",
 		RotationSnapLabel,
 		FEditorViewportCommands::Get().SurfaceSnapping->MakeTooltip()->GetTextTooltip(),
@@ -436,6 +414,11 @@ FToolMenuEntry CreateRotationSnapCheckboxMenu()
 		),
 		MakeMenuDelegate
 	);
+
+	Entry.ToolbarLabelOverride = TAttribute<FText>::Create(&UE::UnrealEd::GetRotationGridLabel);
+	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.RotationGridSnap");
+
+	return Entry;
 }
 
 FToolMenuEntry CreateScaleSnapCheckboxMenu()
@@ -515,7 +498,7 @@ FToolMenuEntry CreateScaleSnapCheckboxMenu()
 		}
 	);
 
-	return UnrealEd::CreateCheckboxSubmenu(
+	FToolMenuEntry Entry = UnrealEd::CreateCheckboxSubmenu(
 		"ScaleSnapping",
 		ScaleSnapLabel,
 		FEditorViewportCommands::Get().SurfaceSnapping->MakeTooltip()->GetTextTooltip(),
@@ -535,6 +518,11 @@ FToolMenuEntry CreateScaleSnapCheckboxMenu()
 		),
 		MakeMenuDelegate
 	);
+
+	Entry.ToolbarLabelOverride = TAttribute<FText>::Create(&UE::UnrealEd::GetScaleGridLabel);
+	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.ScaleGridSnap");
+
+	return Entry;
 }
 
 bool IsViewModeSupported(EViewModeIndex InViewModeIndex)
@@ -1007,8 +995,8 @@ FToolMenuEntry CreateViewportToolbarSnappingSubmenu()
 
 				SnappingSection.AddEntry(Private::CreateSurfaceSnapCheckboxMenu());
 				SnappingSection.AddEntry(Private::CreateLocationSnapCheckboxMenu()).SetShowInToolbarTopLevel(true);
-				SnappingSection.AddEntry(Private::CreateRotationSnapCheckboxMenu());
-				SnappingSection.AddEntry(Private::CreateScaleSnapCheckboxMenu());
+				SnappingSection.AddEntry(Private::CreateRotationSnapCheckboxMenu()).SetShowInToolbarTopLevel(true);
+				SnappingSection.AddEntry(Private::CreateScaleSnapCheckboxMenu()).SetShowInToolbarTopLevel(true);
 				SnappingSection.AddEntry(Private::CreateActorSnapCheckboxMenu());
 
 				FToolMenuEntry SocketSnapping =
@@ -1582,6 +1570,13 @@ TSharedRef<SWidget> BuildRotationGridCheckBoxList(
 	return RotationGridMenuBuilder.MakeWidget();
 }
 
+FText GetRotationGridLabel()
+{
+	return FText::Format(
+		LOCTEXT("GridRotation - Number - DegreeSymbol", "{0}\u00b0"), FText::AsNumber(GEditor->GetRotGridSize().Pitch)
+	);
+}
+
 TSharedRef<SWidget> CreateRotationGridSnapMenu(
 	const FRotationGridCheckboxListExecuteActionDelegate& InExecuteDelegate,
 	const FRotationGridCheckboxListIsCheckedDelegate& InIsCheckedDelegate,
@@ -1590,8 +1585,6 @@ TSharedRef<SWidget> CreateRotationGridSnapMenu(
 )
 {
 	const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
-	TArray<float> GridSizes = ViewportSettings->bUsePowerOf2SnapSize ? ViewportSettings->Pow2GridSizes
-																	 : ViewportSettings->DecimalGridSizes;
 
 	// clang-format off
 	return SNew(SUniformGridPanel)
@@ -1615,6 +1608,11 @@ TSharedRef<SWidget> CreateRotationGridSnapMenu(
 			)
 		];
 	// clang-format on
+}
+
+FText GetLocationGridLabel()
+{
+	return FText::AsNumber(GEditor->GetGridSize());
 }
 
 TSharedRef<SWidget> CreateLocationGridSnapMenu(
@@ -1664,6 +1662,16 @@ TSharedRef<SWidget> CreateLocationGridSnapMenu(
 	LocationGridMenuBuilder.EndSection();
 
 	return LocationGridMenuBuilder.MakeWidget();
+}
+
+FText GetScaleGridLabel()
+{
+	FNumberFormattingOptions NumberFormattingOptions;
+	NumberFormattingOptions.MaximumFractionalDigits = 5;
+
+	const float CurGridAmount = GEditor->GetScaleGridSize();
+	return (GEditor->UsePercentageBasedScaling()) ? FText::AsPercent(CurGridAmount / 100.0f, &NumberFormattingOptions)
+												  : FText::AsNumber(CurGridAmount, &NumberFormattingOptions);
 }
 
 TSharedRef<SWidget> CreateScaleGridSnapMenu(

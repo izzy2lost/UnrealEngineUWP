@@ -78,6 +78,7 @@ UNREALED_API TSharedRef<SWidget> BuildRotationGridCheckBoxList(
 	const TSharedPtr<FUICommandList>& InCommandList = {}
 );
 
+UNREALED_API FText GetRotationGridLabel();
 UNREALED_API TSharedRef<SWidget> CreateRotationGridSnapMenu(
 	const FRotationGridCheckboxListExecuteActionDelegate& InExecuteDelegate,
 	const FRotationGridCheckboxListIsCheckedDelegate& InIsCheckedDelegate,
@@ -85,6 +86,7 @@ UNREALED_API TSharedRef<SWidget> CreateRotationGridSnapMenu(
 	const TSharedPtr<FUICommandList>& InCommandList = {}
 );
 
+UNREALED_API FText GetLocationGridLabel();
 UNREALED_API TSharedRef<SWidget> CreateLocationGridSnapMenu(
 	const FLocationGridCheckboxListExecuteActionDelegate& InExecuteDelegate,
 	const FLocationGridCheckboxListIsCheckedDelegate& InIsCheckedDelegate,
@@ -93,6 +95,7 @@ UNREALED_API TSharedRef<SWidget> CreateLocationGridSnapMenu(
 	const TSharedPtr<FUICommandList>& InCommandList = {}
 );
 
+UNREALED_API FText GetScaleGridLabel();
 UNREALED_API TSharedRef<SWidget> CreateScaleGridSnapMenu(
 	const FScaleGridCheckboxListExecuteActionDelegate& InExecuteDelegate,
 	const FScaleGridCheckboxListIsCheckedDelegate& InIsCheckedDelegate,

@@ -87,10 +87,7 @@ private:
 	FOnCamSpeedScalarChanged OnCamSpeedScalarChanged;
 
 	/** Grid snap label callbacks */
-	FText GetLocationGridLabel() const;
-	FText GetRotationGridLabel() const;
 	FText GetLayer2DLabel() const;
-	FText GetScaleGridLabel() const;
 
 	/** GridSnap menu construction callbacks */
 	TSharedRef<SWidget> FillLocationGridSnapMenu();

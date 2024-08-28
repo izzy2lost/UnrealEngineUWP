@@ -248,20 +248,20 @@ TSharedRef< SWidget > STransformViewportToolBar::MakeTransformToolBar( const TSh
 		static FName PositionSnapName = FName(TEXT("PositionSnap"));
 
 		// Setup a GridSnapSetting with the UICommand
-		ToolbarBuilder.AddWidget(	
+		ToolbarBuilder.AddWidget(
 			SNew(SViewportToolBarComboMenu)
 				.IsChecked(this, &STransformViewportToolBar::IsLocationGridSnapChecked)
 				.OnCheckStateChanged(this, &STransformViewportToolBar::HandleToggleLocationGridSnap)
-				.Label(this, &STransformViewportToolBar::GetLocationGridLabel)
+				.Label(TAttribute<FText>::Create(&UE::UnrealEd::GetLocationGridLabel))
 				.OnGetMenuContent(this, &STransformViewportToolBar::FillLocationGridSnapMenu)
 				.ToggleButtonToolTip(Command->GetDescription())
 				.MenuButtonToolTip(LOCTEXT("LocationGridSnap_ToolTip", "Set the Position Grid Snap value"))
 				.Icon(Command->GetIcon())
 				.MinDesiredButtonWidth(24.0f)
 				.ParentToolBar(SharedThis(this)),
-			PositionSnapName, 
-			false, 
-			HAlign_Fill, 
+			PositionSnapName,
+			false,
+			HAlign_Fill,
 
 			// explictly specify what this widget should look like as a menu item
 			FNewMenuDelegate::CreateLambda( [this, Command]( FMenuBuilder& InMenuBuilder )
@@ -288,19 +288,19 @@ TSharedRef< SWidget > STransformViewportToolBar::MakeTransformToolBar( const TSh
 		static FName RotationSnapName = FName(TEXT("RotationSnap"));
 
 		// Setup a GridSnapSetting with the UICommand
-		ToolbarBuilder.AddWidget(	
+		ToolbarBuilder.AddWidget(
 			SNew(SViewportToolBarComboMenu)
 				.IsChecked(this, &STransformViewportToolBar::IsRotationGridSnapChecked)
 				.OnCheckStateChanged(this, &STransformViewportToolBar::HandleToggleRotationGridSnap)
-				.Label(this, &STransformViewportToolBar::GetRotationGridLabel)
+				.Label(TAttribute<FText>::Create(&UE::UnrealEd::GetRotationGridLabel))
 				.OnGetMenuContent(this, &STransformViewportToolBar::FillRotationGridSnapMenu)
 				.ToggleButtonToolTip(Command->GetDescription())
 				.MenuButtonToolTip(LOCTEXT("RotationGridSnap_ToolTip", "Set the Rotation Grid Snap value"))
 				.Icon(Command->GetIcon())
 				.ParentToolBar(SharedThis(this)),
 			RotationSnapName,
-			false, 
-			HAlign_Fill, 
+			false,
+			HAlign_Fill,
 
 			// explictly specify what this widget should look like as a menu item
 			FNewMenuDelegate::CreateLambda( [this, Command]( FMenuBuilder& InMenuBuilder )
@@ -363,22 +363,20 @@ TSharedRef< SWidget > STransformViewportToolBar::MakeTransformToolBar( const TSh
 	}
 	ToolbarBuilder.EndSection();
 
-
-
 	ToolbarBuilder.BeginSection("ScaleGridSnap");
 	{
-		// Grab the existing UICommand 
+		// Grab the existing UICommand
 		TSharedPtr<FUICommandInfo> Command = FEditorViewportCommands::Get().ScaleGridSnap;
 
 		static FName ScaleSnapName = FName(TEXT("ScaleSnap"));
 
 		// Setup a GridSnapSetting with the UICommand
-		ToolbarBuilder.AddWidget(	
+		ToolbarBuilder.AddWidget(
 			SNew(SViewportToolBarComboMenu)
-				.Cursor( EMouseCursor::Default )
-				.IsChecked(this,&STransformViewportToolBar::IsScaleGridSnapChecked)
+				.Cursor(EMouseCursor::Default)
+				.IsChecked(this, &STransformViewportToolBar::IsScaleGridSnapChecked)
 				.OnCheckStateChanged(this, &STransformViewportToolBar::HandleToggleScaleGridSnap)
-				.Label(this ,&STransformViewportToolBar::GetScaleGridLabel)
+				.Label(TAttribute<FText>::Create(&UE::UnrealEd::GetScaleGridLabel))
 				.OnGetMenuContent(this, &STransformViewportToolBar::FillScaleGridSnapMenu)
 				.ToggleButtonToolTip(Command->GetDescription())
 				.MenuButtonToolTip(LOCTEXT("ScaleGridSnap_ToolTip", "Set scaling options"))
@@ -386,8 +384,8 @@ TSharedRef< SWidget > STransformViewportToolBar::MakeTransformToolBar( const TSh
 				.MinDesiredButtonWidth(24.0f)
 				.ParentToolBar(SharedThis(this)),
 			ScaleSnapName,
-			false, 
-			HAlign_Fill, 
+			false,
+			HAlign_Fill,
 
 			// explictly specify what this widget should look like as a menu item
 			FNewMenuDelegate::CreateLambda( [this, Command]( FMenuBuilder& InMenuBuilder )
@@ -550,16 +548,6 @@ FSlateIcon STransformViewportToolBar::GetLocalToWorldIcon() const
 	return FSlateIcon(FAppStyle::GetAppStyleSetName(), LocalIcon);
 }
 
-FText STransformViewportToolBar::GetLocationGridLabel() const
-{
-	return FText::AsNumber( GEditor->GetGridSize() );
-}
-
-FText STransformViewportToolBar::GetRotationGridLabel() const
-{
-	return FText::Format(LOCTEXT("GridRotation - Number - DegreeSymbol", "{0}\u00b0"), FText::AsNumber(GEditor->GetRotGridSize().Pitch));
-}
-
 FText STransformViewportToolBar::GetLayer2DLabel() const
 {
 	const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
@@ -568,19 +556,8 @@ FText STransformViewportToolBar::GetLayer2DLabel() const
 	{
 		return FText::FromString(Settings2D->SnapLayers[ViewportSettings->ActiveSnapLayerIndex].Name);
 	}
-	
+
 	return FText();
-}
-
-FText STransformViewportToolBar::GetScaleGridLabel() const
-{
-	FNumberFormattingOptions NumberFormattingOptions;
-	NumberFormattingOptions.MaximumFractionalDigits = 5;
-
-	const float CurGridAmount = GEditor->GetScaleGridSize();
-	return (GEditor->UsePercentageBasedScaling()) 
-		? FText::AsPercent(CurGridAmount / 100.0f, &NumberFormattingOptions) 
-		: FText::AsNumber(CurGridAmount, &NumberFormattingOptions);
 }
 
 FText STransformViewportToolBar::GetCameraSpeedLabel() const
