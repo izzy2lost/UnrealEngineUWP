@@ -23,8 +23,9 @@ public:
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGWaitLandscapeReadySettings", "NodeTitle", "Wait Until Landscape Is Ready"); }
 	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGWaitLandscapeReadySettings", "NodeTooltip", "Waits until landscape is ready, then passes data downstream."); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Generic; }
-	virtual bool HasDynamicPins() const override { return true; }
 #endif
+
+	virtual bool HasDynamicPins() const override { return true; }
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;

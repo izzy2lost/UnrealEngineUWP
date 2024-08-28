@@ -54,8 +54,8 @@ public:
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGPrintElement", "NodeTitle", "Print String"); }
 	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGPrintElement", "NodeTooltip", "Issues a specified message to the log, and optionally to the graph and/or screen."); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Debug; }
-	virtual bool HasDynamicPins() const override { return true; }
 #endif
+	virtual bool HasDynamicPins() const override { return true; }
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;

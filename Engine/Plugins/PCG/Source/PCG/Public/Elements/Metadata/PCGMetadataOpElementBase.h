@@ -97,12 +97,12 @@ public:
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
-	virtual bool HasDynamicPins() const override { return true; }
 	virtual bool GetPinExtraIcon(const UPCGPin* InPin, FName& OutExtraIcon, FText& OutTooltip) const override;
 	virtual FText GetNodeTooltipText() const override;
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 #endif
 	virtual bool HasFlippedTitleLines() const override { return true; }
+	virtual bool HasDynamicPins() const override { return true; }
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 	virtual bool DoesPinSupportPassThrough(UPCGPin* InPin) const override;
 

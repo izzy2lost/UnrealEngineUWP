@@ -49,9 +49,9 @@ public:
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins) override;
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
-	virtual bool HasDynamicPins() const override { return true; }
 	virtual TArray<FText> GetNodeTitleAliases() const override;
 #endif
+	virtual bool HasDynamicPins() const override { return true; }
 	virtual FString GetAdditionalTitleInformation() const override;
 
 protected:
