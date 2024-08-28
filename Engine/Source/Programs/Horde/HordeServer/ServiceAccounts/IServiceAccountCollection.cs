@@ -57,8 +57,9 @@ namespace HordeServer.ServiceAccounts
 	/// <summary>
 	/// Options for creating a new service account
 	/// </summary>
+	/// <param name="Name">Name of the account</param>
 	/// <param name="Description">Description for the account</param>
 	/// <param name="Claims">Optional list of claims</param>
 	/// <param name="Enabled">Whether the account should be enabled</param>
-	public record class CreateServiceAccountOptions(string Description, IReadOnlyList<IUserClaim>? Claims = null, bool? Enabled = null);
+	public record CreateServiceAccountOptions(string Name, string Description, IReadOnlyList<IUserClaim>? Claims = null, bool? Enabled = null);
 }

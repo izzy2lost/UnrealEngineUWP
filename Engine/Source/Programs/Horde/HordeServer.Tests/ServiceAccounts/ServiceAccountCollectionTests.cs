@@ -2,13 +2,12 @@
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using HordeServer.Accounts;
 using HordeServer.Server;
 using HordeServer.ServiceAccounts;
 using HordeServer.Users;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace HordeServer.Tests.Accounts
+namespace HordeServer.Tests.ServiceAccounts
 {
 	[TestClass]
 	public class HordeAccountCollectionTests : DatabaseIntegrationTest
@@ -21,20 +20,19 @@ namespace HordeServer.Tests.Accounts
 		{
 			IMongoService mongoService = GetMongoServiceSingleton();
 			_serviceAccountCollection = new ServiceAccountCollection(mongoService);
-			(_serviceAccount, _token) = _serviceAccountCollection.CreateAsync(new CreateServiceAccountOptions(Description: "myDesc",
-				Claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue") })
-				).Result;
+			CreateServiceAccountOptions options = new (Name: "myName", Description: "myDesc", Claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue") });
+			(_serviceAccount, _token) = _serviceAccountCollection.CreateAsync(options).Result;
 		}
 
 		[TestMethod]
 		public async Task AddAsync()
 		{
-			(IServiceAccount sa, _) = await _serviceAccountCollection.CreateAsync(new CreateServiceAccountOptions(Description: "myDesc",
-				Claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue") }
-				));
+			CreateServiceAccountOptions options = new (Name: "myName", Description: "myDesc", Claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue") });
+			(IServiceAccount sa, _) = await _serviceAccountCollection.CreateAsync(options);
 			Assert.AreEqual(1, sa.Claims.Count);
 			Assert.AreEqual("myValue", sa.Claims[0].Value);
 			Assert.IsTrue(sa.Enabled);
+			Assert.AreEqual("myName", sa.Name);
 			Assert.AreEqual("myDesc", sa.Description);
 		}
 
@@ -58,12 +56,13 @@ namespace HordeServer.Tests.Accounts
 			IServiceAccount? account = await _serviceAccountCollection.GetAsync(_serviceAccount.Id);
 			Assert.IsNotNull(account);
 
-			List<UserClaim> newClaims = new() { new UserClaim("newClaim1", "newValue1"), new UserClaim("newClaim2", "newValue2") };
+			List<UserClaim> newClaims = [new UserClaim("newClaim1", "newValue1"), new UserClaim("newClaim2", "newValue2")];
 			(_, string? newToken) = await account.UpdateAsync(new UpdateServiceAccountOptions
 			{
 				Claims = newClaims,
 				ResetToken = true,
 				Enabled = false,
+				Name = "newName",
 				Description = "newDesc"
 			});
 
@@ -81,6 +80,7 @@ namespace HordeServer.Tests.Accounts
 			Assert.AreEqual("newValue1", sa.Claims[0].Value);
 			Assert.AreEqual("newValue2", sa.Claims[1].Value);
 			Assert.AreEqual(false, sa.Enabled);
+			Assert.AreEqual("newName", sa.Name);
 			Assert.AreEqual("newDesc", sa.Description);
 		}
 

@@ -44,6 +44,8 @@ namespace HordeServer.ServiceAccounts
 			public ServiceAccountId Id { get; set; }
 
 			/// <inheritdoc/>
+			public string Name { get; set; } = "<not-set>";
+			
 			public string SecretToken { get; set; } = String.Empty;
 
 			[BsonElement("Claims2")]
@@ -65,9 +67,10 @@ namespace HordeServer.ServiceAccounts
 			{
 			}
 
-			public ServiceAccountDocument(ServiceAccountId id, string description)
+			public ServiceAccountDocument(ServiceAccountId id, string name, string description)
 			{
 				Id = id;
+				Name = name;
 				Description = description;
 			}
 
@@ -98,16 +101,13 @@ namespace HordeServer.ServiceAccounts
 			=> StringUtils.FormatHexString(RandomNumberGenerator.GetBytes(32));
 
 		/// <inheritdoc/>
-		public async Task<(IServiceAccount, string)> CreateAsync(
-			CreateServiceAccountOptions options,
-			CancellationToken cancellationToken = default)
+		public async Task<(IServiceAccount, string)> CreateAsync(CreateServiceAccountOptions options, CancellationToken cancellationToken = default)
 		{
 			string newToken = CreateToken();
-
-			ServiceAccountDocument account = new ServiceAccountDocument(new ServiceAccountId(BinaryIdUtils.CreateNew()), options.Description ?? "")
+			ServiceAccountDocument account = new (new ServiceAccountId(BinaryIdUtils.CreateNew()), options.Name, options.Description)
 			{
 				SecretToken = newToken,
-				Enabled = options.Enabled ?? true
+				Enabled = options.Enabled ?? true,
 			};
 
 			if (options.Claims != null)
@@ -155,7 +155,11 @@ namespace HordeServer.ServiceAccounts
 		{
 			string? newToken = null;
 			UpdateDefinition<ServiceAccountDocument> update = Builders<ServiceAccountDocument>.Update.Set(x => x.UpdateIndex, document.UpdateIndex + 1);
-
+			
+			if (options.Name != null)
+			{
+				update = update.Set(x => x.Name, options.Name);
+			}
 			if (options.Description != null)
 			{
 				update = update.Set(x => x.Description, options.Description);

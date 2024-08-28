@@ -48,7 +48,8 @@ namespace HordeServer.ServiceAccounts
 			}
 
 			List<IUserClaim> claims = request.Claims.ConvertAll<IUserClaim>(x => new UserClaim(x.Type, x.Value));
-			(IServiceAccount account, string secretToken) = await _serviceAccountCollection.CreateAsync(new CreateServiceAccountOptions(request.Description, claims, request.Enabled), cancellationToken);
+			CreateServiceAccountOptions options = new (request.Name, request.Description, claims, request.Enabled);
+			(IServiceAccount account, string secretToken) = await _serviceAccountCollection.CreateAsync(options, cancellationToken);
 			return new CreateServiceAccountResponse(account.Id, secretToken);
 		}
 
@@ -150,8 +151,7 @@ namespace HordeServer.ServiceAccounts
 				claims = request.Claims.ConvertAll(x => new UserClaim(x.Type, x.Value));
 			}
 
-			UpdateServiceAccountOptions options = new UpdateServiceAccountOptions(request.Description, claims, request.ResetToken, request.Enabled);
-
+			UpdateServiceAccountOptions options = new (request.Name, request.Description, claims, request.ResetToken, request.Enabled);
 			(IServiceAccount? newAccount, string? newToken) = await account.UpdateAsync(options, cancellationToken);
 			if (newAccount == null)
 			{

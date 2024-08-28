@@ -58,7 +58,7 @@ public class ToolsControllerTests
 		configService.OverrideConfig(globalConfig);
 
 		List<IUserClaim> claims = [new UserClaim("http://epicgames.com/ue/horde/role", "agent")];
-		(IServiceAccount _, string token) = await serviceAccounts.CreateAsync(new CreateServiceAccountOptions("myDesc", claims));
+		(IServiceAccount _, string token) = await serviceAccounts.CreateAsync(new CreateServiceAccountOptions("myName", "myDesc", claims));
 
 		// Create tool and deployment
 		using MemoryStream ms = new(await ToolTests.CreateZipFileDataAsync("foo.txt", "foo content"));

@@ -21,6 +21,11 @@ namespace HordeServer.ServiceAccounts
 		/// Unique internal ID for this Horde account
 		/// </summary>
 		ServiceAccountId Id { get; }
+		
+		/// <summary>
+		/// Human-readable name for identifying this account
+		/// </summary>
+		string Name { get; }
 
 		/// <summary>
 		/// Description of the account (who is it for, is there an owner etc)
@@ -57,11 +62,13 @@ namespace HordeServer.ServiceAccounts
 	/// <summary>
 	/// Options for updating an account
 	/// </summary>
-	/// <param name="Claims">If set, claims to update</param>
+	/// <param name="Name">If set, name to update</param>
 	/// <param name="Description">If set, description to update</param>
+	/// <param name="Claims">If set, claims to update</param>
 	/// <param name="ResetToken">Whether to reset the secret token for this account</param>
 	/// <param name="Enabled">If set, enabled flag to update</param>
-	public record class UpdateServiceAccountOptions(
+	public record UpdateServiceAccountOptions(
+		string? Name = null,
 		string? Description = null,
 		IReadOnlyList<IUserClaim>? Claims = null,
 		bool? ResetToken = null,

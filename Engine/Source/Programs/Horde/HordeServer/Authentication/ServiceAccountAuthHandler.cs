@@ -7,6 +7,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using HordeServer.ServiceAccounts;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -59,7 +60,8 @@ namespace HordeServer.Authentication
 			}
 
 			List<Claim> claims = new List<Claim>(10);
-			claims.Add(new Claim(ClaimTypes.Name, AuthenticationScheme));
+			claims.Add(new Claim(ClaimTypes.Name, serviceAccount.Name));
+			claims.Add(new Claim(HordeClaimTypes.User, serviceAccount.Name));
 			claims.AddRange(serviceAccount.Claims.Select(claimPair => new Claim(claimPair.Type, claimPair.Value)));
 
 			ClaimsIdentity identity = new ClaimsIdentity(claims, Scheme.Name);

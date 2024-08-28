@@ -218,10 +218,7 @@ namespace HordeServer.Agents
 				return Forbid(AgentAclAction.UpdateAgent, agentId);
 			}
 
-			List<PoolId>? updatePools = update.Pools?.ConvertAll(x => new PoolId(x));
-
-			IUser? user = await _userCollection.GetUserAsync(User, HttpContext.RequestAborted);
-			string userName = user?.Name ?? "Unknown";
+			string userName = User.GetUser() ?? "Unknown";
 
 			for (; ; )
 			{
