@@ -774,6 +774,9 @@ extern CORE_API bool IsRHIThreadRunning();
 /** @return True if called from the RHI thread, or if called from ANY thread during single threaded rendering */
 extern CORE_API bool IsInRHIThread();
 
+/** @return True if called from a thread tagged as an RHI task. */
+extern CORE_API bool IsInParallelRHIThread();
+
 extern CORE_API bool GIsRunningRHIInSeparateThread_InternalUseOnly;
 extern CORE_API bool GIsRunningRHIInDedicatedThread_InternalUseOnly;
 extern CORE_API bool GIsRunningRHIInTaskThread_InternalUseOnly;

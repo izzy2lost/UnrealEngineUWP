@@ -335,6 +335,12 @@ CORE_API bool IsInRHIThread()
 {
 	return FTaskTagScope::IsCurrentTag(ETaskTag::ERhiThread);
 }
+
+CORE_API bool IsInParallelRHIThread()
+{
+	return (FTaskTagScope::GetCurrentTag() & ETaskTag::ERhiThread) == ETaskTag::ERhiThread;
+}
+
 // Fake threads
 
 // Core version of IsInAsyncLoadingThread

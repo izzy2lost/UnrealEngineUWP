@@ -1084,6 +1084,7 @@ private:
 	/////////////////////////////////////////////////////////////////////////////
 	// Resource Deletion Flushing
 
+	FGraphEventArray WaitOutstandingTasks;
 	bool bFlushResourcesRHI = false;
 	FRHICommandListScopedExtendResourceLifetime ExtendResourceLifetimeScope;
 

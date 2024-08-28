@@ -644,6 +644,12 @@ bool FRHICommandListExecutor::AllowParallel() const
 	return !Bypass() && IsRunningRHIInSeparateThread();
 }
 
+void FRHICommandListExecutor::AddNextDispatchPrerequisite(FGraphEventRef Prereq)
+{
+	check(IsInRenderingThread());
+	NextDispatchTaskPrerequisites.Add(MoveTemp(Prereq));
+}
+
 FRHICommandListExecutor::FTaskPipe* FRHICommandListExecutor::EnqueueDispatchTask(FGraphEventArray&& Prereqs, TFunction<void()>&& Lambda)
 {
 	check(IsInRenderingThread());
@@ -651,7 +657,10 @@ FRHICommandListExecutor::FTaskPipe* FRHICommandListExecutor::EnqueueDispatchTask
 		? ENamedThreads::GetRenderThread_Local()
 		: ENamedThreads::AnyHiPriThreadHiPriTask;
 
-	DispatchPipe.Enqueue(NamedThread, MoveTemp(Prereqs), MoveTemp(Lambda));
+	// Append any additional dispatch prerequisites.
+	NextDispatchTaskPrerequisites.Append(MoveTemp(Prereqs));
+
+	DispatchPipe.Enqueue(NamedThread, MoveTemp(NextDispatchTaskPrerequisites), MoveTemp(Lambda));
 	return &DispatchPipe;
 }
 
@@ -1533,16 +1542,16 @@ void FRHICommandListExecutor::WaitOnRHIThreadFence(FGraphEventRef& Fence)
 	}
 }
 
-void FRHICommandListExecutor::WaitForTasks()
+void FRHICommandListExecutor::WaitForTasks(FGraphEventArray& OutstandingTasks)
 {
 	check(IsInRenderingThread());
 
-	if (WaitOutstandingTasks.Num())
+	if (OutstandingTasks.Num())
 	{
 		bool bAny = false;
-		for (int32 Index = 0; Index < WaitOutstandingTasks.Num(); Index++)
+		for (int32 Index = 0; Index < OutstandingTasks.Num(); Index++)
 		{
-			if (!WaitOutstandingTasks[Index]->IsComplete())
+			if (!OutstandingTasks[Index]->IsComplete())
 			{
 				bAny = true;
 				break;
@@ -1554,10 +1563,10 @@ void FRHICommandListExecutor::WaitForTasks()
 			SCOPE_CYCLE_COUNTER(STAT_ExplicitWait);
 			ENamedThreads::Type RenderThread_Local = ENamedThreads::GetRenderThread_Local();
 			check(!FTaskGraphInterface::Get().IsThreadProcessingTasks(RenderThread_Local));
-			FTaskGraphInterface::Get().WaitUntilTasksComplete(WaitOutstandingTasks, RenderThread_Local);
+			FTaskGraphInterface::Get().WaitUntilTasksComplete(OutstandingTasks, RenderThread_Local);
 		}
 
-		WaitOutstandingTasks.Reset();
+		OutstandingTasks.Reset();
 	}
 }
 

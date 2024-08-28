@@ -336,7 +336,18 @@ void FRDGBuilder::BeginFlushResourcesRHI()
 
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(STAT_RDG_FlushResourcesRHI);
 	SCOPED_NAMED_EVENT(BeginFlushResourcesRHI, FColor::Emerald);
-	RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
+
+	static const auto CVarEnablePSOAsyncCacheConsolidation = IConsoleManager::Get().FindConsoleVariable(TEXT("r.pso.EnableAsyncCacheConsolidation"));
+	if (CVarEnablePSOAsyncCacheConsolidation->GetBool())
+	{
+		// Cache prior tasks before enqueuing setup tasks, which can run while the pipeline state cache flushes.
+		WaitOutstandingTasks = GRHICommandList.WaitOutstandingTasks;
+	}
+	else
+	{
+		// Dispatch to RHI thread if cache consolidation is not asynchronous, so it can get some work started before blocking in EndFlushResourcesRHI.
+		RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
+	}
 }
 
 void FRDGBuilder::EndFlushResourcesRHI()
@@ -349,7 +360,23 @@ void FRDGBuilder::EndFlushResourcesRHI()
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(STAT_RDG_FlushResourcesRHI);
 	CSV_SCOPED_SET_WAIT_STAT(FlushResourcesRHI);
 	SCOPED_NAMED_EVENT(EndFlushResourcesRHI, FColor::Emerald);
-	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
+
+	static const auto CVarEnablePSOAsyncCacheConsolidation = IConsoleManager::Get().FindConsoleVariable(TEXT("r.pso.EnableAsyncCacheConsolidation"));
+	if (CVarEnablePSOAsyncCacheConsolidation->GetBool())
+	{
+		// Dispatch to RHI thread and delete resources.
+		RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread, ERHISubmitFlags::DeleteResources);
+
+		// Wait for tasks cached in BeginFlushResourcesRHI.
+		GRHICommandList.WaitForTasks(WaitOutstandingTasks);
+	}
+	else
+	{
+		// Wait until all RHI work is complete.
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
+	}
+
+	// Flush the pipeline state cache.
 	PipelineStateCache::FlushResources();
 }
 

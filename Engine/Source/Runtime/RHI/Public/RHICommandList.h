@@ -5185,7 +5185,15 @@ public:
 	//
 	// Blocks the calling thread until all dispatch prerequisites of enqueued parallel command lists are completed.
 	//
-	RHI_API void WaitForTasks();
+	RHI_API void WaitForTasks()
+	{
+		WaitForTasks(WaitOutstandingTasks);
+	}
+
+	//
+	// Blocks the calling thread until all specified tasks are completed.
+	//
+	RHI_API void WaitForTasks(FGraphEventArray& OutstandingTasks);
 
 	//
 	// Blocks the calling thread until the RHI thread is idle.
@@ -5235,6 +5243,23 @@ public:
 	static inline bool IsRHIThreadCompletelyFlushed()
 	{
 		return !AreRHITasksActive();
+	}
+
+	//
+	// Adds a prerequisite for subsequent Submit dispatch tasks.
+	// 
+	// This function should only be called from the render thread.
+	//
+	RHI_API void AddNextDispatchPrerequisite(FGraphEventRef Prereq);
+
+	//
+	// Gets the CompletionEvent for the most recent submit to GPU
+	// 
+	// This function should only be called from the render thread.
+	//
+	const FGraphEventRef& GetCompletionEvent() const
+	{
+		return CompletionEvent;
 	}
 
 	FGraphEventArray WaitOutstandingTasks;
@@ -5353,6 +5378,7 @@ private:
 
 	FTaskPipe* EnqueueDispatchTask(FGraphEventArray&& Prereqs, TFunction<void()>&& Lambda);
 	FTaskPipe* EnqueueSubmitTask  (FGraphEventArray&& Prereqs, TFunction<void()>&& Lambda);
+	FGraphEventArray NextDispatchTaskPrerequisites;
 
 #if WITH_RHI_BREADCRUMBS
 
