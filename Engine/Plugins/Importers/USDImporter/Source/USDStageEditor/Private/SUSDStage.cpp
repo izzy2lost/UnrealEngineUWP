@@ -2652,13 +2652,27 @@ void SUsdStage::FileExportFlattenedLayerStack(const FString& OutputLayer)
 
 void SUsdStage::FileReload()
 {
+	AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get();
+	if (!StageActor)
+	{
+		return;
+	}
+
+	static IConsoleVariable* Cvar = IConsoleManager::Get().FindConsoleVariable(TEXT("USD.DiscardUndoBufferOnStageOpenClose"));
+	const bool bDiscardUndoBufferOnStageOpenClose = Cvar && Cvar->GetBool();
+
 	FScopedTransaction Transaction(LOCTEXT("ReloadTransaction", "Reload USD stage"));
+
+	TOptional<TGuardValue<ITransaction*>> SuppressTransaction;
+	if (bDiscardUndoBufferOnStageOpenClose)
+	{
+		SuppressTransaction.Emplace(GUndo, nullptr);
+		StageActor->RequestDelayedTransactorReset();
+	}
 
 	ViewModel.ReloadStage();
 
-	const AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get();
-
-	if (UsdLayersTreeView && StageActor)
+	if (UsdLayersTreeView)
 	{
 		const bool bResync = true;
 		UsdLayersTreeView->Refresh(StageActor->GetBaseUsdStage(), StageActor->GetIsolatedUsdStage(), bResync);

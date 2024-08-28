@@ -178,8 +178,31 @@ namespace UsdToUnreal
 	)
 	{
 		ConvertPathRange(InNotice.GetChangedInfoOnlyPaths(), OutInfoChanges);
+
+		// If we have a root path reload, just stop right here: We will have to reload everything anyway.
+		// This is handy because otherwise on full reloads USD will emit an info change with bDidReloadContent=true
+		// for most prims on the stage (this could be e.g. tens of thousands of entries, which our downstream code
+		// would uselessly process, sort, serialize, etc.).
+		const static FString RootPath = UE::FSdfPath::AbsoluteRootPath().GetString();
+		if (TArray<UsdUtils::FSdfChangeListEntry>* RootInfoChange = OutInfoChanges.Find(RootPath))
+		{
+			for (const UsdUtils::FSdfChangeListEntry& Entry : *RootInfoChange)
+			{
+				if (Entry.Flags.bDidReloadContent)
+				{
+					OutInfoChanges = {};
+					OutResyncChanges = {};
+					OutResyncChanges.Add(RootPath, *RootInfoChange);
+					return true;
+				}
+			}
+		}
+
 		ConvertPathRange(InNotice.GetResyncedPaths(), OutResyncChanges);
 
+		// Upgrade targetted reload notices into resyncs (this should now only happen when reloading a reference/payload, as reloading
+		// any layer on the local layer stack emits a change for the root path)
+		bool bReloadedContent = false;
 		for (TPair<FString, TArray<UsdUtils::FSdfChangeListEntry>>& InfoPair : OutInfoChanges)
 		{
 			const FString& PrimPath = InfoPair.Key;
@@ -193,6 +216,7 @@ namespace UsdToUnreal
 				if (ChangeIt->Flags.bDidReloadContent)
 				{
 					bUpgrade = true;
+					bReloadedContent = true;
 				}
 
 				// Upgrade visibility changes to resyncs because in case of mesh collapsing having one of the collapsed meshes go visible/invisible
@@ -221,6 +245,27 @@ namespace UsdToUnreal
 					ChangeIt.RemoveCurrent();
 				}
 			}
+		}
+
+		// For now, dump info changes when handling the notices about reloading layers.
+		//
+		// When we reload any layer, USD will emit some notices about attributes/prims that changed, and also generic notices about those prims
+		// and their ancestors having reloaded their content (via the bDidReloadContent flag).
+		// We'll upgrade those latter notices to resyncs (above), so that we regenerate the assets/components for those prims, but we cannot use the
+		// former info changes about attributes/prims that changed (and how they changed) at all just yet, because that doesn't carry with them the
+		// respective edit target information.
+		//
+		// For example imagine that a prim is only authored in a sublayer/referenced layer, is modified on disk, and the stage is reloaded.
+		// We'll get the notice about what modification took place, but the stage's edit target will be the root layer. If we were to track those
+		// changes, whenever we undid them we'd author the old values of the prim directly on the stage's root layer, which is definitely not what
+		// we want.
+		//
+		// TODO: Remove this and use this information in order to have a "selective resync", updating only the changed prims/attributes's
+		// assets/components. It *could* be possible, but it will be complex as it will involve deducing the right edit target via composition arcs,
+		// and whether new attribute/prim specs where created within this transaction, etc.
+		if (bReloadedContent)
+		{
+			OutInfoChanges = {};
 		}
 
 		return true;

@@ -419,7 +419,7 @@ protected:
 
 	void UpdateSpawnedObjectsTransientFlag(bool bTransient);
 
-	void RequestDelayedTransactorReset();
+	USDSTAGE_API void RequestDelayedTransactorReset();
 
 #if WITH_EDITOR
 	void OnBeginPIE(bool bIsSimulating);
@@ -439,6 +439,7 @@ protected:
 	void OnSkelAnimationBaked(const FString& SkeletonPrimPath);
 
 protected:
+	friend class SUsdStage;	   // So that it can call RequestDelayedTransactorReset
 	friend struct FUsdStageActorImpl;
 	friend class FUsdLevelSequenceHelperImpl;
 	friend class UsdUtils::FUsdTransactorImpl;
@@ -477,6 +478,7 @@ protected:
 	 */
 	UsdUtils::FObjectChangesByPath AccumulatedInfoChanges;
 	UsdUtils::FObjectChangesByPath AccumulatedResyncChanges;
+	bool bLayerReloaded = false;
 	TArray<UE::FSdfPath> ResyncedPrimsForThisTransaction;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS

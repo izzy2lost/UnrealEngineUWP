@@ -232,12 +232,6 @@ void FUsdSchemaTranslationContext::CompleteTasks()
 
 		bFinished = (TranslatorTasks.Num() == 0);
 	}
-
-	// These only make sense within an asset translation period
-	if (UsdInfoCache)
-	{
-		UsdInfoCache->ResetTranslatedPrototypes();
-	}
 }
 
 bool FUsdSchemaTranslator::IsCollapsed(ECollapsingType CollapsingType) const

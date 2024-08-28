@@ -1052,15 +1052,11 @@ AUsdStageActor::AUsdStageActor()
 		UsdListener.GetOnSdfLayersChanged().AddLambda(
 			[&, this](const UsdUtils::FLayerToSdfChangeList& LayersToChangeList)
 			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::OnSdfLayersChanged);
+
 				if (!IsListeningToUsdNotices() || LayersToChangeList.Num() == 0)
 				{
 					return;
-				}
-
-				TOptional<TGuardValue<ITransaction*>> SuppressTransaction;
-				if (this->GetOutermost()->HasAnyPackageFlags(PKG_PlayInEditor))
-				{
-					SuppressTransaction.Emplace(GUndo, nullptr);
 				}
 
 				const UE::FUsdStage& Stage = GetUsdStage();
@@ -1068,6 +1064,8 @@ AUsdStageActor::AUsdStageActor()
 				{
 					return;
 				}
+
+				TSet<FString> ChangedLayers;
 
 				// Check to see if any of the stage's layers reloaded, or if we added/removed any layer
 				TSet<UE::FSdfLayer> UsedLayers{Stage.GetUsedLayers()};
@@ -1078,18 +1076,17 @@ AUsdStageActor::AUsdStageActor()
 						continue;
 					}
 
+					const FString ChangedLayerIdentifier = LayerToChangeList.Key.GetIdentifier();
+
 					for (const TPair<UE::FSdfPath, UsdUtils::FSdfChangeListEntry>& Change : LayerToChangeList.Value)
 					{
 						if (Change.Value.Flags.bDidReloadContent)
 						{
-							UE_LOG(
-								LogUsd,
-								Verbose,
-								TEXT("Reloading animations because layer '%s' was reloaded"),
-								*LayerToChangeList.Key.GetIdentifier()
-							);
-							RegenerateLevelSequence();
-							RepopulateLevelSequence();
+							// Luckily whenever USD emits a one of these events for a layer reload or sublayer being added/removed,
+							// we also get an object changed notice right after it. This means that we really don't need to do anything
+							// here except to flag that on the next HandleAccumulatedNotices call we really should make sure our
+							// LevelSequence is reloaded, so that we generate subsections for these layers that were added/removed.
+							bLayerReloaded = true;
 							return;
 						}
 
@@ -1098,14 +1095,7 @@ AUsdStageActor::AUsdStageActor()
 							if (SubLayerChange.Value == UsdUtils::ESubLayerChangeType::SubLayerAdded
 								|| SubLayerChange.Value == UsdUtils::ESubLayerChangeType::SubLayerRemoved)
 							{
-								UE_LOG(
-									LogUsd,
-									Verbose,
-									TEXT("Reloading animations because layer '%s' was added or removed"),
-									*LayerToChangeList.Key.GetIdentifier()
-								);
-								RegenerateLevelSequence();
-								RepopulateLevelSequence();
+								bLayerReloaded = true;
 								return;
 							}
 						}
@@ -1353,7 +1343,7 @@ void AUsdStageActor::HandleAccumulatedNotices()
 
 #if USE_USD_SDK
 
-	if (AccumulatedInfoChanges.Num() == 0 && AccumulatedResyncChanges.Num() == 0)
+	if (AccumulatedInfoChanges.Num() == 0 && AccumulatedResyncChanges.Num() == 0 && !bLayerReloaded)
 	{
 		return;
 	}
@@ -1405,7 +1395,10 @@ void AUsdStageActor::HandleAccumulatedNotices()
 
 	bool bHasResync = AccumulatedResyncChanges.Num() > 0;
 
-	bool bNeedsAnimationReload = false;
+	// If any layer changed we'll need to regenerate the LevelSequences for sure (to make sure we update subsequence tracks to match the stage).
+	// We don't have to worry about actually forcing a repopulate: Adding/removing/reloading layers always emits a root resync anyway, which will
+	// already naturally repopulate the level sequences
+	bool bNeedsAnimationReload = bLayerReloaded;
 
 	// The most important thing here is to iterate in parent to child order, so build SortedPrimsChangedList
 	TMap<UE::FSdfPath, bool> SortedPrimsChangedList;
@@ -1830,6 +1823,15 @@ void AUsdStageActor::HandleAccumulatedNotices()
 		RegenerateLevelSequence();
 	}
 
+	// Reset our translated prototypes only here, and reuse them for all individual changes. This because some types of operations
+	// (e.g. reloading a reference used in an instanceable) will cause USD to emit a resync notice for every single instance
+	// of the prototype: By keeping track of which prototypes we translated across all those changes we can do the actual translation
+	//  only once
+	if (UsdInfoCache)
+	{
+		UsdInfoCache->GetInner().ResetTranslatedPrototypes();
+	}
+
 	RefreshStageTask.EnterProgressFrame();
 	FScopedSlowTask RegenerateAssetsTask(PrimsToUpdate.Num(), LOCTEXT("RegeneratingAssets", "Regenerating assets"));
 	{
@@ -1937,6 +1939,7 @@ void AUsdStageActor::HandleAccumulatedNotices()
 
 	AccumulatedInfoChanges.Reset();
 	AccumulatedResyncChanges.Reset();
+	bLayerReloaded = false;
 }
 
 USDSTAGE_API void AUsdStageActor::Reset()
@@ -2052,7 +2055,13 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(
 
 	bool bExpandChildren = true;
 
-	if (!TranslationContext.bIsJustRepopulatingLevelSequence)
+	if (TranslationContext.bIsJustRepopulatingLevelSequence)
+	{
+		// For the repopulate, let's only visit the prim twins that already have children and so may actually have
+		// components. We don't want to create brand new components here
+		bExpandChildren = bResync && UsdPrimTwin->GetChildren().Num() > 0;
+	}
+	else if (!TranslationContext.bIsJustRepopulatingLevelSequence)
 	{
 		IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
 		if (TSharedPtr<FUsdSchemaTranslator> SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry()
@@ -3303,6 +3312,11 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 		PrimLinkCache = NewObject<UUsdPrimLinkCache>(Outer, NAME_None, EObjectFlags::RF_Transient | EObjectFlags::RF_Transactional);
 	}
 
+	if (UsdInfoCache)
+	{
+		UsdInfoCache->GetInner().ResetTranslatedPrototypes();
+	}
+
 	RegenerateLevelSequence();
 
 	TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, RootTwin->PrimPath);
@@ -3609,6 +3623,8 @@ void AUsdStageActor::RegenerateLevelSequence()
 
 void AUsdStageActor::RepopulateLevelSequence()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::RepopulateLevelSequence);
+
 	TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(
 		this,
 		UE::FSdfPath::AbsoluteRootPath().GetString()
@@ -3824,9 +3840,10 @@ void AUsdStageActor::HandleTransactionStateChanged(
 		}
 		else if (InTransactionState == ETransactionStateEventType::TransactionFinalized)
 		{
-			ensureAlways(AccumulatedInfoChanges.Num() == 0 && AccumulatedResyncChanges.Num() == 0);
+			ensureAlways(AccumulatedInfoChanges.Num() == 0 && AccumulatedResyncChanges.Num() == 0 && !bLayerReloaded);
 			AccumulatedInfoChanges.Reset();
 			AccumulatedResyncChanges.Reset();
+			bLayerReloaded = false;
 		}
 	}
 
@@ -4841,6 +4858,11 @@ void AUsdStageActor::OnSkelAnimationBaked(const FString& SkeletonPrimPath)
 	// The only way we could have baked a skel animation is via the sequencer, so we know its playing
 	TranslationContext->bSequencerIsAnimating = true;
 
+	if (UsdInfoCache)
+	{
+		UsdInfoCache->GetInner().ResetTranslatedPrototypes();
+	}
+
 	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
 	if (TSharedPtr<FUsdSchemaTranslator> SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry()
 																.CreateTranslatorForSchema(TranslationContext, UE::FUsdTyped(SkeletonPrim)))
@@ -5050,6 +5072,11 @@ void AUsdStageActor::AnimatePrims()
 	if (!CurrentStage)
 	{
 		return;
+	}
+
+	if (UsdInfoCache)
+	{
+		UsdInfoCache->GetInner().ResetTranslatedPrototypes();
 	}
 
 	TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(
