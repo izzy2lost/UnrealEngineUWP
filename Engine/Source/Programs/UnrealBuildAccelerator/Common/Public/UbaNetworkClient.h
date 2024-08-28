@@ -24,6 +24,7 @@ namespace uba
 		LogWriter& logWriter;
 		u32 sendSize = SendDefaultSize;
 		u32 receiveTimeoutSeconds = 0;
+		u32 workerCount = 0; // Zero means logical processor count will be used
 		const u8* cryptoKey128 = nullptr;
 	};
 

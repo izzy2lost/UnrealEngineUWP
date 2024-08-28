@@ -80,6 +80,7 @@ namespace uba
 		logger.Info(TC("  -maxcpu=<number>        Max number of processes that can be started. Defaults to \"%u\" on this machine"), DefaultProcessorCount);
 		logger.Info(TC("  -mulcpu=<number>        This value multiplies with number of cpu to figure out max cpu. Defaults to 1.0"));
 		logger.Info(TC("  -maxcon=<number>        Max number of connections that can be started by agent. Defaults to \"%u\" (amount up to max will depend on ping)"), DefaultMaxConnectionCount);
+		logger.Info(TC("  -maxworkers=<number>    Max number of workers is started by agent. Defaults to \"%u\""), DefaultProcessorCount);
 		logger.Info(TC("  -capacity=<gigaby>      Capacity of local store. Defaults to %u gigabytes"), DefaultCapacityGb);
 		logger.Info(TC("  -config=<file>          Config file that contains options for various systems"));
 		logger.Info(TC("  -quic                   Use Quic instead of tcp backend."));
@@ -401,6 +402,7 @@ namespace uba
 		#endif
 
 		u32 maxProcessCount = DefaultProcessorCount;
+		u32 maxWorkerCount = DefaultProcessorCount;
 		float mulProcessValue = 1.0f;
 		u32 maxConnectionCount = DefaultMaxConnectionCount;
 		u32 outputStatsThresholdMs = 0;
@@ -486,6 +488,11 @@ namespace uba
 			{
 				if (!value.Parse(maxConnectionCount) || maxConnectionCount == 0)
 					return PrintHelp(TC("Invalid value for -maxcon"));
+			}
+			else if (name.Equals(TC("-maxworkers")))
+			{
+				if (!value.Parse(maxWorkerCount))
+					return PrintHelp(TC("Invalid value for -maxworkers"));
 			}
 			else if (name.Equals(TC("-capacity")))
 			{
@@ -999,6 +1006,7 @@ namespace uba
 			//ncci.Apply(config);
 			ncci.sendSize = sendSize;
 			ncci.receiveTimeoutSeconds = receiveTimeoutSeconds;
+			ncci.workerCount = maxWorkerCount;
 			if (hasCrypto)
 				ncci.cryptoKey128 = crypto;
 			bool ctorSuccess = true;
