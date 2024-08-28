@@ -76,14 +76,14 @@ namespace mu
 			}
 
 			FORCEINLINE void ResizeAllocation(
-				SizeType PreviousNumElements,
-				SizeType NumElements,
+				SizeType CurrentNum,
+				SizeType NewMax,
 				SIZE_T NumBytesPerElement
 			)
 			{
-				BaseAlloc::ForAnyElementType::ResizeAllocation(PreviousNumElements, NumElements, NumBytesPerElement);
+				BaseAlloc::ForAnyElementType::ResizeAllocation(CurrentNum, NewMax, NumBytesPerElement);
 
-				const SSIZE_T AllocatedSize = (SSIZE_T)BaseAlloc::ForAnyElementType::GetAllocatedSize(NumElements, NumBytesPerElement); 
+				const SSIZE_T AllocatedSize = (SSIZE_T)BaseAlloc::ForAnyElementType::GetAllocatedSize(NewMax, NumBytesPerElement); 
 				const SSIZE_T Differential = AllocatedSize - AllocSize;
 				const SSIZE_T PrevCounterValue = CounterType::Counter.fetch_add(Differential, std::memory_order_relaxed);
 				check(PrevCounterValue >= AllocSize);
@@ -97,15 +97,15 @@ namespace mu
 
 			template<class T = BaseAlloc>
 			FORCEINLINE typename TEnableIf<TAllocatorTraits<T>::SupportsElementAlignment, void>::Type ResizeAllocation(
-				SizeType PreviousNumElements,
-				SizeType NumElements,
+				SizeType CurrentNum,
+				SizeType NewMax,
 				SIZE_T NumBytesPerElement,
 				uint32 AlignmentOfElement
 			)
 			{
-				BaseAlloc::ForAnyElementType::ResizeAllocation(PreviousNumElements, NumElements, NumBytesPerElement, AlignmentOfElement);
+				BaseAlloc::ForAnyElementType::ResizeAllocation(CurrentNum, NewMax, NumBytesPerElement, AlignmentOfElement);
 
-				const SSIZE_T AllocatedSize = (SSIZE_T)BaseAlloc::ForAnyElementType::GetAllocatedSize(NumElements, NumBytesPerElement); 
+				const SSIZE_T AllocatedSize = (SSIZE_T)BaseAlloc::ForAnyElementType::GetAllocatedSize(NewMax, NumBytesPerElement); 
 				const SSIZE_T Differential = AllocatedSize - AllocSize;
 				const SSIZE_T PrevCounterValue = CounterType::Counter.fetch_add(Differential, std::memory_order_relaxed);
 				check(PrevCounterValue >= AllocSize);

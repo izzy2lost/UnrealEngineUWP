@@ -67,23 +67,23 @@ public:
 		{
 			return Data;
 		}
-		CORE_API void ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements, SIZE_T NumBytesPerElement);
-		SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		CORE_API void ResizeAllocation(SizeType CurrentNum, SizeType NewMax, SIZE_T NumBytesPerElement);
+		SizeType CalculateSlackReserve(SizeType NewMax, SIZE_T NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackReserve(NumElements, NumBytesPerElement, false);
+			return DefaultCalculateSlackReserve(NewMax, NumBytesPerElement, false);
 		}
-		SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SizeType CalculateSlackShrink(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement, false);
+			return DefaultCalculateSlackShrink(NewMax, CurrentMax, NumBytesPerElement, false);
 		}
-		SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SizeType CalculateSlackGrow(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement, false);
+			return DefaultCalculateSlackGrow(NewMax, CurrentMax, NumBytesPerElement, false);
 		}
 
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SIZE_T GetAllocatedSize(SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return NumAllocatedElements * NumBytesPerElement;
+			return CurrentMax * NumBytesPerElement;
 		}
 
 		bool HasAllocation() const

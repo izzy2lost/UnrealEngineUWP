@@ -9,20 +9,20 @@ FORCENOINLINE void UE::Core::Private::OnInvalidAnsiAllocatorNum(int32 NewNum, SI
 	for (;;);
 }
 
-void FAnsiAllocator::ForAnyElementType::ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements, SIZE_T NumBytesPerElement)
+void FAnsiAllocator::ForAnyElementType::ResizeAllocation(SizeType CurrentNum, SizeType NewMax, SIZE_T NumBytesPerElement)
 {
 	// Avoid calling FMemory::Realloc( nullptr, 0 ) as ANSI C mandates returning a valid pointer which is not what we want.
-	if (NumElements)
+	if (NewMax)
 	{
 		static_assert(sizeof(int32) <= sizeof(SIZE_T), "SIZE_T is expected to be larger than int32");
 
 		// Check for under/overflow
-		if (UNLIKELY(NumElements < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32))
+		if (UNLIKELY(NewMax < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32))
 		{
-			UE::Core::Private::OnInvalidAnsiAllocatorNum(NumElements, NumBytesPerElement);
+			UE::Core::Private::OnInvalidAnsiAllocatorNum(NewMax, NumBytesPerElement);
 		}
 
-		void* NewRealloc = ::realloc(Data, NumElements*NumBytesPerElement);
+		void* NewRealloc = ::realloc(Data, NewMax*NumBytesPerElement);
 		Data = (FScriptContainerElement*)NewRealloc;
 	}
 	else
