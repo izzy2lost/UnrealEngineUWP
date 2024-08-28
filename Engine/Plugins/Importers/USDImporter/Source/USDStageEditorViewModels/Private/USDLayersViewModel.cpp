@@ -164,7 +164,7 @@ void FUsdLayerViewModel::RefreshData()
 	const pxr::SdfLayerHandle& EditTargetLayer = UsdStageRef->GetEditTarget().GetLayer();
 	const pxr::SdfLayerHandle& FocusedEditTarget = IsolatedStageRef ? IsolatedStageRef->GetEditTarget().GetLayer() : pxr::SdfLayerHandle{};
 
-    LayerModel->bIsEditTarget = (IsolatedStageRef) ? LayerModel->bIsInIsolatedStage && FocusedEditTarget == UsdLayer : EditTargetLayer == UsdLayer;
+	LayerModel->bIsEditTarget = (IsolatedStageRef) ? LayerModel->bIsInIsolatedStage && FocusedEditTarget == UsdLayer : EditTargetLayer == UsdLayer;
 
 	LayerModel->bIsMuted = (IsolatedStageRef && LayerModel->bIsInIsolatedStage)
 							   // If we isolating, we're only muted if we're muted on the isolated stage
@@ -326,4 +326,15 @@ bool FUsdLayerViewModel::RemoveSubLayer(int32 SubLayerIndex)
 bool FUsdLayerViewModel::IsLayerDirty() const
 {
 	return LayerModel->bIsDirty;
+}
+
+bool FUsdLayerViewModel::CanReload() const
+{
+	return !GetLayer().IsAnonymous();
+}
+
+void FUsdLayerViewModel::Reload()
+{
+	const bool bForce = true;
+	GetLayer().Reload(bForce);
 }

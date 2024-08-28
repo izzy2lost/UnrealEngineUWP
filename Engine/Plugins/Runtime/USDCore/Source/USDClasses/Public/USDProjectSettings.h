@@ -84,6 +84,9 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "USD|Dialogs")
 	bool bShowConfirmationWhenMutingDirtyLayers = true;
 
+	UPROPERTY(config, EditAnywhere, Category = "USD|Dialogs")
+	bool bShowConfirmationWhenReloadingDirtyLayers = true;
+
 	// Whether to show the warning dialog when authoring opinions that could have no effect on the composed stage
 	UPROPERTY(config, EditAnywhere, Category = "USD|Dialogs")
 	bool bShowOverriddenOpinionsWarning = true;

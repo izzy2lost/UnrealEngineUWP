@@ -61,8 +61,14 @@ private:
 	bool CanEditSelectedLayer() const;
 	void OnEditSelectedLayer();
 
+	bool CanMuteSelectedLayer() const;
+	void OnMuteSelectedLayer();
+
 	void OnClearSelectedLayers();
 	bool CanClearSelectedLayers() const;
+
+	void OnReloadSelectedLayers();
+	bool CanReloadSelectedLayers() const;
 
 	void OnSaveSelectedLayers();
 	bool CanSaveSelectedLayers() const;

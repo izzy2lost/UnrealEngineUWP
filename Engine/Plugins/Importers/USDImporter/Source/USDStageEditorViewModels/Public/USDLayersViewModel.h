@@ -55,6 +55,9 @@ public:
 
 	bool IsLayerDirty() const;
 
+	bool CanReload() const;
+	void Reload();
+
 public:
 	TSharedRef<FUsdLayerModel> LayerModel;
 	FUsdLayerViewModel* ParentItem;

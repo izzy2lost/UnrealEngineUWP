@@ -911,6 +911,17 @@ namespace UE
 #endif	  // #if USE_USD_SDK
 	}
 
+	template<typename PtrType>
+	void FSdfLayerBase<PtrType>::Reload(bool bForce)
+	{
+#if USE_USD_SDK
+		if (const PtrType& Ptr = Impl->GetInner())
+		{
+			Ptr->Reload(bForce);
+		}
+#endif	  // #if USE_USD_SDK
+	}
+
 	FString FSdfLayerUtils::SdfComputeAssetPathRelativeToLayer(const FSdfLayer& Anchor, const TCHAR* AssetPath)
 	{
 #if USE_USD_SDK

@@ -157,6 +157,8 @@ namespace UE
 
 		void Clear();
 
+		void Reload(bool bForce = false);
+
 		bool HasStartTimeCode() const;
 		double GetStartTimeCode() const;
 		void SetStartTimeCode(double TimeCode);
