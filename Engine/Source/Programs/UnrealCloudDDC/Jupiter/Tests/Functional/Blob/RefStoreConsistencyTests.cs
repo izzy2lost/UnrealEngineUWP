@@ -26,6 +26,7 @@ namespace Jupiter.FunctionalTests.References
 
 		private TestServer? _server;
 		private readonly NamespaceId _testNamespaceName;
+		protected NamespaceId TestNamespaceId => _testNamespaceName;
 
 		private readonly BucketId DefaultBucket = new BucketId("default");
 
@@ -168,6 +169,9 @@ namespace Jupiter.FunctionalTests.References
 			{
 				new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Memory.ToString()),
 				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Memory.ToString()),
+				new KeyValuePair<string, string?>("ConsistencyCheck:CheckRefStoreLastAccessTimeConsistency", true.ToString()),
+				new KeyValuePair<string, string?>("ConsistencyCheck:CheckRefStoreRegionalConsistency", true.ToString()),
+				new KeyValuePair<string, string?>("ConsistencyCheck:RegionalConsistencyCheckNamespaces:0", TestNamespaceId.ToString()),
 			};
 		}
 
@@ -196,7 +200,9 @@ namespace Jupiter.FunctionalTests.References
 			{
 				new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Scylla.ToString()),
 				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()),
-
+				new KeyValuePair<string, string?>("ConsistencyCheck:CheckRefStoreLastAccessTimeConsistency", true.ToString()),
+				new KeyValuePair<string, string?>("ConsistencyCheck:CheckRefStoreRegionalConsistency", true.ToString()),
+				new KeyValuePair<string, string?>("ConsistencyCheck:RegionalConsistencyCheckNamespaces:0", TestNamespaceId.ToString()),
 			};
 		}
 

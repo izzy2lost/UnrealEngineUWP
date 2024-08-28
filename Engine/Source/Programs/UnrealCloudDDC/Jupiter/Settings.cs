@@ -265,5 +265,8 @@ namespace Jupiter
 		public int BlobIndexMaxParallelOperations { get; set; } = 4;
 		public bool AllowDeletesInBlobIndex { get; set; } = false;
 		public bool RunBlobStoreConsistencyCheckOnRootStore { get; set; } = false;
+		public bool CheckRefStoreLastAccessTimeConsistency { get; set; } = false;
+		public bool CheckRefStoreRegionalConsistency { get; set; } = false;
+		public string[] RegionalConsistencyCheckNamespaces { get; set; } = Array.Empty<string>();
 	}
 }
