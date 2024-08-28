@@ -12,6 +12,10 @@
 void SScrollBox::FSlot::Construct(const FChildren& SlotOwner, FSlotArguments&& InArgs)
 {
 	TBasicLayoutWidgetSlot<FSlot>::Construct(SlotOwner, MoveTemp(InArgs));
+	if (InArgs._MinSize.IsSet())
+	{
+		SetMinSize(MoveTemp(InArgs._MinSize));
+	}
 	if (InArgs._MaxSize.IsSet())
 	{
 		SetMaxSize(MoveTemp(InArgs._MaxSize));
@@ -25,10 +29,13 @@ void SScrollBox::FSlot::Construct(const FChildren& SlotOwner, FSlotArguments&& I
 void SScrollBox::FSlot::RegisterAttributes(FSlateWidgetSlotAttributeInitializer& AttributeInitializer)
 {
 	TBasicLayoutWidgetSlot<FSlot>::RegisterAttributes(AttributeInitializer);
+	SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.MinSize", MinSize, EInvalidateWidgetReason::Layout);
 	SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.MaxSize", MaxSize, EInvalidateWidgetReason::Layout);
 	SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.SizeValue", SizeValue, EInvalidateWidgetReason::Layout)
+		.UpdatePrerequisite("Slot.MinSize")
 		.UpdatePrerequisite("Slot.MaxSize");
 	SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.ShrinkSizeValue", ShrinkSizeValue, EInvalidateWidgetReason::Layout)
+		.UpdatePrerequisite("Slot.MinSize")
 		.UpdatePrerequisite("Slot.MaxSize");
 }
 

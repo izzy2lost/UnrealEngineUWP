@@ -255,17 +255,20 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 	{
 		return;
 	}
-	
+
 	// Allotted space will be given to fixed-size children first.
 	// Remaining space will be proportionately divided between stretch children (SizeRule_Stretch and SizeRule_StretchContent)
 	// based on their stretch coefficient.
 
 	// Helper function to clamp to max size, if the constraint is set.
-	auto ClampToMaxSize = [](const float Size, const float MaxSize)
+	auto ClampSize = [](const float Size, const float MinSize, const float MaxSize)
 	{
-		return MaxSize > 0.0f ? FMath::Min(MaxSize, Size) : Size; 
+		return FMath::Clamp(
+			Size,
+			MinSize > 0.0f ? MinSize : 0.0f,
+			MaxSize > 0.0f ? MaxSize : std::numeric_limits<float>::max());
 	};
-	
+
 	float GrowStretchCoefficientTotal = 0.0f;
 	float ShrinkStretchCoefficientTotal = 0.0f;
 	float FixedSizeTotal = 0.0f;
@@ -275,8 +278,10 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 	{
 		// Size of the item
 		float Size = 0.0f;
-		// Initial size of the item 
+		// Initial size of the item
 		float BasisSize = 0.0f;
+		// Min size constraint of the item.
+		float MinSize = 0.0f;
 		// Max size constraint of the item.
 		float MaxSize = 0.0f;
 		// Stretch coefficient when the items are growing.
@@ -290,11 +295,11 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 	};
 	TArray<FStretchItem, TInlineAllocator<16>> StretchItems;
 	StretchItems.Init({}, Children.Num());
-	
+
 	bool bAnyChildVisible = false;
 	bool bAnyStretchContentItems = false;
 	bool bAnyStretchItems = false;
-	
+
 	// Compute the sum of stretch coefficients (SizeRule_Stretch & SizeRule_StretchContent) and space required by fixed-size widgets (SizeRule_Auto),
 	// as well as the total desired size.
 	for (int32 ChildIndex = 0; ChildIndex < Children.Num(); ++ChildIndex)
@@ -304,7 +309,7 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 		if (CurChild.GetWidget()->GetVisibility() != EVisibility::Collapsed)
 		{
 			bAnyChildVisible = true;
-			
+
 			// All widgets contribute their margin to the fixed space requirement
 			FixedSizeTotal += CurChild.GetPadding().template GetTotalSpaceAlong<Orientation>();
 
@@ -315,14 +320,16 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 				? ChildDesiredSize.Y
 				: ChildDesiredSize.X;
 
+			const float MinSize = CurChild.GetMinSize();
 			const float MaxSize = CurChild.GetMaxSize();
 
-			FStretchItem& Item = StretchItems[ChildIndex]; 
+			FStretchItem& Item = StretchItems[ChildIndex];
+			Item.MinSize = MinSize;
 			Item.MaxSize = MaxSize;
 			Item.SizeRule = CurChild.GetSizeRule();
 
 			// Clamp to the max size if it was specified
-			ChildSize = ClampToMaxSize(ChildSize, MaxSize);
+			ChildSize = ClampSize(ChildSize, MinSize, MaxSize);
 
 			if (CurChild.GetSizeRule() == FSizeParam::SizeRule_Stretch)
 			{
@@ -341,7 +348,7 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 			}
 			else if (CurChild.GetSizeRule() == FSizeParam::SizeRule_StretchContent)
 			{
-				// Allow separate values from grow and shrink, as the adjustment is relative to the child size. 
+				// Allow separate values from grow and shrink, as the adjustment is relative to the child size.
 				Item.GrowStretchValue = FMath::Max(0.f, CurChild.GetSizeValue());
 				Item.ShrinkStretchValue = FMath::Max(0.f,CurChild.GetShrinkSizeValue());
 				Item.Size = ChildSize;
@@ -377,7 +384,7 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 	const float AllottedSize = Orientation == Orient_Vertical
 		? AllottedGeometry.GetLocalSize().Y
 		: AllottedGeometry.GetLocalSize().X;
-	
+
 	// The space available for SizeRule_Stretch and SizeRule_StretchContent widgets is any space that wasn't taken up by fixed-sized widgets.
 	float AvailableSpace = FMath::Max(MinAvailableSpace, AllottedSize - FixedSizeTotal);
 
@@ -393,8 +400,8 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 				// Stretch widgets get a fraction of the space remaining after all the fixed-space requirements are met.
 				// Supporting only one stretch value since otherwise the transition would be discontinuous as (reference) basis size is 0.
 				const float Size = AvailableSpace * Item.GrowStretchValue / GrowStretchCoefficientTotal;
-				
-				Item.Size = ClampToMaxSize(Size, Item.MaxSize);
+
+				Item.Size = ClampSize(Size, Item.MinSize, Item.MaxSize);
 				
 				UsedSpace += Item.Size;
 			}
@@ -492,8 +499,8 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 						Item.bFrozen = true;
 						continue;
 					}
-					
-					constexpr float MinSize = 0.0f;
+
+					const float MinSize = Item.MinSize;
 					const float MaxSize = Item.MaxSize;
 					const bool bHasMaxConstraint = MaxSize > 0.0f; 
 

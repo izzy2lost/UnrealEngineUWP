@@ -38,6 +38,7 @@ protected:
 	public:
 		SLATE_SLOT_BEGIN_ARGS(TSlot, TBasicLayoutWidgetSlot<SlotType>)
 			SLATE_ARGUMENT(TOptional<FSizeParam>, SizeParam)
+			TAttribute<float> _MinSize;
 			TAttribute<float> _MaxSize;
 		SLATE_SLOT_END_ARGS()
 
@@ -48,6 +49,7 @@ protected:
 			, SizeRule(FSizeParam::SizeRule_Stretch)
 			, SizeValue(*this, 1.f)
 			, ShrinkSizeValue(*this, 1.f)
+			, MinSize(*this, 0.0f)
 			, MaxSize(*this, 0.0f)
 		{ }
 
@@ -55,6 +57,10 @@ protected:
 		void Construct(const FChildren& SlotOwner, FSlotArguments&& InArgs)
 		{
 			TBasicLayoutWidgetSlot<SlotType>::Construct(SlotOwner, MoveTemp(InArgs));
+			if (InArgs._MinSize.IsSet())
+			{
+				SetMinSize(MoveTemp(InArgs._MinSize));
+			}
 			if (InArgs._MaxSize.IsSet())
 			{
 				SetMaxSize(MoveTemp(InArgs._MaxSize));
@@ -68,10 +74,13 @@ protected:
 		static void RegisterAttributes(FSlateWidgetSlotAttributeInitializer& AttributeInitializer)
 		{
 			TBasicLayoutWidgetSlot<SlotType>::RegisterAttributes(AttributeInitializer);
+			SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(TSlot<SlotType>, AttributeInitializer, "Slot.MinSize", MinSize, EInvalidateWidgetReason::Layout);
 			SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(TSlot<SlotType>, AttributeInitializer, "Slot.MaxSize", MaxSize, EInvalidateWidgetReason::Layout);
 			SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(TSlot<SlotType>, AttributeInitializer, "Slot.SizeValue", SizeValue, EInvalidateWidgetReason::Layout)
+				.UpdatePrerequisite("Slot.MinSize")
 				.UpdatePrerequisite("Slot.MaxSize");
 			SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(TSlot<SlotType>, AttributeInitializer, "Slot.ShrinkSizeValue", ShrinkSizeValue, EInvalidateWidgetReason::Layout)
+				.UpdatePrerequisite("Slot.MinSize")
 				.UpdatePrerequisite("Slot.MaxSize");
 		}
 
@@ -97,6 +106,12 @@ protected:
 		float GetShrinkSizeValue() const
 		{
 			return ShrinkSizeValue.Get();
+		}
+
+		/** Get the min size the slot can be.*/
+		float GetMinSize() const
+		{
+			return MinSize.Get();
 		}
 
 		/** Get the max size the slot can be.*/
@@ -161,6 +176,12 @@ protected:
 			SetSizeParam(FStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient)));
 		}
 
+		/** Set the min size in SlateUnit this slot can be. */
+		void SetMinSize(TAttribute<float> InMinSize)
+		{
+			MinSize.Assign(*this, MoveTemp(InMinSize));
+		}
+
 		/** Set the max size in SlateUnit this slot can be. */
 		void SetMaxSize(TAttribute<float> InMaxSize)
 		{
@@ -176,6 +197,9 @@ protected:
 
 		/** The actual value this size parameter stores, used for shrinking (negative if not defined, use SizeValue). */
 		typename TBasicLayoutWidgetSlot<SlotType>::template TSlateSlotAttribute<float> ShrinkSizeValue;
+
+		/** The min size that this slot can be */
+		typename TBasicLayoutWidgetSlot<SlotType>::template TSlateSlotAttribute<float> MinSize;
 
 		/** The max size that this slot can be (0 if no max) */
 		typename TBasicLayoutWidgetSlot<SlotType>::template TSlateSlotAttribute<float> MaxSize;
@@ -312,7 +336,14 @@ public:
 				_SizeParam = FStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient));
 				return Me();
 			}
-		
+
+			/** Set the min size in SlateUnit this slot can be. */
+			FSlotArguments& MinWidth(TAttribute<float> InMinWidth)
+			{
+				_MinSize = MoveTemp(InMinWidth);
+				return Me();
+			}
+
 			/** Set the max size in SlateUnit this slot can be. */
 			FSlotArguments& MaxWidth(TAttribute<float> InMaxWidth)
 			{
@@ -348,6 +379,12 @@ public:
 		void SetFillContentWidth(TAttribute<float> InStretchCoefficient, TAttribute<float> InShrinkStretchCoefficient = TAttribute<float>())
 		{
 			SetSizeToStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient));
+		}
+
+		/** Set the min size in SlateUnit this slot can be. */
+		void SetMinWidth(TAttribute<float> InMinWidth)
+		{
+			SetMinSize(MoveTemp(InMinWidth));
 		}
 
 		/** Set the max size in SlateUnit this slot can be. */
@@ -444,6 +481,13 @@ public:
 				_SizeParam = FStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient));
 				return Me();
 			}
+
+			/** Set the min size in SlateUnit this slot can be. */
+			FSlotArguments& MinHeight(TAttribute<float> InMinHeight)
+			{
+				_MinSize = MoveTemp(InMinHeight);
+				return Me();
+			}
 			
 			/** Set the max size in SlateUnit this slot can be. */
 			FSlotArguments& MaxHeight(TAttribute<float> InMaxHeight)
@@ -480,6 +524,12 @@ public:
 		void SetFillContentHeight(TAttribute<float> InStretchCoefficient, TAttribute<float> InShrinkStretchCoefficient = TAttribute<float>())
 		{
 			SetSizeToStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient));
+		}
+
+		/** Set the min size in SlateUnit this slot can be. */
+		void SetMinHeight(TAttribute<float> InMinHeight)
+		{
+			SetMinSize(MoveTemp(InMinHeight));
 		}
 
 		/** Set the max size in SlateUnit this slot can be. */
@@ -553,7 +603,7 @@ public:
 				_SizeParam = FAuto();
 				return Me();
 			}
-		
+
 			/**
 			 * The available space will be distributed proportionately to each slots stretch coefficient.
 			 * A slot with coefficient of 2 will get assigned twice as much available space as slot with coefficient 1. 
@@ -564,7 +614,7 @@ public:
 				_SizeParam = FStretch(MoveTemp(InStretchCoefficient));
 				return Me();
 			}
-		
+
 			/**
 			 * The widget's content size is adjusted proportionally to fit the available space.
 			 * The slots size starts at DesiredSize, and a slot with coefficient of 2 will get adjusted twice as much as slot with coefficient 1 to fit the available space.
@@ -576,6 +626,14 @@ public:
 				_SizeParam = FStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient));
 				return Me();
 			}
+
+			/** Set the min size in SlateUnit this slot can be. */
+			FSlotArguments& MinSize(TAttribute<float> InMinHeight)
+			{
+				_MinSize = MoveTemp(InMinHeight);
+				return Me();
+			}
+
 			/** Set the max size in SlateUnit this slot can be. */
 			FSlotArguments& MaxSize(TAttribute<float> InMaxHeight)
 			{

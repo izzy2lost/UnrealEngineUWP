@@ -77,6 +77,7 @@ public:
 	public:
 		SLATE_SLOT_BEGIN_ARGS(FSlot, TBasicLayoutWidgetSlot<FSlot>)
 			SLATE_ARGUMENT(TOptional<FSizeParam>, SizeParam)
+			TAttribute<float> _MinSize;
 			TAttribute<float> _MaxSize;
 
 			/** The widget's DesiredSize will be used as the space required. */
@@ -85,6 +86,7 @@ public:
 				_SizeParam = FAuto();
 				return Me();
 			}
+
 			/** The available space will be distributed proportionately. */
 			FSlotArguments& FillSize(TAttribute<float> InStretchCoefficient)
 			{
@@ -104,6 +106,13 @@ public:
 				return Me();
 			}
 
+			/** Set the min size in SlateUnit this slot can be. */
+			FSlotArguments& MinSize(TAttribute<float> InMinHeight)
+			{
+				_MinSize = MoveTemp(InMinHeight);
+				return Me();
+			}
+
 			/** Set the max size in SlateUnit this slot can be. */
 			FSlotArguments& MaxSize(TAttribute<float> InMaxHeight)
 			{
@@ -118,6 +127,7 @@ public:
 			, SizeRule(FSizeParam::SizeRule_Auto)
 			, SizeValue(*this, 1.f)
 			, ShrinkSizeValue(*this, 1.f)
+			, MinSize(*this, 0.0f)
 			, MaxSize(*this, 0.0f)
 		{ }
 
@@ -143,6 +153,12 @@ public:
 		float GetShrinkSizeValue() const
 		{
 			return ShrinkSizeValue.Get();
+		}
+
+		/** Get the min size the slot can be.*/
+		float GetMinSize() const
+		{
+			return MinSize.Get();
 		}
 		
 		/** Get the max size the slot can be.*/
@@ -200,6 +216,12 @@ public:
 			SetSizeParam(FStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient)));
 		}
 
+		/** Set the min size in SlateUnit this slot can be. */
+		void SetMinSize(TAttribute<float> InMinSize)
+		{
+			MinSize.Assign(*this, MoveTemp(InMinSize));
+		}
+
 		/** Set the max size in SlateUnit this slot can be. */
 		void SetMaxSize(TAttribute<float> InMaxSize)
 		{
@@ -226,6 +248,9 @@ public:
 
 		/** The actual value this size parameter stores, used for shrinking (negative if not defined, use SizeValue). */
 		typename TBasicLayoutWidgetSlot<FSlot>::template TSlateSlotAttribute<float> ShrinkSizeValue;
+
+		/** The min size that this slot can be */
+		typename TBasicLayoutWidgetSlot<FSlot>::template TSlateSlotAttribute<float> MinSize;
 
 		/** The max size that this slot can be (0 if no max) */
 		typename TBasicLayoutWidgetSlot<FSlot>::template TSlateSlotAttribute<float> MaxSize;
