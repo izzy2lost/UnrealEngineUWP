@@ -2239,7 +2239,9 @@ namespace impl
 				
 
 				// This lambda does all the work to fill up the surface data
-				auto AddSurface = [&LOD, &SurfacesSharedId, &ModelResources, &GetImagesData, OperationData, MutableInstance, CustomizableObject, InstanceComponentIndex, MutableLODIndex](uint32 SurfaceId, int32 InstanceSurfaceIndex)
+				auto AddSurface = 
+					[&LOD, &SurfacesSharedId, &ModelResources, &GetImagesData, OperationData, MutableInstance, CustomizableObject, InstanceComponentIndex, MutableLODIndex]
+					(uint32 SurfaceId, uint32 SurfaceMetadataId, int32 InstanceSurfaceIndex)
 					{
 						int32 BaseSurfaceIndex = InstanceSurfaceIndex;
 						int32 BaseLODIndex = MutableLODIndex;
@@ -2250,6 +2252,7 @@ namespace impl
 
 						// Now Surface.MaterialIndex is decoded from a parameter at the end of this if()
 						Surface.SurfaceId = SurfaceId;
+						Surface.SurfaceMetadataId = SurfaceMetadataId;
 
 						const int32 SharedSurfaceId = MutableInstance->GetSharedSurfaceId(InstanceComponentIndex, MutableLODIndex, InstanceSurfaceIndex);
 						const int32 SharedSurfaceIndex = SurfacesSharedId.Find(SharedSurfaceId);
@@ -2268,6 +2271,7 @@ namespace impl
 							MutableInstance->FindBaseSurfaceBySharedId(InstanceComponentIndex, SharedSurfaceId, BaseSurfaceIndex, BaseLODIndex);
 
 							Surface.SurfaceId = MutableInstance->GetSurfaceId(InstanceComponentIndex, BaseLODIndex, BaseSurfaceIndex);
+							Surface.SurfaceMetadataId = MutableInstance->GetSurfaceCustomId(InstanceComponentIndex, BaseLODIndex, BaseSurfaceIndex);
 						}
 
 						// Vectors
@@ -2360,7 +2364,8 @@ namespace impl
 					for (int32 SurfaceIndex = 0; SurfaceIndex < SurfaceCount; ++SurfaceIndex)
 					{
 						uint32 SurfaceId = MutableInstance->GetSurfaceId(InstanceComponentIndex, MutableLODIndex, SurfaceIndex);
-						AddSurface(SurfaceId, SurfaceIndex);
+						uint32 SurfaceMetadataId = MutableInstance->GetSurfaceCustomId(InstanceComponentIndex, MutableLODIndex, SurfaceIndex);
+						AddSurface(SurfaceId, SurfaceMetadataId, SurfaceIndex);
 					}
 				}
 
@@ -2377,7 +2382,7 @@ namespace impl
 
 						if (InstanceSurfaceIndex >= 0)
 						{
-							AddSurface(SurfaceId, InstanceSurfaceIndex);
+							AddSurface(SurfaceId, 0, InstanceSurfaceIndex);
 						}
 					}
 				}

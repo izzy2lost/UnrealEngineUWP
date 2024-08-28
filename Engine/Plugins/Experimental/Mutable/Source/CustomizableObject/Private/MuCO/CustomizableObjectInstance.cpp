@@ -6234,11 +6234,16 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 				FSkeletalMaterial& MaterialSlot = Materials.AddDefaulted_GetRef();
 				MaterialSlot.MaterialInterface = MaterialTemplate;
 
-				if (ModelResources.MaterialSlotNames.IsValidIndex(Surface.MaterialIndex))
+				const FMutableSurfaceMetadata* FoundSurfaceMetadata = ModelResources.SurfaceMetadata.Find(Surface.SurfaceMetadataId);
+				
+				if (FoundSurfaceMetadata)
 				{
-					MaterialSlot.MaterialSlotName = ModelResources.MaterialSlotNames[Surface.MaterialIndex];
+					const int32 MaterialSlotNameIndex = FoundSurfaceMetadata->MaterialSlotIndex;
+					if (ModelResources.MaterialSlotNames.IsValidIndex(MaterialSlotNameIndex))
+					{
+						MaterialSlot.MaterialSlotName = ModelResources.MaterialSlotNames[MaterialSlotNameIndex];
+					}
 				}
-
 				if (RefSkeletalMeshData)
 				{
 					SetMeshUVChannelDensity(MaterialSlot.UVChannelData, RefSkeletalMeshData->Settings.DefaultUVChannelDensity);

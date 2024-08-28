@@ -509,18 +509,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 					CurrentColumn = MutableTable->AddColumn(ColumnName, mu::ETableColumnType::Scalar);
 				}
 
-				const int32 lastMaterialAmount = GenerationContext.ReferencedMaterials.Num();
 				int32 ReferenceMaterialId = GenerationContext.ReferencedMaterials.AddUnique(MaterialInstance);
-
-				// Take slot name from skeletal mesh if one can be found, else leave empty.
-				// Keep Referenced Materials and Materail Slot Names synchronized even if no material name can be found.
-				const bool IsNewSlotName = GenerationContext.ReferencedMaterialSlotNames.Num() == ReferenceMaterialId;
-
-				if (IsNewSlotName)
-				{
-					GenerationContext.ReferencedMaterialSlotNames.Add(FName(NAME_None));
-				}
-
 				MutableTable->SetCell(CurrentColumn, RowIdx, (float)ReferenceMaterialId);
 
 				return true;

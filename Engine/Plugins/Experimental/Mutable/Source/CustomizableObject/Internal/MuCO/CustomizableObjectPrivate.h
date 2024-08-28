@@ -541,16 +541,22 @@ struct FMutableSurfaceMetadata
 	GENERATED_USTRUCT_BODY()
 	
 	UPROPERTY()
+	int32 MaterialSlotIndex = INDEX_NONE;
+	
+	UPROPERTY()
 	bool bCastShadow = false;
+	uint8 UnusedPadding[3] = {0};
 
 	friend FArchive& operator<<(FArchive& Ar, FMutableSurfaceMetadata& Elem)
 	{
+		Ar << Elem.MaterialSlotIndex;
 		Ar << Elem.bCastShadow;
 
 		return Ar;
 	}
 };
 
+static_assert(sizeof(FMutableSurfaceMetadata) == (sizeof(int32) + sizeof(bool) + sizeof(uint8)*3));
 
 USTRUCT()
 struct FClothingStreamable
@@ -1342,6 +1348,8 @@ public:
 		IntParameterOptionDataTablePartialRestore,
 
 		CorrectlySerializeTableToParamNames,
+
+		AddMaterialSlotNameIndexToSurfaceMetadata,
 		
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion

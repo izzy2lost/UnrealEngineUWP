@@ -358,6 +358,9 @@ struct FInstanceUpdateData
 
 		/** Id of the surface in the mutable core instance. */
 		uint32 SurfaceId = 0;
+
+		/** Id of the metadata associated with this surface. */ 
+		uint32 SurfaceMetadataId = 0;
 	};
 
 	struct FLOD

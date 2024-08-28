@@ -293,88 +293,64 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		{
 			GenerationContext.AddParticipatingObject(*TypedNodeMat->GetMaterial());
 
-			const int32 lastMaterialAmount = GenerationContext.ReferencedMaterials.Num();
 			ReferencedMaterialsIndex = GenerationContext.ReferencedMaterials.AddUnique(TypedNodeMat->GetMaterial());
-			// Used ReferencedMaterialsIndex instead of TypedNodeMat->Material->GetName() to prevent material name collisions
-
-			// Take slot name from skeletal mesh if one can be found, else leave empty.
-			// Keep Referenced Materials and Materail Slot Names synchronized even if no material name can be found.
-			const bool IsNewSlotName = GenerationContext.ReferencedMaterialSlotNames.Num() == ReferencedMaterialsIndex;
-			check(IsNewSlotName == lastMaterialAmount < GenerationContext.ReferencedMaterials.Num());
-			bool SlotNameFound = false;
-			check(GenerationContext.ReferencedMaterialSlotNames.Num() >= ReferencedMaterialsIndex);
-			if (IsNewSlotName || GenerationContext.ReferencedMaterialSlotNames[ReferencedMaterialsIndex].IsNone())
+			if (ConnectedMaterialPin)
 			{
-				if (ConnectedMaterialPin)
+				if (const UEdGraphPin* SkeletalMeshPin = FindMeshBaseSource(*ConnectedMaterialPin, false))
 				{
-					if (const UEdGraphPin* SkeletalMeshPin = FindMeshBaseSource(*ConnectedMaterialPin, false))
+					FSkeletalMaterial* SkeletalMaterial = nullptr;
+					const FSkelMeshSection* ReferenceSkelMeshSection = nullptr;
+					
+					if (const UCustomizableObjectNodeSkeletalMesh* SkeletalMeshNode = Cast<UCustomizableObjectNodeSkeletalMesh>(SkeletalMeshPin->GetOwningNode()))
 					{
-						FSkeletalMaterial* SkeletalMaterial = nullptr;
-						const FSkelMeshSection* ReferenceSkelMeshSection = nullptr;
+						SkeletalMaterial = SkeletalMeshNode->GetSkeletalMaterialFor(*SkeletalMeshPin);
+						ReferenceSkelMeshSection = SkeletalMeshNode->GetSkeletalMeshSectionFor(*SkeletalMeshPin);
+					}
+
+					else if (const UCustomizableObjectNodeTable* TableNode = Cast<UCustomizableObjectNodeTable>(SkeletalMeshPin->GetOwningNode()))
+					{
+						SkeletalMaterial = TableNode->GetDefaultSkeletalMaterialFor(*SkeletalMeshPin);
+						ReferenceSkelMeshSection = TableNode->GetDefaultSkeletalMeshSectionFor(*SkeletalMeshPin);
+					}
+
+					// A reference to the material slot name index will be kept in the surface metadata.
+					int32 MaterialSlotNameIndex = INDEX_NONE;
+					if (SkeletalMaterial)
+					{
+						MaterialSlotNameIndex = 
+								GenerationContext.ReferencedMaterialSlotNames.AddUnique(SkeletalMaterial->MaterialSlotName);
+					}
+
+					if (ReferenceSkelMeshSection)
+					{
+						auto HashSurfaceMetadataFunc = [](const FMutableSurfaceMetadata& Data) -> uint32
+						{
+							return CityHash32(reinterpret_cast<const char*>(&Data), sizeof(FMutableSurfaceMetadata));
+						};
+
+						auto CompareSurfaceMetadataFunc = [](const FMutableSurfaceMetadata& A, const FMutableSurfaceMetadata& B)
+						{
+							return FMemory::Memcmp(&A, &B, sizeof(FMutableSurfaceMetadata)) == 0;
+						};
+
+						FMutableSurfaceMetadata SurfaceMetadata;
+						FMemory::Memzero(SurfaceMetadata);
 						
-						if (const UCustomizableObjectNodeSkeletalMesh* SkeletalMeshNode = Cast<UCustomizableObjectNodeSkeletalMesh>(SkeletalMeshPin->GetOwningNode()))
+						SurfaceMetadata.MaterialSlotIndex = MaterialSlotNameIndex;
+						SurfaceMetadata.bCastShadow = ReferenceSkelMeshSection->bCastShadow;
+
+						SurfaceMetadataUniqueHash = Private::GenerateUniquePersistentHash(
+								SurfaceMetadata, GenerationContext.SurfaceMetadata, HashSurfaceMetadataFunc, CompareSurfaceMetadataFunc);
+
+						if (SurfaceMetadataUniqueHash != 0)
 						{
-							SkeletalMaterial = SkeletalMeshNode->GetSkeletalMaterialFor(*SkeletalMeshPin);
-							ReferenceSkelMeshSection = SkeletalMeshNode->GetSkeletalMeshSectionFor(*SkeletalMeshPin);
+							GenerationContext.SurfaceMetadata.FindOrAdd(SurfaceMetadataUniqueHash, SurfaceMetadata);
 						}
-
-						else if (const UCustomizableObjectNodeTable* TableNode = Cast<UCustomizableObjectNodeTable>(SkeletalMeshPin->GetOwningNode()))
+						else
 						{
-							SkeletalMaterial = TableNode->GetDefaultSkeletalMaterialFor(*SkeletalMeshPin);
-							ReferenceSkelMeshSection = TableNode->GetDefaultSkeletalMeshSectionFor(*SkeletalMeshPin);
-						}
-
-						if (SkeletalMaterial)
-						{
-							if (IsNewSlotName)
-							{
-								GenerationContext.ReferencedMaterialSlotNames.Add(SkeletalMaterial->MaterialSlotName);
-								SlotNameFound = true;
-							}
-							else if (GenerationContext.ReferencedMaterialSlotNames[ReferencedMaterialsIndex].IsNone())
-							{
-								GenerationContext.ReferencedMaterialSlotNames[ReferencedMaterialsIndex] = SkeletalMaterial->MaterialSlotName;
-								SlotNameFound = true;
-							}
-						}
-
-						if (ReferenceSkelMeshSection)
-						{
-							auto HashSurfaceMetadataFunc = [](const FMutableSurfaceMetadata& Data) -> uint32
-							{
-								return CityHash32(reinterpret_cast<const char*>(&Data), sizeof(FMutableSurfaceMetadata));
-							};
-
-							auto CompareSurfaceMetadataFunc = [](const FMutableSurfaceMetadata& A, const FMutableSurfaceMetadata& B)
-							{
-								return FMemory::Memcmp(&A, &B, sizeof(FMutableSurfaceMetadata)) == 0;
-							};
-
-							FMutableSurfaceMetadata SurfaceMetadata;
-							FMemory::Memzero(SurfaceMetadata);
-							
-							SurfaceMetadata.bCastShadow = ReferenceSkelMeshSection->bCastShadow;
-
-							SurfaceMetadataUniqueHash = Private::GenerateUniquePersistentHash(
-									SurfaceMetadata, GenerationContext.SurfaceMetadata, HashSurfaceMetadataFunc, CompareSurfaceMetadataFunc);
-
-							if (SurfaceMetadataUniqueHash != 0)
-							{
-								GenerationContext.SurfaceMetadata.FindOrAdd(SurfaceMetadataUniqueHash, SurfaceMetadata);
-							}
-							else
-							{
-								UE_LOG(LogMutable, Error, TEXT("Maximum number of surfaces reached."));
-							}
+							UE_LOG(LogMutable, Error, TEXT("Maximum number of surfaces reached."));
 						}
 					}
-				}
-
-
-				// No name was found, we need to keep index parity, so we add empty value. We may find the value later.
-				if (IsNewSlotName && !SlotNameFound)
-				{
-					GenerationContext.ReferencedMaterialSlotNames.Add(FName(NAME_None));
 				}
 			}
 		}
