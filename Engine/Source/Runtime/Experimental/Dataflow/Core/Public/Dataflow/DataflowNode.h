@@ -90,10 +90,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual FName GetDisplayName() const { return ""; }
 	virtual FName GetCategory() const { return ""; }
 	virtual FString GetTags() const { return ""; }
-	DATAFLOWCORE_API virtual FString GetToolTip();
-	DATAFLOWCORE_API FString GetPinToolTip(const FName& PropertyName, const Dataflow::FPin::EDirection Direction = Dataflow::FPin::EDirection::NONE);
-	DATAFLOWCORE_API FText GetPinDisplayName(const FName& PropertyName, const Dataflow::FPin::EDirection Direction = Dataflow::FPin::EDirection::NONE);
-	DATAFLOWCORE_API TArray<FString> GetPinMetaData(const FName& PropertyName, const Dataflow::FPin::EDirection Direction = Dataflow::FPin::EDirection::NONE);
+	DATAFLOWCORE_API virtual FString GetToolTip() const;
+	DATAFLOWCORE_API FString GetPinToolTip(const FName& PropertyName, const Dataflow::FPin::EDirection Direction = Dataflow::FPin::EDirection::NONE) const;
+	DATAFLOWCORE_API FText GetPinDisplayName(const FName& PropertyName, const Dataflow::FPin::EDirection Direction = Dataflow::FPin::EDirection::NONE) const;
+	DATAFLOWCORE_API TArray<FString> GetPinMetaData(const FName& PropertyName, const Dataflow::FPin::EDirection Direction = Dataflow::FPin::EDirection::NONE) const;
 	virtual TArray<Dataflow::FRenderingParameter> GetRenderParameters() const { return GetRenderParametersImpl(); }
 	// Copy node property values from another node
 	UE_DEPRECATED(5.4, "FDataflowNode::CopyNodeProperties is deprecated.")
@@ -224,6 +224,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual void SerializeInternal(FArchive& Ar) { check(false); }
 	virtual FStructOnScope* NewStructOnScope() { return nullptr; }
 	virtual const UScriptStruct* TypedScriptStruct() const { return nullptr; }
+
+	TUniquePtr<const FStructOnScope> NewStructOnScopeConst() const;
 
 	/** Register the Input and Outputs after the creation in the factory. Use PropertyName to disambiguate a struct name from its first property. */
 	template<typename T>
@@ -565,8 +567,23 @@ protected:
 	// returns true if the input type was changed successfully
 	DATAFLOWCORE_API bool SetInputConcreteType(const Dataflow::FConnectionReference& InputReference, FName NewType);
 
+	template <typename T>
+	bool SetInputConcreteType(const Dataflow::FConnectionReference& InputReference)
+	{
+		return SetInputConcreteType(InputReference, TDataflowPolicyTypeName<T>::GetName());
+	}
+
 	// returns true if the output type was changed successfully
 	DATAFLOWCORE_API bool SetOutputConcreteType(const Dataflow::FConnectionReference& OutputReference, FName NewType);
+
+	template <typename T>
+	bool SetOutputConcreteType(const Dataflow::FConnectionReference& OutputReference)
+	{
+		return SetOutputConcreteType(OutputReference, TDataflowPolicyTypeName<T>::GetName());
+	}
+
+	// returns true if any of the types was changed successfully
+	DATAFLOWCORE_API bool SetAllConnectionConcreteType(FName NewType);
 
 	DATAFLOWCORE_API FDataflowInput& RegisterInputConnectionInternal(const Dataflow::FConnectionReference& Reference, const FName& PropertyName = NAME_None);
 	DATAFLOWCORE_API FDataflowOutput& RegisterOutputConnectionInternal(const Dataflow::FConnectionReference& Reference, const FName& PropertyName = NAME_None);

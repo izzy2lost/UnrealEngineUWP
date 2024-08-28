@@ -187,6 +187,9 @@ public:
 
 	const FProperty* GetProperty() const { return Property; }
 
+	DATAFLOWCORE_API FString GetPropertyTooltip() const;
+	DATAFLOWCORE_API FString GetPropertyTypeNameTooltip() const;
+
 	Dataflow::FPin::EDirection GetDirection() const { return Direction; }
 	uint32 GetOffset() const { return Offset; }
 	virtual int32 GetContainerIndex() const { return INDEX_NONE; }

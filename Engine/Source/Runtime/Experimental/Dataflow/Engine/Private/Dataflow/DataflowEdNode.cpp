@@ -462,30 +462,18 @@ FLinearColor UDataflowEdNode::GetNodeTitleColor() const
 
 FLinearColor UDataflowEdNode::GetNodeBodyTintColor() const
 {
-	if (DataflowGraph)
+	if (const TSharedPtr<const FDataflowNode> DataflowNode = GetDataflowNode())
 	{
-		if (DataflowNodeGuid.IsValid())
-		{
-			if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(DataflowNodeGuid))
-			{
-				return Dataflow::FNodeColorsRegistry::Get().GetNodeBodyTintColor(DataflowNode->GetCategory());
-			}
-		}
+		Dataflow::FNodeColorsRegistry::Get().GetNodeBodyTintColor(DataflowNode->GetCategory());
 	}
 	return FDataflowNode::DefaultNodeBodyTintColor;
 }
 
 FText UDataflowEdNode::GetTooltipText() const
 {
-	if (DataflowGraph)
+	if (const TSharedPtr<const FDataflowNode> DataflowNode = GetDataflowNode()) 
 	{
-		if (DataflowNodeGuid.IsValid())
-		{
-			if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(DataflowNodeGuid))
-			{
-				return FText::FromString(DataflowNode->GetToolTip());
-			}
-		}
+		return FText::FromString(DataflowNode->GetToolTip());
 	}
 
 	return FText::FromString("");
@@ -494,17 +482,14 @@ FText UDataflowEdNode::GetTooltipText() const
 
 FText UDataflowEdNode::GetPinDisplayName(const UEdGraphPin* Pin) const
 {
-	if (Pin && DataflowGraph)
+	if (Pin)
 	{
-		if (DataflowNodeGuid.IsValid())
+		if (const TSharedPtr<const FDataflowNode> DataflowNode = GetDataflowNode())
 		{
-			if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(DataflowNodeGuid))
+			const FText DisplayName = DataflowNode->GetPinDisplayName(Pin->PinName, Dataflow::Private::EdPinDirectionToDataflowDirection(Pin->Direction));
+			if (!DisplayName.IsEmpty())
 			{
-				const FText DisplayName = DataflowNode->GetPinDisplayName(Pin->PinName, Dataflow::Private::EdPinDirectionToDataflowDirection(Pin->Direction));
-				if (!DisplayName.IsEmpty())
-				{
-					return DisplayName;
-				}
+				return DisplayName;
 			}
 		}
 	}
@@ -513,36 +498,58 @@ FText UDataflowEdNode::GetPinDisplayName(const UEdGraphPin* Pin) const
 
 void UDataflowEdNode::GetPinHoverText(const UEdGraphPin& Pin, FString& HoverTextOut) const
 {
-	if (DataflowGraph)
+	if (const TSharedPtr<const FDataflowNode> DataflowNode = GetDataflowNode())
 	{
-		if (DataflowNodeGuid.IsValid())
-		{
-			if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(DataflowNodeGuid))
-			{		
-				FString MetaDataStr;
-				
-				TArray<FString> PinMetaData = DataflowNode->GetPinMetaData(Pin.PinName, Dataflow::Private::EdPinDirectionToDataflowDirection(Pin.Direction));
+		const Dataflow::FPin::EDirection PinDirection = Dataflow::Private::EdPinDirectionToDataflowDirection(Pin.Direction);
+
+		FString MetaDataStr;
+		TArray<FString> PinMetaData = DataflowNode->GetPinMetaData(Pin.PinName, PinDirection);
 			
-				if (Pin.Direction == EGPD_Input && PinMetaData.Contains(FDataflowNode::DataflowIntrinsic.ToString()))
-				{
-					MetaDataStr = "[Intrinsic]";
-				}
-				if (Pin.Direction == EGPD_Output && PinMetaData.Contains(FDataflowNode::DataflowPassthrough.ToString()))
-				{
-					MetaDataStr = "[Passthrough]";
-				}
-
-				FString NameStr = Pin.PinName.ToString();
-				if (MetaDataStr.Len() > 0)
-				{
-					NameStr.Appendf(TEXT(" %s"), *MetaDataStr);
-				}
-
-				HoverTextOut.Appendf(TEXT("%s\n%s\n\n%s"), *NameStr, *Pin.PinType.PinCategory.ToString(),
-					*DataflowNode->GetPinToolTip(Pin.PinName, Dataflow::Private::EdPinDirectionToDataflowDirection(Pin.Direction)));
-			}
+		if (Pin.Direction == EGPD_Input && PinMetaData.Contains(FDataflowNode::DataflowIntrinsic.ToString()))
+		{
+			MetaDataStr = "[Intrinsic]";
 		}
-	}
+		if (Pin.Direction == EGPD_Output && PinMetaData.Contains(FDataflowNode::DataflowPassthrough.ToString()))
+		{
+			MetaDataStr = "[Passthrough]";
+		}
+
+		FString NameStr = Pin.PinName.ToString();
+		if (MetaDataStr.Len() > 0)
+		{
+			NameStr.Appendf(TEXT(" %s"), *MetaDataStr);
+		}
+
+		// find type information 
+		FString TypeNameStr = Pin.PinType.PinCategory.ToString();
+
+		const FDataflowConnection* Connection = nullptr;
+		if (Pin.Direction == EGPD_Input)
+		{
+			Connection = DataflowNode->FindInput(Pin.PinName);
+		}
+		else if (Pin.Direction == EGPD_Output)
+		{
+			Connection = DataflowNode->FindOutput(Pin.PinName);
+		}
+		if (Connection)
+		{
+			TypeNameStr = Connection->GetPropertyTypeNameTooltip();
+		}
+
+		const FString PropertyTooltip = DataflowNode->GetPinToolTip(Pin.PinName, PinDirection);
+
+		// put it all together 
+		if (PropertyTooltip.IsEmpty())
+		{
+			HoverTextOut.Appendf(TEXT("%s\n%s"), *NameStr, *TypeNameStr);
+		}
+		else
+		{
+			HoverTextOut.Appendf(TEXT("%s\n%s\n\n%s"), *NameStr, *TypeNameStr, *PropertyTooltip);
+		}
+		
+}
 }
 
 void UDataflowEdNode::AutowireNewNode(UEdGraphPin* FromPin)

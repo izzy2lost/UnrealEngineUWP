@@ -144,9 +144,49 @@ void FDataflowConnection::ForceSimpleType(FName InType)
 
 void FDataflowConnection::FixAndPropagateType()
 {
+	check(Property);
 	FString ExtendedType;
 	const FString CPPType = Property->GetCPPType(&ExtendedType);
 	FName FixedType(CPPType + ExtendedType);
 
 	FixAndPropagateType(FixedType);
+}
+
+FString FDataflowConnection::GetPropertyTooltip() const
+{
+#if WITH_EDITORONLY_DATA
+	check(Property);
+	return Property->GetToolTipText().ToString();
+#else
+	return {};
+#endif // WITH_EDITORONLY_DATA
+}
+
+FString FDataflowConnection::GetPropertyTypeNameTooltip() const
+{
+#if WITH_EDITORONLY_DATA
+	FString TypeNameStr = Type.ToString();
+	if (bIsAnyType)
+	{
+		if (!HasConcreteType())
+		{
+			check(Property);
+			TypeNameStr = TEXT("Wildcard");
+		}
+		if (Property->GetClass()->IsChildOf(FStructProperty::StaticClass()))
+		{
+			if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+			{
+				if (StructProperty->Struct && StructProperty->Struct->IsChildOf<FDataflowAnyType>())
+				{
+					TypeNameStr += TEXT("\n");
+					TypeNameStr += StructProperty->Struct->GetToolTipText().ToString();
+				}
+			}
+		}
+	}
+	return TypeNameStr;
+#else
+	return {};
+#endif
 }

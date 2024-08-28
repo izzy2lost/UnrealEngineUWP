@@ -1085,14 +1085,22 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return bHasValidConnections;
 }
 
-FString FDataflowNode::GetToolTip()
+TUniquePtr<const FStructOnScope> FDataflowNode::NewStructOnScopeConst() const
+{
+	// New StructOnScopeConst is non-const and virtual , changing it would be quite difficult
+	// we have to use a const cast though to accomodate this current constraint
+	// but we make sure to return a const version of the FStructOnScope 
+	return TUniquePtr<const FStructOnScope>(const_cast<FDataflowNode*>(this)->NewStructOnScope());
+}
+
+FString FDataflowNode::GetToolTip() const
 {
 	Dataflow::FFactoryParameters FactoryParameters = ::Dataflow::FNodeFactory::GetInstance()->GetParameters(GetType());
 
 	return FactoryParameters.ToolTip;
 }
 
-FText FDataflowNode::GetPinDisplayName(const FName& PropertyFullName, const Dataflow::FPin::EDirection Direction)
+FText FDataflowNode::GetPinDisplayName(const FName& PropertyFullName, const Dataflow::FPin::EDirection Direction) const
 {
 	int32 ContainerIndex = INDEX_NONE;
 
@@ -1111,7 +1119,7 @@ FText FDataflowNode::GetPinDisplayName(const FName& PropertyFullName, const Data
 		}
 	}
 
-	if (const TUniquePtr<FStructOnScope> ScriptOnStruct = TUniquePtr<FStructOnScope>(NewStructOnScope()))
+	if (const TUniquePtr<const FStructOnScope> ScriptOnStruct = NewStructOnScopeConst())
 	{
 		if (const UStruct* const Struct = ScriptOnStruct->GetStruct())
 		{
@@ -1126,7 +1134,7 @@ FText FDataflowNode::GetPinDisplayName(const FName& PropertyFullName, const Data
 	return FText();
 }
 
-FString FDataflowNode::GetPinToolTip(const FName& PropertyFullName, const Dataflow::FPin::EDirection Direction)
+FString FDataflowNode::GetPinToolTip(const FName& PropertyFullName, const Dataflow::FPin::EDirection Direction) const
 {
 #if WITH_EDITORONLY_DATA
 	if (Direction == Dataflow::FPin::EDirection::INPUT)
@@ -1149,7 +1157,7 @@ FString FDataflowNode::GetPinToolTip(const FName& PropertyFullName, const Datafl
 			}
 		}
 	}
-	else if (const TUniquePtr<FStructOnScope> ScriptOnStruct = TUniquePtr<FStructOnScope>(NewStructOnScope()))
+	else if (const TUniquePtr<const FStructOnScope> ScriptOnStruct = NewStructOnScopeConst())
 	{
 		if (const UStruct* const Struct = ScriptOnStruct->GetStruct())
 		{
@@ -1161,10 +1169,10 @@ FString FDataflowNode::GetPinToolTip(const FName& PropertyFullName, const Datafl
 	}
 #endif
 
-	return "";
+	return {};
 }
 
-TArray<FString> FDataflowNode::GetPinMetaData(const FName& PropertyFullName, const Dataflow::FPin::EDirection Direction)
+TArray<FString> FDataflowNode::GetPinMetaData(const FName& PropertyFullName, const Dataflow::FPin::EDirection Direction) const
 {
 #if WITH_EDITORONLY_DATA
 	if (Direction == Dataflow::FPin::EDirection::INPUT)
@@ -1187,7 +1195,7 @@ TArray<FString> FDataflowNode::GetPinMetaData(const FName& PropertyFullName, con
 			}
 		}
 	}
-	else if (const TUniquePtr<FStructOnScope> ScriptOnStruct = TUniquePtr<FStructOnScope>(NewStructOnScope()))
+	else if (const TUniquePtr<const FStructOnScope> ScriptOnStruct = NewStructOnScopeConst())
 	{
 		if (const UStruct* const Struct = ScriptOnStruct->GetStruct())
 		{
@@ -1285,4 +1293,30 @@ bool FDataflowNode::SetOutputConcreteType(const Dataflow::FConnectionReference& 
 		}
 	}
 	return false;
+}
+
+bool FDataflowNode::SetAllConnectionConcreteType(FName NewType)
+{
+	bool bChanged = false;
+	for (const TPair<Dataflow::FConnectionKey, FDataflowInput*>& InputEntry : ExpandedInputs)
+	{
+		FDataflowInput* const Input = InputEntry.Value;
+		if (Input && Input->GetType() != NewType)
+		{
+			bChanged |= Input->SetConcreteType(NewType);
+		}
+	}
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS  // Until Outputs becomes private
+	for (const TPair<int32, FDataflowOutput*>& OutputEntry : Outputs)
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	{
+		FDataflowOutput* const Output = OutputEntry.Value;
+		if (Output && Output->GetType() != NewType)
+		{
+			bChanged |= Output->SetConcreteType(NewType);
+		}
+	}
+
+	return bChanged;
 }
