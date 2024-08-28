@@ -1260,6 +1260,9 @@ const agentSelectedProps: IContextualMenuProps = {
          else if (item.key === "requestFullConform") {
             localState.requestBuilderUpdate(false, false, true);
          }
+         else if (item.key === "clearConform") {
+            localState.requestBuilderUpdate(false, false, false);
+         }            
          else if (item.key === "restart") {
             localState.setRestartBuilderDialogOpen(true);
          }
@@ -1300,6 +1303,10 @@ const agentSelectedProps: IContextualMenuProps = {
       {
          key: 'cancelleases',
          text: 'Cancel Leases',
+      },
+      {
+         key: 'clearConform',
+         text: 'Clear Pending Conform'
       },
       {
          key: 'requestConform',
@@ -1375,6 +1382,11 @@ const agentContextMenuProps: IContextualMenuItem[] = [
       key: 'cancelleases',
       text: 'Cancel Leases',
       onClick: () => localState.setCancelLeasesDialogOpen(true)
+   },
+   {
+      key: 'clearConform',
+      text: 'Clear Pending Conform',
+      onClick: () => localState.requestBuilderUpdate(false, false, false)
    },
    {
       key: 'requestConform',
