@@ -22,4 +22,7 @@ class BLUEPRINTGRAPH_API UK2Node_AsyncAction : public UK2Node_BaseAsyncTask
 	// UK2Node interface
 	virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
 	// End of UK2Node interface
+
+	/** Initialize the async task from a known function **/
+	void InitializeProxyFromFunction(const UFunction* ProxyFunction);
 };
