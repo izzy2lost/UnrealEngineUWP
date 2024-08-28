@@ -117,6 +117,7 @@ int32 UWorldPartitionBuilderCommandlet::Main(const FString& Params)
 	}	
 
 	// Run the builder on the provided map(s)
+	int32 Result = 0;
 	uint32 PackageIndex = 0;
 	const uint32 PackageCount = MapPackagesNames.Num();
 	for (const FString& MapPackageName : MapPackagesNames)
@@ -129,17 +130,18 @@ int32 UWorldPartitionBuilderCommandlet::Main(const FString& Params)
 
 		if (!RunBuilder(BuilderClass, MapPackageName))
 		{
-			return 1;
+			UE_LOG(LogWorldPartitionBuilderCommandlet, Warning, TEXT("Failed to execute %s on map %s."), *BuilderClassName, *MapPackageName);
+			Result = 1;
 		}
 	}
 
 	// Autosubmit
-	if (!AutoSubmitModifiedFiles())
+	if (!Result && !AutoSubmitModifiedFiles())
 	{
 		return 1;
 	}
 
-	return 0;
+	return Result;
 }
 
 TSet<FString> UWorldPartitionBuilderCommandlet::GatherMapsFromCollection(const FString& CollectionName) const
