@@ -558,7 +558,8 @@ void FActorBrowsingMode::InitializeViewMenuExtender(TSharedPtr<FExtender> Extend
 			FUIAction(
 				FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnToggleShouldUpdateContentWhileInPIEFocused),
 				FCanExecuteAction(),
-				FIsActionChecked::CreateRaw(this, &FActorBrowsingMode::ShouldUpdateContentWhileInPIEFocused)
+				FIsActionChecked::CreateRaw(this, &FActorBrowsingMode::ShouldUpdateContentWhileInPIEFocused),
+				FIsActionButtonVisible::CreateLambda([this]() { return (WorldPartitionEditorModule ? !WorldPartitionEditorModule->GetDisablePIE() : true); })
 			),
 			NAME_None,
 			EUserInterfaceActionType::ToggleButton
