@@ -1731,7 +1731,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyInner(
 			{
 				FRDGTextureRef SeparateTranslucencyDepthResolve = nullptr;
 				FRDGTextureRef SceneDepthResolve = nullptr;
-				if (TranslucencyPass != ETranslucencyPass::TPT_TranslucencyAfterMotionBlur)
+				
 				{
 					::AddResolveSceneDepthPass(GraphBuilder, View, SeparateTranslucencyDepthTexture);
 
