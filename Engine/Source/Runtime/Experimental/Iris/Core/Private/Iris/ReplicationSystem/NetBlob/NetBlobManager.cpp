@@ -182,9 +182,16 @@ bool FNetBlobManager::SendUnicastRPC(uint32 ConnectionId, const FSendRPCContext&
 		return false;
 	}
 
-	if ((Context.Function->FunctionFlags & (bIsServer ? (FUNC_NetClient | FUNC_NetMulticast) : FUNC_NetServer)) == 0)
+	// If NetServer, NetClient, or NetMulticast flags are present, filter the RPC based on them. If not, send the RPC in either directon.
+	if ((Context.Function->FunctionFlags & FUNC_NetServer) && bIsServer)
 	{
-		checkf(false, TEXT("Trying to call RPC %s in the wrong direction."), ToCStr(Context.Function->GetName()));
+		checkf(false, TEXT("Trying to call server RPC %s in the wrong direction."), ToCStr(Context.Function->GetName()));
+		return true;
+	}
+
+	if ((Context.Function->FunctionFlags & (FUNC_NetClient | FUNC_NetMulticast)) && !bIsServer)
+	{
+		checkf(false, TEXT("Trying to call client RPC %s in the wrong direction."), ToCStr(Context.Function->GetName()));
 		return true;
 	}
 

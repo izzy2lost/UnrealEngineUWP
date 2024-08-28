@@ -481,12 +481,19 @@ void FNetRPC::CallFunction(FNetRPCCallContext& CallContext)
 		return;
 	}
 
+	if ((Function->FunctionFlags & FUNC_Net) == 0)
+	{
+		UE_LOG(LogIrisRpc, Error, TEXT("Rejected %s function %s due to it not being a Net function. %s : %s"), (Function->FunctionFlags & FUNC_NetReliable ? TEXT("reliable") : TEXT("unreliable")), ToCStr(Function->GetName()), *NetObjectReference.ToString(), *Object->GetFullName());
+		Context.SetError(NetError_FunctionCallNotAllowed);
+		return;
+	}
+
 	const bool bIsServer = ReplicationSystem->IsServer();
 	if (bIsServer)
 	{
-		if ((Function->FunctionFlags & FUNC_NetServer) == 0)
+		if ((Function->FunctionFlags & (FUNC_NetClient | FUNC_NetMulticast)) != 0)
 		{
-			UE_LOG(LogIrisRpc, Error, TEXT("Rejected %s RPC function %s due to access rights. %s : %s"), (Function->FunctionFlags & FUNC_NetReliable ? TEXT("reliable") : TEXT("unreliable")), ToCStr(Function->GetName()), *NetObjectReference.ToString(), *Object->GetFullName());
+			UE_LOG(LogIrisRpc, Error, TEXT("Rejected %s client RPC function %s due to this being the server. %s : %s"), (Function->FunctionFlags & FUNC_NetReliable ? TEXT("reliable") : TEXT("unreliable")), ToCStr(Function->GetName()), *NetObjectReference.ToString(), *Object->GetFullName());
 			Context.SetError(NetError_FunctionCallNotAllowed);
 			return;
 		}
@@ -501,9 +508,9 @@ void FNetRPC::CallFunction(FNetRPCCallContext& CallContext)
 	}
 	else
 	{
-		if ((Function->FunctionFlags & (FUNC_NetClient | FUNC_NetMulticast)) == 0)
+		if ((Function->FunctionFlags & FUNC_NetServer) != 0)
 		{
-			UE_LOG(LogIrisRpc, Error, TEXT("Rejected %s RPC function %s due to access rights. %s : %s"), (Function->FunctionFlags & FUNC_NetReliable ? TEXT("reliable") : TEXT("unreliable")), ToCStr(Function->GetName()), *NetObjectReference.ToString(), *Object->GetFullName());
+			UE_LOG(LogIrisRpc, Error, TEXT("Rejected %s server RPC function %s due to this being the client. %s : %s"), (Function->FunctionFlags & FUNC_NetReliable ? TEXT("reliable") : TEXT("unreliable")), ToCStr(Function->GetName()), *NetObjectReference.ToString(), *Object->GetFullName());
 			return;
 		}
 	}

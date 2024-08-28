@@ -9,6 +9,7 @@
 #include "Engine/NetConnection.h"
 #include "GameFramework/DamageType.h"
 #include "GameFramework/WorldSettings.h"
+#include "Net/Core/Misc/NetContext.h"
 #include "Net/Core/PropertyConditions/PropertyConditions.h"
 #include "TimerManager.h"
 #include "GameFramework/Pawn.h"
@@ -5069,18 +5070,29 @@ int32 AActor::GetFunctionCallspace( UFunction* Function, FFrame* Stack )
 		}
 	}
 
-	// if we are the server, and it's not a send-to-client function,
-	if (bIsServer && !(Function->FunctionFlags & FUNC_NetClient))
+	if (Function->FunctionFlags & (FUNC_NetServer | FUNC_NetClient | FUNC_NetMulticast))
 	{
-		// don't replicate
-		DEBUG_CALLSPACE(TEXT("GetFunctionCallspace Server calling Server function: %s %s"), *Function->GetName(), FunctionCallspace::ToString(Callspace));
-		return Callspace;
+		// Handle uni-directional RPCs
+
+		// if we are the server, and it's not a send-to-client function,
+		if (bIsServer && !(Function->FunctionFlags & FUNC_NetClient))
+		{
+			// don't replicate
+			DEBUG_CALLSPACE(TEXT("GetFunctionCallspace Server calling Server function: %s %s"), *Function->GetName(), FunctionCallspace::ToString(Callspace));
+			return Callspace;
+		}
+		// if we aren't the server, and it's not a send-to-server function,
+		if (!bIsServer && !(Function->FunctionFlags & FUNC_NetServer))
+		{
+			// don't replicate
+			DEBUG_CALLSPACE(TEXT("GetFunctionCallspace Client calling Client function: %s %s"), *Function->GetName(), FunctionCallspace::ToString(Callspace));
+			return Callspace;
+		}
 	}
-	// if we aren't the server, and it's not a send-to-server function,
-	if (!bIsServer && !(Function->FunctionFlags & FUNC_NetServer))
+	else if (UE::Net::FNetContext::IsInsideNetRPC())
 	{
-		// don't replicate
-		DEBUG_CALLSPACE(TEXT("GetFunctionCallspace Client calling Client function: %s %s"), *Function->GetName(), FunctionCallspace::ToString(Callspace));
+		// Received a function with FUNC_Net but not Client, Server, or Multicast (Remote specifier) - can be sent bi-directionally
+		DEBUG_CALLSPACE(TEXT("GetFunctionCallspace Received a Remote function, calling: %s %s"), *Function->GetName(), FunctionCallspace::ToString(Callspace));
 		return Callspace;
 	}
 
@@ -5100,7 +5112,14 @@ int32 AActor::GetFunctionCallspace( UFunction* Function, FFrame* Stack )
 					DEBUG_CALLSPACE(TEXT("GetFunctionCallspace Client without owner absorbed %s"), *Function->GetName());
 					return FunctionCallspace::Absorbed;
 				}
-				
+
+				if ((Function->FunctionFlags & (FUNC_NetServer | FUNC_NetClient | FUNC_NetMulticast)) == 0)
+				{
+					// Calling a Remote function (client or server) with no owning player, absorb these.
+					UE_LOG(LogNet, Error, TEXT("GetFunctionCallspace calling a Remote function without owner, absorbing: %s"), *Function->GetName());
+					return FunctionCallspace::Absorbed;
+				}
+
 				// Role authority object calling a client RPC locally (ie AI owned objects)
 				DEBUG_CALLSPACE(TEXT("GetFunctionCallspace authority non client owner %s %s"), *Function->GetName(), FunctionCallspace::ToString(Callspace));
 				return Callspace;

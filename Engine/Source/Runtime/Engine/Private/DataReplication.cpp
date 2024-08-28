@@ -1281,9 +1281,16 @@ bool FObjectReplicator::ReceivedRPC(FNetBitReader& Reader, const FReplicationFla
 		HANDLE_INCOMPATIBLE_RPC
 	}
 
-	if ((Function->FunctionFlags & (bIsServer ? FUNC_NetServer : (FUNC_NetClient | FUNC_NetMulticast))) == 0)
+	// If NetServer, NetClient, or NetMulticast flags are present, filter the RPC based on them. If not, accept the RPC for servers and clients.
+	if ((Function->FunctionFlags & FUNC_NetServer) && !bIsServer)
 	{
-		UE_LOG(LogRep, Error, TEXT("Rejected RPC function due to access rights. Object: %s, Function: %s"), *Object->GetFullName(), *FunctionName.ToString());
+		UE_LOG(LogRep, Error, TEXT("Rejected server RPC function due to access rights. Object: %s, Function: %s"), *Object->GetFullName(), *FunctionName.ToString());
+		HANDLE_INCOMPATIBLE_RPC
+	}
+
+	if ((Function->FunctionFlags & (FUNC_NetClient | FUNC_NetMulticast)) && bIsServer)
+	{
+		UE_LOG(LogRep, Error, TEXT("Rejected client RPC function due to access rights. Object: %s, Function: %s"), *Object->GetFullName(), *FunctionName.ToString());
 		HANDLE_INCOMPATIBLE_RPC
 	}
 

@@ -237,6 +237,29 @@ namespace EpicGames.UHT.Parsers
 			}
 		}
 
+		[UhtSpecifier(Extends = UhtTableNames.Function, ValueType = UhtSpecifierValueType.OptionalString)]
+		private static void RemoteSpecifier(UhtSpecifierContext specifierContext, StringView? value)
+		{
+			UhtFunction function = (UhtFunction)specifierContext.Type;
+
+			if (function.FunctionFlags.HasAnyFlags(EFunctionFlags.BlueprintEvent))
+			{
+				specifierContext.MessageSite.LogError("BlueprintImplementableEvent or BlueprintNativeEvent functions cannot be declared as Client, Server, or Remote");
+			}
+
+			if (function.FunctionFlags.HasAnyFlags(EFunctionFlags.Exec))
+			{
+				specifierContext.MessageSite.LogError("Exec functions cannot be replicated!");
+			}
+
+			function.FunctionFlags |= EFunctionFlags.Net;
+
+			if (value != null)
+			{
+				function.CppImplName = ((StringView)value).ToString();
+			}
+		}
+
 		[UhtSpecifier(Extends = UhtTableNames.Function, ValueType = UhtSpecifierValueType.OptionalEqualsKeyValuePairList)]
 		private static void ServiceRequestSpecifier(UhtSpecifierContext specifierContext, List<KeyValuePair<StringView, StringView>> value)
 		{
