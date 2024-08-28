@@ -86,17 +86,17 @@ static XAUDIO2_PROCESSOR GetXAudio2ProcessorsToUse()
 	return ProcessorsToUse;
 }
 
-#if PLATFORM_WINDOWS 
-FName GetDllName(FName Current = NAME_None) 
+#if USE_REDIST_LIB 
+const FString& GetDllName(FName Current = NAME_None) 
 {
 #if PLATFORM_64BITS
 	static const FString XAudio2_9Redist = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Windows/XAudio2_9/x64/xaudio2_9redist.dll");
 #else
 	static const FString XAudio2_9Redist = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Windows/XAudio2_9/x86/xaudio2_9redist.dll");
 #endif
-	return *XAudio2_9Redist;
+	return XAudio2_9Redist;
 }
-#endif //#if PLATFORM_WINDOWS 
+#endif //#if USE_REDIST_LIB 
 
 /*
 	Whether or not to enable xaudio2 debugging mode
@@ -156,13 +156,12 @@ namespace Audio
 	{
 #if PLATFORM_WINDOWS 
 		FPlatformMisc::CoInitialize();
-		DllName = GetDllName();
 #endif // #if PLATFORM_WINDOWS 
 	}
 
 	FMixerPlatformXAudio2::~FMixerPlatformXAudio2()
 	{
-#if PLATFORM_WINDOWS 
+#if PLATFORM_WINDOWS
 		FPlatformMisc::CoUninitialize();
 #endif // #if PLATFORM_WINDOWS 
 	}
@@ -608,7 +607,7 @@ namespace Audio
 
 #endif //PLATFORM_NEEDS_SUSPEND_ON_BACKGROUND
 		
-#if PLATFORM_WINDOWS
+#if USE_REDIST_LIB
 		// Work around the fact the x64 version of XAudio2_7.dll does not properly ref count
 		// by forcing it to be always loaded
 
@@ -617,7 +616,7 @@ namespace Audio
 		// when we call FreeLibrary, it will only free it once the refcount is zero
 		// Also, FPlatformProcess::GetDllHandle should not be used, as it will not increase ref count further if the library is already loaded.
 		// FPaths::ConvertRelativePathToFull is used for parity with how GetDllHandle calls LoadLibrary.
-		XAudio2Dll = LoadLibrary(*FPaths::ConvertRelativePathToFull(DllName.GetPlainNameString()));
+		XAudio2Dll = LoadLibrary(*FPaths::ConvertRelativePathToFull(GetDllName()));
 
 		// returning null means we failed to load XAudio2, which means everything will fail
 		if (XAudio2Dll == nullptr)
@@ -1114,7 +1113,7 @@ namespace Audio
 				AudioStreamInfo.DeviceInfo.NumChannels,
 				AudioStreamInfo.DeviceInfo.SampleRate,
 				0,
-				nullptr,
+				0,
 				nullptr);
 #endif //#else PLATFORM_WINDOWS
 

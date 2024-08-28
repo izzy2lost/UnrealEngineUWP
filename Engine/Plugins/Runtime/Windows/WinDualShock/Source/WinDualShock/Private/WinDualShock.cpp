@@ -23,7 +23,9 @@ THIRD_PARTY_INCLUDES_START
 #include <winreg.h>
 #include <xaudio2redist.h>
 THIRD_PARTY_INCLUDES_END
+#if !PLATFORM_CPU_ARM_FAMILY
 #pragma comment(lib,"xaudio2_9redist.lib")
+#endif
 #endif
 
 #include <pad.h>

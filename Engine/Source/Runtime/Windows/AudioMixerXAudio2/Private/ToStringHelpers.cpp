@@ -1,14 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ToStringHelpers.h"
+#include "AudioMixerPlatformXAudio2.h"
 
 #include "Windows/AllowWindowsPlatformTypes.h"
 
 THIRD_PARTY_INCLUDES_START
+#include <winerror.h>
 #if PLATFORM_WINDOWS
-	#include <xaudio2redist.h>
-#else
-	#include <xaudio2.h>
+#include <audiopolicy.h>			// IAudioSessionEvents
 #endif
 THIRD_PARTY_INCLUDES_END
 
