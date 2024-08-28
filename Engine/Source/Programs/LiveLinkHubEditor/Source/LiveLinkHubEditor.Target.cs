@@ -18,6 +18,10 @@ public class LiveLinkHubEditorTarget : TargetRules
 	[CommandLine("-EnableCaptureManagerPlugin=")]
 	public bool bEnableCaptureManagerPlugin = false;
 
+	// Whether to enable building MetaHuman LiveLink plugin.
+	[CommandLine("-EnableMetaHumanLiveLinkPlugin=")]
+	public bool bEnableMetaHumanLiveLinkPlugin = false;
+
 	public LiveLinkHubEditorTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Editor;
@@ -63,6 +67,15 @@ public class LiveLinkHubEditorTarget : TargetRules
 			{
 				"CaptureManagerApp",
 				"CaptureManagerCore"
+			});
+		}
+
+		if (bEnableMetaHumanLiveLinkPlugin)
+		{
+			EnablePlugins.AddRange(new string[]
+			{
+				"MetaHumanLiveLink",
+				"WmfMedia"
 			});
 		}
 
