@@ -108,16 +108,46 @@ namespace UE::ImageWidgets
 				Fill // Make the image fit within the viewport, and if it is smaller than the viewport, zoom in to fill the viewport.
 			};
 
+			/**
+			 * Delegate for custom input key event handling in the viewport client.
+			 * The delegate is called after the image viewports input key events were handled, e.g. zoom or view reset via F key, and before a call
+			 * to @see FEditorViewportClient::InputKey().
+			 *
+			 * @param	EventArgs - The Input event args.
+			 * @return	True to consume the key event, false to pass it on.
+			 */
+			DECLARE_DELEGATE_RetVal_OneParam(bool, FOnInputKey, const FInputKeyEventArgs& EventArgs);
+
 			/** Zoom mode that gets set on viewport construction and whenever the viewport controller is reset via @see ResetController(). */
 			EDefaultZoomMode DefaultZoomMode = EDefaultZoomMode::Fit;
+
+			/** Delegate for custom input key handling. */
+			FOnInputKey OnInputKey;
 		};
 
-		DECLARE_DELEGATE(FOnLeftMouseButtonPressed);
-		DECLARE_DELEGATE(FOnLeftMouseButtonReleased);
+		/**
+		 * Settings related to the viewport overlay.
+		 */
+		struct FOverlaySettings
+		{
+			/** Do not show the zoom button in the left toolbar. */
+			bool bDisableZoomButton = false;
+
+			/** Do not show the MIP button in the left toolbar. */
+			bool bDisableMipButton = false;
+
+			/** Do not show the AB comparison buttons in the center toolbar. */
+			bool bDisableABComparisonButtons = false;
+
+			/** Do not show the bottom left status bar. */
+			bool bDisableStatusBarLeft = false;
+
+			/** Do not show the bottom left status bar. */
+			bool bDisableStatusBarRight = false;
+		};
 
 		SLATE_BEGIN_ARGS(SImageViewport)
 			: _bABComparisonEnabled(false)
-			, _MouseCaptureMode(EMouseCaptureMode::CapturePermanently)
 			{
 			}
 
@@ -130,20 +160,14 @@ namespace UE::ImageWidgets
 			/** Settings for drawing viewport contents other than the actual image */
 			SLATE_ATTRIBUTE(FDrawSettings, DrawSettings)
 
+			/** Settings for customizing the viewport overlay */
+			SLATE_ATTRIBUTE(FOverlaySettings, OverlaySettings)
+
 			/** Enables AB comparison controls in the toolbar */
 			SLATE_ARGUMENT(bool, bABComparisonEnabled)
 
 			/** Settings for controlling the viewport */
 			SLATE_ARGUMENT(FControllerSettings, ControllerSettings)
-
-			/** Left mouse button pressed event bubbled up from the viewport */
-			SLATE_EVENT(FOnLeftMouseButtonPressed, OnLeftMouseButtonPressed)
-
-			/** Left mouse button released event bubbled up from the viewport */
-			SLATE_EVENT(FOnLeftMouseButtonReleased, OnLeftMouseButtonReleased)
-
-			/** Settings for handling the mouse capture */
-			SLATE_ARGUMENT(EMouseCaptureMode, MouseCaptureMode)
 
 		SLATE_END_ARGS()
 
@@ -169,10 +193,10 @@ namespace UE::ImageWidgets
 		 */
 		struct FPixelCoordinatesUnderCursorResult
 		{
-			/** Indicates that the cursor position is currently valid. This is set to false, for example, when the cursor is outside of the widget. */
+			/** Indicates that the cursor position is currently valid. This is set to false, for example, when the cursor is outside the widget. */
 			bool bIsValid = false;
 
-			/** Pixel coordinates under the cursor relative to the image rectangle size and placement. Note that the coordinates might be outside of the image
+			/** Pixel coordinates under the cursor relative to the image rectangle size and placement. Note that the coordinates might be outside the image
 			 * rectangle, i.e. values might be negative or larger than the image size. */
 			FVector2d Coordinates;
 		};
@@ -220,8 +244,11 @@ namespace UE::ImageWidgets
 		/** Provides the text for the resolution display in the status bar. */
 		FText GetResolutionLabel() const;
 
-		/** Makes the draw setting available either as fixed values or via a callback to the outside of the viewport. */
+		/** Makes the draw settings available either as fixed values or via a callback to the outside of the viewport. */
 		TAttribute<FDrawSettings> DrawSettings;
+
+		/** Makes the overlay settings available either as fixed values or via a callback to the outside of the viewport. */
+		TAttribute<FOverlaySettings> OverlaySettings;
 
 		/** Flag that determines is AB comparison widgets are enabled or not. The value does not change after the call to @see Construct(). */
 		bool bABComparisonEnabled = false;
@@ -243,9 +270,5 @@ namespace UE::ImageWidgets
 
 		/** Status bar extensions provided by the call to @see Construct(). This pointer is reset after the extensions were applied during construction. */
 		TSharedPtr<FStatusBarExtender> StatusBarExtender;
-
-		/** Left Mouse buttons pressed and released events triggered to tell the widget containing the viewport. These are initialized from the constructor.*/
-		FOnLeftMouseButtonPressed OnLeftMouseButtonPressed;
-		FOnLeftMouseButtonReleased OnLeftMouseButtonReleased;
 	};
 }

@@ -15,8 +15,6 @@ namespace UE::ImageWidgets
 	DECLARE_DELEGATE_ThreeParams(FDrawImage, FViewport*, FCanvas*, const IImageViewer::FDrawProperties&)
 	DECLARE_DELEGATE_RetVal(SImageViewport::FDrawSettings, FGetDrawSettings)
 	DECLARE_DELEGATE_RetVal(float, FGetDPIScaleFactor)
-	DECLARE_DELEGATE(FOnLeftMouseButtonPressed);
-	DECLARE_DELEGATE(FOnLeftMouseButtonReleased);
 
 	/**
 	 * Viewport client for controlling the camera and drawing viewport contents. 
@@ -24,11 +22,9 @@ namespace UE::ImageWidgets
 	class FImageViewportClient : public FEditorViewportClient
 	{
 	public:
-		FImageViewportClient(const TWeakPtr<SEditorViewport>& InViewport, FGetImageSize&& InGetImageSize, FDrawImage&& InDrawImage,
+		FImageViewportClient(const TWeakPtr<SEditorViewport>& InEditorViewport, FGetImageSize&& InGetImageSize, FDrawImage&& InDrawImage,
 		                     FGetDrawSettings&& InGetDrawSettings, FGetDPIScaleFactor&& InGetDPIScaleFactor,
-		                     FOnLeftMouseButtonPressed&& InOnLeftMouseButtonPressed, FOnLeftMouseButtonReleased&& InOnLeftMouseButtonReleased,
-		                     const FImageABComparison* ABComparison, SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode,
-		                     EMouseCaptureMode InMouseCaptureMode);
+		                     const FImageABComparison* InABComparison, const SImageViewport::FControllerSettings& InControllerSettings);
 		virtual ~FImageViewportClient() override;
 
 		virtual void Draw(FViewport* InViewport, FCanvas* Canvas) override;
@@ -38,7 +34,6 @@ namespace UE::ImageWidgets
 		virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
 		virtual void TrackingStarted(const FInputEventState& InputState, bool bIsDraggingWidget, bool bNudge) override;
 		virtual void TrackingStopped() override;
-		virtual EMouseCaptureMode GetMouseCaptureMode() const override;
 		// SEditorViewport overrides - end
 
 		int32 GetMipLevel() const;
@@ -74,8 +69,7 @@ namespace UE::ImageWidgets
 		FDrawImage DrawImage;
 		FGetDrawSettings GetDrawSettings;
 		FGetDPIScaleFactor GetDPIScaleFactor;
-		FOnLeftMouseButtonPressed OnLeftMouseButtonPressed;
-		FOnLeftMouseButtonReleased OnLeftMouseButtonReleased;
+		SImageViewport::FControllerSettings::FOnInputKey OnInputKey;
 		const FImageABComparison* ABComparison;
 		
 		bool bDragging = false;
@@ -94,7 +88,5 @@ namespace UE::ImageWidgets
 
 		double ABComparisonDivider = 0.5;
 		bool bDraggingABComparisonDivider = false;
-		
-		EMouseCaptureMode MouseCaptureMode;
 	};
 }

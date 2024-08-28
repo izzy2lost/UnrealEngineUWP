@@ -153,9 +153,8 @@ namespace UE::ImageWidgets
 		StatusBarExtender = InArgs._StatusBarExtender;
 
 		DrawSettings = InArgs._DrawSettings;
+		OverlaySettings = InArgs._OverlaySettings;
 		bABComparisonEnabled = InArgs._bABComparisonEnabled;
-		OnLeftMouseButtonPressed = InArgs._OnLeftMouseButtonPressed;
-		OnLeftMouseButtonReleased = InArgs._OnLeftMouseButtonReleased;
 
 		auto GetImageSize = [this]
 		{
@@ -174,7 +173,7 @@ namespace UE::ImageWidgets
 
 		auto GetDrawSettings = [this]
 		{
-			return DrawSettings.Get();
+			return DrawSettings.Get({});
 		};
 
 		auto GetDPIScaleFactor = [this]
@@ -186,27 +185,14 @@ namespace UE::ImageWidgets
 			return 1.0f;
 		};
 
-		auto HandleOnLeftMouseButtonPressed = [this]()
-		{
-			OnLeftMouseButtonPressed.ExecuteIfBound();
-		};
-
-		auto HandleOnLeftMouseButtonReleased = [this]()
-		{
-			OnLeftMouseButtonReleased.ExecuteIfBound();
-		};
-
 		ImageViewportClient = MakeShareable(new FImageViewportClient(
 			StaticCastWeakPtr<SEditorViewport>(AsWeak()),
 			FGetImageSize::CreateLambda(GetImageSize),
 			FDrawImage::CreateLambda(DrawImage),
 			FGetDrawSettings::CreateLambda(GetDrawSettings),
 			FGetDPIScaleFactor::CreateLambda(GetDPIScaleFactor),
-			FOnLeftMouseButtonPressed::CreateLambda(HandleOnLeftMouseButtonPressed),
-			FOnLeftMouseButtonReleased::CreateLambda(HandleOnLeftMouseButtonReleased),
 			ABComparison.Get(),
-			InArgs._ControllerSettings.DefaultZoomMode,
-			InArgs._MouseCaptureMode)
+			InArgs._ControllerSettings)
 			);
 
 		SEditorViewport::Construct(SEditorViewport::FArguments());
@@ -293,12 +279,18 @@ namespace UE::ImageWidgets
 			return ImageViewer->GetCurrentImageInfo().Guid;
 		};
 
+		auto GetOverlaySettings = [this]
+		{
+			return OverlaySettings.Get({});
+		};
+
 		SAssignNew(ImageViewportToolbar, SImageViewportToolbar, StaticCastSharedPtr<FImageViewportClient>(Client), CommandList,
 						  SImageViewportToolbar::FConstructParameters
 						  {
 							  SImageViewportToolbar::FHasImage::CreateLambda(HasImage),
 							  SImageViewportToolbar::FNumMips::CreateLambda(GetNumMips),
 							  SImageViewportToolbar::FImageGuid::CreateLambda(GetImageGuid),
+							  SImageViewportToolbar::FGetOverlaySettings::CreateLambda(GetOverlaySettings),
 							  bABComparisonEnabled ? ABComparison.Get() : nullptr,
 							  ToolbarExtender
 						  });
@@ -426,7 +418,11 @@ namespace UE::ImageWidgets
 			             .HAlign(HAlign_Left)
 			[
 				SNew(STextBlock)
-				.Text(this, &SImageViewport::GetResolutionLabel)
+					.Visibility_Lambda([&OverlaySettings = OverlaySettings]
+						{
+							return OverlaySettings.IsSet() && OverlaySettings.Get().bDisableStatusBarLeft ? EVisibility::Collapsed : EVisibility::Visible;
+						})
+					.Text(this, &SImageViewport::GetResolutionLabel)
 			];
 		}
 		ApplyHook(FName("StatusBarLeft"), EExtensionHook::After);
@@ -452,6 +448,10 @@ namespace UE::ImageWidgets
 			             .HAlign(HAlign_Right)
 			[
 				SNew(SRichTextBlock)
+					.Visibility_Lambda([&OverlaySettings = OverlaySettings]
+						{
+							return OverlaySettings.IsSet() && OverlaySettings.Get().bDisableStatusBarRight ? EVisibility::Collapsed : EVisibility::Visible;
+						})
 					.Text(this, &SImageViewport::GetPickerLabel)
 					.DecoratorStyleSet(&FImageWidgetsStyle::Get())
 			];

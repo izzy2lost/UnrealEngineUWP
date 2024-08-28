@@ -100,25 +100,19 @@ void DestroyCheckerTexture(TStrongObjectPtr<UTexture2D>& CheckerTexture)
 
 FImageViewportClient::FImageViewportClient(const TWeakPtr<SEditorViewport>& InEditorViewport, FGetImageSize&& InGetImageSize, FDrawImage&& InDrawImage,
                                            FGetDrawSettings&& InGetDrawSettings, FGetDPIScaleFactor&& InGetDPIScaleFactor,
-                                           FOnLeftMouseButtonPressed&& InOnLeftMouseButtonPressed, FOnLeftMouseButtonReleased&& InOnLeftMouseButtonReleased,
-                                           const FImageABComparison* ABComparison, SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode,
-                                           EMouseCaptureMode InMouseCaptureMode)
+                                           const FImageABComparison* InABComparison, const SImageViewport::FControllerSettings& InControllerSettings)
 	: FEditorViewportClient(nullptr, nullptr, InEditorViewport)
 	, GetImageSize(MoveTemp(InGetImageSize))
 	, DrawImage(MoveTemp(InDrawImage))
 	, GetDrawSettings(MoveTemp(InGetDrawSettings))
 	, GetDPIScaleFactor(MoveTemp(InGetDPIScaleFactor))
-	, OnLeftMouseButtonPressed(MoveTemp(InOnLeftMouseButtonPressed))
-	, OnLeftMouseButtonReleased(MoveTemp(InOnLeftMouseButtonReleased))
-	, ABComparison(ABComparison)
-	, Controller(static_cast<FImageViewportController::EZoomMode>(DefaultZoomMode))
-	, MouseCaptureMode(InMouseCaptureMode)
+	, OnInputKey(InControllerSettings.OnInputKey)
+	, ABComparison(InABComparison)
+	, Controller(static_cast<FImageViewportController::EZoomMode>(InControllerSettings.DefaultZoomMode))
 {
 	check(GetImageSize.IsBound());
 	check(DrawImage.IsBound());
 	check(GetDrawSettings.IsBound());
-	check(OnLeftMouseButtonPressed.IsBound());
-	check(OnLeftMouseButtonReleased.IsBound());
 
 	SetRealtime(true);
 }
@@ -275,15 +269,11 @@ bool FImageViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 		}
 	}
 
-	if (EventArgs.Key == EKeys::LeftMouseButton)
+	if (OnInputKey.IsBound())
 	{
-		if(EventArgs.Event == IE_Pressed)
+		if (OnInputKey.Execute(EventArgs))
 		{
-			OnLeftMouseButtonPressed.Execute();
-		}
-		else if(EventArgs.Event == IE_Released)
-		{
-			OnLeftMouseButtonReleased.Execute();
+			return true;
 		}
 	}
 
@@ -464,11 +454,6 @@ FVector2d FImageViewportClient::GetViewportSizeWithDPIScaling() const
 	const float DPIScaleFactor = GetDPIScaleFactor.Execute();
 
 	return FVector2d(ViewportSize) / DPIScaleFactor;
-}
-
-EMouseCaptureMode FImageViewportClient::GetMouseCaptureMode() const
-{
-	return MouseCaptureMode;
 }
 
 bool FImageViewportClient::MouseIsOverABComparisonDivider(const FIntPoint MousePos) const

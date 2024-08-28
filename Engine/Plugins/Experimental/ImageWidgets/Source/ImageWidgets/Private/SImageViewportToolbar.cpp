@@ -32,9 +32,11 @@ namespace UE::ImageWidgets
 		HasImage = MoveTemp(Parameters.HasImage);
 		NumMips = MoveTemp(Parameters.NumMips);
 		ImageGuid = MoveTemp(Parameters.ImageGuid);
+		GetOverlaySettings = MoveTemp(Parameters.GetOverlaySettings);
 		check(HasImage.IsBound());
 		check(NumMips.IsBound());
 		check(ImageGuid.IsBound());
+		check(GetOverlaySettings.IsBound());
 
 		ABComparison = Parameters.ABComparison;
 
@@ -92,6 +94,7 @@ namespace UE::ImageWidgets
 				.Label(this, &SImageViewportToolbar::GetZoomMenuLabel)
 				.OnGetMenuContent(this, &SImageViewportToolbar::MakeZoomMenu)
 				.IsEnabled_Lambda([this] { return HasImage.Execute(); })
+				.Visibility(this, &SImageViewportToolbar::GetZoomMenuVisibility)
 			);
 
 			ToolbarBuilder.AddSeparator();
@@ -126,26 +129,27 @@ namespace UE::ImageWidgets
 				auto GetTextButton = [this](const FString& Label, const FCheckBoxStyle* ButtonStyle, FImageABComparison::EAorB AorB)
 				{
 					return SNew(SCheckBox)
-					.Style(ButtonStyle)
-					.IsEnabled_Lambda([this, AorB]
-						{
-							return ABComparison->CanSetABComparison(AorB);
-						})
-					.IsChecked(ABComparison->ABComparisonIsSet(AorB))
-					.OnCheckStateChanged_Lambda([this, AorB](const ECheckBoxState State)
-					    {
-							ABComparison->SetABComparison(AorB, State != ECheckBoxState::Checked ? FGuid() : ImageGuid.Execute());
-					    })
-					[
-						SNew(STextBlock)
-							.Font(FAppStyle::GetFontStyle("EditorViewportToolBar.Font"))
-							.Text(FText::FromString(Label))
-							.ToolTipText_Lambda([&ABComparison = ABComparison, AorB]
-								{
-									return ABComparison->ABComparisonIsSet(AorB) ? ABComparison->GetName(AorB) : FText();
-								})
-							.Margin(FMargin(2.0f, 0.0f))
-					];
+						.Style(ButtonStyle)
+						.Visibility(this, &SImageViewportToolbar::GetABVisibility)
+						.IsEnabled_Lambda([this, AorB]
+							{
+								return ABComparison->CanSetABComparison(AorB);
+							})
+						.IsChecked(ABComparison->ABComparisonIsSet(AorB))
+						.OnCheckStateChanged_Lambda([this, AorB](const ECheckBoxState State)
+						    {
+								ABComparison->SetABComparison(AorB, State != ECheckBoxState::Checked ? FGuid() : ImageGuid.Execute());
+						    })
+						[
+							SNew(STextBlock)
+								.Font(FAppStyle::GetFontStyle("EditorViewportToolBar.Font"))
+								.Text(FText::FromString(Label))
+								.ToolTipText_Lambda([&ABComparison = ABComparison, AorB]
+									{
+										return ABComparison->ABComparisonIsSet(AorB) ? ABComparison->GetName(AorB) : FText();
+									})
+								.Margin(FMargin(2.0f, 0.0f))
+						];
 				};
 
 				const FCheckBoxStyle* ButtonStyleStart = &FAppStyle::Get().GetWidgetStyle<FCheckBoxStyle>("EditorViewportToolBar.ToggleButton.Start");
@@ -230,9 +234,19 @@ namespace UE::ImageWidgets
 		return MenuBuilder.MakeWidget();
 	}
 
+	EVisibility SImageViewportToolbar::GetZoomMenuVisibility() const
+	{
+		return !GetOverlaySettings.Execute().bDisableZoomButton ? EVisibility::Visible : EVisibility::Collapsed;
+	}
+
 	EVisibility SImageViewportToolbar::GetMipMenuVisibility() const
 	{
-		return NumMips.Execute() > 1 ? EVisibility::Visible : EVisibility::Collapsed;
+		return !GetOverlaySettings.Execute().bDisableMipButton && NumMips.Execute() > 1 ? EVisibility::Visible : EVisibility::Collapsed;
+	}
+
+	EVisibility SImageViewportToolbar::GetABVisibility() const
+	{
+		return !GetOverlaySettings.Execute().bDisableABComparisonButtons ? EVisibility::Visible : EVisibility::Collapsed;
 	}
 
 	FText SImageViewportToolbar::GetMipMenuLabel() const

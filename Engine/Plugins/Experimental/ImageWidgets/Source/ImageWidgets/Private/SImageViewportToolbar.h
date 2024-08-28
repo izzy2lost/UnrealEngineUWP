@@ -27,6 +27,7 @@ namespace UE::ImageWidgets
 		DECLARE_DELEGATE_RetVal(bool, FHasImage)
 		DECLARE_DELEGATE_RetVal(int32, FNumMips)
 		DECLARE_DELEGATE_RetVal(FGuid, FImageGuid)
+		DECLARE_DELEGATE_RetVal(SImageViewport::FOverlaySettings, FGetOverlaySettings)
 
 		SLATE_BEGIN_ARGS(SImageViewportToolbar)	{}
 		SLATE_END_ARGS()
@@ -37,6 +38,7 @@ namespace UE::ImageWidgets
 			FHasImage HasImage;
 			FNumMips NumMips;
 			FImageGuid ImageGuid;
+			FGetOverlaySettings GetOverlaySettings;
 			FImageABComparison* ABComparison = nullptr;
 			TSharedPtr<FExtender> ToolbarExtender;
 		};
@@ -49,7 +51,9 @@ namespace UE::ImageWidgets
 		TSharedRef<SWidget> MakeCenterToolbar(const TSharedPtr<FExtender>& Extender, bool bEnableABComparison);
 		TSharedRef<SWidget> MakeRightToolbar(const TSharedPtr<FExtender>& Extender);
 
+		EVisibility GetZoomMenuVisibility() const;
 		EVisibility GetMipMenuVisibility() const;
+		EVisibility GetABVisibility() const;
 		FText GetMipMenuLabel() const;
 		TSharedRef<SWidget> MakeMipMenu() const;
 
@@ -62,6 +66,7 @@ namespace UE::ImageWidgets
 		FHasImage HasImage;
 		FNumMips NumMips;
 		FImageGuid ImageGuid;
+		FGetOverlaySettings GetOverlaySettings;
 		FImageABComparison* ABComparison = nullptr;
 	};
 }
