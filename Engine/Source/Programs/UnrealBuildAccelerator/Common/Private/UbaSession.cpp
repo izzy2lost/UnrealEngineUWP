@@ -986,11 +986,13 @@ namespace uba
 		out.push_back({ TString(library), TString(temp3.data), S_IRUSR | S_IWUSR | S_IXUSR });
 
 		#if PLATFORM_MAC
-		FindImportsMac(applicationName, [&](const tchar* importName, bool isKnown)
+		StringBuffer<> errorStr;
+		if (!FindImportsMac(applicationName, [&](const tchar* importName, bool isKnown)
 			{
 				if (result && !isKnown)
 					result = CopyImports(out, importName, applicationDir, applicationDirEnd, handledImports);
-			});
+			}, errorStr))
+			m_logger.Error(errorStr.data);
 		#endif
 
 		// This code is needed if application is compiled with tsan
