@@ -78,12 +78,11 @@ namespace uba
 		struct timespec ts;
 		ts.tv_sec = milliseconds / 1000;
 		ts.tv_nsec = (milliseconds % 1000) * 1000000;
-		nanosleep(&ts, &ts);
+		int res;
+		do { res = nanosleep(&ts, &ts); } while (res && errno == EINTR);
 		#else
 		if (milliseconds >= 1000)
-		{
 			sleep(milliseconds / 1000);
-		}
 		usleep((milliseconds % 1000) * 1000);
 		#endif
 	}

@@ -119,6 +119,7 @@ namespace uba
 	LoggerWithWriter* g_logger;
 	SessionClient* g_sessionClient;
 	Atomic<bool> g_shouldExit;
+	Atomic<bool> g_ctrlPressed;
 
 	bool ShouldExit()
 	{
@@ -127,7 +128,11 @@ namespace uba
 
 	void CtrlBreakPressed()
 	{
+		if (g_ctrlPressed)
+			FatalError(13, TC("Force terminate"));
+
 		g_shouldExit = true;
+		g_ctrlPressed = true;
 
 		g_exitLock->EnterWrite();
 		if (g_logger)

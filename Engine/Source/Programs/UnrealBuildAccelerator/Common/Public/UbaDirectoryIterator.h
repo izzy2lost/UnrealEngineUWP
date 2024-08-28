@@ -261,7 +261,7 @@ namespace uba
 					res = lstat(dirPath2, &attr);
 				}
 
-				if (errno == ENODEV || errno == EACCES)
+				if (errno == ENODEV || errno == EACCES || errno == EPERM)
 					continue;
 				UBA_ASSERTF(res == 0, "TraverseDir:stat error handling not added for file %s (error %s)", dirPath2, strerror(errno));
 			}
