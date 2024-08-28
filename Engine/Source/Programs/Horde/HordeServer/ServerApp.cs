@@ -14,6 +14,7 @@ using HordeServer.Commands;
 using HordeServer.Plugins;
 using HordeServer.Storage;
 using HordeServer.Utilities;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;

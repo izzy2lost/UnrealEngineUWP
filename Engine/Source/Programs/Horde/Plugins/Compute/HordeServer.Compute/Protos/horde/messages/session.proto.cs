@@ -33,7 +33,7 @@ namespace HordeCommon.Rpc.Messages
 		}
 
 		public DateTime ExpiryTime
-			=> new DateTime(ExpiryTicks, DateTimeKind.Utc);
+			=> new DateTime(UpdateTicks + ((Status == RpcAgentStatus.Stopped)? 0 : ExpireAfterTime.Ticks), DateTimeKind.Utc);
 	}
 
 	partial class RpcSessionLease : IAgentLease

@@ -9,6 +9,22 @@ using HordeCommon.Rpc.Messages;
 namespace HordeServer.Agents
 {
 	/// <summary>
+	/// Type of data to return from enumeration calls
+	/// </summary>
+	public enum SessionFilterType
+	{
+		/// <summary>
+		/// Return only sessions which can satisfy resource/exclusivity requirements
+		/// </summary>
+		Available = 0,
+
+		/// <summary>
+		/// Return all active sessions in the response, even if they are currently busy
+		/// </summary>
+		Potential = 1,
+	}
+
+	/// <summary>
 	/// Interface for a scheduler that manages agent sessions and leases.
 	/// </summary>
 	public interface IAgentScheduler
@@ -89,12 +105,13 @@ namespace HordeServer.Agents
 		ValueTask<RpcAgentRequirements?> TryGetFilterRequirementsAsync(IoHash requirementsHash, CancellationToken cancellationToken);
 
 		/// <summary>
-		/// Finds all sessions currently included in a filter
+		/// Enumerate all the sessions in a filter
 		/// </summary>
-		/// <param name="requirementsHash">Hash of the requirements object</param>
+		/// <param name="requirementsHash">Requirements hash for the filter</param>
+		/// <param name="sessionType">Whether to only include available sessions, or also include any sessions that are busy and cannot meet resource requirements</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Array of sessions</returns>
-		Task<SessionId[]> GetAllFilteredSessionsAsync(IoHash requirementsHash, CancellationToken cancellationToken = default);
+		/// <returns>Sequence of sessions</returns>
+		IAsyncEnumerable<SessionId> EnumerateFilteredSessionsAsync(IoHash requirementsHash, SessionFilterType sessionType = SessionFilterType.Potential, CancellationToken cancellationToken = default);
 
 		#endregion
 		#region Stats

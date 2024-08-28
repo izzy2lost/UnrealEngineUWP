@@ -333,7 +333,7 @@ namespace HordeServer.Agents
 				if (document != null)
 				{
 					Agent? agent = await CreateAgentObjectAsync(document, session, cancellationToken);
-					if (agent != null && agent.Session != null && agent.Session.ExpiryTicks == session.ExpiryTicks)
+					if (agent != null && agent.Session != null && agent.Session.UpdateTicks == session.UpdateTicks)
 					{
 						_logger.LogDebug("Terminating session {SessionId} for agent {Agent} (expiry time: {Time})", session.SessionId, session.AgentId, agent.Session?.ExpiryTime);
 						await TryUpdateSessionAsync(agent, new UpdateSessionOptions { Status = AgentStatus.Stopped }, cancellationToken);
@@ -1269,7 +1269,7 @@ namespace HordeServer.Agents
 				TaskCompletionSource tcs = _sessionIdToTcs.GetOrAdd(session.SessionId, newTcs);
 
 				RpcSession? newSession = await _scheduler.TryGetSessionAsync(session.SessionId, cancellationToken);
-				if (newSession != null && newSession.ExpiryTicks == session.ExpiryTicks)
+				if (newSession != null && newSession.UpdateTicks == session.UpdateTicks)
 				{
 					await tcs.Task.WaitAsync(cancellationToken);
 					newSession = await _scheduler.TryGetSessionAsync(session.SessionId, cancellationToken);

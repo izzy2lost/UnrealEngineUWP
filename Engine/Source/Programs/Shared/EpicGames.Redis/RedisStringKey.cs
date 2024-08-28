@@ -78,7 +78,7 @@ namespace EpicGames.Redis
 		public static async Task<TValue?> StringGetAsync<TValue>(this IDatabaseAsync target, RedisStringKey<TValue> key, CommandFlags flags = CommandFlags.None)
 		{
 			RedisValue value = await target.StringGetAsync(key.Inner, flags);
-			if (value.IsNullOrEmpty)
+			if (value.IsNull)
 			{
 				return default;
 			}
@@ -89,7 +89,7 @@ namespace EpicGames.Redis
 		public static async Task<TValue> StringGetAsync<TValue>(this IDatabaseAsync target, RedisStringKey<TValue> key, TValue defaultValue, CommandFlags flags = CommandFlags.None)
 		{
 			RedisValue value = await target.StringGetAsync(key.Inner, flags);
-			if (value.IsNullOrEmpty)
+			if (value.IsNull)
 			{
 				return defaultValue;
 			}
