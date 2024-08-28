@@ -15,6 +15,11 @@
 		<dumpvars/>
 	</init>
 	
+	<registerBuildSettings>
+	<insertValue value="OnlineSubsystemFacebook[bEnabled,ClientId,ClientToken,bEnableAutomaticLogging,bEnableAdvertisingId]"/>
+	<insertNewline/>
+	</registerBuildSettings>
+
 	<!-- optional files or directories to copy to Intermediate/Android/APK -->
 	<resourceCopies>
 	</resourceCopies>
@@ -41,8 +46,8 @@
 			<true>
 				<insert>
 dependencies {
-	implementation('com.facebook.android:facebook-android-sdk:15.0.1')
-	implementation('com.facebook.android:facebook-login:15.0.1')
+	implementation('com.facebook.android:facebook-android-sdk:17.0.0')
+	implementation('com.facebook.android:facebook-login:17.0.0')
 }
 				</insert>
 			</true>
