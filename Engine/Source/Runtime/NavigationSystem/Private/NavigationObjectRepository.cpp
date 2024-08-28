@@ -68,7 +68,7 @@ TSharedPtr<const FNavigationElement> UNavigationObjectRepository::RegisterNavRel
 bool UNavigationObjectRepository::ShouldCreateSubsystem(UObject* Outer) const
 {
 	return (Super::ShouldCreateSubsystem(Outer))
-		&& UNavigationSystemV1::IsNavigationAllowed(Cast<UWorld>(Outer), /** bRequiresNavigationSystemInstance */ false);
+		&& GetDefault<UNavigationSystemV1>()->ShouldCreateNavigationSystemInstance(Cast<UWorld>(Outer));
 }
 
 TSharedPtr<const FNavigationElement> UNavigationObjectRepository::RegisterNavRelevantObjectInternal(

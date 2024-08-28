@@ -755,14 +755,11 @@ UNavigationSystemV1::UNavigationSystemV1(const FObjectInitializer& ObjectInitial
 					UNavigationSystemV1::UpdateActorAndComponentsInNavOctree(Actor);
 				}
 			});
-			UNavigationSystemBase::OnComponentTransformChangedDelegate().BindLambda([](USceneComponent& Comp) {
-				if (UNavigationSystemV1::ShouldUpdateNavOctreeOnComponentChange())
+			UNavigationSystemBase::OnComponentTransformChangedDelegate().BindLambda([](USceneComponent& Comp)
+			{
+				if (ShouldUpdateNavOctreeOnComponentChange())
 				{
-					if (UNavigationSystemV1::IsNavigationAllowed(Comp.GetWorld(), /** bRequiresNavigationSystemInstance */ true))
-					{
-						// use propagated component's transform update in editor OR server game with additional navsys check
-						UNavigationSystemV1::UpdateNavOctreeAfterMove(&Comp);
-					}
+					UpdateNavOctreeAfterMove(&Comp);
 				}
 			});
 			UNavigationSystemBase::OnActorRegisteredDelegate().BindLambda([](AActor& Actor) { UNavigationSystemV1::OnActorRegistered(&Actor); });
@@ -3227,34 +3224,22 @@ void UNavigationSystemV1::ResetCachedFilter(TSubclassOf<UNavigationQueryFilter> 
 	}
 }
 
-bool UNavigationSystemV1::IsNavigationAllowed(const UWorld* World, const bool bRequiresNavigationSystemInstance)
+bool UNavigationSystemV1::ShouldCreateNavigationSystemInstance(const UWorld* World) const
 {
-	if (World)
-	{
-		if (World->GetNetMode() != NM_Client)
-		{
-			return true;
-		}
+	ensureMsgf(IsTemplate(), TEXT("This method is expected to only be called on Template objects"
+							   " to determine if an instance of this type should be created."));
 
-		if (const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World))
-		{
-			return NavSys->ShouldAllowClientSideNavigation();
-		}
-
-		return bRequiresNavigationSystemInstance == false
-			&& (*GEngine->NavigationSystemClass != nullptr)
-			&& GEngine->NavigationSystemClass->GetDefaultObject<UNavigationSystemV1>()->ShouldAllowClientSideNavigation();
-	}
-
-	return false;
+	return (World != nullptr)
+		&& (ShouldAllowClientSideNavigation() || (World->GetNetMode() != NM_Client));
 }
 
+// Deprecated
 UNavigationSystemV1* UNavigationSystemV1::CreateNavigationSystem(UWorld* WorldOwner)
 {
 	UNavigationSystemV1* NavSys = nullptr;
 
 	// create navigation system for editor and server targets, but remove it from game clients
-	if (UNavigationSystemV1::IsNavigationAllowed(WorldOwner, /** bRequiresNavigationSystemInstance */ false))
+	if (GetDefault<UNavigationSystemV1>()->ShouldCreateNavigationSystemInstance(WorldOwner))
 	{
 		AWorldSettings* WorldSettings = WorldOwner->GetWorldSettings();
 		if (WorldSettings == nullptr || WorldSettings->IsNavigationSystemEnabled())
@@ -6225,6 +6210,8 @@ void UNavigationSystemModuleConfig::UpdateWithNavSysCDO(const UNavigationSystemV
 
 UNavigationSystemBase* UNavigationSystemModuleConfig::CreateAndConfigureNavigationSystem(UWorld& World) const
 {
+	// This should be handled by ShouldCreateNavigationSystemInstance
+	// called from the base class below but this is an early out.
 	if (bCreateOnClient == false && World.GetNetMode() == NM_Client)
 	{
 		return nullptr;
@@ -6233,7 +6220,7 @@ UNavigationSystemBase* UNavigationSystemModuleConfig::CreateAndConfigureNavigati
 	UNavigationSystemBase* NewNavSys = Super::CreateAndConfigureNavigationSystem(World);
 	UNavigationSystemV1* NavSysInstance = Cast<UNavigationSystemV1>(NewNavSys);
 	UE_CLOG(NavSysInstance == nullptr && NewNavSys != nullptr, LogNavigation, Error
-		, TEXT("Unable to spawn navsys instance of class %s - unable to cast to UNavigationSystemV1")
+		, TEXT("Unable to spawn navigation system instance of class %s - unable to cast to UNavigationSystemV1")
 		, *NavigationSystemClass.GetAssetName()
 	);
 	

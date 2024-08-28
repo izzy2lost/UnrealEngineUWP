@@ -1191,6 +1191,7 @@ public:
 
 	FORCEINLINE bool IsSetUpForLazyGeometryExporting() const { return bGenerateNavigationOnlyAroundNavigationInvokers; }
 
+	UE_DEPRECATED(5.5, "This creation flow is deprecation. Use FNavigationSystem::AddNavigationSystemToWorld instead.")
 	static NAVIGATIONSYSTEM_API UNavigationSystemV1* CreateNavigationSystem(UWorld* WorldOwner);
 
 	static NAVIGATIONSYSTEM_API UNavigationSystemV1* GetCurrent(UWorld* World);
@@ -1211,13 +1212,11 @@ public:
 	}
 
 	/**
-	 * Indicates if navigation is allowed for a given world.
+	 * Indicates whether navigation is allowed for a given world.
 	 * @param World The world in which the navigation would be used
-	 * @param bRequiresNavigationSystemInstance Indicates if the method relies only on an existing navigation system instance ('true')
-	 * or if it should also look in the engine default setting in case the system is missing ('false').
-	 * @return True if the navigation system can be used in the work, false otherwise
+	 * @return whether the navigation system can be used in the specified world or not
 	 */
-	static NAVIGATIONSYSTEM_API bool IsNavigationAllowed(const UWorld* World, bool bRequiresNavigationSystemInstance);
+	NAVIGATIONSYSTEM_API virtual bool ShouldCreateNavigationSystemInstance(const UWorld* World) const override;
 
 	static FORCEINLINE bool IsNavigationSystemStatic()
 	{

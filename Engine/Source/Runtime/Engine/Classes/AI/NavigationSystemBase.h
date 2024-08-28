@@ -283,6 +283,13 @@ public:
 
 	ENGINE_API virtual bool IsWorldInitDone() const PURE_VIRTUAL(UNavigationSystemBase::IsWorldInitDone, return false;);
 
+	/**
+	 * Indicates whether a navigation system instance should be created for a given world.
+	 * @param World The world in which the navigation would be used
+	 * @return whether the navigation system should be created for the specified world or not
+	 */
+	ENGINE_API virtual bool ShouldCreateNavigationSystemInstance(const UWorld* World) const PURE_VIRTUAL(UNavigationSystemBase::ShouldCreateNavigationSystemInstance, return true;);
+
 	static ENGINE_API FNavigationSystem::FOnNavigationInitSignature& OnNavigationInitStartStaticDelegate();
 	static ENGINE_API FNavigationSystem::FOnNavigationInitSignature& OnNavigationInitDoneStaticDelegate();
 	static ENGINE_API FNavigationSystem::FOnNavAreaGenericEvent& OnNavAreaRegisteredDelegate();
