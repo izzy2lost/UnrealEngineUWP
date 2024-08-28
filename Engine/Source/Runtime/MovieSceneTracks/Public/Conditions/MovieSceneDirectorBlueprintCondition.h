@@ -87,7 +87,7 @@ private:
 /**
  * Condition class allowing users to create a director blueprint endpoint in the Sequence to evaluate a condition.
  */
-UCLASS(DisplayName="Blueprint Condition")
+UCLASS(DisplayName="Director Blueprint Condition")
 class MOVIESCENETRACKS_API UMovieSceneDirectorBlueprintCondition
 	: public UMovieSceneCondition
 {
