@@ -304,8 +304,8 @@ FMobileSceneRenderer::FMobileSceneRenderer(const FSceneViewFamily* InViewFamily,
 
 	NumMSAASamples = GetDefaultMSAACount(ERHIFeatureLevel::ES3_1);
 	// As of UE 5.4 only vulkan supports inline (single pass) tonemap
-	bTonemapSubpass = IsMobileTonemapSubpassEnabled(ShaderPlatform) && ViewFamily.bResolveScene && GetRendererOutput() != FSceneRenderer::ERendererOutput::DepthPrepassOnly;
-	bTonemapSubpassInline = IsMobileTonemapSubpassEnabledInline(ShaderPlatform, NumMSAASamples) && bTonemapSubpass;
+	bTonemapSubpass = IsMobileTonemapSubpassEnabled(ShaderPlatform, ViewFamily.bRequireMultiView) && ViewFamily.bResolveScene && GetRendererOutput() != FSceneRenderer::ERendererOutput::DepthPrepassOnly;
+	bTonemapSubpassInline = IsMobileTonemapSubpassEnabledInline(ShaderPlatform, ViewFamily.bRequireMultiView, NumMSAASamples) && bTonemapSubpass;
 	bRequiresSceneDepthAux = MobileRequiresSceneDepthAux(ShaderPlatform) && !bTonemapSubpass;
 }
 

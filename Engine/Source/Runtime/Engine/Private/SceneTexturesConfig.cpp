@@ -343,9 +343,9 @@ void FSceneTexturesConfig::Init(const FSceneTexturesConfigInitSettings& InitSett
 
 	if (ShadingPath == EShadingPath::Mobile)
 	{
-		bRequiresDepthAux = MobileRequiresSceneDepthAux(ShaderPlatform) && !IsMobileTonemapSubpassEnabled(ShaderPlatform);
+		bRequiresDepthAux = MobileRequiresSceneDepthAux(ShaderPlatform) && !IsMobileTonemapSubpassEnabled(ShaderPlatform, InitSettings.bRequireMultiView);
 		bPreciseDepthAux = bPreciseDepthAux || MobileRequiresPreciseSceneDepthAux(ShaderPlatform);
-		bCustomResolveSubpass = IsMobileTonemapSubpassEnabledInline(ShaderPlatform, NumSamples);
+		bCustomResolveSubpass = IsMobileTonemapSubpassEnabledInline(ShaderPlatform, InitSettings.bRequireMultiView, NumSamples);
 	}
 }
 

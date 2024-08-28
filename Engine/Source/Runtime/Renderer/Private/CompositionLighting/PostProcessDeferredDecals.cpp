@@ -550,7 +550,7 @@ void CollectDeferredDecalPassPSOInitializers(
 	{
 		// subpass info set during the submission of the draws in a mobile renderer
 		GraphicsPSOInit.SubpassIndex = 1; // all decals use second sub-pass on mobile
-		GraphicsPSOInit.SubpassHint = GetSubpassHint(SceneTexturesConfig.ShaderPlatform, SceneTexturesConfig.bIsUsingGBuffers, SceneTexturesConfig.NumSamples);
+		GraphicsPSOInit.SubpassHint = GetSubpassHint(SceneTexturesConfig.ShaderPlatform, SceneTexturesConfig.bIsUsingGBuffers, SceneTexturesConfig.bRequireMultiView, SceneTexturesConfig.NumSamples);
 	}
 		
 	const auto AddDeferredDecalPSO = [&](bool bInsideDecal,	bool bReverseHanded, bool bReverseCulling, bool bDecalUsesStencil)

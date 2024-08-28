@@ -122,6 +122,37 @@ public:
 	FScreenFromSlice0PS() {}
 };
 
+/**
+ * A pixel shader for rendering side-by-side textures from the array
+ */
+class FScreenUnwrapSlicesPS : public FScreenPS
+{
+	DECLARE_EXPORTED_SHADER_TYPE(FScreenUnwrapSlicesPS, Global, ENGINE_API);
+public:
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		// this is a desktop-only shader so far (really only needed in the editor)
+		if ((PLATFORM_DESKTOP) && FScreenPS::ShouldCompilePermutation(Parameters))
+		{
+			UE::StereoRenderUtils::FStereoShaderAspects Aspects(Parameters.Platform);
+			return Aspects.IsMobileMultiViewEnabled();
+		}
+		return false;
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FScreenPS::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("SCREEN_PS_UNWRAP_SLICES"), 1);
+	}
+
+	FScreenUnwrapSlicesPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer) :
+		FScreenPS(Initializer)
+	{
+	}
+	FScreenUnwrapSlicesPS() {}
+};
 
 /**
  * A pixel shader for rendering a textured screen element.

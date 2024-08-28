@@ -4329,9 +4329,13 @@ void FSceneRenderer::OnRenderFinish(FRDGBuilder& GraphBuilder, FRDGTextureRef Vi
 									{
 										Technique = TEXT("Multi-viewport");
 									}
+									else if (bIsMobileMultiViewEnabled)
+									{
+										Technique = TEXT("Multi-view (mobile, fallback)");
+									}
 									else
 									{
-										Technique = TEXT("Instanced, clip planes");
+										Technique = TEXT("Instanced, clip planes (deprecated, if you see this, it must be a bug)");
 									}
 								}
 								else if (bIsMobileMultiViewEnabled)

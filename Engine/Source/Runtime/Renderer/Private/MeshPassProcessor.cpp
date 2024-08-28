@@ -1554,7 +1554,7 @@ void ApplyTargetsInfo(FGraphicsPipelineStateInitializer& GraphicsPSOInit, const 
 	GraphicsPSOInit.bHasFragmentDensityAttachment = RenderTargetsInfo.bHasFragmentDensityAttachment;
 }
 
-ESubpassHint GetSubpassHint(const FStaticShaderPlatform Platform, bool bIsUsingGBuffers, uint32 NumSamples)
+ESubpassHint GetSubpassHint(const FStaticShaderPlatform Platform, bool bIsUsingGBuffers, bool bMultiViewRendering, uint32 NumSamples)
 {
 	ESubpassHint SubpassHint = ESubpassHint::None;
 	
@@ -1566,7 +1566,7 @@ ESubpassHint GetSubpassHint(const FStaticShaderPlatform Platform, bool bIsUsingG
 		}
 		else
 		{
-			SubpassHint = IsMobileTonemapSubpassEnabledInline(Platform, NumSamples) ? ESubpassHint::CustomResolveSubpass : ESubpassHint::DepthReadSubpass;
+			SubpassHint = IsMobileTonemapSubpassEnabledInline(Platform, bMultiViewRendering, NumSamples) ? ESubpassHint::CustomResolveSubpass : ESubpassHint::DepthReadSubpass;
 		}
 	}
 

@@ -250,6 +250,10 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/OverridableManager.h"
 
+// MMV support in FakeStereoRenderingDevice
+#include "StereoRenderTargetManager.h"
+#include "ScreenRendering.h"
+
 #if WITH_DUMPGPU
 #include "RenderGraphBuilder.h"
 #endif
@@ -3770,10 +3774,11 @@ bool UEngine::UseSound() const
 {
 	return AudioDeviceManager != nullptr;
 }
+
 /**
 * A fake stereo rendering device used to test stereo rendering without an attached device.
 */
-class FFakeStereoRenderingDevice : public IStereoRendering
+class FFakeStereoRenderingDevice : public IStereoRendering, public IStereoRenderTargetManager
 {
 public:
 	FFakeStereoRenderingDevice(int ViewportWidth = 640, int ViewportHeight = 480, int RequestedNumViews = 2) 
@@ -3781,6 +3786,7 @@ public:
 		, Width(ViewportWidth)
 		, Height(ViewportHeight)
 		, NumViews(RequestedNumViews)
+		, bLayeredRTs(true)
 	{
 		static TAutoConsoleVariable<float> CVarEmulateStereoFOV(TEXT("r.StereoEmulationFOV"), 0, TEXT("FOV in degrees, of the imaginable HMD for stereo emulation"), ECVF_ReadOnly);
 		static TAutoConsoleVariable<int32> CVarEmulateStereoWidth(TEXT("r.StereoEmulationWidth"), 0, TEXT("Width of the imaginable HMD for stereo emulation"), ECVF_ReadOnly);
@@ -3806,6 +3812,9 @@ public:
 		{
 			NumViews = FMath::Clamp(V, 1, 32);
 		}
+
+		// mobile rendering path does not use side-by-side normally
+		bLayeredRTs = GetFeatureLevelShadingPath(GMaxRHIFeatureLevel) == EShadingPath::Mobile;
 	}
 
 	virtual ~FFakeStereoRenderingDevice() {}
@@ -3909,9 +3918,53 @@ public:
 	virtual void RenderTexture_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* BackBuffer, FRHITexture* SrcTexture, FVector2D WindowSize) const override
 	{
 		check(IsInRenderingThread());
+		checkf(bLayeredRTs, TEXT("Non-layered stereo can use the backbuffer directly"));
 
 		FRHIRenderPassInfo RPInfo(BackBuffer, ERenderTargetActions::Clear_Store);
 		RHICmdList.BeginRenderPass(RPInfo, TEXT("RenderTexture_RenderThread"));
+
+			FGraphicsPipelineStateInitializer GraphicsPSOInit;
+			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+			GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
+			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
+			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+
+			FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIShaderPlatform);
+
+			TShaderMapRef<FScreenVS> VertexShader(ShaderMap);
+			TShaderMapRef<FScreenUnwrapSlicesPS> PixelShader(ShaderMap);
+
+			GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
+			GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+			GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+			GraphicsPSOInit.PrimitiveType = PT_TriangleList;
+
+			SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+
+			RHICmdList.Transition(FRHITransitionInfo(SrcTexture, ERHIAccess::Unknown, ERHIAccess::SRVMask));
+
+			SetShaderParametersLegacyPS(RHICmdList, PixelShader, TStaticSamplerState<SF_Point>::GetRHI(), SrcTexture);
+
+			const int SourceWidth = Width;
+			const int SourceHeight = Height;
+			const int TargetWidth = Width;
+			const int TargetHeight = Height;
+
+			const int TargetX = 0;
+			const int TargetY = 0;
+
+			IRendererModule& RendererModule = FModuleManager::GetModuleChecked<IRendererModule>(FName("Renderer"));
+			RendererModule.DrawRectangle(
+				RHICmdList,
+				(float)TargetX, (float)TargetY,
+				(float)SourceWidth, (float)SourceHeight,
+				0.f, 0.f,
+				(float)SourceWidth, (float)SourceHeight,
+				FIntPoint(TargetWidth, TargetHeight),
+				FIntPoint(TargetWidth, TargetHeight),
+				VertexShader,
+				EDRF_UseTriangleOptimization);
+
 		RHICmdList.EndRenderPass();
 
 		const uint32 ViewportWidth = BackBuffer->GetSizeX();
@@ -3919,9 +3972,80 @@ public:
 		RHICmdList.SetViewport( 0,0,0,ViewportWidth, ViewportHeight, 1.0f );
 	}
 
-	float FOVInDegrees;		// max(HFOV, VFOV) in degrees of imaginable HMD
-	int32 Width, Height;	// resolution of imaginable HMD
-	int32 NumViews;			// views of imaginable HMD
+	virtual IStereoRenderTargetManager* GetRenderTargetManager() override { return this; }
+
+	virtual bool ShouldUseSeparateRenderTarget() const { return bLayeredRTs && IsStereoEnabled(); };
+
+	virtual void UpdateViewport(bool bUseSeparateRenderTarget, const class FViewport& Viewport, class SViewport* ViewportWidget = nullptr) override {};
+
+	virtual bool AllocateRenderTargetTextures(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumLayers, ETextureCreateFlags Flags, ETextureCreateFlags TargetableTextureFlags, TArray<FTextureRHIRef>& OutTargetableTextures, TArray<FTextureRHIRef>& OutShaderResourceTextures, uint32 NumSamples = 1)
+	{ 
+		check(IsInRenderingThread());
+		checkf(bLayeredRTs, TEXT("Non-layered stereo can use the backbuffer directly"));
+
+		// We're only creating a 1x target here, but we don't know whether it'll be the targeted texture
+		// or the resolve texture. Because of this, we unify the input flags.
+		ETextureCreateFlags UnifiedCreateFlags = Flags | TargetableTextureFlags | TexCreate_Dynamic;
+
+		// We need to ensure we can sample from the texture in CopyTexture
+		UnifiedCreateFlags |= TexCreate_ShaderResource;
+
+		// We assume this could be used as a resolve target
+		//UnifiedCreateFlags |= TexCreate_ResolveTargetable;
+
+		// Some render APIs require us to present in RT layouts/configs,
+		// so even if app won't use this texture as RT, we need the flag.
+		UnifiedCreateFlags |= TexCreate_RenderTargetable;
+
+		UnifiedCreateFlags |= TexCreate_SRGB;
+		ETextureCreateFlags AuxiliaryCreateFlags = ETextureCreateFlags::None;
+
+		// support foveation?
+		//if (FBFoveationImageGenerator && FBFoveationImageGenerator->IsFoveationExtensionEnabled())
+		//{
+		//	AuxiliaryCreateFlags |= TexCreate_Foveation;
+		//}
+
+		FClearValueBinding ClearColor = FClearValueBinding::Transparent;
+
+		uint8 ActualFormat = Format;
+		FIntPoint Extent = FIntPoint(Width, Height);
+
+		const TCHAR* EmulateStereoSwapchainDebugName = TEXT("EmulateStereoSwapchainImage");
+		FRHITextureCreateDesc SwapchainImageDesc = true ?
+			FRHITextureCreateDesc::Create2DArray(EmulateStereoSwapchainDebugName).SetArraySize(2) :
+			FRHITextureCreateDesc::Create2D(EmulateStereoSwapchainDebugName);
+
+		SwapchainImageDesc.SetExtent(Width, Height);
+		SwapchainImageDesc.SetFormat(static_cast<EPixelFormat>(ActualFormat));
+		SwapchainImageDesc.SetFlags(UnifiedCreateFlags);
+
+		// this will be owned by the caller
+		FTextureRHIRef NewImage = RHICreateTexture(SwapchainImageDesc);
+
+		OutTargetableTextures.Add(NewImage);
+		OutShaderResourceTextures = OutTargetableTextures;
+
+		return true;
+
+	}
+
+	virtual void CalculateRenderTargetSize(const class FViewport& Viewport, uint32& InOutSizeX, uint32& InOutSizeY)
+	{ 
+		InOutSizeX = Width;
+		InOutSizeY = Height;
+	}
+
+	virtual bool NeedReAllocateViewportRenderTarget(const class FViewport& Viewport) { return false; };
+
+	/** max(HFOV, VFOV) in degrees of imaginable HMD */
+	float FOVInDegrees;
+	/** resolution of imaginable HMD (per eye) */
+	int32 Width, Height;
+	/** views of imaginable HMD */
+	int32 NumViews;
+	/** Whether the rendertargets are layered (like in MMV case) or not (side-by-side). */
+	bool bLayeredRTs;
 };
 
 bool UEngine::InitializeHMDDevice()

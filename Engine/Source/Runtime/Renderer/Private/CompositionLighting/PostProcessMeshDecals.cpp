@@ -393,7 +393,7 @@ void FMeshDecalMeshProcessor::CollectDeferredDecalMeshPSOInitializers(
 	{
 		// subpass info set during the submission of the draws in a mobile renderer
 		SubpassIndex = 1; // all decals use second sub-pass on mobile
-		SubpassHint = GetSubpassHint(SceneTexturesConfig.ShaderPlatform, SceneTexturesConfig.bIsUsingGBuffers, SceneTexturesConfig.NumSamples);
+		SubpassHint = GetSubpassHint(SceneTexturesConfig.ShaderPlatform, SceneTexturesConfig.bIsUsingGBuffers, SceneTexturesConfig.bRequireMultiView, SceneTexturesConfig.NumSamples);
 	}
 
 	AddGraphicsPipelineStateInitializer(
