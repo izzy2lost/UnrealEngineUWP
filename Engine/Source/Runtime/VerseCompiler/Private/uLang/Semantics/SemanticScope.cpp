@@ -659,7 +659,7 @@ bool CScope::CanAccess(const CDefinition& Definition, const SAccessLevel& Defini
     }
 }
 
-bool CScope::IsEpicInternal() const
+bool CScope::IsAuthoredByEpic() const
 {
     CUTF8StringBuilder ScopePathBuilder;
     ScopePathBuilder.Append(GetScopePath('/', EPathMode::PrefixSeparator));
@@ -673,7 +673,7 @@ bool CScope::IsEpicInternal() const
 bool CScope::CanAccessEpicInternal() const
 {
     CAstPackage* Package = GetPackage();
-    return (Package && Package->_VerseScope == EVerseScope::InternalUser) || IsEpicInternal();
+    return (Package && Package->_VerseScope == EVerseScope::InternalUser) || IsAuthoredByEpic();
 }
 
 const char* CScope::KindToCString(CScope::EKind Kind)

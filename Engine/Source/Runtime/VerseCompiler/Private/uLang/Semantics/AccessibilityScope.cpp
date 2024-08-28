@@ -80,7 +80,7 @@ bool SAccessibilityScope::IsSubsetOf(const SAccessibilityScope& Other) const
         {
             for (const CScope* LhsScope : _Scopes)
             {
-                if (!LhsScope->IsEpicInternal())
+                if (!LhsScope->IsAuthoredByEpic())
                 {
                     return false;
                 }
@@ -170,7 +170,7 @@ SAccessibilityScope GetAccessibilityScope(const CDefinition& Definition, const S
         if (Result._Kind == SAccessibilityScope::EKind::EpicInternal)
         {
             // Yes, remove all scopes that are not in an epic_internal scope
-            Result._Scopes.RemoveAll([](const CScope* Scope) { return !Scope->IsEpicInternal(); });
+            Result._Scopes.RemoveAll([](const CScope* Scope) { return !Scope->IsAuthoredByEpic(); });
             // If no scopes are left at this point it means the definition is entirely inaccessible
         }
         Result._Kind = SAccessibilityScope::EKind::Scope;

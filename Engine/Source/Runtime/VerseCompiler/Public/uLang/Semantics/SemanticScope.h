@@ -172,8 +172,8 @@ public:
     /// Generates a new stamp id
     static VisitStampType GenerateNewVisitStamp();
 
-    // Determines whether this is an Epic-internal scope.
-    bool IsEpicInternal() const;
+    // Determines whether this scope was authored by Epic
+    bool IsAuthoredByEpic() const;
 
     // Determines whether this scope can access Epic-internal definitions.
     // This differs from IsEpicInternal by allowing packages with Scope=InternalUser to access epic-internal definitions.

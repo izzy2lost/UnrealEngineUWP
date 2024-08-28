@@ -2187,7 +2187,7 @@ private:
                         const CScope* CurrentScope = &ResolvedDefn._Definition->_EnclosingScope;
                         while (CurrentScope)
                         {
-                            if (CurrentScope->IsEpicInternal())
+                            if (CurrentScope->IsAuthoredByEpic())
                             {
                                 return false;
                             }

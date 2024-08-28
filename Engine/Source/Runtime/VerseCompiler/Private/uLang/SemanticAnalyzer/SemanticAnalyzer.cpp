@@ -3022,7 +3022,7 @@ public:
                         && LogicalScope.GetPackage() == &AstPackage
                         && LogicalScope.ScopeAsDefinition()
                         && LogicalScope.ScopeAsDefinition()->GetAstNode()
-                        && LogicalScope.IsEpicInternal())
+                        && LogicalScope.IsAuthoredByEpic())
                     {
                         AppendGlitch(
                             *LogicalScope.ScopeAsDefinition()->GetAstNode(),
@@ -3134,7 +3134,7 @@ public:
         // to compare against things that aren't directly user-written.
         // Also don't bother counting `epic_internal` definitions as part of the statistics since it's definitely not
         // from user code either.
-        if (AstSnippet._SemanticSnippet && !AstSnippet._SemanticSnippet->IsEpicInternal())
+        if (AstSnippet._SemanticSnippet && !AstSnippet._SemanticSnippet->IsAuthoredByEpic())
         {
             if (const CAstPackage* Package = AstSnippet._SemanticSnippet->GetPackage(); Package && Package->_VerseScope == EVerseScope::PublicUser)
             {
@@ -3920,7 +3920,7 @@ private:
         {
             if (I->IsAbstract() 
                 && I->Definition()->_EnclosingScope.GetModule() != ClassModule
-                && (!I->Definition()->_EnclosingScope.GetModule()->IsEpicInternal() || !ClassModule->IsEpicInternal()))
+                && (!I->Definition()->_EnclosingScope.GetModule()->IsAuthoredByEpic() || !ClassModule->IsAuthoredByEpic()))
             {
                 AppendGlitch(
                     AstNode,
@@ -4095,7 +4095,7 @@ private:
     {
         // Don't allow inheriting from an attribute class.
         const Vst::Node* VstNode = AstNode.GetMappedVstNode();
-        if (!Class.IsEpicInternal())
+        if (!Class.IsAuthoredByEpic())
         {
             ValidateNonAttributeType(NegativeSuperType, VstNode);
             ValidateNonAttributeType(PositiveSuperType, VstNode);
@@ -4716,7 +4716,7 @@ private:
         // to compare against things that aren't directly user-controlled such as native class implementations etc.
         // Also don't bother counting `epic_internal` classes as part of the statistics since it's definitely not
         // from user code either.
-        if (CAstPackage* Package = Class->GetPackage(); Package && Package->_VerseScope == EVerseScope::PublicUser && !Class->IsEpicInternal())
+        if (CAstPackage* Package = Class->GetPackage(); Package && Package->_VerseScope == EVerseScope::PublicUser && !Class->IsAuthoredByEpic())
         {
             _Diagnostics->AppendClassDefinition(1);
         }
@@ -7472,7 +7472,7 @@ private:
         // to compare against things that aren't directly user-controlled such as native function implementations etc.
         // Also don't bother counting `epic_internal` functions as part of the statistics since it's definitely not
         // from user code either.
-        if (CAstPackage* Package = Function->GetPackage(); Package && Package->_VerseScope == EVerseScope::PublicUser && !Function->IsEpicInternal())
+        if (CAstPackage* Package = Function->GetPackage(); Package && Package->_VerseScope == EVerseScope::PublicUser && !Function->IsAuthoredByEpic())
         {
             _Diagnostics->AppendFunctionDefinition(1);
         }
