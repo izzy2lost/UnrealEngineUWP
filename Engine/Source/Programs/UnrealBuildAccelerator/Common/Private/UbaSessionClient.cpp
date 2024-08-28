@@ -677,11 +677,8 @@ namespace uba
 		out.result = reader.ReadBool();
 		out.errorCode = reader.ReadU32();
 		if (out.result)
-		{
-			reader.Reset();
-			if (!SendUpdateDirectoryTable(reader))
+			if (!SendUpdateDirectoryTable(reader.Reset()))
 				return false;
-		}
 		out.directoryTableSize = GetDirectoryTableSize();
 		return true;
 	}
@@ -708,11 +705,8 @@ namespace uba
 			out.closeId = ~0u;
 			out.errorCode = reader.ReadU32();
 			if (!out.errorCode)
-			{
-				reader.Reset();
-				if (!SendUpdateDirectoryTable(reader))
+				if (!SendUpdateDirectoryTable(reader.Reset()))
 					return false;
-			}
 			out.directoryTableSize = GetDirectoryTableSize();
 			return true;
 		}
@@ -811,11 +805,17 @@ namespace uba
 		StackBinaryWriter<1024> writer;
 		NetworkMessage networkMsg(m_client, ServiceId, SessionMessageType_CreateDirectory, writer);
 		writer.WriteString(msg.name);
-		StackBinaryReader<1024> reader;
+		StackBinaryReader<SendMaxSize> reader;
 		if (!networkMsg.Send(reader, Stats().createDirMsg))
 			return false;
 		out.result = reader.ReadBool();
 		out.errorCode = reader.ReadU32();
+
+		if (out.result)
+			if (!SendUpdateDirectoryTable(reader.Reset()))
+				return false;
+
+		out.directoryTableSize = GetDirectoryTableSize();
 		return true;
 	}
 
@@ -824,11 +824,17 @@ namespace uba
 		StackBinaryWriter<1024> writer;
 		NetworkMessage networkMsg(m_client, ServiceId, SessionMessageType_RemoveDirectory, writer);
 		writer.WriteString(msg.name);
-		StackBinaryReader<1024> reader;
+		StackBinaryReader<SendMaxSize> reader;
 		if (!networkMsg.Send(reader, Stats().deleteFileMsg)) // Wrong message
 			return false;
 		out.result = reader.ReadBool();
 		out.errorCode = reader.ReadU32();
+
+		if (out.result)
+			if (!SendUpdateDirectoryTable(reader.Reset()))
+				return false;
+
+		out.directoryTableSize = GetDirectoryTableSize();
 		return true;
 	}
 
@@ -935,7 +941,7 @@ namespace uba
 			item.done.Create(true);
 
 			lock.Leave();
-			bool res = item.done.IsSet(5*60*60);
+			bool res = item.done.IsSet(5*60*1000);
 			lock.Enter();
 
 			if (item.prev)
@@ -1049,8 +1055,7 @@ namespace uba
 			NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetDirectoriesFromServer, writer);
 			writer.WriteU32(m_sessionId);
 
-			reader.Reset();
-			if (msg.Send(reader, Stats().getDirsMsg))
+			if (msg.Send(reader.Reset(), Stats().getDirsMsg))
 				continue;
 
 			// Let's signal waiters to exit faster since we will not get out of this situation (most likely a disconnect)
@@ -1081,9 +1086,7 @@ namespace uba
 				NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetNameToHashFromServer, writer);
 				writer.WriteU32(serverTableSize);
 				writer.WriteU32(localTableSize);
-
-				reader.Reset();
-				if (!msg.Send(reader, Stats().getHashesMsg))
+				if (!msg.Send(reader.Reset(), Stats().getHashesMsg))
 					return false;
 			}
 			serverTime = reader.ReadU64();
@@ -1315,14 +1318,9 @@ namespace uba
 		}
 
 		if (!out.empty())
-		{
 			if (neededDirectoryTableSize > GetDirectoryTableSize())
-			{
-				reader.Reset();
-				if (!SendUpdateDirectoryTable(reader))
+				if (!SendUpdateDirectoryTable(reader.Reset()))
 					return false;
-			}
-		}
 
 		// Always nice to update name-to-hash table since it can reduce number of messages while building.
 		u32 hashTableMemSize;
@@ -1331,11 +1329,8 @@ namespace uba
 			hashTableMemSize = u32(m_nameToHashTableMem.writtenSize);
 		}
 		if (neededHashTableSize > hashTableMemSize)
-		{
-			reader.Reset();
-			if (!SendUpdateNameToHashTable(reader))
+			if (!SendUpdateNameToHashTable(reader.Reset()))
 				return false;
-		}
 
 		return true;
 	}
@@ -1977,8 +1972,7 @@ namespace uba
 			}
 		}
 
-		reader.Reset();
-		return SendUpdateDirectoryTable(reader);
+		return SendUpdateDirectoryTable(reader.Reset());
 	}
 
 	bool SessionClient::CustomMessage(Process& process, BinaryReader& reader, BinaryWriter& writer)

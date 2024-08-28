@@ -155,6 +155,21 @@ int main(int argc, char* argv[])
 		struct stat attrRoot;
 		if (stat("/", &attrRoot) != 0)
 			return LogError("stat for '/' failed");
+
+		if (mkdir("FooDir", S_IRUSR | S_IWUSR) != 0)
+			return LogError("mkdir 'FooDir' failed");
+
+		struct stat attrFoo;
+		if (stat("FooDir", &attrFoo) != 0)
+			return LogError("stat for 'FooDir' failed");
+		if (!S_ISDIR(attrFoo.st_mode))
+			return LogError("stat for dir 'FooDir' returned wrong type");
+
+		if (rmdir("FooDir") != 0)
+			return LogError("rmdir 'FooDir' failed");
+
+		if (stat("FooDir", &attrFoo) == 0)
+			return LogError("stat for 'FooDir' failed to not find removed directory");
 		return 0;
 	}
 	else if (strncmp(argv[1], "-file=", 6) == 0)

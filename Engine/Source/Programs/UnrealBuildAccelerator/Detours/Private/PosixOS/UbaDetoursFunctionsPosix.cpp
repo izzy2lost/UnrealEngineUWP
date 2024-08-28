@@ -40,6 +40,8 @@ using namespace uba;
 #define DETOURED_FUNCTIONS \
 	DETOURED_FUNCTION(chdir) \
 	DETOURED_FUNCTION(fchdir) \
+	DETOURED_FUNCTION(mkdir) \
+	DETOURED_FUNCTION(rmdir) \
 	DETOURED_FUNCTION(chroot) \
 	DETOURED_FUNCTION(getcwd) \
 	DETOURED_FUNCTION(getenv) \
@@ -463,7 +465,16 @@ FILE* Shared_fopen(const char* funcName, const char* path, const char* mode, con
 	bool p = strchr(mode, '+');
 	//bool b = strchr(mode, 'b');
 	//bool t = strchr(mode, 't');
-	UBA_ASSERTF(!a, "%s with append not implemented (%s)", funcName, mode);
+	if (a)
+	{
+		//if (StartsWith(path, g_systemTemp.data))
+		{
+			FILE* res = TRUE_WRAPPER(fopen)(path, mode);
+			DEBUG_LOG_TRUE(funcName, "(%s  %s) -> %p", path, mode, res);
+			return res;
+		}
+		//UBA_ASSERTF(false, "%s with append (%s) not implemented (%s)", funcName, mode, path);
+	}
 
 	int flags = 0;
 	if (r)
@@ -704,8 +715,16 @@ UBA_EXPORT int UBA_WRAPPER(_NSGetExecutablePath)(char* buf, uint32_t* bufsize)
 UBA_EXPORT int UBA_WRAPPER(chdir)(const char* path)
 {
 	UBA_INIT_DETOUR(chdir, path);
-	UBA_ASSERTF(false, "chdir not implemented");
-	return TRUE_WRAPPER(chdir)(path);
+	FixPath(g_virtualWorkingDir.Clear(), path);
+	g_virtualWorkingDir.EnsureEndsWithSlash();
+	if (g_runningRemote)
+	{
+		DEBUG_LOG_DETOURED("chdir", "%s -> 0", path);
+		return 0;
+	}
+	int res = TRUE_WRAPPER(chdir)(path);
+	DEBUG_LOG_TRUE("chdir", "%s -> %i", path, res);
+	return res;
 }
 
 UBA_EXPORT int UBA_WRAPPER(fchdir)(int fd)
@@ -713,6 +732,85 @@ UBA_EXPORT int UBA_WRAPPER(fchdir)(int fd)
 	UBA_INIT_DETOUR(fchdir, fd);
 	UBA_ASSERTF(false, "fchdir not implemented");
 	return TRUE_WRAPPER(fchdir)(fd);
+}
+
+UBA_EXPORT int UBA_WRAPPER(mkdir)(const char* path, mode_t mode)
+{
+	UBA_INIT_DETOUR(mkdir, path, mode);
+
+	StringBuffer<> pathName;
+	FixPath(pathName, path);
+	if (pathName.StartsWith(g_systemTemp.data))
+	{
+		int res = TRUE_WRAPPER(mkdir)(path, mode);
+		DEBUG_LOG_TRUE("mkdir", "%s -> %i", path, res);
+		return res;
+	}
+
+	u32 directoryTableSize;
+	bool res;
+	u32 errorCode = 0;
+	StringKey pathNameKey = ToStringKeyLower(pathName);
+
+	{
+		TimerScope ts(g_stats.createFile);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+		BinaryWriter writer;
+		writer.WriteByte(MessageType_CreateDirectory);
+		writer.WriteStringKey(pathNameKey);
+		writer.WriteString(pathName);
+		writer.Flush();
+		BinaryReader reader;
+		res = reader.ReadBool();
+		errorCode = reader.ReadU32();
+		directoryTableSize = reader.ReadU32();
+	}
+
+	g_directoryTable.ParseDirectoryTable(directoryTableSize);
+
+	errno = errorCode;
+	DEBUG_LOG_DETOURED("mkdir", "%ls -> %i (%u)", path, res, errorCode);
+	return res ? 0 : -1;
+}
+
+UBA_EXPORT int UBA_WRAPPER(rmdir)(const char* path)
+{
+	UBA_INIT_DETOUR(rmdir, path);
+
+	StringBuffer<> pathName;
+	FixPath(pathName, path);
+	if (pathName.StartsWith(g_systemTemp.data))
+	{
+		//SuppressCreateFileDetourScope s; // TODO: Revisit this.. will not work remotely
+		int res = TRUE_WRAPPER(rmdir)(path);
+		DEBUG_LOG_TRUE("rmdir", "%s -> %i", path, res);
+		return res;
+	}
+
+	u32 directoryTableSize;
+	bool res;
+	u32 errorCode = 0;
+	StringKey pathNameKey = ToStringKeyLower(pathName);
+
+	{
+		TimerScope ts(g_stats.deleteFile);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+		BinaryWriter writer;
+		writer.WriteByte(MessageType_RemoveDirectory);
+		writer.WriteStringKey(pathNameKey);
+		writer.WriteString(pathName);
+		writer.Flush();
+		BinaryReader reader;
+		res = reader.ReadBool();
+		errorCode = reader.ReadU32();
+		directoryTableSize = reader.ReadU32();
+	}
+
+	g_directoryTable.ParseDirectoryTable(directoryTableSize);
+
+	errno = errorCode;
+	DEBUG_LOG_DETOURED("rmdir", "%ls -> %i (%u)", path, res, errorCode);
+	return res ? 0 : -1;
 }
 
 UBA_EXPORT int UBA_WRAPPER(chroot)(const char* path)

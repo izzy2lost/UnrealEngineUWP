@@ -92,7 +92,7 @@ namespace uba
 	struct StackBinaryReader : BinaryReader
 	{
 		StackBinaryReader() : BinaryReader(buffer, 0, Capacity) { *buffer = 0; }
-		void Reset() { m_pos = m_begin; m_end = buffer + Capacity; }
+		StackBinaryReader& Reset() { m_pos = m_begin; m_end = buffer + Capacity; return *this; }
 		u8 buffer[Capacity];
 	};
 
