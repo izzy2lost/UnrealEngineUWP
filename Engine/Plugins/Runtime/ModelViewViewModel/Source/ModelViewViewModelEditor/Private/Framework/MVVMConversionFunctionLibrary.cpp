@@ -114,12 +114,11 @@ FCollection::~FCollection()
 
 	if (FAssetRegistryModule* AssetRegistryModule = FModuleManager::GetModulePtr<FAssetRegistryModule>(TEXT("AssetRegistry")))
 	{
-		if (AssetRegistryModule->IsValid())
+		if (IAssetRegistry* AssetRegistry = AssetRegistryModule->TryGet())
 		{
-			IAssetRegistry& AssetRegistry = AssetRegistryModule->Get();
-			AssetRegistry.OnAssetAdded().RemoveAll(this);
-			AssetRegistry.OnAssetRemoved().RemoveAll(this);
-			AssetRegistry.OnAssetRenamed().RemoveAll(this);
+			AssetRegistry->OnAssetAdded().RemoveAll(this);
+			AssetRegistry->OnAssetRemoved().RemoveAll(this);
+			AssetRegistry->OnAssetRenamed().RemoveAll(this);
 		}
 	}
 
