@@ -572,7 +572,7 @@ public:
 			// depth attachment is same as input attachment
 			SubpassDesc.SetDepthStencilAttachment(&DepthStencilAttachment);
 
-			if (bResolveDepth)
+			if (bResolveDepth && !bCustomResolveSubpass)
 			{
 				SubpassDesc.SetDepthStencilResolveAttachment(&DepthStencilResolveSubpassDesc);
 			}
@@ -690,6 +690,13 @@ public:
 			InputAttachments3[1].attachment = ColorAttachmentReferences[0].attachment; // SceneColor as input
 			InputAttachments3[1].layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			InputAttachments3[1].SetAspect(VK_IMAGE_ASPECT_COLOR_BIT);
+
+			SubpassDesc.SetDepthStencilAttachment(&DepthStencilAttachment);
+
+			if (bResolveDepth)
+			{
+				SubpassDesc.SetDepthStencilResolveAttachment(&DepthStencilResolveSubpassDesc);
+			}
 		
 			SubpassDesc.SetInputAttachments(InputAttachments3, 2);
 			SubpassDesc.colorAttachmentCount = 1;
