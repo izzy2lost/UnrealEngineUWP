@@ -330,7 +330,7 @@ void UAbilitySystemGlobals::PerformDeveloperSettingsUpgrade()
 {
 	auto SyncToDeveloperSettings = [](FGameplayTag& DeveloperSettingsTag, const FGameplayTag& OurTag)
 	{
-		if (DeveloperSettingsTag != OurTag)
+		if (OurTag.IsValid() && DeveloperSettingsTag != OurTag)
 		{
 			DeveloperSettingsTag = OurTag;
 			return true;
