@@ -26,11 +26,7 @@ namespace uba
 	#if UBA_DEBUG_LOG_ENABLED
 		#define DEBUG_LOG_PREFIX(Prefix, Command, ...) \
 			LogScope STRING_JOIN(ls, __LINE__); \
-			if (isLogging()) \
-			{ \
-				GetLogTlsBuffer().Clear().Append(Command).Append(' ').Appendf(__VA_ARGS__).Append(TC("\n")); \
-				WriteDebugLogWithPrefix(#Prefix, STRING_JOIN(ls, __LINE__)); \
-			}
+			if (isLogging()) WriteDebugLogWithPrefix(#Prefix, STRING_JOIN(ls, __LINE__), Command, __VA_ARGS__); \
 
 		//#define DEBUG_LOG_DETOURED(Command, ...) 
 		#define DEBUG_LOG_DETOURED(Command, ...) DEBUG_LOG_PREFIX(D, Command, __VA_ARGS__)
@@ -39,7 +35,7 @@ namespace uba
 		//#define DEBUG_LOG_PIPE(Command, ...) ts.leave(); DEBUG_LOG_PREFIX(P, Command, __VA_ARGS__)
 		#define DEBUG_LOG_PIPE(Command, ...) ts.Leave();
 		//#define DEBUG_LOG(...)
-		#define DEBUG_LOG(...) { if (isLogging()) { GetLogTlsBuffer().Clear().Appendf(__VA_ARGS__).Append(TC("\n")); WriteDebugLog(); }}
+		#define DEBUG_LOG(...) { if (isLogging()) WriteDebugLog(__VA_ARGS__); }
 	#else
 		#define DEBUG_LOG(...)
 		#define DEBUG_LOG_DETOURED(Command, ...)
@@ -75,9 +71,8 @@ namespace uba
 	extern FileHandle g_debugFile;
 	inline bool isLogging() { return g_debugFile != InvalidFileHandle; }
 	struct LogScope { LogScope(); ~LogScope(); void Flush(); };
-	StringBufferBase& GetLogTlsBuffer();
-	void WriteDebugLogWithPrefix(const char* prefix, LogScope& scope);
-	void WriteDebugLog();
+	void WriteDebugLogWithPrefix(const char* prefix, LogScope& scope, const tchar* command, const tchar* format, ...);
+	void WriteDebugLog(const tchar* format, ...);
 	void FlushDebugLog();
 	#endif
 	#if UBA_DEBUG_VALIDATE

@@ -59,10 +59,6 @@ namespace uba
 	thread_local char t_b[LogBufSize];
 	thread_local u32 t_b_size;
 
-	StringBufferBase& GetLogTlsBuffer()
-	{
-		return t_a;
-	}
 	void GetPrefixExtra(StringBufferBase& out)
 	{
 		#if 0
@@ -75,8 +71,23 @@ namespace uba
 		#endif
 		//out.Appendf(TC("[%7u]"), GetCurrentThreadId());
 	}
-	void WriteDebugLogWithPrefix(const char* prefix, LogScope& scope)
+	void WriteDebugLogWithPrefix(const char* prefix, LogScope& scope, const tchar* command, const tchar* format, ...)
 	{
+		#if PLATFORM_MAC
+		static locale_t safeLocale = newlocale(LC_NUMERIC_MASK, "C", duplocale(LC_GLOBAL_LOCALE));
+		locale_t oldLocale = uselocale(safeLocale);
+		#endif
+
+		t_a.Clear().Append(command).Append(' ');
+		if (*format)
+		{
+			va_list arg;
+			va_start(arg, format);
+			t_a.Append(format, arg);
+			va_end(arg);
+		}
+		t_a.Append(TC("\n"));
+
 		u32 size__ = t_b_size;
 		StringBuffer<128> extra;
 		GetPrefixExtra(extra);
@@ -89,9 +100,24 @@ namespace uba
 		if (res__ != -1)
 			t_b_size += res__;
 		scope.Flush();
+
+		#if PLATFORM_MAC
+		uselocale(oldLocale);
+		#endif
 	}
-	void WriteDebugLog()
+
+	void WriteDebugLog(const tchar* format, ...)
 	{
+		t_a.Clear();
+		if (*format)
+		{
+			va_list arg;
+			va_start(arg, format);
+			t_a.Append(format, arg);
+			va_end(arg);
+		}
+		t_a.Append(TC("\n"));
+
 		#if PLATFORM_WINDOWS
 		t_b_size = sprintf_s(t_b, LogBufSize, "%S", t_a.data);
 		WriteDebug(t_b, t_b_size);
