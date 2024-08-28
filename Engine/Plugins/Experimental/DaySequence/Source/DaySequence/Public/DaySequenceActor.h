@@ -39,7 +39,8 @@ struct FMovieSceneSequencePlaybackSettings;
 
 namespace UE::DaySequence
 {
-	struct FStaticTimeControllerOverride;
+	struct FStaticTimeContributor;
+	struct FStaticTimeManager;
 
 #if ENABLE_DRAW_DEBUG
 	// This provides methods for determining if this debug entry should be shown and for getting a pointer to the debug data.
@@ -239,23 +240,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="TimeOfDay")
 	float GetStaticTimeOfDay() const;
 
-	/**
-	 * Force the Day Sequence to show a specific constant time (in hours)
-	 */
-	UFUNCTION(BlueprintCallable, Category="TimeOfDay")
-	void SetStaticTimeOfDay(float InHours);
-
-	/**
-	 * Revert the Day Sequence time back to its regular day cycle
-	 *
-	 * @param bResumeFromStaticTime  When checked, the day sequence will resume its playback from the static time,
-	 *                               otherwise it will restore to its natural position as if it had no static time applied.
-	 *                               Note: when this sequence is replicated, enabling this parameter will immediately be overwritten
-	 *                               by the server time on the next replication event.
-	 */
-	UFUNCTION(BlueprintCallable, Category="TimeOfDay")
-	void RemoveStaticTimeOfDay(bool bResumeFromStaticTime = false);
-
+	void RegisterStaticTimeContributor(const UE::DaySequence::FStaticTimeContributor& NewContributor) const;
+	void UnregisterStaticTimeContributor(const UObject* InUserObject) const;
+	
 	UDaySequence* GetRootSequence() const;
 
 	virtual void UpdateRootSequence();
@@ -507,16 +494,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = RuntimeDayCycle)
 	FDaySequenceTime InitialTimeOfDay;
 	
-	/** Cached static time controller applied from SetStaticTimeOfDay */
-	TWeakPtr<UE::DaySequence::FStaticTimeControllerOverride> WeakTimeControllerOverride;
+	TSharedPtr<UE::DaySequence::FStaticTimeManager> StaticTimeManager;
 
 #if WITH_EDITORONLY_DATA
-	/**
-	 * Editor only static time, necessary because WeakTimeControllerOverride only exists in
-	 * game worlds and we have no way of tracking static time outside of game worlds otherwise.
-	 */
-	TOptional<float> StaticTime;
-	
 	/**
 	 * Blueprint exposed delegate invoked when the TimeOfDayPreview property
 	 * is changed.

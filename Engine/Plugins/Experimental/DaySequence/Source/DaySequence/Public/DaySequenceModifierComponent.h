@@ -363,7 +363,7 @@ protected:
 protected:
 
 	/** Non-serialized target actor we are currently bound to */
-	UPROPERTY(Transient, BlueprintReadWrite, Category="Day Sequence")
+	UPROPERTY(Transient, DuplicateTransient, BlueprintReadWrite, Category="Day Sequence")
 	TObjectPtr<ADaySequenceActor> TargetActor;
 
 	/** A handle used to force an override of the TargetActor's evaluation interval. */

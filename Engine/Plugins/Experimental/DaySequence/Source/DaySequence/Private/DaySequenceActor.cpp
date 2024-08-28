@@ -8,6 +8,7 @@
 #include "DaySequenceTrack.h"
 #include "DaySequenceConditionTag.h"
 #include "DaySequenceSubsystem.h"
+#include "DaySequenceStaticTime.h"
 
 #include "Components/BillboardComponent.h"
 #include "Curves/CurveFloat.h"
@@ -17,7 +18,6 @@
 #include "MovieSceneTimeHelpers.h"
 #include "MovieSceneBindingOverrides.h"
 #include "Net/UnrealNetwork.h"
-#include "MovieSceneTimeController.h"
 #include "Sections/MovieSceneSubSection.h"
 #include "Tracks/MovieSceneSubTrack.h"
 #include "UObject/ConstructorHelpers.h"
@@ -62,49 +62,6 @@ namespace UE::DaySequence
 		GFrameBudgetMicroseconds,
 		TEXT("(Default: 30us) Approximate max per-frame budget for time-of-day actors in microseconds.")
 	);
-
-
-	struct FStaticTimeControllerOverride : FMovieSceneTimeController
-	{
-		TSharedPtr<FMovieSceneTimeController> PreviousTimeController;
-		float TimeInHours;
-		FFrameTime StaticTime;
-#if WITH_EDITORONLY_DATA
-		FDaySequenceTime PreviousTimeOfDayPreview;
-#endif
-
-		FStaticTimeControllerOverride(FFrameTime InStaticTime, TSharedPtr<FMovieSceneTimeController> InPreviousTimeController)
-			: PreviousTimeController(InPreviousTimeController)
-			, StaticTime(InStaticTime)
-		{}
-
-		void OnTick(float DeltaSeconds, float InPlayRate) override
-		{
-			if (PreviousTimeController)
-			{
-				PreviousTimeController->Tick(DeltaSeconds, InPlayRate);
-			}
-		}
-		void OnStartPlaying(const FQualifiedFrameTime& InStartTime) override
-		{
-			if (PreviousTimeController)
-			{
-				PreviousTimeController->StartPlaying(InStartTime);
-			}
-		}
-		void OnStopPlaying(const FQualifiedFrameTime& InStopTime) override
-		{
-			if (PreviousTimeController)
-			{
-				PreviousTimeController->StopPlaying(InStopTime);
-			}
-		}
-		FFrameTime OnRequestCurrentTime(const FQualifiedFrameTime& InCurrentTime, float InPlayRate)
-		{
-			return StaticTime;
-		}
-	};
-
 } // namespace UE::DaySequence
 
 ADaySequenceActor::ADaySequenceActor(const FObjectInitializer& Init)
@@ -115,6 +72,7 @@ ADaySequenceActor::ADaySequenceActor(const FObjectInitializer& Init)
 , DayLength(24, 0, 0)
 , TimePerCycle(0, 5, 0)
 , InitialTimeOfDay(6, 0, 0)
+, StaticTimeManager(MakeShared<UE::DaySequence::FStaticTimeManager>())
 {
 	USceneComponent* SceneRootComponent = CreateDefaultSubobject<USceneComponent>(USceneComponent::GetDefaultSceneRootVariableName());
 	SetRootComponent(SceneRootComponent);
@@ -515,10 +473,6 @@ void ADaySequenceActor::InitializePlayer()
 
 	if (GetWorld()->IsGameWorld())
 	{
-		// Initializing the sequence player may (will) overwrite the TimeController, so make sure we
-		// maintain the overridden one if SetStaticTimeOfDay was called before Initialize
-		TSharedPtr<FStaticTimeControllerOverride> OldTimeControllerOverride = WeakTimeControllerOverride.Pin();
-
 		if (SequencePlayer)
 		{
 			SequencePlayer->Initialize(RootSequence, this, GetPlaybackSettings(RootSequence));
@@ -526,14 +480,6 @@ void ADaySequenceActor::InitializePlayer()
 
 		if (UDaySequencePlayer* Player = GetSequencePlayerInternal())
 		{
-			if (OldTimeControllerOverride && OldTimeControllerOverride != Player->GetTimeController())
-			{
-				ensure(OldTimeControllerOverride->PreviousTimeController == nullptr);
-
-				OldTimeControllerOverride->PreviousTimeController = Player->GetTimeController();
-				Player->SetTimeControllerDirectly(OldTimeControllerOverride);
-			}
-
 			Player->OnPlay.AddUniqueDynamic(this, &ADaySequenceActor::StopDaySequenceUpdateTimer);
 			Player->OnPause.AddUniqueDynamic(this, &ADaySequenceActor::StartDaySequenceUpdateTimer);
 		}
@@ -1021,36 +967,55 @@ void ADaySequenceActor::WarpEvaluationRange(FMovieSceneEvaluationRange& InOutRan
 
 	const FFrameRate TickRate   = InOutRange.GetFrameRate();
 	const float DayCycleSeconds = TimePerCycle.ToSeconds();
-	const float DayLengthHours  = DayLength.ToSeconds();
+	const float DayLengthHours  = DayLength.ToHours();
 
 	TRange<FFrameTime> Range = InOutRange.GetRange();
 
-	// Warp the lower bound if possible
-	if (Range.GetLowerBound().IsClosed())
+	// Auto bounds checking
+	auto TrySetBounds = [&Range](FFrameTime LowerBound, FFrameTime UpperBound)
 	{
-		float TimeSeconds = static_cast<float>(Range.GetLowerBoundValue() / TickRate);
-		float TimeInHours = DayLengthHours * TimeSeconds / DayCycleSeconds;
+		// Warp the lower bound if possible
+		if (Range.GetLowerBound().IsClosed())
+		{
+			// Set the lower bound value while retaining the inclusivity
+			Range.SetLowerBoundValue(LowerBound);
+		}
 
-		// Remap the time
-		TimeInHours = DayInterpCurve->FloatCurve.Eval(TimeInHours, TimeInHours);
+		// Warp the upper bound if possible
+		if (Range.GetUpperBound().IsClosed())
+		{
+			// Set the upper bound value while retaining the inclusivity
+			Range.SetUpperBoundValue(UpperBound);
+		}
+	};
 
-		// Set the lower bound value while retaining the inclusivity
-		Range.SetLowerBoundValue((TimeInHours * DayCycleSeconds / DayLengthHours) * TickRate);
+	// Warp with static time if necessary
+	if (HasStaticTimeOfDay())
+	{
+		const float StaticTimeInGameHours = GetStaticTimeOfDay();
+		
+		const FFrameTime LowerBound = (StaticTimeInGameHours * DayCycleSeconds / DayLengthHours) * TickRate;
+
+		const FFrameTime UpperBound = (StaticTimeInGameHours * DayCycleSeconds / DayLengthHours) * TickRate;
+
+		TrySetBounds(LowerBound, UpperBound);
 	}
 
-	// Warp the upper bound if possible
-	if (Range.GetUpperBound().IsClosed())
+	// Warp with curve
 	{
-		float TimeSeconds = static_cast<float>(Range.GetUpperBoundValue() / TickRate);
-		float TimeInHours = DayLengthHours * TimeSeconds / DayCycleSeconds;
+		const float LowerBoundTimeSeconds = static_cast<float>(Range.GetLowerBoundValue() / TickRate);
+		float LowerBoundTimeInHours = DayLengthHours * LowerBoundTimeSeconds / DayCycleSeconds;
+		LowerBoundTimeInHours = DayInterpCurve->FloatCurve.Eval(LowerBoundTimeInHours, LowerBoundTimeInHours);
+		const FFrameTime LowerBound = (LowerBoundTimeInHours * DayCycleSeconds / DayLengthHours) * TickRate;
 
-		// Remap the time
-		TimeInHours = DayInterpCurve->FloatCurve.Eval(TimeInHours, TimeInHours);
+		const float UpperBoundTimeSeconds = static_cast<float>(Range.GetUpperBoundValue() / TickRate);
+		float UpperBoundTimeInHours = DayLengthHours * UpperBoundTimeSeconds / DayCycleSeconds;
+		UpperBoundTimeInHours = DayInterpCurve->FloatCurve.Eval(UpperBoundTimeInHours, UpperBoundTimeInHours);
+		const FFrameTime UpperBound = (UpperBoundTimeInHours * DayCycleSeconds / DayLengthHours) * TickRate;
 
-		// Set the upper bound value while retaining the inclusivity
-		Range.SetUpperBoundValue((TimeInHours * DayCycleSeconds / DayLengthHours) * TickRate);
+		TrySetBounds(LowerBound, UpperBound);
 	}
-
+	
 	InOutRange.ResetRange(Range);
 }
 
@@ -1176,7 +1141,11 @@ float ADaySequenceActor::GetTimeOfDay() const
 	}
 	else
 	{
+#if WITH_EDITOR
+		Result = GetTimeOfDayPreview();
+#else
 		Result = GetInitialTimeOfDay();
+#endif
 	}
 	return Result;
 }
@@ -1206,113 +1175,37 @@ bool ADaySequenceActor::SetTimeOfDay(float InHours)
 
 bool ADaySequenceActor::HasStaticTimeOfDay() const
 {
-#if WITH_EDITORONLY_DATA
-	return WeakTimeControllerOverride.Pin() != nullptr || StaticTime.IsSet();
-#else
-	return WeakTimeControllerOverride.Pin() != nullptr;
-#endif
+	return StaticTimeManager && StaticTimeManager->HasStaticTime();
 }
 
 float ADaySequenceActor::GetStaticTimeOfDay() const
 {
-	using namespace UE::DaySequence;
-
-	if (TSharedPtr<FStaticTimeControllerOverride> TimeControllerOverride = WeakTimeControllerOverride.Pin())
+	if (StaticTimeManager && HasStaticTimeOfDay())
 	{
-		return TimeControllerOverride->TimeInHours;
+		return StaticTimeManager->GetStaticTime(GetTimeOfDay());
 	}
-
-#if WITH_EDITORONLY_DATA
-	if (StaticTime.IsSet())
-	{
-		return StaticTime.GetValue();
-	}
-#endif
 	
 	return std::numeric_limits<float>::lowest();
 }
 
-void ADaySequenceActor::SetStaticTimeOfDay(float InHours)
+void ADaySequenceActor::RegisterStaticTimeContributor(const UE::DaySequence::FStaticTimeContributor& NewContributor) const
 {
-	using namespace UE::DaySequence;
-
-#if WITH_EDITORONLY_DATA
-	StaticTime = InHours;
-#endif
+	if (!StaticTimeManager)
+	{
+		return;
+	}
 	
-	// Convert the day time to sequence time
-	const FFrameRate FrameRate = RootSequence->GetMovieScene()->GetDisplayRate();
-	const float DayLengthHours = GetDayLength();
-	const float DayLengthRatio = FMath::Frac(InHours / DayLengthHours);
-	const float DayCycleSeconds = TimePerCycle.ToSeconds() * DayLengthRatio;
-	const FFrameTime StaticFrameTime = FrameRate.AsFrameTime(DayCycleSeconds);
-
-	if (TSharedPtr<FStaticTimeControllerOverride> ExistingTimeControllerOverride = WeakTimeControllerOverride.Pin())
-	{
-		ExistingTimeControllerOverride->StaticTime = StaticFrameTime;
-		ExistingTimeControllerOverride->TimeInHours = InHours;
-	}
-	else
-	{
-		if (UDaySequencePlayer* Player = GetSequencePlayerInternal())
-		{
-			TSharedRef<FStaticTimeControllerOverride> TimeControllerOverride =
-				MakeShared<FStaticTimeControllerOverride>(StaticFrameTime, Player->GetTimeController());
-
-			TimeControllerOverride->TimeInHours = InHours;
-#if WITH_EDITORONLY_DATA
-			TimeControllerOverride->PreviousTimeOfDayPreview = TimeOfDayPreview;
-#endif
-
-			Player->SetTimeControllerDirectly(TimeControllerOverride);
-			Player->SetIgnorePlaybackReplication(true);
-
-			WeakTimeControllerOverride = TimeControllerOverride;
-		}
-	}
-
-#if WITH_EDITOR
-	ConditionalSetTimeOfDayPreview(InHours);
-#endif
+	StaticTimeManager->AddStaticTimeContributor(NewContributor);
 }
 
-void ADaySequenceActor::RemoveStaticTimeOfDay(bool bResumeFromStaticTime)
+void ADaySequenceActor::UnregisterStaticTimeContributor(const UObject* InUserObject) const
 {
-	using namespace UE::DaySequence;
-
-#if WITH_EDITORONLY_DATA
-	StaticTime.Reset();
-#endif
-	
-	TSharedPtr<FStaticTimeControllerOverride> TimeControllerOverride = WeakTimeControllerOverride.Pin();
-	UDaySequencePlayer* Player = GetSequencePlayerInternal();
-	if (TimeControllerOverride && Player)
+	if (!StaticTimeManager)
 	{
-		if (bResumeFromStaticTime && TimeControllerOverride->PreviousTimeController)
-		{
-			// Reset the old time controller to the static time if we want to resume from here
-			TimeControllerOverride->PreviousTimeController->Reset(Player->GetCurrentTime());
-		}
-
-		// Restore the old time controller and re-enable network replication
-		Player->SetTimeControllerDirectly(TimeControllerOverride->PreviousTimeController);
-		Player->SetIgnorePlaybackReplication(false);
-
-#if WITH_EDITOR
-		// Update the time of day preview if we're in an editor world
-		UWorld* World = GetWorld();
-		if (World && World->WorldType == EWorldType::Editor)
-		{
-			if (!bResumeFromStaticTime)
-			{
-				TimeOfDayPreview = TimeControllerOverride->PreviousTimeOfDayPreview;
-				OnTimeOfDayPreviewChangedEvent.Broadcast(GetTimeOfDayPreview());
-			}
-		}
-#endif
-
-		WeakTimeControllerOverride = nullptr;
+		return;
 	}
+	
+	StaticTimeManager->RemoveStaticTimeContributor(InUserObject);
 }
 
 void ADaySequenceActor::Play()

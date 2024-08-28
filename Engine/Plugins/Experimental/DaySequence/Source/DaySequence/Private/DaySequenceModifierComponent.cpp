@@ -8,6 +8,7 @@
 #include "DaySequenceModule.h"
 #include "DaySequencePlayer.h"
 #include "DaySequenceTrack.h"
+#include "DaySequenceStaticTime.h"
 
 #include "Engine/World.h"
 #include "Materials/MaterialInterface.h"
@@ -673,7 +674,7 @@ void UDaySequenceModifierComponent::DisableModifier()
 		// Will call SetSubTrackMuteState for all living subsections, which checks enable state of modifier and their conditions
 		InvalidateMuteStates();
 
-		TargetActor->RemoveStaticTimeOfDay();
+		TargetActor->UnregisterStaticTimeContributor(this);
 		
 		if (bUnpauseOnDisable)
 		{
@@ -697,37 +698,46 @@ void UDaySequenceModifierComponent::SetInitialTimeOfDay()
 	{
 		const bool bHasAuthority = TargetActor->HasAuthority();
 		const bool bRandomTimeOfDay = DayNightCycle == EDayNightCycleMode::RandomFixedTime || DayNightCycle == EDayNightCycleMode::RandomStartTime;
-		const float Time = bRandomTimeOfDay ? FMath::FRand()*TargetActor->GetDayLength() : DayNightCycleTime;
-
-		if (!bHasAuthority && !bUseVolume)
-		{
-			// Never set initial time of day from non-volume based modifiers if they don't have authority
-			// We'll just get the initial time of day from the server replication
-			return;
-		}
+		const float RandomTime = FMath::FRand()*TargetActor->GetDayLength();
+		const float Time = bRandomTimeOfDay ? RandomTime : DayNightCycleTime;
 
 		switch (DayNightCycle)
 		{
 		case EDayNightCycleMode::FixedTime:
 		case EDayNightCycleMode::RandomFixedTime:
-			if (!bHasAuthority && bUseVolume)
 			{
-				// This function assigns a custom time controller so we can override
-				// the time regardless of server replication
-				TargetActor->SetStaticTimeOfDay(Time);
-				break;
+				auto WantsStaticTime = [this]() -> bool
+				{
+					return IsValid(this) && bIsEnabled && bIsComponentEnabled &&
+						(DayNightCycle == EDayNightCycleMode::FixedTime || DayNightCycle == EDayNightCycleMode::RandomFixedTime);
+				};
+
+				auto GetStaticTime = [this, RandomTime, WantsStaticTime](UE::DaySequence::FStaticTimeInfo& OutRequest) -> bool
+				{
+					if (WantsStaticTime())
+					{
+						OutRequest.BlendWeight = bUseVolume ? GetCurrentBlendWeight() : 1.f;
+						OutRequest.StaticTime = DayNightCycle == EDayNightCycleMode::RandomFixedTime ? RandomTime : DayNightCycleTime;
+						return true;
+					}
+
+					return false;
+				};
+			
+				TargetActor->RegisterStaticTimeContributor({this, Bias, WantsStaticTime, GetStaticTime});
 			}
-
-			// If we're not overriding the time on a client, we need to make sure the time is replicated correctly
-			// AddStaticTimeOfDayOverride should be used where a static time of day needs to be evaluated from the sequence itself (to support h-bias overriding)
-			bUnpauseOnDisable = TargetActor->IsPlaying();
-			TargetActor->Pause();
-
-			// Intentional fallthrough - set the time and preview time
+			break;
 
 		case EDayNightCycleMode::StartAtSpecifiedTime:
 		case EDayNightCycleMode::RandomStartTime:
 
+		if (!bHasAuthority && !bUseVolume)
+		{
+			// Never set initial time of day from non-volume based modifiers if they don't have authority and aren't setting static time.
+			// We'll just get the initial time of day from the server replication.
+			return;
+		}
+			
 			TargetActor->SetTimeOfDay(Time);
 #if WITH_EDITOR
 			TargetActor->ConditionalSetTimeOfDayPreview(Time);

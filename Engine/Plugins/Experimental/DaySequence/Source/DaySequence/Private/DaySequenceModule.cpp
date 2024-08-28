@@ -13,39 +13,11 @@
 DEFINE_LOG_CATEGORY(LogDaySequence);
 CSV_DEFINE_CATEGORY(DaySequence, false);
 
-namespace UE::DaySequence
-{
-
-float GetStaticTimeOfDay(const UObject* Object)
-{
-	const ADaySequenceActor* DaySequenceActor = CastChecked<const ADaySequenceActor>(Object);
-	return DaySequenceActor->GetStaticTimeOfDay();
-}
-
-void SetStaticTimeOfDay(UObject* Object, float InStaticTimeOfDay)
-{
-	ADaySequenceActor* DaySequenceActor = CastChecked<ADaySequenceActor>(Object);
-	if (InStaticTimeOfDay == std::numeric_limits<float>::lowest())
-	{
-		DaySequenceActor->RemoveStaticTimeOfDay();
-	}
-	else
-	{
-		DaySequenceActor->SetStaticTimeOfDay(InStaticTimeOfDay);
-	}
-}
-
-} // namespace UE::DaySequence
-
 void FDaySequenceModule::StartupModule()
 {
 	using namespace UE::DaySequence;
 
 	OnCreateMovieSceneObjectSpawnerDelegateHandle = RegisterObjectSpawner(FOnCreateMovieSceneObjectSpawner::CreateStatic(&FDaySequenceActorSpawner::CreateObjectSpawner));
-
-	UE::MovieScene::FMovieSceneTracksComponentTypes::Get()->Accessors.Float.Add(
-		ADaySequenceActor::StaticClass(), "StaticTimeOfDay", &GetStaticTimeOfDay, &SetStaticTimeOfDay
-	);
 }
 
 void FDaySequenceModule::ShutdownModule()
