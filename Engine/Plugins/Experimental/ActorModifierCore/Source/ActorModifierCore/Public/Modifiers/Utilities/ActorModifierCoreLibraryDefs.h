@@ -7,15 +7,6 @@
 
 class UActorModifierCoreBase;
 
-UENUM(BlueprintType)
-enum class EActorModifierCoreSearchMode : uint8
-{
-	/** True when one condition is met */
-	Or,
-	/** True when all condition are met */
-	And
-};
-
 USTRUCT(BlueprintType)
 struct FActorModifierCoreInsertOperation
 {
@@ -71,22 +62,4 @@ struct FActorModifierCoreRemoveOperation
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
 	bool bRemoveDependencies = false;
-};
-
-USTRUCT(BlueprintType)
-struct FActorModifierCoreSearchOperation
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	EActorModifierCoreSearchMode SearchMode = EActorModifierCoreSearchMode::Or;
-
-	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	TSet<TSubclassOf<UActorModifierCoreBase>> ModifierClasses;
-
-	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	TSet<FName> ModifierNames;
-
-	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	TSet<TObjectPtr<UActorModifierCoreBase>> Modifiers;
 };

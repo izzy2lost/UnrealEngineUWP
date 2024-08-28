@@ -370,103 +370,54 @@ bool UActorModifierCoreLibrary::GetRequiredModifiers(UActorModifierCoreBase* InM
 	return true;
 }
 
-bool UActorModifierCoreLibrary::ContainsModifiers(UActorModifierCoreStack* InModifierStack, const FActorModifierCoreSearchOperation& InOperation)
-{
-	TSet<UActorModifierCoreBase*> FoundModifiers;
-	return FindModifiers(InModifierStack, InOperation, FoundModifiers);
-}
-
-bool UActorModifierCoreLibrary::FindModifiers(UActorModifierCoreStack* InModifierStack, const FActorModifierCoreSearchOperation& InOperation, TSet<UActorModifierCoreBase*>& OutFoundModifiers)
-{
-	OutFoundModifiers.Empty();
-
-	if (!IsValid(InModifierStack))
-	{
-		return false;
-	}
-
-	for (UActorModifierCoreBase* Modifier : InOperation.Modifiers)
-	{
-		if (!IsValid(Modifier))
-		{
-			continue;
-		}
-
-		const bool bFoundModifier = InModifierStack->ContainsModifier(Modifier);
-
-		if (bFoundModifier)
-		{
-			OutFoundModifiers.Add(Modifier);
-		}
-
-		if (!bFoundModifier && InOperation.SearchMode == EActorModifierCoreSearchMode::And)
-		{
-			return false;
-		}
-
-		if (bFoundModifier && InOperation.SearchMode == EActorModifierCoreSearchMode::Or)
-		{
-			return true;
-		}
-	}
-
-	for (const TSubclassOf<UActorModifierCoreBase>& ModifierClass : InOperation.ModifierClasses)
-	{
-		const UClass* Class = ModifierClass.Get();
-
-		if (!IsValid(Class))
-		{
-			continue;
-		}
-
-		UActorModifierCoreBase* FoundModifier = InModifierStack->FindModifier(Class);
-
-		if (FoundModifier)
-		{
-			OutFoundModifiers.Add(FoundModifier);
-		}
-
-		if (!FoundModifier && InOperation.SearchMode == EActorModifierCoreSearchMode::And)
-		{
-			return false;
-		}
-
-		if (FoundModifier && InOperation.SearchMode == EActorModifierCoreSearchMode::Or)
-		{
-			return true;
-		}
-	}
-
-	for (const FName& ModifierName : InOperation.ModifierNames)
-	{
-		UActorModifierCoreBase* FoundModifier = InModifierStack->FindModifier(ModifierName);
-
-		if (FoundModifier)
-		{
-			OutFoundModifiers.Add(FoundModifier);
-		}
-
-		if (!FoundModifier && InOperation.SearchMode == EActorModifierCoreSearchMode::And)
-		{
-			return false;
-		}
-
-		if (FoundModifier && InOperation.SearchMode == EActorModifierCoreSearchMode::Or)
-		{
-			return true;
-		}
-	}
-
-	return !OutFoundModifiers.IsEmpty();
-}
-
-UActorModifierCoreBase* UActorModifierCoreLibrary::FindModifierOfClass(UActorModifierCoreStack* InModifierStack, TSubclassOf<UActorModifierCoreBase> InModifierClass)
+UActorModifierCoreBase* UActorModifierCoreLibrary::FindModifierByClass(UActorModifierCoreStack* InModifierStack, TSubclassOf<UActorModifierCoreBase> InModifierClass)
 {
 	if (IsValid(InModifierStack))
 	{
 		return InModifierStack->FindModifier(InModifierClass);
 	}
+
 	return nullptr;
+}
+
+UActorModifierCoreBase* UActorModifierCoreLibrary::FindModifierByName(const UActorModifierCoreStack* InModifierStack, FName InModifierName)
+{
+	if (IsValid(InModifierStack))
+	{
+		return InModifierStack->FindModifier(InModifierName);
+	}
+
+	return nullptr;
+}
+
+TArray<UActorModifierCoreBase*> UActorModifierCoreLibrary::FindModifiersByClass(UActorModifierCoreStack* InModifierStack, TSubclassOf<UActorModifierCoreBase> InModifierClass)
+{
+	if (IsValid(InModifierStack))
+	{
+		return InModifierStack->FindModifiers(InModifierClass);
+	}
+
+	return {};
+}
+
+TArray<UActorModifierCoreBase*> UActorModifierCoreLibrary::FindModifiersByName(UActorModifierCoreStack* InModifierStack, FName InModifierName)
+{
+	if (IsValid(InModifierStack))
+	{
+		return InModifierStack->FindModifiers(InModifierName);
+	}
+
+	return {};
+}
+
+bool UActorModifierCoreLibrary::ContainsModifier(UActorModifierCoreStack* InModifierStack, UActorModifierCoreBase* InModifier)
+{
+	if (IsValid(InModifierStack))
+	{
+		return InModifierStack->ContainsModifier(InModifier);
+	}
+
+	return false;
 }
 
 bool UActorModifierCoreLibrary::GetSupportedModifiers(AActor* InActor, TSet<TSubclassOf<UActorModifierCoreBase>>& OutSupportedModifierClasses, EActorModifierCoreStackPosition InContextPosition, UActorModifierCoreBase* InContextModifier)

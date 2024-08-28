@@ -190,32 +190,49 @@ public:
 	static ACTORMODIFIERCORE_API bool GetRequiredModifiers(UActorModifierCoreBase* InModifier, TSet<UActorModifierCoreBase*>& OutModifiers);
 
 	/**
-	 * Searches modifiers in the stack based on the search options provided
-	 * @param InModifierStack The modifier stack used for the search
-	 * @param InOperation The data for this operation
-	 * @return true when the operation was successful 
-	 */
-	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
-	static ACTORMODIFIERCORE_API bool ContainsModifiers(UActorModifierCoreStack* InModifierStack, const FActorModifierCoreSearchOperation& InOperation);
-
-	/**
-	 * Searches modifiers in the stack based on the search options provided
-	 * @param InModifierStack The modifier stack used for the search
-	 * @param InOperation The data for this operation
-	 * @param OutFoundModifiers [Out] The modifiers that matches the search filters
-	 * @return true when the operation was successful
-	 */
-	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
-	static ACTORMODIFIERCORE_API bool FindModifiers(UActorModifierCoreStack* InModifierStack, const FActorModifierCoreSearchOperation& InOperation, TSet<UActorModifierCoreBase*>& OutFoundModifiers);
-
-	/**
 	 * Returns the first modifier of a specified class in the stack
 	 * @param InModifierStack The modifier stack to search
 	 * @param InModifierClass The class of the modifier to look for
-	 * @return the Modifier of the specified class, if any.
+	 * @return the modifier of the specified class, if any.
 	 */
 	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility", meta=(DeterminesOutputType="InModifierClass"))
-	static ACTORMODIFIERCORE_API UActorModifierCoreBase* FindModifierOfClass(UActorModifierCoreStack* InModifierStack, TSubclassOf<UActorModifierCoreBase> InModifierClass);
+	static ACTORMODIFIERCORE_API UActorModifierCoreBase* FindModifierByClass(UActorModifierCoreStack* InModifierStack, TSubclassOf<UActorModifierCoreBase> InModifierClass);
+
+	/**
+	 * Returns the first modifier with specified name in the stack
+	 * @param InModifierStack The modifier stack to search
+	 * @param InModifierName The name of the modifier to look for
+	 * @return the modifier with specified name, if any.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
+	static ACTORMODIFIERCORE_API UActorModifierCoreBase* FindModifierByName(const UActorModifierCoreStack* InModifierStack, FName InModifierName);
+
+	/**
+	 * Finds all modifiers with specified class in the stack
+	 * @param InModifierStack The modifier stack to search
+	 * @param InModifierClass The class of the modifier to look for
+	 * @return the modifiers with specified class, if any.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility", meta=(DeterminesOutputType="InModifierClass"))
+	static ACTORMODIFIERCORE_API TArray<UActorModifierCoreBase*> FindModifiersByClass(UActorModifierCoreStack* InModifierStack, TSubclassOf<UActorModifierCoreBase> InModifierClass);
+
+	/**
+	 * Finds all modifiers with specified class in the stack
+	 * @param InModifierStack The modifier stack to search
+	 * @param InModifierName The name of the modifier to look for
+	 * @return the modifiers with specified name, if any.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
+	static ACTORMODIFIERCORE_API TArray<UActorModifierCoreBase*> FindModifiersByName(UActorModifierCoreStack* InModifierStack, FName InModifierName);
+
+	/**
+	 * Checks if a modifier is contained in the stack
+	 * @param InModifierStack The modifier stack to search
+	 * @param InModifier The modifier to look for
+	 * @return true if the modifier is contained within that stack
+	 */
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
+	static ACTORMODIFIERCORE_API bool ContainsModifier(UActorModifierCoreStack* InModifierStack, UActorModifierCoreBase* InModifier);
 
 	/**
 	 * Gets all modifier classes supported by this actor at a specific position
