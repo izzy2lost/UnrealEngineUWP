@@ -144,7 +144,7 @@ bool FMetaSoundPageSettings::GetExcludeFromCook(FName PlatformName) const
 TArray<FName> FMetaSoundPageSettings::GetTargetPlatforms() const
 {
 	TArray<FName> PlatformNames;
-	Algo::TransformIf(Target.PerPlatform, PlatformNames,
+	Algo::TransformIf(CanTarget.PerPlatform, PlatformNames,
 		[](const TPair<FName, bool>& Pair) { return Pair.Value; },
 		[](const TPair<FName, bool>& Pair) { return Pair.Key; });
 	return PlatformNames;
@@ -152,7 +152,7 @@ TArray<FName> FMetaSoundPageSettings::GetTargetPlatforms() const
 
 bool FMetaSoundPageSettings::PlatformCanTargetPage(FName PlatformName) const
 {
-	const bool bIsTargeted = Target.GetValueForPlatform(PlatformName);
+	const bool bIsTargeted = CanTarget.GetValueForPlatform(PlatformName);
 	return bIsTargeted;
 }
 
@@ -175,8 +175,8 @@ void UMetaSoundSettings::ConformPageSettings(bool bNotifyDefaultRenamed)
 		bTargetFound |= TargetPageName == Page.Name;
 	}
 
-	DefaultPageSettings.Target = PageSettings.IsEmpty();
-	if (DefaultPageSettings.Target.GetValue())
+	DefaultPageSettings.CanTarget = PageSettings.IsEmpty();
+	if (DefaultPageSettings.CanTarget.GetValue())
 	{
 		TargetPageName = DefaultPageSettings.Name;
 	}
@@ -252,33 +252,46 @@ TArray<FName> UMetaSoundSettings::GetAllPlatformNamesImplementingTargets() const
 #endif // WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA
-const TArray<FGuid>& UMetaSoundSettings::GetCookedTargetPageIDs(FName PlatformName) const
+TArray<FGuid> UMetaSoundSettings::GetCookedTargetPageIDs(FName PlatformName) const
 {
 	FScopeLock Lock(&CookPlatformTargetCritSec);
+	return GetCookedTargetPageIDsInternal(PlatformName);
+}
+
+const TArray<FGuid>& UMetaSoundSettings::GetCookedTargetPageIDsInternal(FName PlatformName) const
+{
 	if (PlatformName != CookPlatformTargetPage)
 	{
 		CookPlatformTargetPage = PlatformName;
 		CookPlatformTargetPageIDs.Reset();
-		Algo::TransformIf(PageSettings, CookPlatformTargetPageIDs,
-		[&PlatformName](const FMetaSoundPageSettings& PageSetting)
+		auto CanTargetPage = [&PlatformName](const FMetaSoundPageSettings& PageSetting)
 		{
 #if WITH_EDITOR
 			return PageSetting.PlatformCanTargetPage(PlatformName);
 #else // !WITH_EDITOR
 			return true;
 #endif // !WITH_EDITOR
-		},
-		[](const FMetaSoundPageSettings& PageSetting)
+		};
+
+		auto GetID = [](const FMetaSoundPageSettings& PageSetting)
 		{
 			return PageSetting.UniqueId;
-		});
+		};
+
+		if (CanTargetPage(DefaultPageSettings))
+		{
+			CookPlatformTargetPageIDs.Add(DefaultPageSettings.UniqueId);
+		}
+
+		Algo::TransformIf(PageSettings, CookPlatformTargetPageIDs, CanTargetPage, GetID);
+
 
 		if (CookPlatformTargetPageIDs.IsEmpty())
 		{
 #if WITH_EDITOR
-			const bool bCanTargetDefault = DefaultPageSettings.Target.GetValueForPlatform(PlatformName);
+			const bool bCanTargetDefault = DefaultPageSettings.CanTarget.GetValueForPlatform(PlatformName);
 #else // !WITH_EDITOR
-			const bool bCanTargetDefault = DefaultPageSettings.Target.GetValue();
+			const bool bCanTargetDefault = DefaultPageSettings.CanTarget.GetValue();
 #endif // !WITH_EDITOR
 
 			if (!PageSettings.IsEmpty() && !bCanTargetDefault)
@@ -292,6 +305,16 @@ const TArray<FGuid>& UMetaSoundSettings::GetCookedTargetPageIDs(FName PlatformNa
 
 	return CookPlatformTargetPageIDs;
 }
+
+void UMetaSoundSettings::IterateCookedTargetPageIDs(FName PlatformName, TFunctionRef<void(const FGuid&)> Iter) const
+{
+	FScopeLock Lock(&CookPlatformTargetCritSec);
+	const TArray<FGuid>& CookPlatforms = GetCookedTargetPageIDsInternal(PlatformName);
+	for (const FGuid& CookPlatform : CookPlatforms)
+	{
+		Iter(CookPlatform);
+	}
+}
 #endif // WITH_EDITORONLY_DATA
 
 const FMetaSoundPageSettings& UMetaSoundSettings::GetTargetPageSettings() const
@@ -300,7 +323,7 @@ const FMetaSoundPageSettings& UMetaSoundSettings::GetTargetPageSettings() const
 
 	if (const FMetaSoundPageSettings* TargetSettings = FindPageSettings(TargetPage))
 	{
-		if (TargetSettings->Target.GetValue())
+		if (TargetSettings->CanTarget.GetValue())
 		{
 			return *TargetSettings;
 		}
@@ -310,7 +333,7 @@ const FMetaSoundPageSettings& UMetaSoundSettings::GetTargetPageSettings() const
 	// try and return any page setting set as a valid target.
 	for (const FMetaSoundPageSettings& Setting : PageSettings)
 	{
-		if (Setting.Target.GetValue())
+		if (Setting.CanTarget.GetValue())
 		{
 			return Setting;
 		}
@@ -360,7 +383,7 @@ bool UMetaSoundSettings::SetTargetPage(FName PageName)
 	{
 		if (TargetPageName != PageSetting->Name)
 		{
-			if (PageSetting->Target.GetValue())
+			if (PageSetting->CanTarget.GetValue())
 			{
 				TargetPageNameOverride = PageSetting->Name;
 				return true;

@@ -99,24 +99,27 @@ namespace Metasound::Engine
 #if WITH_EDITORONLY_DATA
 	bool FDocumentBuilderRegistry::CookPages(FName PlatformName, FMetaSoundFrontendDocumentBuilder& Builder) const
 	{
+		METASOUND_LLM_SCOPE;
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FDocumentBuilderRegistry::CookPages);
+
 		bool bModified = false;
 
 		const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
 		check(Settings);
-		const TArray<FGuid>& PlatformTargetPageIDs = Settings->GetCookedTargetPageIDs(PlatformName);
+		const TArray<FGuid> PlatformTargetPageIDs = Settings->GetCookedTargetPageIDs(PlatformName);
 		checkf(!PlatformTargetPageIDs.IsEmpty(), TEXT("Must have at least one targeted page ID to cook MetaSound."));
 
-		auto StripPageEntries = [&](TArray<FGuid>& PageIdsToResolve, TFunctionRef<bool(const FGuid&)> RemovePageItem)
+		auto StripPageEntries = [&](TArray<FGuid>& PageIdsToResolve, TSet<FGuid>& ResolveTargetScratch, TFunctionRef<bool(const FGuid&)> RemovePageItem)
 		{
-			TSet<FGuid> ResolvedTargetIDs;
+			ResolveTargetScratch.Reset();
 			for (const FGuid& TargetPage : PlatformTargetPageIDs)
 			{
 				const FGuid PageID = ResolveTargetPageIDInternal(*Settings, PageIdsToResolve, TargetPage, PlatformName);
-				ResolvedTargetIDs.Add(PageID);
+				ResolveTargetScratch.Add(PageID);
 			}
 
-			auto IsResolvedTarget = [&ResolvedTargetIDs](const FGuid& PageID) { return ResolvedTargetIDs.Contains(PageID); };
-			checkf(!ResolvedTargetIDs.IsEmpty(), TEXT("Failed to resolve any valid target IDs, which will leave serialized page array in invalid state."));
+			auto IsResolvedTarget = [&ResolveTargetScratch](const FGuid& PageID) { return ResolveTargetScratch.Contains(PageID); };
+			checkf(!ResolveTargetScratch.IsEmpty(), TEXT("Failed to resolve any valid target IDs, which will leave serialized page array in invalid state."));
 			PageIdsToResolve.RemoveAllSwap(IsResolvedTarget, EAllowShrinking::No);
 
 			for (const FGuid& PageID : PageIdsToResolve)
@@ -128,6 +131,7 @@ namespace Metasound::Engine
 		const FMetasoundFrontendDocument& Document = Builder.GetConstDocumentChecked();
 
 		TArray<FGuid> ResolvePageIDs;
+		TSet<FGuid> ResolvedTargetScratchIDs;
 		{ // Strip graphs
 			auto AddPageID = [&ResolvePageIDs](const FMetasoundFrontendGraph& Graph) { ResolvePageIDs.Add(Graph.PageID); };
 			Document.RootGraph.IterateGraphPages(AddPageID);
@@ -137,7 +141,7 @@ namespace Metasound::Engine
 				return Builder.RemoveGraphPage(InPageID);
 			};
 
-			StripPageEntries(ResolvePageIDs, RemoveGraphPage);
+			StripPageEntries(ResolvePageIDs, ResolvedTargetScratchIDs, RemoveGraphPage);
 
 			checkf(!Document.RootGraph.GetConstGraphPages().IsEmpty(),
 				TEXT("Document in MetaSound asset '%s' had all default values "
@@ -158,7 +162,7 @@ namespace Metasound::Engine
 					return Builder.RemoveGraphInputDefault(GraphInput.Name, InPageID);
 				};
 
-				StripPageEntries(ResolvePageIDs, RemoveDefault);
+				StripPageEntries(ResolvePageIDs, ResolvedTargetScratchIDs, RemoveDefault);
 				checkf(!GraphInput.GetDefaults().IsEmpty(),
 					TEXT("Input '%s' had all default values stripped leaving it in an invalid state. "
 					"Input must always have at least one default value"),

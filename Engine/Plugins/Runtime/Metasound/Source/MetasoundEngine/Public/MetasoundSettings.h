@@ -71,12 +71,17 @@ struct METASOUNDENGINE_API FMetaSoundPageSettings
 
 private:
 	// When true, page can be targeted for the assigned platform(s)/platform group(s).
-	UPROPERTY(EditAnywhere, config, Category = "Pages")
-	FPerPlatformBool Target = true;
+	// Is used to determine which asset page data (i.e. graphs and input defaults) can be
+	// excluded from cook if page is not explicitly omitted via 'ExcludeFromCook' setting.
+	UPROPERTY(EditAnywhere, Category = "Pages")
+	FPerPlatformBool CanTarget = true;
 
 #if WITH_EDITORONLY_DATA
-	// When true, exclude page data when cooking from the assigned platform(s)/platform group(s) (ignored if target is true for corresponding platform/group).
-	UPROPERTY(EditAnywhere, config, Category = "Pages")
+	// When true, exclude page data when cooking from the assigned platform(s)/platform group(s).
+	// If false, page data may or may not be included in cook depending on whether or not the given
+	// page data is required in order to ensure a value is always resolved for the cook platform target(s).
+	// (Ignored if CanTarget true for corresponding platform/group).
+	UPROPERTY(EditAnywhere, Category = "Pages")
 	FPerPlatformBool ExcludeFromCook = false;
 #endif //WITH_EDITORONLY_DATA
 
@@ -208,7 +213,11 @@ public:
 	const FMetaSoundPageSettings& GetDefaultPageSettings() const;
 
 #if WITH_EDITORONLY_DATA
-	const TArray<FGuid>& GetCookedTargetPageIDs(FName PlatformName) const;
+	// Returns PageIDs to be cooked to the given platform/platform group.
+	TArray<FGuid> GetCookedTargetPageIDs(FName PlatformName) const;
+
+	// Iterates PageIDs cooked to the given platform/platform group.
+	void IterateCookedTargetPageIDs(FName PlatformName, TFunctionRef<void(const FGuid&)> Iter) const;
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
@@ -255,8 +264,14 @@ public:
 	*/
 	UFUNCTION()
 	static TArray<FName> GetQualityNames();
+#endif // WITH_EDITOR
 
 private:
+#if WITH_EDITORONLY_DATA
+	const TArray<FGuid>& GetCookedTargetPageIDsInternal(FName PlatformName) const;
+#endif // WITH_EDITORONLY_DATA
+
+#if WITH_EDITOR
 	void ConformPageSettings(bool bNotifyDefaultRenamed);
 
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
