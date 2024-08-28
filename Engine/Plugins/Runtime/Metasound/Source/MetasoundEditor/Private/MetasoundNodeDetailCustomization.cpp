@@ -393,41 +393,41 @@ namespace Metasound
 			BoolLiteral = DefaultBool;
 
 			TArray<TSharedPtr<IPropertyHandle>> DefaultValueHandles;
-			IDetailPropertyRow* Row = DefaultCategoryBuilder->AddExternalObjectProperty(TArray<UObject*>({ DefaultBool }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultBool, Default));
-			if (ensure(Row))
+			const FName DefaultName = GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultBool, Default);
+			if (IDetailPropertyRow* Row = DefaultCategoryBuilder->AddExternalObjectProperty(TArray<UObject*>({ DefaultBool }), DefaultName); ensure(Row))
 			{
 				DefaultValueHandles = { Row->GetPropertyHandle() };
 				Row->Visibility(GetDefaultVisibility());
-			}
 
-			// Enable widget options for editable inputs only 
-			bool bShowWidgetOptions = false;
-			if (const UMetasoundEditorGraphInput* ParentMember = Cast <UMetasoundEditorGraphInput>(InLiteral.FindMember()))
-			{
-				if (const UMetasoundEditorGraph* OwningGraph = ParentMember->GetOwningGraph())
+				// Enable widget options for editable inputs only 
+				bool bShowWidgetOptions = false;
+				if (const UMetasoundEditorGraphInput* ParentMember = Cast <UMetasoundEditorGraphInput>(InLiteral.FindMember()))
 				{
-					bShowWidgetOptions = OwningGraph->IsEditable();
-				}
-			}
-
-			// add input widget properties
-			if (bShowWidgetOptions)
-			{
-				Frontend::FDataTypeRegistryInfo DataTypeInfo;
-				MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(DefaultValueHandles.Last(), DataTypeInfo);
-
-				const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
-				check(EditorSettings)
-
-				if (EditorSettings->bUseAudioMaterialWidgets)
-				{
-					if (MemberCustomizationPrivate::GetPrimitiveTypeName(DataTypeInfo) != Metasound::GetMetasoundDataTypeName<Metasound::FTrigger>())
+					if (const UMetasoundEditorGraph* OwningGraph = ParentMember->GetOwningGraph())
 					{
-						IDetailCategoryBuilder& EditorOptionsBuilder = InDetailLayout.EditCategory("DefaultEditorOptions");
-						if (IDetailPropertyRow* TypeRow = EditorOptionsBuilder.AddExternalObjectProperty(TArray<UObject*>({ DefaultBool }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultBool, WidgetType)))
+						bShowWidgetOptions = OwningGraph->IsEditable();
+					}
+				}
+
+				// add input widget properties
+				if (bShowWidgetOptions)
+				{
+					Frontend::FDataTypeRegistryInfo DataTypeInfo;
+					MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(DefaultValueHandles.Last(), DataTypeInfo);
+
+					const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
+					check(EditorSettings);
+
+					if (EditorSettings->bUseAudioMaterialWidgets)
+					{
+						if (MemberCustomizationPrivate::GetPrimitiveTypeName(DataTypeInfo) != Metasound::GetMetasoundDataTypeName<Metasound::FTrigger>())
 						{
-							DefaultValueHandles.Add(Row->GetPropertyHandle());
-							TypeRow->Visibility(GetDefaultVisibility());
+							IDetailCategoryBuilder& EditorOptionsBuilder = InDetailLayout.EditCategory("DefaultEditorOptions");
+							if (IDetailPropertyRow* TypeRow = EditorOptionsBuilder.AddExternalObjectProperty(TArray<UObject*>({ DefaultBool }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultBool, WidgetType)))
+							{
+								DefaultValueHandles.Add(Row->GetPropertyHandle());
+								TypeRow->Visibility(GetDefaultVisibility());
+							}
 						}
 					}
 				}
