@@ -183,7 +183,7 @@ namespace HordeServer.Agents
 			RpcSession newSession = new RpcSession();
 			newSession.AgentId = agentId;
 			newSession.SessionId = sessionId;
-			newSession.CapabilitiesHash = capabilitiesHash.ToString();
+			newSession.CapabilitiesHash = capabilitiesHash;
 			newSession.ExpiryTicks = (utcNow + RpcSession.ExpireAfterTime).Ticks;
 			newSession.Status = RpcAgentStatus.Ok;
 
@@ -218,7 +218,7 @@ namespace HordeServer.Agents
 				: this(new HashSet<string>(capabilities.Properties, StringComparer.Ordinal), new Dictionary<string, int>(capabilities.Resources, StringComparer.Ordinal)) { }
 		}
 
-		record class CapabilitiesCacheEntry(string Hash, CapabilitiesLookup Capabilities, RpcAgentCapabilities Message);
+		record class CapabilitiesCacheEntry(IoHash Hash, CapabilitiesLookup Capabilities, RpcAgentCapabilities Message);
 
 		async ValueTask<CapabilitiesCacheEntry?> TryGetCachedCapabilitiesAsync(RpcSession session, CancellationToken cancellationToken = default)
 		{
@@ -232,7 +232,9 @@ namespace HordeServer.Agents
 				{
 					return null;
 				}
-				if (!session.CapabilitiesHash.Equals(IoHash.Compute(data).ToString(), StringComparison.Ordinal))
+
+				IoHash hash = IoHash.Compute(data);
+				if (session.CapabilitiesHash != hash)
 				{
 					return null;
 				}
@@ -290,7 +292,7 @@ namespace HordeServer.Agents
 				if (newCapabilities != null)
 				{
 					byte[] capabilitiesData = newCapabilities.ToByteArray();
-					string capabilitiesHash = IoHash.Compute(capabilitiesData).ToString();
+					IoHash capabilitiesHash = IoHash.Compute(capabilitiesData);
 
 					if (capabilitiesHash != newSession.CapabilitiesHash)
 					{
@@ -345,7 +347,7 @@ namespace HordeServer.Agents
 			_logger.LogDebug("Updated session {SessionId} expiry time to {ExpiryTime}", sessionId, newSession.ExpiryTime);
 
 			// Notify watchers that the session state has changed
-			if (newSession.Status != session.Status || !newSession.CapabilitiesHash.Equals(session.CapabilitiesHash, StringComparison.Ordinal) || !newSession.Leases.Equals(session.Leases))
+			if (newSession.Status != session.Status || newSession.CapabilitiesHash != session.CapabilitiesHash || !newSession.Leases.Equals(session.Leases))
 			{
 				_ = _redisService.GetDatabase().PublishAsync(s_sessionUpdateChannel, sessionId, CommandFlags.FireAndForget);
 			}

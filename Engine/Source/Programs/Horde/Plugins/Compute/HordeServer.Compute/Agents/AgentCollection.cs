@@ -873,10 +873,6 @@ namespace HordeServer.Agents
 			{
 				newSession.Status = (RpcAgentStatus)options.Status;
 			}
-			if (options.Capabilities != null)
-			{
-				newSession.CapabilitiesHash = IoHash.Compute(options.Capabilities.ToByteArray()).ToString();
-			}
 			if (options.Leases != null)
 			{
 				Dictionary<LeaseId, RpcLease> idToRemoteLease = options.Leases.ToDictionary(x => x.Id, x => x);

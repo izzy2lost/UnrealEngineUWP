@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
@@ -23,6 +24,12 @@ namespace HordeCommon.Rpc.Messages
 		{
 			get => EpicGames.Horde.Agents.Sessions.SessionId.Parse(SessionIdValue);
 			set => SessionIdValue = value.ToString();
+		}
+
+		public IoHash CapabilitiesHash
+		{
+			get => IoHash.Parse(CapabilitiesHashValue);
+			set => CapabilitiesHashValue = value.ToString();
 		}
 
 		public DateTime ExpiryTime
