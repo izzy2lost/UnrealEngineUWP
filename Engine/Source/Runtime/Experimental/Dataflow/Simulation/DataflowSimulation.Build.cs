@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 namespace UnrealBuildTool.Rules
 {
@@ -27,9 +27,13 @@ namespace UnrealBuildTool.Rules
 					"RHI",
 					"DataflowCore",
 					"DataflowEngine",
-					"Chaos"
+					"Chaos",
 				}
 			);
+			if (Target.bBuildEditor)
+			{
+				PrivateDependencyModuleNames.Add("UnrealEd");
+			}
 		}
 	}
 }

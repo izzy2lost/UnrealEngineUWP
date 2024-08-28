@@ -41,6 +41,7 @@ public class ChaosFleshGenerator : ModuleRules
 				"ChaosFleshEngine",
 				"ChaosFleshNodes",
 				"DataflowCore",
+				"DataflowEditor",
 				"DataflowEngine",
 				"DataflowSimulation",
 				"Engine",

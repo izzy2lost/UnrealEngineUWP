@@ -12,6 +12,7 @@
 #include "ChaosFlesh/ChaosDeformableSolverComponent.h"
 #include "ChaosFlesh/ChaosDeformableTypes.h"
 #include "ChaosFlesh/ChaosFleshCollectionFacade.h"
+#include "ChaosFlesh/FleshCollectionUtility.h"
 #include "ChaosFlesh/FleshDynamicAsset.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Dataflow/DataflowEngineUtil.h"
@@ -23,6 +24,9 @@
 #include "ProceduralMeshComponent.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 
+#if WITH_EDITOR
+#include "Rendering/SkeletalMeshModel.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosDeformableTetrahedralComponent)
 
@@ -622,6 +626,92 @@ void UDeformableTetrahedralComponent::DebugDrawSkeletalMeshBindingPositions() co
 TArray<FVector> UDeformableTetrahedralComponent::GetSkeletalMeshBindingPositions(const USkeletalMesh* InSkeletalMesh) const
 {
 	return GetSkeletalMeshBindingPositionsInternal(InSkeletalMesh, nullptr);
+}
+
+TArray<FVector3f> UDeformableTetrahedralComponent::GetGeometryCachePositions(USkeletalMeshComponent* SkeletalComponent) const
+{
+	check(SkeletalComponent);
+	SkeletalComponent->RecreateRenderState_Concurrent();
+
+	TArray<FVector3f> Positions;
+	const USkeletalMesh* SkeletalMesh = SkeletalComponent->GetSkeletalMeshAsset();
+	if (RestCollection && DynamicCollection && SkeletalMesh)
+	{
+		const FFleshCollection* FleshCollection = RestCollection->GetCollection();
+		const TManagedArray<FVector3f>* RestVertices = RestCollection->FindPositions();
+		const TManagedArray<FVector3f>* SimulatedVertices = DynamicCollection->FindPositions();
+		if (FleshCollection && RestVertices && SimulatedVertices)
+		{
+			ChaosFlesh::BoundSurfacePositions(SkeletalMesh, FleshCollection, RestVertices, SimulatedVertices, Positions);
+		}
+	}
+	return Positions;
+}
+
+TOptional<TArray<int32>> UDeformableTetrahedralComponent::GetMeshImportVertexMap(const USkinnedAsset& SkinnedMeshAsset) const
+{
+	constexpr int32 LODIndex = 0;
+	const TOptional<TArray<int32>> None;
+#if WITH_EDITOR
+	const FSkeletalMeshModel* const MLDModel = SkinnedMeshAsset.GetImportedModel();
+	if (!MLDModel || !MLDModel->LODModels.IsValidIndex(LODIndex))
+	{
+		return None;
+	}
+	const FSkeletalMeshLODModel& MLDLOD = MLDModel->LODModels[LODIndex];
+	const TArray<int32>& Map = MLDLOD.MeshToImportVertexMap;
+	if (Map.IsEmpty())
+	{
+		UE_LOG(LogDeformableTetrahedralComponentInternal, Warning, TEXT("MeshToImportVertexMap is empty. MLDeformer Asset should be an imported SkeletalMesh (e.g. from fbx)."));
+		return None;
+	}
+
+	//
+	// @todo(flesh LOD) : Add support for managing vertex mappings between skeletal LOD.
+	//		The cloth/flesh asset will extract the LOD from the ManagedArrayCollection.
+
+	TArray<FVector3f> Positions;
+
+	const USkeletalMesh* SkeletalMeshAsset = Cast<USkeletalMesh>(&SkinnedMeshAsset);
+	const TManagedArray<FVector3f>* RestVertices = RestCollection->FindPositions();
+	if (SkeletalMeshAsset && RestCollection && RestVertices)
+	{
+		ChaosFlesh::BoundSurfacePositions(SkeletalMeshAsset, RestCollection->GetCollection(), RestVertices, RestVertices, Positions);
+
+		//@todo(Flesh Sections) : Add checks for multiple sections. 
+		int32 NumSections = MLDLOD.Sections.Num();
+		if (NumSections != 1)
+		{
+			UE_LOG(LogDeformableTetrahedralComponentInternal, Warning, TEXT("SkeletalMeshAsset should have only one section."));
+			return None;
+		}
+
+		for (int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
+		{
+			const FSkelMeshSection& MLDSection = MLDLOD.Sections[SectionIndex];
+			if (MLDSection.NumVertices != Positions.Num())
+			{
+				UE_LOG(LogDeformableTetrahedralComponentInternal, Warning, TEXT("SkeletalMeshAsset and FleshAsset have different number of vertices in section %d. Check if the assets have the same mesh."), SectionIndex);
+				return None;
+			}
+
+			for (int32 VertexIndex = 0; VertexIndex < MLDSection.NumVertices; ++VertexIndex)
+			{
+				const FVector3f& MLDPosition = MLDSection.SoftVertices[VertexIndex].Position;
+				const FVector3f& FleshPosition = Positions[VertexIndex];
+				if (!MLDPosition.Equals(FleshPosition, UE_KINDA_SMALL_NUMBER))
+				{
+					UE_LOG(LogDeformableTetrahedralComponentInternal, Warning, TEXT("SkeletalMeshAsset and FleshAsset have different vertex positions. Check if the assets have the same vertex order."));
+					return None;
+				}
+			}
+		}
+	}
+
+	return Map;
+#else
+	return None;
+#endif
 }
 
 TArray<FVector> UDeformableTetrahedralComponent::GetSkeletalMeshEmbeddedPositions(

@@ -8,10 +8,11 @@
 
 #include "ChaosFlesh/ChaosFlesh.h"
 #include "ChaosFlesh/FleshCollection.h"
-
-
+#include "GeometryCollection/Facades/CollectionTetrahedralBindingsFacade.h"
 #include "GeometryCollection/TransformCollection.h"
 #include "Misc/Paths.h"
+#include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
 
 #include <fstream>
 
@@ -45,40 +46,20 @@ namespace ChaosFlesh
 		}
 	}
 
-	int32 
-	GetMin(const FIntVector3& V) 
+	FIntVector3	GetOrdered(const FIntVector3& V)
 	{
-		return FMath::Min3(V[0], V[1], V[2]);
+		TArray<int32, TInlineAllocator<3>> VA = { V[0], V[1], V[2] };
+		VA.Sort();
+		return FIntVector3(VA[0], VA[1], VA[2]);
 	}
-	int32 
-	GetMid(const FIntVector3& V)
+	FIntVector4	GetOrdered(const FIntVector4& V)
 	{
-		const int32 X = V[0]; const int32 Y = V[1]; const int32 Z = V[2];
-		const int32 XmY = X - Y;
-		const int32 YmZ = Y - Z;
-		const int32 XmZ = X - Z;
-		return (XmY * YmZ > -1 ? Y : XmY * XmZ < 1 ? X : Z);
-	}
-	int32 
-	GetMax(const FIntVector3& V)
-	{
-		return FMath::Max3(V[0], V[1], V[2]);
-	}
-	FIntVector3
-	GetOrdered(const FIntVector3& V)
-	{
-		return FIntVector3(GetMin(V), GetMid(V), GetMax(V));
-	}
-	FIntVector4
-	GetOrdered(const FIntVector4& V)
-	{
-		TArray<int32> VA = { V[0], V[1], V[2], V[3] };
+		TArray<int32, TInlineAllocator<4>> VA = { V[0], V[1], V[2] };
 		VA.Sort();
 		return FIntVector4(VA[0], VA[1], VA[2], VA[3]);
 	}
 
-	void 
-	GetSurfaceElements(
+	void GetSurfaceElements(
 		const TArray<FIntVector4>& Tets,
 		TArray<FIntVector3>& SurfaceElements,
 		const bool KeepInteriorFaces,
@@ -173,5 +154,77 @@ namespace ChaosFlesh
 			if(nonManifold)
 				UE_LOG(LogChaosFlesh, Display, TEXT("WARNING: Encountered %d non-manifold tetrahedral mesh faces."), nonManifold);
 		}
+	}
+
+	FString GetMeshId(const USkeletalMesh* SkeletalMesh, const bool bUseImportModel)
+	{
+		FPrimaryAssetId Id = SkeletalMesh->GetPrimaryAssetId();
+		FString MeshId = Id.IsValid() ? Id.ToString() : SkeletalMesh->GetName();
+		if (bUseImportModel)
+		{
+			MeshId.Append(TEXT("_ImportModel"));
+		}
+		return MeshId;
+	}
+
+	FString GetMeshId(const UStaticMesh* StaticMesh)
+	{
+		FPrimaryAssetId Id = StaticMesh->GetPrimaryAssetId();
+		FString MeshId = Id.IsValid() ? Id.ToString() : StaticMesh->GetName();
+		return MeshId;
+	}
+
+	void BoundSurfacePositions(
+		const USkeletalMesh* SkeletalMesh,
+		const FFleshCollection* FleshCollection,
+		const TManagedArray<FVector3f>* RestVertices,
+		const TManagedArray<FVector3f>* SimulatedVertices,
+		TArray<FVector3f>& Positions)
+	{
+		GeometryCollection::Facades::FTetrahedralBindings TetBindings(*FleshCollection);
+		FString MeshId = GetMeshId(SkeletalMesh, false);
+		FName MeshIdName(MeshId);
+
+		const int32 LODIndex = 0;
+		const int32 TetIndex = TetBindings.GetTetMeshIndex(MeshIdName, LODIndex);
+		if (TetIndex == INDEX_NONE)
+		{
+			UE_LOG(LogChaosFlesh, Error,
+				TEXT("CreateGeometryCache - No tet mesh index associated with mesh '%s' LOD: %d"),
+				*MeshId, LODIndex);
+			return;
+		}
+		if (!TetBindings.ReadBindingsGroup(TetIndex, MeshIdName, LODIndex))
+		{
+			UE_LOG(LogChaosFlesh, Error,
+				TEXT("CreateGeometryCache - Failed to read bindings group associated with mesh '%s' LOD: %d"),
+				*MeshId, LODIndex);
+			return;
+		}
+
+		TUniquePtr<GeometryCollection::Facades::FTetrahedralBindings::Evaluator> BindingsEvalPtr = TetBindings.InitEvaluator(RestVertices);
+		const GeometryCollection::Facades::FTetrahedralBindings::Evaluator& BindingsEval = *BindingsEvalPtr.Get();
+		if (!BindingsEval.IsValid())
+		{
+			UE_LOG(LogChaosFlesh, Error,
+				TEXT("CreateGeometryCache - Invalid flesh bindings for skeletal mesh asset [%s]"),
+				*SkeletalMesh->GetName());
+			return;
+		}
+
+		TArray<Chaos::FVec3f> CurrVertices;
+		CurrVertices.SetNum(SimulatedVertices->Num());
+		for (int32 Index = 0; Index < CurrVertices.Num(); ++Index)
+		{
+			CurrVertices[Index] = Chaos::FVec3f((*SimulatedVertices)[Index]);
+		}
+
+		const int32 NumVertices = BindingsEval.NumVertices();
+		Positions.SetNum(NumVertices);
+		for (int32 Index = 0; Index < NumVertices; ++Index)
+		{
+			Positions[Index] = BindingsEval.GetEmbeddedPosition(Index, CurrVertices);
+		}
+		
 	}
 }

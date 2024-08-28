@@ -3,7 +3,7 @@
 #include "ChaosFleshGeneratorPrivate.h"
 
 #include "Chaos/Vector.h"
-#include "Dataflow/ChaosFleshGenerateSurfaceBindingsNode.h"
+#include "ChaosFlesh/FleshCollectionUtility.h"
 #include "FleshGeneratorComponent.h"
 #include "FileHelpers.h"
 #include "GeometryCollection/Facades/CollectionTetrahedralBindingsFacade.h"
@@ -16,8 +16,8 @@
 #include "Logging/LogMacros.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Rendering/SkeletalMeshModel.h"
-
-
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 DEFINE_LOG_CATEGORY(LogChaosFleshGeneratorPrivate);
 
 #define LOCTEXT_NAMESPACE "ChaosFleshGeneratorPrivate"
@@ -36,70 +36,6 @@ namespace UE::Chaos::FleshGenerator
 		{
 			const FTimespan Duration = FDateTime::UtcNow() - StartTime;
 			UE_LOG(LogChaosFleshGeneratorPrivate, Log, TEXT("%s took %f secs"), *Name, Duration.GetTotalSeconds());
-		}
-
-
-		void BoundSurfacePositions(
-			const USkeletalMesh* SkeletalMesh,
-			const FFleshCollection* FleshCollection, 
-			const TManagedArray<FVector3f>* RestVertices,
-			const TManagedArray<FVector3f>* SimulatedVertices,
-			TArray<FVector3f>& Positions)
-		{
-			bool bError = false;
-
-			GeometryCollection::Facades::FTetrahedralBindings TetBindings(*FleshCollection);
-			FString MeshId = UE::TetrahedralBindingsEngineUtil::GetMeshId(SkeletalMesh, false);
-			FName MeshIdName(MeshId);
-
-			const int32 LODIndex = 0;
-			const int32 TetIndex = TetBindings.GetTetMeshIndex(MeshIdName, LODIndex);
-			if (TetIndex == INDEX_NONE)
-			{
-				UE_LOG(LogChaosFleshGeneratorPrivate, Error,
-					TEXT("CreateGeometryCache - No tet mesh index associated with mesh '%s' LOD: %d"),
-					*MeshId, LODIndex);
-				bError = true;
-			}
-			if (!TetBindings.ReadBindingsGroup(TetIndex, MeshIdName, LODIndex))
-			{
-				UE_LOG(LogChaosFleshGeneratorPrivate, Error,
-					TEXT("CreateGeometryCache - Failed to read bindings group associated with mesh '%s' LOD: %d"),
-					*MeshId, LODIndex);
-				bError = true;
-			}
-
-			TUniquePtr<GeometryCollection::Facades::FTetrahedralBindings::Evaluator> BindingsEvalPtr = TetBindings.InitEvaluator(RestVertices);
-			const GeometryCollection::Facades::FTetrahedralBindings::Evaluator& BindingsEval = *BindingsEvalPtr.Get();
-			if (!BindingsEval.IsValid())
-			{
-				UE_LOG(LogChaosFleshGeneratorPrivate, Error,
-					TEXT("CreateGeometryCache - Invalid flesh bindings for skeletal mesh asset [%s]"),
-					*SkeletalMesh->GetName());
-				bError = true;
-			}
-
-			if (!bError)
-			{
-				FVector3f Min = FLT_MAX*FVector3f::One();
-				FVector3f Max = FVector3f::Zero();
-
-				TArray<::Chaos::TVector<::Chaos::FRealSingle, 3>> CurrVertices;
-				CurrVertices.SetNum(SimulatedVertices->Num());
-				for (int32 Index = 0; Index < CurrVertices.Num(); ++Index)
-				{
-					CurrVertices[Index] = ::Chaos::TVector<::Chaos::FRealSingle, 3>((*SimulatedVertices)[Index]);
-					Min = FVector3f::Min(Min, (*SimulatedVertices)[Index]);
-					Max = FVector3f::Max(Max, (*SimulatedVertices)[Index]);
-				}
-
-				const int32 NumVertices = BindingsEval.NumVertices();
-				Positions.SetNum(NumVertices);
-				for (int32 Index = 0; Index < NumVertices; ++Index)
-				{
-					Positions[Index] = BindingsEval.GetEmbeddedPosition(Index, CurrVertices);
-				}
-			}
 		}
 
 		TArray<int32> ParseFrames(const FString& FramesString)
@@ -165,65 +101,6 @@ namespace UE::Chaos::FleshGenerator
 			return Result;
 		}
 		
-		int32 GetNumVertices(const FSkeletalMeshLODRenderData& LODData)
-		{
-			int32 NumVertices = 0;
-			for(const FSkelMeshRenderSection& Section : LODData.RenderSections)
-			{
-				NumVertices += Section.NumVertices;
-			}
-			return NumVertices;
-		}
-		
-		TArrayView<TArray<FVector3f>> ShrinkToValidFrames(const TArrayView<TArray<FVector3f>>& Positions, int32 NumVertices)
-		{
-			int32 NumValidFrames = 0;
-			for (const TArray<FVector3f>& Frame : Positions)
-			{
-				if (Frame.Num() != NumVertices)
-				{
-					break;
-				}
-				++NumValidFrames;
-			}
-			return TArrayView<TArray<FVector3f>>(Positions.GetData(), NumValidFrames);
-		}
-		
-		void SaveGeometryCache(UGeometryCache& GeometryCache, const USkinnedAsset& Asset, TConstArrayView<uint32> ImportedVertexNumbers, TArrayView<TArray<FVector3f>> PositionsToMoveFrom)
-		{
-			const FSkeletalMeshRenderData* RenderData = Asset.GetResourceForRendering();
-			constexpr int32 LODIndex = 0;
-			if (!RenderData || !RenderData->LODRenderData.IsValidIndex(LODIndex))
-			{
-				return;
-			}
-			const FSkeletalMeshLODRenderData& LODData = RenderData->LODRenderData[LODIndex];
-			const int32 NumVertices = GetNumVertices(LODData);
-			PositionsToMoveFrom = ShrinkToValidFrames(PositionsToMoveFrom, NumVertices);
-		
-			using UE::GeometryCacheHelpers::FGeometryCacheConstantTopologyWriter;
-			using UE::GeometryCacheHelpers::AddTrackWriterFromSkinnedAsset;
-			UE::GeometryCacheHelpers::FGeometryCacheConstantTopologyWriter::FConfig Config; Config.FPS = 24;
-			using FTrackWriter = FGeometryCacheConstantTopologyWriter::FTrackWriter;
-			FGeometryCacheConstantTopologyWriter Writer(GeometryCache, Config);
-			const int32 Index = AddTrackWriterFromSkinnedAsset(Writer, Asset);
-			if (Index == INDEX_NONE)
-			{
-				return;
-			}
-			FTrackWriter& TrackWriter = Writer.GetTrackWriter(Index);
-			TrackWriter.ImportedVertexNumbers = ImportedVertexNumbers;
-			TrackWriter.WriteAndClose(PositionsToMoveFrom);
-		}
-		
-		void SavePackage(UObject& Object)
-		{
-			TArray<UPackage*> PackagesToSave = { Object.GetOutermost() };
-			constexpr bool bCheckDirty = false;
-			constexpr bool bPromptToSave = false;
-			FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, bCheckDirty, bPromptToSave);
-		}
-		
 		TOptional<TArray<int32>> GetMeshImportVertexMap(const USkinnedAsset& SkinnedMeshAsset, const UFleshAsset& FleshAsset)
 		{
 			constexpr int32 LODIndex = 0;
@@ -254,8 +131,7 @@ namespace UE::Chaos::FleshGenerator
 			const TManagedArray<FVector3f>* RestVertices = FleshAsset.FindPositions();
 			if (SkeletalMeshAsset && FleshCollection && RestVertices)
 			{
-				using namespace UE::Chaos::FleshGenerator::Private;
-				BoundSurfacePositions(SkeletalMeshAsset, FleshCollection, RestVertices, RestVertices, Positions);
+				ChaosFlesh::BoundSurfacePositions(SkeletalMeshAsset, FleshCollection, RestVertices, RestVertices, Positions);
 
 				//@todo(Flesh Sections) : Add checks for multiple sections. 
 				int32 NumSections = MLDLOD.Sections.Num();

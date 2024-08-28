@@ -9,6 +9,11 @@
 #include "DataflowSimulationScene.generated.h"
 
 class UDataflowEditor;
+class UDeformableTetrahedralComponent;
+class USkeletalMeshComponent;
+class UGeometryCache;
+class UFleshDynamicAsset;
+class FFleshCollection;
 
 DECLARE_EVENT(UDataflowSimulationSceneDescription, FDataflowSimulationSceneDescriptionChanged)
 
@@ -40,14 +45,29 @@ public:
 	UPROPERTY(EditAnywhere, Category="Caching")
 	FDataflowPreviewCacheParams CacheParams;
 
+	/** Geometry cache asset used to extract skeletal mesh results from simulation */
+	UPROPERTY(EditAnywhere, Category = "Geometry Cache Conversion")
+	TObjectPtr<UGeometryCache> GeometryCacheAsset = nullptr;
+
+	/** Interpolates and saves geometry cache from Chaos cache */
+	UFUNCTION(CallInEditor, Category = "Geometry Cache Conversion")
+	void GenerateGeometryCache();
+
+	/** Creates a new geometry cache file */
+	UFUNCTION(CallInEditor, Category = "Geometry Cache Conversion")
+	void NewGeometryCache();
+
 private:
 
 	//~ UObject Interface
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
-
+	
 	/** Simulation scene linked to that descriptor */
 	class FDataflowSimulationScene* SimulationScene;
+
+	/** Render geometry positions from interpolation */
+	TArray<TArray<FVector3f>> RenderPositions;
 };
 
 /**
@@ -109,6 +129,10 @@ public:
 	/** Simulation time used to drive the cache loading */
 	float SimulationTime;
 	
+	/** Preview actor accessors */
+	TObjectPtr<AActor> GetPreviewActor() { return PreviewActor; }
+	const TObjectPtr<AActor> GetPreviewActor() const { return PreviewActor; }
+
 private:
 
 	/** Bind the scene selection to the components */

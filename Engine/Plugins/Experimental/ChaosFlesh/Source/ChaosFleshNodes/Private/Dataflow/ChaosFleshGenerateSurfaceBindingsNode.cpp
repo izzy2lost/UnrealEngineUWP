@@ -8,6 +8,7 @@
 #include "Chaos/BoundingVolumeHierarchy.h"
 #include "Chaos/Tetrahedron.h"
 #include "Chaos/TriangleMesh.h"
+#include "ChaosFlesh/FleshCollectionUtility.h"
 #include "ChaosFlesh/TetrahedralCollection.h"
 #include "Containers/Map.h"
 #include "Engine/StaticMesh.h"
@@ -20,30 +21,7 @@
 #include "Rendering/SkeletalMeshModel.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "UObject/PrimaryAssetId.h"
-
 DEFINE_LOG_CATEGORY(LogMeshBindings);
-
-namespace UE::TetrahedralBindingsEngineUtil
-{
-	FString GetMeshId(const USkeletalMesh* SkeletalMesh, const bool bUseImportModel)
-	{
-		FPrimaryAssetId Id = SkeletalMesh->GetPrimaryAssetId();
-		FString MeshId = Id.IsValid() ? Id.ToString() : SkeletalMesh->GetName();
-		if (bUseImportModel)
-		{
-			MeshId.Append(TEXT("_ImportModel"));
-		}
-		return MeshId;
-	}
-
-	FString GetMeshId(const UStaticMesh* StaticMesh)
-	{
-		FPrimaryAssetId Id = StaticMesh->GetPrimaryAssetId();
-		FString MeshId = Id.IsValid() ? Id.ToString() : StaticMesh->GetName();
-		return MeshId;
-	}
-}
-
 
 void
 BuildVertexToVertexAdjacencyBuffer(
@@ -195,7 +173,7 @@ FGenerateSurfaceBindings::Evaluate(Dataflow::FContext& Context, const FDataflowO
 			if (SkeletalMesh)
 			{
 				FPrimaryAssetId Id = SkeletalMesh->GetPrimaryAssetId();
-				MeshId = UE::TetrahedralBindingsEngineUtil::GetMeshId(SkeletalMesh, bUseSkeletalMeshImportModel);
+				MeshId = ChaosFlesh::GetMeshId(SkeletalMesh, bUseSkeletalMeshImportModel);
 
 				if (!bUseSkeletalMeshImportModel)
 				{
@@ -273,7 +251,7 @@ FGenerateSurfaceBindings::Evaluate(Dataflow::FContext& Context, const FDataflowO
 			}
 			else // StaticMesh
 			{
-				MeshId = UE::TetrahedralBindingsEngineUtil::GetMeshId(StaticMesh);
+				MeshId = ChaosFlesh::GetMeshId(StaticMesh);
 
 				const FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
 				const int32 NumLOD = RenderData->LODResources.Num();

@@ -11,6 +11,7 @@
 #include "FleshGeneratorProperties.h"
 #include "Engine/SkeletalMesh.h"
 #include "Logging/LogMacros.h"
+#include "ChaosFlesh/FleshCollectionUtility.h"
 
 DEFINE_LOG_CATEGORY(LogChaosFleshGeneratorSimulation);
 
@@ -158,8 +159,7 @@ namespace UE::Chaos::FleshGenerator
 			const TManagedArray<FVector3f>* SimulatedVertices = DynamicCollection->FindPositions();
 			if (FleshCollection && RestVertices && SimulatedVertices)
 			{
-				using namespace UE::Chaos::FleshGenerator::Private;
-				BoundSurfacePositions(SkeletalMesh, FleshCollection, RestVertices, SimulatedVertices, Positions);
+				ChaosFlesh::BoundSurfacePositions(SkeletalMesh, FleshCollection, RestVertices, SimulatedVertices, Positions);
 			}
 		}
 		return Positions;

@@ -599,7 +599,7 @@ void FChaosFleshCommands::CreateGeometryCache(const TArray<FString>& Args, UWorl
 				// Extract bindings from tet mesh to skel mesh import geometry in the rest collection.
 				//
 
-				FString MeshId = UE::TetrahedralBindingsEngineUtil::GetMeshId(SkeletalMesh, false);
+				FString MeshId = ChaosFlesh::GetMeshId(SkeletalMesh, false);
 				FName MeshIdName(MeshId);
 				const int32 TetIndex = TetBindings.GetTetMeshIndex(MeshIdName, LODIndex);
 				if (TetIndex == INDEX_NONE)

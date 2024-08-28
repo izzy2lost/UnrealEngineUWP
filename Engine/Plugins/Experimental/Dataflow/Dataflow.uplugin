@@ -58,6 +58,10 @@
 		{
 			"Name": "ChaosCaching",
 			"Enabled": true
+		},
+		{
+			"Name": "GeometryCache",
+			"Enabled": true
 		}
 	]
 }

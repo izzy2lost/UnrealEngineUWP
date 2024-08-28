@@ -12,6 +12,18 @@
 #include "AssetEditorModeManager.h"
 #include "Engine/Selection.h"
 
+#include "Dataflow/Interfaces/DataflowInterfaceGeometryCachable.h"
+#include "Dataflow/DataflowSimulationGeometryCache.h"
+#include "IContentBrowserSingleton.h"
+#include "ContentBrowserModule.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
+#include "GeometryCache.h"
+
+#if WITH_EDITOR
+#include "Misc/FileHelper.h"
+#endif
 #define LOCTEXT_NAMESPACE "FDataflowSimulationScene"
 
 //
@@ -259,6 +271,131 @@ void FDataflowSimulationScene::SceneDescriptionPropertyChanged(const FName& Prop
 
 	// Register components, cache manager, selection...
 	CreateSimulationScene();
+}
+
+void UDataflowSimulationSceneDescription::GenerateGeometryCache()
+{
+	SimulationScene->ResetSimulationScene();
+	SimulationScene->CreateSimulationScene();
+	const FVector2f& TimeRange = SimulationScene->GetTimeRange();
+	const int32 NumFrames = FMath::Floor((TimeRange[1] - TimeRange[0]) * CacheParams.FrameRate);
+	float Time = TimeRange[0];
+	float DeltaTime = (TimeRange[1] - TimeRange[0]) / NumFrames;
+	TObjectPtr<AActor> GetRootActor = SimulationScene->GetRootActor();
+	TObjectPtr<AActor> PreviewActor = SimulationScene->GetPreviewActor();
+	if (CacheAsset && GeometryCacheAsset && GetRootActor)
+	{
+		IDataflowGeometryCachable* GeometryCachable = nullptr; //interface for ChaosDeformableTetrahedralComponent
+
+		RenderPositions.SetNum(NumFrames);
+		TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
+		PreviewActor->GetComponents(PrimComponents);
+		USkeletalMeshComponent* SkeletalComponent = nullptr;
+		for (UPrimitiveComponent* PrimComponent : PrimComponents)
+		{
+			
+			if (!GeometryCachable)
+			{
+				GeometryCachable = Cast<IDataflowGeometryCachable>(PrimComponent);
+			}
+			if (!SkeletalComponent)
+			{
+				SkeletalComponent = Cast<USkeletalMeshComponent>(PrimComponent);
+			}
+			if (GeometryCachable && SkeletalComponent)
+			{
+				break;
+			}
+		}
+		if (!GeometryCachable)
+		{
+			UE_LOG(LogChaosDataflow, Error, TEXT("No Flesh Component in the Preview Actor"));
+			return;
+		}
+		else if (!SkeletalComponent)
+		{
+			UE_LOG(LogChaosDataflow, Error, TEXT("No Skeletal Mesh Component in the Preview Actor"));
+			return;
+		}
+		TOptional<TArray<int32>> OptionalMap = GeometryCachable->GetMeshImportVertexMap(*SkeletalComponent->GetSkeletalMeshAsset());
+		if (!OptionalMap)
+		{
+			return;
+		}
+		const TArray<int32>& Map = OptionalMap.GetValue();
+		TArray<uint32> ImportedVertexNumbers = TArray<uint32>(reinterpret_cast<const uint32*>(Map.GetData()), Map.Num());
+		for (int32 Frame = 0; Frame < SimulationScene->GetNumFrames(); ++Frame)
+		{
+			Time += DeltaTime;
+			Cast<AChaosCacheManager>(GetRootActor)->SetStartTime(Time);
+			RenderPositions[Frame] = GeometryCachable->GetGeometryCachePositions(SkeletalComponent);
+		}
+		DataflowSimulationGeometryCache::SaveGeometryCache(*GeometryCacheAsset, *SkeletalComponent->GetSkeletalMeshAsset(), ImportedVertexNumbers, RenderPositions);
+		DataflowSimulationGeometryCache::SavePackage(*GeometryCacheAsset);
+	}
+}
+
+namespace Dataflow::Private
+{
+	template<class T>
+	T* CreateOrLoad(const FString& PackageName)
+	{
+		const FName AssetName(FPackageName::GetLongPackageAssetName(PackageName));
+		if (UPackage* const Package = CreatePackage(*PackageName))
+		{
+			LoadPackage(nullptr, *PackageName, LOAD_Quiet | LOAD_EditorOnly);
+			T* Asset = FindObject<T>(Package, *AssetName.ToString());
+			if (!Asset)
+			{
+				Asset = NewObject<T>(Package, *AssetName.ToString(), RF_Public | RF_Standalone | RF_Transactional);
+				Asset->MarkPackageDirty();
+				FAssetRegistryModule::AssetCreated(Asset);
+			}
+			return Asset;
+		}
+		return nullptr;
+	}
+
+	TObjectPtr<UGeometryCache> NewGeometryCacheDialog(const UObject* NamingAsset = nullptr)
+	{
+		FSaveAssetDialogConfig Config;
+		{
+			if (NamingAsset)
+			{
+				const FString PackageName = NamingAsset->GetOutermost()->GetName();
+				Config.DefaultPath = FPackageName::GetLongPackagePath(PackageName);
+				Config.DefaultAssetName = FString::Printf(TEXT("GeometryCache_%s"), *NamingAsset->GetName());
+			}
+			Config.AssetClassNames.Add(UGeometryCache::StaticClass()->GetClassPathName());
+			Config.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::Disallow;
+			Config.DialogTitleOverride = LOCTEXT("ExportGeometryCacheDialogTitle", "Export Geometry Cache As");
+		}
+
+		FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+
+#if WITH_EDITOR
+		FString NewPackageName;
+		FText OutError;
+		for (bool bFilenameValid = false; !bFilenameValid; bFilenameValid = FFileHelper::IsFilenameValidForSaving(NewPackageName, OutError))
+		{
+			const FString AssetPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(Config);
+			if (AssetPath.IsEmpty())
+			{
+				return nullptr;
+			}
+			NewPackageName = FPackageName::ObjectPathToPackageName(AssetPath);
+		}
+		return CreateOrLoad<UGeometryCache>(NewPackageName);
+#else
+		return nullptr;
+#endif
+	}
+};
+
+void UDataflowSimulationSceneDescription::NewGeometryCache()
+{
+	const UObject* const NamingAsset = CacheAsset? CacheAsset.Get() : nullptr;
+	GeometryCacheAsset = Dataflow::Private::NewGeometryCacheDialog(NamingAsset);
 }
 
 void UDataflowSimulationSceneDescription::SetSimulationScene(FDataflowSimulationScene* InSimulationScene)

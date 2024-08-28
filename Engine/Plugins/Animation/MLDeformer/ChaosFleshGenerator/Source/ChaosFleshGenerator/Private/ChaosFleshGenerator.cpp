@@ -7,6 +7,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "FleshGeneratorProperties.h"
 #include "Misc/AsyncTaskNotification.h"
+#include "Dataflow/DataflowSimulationGeometryCache.h"
 
 DEFINE_LOG_CATEGORY(LogChaosFleshGenerator);
 
@@ -213,11 +214,8 @@ namespace UE::Chaos::FleshGenerator
 	
 		{
 			UE::Chaos::FleshGenerator::Private::FTimeScope TimeScope(TEXT("Saving"));
-	
-			using UE::Chaos::FleshGenerator::Private::SaveGeometryCache;
-			using UE::Chaos::FleshGenerator::Private::SavePackage;
-			SaveGeometryCache(*TaskResource->Cache, *Properties->SkeletalMeshAsset, TaskResource->ImportedVertexNumbers, TaskResource->SimulatedPositions);
-			SavePackage(*TaskResource->Cache);
+			DataflowSimulationGeometryCache::SaveGeometryCache(*TaskResource->Cache, *Properties->SkeletalMeshAsset, TaskResource->ImportedVertexNumbers, TaskResource->SimulatedPositions);
+			DataflowSimulationGeometryCache::SavePackage(*TaskResource->Cache);
 		}
 		if (bCancelled)
 		{

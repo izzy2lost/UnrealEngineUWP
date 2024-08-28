@@ -443,6 +443,10 @@ namespace Chaos
 				{
 					UE::ChaosCachingUSD::OpenStage(PrimitiveStage.FilePath, PrimitiveStage.MonolithStage);
 				}
+				else
+				{
+					UE_LOG(LogChaosFleshCache, Warning, TEXT("Read Failure: USD File Path = %s"), *PrimitiveStage.FilePath);
+				}
 			}
 		}
 #endif // USE_USD_SDK && DO_USD_CACHING

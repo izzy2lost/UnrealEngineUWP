@@ -29,26 +29,11 @@ namespace UE::Chaos::FleshGenerator
 			~FTimeScope();
 		};
 
-		void BoundSurfacePositions(
-			const USkeletalMesh* SkeletalMesh,
-			const FFleshCollection* FleshCollection,
-			const TManagedArray<FVector3f>* RestVertices,
-			const TManagedArray<FVector3f>* SimulatedVertices,
-			TArray<FVector3f>& Positions);
-
 		TArray<int32> ParseFrames(const FString& FramesString);
 
 		TArray<int32> Range(int32 End);
 
 		TArray<uint32> Range(uint32 Start, uint32 End);
-
-		int32 GetNumVertices(const FSkeletalMeshLODRenderData& LODData);
-
-		TArrayView<TArray<FVector3f>> ShrinkToValidFrames(const TArrayView<TArray<FVector3f>>& Positions, int32 NumVertices);
-
-		void SaveGeometryCache(UGeometryCache& GeometryCache, const USkinnedAsset& Asset, TConstArrayView<uint32> ImportedVertexNumbers, TArrayView<TArray<FVector3f>> PositionsToMoveFrom);
-
-		void SavePackage(UObject& Object);
 
 		TOptional<TArray<int32>> GetMeshImportVertexMap(const USkinnedAsset& SkinnedMeshAsset, const UFleshAsset& FleshAsset);
 	};

@@ -36,6 +36,7 @@ namespace UnrealBuildTool.Rules
 					"EditorFramework",
 					"EditorInteractiveToolsFramework",
 					"EditorStyle",
+					"GeometryCache",
 					"GeometryCore",
 					"GeometryCollectionEngine",
 					"GeometryFramework",

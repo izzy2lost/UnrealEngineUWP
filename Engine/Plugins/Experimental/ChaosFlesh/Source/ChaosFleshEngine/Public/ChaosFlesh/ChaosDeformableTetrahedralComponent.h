@@ -10,6 +10,7 @@
 #include "ChaosFlesh/ChaosFleshDeformerBufferManager.h"
 #include "ChaosFlesh/SimulationAsset.h"
 #include "Components/MeshComponent.h"
+#include "Dataflow/Interfaces/DataflowInterfaceGeometryCachable.h"
 #include "UObject/ObjectMacros.h"
 #include "ProceduralMeshComponent.h"
 #include "ChaosDeformableTetrahedralComponent.generated.h"
@@ -18,6 +19,8 @@ class FFleshCollection;
 class ADeformableSolverActor;
 class UDeformableSolverComponent;
 class FChaosDeformableTetrahedralSceneProxy;
+class USkinnedAsset;
+class USkeletalMeshComponent;
 
 /**
 *  Options for binding positions query.
@@ -84,7 +87,7 @@ struct FBodyForcesGroup
 *	UDeformableTetrahedralComponent
 */
 UCLASS(meta = (BlueprintSpawnableComponent))
-class CHAOSFLESHENGINE_API UDeformableTetrahedralComponent : public UDeformablePhysicsComponent
+class CHAOSFLESHENGINE_API UDeformableTetrahedralComponent : public UDeformablePhysicsComponent, public IDataflowGeometryCachable
 {
 	GENERATED_UCLASS_BODY()
 
@@ -133,6 +136,12 @@ public:
 	/** @deprecated Use GetSkeletalMeshEmbeddedPositions() instead. */
 	UFUNCTION(BlueprintCallable, Category = "Physics", meta = (DeprecatedFunction, DeprecationMessage = "Use GetSkeletalMeshEmbeddedPositions() instead."))
 	TArray<FVector> GetSkeletalMeshBindingPositions(const USkeletalMesh* InSkeletalMesh) const;
+	
+	//~ Begin IDataflowGeometryCachable Interface
+	virtual TArray<FVector3f> GetGeometryCachePositions(USkeletalMeshComponent* SkeletalComponent) const override;
+
+	virtual TOptional<TArray<int32>> GetMeshImportVertexMap(const USkinnedAsset& SkinnedMeshAsset) const override;
+	//~ End IDataflowGeometryCachable Interface
 
 	/**
 	* Get the current positions of the transformation hierarchy from \c TargetDeformationSkeleton,
