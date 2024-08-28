@@ -45,9 +45,11 @@ FGameplayDebuggerCategory_Navmesh::FGameplayDebuggerCategory_Navmesh()
 
 	const FGameplayDebuggerInputHandlerConfig CycleActorReference(TEXT("Cycle Actor Reference"), TEXT("Subtract"), FGameplayDebuggerInputModifier::Shift);
 	const FGameplayDebuggerInputHandlerConfig CycleNavigationData(TEXT("Cycle NavData"), TEXT("Add"), FGameplayDebuggerInputModifier::Shift);
-	
+	const FGameplayDebuggerInputHandlerConfig LocReferenceLocation(TEXT("Lock Reference Location"), TEXT("Multiply"), FGameplayDebuggerInputModifier::Shift);
+
 	BindKeyPress(CycleActorReference, this, &FGameplayDebuggerCategory_Navmesh::CycleActorReference, EGameplayDebuggerInputMode::Replicated);
 	BindKeyPress(CycleNavigationData, this, &FGameplayDebuggerCategory_Navmesh::CycleNavData, EGameplayDebuggerInputMode::Replicated);
+	BindKeyPress(LocReferenceLocation, this, &FGameplayDebuggerCategory_Navmesh::ToggleLockedReferenceLocation, EGameplayDebuggerInputMode::Replicated);
 }
 
 void FGameplayDebuggerCategory_Navmesh::CycleNavData()
@@ -76,6 +78,11 @@ void FGameplayDebuggerCategory_Navmesh::CycleActorReference()
 	}
 }
 
+void FGameplayDebuggerCategory_Navmesh::ToggleLockedReferenceLocation()
+{
+	bToggleLockedReferenceLocation = true;
+}
+
 TSharedRef<FGameplayDebuggerCategory> FGameplayDebuggerCategory_Navmesh::MakeInstance()
 {
 	return MakeShareable(new FGameplayDebuggerCategory_Navmesh());
@@ -87,6 +94,8 @@ void FGameplayDebuggerCategory_Navmesh::FRepData::Serialize(FArchive& Ar)
 	Ar << NumRunningTasks;
 	Ar << NumRemainingTasks;
 	Ar << NavDataName;
+
+	Ar << LockedReferenceLocation;
 
 	Ar << NavBuildLockStatusDesc;
 	Ar << SupportedAgents;
@@ -201,6 +210,13 @@ void FGameplayDebuggerCategory_Navmesh::CollectData(APlayerController* OwnerPC, 
 		}
 	}
 
+	if (bToggleLockedReferenceLocation)
+	{
+		LockedReferenceLocation = (!LockedReferenceLocation.IsSet() && RefPawn) ? RefPawn->GetActorLocation() : TOptional<FVector>();
+		bToggleLockedReferenceLocation = false;
+	}
+	DataPack.LockedReferenceLocation = LockedReferenceLocation.Get(FNavigationSystem::InvalidLocation);
+
 	if (NavData)
 	{
 		DataPack.bIsUsingPlayerActor = (ActorReferenceMode != EActorReferenceMode::DebugActor);
@@ -222,20 +238,25 @@ void FGameplayDebuggerCategory_Navmesh::CollectData(APlayerController* OwnerPC, 
 
 void FGameplayDebuggerCategory_Navmesh::CollectNavigationData(const UNavigationSystemV1* NavSys, const ANavigationData* NavData, const APawn* RefPawn)
 {
+	const FVector RefLocation = LockedReferenceLocation.Get(RefPawn ? RefPawn->GetActorLocation() : FNavigationSystem::InvalidLocation);
+	CollectNavigationData(NavSys, NavData, RefLocation);
+}
+
+void FGameplayDebuggerCategory_Navmesh::CollectNavigationData(const UNavigationSystemV1* NavSys, const ANavigationData* NavData, const FVector& RefLocation)
+{
 #if WITH_RECAST
 	const ARecastNavMesh* RecastNavMesh = Cast<const ARecastNavMesh>(NavData);
-	if (RecastNavMesh && RefPawn)
+	if (RecastNavMesh && RefLocation != FNavigationSystem::InvalidLocation)
 	{
 		// add NxN neighborhood of target (where N is the number of tiles)
 		// Note that we round up to the next odd number to keep the reference position in the middle tile
-		const FVector TargetLocation = RefPawn->GetActorLocation();
 
 		TArray<FIntPoint> TileDeltas;
 		RetrieveRelativeTilesToDisplay(TileDeltas);
 
 		int32 TargetTileX = 0;
 		int32 TargetTileY = 0;
-		RecastNavMesh->GetNavMeshTileXY(TargetLocation, TargetTileX, TargetTileY);
+		RecastNavMesh->GetNavMeshTileXY(RefLocation, TargetTileX, TargetTileY);
 
 		TArray<FNavTileRef> TileSet;
 		for (const FIntPoint& TileDelta : TileDeltas)
@@ -320,6 +341,11 @@ void FGameplayDebuggerCategory_Navmesh::DrawData(APlayerController* OwnerPC, FGa
 	{
 		CanvasContext.Printf(TEXT("[{yellow}%s{white}]: Display around %s actor"), *GetInputHandlerDescription(0), DataPack.bIsUsingPlayerActor ? TEXT("Debug") : TEXT("Player"));
 	}
+
+	CanvasContext.Printf(TEXT("[{yellow}%s{white}]: %s"),
+		*GetInputHandlerDescription(2),
+		DataPack.LockedReferenceLocation != FNavigationSystem::InvalidLocation ? *FString::Printf(TEXT("Locked at %s"), *DataPack.LockedReferenceLocation.ToString()) : TEXT("Not Locked") );
+
 }
 
 void FGameplayDebuggerCategory_Navmesh::OnDataPackReplicated(int32 DataPackId)
