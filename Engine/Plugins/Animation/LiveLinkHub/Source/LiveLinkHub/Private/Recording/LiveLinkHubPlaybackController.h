@@ -14,6 +14,8 @@
 
 #include <atomic>
 
+#include "LiveLinkRecordingRangeHelpers.h"
+
 class ILiveLinkClient;
 struct FLiveLinkRecordingData;
 class FRunnableThread;
@@ -103,7 +105,7 @@ public:
 	FFrameRate GetFrameRate() const;
 
 	/** Retrieve buffered frame range. */
-	TRange<int32> GetBufferedFrames() const;
+	UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<int32> GetBufferedFrameRanges() const;
 	
 	/** If the controller is ready for commands. */
 	bool IsReady() const
@@ -148,7 +150,7 @@ public:
 	}
 	
 	/** Delegate called when playback is finished (if recording is not set to loop). */
-	FSimpleMulticastDelegate& OnPlaybackFinished()
+	FTSSimpleMulticastDelegate& OnPlaybackFinished()
 	{
 		return PlaybackFinishedDelegate;
 	}
@@ -187,7 +189,7 @@ private:
 	bool SyncToPlayhead();
 
 	/** Force sync to a specific frame. */
-	bool SyncToFrame(const FFrameNumber& InFrameNumber);
+	bool SyncToFrame(const FQualifiedFrameTime& InFrameTime);
 
 	/** Checks if the current playback settings indicates the recording should restart. */
 	bool ShouldRestart() const;
@@ -208,7 +210,9 @@ private:
 	/** Whether we're currently paused. */
 	std::atomic<bool> bIsPaused = false;
 	/** If the recording is playing in reverse. */
-	std::atomic<bool>bIsReverse = false;
+	std::atomic<bool> bIsReverse = false;
+	/** If the controller is destructing. */
+	std::atomic<bool> bIsDestructing = false;
 	/** The timestamp of the animation when first playing. Can be > 0 when running in reverse. */
 	std::atomic<double> StartTimestamp = 0.f;
 	/** Indicates that we're in the process of preparing the playback. Used by the OnSourceRemoved callback to make sure we don't eject during the PreparePlayback step. */
@@ -216,7 +220,7 @@ private:
 	/** LiveLinkRecording to play.  */
 	TStrongObjectPtr<ULiveLinkRecording> RecordingToPlay;
 	/** Delegate called when a recording playback is finished (if it's not looping). */
-	FSimpleMulticastDelegate PlaybackFinishedDelegate;
+	FTSSimpleMulticastDelegate PlaybackFinishedDelegate;
 	/** Preset used to rollback the hub to its previous state after playing a recording. */
 	TStrongObjectPtr<ULiveLinkPreset> RollbackPreset;
 	/** Atomic bool keeping track of whether we should loop the playback. */

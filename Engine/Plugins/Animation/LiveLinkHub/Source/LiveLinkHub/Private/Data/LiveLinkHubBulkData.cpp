@@ -2,6 +2,8 @@
 
 #include "LiveLinkHubBulkData.h"
 
+#include "LiveLinkHubLog.h"
+
 #include "Serialization/BufferArchive.h"
 #include "Serialization/MemoryReader.h"
 
@@ -34,10 +36,12 @@ void FLiveLinkHubBulkData::ReadBulkData(const int64 InBytesToRead, uint8* InMemo
 	BulkDataOffset = ReadBulkDataImpl(BulkDataOffset, InBytesToRead, InMemory);
 }
 
-FLiveLinkHubBulkData::FScopedBulkDataMemoryReader FLiveLinkHubBulkData::CreateBulkDataMemoryReader(const int64 InBytesToRead)
+TSharedPtr<FLiveLinkHubBulkData::FScopedBulkDataMemoryReader> FLiveLinkHubBulkData::CreateBulkDataMemoryReader(const int64 InBytesToRead)
 {
-	FScopedBulkDataMemoryReader Reader(BulkDataOffset, InBytesToRead, this);
-	BulkDataOffset = Reader.GetBulkDataOffset();
+	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FLiveLinkHubBulkData::CreateBulkDataMemoryReader"), STAT_FLiveLinkHubBulkData_CreateBulkDataMemoryReader, STATGROUP_LiveLinkHub);
+	
+	TSharedPtr<FScopedBulkDataMemoryReader> Reader = MakeShared<FScopedBulkDataMemoryReader>(BulkDataOffset, InBytesToRead, this);
+	BulkDataOffset = Reader->GetBulkDataOffset();
 
 	return Reader;
 }
@@ -69,6 +73,8 @@ void FLiveLinkHubBulkData::WriteBulkData(TArray64<uint8>& Data)
 
 int64 FLiveLinkHubBulkData::ReadBulkDataImpl(int64 InOffset, int64 InBytesToRead, uint8* InMemory)
 {
+	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FLiveLinkHubBulkData::ReadBulkDataImpl"), STAT_FLiveLinkHubBulkData_ReadBulkDataImpl, STATGROUP_LiveLinkHub);
+	
 	if (!RecordingFileReader.IsValid())
 	{
 		check(BulkData.DoesExist());

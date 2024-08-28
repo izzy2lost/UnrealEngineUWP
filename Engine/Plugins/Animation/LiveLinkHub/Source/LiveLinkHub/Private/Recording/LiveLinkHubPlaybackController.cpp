@@ -73,6 +73,7 @@ FLiveLinkHubPlaybackController::FLiveLinkHubPlaybackController()
 
 FLiveLinkHubPlaybackController::~FLiveLinkHubPlaybackController()
 {
+	bIsDestructing = true;
 	Eject();
 	Stopping = true;
 	PlaybackEvent->Trigger();
@@ -115,7 +116,7 @@ TSharedRef<SWidget> FLiveLinkHubPlaybackController::MakePlaybackWidget()
 		{
 			SliderViewRange = MoveTemp(NewRange);
 		})
-		.GetBufferRange_Raw(this, &FLiveLinkHubPlaybackController::GetBufferedFrames)
+		.GetBufferRanges_Raw(this, &FLiveLinkHubPlaybackController::GetBufferedFrameRanges)
 		.GetTotalLength_Raw(this, &FLiveLinkHubPlaybackController::GetLength)
 		.GetCurrentTime_Raw(this, &FLiveLinkHubPlaybackController::GetCurrentTime)
 		.GetSelectionStartTime_Raw(this, &FLiveLinkHubPlaybackController::GetSelectionStartTime)
@@ -158,7 +159,7 @@ void FLiveLinkHubPlaybackController::ResumePlayback()
 	
 	StartTimestamp = CurrentTime.AsSeconds();
 	// Force sync so interpolation doesn't interfere if the first frame isn't the current frame
-	SyncToFrame(CurrentTime.Time.GetFrame());
+	SyncToFrame(CurrentTime);
 }
 
 void FLiveLinkHubPlaybackController::PreparePlayback(ULiveLinkRecording* InLiveLinkRecording)
@@ -204,7 +205,7 @@ void FLiveLinkHubPlaybackController::PreparePlayback(ULiveLinkRecording* InLiveL
 				RecordingToPlay->RecordingPreset->ApplyToClientLatent([this](bool)
 				{
 					bIsReady = true;
-					SyncToFrame(0); // Needed to establish connection with client
+					SyncToFrame(FQualifiedFrameTime()); // Needed to establish connection with client
 				});
 			}
 		};
@@ -402,7 +403,7 @@ void FLiveLinkHubPlaybackController::GoToTime(FQualifiedFrameTime InTime)
 	PlaybackStartTime -= TimeDouble;
 	Playhead->SetValue(InTime);
 
-	SyncToFrame(InTime.Time.GetFrame());
+	SyncToFrame(InTime);
 }
 
 FQualifiedFrameTime FLiveLinkHubPlaybackController::GetSelectionStartTime() const
@@ -429,18 +430,11 @@ FQualifiedFrameTime FLiveLinkHubPlaybackController::GetLength() const
 {
 	const FFrameRate FrameRate = GetFrameRate();
 
-	const double Length = RecordingToPlay ? RecordingToPlay->LengthInSeconds : 0.f;
-	
-	// Calculate the exact total number of frames, including fractional frames.
-	const double ExactTotalFrames = Length * FrameRate.AsDecimal();
-	const int32 TotalFrames = FMath::FloorToInt(ExactTotalFrames);
-	
-	// Calculate the fractional part and convert it to subframe precision.
-	const double Subframe = ExactTotalFrames - TotalFrames;
-	
-	const FFrameNumber LastFrameNumber(TotalFrames - 1);
+	const int32 ExactTotalFrames = RecordingToPlay ? RecordingToPlay->GetMaxFrames() : 1;
+	const int32 LastFrameIdx = ExactTotalFrames - 1;
+	const FFrameNumber LastFrameNumber(LastFrameIdx);
 
-	const FQualifiedFrameTime FrameTime(FFrameTime(LastFrameNumber, Subframe), FrameRate);
+	const FQualifiedFrameTime FrameTime(FFrameTime(LastFrameNumber), FrameRate);
 	return FrameTime;
 }
 
@@ -459,15 +453,14 @@ FFrameRate FLiveLinkHubPlaybackController::GetFrameRate() const
 {
 	if (RecordingToPlay.IsValid())
 	{
-		return RecordingToPlay->FrameRate;
+		return RecordingToPlay->GetGlobalFrameRate();
 	}
 
 	return FFrameRate(60, 1);
 }
-
-TRange<int32> FLiveLinkHubPlaybackController::GetBufferedFrames() const
+UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<int32> FLiveLinkHubPlaybackController::GetBufferedFrameRanges() const
 {
-	return RecordingPlayer->GetBufferedFrames();
+	return RecordingPlayer->GetBufferedFrameRanges();
 }
 
 void FLiveLinkHubPlaybackController::Start()
@@ -545,7 +538,10 @@ uint32 FLiveLinkHubPlaybackController::Run()
 
 void FLiveLinkHubPlaybackController::OnPlaybackFinished_Internal()
 {
-	PlaybackFinishedDelegate.Broadcast();
+	if (!bIsDestructing) // Can crash otherwise, such as if we are closing the app.
+	{
+		PlaybackFinishedDelegate.Broadcast();
+	}
 }
 
 void FLiveLinkHubPlaybackController::PushSubjectData(const FLiveLinkRecordedFrame& NextFrame, bool bForceSync)
@@ -586,10 +582,13 @@ bool FLiveLinkHubPlaybackController::SyncToPlayhead()
 	return NextFrames.Num() > 0;
 }
 
-bool FLiveLinkHubPlaybackController::SyncToFrame(const FFrameNumber& InFrameNumber)
+bool FLiveLinkHubPlaybackController::SyncToFrame(const FQualifiedFrameTime& InFrameTime)
 {
-	TArray<FLiveLinkRecordedFrame> NextFrames = RecordingPlayer->FetchNextFramesAtIndex(InFrameNumber.Value);
-	
+	TArray<FLiveLinkRecordedFrame> NextFrames = RecordingPlayer->FetchNextFramesAtIndex(InFrameTime);
+	if (NextFrames.Num() == 0)
+	{
+		UE_LOG(LogLiveLinkHub, Warning, TEXT("No frame loaded for frame number %d"), InFrameTime.Time.GetFrame().Value);
+	}
 	for (const FLiveLinkRecordedFrame& NextFrame : NextFrames)
 	{
 		PushSubjectData(NextFrame, true);

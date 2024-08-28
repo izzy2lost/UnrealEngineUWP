@@ -2,6 +2,7 @@
 
 #include "SLiveLinkHubPlaybackWidget.h"
 
+#include "Recording/LiveLinkRecordingRangeHelpers.h"
 #include "SLiveLinkHubTimeSlider.h"
 
 #include "FrameNumberNumericInterface.h"
@@ -45,7 +46,7 @@ void SLiveLinkHubPlaybackWidget::Construct(const FArguments& InArgs)
 
 	OnGetFrameRate = InArgs._GetFrameRate;
 
-	OnGetFrameBufferRange = InArgs._GetBufferRange;
+	OnGetFrameBufferRanges = InArgs._GetBufferRanges;
 
 	const TAttribute<EFrameNumberDisplayFormats> GetDisplayFormatAttr = MakeAttributeSP(this, &SLiveLinkHubPlaybackWidget::GetDisplayFormat);
 	const TAttribute<FFrameRate> GetDisplayRateAttr = MakeAttributeSP(this, &SLiveLinkHubPlaybackWidget::GetFrameRate);
@@ -63,7 +64,7 @@ void SLiveLinkHubPlaybackWidget::Construct(const FArguments& InArgs)
 		[
 			SNew(SLiveLinkHubTimeSlider)
 			.BaseArgs(SSimpleTimeSlider::FArguments()
-			.ClampRangeHighlightSize(0.15f)
+			.ClampRangeHighlightSize(0.35f)
 			.ClampRangeHighlightColor(FLinearColor::Gray.CopyWithNewOpacity(0.5f))
 			.ScrubPosition_Lambda([this]()
 			{
@@ -84,7 +85,7 @@ void SLiveLinkHubPlaybackWidget::Construct(const FArguments& InArgs)
 							}
 						})
 			)
-			.BufferRange(this, &SLiveLinkHubPlaybackWidget::GetBufferRange)
+			.BufferRange(this, &SLiveLinkHubPlaybackWidget::GetBufferRanges)
 		]
 		+SVerticalBox::Slot()
 		.AutoHeight()
@@ -400,16 +401,25 @@ TRange<double> SLiveLinkHubPlaybackWidget::GetClampRange() const
 	const FFrameRate FrameRate = GetFrameRate();
 	const double Start = GetSelectionStartTime() / FrameRate.Numerator;
 	const double End = GetSelectionEndTime() / FrameRate.Numerator;
-	return TRange<double>(Start, End);
+	return UE::LiveLinkHub::RangeHelpers::Private::MakeInclusiveRange(Start, End);
 }
 
-TRange<double> SLiveLinkHubPlaybackWidget::GetBufferRange() const
+UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<double> SLiveLinkHubPlaybackWidget::GetBufferRanges() const
 {
-	check(OnGetFrameBufferRange.IsBound());
-	TRange<int32> BufferedFrames = OnGetFrameBufferRange.Execute();
-	FQualifiedFrameTime StartTime(BufferedFrames.GetLowerBound().GetValue(), GetFrameRate());
-	FQualifiedFrameTime EndTime(BufferedFrames.GetUpperBound().GetValue(), GetFrameRate());
-	return TRange<double>(StartTime.AsSeconds(), EndTime.AsSeconds());
+	using namespace UE::LiveLinkHub::RangeHelpers::Private;
+	check(OnGetFrameBufferRanges.IsBound());
+	
+	TRangeArray<double> OutputRanges;
+	
+	const TRangeArray<int32> BufferedFrameRanges = OnGetFrameBufferRanges.Execute();
+	for (const TRange<int32>& BufferedFrames : BufferedFrameRanges)
+	{
+		FQualifiedFrameTime StartTime(BufferedFrames.GetLowerBound().GetValue(), GetFrameRate());
+		FQualifiedFrameTime EndTime(BufferedFrames.GetUpperBound().GetValue(), GetFrameRate());
+		OutputRanges.Add(MakeInclusiveRange(StartTime.AsSeconds(), EndTime.AsSeconds()));
+	}
+
+	return OutputRanges;
 }
 
 bool SLiveLinkHubPlaybackWidget::IsPaused() const

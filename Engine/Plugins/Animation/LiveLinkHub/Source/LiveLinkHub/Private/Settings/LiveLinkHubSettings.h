@@ -30,9 +30,17 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="LiveLinkHub", DisplayName = "Automatically add discovered clients")
 	bool bAutoAddDiscoveredClients = true;
 
-	/** The size in megabytes to buffer when streaming a recoding. */
+	/** The size in megabytes to buffer when streaming a recording. */
 	UPROPERTY(config, EditAnywhere, Category="LiveLinkHub", meta = (ClampMin = "1", UIMin = "1"))
 	int32 FrameBufferSizeMB = 100;
+
+	/** Number of frames to buffer at once. */
+	UPROPERTY(config, EditAnywhere, AdvancedDisplay, Category="LiveLinkHub", meta = (ClampMin = "2", UIMin = "2"))
+	int32 BufferBatchSize = 5;
+
+	/** Maximum number of frame ranges to store in history while scrubbing. Increasing can make scrubbing faster but temporarily use more memory. */
+	UPROPERTY(config, EditAnywhere, AdvancedDisplay, Category="LiveLinkHub")
+	int32 MaxBufferRangeHistory = 25;
 	
 	/** Which project settings sections to display when opening the settings viewer. */
 	UPROPERTY(config)

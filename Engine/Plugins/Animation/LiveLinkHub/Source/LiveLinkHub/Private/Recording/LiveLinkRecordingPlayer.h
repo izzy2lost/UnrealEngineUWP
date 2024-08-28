@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "LiveLinkRecordingRangeHelpers.h"
 #include "LiveLinkRole.h"
 #include "LiveLinkTypes.h"
 #include "StructUtils/StructView.h"
@@ -41,7 +42,7 @@ public:
 	virtual TArray<FLiveLinkRecordedFrame> FetchPreviousFramesAtTimestamp(const FQualifiedFrameTime& InFrameTime) = 0;
 	
 	/** Fetch next frames at the provided frame index. */
-	virtual TArray<FLiveLinkRecordedFrame> FetchNextFramesAtIndex(int32 FrameIndex) = 0;
+	virtual TArray<FLiveLinkRecordedFrame> FetchNextFramesAtIndex(const FQualifiedFrameTime& InFrameTime) = 0;
 
 	/** Restart the recording from the beginning. */
 	virtual void RestartPlayback(int32 InIndex = INDEX_NONE) = 0;
@@ -50,5 +51,5 @@ public:
 	virtual FFrameRate GetInitialFramerate() = 0;
 
 	/** Retrieve the currently buffered frames. */
-	virtual TRange<int32> GetBufferedFrames() = 0;
+	virtual UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<int32> GetBufferedFrameRanges() = 0;
 };

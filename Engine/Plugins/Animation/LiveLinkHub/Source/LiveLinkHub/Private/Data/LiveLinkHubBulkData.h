@@ -55,7 +55,7 @@ public:
 	void ReadBulkData(const int64 InBytesToRead, uint8* InMemory);
 
 	/** Create a scoped memory reader consisting of the bulk data bytes read. Increments file offset. */
-	FScopedBulkDataMemoryReader CreateBulkDataMemoryReader(const int64 InBytesToRead);
+	TSharedPtr<FScopedBulkDataMemoryReader> CreateBulkDataMemoryReader(const int64 InBytesToRead);
 	
 	/** Reset to the initial offset in the file. */
 	void ResetBulkDataOffset();

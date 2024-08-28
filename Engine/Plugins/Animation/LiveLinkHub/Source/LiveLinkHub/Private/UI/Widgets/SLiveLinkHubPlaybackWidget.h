@@ -5,6 +5,7 @@
 #include "FrameNumberDisplayFormat.h"
 #include "Misc/FrameRate.h"
 #include "Misc/QualifiedFrameTime.h"
+#include "Recording/LiveLinkRecordingRangeHelpers.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FLiveLinkHubPlaybackController;
@@ -24,7 +25,7 @@ public:
 	DECLARE_DELEGATE_RetVal(FFrameRate, FOnGetFrame);
 	DECLARE_DELEGATE_OneParam(FOnSetDoubleRange, const TRange<double>&)
 	DECLARE_DELEGATE_RetVal(TRange<double>, FOnGetDoubleRange)
-	DECLARE_DELEGATE_RetVal(TRange<int32>, FOnGetIntRange)
+	DECLARE_DELEGATE_RetVal(UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<int32>, FOnGetIntArrayRange)
 	
 	DECLARE_DELEGATE(FOnButtonPressed);
 	
@@ -71,7 +72,7 @@ public:
 	/** Set the view range (visible selection range). */
 	SLATE_EVENT(FOnGetDoubleRange, GetViewRange)
 	/** Retrieve the frame buffer range. */
-	SLATE_EVENT(FOnGetIntRange, GetBufferRange)
+	SLATE_EVENT(FOnGetIntArrayRange, GetBufferRanges)
 		
 	SLATE_END_ARGS()
 
@@ -129,7 +130,7 @@ private:
 	TRange<double> GetClampRange() const;
 
 	/** Retrieve the buffered frame range. */
-	TRange<double> GetBufferRange() const;
+	UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<double> GetBufferRanges() const;
 	
 	/** Is playback paused? */
 	bool IsPaused() const;
@@ -216,7 +217,7 @@ private:
 	FOnSetDoubleRange OnSetViewRangeDelegate;
 
 	/** Retrieve the buffered frame range. */
-	FOnGetIntRange OnGetFrameBufferRange;
+	FOnGetIntArrayRange OnGetFrameBufferRanges;
 
 	/** Delegate for getting the selection start. */
 	FOnGetTime OnGetSelectionStartTimeDelegate;

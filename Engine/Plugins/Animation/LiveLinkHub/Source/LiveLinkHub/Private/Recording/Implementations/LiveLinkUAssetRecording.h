@@ -4,13 +4,10 @@
 
 #include "Async/AsyncWork.h"
 #include "Data/LiveLinkHubBulkData.h"
-#include "StructUtils/InstancedStruct.h"
-#include "LiveLinkPreset.h"
-#include "LiveLinkRole.h"
+#include "LiveLinkFrameData.h"
 #include "LiveLinkTypes.h"
-#include "Misc/DateTime.h"
 #include "Recording/LiveLinkRecording.h"
-#include "Templates/SubclassOf.h"
+#include "StructUtils/InstancedStruct.h"
 #include "UObject/Object.h"
 
 #include "LiveLinkUAssetRecording.generated.h"
@@ -18,113 +15,12 @@
 class FMemoryReader;
 struct FLiveLinkPlaybackTracks;
 
-/** Base data container for a recording track. */
-USTRUCT()
-struct FLiveLinkRecordingBaseDataContainer
-{
-	GENERATED_BODY()
-
-	/** SERIALIZED DATA - Timestamps for the recorded data. Each entry matches an entry in the RecordedData array. */
-	TArray<double> Timestamps;
-	
-	/**
-	 * SERIALIZED DATA - Array of either static or frame recorded for a given timestamp.
-	 * TSharedPtr used as streaming the data in may require shared access.
-	 * FSharedStruct is not used because it doesn't implement Serialize().
-	 */
-	TArray<TSharedPtr<FInstancedStruct>> RecordedData;
-
-	/** The current start frame for RecordedData. */
-	int32 RecordedDataStartFrame = 0;
-	
-	/**
-	 * Retrieve a loaded frame.
-	 *
-	 * @param InFrame The absolute frame index to load.
-	 *
-	 * @return The frame if it exists.
-	 */
-	TSharedPtr<FInstancedStruct> TryGetFrame(const int32 InFrame) const
-	{
-		if (IsFrameLoaded(InFrame))
-		{
-			const int32 RelativeFrameIdx = InFrame - RecordedDataStartFrame;
-			return RecordedData[RelativeFrameIdx];
-		}
-		return nullptr;
-	}
-
-	/**
-	 * Retrieve a loaded frame.
-	 *
-	 * @param InFrame The absolute frame index to load.
-	 * @param OutTimestamp Return the timestamp, if it exists.
-	 *
-	 * @return The frame if it exists.
-	 */
-	TSharedPtr<FInstancedStruct> TryGetFrame(const int32 InFrame, double& OutTimestamp) const
-	{
-		if (TSharedPtr<FInstancedStruct> OutFrame = TryGetFrame(InFrame))
-		{
-			const int32 RelativeFrameIdx = InFrame - RecordedDataStartFrame;
-			OutTimestamp = Timestamps[RelativeFrameIdx];
-			return OutFrame;
-		}
-		return nullptr;
-	}
-	
-	/**
-	 * Checks if a frame is currently loaded.
-	 * 
-	 * @param InFrame The absolute frame index to check.
-	 *
-	 * @return True if the frame index exists within the frame array.
-	 */
-	bool IsFrameLoaded(const int32 InFrame) const
-	{
-		return InFrame >= RecordedDataStartFrame && InFrame < RecordedDataStartFrame + RecordedData.Num();
-	}
-
-	/** Check data memory is valid and expected. */
-	void ValidateData() const
-	{
-		check(Timestamps.Num() == RecordedData.Num());
-		for (const TSharedPtr<FInstancedStruct>& InstancedStruct : RecordedData)
-		{
-			check(InstancedStruct.IsValid() && InstancedStruct->IsValid());
-		}
-	}
-};
-
-/** Container for static data. */
-USTRUCT()
-struct FLiveLinkRecordingStaticDataContainer : public FLiveLinkRecordingBaseDataContainer
-{
-	GENERATED_BODY()
-
-	/** The role of the static data being recorded. */
-	UPROPERTY()
-	TSubclassOf<ULiveLinkRole> Role = nullptr;
-};
-
-USTRUCT()
-struct FLiveLinkUAssetRecordingData
-{
-	GENERATED_BODY()
-
-	/** Length of the recording in seconds. */
-	UPROPERTY()
-	double LengthInSeconds = 0;
-
-	/** Static data encountered while recording. */
-	UPROPERTY()
-	TMap<FLiveLinkSubjectKey, FLiveLinkRecordingStaticDataContainer> StaticData;
-	
-	/** Frame data encountered while recording. */
-	UPROPERTY()
-	TMap<FLiveLinkSubjectKey, FLiveLinkRecordingBaseDataContainer> FrameData;
-};
-
+/**
+ * Asset containing all animation data stored as bulk data. This is loaded async in chunks dependent on the playhead position.
+ * Overall recording length, framerate, and frame indices are based on the maximum track length and farthest timestamp.
+ * When locating frames by indices the track will localize the frame index based on its internal framerate. All frame rates
+ * are based strictly on the number of frames and the last timestamp of the track. True frame rate is up to the client.
+ */
 UCLASS()
 class ULiveLinkUAssetRecording : public ULiveLinkRecording
 {
@@ -140,6 +36,9 @@ public:
 
 	virtual bool IsFullyLoaded() const override { return bIsFullyLoaded; }
 	virtual bool IsSavingRecordingData() const override { return bIsSavingRecordingData; }
+	virtual int32 GetMaxFrames() const override { return RecordingMaxFrames; }
+	virtual double GetLastTimestamp() const override { return RecordingLastTimestamp; }
+	virtual FFrameRate GetGlobalFrameRate() const override;
 	
 	/** Save recording data to disk. */
 	void SaveRecordingData();
@@ -151,16 +50,16 @@ public:
 	void UnloadRecordingData();
 
 	/** Block until frames are loaded. */
-	void WaitForBufferedFrames(int32 InMinFrame, int32 InMaxFrame);
-	
-	/** Return the maximum frames for this recording. */
-	int32 GetMaxFrames() const { return RecordingMaxFrames; }
+	bool WaitForBufferedFrames(int32 InMinFrame, int32 InMaxFrame);
 
 	/** The size in bytes of each animation frame. */
 	int32 GetFrameDiskSize() const { return MaxFrameDiskSize; }
 	
-	/** Return the minimum buffered frame range. */
-	TRange<int32> GetBufferedFrames() const;
+	/** Return all buffered frame ranges, including inactive. */
+	UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<int32> GetBufferedFrameRanges() const;
+	
+	/** Checks if a specific frame range is buffered. */
+	bool IsFrameRangeBuffered(const TRange<int32>& InRange) const;
 
 	/** Copy the asset's loaded recording data to a format suitable for playback in live link. */
 	void CopyRecordingData(FLiveLinkPlaybackTracks& InOutLiveLinkPlaybackTracks) const;
@@ -169,34 +68,6 @@ public:
 	void InitializeNewRecordingData(FLiveLinkUAssetRecordingData&& InRecordingData, double InRecordingLengthSeconds);
 	
 private:
-	/** Frame data file information when loading from a recording file. */
-	struct FFrameFileData
-	{
-		/** The subject key used for the frame data. */
-		TSharedPtr<FLiveLinkSubjectKey> FrameDataSubjectKey;
-		/** The struct for this frame data. */
-		TWeakObjectPtr<UScriptStruct> LoadedStruct;
-		/** The position in the file recording where frame data begins. */
-		int64 RecordingStartFrameFilePosition = 0;
-		/** Maximum number of frames. */
-		int32 MaxFrames = 0;
-		/** Total size of the structure. */
-		int32 SerializedStructureSize = 0;
-		/** The size in bytes of each animation frame. */
-		int32 FrameDiskSize;
-		/** Buffered frames for this framedata. */
-		TRange<int32> BufferedFrames = TRange<int32>(0, 0);
-
-		/** Find the correct file offset based on the frame index. */
-		int64 GetFrameFilePosition(const int32 InFrameIdx) const
-		{
-			return RecordingStartFrameFilePosition + (FrameDiskSize * InFrameIdx);
-		};
-	};
-	
-	/** Update the buffered frame range. */
-	void SetBufferedFrames(FFrameFileData& InFrameData, const TRange<int32>& InNewRange);
-	
 	/** Serialize the number of frames (array size) of the BaseDataContainer to the archive. */
 	void SaveFrameData(FArchive* InFileWriter, const FLiveLinkSubjectKey& InSubjectKey, FLiveLinkRecordingBaseDataContainer& InBaseDataContainer);
 	
@@ -204,18 +75,50 @@ private:
 	void LoadRecordingAsync(int32 InStartFrame, int32 InCurrentFrame, int32 InNumFramesToLoad);
 
 	/** Initial processing on a frame, finding the correct struct and offsets. The RecordingFileReader is assumed to be at the correct position.  */
-	bool LoadInitialFrameData(FFrameFileData& OutFrameData);
+	bool LoadInitialFrameData(UE::LiveLinkHub::FrameData::Private::FFrameMetaData& OutFrameData);
 	
 	/** Load frame data to a data container. */
-	void LoadFrameData(FFrameFileData& InFrameData, FLiveLinkRecordingBaseDataContainer& InDataContainer,
+	void LoadFrameData(UE::LiveLinkHub::FrameData::Private::FFrameMetaData& InFrameData, FLiveLinkRecordingBaseDataContainer& InDataContainer,
 		int32 RequestedStartFrame, int32 RequestedInitialFrame, int32 RequestedFramesToLoad);
 
+	/**
+	 * Attempt to load a frame from bulk data.
+	 * @param InFrame The frame number to process.
+	 * @param InFrameData The frame data containing relevant information about this frame.
+	 * @param OutFrame The deserialized frame.
+	 * @param OutTimestamp The deserialized timestamp.
+	 * @param InMemory [Optional] If we are reading from memory rather than bulk data directly.
+	 */
+	bool LoadFrameFromDisk(const int32 InFrame, const UE::LiveLinkHub::FrameData::Private::FFrameMetaData& InFrameData,
+		TSharedPtr<FInstancedStruct>& OutFrame, double& OutTimestamp, const TSharedPtr<FLiveLinkHubBulkData::FScopedBulkDataMemoryReader>& InMemory = nullptr);
+
+	/** Only load the timestamp from disk. */
+	bool LoadTimestampFromDisk(const int32 InFrame, const UE::LiveLinkHub::FrameData::Private::FFrameMetaData& InFrameData, double& OutTimestamp);
+
+	/** Load multiple frames as raw data from bulk data. They still need to be passed to LoadFrameFromDisk, so they can be deserialized. */
+	TSharedPtr<FLiveLinkHubBulkData::FScopedBulkDataMemoryReader> LoadRawFramesFromDisk(const int32 InFrame,
+		const int32 InNumFrames, const UE::LiveLinkHub::FrameData::Private::FFrameMetaData& InFrameData);
+	
 	/** Eject this recording and make sure it is unloaded. */
 	void EjectAndUnload();
 
+	/** Move frame iteration data to the data container. */
+	void MoveFrameDataToContainer(FLiveLinkRecordingBaseDataContainer& InDataContainer,
+		UE::LiveLinkHub::FrameData::Private::FFrameMetaData& InFrameData) const;
+
+	/** Moves a range of frames from the container to the frame data cache. */
+	void MoveRangeToCache(const TRange<int32>& InRange, FLiveLinkRecordingBaseDataContainer& InDataContainer,
+		UE::LiveLinkHub::FrameData::Private::FFrameMetaData& InFrameData) const;
+	
+	/** Update the buffered frame range. */
+	void UpdateBufferedFrames();
+	
 	/** Make the thread wait if we are paused. */
 	void WaitIfPaused_AsyncThread();
 
+	/** If the requested streaming frame has been changed. */
+	bool StreamingFrameChangedRequested() const { return StreamingFrameChangeFromFrame != INDEX_NONE; }
+	
 	/** Signal and wait for the stream to be paused. */
 	void PauseStream();
 
@@ -265,11 +168,17 @@ private:
 	/** The animation data -- bulk data stored within this uasset. */
 	FLiveLinkHubBulkData AnimationData;
 	
-	/** The loaded frame data keys and position. */
-	TArray<FFrameFileData> FrameFileData;
+	/** The loaded frame data keys and position. Mapped by FLiveLinkSubjectKey to allow easy retrieval. */
+	TMap<FLiveLinkSubjectKey, UE::LiveLinkHub::FrameData::Private::FFrameMetaData> FrameFileData;
 
 	/** The maximum frames for this recording. */
-	int32 RecordingMaxFrames = 0;
+	std::atomic<int32> RecordingMaxFrames = 0;
+
+	/** The last time stamp of the recording.  */
+	std::atomic<double> RecordingLastTimestamp = 0.0;
+
+	/** Frames buffered, divided into ranges. */
+	UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<int32> BufferedFrameRanges;
 	
 	/** The first (left most) frame to stream. */
 	int32 EarliestFrameToStream = 0;
@@ -281,7 +190,7 @@ private:
 	int32 TotalFramesToStream = 0;
 
 	/** When the streaming frame has changed, signalling the current stream task should restart. */
-	std::atomic<bool> bStreamingFrameChange = false;
+	std::atomic<int32> StreamingFrameChangeFromFrame = INDEX_NONE;
 
 	/** Signal that the stream should be canceled. */
 	std::atomic<bool> bCancelStream = false;
@@ -318,12 +227,6 @@ private:
 	
 	/** Signalled when the stream has been unpaused. */
 	FEventRef OnStreamUnpausedEvent = FEventRef(EEventMode::ManualReset);
-	
-	/** Test slow frame buffering. */
-	float DebugSleepTime = 0.f;
-
-	/** Write the frame buffer size every n iterations. */
-	int32 ReportFrameBufferOnIteration = 5;
 
 	/** If the recording is fully loaded into memory. */
 	bool bIsFullyLoaded = false;

@@ -4,7 +4,7 @@
 
 void SLiveLinkHubTimeSlider::Construct(const FArguments& InArgs)
 {
-	BufferRange = (InArgs._BufferRange);
+	BufferRanges = (InArgs._BufferRange);
 
 	SSimpleTimeSlider::Construct(InArgs._BaseArgs);
 }
@@ -29,28 +29,31 @@ void SLiveLinkHubTimeSlider::OnPaintExtendedSlider(bool bMirrorLabels, const FGe
 	if (LocalSequenceLength > 0)
 	{
 		FScrubRangeToScreen RangeToScreen(LocalViewRange, AllottedGeometry.GetLocalSize());
-	
-		float LeftBuffer =  RangeToScreen.InputToLocalX(BufferRange.Get().GetLowerBoundValue());
-		float RightBuffer =  RangeToScreen.InputToLocalX(BufferRange.Get().GetUpperBoundValue());
-		float Height = AllottedGeometry.GetLocalSize().Y * ClampRangeHighlightSize.Get();
-	
-		FPaintGeometry RangeGeometry;
-		if (bMirrorLabels)
-		{
-			RangeGeometry = AllottedGeometry.ToPaintGeometry(FVector2f(RightBuffer-LeftBuffer, Height), FSlateLayoutTransform(FVector2f(LeftBuffer, 0)));
-		}
-		else
-		{
-			RangeGeometry = AllottedGeometry.ToPaintGeometry(FVector2f(RightBuffer-LeftBuffer, AllottedGeometry.GetLocalSize().Y), FSlateLayoutTransform(FVector2f(LeftBuffer, AllottedGeometry.GetLocalSize().Y - Height / 3.f)));
-		}
 
-		FSlateDrawElement::MakeBox(
-			OutDrawElements,
-			++LayerId,
-			RangeGeometry,
-			CursorBackground,
-			DrawEffects,
-			FLinearColor::White
-			);
+		for (const TRange<double>& BufferRange : BufferRanges.Get())
+		{
+			float LeftBuffer = RangeToScreen.InputToLocalX(BufferRange.GetLowerBoundValue());
+			float RightBuffer = RangeToScreen.InputToLocalX(BufferRange.GetUpperBoundValue());
+			float Height = AllottedGeometry.GetLocalSize().Y * ClampRangeHighlightSize.Get();
+	
+			FPaintGeometry RangeGeometry;
+			if (bMirrorLabels)
+			{
+				RangeGeometry = AllottedGeometry.ToPaintGeometry(FVector2f(RightBuffer-LeftBuffer, Height), FSlateLayoutTransform(FVector2f(LeftBuffer, 0)));
+			}
+			else
+			{
+				RangeGeometry = AllottedGeometry.ToPaintGeometry(FVector2f(RightBuffer-LeftBuffer, AllottedGeometry.GetLocalSize().Y), FSlateLayoutTransform(FVector2f(LeftBuffer, AllottedGeometry.GetLocalSize().Y - Height / 3.f)));
+			}
+
+			FSlateDrawElement::MakeBox(
+				OutDrawElements,
+				++LayerId,
+				RangeGeometry,
+				CursorBackground,
+				DrawEffects,
+				FLinearColor::White
+				);
+		}
 	}
 }

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Recording/LiveLinkRecordingRangeHelpers.h"
 #include "SSimpleTimeSlider.h"
 
 /**
@@ -15,7 +16,7 @@ public:
 	SLATE_BEGIN_ARGS(SLiveLinkHubTimeSlider)
 	{}
 		/* The buffered frame size. */
-		SLATE_ATTRIBUTE(TRange<double>, BufferRange)
+		SLATE_ATTRIBUTE(UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<double>, BufferRange)
 		/** SimpleTimeSlider base args. */
 		SLATE_ARGUMENT(SSimpleTimeSlider::FArguments, BaseArgs)
 	SLATE_END_ARGS()
@@ -25,7 +26,7 @@ public:
 	 * 
 	 * @param InArgs   A declaration from which to construct the widget
 	 */
-	void Construct( const FArguments& InArgs );
+	void Construct(const FArguments& InArgs);
 
 protected:
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
@@ -35,5 +36,5 @@ protected:
 	
 private:
 	/** The frame buffer range to render. */
-	TAttribute<TRange<double>> BufferRange;
+	TAttribute<UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<double>> BufferRanges;
 };
