@@ -4,28 +4,40 @@
 
 #include "AutoRTFM/AutoRTFM.h"
 #include "Containers/ContainerAllocationPolicies.h"
-#include "Containers/Map.h"
+#include "Containers/ChunkedArray.h"
 #include "CoreGlobals.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "Hash/CityHash.h"
 #include "Logging/LogMacros.h"
 #include "Misc/ByteSwap.h"
+#include "Misc/Guid.h"
 #include "Misc/LazySingleton.h"
-#include "Misc/ScopeLock.h"
+#include "Misc/ScopeRWLock.h"
+#include "Modules/VisualizerDebuggingState.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTextKey, Log, All);
-
-#ifndef UE_TEXTKEY_USE_SLAB_ALLOCATOR
-	#define UE_TEXTKEY_USE_SLAB_ALLOCATOR (1)
-#endif
 
 #ifndef UE_TEXTKEY_SLAB_ALLOCATOR_SLAB_SIZE
 	#define UE_TEXTKEY_SLAB_ALLOCATOR_SLAB_SIZE (32768)
 #endif
 
+#ifndef UE_TEXTKEY_ELEMENTS_CHUNK_SIZE_BYTES
+	#define UE_TEXTKEY_ELEMENTS_CHUNK_SIZE_BYTES (32768)
+#endif
+
+#ifndef UE_TEXTKEY_ELEMENTS_MIN_HASH_SIZE
+	#define UE_TEXTKEY_ELEMENTS_MIN_HASH_SIZE (32768)
+#endif
+
 class FTextKeyState
 {
 public:
+	FTextKeyState()
+	{
+		// Register the natvis data accessor
+		UE::Core::EVisualizerDebuggingStateResult Result = UE::Core::FVisualizerDebuggingState::Assign(FGuid(0xd31281c0, 0x182b4419, 0x814e25be, 0x4b7e7b41), this);
+	}
+
 	void FindOrAdd(FStringView InStr, FTextKey& OutTextKey)
 	{
 		check(!InStr.IsEmpty());
@@ -48,11 +60,29 @@ public:
 		};
 	}
 
+	const TCHAR* GetStringByIndex(const int32 InIndex) const
+	{
+		check(InIndex != INDEX_NONE);
+
+		FReadScopeLock ScopeLock(DataRW);
+
+		const FKeyData& KeyData = KeyDataAllocations.Get(InIndex);
+		return KeyData.Str;
+	}
+
+	uint32 GetHashByIndex(const int32 InIndex) const
+	{
+		check(InIndex != INDEX_NONE);
+
+		FReadScopeLock ScopeLock(DataRW);
+
+		const FKeyData& KeyData = KeyDataAllocations.Get(InIndex);
+		return KeyData.StrHash;
+	}
+
 	void Shrink()
 	{
-		FScopeLock ScopeLock(&SynchronizationObject);
-		LLM_SCOPE_BYNAME(TEXT("Localization/TextKeys"));
-		KeysTable.Shrink();
+		// Note: Nothing to shrink as things grow in chunks
 	}
 
 	static FTextKeyState& GetState()
@@ -68,30 +98,31 @@ public:
 private:
 	struct FKeyData
 	{
+		FKeyData()
+			: Str(TEXT(""))
+			, StrLen(0)
+			, StrHash(0)
+		{
+		}
+
 		explicit FKeyData(FStringView InStr)
 			: Str(InStr.GetData())
 			, StrLen(InStr.Len())
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
 			, StrHash(TextKeyUtil::HashString(InStr)) // Note: This hash gets serialized so *DO NOT* change it without fixing the serialization to discard the old hash method (also update FTextKey::GetTypeHash)
-#endif
 		{
 		}
 
 		FKeyData(FStringView InStr, const uint32 InStrHash)
 			: Str(InStr.GetData())
 			, StrLen(InStr.Len())
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
 			, StrHash(InStrHash)
-#endif
 		{
 		}
 
 		FKeyData(FStringView InStr, const FKeyData& InOther)
 			: Str(InStr.GetData())
 			, StrLen(InStr.Len())
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
 			, StrHash(InOther.StrHash)
-#endif
 		{
 		}
 
@@ -114,77 +145,175 @@ private:
 
 		friend FORCEINLINE uint32 GetTypeHash(const FKeyData& A)
 		{
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
 			return A.StrHash;
-#else
-			return TextKeyUtil::HashString(A.ToView());
-#endif
 		}
 
 		const TCHAR* Str;
 		int32 StrLen;
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
 		uint32 StrHash;
-#endif
 	};
 
 	void FindOrAddImpl(const FKeyData& KeyData, FTextKey& OutTextKey)
 	{
-		const TCHAR* StrPtr = FindOrAddString(KeyData);
-		check(StrPtr);
+		int32 Index = FindOrAddString(KeyData);
+		check(Index != INDEX_NONE);
 
-		OutTextKey.StrPtr = StrPtr;
+		OutTextKey.Index = Index;
 #if UE_TEXTKEY_STORE_EMBEDDED_HASH
 		OutTextKey.StrHash = KeyData.StrHash;
 #endif
 	}
 
-	const TCHAR* FindOrAddString(const FKeyData& KeyData)
+	int32 FindOrAddString(const FKeyData& KeyData)
 	{
-		FScopeLock ScopeLock(&SynchronizationObject);
-#if UE_TEXTKEY_USE_SLAB_ALLOCATOR
-		const TCHAR* StrPtr = nullptr;
-		if (const FKeyData* FoundKeyData = KeysTable.Find(KeyData))
+		// Read-only
+		int32 NumElementsOnRead = 0;
 		{
-			StrPtr = FoundKeyData->Str;
-		}
-		if (!StrPtr)
-		{
-			LLM_SCOPE_BYNAME(TEXT("Localization/TextKeys"));
-			StrPtr = StringAllocations.Add(KeyData.ToView());
-			KeysTable.Add(FKeyData(FStringView(StrPtr, KeyData.StrLen), KeyData));
-		}
-		return StrPtr;
-#else
-		const FString* StrPtr = KeysTable.Find(KeyData);
-		if (!StrPtr)
-		{
-			LLM_SCOPE_BYNAME(TEXT("Localization/TextKeys"));
+			FReadScopeLock ScopeLock(DataRW);
 
-			// Need to copy the string here so we can reference its internal allocation as the key
-			FString StrCopy;
+			if (int32 FoundIndex = KeyDataAllocations.Find(KeyData);
+				FoundIndex != INDEX_NONE)
 			{
-				// We do this rather than use the FString constructor directly, 
-				// as this method avoids slack being added to the allocation
-				StrCopy.Reserve(KeyData.StrLen);
-				StrCopy.AppendChars(KeyData.Str, KeyData.StrLen);
+				return FoundIndex;
 			}
 
-			FKeyData DestKey(StrCopy, KeyData);
-			StrPtr = &KeysTable.Add(DestKey, MoveTemp(StrCopy));
-			check(DestKey.Str == **StrPtr); // The move must have moved the allocation we referenced in the key
+			NumElementsOnRead = KeyDataAllocations.Num();
 		}
-		return **StrPtr;
-#endif
+
+		// Write
+		{
+			FWriteScopeLock ScopeLock(DataRW);
+
+			if (KeyDataAllocations.Num() > NumElementsOnRead)
+			{
+				// Find again in case another thread beat us to it!
+				if (int32 FoundIndex = KeyDataAllocations.Find(KeyData);
+					FoundIndex != INDEX_NONE)
+				{
+					return FoundIndex;
+				}
+			}
+
+			LLM_SCOPE_BYNAME(TEXT("Localization/TextKeys"));
+			const TCHAR* NewStrPtr = StringAllocations.Add(KeyData.ToView());
+			return KeyDataAllocations.Add(FKeyData(FStringView(NewStrPtr, KeyData.StrLen), KeyData));
+		}
 	}
 
-#if UE_TEXTKEY_USE_SLAB_ALLOCATOR
-	class FStringSlabAllocator
+	class FKeyDataAllocator
 	{
 	public:
-		FStringSlabAllocator() = default;
+		FKeyDataAllocator() = default;
 
-		~FStringSlabAllocator()
+		~FKeyDataAllocator()
+		{
+			FreeHash();
+		}
+
+		int32 Add(const FKeyData& InKeyData)
+		{
+			ConditionalRehash(Elements.Num() + 1);
+
+			const uint32 KeyDataHash = GetTypeHash(InKeyData);
+			const uint32 HashIndex = KeyDataHash & (HashSize - 1);
+
+			const int32 NewElementIndex = Elements.Num();
+			Elements.AddElement(FElement{ InKeyData, Hash[HashIndex] });
+			Hash[HashIndex] = NewElementIndex;
+			return NewElementIndex;
+		}
+
+		int32 Find(const FKeyData& InKeyData) const
+		{
+			if (HashSize > 0)
+			{
+				const uint32 KeyDataHash = GetTypeHash(InKeyData);
+				const uint32 HashIndex = KeyDataHash & (HashSize - 1);
+
+				int32 ElementIndex = Hash[HashIndex];
+				while (ElementIndex != INDEX_NONE)
+				{
+					const FElement& Element = Elements[ElementIndex];
+					if (Element.Value == InKeyData)
+					{
+						return ElementIndex;
+					}
+					ElementIndex = Element.NextElementIndex;
+				}
+			}
+			return INDEX_NONE;
+		}
+
+		const FKeyData& Get(int32 InIndex) const
+		{
+			return Elements[InIndex].Value;
+		}
+
+		int32 Num() const
+		{
+			return Elements.Num();
+		}
+
+	private:
+		void AllocateHash()
+		{
+			Hash = static_cast<int32*>(FMemory::Malloc(HashSize * sizeof(int32)));
+			for (uint32 HashIndex = 0; HashIndex < HashSize; ++HashIndex)
+			{
+				Hash[HashIndex] = INDEX_NONE;
+			}
+		}
+
+		void FreeHash()
+		{
+			FMemory::Free(Hash);
+			Hash = nullptr;
+		}
+
+		void ConditionalRehash(const int32 NumElements)
+		{
+			const uint32 NewHashSize = FMath::Max<uint32>(MinHashSize, FPlatformMath::RoundUpToPowerOfTwo(NumElements / DEFAULT_NUMBER_OF_ELEMENTS_PER_HASH_BUCKET));
+			if (NewHashSize > HashSize)
+			{
+				FreeHash();
+				HashSize = NewHashSize;
+				AllocateHash();
+
+				int32 ElementIndex = 0;
+				for (FElement& Element : Elements)
+				{
+					const uint32 KeyDataHash = GetTypeHash(Element.Value);
+					const uint32 HashIndex = KeyDataHash & (HashSize - 1);
+
+					Element.NextElementIndex = Hash[HashIndex];
+					Hash[HashIndex] = ElementIndex++;
+				}
+			}
+		}
+
+		struct FElement
+		{
+			FKeyData Value;
+			/** Index of the next element in this hash bucket */
+			int32 NextElementIndex = INDEX_NONE;
+		};
+		static constexpr int32 ElementChunkSize = UE_TEXTKEY_ELEMENTS_CHUNK_SIZE_BYTES;
+		/** Values; indices are referenced by the hash and FTextKey */
+		TChunkedArray<FElement, ElementChunkSize> Elements;
+
+		static constexpr int32 MinHashSize = UE_TEXTKEY_ELEMENTS_MIN_HASH_SIZE;
+		/** Current size of the hash; if this changes the hash must be rebuilt */
+		uint32 HashSize = 0;
+		/** Index of the root element in each hash bucket; use FElement::NextElementIndex to walk the bucket */
+		int32* Hash = nullptr;
+	};
+
+	class FStringAllocator
+	{
+	public:
+		FStringAllocator() = default;
+
+		~FStringAllocator()
 		{
 			uint64 TotalNumElementsWasted = 0;
 			for (FStringSlab& Slab : Slabs)
@@ -210,7 +339,7 @@ private:
 		}
 
 	private:
-		static const int32 SlabSizeInElements = UE_TEXTKEY_SLAB_ALLOCATOR_SLAB_SIZE;
+		static constexpr int32 SlabSizeInElements = UE_TEXTKEY_SLAB_ALLOCATOR_SLAB_SIZE;
 
 		struct FStringSlab
 		{
@@ -253,21 +382,16 @@ private:
 			// If no slabs have space then just allocate a new one
 			checkf(NumSlabElementsNeeded <= SlabSizeInElements, TEXT("Tried to allocate a FTextKey string of %d elements, which is larger than the allowed slab size of %d elements!"), NumSlabElementsNeeded, SlabSizeInElements);
 			FStringSlab& Slab = Slabs.AddDefaulted_GetRef();
-			Slab.Allocation = reinterpret_cast<TCHAR*>(FMemory::Malloc(SlabSizeInElements * sizeof(TCHAR), 1));
+			Slab.Allocation = static_cast<TCHAR*>(FMemory::Malloc(SlabSizeInElements * sizeof(TCHAR), 1));
 			return Slab;
 		}
 
 		TArray<FStringSlab> Slabs;
 	};
-#endif
 
-	FCriticalSection SynchronizationObject;
-#if UE_TEXTKEY_USE_SLAB_ALLOCATOR
-	FStringSlabAllocator StringAllocations;
-	TSet<FKeyData> KeysTable;
-#else
-	TMap<FKeyData, FString> KeysTable;
-#endif
+	mutable FRWLock DataRW;
+	FStringAllocator StringAllocations;
+	FKeyDataAllocator KeyDataAllocations;
 };
 
 namespace TextKeyUtil
@@ -382,11 +506,6 @@ uint32 HashString(const FTCHARToUTF16& InStr)
 
 }
 
-FTextKey::FTextKey()
-{
-	Reset();
-}
-
 FTextKey::FTextKey(FStringView InStr)
 {
 	if (InStr.IsEmpty())
@@ -397,6 +516,24 @@ FTextKey::FTextKey(FStringView InStr)
 	{
 		FTextKeyState::GetState().FindOrAdd(InStr, *this);
 	}
+}
+
+const TCHAR* FTextKey::GetChars() const
+{
+	return Index != INDEX_NONE
+		? FTextKeyState::GetState().GetStringByIndex(Index)
+		: TEXT("");
+}
+
+uint32 GetTypeHash(const FTextKey& A)
+{
+#if UE_TEXTKEY_STORE_EMBEDDED_HASH
+	return A.StrHash;
+#else
+	return A.Index != INDEX_NONE
+		? FTextKeyState::GetState().GetHashByIndex(A.Index)
+		: 0;
+#endif
 }
 
 void FTextKey::SerializeAsString(FArchive& Ar)
@@ -584,14 +721,6 @@ void FTextKey::SerializeDiscardHash(FStructuredArchiveSlot Slot)
 		Slot.EnterStream(); // Let the slot know that we will custom serialize
 		SerializeDiscardHash(Slot.GetUnderlyingArchive());
 	}
-}
-
-void FTextKey::Reset()
-{
-	StrPtr = TEXT("");
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
-	StrHash = 0;
-#endif
 }
 
 void FTextKey::CompactDataStructures()
