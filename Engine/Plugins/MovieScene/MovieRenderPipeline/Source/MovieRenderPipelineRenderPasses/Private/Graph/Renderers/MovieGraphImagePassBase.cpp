@@ -484,6 +484,9 @@ void FMovieGraphImagePassBase::PostRendererSubmission(
 	ENQUEUE_RENDER_COMMAND(CanvasRenderTargetResolveCommand)(
 		[LocalSurfaceQueue, OnSurfaceReadbackFinished, RenderTarget](FRHICommandListImmediate& RHICmdList) mutable
 		{
+			// Transition our render target from a render target view to a shader resource view to allow a shader to read from this Render Target.
+			RHICmdList.Transition(FRHITransitionInfo(RenderTarget->GetRenderTargetTexture(), ERHIAccess::RTV, ERHIAccess::SRVGraphicsPixel));
+
 			// The legacy surface reader takes the payload just so it can shuffle it into our callback, but we can just include the data
 			// directly in the callback, so this is just a dummy payload.
 			TSharedRef<FImagePixelDataPayload, ESPMode::ThreadSafe> FramePayload = MakeShared<FImagePixelDataPayload, ESPMode::ThreadSafe>();
