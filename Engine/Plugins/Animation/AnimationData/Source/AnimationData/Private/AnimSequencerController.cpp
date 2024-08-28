@@ -3054,7 +3054,7 @@ bool UAnimSequencerController::AddCurveControl(const FName& CurveName) const
 						Settings.ControlType = ERigControlType::Float;
 						Settings.DisplayName = FName(*(CurveKey.Name.ToString() + TEXT(" Curve")));
 								
-						HierarchyController->AddControl(CurveControlKey.Name, FRigElementKey(), Settings, FRigControlValue::Make(CurveElement->Value), FTransform::Identity, FTransform::Identity, false);
+						HierarchyController->AddControl(CurveControlKey.Name, FRigElementKey(), Settings, FRigControlValue::Make(CurveElement->Get()), FTransform::Identity, FTransform::Identity, false);
 
 						const FRigControlElement* ControlElement = Hierarchy->FindChecked<FRigControlElement>(CurveControlKey);
 						ensure(ControlElement);
@@ -3509,7 +3509,7 @@ bool UAnimSequencerController::DuplicateCurveControl(const FName& CurveName, con
 						Settings.ControlType = ERigControlType::Float;
 						Settings.DisplayName = FName(*(NewCurveKey.Name.ToString() + TEXT(" Curve")));
 			
-						HierarchyController->AddControl(NewCurveControlKey.Name, FRigElementKey(), Settings, FRigControlValue::Make(CurveElement->Value), FTransform::Identity, FTransform::Identity, false);
+						HierarchyController->AddControl(NewCurveControlKey.Name, FRigElementKey(), Settings, FRigControlValue::Make(CurveElement->Get()), FTransform::Identity, FTransform::Identity, false);
 			
 						// Rename the curve driving the control value
 						const FScalarParameterNameAndCurve* ParameterCurvePair = Section->GetScalarParameterNamesAndCurves().FindByPredicate([CurveName](const FScalarParameterNameAndCurve& Parameter)

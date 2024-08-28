@@ -4185,7 +4185,7 @@ private:
 	 * Templated helper function to create an element
 	 */
 	template<typename ElementType = FRigBaseElement>
-	ElementType* NewElement(int32 Num = 1)
+	ElementType* NewElement(int32 Num = 1, bool bAllocateStorage = false)
 	{
 		ElementType* NewElements = static_cast<ElementType*>(FMemory::Malloc(sizeof(ElementType) * Num));
 		for(int32 Index=0;Index<Num;Index++)
@@ -4193,6 +4193,13 @@ private:
 			new(&NewElements[Index]) ElementType(this);
 		}
 		NewElements[0].OwnedInstances = Num;
+		if(bAllocateStorage)
+		{
+			for(int32 Index=0;Index<Num;Index++)
+			{
+				AllocateDefaultElementStorage(&NewElements[Index], false);
+			}
+		}
 		return NewElements;
 	}
 
@@ -4283,14 +4290,38 @@ private:
 
 	TMap<FRigElementKey, FString> UserDefinedElementName;
 
+	// Per element pose storage. Storage is defined here rather than on the elements
+	// to reduce memory consumption. Only elements created by MakeElement point to
+	// the element storage. Copied elements via the copy constructor or copy operator
+	// do not have URigHierarchy as an owner and therefore do not carry poses with them.
+	FRigReusableElementStorage<FTransform> ElementTransforms;
+
+	// Per element dirty state storage. Storage is defined here rather than on the elements
+	// to reduce memory consumption. Only elements created by MakeElement point to
+	// the element storage. Copied elements via the copy constructor or copy operator
+	// do not have URigHierarchy as an owner and therefore do not carry metadata with them.
+	FRigReusableElementStorage<bool> ElementDirtyStates;
+
+	// Per element curve storage. Storage is defined here rather than on the elements
+	// to reduce memory consumption. Only elements created by MakeElement point to
+	// the element storage. Copied elements via the copy constructor or copy operator
+	// do not have URigHierarchy as an owner and therefore do not carry curves with them.
+	FRigReusableElementStorage<float> ElementCurves;
+
+	// Allocates the default element storage for an element
+	void AllocateDefaultElementStorage(FRigBaseElement* InElement, bool bUpdateAllElements);
+
+	// Deallocates the default element storage for an element
+	void DeallocateElementStorage(FRigBaseElement* InElement);
+
+	// Updates all storage pointers of the elements for poses and dirty states
+	void UpdateElementStorage();
+
 	// Element metadata storage. Storage is defined here rather than on the elements
 	// to reduce memory consumption. Only elements created by MakeElement point to
 	// the element storage. Copied elements via the copy constructor or copy operator
 	// do not have URigHierarchy as an owner and therefore do not carry metadata with them.
-	TArray<FMetadataStorage> ElementMetadata;
-
-	// List of metadata storage entries that have been freed and can be recycled.
-	TArray<int32> ElementMetadataFreeList;
+	FRigReusableElementStorage<FMetadataStorage> ElementMetadata;
 
 	// A quick-lookup cache for elements' children. Each element that has a ChildCacheIndex
 	// not equal to INDEX_NONE is an index into the offset and count cache below, which in

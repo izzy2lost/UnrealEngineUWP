@@ -415,7 +415,7 @@ void FRigUnit_HierarchyAddControl_ShapeSettings::ConfigureFrom(const FRigControl
 	bVisible = InSettings.bShapeVisible;
 	Name = InSettings.ShapeName;
 	Color = InSettings.ShapeColor;
-	Transform = InControlElement->Shape.Get(ERigTransformType::InitialLocal);
+	Transform = InControlElement->GetShapeTransform().Get(ERigTransformType::InitialLocal);
 }
 
 void FRigUnit_HierarchyAddControl_ShapeSettings::Configure(FRigControlSettings& OutSettings) const

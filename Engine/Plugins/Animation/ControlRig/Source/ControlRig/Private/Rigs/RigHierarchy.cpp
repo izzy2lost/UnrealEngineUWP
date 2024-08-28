@@ -214,8 +214,11 @@ void URigHierarchy::Save(FArchive& Ar)
 		// store the key
 		FRigElementKey Key = Element->GetKey();
 		Ar << Key;
+	}
 
-		// allow the element to store more information
+	for(int32 ElementIndex = 0; ElementIndex < ElementCount; ElementIndex++)
+	{
+		FRigBaseElement* Element = Elements[ElementIndex];
 		Element->Serialize(Ar, FRigBaseElement::StaticData);
 	}
 
@@ -284,6 +287,11 @@ void URigHierarchy::Load(FArchive& Ar)
 
 	PoseVersionPerElement.Reset();
 
+	int32 NumTransforms = 0;
+	int32 NumDirtyStates = 0;
+	int32 NumCurves = 0;
+
+	const bool bAllocateStoragePerElement = Ar.CustomVer(FControlRigObjectVersion::GUID) < FControlRigObjectVersion::RigHierarchyIndirectElementStorage;
 	for(int32 ElementIndex = 0; ElementIndex < ElementCount; ElementIndex++)
 	{
 		FRigElementKey Key;
@@ -296,10 +304,83 @@ void URigHierarchy::Load(FArchive& Ar)
 		Element->Index = Elements.Add(Element);
 		ElementsPerType[RigElementTypeToFlatIndex(Key.Type)].Add(Element);
 		IndexLookup.Add(Key, Element->Index);
-		
-		Element->Load(Ar, FRigBaseElement::StaticData);
+
+		if(bAllocateStoragePerElement)
+		{
+			AllocateDefaultElementStorage(Element, false);
+			Element->Load(Ar, FRigBaseElement::StaticData);
+		}
+		else
+		{
+			NumTransforms += Element->GetNumTransforms();
+			NumDirtyStates += Element->GetNumTransforms();
+			NumCurves += Element->GetNumCurves();
+		}
 	}
 
+	if(bAllocateStoragePerElement)
+	{
+		// update all storage pointers now that we've created
+		// all elements.
+		UpdateElementStorage();
+	}
+	else // if we can allocate the storage as one big buffer...
+	{
+		const TArray<int32, TInlineAllocator<4>> TransformIndices = ElementTransforms.Allocate(NumTransforms, FTransform::Identity);
+		const TArray<int32, TInlineAllocator<4>> DirtyStateIndices = ElementDirtyStates.Allocate(NumDirtyStates, false);
+		const TArray<int32, TInlineAllocator<4>> CurveIndices = ElementCurves.Allocate(NumCurves, 0.f);
+		int32 UsedTransformIndex = 0;
+		int32 UsedDirtyStateIndex = 0;
+		int32 UsedCurveIndex = 0;
+
+		ElementTransforms.Shrink();
+		ElementDirtyStates.Shrink();
+		ElementCurves.Shrink();
+
+		for(int32 ElementIndex = 0; ElementIndex < ElementCount; ElementIndex++)
+		{
+			FRigBaseElement* Element = Elements[ElementIndex];
+			
+			if(FRigTransformElement* TransformElement = Cast<FRigTransformElement>(Element))
+			{
+				TransformElement->PoseStorage.Initial.Local.Index = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseStorage.Initial.Global.Index = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseStorage.Current.Local.Index = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseStorage.Current.Global.Index = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseDirtyState.Initial.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseDirtyState.Initial.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseDirtyState.Current.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseDirtyState.Current.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+
+				if(FRigControlElement* ControlElement = Cast<FRigControlElement>(TransformElement))
+				{
+					ControlElement->OffsetStorage.Initial.Local.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetStorage.Initial.Global.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetStorage.Current.Local.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetStorage.Current.Global.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetDirtyState.Initial.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetDirtyState.Initial.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetDirtyState.Current.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetDirtyState.Current.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeStorage.Initial.Local.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeStorage.Initial.Global.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeStorage.Current.Local.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeStorage.Current.Global.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeDirtyState.Initial.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeDirtyState.Initial.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeDirtyState.Current.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeDirtyState.Current.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+				}
+			}
+			else if(FRigCurveElement* CurveElement = Cast<FRigCurveElement>(Element))
+			{
+				CurveElement->StorageIndex = CurveIndices[UsedCurveIndex++];
+			}
+
+			Element->LinkStorage(ElementTransforms.Storage, ElementDirtyStates.Storage, ElementCurves.Storage);
+			Element->Load(Ar, FRigBaseElement::StaticData);
+		}
+	}
 	IncrementTopologyVersion();
 
 	for(int32 ElementIndex = 0; ElementIndex < ElementCount; ElementIndex++)
@@ -351,7 +432,6 @@ void URigHierarchy::Load(FArchive& Ar)
 	if (Ar.CustomVer(FControlRigObjectVersion::GUID) >= FControlRigObjectVersion::RigHierarchyStoresElementMetadata)
 	{
 		ElementMetadata.Reset();
-		ElementMetadataFreeList.Reset();
 		TMap<FRigElementKey, FMetadataStorage> LoadedElementMetadata;
 		
 		Ar << LoadedElementMetadata;
@@ -359,7 +439,7 @@ void URigHierarchy::Load(FArchive& Ar)
 		{
 			FRigBaseElement* Element = Find(Entry.Key);
 			Element->MetadataStorageIndex = ElementMetadata.Num();
-			ElementMetadata.Add(MoveTemp(Entry.Value));
+			ElementMetadata.Storage.Add(MoveTemp(Entry.Value));
 		}
 	}
 }
@@ -418,15 +498,17 @@ void URigHierarchy::Reset_Impl(bool bResetElements)
 		}
 		IndexLookup.Reset();
 
-		for (FMetadataStorage& MetadataStorage: ElementMetadata)
+		ElementTransforms.Reset();
+		ElementDirtyStates.Reset();
+		ElementCurves.Reset();
+
+		ElementMetadata.Reset([](int32 InIndex, FMetadataStorage& MetadataStorage)
 		{
 			for (TTuple<FName, FRigBaseMetadata*>& Item: MetadataStorage.MetadataMap)
 			{
 				FRigBaseMetadata::DestroyMetadata(&Item.Value);
 			} 
-		}
-		ElementMetadata.Reset();
-		ElementMetadataFreeList.Reset();
+		});
 	}
 
 	ResetPoseHash = INDEX_NONE;
@@ -544,7 +626,11 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 			sizeof(FRigReferenceElement),
 			sizeof(FRigConnectorElement),
 			sizeof(FRigSocketElement),
-		}; 
+		};
+
+		int32 NumTransforms = 0;
+		int32 NumDirtyStates = 0;
+		int32 NumCurves = 0;
 
 		if(bReallocateElements)
 		{
@@ -587,7 +673,11 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 				FRigBaseElement* Target = reinterpret_cast<FRigBaseElement*>(&NewElementsPerType[ElementTypeIndex][StructureSize * SubIndex]);
 
 				Target->InitializeFrom(Source);
-			
+
+				NumTransforms += Target->GetNumTransforms();
+				NumDirtyStates += Target->GetNumTransforms();
+				NumCurves += Target->GetNumCurves();
+
 				Target->SubIndex = SubIndex;
 				Target->Index = Elements.Add(Target);
 
@@ -628,17 +718,73 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 				check(Target->Key.Type == Source->Key.Type);
 				Target->InitializeFrom(Source);
 
+				NumTransforms += Target->GetNumTransforms();
+				NumDirtyStates += Target->GetNumTransforms();
+				NumCurves += Target->GetNumCurves();
+
 				IncrementPoseVersion(Index);
 			}
 
 			IndexLookup = InHierarchy->IndexLookup;
 		}
 
+		ElementTransforms.Reset();
+		ElementDirtyStates.Reset();
+		ElementCurves.Reset();
+		
+		const TArray<int32, TInlineAllocator<4>> TransformIndices = ElementTransforms.Allocate(NumTransforms, FTransform::Identity);
+		const TArray<int32, TInlineAllocator<4>> DirtyStateIndices = ElementDirtyStates.Allocate(NumDirtyStates, false);
+		const TArray<int32, TInlineAllocator<4>> CurveIndices = ElementCurves.Allocate(NumCurves, 0.f);
+		int32 UsedTransformIndex = 0;
+		int32 UsedDirtyStateIndex = 0;
+		int32 UsedCurveIndex = 0;
+
+		ElementTransforms.Shrink();
+		ElementDirtyStates.Shrink();
+		ElementCurves.Shrink();
+
 		// Copy all the element subclass data and all elements' metadata over.
 		for(int32 Index = 0; Index < InHierarchy->Num(); Index++)
 		{
 			const FRigBaseElement* Source = InHierarchy->Get(Index);
 			FRigBaseElement* Target = Elements[Index];
+
+			if(FRigTransformElement* TransformElement = Cast<FRigTransformElement>(Target))
+			{
+				TransformElement->PoseStorage.Initial.Local.Index = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseStorage.Initial.Global.Index = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseStorage.Current.Local.Index = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseStorage.Current.Global.Index = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseDirtyState.Initial.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseDirtyState.Initial.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseDirtyState.Current.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseDirtyState.Current.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+
+				if(FRigControlElement* ControlElement = Cast<FRigControlElement>(TransformElement))
+				{
+					ControlElement->OffsetStorage.Initial.Local.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetStorage.Initial.Global.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetStorage.Current.Local.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetStorage.Current.Global.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetDirtyState.Initial.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetDirtyState.Initial.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetDirtyState.Current.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetDirtyState.Current.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeStorage.Initial.Local.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeStorage.Initial.Global.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeStorage.Current.Local.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeStorage.Current.Global.Index = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeDirtyState.Initial.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeDirtyState.Initial.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeDirtyState.Current.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeDirtyState.Current.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+				}
+			}
+			else if(FRigCurveElement* CurveElement = Cast<FRigCurveElement>(Target))
+			{
+				CurveElement->StorageIndex = CurveIndices[UsedCurveIndex++];
+			}
+			Target->LinkStorage(ElementTransforms.Storage, ElementDirtyStates.Storage, ElementCurves.Storage);
 
 			Target->CopyFrom(Source);
 
@@ -829,18 +975,20 @@ void URigHierarchy::CopyPose(URigHierarchy* InHierarchy, bool bCurrent, bool bIn
 						{
 							if(bCurrent)
 							{
-								ControlElementA->Offset.Set(ERigTransformType::CurrentGlobal, InHierarchy->GetControlOffsetTransform(ControlElementB, ERigTransformType::CurrentGlobal));
-								ControlElementA->Offset.MarkDirty(ERigTransformType::CurrentLocal);
-								ControlElementA->Pose.MarkDirty(ERigTransformType::CurrentGlobal);
-								ControlElementA->Shape.MarkDirty(ERigTransformType::CurrentGlobal);
+								ControlElementA->GetOffsetTransform().Set(ERigTransformType::CurrentGlobal, InHierarchy->GetControlOffsetTransform(ControlElementB, ERigTransformType::CurrentGlobal));
+								ControlElementA->GetOffsetDirtyState().MarkClean(ERigTransformType::CurrentGlobal);
+								ControlElementA->GetOffsetDirtyState().MarkDirty(ERigTransformType::CurrentLocal);
+								ControlElementA->GetDirtyState().MarkDirty(ERigTransformType::CurrentGlobal);
+								ControlElementA->GetShapeDirtyState().MarkDirty(ERigTransformType::CurrentGlobal);
 								IncrementPoseVersion(ControlElementA->Index);
 							}
 							if(bInitial)
 							{
-								ControlElementA->Offset.Set(ERigTransformType::InitialGlobal, InHierarchy->GetControlOffsetTransform(ControlElementB, ERigTransformType::InitialGlobal));
-								ControlElementA->Offset.MarkDirty(ERigTransformType::InitialLocal);
-								ControlElementA->Pose.MarkDirty(ERigTransformType::InitialGlobal);
-								ControlElementA->Shape.MarkDirty(ERigTransformType::InitialGlobal);
+								ControlElementA->GetOffsetTransform().Set(ERigTransformType::InitialGlobal, InHierarchy->GetControlOffsetTransform(ControlElementB, ERigTransformType::InitialGlobal));
+								ControlElementA->GetOffsetDirtyState().MarkClean(ERigTransformType::InitialGlobal);
+								ControlElementA->GetOffsetDirtyState().MarkDirty(ERigTransformType::InitialLocal);
+								ControlElementA->GetDirtyState().MarkDirty(ERigTransformType::InitialGlobal);
+								ControlElementA->GetShapeDirtyState().MarkDirty(ERigTransformType::InitialGlobal);
 								IncrementPoseVersion(ControlElementA->Index);
 							}
 						}
@@ -848,14 +996,16 @@ void URigHierarchy::CopyPose(URigHierarchy* InHierarchy, bool bCurrent, bool bIn
 						{
 							if(bCurrent)
 							{
-								MultiParentElementA->Pose.Set(ERigTransformType::CurrentGlobal, InHierarchy->GetTransform(MultiParentElementB, ERigTransformType::CurrentGlobal));
-								MultiParentElementA->Pose.MarkDirty(ERigTransformType::CurrentLocal);
+								MultiParentElementA->GetTransform().Set(ERigTransformType::CurrentGlobal, InHierarchy->GetTransform(MultiParentElementB, ERigTransformType::CurrentGlobal));
+								MultiParentElementA->GetDirtyState().MarkClean(ERigTransformType::CurrentGlobal);
+								MultiParentElementA->GetDirtyState().MarkDirty(ERigTransformType::CurrentLocal);
 								IncrementPoseVersion(MultiParentElementA->Index);
 							}
 							if(bInitial)
 							{
-								MultiParentElementA->Pose.Set(ERigTransformType::InitialGlobal, InHierarchy->GetTransform(MultiParentElementB, ERigTransformType::InitialGlobal));
-								MultiParentElementA->Pose.MarkDirty(ERigTransformType::InitialLocal);
+								MultiParentElementA->GetTransform().Set(ERigTransformType::InitialGlobal, InHierarchy->GetTransform(MultiParentElementB, ERigTransformType::InitialGlobal));
+								MultiParentElementA->GetDirtyState().MarkClean(ERigTransformType::InitialGlobal);
+								MultiParentElementA->GetDirtyState().MarkDirty(ERigTransformType::InitialLocal);
 								IncrementPoseVersion(MultiParentElementA->Index);
 							}
 						}
@@ -975,17 +1125,17 @@ void URigHierarchy::ResetPoseToInitial(ERigElementType InTypeFilter)
 		{
 			if(FRigTransformElement* TransformElement = Get<FRigTransformElement>(ElementIndex))
 			{
-				if(TransformElement->Pose.IsDirty(ERigTransformType::CurrentGlobal))
+				if(TransformElement->GetDirtyState().IsDirty(ERigTransformType::CurrentGlobal))
 				{
 					continue;
 				}
 				
-				TransformElement->Pose.MarkDirty(ERigTransformType::CurrentGlobal);
+				TransformElement->GetDirtyState().MarkDirty(ERigTransformType::CurrentGlobal);
 
 				if(FRigControlElement* ControlElement = Cast<FRigControlElement>(TransformElement))
 				{
-					ControlElement->Offset.MarkDirty(ERigTransformType::CurrentGlobal);
-					ControlElement->Shape.MarkDirty(ERigTransformType::CurrentGlobal);
+					ControlElement->GetOffsetDirtyState().MarkDirty(ERigTransformType::CurrentGlobal);
+					ControlElement->GetShapeDirtyState().MarkDirty(ERigTransformType::CurrentGlobal);
 				}
 
 				PropagateDirtyFlags(TransformElement, false, true, false, true);
@@ -1014,14 +1164,17 @@ void URigHierarchy::ResetPoseToInitial(ERigElementType InTypeFilter)
 
 		if(FRigControlElement* ControlElement = Cast<FRigControlElement>(Elements[ElementIndex]))
 		{
-			ControlElement->Offset.Current = ControlElement->Offset.Initial;
-			ControlElement->Shape.Current = ControlElement->Shape.Initial;
+			ControlElement->GetOffsetTransform().Current = ControlElement->GetOffsetTransform().Initial;
+			ControlElement->GetOffsetDirtyState().Current = ControlElement->GetOffsetDirtyState().Initial;
+			ControlElement->GetShapeTransform().Current = ControlElement->GetShapeTransform().Initial;
+			ControlElement->GetShapeDirtyState().Current = ControlElement->GetShapeDirtyState().Initial;
 			ControlElement->PreferredEulerAngles.Current = ControlElement->PreferredEulerAngles.Initial;
 		}
 
 		if(FRigTransformElement* TransformElement = Cast<FRigTransformElement>(Elements[ElementIndex]))
 		{
-			TransformElement->Pose.Current = TransformElement->Pose.Initial;
+			TransformElement->GetTransform().Current = TransformElement->GetTransform().Initial;
+			TransformElement->GetDirtyState().Current = TransformElement->GetDirtyState().Initial;
 		}
 	}
 	
@@ -2323,7 +2476,7 @@ bool URigHierarchy::SetParentWeight(FRigBaseElement* InChild, int32 InParentInde
 					GetControlOffsetTransform(ControlElement, LocalType);
 				}
 				GetTransform(MultiParentElement, LocalType);
-				MultiParentElement->Pose.MarkDirty(GlobalType);
+				MultiParentElement->GetDirtyState().MarkDirty(GlobalType);
 			}
 			else
 			{
@@ -2333,14 +2486,14 @@ bool URigHierarchy::SetParentWeight(FRigBaseElement* InChild, int32 InParentInde
 					GetControlOffsetTransform(ControlElement, GlobalType);
 				}
 				GetTransform(MultiParentElement, GlobalType);
-				MultiParentElement->Pose.MarkDirty(LocalType);
+				MultiParentElement->GetDirtyState().MarkDirty(LocalType);
 			}
 
 			TargetWeight = InWeight;
 
 			if(FRigControlElement* ControlElement = Cast<FRigControlElement>(MultiParentElement))
 			{
-				ControlElement->Offset.MarkDirty(GlobalType);
+				ControlElement->GetOffsetDirtyState().MarkDirty(GlobalType);
 			}
 
 			PropagateDirtyFlags(MultiParentElement, ERigTransformType::IsInitial(LocalType), bAffectChildren);
@@ -2450,12 +2603,12 @@ bool URigHierarchy::SetParentWeightArray(FRigBaseElement* InChild,  const TArray
 			if(bAffectChildren)
 			{
 				GetTransform(MultiParentElement, LocalType);
-				MultiParentElement->Pose.MarkDirty(GlobalType);
+				MultiParentElement->GetDirtyState().MarkDirty(GlobalType);
 			}
 			else
 			{
 				GetTransform(MultiParentElement, GlobalType);
-				MultiParentElement->Pose.MarkDirty(LocalType);
+				MultiParentElement->GetDirtyState().MarkDirty(LocalType);
 			}
 
 			for(int32 WeightIndex=0; WeightIndex < InWeights.Num(); WeightIndex++)
@@ -2472,8 +2625,8 @@ bool URigHierarchy::SetParentWeightArray(FRigBaseElement* InChild,  const TArray
 
 			if(FRigControlElement* ControlElement = Cast<FRigControlElement>(MultiParentElement))
 			{
-				ControlElement->Offset.MarkDirty(GlobalType);
-				ControlElement->Shape.MarkDirty(GlobalType);
+				ControlElement->GetOffsetDirtyState().MarkDirty(GlobalType);
+				ControlElement->GetShapeDirtyState().MarkDirty(GlobalType);
 			}
 
 			PropagateDirtyFlags(MultiParentElement, ERigTransformType::IsInitial(LocalType), bAffectChildren);
@@ -3524,11 +3677,11 @@ FTransform URigHierarchy::GetTransform(FRigTransformElement* InTransformElement,
 	
 #endif
 	
-	if(InTransformElement->Pose.IsDirty(InTransformType))
+	if(InTransformElement->GetDirtyState().IsDirty(InTransformType))
 	{
 		const ERigTransformType::Type OpposedType = SwapLocalAndGlobal(InTransformType);
 		const ERigTransformType::Type GlobalType = MakeGlobal(InTransformType);
-		ensure(!InTransformElement->Pose.IsDirty(OpposedType));
+		ensure(!InTransformElement->GetDirtyState().IsDirty(OpposedType));
 
 		FTransform ParentTransform;
 		if(IsLocal(InTransformType))
@@ -3547,17 +3700,19 @@ FTransform URigHierarchy::GetTransform(FRigTransformElement* InTransformElement,
 					const FVector ParentScale = ParentTransform.GetScale3D();
 					if(FMath::IsNearlyZero(ParentScale.X) || FMath::IsNearlyZero(ParentScale.Y) || FMath::IsNearlyZero(ParentScale.Z))
 					{
-						Transform.SetTranslation(InTransformElement->Pose.Get(InTransformType).GetTranslation());
-						Transform.SetScale3D(InTransformElement->Pose.Get(InTransformType).GetScale3D());
+						const FTransform& InputTransform = InTransformElement->GetTransform().Get(InTransformType); 
+						Transform.SetTranslation(InputTransform.GetTranslation());
+						Transform.SetScale3D(InputTransform.GetScale3D());
 					}
 				}
 			};
 			
 			if(FRigControlElement* ControlElement = Cast<FRigControlElement>(InTransformElement))
 			{
-				FTransform NewTransform = ComputeLocalControlValue(ControlElement, ControlElement->Pose.Get(OpposedType), GlobalType);
+				FTransform NewTransform = ComputeLocalControlValue(ControlElement, ControlElement->GetTransform().Get(OpposedType), GlobalType);
 				CompensateZeroScale(NewTransform);
-				ControlElement->Pose.Set(InTransformType, NewTransform);
+				ControlElement->GetTransform().Set(InTransformType, NewTransform);
+				ControlElement->GetDirtyState().MarkClean(InTransformType);
 				/** from mikez we do not want geting a pose to set these preferred angles
 				switch(ControlElement->Settings.ControlType)
 				{
@@ -3580,21 +3735,23 @@ FTransform URigHierarchy::GetTransform(FRigTransformElement* InTransformElement,
 			{
 				// this is done for nulls and any element that can have more than one parent which 
 				// is not a control
-				const FTransform& GlobalTransform = MultiParentElement->Pose.Get(GlobalType);
+				const FTransform& GlobalTransform = MultiParentElement->GetTransform().Get(GlobalType);
 				FTransform LocalTransform = InverseSolveParentConstraints(
 					GlobalTransform, 
 					MultiParentElement->ParentConstraints, GlobalType, FTransform::Identity);
 				CompensateZeroScale(LocalTransform);
-				MultiParentElement->Pose.Set(InTransformType, LocalTransform);
+				MultiParentElement->GetTransform().Set(InTransformType, LocalTransform);
+				MultiParentElement->GetDirtyState().MarkClean(InTransformType);
 			}
 			else
 			{
 				ParentTransform = GetParentTransform(InTransformElement, GlobalType);
 
-				FTransform NewTransform = InTransformElement->Pose.Get(OpposedType).GetRelativeTransform(ParentTransform);
+				FTransform NewTransform = InTransformElement->GetTransform().Get(OpposedType).GetRelativeTransform(ParentTransform);
 				NewTransform.NormalizeRotation();
 				CompensateZeroScale(NewTransform);
-				InTransformElement->Pose.Set(InTransformType, NewTransform);
+				InTransformElement->GetTransform().Set(InTransformType, NewTransform);
+				InTransformElement->GetDirtyState().MarkClean(InTransformType);
 			}
 		}
 		else
@@ -3607,8 +3764,9 @@ FTransform URigHierarchy::GetTransform(FRigTransformElement* InTransformElement,
 				const FTransform NewTransform = SolveParentConstraints(
 					ControlElement->ParentConstraints, InTransformType,
 					GetControlOffsetTransform(ControlElement, OpposedType), true,
-					ControlElement->Pose.Get(OpposedType), true);
-				ControlElement->Pose.Set(InTransformType, NewTransform);
+					ControlElement->GetTransform().Get(OpposedType), true);
+				ControlElement->GetTransform().Set(InTransformType, NewTransform);
+				ControlElement->GetDirtyState().MarkClean(InTransformType);
 			}
 			else if(FRigMultiParentElement* MultiParentElement = Cast<FRigMultiParentElement>(InTransformElement))
 			{
@@ -3617,22 +3775,24 @@ FTransform URigHierarchy::GetTransform(FRigTransformElement* InTransformElement,
 				const FTransform NewTransform = SolveParentConstraints(
 					MultiParentElement->ParentConstraints, InTransformType,
 					FTransform::Identity, false,
-					MultiParentElement->Pose.Get(OpposedType), true);
-				MultiParentElement->Pose.Set(InTransformType, NewTransform);
+					MultiParentElement->GetTransform().Get(OpposedType), true);
+				MultiParentElement->GetTransform().Set(InTransformType, NewTransform);
+				MultiParentElement->GetDirtyState().MarkClean(InTransformType);
 			}
 			else
 			{
 				ParentTransform = GetParentTransform(InTransformElement, GlobalType);
 
-				FTransform NewTransform = InTransformElement->Pose.Get(OpposedType) * ParentTransform;
+				FTransform NewTransform = InTransformElement->GetTransform().Get(OpposedType) * ParentTransform;
 				NewTransform.NormalizeRotation();
-				InTransformElement->Pose.Set(InTransformType, NewTransform);
+				InTransformElement->GetTransform().Set(InTransformType, NewTransform);
+				InTransformElement->GetDirtyState().MarkClean(InTransformType);
 			}
 		}
 
 		EnsureCacheValidity();
 	}
-	return InTransformElement->Pose.Get(InTransformType);
+	return InTransformElement->GetTransform().Get(InTransformType);
 }
 
 void URigHierarchy::SetTransform(FRigTransformElement* InTransformElement, const FTransform& InTransform, const ERigTransformType::Type InTransformType, bool bAffectChildren, bool bSetupUndo, bool bForce, bool bPrintPythonCommands)
@@ -3714,9 +3874,9 @@ void URigHierarchy::SetTransform(FRigTransformElement* InTransformElement, const
 	
 #endif
 
-	if(!InTransformElement->Pose.IsDirty(InTransformType))
+	if(!InTransformElement->GetDirtyState().IsDirty(InTransformType))
 	{
-		const FTransform PreviousTransform = InTransformElement->Pose.Get(InTransformType);
+		const FTransform PreviousTransform = InTransformElement->GetTransform().Get(InTransformType);
 		if(!bForce && FRigComputedTransform::Equals(PreviousTransform, InTransform))
 		{
 			return;
@@ -3727,13 +3887,14 @@ void URigHierarchy::SetTransform(FRigTransformElement* InTransformElement, const
 	PropagateDirtyFlags(InTransformElement, ERigTransformType::IsInitial(InTransformType), bAffectChildren);
 
 	const ERigTransformType::Type OpposedType = SwapLocalAndGlobal(InTransformType);
-	InTransformElement->Pose.Set(InTransformType, InTransform);
-	InTransformElement->Pose.MarkDirty(OpposedType);
+	InTransformElement->GetTransform().Set(InTransformType, InTransform);
+	InTransformElement->GetDirtyState().MarkClean(InTransformType);
+	InTransformElement->GetDirtyState().MarkDirty(OpposedType);
 	IncrementPoseVersion(InTransformElement->Index);
 
 	if(FRigControlElement* ControlElement = Cast<FRigControlElement>(InTransformElement))
 	{
-		ControlElement->Shape.MarkDirty(MakeGlobal(InTransformType));
+		ControlElement->GetShapeDirtyState().MarkDirty(MakeGlobal(InTransformType));
 
 		if(bUsePreferredEulerAngles && ERigTransformType::IsLocal(InTransformType))
 		{
@@ -3752,7 +3913,7 @@ void URigHierarchy::SetTransform(FRigTransformElement* InTransformElement, const
 			ERigTransformStackEntryType::TransformPose,
 			InTransformType,
 			PreviousTransform,
-			InTransformElement->Pose.Get(InTransformType),
+			InTransformElement->GetTransform().Get(InTransformType),
 			bAffectChildren,
 			bSetupUndo);
 	}
@@ -3853,19 +4014,20 @@ FTransform URigHierarchy::GetControlOffsetTransform(FRigControlElement* InContro
 	
 #endif
 
-	if(InControlElement->Offset.IsDirty(InTransformType))
+	if(InControlElement->GetOffsetDirtyState().IsDirty(InTransformType))
 	{
 		const ERigTransformType::Type OpposedType = SwapLocalAndGlobal(InTransformType);
 		const ERigTransformType::Type GlobalType = MakeGlobal(InTransformType);
-		ensure(!InControlElement->Offset.IsDirty(OpposedType));
+		ensure(!InControlElement->GetOffsetDirtyState().IsDirty(OpposedType));
 
 		if(IsLocal(InTransformType))
 		{
-			const FTransform& GlobalTransform = InControlElement->Offset.Get(GlobalType);
+			const FTransform& GlobalTransform = InControlElement->GetOffsetTransform().Get(GlobalType);
 			const FTransform LocalTransform = InverseSolveParentConstraints(
 				GlobalTransform, 
 				InControlElement->ParentConstraints, GlobalType, FTransform::Identity);
-			InControlElement->Offset.Set(InTransformType, LocalTransform);
+			InControlElement->GetOffsetTransform().Set(InTransformType, LocalTransform);
+			InControlElement->GetOffsetDirtyState().MarkClean(InTransformType);
 
 			if(bEnableCacheValidityCheck)
 			{
@@ -3885,12 +4047,13 @@ FTransform URigHierarchy::GetControlOffsetTransform(FRigControlElement* InContro
 		}
 		else
 		{
-			const FTransform& LocalTransform = InControlElement->Offset.Get(OpposedType); 
+			const FTransform& LocalTransform = InControlElement->GetOffsetTransform().Get(OpposedType); 
 			const FTransform GlobalTransform = SolveParentConstraints(
 				InControlElement->ParentConstraints, InTransformType,
 				LocalTransform, true,
 				FTransform::Identity, false);
-			InControlElement->Offset.Set(InTransformType, GlobalTransform);
+			InControlElement->GetOffsetTransform().Set(InTransformType, GlobalTransform);
+			InControlElement->GetOffsetDirtyState().MarkClean(InTransformType);
 
 			if(bEnableCacheValidityCheck)
 			{
@@ -3910,7 +4073,7 @@ FTransform URigHierarchy::GetControlOffsetTransform(FRigControlElement* InContro
 
 		EnsureCacheValidity();
 	}
-	return InControlElement->Offset.Get(InTransformType);
+	return InControlElement->GetOffsetTransform().Get(InTransformType);
 }
 
 void URigHierarchy::SetControlOffsetTransform(FRigControlElement* InControlElement, const FTransform& InTransform,
@@ -3941,9 +4104,9 @@ void URigHierarchy::SetControlOffsetTransform(FRigControlElement* InControlEleme
 	
 #endif
 
-	if(!InControlElement->Offset.IsDirty(InTransformType))
+	if(!InControlElement->GetOffsetDirtyState().IsDirty(InTransformType))
 	{
-		const FTransform PreviousTransform = InControlElement->Offset.Get(InTransformType);
+		const FTransform PreviousTransform = InControlElement->GetOffsetTransform().Get(InTransformType);
 		if(!bForce && FRigComputedTransform::Equals(PreviousTransform, InTransform))
 		{
 			return;
@@ -3954,12 +4117,13 @@ void URigHierarchy::SetControlOffsetTransform(FRigControlElement* InControlEleme
 	PropagateDirtyFlags(InControlElement, ERigTransformType::IsInitial(InTransformType), bAffectChildren);
 
 	GetTransform(InControlElement, MakeLocal(InTransformType));
-	InControlElement->Pose.MarkDirty(MakeGlobal(InTransformType));
+	InControlElement->GetDirtyState().MarkDirty(MakeGlobal(InTransformType));
 
 	const ERigTransformType::Type OpposedType = SwapLocalAndGlobal(InTransformType);
-	InControlElement->Offset.Set(InTransformType, InTransform);
-	InControlElement->Offset.MarkDirty(OpposedType);
-	InControlElement->Shape.MarkDirty(MakeGlobal(InTransformType));
+	InControlElement->GetOffsetTransform().Set(InTransformType, InTransform);
+	InControlElement->GetOffsetDirtyState().MarkClean(InTransformType);
+	InControlElement->GetOffsetDirtyState().MarkDirty(OpposedType);
+	InControlElement->GetShapeDirtyState().MarkDirty(MakeGlobal(InTransformType));
 
 	EnsureCacheValidity();
 
@@ -3980,7 +4144,7 @@ void URigHierarchy::SetControlOffsetTransform(FRigControlElement* InControlEleme
             ERigTransformStackEntryType::ControlOffset,
             InTransformType,
             PreviousTransform,
-            InControlElement->Offset.Get(InTransformType),
+            InControlElement->GetOffsetTransform().Get(InTransformType),
             bAffectChildren,
             bSetupUndo);
 	}
@@ -4038,29 +4202,31 @@ FTransform URigHierarchy::GetControlShapeTransform(FRigControlElement* InControl
 		return FTransform::Identity;
 	}
 	
-	if(InControlElement->Shape.IsDirty(InTransformType))
+	if(InControlElement->GetShapeDirtyState().IsDirty(InTransformType))
 	{
 		const ERigTransformType::Type OpposedType = SwapLocalAndGlobal(InTransformType);
 		const ERigTransformType::Type GlobalType = MakeGlobal(InTransformType);
-		ensure(!InControlElement->Shape.IsDirty(OpposedType));
+		ensure(!InControlElement->GetShapeDirtyState().IsDirty(OpposedType));
 
 		const FTransform ParentTransform = GetTransform(InControlElement, GlobalType);
 		if(IsLocal(InTransformType))
 		{
-			FTransform LocalTransform = InControlElement->Shape.Get(OpposedType).GetRelativeTransform(ParentTransform);
+			FTransform LocalTransform = InControlElement->GetShapeTransform().Get(OpposedType).GetRelativeTransform(ParentTransform);
 			LocalTransform.NormalizeRotation();
-			InControlElement->Shape.Set(InTransformType, LocalTransform);
+			InControlElement->GetShapeTransform().Set(InTransformType, LocalTransform);
+			InControlElement->GetShapeDirtyState().MarkClean(InTransformType);
 		}
 		else
 		{
-			FTransform GlobalTransform = InControlElement->Shape.Get(OpposedType) * ParentTransform;
+			FTransform GlobalTransform = InControlElement->GetShapeTransform().Get(OpposedType) * ParentTransform;
 			GlobalTransform.NormalizeRotation();
-			InControlElement->Shape.Set(InTransformType, GlobalTransform);
+			InControlElement->GetShapeTransform().Set(InTransformType, GlobalTransform);
+			InControlElement->GetShapeDirtyState().MarkClean(InTransformType);
 		}
 
 		EnsureCacheValidity();
 	}
-	return InControlElement->Shape.Get(InTransformType);
+	return InControlElement->GetShapeTransform().Get(InTransformType);
 }
 
 void URigHierarchy::SetControlShapeTransform(FRigControlElement* InControlElement, const FTransform& InTransform,
@@ -4072,9 +4238,9 @@ void URigHierarchy::SetControlShapeTransform(FRigControlElement* InControlElemen
 		return;
 	}
 
-	if(!InControlElement->Shape.IsDirty(InTransformType))
+	if(!InControlElement->GetShapeDirtyState().IsDirty(InTransformType))
 	{
-		const FTransform PreviousTransform = InControlElement->Shape.Get(InTransformType);
+		const FTransform PreviousTransform = InControlElement->GetShapeTransform().Get(InTransformType);
 		if(!bForce && FRigComputedTransform::Equals(PreviousTransform, InTransform))
 		{
 			return;
@@ -4083,8 +4249,9 @@ void URigHierarchy::SetControlShapeTransform(FRigControlElement* InControlElemen
 
 	const FTransform PreviousTransform = GetControlShapeTransform(InControlElement, InTransformType);
 	const ERigTransformType::Type OpposedType = SwapLocalAndGlobal(InTransformType);
-	InControlElement->Shape.Set(InTransformType, InTransform);
-	InControlElement->Shape.MarkDirty(OpposedType);
+	InControlElement->GetShapeTransform().Set(InTransformType, InTransform);
+	InControlElement->GetShapeDirtyState().MarkClean(InTransformType);
+	InControlElement->GetShapeDirtyState().MarkDirty(OpposedType);
 
 	if (IsInitial(InTransformType))
 	{
@@ -4104,7 +4271,7 @@ void URigHierarchy::SetControlShapeTransform(FRigControlElement* InControlElemen
             ERigTransformStackEntryType::ControlShape,
             InTransformType,
             PreviousTransform,
-            InControlElement->Shape.Get(InTransformType),
+            InControlElement->GetShapeTransform().Get(InTransformType),
             false,
             bSetupUndo);
 	}
@@ -4646,7 +4813,7 @@ float URigHierarchy::GetCurveValue(FRigCurveElement* InCurveElement) const
 	{
 		return 0.f;
 	}
-	return InCurveElement->bIsValueSet ? InCurveElement->Value : 0.f;
+	return InCurveElement->bIsValueSet ? InCurveElement->Get() : 0.f;
 }
 
 
@@ -4665,19 +4832,18 @@ void URigHierarchy::SetCurveValue(FRigCurveElement* InCurveElement, float InValu
 	}
 
 	const bool bPreviousIsValueSet = InCurveElement->bIsValueSet; 
-	const float PreviousValue = InCurveElement->Value;
+	const float PreviousValue = InCurveElement->Get();
 	if(!bForce && InCurveElement->bIsValueSet && FMath::IsNearlyZero(PreviousValue - InValue))
 	{
 		return;
 	}
 
-	InCurveElement->bIsValueSet = true;
-	InCurveElement->Value = InValue;
+	InCurveElement->Set(InValue);
 
 #if WITH_EDITOR
 	if(bSetupUndo || IsTracingChanges())
 	{
-		PushCurveToStack(InCurveElement->GetKey(), PreviousValue, InCurveElement->Value, bPreviousIsValueSet, true, bSetupUndo);
+		PushCurveToStack(InCurveElement->GetKey(), PreviousValue, InCurveElement->Get(), bPreviousIsValueSet, true, bSetupUndo);
 	}
 
 	if (!bPropagatingChange)
@@ -4724,7 +4890,7 @@ void URigHierarchy::UnsetCurveValue(FRigCurveElement* InCurveElement, bool bSetu
 #if WITH_EDITOR
 	if(bSetupUndo || IsTracingChanges())
 	{
-		PushCurveToStack(InCurveElement->GetKey(), InCurveElement->Value, InCurveElement->Value, bPreviousIsValueSet, false, bSetupUndo);
+		PushCurveToStack(InCurveElement->GetKey(), InCurveElement->Get(), InCurveElement->Get(), bPreviousIsValueSet, false, bSetupUndo);
 	}
 
 	if (!bPropagatingChange)
@@ -4796,10 +4962,10 @@ bool URigHierarchy::IsDependentOn(FRigBaseElement* InDependent, FRigBaseElement*
 	const int32 DependencyElementIndex = InDependency->GetIndex();
 	const TTuple<int32,int32> CacheKey(DependentElementIndex, DependencyElementIndex);
 
-		if(!ElementDependencyCache.IsValid(GetTopologyVersion()))
-		{
-			ElementDependencyCache.Set(TMap<TTuple<int32, int32>, bool>(), GetTopologyVersion());
-		}
+	if(!ElementDependencyCache.IsValid(GetTopologyVersion()))
+	{
+		ElementDependencyCache.Set(TMap<TTuple<int32, int32>, bool>(), GetTopologyVersion());
+	}
 
 	// we'll only update the caches if we are following edges on the actual topology
 	if(const bool* bCachedResult = ElementDependencyCache.Get().Find(CacheKey))
@@ -5308,6 +5474,7 @@ void URigHierarchy::DestroyElement(FRigBaseElement*& InElement)
 			for(int32 Index=0;Index<Count;Index++)
 			{
 				TGuardValue<const FRigBaseElement*> DestroyGuard(ElementBeingDestroyed, &ExistingElements[Index]);
+				DeallocateElementStorage(&ExistingElements[Index]);
 				ExistingElements[Index].~FRigBoneElement(); 
 			}
 			break;
@@ -5318,6 +5485,7 @@ void URigHierarchy::DestroyElement(FRigBaseElement*& InElement)
 			for(int32 Index=0;Index<Count;Index++)
 			{
 				TGuardValue<const FRigBaseElement*> DestroyGuard(ElementBeingDestroyed, &ExistingElements[Index]);
+				DeallocateElementStorage(&ExistingElements[Index]);
 				ExistingElements[Index].~FRigNullElement(); 
 			}
 			break;
@@ -5328,6 +5496,7 @@ void URigHierarchy::DestroyElement(FRigBaseElement*& InElement)
 			for(int32 Index=0;Index<Count;Index++)
 			{
 				TGuardValue<const FRigBaseElement*> DestroyGuard(ElementBeingDestroyed, &ExistingElements[Index]);
+				DeallocateElementStorage(&ExistingElements[Index]);
 				ExistingElements[Index].~FRigControlElement(); 
 			}
 			break;
@@ -5338,6 +5507,7 @@ void URigHierarchy::DestroyElement(FRigBaseElement*& InElement)
 			for(int32 Index=0;Index<Count;Index++)
 			{
 				TGuardValue<const FRigBaseElement*> DestroyGuard(ElementBeingDestroyed, &ExistingElements[Index]);
+				DeallocateElementStorage(&ExistingElements[Index]);
 				ExistingElements[Index].~FRigCurveElement(); 
 			}
 			break;
@@ -5348,6 +5518,7 @@ void URigHierarchy::DestroyElement(FRigBaseElement*& InElement)
 			for(int32 Index=0;Index<Count;Index++)
 			{
 				TGuardValue<const FRigBaseElement*> DestroyGuard(ElementBeingDestroyed, &ExistingElements[Index]);
+				DeallocateElementStorage(&ExistingElements[Index]);
 				ExistingElements[Index].~FRigPhysicsElement(); 
 			}
 			break;
@@ -5358,6 +5529,7 @@ void URigHierarchy::DestroyElement(FRigBaseElement*& InElement)
 			for(int32 Index=0;Index<Count;Index++)
 			{
 				TGuardValue<const FRigBaseElement*> DestroyGuard(ElementBeingDestroyed, &ExistingElements[Index]);
+				DeallocateElementStorage(&ExistingElements[Index]);
 				ExistingElements[Index].~FRigReferenceElement(); 
 			}
 			break;
@@ -5368,6 +5540,7 @@ void URigHierarchy::DestroyElement(FRigBaseElement*& InElement)
 			for(int32 Index=0;Index<Count;Index++)
 			{
 				TGuardValue<const FRigBaseElement*> DestroyGuard(ElementBeingDestroyed, &ExistingElements[Index]);
+				DeallocateElementStorage(&ExistingElements[Index]);
 				ExistingElements[Index].~FRigConnectorElement(); 
 			}
 			break;
@@ -5378,6 +5551,7 @@ void URigHierarchy::DestroyElement(FRigBaseElement*& InElement)
 			for(int32 Index=0;Index<Count;Index++)
 			{
 				TGuardValue<const FRigBaseElement*> DestroyGuard(ElementBeingDestroyed, &ExistingElements[Index]);
+				DeallocateElementStorage(&ExistingElements[Index]);
 				ExistingElements[Index].~FRigSocketElement(); 
 			}
 			break;
@@ -5425,9 +5599,9 @@ void URigHierarchy::PropagateDirtyFlags(FRigTransformElement* InTransformElement
 				
 				if(ERigTransformType::IsGlobal(TypeToDirty))
 				{
-					if(ControlElement->Offset.IsDirty(TypeToDirty) &&
-						ControlElement->Pose.IsDirty(TypeToDirty) &&
-						ControlElement->Shape.IsDirty(TypeToDirty))
+					if(ControlElement->GetOffsetDirtyState().IsDirty(TypeToDirty) &&
+						ControlElement->GetDirtyState().IsDirty(TypeToDirty) &&
+						ControlElement->GetShapeDirtyState().IsDirty(TypeToDirty))
 					{
 						continue;
 					}
@@ -5437,7 +5611,7 @@ void URigHierarchy::PropagateDirtyFlags(FRigTransformElement* InTransformElement
 			{
 				if(ERigTransformType::IsGlobal(TypeToDirty))
 				{
-					if(MultiParentElement->Pose.IsDirty(TypeToDirty))
+					if(MultiParentElement->GetDirtyState().IsDirty(TypeToDirty))
 					{
 						continue;
 					}
@@ -5445,7 +5619,7 @@ void URigHierarchy::PropagateDirtyFlags(FRigTransformElement* InTransformElement
 			}
 			else
 			{
-				if(ElementToDirty.Element->Pose.IsDirty(TypeToDirty))
+				if(ElementToDirty.Element->GetDirtyState().IsDirty(TypeToDirty))
 				{
 					continue;
 				}
@@ -5481,9 +5655,9 @@ void URigHierarchy::PropagateDirtyFlags(FRigTransformElement* InTransformElement
 
 				if(ERigTransformType::IsGlobal(TypeToDirty))
 				{
-					if(ControlElement->Offset.IsDirty(TypeToDirty) &&
-						ControlElement->Pose.IsDirty(TypeToDirty) &&
-					    ControlElement->Shape.IsDirty(TypeToDirty))
+					if(ControlElement->GetOffsetDirtyState().IsDirty(TypeToDirty) &&
+						ControlElement->GetDirtyState().IsDirty(TypeToDirty) &&
+					    ControlElement->GetShapeDirtyState().IsDirty(TypeToDirty))
 					{
 						continue;
 					}
@@ -5493,7 +5667,7 @@ void URigHierarchy::PropagateDirtyFlags(FRigTransformElement* InTransformElement
 			{
 				if(ERigTransformType::IsGlobal(TypeToDirty))
 				{
-					if(MultiParentElement->Pose.IsDirty(TypeToDirty))
+					if(MultiParentElement->GetDirtyState().IsDirty(TypeToDirty))
 					{
 						continue;
 					}
@@ -5501,18 +5675,18 @@ void URigHierarchy::PropagateDirtyFlags(FRigTransformElement* InTransformElement
 			}
 			else
 			{
-				if(ElementToDirty.Element->Pose.IsDirty(TypeToDirty))
+				if(ElementToDirty.Element->GetDirtyState().IsDirty(TypeToDirty))
 				{
 					continue;
 				}
 			}
 						
-			ElementToDirty.Element->Pose.MarkDirty(TypeToDirty);
+			ElementToDirty.Element->GetDirtyState().MarkDirty(TypeToDirty);
 		
 			if(FRigControlElement* ControlElement = Cast<FRigControlElement>(ElementToDirty.Element))
 			{
-				ControlElement->Offset.MarkDirty(GlobalType);
-				ControlElement->Shape.MarkDirty(GlobalType);
+				ControlElement->GetOffsetDirtyState().MarkDirty(GlobalType);
+				ControlElement->GetShapeDirtyState().MarkDirty(GlobalType);
 			}
 
 			if(bAffectChildren)
@@ -5542,9 +5716,9 @@ void URigHierarchy::CleanupInvalidCaches()
 
 	struct Local
 	{
-		static bool NeedsCheck(bool bDirty[FRigLocalAndGlobalTransform::EDirtyMax])
+		static bool NeedsCheck(const FRigLocalAndGlobalDirtyState& InDirtyState)
 		{
-			return !bDirty[FRigLocalAndGlobalTransform::ELocal] && !bDirty[FRigLocalAndGlobalTransform::EGlobal];
+			return !InDirtyState.Local.Get() && !InDirtyState.Global.Get();
 		}
 	};
 
@@ -5554,37 +5728,37 @@ void URigHierarchy::CleanupInvalidCaches()
 		FRigBaseElement* BaseElement = HierarchyForCacheValidation->Elements[ElementIndex];
 		if(FRigControlElement* ControlElement = Cast<FRigControlElement>(BaseElement))
 		{
-			if(Local::NeedsCheck(ControlElement->Offset.Initial.bDirty))
+			if(Local::NeedsCheck(ControlElement->GetOffsetDirtyState().Initial))
 			{
-				ControlElement->Offset.MarkDirty(ERigTransformType::InitialGlobal);
+				ControlElement->GetOffsetDirtyState().MarkDirty(ERigTransformType::InitialGlobal);
 			}
 
-			if(Local::NeedsCheck(ControlElement->Pose.Initial.bDirty))
+			if(Local::NeedsCheck(ControlElement->GetDirtyState().Initial))
 			{
-				ControlElement->Pose.MarkDirty(ERigTransformType::InitialGlobal);
+				ControlElement->GetDirtyState().MarkDirty(ERigTransformType::InitialGlobal);
 			}
 
-			if(Local::NeedsCheck(ControlElement->Shape.Initial.bDirty))
+			if(Local::NeedsCheck(ControlElement->GetShapeDirtyState().Initial))
 			{
-				ControlElement->Shape.MarkDirty(ERigTransformType::InitialGlobal);
+				ControlElement->GetShapeDirtyState().MarkDirty(ERigTransformType::InitialGlobal);
 			}
 			continue;
 		}
 
 		if(FRigMultiParentElement* MultiParentElement = Cast<FRigMultiParentElement>(BaseElement))
 		{
-			if(Local::NeedsCheck(MultiParentElement->Pose.Initial.bDirty))
+			if(Local::NeedsCheck(MultiParentElement->GetDirtyState().Initial))
 			{
-				MultiParentElement->Pose.MarkDirty(ERigTransformType::InitialLocal);
+				MultiParentElement->GetDirtyState().MarkDirty(ERigTransformType::InitialLocal);
 			}
 			continue;
 		}
 
 		if(FRigTransformElement* TransformElement = Cast<FRigTransformElement>(BaseElement))
 		{
-			if(Local::NeedsCheck(TransformElement->Pose.Initial.bDirty))
+			if(Local::NeedsCheck(TransformElement->GetDirtyState().Initial))
 			{
-				TransformElement->Pose.MarkDirty(ERigTransformType::InitialGlobal);
+				TransformElement->GetDirtyState().MarkDirty(ERigTransformType::InitialGlobal);
 			}
 		}
 	}
@@ -5601,36 +5775,36 @@ void URigHierarchy::CleanupInvalidCaches()
 		{
 			FRigControlElement* OtherControlElement = HierarchyForCacheValidation->FindChecked<FRigControlElement>(ControlElement->GetKey());
 			
-			if(Local::NeedsCheck(ControlElement->Offset.Initial.bDirty))
+			if(Local::NeedsCheck(ControlElement->GetOffsetDirtyState().Initial))
 			{
-				const FTransform CachedGlobalTransform = OtherControlElement->Offset.Get(ERigTransformType::InitialGlobal);
+				const FTransform CachedGlobalTransform = OtherControlElement->GetOffsetTransform().Get(ERigTransformType::InitialGlobal);
 				const FTransform ComputedGlobalTransform = HierarchyForCacheValidation->GetControlOffsetTransform(OtherControlElement, ERigTransformType::InitialGlobal);
 
 				if(!FRigComputedTransform::Equals(ComputedGlobalTransform, CachedGlobalTransform, 0.01))
 				{
-					ControlElement->Offset.MarkDirty(ERigTransformType::InitialGlobal);
+					ControlElement->GetOffsetDirtyState().MarkDirty(ERigTransformType::InitialGlobal);
 				}
 			}
 
-			if(Local::NeedsCheck(ControlElement->Pose.Initial.bDirty))
+			if(Local::NeedsCheck(ControlElement->GetDirtyState().Initial))
 			{
-				const FTransform CachedGlobalTransform = ControlElement->Pose.Get(ERigTransformType::InitialGlobal);
+				const FTransform CachedGlobalTransform = ControlElement->GetTransform().Get(ERigTransformType::InitialGlobal);
 				const FTransform ComputedGlobalTransform = HierarchyForCacheValidation->GetTransform(OtherControlElement, ERigTransformType::InitialGlobal);
 				
 				if(!FRigComputedTransform::Equals(ComputedGlobalTransform, CachedGlobalTransform, 0.01))
 				{
-					ControlElement->Pose.MarkDirty(ERigTransformType::InitialGlobal);
+					ControlElement->GetDirtyState().MarkDirty(ERigTransformType::InitialGlobal);
 				}
 			}
 
-			if(Local::NeedsCheck(ControlElement->Shape.Initial.bDirty))
+			if(Local::NeedsCheck(ControlElement->GetShapeDirtyState().Initial))
 			{
-				const FTransform CachedGlobalTransform = ControlElement->Shape.Get(ERigTransformType::InitialGlobal);
+				const FTransform CachedGlobalTransform = ControlElement->GetShapeTransform().Get(ERigTransformType::InitialGlobal);
 				const FTransform ComputedGlobalTransform = HierarchyForCacheValidation->GetControlShapeTransform(OtherControlElement, ERigTransformType::InitialGlobal);
 				
 				if(!FRigComputedTransform::Equals(ComputedGlobalTransform, CachedGlobalTransform, 0.01))
 				{
-					ControlElement->Shape.MarkDirty(ERigTransformType::InitialGlobal);
+					ControlElement->GetShapeDirtyState().MarkDirty(ERigTransformType::InitialGlobal);
 				}
 			}
 			continue;
@@ -5640,15 +5814,15 @@ void URigHierarchy::CleanupInvalidCaches()
 		{
 			FRigMultiParentElement* OtherMultiParentElement = HierarchyForCacheValidation->FindChecked<FRigMultiParentElement>(MultiParentElement->GetKey());
 
-			if(Local::NeedsCheck(MultiParentElement->Pose.Initial.bDirty))
+			if(Local::NeedsCheck(MultiParentElement->GetDirtyState().Initial))
 			{
-				const FTransform CachedGlobalTransform = MultiParentElement->Pose.Get(ERigTransformType::InitialGlobal);
+				const FTransform CachedGlobalTransform = MultiParentElement->GetTransform().Get(ERigTransformType::InitialGlobal);
 				const FTransform ComputedGlobalTransform = HierarchyForCacheValidation->GetTransform(OtherMultiParentElement, ERigTransformType::InitialGlobal);
 				
 				if(!FRigComputedTransform::Equals(ComputedGlobalTransform, CachedGlobalTransform, 0.01))
 				{
 					// for nulls we perceive the local transform as less relevant
-					MultiParentElement->Pose.MarkDirty(ERigTransformType::InitialLocal);
+					MultiParentElement->GetDirtyState().MarkDirty(ERigTransformType::InitialLocal);
 				}
 			}
 			continue;
@@ -5658,14 +5832,14 @@ void URigHierarchy::CleanupInvalidCaches()
 		{
 			FRigTransformElement* OtherTransformElement = HierarchyForCacheValidation->FindChecked<FRigTransformElement>(TransformElement->GetKey());
 
-			if(Local::NeedsCheck(TransformElement->Pose.Initial.bDirty))
+			if(Local::NeedsCheck(TransformElement->GetDirtyState().Initial))
 			{
-				const FTransform CachedGlobalTransform = TransformElement->Pose.Get(ERigTransformType::InitialGlobal);
+				const FTransform CachedGlobalTransform = TransformElement->GetTransform().Get(ERigTransformType::InitialGlobal);
 				const FTransform ComputedGlobalTransform = HierarchyForCacheValidation->GetTransform(OtherTransformElement, ERigTransformType::InitialGlobal);
 				
 				if(!FRigComputedTransform::Equals(ComputedGlobalTransform, CachedGlobalTransform, 0.01))
 				{
-					TransformElement->Pose.MarkDirty(ERigTransformType::InitialGlobal);
+					TransformElement->GetDirtyState().MarkDirty(ERigTransformType::InitialGlobal);
 				}
 			}
 		}
@@ -5730,6 +5904,113 @@ void URigHierarchy::FMetadataStorage::Serialize(FArchive& Ar)
 			Ar << TypeName;
 			Item.Value->Serialize(Ar);
 		}
+	}
+}
+
+void URigHierarchy::AllocateDefaultElementStorage(FRigBaseElement* InElement, bool bUpdateAllElements)
+{
+	if(FRigTransformElement* TransformElement = Cast<FRigTransformElement>(InElement))
+	{
+		// only for the default allocation we want to catch double allocations.
+		// so if we are already linked to the default storage, exit early.
+		if(ElementTransforms.Contains(TransformElement->PoseStorage.Initial.Local.Index, TransformElement->PoseStorage.Initial.Local.Storage))
+		{
+			check(ElementTransforms.Contains(TransformElement->PoseStorage.Initial.Global.Index, TransformElement->PoseStorage.Initial.Global.Storage));
+			check(ElementTransforms.Contains(TransformElement->PoseStorage.Current.Local.Index, TransformElement->PoseStorage.Current.Local.Storage));
+			check(ElementTransforms.Contains(TransformElement->PoseStorage.Current.Global.Index, TransformElement->PoseStorage.Current.Global.Storage));
+			check(ElementDirtyStates.Contains(TransformElement->PoseDirtyState.Initial.Local.Index, TransformElement->PoseDirtyState.Initial.Local.Storage));
+			check(ElementDirtyStates.Contains(TransformElement->PoseDirtyState.Initial.Global.Index, TransformElement->PoseDirtyState.Initial.Global.Storage));
+			check(ElementDirtyStates.Contains(TransformElement->PoseDirtyState.Current.Local.Index, TransformElement->PoseDirtyState.Current.Local.Storage));
+			check(ElementDirtyStates.Contains(TransformElement->PoseDirtyState.Current.Global.Index, TransformElement->PoseDirtyState.Current.Global.Storage));
+
+			if(const FRigControlElement* ControlElement = Cast<FRigControlElement>(TransformElement))
+			{
+				check(ElementTransforms.Contains(ControlElement->OffsetStorage.Initial.Local.Index, ControlElement->OffsetStorage.Initial.Local.Storage));
+				check(ElementTransforms.Contains(ControlElement->OffsetStorage.Initial.Global.Index, ControlElement->OffsetStorage.Initial.Global.Storage));
+				check(ElementTransforms.Contains(ControlElement->OffsetStorage.Current.Local.Index, ControlElement->OffsetStorage.Current.Local.Storage));
+				check(ElementTransforms.Contains(ControlElement->OffsetStorage.Current.Global.Index, ControlElement->OffsetStorage.Current.Global.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->OffsetDirtyState.Initial.Local.Index, ControlElement->OffsetDirtyState.Initial.Local.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->OffsetDirtyState.Initial.Global.Index, ControlElement->OffsetDirtyState.Initial.Global.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->OffsetDirtyState.Current.Local.Index, ControlElement->OffsetDirtyState.Current.Local.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->OffsetDirtyState.Current.Global.Index, ControlElement->OffsetDirtyState.Current.Global.Storage));
+				check(ElementTransforms.Contains(ControlElement->ShapeStorage.Initial.Local.Index, ControlElement->ShapeStorage.Initial.Local.Storage));
+				check(ElementTransforms.Contains(ControlElement->ShapeStorage.Initial.Global.Index, ControlElement->ShapeStorage.Initial.Global.Storage));
+				check(ElementTransforms.Contains(ControlElement->ShapeStorage.Current.Local.Index, ControlElement->ShapeStorage.Current.Local.Storage));
+				check(ElementTransforms.Contains(ControlElement->ShapeStorage.Current.Global.Index, ControlElement->ShapeStorage.Current.Global.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->ShapeDirtyState.Initial.Local.Index, ControlElement->ShapeDirtyState.Initial.Local.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->ShapeDirtyState.Initial.Global.Index, ControlElement->ShapeDirtyState.Initial.Global.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->ShapeDirtyState.Current.Local.Index, ControlElement->ShapeDirtyState.Current.Local.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->ShapeDirtyState.Current.Global.Index, ControlElement->ShapeDirtyState.Current.Global.Storage));
+			}
+			return;
+		}
+		const TArray<int32, TInlineAllocator<4>> TransformIndices = ElementTransforms.Allocate(TransformElement->GetNumTransforms(), FTransform::Identity);
+		check(TransformIndices.Num() >= 4);
+		const TArray<int32, TInlineAllocator<4>> DirtyStateIndices = ElementDirtyStates.Allocate(TransformElement->GetNumTransforms(), false);
+		check(DirtyStateIndices.Num() >= 4);
+		TransformElement->PoseStorage.Initial.Local.Index = TransformIndices[0];
+		TransformElement->PoseStorage.Initial.Global.Index = TransformIndices[1];
+		TransformElement->PoseStorage.Current.Local.Index = TransformIndices[2];
+		TransformElement->PoseStorage.Current.Global.Index = TransformIndices[3];
+		TransformElement->PoseDirtyState.Initial.Local.Index = DirtyStateIndices[0];
+		TransformElement->PoseDirtyState.Initial.Global.Index = DirtyStateIndices[1];
+		TransformElement->PoseDirtyState.Current.Local.Index = DirtyStateIndices[2];
+		TransformElement->PoseDirtyState.Current.Global.Index = DirtyStateIndices[3];
+
+		if(FRigControlElement* ControlElement = Cast<FRigControlElement>(TransformElement))
+		{
+			check(TransformIndices.Num() >= 12);
+			check(DirtyStateIndices.Num() >= 12);
+			ControlElement->OffsetStorage.Initial.Local.Index = TransformIndices[4];
+			ControlElement->OffsetStorage.Initial.Global.Index = TransformIndices[5];
+			ControlElement->OffsetStorage.Current.Local.Index = TransformIndices[6];
+			ControlElement->OffsetStorage.Current.Global.Index = TransformIndices[7];
+			ControlElement->OffsetDirtyState.Initial.Local.Index = DirtyStateIndices[4];
+			ControlElement->OffsetDirtyState.Initial.Global.Index = DirtyStateIndices[5];
+			ControlElement->OffsetDirtyState.Current.Local.Index = DirtyStateIndices[6];
+			ControlElement->OffsetDirtyState.Current.Global.Index = DirtyStateIndices[7];
+			ControlElement->ShapeStorage.Initial.Local.Index = TransformIndices[8];
+			ControlElement->ShapeStorage.Initial.Global.Index = TransformIndices[9];
+			ControlElement->ShapeStorage.Current.Local.Index = TransformIndices[10];
+			ControlElement->ShapeStorage.Current.Global.Index = TransformIndices[11];
+			ControlElement->ShapeDirtyState.Initial.Local.Index = DirtyStateIndices[8];
+			ControlElement->ShapeDirtyState.Initial.Global.Index = DirtyStateIndices[9];
+			ControlElement->ShapeDirtyState.Current.Local.Index = DirtyStateIndices[10];
+			ControlElement->ShapeDirtyState.Current.Global.Index = DirtyStateIndices[11];
+		}
+	}
+	else if(FRigCurveElement* CurveElement = Cast<FRigCurveElement>(InElement))
+	{
+		if(ElementCurves.Contains(CurveElement->StorageIndex, CurveElement->Storage))
+		{
+			return;
+		}
+		
+		const TArray<int32, TInlineAllocator<4>> CurveIndices = ElementCurves.Allocate(CurveElement->GetNumCurves(), 0.f);
+		check(CurveIndices.Num() >= 1);
+		CurveElement->StorageIndex = CurveIndices[0];
+	}
+
+	if(bUpdateAllElements)
+	{
+		UpdateElementStorage();
+	}
+	else
+	{
+		InElement->LinkStorage(ElementTransforms.Storage, ElementDirtyStates.Storage, ElementCurves.Storage);
+	}
+}
+
+void URigHierarchy::DeallocateElementStorage(FRigBaseElement* InElement)
+{
+	InElement->UnlinkStorage(ElementTransforms, ElementDirtyStates, ElementCurves);
+}
+
+void URigHierarchy::UpdateElementStorage()
+{
+	for(FRigBaseElement* Element : Elements)
+	{
+		Element->LinkStorage(ElementTransforms.Storage, ElementDirtyStates.Storage, ElementCurves.Storage);
 	}
 }
 
@@ -5811,16 +6092,7 @@ FRigBaseMetadata* URigHierarchy::GetMetadataForElement(FRigBaseElement* InElemen
 {
 	if (!ElementMetadata.IsValidIndex(InElement->MetadataStorageIndex))
 	{
-		// Do we have entries in the freelist we can recycle?
-		if (!ElementMetadataFreeList.IsEmpty())
-		{
-			InElement->MetadataStorageIndex = ElementMetadataFreeList.Pop(EAllowShrinking::No);
-		}
-		else
-		{
-			InElement->MetadataStorageIndex = ElementMetadata.Num();
-			ElementMetadata.AddDefaulted();
-		}
+		InElement->MetadataStorageIndex = ElementMetadata.Allocate(1, FMetadataStorage())[0];
 	}
 	
 	FMetadataStorage& Storage = ElementMetadata[InElement->MetadataStorageIndex];
@@ -5930,7 +6202,7 @@ bool URigHierarchy::RemoveMetadataForElement(FRigBaseElement* InElement, const F
 	// metadata storage can just recycle that.
 	if (Storage.MetadataMap.IsEmpty())
 	{
-		ElementMetadataFreeList.Add(InElement->MetadataStorageIndex);
+		ElementMetadata.Deallocate(InElement->MetadataStorageIndex);
 		InElement->MetadataStorageIndex = INDEX_NONE;
 	}
 	else if (Storage.LastAccessName == InName)
@@ -5961,7 +6233,7 @@ bool URigHierarchy::RemoveAllMetadataForElement(FRigBaseElement* InElement)
 	// Clear the storage for the next user.
 	Storage.Reset();
 	
-	ElementMetadataFreeList.Push(InElement->MetadataStorageIndex);
+	ElementMetadata.Deallocate(InElement->MetadataStorageIndex);
 	InElement->MetadataStorageIndex = INDEX_NONE;
 
 	if(ElementBeingDestroyed != InElement)
@@ -6026,7 +6298,7 @@ void URigHierarchy::EnsureCacheValidityImpl()
 				continue;
 			}
 
-			if(!TransformElement->Pose.IsDirty(GlobalType))
+			if(!TransformElement->GetDirtyState().IsDirty(GlobalType))
 			{
 				continue;
 			}
@@ -6037,19 +6309,19 @@ void URigHierarchy::EnsureCacheValidityImpl()
 				{
                     if(FRigControlElement* ControlElementToDirty = Cast<FRigControlElement>(ElementToDirty.Element))
                     {
-                        if(ControlElementToDirty->Offset.IsDirty(GlobalType))
+                        if(ControlElementToDirty->GetOffsetDirtyState().IsDirty(GlobalType))
                         {
-                            checkf(ControlElementToDirty->Pose.IsDirty(GlobalType) ||
-                                    ControlElementToDirty->Pose.IsDirty(LocalType),
+                            checkf(ControlElementToDirty->GetDirtyState().IsDirty(GlobalType) ||
+                                    ControlElementToDirty->GetDirtyState().IsDirty(LocalType),
                                     TEXT("Control '%s' %s Offset Cache is dirty, but the Pose is not."),
 									*ControlElementToDirty->GetKey().ToString(),
 									*TransformTypeString);
 						}
 
-                        if(ControlElementToDirty->Pose.IsDirty(GlobalType))
+                        if(ControlElementToDirty->GetDirtyState().IsDirty(GlobalType))
                         {
-                            checkf(ControlElementToDirty->Shape.IsDirty(GlobalType) ||
-                                    ControlElementToDirty->Shape.IsDirty(LocalType),
+                            checkf(ControlElementToDirty->GetShapeDirtyState().IsDirty(GlobalType) ||
+                                    ControlElementToDirty->GetShapeDirtyState().IsDirty(LocalType),
                                     TEXT("Control '%s' %s Pose Cache is dirty, but the Shape is not."),
 									*ControlElementToDirty->GetKey().ToString(),
 									*TransformTypeString);
@@ -6057,8 +6329,8 @@ void URigHierarchy::EnsureCacheValidityImpl()
                     }
                     else
                     {
-                        checkf(MultiParentElementToDirty->Pose.IsDirty(GlobalType) ||
-                                MultiParentElementToDirty->Pose.IsDirty(LocalType),
+                        checkf(MultiParentElementToDirty->GetDirtyState().IsDirty(GlobalType) ||
+                                MultiParentElementToDirty->GetDirtyState().IsDirty(LocalType),
                                 TEXT("MultiParent '%s' %s Parent Cache is dirty, but the Pose is not."),
 								*MultiParentElementToDirty->GetKey().ToString(),
 								*TransformTypeString);
@@ -6066,8 +6338,8 @@ void URigHierarchy::EnsureCacheValidityImpl()
 				}
 				else
 				{
-					checkf(ElementToDirty.Element->Pose.IsDirty(GlobalType) ||
-						ElementToDirty.Element->Pose.IsDirty(LocalType),
+					checkf(ElementToDirty.Element->GetDirtyState().IsDirty(GlobalType) ||
+						ElementToDirty.Element->GetDirtyState().IsDirty(LocalType),
 						TEXT("SingleParent '%s' %s Pose is not dirty in Local or Global"),
 						*ElementToDirty.Element->GetKey().ToString(),
 						*TransformTypeString);
@@ -6104,10 +6376,10 @@ void URigHierarchy::EnsureCacheValidityImpl()
 				const ERigTransformType::Type OpposedType = ERigTransformType::SwapLocalAndGlobal(TransformType);
 				const FString& TransformTypeString = TransformTypeStrings[TransformTypeIndex];
 
-				if(!ControlElement->Offset.IsDirty(TransformType) && !ControlElement->Offset.IsDirty(OpposedType))
+				if(!ControlElement->GetOffsetDirtyState().IsDirty(TransformType) && !ControlElement->GetOffsetDirtyState().IsDirty(OpposedType))
 				{
 					const FTransform CachedTransform = HierarchyForLambda->GetControlOffsetTransform(ControlElement, TransformType);
-					ControlElement->Offset.MarkDirty(TransformType);
+					ControlElement->GetOffsetDirtyState().MarkDirty(TransformType);
 					const FTransform ComputedTransform = HierarchyForLambda->GetControlOffsetTransform(ControlElement, TransformType);
 					checkf(FRigComputedTransform::Equals(CachedTransform, ComputedTransform),
 						TEXT("Element '%s' Offset %s Cached vs Computed doesn't match. ('%s' <-> '%s')"),
@@ -6127,10 +6399,10 @@ void URigHierarchy::EnsureCacheValidityImpl()
 				const ERigTransformType::Type OpposedType = ERigTransformType::SwapLocalAndGlobal(TransformType);
 				const FString& TransformTypeString = TransformTypeStrings[TransformTypeIndex];
 
-				if(!TransformElement->Pose.IsDirty(TransformType) && !TransformElement->Pose.IsDirty(OpposedType))
+				if(!TransformElement->GetDirtyState().IsDirty(TransformType) && !TransformElement->GetDirtyState().IsDirty(OpposedType))
 				{
 					const FTransform CachedTransform = HierarchyForLambda->GetTransform(TransformElement, TransformType);
-					TransformElement->Pose.MarkDirty(TransformType);
+					TransformElement->GetDirtyState().MarkDirty(TransformType);
 					const FTransform ComputedTransform = HierarchyForLambda->GetTransform(TransformElement, TransformType);
 					checkf(FRigComputedTransform::Equals(CachedTransform, ComputedTransform),
 						TEXT("Element '%s' Pose %s Cached vs Computed doesn't match. ('%s' <-> '%s')"),
@@ -6149,10 +6421,10 @@ void URigHierarchy::EnsureCacheValidityImpl()
 				const ERigTransformType::Type OpposedType = ERigTransformType::SwapLocalAndGlobal(TransformType);
 				const FString& TransformTypeString = TransformTypeStrings[TransformTypeIndex];
 
-				if(!ControlElement->Shape.IsDirty(TransformType) && !ControlElement->Shape.IsDirty(OpposedType))
+				if(!ControlElement->GetShapeDirtyState().IsDirty(TransformType) && !ControlElement->GetShapeDirtyState().IsDirty(OpposedType))
 				{
 					const FTransform CachedTransform = HierarchyForLambda->GetControlShapeTransform(ControlElement, TransformType);
-					ControlElement->Shape.MarkDirty(TransformType);
+					ControlElement->GetShapeDirtyState().MarkDirty(TransformType);
 					const FTransform ComputedTransform = HierarchyForLambda->GetControlShapeTransform(ControlElement, TransformType);
 					checkf(FRigComputedTransform::Equals(CachedTransform, ComputedTransform),
 						TEXT("Element '%s' Shape %s Cached vs Computed doesn't match. ('%s' <-> '%s')"),
@@ -7255,10 +7527,10 @@ FTransform URigHierarchy::LazilyComputeParentConstraint(
 		}
 
 		Transform.NormalizeRotation();
-		Constraint.Cache.Transform = Transform;
+		Constraint.Cache = Transform;
 		Constraint.bCacheIsDirty = false;
 	}
-	return Constraint.Cache.Transform;
+	return Constraint.Cache;
 }
 
 void URigHierarchy::ComputeParentConstraintIndices(

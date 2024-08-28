@@ -5008,7 +5008,7 @@ void FRigControlElementDetails::OnCopyShapeProperties()
 			Value = FString::Printf(TEXT("(ShapeName=\"%s\",ShapeColor=%s,Transform=%s)"),
 				*ControlElement->Settings.ShapeName.ToString(),
 				*ControlElement->Settings.ShapeColor.ToString(),
-				*ControlElement->Shape.Initial.Local.Transform.ToString());
+				*ControlElement->GetShapeTransform().Initial.Local.Get().ToString());
 		}
 	}
 		

@@ -364,9 +364,9 @@ void FAnimNode_ControlRigBase::UpdateOutput(UControlRig* ControlRig, FPoseContex
 		ControlRigCurves.Reserve(Hierarchy->Num(ERigElementType::Curve));
 		Hierarchy->ForEach<FRigCurveElement>([&ControlRigCurves](const FRigCurveElement* InElement)
 		{
-			if(InElement->bIsValueSet)
+			if(InElement->IsValueSet())
 			{
-				ControlRigCurves.Add(InElement->GetFName(), InElement->Value);
+				ControlRigCurves.Add(InElement->GetFName(), InElement->Get());
 			}
 			return true;
 		});

@@ -242,19 +242,305 @@ namespace ERigTransformType
 	}
 }
 
+template<typename T>
+struct CONTROLRIG_API FRigReusableElementStorage
+{
+	TArray<T> Storage;
+	TArray<int32> FreeList;
+
+	bool IsValidIndex(const int32& InIndex) const
+	{
+		return Storage.IsValidIndex(InIndex);
+	}
+
+	int32 Num() const
+	{
+		return Storage.Num();
+	}
+
+	T& operator[](int InIndex)
+	{
+		return Storage[InIndex];
+	}
+
+	const T& operator[](int InIndex) const
+	{
+		return Storage[InIndex];
+	}
+
+	typename TArray<T>::RangedForIteratorType begin() { return Storage.begin(); }
+	typename TArray<T>::RangedForIteratorType end() { return Storage.end(); }
+	typename TArray<T>::RangedForConstIteratorType begin() const { return Storage.begin(); }
+	typename TArray<T>::RangedForConstIteratorType end() const { return Storage.end(); }
+
+	const T* GetData() const
+	{
+		return Storage.GetData();
+	}
+
+	TArray<int32, TInlineAllocator<4>> Allocate(int32 InCount, const T& InDefault)
+	{
+		TArray<int32, TInlineAllocator<4>> Indices;
+	
+		const int32 NumToAllocate = InCount - FMath::Min(InCount, FreeList.Num());
+		if(NumToAllocate > 0)
+		{
+			Storage.Reserve(Storage.Num() + NumToAllocate);
+		}
+	
+		for(int32 Index = 0; Index < InCount; Index++)
+		{
+			if(FreeList.IsEmpty())
+			{
+				Indices.Push(Storage.Add(InDefault));
+			}
+			else
+			{
+				Indices.Push(FreeList.Pop(EAllowShrinking::No));
+			}
+		}
+
+		return Indices;
+	}
+	
+	void Deallocate(int32& InIndex, T** InStorage = nullptr)
+	{
+		if(InIndex == INDEX_NONE)
+		{
+			return;
+		}
+#if WITH_EDITOR
+		check(Storage.IsValidIndex(InIndex));
+		check(!FreeList.Contains(InIndex));
+#endif
+		FreeList.Add(InIndex);
+		InIndex = INDEX_NONE;
+		if(InStorage)
+		{
+			InStorage = nullptr;
+		}
+	}
+
+	void Reset(TFunction<void(int32, T&)> OnDestroyCallback = nullptr)
+	{
+		if(OnDestroyCallback)
+		{
+			for(int32 Index = 0; Index < Storage.Num(); Index++)
+			{
+				OnDestroyCallback(Index, Storage[Index]);
+			}
+		}
+		Storage.Reset();
+		FreeList.Reset();
+	}
+
+	bool Contains(int32 InIndex, const T* InStorage)
+	{
+		if(!IsValidIndex(InIndex))
+		{
+			return false;
+		}
+		return GetData() + InIndex == InStorage;
+	}
+
+	TMap<int32, int32> Shrink(TFunction<void(int32, T&)> OnDestroyCallback = nullptr)
+	{
+		TMap<int32, int32> OldToNew;
+		
+		if(!FreeList.IsEmpty())
+		{
+			TArray<bool> ToRemove;
+			ToRemove.AddZeroed(Storage.Num());
+
+			TArray<T> NewStorage;
+			
+			for(int32 FreeIndex : FreeList)
+			{
+				ToRemove[FreeIndex] = true;
+				if(OnDestroyCallback)
+				{
+					OnDestroyCallback(FreeIndex, Storage[FreeIndex]);
+				}
+			}
+			
+			for(int32 OldIndex = 0; OldIndex < Storage.Num(); OldIndex++)
+			{
+				if(!ToRemove[OldIndex])
+				{
+					OldToNew.Add(OldIndex, NewStorage.Add(Storage[OldIndex]));
+				}
+			}
+
+			Storage = NewStorage;
+			FreeList.Reset();
+		}
+
+		FreeList.Shrink();
+		Storage.Shrink();
+
+		return OldToNew;
+	}
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigTransformDirtyState
+{
+public:
+
+	GENERATED_BODY()
+
+	FRigTransformDirtyState()
+	: Index(INDEX_NONE)
+	, Storage(nullptr)
+	{
+	}
+
+	const bool& Get() const;
+	bool& Get();
+	bool Set(bool InDirty);
+	FRigTransformDirtyState& operator =(const FRigTransformDirtyState& InOther);
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "DirtyState")
+	int32 Index;
+
+private:
+
+	void LinkStorage(const TArrayView<bool>& InStorage);
+	void UnlinkStorage(FRigReusableElementStorage<bool>& InStorage);
+	bool* Storage;
+
+	friend struct FRigLocalAndGlobalDirtyState;
+	friend class URigHierarchy;
+	friend class URigHierarchyController;
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigLocalAndGlobalDirtyState
+{
+	GENERATED_BODY()
+
+public:
+	
+	FRigLocalAndGlobalDirtyState()
+	{
+	}
+
+	FRigLocalAndGlobalDirtyState& operator =(const FRigLocalAndGlobalDirtyState& InOther);
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "DirtyState")
+	FRigTransformDirtyState Global;
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "DirtyState")
+	FRigTransformDirtyState Local;
+
+private:
+
+	void LinkStorage(const TArrayView<bool>& InStorage);
+	void UnlinkStorage(FRigReusableElementStorage<bool>& InStorage);
+
+	friend struct FRigCurrentAndInitialDirtyState;
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigCurrentAndInitialDirtyState
+{
+	GENERATED_BODY()
+
+public:
+	
+	FRigCurrentAndInitialDirtyState()
+	{
+	}
+
+	bool& GetDirtyFlag(const ERigTransformType::Type InTransformType)
+	{
+		switch (InTransformType)
+		{
+			case ERigTransformType::CurrentLocal:
+				return Current.Local.Get();
+
+			case ERigTransformType::CurrentGlobal:
+				return Current.Global.Get();
+
+			case ERigTransformType::InitialLocal:
+				return Initial.Local.Get();
+				
+			default:
+				return Initial.Global.Get();
+		}
+	}
+
+	const bool& GetDirtyFlag(const ERigTransformType::Type InTransformType) const
+	{
+		switch (InTransformType)
+		{
+			case ERigTransformType::CurrentLocal:
+				return Current.Local.Get();
+
+			case ERigTransformType::CurrentGlobal:
+				return Current.Global.Get();
+
+			case ERigTransformType::InitialLocal:
+				return Initial.Local.Get();
+
+			default:
+				return Initial.Global.Get();
+		}
+	}
+
+	bool IsDirty(const ERigTransformType::Type InTransformType) const
+	{
+		return GetDirtyFlag(InTransformType);
+	}
+
+	void MarkDirty(const ERigTransformType::Type InTransformType)
+	{
+		ensure(!(GetDirtyFlag(ERigTransformType::SwapLocalAndGlobal(InTransformType))));
+		GetDirtyFlag(InTransformType) = true;
+	}
+
+	void MarkClean(const ERigTransformType::Type InTransformType)
+	{
+		GetDirtyFlag(InTransformType) = false;
+	}
+
+	FRigCurrentAndInitialDirtyState& operator =(const FRigCurrentAndInitialDirtyState& InOther);
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "DirtyState")
+	FRigLocalAndGlobalDirtyState Current;
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "DirtyState")
+	FRigLocalAndGlobalDirtyState Initial;
+
+private:
+
+	void LinkStorage(const TArrayView<bool>& InStorage);
+	void UnlinkStorage(FRigReusableElementStorage<bool>& InStorage);
+
+	friend class URigHierarchy;
+	friend class URigHierarchyController;
+	friend struct FRigTransformElement;
+	friend struct FRigControlElement;
+};
+
 USTRUCT(BlueprintType)
 struct CONTROLRIG_API FRigComputedTransform
 {
 	GENERATED_BODY()
 
+public:
+	
 	FRigComputedTransform()
-	: Transform(FTransform::Identity)
+	: Index(INDEX_NONE)
+	, Storage(nullptr)
 	{}
 
-	void Save(FArchive& Ar, bool& bDirty);
-	void Load(FArchive& Ar, bool& bDirty);
+	void Save(FArchive& Ar, const FRigTransformDirtyState& InDirtyState);
+	void Load(FArchive& Ar, FRigTransformDirtyState& InDirtyState);
+	
+	const FTransform& Get() const;
 
-	void Set(const FTransform& InTransform, bool& bDirty)
+	void Set(const FTransform& InTransform)
 	{
 #if WITH_EDITOR
 		ensure(InTransform.GetRotation().IsNormalized());
@@ -262,8 +548,10 @@ struct CONTROLRIG_API FRigComputedTransform
 		// ensure(!FMath::IsNearlyZero(InTransform.GetScale3D().X));
 		// ensure(!FMath::IsNearlyZero(InTransform.GetScale3D().Y));
 		// ensure(!FMath::IsNearlyZero(InTransform.GetScale3D().Z));
-		Transform = InTransform;
-		bDirty = false;
+		if(Storage)
+		{
+			*Storage = InTransform;
+		}
 	}
 
 	static bool Equals(const FTransform& A, const FTransform& B, const float InTolerance = 0.0001f)
@@ -275,32 +563,42 @@ struct CONTROLRIG_API FRigComputedTransform
 
 	bool operator == (const FRigComputedTransform& Other) const
 	{
-		return Equals(Transform, Other.Transform);
+		return Equals(Get(), Other.Get());
     }
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Pose")
-	FTransform Transform;
+	FRigComputedTransform& operator =(const FRigComputedTransform& InOther);
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Transform")
+	int32 Index;
+
+private:
+
+	void LinkStorage(const TArrayView<FTransform>& InStorage);
+	void UnlinkStorage(FRigReusableElementStorage<FTransform>& InStorage);
+	
+	FTransform* Storage;
+	
+	friend struct FRigLocalAndGlobalTransform;
+	friend class URigHierarchy;
+	friend class URigHierarchyController;
 };
 
 USTRUCT(BlueprintType)
 struct CONTROLRIG_API FRigLocalAndGlobalTransform
 {
 	GENERATED_BODY()
+
+public:
 	
 	FRigLocalAndGlobalTransform()
     : Local()
     , Global()
 	{}
 
-	enum EDirty
-	{
-		ELocal = 0,
-		EGlobal,
-		EDirtyMax
-	};
+	void Save(FArchive& Ar, const FRigLocalAndGlobalDirtyState& InDirtyState);
+	void Load(FArchive& Ar, FRigLocalAndGlobalDirtyState& OutDirtyState);
 
-	void Save(FArchive& Ar);
-	void Load(FArchive& Ar);
+	FRigLocalAndGlobalTransform& operator =(const FRigLocalAndGlobalTransform& InOther);
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Pose")
 	FRigComputedTransform Local;
@@ -308,7 +606,12 @@ struct CONTROLRIG_API FRigLocalAndGlobalTransform
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Pose")
 	FRigComputedTransform Global;
 
-	bool bDirty[FRigLocalAndGlobalTransform::EDirtyMax] = { false, false };
+private:
+	
+	void LinkStorage(const TArrayView<FTransform>& InStorage);
+	void UnlinkStorage(FRigReusableElementStorage<FTransform>& InStorage);
+
+	friend struct FRigCurrentAndInitialTransform;
 };
 
 USTRUCT(BlueprintType)
@@ -316,6 +619,8 @@ struct CONTROLRIG_API FRigCurrentAndInitialTransform
 {
 	GENERATED_BODY()
 
+public:
+	
 	FRigCurrentAndInitialTransform()
     : Current()
     , Initial()
@@ -369,79 +674,44 @@ struct CONTROLRIG_API FRigCurrentAndInitialTransform
 		return Initial.Global;
 	}
 
-	bool& GetDirtyFlag(const ERigTransformType::Type InTransformType)
-	{
-		switch (InTransformType)
-		{
-			case ERigTransformType::CurrentLocal:
-				return Current.bDirty[FRigLocalAndGlobalTransform::ELocal];
-
-			case ERigTransformType::CurrentGlobal:
-				return Current.bDirty[FRigLocalAndGlobalTransform::EGlobal];
-
-			case ERigTransformType::InitialLocal:
-				return Initial.bDirty[FRigLocalAndGlobalTransform::ELocal];
-			
-			default:
-				return Initial.bDirty[FRigLocalAndGlobalTransform::EGlobal];
-		}
-	}
-
-	const bool& GetDirtyFlag(const ERigTransformType::Type InTransformType) const
-	{
-		switch (InTransformType)
-		{
-		case ERigTransformType::CurrentLocal:
-			return Current.bDirty[FRigLocalAndGlobalTransform::ELocal];
-
-		case ERigTransformType::CurrentGlobal:
-			return Current.bDirty[FRigLocalAndGlobalTransform::EGlobal];
-
-		case ERigTransformType::InitialLocal:
-			return Initial.bDirty[FRigLocalAndGlobalTransform::ELocal];
-
-		default:
-			return Initial.bDirty[FRigLocalAndGlobalTransform::EGlobal];
-		}
-	}
-
 	const FTransform& Get(const ERigTransformType::Type InTransformType) const
 	{
-		return operator[](InTransformType).Transform;
+		return operator[](InTransformType).Get();
 	}
 
 	void Set(const ERigTransformType::Type InTransformType, const FTransform& InTransform)
 	{
-		operator[](InTransformType).Set(InTransform, GetDirtyFlag(InTransformType));
+		operator[](InTransformType).Set(InTransform);
 	}
 
-	bool IsDirty(const ERigTransformType::Type InTransformType) const
-	{
-		return GetDirtyFlag(InTransformType);
-	}
-
-	void MarkDirty(const ERigTransformType::Type InTransformType)
-	{
-		ensure(!(GetDirtyFlag(ERigTransformType::SwapLocalAndGlobal(InTransformType))));
-		GetDirtyFlag(InTransformType) = true;
-	}
-
-	void Save(FArchive& Ar);
-	void Load(FArchive& Ar);
+	void Save(FArchive& Ar, const FRigCurrentAndInitialDirtyState& InDirtyState);
+	void Load(FArchive& Ar, FRigCurrentAndInitialDirtyState& OutDirtyState);
 
 	bool operator == (const FRigCurrentAndInitialTransform& Other) const
 	{
-		return Current.bDirty[FRigLocalAndGlobalTransform::ELocal]  == Other.Current.bDirty[FRigLocalAndGlobalTransform::ELocal]  && Current.Local  == Other.Current.Local
-			&& Current.bDirty[FRigLocalAndGlobalTransform::EGlobal] == Other.Current.bDirty[FRigLocalAndGlobalTransform::EGlobal] && Current.Global == Other.Current.Global
-			&& Initial.bDirty[FRigLocalAndGlobalTransform::ELocal]  == Other.Initial.bDirty[FRigLocalAndGlobalTransform::ELocal]  && Initial.Local  == Other.Initial.Local
-			&& Initial.bDirty[FRigLocalAndGlobalTransform::EGlobal] == Other.Initial.bDirty[FRigLocalAndGlobalTransform::EGlobal] && Initial.Global == Other.Initial.Global;
+		return Current.Local  == Other.Current.Local
+			&& Current.Global == Other.Current.Global
+			&& Initial.Local  == Other.Initial.Local
+			&& Initial.Global == Other.Initial.Global;
 	}
+
+	FRigCurrentAndInitialTransform& operator =(const FRigCurrentAndInitialTransform& InOther);
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Pose")
 	FRigLocalAndGlobalTransform Current;
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Pose")
 	FRigLocalAndGlobalTransform Initial;
+	
+private:
+	
+	void LinkStorage(const TArrayView<FTransform>& InStorage);
+	void UnlinkStorage(FRigReusableElementStorage<FTransform>& InStorage);
+
+	friend class URigHierarchy;
+	friend class URigHierarchyController;
+	friend struct FRigTransformElement;
+	friend struct FRigControlElement;
 };
 
 USTRUCT(BlueprintType)
@@ -686,6 +956,9 @@ public:
 	bool RemoveAllMetadata();
 	
 	void NotifyMetadataTagChanged(const FName& InTag, bool bAdded);
+
+	virtual int32 GetNumTransforms() const { return 0; }
+	virtual int32 GetNumCurves() const { return 0; }
 	
 	template<typename T>
 	bool IsA() const { return T::IsClassOf(this); }
@@ -747,7 +1020,9 @@ protected:
 	// helper function to be called as part of URigHierarchy::CopyHierarchy
 	virtual void CopyFrom(const FRigBaseElement* InOther);
 
-	
+	virtual void LinkStorage(const TArrayView<FTransform>& InTransforms, const TArrayView<bool>& InDirtyStates, const TArrayView<float>& InCurves) {}
+	virtual void UnlinkStorage(FRigReusableElementStorage<FTransform>& InTransforms, FRigReusableElementStorage<bool>& InDirtyStates, FRigReusableElementStorage<float>& InCurves) {}
+
 	friend class FControlRigEditor;
 	friend class URigHierarchy;
 	friend class URigHierarchyController;
@@ -769,7 +1044,8 @@ struct CONTROLRIG_API FRigTransformElement : public FRigBaseElement
 	FRigTransformElement& operator=(const FRigTransformElement& InOther)
 	{
 		Super::operator=(InOther);
-		Pose = InOther.Pose;
+		GetTransform() = InOther.GetTransform();
+		GetDirtyState() = InOther.GetDirtyState();
 		return *this;
 	}
 	virtual ~FRigTransformElement() override {}
@@ -778,14 +1054,26 @@ struct CONTROLRIG_API FRigTransformElement : public FRigBaseElement
 	virtual void Load(FArchive& Ar, ESerializationPhase SerializationPhase) override;
 
 	virtual void CopyPose(FRigBaseElement* InOther, bool bCurrent, bool bInitial, bool bWeights) override;
-	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = RigElement, meta = (DisplayAfter = "Index"))
-	FRigCurrentAndInitialTransform Pose;
-	
+
+	// Current and Initial, both in Local and Global
+	virtual int32 GetNumTransforms() const override { return 4; }
+
+	const FRigCurrentAndInitialTransform& GetTransform() const;
+	FRigCurrentAndInitialTransform& GetTransform();
+	const FRigCurrentAndInitialDirtyState& GetDirtyState() const;
+	FRigCurrentAndInitialDirtyState& GetDirtyState();
+
 protected:
+	
 	FRigTransformElement(URigHierarchy* InOwner, const ERigElementType InType) :
 		FRigBaseElement(InOwner, InType)
 	{}
+
+	// Pose storage for this element.
+	FRigCurrentAndInitialTransform PoseStorage;
+
+	// Dirty state storage for this element.
+	FRigCurrentAndInitialDirtyState PoseDirtyState;
 	
 	struct FElementToDirty
 	{
@@ -829,9 +1117,13 @@ protected:
 
 	virtual void CopyFrom(const FRigBaseElement* InOther) override;
 
+	virtual void LinkStorage(const TArrayView<FTransform>& InTransforms, const TArrayView<bool>& InDirtyStates, const TArrayView<float>& InCurves) override;
+	virtual void UnlinkStorage(FRigReusableElementStorage<FTransform>& InTransforms, FRigReusableElementStorage<bool>& InDirtyStates, FRigReusableElementStorage<float>& InCurves) override;
+
 	friend class URigHierarchy;
 	friend class URigHierarchyController;
 	friend struct FRigBaseElement;
+	friend class FControlRigEditor;
 };
 
 USTRUCT(BlueprintType)
@@ -949,12 +1241,13 @@ struct CONTROLRIG_API FRigElementParentConstraint
 	FRigTransformElement* ParentElement;
 	FRigElementWeight Weight;
 	FRigElementWeight InitialWeight;
-	mutable FRigComputedTransform Cache;
+	mutable FTransform Cache;
 	mutable bool bCacheIsDirty;
 		
 	FRigElementParentConstraint()
 		: ParentElement(nullptr)
 	{
+		Cache = FTransform::Identity;
 		bCacheIsDirty = true;
 	}
 
@@ -1399,15 +1692,20 @@ struct CONTROLRIG_API FRigControlElement final : public FRigMultiParentElement
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Control)
 	FRigControlSettings Settings;
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = RigElement)
-	FRigCurrentAndInitialTransform Offset;
-
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = RigElement)
-	FRigCurrentAndInitialTransform Shape;
+	// Current and Initial, both in Local and Global, for Pose, Offset and Shape
+	virtual int32 GetNumTransforms() const override { return 12; }
+	
+	const FRigCurrentAndInitialTransform& GetOffsetTransform() const;
+	FRigCurrentAndInitialTransform& GetOffsetTransform();
+	const FRigCurrentAndInitialDirtyState& GetOffsetDirtyState() const;
+	FRigCurrentAndInitialDirtyState& GetOffsetDirtyState();
+	const FRigCurrentAndInitialTransform& GetShapeTransform() const;
+	FRigCurrentAndInitialTransform& GetShapeTransform();
+	const FRigCurrentAndInitialDirtyState& GetShapeDirtyState() const;
+	FRigCurrentAndInitialDirtyState& GetShapeDirtyState();
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = RigElement)
 	FRigPreferredEulerAngles PreferredEulerAngles;
-	
 
 	FRigControlElement()
 		: FRigControlElement(nullptr)
@@ -1422,8 +1720,8 @@ struct CONTROLRIG_API FRigControlElement final : public FRigMultiParentElement
 	{
 		Super::operator=(InOther);
 		Settings = InOther.Settings;
-		Offset = InOther.Offset;
-		Shape = InOther.Shape;
+		GetOffsetTransform() = InOther.GetOffsetTransform();
+		GetShapeTransform() = InOther.GetShapeTransform();
 		PreferredEulerAngles = InOther.PreferredEulerAngles;
 		return *this;
 	}
@@ -1460,6 +1758,11 @@ struct CONTROLRIG_API FRigControlElement final : public FRigMultiParentElement
 	virtual void Load(FArchive& Ar, ESerializationPhase SerializationPhase) override;
 
 	virtual void CopyPose(FRigBaseElement* InOther, bool bCurrent, bool bInitial, bool bWeights) override;
+
+protected:
+
+	virtual void LinkStorage(const TArrayView<FTransform>& InTransforms, const TArrayView<bool>& InDirtyStates, const TArrayView<float>& InCurves) override;
+	virtual void UnlinkStorage(FRigReusableElementStorage<FTransform>& InTransforms, FRigReusableElementStorage<bool>& InDirtyStates, FRigReusableElementStorage<float>& InCurves) override;
 	
 private:
 	explicit FRigControlElement(URigHierarchy* InOwner)
@@ -1473,8 +1776,18 @@ private:
 		return InElement->GetType() == ERigElementType::Control;
 	}
 
+	// Offset storage for this element.
+	FRigCurrentAndInitialTransform OffsetStorage;
+	FRigCurrentAndInitialDirtyState OffsetDirtyState;
+
+	// Shape storage for this element.
+	FRigCurrentAndInitialTransform ShapeStorage;
+	FRigCurrentAndInitialDirtyState ShapeDirtyState;
+
 	friend class URigHierarchy;
+	friend class URigHierarchyController;
 	friend struct FRigBaseElement;
+	friend class FControlRigEditor;
 };
 
 USTRUCT(BlueprintType)
@@ -1485,23 +1798,28 @@ struct CONTROLRIG_API FRigCurveElement final : public FRigBaseElement
 
 	static const EElementIndex ElementTypeIndex;
 
-	// Set to true if the value was actually set. Used to carry back and forth blend curve
-	// value validity state.
-	bool bIsValueSet = true;
-	
-	float Value = 0.0f;
-
-	
 	FRigCurveElement()
 		: FRigCurveElement(nullptr)
 	{}
 	
 	virtual ~FRigCurveElement() override {}
 
+	virtual int32 GetNumCurves() const override { return 1; }
+
 	virtual void Save(FArchive& A, ESerializationPhase SerializationPhase) override;
 	virtual void Load(FArchive& Ar, ESerializationPhase SerializationPhase) override;
 
 	virtual void CopyPose(FRigBaseElement* InOther, bool bCurrent, bool bInitial, bool bWeights) override;
+
+	const float& Get() const;
+	void Set(const float& InValue);
+
+	bool IsValueSet() const { return bIsValueSet; }
+
+protected:
+
+	virtual void LinkStorage(const TArrayView<FTransform>& InTransforms, const TArrayView<bool>& InDirtyStates, const TArrayView<float>& InCurves) override;
+	virtual void UnlinkStorage(FRigReusableElementStorage<FTransform>& InTransforms, FRigReusableElementStorage<bool>& InDirtyStates, FRigReusableElementStorage<float>& InCurves) override;
 	
 private:
 	FRigCurveElement(URigHierarchy* InOwner)
@@ -1514,6 +1832,13 @@ private:
 	{
 		return InElement->GetType() == ERigElementType::Curve;
 	}
+
+	// Set to true if the value was actually set. Used to carry back and forth blend curve
+	// value validity state.
+	bool bIsValueSet = true;
+
+	int32 StorageIndex = INDEX_NONE;
+	float* Storage = nullptr;
 
 	friend class URigHierarchy;
 	friend class URigHierarchyController;
@@ -1936,7 +2261,10 @@ struct CONTROLRIG_API FRigHierarchyCopyPasteContentPerElement
 	TArray<FRigElementWeight> ParentWeights;
 
 	UPROPERTY()
-	FRigCurrentAndInitialTransform Pose;
+	TArray<FTransform> Poses;
+
+	UPROPERTY()
+	TArray<bool> DirtyStates;
 };
 
 USTRUCT()

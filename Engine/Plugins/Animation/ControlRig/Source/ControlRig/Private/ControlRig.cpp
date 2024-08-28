@@ -2010,7 +2010,7 @@ void UControlRig::CreateRigControlsForCurveContainer()
 				Settings.bDrawLimits = false;
 
 				FRigControlValue Value;
-				Value.Set<float>(CurveElement->Value);
+				Value.Set<float>(CurveElement->Get());
 
 				Controller->AddControl(CurveElement->GetFName(), FRigElementKey(), Settings, Value, FTransform::Identity, FTransform::Identity); 
 			}

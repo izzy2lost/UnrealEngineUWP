@@ -850,9 +850,9 @@ private:
 	TFunction<void(EMessageSeverity::Type,const FString&)> LogFunction = nullptr;
 
 	template<typename T>
-	T* MakeElement()
+	T* MakeElement(bool bAllocateStorage = false)
 	{
-		T* Element = GetHierarchy()->NewElement<T>();
+		T* Element = GetHierarchy()->NewElement<T>(1, bAllocateStorage);
 		Element->CreatedAtInstructionIndex = CurrentInstructionIndex;
 		return Element;
 	}

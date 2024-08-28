@@ -2573,7 +2573,7 @@ void SRigHierarchy::HandlePasteTransforms(ERigTransformType::Type InTransformTyp
 		for(int32 Index = 0; Index < Count; Index++)
 		{
 			const FRigHierarchyCopyPasteContentPerElement& PerElementData = Data.Elements[Index];
-			const FTransform Transform =  PerElementData.Pose.Get(InTransformType);
+			const FTransform Transform =  PerElementData.Poses[(int32)InTransformType];
 
 			if(FRigTransformElement* TransformElement = Hierarchy->Find<FRigTransformElement>(CurrentSelection[Index]))
 			{
