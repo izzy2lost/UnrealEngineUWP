@@ -123,6 +123,7 @@ public:
 	MEDIAASSETS_API virtual FText GetMediaOption(const FName& Key, const FText& DefaultValue) const override;
 	MEDIAASSETS_API virtual TSharedPtr<FDataContainer, ESPMode::ThreadSafe> GetMediaOption(const FName& Key, const TSharedPtr<FDataContainer, ESPMode::ThreadSafe>& DefaultValue) const override;
 	MEDIAASSETS_API virtual bool HasMediaOption(const FName& Key) const override;
+	MEDIAASSETS_API virtual const UObject* ToUObject() const override;
 
 	/** Set a boolean parameter to pass to the player. */
 	UFUNCTION(BlueprintCallable, meta=(DisplayName = "SetMediaOption (boolean)"), Category = "Media|MediaSource")

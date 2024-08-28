@@ -193,6 +193,11 @@ bool UMediaSource::HasMediaOption(const FName& Key) const
 	return MediaOptionsMap.Contains(Key);
 }
 
+const UObject* UMediaSource::ToUObject() const
+{
+	return this;
+}
+
 
 void UMediaSource::SetMediaOptionBool(const FName& Key, bool Value)
 {

@@ -747,7 +747,13 @@ class FMediaPlayerLifecycleManagerDelegateOpenRequest : public IMediaPlayerLifec
 {
 public:
 	FMediaPlayerLifecycleManagerDelegateOpenRequest(const FString& InUrl, const IMediaOptions* InOptions, const FMediaPlayerOptions* InPlayerOptions, IMediaPlayerFactory* InPlayerFactory, TSharedPtr<IMediaPlayer, ESPMode::ThreadSafe> InReusedPlayer, bool bInWillCreatePlayer, uint32 InWillUseNewResources)
-		: Url(InUrl), Options(InOptions), PlayerFactory(InPlayerFactory), ReusedPlayer(InReusedPlayer), bWillCreatePlayer(bInWillCreatePlayer), NewResources(InWillUseNewResources)
+		: Url(InUrl)
+		, Options(InOptions)
+		, OptionsObject(InOptions ? InOptions->ToUObject() : nullptr)
+		, PlayerFactory(InPlayerFactory)
+		, ReusedPlayer(InReusedPlayer)
+		, bWillCreatePlayer(bInWillCreatePlayer)
+		, NewResources(InWillUseNewResources)
 	{
 		if (InPlayerOptions)
 		{
@@ -785,8 +791,15 @@ public:
 		return !!(NewResources & ResourceFlags);
 	}
 
+	const TSharedPtr<IMediaPlayer, ESPMode::ThreadSafe>& GetReusedPlayer() const
+	{
+		return ReusedPlayer;
+	}
+
+private:
 	FString Url;
 	const IMediaOptions* Options;
+	TStrongObjectPtr<const UObject> OptionsObject;
 	TOptional<FMediaPlayerOptions> PlayerOptions;
 	IMediaPlayerFactory* PlayerFactory;
 	TSharedPtr<IMediaPlayer, ESPMode::ThreadSafe> ReusedPlayer;
@@ -815,7 +828,7 @@ public:
 		if (TSharedPtr<FMediaPlayerFacade, ESPMode::ThreadSafe> PinnedFacade = Facade.Pin())
 		{
 			const FMediaPlayerLifecycleManagerDelegateOpenRequest* OR = static_cast<const FMediaPlayerLifecycleManagerDelegateOpenRequest*>(OpenRequest.Get());
-			if (PinnedFacade->ContinueOpen(AsShared(), OR->Url, OR->Options, OR->PlayerOptions.IsSet() ? &OR->PlayerOptions.GetValue() : nullptr, OR->PlayerFactory, OR->ReusedPlayer, OR->bWillCreatePlayer, InstanceID))
+			if (PinnedFacade->ContinueOpen(AsShared(), OR->GetUrl(), OR->GetOptions(), OR->GetPlayerOptions(), OR->GetPlayerFactory(), OR->GetReusedPlayer(), OR->WillCreateNewPlayer(), InstanceID))
 			{
 				SubmittedRequest = true;
 			}

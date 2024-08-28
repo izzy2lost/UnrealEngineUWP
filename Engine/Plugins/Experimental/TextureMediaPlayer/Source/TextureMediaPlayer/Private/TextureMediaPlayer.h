@@ -153,9 +153,6 @@ private:
 	/** Media player Guid */
 	FGuid											PlayerGuid;
 
-	/** Option interface **/
-	const IMediaOptions*							OptionInterface;
-
 	/**  */
 	TAtomic<EMediaState>							State;
 	TAtomic<EMediaStatus>							Status;

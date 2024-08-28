@@ -8,11 +8,14 @@
 #include "Misc/Timespan.h"
 #include "Containers/Array.h"
 #include "IMediaOptions.h"
+#include "UObject/Object.h"
+#include "UObject/StrongObjectPtrTemplates.h"
 
 class IAnalyticsProviderET;
 class IMediaEventSink;
 class IMediaPlayer;
 class IElectraPlayerDataCache;
+class UObject;
 
 /**
  * This class is used to get safe access to an IMediaOptions interface.
@@ -68,6 +71,7 @@ class FElectraSafeMediaOptionInterface : public IElectraSafeMediaOptionInterface
 public:
 	FElectraSafeMediaOptionInterface(IMediaOptions* InOwner)
 		: Owner(InOwner)
+		, OwnerObject(InOwner ? InOwner->ToUObject() : nullptr)
 	{ }
 	virtual ~FElectraSafeMediaOptionInterface()
 	{
@@ -77,6 +81,7 @@ public:
 	{
 		FScopeLock lock(&OwnerLock);
 		Owner = nullptr;
+		OwnerObject = nullptr;
 	}
 	virtual void Lock() override
 	{
@@ -93,6 +98,7 @@ public:
 private:
 	FCriticalSection OwnerLock;
 	IMediaOptions* Owner = nullptr;
+	TStrongObjectPtr<const UObject> OwnerObject;
 };
 
 
