@@ -332,19 +332,6 @@ void FSoundWaveData::SetAllCuePoints(const TArray<FSoundWaveCuePoint>& InCuePoin
 	}
 }
 
-FSoundWaveData::MaxChunkSizeResults FSoundWaveData::GetMaxChunkSizeResults() const
-{
-	MaxChunkSizeResults Results;
-
-	for (auto& Chunk : RunningPlatformData.GetChunks())
-	{
-		Results.MaxUnevictableSize = FMath::Max<uint32>(Results.MaxUnevictableSize, Chunk.AudioDataSize);
-		Results.MaxSizeInCache += Chunk.AudioDataSize;
-	}
-
-	return Results;
-}
-
 uint32 FSoundWaveData::GetSizeOfChunk(uint32 ChunkIndex) const
 {
 	check(ChunkIndex < GetNumChunks());
@@ -358,6 +345,7 @@ uint32 FSoundWaveData::GetSizeOfChunk(uint32 ChunkIndex) const
 	check((ChunkIndex < (uint32)GetNumChunks()));
 	return RunningPlatformData.GetChunks()[ChunkIndex].AudioDataSize;
 }
+
 
 void FSoundWaveData::ReleaseCompressedAudio()
 {
@@ -1887,9 +1875,17 @@ void USoundWave::InvalidateCompressedData(bool bFreeResources, bool bRebuildStre
 
 	CompressedDataGuid = FGuid::NewGuid();
 
+#if WITH_EDITOR
+	// In editor, do not modify SoundWaveDataPtr because it may be accessed by 
+	// another system through the FSoundWaveProxy. Instead, create a new SoundWaveDataPtr
+	// to ensure that SoundWaveDataPtr is not being read while it is being written to. 
+	const bool bIsRetained = SoundWaveDataPtr->FirstChunk.IsValid();
+	CreateNewSoundWaveData();
+#else
 	SoundWaveDataPtr->DiscardZerothChunkData();
 	SoundWaveDataPtr->CompressedFormatData.FlushData();
 	RemoveAudioResource();
+#endif // WITH_EDITOR
 
 	if (bFreeResources)
 	{
@@ -1908,14 +1904,13 @@ void USoundWave::InvalidateCompressedData(bool bFreeResources, bool bRebuildStre
 	{
 		CachePlatformData(true /* bAsyncCache */);
 
-		SoundWaveDataPtr->CurrentChunkRevision += 1;
+		CurrentChunkRevision += 1;
+		SoundWaveDataPtr->CurrentChunkRevision = CurrentChunkRevision;
 	}
 
-
 	// If this sound wave is retained, release and re-retain the new chunk.
-	if (SoundWaveDataPtr->FirstChunk.IsValid())
+	if (bIsRetained)
 	{
-		ReleaseCompressedAudio();
 		RetainCompressedAudio(true);
 	}
 #endif
@@ -2011,15 +2006,15 @@ void USoundWave::PostLoad()
 	}
 #endif
 
+	MaxDistance = ComputeMaxDistance();
+
 	// Don't need to do anything in post load if this is a source bus or procedural audio
 	if (this->IsA(USoundSourceBus::StaticClass()) || bProcedural)
 	{
 		return;
 	}
 
-
 	CacheInheritedLoadingBehavior();
-	MaxDistance = ComputeMaxDistance();
 	
 	if (FApp::CanEverRenderAudio())
 	{
@@ -2209,7 +2204,7 @@ uint32 USoundWave::GetNumChunks() const
 	}
 }
 
-uint32 USoundWave::GetSizeOfChunk(uint32 ChunkIndex)
+uint32 USoundWave::GetSizeOfChunk(uint32 ChunkIndex) const
 {
 	check(ChunkIndex < GetNumChunks());
 
@@ -2220,6 +2215,21 @@ uint32 USoundWave::GetSizeOfChunk(uint32 ChunkIndex)
 	else
 	{
 		return 0;
+	}
+}
+
+void USoundWave::GetChunkSizeStats(uint32& OutTotalBytesOfAudioData, uint32& OutMaxChunkBytesOfAudioData) const
+{
+	OutTotalBytesOfAudioData = 0;
+	OutMaxChunkBytesOfAudioData = 0;
+
+	if (SoundWaveDataPtr.IsValid())
+	{
+		for (const FStreamedAudioChunk& Chunk : SoundWaveDataPtr->RunningPlatformData.GetChunks())
+		{
+			OutTotalBytesOfAudioData += Chunk.AudioDataSize;
+			OutMaxChunkBytesOfAudioData = FMath::Max((uint32)Chunk.AudioDataSize, OutMaxChunkBytesOfAudioData);
+		}
 	}
 }
 
@@ -2918,12 +2928,24 @@ void USoundWave::BakeEnvelopeAnalysis()
 void USoundWave::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-	check(SoundWaveDataPtr);
 
-	if (PropertyChangedEvent.Property == nullptr)
+	MaxDistance = ComputeMaxDistance();
+
+	// Source buses and procedural sources do not have sample data and should 
+	// avoid going through creation of streaming compressed data.
+	const bool bHasSampleData = !(bIsSourceBus || bProcedural);
+	if (!bHasSampleData)
+	{
+		return;
+	}
+
+	if (PropertyChangedEvent.Property == nullptr) 
 	{
 		//an empty event property field might mean the update comes from an undo
 		//we can't discern what properties where reverted so we update the asset and bakes
+	
+		// Avoid modifying FSoundWaveProxy that is still in use by outside systems. 
+		CreateNewSoundWaveData();
 
 		UpdateAsset();
 		BakeFFTAnalysis();
@@ -2943,9 +2965,6 @@ void USoundWave::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 	static const FName CloudStreamingFName = GET_MEMBER_NAME_CHECKED(USoundWave, bEnableCloudStreaming);
 	static const FName CloudStreamingPlatformSettingsFName = GET_MEMBER_NAME_CHECKED(USoundWave, PlatformSettings);
 
-	// force proxy state to be up to date
-	SoundWaveDataPtr->InitializeDataFromSoundWave(*this);
-
 	if (FProperty* PropertyThatChanged = PropertyChangedEvent.Property)
 	{
 		const FName& Name = PropertyThatChanged->GetFName();
@@ -2959,6 +2978,9 @@ void USoundWave::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 		// Prevent constant re-compression of SoundWave while properties are being changed interactively
 		if (PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
 		{
+			// Avoid modifying FSoundWaveProxy that is still in use by outside systems. 
+			CreateNewSoundWaveData();
+
 			// Regenerate on save any compressed sound formats or if analysis needs to be re-done
 			if (Name == LoadingBehaviorFName || Name == InlinedAudioInSecondsFName)
 			{
@@ -3007,7 +3029,39 @@ void USoundWave::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 		}
 	}
 
-	MaxDistance = ComputeMaxDistance();
+}
+
+void USoundWave::CreateNewSoundWaveData()
+{
+	// Create a new FSoundWaveData to avoid altering an FSoundWaveData while it is
+	// being decoded by FSoundWaveProxy clients.
+	//
+	// USoundWave currently does not have a way to stop clients which utilize
+	// an FSoundWaveProxy or FSoundWaveData outside of this USoundWave. 
+	// 
+	// USoundWave::FreeResources(...) has the ability to stop clients accessing
+	// FSoundWaveData only if those clients expose the USoundWave as the WaveData
+	// on one of an FActiveSound's WaveInstances, or if the USoundWave is being 
+	// played by the "realtime" audio playback system which utilizies FSoundBuffers
+	// to decode and track resource usage. 
+	// 
+	// In the future, all clients should use the proxy system and USoundWave should 
+	// be extended to support notifying clients that it has been edited and replaced 
+	// an existing proxy with a new proxy. Clients can then choose whether to
+	// continue playing their original proxy, or retrieve the updated proxy. 
+	SoundWaveDataPtr = MakeShared<FSoundWaveData, ESPMode::ThreadSafe>();
+	Proxy.Reset();
+
+	const bool bHasSampleData = !(bIsSourceBus || bProcedural);
+	if (bHasSampleData)
+	{
+		// Source buses and procedural sources do not have sample data and should 
+		// avoid going through creation of streaming compressed data.
+		//
+		// procedural sources and source buses should be rebased to a yet-to-be
+		// created `USoundWaveBase`
+		SoundWaveDataPtr->InitializeDataFromSoundWave(*this);
+	}
 }
 
 bool USoundWave::CanEditChange(const FProperty* InProperty) const
@@ -4767,12 +4821,6 @@ const TArray<FSoundWaveCuePoint>& FSoundWaveProxy::GetLoopRegions() const
 {
 	check(SoundWaveDataPtr);
 	return SoundWaveDataPtr->GetLoopRegions();
-}
-
-FSoundWaveData::MaxChunkSizeResults FSoundWaveProxy::GetMaxChunkSizeResults() const
-{
-	check(SoundWaveDataPtr);
-	return SoundWaveDataPtr->GetMaxChunkSizeResults();
 }
 
 bool FSoundWaveProxy::IsLooping() const

@@ -703,7 +703,7 @@ public:
 
 #if WITH_EDITOR
 	/** The current revision of our compressed audio data. Used to tell when a chunk in the cache is stale. */
-	TSharedPtr<FThreadSafeCounter> CurrentChunkRevision{ MakeShared<FThreadSafeCounter>() };
+	std::atomic<int32> CurrentChunkRevision = 0;
 #endif
 
 private:
@@ -1098,7 +1098,12 @@ public:
 	// or zero if it is not a streaming source.
 	ENGINE_API uint32 GetNumChunks() const;
 
-	ENGINE_API uint32 GetSizeOfChunk(uint32 ChunkIndex);
+	ENGINE_API uint32 GetSizeOfChunk(uint32 ChunkIndex) const;
+
+	// Calculates audio streaming cache usage for this sound wave. 
+	// @param OutTotalBytesOfAudioData - The accumulated number of bytes of all audio data of all chunks for this sound wave.
+	// @param OutMaxChunkBytesOfAudioData - The maximum number of bytes of audio data for all audio chunks for this sound wave. 
+	ENGINE_API void GetChunkSizeStats(uint32& OutTotalBytesOfAudioData, uint32& OutMaxChunkBytesOfAudioData) const;
 
 	ENGINE_API virtual void BeginDestroy() override;
 #if WITH_EDITOR
@@ -1121,6 +1126,9 @@ private:
 	ENGINE_API bool RescheduleAsyncTask(FQueuedThreadPool* InThreadPool, EQueuedWorkPriority InPriority);
 	/**  Utility function used internally to wait or poll a task while maintaining thread-safety. */
 	ENGINE_API bool WaitAsyncTaskWithTimeout(float InTimeoutInSeconds);
+
+	/** Creates and initializes a new FSoundWaveData and FSoundWaveProxy. */
+	void CreateNewSoundWaveData();
 
 public:
 #endif // WITH_EDITOR
@@ -1516,9 +1524,10 @@ public:
 		return (ESoundWavePrecacheState)PrecacheState.GetValue();
 	}
 
-	TSharedPtr<FSoundWaveData, ESPMode::ThreadSafe> SoundWaveDataPtr{ MakeShared<FSoundWaveData>() };
 
 private:
+	TSharedPtr<FSoundWaveData, ESPMode::ThreadSafe> SoundWaveDataPtr{ MakeShared<FSoundWaveData>() };
+
 	friend class FSoundWaveProxy;
 	friend class USoundFactory;
 };
@@ -1529,12 +1538,6 @@ class FSoundWaveData
 public:
 	UE_NONCOPYABLE(FSoundWaveData);
 
-	struct MaxChunkSizeResults
-	{
-		uint32 MaxUnevictableSize = 0;
-		uint32 MaxSizeInCache = 0;
-	};
-	
 	FSoundWaveData()
 		: bIsLooping(0)
 		, bIsTemplate(0)
@@ -1568,8 +1571,6 @@ public:
 	const TArray<FSoundWaveCuePoint>& GetCuePoints() const { return CuePoints; }
 	const TArray<FSoundWaveCuePoint>& GetLoopRegions() const { return LoopRegions; }
 	void SetAllCuePoints(const TArray<FSoundWaveCuePoint>& InCuePoints);
-
-	ENGINE_API MaxChunkSizeResults GetMaxChunkSizeResults() const;
 
 	ENGINE_API uint32 GetNumChunks() const;
 	ENGINE_API uint32 GetSizeOfChunk(uint32 ChunkIndex) const;
@@ -1659,7 +1660,7 @@ private:
 #endif //WITH_EDITORONLY_DATA
 	
 #if WITH_EDITOR
-	std::atomic<int32> CurrentChunkRevision;
+	int32 CurrentChunkRevision;
 #endif // #if WITH_EDITOR
 
 	FName NameCached;
@@ -1729,8 +1730,6 @@ public:
 	ENGINE_API uint32 GetSizeOfChunk(uint32 ChunkIndex) const;
 	ENGINE_API const TArray<FSoundWaveCuePoint>& GetCuePoints() const;
 	ENGINE_API const TArray<FSoundWaveCuePoint>& GetLoopRegions() const;
-
-	ENGINE_API FSoundWaveData::MaxChunkSizeResults GetMaxChunkSizeResults() const;
 
 	ENGINE_API bool IsLooping() const;
 	ENGINE_API bool IsTemplate() const;
