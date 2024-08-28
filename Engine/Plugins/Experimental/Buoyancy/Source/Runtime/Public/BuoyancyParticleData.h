@@ -37,7 +37,7 @@ struct FBuoyancySubmersion
 	float Vol = 0.f;
 	FVector CoM = FVector::ZeroVector;
 	FVector Vel = FVector::ZeroVector;
-	FVector Norm = FVector::ZeroVector;
+	FVector Norm = FVector::ZeroVector;	
 };
 
 // Metadata for submersions, used for event callbacks

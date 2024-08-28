@@ -16,6 +16,7 @@
 #include "WaterSubsystem.h"
 #include "WaterBodyManager.h"
 #include "WaterSplineComponent.h"
+#include "BakedShallowWaterSimulationComponent.h"
 #include "Chaos/PhysicsObject.h"
 #include "PBDRigidsSolver.h"
 #include "Chaos/PBDRigidsEvolutionGBF.h"
@@ -24,6 +25,15 @@
 #include "Templates/SharedPointer.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "Chaos/GeometryParticlesfwd.h"
+
+#include "Chaos/ParticleHandle.h"
+#include "Chaos/DebugDrawQueue.h"
+#include "Chaos/CastingUtilities.h"
+#include "Chaos/Utilities.h"
+#include "Chaos/PBDRigidsEvolutionGBF.h"
+#include "Chaos/Collision/CollisionFilter.h"
+#include "Chaos/Collision/CollisionUtil.h"
+#include "Chaos/Sphere.h"
 
 //
 // CVars
@@ -42,6 +52,14 @@ bool bBuoyancyDebugDraw = false;
 FAutoConsoleVariableRef CVarBuoyancyDebugDraw(TEXT("p.Buoyancy.DebugDraw"), bBuoyancyDebugDraw, TEXT(""));
 #endif
 
+
+int32 bUseShallowWaterSimulation = 1;
+static FAutoConsoleVariableRef CVarUseShallowWaterSimulation(
+	TEXT("p.Buoyancy.bUseShallowWaterSimulation"),
+	bUseShallowWaterSimulation,
+	TEXT("new buoancy method"),
+	ECVF_Scalability
+);
 
 //
 // Logging
@@ -67,7 +85,6 @@ static FAutoConsoleCommandWithWorld BuoyancyLogMemory(
 		}
 	}));
 #endif // WITH_BUOYANCY_MEMORY_TRACKING
-
 
 //
 // Buoyancy Subsystem
@@ -339,18 +356,22 @@ void UBuoyancySubsystem::UpdateSplineData()
 		{
 			// Get the metadata object if there is one, and the spline component
 			UWaterSplineMetadata* SplineMetadata = WaterBodyComponent->GetWaterSplineMetadata();
+			UBakedShallowWaterSimulationComponent *BakedSim = WaterBodyComponent->GetBakedShallowWaterSimulation();
+			
 			if (UWaterSplineComponent* SplineComponent = WaterBodyComponent->GetWaterSpline())
 			{
 				// Copy out water spline data into a shared ptr, to be associated with all
 				// child particles and marshaled to PT.
 				const Chaos::FRigidTransform3 WaterTransform = WaterBodyComponent->GetComponentTransform();
 				const TOptional<FInterpCurveFloat> EmptyOptionalFloat;
+				const TOptional<FShallowWaterSimulationGrid> EmptyOptionalSimGrid;
 				TSharedPtr<FBuoyancyWaterSplineData> WaterSplineData = MakeShared<FBuoyancyWaterSplineData>(
 					WaterTransform,
 					SplineComponent->SplineCurves.Position,
 					WaterBodyComponent->GetWaterBodyType(),
 					SplineMetadata ? SplineMetadata->RiverWidth : EmptyOptionalFloat,
-					SplineMetadata ? SplineMetadata->WaterVelocityScalar : EmptyOptionalFloat
+					SplineMetadata ? SplineMetadata->WaterVelocityScalar : EmptyOptionalFloat,
+					bUseShallowWaterSimulation && WaterBodyComponent->UseBakedShallowWaterSimulationForBuoyancy() ? BakedSim->SimulationData : EmptyOptionalSimGrid
 				);
 
 				// Go over each physics object in each primitive component which was generated
@@ -675,6 +696,7 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 	// Apply buoyant forces resulting from submersions
 	ApplyBuoyantForces(*Evolution);
 
+	// #todo(dmp): need to generate callback info from shallow water interactions
 	// Generate async outputs for callback data
 	GenerateCallbackData();
 
@@ -758,9 +780,30 @@ void FBuoyancySubsystemSimCallback::TrackInteraction(
 		// Always disable midphases with water
 		MidPhase.Disable();
 	}
-
-	float ClosestSplineKey;
-	FVector ClosestPoint;
+	
+	// #todo(dmp): ideally for shallow water, we'd be sampling the body a bit more to tell if anything other than the center is interacting with water
+	float ClosestSplineKey = 0;
+	FVector ClosestPoint = FVector(0, 0, 0);
+	
+	if (WaterSpline.ShouldSampleFromShallowWaterSimulation())
+	{
+		// eval shallow water - closest point is just the current point adjusted upward in Z
+		const FVector ParticlePos = RigidParticle->XCom();
+		FVector WaterVelocity;
+		float WaterHeight;
+		float WaterDepth;
+		WaterSpline.ShallowWaterSimData->SampleShallowWaterSimulationAtPosition(ParticlePos, WaterVelocity, WaterHeight, WaterDepth);
+		ClosestPoint = ParticlePos;
+		ClosestPoint.Z = WaterHeight;
+		
+		// if there is no water here, then return.  This is an approximation that there is water underneath this rigid that might cause interaction
+		// ideally, we'd multisample this since we can lose some water interactions this way
+		if (WaterDepth < 1e-5)
+		{
+			return;
+		}
+	}
+	else
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_SplineEvaluation)
 
@@ -791,6 +834,7 @@ void FBuoyancySubsystemSimCallback::TrackInteraction(
 
 		// If this particle already has a list of interactions, add to it. Otherwise
 		// make a new one.
+		// #todo(dmp): we should split out the interaction data here to be for shallow water or not
 		BuoyancyParticleData.GetInteractions(*RigidParticle).Add({
 			RigidParticle,
 			WaterParticle,
@@ -813,8 +857,92 @@ void FBuoyancySubsystemSimCallback::ProcessInteractions(Chaos::FPBDRigidsEvoluti
 
 		// Process each interaction
 		for (FBuoyancyInteraction& Interaction : ParticleInteractions)
+		{						
+			// #todo(dmp): we do not want to allow multiple shallow water sims interacting with a single particle for now.
+			// #todo(dmp): correctly handle when a particle can overlap shallow water and other water bodies at the same time
+			// in order to do this, we must unite the integration methods for shallow water and spline based water bodies
+			// and rework the submersion data structures.
+			if (Interaction.WaterSpline.ShouldSampleFromShallowWaterSimulation())
+			{
+				ProcessInteractionShallowWater(Evolution, Interaction);
+			}
+			else
+			{
+				ProcessInteraction(Evolution, Interaction);
+			}
+		}
+	}
+}
+
+void FBuoyancySubsystemSimCallback::ProcessInteractionShallowWater(Chaos::FPBDRigidsEvolution& Evolution, FBuoyancyInteraction& Interaction)
+{		
+	const Chaos::FReal DeltaSeconds = GetDeltaTime_Internal();
+		
+	if (!Interaction.WaterSpline.ShallowWaterSimData.IsSet())
+	{
+		return;
+	}
+
+	FShallowWaterSimulationGrid DefaultShallowWaterSimulationGrid;
+	const FShallowWaterSimulationGrid& ShallowWaterSimData = Interaction.WaterSpline.ShallowWaterSimData.Get(DefaultShallowWaterSimulationGrid);
+
+	float TotalSubmergedVol;
+	Chaos::FVec3 TotalSubmergedCoM;
+	Chaos::FVec3 TotalWorldForce;
+	Chaos::FVec3 TotalWorldTorque;
+		
+	// #todo(dmp): abstract out the ShallowWaterSimData to generic class so we can sample other velocity sources (ie: splines, constant value, etc)
+	BuoyancyAlgorithms::ComputeSubmergedVolumeAndForcesForParticle(BuoyancyParticleData,
+		Interaction.RigidParticle, Interaction.WaterParticle,
+		ShallowWaterSimData,
+		Evolution, DeltaSeconds, BuoyancySettings->WaterDensity, BuoyancySettings->WaterDrag,
+		TotalSubmergedVol, TotalSubmergedCoM, TotalWorldForce, TotalWorldTorque);
+
+	// Apply forces to the particle
+	{
+		SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_ShallowWaterIntegrateForces)
+
+		Chaos::FConstGenericParticleHandle RigidGeneric(Interaction.RigidParticle);
+
+#if ENABLE_DRAW_DEBUG
+		if (bBuoyancyDebugDraw)
 		{
-			ProcessInteraction(Evolution, Interaction);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(TotalSubmergedCoM, 20, 10, FColor::Green, false, -1.f, -1, 2.0f);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(RigidGeneric->PCom(), 20, 10, FColor::Blue, false, -1.f, -1, 2.0f);
+
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(RigidGeneric->PCom(), RigidGeneric->PCom() + TotalWorldForce, 20, FColor::Blue, false, -1.f, -1, 2.f);
+		}
+#endif
+
+		// #todo(dmp): if we do this integration to accelerations per shape, then each shape can have different densities per shape.
+		// This will change to integrate the accumulated accelerations instead of forces
+
+		// Use inertia to convert forces to accelerations
+		const Chaos::FVec3 LinearAccel = RigidGeneric->InvM() * TotalWorldForce;
+
+		const Chaos::FMatrix33 WorldInvI = Chaos::Utilities::ComputeWorldSpaceInertia(RigidGeneric->RCom(), RigidGeneric->ConditionedInvI());
+		const Chaos::FVec3 AngularAccel = WorldInvI * TotalWorldTorque;
+
+		// Integrate to get delta velocities
+		Chaos::FVec3 DeltaV = LinearAccel * DeltaSeconds;
+		Chaos::FVec3 DeltaW = AngularAccel * DeltaSeconds;
+	
+		// Clamp delta velocities
+		DeltaV = DeltaV.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaV);
+		DeltaW = DeltaW.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaW);
+
+		// Compute new velocity
+		const Chaos::FVec3 NewV = Interaction.RigidParticle->GetV() + DeltaV;
+		const Chaos::FVec3 NewW = Interaction.RigidParticle->GetW() + DeltaW;
+
+		// Apply the deltas
+		Interaction.RigidParticle->SetV(NewV);
+		Interaction.RigidParticle->SetW(NewW);
+	
+		// Wake up the body??
+		if (BuoyancySettings->bKeepAwake)
+		{
+			Evolution.SetParticleObjectState(Interaction.RigidParticle, Chaos::EObjectStateType::Dynamic);
 		}
 	}
 }
