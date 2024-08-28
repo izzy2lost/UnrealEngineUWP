@@ -135,7 +135,17 @@ static EPropertyTagExtension CalculatePropertyExtensionFlags(FArchive& Underlyin
 		Tag.bExperimentalOverridableLogic = Tag.GetProperty()->HasAnyPropertyFlags(CPF_ExperimentalOverridableLogic);
 		if (OverriddenProperties || Tag.bExperimentalOverridableLogic)
 		{
-			Tag.OverrideOperation = OverriddenProperties ? OverriddenProperties->GetOverriddenPropertyOperation(UnderlyingArchive.GetSerializedPropertyChain(), Tag.GetProperty()) : EOverriddenPropertyOperation::None;
+			// If this property is marked as always overridden, emit op to replace any inherited/default value with our own. If this
+			// value is later read back in as a loose property, it will be properly treated as an override during write impersonation.
+			if (Tag.GetProperty()->HasAnyPropertyFlags(CPF_ExperimentalAlwaysOverriden))
+			{
+				Tag.OverrideOperation = EOverriddenPropertyOperation::Replace;
+			}
+			else
+			{
+				Tag.OverrideOperation = OverriddenProperties ? OverriddenProperties->GetOverriddenPropertyOperation(UnderlyingArchive.GetSerializedPropertyChain(), Tag.GetProperty()) : EOverriddenPropertyOperation::None;
+			}
+
 			PropertyTagExtensions |= EPropertyTagExtension::OverridableInformation;
 		}
 	}
