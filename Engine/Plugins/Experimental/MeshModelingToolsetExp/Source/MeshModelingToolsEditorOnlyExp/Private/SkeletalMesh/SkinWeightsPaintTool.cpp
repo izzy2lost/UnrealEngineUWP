@@ -3052,137 +3052,195 @@ void USkinWeightsPaintTool::TransferWeights()
 	using namespace UE::Geometry;
 	using namespace UE::AnimationCore;
 
-	if (!SourceTarget)
-	{
-		const FText NotificationText = LOCTEXT("NoSourceInTransfer", "No source skeletal mesh was specified. No weights were transferred.");
-		ShowEditorMessage(ELogVerbosity::Error, NotificationText);
-		return;
-	}
-
 	const EMeshLODIdentifier TargetLODId = GetLODId(WeightToolProperties->ActiveLOD);
     const FGetMeshParameters TargetParams(true, TargetLODId);
 	FDynamicMesh3 TargetMesh = UE::ToolTarget::GetDynamicMeshCopy(Target, TargetParams);
 
 	const EMeshLODIdentifier SourceLODId = GetLODId(WeightToolProperties->SourceLOD);
-	const FGetMeshParameters SourceParams(true, SourceLODId);
-	const FDynamicMesh3 SourceMesh = UE::ToolTarget::GetDynamicMeshCopy(SourceTarget, SourceParams);
-	
-	if (!SourceMesh.HasAttributes() || !SourceMesh.Attributes()->HasBones())
-	{
-    	const FText NotificationText = LOCTEXT("NoWeightsFoundInTransfer", "No skin weights were found in the source skeletal mesh. No weights were transferred.");
-    	ShowEditorMessage(ELogVerbosity::Error, NotificationText);
-		return;
-	}
-	
-	if (SourceMesh.Attributes()->GetNumBones() == 0)
-	{
-		const FText NotificationText = LOCTEXT("NoBonesFoundInTransfer", "No bones were found in the source skeletal mesh. No weights were transferred.");
-		ShowEditorMessage(ELogVerbosity::Error, NotificationText);
-		return;
-	}
-	
-	FTransferBoneWeights TransferBoneWeights(&SourceMesh, WeightToolProperties->SourceSkinWeightProfile);
-	TransferBoneWeights.TransferMethod = FTransferBoneWeights::ETransferBoneWeightsMethod::InpaintWeights;
-	
-	if (!TargetMesh.HasAttributes())
-	{
-		TargetMesh.EnableAttributes();
-	}
-
-	FDynamicMeshAttributeSet* TargetAttributes = TargetMesh.Attributes();
-	if (!TargetAttributes->HasBones())
-	{
-		TargetAttributes->CopyBoneAttributes(*SourceMesh.Attributes());
-	}
-	else
-	{
-		const USkeletalMeshComponent* Component = GetSkeletalMeshComponent(Target);
-		if (ensure(Component))
-		{
-			const FReferenceSkeleton& RefSkeleton = Component->GetSkeletalMeshAsset()->GetRefSkeleton();
-			ensure(TargetAttributes->GetNumBones() == RefSkeleton.GetRawBoneNum());
-		}
-	}
-
-	// NOTE should we expose all the options?
-	// 	TransferBoneWeights.NormalThreshold;
-	// 	TransferBoneWeights.SearchRadius
-	// 	TransferBoneWeights.NumSmoothingIterations;
-	// 	TransferBoneWeights.SmoothingStrength;
-	// 	TransferBoneWeights.LayeredMeshSupport;
-	// 	TransferBoneWeights.ForceInpaintWeightMapName;
-	
-	if (TransferBoneWeights.Validate() != EOperationValidationResult::Ok)
-	{
-		return;
-	}
-
-	if (WeightToolProperties->EditingMode == EWeightEditMode::Mesh)
-	{
-		TransferBoneWeights.TargetVerticesSubset = GetSelectedVertices();
-	}
 
 	const FName TargetProfile = WeightToolProperties->GetActiveSkinWeightProfile();
-	if (!TransferBoneWeights.TransferWeightsToMesh(TargetMesh, TargetProfile))
-	{
-		// notify user
-		const FText NotificationText = LOCTEXT("TransferWeightsUnknownIssue", "Transfer weights operation encountered an unknown issue. No weights were transferred.");
-		ShowEditorMessage(ELogVerbosity::Error, NotificationText);
-		return;
-	}
-	
-	// weight edits for transaction
-	FMultiBoneWeightEdits WeightEdits;
+	FDynamicMeshVertexSkinWeightsAttribute* TransferredSkinWeights = nullptr;
 
-	// spin through all the transferred skin weights and record a weight edit to apply as a transaction
-	FDynamicMeshVertexSkinWeightsAttribute* TransferedSkinWeights = TargetAttributes->GetSkinWeightsAttribute(TargetProfile);
-	check(TransferedSkinWeights);
-	static constexpr float ZeroWeight = 0.f;
-	const bool bUseSubset = !TransferBoneWeights.TargetVerticesSubset.IsEmpty();
-	const int32 NumVertices = bUseSubset ? TransferBoneWeights.TargetVerticesSubset.Num() : TargetMesh.VertexCount();
-	const FNonManifoldMappingSupport NonManifoldMappingSupport(TargetMesh);
-	for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
+	TArray<int32> VertexSubset;
+	bool bCreateTransaction = false;
+	
+	// If a source mesh was given, or if the LODs differ, then do a weight transfer using Rinat's algo.
+	// Otherwise, do an exact copy from a different profile.
+	if (SourceTarget || TargetLODId != SourceLODId)
 	{
-		const int32 VertexID = bUseSubset ? TransferBoneWeights.TargetVerticesSubset[VertexIndex] : VertexIndex;
-		const int32 SrcVertexID = NonManifoldMappingSupport.GetOriginalNonManifoldVertexID(VertexID);
+		const FGetMeshParameters SourceParams(true, SourceLODId);
+		const FDynamicMesh3 SourceMesh = UE::ToolTarget::GetDynamicMeshCopy(SourceTarget ? SourceTarget : Target, SourceParams);
 		
-		// remove all weight on vertex
-		const VertexWeights& VertexBoneWeights = Weights.PreChangeWeights[SrcVertexID];
-		if (!VertexBoneWeights.IsEmpty())
+		if (!SourceMesh.HasAttributes() || !SourceMesh.Attributes()->HasBones())
 		{
-			for (const FVertexBoneWeight& BoneWeight : VertexBoneWeights)
-			{
-				const float OldWeight = BoneWeight.Weight;
-				WeightEdits.MergeSingleEdit(BoneWeight.BoneID, SrcVertexID, OldWeight, ZeroWeight);
-			}
+			const FText NotificationText = LOCTEXT("NoWeightsFoundInTransfer", "No skin weights were found in the source skeletal mesh. No weights were transferred.");
+			ShowEditorMessage(ELogVerbosity::Error, NotificationText);
+			return;
+		}
+		
+		if (SourceMesh.Attributes()->GetNumBones() == 0)
+		{
+			const FText NotificationText = LOCTEXT("NoBonesFoundInTransfer", "No bones were found in the source skeletal mesh. No weights were transferred.");
+			ShowEditorMessage(ELogVerbosity::Error, NotificationText);
+			return;
+		}
+		
+		FTransferBoneWeights TransferBoneWeights(&SourceMesh, WeightToolProperties->SourceSkinWeightProfile);
+		TransferBoneWeights.TransferMethod = FTransferBoneWeights::ETransferBoneWeightsMethod::InpaintWeights;
+		
+		if (!TargetMesh.HasAttributes())
+		{
+			TargetMesh.EnableAttributes();
+		}
+
+		FDynamicMeshAttributeSet* TargetAttributes = TargetMesh.Attributes();
+		if (!TargetAttributes->HasBones())
+		{
+			TargetAttributes->CopyBoneAttributes(*SourceMesh.Attributes());
 		}
 		else
 		{
-			WeightEdits.MergeSingleEdit(0, SrcVertexID, 1.f, ZeroWeight);
+			const USkeletalMeshComponent* Component = GetSkeletalMeshComponent(Target);
+			if (ensure(Component))
+			{
+				const FReferenceSkeleton& RefSkeleton = Component->GetSkeletalMeshAsset()->GetRefSkeleton();
+				ensure(TargetAttributes->GetNumBones() == RefSkeleton.GetRawBoneNum());
+			}
 		}
 
-		// update with new weight
-		FBoneWeights TransferedBoneWeights;
-		TransferedSkinWeights->GetValue(VertexID, TransferedBoneWeights);
-		for (const FBoneWeight& BoneWeight: TransferedBoneWeights)
+		// NOTE should we expose all the options?
+		// 	TransferBoneWeights.NormalThreshold;
+		// 	TransferBoneWeights.SearchRadius
+		// 	TransferBoneWeights.NumSmoothingIterations;
+		// 	TransferBoneWeights.SmoothingStrength;
+		// 	TransferBoneWeights.LayeredMeshSupport;
+		// 	TransferBoneWeights.ForceInpaintWeightMapName;
+		
+		if (TransferBoneWeights.Validate() != EOperationValidationResult::Ok)
 		{
-			const int32 BoneIndex = BoneWeight.GetBoneIndex();					
-			const float OldWeight = Weights.GetWeightOfBoneOnVertex(BoneIndex, SrcVertexID, Weights.PreChangeWeights);
-			const float NewWeight = BoneWeight.GetWeight();
-			WeightEdits.MergeSingleEdit(BoneIndex, SrcVertexID, OldWeight, NewWeight);
+			return;
+		}
+
+		if (WeightToolProperties->EditingMode == EWeightEditMode::Mesh)
+		{
+			TransferBoneWeights.TargetVerticesSubset = GetSelectedVertices();
+		}
+
+		if (!TransferBoneWeights.TransferWeightsToMesh(TargetMesh, TargetProfile))
+		{
+			// notify user
+			const FText NotificationText = LOCTEXT("TransferWeightsUnknownIssue", "Transfer weights operation encountered an unknown issue. No weights were transferred.");
+			ShowEditorMessage(ELogVerbosity::Error, NotificationText);
+			return;
+		}
+		
+		TransferredSkinWeights = TargetAttributes->GetSkinWeightsAttribute(TargetProfile);
+		
+		VertexSubset = MoveTemp(TransferBoneWeights.TargetVerticesSubset);
+		bCreateTransaction = true;
+	}
+	else
+	{
+		FDynamicMeshAttributeSet* TargetAttributes = TargetMesh.Attributes();
+		TransferredSkinWeights = TargetAttributes->GetSkinWeightsAttribute(TargetProfile);
+		if (!TransferredSkinWeights)
+		{
+			TransferredSkinWeights = new FDynamicMeshVertexSkinWeightsAttribute(&TargetMesh);
+			TargetMesh.Attributes()->AttachSkinWeightsAttribute(TargetProfile, TransferredSkinWeights);
+		}
+		
+		const FDynamicMeshVertexSkinWeightsAttribute* SourceAttributes = TargetAttributes->GetSkinWeightsAttribute(WeightToolProperties->SourceSkinWeightProfile);
+		check(SourceAttributes != nullptr);
+
+		if (SourceAttributes != TransferredSkinWeights)
+		{
+			if (WeightToolProperties->EditingMode == EWeightEditMode::Mesh)
+			{
+				VertexSubset = GetSelectedVertices();
+			}
+
+			if (VertexSubset.IsEmpty())
+			{
+				TransferredSkinWeights->Copy(*SourceAttributes);
+			}
+			else
+			{
+				for (int32 VertexID: VertexSubset)
+				{
+					FBoneWeights BoneWeights;
+					SourceAttributes->GetValue(VertexID, BoneWeights);
+					TransferredSkinWeights->SetValue(VertexID, BoneWeights);
+				}
+			}
+			bCreateTransaction = true;
 		}
 	}
 
-	// apply the changes as a transaction
-	const FText TransactionLabel = LOCTEXT("TransferWeightsChange", "Transfer skin weights.");
-	ApplyWeightEditsAsTransaction(WeightEdits, TransactionLabel);
+	if (bCreateTransaction)
+	{
+		// weight edits for transaction
+		FMultiBoneWeightEdits WeightEdits;
+		
+		// spin through all the transferred skin weights and record a weight edit to apply as a transaction
+		check(TransferredSkinWeights);
+		static constexpr float ZeroWeight = 0.f;
+		const bool bUseSubset = !VertexSubset.IsEmpty();
+		const int32 NumVertices = bUseSubset ? VertexSubset.Num() : TargetMesh.VertexCount();
+		const FNonManifoldMappingSupport NonManifoldMappingSupport(TargetMesh);
+		for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
+		{
+			const int32 VertexID = bUseSubset ? VertexSubset[VertexIndex] : VertexIndex;
+			const int32 SrcVertexID = NonManifoldMappingSupport.GetOriginalNonManifoldVertexID(VertexID);
+			
+			// remove all weight on vertex
+			const VertexWeights& VertexBoneWeights = Weights.PreChangeWeights[SrcVertexID];
+			if (!VertexBoneWeights.IsEmpty())
+			{
+				for (const FVertexBoneWeight& BoneWeight : VertexBoneWeights)
+				{
+					const float OldWeight = BoneWeight.Weight;
+					WeightEdits.MergeSingleEdit(BoneWeight.BoneID, SrcVertexID, OldWeight, ZeroWeight);
+				}
+			}
+			else
+			{
+				WeightEdits.MergeSingleEdit(0, SrcVertexID, 1.f, ZeroWeight);
+			}
 
-	// put the mesh back in it's current pose
-	Weights.Deformer.SetAllVerticesToBeUpdated();
+			// update with new weight
+			FBoneWeights TransferedBoneWeights;
+			TransferredSkinWeights->GetValue(VertexID, TransferedBoneWeights);
+			for (const FBoneWeight& BoneWeight: TransferedBoneWeights)
+			{
+				const int32 BoneIndex = BoneWeight.GetBoneIndex();					
+				const float OldWeight = Weights.GetWeightOfBoneOnVertex(BoneIndex, SrcVertexID, Weights.PreChangeWeights);
+				const float NewWeight = BoneWeight.GetWeight();
+				WeightEdits.MergeSingleEdit(BoneIndex, SrcVertexID, OldWeight, NewWeight);
+			}
+		}
+
+		// apply the changes as a transaction
+		const FText TransactionLabel = LOCTEXT("TransferWeightsChange", "Transfer skin weights.");
+		ApplyWeightEditsAsTransaction(WeightEdits, TransactionLabel);
+		
+		// put the mesh back in it's current pose
+		Weights.Deformer.SetAllVerticesToBeUpdated();
+	}
 
 	// notify user that weights were transferred.
 	const FText NotificationText = LOCTEXT("WeightsTransferred", "Skin weights transferred.");
 	ShowEditorMessage(ELogVerbosity::Log, NotificationText);
+}
+
+bool USkinWeightsPaintTool::CanTransferWeights() const
+{
+	if (GetSourceTarget() != nullptr)
+	{
+		return true; 
+	}
+
+	return GetLODId(WeightToolProperties->ActiveLOD) != GetLODId(WeightToolProperties->SourceLOD) ||
+		   WeightToolProperties->GetActiveSkinWeightProfile() != WeightToolProperties->SourceSkinWeightProfile; 		
 }
 
 const FString USkinWeightsPaintTool::CopyPasteWeightsIdentifier = TEXT("UNREAL_VERTEX_WEIGHTS:");

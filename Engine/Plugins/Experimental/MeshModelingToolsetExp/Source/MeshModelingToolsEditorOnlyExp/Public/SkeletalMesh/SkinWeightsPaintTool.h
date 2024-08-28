@@ -502,6 +502,7 @@ public:
 	void NormalizeWeights();
 	void HammerWeights();
 	void TransferWeights();
+	bool CanTransferWeights() const;
 
 	// copy paste
 	void CopyWeights();

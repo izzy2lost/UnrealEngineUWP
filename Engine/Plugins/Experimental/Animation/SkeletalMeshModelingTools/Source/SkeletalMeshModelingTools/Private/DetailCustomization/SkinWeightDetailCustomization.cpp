@@ -1181,7 +1181,8 @@ void FSkinWeightDetailCustomization::AddTransferUI(IDetailLayoutBuilder& DetailB
 				.HAlign(HAlign_Center)
 				.Text(LOCTEXT("TransferWeightsButtonLabel", "Transfer Weights"))
 				.ToolTipText(LOCTEXT("TransferButtonTooltip",
-					"Weights are transfered from the source skeletal mesh using inpainting.\n"
+					"Weights are transferred from the source skeletal mesh using in-painting.\n"
+					"If no source skeletal mesh is specified, weights can be transferred from the existing mesh between profiles and LODs.\n"
 					"This command can operate on selected components when in Mesh mode."))
 				.OnClicked_Lambda([this]()
 				{
@@ -1190,7 +1191,7 @@ void FSkinWeightDetailCustomization::AddTransferUI(IDetailLayoutBuilder& DetailB
 				})
 				.IsEnabled_Lambda([this]()
 				{
-					return Tool->GetSourceTarget() != nullptr;
+					return Tool->CanTransferWeights();
 				})
 			]
 		]
