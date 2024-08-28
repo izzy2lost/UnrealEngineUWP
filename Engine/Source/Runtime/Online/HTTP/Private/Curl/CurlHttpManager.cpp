@@ -182,6 +182,7 @@ void FCurlHttpManager::InitCurl()
 			PrintCurlFeature(CURL_VERSION_IDN);
 			PrintCurlFeature(CURL_VERSION_CONV);
 			PrintCurlFeature(CURL_VERSION_TLSAUTH_SRP);
+			PrintCurlFeature(CURL_VERSION_HTTP2); 
 #undef PrintCurlFeature
 		}
 

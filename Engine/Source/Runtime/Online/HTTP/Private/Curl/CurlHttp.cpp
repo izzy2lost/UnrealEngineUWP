@@ -35,6 +35,13 @@ TAutoConsoleVariable<bool> CVarHttpCurlReadContentLengthWhenFinish(
 	ECVF_SaveForNextBoot
 );
 
+TAutoConsoleVariable<bool> CVarHttpCurlAllowHTTP2(
+	TEXT("http.CurlAllowHTTP2"),
+	false,
+	TEXT("Whether to allow HTTP/2 for curl requests"),
+	ECVF_Default
+);
+
 #if WITH_SSL
 static int SslCertVerify(int PreverifyOk, X509_STORE_CTX* Context)
 {
@@ -113,7 +120,14 @@ FCurlHttpRequest::FCurlHttpRequest()
 	// that reason we're disabling its use by default in the general purpose curl request wrapper and only
 	// allowing use of HTTP2 from other curl wrappers like the DerivedDataCache one.
 	// Note that CURL_HTTP_VERSION_1_1 was the default for libcurl version before 7.62.0
-	curl_easy_setopt(EasyHandle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+	if (CVarHttpCurlAllowHTTP2.GetValueOnAnyThread())
+	{
+		curl_easy_setopt(EasyHandle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
+	}
+	else
+	{
+		curl_easy_setopt(EasyHandle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+	}
 
 	// set certificate verification (disable to allow self-signed certificates)
 	if (FCurlHttpManager::CurlRequestOptions.bVerifyPeer)

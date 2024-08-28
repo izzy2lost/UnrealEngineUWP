@@ -2,6 +2,7 @@
 package com.epicgames.unreal.download.fetch;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.Uri;
 
 import com.epicgames.unreal.Logger;
@@ -30,6 +31,9 @@ import com.tonyodev.fetch2core.FetchLogger;
 import com.tonyodev.fetch2core.Func;
 import com.tonyodev.fetch2core.Func2;
 import com.tonyodev.fetch2.Status;
+
+import com.tonyodev.fetch2okhttp.OkHttpDownloader;
+import okhttp3.OkHttpClient;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.NonNull;
@@ -455,6 +459,17 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 			FetchListener = null;
 		}
 
+		if (AllowHTTP2 && okHttpClient == null)
+		{
+			SharedPreferences preferences = context.getSharedPreferences("BackgroundDownload", context.MODE_PRIVATE);
+			AllowHTTP2 = preferences.getBoolean("AllowHTTP2", false);
+
+			if (AllowHTTP2)
+			{
+				okHttpClient = new OkHttpClient.Builder().build();
+			}
+		}
+
 		//Synchronized with StopWork to make sure we aren't creating and closing our fetch instance in a weird race condition
 		synchronized(this)
 		{
@@ -481,13 +496,28 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 			else
 			{
 				//TODO TRoss: Pull these values from the worker's getInputData
-				FetchInstance = Fetch.Impl.getInstance(new FetchConfiguration.Builder(context)
-					.setNamespace(context.getPackageName())
-					.enableLogging(true)
-					.setLogger(FetchLog)
-					.enableRetryOnNetworkGain(true)
-					.setProgressReportingInterval(200)
-					.build());
+				if (!AllowHTTP2)
+				{
+					FetchInstance = Fetch.Impl.getInstance(new FetchConfiguration.Builder(context)
+						.setNamespace(context.getPackageName())
+						.enableLogging(true)
+						.setLogger(FetchLog)
+						.enableRetryOnNetworkGain(true)
+						.setProgressReportingInterval(200)
+						.build());
+				}
+				else
+				{
+					FetchInstance = Fetch.Impl.getInstance(new FetchConfiguration.Builder(context)
+						.setNamespace(context.getPackageName())
+						.enableLogging(true)
+						.setLogger(FetchLog)
+						.enableRetryOnNetworkGain(true)
+						.setProgressReportingInterval(200)
+						.setDownloadConcurrentLimit(10)
+						.setHttpDownloader(new OkHttpDownloader(okHttpClient))
+						.build());
+				}
 			}
 			
 			if (!IsFetchInstanceValid())
@@ -1301,7 +1331,10 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 	private volatile Fetch FetchInstance = null;
 
 	private volatile FetchRequestProgressListener FetchListener = null;
-	
+
+	private volatile OkHttpClient okHttpClient = null;
+	private volatile boolean AllowHTTP2 = true;
+
 	private volatile HashMap<String, DownloadDescription> RequestedDownloads = new HashMap<String, DownloadDescription>();
 	private volatile HashMap<String, DownloadDescription> CompletedDownloads = new HashMap<String, DownloadDescription>();
 	private volatile HashMap<String, DownloadDescription> FailedDownloads = new HashMap<String, DownloadDescription>();
