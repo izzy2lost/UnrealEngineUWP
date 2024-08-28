@@ -232,19 +232,7 @@ namespace HordeServer.Agents.Leases
 				return NotFound(leaseId);
 			}
 
-			IAgent? agent = await _agentService.GetAgentAsync(lease.AgentId, cancellationToken);
-			if (agent == null)
-			{
-				return NotFound(lease.AgentId);
-			}
-
-			IAgentLease? agentLease = agent.Leases.FirstOrDefault(x => x.Id == leaseId);
-			if (agentLease == null)
-			{
-				return NotFound(agent.Id, leaseId);
-			}
-
-			await _agentService.CancelLeaseAsync(agent, leaseId, cancellationToken);
+			await _agentService.CancelLeaseAsync(lease, cancellationToken);
 			return Ok();
 		}
 	}

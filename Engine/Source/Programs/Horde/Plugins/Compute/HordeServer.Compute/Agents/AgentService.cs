@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using System.Security.Claims;
 using EpicGames.Core;
@@ -571,30 +572,36 @@ namespace HordeServer.Agents
 		/// <summary>
 		/// Cancels the specified agent lease
 		/// </summary>
-		/// <param name="agent">Agent to cancel the lease on</param>
-		/// <param name="leaseId">The lease id to cancel</param>
+		/// <param name="lease">The lease to cancel</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<bool> CancelLeaseAsync(IAgent agent, LeaseId leaseId, CancellationToken cancellationToken)
+		public async Task<bool> CancelLeaseAsync(ILease lease, CancellationToken cancellationToken)
 		{
-			_ = this;
-
-			int index = 0;
-			while (index < agent.Leases.Count && agent.Leases[index].Id != leaseId)
-			{
-				index++;
-			}
-
-			if (index == agent.Leases.Count)
+			// If it's already complete, don't do anything
+			if (lease.FinishTime != null)
 			{
 				return false;
 			}
 
-			if (agent.Leases[index].State == LeaseState.Cancelled)
+			// Cancel it on the agent that's currently executing it
+			IAgent? agent = await GetAgentAsync(lease.AgentId, cancellationToken);
+			if (agent == null)
 			{
+				_logger.LogWarning("Forcing lease {LeaseId} to cancelled state; agent {AgentId} not found", lease.Id, lease.AgentId);
+				await _leases.TrySetOutcomeAsync(lease.Id, _clock.UtcNow, LeaseOutcome.Cancelled, null, cancellationToken);
 				return false;
 			}
 
+			// Find the index of the lease to remove
+			int index = agent.Leases.FindIndex(x => x.Id == lease.Id);
+			if (index == -1)
+			{
+				_logger.LogWarning("Forcing lease {LeaseId} to cancelled state; no longer running on agent {AgentId}", lease.Id, lease.AgentId);
+				await _leases.TrySetOutcomeAsync(lease.Id, _clock.UtcNow, LeaseOutcome.Cancelled, null, cancellationToken);
+				return false;
+			}
+
+			// Update the agent
 			await agent.TryCancelLeaseAsync(index, cancellationToken);
 			return true;
 		}
