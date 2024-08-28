@@ -1131,8 +1131,14 @@ void FAvaRundownServer::HandleDeletePage(const FAvaRundownDeletePage& InMessage,
 		return;
 	}
 
-	Rundown->RemovePage(InMessage.PageId);
-	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("Page %d deleted"), InMessage.PageId);
+	if (Rundown->RemovePage(InMessage.PageId))
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("Page %d deleted"), InMessage.PageId);
+	}
+	else
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error, TEXT("page %d can't be deleted"), InMessage.PageId);
+	}
 }
 
 void FAvaRundownServer::HandleDeleteTemplate(const FAvaRundownDeleteTemplate& InMessage,
@@ -1163,8 +1169,14 @@ void FAvaRundownServer::HandleDeleteTemplate(const FAvaRundownDeleteTemplate& In
 		return;
 	}
 
-	Rundown->RemovePage(InMessage.PageId);
-	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("Page template %d deleted"), InMessage.PageId);
+	if (Rundown->RemovePage(InMessage.PageId))
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("Page template %d deleted"), InMessage.PageId);
+	}
+	else
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error, TEXT("Page template %d can't be deleted"), InMessage.PageId);
+	}
 }
 
 void FAvaRundownServer::HandleCreateTemplate(const FAvaRundownCreateTemplate& InMessage,

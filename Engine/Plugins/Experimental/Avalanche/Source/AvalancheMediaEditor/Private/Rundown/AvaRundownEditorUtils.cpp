@@ -124,7 +124,7 @@ namespace UE::AvaRundownEditor::Utils::Private
 			DestinationPage.SetTemplateId(InTemplateId);
 			return true;
 		}
-		UE_LOG(LogAvaRundown, Error, TEXT("Failed to copy page in plage: page id %d is not found in destination rundown."), InPageId);
+		UE_LOG(LogAvaRundown, Error, TEXT("Failed to copy page in place: page id %d is not found in destination rundown."), InPageId);
 		return false;
 	}
 }
@@ -394,6 +394,7 @@ TArray<int32> UE::AvaRundownEditor::Utils::ImportTemplatePages(UAvaRundown* InRu
 		{
 			OutImportedTemplateIds.Add(SourceTemplateId, ImportedTemplateId);
 			ensure(Private::CopyPageInPlace(InRundown, ImportedTemplateId, SourceTemplate, FAvaRundownPage::InvalidPageId));
+			InRundown->GetPage(ImportedTemplateId).ResetInstancedIds();	// We know this template has no instances yet.
 			OutTemplateIds.Add(ImportedTemplateId);
 		}
 	}
@@ -465,6 +466,7 @@ TArray<int32> UE::AvaRundownEditor::Utils::ImportInstancedPages(
 					const FAvaRundownPage& SourceTemplate = Private::FindPage(InSourceTemplates, SourcePage.GetTemplateId());
 					
 					ensure(Private::CopyPageInPlace(InRundown, ImportedTemplateId, SourceTemplate.IsValidPage() ? SourceTemplate : SourcePage, FAvaRundownPage::InvalidPageId));
+					InRundown->GetPage(ImportedTemplateId).ResetInstancedIds();	// We know this template has no instances yet.
 				}
 				else
 				{

@@ -546,6 +546,19 @@ bool UAvaRundown::CanRemovePages(const TArray<int32>& InPageIds) const
 		{
 			return false;
 		}
+
+		// Prevent deletion of templates that have playing page instances.
+		const FAvaRundownPage& Page = GetPage(PageId);
+		if (Page.IsValidPage() && Page.IsTemplate())
+		{
+			for (const int32 InstancePageId : Page.GetInstancedIds())
+			{
+				if (IsPagePlayingOrPreviewing(InstancePageId))
+				{
+					return false;
+				}
+			}
+		}
 	}
 	return InPageIds.Num() > 0;
 }

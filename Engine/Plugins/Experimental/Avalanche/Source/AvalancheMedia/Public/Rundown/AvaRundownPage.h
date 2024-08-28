@@ -95,6 +95,8 @@ public:
 	
 	const TSet<int32>& GetInstancedIds() const { return Instances; }
 
+	void ResetInstancedIds() { Instances.Reset(); }	// For internal use only.
+
 	const FString& GetPageName() const { return PageName; }
 	void SetPageName(const FString& InPageName) { PageName = InPageName; }
 
