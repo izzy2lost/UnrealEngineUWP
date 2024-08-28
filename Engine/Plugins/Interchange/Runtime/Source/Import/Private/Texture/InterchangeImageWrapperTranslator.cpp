@@ -222,7 +222,7 @@ TOptional<UE::Interchange::FImportImage> UInterchangeImageWrapperTranslator::Get
 				if (ImageFormat == EImageFormat::TIFF)
 				{
 					PayloadData.NumMips = DecompressedImage.MipMapImage.GetMipCount();
-					PayloadData.MipGenSettings = PayloadData.NumMips > 1 ? TextureMipGenSettings::TMGS_LeaveExistingMips : TextureMipGenSettings::TMGS_NoMipmaps;
+					PayloadData.MipGenSettings = PayloadData.NumMips > 1 ? TextureMipGenSettings::TMGS_LeaveExistingMips : TextureMipGenSettings::TMGS_FromTextureGroup;
 				}
 			}
 		}
