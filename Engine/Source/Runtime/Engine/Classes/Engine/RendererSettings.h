@@ -276,6 +276,15 @@ enum class ELumenRayLightingMode : uint8
 };
 
 UENUM()
+enum class ELumenScreenTracingSource : uint8
+{
+	/* Lumen screen traces will sample the previous frame's Scene Color. This will not contain translucency and can increase Lumen's noise from small emissive elements, but has less leaking. */
+	SceneColor = 0				UMETA(DisplayName = "Scene Color"),
+	/* Lumen screen traces will sample the previous frame's anti-aliased Scene Color (TSR output). This contains translucency and is prefiltered, reducing Lumen's noise from small emissive elements. */
+	AntialiasedSceneColorWithTranslucency = 1 	UMETA(DisplayName = "Anti-aliased Scene Color, with Translucency"),
+};
+
+UENUM()
 namespace EWorkingColorSpace
 {
 	enum Type : int
@@ -600,6 +609,11 @@ class URendererSettings : public UDeveloperSettings
 		ConsoleVariable="r.Lumen.TraceMeshSDFs", DisplayName = "Software Ray Tracing Mode",
 		ToolTip="Controls which tracing method Lumen uses when using Software Ray Tracing."))
 	TEnumAsByte<ELumenSoftwareTracingMode::Type> LumenSoftwareTracingMode;
+
+	UPROPERTY(config, EditAnywhere, Category=Lumen, meta=(
+		ConsoleVariable="r.Lumen.ScreenTracingSource", DisplayName = "Screen Tracing Source",
+		ToolTip="Specifies which Scene Color texture Lumen's Screen Traces should read from."))
+	ELumenScreenTracingSource LumenScreenTracingSource;
 
 	UPROPERTY(config, EditAnywhere, Category = Lumen, meta = (
 		ConsoleVariable = "r.Lumen.Reflections.HardwareRayTracing.Translucent.Refraction.EnableForProject", DisplayName = "Ray Traced Translucent Refractions",

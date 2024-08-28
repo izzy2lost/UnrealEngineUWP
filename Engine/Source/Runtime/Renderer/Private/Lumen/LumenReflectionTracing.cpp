@@ -21,6 +21,17 @@ FAutoConsoleVariableRef CVarLumenReflectionScreenTraces(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+// Rendering project setting
+int32 GLumenScreenTracingSource = 0;
+FAutoConsoleVariableRef CVarLumenScreenTracingSource(
+	TEXT("r.Lumen.ScreenTracingSource"),
+	GLumenScreenTracingSource,
+	TEXT("Specifies the source texture for Lumen's screen trace hits\n")
+	TEXT("0: Scene Color (no translucency and noise from small emissive elements)\n")
+	TEXT("1: Anti-aliased Scene Color (translucency intersected with the opaque depths, less noise from small emissive elements)"),
+	ECVF_RenderThreadSafe
+);
+
 int32 GLumenReflectionHierarchicalScreenTracesMaxIterations = 50;
 FAutoConsoleVariableRef CVarLumenReflectionHierarchicalScreenTracesMaxIterations(
 	TEXT("r.Lumen.Reflections.HierarchicalScreenTraces.MaxIterations"),
@@ -825,6 +836,13 @@ FLumenHZBScreenTraceParameters SetupHZBScreenTraceParameters(
 		InputColor = GraphBuilder.RegisterExternalTexture(View.PrevViewInfo.CustomSSRInput.RT[0]);
 		ViewportOffset = View.PrevViewInfo.CustomSSRInput.ViewportRect.Min;
 		ViewportExtent = View.PrevViewInfo.CustomSSRInput.ViewportRect.Size();
+		PrevColorBufferSize = InputColor->Desc.Extent;
+	}
+	else if (View.PrevViewInfo.TemporalAAHistory.IsValid() && GLumenScreenTracingSource == 1)
+	{
+		InputColor = GraphBuilder.RegisterExternalTexture(View.PrevViewInfo.TemporalAAHistory.RT[0]);
+		ViewportOffset = View.PrevViewInfo.TemporalAAHistory.ViewportRect.Min;
+		ViewportExtent = View.PrevViewInfo.TemporalAAHistory.ViewportRect.Size();
 		PrevColorBufferSize = InputColor->Desc.Extent;
 	}
 	else if (View.PrevViewInfo.ScreenSpaceRayTracingInput.IsValid())
