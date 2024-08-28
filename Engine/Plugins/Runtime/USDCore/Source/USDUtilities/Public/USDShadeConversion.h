@@ -49,7 +49,7 @@ namespace UsdToUnreal
 {
 	struct USDUTILITIES_API FTextureParameterValue
 	{
-		UTexture* Texture = nullptr;	  // Only used for the ConvertMaterial overloads that receive TexturesCache
+		UTexture* Texture = nullptr;	// Only used for the ConvertMaterial overloads that receive TexturesCache
 
 		// Parameters of the texture asset itself
 		FString TextureFilePath;
@@ -229,6 +229,23 @@ namespace UsdUtils
 	// that fulfills those requirements.
 	// Doesn't write to the 'unrealMaterial' attribute at all, as we intend on deprecating it in the future.
 	USDUTILITIES_API void AuthorUnrealMaterialBinding(pxr::UsdPrim& MeshOrGeomSubsetPrim, const FString& UnrealMaterialPathName);
+
+	/**
+	 * Similar to AuthorUnrealMaterialBinding, but instead of authoring material bindings directly to TargetMeshOrGeomSubsetPrim,
+	 * it will instead author collection-based material bindings on the CollectionPrim, that instead target TargetMeshOrGeomSubsetPrim.
+	 *
+	 * It will try reusing existing collections and UnrealMaterials, but otherwise it will author a new collection within CollectionPrim,
+	 * and a new UnrealMaterial as a sibling of CollectionPrim, referring to UnrealMaterialPathName.
+	 *
+	 * This is useful if CollectionPrim is an instance root, and TargetMeshOrGeomSubsetPrim is an instance proxy, for example.
+	 *
+	 * WARNING: In order to get collection-based bindings to work, TargetMeshOrGeomSubsetPrim must be a descendant of CollectionPrim.
+	 */
+	USDUTILITIES_API void AuthorUnrealCollectionBasedMaterialBinding(
+		const pxr::UsdPrim& CollectionPrim,
+		const pxr::UsdPrim& TargetMeshOrGeomSubsetPrim,
+		const FString& UnrealMaterialPathName
+	);
 
 	/** Returns a path to an UE asset (e.g. "/Game/Assets/Red.Red") if MaterialPrim has an 'unreal' render context surface output that points at one
 	 */

@@ -364,7 +364,7 @@ bool UsdUtils::NotifyIfInstanceProxy(const pxr::UsdPrim& Prim)
 					UE_LOG(
 						LogUsd,
 						Log,
-						TEXT("Ignoring edits to prim '%s' as it is an instance proxy"),
+						TEXT("Ignoring some edits to prim '%s' as it is an instance proxy"),
 						*UsdToUnreal::ConvertPath(Prim.GetPrimPath())
 					);
 					return true;

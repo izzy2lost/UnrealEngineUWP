@@ -1004,8 +1004,15 @@ void MeshTranslationImpl::RecordSourcePrimsForMaterialSlots(
 
 		for (int32 LODSlotIndex = 0; LODSlotIndex < LODSlots.Num(); ++LODSlotIndex, ++SlotIndex)
 		{
+			TArray<FString>& PrimPaths = UserData->MaterialSlotToPrimPaths.FindOrAdd(SlotIndex).PrimPaths;
+
 			const UsdUtils::FUsdPrimMaterialSlot& Slot = LODSlots[LODSlotIndex];
-			UserData->MaterialSlotToPrimPaths.FindOrAdd(SlotIndex).PrimPaths.Append(Slot.PrimPaths.Array());
+
+			PrimPaths.Reserve(PrimPaths.Num() + Slot.PrimPaths.Num());
+			for (const FString& SlotPrimPath : Slot.PrimPaths)
+			{
+				PrimPaths.AddUnique(SlotPrimPath);
+			}
 		}
 	}
 }

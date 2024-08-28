@@ -3112,6 +3112,239 @@ void UsdUtils::AuthorUnrealMaterialBinding(pxr::UsdPrim& MeshOrGeomSubsetPrim, c
 	}
 }
 
+void UsdUtils::AuthorUnrealCollectionBasedMaterialBinding(
+	const pxr::UsdPrim& CollectionPrim,
+	const pxr::UsdPrim& TargetMeshOrGeomSubsetPrim,
+	const FString& UnrealMaterialPathName
+)
+{
+	if (!CollectionPrim || CollectionPrim.IsInstanceProxy() || !TargetMeshOrGeomSubsetPrim || UnrealMaterialPathName.IsEmpty())
+	{
+		return;
+	}
+
+	FScopedUsdAllocs UsdAllocs;
+
+	// For collection-based bindings to do anything, TargetMeshOrGeomSubsetPrim must be a descendant of CollectionPrim
+	pxr::UsdPrim Iter = TargetMeshOrGeomSubsetPrim.GetParent();
+	while (Iter != CollectionPrim)
+	{
+		if (!Iter || Iter.IsPseudoRoot())
+		{
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT(
+					"Failed to author collection-based material bindings on prim '%s' for target prim '%s', as the latter is not a descendent of the former"
+				),
+				*UsdToUnreal::ConvertPath(CollectionPrim.GetPath()),
+				*UsdToUnreal::ConvertPath(TargetMeshOrGeomSubsetPrim.GetPath())
+			);
+			return;
+		}
+		Iter = Iter.GetParent();
+	}
+
+	pxr::UsdStageRefPtr Stage = CollectionPrim.GetStage();
+
+	const static pxr::TfToken& BindingPurpose = pxr::UsdShadeTokens->allPurpose;
+	pxr::UsdShadeMaterialBindingAPI BindingAPI = pxr::UsdShadeMaterialBindingAPI::Apply(CollectionPrim);
+	std::vector<pxr::UsdShadeMaterialBindingAPI::CollectionBinding> ExistingBindings = BindingAPI.GetCollectionBindings(BindingPurpose);
+
+	// Check to see if we happen to have a collection based binding for our target material already. This can happen
+	// if we're e.g. setting multiple prims inside of an instance with the same material override
+	pxr::UsdShadeMaterialBindingAPI::CollectionBinding CollectionBinding;
+	pxr::UsdShadeMaterial BoundMaterial;
+	{
+		for (const pxr::UsdShadeMaterialBindingAPI::CollectionBinding& Binding : ExistingBindings)
+		{
+			pxr::UsdShadeMaterial Material = Binding.GetMaterial();
+
+			TOptional<FString> ExistingUnrealMaterialPath = UsdUtils::GetUnrealSurfaceOutput(Material.GetPrim());
+			if (ExistingUnrealMaterialPath.IsSet() && ExistingUnrealMaterialPath.GetValue() == UnrealMaterialPathName)
+			{
+				CollectionBinding = Binding;
+				BoundMaterial = CollectionBinding.GetMaterial();
+				break;
+			}
+		}
+	}
+
+	// If the CollectionPrim is an instance, we won't be able to author any material inside of it and must instead
+	// settle for creating sibling Material prims
+	pxr::UsdPrim MaterialParent = CollectionPrim.IsInstance() ? CollectionPrim.GetParent() : CollectionPrim;
+
+	// We don't have a collection-based material binding to our target material yet.
+	// Double-check we don't have any existing child Material on this CollectionPrim that we can just reuse though
+	if (!BoundMaterial)
+	{
+		for (const pxr::UsdPrim& Child : MaterialParent.GetFilteredChildren(pxr::UsdTraverseInstanceProxies(pxr::UsdPrimAllPrimsPredicate)))
+		{
+			TOptional<FString> ExistingUnrealMaterialPath = UsdUtils::GetUnrealSurfaceOutput(Child.GetPrim());
+			if (ExistingUnrealMaterialPath.IsSet() && ExistingUnrealMaterialPath.GetValue() == UnrealMaterialPathName)
+			{
+				BoundMaterial = pxr::UsdShadeMaterial{Child};
+				break;
+			}
+		}
+	}
+
+	// Need to create a brand new material with an "unreal" surface output that just points at our target material
+	if (!BoundMaterial)
+	{
+		// Find a unique name for our child material prim
+		// Note how we'll always author these materials as children of the meshes themselves instead of emitting a common
+		// Material prim to use for multiple overrides: This because in the future we'll want to have a separate material
+		// bake for each mesh (to make sure we get vertex color effects, etc.), and so we'd have multiple baked .usda material
+		// asset layers for each UE material, and we'd want each mesh/section/LOD to refer to its own anyway
+		FString ChildMaterialName = TEXT("UnrealMaterial");
+		if (pxr::UsdPrim ExistingPrim = MaterialParent.GetChild(UnrealToUsd::ConvertToken(*ChildMaterialName).Get()))
+		{
+			// Get a unique name for a new prim. Don't even try checking if this prim is usable as the material binding,
+			// because if it was we would have already found it above
+			TSet<FString> UsedNames;
+			for (pxr::UsdPrim Child : MaterialParent.GetFilteredChildren(pxr::UsdTraverseInstanceProxies(pxr::UsdPrimAllPrimsPredicate)))
+			{
+				UsedNames.Add(UsdToUnreal::ConvertToken(Child.GetName()));
+			}
+
+			ChildMaterialName = UsdUnreal::ObjectUtils::GetUniqueName(ChildMaterialName, UsedNames);
+		}
+
+		pxr::SdfPath MaterialParentPath = MaterialParent.GetPath();
+		pxr::SdfPath MaterialPath = MaterialParentPath.AppendChild(UnrealToUsd::ConvertToken(*ChildMaterialName).Get());
+
+		BoundMaterial = pxr::UsdShadeMaterial::Define(Stage, MaterialPath);
+		if (!BoundMaterial)
+		{
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT("Failed to author material prim '%s' when trying to write '%s's collection-based material assignment '%s' to USD"),
+				*UsdToUnreal::ConvertPath(MaterialPath),
+				*UsdToUnreal::ConvertPath(CollectionPrim.GetPath()),
+				*UnrealMaterialPathName
+			);
+			return;
+		}
+
+		if (pxr::UsdPrim MaterialPrim = BoundMaterial.GetPrim())
+		{
+			UsdUtils::SetUnrealSurfaceOutput(MaterialPrim, UnrealMaterialPathName);
+		}
+	}
+
+	const static pxr::TfToken& BindingStrength = pxr::UsdShadeTokens->strongerThanDescendants;
+
+	// Get the target collection name
+	pxr::TfToken CollectionName;
+	if (CollectionBinding.IsValid())
+	{
+		// We already have a collection based binding to our target material, let's just use it
+		CollectionName = CollectionBinding.GetCollection().GetName();
+	}
+	else
+	{
+		// We don't have a collection binding to our target material yet
+		pxr::UsdCollectionAPI CollectionToUse;
+
+		// Before we try creating a brand new collection, let's see if our target prim is already the single prim
+		// targetted by other existing collections, because if it is we could just make that collection point at
+		// our new material instead.
+		//
+		// This is useful because otherwise swapping between 3 different material overrides on the exact same
+		// component would generate 3 separate collections on the prim, author a bunch of "delete" opinions, and
+		// overall just make a mess. With this snippet we just update the material on the same collection instead
+		for (const pxr::UsdShadeMaterialBindingAPI::CollectionBinding& Binding : ExistingBindings)
+		{
+			pxr::TfToken ExistingStrength = BindingAPI.GetMaterialBindingStrength(Binding.GetBindingRel());
+			if (ExistingStrength != BindingStrength)
+			{
+				// Only pick collections that looks like the one we'd create though
+				continue;
+			}
+
+			pxr::UsdCollectionAPI ExistingCollection = Binding.GetCollection();
+			std::set<pxr::SdfPath> IncludedPaths = ExistingCollection.ComputeIncludedPaths(ExistingCollection.ComputeMembershipQuery(), Stage);
+			if (IncludedPaths.size() == 1 && (*IncludedPaths.begin()) == TargetMeshOrGeomSubsetPrim.GetPrimPath())
+			{
+				CollectionToUse = ExistingCollection;
+				break;
+			}
+		}
+
+		// We need to create a brand new collection
+		if (!CollectionToUse)
+		{
+			// Find a unique name for our new collection
+			pxr::TfToken NewCollectionName;
+			{
+				TSet<FString> UsedNames;
+				for (const pxr::UsdShadeMaterialBindingAPI::CollectionBinding& Binding : ExistingBindings)
+				{
+					UsedNames.Add(UsdToUnreal::ConvertToken(Binding.GetCollection().GetName()));
+				}
+
+				const static FString UnrealOverridesStr = TEXT("unrealOverrides");
+				FString NewCollectionNameStr = UsdUnreal::ObjectUtils::GetUniqueName(UnrealOverridesStr, UsedNames);
+				NewCollectionName = UnrealToUsd::ConvertToken(*NewCollectionNameStr).Get();
+			}
+
+			// Actually create the new collection binding, with our new name and material
+			CollectionToUse = pxr::UsdCollectionAPI::Apply(CollectionPrim, NewCollectionName);
+		}
+
+		// Set our target material on CollectionToUse
+		pxr::TfToken Empty;	   // Will use CollectionToUse's name instead
+		const bool bCreatedBinding = BindingAPI.Bind(CollectionToUse, BoundMaterial, Empty, BindingStrength);
+		if (!bCreatedBinding)
+		{
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT("Failed to create collection-based material binding '%s' on prim '%s'"),
+				*UsdToUnreal::ConvertToken(CollectionToUse.GetName()),
+				*UsdToUnreal::ConvertPath(CollectionPrim.GetPath())
+			);
+			return;
+		}
+
+		CollectionName = CollectionToUse.GetName();
+	}
+
+	// Add the prim to the collection with CollectionName
+	const bool bAddedPrim = BindingAPI.AddPrimToBindingCollection(TargetMeshOrGeomSubsetPrim, CollectionName, BindingPurpose);
+	if (!bAddedPrim)
+	{
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Failed to add prim '%s' to the collection-based material binding '%s' on prim '%s'"),
+			*UsdToUnreal::ConvertPath(TargetMeshOrGeomSubsetPrim.GetPath()),
+			*UsdToUnreal::ConvertToken(CollectionName),
+			*UsdToUnreal::ConvertPath(CollectionPrim.GetPath())
+		);
+		return;
+	}
+
+	// Remove that prim from any other collection-based bindings we may already have on this prim, to make sure the override shows up
+	if (bAddedPrim)
+	{
+		std::vector<pxr::UsdShadeMaterialBindingAPI::CollectionBinding> AllCollections = BindingAPI.GetCollectionBindings(BindingPurpose);
+		for (const pxr::UsdShadeMaterialBindingAPI::CollectionBinding& SomeCollectionBinding : AllCollections)
+		{
+			pxr::UsdCollectionAPI Collection = SomeCollectionBinding.GetCollection();
+			pxr::TfToken OtherCollectionName = Collection.GetName();
+			if (OtherCollectionName == CollectionName)
+			{
+				continue;
+			}
+
+			BindingAPI.RemovePrimFromBindingCollection(TargetMeshOrGeomSubsetPrim, OtherCollectionName, BindingPurpose);
+		}
+	}
+}
+
 TOptional<FString> UsdUtils::GetUnrealSurfaceOutput(const pxr::UsdPrim& MaterialPrim)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UsdUtils::GetUnrealSurfaceOutput);

@@ -3391,9 +3391,119 @@ bool UnrealToUsd::ConvertMaterialOverrides(
 
 	FScopedUsdAllocs Allocs;
 	pxr::UsdStageRefPtr Stage = UsdPrim.GetStage();
-	FString UsdPrimPath = UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath());
+	FString MeshPrimPath = UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath());
+
+	// If we're inside of an instance then we have to account for the fact that with instance-aware translation only one
+	// of the prototype's instances will create/fetch the static mesh and record their material slot paths. This means that
+	// in order to tell whether a slot prim path from asset user data corresponds to a child of our target mesh prim we
+	// need to compare paths within the prototype instead
+	const bool bIsInsideInstance = UsdPrim.IsInstanceProxy();
+	if (bIsInsideInstance)
+	{
+		MeshPrimPath = UsdToUnreal::ConvertPath(UsdPrim.GetPrimInPrototype().GetPrimPath());
+	}
 
 	const bool bAllLODs = LowestLOD == INDEX_NONE && HighestLOD == INDEX_NONE;
+
+	TFunction<void(const UUsdMeshAssetUserData*, int32, const TSet<FString>&, const FString&)> AuthorOverrideViaUserData =
+		[bIsInsideInstance,
+		 &Stage,
+		 &UsdPrim](
+			const UUsdMeshAssetUserData* UserData,	  //
+			int32 MatIndex,
+			const TSet<FString>& MeshPrimPaths,
+			const FString& OverrideMaterialPath
+		)
+	{
+		const FUsdPrimPathList* SourcePrimPaths = UserData->MaterialSlotToPrimPaths.Find(MatIndex);
+		if (!SourcePrimPaths)
+		{
+			return;
+		}
+
+		for (FString SourcePrimPath : SourcePrimPaths->PrimPaths)
+		{
+			if (bIsInsideInstance)
+			{
+				pxr::UsdPrim PrimAtPath = Stage->GetPrimAtPath(UnrealToUsd::ConvertPath(*SourcePrimPath).Get());
+				if (PrimAtPath.IsInstanceProxy())
+				{
+					SourcePrimPath = UsdToUnreal::ConvertPath(PrimAtPath.GetPrimInPrototype().GetPrimPath());
+				}
+			}
+
+			// Our mesh assets are shared between multiple prims via the asset cache, and all user prims of that asset will record
+			// their source prim paths for each material slot. In here we just want to apply overrides to the prims that
+			// correspond to the modified component (i.e. are within its subtree), and not the others.
+			for (const FString& MeshPrimPath : MeshPrimPaths)
+			{
+				if (SourcePrimPath.StartsWith(MeshPrimPath))
+				{
+					if (bIsInsideInstance)
+					{
+						// Have to author collection-based bindings on the instance root.
+						//
+						// SourcePrimPath and MeshPrimPath are both relative to the prototype in this case. If we know they match, we
+						// know this source prim path pertains to something inside our instanceable, and so we should author the override
+
+						// Find the instance root
+						pxr::UsdPrim InstanceRoot = UsdPrim.GetParent();
+						while (InstanceRoot && !InstanceRoot.IsPseudoRoot() && !InstanceRoot.IsInstance())
+						{
+							InstanceRoot = InstanceRoot.GetParent();
+						}
+						if (InstanceRoot.IsInstance())
+						{
+							// Now we just have a bunch of paths relative to the prototype. In order to find the correct instance proxy
+							// path to override, we must do some path surgery to move the SourcePrimPath suffix below the instance root
+							// prefix, onto the true instance proxy path on the stage.
+							//
+							// Note that we have to do this (and not just use the original SourcePrimPaths directly) mainly because with
+							// instance-aware translation it is now possible that SourcePrimPath doesn't contain the paths for *all*
+							// instances of the prototype, and only for the one instance that actually led to it being translated.
+							// UsdPrim/InstanceRoot may refer to another instance entirely, so we need our paths to match them instead.
+
+							// e.g. "/root/instanceable7"
+							pxr::SdfPath InstanceRootPath = InstanceRoot.GetPrimPath();
+
+							// e.g. "/__Prototype_3/child_prim/slot
+							pxr::SdfPath InstanceProxySuffix = UnrealToUsd::ConvertPath(*SourcePrimPath).Get();
+
+							// After the loop PrototypePrefix becomes e.g. "/__Prototype_3"
+							pxr::SdfPath PrototypePrefix = InstanceProxySuffix;
+							while (true)
+							{
+								pxr::SdfPath ParentPath = PrototypePrefix.GetParentPath();
+								if (ParentPath.IsEmpty() || ParentPath.IsAbsoluteRootPath())
+								{
+									break;
+								}
+								PrototypePrefix = ParentPath;
+							}
+
+							// e.g. "/root/instanceable7/child_prim/slot"
+							pxr::SdfPath InstanceProxyFullPath = InstanceProxySuffix.ReplacePrefix(PrototypePrefix, InstanceRootPath);
+
+							pxr::UsdPrim InstanceRootOver = Stage->OverridePrim(InstanceRoot.GetPrimPath());
+							pxr::UsdPrim InstanceProxyPrim = Stage->GetPrimAtPath(InstanceProxyFullPath);
+							UsdUtils::AuthorUnrealCollectionBasedMaterialBinding(	 //
+								InstanceRootOver,
+								InstanceProxyPrim,
+								OverrideMaterialPath
+							);
+						}
+					}
+					else
+					{
+						// Here we can just author a regular material binding opinion
+						pxr::SdfPath OverridePrimPath = UnrealToUsd::ConvertPath(*SourcePrimPath).Get();
+						pxr::UsdPrim MeshPrim = Stage->OverridePrim(OverridePrimPath);
+						UsdUtils::AuthorUnrealMaterialBinding(MeshPrim, OverrideMaterialPath);
+					}
+				}
+			}
+		}
+	};
 
 	if (const UGeometryCache* GeometryCache = Cast<const UGeometryCache>(MeshAsset))
 	{
@@ -3406,26 +3516,13 @@ bool UnrealToUsd::ConvertMaterialOverrides(
 			}
 
 			// If we have user data this is one of our meshes, so we know exactly the prim that corresponds to each
-			// material slot. Let's use that
+			// material slot. Let's use that.
+			//
 			// const_cast as there's no const access to asset user data on IInterface_AssetUserData, but we won't
 			// modify anything
 			if (const UUsdMeshAssetUserData* UserData = const_cast<UGeometryCache*>(GeometryCache)->GetAssetUserData<UUsdMeshAssetUserData>())
 			{
-				if (const FUsdPrimPathList* SourcePrimPaths = UserData->MaterialSlotToPrimPaths.Find(MatIndex))
-				{
-					for (const FString& PrimPath : SourcePrimPaths->PrimPaths)
-					{
-						// Our mesh assets are shared between multiple prims via the asset cache, and all user prims of that asset will record
-						// their source prim paths for each material slot. In here we just want to apply overrides to the prims that
-						// correspond to the modified component, and not the others
-						if (PrimPath.StartsWith(UsdPrimPath))
-						{
-							pxr::SdfPath OverridePrimPath = UnrealToUsd::ConvertPath(*PrimPath).Get();
-							pxr::UsdPrim MeshPrim = Stage->OverridePrim(OverridePrimPath);
-							UsdUtils::AuthorUnrealMaterialBinding(MeshPrim, Override->GetPathName());
-						}
-					}
-				}
+				AuthorOverrideViaUserData(UserData, MatIndex, {MeshPrimPath}, Override->GetPathName());
 			}
 			// If we don't, we have to fallback to writing the same prim patterns that the mesh exporters
 			// generate when exporting meshes, so that we can override its opinions. This happens when exporting
@@ -3487,19 +3584,7 @@ bool UnrealToUsd::ConvertMaterialOverrides(
 
 					if (UserData)
 					{
-						if (const FUsdPrimPathList* SourcePrimPaths = UserData->MaterialSlotToPrimPaths.Find(SectionMatIndex))
-						{
-							for (const FString& PrimPath : SourcePrimPaths->PrimPaths)
-							{
-								// See comment on the analogue part for the geometry cache component
-								if (PrimPath.StartsWith(UsdPrimPath))
-								{
-									pxr::SdfPath OverridePrimPath = UnrealToUsd::ConvertPath(*PrimPath).Get();
-									pxr::UsdPrim MeshPrim = Stage->OverridePrim(OverridePrimPath);
-									UsdUtils::AuthorUnrealMaterialBinding(MeshPrim, Override->GetPathName());
-								}
-							}
-						}
+						AuthorOverrideViaUserData(UserData, MatIndex, {MeshPrimPath}, Override->GetPathName());
 					}
 					else
 					{
@@ -3609,6 +3694,11 @@ bool UnrealToUsd::ConvertMaterialOverrides(
 		for (const pxr::UsdSkelSkinningQuery& SkinningTarget : SkinningTargets)
 		{
 			pxr::UsdPrim SkinnedPrim = SkinningTarget.GetPrim();
+			if (bIsInsideInstance && SkinnedPrim.IsInstanceProxy())
+			{
+				SkinnedPrim = SkinnedPrim.GetPrimInPrototype();
+			}
+
 			if (pxr::UsdGeomMesh SkinnedMesh = pxr::UsdGeomMesh{SkinnedPrim})
 			{
 				SkinnedMeshPaths.Add(UsdToUnreal::ConvertPath(SkinnedPrim.GetPrimPath()));
@@ -3653,27 +3743,7 @@ bool UnrealToUsd::ConvertMaterialOverrides(
 
 					if (UserData)
 					{
-						if (const FUsdPrimPathList* SourcePrimPaths = UserData->MaterialSlotToPrimPaths.Find(SectionMatIndex))
-						{
-							// The N^2 here is not great but note that "ConvertMaterialOverrides" is not exactly spammed all that much, and that
-							// these arrays will in the general case have like 3 items each
-							for (const FString& SourcePrimPath : SourcePrimPaths->PrimPaths)
-							{
-								for (const FString& SkinnedMeshPath : SkinnedMeshPaths)
-								{
-									// See comment on the analogue part for the geometry cache component
-									// Note we use 'StartsWith' here because our SourcePrimPath may be a UsdGeomSubset or something like that,
-									// but only the actual Mesh prim will count as a "skinned mesh"
-									if (SourcePrimPath.StartsWith(SkinnedMeshPath))
-									{
-										pxr::SdfPath OverridePrimPath = UnrealToUsd::ConvertPath(*SourcePrimPath).Get();
-										pxr::UsdPrim MeshPrim = Stage->OverridePrim(OverridePrimPath);
-										UsdUtils::AuthorUnrealMaterialBinding(MeshPrim, Override->GetPathName());
-										break;
-									}
-								}
-							}
-						}
+						AuthorOverrideViaUserData(UserData, MatIndex, SkinnedMeshPaths, Override->GetPathName());
 					}
 					// TODO: We really need a separate function for ConvertingMaterialOverrides (to an opened stage) and ExportingMaterialOverrides
 					// that we can use when the SkeletalMesh is not something we generated ourselves (with annotated MaterialSlotToPrimPaths).
