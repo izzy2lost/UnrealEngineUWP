@@ -223,6 +223,8 @@ void UDMXEntityFixtureType::Serialize(FArchive& Ar)
 	Super::Serialize(Ar);
 
 	Ar.UsingCustomVersion(FDMXRuntimeMainStreamObjectVersion::GUID);
+	
+#if WITH_EDITOR
 	if (Ar.IsLoading())
 	{
 		if (Ar.CustomVer(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXFixtureTypeAllowMatrixInEachFixtureMode)
@@ -236,7 +238,6 @@ void UDMXEntityFixtureType::Serialize(FArchive& Ar)
 			}
 		}
 
-#if WITH_EDITOR
 		// Updgrade to use a soft object ptr for GDTF
 		if (Ar.CustomVer(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXImportGDTFIsASoftObjectPtr)
 		{
@@ -249,9 +250,8 @@ void UDMXEntityFixtureType::Serialize(FArchive& Ar)
 			}
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
-
-#endif // WITH_EDITOR
 	}
+#endif // WITH_EDITOR
 }
 
 #if WITH_EDITOR
