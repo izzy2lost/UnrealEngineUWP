@@ -372,12 +372,19 @@ namespace uba
 		void LogNoLock(LogEntryType type, const tchar* str, u32 strLen, const tchar* prefix, u32 prefixLen)
 		{
 			#if PLATFORM_WINDOWS
-			u8 buffer[2048];
-			BinaryWriter writer(buffer);
-			writer.WriteString(str, strLen);
-			BinaryReader reader(buffer);
-			u64 charLen = reader.Read7BitEncoded();
-			m_file->Write(reader.GetPositionData(), charLen);
+			char buffer[512];
+			size_t destLen;
+			u32 maxLen = Min(strLen, 256u);
+			if (wcstombs_s(&destLen, buffer, sizeof(buffer), str, maxLen) != 0)
+			{
+				strcpy_s(buffer, sizeof(buffer), "BAD_STRING\n");
+				destLen = 11;
+			}
+			else
+			{
+				buffer[destLen] = '\n';
+			}
+			m_file->Write(buffer, destLen);
 			#else
 			m_file->Write(str, strLen);
 			#endif

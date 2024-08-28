@@ -32,6 +32,8 @@
 extern char **environ;
 #endif
 
+#define UBA_DEBUG_TRACK_DIR 0 // UBA_DEBUG_LOGGER
+
 //////////////////////////////////////////////////////////////////////////////
 
 #if PLATFORM_WINDOWS
@@ -260,7 +262,7 @@ namespace uba
 			hasher.Update(forHash.data, forHash.count);
 		}
 
-		#if UBA_DEBUG_LOGGER
+		#if UBA_DEBUG_TRACK_DIR
 		g_debugLogger.BeginScope();
 		auto dg = MakeGuard([]() { g_debugLogger.EndScope(); });
 		g_debugLogger.Info(TC("TRACKDIR %s\n"), dirPath);
@@ -284,7 +286,7 @@ namespace uba
 				UBA_ASSERT(e.attributes);
 				memoryWriter.WriteString(e.name, e.nameLen);
 
-				#if UBA_DEBUG_LOGGER
+				#if UBA_DEBUG_TRACK_DIR
 				g_debugLogger.Info(TC("    %s (Size: %llu, Key: %s, Id: %llu)\n"), e.name, e.size, KeyToString(fileKey).data, e.id);
 				#endif
 
@@ -836,7 +838,7 @@ namespace uba
 			written = writer.GetPosition();
 		}
 
-		#if UBA_DEBUG_LOGGER
+		#if UBA_DEBUG_TRACK_DIR
 		g_debugLogger.Info(TC("TRACKADD    %s (Size: %llu, Key: %s, Id: %llu)\n"), fileName.data, fileSize, KeyToString(fileNameKey).data, fileIndex);
 		#endif
 
@@ -913,7 +915,7 @@ namespace uba
 			written = writer.GetPosition();
 		}
 
-		#if UBA_DEBUG_LOGGER
+		#if UBA_DEBUG_TRACK_DIR
 		g_debugLogger.Info(TC("TRACKDEL    %s (Key: %s)\n"), fileName.data, KeyToString(fileNameKey).data);
 		#endif
 

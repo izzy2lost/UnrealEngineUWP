@@ -33,6 +33,9 @@
 extern char **environ;
 #endif
 
+#define UBA_DEBUG_TRACK_PROCESS UBA_DEBUG_LOGGER
+
+
 //////////////////////////////////////////////////////////////////////////////
 
 #define UBA_EXIT_CODE(x) (9000 + x)
@@ -525,6 +528,10 @@ namespace uba
 
 		KernelStats::GetGlobal().Add(m_kernelStats);
 
+		#if UBA_DEBUG_TRACK_PROCESS
+		g_debugLogger.Info(TC("ProcessExitedStart (%u)\n"), m_id);
+		#endif
+
 		// For some reason a parent can exit before a child. Need to figure out repro for this but I've seen it happen on ClangEditor win64
 		for (auto& child : m_childProcesses)
 			while (!((ProcessImpl*)child.m_process)->m_hasExited)
@@ -567,6 +574,10 @@ namespace uba
 
 		// Must be done last to make sure shutdown is not racing
 		m_session.ProcessExited(*this, m_processStats.wallTime);
+
+		#if UBA_DEBUG_TRACK_PROCESS
+		g_debugLogger.Info(TC("ProcessExitedDone  (%u)\n"), m_id);
+		#endif
 	}
 
 	bool ProcessImpl::HandleSpecialApplication()
@@ -961,6 +972,9 @@ namespace uba
 		writer.WriteString(info.logFile);
 		#endif
 
+		#if UBA_DEBUG_TRACK_PROCESS
+		g_debugLogger.Info(TC("CreateChildProcess (%u creating child %u at index %u) %s %s\n"), m_id, process.m_id, childProcessId-1, process.m_realApplication.c_str(), commandLine);
+		#endif
 		return true;
 	}
 
@@ -1002,9 +1016,17 @@ namespace uba
 		process.m_nativeProcessHandle = (ProcHandle)nativeProcessHandle;
 		process.m_nativeProcessId = nativeProcessId;
 #endif
+		
+		#if UBA_DEBUG_TRACK_PROCESS
+		g_debugLogger.Info(TC("WaitForChildProcessReady (%u waiting for child %u at index %u)\n"), m_id, process.m_id, processId-1);
+		#endif
 
 		setWaitForParent.Execute();
-		
+
+		#if UBA_DEBUG_TRACK_PROCESS
+		g_debugLogger.Info(TC("WaitForChildProcessReadyDone (%u waiting for child %u at index %u)\n"), m_id, process.m_id, processId-1);
+		#endif
+
 		#if PLATFORM_WINDOWS
 		// TOOD: This is ugly, should use event or something instead.. right now we make sure to wait and not return until we know payload has been uploaded etc
 		// It is a very uncommon usecase that processes starts suspended.. some process in ninja/cmake does it when building clang/llvm
@@ -1015,6 +1037,7 @@ namespace uba
 
 		return true;
 	}
+
 	bool ProcessImpl::HandleExitChildProcess(BinaryReader& reader, BinaryWriter& writer)
 	{
 		u32 nativeProcessId = reader.ReadU32();
@@ -1519,12 +1542,25 @@ namespace uba
 			m_nativeProcessHandle = (ProcHandle)(u64)processInfo.hProcess;
 			m_nativeProcessId = processInfo.dwProcessId;
 			m_nativeThreadHandle = processInfo.hThread;
+
+			#if UBA_DEBUG_TRACK_PROCESS
+			g_debugLogger.Info(TC("CreateRealProcess  (%u) %s %s\n"), m_id, m_realApplication.c_str(), m_startInfo.arguments);
+			#endif
 		}
 		else
 		{
+			#if UBA_DEBUG_TRACK_PROCESS
+			g_debugLogger.Info(TC("WaitingForParentReady (%u)\n"), m_id);
+			#endif
+
 			WaitForParent();
 			if (m_nativeProcessHandle == InvalidProcHandle) // Failed to create the child process
 				return UBA_EXIT_CODE(7);
+
+			#if UBA_DEBUG_TRACK_PROCESS
+			g_debugLogger.Info(TC("WaitingForParentReadyDone (%u)\n"), m_id);
+			#endif
+
 			m_extractExports = m_parentProcess->m_extractExports;
 		}
 
@@ -1819,9 +1855,17 @@ namespace uba
 			m_stdOutPipe = outPipe[0];
 			m_stdErrPipe = errPipe[0];
 			pipeGuard0.Cancel();
+
+			#if UBA_DEBUG_TRACK_PROCESS
+			g_debugLogger.Info(TC("CreateRealProcess  (%u) %s %s\n"), m_id, m_realApplication.c_str(), m_startInfo.arguments);
+			#endif
 		}
 		else
 		{
+			#if UBA_DEBUG_TRACK_PROCESS
+			g_debugLogger.Info(TC("WaitingForParent (%u) %s\n"), m_id, m_realApplication.c_str());
+			#endif
+
 			//logger.Info("Waiting for parent");
 			WaitForParent();
 
