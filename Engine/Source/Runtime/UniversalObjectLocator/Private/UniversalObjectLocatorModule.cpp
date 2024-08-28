@@ -6,8 +6,7 @@
 #include "UniversalObjectLocatorFragment.h"
 #include "UniversalObjectLocatorRegistry.h"
 #include "UniversalObjectLocatorParameterTypeHandle.h"
-//#include "Modules/VisualizerDebuggingState.h"
-#include "Containers/Ticker.h"
+#include "Modules/VisualizerDebuggingState.h"
 #include "Misc/DelayedAutoRegister.h"
 
 #include "DirectPathObjectLocator.h"
@@ -20,6 +19,9 @@ class FUniversalObjectLocatorModule
 {
 public:
 	
+	/** Debug visualizer ID. String for lookup inside natvcis should be "49ceb527db044325a786a9b4470158fc" */
+	FGuid DebugVisualizerID = FGuid(0x49ceb527, 0xdb044325, 0xa786a9b4, 0x470158fc);
+
 	void StartupModule() override
 	{
 		// Register fragment types as soon as the object system is ready
@@ -38,9 +40,6 @@ public:
 				}
 			}
 		);
-
-		TickerDelegate = FTSTicker::GetCoreTicker().AddTicker(
-			FTickerDelegate::CreateRaw(this, &FUniversalObjectLocatorModule::PurgeVisualizers), 60.f);
 	}
 
 	void ShutdownModule() override
@@ -50,15 +49,16 @@ public:
 
 	FFragmentTypeHandle RegisterFragmentTypeImpl(const FFragmentType& FragmentType) override
 	{
+		using namespace UE::Core;
+
 		FRegistry& Registry = FRegistry::Get();
 
 		const int32 Index = Registry.FragmentTypes.Num();
 		Registry.FragmentTypes.Add(FragmentType);
 		checkf(Index < static_cast<int32>(std::numeric_limits<uint8>::max()), TEXT("Maximum number of UOL FragmentTypes reached"));
 
-		// @todo: enable this code once visualizer debugging state is enabled
-		// Re-assign the debugging ptr in case it changed
-		// UE::Core::FVisualizerDebuggingState::Assign("UOL", Registry.FragmentTypes.GetData());
+		// Re-assign the debugging ptr in case it changed due to reallocation
+		EVisualizerDebuggingStateResult Result = FVisualizerDebuggingState::Assign(DebugVisualizerID, Registry.FragmentTypes.GetData());
 
 		return FFragmentTypeHandle(static_cast<uint8>(Index));
 	}
@@ -86,20 +86,6 @@ public:
 		check(ParameterType.IsValid());
 		Registry.ParameterTypes[ParameterType.GetIndex()] = nullptr;
 	}
-
-	bool PurgeVisualizers(float) const
-	{
-		for (FFragmentType& FragmentType : FRegistry::Get().FragmentTypes)
-		{
-			if (FragmentType.DebuggingAssistant)
-			{
-				FragmentType.DebuggingAssistant->Purge();
-			}
-		}
-		return true;
-	}
-
-	FTSTicker::FDelegateHandle TickerDelegate;
 };
 
 } // namespace UE::UniversalObjectLocator

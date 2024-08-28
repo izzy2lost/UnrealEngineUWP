@@ -75,8 +75,7 @@ public:
 		FFragmentType NewFragmentType;
 		NewFragmentType.FragmentTypeID     = FragmentTypeParameters.FragmentTypeID;
 		NewFragmentType.PrimaryEditorType  = FragmentTypeParameters.PrimaryEditorType;
-		NewFragmentType.Flags			   = FragmentTypeParameters.Flags;
-		NewFragmentType.DebuggingAssistant = MakeShared<TFragmentTypeDebuggingAssistant<PayloadStructType>>();
+		NewFragmentType.Flags              = FragmentTypeParameters.Flags;
 		NewFragmentType.PayloadType        = PayloadStructType::StaticStruct();
 
 		// Static bindings
@@ -99,6 +98,12 @@ public:
 		{
 			return static_cast<PayloadStructType*>(Payload)->TryParseString(InString, Params);
 		};
+#if UE_UNIVERSALOBJECTLOCATOR_DEBUG
+		NewFragmentType.StaticBindings.FragmentDebugInitializer = [](void* Payload)
+		{
+			new (Payload) TFragmentPayload<PayloadStructType>;
+		};
+#endif
 		return TFragmentTypeHandle<PayloadStructType>(RegisterFragmentTypeImpl(NewFragmentType));
 	}
 
