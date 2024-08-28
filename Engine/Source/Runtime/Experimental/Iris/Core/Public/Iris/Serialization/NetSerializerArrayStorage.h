@@ -229,6 +229,13 @@ void FNetSerializerArrayStorage<QuantizedElementType, AllocationPolicy>::AdjustS
 	const SizeType NewCapacity = AllocatorInstance.CalculateNewCapacity(InNum);
 	AllocatorInstance.ResizeAllocation(Context, ArrayNum, NewCapacity);
 	ArrayMaxCapacity = NewCapacity;
+
+	if (NewCapacity > ArrayNum)
+	{
+		// To avoid issues with bad data in padding we always zero initialize new memory.
+		FMemory::Memzero(GetData() + ArrayNum, (NewCapacity - ArrayNum) * sizeof(ElementType));
+	}
+
 	ArrayNum = FMath::Min(InNum, NewCapacity);
 }
 

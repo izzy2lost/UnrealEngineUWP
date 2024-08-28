@@ -7,7 +7,7 @@ namespace UE
 {
 	namespace Net
 	{
-		bool bEnableIrisPackageMapNameExports = false;
+		bool bEnableIrisPackageMapNameExports = true;
 		static FAutoConsoleVariableRef CVarEnableIrisPackageMapNameExports(TEXT("net.iris.EnableIrisPackageMapNameExports"), bEnableIrisPackageMapNameExports, TEXT("If enabled, iris captures and exports fnames when calling into old serialziation code instead of serializing a strings."));
 	}
 }
