@@ -196,13 +196,12 @@ bool FStreamingGenerationActorDescView::GetIsSpatiallyLoaded() const
 		return false;
 	}
 
-	bool bIsSpatiallyLoaded = Super::GetIsSpatiallyLoaded();
-	if (bIsSpatiallyLoaded && ParentView)
+	if (ParentView)
 	{
-		bIsSpatiallyLoaded = ParentView->GetIsSpatiallyLoaded();
+		return ParentView->GetIsSpatiallyLoaded();
 	}
 
-	return bIsSpatiallyLoaded;
+	return Super::GetIsSpatiallyLoaded();
 }
 
 FSoftObjectPath FStreamingGenerationActorDescView::GetHLODLayer() const
@@ -952,9 +951,12 @@ class FWorldPartitionStreamingGenerator
 					if (ActorDescView.GetIsSpatiallyLoaded())
 					{
 						const FBox RuntimeBounds = ActorDescView.GetRuntimeBounds();
-						check(RuntimeBounds.IsValid);
-
-						ContainerCollectionInstanceDescriptor.Bounds += RuntimeBounds;
+						// Test if RuntimeBounds is valid because GetIsSpatiallyLoaded() is affected by a valid ParentView
+						// So the RuntimeBounds can be invalid in the case where its a non-spatial with a spatial parent.
+						if (RuntimeBounds.IsValid)
+						{
+							ContainerCollectionInstanceDescriptor.Bounds += RuntimeBounds;
+						}
 					}
 				});
 
