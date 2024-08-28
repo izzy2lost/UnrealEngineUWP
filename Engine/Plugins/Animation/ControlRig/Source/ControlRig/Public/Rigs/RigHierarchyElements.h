@@ -242,6 +242,18 @@ namespace ERigTransformType
 	}
 }
 
+UENUM()
+namespace ERigTransformStorageType
+{
+	enum Type : int
+	{
+		Pose,
+		Offset,
+		Shape,
+		NumStorageTypes
+	};
+}
+
 template<typename T>
 struct CONTROLRIG_API FRigReusableElementStorage
 {

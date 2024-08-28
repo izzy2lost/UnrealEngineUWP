@@ -4308,6 +4308,9 @@ private:
 	// do not have URigHierarchy as an owner and therefore do not carry curves with them.
 	FRigReusableElementStorage<float> ElementCurves;
 
+	// A list of ranges which can be used to copy all poses from initial to current, for example 
+	TMap<ERigTransformType::Type, TTuple<int32, int32>> ElementTransformRanges;
+
 	// Allocates the default element storage for an element
 	void AllocateDefaultElementStorage(FRigBaseElement* InElement, bool bUpdateAllElements);
 
@@ -4316,6 +4319,15 @@ private:
 
 	// Updates all storage pointers of the elements for poses and dirty states
 	void UpdateElementStorage();
+
+	// Orders the element storage by storing first initial, then current,
+	// within each first local, then global, and within each of those lists
+	// we'll place bones, nulls, controls etc in that order
+	void SortElementStorage();
+
+	// Returns the range of the element transform / dirty state storage for a given
+	// transform type. this is only valid if the element storage has been sorted. 
+	TOptional<TTuple<int32,int32>> GetElementStorageRange(ERigTransformType::Type InTransformType) const;
 
 	// Element metadata storage. Storage is defined here rather than on the elements
 	// to reduce memory consumption. Only elements created by MakeElement point to
@@ -4969,6 +4981,7 @@ private:
 	friend struct FRigDispatch_SetMetadata;
 	friend struct FRigDispatch_GetModuleMetadata;
 	friend struct FRigDispatch_SetModuleMetadata;
+	friend class FControlRigHierarchySortElementStorage;
 };
 
 struct CONTROLRIG_API FRigHierarchyInteractionBracket
