@@ -128,6 +128,7 @@ UDynamicMesh*  UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToStaticMesh(
 	FGeometryScriptCopyMeshToAssetOptions Options,
 	FGeometryScriptMeshWriteLOD TargetLOD,
 	EGeometryScriptOutcomePins& Outcome,
+	bool bUseSectionMaterials,
 	UGeometryScriptDebug* Debug)
 {
 	Outcome = EGeometryScriptOutcomePins::Failure;
@@ -260,12 +261,9 @@ UDynamicMesh*  UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToStaticMesh(
 
 		FConversionToMeshDescriptionOptions ConversionOptions;
 		FDynamicMeshToMeshDescription Converter(ConversionOptions);
-		if (!Options.bReplaceMaterials)
+		if (!bUseSectionMaterials && !Options.bReplaceMaterials)
 		{
-			UE::Conversion::EMeshLODType LODType;
-			int32 LODIndex;
-			ConvertGeometryScriptWriteLOD(TargetLOD, LODType, LODIndex);
-			TArray<int32> MaterialIDMap = UE::Conversion::GetPolygonGroupToMaterialIndexMap(ToStaticMeshAsset, LODType, LODIndex);
+			TArray<int32> MaterialIDMap = UE::Conversion::GetPolygonGroupToMaterialIndexMap(ToStaticMeshAsset, UE::Conversion::EMeshLODType::SourceModel, UseLODIndex);
 			Converter.SetMaterialIDMapFromInverseMap(MaterialIDMap);
 		}
 		FromDynamicMesh->ProcessMesh([&](const FDynamicMesh3& ReadMesh)

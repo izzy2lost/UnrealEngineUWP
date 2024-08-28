@@ -159,8 +159,10 @@ public:
 	* Extracts a Dynamic Mesh from a Static Mesh Asset. 
 	* 
 	* Note that the LOD Index in RequestedLOD will be silently clamped to the available number of LODs (SourceModel or RenderData)
+	*
+	* @param bUseSectionMaterials Whether to use the mesh section indices as material IDs. If true, use GetSectionMaterialListFromStaticMesh to get the corresponding materials. If false, use GetMaterialListFromStaticMesh to get the materials instead.
 	*/
-	//~ Note this is V2 to change the default behavior to use the normal materials list, rather than the section materials list.
+	//~ Note this V2 version adds the bUseSectionMaterials parameter
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|StaticMesh", meta = (DisplayName = "Copy Mesh From Static Mesh", ExpandEnumAsExecs = "Outcome"))
 	static UPARAM(DisplayName = "Dynamic Mesh") UDynamicMesh* 
 	CopyMeshFromStaticMeshV2(
@@ -169,11 +171,11 @@ public:
 		FGeometryScriptCopyMeshFromAssetOptions AssetOptions,
 		FGeometryScriptMeshReadLOD RequestedLOD,
 		EGeometryScriptOutcomePins& Outcome,
-		bool bUseSectionMaterials = false,
+		bool bUseSectionMaterials = true,
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
-	* Extracts a Dynamic Mesh from a Static Mesh Asset, using section material indices for the materials.
+	* Extracts a Dynamic Mesh from a Static Mesh Asset, using section indices for the material IDs -- use GetSectionMaterialListFromStaticMesh to get the corresponding materials.
 	*
 	* Note that the LOD Index in RequestedLOD will be silently clamped to the available number of LODs (SourceModel or RenderData)
 	*/
@@ -189,19 +191,35 @@ public:
 	{
 		return CopyMeshFromStaticMeshV2(FromStaticMeshAsset, ToDynamicMesh, AssetOptions, RequestedLOD, Outcome, true, Debug);
 	}
-
-	/** 
-	* Updates a Static Mesh Asset with new geometry converted from a Dynamic Mesh.
+	
+	/**
+	* Updates a Static Mesh Asset with new geometry converted from a Dynamic Mesh
+	*
+	* @param bUseSectionMaterials Whether to assume Dynamic Mesh material IDs are section indices in the target Static Mesh. Should match the value passed to CopyMeshFromStaticMesh. Has no effect if replacing the asset materials.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|StaticMesh", meta = (ExpandEnumAsExecs = "Outcome"))
-	static UPARAM(DisplayName = "Dynamic Mesh") UDynamicMesh* 
+	static UPARAM(DisplayName = "Dynamic Mesh") UDynamicMesh*
 	CopyMeshToStaticMesh(
-		UDynamicMesh* FromDynamicMesh, 
-		UStaticMesh* ToStaticMeshAsset, 
+		UDynamicMesh* FromDynamicMesh,
+		UStaticMesh* ToStaticMeshAsset,
 		FGeometryScriptCopyMeshToAssetOptions Options,
 		FGeometryScriptMeshWriteLOD TargetLOD,
 		EGeometryScriptOutcomePins& Outcome,
+		bool bUseSectionMaterials = true,
 		UGeometryScriptDebug* Debug = nullptr);
+
+	//~ Version for C++ api compatibility without bUseSectionMaterials parameter
+	UE_DEPRECATED(5.5, "Use the version of this function with a bUseSectionMaterials parameter")
+	static UDynamicMesh* CopyMeshToStaticMesh(
+		UDynamicMesh* FromDynamicMesh,
+		UStaticMesh* ToStaticMeshAsset,
+		FGeometryScriptCopyMeshToAssetOptions Options,
+		FGeometryScriptMeshWriteLOD TargetLOD,
+		EGeometryScriptOutcomePins& Outcome,
+		UGeometryScriptDebug* Debug)
+	{
+		return CopyMeshToStaticMesh(FromDynamicMesh, ToStaticMeshAsset, Options, TargetLOD, Outcome, true, Debug);
+	}
 
 
     /** 
