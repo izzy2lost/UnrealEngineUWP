@@ -159,7 +159,7 @@ struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 		bool bUseInertialBlend = false, const FVector& BlendParameters = FVector::Zero(), float PlayRate = 1.f, float ActivationDelay = 0.f,
 		FName GroupName = NAME_None, EAnimGroupRole::Type GroupRole = EAnimGroupRole::CanBeLeader, EAnimSyncMethod Method = EAnimSyncMethod::DoNotSync, bool bOverridePositionWhenJoiningSyncGroupAsLeader = false);
 	void UpdatePlayRate(float PlayRate);
-	void Reset();
+	virtual void Reset();
 
 	// FAnimNode_AssetPlayerBase interface
 	virtual UAnimationAsset* GetAnimAsset() const;
@@ -290,27 +290,27 @@ struct BLENDSTACK_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standal
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bResetOnBecomingRelevant = true;
 
-	#if WITH_EDITORONLY_DATA
-    	// The group name that we synchronize with (NAME_None if it is not part of any group). Note that
-    	// this is the name of the group used to sync the output of this node - it will not force
-    	// syncing of animations contained by it.
-    	UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
-    	FName GroupName = NAME_None;
+#if WITH_EDITORONLY_DATA
+    // The group name that we synchronize with (NAME_None if it is not part of any group). Note that
+    // this is the name of the group used to sync the output of this node - it will not force
+    // syncing of animations contained by it.
+    UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
+    FName GroupName = NAME_None;
     
-    	// The role this node can assume within the group (ignored if GroupName is not set). Note
-    	// that this is the role of the output of this node, not of animations contained by it.
-    	UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
-    	TEnumAsByte<EAnimGroupRole::Type> GroupRole = EAnimGroupRole::CanBeLeader;
+    // The role this node can assume within the group (ignored if GroupName is not set). Note
+    // that this is the role of the output of this node, not of animations contained by it.
+    UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
+    TEnumAsByte<EAnimGroupRole::Type> GroupRole = EAnimGroupRole::CanBeLeader;
     
-    	// How this node will synchronize with other animations. Note that this determines how the output
-    	// of this node is used for synchronization, not of animations contained by it.
-    	UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
-    	EAnimSyncMethod Method = EAnimSyncMethod::DoNotSync;
+    // How this node will synchronize with other animations. Note that this determines how the output
+    // of this node is used for synchronization, not of animations contained by it.
+    UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
+    EAnimSyncMethod Method = EAnimSyncMethod::DoNotSync;
     
-    	// If true, "Relevant anim" nodes that look for the highest weighted animation in a state will ignore this node
-    	UPROPERTY(EditAnywhere, Category = Relevancy, meta = (FoldProperty, PinHiddenByDefault))
-    	bool bIgnoreForRelevancyTest = false;
-    #endif // WITH_EDITORONLY_DATA
+    // If true, "Relevant anim" nodes that look for the highest weighted animation in a state will ignore this node
+    UPROPERTY(EditAnywhere, Category = Relevancy, meta = (FoldProperty, PinHiddenByDefault))
+    bool bIgnoreForRelevancyTest = false;
+#endif // WITH_EDITORONLY_DATA
 
 	// FAnimNode_Base interface
 	virtual void UpdateAssetPlayer(const FAnimationUpdateContext& Context) override;
@@ -327,8 +327,12 @@ struct BLENDSTACK_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standal
 
 	// Force a blend on the next update, even if the anim sequence has not changed.
 	void ForceBlendNextUpdate();
+	virtual void Reset() override;
 
-private:
+protected:
+	bool NeedsReset(const FAnimationUpdateContext& Context) const;
+	bool ConditionalBlendTo(const FAnimationUpdateContext& Context);
+
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;
 

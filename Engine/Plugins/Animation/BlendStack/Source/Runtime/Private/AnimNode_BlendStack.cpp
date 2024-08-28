@@ -1131,23 +1131,17 @@ void FAnimNode_BlendStack_Standalone::BlendWithPose(FAnimationPoseData& InOutPos
 /////////////////////////////////////////////////////
 // FAnimNode_BlendStack
 
-void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Context)
+bool FAnimNode_BlendStack::NeedsReset(const FAnimationUpdateContext& Context) const
 {
 	const bool bNeedsReset =
 		bResetOnBecomingRelevant &&
 		UpdateCounter.HasEverBeenUpdated() &&
 		!UpdateCounter.WasSynchronizedCounter(Context.AnimInstanceProxy->GetUpdateCounter());
+	return bNeedsReset;
+}
 
-	if (bNeedsReset)
-	{
-		Reset();
-		bForceBlendNextUpdate = false;
-	}
-
-	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
-
-	GetEvaluateGraphExposedInputs().Execute(Context);
-
+bool FAnimNode_BlendStack::ConditionalBlendTo(const FAnimationUpdateContext& Context)
+{
 	bool bExecuteBlendTo = false;
 	if (AnimationAsset == nullptr && !bForceBlendNextUpdate)
 	{
@@ -1192,6 +1186,27 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 			GetGroupName(), GetGroupRole(), GetGroupMethod());
 	}
 
+	return bExecuteBlendTo;
+}
+
+void FAnimNode_BlendStack::Reset()
+{
+	Super::Reset();
+	bForceBlendNextUpdate = false;
+}
+
+void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Context)
+{
+	if (NeedsReset(Context))
+	{
+		Reset();
+	}
+
+	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
+
+	GetEvaluateGraphExposedInputs().Execute(Context);
+
+	const bool bExecuteBlendTo = ConditionalBlendTo(Context);
 	const bool bDidBlendToRequestAnInertialBlend = bExecuteBlendTo && bUseInertialBlend;
 	UE::Anim::TOptionalScopedGraphMessage<UE::Anim::FAnimInertializationSyncScope> InertializationSync(bDidBlendToRequestAnInertialBlend, Context);
 	

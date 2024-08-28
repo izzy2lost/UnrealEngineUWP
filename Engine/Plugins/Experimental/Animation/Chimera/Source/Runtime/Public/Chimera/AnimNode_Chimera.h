@@ -9,13 +9,32 @@
 struct FAnimationInitializeContext;
 struct FNodeDebugData;
 
+UENUM()
+enum class EChimeraEvaluationMode
+{
+	// Chimera Node will continuously provide its availabilities and eventually blend to newly selected animations
+	ContinuousReselection,
+
+	// Chimera Node will continuously provide its availabilities to keep the interaction alive, but will play only the first selected animation
+	// the idea is to let the animation play until the end and allow the evenutual state machine playing this node to be able to perform an automatic transition
+	SingleSelection,
+
+	// @todo: is this needed?
+	// Chimera Node will stop providing its availabilities and consequently kill the interaction, when the first selected animation stop playing as continuing pose
+	// the idea is to let the animation play until its valid as continuing pose and allow the evenutual state machine playing this node to be able to perform an automatic transition
+	// UntilContinuingPoseIsValid,
+};
+
 USTRUCT(BlueprintInternalUseOnly, Experimental)
-struct CHIMERA_API FAnimNode_Chimera : public FAnimNode_BlendStack_Standalone
+struct CHIMERA_API FAnimNode_Chimera : public FAnimNode_BlendStack
 {
 	GENERATED_BODY();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Links, meta = (DisplayPriority = 0))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Links)
 	FPoseLink Source;
+
+	UPROPERTY(EditAnywhere, Category = Chimera)
+	EChimeraEvaluationMode EvaluationMode = EChimeraEvaluationMode::ContinuousReselection;
 
 	UPROPERTY(EditAnywhere, Category = Chimera, meta = (PinHiddenByDefault))
 	TArray<FChimeraAvailability> Availabilities;
@@ -31,24 +50,6 @@ struct CHIMERA_API FAnimNode_Chimera : public FAnimNode_BlendStack_Standalone
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Warping, meta = (PinHiddenByDefault, ClampMin = "0"))
 	float InitialRotationWarpTime = 0.2f;
 
-	// tunable animation transition blend time 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Blending, meta = (PinHiddenByDefault, ClampMin = "0"))
-	float BlendTime = 0.2f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Blending, meta = (PinHiddenByDefault, UseAsBlendProfile = true))
-	TObjectPtr<UBlendProfile> BlendProfile;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Blending, meta = (PinHiddenByDefault))
-	EAlphaBlendOption BlendOption = EAlphaBlendOption::Linear;
-
-	// tunable animation transition blend time 
-	UPROPERTY(EditAnywhere, Category = Blending)
-	bool bUseInertialBlend = false;
-
-	// Reset the blend stack if it has become relevant to the graph after not being updated on previous frames.
-	UPROPERTY(EditAnywhere, Category = Blending)
-	bool bResetOnBecomingRelevant = true;
-
 	// FAnimNode_Base interface
 	virtual void GatherDebugData(FNodeDebugData& DebugData) override;
 	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
@@ -58,10 +59,13 @@ struct CHIMERA_API FAnimNode_Chimera : public FAnimNode_BlendStack_Standalone
 	virtual void UpdateAssetPlayer(const FAnimationUpdateContext& Context) override;
 	// End of FAnimNode_Base interface
 
+	virtual void Reset() override;
+
 protected:
 	float BlendLerp = 0.f;
 	float TranslationWarpLerp = 0.f;
 	float RotationWarpLerp = 0.f;
+	bool bWasInteracting = false;
 
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;

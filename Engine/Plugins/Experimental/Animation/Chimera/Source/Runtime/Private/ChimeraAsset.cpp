@@ -6,6 +6,13 @@
 #include "DrawDebugHelpers.h"
 #include "PoseSearch/PoseSearchAssetSampler.h"
 
+namespace UE::Chimera
+{
+#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+TAutoConsoleVariable<bool> CVarAnimChimeraDebugDrawWarpTransforms(TEXT("a.Chimera.DebugDrawWarpTransforms"), false, TEXT("Enable / Disable Warp Transforms DebugDraw"));
+#endif
+}
+
 bool UChimeraAsset::IsLooping() const
 {
 	float CommonPlayLength = -1.f;
@@ -334,11 +341,15 @@ void UChimeraAsset::CalculateWarpTransforms(float Time, const TArrayView<const F
 	const FVector AssetReferencePosition = FindReferencePosition(AssetRootBoneTransforms, NormalizedWarpingWeightTranslation);
 	const FVector ActorsReferencePosition = FindReferencePosition(ActorRootBoneTransforms, NormalizedWarpingWeightTranslation);
 
-#if ENABLE_DRAW_DEBUG
-	DrawDebugCoordinateSystem(DebugDrawWorld, AssetReferencePosition, AssetReferenceOrientation.Rotator(), 10.f, false, 0.f, SDPG_Foreground);
-	DrawDebugCoordinateSystem(DebugDrawWorld, ActorsReferencePosition, ActorsReferenceOrientation.Rotator(), 10.f, false, 0.f, SDPG_Foreground);
-	DrawDebugCoordinateSystem(DebugDrawWorld, ActorsReferencePosition, WeightedActorsReferenceOrientation.Rotator(), 20.f, false, 0.f, SDPG_Foreground);
-#endif // ENABLE_DRAW_DEBUG
+#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+	const bool bDrawWarpTransforms = UE::Chimera::CVarAnimChimeraDebugDrawWarpTransforms.GetValueOnAnyThread();
+	if (bDrawWarpTransforms)
+	{
+		DrawDebugCoordinateSystem(DebugDrawWorld, AssetReferencePosition, AssetReferenceOrientation.Rotator(), 10.f, false, 0.f, SDPG_Foreground);
+		DrawDebugCoordinateSystem(DebugDrawWorld, ActorsReferencePosition, ActorsReferenceOrientation.Rotator(), 10.f, false, 0.f, SDPG_Foreground);
+		DrawDebugCoordinateSystem(DebugDrawWorld, ActorsReferencePosition, WeightedActorsReferenceOrientation.Rotator(), 20.f, false, 0.f, SDPG_Foreground);
+	}
+#endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 
 	// aligning all the actors to ActorsReferencePosition, WeightedActorsReferenceOrientation
 	const FTransform AssetReferenceTransform(AssetReferenceOrientation, AssetReferencePosition);
@@ -349,8 +360,11 @@ void UChimeraAsset::CalculateWarpTransforms(float Time, const TArrayView<const F
 	{
 		FullAlignedActorRootBoneTransforms[ItemIndex] = (AssetRootBoneTransforms[ItemIndex] * AssetReferenceInverseTransform) * ActorsReferenceTransform;
 
-#if ENABLE_DRAW_DEBUG
-		DrawDebugCoordinateSystem(DebugDrawWorld, FullAlignedActorRootBoneTransforms[ItemIndex].GetTranslation(), FullAlignedActorRootBoneTransforms[ItemIndex].Rotator(), 10.f, false, 0.f, SDPG_Foreground);
-#endif // ENABLE_DRAW_DEBUG
+#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+		if (bDrawWarpTransforms)
+		{
+			DrawDebugCoordinateSystem(DebugDrawWorld, FullAlignedActorRootBoneTransforms[ItemIndex].GetTranslation(), FullAlignedActorRootBoneTransforms[ItemIndex].Rotator(), 10.f, false, 0.f, SDPG_Foreground);
+		}
+#endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	}
 }
