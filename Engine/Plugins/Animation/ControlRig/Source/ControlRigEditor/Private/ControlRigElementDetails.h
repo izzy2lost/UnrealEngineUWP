@@ -761,7 +761,6 @@ private:
 
 	TSharedPtr<IPropertyHandle> ShapeNameHandle;
 	TSharedPtr<IPropertyHandle> ShapeColorHandle;
-	TSharedPtr<IPropertyHandle> ShapeTransformHandle;
 
 	TSharedPtr<SControlRigShapeNameList> ShapeNameListWidget; 
 	static TSharedPtr<TArray<ERigControlValueType>> PickedValueTypes;
