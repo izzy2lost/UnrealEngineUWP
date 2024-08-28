@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-namespace Horde.Agent.TrayApp.Forms
+namespace HordeTrayApp.Forms
 {
 	partial class IdleForm : Form
 	{

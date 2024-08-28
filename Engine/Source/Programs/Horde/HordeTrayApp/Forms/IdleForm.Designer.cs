@@ -3,7 +3,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace Horde.Agent.TrayApp.Forms
+namespace HordeTrayApp.Forms
 {
 	partial class IdleForm
 	{

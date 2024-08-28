@@ -2,7 +2,7 @@
 
 #pragma warning disable CS1591
 
-namespace Horde.Agent.TrayApp
+namespace HordeTrayApp
 {
 	[Serializable]
 	public class Settings
