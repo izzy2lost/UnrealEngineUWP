@@ -356,6 +356,7 @@ namespace HordeServer
 	{
 		/// <summary>
 		/// The server and port. The server may be a DNS entry with multiple records, in which case it will be actively load balanced.
+		/// If "ssl:" prefix is used, ensure P4 server's fingerprint/certificate is trusted (see docs for "p4 trust")
 		/// </summary>
 		public string ServerAndPort { get; set; } = "perforce:1666";
 
@@ -375,12 +376,12 @@ namespace HordeServer
 		public int MaxConformCount { get; set; }
 
 		/// <summary>
-		/// Optional condition for a machine to be eligable to use this server
+		/// Optional condition for a machine to be eligible to use this server
 		/// </summary>
 		public Condition? Condition { get; set; }
 
 		/// <summary>
-		/// List of properties for an agent to be eligable to use this server
+		/// List of properties for an agent to be eligible to use this server
 		/// </summary>
 		public List<string>? Properties { get; set; }
 	}

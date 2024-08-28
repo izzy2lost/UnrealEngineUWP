@@ -31,6 +31,8 @@ There are several configurables for each cluster:
 
 * `Name`: Used to reference the cluster from a stream in the CI system.
 * `Servers`: Each server supports several settings of its own:
+  * `ServerAndPort`: The server part may be a DNS entry with multiple records, in which case it will be actively load balanced.
+    If `ssl:` prefix is used, ensure P4 server's fingerprint/certificate is trusted (see docs for [p4 trust](https://www.perforce.com/manuals/cmdref/Content/CmdRef/p4_trust.html))
   * `ResolveDns`: If true, the given DNS name is resolved to find a concrete list of servers to be used. This allows
   IT/infrastructure teams to add and remove servers to a cluster without reconfiguring Horde.
   * `Properties`: Specifies properties that the agent must have to select this server.
