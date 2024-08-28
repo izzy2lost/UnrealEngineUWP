@@ -72,4 +72,5 @@ private:
 	const FSequenceInstance& SequenceInstance;
 };
 
+	const APlayerController* GetPlaybackController(const UObject* PlaybackContext);
 }  // namespace UE::MovieScene
