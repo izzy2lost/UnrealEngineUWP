@@ -980,6 +980,30 @@ bool UMovieGraphConfig::DeleteMember(UMovieGraphMember* MemberToDelete)
 	return false;
 }
 
+UMovieGraphVariable* UMovieGraphConfig::DuplicateVariable(UMovieGraphVariable* InVariableToDuplicate)
+{
+	if (!InVariableToDuplicate)
+	{
+		return nullptr;
+	}
+
+	Modify();
+
+	// AddVariable() does lots of heavy lifting to make sure variables are added/named correctly. Instead of duplicating lots of that boilerplate
+	// here, just manually copy over the value/category/etc from the source variable. DuplicateObject() would work too, but has its own set of
+	// clean-up procedures that are needed.
+	UMovieGraphVariable* NewVariable = AddVariable(FName(InVariableToDuplicate->GetMemberName()));
+	if (NewVariable)
+	{
+		NewVariable->SetValueType(InVariableToDuplicate->GetValueType(), const_cast<UObject*>(InVariableToDuplicate->GetValueTypeObject()));
+		NewVariable->SetValueSerializedString(InVariableToDuplicate->GetValueSerializedString());
+		NewVariable->SetCategory(InVariableToDuplicate->GetCategory());
+		NewVariable->Description = InVariableToDuplicate->Description;
+	}
+	
+	return NewVariable;
+}
+
 bool UMovieGraphConfig::DeleteVariableMember(UMovieGraphVariable* VariableMemberToDelete)
 {
 	if (!VariableMemberToDelete)

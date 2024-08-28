@@ -65,6 +65,15 @@ private:
 	/** Determines if the selected member(s) can be deleted. */
 	bool CanDeleteSelectedMembers();
 
+	/** Duplicates the member(s) which are currently selected. */
+	void DuplicateSelectedMembers();
+
+	/** Determines if the selected member(s) can be duplicated. */
+	bool CanDuplicateSelectedMembers();
+
+	/** Determines if the Duplicate action is visible for the selected members. */
+	bool IsDuplicateVisible();
+
 	/** Frames the entire graph so it is visible. */
 	void OnZoomToWindow() const;
 

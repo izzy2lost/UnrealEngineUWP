@@ -59,6 +59,12 @@ public:
 	/** Determines if all selected member(s) can be deleted. */
 	bool CanDeleteSelectedMembers() const;
 
+	/** Duplicates the member(s) which are currently selected in the UI. */
+	void DuplicateSelectedMembers();
+
+	/** Determines if at least one selected member can be duplicated. */
+	bool CanDuplicateSelectedMembers() const;
+
 	//~ Begin FSelfRegisteringEditorUndoClient Interface
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override;

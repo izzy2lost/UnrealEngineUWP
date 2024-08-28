@@ -36,6 +36,34 @@ namespace UE::MovieGraph::Private
 		return nullptr;
 	}
 
+	/** Gets all selected graph members of the specified MemberType within the action menu. */
+	template<typename MemberType>
+	TArray<MemberType*> GetAllSelectedMembers(const TSharedPtr<SGraphActionMenu> InActionMenu)
+	{
+		TArray<MemberType*> SelectedMembers;
+		
+		if (!InActionMenu.IsValid())
+		{
+			return SelectedMembers;
+		}
+
+		TArray<TSharedPtr<FEdGraphSchemaAction>> SelectedActions;
+		InActionMenu->GetSelectedActions(SelectedActions);
+	
+		for (TSharedPtr<FEdGraphSchemaAction> SelectedAction : SelectedActions)
+		{
+			if (UMovieGraphMember* GraphMember = GetMemberFromAction(SelectedAction.Get()))
+			{
+				if (MemberType* Member = Cast<MemberType>(GraphMember))
+				{
+					SelectedMembers.Add(Member);
+				}
+			}
+		}
+
+		return SelectedMembers;
+	}
+
 	static bool GetIconAndColorFromDataType(const UMovieGraphVariable* InGraphVariable, const FSlateBrush*& OutPrimaryBrush, FSlateColor& OutIconColor, const FSlateBrush*& OutSecondaryBrush, FSlateColor& OutSecondaryColor)
 	{
 		if (!InGraphVariable)
@@ -179,22 +207,17 @@ void SMovieGraphMembersTabContent::ClearSelection() const
 
 void SMovieGraphMembersTabContent::DeleteSelectedMembers()
 {
-	if (!ActionMenu.IsValid() || !CurrentGraph)
+	if (!CurrentGraph)
 	{
 		return;
 	}
 
-	TArray<TSharedPtr<FEdGraphSchemaAction>> SelectedActions;
-	ActionMenu->GetSelectedActions(SelectedActions);
-	for (TSharedPtr<FEdGraphSchemaAction> SelectedAction : SelectedActions)
+	FScopedTransaction Transaction(LOCTEXT("DeleteGraphMembers", "Delete Graph Member(s)"));
+	
+	for (UMovieGraphMember* Member : UE::MovieGraph::Private::GetAllSelectedMembers<UMovieGraphMember>(ActionMenu))
 	{
-		if (UMovieGraphMember* GraphMember = UE::MovieGraph::Private::GetMemberFromAction(SelectedAction.Get()))
-		{
-			FScopedTransaction Transaction(LOCTEXT("DeleteGraphMember", "Delete Graph Member"));
-			
-			MemberChangedHandles.Remove(GraphMember);
-			CurrentGraph->DeleteMember(GraphMember);
-		}
+		MemberChangedHandles.Remove(Member);
+		CurrentGraph->DeleteMember(Member);
 	}
 
 	RefreshMemberActions();
@@ -202,27 +225,50 @@ void SMovieGraphMembersTabContent::DeleteSelectedMembers()
 
 bool SMovieGraphMembersTabContent::CanDeleteSelectedMembers() const
 {
-	if (!ActionMenu.IsValid())
+	// Don't allow deletion if the member was explicitly marked as non-deletable
+	for (const UMovieGraphMember* Member : UE::MovieGraph::Private::GetAllSelectedMembers<UMovieGraphMember>(ActionMenu))
 	{
-		return false;
-	}
-
-	TArray<TSharedPtr<FEdGraphSchemaAction>> SelectedActions;
-	ActionMenu->GetSelectedActions(SelectedActions);
-	
-	for (const TSharedPtr<FEdGraphSchemaAction>& SelectedAction : SelectedActions)
-	{
-		// Don't allow deletion if the member was explicitly marked as non-deletable
-		if (const UMovieGraphMember* Member = UE::MovieGraph::Private::GetMemberFromAction(SelectedAction.Get()))
+		if (!Member->IsDeletable())
 		{
-			if (!Member->IsDeletable())
-			{
-				return false;
-			}
+			return false;
 		}
 	}
 
 	return true;
+}
+
+void SMovieGraphMembersTabContent::DuplicateSelectedMembers()
+{
+	if (!CurrentGraph)
+	{
+		return;
+	}
+	
+	FScopedTransaction Transaction(LOCTEXT("DuplicateGraphMembers", "Duplicate Graph Member(s)"));
+
+	for (UMovieGraphVariable* GraphVariable : UE::MovieGraph::Private::GetAllSelectedMembers<UMovieGraphVariable>(ActionMenu))
+	{
+		if (GraphVariable && !GraphVariable->IsGlobal())
+		{
+			CurrentGraph->DuplicateVariable(GraphVariable);
+		}
+	}
+
+	RefreshMemberActions();
+}
+
+bool SMovieGraphMembersTabContent::CanDuplicateSelectedMembers() const
+{
+	// Only allow duplication of non-global variables for now
+	for (const UMovieGraphVariable* GraphVariable : UE::MovieGraph::Private::GetAllSelectedMembers<UMovieGraphVariable>(ActionMenu))
+	{
+		if (GraphVariable && !GraphVariable->IsGlobal())
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void SMovieGraphMembersTabContent::PostUndo(bool bSuccess)
@@ -419,6 +465,7 @@ TSharedPtr<SWidget> SMovieGraphMembersTabContent::OnContextMenuOpening()
 
 	FMenuBuilder MenuBuilder(true, PinnedToolkit->GetToolkitCommands());
 	MenuBuilder.AddMenuEntry(FGenericCommands::Get().Delete);
+	MenuBuilder.AddMenuEntry(FGenericCommands::Get().Duplicate);
 	
 	return MenuBuilder.MakeWidget();
 }

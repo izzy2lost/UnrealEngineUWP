@@ -479,6 +479,12 @@ void FMovieGraphAssetToolkit::BindGraphCommands()
 		FExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::DeleteSelectedMembers),
 		FCanExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::CanDeleteSelectedMembers));
 
+	ToolkitCommands->MapAction(FGenericCommands::Get().Duplicate,
+		FExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::DuplicateSelectedMembers),
+		FCanExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::CanDuplicateSelectedMembers),
+		FIsActionChecked::CreateLambda([]() { return false; }),
+		FCanExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::IsDuplicateVisible));
+
 	ToolkitCommands->MapAction(FMoviePipelineCommands::Get().ZoomToWindow,
 			FExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::OnZoomToWindow),
 			FCanExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::CanZoomToWindow));
@@ -527,6 +533,29 @@ bool FMovieGraphAssetToolkit::CanDeleteSelectedMembers()
 	}
 
 	return false;
+}
+
+void FMovieGraphAssetToolkit::DuplicateSelectedMembers()
+{
+	if (MembersTabContent.IsValid())
+	{
+		MembersTabContent->DuplicateSelectedMembers();
+	}
+}
+
+bool FMovieGraphAssetToolkit::CanDuplicateSelectedMembers()
+{
+	if (MembersTabContent.IsValid())
+	{
+		return MembersTabContent->CanDuplicateSelectedMembers();
+	}
+
+	return false;
+}
+
+bool FMovieGraphAssetToolkit::IsDuplicateVisible()
+{
+	return CanDuplicateSelectedMembers();
 }
 
 void FMovieGraphAssetToolkit::OnZoomToWindow() const

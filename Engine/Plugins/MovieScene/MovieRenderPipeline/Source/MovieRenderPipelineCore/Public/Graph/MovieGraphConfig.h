@@ -721,6 +721,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool DeleteMember(UMovieGraphMember* MemberToDelete);
 
+	/** Duplicates the provided variable. Returns the new variable on success, else nullptr. */
+	UMovieGraphVariable* DuplicateVariable(UMovieGraphVariable* InVariableToDuplicate);
+
 #if WITH_EDITOR
 	/** Gets the editor-only nodes in this graph. Editor-only nodes do not have an equivalent runtime node. */
 	const TArray<TObjectPtr<UObject>>& GetEditorOnlyNodes() const { return EditorOnlyNodes; }
