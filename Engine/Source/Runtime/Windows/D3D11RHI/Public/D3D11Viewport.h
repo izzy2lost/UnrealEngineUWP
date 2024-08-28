@@ -116,6 +116,13 @@ protected:
 	 */
 	D3D11RHI_API bool PresentChecked(IRHICommandContext& RHICmdContext, int32 SyncInterval);
 
+	/** Enable HDR meta data transmission and set the necessary color space. */
+	void EnableHDR();
+
+	/** Disable HDR meta data transmission and set the necessary color space. */
+	void ShutdownHDR();
+
+
 	FD3D11DynamicRHI* D3DRHI;
 	uint64 LastFlipTime;
 	uint64 LastFrameComplete;

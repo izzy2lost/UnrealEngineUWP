@@ -205,9 +205,6 @@ FD3D11Viewport::~FD3D11Viewport()
 {
 	check(IsInRHIThread() || IsInRenderingThread());
 
-	// Turn off HDR display mode
-	D3DRHI->ShutdownHDR();
-
 	// If the swap chain was in fullscreen mode, switch back to windowed before releasing the swap chain.
 	// DXGI throws an error otherwise.
 	if (SwapChain)
@@ -334,18 +331,15 @@ void FD3D11Viewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 	HDRGetMetaData(DisplayOutputFormat, DisplayColorGamut, bHDREnabled, WindowTopLeft, WindowBottomRight, (void*)WindowHandle);
 
 	// Float RGBA backbuffers are requested whenever HDR mode is desired
-	if (PixelFormat == GRHIHDRDisplayOutputFormat && bIsFullscreen)
+	if (bHDREnabled)
 	{
-		D3DRHI->EnableHDR();
+		EnableHDR();
 	}
 	else
 	{
-		D3DRHI->ShutdownHDR();
+		ShutdownHDR();
 	}
 
-	// If the window has been moved or resized it may have moved focus to and from a HDR monitor
-	CheckHDRMonitorStatus();
-	
 	// Create a RHI surface to represent the viewport's back buffer.
 	BackBuffer = GetSwapChainSurface(D3DRHI, PixelFormat, SizeX, SizeY, SwapChain);
 }
@@ -693,12 +687,6 @@ void* FD3D11Viewport::GetNativeBackBufferTexture() const
 void* FD3D11Viewport::GetNativeBackBufferRT() const
 {
 	return GetBackBuffer()->GetRenderTargetView(0, 0);
-}
-
-void  FD3D11DynamicRHI::RHICheckViewportHDRStatus(FRHIViewport* ViewportRHI)
-{
-	FD3D11Viewport* Viewport = ResourceCast(ViewportRHI);
-	return Viewport->CheckHDRMonitorStatus();
 }
 
 /*=============================================================================

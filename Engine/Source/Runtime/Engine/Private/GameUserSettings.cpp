@@ -993,16 +993,6 @@ void UGameUserSettings::EnableHDRDisplayOutputInternal(bool bEnable, int32 Displ
 		// Apply device-specific output encoding
 		if (bEnable)
 		{
-#if PLATFORM_WINDOWS
-			if (GRHIHDRNeedsVendorExtensions)
-			{
-				// Force exclusive fullscreen
-				SetPreferredFullscreenMode(0);
-				SetFullscreenMode(GetPreferredFullscreenMode());
-				ApplyResolutionSettings(false);
-				RequestUIUpdate();
-			}
-#endif
 			CVarHDROutputEnabled->Set(1, bFromUserSettings ? ECVF_SetByGameSetting : ECVF_SetByCode);
 		}
 

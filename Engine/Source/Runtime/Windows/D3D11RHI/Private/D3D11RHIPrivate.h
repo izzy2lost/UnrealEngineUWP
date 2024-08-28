@@ -375,10 +375,6 @@ public:
 	virtual void Shutdown() override;
 	virtual const TCHAR* GetName() override { return TEXT("D3D11"); }
 
-	// HDR display output
-	virtual void EnableHDR();
-	virtual void ShutdownHDR();
-
 	virtual void FlushPendingLogs() override;
 
 	static FD3D11DynamicRHI& Get() { return *GetDynamicRHI<FD3D11DynamicRHI>(); }
@@ -485,7 +481,7 @@ public:
 	virtual FViewportRHIRef RHICreateViewport(void* WindowHandle, uint32 SizeX, uint32 SizeY, bool bIsFullscreen, EPixelFormat PreferredPixelFormat) override;
 	virtual void RHIResizeViewport(FRHIViewport* Viewport, uint32 SizeX, uint32 SizeY, bool bIsFullscreen) final override;
 	virtual void RHIResizeViewport(FRHIViewport* Viewport, uint32 SizeX, uint32 SizeY, bool bIsFullscreen, EPixelFormat PreferredPixelFormat) final override;
-	virtual void RHICheckViewportHDRStatus(FRHIViewport* ViewportRHI) final override;
+	virtual void RHIHandleDisplayChange() final override;
 	virtual void RHITick(float DeltaTime) final override;
 	virtual void RHIBlockUntilGPUIdle() final override;
 	virtual bool RHIGetAvailableResolutions(FScreenResolutionArray& Resolutions, bool bIgnoreRefreshRate) final override;
@@ -689,17 +685,6 @@ public:
 	void ConditionalClearShaderResource(FD3D11ViewableResource* Resource, bool bCheckBoundInputAssembler);
 	void ClearAllShaderResources();
 
-	uint32 GetHDRDetectedDisplayIndex() const
-	{
-		return HDRDetectedDisplayIndex;
-	}
-
-	void SetHDRDetectedDisplayIndices(const uint32 DisplayIndex, const uint32 IHVIndex)
-	{
-		HDRDetectedDisplayIndex = DisplayIndex;
-		HDRDetectedDisplayIHVIndex = IHVIndex;
-	}
-
 	EPixelFormat GetDisplayFormat(EPixelFormat InPixelFormat) const;
 
 	FD3D11StateCache& GetStateCache() { return StateCache; }
@@ -707,6 +692,9 @@ public:
 protected:
 	/** The global D3D interface. */
 	TRefCountPtr<IDXGIFactory1> DXGIFactory1;
+#if PLATFORM_WINDOWS
+	TRefCountPtr<IDXGIFactory1> DXGIFactoryForDisplayList;
+#endif
 
 	// Whether HDR is available from the particular DXGI factories available
 	bool bDXGISupportsHDR;
@@ -877,10 +865,6 @@ protected:
 	/** A history of the most recently used bound shader states, used to keep transient bound shader states from being recreated for each use. */
 	TGlobalResource< TBoundShaderStateHistory<10000> > BoundShaderStateHistory;
 	FComputeShaderRHIRef CurrentComputeShader;
-
-	/** If HDR display detected, we store the output device. */
-	uint32 HDRDetectedDisplayIndex;
-	uint32 HDRDetectedDisplayIHVIndex;
 
 	FDisplayInformationArray DisplayList;
 

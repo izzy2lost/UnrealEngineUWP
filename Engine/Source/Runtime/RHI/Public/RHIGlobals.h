@@ -666,6 +666,7 @@ struct FRHIGlobals
 	bool SupportsBarycentricsSemantic = false;
 
 	/** True if HDR requires vendor specific extensions */
+	UE_DEPRECATED(5.5, "GRHIGlobals.HDRNeedsVendorExtensions has been deprecated - Vendor extensions are not used anymore")
 	bool HDRNeedsVendorExtensions = false;
 
 	/** True if RHI supports MSAA resolve with a custom shader */

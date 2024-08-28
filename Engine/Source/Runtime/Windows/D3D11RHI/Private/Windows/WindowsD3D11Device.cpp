@@ -448,202 +448,57 @@ const DisplayChromacities DisplayChromacityList[] =
 	{ 0.71300f, 0.29300f, 0.16500f, 0.83000f, 0.12800f, 0.04400f, 0.32168f, 0.33767f }, // EDisplayColorGamut::ACEScg_D60
 };
 
-static void SetHDRMonitorModeNVIDIA(uint32 IHVDisplayIndex, bool bEnableHDR, EDisplayColorGamut DisplayGamut, float MaxOutputNits, float MinOutputNits, float MaxCLL, float MaxFALL)
-{
-#ifdef NVAPI_INTERFACE
-	NvAPI_Status NvStatus = NVAPI_OK;
-	NvDisplayHandle hNvDisplay = NULL;
-	NvU32 DisplayId = (NvU32)IHVDisplayIndex;
-
-	NV_HDR_CAPABILITIES HDRCapabilities = {};
-	HDRCapabilities.version = NV_HDR_CAPABILITIES_VER;
-
-	NvStatus = NvAPI_Disp_GetHdrCapabilities(DisplayId, &HDRCapabilities);
-
-	if (NvStatus == NVAPI_OK)
-	{
-		if (HDRCapabilities.isST2084EotfSupported)
-		{
-			NV_HDR_COLOR_DATA HDRColorData = {};
-			memset(&HDRColorData, 0, sizeof(HDRColorData));
-
-			HDRColorData.version = NV_HDR_COLOR_DATA_VER;
-			HDRColorData.cmd = NV_HDR_CMD_SET;
-			HDRColorData.static_metadata_descriptor_id = NV_STATIC_METADATA_TYPE_1;
-			HDRColorData.hdrMode = bEnableHDR ? NV_HDR_MODE_UHDBD : NV_HDR_MODE_OFF;
-
-			const DisplayChromacities& Chroma = DisplayChromacityList[(int32)DisplayGamut];
-
-			HDRColorData.mastering_display_data.displayPrimary_x0 = NvU16(Chroma.RedX * 50000.0f);
-			HDRColorData.mastering_display_data.displayPrimary_y0 = NvU16(Chroma.RedY * 50000.0f);
-			HDRColorData.mastering_display_data.displayPrimary_x1 = NvU16(Chroma.GreenX * 50000.0f);
-			HDRColorData.mastering_display_data.displayPrimary_y1 = NvU16(Chroma.GreenY * 50000.0f);
-			HDRColorData.mastering_display_data.displayPrimary_x2 = NvU16(Chroma.BlueX * 50000.0f);
-			HDRColorData.mastering_display_data.displayPrimary_y2 = NvU16(Chroma.BlueY * 50000.0f);
-			HDRColorData.mastering_display_data.displayWhitePoint_x = NvU16(Chroma.WpX * 50000.0f);
-			HDRColorData.mastering_display_data.displayWhitePoint_y = NvU16(Chroma.WpY * 50000.0f);
-			HDRColorData.mastering_display_data.max_display_mastering_luminance = NvU16(MaxOutputNits);
-			HDRColorData.mastering_display_data.min_display_mastering_luminance = NvU16(MinOutputNits);
-			HDRColorData.mastering_display_data.max_content_light_level = NvU16(MaxCLL);
-			HDRColorData.mastering_display_data.max_frame_average_light_level = NvU16(MaxFALL);
-
-			NvStatus = NvAPI_Disp_HdrColorControl(DisplayId, &HDRColorData);
-
-			// Ignore expected failures caused by insufficient driver version, remote desktop connections and similar
-			if (NvStatus != NVAPI_OK && NvStatus != NVAPI_ERROR && NvStatus != NVAPI_NVIDIA_DEVICE_NOT_FOUND)
-			{
-				NvAPI_ShortString SzDesc;
-				NvAPI_GetErrorMessage(NvStatus, SzDesc);
-				UE_LOG(LogD3D11RHI, Warning, TEXT("NvAPI_Disp_HdrColorControl returned %s (%x)"), ANSI_TO_TCHAR(SzDesc), int(NvStatus));
-			}
-		}
-	}
-#endif //NVAPI_INTERFACE
-}
-
-static void SetHDRMonitorModeAMD(uint32 IHVDisplayIndex, bool bEnableHDR, EDisplayColorGamut DisplayGamut, float MaxOutputNits, float MinOutputNits, float MaxCLL, float MaxFALL)
-{
-#ifdef AMD_AGS_API
-	const int32 AmdHDRDeviceIndex = (IHVDisplayIndex & 0xffff0000) >> 16;
-	const int32 AmdHDRDisplayIndex = IHVDisplayIndex & 0x0000ffff;
-
-	check(AmdInfo.AmdAgsContext != NULL && AmdHDRDeviceIndex != -1 && AmdHDRDisplayIndex != -1);
-	check(AmdInfo.AmdGpuInfo.numDevices > AmdHDRDeviceIndex && AmdInfo.AmdGpuInfo.devices[AmdHDRDeviceIndex].numDisplays > AmdHDRDisplayIndex);
-
-	const AGSDeviceInfo& DeviceInfo = AmdInfo.AmdGpuInfo.devices[AmdHDRDeviceIndex];
-	const AGSDisplayInfo& DisplayInfo = DeviceInfo.displays[AmdHDRDisplayIndex];
-
-	if (DisplayInfo.HDR10 != 0 || DisplayInfo.dolbyVision != 0)
-	{
-		AGSDisplaySettings HDRDisplaySettings;
-		FMemory::Memzero(&HDRDisplaySettings, sizeof(HDRDisplaySettings));
-
-		HDRDisplaySettings.mode = bEnableHDR ? AGSDisplaySettings::Mode_HDR10_scRGB : AGSDisplaySettings::Mode_SDR;
-
-		if (bEnableHDR)
-		{
-			const DisplayChromacities& Chroma = DisplayChromacityList[(int32)DisplayGamut];
-			HDRDisplaySettings.chromaticityRedX   = Chroma.RedX;
-			HDRDisplaySettings.chromaticityRedY   = Chroma.RedY;
-			HDRDisplaySettings.chromaticityGreenX = Chroma.GreenX;
-			HDRDisplaySettings.chromaticityGreenY = Chroma.GreenY;
-			HDRDisplaySettings.chromaticityBlueX  = Chroma.BlueX;
-			HDRDisplaySettings.chromaticityBlueY  = Chroma.BlueY;
-			HDRDisplaySettings.chromaticityWhitePointX = Chroma.WpX;
-			HDRDisplaySettings.chromaticityWhitePointY = Chroma.WpY;
-			HDRDisplaySettings.maxLuminance = MaxOutputNits;
-			HDRDisplaySettings.minLuminance = MinOutputNits;
-			HDRDisplaySettings.maxContentLightLevel = MaxCLL;
-			HDRDisplaySettings.maxFrameAverageLightLevel = MaxFALL;
-		}
-
-		AGSReturnCode AmdStatus = agsSetDisplayMode(AmdInfo.AmdAgsContext, AmdHDRDeviceIndex, AmdHDRDisplayIndex, &HDRDisplaySettings);
-
-		// Ignore expected failures caused by insufficient driver version
-		if (AmdStatus != AGS_SUCCESS && AmdStatus != AGS_LEGACY_DRIVER)
-		{
-			UE_LOG(LogD3D11RHI, Warning, TEXT("agsSetDisplayMode returned (%x)"), int(AmdStatus));
-		}
-	}
-#endif //AMD_AGS_API
-}
-
-/** Enable HDR meta data transmission */
-void FD3D11DynamicRHI::EnableHDR()
-{
-	if ( GRHISupportsHDROutput && IsHDREnabled() )
-	{
-		const EDisplayOutputFormat OutputDevice = HDRGetDefaultDisplayOutputFormat();
-		const EDisplayColorGamut DisplayGamut = HDRGetDefaultDisplayColorGamut();
-
-		const float DisplayMaxOutputNits = HDRGetDisplayMaximumLuminance();
-		const float DisplayMinOutputNits = 0.0f;	// Min output of the display
-		const float DisplayMaxCLL = 0.0f;			// Max content light level in lumens (0.0 == unknown)
-		const float DisplayFALL = 0.0f;				// Frame average light level (0.0 == unknown)
-
-		if (IsRHIDeviceNVIDIA())
-		{
-			SetHDRMonitorModeNVIDIA(
-				HDRDetectedDisplayIHVIndex,
-				true,
-				DisplayGamut,
-				DisplayMaxOutputNits,
-				DisplayMinOutputNits,
-				DisplayMaxCLL,
-				DisplayFALL);
-		}
-		else if (IsRHIDeviceAMD())
-		{
-			SetHDRMonitorModeAMD(
-				HDRDetectedDisplayIHVIndex,
-				true,
-				DisplayGamut,
-				DisplayMaxOutputNits,
-				DisplayMinOutputNits,
-				DisplayMaxCLL,
-				DisplayFALL);
-		}
-		else if (IsRHIDeviceIntel())
-		{
-			UE_LOG(LogD3D11RHI, Warning, TEXT("There is no HDR output implementation currently available for this hardware."));
-		}
-	}
-}
-
-/** Disable HDR meta data transmission */
-void FD3D11DynamicRHI::ShutdownHDR()
-{
-	if (GRHISupportsHDROutput)
-	{
-		// Default SDR display data
-		const float DisplayMaxOutputNits = 100.0f;	// Max output of the display
-		const float DisplayMinOutputNits = 0.0f;	// Min output of the display
-		const float DisplayMaxCLL = 100.0f;			// Max content light level in lumens
-		const float DisplayFALL = 20.0f;			// Frame average light level
-
-		if (IsRHIDeviceNVIDIA())
-		{
-			SetHDRMonitorModeNVIDIA(
-				HDRDetectedDisplayIHVIndex,
-				false,
-				EDisplayColorGamut::sRGB_D65,
-				DisplayMaxOutputNits,
-				DisplayMinOutputNits,
-				DisplayMaxCLL,
-				DisplayFALL);
-		}
-		else if (IsRHIDeviceAMD())
-		{
-			SetHDRMonitorModeAMD(
-				HDRDetectedDisplayIHVIndex,
-				false,
-				EDisplayColorGamut::sRGB_D65,
-				DisplayMaxOutputNits,
-				DisplayMinOutputNits,
-				DisplayMaxCLL,
-				DisplayFALL);
-		}
-		else if (IsRHIDeviceIntel())
-		{
-			// Not yet implemented
-		}
-	}
-}
-
 bool FD3D11DynamicRHI::SetupDisplayHDRMetaData()
 {
 	check(GetDevice());
 
-	// Default to primary display
-	SetHDRDetectedDisplayIndices(0, 0);
-	
+	TRefCountPtr<IDXGIAdapter> DXGIAdapter = Adapter.DXGIAdapter;
+
+	if (DXGIFactory1.IsValid() && !DXGIFactory1->IsCurrent())
+	{
+		if (!DXGIFactoryForDisplayList.IsValid() || !DXGIFactoryForDisplayList->IsCurrent())
+		{
+			SafeCreateDXGIFactory(DXGIFactoryForDisplayList.GetInitReference(), GRHIGlobals.IsDebugLayerEnabled);
+		}
+
+		if (DXGIFactoryForDisplayList.IsValid() && DXGIFactoryForDisplayList->IsCurrent())
+		{
+			TRefCountPtr<IDXGIAdapter> TempAdapter;
+			bool bMatchingAdapterFound = false;
+			for (uint32 AdapterIndex = 0; DXGIFactoryForDisplayList->EnumAdapters(AdapterIndex, TempAdapter.GetInitReference()) != DXGI_ERROR_NOT_FOUND; ++AdapterIndex)
+			{
+				DXGI_ADAPTER_DESC AdapterDesc;
+				if (!TempAdapter.IsValid() || FAILED(TempAdapter->GetDesc(&AdapterDesc)))
+				{
+					continue;
+				}
+
+				if (AdapterDesc.AdapterLuid.LowPart != Adapter.DXGIAdapterDesc.AdapterLuid.LowPart)
+				{
+					continue;
+				}
+
+				if (AdapterDesc.AdapterLuid.HighPart != Adapter.DXGIAdapterDesc.AdapterLuid.HighPart)
+				{
+					continue;
+				}
+
+				bMatchingAdapterFound = true;
+				break;
+			}
+
+			if (bMatchingAdapterFound && ensure(TempAdapter.IsValid()))
+			{
+				DXGIAdapter = TempAdapter;
+			}
+		}
+	}
+
 	DisplayList.Empty();
 
-#if WITH_EDITOR
 	// Determines if any displays support HDR
 	bool bSupportsHDROutput = false;
 	{
-		IDXGIAdapter* DXGIAdapter = Adapter.DXGIAdapter;
 		if (!DXGIAdapter)
 		{
 			return false;
@@ -685,111 +540,15 @@ bool FD3D11DynamicRHI::SetupDisplayHDRMetaData()
 	}
 
 	return bSupportsHDROutput;
-#else
+}
 
-	// Grab the adapter
-	TRefCountPtr<IDXGIDevice> DXGIDevice;
-	VERIFYD3D11RESULT(Direct3DDevice->QueryInterface(IID_IDXGIDevice, (void**)DXGIDevice.GetInitReference()));
-
-	TRefCountPtr<IDXGIAdapter> DXGIAdapter;
-	DXGIDevice->GetAdapter((IDXGIAdapter**)DXGIAdapter.GetInitReference());
-		
-	uint32 DisplayIndex = 0;
-	uint32 ForcedDisplayIndex = 0;
-	bool bForcedDisplay = FParse::Value(FCommandLine::Get(), TEXT("FullscreenDisplay="), ForcedDisplayIndex);
-
-	bool bSupportsHDROutput = false;
-	for (; true; ++DisplayIndex)
-	{
-		TRefCountPtr<IDXGIOutput> DXGIOutput;
-		if (S_OK != DXGIAdapter->EnumOutputs(DisplayIndex, DXGIOutput.GetInitReference()))
-		{
-			break;
-		}
-
-		// Query requested display only
-		if (bForcedDisplay && DisplayIndex != ForcedDisplayIndex)
-		{
-			continue;
-		}
-
-		DXGI_OUTPUT_DESC OutputDesc;
-		DXGIOutput->GetDesc(&OutputDesc);
-		FDisplayInformation DisplayInformation{};
-		const RECT& DisplayCoords = OutputDesc.DesktopCoordinates;
-		DisplayInformation.DesktopCoordinates = FIntRect(DisplayCoords.left, DisplayCoords.top, DisplayCoords.right, DisplayCoords.bottom);
-		DisplayInformation.bHDRSupported = false;
-
-		if (IsRHIDeviceNVIDIA())
-		{
-#ifdef NVAPI_INTERFACE
-			NvU32 DisplayId = 0;
-
-			// Technically, the DeviceName is a WCHAR however, UE makes the assumption elsewhere that TCHAR == WCHAR on Windows
-			NvAPI_Status Status = NvAPI_DISP_GetDisplayIdByDisplayName(TCHAR_TO_ANSI(OutputDesc.DeviceName), &DisplayId);
-
-			if (Status == NVAPI_OK)
-			{
-				NV_HDR_CAPABILITIES HdrCapabilities = {};
-
-				HdrCapabilities.version = NV_HDR_CAPABILITIES_VER;
-
-				if (NVAPI_OK == NvAPI_Disp_GetHdrCapabilities(DisplayId, &HdrCapabilities))
-				{		
-					// we're only choosing the first supported HDR monitor
-					if (HdrCapabilities.isST2084EotfSupported && !bSupportsHDROutput)
-					{
-						UE_LOG(LogD3D11RHI, Log, TEXT("HDR output is supported on display %i (NvId: 0x%x)."), DisplayIndex, DisplayId);
-						SetHDRDetectedDisplayIndices(DisplayIndex, DisplayId);
-						bSupportsHDROutput = true;
-					}
-					DisplayInformation.bHDRSupported = HdrCapabilities.isST2084EotfSupported;
-				}
-			}
-			else if (Status != NVAPI_ERROR && Status != NVAPI_NVIDIA_DEVICE_NOT_FOUND)
-			{
-				NvAPI_ShortString szDesc;
-				NvAPI_GetErrorMessage(Status, szDesc);
-				UE_LOG(LogD3D11RHI, Log, TEXT("Failed to enumerate display ID for NVAPI (%s) (%s) unable to"), OutputDesc.DeviceName, ANSI_TO_TCHAR(szDesc));
-			}
-#endif //NVAPI_INTERFACE
-		}
-		else if (IsRHIDeviceAMD())
-		{
-#ifdef AMD_AGS_API
-			// Search the device list for a matching display device name
-			for (uint16 AMDDeviceIndex = 0; AMDDeviceIndex < AmdInfo.AmdGpuInfo.numDevices; ++AMDDeviceIndex)
-			{
-				const AGSDeviceInfo& DeviceInfo = AmdInfo.AmdGpuInfo.devices[AMDDeviceIndex];
-				for (uint16 AMDDisplayIndex = 0; DeviceInfo.displays != nullptr && AMDDisplayIndex < DeviceInfo.numDisplays; ++AMDDisplayIndex)
-				{
-					const AGSDisplayInfo& DisplayInfo = DeviceInfo.displays[AMDDisplayIndex];
-					if (FCStringAnsi::Strcmp(TCHAR_TO_ANSI(OutputDesc.DeviceName), DisplayInfo.displayDeviceName) == 0)
-					{
-						// AGS has flags for HDR10 and Dolby Vision instead of a flag for the ST2084 transfer function.
-						// Both HDR10 and Dolby Vision use the ST2084 EOTF.
-						bool DisplaySupportsHDR = (DisplayInfo.HDR10 != 0 || DisplayInfo.dolbyVision != 0);
-						if (DisplaySupportsHDR && !bSupportsHDROutput)
-						{
-							UE_LOG(LogD3D11RHI, Log, TEXT("HDR output is supported on display %i (AMD Device: 0x%x, Display: 0x%x)."), DisplayIndex, AMDDeviceIndex, AMDDisplayIndex);
-							SetHDRDetectedDisplayIndices(DisplayIndex, (uint32)(AMDDeviceIndex << 16) | (uint32)AMDDisplayIndex);
-							bSupportsHDROutput = true;
-						}
-						DisplayInformation.bHDRSupported = DisplaySupportsHDR;
-					}
-				}
-			}
-#endif //AMD_AGS_API
-		}
-		else if (IsRHIDeviceIntel())
-		{
-			// Not yet implemented
-		}
-		DisplayList.Add(DisplayInformation);
-	}
-
-	return bSupportsHDROutput;
-#endif
+extern void HDRSettingChangedSinkCallback();
+void FD3D11DynamicRHI::RHIHandleDisplayChange()
+{
+	RHIBlockUntilGPUIdle();
+	GRHISupportsHDROutput = SetupDisplayHDRMetaData();
+	// make sure CVars are being updated properly
+	HDRSettingChangedSinkCallback();
 }
 
 static bool IsDeviceOverclocked()
@@ -1883,9 +1642,11 @@ void FD3D11DynamicRHI::InitD3DDevice()
 
 		SetupAfterDeviceCreation();
 		GRHISupportsHDROutput = SetupDisplayHDRMetaData();
-#if !WITH_EDITOR
-		// cooked game D3D11 still needs to rely on vendor extensions to trigger HDR, which will then require exclusive fullscreen state / special RT formats
-		GRHIHDRNeedsVendorExtensions = true;
+
+#if WITH_EDITOR
+		GRHIHDRDisplayOutputFormat = PF_FloatRGBA;
+#else
+		GRHIHDRDisplayOutputFormat = PF_A2B10G10R10;
 #endif
 
 		// Add device overclock state to crash context
