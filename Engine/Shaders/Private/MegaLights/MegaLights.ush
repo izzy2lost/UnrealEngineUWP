@@ -41,6 +41,7 @@
 #define TILE_MODE_EMPTY							6
 #define TILE_MODE_MAX							7
 
+#if DEBUG_MODE
 void PrintTileTypeString(inout FShaderPrintContext Context, uint TileType)
 {
 	switch (TileType)
@@ -54,6 +55,7 @@ void PrintTileTypeString(inout FShaderPrintContext Context, uint TileType)
 		case TILE_MODE_EMPTY:							Print(Context, TEXT("Empty                ")); break;
 	}
 }
+#endif
 
 struct FDebug
 {
