@@ -87,8 +87,18 @@ public:
 	{
 	}
 
-	/** Get the underlying chars buffer this text key represents */
+	/**
+	 * Get the underlying chars buffer this text key represents.
+	 * @note This function is due to be deprecated. Prefer ToString/AppendString for new code.
+	 */
 	CORE_API const TCHAR* GetChars() const;
+
+	/** Convert this text key back to its string representation */
+	CORE_API FString ToString() const;
+	CORE_API void ToString(FString& Out) const;
+	CORE_API void ToString(FStringBuilderBase& Out) const;
+	CORE_API void AppendString(FString& Out) const;
+	CORE_API void AppendString(FStringBuilderBase& Out) const;
 
 	/** Compare for equality */
 	friend FORCEINLINE bool operator==(const FTextKey& A, const FTextKey& B)
