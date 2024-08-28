@@ -99,3 +99,20 @@ TEST_F(RigLogicTest, DumpStateThenRestore) {
     rl4::RigInstance::destroy(cloneRigInstance);
     rl4::RigLogic::destroy(cloneRigLogic);
 }
+
+TEST_F(RigLogicTest, JointOutputBufferInitialized) {
+    rl4::Configuration config{};
+    config.rotationType = rl4::RotationType::Quaternions;
+    auto qRigLogic = pma::makeScoped<rl4::RigLogic>(reader.get(), config);
+    auto qRigInstance = pma::makeScoped<rl4::RigInstance>(qRigLogic.get());
+    auto jointOutputs = qRigInstance->getJointOutputs();
+    static constexpr std::size_t qwOffset = 6;
+    static constexpr std::size_t jointAttrCount = 10;
+    for (std::size_t i = {}; i < jointOutputs.size(); ++i) {
+        if (i % jointAttrCount == qwOffset) {
+            ASSERT_EQ(jointOutputs[i], 1.0f);
+        } else {
+            ASSERT_EQ(jointOutputs[i], 0.0f);
+        }
+    }
+}

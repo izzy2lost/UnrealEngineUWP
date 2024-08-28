@@ -41,6 +41,8 @@ CPUJointsOutputInstance::CPUJointsOutputInstance(std::uint16_t jointAttributeCou
                 std::fill(buffer.begin(), buffer.end(), 0.0f);
             };
     }
+
+    resetBuffer(outputBuffer);
 }
 
 ArrayView<float> CPUJointsOutputInstance::getOutputBuffer() {
