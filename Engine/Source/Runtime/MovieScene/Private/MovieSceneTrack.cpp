@@ -36,6 +36,7 @@ UMovieSceneTrack::UMovieSceneTrack(const FObjectInitializer& InInitializer)
 	TrackTint = FColor(127, 127, 127, 0);
 	SortingOrder = -1;
 	bSupportsDefaultSections = true;
+	bSupportsConditions = true;
 #endif
 
 	BuiltInTreePopulationMode = ETreePopulationMode::HighPassPerRow;

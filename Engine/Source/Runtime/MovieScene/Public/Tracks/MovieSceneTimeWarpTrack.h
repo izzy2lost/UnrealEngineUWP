@@ -20,6 +20,13 @@ class UMovieSceneTimeWarpTrack
 public:
 
 	/**
+	 * Create and initialize a new instance.
+	 *
+	 * @param ObjectInitializer The object initializer.
+	 */
+	UMovieSceneTimeWarpTrack(const FObjectInitializer& ObjectInitializer);
+
+	/**
 	 * Generate the a sequence transform that perform's this track's time-warp.
 	 * @note: The resulting transform may be the identity transform
 	 */

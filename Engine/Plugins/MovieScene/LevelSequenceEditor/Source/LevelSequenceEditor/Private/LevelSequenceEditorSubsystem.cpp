@@ -711,11 +711,10 @@ void ULevelSequenceEditorSubsystem::AddBindingDetailCustomizations(TSharedRef<ID
 	}
 }
 
-void ULevelSequenceEditorSubsystem::AddTrackRowMetadataCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer)
+void ULevelSequenceEditorSubsystem::AddTrackRowMetadataCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer, UMovieSceneSequence* Sequence)
 {
 	if (ActiveSequencer.IsValid())
 	{
-		UMovieSceneSequence* Sequence = ActiveSequencer->GetFocusedMovieSceneSequence();
 		UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
 		if (MovieScene)
 		{
@@ -2686,7 +2685,7 @@ void ULevelSequenceEditorSubsystem::AddTrackRowMetadataMenu(FMenuBuilder& MenuBu
 
 	TSharedRef<IDetailsView> DetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreateDetailView(DetailsViewArgs);
 
-	AddTrackRowMetadataCustomizations(DetailsView, Sequencer);
+	AddTrackRowMetadataCustomizations(DetailsView, Sequencer, Sequence);
 
 	RefreshTrackRowMetadataDetails(&DetailsView.Get());
 	DetailsView->OnFinishedChangingProperties().AddUObject(this, &ULevelSequenceEditorSubsystem::OnFinishedChangingTrackRowMetadata, DetailsView);
@@ -3193,6 +3192,7 @@ void ULevelSequenceEditorSubsystem::RefreshTrackRowMetadataDetails(IDetailsView*
 		{
 			if (const FMovieSceneTrackRowMetadata* Metadata = Track->FindTrackRowMetadata(SelectedTrackRows[Index].Value))
 			{
+				Helper->OwnerTrack = Track;
 				Helper->TrackRowMetadata = *Metadata;
 				if (Metadata->ConditionContainer.Condition)
 				{

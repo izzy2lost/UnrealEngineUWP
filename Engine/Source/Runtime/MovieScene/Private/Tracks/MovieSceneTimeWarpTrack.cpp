@@ -5,6 +5,15 @@
 #include "Variants/MovieSceneTimeWarpGetter.h"
 #include "Evaluation/MovieSceneSequenceTransform.h"
 
+
+UMovieSceneTimeWarpTrack::UMovieSceneTimeWarpTrack(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+#if WITH_EDITORONLY_DATA
+	bSupportsConditions = false;
+#endif
+}
+
 bool UMovieSceneTimeWarpTrack::SupportsType(TSubclassOf<UMovieSceneSection> SectionClass) const
 {
 	return SectionClass == UMovieSceneTimeWarpSection::StaticClass();

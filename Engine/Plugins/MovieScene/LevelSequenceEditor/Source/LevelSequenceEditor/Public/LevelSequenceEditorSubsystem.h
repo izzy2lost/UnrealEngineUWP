@@ -40,6 +40,7 @@ class IDetailsView;
 class USequencerCurveEditorObject;
 class UMovieSceneCustomBinding;
 class IMenu;
+class UMovieSceneTrackRowMetadataHelper;
 
 USTRUCT(BlueprintType)
 struct FMovieSceneScriptingParams
@@ -80,20 +81,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Binding Properties")
 	TArray<FMovieSceneBindingPropertyInfo> Bindings;
 };
-
-
-// Helper UObject for editing optional track row metadata not in-place. A UObject instead of a UStruct because we need to support instanced sub objects (conditions)
-UCLASS(CollapseCategories)
-class LEVELSEQUENCEEDITOR_API UMovieSceneTrackRowMetadataHelper : public UObject
-{
-	GENERATED_BODY()
-
-public:
-
-	UPROPERTY(EditAnywhere, Category = "General", meta=(ShowOnlyInnerProperties))
-	FMovieSceneTrackRowMetadata TrackRowMetadata;
-};
-
 
 /**
 * ULevelSequenceEditorSubsystem
@@ -317,7 +304,7 @@ private:
 private:
 
 	void AddBindingDetailCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer, FGuid BindingGuid);
-	void AddTrackRowMetadataCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer);
+	void AddTrackRowMetadataCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer, UMovieSceneSequence* Sequence);
 	void OnBindingPropertyMenuBeingDestroyed(const TSharedRef<IMenu>& Menu, TSharedRef<IDetailsView> DetailsView);
 	void OnTrackRowMetadataMenuBeingDestroyed(const TSharedRef<IMenu>& Menu, TSharedRef<IDetailsView> DetailsView);
 

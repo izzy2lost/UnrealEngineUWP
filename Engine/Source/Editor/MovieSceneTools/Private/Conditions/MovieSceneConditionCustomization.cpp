@@ -87,8 +87,13 @@ void FMovieSceneConditionCustomization::CustomizeHeader(TSharedRef<IPropertyHand
 		Sequence = GetCommonSequence();
 	}
 
+	if (!Track.IsValid())
+	{
+		Track = GetCommonTrack();
+	}
+
 	// If conditions not allowed, hide condition property functionality
-	if (!Sequence.IsValid() || !Sequence->GetMovieScene()->IsConditionClassAllowed(UMovieSceneCondition::StaticClass()))
+	if (!Sequence.IsValid() || !Sequence->GetMovieScene()->IsConditionClassAllowed(UMovieSceneCondition::StaticClass()) || (Track.IsValid() && !Track->SupportsConditions()))
 	{
 		ConditionContainerPropertyHandle->MarkHiddenByCustomization();
 		return;
@@ -130,7 +135,7 @@ void FMovieSceneConditionCustomization::CustomizeHeader(TSharedRef<IPropertyHand
 void FMovieSceneConditionCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
 	// If conditions not allowed, hide condition property functionality
-	if (!Sequence.IsValid() || !Sequence->GetMovieScene()->IsConditionClassAllowed(UMovieSceneCondition::StaticClass()))
+	if (!Sequence.IsValid() || !Sequence->GetMovieScene()->IsConditionClassAllowed(UMovieSceneCondition::StaticClass()) || (Track.IsValid() && !Track->SupportsConditions()))
 	{
 		return;
 	}
@@ -389,6 +394,40 @@ UMovieSceneSequence* FMovieSceneConditionCustomization::GetCommonSequence() cons
 		CommonSequence = ThisSequence;
 	}
 	return CommonSequence;
+}
+
+UMovieSceneTrack* FMovieSceneConditionCustomization::GetCommonTrack() const
+{
+	TArray<UObject*> EditObjects;
+	ConditionContainerPropertyHandle->GetOuterObjects(EditObjects);
+
+	UMovieSceneTrack* CommonTrack = nullptr;
+
+	for (UObject* Obj : EditObjects)
+	{
+		UMovieSceneTrack* ThisTrack = Cast<UMovieSceneTrack>(Obj);
+		if (!ThisTrack)
+		{
+			ThisTrack = Obj ? Obj->GetTypedOuter<UMovieSceneTrack>() : nullptr;
+		}
+
+		if (!ThisTrack)
+		{
+			// Special case
+			if (UMovieSceneTrackRowMetadataHelper* TrackRowHelper = Cast<UMovieSceneTrackRowMetadataHelper>(Obj))
+			{
+				ThisTrack = TrackRowHelper->OwnerTrack.Get();
+			}
+		}
+
+		if (CommonTrack && CommonTrack != ThisTrack)
+		{
+			return nullptr;
+		}
+
+		CommonTrack = ThisTrack;
+	}
+	return CommonTrack;
 }
 
 #undef LOCTEXT_NAMESPACE

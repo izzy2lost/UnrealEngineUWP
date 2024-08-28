@@ -7,6 +7,8 @@
 #include "IPropertyTypeCustomization.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Conditions/MovieSceneCondition.h"
+#include "MovieSceneTrack.h"
+#include "MovieSceneConditionCustomization.generated.h"
 
 class IDetailLayoutBuilder;
 class IPropertyHandle;
@@ -15,8 +17,24 @@ class FPropertyEditor;
 class SWidget;
 class FMenuBuilder;
 class UMovieSceneSequence;
+class UMovieSceneTrack;
 class FMovieSceneDirectorBlueprintConditionCustomization;
 class IDetailsView;
+
+// Helper UObject for editing optional track row metadata not in-place. A UObject instead of a UStruct because we need to support instanced sub objects (conditions)
+UCLASS(CollapseCategories)
+class MOVIESCENETOOLS_API UMovieSceneTrackRowMetadataHelper : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, Category = "General", meta=(ShowOnlyInnerProperties))
+	FMovieSceneTrackRowMetadata TrackRowMetadata;
+
+	UPROPERTY()
+	TWeakObjectPtr<UMovieSceneTrack> OwnerTrack;
+};
 
 class FMovieSceneConditionCustomization : public IPropertyTypeCustomization
 {
@@ -75,6 +93,9 @@ private:
 	/* Gets the common sequence for this customization */
 	UMovieSceneSequence* GetCommonSequence() const;
 
+	/* Gets the common track for this customization */
+	UMovieSceneTrack* GetCommonTrack() const;
+
 	/**
 	* Generate the content of the quick bind sub-menu dropdown (shown if the endpoint is not already bound)
 	*/
@@ -103,4 +124,5 @@ private:
 	TSharedPtr<SWidget> OpenMenuWidget;
 
 	TWeakObjectPtr<UMovieSceneSequence> Sequence;
+	TWeakObjectPtr<UMovieSceneTrack> Track;
 };

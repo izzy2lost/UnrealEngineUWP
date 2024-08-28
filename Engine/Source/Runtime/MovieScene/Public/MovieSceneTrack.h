@@ -556,6 +556,14 @@ public:
 		return bSupportsDefaultSections;
 	}
 
+	/**
+	 * @return Whether or not this track supports conditions.
+	 */
+	virtual bool SupportsConditions() const
+	{
+		return bSupportsConditions;
+	}
+
 	/*
 	* Returns an array of all conditions on track, track row, or section
 	*/
@@ -578,6 +586,10 @@ protected:
 	/** Does this track support the creation of a default section when created? */
 	UPROPERTY()
 	bool bSupportsDefaultSections;
+
+	/** Does this track support conditions */
+	UPROPERTY()
+	bool bSupportsConditions;
 
 public:
 #endif
