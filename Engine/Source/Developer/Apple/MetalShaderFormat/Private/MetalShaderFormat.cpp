@@ -376,12 +376,10 @@ public:
 		else if (Input.ShaderFormat == NAME_SF_METAL_SM5)
 		{
 			Input.Environment.SetDefine(TEXT("METAL_SM5_PROFILE"), 1);
-			Input.Environment.SetDefine(TEXT("USING_VERTEX_SHADER_LAYER"), 1);
 		}
 		else if (Input.ShaderFormat == NAME_SF_METAL_SM6)
 		{
 			Input.Environment.SetDefine(TEXT("METAL_SM6_PROFILE"), 1);
-			Input.Environment.SetDefine(TEXT("USING_VERTEX_SHADER_LAYER"), 1);
 		}
 		else if (Input.ShaderFormat == NAME_SF_METAL_MRT_MAC)
 		{
