@@ -52,7 +52,7 @@ void UPCGInstanceDataPackerByAttribute::PackInstances_Implementation(FPCGContext
 
 		if (!Accessor.IsValid() || !Keys.IsValid())
 		{
-			PCGLog::Metadata::LogFailToCreateAccessor(Selector, &Context);
+			PCGLog::Metadata::LogFailToCreateAccessorError(Selector, &Context);
 			continue;
 		}
 

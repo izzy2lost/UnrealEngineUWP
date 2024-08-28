@@ -494,7 +494,7 @@ bool FPCGClusterElement::PrepareDataInternal(FPCGContext* InContext) const
 
 		if (!OutPointData->Metadata->FindOrCreateAttribute<int32>(Settings->ClusterAttribute, 0, /*bAllowsInterpolation=*/false))
 		{
-			PCGLog::Metadata::LogFailToCreateAttribute<int32>(Settings->ClusterAttribute, Context);
+			PCGLog::Metadata::LogFailToCreateAttributeError<int32>(Settings->ClusterAttribute, Context);
 			return EPCGTimeSliceInitResult::AbortExecution;
 		}
 
@@ -506,7 +506,7 @@ bool FPCGClusterElement::PrepareDataInternal(FPCGContext* InContext) const
 		OutState.Keys = PCGAttributeAccessorHelpers::CreateKeys(OutPointData, Selector);
 		if (!OutState.Accessor || !OutState.Keys)
 		{
-			PCGLog::Metadata::LogFailToCreateAccessor(Selector, Context);
+			PCGLog::Metadata::LogFailToCreateAccessorError(Selector, Context);
 			return EPCGTimeSliceInitResult::AbortExecution;
 		}
 

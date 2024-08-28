@@ -185,7 +185,7 @@ bool FPCGMetadataPartitionElement::ExecuteInternal(FPCGContext* Context) const
 			FPCGMetadataAttributeBase* AttributePartitionIndex = Metadata->CreateAttribute<int32>(Settings->PartitionIndexAttributeName, 0, /*bAllowInterpolation=*/false, /*bOverrideParent=*/true);
 			if (!AttributePartitionIndex)
 			{
-				PCGLog::Metadata::LogFailToCreateAttribute<int32>(Settings->PartitionIndexAttributeName, Context);
+				PCGLog::Metadata::LogFailToCreateAttributeError<int32>(Settings->PartitionIndexAttributeName, Context);
 				continue;
 			}
 

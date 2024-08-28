@@ -270,13 +270,13 @@ bool FPCGSplineSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 
 			if (!HeightAccessor)
 			{
-				PCGLog::Metadata::LogFailToCreateAccessor(Selector, InContext);
+				PCGLog::Metadata::LogFailToCreateAccessorError(Selector, InContext);
 				continue;
 			}
 
 			if (!HeightAccessor->Get<double>(ModuleHeight, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey), EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible))
 			{
-				PCGLog::Metadata::LogFailToGetAttribute(Selector, InContext);
+				PCGLog::Metadata::LogFailToGetAttributeError(Selector, InContext);
 				continue;
 			}
 		}
@@ -299,7 +299,7 @@ bool FPCGSplineSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 				OutAttribute = OutputMetadata->FindOrCreateAttribute<T>(AttributeName, DefaultValue, false, true);
 				if (!OutAttribute)
 				{
-					PCGLog::Metadata::LogFailToCreateAttribute<T>(AttributeName, InContext);
+					PCGLog::Metadata::LogFailToCreateAttributeError<T>(AttributeName, InContext);
 					return false;
 				}
 			}
@@ -323,7 +323,7 @@ bool FPCGSplineSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 			const FPCGAttributeAccessorKeysEntries Keys(PCGInvalidEntryKey);
 			if (!GrammarAccessor)
 			{
-				PCGLog::Metadata::LogFailToCreateAccessor(Selector, InContext);
+				PCGLog::Metadata::LogFailToCreateAccessorError(Selector, InContext);
 				continue;
 			}
 

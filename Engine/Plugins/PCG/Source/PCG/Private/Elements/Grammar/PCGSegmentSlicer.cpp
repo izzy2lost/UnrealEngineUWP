@@ -293,7 +293,7 @@ bool FPCGSegmentSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 				OutAttribute = OutputMetadata->FindOrCreateAttribute<T>(AttributeName, DefaultValue, false, true);
 				if (!OutAttribute)
 				{
-					PCGLog::Metadata::LogFailToCreateAttribute<T>(AttributeName, InContext);
+					PCGLog::Metadata::LogFailToCreateAttributeError<T>(AttributeName, InContext);
 					return false;
 				}
 			}

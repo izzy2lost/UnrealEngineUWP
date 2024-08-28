@@ -128,13 +128,13 @@ PCGGrammar::FTokenizedGrammar FPCGSlicingBaseElement::GetTokenizedGrammar(FPCGCo
 		const TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputData, Selector);
 		if (!Accessor)
 		{
-			PCGLog::Metadata::LogFailToCreateAccessor(Selector, InContext);
+			PCGLog::Metadata::LogFailToCreateAccessorError(Selector, InContext);
 			return {};
 		}
 
 		if (!Accessor->Get(Grammar, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey), EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible))
 		{
-			PCGLog::Metadata::LogFailToGetAttribute<FString>(Selector, Accessor.Get(), InContext);
+			PCGLog::Metadata::LogFailToGetAttributeError<FString>(Selector, Accessor.Get(), InContext);
 			return {};
 		}
 	}
@@ -215,7 +215,7 @@ TMap<FString, PCGGrammar::FTokenizedGrammar> FPCGSlicingBaseElement::GetTokenize
 		const TUniquePtr<const IPCGAttributeAccessorKeys> Keys = PCGAttributeAccessorHelpers::CreateConstKeys(InputData, Selector);
 		if (!Accessor || !Keys)
 		{
-			PCGLog::Metadata::LogFailToCreateAccessor(Selector, InContext);
+			PCGLog::Metadata::LogFailToCreateAccessorError(Selector, InContext);
 			return Result;
 		}
 
@@ -229,7 +229,7 @@ TMap<FString, PCGGrammar::FTokenizedGrammar> FPCGSlicingBaseElement::GetTokenize
 
 		if (!bSuccess)
 		{
-			PCGLog::Metadata::LogFailToGetAttribute<FString>(Selector, Accessor.Get(), InContext);
+			PCGLog::Metadata::LogFailToGetAttributeError<FString>(Selector, Accessor.Get(), InContext);
 			return Result;
 		}
 	}

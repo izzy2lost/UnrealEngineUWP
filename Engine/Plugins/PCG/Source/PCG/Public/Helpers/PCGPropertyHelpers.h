@@ -219,7 +219,7 @@ TArray<T> PCGPropertyHelpers::ExtractAttributeSetAsArrayOfStructs(const UPCGPara
 		{
 			if (!bCanBeDefaulted)
 			{
-				PCGLog::Metadata::LogFailToCreateAccessor(Selector, OptionalContext);
+				PCGLog::Metadata::LogFailToCreateAccessorError(Selector, OptionalContext);
 				return {};
 			}
 			else
@@ -258,7 +258,7 @@ TArray<T> PCGPropertyHelpers::ExtractAttributeSetAsArrayOfStructs(const UPCGPara
 
 			if (!Accessor->GetRange<PropertyType>(Temp, 0, *Keys, EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible))
 			{
-				PCGLog::Metadata::LogFailToGetAttribute<PropertyType>(FText::FromName(PropertyName), Accessor.Get(), OptionalContext);
+				PCGLog::Metadata::LogFailToGetAttributeError<PropertyType>(FText::FromName(PropertyName), Accessor.Get(), OptionalContext);
 				return false;
 			}
 

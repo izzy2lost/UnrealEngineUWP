@@ -253,14 +253,14 @@ bool FPCGSelectGrammarElement::ExecuteInternal(FPCGContext* InContext) const
 		TUniquePtr<const IPCGAttributeAccessorKeys> InputKeys = PCGAttributeAccessorHelpers::CreateConstKeys(InputPointData, KeySelector);
 		if (!InputKeyAccessor || !InputKeys)
 		{
-			PCGLog::Metadata::LogFailToCreateAccessor(KeySelector);
+			PCGLog::Metadata::LogFailToCreateAccessorError(KeySelector);
 			continue;
 		}
 
 		TUniquePtr<const IPCGAttributeAccessor> ComparedValuesAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputPointData, ComparedValueSelector);
 		if (!ComparedValuesAccessor)
 		{
-			PCGLog::Metadata::LogFailToCreateAccessor(ComparedValueSelector);
+			PCGLog::Metadata::LogFailToCreateAccessorError(ComparedValueSelector);
 			continue;
 		}
 
@@ -271,7 +271,7 @@ bool FPCGSelectGrammarElement::ExecuteInternal(FPCGContext* InContext) const
 		TUniquePtr<IPCGAttributeAccessorKeys> OutputKeys = PCGAttributeAccessorHelpers::CreateKeys(OutputPointData, OutputGrammarSelector);
 		if (!WriteGrammarAccessor || !OutputKeys)
 		{
-			PCGLog::Metadata::LogFailToCreateAccessor(OutputGrammarSelector);
+			PCGLog::Metadata::LogFailToCreateAccessorError(OutputGrammarSelector);
 			continue;
 		}
 
