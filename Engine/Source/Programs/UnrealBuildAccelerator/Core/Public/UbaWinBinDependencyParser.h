@@ -97,7 +97,7 @@ namespace uba
 		return rva - seh->VirtualAddress + seh->PointerToRawData;
 	} 
 
-	inline bool FindImportsInMem(LPCWSTR fileName, void* mem, const Function<void(const tchar* import, bool isKnown)>& func)
+	inline bool FindImportsInMem(const tchar* fileName, void* mem, const Function<void(const tchar* import, bool isKnown)>& func)
 	{
 		auto hdrs = (PIMAGE_NT_HEADERS)(PCHAR(mem) + PIMAGE_DOS_HEADER(mem)->e_lfanew);   
 		auto pSech=IMAGE_FIRST_SECTION(hdrs);
@@ -115,7 +115,6 @@ namespace uba
 				wname.Append(name);
 				func(wname.data, IsKnownSystemFile(wname.data));
 				++importDesc;
-
 			}
 		}
 		__except(GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
@@ -128,7 +127,7 @@ namespace uba
 		return true;
 	}
 
-	inline bool FindImports(LPCWSTR fileName, const Function<void(const tchar* import, bool isKnown)>& func)
+	inline bool FindImports(const tchar* fileName, const Function<void(const tchar* import, bool isKnown)>& func)
 	{
 		HANDLE fileHandle = True_CreateFileW(fileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, 0);
 		if (fileHandle == INVALID_HANDLE_VALUE)

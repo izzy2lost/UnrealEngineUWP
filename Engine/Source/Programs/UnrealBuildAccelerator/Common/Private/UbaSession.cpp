@@ -23,6 +23,7 @@
 
 // Used to get Memory Information
 #if PLATFORM_MAC
+#include "UbaMacBinDependencyParser.h"
 #include <mach/vm_statistics.h>
 #include <mach/mach_types.h>
 #include <mach/mach_init.h>
@@ -930,14 +931,16 @@ namespace uba
 
 	bool Session::CopyImports(Vector<BinaryModule>& out, const tchar* library, tchar* applicationDir, tchar* applicationDirEnd, UnorderedSet<TString>& handledImports)
 	{
-		#if PLATFORM_WINDOWS
 		if (!handledImports.insert(library).second)
 			return true;
-		swprintf_s(applicationDirEnd, 512 - (applicationDirEnd - applicationDir), TC("%s"), library);
+		TSprintf_s(applicationDirEnd, 512 - (applicationDirEnd - applicationDir), TC("%s"), library);
 		const tchar* applicationName = applicationDir;
 		u32 attr = GetFileAttributesW(applicationName); // TODO: Use attributes table
 		tchar temp[512];
 		tchar temp2[512];
+		bool result = true;
+
+		#if PLATFORM_WINDOWS
 		if (attr == INVALID_FILE_ATTRIBUTES)
 		{
 			if (!SearchPathW(NULL, library, NULL, 512, temp, NULL))
@@ -963,16 +966,38 @@ namespace uba
 
 		out.push_back({ library, temp3.data, attr, isSystem });
 
-		bool result = true;
 		FindImports(applicationName, [&](const tchar* importName, bool isKnown)
 			{
 				if (result && !isKnown)
 					result = CopyImports(out, importName, applicationDir, applicationDirEnd, handledImports);
 			});
-		return result;
+
 		#else
-		return true;
+
+		if (attr == INVALID_FILE_ATTRIBUTES)
+		{
+			UBA_ASSERTF(false, TC("DIR NOT FOUND: %s"), applicationName);
+			return false;
+		}
+
+		StringBuffer<512> temp3;
+		FixPath(applicationName, nullptr, 0, temp3);
+
+		out.push_back({ TString(library), TString(temp3.data), S_IRUSR | S_IWUSR | S_IXUSR });
+
+		#if PLATFORM_MAC
+		FindImportsMac(applicationName, [&](const tchar* importName, bool isKnown)
+			{
+				if (result && !isKnown)
+					result = CopyImports(out, importName, applicationDir, applicationDirEnd, handledImports);
+			});
 		#endif
+
+		// This code is needed if application is compiled with tsan
+		//strcpy(applicationDirEnd, "libclang_rt.tsan.so");
+		//out.push_back({ "libclang_rt.tsan.so", applicationDir, S_IRUSR | S_IWUSR });
+		#endif
+		return result;
 	}
 
 	Session::Session(const SessionCreateInfo& info, const tchar* logPrefix, bool runningRemote, WorkManager* workManager)
@@ -1628,19 +1653,8 @@ namespace uba
 		memcpy(applicationDir, application, applicationDirLen * sizeof(tchar));
 		tchar* applicationDirEnd = applicationDir + applicationDirLen;
 
-#if PLATFORM_WINDOWS
-
 		UnorderedSet<TString> handledImports;
-		CopyImports(out, applicationName, applicationDir, applicationDirEnd, handledImports);
-#else
-		// TODO: This. Does non-windows have dlls that needs to be downloaded here?
-		out.push_back({ TString(applicationName), TString(application), S_IRUSR | S_IWUSR | S_IXUSR });
-		
-		// This code is needed if application is compiled with tsan
-		//strcpy(applicationDirEnd, "libclang_rt.tsan.so");
-		//out.push_back({ "libclang_rt.tsan.so", applicationDir, S_IRUSR | S_IWUSR });
-#endif
-		return true;
+		return CopyImports(out, applicationName, applicationDir, applicationDirEnd, handledImports);
 	}
 
 	void Session::Free(Vector<BinaryModule>& v)

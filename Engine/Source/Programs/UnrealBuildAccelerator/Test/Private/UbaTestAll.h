@@ -35,6 +35,7 @@ namespace uba
 		UBA_TEST(TestCacheEntry) \
 		UBA_TEST(TestConfig) \
 		UBA_TEST(TestCrypto) \
+		UBA_TEST(TestBinDependencies) \
 
 
 #define UBA_POSIX_TESTS \

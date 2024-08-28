@@ -20,6 +20,8 @@
 
 #if PLATFORM_WINDOWS
 #include "UbaWinBinDependencyParser.h"
+#elif PLATFORM_MAC
+#include "UbaMacBinDependencyParser.h"
 #endif
 
 #define VA_ARGS(...) , ##__VA_ARGS__
@@ -455,6 +457,29 @@ namespace uba
 		if (!newStr.Equals(str))
 			return false;
 
+		return true;
+	}
+
+	bool TestBinDependencies(Logger& logger, const StringBufferBase& rootDir)
+	{
+
+#if PLATFORM_WINDOWS
+		StringBuffer<> path;
+		GetDirectoryOfCurrentModule(logger, path);
+		path.EnsureEndsWithSlash().Append(TC("UbaTestApp.exe"));
+		bool importKernel = false;
+		FindImports(path.data, [&](const tchar* import, bool isKnown)
+		{
+			importKernel = isKnown && Contains(import, TC("KERNEL32.dll"));
+		});
+		if (!importKernel)
+			return logger.Error(TC("Failed to find Kernel32 as import"));
+#elif PLATFORM_MAC
+		//FindImportsMac(TC(""), [&](const tchar* import, bool isKnown)
+		//{
+		//	LoggerWithWriter(g_consoleLogWriter).Info(TC("IMPORT: %s"), import);
+		//});
+#endif
 		return true;
 	}
 }
