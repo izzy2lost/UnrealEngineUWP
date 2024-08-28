@@ -111,7 +111,7 @@ bool AActor::CanEditChange(const FProperty* PropertyThatWillChange) const
 			UWorldPartition* OwningWorldPartition = OwningWorld ? OwningWorld->GetWorldPartition() : nullptr;
 			UWorldPartition* OuterWorldPartition = OuterWorld ? OuterWorld->GetWorldPartition() : nullptr;			
 
-			if (!OwningWorldPartition || !OuterWorldPartition)
+			if (!bIsSpatiallyLoadedProperty && (!OwningWorldPartition || !OuterWorldPartition))
 			{
 				return false;
 			}
