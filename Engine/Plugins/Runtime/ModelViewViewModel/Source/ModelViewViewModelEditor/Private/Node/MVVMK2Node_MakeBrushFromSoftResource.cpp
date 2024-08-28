@@ -82,7 +82,6 @@ void UMVVMK2Node_MakeBrushFromSoftResource::ExpandNode(FKismetCompilerContext& C
 
 	UK2Node_DynamicCast* CastNode = CompilerContext.SpawnIntermediateNode<UK2Node_DynamicCast>(this, SourceGraph);
 	{
-		// CastNode->SetPurity(true);
 		CastNode->TargetType = GetInputResourceClass();
 		CastNode->AllocateDefaultPins();
 	}

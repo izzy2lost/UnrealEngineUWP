@@ -60,7 +60,6 @@ void UMVVMK2Node_LoadSoftResource::ExpandNode(FKismetCompilerContext& CompilerCo
 
 	UK2Node_DynamicCast* CastNode = CompilerContext.SpawnIntermediateNode<UK2Node_DynamicCast>(this, SourceGraph);
 	{
-		// CastNode->SetPurity(true);
 		CastNode->TargetType = GetInputResourceClass();
 		CastNode->AllocateDefaultPins();
 	}
