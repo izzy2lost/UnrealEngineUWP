@@ -101,6 +101,7 @@ namespace HordeServer.Tools
 			public string? Group => _config.Group;
 			public IReadOnlyList<string>? Platforms => _config.Platforms;
 			public bool Public => _config.Public;
+			public bool Bundled => _config is BundledToolConfig;
 			public bool ShowInUgs => _config.ShowInUgs;
 			public bool ShowInDashboard => _config.ShowInDashboard;
 			public IReadOnlyList<IToolDeployment> Deployments => _deployments;

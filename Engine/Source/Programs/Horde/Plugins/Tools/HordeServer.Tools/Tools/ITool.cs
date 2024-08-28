@@ -51,6 +51,11 @@ namespace HordeServer.Tools
 		bool Public { get; }
 
 		/// <summary>
+		/// Whether the tool is bundled with the server
+		/// </summary>
+		bool Bundled { get; }
+
+		/// <summary>
 		/// Whether to show the tool for download in UGS
 		/// </summary>
 		bool ShowInUgs { get; }
