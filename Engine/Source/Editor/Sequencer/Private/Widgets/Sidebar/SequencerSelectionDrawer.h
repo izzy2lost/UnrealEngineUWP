@@ -51,6 +51,8 @@ protected:
 	TSharedPtr<SWidget> CreateKeyFrameDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSequencerSelection);
 	TSharedPtr<SWidget> CreateMarkedFrameDetails(const int32 InMarkedFrameIndex);
 
+	void ResetContent();
+
 	TWeakPtr<FSequencer> WeakSequencer;
 
 	TSharedPtr<SVerticalBox> ContentBox;
