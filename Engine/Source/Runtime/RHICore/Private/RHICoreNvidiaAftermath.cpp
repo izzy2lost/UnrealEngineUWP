@@ -676,6 +676,7 @@ namespace UE::RHICore::Nvidia::Aftermath
 
 			case GFSDK_Aftermath_CrashDump_Status_Finished:
 				UE_LOG(LogNvidiaAftermath, Error, TEXT("%s"), *CrashResult.OutputLog);
+				FGenericCrashContext::SetEngineData(TEXT("RHI.HasAftermathCrashDump"), CrashResult.DumpPath.IsSet() ? TEXT("true") : TEXT("false"));
 				return CrashResult;
 			}
 		}
