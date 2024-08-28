@@ -11,7 +11,6 @@
 
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
-#include "Misc/Crc.h"
 #include "UObject/NameTypes.h"
 #include "UObject/ScriptDelegates.h"
 #include "UObject/WeakObjectPtrTemplates.h"
@@ -1153,11 +1152,6 @@ public:
 		__Internal_BindDynamic(ToRawPtr(InUserObject), InMethodPtr, InFunctionName);
 	}
 
-	friend uint32 GetTypeHash(const TBaseDynamicDelegate& Key)
-	{
-		return FCrc::MemCrc_DEPRECATED(&Key,sizeof(Key));
-	}
-
 	// NOTE:  Execute() method must be defined in derived classes
 
 	// NOTE:  ExecuteIfBound() method must be defined in derived classes
@@ -1300,3 +1294,7 @@ public:
 
 	// NOTE:  Broadcast() method must be defined in derived classes
 };
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Misc/Crc.h"
+#endif
