@@ -49,8 +49,6 @@ namespace UnrealBuildTool.Rules
 			}
 
 			PrivateDefinitions.Add("CHAOS_INCLUDE_LEVEL_1=1");
-
-			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }
