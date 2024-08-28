@@ -1383,6 +1383,9 @@ static void ModifyCompilerInput(FSpirvShaderCompilerInternalState& InternalState
 	if (Input.Environment.CompilerFlags.Contains(CFLAG_InlineRayTracing))
 	{
 		Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_INLINE_RAY_TRACING"), 1);
+
+		// Support is only garanteed on desktop currently
+		Input.Environment.SetDefine(TEXT("VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH"), InternalState.IsAndroid() ? 0 : 1);
 	}
 
 	if (Input.Environment.CompilerFlags.Contains(CFLAG_AllowRealTypes))

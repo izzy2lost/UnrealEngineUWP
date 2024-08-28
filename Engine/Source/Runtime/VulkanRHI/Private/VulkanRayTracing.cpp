@@ -169,6 +169,10 @@ static VkBuildAccelerationStructureFlagBitsKHR TranslateRayTracingAccelerationSt
 
 	checkf(!EnumHasAnyFlags(Flags, Flags), TEXT("Some ERayTracingAccelerationStructureFlags entries were not handled"));
 
+#if VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
+	Result |= (uint32)VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_KHR;
+#endif
+
 	return VkBuildAccelerationStructureFlagBitsKHR(Result);
 }
 
@@ -337,6 +341,10 @@ static void GetBLASBuildData(
 	{
 		BuildData.GeometryInfo.flags |= VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR;
 	}
+#if VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
+	BuildData.GeometryInfo.flags |= VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_KHR;
+#endif
+
 	BuildData.GeometryInfo.mode = (BuildMode == EAccelerationStructureBuildMode::Build) ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR;
 	BuildData.GeometryInfo.geometryCount = BuildData.Segments.Num();
 	BuildData.GeometryInfo.pGeometries = BuildData.Segments.GetData();
@@ -677,11 +685,6 @@ FVulkanRayTracingScene::FVulkanRayTracingScene(FRayTracingSceneInitializer2 InIn
 	INC_DWORD_STAT(STAT_VulkanRayTracingAllocatedTLAS);
 
 	SizeInfo = RHICalcRayTracingSceneSize(Initializer.MaxNumInstances, Initializer.BuildFlags);
-
-	const uint32 ParameterBufferSize = FMath::Max<uint32>(1, Initializer.NumTotalSegments) * sizeof(FVulkanRayTracingGeometryParameters);
-	FRHIResourceCreateInfo ParameterBufferCreateInfo(TEXT("RayTracingSceneMetadata"));
-	// Use FRHICommandListExecutor::GetImmediateCommandList as a temporary patch for 5.4 to avoid issues with RHI Validation
-	PerInstanceGeometryParameterBuffer = ResourceCast(FRHICommandListExecutor::GetImmediateCommandList().CreateBuffer(ParameterBufferSize, BUF_StructuredBuffer | BUF_ShaderResource, sizeof(FVulkanRayTracingGeometryParameters), ERHIAccess::SRVMask, ParameterBufferCreateInfo).GetReference());
 }
 
 FVulkanRayTracingScene::~FVulkanRayTracingScene()
@@ -837,16 +840,50 @@ void BuildAccelerationStructure(
 	Scene.bBuilt = true;
 }
 
+
+#if VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
+
+// Metadata buffer is unused with the support of position_fetch
+FVulkanResourceMultiBuffer* FVulkanRayTracingScene::GetOrCreateMetadataBuffer(FRHICommandListBase& RHICmdList) { return nullptr; }
+FRHIShaderResourceView* FVulkanRayTracingScene::GetOrCreateMetadataBufferSRV(FRHICommandListImmediate& RHICmdList) { return nullptr; }
+void FVulkanRayTracingScene::BuildPerInstanceGeometryParameterBuffer(FRHICommandListBase& RHICmdList) {}
+
+#else
+
+FVulkanResourceMultiBuffer* FVulkanRayTracingScene::GetOrCreateMetadataBuffer(FRHICommandListBase& RHICmdList)
+{
+	UE::TScopeLock Lock(Mutex);
+	if (!PerInstanceGeometryParameterBuffer.IsValid())
+	{
+		const uint32 ParameterBufferSize = FMath::Max<uint32>(1, Initializer.NumTotalSegments) * sizeof(FVulkanRayTracingGeometryParameters);
+		FRHIResourceCreateInfo ParameterBufferCreateInfo(TEXT("RayTracingSceneMetadata"));
+		PerInstanceGeometryParameterBuffer = ResourceCast(RHICmdList.CreateBuffer(ParameterBufferSize, BUF_Dynamic | BUF_StructuredBuffer | BUF_ShaderResource, sizeof(FVulkanRayTracingGeometryParameters), ERHIAccess::SRVMask, ParameterBufferCreateInfo).GetReference());
+	}
+	return PerInstanceGeometryParameterBuffer.GetReference();
+}
+
+FRHIShaderResourceView* FVulkanRayTracingScene::GetOrCreateMetadataBufferSRV(FRHICommandListImmediate& RHICmdList)
+{
+	if (!PerInstanceGeometryParameterSRV.IsValid())
+	{
+		PerInstanceGeometryParameterSRV = RHICmdList.CreateShaderResourceView(GetOrCreateMetadataBuffer(RHICmdList), FRHIViewDesc::CreateBufferSRV().SetType(FRHIViewDesc::EBufferType::Structured));
+	}
+
+	return PerInstanceGeometryParameterSRV.GetReference();
+}
+
 void FVulkanRayTracingScene::BuildPerInstanceGeometryParameterBuffer(FRHICommandListBase& RHICmdList)
 {
 	// TODO: we could cache parameters in the geometry object to avoid some of the pointer chasing (if this is measured to be a performance issue)
 
+	FVulkanResourceMultiBuffer* MetadataBuffer = GetOrCreateMetadataBuffer(RHICmdList);
+
 	const uint32 ParameterBufferSize = FMath::Max<uint32>(1, Initializer.NumTotalSegments) * sizeof(FVulkanRayTracingGeometryParameters);
-	check(PerInstanceGeometryParameterBuffer->GetSize() >= ParameterBufferSize);
+	check(MetadataBuffer->GetSize() >= ParameterBufferSize);
 
 	check(IsInRHIThread() || !IsRunningRHIInSeparateThread());
 
-	void* MappedBuffer = PerInstanceGeometryParameterBuffer->Lock(RHICmdList, RLM_WriteOnly, ParameterBufferSize, 0);
+	void* MappedBuffer = MetadataBuffer->Lock(RHICmdList, RLM_WriteOnly, ParameterBufferSize, 0);
 	FVulkanRayTracingGeometryParameters* MappedParameters = reinterpret_cast<FVulkanRayTracingGeometryParameters*>(MappedBuffer);
 	uint32 ParameterIndex = 0;
 
@@ -891,9 +928,10 @@ void FVulkanRayTracingScene::BuildPerInstanceGeometryParameterBuffer(FRHICommand
 
 	check(ParameterIndex == Initializer.NumTotalSegments);
 
-	PerInstanceGeometryParameterBuffer->Unlock(RHICmdList);
+	MetadataBuffer->Unlock(RHICmdList);
 }
 
+#endif // VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
 
 FVulkanRayTracingShaderTable::FVulkanRayTracingShaderTable(FVulkanDevice* Device, const FRayTracingShaderBindingTableInitializer& InInitializer)
 	: FRHIShaderBindingTable(InInitializer)

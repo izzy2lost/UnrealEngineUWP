@@ -959,6 +959,40 @@ private:
 };
 
 
+// ***** VK_KHR_ray_tracing_position_fetch
+class FVulkanKHRRayTracingPositionFetchExtension : public FVulkanDeviceExtension
+{
+public:
+
+	FVulkanKHRRayTracingPositionFetchExtension(FVulkanDevice* InDevice)
+		: FVulkanDeviceExtension(InDevice, VK_KHR_RAY_TRACING_POSITION_FETCH_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
+	{
+		bEnabledInCode = bEnabledInCode && GVulkanRayTracingCVar.GetValueOnAnyThread() && !FParse::Param(FCommandLine::Get(), TEXT("noraytracing"));
+	}
+
+	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
+	{
+		ZeroVulkanStruct(RayTracingPositionFetchFeatures, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR);
+		AddToPNext(PhysicalDeviceFeatures2, RayTracingPositionFetchFeatures);
+	}
+
+	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
+	{
+		bRequirementsPassed = (RayTracingPositionFetchFeatures.rayTracingPositionFetch == VK_TRUE);
+	}
+
+	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
+	{
+		if (bRequirementsPassed)
+		{
+			AddToPNext(DeviceCreateInfo, RayTracingPositionFetchFeatures);
+		}
+	}
+
+private:
+	VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR  RayTracingPositionFetchFeatures;
+};
+
 
 // ***** VK_AMD_buffer_marker (vendor)
 class FVulkanAMDBufferMarkerExtension : public FVulkanDeviceExtension
@@ -1547,6 +1581,7 @@ FVulkanDeviceExtensionArray FVulkanDeviceExtension::GetUESupportedDeviceExtensio
 	ADD_CUSTOM_EXTENSION(FVulkanKHRAccelerationStructureExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanKHRRayTracingPipelineExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanKHRRayQueryExtension);
+	ADD_CUSTOM_EXTENSION(FVulkanKHRRayTracingPositionFetchExtension);
 
 	// Vendor extensions
 	ADD_CUSTOM_EXTENSION(FVulkanAMDBufferMarkerExtension);

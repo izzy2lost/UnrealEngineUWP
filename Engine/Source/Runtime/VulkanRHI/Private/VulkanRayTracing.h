@@ -213,15 +213,8 @@ public:
 		}
 	}
 
-	virtual FRHIShaderResourceView* GetOrCreateMetadataBufferSRV(FRHICommandListImmediate& RHICmdList) override final
-	{
-		if (!PerInstanceGeometryParameterSRV.IsValid())
-		{
-			PerInstanceGeometryParameterSRV = RHICmdList.CreateShaderResourceView(PerInstanceGeometryParameterBuffer, FRHIViewDesc::CreateBufferSRV().SetType(FRHIViewDesc::EBufferType::Structured));
-		}
-
-		return PerInstanceGeometryParameterSRV.GetReference();
-	}
+	FVulkanResourceMultiBuffer* GetOrCreateMetadataBuffer(FRHICommandListBase& RHICmdList);
+	virtual FRHIShaderResourceView* GetOrCreateMetadataBufferSRV(FRHICommandListImmediate& RHICmdList) override final;
 
 	FRHIShaderBindingTable* FindOrCreateShaderBindingTable(const FRHIRayTracingPipelineState* Pipeline);
 
@@ -359,5 +352,4 @@ private:
 
 	FVulkanRayTracingCompactedSizeQueryPool* QueryPool = nullptr;
 };
-
 
