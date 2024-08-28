@@ -105,6 +105,7 @@ namespace UE::ChooserEditor
 		bool IsSelectionDisabled() const;
 		void ToggleDisableSelection();
 		void DeleteSelection();
+		void DuplicateSelection();
 
 		bool CanMoveRowsUp();
 		void MoveRowsUp();
