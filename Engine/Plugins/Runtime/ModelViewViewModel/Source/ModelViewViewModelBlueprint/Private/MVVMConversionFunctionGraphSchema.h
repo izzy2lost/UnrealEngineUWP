@@ -15,8 +15,25 @@ class UMVVMConversionFunctionGraphSchema : public UEdGraphSchema_K2
 	GENERATED_BODY()
 
 public:
+	//~ Begin EdGraphSchema Interface
 	virtual bool TryCreateConnection(UEdGraphPin* A, UEdGraphPin* B) const override;
 	virtual const FPinConnectionResponse CanCreateConnection(const UEdGraphPin* A, const UEdGraphPin* B) const override;
+	//~ End EdGraphSchema Interface
+};
+
+/**
+ * Schema used by async conversion functions, currently same as regular graph schema. But will autocast objects.
+ */
+UCLASS()
+class UMVVMAsyncConversionFunctionGraphSchema : public UMVVMConversionFunctionGraphSchema
+{
+	GENERATED_BODY()
+
+public:
+	//~ Begin EdGraphSchema Interface
+	virtual bool CreateAutomaticConversionNodeAndConnections(UEdGraphPin* A, UEdGraphPin* B) const override;
+	[[nodiscard]] virtual TOptional<FFindSpecializedConversionNodeResults> FindSpecializedConversionNode(const FEdGraphPinType& OutputPinType, const UEdGraphPin& InputPin, bool bCreateNode) const override;
+	//~ End EdGraphSchema Interface
 };
 
 /**

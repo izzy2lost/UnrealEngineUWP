@@ -1195,7 +1195,7 @@ TValueOrError<FCreateGraphResult, FText> CreateSetterGraph(UBlueprint* Blueprint
 	// Create the wrapper setter node
 	TValueOrError<FCreateGraphResult, FText> LinkedSetterGraph = Private::CreateSetterAndLinkNodes(PropertyPath, Blueprint, InParams, Result, CanCreateSetterGraphResult.GetValue(), CreateGraphInternalResult);
 
-	const UMVVMConversionFunctionGraphSchema* GraphSchema = GetDefault<UMVVMConversionFunctionGraphSchema>();
+	const UMVVMAsyncConversionFunctionGraphSchema* GraphSchema = GetDefault<UMVVMAsyncConversionFunctionGraphSchema>();
 
 	if (!LinkedSetterGraph.HasError())
 	{
