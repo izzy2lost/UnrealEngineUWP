@@ -50,8 +50,8 @@
 	#endif
 
 	#ifndef CVD_TRACE_PARTICLES_SOA
-		#define CVD_TRACE_PARTICLES_SOA(ParticleSoA) \
-		FChaosVisualDebuggerTrace::TraceParticlesSoA(ParticleSoA);
+		#define CVD_TRACE_PARTICLES_SOA(ParticleSoA, ...) \
+		FChaosVisualDebuggerTrace::TraceParticlesSoA(ParticleSoA, ##__VA_ARGS__);
 	#endif
 
 	#ifndef CVD_TRACE_SOLVER_START_FRAME
@@ -257,7 +257,7 @@
 	#endif
 
 	#ifndef CVD_TRACE_PARTICLES_SOA
-		#define CVD_TRACE_PARTICLES_SOA(ParticleSoA)
+		#define CVD_TRACE_PARTICLES_SOA(ParticleSoA, ...)
 	#endif
 
 	#ifndef CVD_TRACE_PARTICLE_DESTROYED

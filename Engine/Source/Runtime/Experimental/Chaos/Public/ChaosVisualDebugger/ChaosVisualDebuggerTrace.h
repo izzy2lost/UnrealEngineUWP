@@ -29,6 +29,7 @@
 
 namespace Chaos
 {
+class FRigidClustering;
 class FAccelerationStructureHandle;
 class FCharacterGroundConstraintContainer;
 class FPBDConstraintContainer;
@@ -195,7 +196,7 @@ public:
 	 * Traces data from particles on the provided FPBDRigidsSOAs. It traces only the DirtyParticles view unless a full capture was requested
 	 * @param ParticlesSoA Particles SoA to evaluate and trace
 	 */
-	static CHAOS_API void TraceParticlesSoA(const Chaos::FPBDRigidsSOAs& ParticlesSoA);
+	static CHAOS_API void TraceParticlesSoA(const Chaos::FPBDRigidsSOAs& ParticlesSoA, Chaos::FRigidClustering* ClusteringData = nullptr);
 
 	/** Traces the provided particle view in parallel */
 	template<typename ParticleType>
@@ -377,9 +378,17 @@ public:
 private:
 
 	/**
+	 * Traces data from all Child Particles from any Cluster Particle inside the provided view array, using the provided CVD Context and Clustering Data
+	 * @param ParticlesView Particles Array view to process and Trace
+	 * @param ClusteringData Object containing the mappings required to find all child particles for a given cluster particle
+	 * @param CVDContextData Context to be used to tie this Trace event with specific solver frame and step
+	 */
+	static CHAOS_API void TraceParticleClusterChildData(const Chaos::TParticleView<Chaos::TPBDRigidParticles<Chaos::FReal, 3>>& ParticlesView, Chaos::FRigidClustering* ClusteringData, const FChaosVDContext& CVDContextData);
+
+	/**
 	 * Traces data from a Particle Handle using the provided CVD Context
 	 * @param ParticleHandle Handle to process and Trace
-	 * @param ContextData Context to be used to tied this Trace event to a specific solver frame and step
+	 * @param ContextData Context to be used to tie this Trace event with specific solver frame and step
 	 */
 	static CHAOS_API void TraceParticle(Chaos::FGeometryParticleHandle* ParticleHandle, const FChaosVDContext& ContextData);
 

@@ -155,6 +155,10 @@ CVD_DECLARE_OPTIONAL_DATA_CHANNEL(JointConstraints);
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(CharacterGroundConstraints);
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(AccelerationStructures);
 
+// When a particle is added to a cluster will get disabled and therefore not updated by CVD's delta frames implementation.
+// If this channel is enabled, we will record all child particles of any active dirty cluster particle
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(ClusterParticlesChildData);
+
 #else  //WITH_CHAOS_VISUAL_DEBUGGER
 
 /** Declares an Optional CVD Data channel to be available globally. The data channel can be accessed by using CVDDC_TheNameOfTheChannelUsedWithThisMacro */

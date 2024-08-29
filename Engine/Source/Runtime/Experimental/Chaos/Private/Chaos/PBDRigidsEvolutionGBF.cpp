@@ -508,7 +508,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 
 	{
 		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_EvolutionStart, TEXT("Evolution Start"));
-		CVD_TRACE_PARTICLES_SOA(Particles);
+		CVD_TRACE_PARTICLES_SOA(Particles, &Clustering);
 	}
 
 	// Update the collision solver type (used to support runtime comparisons of solver types for debugging/testing)
@@ -543,7 +543,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 
 	{
 		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_PostIntegrate, TEXT("Post Integrate"));
-		CVD_TRACE_PARTICLES_SOA(Particles);
+		CVD_TRACE_PARTICLES_SOA(Particles, &Clustering);
 	}
 
 	if (PostIntegrateCallback != nullptr)
@@ -663,7 +663,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 
 	{
 		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_PreConstraintSolve, TEXT("Pre Solve"));
-		CVD_TRACE_PARTICLES_SOA(Particles);
+		CVD_TRACE_PARTICLES_SOA(Particles, &Clustering);
 	}
 
 	// Assign all islands to a set of groups. Each group is solved in parallel with the others.
@@ -705,7 +705,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 
 	{
 		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_PostConstraintSolve, TEXT("Post Solve"));
-		CVD_TRACE_PARTICLES_SOA(Particles);
+		CVD_TRACE_PARTICLES_SOA(Particles, &Clustering);
 	}
 
 	if (PostSolveCallback != nullptr)
@@ -790,7 +790,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 		CVD_TRACE_JOINT_CONSTRAINTS(CVDDC_JointConstraints, JointConstraints);
 		CVD_TRACE_CHARACTER_GROUND_CONSTRAINTS(CVDDC_CharacterGroundConstraints, CharacterGroundConstraints);
 
-		CVD_TRACE_PARTICLES_SOA(Particles);
+		CVD_TRACE_PARTICLES_SOA(Particles, &Clustering);
 	}
 
 #if !UE_BUILD_SHIPPING

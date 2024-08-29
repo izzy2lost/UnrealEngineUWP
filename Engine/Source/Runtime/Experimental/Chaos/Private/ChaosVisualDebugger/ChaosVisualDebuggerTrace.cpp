@@ -4,6 +4,8 @@
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
 
+#include "Chaos/PBDRigidClustering.h"
+
 #include "Chaos/Character/CharacterGroundConstraintContainer.h"
 #include "Chaos/Framework/PhysicsSolverBase.h"
 #include "Chaos/ImplicitObject.h"
@@ -225,7 +227,41 @@ void FChaosVisualDebuggerTrace::TraceParticleDestroyed(const Chaos::FGeometryPar
 		<< ChaosVDParticleDestroyed.ParticleID(ParticleHandle->UniqueIdx().Idx);
 }
 
-void FChaosVisualDebuggerTrace::TraceParticlesSoA(const Chaos::FPBDRigidsSOAs& ParticlesSoA)
+void FChaosVisualDebuggerTrace::TraceParticleClusterChildData(const Chaos::TParticleView<Chaos::TPBDRigidParticles<Chaos::FReal, 3>>& ParticlesView, Chaos::FRigidClustering* ClusteringData, const FChaosVDContext& CVDContextData)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	if (!ClusteringData)
+	{
+		return;
+	}
+
+	if (!CVDDC_ClusterParticlesChildData->IsChannelEnabled())
+	{
+		return;
+	}
+
+	ParticlesView.ParallelFor([CopyContext = CVDContextData, ClusteringData](auto& Particle, int32 Index)
+	{
+		if (Chaos::FPBDRigidClusteredParticleHandle* ClusteredParticle = Particle.Handle()->CastToClustered())
+		{
+			CVD_SCOPE_CONTEXT(CopyContext);
+			if (const TArray<Chaos::FPBDRigidParticleHandle*>* ChildrenHandles = ClusteringData->GetChildrenMap().Find(ClusteredParticle))
+			{
+				const TArray<Chaos::FPBDRigidParticleHandle*>& ChildrenHandlesArray = *ChildrenHandles;
+				for (Chaos::FPBDRigidParticleHandle* ParticleHandle : ChildrenHandlesArray)
+				{
+					TraceParticle(ParticleHandle);
+				}
+			}
+		}
+	});
+}
+
+void FChaosVisualDebuggerTrace::TraceParticlesSoA(const Chaos::FPBDRigidsSOAs& ParticlesSoA, Chaos::FRigidClustering* ClusteringData)
 {
 	using namespace Chaos::VisualDebugger::Utils;
 	if (!IsTracing())
@@ -248,6 +284,9 @@ void FChaosVisualDebuggerTrace::TraceParticlesSoA(const Chaos::FPBDRigidsSOAs& P
 	}
 
 	TraceParticlesView(ParticlesSoA.GetDirtyParticlesView());
+
+	// If we are recording a delta frame, we need to also record the child particles of any cluster (if we have clustering data available)
+	TraceParticleClusterChildData(ParticlesSoA.GetDirtyParticlesView(), ClusteringData, *CVDContextData);
 }
 
 void FChaosVisualDebuggerTrace::SetupForFullCaptureIfNeeded(int32 SolverID, bool& bOutFullCaptureRequested)
