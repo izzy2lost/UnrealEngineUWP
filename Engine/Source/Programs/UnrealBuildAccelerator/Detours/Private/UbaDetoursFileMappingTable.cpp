@@ -269,9 +269,12 @@ namespace uba
 			writer.WriteByte(MessageType_GetFullFileName);
 			writer.WriteString(path);
 			writer.WriteStringKey(fileNameKey);
+			u16& bytes = *(u16*)writer.AllocWrite(2);
+			auto pos = writer.GetPosition();
 			if (loaderPaths)
 				for (auto i=loaderPaths; *i; ++i)
 					writer.WriteString(*i);
+			bytes = u16(writer.GetPosition() - pos);
 			writer.Flush();
 			BinaryReader reader;
 			reader.ReadString(tempBuf);

@@ -714,8 +714,8 @@ namespace uba
 		GetFullFileNameMessage msg { *this };
 		reader.ReadString(msg.fileName);
 		msg.fileNameKey = reader.ReadStringKey();
+		msg.loaderPathsSize = reader.ReadU16();
 		msg.loaderPaths = reader.GetPositionData();
-		msg.loaderPathsSize = u32(reader.GetLeft());
 		
 		GetFullFileNameResponse response;
 		m_messageSuccess = m_session.GetFullFileName(response, msg) && m_messageSuccess;

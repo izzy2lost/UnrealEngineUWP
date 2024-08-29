@@ -2437,11 +2437,12 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 	std::vector<Import, GrowingAllocator<Import>> importedModules(&g_memoryBlock);
 	{
 		SuppressCreateFileDetourScope cfs;
-		if (!FindImports(lpLibFileName, [&](const wchar_t* import, bool isKnown)
+		StringBuffer<256> error;
+		if (!FindImports(lpLibFileName, [&](const wchar_t* import, bool isKnown, const char* const* importLoaderPaths)
 			{
 				if (!GetModuleHandleW(import))
 					importedModules.emplace_back(import, isKnown);
-			}))
+			}, error))
 		{
 			UBA_ASSERTF(false, L"Failed to find imports for binary %ls (%ls)", lpLibFileName, originalName);
 		}
