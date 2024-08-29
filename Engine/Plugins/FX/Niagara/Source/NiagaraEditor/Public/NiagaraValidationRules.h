@@ -478,3 +478,26 @@ public:
 	UPROPERTY(EditAnywhere, Category = Validation)
 	bool bCheckDetailedUsageContext = false;
 };
+
+/** This validation rule checks that map for nodes are not used with cpu scripts (as they only work on gpu). */
+UCLASS(Category = "Validation", DisplayName = "MapFor on CPU Check")
+class UNiagaraValidationRule_NoMapForOnCpu : public UNiagaraValidationRule
+{
+	GENERATED_BODY()
+
+public:
+	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
+
+	/** How do we want to report the error in the stack */
+	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Error;
+
+private:
+
+	struct FGraphCheckResult
+	{
+		FGuid ChangeID;
+		bool bContainsMapForNode = false;
+	};
+	mutable TMap<FObjectKey, FGraphCheckResult> CachedResults;
+};

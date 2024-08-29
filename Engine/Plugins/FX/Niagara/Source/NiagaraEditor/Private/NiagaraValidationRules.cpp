@@ -29,6 +29,8 @@
 #include "ViewModels/NiagaraEmitterViewModel.h"
 
 #include "AssetToolsModule.h"
+#include "NiagaraNodeOutput.h"
+#include "NiagaraNodeParameterMapFor.h"
 #include "Materials/MaterialInterface.h"
 
 #include "DeviceProfiles/DeviceProfile.h"
@@ -1436,6 +1438,59 @@ void UNiagaraValidationRule_SingletonModule::CheckValidity(const FNiagaraValidat
 						)
 					);
 				}
+			}
+		}
+	}
+}
+
+void UNiagaraValidationRule_NoMapForOnCpu::CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const
+{
+	// gather all the modules in the system
+	TArray<UNiagaraStackModuleItem*> AllModules;
+	AllModules.Append(NiagaraValidation::GetStackEntries<UNiagaraStackModuleItem>(Context.ViewModel->GetSystemStackViewModel()));
+	TArray<TSharedRef<FNiagaraEmitterHandleViewModel>> EmitterHandleViewModels = Context.ViewModel->GetEmitterHandleViewModels();
+	for (TSharedRef<FNiagaraEmitterHandleViewModel> EmitterHandleModel : EmitterHandleViewModels)
+	{
+		AllModules.Append(NiagaraValidation::GetStackEntries<UNiagaraStackModuleItem>(EmitterHandleModel.Get().GetEmitterStackViewModel()));
+	}
+
+	for (UNiagaraStackModuleItem* Module : AllModules)
+	{
+		ENiagaraScriptUsage ScriptUsage = Module->GetOutputNode()->GetUsage();
+		FNiagaraEmitterViewModel* EmitterViewModel = Module->GetEmitterViewModel().Get();
+		if (EmitterViewModel && EmitterViewModel->GetEmitter().GetEmitterData()->SimTarget == ENiagaraSimTarget::GPUComputeSim && FNiagaraUtilities::ConvertScriptUsageToStaticSwitchContext(ScriptUsage) == ENiagaraScriptContextStaticSwitch::Particle)
+		{
+			// modules used in gpu scripts are ignored 
+			continue;
+		}
+		if (UNiagaraGraph* Graph = Module->GetModuleNode().GetCalledGraph())
+		{
+			FObjectKey GraphKey(Graph);
+			FGraphCheckResult& CheckResult = CachedResults.FindOrAdd(GraphKey);
+			if (CheckResult.ChangeID != Graph->GetChangeID())
+			{
+				CheckResult.ChangeID = Graph->GetChangeID();
+				CheckResult.bContainsMapForNode = false;
+				
+				TArray<UNiagaraNode*> TraversalNodes;
+				Graph->BuildTraversal(TraversalNodes, ENiagaraScriptUsage::Module, FGuid());
+				for (UNiagaraNode* TraversalNode : TraversalNodes)
+				{
+					if (TraversalNode->IsA<UNiagaraNodeParameterMapFor>() || TraversalNode->IsA<UNiagaraNodeParameterMapForWithContinue>())
+					{
+						CheckResult.bContainsMapForNode = true;
+						break;
+					}
+				}
+			}
+			if (CheckResult.bContainsMapForNode)
+			{
+				OutResults.Emplace(
+					Severity,
+					LOCTEXT("NoMapForOnCpu", "Map for node doesn't work in cpu scripts"),
+					LOCTEXT("NoMapForOnCpuDetailed", "This module contains a map for node, which does not work yet for cpu scripts.\nMap for nodes only work in particle gpu scripts. System and emitter scripts always run on the cpu."),
+					Module
+				);
 			}
 		}
 	}
