@@ -339,7 +339,8 @@ void UInterchangeGenericAnimationPipeline::ExecutePipeline(UInterchangeBaseNodeC
 			SkeletalAnimationNode->SetCustomAnimationSampleRate(CustomFrameRate);
 			SkeletalAnimationNode->SetCustomAnimationStartTime(0);
 			//stop time will be calculated once we get the curves from the Translators.
-			SkeletalAnimationNode->SetCustomAnimationStopTime(0);
+			//However to avoid error reports we set stoptime for 1 subframe.
+			SkeletalAnimationNode->SetCustomAnimationStopTime(1./CustomFrameRate);
 
 			for (const FString& AnimationTrackUid : AnimationTrackUids)
 			{
