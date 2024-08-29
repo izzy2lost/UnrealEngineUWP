@@ -253,7 +253,7 @@ namespace UE::AssetCache::Private
 
 		// Transfer over whether we're cooking or not, but otherwise leave at the default settings, as that is
 		// how we'll try to deserialize on the other end, which is potentially at runtime
-		Ar.SetCookData(DestArchive.GetCookData());
+		Ar.SetSavePackageData(DestArchive.GetSavePackageData());
 		Ar.SetFilterEditorOnly(DestArchive.IsFilterEditorOnly());
 		Ar.SetUEVer(DestArchive.UEVer());
 		Ar.SetLicenseeUEVer(DestArchive.LicenseeUEVer());

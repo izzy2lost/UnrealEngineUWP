@@ -2561,7 +2561,7 @@ void UBlueprintGeneratedClass::Serialize(FArchive& Ar)
 		// Find all imported packages from the Blueprint and its subobjects and declare them as
 		// used-in-game imports of the cooked package by serializing them as SoftObjectPaths.
 		FImportExportCollector Collector(this->GetPackage());
-		Collector.SetCookData(Ar.GetCookData());
+		Collector.SetSavePackageData(Ar.GetSavePackageData());
 		Collector.AddExportToIgnore(this);
 		Collector.SetFilterEditorOnly(Ar.IsFilterEditorOnly());
 		UObject* ClassGeneratedByPtr = ClassGeneratedBy;

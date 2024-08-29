@@ -982,7 +982,7 @@ void FSkeletalMeshLODRenderData::Serialize(FArchive& Ar, UObject* Owner, int32 I
 		if (Ar.IsSaving())
 		{
 			FSkeletalMeshLODSizeCounter LODSizeCounter;
-			LODSizeCounter.SetCookData(Ar.GetCookData());
+			LODSizeCounter.SetSavePackageData(Ar.GetSavePackageData());
 			LODSizeCounter.SetByteSwapping(Ar.IsByteSwapping());
 			SerializeStreamedData(LODSizeCounter, OwnerMesh, Idx, ClassDataStripFlags, bNeedsCPUAccess, bForceKeepCPUResources);
 			BuffersSize = LODSizeCounter.TotalSize();
@@ -1010,7 +1010,7 @@ void FSkeletalMeshLODRenderData::Serialize(FArchive& Ar, UObject* Owner, int32 I
 				if (!bDiscardBulkData)
 				{
 					FMemoryWriter MemWriter(TmpBuff, true);
-					MemWriter.SetCookData(Ar.GetCookData());
+					MemWriter.SetSavePackageData(Ar.GetSavePackageData());
 					MemWriter.SetByteSwapping(Ar.IsByteSwapping());
 					SerializeStreamedData(MemWriter, OwnerMesh, Idx, ClassDataStripFlags, bNeedsCPUAccess, bForceKeepCPUResources);
 				}

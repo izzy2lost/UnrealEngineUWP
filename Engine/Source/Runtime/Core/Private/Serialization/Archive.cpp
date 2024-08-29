@@ -193,7 +193,7 @@ void FArchiveState::Reset()
 	ArUseCustomPropertyList				= false;
 	ArMergeOverrides					= false;
 	ArShouldSkipUpdateCustomVersion		= false;
-	CookData							= nullptr;
+	SavePackageData						= nullptr;
 	SerializedProperty					= nullptr;
 
 	delete SerializedPropertyChain;
@@ -253,7 +253,7 @@ void FArchiveState::CopyTrivialFArchiveStatusMembers(const FArchiveState& Archiv
 	ArUseCustomPropertyList              = ArchiveToCopy.ArUseCustomPropertyList;
 	ArMergeOverrides					 = ArchiveToCopy.ArMergeOverrides;
 	ArShouldSkipUpdateCustomVersion		 = ArchiveToCopy.ArShouldSkipUpdateCustomVersion;
-	CookData							 = ArchiveToCopy.CookData;
+	SavePackageData						 = ArchiveToCopy.SavePackageData;
 	SerializedProperty					 = ArchiveToCopy.SerializedProperty;
 #if USE_STABLE_LOCALIZATION_KEYS
 	SetBaseLocalizationNamespace(ArchiveToCopy.GetBaseLocalizationNamespace());

@@ -13,6 +13,7 @@
 #include "Misc/EngineVersionBase.h"
 #include "Misc/VarArgs.h"
 #include "Serialization/ArchiveCookData.h"
+#include "Serialization/ArchiveSavePackageData.h"
 #include "Templates/EnableIf.h"
 #include "Templates/IsArrayOrRefOfTypeByPredicate.h"
 #include "Templates/IsEnumClass.h"
@@ -208,20 +209,6 @@ public:
 	FORCEINLINE int32 LicenseeUEVer() const
 	{
 		return ArLicenseeUEVer;
-	}
-
-	/** Returns the global engine serialization version used for this archive. */
-	UE_DEPRECATED(5.0, "Use UEVer instead which returns the version as a FPackageFileVersion. See the @FPackageFileVersion documentation for further details")
-	FORCEINLINE int32 UE4Ver() const
-	{
-		return ArUEVer.FileVersionUE4;
-	}
-
-	/** Returns the licensee-specific version used for this archive, will be 0 by default. */
-	UE_DEPRECATED(5.0, "Use LicenseeUEVer instead")
-	FORCEINLINE int32 LicenseeUE4Ver() const
-	{
-		return LicenseeUEVer();
 	}
 
 	/** Returns the compiled engine version used for this archive. */
@@ -600,47 +587,75 @@ public:
 	 * @return true if the archive is used for cooking, false otherwise.
 	 */
 	FORCEINLINE bool IsCooking() const
-	{		
-		return CookData != nullptr;
+	{
+		return SavePackageData && SavePackageData->CookContext;
 	}
 
 	/**
-	 * Marks that this archive is "cooking" by providing the cook data bundle.
-	 * Must be set after loading/saving/transacting.
+	 * Marks that this archive is one of the archives used by SavePackage, and provides access
+	 * to data and functions used only during savepackage, such as the cook data bundle for information about
+	 * the cook being conducted (if applicable) and writing build dependencies for assetregistry.
+	 * Must be set only after setting the loading/saving/transacting flags.
 	 */
-	void SetCookData(FArchiveCookData* InCookData)
+	void SetSavePackageData(FArchiveSavePackageData* InSavePackageData)
 	{
-		checkf(!(InCookData == nullptr && CookData), TEXT("Can't turn off cooking once you turn it on!"));
+		checkf(!(InSavePackageData == nullptr && SavePackageData), TEXT("Can't turn off cooking once you turn it on!"));
 
-		if (InCookData)
+		if (InSavePackageData)
 		{
 			check(!IsLoading() && !IsTransacting() && IsSaving());
-			CookData = InCookData;
+			SavePackageData = InSavePackageData;
 		}
-		
+
 	}
 
+	FArchiveSavePackageData* GetSavePackageData()
+	{
+		return SavePackageData;
+	}
+
+	UE_DEPRECATED(5.5, "Use SetSavePackageData.")
+	void SetCookData(FArchiveCookData* InCookData)
+	{
+		// Backwards compatibility for this function is not supported because of the low amount of public usage and the
+		// cost of supporting the backwards compatability (extra memory on FArchiveSavePackageData). Change your code
+		// to use SetSavePackageData, or contact Epic for assistance in adding the backwards compatibility.
+		check(false);
+	}
+
+	UE_DEPRECATED(5.5, "Use GetCookContext or CookingTarget or GetSavePackageData.")
 	FArchiveCookData* GetCookData()
 	{
-		return CookData;
+		// Backwards compatibility for this function is not supported because of the low amount of public usage and the
+		// cost of supporting the backwards compatability (extra memory on FArchiveSavePackageData). Change your code
+		// to use GetCookContext or CookingTarget or GetSavePackageData, or contact Epic for assistance.
+		check(false);
+		return nullptr;
 	}
 
 	FORCEINLINE FArchiveCookContext* GetCookContext()
 	{
-		return CookData ? &CookData->CookContext : nullptr;
+		return SavePackageData ? SavePackageData->CookContext : nullptr;
 	}
-
-	UE_DEPRECATED(5.1, "CookingTarget has been moved to FArchiveCookData.")
-	void SetCookingTarget(const ITargetPlatform*) {}
 
 	/**
 	 * Returns the cooking target platform.
+	 * Returns null if not being serialized from Savepackage, or if it is an editor save rather than a cook save.
 	 *
 	 * @return Target platform.
 	 */
 	FORCEINLINE const ITargetPlatform* CookingTarget() const
 	{
-		return CookData ? &CookData->TargetPlatform : nullptr;
+		return SavePackageData ? SavePackageData->TargetPlatform : nullptr;
+	}
+
+	/**
+	 * Return the API object used to record extra data for SavePackage calls (e.g. cook build dependencies).
+	 * Returns null if not being serialized from SavePackage.
+	 */
+	FObjectSavePackageSerializeContext* GetSavePackageSerializeContext()
+	{
+		return SavePackageData ? &SavePackageData->SavePackageContext : nullptr;
 	}
 
 	/**
@@ -941,13 +956,6 @@ public:
 	 */
 	CORE_API virtual void SetUEVer(FPackageFileVersion InVer);
 
-	UE_DEPRECATED(5.0, "Use SetUEVer instead which takes the version as a FPackageFileVersion. See the @FPackageFileVersion documentation for further details")
-	FORCEINLINE void SetUE4Ver(int32 InVer)
-	{
-		FPackageFileVersion PackageFileVersion = FPackageFileVersion::CreateUE4Version((EUnrealEngineObjectUE4Version)InVer);
-		SetUEVer(PackageFileVersion);
-	}
-
 	/**
 	 * Sets the archive licensee version number. Used by the code that makes sure that FLinkerLoad's 
 	 * internal archive versions match the file reader it creates.
@@ -955,12 +963,6 @@ public:
 	 * @param Ver	new version number
 	 */
 	CORE_API virtual void SetLicenseeUEVer(int32 InVer);
-
-	UE_DEPRECATED(5.0, "Use SetLicenseeUEVer instead")
-	FORCEINLINE void SetLicenseeUE4Ver(int32 InVer)
-	{
-		SetLicenseeUEVer(InVer);
-	}
 
 	/**
 	 * Sets the archive engine version. Used by the code that makes sure that FLinkerLoad's
@@ -1009,8 +1011,11 @@ public:
 
 // These will be private in FArchive
 protected:
-	/** Holds data for cooking. Required if cooking, nullptr means not cooking */
-	FArchiveCookData* CookData = nullptr;
+	/**
+	 * Provider of data and API specific to UPackage::Save2. Required by archives used from UPackage::Save2, and required for cook saves of packages.
+	 * nullptr means the archive is not one from UPackage::Save2 and is not being called from a cook save.
+	 */
+	FArchiveSavePackageData* SavePackageData = nullptr;
 	
 	/** Holds the pointer to the property that is currently being serialized */
 	FProperty* SerializedProperty;
@@ -1846,7 +1851,6 @@ public:
 	}
 
 	using FArchiveState::UEVer;
-	using FArchiveState::UE4Ver;
 	using FArchiveState::LicenseeUEVer;
 	using FArchiveState::EngineVer;
 	using FArchiveState::EngineNetVer;
@@ -1919,8 +1923,25 @@ public:
 	using FArchiveState::IsNetArchive;
 	using FArchiveState::IsCooking;
 	using FArchiveState::CookingTarget;
-	using FArchiveState::SetCookData;
-	using FArchiveState::GetCookData;
+	UE_DEPRECATED(5.5, "Use SetSavePackageData.")
+	void SetCookData(FArchiveCookData* InCookData)
+	{
+		// Backwards compatibility for this function is not supported because of the low amount of public usage and the
+		// cost of supporting the backwards compatability (extra memory on FArchiveSavePackageData). Change your code
+		// to use SetSavePackageData, or contact Epic for assistance.
+		check(false);
+	}
+	using FArchiveState::SetSavePackageData;
+	using FArchiveState::GetSavePackageData;
+	UE_DEPRECATED(5.5, "Use GetCookContext or CookingTarget or GetSavePackageData")
+	FArchiveCookData* GetCookData()
+	{
+		// Backwards compatibility for this function is not supported because of the low amount of public usage and the
+		// cost of supporting the backwards compatability (extra memory on FArchiveSavePackageData). Change your code
+		// to use GetCookContext or CookingTarget or GetSavePackageData, or contact Epic for assistance.
+		check(false);
+		return nullptr;
+	}
 	using FArchiveState::GetCookContext;
 	using FArchiveState::UseToResolveEnumerators;
 	using FArchiveState::ShouldSkipProperty;
@@ -2094,7 +2115,6 @@ public:
 	using FArchiveState::SetForceUnicode;
 	using FArchiveState::SetIsPersistent;
 	using FArchiveState::SetUEVer;
-	using FArchiveState::SetUE4Ver;
 	using FArchiveState::SetLicenseeUEVer;
 	using FArchiveState::SetEngineVer;
 	using FArchiveState::SetEngineNetVer;

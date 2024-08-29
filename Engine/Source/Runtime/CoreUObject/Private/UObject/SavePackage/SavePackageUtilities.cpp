@@ -19,6 +19,7 @@
 #include "Misc/ScopeExit.h"
 #include "Misc/ScopedSlowTask.h"
 #include "SaveContext.h"
+#include "Serialization/ArchiveSavePackageDataBuffer.h"
 #include "Serialization/BulkData.h"
 #include "Serialization/EditorBulkData.h"
 #include "Serialization/CompactBinarySerialization.h"
@@ -768,30 +769,29 @@ FObjectSaveContextData::FObjectSaveContextData(UPackage* Package, const ITargetP
 }
 
 #if WITH_EDITOR
-void FObjectPreSaveContext::AddCookBuildDependency(UE::Cook::FCookDependency BuildDependency)
+namespace UE::SavePackageUtilities
 {
-	Data.CookBuildDependencies.Add(MoveTemp(BuildDependency));
-}
-void FObjectPreSaveContext::AddCookRuntimeDependency(FSoftObjectPath RuntimeDependency)
-{
-	Data.CookRuntimeDependencies.Add(MoveTemp(RuntimeDependency));
-}
-void FObjectPreSaveContext::HarvestCookRuntimeDependencies(UObject* HarvestReferencesFrom)
+
+void HarvestCookRuntimeDependencies(FObjectSaveContextData& Data, UObject* HarvestReferencesFrom)
 {
 	if (!HarvestReferencesFrom)
 	{
 		return;
 	}
-	if (!GetTargetPlatform())
+	if (!Data.TargetPlatform)
 	{
 		return;
 	}
 
 	UPackage* PackageBeingSaved = nullptr; // We don't have a pointer for this, so set it to null
-	FArchiveCookContext CookContext(PackageBeingSaved, Data.CookType, Data.CookingDLC, GetTargetPlatform());
-	FArchiveCookData CookData(*GetTargetPlatform(), CookContext);
+	// Don't store the input Data on the ArchiveSavePackageData; we just want to harvest the serialized
+	// FSoftObjectPaths, not allow direct writes to its cookdependencies or other data. We only set
+	// ArchiveSavePackageData to provide access to the CookContext.
+	FArchiveCookContext CookContext(PackageBeingSaved, Data.CookType, Data.CookingDLC, Data.TargetPlatform);
+	FArchiveSavePackageDataBuffer SavePackageData(CookContext);
+
 	FImportExportCollector Collector(HarvestReferencesFrom->GetPackage());
-	Collector.SetCookData(&CookData);
+	Collector.SetSavePackageData(&SavePackageData);
 	Collector.SerializeObjectAndReferencedExports(HarvestReferencesFrom);
 	for (const TPair<FName, ESoftObjectPathCollectType>& Pair : Collector.GetImportedPackages())
 	{
@@ -806,12 +806,26 @@ void FObjectPreSaveContext::HarvestCookRuntimeDependencies(UObject* HarvestRefer
 			continue;
 		}
 		FSoftObjectPath PackageSoftPath(PackageName, NAME_None, FString());
-		AddCookRuntimeDependency(PackageSoftPath);
+		Data.CookRuntimeDependencies.Add(MoveTemp(PackageSoftPath));
 	}
-
 }
 
-bool FObjectPreSaveContext::IsDeterminismDebug()
+} // namespace UE::SavePackageUtilities
+
+void FObjectPreSaveContext::AddCookBuildDependency(UE::Cook::FCookDependency BuildDependency)
+{
+	Data.CookBuildDependencies.Add(MoveTemp(BuildDependency));
+}
+void FObjectPreSaveContext::AddCookRuntimeDependency(FSoftObjectPath RuntimeDependency)
+{
+	Data.CookRuntimeDependencies.Add(MoveTemp(RuntimeDependency));
+}
+void FObjectPreSaveContext::HarvestCookRuntimeDependencies(UObject* HarvestReferencesFrom)
+{
+	UE::SavePackageUtilities::HarvestCookRuntimeDependencies(Data, HarvestReferencesFrom);
+}
+
+bool FObjectPreSaveContext::IsDeterminismDebug() const
 {
 	return Data.bDeterminismDebug;
 }
@@ -819,6 +833,61 @@ bool FObjectPreSaveContext::IsDeterminismDebug()
 void FObjectPreSaveContext::RegisterDeterminismHelper(
 	const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)
 {
+	if (Data.PackageWriter)
+	{
+		Data.PackageWriter->RegisterDeterminismHelper(Data.Object, DeterminismHelper);
+	}
+}
+
+void FObjectSavePackageSerializeContext::AddCookBuildDependency(UE::Cook::FCookDependency BuildDependency)
+{
+	if (GetPhase() != EObjectSaveContextPhase::Harvest)
+	{
+		UE_LOG(LogSavePackage, Error,
+			TEXT("AddCookBuildDependency called when GetPhase() != EObjectSaveContextPhase::Harvest. This is invalid and will be ignored."));
+		FDebug::DumpStackTraceToLog(ELogVerbosity::Warning);
+		return;
+	}
+	Data.CookBuildDependencies.Add(MoveTemp(BuildDependency));
+}
+void FObjectSavePackageSerializeContext::AddCookRuntimeDependency(FSoftObjectPath RuntimeDependency)
+{
+	if (GetPhase() != EObjectSaveContextPhase::Harvest)
+	{
+		UE_LOG(LogSavePackage, Error,
+			TEXT("AddCookRuntimeDependency called when GetPhase() != EObjectSaveContextPhase::Harvest. This is invalid and will be ignored."));
+		FDebug::DumpStackTraceToLog(ELogVerbosity::Warning);
+		return;
+	}
+	Data.CookRuntimeDependencies.Add(MoveTemp(RuntimeDependency));
+}
+void FObjectSavePackageSerializeContext::HarvestCookRuntimeDependencies(UObject* HarvestReferencesFrom)
+{
+	if (GetPhase() != EObjectSaveContextPhase::Harvest)
+	{
+		UE_LOG(LogSavePackage, Error,
+			TEXT("HarvestCookRuntimeDependencies called when GetPhase() != EObjectSaveContextPhase::Harvest. This is invalid and will be ignored."));
+		FDebug::DumpStackTraceToLog(ELogVerbosity::Warning);
+		return;
+	}
+	UE::SavePackageUtilities::HarvestCookRuntimeDependencies(Data, HarvestReferencesFrom);
+}
+
+bool FObjectSavePackageSerializeContext::IsDeterminismDebug() const
+{
+	return Data.bDeterminismDebug;
+}
+
+void FObjectSavePackageSerializeContext::RegisterDeterminismHelper(
+	const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)
+{
+	if (GetPhase() != EObjectSaveContextPhase::Harvest)
+	{
+		UE_LOG(LogSavePackage, Error,
+			TEXT("RegisterDeterminismHelper called when GetPhase() != EObjectSaveContextPhase::Harvest. This is invalid and will be ignored."));
+		FDebug::DumpStackTraceToLog(ELogVerbosity::Warning);
+		return;
+	}
 	if (Data.PackageWriter)
 	{
 		Data.PackageWriter->RegisterDeterminismHelper(Data.Object, DeterminismHelper);

@@ -1160,7 +1160,7 @@ ESavePackageResult BuildLinker(FSaveContext& SaveContext)
 		{
 			SaveContext.GetLinker()->SetFilterEditorOnly(SaveContext.IsFilterEditorOnly());
 		}
-		SaveContext.GetLinker()->SetCookData(SaveContext.GetCookData());
+		SaveContext.GetLinker()->SetSavePackageData(&SaveContext.GetArchiveSavePackageData());
 
 		bool bUseUnversionedProperties = SaveContext.IsSaveUnversionedProperties();
 		SaveContext.GetLinker()->SetUseUnversionedPropertySerialization(bUseUnversionedProperties);
@@ -1999,7 +1999,7 @@ ESavePackageResult WritePackageHeader(FStructuredArchive::FRecord& StructuredArc
 	{
 		// Save asset registry data so the editor can search for information about assets in this package
 		SCOPED_SAVETIMER(UPackage_Save_SaveAssetRegistryData);
-		FArchiveCookData* CookData = SaveContext.GetCookData();
+		FArchiveSavePackageData& ArchiveSavePackageData = SaveContext.GetArchiveSavePackageData();
 		UE::AssetRegistry::FWritePackageDataArgs WriteARArgs;
 		WriteARArgs.ParentRecord = &StructuredArchiveRoot;
 		WriteARArgs.Package = SaveContext.GetPackage();
@@ -2008,7 +2008,7 @@ ESavePackageResult WritePackageHeader(FStructuredArchive::FRecord& StructuredArc
 		WriteARArgs.SoftPackagesUsedInGame = &SaveContext.GetSoftPackagesUsedInGame();
 		WriteARArgs.PackageBuildDependencies = &SaveContext.GetPackageBuildDependencies();
 		WriteARArgs.bProceduralSave = SaveContext.IsProceduralSave();
-		WriteARArgs.CookContext = CookData ? &CookData->CookContext : nullptr;;
+		WriteARArgs.CookContext = ArchiveSavePackageData.CookContext;
 		WriteARArgs.OutAssetDatas = &SaveContext.GetSavedAssets();
 		UE::AssetRegistry::WritePackageData(WriteARArgs);
 	}
@@ -3038,6 +3038,7 @@ ESavePackageResult InnerSave(FSaveContext& SaveContext)
 
 	// Harvest Package
 	SlowTask.EnterProgressFrame();
+	SaveContext.GetObjectSaveContext().ObjectSaveContextPhase = EObjectSaveContextPhase ::Harvest;
 	SaveContext.Result = HarvestPackage(SaveContext);
 	if (SaveContext.Result != ESavePackageResult::Success)
 	{
@@ -3068,6 +3069,7 @@ ESavePackageResult InnerSave(FSaveContext& SaveContext)
 	//										-> .o.ubulk
 	//										-> etc
 	SlowTask.EnterProgressFrame();
+	SaveContext.GetObjectSaveContext().ObjectSaveContextPhase = EObjectSaveContextPhase ::Write;
 	for (ESaveRealm HarvestingContext : SaveContext.GetHarvestedRealmsToSave())
 	{
 		SaveContext.Result = SaveHarvestedRealms(SaveContext, HarvestingContext);
@@ -3187,6 +3189,7 @@ FSavePackageResultStruct UPackage::Save2(UPackage* InPackage, UObject* InAsset, 
 		IPackageWriter* PackageWriter = SaveContext.GetPackageWriter();
 		if (!PackageWriter || !PackageWriter->IsPreSaveCompleted())
 		{
+			SaveContext.GetObjectSaveContext().ObjectSaveContextPhase = EObjectSaveContextPhase::PreSave;
 			SaveContext.Result = RoutePresave(SaveContext);
 			if (SaveContext.Result != ESavePackageResult::Success)
 			{
@@ -3239,6 +3242,7 @@ FSavePackageResultStruct UPackage::Save2(UPackage* InPackage, UObject* InAsset, 
 	SlowTask.EnterProgressFrame();
 	if (SaveContext.GetPostSaveRootRequired() && SaveContext.GetAsset())
 	{
+		SaveContext.GetObjectSaveContext().ObjectSaveContextPhase = EObjectSaveContextPhase::PostSave;
 		UE::SavePackageUtilities::CallPostSaveRoot(SaveContext.GetAsset(), SaveContext.GetObjectSaveContext(), SaveContext.GetPreSaveCleanup());
 		SaveContext.SetPostSaveRootRequired(false);
 	}

@@ -29,7 +29,7 @@
 #include "UObject/UObjectIterator.h"
 #include "UnrealEngine.h"
 
-#include "UObject/ArchiveCookContext.h"
+#include "Serialization/ArchiveSavePackageDataBuffer.h"
 #include "UObject/UObjectGlobals.h"
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
@@ -237,17 +237,14 @@ static void CompileGlobalShaderMapForRemote(
 	FinishRecompileGlobalShaders();
 
 	// Write the shader compilation info to memory, converting FName to strings
-	TOptional<FArchiveCookContext> CookContext;
-	TOptional<FArchiveCookData> CookData;
+	TOptional<FArchiveSavePackageDataBuffer> ArchiveSavePackageData;
 	FMemoryWriter MemWriter(*OutArray, true);
 	FNameAsStringProxyArchive Ar(MemWriter);
 
 	if (TargetPlatform != nullptr)
 	{
-		CookContext.Emplace(nullptr /*InPackage*/, UE::Cook::ECookType::Unknown,
-			UE::Cook::ECookingDLC::Unknown, TargetPlatform);
-		CookData.Emplace(*TargetPlatform, *CookContext);
-		Ar.SetCookData(CookData.GetPtrOrNull());
+		ArchiveSavePackageData.Emplace(TargetPlatform);
+		Ar.SetSavePackageData(&ArchiveSavePackageData.GetValue());
 	}
 
 	// save out the global shader map to the byte array
@@ -257,17 +254,14 @@ static void CompileGlobalShaderMapForRemote(
 static void SaveShaderMapsForRemote(ITargetPlatform* TargetPlatform, const TMap<FString, TArray<TRefCountPtr<FMaterialShaderMap>>>& CompiledShaderMaps, TArray<uint8>* OutArray)
 {
 	// write the shader compilation info to memory, converting fnames to strings
-	TOptional<FArchiveCookContext> CookContext;
-	TOptional<FArchiveCookData> CookData;
+	TOptional<FArchiveSavePackageDataBuffer> ArchiveSavePackageData;
 	FMemoryWriter MemWriter(*OutArray, true);
 	FNameAsStringProxyArchive Ar(MemWriter);
 
 	if (TargetPlatform != nullptr)
 	{
-		CookContext.Emplace(nullptr /*InPackage*/, UE::Cook::ECookType::Unknown,
-			UE::Cook::ECookingDLC::Unknown, TargetPlatform);
-		CookData.Emplace(*TargetPlatform, *CookContext);
-		Ar.SetCookData(CookData.GetPtrOrNull());
+		ArchiveSavePackageData.Emplace(TargetPlatform);
+		Ar.SetSavePackageData(&ArchiveSavePackageData.GetValue());
 	}
 
 	// save out the shader map to the byte array

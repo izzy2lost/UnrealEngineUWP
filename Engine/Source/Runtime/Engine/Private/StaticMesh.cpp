@@ -801,7 +801,7 @@ void FStaticMeshLODResources::Serialize(FArchive& Ar, UObject* Owner, int32 Inde
 				if (!bDiscardBulkData)
 				{
 					FMemoryWriter MemWriter(TmpBuff, true);
-					MemWriter.SetCookData(Ar.GetCookData());
+					MemWriter.SetSavePackageData(Ar.GetSavePackageData());
 					MemWriter.SetByteSwapping(Ar.IsByteSwapping());
 					SerializeBuffers(MemWriter, OwnerStaticMesh, ClassDataStripFlags, TmpBuffersSize);
 				}
@@ -1747,7 +1747,7 @@ void FStaticMeshRayTracingProxyLOD::Serialize(FArchive& Ar, UObject* Owner, int3
 
 			{
 				FMemoryWriter MemWriter(TmpBuff, /*bIsPersistent=*/ true);
-				MemWriter.SetCookData(Ar.GetCookData());
+				MemWriter.SetSavePackageData(Ar.GetSavePackageData());
 				MemWriter.SetByteSwapping(Ar.IsByteSwapping());
 
 				BuffersSize = SerializeBuffers(MemWriter, OwnerStaticMesh, 0);

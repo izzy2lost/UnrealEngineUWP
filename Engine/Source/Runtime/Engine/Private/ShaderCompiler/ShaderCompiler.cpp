@@ -55,7 +55,7 @@
 #include "ColorManagement/ColorSpace.h"
 
 #if WITH_EDITOR
-#include "UObject/ArchiveCookContext.h"
+#include "Serialization/ArchiveSavePackageDataBuffer.h"
 #include "UObject/UObjectGlobals.h"
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
@@ -4755,18 +4755,15 @@ FString SaveGlobalShaderFile(EShaderPlatform Platform, FString SavePath, class I
 	TArray<uint8> GlobalShaderData;
 	{
 #if WITH_EDITOR
-		TOptional<FArchiveCookContext> CookContext;
-		TOptional<FArchiveCookData> CookData;
+		TOptional<FArchiveSavePackageDataBuffer> ArchiveSavePackageData;
 #endif
 		FMemoryWriter MemoryWriter(GlobalShaderData, true);
 
 #if WITH_EDITOR
 		if (TargetPlatform != nullptr)
 		{
-			CookContext.Emplace(nullptr /*InPackage*/, UE::Cook::ECookType::Unknown,
-				UE::Cook::ECookingDLC::Unknown, TargetPlatform);
-			CookData.Emplace(*TargetPlatform, *CookContext);
-			MemoryWriter.SetCookData(CookData.GetPtrOrNull());
+			ArchiveSavePackageData.Emplace(TargetPlatform);
+			MemoryWriter.SetSavePackageData(&ArchiveSavePackageData.GetValue());
 		}
 #endif // WITH_EDITOR
 

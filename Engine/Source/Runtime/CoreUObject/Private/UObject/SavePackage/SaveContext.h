@@ -8,6 +8,7 @@
 #include "Misc/AssetRegistryInterface.h"
 #include "Misc/Optional.h"
 #include "Misc/PackageName.h"
+#include "Serialization/ArchiveSavePackageData.h"
 #include "Serialization/CustomVersion.h"
 #include "Serialization/LargeMemoryWriter.h"
 #include "Serialization/PropertyLocalizationDataGathering.h"
@@ -478,6 +479,8 @@ public:
 		, Filename(InFilename)
 		, SaveArgs(InSaveArgs)
 		, PackageWriter(InSaveArgs.SavePackageContext ? InSaveArgs.SavePackageContext->PackageWriter : nullptr)
+		, ObjectSavePackageSerializeContext(ObjectSaveContext)
+		, ArchiveSavePackageData(ObjectSavePackageSerializeContext, nullptr, nullptr)
 		, GameRealmExcludedObjectMarks(GetExcludedObjectMarksForGameRealm(SaveArgs.GetTargetPlatform()))
 	{
 		// Assumptions & checks
@@ -527,6 +530,8 @@ public:
 			ObjectSaveContext.CookType = SaveArgs.ArchiveCookData->CookContext.GetCookType();
 			ObjectSaveContext.CookingDLC = SaveArgs.ArchiveCookData->CookContext.GetCookingDLC();
 		}
+		ArchiveSavePackageData.TargetPlatform = ObjectSaveContext.TargetPlatform;
+		ArchiveSavePackageData.CookContext = SaveArgs.ArchiveCookData ? &SaveArgs.ArchiveCookData->CookContext : nullptr;
 		if (SaveArgs.InOutSaveOverrides)
 		{
 			ObjectSaveContext.SaveOverrides = MoveTemp(*SaveArgs.InOutSaveOverrides);
@@ -566,9 +571,9 @@ public:
 		return SaveArgs;
 	}
 
-	FArchiveCookData* GetCookData()
+	FArchiveSavePackageData& GetArchiveSavePackageData()
 	{
-		return SaveArgs.ArchiveCookData;
+		return ArchiveSavePackageData;
 	}
 
 	const ITargetPlatform* GetTargetPlatform() const
@@ -1220,6 +1225,8 @@ private:
 
 	// State context
 	FObjectSaveContextData ObjectSaveContext;
+	FObjectSavePackageSerializeContext ObjectSavePackageSerializeContext;
+	FArchiveSavePackageData ArchiveSavePackageData;
 	bool bCanUseUnversionedPropertySerialization = false;
 	bool bTextFormat = false;
 	bool bIsProcessingPrestreamPackages = false;

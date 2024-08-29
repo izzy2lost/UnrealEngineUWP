@@ -5197,7 +5197,7 @@ FMaterialResourceMemoryWriter::FMaterialResourceMemoryWriter(FArchive& Ar) :
 {
 	check(Ar.IsSaving());
 	this->SetByteSwapping(Ar.IsByteSwapping());
-	this->SetCookData(Ar.GetCookData());
+	this->SetSavePackageData(Ar.GetSavePackageData());
 }
 
 FMaterialResourceMemoryWriter::~FMaterialResourceMemoryWriter()
