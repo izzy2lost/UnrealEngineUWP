@@ -9,6 +9,7 @@
 #include "PropertyHandle.h"
 #include "IDetailGroup.h"
 #include "IDetailChildrenBuilder.h"
+#include "DetailWidgetRow.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "Widgets/Layout/SBox.h"
