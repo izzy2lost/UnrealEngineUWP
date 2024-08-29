@@ -314,8 +314,8 @@ struct CONTROLRIG_API FRigReusableElementStorage
 
 		return Indices;
 	}
-	
-	void Deallocate(int32& InIndex, T** InStorage = nullptr)
+
+	void Deallocate(int32& InIndex, T** InStorage)
 	{
 		if(InIndex == INDEX_NONE)
 		{
@@ -329,8 +329,31 @@ struct CONTROLRIG_API FRigReusableElementStorage
 		InIndex = INDEX_NONE;
 		if(InStorage)
 		{
-			InStorage = nullptr;
+			*InStorage = nullptr;
 		}
+	}
+
+	void Deallocate(const TConstArrayView<int32>& InIndices)
+	{
+		if(InIndices.IsEmpty())
+		{
+			return;
+		}
+		FreeList.Reserve(FreeList.Num() + InIndices.Num());
+		for(int32 Index : InIndices)
+		{
+			if(Index != INDEX_NONE && !FreeList.Contains(Index))
+			{
+				Deallocate(Index, nullptr);
+			}
+		}
+	}
+
+	template<typename OwnerType>
+	void Deallocate(OwnerType* InOwner)
+	{
+		check(InOwner);
+		Deallocate(InOwner->StorageIndex, &InOwner->Storage);
 	}
 
 	void Reset(TFunction<void(int32, T&)> OnDestroyCallback = nullptr)
@@ -353,6 +376,13 @@ struct CONTROLRIG_API FRigReusableElementStorage
 			return false;
 		}
 		return GetData() + InIndex == InStorage;
+	}
+
+	template<typename OwnerType>
+	bool Contains(const OwnerType* InOwner)
+	{
+		check(InOwner);
+		return Contains(InOwner->StorageIndex, InOwner->Storage);
 	}
 
 	TMap<int32, int32> Shrink(TFunction<void(int32, T&)> OnDestroyCallback = nullptr)
@@ -402,7 +432,7 @@ public:
 	GENERATED_BODY()
 
 	FRigTransformDirtyState()
-	: Index(INDEX_NONE)
+	: StorageIndex(INDEX_NONE)
 	, Storage(nullptr)
 	{
 	}
@@ -412,18 +442,25 @@ public:
 	bool Set(bool InDirty);
 	FRigTransformDirtyState& operator =(const FRigTransformDirtyState& InOther);
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "DirtyState")
-	int32 Index;
+	int32 GetStorageIndex() const
+	{
+		return StorageIndex;
+	}
 
 private:
 
 	void LinkStorage(const TArrayView<bool>& InStorage);
 	void UnlinkStorage(FRigReusableElementStorage<bool>& InStorage);
+
+	int32 StorageIndex;
 	bool* Storage;
 
 	friend struct FRigLocalAndGlobalDirtyState;
 	friend class URigHierarchy;
 	friend class URigHierarchyController;
+	friend class FRigHierarchyPoseAdapter;
+	friend struct FRigReusableElementStorage<bool>;
+	friend class FControlRigHierarchyRelinkElementStorage;
 };
 
 USTRUCT(BlueprintType)
@@ -543,7 +580,7 @@ struct CONTROLRIG_API FRigComputedTransform
 public:
 	
 	FRigComputedTransform()
-	: Index(INDEX_NONE)
+	: StorageIndex(INDEX_NONE)
 	, Storage(nullptr)
 	{}
 
@@ -576,23 +613,29 @@ public:
 	bool operator == (const FRigComputedTransform& Other) const
 	{
 		return Equals(Get(), Other.Get());
-    }
+	}
 
 	FRigComputedTransform& operator =(const FRigComputedTransform& InOther);
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Transform")
-	int32 Index;
+	int32 GetStorageIndex() const
+	{
+		return StorageIndex;
+	}
 
 private:
 
 	void LinkStorage(const TArrayView<FTransform>& InStorage);
 	void UnlinkStorage(FRigReusableElementStorage<FTransform>& InStorage);
 	
+	int32 StorageIndex;
 	FTransform* Storage;
 	
 	friend struct FRigLocalAndGlobalTransform;
 	friend class URigHierarchy;
 	friend class URigHierarchyController;
+	friend class FRigHierarchyPoseAdapter;
+	friend struct FRigReusableElementStorage<FTransform>;
+	friend class FControlRigHierarchyRelinkElementStorage;
 };
 
 USTRUCT(BlueprintType)
@@ -1038,6 +1081,7 @@ protected:
 	friend class FControlRigEditor;
 	friend class URigHierarchy;
 	friend class URigHierarchyController;
+	friend struct FRigElementKeyAndIndex;
 };
 
 USTRUCT(BlueprintType)
@@ -1828,6 +1872,11 @@ struct CONTROLRIG_API FRigCurveElement final : public FRigBaseElement
 
 	bool IsValueSet() const { return bIsValueSet; }
 
+	int32 GetStorageIndex() const
+	{
+		return StorageIndex;
+	}
+
 protected:
 
 	virtual void LinkStorage(const TArrayView<FTransform>& InTransforms, const TArrayView<bool>& InDirtyStates, const TArrayView<float>& InCurves) override;
@@ -1855,6 +1904,9 @@ private:
 	friend class URigHierarchy;
 	friend class URigHierarchyController;
 	friend struct FRigBaseElement;
+	friend class FRigHierarchyPoseAdapter;
+	friend struct FRigReusableElementStorage<float>;
+	friend class FControlRigHierarchyRelinkElementStorage;
 };
 
 USTRUCT(BlueprintType)

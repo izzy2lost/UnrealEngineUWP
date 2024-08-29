@@ -8,6 +8,7 @@
 #include "RigHierarchyDefines.generated.h"
 
 class URigHierarchy;
+struct FRigBaseElement;
 
 // Debug define which performs a full check on the cache validity for all elements of the hierarchy.
 // This can be useful for debugging cache validity bugs.
@@ -1602,6 +1603,46 @@ public:
 	}
 
 	FString ToPythonString() const;
+};
+
+struct CONTROLRIG_API FRigElementKeyAndIndex
+{
+public:
+
+	inline static const FRigElementKey InvalidKey = FRigElementKey(NAME_None, ERigElementType::Bone);
+	inline static constexpr int32 InvalidIndex = INDEX_NONE;
+
+	FRigElementKeyAndIndex()
+		: Key(InvalidKey)
+		, Index(InvalidIndex)
+	{
+	}
+
+	explicit FRigElementKeyAndIndex(const FRigBaseElement* InElement);
+
+	FRigElementKeyAndIndex(const FRigElementKey& InKey, const int32& InIndex)
+		: Key(InKey)
+		, Index(InIndex)
+	{
+	}
+
+	bool IsValid() const
+	{
+		return Key.IsValid() && Index != INDEX_NONE;
+	}
+
+	operator int32() const
+	{
+		return Index;
+	}
+
+	friend uint32 GetTypeHash(const FRigElementKeyAndIndex& InKeyAndIndex)
+	{
+		return GetTypeHash(InKeyAndIndex.Index);
+	}
+	
+	const FRigElementKey& Key;
+	const int32& Index;
 };
 
 USTRUCT(BlueprintType)

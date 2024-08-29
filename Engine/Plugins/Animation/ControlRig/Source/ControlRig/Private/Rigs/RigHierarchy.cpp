@@ -344,33 +344,33 @@ void URigHierarchy::Load(FArchive& Ar)
 			
 			if(FRigTransformElement* TransformElement = Cast<FRigTransformElement>(Element))
 			{
-				TransformElement->PoseStorage.Initial.Local.Index = TransformIndices[UsedTransformIndex++];
-				TransformElement->PoseStorage.Current.Local.Index = TransformIndices[UsedTransformIndex++];
-				TransformElement->PoseStorage.Initial.Global.Index = TransformIndices[UsedTransformIndex++];
-				TransformElement->PoseStorage.Current.Global.Index = TransformIndices[UsedTransformIndex++];
-				TransformElement->PoseDirtyState.Initial.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-				TransformElement->PoseDirtyState.Current.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-				TransformElement->PoseDirtyState.Initial.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-				TransformElement->PoseDirtyState.Current.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseStorage.Initial.Local.StorageIndex = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseStorage.Current.Local.StorageIndex = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseStorage.Initial.Global.StorageIndex = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseStorage.Current.Global.StorageIndex = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseDirtyState.Initial.Local.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseDirtyState.Current.Local.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseDirtyState.Initial.Global.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseDirtyState.Current.Global.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
 
 				if(FRigControlElement* ControlElement = Cast<FRigControlElement>(TransformElement))
 				{
-					ControlElement->OffsetStorage.Initial.Local.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->OffsetStorage.Current.Local.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->OffsetStorage.Initial.Global.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->OffsetStorage.Current.Global.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->OffsetDirtyState.Initial.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->OffsetDirtyState.Current.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->OffsetDirtyState.Initial.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->OffsetDirtyState.Current.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->ShapeStorage.Initial.Local.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->ShapeStorage.Current.Local.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->ShapeStorage.Initial.Global.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->ShapeStorage.Current.Global.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->ShapeDirtyState.Initial.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->ShapeDirtyState.Current.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->ShapeDirtyState.Initial.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->ShapeDirtyState.Current.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetStorage.Initial.Local.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetStorage.Current.Local.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetStorage.Initial.Global.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetStorage.Current.Global.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetDirtyState.Initial.Local.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetDirtyState.Current.Local.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetDirtyState.Initial.Global.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetDirtyState.Current.Global.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeStorage.Initial.Local.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeStorage.Current.Local.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeStorage.Initial.Global.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeStorage.Current.Global.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeDirtyState.Initial.Local.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeDirtyState.Current.Local.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeDirtyState.Initial.Global.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeDirtyState.Current.Global.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
 				}
 			}
 			else if(FRigCurveElement* CurveElement = Cast<FRigCurveElement>(Element))
@@ -444,7 +444,7 @@ void URigHierarchy::Load(FArchive& Ar)
 		}
 	}
 
-	SortElementStorage();
+	(void)SortElementStorage();
 }
 
 void URigHierarchy::PostLoad()
@@ -754,33 +754,33 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 
 			if(FRigTransformElement* TransformElement = Cast<FRigTransformElement>(Target))
 			{
-				TransformElement->PoseStorage.Initial.Local.Index = TransformIndices[UsedTransformIndex++];
-				TransformElement->PoseStorage.Current.Local.Index = TransformIndices[UsedTransformIndex++];
-				TransformElement->PoseStorage.Initial.Global.Index = TransformIndices[UsedTransformIndex++];
-				TransformElement->PoseStorage.Current.Global.Index = TransformIndices[UsedTransformIndex++];
-				TransformElement->PoseDirtyState.Initial.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-				TransformElement->PoseDirtyState.Current.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-				TransformElement->PoseDirtyState.Initial.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-				TransformElement->PoseDirtyState.Current.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseStorage.Initial.Local.StorageIndex = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseStorage.Current.Local.StorageIndex = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseStorage.Initial.Global.StorageIndex = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseStorage.Current.Global.StorageIndex = TransformIndices[UsedTransformIndex++];
+				TransformElement->PoseDirtyState.Initial.Local.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseDirtyState.Current.Local.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseDirtyState.Initial.Global.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+				TransformElement->PoseDirtyState.Current.Global.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
 
 				if(FRigControlElement* ControlElement = Cast<FRigControlElement>(TransformElement))
 				{
-					ControlElement->OffsetStorage.Initial.Local.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->OffsetStorage.Current.Local.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->OffsetStorage.Initial.Global.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->OffsetStorage.Current.Global.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->OffsetDirtyState.Initial.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->OffsetDirtyState.Current.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->OffsetDirtyState.Initial.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->OffsetDirtyState.Current.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->ShapeStorage.Initial.Local.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->ShapeStorage.Current.Local.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->ShapeStorage.Initial.Global.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->ShapeStorage.Current.Global.Index = TransformIndices[UsedTransformIndex++];
-					ControlElement->ShapeDirtyState.Initial.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->ShapeDirtyState.Current.Local.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->ShapeDirtyState.Initial.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
-					ControlElement->ShapeDirtyState.Current.Global.Index = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetStorage.Initial.Local.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetStorage.Current.Local.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetStorage.Initial.Global.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetStorage.Current.Global.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->OffsetDirtyState.Initial.Local.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetDirtyState.Current.Local.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetDirtyState.Initial.Global.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->OffsetDirtyState.Current.Global.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeStorage.Initial.Local.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeStorage.Current.Local.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeStorage.Initial.Global.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeStorage.Current.Global.StorageIndex = TransformIndices[UsedTransformIndex++];
+					ControlElement->ShapeDirtyState.Initial.Local.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeDirtyState.Current.Local.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeDirtyState.Initial.Global.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
+					ControlElement->ShapeDirtyState.Current.Global.StorageIndex = DirtyStateIndices[UsedDirtyStateIndex++];
 				}
 			}
 			else if(FRigCurveElement* CurveElement = Cast<FRigCurveElement>(Target))
@@ -794,7 +794,7 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 			CopyAllMetadataFromElement(Target, Source);
 		}
 
-		SortElementStorage();
+		(void)SortElementStorage();
 
 		PreviousNameMap.Append(InHierarchy->PreviousNameMap);
 
@@ -3418,6 +3418,21 @@ void URigHierarchy::SetPose(const FRigPose& InPose, ERigTransformType::Type InTr
 	}
 }
 
+void URigHierarchy::LinkPoseAdapter(TSharedPtr<FRigHierarchyPoseAdapter> InPoseAdapter)
+{
+	if(PoseAdapter)
+	{
+		PoseAdapter->PreUnlinked(this);
+		PoseAdapter.Reset();
+	}
+
+	if(InPoseAdapter)
+	{
+		PoseAdapter = InPoseAdapter;
+		PoseAdapter->PostLinked(this);
+	}
+}
+
 void URigHierarchy::Notify(ERigHierarchyNotification InNotifType, const FRigBaseElement* InElement)
 {
 	if(bSuspendNotifications)
@@ -5570,6 +5585,8 @@ void URigHierarchy::DestroyElement(FRigBaseElement*& InElement)
 
 	FMemory::Free(InElement);
 	InElement = nullptr;
+	
+	ElementTransformRanges.Reset();
 }
 
 void URigHierarchy::PropagateDirtyFlags(FRigTransformElement* InTransformElement, bool bInitial, bool bAffectChildren, bool bComputeOpposed, bool bMarkDirty) const
@@ -5918,34 +5935,34 @@ void URigHierarchy::AllocateDefaultElementStorage(FRigBaseElement* InElement, bo
 	{
 		// only for the default allocation we want to catch double allocations.
 		// so if we are already linked to the default storage, exit early.
-		if(ElementTransforms.Contains(TransformElement->PoseStorage.Initial.Local.Index, TransformElement->PoseStorage.Initial.Local.Storage))
+		if(ElementTransforms.Contains(TransformElement->PoseStorage.Initial.Local.StorageIndex, TransformElement->PoseStorage.Initial.Local.Storage))
 		{
-			check(ElementTransforms.Contains(TransformElement->PoseStorage.Current.Local.Index, TransformElement->PoseStorage.Current.Local.Storage));
-			check(ElementTransforms.Contains(TransformElement->PoseStorage.Initial.Global.Index, TransformElement->PoseStorage.Initial.Global.Storage));
-			check(ElementTransforms.Contains(TransformElement->PoseStorage.Current.Global.Index, TransformElement->PoseStorage.Current.Global.Storage));
-			check(ElementDirtyStates.Contains(TransformElement->PoseDirtyState.Initial.Local.Index, TransformElement->PoseDirtyState.Initial.Local.Storage));
-			check(ElementDirtyStates.Contains(TransformElement->PoseDirtyState.Current.Local.Index, TransformElement->PoseDirtyState.Current.Local.Storage));
-			check(ElementDirtyStates.Contains(TransformElement->PoseDirtyState.Initial.Global.Index, TransformElement->PoseDirtyState.Initial.Global.Storage));
-			check(ElementDirtyStates.Contains(TransformElement->PoseDirtyState.Current.Global.Index, TransformElement->PoseDirtyState.Current.Global.Storage));
+			check(ElementTransforms.Contains(TransformElement->PoseStorage.Current.Local.StorageIndex, TransformElement->PoseStorage.Current.Local.Storage));
+			check(ElementTransforms.Contains(TransformElement->PoseStorage.Initial.Global.StorageIndex, TransformElement->PoseStorage.Initial.Global.Storage));
+			check(ElementTransforms.Contains(TransformElement->PoseStorage.Current.Global.StorageIndex, TransformElement->PoseStorage.Current.Global.Storage));
+			check(ElementDirtyStates.Contains(TransformElement->PoseDirtyState.Initial.Local.StorageIndex, TransformElement->PoseDirtyState.Initial.Local.Storage));
+			check(ElementDirtyStates.Contains(TransformElement->PoseDirtyState.Current.Local.StorageIndex, TransformElement->PoseDirtyState.Current.Local.Storage));
+			check(ElementDirtyStates.Contains(TransformElement->PoseDirtyState.Initial.Global.StorageIndex, TransformElement->PoseDirtyState.Initial.Global.Storage));
+			check(ElementDirtyStates.Contains(TransformElement->PoseDirtyState.Current.Global.StorageIndex, TransformElement->PoseDirtyState.Current.Global.Storage));
 
 			if(const FRigControlElement* ControlElement = Cast<FRigControlElement>(TransformElement))
 			{
-				check(ElementTransforms.Contains(ControlElement->OffsetStorage.Initial.Local.Index, ControlElement->OffsetStorage.Initial.Local.Storage));
-				check(ElementTransforms.Contains(ControlElement->OffsetStorage.Current.Local.Index, ControlElement->OffsetStorage.Current.Local.Storage));
-				check(ElementTransforms.Contains(ControlElement->OffsetStorage.Initial.Global.Index, ControlElement->OffsetStorage.Initial.Global.Storage));
-				check(ElementTransforms.Contains(ControlElement->OffsetStorage.Current.Global.Index, ControlElement->OffsetStorage.Current.Global.Storage));
-				check(ElementDirtyStates.Contains(ControlElement->OffsetDirtyState.Initial.Local.Index, ControlElement->OffsetDirtyState.Initial.Local.Storage));
-				check(ElementDirtyStates.Contains(ControlElement->OffsetDirtyState.Current.Local.Index, ControlElement->OffsetDirtyState.Current.Local.Storage));
-				check(ElementDirtyStates.Contains(ControlElement->OffsetDirtyState.Initial.Global.Index, ControlElement->OffsetDirtyState.Initial.Global.Storage));
-				check(ElementDirtyStates.Contains(ControlElement->OffsetDirtyState.Current.Global.Index, ControlElement->OffsetDirtyState.Current.Global.Storage));
-				check(ElementTransforms.Contains(ControlElement->ShapeStorage.Initial.Local.Index, ControlElement->ShapeStorage.Initial.Local.Storage));
-				check(ElementTransforms.Contains(ControlElement->ShapeStorage.Current.Local.Index, ControlElement->ShapeStorage.Current.Local.Storage));
-				check(ElementTransforms.Contains(ControlElement->ShapeStorage.Initial.Global.Index, ControlElement->ShapeStorage.Initial.Global.Storage));
-				check(ElementTransforms.Contains(ControlElement->ShapeStorage.Current.Global.Index, ControlElement->ShapeStorage.Current.Global.Storage));
-				check(ElementDirtyStates.Contains(ControlElement->ShapeDirtyState.Initial.Local.Index, ControlElement->ShapeDirtyState.Initial.Local.Storage));
-				check(ElementDirtyStates.Contains(ControlElement->ShapeDirtyState.Current.Local.Index, ControlElement->ShapeDirtyState.Current.Local.Storage));
-				check(ElementDirtyStates.Contains(ControlElement->ShapeDirtyState.Initial.Global.Index, ControlElement->ShapeDirtyState.Initial.Global.Storage));
-				check(ElementDirtyStates.Contains(ControlElement->ShapeDirtyState.Current.Global.Index, ControlElement->ShapeDirtyState.Current.Global.Storage));
+				check(ElementTransforms.Contains(ControlElement->OffsetStorage.Initial.Local.StorageIndex, ControlElement->OffsetStorage.Initial.Local.Storage));
+				check(ElementTransforms.Contains(ControlElement->OffsetStorage.Current.Local.StorageIndex, ControlElement->OffsetStorage.Current.Local.Storage));
+				check(ElementTransforms.Contains(ControlElement->OffsetStorage.Initial.Global.StorageIndex, ControlElement->OffsetStorage.Initial.Global.Storage));
+				check(ElementTransforms.Contains(ControlElement->OffsetStorage.Current.Global.StorageIndex, ControlElement->OffsetStorage.Current.Global.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->OffsetDirtyState.Initial.Local.StorageIndex, ControlElement->OffsetDirtyState.Initial.Local.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->OffsetDirtyState.Current.Local.StorageIndex, ControlElement->OffsetDirtyState.Current.Local.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->OffsetDirtyState.Initial.Global.StorageIndex, ControlElement->OffsetDirtyState.Initial.Global.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->OffsetDirtyState.Current.Global.StorageIndex, ControlElement->OffsetDirtyState.Current.Global.Storage));
+				check(ElementTransforms.Contains(ControlElement->ShapeStorage.Initial.Local.StorageIndex, ControlElement->ShapeStorage.Initial.Local.Storage));
+				check(ElementTransforms.Contains(ControlElement->ShapeStorage.Current.Local.StorageIndex, ControlElement->ShapeStorage.Current.Local.Storage));
+				check(ElementTransforms.Contains(ControlElement->ShapeStorage.Initial.Global.StorageIndex, ControlElement->ShapeStorage.Initial.Global.Storage));
+				check(ElementTransforms.Contains(ControlElement->ShapeStorage.Current.Global.StorageIndex, ControlElement->ShapeStorage.Current.Global.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->ShapeDirtyState.Initial.Local.StorageIndex, ControlElement->ShapeDirtyState.Initial.Local.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->ShapeDirtyState.Current.Local.StorageIndex, ControlElement->ShapeDirtyState.Current.Local.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->ShapeDirtyState.Initial.Global.StorageIndex, ControlElement->ShapeDirtyState.Initial.Global.Storage));
+				check(ElementDirtyStates.Contains(ControlElement->ShapeDirtyState.Current.Global.StorageIndex, ControlElement->ShapeDirtyState.Current.Global.Storage));
 			}
 			return;
 		}
@@ -5953,35 +5970,35 @@ void URigHierarchy::AllocateDefaultElementStorage(FRigBaseElement* InElement, bo
 		check(TransformIndices.Num() >= 4);
 		const TArray<int32, TInlineAllocator<4>> DirtyStateIndices = ElementDirtyStates.Allocate(TransformElement->GetNumTransforms(), false);
 		check(DirtyStateIndices.Num() >= 4);
-		TransformElement->PoseStorage.Initial.Local.Index = TransformIndices[0];
-		TransformElement->PoseStorage.Current.Local.Index = TransformIndices[1];
-		TransformElement->PoseStorage.Initial.Global.Index = TransformIndices[2];
-		TransformElement->PoseStorage.Current.Global.Index = TransformIndices[3];
-		TransformElement->PoseDirtyState.Initial.Local.Index = DirtyStateIndices[0];
-		TransformElement->PoseDirtyState.Current.Local.Index = DirtyStateIndices[1];
-		TransformElement->PoseDirtyState.Initial.Global.Index = DirtyStateIndices[2];
-		TransformElement->PoseDirtyState.Current.Global.Index = DirtyStateIndices[3];
+		TransformElement->PoseStorage.Initial.Local.StorageIndex = TransformIndices[0];
+		TransformElement->PoseStorage.Current.Local.StorageIndex = TransformIndices[1];
+		TransformElement->PoseStorage.Initial.Global.StorageIndex = TransformIndices[2];
+		TransformElement->PoseStorage.Current.Global.StorageIndex = TransformIndices[3];
+		TransformElement->PoseDirtyState.Initial.Local.StorageIndex = DirtyStateIndices[0];
+		TransformElement->PoseDirtyState.Current.Local.StorageIndex = DirtyStateIndices[1];
+		TransformElement->PoseDirtyState.Initial.Global.StorageIndex = DirtyStateIndices[2];
+		TransformElement->PoseDirtyState.Current.Global.StorageIndex = DirtyStateIndices[3];
 
 		if(FRigControlElement* ControlElement = Cast<FRigControlElement>(TransformElement))
 		{
 			check(TransformIndices.Num() >= 12);
 			check(DirtyStateIndices.Num() >= 12);
-			ControlElement->OffsetStorage.Initial.Local.Index = TransformIndices[4];
-			ControlElement->OffsetStorage.Current.Local.Index = TransformIndices[5];
-			ControlElement->OffsetStorage.Initial.Global.Index = TransformIndices[6];
-			ControlElement->OffsetStorage.Current.Global.Index = TransformIndices[7];
-			ControlElement->OffsetDirtyState.Initial.Local.Index = DirtyStateIndices[4];
-			ControlElement->OffsetDirtyState.Current.Local.Index = DirtyStateIndices[5];
-			ControlElement->OffsetDirtyState.Initial.Global.Index = DirtyStateIndices[6];
-			ControlElement->OffsetDirtyState.Current.Global.Index = DirtyStateIndices[7];
-			ControlElement->ShapeStorage.Initial.Local.Index = TransformIndices[8];
-			ControlElement->ShapeStorage.Current.Local.Index = TransformIndices[9];
-			ControlElement->ShapeStorage.Initial.Global.Index = TransformIndices[10];
-			ControlElement->ShapeStorage.Current.Global.Index = TransformIndices[11];
-			ControlElement->ShapeDirtyState.Initial.Local.Index = DirtyStateIndices[8];
-			ControlElement->ShapeDirtyState.Current.Local.Index = DirtyStateIndices[9];
-			ControlElement->ShapeDirtyState.Initial.Global.Index = DirtyStateIndices[10];
-			ControlElement->ShapeDirtyState.Current.Global.Index = DirtyStateIndices[11];
+			ControlElement->OffsetStorage.Initial.Local.StorageIndex = TransformIndices[4];
+			ControlElement->OffsetStorage.Current.Local.StorageIndex = TransformIndices[5];
+			ControlElement->OffsetStorage.Initial.Global.StorageIndex = TransformIndices[6];
+			ControlElement->OffsetStorage.Current.Global.StorageIndex = TransformIndices[7];
+			ControlElement->OffsetDirtyState.Initial.Local.StorageIndex = DirtyStateIndices[4];
+			ControlElement->OffsetDirtyState.Current.Local.StorageIndex = DirtyStateIndices[5];
+			ControlElement->OffsetDirtyState.Initial.Global.StorageIndex = DirtyStateIndices[6];
+			ControlElement->OffsetDirtyState.Current.Global.StorageIndex = DirtyStateIndices[7];
+			ControlElement->ShapeStorage.Initial.Local.StorageIndex = TransformIndices[8];
+			ControlElement->ShapeStorage.Current.Local.StorageIndex = TransformIndices[9];
+			ControlElement->ShapeStorage.Initial.Global.StorageIndex = TransformIndices[10];
+			ControlElement->ShapeStorage.Current.Global.StorageIndex = TransformIndices[11];
+			ControlElement->ShapeDirtyState.Initial.Local.StorageIndex = DirtyStateIndices[8];
+			ControlElement->ShapeDirtyState.Current.Local.StorageIndex = DirtyStateIndices[9];
+			ControlElement->ShapeDirtyState.Initial.Global.StorageIndex = DirtyStateIndices[10];
+			ControlElement->ShapeDirtyState.Current.Global.StorageIndex = DirtyStateIndices[11];
 		}
 	}
 	else if(FRigCurveElement* CurveElement = Cast<FRigCurveElement>(InElement))
@@ -6004,6 +6021,7 @@ void URigHierarchy::AllocateDefaultElementStorage(FRigBaseElement* InElement, bo
 	{
 		InElement->LinkStorage(ElementTransforms.Storage, ElementDirtyStates.Storage, ElementCurves.Storage);
 	}
+	ElementTransformRanges.Reset();
 }
 
 void URigHierarchy::DeallocateElementStorage(FRigBaseElement* InElement)
@@ -6020,11 +6038,13 @@ void URigHierarchy::UpdateElementStorage()
 	ElementTransformRanges.Reset();
 }
 
-void URigHierarchy::SortElementStorage()
+bool URigHierarchy::SortElementStorage()
 {
+	ElementTransformRanges.Reset();
+
 	if(Elements.IsEmpty())
 	{
-		return;
+		return false;
 	}
 	
 	TMap<int32, FRigComputedTransform*> TransformIndexToComputedTransform;
@@ -6090,28 +6110,18 @@ void URigHierarchy::SortElementStorage()
 	TArray<FTransformInfo> TransformInfos;
 	TransformInfos.Reserve(Elements.Num() * 4);
 
-	for(FRigBaseElement* Element : Elements)
+	ForEachTransformElementStorage([&TransformInfos](
+		FRigTransformElement* InTransformElement,
+		ERigTransformType::Type InTransformType,
+		ERigTransformStorageType::Type InStorageType,
+		FRigComputedTransform* InComputedTransform,
+		FRigTransformDirtyState* InDirtyState)
 	{
-		if(FRigTransformElement* TransformElement = Cast<FRigTransformElement>(Element))
-		{
-			TransformInfos.Emplace(FTypeInfo(TransformElement->GetIndex(), TransformElement->GetType(), ERigTransformType::InitialLocal, ERigTransformStorageType::Pose), &TransformElement->PoseStorage.Initial.Local, &TransformElement->PoseDirtyState.Initial.Local);
-			TransformInfos.Emplace(FTypeInfo(TransformElement->GetIndex(), TransformElement->GetType(), ERigTransformType::InitialGlobal, ERigTransformStorageType::Pose), &TransformElement->PoseStorage.Initial.Global, &TransformElement->PoseDirtyState.Initial.Global);
-			TransformInfos.Emplace(FTypeInfo(TransformElement->GetIndex(), TransformElement->GetType(), ERigTransformType::CurrentLocal, ERigTransformStorageType::Pose), &TransformElement->PoseStorage.Current.Local, &TransformElement->PoseDirtyState.Current.Local);
-			TransformInfos.Emplace(FTypeInfo(TransformElement->GetIndex(), TransformElement->GetType(), ERigTransformType::CurrentGlobal, ERigTransformStorageType::Pose), &TransformElement->PoseStorage.Current.Global, &TransformElement->PoseDirtyState.Current.Global);
-
-			if(FRigControlElement* ControlElement = Cast<FRigControlElement>(Element))
-			{
-				TransformInfos.Emplace(FTypeInfo(ControlElement->GetIndex(), ControlElement->GetType(), ERigTransformType::InitialLocal, ERigTransformStorageType::Offset), &ControlElement->OffsetStorage.Initial.Local, &ControlElement->OffsetDirtyState.Initial.Local);
-				TransformInfos.Emplace(FTypeInfo(ControlElement->GetIndex(), ControlElement->GetType(), ERigTransformType::InitialGlobal, ERigTransformStorageType::Offset), &ControlElement->OffsetStorage.Initial.Global, &ControlElement->OffsetDirtyState.Initial.Global);
-				TransformInfos.Emplace(FTypeInfo(ControlElement->GetIndex(), ControlElement->GetType(), ERigTransformType::CurrentLocal, ERigTransformStorageType::Offset), &ControlElement->OffsetStorage.Current.Local, &ControlElement->OffsetDirtyState.Current.Local);
-				TransformInfos.Emplace(FTypeInfo(ControlElement->GetIndex(), ControlElement->GetType(), ERigTransformType::CurrentGlobal, ERigTransformStorageType::Offset), &ControlElement->OffsetStorage.Current.Global, &ControlElement->OffsetDirtyState.Current.Global);
-				TransformInfos.Emplace(FTypeInfo(ControlElement->GetIndex(), ControlElement->GetType(), ERigTransformType::InitialLocal, ERigTransformStorageType::Shape), &ControlElement->ShapeStorage.Initial.Local, &ControlElement->ShapeDirtyState.Initial.Local);
-				TransformInfos.Emplace(FTypeInfo(ControlElement->GetIndex(), ControlElement->GetType(), ERigTransformType::InitialGlobal, ERigTransformStorageType::Shape), &ControlElement->ShapeStorage.Initial.Global, &ControlElement->ShapeDirtyState.Initial.Global);
-				TransformInfos.Emplace(FTypeInfo(ControlElement->GetIndex(), ControlElement->GetType(), ERigTransformType::CurrentLocal, ERigTransformStorageType::Shape), &ControlElement->ShapeStorage.Current.Local, &ControlElement->ShapeDirtyState.Current.Local);
-				TransformInfos.Emplace(FTypeInfo(ControlElement->GetIndex(), ControlElement->GetType(), ERigTransformType::CurrentGlobal, ERigTransformStorageType::Shape), &ControlElement->ShapeStorage.Current.Global, &ControlElement->ShapeDirtyState.Current.Global);
-			}
-		}
-	}
+		TransformInfos.Emplace(
+			FTypeInfo(InTransformElement->GetIndex(), InTransformElement->GetType(), InTransformType, InStorageType),
+			InComputedTransform,
+			InDirtyState);
+	});
 
 	uint32 NumElements = (uint32)Elements.Num();
 	Algo::SortBy(TransformInfos, [NumElements](const FTransformInfo& InInfo) -> uint32
@@ -6119,41 +6129,57 @@ void URigHierarchy::SortElementStorage()
 		return InInfo.TypeInfo.GetSortKey(NumElements);
 	});
 
+	bool bHasMatchingRanges = true;
+	TMap<ERigTransformType::Type, TTuple<int32, int32>> NewRanges;
+	
 	// check if the sorting is at all required
 	bool bRequiresSort = false;
 	for(int32 Index = 0; Index < TransformInfos.Num(); Index++)
 	{
-		const int32 CurrentTransformIndex = TransformInfos[Index].ComputedTransform->Index;
+		const int32 CurrentTransformIndex = TransformInfos[Index].ComputedTransform->StorageIndex;
 		if(CurrentTransformIndex == INDEX_NONE)
 		{
 			// we cannot sort this if some of the storage is no longer local
 			ElementTransformRanges.Reset();
-			return;
+			return false;
 		}
 		if(CurrentTransformIndex != Index)
 		{
 			bRequiresSort = true;
-			break;
 		}
 
-		const int32 CurrentDirtyStateIndex = TransformInfos[Index].DirtyState->Index;
+		const int32 CurrentDirtyStateIndex = TransformInfos[Index].DirtyState->StorageIndex;
 		if(CurrentDirtyStateIndex == INDEX_NONE)
 		{
 			// we cannot sort this if some of the storage is no longer local
 			ElementTransformRanges.Reset();
-			return;
+			return false;
 		}
 		
 		if(CurrentDirtyStateIndex != Index)
 		{
 			bRequiresSort = true;
-			break;
+		}
+
+		if(CurrentTransformIndex != CurrentDirtyStateIndex)
+		{
+			bHasMatchingRanges = false;
+		}
+		if(bHasMatchingRanges)
+		{
+			TTuple<int32,int32>& Range = NewRanges.FindOrAdd(TransformInfos[Index].TypeInfo.Transform, {INT32_MAX, INDEX_NONE});
+			Range.Get<0>() = FMath::Min(CurrentTransformIndex, Range.Get<0>());
+			Range.Get<1>() = FMath::Max(CurrentTransformIndex, Range.Get<1>());
 		}
 	}
 
 	if(!bRequiresSort)
 	{
-		return;
+		if(bHasMatchingRanges)
+		{
+			ElementTransformRanges = NewRanges;
+		}
+		return false;
 	}
 
 	FRigReusableElementStorage<FTransform> NewElementTransforms;
@@ -6161,18 +6187,17 @@ void URigHierarchy::SortElementStorage()
 	NewElementDirtyStates.Storage.Reserve(ElementDirtyStates.Storage.Num() - ElementDirtyStates.FreeList.Num());
 	NewElementDirtyStates.Storage.Reserve(ElementDirtyStates.Storage.Num() - ElementDirtyStates.FreeList.Num());
 
-	TMap<ERigTransformType::Type, TTuple<int32, int32>> NewRanges;
-
-	bool bHasMatchingRanges = true;
+	bHasMatchingRanges = true;
+	NewRanges.Reset();
 	for(int32 Index = 0; Index < TransformInfos.Num(); Index++)
 	{
-		const int32 CurrentTransformIndex = TransformInfos[Index].ComputedTransform->Index;
+		const int32 CurrentTransformIndex = TransformInfos[Index].ComputedTransform->StorageIndex;
 		const int32 NewTransformIndex = NewElementTransforms.Storage.Add(ElementTransforms[CurrentTransformIndex]);
-		TransformInfos[Index].ComputedTransform->Index = NewTransformIndex;
+		TransformInfos[Index].ComputedTransform->StorageIndex = NewTransformIndex;
 
-		const int32 CurrentDirtyStateIndex = TransformInfos[Index].DirtyState->Index;
+		const int32 CurrentDirtyStateIndex = TransformInfos[Index].DirtyState->StorageIndex;
 		const int32 NewDirtyStateIndex = NewElementDirtyStates.Storage.Add(ElementDirtyStates[CurrentDirtyStateIndex]);
-		TransformInfos[Index].DirtyState->Index = NewDirtyStateIndex;
+		TransformInfos[Index].DirtyState->StorageIndex = NewDirtyStateIndex;
 
 		if(NewTransformIndex == NewDirtyStateIndex)
 		{
@@ -6188,6 +6213,7 @@ void URigHierarchy::SortElementStorage()
 
 	ElementTransforms = NewElementTransforms;
 	ElementDirtyStates = NewElementDirtyStates;
+	
 	UpdateElementStorage();
 
 	if(bHasMatchingRanges)
@@ -6198,6 +6224,141 @@ void URigHierarchy::SortElementStorage()
 	{
 		ElementTransformRanges.Reset();
 	}
+
+	return true;
+}
+
+bool URigHierarchy::ShrinkElementStorage()
+{
+	const TMap<int32, int32> TransformLookup = ElementTransforms.Shrink();
+	const TMap<int32, int32> DirtyStateLookup = ElementDirtyStates.Shrink();
+	const TMap<int32, int32> CurveLookup = ElementCurves.Shrink();
+
+	if(!TransformLookup.IsEmpty() || !DirtyStateLookup.IsEmpty())
+	{
+		ForEachTransformElementStorage([&TransformLookup, &DirtyStateLookup](
+			FRigTransformElement* InTransformElement,
+			ERigTransformType::Type InTransformType,
+			ERigTransformStorageType::Type InStorageType,
+			FRigComputedTransform* InComputedTransform,
+			FRigTransformDirtyState* InDirtyState)
+		{
+			if(const int32* NewTransformIndex = TransformLookup.Find(InComputedTransform->StorageIndex))
+			{
+				InComputedTransform->StorageIndex = *NewTransformIndex;
+			}
+			if(const int32* NewDirtyStateIndex = DirtyStateLookup.Find(InDirtyState->StorageIndex))
+			{
+				InDirtyState->StorageIndex = *NewDirtyStateIndex;
+			}
+		});
+	}
+
+	if(!CurveLookup.IsEmpty())
+	{
+		static const int32 CurveElementIndex = RigElementTypeToFlatIndex(ERigElementType::Curve); 
+		for(FRigBaseElement* Element : ElementsPerType[CurveElementIndex])
+		{
+			FRigCurveElement* CurveElement = CastChecked<FRigCurveElement>(Element);
+			if(const int32* NewIndex = CurveLookup.Find(CurveElement->StorageIndex))
+			{
+				CurveElement->StorageIndex = *NewIndex;
+			}
+		}
+	}
+
+	if(!TransformLookup.IsEmpty() || !DirtyStateLookup.IsEmpty() || !CurveLookup.IsEmpty())
+	{
+		UpdateElementStorage();
+		(void)SortElementStorage();
+		return true;
+	}
+	
+	return false;
+}
+
+void URigHierarchy::ForEachTransformElementStorage(
+	TFunction<void(FRigTransformElement*, ERigTransformType::Type, ERigTransformStorageType::Type, FRigComputedTransform*, FRigTransformDirtyState*)>
+	InCallback)
+{
+	check(InCallback);
+	
+	for(FRigBaseElement* Element : Elements)
+	{
+		if(FRigTransformElement* TransformElement = Cast<FRigTransformElement>(Element))
+		{
+			InCallback(TransformElement, ERigTransformType::InitialLocal, ERigTransformStorageType::Pose, &TransformElement->PoseStorage.Initial.Local, &TransformElement->PoseDirtyState.Initial.Local);
+			InCallback(TransformElement, ERigTransformType::InitialGlobal, ERigTransformStorageType::Pose, &TransformElement->PoseStorage.Initial.Global, &TransformElement->PoseDirtyState.Initial.Global);
+			InCallback(TransformElement, ERigTransformType::CurrentLocal, ERigTransformStorageType::Pose, &TransformElement->PoseStorage.Current.Local, &TransformElement->PoseDirtyState.Current.Local);
+			InCallback(TransformElement, ERigTransformType::CurrentGlobal, ERigTransformStorageType::Pose, &TransformElement->PoseStorage.Current.Global, &TransformElement->PoseDirtyState.Current.Global);
+
+			if(FRigControlElement* ControlElement = Cast<FRigControlElement>(Element))
+			{
+				InCallback(ControlElement, ERigTransformType::InitialLocal, ERigTransformStorageType::Offset, &ControlElement->OffsetStorage.Initial.Local, &ControlElement->OffsetDirtyState.Initial.Local);
+				InCallback(ControlElement, ERigTransformType::InitialGlobal, ERigTransformStorageType::Offset, &ControlElement->OffsetStorage.Initial.Global, &ControlElement->OffsetDirtyState.Initial.Global);
+				InCallback(ControlElement, ERigTransformType::CurrentLocal, ERigTransformStorageType::Offset, &ControlElement->OffsetStorage.Current.Local, &ControlElement->OffsetDirtyState.Current.Local);
+				InCallback(ControlElement, ERigTransformType::CurrentGlobal, ERigTransformStorageType::Offset, &ControlElement->OffsetStorage.Current.Global, &ControlElement->OffsetDirtyState.Current.Global);
+				InCallback(ControlElement, ERigTransformType::InitialLocal, ERigTransformStorageType::Shape, &ControlElement->ShapeStorage.Initial.Local, &ControlElement->ShapeDirtyState.Initial.Local);
+				InCallback(ControlElement, ERigTransformType::InitialGlobal, ERigTransformStorageType::Shape, &ControlElement->ShapeStorage.Initial.Global, &ControlElement->ShapeDirtyState.Initial.Global);
+				InCallback(ControlElement, ERigTransformType::CurrentLocal, ERigTransformStorageType::Shape, &ControlElement->ShapeStorage.Current.Local, &ControlElement->ShapeDirtyState.Current.Local);
+				InCallback(ControlElement, ERigTransformType::CurrentGlobal, ERigTransformStorageType::Shape, &ControlElement->ShapeStorage.Current.Global, &ControlElement->ShapeDirtyState.Current.Global);
+			}
+		}
+	}
+}
+
+TTuple<FRigComputedTransform*, FRigTransformDirtyState*> URigHierarchy::GetElementTransformStorage(const FRigElementKeyAndIndex& InKey,
+	ERigTransformType::Type InTransformType, ERigTransformStorageType::Type InStorageType)
+{
+	FRigTransformElement* TransformElement = Get<FRigTransformElement>(InKey);
+	if(TransformElement && TransformElement->GetKey() == InKey.Key)
+	{
+		FRigCurrentAndInitialTransform& Transform = TransformElement->PoseStorage;
+		FRigCurrentAndInitialDirtyState& DirtyState = TransformElement->PoseDirtyState;
+		if(InStorageType == ERigTransformStorageType::Offset || InStorageType == ERigTransformStorageType::Shape)
+		{
+			FRigControlElement* ControlElement = Cast<FRigControlElement>(TransformElement);
+			if(ControlElement == nullptr)
+			{
+				return {nullptr, nullptr};
+			}
+			if(InStorageType == ERigTransformStorageType::Offset)
+			{
+				Transform = ControlElement->OffsetStorage;
+				DirtyState = ControlElement->OffsetDirtyState;
+			}
+			else
+			{
+				Transform = ControlElement->ShapeStorage;
+				DirtyState = ControlElement->ShapeDirtyState;
+			}
+		}
+		
+		switch(InTransformType)
+		{
+			case ERigTransformType::InitialLocal:
+			{
+				return {&Transform.Initial.Local, &DirtyState.Initial.Local};
+			}
+			case ERigTransformType::CurrentLocal:
+			{
+				return {&Transform.Current.Local, &DirtyState.Current.Local};
+			}
+			case ERigTransformType::InitialGlobal:
+			{
+				return {&Transform.Initial.Global, &DirtyState.Initial.Global};
+			}
+			case ERigTransformType::CurrentGlobal:
+			{
+				return {&Transform.Current.Global, &DirtyState.Current.Global};
+			}
+			default:
+			{
+				break;
+			}
+		}
+	}
+	return {nullptr, nullptr};
 }
 
 TOptional<TTuple<int32, int32>> URigHierarchy::GetElementStorageRange(ERigTransformType::Type InTransformType) const
@@ -6397,7 +6558,7 @@ bool URigHierarchy::RemoveMetadataForElement(FRigBaseElement* InElement, const F
 	// metadata storage can just recycle that.
 	if (Storage.MetadataMap.IsEmpty())
 	{
-		ElementMetadata.Deallocate(InElement->MetadataStorageIndex);
+		ElementMetadata.Deallocate(InElement->MetadataStorageIndex, nullptr);
 		InElement->MetadataStorageIndex = INDEX_NONE;
 	}
 	else if (Storage.LastAccessName == InName)
@@ -6428,7 +6589,7 @@ bool URigHierarchy::RemoveAllMetadataForElement(FRigBaseElement* InElement)
 	// Clear the storage for the next user.
 	Storage.Reset();
 	
-	ElementMetadata.Deallocate(InElement->MetadataStorageIndex);
+	ElementMetadata.Deallocate(InElement->MetadataStorageIndex, nullptr);
 	InElement->MetadataStorageIndex = INDEX_NONE;
 
 	if(ElementBeingDestroyed != InElement)

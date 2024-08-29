@@ -9,6 +9,7 @@
 #include "RigHierarchyElements.h"
 #include "RigHierarchyCache.h"
 #include "RigHierarchyPose.h"
+#include "RigHierarchyPoseAdapter.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "EdGraph/EdGraphPin.h"
 #include "RigHierarchyDefines.h"
@@ -431,6 +432,30 @@ public:
 		}
 		return INDEX_NONE;
 	}
+
+	/**
+	 * Returns the key and index pair of an element given its key
+	 * @param InKey The key of the element to retrieve the information for
+	 * @return The key and index pair of the element
+	 */
+	FRigElementKeyAndIndex GetKeyAndIndex(const FRigElementKey& InKey) const
+	{
+		return GetKeyAndIndex(GetIndex(InKey));
+	};
+
+	/**
+	 * Returns the key and index pair of an element given its index
+	 * @param InIndex The index of the element to retrieve the information for
+	 * @return The key and index pair of the element
+	 */
+	FRigElementKeyAndIndex GetKeyAndIndex(int32 InIndex) const
+	{
+		if(const FRigBaseElement* Element = Get(InIndex))
+		{
+			return FRigElementKeyAndIndex(Element);
+		}
+		return FRigElementKeyAndIndex();
+	};
 
 	/**
 	 * Returns the index of an element given its key within its default parent (or root)
@@ -3691,6 +3716,20 @@ public:
 	}
 
 	/**
+	 * Sets the pose adapter used for storage of pose data
+	 * @param InPoseAdapter The pose adapter to set on the hierarchy
+	 */
+	void LinkPoseAdapter(TSharedPtr<FRigHierarchyPoseAdapter> InPoseAdapter);
+
+	/**
+	 * Clears the pose adapter used for storage of pose data
+	 */
+	void UnlinkPoseAdapter()
+	{
+		return LinkPoseAdapter(nullptr);
+	}
+
+	/**
 	 * Creates a rig control value from a bool value
 	 * @param InValue The value to create the rig control value from
 	 * @return The converted control rig val ue
@@ -3888,6 +3927,8 @@ private:
 	FRigHierarchyMetadataChangedDelegate MetadataChangedDelegate;
 	FRigHierarchyMetadataTagChangedDelegate MetadataTagChangedDelegate;
 	FRigEventDelegate EventDelegate;
+
+	TSharedPtr<FRigHierarchyPoseAdapter> PoseAdapter;
 
 public:
 
@@ -4323,7 +4364,19 @@ private:
 	// Orders the element storage by storing first initial, then current,
 	// within each first local, then global, and within each of those lists
 	// we'll place bones, nulls, controls etc in that order
-	void SortElementStorage();
+	bool SortElementStorage();
+
+	// Compacts the element storage
+	bool ShrinkElementStorage();
+
+	// Helper function to iterate all transform element storage
+	void ForEachTransformElementStorage(TFunction<void(FRigTransformElement*,ERigTransformType::Type,ERigTransformStorageType::Type,FRigComputedTransform*,FRigTransformDirtyState*)> InCallback);
+
+	// Returns the computed transform and dirty state for a given element
+	TTuple<FRigComputedTransform*,FRigTransformDirtyState*> GetElementTransformStorage(
+		const FRigElementKeyAndIndex& InKey,
+		ERigTransformType::Type InTransformType,
+		ERigTransformStorageType::Type InStorageType = ERigTransformStorageType::Pose);
 
 	// Returns the range of the element transform / dirty state storage for a given
 	// transform type. this is only valid if the element storage has been sorted. 
@@ -4982,6 +5035,9 @@ private:
 	friend struct FRigDispatch_GetModuleMetadata;
 	friend struct FRigDispatch_SetModuleMetadata;
 	friend class FControlRigHierarchySortElementStorage;
+	friend class FControlRigHierarchyShrinkElementStorage;
+	friend class FControlRigHierarchyRelinkElementStorage;
+	friend class FRigHierarchyPoseAdapter;
 };
 
 struct CONTROLRIG_API FRigHierarchyInteractionBracket

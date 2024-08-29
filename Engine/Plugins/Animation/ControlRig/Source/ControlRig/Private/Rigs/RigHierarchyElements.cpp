@@ -266,15 +266,15 @@ FRigTransformDirtyState& FRigTransformDirtyState::operator=(const FRigTransformD
 
 void FRigTransformDirtyState::LinkStorage(const TArrayView<bool>& InStorage)
 {
-	if(InStorage.IsValidIndex(Index))
+	if(InStorage.IsValidIndex(StorageIndex))
 	{
-		Storage = InStorage.GetData() + Index;
+		Storage = InStorage.GetData() + StorageIndex;
 	}
 }
 
 void FRigTransformDirtyState::UnlinkStorage(FRigReusableElementStorage<bool>& InStorage)
 {
-	InStorage.Deallocate(Index, &Storage);
+	InStorage.Deallocate(StorageIndex, &Storage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -370,15 +370,15 @@ FRigComputedTransform& FRigComputedTransform::operator=(const FRigComputedTransf
 
 void FRigComputedTransform::LinkStorage(const TArrayView<FTransform>& InStorage)
 {
-	if(InStorage.IsValidIndex(Index))
+	if(InStorage.IsValidIndex(StorageIndex))
 	{
-		Storage = InStorage.GetData() + Index;
+		Storage = InStorage.GetData() + StorageIndex;
 	}
 }
 
 void FRigComputedTransform::UnlinkStorage(FRigReusableElementStorage<FTransform>& InStorage)
 {
-	InStorage.Deallocate(Index, &Storage);
+	InStorage.Deallocate(StorageIndex, &Storage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
