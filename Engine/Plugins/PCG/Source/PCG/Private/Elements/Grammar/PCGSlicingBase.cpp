@@ -251,13 +251,6 @@ PCGGrammar::FTokenizedGrammar PCGSlicingBase::GetTokenizedGrammar(FPCGContext* I
 		}
 	};
 
-	// TODO Add quiet mode
-	for (FName UnmatchedToken : UnmatchedTokens)
-	{
-		FText WarningMessage = FText::Format(LOCTEXT("UnmatchedTokensInGrammar", "Unmatched token found in grammar: {0}."), FText::FromName(UnmatchedToken));
-		PCGLog::LogWarningOnGraph(WarningMessage, InContext);
-	}
-
 	if (Result.Root.Submodules.IsEmpty())
 	{
 		return {};
@@ -268,6 +261,13 @@ PCGGrammar::FTokenizedGrammar PCGSlicingBase::GetTokenizedGrammar(FPCGContext* I
 	TokenizedGrammar.ModuleGrammar = MakeShared<PCGGrammar::FTokenizedModule>(TokenizedGrammar.ParsedGrammar.Get());
 	BuildNode(*TokenizedGrammar.ModuleGrammar, *TokenizedGrammar.ParsedGrammar, BuildNode);
 	OutMinSize = TokenizedGrammar.ModuleGrammar->GetMinSize();
+
+	// TODO Add quiet mode
+	for (FName UnmatchedToken : UnmatchedTokens)
+	{
+		FText WarningMessage = FText::Format(LOCTEXT("UnmatchedTokensInGrammar", "Unmatched token found in grammar: {0}."), FText::FromName(UnmatchedToken));
+		PCGLog::LogWarningOnGraph(WarningMessage, InContext);
+	}
 
 	return TokenizedGrammar;
 }
