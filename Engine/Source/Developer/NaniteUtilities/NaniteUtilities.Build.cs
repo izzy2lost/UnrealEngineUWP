@@ -18,6 +18,7 @@ public class NaniteUtilities : ModuleRules
 			new string[]
 			{
 				"ImageCore",
+				"DesktopWidgets",
 			}
 		);
 	}

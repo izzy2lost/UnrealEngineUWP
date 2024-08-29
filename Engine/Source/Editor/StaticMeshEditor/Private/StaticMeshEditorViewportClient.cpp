@@ -35,6 +35,7 @@
 #include "UnrealWidget.h"
 
 #include "Rendering/NaniteResources.h"
+#include "NaniteLayout.h"
 
 #define LOCTEXT_NAMESPACE "FStaticMeshEditorViewportClient"
 
@@ -824,6 +825,8 @@ void FStaticMeshEditorViewportClient::DrawCanvas(FViewport& InViewport, FSceneVi
 
 	if (StaticMesh->IsNaniteEnabled())
 	{
+		typedef Nanite::FSettingsLayout<UStaticMesh, true /* ForceEnable */, true /* HighRes */> TNaniteStaticMeshSettings;
+
 		TextItems.Emplace(FText::Format(NSLOCTEXT("UnrealEd", "NaniteEnabled", "<TextBlock.ShadowedText>Nanite Enabled</> <TextBlock.ShadowedTextWarning>{0}</>"), StaticMeshComponent->bDisplayNaniteFallbackMesh ? NSLOCTEXT("UnrealEd", "ShowingNaniteFallback", "(Showing Fallback)") : FText::GetEmpty()), false, true);
 
 		if (StaticMesh->GetRenderData())
@@ -831,10 +834,10 @@ void FStaticMeshEditorViewportClient::DrawCanvas(FViewport& InViewport, FSceneVi
 			const Nanite::FResources& Resources = *StaticMesh->GetRenderData()->NaniteResourcesPtr.Get();
 			if (Resources.RootData.Num() > 0)
 			{
-				const FString PositionStr = FNaniteSettingsLayout::PositionPrecisionValueToDisplayString(Resources.PositionPrecision);
+				const FString PositionStr = TNaniteStaticMeshSettings::PositionPrecisionValueToDisplayString(Resources.PositionPrecision);
 				TextItems.Emplace(FText::Format(NSLOCTEXT("UnrealEd", "NanitePositionPrecision", "Position Precision: {0}"), FText::FromString(PositionStr)));
 
-				const FString NormalStr = FNaniteSettingsLayout::NormalPrecisionValueToDisplayString(Resources.NormalPrecision);
+				const FString NormalStr = TNaniteStaticMeshSettings::NormalPrecisionValueToDisplayString(Resources.NormalPrecision);
 				TextItems.Emplace(FText::Format(NSLOCTEXT("UnrealEd", "NaniteNormalPrecision", "Normal Precision: {0}"), FText::FromString(NormalStr)));
 
 				const uint32 NumStreamingPages = Resources.PageStreamingStates.Num() - Resources.NumRootPages;

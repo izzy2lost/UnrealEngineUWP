@@ -51,6 +51,7 @@
 #include "LODUtilities.h"
 #include "MeshUtilities.h"
 #include "FbxMeshUtils.h"
+#include "NaniteLayout.h"
 
 #include "MeshDescription.h"
 #include "MeshAttributes.h"
@@ -176,6 +177,64 @@ enum EButtonFlags
 
 	/** Show remove button */
 	BF_Remove = 0x00000008
+};
+
+/**
+ * Window for Nanite settings.
+ */
+
+bool GIsNaniteSkeletalMeshSettingsInitiallyCollapsed = 0;
+static FAutoConsoleVariableRef CVarIsNaniteSkeletalMeshSettingsInitiallyCollapsed(
+	TEXT("r.Nanite.IsNaniteSkeletalMeshSettingsInitiallyCollapsed"),
+	GIsNaniteSkeletalMeshSettingsInitiallyCollapsed,
+	TEXT("If the Nanite Settings are initially collapsed in the details panel in the Skeletal Mesh Editor Tool."),
+	ECVF_ReadOnly
+);
+
+typedef Nanite::FSettingsLayout<USkeletalMesh, false /* ForceEnable */, false /* HighRes */> FNaniteSettingsLayoutInner;
+
+class FNaniteSettingsLayout : public FNaniteSettingsLayoutInner
+{
+public:
+	typedef FNaniteSettingsLayoutInner Super;
+
+public:
+	FNaniteSettingsLayout(FPersonaMeshDetails& InMeshDetails, TSharedRef<IPersonaToolkit> InPersonaToolkit)
+	: MeshDetails(InMeshDetails)
+	, PersonaToolkit(InPersonaToolkit)
+	{
+		const USkeletalMesh* SkeletalMesh = GetMesh();
+		check(SkeletalMesh);
+		UpdateSettings(SkeletalMesh->NaniteSettings);
+	}
+
+	virtual ~FNaniteSettingsLayout()
+	{
+	}
+
+	void AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilder)
+	{
+		const bool bInitiallyCollapsed = GIsNaniteSkeletalMeshSettingsInitiallyCollapsed != 0;
+
+		USkeletalMesh* SkeletalMesh = GetMesh();
+		TWeakObjectPtr<USkeletalMesh> WeakSkeletalMesh = SkeletalMesh;
+		Super::AddToDetailsPanel(WeakSkeletalMesh, DetailBuilder, bInitiallyCollapsed);
+	}
+
+	virtual void RefreshTool() override
+	{
+		MeshDetails.RequestLayoutUpdate();
+	}
+
+private:
+	virtual MeshType* GetMesh() const override
+	{
+		return PersonaToolkit->GetMesh();
+	}
+
+private:
+	FPersonaMeshDetails& MeshDetails;
+	TSharedRef<IPersonaToolkit> PersonaToolkit;
 };
 
 // Container widget for LOD buttons
@@ -4291,6 +4350,11 @@ void FPersonaMeshDetails::ApplyChanges()
 	USkeletalMesh* SkelMesh = GetPersonaToolkit()->GetMesh();
 	check(SkelMesh);
 
+	if (NaniteSettings.IsValid())
+	{
+		NaniteSettings->ApplyChanges();
+	}
+
 	FScopedSuspendAlternateSkinWeightPreview ScopedSuspendAlternateSkinnWeightPreview(SkelMesh);
 	//Control the scope of the PostEditChange
 	{
@@ -4364,12 +4428,18 @@ bool FPersonaMeshDetails::IsGenerateAvailable() const
 {
 	return IsAutoMeshReductionAvailable() && (IsApplyNeeded() || (LODCount > 1));
 }
+
 bool FPersonaMeshDetails::IsApplyNeeded() const
 {
 	USkeletalMesh* SkelMesh = GetPersonaToolkit()->GetMesh();
 	check(SkelMesh);
 
 	if (!SkelMesh->IsCompiling() && SkelMesh->GetLODNum() != LODCount)
+	{
+		return true;
+	}
+
+	if (NaniteSettings.IsValid() && NaniteSettings->IsApplyNeeded())
 	{
 		return true;
 	}
@@ -4445,6 +4515,13 @@ void FPersonaMeshDetails::CustomizeDetails( IDetailLayoutBuilder& DetailLayout )
 	TSharedRef<IPropertyHandle> PostProcessHandle = DetailLayout.GetProperty(USkeletalMesh::GetPostProcessAnimBlueprintMemberName(), USkeletalMesh::StaticClass());
 	PostProcessHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FPersonaMeshDetails::OnPostProcessBlueprintChanged, &DetailLayout));
 	PostProcessHandle->MarkHiddenByCustomization();
+
+	// Hide the existing NaniteSettings property so we can use the customization instead
+	TSharedRef<IPropertyHandle> NaniteSettingsProperty = DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(USkeletalMesh, NaniteSettings));
+	NaniteSettingsProperty->MarkHiddenByCustomization();
+
+	NaniteSettings = MakeShareable(new FNaniteSettingsLayout(*this, GetPersonaToolkit()));
+	NaniteSettings->AddToDetailsPanel(DetailLayout);
 
 	FDetailWidgetRow& PostProcessRow = SkelMeshCategory.AddCustomRow(LOCTEXT("PostProcessFilterString", "Post Process Blueprint"));
 	PostProcessRow.RowTag(TEXT("PostProcessAnimBlueprint"));
