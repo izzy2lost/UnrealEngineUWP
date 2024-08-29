@@ -607,6 +607,13 @@ const FLensFileEvaluationInputs& ULensComponent::GetLensFileEvaluationInputs() c
 	return EvalInputs;
 }
 
+void ULensComponent::SetLensFileEvaluationInputs(float InFocus, float InZoom)
+{
+	EvalInputs.Focus = InFocus;
+	EvalInputs.Zoom = InZoom;
+	EvalInputs.bIsValid = true;
+}
+
 bool ULensComponent::ShouldApplyNodalOffsetOnTick() const
 {
 	return bApplyNodalOffsetOnTick;
@@ -925,9 +932,9 @@ void ULensComponent::UpdateLensFileEvaluationInputs(UCineCameraComponent* CineCa
 		EvalInputs.Zoom = OriginalFocalLength;
 		EvalInputs.bIsValid = true;
 	}
-	else if (EvaluationMode == EFIZEvaluationMode::UseRecordedValues)
+	else if ((EvaluationMode == EFIZEvaluationMode::UseRecordedValues) || (EvaluationMode == EFIZEvaluationMode::Manual))
 	{
-		// Do nothing, the values for EvalInputs.Focus and EvalInputs.Zoom are already loaded from the recorded sequence
+		// Do nothing, the values for EvalInputs.Focus and EvalInputs.Zoom are already valid
 		EvalInputs.bIsValid = true;
 	}
 }

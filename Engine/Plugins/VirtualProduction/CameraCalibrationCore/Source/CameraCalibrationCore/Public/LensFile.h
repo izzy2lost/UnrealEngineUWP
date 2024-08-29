@@ -381,16 +381,16 @@ struct FLensFileEvaluationInputs
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(Interp, VisibleAnywhere, BlueprintReadOnly, Category = "Lens File")
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = "Lens File")
 	float Focus = 0.0f;
 
-	UPROPERTY(Interp, VisibleAnywhere, BlueprintReadOnly, Category = "Lens File")
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = "Lens File")
 	float Iris = 0.0f;
 
-	UPROPERTY(Interp, VisibleAnywhere, BlueprintReadOnly, Category = "Lens File")
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = "Lens File")
 	float Zoom = 0.0f;
 
-	UPROPERTY(Interp, VisibleAnywhere, BlueprintReadOnly, Category = "Lens File")
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = "Lens File")
 	FCameraFilmbackSettings Filmback;
 
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "Lens File")

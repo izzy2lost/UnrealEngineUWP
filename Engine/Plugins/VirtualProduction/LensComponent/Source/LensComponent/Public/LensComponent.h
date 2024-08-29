@@ -27,6 +27,8 @@ enum class EFIZEvaluationMode : uint8
 	UseCameraSettings,
 	/** Evaluate the Lens File using values recorded in a level sequence (set automatically when the sequence is opened) */
 	UseRecordedValues,
+	/** Evaluate the Lens File using values set directly in the details panel or via BP/scripting */
+	Manual,
 	/** Do not evaluate the Lens File */
 	DoNotEvaluate,
 };
@@ -199,6 +201,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Lens Component")
 	const FLensFileEvaluationInputs& GetLensFileEvaluationInputs() const;
 
+	/** Set the data used by this component to evaluate the LensFile */
+	UFUNCTION(BlueprintCallable, Category = "Lens Component")
+	void SetLensFileEvaluationInputs(float InFocus, float InZoom);
+
 	/** Returns true if nodal offset was applied during the current tick, false otherwise */
 	UFUNCTION(BlueprintPure, Category = "Lens Component")
 	bool WasNodalOffsetAppliedThisTick() const;
@@ -282,7 +288,7 @@ protected:
 	FComponentReference TargetCameraComponent;
 
 	/** Inputs to LensFile evaluation */
-	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = "Lens File")
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Lens File")
 	FLensFileEvaluationInputs EvalInputs;
 
 	/** Specifies from where the distortion state information comes */
