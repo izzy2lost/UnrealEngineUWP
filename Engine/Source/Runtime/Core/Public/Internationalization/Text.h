@@ -186,7 +186,8 @@ CORE_API bool LexTryParseString(ERoundingMode& OutValue, const TCHAR* Buffer);
 CORE_API void LexFromString(ERoundingMode& OutValue, const TCHAR* Buffer);
 CORE_API const TCHAR* LexToString(ERoundingMode InValue);
 
-enum EMemoryUnitStandard
+/** Redeclared in KismetTextLibrary for meta-data extraction purposes, be sure to update there as well */
+enum EMemoryUnitStandard : int
 {
 	/* International Electrotechnical Commission (MiB) 1024-based */
 	IEC,

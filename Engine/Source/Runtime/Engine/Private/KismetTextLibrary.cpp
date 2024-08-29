@@ -307,6 +307,12 @@ FText UKismetTextLibrary::AsTimespan_Timespan(const FTimespan& InTimespan)
 	return FText::AsTimespan(InTimespan);
 }
 
+FText UKismetTextLibrary::AsMemory(int64 NumBytes, TEnumAsByte<EMemoryUnitStandard> UnitStandard, bool bUseGrouping)
+{
+	uint64 UnsignedNumBytes = static_cast<uint64>(FMath::Max(0, NumBytes));
+	return FText::AsMemory(UnsignedNumBytes, bUseGrouping ? &FNumberFormattingOptions::DefaultWithGrouping() : &FNumberFormattingOptions::DefaultNoGrouping(), nullptr, UnitStandard);
+}
+
 FText UKismetTextLibrary::Format(FText InPattern, TArray<FFormatArgumentData> InArgs)
 {
 	return FTextFormatter::Format(MoveTemp(InPattern), MoveTemp(InArgs), false, false);

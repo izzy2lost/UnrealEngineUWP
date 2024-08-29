@@ -33,6 +33,15 @@ enum ERoundingMode : int
 };
 
 UENUM(BlueprintType)
+enum EMemoryUnitStandard : int
+{
+	/* International Electrotechnical Commission (MiB) 1024-based */
+	IEC,
+	/* International System of Units 1000-based */
+	SI
+};
+
+UENUM(BlueprintType)
 enum class ETextGender : uint8
 {
 	Masculine,
@@ -287,6 +296,10 @@ class UKismetTextLibrary : public UBlueprintFunctionLibrary
 	/** Converts a passed in time span to a text, formatted as a time span */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As Timespan", AdvancedDisplay = "1"), Category="Utilities|Text")
 	static ENGINE_API FText AsTimespan_Timespan(const FTimespan& InTimespan);
+
+	/** Generate an FText that represents the passed number as a memory size in the current culture */
+	UFUNCTION(BlueprintPure, meta=(AdvancedDisplay = "1"), Category="Utilities|Text")
+	static ENGINE_API FText AsMemory(int64 NumBytes, TEnumAsByte<EMemoryUnitStandard> UnitStandard = EMemoryUnitStandard::IEC, bool bUseGrouping = true);
 
 	/** Used for formatting text using the FText::Format function and utilized by the UK2Node_FormatText */
 	UFUNCTION(BlueprintPure, meta=(BlueprintInternalUseOnly = "true"))
