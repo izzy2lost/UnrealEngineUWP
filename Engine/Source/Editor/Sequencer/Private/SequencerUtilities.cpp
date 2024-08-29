@@ -4435,4 +4435,51 @@ bool FSequencerUtilities::CanConvertToCustomBinding(TSharedRef<ISequencer> Seque
 	return false;
 }
 
+UMovieSceneSequence* FSequencerUtilities::GetMovieSceneSequence(TSharedPtr<ISequencer>& InSequencer, const FMovieSceneSequenceID& SequenceID)
+{
+	if (MovieSceneSequenceID::Root != SequenceID)
+	{
+		UMovieSceneSubSection* SubSection = InSequencer->FindSubSection(SequenceID);
+		return SubSection ? SubSection->GetSequence() : nullptr;
+	}
+	return InSequencer->GetRootMovieSceneSequence();
+}
+
+void FOpenSequencerWatcher::DoStartup(TFunction<void()> StartupComplete)
+{
+	auto RegisterWatcher = [this, StartupCompleteFunc = MoveTemp(StartupComplete)]()
+	{
+		ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>("Sequencer");
+		SequencerModule.RegisterOnSequencerCreated(
+			FOnSequencerCreated::FDelegate::CreateRaw(this, &FOpenSequencerWatcher::OnSequencerCreated));
+
+		StartupCompleteFunc();
+	};
+
+	if (GEngine)
+	{
+		RegisterWatcher();
+	}
+	else
+	{
+		FCoreDelegates::OnFEngineLoopInitComplete.AddLambda(RegisterWatcher);
+	}
+}
+
+void FOpenSequencerWatcher::OnSequencerCreated(TSharedRef<ISequencer> InSequencer)
+{
+	FOpenSequencerData OpenSequencer;
+	OpenSequencer.WeakSequencer = TWeakPtr<ISequencer>(InSequencer);
+	OpenSequencer.OnCloseEventHandle = InSequencer->OnCloseEvent().AddRaw(this, &FOpenSequencerWatcher::OnSequencerClosed);
+	OpenSequencers.Add(MoveTemp(OpenSequencer));
+}
+
+void FOpenSequencerWatcher::OnSequencerClosed(TSharedRef<ISequencer> InSequencer)
+{
+	OpenSequencers.RemoveAll([SequencerObject=&InSequencer.Get()](const FOpenSequencerData& Data)
+	{
+		return Data.WeakSequencer.HasSameObject(SequencerObject);
+	});
+}
+
 #undef LOCTEXT_NAMESPACE

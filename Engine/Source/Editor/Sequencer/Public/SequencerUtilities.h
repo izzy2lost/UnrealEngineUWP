@@ -23,6 +23,7 @@ class ISequencer;
 class FMenuBuilder;
 struct FMovieSceneBinding;
 struct FMovieScenePossessable;
+struct FMovieSceneSequenceID;
 struct FMovieSceneSpawnable;
 struct FNotificationInfo;
 class ULevelSequence;
@@ -192,6 +193,38 @@ struct FSequencerChangeBindingInfo
 	int32 BindingIndex = -1;
 };
 
+/**
+ * Helper structure to track when an sequencer is opened and closed.  Note, it will only track from when DoStartup is invoked and will not enumerate existing open sequencers.
+ */
+struct SEQUENCER_API FOpenSequencerWatcher
+{
+	/**
+	 * Begin watching the sequencer.
+	 *
+	 * @param OnStartup - will be called when we start listening for sequencer events. This will always be after engine startup if called during module load; otherwise it will be immediately called.
+	 */
+	void DoStartup(TFunction<void ()> StartupComplete);
+
+	/** Invoked when a new sequencer is created. */
+	void OnSequencerCreated(TSharedRef<ISequencer> InSequencer);
+
+	/** Registered delegate when a sequencer is closed. */
+	void OnSequencerClosed(TSharedRef<ISequencer> InSequencer);
+
+	/** Internal structure for tracking sequencers. */
+	struct FOpenSequencerData
+	{
+		/** Weak pointer to the sequencer itself, if locally opened. */
+		TWeakPtr<ISequencer> WeakSequencer;
+
+		/** Delegate handle to the Close event for the sequencer, if locally opened. */
+		FDelegateHandle OnCloseEventHandle;
+	};
+
+	/** List of open sequencers currently known by the watcher. */
+	TArray<FOpenSequencerData> OpenSequencers;
+};
+
 struct SEQUENCER_API FSequencerUtilities
 {
 	/* Creates a button (used for +Section) that opens a ComboButton with a user-defined sub-menu content. */
@@ -305,4 +338,6 @@ struct SEQUENCER_API FSequencerUtilities
 	static void AddChangeClassMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToConvert, TFunction<void()> OnBindingChanged);
 	static void HandleTemplateActorClassPicked(UClass* ChosenClass, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToConvert, TFunction<void()> OnBindingChanged);
 
+	/** Get a movie scene sequence from a FMovideSceneSequenceID */
+	static UMovieSceneSequence* GetMovieSceneSequence(TSharedPtr<ISequencer>& InSequencer, const FMovieSceneSequenceID& SequenceID);
 };

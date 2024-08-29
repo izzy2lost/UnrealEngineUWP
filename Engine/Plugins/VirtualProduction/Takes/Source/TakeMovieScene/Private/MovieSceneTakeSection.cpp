@@ -74,6 +74,35 @@ void UMovieSceneTakeSection::PostEditImport()
 	ReconstructChannelProxy();
 }
 
+TOptional<UMovieSceneTakeSection::FSectionData> UMovieSceneTakeSection::Evaluate(FFrameTime InTime) const
+{
+	int32 Hours = 0;
+	int32 Minutes = 0;
+	int32 Seconds = 0;
+	int32 Frames = 0;
+	float Subframe = 0;;
+
+	FSectionData SectionData;
+
+	if (!HoursCurve.Evaluate(InTime, Hours)
+		|| !MinutesCurve.Evaluate(InTime, Minutes)
+		|| !SecondsCurve.Evaluate(InTime, Seconds)
+		|| !FramesCurve.Evaluate(InTime, Frames)
+		|| !SubFramesCurve.Evaluate(InTime, Subframe)
+		|| !RateCurve.Evaluate(InTime, SectionData.Rate))
+	{
+		return {};
+	}
+
+	const FString* SlateString = Slate.Evaluate(InTime);
+	bool bIsDropFrame = FTimecode::IsDropFormatTimecodeSupported(SectionData.Rate) && FTimecode::UseDropFormatTimecodeByDefaultWhenSupported();
+
+	SectionData.Timecode = FTimecode(Hours, Minutes, Seconds, Frames, Subframe, bIsDropFrame);
+	SectionData.Slate = SlateString ? *SlateString : TEXT("");
+
+	return SectionData;
+}
+
 void UMovieSceneTakeSection::ReconstructChannelProxy()
 {
 	LLM_SCOPE_BYNAME(TEXT("Takes/MovieSceneTakeSection"))

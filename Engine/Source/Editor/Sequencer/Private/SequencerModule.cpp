@@ -20,6 +20,8 @@
 #include "Tree/CurveEditorTreeFilter.h"
 #include "AnimatedPropertyKey.h"
 #include "MovieSceneSignedObject.h"
+#include "MovieSceneSequence.h"
+#include "Sections/MovieSceneSubSection.h"
 
 #include "MVVM/CurveEditorExtension.h"
 #include "MVVM/CurveEditorIntegrationExtension.h"
@@ -55,6 +57,10 @@
 #include "Editor/UnrealEdEngine.h"
 #include "PropertyEditorModule.h"
 #include "PropertyHandle.h"
+
+#include "Algo/RemoveIf.h"
+#include "Engine/Font.h"
+#include "CanvasTypes.h"
 
 #if !IS_MONOLITHIC
 UE_SELECT_ANY UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
@@ -182,6 +188,92 @@ static void RegisterKeyframeExtensionHandler(const FOnGenerateGlobalRowExtension
 	);
 }
 
+namespace UE::SequencerModule::Private
+{
+	int32 RenderTimecode(FCanvas* Canvas, int32 X, int32 Y, const FTimecode& Timecode, const FString& SequenceName)
+	{
+		UFont* Font = FPlatformProperties::SupportsWindowedMode() ? GEngine->GetSmallFont() : GEngine->GetMediumFont();
+		const int32 RowHeight = FMath::TruncToInt(Font->GetMaxCharHeight());
+
+		const bool bForceSignDisplay = false;
+		const bool bAlwaysDisplaySubframe = true;
+
+		FString TimecodeStr = Timecode.ToString(bForceSignDisplay, bAlwaysDisplaySubframe);
+		float CharWidth, CharHeight;
+		Font->GetCharSize(TEXT(' '), CharWidth, CharHeight);
+		int32 NewX = X - Font->GetStringSize(*SequenceName) - (int32)CharWidth*14;
+
+		Canvas->DrawShadowedString(NewX, Y, *FString::Printf(TEXT("%s TC: %s"), *SequenceName, *TimecodeStr), Font, FColor::Green);
+		Y += RowHeight;
+
+		return Y;
+	};
+
+	int32 RenderTimeForSequences(FCanvas* Canvas, int32 X, int32 Y, TSharedPtr<ISequencer>& InSequencer)
+	{
+		const FFrameRate RootDisplayRate = InSequencer->GetRootDisplayRate();
+		const FFrameRate LocalDisplayRate = InSequencer->GetFocusedDisplayRate();
+		const FQualifiedFrameTime LocalCurrentTime = InSequencer->GetLocalTime();
+		const FQualifiedFrameTime RootCurrentTime = InSequencer->GetGlobalTime();
+
+		const FTimecode LocalTimecode = FTimecode::FromFrameTime(LocalCurrentTime.ConvertTo(LocalDisplayRate), LocalDisplayRate);
+		const FTimecode RootTimecode = FTimecode::FromFrameTime(RootCurrentTime.ConvertTo(RootDisplayRate), RootDisplayRate);
+
+		const TArray<FMovieSceneSequenceID>& SubSequenceHierarchy = InSequencer->GetSubSequenceHierarchy();
+		if (SubSequenceHierarchy.Num() > 0)
+		{
+			// The first one is the root sequence.
+			UMovieSceneSequence* Sequence = FSequencerUtilities::GetMovieSceneSequence(InSequencer, SubSequenceHierarchy[0]);
+			check(Sequence);
+			FString SequenceName = Sequence->GetDisplayName().ToString();
+			Y = RenderTimecode(Canvas, X, Y, RootTimecode, SequenceName);
+
+			if (SubSequenceHierarchy.Num() > 1)
+			{
+				// The current sequence is always the first in the list.
+				Sequence = FSequencerUtilities::GetMovieSceneSequence(InSequencer, SubSequenceHierarchy.Last());
+				check(Sequence);
+				SequenceName = Sequence->GetDisplayName().ToString();
+				Y = RenderTimecode(Canvas, X, Y, LocalTimecode, SequenceName);
+			}
+		}
+
+		return Y;
+	}
+
+	static FOpenSequencerWatcher SequencerWatcher;
+
+	/** Render the sequencer time to the viewport HUD. */
+	int32 RenderStatSequencerTime(UWorld* World, FViewport* Viewport, FCanvas* Canvas, int32 X, int32 Y, const FVector* ViewLocation, const FRotator* ViewRotation)
+	{
+		for (const FOpenSequencerWatcher::FOpenSequencerData& OpenSequencer : SequencerWatcher.OpenSequencers)
+		{
+			if (TSharedPtr<ISequencer> Sequencer = OpenSequencer.WeakSequencer.Pin())
+			{
+				Y = RenderTimeForSequences(Canvas, X, Y, Sequencer);
+			}
+		}
+		return Y;
+	}
+
+	void InitStatCommands()
+	{
+		auto StartupComplete = []()
+		{
+			check(GEngine);
+			if (GIsEditor)
+			{
+				const bool bIsRHS = true;
+				GEngine->AddEngineStat(TEXT("STAT_SequencerTimecode"), TEXT("STATCAT_Sequencer"),
+									   LOCTEXT("SequencerTimeDisplay", "Displays current timecode, rate, and frame for active sequencer editor."),
+									   UEngine::FEngineStatRender::CreateStatic(&RenderStatSequencerTime),
+									   nullptr, bIsRHS);
+			}
+		};
+
+		SequencerWatcher.DoStartup(StartupComplete);
+	}
+}
 /**
  * SequencerModule implementation (private)
  */
@@ -382,6 +474,7 @@ public:
 				FCoreDelegates::OnPostEngineInit.AddStatic(&FSequencerCommands::Register);
 				FCoreDelegates::OnPostEngineInit.AddRaw(this, &FSequencerModule::RegisterMenus);
 			}
+			UE::SequencerModule::Private::InitStatCommands();
 
 			FPropertyEditorModule& EditModule = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 			OnGetGlobalRowExtensionHandle = EditModule.GetGlobalRowExtensionDelegate().AddStatic(&RegisterKeyframeExtensionHandler);
