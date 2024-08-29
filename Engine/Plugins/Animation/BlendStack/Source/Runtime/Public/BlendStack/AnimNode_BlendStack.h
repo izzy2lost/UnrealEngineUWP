@@ -32,6 +32,8 @@ struct BLENDSTACK_API FBlendStackAnimPlayer
 	void Evaluate_AnyThread(FPoseContext& Output);
 	void Update_AnyThread(const FAnimationUpdateContext& Context);
 	float GetAccumulatedTime() const;
+	float GetCurrentAssetTime() const;
+	float GetCurrentAssetLength() const;
 	float GetPlayRate() const;
 	
 	float GetBlendInPercentage() const;
@@ -165,6 +167,8 @@ struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 	virtual UAnimationAsset* GetAnimAsset() const;
 	virtual float GetAccumulatedTime() const override;
 	virtual void UpdateAssetPlayer(const FAnimationUpdateContext& Context) override;
+	virtual float GetCurrentAssetTime() const override;
+	virtual float GetCurrentAssetLength() const override;
 	// End of FAnimNode_AssetPlayerBase interface
 
 	int32 GetNextPoseLinkIndex();

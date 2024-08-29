@@ -281,6 +281,36 @@ float FBlendStackAnimPlayer::GetAccumulatedTime() const
 	return 0.f;
 }
 
+float FBlendStackAnimPlayer::GetCurrentAssetTime() const
+{
+	if (SequencePlayerNode.GetSequence())
+	{
+		return SequencePlayerNode.GetCurrentAssetTime();
+	}
+
+	if (BlendSpacePlayerNode.GetBlendSpace())
+	{
+		return BlendSpacePlayerNode.GetCurrentAssetTime();
+	}
+
+	return 0.f;
+}
+
+float FBlendStackAnimPlayer::GetCurrentAssetLength() const
+{
+	if (SequencePlayerNode.GetSequence())
+	{
+		return SequencePlayerNode.GetCurrentAssetLength();
+	}
+
+	if (BlendSpacePlayerNode.GetBlendSpace())
+	{
+		return BlendSpacePlayerNode.GetCurrentAssetLength();
+	}
+
+	return 0.f;
+}
+
 float FBlendStackAnimPlayer::GetPlayRate() const
 {
 	if (SequencePlayerNode.GetSequence())
@@ -827,6 +857,16 @@ void FAnimNode_BlendStack_Standalone::InitializeSample(const FAnimationInitializ
 		PoseLink.Initialize(Context);
 		ExecutionHelper.ConditionalCacheBones(Context, PoseLink);
 	}
+}
+
+float FAnimNode_BlendStack_Standalone::GetCurrentAssetLength() const
+{
+	return AnimPlayers.IsEmpty() ? 0.0f : AnimPlayers[0].GetCurrentAssetLength();
+}
+
+float FAnimNode_BlendStack_Standalone::GetCurrentAssetTime() const
+{
+	return AnimPlayers.IsEmpty() ? 0.0f : AnimPlayers[0].GetCurrentAssetTime();
 }
 
 UAnimationAsset* FAnimNode_BlendStack_Standalone::GetAnimAsset() const
