@@ -85,12 +85,6 @@ static FAutoConsoleVariableRef CVarIgnoreEmptyDirectories(
 	bIgnoreEmptyDirectories,
 	TEXT("If true, completely empty leaf directories are ignored by the asset registry while scanning"));
 
-bool bTickGatherOnGTOnly = false;
-static FAutoConsoleVariableRef CVarTickGatherOnGTOnly(
-	TEXT("AssetRegistry.TickGatherOnGTOnly"),
-	bTickGatherOnGTOnly,
-	TEXT("If true, TickGatherer will only be called from the game thread."));
-
 void LexFromString(EFeatureEnabledReadWrite& OutValue, FStringView Text)
 {
 	Text.TrimStartAndEndInline();
@@ -3614,6 +3608,7 @@ FAssetDataGatherer::FAssetDataGatherer(const TArray<FString>& InLongPackageNames
 	, bFirstTickAfterIdle(true)
 	, bFinishedInitialDiscovery(false)
 	, bIsInitialSearchCompleted(false)
+	, bGatherOnGameThreadOnly(false)
 	, WaitBatchCount(-1)
 	, LastCacheSaveNumUncachedAssetFiles(0)
 	, CacheInUseCount(0)
@@ -3724,7 +3719,7 @@ uint32 FAssetDataGatherer::Run()
 			}
 
 			UE::AssetRegistry::Impl::EGatherStatus Status = UE::AssetRegistry::Impl::EGatherStatus::Complete;
-			if (bLocalIdle && !UE::AssetDataGather::Private::bTickGatherOnGTOnly 
+			if (bLocalIdle && !IsGatherOnGameThreadOnly()
 				&& (IsProcessingPaused.load(std::memory_order_relaxed) == 0))
 			{
 				IAssetRegistry& Registry = IAssetRegistry::GetChecked();

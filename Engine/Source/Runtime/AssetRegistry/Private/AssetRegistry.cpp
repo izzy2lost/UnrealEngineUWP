@@ -160,6 +160,7 @@ namespace UE::AssetRegistry
 namespace UE::AssetRegistry::Impl
 {
 	/** The max time to spend in UAssetRegistryImpl::Tick */
+	constexpr float MaxSecondsPerFrameToUseInBlockingInitialLoad = 5.0f;
 	float MaxSecondsPerFrame = 0.04f;
 	static FAutoConsoleVariableRef CVarAssetRegistryMaxSecondsPerFrame(
 		TEXT("AssetRegistry.MaxSecondsPerFrame"),
@@ -974,6 +975,7 @@ void FAssetRegistryImpl::Initialize(Impl::FInitializeContext& Context)
 
 	bInitialSearchStarted = false;
 	bInitialSearchCompleted.store(true, std::memory_order_relaxed);
+	UpdateMaxSecondsPerFrame();
 	GatherStatus = Impl::EGatherStatus::TickActiveGatherActive;
 	PerformanceMode = Impl::EPerformanceMode::MostlyStatic;
 
@@ -1832,6 +1834,7 @@ bool FAssetRegistryImpl::TryConstructGathererIfNeeded()
 
 	bool bAsyncGatherEnabled = !IsRunningGame() && !IsRunningDedicatedServer();
 	GlobalGatherer = MakeUnique<FAssetDataGatherer>(PathsDenyList, ContentSubPathsDenyList, bAsyncGatherEnabled, *this);
+	UpdateMaxSecondsPerFrame();
 
 	// Read script packages if all initial plugins have been loaded, otherwise do nothing; we wait for the callback.
 	ELoadingPhase::Type LoadingPhase = IPluginManager::Get().GetLastCompletedLoadingPhase();
@@ -1946,6 +1949,7 @@ void FAssetRegistryImpl::SearchAllAssets(Impl::FEventContext& EventContext,
 		InitialSearchStartTime = FPlatformTime::Seconds();
 		bInitialSearchStarted = true;
 		bInitialSearchCompleted.store(false, std::memory_order_relaxed);
+		UpdateMaxSecondsPerFrame();
 	}
 
 	FAssetDataGatherer& Gatherer = *GlobalGatherer;
@@ -4631,6 +4635,8 @@ void UAssetRegistryImpl::Tick(float DeltaTime)
 	}
 
 	bool bInterruptedOrShouldProcessDeferredEvents = false;
+	float LocalMaxSecondsPerFrame = UE::AssetRegistry::Impl::MaxSecondsPerFrame;
+
 	do
 	{
 		bInterruptedOrShouldProcessDeferredEvents = false;
@@ -4656,7 +4662,8 @@ void UAssetRegistryImpl::Tick(float DeltaTime)
 			{
 				// Tick the Gatherer
 				UE::AssetRegistry::Impl::FTickContext TickContext(EventContext, InheritanceContext);
-				TickContext.InterruptionContext.SetLimitedTickTime(TickStartTime, UE::AssetRegistry::Impl::MaxSecondsPerFrame);
+				LocalMaxSecondsPerFrame = GuardedData.MaxSecondsPerFrame;
+				TickContext.InterruptionContext.SetLimitedTickTime(TickStartTime, LocalMaxSecondsPerFrame);
 				TickContext.bHandleCompletion = true;
 				TickContext.bHandleDeferred = true;
 				Status = GuardedData.TickGatherer(TickContext);
@@ -4680,7 +4687,7 @@ void UAssetRegistryImpl::Tick(float DeltaTime)
 		if (!bInterruptedOrShouldProcessDeferredEvents)
 		{
 			UE::AssetRegistry::Impl::FInterruptionContext InterruptionContext;
-			InterruptionContext.SetLimitedTickTime(TickStartTime, UE::AssetRegistry::Impl::MaxSecondsPerFrame);
+			InterruptionContext.SetLimitedTickTime(TickStartTime, LocalMaxSecondsPerFrame);
 			ProcessLoadedAssetsToUpdateCache(EventContext, Status, InterruptionContext);
 			bInterruptedOrShouldProcessDeferredEvents = bInterruptedOrShouldProcessDeferredEvents
 				|| InterruptionContext.WasInterrupted();
@@ -4692,7 +4699,7 @@ void UAssetRegistryImpl::Tick(float DeltaTime)
 			Broadcast(EventContext, true /* bAllowFileLoadedEvent */);
 		}
 	} while ((bInterruptedOrShouldProcessDeferredEvents || Status == UE::AssetRegistry::Impl::EGatherStatus::WaitingForEvents) &&
-		(TickStartTime < 0 || (FPlatformTime::Seconds() - TickStartTime) <= UE::AssetRegistry::Impl::MaxSecondsPerFrame));
+		(TickStartTime < 0 || (FPlatformTime::Seconds() - TickStartTime) <= LocalMaxSecondsPerFrame));
 }
 
 namespace UE::AssetRegistry
@@ -4719,6 +4726,36 @@ bool FAssetRegistryImpl::ClassRequiresGameThreadProcessing(const UClass* Class) 
 	// This function is not called. See FAssetDataGatherer::TickInternal for where
 	// it would be called if it were fully implemented.
 	return true;
+}
+
+void FAssetRegistryImpl::UpdateMaxSecondsPerFrame()
+{
+	float NewMaxSecondsPerFrame = UE::AssetRegistry::Impl::MaxSecondsPerFrame;
+#if WITH_EDITOR
+	bool bGatherOnGameThreadOnly = false;
+	GConfig->GetBool(TEXT("AssetRegistry"), TEXT("GatherOnGameThreadOnly"), bGatherOnGameThreadOnly, GEngineIni);
+
+	if (bInitialSearchStarted && !bInitialSearchCompleted)
+	{
+		bool bBlockingInitialLoad;
+		GConfig->GetBool(TEXT("AssetRegistry"), TEXT("BlockingInitialLoad"), bBlockingInitialLoad, GEditorPerProjectIni);
+		if (bBlockingInitialLoad)
+		{
+			bGatherOnGameThreadOnly = true;
+			NewMaxSecondsPerFrame = UE::AssetRegistry::Impl::MaxSecondsPerFrameToUseInBlockingInitialLoad;
+			if (MaxSecondsPerFrame < NewMaxSecondsPerFrame)
+			{
+				UE_LOG(LogAssetRegistry, Display,
+					TEXT("EditorPerProjectUserSettings.ini:[AssetRegistry]:BlockingInitialLoad=true, setting AssetRegistry load to blocking. The editor will not be interactive until the initial scan completes."));
+			}
+		}
+	}
+	if (GlobalGatherer)
+	{
+		GlobalGatherer->SetGatherOnGameThreadOnly(bGatherOnGameThreadOnly);
+	}
+#endif
+	MaxSecondsPerFrame = NewMaxSecondsPerFrame;
 }
 
 Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FTickContext& TickContext)
@@ -5168,6 +5205,7 @@ void FAssetRegistryImpl::OnInitialSearchCompleted(Impl::FEventContext& EventCont
 	EventContext.bFileLoadedEventBroadcast = true;
 	
 	bInitialSearchCompleted.store(true, std::memory_order_relaxed);
+	UpdateMaxSecondsPerFrame();
 }
 
 void FAssetRegistryImpl::LogSearchDiagnostics(double StartTime)

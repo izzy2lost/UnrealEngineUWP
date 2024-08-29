@@ -247,6 +247,9 @@ public:
 	void ResumeProcessing() { IsProcessingPaused.fetch_sub(1, std::memory_order_relaxed); }
 	bool IsProcessingPauseRequested() const { return IsProcessingPaused.load(std::memory_order_relaxed) != 0; }
 
+	void SetGatherOnGameThreadOnly(bool bValue);
+	bool IsGatherOnGameThreadOnly() const;
+
 private:
 	enum class ETickResult
 	{
@@ -472,6 +475,7 @@ private:
 	bool bFinishedInitialDiscovery;
 	/** True if OnInitialSearchCompleted has been called. */
 	std::atomic<bool> bIsInitialSearchCompleted;
+	std::atomic<bool> bGatherOnGameThreadOnly;
 
 	// Variable section for variables that are read/writable only within TickLock.
 
@@ -507,3 +511,19 @@ private:
 	/** Packages can be marked for retry up until bInitialPluginsLoaded is set. After it is set, we retry them once. */
 	bool bFlushedRetryFiles;
 };
+
+
+///////////////////////////////////////////////////////
+// Inline implementations
+///////////////////////////////////////////////////////
+
+
+inline void FAssetDataGatherer::SetGatherOnGameThreadOnly(bool bValue)
+{
+	bGatherOnGameThreadOnly.store(bValue, std::memory_order_relaxed);
+}
+
+inline bool FAssetDataGatherer::IsGatherOnGameThreadOnly() const
+{
+	return bGatherOnGameThreadOnly.load(std::memory_order_relaxed);
+}

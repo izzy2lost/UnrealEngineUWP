@@ -514,6 +514,8 @@ private:
 	 */
 	TUniquePtr<FAssetDataGatherer>& AccessGlobalGatherer() { return GlobalGatherer; }
 
+	void UpdateMaxSecondsPerFrame();
+
 private:
 
 	/** Internal state of the cached asset registry */
@@ -607,6 +609,7 @@ private:
 
 	bool bForceCompletionEvenIfPostLoadsFail = false;
 	bool bProcessedAnyAssetsAfterRetryDeferred = true;
+	float MaxSecondsPerFrame = 0.04f;
 
 	/** List of all class names derived from Blueprint (including Blueprint itself) */
 	TSet<FTopLevelAssetPath> ClassGeneratorNames;
