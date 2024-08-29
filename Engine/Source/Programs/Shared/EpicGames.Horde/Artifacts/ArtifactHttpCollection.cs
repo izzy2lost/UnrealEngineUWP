@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,28 +17,42 @@ namespace EpicGames.Horde.Artifacts
 		class Artifact : IArtifact
 		{
 			readonly ArtifactHttpCollection _collection;
-			readonly GetArtifactResponse _response;
 
 			public Artifact(ArtifactHttpCollection collection, GetArtifactResponse response)
+				: this(collection, response.Id, response.Name, response.Type, response.Description, response.StreamId, response.CommitId, response.Keys, response.Metadata, response.NamespaceId, response.RefName, response.CreatedAtUtc)
+			{ }
+
+			public Artifact(ArtifactHttpCollection collection, ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitIdWithOrder commitId, IReadOnlyList<string> keys, IReadOnlyList<string> metadata, NamespaceId namespaceId, RefName refName, DateTime createdAtUtc)
 			{
 				_collection = collection;
-				_response = response;
+
+				Id = id;
+				Name = name;
+				Type = type;
+				Description = description;
+				StreamId = streamId;
+				CommitId = commitId;
+				Keys = keys;
+				Metadata = metadata;
+				NamespaceId = namespaceId;
+				RefName = refName;
+				CreatedAtUtc = createdAtUtc;
 			}
 
-			public ArtifactId Id => _response.Id;
-			public ArtifactName Name => _response.Name;
-			public ArtifactType Type => _response.Type;
-			public string? Description => _response.Description;
-			public StreamId StreamId => _response.StreamId;
-			public CommitIdWithOrder CommitId => _response.CommitId;
-			public IReadOnlyList<string> Keys => _response.Keys;
-			public IReadOnlyList<string> Metadata => _response.Metadata;
-			public NamespaceId NamespaceId => _response.NamespaceId;
-			public RefName RefName => _response.RefName;
-			public DateTime CreatedAtUtc => _response.CreatedAtUtc;
+			public ArtifactId Id { get; }
+			public ArtifactName Name { get; }
+			public ArtifactType Type { get; }
+			public string? Description { get; }
+			public StreamId StreamId { get; }
+			public CommitIdWithOrder CommitId { get; }
+			public IReadOnlyList<string> Keys { get; }
+			public IReadOnlyList<string> Metadata { get; }
+			public NamespaceId NamespaceId { get; }
+			public RefName RefName { get; }
+			public DateTime CreatedAtUtc { get; }
 
 			public Task DeleteAsync(CancellationToken cancellationToken)
-				=> _collection.DeleteAsync(_response.Id, cancellationToken);
+				=> _collection.DeleteAsync(Id, cancellationToken);
 		}
 
 		readonly IHordeClient _hordeClient;
@@ -46,9 +61,11 @@ namespace EpicGames.Horde.Artifacts
 			=> _hordeClient = hordeClient;
 
 		/// <inheritdoc/>
-		public Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, CancellationToken cancellationToken = default)
+		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, CancellationToken cancellationToken = default)
 		{
-			throw new NotImplementedException();
+			HordeHttpClient hordeHttpClient = _hordeClient.CreateHttpClient();
+			CreateArtifactResponse response = await hordeHttpClient.CreateArtifactAsync(name, type, description, streamId, commitId, keys, metadata, cancellationToken);
+			return new Artifact(this, response.ArtifactId, name, type, description, streamId, CommitIdWithOrder.FromPerforceChange(commitId.GetPerforceChange()), keys.ToList(), metadata.ToList(), response.NamespaceId, response.RefName, DateTime.UtcNow);
 		}
 
 		/// <inheritdoc/>

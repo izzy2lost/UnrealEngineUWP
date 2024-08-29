@@ -49,11 +49,12 @@ namespace EpicGames.Horde.Artifacts
 	/// Information about a created artifact
 	/// </summary>
 	/// <param name="ArtifactId">Identifier for the new artifact</param>
+	/// <param name="CommitId">Resolved commit id for the artifact</param>
 	/// <param name="NamespaceId">Namespace that should be written to with artifact data</param>
 	/// <param name="RefName">Ref to write to</param>
 	/// <param name="PrevRefName">Ref for the artifact at the changelist prior to this one. Can be used to deduplicate against.</param>
 	/// <param name="Token">Token which can be used to upload blobs for the artifact, and read blobs from the previous artifact</param>
-	public record CreateArtifactResponse(ArtifactId ArtifactId, NamespaceId NamespaceId, RefName RefName, RefName? PrevRefName, string Token);
+	public record CreateArtifactResponse(ArtifactId ArtifactId, CommitIdWithOrder CommitId, NamespaceId NamespaceId, RefName RefName, RefName? PrevRefName, string Token);
 
 	/// <summary>
 	/// Type of data to download for an artifact
