@@ -1190,6 +1190,8 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			CurrentObject->GetPrivate()->DirtyParticipatingObjects.Empty();
 		}
 
+		CurrentObject->GetPrivate()->GetModelResources(CurrentOptions.bIsCooking);
+
 		CompileTask = MakeShareable(new FCustomizableObjectCompileRunnable(MutableRoot));
 		CompileTask->Options = CurrentOptions;
 		CompileTask->ReferencedTextures = NewCompileTimeReferencedTextures;
