@@ -1818,56 +1818,26 @@ void FAdaptiveStreamingPlayer::HandleSeeking()
 		return;
 	}
 
-	// When playing, the last successfully seeked position is irrelevant and cannot be used as a reference any more.
-	if (PlaybackState.GetIsPlaying())
-	{
-		SeekVars.InvalidateLastFinished();
-	}
-
 	FScopeLock lock(&SeekVars.Lock);
 	// Is there a pending request?
 	if (SeekVars.PendingRequest.IsSet())
 	{
-		// If there is an active request and the new request is for scrubbing we let the active request finish first.
-		bool bIsForScrubbing = SeekVars.PendingRequest.GetValue().bOptimizeForScrubbing.Get(PlayerOptions.GetValue(OptionKeyFrameOptimizeSeekForScrubbing).SafeGetBool(false));
-		bool bNewScrubSeekCancelsCurrent = PlayerOptions.GetValue(OptionKeyNewScrubbingSeekCancelsCurrent).SafeGetBool(false);
-		if (SeekVars.ActiveRequest.IsSet() && bIsForScrubbing && !bNewScrubSeekCancelsCurrent)
-		{
-			return;
-		}
-
 		// Not playing on the Live edge. This may get set to true later on handling the start segment.
 		PlaybackState.SetShouldPlayOnLiveEdge(false);
-		// On a user-induced seek the sequence index is supposed to be increased.
-		// We need to do this even when we would not actually issue the seek.
 
-		// Adjust seek index as indicated
-		// (we even do this for seeks marked as not affecting the seek index as we must still add any priovious accumulated calls that had not been flagged in such a way)
+		// Adjust seek index as necessary.
 		if (SeekVars.PendingRequest.GetValue().NewSequenceIndex.IsSet())
 		{
 			CurrentPlaybackSequenceState.PrimaryIndex = SeekVars.PendingRequest.GetValue().NewSequenceIndex.GetValue();
 		}
+		// Contractually a seek implies resetting the loop count, which is represented in the 2ndary index.
 		CurrentPlaybackSequenceState.SecondaryIndex = 0;
-
-		// And since it is a seek on purpose the loop counter is reset as well.
+		// Reset the loop counter in the state as well.
 		FInternalLoopState LoopStateNow;
 		PlaybackState.GetLoopState(LoopStateNow);
 		LoopStateNow.Count = 0;
 		PlaybackState.SetLoopState(LoopStateNow);
 		CurrentLoopState.Count = 0;
-
-		// Check the distance to the last seek performed, if there is one.
-		if (SeekVars.LastFinishedRequest.IsSet() && SeekVars.PendingRequest.GetValue().DistanceThreshold.IsSet())
-		{
-			double Distance = Utils::AbsoluteValue(SeekVars.LastFinishedRequest.GetValue().Time.GetAsSeconds() - SeekVars.PendingRequest.GetValue().Time.GetAsSeconds());
-			if (Distance <= SeekVars.PendingRequest.GetValue().DistanceThreshold.Get(0.0))
-			{
-				// Already there
-				SeekVars.PendingRequest.Reset();
-				DispatchEvent(FMetricEvent::ReportSeekCompleted(true));
-				return;
-			}
-		}
 
 		// Trigger the seek.
 		FSeekParam SeekParam = SeekVars.PendingRequest.GetValue();
@@ -1893,6 +1863,7 @@ void FAdaptiveStreamingPlayer::HandleSeeking()
 			CurrentState = EPlayerState::eState_Seeking;
 			SeekVars.Lock.Lock();
 
+			bool bIsForScrubbing = SeekParam.bOptimizeForScrubbing.Get(PlayerOptions.GetValue(OptionKeyFrameOptimizeSeekForScrubbing).SafeGetBool(false));
 			SeekVars.bForScrubbing = bIsForScrubbing;
 
 			// When seeking (other than the initial playstart seek) any default end time that
@@ -3695,9 +3666,8 @@ void FAdaptiveStreamingPlayer::InternalStartoverAtCurrentPosition()
 		// Is there a pending request?
 		if (SeekVars.PendingRequest.IsSet())
 		{
-			// To ensure the seek will execute we clear out the active and last finished requests.
+			// To ensure the seek will execute we clear out the active requests.
 			SeekVars.ActiveRequest.Reset();
-			SeekVars.LastFinishedRequest.Reset();
 			return;
 		}
 	}

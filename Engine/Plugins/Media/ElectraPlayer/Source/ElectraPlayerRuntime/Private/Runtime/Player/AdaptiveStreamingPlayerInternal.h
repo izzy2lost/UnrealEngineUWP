@@ -1892,7 +1892,6 @@ private:
 			//       triggered while already processing a seek due to the asynchronous processing of the request.
 			//PendingRequest.Reset();
 			ActiveRequest.Reset();
-			LastFinishedRequest.Reset();
 			PlayrangeOnRequest.Reset();
 			bForScrubbing = false;
 			bScrubPrerollDone = false;
@@ -1900,21 +1899,14 @@ private:
 
 		void SetFinished()
 		{
-			LastFinishedRequest = ActiveRequest;
 			ActiveRequest.Reset();
 		}
 
-		void InvalidateLastFinished()
-		{
-			LastFinishedRequest.Reset();
-		}
-
-		bool	bForScrubbing = false;
-		bool	bScrubPrerollDone = false;
-		bool	bIsPlayStart = true;
+		bool bForScrubbing = false;
+		bool bScrubPrerollDone = false;
+		bool bIsPlayStart = true;
 
 		TOptional<FSeekParam> ActiveRequest;
-		TOptional<FSeekParam> LastFinishedRequest;
 
 		mutable FCriticalSection Lock;
 		// The pending request must be accessed under lock since it is written to by the main thread and read from the worker thread!

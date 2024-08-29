@@ -1272,7 +1272,6 @@ bool FElectraPlayer::Seek(const FTimespan& Time, const FSeekParam& Param)
 		seek.NewSequenceIndex = Param.SequenceIndex;
 		seek.StartingBitrate = Param.StartingBitrate;
 		seek.bOptimizeForScrubbing = Param.bOptimizeForScrubbing;
-		seek.DistanceThreshold = Param.DistanceThreshold;
 		bInitialSeekPerformed = true;
 		bDiscardOutputUntilCleanStart = true;
 		CurrentPlayer->AdaptivePlayer->SeekTo(seek);

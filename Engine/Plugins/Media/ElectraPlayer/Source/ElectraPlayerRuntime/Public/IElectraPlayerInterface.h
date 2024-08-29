@@ -266,7 +266,6 @@ public:
 		TOptional<int32> SequenceIndex;
 		TOptional<int32> StartingBitrate;
 		TOptional<bool> bOptimizeForScrubbing;
-		TOptional<double> DistanceThreshold;
 	};
 
 	virtual bool Seek(const FTimespan& Time) = 0;

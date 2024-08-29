@@ -36,9 +36,6 @@ namespace Electra
 	//! (bool) true to optimize seeking for faster frame scrubbing, false to optimize for playback.
 	const FName OptionKeyFrameOptimizeSeekForScrubbing(TEXT("optimize_seek_for_scrubbing"));
 
-	//! (bool) true to allow a new scrubbing seek to cancel an ongoing scrubbing seek. Non-scrubbing seeks always cancel pending seeks.
-	const FName OptionKeyNewScrubbingSeekCancelsCurrent(TEXT("new_scrubbing_seek_cancels_current"));
-
 	//! (bool) true to emit the first decoded video frame while prerolling so it can be displayed while scrubbing.
 	const FName OptionKeyDoNotHoldBackFirstVideoFrame(TEXT("do_not_hold_back_first_frame"));
 
