@@ -152,9 +152,9 @@ struct FChooserStructPropertyBinding : public FChooserPropertyBinding
 UENUM()
 enum class EContextObjectDirection
 {
-	Read,
-	Write,
-	ReadWrite
+	Read UMETA(DisplayName="Input", Tooltip = "This Parameter will only be read from"),
+	Write UMETA(DisplayName="Output", Tooltip = "This Parameter will only be written to"),
+	ReadWrite UMETA(DisplayName="Input/Output", Tooltip = "This Parameter can be both read from and written to"),
 };
 
 USTRUCT()
@@ -162,12 +162,12 @@ struct FContextObjectTypeBase
 {
 	GENERATED_BODY()
 	
-	UPROPERTY(EditAnywhere, Category="Type")
+	UPROPERTY(EditAnywhere, Category="Type", meta = (ToolTip="Select weather this property will be read from, written to, or both"))
 	EContextObjectDirection Direction = EContextObjectDirection::Read;
 };
 
 
-USTRUCT()
+USTRUCT(DisplayName="Class Parameter")
 struct FContextObjectTypeClass : public FContextObjectTypeBase
 {
 	GENERATED_BODY()
@@ -175,7 +175,7 @@ struct FContextObjectTypeClass : public FContextObjectTypeBase
 	TObjectPtr<UClass> Class;
 };
 
-USTRUCT()
+USTRUCT(DisplayName = "Struct Parameter")
 struct FContextObjectTypeStruct : public FContextObjectTypeBase
 {
 	GENERATED_BODY()

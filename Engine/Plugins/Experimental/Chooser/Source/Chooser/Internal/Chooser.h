@@ -175,14 +175,14 @@ public:
 	// Columns which filter Results
 	UPROPERTY(EditAnywhere, NoClear, DisplayName = "Columns", Category = Hidden, meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserColumnBase"))
 	TArray<FInstancedStruct> ColumnsStructs;
-	
-	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ContextObjectTypeBase"), Category = "Input")
-	TArray<FInstancedStruct> ContextData;
 
-	UPROPERTY(EditAnywhere, Category="Output", Meta = (AllowAbstract=true))
+	UPROPERTY(EditAnywhere, DisplayName= "Result Class", Category="Result", Meta = (AllowAbstract=true))
 	TObjectPtr<UClass> OutputObjectType;
-	UPROPERTY(EditAnywhere, Category="Output")
+	UPROPERTY(EditAnywhere, DisplayName = "Result Type", Category="Result")
 	EObjectChooserResultType ResultType = EObjectChooserResultType::ObjectResult;
+
+	UPROPERTY(EditAnywhere, NoClear, DisplayName = "Parameters", Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ContextObjectTypeBase"), Category = "Parameters")
+	TArray<FInstancedStruct> ContextData;
 
 	virtual TConstArrayView<FInstancedStruct> GetContextData() const override { return GetRootChooser()->ContextData; }
 

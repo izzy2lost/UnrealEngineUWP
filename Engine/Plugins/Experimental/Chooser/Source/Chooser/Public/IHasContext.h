@@ -37,6 +37,8 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FChooserOutputObjectTypeChanged, const UClas
 UENUM()
 enum class EObjectChooserResultType
 {
-	ObjectResult,
-	ClassResult,
+	// The Chooser returns an Object of the specified Result Class
+	ObjectResult UMETA(DisplayName = "Object Of Type"),
+	// The Chooser returns a Class that is a SubClass of the specified Result Class (eg a chooser could return a type of Character to spawn, or a type of AnimInstance to link)
+	ClassResult UMETA(DisplayName = "SubClass Of"),
 };

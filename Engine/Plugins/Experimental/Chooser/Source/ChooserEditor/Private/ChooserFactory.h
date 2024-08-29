@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "Factories/Factory.h"
+#include "StructUtils/InstancedStruct.h"
+
 #include "ChooserFactory.generated.h"
 
 UCLASS(MinimalAPI)
@@ -20,4 +22,8 @@ class UChooserTableFactory : public UFactory
 		return FactoryCreateNew(Class, InParent, Name, Flags, Context, Warn, NAME_None);
 	}
 	virtual FName GetNewAssetThumbnailOverride() const override { return "ChooserEditor.ChooserTableIconLarge"; }
+
+private:
+	UPROPERTY(EditAnywhere, DisplayName = "Chooser Type", NoClear, Category="Chooser Setup", meta = (ExcludeBaseStruct, BaseStruct = "/Script/ChooserEditor.ChooserInitializer"))
+	FInstancedStruct ChooserInitializer;
 };
