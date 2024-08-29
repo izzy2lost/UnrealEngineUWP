@@ -541,12 +541,6 @@ private:
 		return bAnyViewHasGIMethodSupportingDFAO;
 	}
 
-	static FGlobalDynamicIndexBuffer DynamicIndexBufferForInitViews;
-	static FGlobalDynamicIndexBuffer DynamicIndexBufferForInitShadows;
-	static FGlobalDynamicVertexBuffer DynamicVertexBufferForInitViews;
-	static FGlobalDynamicVertexBuffer DynamicVertexBufferForInitShadows;
-	static TGlobalResource<FGlobalDynamicReadBuffer> DynamicReadBufferForInitShadows;
-
 	FSeparateTranslucencyDimensions SeparateTranslucencyDimensions;
 
 	/** Creates a per object projected shadow for the given interaction. */
