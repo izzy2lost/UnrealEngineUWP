@@ -28,8 +28,12 @@
 #include <sanitizer/asan_interface.h>
 #if defined(__SANITIZE_ADDRESS__)
 #define IS_ASAN_ENABLED 1
-#elif defined(__has_feature) && __has_feature(address_sanitizer)
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
 #define IS_ASAN_ENABLED 1
+#else
+#define IS_ASAN_ENABLED 0
+#endif
 #else
 #define IS_ASAN_ENABLED 0
 #endif
