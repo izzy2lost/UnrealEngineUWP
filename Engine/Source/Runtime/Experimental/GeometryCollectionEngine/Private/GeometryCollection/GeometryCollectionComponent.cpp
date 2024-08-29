@@ -6322,6 +6322,12 @@ bool UGeometryCollectionComponent::IsUsingCustomRenderer() const
 
 void UGeometryCollectionComponent::RefreshCustomRenderer()
 {
+	UWorld* World = GetWorld();
+	if (!World || World->bIsRunningConstructionScript)
+	{
+		return;
+	}
+
 	if (RestCollection == nullptr || !IsCustomRendererAvailable())
 	{
 		return;
