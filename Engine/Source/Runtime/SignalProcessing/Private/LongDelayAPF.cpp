@@ -3,6 +3,7 @@
 #include "DSP/LongDelayAPF.h"
 #include "DSP/BufferVectorOperations.h"
 #include "DSP/Dsp.h"
+#include "DSP/FloatArrayMath.h"
 
 namespace Audio
 {
@@ -128,31 +129,7 @@ namespace Audio
 
 	void FLongDelayAPF::ProcessAudioBlock(const float* InSamples, const float* InDelaySamples, const int32 InNum, float* OutSamples, float* OutDelaySamples)
 	{
-		// Calculate new delay line samples. "w[n] = x[n] + gw[n - d]"
-		int32 NumToSIMD = InNum - (InNum % AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER);
-
-		VectorRegister4Float VG = MakeVectorRegisterFloat(G, G, G, G);
-		VectorRegister4Float VNG = MakeVectorRegisterFloat(-G, -G, -G, -G);
-
-		for (int32 i = 0; i < InNum; i += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
-		{
-			VectorRegister4Float VInDelay = VectorLoadAligned(&InDelaySamples[i]);
-			VectorRegister4Float VInSamples = VectorLoadAligned(&InSamples[i]);
-			// w[n] = x[n] + G * w[n - D]
-			VectorRegister4Float VOutDelay = VectorMultiplyAdd(VInDelay, VG, VInSamples);
-			VectorStoreAligned(VOutDelay, &OutDelaySamples[i]);
-
-			// y[n] = -G * w[n] + w[n - D]
-			VectorRegister4Float VOut = VectorMultiplyAdd(VOutDelay, VNG, VInDelay);
-			VectorStoreAligned(VOut, &OutSamples[i]);
-		}
-
-		// Calculate allpass for remaining samples that we couldn't SIMD
-		for (int32 i = NumToSIMD; i < InNum; i++)
-		{
-			OutDelaySamples[i] = InDelaySamples[i] * G + InSamples[i];
-			OutSamples[i] = OutDelaySamples[i] * -G + InDelaySamples[i];
-		}
+		ArrayAPFLongDelayProcess(InSamples, InDelaySamples, InNum, OutSamples, OutDelaySamples, G);
 	}
 
 	void FLongDelayAPF::Reset() 

@@ -7,7 +7,6 @@
 #include "DSP/FFTAlgorithm.h"
 #include "DSP/FloatArrayMath.h"
 
-
 namespace Audio
 {
 	// Implementation of a complex FFT.
@@ -205,7 +204,6 @@ namespace Audio
 				int32 WriteIndex;
 			};
 
-
 			// Perform complex conjugate as well as scale.
 			//
 			// @param InValues - Array of floats representing complex values in interleave format.
@@ -214,29 +212,7 @@ namespace Audio
 			// @param Num - Number of floats in array (NOT number of complex values).
 			void ScaledComplexConjugate(const float* InValues, float Scale, float* OutValues, int32 Num)
 			{
-				// Use mask to quickly find out number of values that can be SIMD'd
-				const int32 SIMD_MASK = 0xFFFFFFFC;
-				const int32 NumToSimd = SIMD_MASK & Num;
-
-				// Complex values in a vector are [real_1, imag_1, real_2, imag_2].  
-				// By multipling this value, we flip the sign of the imaginary components, which
-				// is the equivalent of a complex conjugate.
-				const VectorRegister4Float SignFlipImag = MakeVectorRegisterFloat(Scale, -Scale, Scale, -Scale);
-
-				// Perform operation using SIMD
-				for (int32 i = 0; i < NumToSimd; i += 4)
-				{
-					VectorRegister4Float Value = VectorLoad(&InValues[i]);
-					Value = VectorMultiply(SignFlipImag, Value);
-					VectorStore(Value, &OutValues[i]);
-				}
-
-				// Perform operation where SIMD not possible.
-				for (int32 i = NumToSimd; i < Num; i+= 2)
-				{
-					OutValues[i] = Scale * InValues[i];
-					OutValues[i + 1] = -Scale * InValues[i + 1];
-				}
+				ArrayScaledComplexConjugate(InValues, Num, OutValues, Scale);
 			}
 
 			// Perform a radix-4 butterfly which uses constant weights.
@@ -1157,25 +1133,24 @@ namespace Audio
 		const float* BetaImagForwardData = ForwardConvBuffers.BetaImag.GetData();
 
 		// Handle special case of this math to account for cyclical index math.
-		OutComplex[0] = (WorkData[0] * AlphaRealForwardData[0]) 
-			+ (WorkData[1] * AlphaImagForwardData[0]) 
-			+ (WorkData[0] * BetaRealForwardData[0]) 
+		OutComplex[0] = (WorkData[0] * AlphaRealForwardData[0])
+			+ (WorkData[1] * AlphaImagForwardData[0])
+			+ (WorkData[0] * BetaRealForwardData[0])
 			+ (WorkData[1] * BetaImagForwardData[0]);
 
-		OutComplex[1] = (WorkData[1] * AlphaRealForwardData[1]) 
-			+ (WorkData[0] * AlphaImagForwardData[1]) 
-			+ (WorkData[0] * BetaImagForwardData[1]) 
+		OutComplex[1] = (WorkData[1] * AlphaRealForwardData[1])
+			+ (WorkData[0] * AlphaImagForwardData[1])
+			+ (WorkData[0] * BetaImagForwardData[1])
 			+ (WorkData[1] * BetaRealForwardData[1]);
 
-		OutComplex[2] = (WorkData[2] * AlphaRealForwardData[2]) 
-			+ (WorkData[3] * AlphaImagForwardData[2]) 
-			+ (WorkData[FFTSize - 2] * BetaRealForwardData[2]) 
+		OutComplex[2] = (WorkData[2] * AlphaRealForwardData[2])
+			+ (WorkData[3] * AlphaImagForwardData[2])
+			+ (WorkData[FFTSize - 2] * BetaRealForwardData[2])
 			+ (WorkData[FFTSize - 1] * BetaImagForwardData[2]);
-		
 
-		OutComplex[3] = (WorkData[3] * AlphaRealForwardData[3]) 
-			+ (WorkData[2] * AlphaImagForwardData[3]) 
-			+ (WorkData[FFTSize - 2] * BetaImagForwardData[3]) 
+		OutComplex[3] = (WorkData[3] * AlphaRealForwardData[3])
+			+ (WorkData[2] * AlphaImagForwardData[3])
+			+ (WorkData[FFTSize - 2] * BetaImagForwardData[3])
 			+ (WorkData[FFTSize - 1] * BetaRealForwardData[3]);
 
 		// Convert all other values using optimized SIMD

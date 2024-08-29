@@ -6,6 +6,7 @@
 #include "DSP/BufferVectorOperations.h"
 #include "DSP/ConvolutionAlgorithm.h"
 #include "DSP/FFTAlgorithm.h"
+#include "DSP/FloatArrayMath.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // Note on OVERLAP_SAVE
@@ -251,70 +252,7 @@ namespace Audio
 
 	void FUniformPartitionConvolution::VectorComplexMultiplyAdd(const FAlignedFloatBuffer& InA, const FAlignedFloatBuffer& InB, FAlignedFloatBuffer& Out) const
 	{
-		check(InA.Num() == InB.Num());
-		check(Out.Num() == InA.Num());
-
-		const int32 Num = InA.Num();
-		const int32 NumSimd = Num & NumSimdMask;
-
-		// Complex numbers are stored as [real_0, complex_0, real_1, complex_1, ... real_N, complex_N]
-		// So we final amount must be evenly divisble by 2.
-		check(NumSimd % 2 == 0);
-
-		const float* InAData = InA.GetData();
-		const float* InBData = InB.GetData();
-		float* OutData = Out.GetData();
-
-		const VectorRegister4Float SignFlip = MakeVectorRegisterFloat(-1.f, 1.f, -1.f, 1.f);
-
-		for (int32 i = 0; i < NumSimd; i += 4)
-		{
-			// Complex multiply add
-			// Nr = real component of Nth number
-			// Ni = imaginary component of Nth number
-			//
-			//
-			// The input is then 
-			// A1r A1i A2r A2i
-			// B1r B1i B2r B2i
-
-			// VectorA = A1r A1i A2r A2i
-			VectorRegister4Float VectorInA = VectorLoad(&InAData[i]);
-			// Temp12 = A1i A1r A2i A2r
-			VectorRegister4Float Temp1 = VectorSwizzle(VectorInA, 1, 0, 3, 2);
-
-			// VectorB = B1r B1i B2r B2i
-			VectorRegister4Float VectorInB = VectorLoad(&InBData[i]);
-			// Temp2 = B1r B1r B2r B2r
-			VectorRegister4Float Temp2 = VectorSwizzle(VectorInB, 0, 0, 2, 2);
-			// Temp3 = B1i B1i B2i B2i
-			VectorRegister4Float Temp3 = VectorSwizzle(VectorInB, 1, 1, 3, 3);
-
-
-			// VectorA = A1rB1r, A1iB1r, A2rB2r, A2iB2r
-			VectorInA = VectorMultiply(VectorInA, Temp2);
-
-			// Temp1 = A1iB1i, A1rB1i, A2iB2i, A2rb2i
-			Temp1 = VectorMultiply(Temp1, Temp3);
-
-			// Temp1 = -A1iB1i, A1rB1i, -A2iB2i, A2rb2i
-			// Temp1 = A1rB1r - A1iB1i, A1iB1r + A1rB1i, A2rB2r - A2iB2i, A2iB2r + A2rB2i
-			Temp1 = VectorMultiplyAdd(Temp1, SignFlip, VectorInA);
-
-			// VectorOut = O1r + A1rB1r - A1iB1i, O1i + A1iB1r + A1rB1i, O2r + A2rB2r - A2iB2i, O2i + A2iB2r + A2rB2i
-			VectorRegister4Float VectorOut = VectorLoad(&OutData[i]);
-			VectorOut = VectorAdd(Temp1, VectorOut);
-
-			VectorStore(VectorOut, &OutData[i]);
-		}
-
-		for (int32 i = NumSimd; i < Num; i += 2)
-		{
-			// Real output
-			OutData[i] += (InAData[i] * InBData[i]) - (InAData[i + 1] * InBData[i + 1]);
-			// Imaginary output
-			OutData[i + 1] += (InAData[i + 1] * InBData[i]) + (InAData[i] * InBData[i + 1]);
-		}
+		ArrayComplexMultiplyAdd(InA, InB, Out);
 	}
 
 	// Multiply aligned buffer by constant gain.

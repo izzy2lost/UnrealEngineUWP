@@ -128,6 +128,12 @@ namespace Audio
 	 */
 	SIGNALPROCESSING_API void ArrayComplexMultiplyInPlace(TArrayView<const float> InValues1, TArrayView<float> InValues2);
 
+	/** Multiplies two complex valued arrays element-wise.
+	 * This assumes elements are in interleaved format [real_0, imag_0, ..., real_N, imag_N]
+	 * Adds result to OutArray
+	 */
+	SIGNALPROCESSING_API void ArrayComplexMultiplyAdd(TArrayView<const float> InValues1, TArrayView<const float> InValues2, TArrayView<float> OutArray);
+
 	/** Multiplies the input float buffer with the given value. */
 	SIGNALPROCESSING_API void ArrayMultiplyByConstant(TArrayView<const float> InFloatBuffer, float InValue, TArrayView<float> OutFloatBuffer);
 
@@ -283,6 +289,7 @@ namespace Audio
 	SIGNALPROCESSING_API void ArrayDoubleSwapBytes(TArrayView<double> InView);
 
 	/** Returns true if host has little endian byte ordering */
+	UE_DEPRECATED(5.5, "Big Endian platforms are no longer supported.")
 	SIGNALPROCESSING_API constexpr bool IsHostLittleEndian()
 	{
 #if PLATFORM_LITTLE_ENDIAN
@@ -291,6 +298,15 @@ namespace Audio
 		return false;
 #endif // PLATFORM_LITTLE_ENDIAN
 	}
+
+	/** All Pass Filter with a long delay. */
+	SIGNALPROCESSING_API void ArrayAPFLongDelayProcess(const float* InSamples, const float* InDelaySamples, const int32 InNum, float* OutSamples, float* OutDelaySamples, const float Gain);
+
+	/** Fractional delay using linear interpolation. */
+	SIGNALPROCESSING_API void ArrayLerpFractionalDelay(const float* InSamples, const float* InDelays, const float* DelayData, const int* IntegerDelays, int* UpperDelayPos, int* LowerDelayPos, const int32 InNum, float* OutSamples, const float MaxDelay);
+
+	/** Perform complex conjugate as well as scale. */
+	SIGNALPROCESSING_API void ArrayScaledComplexConjugate(const float* RESTRICT InValues, const int32 Num, float* RESTRICT OutValues, const float Scale);
 
 	/** FContiguousSparse2DKernelTransform
 	 *
