@@ -493,11 +493,11 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				if (PropertyNode->IsReorderable() || 
 					(CastField<FArrayProperty>(PropertyNode->GetProperty()) != nullptr && 
 					CastField<FObjectProperty>(CastField<FArrayProperty>(PropertyNode->GetProperty())->Inner) != nullptr)) // Is an object array
-						{
+				{
 					DragLeaveDelegate = FOnTableRowDragLeave::CreateSP(this, &SDetailSingleItemRow::OnArrayOrCustomDragLeave);
 					AcceptDropDelegate = FOnAcceptDrop::CreateSP(this, PropertyNode->IsReorderable() ? &SDetailSingleItemRow::OnArrayAcceptDrop : &SDetailSingleItemRow::OnArrayHeaderAcceptDrop);
 					CanAcceptDropDelegate = FOnCanAcceptDrop::CreateSP(this, &SDetailSingleItemRow::OnArrayCanAcceptDrop);
-						}
+				}
 			}
 
 			NameColumnBox->AddSlot()
@@ -586,55 +586,10 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 					];
 			}
 
-			TArray<FPropertyRowExtensionButton> ExtensionButtons;
-
-			UpdateResetToDefault();
-			FPropertyRowExtensionButton& ResetToDefault = ExtensionButtons.AddDefaulted_GetRef();
-			ResetToDefault.Label = NSLOCTEXT("PropertyEditor", "ResetToDefault", "Reset to Default");
-			ResetToDefault.UIAction = FUIAction(
-				FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnResetToDefaultClicked),
-				FCanExecuteAction::CreateLambda([this, IsValueEnabledAttribute]()
-					{
-						return IsResetToDefaultVisible() && IsValueEnabledAttribute.Get(true);
-					})
-			);
-
-			// We could just collapse the Reset to Default button by setting the FIsActionButtonVisible delegate,
-			// but this would cause the reset to defaults not to reserve space in the toolbar and not be aligned across all rows.
-			// Instead, we show an empty icon and tooltip and disable the button.
-			static FSlateIcon EnabledResetToDefaultIcon(FAppStyle::Get().GetStyleSetName(), "PropertyWindow.DiffersFromDefault");
-			static FSlateIcon DisabledResetToDefaultIcon(FAppStyle::Get().GetStyleSetName(), "NoBrush");
-			ResetToDefault.Icon = TAttribute<FSlateIcon>::Create([this]()
-			{
-				return IsResetToDefaultVisible() ?
-					EnabledResetToDefaultIcon :
-					DisabledResetToDefaultIcon;
-			});
-
-			ResetToDefault.ToolTip = TAttribute<FText>::Create([this]() 
-			{
-				return IsResetToDefaultVisible() ?
-					NSLOCTEXT("PropertyEditor", "ResetToDefaultPropertyValueToolTip", "Reset this property to its default value.") :
-					FText::GetEmpty();
-			});
-
-			CreateGlobalExtensionWidgets(ExtensionButtons);
-
-			FSlimHorizontalToolBarBuilder ToolbarBuilder(TSharedPtr<FUICommandList>(), FMultiBoxCustomization::None);
-			ToolbarBuilder.SetLabelVisibility(EVisibility::Collapsed);
-			ToolbarBuilder.SetStyle(&FAppStyle::Get(), "DetailsView.ExtensionToolBar");
-			ToolbarBuilder.SetIsFocusable(false);
-
-			for (const FPropertyRowExtensionButton& Extension : ExtensionButtons)
-			{
-				ToolbarBuilder.AddToolBarButton(Extension.UIAction, NAME_None, Extension.Label, Extension.ToolTip, Extension.Icon);
-			}
-
-			FProperty* Property = nullptr;
-			
+			TSharedPtr<SWidget> RightmostWidget;
 			if (GetPropertyNode().IsValid() &&
-				DetailsView &&
-				DetailsView->GetDisplayManager().IsValid())
+					DetailsView &&
+					DetailsView->GetDisplayManager().IsValid())
 			{
 				TSharedPtr<FDetailsDisplayManager> DisplayManagerLocal = DetailsView->GetDisplayManager();
 
@@ -642,12 +597,12 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				if (DisplayManagerLocal->CanConstructPropertyUpdatedWidgetBuilder())
 				{
 					DisplayManager = MoveTemp(DisplayManagerLocal);
-				
+
 					FConstructPropertyUpdatedWidgetBuilderArgs Args;
 					Args.ResetToDefaultAction = FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnResetToDefaultClicked);
 					Args.PropertyPath = MakeShared<FPropertyPath>(InOwnerTreeNode->GetPropertyPath());
 					Args.CategoryObjectName = Category->GetObjectName();
-					
+						
 					PropertyUpdatedWidgetBuilder = DisplayManager->ConstructPropertyUpdatedWidgetBuilder(Args);
 
 					if (PropertyUpdatedWidgetBuilder.IsValid())
@@ -657,6 +612,63 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 					}
 				}
 				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			}
+
+			if(PropertyUpdatedWidgetBuilder.IsValid())
+			{
+				RightmostWidget = PropertyUpdatedWidgetBuilder->GenerateWidget();
+			}
+			else if(WidgetRow.HasResetToDefaultContent())
+			{
+				RightmostWidget = WidgetRow.ResetToDefaultWidget.Widget;
+			}
+			else
+			{
+				TArray<FPropertyRowExtensionButton> ExtensionButtons;
+
+				UpdateResetToDefault();
+				FPropertyRowExtensionButton& ResetToDefault = ExtensionButtons.AddDefaulted_GetRef();
+				ResetToDefault.Label = NSLOCTEXT("PropertyEditor", "ResetToDefault", "Reset to Default");
+				ResetToDefault.UIAction = FUIAction(
+					FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnResetToDefaultClicked),
+					FCanExecuteAction::CreateLambda([this, IsValueEnabledAttribute]()
+						{
+							return IsResetToDefaultVisible() && IsValueEnabledAttribute.Get(true);
+						})
+				);
+
+				// We could just collapse the Reset to Default button by setting the FIsActionButtonVisible delegate,
+				// but this would cause the reset to defaults not to reserve space in the toolbar and not be aligned across all rows.
+				// Instead, we show an empty icon and tooltip and disable the button.
+				static FSlateIcon EnabledResetToDefaultIcon(FAppStyle::Get().GetStyleSetName(), "PropertyWindow.DiffersFromDefault");
+				static FSlateIcon DisabledResetToDefaultIcon(FAppStyle::Get().GetStyleSetName(), "NoBrush");
+				ResetToDefault.Icon = TAttribute<FSlateIcon>::Create([this]()
+				{
+					return IsResetToDefaultVisible() ?
+						EnabledResetToDefaultIcon :
+						DisabledResetToDefaultIcon;
+				});
+
+				ResetToDefault.ToolTip = TAttribute<FText>::Create([this]() 
+				{
+					return IsResetToDefaultVisible() ?
+						NSLOCTEXT("PropertyEditor", "ResetToDefaultPropertyValueToolTip", "Reset this property to its default value.") :
+						FText::GetEmpty();
+				});
+
+				CreateGlobalExtensionWidgets(ExtensionButtons);
+
+				FSlimHorizontalToolBarBuilder ToolbarBuilder(TSharedPtr<FUICommandList>(), FMultiBoxCustomization::None);
+				ToolbarBuilder.SetLabelVisibility(EVisibility::Collapsed);
+				ToolbarBuilder.SetStyle(&FAppStyle::Get(), "DetailsView.ExtensionToolBar");
+				ToolbarBuilder.SetIsFocusable(false);
+
+				for (const FPropertyRowExtensionButton& Extension : ExtensionButtons)
+				{
+					ToolbarBuilder.AddToolBarButton(Extension.UIAction, NAME_None, Extension.Label, Extension.ToolTip, Extension.Icon);
+				}
+
+				RightmostWidget = ToolbarBuilder.MakeWidget();
 			}
 
 			Splitter->AddSlot()
@@ -671,9 +683,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				.VAlign(VAlign_Center)
 				.Padding(0.0f)
 				[
-					PropertyUpdatedWidgetBuilder.IsValid() ?
-					         PropertyUpdatedWidgetBuilder->GenerateWidget().ToSharedRef()  :
-					         ToolbarBuilder.MakeWidget()
+					RightmostWidget.ToSharedRef()
 				]
 			];
 		}

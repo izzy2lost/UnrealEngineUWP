@@ -265,6 +265,11 @@ FDetailWidgetDecl* FDetailPropertyRow::CustomValueWidget()
 	return CustomPropertyWidget.IsValid() ? &CustomPropertyWidget->ValueContent() : nullptr;
 }
 
+FDetailWidgetDecl* FDetailPropertyRow::CustomResetToDefaultWidget()
+{
+	return CustomPropertyWidget.IsValid() ? &CustomPropertyWidget->ResetToDefaultContent() : nullptr;
+}
+
 TSharedPtr<FAssetThumbnailPool> FDetailPropertyRow::GetThumbnailPool() const
 {
 	TSharedPtr<FDetailCategoryImpl> ParentCategoryPinned = ParentCategory.Pin();
@@ -970,6 +975,14 @@ void FDetailPropertyRow::SetWidgetRowProperties(FDetailWidgetRow& Row) const
 		{
 			ensureMsgf(!CustomResetToDefault.IsSet(), TEXT("Duplicate reset to default handlers set on both FDetailPropertyRow and CustomWidget()!"));
 			Row.CustomResetToDefault = CustomPropertyWidget->CustomResetToDefault;
+		}
+
+		if(CustomPropertyWidget->HasResetToDefaultContent())
+		{
+			Row.ResetToDefaultContent()
+			[
+				CustomPropertyWidget->ResetToDefaultWidget.Widget
+			];
 		}
 	}
 }
