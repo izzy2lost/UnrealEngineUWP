@@ -117,7 +117,8 @@ private:
 							  UEditorInteractiveToolsContext* const ToolsContext,
 							  EToolsContextScope ToolScope = EToolsContextScope::Default);
 
-	void RegisterAddNodeCommand(TSharedPtr<FUICommandInfo> AddNodeCommand, const FName& NewNodeType, TSharedPtr<FUICommandInfo> StartToolCommand);
+	// Command for quickly adding a new node to the graph, e.g. triggered by a button press
+	void RegisterAddNodeCommand(TSharedPtr<FUICommandInfo> AddNodeCommand, const FName& NewNodeType);
 
 	void SetSimulationViewportClient(TWeakPtr<FDataflowSimulationViewportClient, ESPMode::ThreadSafe>);
 	void RefocusSimulationViewportClient();
