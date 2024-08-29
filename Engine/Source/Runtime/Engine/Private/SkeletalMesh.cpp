@@ -7228,6 +7228,12 @@ void FSkeletalMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialG
 	{
 		return;
 	}
+	
+	// According to GetMeshElementsConditionallySelectable(), non-resident LODs should just be skipped
+	if (MeshObject->GetRayTracingLOD() < SkeletalMeshRenderData->CurrentFirstLODIdx)
+	{
+		return;
+	}
 
 	MeshObject->QueuePendingRayTracingGeometryUpdate(Context.RHICmdList);
 
@@ -7247,12 +7253,6 @@ void FSkeletalMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialG
 			const int32 LODIndex = MeshObject->GetRayTracingLOD();
 			check(LODIndex < SkeletalMeshRenderData->LODRenderData.Num());
 			const FSkeletalMeshLODRenderData& LODData = SkeletalMeshRenderData->LODRenderData[LODIndex];
-
-			if (LODIndex < SkeletalMeshRenderData->CurrentFirstLODIdx)
-			{
-				// According to GetMeshElementsConditionallySelectable(), non-resident LODs should just be skipped
-				return;
-			}
 
 			ensure(LODSections.Num() > 0);
 			const FLODSectionElements& LODSection = LODSections[LODIndex];
