@@ -11,7 +11,7 @@
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetAttributeNode"
 
-FChaosClothAssetAttributeNode_V2::FChaosClothAssetAttributeNode_V2(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetAttributeNode_v2::FChaosClothAssetAttributeNode_v2(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -20,7 +20,7 @@ FChaosClothAssetAttributeNode_V2::FChaosClothAssetAttributeNode_V2(const Dataflo
 	RegisterOutputConnection(&Name.StringValue, &Name.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIOStringValue, StringValue));
 }
 
-void FChaosClothAssetAttributeNode_V2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetAttributeNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -90,7 +90,7 @@ void FChaosClothAssetAttributeNode_V2::Evaluate(Dataflow::FContext& Context, con
 	}
 }
 
-void FChaosClothAssetAttributeNode_V2::OnSelected(Dataflow::FContext& Context)
+void FChaosClothAssetAttributeNode_v2::OnSelected(Dataflow::FContext& Context)
 {
 	using namespace UE::Chaos::ClothAsset;
 
@@ -111,7 +111,7 @@ void FChaosClothAssetAttributeNode_V2::OnSelected(Dataflow::FContext& Context)
 	}
 }
 
-void FChaosClothAssetAttributeNode_V2::OnDeselected()
+void FChaosClothAssetAttributeNode_v2::OnDeselected()
 {
 	// Clean up, to avoid another toolkit picking up the wrong context evaluation
 	CachedCollectionGroupNames.Reset();

@@ -44,7 +44,7 @@ private:
 
 /** Merge multiple cloth collections into a single cloth collection of multiple patterns. */
 USTRUCT(Meta = (DataflowCloth, Deprecated="5.5"))
-struct FChaosClothAssetMergeClothCollectionsNode : public FDataflowNode
+struct UE_DEPRECATED(5.5, "Use the newer version of this node instead.") FChaosClothAssetMergeClothCollectionsNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetMergeClothCollectionsNode, "MergeClothCollections", "Cloth", "Cloth Merge Collection")
@@ -72,8 +72,10 @@ public:
 	UPROPERTY(Meta = (DisplayName = "Collection 5"))
 	FManagedArrayCollection Collection5;
 	/** The number of inputs currently exposed to the node UI. */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UPROPERTY()
 	int32 NumInputs = NumInitialOptionalInputs;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	FChaosClothAssetMergeClothCollectionsNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 

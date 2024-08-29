@@ -58,7 +58,7 @@ private:
 
 /** Long range attachment constraint property configuration node. */
 USTRUCT(Meta = (DataflowCloth, Deprecated = "5.5"))
-struct FChaosClothAssetSimulationLongRangeAttachmentConfigNode : public FChaosClothAssetSimulationBaseConfigNode
+struct UE_DEPRECATED(5.5, "Use the newer version of this node instead.") FChaosClothAssetSimulationLongRangeAttachmentConfigNode : public FChaosClothAssetSimulationBaseConfigNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, "SimulationLongRangeAttachmentConfig", "Cloth", "Cloth Simulation Long Range Attachment Config")

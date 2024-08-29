@@ -632,7 +632,9 @@ TArray<const FManagedArrayCollection*> FChaosClothAssetTerminalNode::GetCollecti
 	return CollectionLods;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS  // Unexpected deprecation message on some platforms otherwise
 const FManagedArrayCollection* FChaosClothAssetTerminalNode::GetCollectionLod(int32 LodIndex) const
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 	switch (LodIndex)
 	{

@@ -3,6 +3,7 @@
 #include "ChaosClothAsset/SelectionGroupCustomization.h"
 #include "ChaosClothAsset/AttributeNode.h"
 #include "ChaosClothAsset/ClothDataflowTools.h"  // For MakeCollectionName
+#include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/DeleteElementNode.h"
 #include "ChaosClothAsset/SelectionNode.h"
 #include "Widgets/Input/SEditableTextBox.h"
@@ -110,21 +111,28 @@ namespace UE::Chaos::ClothAsset
 		GroupNames.Reset();
 
 		TArray<FName> CollectionGroupNames;
-		if (const FChaosClothAssetSelectionNode* const SelectionNode = GetOwnerStruct<FChaosClothAssetSelectionNode>())
+		if (const FChaosClothAssetSelectionNode_v2* const SelectionNode_v2 = GetOwnerStruct<FChaosClothAssetSelectionNode_v2>())
 		{
-			CollectionGroupNames = SelectionNode->GetCachedCollectionGroupNames();
-
+			CollectionGroupNames = SelectionNode_v2->GetCachedCollectionGroupNames();
 		}
-		else if (const FChaosClothAssetDeleteElementNode* const DeleteNode =
-			GetOwnerStruct<FChaosClothAssetDeleteElementNode>())
+		else if (const FChaosClothAssetDeleteElementNode* const DeleteNode = GetOwnerStruct<FChaosClothAssetDeleteElementNode>())
 		{
 			CollectionGroupNames = DeleteNode->GetCachedCollectionGroupNames();
 		}
-		else if (const FChaosClothAssetAttributeNode* const AttributeNode =
-			GetOwnerStruct<FChaosClothAssetAttributeNode>())
+		else if (const FChaosClothAssetAttributeNode_v2* const AttributeNode_v2 = GetOwnerStruct<FChaosClothAssetAttributeNode_v2>())
+		{
+			CollectionGroupNames = AttributeNode_v2->GetCachedCollectionGroupNames();
+		}
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		else if (const FChaosClothAssetSelectionNode* const SelectionNode = GetOwnerStruct<FChaosClothAssetSelectionNode>())
+		{
+			CollectionGroupNames = SelectionNode->GetCachedCollectionGroupNames();
+		}
+		else if (const FChaosClothAssetAttributeNode* const AttributeNode = GetOwnerStruct<FChaosClothAssetAttributeNode>())
 		{
 			CollectionGroupNames = AttributeNode->GetCachedCollectionGroupNames();
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		for (const FName& CollectionGroupName : CollectionGroupNames)
 		{

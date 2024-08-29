@@ -68,7 +68,7 @@ private:
 
 /** Cloth terminal node to generate a cloth asset from a cloth collection. */
 USTRUCT(Meta = (DataflowCloth, DataflowTerminal, Deprecated = 5.5))
-struct FChaosClothAssetTerminalNode : public FDataflowTerminalNode
+struct UE_DEPRECATED(5.5, "Use the newer version of this node instead.") FChaosClothAssetTerminalNode : public FDataflowTerminalNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetTerminalNode, "ClothAssetTerminal", "Cloth", "Cloth Terminal")  // TODO: Should the category be Terminal instead like all other terminal nodes
@@ -96,8 +96,10 @@ public:
 	UPROPERTY(meta = (DisplayName = "Collection LOD 5"))
 	FManagedArrayCollection CollectionLod5;
 	/** The number of LODs currently exposed to the node UI. */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UPROPERTY()
 	int32 NumLods = NumInitialCollectionLods;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/**
 	 * Refresh the asset even if the ClothCollection hasn't changed.
 	 * Note that it is not required to manually refresh the cloth asset, this is done automatically when there is a change in the Dataflow.

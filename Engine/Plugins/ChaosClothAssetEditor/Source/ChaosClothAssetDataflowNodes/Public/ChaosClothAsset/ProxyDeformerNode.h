@@ -22,7 +22,7 @@ struct FChaosClothAssetSelectionFilterSet
 };
 
 /** Add the proxy deformer information to this cloth collection's render data. */
-USTRUCT(Meta = (DataflowCloth, Experimental))  // TODO: Remove experimental for 5.5 release
+USTRUCT(Meta = (DataflowCloth))
 struct FChaosClothAssetProxyDeformerNode_v2 : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -69,8 +69,8 @@ private:
 };
 
 /** Add the proxy deformer information to this cloth collection's render data. */
-USTRUCT(Meta = (DataflowCloth))
-struct FChaosClothAssetProxyDeformerNode : public FDataflowNode
+USTRUCT(Meta = (DataflowCloth, Deprecated = "5.5"))
+struct UE_DEPRECATED(5.5, "Use the newer version of this node instead.") FChaosClothAssetProxyDeformerNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetProxyDeformerNode, "ProxyDeformer", "Cloth", "Cloth Simulation Proxy Deformer")
@@ -161,8 +161,10 @@ private:
 	static constexpr int32 MaxNumFilterSets = 10;
 
 	/** The number of filter sets currently exposed to the node UI. */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UPROPERTY()
 	int32 NumFilterSets = NumInitialOptionalInputs;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	//~ Begin FDataflowNode interface
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;

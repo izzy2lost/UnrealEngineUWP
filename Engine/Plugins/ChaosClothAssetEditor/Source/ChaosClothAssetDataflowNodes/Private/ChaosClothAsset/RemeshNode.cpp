@@ -1261,6 +1261,7 @@ void FChaosClothAssetRemeshNode::RebuildTopologyDependentSimData(const TSharedRe
 	// Reconstruct long-range attachments
 
 	// v1 (weight map)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const FString FixedEndWeightMapString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, FixedEndWeightMap);
 	if (InProperties.GetKeyIndex(FixedEndWeightMapString) != INDEX_NONE)
 	{
@@ -1271,6 +1272,7 @@ void FChaosClothAssetRemeshNode::RebuildTopologyDependentSimData(const TSharedRe
 
 		UE::Chaos::ClothAsset::FClothEngineTools::GenerateTethers(OutClothCollection, FixedEndWeightMap, bUseGeodesicTethers);
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// v2 (vertex set)
 	const FString FixedEndSetString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode_v2, FixedEndSet);

@@ -51,10 +51,12 @@ FChaosClothAssetSimulationLongRangeAttachmentConfigNode::FChaosClothAssetSimulat
 
 void FChaosClothAssetSimulationLongRangeAttachmentConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS  // SetProperty functions are templated and cause deprecation warnings with the now deprecated v1
 	PropertyHelper.SetPropertyWeighted(this, &TetherStiffness);
 	PropertyHelper.SetPropertyWeighted(this, &TetherScale);
 	PropertyHelper.SetPropertyBool(this, &bUseGeodesicTethers);
 	PropertyHelper.SetPropertyString(this, &FixedEndWeightMap);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void FChaosClothAssetSimulationLongRangeAttachmentConfigNode::EvaluateClothCollection(Dataflow::FContext& Context, const TSharedRef<FManagedArrayCollection>& ClothCollection) const

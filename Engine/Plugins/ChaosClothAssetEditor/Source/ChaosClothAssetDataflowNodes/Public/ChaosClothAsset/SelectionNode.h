@@ -3,6 +3,7 @@
 #pragma once 
 
 #include "Dataflow/DataflowNode.h"
+#include "Dataflow/DataflowFunctionProperty.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "ChaosClothAsset/AddWeightMapNode.h"
 #include "SelectionNode.generated.h"
@@ -53,11 +54,109 @@ enum class EChaosClothAssetSelectionOverrideType : uint8
 	Modify
 };
 
+USTRUCT(Meta = (DataflowCloth))
+struct FChaosClothAssetSelectionNode_v2 : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetSelectionNode_v2, "Selection", "Cloth", "Cloth Selection")
+	DATAFLOW_NODE_RENDER_TYPE("SurfaceRender", FName("FClothCollection"), "Collection")
+
+public:
+
+	UPROPERTY(Meta = (Dataflowinput, DataflowOutput, DataflowPassthrough = "Collection"))
+	FManagedArrayCollection Collection;
+
+	/** The collection used to transfer sets from. */
+	UPROPERTY(Meta = (DataflowInput))
+	FManagedArrayCollection TransferCollection;
+
+	/** The name to be use as a selection. */
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	FChaosClothAssetConnectableOStringValue OutputName;
+
+	/** The name to populate this set from and override based on Selection Override Type. Output Name will be used if Input Name is empty.*/
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	FChaosClothAssetConnectableIStringValue InputName;
+
+	/** How to apply this node's Indices onto existing sets. Changing this value will change the output set.
+	 *  To change how the node's stored indices are calculated, change the equivalent value on the Selection Tool context.*/
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	EChaosClothAssetSelectionOverrideType SelectionOverrideType = EChaosClothAssetSelectionOverrideType::ReplaceAll;
+
+	/** The type of element the selection refers to */
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	FChaosClothAssetNodeSelectionGroup Group;
+
+	/** Selected element indices */
+	UPROPERTY(EditAnywhere, Category = "Selection", Meta = (ClampMin = "0"))
+	TSet<int32> Indices;
+
+	/** Indices to remove from the Input selection */
+	UPROPERTY(EditAnywhere, Category = "Selection", Meta = (ClampMin = "0", EditCondition = "SelectionOverrideType == EChaosClothAssetSelectionOverrideType::Modify"))
+	TSet<int32> RemoveIndices;
+
+	/** Import (replace) the current selection from the input Collection's selection with the given Input Name (or Output Name if Input Name is empty). */
+	UPROPERTY(EditAnywhere, Category = "Selection", Meta = (ButtonImage = "Icons.Refresh"))
+	FDataflowFunctionProperty Import;
+
+	/**
+	 * Import (replace) the current selection from the input Collection's secondary selection with the given Input Name (or Output Name if Input Name is empty).
+	 * Secondary selections are only supported in v1 of this node. This function is provided as a migration tool to this current version.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Selection", Meta = (ButtonImage = "Icons.Refresh"))
+	FDataflowFunctionProperty ImportSecondary;
+
+	/**
+	 * The type of transfer used to transfer the sim mesh sets when a TransferCollection is connected.
+	 * This property is disabled when no TransferCollection input has been connected.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Selection Transfer")
+	EChaosClothAssetWeightMapTransferType SimTransferType = EChaosClothAssetWeightMapTransferType::Use2DSimMesh;
+
+	/**
+	 * Selections are internally converted to maps in order to do the transfer and then converted back.
+	 * This value is used to do the conversion back. Decrease this value to (possibly) expand the converted selection.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Selection Transfer", Meta = (ClampMin = "0", ClampMax = "1"))
+	float TransferSelectionThreshold = 0.95f;
+
+	/** Transfer the selection from the connected Transfer Collection containing a selection with Input Name (or Output Name if Input Name is empty). */
+	UPROPERTY(EditAnywhere, Category = "Selection Transfer", Meta = (ButtonImage = "Icons.Convert"))
+	FDataflowFunctionProperty Transfer;
+
+	FChaosClothAssetSelectionNode_v2(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+
+	/** Return a cached array of all the groups used by the input collection during at the time of the latest evaluation. */
+	const TArray<FName>& GetCachedCollectionGroupNames() const { return CachedCollectionGroupNames; }
+
+private:
+	friend class UClothMeshSelectionTool;
+
+	class FSelectionNodeChange;
+
+	FName CHAOSCLOTHASSETDATAFLOWNODES_API GetInputName(Dataflow::FContext& Context) const;
+	void CHAOSCLOTHASSETDATAFLOWNODES_API SetIndices(const TSet<int32>& InputSet, const TSet<int32>& FinalSet);
+	void CHAOSCLOTHASSETDATAFLOWNODES_API CalculateFinalSet(const TSet<int32>& InputSet, TSet<int32>& FinalSet) const;
+	static TUniquePtr<class FToolCommandChange> CHAOSCLOTHASSETDATAFLOWNODES_API MakeSelectedNodeChange(const FChaosClothAssetSelectionNode_v2& Node);
+
+	//~ Begin FDataflowNode implementation
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void OnSelected(Dataflow::FContext& Context) override;
+	virtual void OnDeselected() override;
+	//~ End FDataflowNode implementation
+
+	void OnImport();
+	void OnImportSecondary();
+	void OnTransfer();
+
+	TArray<FName> CachedCollectionGroupNames;
+};
+
 PRAGMA_DISABLE_DEPRECATION_WARNINGS  // For EChaosClothAssetSelectionType
 
 /** Integer index set selection node. */
-USTRUCT(Meta = (DataflowCloth))
-struct FChaosClothAssetSelectionNode : public FDataflowTerminalNode
+USTRUCT(Meta = (DataflowCloth, Deprecated = "5.5"))
+struct UE_DEPRECATED(5.5, "Use the newer version of this node instead.") FChaosClothAssetSelectionNode : public FDataflowTerminalNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetSelectionNode, "Selection", "Cloth", "Cloth Selection")
@@ -149,12 +248,6 @@ public:
 	void CHAOSCLOTHASSETDATAFLOWNODES_API CalculateFinalSecondarySet(const TSet<int32>& InputSet, TSet<int32>& FinalSet) const;
 
 private:
-
-	friend class UClothMeshSelectionTool;
-
-	class FSelectionNodeChange;
-	static TUniquePtr<class FToolCommandChange> CHAOSCLOTHASSETDATAFLOWNODES_API MakeWeightMapNodeChange(const FChaosClothAssetSelectionNode& Node);
-
 	virtual void SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const override;
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	virtual void OnSelected(Dataflow::FContext& Context) override;

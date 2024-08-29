@@ -81,7 +81,9 @@ namespace UE::Chaos::ClothAsset::Private
 			case EChaosClothAssetWeightMapOverrideType::ReplaceChanged:
 				if (InputMap[Index] == FinalValues[Index])
 				{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 					SourceVertexWeights[Index] = FChaosClothAssetAddWeightMapNode::ReplaceChangedPassthroughValue;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				}
 				else
 				{
@@ -103,8 +105,10 @@ namespace UE::Chaos::ClothAsset::Private
 		{
 			for (int32 Index = 0; Index < EndWeightIndex; ++Index)
 			{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				FinalOutputMap[Index] = FMath::Clamp(SourceVertexWeights[Index] == FChaosClothAssetAddWeightMapNode::ReplaceChangedPassthroughValue ?
 					0.f : SourceVertexWeights[Index], 0.f, 1.f);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 			return;
 		}
@@ -112,7 +116,9 @@ namespace UE::Chaos::ClothAsset::Private
 		check(InputMap.Num() == FinalOutputMap.Num());
 		for (int32 Index = 0; Index < EndWeightIndex; ++Index)
 		{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			if(SourceVertexWeights[Index] == FChaosClothAssetAddWeightMapNode::ReplaceChangedPassthroughValue)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			{
 				// This value is only set when OverrideType == ReplaceChanged, but it's possible the override type changed.
 				FinalOutputMap[Index] = FMath::Clamp(InputMap[Index], 0.f, 1.f);
@@ -359,7 +365,9 @@ class FChaosClothAssetAddWeightMapNode::FWeightMapNodeChange final : public FToo
 
 public: 
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FWeightMapNodeChange(const FChaosClothAssetAddWeightMapNode& Node) :
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		NodeGuid(Node.GetGuid()),
 		SavedWeights(Node.GetVertexWeights()),
 		SavedRenderWeights(Node.GetRenderVertexWeights()),
@@ -400,7 +408,9 @@ private:
 		{
 			if (const TSharedPtr<FDataflowNode> BaseNode = Dataflow->GetDataflow()->FindBaseNode(NodeGuid))
 			{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				if (FChaosClothAssetAddWeightMapNode* const Node = BaseNode->AsType<FChaosClothAssetAddWeightMapNode>())
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				{
 					Swap(Node->GetVertexWeights(), SavedWeights);
 					Swap(Node->GetRenderVertexWeights(), SavedRenderWeights);
@@ -414,9 +424,11 @@ private:
 	}
 };
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 TUniquePtr<FToolCommandChange> FChaosClothAssetAddWeightMapNode::MakeWeightMapNodeChange(const FChaosClothAssetAddWeightMapNode& Node)
 {
 	return MakeUnique<FChaosClothAssetAddWeightMapNode::FWeightMapNodeChange>(Node);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #undef LOCTEXT_NAMESPACE

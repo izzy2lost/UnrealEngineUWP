@@ -424,7 +424,7 @@ bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE:
 {
 	using namespace UE::Chaos::ClothAsset;
 
-	SelectionNodeToUpdate = DataflowContextObject->GetSelectedNodeOfType<FChaosClothAssetSelectionNode>();
+	SelectionNodeToUpdate = DataflowContextObject->GetSelectedNodeOfType<FChaosClothAssetSelectionNode_v2>();
 	check(SelectionNodeToUpdate);
 
 	// We need to sanitize the incoming indices, as the user can manually set them to anything on the node
@@ -507,7 +507,7 @@ bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE:
 	SelectionNodeToUpdate->CalculateFinalSet(InputSelectionSet, FinalSet);
 	AppendSet(SelectionNodeToUpdate->Group, FinalSet);
 
-	OutSelectionName = SelectionNodeToUpdate->Name;
+	OutSelectionName = SelectionNodeToUpdate->OutputName.StringValue;
 	OutOverrideType = SelectionNodeToUpdate->SelectionOverrideType;
 
 	return true;
@@ -524,7 +524,7 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 	if (UDataflow* const Dataflow = DataflowContextObject->GetDataflowAsset())
 	{
 		GetToolManager()->GetContextTransactionsAPI()->AppendChange(Dataflow, 
-			FChaosClothAssetSelectionNode::MakeWeightMapNodeChange(*SelectionNodeToUpdate),
+			FChaosClothAssetSelectionNode_v2::MakeSelectedNodeChange(*SelectionNodeToUpdate),
 			LOCTEXT("SelectionNodeChangeDescription", "Update Selection Node"));
 	}
 
@@ -592,7 +592,7 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 		}
 	};
 
-	SelectionNodeToUpdate->Name = ToolProperties->Name;
+	SelectionNodeToUpdate->OutputName.StringValue = ToolProperties->Name;
 	SelectionNodeToUpdate->SelectionOverrideType = ToolProperties->SelectionOverrideType;
 
 	TSet<int32> FinalSet;
@@ -615,12 +615,6 @@ void UClothMeshSelectionTool::ApplyAction(EClothMeshSelectionToolActions ActionT
 {
 	switch (ActionType)
 	{
-	case EClothMeshSelectionToolActions::ImportFromCollection:
-		ImportFromCollection(/*bImportFromSecondarySet = */ false);
-		break;
-	case EClothMeshSelectionToolActions::ImportSecondaryFromCollection:
-		ImportFromCollection(/*bImportFromSecondarySet = */ true);
-		break;
 	case EClothMeshSelectionToolActions::GrowSelection:
 		SelectionMechanic->GrowSelection();
 		break;
@@ -633,119 +627,6 @@ void UClothMeshSelectionTool::ApplyAction(EClothMeshSelectionToolActions ActionT
 	case EClothMeshSelectionToolActions::ClearSelection:
 		SelectionMechanic->ClearSelection();
 		break;
-	}
-}
-
-void UClothMeshSelectionTool::ImportFromCollection(bool bImportFromSecondarySet)
-{
-	if (const TSharedPtr<const FManagedArrayCollection> ClothCollection = DataflowContextObject->GetSelectedCollection())
-	{
-		ensure(DataflowContextObject->IsUsingInputCollection());
-
-		using namespace UE::Chaos::ClothAsset;
-		const FCollectionClothSelectionConstFacade SelectionFacade(ClothCollection.ToSharedRef());
-		if (SelectionFacade.IsValid())
-		{
-			const EClothPatternVertexType ViewMode = DataflowViewModeToClothViewMode(DataflowContextObject->GetConstructionViewMode());
-
-			FName GroupName = ClothCollectionGroup::SimVertices2D;
-			if (SelectionMechanic->Properties->bSelectVertices)
-			{
-				check(!SelectionMechanic->Properties->bSelectEdges);
-				check(!SelectionMechanic->Properties->bSelectFaces);
-
-				switch (ViewMode)
-				{
-				case EClothPatternVertexType::Sim2D:
-					GroupName = ClothCollectionGroup::SimVertices2D;
-					break;
-				case EClothPatternVertexType::Sim3D:
-					GroupName = ClothCollectionGroup::SimVertices3D;
-					break;
-				case EClothPatternVertexType::Render:
-					GroupName = ClothCollectionGroup::RenderVertices;
-					break;
-				}
-			}
-			else
-			{
-				switch (ViewMode)
-				{
-				case EClothPatternVertexType::Sim2D:
-				case EClothPatternVertexType::Sim3D:
-					GroupName = ClothCollectionGroup::SimFaces;
-					break;
-				case EClothPatternVertexType::Render:
-					GroupName = ClothCollectionGroup::RenderFaces;
-					break;
-				}
-			}
-			const FName InSelectionName(ToolProperties->Name);
-
-			if (const TSet<int32>* const SelectionSet = bImportFromSecondarySet ? SelectionFacade.FindSelectionSecondarySet(InSelectionName) : SelectionFacade.FindSelectionSet(InSelectionName))
-			{
-				const FName& ExistingSelectionGroup = bImportFromSecondarySet ? SelectionFacade.GetSelectionSecondaryGroup(InSelectionName) : SelectionFacade.GetSelectionGroup(InSelectionName);
-
-				if (ExistingSelectionGroup == GroupName)
-				{
-					auto AppendVerticesIfValid = [this]<typename T>(TSet<int32>&Dest, const T & Source)
-					{
-						PreviewMesh->ProcessMesh([this, &Dest, &Source](const UE::Geometry::FDynamicMesh3& Mesh)
-						{
-							for (const int32& VertexIndex : Source)
-							{
-								if (Mesh.IsVertex(VertexIndex))
-								{
-									Dest.Add(VertexIndex);
-								}
-							}
-						});
-					};
-
-					auto AppendFacesIfValid = [this](TSet<int32>& Dest, const TSet<int32>& Source)
-					{
-						PreviewMesh->ProcessMesh([this, &Dest, &Source](const UE::Geometry::FDynamicMesh3& Mesh)
-						{
-							for (const int32& FaceIndex : Source)
-							{
-								if (Mesh.IsTriangle(FaceIndex))
-								{
-									Dest.Add(FaceIndex);
-								}
-							}
-						});
-					};
-
-					UE::Geometry::FGroupTopologySelection OutSelection;
-
-					if (GroupName == ClothCollectionGroup::SimVertices2D ||
-						GroupName == ClothCollectionGroup::SimVertices3D ||
-						GroupName == ClothCollectionGroup::RenderVertices)
-					{
-						if (bHasNonManifoldMapping)
-						{
-							for (const int32 SelectionIndex : *SelectionSet)
-							{
-								if (SelectionIndex < SelectionToDynamicMesh.Num())		// Could be loading a render mesh selection where NumRenderVertices > NumSimVertices
-								{
-									AppendVerticesIfValid(OutSelection.SelectedCornerIDs, SelectionToDynamicMesh[SelectionIndex]);
-								}
-							}
-						}
-						else
-						{
-							AppendVerticesIfValid(OutSelection.SelectedCornerIDs, *SelectionSet);
-						}
-					}
-					else if (GroupName == ClothCollectionGroup::SimFaces ||
-						GroupName == ClothCollectionGroup::RenderFaces)
-					{
-						AppendFacesIfValid(OutSelection.SelectedGroupIDs, *SelectionSet);
-					}
-					SelectionMechanic->SetSelection(OutSelection);
-				}
-			}
-		}
 	}
 }
 

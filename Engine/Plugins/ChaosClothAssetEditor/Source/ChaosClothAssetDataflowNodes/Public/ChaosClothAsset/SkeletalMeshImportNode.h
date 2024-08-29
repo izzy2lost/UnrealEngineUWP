@@ -67,7 +67,7 @@ private:
 /** Import a skeletal mesh asset into the cloth collection simulation and/or render mesh containers. 
  * This version re-calculates the Sim Mesh Normals, and they are flipped. */
 USTRUCT(Meta = (DataflowCloth, Deprecated = "5.5"))
-struct FChaosClothAssetSkeletalMeshImportNode : public FDataflowNode
+struct UE_DEPRECATED(5.5, "Use the newer version of this node instead.") FChaosClothAssetSkeletalMeshImportNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetSkeletalMeshImportNode, "SkeletalMeshImport", "Cloth", "Cloth Skeletal Mesh Import")

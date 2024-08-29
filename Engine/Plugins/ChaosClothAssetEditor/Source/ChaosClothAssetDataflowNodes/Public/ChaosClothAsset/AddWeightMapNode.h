@@ -44,7 +44,7 @@ enum class EChaosClothAssetWeightMapOverrideType : uint8
 */
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 USTRUCT(Meta = (DataflowCloth, Deprecated="5.5"))
-struct FChaosClothAssetAddWeightMapNode : public FDataflowTerminalNode
+struct UE_DEPRECATED(5.5, "Use FChaosClothAssetWeightMapNode instead.") FChaosClothAssetAddWeightMapNode : public FDataflowTerminalNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetAddWeightMapNode, "AddWeightMap", "Cloth", "Cloth Add Weight Map")

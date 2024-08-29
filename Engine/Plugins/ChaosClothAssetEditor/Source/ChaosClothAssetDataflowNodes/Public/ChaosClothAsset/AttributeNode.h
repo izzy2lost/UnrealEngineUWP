@@ -30,10 +30,10 @@ enum class EChaosClothAssetNodeAttributeType : uint8
 
 /** Create a new attribute for the specified group. */
 USTRUCT(Meta = (DataflowCloth, Experimental))
-struct FChaosClothAssetAttributeNode_V2 : public FDataflowNode
+struct FChaosClothAssetAttributeNode_v2 : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
-	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetAttributeNode_V2, "Attribute", "Cloth", "Cloth Attribute")
+	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetAttributeNode_v2, "Attribute", "Cloth", "Cloth Attribute")
 	DATAFLOW_NODE_RENDER_TYPE("SurfaceRender", FName("FClothCollection"), "Collection")
 
 public:
@@ -65,7 +65,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Attribute", Meta = (EditCondition = "Type == EChaosClothAssetNodeAttributeType::Vector", EditConditionHides))
 	FVector3f VectorValue = FVector3f::ZeroVector;
 
-	FChaosClothAssetAttributeNode_V2(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetAttributeNode_v2(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 	/** Return a cached array of all the groups used by the input collection during at the time of the latest evaluation. */
 	const TArray<FName>& GetCachedCollectionGroupNames() const { return CachedCollectionGroupNames; }
@@ -82,7 +82,7 @@ private:
 
 /** Create a new attribute for the specified group. */
 USTRUCT(Meta = (DataflowCloth, Experimental, Deprecated = "5.5"))
-struct FChaosClothAssetAttributeNode : public FDataflowNode
+struct UE_DEPRECATED(5.5, "Use the newer version of this node instead.") FChaosClothAssetAttributeNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetAttributeNode, "Attribute", "Cloth", "Cloth Attribute")

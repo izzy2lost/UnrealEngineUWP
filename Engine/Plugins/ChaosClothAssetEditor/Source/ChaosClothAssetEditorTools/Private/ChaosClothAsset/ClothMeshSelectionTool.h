@@ -9,7 +9,7 @@
 class UPolygonSelectionMechanic;
 class UDataflowContextObject;
 class UPreviewMesh;
-struct FChaosClothAssetSelectionNode;
+struct FChaosClothAssetSelectionNode_v2;
 enum class EChaosClothAssetSelectionOverrideType : uint8;
 
 namespace UE::Geometry
@@ -22,9 +22,6 @@ UENUM()
 enum class EClothMeshSelectionToolActions
 {
 	NoAction,
-
-	ImportFromCollection,
-	ImportSecondaryFromCollection,
 
 	GrowSelection,
 	ShrinkSelection,
@@ -56,18 +53,6 @@ public:
 	void Initialize(UClothMeshSelectionTool* ParentToolIn) { ParentTool = ParentToolIn; }
 
 	void PostAction(EClothMeshSelectionToolActions Action);
-
-	UFUNCTION(CallInEditor, Category = Import)
-	void ImportFromCollection()
-	{
-		PostAction(EClothMeshSelectionToolActions::ImportFromCollection);
-	}
-
-	UFUNCTION(CallInEditor, Category = Migrate)
-	void ImportSecondaryFromCollection()
-	{
-		PostAction(EClothMeshSelectionToolActions::ImportSecondaryFromCollection);
-	}
 
 	UFUNCTION(CallInEditor, Category = Selection)
 	void GrowSelection()
@@ -168,7 +153,7 @@ private:
 	TArray<int32> DynamicMeshToSelection;
 	TArray<TArray<int32>> SelectionToDynamicMesh;
 
-	FChaosClothAssetSelectionNode* SelectionNodeToUpdate = nullptr;
+	FChaosClothAssetSelectionNode_v2* SelectionNodeToUpdate = nullptr;
 	TSet<int32> InputSelectionSet;
 	//
 	// Action support
@@ -185,6 +170,5 @@ private:
 	EClothMeshSelectionToolActions PendingAction;
 	virtual void ApplyAction(EClothMeshSelectionToolActions ActionType);
 
-	void ImportFromCollection(bool bImportFromSecondarySet);
 };
 

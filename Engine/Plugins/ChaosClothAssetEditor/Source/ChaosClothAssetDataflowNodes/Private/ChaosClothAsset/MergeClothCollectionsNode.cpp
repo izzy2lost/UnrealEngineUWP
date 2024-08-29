@@ -739,8 +739,9 @@ TArray<const FManagedArrayCollection*> FChaosClothAssetMergeClothCollectionsNode
 	return Collections;
 }
 
-
+PRAGMA_DISABLE_DEPRECATION_WARNINGS  // Unexpected deprecation message on some platforms otherwise
 const FManagedArrayCollection* FChaosClothAssetMergeClothCollectionsNode::GetCollection(int32 Index) const
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 	switch (Index)
 	{
