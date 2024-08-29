@@ -1542,6 +1542,11 @@ void FFileIoStore::CancelIoRequest(FIoRequestImpl* Request)
 			ResolvedRequest->bCancelled = true;
 			CompleteDispatcherRequest(ResolvedRequest);
 		}
+		else
+		{
+			// Wake-up the I/O thread to process cancelled read requests
+			PlatformImpl->ServiceNotify();
+		}
 	}
 }
 
