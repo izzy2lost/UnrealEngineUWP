@@ -299,7 +299,8 @@
 	_Pragma("dxc diagnostic ignored \"-Wall\"") 				\
 	_Pragma("dxc diagnostic ignored \"-Wconversion\"") 			\
 	_Pragma("dxc diagnostic ignored \"-Wfor-redefinition\"") 	\
-	_Pragma("dxc diagnostic ignored \"-Winline-asm\"")
+	_Pragma("dxc diagnostic ignored \"-Winline-asm\"")			\
+	_Pragma("dxc diagnostic ignored \"-Wunsequenced\"")
 
 #endif
 

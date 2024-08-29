@@ -355,7 +355,7 @@ void AdjustBaseColorAndSpecularColorForSubsurfaceProfileLightingCopyHack(inout f
 	// The translucent pass is called after the main post process subsurface scattering pass, it will not affect previous logic.
 #if MATERIALBLENDING_TRANSLUCENT || !ALLOW_SSS_MATERIAL_OVERRIDE
 	return;
-#endif
+#else
 
 #if SUBSURFACE_CHANNEL_MODE == 0
 	// If SUBSURFACE_CHANNEL_MODE is 0, we can't support full-resolution lighting, so we 
@@ -375,6 +375,7 @@ void AdjustBaseColorAndSpecularColorForSubsurfaceProfileLightingCopyHack(inout f
 		SpecularColor *= !bChecker;
 		Specular *= !bChecker;
 	}
+#endif
 }
 
 #ifndef INDIRECT_SAMPLE_COUNT

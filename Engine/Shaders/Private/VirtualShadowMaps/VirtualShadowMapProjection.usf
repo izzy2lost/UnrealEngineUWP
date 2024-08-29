@@ -559,7 +559,7 @@ void OutputVisualize(
 			if (CacheColor.a > 0)
 			{
 				Output.rgb = CacheColor.a*CacheColor.rgb + VPageAlpha*vPageColor + ShadowAlpha*Result.ShadowFactor.xxx;
-				Output = float4(Output + Accumulator.rgb, 0.9f);
+				Output = float4(Output.rgb + Accumulator.rgb, 0.9f);
 			}
 			else
 			{
