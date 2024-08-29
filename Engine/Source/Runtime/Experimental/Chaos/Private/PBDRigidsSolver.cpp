@@ -289,10 +289,6 @@ namespace Chaos
 		int32 ChaosSolverParticlePoolNumFrameUntilShrink = 30;
 		FAutoConsoleVariableRef CVarChaosSolverParticlePoolNumFrameUntilShrink(TEXT("p.Chaos.Solver.ParticlePoolNumFrameUntilShrink"), ChaosSolverParticlePoolNumFrameUntilShrink, TEXT("Num Frame until we can potentially shrink the pool"));
 
-		// Joint solver mode (linear vs non-linear)
-		bool bChaosSolverJointUseLinearSolver = true;
-		FAutoConsoleVariableRef CVarChaosSolverJointUseCachedSolver(TEXT("p.Chaos.Solver.Joint.UseLinearSolver"), bChaosSolverJointUseLinearSolver, TEXT("Use linear version of joint solver. (default is true"));
-
 		// Enable/Disable collisions
 		bool bChaosSolverCollisionEnabled = true;
 		FAutoConsoleVariableRef CVarChaosSolverCollisionDisable(TEXT("p.Chaos.Solver.Collision.Enabled"), bChaosSolverCollisionEnabled, TEXT("Enable/Disable collisions in the main scene."));
@@ -2808,7 +2804,6 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 		JointsSettings.bUsePositionBasedDrives = bChaosSolverJointUsePositionBasedDrives;
 		JointsSettings.NumShockPropagationIterations = ChaosSolverJointNumShockProagationIterations;
 		JointsSettings.ShockPropagationOverride = ChaosSolverJointShockPropagation;
-		JointsSettings.bUseLinearSolver = bChaosSolverJointUseLinearSolver;
 		JointsSettings.bSortEnabled = false;
 		MEvolution->GetJointConstraints().SetSettings(JointsSettings);
 

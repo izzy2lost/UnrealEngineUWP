@@ -189,6 +189,7 @@ FConstraintProfileProperties::FConstraintProfileProperties()
 	, bEnableShockPropagation(false)
 	, bEnableProjection(true)
 	, bEnableMassConditioning(true)
+	, bUseLinearJointSolver(true)
 	, bAngularBreakable(false)
 	, bAngularPlasticity(false)
 	, bLinearBreakable(false)
@@ -554,6 +555,7 @@ void FConstraintProfileProperties::UpdateConstraintFlags_AssumesLocked(const FPh
 	FPhysicsInterface::SetShockPropagationEnabled_AssumesLocked(InConstraintRef, bEnableShockPropagation, ShockPropagationAlpha);
 	FPhysicsInterface::SetParentDominates_AssumesLocked(InConstraintRef, bParentDominates);
 	FPhysicsInterface::SetMassConditioningEnabled_AssumesLocked(InConstraintRef, bEnableMassConditioning);
+	FPhysicsInterface::SetUseLinearJointSolver_AssumesLocked(InConstraintRef, bUseLinearJointSolver);
 }
 
 
