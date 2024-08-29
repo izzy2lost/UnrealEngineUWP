@@ -288,6 +288,26 @@ private:
 	}
 
 public:
+	/////////////////////////////////////////////////////
+	// Start - intrusive TOptional<TScriptArray> state //
+	/////////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TScriptArray;
+
+	explicit TScriptArray(FIntrusiveUnsetOptionalState Tag)
+		: ArrayNum(0)
+		, ArrayMax(-1)
+	{
+		// Use ArrayMax == -1 as our intrusive state so that the destructor still works without change, as it doesn't use ArrayMax.
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return ArrayMax == -1;
+	}
+	///////////////////////////////////////////////////
+	// End - intrusive TOptional<TScriptArray> state //
+	///////////////////////////////////////////////////
+
 	// These should really be private, because they shouldn't be called, but there's a bunch of code
 	// that needs to be fixed first.
 	TScriptArray(const TScriptArray&) { check(false); }
@@ -315,6 +335,18 @@ protected:
 	}
 
 public:
+	/////////////////////////////////////////////////////
+	// Start - intrusive TOptional<FScriptArray> state //
+	/////////////////////////////////////////////////////
+	using IntrusiveUnsetOptionalStateType = FScriptArray;
+	explicit FScriptArray(FIntrusiveUnsetOptionalState Tag)
+		: TScriptArray(Tag)
+	{
+	}
+	///////////////////////////////////////////////////
+	// End - intrusive TOptional<FScriptArray> state //
+	///////////////////////////////////////////////////
+
 	// These should really be private, because they shouldn't be called, but there's a bunch of code
 	// that needs to be fixed first.
 	FScriptArray(const FScriptArray&) { check(false); }

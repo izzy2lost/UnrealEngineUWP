@@ -1868,6 +1868,24 @@ public:
 	{
 	}
 
+	///////////////////////////////////////////////////
+	// Start - intrusive TOptional<TScriptSet> state //
+	///////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TScriptSet;
+
+	explicit TScriptSet(FIntrusiveUnsetOptionalState Tag)
+		: Elements(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Elements == Tag;
+	}
+	/////////////////////////////////////////////////
+	// End - intrusive TOptional<TScriptSet> state //
+	/////////////////////////////////////////////////
+
 	bool IsValidIndex(int32 Index) const
 	{
 		return Elements.IsValidIndex(Index);
@@ -2184,6 +2202,14 @@ class FScriptSet : public TScriptSet<FDefaultSetAllocator, FScriptSet>
 
 public:
 	using Super::Super;
+
+	///////////////////////////////////////////////////
+	// Start - intrusive TOptional<FScriptSet> state //
+	///////////////////////////////////////////////////
+	using IntrusiveUnsetOptionalStateType = FScriptSet;
+	/////////////////////////////////////////////////
+	// End - intrusive TOptional<FScriptSet> state //
+	/////////////////////////////////////////////////
 };
 
 struct TSetPrivateFriend

@@ -1804,6 +1804,24 @@ public:
 	{
 	}
 
+	///////////////////////////////////////////////////
+	// Start - intrusive TOptional<TScriptMap> state //
+	///////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TScriptMap;
+
+	explicit TScriptMap(FIntrusiveUnsetOptionalState Tag)
+		: Pairs(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Pairs == Tag;
+	}
+	/////////////////////////////////////////////////
+	// End - intrusive TOptional<TScriptMap> state //
+	/////////////////////////////////////////////////
+
 	bool IsValidIndex(int32 Index) const
 	{
 		return Pairs.IsValidIndex(Index);
@@ -2014,6 +2032,14 @@ class FScriptMap : public TScriptMap<FDefaultSetAllocator, FScriptMap>
 
 public:
 	using Super::Super;
+
+	///////////////////////////////////////////////////
+	// Start - intrusive TOptional<FScriptMap> state //
+	///////////////////////////////////////////////////
+	using IntrusiveUnsetOptionalStateType = FScriptMap;
+	/////////////////////////////////////////////////
+	// End - intrusive TOptional<FScriptMap> state //
+	/////////////////////////////////////////////////
 };
 
 struct TMapPrivateFriend

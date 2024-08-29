@@ -1325,6 +1325,24 @@ public:
 	{
 	}
 
+	/////////////////////////////////////////////////////
+	// Start - intrusive TOptional<TSparseArray> state //
+	/////////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TScriptSparseArray;
+
+	explicit TScriptSparseArray(FIntrusiveUnsetOptionalState)
+		: NumFreeIndices(-1)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState) const
+	{
+		return NumFreeIndices == -1;
+	}
+	///////////////////////////////////////////////////
+	// End - intrusive TOptional<TSparseArray> state //
+	///////////////////////////////////////////////////
+
 	bool IsValidIndex(int32 Index) const
 	{
 		return AllocationFlags.IsValidIndex(Index) && AllocationFlags[Index];
@@ -1506,6 +1524,14 @@ class FScriptSparseArray : public TScriptSparseArray<FDefaultSparseArrayAllocato
 
 public:
 	using Super::Super;
+
+	/////////////////////////////////////////////////////
+	// Start - intrusive TOptional<FSparseArray> state //
+	/////////////////////////////////////////////////////
+	using IntrusiveUnsetOptionalStateType = FScriptSparseArray;
+	///////////////////////////////////////////////////
+	// End - intrusive TOptional<FSparseArray> state //
+	///////////////////////////////////////////////////
 };
 
 /**
