@@ -4,7 +4,7 @@
 
 #include "Algo/Transform.h"
 #include "Internationalization/Internationalization.h"
-#include "Internationalization/Regex.h"
+#include "String/ParseTokens.h"
 
 #define LOCTEXT_NAMESPACE "PCGGrammar"
 
@@ -19,167 +19,166 @@ void FPCGGrammarResult::AddLog(FText Message, ELogType Verbosity)
 
 namespace PCGGrammar
 {
-	namespace Patterns
+	bool BuildModules(const FString& InGrammar, FPCGGrammarResult& Result)
 	{
-		static constexpr const TCHAR* Base = TEXT("(\\[([^\\]]+)\\](?:\\s*(\\d+|\\*))?)");
-		static constexpr const TCHAR* Stochastic = TEXT("(\\{([^\\}]+)\\}(?:\\s*(\\d++|\\*))?)");
-		static constexpr const TCHAR* Priority = TEXT("(<([^>]+)>(?:\\s*(\\d++|\\*))?)");
-	}
+		static constexpr TCHAR Delimiter[] = TEXT(",");
+		static constexpr TCHAR WeightDelimiter[] = TEXT(":");
+		static constexpr TCHAR SequenceStart[] = TEXT("[");
+		static constexpr TCHAR SequenceEnd[] = TEXT("]");
+		static constexpr TCHAR PriorityStart[] = TEXT("<");
+		static constexpr TCHAR PriorityEnd[] = TEXT(">");
+		static constexpr TCHAR StochasticStart[] = TEXT("{");
+		static constexpr TCHAR StochasticEnd[] = TEXT("}");
+		static constexpr TCHAR InfiniteRepetitionStr[] = TEXT("*");
+		static constexpr TCHAR AtLeastOneRepetitionStr[] = TEXT("+");
 
-	namespace Tokens
-	{
-		static constexpr const TCHAR* SubmoduleDelimiter = TEXT(",");
-		static constexpr const TCHAR* WeightDelimiter = TEXT(":");
-		static constexpr const TCHAR* InfiniteRepetition = TEXT("*");
-	}
+		// TODO: parse tokens in a more efficient way; this relies on token separation from what should essentially be token delimiters
+		// This would also allow better information to the end user when the grammar is invalid (as we wouldn't need to modify the string).
+		FString Grammar = InGrammar;
+		Grammar.ReplaceInline(Delimiter, TEXT(" , "));
+		Grammar.ReplaceInline(WeightDelimiter, TEXT(" : "));
+		Grammar.ReplaceInline(SequenceStart, TEXT(" [ "));
+		Grammar.ReplaceInline(SequenceEnd, TEXT(" ] "));
+		Grammar.ReplaceInline(PriorityStart, TEXT(" < "));
+		Grammar.ReplaceInline(PriorityEnd, TEXT(" > "));
+		Grammar.ReplaceInline(StochasticStart, TEXT(" { "));
+		Grammar.ReplaceInline(StochasticEnd, TEXT(" } "));
+		Grammar.ReplaceInline(InfiniteRepetitionStr, TEXT(" * "));
+		Grammar.ReplaceInline(AtLeastOneRepetitionStr, TEXT(" + "));
 
-	enum ECaptureGroups : int
-	{
-		// Capture Group 0 is the matched expression for this iteration
-		MatchedExpression = 0,
+		TArray<FStringView> Tokens;
+		UE::String::ParseTokens(Grammar, TEXT(" "), Tokens, UE::String::EParseTokensOptions::SkipEmpty);
 
-		// Capture group 1 is the whole group of submodules, including [ ]
-		WholeGroupOfSubmodules = 1,
+		PCGGrammar::FModuleDescriptor* CurrentModule = &Result.Root;
+		PCGGrammar::FModuleDescriptor* LastModule = nullptr;
+		bool bParseOk = true;
+		bool bHasWeightDelimiter = false;
 
-		// Capture group 2 is the submodule expression. Ie. [A,B], {A,B}, or <A,B> -> A,B
-		SubmoduleExpression = 2,
-
-		// Capture group 3 is the number of repetitions - [A,B]3 -> 3
-		NumberOfRepetitionsOrAsterisk = 3
-	};
-
-	bool FindModules(
-		const FString& Grammar,
-		const EModuleType ModuleType,
-		TArray<TPair<int32, int32>, TInlineAllocator<16>>& OutMatchedIndices,
-		FPCGGrammarResult& OutGrammarResult)
-	{
-		const TCHAR* Pattern = nullptr;
-		switch (ModuleType)
+		auto CreateSubmodule = [&CurrentModule, &LastModule](EModuleType Type)
 		{
-			case EModuleType::Base:
-				Pattern = Patterns::Base;
+			PCGGrammar::FModuleDescriptor& Submodule = CurrentModule->Submodules.Emplace_GetRef(Type);
+			Submodule.Parent = CurrentModule;
+			CurrentModule = &Submodule;
+			LastModule = nullptr;
+		};
+
+		auto CloseSubmodule = [&CurrentModule, &LastModule, &Result, &bParseOk](EModuleType Type)
+		{
+			if(CurrentModule && CurrentModule->Type == Type)
+			{
+				LastModule = CurrentModule;
+				CurrentModule = CurrentModule->Parent;
+			}
+			else
+			{
+				Result.AddLog(LOCTEXT("InvalidCloseSubmodule", "Mismatched module end."), FPCGGrammarResult::ELogType::Error);
+				bParseOk = false;
+			}
+		};
+
+		for (const FStringView& Token : Tokens)
+		{
+			if (Token == SequenceStart)
+			{
+				CreateSubmodule(EModuleType::Sequence);
+			}
+			else if (Token == PriorityStart)
+			{
+				CreateSubmodule(EModuleType::Priority);
+			}
+			else if (Token == StochasticStart)
+			{
+				CreateSubmodule(EModuleType::Stochastic);
+			}
+			else if (Token == SequenceEnd)
+			{
+				CloseSubmodule(EModuleType::Sequence);
+			}
+			else if (Token == PriorityEnd)
+			{
+				CloseSubmodule(EModuleType::Priority);
+			}
+			else if (Token == StochasticEnd)
+			{
+				CloseSubmodule(EModuleType::Stochastic);
+			}
+			else if(Token == Delimiter)
+			{
+				LastModule = nullptr;
+			}
+			else if (Token == WeightDelimiter)
+			{
+				// TODO: verify module supports weights, add warning if so
+				if(!LastModule || bHasWeightDelimiter)
+				{
+					Result.AddLog(LOCTEXT("InvalidWeightDelimiter", "Misplaced or mismatched weight (':') delimiter found."), FPCGGrammarResult::ELogType::Warning);
+				}
+				
+				if (LastModule)
+				{
+					bHasWeightDelimiter = true;
+				}
+			}
+			else
+			{
+				// Some Three possibilities here:
+				// A literal (last module is null)
+				if (LastModule == nullptr)
+				{
+					// Technically, we could assume this is part of the same token then (so we could have spaces in the tokens, but it's not clean)
+					PCGGrammar::FModuleDescriptor& Literal = CurrentModule->Submodules.Emplace_GetRef(FName(Token));
+					LastModule = &Literal;
+				}
+				// Otherwise : The repetition count or the weight
+				else if(bHasWeightDelimiter)
+				{
+					FString TokenString(Token);
+					if (TokenString.IsNumeric())
+					{
+						LastModule->Weight = FCString::Atoi(*TokenString);
+					}
+					else
+					{
+						FText WarningMessage = FText::Format(LOCTEXT("InvalidWeightValue", "Invalid weight value: {0}, will default to 1."), FText::FromStringView(Token));
+						Result.AddLog(std::move(WarningMessage), FPCGGrammarResult::ELogType::Warning);
+					}
+
+					// Consumed the weight specifier
+					bHasWeightDelimiter = false;
+				}
+				else
+				{
+					FString TokenString(Token);
+					if (Token == InfiniteRepetitionStr)
+					{
+						LastModule->Repetitions = PCGGrammar::InfiniteRepetition;
+					}
+					else if (Token == AtLeastOneRepetitionStr)
+					{
+						LastModule->Repetitions = PCGGrammar::AtLeastOneRepetition;
+					}
+					else if (TokenString.IsNumeric())
+					{
+						LastModule->Repetitions = FCString::Atoi(*TokenString);
+					}
+					else
+					{
+						FText WarningMessage = FText::Format(LOCTEXT("InvalidRepetitionValue", "Invalid repetition value: {0}, will default to 1."), FText::FromStringView(Token));
+						Result.AddLog(std::move(WarningMessage), FPCGGrammarResult::ELogType::Warning);
+					}
+				}
+			}
+
+			if (!bParseOk)
+			{
 				break;
-			case EModuleType::Stochastic:
-				Pattern = Patterns::Stochastic;
-				break;
-			case EModuleType::Priority:
-				Pattern = Patterns::Priority;
-				break;
-			default:
-				checkNoEntry();
-				return false;
+			}
 		}
 
-		check(Pattern);
-
-		bool bFoundMatch = false;
-
-		TArray<FName> SubmoduleNames;
-		TArray<int32> SubmoduleWeights;
-
-		FRegexMatcher ModuleMatcher(FRegexPattern(Pattern), Grammar);
-		while (ModuleMatcher.FindNext())
-		{
-			bFoundMatch = true;
-
-			const FString SubmoduleCapture = ModuleMatcher.GetCaptureGroup(ECaptureGroups::SubmoduleExpression);
-
-			if (SubmoduleCapture.IsEmpty())
-			{
-				FText Message = FText::Format(LOCTEXT("NoModuleNameFound", "Unable to find module name match within the grammar declaration: {0}"), FText::FromString(ModuleMatcher.GetCaptureGroup(ECaptureGroups::MatchedExpression)));
-				OutGrammarResult.AddLog(std::move(Message), FPCGGrammarResult::ELogType::Warning);
-				continue;
-			}
-
-			TArray<FString> SubmoduleStrings;
-			SubmoduleCapture.ParseIntoArray(SubmoduleStrings, Tokens::SubmoduleDelimiter);
-
-			SubmoduleNames.Reset(SubmoduleStrings.Num());
-			SubmoduleWeights.Reset(SubmoduleStrings.Num());
-
-			for (const FString& SubmoduleString : SubmoduleStrings)
-			{
-				TArray<FString> SubmoduleIDString;
-				SubmoduleString.ParseIntoArray(SubmoduleIDString, Tokens::WeightDelimiter);
-
-				if (SubmoduleIDString.IsEmpty())
-				{
-					FText Message = FText::Format(LOCTEXT("InvalidSubmoduleString", "Parsed submodule string is invalid."), FText::FromString(ModuleMatcher.GetCaptureGroup(ECaptureGroups::MatchedExpression)));
-					OutGrammarResult.AddLog(std::move(Message), FPCGGrammarResult::ELogType::Warning);
-					continue;
-				}
-
-				SubmoduleIDString[0].TrimStartAndEndInline();
-				if (SubmoduleIDString[0].IsEmpty())
-				{
-					FText Message = FText::Format(LOCTEXT("EmptyModuleID", "Module ID must not be empty."), FText::FromString(ModuleMatcher.GetCaptureGroup(ECaptureGroups::MatchedExpression)));
-					OutGrammarResult.AddLog(std::move(Message), FPCGGrammarResult::ELogType::Warning);
-					continue;
-				}
-
-				SubmoduleNames.Emplace(SubmoduleIDString[0]);
-				SubmoduleWeights.Emplace(1);
-
-				if (SubmoduleIDString.Num() > 1)
-				{
-					if (ModuleType != EModuleType::Stochastic)
-					{
-						FText Message = FText::Format(LOCTEXT("WeightOnNonStochasticType", "Weight added to non-stochastic module type."), FText::FromString(ModuleMatcher.GetCaptureGroup(ECaptureGroups::MatchedExpression)));
-						OutGrammarResult.AddLog(std::move(Message), FPCGGrammarResult::ELogType::Warning);
-						continue;
-					}
-
-					if (SubmoduleIDString.Num() > 2)
-					{
-						FText Message = LOCTEXT("MultiCharacterWeightDelimiter", "Multi-character delimiter for weight. Weight ignored.");
-						OutGrammarResult.AddLog(std::move(Message), FPCGGrammarResult::ELogType::Warning);
-						continue;
-					}
-
-					SubmoduleIDString[1].TrimStartAndEndInline();
-					if (!SubmoduleIDString[1].IsNumeric())
-					{
-						FText Message = FText::Format(LOCTEXT("InvalidWeightCharacter", "Invalid weight character '{0}' Weight ignored."), FText::FromString(SubmoduleIDString[1]));
-						OutGrammarResult.AddLog(std::move(Message), FPCGGrammarResult::ELogType::Warning);
-						continue;
-					}
-
-					SubmoduleWeights.Last() = FCString::Atoi(*SubmoduleIDString[1]);
-				}
-			}
-
-			// Capture repetition count
-			int32 Repetitions = 1;
-			const FString RepetitionString = ModuleMatcher.GetCaptureGroup(ECaptureGroups::NumberOfRepetitionsOrAsterisk);
-			if (RepetitionString.IsNumeric())
-			{
-				Repetitions = FCString::Atoi(*RepetitionString);
-			}
-			else if (!RepetitionString.IsEmpty())
-			{
-				// It should only be the infinite repetition character, to match the
-				ensure(RepetitionString == Tokens::InfiniteRepetition);
-				Repetitions = -1;
-			}
-
-			FModuleDescriptor& Module = OutGrammarResult.Modules.Emplace_GetRef();
-			Module.GrammarStartEndIndices = {ModuleMatcher.GetMatchBeginning(), ModuleMatcher.GetMatchEnding()};
-			Module.Type = ModuleType;
-			Module.Repetitions = Repetitions;
-
-			for (int Index = 0; Index < SubmoduleNames.Num(); ++Index)
-			{
-				Module.Submodules.Emplace(SubmoduleNames[Index], SubmoduleWeights[Index]);
-			}
-
-			OutMatchedIndices.Emplace(ModuleMatcher.GetMatchBeginning(), ModuleMatcher.GetMatchEnding());
-		}
-
-		return bFoundMatch;
+		return bParseOk;
 	}
 
-	PCG_API FPCGGrammarResult Parse(const FString& Grammar, bool bValidateGrammar)
+	PCG_API FPCGGrammarResult Parse(const FString& Grammar)
 	{
 		FPCGGrammarResult Result;
 
@@ -189,47 +188,7 @@ namespace PCGGrammar
 			return Result;
 		}
 
-		bool bFoundMatch = true;
-		TArray<TPair<int32, int32>, TInlineAllocator<16>> MatchedIndices;
-
-		bFoundMatch |= FindModules(Grammar, EModuleType::Base, MatchedIndices, Result);
-		bFoundMatch |= FindModules(Grammar, EModuleType::Stochastic, MatchedIndices, Result);
-		bFoundMatch |= FindModules(Grammar, EModuleType::Priority, MatchedIndices, Result);
-
-		if (!bFoundMatch)
-		{
-			Result.AddLog(LOCTEXT("NoModuleMatch", "Unable to find module match in grammar."), FPCGGrammarResult::ELogType::Warning);
-			return Result;
-		}
-
-		// Sort by start index - where they appeared in the grammar.
-		Algo::Sort(Result.Modules, [](const FModuleDescriptor& LHS, const FModuleDescriptor& RHS)
-		{
-			return LHS.GrammarStartEndIndices.Key < RHS.GrammarStartEndIndices.Key;
-		});
-
-		if (bValidateGrammar)
-		{
-			FString RemainingCharacters = Grammar;
-
-			MatchedIndices.Sort([](const TPair<int32, int32>& Pair1, const TPair<int32, int32>& Pair2)
-			{
-				return Pair1.Value < Pair2.Value;
-			});
-
-			// Must remove in inverse order to avoid conflict
-			for (int I = MatchedIndices.Num() - 1; I >= 0; --I)
-			{
-				const TPair<int32, int32>& Pair = MatchedIndices[I];
-				RemainingCharacters.RemoveAt(Pair.Key, Pair.Value - Pair.Key, EAllowShrinking::No);
-			}
-
-			RemainingCharacters.TrimStartAndEndInline();
-			if (!RemainingCharacters.IsEmpty())
-			{
-				Result.AddLog(FText::Format(LOCTEXT("ExtraCharactersInGrammar", "Extraneous characters in grammar {0}"), FText::FromString(RemainingCharacters)), FPCGGrammarResult::ELogType::Warning);
-			}
-		}
+		Result.bSuccess = BuildModules(Grammar, Result);
 
 		return Result;
 	}

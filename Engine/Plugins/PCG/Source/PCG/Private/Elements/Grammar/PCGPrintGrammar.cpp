@@ -60,13 +60,22 @@ bool FPCGPrintGrammarElement::ExecuteInternal(FPCGContext* Context) const
 		return true;
 	}
 
-	for (const PCGGrammar::FModuleDescriptor& Descriptor : Result.Modules)
-	{
-		Description.Append("Module[");
-		switch (Descriptor.Type)
+	auto PrintDescriptor = [&Description](const PCGGrammar::FModuleDescriptor& Descriptor, auto PrintRecurse) -> void
 		{
-			case PCGGrammar::EModuleType::Base:
-				Description.Append("Base");
+			Description.Append("Module[");
+			switch (Descriptor.Type)
+			{
+			case PCGGrammar::EModuleType::Root:
+				Description.Append("Root");
+				break;
+			case PCGGrammar::EModuleType::Literal:
+				Description.Append("Literal: ");
+				Description.Append(Descriptor.Symbol.ToString());
+				Description.Append(" Weight: ");
+				Description.Append(FString::FromInt(Descriptor.Weight));
+				break;
+			case PCGGrammar::EModuleType::Sequence:
+				Description.Append("Sequence");
 				break;
 			case PCGGrammar::EModuleType::Stochastic:
 				Description.Append("Stochastic");
@@ -74,21 +83,30 @@ bool FPCGPrintGrammarElement::ExecuteInternal(FPCGContext* Context) const
 			case PCGGrammar::EModuleType::Priority:
 				Description.Append("Priority");
 				break;
-		}
+			}
 
-		Description.Append("] - Repetitions: ");
-		Description.Append(Descriptor.Repetitions < 0 ? "infinite" : FString::FromInt(Descriptor.Repetitions));
-		Description.Append("\n");
-
-		for (const PCGGrammar::FModuleDescriptor::FSubmodule& Submodule : Descriptor.Submodules)
-		{
-			Description.Append("  Submodule: ");
-			Description.Append(Submodule.ID.ToString());
-			Description.Append(" Weight: ");
-			Description.Append(FString::FromInt(Submodule.Weight));
+			Description.Append("] - Repetitions: ");
+			if (Descriptor.Repetitions == PCGGrammar::InfiniteRepetition)
+			{
+				Description.Append("0 or more");
+			}
+			else if(Descriptor.Repetitions == PCGGrammar::AtLeastOneRepetition)
+			{
+				Description.Append("1 or more");
+			}
+			else
+			{
+				Description.Append(FString::FromInt(Descriptor.Repetitions));
+			}
 			Description.Append("\n");
-		}
-	}
+
+			for (const PCGGrammar::FModuleDescriptor& Submodule : Descriptor.Submodules)
+			{
+				PrintRecurse(Submodule, PrintRecurse);
+			}
+		};
+
+	PrintDescriptor(Result.Root, PrintDescriptor);
 
 	FPCGTaggedData& OutData = Context->OutputData.TaggedData.Emplace_GetRef();
 

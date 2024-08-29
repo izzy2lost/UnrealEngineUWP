@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "PCGContext.h"
 #include "PCGSettings.h"
 #include "Grammar/PCGGrammar.h"
 #include "Utils/PCGLogErrors.h"
@@ -81,6 +82,8 @@ public:
 #if WITH_EDITOR
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
 #endif
+
+	virtual bool UseSeed() const override { return true; }
 	//~End UPCGSettings interface
 
 	virtual void PostLoad() override;
@@ -151,150 +154,306 @@ namespace PCGSlicingBase
 {
 	using FPCGModulesInfoMap = TMap<FName, FPCGSlicingSubmodule>;
 
-#define PCG_SLICING_BASE_USES_CONCEPTS 0
-
-#if PCG_SLICING_BASE_USES_CONCEPTS
-	// To validate that the type has the right interface
-	// To be enabled when this is supported on all our platforms.
-	template <typename T>
-	concept IsValidPCGSubDivModuleInstance =
-		requires(T t) {
-			{ t.IsValid() } -> std::same_as<bool>;
-			{ t.GetSize() } -> std::same_as<double>;
-			{ t.GetNumRepeat() } -> std::same_as<int>;
-			{ t.IsScalable() } -> std::same_as<bool>;
-			{ t.GetSubmodulesCount() } -> std::same_as<int32>;
-			{ t.AreSubmodulesScalable() } -> std::same_as<TArrayView<const bool>>;
-			{ t.SubmoduleSizes() } -> std::same_as<TArrayView<const double>>;
-	};
-#endif // PCG_SLICING_BASE_USES_CONCEPTS
-
-	template <typename T>
+	// Materialized modules created from a tokenized grammar.
+	template<typename T>
 	struct TPCGSubDivModuleInstance
 	{
+		TPCGSubDivModuleInstance() = default;
+		explicit TPCGSubDivModuleInstance(const T* InModule) : Module(InModule) {}
+
 		const T* Module = nullptr;
-		int32 NumRepeat = 0;
-		// If the module is made of multiple submodules, we'll have 1 extra scale per submodule.
-		// Extra scale to add to the module initial scale on the slicing direction.
-		TArray<double> ExtraScales;
+		double ExtraScale = 0.0;
+		bool bIsValid = true;
+		bool bSkipExpansion = false;
 	};
 
 	PCGGrammar::FTokenizedGrammar GetTokenizedGrammar(FPCGContext* InContext, const FString& InGrammar, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize);
 
-	template <typename T>
-	bool Subdivide(const TArray<T>& Modules, double Length, TArray<TPCGSubDivModuleInstance<T>>& OutModuleInstances, double& RemainingLength, FPCGContext* InOptionalContext = nullptr)
+	template<typename T>
+	bool Subdivide(const T& Root, double Length, TArray<TPCGSubDivModuleInstance<T>>& OutModuleInstances, double& RemainingLength, FPCGContext* InOptionalContext = nullptr, int32 InOptionalSeed = 42)
 	{
-		OutModuleInstances.Empty(Modules.Num());
+		OutModuleInstances.Reset();
 		RemainingLength = Length;
 
-		if (Modules.IsEmpty() || FMath::IsNearlyZero(Length))
+		if (!Root.IsValid() || FMath::IsNearlyZero(Length))
 		{
 			return true;
 		}
 
-		for (const T& Module : Modules)
-		{
-			if (!Module.IsValid())
-			{
-				continue;
-			}
+		FRandomStream RandomStream(InOptionalContext ? InOptionalContext->GetSeed() : InOptionalSeed);
+		TArray<TPCGSubDivModuleInstance<T>> CurrentModules;
 
-			TPCGSubDivModuleInstance<T>& ModuleInstance = OutModuleInstances.Emplace_GetRef();
-			ModuleInstance.Module = &Module;
-			ModuleInstance.ExtraScales.SetNumZeroed(Module.GetSubmodulesCount());
-			if (Module.GetNumRepeat() > 0)
-			{
-				ModuleInstance.NumRepeat = Module.GetNumRepeat();
-				RemainingLength -= Module.GetSize() * ModuleInstance.NumRepeat;
-				if (RemainingLength < 0)
-				{
-					PCGLog::LogErrorOnGraph(NSLOCTEXT("PCGSlicingBase", "SegmentCutFail", "Grammar doesn't fit for this segment."), InOptionalContext);
-					return false;
-				}
-			}
-		}
+		// Start with root
+		CurrentModules.Emplace(&Root);
+		RemainingLength -= Root.GetMinSize(); // Here we use the min size because we'll consume concrete size only during expansion
 
-		if (OutModuleInstances.IsEmpty())
+		if (RemainingLength < 0)
 		{
+			PCGLog::LogErrorOnGraph(NSLOCTEXT("PCGSlicingBase", "SegmentCutFail", "Grammar doesn't fit for this segment."), InOptionalContext);
 			return false;
 		}
 
-		// When we are done and we still have some segemnt left, place the repeatable
-		int32 CurrentModuleIndex = 0;
-		bool bHasModifiedSomething = false;
-		while (RemainingLength >= 0)
+		// Working data sets
+		TArray<TPCGSubDivModuleInstance<T>*> PriorityModules;
+		TArray<TPCGSubDivModuleInstance<T>*> StochasticModules;
+		TArray<TPCGSubDivModuleInstance<T>> ExpandedModules;
+		TArray<TPCGSubDivModuleInstance<T>> PreviousModules;
+		
+		bool bNotDone = true;
+		while (bNotDone)
 		{
-			TPCGSubDivModuleInstance<T>& ModuleInstance = OutModuleInstances[CurrentModuleIndex];
-			if (ModuleInstance.Module->GetNumRepeat() <= 0)
-			{
-				if (RemainingLength >= ModuleInstance.Module->GetSize())
-				{
-					++ModuleInstance.NumRepeat;
-					RemainingLength -= ModuleInstance.Module->GetSize();
-					bHasModifiedSomething = true;
-				}
-			}
+			bNotDone = false;
+			// 1. Expand/Visit sequences
+			// Implementation note; since we've already consumed the min size, there's no need to update anything when expanding nodes, only when replacing with another choice.
+			// We'll keep track of whether we have certain types of nodes at this point so we can short-circuit some passes
+			ExpandedModules.Reset();
+			ExpandedModules.Reserve(CurrentModules.Num());
+			bool bHasPriorityOrStochasticModules = false;
 
-			if (++CurrentModuleIndex == OutModuleInstances.Num())
+			for (TPCGSubDivModuleInstance<T>& CurrentModule : CurrentModules)
 			{
-				if (!bHasModifiedSomething)
+				if (!CurrentModule.bIsValid)
 				{
-					// Nothing left
-					break;
+					continue; // discard this module (reclaim?)
 				}
 
-				bHasModifiedSomething = false;
-				CurrentModuleIndex = 0;
-			}
-		}
-
-		// Finally, try to stretch the scalable to get a complete match.
-		if (!FMath::IsNearlyZero(RemainingLength))
-		{
-			int32 NumScalableSubmodules = 0;
-
-			TArray<TPCGSubDivModuleInstance<T>*> ScalableInstances;
-			for (TPCGSubDivModuleInstance<T>& ModuleInstance : OutModuleInstances)
-			{
-				if (ModuleInstance.Module->IsScalable() && ModuleInstance.NumRepeat > 0)
+				if ((CurrentModule.Module->GetType() == PCGGrammar::EModuleType::Root || CurrentModule.Module->GetType() == PCGGrammar::EModuleType::Sequence))
 				{
-					ScalableInstances.Add(&ModuleInstance);
-					for (const bool bIsScalable : ModuleInstance.Module->AreSubmodulesScalable())
+					// When we duplicate sequences, we can't expand them directly otherwise they won't be repeatable
+					if (CurrentModule.bSkipExpansion)
 					{
-						if (bIsScalable)
-						{
-							NumScalableSubmodules += ModuleInstance.NumRepeat;
-						}
+						// Copy module as-is, but remove the expansion limitation so we break it down next iteration
+						TPCGSubDivModuleInstance<T>& ExpandedModule = ExpandedModules.Add_GetRef(CurrentModule);
+						ExpandedModule.bSkipExpansion = false;
 					}
-				}
-			}
-
-
-			if (NumScalableSubmodules > 0 && !ScalableInstances.IsEmpty())
-			{
-				const double ExtraLengthPerSubmodule = RemainingLength / NumScalableSubmodules;
-
-				for (TPCGSubDivModuleInstance<T>* ModuleInstance : ScalableInstances)
-				{
-					const TArrayView<const bool> AreSubmodulesScalable = ModuleInstance->Module->AreSubmodulesScalable();
-					const TArrayView<const double> SubmoduleSizes = ModuleInstance->Module->SubmoduleSizes();
-					check(AreSubmodulesScalable.Num() == SubmoduleSizes.Num());
-					for (int32 i = 0; i < SubmoduleSizes.Num(); ++i)
+					else
 					{
-						if (AreSubmodulesScalable[i])
+						for (const T& Submodule : CurrentModule.Module->Submodules)
 						{
-							const double SubmoduleSize = SubmoduleSizes[i];
-							if (!FMath::IsNearlyZero(SubmoduleSize))
+							if (Submodule.IsValid())
 							{
-								ModuleInstance->ExtraScales[i] = ExtraLengthPerSubmodule / SubmoduleSize;
+								// Expand module if it has a positive number of iterations (>= 1) or if it the unit size would fit.
+								// This is where we do a difference also between the * (0+) and + cases; the + will have a force one repetition here, while the * will not.
+								int NumRepeats = Submodule.GetNumRepeat();
+								if (Submodule.GetNumRepeat() == PCGGrammar::AtLeastOneRepetition)
+								{
+									NumRepeats = 1;
+								}
+								else if(NumRepeats == PCGGrammar::InfiniteRepetition && RemainingLength >= Submodule.GetMinConcreteSize())
+								{
+									NumRepeats = 1;
+									RemainingLength -= Submodule.GetMinConcreteSize();
+								}
+
+								for (int R = 0; R < NumRepeats; ++R)
+								{
+									TPCGSubDivModuleInstance<T>& ExpandedModule = ExpandedModules.Emplace_GetRef(&Submodule);
+								}
+							
+								if (NumRepeats > 0)
+								{
+									bNotDone = true;
+									bHasPriorityOrStochasticModules |= (Submodule.GetType() == PCGGrammar::EModuleType::Priority || Submodule.GetType() == PCGGrammar::EModuleType::Stochastic);
+								}
 							}
 						}
 					}
 				}
+				else if (CurrentModule.Module->GetType() == PCGGrammar::EModuleType::Priority || CurrentModule.Module->GetType() == PCGGrammar::EModuleType::Stochastic)
+				{
+					bHasPriorityOrStochasticModules = true;
 
-				RemainingLength = 0.0;
+					// Copy module as-is, but remove the expansion limitation so we break it down next iteration
+					TPCGSubDivModuleInstance<T>& ExpandedModule = ExpandedModules.Add_GetRef(CurrentModule);
+					ExpandedModule.bSkipExpansion = false;
+				}
+				else
+				{
+					// Copy module as-is, but do NOT remove the expansion limitation, otherwise we will have issues with literals with repetitions.
+					TPCGSubDivModuleInstance<T>& ExpandedModule = ExpandedModules.Add_GetRef(CurrentModule);
+				}
+			}
+
+			CurrentModules = MoveTemp(ExpandedModules);
+
+			// 2- Make a copy of the current set of modules, because we'll use this for repeatable modules
+			PreviousModules = CurrentModules;
+
+			// 3- Perform choices
+			if (bHasPriorityOrStochasticModules)
+			{
+				// 3.1 - Gather priority & stochastic modules (pointers here)
+				PriorityModules.Reset();
+				StochasticModules.Reset();
+
+				for (TPCGSubDivModuleInstance<T>& CurrentModule : CurrentModules)
+				{
+					check(CurrentModule.Module);
+					if (CurrentModule.Module->GetType() == PCGGrammar::EModuleType::Priority)
+					{
+						PriorityModules.Add(&CurrentModule);
+					}
+					else if (CurrentModule.Module->GetType() == PCGGrammar::EModuleType::Stochastic)
+					{
+						StochasticModules.Add(&CurrentModule);
+					}
+				}
+
+				bNotDone |= (!PriorityModules.IsEmpty() || !StochasticModules.IsEmpty());
+
+				// 3.2 - Apply priority choices first (from left to right)
+				for (TPCGSubDivModuleInstance<T>* PriorityModule : PriorityModules)
+				{
+					bool bWasReplaced = false;
+					// Replace current module by the first of its childen that has a min size that fits in with the remaining length
+					for (const T& PrioritySubmodule : PriorityModule->Module->Submodules)
+					{
+						if (!PrioritySubmodule.IsValid())
+						{
+							continue;
+						}
+
+						const double DeltaMinSize = (PrioritySubmodule.GetMinConcreteSize() - PriorityModule->Module->GetConcreteUnitSize());
+						check(DeltaMinSize >= 0);
+						if (RemainingLength >= DeltaMinSize)
+						{
+							PriorityModule->Module = &PrioritySubmodule;
+							RemainingLength -= DeltaMinSize;
+							bWasReplaced = true;
+							break;
+						}
+					}
+
+					if (!bWasReplaced)
+					{
+						// TODO Kill this module + reclaim size(?)
+						PriorityModule->bIsValid = false;
+					}
+				}
+
+				// 3.3 Process stochastic modules
+				// TODO random pick order of stochastic modules
+				for (TPCGSubDivModuleInstance<T>* StochasticModule : StochasticModules)
+				{
+					// Replace current module by a random pick according to total weights of "valid" choices we can still make
+					int TotalWeight = 0;
+					for (const T& StochasticSubmodule : StochasticModule->Module->Submodules)
+					{
+						if (!StochasticSubmodule.IsValid())
+						{
+							continue;
+						}
+
+						const double DeltaMinSize = (StochasticSubmodule.GetMinConcreteSize() - StochasticModule->Module->GetConcreteUnitSize());
+						check(DeltaMinSize >= 0);
+						if (DeltaMinSize <= RemainingLength)
+						{
+							TotalWeight += StochasticSubmodule.GetWeight();
+						}
+					}
+
+					if (TotalWeight == 0)
+					{
+						// Kill module + reclaim size(?)
+						StochasticModule->bIsValid = false;
+						continue;
+					}
+
+					int WeightPick = RandomStream.RandRange(0, TotalWeight - 1);
+					bool bWasReplaced = false;
+
+					for (const T& StochasticSubmodule : StochasticModule->Module->Submodules)
+					{
+						if (!StochasticSubmodule.IsValid())
+						{
+							continue;
+						}
+
+						const double DeltaMinSize = (StochasticSubmodule.GetMinConcreteSize() - StochasticModule->Module->GetConcreteUnitSize());
+						check(DeltaMinSize >= 0);
+						if(DeltaMinSize <= RemainingLength)
+						{
+							if (StochasticSubmodule.GetWeight() > WeightPick)
+							{
+								bWasReplaced = true;
+								RemainingLength -= DeltaMinSize;
+								StochasticModule->Module = &StochasticSubmodule;
+								break;
+							}
+							else
+							{
+								WeightPick -= StochasticSubmodule.GetWeight();
+							}
+						}
+					}
+
+					check(bWasReplaced);
+				}
+			}
+
+			// 4. Add arbitrary repetitions, requires to keep data from previous iteration
+			// Implementation note: since we add one module only in each iteration, it will definitely be inefficient when there is a long chain of things to duplicate.
+			check(PreviousModules.Num() == CurrentModules.Num());
+			int NumAddedRepetitions = 0;
+
+			for (int ModuleIndex = 0; ModuleIndex < PreviousModules.Num(); ++ModuleIndex)
+			{
+				TPCGSubDivModuleInstance<T>& PreviousModule = PreviousModules[ModuleIndex];
+				if (!PreviousModule.bSkipExpansion && PreviousModule.Module->GetNumRepeat() < 0 && PreviousModule.Module->GetMinConcreteSize() <= RemainingLength)
+				{
+					// Mark the module to skip expansion, otherwise we can't chain for repeats
+					PreviousModule.bSkipExpansion = true;
+					CurrentModules.Insert(PreviousModule, ModuleIndex + NumAddedRepetitions + 1);
+					++NumAddedRepetitions;
+					RemainingLength -= PreviousModule.Module->GetMinConcreteSize();
+				}
+			}
+
+			bNotDone |= (NumAddedRepetitions > 0);
+		}
+
+#if WITH_EDITOR
+		// Perform some early validation and see if there's a mismatch on the reported size and the one actually placed
+		double CountedLength = RemainingLength;
+		for (TPCGSubDivModuleInstance<T>& CurrentModule : CurrentModules)
+		{
+			CountedLength += CurrentModule.Module->GetUnitSize();
+		}
+
+		ensure(FMath::Abs(CountedLength-Length) < 1.0);
+#endif
+
+		// 7. Finally, apply adjusted scales to modules that support it.
+		check(RemainingLength >= 0);
+		if (!FMath::IsNearlyZero(RemainingLength))
+		{
+			int32 NumScalableModules = 0;
+			double ScalableLength = 0;
+			for (TPCGSubDivModuleInstance<T>& CurrentModule : CurrentModules)
+			{
+				if (CurrentModule.Module->IsScalable())
+				{
+					++NumScalableModules;
+					// implementation note: at this point we have only unit-literals, so we need to ignore repetitions, if any here, hence using the unit size
+					ScalableLength += CurrentModule.Module->GetUnitSize();
+				}
+			}
+
+			if (ScalableLength > 0)
+			{
+				for (TPCGSubDivModuleInstance<T>& CurrentModule : CurrentModules)
+				{
+					if (CurrentModule.Module->IsScalable())
+					{
+						CurrentModule.ExtraScale = (RemainingLength / ScalableLength);
+					}
+				}
+
+				RemainingLength = 0;
 			}
 		}
+
+		OutModuleInstances = MoveTemp(CurrentModules);
 
 		return true;
 	}

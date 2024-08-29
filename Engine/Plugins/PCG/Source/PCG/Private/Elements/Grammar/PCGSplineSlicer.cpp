@@ -93,7 +93,7 @@ namespace PCGSplineSlicerHelpers
 
 		const PCGGrammar::FTokenizedGrammar& CurrentTokenizedGrammar = InOutParameters.CachedModules[InGrammar];
 
-		if (CurrentTokenizedGrammar.IsEmpty())
+		if (!CurrentTokenizedGrammar.IsValid())
 		{
 			return;
 		}
@@ -105,7 +105,7 @@ namespace PCGSplineSlicerHelpers
 		 */
 		TArray<PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>> ModulesInstances;
 		double RemainingSubdivide;
-		if (!Subdivide(CurrentTokenizedGrammar, SplineLength, ModulesInstances, RemainingSubdivide, InOutParameters.Context))
+		if (!Subdivide(*CurrentTokenizedGrammar.ModuleGrammar, SplineLength, ModulesInstances, RemainingSubdivide, InOutParameters.Context))
 		{
 			return;
 		}
@@ -123,85 +123,80 @@ namespace PCGSplineSlicerHelpers
 		for (int32 ModuleInstanceIndex = 0; ModuleInstanceIndex < ModulesInstances.Num(); ModuleInstanceIndex++)
 		{
 			const PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance = ModulesInstances[ModuleInstanceIndex];
-			for (int32 SubmoduleInstanceIndex = 0; SubmoduleInstanceIndex < ModuleInstance.NumRepeat; ++SubmoduleInstanceIndex)
+			const FName Symbol = ModuleInstance.Module->Descriptor->Symbol;
+
+			const FPCGSlicingSubmodule& SlicingSubmodule = InOutParameters.ModulesInfo[Symbol];
+			const double SubmoduleSize = SlicingSubmodule.Size;
+
+			// Move to the next segment of the spline
+			const FVector SegmentStartPoint = InOutParameters.PolyLineData->GetLocationAtAlpha(SplineAlpha);
+			const double PreviousAlpha = SplineAlpha;
+
+			// Use a numerical method to find the root of where the module lands on the spline
+			SplineAlpha = FindRootAtLinearDistance_Bisection(InOutParameters.PolyLineData, SubmoduleSize, SplineAlpha);
+
+			const FVector SegmentEndPoint = InOutParameters.PolyLineData->GetLocationAtAlpha(SplineAlpha);
+			const FVector SliceVector = SegmentEndPoint - SegmentStartPoint;
+			const FVector SliceDirection = SliceVector.GetSafeNormal();
+
+			// At the end of the spline, truncate an unfinished submodule and end the process
+			if (FMath::IsNearlyEqual(SplineAlpha, 1))
 			{
-				for (int32 SymbolIndex = 0; SymbolIndex < ModuleInstance.Module->Symbols.Num(); ++SymbolIndex)
+				if (SliceVector.Length() < SubmoduleSize)
 				{
-					const FName Symbol = ModuleInstance.Module->Symbols[SymbolIndex];
-					const FPCGSlicingSubmodule& SlicingSubmodule = InOutParameters.ModulesInfo[Symbol];
-					const double SubmoduleSize = SlicingSubmodule.Size;
-
-					// Move to the next segment of the spline
-					const FVector SegmentStartPoint = InOutParameters.PolyLineData->GetLocationAtAlpha(SplineAlpha);
-					const double PreviousAlpha = SplineAlpha;
-
-					// Use a numerical method to find the root of where the module lands on the spline
-					SplineAlpha = FindRootAtLinearDistance_Bisection(InOutParameters.PolyLineData, SubmoduleSize, SplineAlpha);
-
-					const FVector SegmentEndPoint = InOutParameters.PolyLineData->GetLocationAtAlpha(SplineAlpha);
-					const FVector SliceVector = SegmentEndPoint - SegmentStartPoint;
-					const FVector SliceDirection = SliceVector.GetSafeNormal();
-
-					// At the end of the spline, truncate an unfinished submodule and end the process
-					if (FMath::IsNearlyEqual(SplineAlpha, 1))
+					if (InOutParameters.IsFinalPointAttribute && !InOutParameters.OutPoints->IsEmpty())
 					{
-						if (SliceVector.Length() < SubmoduleSize)
-						{
-							if (InOutParameters.IsFinalPointAttribute && !InOutParameters.OutPoints->IsEmpty())
-							{
-								InOutParameters.IsFinalPointAttribute->SetValue(InOutParameters.OutPoints->Last().MetadataEntry, true);
-							}
-
-							return;
-						}
+						InOutParameters.IsFinalPointAttribute->SetValue(InOutParameters.OutPoints->Last().MetadataEntry, true);
 					}
 
-					// Since its discretized, we won't take the transform's position, but we'll use the up vector--to create the module rotation--and the scale
-					FTransform CenterPointTransform = InOutParameters.PolyLineData->GetTransformAtAlpha((SplineAlpha + PreviousAlpha) * 0.5);
-
-					const FVector Position = SegmentStartPoint + (SliceVector * 0.5) + FVector(0, 0, InOutParameters.ModuleHeight * 0.5);
-					const FRotator Rotation = FRotationMatrix::MakeFromXZ(SliceDirection, CenterPointTransform.GetRotation().GetUpVector()).Rotator();
-					const FVector Scale = FVector::OneVector + (SliceDirection * ModuleInstance.ExtraScales[SymbolIndex]);
-
-					FPCGPoint& OutPoint = InOutParameters.OutPoints->Emplace_GetRef(FTransform(Rotation, Position, Scale), /*InDensity=*/1, PCGHelpers::ComputeSeedFromPosition(Position));
-
-					const double HalfSubmoduleSize = SlicingSubmodule.Size * 0.5;
-					OutPoint.SetLocalBounds(FBox(FVector(-HalfSubmoduleSize, 0, 0), FVector(HalfSubmoduleSize, 1, InOutParameters.ModuleHeight)));
-
-					// Now, handle the metadata attributes
-					if (!bHasMetadata)
-					{
-						continue;
-					}
-
-					InOutParameters.OutputMetadata->InitializeOnSet(OutPoint.MetadataEntry);
-					if (InOutParameters.SymbolAttribute)
-					{
-						InOutParameters.SymbolAttribute->SetValue(OutPoint.MetadataEntry, Symbol);
-					}
-
-					if (InOutParameters.DebugColorAttribute)
-					{
-						InOutParameters.DebugColorAttribute->SetValue(OutPoint.MetadataEntry, FVector4(SlicingSubmodule.DebugColor, 1.0));
-					}
-
-					if (InOutParameters.ModuleIndexAttribute)
-					{
-						InOutParameters.ModuleIndexAttribute->SetValue(OutPoint.MetadataEntry, ModuleIndexCounter++);
-					}
-
-					const bool bIsFirstModule = (ModuleInstanceIndex == 0) && (SubmoduleInstanceIndex == 0) && (SymbolIndex == 0);
-					if (bIsFirstModule && InOutParameters.IsFirstPointAttribute)
-					{
-						InOutParameters.IsFirstPointAttribute->SetValue(OutPoint.MetadataEntry, true);
-					}
-
-					const bool bIsFinalModule = (ModuleInstanceIndex == ModulesInstances.Num() - 1) && (SubmoduleInstanceIndex == ModuleInstance.NumRepeat - 1) && (SymbolIndex == ModuleInstance.Module->Symbols.Num() - 1);
-					if (bIsFinalModule && InOutParameters.IsFinalPointAttribute)
-					{
-						InOutParameters.IsFinalPointAttribute->SetValue(OutPoint.MetadataEntry, true);
-					}
+					return;
 				}
+			}
+
+			// Since its discretized, we won't take the transform's position, but we'll use the up vector--to create the module rotation--and the scale
+			FTransform CenterPointTransform = InOutParameters.PolyLineData->GetTransformAtAlpha((SplineAlpha + PreviousAlpha) * 0.5);
+
+			const FVector Position = SegmentStartPoint + (SliceVector * 0.5) + FVector(0, 0, InOutParameters.ModuleHeight * 0.5);
+			const FRotator Rotation = FRotationMatrix::MakeFromXZ(SliceDirection, CenterPointTransform.GetRotation().GetUpVector()).Rotator();
+			const FVector Scale = FVector::OneVector + (SliceDirection * ModuleInstance.ExtraScale);
+
+			FPCGPoint& OutPoint = InOutParameters.OutPoints->Emplace_GetRef(FTransform(Rotation, Position, Scale), /*InDensity=*/1, PCGHelpers::ComputeSeedFromPosition(Position));
+
+			const double HalfSubmoduleSize = SlicingSubmodule.Size * 0.5;
+			OutPoint.SetLocalBounds(FBox(FVector(-HalfSubmoduleSize, 0, 0), FVector(HalfSubmoduleSize, 1, InOutParameters.ModuleHeight)));
+
+			// Now, handle the metadata attributes
+			if (!bHasMetadata)
+			{
+				continue;
+			}
+
+			InOutParameters.OutputMetadata->InitializeOnSet(OutPoint.MetadataEntry);
+			if (InOutParameters.SymbolAttribute)
+			{
+				InOutParameters.SymbolAttribute->SetValue(OutPoint.MetadataEntry, Symbol);
+			}
+
+			if (InOutParameters.DebugColorAttribute)
+			{
+				InOutParameters.DebugColorAttribute->SetValue(OutPoint.MetadataEntry, FVector4(SlicingSubmodule.DebugColor, 1.0));
+			}
+
+			if (InOutParameters.ModuleIndexAttribute)
+			{
+				InOutParameters.ModuleIndexAttribute->SetValue(OutPoint.MetadataEntry, ModuleIndexCounter++);
+			}
+
+			const bool bIsFirstModule = (ModuleInstanceIndex == 0);
+			if (bIsFirstModule && InOutParameters.IsFirstPointAttribute)
+			{
+				InOutParameters.IsFirstPointAttribute->SetValue(OutPoint.MetadataEntry, true);
+			}
+
+			const bool bIsFinalModule = (ModuleInstanceIndex == ModulesInstances.Num() - 1);
+			if (bIsFinalModule && InOutParameters.IsFinalPointAttribute)
+			{
+				InOutParameters.IsFinalPointAttribute->SetValue(OutPoint.MetadataEntry, true);
 			}
 		}
 	}

@@ -122,14 +122,14 @@ bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 		double MinSize = 0.0;
 		PCGGrammar::FTokenizedGrammar TokenizedGrammar = GetTokenizedGrammar(InContext, InputSplineData, Settings, ModulesInfo, MinSize);
 
-		if (TokenizedGrammar.IsEmpty())
+		if (!TokenizedGrammar.IsValid())
 		{
 			continue;
 		}
 
 		TArray<PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>> Instances;
 		double RemainingLength = 0.0;
-		const bool bHeightSubdivideSuccess = PCGSlicingBase::Subdivide(TokenizedGrammar, ExtrudeLength, Instances, RemainingLength);
+		const bool bHeightSubdivideSuccess = PCGSlicingBase::Subdivide(*TokenizedGrammar.ModuleGrammar, ExtrudeLength, Instances, RemainingLength);
 
 		if (!bHeightSubdivideSuccess)
 		{
@@ -142,49 +142,44 @@ bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 
 		for (const PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& Instance : Instances)
 		{
-			for (int i = 0; i < Instance.NumRepeat; ++i)
+			const FName Symbol = Instance.Module->Descriptor->Symbol;
+			const FPCGSlicingSubmodule& CurrentBlock = ModulesInfo[Symbol];
+			const FVector Size = ExtrudeDirection * CurrentBlock.Size * (FVector::OneVector + Instance.ExtraScale);
+			
+			FPCGSplineStruct NewSpline = InputSplineData->SplineStruct;
+			for (FInterpCurvePointVector& ControlPoint : NewSpline.SplineCurves.Position.Points)
 			{
-				for (int32 SymbolIndex = 0; SymbolIndex < Instance.Module->Symbols.Num(); ++SymbolIndex)
-				{
-					const FName Symbol = Instance.Module->Symbols[SymbolIndex];
-					const FVector Size = ExtrudeDirection * Instance.Module->SymbolSizes[SymbolIndex] * (FVector::OneVector + Instance.ExtraScales[SymbolIndex]);
-					const FPCGSlicingSubmodule& CurrentBlock = ModulesInfo[Symbol];
-					FPCGSplineStruct NewSpline = InputSplineData->SplineStruct;
-					for (FInterpCurvePointVector& ControlPoint : NewSpline.SplineCurves.Position.Points)
-					{
-						ControlPoint.OutVal += CurrentDisplacement;
-					}
-
-					UPCGSplineData* NewSplineData = FPCGContext::NewObject_AnyThread<UPCGSplineData>(InContext);
-					NewSplineData->Initialize(NewSpline);
-					NewSplineData->InitializeFromData(InputSplineData);
-
-					NewSplineData->Metadata->FindOrCreateAttribute<FName>(Settings->SymbolAttributeName, Symbol, false, false);
-
-					if (!bMatchAndSetAttributes && Settings->bOutputDebugColorAttribute)
-					{
-						NewSplineData->Metadata->FindOrCreateAttribute<FVector4>(Settings->DebugColorAttributeName, FVector4(CurrentBlock.DebugColor, 1.0), false, false);
-					}
-
-					if (Settings->bOutputSizeAttribute)
-					{
-						NewSplineData->Metadata->FindOrCreateAttribute<FVector>(Settings->SizeAttributeName, Size, false, false);
-					}
-
-					if (!bMatchAndSetAttributes && Settings->bOutputScalableAttribute)
-					{
-						NewSplineData->Metadata->FindOrCreateAttribute<bool>(Settings->ScalableAttributeName, CurrentBlock.bScalable, false, false);
-					}
-
-					if (Settings->bOutputSplineIndexAttribute)
-					{
-						NewSplineData->Metadata->FindOrCreateAttribute<int32>(Settings->SplineIndexAttributeName, SplineIndex++, false, false);
-					}
-
-					Outputs.Add_GetRef(Input).Data = NewSplineData;
-					CurrentDisplacement += Size;
-				}
+				ControlPoint.OutVal += CurrentDisplacement;
 			}
+
+			UPCGSplineData* NewSplineData = FPCGContext::NewObject_AnyThread<UPCGSplineData>(InContext);
+			NewSplineData->Initialize(NewSpline);
+			NewSplineData->InitializeFromData(InputSplineData);
+
+			NewSplineData->Metadata->FindOrCreateAttribute<FName>(Settings->SymbolAttributeName, Symbol, false, false);
+
+			if (!bMatchAndSetAttributes && Settings->bOutputDebugColorAttribute)
+			{
+				NewSplineData->Metadata->FindOrCreateAttribute<FVector4>(Settings->DebugColorAttributeName, FVector4(CurrentBlock.DebugColor, 1.0), false, false);
+			}
+
+			if (Settings->bOutputSizeAttribute)
+			{
+				NewSplineData->Metadata->FindOrCreateAttribute<FVector>(Settings->SizeAttributeName, Size, false, false);
+			}
+
+			if (!bMatchAndSetAttributes && Settings->bOutputScalableAttribute)
+			{
+				NewSplineData->Metadata->FindOrCreateAttribute<bool>(Settings->ScalableAttributeName, CurrentBlock.bScalable, false, false);
+			}
+
+			if (Settings->bOutputSplineIndexAttribute)
+			{
+				NewSplineData->Metadata->FindOrCreateAttribute<int32>(Settings->SplineIndexAttributeName, SplineIndex++, false, false);
+			}
+
+			Outputs.Add_GetRef(Input).Data = NewSplineData;
+			CurrentDisplacement += Size;
 		}
 	}
 

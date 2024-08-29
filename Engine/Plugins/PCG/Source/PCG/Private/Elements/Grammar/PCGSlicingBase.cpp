@@ -144,11 +144,14 @@ PCGGrammar::FTokenizedGrammar FPCGSlicingBaseElement::GetTokenizedGrammar(FPCGCo
 
 PCGGrammar::FTokenizedGrammar PCGSlicingBase::GetTokenizedGrammar(FPCGContext* InContext, const FString& InGrammar, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize)
 {
-	const FPCGGrammarResult Result = PCGGrammar::Parse(InGrammar);
+	FPCGGrammarResult Result = PCGGrammar::Parse(InGrammar);
 
-	if (!Result.bSuccess)
+	// TODO: Add quiet mode
 	{
-		PCGLog::LogErrorOnGraph(LOCTEXT("GrammarParseFail", "Problem while parsing grammar:"), InContext);
+		if (!Result.bSuccess)
+		{
+			PCGLog::LogErrorOnGraph(LOCTEXT("GrammarParseFail", "Problem while parsing grammar:"), InContext);
+		}
 
 		for (const FPCGGrammarResult::FLog& Log : Result.GetLogs())
 		{
@@ -165,41 +168,106 @@ PCGGrammar::FTokenizedGrammar PCGSlicingBase::GetTokenizedGrammar(FPCGContext* I
 				break;
 			}
 		}
+	}
 
+	if (!Result.bSuccess)
+	{
+		return {};
+	}
+
+	// Build equivalent grammar tree with the size information.
+	TSet<FName> UnmatchedTokens;
+	auto BuildNode = [&UnmatchedTokens, &InModulesInfo](PCGGrammar::FTokenizedModule& Module, const PCGGrammar::FModuleDescriptor& Descriptor, auto& RecursiveFn) -> void
+	{
+		if(Descriptor.Type == PCGGrammar::EModuleType::Literal)
+		{
+			if (const FPCGSlicingSubmodule* It = InModulesInfo.Find(Descriptor.Symbol))
+			{
+				Module.UnitSize = It->Size;
+				Module.ConcreteUnitSize = It->Size;
+				Module.bScalable = It->bScalable;
+				Module.bIsValid = true;
+			}
+			else
+			{
+				UnmatchedTokens.Add(Descriptor.Symbol);
+			}
+		}
+		else
+		{
+			// Go through submodules
+			Module.Submodules.Reserve(Descriptor.Submodules.Num());
+
+			// In any of the modules that can be expanded, the minimum concrete size is going to be either the MinSize if it's greater than 0, otherwise it will be the minimum of the minimum concrete sizes of all submodules
+			double MinSubmoduleConcreteSize = 0.0;
+
+			for (const PCGGrammar::FModuleDescriptor& SubDescriptor : Descriptor.Submodules)
+			{
+				PCGGrammar::FTokenizedModule& Submodule = Module.Submodules.Emplace_GetRef(&SubDescriptor);
+				RecursiveFn(Submodule, SubDescriptor, RecursiveFn);
+
+				if (Submodule.bIsValid)
+				{
+					// Update size/scalable, with Sequence/Root: sum and Stochastic/Priority : min
+					if (Descriptor.Type == PCGGrammar::EModuleType::Root || Descriptor.Type == PCGGrammar::EModuleType::Sequence)
+					{
+						Module.UnitSize += Submodule.GetMinSize();
+					}
+					else if (Descriptor.Type == PCGGrammar::EModuleType::Stochastic || Descriptor.Type == PCGGrammar::EModuleType::Priority)
+					{
+						if (Module.bIsValid)
+						{
+							Module.UnitSize = FMath::Min(Module.UnitSize, Submodule.GetMinSize());
+						}
+						else
+						{
+							Module.UnitSize = Submodule.GetMinSize();
+						}
+					}
+
+					if (Module.bIsValid)
+					{
+						MinSubmoduleConcreteSize = FMath::Min(MinSubmoduleConcreteSize, Submodule.GetMinConcreteSize());
+					}
+					else
+					{
+						MinSubmoduleConcreteSize = Submodule.GetMinConcreteSize();
+					}
+
+					Module.bScalable |= Submodule.bScalable;
+					Module.bIsValid = true;
+				}
+			}
+
+			// If all expansions of the module lead to nothing, we might as well remove it.
+			if (Module.bIsValid && MinSubmoduleConcreteSize > 0)
+			{
+				Module.ConcreteUnitSize = FMath::Max(Module.UnitSize, MinSubmoduleConcreteSize);
+			}
+			else
+			{
+				Module.bIsValid = false;
+			}
+		}
+	};
+
+	// TODO Add quiet mode
+	for (FName UnmatchedToken : UnmatchedTokens)
+	{
+		FText WarningMessage = FText::Format(LOCTEXT("UnmatchedTokensInGrammar", "Unmatched token found in grammar: {0}."), FText::FromName(UnmatchedToken));
+		PCGLog::LogWarningOnGraph(WarningMessage, InContext);
+	}
+
+	if (Result.Root.Submodules.IsEmpty())
+	{
 		return {};
 	}
 
 	PCGGrammar::FTokenizedGrammar TokenizedGrammar;
-	OutMinSize = 0.0;
-
-	for (const PCGGrammar::FModuleDescriptor& ModuleDescriptor : Result.Modules)
-	{
-		PCGGrammar::FTokenizedModule& CurrentModule = TokenizedGrammar.Emplace_GetRef();
-		CurrentModule.NumRepeat = ModuleDescriptor.Repetitions;
-
-		for (const PCGGrammar::FModuleDescriptor::FSubmodule& SubmoduleDescriptor : ModuleDescriptor.Submodules)
-		{
-			if (const FPCGSlicingSubmodule* It = InModulesInfo.Find(SubmoduleDescriptor.ID))
-			{
-				CurrentModule.Symbols.Add(SubmoduleDescriptor.ID);
-				CurrentModule.Size += It->Size;
-				CurrentModule.bScalable |= It->bScalable;
-				CurrentModule.AreSymbolsScalable.Add(It->bScalable);
-				CurrentModule.SymbolSizes.Add(It->Size);
-			}
-		}
-
-		if (CurrentModule.Symbols.IsEmpty())
-		{
-			// If we have no symbol, we skip.
-			continue;
-		}
-
-		if (CurrentModule.NumRepeat > 0)
-		{
-			OutMinSize += CurrentModule.Size * CurrentModule.NumRepeat;
-		}
-	}
+	TokenizedGrammar.ParsedGrammar = MakeShared<PCGGrammar::FModuleDescriptor>(MoveTemp(Result.Root));
+	TokenizedGrammar.ModuleGrammar = MakeShared<PCGGrammar::FTokenizedModule>(TokenizedGrammar.ParsedGrammar.Get());
+	BuildNode(*TokenizedGrammar.ModuleGrammar, *TokenizedGrammar.ParsedGrammar, BuildNode);
+	OutMinSize = TokenizedGrammar.ModuleGrammar->GetMinSize();
 
 	return TokenizedGrammar;
 }

@@ -49,7 +49,7 @@ public:
 
 		const PCGGrammar::FTokenizedGrammar& CurrentTokenizedGrammar = InOutParameters.CachedModules[InGrammar];
 
-		if (CurrentTokenizedGrammar.IsEmpty())
+		if(!CurrentTokenizedGrammar.IsValid())
 		{
 			return;
 		}
@@ -78,7 +78,7 @@ public:
 
 		TArray<PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>> ModulesInstances;
 		double RemainingSubdivide;
-		const bool bSubdivideSuccess = PCGSlicingBase::Subdivide(CurrentTokenizedGrammar, Size, ModulesInstances, RemainingSubdivide, InOutParameters.Context);
+		const bool bSubdivideSuccess = PCGSlicingBase::Subdivide(*CurrentTokenizedGrammar.ModuleGrammar, Size, ModulesInstances, RemainingSubdivide, InOutParameters.Context);
 
 		if (!bSubdivideSuccess)
 		{
@@ -99,53 +99,48 @@ public:
 		for (int32 ModuleInstanceIndex = 0; ModuleInstanceIndex < ModulesInstances.Num(); ModuleInstanceIndex++)
 		{
 			const PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance = ModulesInstances[ModuleInstanceIndex];
-			for (int32 j = 0; j < ModuleInstance.NumRepeat; ++j)
+
+			const FName Symbol = ModuleInstance.Module->Descriptor->Symbol;
+			const FVector Scale = FVector::OneVector + (InOutParameters.SlicingDirection * ModuleInstance.ExtraScale);
+			const FPCGSlicingSubmodule& SlicingSubmodule = InOutParameters.ModulesInfo[Symbol];
+			const bool bIsFirstModule = (ModuleInstanceIndex == 0);
+			const bool bIsFinalModule = (ModuleInstanceIndex == ModulesInstances.Num() - 1);
+
+			const double HalfDisplacement = SlicingSubmodule.Size * 0.5;
+			const double HalfScaledDisplacement = Scale.Dot(InOutParameters.SlicingDirection) * HalfDisplacement;
+
+			const FVector LocalBoundsExtents = InOutParameters.SlicingDirection * HalfDisplacement + HalfExtents2D;
+			const FVector HalfStep = HalfScaledDisplacement * Direction;
+			const FVector Position = CurrentPos + HalfStep;
+			CurrentPos = Position + HalfStep;
+
+			FPCGPoint& OutPoint = InOutParameters.OutPoints->Emplace_GetRef(Point);
+			OutPoint.Transform = FTransform(Point.Transform.GetRotation(), Position + OtherDirection, Scale);
+			OutPoint.SetLocalBounds(FBox(-LocalBoundsExtents, LocalBoundsExtents));
+			InOutParameters.OutputMetadata->InitializeOnSet(OutPoint.MetadataEntry);
+			if (InOutParameters.SymbolAttribute)
 			{
-				for (int32 SymbolIndex = 0; SymbolIndex < ModuleInstance.Module->Symbols.Num(); ++SymbolIndex)
-				{
-					const FName Symbol = ModuleInstance.Module->Symbols[SymbolIndex];
-					const FVector Scale = FVector::OneVector + (InOutParameters.SlicingDirection * ModuleInstance.ExtraScales[SymbolIndex]);
-					const FPCGSlicingSubmodule& SlicingSubmodule = InOutParameters.ModulesInfo[Symbol];
+				InOutParameters.SymbolAttribute->SetValue(OutPoint.MetadataEntry, Symbol);
+			}
 
-					const bool bIsFirstModule = (ModuleInstanceIndex == 0) && (j == 0) && (SymbolIndex == 0);
-					const bool bIsFinalModule = (ModuleInstanceIndex == ModulesInstances.Num() - 1) && (j == ModuleInstance.NumRepeat - 1) && (SymbolIndex == ModuleInstance.Module->Symbols.Num() - 1);
-					const double HalfDisplacement = SlicingSubmodule.Size * 0.5;
-					const double HalfScaledDisplacement = Scale.Dot(InOutParameters.SlicingDirection) * HalfDisplacement;
+			if (InOutParameters.DebugColorAttribute)
+			{
+				InOutParameters.DebugColorAttribute->SetValue(OutPoint.MetadataEntry, FVector4(SlicingSubmodule.DebugColor, 1.0));
+			}
 
-					const FVector LocalBoundsExtents = InOutParameters.SlicingDirection * HalfDisplacement + HalfExtents2D;
-					const FVector HalfStep = HalfScaledDisplacement * Direction;
-					const FVector Position = CurrentPos + HalfStep;
-					CurrentPos = Position + HalfStep;
+			if (InOutParameters.ModuleIndexAttribute)
+			{
+				InOutParameters.ModuleIndexAttribute->SetValue(OutPoint.MetadataEntry, ModuleIndex++);
+			}
 
-					FPCGPoint& OutPoint = InOutParameters.OutPoints->Emplace_GetRef(Point);
-					OutPoint.Transform = FTransform(Point.Transform.GetRotation(), Position + OtherDirection, Scale);
-					OutPoint.SetLocalBounds(FBox(-LocalBoundsExtents, LocalBoundsExtents));
-					InOutParameters.OutputMetadata->InitializeOnSet(OutPoint.MetadataEntry);
-					if (InOutParameters.SymbolAttribute)
-					{
-						InOutParameters.SymbolAttribute->SetValue(OutPoint.MetadataEntry, Symbol);
-					}
+			if (bIsFirstModule && InOutParameters.IsFirstPointAttribute)
+			{
+				InOutParameters.IsFirstPointAttribute->SetValue(OutPoint.MetadataEntry, true);
+			}
 
-					if (InOutParameters.DebugColorAttribute)
-					{
-						InOutParameters.DebugColorAttribute->SetValue(OutPoint.MetadataEntry, FVector4(SlicingSubmodule.DebugColor, 1.0));
-					}
-
-					if (InOutParameters.ModuleIndexAttribute)
-					{
-						InOutParameters.ModuleIndexAttribute->SetValue(OutPoint.MetadataEntry, ModuleIndex++);
-					}
-
-					if (bIsFirstModule && InOutParameters.IsFirstPointAttribute)
-					{
-						InOutParameters.IsFirstPointAttribute->SetValue(OutPoint.MetadataEntry, true);
-					}
-
-					if (bIsFinalModule && InOutParameters.IsFinalPointAttribute)
-					{
-						InOutParameters.IsFinalPointAttribute->SetValue(OutPoint.MetadataEntry, true);
-					}
-				}
+			if (bIsFinalModule && InOutParameters.IsFinalPointAttribute)
+			{
+				InOutParameters.IsFinalPointAttribute->SetValue(OutPoint.MetadataEntry, true);
 			}
 		}
 

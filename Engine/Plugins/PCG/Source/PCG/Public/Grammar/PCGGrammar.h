@@ -2,31 +2,47 @@
 
 #pragma once
 
+#include "Grammar/PCGGrammarParser.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 
 #include "PCGGrammar.generated.h"
 
 namespace PCGGrammar
 {
+	// Coupled concrete module information with a grammar module descriptor (node)
 	struct FTokenizedModule
 	{
-		TArray<FName> Symbols;
-		TArray<bool> AreSymbolsScalable;
-		TArray<double> SymbolSizes;
-		int NumRepeat = 1;
-		bool bScalable = false;
-		double Size = 0.0;
+		FTokenizedModule() = default;
+		FTokenizedModule(const PCGGrammar::FModuleDescriptor* InDescriptor)
+			: Descriptor(InDescriptor)
+		{
+		}
 
-		bool IsValid() const { return Size > 0 && !Symbols.IsEmpty() && Symbols.Num() == AreSymbolsScalable.Num() && Symbols.Num() == SymbolSizes.Num(); }
-		double GetSize() const { return Size; }
-		int GetNumRepeat() const { return NumRepeat; }
+		bool IsValid() const { return bIsValid; }
+		double GetMinSize() const { return UnitSize * (Descriptor ? Descriptor->GetMinNumberOfRepetitions() : 0); }
+		double GetUnitSize() const { return UnitSize; }
+		double GetMinConcreteSize() const { return ConcreteUnitSize * (Descriptor ? Descriptor->GetMinConcreteNumberOfRepetitions() : 0); }
+		double GetConcreteUnitSize() const { return ConcreteUnitSize; }
+		int GetNumRepeat() const { return Descriptor ? Descriptor->Repetitions : 0; }
+		int8 GetWeight() const { return Descriptor ? Descriptor->Weight : 0; }
 		bool IsScalable() const { return bScalable; }
-		int32 GetSubmodulesCount() const { return Symbols.Num(); }
-		TArrayView<const bool> AreSubmodulesScalable() const { return AreSymbolsScalable; }
-		TArrayView<const double> SubmoduleSizes() const { return SymbolSizes; }
+		EModuleType GetType() const { return Descriptor ? Descriptor->Type : EModuleType::Unknown; }
+
+		TArray<FTokenizedModule> Submodules;
+		const PCGGrammar::FModuleDescriptor* Descriptor = nullptr;
+		double UnitSize = 0.0; // minimum size not including repetitions
+		double ConcreteUnitSize = 0.0; // minimum size of the expansion of a unit of this module
+		bool bScalable = false;
+		bool bIsValid = false;
 	};
 
-	using FTokenizedGrammar = TArray<FTokenizedModule>;
+	struct FTokenizedGrammar
+	{
+		TSharedPtr<FModuleDescriptor> ParsedGrammar;
+		TSharedPtr<FTokenizedModule> ModuleGrammar;
+
+		bool IsValid() const { return ModuleGrammar.IsValid() && ModuleGrammar.Get()->IsValid(); }
+	};
 }
 
 USTRUCT(Blueprintable, BlueprintType)

@@ -10,29 +10,40 @@ namespace PCGGrammar
 {
 	enum class EModuleType
 	{
-		Base,
+		Root,
+		Literal,
+		Sequence,
 		Stochastic,
-		Priority
+		Priority,
+		Unknown // used when there are no matching descriptors
 	};
+
+	static constexpr int InfiniteRepetition = -1;
+	static constexpr int AtLeastOneRepetition = -2;
 
 	struct FModuleDescriptor
 	{
-		struct FSubmodule
+		FModuleDescriptor() = default;
+		FModuleDescriptor(FName InLiteral)
 		{
-			FSubmodule(const FName InID, const int8 InWeight)
-				: ID(InID)
-				, Weight(InWeight)
-			{}
+			Type = EModuleType::Literal;
+			Symbol = InLiteral;
+		}
 
-			FName ID;
-			int8 Weight;
-		};
+		explicit FModuleDescriptor(EModuleType InType)
+		{
+			Type = InType;
+		}
 
-		EModuleType Type = EModuleType::Base;
+		int32 GetMinNumberOfRepetitions() const { return (Repetitions >= 0 ? Repetitions : (Repetitions == AtLeastOneRepetition ? 1 : 0)); }
+		int32 GetMinConcreteNumberOfRepetitions() const { return ((Repetitions >= 0) ? Repetitions : 1); }
+
+		TArray<FModuleDescriptor> Submodules;
+		FModuleDescriptor* Parent = nullptr;
+		FName Symbol;
 		int32 Repetitions = 1;
-		// The matched beginning and ending indices of the grammar string for this module
-		TPair<int32, int32> GrammarStartEndIndices;
-		TArray<FSubmodule> Submodules;
+		EModuleType Type = EModuleType::Literal;
+		int8 Weight = 1; // TODO: review the need for this based on struct size
 	};
 }
 
@@ -63,7 +74,7 @@ struct PCG_API FPCGGrammarResult
 	const TArray<FLog>& GetLogs() const{ return Logs; }
 
 	bool bSuccess = true;
-	TArray<PCGGrammar::FModuleDescriptor> Modules;
+	PCGGrammar::FModuleDescriptor Root = PCGGrammar::FModuleDescriptor(PCGGrammar::EModuleType::Root);
 
 private:
 	TArray<FLog> Logs;
@@ -71,5 +82,5 @@ private:
 
 namespace PCGGrammar
 {
-	PCG_API FPCGGrammarResult Parse(const FString& Grammar, bool bValidateGrammar = true);
+	PCG_API FPCGGrammarResult Parse(const FString& Grammar);
 }
