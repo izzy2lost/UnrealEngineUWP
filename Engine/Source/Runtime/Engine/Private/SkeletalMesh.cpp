@@ -7229,7 +7229,7 @@ void FSkeletalMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialG
 		return;
 	}
 
-	MeshObject->QueuePendingRayTracingGeometryUpdate(FRHICommandListImmediate::Get());
+	MeshObject->QueuePendingRayTracingGeometryUpdate(Context.RHICmdList);
 
 	FRayTracingGeometry* RayTracingGeometry = MeshObject->GetRayTracingGeometry();
 
