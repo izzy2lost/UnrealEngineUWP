@@ -245,7 +245,27 @@ public:
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
-	 * Get the asset materials from the static mesh asset. These will match the DynamicMesh material if CopyMeshToStaticMesh
+	* Extracts the Material List and corresponding Material Indices from the specified LOD of the Skeletal Mesh Asset.
+	* If Copy Mesh To Skeletal Mesh was used to create a Dynamic Mesh, then the returned Material List can be passed directly to a Dynamic Mesh Component.
+	*
+	* @param MaterialIndex this returned array is the same size as MaterialList, with each value the index of that Material in the Skeletal Mesh's Material List
+	* @param MateriaSlotNames this returned array is the same size as MaterialList, with each value the Slot Name of that Material in the Skeletal Mesh's Material List
+	*
+	* Note that the LOD Index in RequestedLOD will be silently clamped to the available number of LODs
+	*/
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|SkeletalMesh", meta = (DisplayName = "Get LOD Material List From Skeletal Mesh", ExpandEnumAsExecs = "Outcome"))
+	static void
+	GetLODMaterialListFromSkeletalMesh(
+		USkeletalMesh* FromSkeletalMeshAsset,
+		FGeometryScriptMeshReadLOD RequestedLOD,
+		TArray<UMaterialInterface*>& MaterialList,
+		TArray<int32>& MaterialIndex,
+		TArray<FName>& MaterialSlotNames,
+		EGeometryScriptOutcomePins& Outcome,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Get the asset materials from the static mesh asset. These will match the DynamicMesh material if CopyMeshFromStaticMesh
 	 * was used to create a DynamicMesh with bUseSectionMaterials=false
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|StaticMesh")

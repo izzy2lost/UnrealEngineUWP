@@ -536,6 +536,86 @@ void UGeometryScriptLibrary_StaticMeshFunctions::GetSectionMaterialListFromStati
 #endif
 }
 
+void UGeometryScriptLibrary_StaticMeshFunctions::GetLODMaterialListFromSkeletalMesh(
+	USkeletalMesh* FromSkeletalMeshAsset,
+	FGeometryScriptMeshReadLOD RequestedLOD,
+	TArray<UMaterialInterface*>& MaterialList,
+	TArray<int32>& MaterialIndex,
+	TArray<FName>& MaterialSlotNames,
+	EGeometryScriptOutcomePins& Outcome,
+	UGeometryScriptDebug* Debug)
+{
+	Outcome = EGeometryScriptOutcomePins::Failure;
+
+	if (FromSkeletalMeshAsset == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetLODMaterialListFromSkeletalMesh_InvalidInput1", "GetLODMaterialListFromSkeletalMesh: FromSkeletalMeshAsset is Null"));
+		return;
+	}
+
+#if WITH_EDITOR
+
+	if (RequestedLOD.LODType == EGeometryScriptLODType::HiResSourceModel)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetLODMaterialListFromSkeletalMesh_LODNotAvailable", "GetLODMaterialListFromSkeletalMesh: Requested LOD is not available"));
+		return;
+	}
+
+	int32 UseLODIndex = FMath::Clamp(RequestedLOD.LODIndex, 0, FromSkeletalMeshAsset->GetLODNum() - 1);
+
+	const TArray<FSkeletalMaterial>& Mats = FromSkeletalMeshAsset->GetMaterials();
+	const int32 NumMats = Mats.Num();
+
+	// Get the material mapping via the LODInfo struct
+	const FSkeletalMeshLODInfo* LODInfo = FromSkeletalMeshAsset->GetLODInfo(UseLODIndex);
+	if (LODInfo && !LODInfo->LODMaterialMap.IsEmpty())
+	{
+		const TArray<int32>& Map = LODInfo->LODMaterialMap;
+		const int32 NumSectionMat = Map.Num();
+		MaterialList.Reset(NumSectionMat);
+		MaterialIndex.Reset(NumSectionMat);
+		MaterialSlotNames.Reset(NumSectionMat);
+		for (int32 Idx = 0; Idx < NumSectionMat; ++Idx)
+		{
+			int32 MatIdx = Map[Idx];
+			if (MatIdx == INDEX_NONE) // by convention, INDEX_NONE means the index is mapped to itself
+			{
+				MatIdx = FMath::Min(Idx, NumMats - 1);
+			}
+			MaterialIndex.Add(MatIdx);
+			if (Mats.IsValidIndex(MatIdx))
+			{
+				MaterialList.Add(Mats[MatIdx].MaterialInterface);
+				MaterialSlotNames.Add(Mats[MatIdx].MaterialSlotName);
+			}
+			else
+			{
+				MaterialList.Add(nullptr);
+				MaterialSlotNames.Add(FName());
+			}
+		}
+	}
+	// if the LODMaterialMap is not there or is empty, materials are identity-mapped
+	else
+	{
+		MaterialList.Reset(NumMats);
+		MaterialIndex.Reset(NumMats);
+		MaterialSlotNames.Reset(NumMats);
+		for (int32 Idx = 0; Idx < NumMats; ++Idx)
+		{
+			MaterialIndex.Add(Idx);
+			MaterialList.Add(Mats[Idx].MaterialInterface);
+			MaterialSlotNames.Add(Mats[Idx].MaterialSlotName);
+		}
+	}
+
+	Outcome = EGeometryScriptOutcomePins::Success;
+
+#else
+	UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetLODMaterialListFromSkeletalMesh_EditorOnly", "GetLODMaterialListFromSkeletalMesh: Not available at Runtime"));
+#endif
+}
+
 
 namespace UELocal
 {
