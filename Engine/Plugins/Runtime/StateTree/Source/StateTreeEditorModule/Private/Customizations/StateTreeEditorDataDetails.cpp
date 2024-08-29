@@ -155,9 +155,18 @@ void FStateTreeEditorDataDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 
 		const TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox)
 			.IsEnabled(PropUtils, &IPropertyUtilities::IsPropertyEditingEnabled)
+			+ SHorizontalBox::Slot()
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			.Padding(FMargin(4.f, 0.f, 0.f, 0.f))
+			[
+				SNew(SImage)
+					.ColorAndOpacity(UE::StateTree::Colors::Blue)
+					.Image(FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Parameters"))
+			]
 			+SHorizontalBox::Slot()
 			.VAlign(VAlign_Center)
-			.Padding(FMargin(4, 0, 0, 0))
+			.Padding(FMargin(4.f, 0.f, 0.f, 0.f))
 			.AutoWidth()
 			[
 				SNew(STextBlock)
@@ -169,7 +178,7 @@ void FStateTreeEditorDataDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 			.HAlign(HAlign_Right)
 			.VAlign(VAlign_Center)
 			[
-				FPropertyBagDetails::MakeAddPropertyWidget(PropertyBagParametersProperty, PropUtils, EPropertyBagPropertyType::Bool, FLinearColor(UE::StateTree::Colors::Grey)).ToSharedRef()
+				FPropertyBagDetails::MakeAddPropertyWidget(PropertyBagParametersProperty, PropUtils, EPropertyBagPropertyType::Bool, FLinearColor(UE::StateTree::Colors::Blue)).ToSharedRef()
 			];
 		ParametersCategory.HeaderContent(HeaderContentWidget, /*FullRowContent*/true);
 
@@ -188,9 +197,9 @@ void FStateTreeEditorDataDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 			EvaluatorsProperty,
 			EvalCategoryName,
 			LOCTEXT("EditorDataDetailsEvaluators", "Evaluators"),
-			FName(),
-			UE::StateTree::Colors::Grey,
-			UE::StateTree::Colors::Grey,
+			FName("StateTreeEditor.Evaluators"),
+			UE::StateTree::Colors::Bronze,
+			UE::StateTree::Colors::Bronze.WithAlpha(192),
 			LOCTEXT("EditorDataDetailsEvaluatorsAddTooltip", "Add new Evaluator"),
 			/*SortOrder*/3);
 	}
@@ -209,9 +218,9 @@ void FStateTreeEditorDataDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 		GlobalTasksProperty,
 		GlobalTasksCategoryName,
 		LOCTEXT("EditorDataDetailsGlobalTasks", "Global Tasks"),
-		FName(),
-		UE::StateTree::Colors::Grey,
-		UE::StateTree::Colors::Grey,
+		FName("StateTreeEditor.Tasks"),
+		UE::StateTree::Colors::Cyan,
+		UE::StateTree::Colors::Cyan.WithAlpha(192),
 		LOCTEXT("EditorDataDetailsGlobalTasksAddTooltip", "Add new Global Task"),
 		/*SortOrder*/4);
 

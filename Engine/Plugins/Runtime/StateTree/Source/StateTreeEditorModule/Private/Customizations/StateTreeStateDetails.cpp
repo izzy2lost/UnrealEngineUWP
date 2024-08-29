@@ -223,7 +223,16 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 
 		HeaderContentWidget->AddSlot()
 			.VAlign(VAlign_Center)
-			.Padding(FMargin(4, 0, 0, 0))
+			.AutoWidth()
+			.Padding(FMargin(4.f, 0.f, 0.f, 0.f))
+			[
+				SNew(SImage)
+					.ColorAndOpacity(UE::StateTree::Colors::Blue)
+					.Image(FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Parameters"))
+			];
+		HeaderContentWidget->AddSlot()
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
 			.AutoWidth()
 			[
 				SNew(STextBlock)
@@ -242,7 +251,7 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 						ParametersParametersProperty,
 						PropUtils.ToSharedRef(),
 						EPropertyBagPropertyType::Bool,
-						FLinearColor(UE::StateTree::Colors::Grey)).ToSharedRef()
+						FLinearColor(UE::StateTree::Colors::Blue)).ToSharedRef()
 				];
 		}
 		
