@@ -170,8 +170,11 @@ namespace UE::Interchange::Private
 		constexpr bool bAddSourceNodeName = true;
 		UInterchangeUserDefinedAttributesAPI::DuplicateAllUserDefinedAttribute(SceneNode, DestinationNode, bAddSourceNodeName);
 
-		//Iterate childrens
-		const TArray<FString> ChildrenIds = NodeContainer->GetNodeChildrenUids(JointUid);
+		// Iterate children
+		TArray<FString>* CachedChildren = NodeContainer->GetCachedNodeChildrenUids(JointUid);
+		check(CachedChildren); // Call ComputeChildrenCache() prior to calling this function
+
+		const TArray<FString>& ChildrenIds = *CachedChildren;
 		for (int32 ChildIndex = 0; ChildIndex < ChildrenIds.Num(); ++ChildIndex)
 		{
 			RecursiveAddSkeletonMetaDataValues(NodeContainer, DestinationNode, ChildrenIds[ChildIndex]);
