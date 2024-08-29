@@ -211,7 +211,7 @@ FDynamicMaterialEditorModule::FDynamicMaterialEditorModule()
 
 void FDynamicMaterialEditorModule::StartupModule()
 {
-	FDynamicMaterialEditorStyle::Initialize();
+	FDynamicMaterialEditorStyle::Get();
 	FDynamicMaterialEditorCommands::Register();
 	FDMContentBrowserIntegration::Integrate();
 	MapCommands();
@@ -263,7 +263,6 @@ void FDynamicMaterialEditorModule::StartupModule()
 void FDynamicMaterialEditorModule::ShutdownModule()
 {
 	FDynamicMaterialEditorCommands::Unregister();
-	FDynamicMaterialEditorStyle::Shutdown();
 	FDMContentBrowserIntegration::Disintegrate();
 
 	if (FDynamicMaterialModule::AreUObjectsSafe() && FModuleManager::Get().IsModuleLoaded("PropertyEditor"))

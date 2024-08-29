@@ -228,7 +228,7 @@ const FSlateBrush* SDMMaterialStage::GetBorderBrush() const
 
 	if (!Stage)
 	{
-		return FDynamicMaterialEditorStyle::GetBrush(TEXT("Stage.Inactive"));
+		return FDynamicMaterialEditorStyle::Get().GetBrush(TEXT("Stage.Inactive"));
 	}
 
 	FString BrushName = Stage->IsEnabled()
@@ -245,7 +245,7 @@ const FSlateBrush* SDMMaterialStage::GetBorderBrush() const
 		BrushName.Append(".Hover");
 	}
 
-	return FDynamicMaterialEditorStyle::GetBrush(*BrushName);
+	return FDynamicMaterialEditorStyle::Get().GetBrush(*BrushName);
 }
 
 EVisibility SDMMaterialStage::GetDisabledOverlayVisibility() const

@@ -425,7 +425,7 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_Container()
 		[
 			SNew(SBorder)
 			.Padding(2.0f)
-			.BorderImage(FDynamicMaterialEditorStyle::GetBrush("LayerView.Background"))
+			.BorderImage(FDynamicMaterialEditorStyle::Get().GetBrush("LayerView.Background"))
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Fill)
 			[
@@ -794,7 +794,7 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_LayerSettings()
 			.ButtonContent()
 			[
 				SNew(SImage)
-				.Image(FDynamicMaterialEditorStyle::GetBrush("EffectsView.Row.Fx"))
+				.Image(FDynamicMaterialEditorStyle::Get().GetBrush("EffectsView.Row.Fx"))
 				.DesiredSizeOverride(FVector2D(16.0f))
 			]
 		]

@@ -83,7 +83,7 @@ TSharedRef<SWidget> SDMStatusBar::CreateContent()
 	return SNew(SBorder)
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Center)
-		.BorderImage(FDynamicMaterialEditorStyle::GetBrush("Border.Top"))
+		.BorderImage(FDynamicMaterialEditorStyle::Get().GetBrush("Border.Top"))
 		.BorderBackgroundColor(FLinearColor(1, 1, 1, 0.05f))
 		[
 			SNew(SWrapBox)
@@ -123,7 +123,7 @@ SWrapBox::FSlot::FSlotArguments SDMStatusBar::CreateStatsWrapBoxEntry(const FTex
 			[
 				SNew(SBorder)
 				.BorderBackgroundColor(SeparatorColor)
-				.BorderImage(FDynamicMaterialEditorStyle::GetBrush("Border.Left"))
+				.BorderImage(FDynamicMaterialEditorStyle::Get().GetBrush("Border.Left"))
 			]
 			+ SHorizontalBox::Slot()
 			.AutoWidth()

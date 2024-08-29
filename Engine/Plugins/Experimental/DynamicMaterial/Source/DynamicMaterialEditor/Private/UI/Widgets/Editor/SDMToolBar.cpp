@@ -57,7 +57,7 @@ void SDMToolBar::Construct(const FArguments& InArgs, const TSharedRef<SDMMateria
 			SNew(SBorder)
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Center)
-			.BorderImage(FDynamicMaterialEditorStyle::GetBrush("Border.Bottom"))
+			.BorderImage(FDynamicMaterialEditorStyle::Get().GetBrush("Border.Bottom"))
 			.BorderBackgroundColor(FLinearColor(1, 1, 1, 0.05f))
 			.Padding(0.f, 3.f, 0.f, 3.f)
 			[
@@ -281,7 +281,7 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 			.ButtonContent()
 			[
 				SNew(SImage)
-				.Image(FDynamicMaterialEditorStyle::GetBrush("Icons.Menu.Dropdown"))
+				.Image(FDynamicMaterialEditorStyle::Get().GetBrush("Icons.Menu.Dropdown"))
 				.DesiredSizeOverride(DefaultToolBarButtonSize)
 			]
 		];

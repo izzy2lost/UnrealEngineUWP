@@ -305,7 +305,7 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateEffectsRowContent()
 			[
 				SNew(SBorder)
 				.BorderBackgroundColor(FLinearColor(1, 1, 1, 0.2f))
-				.BorderImage(FDynamicMaterialEditorStyle::GetBrush("Border.Right"))
+				.BorderImage(FDynamicMaterialEditorStyle::Get().GetBrush("Border.Right"))
 			]
 		]
 		+ SHorizontalBox::Slot()
@@ -316,7 +316,7 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateEffectsRowContent()
 			[
 				SNew(SBorder)
 				.BorderBackgroundColor(FLinearColor(1, 1, 1, 0.2f))
-				.BorderImage(FDynamicMaterialEditorStyle::GetBrush("Border.Left"))
+				.BorderImage(FDynamicMaterialEditorStyle::Get().GetBrush("Border.Left"))
 			]
 		]
 		+ SHorizontalBox::Slot()
@@ -636,8 +636,8 @@ FReply SDMMaterialSlotLayerItem::OnEffectsToggleButtonClicked()
 
 const FSlateBrush* SDMMaterialSlotLayerItem::GetEffectsToggleButtonImage() const
 {
-	static const FSlateBrush* Displayed = FDynamicMaterialEditorStyle::GetBrush("EffectsView.Row.Fx.Opened");
-	static const FSlateBrush* Hidden = FDynamicMaterialEditorStyle::GetBrush("EffectsView.Row.Fx.Closed");
+	static const FSlateBrush* Displayed = FDynamicMaterialEditorStyle::Get().GetBrush("EffectsView.Row.Fx.Opened");
+	static const FSlateBrush* Hidden = FDynamicMaterialEditorStyle::Get().GetBrush("EffectsView.Row.Fx.Closed");
 
 	if (AreEffectsExpanded())
 	{
@@ -649,10 +649,10 @@ const FSlateBrush* SDMMaterialSlotLayerItem::GetEffectsToggleButtonImage() const
 
 const FSlateBrush* SDMMaterialSlotLayerItem::GetRowHandleBrush() const
 {
-	static const FSlateBrush* const Default = FDynamicMaterialEditorStyle::GetBrush("LayerView.Row.Handle.Left");
-	static const FSlateBrush* const Selected = FDynamicMaterialEditorStyle::GetBrush("LayerView.Row.Handle.Left.Select");
-	static const FSlateBrush* const Hovered = FDynamicMaterialEditorStyle::GetBrush("LayerView.Row.Handle.Left.Hover");
-	static const FSlateBrush* const SelectedHovered = FDynamicMaterialEditorStyle::GetBrush("LayerView.Row.Handle.Left.Select.Hover");
+	static const FSlateBrush* const Default = FDynamicMaterialEditorStyle::Get().GetBrush("LayerView.Row.Handle.Left");
+	static const FSlateBrush* const Selected = FDynamicMaterialEditorStyle::Get().GetBrush("LayerView.Row.Handle.Left.Select");
+	static const FSlateBrush* const Hovered = FDynamicMaterialEditorStyle::Get().GetBrush("LayerView.Row.Handle.Left.Hover");
+	static const FSlateBrush* const SelectedHovered = FDynamicMaterialEditorStyle::Get().GetBrush("LayerView.Row.Handle.Left.Select.Hover");
 
 	const bool bSelected = IsSelected();
 	const bool bHovered = IsHovered();
@@ -734,8 +734,8 @@ EVisibility SDMMaterialSlotLayerItem::GetLayerLinkToggleButtonVisibility() const
 
 const FSlateBrush* SDMMaterialSlotLayerItem::GetLayerLinkToggleButtonImage() const
 {
-	static const FSlateBrush* const Unlinked = FDynamicMaterialEditorStyle::GetBrush("Icons.Stage.ChainUnlinked.Vertical");
-	static const FSlateBrush* const Linked = FDynamicMaterialEditorStyle::GetBrush("Icons.Stage.ChainLinked.Vertical");
+	static const FSlateBrush* const Unlinked = FDynamicMaterialEditorStyle::Get().GetBrush("Icons.Stage.ChainUnlinked.Vertical");
+	static const FSlateBrush* const Linked = FDynamicMaterialEditorStyle::Get().GetBrush("Icons.Stage.ChainLinked.Vertical");
 
 	return AreStagesLinked() ? Linked : Unlinked;
 }
@@ -777,8 +777,8 @@ FReply SDMMaterialSlotLayerItem::OnLayerLinkToggleButton()
 
 const FSlateBrush* SDMMaterialSlotLayerItem::GetStageToggleButtonImage(EDMMaterialLayerStage InLayerStage) const
 {
-	static const FSlateBrush* Disabled = FDynamicMaterialEditorStyle::GetBrush("Icons.Stage.Disabled");
-	static const FSlateBrush* Enabled = FDynamicMaterialEditorStyle::GetBrush("Icons.Stage.Enabled");
+	static const FSlateBrush* Disabled = FDynamicMaterialEditorStyle::Get().GetBrush("Icons.Stage.Disabled");
+	static const FSlateBrush* Enabled = FDynamicMaterialEditorStyle::Get().GetBrush("Icons.Stage.Enabled");
 
 	if (const UDMMaterialLayerObject* Layer = GetLayer())
 	{
