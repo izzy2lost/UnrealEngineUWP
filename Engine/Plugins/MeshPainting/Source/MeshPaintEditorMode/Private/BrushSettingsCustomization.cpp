@@ -14,6 +14,7 @@
 #include "InteractiveToolManager.h"
 #include "MeshPaintMode.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "MeshPaintHelpers.h"
 #include "MeshPaintModeHelpers.h"
 #include "MeshTexturePaintingTool.h"
 #include "ContentBrowserDelegates.h"
@@ -522,7 +523,6 @@ void FTextureAssetPaintingSettingsCustomization::CustomizeDetails(IDetailLayoutB
 		.PropertyHandle(TextureProperty)
 		.AllowedClass(UTexture2D::StaticClass())
 		.OnShouldFilterAsset(FOnShouldFilterAsset::CreateUObject(Cast<UMeshTextureAssetPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)), &UMeshTextureAssetPaintingTool::ShouldFilterTextureAsset))
-		.OnObjectChanged(FOnSetObject::CreateUObject(Cast<UMeshTextureAssetPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)), &UMeshTextureAssetPaintingTool::PaintTextureChanged))
 		.DisplayUseSelected(false)
 		.ThumbnailPool(DetailLayout.GetThumbnailPool())
 	];

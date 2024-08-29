@@ -42,9 +42,8 @@ public:
 	TSharedPtr<FUICommandInfo> SwapColor;
 	TSharedPtr<FUICommandInfo> FillVertex;
 	TSharedPtr<FUICommandInfo> FillTexture;
-	TSharedPtr<FUICommandInfo> ApplyVertex;
-	TSharedPtr<FUICommandInfo> ApplyTexture;
-	TSharedPtr<FUICommandInfo> Propagate;
+	TSharedPtr<FUICommandInfo> PropagateMesh;
+	TSharedPtr<FUICommandInfo> PropagateLODs;
 	TSharedPtr<FUICommandInfo> SaveVertex;
 	TSharedPtr<FUICommandInfo> SaveTexture;
 	TSharedPtr<FUICommandInfo> Add;

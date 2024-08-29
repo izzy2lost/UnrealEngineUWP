@@ -211,9 +211,6 @@ private:
 
 	/** Flag for whether or not we are currently painting */
 	bool bArePainting;
-	bool bDoRestoreRenTargets;
-	/** Time kept since the user has started painting */
-	float TimeSinceStartedPainting;
 	/** Overall time value kept for drawing effects */
 	float Time;
 	FHitResult LastBestHitResult;

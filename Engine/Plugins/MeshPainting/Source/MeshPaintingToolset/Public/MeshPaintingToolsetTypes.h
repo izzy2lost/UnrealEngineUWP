@@ -137,28 +137,21 @@ struct FPaintTexture2DData
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> PaintingTexture2D;
 
-	UPROPERTY(Transient)
-	bool bIsPaintingTexture2DModified = false;
-
-	/** Texture used to store the paint modifications for the transactions */
-	UPROPERTY(Transient)
-	TObjectPtr<UTexture2D> ScratchTexture;
-
 	/** Render target texture for painting */
 	UPROPERTY(Transient)
 	TObjectPtr<UTextureRenderTarget2D> PaintRenderTargetTexture;
 
-	/** List of component we are painting on */
+	/** Optional virtual texture adapter that we can use to visualize PaintRenderTargetTexture in materials that sample virtual textures */
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UMeshComponent>> PaintedComponents;
-	
+	TObjectPtr<class UVirtualTextureAdapter> PaintRenderTargetTextureAdapter;
+
+	/** Array of components that have the PaintRenderTargetTexture set as a texture override */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMeshComponent>> TextureOverrideComponents;
+
 	/** Optional render target texture used as an input while painting that contains a clone of the texture painting brush */
 	UPROPERTY(Transient)
 	TObjectPtr<UTextureRenderTarget2D> PaintBrushRenderTargetTexture;
-
-	/** Optional virtual texture adapter that we can use to visualize the render target in materials that use mesh paint virtual textures */
-	UPROPERTY(Transient)
-	TObjectPtr<class UVirtualTextureAdapter> PaintRenderTargetTextureAdapter;
 
 	/** Temporary render target used to draw incremental paint to */
 	UPROPERTY(Transient)
@@ -168,19 +161,22 @@ struct FPaintTexture2DData
 	UPROPERTY(Transient)
 	TObjectPtr<UTextureRenderTarget2D> BrushMaskRenderTargetTexture;
 
-	/** Optional render target used to store generated mask for texture seams. We create this by projecting object triangles into texture space using the selected UV channel. */
-	UPROPERTY(Transient)
-	TObjectPtr<UTextureRenderTarget2D> SeamMaskRenderTargetTexture;
-
 	/** True if we need to generate a texture seam mask used for texture dilation */
 	UPROPERTY(Transient)
 	bool bGenerateSeamMask = false;
 
+	/** Optional render target used to store generated mask for texture seams. We create this by projecting object triangles into texture space using the selected UV channel. */
+	UPROPERTY(Transient)
+	TObjectPtr<UTextureRenderTarget2D> SeamMaskRenderTargetTexture;
+
+	/** True if we have some painting applied to the PaintRenderTargetTexture. */
+	UPROPERTY(Transient)
+	bool bIsPaintingTexture2DModified = false;
+
 	FPaintTexture2DData() = default;
 
-	FPaintTexture2DData(UTexture2D* InPaintingTexture2D, bool InbIsPaintingTexture2DModified = false)
+	FPaintTexture2DData(UTexture2D* InPaintingTexture2D)
 		: PaintingTexture2D(InPaintingTexture2D)
-		, bIsPaintingTexture2DModified(InbIsPaintingTexture2DModified)
 	{
 	}
 };

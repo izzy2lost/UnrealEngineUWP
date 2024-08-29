@@ -27,8 +27,15 @@ class UMeshPaintMode : public UEdMode, public ILegacyEdModeViewportInterface
 public:
 	GENERATED_BODY()
 
-	/** Default constructor for UMeshPaintMode */
 	UMeshPaintMode();
+
+	virtual void Enter() override;
+	virtual void Exit() override;
+	virtual void CreateToolkit() override;
+	virtual void Tick(FEditorViewportClient* ViewportClient, float DeltaTime) override;
+	virtual bool HandleClick(FEditorViewportClient* InViewportClient, HHitProxy* HitProxy, const FViewportClick& Click) override;
+	virtual TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> GetModeCommands() const override;
+
 	static UMeshPaintingToolProperties* GetToolProperties();
 	static UMeshVertexPaintingToolProperties* GetVertexToolProperties();
 	static UMeshVertexColorPaintingToolProperties* GetVertexColorToolProperties();
@@ -37,11 +44,7 @@ public:
 	static UMeshTextureColorPaintingToolProperties* GetTextureColorToolProperties();
 	static UMeshTextureAssetPaintingToolProperties* GetTextureAssetToolProperties();
 	static UMeshPaintMode* GetMeshPaintMode();
-	virtual void Enter() override;
-	virtual void Exit() override;
-	virtual void CreateToolkit() override;
-	virtual void Tick(FEditorViewportClient* ViewportClient, float DeltaTime) override;
-	virtual bool HandleClick(FEditorViewportClient* InViewportClient, HHitProxy* HitProxy, const FViewportClick& Click) override;
+
 	static FName MeshPaintMode_VertexColor;
 	static FName MeshPaintMode_VertexWeights;
 	static FName MeshPaintMode_TextureColor;
@@ -54,7 +57,6 @@ public:
 	static FString TextureColorPaintToolName;
 	static FString TextureAssetPaintToolName;
 
-	virtual TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> GetModeCommands() const override;
 	/** Returns the instance of ComponentClass found in the current Editor selection */
 	template<typename ComponentClass>
 	TArray<ComponentClass*> GetSelectedComponents() const;
@@ -83,6 +85,7 @@ protected:
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& InOldToNewInstanceMap);
 	void OnResetViewMode();
 	void OnVertexPaintFinished();
+	void OnTextureColorVertexPaintFinished(UMeshComponent* MeshComponent);
 
 	void UpdateCachedDataSizes();
 	void EndPaintToolIfNoLongerValid();
@@ -97,10 +100,8 @@ protected:
 	bool CanFillVertexColors() const;
 	void FillTexture();
 	bool CanFillTexture() const;
-	void ApplyVertexColorsToAsset();
-	bool CanApplyVertexColorsToAsset() const;
-	void ApplyTextureColorsToAsset();
-	bool CanApplyTextureColorsToAsset() const;
+	void PropagateVertexColorsToMesh();
+	bool CanPropagateVertexColorsToMesh() const;
 	void PropagateVertexColorsToLODs();
 	bool CanPropagateVertexColorsToLODs() const;
 	void SaveVertexColorsToAssets();

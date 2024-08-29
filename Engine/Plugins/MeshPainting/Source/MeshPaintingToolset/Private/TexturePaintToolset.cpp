@@ -414,72 +414,6 @@ void UTexturePaintToolset::SetupInitialRenderTargetData(UTexture2D* InTextureSou
 	}
 }
 
-void UTexturePaintToolset::SetupInitialRenderTargetData(FPaintTexture2DData& PaintTextureData)
-{
-	check(PaintTextureData.PaintingTexture2D != nullptr);
-	check(PaintTextureData.PaintRenderTargetTexture != nullptr);
-
-	if (PaintTextureData.PaintingTexture2D->Source.IsValid())
-	{
-		// Great, we have source data!  We'll use that as our image source.
-
-		// Create a texture in memory from the source art
-		{
-			if (!PaintTextureData.ScratchTexture)
-			{
-				PaintTextureData.ScratchTexture = CreateScratchUncompressedTexture(PaintTextureData.PaintingTexture2D);
-
-				check(PaintTextureData.ScratchTexture != nullptr);
-
-				// Copy the texture to the render target using the GPU
-				CopyTextureToRenderTargetTexture(PaintTextureData.ScratchTexture, PaintTextureData.PaintRenderTargetTexture, GEditor->GetEditorWorldContext().World()->GetFeatureLevel());
-			}
-			
-			// No need to update the render target if the scratch texture exist the paint operations and the undo/redo keep the render target up to date
-		}
-	}
-	else
-	{
-		// Just copy (render) the texture in GPU memory to our render target.  Hopefully it's not
-		// compressed already!
-		check(PaintTextureData.PaintingTexture2D->IsFullyStreamedIn());
-		CopyTextureToRenderTargetTexture(PaintTextureData.PaintingTexture2D, PaintTextureData.PaintRenderTargetTexture, GEditor->GetEditorWorldContext().World()->GetFeatureLevel());
-	}
-}
-
-void UTexturePaintToolset::UpdateRenderTargetData(FPaintTexture2DData& PaintTextureData)
-{
-	check(PaintTextureData.ScratchTexture);
-	check(PaintTextureData.PaintRenderTargetTexture);
-
-
-	TArray64<uint8> RawData;
-	PaintTextureData.ScratchTexture->Source.GetMipData(RawData, 0);
-
-	int32 Width = PaintTextureData.ScratchTexture->Source.GetSizeX();
-	int32 Height = PaintTextureData.ScratchTexture->Source.GetSizeY();
-
-	// Fill in the base mip for the texture we created
-	uint8* MipData = (uint8*)PaintTextureData.ScratchTexture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
-	for (int32 y = 0; y < Height; y++)
-	{
-		uint8* DestPtr = &MipData[(Height - 1 - y) * Width * sizeof(FColor)];
-		const FColor* SrcPtr = &((FColor*)(RawData.GetData()))[(Height - 1 - y) * Width];
-		for (int32 x = 0; x < Width; x++)
-		{
-			*DestPtr++ = SrcPtr->B;
-			*DestPtr++ = SrcPtr->G;
-			*DestPtr++ = SrcPtr->R;
-			*DestPtr++ = SrcPtr->A;
-			SrcPtr++;
-		}
-	}
-	PaintTextureData.ScratchTexture->GetPlatformData()->Mips[0].BulkData.Unlock();
-	PaintTextureData.ScratchTexture->UpdateResource();
-
-	CopyTextureToRenderTargetTexture(PaintTextureData.ScratchTexture, PaintTextureData.PaintRenderTargetTexture, GEditor->GetEditorWorldContext().World()->GetFeatureLevel());
-}
-
 void UTexturePaintToolset::FindMaterialIndicesUsingTexture(const UTexture* Texture, const UMeshComponent* MeshComponent, TArray<int32>& OutIndices)
 {
 	checkf(Texture && MeshComponent, TEXT("Invalid Texture of MeshComponent"));
@@ -557,13 +491,6 @@ void UTexturePaintToolset::RetrieveMeshSectionsForMaterialIndices(const UMeshCom
 			}
 		}
 	}
-}
-
-bool UTexturePaintToolset::DoesMeshComponentUseTexture(UMeshComponent* MeshComponent, UTexture* Texture)
-{
-	TArray<UTexture*> UsedTextures;
-	MeshComponent->GetUsedTextures(UsedTextures, EMaterialQualityLevel::High);
-	return UsedTextures.Contains(Texture);
 }
 
 void UTexturePaintToolset::RetrieveTexturesForComponent(const UMeshComponent* Component, IMeshPaintComponentAdapter* Adapter, int32& OutDefaultIndex, TArray<FPaintableTexture>& OutTextures)

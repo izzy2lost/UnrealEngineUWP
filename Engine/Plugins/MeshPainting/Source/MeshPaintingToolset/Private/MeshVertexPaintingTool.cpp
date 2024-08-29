@@ -162,7 +162,6 @@ void UMeshVertexPaintingTool::OnTick(float DeltaTime)
 		if (MeshPaintingSubsystem->bNeedsRecache)
 		{
 			CacheSelectionData();
-			bDoRestoreRenTargets = true;
 		}
 	}
 
@@ -337,7 +336,6 @@ bool UMeshVertexPaintingTool::PaintInternal(const TArrayView<TPair<FVector, FVec
 				// Vertex painting is an ongoing transaction, while texture painting is handled separately later in a single transaction
 				GetToolManager()->BeginUndoTransaction(LOCTEXT("MeshPaintMode_VertexPaint_TransactionPaintStroke", "Vertex Paint"));
 				bArePainting = true;
-				TimeSinceStartedPainting = 0.0f;
 		}
 
 		// Iterate over the selected meshes under the cursor and paint them!
