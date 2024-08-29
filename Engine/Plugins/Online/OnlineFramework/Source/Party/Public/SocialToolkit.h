@@ -302,6 +302,10 @@ private:	// Handlers
 	FTSTicker::FDelegateHandle Debug_PresenceTickerHandle;
 #endif
 
+protected:
+	UPROPERTY()
+	TObjectPtr<USocialChatManager> SocialChatManager;
+
 private:
 	static USocialToolkit* GetToolkitForPlayerInternal(const ULocalPlayer* LocalPlayer);
 	static TMap<TWeakObjectPtr<const ULocalPlayer>, TWeakObjectPtr<USocialToolkit>> AllToolkitsByOwningPlayer;
@@ -318,9 +322,6 @@ private:
 
 	UPROPERTY()
 	TWeakObjectPtr<ULocalPlayer> LocalPlayerOwner = nullptr;
-
-	UPROPERTY()
-	TObjectPtr<USocialChatManager> SocialChatManager;
 
 	TSet<IOnlinePartyJoinInfoConstRef> PartyInvitations;
 	mutable TArray<TWeakPtr<FSocialUserList>> CachedSocialUserLists;
