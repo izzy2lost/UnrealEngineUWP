@@ -25,6 +25,8 @@ Name | Description
 `enableTelemetry` | `boolean`<br>Whether to send telemetry back to Horde server
 `telemetryReportInterval` | `integer`<br>How often to report telemetry events to server in milliseconds
 `bundleCacheSize` | `integer`<br>Maximum size of the bundle cache, in megabytes.
+`cpuCount` | `integer`<br>Maximum number of logical CPU cores workloads should use Currently this is only provided as a hint and requires leases to respect this value as it's set via an env variable (UE_HORDE_CPU_COUNT).
+`cpuMultiplier` | `number`<br>CPU core multiplier applied to CPU core count setting For example, 32 CPU cores and a multiplier of 0.5 results in max 16 CPU usage.
 `properties` | `string` `->` `string`<br>Key/value properties in addition to those set internally by the agent
 
 ## ServerProfile
