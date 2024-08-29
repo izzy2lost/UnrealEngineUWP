@@ -30,10 +30,12 @@ struct FGenericMemoryStats;
 #define UE_MB3_BASE_PAGE_SIZE						4096			// Minimum "page size" for binned3
 
 
-#if AGGRESSIVE_MEMORY_SAVING || UE_MB3_USE_CACHED_PAGE_ALLOCATOR_FOR_LARGE_ALLOCS
-#	define UE_MB3_MAX_SMALL_POOL_SIZE				(UE_MBC_MAX_LISTED_SMALL_POOL_SIZE)	// Maximum small bin size
-#else
-#	define UE_MB3_MAX_SMALL_POOL_SIZE				(128 * 1024)	// Maximum small bin size
+#ifndef UE_MB3_MAX_SMALL_POOL_SIZE
+#	if UE_MB3_USE_CACHED_PAGE_ALLOCATOR_FOR_LARGE_ALLOCS
+#		define UE_MB3_MAX_SMALL_POOL_SIZE			(UE_MBC_MAX_LISTED_SMALL_POOL_SIZE)	// Maximum small bin size
+#	else
+#		define UE_MB3_MAX_SMALL_POOL_SIZE			(128 * 1024)	// Maximum small bin size
+#	endif
 #endif
 #define UE_MB3_SMALL_POOL_COUNT						(UE_MBC_NUM_LISTED_SMALL_POOLS + (UE_MB3_MAX_SMALL_POOL_SIZE - UE_MBC_MAX_LISTED_SMALL_POOL_SIZE) / UE_MB3_BASE_PAGE_SIZE)
 
