@@ -359,6 +359,7 @@ UWorldPartition::UWorldPartition(const FObjectInitializer& ObjectInitializer)
 #if WITH_EDITOR
 void UWorldPartition::OnGCPostReachabilityAnalysis()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartition::OnGCPostReachabilityAnalysis);
 	const TIndirectArray<FWorldContext>& WorldContextList = GEngine->GetWorldContexts();
 
 	// Avoid running this process while a game world is live

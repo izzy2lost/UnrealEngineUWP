@@ -1007,6 +1007,7 @@ void FNiagaraWorldManager::OnPreGarbageCollect()
 
 void FNiagaraWorldManager::OnPostReachabilityAnalysis()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraWorldManager::OnPostReachabilityAnalysis);
 	for (TPair<UWorld*, FNiagaraWorldManager*>& Pair : WorldManagers)
 	{
 		Pair.Value->PostReachabilityAnalysis();

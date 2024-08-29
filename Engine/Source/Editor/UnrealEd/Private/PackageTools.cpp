@@ -152,6 +152,7 @@ UPackageTools::UPackageTools(const FObjectInitializer& ObjectInitializer)
 	void UPackageTools::RestoreStandaloneOnReachableObjects()
 	{
 		check(GIsEditor);
+		TRACE_CPUPROFILER_EVENT_SCOPE(UPackageTools::RestoreStandaloneOnReachableObjects);
 
 		if (PackagesBeingUnloaded && ObjectsThatHadFlagsCleared.Num() > 0)
 		{
