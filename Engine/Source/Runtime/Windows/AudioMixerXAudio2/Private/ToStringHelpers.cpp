@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ToStringHelpers.h"
-#include "AudioMixerPlatformXAudio2.h"
 
 #include "Windows/AllowWindowsPlatformTypes.h"
 

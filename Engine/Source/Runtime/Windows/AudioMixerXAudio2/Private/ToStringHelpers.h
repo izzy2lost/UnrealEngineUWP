@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AudioMixer.h"
+#include "AudioMixerPlatformXAudio2.h"
 
 namespace Audio
 {
