@@ -186,7 +186,7 @@ void ULensComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 		{
 			if (LensDistortionHandler && bWasDistortionEvaluated)
 			{
-				if (DistortionRenderingMode == EDistortionRenderingMode::LegacyPPM)
+				if (DistortionRenderingMode == EDistortionRenderingMode::PostProcessMaterial)
 				{
 					// Get the current distortion MID from the lens distortion handler
 					UMaterialInstanceDynamic* NewDistortionMID = LensDistortionHandler->GetDistortionMID();
@@ -201,16 +201,6 @@ void ULensComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 					// Cache the latest distortion MID
 					LastDistortionMID = NewDistortionMID;
 
-					// Get the overscan factor and use it to modify the target camera's FOV
-					const float OverscanFactor = LensDistortionHandler->GetOverscanFactor();
-					const float OverscanSensorWidth = GetDesqueezedSensorWidth(CineCameraComponent) * OverscanFactor;
-					const float OverscanFOV = FMath::RadiansToDegrees(2.0f * FMath::Atan(OverscanSensorWidth / (2.0f * OriginalFocalLength)));
-					CineCameraComponent->SetFieldOfView(OverscanFOV);
-
-					// Update the minimum and maximum focal length of the camera (if needed)
-					CineCameraComponent->LensSettings.MinFocalLength = FMath::Min(CineCameraComponent->LensSettings.MinFocalLength, CineCameraComponent->CurrentFocalLength);
-					CineCameraComponent->LensSettings.MaxFocalLength = FMath::Max(CineCameraComponent->LensSettings.MaxFocalLength, CineCameraComponent->CurrentFocalLength);
-
 					bIsDistortionSetup = true;
 				}
 				else if (DistortionRenderingMode == EDistortionRenderingMode::SceneViewExtension)
@@ -224,6 +214,14 @@ void ULensComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 					}
 
 					bIsDistortionSetup = true;
+				}
+
+				// Set the camera's overscan settings
+				if (bOverrideCameraOverscan)
+				{
+					CineCameraComponent->Overscan = LensDistortionHandler->GetOverscanFactor() - 1.0f;
+					CineCameraComponent->bScaleResolutionWithOverscan = true;
+					CineCameraComponent->bCropOverscan = (DistortionRenderingMode == EDistortionRenderingMode::SceneViewExtension);
 				}
 			}
 			else
@@ -768,13 +766,13 @@ void ULensComponent::CleanupDistortion(UCineCameraComponent* const CineCameraCom
 			LastDistortionMID = nullptr;
 		}
 
-		// Restore the original FOV of the target camera
-		const float UndistortedFOV = FMath::RadiansToDegrees(2.0f * FMath::Atan(GetDesqueezedSensorWidth(CineCameraComponent) / (2.0f * OriginalFocalLength)));
-		CineCameraComponent->SetFieldOfView(UndistortedFOV);
-
-		// Update the minimum and maximum focal length of the camera (if needed)
-		CineCameraComponent->LensSettings.MinFocalLength = FMath::Min(CineCameraComponent->LensSettings.MinFocalLength, CineCameraComponent->CurrentFocalLength);
-		CineCameraComponent->LensSettings.MaxFocalLength = FMath::Max(CineCameraComponent->LensSettings.MaxFocalLength, CineCameraComponent->CurrentFocalLength);
+		// Reset the camera's overscan settings
+		if (bOverrideCameraOverscan)
+		{
+			CineCameraComponent->Overscan = 0.0;
+			CineCameraComponent->bScaleResolutionWithOverscan = false;
+			CineCameraComponent->bCropOverscan = false;
+		}
 
 		if (UCameraCalibrationSubsystem* SubSystem = GEngine->GetEngineSubsystem<UCameraCalibrationSubsystem>())
 		{

@@ -59,8 +59,8 @@ enum class EDistortionSource : uint8
 UENUM(BlueprintType)
 enum class EDistortionRenderingMode : uint8
 {
-	/** Use the legacy post process material */
-	LegacyPPM,
+	/** Use the plugin post process material */
+	PostProcessMaterial,
 	/** Use the experimental lens distortion scene view extension. Further control of where distortion is rendered can be set via the console command r.TSR.LensDistortion */
 	SceneViewExtension UMETA(DisplayName = "Scene View Extension (Experimental)"),
 };
@@ -295,7 +295,14 @@ protected:
 
 	/** Specifies how the distortion should be rendered in the post-processing pipeline */
 	UPROPERTY(EditAnywhere, Category = "Distortion", meta = (EditCondition = "bApplyDistortion"))
-	EDistortionRenderingMode DistortionRenderingMode = EDistortionRenderingMode::LegacyPPM;
+	EDistortionRenderingMode DistortionRenderingMode = EDistortionRenderingMode::PostProcessMaterial;
+
+	/**
+	 * If checked, the camera's overscan settings (including resolution scaling and crop) will be driven by the lens component.
+	 * The overscan value is computed to be the minimum amount needed for the current distortion state. 
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Distortion")
+	bool bOverrideCameraOverscan = false;
 
 	/** The current lens model used for distortion */
 	UPROPERTY(EditAnywhere, Category = "Distortion", meta = (EditCondition = "DistortionStateSource == EDistortionSource::Manual"))

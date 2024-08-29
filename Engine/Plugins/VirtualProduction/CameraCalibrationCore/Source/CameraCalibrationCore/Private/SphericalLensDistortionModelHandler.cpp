@@ -23,7 +23,8 @@ FVector2D USphericalLensDistortionModelHandler::ComputeDistortedUV(const FVector
 	const FVector2D OriginalDistance = NormalizedDistanceFromImageCenter;
 
 	// Iterative approach to distort an undistorted UV using coefficients that were designed to undistort
-	for (int32 Index = 0; Index < 2; ++Index)
+	constexpr uint32 NumIterations = 5;
+	for (int32 Index = 0; Index < NumIterations; ++Index)
 	{
 		const FVector2D DistanceSquared = NormalizedDistanceFromImageCenter * NormalizedDistanceFromImageCenter;
 		const float RSquared = DistanceSquared.X + DistanceSquared.Y;
