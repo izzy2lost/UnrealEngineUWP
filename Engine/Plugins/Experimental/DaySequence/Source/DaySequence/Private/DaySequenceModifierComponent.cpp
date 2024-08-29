@@ -922,15 +922,18 @@ UMovieSceneSubSection* UDaySequenceModifierComponent::InitializeDaySequence(cons
 			return;
 		}
 
+		SubSection->SetIsLocked(false);
+		// Begin SubSection mutation:
+		
 		constexpr bool bInitialMuteState = false;
 		const bool bActive = bIsEnabled && !TargetActor->EvaluateSequenceConditions(bInitialMuteState, Conditions);
 		if (SubSection->IsActive() != bActive)
 		{
-			SubSection->SetIsLocked(false);
 			SubSection->MarkAsChanged();
 			SubSection->SetIsActive(bActive);
-			SubSection->SetIsLocked(true);
 		}
+
+		SubSection->SetIsLocked(true);
 	};
 
 	const TFunction<void(void)> SetSubTrackMuteStateUnconditional = [this, SubSection]()
@@ -940,14 +943,17 @@ UMovieSceneSubSection* UDaySequenceModifierComponent::InitializeDaySequence(cons
 			return;
 		}
 
+		SubSection->SetIsLocked(false);
+		// Begin SubSection mutation:
+		
 		const bool bActive = bIsEnabled;
 		if (SubSection->IsActive() != bActive)
 		{
-			SubSection->SetIsLocked(false);
 			SubSection->MarkAsChanged();
 			SubSection->SetIsActive(bActive);
-			SubSection->SetIsLocked(true);
 		}
+
+		SubSection->SetIsLocked(true);
 	};
 
 	const TFunction<void(void)>& SetSubTrackMuteState = Entry.Conditions.Conditions.Num() == 0 ? SetSubTrackMuteStateUnconditional : SetSubTrackMuteStateConditional;
