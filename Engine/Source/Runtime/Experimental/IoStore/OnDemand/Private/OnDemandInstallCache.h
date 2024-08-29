@@ -14,16 +14,24 @@ namespace UE::IoStore
 class FOnDemandIoStore;
 struct FOnDemandContainer;
 
+struct FOnDemandInstallCacheStorageUsage
+{
+	uint64 MaxSize = 0;
+	uint64 TotalSize = 0;
+	uint64 ReferencedBlockSize = 0;
+};
+
 class IOnDemandInstallCache 
 	: public IIoDispatcherBackend
 {
 public:
-	virtual				~IOnDemandInstallCache() = default;
-	virtual bool		IsChunkCached(const FIoHash& ChunkHash) = 0;
-	virtual FIoStatus	PutChunk(FIoBuffer&& Chunk, const FIoHash& ChunkHash) = 0;
-	virtual FIoStatus	Purge(TMap<FIoHash, uint64>&& ChunksToInstall) = 0;
-	virtual FIoStatus	PurgeAllUnreferenced() = 0;
-	virtual FIoStatus	Flush() = 0;
+	virtual										~IOnDemandInstallCache() = default;
+	virtual bool								IsChunkCached(const FIoHash& ChunkHash) = 0;
+	virtual FIoStatus							PutChunk(FIoBuffer&& Chunk, const FIoHash& ChunkHash) = 0;
+	virtual FIoStatus							Purge(TMap<FIoHash, uint64>&& ChunksToInstall) = 0;
+	virtual FIoStatus							PurgeAllUnreferenced() = 0;
+	virtual FIoStatus							Flush() = 0;
+	virtual FOnDemandInstallCacheStorageUsage	GetStorageUsage() = 0;
 };
 
 struct FOnDemandInstallCacheConfig

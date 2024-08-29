@@ -818,7 +818,6 @@ FIoStatus FOnDemandIoStore::InitializeOnDemandInstallCache()
 		}
 		else
 		{
-			// Only warn until this is properly tested
 			UE_LOG(LogIoStoreOnDemand, Error, TEXT("Failed to initialize install cache"));
 			return FIoStatusBuilder(EIoErrorCode::InvalidParameter) << TEXT("Failed to initialize install cache");
 		}
@@ -1928,6 +1927,17 @@ void FOnDemandIoStore::GetReferencedContent(TArray<FSharedOnDemandContainer>& Ou
 			OutChunkEntryIndices.Add(MoveTemp(Indices));
 		}
 	}
+}
+
+FOnDemandCacheUsage FOnDemandIoStore::GetCacheUsage() const
+{
+	FOnDemandInstallCacheStorageUsage Usage = InstallCache->GetStorageUsage();
+	return FOnDemandCacheUsage
+	{
+		.MaxSize = Usage.MaxSize,
+		.TotalSize = Usage.TotalSize,
+		.ReferencedBlockSize = Usage.ReferencedBlockSize
+	};
 }
 
 ///////////////////////////////////////////////////////////////////////////////

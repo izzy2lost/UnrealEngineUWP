@@ -373,7 +373,7 @@ struct FOnDemandPurgeArgs
 	EOnDemandInstallOptions Options = EOnDemandInstallOptions::None;
 };
 
-/** Holdes information about a purge request */
+/** Holds information about a purge request */
 struct FOnDemandPurgeResult
 {
 	/** The status of the purge request. */
@@ -394,6 +394,14 @@ struct FOnDemandGetInstallSizeArgs
 	TArray<FString> TagSets;
 	/** Get total intall size for the specified package IDs. */
 	TArray<FPackageId> PackageIds;
+};
+
+/** Holds information about cache usage */
+struct FOnDemandCacheUsage
+{
+	uint64 MaxSize = 0;
+	uint64 TotalSize = 0;
+	uint64 ReferencedBlockSize = 0;
 };
 
 /** Token used for signalling an operation to be cancelled. */
@@ -457,6 +465,12 @@ public:
 	UE_API TIoStatusOr<uint64> GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const;
 
 	UE_API FIoStatus GetInstallSizesByMountId(const FOnDemandGetInstallSizeArgs& Args, TMap<FString, uint64>& OutSizesByMountId) const;
+
+	/** This does not queue a request so the returned state may not be completely consistent
+	  * if there are requests currently being processed. 
+	  * This should only be used for purposes such as debugging telemetry. 
+	  */
+	UE_API TIoStatusOr<FOnDemandCacheUsage> GetCacheUsage() const;
 
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;

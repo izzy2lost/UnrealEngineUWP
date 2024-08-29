@@ -900,33 +900,34 @@ public:
 	virtual ~FOnDemandInstallCache();
 
 	// IIoDispatcherBackend
-	virtual void				Initialize(FSharedBackendContextRef Context) override;
-	virtual void				Shutdown() override;
-	virtual void				ResolveIoRequests(FIoRequestList Requests, FIoRequestList& OutUnresolved) override;
-	virtual FIoRequestImpl*		GetCompletedIoRequests() override;
-	virtual void				CancelIoRequest(FIoRequestImpl* Request) override;
-	virtual void				UpdatePriorityForIoRequest(FIoRequestImpl* Request) override;
-	virtual bool				DoesChunkExist(const FIoChunkId& ChunkId) const override;
-	virtual TIoStatusOr<uint64> GetSizeForChunk(const FIoChunkId& ChunkId) const override;
-	virtual TIoStatusOr<FIoMappedRegion> OpenMapped(const FIoChunkId& ChunkId, const FIoReadOptions& Options) override;
+	virtual void								Initialize(FSharedBackendContextRef Context) override;
+	virtual void								Shutdown() override;
+	virtual void								ResolveIoRequests(FIoRequestList Requests, FIoRequestList& OutUnresolved) override;
+	virtual FIoRequestImpl*						GetCompletedIoRequests() override;
+	virtual void								CancelIoRequest(FIoRequestImpl* Request) override;
+	virtual void								UpdatePriorityForIoRequest(FIoRequestImpl* Request) override;
+	virtual bool								DoesChunkExist(const FIoChunkId& ChunkId) const override;
+	virtual TIoStatusOr<uint64>					GetSizeForChunk(const FIoChunkId& ChunkId) const override;
+	virtual TIoStatusOr<FIoMappedRegion>		OpenMapped(const FIoChunkId& ChunkId, const FIoReadOptions& Options) override;
 
 	// IOnDemandInstallCache
-	virtual bool				IsChunkCached(const FIoHash& ChunkHash) override;
-	virtual FIoStatus			PutChunk(FIoBuffer&& Chunk, const FIoHash& ChunkHash) override;
-	virtual FIoStatus			Purge(TMap<FIoHash, uint64>&& ChunksToIntall) override;
-	virtual FIoStatus			PurgeAllUnreferenced() override;
-	virtual FIoStatus			Flush() override;
+	virtual bool								IsChunkCached(const FIoHash& ChunkHash) override;
+	virtual FIoStatus							PutChunk(FIoBuffer&& Chunk, const FIoHash& ChunkHash) override;
+	virtual FIoStatus							Purge(TMap<FIoHash, uint64>&& ChunksToIntall) override;
+	virtual FIoStatus							PurgeAllUnreferenced() override;
+	virtual FIoStatus							Flush() override;
+	virtual FOnDemandInstallCacheStorageUsage	GetStorageUsage() override;
 
 private:
-	void						AddReferencesToBlocks(
-									const TArray<FSharedOnDemandContainer>& Containers, 
-									const TArray<TBitArray<>>& ChunkEntryIndices,
-									FCasBlockInfoMap& BlockInfo) const;
-	FIoStatus					Purge(const FCasBlockInfoMap& BlockInfo, uint64 TotalBytesToPurge, uint64& OutTotalPurgedBytes);
-	bool						Resolve(FIoRequestImpl* Request);
-	void						CompleteRequest(FIoRequestImpl* Request, bool bFileReadWasCancelled);
-	FIoStatus					FlushPendingChunks(FPendingChunks& Block);
-	FString						GetJournalFilename() const { return CacheDirectory / TEXT("cas.jrn"); }
+	void										AddReferencesToBlocks(
+													const TArray<FSharedOnDemandContainer>& Containers, 
+													const TArray<TBitArray<>>& ChunkEntryIndices,
+													FCasBlockInfoMap& BlockInfo) const;
+	FIoStatus									Purge(const FCasBlockInfoMap& BlockInfo, uint64 TotalBytesToPurge, uint64& OutTotalPurgedBytes);
+	bool										Resolve(FIoRequestImpl* Request);
+	void										CompleteRequest(FIoRequestImpl* Request, bool bFileReadWasCancelled);
+	FIoStatus									FlushPendingChunks(FPendingChunks& Block);
+	FString										GetJournalFilename() const { return CacheDirectory / TEXT("cas.jrn"); }
 
 	FOnDemandIoStore&		IoStore;
 	FString					CacheDirectory;
@@ -1351,7 +1352,7 @@ void FOnDemandInstallCache::AddReferencesToBlocks(
 	for (int32 Index = 0; FSharedOnDemandContainer Container : Containers)
 	{
 		const TBitArray<>& IsReferenced = ChunkEntryIndices[Index++];
-		for (int32 EntryIndex = 0; const FOnDemandChunkEntry & Entry : Container->ChunkEntries)
+		for (int32 EntryIndex = 0; const FOnDemandChunkEntry& Entry : Container->ChunkEntries)
 		{
 			if (bool bIsReferenced = IsReferenced[EntryIndex++]; bIsReferenced == false)
 			{
@@ -1421,6 +1422,33 @@ FIoStatus FOnDemandInstallCache::Flush()
 
 	Cas.Compact();
 	return FIoStatus::Ok;
+}
+
+FOnDemandInstallCacheStorageUsage FOnDemandInstallCache::GetStorageUsage()
+{
+	// If this is called from a thread other than the OnDemandIoStore tick thread
+	// then its possible the block info and containers may not be in sync with each other
+	// or the current state of the tick thread.
+	// This should only be used for debugging and telemetry purposes.
+
+	FCasBlockInfoMap	BlockInfo;
+	const uint64		TotalCachedBytes = Cas.GetBlockInfo(BlockInfo);
+
+	TArray<FSharedOnDemandContainer>	Containers;
+	TArray<TBitArray<>>					ChunkEntryIndices;
+	IoStore.GetReferencedContent(Containers, ChunkEntryIndices);
+	check(Containers.Num() == ChunkEntryIndices.Num());
+
+	AddReferencesToBlocks(Containers, ChunkEntryIndices, BlockInfo);
+
+	return FOnDemandInstallCacheStorageUsage
+	{
+		.MaxSize = MaxCacheSize,
+		.TotalSize = TotalCachedBytes,
+		.ReferencedBlockSize = Algo::TransformAccumulate(BlockInfo,
+			[](const TPair<FCasBlockId, FCasBlockInfo>& Kv) { return (Kv.Value.RefCount > 0) ? Kv.Value.FileSize : uint64(0); },
+			uint64(0))
+	};
 }
 
 FIoStatus FOnDemandInstallCache::FlushPendingChunks(FPendingChunks& Chunks)

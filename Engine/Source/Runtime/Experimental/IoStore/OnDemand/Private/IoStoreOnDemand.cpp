@@ -73,6 +73,34 @@ static FAutoConsoleCommand OnDemandPurgeCacheCommand(
 	ECVF_Cheat
 );
 
+static FAutoConsoleCommand OnDemandCacheUsageCommand(
+	TEXT("iostore.CacheUsage"),
+	TEXT("print cache usage"),
+	FConsoleCommandDelegate::CreateStatic([]()
+	{
+		FIoStoreOnDemandModule* IOStoreOnDemandModule = FModuleManager::Get().GetModulePtr<FIoStoreOnDemandModule>(TEXT("IoStoreOnDemand"));
+		if (!IOStoreOnDemandModule)
+		{
+			UE_LOG(LogIoStoreOnDemand, Error, TEXT("Could not find IoStoreOnDemand module"));
+			return;
+		}
+
+		TIoStatusOr<FOnDemandCacheUsage> MaybeUsage = IOStoreOnDemandModule->GetCacheUsage();
+		if (!MaybeUsage.IsOk())
+		{
+			UE_LOG(LogIoStoreOnDemand, Error, TEXT("iostore.CacheUsage failed: %s"), *MaybeUsage.Status().ToString());
+			return;
+		}
+
+		const FOnDemandCacheUsage& Usage = MaybeUsage.ValueOrDie();
+		UE_LOG(LogIoStoreOnDemand, Display, TEXT("iostore.CacheUsage"));
+		UE_LOG(LogIoStoreOnDemand, Display, TEXT("\tMaxSize %" UINT64_FMT), Usage.MaxSize);
+		UE_LOG(LogIoStoreOnDemand, Display, TEXT("\tTotalSize %" UINT64_FMT), Usage.TotalSize);
+		UE_LOG(LogIoStoreOnDemand, Display, TEXT("\tReferencedBlockSize %" UINT64_FMT), Usage.ReferencedBlockSize);
+	}),
+	ECVF_Cheat
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 FString GIasOnDemandTocExt = TEXT(".uondemandtoc");
 
@@ -1153,6 +1181,16 @@ FIoStatus FIoStoreOnDemandModule::GetInstallSizesByMountId(const FOnDemandGetIns
 	if (IoStore)
 	{
 		return IoStore->GetInstallSizesByMountId(Args, OutSizesByMountId);
+	}
+
+	return FIoStatus(EIoErrorCode::InvalidCode, NotInitializedError);
+}
+
+TIoStatusOr<FOnDemandCacheUsage> FIoStoreOnDemandModule::GetCacheUsage() const
+{
+	if (IoStore)
+	{
+		return IoStore->GetCacheUsage();
 	}
 
 	return FIoStatus(EIoErrorCode::InvalidCode, NotInitializedError);

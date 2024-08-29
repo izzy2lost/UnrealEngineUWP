@@ -300,6 +300,7 @@ public:
 	FOnDemandChunkInfo		GetInstalledChunkInfo(const FIoChunkId& ChunkId);
 	void					ReleaseContent(FOnDemandInternalContentHandle& ContentHandle);
 	void					GetReferencedContent(TArray<FSharedOnDemandContainer>& OutContainers, TArray<TBitArray<>>& OutChunkEntryIndices);
+	FOnDemandCacheUsage		GetCacheUsage() const;
 
 private:
 	FIoStatus				GetContainersForInstall(
