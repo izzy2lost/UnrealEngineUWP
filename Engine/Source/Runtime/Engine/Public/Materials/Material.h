@@ -1375,10 +1375,7 @@ public:
 	ENGINE_API bool CheckInValidStateForCompilation(class FMaterialCompiler* Compiler) const;
 	
 private:
-	void BackwardsCompatibilityInputConversion();
-	void BackwardsCompatibilityVirtualTextureOutputConversion();
-	void BackwardsCompatibilityDecalConversion();
-	void ConvertMaterialToSubstrateMaterial();
+
 
 	/** Handles setting up an annotation for this object if a flag has changed value */
 	void MarkUsageFlagDirty(EMaterialUsage Usage, bool CurrentValue, bool NewValue);
@@ -1390,6 +1387,11 @@ private:
 	void PropagateDataToMaterialProxy();
 
 #if WITH_EDITOR
+	void BackwardsCompatibilityInputConversion();
+	void BackwardsCompatibilityVirtualTextureOutputConversion();
+	void BackwardsCompatibilityDecalConversion();
+	void ConvertMaterialToSubstrateMaterial();
+
 	/** Marks the material's package dirty in order to make a material usage change set during map load persistent. 
 	  * This couldn't be done during map load as loading cannot mark packages dirty. Invoked manually by the user 
 	  * from the Map Check message log.
