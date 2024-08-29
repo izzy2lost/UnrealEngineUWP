@@ -10,7 +10,12 @@
 
 namespace uba
 {
-	inline bool FindImportsMac(const tchar* fileName, const Function<void(const tchar* import, bool isKnown)>& func, StringBufferBase& outError)
+	inline bool IsKnownSystemFile(const tchar* fileName)
+	{
+		return false;
+	}
+
+	inline bool FindImports(const tchar* fileName, const Function<void(const tchar* import, bool isKnown, const char* const* loaderPaths)>& func, StringBufferBase& outError)
 	{
 		int fd = open(fileName, O_RDONLY);
 		if (fd == -1)
@@ -35,6 +40,13 @@ namespace uba
 		}
 		auto unmap = MakeGuard([&]() { munmap(mem, size); });
 
+
+		const char* libs[1024];
+		u32 libsCount = 0;
+
+		const char* loaderPaths[256];
+		u32 loaderPathsCount = 0;
+
 		auto it = (const u8*)mem;
 		auto end = it + size - 14;
 		while (it != end)
@@ -42,22 +54,35 @@ namespace uba
 			if (*it++ != '@')
 				continue;
 
-			if (memcmp(it, "executable_path", 14) == 0)
-				break;
-
-			if (memcmp(it, "rpath/", 6) != 0)
-				continue;
-			it += 6;
-			auto importFile = (const char*)it;
-			if (!strstr(importFile, ".dylib"))
-			if (mem == MAP_FAILED)
+			if (memcmp(it, "rpath/", 6) == 0)
 			{
-				outError.Appendf("Found @rpath in binary %s that did not end with .dylib (%s)", fileName, importFile);
-				return false;
-			}
+				it += 6;
+				auto importFile = (const char*)it;
+				if (!strstr(importFile, ".dylib"))
+				{
+					outError.Appendf("Found @rpath in binary %s that did not end with .dylib (%s)", fileName, importFile);
+					return false;
+				}
 
-			func(importFile, false);
+				libs[libsCount++] = importFile;
+			}
+			else if (memcmp(it, "executable_path/", 16) == 0)
+			{
+				it += 16;
+				auto executablePath = (const char*)it;
+				UBA_ASSERT(*executablePath == 0);
+			}
+			else if (memcmp(it, "loader_path/", 12) == 0)
+			{
+				it += 12;
+				loaderPaths[loaderPathsCount++] = (const char*)it;
+			}
 		}
+
+		loaderPaths[loaderPathsCount] = nullptr;
+
+		for (u32 i=0; i!=libsCount; ++i)
+			func(libs[i], false, loaderPaths);
 		return true;
 	}
 }

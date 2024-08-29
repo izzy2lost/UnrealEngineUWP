@@ -682,7 +682,8 @@ extern "C"
 	void Uba_FindImports(const uba::tchar* binary, ImportFunc* func, void* userData)
 	{
 #if PLATFORM_WINDOWS
-		uba::FindImports(binary, [&](const uba::tchar* importName, bool isKnown) { func(importName, userData); });
+		uba::StringBuffer<> errors;
+		uba::FindImports(binary, [&](const uba::tchar* importName, bool isKnown, const char* const* importLoaderPaths) { func(importName, userData); }, errors);
 #endif
 	}
 

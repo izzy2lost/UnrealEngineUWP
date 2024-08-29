@@ -19,10 +19,7 @@
 #include "UbaWinBinDependencyParser.h"
 #include <powerbase.h>
 #pragma comment(lib, "Powrprof.lib")
-#endif
-
-// Used to get Memory Information
-#if PLATFORM_MAC
+#elif PLATFORM_MAC
 #include "UbaMacBinDependencyParser.h"
 #include <mach/vm_statistics.h>
 #include <mach/mach_types.h>
@@ -30,6 +27,8 @@
 #include <mach/mach_host.h>
 #include <mach/mach.h>
 extern char **environ;
+#else // PLATFORM_LINUX
+#include "UbaLinuxBinDependencyParser.h"
 #endif
 
 #define UBA_DEBUG_TRACK_DIR 0 // UBA_DEBUG_LOGGER
@@ -931,7 +930,7 @@ namespace uba
 		return dirTable.m_memorySize;
 	}
 
-	bool Session::CopyImports(Vector<BinaryModule>& out, const tchar* library, tchar* applicationDir, tchar* applicationDirEnd, UnorderedSet<TString>& handledImports)
+	bool Session::CopyImports(Vector<BinaryModule>& out, const tchar* library, tchar* applicationDir, tchar* applicationDirEnd, UnorderedSet<TString>& handledImports, const char* const* loaderPaths)
 	{
 		if (!handledImports.insert(library).second)
 			return true;
@@ -942,16 +941,35 @@ namespace uba
 		tchar temp2[512];
 		bool result = true;
 
-		#if PLATFORM_WINDOWS
 		if (attr == INVALID_FILE_ATTRIBUTES)
 		{
+			#if PLATFORM_WINDOWS
 			if (!SearchPathW(NULL, library, NULL, 512, temp, NULL))
 				return true; // TODO: We have to return true here because there are scenarios where failing is actually ok (it seems it can return false on crt shim libraries such as api-ms-win-crt*)
+			#elif PLATFORM_MAC
+			if (!loaderPaths)
+				return m_logger.Error("Failed to find file %s", applicationName);
+			auto it = loaderPaths;
+			for (auto it = loaderPaths; *it; ++it)
+			{
+				StringBuffer<> absolutePath;
+				absolutePath.Append(applicationDir, applicationDirEnd - applicationDir).Append(*it).EnsureEndsWithSlash().Append(library);
+				m_logger.Info("SEARCH_PATH: %s", absolutePath.data);
+				attr = GetFileAttributesW(applicationName);
+				if (attr == INVALID_FILE_ATTRIBUTES)
+					continue;
+				memcpy(temp, absolutePath.data, absolutePath.count + 1);
+				break;
+			}
+			if (attr == INVALID_FILE_ATTRIBUTES)
+				return m_logger.Error("Failed to find file %s", applicationName);
+			//UBA_ASSERTF(false, TC("DIR NOT FOUND: %s"), applicationName);
+			#endif
 
 			applicationName = temp;
 			attr = DefaultAttributes();
 
-			tchar* lastSlash = TStrrchr(temp, '\\');
+			tchar* lastSlash = TStrrchr(temp, PathSeparator);
 			UBA_ASSERT(lastSlash);
 			u64 applicationDirLen = u64(lastSlash + 1 - temp);
 			memcpy(temp2, temp, applicationDirLen * sizeof(tchar));
@@ -968,39 +986,18 @@ namespace uba
 
 		out.push_back({ library, temp3.data, attr, isSystem });
 
-		FindImports(applicationName, [&](const tchar* importName, bool isKnown)
-			{
-				if (result && !isKnown)
-					result = CopyImports(out, importName, applicationDir, applicationDirEnd, handledImports);
-			});
-
-		#else
-
-		if (attr == INVALID_FILE_ATTRIBUTES)
-		{
-			UBA_ASSERTF(false, TC("DIR NOT FOUND: %s"), applicationName);
-			return false;
-		}
-
-		StringBuffer<512> temp3;
-		FixPath(applicationName, nullptr, 0, temp3);
-
-		out.push_back({ TString(library), TString(temp3.data), S_IRUSR | S_IWUSR | S_IXUSR });
-
-		#if PLATFORM_MAC
 		StringBuffer<> errorStr;
-		if (!FindImportsMac(applicationName, [&](const tchar* importName, bool isKnown)
+		FindImports(applicationName, [&](const tchar* importName, bool isKnown, const char* const* importLoaderPaths)
 			{
 				if (result && !isKnown)
-					result = CopyImports(out, importName, applicationDir, applicationDirEnd, handledImports);
-			}, errorStr))
-			m_logger.Error(errorStr.data);
-		#endif
+					result = CopyImports(out, importName, applicationDir, applicationDirEnd, handledImports, importLoaderPaths);
+			}, errorStr);
+		if (errorStr.count)
+			return m_logger.Error(errorStr.data);
 
 		// This code is needed if application is compiled with tsan
 		//strcpy(applicationDirEnd, "libclang_rt.tsan.so");
 		//out.push_back({ "libclang_rt.tsan.so", applicationDir, S_IRUSR | S_IWUSR });
-		#endif
 		return result;
 	}
 
@@ -1658,7 +1655,7 @@ namespace uba
 		tchar* applicationDirEnd = applicationDir + applicationDirLen;
 
 		UnorderedSet<TString> handledImports;
-		return CopyImports(out, applicationName, applicationDir, applicationDirEnd, handledImports);
+		return CopyImports(out, applicationName, applicationDir, applicationDirEnd, handledImports, nullptr);
 	}
 
 	void Session::Free(Vector<BinaryModule>& v)
