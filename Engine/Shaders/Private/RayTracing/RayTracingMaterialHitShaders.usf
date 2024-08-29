@@ -13,9 +13,9 @@
 // This should be good enough for ray tracing and avoids having to bind an extra buffer
 #define EYE_ADAPTATION_PREV_FRAME_EXPOSURE 1
 
-
 #if SUBSTRATE_ENABLED
 #define SUBSTRATE_INLINE_SHADING 1
+#define SUBSTRATE_USES_FORCED_COMPLEXITY 0
 #endif
 
 #include "/Engine/Private/Common.ush"
