@@ -1409,6 +1409,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 		if (ViewFamily.EngineShowFlags.DirectLighting && GUseTranslucentLightingVolumes && RHISupportsVolumeTextureRendering())
 		{
 			RDG_EVENT_SCOPE(GraphBuilder, "InjectTranslucencyLightingVolume");
+			SCOPE_CYCLE_COUNTER(STAT_TranslucentInjectTime);
 
 			if (SimpleLights.InstanceData.Num() > 0)
 			{

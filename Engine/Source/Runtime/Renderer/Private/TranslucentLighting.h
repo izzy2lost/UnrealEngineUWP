@@ -4,6 +4,7 @@
 
 #include "SceneRendering.h"
 #include "RenderGraph.h"
+#include "VolumeRendering.h"
 
 struct FSortedLightSceneInfo;
 struct FCloudShadowAOData;
@@ -72,7 +73,28 @@ public:
 		bool bApplyLightFunction;
 		// must not be 0
 		const FMaterialRenderProxy* LightFunctionMaterialProxy;
+		// can be INDEX_NONE
+		int32 VirtualShadowMapId;
+		//
+		bool bUseAdaptiveVolumetricShadowMap;
+		FVolumeBounds VolumeBounds[TVC_MAX];
 	};
+	
+	typedef TArray<FInjectionData, SceneRenderingAllocator> FInjectionDataArray;
+
+	struct FPerViewData
+	{
+		// Array of lights that will be injected individually
+		FInjectionDataArray Unbatched;
+
+		// Lights that will be injected collectively
+		// For these we store a bitmask of light indices in the light grid
+		TBitArray<SceneRenderingAllocator> BatchedLocalLights[TVC_MAX];
+		uint32 BatchedLocalLightCount = 0;			// Maintain a count for stats
+		bool bAnyBatchedLightsWithVirtualShadowMaps = false;
+	};
+
+	TArray<FPerViewData, SceneRenderingAllocator>& InjectionDataPerView;
 
 	void AddLightForInjection(
 		const FViewInfo& View,
@@ -80,9 +102,6 @@ public:
 		TArrayView<const FVisibleLightInfo> VisibleLightInfos,
 		const FLightSceneInfo& LightSceneInfo,
 		const FProjectedShadowInfo* InProjectedShadowInfo = nullptr);
-
-	typedef TArray<FInjectionData, SceneRenderingAllocator> FInjectionDataArray;
-	TArray<FInjectionDataArray, SceneRenderingAllocator>& InjectionDataPerView;
 };
 
 /** Initializes translucency volume lighting shader parameters from an optional textures struct. If null or uninitialized, fallback textures are used. */
