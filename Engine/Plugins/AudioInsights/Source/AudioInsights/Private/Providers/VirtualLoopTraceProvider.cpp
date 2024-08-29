@@ -7,6 +7,7 @@
 
 #if !WITH_EDITOR
 #include "Common/PagedArray.h"
+#include "Async/ParallelFor.h"
 #endif // !WITH_EDITOR
 
 namespace UE::Audio::Insights
