@@ -1313,7 +1313,8 @@ public:
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
-	/** Return whether or not the mesh has vertex colors. USkinnedAsset interface. */
+	/** Return whether the mesh has vertex colors. USkinnedAsset interface. */
+	UFUNCTION(BlueprintPure, Category = Mesh, meta = (DisplayName = "Has Vertex Colors", ScriptName = "HasVertexColors", Keywords = "vertex color"))
 	virtual bool GetHasVertexColors() const override
 	{
 		WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::HasVertexColors, ESkinnedAssetAsyncPropertyLockType::ReadOnly);
