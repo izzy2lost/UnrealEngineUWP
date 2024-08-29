@@ -14,6 +14,7 @@ class UWorld;
 class AActor;
 struct FVolumetricLightMapGridDesc;
 class FPrecomputedVolumetricLightmapData;
+struct FStaticLightingDescriptors;
 
 #if WITH_EDITOR
 class FStaticLightingBuildContext
@@ -29,6 +30,7 @@ class FStaticLightingBuildContext
 	
 public:
 
+	FStaticLightingDescriptors* Descriptors;
 	UWorld*						World;
 	ULevel*						LightingScenario;
 
@@ -45,8 +47,7 @@ public:
 
 	ENGINE_API UMapBuildDataRegistry* GetGlobalRegistry() const;
 	ENGINE_API UMapBuildDataRegistry* GetOrCreateGlobalRegistry() const;
-
-	ENGINE_API UMapBuildDataRegistry* GetRegistryForActor(AActor* Actor) const;
+	
 	ENGINE_API UMapBuildDataRegistry* GetOrCreateRegistryForLevelGuid(const FGuid& Guid) const;
 	ENGINE_API FGuid GetLevelGuidForActor(AActor* Actor) const;
 	ENGINE_API FGuid GetPersistentLevelGuid() const;

@@ -50,7 +50,13 @@
 #include "EditorModes.h"
 #include "Dialogs/Dialogs.h"
 #include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/HLOD/HLODActor.h"
 #include "WorldPartition/StaticLightingData/VolumetricLightmapGrid.h"
+#include "WorldPartition/StaticLightingData/MapBuildDataActor.h"
+#include "WorldPartition/HLOD/HLODLayer.h"
+#include "WorldPartition/HLOD/HLODSourceActorsFromCell.h"
+#include "EngineUtils.h"
+#include "WorldPartition/StaticLightingData/StaticLightingDescriptors.h"
 
 FSwarmDebugOptions GSwarmDebugOptions;
 
@@ -295,7 +301,7 @@ void FStaticLightingManager::CreateStaticLightingSystem(const FLightingBuildOpti
 	{
 		check(!ActiveStaticLightingSystem);
 
-		bBuildReflectionCapturesOnFinish = !Options.bOnlyBuildVisibility;
+		bBuildReflectionCapturesOnFinish = !Options.bOnlyBuildVisibility && !Options.bApplyDeferedActorMappingPass && !Options.bVolumetricLightmapFinalizerPass;
 
 		UWorld* World = GWorld;
 		
@@ -311,6 +317,8 @@ void FStaticLightingManager::CreateStaticLightingSystem(const FLightingBuildOpti
 		{
 			StaticLightingSystems.Emplace(new FStaticLightingSystem(Options, FStaticLightingBuildContext(World, nullptr)));
 		}
+
+		//@todo_ow: Initialize descriptors if it's a paritioned world? (editor build)
 
 		ActiveStaticLightingSystem = StaticLightingSystems[0].Get();
 
@@ -621,6 +629,12 @@ bool FStaticLightingSystem::BeginLightmassProcess()
 			}
 		}
 
+		// keep the VLM data if we won't be be rebuilding it
+		if (Options.bApplyDeferedActorMappingPass && !Options.bVolumetricLightmapFinalizerPass)
+		{
+			 BuildDataResourcesToKeep.Add(LightingContext.GetLevelBuildDataID(LightingContext.GetPersistentLevelGuid()));
+		}
+
 		for (ULevelStreaming* CurStreamingLevel : LightingContext.World->GetStreamingLevels())
 		{
 			if (CurStreamingLevel && CurStreamingLevel->GetLoadedLevel() && !CurStreamingLevel->GetShouldBeVisibleInEditor())
@@ -884,6 +898,99 @@ void FStaticLightingSystem::InvalidateStaticLighting()
 			}
 		}
 	}
+
+	// Gather and add all AMapBuildDataActor so they can collect the per-actor lighting data
+	if (LightingContext.Descriptors)
+	{
+		TArray<UMapBuildDataRegistry*> MapRegistries = LightingContext.Descriptors->GetAllMapBuildData();
+
+		for (UMapBuildDataRegistry* MapDataRegistry : MapRegistries)
+		{
+			MapDataRegistry->InvalidateStaticLighting(LightingContext.World, false, &BuildDataResourcesToKeep);
+		}	
+	}
+}
+
+void UpdateStaticLightingWorldParitionHLODTreeIndices(TMultiMap<AActor*, FStaticLightingMesh*>& ActorMeshMap, AWorldPartitionHLOD* LODActor, uint32 HLODTreeIndex, uint32& HLODLeafIndex, const TMap<FGuid, AActor*>& ActorInstanceGuidToActorPtr)
+{	
+	check(LODActor && HLODTreeIndex > 0);
+
+	uint32 LeafStartIndex = HLODLeafIndex;
+	++HLODLeafIndex;
+	
+	UWorldPartitionHLODSourceActorsFromCell* SourceActors = Cast<UWorldPartitionHLODSourceActorsFromCell>(LODActor->GetSourceActors());
+	if (!SourceActors)
+	{
+		return;
+	}
+
+	UWorldPartition* WorldPartition = LODActor->GetWorld()->GetWorldPartition();
+
+	// Iterate over all sub actors
+	for (const FWorldPartitionRuntimeCellObjectMapping& LODSubActor : SourceActors->GetActors())
+	{
+		// get the AActor from the SubActor
+		AActor* SubActor = nullptr;
+				
+		FSoftObjectPath SoftPath(LODSubActor.Path.ToString());
+		TSoftObjectPtr<AActor> SoftPtr(SoftPath);
+		SubActor = SoftPtr.Get();
+				
+		if (!SubActor)
+		{
+			if (AActor* const * FoundActor = ActorInstanceGuidToActorPtr.Find(LODSubActor.ActorInstanceGuid))
+			{
+				SubActor = *FoundActor;
+			}
+		}
+		
+		if (ensureMsgf(SubActor, TEXT("Error during HLOD LOD tree setup, could not resolve ptr to Actor: %s\n"), *LODSubActor.Path.ToString()))
+		{
+			// if this happens we need to merge the WP HLOD tree with the normal actor HLOD tree`
+			check(!Cast<ALODActor>(SubActor));		
+
+			// If sub actor is an WP HLODActor iterate over that too
+			if (AWorldPartitionHLOD* HLODSubActor = Cast<AWorldPartitionHLOD>(SubActor))
+			{
+				UpdateStaticLightingWorldParitionHLODTreeIndices(ActorMeshMap, HLODSubActor, HLODTreeIndex, HLODLeafIndex, ActorInstanceGuidToActorPtr);
+			}
+			else
+			{
+				// Otherwise integrate sub actors into the tree
+				TArray<FStaticLightingMesh*> SubActorMeshes;
+				ActorMeshMap.MultiFind(SubActor, SubActorMeshes);
+
+				for (FStaticLightingMesh* SubActorMesh : SubActorMeshes)
+				{
+					if (SubActorMesh->HLODTreeIndex == 0)
+					{
+						SubActorMesh->HLODTreeIndex = HLODTreeIndex;
+						SubActorMesh->HLODChildStartIndex = HLODLeafIndex;
+						SubActorMesh->HLODChildEndIndex = HLODLeafIndex;
+						++HLODLeafIndex;
+					}
+					else
+					{
+						// Output error to message log containing tokens to the problematic objects
+						FMessageLog("LightingResults").Warning()
+							->AddToken(FUObjectToken::Create(SubActorMesh->Component->GetOwner()))
+							->AddToken(FTextToken::Create(LOCTEXT("LightmassError_InvalidHLODTreeIndex", "will not be correctly lit since it is part of another Hierarchical LOD cluster besides ")))
+							->AddToken(FUObjectToken::Create(LODActor));
+					}
+				}
+			}
+		}
+	}
+
+	TArray<FStaticLightingMesh*> LODActorMeshes;
+	ActorMeshMap.MultiFind(LODActor, LODActorMeshes);
+	for (FStaticLightingMesh* LODActorMesh : LODActorMeshes)
+	{
+		LODActorMesh->HLODTreeIndex = HLODTreeIndex;
+		LODActorMesh->HLODChildStartIndex = LeafStartIndex;
+		LODActorMesh->HLODChildEndIndex = HLODLeafIndex - 1;
+		check(LODActorMesh->HLODChildEndIndex >= LODActorMesh->HLODChildStartIndex);
+	}
 }
 
 void UpdateStaticLightingHLODTreeIndices(TMultiMap<AActor*, FStaticLightingMesh*>& ActorMeshMap, ALODActor* LODActor, uint32 HLODTreeIndex, uint32& HLODLeafIndex)
@@ -947,7 +1054,10 @@ void FStaticLightingSystem::GatherStaticLightingInfo(bool bRebuildDirtyGeometryF
 	const int32 ProgressUpdateFrequency = FMath::Max<int32>(ActorsToInvalidate / 20, 1);
 
 	GWarn->StatusUpdate( ActorsInvalidated, ActorsToInvalidate, LOCTEXT("GatheringSceneGeometryStatus", "Gathering scene geometry...") );
-	
+
+	TMultiMap<AActor*, FStaticLightingMesh*> ActorMeshMap;	
+	TArray<AWorldPartitionHLOD*> WorldPartitionHLODActors;
+
 	bool bObjectsToBuildLightingForFound = false;
 	// Gather static lighting info from actor components.
 	for (int32 LevelIndex = 0; LevelIndex < LightingContext.World->GetNumLevels(); LevelIndex++)
@@ -1149,7 +1259,6 @@ void FStaticLightingSystem::GatherStaticLightingInfo(bool bRebuildDirtyGeometryF
 			}
 		}
 
-		TMultiMap<AActor*, FStaticLightingMesh*> ActorMeshMap;
 		TArray<ALODActor*> LODActors;
 
 		// Gather static lighting info from actors.
@@ -1158,8 +1267,19 @@ void FStaticLightingSystem::GatherStaticLightingInfo(bool bRebuildDirtyGeometryF
 			AActor* Actor = Level->Actors[ActorIndex];
 			if (Actor)
 			{
+				bool bBuildLightingForActor  = true;
+				bool bIncludeActorInLighting = true;
+				bool bDeferActorMappping = false;
+
+				if (Options.ShouldBuildLighting)
+				{
+					Options.ShouldBuildLighting(Actor, bBuildLightingForActor, bIncludeActorInLighting, bDeferActorMappping);
+				}
+
+
 				const bool bBuildActorLighting =
 					bBuildLightingForLevel &&
+					bBuildLightingForActor &&
 					(!Options.bOnlyBuildSelected || Actor->IsSelected());
 
 				TInlineComponentArray<UPrimitiveComponent*> Components;
@@ -1178,12 +1298,18 @@ void FStaticLightingSystem::GatherStaticLightingInfo(bool bRebuildDirtyGeometryF
 				{
 					LODActors.Add(LODActor);
 				}
+
+				AWorldPartitionHLOD* WorldPartitionLODActor = Cast<AWorldPartitionHLOD>(Actor);
+				if (WorldPartitionLODActor)
+				{
+					WorldPartitionHLODActors.Add(WorldPartitionLODActor);
+				}
 				
 				// Gather static lighting info from each of the actor's components.
 				for (int32 ComponentIndex = 0; ComponentIndex < Components.Num(); ComponentIndex++)
 				{
 					UPrimitiveComponent* Primitive = Components[ComponentIndex];
-					if (Primitive->IsRegistered() && !bForceNoPrecomputedLighting)
+					if (Primitive->IsRegistered() && !bForceNoPrecomputedLighting && bIncludeActorInLighting)
 					{
 						// Find the lights relevant to the primitive.
 						TArray<ULightComponent*> PrimitiveRelevantLights;
@@ -1226,7 +1352,7 @@ void FStaticLightingSystem::GatherStaticLightingInfo(bool bRebuildDirtyGeometryF
 							ActorMeshMap.Add(Actor, Mesh);
 						}
 
-						AddPrimitiveStaticLightingInfo(PrimitiveInfo, bBuildActorLighting);
+						AddPrimitiveStaticLightingInfo(PrimitiveInfo, bBuildActorLighting, bDeferActorMappping);
 					}
 				}
 			}
@@ -1260,6 +1386,32 @@ void FStaticLightingSystem::GatherStaticLightingInfo(bool bRebuildDirtyGeometryF
 		for (UPackage* Package : PackagesToDirty)
 		{
 			Package->MarkPackageDirty();
+		}
+	}
+
+	// WorldPartition HLOD trees must be setup after we've iterated over all Actors & Levels Instances
+	uint32 WPHLODTreeIndex = 1;
+	uint32 WPHLODLeafIndex;
+	TMap<FGuid, AActor*> ActorInstanceGuidToActorPtr;
+
+	if (WorldPartitionHLODActors.Num())
+	{
+		for(TActorIterator<AActor> It(LightingContext.World); It; ++It)
+		{
+			ActorInstanceGuidToActorPtr.Add(It->GetActorInstanceGuid(), *It);
+		}
+	}
+
+	for (AWorldPartitionHLOD* LODActor : WorldPartitionHLODActors)
+	{
+		// Process from the highest layer downwards
+		if (!LODActor->GetSourceActors()->GetHLODLayer()->GetParentLayer())
+		{
+			WPHLODLeafIndex = 0;
+
+			UpdateStaticLightingWorldParitionHLODTreeIndices(ActorMeshMap, LODActor, WPHLODTreeIndex, WPHLODLeafIndex, ActorInstanceGuidToActorPtr);
+
+			++WPHLODTreeIndex;
 		}
 	}
 
@@ -1366,6 +1518,19 @@ void FStaticLightingSystem::ApplyNewLightingData(bool bLightingSuccessful)
 					}
 				}
 			}
+		}
+
+		// Mark lights of the computed level to have valid precomputed lighting.
+		for (int32 LevelIndex = 0; LevelIndex < LightingContext.World->GetNumLevels(); LevelIndex++)
+		{
+			ULevel* Level = LightingContext.World->GetLevel(LevelIndex);
+
+			// in this specific case the Level MapBuildData is shared with another level and 
+			// this specific level doesn't own it's data so we need to skip it
+			if (!ShouldOperateOnLevel(Level))
+			{
+				continue;
+			}
 
 			const bool bBuildLightingForLevel = Options.ShouldBuildLightingForLevel( Level );
 
@@ -1378,7 +1543,7 @@ void FStaticLightingSystem::ApplyNewLightingData(bool bLightingSuccessful)
 
 			UMapBuildDataRegistry* Registry = LightingContext.GetRegistryForLevel(Level);
 		
-			if (Level->IsPersistentLevel() && LightingContext.World->IsPartitionedWorld())
+			if (Level->IsPersistentLevel() && LightingContext.World->IsPartitionedWorld() && (!Options.bApplyDeferedActorMappingPass))
 			{
 				// Transfer the new VolumetricLightMapGrid to the PersistentLevel
 				Registry->SetVolumetricLightMapGridDesc(LightingContext.GetVolumetricLightMapGridDesc());
@@ -1411,6 +1576,20 @@ void FStaticLightingSystem::ApplyNewLightingData(bool bLightingSuccessful)
 			}
 
 			Level->InitializeRenderingResources();
+		}
+
+		if (bLightingSuccessful && LightingContext.Descriptors)
+		{
+			TArray<UMapBuildDataRegistry*> MapRegistries = LightingContext.Descriptors->GetAllMapBuildData();
+
+			for (UMapBuildDataRegistry* MapDataRegistry : MapRegistries)
+			{
+				MapDataRegistry->LevelLightingQuality = Options.QualityLevel;
+				MapDataRegistry->MarkPackageDirty();
+				
+				MapDataRegistry->SetupLightmapResourceClusters();
+				MapDataRegistry->InitializeClusterRenderingResources(LightingContext.World->Scene->GetFeatureLevel());
+			}
 		}
 
 		// Ensure all primitives which were marked dirty by the lighting build are updated.
@@ -1954,7 +2133,7 @@ void FStaticLightingSystem::AddBSPStaticLightingInfo(ULevel* Level, TArray<FNode
 	}
 }
 
-void FStaticLightingSystem::AddPrimitiveStaticLightingInfo(FStaticLightingPrimitiveInfo& PrimitiveInfo, bool bBuildActorLighting)
+void FStaticLightingSystem::AddPrimitiveStaticLightingInfo(FStaticLightingPrimitiveInfo& PrimitiveInfo, bool bBuildActorLighting, bool bDeferMapping)
 {
 	// Verify a one to one relationship between mappings and meshes
 	//@todo - merge FStaticLightingMesh and FStaticLightingMapping
@@ -2003,6 +2182,8 @@ void FStaticLightingSystem::AddPrimitiveStaticLightingInfo(FStaticLightingPrimit
 			CurrentMapping->bProcessMapping = true;
 		}
 
+		CurrentMapping->bIsDeferred = bDeferMapping;
+
 		if (GLightmassDebugOptions.bSortMappings)
 		{
 			int32 InsertIndex = UnSortedMappings.AddZeroed();
@@ -2049,7 +2230,7 @@ bool FStaticLightingSystem::CreateLightmassProcessor()
 	check(LightmassProcessor);
 
 	if (LightingContext.World->IsPartitionedWorld())
-	{		
+	{
 		LightmassProcessor->SetVolumetricLightMapImportMode(true);
 	}	
 

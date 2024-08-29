@@ -459,6 +459,9 @@ public:
 	void	ProcessAvailableMappings();
 
 protected:
+
+	friend struct FDeferredMappingsBundle;
+	
 	enum StaticLightingType
 	{
 		SLT_Texture		// FStaticLightingTextureMapping
@@ -475,6 +478,9 @@ protected:
 		StaticLightingType	Type;
 		/** The mapping guid read in */
 		FGuid				MappingGuid;
+		/** The owner guid for this mapping */
+		FGuid				OwnerGuid;
+
 		/** The execution time this mapping took */
 		double				ExecutionTime;
 		/** Whether the mapping has been processed yet */
@@ -503,6 +509,8 @@ protected:
 		{
 			return NULL;
 		}
+
+		virtual void Serialize(FArchive& Ar);
 	};
 
 	/**
@@ -511,7 +519,7 @@ protected:
 	struct FTextureMappingImportHelper : public FMappingImportHelper
 	{
 		/** The texture mapping being imported */
-		FStaticLightingTextureMapping* TextureMapping;
+		TRefCountPtr<FStaticLightingTextureMapping> TextureMapping;
 		/** The imported quantized lightmap data */
 		FQuantizedLightmapData* QuantizedData;
 		/** The percentage of unmapped texels */
@@ -550,6 +558,15 @@ protected:
 		{
 			return this;
 		}
+
+		virtual void Serialize(FArchive& Ar) override;
+
+		friend FArchive& operator<<(FArchive& Ar, FTextureMappingImportHelper& Helper)
+		{
+			Helper.Serialize(Ar);
+			return Ar;
+		}
+
 	};
 
 	/**
@@ -611,6 +628,7 @@ protected:
 	FLightmassExporter* Exporter;
 	FLightmassImporter* Importer;
 	const FStaticLightingSystem& System;
+	struct FDeferredMappingsBundle* DeferredMappings = nullptr;
 
 	NSwarm::FSwarmInterface&	Swarm;
 	bool						bSwarmConnectionIsValid;
@@ -687,7 +705,8 @@ protected:
 
 	/** Queue of messages from the swarm callback, to be processed by the main thread */
 	TArray<FLightmassAlertMessage> SwarmCallbackMessages;
-
+	
+	FString DeferredMappingsDirectory;
 	bool bSplitToVLMCellGrid = false;
 
 	/**
@@ -722,6 +741,13 @@ protected:
 
 	/** Gets the texture mapping for the specified GUID */
 	FStaticLightingTextureMapping*	GetStaticLightingTextureMapping( const FGuid& MappingGuid );
+
+	/** Deferred mappings handling */
+	void DeferMapping(FTextureMappingImportHelper* ImportHelper);
+	bool IsDeferredMapping(const FGuid& Guid);
+	void ExportDeferredMappings();
+	void ImportDeferredMappings();
+	void ClearImportedDeferredMappings();
 
 	/**
 	 *	Import the texture mapping 

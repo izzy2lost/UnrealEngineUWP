@@ -61,18 +61,28 @@ FStaticMeshStaticLightingMesh::FStaticMeshStaticLightingMesh(const UStaticMeshCo
 		InRelevantLights,
 		InPrimitive,
 		InPrimitive->Bounds.GetBox(),
-		InPrimitive->GetStaticMesh()->GetLightingGuid()
+		InPrimitive->GetStaticMesh()->GetLightingGuid(),
+		InPrimitive->LODData[InLODIndex].MapBuildDataId
 		),
 	LODIndex(InLODIndex),
 	StaticMesh(InPrimitive->GetStaticMesh()),
 	Primitive(InPrimitive),
-	LODRenderData(InPrimitive->GetStaticMesh()->GetRenderData()->LODResources[InLODIndex]),
+	LODRenderData(&InPrimitive->GetStaticMesh()->GetRenderData()->LODResources[InLODIndex]),
 	bReverseWinding(InPrimitive->GetComponentTransform().GetDeterminant() < 0.0f)
 {
-	LODIndexBuffer = LODRenderData.IndexBuffer.GetArrayView();
+	LODIndexBuffer = LODRenderData->IndexBuffer.GetArrayView();
 
 	// use the primitive's local to world
 	SetLocalToWorld(InPrimitive->GetRenderMatrix());
+}
+
+FStaticMeshStaticLightingMesh::FStaticMeshStaticLightingMesh() 
+	: LODIndex(0)
+	, StaticMesh(nullptr)
+	, Primitive(nullptr)
+	, LODRenderData(nullptr)
+	, bReverseWinding(0)
+{ 
 }
 
 /** 
@@ -99,9 +109,10 @@ void FStaticMeshStaticLightingMesh::GetTriangle(int32 TriangleIndex,FStaticLight
 	const uint32 I2 = LODIndexBuffer[TriangleIndex * 3 + (bReverseWinding ? 1 : 2)];
 
 	// Translate the triangle's static mesh vertices to static lighting vertices.
-	GetStaticLightingVertex(LODRenderData.VertexBuffers.PositionVertexBuffer,LODRenderData.VertexBuffers.StaticMeshVertexBuffer,I0,LocalToWorld,LocalToWorldInverseTranspose,OutV0);
-	GetStaticLightingVertex(LODRenderData.VertexBuffers.PositionVertexBuffer,LODRenderData.VertexBuffers.StaticMeshVertexBuffer,I1,LocalToWorld,LocalToWorldInverseTranspose,OutV1);
-	GetStaticLightingVertex(LODRenderData.VertexBuffers.PositionVertexBuffer,LODRenderData.VertexBuffers.StaticMeshVertexBuffer,I2,LocalToWorld,LocalToWorldInverseTranspose,OutV2);
+	check(LODRenderData);
+	GetStaticLightingVertex(LODRenderData->VertexBuffers.PositionVertexBuffer,LODRenderData->VertexBuffers.StaticMeshVertexBuffer,I0,LocalToWorld,LocalToWorldInverseTranspose,OutV0);
+	GetStaticLightingVertex(LODRenderData->VertexBuffers.PositionVertexBuffer,LODRenderData->VertexBuffers.StaticMeshVertexBuffer,I1,LocalToWorld,LocalToWorldInverseTranspose,OutV1);
+	GetStaticLightingVertex(LODRenderData->VertexBuffers.PositionVertexBuffer,LODRenderData->VertexBuffers.StaticMeshVertexBuffer,I2,LocalToWorld,LocalToWorldInverseTranspose,OutV2);
 }
 
 void FStaticMeshStaticLightingMesh::GetTriangleIndices(int32 TriangleIndex,int32& OutI0,int32& OutI1,int32& OutI2) const
@@ -128,10 +139,12 @@ bool FStaticMeshStaticLightingMesh::ShouldCastShadow(ULightComponent* Light,cons
 /** @return		true if the specified triangle casts a shadow. */
 bool FStaticMeshStaticLightingMesh::IsTriangleCastingShadow(uint32 TriangleIndex) const
 {
+	check(LODRenderData);
+
 	// Find the mesh element containing the specified triangle.
-	for ( int32 SectionIndex = 0 ; SectionIndex < LODRenderData.Sections.Num() ; ++SectionIndex )
+	for ( int32 SectionIndex = 0 ; SectionIndex < LODRenderData->Sections.Num() ; ++SectionIndex )
 	{
-		const FStaticMeshSection& Section = LODRenderData.Sections[ SectionIndex ];
+		const FStaticMeshSection& Section = LODRenderData->Sections[ SectionIndex ];
 		if ( ( TriangleIndex >= Section.FirstIndex / 3 ) && ( TriangleIndex < Section.FirstIndex / 3 + Section.NumTriangles ) )
 		{
 			return Section.bCastShadow;
@@ -144,9 +157,11 @@ bool FStaticMeshStaticLightingMesh::IsTriangleCastingShadow(uint32 TriangleIndex
 /** @return		true if the mesh wants to control shadow casting per element rather than per mesh. */
 bool FStaticMeshStaticLightingMesh::IsControllingShadowPerElement() const
 {
-	for ( int32 SectionIndex = 0 ; SectionIndex < LODRenderData.Sections.Num() ; ++SectionIndex )
+	check(LODRenderData);
+
+	for ( int32 SectionIndex = 0 ; SectionIndex < LODRenderData->Sections.Num() ; ++SectionIndex )
 	{
-		if ( !LODRenderData.Sections[ SectionIndex ].bCastShadow )
+		if ( !LODRenderData->Sections[ SectionIndex ].bCastShadow )
 		{
 			return true;
 		}
@@ -210,6 +225,17 @@ FStaticMeshStaticLightingTextureMapping::FStaticMeshStaticLightingTextureMapping
 {}
 
 #if WITH_EDITOR
+void FStaticMeshStaticLightingTextureMapping::Serialize(FArchive& Ar)
+{
+	FStaticLightingTextureMapping::Serialize(Ar);
+
+	FSoftObjectPath PrimitivePath(Primitive.Get());
+	Ar << PrimitivePath;
+	Primitive = TWeakObjectPtr<UStaticMeshComponent>(Cast<UStaticMeshComponent>(PrimitivePath.ResolveObject()));
+	
+	Ar << LODIndex;
+}
+
 // FStaticLightingTextureMapping interface
 void FStaticMeshStaticLightingTextureMapping::Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext)
 {
@@ -251,7 +277,7 @@ void FStaticMeshStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quan
 		// We always create a light map if the surface either has any non-zero lighting data, or if the surface has a shadow map.  The runtime
 		// shaders are always expecting a light map in the case of a shadow map, even if the lighting is entirely zero.  This is simply to reduce
 		// the number of shader permutations to support in the very unlikely case of a unshadowed surfaces that has lighting values of zero.
-		const bool bNeedsLightMap = bHasNonZeroData || ShadowMapData.Num() > 0 || Mesh->RelevantLights.Num() > 0 || (QuantizedData != NULL && QuantizedData->bHasSkyShadowing);
+		const bool bNeedsLightMap = bHasNonZeroData || ShadowMapData.Num() > 0 || Mesh->RelevantLightsGuid.Num() > 0 || (QuantizedData != NULL && QuantizedData->bHasSkyShadowing);
 		if (bNeedsLightMap)
 		{
 			// Create a light-map for the primitive.
@@ -288,20 +314,20 @@ void FStaticMeshStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quan
 		// Build the list of statically irrelevant lights.
 		// IrrelevantLights was cleared in InvalidateLightingCacheDetailed
 
-		for(int32 LightIndex = 0;LightIndex < Mesh->RelevantLights.Num();LightIndex++)
+		for(int32 LightIndex = 0;LightIndex < Mesh->RelevantLightsGuid.Num();LightIndex++)
 		{
-			const ULightComponent* Light = Mesh->RelevantLights[LightIndex];
+			FGuid LightGuid = Mesh->RelevantLightsGuid[LightIndex];
 
 			// Check if the light is stored in the light-map.
-			const bool bIsInLightMap = MeshBuildData.LightMap && MeshBuildData.LightMap->LightGuids.Contains(Light->LightGuid);
+			const bool bIsInLightMap = MeshBuildData.LightMap && MeshBuildData.LightMap->LightGuids.Contains(LightGuid);
 
 			// Check if the light is stored in the shadow-map.
-			const bool bIsInShadowMap = MeshBuildData.ShadowMap && MeshBuildData.ShadowMap->LightGuids.Contains(Light->LightGuid);
+			const bool bIsInShadowMap = MeshBuildData.ShadowMap && MeshBuildData.ShadowMap->LightGuids.Contains(LightGuid);
 
 			// Add the light to the statically irrelevant light list if it is in the potentially relevant light list, but didn't contribute to the light-map.
 			if(!bIsInLightMap && !bIsInShadowMap)
 			{	
-				MeshBuildData.IrrelevantLights.AddUnique(Light->LightGuid);
+				MeshBuildData.IrrelevantLights.AddUnique(LightGuid);
 			}
 		}
 	}
@@ -336,6 +362,10 @@ void UStaticMeshComponent::GetStaticLightingInfo(FStaticLightingPrimitiveInfo& O
 
 			if (bValidTextureMap)
 			{
+				// We need to make sure this data is created before trying to create the FStaticMeshStaticLightingMesh
+				UpdateStaticLightingData();
+				UpdateMapBuildDataId();
+
 				// Create a static lighting mesh for the LOD.
 				FStaticMeshStaticLightingMesh* StaticLightingMesh = AllocateStaticLightingMesh(LODIndex,InRelevantLights);
 				OutPrimitiveInfo.Meshes.Add(StaticLightingMesh);
@@ -474,6 +504,7 @@ void UStaticMeshComponent::InvalidateLightingCacheDetailed(bool bInvalidateBuild
 	for(int32 i = 0; i < LODData.Num(); i++)
 	{
 		FStaticMeshComponentLODInfo& LODDataElement = LODData[i];
+		LODDataElement.OriginalMapBuildDataId.Invalidate();
 		LODDataElement.MapBuildDataId.Invalidate();
 	}
 

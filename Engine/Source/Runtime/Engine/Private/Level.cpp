@@ -72,6 +72,7 @@ Level.cpp: Level-related functions
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
+#include "WorldPartition/StaticLightingData/MapBuildDataActor.h"
 #include "Engine/LevelStreaming.h"
 #include "LevelUtils.h"
 #include "Components/ModelComponent.h"
@@ -1613,6 +1614,10 @@ static void SortActorsHierarchy(TArray<TObjectPtr<AActor>>& Actors, ULevel* Leve
 			else if (Actor == DefaultBrush)
 			{
 				Depth = TNumericLimits<int32>::Lowest() + 1;
+			}
+			else if (Actor->IsA<AMapBuildDataActor>())
+			{
+				Depth = TNumericLimits<int32>::Lowest() + 2;
 			}
 			else if (AActor* ParentActor = Actor->GetAttachParentActor())
 			{

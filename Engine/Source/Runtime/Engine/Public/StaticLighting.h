@@ -141,8 +141,14 @@ public:
 	/** The lights which affect the mesh's primitive. */
 	const TArray<ULightComponent*> RelevantLights;
 
+	/** The guids of the lights which affect the mesh's primitive. */
+	TArray<FGuid> RelevantLightsGuid;
+	
 	/** The primitive component this mesh was created by. */
 	const UPrimitiveComponent* const Component;
+
+	/** The guid identifying the component associated with this mesh */
+	FGuid ComponentGuid;
 
 	/** The bounding box of the mesh. */
 	FBox BoundingBox;
@@ -172,8 +178,13 @@ public:
 		const TArray<ULightComponent*>& InRelevantLights,
 		const UPrimitiveComponent* const InComponent,
 		const FBox& InBoundingBox,
-		const FGuid& InGuid
+		const FGuid& InSourceMeshGuid,
+		const FGuid& InComponentGuid
 		);
+
+	ENGINE_API FStaticLightingMesh();
+
+	ENGINE_API virtual void Serialize(FArchive& Ar);
 
 	/** Virtual destructor. */
 	virtual ~FStaticLightingMesh() {}
@@ -280,6 +291,11 @@ public:
 	{
 		return Guid;
 	}
+
+	/** 
+	* Returns true if this mesh is an instanced mesh.  
+	**/
+	virtual bool IsInstancedMesh() const = 0;
 };
 
 /** A mapping between world-space surfaces and a static lighting cache. */
@@ -291,16 +307,20 @@ public:
 	class FStaticLightingMesh* Mesh;
 
 	/** The object which owns the mapping. */
-	UObject* const Owner;
+	UObject* Owner;
 
 	/** true if the mapping should be processed by Lightmass. */
 	uint32 bProcessMapping : 1;
+
+	/** true if the mapping should be deferred until a finalizing pass. */
+	uint32 bIsDeferred : 1;
 
 	/** Initialization constructor. */
 	FStaticLightingMapping(FStaticLightingMesh* InMesh,UObject* InOwner):
 		Mesh(InMesh),
 		Owner(InOwner),
-		bProcessMapping(false)
+		bProcessMapping(false),
+		bIsDeferred(false)
 	{}
 
 	/** Virtual destructor. */
@@ -347,7 +367,17 @@ public:
 		return 0;
 	}
 
+	bool IsDeferred() const
+	{
+		return !!bIsDeferred;
+	}
+
+	FStaticLightingMapping(const FArchive&) : Mesh(nullptr), Owner(nullptr), bProcessMapping(false), bIsDeferred(false) { }
+
 #if WITH_EDITOR
+
+	ENGINE_API virtual void Serialize(FArchive& Ar);
+	
 	/**
 	 *	@return	UOject*		The object that is mapped by this mapping
 	 */
@@ -377,16 +407,16 @@ class FStaticLightingTextureMapping : public FStaticLightingMapping
 public:
 
 	/** The width of the static lighting textures used by the mapping. */
-	const int32 SizeX;
+	int32 SizeX;
 
 	/** The height of the static lighting textures used by the mapping. */
-	const int32 SizeY;
+	int32 SizeY;
 
 	/** The lightmap texture coordinate index which is used for the mapping. */
-	const int32 LightmapTextureCoordinateIndex;
+	int32 LightmapTextureCoordinateIndex;
 
 	/** Whether to apply a bilinear filter to the sample or not. */
-	const bool bBilinearFilter;
+	bool bBilinearFilter;
 
 	/** Initialization constructor. */
 	ENGINE_API FStaticLightingTextureMapping(FStaticLightingMesh* InMesh, UObject* InOwner, int32 InSizeX, int32 InSizeY, int32 InLightmapTextureCoordinateIndex, bool bInBilinearFilter = true);
@@ -415,6 +445,7 @@ public:
 
 #if WITH_EDITOR
 	UNREALED_API virtual bool DebugThisMapping() const;
+	ENGINE_API virtual void Serialize(FArchive& Ar);
 #endif	//WITH_EDITOR
 
 	virtual FString GetDescription() const
@@ -426,6 +457,9 @@ public:
 	{
 		return (SizeX * SizeY);
 	}
+
+	/** Default constructor used by serializer */
+	FStaticLightingTextureMapping(const FArchive& Ar) : FStaticLightingMapping(Ar) { }
 };
 
 /** 

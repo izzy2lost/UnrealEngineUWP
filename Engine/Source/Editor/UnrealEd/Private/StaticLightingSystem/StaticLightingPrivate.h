@@ -326,7 +326,7 @@ private:
 	void AddBSPStaticLightingInfo(ULevel* Level, TArray<FNodeGroup*>& NodeGroupsToBuild);
 
 	/** Queries a primitive for its static lighting info, and adds it to the system. */
-	void AddPrimitiveStaticLightingInfo(FStaticLightingPrimitiveInfo& PrimitiveInfo, bool bBuildActorLighting);
+	void AddPrimitiveStaticLightingInfo(FStaticLightingPrimitiveInfo& PrimitiveInfo, bool bBuildActorLighting, bool bDeferMapping);
 	
 	/** Makes the lightmass processor structure for handling import and export */
 	bool CreateLightmassProcessor();

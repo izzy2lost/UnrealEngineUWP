@@ -522,6 +522,8 @@ struct FQuantizedLightmapData
 	{}
 
 	ENGINE_API bool HasNonZeroData() const;
+
+	ENGINE_API void Serialize(FArchive& Ar);
 };
 
 /**

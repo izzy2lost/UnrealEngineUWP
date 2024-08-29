@@ -49,6 +49,26 @@ FLandscapeStaticLightingGlobalVolumeMapping::FLandscapeStaticLightingGlobalVolum
 	FLandscapeStaticLightingTextureMapping(InComponent, InMesh, InLightMapWidth, InLightMapHeight, bPerformFullQualityRebuild)
 {}
 
+FLandscapeStaticLightingTextureMapping::FLandscapeStaticLightingTextureMapping(const FArchive& Ar)
+	: FStaticLightingTextureMapping(Ar), 
+	  LandscapeComponent(nullptr)
+{
+}
+
+void FLandscapeStaticLightingTextureMapping::Serialize(FArchive& Ar)
+{
+	FStaticLightingTextureMapping::Serialize(Ar);
+
+	FSoftObjectPath LandscapePath;
+	if (LandscapeComponent)
+	{
+		LandscapePath = FSoftObjectPath(LandscapeComponent);
+	}
+	Ar << LandscapePath;
+	LandscapeComponent = Cast<ULandscapeComponent>(LandscapePath.ResolveObject());
+	
+}
+
 void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext)
 {
 	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
@@ -65,7 +85,7 @@ void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quant
 	// We always create a light map if the surface either has any non-zero lighting data, or if the surface has a shadow map.  The runtime
 	// shaders are always expecting a light map in the case of a shadow map, even if the lighting is entirely zero.  This is simply to reduce
 	// the number of shader permutations to support in the very unlikely case of a unshadowed surfaces that has lighting values of zero.
-	const bool bNeedsLightMap = bHasNonZeroData || ShadowMapData.Num() > 0 || Mesh->RelevantLights.Num() > 0 || (QuantizedData != NULL && QuantizedData->bHasSkyShadowing);
+	const bool bNeedsLightMap = bHasNonZeroData || ShadowMapData.Num() > 0 || Mesh->RelevantLightsGuid.Num() > 0 || (QuantizedData != NULL && QuantizedData->bHasSkyShadowing);
 	if (bNeedsLightMap)
 	{
 		// Create a light-map for the primitive.
@@ -109,17 +129,17 @@ void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quant
 	
 	// Build the list of statically irrelevant lights.
 	// TODO: This should be stored per LOD.
-	for (int32 LightIndex = 0; LightIndex < Mesh->RelevantLights.Num(); LightIndex++)
+	for (int32 LightIndex = 0; LightIndex < Mesh->RelevantLightsGuid.Num(); LightIndex++)
 	{
-		const ULightComponent* Light = Mesh->RelevantLights[LightIndex];
+		FGuid LightGuid = Mesh->RelevantLightsGuid[LightIndex];
 
 		// Check if the light is stored in the light-map.
-		const bool bIsInLightMap = MeshBuildData.LightMap && MeshBuildData.LightMap->LightGuids.Contains(Light->LightGuid);
+		const bool bIsInLightMap = MeshBuildData.LightMap && MeshBuildData.LightMap->LightGuids.Contains(LightGuid);
 
 		// Add the light to the statically irrelevant light list if it is in the potentially relevant light list, but didn't contribute to the light-map.
 		if(!bIsInLightMap)
 		{
-			MeshBuildData.IrrelevantLights.AddUnique(Light->LightGuid);
+			MeshBuildData.IrrelevantLights.AddUnique(LightGuid);
 		}
 	}
 }
@@ -153,7 +173,8 @@ FLandscapeStaticLightingMesh::FLandscapeStaticLightingMesh(ULandscapeComponent* 
 		InRelevantLights,
 		InComponent,
 		InComponent->Bounds.GetBox(),
-		InComponent->GetLightingGuid()
+		InComponent->GetLightingGuid(),
+		InComponent->MapBuildDataId
 	)
 	, LandscapeComponent(InComponent)
 	, LightMapRatio(InLightMapRatio)

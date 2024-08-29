@@ -21,6 +21,8 @@ public:
 	,	bOnlyBuildSelectedLevels(false)
 	,	bOnlyBuildVisibility(false)
 	,	bShowLightingBuildInfo(false)
+	,	bVolumetricLightmapFinalizerPass(false)
+	,	bApplyDeferedActorMappingPass(false)
 	,	QualityLevel(Quality_Preview)
 	,	NumUnusedLocalCores(1)
 	{}
@@ -44,6 +46,10 @@ public:
 	bool					bOnlyBuildVisibility;
 	/** Whether to display the lighting build info following a build.				*/
 	bool					bShowLightingBuildInfo;
+	/** Indicates to is the volumetric lightmaps finalizing pass (for WP maps)    	*/
+	bool					bVolumetricLightmapFinalizerPass;
+	/** Indicates to is the lightmaps finalizing pass (for WP maps)    	*/
+	bool					bApplyDeferedActorMappingPass;
 	/** The quality level to use for the lighting build. (0-3)						*/
 	ELightingBuildQuality	QualityLevel;
 	/** The quality level to use for half-resolution lightmaps (not exposed)		*/
@@ -51,6 +57,15 @@ public:
 	/** The number of cores to leave 'unused'										*/
 	int32						NumUnusedLocalCores;
 	/** The set of levels selected in the Level Browser.							*/
-	TArray<ULevel*>			SelectedLevels;
+	TArray<ULevel*>			SelectedLevels;	
+	/** The directory that'll be used to store the deferred mappings				*/
+	FString					MappingsDirectory;
+	
+	/** The custom filter to invoke to know if we should build lighting for an Actor
+	* 
+	*  void ShouldBuildLigthing(const AActor*, bool& bBuildLightingForActor, bool& bIncludeActorInLightingScene, bool& bDeferActorMapping)
+	* 
+	*/	
+	TFunction<void(const AActor*, bool&, bool&, bool& )>	ShouldBuildLighting;
 };
 

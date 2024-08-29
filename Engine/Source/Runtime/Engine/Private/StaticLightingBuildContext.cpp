@@ -10,6 +10,7 @@
 #include "WorldPartition/WorldPartition.h"
 #include "PrecomputedVolumetricLightmap.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
+#include "WorldPartition/StaticLightingData/StaticLightingDescriptors.h"
 
 #if WITH_EDITOR
 
@@ -43,10 +44,12 @@ FStaticLightingBuildContext::FStaticLightingBuildContext(UWorld* InWorld, ULevel
 	{
 		VolumetricLightMapGridDesc = new FVolumetricLightMapGridDesc;
 		VolumetricLightMapGridDesc->Initialize(InWorld, InWorld->GetWorldPartition()->GetRuntimeWorldBounds());
+		Descriptors = FStaticLightingDescriptors::Get();
 	}	
 	else
 	{
 		VolumetricLightMapGridDesc = nullptr;
+		Descriptors = nullptr;
 	}
 }
 
@@ -59,6 +62,7 @@ FStaticLightingBuildContext::FStaticLightingBuildContext(FStaticLightingBuildCon
 	ImportanceBounds = InFrom.ImportanceBounds;
 	LocalToGlobalIndirectionOffset = InFrom.LocalToGlobalIndirectionOffset;
 	VolumetricLightMapGridDesc = InFrom.VolumetricLightMapGridDesc;
+	Descriptors = InFrom.Descriptors;
 
 	InFrom.VolumetricLightMapGridDesc = nullptr;
 }
@@ -144,15 +148,6 @@ ULevel* FStaticLightingBuildContext::GetLightingStorageLevel(ULevel* Level) cons
 	{
 		return Level;
 	}
-}
-
-UMapBuildDataRegistry* FStaticLightingBuildContext::GetRegistryForActor(AActor* Actor) const
-{	
-	check(Actor);
-
-	ULevel* Level = Actor->GetLevel();
-
-	return GetLightingStorageLevel(Level)->MapBuildData;	
 }
 
 FGuid FStaticLightingBuildContext::GetPersistentLevelGuid() const
@@ -270,11 +265,20 @@ FGuid FStaticLightingBuildContext::GetLevelBuildDataID(const FGuid& LevelGuid) c
 UMapBuildDataRegistry* FStaticLightingBuildContext::GetOrCreateRegistryForActor(AActor* Actor) const
 {
 	check(Actor);
+	UMapBuildDataRegistry* Registry = nullptr;
 
-	// For Actors in LevelInstances we need to defer storage to the level that owns the LevelInstance
-	ULevel* Level = ULevelInstanceSubsystem::GetOwningLevel(Actor->GetLevel(), true);
+	if (Descriptors)
+	{
+		Registry = Descriptors->GetOrCreateRegistryForActor(Actor);
+	}
 
-	UMapBuildDataRegistry* Registry = GetLightingStorageLevel(Level)->GetOrCreateMapBuildData();
+	if (!Registry)
+	{
+		// For Actors in LevelInstances we need to defer storage to the level that owns the LevelInstance
+		ULevel* Level = ULevelInstanceSubsystem::GetOwningLevel(Actor->GetLevel(), true);
+
+		Registry = GetLightingStorageLevel(Level)->GetOrCreateMapBuildData();
+	}
 	
 	UE_LOG_MAPBUILDDATA(Log, TEXT("Creating/Returning Registry %s for Actor %s, %s"), *Registry->GetFullName(), *Actor->GetActorNameOrLabel(), *Actor->GetFullName());
 

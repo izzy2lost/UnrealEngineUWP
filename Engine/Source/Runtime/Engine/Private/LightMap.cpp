@@ -28,6 +28,8 @@
 #include "ProfilingDebugging/LoadTimeTracker.h"
 #include "TextureResource.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "StaticMeshLight.h"
+#include "Engine/InstancedStaticMesh.h"
 
 #define VISUALIZE_PACKING 0
 
@@ -221,7 +223,8 @@ FStaticLightingMesh::FStaticLightingMesh(
 	const TArray<ULightComponent*>& InRelevantLights,
 	const UPrimitiveComponent* const InComponent,
 	const FBox& InBoundingBox,
-	const FGuid& InGuid
+	const FGuid& InGuid,
+	const FGuid& InComponentGuid
 	):
 	NumTriangles(InNumTriangles),
 	NumShadingTriangles(InNumShadingTriangles),
@@ -232,13 +235,40 @@ FStaticLightingMesh::FStaticLightingMesh(
 	bTwoSidedMaterial(bInTwoSidedMaterial),
 	RelevantLights(InRelevantLights),
 	Component(InComponent),
+	ComponentGuid(InComponentGuid),
 	BoundingBox(InBoundingBox),
 	Guid(FGuid::NewGuid()),
 	SourceMeshGuid(InGuid),
 	HLODTreeIndex(0),
 	HLODChildStartIndex(0),
 	HLODChildEndIndex(0)
-{}
+{
+	for (const ULightComponent* LightComponent : InRelevantLights)
+	{
+		RelevantLightsGuid.Add(LightComponent->LightGuid);
+	}
+}
+
+FStaticLightingMesh::FStaticLightingMesh() : 
+	NumTriangles(0),
+	NumShadingTriangles(0),
+	NumVertices(0),
+	NumShadingVertices(0),
+	TextureCoordinateIndex(0),
+	bCastShadow(0),
+	bTwoSidedMaterial(0),	
+	Component(0)
+{		
+}
+
+void FStaticLightingMesh::Serialize(FArchive& Ar)
+{
+	Ar << BoundingBox;
+	Ar << Guid;
+	Ar << ComponentGuid;
+	Ar << RelevantLightsGuid;
+	Ar << SourceMeshGuid;	
+}
 
 FStaticLightingTextureMapping::FStaticLightingTextureMapping(FStaticLightingMesh* InMesh,UObject* InOwner,int32 InSizeX,int32 InSizeY,int32 InLightmapTextureCoordinateIndex,bool bInBilinearFilter):
 	FStaticLightingMapping(InMesh,InOwner),
@@ -253,6 +283,50 @@ FStaticLightingGlobalVolumeMapping::FStaticLightingGlobalVolumeMapping(FStaticLi
 {}
 
 #if WITH_EDITOR
+void FStaticLightingMapping::Serialize(FArchive& Ar)
+{	
+	bool bIsInstancedMesh = Ar.IsLoading() ? false : Mesh->IsInstancedMesh();
+	Ar << bIsInstancedMesh;
+
+	/** The mesh associated with the mapping. */
+	if (Ar.IsLoading())
+	{
+		if (bIsInstancedMesh)
+		{
+			Mesh = new FStaticLightingMesh_InstancedStaticMesh();
+		}
+		else
+		{
+			Mesh = new FStaticMeshStaticLightingMesh();
+		}		
+	}
+				
+	Mesh->Serialize(Ar);
+
+	/** The object which owns the mapping. */
+	FSoftObjectPath OwnerPath;
+	if (Owner)
+	{
+		OwnerPath = FSoftObjectPath(Owner);
+	}
+	Ar << OwnerPath;
+	Owner = OwnerPath.ResolveObject();
+
+	/** true if the mapping should be processed by Lightmass. */
+	bool bLocalProcessMapping = bProcessMapping;
+	Ar << bLocalProcessMapping;
+	bProcessMapping = bLocalProcessMapping;
+}
+
+void FStaticLightingTextureMapping::Serialize(FArchive& Ar)
+{
+	FStaticLightingMapping::Serialize(Ar);
+
+	Ar << SizeX;
+	Ar << SizeY;
+	Ar << LightmapTextureCoordinateIndex;
+	Ar << bBilinearFilter;
+}
 
 /**
  * An allocation of a region of light-map texture to a specific light-map.
@@ -2612,7 +2686,7 @@ int32 FLightMap2D::EncodeShadowTexture(const FStaticLightingBuildContext* Lighti
 			for (const auto& ShadowMapPair : Allocation.ShadowMapData)
 			{
 				ULightComponent* CurrentLight = ShadowMapPair.Key;
-				const FLightComponentMapBuildData* LightBuildData = LightingContext->GetRegistryForActor(CurrentLight->GetOwner())->GetLightBuildData(CurrentLight->LightGuid);
+				const FLightComponentMapBuildData* LightBuildData = LightingContext->GetOrCreateRegistryForActor(CurrentLight->GetOwner())->GetLightBuildData(CurrentLight->LightGuid);
 
 				// Should have been setup by ReassignStationaryLightChannels
 				check(LightBuildData);
@@ -3305,6 +3379,25 @@ FArchive& operator<<(FArchive& Ar, FLightMap*& R)
 	}
 
 	return Ar;
+}
+
+FArchive& operator<<(FArchive& Ar, FLightMapCoefficients& Coefs) 
+{ 
+	Ar.Serialize(&Coefs, sizeof(FLightMapCoefficients)); 
+	return Ar;
+}
+
+void FQuantizedLightmapData::Serialize(FArchive& Ar)
+{
+	Ar << SizeX;
+	Ar << SizeY;
+	Ar << Data;
+
+	Ar.Serialize(Scale, sizeof(Scale));
+	Ar.Serialize(Add, sizeof(Add));
+	Ar << LightGuids;
+	
+	Ar << bHasSkyShadowing;
 }
 
 bool FQuantizedLightmapData::HasNonZeroData() const

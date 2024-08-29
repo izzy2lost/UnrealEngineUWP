@@ -822,9 +822,9 @@ void UStaticMeshComponent::OnRegister()
 	}
 #endif //WITH_EDITORONLY_DATA
 
-	Super::OnRegister();
-
 	UpdateMapBuildDataId();
+
+	Super::OnRegister();
 
 	// World transform might have changes causing negative determinant which changes the culling mode
 	PrecachePSOs();

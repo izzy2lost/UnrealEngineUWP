@@ -34,7 +34,11 @@ public:
 	* @param Exporter - export interface to process static lighting data
 	*/
 	UNREALED_API virtual void ExportMapping(FLightmassExporter* Exporter);
+	LANDSCAPE_API virtual void Serialize(FArchive& Ar);
+
 #endif	//WITH_EDITOR
+
+	LANDSCAPE_API FLandscapeStaticLightingTextureMapping(const FArchive& Ar);
 
 	virtual FString GetDescription() const
 	{
@@ -43,7 +47,7 @@ public:
 private:
 
 	/** The primitive this mapping represents. */
-	ULandscapeComponent* const LandscapeComponent;
+	ULandscapeComponent* LandscapeComponent;
 };
 
 class FLandscapeStaticLightingGlobalVolumeMapping  : public FLandscapeStaticLightingTextureMapping 
@@ -92,6 +96,8 @@ public:
 	virtual void GetTriangle(int32 TriangleIndex,FStaticLightingVertex& OutV0,FStaticLightingVertex& OutV1,FStaticLightingVertex& OutV2) const;
 	virtual void GetTriangleIndices(int32 TriangleIndex,int32& OutI0,int32& OutI1,int32& OutI2) const;
 	virtual FLightRayIntersection IntersectLightRay(const FVector& Start,const FVector& End,bool bFindNearestIntersection) const;
+
+	virtual bool IsInstancedMesh() const override { return false; }
 
 #if WITH_EDITOR
 	/** 

@@ -589,6 +589,10 @@ public:
 		// override the local to world to combine the per instance transform with the component's standard transform
 		SetLocalToWorld(InPrimitive->PerInstanceSMData[InstanceIndex].Transform * InPrimitive->GetComponentTransform().ToMatrixWithScale());
 	}
+
+	FStaticLightingMesh_InstancedStaticMesh() { }
+
+	virtual bool IsInstancedMesh() const override { return true; }
 };
 
 /*-----------------------------------------------------------------------------
@@ -608,6 +612,16 @@ public:
 		, ShadowMapData()
 		, bComplete(false)
 	{
+	}
+
+	FStaticLightingTextureMapping_InstancedStaticMesh (const FArchive& Ar)	
+		: FStaticMeshStaticLightingTextureMapping(Ar)
+		, InstanceIndex(-1)
+		, QuantizedData(nullptr)
+		, ShadowMapData()
+		, bComplete(false)
+	{
+		
 	}
 
 	// FStaticLightingTextureMapping interface
@@ -643,11 +657,13 @@ public:
 		return FString(TEXT("InstancedSMLightingMapping"));
 	}
 
+	ENGINE_API virtual void Serialize(FArchive& Ar) override;
+
 private:
 	friend class UInstancedStaticMeshComponent;
 
 	/** The instance of the primitive this mapping represents. */
-	const int32 InstanceIndex;
+	int32 InstanceIndex;
 
 	// Light/shadow map data stored until all instances for this component are processed
 	// so we can apply them all into one light/shadowmap

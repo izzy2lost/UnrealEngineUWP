@@ -2752,6 +2752,10 @@ void UInstancedStaticMeshComponent::GetStaticLightingInfo(FStaticLightingPrimiti
 {
 	if (HasValidSettingsForStaticLighting(false))
 	{
+		// We need to make sure this data is created before trying to create the FStaticMeshStaticLightingMesh
+		UpdateStaticLightingData();
+		UpdateMapBuildDataId();
+
 		// create static lighting for LOD 0
 		int32 LightMapWidth = 0;
 		int32 LightMapHeight = 0;
@@ -2845,11 +2849,34 @@ void UInstancedStaticMeshComponent::GetStaticLightingInfo(FStaticLightingPrimiti
 	}
 }
 
+void FStaticLightingTextureMapping_InstancedStaticMesh::Serialize(FArchive& Ar)
+{
+	FStaticMeshStaticLightingTextureMapping::Serialize(Ar);
+
+	Ar << InstanceIndex;
+	bool bHasQuantizedData = QuantizedData != nullptr;
+	Ar << bHasQuantizedData;
+	if (bHasQuantizedData)
+	{
+		if (Ar.IsLoading())
+		{
+			QuantizedData = TUniquePtr<FQuantizedLightmapData>(new FQuantizedLightmapData);
+		}
+
+		QuantizedData->Serialize(Ar);
+	}
+}
+
+
 void UInstancedStaticMeshComponent::ApplyLightMapping(FStaticLightingTextureMapping_InstancedStaticMesh* InMapping, const FStaticLightingBuildContext* LightingContext)
 {
 	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
 	const bool bUseVirtualTextures = (CVar->GetValueOnAnyThread() != 0) && UseVirtualTexturing(GMaxRHIShaderPlatform);
 
+	// restore the CachedMappings ptr (in case we're using DeferredMappings)
+	uint32 Index = (InMapping->GetLODIndex() * PerInstanceSMData.Num()) + InMapping->InstanceIndex;
+	CachedMappings[Index].Mapping = InMapping;
+	
 	NumPendingLightmaps--;
 
 	if (NumPendingLightmaps == 0)
@@ -2919,25 +2946,25 @@ void UInstancedStaticMeshComponent::ApplyLightMapping(FStaticLightingTextureMapp
 		TSet<FGuid> PossiblyIrrelevantLights;
 		for (auto& MappingInfo : CachedMappings)
 		{
-			for (const ULightComponent* Light : MappingInfo.Mapping->Mesh->RelevantLights)
+			for (FGuid LightGuid : MappingInfo.Mapping->Mesh->RelevantLightsGuid)
 			{
 				// Check if the light is stored in the light-map.
-				const bool bIsInLightMap = MeshBuildData.LightMap && MeshBuildData.LightMap->LightGuids.Contains(Light->LightGuid);
+				const bool bIsInLightMap = MeshBuildData.LightMap && MeshBuildData.LightMap->LightGuids.Contains(LightGuid);
 
 				// Check if the light is stored in the shadow-map.
-				const bool bIsInShadowMap = MeshBuildData.ShadowMap && MeshBuildData.ShadowMap->LightGuids.Contains(Light->LightGuid);
+				const bool bIsInShadowMap = MeshBuildData.ShadowMap && MeshBuildData.ShadowMap->LightGuids.Contains(LightGuid);
 
 				// If the light isn't already relevant to another mapping, add it to the potentially irrelevant list
-				if (!bIsInLightMap && !bIsInShadowMap && !RelevantLights.Contains(Light->LightGuid))
+				if (!bIsInLightMap && !bIsInShadowMap && !RelevantLights.Contains(LightGuid))
 				{
-					PossiblyIrrelevantLights.Add(Light->LightGuid);
+					PossiblyIrrelevantLights.Add(LightGuid);
 				}
 
 				// Light is relevant
 				if (bIsInLightMap || bIsInShadowMap)
 				{
-					RelevantLights.Add(Light->LightGuid);
-					PossiblyIrrelevantLights.Remove(Light->LightGuid);
+					RelevantLights.Add(LightGuid);
+					PossiblyIrrelevantLights.Remove(LightGuid);
 				}
 			}
 		}

@@ -55,10 +55,82 @@
 #include "ImageCoreUtils.h"
 #include "Misc/FileHelper.h"
 #include "StaticLightingBuildContext.h"
+#include "Engine/InstancedStaticMesh.h"
 
 extern FSwarmDebugOptions GSwarmDebugOptions;
 
 bool Lightmass_IsSubstrateEnabled();
+
+//@todo_ow: Potentially move to core for sharing ?
+class FObjectMemoryWriter : public  FMemoryWriter 
+{
+public:
+	FObjectMemoryWriter(TArray<uint8>& Payload) : 
+		FMemoryWriter(Payload)
+	{
+	}
+
+	virtual FArchive& operator<<(struct FSoftObjectPath& Value)
+	{
+		FString FullPath = Value.ToString();
+		*this << FullPath;
+
+		return *this;
+	}
+};
+
+class FObjectMemoryReader : public  FMemoryReader
+{
+public:
+	FObjectMemoryReader(TArray<uint8>& Payload) :
+		FMemoryReader(Payload)
+	{
+	}
+
+	virtual FArchive& operator<<(struct FSoftObjectPath& Value)
+	{
+		FString FullPath;
+		*this << FullPath;
+		Value = FSoftObjectPath(FullPath);
+
+		return *this;
+	}
+};
+
+struct FDeferredMappingsBundle
+{
+	// Map of all external GUIDs to internal mapping GUID in this bundle 
+	// This is used to map the owners actors to the mappings
+	TMap<FGuid, FGuid> OwnerToMapping;
+	TMap<FGuid, const FLightmassProcessor::FTextureMappingImportHelper*> MappingGuidToHelper;
+	TArray<FLightmassProcessor::FTextureMappingImportHelper> Mappings;
+	
+	void Serialize(FArchive& Ar, bool bManifestOnly)
+	{
+		Ar << OwnerToMapping;
+		
+		if (!bManifestOnly)
+		{
+			Ar << Mappings;
+		}
+
+	}
+
+	void MapHelpers()
+	{
+		MappingGuidToHelper.Reset();
+		OwnerToMapping.Reset();
+
+		for (const FLightmassProcessor::FTextureMappingImportHelper& Helper : Mappings)
+		{
+			MappingGuidToHelper.Add(Helper.MappingGuid, &Helper);
+			OwnerToMapping.Add(Helper.OwnerGuid, Helper.MappingGuid);
+		}
+	}
+};
+
+
+
 
 DEFINE_LOG_CATEGORY_STATIC(LogLightmassSolver, Warning, All);
 /**
@@ -1563,17 +1635,16 @@ void FLightmassExporter::WriteBaseMeshInstanceData( int32 Channel, int32 MeshInd
 	MeshInstanceData.LightingFlags |= Mesh->bTwoSidedMaterial ? Lightmass::GI_INSTANCE_TWOSIDED : 0;
 	MeshInstanceData.bCastShadowAsTwoSided = Mesh->Component->bCastShadowAsTwoSided;
 	MeshInstanceData.bMovable = (Mesh->Component->Mobility != EComponentMobility::Static);
-	MeshInstanceData.NumRelevantLights = Mesh->RelevantLights.Num();
+	MeshInstanceData.NumRelevantLights = Mesh->RelevantLightsGuid.Num();
 	MeshInstanceData.BoundingBox = FBox3f(Mesh->BoundingBox);
 	Swarm.WriteChannel( Channel, &MeshInstanceData, sizeof(MeshInstanceData) );
-	const uint32 LightGuidsSize = Mesh->RelevantLights.Num() * sizeof(FGuid);
+	const uint32 LightGuidsSize = Mesh->RelevantLightsGuid.Num() * sizeof(FGuid);
 	if( LightGuidsSize > 0 )
 	{
 		FGuid* LightGuids = (FGuid*)FMemory::Malloc(LightGuidsSize);
-		for( int32 LightIdx=0; LightIdx < Mesh->RelevantLights.Num(); LightIdx++ )
+		for( int32 LightIdx=0; LightIdx < Mesh->RelevantLightsGuid.Num(); LightIdx++ )
 		{
-			const ULightComponent* Light = Mesh->RelevantLights[LightIdx];
-			LightGuids[LightIdx] = Light->LightGuid;
+			LightGuids[LightIdx] = Mesh->RelevantLightsGuid[LightIdx];
 		}
 		Swarm.WriteChannel( Channel, LightGuids, LightGuidsSize );
 		FMemory::Free( LightGuids );
@@ -2682,6 +2753,8 @@ FLightmassProcessor::FLightmassProcessor(const FStaticLightingSystem& InSystem, 
 	check(Exporter);
 	Exporter->bSwarmConnectionIsValid = bSwarmConnectionIsValid;
 
+	DeferredMappingsDirectory = InSystem.Options.MappingsDirectory;
+
 	Messages.Add( TEXT("UseErrorColoringButton_Tooltip"), LOCTEXT("UseErrorColoringButton_Tooltip", "Display objects with lighting errors in identifying colors rather than black (Lightmass only).") );
 	Messages.Add( TEXT("LightmassError_SupportFP"), LOCTEXT("LightmassError_SupportFP", "Lightmass requires a graphics card with support for floating point rendertargets. Aborting!") );
 	Messages.Add( TEXT("LightmassError_MissingImportanceVolume"), LOCTEXT("LightmassError_MissingImportanceVolume", "No importance volume found - lighting build will take a long time and have poor quality.") );
@@ -2711,6 +2784,8 @@ FLightmassProcessor::~FLightmassProcessor()
 		delete ImportData;
 	}
 	ImportedMappings.Empty();
+
+	delete DeferredMappings;
 
 	FLandscapeStaticLightingMesh::LandscapeUpscaleHeightDataCache.Empty();
 	FLandscapeStaticLightingMesh::LandscapeUpscaleXYOffsetDataCache.Empty();
@@ -2795,7 +2870,8 @@ void FLightmassProcessor::InitiateExport()
 	}
 
 	if (System.GetWorld()->GetWorldSettings()->LightmassSettings.VolumeLightingMethod == VLM_VolumetricLightmap
-		&& !bOnlyBuildVisibility)
+		&& !bOnlyBuildVisibility 
+		&& !System.Options.bApplyDeferedActorMappingPass )
 	{
 		Lightmass::FVolumetricLightmapSettings VolumetricLightmapSettings;
 		GetLightmassExporter()->SetVolumetricLightmapSettings(VolumetricLightmapSettings);
@@ -3156,6 +3232,9 @@ bool FLightmassProcessor::BeginRun()
 				//@todo - accurately estimate cost
 				NewTaskSpecification.Cost = 10000;
 				ErrorCode = Swarm.AddTask( NewTaskSpecification );
+
+				UE_LOG(LogLightmassSolver, Verbose, TEXT("AddTask VLM %s"), *It.Key().ToString() );
+
 				if( ErrorCode >= 0 )
 				{
 					NumTotalSwarmTasks++;
@@ -3190,6 +3269,8 @@ bool FLightmassProcessor::BeginRun()
 			NSwarm::FTaskSpecification NewTaskSpecification( Lightmass::MeshAreaLightDataGuid, TEXT("MeshAreaLightData"), NSwarm::JOB_TASK_FLAG_USE_DEFAULTS );
 			NewTaskSpecification.Cost = 1000;
 			ErrorCode = Swarm.AddTask( NewTaskSpecification );
+			UE_LOG(LogLightmassSolver, Verbose, TEXT("AddTask MeshAreasLights %s"), *Lightmass::MeshAreaLightDataGuid.ToString());
+
 			if( ErrorCode >= 0 )
 			{
 				NumTotalSwarmTasks++;
@@ -3260,6 +3341,9 @@ bool FLightmassProcessor::BeginRun()
 				NSwarm::FTaskSpecification NewTaskSpecification( SMTextureMapping->GetLightingGuid(), TEXT("SMTextureMapping"), NSwarm::JOB_TASK_FLAG_USE_DEFAULTS );
 				NewTaskSpecification.Cost = SMTextureMapping->GetTexelCount();
 				ErrorCode = Swarm.AddTask( NewTaskSpecification );
+
+				UE_LOG(LogLightmassSolver, Verbose, TEXT("AddTask Mapping %s"), *SMTextureMapping->GetLightingGuid().ToString());
+
 				if( ErrorCode >= 0 )
 				{
 					NumTotalSwarmTasks++;
@@ -3282,6 +3366,9 @@ bool FLightmassProcessor::BeginRun()
 				NSwarm::FTaskSpecification NewTaskSpecification( LandscapeMapping->GetLightingGuid(), TEXT("LandscapeMapping"), NSwarm::JOB_TASK_FLAG_USE_DEFAULTS );
 				NewTaskSpecification.Cost = LandscapeMapping->GetTexelCount();
 				ErrorCode = Swarm.AddTask( NewTaskSpecification );
+
+				UE_LOG(LogLightmassSolver, Verbose, TEXT("AddTask Landscape Mapping %s"), *LandscapeMapping->GetLightingGuid().ToString());
+
 				if( ErrorCode >= 0 )
 				{
 					NumTotalSwarmTasks++;
@@ -3378,6 +3465,106 @@ bool FLightmassProcessor::Update()
 	return bIsFinished;
 }
 
+void FLightmassProcessor::ImportDeferredMappings()
+{
+	TArray<FString> Files;
+	IFileManager::Get().FindFiles(Files, *DeferredMappingsDirectory, TEXT(".lm"));
+
+	DeferredMappings = new FDeferredMappingsBundle;
+	
+	// load the mappings
+	for(const FString& FileName : Files)
+	{
+		TArray<uint8> FileData;
+		int32 BaseMappingIndex  = DeferredMappings->Mappings.Num();
+		FString FullFileName = FString::Printf(TEXT("%s\\%s"), *DeferredMappingsDirectory, *FileName);
+
+		if (FFileHelper::LoadFileToArray(FileData, *FullFileName))
+		{
+			FObjectMemoryReader Reader(FileData);
+		
+			FDeferredMappingsBundle Bundle;
+			Bundle.Serialize(Reader, false);
+
+			for (FLightmassProcessor::FTextureMappingImportHelper& Mapping : Bundle.Mappings)
+			{
+				// Those mapping guid are just numbered 0 to n, so we rebase them to be unique in the combined mappings
+				Mapping.MappingGuid.D += BaseMappingIndex;
+			}
+
+			// transfer all bundle mappings
+			DeferredMappings->Mappings.Append(Bundle.Mappings);
+		}
+		else
+		{
+			UE_LOG(LogLightmassSolver, Warning, TEXT("Error, couldn't import deferred mapping %s"), *FullFileName);
+			bProcessingFailed = true;
+		}
+	}
+
+	DeferredMappings->MapHelpers();
+
+	for (FLightmassProcessor::FTextureMappingImportHelper& Mapping : DeferredMappings->Mappings)
+	{
+		ImportedMappings.Add(Mapping.MappingGuid, &Mapping);
+	}	
+}
+
+void FLightmassProcessor::ClearImportedDeferredMappings()
+{
+	if (DeferredMappings)
+	{
+		for (FLightmassProcessor::FTextureMappingImportHelper& Mapping : DeferredMappings->Mappings)
+		{
+			ImportedMappings.Remove(Mapping.MappingGuid);
+		}
+	}
+}
+
+
+void FLightmassProcessor::ExportDeferredMappings()
+{
+	if (DeferredMappings && !System.Options.bApplyDeferedActorMappingPass)
+	{		
+		FGuid BundleGuid = FGuid::NewGuid();
+
+		FString FileName = FString::Printf(TEXT("Mappings_%s.lm"), *BundleGuid.ToString());
+
+		TArray<uint8> FileData;
+		FObjectMemoryWriter Writer(FileData);
+
+		DeferredMappings->Serialize(Writer, false);
+
+		FString FullFileName = FString::Printf(TEXT("%s\\%s"), *DeferredMappingsDirectory, *FileName);
+
+		if (!FFileHelper::SaveArrayToFile(FileData, *FullFileName))
+		{
+			UE_LOG(LogLightmassSolver, Warning, TEXT("Error, couldn't export deferred mapping %s"), *FullFileName);
+			bProcessingFailed = true;
+		}
+	}
+}
+
+bool FLightmassProcessor::IsDeferredMapping(const FGuid& Guid)
+{
+	if (const FStaticLightingMapping* Mapping = Exporter->FindMappingByGuid(Guid))
+	{
+		return Mapping->IsDeferred();
+	}
+	return false;
+}
+
+void FLightmassProcessor::DeferMapping(FTextureMappingImportHelper* ImportHelper)
+{
+	if (!DeferredMappings)
+	{
+		DeferredMappings = new FDeferredMappingsBundle();
+	}
+
+ 	DeferredMappings->Mappings.Add(*ImportHelper);
+	DeferredMappings->OwnerToMapping.Add(ImportHelper->OwnerGuid, ImportHelper->MappingGuid);
+}
+
 bool FLightmassProcessor::CompleteRun()
 {
 	bRunningLightmass = false;
@@ -3400,6 +3587,11 @@ bool FLightmassProcessor::CompleteRun()
 
 		if (bImportCompletedMappingsImmediately)
 		{
+			if (System.Options.bApplyDeferedActorMappingPass)
+			{
+				ImportDeferredMappings();
+			}
+
 			// Import any outstanding completed mappings.
 			ImportMappings(false);
 
@@ -3413,6 +3605,9 @@ bool FLightmassProcessor::CompleteRun()
 
 				ProcessAvailableMappings();
 			}
+
+			// Export mapping which we'll not process on this run (this will remove then from available mappings)
+			ExportDeferredMappings();
 		}
 
 		ApplyPrecomputedVisibility();
@@ -3421,6 +3616,8 @@ bool FLightmassProcessor::CompleteRun()
 	CompletedMappingTasks.Clear();
 	CompletedVisibilityTasks.Clear();
 	CompletedVolumetricLightmapTasks.Clear();
+
+	ClearImportedDeferredMappings();
 
 	double ApplyTimeDelta = Statistics.ApplyTimeInProcessing - OriginalApplyTime;
 	Statistics.ImportTimeInProcessing += FPlatformTime::Seconds() - ImportStartTime - ApplyTimeDelta;
@@ -4069,7 +4266,7 @@ void FLightmassProcessor::ImportStaticLightingTextureMapping( const FGuid& Mappi
 				FMappingImportHelper** pImportData = ImportedMappings.Find( NextMappingGuid );
 				check( pImportData && *pImportData && (*pImportData)->Type == SLT_Texture );
 				FTextureMappingImportHelper* pTextureImportData = (*pImportData)->GetTextureMappingHelper();
-				TextureMapping = pTextureImportData->TextureMapping;
+				TextureMapping = pTextureImportData->TextureMapping.GetReference();
 				bReimporting = true;
 				if ( GLightmassStatsMode )
 				{
@@ -4328,7 +4525,14 @@ void FLightmassProcessor::ProcessAvailableMappings()
 		{
 			if ( *pImportData && (*pImportData)->bProcessed == false )
 			{
-				ProcessMapping(NextGuid);
+				if (IsDeferredMapping(NextGuid))
+				{
+					DeferMapping((*pImportData)->GetTextureMappingHelper());
+				}
+				else
+				{
+					ProcessMapping(NextGuid);
+				}
 			}
 			ProcessedCount++;
 		}
@@ -4669,6 +4873,119 @@ bool FLightmassProcessor::ImportTextureMapping(int32 Channel, FTextureMappingImp
 	StatsViewerModule.GetPage(EStatsPage::LightingBuildInfo)->AddEntry( LightingBuildInfo );
 
 	return bResult;
+}
+
+void FLightmassProcessor::FMappingImportHelper::Serialize(FArchive& Ar)
+{
+	static_assert(sizeof(Type) == sizeof(int32));
+	Ar << (int32&)Type;
+	Ar << MappingGuid;
+	Ar << OwnerGuid;
+	Ar << ExecutionTime;
+	Ar << bProcessed;
+}
+
+void FLightmassProcessor::FTextureMappingImportHelper::Serialize(FArchive& Ar)
+{
+	FMappingImportHelper::Serialize(Ar);
+
+	if (Ar.IsLoading())
+	{
+		int32 MappingType;
+		Ar << MappingType;
+		
+		switch (MappingType)
+		{
+			case 0:
+				TextureMapping = new FStaticMeshStaticLightingTextureMapping(Ar);
+				break;
+			case 1:
+				TextureMapping = new FLandscapeStaticLightingTextureMapping(Ar);
+				break;			
+			case 2:
+				TextureMapping = new FStaticLightingTextureMapping_InstancedStaticMesh(Ar);
+		}
+		
+		// Ptr will be deleted during FStaticLightingTextureMapping::Apply
+		QuantizedData = new FQuantizedLightmapData;
+	}
+	else
+	{
+		static  TMap<FString, int32> DescToType = {{"SMTextureMapping", 0}, { "LandscapeMapping", 1 }, {"InstancedSMLightingMapping", 2}};
+		
+		int32  mappingType = DescToType.FindChecked(TextureMapping->GetDescription());
+		Ar << mappingType;
+	}
+
+	TextureMapping->Serialize(Ar);
+	QuantizedData->Serialize(Ar);
+	
+	Ar << UnmappedTexelsPercentage;
+	Ar << NumShadowMaps;
+	Ar << NumSignedDistanceFieldShadowMaps;
+
+	int32 NbShadowMapData = ShadowMapData.Num();
+	Ar << NbShadowMapData;
+
+	if (Ar.IsLoading())
+	{
+		for (int32 i = 0; i < NbShadowMapData; i++)
+		{
+			FSoftObjectPath	Path;
+			Ar << Path;
+
+			int32 ShadowMapType;
+			Ar << ShadowMapType;
+
+			int32 SizeX;
+			int32 SizeY;
+			Ar << SizeX;
+			Ar << SizeY;
+
+			// Ptr will be deleted during FStaticLightingTextureMapping::Apply
+			FShadowMapData2D* Data = nullptr;
+
+			switch ((FShadowMapData2D::ShadowMapDataType)ShadowMapType)
+			{
+				case FShadowMapData2D::SHADOW_SIGNED_DISTANCE_FIELD_DATA:
+					Data = new FShadowSignedDistanceFieldData2D(SizeX, SizeY);
+					break;
+				case FShadowMapData2D::SHADOW_SIGNED_DISTANCE_FIELD_DATA_QUANTIZED:
+					Data = new FQuantizedShadowSignedDistanceFieldData2D(SizeX, SizeY);
+					break;
+
+				default:
+				case FShadowMapData2D::SHADOW_FACTOR_DATA:
+				case FShadowMapData2D::SHADOW_FACTOR_DATA_QUANTIZED:
+					ensure(false);
+					return;
+					break;
+			}
+
+			Data->Serialize(&Ar);
+
+			ShadowMapData.Add(Cast<ULightComponent>(Path.ResolveObject()), Data);
+		}
+	}
+	else
+	{
+		for (auto& it : ShadowMapData)
+		{
+			FSoftObjectPath Path(it.Key);
+			Ar << Path;
+
+			int32 ShadowMapType = (int32)it.Value->GetType();
+			Ar << ShadowMapType;
+
+			int32 SizeX = it.Value->GetSizeX();
+			int32 SizeY = it.Value->GetSizeY();
+			Ar << SizeX;
+			Ar << SizeY;
+
+			it.Value->Serialize(&Ar);
+		}
+
+	}	
 }
 
 #undef LOCTEXT_NAMESPACE

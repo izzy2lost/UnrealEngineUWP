@@ -890,7 +890,7 @@ int32 FShadowMap2D::EncodeSingleTexture(const FStaticLightingBuildContext* Light
 			for (const auto& ShadowMapPair : Allocation.ShadowMapData)
 			{
 				ULightComponent* CurrentLight = ShadowMapPair.Key;
-				UMapBuildDataRegistry* Registry = LightingContext->GetRegistryForActor(CurrentLight->GetOwner());
+				UMapBuildDataRegistry* Registry = LightingContext->GetOrCreateRegistryForActor(CurrentLight->GetOwner());
 				const FLightComponentMapBuildData* LightBuildData = Registry->GetLightBuildData(CurrentLight->LightGuid);
 
 				// Should have been setup by ReassignStationaryLightChannels

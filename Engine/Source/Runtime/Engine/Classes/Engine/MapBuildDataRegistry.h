@@ -406,6 +406,14 @@ public:
 	FVolumetricLightMapGridDesc* GetVolumetricLightMapGridDesc() { return VolumetricLightMapGridDesc; } 
 	ENGINE_API void SetVolumetricLightMapGridDesc(FVolumetricLightMapGridDesc* GridDesc); 
 
+#if WITH_EDITOR
+	void RedirectToRegistry(TArray<FGuid>& ActorInstances, UMapBuildDataRegistry* Registry);
+	void RemoveRedirect(TArray<FGuid>& ActorInstances, UMapBuildDataRegistry* Registry);
+#else
+	void RemoveRegistry(UMapBuildDataRegistry* Registry);
+#endif
+
+
 private:
 #if WITH_EDITOR
 	void HandleAssetPostCompileEvent(const TArray<FAssetCompileData>& CompiledAssets);
@@ -428,6 +436,16 @@ private:
 	FRenderCommandFence DestroyFence;
 
 	FVolumetricLightMapGridDesc*	VolumetricLightMapGridDesc;
+
+	UMapBuildDataRegistry* FindRegistryWorldPartition(const AActor* Actor);
+
+#if WITH_EDITOR
+	TMap<FGuid, UMapBuildDataRegistry*> Redirects;
+	TMap<FName, int32> RedirectedRegistriesRefcount;
+#else
+	FCriticalSection PackagesToMapBuildDataLock;
+	TMap<UPackage*, UMapBuildDataRegistry*>	PackagesToMapBuildData;
+#endif
 };
 
 extern ENGINE_API FUObjectAnnotationSparse<FMeshMapBuildLegacyData, true> GComponentsWithLegacyLightmaps;

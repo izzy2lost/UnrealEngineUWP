@@ -36,6 +36,8 @@ MapBuildData.cpp
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "UnrealEngine.h"
 #include "WorldPartition/StaticLightingData/VolumetricLightmapGrid.h"
+#include "WorldPartition/ActorInstanceGuids.h"
+#include "LevelInstance/LevelInstanceSubsystem.h"
 
 DECLARE_MEMORY_STAT(TEXT("Stationary Light Static Shadowmap"),STAT_StationaryLightBuildData,STATGROUP_MapBuildData);
 DECLARE_MEMORY_STAT(TEXT("Reflection Captures"),STAT_ReflectionCaptureBuildData,STATGROUP_MapBuildData);
@@ -1208,9 +1210,13 @@ void UMapBuildDataRegistry::EmptyLevelData(const TSet<FGuid>* ResourcesToKeep)
 			LevelPrecomputedVolumetricLightmapBuildData.Add(It.Key(), It.Value());
 		}
 	}
-	
-	delete VolumetricLightMapGridDesc;
-	VolumetricLightMapGridDesc = nullptr;
+
+	// keep the VLM grid if we kept the VLM data
+	if (!LevelPrecomputedVolumetricLightmapBuildData.Num())
+	{	
+		delete VolumetricLightMapGridDesc;
+		VolumetricLightMapGridDesc = nullptr;
+	}
 
 	LightmapResourceClusters.Empty();
 }
@@ -1238,19 +1244,128 @@ UMapBuildDataRegistry* UMapBuildDataRegistry::Get(const UActorComponent* Compone
 	return nullptr;
 }
 
+#if WITH_EDITOR
+void UMapBuildDataRegistry::RedirectToRegistry(TArray<FGuid>& ActorInstances, UMapBuildDataRegistry* Registry)
+{	
+	// In PIE multiple worlds will reuse the same global UMapBuildDataRegistry so we make sure to refcount the add/remove of the redirects
+	int32& CurrentRefCount = RedirectedRegistriesRefcount.FindOrAdd(Registry->GetFName());
+	if (CurrentRefCount == 0)
+	{
+		for (const FGuid& ActorInstanceGuid : ActorInstances)
+		{
+			ensureMsgf(!Redirects.Find(ActorInstanceGuid), TEXT("Adding redundant mapping for ActorInstance %s, New registry: %s, Previous registry: %s"), *ActorInstanceGuid.ToString(), *Registry->GetName(), *Redirects.FindChecked(ActorInstanceGuid)->GetName());
+			Redirects.Add(ActorInstanceGuid, Registry);
+		}
+	}
+	
+	CurrentRefCount++;
+}
+
+void UMapBuildDataRegistry::RemoveRedirect(TArray<FGuid>& ActorInstances, UMapBuildDataRegistry* Registry)
+{
+	// In PIE multiple worlds will reuse the same global UMapBuildDataRegistry so we make sure to refcount the add/remove of the redirects
+	int32& CurrentRefCount = RedirectedRegistriesRefcount.FindChecked(Registry->GetFName());	
+	CurrentRefCount--;
+
+	check(CurrentRefCount >= 0);
+
+	if (CurrentRefCount == 0)
+	{
+		for (const FGuid& ActorInstanceGuid : ActorInstances)
+		{
+			Redirects.Remove(ActorInstanceGuid);
+		}
+
+		RedirectedRegistriesRefcount.Remove(Registry->GetFName());
+	}
+}
+#else
+void UMapBuildDataRegistry::RemoveRegistry(UMapBuildDataRegistry* Registry)
+{
+	FScopeLock AutoLock(&PackagesToMapBuildDataLock);
+	PackagesToMapBuildData.Remove(Registry->GetPackage());
+}
+#endif
+
+UMapBuildDataRegistry* UMapBuildDataRegistry::FindRegistryWorldPartition(const AActor* Actor)
+{	
+	UMapBuildDataRegistry* Registry = nullptr;
+
+	// Finding the correct registry
+	//  In editor & PIE : loaded registries will insert a redirect from the ActorInstanceGuids they provide data for so that we can find the proper registry
+	//  In runtime : registry will live inside the same package as the actor so we can find the correct registry through the actor package
+#if WITH_EDITOR
+	check(IsInGameThread());
+
+	if (!Registry)
+	{
+		FGuid ActorInstanceGuid = FActorInstanceGuid::GetActorInstanceGuid(*(const_cast<AActor*>(Actor)));
+		if (UMapBuildDataRegistry** FoundRegistry = Redirects.Find(ActorInstanceGuid))
+		{
+			Registry = *FoundRegistry;
+		}
+	}
+#else	
+	FScopeLock AutoLock(&PackagesToMapBuildDataLock);
+
+	UPackage* ObjectPackage = Actor->GetPackage();
+
+	auto GetRegistryFromPackage = [ObjectPackage](const UObject* Object) -> UMapBuildDataRegistry*
+	{
+		UMapBuildDataRegistry* Registry = nullptr;
+		ForEachObjectWithPackage(ObjectPackage, [&Registry](UObject* ObjInPackage) -> bool
+		{
+			Registry = Cast<UMapBuildDataRegistry>(ObjInPackage);
+			if (Registry)
+			{
+				// stop enumeration
+				return false;
+			}
+
+			return true;
+		});
+
+		return Registry;
+	};
+
+
+	if (UMapBuildDataRegistry** RegistryPtr = PackagesToMapBuildData.Find(ObjectPackage))
+	{
+		Registry = *RegistryPtr;
+	}
+	else
+	{
+		Registry = GetRegistryFromPackage(Actor);
+		
+		if (!Registry)
+		{
+			 Registry = GetRegistryFromPackage(ULevelInstanceSubsystem::GetOwningLevel(Actor->GetLevel(), false));
+		}
+
+		check(!PackagesToMapBuildData.Find(ObjectPackage));
+		PackagesToMapBuildData.Add(ObjectPackage, Registry);
+	}
+#endif
+
+	return Registry;
+}
+
 UMapBuildDataRegistry* UMapBuildDataRegistry::Get(const AActor* Actor)
 {
 	ULevel* OwnerLevel = Actor->GetLevel();
 	UWorld* World = OwnerLevel ? OwnerLevel->GetWorld() : nullptr;	
-	
-	if (World && World->IsPartitionedWorld())
+	UMapBuildDataRegistry* Registry = nullptr;
+
+	if (World && World->IsPartitionedWorld() && World->PersistentLevel->MapBuildData)
 	{
-		//@todo_ow: At current level of support there's no reason to return a ptr and force a look-up later on
-		//No lighting scenario support in WP maps
-		return World->PersistentLevel->MapBuildData;		
+		Registry = World->PersistentLevel->MapBuildData->FindRegistryWorldPartition(Actor);
 	}
 
-	UMapBuildDataRegistry* Registry = Get(OwnerLevel, World);
+	if (!Registry)
+	{
+		Registry = Get(OwnerLevel, World);
+	}
+
 	UE_LOG_MAPBUILDDATA(Log, TEXT("Returning Registry %s for Actor %s, %s"), *Registry->GetFullName(), *Actor->GetActorNameOrLabel(), *Actor->GetFullName());
 	return Registry;
 }

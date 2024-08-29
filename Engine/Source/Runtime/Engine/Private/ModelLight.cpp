@@ -106,7 +106,8 @@ FBSPSurfaceStaticLighting::FBSPSurfaceStaticLighting(
 		InNodeGroup->RelevantLights,
 		InComponent,
 		InNodeGroup->BoundingBox, 
-		InModel->LightingGuid
+		InModel->LightingGuid,
+		InComponent->GetElements()[InModel->Nodes[InNodeGroup->Nodes[0]].ComponentElementIndex].MapBuildDataId
 		),
 	NodeGroup(InNodeGroup),
 	bComplete(false),
@@ -1214,7 +1215,7 @@ void UModel::ApplyStaticLighting(const FStaticLightingBuildContext* LightingCont
 		// We always create a light map if the surface either has any non-zero lighting data, or if the surface has a shadow map.  The runtime
 		// shaders are always expecting a light map in the case of a shadow map, even if the lighting is entirely zero.  This is simply to reduce
 		// the number of shader permutations to support in the very unlikely case of a unshadowed surfaces that has lighting values of zero.
-		const bool bHasRelevantLights = SurfaceGroup.Surfaces.ContainsByPredicate([](const FSurfaceStaticLightingGroup::FSurfaceInfo& SurfaceInfo) { return SurfaceInfo.SurfaceStaticLighting->RelevantLights.Num() > 0; });
+		const bool bHasRelevantLights = SurfaceGroup.Surfaces.ContainsByPredicate([](const FSurfaceStaticLightingGroup::FSurfaceInfo& SurfaceInfo) { return SurfaceInfo.SurfaceStaticLighting->RelevantLightsGuid.Num() > 0; });
 		const bool bNeedsLightMap = bHasNonZeroData || SurfaceGroup.ShadowMappedLights.Num() > 0 || bHasRelevantLights || GroupQuantizedData->bHasSkyShadowing;
 
 		UMapBuildDataRegistry* Registry = LightingContext->GetOrCreateRegistryForLevel(LightingLevel);
