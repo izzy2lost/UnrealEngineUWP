@@ -876,6 +876,8 @@ namespace uba
 					if (insres.second)
 					{
 						localFile.casEntry.size = e.size;
+						localFile.casEntry.verified = true;
+						localFile.casEntry.exists = true;
 						localFile.fileName = fullPath.data;
 					}
 					return;
@@ -906,6 +908,8 @@ namespace uba
 						if (insres.second)
 						{
 							localFile.casEntry.size = s;
+							localFile.casEntry.verified = true;
+							localFile.casEntry.exists = true;
 							localFile.fileName = filePath;
 						}
 

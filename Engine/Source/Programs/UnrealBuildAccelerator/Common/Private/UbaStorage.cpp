@@ -2527,9 +2527,15 @@ namespace uba
 			bool firstTry = true;
 			while (true)
 			{
-				bool success = true;
-				if (CreateHardLinkW(destination, casFile.data) == 0)
+				bool success = false;
+
+				#if !PLATFORM_MAC // For some reason creating links on macos causes trouble when they are exec/dylibs and being executed.. sometimes it is like the link behaves like a symlink.. but not always
+				success = CreateHardLinkW(destination, casFile.data);
+				#endif
+
+				if (!success)
 					success = uba::CopyFileW(casFile.data, destination, true) != 0;
+
 				if (success)
 				{
 					#if !PLATFORM_WINDOWS
