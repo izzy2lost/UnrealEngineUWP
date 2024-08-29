@@ -153,7 +153,7 @@ void Main(
 
 	OutColor.rgb = ApplyColorDeficiency(OutColor.rgb);
 
-	// This is not compatible when alpha is preserved through post-processing with POST_PROCESS_ALPHA
+	// This is not compatible when alpha is preserved through post-processing
 	OutColor.w = UIColor.w;
 
 #if !SCRGB_ENCODING
@@ -207,7 +207,7 @@ void CompositeUICS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	float4 OutColor = 0;
 	OutColor.xyz = ComposeUIAndScene(SceneColor.xyz, UIColor, UILevel);
 	
-	// This is not compatible when alpha is preserved through post-processing with POST_PROCESS_ALPHA
+	// This is not compatible when alpha is preserved through post-processing
 	OutColor.w = UIColor.w;
 
 	OutColor.rgb = ApplyColorDeficiency(OutColor.rgb);

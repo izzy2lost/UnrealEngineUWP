@@ -1458,7 +1458,7 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 	// When rendering a real time reflection capture (sky envmap) whe use a different exposure
 	const float OutputPreExposure = (ResolvedView.RealTimeReflectionCapture ? ResolvedView.RealTimeReflectionCapturePreExposure : ResolvedView.PreExposure);
 
-#if POST_PROCESS_ALPHA
+#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
 	if (IsVolumetricCloudHoldout(View.EnvironmentComponentsFlags) && View.RenderingReflectionCaptureMask == 0.0f)
 	{
 		Luminance *= 0;
@@ -1515,7 +1515,7 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 		float CloudMeanCoverage = 1.0 - MeanTransmittance;
 		Luminance = AerialPerspective.rgb * CloudMeanCoverage + AerialPerspective.a * Luminance;
 
-#if POST_PROCESS_ALPHA
+#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
 		if(View.RenderingReflectionCaptureMask == 0.0f)
 		{
 			const float AerialPespectiveTransmittance = AerialPerspective.a;
@@ -1573,7 +1573,7 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 		float CloudMeanCoverage = 1.0 - MeanTransmittance;
 		Luminance = HeightFogInscatteringAndTransmittance.rgb * CloudMeanCoverage + HeightFogInscatteringAndTransmittance.a * Luminance;
 
-#if POST_PROCESS_ALPHA
+#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
 		if(View.RenderingReflectionCaptureMask == 0.0f)
 		{
 			const float ExponentialFogTransmittance = HeightFogInscatteringAndTransmittance.a;
@@ -1779,7 +1779,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 			if (bBlendCloudColor)
 			{
 				float4 CurColor0 = OutCloudColor0[DispatchThreadId];
-			#if POST_PROCESS_ALPHA
+			#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
 				if (View.RenderingReflectionCaptureMask == 0.0f)
 				{
 					if(IsVolumetricCloudHoldout(View.EnvironmentComponentsFlags) && bAccumulateAlphaHoldOut > 0)

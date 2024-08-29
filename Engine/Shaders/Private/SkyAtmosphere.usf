@@ -124,6 +124,8 @@ Texture2DMS<float, MSAA_SAMPLE_COUNT> MSAADepthTexture;
 // Only available for shaders ran per view, so this constant should not be accessed in common code such as IntegrateSingleScatteredLuminance for instance.
 float AerialPerspectiveStartDepthKm;
 
+// Propagate alpha with (View.RenderingReflectionCaptureMask == 0.0f) guarantee
+uint bPropagateAlphaNonReflection;
 
 // - RayOrigin: ray origin
 // - RayDir: normalized ray direction
@@ -829,13 +831,14 @@ float4 PrepareOutput(float3 PreExposedLuminance, float3 Transmittance = float3(1
 	const float GreyScaleTransmittance = dot(Transmittance, float3(1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f));
 	float4 LuminanceAlpha = float4(SafePreExposedLuminance, GreyScaleTransmittance);
 	
-#if POST_PROCESS_ALPHA
-	if (View.RenderingReflectionCaptureMask == 0.0f)
+	FLATTEN
+	if(bPropagateAlphaNonReflection > 0)
 	{
+#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
 		LuminanceAlpha.rgb	= IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags) ? 0.0f : LuminanceAlpha.rgb;
+#endif
 		LuminanceAlpha.a	= 1 - GreyScaleTransmittance;
 	}
-#endif
 	
 	return LuminanceAlpha;
 
@@ -845,17 +848,18 @@ uint DepthReadDisabled;
 
 void UpdateVisibleSkyAlpha(in float DeviceZ, inout float4 OutLuminance)
 {
-#if POST_PROCESS_ALPHA
-	if (View.RenderingReflectionCaptureMask == 0.0f)
-	{
-		// This is for parity with the sky dome mesh behavior.
-		// Output fully opaque alpha if looking through outer space, if atmosphere is not in holdout.
-		if (DeviceZ == FarDepthValue && !IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags))
-		{
-			OutLuminance.a = 1.0;
-		}
-	}
+	// This is for parity with the sky dome mesh behavior.
+	// Output fully opaque alpha if looking through outer space, if atmosphere is not in holdout.
+	bool bOutputFullyOpaque = (bPropagateAlphaNonReflection > 0) && (DeviceZ == FarDepthValue);
+#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
+	bOutputFullyOpaque &= !IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags);	
 #endif
+
+	FLATTEN
+	if (bOutputFullyOpaque)
+	{
+		OutLuminance.a = 1.0;
+	}
 }
 
 void RenderSkyAtmosphereRayMarchingPS(
@@ -974,12 +978,11 @@ void RenderSkyAtmosphereRayMarchingPS(
 		float3 SkyLuminance = SkyLuminanceTransmittance.rgb;
 
 		float3 SkyGreyTransmittance = 1.0f;
-	#if POST_PROCESS_ALPHA
-		if (View.RenderingReflectionCaptureMask == 0.0f)
+		FLATTEN
+		if(bPropagateAlphaNonReflection > 0)
 		{
 			SkyGreyTransmittance = SkyLuminanceTransmittance.aaa;
 		}
-	#endif
 
 		PreExposedL += SkyLuminance * LuminanceScale * (ViewOneOverPreExposure * OutputPreExposure);
 	
@@ -1617,7 +1620,7 @@ void RenderCameraAerialPerspectiveVolumeCS(uint3 ThreadId : SV_DispatchThreadID)
 		AerialPespectiveViewDistanceScale,
 		tMaxMax);
 
-#if POST_PROCESS_ALPHA
+#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
 	if (IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags) && !RealTimeReflection360Mode)
 	{
 		ss.L *= 0;

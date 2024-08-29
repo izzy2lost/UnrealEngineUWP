@@ -697,6 +697,7 @@ class FRenderSkyAtmospherePS : public FGlobalShader
 		SHADER_PARAMETER_SAMPLER(SamplerState, VolumetricCloudShadowMapTexture1Sampler)
 		SHADER_PARAMETER_SAMPLER(SamplerState, VolumetricCloudSkyAOTextureSampler)
 		SHADER_PARAMETER(float, AerialPerspectiveStartDepthKm)
+		SHADER_PARAMETER(uint32, bPropagateAlphaNonReflection)
 		SHADER_PARAMETER(uint32, SourceDiskEnabled)
 		SHADER_PARAMETER(uint32, DepthReadDisabled)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVolumeShadowingShaderParametersGlobal0, Light0Shadow)
@@ -1868,6 +1869,8 @@ void FSceneRenderer::RenderSkyAtmosphereInternal(
 		PsPassParameters->VolumetricCloudDepthTexture = SkyRC.VolumetricCloudDepthTexture;
 		PsPassParameters->InputCloudLuminanceTransmittanceTexture = SkyRC.InputCloudLuminanceTransmittanceTexture;
 		PsPassParameters->AerialPerspectiveStartDepthKm = AerialPerspectiveStartDepthInCm * CM_TO_KM;
+		// NOTE: bLightDiskEnabled == !View.bIsReflectionCapture
+		PsPassParameters->bPropagateAlphaNonReflection = (IsPostProcessingWithAlphaChannelSupported() && SkyRC.bLightDiskEnabled) ? 1 : 0;
 		PsPassParameters->SourceDiskEnabled = SkyRC.bLightDiskEnabled ? 1 : 0;
 		PsPassParameters->DepthReadDisabled = SkyRC.bDepthReadDisabled ? 1 : 0;
 		if (bShouldSampleCloudShadow || SkyRC.bShouldSampleCloudSkyAO)

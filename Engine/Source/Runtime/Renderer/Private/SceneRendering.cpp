@@ -342,6 +342,12 @@ static TAutoConsoleVariable<int32> CVarPrimitiveHasTileOffsetData(
 	TEXT("1 to upload lower-precision tileoffset primitive data to gpu, 0 to use higher-precision double float.\n"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<bool> CVarPrimitiveAlphaHoldoutSupport(
+	TEXT("r.Deferred.SupportPrimitiveAlphaHoldout"),
+	false,
+	TEXT("True to enable deferred renderer support for primitive alpha holdout (disabled by default).\n"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 static TAutoConsoleVariable<float> CVarGeneralPurposeTweak(
 	TEXT("r.GeneralPurposeTweak"),

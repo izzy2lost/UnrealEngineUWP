@@ -597,7 +597,7 @@ void RenderSingleScatteringWithLiveShading(
 #endif
 
 		// Radiance
-#if POST_PROCESS_ALPHA
+#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
 		if (bHoldout && View.RenderingReflectionCaptureMask == 0.0f)
 		{
 			Radiance *= 0;
@@ -610,7 +610,7 @@ void RenderSingleScatteringWithLiveShading(
 			float Opacity = Luminance(1.0 - Transmittance);
 			RWLightingTexture[PixelCoord].a = Luminance(Transmittance);
 
-#if POST_PROCESS_ALPHA
+#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
 			if (bHoldout && View.RenderingReflectionCaptureMask == 0.0f)
 			{
 				RWHoldoutTexture[PixelCoord] += Luminance(PrevTransmittance) - Luminance(Transmittance);

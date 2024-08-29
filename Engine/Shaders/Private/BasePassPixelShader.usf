@@ -2180,7 +2180,7 @@ void FPixelShaderInOut_MainPS(
 	Out.MRT[0] = SubstrateMaterialExport;
 #endif
 
-#if POST_PROCESS_ALPHA != 0 && MATERIAL_DOMAIN_SURFACE
+#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT && MATERIAL_DOMAIN_SURFACE
 	const bool bIsHoldout = GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HOLDOUT;
 	// Only include the holdout logic if the Renderer is forwarding its alpha channel to post-processing
 	if (bIsHoldout)
@@ -2221,9 +2221,7 @@ void FPixelShaderInOut_MainPS(
 		}
 	}
 
-#endif
-
-#if (MATERIALBLENDING_ANY_TRANSLUCENT || MATERIALBLENDING_ALPHACOMPOSITE || MATERIALBLENDING_ALPHAHOLDOUT) && MATERIAL_DOMAIN_SURFACE && POST_PROCESS_ALPHA!= 0
+#if MATERIALBLENDING_ANY_TRANSLUCENT || MATERIALBLENDING_ALPHACOMPOSITE || MATERIALBLENDING_ALPHAHOLDOUT
 	// If this is translucency holdout pass, calculate the background visibility and path throughput.
 	if (IsTranslucentHoldoutPass &&
         ResolvedView.RenderingReflectionCaptureMask == 0)
@@ -2286,6 +2284,7 @@ void FPixelShaderInOut_MainPS(
 		
 	}
 #endif
+#endif // SUPPORT_PRIMITIVE_ALPHA_HOLDOUT && MATERIAL_DOMAIN_SURFACE
 
 }
 
