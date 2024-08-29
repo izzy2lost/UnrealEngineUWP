@@ -199,6 +199,9 @@ private:
 	ELogVerbosity::Type ModifiedVerbosity = ELogVerbosity::Display;
 	bool bShowSummary = true;
 	bool bShowPackages = true;
+	bool bShowAddedPackages = true;
+	bool bShowRemovedPackages = true;
+	bool bShowModifiedPackages = true;
 	bool bShowHeaders = false; // Not yet implemented, change default to true once implemented
 	bool bShowSerialize = false;
 

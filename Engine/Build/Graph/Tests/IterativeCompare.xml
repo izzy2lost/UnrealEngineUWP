@@ -69,7 +69,7 @@
 
 			<!-- Compare the incremental cook with the non-incremental cook. -->
 			<Log Message="$(NewLine)========== IterativeCompare.xml: DiffCook =========="/>
-			<Commandlet Name="DiffCook" Project="$(ProjectFile)" Arguments="-base=$(PlatformCookedDir) -comp=$(CompareDir) -targetplatform=$(TargetPlatform) -addedverbosity=error -removedverbosity=error -modifiedverbosity=warning"/>
+			<Commandlet Name="DiffCook" Project="$(ProjectFile)" Arguments="-base=$(PlatformCookedDir) -comp=$(CompareDir) -targetplatform=$(TargetPlatform) -addedverbosity=error -removedverbosity=error -modifiedverbosity=warning -hide=modifiedpackages"/>
 		</Node>
 	</Agent>
 
