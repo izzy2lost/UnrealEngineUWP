@@ -32,10 +32,10 @@ public:
 
 private:
 	/** Use the input distortion state to draw a distortion displacement map */
-	void DrawDisplacementMap_RenderThread(FRDGBuilder& GraphBuilder, const FLensDistortionState& CurrentState, float OverscanFactor, FRDGTextureRef& OutDistortionMapWithOverscan);
+	void DrawDisplacementMap_RenderThread(FRDGBuilder& GraphBuilder, const FLensDistortionState& CurrentState, float InverseOverscan, float CameraOverscan, FRDGTextureRef& OutDistortionMapWithOverscan);
 
 	/** Use the input blend parameters to draw multiple displacement maps and blend them together into a final distortion displacement map */
-	void BlendDisplacementMaps_RenderThread(FRDGBuilder& GraphBuilder, const FDisplacementMapBlendingParams& BlendState, float OverscanFactor, FRDGTextureRef& OutDistortionMapWithOverscan);
+	void BlendDisplacementMaps_RenderThread(FRDGBuilder& GraphBuilder, const FDisplacementMapBlendingParams& BlendState, float InverseOverscan, float CameraOverscan, FRDGTextureRef& OutDistortionMapWithOverscan);
 
 	/** Crop the input overscanned distortion map to the original requested resolution */
 	void CropDisplacementMap_RenderThread(FRDGBuilder& GraphBuilder, const FRDGTextureRef& InDistortionMapWithOverscan, FRDGTextureRef& OutDistortionMap);
