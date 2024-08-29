@@ -248,7 +248,7 @@ namespace uba
 		return findIt->second;
 	}
 
-	void Rpc_GetFullFileName(const tchar*& path, u64& pathLen, StringBufferBase& tempBuf, bool useVirtualName)
+	void Rpc_GetFullFileName(const tchar*& path, u64& pathLen, StringBufferBase& tempBuf, bool useVirtualName, const tchar* const* loaderPaths)
 	{
 		StringKey fileNameKey;
 		if (IsAbsolutePath(path))
@@ -269,6 +269,9 @@ namespace uba
 			writer.WriteByte(MessageType_GetFullFileName);
 			writer.WriteString(path);
 			writer.WriteStringKey(fileNameKey);
+			if (loaderPaths)
+				for (auto i=loaderPaths; *i; ++i)
+					writer.WriteString(*i);
 			writer.Flush();
 			BinaryReader reader;
 			reader.ReadString(tempBuf);

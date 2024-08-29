@@ -326,6 +326,7 @@ namespace uba
 					break;
 				}
 
+				u32 nativeProcessId = m_nativeProcessId;
 				m_nativeProcessId = 0;
 				m_nativeProcessExitCode = signalInfo.si_status;
 				
@@ -333,7 +334,7 @@ namespace uba
 					break;
 					
 				StringBuffer<> err;
-				err.Appendf(TC("Process %u (%s) %s by signal %i. Received %u messages. Execution time: %s."), m_nativeProcessId, m_startInfo.GetDescription(), codeType, signalInfo.si_status, m_messageCount, TimeToText(GetTime() - m_startTime).str);
+				err.Appendf(TC("Process %u (%s) %s by signal %i. Received %u messages. Execution time: %s."), nativeProcessId, m_startInfo.GetDescription(), codeType, signalInfo.si_status, m_messageCount, TimeToText(GetTime() - m_startTime).str);
 				LogLine(false, err.data, LogEntryType_Error);
 				m_nativeProcessExitCode = UBA_EXIT_CODE(666); // We do exit code 666 to trigger non-uba retry on the outside
 				return false;
@@ -713,6 +714,9 @@ namespace uba
 		GetFullFileNameMessage msg { *this };
 		reader.ReadString(msg.fileName);
 		msg.fileNameKey = reader.ReadStringKey();
+		msg.loaderPaths = reader.GetPositionData();
+		msg.loaderPathsSize = u32(reader.GetLeft());
+		
 		GetFullFileNameResponse response;
 		m_messageSuccess = m_session.GetFullFileName(response, msg) && m_messageSuccess;
 		writer.WriteString(response.fileName);

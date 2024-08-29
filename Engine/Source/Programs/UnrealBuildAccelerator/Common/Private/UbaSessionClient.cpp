@@ -192,7 +192,7 @@ namespace uba
 		return true;
 	}
 
-	bool SessionClient::EnsureBinaryFile(StringBufferBase& out, StringBufferBase& outVirtual, u32 processId, const StringBufferBase& fileName, const StringKey& fileNameKey, const tchar* applicationDir)
+	bool SessionClient::EnsureBinaryFile(StringBufferBase& out, StringBufferBase& outVirtual, u32 processId, const StringBufferBase& fileName, const StringKey& fileNameKey, const tchar* applicationDir, const u8* loaderPaths, u32 loaderPathsSize)
 	{
 		CasKey casKey;
 		u32 fileAttributes = DefaultAttributes(); // TODO: This is wrong.. need to retrieve from server if this is executable or not
@@ -217,6 +217,8 @@ namespace uba
 			writer.WriteString(fileName);
 			writer.WriteStringKey(fileNameKey);
 			writer.WriteString(applicationDir);
+			if (loaderPathsSize)
+				writer.WriteBytes(loaderPaths, loaderPathsSize);
 
 			StackBinaryReader<1024> reader;
 			if (!msg.Send(reader, Stats().getBinaryMsg))
@@ -859,7 +861,7 @@ namespace uba
 
 		StringBuffer<> dir;
 		dir.AppendDir(msg.process.m_startInfo.application);
-		if (!EnsureBinaryFile(out.fileName, out.virtualFileName, msg.process.m_id, msg.fileName, msg.fileNameKey, dir.data))
+		if (!EnsureBinaryFile(out.fileName, out.virtualFileName, msg.process.m_id, msg.fileName, msg.fileNameKey, dir.data, msg.loaderPaths, msg.loaderPathsSize))
 			return false;
 
 		StringKey fileNameKey = msg.fileNameKey;

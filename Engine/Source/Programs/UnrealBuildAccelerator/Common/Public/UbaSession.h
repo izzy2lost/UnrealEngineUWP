@@ -398,6 +398,8 @@ namespace uba
 		ProcessImpl& process;
 		StringBuffer<> fileName;
 		StringKey fileNameKey;
+		const u8* loaderPaths = nullptr;
+		u32 loaderPathsSize = 0;
 	};
 
 	struct GetFullFileNameResponse

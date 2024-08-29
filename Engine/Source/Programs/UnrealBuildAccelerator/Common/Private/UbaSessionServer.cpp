@@ -716,15 +716,40 @@ namespace uba
 			return true;
 		}
 
+		Vector<TString> loaderPaths;
+		while (reader.GetLeft())
+			loaderPaths.push_back(reader.ReadString());
+
 		CasKey casKey = CasKeyZero;
 		StringBuffer<> absoluteFile;
-		if (SearchPathForFile(m_logger, absoluteFile, fileName.data, applicationDir.data))
-			if (!absoluteFile.StartsWith(m_systemPath.data) || !IsKnownSystemFile(absoluteFile.data))
+
+		if (!loaderPaths.empty())
+		{
+			for (auto& loaderPath : loaderPaths)
 			{
+				StringBuffer<> fullPath;
+				fullPath.Append(applicationDir).Append(loaderPath).Append(fileName);
+				if (GetFileAttributesW(fullPath.data) == INVALID_FILE_ATTRIBUTES)
+					continue;
+				StringBuffer<> out;
+				FixPath(fullPath.data, nullptr, 0, absoluteFile);
 				fileNameKey = ToStringKeyLower(absoluteFile);
 				if (!StoreCasFile(casKey, fileNameKey, absoluteFile.data))
 					return false;
+
+				break;
 			}
+		}
+		else
+		{
+			if (SearchPathForFile(m_logger, absoluteFile, fileName.data, applicationDir.data))
+				if (!absoluteFile.StartsWith(m_systemPath.data) || !IsKnownSystemFile(absoluteFile.data))
+				{
+					fileNameKey = ToStringKeyLower(absoluteFile);
+					if (!StoreCasFile(casKey, fileNameKey, absoluteFile.data))
+						return false;
+				}
+		}
 
 		u64 startPos = writer.GetPosition();
 		writer.WriteCasKey(casKey);
