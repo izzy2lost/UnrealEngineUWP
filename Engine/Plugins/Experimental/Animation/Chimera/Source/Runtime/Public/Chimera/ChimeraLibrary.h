@@ -110,6 +110,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Animation|Chimera", meta = (BlueprintThreadSafe))
 	static FChimeraBlueprintResult ChimeraQuery_Pure(TArray<FChimeraAvailability> Availabilities, UObject* AnimInstance, FName PoseHistoryName, bool bValidateResultAgainstAvailabilities);
 
+	// BlueprintCallable version of ChimeraQuery_Pure
+	UFUNCTION(BlueprintCallable, Category = "Animation|Chimera", meta = (BlueprintThreadSafe))
+	static FChimeraBlueprintResult ChimeraQuery(TArray<FChimeraAvailability> Availabilities, UObject* AnimInstance, FName PoseHistoryName, bool bValidateResultAgainstAvailabilities);
+
 	static FChimeraBlueprintResult ChimeraQuery(const TArrayView<const FChimeraAvailability> Availabilities, UObject* AnimInstance, const FAnimNode_PoseSearchHistoryCollector_Base* HistoryCollector, bool bValidateResultAgainstAvailabilities);
 
 };

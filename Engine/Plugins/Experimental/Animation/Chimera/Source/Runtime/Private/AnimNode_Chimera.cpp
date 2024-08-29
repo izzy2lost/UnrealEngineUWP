@@ -203,14 +203,10 @@ void FAnimNode_Chimera::Evaluate_AnyThread(FPoseContext& Output)
 {
 	check(Output.AnimInstanceProxy);
 
-	// @todo: do we still need to evaluate Source if blendstack weight is 100%?
 	// evaluating Source to get the base pose 
 	Source.Evaluate(Output);
 
-	if (!AnimPlayers.IsEmpty())
-	{
-		Super::Evaluate_AnyThread(Output);
-	}
+	Super::Evaluate_AnyThread(Output);
 
 	if (TranslationWarpLerp > UE_KINDA_SMALL_NUMBER || RotationWarpLerp > UE_KINDA_SMALL_NUMBER)
 	{

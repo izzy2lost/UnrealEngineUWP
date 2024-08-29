@@ -56,6 +56,9 @@ public:
 	float SelectedTime = 0.f;
 	
 	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
+	bool bIsContinuingPoseSearch = false;
+	
+	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
 	float WantedPlayRate = 0.f;
 
 	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)

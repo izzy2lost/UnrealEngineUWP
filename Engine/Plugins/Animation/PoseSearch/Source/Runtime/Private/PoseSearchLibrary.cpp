@@ -698,6 +698,7 @@ void UPoseSearchLibrary::MotionMatch(
 
 	Result.SelectedAnimation = nullptr;
 	Result.SelectedTime = 0.f;
+	Result.bIsContinuingPoseSearch = false;
 	Result.bLoop = false;
 	Result.bIsMirrored = false;
 	Result.BlendParameters = FVector::ZeroVector;
@@ -751,6 +752,7 @@ void UPoseSearchLibrary::MotionMatch(
 		{
 			Result.SelectedAnimation = DatabaseAsset->GetAnimationAsset();
 			Result.SelectedTime = SearchResult.AssetTime;
+			Result.bIsContinuingPoseSearch = SearchResult.bIsContinuingPoseSearch;
 			Result.bLoop = SearchIndexAsset->IsLooping();
 			Result.bIsMirrored = SearchIndexAsset->IsMirrored();
 			Result.BlendParameters = SearchIndexAsset->GetBlendParameters();

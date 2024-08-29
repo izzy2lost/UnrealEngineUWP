@@ -14,6 +14,11 @@ FChimeraBlueprintResult UChimeraLibrary::ChimeraQuery_Pure(TArray<FChimeraAvaila
 	return Result;
 }
 
+FChimeraBlueprintResult UChimeraLibrary::ChimeraQuery(TArray<FChimeraAvailability> Availabilities, UObject* AnimInstance, FName PoseHistoryName, bool bValidateResultAgainstAvailabilities)
+{
+	return ChimeraQuery_Pure(Availabilities, AnimInstance, PoseHistoryName, bValidateResultAgainstAvailabilities);
+}
+
 FChimeraBlueprintResult UChimeraLibrary::ChimeraQuery(const TArrayView<const FChimeraAvailability> Availabilities, UObject* AnimInstance, const FAnimNode_PoseSearchHistoryCollector_Base* HistoryCollector, bool bValidateResultAgainstAvailabilities)
 {
 	FChimeraBlueprintResult Result;
