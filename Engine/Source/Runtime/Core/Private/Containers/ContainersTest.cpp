@@ -930,6 +930,141 @@ bool FContainersTSetTest::RunTest(const FString& Parameters)
 		}
 	}
 
+	// FindArbitraryElement
+	{
+		{
+			TSet<FString> Set;
+			FString* Found = Set.FindArbitraryElement();
+			TestNull(TEXT("FindArbitraryElement returns null on an empty set"), Found);
+		}
+
+		{
+			constexpr int32 ElementsToAdd = 100;
+			constexpr int32 IndexToKeep = 67;
+
+			TSet<FString> Set;
+			for (int32 I = 0; I != ElementsToAdd; ++I)
+			{
+				Set.Add(LexToString(I));
+			}
+			for (int32 I = 0; I != ElementsToAdd; ++I)
+			{
+				if (I != IndexToKeep)
+				{
+					Set.Remove(LexToString(I));
+				}
+			}
+
+			FString* Found = Set.FindArbitraryElement();
+			if (Found)
+			{
+				TestNotNull(TEXT("FindArbitraryElement finds a value on a highly sparse set"), Found);
+				TestEqual(TEXT("FindArbitraryElement finds the correct value on a highly sparse set"), *Found, LexToString(IndexToKeep));
+			}
+
+			Found = nullptr;
+			Set.Remove(LexToString(IndexToKeep));
+
+			FString* Found2 = Set.FindArbitraryElement();
+			TestNull(TEXT("FindArbitraryElement returns null on an emptied set"), Found2);
+		}
+	}
+
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersTMapTest, "System.Core.Containers.TMap", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+bool FContainersTMapTest::RunTest(const FString& Parameters)
+{
+	// FindArbitraryElement
+	{
+		{
+			TMap<int32, FString> Map;
+			TPair<int32, FString>* Found = Map.FindArbitraryElement();
+			TestNull(TEXT("FindArbitraryElement returns null on an empty map"), Found);
+		}
+
+		{
+			constexpr int32 ElementsToAdd = 100;
+			constexpr int32 IndexToKeep = 23;
+
+			TMap<int32, FString> Map;
+			for (int32 I = 0; I != ElementsToAdd; ++I)
+			{
+				Map.Add(I, LexToString(I));
+			}
+			for (int32 I = 0; I != ElementsToAdd; ++I)
+			{
+				if (I != IndexToKeep)
+				{
+					Map.Remove(I);
+				}
+			}
+
+			TPair<int32, FString>* Found = Map.FindArbitraryElement();
+
+			TestNotNull(TEXT("FindArbitraryElement finds a value on a highly sparse map"), Found);
+			if (Found)
+			{
+				TestEqual(TEXT("FindArbitraryElement finds the correct key on a highly sparse map"), Found->Key, IndexToKeep);
+				TestEqual(TEXT("FindArbitraryElement finds the correct value on a highly sparse map"), Found->Value, LexToString(IndexToKeep));
+			}
+
+			Found = nullptr;
+			Map.Remove(IndexToKeep);
+
+			TPair<int32, FString>* Found2 = Map.FindArbitraryElement();
+			TestNull(TEXT("FindArbitraryElement returns null on an emptied map"), Found2);
+		}
+	}
+
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersTSortedMapTest, "System.Core.Containers.TSortedMap", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+bool FContainersTSortedMapTest::RunTest(const FString& Parameters)
+{
+	// FindArbitraryElement
+	{
+		{
+			TSortedMap<int32, FString> Map;
+			TPair<int32, FString>* Found = Map.FindArbitraryElement();
+			TestNull(TEXT("FindArbitraryElement returns null on an empty map"), Found);
+		}
+
+		{
+			constexpr int32 ElementsToAdd = 100;
+			constexpr int32 IndexToKeep = 23;
+
+			TSortedMap<int32, FString> Map;
+			for (int32 I = 0; I != ElementsToAdd; ++I)
+			{
+				Map.Add(I, LexToString(I));
+			}
+			for (int32 I = 0; I != ElementsToAdd; ++I)
+			{
+				if (I != IndexToKeep)
+				{
+					Map.Remove(I);
+				}
+			}
+
+			TPair<int32, FString>* Found = Map.FindArbitraryElement();
+
+			TestNotNull(TEXT("FindArbitraryElement finds a value on a highly sparse map"), Found);
+			if (Found)
+			{
+				TestEqual(TEXT("FindArbitraryElement finds the correct key on a highly sparse map"), Found->Key, IndexToKeep);
+				TestEqual(TEXT("FindArbitraryElement finds the correct value on a highly sparse map"), Found->Value, LexToString(IndexToKeep));
+			}
+
+			Found = nullptr;
+			Map.Remove(IndexToKeep);
+
+			TPair<int32, FString>* Found2 = Map.FindArbitraryElement();
+			TestNull(TEXT("FindArbitraryElement returns null on an emptied map"), Found2);
+		}
+	}
 
 	return !HasAnyErrors();
 }

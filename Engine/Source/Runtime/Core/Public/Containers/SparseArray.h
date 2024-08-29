@@ -699,6 +699,23 @@ public:
 		return INDEX_NONE;
 	}
 
+	/**
+	 * Finds the index of an arbitrary element.
+	 * Callers should not depend on particular patterns in the behaviour of this function.
+	 * @return The index of any element in the container, or INDEX_NONE if it is empty.
+	 */
+	int32 FindArbitraryElementIndex() const
+	{
+		// The goal of this function is to be fast, and so the implementation may be improved at any time even if it gives different results.
+
+		if (NumFreeIndices == 0)
+		{
+			return Data.Num() - 1; // this will return INDEX_NONE if Data is empty.
+		}
+
+		return AllocationFlags.Find(true);
+	}
+
 	/** 
 	 * Helper function to return the amount of memory allocated by this container 
 	 * Only returns the size of allocations made directly by the container, not the elements themselves.

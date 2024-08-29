@@ -915,6 +915,23 @@ private:
 
 public:
 	/**
+	 * Finds any element in the set and returns a pointer to it.
+	 * Callers should not depend on particular patterns in the behaviour of this function.
+	 * @return A pointer to an arbitrary element, or nullptr if the container is empty.
+	 */
+	ElementType* FindArbitraryElement()
+	{
+		// The goal of this function is to be fast, and so the implementation may be improved at any time even if it gives different results.
+
+		int32 Result = Elements.FindArbitraryElementIndex();
+		return (Result != INDEX_NONE) ? &Elements[Result].Value : nullptr;
+	}
+	const ElementType* FindArbitraryElement() const
+	{
+		return const_cast<TSet*>(this)->FindArbitraryElement();
+	}
+
+	/**
 	 * Finds an element with the given key in the set.
 	 * @param Key - The key to search for.
 	 * @return The id of the set element matching the given key, or the NULL id if none matches.

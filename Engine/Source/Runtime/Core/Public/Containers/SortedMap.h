@@ -357,6 +357,22 @@ public:
 	}
 
 	/**
+	 * Finds any pair in the map and returns a pointer to it.
+	 * Callers should not depend on particular patterns in the behaviour of this function.
+	 * @return A pointer to an arbitrary pair, or nullptr if the container is empty.
+	 */
+	ElementType* FindArbitraryElement()
+	{
+		// The goal of this function is to be fast, and so the implementation may be improved at any time even if it gives different results.
+
+		return Pairs.IsEmpty() ? nullptr : &Pairs.Last();
+	}
+	const ElementType* FindArbitraryElement() const
+	{
+		return const_cast<TSortedMap*>(this)->FindArbitraryElement();
+	}
+
+	/**
 	 * Checks if map contains the specified key.
 	 *
 	 * @param Key The key to check for.
