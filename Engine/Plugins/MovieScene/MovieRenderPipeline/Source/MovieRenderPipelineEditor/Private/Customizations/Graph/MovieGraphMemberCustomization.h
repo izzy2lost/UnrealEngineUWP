@@ -66,6 +66,10 @@ protected:
 
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
 	{
+		static const FText NameLabel = LOCTEXT("MemberPropertyLabel_Name", "Name");
+		static const FText CategoryLabel = LOCTEXT("MemberPropertyLabel_Category", "Category");
+		static const FText TypeLabel = LOCTEXT("MemberPropertyLabel_Type", "Type");
+		
 		TSharedRef<IPropertyUtilities> PropUtils = DetailBuilder.GetPropertyUtilities();
 		
 		auto GetFilteredVariableTypeTree = [this](TArray<TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>>& TypeTree, ETypeTreeFilter TypeTreeFilter)
@@ -161,11 +165,12 @@ protected:
 			// Add a custom row for the Name property (to allow for proper validation)
 			IDetailCategoryBuilder& GeneralCategory = DetailBuilder.EditCategory("General");
 			GeneralCategory.AddCustomRow(FText::GetEmpty())
+			.FilterString(NameLabel)
 			.IsEnabled(bIsEditable)
 			.NameContent()
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("MemberPropertyLabel_Name", "Name"))
+				.Text(NameLabel)
 				.Font(DetailBuilder.GetDetailFont())
 			]
 			.ValueContent()
@@ -183,11 +188,12 @@ protected:
 			if (UMovieGraphVariable* VariableMember = Cast<UMovieGraphVariable>(MemberObject))
 			{
 				GeneralCategory.AddCustomRow(FText::GetEmpty())
+				.FilterString(CategoryLabel)
 				.IsEnabled(bIsEditable)
 				.NameContent()
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("MemberPropertyLabel_Category", "Category"))
+					.Text(CategoryLabel)
 					.ToolTipText(LOCTEXT("MemberPropertyTooltip_Category", "The category assigned to the variable. Use a '|' to separate category names to create a category hierarchy (eg, Settings|Resolution)."))
 					.Font(DetailBuilder.GetDetailFont())
 				]
@@ -216,11 +222,12 @@ protected:
 			// Add a PinTypeSelector widget to pick the data type the member uses
 			IDetailCategoryBuilder& ValueCategory = DetailBuilder.EditCategory("Value");
 			ValueCategory.AddCustomRow(FText::GetEmpty())
+			.FilterString(TypeLabel)
 			.IsEnabled(bIsTypeRowEnabled)
 			.NameContent()
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("MemberPropertyLabel_Type", "Type"))
+				.Text(TypeLabel)
 				.Font(DetailBuilder.GetDetailFont())
 			]
 			.ValueContent()

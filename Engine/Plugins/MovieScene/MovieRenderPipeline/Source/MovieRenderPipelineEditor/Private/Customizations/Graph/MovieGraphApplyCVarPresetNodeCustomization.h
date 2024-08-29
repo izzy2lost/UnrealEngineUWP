@@ -140,6 +140,7 @@ protected:
 
 			// The group's header should look like the default preset property w/ the asset picker widget
 			PresetGroup.HeaderRow()
+			.FilterString(ConsoleVariablePresetHandle->GetPropertyDisplayName())
 			.PropertyHandleList({ConsoleVariablePresetHandle})
 			.ShouldAutoExpand(true)
 			.EditCondition(

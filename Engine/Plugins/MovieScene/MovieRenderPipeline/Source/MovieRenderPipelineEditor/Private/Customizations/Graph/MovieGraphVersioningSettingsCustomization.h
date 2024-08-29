@@ -35,6 +35,7 @@ protected:
 			GET_MEMBER_NAME_CHECKED(FMovieGraphVersioningSettings, VersionNumber)).ToSharedRef();
 
 		HeaderRow
+		.FilterString(VersionNumberProp->GetPropertyDisplayName())
 		.NameContent()
 		[
 			// Show "Version Number" as the row name
