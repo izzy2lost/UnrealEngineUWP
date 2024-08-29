@@ -230,15 +230,6 @@ void FCustomizableObjectCompiler::Compile(const TSharedRef<FCompilationRequest>&
 		}
 	}
 
-	// If we don't have the target platform yet (in editor) we need to get it
-	if (!CurrentOptions.TargetPlatform)
-	{
-		check(!CurrentOptions.bIsCooking);
-
-		CurrentOptions.TargetPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
-		check(CurrentOptions.TargetPlatform != nullptr);
-	}
-
 	UE_LOG(LogMutable, Display, TEXT("Compiling Customizable Object %s for platform %s."), *CurrentObject->GetName(), *CurrentOptions.TargetPlatform->PlatformName());
 
 	if (CurrentOptions.bForceLargeLODBias)
@@ -256,6 +247,17 @@ void FCustomizableObjectCompiler::Compile(const TSharedRef<FCompilationRequest>&
 	{
 		const int32 NumCompletedRequests = NumCompilationRequests - GetNumRemainingWork();
 		FSlateNotificationManager::Get().UpdateProgressNotification(CompileNotificationHandle, NumCompletedRequests, NumCompilationRequests, UpdateMsg);
+	}
+
+	// DDC check
+	if (TryLoadCompiledDataFromDDC(*CurrentObject))
+	{
+		UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Finishing Compilation task for CO [%s]."), FPlatformTime::Seconds(), *CurrentObject->GetName());
+		TRACE_END_REGION(UE_MUTABLE_COMPILE_REGION);
+
+		UE_LOG(LogMutable, Display, TEXT("Compiled data loaded from DDC"));
+		CompleteRequest(ECompilationStatePrivate::Completed, ECompilationResultPrivate::Success);
+		return;
 	}
 	
 	TRACE_BEGIN_REGION(UE_MUTABLE_PRELOAD_REGION);
@@ -931,9 +933,8 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 	}
 	else
 	{
+		ModelResources = FModelResources();
 		ModelStreamableBulkData = MakeShared<FModelStreamableBulkData>();
-
-		FModelResources ModelResources;
 		
 		ModelResources.ReferenceSkeletalMeshesData = MoveTemp(GenerationContext.ReferenceSkeletalMeshesData);
 
@@ -1118,20 +1119,13 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 		ModelResources.MeshMetadata = MoveTemp(GenerationContext.MeshMetadata);
 		ModelResources.SurfaceMetadata = MoveTemp(GenerationContext.SurfaceMetadata);
 
-		CurrentObject->GetPrivate()->GroupNodeMap = GenerationContext.GroupNodeMap;
+		ModelResources.GroupNodeMap = GenerationContext.GroupNodeMap;
 
-		if (GenerationContext.Options.OptimizationLevel == 0)
-		{
-			// If the optimization level is "none" disable texture streaming, because textures are all referenced
-			// unreal assets and progressive generation is not supported.
-			CurrentObject->GetPrivate()->bDisableTextureStreaming = true;
-		}
-		else
-		{
-			CurrentObject->GetPrivate()->bDisableTextureStreaming = false;
-		}
+		// If the optimization level is "none" disable texture streaming, because textures are all referenced
+		// unreal assets and progressive generation is not supported.
+		ModelResources.bIsTextureStreamingDisabled = GenerationContext.Options.OptimizationLevel == 0;
 		
-		CurrentObject->GetPrivate()->bIsCompiledWithoutOptimization = GenerationContext.Options.OptimizationLevel < UE_MUTABLE_MAX_OPTIMIZATION;
+		ModelResources.bIsCompiledWithOptimization = GenerationContext.Options.OptimizationLevel == UE_MUTABLE_MAX_OPTIMIZATION;
 
 		CurrentObject->GetPrivate()->GetAlwaysLoadedExtensionData() = MoveTemp(GenerationContext.AlwaysLoadedExtensionData);
 
@@ -1142,10 +1136,9 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 		}
 
 #if WITH_EDITORONLY_DATA
-		CurrentObject->GetPrivate()->CustomizableObjectPathMap = GenerationContext.CustomizableObjectPathMap;
-
 		// Cache the tables that are used by more than one param so that CompileOnlySelected can work properly
-		ModelResources.TableToParamNames = GenerationContext.TableToParamNames;
+		ModelResources.TableToParamNames = MoveTemp(GenerationContext.TableToParamNames);
+		ModelResources.CustomizableObjectPathMap = MoveTemp(GenerationContext.CustomizableObjectPathMap);
 #endif
 
 		ModelResources.NumComponents = GenerationContext.NumMeshComponentsInRoot + GenerationContext.NumExplicitMeshComponents;
@@ -1160,10 +1153,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			CurrentObject->Modify();
 		}
 
-		// Always work with the ModelResources (Editor) when compiling. They'll be copied to the cooked version during PreSave.
-		CurrentObject->GetPrivate()->GetModelResources(false) = MoveTemp(ModelResources);
-
-		CurrentObject->GetPrivate()->GetStreamedResourceData() = MoveTemp(GenerationContext.StreamedResourceData);
+		ModelResources.StreamedResourceData = MoveTemp(GenerationContext.StreamedResourceData);
 
 		// Pass-through textures
 		TArray<FMutableSourceTextureData> NewCompileTimeReferencedTextures;
@@ -1196,7 +1186,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			}
 			
 			// Copy final array of participating objects
-			CurrentObject->GetPrivate()->ParticipatingObjects = MoveTemp(GenerationContext.ParticipatingObjects);
+			ModelResources.ParticipatingObjects = MoveTemp(GenerationContext.ParticipatingObjects);
 			CurrentObject->GetPrivate()->DirtyParticipatingObjects.Empty();
 		}
 
@@ -1259,14 +1249,14 @@ void FCustomizableObjectCompiler::CompleteRequest(ECompilationStatePrivate State
 			System->UnlockObject(CurrentObject);
 		}
 
-		if (CurrentModel)
+		if (Model)
 		{
-			CurrentModel->GetPrivate()->UnloadRoms();
+			Model->GetPrivate()->UnloadRoms();
 		}
 
 		if (Result == ECompilationResultPrivate::Success || Result == ECompilationResultPrivate::Warnings)
 		{
-			CurrentObject->GetPrivate()->SetModel(CurrentModel, GenerateIdentifier(*CurrentObject));
+			CurrentObject->GetPrivate()->SetModel(Model, GenerateIdentifier(*CurrentObject));
 		}
 		else
 		{
@@ -1317,7 +1307,8 @@ void FCustomizableObjectCompiler::CompleteRequest(ECompilationStatePrivate State
 	// Request completed, reset pointers and state
 	CurrentObject = nullptr;
 	CurrentRequest.Reset();
-	CurrentModel.Reset();
+	Model.Reset();
+	ModelResources = {};
 
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Completed compile request."), FPlatformTime::Seconds());
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: -----------------------------------------------------------"));
@@ -1339,6 +1330,32 @@ bool FCustomizableObjectCompiler::TryPopCompileRequest()
 
 	Compile(CompileRequests.Pop());
 	return true;
+}
+
+
+bool FCustomizableObjectCompiler::TryLoadCompiledDataFromDDC(UCustomizableObject& CustomizableObject)
+{
+	if (!CurrentRequest.IsValid())
+	{
+		return false;
+	}
+
+	using namespace UE::DerivedData;
+
+	ECachePolicy DefaultPolicy = CurrentRequest->GetDerivedDataCachePolicy();
+	if (!CurrentOptions.bQueryCompiledDatafromDDC)
+	{
+		// Compilation not allowed to query DDC requests. 
+		return false;
+	}
+	
+	CurrentRequest->BuildDerivedDataCacheKey();
+
+	FCacheKey CacheKey = CurrentRequest->GetDerivedDataCacheKey();
+	CustomizableObject.GetPrivate()->LoadCompiledDataFromDDC(CurrentOptions, DefaultPolicy, &CacheKey);
+	
+	Model = CustomizableObject.GetPrivate()->GetModel();
+	return CustomizableObject.IsCompiled();
 }
 
 
@@ -1413,23 +1430,26 @@ void FCustomizableObjectCompiler::FinishCompilationTask()
 	check(CompileTask.IsValid());
 
 	UpdateCompilerLogData();
-	CurrentModel = CompileTask->Model;
+	Model = CompileTask->Model;
 
 	// Generate a map that using the resource id tells the offset and size of the resource inside the bulk data
 	// At this point it is assumed that all data goes into a single file.
-	if (CurrentModel)
+	if (Model)
 	{
-		const int32 NumStreamingFiles = CurrentModel->GetRomCount();
+		const int32 NumStreamingFiles = Model->GetRomCount();
 
 		TMap<uint32, FMutableStreamableBlock>& ModelStreamables = ModelStreamableBulkData->ModelStreamables;
 		ModelStreamables.Empty(NumStreamingFiles);
 
+		// TODO: Temp. Remove after unifying generated output files code between editor an package. UE-222777
+		const bool bRequiresCookedData = CurrentOptions.TargetPlatform->RequiresCookedData();
+
 		uint64 Offset = 0;
 		for (int32 FileIndex = 0; FileIndex < NumStreamingFiles; ++FileIndex)
 		{
-			const uint32 ResourceId = CurrentModel->GetRomId(FileIndex);
-			const uint32 ResourceSize = CurrentModel->GetRomSize(FileIndex);
-			mu::ERomFlags Flags = CurrentModel->GetRomFlags(FileIndex);
+			const uint32 ResourceId = Model->GetRomId(FileIndex);
+			const uint32 ResourceSize = Model->GetRomSize(FileIndex);
+			mu::ERomFlags Flags = bRequiresCookedData ? Model->GetRomFlags(FileIndex) : mu::ERomFlags::None;
 			ModelStreamables.Add(ResourceId, FMutableStreamableBlock{ 0, uint32(Flags), Offset });
 			Offset += ResourceSize;
 		}
@@ -1437,9 +1457,6 @@ void FCustomizableObjectCompiler::FinishCompilationTask()
 		// Always work with the ModelStreamableData (Editor) when compiling. They'll be copied to the cooked version during PreSave.
 		CurrentObject->GetPrivate()->SetModelStreamableBulkData(ModelStreamableBulkData, false);
 	}
-
-	// Generate ParameterProperties and IntParameterLookUpTable
-	CurrentObject->GetPrivate()->UpdateParameterPropertiesFromModel(CurrentModel);
 
 	// Order matters
 	CompileThread.Reset();
@@ -1450,7 +1467,7 @@ void FCustomizableObjectCompiler::FinishCompilationTask()
 
 	// Create SaveDD task
 	TRACE_BEGIN_REGION(UE_MUTABLE_SAVEDD_REGION);
-	SaveDDTask = MakeShareable(new FCustomizableObjectSaveDDRunnable(CurrentObject, CurrentOptions, CurrentModel));
+	SaveDDTask = MakeShareable(new FCustomizableObjectSaveDDRunnable(CurrentRequest, Model, ModelResources, ModelStreamableBulkData));
 }
 
 
@@ -1470,18 +1487,11 @@ void FCustomizableObjectCompiler::FinishSavingDerivedDataTask()
 		check(!CurrentObject->GetPrivate()->CachedPlatformsData.Find(PlatformName));
 
 		MutablePrivate::FMutableCachedPlatformData& Data = CurrentObject->GetPrivate()->CachedPlatformsData.Add(PlatformName);
-
-		// Cache CO data and mu::Model
-		FMemoryWriter64 MemoryWriter(Data.ModelData);
-		FObjectAndNameAsStringProxyArchive ObjectWriter(MemoryWriter, true);
-		CurrentObject->GetPrivate()->SaveCompiledData(ObjectWriter, true);
-		Data.ModelData.Append(SaveDDTask->ModelBytes);
-
-		// Cache streamable bulk data
-		Data.ModelStreamableData = MoveTemp(SaveDDTask->ModelStreamableData);
-		Data.MorphData = MoveTemp(SaveDDTask->MorphDataBytes);
-		Data.ClothingData = MoveTemp(SaveDDTask->ClothingDataBytes);
+		Data = MoveTemp(SaveDDTask->PlatformData);
 	}
+	
+	// Always work with the ModelResources (Editor) when compiling. They'll be copied to the cooked version during PreSave.
+	CurrentObject->GetPrivate()->GetModelResources(CurrentOptions.bIsCooking) = MoveTemp(ModelResources);
 
 	// Order matters
 	SaveDDThread.Reset();

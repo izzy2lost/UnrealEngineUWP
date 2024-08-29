@@ -5,6 +5,10 @@
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuR/Serialisation.h"
 
+#if WITH_EDITOR
+#include "DerivedDataRequestOwner.h"
+#endif
+
 class FArchive;
 class IAsyncReadFileHandle;
 class IAsyncReadRequest;
@@ -64,21 +68,32 @@ protected:
 
 	struct FReadRequest
 	{
-		TSharedPtr<IBulkDataIORequest> BulkReadRequest = nullptr;
-		TSharedPtr<IAsyncReadRequest> FileReadRequest = nullptr;
+		TSharedPtr<IBulkDataIORequest> BulkReadRequest;
+		TSharedPtr<IAsyncReadRequest> FileReadRequest;
 		TSharedPtr<FAsyncFileCallBack> FileCallback;
+
+#if WITH_EDITORONLY_DATA
+		TSharedPtr<UE::DerivedData::FRequestOwner> DDCReadRequest;
+#endif
 	};
 	
 	/** Streaming data for one object. */
 	struct FObjectData
 	{
 		TWeakPtr<const mu::Model> Model;
-		TMap<OPERATION_ID, FReadRequest> CurrentReadRequests;
-		FString BulkFilePrefix;
 
+		FString BulkFilePrefix;
+		TMap<OPERATION_ID, FReadRequest> CurrentReadRequests;
 		TMap<uint32, TSharedPtr<IAsyncReadFileHandle>> ReadFileHandles;
 
 		TSharedPtr<FModelStreamableBulkData> ModelStreamableBulkData;
+
+#if WITH_EDITORONLY_DATA
+		// DDC files streaming
+		bool bIsStoredInDDC = false;
+		UE::DerivedData::FCacheKey DDCKey;
+		UE::DerivedData::FCacheRecordPolicy DDCPolicy;
+#endif
 	};
 
 	TArray<FObjectData> Objects;

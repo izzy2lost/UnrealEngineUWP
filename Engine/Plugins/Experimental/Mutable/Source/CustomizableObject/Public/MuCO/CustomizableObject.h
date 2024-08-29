@@ -24,6 +24,7 @@ class UCustomizableObject;
 class UEdGraph;
 class USkeletalMesh;
 class UCustomizableObjectPrivate;
+class UCustomizableObjectBulk;
 struct FFrame;
 struct FStreamableHandle;
 template <typename FuncType> class TFunctionRef;
@@ -200,32 +201,6 @@ static_assert(sizeof(FCustomizableObjectMeshToMeshVertData) == sizeof(float)*4*3
 template<> struct TCanBulkSerialize<FCustomizableObjectMeshToMeshVertData> { enum { Value = true }; };
 
 USTRUCT()
-struct CUSTOMIZABLEOBJECT_API FMutableStreamableBlock
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY()
-	uint32 FileId = 0;
-
-	/** Used to store properties of the data, necessary for its recovery. For instance if it is high-res. */
-	UPROPERTY()
-	uint32 Flags = 0;
-
-	UPROPERTY()
-	uint64 Offset = 0;
-
-	friend FArchive& operator<<(FArchive& Ar, FMutableStreamableBlock& Data)
-	{
-		Ar << Data.FileId;
-		Ar << Data.Flags;
-		Ar << Data.Offset;
-		return Ar;
-	}
-};
-template<> struct TCanBulkSerialize<FMutableStreamableBlock> { enum { Value = true }; };
-static_assert(sizeof(FMutableStreamableBlock) == 8*2);
-
-USTRUCT()
 struct FMutableLODSettings
 {
 	GENERATED_BODY()
@@ -256,37 +231,6 @@ struct FMutableLODSettings
 	FPerPlatformInt NumMaxStreamedLODs = MAX_MESH_LOD_COUNT;
 
 #endif
-};
-
-
-UCLASS( config=Engine )
-class CUSTOMIZABLEOBJECT_API UCustomizableObjectBulk : public UObject
-{
-public:
-	GENERATED_BODY()
-
-	//~ Begin UObject Interface
-	virtual void PostLoad() override;
-	//~ End UObject Interface
-
-	/**  */
-	const FString& GetBulkFilePrefix() const { return BulkFilePrefix; }
-	
-	TUniquePtr<IAsyncReadFileHandle> OpenFileAsyncRead(uint32 FileId, uint32 Flags) const;
-
-#if WITH_EDITOR
-
-	//~ Begin UObject Interface
-	virtual void CookAdditionalFilesOverride(const TCHAR*, const ITargetPlatform*, TFunctionRef<void(const TCHAR*, void*, int64)> ) override;
-	//~ End UObject Interface
-#endif
-
-#if WITH_EDITOR
-private:
-#endif
-
-	/** Prefix to locate bulkfiles for loading, using the file ids in each FMutableStreamableBlock. */
-	FString BulkFilePrefix;
 };
 
 
@@ -339,10 +283,6 @@ private:
 	// mu::ExtensionData::Index is an index into this array when mu::ExtensionData::Origin is ConstantStreamed
 	UPROPERTY()
 	TArray<FCustomizableObjectStreamedResourceData> StreamedExtensionData;
-
-	// Constant Resources streamed in on demand when generating meshes
-	UPROPERTY()
-	TArray<FCustomizableObjectStreamedResourceData> StreamedResourceData;
 
 public:
 	/** Use the SkeletalMesh of reference as a placeholder until the custom mesh is ready to use.

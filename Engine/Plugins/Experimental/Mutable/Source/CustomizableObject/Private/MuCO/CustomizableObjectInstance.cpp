@@ -5262,19 +5262,18 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 
 				for (uint64 ResourceId : StreamedResources)
 				{
-					const TArray<FCustomizableObjectStreamedResourceData>& StreamedResourcesData = CustomizableObject->GetPrivate()->GetStreamedResourceData();
 					FCustomizableObjectStreameableResourceId TypedResourceId = BitCast<FCustomizableObjectStreameableResourceId>(ResourceId);	
 		
 					if (TypedResourceId.Type == (uint8)FCustomizableObjectStreameableResourceId::EType::AssetUserData)
 					{
 						const uint32 ResourceIndex = TypedResourceId.Id;
-						if (!StreamedResourcesData.IsValidIndex(ResourceIndex))
+						if (!ModelResources.StreamedResourceData.IsValidIndex(ResourceIndex))
 						{
-							UE_LOG(LogMutable, Error, TEXT("Invalid streamed resource index. Max Index [%d]. Resource Index [%d]."), StreamedResourcesData.Num(), ResourceIndex);
+							UE_LOG(LogMutable, Error, TEXT("Invalid streamed resource index. Max Index [%d]. Resource Index [%d]."), ModelResources.StreamedResourceData.Num(), ResourceIndex);
 							continue; 
 						}
 
-						const FCustomizableObjectStreamedResourceData& StreamedResource = StreamedResourcesData[ResourceIndex];
+						const FCustomizableObjectStreamedResourceData& StreamedResource = ModelResources.StreamedResourceData[ResourceIndex];
 						if (!StreamedResource.IsLoaded())
 						{
 							AssetsToStream.AddUnique(StreamedResource.GetPath().ToSoftObjectPath());
@@ -5820,9 +5819,9 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded);
 
-	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
+	UCustomizableObjectPrivate* CustomizableObjectPrivate = Public->GetCustomizableObject()->GetPrivate();
 
-	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
+	const FModelResources& ModelResources = CustomizableObjectPrivate->GetModelResources();
 
 	// Loaded Materials
 	check(ObjectToInstanceIndexMap.Num() == ReferencedMaterials.Num());
@@ -5851,25 +5850,22 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 #endif
 	}
 
-	
-	TArray<FCustomizableObjectStreamedResourceData>& StreamedResources = CustomizableObject->GetPrivate()->GetStreamedResourceData();
-
 	for (FCustomizableInstanceComponentData& ComponentData : ComponentsData)
 	{
 		for (int32 ResourceIndex : ComponentData.StreamedResourceIndex)
 		{
-			FCustomizableObjectStreamedResourceData& Resource = StreamedResources[ResourceIndex];
-			if (!Resource.IsLoaded())
+			const FCustomizableObjectResourceData* ResourceData = CustomizableObjectPrivate->LoadStreamedResource(ResourceIndex);
+			if (!ResourceData)
 			{
-				Resource.NotifyLoaded(Resource.GetPath().Get());
+				check(false); // Invalid resource index?
+				continue;
 			}
 
-			const FCustomizableObjectResourceData& ResourceData = Resource.GetLoadedData();
-			switch (ResourceData.Type)
+			switch (ResourceData->Type)
 			{
 				case ECOResourceDataType::AssetUserData:
 				{
-					const FCustomizableObjectAssetUserData* AUDResource = ResourceData.Data.GetPtr<FCustomizableObjectAssetUserData>();
+					const FCustomizableObjectAssetUserData* AUDResource = ResourceData->Data.GetPtr<FCustomizableObjectAssetUserData>();
 #if WITH_EDITORONLY_DATA
 					ComponentData.AssetUserDataArray.Add(AUDResource->AssetUserDataEditor);
 #else
@@ -5880,6 +5876,9 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 				default:
 					break;
 			}
+
+			// Unload by removing the reference to the container. Only if the platform has cooked data.
+			CustomizableObjectPrivate->UnloadStreamedResource(ResourceIndex);
 		}
 
 		// Loaded Skeletons
@@ -5984,15 +5983,6 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 	}
 
 	PassThroughMeshesToLoad.Empty();
-
-	// Only Unload in cooked builds. Unloading them when in the editor will trigger an assert. 
-	if (FPlatformProperties::RequiresCookedData())
-	{
-		for (FCustomizableObjectStreamedResourceData& ResourceData : StreamedResources)
-		{
-			ResourceData.Unload();
-		}
-	}
 }
 
 
