@@ -899,10 +899,10 @@ public:
 	SLATE_API void LeaveDebuggingMode( bool bLeavingDebugForSingleStep = false );
 
 #if WITH_EDITOR
-	struct FScopedPreventDebuggingMode
+	struct SLATE_API FScopedPreventDebuggingMode
 	{
-		UE_NODISCARD_CTOR SLATE_API FScopedPreventDebuggingMode(FText Reason);
-		SLATE_API ~FScopedPreventDebuggingMode();
+		UE_NODISCARD_CTOR FScopedPreventDebuggingMode(FText Reason);
+		~FScopedPreventDebuggingMode();
 	private:
 		int32 Id;
 	};
