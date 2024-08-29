@@ -1286,7 +1286,6 @@ namespace uba
 	bool SessionServer::HandleGetTraceInformation(const ConnectionInfo& connectionInfo, BinaryReader& reader, BinaryWriter& writer)
 	{
 		u32 remotePos = reader.ReadU32();
-		SCOPED_READ_LOCK(m_trace.m_memoryLock, lock);
 		u32 localPos;
 		{
 			SCOPED_READ_LOCK(m_trace.m_memoryLock, l);
