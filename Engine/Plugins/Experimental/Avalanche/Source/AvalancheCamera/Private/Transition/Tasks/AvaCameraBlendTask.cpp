@@ -28,7 +28,7 @@ EStateTreeRunStatus FAvaCameraBlendTask::EnterState(FStateTreeExecutionContext& 
 
 	const FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
 
-	const UAvaCameraSubsystem& CameraSubsystem = InContext.GetExternalData(CameraSubsystemHandle);
+	UAvaCameraSubsystem& CameraSubsystem = InContext.GetExternalData(CameraSubsystemHandle);
 
 	const FViewTargetTransitionParams* TransitionParams = nullptr;
 	if (InstanceData.bOverrideTransitionParams)

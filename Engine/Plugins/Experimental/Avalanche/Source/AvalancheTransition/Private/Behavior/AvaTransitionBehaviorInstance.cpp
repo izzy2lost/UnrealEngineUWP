@@ -39,6 +39,15 @@ IAvaTransitionBehavior* FAvaTransitionBehaviorInstance::GetBehavior() const
 	return BehaviorWeak.Get();
 }
 
+const UAvaTransitionTree* FAvaTransitionBehaviorInstance::GetTransitionTree() const
+{
+	if (const IAvaTransitionBehavior* Behavior = GetBehavior())
+	{
+		return Behavior->GetTransitionTree();
+	}
+	return nullptr;
+}
+
 FAvaTagHandle FAvaTransitionBehaviorInstance::GetTransitionLayer() const
 {
 	return TransitionContext.GetTransitionLayer();

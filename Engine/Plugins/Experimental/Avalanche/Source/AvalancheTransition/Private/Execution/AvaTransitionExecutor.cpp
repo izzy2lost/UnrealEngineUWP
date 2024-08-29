@@ -6,6 +6,7 @@
 #include "AvaTagList.h"
 #include "AvaTransitionLayer.h"
 #include "AvaTransitionSubsystem.h"
+#include "AvaTransitionTree.h"
 #include "Behavior/IAvaTransitionBehavior.h"
 #include "Engine/World.h"
 #include "Execution/AvaTransitionExecutorBuilder.h"
@@ -50,14 +51,19 @@ void FAvaTransitionExecutor::Setup()
 
 	struct FLayerInfo
 	{
-		// All the Behavior Instances found for a given Layer
-		TArray<FAvaTransitionBehaviorInstance*> BehaviorInstances;
+		// Enter Instances found for a given Layer
+		TArray<FAvaTransitionBehaviorInstance*> EnterInstances;
+
+		// Exit Instances found for a given Layer
+		TArray<FAvaTransitionBehaviorInstance*> ExitInstances;
 
 		// The accumulated Transition Type for a given Layer (e.g. combinations could be In, Out or In | Out)
 		EAvaTransitionType TransitionType;
+
+		FAvaTagHandle TransitionLayer;
 	};
 
-	// Map of BehaviorInstance to the Resolved Tags
+	// Map of the Resolved Tag Layer to the Behavior Instances / Transition type of that Layer
 	TMap<FAvaTag, FLayerInfo> TagLayerInfo;
 	{
 		// Rough Estimate: assume each Instance is in its own single unique tag
@@ -69,8 +75,19 @@ void FAvaTransitionExecutor::Setup()
 			for (const FAvaTag* Tag : Instance.GetTransitionLayer().GetTags())
 			{
 				FLayerInfo& LayerInfo = TagLayerInfo.FindOrAdd(*Tag);
-				LayerInfo.BehaviorInstances.AddUnique(&Instance);
 				LayerInfo.TransitionType |= Instance.GetTransitionType();
+				LayerInfo.TransitionLayer = Instance.GetTransitionLayer();
+
+				switch (Instance.GetTransitionType())
+				{
+				case EAvaTransitionType::In:
+					LayerInfo.EnterInstances.AddUnique(&Instance);
+					break;
+
+				case EAvaTransitionType::Out:
+					LayerInfo.ExitInstances.AddUnique(&Instance);
+					break;
+				}
 			}
 		}
 	}
@@ -81,10 +98,9 @@ void FAvaTransitionExecutor::Setup()
 		const FLayerInfo& LayerInfo = Pair.Value;
 		if (LayerInfo.TransitionType == EAvaTransitionType::In && !EnumHasAnyFlags(LayerInfo.TransitionType, EAvaTransitionType::Out))
 		{
-			check(!LayerInfo.BehaviorInstances.IsEmpty());
 			FAvaTransitionBehaviorInstance& NullInstanceCopy = Instances.Add_GetRef(NullInstance);
 			NullInstanceCopy.SetTransitionType(EAvaTransitionType::Out);
-			NullInstanceCopy.SetOverrideLayer(LayerInfo.BehaviorInstances[0]->GetTransitionLayer());
+			NullInstanceCopy.SetOverrideLayer(LayerInfo.TransitionLayer);
 			NullInstanceCopy.Setup();
 		}
 	}
@@ -93,23 +109,36 @@ void FAvaTransitionExecutor::Setup()
 	// mark them as Needs Discard (this does not mean the scene will be discarded as there could be logic that reverts this flag)
 	for (const TPair<FAvaTag, FLayerInfo>& Pair : TagLayerInfo)
 	{
+		// Skip Layers that have no Enter Transition Instance to replace the existing one 
 		if (!EnumHasAnyFlags(Pair.Value.TransitionType, EAvaTransitionType::In))
 		{
 			continue;
 		}
 
-		for (FAvaTransitionBehaviorInstance* Instance : Pair.Value.BehaviorInstances)
+		for (FAvaTransitionBehaviorInstance* ExitInstance : Pair.Value.ExitInstances)
 		{
-			if (Instance->GetTransitionType() == EAvaTransitionType::In)
-			{
-				continue;
-			}
+			check(ExitInstance->GetTransitionType() == EAvaTransitionType::Out);
 
-			Instance->SetTransitionType(EAvaTransitionType::Out);
-
-			if (FAvaTransitionScene* TransitionScene = Instance->GetTransitionContext().GetTransitionScene())
+			if (FAvaTransitionScene* TransitionScene = ExitInstance->GetTransitionContext().GetTransitionScene())
 			{
-				TransitionScene->SetFlags(EAvaTransitionSceneFlags::NeedsDiscard);
+				bool bSceneReused = false;
+
+				const UAvaTransitionTree* TransitionTree = ExitInstance->GetTransitionTree();
+				if (TransitionTree && TransitionTree->GetInstancingMode() == EAvaTransitionInstancingMode::Reuse)
+				{
+					// Scene reused if the Tree Instancing Mode is set to reuse, and if there is an Enter Instance with matching Tree (i.e. Level)
+					bSceneReused |= Pair.Value.EnterInstances.ContainsByPredicate(
+						[TransitionTree](const FAvaTransitionBehaviorInstance* InEnterInstance)
+						{
+							return InEnterInstance && InEnterInstance->GetTransitionTree() == TransitionTree;
+						});
+				}
+
+				// Only mark for discard if scene not reused
+				if (!bSceneReused)
+				{
+					TransitionScene->SetFlags(EAvaTransitionSceneFlags::NeedsDiscard);
+				}
 			}
 		}
 	}

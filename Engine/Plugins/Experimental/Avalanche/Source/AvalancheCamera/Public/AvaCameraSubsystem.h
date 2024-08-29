@@ -35,7 +35,7 @@ struct FAvaViewTarget
 	TObjectPtr<const UAvaCameraPriorityModifier> CameraPriorityModifier;
 };
 
-UCLASS(MinimalAPI)
+UCLASS(MinimalAPI, DisplayName="Motion Design Camera Subsystem")
 class UAvaCameraSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
@@ -48,7 +48,9 @@ public:
 
 	bool IsBlendingToViewTarget(const ULevel* InSceneLevel) const;
 
-	void UpdatePlayerControllerViewTarget(const FViewTargetTransitionParams* InOverrideTransitionParams = nullptr) const;
+	void UpdatePlayerControllerViewTarget(const FViewTargetTransitionParams* InOverrideTransitionParams = nullptr);
+
+	AVALANCHECAMERA_API bool ConditionallyUpdateViewTarget(const ULevel* InSceneLevel);
 
 protected:
 	//~ Begin UWorldSubsystem

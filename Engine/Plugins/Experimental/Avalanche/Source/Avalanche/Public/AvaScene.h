@@ -5,6 +5,7 @@
 #include "AvaSceneTree.h"
 #include "Delegates/Delegate.h"
 #include "GameFramework/Actor.h"
+#include "IAvaRemoteControlInterface.h"
 #include "IAvaSceneInterface.h"
 #include "IAvaSequenceProvider.h"
 #include "UObject/ObjectPtr.h"
@@ -23,7 +24,7 @@ class ISequencer;
 #endif
 
 UCLASS(MinimalAPI, NotPlaceable, Hidden, NotBlueprintable, NotBlueprintType, DisplayName = "Motion Design Scene")
-class AAvaScene : public AActor, public IAvaSequenceProvider, public IAvaSceneInterface, public IAvaViewportDataProvider
+class AAvaScene : public AActor, public IAvaSequenceProvider, public IAvaSceneInterface, public IAvaViewportDataProvider, public IAvaRemoteControlInterface
 {
 	GENERATED_BODY()
 
@@ -77,6 +78,10 @@ public:
 	virtual void ScheduleRebuildSequenceTree() override;
 	virtual void RebuildSequenceTree() override;
 	//~ End IAvaSequenceProvider
+
+	//~ Begin IAvaRemoteControlInterface
+	virtual void OnValuesApplied_Implementation() override;
+	//~ End IAvaRemoteControlInterface
 
 	//~ Begin AActor
 	virtual void PostActorCreated() override;

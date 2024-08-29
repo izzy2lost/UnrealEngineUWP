@@ -97,24 +97,7 @@ void UAvaCameraSubsystem::RegisterScene(const ULevel* InSceneLevel)
 		}
 	}
 
-	// Remove invalid entries
-	ViewTargets.RemoveAll([](const FAvaViewTarget& InViewTarget)
-		{
-			return !InViewTarget.IsValid();
-		});
-
-	// Sort so that the higher priorities are at the end of the list (end = current)
-	// Stable sorting so that the more recently registered scenes are preferred when the priorities match
-	ViewTargets.StableSort(
-		[](const FAvaViewTarget& A, const FAvaViewTarget& B)
-		{
-			return A.GetPriority() < B.GetPriority();
-		});
-
-	if (!HasCustomViewTargetting(InSceneLevel))
-	{
-		UpdatePlayerControllerViewTarget();
-	}
+	ConditionallyUpdateViewTarget(InSceneLevel);
 }
 
 void UAvaCameraSubsystem::UnregisterScene(const ULevel* InSceneLevel)
@@ -131,10 +114,7 @@ void UAvaCameraSubsystem::UnregisterScene(const ULevel* InSceneLevel)
 			return !InViewTarget.IsValid() || InViewTarget.Actor->GetLevel() == InSceneLevel;
 		});
 
-	if (!HasCustomViewTargetting(InSceneLevel))
-    {
-    	UpdatePlayerControllerViewTarget();
-    }
+	ConditionallyUpdateViewTarget(InSceneLevel);
 }
 
 bool UAvaCameraSubsystem::IsBlendingToViewTarget(const ULevel* InSceneLevel) const
@@ -149,12 +129,26 @@ bool UAvaCameraSubsystem::IsBlendingToViewTarget(const ULevel* InSceneLevel) con
 	return false;
 }
 
-void UAvaCameraSubsystem::UpdatePlayerControllerViewTarget(const FViewTargetTransitionParams* InOverrideTransitionParams) const
+void UAvaCameraSubsystem::UpdatePlayerControllerViewTarget(const FViewTargetTransitionParams* InOverrideTransitionParams)
 {
 	if (!IsValid(PlayerController) || ViewTargets.IsEmpty())
 	{
 		return;
 	}
+
+	// Remove invalid entries
+	ViewTargets.RemoveAll([](const FAvaViewTarget& InViewTarget)
+		{
+			return !InViewTarget.IsValid();
+		});
+
+	// Sort so that the higher priorities are at the end of the list (end = current)
+	// Stable sorting so that the more recently registered scenes are preferred when the priorities match
+	ViewTargets.StableSort(
+		[](const FAvaViewTarget& A, const FAvaViewTarget& B)
+		{
+			return A.GetPriority() < B.GetPriority();
+		});
 
 	const FAvaViewTarget& DesiredViewTarget = ViewTargets.Last();
 
@@ -172,6 +166,16 @@ void UAvaCameraSubsystem::UpdatePlayerControllerViewTarget(const FViewTargetTran
 		: &DesiredViewTarget.GetTransitionParams();
 
 	PlayerController->SetViewTarget(DesiredViewTarget.Actor, *ViewTargetTransitionParams);
+}
+
+bool UAvaCameraSubsystem::ConditionallyUpdateViewTarget(const ULevel* InSceneLevel)
+{
+	if (!HasCustomViewTargetting(InSceneLevel))
+	{
+		UpdatePlayerControllerViewTarget();
+		return true;
+	}
+	return false;
 }
 
 bool UAvaCameraSubsystem::DoesSupportWorldType(const EWorldType::Type InWorldType) const

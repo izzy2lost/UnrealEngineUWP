@@ -262,6 +262,14 @@ void AAvaScene::RebuildSequenceTree()
 	IAvaSequenceProvider::RebuildSequenceTree();
 }
 
+void AAvaScene::OnValuesApplied_Implementation()
+{
+	if (UAvaCameraSubsystem* CameraSubsystem = UAvaCameraSubsystem::Get(this))
+	{
+		CameraSubsystem->ConditionallyUpdateViewTarget(GetLevel());
+	}
+}
+
 void AAvaScene::PostActorCreated()
 {
 	Super::PostActorCreated();

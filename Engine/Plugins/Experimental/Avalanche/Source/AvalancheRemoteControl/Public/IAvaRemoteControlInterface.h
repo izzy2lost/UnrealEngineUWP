@@ -14,7 +14,7 @@ class UAvaRemoteControlInterface : public UInterface
 	GENERATED_BODY()
 };
 
-class AVALANCHEREMOTECONTROL_API IAvaRemoteControlInterface
+class IAvaRemoteControlInterface
 {
 	GENERATED_BODY()
 
@@ -23,6 +23,7 @@ public:
 	 * Called when the remote control values are applied.
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "Remote Control")
-	void OnValuesApplied();
+	AVALANCHEREMOTECONTROL_API void OnValuesApplied();
+
 	virtual void OnValuesApplied_Implementation() {}
 };
