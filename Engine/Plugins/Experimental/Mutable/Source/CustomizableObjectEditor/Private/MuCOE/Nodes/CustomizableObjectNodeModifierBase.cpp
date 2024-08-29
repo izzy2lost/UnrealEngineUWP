@@ -67,10 +67,10 @@ void UCustomizableObjectNodeModifierBase::BackwardsCompatibleFixup(int32 Customi
 						LinksToRemove.Add(LinkedToPin);
 						NewPin->MakeLinkTo(ToModifierPin);
 					}
-				}
-				else
-				{
-					// The modifier is connected to a node for which automatic upgrade support is not implemented. This will be warned below
+					else
+					{
+						ensure(false);
+					}
 				}
 			}
 
@@ -81,6 +81,68 @@ void UCustomizableObjectNodeModifierBase::BackwardsCompatibleFixup(int32 Customi
 			}
 		}
 	}
+
+	// Fix the "Modifier" pin connection
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::FixModifierPin)
+	{
+		// Replace the output pin
+		UEdGraphPin* ModifierPin = FindPin(TEXT("Modifier"));
+		if (ModifierPin)
+		{
+			// Reconnect it to the correct output of the target node
+			TArray<UEdGraphPin*> LinksToRemove;
+			for (int32 LinkIndex = 0; LinkIndex < ModifierPin->LinkedTo.Num(); ++LinkIndex)
+			{
+				UEdGraphPin* LinkedToPin = ModifierPin->LinkedTo[LinkIndex];
+
+				if (!LinkedToPin)
+				{
+					continue;
+				}
+
+				UEdGraphNode* ToNode = LinkedToPin->GetOwningNode();
+				if (!ToNode)
+				{
+					continue;
+				}
+
+				if (UCustomizableObjectNodeObject* ToObjectNode = Cast<UCustomizableObjectNodeObject>(ToNode))
+				{
+					UEdGraphPin* ToModifierPin = ToObjectNode->ModifiersPin();
+					if (ToModifierPin == LinkedToPin)
+					{
+						// It is already correctly connected
+						continue;
+					}
+
+					if (ToModifierPin)
+					{
+						LinksToRemove.Add(LinkedToPin);
+						ModifierPin->MakeLinkTo(ToModifierPin);
+					}
+					else
+					{
+						ensure(false);
+					}
+				}
+				else
+				{
+					// The modifier is connected to a node for which automatic upgrade support is not implemented. This will be warned in PostBackwardsCompatibleFixup
+				}
+			}
+
+			// Remove reconnected links
+			for (UEdGraphPin* LinkToRemove : LinksToRemove)
+			{
+				ModifierPin->BreakLinkTo(LinkToRemove);
+			}
+		}
+	}
+}
+
+void UCustomizableObjectNodeModifierBase::PostBackwardsCompatibleFixup()
+{
+	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
 	// Check for old legacy connections that need manual update
 	{

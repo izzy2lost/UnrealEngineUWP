@@ -117,6 +117,18 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup(int32 CustomizableO
 			}
 		}
 	}
+
+	// Add the "Modifiers" pin
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AddModifierPin)
+	{
+		const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
+
+		UEdGraphPin* OldPin = FindPin(TEXT("Modifiers"));
+		if (!OldPin)
+		{
+			CustomCreatePin(EGPD_Input, Schema->PC_Modifier, ModifiersPinName, true);
+		}
+	}
 }
 
 
