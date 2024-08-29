@@ -42,7 +42,6 @@ public:
 		: Super(InEdMode, InViewportClient, InTarget)
 		, bInitializedComponentInvert(false)
 		, bNeedsSelectionUpdate(false)
-		, Cache(InTarget)
 	{
 	}
 
@@ -122,9 +121,6 @@ public:
 			bNeedsSelectionUpdate = true;
 		}
 	}
-
-protected:
-	FLandscapeDataCache Cache;
 };
 
 class FLandscapeToolSelect : public FLandscapeToolBase<FLandscapeToolStrokeSelect>
