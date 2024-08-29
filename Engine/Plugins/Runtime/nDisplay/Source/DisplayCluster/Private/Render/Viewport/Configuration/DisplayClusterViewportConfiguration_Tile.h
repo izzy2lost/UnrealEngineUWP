@@ -23,9 +23,6 @@ public:
 	/** Update Tile viewports for a new frame. */
 	void Update();
 
-	/** Post-Update Tile viewports for a new frame. */
-	void PostUpdate();
-
 private:
 	/** Mark all Tile viewports as unused before updating. */
 	void ImplBeginReallocateViewports() const;

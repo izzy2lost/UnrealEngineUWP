@@ -61,15 +61,6 @@ void FDisplayClusterViewportConfiguration_Tile::Update()
 	ImplFinishReallocateViewports();
 }
 
-void FDisplayClusterViewportConfiguration_Tile::PostUpdate()
-{
-	ForEachTileViewport([](FDisplayClusterViewport& InSourceViewport, const FIntPoint& InTilePos)
-	{
-		// Copy settings for the source viewports to the all tiles.
-		FDisplayClusterViewportConfigurationHelpers_Tile::ConfigureTileViewport(InSourceViewport, InTilePos);
-	});
-}
-
 void FDisplayClusterViewportConfiguration_Tile::ImplBeginReallocateViewports() const
 {
 	if (FDisplayClusterViewportManager* ViewportManager = Configuration.GetViewportManagerImpl())

@@ -204,6 +204,12 @@ bool FDisplayClusterViewport::IsRenderEnabledByMedia() const
 
 bool FDisplayClusterViewport::CanSplitIntoTiles() const
 {
+	if (!RenderSettings.bEnable || RenderSettings.bSkipRendering || RenderSettings.bFreezeRendering)
+	{
+		// When this viewport is not rendering, ignore tile splitting.
+		return false;
+	}
+
 	// Ignore internal tile viewports.
 	switch(RenderSettings.TileSettings.GetType())
 	{

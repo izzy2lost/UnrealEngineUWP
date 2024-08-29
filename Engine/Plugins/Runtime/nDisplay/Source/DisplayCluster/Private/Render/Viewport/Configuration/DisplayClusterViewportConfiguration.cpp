@@ -384,14 +384,14 @@ bool FDisplayClusterViewportConfiguration::ImplUpdateConfiguration(EDisplayClust
 	}
 
 	ConfigurationICVFX.Update();
-	ConfigurationTile.Update();
-
 	ConfigurationProjectionPolicy.Update();
-
 	ConfigurationICVFX.PostUpdate();
-	ConfigurationTile.PostUpdate();
 
 	ImplUpdateConfigurationVisibility();
+
+	// Tiled viewports should be created and updated at the very end, when all base viewports are already set up.
+	// Because tile viewports copy configuration data from the base viewport that is used to create the tile.
+	ConfigurationTile.Update();
 
 	if (!InViewportNames)
 	{

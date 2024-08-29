@@ -8,6 +8,8 @@
 #include "DisplayClusterConfigurationTypes_MediaSync.h"
 #include "DisplayClusterConfigurationTypes_Tile.h"
 
+#include "Render/Viewport/Containers/DisplayClusterViewport_TileSettings.h"
+
 #include "MediaPlayer.h"
 #include "MediaSource.h"
 #include "MediaTexture.h"
@@ -305,6 +307,11 @@ public:
 	bool bLateOCIOPass = false;
 
 public:
+	/** Returns true if these media settings can be used for tiling. */
+	bool ShouldMediaICVFXSplitIntoTiles() const;
+
+	/** Returns additional tile settings for the cluster node. */
+	EDisplayClusterViewportTileFlags GetMediaICVFXTileFlags(const FString& NodeId) const;
 
 	/** Returns true if any media source of specified split-type is bound */
 	bool HasAnyMediaInputAssigned(const FString& NodeId, EDisplayClusterConfigurationMediaSplitType SplitType) const;
