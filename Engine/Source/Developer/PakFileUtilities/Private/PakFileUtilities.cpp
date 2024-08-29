@@ -5496,6 +5496,11 @@ bool ExecuteUnrealPak(const TCHAR* CmdLine)
 		{
 			return ListIoStoreContainerBulkData(CmdLine);
 		}
+
+		if (FParse::Value(CmdLine, TEXT("-DiffContainer="), IoStoreArg))
+		{
+			return DiffIoStoreContainer(CmdLine);
+		}
 	}
 
 	// Parse all the non-option arguments from the command line

@@ -28,6 +28,7 @@ UE_API bool LegacyListIoStoreContainer(
 UE_API bool ListIoStoreContainer(const TCHAR* CmdLine);
 UE_API bool ListIoStoreContainerBulkData(const TCHAR* CmdLine);
 
+UE_API bool DiffIoStoreContainer(const TCHAR* CmdLine);
 UE_API bool LegacyDiffIoStoreContainers(
 	const TCHAR* InContainerFilename1,
 	const TCHAR* InContainerFilename2,

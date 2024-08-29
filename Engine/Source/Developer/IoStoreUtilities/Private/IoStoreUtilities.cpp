@@ -8237,6 +8237,66 @@ static int32 Diff(
 	return 0;
 }
 
+bool DiffIoStoreContainer(const TCHAR* CmdLine)
+{
+	FString SourcePath, TargetPath, OutPath;
+	FKeyChain SourceKeyChain, TargetKeyChain;
+
+	if (!FParse::Value(CmdLine, TEXT("DiffContainer="), SourcePath))
+	{
+		UE_LOG(LogIoStore, Error, TEXT("Incorrect arguments. Expected: -DiffContainer=<Path> -Target=<Path>"));
+		return false;
+	}
+
+	if (!IFileManager::Get().DirectoryExists(*SourcePath))
+	{
+		UE_LOG(LogIoStore, Error, TEXT("Source directory '%s' doesn't exist"), *SourcePath);
+		return false;
+	}
+
+	if (!FParse::Value(CmdLine, TEXT("Target="), TargetPath))
+	{
+		UE_LOG(LogIoStore, Error, TEXT("Incorrect arguments. Expected: -DiffContainer=<Path> -Target=<Path>"));
+	}
+
+	if (!IFileManager::Get().DirectoryExists(*TargetPath))
+	{
+		UE_LOG(LogIoStore, Error, TEXT("Target directory '%s' doesn't exist"), *TargetPath);
+		return false;
+	}
+
+	FParse::Value(CmdLine, TEXT("DumpToFile="), OutPath);
+
+	FString CryptoKeysCacheFilename;
+	if (FParse::Value(CmdLine, TEXT("CryptoKeys="), CryptoKeysCacheFilename))
+	{
+		UE_LOG(LogIoStore, Display, TEXT("Parsing source crypto keys from '%s'"), *CryptoKeysCacheFilename);
+		KeyChainUtilities::LoadKeyChainFromFile(CryptoKeysCacheFilename, SourceKeyChain);
+	}
+
+	if (FParse::Value(CmdLine, TEXT("TargetCryptoKeys="), CryptoKeysCacheFilename))
+	{
+		UE_LOG(LogIoStore, Display, TEXT("Parsing target crypto keys from '%s'"), *CryptoKeysCacheFilename);
+		KeyChainUtilities::LoadKeyChainFromFile(CryptoKeysCacheFilename, TargetKeyChain);
+	}
+	else
+	{
+		TargetKeyChain = SourceKeyChain;
+	}
+
+	EChunkTypeFilter ChunkTypeFilter = EChunkTypeFilter::None;
+	if (FParse::Param(CmdLine, TEXT("FilterBulkData")))
+	{
+		ChunkTypeFilter = EChunkTypeFilter::BulkData;
+	}
+	else if (FParse::Param(FCommandLine::Get(), TEXT("FilterPackageData")))
+	{
+		ChunkTypeFilter = EChunkTypeFilter::PackageData;
+	}
+
+	return Diff(SourcePath, SourceKeyChain, TargetPath, TargetKeyChain, OutPath, ChunkTypeFilter) == 0;
+}
+
 bool LegacyDiffIoStoreContainers(const TCHAR* InContainerFilename1, const TCHAR* InContainerFilename2, bool bInLogUniques1, bool bInLogUniques2, const FKeyChain& InKeyChain1, const FKeyChain* InKeyChain2)
 {
 	TGuardValue<ELogTimes::Type> DisableLogTimes(GPrintLogTimes, ELogTimes::None);
