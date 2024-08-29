@@ -776,7 +776,7 @@ void FColorGradingCustomBuilder::GenerateHeaderRowContent(FDetailWidgetRow& Node
 		SpinBoxMinMaxSliderValues.DefaultMaxSliderValue = SpinBoxMinMaxSliderValues.CurrentMaxSliderValue;
 
 		VerticalBox->AddSlot()
-			.Padding(FMargin(0.0f, 8.0f, 4.0f, 0.0f))
+			.Padding(FMargin(0.0f, 4.0f, 0.0f, 0.0f))
 			.AutoHeight()
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Fill)
