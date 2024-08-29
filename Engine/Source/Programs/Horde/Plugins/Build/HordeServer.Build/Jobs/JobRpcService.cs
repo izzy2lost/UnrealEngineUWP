@@ -196,6 +196,7 @@ namespace HordeServer.Jobs
 			RpcBeginBatchResponse response = new RpcBeginBatchResponse();
 			response.LogId = batch.LogId.ToString();
 			response.AgentType = graph.Groups[batch.GroupIdx].AgentType;
+			response.StreamId = streamConfig.Id.ToString();
 			response.StreamName = streamConfig.Name;
 			response.Change = job.CommitId.GetPerforceChange();
 			response.CodeChange = job.CodeCommitId?.GetPerforceChange() ?? 0;

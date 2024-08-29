@@ -1803,6 +1803,7 @@ namespace JobDriver.Execution
 			newEnvVars["UE_HORDE_JOBID"] = JobId.ToString();
 			newEnvVars["UE_HORDE_BATCHID"] = BatchId.ToString();
 			newEnvVars["UE_HORDE_STEPID"] = step.StepId.ToString();
+			newEnvVars["UE_HORDE_STREAMID"] = Batch.StreamId;
 
 			// Enable structured logging output
 			newEnvVars["UE_LOG_JSON_TO_STDOUT"] = "1";
