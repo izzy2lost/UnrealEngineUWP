@@ -175,9 +175,6 @@ public:
 	/** Sort all nodes and descendants */
 	TSharedPtr< FUICommandInfo > SortAllNodesAndDescendants;
 
-	/** Reset all enabled filters */
-	TSharedPtr< FUICommandInfo > ResetFilters;
-
 	/** Sets the upper bound of the selection range */
 	TSharedPtr< FUICommandInfo > SetSelectionRangeEnd;
 
@@ -396,9 +393,6 @@ public:
 
 	/** Turns auto scroll on and off. */
 	TSharedPtr< FUICommandInfo > ToggleAutoScroll;
-
-	/** Toggles whether or not to show selected nodes only. */
-	TSharedPtr< FUICommandInfo > ToggleShowSelectedNodesOnly;
 
 	/** Toggles whether or not the curve editor should be shown. */
 	TSharedPtr< FUICommandInfo > ToggleShowCurveEditor;

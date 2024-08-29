@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Filters/SequencerFilterBarConfig.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "UObject/Package.h"
@@ -480,11 +481,6 @@ public:
 	/** Sets the saved view density */
 	void SetViewDensity(FName InViewDensity);
 
-	/** Gets whether the given track filter is enabled */
-	bool IsTrackFilterEnabled(const FString& TrackFilter) const;
-	/** Sets whether the track filter should be enabled/disabled */
-	void SetTrackFilterEnabled(const FString& TrackFilter, bool bEnabled);
-
 	/** Get outliner column visibility in display order */
 	TArray<FColumnVisibilitySetting> GetOutlinerColumnSettings() const { return ColumnVisibilitySettings; }
 	/** Sets the visibility of outliner columns in display order */
@@ -494,6 +490,28 @@ public:
 	FSidebarState& GetSidebarState();
 	/** Sets the sidebar state to be restored on Sequencer initialize */
 	void SetSidebarState(const FSidebarState& InSidebarState);
+
+	FSequencerFilterBarConfig& FindOrAddTrackFilterBar(const FName InIdentifier, const bool bInSaveConfig);
+	FSequencerFilterBarConfig* FindTrackFilterBar(const FName InIdentifier);
+	bool RemoveTrackFilterBar(const FName InIdentifier);
+
+	bool GetIncludePinnedInFilter() const;
+	void SetIncludePinnedInFilter(const bool bInIncludePinned);
+
+	bool GetAutoExpandNodesOnFilterPass() const;
+	void SetAutoExpandNodesOnFilterPass(const bool bInIncludePinned);
+
+	bool GetUseFilterSubmenusForCategories() const;
+	void SetUseFilterSubmenusForCategories(const bool bInUseFilterSubmenusForCategories);
+
+	bool IsFilterBarVisible() const;
+	void SetFilterBarVisible(const bool bInVisible);
+
+	EFilterBarLayout GetFilterBarLayout() const;
+	void SetFilterBarLayout(const EFilterBarLayout InLayout);
+
+	float GetLastFilterBarSizeCoefficient() const;
+	void SetLastFilterBarSizeCoefficient(const float bInSizeCoefficient);
 
 protected:
 
@@ -766,10 +784,6 @@ protected:
 	UPROPERTY(config, EditAnywhere, Category = General)
 	FName ViewDensity;
 
-	/** The track filters that are enabled */
-	UPROPERTY(config, EditAnywhere, Category = General)
-	TArray<FString> TrackFilters;
-
 	/** List of all columns and their visibility, in the order to be displayed in the outliner view */
 	UPROPERTY(config, EditAnywhere, Category = General)
 	TArray<FColumnVisibilitySetting> ColumnVisibilitySettings;
@@ -777,6 +791,34 @@ protected:
 	/** The state of a sidebar to be restored when each Sequencer type is initialized */
 	UPROPERTY(config)
 	TMap<FName, FSidebarState> SidebarState;
+
+	/** Saved settings for each unique filter bar instance mapped by instance identifier */
+	UPROPERTY(config, EditAnywhere, Category = Filtering)
+	TMap<FName, FSequencerFilterBarConfig> TrackFilterBars;
+
+	/** Apply filtering to pinned tracks that would otherwise ignore filters */
+	UPROPERTY(config, EditAnywhere, Category = Filtering)
+	bool bIncludePinnedInFilter;
+
+	/** Automatically expand tracks that pass filters */
+	UPROPERTY(config, EditAnywhere, Category = Filtering)
+	bool bAutoExpandNodesOnFilterPass;
+
+	/** Display the filter menu categories as submenus instead of sections */
+	UPROPERTY(config, EditAnywhere, Category = Filtering)
+	bool bUseFilterSubmenusForCategories;
+
+	/** Last saved visibility of the filter bar to restore after closed */
+	UPROPERTY(config, EditAnywhere, Category = Filtering)
+	bool bFilterBarVisible;
+
+	/** Last saved layout orientation of the filter bar to restore after closed */
+	UPROPERTY(config, EditAnywhere, Category = Filtering)
+	EFilterBarLayout LastFilterBarLayout;
+
+	/** Last saved size of the filter bar to restore after closed */
+	UPROPERTY(config)
+	float LastFilterBarSizeCoefficient;
 
 	FOnEvaluateSubSequencesInIsolationChanged OnEvaluateSubSequencesInIsolationChangedEvent;
 	FOnShowSelectedNodesOnlyChanged OnShowSelectedNodesOnlyChangedEvent;

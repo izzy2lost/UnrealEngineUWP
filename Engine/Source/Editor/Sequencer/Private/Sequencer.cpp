@@ -172,6 +172,7 @@
 #include "Bindings/MovieSceneSpawnableBinding.h"
 #include "Bindings/MovieSceneSpawnableActorBinding.h"
 #include "Bindings/MovieSceneReplaceableActorBinding.h"
+#include "Filters/SequencerFilterBar.h"
 
 #define LOCTEXT_NAMESPACE "Sequencer"
 
@@ -552,6 +553,8 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 	UpdateTimeBases();
 	PlayPosition.Reset(ConvertFrameTime(GetPlaybackRange().GetLowerBoundValue(), GetRootTickResolution(), PlayPosition.GetInputRate()));
 
+	FilterBar->CreateCustomTextFiltersFromConfig();
+
 	// Make internal widgets
 	SequencerWidget = SNew( SSequencer, SharedThis( this ) )
 		.ViewRange( this, &FSequencer::GetViewRange )
@@ -638,7 +641,6 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 		TimeUndoRedoHandler.SetSequencer(SharedThis(this));
 		TimeUndoRedoHandler.UndoRedoProxy->SetFlags(RF_Transactional | RF_Transient);
 	}
-	
 
 	// Update the view range to the new current time
 	UpdateTimeBoundsToFocusedMovieScene();
@@ -739,6 +741,7 @@ FSequencer::FSequencer()
 	, bUpdatingExternalSelection( false )
 	, bNeedsEvaluate(false)
 	, bNeedsInvalidateCachedData(false)
+	, FilterBar(MakeShared<FSequencerFilterBar>(*this))
 {
 	// Exposes the sequencer and curve editor command lists to subscribers from other systems
 	FInputBindingManager::Get().RegisterCommandList(FSequencerCommands::Get().GetContextName(), SequencerCommandBindings);
@@ -5674,6 +5677,11 @@ bool FSequencer::IsReadOnly() const
 	return bReadOnly || (GetFocusedMovieSceneSequence() && GetFocusedMovieSceneSequence()->GetMovieScene() && GetFocusedMovieSceneSequence()->GetMovieScene()->IsReadOnly());
 }
 
+void FSequencer::ExternalSelectionHasChanged()
+{
+	SynchronizeSequencerSelectionWithExternalSelection();
+}
+
 FGuid FSequencer::MakeNewSpawnable(UObject& Object, UActorFactory* ActorFactory, bool bSetupDefaults)
 {
 	const FScopedTransaction Transaction(LOCTEXT("UndoAddingObject", "Add Object to MovieScene"));
@@ -6401,7 +6409,7 @@ void FSequencer::AddNodesToExistingNodeGroup(TArrayView<const UE::Sequencer::TWe
 void FSequencer::ClearFilters()
 {
 	SequencerWidget->SetSearchText(FText::GetEmpty());
-	GetNodeTree()->RemoveAllFilters();
+	FilterBar->EnableFilters(false);
 	GetSequencerSettings()->SetShowSelectedNodesOnly(false);
 
 	UMovieSceneSequence* FocusedMovieSequence = GetFocusedMovieSceneSequence();
@@ -6751,6 +6759,8 @@ void FSequencer::SynchronizeSequencerSelectionWithExternalSelection()
 			}
 		}
 	}
+
+	FilterBar->RequestFilterUpdate();
 }
 
 void FSequencer::SelectNodesByPath(const TSet<FString>& NodePaths)
@@ -8516,19 +8526,26 @@ void FSequencer::ObjectImplicitlyRemoved(UObject* InObject) const
 	}
 }
 
-void FSequencer::SetTrackFilterEnabled(const FText& InTrackFilterName, bool bEnabled)
+void FSequencer::SetTrackFilterEnabled(const FText& InFilterName, bool bInEnabled)
 {
-	SequencerWidget->SetTrackFilterEnabled(InTrackFilterName, bEnabled);
+	if (const TSharedPtr<FSequencerTrackFilter> Filter = FilterBar->FindFilterByDisplayName(InFilterName.ToString()))
+	{
+		FilterBar->SetFilterEnabled(Filter.ToSharedRef(), bInEnabled, true);
+	}
 }
 
-bool FSequencer::IsTrackFilterEnabled(const FText& InTrackFilterName) const
+bool FSequencer::IsTrackFilterEnabled(const FText& InFilterName) const
 {
-	return SequencerWidget->IsTrackFilterEnabled(InTrackFilterName);
+	if (const TSharedPtr<FSequencerTrackFilter> Filter = FilterBar->FindFilterByDisplayName(InFilterName.ToString()))
+	{
+		return FilterBar->IsFilterEnabled(Filter.ToSharedRef());
+	}
+	return false;
 }
 
 TArray<FText> FSequencer::GetTrackFilterNames() const
 {
-	return SequencerWidget->GetTrackFilterNames();
+	return FilterBar->GetFilterDisplayNames();
 }
 
 void FSequencer::ToggleNodeLocked()
@@ -8983,7 +9000,7 @@ void FSequencer::OnLoadRecordedData()
 
 }
 
-void FSequencer::OnAddFolder()
+void FSequencer::AddFolder()
 {
 	using namespace UE::Sequencer;
 
@@ -9679,11 +9696,6 @@ void FSequencer::CollapseAllNodes()
 	const bool bExpandAll = false;
 	const bool bCollapseAll = true;
 	SequencerWidget->GetTreeView()->ToggleExpandCollapseNodes(ETreeRecursion::Recursive, bExpandAll, bCollapseAll);
-}
-
-void FSequencer::ResetFilters()
-{
-	SequencerWidget->ResetFilters();
 }
 
 void FSequencer::AddSelectedActors()
@@ -10779,10 +10791,6 @@ void FSequencer::BindCommands()
 		FExecuteAction::CreateSP(this, &FSequencer::CollapseAllNodes));
 
 	SequencerCommandBindings->MapAction(
-		Commands.ResetFilters,
-		FExecuteAction::CreateSP(this, &FSequencer::ResetFilters));
-
-	SequencerCommandBindings->MapAction(
 		Commands.AddActorsToSequencer,
 		FExecuteAction::CreateSP( this, &FSequencer::AddSelectedActors));
 
@@ -11013,14 +11021,6 @@ void FSequencer::BindCommands()
 		}),
 		FCanExecuteAction::CreateLambda([] { return true; }),
 		FIsActionChecked::CreateLambda([this] { return Settings->GetShowInfoButton(); }));
-
-	SequencerCommandBindings->MapAction(
-		Commands.ToggleShowSelectedNodesOnly,
-		FExecuteAction::CreateLambda( [this]{
-			Settings->SetShowSelectedNodesOnly( !Settings->GetShowSelectedNodesOnly() );
-		} ),
-		FCanExecuteAction::CreateLambda( []{ return true; } ),
-		FIsActionChecked::CreateLambda( [this]{ return Settings->GetShowSelectedNodesOnly(); } ) );
 
 	SequencerCommandBindings->MapAction(
 		Commands.ChangeTimeDisplayFormat,
@@ -11675,14 +11675,14 @@ void FSequencer::BindCommands()
 		CurveEditorSharedBindings->MapAction(Commands.AddRotationKey, *SequencerCommandBindings->GetActionForCommand(Commands.AddRotationKey));
 		CurveEditorSharedBindings->MapAction(Commands.AddScaleKey, *SequencerCommandBindings->GetActionForCommand(Commands.AddScaleKey));
 
-		CurveEditorSharedBindings->MapAction(Commands.ResetFilters, *SequencerCommandBindings->GetActionForCommand(Commands.ResetFilters));
-
 		TSharedPtr<FCurveEditor> CurveEditor = CurveEditorExtension->GetCurveEditor();
 		CurveEditor->GetCommands()->Append(CurveEditorSharedBindings);
 	}
 
 	// bind widget specific commands
 	SequencerWidget->BindCommands(SequencerCommandBindings, CurveEditorSharedBindings);
+
+	FilterBar->BindCommands();
 }
 
 void FSequencer::BuildAddTrackMenu(class FMenuBuilder& MenuBuilder)
@@ -11700,7 +11700,7 @@ void FSequencer::BuildAddTrackMenu(class FMenuBuilder& MenuBuilder)
 		LOCTEXT( "AddFolder", "Add Folder" ),
 		LOCTEXT( "AddFolderToolTip", "Adds a new folder." ),
 		FSlateIcon( FAppStyle::GetAppStyleSetName(), "ContentBrowser.AssetTreeFolderOpen" ),
-		FUIAction( FExecuteAction::CreateRaw( this, &FSequencer::OnAddFolder ) ) );
+		FUIAction( FExecuteAction::CreateRaw( this, &FSequencer::AddFolder ) ) );
 
 	for (int32 i = 0; i < TrackEditors.Num(); ++i)
 	{
@@ -12276,6 +12276,16 @@ FText FSequencer::GetSidebarSelectionDrawerToolTipText() const
 	}
 
 	return ToolTipText;
+}
+
+TSharedRef<ISequencerTrackFilters> FSequencer::GetFilterInterface() const
+{
+	return FilterBar;
+}
+
+TSharedRef<FSequencerFilterBar> FSequencer::GetFilterBar() const
+{
+	return FilterBar;
 }
 
 #undef LOCTEXT_NAMESPACE

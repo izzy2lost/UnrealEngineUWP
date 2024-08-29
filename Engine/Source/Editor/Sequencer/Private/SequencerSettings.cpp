@@ -71,6 +71,11 @@ USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitiali
 	bShowSequencerToolbar = true;
 	bShowMarkedFrames = true;
 	ViewDensity = "Relaxed";
+	bIncludePinnedInFilter = false;
+	bAutoExpandNodesOnFilterPass = false;
+	bUseFilterSubmenusForCategories = false;
+	LastFilterBarLayout = EFilterBarLayout::Horizontal;
+	LastFilterBarSizeCoefficient = 0.1f;
 
 	SectionColorTints.Add(FColor(88, 102, 142, 255)); // blue
 	SectionColorTints.Add(FColor(99, 137, 132, 255)); // blue-green
@@ -1045,29 +1050,16 @@ void USequencerSettings::SetViewDensity(FName InViewDensity)
 	}
 }
 
-bool USequencerSettings::IsTrackFilterEnabled(const FString& TrackFilter) const
+FSidebarState& USequencerSettings::GetSidebarState()
 {
-	return TrackFilters.Contains(TrackFilter);
+	return SidebarState.FindOrAdd(GetFName());
 }
 
-void USequencerSettings::SetTrackFilterEnabled(const FString & TrackFilter, bool bEnabled)
+void USequencerSettings::SetSidebarState(const FSidebarState& InSidebarState)
 {
-	if (bEnabled)
-	{
-		if (!TrackFilters.Contains(TrackFilter))
-		{
-			TrackFilters.Add(TrackFilter);
-			SaveConfig();
-		}
-	}
-	else
-	{
-		if (TrackFilters.Contains(TrackFilter))
-		{
-			TrackFilters.Remove(TrackFilter);
-			SaveConfig();
-		}
-	}
+	FSidebarState& State = SidebarState.FindOrAdd(GetFName());
+	State = InSidebarState;
+	SaveConfig();
 }
 
 void USequencerSettings::SetOutlinerColumnVisibility(const TArray<FColumnVisibilitySetting>& InColumnVisibilitySettings)
@@ -1079,14 +1071,92 @@ void USequencerSettings::SetOutlinerColumnVisibility(const TArray<FColumnVisibil
 	}
 }
 
-FSidebarState& USequencerSettings::GetSidebarState()
+FSequencerFilterBarConfig& USequencerSettings::FindOrAddTrackFilterBar(const FName InIdentifier, const bool bInSaveConfig)
 {
-	return SidebarState.FindOrAdd(GetFName());
+	FSequencerFilterBarConfig& FilterBarSettings = TrackFilterBars.FindOrAdd(InIdentifier);
+
+	if (bInSaveConfig)
+	{
+		SaveConfig();
+	}
+
+	return FilterBarSettings;
 }
 
-void USequencerSettings::SetSidebarState(const FSidebarState& InSidebarState)
+FSequencerFilterBarConfig* USequencerSettings::FindTrackFilterBar(const FName InIdentifier)
 {
-	FSidebarState& State = SidebarState.FindOrAdd(GetFName());
-	State = InSidebarState;
+	return TrackFilterBars.Find(InIdentifier);
+}
+
+bool USequencerSettings::RemoveTrackFilterBar(const FName InIdentifier)
+{
+	const int32 RemovedCount = TrackFilterBars.Remove(InIdentifier) > 0;
+	SaveConfig();
+	return RemovedCount > 0;
+}
+
+bool USequencerSettings::GetIncludePinnedInFilter() const
+{
+	return bIncludePinnedInFilter;
+}
+
+void USequencerSettings::SetIncludePinnedInFilter(const bool bInIncludePinned)
+{
+	bIncludePinnedInFilter = bInIncludePinned;
+	SaveConfig();
+}
+
+bool USequencerSettings::GetAutoExpandNodesOnFilterPass() const
+{
+	return bAutoExpandNodesOnFilterPass;
+}
+
+void USequencerSettings::SetAutoExpandNodesOnFilterPass(const bool bInIncludeParents)
+{
+	bAutoExpandNodesOnFilterPass = bInIncludeParents;
+	SaveConfig();
+}
+
+bool USequencerSettings::GetUseFilterSubmenusForCategories() const
+{
+	return bUseFilterSubmenusForCategories;
+}
+
+void USequencerSettings::SetUseFilterSubmenusForCategories(const bool bInUseFilterSubmenusForCategories)
+{
+	bUseFilterSubmenusForCategories = bInUseFilterSubmenusForCategories;
+	SaveConfig();
+}
+
+bool USequencerSettings::IsFilterBarVisible() const
+{
+	return bFilterBarVisible;
+}
+
+void USequencerSettings::SetFilterBarVisible(const bool bInVisible)
+{
+	bFilterBarVisible = bInVisible;
+	SaveConfig();
+}
+
+EFilterBarLayout USequencerSettings::GetFilterBarLayout() const
+{
+	return LastFilterBarLayout;
+}
+
+void USequencerSettings::SetFilterBarLayout(const EFilterBarLayout InLayout)
+{
+	LastFilterBarLayout = InLayout;
+	SaveConfig();
+}
+
+float USequencerSettings::GetLastFilterBarSizeCoefficient() const
+{
+	return LastFilterBarSizeCoefficient;
+}
+
+void USequencerSettings::SetLastFilterBarSizeCoefficient(const float bInSizeCoefficient)
+{
+	LastFilterBarSizeCoefficient = bInSizeCoefficient;
 	SaveConfig();
 }

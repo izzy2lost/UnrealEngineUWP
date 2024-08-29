@@ -48,6 +48,7 @@ public class Sequencer : ModuleRules
 				"ToolMenus",
 				"ToolWidgets",
 				"TypedElementFramework",
+				"TypedElementRuntime",
 				"UniversalObjectLocator",
 				"UniversalObjectLocatorEditor",
 				}

@@ -1,0 +1,28 @@
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "Templates/SharedPointer.h"
+#include "SequencerFilterBarContext.generated.h"
+
+class FSequencerFilterBar;
+
+UCLASS()
+class USequencerFilterBarContext : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	void Init(const TWeakPtr<FSequencerFilterBar>& InFilterBarWeak)
+	{
+		FilterBarWeak = InFilterBarWeak;
+	}
+
+	TSharedPtr<FSequencerFilterBar> GetFilterBar() const
+	{
+		return FilterBarWeak.IsValid() ? FilterBarWeak.Pin() : nullptr;
+	}
+
+protected:
+	TWeakPtr<FSequencerFilterBar> FilterBarWeak;
+};

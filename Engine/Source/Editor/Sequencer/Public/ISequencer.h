@@ -10,6 +10,7 @@
 #include "Delegates/Delegate.h"
 #include "ViewRangeInterpolation.h"
 #include "Evaluation/MovieSceneSequenceTransform.h"
+#include "Filters/ISequencerTrackFilters.h"
 #include "HAL/Platform.h"
 #include "IMovieScenePlayer.h"
 #include "IMovieScenePlayer.h"
@@ -825,13 +826,19 @@ public:
 public:
 
 	/** Sets the specified track filter to be on or off */
+	UE_DEPRECATED(5.5, "SetTrackFilterEnabled() has been deprecated. Use GetFilterInterface()->SetFilterActiveByDisplayName() instead.")
 	virtual void SetTrackFilterEnabled(const FText& InTrackFilterName, bool bEnabled) = 0;
 
 	/** Gets whether the specified track filter is on/off */
+	UE_DEPRECATED(5.5, "IsTrackFilterEnabled() has been deprecated. Use GetFilterInterface()->IsFilterActiveByDisplayName() instead.")
 	virtual bool IsTrackFilterEnabled(const FText& InTrackFilterName) const = 0;
 
 	/** Gets all the available track filter names */
+	UE_DEPRECATED(5.5, "GetTrackFilterNames() has been deprecated. Use GetFilterInterface()->GetFilterDisplayNames() instead.")
 	virtual TArray<FText> GetTrackFilterNames() const = 0;
+
+	/** Gets the Sequencer filter interface used to manage filters */
+	SEQUENCER_API virtual TSharedRef<ISequencerTrackFilters> GetFilterInterface() const = 0;
 
 public:
 

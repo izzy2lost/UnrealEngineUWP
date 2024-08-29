@@ -40,6 +40,7 @@
 #include "Curves/RichCurve.h"
 #include "Sections/MovieScene3DTransformSection.h"
 #include "SequencerTimeChangeUndoRedoProxy.h"
+#include "Filters/ISequencerTrackFilters.h"
 
 class AActor;
 class ACameraActor;
@@ -808,7 +809,7 @@ public:
 	virtual UObject* FindSpawnedObjectOrTemplate(const FGuid& BindingId) override;
 	virtual FGuid MakeNewSpawnable(UObject& SourceObject, UActorFactory* ActorFactory = nullptr, bool bSetupDefaults = true) override;
 	virtual bool IsReadOnly() const override;
-	virtual void ExternalSelectionHasChanged() override { SynchronizeSequencerSelectionWithExternalSelection(); }
+	virtual void ExternalSelectionHasChanged() override;
 	virtual TSharedPtr<ISequencerTrackEditor> GetTrackEditor(UMovieSceneTrack* InTrack) override;
 	virtual void ObjectImplicitlyAdded(UObject* InObject) const override;
 	virtual void ObjectImplicitlyRemoved(UObject* InObject) const override;
@@ -818,8 +819,8 @@ public:
 	virtual void SetSequencerSettings(USequencerSettings* InSettings) override;
 	virtual TSharedPtr<class ITimeSlider> GetTopTimeSliderWidget() const override;
 	virtual void ResetTimeController() override;
-	virtual void SetTrackFilterEnabled(const FText& InTrackFilterName, bool bEnabled) override;
-	virtual bool IsTrackFilterEnabled(const FText& InTrackFilterName) const override;
+	virtual void SetTrackFilterEnabled(const FText& InFilterName, bool bInEnabled) override;
+	virtual bool IsTrackFilterEnabled(const FText& InFilterName) const override;
 	virtual TArray<FText> GetTrackFilterNames() const override;
 
 public:
@@ -1012,12 +1013,13 @@ protected:
 	/** Expand or collapse selected nodes and descendants*/
 	void ToggleExpandCollapseNodesAndDescendants();
 
+public:
+
 	/** Expand or collapse all nodes and descendants*/
 	void ExpandAllNodes();
 	void CollapseAllNodes();
 
-	/** Reset all enabled filters */
-	void ResetFilters();
+protected:
 
 	/** Sort all nodes and their descendants by category then alphabetically */
 	void SortAllNodesAndDescendants();
@@ -1068,6 +1070,9 @@ public:
 
 	void ClearFilters();
 
+	/** Handles adding a new folder to the outliner tree. */
+	void AddFolder();
+
 private:
 
 	/** Updates viewport clients' actor locks if they relate to sequencer cameras */
@@ -1075,9 +1080,6 @@ private:
 
 	/** Internal function to render movie for a given start/end time */
 	void RenderMovieInternal(TRange<FFrameNumber> Range, bool bSetFrameOverrides = false) const;
-
-	/** Handles adding a new folder to the outliner tree. */
-	void OnAddFolder();
 
 	/** Handles loading in previously recorded data. */
 	void OnLoadRecordedData();
@@ -1226,6 +1228,10 @@ public:
 
 	/** Undocks the docked sidebar drawer if docked or docks the sidebar drawer if there is one open and no currently docked drawer. */
 	void ToggleSidebarDrawerDocked();
+
+	virtual TSharedRef<ISequencerTrackFilters> GetFilterInterface() const override;
+
+	TSharedRef<FSequencerFilterBar> GetFilterBar() const;
 
 private:
 
@@ -1568,4 +1574,6 @@ private:
 
 	/** Delegate that is called when selection limiting has been toggled on or off */
 	FOnViewportSelectionLimitedChanged OnSelectionLimitedChangedDelegate;
+
+	TSharedRef<FSequencerFilterBar> FilterBar;
 };

@@ -2,6 +2,14 @@
 
 #include "SSequencer.h"
 #include "Engine/Blueprint.h"
+#include "Filters/Filters/SequencerTrackFilter_CustomText.h"
+#include "Filters/Filters/SequencerTrackFilters.h"
+#include "Filters/Menus/SequencerViewOptionsMenu.h"
+#include "Filters/SequencerFilterBar.h"
+#include "Filters/SFilterSearchBox.h"
+#include "Filters/Widgets/SFilterBarIsolateHideShow.h"
+#include "Filters/Widgets/SSequencerCustomTextFilterDialog.h"
+#include "Filters/Widgets/SSequencerFilterBar.h"
 #include "MovieSceneSequence.h"
 #include "MVVM/CurveEditorExtension.h"
 #include "MVVM/ViewModels/CategoryModel.h"
@@ -42,6 +50,7 @@
 #include "Widgets/Layout/SScrollBorder.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SSeparator.h"
+#include "Widgets/Layout/SSplitter.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -114,8 +123,6 @@
 #include "IPropertyRowGenerator.h"
 #include "Fonts/FontMeasure.h"
 #include "Compilation/MovieSceneCompiledDataManager.h"
-#include "SequencerTrackFilters.h"
-#include "SequencerTrackFilterExtension.h"
 #include "SequencerCustomizationManager.h"
 #include "EditorActorFolders.h"
 #include "Tracks/MovieSceneEventTrack.h"
@@ -157,8 +164,6 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 	bUserIsSelecting = false;
 	CachedClampRange = TRange<double>::Empty();
 	CachedViewRange = TRange<double>::Empty();
-	
-	InitializeTrackFilters();
 
 	OnPlaybackRangeBeginDrag = InArgs._OnPlaybackRangeBeginDrag;
 	OnPlaybackRangeEndDrag = InArgs._OnPlaybackRangeEndDrag;
@@ -262,7 +267,11 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 
 	TAttribute<FAnimatedRange> ViewRangeAttribute = InArgs._ViewRange;
 
-	GridPanel = ConstructTrackAreaGridPanel(InArgs, InSequencer, TimeSliderArgs);
+	GridPanel = ConstructTrackAreaGridPanel(InArgs, TimeSliderArgs);
+
+	ViewOptionsMenu = MakeShared<FSequencerViewOptionsMenu>();
+
+	GetFilterBar()->GetOnFiltersChanged().AddSP(this, &SSequencer::OnTrackFiltersChanged);
 
 	ChildSlot
 	[
@@ -432,13 +441,13 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 
 		// Main content body
 		+ SVerticalBox::Slot()
+		.FillHeight(1.f)
 		[
 			SAssignNew(MainContentContainer, SBox)
-			[
-				ConstructMainContent()
-			]
 		]
 	];
+
+	RebuildForSidebar();
 
 	if (InSequencer->GetHostCapabilities().bSupportsCurveEditor)
 	{
@@ -455,7 +464,12 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 	ResetBreadcrumbs();
 }
 
-TSharedRef<SWidget> SSequencer::ConstructMainContent()
+void SSequencer::RebuildForSidebar()
+{
+	MainContentContainer->SetContent(ConstructSidebarContent());
+}
+
+TSharedRef<SWidget> SSequencer::ConstructSidebarContent()
 {
 	const TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
 	check(Sequencer.IsValid());
@@ -466,6 +480,8 @@ TSharedRef<SWidget> SSequencer::ConstructMainContent()
 	const FSidebarState& SidebarState = SequencerSettings->GetSidebarState();
 
 	TSharedPtr<SWidget> OutWidget;
+
+	FilterBarSplitterContainer = SNew(SBox);
 
 	// Create the details sidebar only once to avoid having to re-register drawers
 	if (bSupportsSidebar)
@@ -480,7 +496,7 @@ TSharedRef<SWidget> SSequencer::ConstructMainContent()
 				.OnStateChanged(this, &SSequencer::OnSidebarStateChanged)
 				.OnGetContent(FOnGetContent::CreateLambda([this]()
 					{
-						return ConstructGridPanel();
+						return FilterBarSplitterContainer.ToSharedRef();
 					}));
 		}
 
@@ -490,10 +506,12 @@ TSharedRef<SWidget> SSequencer::ConstructMainContent()
 	{
 		DetailsSidebar.Reset();
 	}
+	
+	RebuildFilterBarContent();
 
 	if (SidebarState.IsHidden() || !bSupportsSidebar)
 	{
-		OutWidget = ConstructGridPanel();
+		OutWidget = FilterBarSplitterContainer.ToSharedRef();
 	}
 	else if (SidebarState.IsVisible())
 	{
@@ -503,7 +521,73 @@ TSharedRef<SWidget> SSequencer::ConstructMainContent()
 	return OutWidget.ToSharedRef();
 }
 
-TSharedRef<SWidget> SSequencer::ConstructGridPanel()
+void SSequencer::RebuildFilterBarContent()
+{
+	FilterBarSplitterContainer->SetContent(ConstructFilterBarContent());
+}
+
+TSharedRef<SWidget> SSequencer::ConstructFilterBarContent()
+{
+	RebuildSearchAndFilterRow();
+	
+	if (!IsFilterBarVisible() || GetFilterBarLayout() == EFilterBarLayout::Horizontal)
+	{
+		return ConstructGridOverlayContent();
+	}
+
+	const TSharedRef<SSequencerFilterBar> FilterBarWidgetRef = FilterBarWidget.ToSharedRef();
+
+	return SNew(SSplitter)
+		.Orientation(Orient_Horizontal)
+		+ SSplitter::Slot()
+		.Value(TAttribute<float>::CreateLambda([this]()
+			{
+				const TSharedPtr<FSequencerFilterBar> FilterBar = GetFilterBar();
+				if (FilterBar.IsValid()
+					&& (FilterBar->HasEnabledFilter() || FilterBar->HasEnabledCustomTextFilters()))
+				{
+					return GetSequencerSettings()->GetLastFilterBarSizeCoefficient();
+				}
+				return 0.f;
+			}))
+		.OnSlotResized_Lambda([this](const float InNewCoefficient)
+			{
+				GetSequencerSettings()->SetLastFilterBarSizeCoefficient(InNewCoefficient);
+			})
+		.Expose(FilterSplitterSlot)
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				// Vertical Filters List Header
+				SNew(SBorder)
+				.BorderImage(FAppStyle::Get().GetBrush(TEXT("Brushes.Header")))
+				.Padding(FMargin(8.f, 6.f))
+				.OnMouseButtonUp(FilterBarWidgetRef, &SSequencerFilterBar::OnMouseButtonUp)
+				.Content()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("FilterListVerticalHeader", "Filters"))
+					.TextStyle(FAppStyle::Get(), TEXT("ButtonText"))
+					.Font(FAppStyle::Get().GetFontStyle(TEXT("NormalFontBold")))
+				]
+			]
+			+ SVerticalBox::Slot()
+			.FillHeight(1.f)
+			.VAlign(VAlign_Fill)
+			[
+				FilterBarWidgetRef
+			]
+		]
+		+ SSplitter::Slot()
+		.Value(0.94f)
+		[
+			ConstructGridOverlayContent()
+		];
+}
+
+TSharedRef<SWidget> SSequencer::ConstructGridOverlayContent()
 {
 	TAttribute<float> FillCoefficient_0, FillCoefficient_1;
 	{
@@ -544,9 +628,12 @@ TSharedRef<SWidget> SSequencer::ConstructGridPanel()
 		];
 }
 
-TSharedRef<SGridPanel> SSequencer::ConstructTrackAreaGridPanel(const FArguments& InArgs, const TSharedRef<FSequencer>& InSequencer, const FTimeSliderArgs& InTimeSliderArgs)
+TSharedRef<SGridPanel> SSequencer::ConstructTrackAreaGridPanel(const FArguments& InArgs, const FTimeSliderArgs& InTimeSliderArgs)
 {
 	using namespace UE::Sequencer;
+
+	check(SequencerPtr.IsValid());
+	const TSharedRef<FSequencer> SequencerRef = SequencerPtr.Pin().ToSharedRef();
 
 	constexpr int32 Column0 = 0, Column1 = 1;
 	constexpr int32 Row0 = 0, Row1 = 1, Row2 = 2, Row3 = 3, Row4 = 4;
@@ -579,16 +666,16 @@ TSharedRef<SGridPanel> SSequencer::ConstructTrackAreaGridPanel(const FArguments&
 
 	ISequencerWidgetsModule& SequencerWidgets = FModuleManager::Get().LoadModuleChecked<ISequencerWidgetsModule>(TEXT("SequencerWidgets"));
 
-	TSharedRef<SScrollBar> ScrollBar = SNew(SScrollBar)
+	ScrollBar = SNew(SScrollBar)
 		.Thickness(FVector2D(9.f, 9.f));
 
-	TSharedRef<SScrollBar> PinnedAreaScrollBar = SNew(SScrollBar)
+	PinnedAreaScrollBar = SNew(SScrollBar)
 		.Thickness(FVector2D(9.f, 9.f));
 
-	TSharedPtr<FSequencerEditorViewModel> SequencerViewModel = InSequencer->GetViewModel()->CastThisShared<FSequencerEditorViewModel>();
+	TSharedPtr<FSequencerEditorViewModel> SequencerViewModel = SequencerRef->GetViewModel()->CastThisShared<FSequencerEditorViewModel>();
 	SAssignNew(PinnedTrackArea, SSequencerTrackAreaView, SequencerViewModel->GetPinnedTrackArea(), TimeSliderControllerRef);
 	SAssignNew(PinnedTreeView, SSequencerOutlinerView, SequencerViewModel->GetOutliner(), PinnedTrackArea.ToSharedRef())
-		.Selection(InSequencer->GetViewModel()->GetSelection())
+		.Selection(SequencerRef->GetViewModel()->GetSelection())
 		.ExternalScrollbar(PinnedAreaScrollBar)
 		.Clipping(EWidgetClipping::ClipToBounds);
 
@@ -599,7 +686,7 @@ TSharedRef<SGridPanel> SSequencer::ConstructTrackAreaGridPanel(const FArguments&
 
 	SAssignNew(TrackArea, SSequencerTrackAreaView, SequencerViewModel->GetTrackArea(), TimeSliderControllerRef);
 	SAssignNew(TreeView, SSequencerOutlinerView, SequencerViewModel->GetOutliner(), TrackArea.ToSharedRef())
-		.Selection(InSequencer->GetViewModel()->GetSelection())
+		.Selection(SequencerRef->GetViewModel()->GetSelection())
 		.ExternalScrollbar(ScrollBar)
 		.Clipping(EWidgetClipping::ClipToBounds);
 
@@ -624,7 +711,7 @@ TSharedRef<SGridPanel> SSequencer::ConstructTrackAreaGridPanel(const FArguments&
 	bool bMirrorLabels = false;
 	TopTimeSlider = SequencerWidgets.CreateTimeSlider(TimeSliderControllerRef, bMirrorLabels);
 	bMirrorLabels = true;
-	TSharedRef<ITimeSlider> BottomTimeSlider = SequencerWidgets.CreateTimeSlider(TimeSliderControllerRef, TAttribute<EVisibility>(this, &SSequencer::GetBottomTimeSliderVisibility), bMirrorLabels);
+	BottomTimeSlider = SequencerWidgets.CreateTimeSlider(TimeSliderControllerRef, TAttribute<EVisibility>(this, &SSequencer::GetBottomTimeSliderVisibility), bMirrorLabels);
 	
 	// Create bottom time range slider
 	EShowRange Ranges = EShowRange(EShowRange::WorkingRange | EShowRange::ViewRange);
@@ -633,7 +720,7 @@ TSharedRef<SGridPanel> SSequencer::ConstructTrackAreaGridPanel(const FArguments&
 		Ranges |= EShowRange::PlaybackRange;
 	}
 
-	TSharedRef<ITimeSlider> BottomTimeRange = SequencerWidgets.CreateTimeRange(
+	BottomTimeRange = SequencerWidgets.CreateTimeRange(
 		FTimeRangeArgs(
 			Ranges,
 			TimeSliderControllerRef,
@@ -665,30 +752,7 @@ TSharedRef<SGridPanel> SSequencer::ConstructTrackAreaGridPanel(const FArguments&
 			.Padding(FMargin(CommonPadding*2, CommonPadding))
 			.Clipping(EWidgetClipping::ClipToBounds)
 			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.Padding(FMargin(0.f, 0.f, CommonPadding, 0.f))
-				[
-					MakeAddButton()
-				]
-	
-				+ SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				[
-					SAssignNew(SearchBox, SSearchBox)
-					.HintText(LOCTEXT("SearchNodesHint", "Search Tracks"))
-					.OnTextChanged(this, &SSequencer::OnOutlinerSearchChanged)
-				]
-
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.Padding(FMargin(0.f, 0.f, CommonPadding, 0.f))
-				[
-					MakeFilterButton()
-				]
+				SAssignNew(SearchAndFilterRow, SVerticalBox)
 			]
 		]
 
@@ -736,7 +800,7 @@ TSharedRef<SGridPanel> SSequencer::ConstructTrackAreaGridPanel(const FArguments&
 				+ SOverlay::Slot()
 				.HAlign(HAlign_Right)
 				[
-					PinnedAreaScrollBar
+					PinnedAreaScrollBar.ToSharedRef()
 				]
 			]
 
@@ -774,7 +838,7 @@ TSharedRef<SGridPanel> SSequencer::ConstructTrackAreaGridPanel(const FArguments&
 				+ SOverlay::Slot()
 				.HAlign(HAlign_Right)
 				[
-					ScrollBar
+					ScrollBar.ToSharedRef()
 				]
 
 				+ SOverlay::Slot()
@@ -785,13 +849,12 @@ TSharedRef<SGridPanel> SSequencer::ConstructTrackAreaGridPanel(const FArguments&
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
 					[
-						SAssignNew(SequencerTreeFilterStatusBar, SSequencerTreeFilterStatusBar, InSequencer)
+						SAssignNew(SequencerTreeFilterStatusBar, SSequencerTreeFilterStatusBar, SequencerRef)
 						.Visibility(EVisibility::Hidden) // Initially hidden, visible on hover of the info button
 					]
 				]
 			]
 		]
-
 		// Info Button, Transport Controls and Current Frame
 		+ SGridPanel::Slot(Column0, Row4, SGridPanel::Layer(10))
 		[
@@ -936,7 +999,7 @@ TSharedRef<SGridPanel> SSequencer::ConstructTrackAreaGridPanel(const FArguments&
 		.VAlign(VAlign_Top)
 		[
 			// Transform box
-			SAssignNew(TransformBox, SSequencerTransformBox, SequencerPtr.Pin().ToSharedRef(), *SequencerSettings, NumericTypeInterface.ToSharedRef())
+			SAssignNew(TransformBox, SSequencerTransformBox, SequencerRef, *SequencerSettings, NumericTypeInterface.ToSharedRef())
 		]
 
 		+ SGridPanel::Slot(Column1, Row2, SGridPanel::Layer(40))
@@ -945,14 +1008,14 @@ TSharedRef<SGridPanel> SSequencer::ConstructTrackAreaGridPanel(const FArguments&
 		.VAlign(VAlign_Top)
 		[
 			// Stretch box
-			SAssignNew(StretchBox, SSequencerStretchBox, SequencerPtr.Pin().ToSharedRef(), *SequencerSettings, NumericTypeInterface.ToSharedRef())
+			SAssignNew(StretchBox, SSequencerStretchBox, SequencerRef, *SequencerSettings, NumericTypeInterface.ToSharedRef())
 		]
 
 		// debug vis
 		+ SGridPanel::Slot(Column1, Row3, SGridPanel::Layer(10))
 		.Padding(ResizeBarPadding)
 		[
-			SNew(SSequencerDebugVisualizer, InSequencer)
+			SNew(SSequencerDebugVisualizer, SequencerRef)
 			.ViewRange(FAnimatedRange::WrapAttribute(InArgs._ViewRange))
 			.Visibility(this, &SSequencer::GetDebugVisualizerVisibility)
 		]
@@ -970,11 +1033,11 @@ TSharedRef<SGridPanel> SSequencer::ConstructTrackAreaGridPanel(const FArguments&
 				SNew(SOverlay)
 				+ SOverlay::Slot()
 				[
-					BottomTimeSlider
+					BottomTimeSlider.ToSharedRef()
 				]
 				+ SOverlay::Slot()
 				[
-					BottomTimeRange
+					BottomTimeRange.ToSharedRef()
 				]
 			]
 		];
@@ -1064,14 +1127,9 @@ void SSequencer::BindCommands(TSharedRef<FUICommandList> SequencerCommandBinding
 		FExecuteAction::CreateSP(this, &SSequencer::OpenNodeGroupsManager)
 	);
 
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-
-	for (TSharedRef<FSequencerTrackFilter> TrackFilter : AllTrackFilters)
+	if (const TSharedPtr<FSequencerFilterBar> FilterBar = GetFilterBar())
 	{
-		if (TrackFilter->SupportsSequence(Sequencer->GetFocusedMovieSceneSequence()))
-		{
-			TrackFilter->BindCommands(SequencerCommandBindings, CurveEditorSharedBindings, SequencerPtr.Pin());
-		}
+		FilterBar->BindCommands();
 	}
 }
 
@@ -1118,46 +1176,6 @@ void SSequencer::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEv
 TSharedRef<INumericTypeInterface<double>> SSequencer::GetNumericTypeInterface() const
 {
 	return NumericTypeInterface.ToSharedRef();
-}
-
-void SSequencer::InitializeTrackFilters()
-{
-	// Add all built-in track filters here
-	AllTrackFilters.Add(MakeShared<FSequencerTrackFilter_AudioTracks>());
-	AllTrackFilters.Add(MakeShared<FSequencerTrackFilter_EventTracks>());
-	AllTrackFilters.Add(MakeShared<FSequencerTrackFilter_LevelVisibilityTracks>());
-	AllTrackFilters.Add(MakeShared<FSequencerTrackFilter_ParticleTracks>());
-	AllTrackFilters.Add(MakeShared<FSequencerTrackFilter_CinematicShotTracks>());
-	AllTrackFilters.Add(MakeShared<FSequencerTrackFilter_SubTracks>());
-
-	AllTrackFilters.Add(MakeShared<FSequencerTrackFilter_CameraObjects>());
-	AllTrackFilters.Add(MakeShared<FSequencerTrackFilter_LightObjects>());
-	AllTrackFilters.Add(MakeShared<FSequencerTrackFilter_SkeletalMeshObjects>());
-	AllTrackFilters.Add(MakeShared<FSequencerTrackFilter_Animated>());
-
-	// Add any global user-defined frontend filters
-	for (TObjectIterator<USequencerTrackFilterExtension> ExtensionIt(RF_NoFlags); ExtensionIt; ++ExtensionIt)
-	{
-		if (USequencerTrackFilterExtension* PotentialExtension = *ExtensionIt)
-		{
-			if (PotentialExtension->HasAnyFlags(RF_ClassDefaultObject) && !PotentialExtension->GetClass()->HasAnyClassFlags(CLASS_Deprecated | CLASS_Abstract))
-			{
-				// Grab the filters
-				TArray< TSharedRef<FSequencerTrackFilter> > ExtendedTrackFilters;
-				PotentialExtension->AddTrackFilterExtensions(ExtendedTrackFilters);
-				AllTrackFilters.Append(ExtendedTrackFilters);
-			}
-		}
-	}
-
-	for (TSharedRef<FSequencerTrackFilter> TrackFilter : AllTrackFilters)
-	{
-		const bool bEnabled = GetSequencerSettings()->IsTrackFilterEnabled(TrackFilter->GetDisplayName().ToString());
-		SetTrackFilterEnabled(TrackFilter->GetDisplayName(), bEnabled);
-	}
-
-	// Sort by display name
-	AllTrackFilters.Sort([](const TSharedRef<FSequencerTrackFilter>& LHS, const TSharedRef<FSequencerTrackFilter>& RHS) { return LHS->GetDisplayName().ToString() < RHS->GetDisplayName().ToString(); });
 }
 
 void SSequencer::UpdateOutlinerViewColumns()
@@ -1301,47 +1319,124 @@ void SSequencer::HandleOutlinerNodeSelectionChanged()
 	}
 }
 
-TSharedRef<SWidget> SSequencer::MakeAddButton()
+TSharedRef<SWidget> SSequencer::ConstructSearchAndFilterRow()
 {
-	return SNew(SPositiveActionButton)
-	.OnGetMenuContent(this, &SSequencer::MakeAddMenu)
-	.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
-	.Text(LOCTEXT("Add", "Add"))
-	.IsEnabled_Lambda([this]() { return !SequencerPtr.Pin()->IsReadOnly(); });
-}
+	const TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
+	if (!Sequencer.IsValid())
+	{
+		return SNullWidget::NullWidget;
+	}
 
-TSharedRef<SWidget> SSequencer::MakeFilterButton()
-{
-	TSharedPtr<SLayeredImage> FilterImage = SNew(SLayeredImage)
-		.Image(FAppStyle::Get().GetBrush("Icons.Filter"))
-		.ColorAndOpacity(FSlateColor::UseForeground());
+	const TSharedPtr<FSequencerFilterBar> FilterBar = GetFilterBar();
+	if (!FilterBar.IsValid())
+	{
+		return SNullWidget::NullWidget;
+	}
 
-	const TAttribute<const FSlateBrush*> ModifiedIcon = TAttribute<const FSlateBrush*>::CreateLambda([this]()
-		{
-			for (TSharedRef<FSequencerTrackFilter> TrackFilter : AllTrackFilters)
-			{
-				if (IsTrackFilterActive(TrackFilter))
+	if (!SearchBox.IsValid())
+	{
+		SearchBox = SNew(SFilterSearchBox)
+			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("SequencerFilterSearch")))
+			.HintText(LOCTEXT("FilterSearch", "Search..."))
+			.ToolTipText(LOCTEXT("FilterSearchHint", "Type here to search (pressing enter selects the results)"))
+			.DelayChangeNotificationsWhileTyping(true)
+			.ShowSearchHistory(true)
+			.OnTextChanged(this, &SSequencer::OnOutlinerSearchChanged)
+			.OnTextCommitted(this, &SSequencer::OnOutlinerSearchCommitted)
+			.OnSaveSearchClicked(this, &SSequencer::OnOutlinerSearchSaved);
+	}
+
+	FilterBarWidget = Sequencer->GetFilterBar()->GenerateWidget(SearchBox, GetFilterBarLayout());
+
+	if (!FilterComboButtonWidget.IsValid())
+	{
+		FilterComboButtonWidget = FilterBar->MakeAddFilterButton();
+	}
+
+	return SNew(SHorizontalBox)
+
+		// Add Button
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		[
+			SNew(SPositiveActionButton)
+			.OnGetMenuContent(this, &SSequencer::MakeAddMenu)
+			.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
+			.Text(LOCTEXT("Add", "Add"))
+			.IsEnabled_Lambda([this]() { return !SequencerPtr.Pin()->IsReadOnly(); })
+		]
+
+		// Isolate / Hide / Show
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(2.f, 0.f, 0.f, 0.f)
+		[
+			FilterBar->MakeIsolateHideShowPanel()
+		]
+
+		// Advanced Search Filter Combo Button
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(2.f, 0.f, 0.f, 0.f)
+		[
+			FilterComboButtonWidget.ToSharedRef()
+		]
+
+		// Advanced Search Box
+		+ SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.Padding(2.f, 0.f, 0.f, 0.f)
+		[
+			SearchBox.ToSharedRef()
+		]
+
+		// Create Folder Button
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(2.f, 0.f, 0.f, 0.f)
+		[
+			SNew(SButton)
+			.ContentPadding(2.f)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
+			.ToolTipText(LOCTEXT("CreateFolderToolTip", "Creates a new folder containing the current selection or adds a new root folder if there is no selection"))
+			.OnClicked(this, &SSequencer::HandleCreateFolderTrackClick)
+			[
+				SNew(SImage)
+				.ColorAndOpacity(FSlateColor::UseForeground())
+				.Image(FAppStyle::Get().GetBrush(TEXT("SceneOutliner.NewFolderIcon")))
+			]
+		]
+
+		// View Options Combo Button
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(2.f, 0.f, 0.f, 0.f)
+		[
+			SAssignNew(ViewOptionsComboButton, SComboButton)
+			.ContentPadding(2.f)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.ToolTipText(LOCTEXT("ViewOptionsToolTip", "View Options"))
+			.ComboButtonStyle(FAppStyle::Get(), TEXT("SimpleComboButtonWithIcon"))
+			.OnGetMenuContent_Lambda([this]() -> TSharedRef<SWidget>
 				{
-					return FAppStyle::Get().GetBrush("Icons.BadgeModified");
-				}
-			}
-			return (const FSlateBrush*)nullptr;
-		});
-
-	FilterImage->AddLayer(ModifiedIcon);
-
-	return SNew(SComboButton)
-	.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButtonWithIcon"))
-	.ForegroundColor(FSlateColor::UseStyle())
-	.ContentPadding(0)
-	.ToolTipText(LOCTEXT("AddTrackFilterToolTip", "Add a track filter."))
-	.OnGetMenuContent(this, &SSequencer::MakeFilterMenu)
-	.ContentPadding(FMargin(1, 0))
-	.HasDownArrow(false)
-	.ButtonContent()
-	[
-		FilterImage.ToSharedRef()
-	];
+					return ViewOptionsMenu->CreateMenu(SequencerPtr);
+				})
+			.HasDownArrow(false)
+			.ButtonContent()
+			[
+				SNew(SImage)
+				.ColorAndOpacity(FSlateColor::UseForeground())
+				.Image(FAppStyle::Get().GetBrush(TEXT("Icons.Settings")))
+			]
+		];
 }
 
 TSharedRef<SWidget> SSequencer::MakeToolBar()
@@ -1728,351 +1823,6 @@ TSharedRef<SWidget> SSequencer::MakeAddMenu()
 	return MenuBuilder.MakeWidget();
 }
 
-TSharedRef<SWidget> SSequencer::MakeFilterMenu()
-{
-	TSharedPtr<FExtender> Extender = FExtender::Combine(AddMenuExtenders);
-	FMenuBuilder MenuBuilder(false, SequencerPtr.Pin()->GetCommandBindings(), Extender);
-
-	// let track editors & object bindings populate the menu
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-
-	MenuBuilder.BeginSection("SequencerTracksResetFilters");
-	{
-		MenuBuilder.AddMenuEntry(
-			LOCTEXT("FilterListEnableAll", "Enable All"),
-			LOCTEXT("FilterListEnableAllToolTip", "Selects all filters"),
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateSP(this, &SSequencer::OnEnableAllFilters)));
-
-		MenuBuilder.AddMenuEntry(FSequencerCommands::Get().ResetFilters);
-	}
-	MenuBuilder.EndSection();
-
-	UMovieSceneSequence* FocusedMovieSequence = Sequencer->GetFocusedMovieSceneSequence();
-	UMovieScene* FocusedMovieScene = nullptr;
-	if (IsValid(FocusedMovieSequence))
-	{
-		FocusedMovieScene = FocusedMovieSequence->GetMovieScene();
-		if (IsValid(FocusedMovieScene))
-		{
-			if (FocusedMovieScene->GetNodeGroups().Num() > 0)
-			{
-				MenuBuilder.BeginSection("NodeGroupFilters");
-				MenuBuilder.AddSubMenu(LOCTEXT("NodeGroupFilters", "Group Filters"), LOCTEXT("NodeGroupFiltersToolTip", "Enables using this group as a filter for all items"), FNewMenuDelegate::CreateRaw(this, &SSequencer::FillNodeGroupsFilterMenu), false, FSlateIcon(), false);
-				MenuBuilder.EndSection();
-			}
-		}
-	}
-
-	UObject* PlaybackContext = Sequencer->GetPlaybackContext();
-	UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
-
-	if (World && World->GetLevels().Num() > 1)
-	{
-		MenuBuilder.BeginSection("TrackLevelFilters");
-		MenuBuilder.AddSubMenu(LOCTEXT("LevelFilters", "Level Filters"), LOCTEXT("LevelFiltersToolTip", "Filter object tracks by level"), FNewMenuDelegate::CreateRaw(this, &SSequencer::FillLevelFilterMenu), false, FSlateIcon(), false);
-		MenuBuilder.EndSection();
-	}
-
-	MenuBuilder.BeginSection("TrackFilters");
-	
-	for (TSharedRef<FSequencerTrackFilter> TrackFilter : AllTrackFilters)
-	{
-		if (TrackFilter->SupportsSequence(Sequencer->GetFocusedMovieSceneSequence()))
-		{
-			MenuBuilder.AddMenuEntry(
-				TrackFilter->GetDisplayName(),
-				TrackFilter->GetToolTipText(),
-				TrackFilter->GetIcon(),
-				FUIAction(
-				FExecuteAction::CreateSP(this, &SSequencer::OnTrackFilterClicked, TrackFilter),
-				FCanExecuteAction(),
-				FIsActionChecked::CreateSP(this, &SSequencer::IsTrackFilterActive, TrackFilter)),
-				NAME_None,
-				EUserInterfaceActionType::ToggleButton
-			);
-		}
-	}
-
-	MenuBuilder.EndSection();
-
-	return MenuBuilder.MakeWidget();
-}
-
-void SSequencer::FillNodeGroupsFilterMenu(FMenuBuilder& InMenuBarBuilder)
-{
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-	UMovieSceneSequence* FocusedMovieSequence = Sequencer->GetFocusedMovieSceneSequence();
-	UMovieScene* FocusedMovieScene = nullptr;
-
-	if (IsValid(FocusedMovieSequence))
-	{
-		FocusedMovieScene = FocusedMovieSequence->GetMovieScene();
-		if (IsValid(FocusedMovieScene))
-		{
-			InMenuBarBuilder.BeginSection("SequencerTracksResetNodeGroupFilters");
-
-			InMenuBarBuilder.AddMenuEntry(
-				LOCTEXT("EnableAllNodeGroupFilters", "Enable All"),
-				LOCTEXT("EnableAllNodeGroupFiltersToolTip", "Enables all group filters"),
-				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &SSequencer::OnEnableAllNodeGroupFilters, true)));
-
-			InMenuBarBuilder.AddMenuEntry(
-				LOCTEXT("ResetNodeGroupFilters", "Reset Filters"),
-				LOCTEXT("ResetNodeGroupFiltersToolTip", "Disables all group filters"),
-				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &SSequencer::OnEnableAllNodeGroupFilters, false))
-			);
-			
-			InMenuBarBuilder.EndSection();
-
-			bool bIsReadOnly = GetIsSequenceReadOnly();
-
-			InMenuBarBuilder.BeginSection("SequencerTracksNodeGroupFilters");
-			for (UMovieSceneNodeGroup* NodeGroup : FocusedMovieScene->GetNodeGroups())
-			{
-				InMenuBarBuilder.AddMenuEntry(
-					FText::FromName(NodeGroup->GetName()),
-					FText::FromName(NodeGroup->GetName()),
-					FSlateIcon(),
-					FUIAction(
-						FExecuteAction::CreateSP(this, &SSequencer::OnNodeGroupFilterClicked, NodeGroup),
-						FCanExecuteAction::CreateLambda([bIsReadOnly]() { return !bIsReadOnly; }),
-						FIsActionChecked::CreateLambda([NodeGroup]() { return NodeGroup->GetEnableFilter(); })),
-					NAME_None,
-					EUserInterfaceActionType::ToggleButton
-				);
-
-			}
-			InMenuBarBuilder.EndSection();
-		}
-	}
-}
-
-void SSequencer::OnEnableAllNodeGroupFilters(bool bEnableAll)
-{
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-	UMovieSceneSequence* FocusedMovieSequence = Sequencer->GetFocusedMovieSceneSequence();
-	UMovieScene* FocusedMovieScene = nullptr;
-	if (IsValid(FocusedMovieSequence))
-	{
-		FocusedMovieScene = FocusedMovieSequence->GetMovieScene();
-		if (IsValid(FocusedMovieScene))
-		{
-			for (UMovieSceneNodeGroup* NodeGroup : FocusedMovieScene->GetNodeGroups())
-			{
-				NodeGroup->SetEnableFilter(bEnableAll);
-			}
-		}
-	}
-}
-
-void SSequencer::OnNodeGroupFilterClicked(UMovieSceneNodeGroup* NodeGroup)
-{
-	if (NodeGroup)
-	{
-		NodeGroup->SetEnableFilter(!NodeGroup->GetEnableFilter());
-	}
-	
-}
-
-void SSequencer::FillLevelFilterMenu(FMenuBuilder& InMenuBarBuilder)
-{
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-	UObject* PlaybackContext = Sequencer->GetPlaybackContext();
-	UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
-
-	if (World)
-	{
-		const TArray<ULevel*> Levels = World->GetLevels();
-
-		if (Levels.Num() > 0)
-		{
-			InMenuBarBuilder.BeginSection("SequencerTracksResetLevelFilters");
-
-			InMenuBarBuilder.AddMenuEntry(
-				LOCTEXT("EnableAllLevelFilters", "Enable All"),
-				LOCTEXT("EnableAllLevelFiltersToolTip", "Enables all level filters"),
-				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &SSequencer::OnEnableAllLevelFilters, true)));
-
-			InMenuBarBuilder.AddMenuEntry(
-				LOCTEXT("ResetLevelFilters", "Reset Filters"),
-				LOCTEXT("ResetLevelFiltersToolTip", "Resets current level filter selection"),
-				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &SSequencer::OnEnableAllLevelFilters, false)));
-
-			InMenuBarBuilder.EndSection();
-		}
-
-		InMenuBarBuilder.BeginSection("SequencerTracksLevelFilters");
-		for (ULevel* Level : Levels)
-		{
-			FString LevelName = FPackageName::GetShortName(Level->GetOutermost()->GetName());
-			InMenuBarBuilder.AddMenuEntry(
-				FText::FromString(LevelName),
-				FText::FromString(Level->GetOutermost()->GetName()),
-				FSlateIcon(),
-				FUIAction(
-					FExecuteAction::CreateSP(this, &SSequencer::OnTrackLevelFilterClicked, LevelName),
-					FCanExecuteAction(),
-					FIsActionChecked::CreateSP(this, &SSequencer::IsTrackLevelFilterActive, LevelName)),
-				NAME_None,
-				EUserInterfaceActionType::ToggleButton
-			);
-		}
-		InMenuBarBuilder.EndSection();
-	}
-}
-
-void SSequencer::SetTrackFilterEnabled(const FText& InTrackFilterName, bool bEnabled)
-{
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-
-	for (TSharedRef<FSequencerTrackFilter> TrackFilter : AllTrackFilters)
-	{
-		if (TrackFilter->SupportsSequence(Sequencer->GetFocusedMovieSceneSequence()))
-		{
-			if (InTrackFilterName.EqualToCaseIgnored(TrackFilter->GetDisplayName()))
-			{
-				if (bEnabled && !IsTrackFilterActive(TrackFilter))
-				{
-					Sequencer->GetNodeTree()->AddFilter(TrackFilter);
-				}
-				else if (!bEnabled && IsTrackFilterActive(TrackFilter))
-				{
-					Sequencer->GetNodeTree()->RemoveFilter(TrackFilter);
-				}
-			}
-		}
-	}
-}
-
-bool SSequencer::IsTrackFilterEnabled(const FText& InTrackFilterName) const
-{
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-
-	for (TSharedRef<FSequencerTrackFilter> TrackFilter : AllTrackFilters)
-	{
-		if (TrackFilter->SupportsSequence(Sequencer->GetFocusedMovieSceneSequence()))
-		{
-			if (InTrackFilterName.EqualToCaseIgnored(TrackFilter->GetDisplayName()))
-			{
-				return Sequencer->GetNodeTree()->IsTrackFilterActive(TrackFilter);
-			}
-		}
-	}
-
-	return false;
-}
-
-TArray<FText> SSequencer::GetTrackFilterNames() const
-{
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-
-	TArray<FText> Filters;
-	for (TSharedRef<FSequencerTrackFilter> TrackFilter : AllTrackFilters)
-	{
-		if (TrackFilter->SupportsSequence(Sequencer->GetFocusedMovieSceneSequence()))
-		{
-			Filters.Add(TrackFilter->GetDisplayName());
-		}
-	}
-
-	return Filters;
-}
-
-void SSequencer::ResetFilters()
-{
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-	Sequencer->GetNodeTree()->RemoveAllFilters();
-	OnEnableAllNodeGroupFilters(false);
-}
-
-void SSequencer::OnEnableAllFilters()
-{
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-
-	for (TSharedRef<FSequencerTrackFilter> TrackFilter : AllTrackFilters)
-	{
-		if (TrackFilter->SupportsSequence(Sequencer->GetFocusedMovieSceneSequence()))
-		{
-			if (!Sequencer->GetNodeTree()->IsTrackFilterActive(TrackFilter))
-			{
-				Sequencer->GetNodeTree()->AddFilter(TrackFilter);
-			}
-		}
-	}
-	OnEnableAllNodeGroupFilters(true);
-	OnEnableAllLevelFilters(true);
-}
-
-void SSequencer::OnTrackFilterClicked(TSharedRef<FSequencerTrackFilter> TrackFilter)
-{
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-	if (IsTrackFilterActive(TrackFilter))
-	{
-		Sequencer->GetNodeTree()->RemoveFilter(TrackFilter);
-	}
-	else
-	{
-		Sequencer->GetNodeTree()->AddFilter(TrackFilter);
-	}
-}
-
-bool SSequencer::IsTrackFilterActive(TSharedRef<FSequencerTrackFilter> TrackFilter) const
-{
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-	return Sequencer->GetNodeTree()->IsTrackFilterActive(TrackFilter);
-}
-
-void SSequencer::OnEnableAllLevelFilters(bool bEnableAll)
-{
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-	UObject* PlaybackContext = Sequencer->GetPlaybackContext();
-	UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
-
-	if (World)
-	{
-		const TArray<ULevel*> Levels = World->GetLevels();
-
-		for (ULevel* Level : Levels)
-		{
-			FString LevelName = FPackageName::GetShortName(Level->GetOutermost()->GetName());
-
-			if (bEnableAll)
-			{
-				Sequencer->GetNodeTree()->AddLevelFilter(LevelName);
-			}
-			else
-			{
-				Sequencer->GetNodeTree()->RemoveLevelFilter(LevelName);
-			}
-		}
-	}
-}
-
-void SSequencer::OnTrackLevelFilterClicked(const FString LevelName)
-{
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-	if (IsTrackLevelFilterActive(LevelName))
-	{
-		Sequencer->GetNodeTree()->RemoveLevelFilter(LevelName);
-	}
-	else
-	{
-		Sequencer->GetNodeTree()->AddLevelFilter(LevelName);
-	}
-}
-
-bool SSequencer::IsTrackLevelFilterActive(const FString LevelName) const
-{
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-	return Sequencer->GetNodeTree()->IsTrackLevelFilterActive(LevelName);
-}
-
-
 TSharedRef<SWidget> SSequencer::MakeActionsMenu()
 {
 	using namespace UE::Sequencer;
@@ -2298,7 +2048,6 @@ TSharedRef<SWidget> SSequencer::MakeViewMenu()
 	{
 		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleAutoScroll );
 		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleShowRangeSlider );
-		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleShowSelectedNodesOnly );
 		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleLayerBars );
 		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleKeyBars );
 		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleChannelColors );
@@ -2338,17 +2087,6 @@ TSharedRef<SWidget> SSequencer::MakeViewMenu()
 					})
 				],
 			LOCTEXT("ZeroPaddingText", "Zero Pad Frame Numbers"));
-	}
-	MenuBuilder.EndSection();
-
-	MenuBuilder.BeginSection("OrganizeAndSort", LOCTEXT("OrganizeAndSortHeader", "Organize and Sort"));
-	{
-		MenuBuilder.AddMenuEntry(FSequencerCommands::Get().ToggleAutoExpandNodesOnSelection);
-		MenuBuilder.AddMenuEntry(FSequencerCommands::Get().ToggleExpandCollapseNodes);
-		MenuBuilder.AddMenuEntry(FSequencerCommands::Get().ToggleExpandCollapseNodesAndDescendants);
-		MenuBuilder.AddMenuEntry(FSequencerCommands::Get().ExpandAllNodes);
-		MenuBuilder.AddMenuEntry(FSequencerCommands::Get().CollapseAllNodes);
-		MenuBuilder.AddMenuEntry(FSequencerCommands::Get().SortAllNodesAndDescendants);
 	}
 	MenuBuilder.EndSection();
 
@@ -3278,21 +3016,45 @@ void SSequencer::PopBreadcrumb()
 	BreadcrumbTrail->PopCrumb();
 }
 
-void SSequencer::SetSearchText(const FText& InSearchText)
+FText SSequencer::GetSearchText() const
 {
-	SearchBox->SetText(InSearchText);
+	if (FilterBarWidget.IsValid())
+	{
+		if (const TSharedPtr<FSequencerFilterBar> FilterBar = FilterBarWidget->GetFilterBar())
+		{
+			return FText::FromString(FilterBar->GetTextFilterString());
+		}
+	}
+	return FText::GetEmpty();
 }
 
-void SSequencer::OnOutlinerSearchChanged( const FText& Filter )
+void SSequencer::SetSearchText(const FText& InSearchText)
 {
-	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
-	if ( Sequencer.IsValid())
+	if (const TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin())
 	{
-		const FString FilterString = Filter.ToString();
-
-		Sequencer->GetNodeTree()->FilterNodes( FilterString );
+		Sequencer->GetNodeTree()->SetTextFilterString(InSearchText.ToString());
 
 		TreeView->Refresh();
+	}
+}
+
+void SSequencer::OnOutlinerSearchChanged(const FText& InFilter)
+{
+	SetSearchText(InFilter);
+}
+
+void SSequencer::OnOutlinerSearchCommitted(const FText& InFilter, ETextCommit::Type InCommitInfo)
+{
+	SetSearchText(InFilter);
+}
+
+void SSequencer::OnOutlinerSearchSaved(const FText& InFilterText)
+{
+	if (FilterBarWidget.IsValid())
+	{
+		FCustomTextFilterData CustomTextFilterData;
+		CustomTextFilterData.FilterString = InFilterText;
+		SSequencerCustomTextFilterDialog::CreateWindow_AddCustomTextFilter(FilterBarWidget->GetFilterBar().ToSharedRef(), CustomTextFilterData);
 	}
 }
 
@@ -3421,9 +3183,20 @@ FReply SSequencer::OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKe
 {
 	// A toolkit tab is active, so direct all command processing to it
 	TSharedPtr<FSequencer> SequencerPin = SequencerPtr.Pin();
-	if ( SequencerPin.IsValid() && SequencerPin->GetCommandBindings()->ProcessCommandBindings( InKeyEvent ) )
+	if (SequencerPin.IsValid())
 	{
-		return FReply::Handled();
+		if (SequencerPin->GetCommandBindings()->ProcessCommandBindings(InKeyEvent))
+		{
+			return FReply::Handled();
+		}
+	}
+
+	if (const TSharedPtr<FSequencerFilterBar> FilterBar = FilterBarWidget->GetFilterBar())
+	{
+		if (FilterBar->GetCommandList()->ProcessCommandBindings(InKeyEvent))
+		{
+			return FReply::Handled();
+		}
 	}
 
 	return FReply::Unhandled();
@@ -3776,7 +3549,7 @@ FText SSequencer::GetBreadcrumbTextForSequence(TWeakObjectPtr<UMovieSceneSequenc
 {
 	UMovieSceneSequence* SequencePtr = Sequence.Get();
 
-	bool bIsDirty = SequencePtr->GetMovieScene()->GetOuter()->GetOutermost()->IsDirty();
+	bool bIsDirty = SequencePtr->GetMovieScene()->GetOuter()->GetPackage()->IsDirty();
 
 	if (bIsActive)
 	{
@@ -4342,6 +4115,7 @@ USequencerSettings* SSequencer::GetSequencerSettings() const
 	return nullptr;
 }
 
+
 bool SSequencer::RegisterDrawer(FSidebarDrawerConfig&& InDrawerConfig)
 {
 	if (DetailsSidebar.IsValid())
@@ -4409,7 +4183,7 @@ void SSequencer::SetSidebarVisible(const bool bInVisible)
 	SidebarState.SetVisible(bInVisible);
 	SequencerSettings->SetSidebarState(SidebarState);
 
-	MainContentContainer->SetContent(ConstructMainContent());
+	RebuildForSidebar();
 }
 
 void SSequencer::ToggleSidebarVisible()
@@ -4477,6 +4251,138 @@ void SSequencer::EnableCurveEditorPendingFocusOnHovering(const bool InEnabled) c
 	}
 	
 	CurveEditorPanel->EnablePendingFocusOnHovering(InEnabled);
+}
+
+FReply SSequencer::HandleCreateFolderTrackClick()
+{
+	if (const TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin())
+	{
+		if (Sequencer->GetSelectedNodesToMove().Num() > 0)
+		{
+			Sequencer->MoveSelectedNodesToNewFolder();
+		}
+		else
+		{
+			Sequencer->AddFolder();
+		}
+	}
+	return FReply::Handled();
+}
+
+TSharedPtr<FSequencerFilterBar> SSequencer::GetFilterBar() const
+{
+	if (const TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin())
+	{
+		return Sequencer->GetFilterBar();
+	}
+	return nullptr;
+}
+
+bool SSequencer::IsFilterBarVisible() const
+{
+	if (!FilterBarWidget.IsValid())
+	{
+		return false;
+	}
+
+	USequencerSettings* const SequencerSettings = GetSequencerSettings();
+	if (ensure(SequencerSettings))
+	{
+		if (!SequencerSettings->IsFilterBarVisible())
+		{
+			return false;
+		}
+	}
+
+	const TSharedPtr<FSequencerFilterBar> FilterBar = FilterBarWidget->GetFilterBar();
+	if (!FilterBar.IsValid())
+	{
+		return false;
+	}
+
+	return FilterBar->HasAnyFiltersEnabled();
+}
+
+void SSequencer::ToggleFilterBarVisibility()
+{
+	bool bNewFilterBarVisible = true;
+
+	USequencerSettings* const SequencerSettings = GetSequencerSettings();
+	if (ensure(SequencerSettings))
+	{
+		bNewFilterBarVisible = !SequencerSettings->IsFilterBarVisible();
+		SequencerSettings->SetFilterBarVisible(bNewFilterBarVisible);
+	}
+
+	if (FilterBarWidget.IsValid())
+	{
+		const EVisibility NewVisibility = bNewFilterBarVisible ? EVisibility::Visible : EVisibility::Collapsed;
+		FilterBarWidget->SetVisibility(NewVisibility);
+	}
+
+	RebuildFilterBarContent();
+}
+
+TSharedPtr<SSequencerFilterBar> SSequencer::GetFilterBarWidget() const
+{
+	return FilterBarWidget;
+}
+
+EFilterBarLayout SSequencer::GetFilterBarLayout() const
+{
+	USequencerSettings* const SequencerSettings = GetSequencerSettings();
+	if (ensure(SequencerSettings))
+	{
+		return SequencerSettings->GetFilterBarLayout();
+	}
+	return EFilterBarLayout::Vertical;
+}
+
+void SSequencer::SetFilterBarLayout(const EFilterBarLayout InLayout)
+{
+	USequencerSettings* const SequencerSettings = GetSequencerSettings();
+	if (ensure(SequencerSettings))
+	{
+		SequencerSettings->SetFilterBarLayout(InLayout);
+	}
+
+	RebuildFilterBarContent();
+}
+
+void SSequencer::OnTrackFiltersChanged(const ESequencerFilterChange InChangeType, const TSharedRef<FSequencerTrackFilter>& InFilter)
+{
+	RebuildFilterBarContent();
+
+	if (SequencerTreeFilterStatusBar.IsValid())
+	{
+		SequencerTreeFilterStatusBar->UpdateText();
+	}
+}
+
+void SSequencer::RebuildSearchAndFilterRow()
+{
+	SearchAndFilterRow->ClearChildren();
+
+	SearchAndFilterRow->AddSlot()
+		.AutoHeight()
+		[
+			ConstructSearchAndFilterRow()
+		];
+
+	if (FilterBarWidget.IsValid())
+	{
+		if (const TSharedPtr<FSequencerFilterBar> FilterBar = FilterBarWidget->GetFilterBar())
+		{
+			if (IsFilterBarVisible() && GetFilterBarLayout() == EFilterBarLayout::Horizontal)
+			{
+				SearchAndFilterRow->AddSlot()
+					.AutoHeight()
+					[
+						FilterBarWidget.ToSharedRef()
+					];
+			}
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
