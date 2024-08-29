@@ -17,28 +17,28 @@ namespace uba
 
 	inline bool FindImports(const tchar* fileName, const Function<void(const tchar* import, bool isKnown, const char* const* loaderPaths)>& func, StringBufferBase& outError)
 	{
-		int fd = open(fileName, O_RDONLY);
+		int fd = TRUE_WRAPPER(open)(fileName, O_RDONLY);
 		if (fd == -1)
 		{
 			outError.Appendf("Open failed for file %s", fileName);
 			return false;
 		}
-		auto closeFileHandle = MakeGuard([&]() { close(fd); });
+		auto closeFileHandle = MakeGuard([&]() { TRUE_WRAPPER(close)(fd); });
 		struct stat sb;
-		if (fstat(fd, &sb) == -1)
+		if (TRUE_WRAPPER(fstat)(fd, &sb) == -1)
 		{
 			outError.Appendf("Stat failed for file %s", fileName);
 			return false;
 		}
 		u32 size = Min(u32(sb.st_size), 8048u);
 
-		void* mem = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
+		void* mem = TRUE_WRAPPER(mmap)(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
 		if (mem == MAP_FAILED)
 		{
 			outError.Appendf("Mmap failed for file %s", fileName);
 			return false;
 		}
-		auto unmap = MakeGuard([&]() { munmap(mem, size); });
+		auto unmap = MakeGuard([&]() { TRUE_WRAPPER(munmap)(mem, size); });
 
 
 		const char* libs[1024];

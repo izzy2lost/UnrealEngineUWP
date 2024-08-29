@@ -728,7 +728,7 @@ namespace uba
 			for (auto& loaderPath : loaderPaths)
 			{
 				StringBuffer<> fullPath;
-				fullPath.Append(applicationDir).Append(loaderPath).Append(fileName);
+				fullPath.Append(applicationDir).EnsureEndsWithSlash().Append(loaderPath).EnsureEndsWithSlash().Append(fileName);
 				if (GetFileAttributesW(fullPath.data) == INVALID_FILE_ATTRIBUTES)
 					continue;
 				StringBuffer<> out;
@@ -736,7 +736,6 @@ namespace uba
 				fileNameKey = ToStringKeyLower(absoluteFile);
 				if (!StoreCasFile(casKey, fileNameKey, absoluteFile.data))
 					return false;
-
 				break;
 			}
 		}
