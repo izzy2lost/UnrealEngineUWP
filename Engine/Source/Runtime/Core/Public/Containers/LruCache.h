@@ -66,6 +66,18 @@ class TLruCache
 			, Value(InValue)
 		{ }
 
+		/**
+		 * Create a new instance with a default key value.
+		 *
+		 * @param InKey The entry's key.
+		 */
+		FCacheEntry(const KeyType& InKey)
+			: Key(InKey)
+			, LessRecent(nullptr)
+			, MoreRecent(nullptr)
+		{ }
+
+
 		/** Add this entry before the given one. */
 		FORCEINLINE void LinkBefore(FCacheEntry* Other)
 		{
@@ -153,7 +165,7 @@ public:
 	 *
 	 * @param Key The entry's lookup key.
 	 * @param Value The entry's value.
-	 * @see Empty, Find, GetKeys, Remove
+	 * @see AddUninitialized_GetRef,Empty, Find, GetKeys, Remove
 	 */
 	void Add(const KeyType& Key, const ValueType& Value)
 	{
@@ -190,6 +202,56 @@ public:
 			LookupSet.Add(NewEntry);
 		}
 	}
+
+	/**
+	 * Add an entry to the cache.
+	 *
+	 * If an entry with the specified key already exists in the cache,
+	 * the value of the existing entry will be returned. The added or
+	 * updated entry will be marked as the most recently used one.
+	 *
+	 * @param Key The entry's lookup key.
+	 * @return The entry's value.
+	 * @see Add, Empty, Find, GetKeys, Remove
+	 */
+	ValueType& AddUninitialized_GetRef(const KeyType& Key)
+	{
+		check(MaxNumElements != 0 && "Cannot add values to zero size TLruCache");
+
+		FCacheEntry** EntryPtr = LookupSet.Find(Key);
+
+		if (EntryPtr != nullptr)
+		{
+			// update existing entry
+			FCacheEntry* Entry = *EntryPtr;
+			checkSlow(Entry->Key == Key);
+
+			MarkAsRecent(*Entry);
+			return Entry->Value;
+		}
+		else
+		{
+			// add new entry
+			if (LookupSet.Num() == MaxNumElements)
+			{
+				Remove(LeastRecent);
+			}
+
+			FCacheEntry* NewEntry = new FCacheEntry(Key);
+			NewEntry->LinkBefore(MostRecent);
+			MostRecent = NewEntry;
+
+			if (LeastRecent == nullptr)
+			{
+				LeastRecent = NewEntry;
+			}
+
+			LookupSet.Add(NewEntry);
+			return NewEntry->Value;
+		}
+	}
+
+
 
 	/**
 	 * Check whether an entry with the specified key is in the cache.
