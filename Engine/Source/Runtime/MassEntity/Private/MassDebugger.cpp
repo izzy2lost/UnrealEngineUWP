@@ -78,7 +78,7 @@ namespace UE::Mass::Debug
 	void SetDebugEntityRange(const int32 InDebugEntityBegin, const int32 InDebugEntityEnd)
 	{
 		DebugEntityBegin = InDebugEntityBegin;
-		DebugEntityEnd = InDebugEntityBegin;
+		DebugEntityEnd = InDebugEntityEnd;
 	}
 
 	static FAutoConsoleCommand SetDebugEntityRangeCommand(
