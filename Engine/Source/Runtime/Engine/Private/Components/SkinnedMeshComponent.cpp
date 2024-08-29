@@ -1011,7 +1011,7 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 					MeshObject = MeshObjectFactory(MeshObjectFactoryUserData, this, SkelMeshRenderData, SceneFeatureLevel);
 				}
 
-				if (!MeshObject && ShouldNaniteSkin())
+				if (!MeshObject && ShouldNaniteSkin() && !ShouldCPUSkin() /* Needed for calls to GetCPUSkinnedVertices() */)
 				{
 					FSkeletalMeshObjectNanite* NaniteMeshObject = ::new FSkeletalMeshObjectNanite(this, SkelMeshRenderData, SceneFeatureLevel);
 					if (NaniteMeshObject->HasValidMaterials())
