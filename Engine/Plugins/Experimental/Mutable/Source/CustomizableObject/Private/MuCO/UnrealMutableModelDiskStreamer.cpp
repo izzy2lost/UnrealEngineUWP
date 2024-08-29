@@ -12,12 +12,6 @@
 #include "HAL/PlatformFileManager.h"
 #include "Serialization/BulkData.h"
 
-#if WITH_EDITOR
-#include "DerivedDataCache.h"
-#include "DerivedDataCacheInterface.h"
-#include "DerivedDataCacheKey.h"
-#include "DerivedDataRequestOwner.h"
-#endif
 
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Streaming Ops"), STAT_MutableStreamingOps, STATGROUP_Mutable);
 
@@ -89,8 +83,6 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 		!=
 		nullptr;
 
-	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
-
 	if (!bAlreadyStreaming)
 	{
 		FObjectData NewData;
@@ -111,10 +103,6 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 		FString FolderPath = CustomizableObject->GetPrivate()->GetCompiledDataFolderPath();
 		FString FullFileName = FolderPath + CustomizableObject->GetPrivate()->GetCompiledDataFileName(false, nullptr, true);
 		NewData.BulkFilePrefix = *FullFileName;
-
-		NewData.bIsStoredInDDC = ModelResources.bIsStoredInDDC;
-		NewData.DDCKey = ModelResources.DDCKey;
-		NewData.DDCPolicy = ModelResources.DDCDefaultPolicy;
 #else
 		if (NewData.ModelStreamableBulkData->HashToBulkData.IsEmpty())
 		{
@@ -230,7 +218,7 @@ mu::ModelReader::OPERATION_ID FUnrealMutableModelBulkReader::BeginReadBlock(cons
 		// object that have progressive mip generation.
 		if (CompletionCallback)
 		{
-			(*CompletionCallback)(false);
+			(*CompletionCallback)(false);    		
 		}
 		return -1;
 	}
@@ -244,7 +232,7 @@ mu::ModelReader::OPERATION_ID FUnrealMutableModelBulkReader::BeginReadBlock(cons
 
 		if (CompletionCallback)
 		{
-			(*CompletionCallback)(false);
+			(*CompletionCallback)(false);    		
 		}
 		return -1;
 	}
@@ -274,121 +262,59 @@ mu::ModelReader::OPERATION_ID FUnrealMutableModelBulkReader::BeginReadBlock(cons
 	}
 	else
 	{
+		int32 BulkDataOffsetInFile = 0;
 #if WITH_EDITOR
-		if (ObjectData->bIsStoredInDDC)
+		BulkDataOffsetInFile = sizeof(MutableCompiledDataStreamHeader);
+#endif
+
+		FReadRequest ReadRequest;
+
+		if (CompletionCallback)
 		{
-			MUTABLE_CPUPROFILER_SCOPE(FUnrealMutableModelBulkStreamer::OpenReadFileDDC);
-
-			using namespace UE::DerivedData;
-
-			FValueId::ByteArray ValueIdBytes = {};
-			check(sizeof(FValueId::ByteArray) >= 4 + sizeof(Block->FileId));
-
-			MutablePrivate::EDataType DataType = MutablePrivate::EDataType::Model;
-			FMemory::Memcpy(&ValueIdBytes, &DataType, sizeof(DataType));
-			FMemory::Memcpy(&ValueIdBytes[4], &Block->FileId, sizeof(Block->FileId));
-			FValueId ResourceId = FValueId(ValueIdBytes);
-
-			// Skip loading values by default
-			FCacheRecordPolicyBuilder PolicyBuilder(ECachePolicy::Default | ECachePolicy::SkipData);
-
-			PolicyBuilder.AddValuePolicy(ResourceId, ECachePolicy::Default); // Override policy for the Model. Always load the compiled model data.
-
-			FCacheGetRequest Request;
-			Request.Name = ObjectData->BulkFilePrefix;
-			Request.Key = ObjectData->DDCKey;
-			Request.Policy = PolicyBuilder.Build();
-
-			FReadRequest ReadRequest;
-			ReadRequest.DDCReadRequest = MakeShared<FRequestOwner>(EPriority::High);
-
-			GetCache().Get(MakeArrayView(&Request, 1), *ReadRequest.DDCReadRequest.Get(),
-				[CompletionCallbackCapture = *CompletionCallback, Block, ResourceId, pBuffer, size](FCacheGetResponse&& Response)
+			ReadRequest.FileCallback = MakeShared<TFunction<void(bool, IAsyncReadRequest*)>>([CompletionCallbackCapture = *CompletionCallback](bool bWasCancelled, IAsyncReadRequest*) -> void
 				{
-					bool bSuccess = Response.Status == EStatus::Ok;
-					if (bSuccess)
-					{
-						const FCompressedBuffer& CompressedBuffer = Response.Record.GetValue(ResourceId).GetData();
-						if (size < CompressedBuffer.GetRawSize())
-						{
-							check(CompressedBuffer.GetRawSize() >= Block->Offset + size);
-							FSharedBuffer DecompressedBuffer = CompressedBuffer.Decompress();
-							FMemory::Memcpy(pBuffer, reinterpret_cast<const uint8*>(DecompressedBuffer.GetData()) + Block->Offset, size);
-						}
-						else
-						{
-							check(CompressedBuffer.TryDecompressTo(MakeMemoryView(pBuffer, size)));
-						}
-					}
-					else
-					{
-						check(false);
-					}
-
-					CompletionCallbackCapture(bSuccess);
+					CompletionCallbackCapture(!bWasCancelled);
 				});
-
-			ObjectData->CurrentReadRequests.Add(Result, ReadRequest);
 		}
-		else
-#endif
+
+		TSharedPtr<IAsyncReadFileHandle> FileHandle;
 		{
+			FScopeLock Lock(&FileHandlesCritical);
 
-			int32 BulkDataOffsetInFile = 0;
-
+			TSharedPtr<IAsyncReadFileHandle>& Found = ObjectData->ReadFileHandles.FindOrAdd(Block->FileId);
+			if (!Found)
+			{
 #if WITH_EDITOR
-			BulkDataOffsetInFile = sizeof(MutableCompiledDataStreamHeader);
+				FString FilePath = ObjectData->BulkFilePrefix;
+#else
+				FString FilePath = FString::Printf(TEXT("%s-%08x.mut"), *ObjectData->BulkFilePrefix, Block->FileId);
+				if (Block->Flags == uint32(mu::ERomFlags::HighRes))
+				{
+					FilePath += TEXT(".high");
+				}
 #endif
 
-			FReadRequest ReadRequest;
+				Found = MakeShareable(FPlatformFileManager::Get().GetPlatformFile().OpenAsyncRead(*FilePath));
 
-			if (CompletionCallback)
-			{
-				ReadRequest.FileCallback = MakeShared<TFunction<void(bool, IAsyncReadRequest*)>>([CompletionCallbackCapture = *CompletionCallback](bool bWasCancelled, IAsyncReadRequest*) -> void
-					{
-						CompletionCallbackCapture(!bWasCancelled);
-					});
-			}
-
-			TSharedPtr<IAsyncReadFileHandle> FileHandle;
-			{
-				FScopeLock Lock(&FileHandlesCritical);
-
-				TSharedPtr<IAsyncReadFileHandle>& Found = ObjectData->ReadFileHandles.FindOrAdd(Block->FileId);
 				if (!Found)
 				{
-#if WITH_EDITOR
-					FString FilePath = ObjectData->BulkFilePrefix;
-#else
-					FString FilePath = FString::Printf(TEXT("%s-%08x.mut"), *ObjectData->BulkFilePrefix, Block->FileId);
-					if (Block->Flags == uint32(mu::ERomFlags::HighRes))
-					{
-						FilePath += TEXT(".high");
-					}
-#endif
-
-					Found = MakeShareable(FPlatformFileManager::Get().GetPlatformFile().OpenAsyncRead(*FilePath));
-
-					if (!Found)
-					{
-						UE_LOG(LogMutable, Error, TEXT("Failed to create AsyncReadFileHandle. File Path [%s]."), *FilePath);
-						check(false);
-						return -1;
-					}
+					UE_LOG(LogMutable, Error, TEXT("Failed to create AsyncReadFileHandle. File Path [%s]."), *FilePath);
+					check(false);
+					return -1;
 				}
-
-				FileHandle = Found;
 			}
 
-			ReadRequest.FileReadRequest = MakeShareable(FileHandle->ReadRequest(
-				BulkDataOffsetInFile + Block->Offset,
-				size,
-				(EAsyncIOPriorityAndFlags)StreamPriority,
-				ReadRequest.FileCallback.Get(),
-				reinterpret_cast<uint8*>(pBuffer)));
-
-			ObjectData->CurrentReadRequests.Add(Result, ReadRequest);
+			FileHandle = Found;
 		}
+
+		ReadRequest.FileReadRequest = MakeShareable(FileHandle->ReadRequest(
+			BulkDataOffsetInFile + Block->Offset,
+			size,
+			(EAsyncIOPriorityAndFlags)StreamPriority,
+			ReadRequest.FileCallback.Get(),
+			reinterpret_cast<uint8*>(pBuffer)));
+
+		ObjectData->CurrentReadRequests.Add(Result, ReadRequest);
 	}
 
 	INC_DWORD_STAT(STAT_MutableStreamingOps);
@@ -409,16 +335,10 @@ bool FUnrealMutableModelBulkReader::IsReadCompleted(mu::ModelReader::OPERATION_I
 			{
 				return ReadRequest->FileReadRequest->PollCompletion();
 			}
-			else if (ReadRequest->BulkReadRequest)
+			else if(ReadRequest->BulkReadRequest)
 			{
 				return ReadRequest->BulkReadRequest->PollCompletion();
 			}
-#if WITH_EDITORONLY_DATA
-			else if (ReadRequest->DDCReadRequest)
-			{
-				return ReadRequest->DDCReadRequest->Poll(); // ReadLock
-			}
-#endif
 		}
 	}
 
@@ -439,37 +359,36 @@ bool FUnrealMutableModelBulkReader::EndRead(mu::ModelReader::OPERATION_ID Operat
 		FReadRequest* ReadRequest = o.CurrentReadRequests.Find(OperationId);
 		if (ReadRequest)
 		{
-			bool bCompleted = false;
-			bool bResult = false;
-
 			if (ReadRequest->FileReadRequest)
 			{
-				bCompleted = ReadRequest->FileReadRequest->WaitCompletion();
-				bResult = ReadRequest->FileReadRequest->GetReadResults() != nullptr;
+				bool bCompleted = ReadRequest->FileReadRequest->WaitCompletion();
+				if (!bCompleted)
+				{
+					UE_LOG(LogMutable, Error, TEXT("Operation failed to complete in EndRead."));
+					check(false);
+					bSuccess = false;
+				}
+				else if (ReadRequest->FileReadRequest->GetReadResults()==nullptr)
+				{
+					// This means we have failed: file not found?
+					bSuccess = false;
+				}
 			}
 			else if (ReadRequest->BulkReadRequest)
 			{
-				bCompleted = ReadRequest->BulkReadRequest->WaitCompletion();
-				bResult = ReadRequest->BulkReadRequest->GetReadResults() != nullptr;
+				bool bCompleted = ReadRequest->BulkReadRequest->WaitCompletion();
+				if (!bCompleted)
+				{
+					UE_LOG(LogMutable, Error, TEXT("Operation failed to complete in EndRead."));
+					check(false);
+					bSuccess = false;
+				}
+				else if (ReadRequest->BulkReadRequest->GetReadResults() == nullptr)
+				{
+					// This means we have failed: file not found?
+					bSuccess = false;
+				}
 			}
-#if WITH_EDITORONLY_DATA
-			else if (ReadRequest->DDCReadRequest)
-			{
-				ReadRequest->DDCReadRequest->Wait();
-				
-				// bSuccess TODO Pere: find a way to know if the request completed successfully
-				bCompleted = true;
-				bResult = true;
-			}
-#endif
-			if (!bCompleted)
-			{
-				UE_LOG(LogMutable, Error, TEXT("Operation failed to complete in EndRead."));
-				check(false);
-			}
-
-			bSuccess = bCompleted && bResult;
-			
 			o.CurrentReadRequests.Remove(OperationId);
 			bFound = true;
 			break;

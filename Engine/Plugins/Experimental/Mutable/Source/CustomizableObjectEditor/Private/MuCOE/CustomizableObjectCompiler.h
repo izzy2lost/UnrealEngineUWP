@@ -87,8 +87,6 @@ private:
 	void CompleteRequest(ECompilationStatePrivate State, ECompilationResultPrivate Result);
 	bool TryPopCompileRequest();
 
-	bool TryLoadCompiledDataFromDDC(UCustomizableObject& CustomizableObject);
-
 	void PreloadingReferencerAssetsCallback(bool bAsync);
 	
 	void ProcessChildObjectsRecursively(UCustomizableObject* Object, FMutableGraphGenerationContext &GenerationContext);
@@ -169,8 +167,7 @@ private:
 	/** Array used to protect from garbage collection those COs loaded asynchronously */
 	TArray<TObjectPtr<UCustomizableObject>> ArrayGCProtect;
 
-	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model;
-	FModelResources ModelResources;
+	TSharedPtr<mu::Model, ESPMode::ThreadSafe> CurrentModel;
 	TSharedPtr<FModelStreamableBulkData> ModelStreamableBulkData;
 
 	// Protected from GC with FCustomizableObjectCompiler::AddReferencedObjects

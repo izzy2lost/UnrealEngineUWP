@@ -989,9 +989,9 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateIntWidget(const UCusto
 
 	// Tooltip for the selected option
 	FString ToolTipText = FString("None");
-	if (const FString* Identifier = CustomizableObject.GetPrivate()->GetModelResources().GroupNodeMap.FindKey(FCustomizableObjectIdPair(ParamName, SelectedOption)))
+	if (const FString* Identifier = CustomizableObject.GetPrivate()->GroupNodeMap.FindKey(FCustomizableObjectIdPair(ParamName, SelectedOption)))
 	{
-		if (const FString* CustomizableObjectPath = CustomizableObject.GetPrivate()->GetModelResources().CustomizableObjectPathMap.Find(*Identifier))
+		if (FString* CustomizableObjectPath = CustomizableObject.GetPrivate()->CustomizableObjectPathMap.Find(*Identifier))
 		{
 			ToolTipText = *CustomizableObjectPath;
 		}

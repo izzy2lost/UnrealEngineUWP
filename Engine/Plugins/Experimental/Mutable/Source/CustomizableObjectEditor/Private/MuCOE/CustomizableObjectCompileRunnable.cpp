@@ -15,12 +15,6 @@
 #include "Containers/Ticker.h"
 #include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 #include "Trace/Trace.inl"
-#include "UObject/SoftObjectPtr.h"
-#include "Engine/AssetUserData.h"
-
-#include "DerivedDataCacheInterface.h"
-#include "DerivedDataCache.h"
-#include "DerivedDataRequestOwner.h"
 
 class ITargetPlatform;
 
@@ -273,86 +267,133 @@ void FCustomizableObjectCompileRunnable::Tick()
 }
 
 
-FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable(const TSharedPtr<FCompilationRequest>& InRequest,
-	TSharedPtr<mu::Model> InModel,
-	FModelResources& InModelResources,
-	TSharedPtr<FModelStreamableBulkData> InModelStreamables)
+FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable(UCustomizableObject* CustomizableObject, const FCompilationOptions& InOptions, TSharedPtr<mu::Model> InModel)
 {
 	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable)
-
+		
 	Model = InModel;
-	ModelStreamables = InModelStreamables;
-
-	Options = InRequest->GetCompileOptions();
-
-	DDCKey = InRequest->GetDerivedDataCacheKey();
-	DefaultDDCPolicy = InRequest->GetDerivedDataCachePolicy();
-
-	UCustomizableObject* CustomizableObject = InRequest->GetCustomizableObject();
-	CustomizableObjectName = GetNameSafe(CustomizableObject);
-
+	Options = InOptions;
+	
 	CustomizableObjectHeader.InternalVersion = CustomizableObject->GetPrivate()->CurrentSupportedVersion;
-	CustomizableObjectHeader.VersionId = CustomizableObject->GetPrivate()->GetVersionId();
-
-	// Cache ModelResources
-	{
-		FMemoryWriter64 MemoryWriter(PlatformData.ModelResourcesData);
-		FObjectAndNameAsStringProxyArchive ObjectWriter(MemoryWriter, true);
-		InModelResources.Serialize(ObjectWriter, Options.bIsCooking);
-	}
-
-	// Cache Morphs and Clothing. 
-	{
-		// Do a copy of the Morph and Clothing Data generated at compile time. Only needed when cooking.
-		// Morphs
-		static_assert(TCanBulkSerialize<FMorphTargetVertexData>::Value);
-		TArray<FMorphTargetVertexData>& MorphVertexData = InModelResources.EditorOnlyMorphTargetReconstructionData;
-
-		PlatformData.MorphData.SetNum(MorphVertexData.Num() * sizeof(FMorphTargetVertexData));
-		FMemory::Memcpy(PlatformData.MorphData.GetData(), MorphVertexData.GetData(), PlatformData.MorphData.Num());
-
-		// Cloth
-		static_assert(TCanBulkSerialize<FCustomizableObjectMeshToMeshVertData>::Value);
-		TArray<FCustomizableObjectMeshToMeshVertData>& ClothingVertexData = InModelResources.EditorOnlyClothingMeshToMeshVertData;
-
-		PlatformData.ClothingData.SetNum(ClothingVertexData.Num() * sizeof(FCustomizableObjectMeshToMeshVertData));
-		FMemory::Memcpy(PlatformData.ClothingData.GetData(), ClothingVertexData.GetData(), PlatformData.ClothingData.Num());
-
-		if (Options.bIsCooking)
-		{
-			InModelResources.EditorOnlyMorphTargetReconstructionData.Empty();
-			InModelResources.EditorOnlyClothingMeshToMeshVertData.Empty();
-		}
-	}
+	CustomizableObjectHeader.VersionId = Options.bIsCooking? FGuid::NewGuid() : CustomizableObject->GetPrivate()->GetVersionId();
 
 	if (!Options.bIsCooking)
 	{
 		// We will be saving all compilation data in two separate files, write CO Data
 		FolderPath = CustomizableObject->GetPrivate()->GetCompiledDataFolderPath();
-		CompileDataFullFileName = FolderPath + CustomizableObject->GetPrivate()->GetCompiledDataFileName(true, Options.TargetPlatform);
-		StreamableDataFullFileName = FolderPath + CustomizableObject->GetPrivate()->GetCompiledDataFileName(false, Options.TargetPlatform);
+		CompileDataFullFileName = FolderPath + CustomizableObject->GetPrivate()->GetCompiledDataFileName(true, InOptions.TargetPlatform);
+		StreamableDataFullFileName = FolderPath + CustomizableObject->GetPrivate()->GetCompiledDataFileName(false, InOptions.TargetPlatform);
+
+		// Serialize Customizable Object's data
+		FMemoryWriter64 MemoryWriter(ModelBytes);
+		FObjectAndNameAsStringProxyArchive ObjectWriter(MemoryWriter, true);
+		CustomizableObject->GetPrivate()->SaveCompiledData(ObjectWriter, Options.bIsCooking);
 	}
+#if WITH_EDITORONLY_DATA
+	else
+	{
+		// Do a copy of the Morph and Clothing Data generated at compile time. Only needed when cooking.
+		
+		constexpr bool bGetCookedFalse = false;
+		FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources(bGetCookedFalse);
+		
+		static_assert(TCanBulkSerialize<FMorphTargetVertexData>::Value);
+		const TArray<FMorphTargetVertexData>& MorphVertexData = ModelResources.EditorOnlyMorphTargetReconstructionData;
+
+		MorphDataBytes.SetNum(MorphVertexData.Num() * sizeof(FMorphTargetVertexData));
+		FMemory::Memcpy(MorphDataBytes.GetData(), MorphVertexData.GetData(), MorphDataBytes.Num());
+		
+		static_assert(TCanBulkSerialize<FCustomizableObjectMeshToMeshVertData>::Value);
+		const TArray<FCustomizableObjectMeshToMeshVertData>& ClothingVertexData = ModelResources.EditorOnlyClothingMeshToMeshVertData;
+
+		ClothingDataBytes.SetNum(ClothingVertexData.Num() * sizeof(FCustomizableObjectMeshToMeshVertData));
+		FMemory::Memcpy(ClothingDataBytes.GetData(), ClothingVertexData.GetData(), ClothingDataBytes.Num());
+	}
+#endif // WITH_EDITORONLY_DATA
 }
+
 
 uint32 FCustomizableObjectSaveDDRunnable::Run()
 {
 	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectSaveDDRunnable::Run)
 
-	if (Model)
+	// MorphDataBytes and ClothingDataBytes has data only if cooking. 
+	check(!!Options.bIsCooking || MorphDataBytes.IsEmpty());
+	check(!!Options.bIsCooking || ClothingDataBytes.IsEmpty());
+
+	bool bModelSerialized = Model.Get() != nullptr;
+
+	if (Options.bIsCooking)
 	{
-		CachePlatfromData();
-
-		bool bStoredSuccessfully = false;
-
-		// TODO UE-222775: Allow using DDC in editor builds, not just for cooking.
-		if (Options.bIsCooking && Options.bStoreCompiledDataInDDC && !DDCKey.Hash.IsZero())
+		// Serialize mu::Model and streamable resources 
+		FMemoryWriter64 ModelMemoryWriter(ModelBytes, false, true);
+		ModelMemoryWriter << bModelSerialized;
+		if (bModelSerialized)
 		{
-			StoreCachedPlatformDataInDDC(bStoredSuccessfully);
+			FUnrealMutableModelBulkWriterCook Streamer(&ModelMemoryWriter, &ModelStreamableData);
+			constexpr bool bDropData = true;
+			mu::Model::Serialise(Model.Get(), Streamer, bDropData);
+
+			// Morph and Clothing are already in the corresponding buffer copied from the compilation thread.
+		}
+	}
+	else if (bModelSerialized) // Save CO data + mu::Model and streamable resources to disk
+	{
+		// Create folder...
+		IFileManager& FileManager = IFileManager::Get();
+		FileManager.MakeDirectory(*FolderPath, true);
+
+		// Delete files...
+		bool bFilesDeleted = true;
+		if (FileManager.FileExists(*CompileDataFullFileName)
+			&& !FileManager.Delete(*CompileDataFullFileName, true, false, true))
+		{
+			UE_LOG(LogMutable, Error, TEXT("Failed to delete compiled data in file [%s]."), *CompileDataFullFileName);
+			bFilesDeleted = false;
 		}
 
-		if (!Options.bIsCooking && !bStoredSuccessfully)
+		if (FileManager.FileExists(*StreamableDataFullFileName)
+			&& !FileManager.Delete(*StreamableDataFullFileName, true, false, true))
 		{
-			StoreCachedPlatformDataToDisk(bStoredSuccessfully);
+			UE_LOG(LogMutable, Error, TEXT("Failed to delete streamed data in file [%s]."), *StreamableDataFullFileName);
+			bFilesDeleted = false;
+		}
+
+		// Store current compiled data
+		if (bFilesDeleted)
+		{
+			// Create file writers...
+			TUniquePtr<FArchive> ModelMemoryWriter(FileManager.CreateFileWriter(*CompileDataFullFileName));
+			TUniquePtr<FArchive> StreamableMemoryWriter(FileManager.CreateFileWriter(*StreamableDataFullFileName));
+			check(ModelMemoryWriter);
+			check(StreamableMemoryWriter);
+
+			// Serailize headers to validate data
+			*ModelMemoryWriter << CustomizableObjectHeader;
+			*StreamableMemoryWriter << CustomizableObjectHeader;
+
+			// Serialize Customizable Object's Data to disk
+			ModelMemoryWriter->Serialize(ModelBytes.GetData(), ModelBytes.Num() * sizeof(uint8));
+			ModelBytes.Empty();
+
+			// Serialize mu::Model and streamable resources
+			*ModelMemoryWriter << bModelSerialized;
+
+			FUnrealMutableModelBulkWriterEditor Streamer(ModelMemoryWriter.Get(), StreamableMemoryWriter.Get());
+			constexpr bool bDropData = true;
+			mu::Model::Serialise(Model.Get(), Streamer, bDropData);
+
+			// Save to disk
+			ModelMemoryWriter->Flush();
+			StreamableMemoryWriter->Flush();
+
+			ModelMemoryWriter->Close();
+			StreamableMemoryWriter->Close();
+		}
+		else
+		{
+			// Remove old data if there.
+			Model.Reset();
 		}
 	}
 
@@ -372,255 +413,6 @@ const ITargetPlatform* FCustomizableObjectSaveDDRunnable::GetTargetPlatform() co
 {
 	return Options.TargetPlatform;
 }
-
-
-void FCustomizableObjectSaveDDRunnable::CachePlatfromData()
-{
-	MUTABLE_CPUPROFILER_SCOPE(CachePlatfromData);
-
-	if (!Model || !ModelStreamables)
-	{
-		check(false);
-		return;
-	}
-
-	// Cache ModelStreamalbes
-	{
-		PlatformData.ModelStreamables = ModelStreamables;
-
-		const uint64 PackageDataBytesLimit = Options.bIsCooking ? Options.PackagedDataBytesLimit : MAX_uint64;
-
-		// Generate list of files and update streamable blocks ids and offsets
-		MutablePrivate::GenerateBulkDataFilesList(Model, *PlatformData.ModelStreamables.Get(), Options.TargetPlatform, PackageDataBytesLimit, PlatformData.BulkDataFiles);
-	}
-
-
-	// Cache Model and Model Roms
-	{
-		FMemoryWriter64 ModelMemoryWriter(PlatformData.ModelData);
-		FUnrealMutableModelBulkWriterCook Streamer(&ModelMemoryWriter, &PlatformData.ModelStreamableData);
-
-		// Serialize mu::Model and streamable resources 
-		constexpr bool bDropData = true;
-		mu::Model::Serialise(Model.Get(), Streamer, bDropData);
-	}
-}
-
-
-void FCustomizableObjectSaveDDRunnable::StoreCachedPlatformDataInDDC(bool& bStoredSuccessfully)
-{
-	MUTABLE_CPUPROFILER_SCOPE(StoreCachedPlatformDataInDDC);
-
-	using namespace UE::DerivedData;
-
-	check(Model.Get() != nullptr);
-	check(DDCKey.Hash.IsZero() == false);
-
-	bStoredSuccessfully = false;
-
-	// DDC record
-	FCacheRecordBuilder RecordBuilder(DDCKey);
-
-	// Store streamable resources info as FValues
-	{
-		MUTABLE_CPUPROFILER_SCOPE(SerializeModelStreamables);
-
-		// ModelStreamable  will be modified for the DDC record. Modify a copy
-		FModelStreamableBulkData ModelStreamablesDDC = *ModelStreamables.Get();
-
-		// Generate list of files and update streamable blocks ids and offsets
-		MutablePrivate::GenerateBulkDataFilesList(Model, ModelStreamablesDDC, Options.TargetPlatform, Options.DDCBytesLimit, BulkDataFilesDDC);
-
-		TArray64<uint8> ModelStreamablesBytesDDC;
-		FMemoryWriter64 MemoryWriterDDC(ModelStreamablesBytesDDC);
-		MemoryWriterDDC << ModelStreamablesDDC;
-
-		const FValue ModelStreamablesValue = FValue::Compress(FSharedBuffer::MakeView(ModelStreamablesBytesDDC.GetData(), ModelStreamablesBytesDDC.Num()));
-		RecordBuilder.AddValue(MutablePrivate::GetDerivedDataModelStreamableBulkDataId(), ModelStreamablesValue);
-	}
-
-	// Store streamable resources as FValues
-	{
-		MUTABLE_CPUPROFILER_SCOPE(SerializeBulkDataForDDC);
-		
-		FValueId::ByteArray ValueIdBytes = {};
-		const auto WriteBulkDataDDC = [&RecordBuilder, &ValueIdBytes](MutablePrivate::FFile& File, TArray64<uint8>& FileBulkData)
-			{
-				FMemory::Memcpy(&ValueIdBytes, &File.DataType, sizeof(File.DataType));
-				FMemory::Memcpy(&ValueIdBytes[4], &File.Id, sizeof(File.Id));
-				const FValueId ValueId(ValueIdBytes);
-				const FValue Value = FValue::Compress(FSharedBuffer::MakeView(FileBulkData.GetData(), FileBulkData.Num()));
-
-				RecordBuilder.AddValue(ValueId, Value);
-			};
-
-		constexpr bool bDropData = false;
-		MutablePrivate::SerializeBulkDataFiles(PlatformData, BulkDataFilesDDC, WriteBulkDataDDC, bDropData);
-	}
-
-
-	// Store BulkData Files as a FValue to reconstruct the data later on
-	{
-		MUTABLE_CPUPROFILER_SCOPE(SerializeBulkDataFilesForDDC);
-
-		TArray<uint8> BulkDataFilesBytes;
-		FMemoryWriter MemoryWriter(BulkDataFilesBytes);
-
-		MemoryWriter << BulkDataFilesDDC;
-
-		const FValue BulkDataFilesValue = FValue::Compress(FSharedBuffer::MakeView(BulkDataFilesBytes.GetData(), BulkDataFilesBytes.Num()));
-		RecordBuilder.AddValue(MutablePrivate::GetDerivedDataBulkDataFilesId(), BulkDataFilesValue);
-	}
-
-	// Store ModelResources bytes as a FValue
-	{
-		MUTABLE_CPUPROFILER_SCOPE(SerializeModelResourcesForDDC);
-
-		const FValue ModelResourcesValue = FValue::Compress(FSharedBuffer::MakeView(PlatformData.ModelResourcesData.GetData(), PlatformData.ModelResourcesData.Num()));
-		RecordBuilder.AddValue(MutablePrivate::GetDerivedDataModelResourcesId(), ModelResourcesValue);
-	}
-
-	// Store Model bytes as a FValue
-	{
-		MUTABLE_CPUPROFILER_SCOPE(SerializeModelForDDC);
-
-		const FValue ModelValue = FValue::Compress(FSharedBuffer::MakeView(PlatformData.ModelData.GetData(), PlatformData.ModelData.Num()));
-		RecordBuilder.AddValue(MutablePrivate::GetDerivedDataModelId(), ModelValue);
-	}
-
-	// Push record to the DDC
-	{
-		MUTABLE_CPUPROFILER_SCOPE(PushRecordToDDC);
-
-		FRequestOwner RequestOwner(UE::DerivedData::EPriority::Blocking);
-		const FCachePutRequest PutRequest = { UE::FSharedString(CustomizableObjectName), RecordBuilder.Build(), DefaultDDCPolicy };
-		GetCache().Put(MakeArrayView(&PutRequest, 1), RequestOwner,
-			[&bStoredSuccessfully](FCachePutResponse&& Response)
-			{
-				if (Response.Status == EStatus::Ok)
-				{
-					bStoredSuccessfully = true;
-				}
-			});
-
-		RequestOwner.Wait();
-		check(bStoredSuccessfully);
-	}
-}
-
-
-void FCustomizableObjectSaveDDRunnable::StoreCachedPlatformDataToDisk(bool& bStoredSuccessfully)
-{
-	MUTABLE_CPUPROFILER_SCOPE(StoreCachedPlatformDataToDisk);
-
-	check(Model.Get() != nullptr);
-	check(!Options.bIsCooking);
-
-	bStoredSuccessfully = false;
-
-	// Create folder...
-	IFileManager& FileManager = IFileManager::Get();
-	FileManager.MakeDirectory(*FolderPath, true);
-
-	// Delete files...
-	
-	
-	bool bFilesDeleted = true;
-	if (FileManager.FileExists(*CompileDataFullFileName)
-		&& !FileManager.Delete(*CompileDataFullFileName, true, false, true))
-	{
-		UE_LOG(LogMutable, Error, TEXT("Failed to delete compiled data in file [%s]."), *CompileDataFullFileName);
-		bFilesDeleted = false;
-	}
-
-	if (FileManager.FileExists(*StreamableDataFullFileName)
-		&& !FileManager.Delete(*StreamableDataFullFileName, true, false, true))
-	{
-		UE_LOG(LogMutable, Error, TEXT("Failed to delete streamed data in file [%s]."), *StreamableDataFullFileName);
-		bFilesDeleted = false;
-	}
-
-	if (!bFilesDeleted)
-	{
-		// Couldn't delete files. Delete model and return.
-		Model.Reset();
-		return;
-	}
-
-	// Serialize Streamable resources
-	{
-		// Create file writer
-		TUniquePtr<FArchive> StreamableMemoryWriter(FileManager.CreateFileWriter(*StreamableDataFullFileName));
-		check(StreamableMemoryWriter);
-
-		// Serailize headers to validate data
-		*StreamableMemoryWriter << CustomizableObjectHeader;
-
-		const auto WriteBulkDataToDisk = [&StreamableMemoryWriter](MutablePrivate::FFile& File, TArray64<uint8>& FileBulkData)
-			{
-				switch (File.DataType)
-				{
-				case MutablePrivate::EDataType::Model:
-				{
-					StreamableMemoryWriter->Serialize(FileBulkData.GetData(), FileBulkData.Num() * sizeof(uint8));
-					break;
-				}
-				case MutablePrivate::EDataType::RealTimeMorph:
-				{
-					// TODO: Store clothing streamable to disk. UE-222777
-					break;
-				}
-				case MutablePrivate::EDataType::Clothing:
-				{
-					// TODO: Store clothing streamable to disk. UE-222777
-					break;
-				}
-				default:
-					break;
-				}
-				
-			};
-
-		// Serialize streamable resources into a single file and fix offsets
-		constexpr bool bDropData = true;
-		MutablePrivate::SerializeBulkDataFiles(PlatformData, PlatformData.BulkDataFiles, WriteBulkDataToDisk, bDropData);
-		StreamableMemoryWriter->Flush();
-		StreamableMemoryWriter->Close();
-
-		PlatformData.MorphData.Empty();
-		PlatformData.ClothingData.Empty();
-	}
-
-	// Serialize Model and ModelResources. Store after SerializeBulkDataFiles fixes the HashToStreamableFiles offsets.
-	{
-		// Create file writer
-		TUniquePtr<FArchive> ModelMemoryWriter(FileManager.CreateFileWriter(*CompileDataFullFileName));
-		check(ModelMemoryWriter);
-
-		// Serailize headers to validate data
-		*ModelMemoryWriter << CustomizableObjectHeader;
-
-		ModelMemoryWriter->Serialize(PlatformData.ModelResourcesData.GetData(), PlatformData.ModelResourcesData.Num() * sizeof(uint8));
-
-		{
-			// ModelMemoryWriter (Writer to disk) doesn't handle FNames properly. Serialize them ModelStreamables in two steps.
-			TArray64<uint8> ModelStreamablesBytes;
-			FMemoryWriter64 ModelStreamablesMemoryWriter(ModelStreamablesBytes);
-			ModelStreamablesMemoryWriter << *PlatformData.ModelStreamables.Get();
-			ModelMemoryWriter->Serialize(ModelStreamablesBytes.GetData(), ModelStreamablesBytes.Num() * sizeof(uint8));
-		}
-
-		ModelMemoryWriter->Serialize(PlatformData.ModelData.GetData(), PlatformData.ModelData.Num() * sizeof(uint8));
-		
-		ModelMemoryWriter->Flush();
-		ModelMemoryWriter->Close();
-
-		PlatformData.ModelData.Empty();
-	}
-
-	bStoredSuccessfully = true;
-}
-
 
 #undef LOCTEXT_NAMESPACE
 

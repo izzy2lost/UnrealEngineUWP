@@ -10,12 +10,11 @@
 #include "MuT/Node.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
 
-#include "DerivedDataCacheKey.h"
-#include "DerivedDataCachePolicy.h"
-
 #include <atomic>
 
 class ITargetPlatform;
+class UCustomizableObject;
+
 
 class FCustomizableObjectCompileRunnable : public FRunnable
 {
@@ -90,7 +89,7 @@ class FCustomizableObjectSaveDDRunnable : public FRunnable
 {
 public:
 
-	FCustomizableObjectSaveDDRunnable(const TSharedPtr<FCompilationRequest>& InRequest, TSharedPtr<mu::Model> InModel, FModelResources& ModelResources, TSharedPtr<FModelStreamableBulkData> ModelStreamables);
+	FCustomizableObjectSaveDDRunnable(UCustomizableObject* CustomizableObject, const FCompilationOptions& Options, TSharedPtr<mu::Model> InModel);
 
 	// FRunnable interface
 	uint32 Run() override;
@@ -102,26 +101,16 @@ public:
 	const ITargetPlatform* GetTargetPlatform() const;
 
 private:
-
-	void CachePlatfromData();
-
-	void StoreCachedPlatformDataInDDC(bool& bStoredSuccessfully);
-
-	void StoreCachedPlatformDataToDisk(bool& bStoredSuccessfully);
-
 	FCompilationOptions Options;
 
 	MutableCompiledDataStreamHeader CustomizableObjectHeader;
-
-	FString CustomizableObjectName;
 
 	// Paths used to save files to disk
 	FString FolderPath;
 	FString CompileDataFullFileName;
 	FString StreamableDataFullFileName;
 
-	UE::DerivedData::FCacheKey DDCKey;
-	UE::DerivedData::ECachePolicy DefaultDDCPolicy;
+	bool bIsCooking = false;
 
 	// Whether the thread has finished running
 	std::atomic<bool> bThreadCompleted = false;
@@ -129,11 +118,16 @@ private:
 public:
 
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model;
-	TSharedPtr<FModelStreamableBulkData> ModelStreamables;
 
-	// Cached platform data
-	MutablePrivate::FMutableCachedPlatformData PlatformData;
+	// Bytes where the model is stored
+	TArray64<uint8> ModelBytes;
 
-	// DDC Helpers
-	TArray<MutablePrivate::FFile> BulkDataFilesDDC;
+	// Model streamed data
+	MutablePrivate::FModelStreamableData ModelStreamableData;
+
+	// Bytes store streameable files coming form the CO itself.
+	TArray64<uint8> MorphDataBytes;
+
+	// Bytes store streameable files coming form the CO itself.
+	TArray64<uint8> ClothingDataBytes;
 };

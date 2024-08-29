@@ -147,7 +147,7 @@ void ShowOnScreenCompileWarnings()
 	
 		// Show a warning if the compilation was not done with optimizations.
 		const uint64 KeyCompiledWithOptimization = reinterpret_cast<uint64>(Object);
-		if (!Object->GetPrivate()->GetModelResources().bIsCompiledWithOptimization)
+		if (Object->GetPrivate()->bIsCompiledWithoutOptimization)
 		{
 			FString Msg = FString::Printf(TEXT("Customizable Object [%s] was compiled without optimization."), *Object->GetName());
 			GEngine->AddOnScreenDebugMessage(KeyCompiledWithOptimization, ShowOnScreenCompileWarningsTickerTime * 2.0f, FColor::Yellow, Msg);
@@ -558,8 +558,7 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 	
 	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 
-	const FModelResources& ModelResources = Object.GetPrivate()->GetModelResources();
-	for (const TTuple<FName, FGuid>& ParticipatingObject : ModelResources.ParticipatingObjects)
+	for (const TTuple<FName, FGuid>& ParticipatingObject : Object.GetPrivate()->ParticipatingObjects)
 	{
 		TSoftObjectPtr<UObject> SoftObjectPtr = TSoftObjectPtr<UObject>(FSoftObjectPath(ParticipatingObject.Key.ToString()));
 		if (SoftObjectPtr) // If loaded
@@ -623,7 +622,7 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 		TSoftObjectPtr<UObject> ReferencingObject = TSoftObjectPtr<UObject>(FSoftObjectPath(ObjectName.ToString())); 
 
 		if ((ReferencingObject && ReferencingObject->GetPackage()->IsDirty()) ||
-			!ModelResources.ParticipatingObjects.Contains(ObjectName)) // Must be in the participating objects, if not it means it did not exist when compiling the object.
+			!Object.GetPrivate()->ParticipatingObjects.Contains(ObjectName)) // Must be in the participating objects, if not it means it did not exist when compiling the object.
 		{
 			if (OutOfDatePackages)
 			{

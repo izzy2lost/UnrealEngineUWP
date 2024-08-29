@@ -88,7 +88,6 @@ public class CustomizableObjectEditor : ModuleRules
 			new string[] {
 				"PropertyEditor",
 				"CustomizableObject",
-				"DerivedDataCache",
 				"MutableTools",
 			}
 		);

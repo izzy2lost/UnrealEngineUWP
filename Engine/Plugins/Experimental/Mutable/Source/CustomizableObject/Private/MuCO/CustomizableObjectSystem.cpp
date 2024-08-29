@@ -991,7 +991,7 @@ void UCustomizableObjectSystemPrivate::GetMipStreamingConfig(const UCustomizable
 
 #if WITH_EDITORONLY_DATA
 	// Was streaming disabled at object-compilation time? 
-	if (Instance.GetCustomizableObject()->GetPrivate()->GetModelResources().bIsTextureStreamingDisabled)
+	if (Instance.GetCustomizableObject()->GetPrivate()->bDisableTextureStreaming)
 	{
 		bOutNeverStream = true;
 	}
@@ -4210,11 +4210,6 @@ int32 UCustomizableObjectSystem::GetWorkingMemory() const
 
 uint64 UCustomizableObjectSystem::GetMaxChunkSizeForPlatform(const ITargetPlatform* TargetPlatform)
 {
-	if (!TargetPlatform || !TargetPlatform->RequiresCookedData())
-	{
-		return MAX_uint64;
-	}
-
 	const FString& PlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : FPlatformProperties::IniPlatformName();
 
 	if (const int64* CachedMaxChunkSize = GetPrivate()->PlatformMaxChunkSize.Find(PlatformName))
