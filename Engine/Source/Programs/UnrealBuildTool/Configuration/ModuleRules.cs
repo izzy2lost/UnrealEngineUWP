@@ -1725,6 +1725,13 @@ namespace UnrealBuildTool
 				}
 			}
 
+			IEnumerable<ObsoleteAttribute> obsoleteAttributes = moduleType.GetCustomAttributes<ObsoleteAttribute>();
+			if (obsoleteAttributes.Any())
+			{
+				invalidReason = $"Obsolete '{(obsoleteAttributes.First().Message ?? "unspecified")}'";
+				return false;
+			}
+
 			invalidReason = null;
 			return true;
 		}
