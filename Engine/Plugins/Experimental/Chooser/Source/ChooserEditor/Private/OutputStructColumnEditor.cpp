@@ -30,7 +30,13 @@ TSharedRef<SWidget> CreateOutputStructColumnWidget(UChooserTable* Chooser, FChoo
         		
 		TSharedPtr<SWidget> DebugWidget = nullptr;
         
-		return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget);
+		return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget,
+				FChooserWidgetValueChanged::CreateLambda([Column]()
+				{
+					FOutputStructColumn* StructColumn = static_cast<FOutputStructColumn*>(Column);
+					StructColumn->StructTypeChanged();
+				})	
+			);
 	}
 	
 	FOutputStructColumn* StructColumn = static_cast<FOutputStructColumn*>(Column);

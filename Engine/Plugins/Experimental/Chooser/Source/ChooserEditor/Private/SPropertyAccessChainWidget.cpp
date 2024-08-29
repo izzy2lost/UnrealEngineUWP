@@ -169,16 +169,45 @@ TSharedRef<SWidget> SPropertyAccessChainWidget::CreatePropertyAccessWidget()
 					Chooser::CopyPropertyChain(InBindingChain, *PropertyBindingValue.Get());
 					
 					FField* Property = InBindingChain.Last().Field.ToField();
-					
+						
 					ContextProperty->DisplayName = "";
-					if (Property)
+					if (InBindingChain.Num() == 1)
 					{
-						ContextProperty->DisplayName = Property->GetDisplayNameText().ToString();
-						static const int ShortNameLength = 5;
-						if (ContextProperty->DisplayName.Len() < ShortNameLength && InBindingChain.Num() > 2)
+						// direct binding to a context struct/class, set display name to the struct/clase name
+						if (ContextClassOwner)
 						{
-							FField* ParentProperty = InBindingChain[InBindingChain.Num() - 2].Field.ToField();
-							ContextProperty->DisplayName = ParentProperty->GetDisplayNameText().ToString() + "." + ContextProperty->DisplayName;
+							TConstArrayView<FInstancedStruct> ContextData = ContextClassOwner->GetContextData();
+							if (ContextData.IsValidIndex(InBindingChain[0].ArrayIndex))
+							{
+								if (const FContextObjectTypeStruct* StructContext = ContextData[InBindingChain[0].ArrayIndex].GetPtr<FContextObjectTypeStruct>())
+								{
+									if (StructContext->Struct)
+									{
+										ContextProperty->DisplayName = StructContext->Struct->GetDisplayNameText().ToString();
+									}
+								}
+								else if (const FContextObjectTypeClass* ClassContext = ContextData[InBindingChain[0].ArrayIndex].GetPtr<FContextObjectTypeClass>())
+								{
+									if (ClassContext->Class)
+									{
+										ContextProperty->DisplayName = ClassContext->Class->GetDisplayNameText().ToString();
+									}
+								}
+							}
+						}
+					}
+					else
+					{
+						// set displayname from property name
+						if (Property)
+						{
+							ContextProperty->DisplayName = Property->GetDisplayNameText().ToString();
+							static const int ShortNameLength = 5;
+							if (ContextProperty->DisplayName.Len() < ShortNameLength && InBindingChain.Num() > 2)
+							{
+								FField* ParentProperty = InBindingChain[InBindingChain.Num() - 2].Field.ToField();
+								ContextProperty->DisplayName = ParentProperty->GetDisplayNameText().ToString() + "." + ContextProperty->DisplayName;
+							}
 						}
 					}
 					
