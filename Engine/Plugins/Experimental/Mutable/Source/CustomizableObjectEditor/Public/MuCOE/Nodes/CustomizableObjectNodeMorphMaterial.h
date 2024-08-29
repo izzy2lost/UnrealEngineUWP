@@ -27,7 +27,7 @@ public:
 	FText GetTooltipText() const override;
 
 	// UCustomizableObjectNode interface
-	virtual void BackwardsCompatibleFixup() override;
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 	void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	void PinConnectionListChanged(UEdGraphPin* Pin) override;
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

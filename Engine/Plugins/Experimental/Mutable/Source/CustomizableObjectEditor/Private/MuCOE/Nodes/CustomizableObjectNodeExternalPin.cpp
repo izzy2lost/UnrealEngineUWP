@@ -21,9 +21,9 @@ void UCustomizableObjectNodeExternalPin::Serialize(FArchive& Ar)
 }
 
 
-void UCustomizableObjectNodeExternalPin::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeExternalPin::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 	
 	// Get the pin type from the actual pin.
 	if (GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID) < FCustomizableObjectCustomVersion::BeforeCustomVersionWasAdded)

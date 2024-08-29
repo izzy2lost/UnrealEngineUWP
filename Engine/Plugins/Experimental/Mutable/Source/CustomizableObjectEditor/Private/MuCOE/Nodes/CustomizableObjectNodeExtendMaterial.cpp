@@ -40,13 +40,11 @@ void UCustomizableObjectNodeExtendMaterial::BeginPostDuplicate(bool bDuplicateFo
 }
 
 
-void UCustomizableObjectNodeExtendMaterial::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeExtendMaterial::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::PostBackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::ExtendMaterialRemoveImages)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::ExtendMaterialRemoveImages)
 	{
 		if (const UCustomizableObjectNodeMaterialBase* ParentMaterial = GetParentMaterialNode())
 		{
@@ -79,7 +77,7 @@ void UCustomizableObjectNodeExtendMaterial::BackwardsCompatibleFixup()
 		ReconstructNode();
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::FixedMultilayerMaterialIds)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::FixedMultilayerMaterialIds)
 	{
 		ReconstructNode();
 	}

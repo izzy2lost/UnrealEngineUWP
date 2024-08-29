@@ -101,13 +101,11 @@ void UCustomizableObjectNodeTableRemapPins::RemapPins(const UCustomizableObjectN
 
 // Table Node -------
 
-void UCustomizableObjectNodeTable::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeTable::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedTableNodesTextureMode)
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+	
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AddedTableNodesTextureMode)
 	{
 		for (UEdGraphPin* Pin : Pins)
 		{
@@ -174,7 +172,7 @@ void UCustomizableObjectNodeTable::BackwardsCompatibleFixup()
 		}
 	}
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NodeTablePinViewer)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::NodeTablePinViewer)
 	{
 		for (UEdGraphPin* Pin : GetAllPins())
 		{
@@ -1156,13 +1154,11 @@ TSoftClassPtr<UAnimInstance> UCustomizableObjectNodeTable::GetAnimInstanceAt(con
 }
 
 
-void UCustomizableObjectNodeTableImagePinData::PostLoad()
+void UCustomizableObjectNodeTableImagePinData::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::PostLoad();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedAnyTextureTypeToPassThroughTextures)
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+	
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AddedAnyTextureTypeToPassThroughTextures)
 	{
 		if (bIsArrayTexture_DEPRECATED)
 		{

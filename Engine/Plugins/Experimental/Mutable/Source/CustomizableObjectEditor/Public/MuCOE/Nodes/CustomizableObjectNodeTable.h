@@ -101,7 +101,7 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeTableImagePinData : pu
 
 public:
 	// UObject interface
-	virtual void PostLoad() override;
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual bool CanEditChange(const FProperty* InProperty) const override;
 
@@ -248,7 +248,7 @@ public:
 	virtual bool GetCanRenameNode() const override { return true; }
 	
 	// UCustomizableObjectNode interface
-	virtual void BackwardsCompatibleFixup() override;
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 	void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	bool IsNodeOutDatedAndNeedsRefresh() override;
 	FString GetRefreshMessage() const override;

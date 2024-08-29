@@ -120,7 +120,7 @@ public:
 	virtual bool CanConnect(const UEdGraphPin* InOwnedInputPin, const UEdGraphPin* InOutputPin, bool& bOutIsOtherNodeBlocklisted, bool& bOutArePinsCompatible) const override;
 
 	// UCustomizableObjectNode interface
-	virtual void BackwardsCompatibleFixup() override;
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual bool CanPinBeHidden(const UEdGraphPin& Pin) const override;
 	virtual bool HasPinViewer() const override;
@@ -259,17 +259,16 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeMaterialPinDataImage :
 {
 	GENERATED_BODY()
 
-	friend void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup();
+	friend void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion);
 	
 public:
 	// UObject interface
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual bool CanEditChange(const FProperty* InProperty) const override;
 
-private:
-	virtual void PostLoad() override;
-	
-public:
+	// UCustomizableObjectNodePinData interface
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
+
 	// NodePinDataParameter interface
 	/** Virtual function used to copy pin data when remapping pins. */
 	virtual void Copy(const UCustomizableObjectNodePinData& Other) override;

@@ -15,16 +15,14 @@ FLinearColor UCustomizableObjectNodeModifierBase::GetNodeTitleColor() const
 }
 
 
-void UCustomizableObjectNodeModifierBase::PostBackwardsCompatibleFixup()
+void UCustomizableObjectNodeModifierBase::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::PostBackwardsCompatibleFixup();
-
-	int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+	
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
 	// Remove "Material" pin and add "Modifier"
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddModifierPin)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AddModifierPin)
 	{
 		// Replace the output pin
 		UEdGraphPin* OldPin = FindPin(TEXT("Material"));
@@ -118,6 +116,5 @@ void UCustomizableObjectNodeModifierBase::PostBackwardsCompatibleFixup()
 			}
 		}
 	}
-
 }
 

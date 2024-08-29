@@ -40,13 +40,11 @@ void UCustomizableObjectNodeProjectorParameter::AllocateDefaultPins(UCustomizabl
 }
 
 
-void UCustomizableObjectNodeProjectorParameter::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeProjectorParameter::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::ProjectorNodesDefaultValueFix)
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+	
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::ProjectorNodesDefaultValueFix)
 	{
 		DefaultValue.ProjectionType = ProjectionType_DEPRECATED;
 	}

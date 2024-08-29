@@ -134,6 +134,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 
 		CorrectlySerializeTableToParamNames,
 
+		MovedCompatibilityFromPostBackwardsCompatibleFixup,
+		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -114,13 +114,11 @@ FText UCustomizableObjectNodeGroupProjectorParameter::GetTooltipText() const
 }
 
 
-void UCustomizableObjectNodeGroupProjectorParameter::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeGroupProjectorParameter::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::GroupProjectorPinTypeAdded)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::GroupProjectorPinTypeAdded)
 	{
 		if (UEdGraphPin* Pin = ProjectorPin())
 		{
@@ -128,7 +126,7 @@ void UCustomizableObjectNodeGroupProjectorParameter::BackwardsCompatibleFixup()
 		}
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::GroupProjectorImagePinRemoved)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::GroupProjectorImagePinRemoved)
 	{
 		ReconstructNode();
 	}

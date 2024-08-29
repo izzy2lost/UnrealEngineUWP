@@ -24,13 +24,11 @@ void UCustomizableObjectNodeTextureFromColor::AllocateDefaultPins(UCustomizableO
 }
 
 
-void UCustomizableObjectNodeTextureFromColor::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeTextureFromColor::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::FixPinsNamesImageToTexture2)
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+	
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::FixPinsNamesImageToTexture2)
 	{
 		if (UEdGraphPin* TexturePin = FindPin(TEXT("Image")))
 		{

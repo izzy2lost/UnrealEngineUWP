@@ -357,13 +357,11 @@ void UCustomizableObjectNode::PostInitProperties()
 }
 
 
-void UCustomizableObjectNode::BackwardsCompatibleFixup()
+void UCustomizableObjectNode::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-	
 	// Fix UE large world coordinates automatic pin conversion. 
 	// Now all pins with PinCategory == FName("float") get automatically changed to the new double type
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::FixBlueprintPinsUseRealNumbers)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::FixBlueprintPinsUseRealNumbers)
 	{
 		for (UEdGraphPin* Pin : Pins)
 		{
@@ -377,7 +375,7 @@ void UCustomizableObjectNode::BackwardsCompatibleFixup()
 		}
 	}
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeMaterialPerformance)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AutomaticNodeMaterialPerformance)
 	{
 		for (TTuple<FEdGraphPinReference, UCustomizableObjectNodePinData*> Pair : PinsData_DEPRECATED)
 		{
@@ -387,7 +385,7 @@ void UCustomizableObjectNode::BackwardsCompatibleFixup()
 		PinsData_DEPRECATED.Empty();
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::FixBlueprintPinsUseRealNumbersAgain)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::FixBlueprintPinsUseRealNumbersAgain)
 	{
 		for (UEdGraphPin* Pin : Pins)
 		{

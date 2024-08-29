@@ -103,13 +103,11 @@ FText UCustomizableObjectNodeMorphMaterial::GetTooltipText() const
 }
 
 
-void UCustomizableObjectNodeMorphMaterial::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeMorphMaterial::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::MorphMaterialAddFactorPin)
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+	
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::MorphMaterialAddFactorPin)
 	{
 		ReconstructNode();
 	}

@@ -38,13 +38,11 @@ UCustomizableObjectNodeObject::UCustomizableObjectNodeObject()
 }
 
 
-void UCustomizableObjectNodeObject::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeObject::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::StateTextureCompressionStrategyEnum)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::StateTextureCompressionStrategyEnum)
 	{
 		for (FCustomizableObjectState& State : States)
 		{
@@ -58,7 +56,7 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup()
 		}
 	}
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::RegenerateNodeObjectsIds)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::RegenerateNodeObjectsIds)
 	{
 		// This will regenerate all the Node Object Guids to finally remove the duplicated Guids warning.
 		// It is safe to do this here as Node Object do not use its node guid to link themeselves to other nodes.
@@ -75,7 +73,7 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup()
 	}
 
 	// Update state never-stream flag from deprecated enum
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::CustomizableObjectStateHasSeparateNeverStreamFlag)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::CustomizableObjectStateHasSeparateNeverStreamFlag)
 	{
 		for (FCustomizableObjectState& s : States)
 		{
@@ -83,7 +81,7 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup()
 		}
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::StateUIMetadata)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::StateUIMetadata)
 	{
 		for (FCustomizableObjectState& State : States)
 		{
@@ -96,12 +94,27 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup()
 		}
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NewComponentOptions)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::NewComponentOptions)
 	{
 		// Like we did in the CO components, we use the index of the component as the name of the component
 		for (int32 ComponentIndex = 0; ComponentIndex < ComponentSettings.Num(); ++ComponentIndex)
 		{
 			ComponentSettings[ComponentIndex].ComponentName = FString::FromInt(ComponentIndex);
+		}
+	}
+
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::MovedCompatibilityFromPostBackwardsCompatibleFixup)
+	{
+		// Fix up ComponentSettings. Only root nodes
+		if (ComponentSettings.IsEmpty() && bIsBase && !ParentObject)
+		{
+			FComponentSettings ComponentSettingsTemplate;
+			ComponentSettingsTemplate.LODReductionSettings.SetNum(NumLODs);
+
+			if (UCustomizableObject* CurrentObject = Cast<UCustomizableObject>(GetOutermostObject()))
+			{
+				ComponentSettings.Init(ComponentSettingsTemplate, CurrentObject->GetPrivate()->MutableMeshComponents.Num());
+			}
 		}
 	}
 }
@@ -299,18 +312,6 @@ TArray<UCustomizableObjectNodeMaterialBase*> UCustomizableObjectNodeObject::GetM
 void UCustomizableObjectNodeObject::PostBackwardsCompatibleFixup()
 {
 	Super::PostBackwardsCompatibleFixup();
-
-	// Fix up ComponentSettings. Only root nodes
-	if (ComponentSettings.IsEmpty() && bIsBase && !ParentObject)
-	{
-		FComponentSettings ComponentSettingsTemplate;
-		ComponentSettingsTemplate.LODReductionSettings.SetNum(NumLODs);
-
-		if (UCustomizableObject* CurrentObject = Cast<UCustomizableObject>(GetOutermostObject()))
-		{
-			ComponentSettings.Init(ComponentSettingsTemplate, CurrentObject->GetPrivate()->MutableMeshComponents.Num());
-		}
-	}
 
 	// Reconstruct in case any extension pins have changed
 	ReconstructNode();

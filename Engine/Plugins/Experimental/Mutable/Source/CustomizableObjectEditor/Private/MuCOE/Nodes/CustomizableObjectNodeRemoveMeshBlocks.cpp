@@ -14,14 +14,12 @@ class UEdGraphPin;
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
-void UCustomizableObjectNodeRemoveMeshBlocks::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeRemoveMeshBlocks::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 	
-	int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
 	// Convert deprecated node index list to the node id list.
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::PostLoadToCustomVersion
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::PostLoadToCustomVersion
 		&& BlockIds_DEPRECATED.Num() < Blocks_DEPRECATED.Num())
 	{
 		if (UCustomizableObjectNodeMaterialBase* ParentMaterialNode = GetParentMaterialNode())
@@ -64,7 +62,7 @@ void UCustomizableObjectNodeRemoveMeshBlocks::BackwardsCompatibleFixup()
 	}
 
 	// Convert deprecated node id list to absolute rect list.
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::UseUVRects)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::UseUVRects)
 	{
 		// If we are here, it means this node was loaded from a version that didn't have it's own layout.
 		check(Layout->Blocks.IsEmpty());

@@ -97,14 +97,12 @@ void UCustomizableObjectNodeEditMaterial::SetParentNode(UCustomizableObject* Obj
 }
 
 
-void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 
 	// Convert deprecated node index list to the node id list.
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::PostLoadToCustomVersion
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::PostLoadToCustomVersion
 		&& BlockIds_DEPRECATED.Num() < Blocks_DEPRECATED.Num())
 	{
 		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = GetParentMaterialNode();
@@ -149,7 +147,7 @@ void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
 	}
 	
 	// Convert deprecated node id list to absolute rect list.
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::UseUVRects)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::UseUVRects)
 	{
 		// If we are here, it means this node was loaded from a version that didn't have it's own layout.
 		check(Layout->Blocks.IsEmpty());
@@ -219,7 +217,7 @@ void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
 		}
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeMaterial)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AutomaticNodeMaterial)
 	{
 		if (const UCustomizableObjectNodeMaterialBase* ParentMaterial = GetParentMaterialNode())
 		{
@@ -256,7 +254,7 @@ void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
 	}
 
 	// Fill PinsParameter.
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeMaterialPerformanceBug) // || CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeMaterialPerformance
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AutomaticNodeMaterialPerformanceBug) // || CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeMaterialPerformance
 	{
 		for (const UEdGraphPin* Pin : GetAllNonOrphanPins())
 		{
@@ -267,17 +265,17 @@ void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
 		}
 	}
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::EditMaterialOnlyMutableModeParameters)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::EditMaterialOnlyMutableModeParameters)
 	{
 		ReconstructNode();
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::EditMaterialMaskPinDesync)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::EditMaterialMaskPinDesync)
 	{
 		ReconstructNode();
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::FixedMultilayerMaterialIds)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::FixedMultilayerMaterialIds)
 	{
 		ReconstructNode();
 	}

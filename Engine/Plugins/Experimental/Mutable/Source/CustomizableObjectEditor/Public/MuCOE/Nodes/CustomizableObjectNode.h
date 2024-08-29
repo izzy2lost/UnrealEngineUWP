@@ -34,6 +34,10 @@ public:
 
 	/** Virtual function used to copy pin data when remapping pins. */
 	virtual void Copy(const UCustomizableObjectNodePinData& Other) {}
+	
+	/** Add backwards compatible code here.
+	 * When called, it is guaranteed that all nodes in this graph will have executed the PostLoad function. */
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) {}
 
 protected:
 	/** Virtual function used to perform comparision between different UCustomizableObjectNodePinData inherited types. */
@@ -107,10 +111,11 @@ public:
 
 	/** Add backwards compatible code here.
 	 * When called, it is guaranteed that all nodes in this graph will have executed the PostLoad function. */
-	virtual void BackwardsCompatibleFixup();
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion);
 
 	/** Add post load work here.
-	 * When called, it is guaranteed that all nodes in this graph will have executed the BackwardsCompatibleFixup function. */
+	 * When called, it is guaranteed that all nodes in this graph will have executed the BackwardsCompatibleFixup function.
+	 * Notice that no compatibility code should not go here. Use BackwardsCompatibleFixup instead. */
 	virtual void PostBackwardsCompatibleFixup() {}
 	
 	/** Virtual implementation of RemovePin. Allows to do work before removing a pin.

@@ -25,18 +25,16 @@ void UCustomizableObjectNodeTextureInvert::AllocateDefaultPins(UCustomizableObje
 }
 
 
-void UCustomizableObjectNodeTextureInvert::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeTextureInvert::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::PinsNamesImageToTexture)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::PinsNamesImageToTexture)
 	{
 		BaseImagePinReference = FEdGraphPinReference(FindPin(TEXT("Base Image")));
 	}
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::FixPinsNamesImageToTexture2)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::FixPinsNamesImageToTexture2)
 	{
 		bool Replaced = false;
 		if (UEdGraphPin* TexturePin = FindPin(TEXT("Image")))

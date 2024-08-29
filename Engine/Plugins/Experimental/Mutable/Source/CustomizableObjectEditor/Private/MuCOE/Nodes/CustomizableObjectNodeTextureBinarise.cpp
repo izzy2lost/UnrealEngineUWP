@@ -28,13 +28,11 @@ void UCustomizableObjectNodeTextureBinarise::AllocateDefaultPins(UCustomizableOb
 }
 
 
-void UCustomizableObjectNodeTextureBinarise::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeTextureBinarise::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::FixPinsNamesImageToTexture2)
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+	
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::FixPinsNamesImageToTexture2)
 	{
 		if (UEdGraphPin* TexturePin = FindPin(TEXT("Image"))) {
 			TexturePin->PinName = TEXT("Texture");
@@ -42,7 +40,7 @@ void UCustomizableObjectNodeTextureBinarise::BackwardsCompatibleFixup()
 		}
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::FixPinsNamesImageToTexture2)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::FixPinsNamesImageToTexture2)
 	{
 		if (UEdGraphPin* TexturePin = FindPin(TEXT("Base Image"))) {
 			TexturePin->PinName = TEXT("Base Texture");

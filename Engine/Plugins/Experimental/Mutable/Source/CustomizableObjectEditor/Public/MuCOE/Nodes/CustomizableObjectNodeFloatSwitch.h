@@ -14,7 +14,7 @@ public:
 	GENERATED_BODY()
 
 	// UCustomizableObjectNode interface
-	virtual void BackwardsCompatibleFixup() override;
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 
 	// UCustomizableObjectNodeSwitchBase interface
 	virtual FName GetCategory() const override;

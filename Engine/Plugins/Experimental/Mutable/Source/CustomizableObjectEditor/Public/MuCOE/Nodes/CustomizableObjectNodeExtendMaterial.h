@@ -38,7 +38,7 @@ public:
 	
 	// UCustomizableObjectNode
 	virtual void PostBackwardsCompatibleFixup() override;
-	virtual void BackwardsCompatibleFixup() override;
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 	virtual void UpdateReferencedNodeId(const FGuid& NewGuid) override;
 
 	// Begin EdGraphNode interface

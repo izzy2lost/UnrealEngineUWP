@@ -53,7 +53,7 @@ public:
 	// UCustomizableObjectNode interface
 	void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	bool IsAffectedByLOD() const override;
-	void BackwardsCompatibleFixup() override;
+	void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 	virtual void OnRenameNode(const FString& NewName) override;
 
 };

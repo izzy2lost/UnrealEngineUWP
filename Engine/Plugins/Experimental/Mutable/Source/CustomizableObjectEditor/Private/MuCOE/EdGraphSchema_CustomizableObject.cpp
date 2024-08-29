@@ -87,6 +87,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeReroute.h"
 #include "Toolkits/ToolkitManager.h"
 #include "PropertyEditorModule.h"
+#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/GraphTraversal.h"
 
 class IToolkit;
@@ -165,7 +166,6 @@ UEdGraphNode* FCustomizableObjectSchemaAction_NewNode::CreateNode(class UEdGraph
 	if (UCustomizableObjectNode* TypedResultNode = Cast<UCustomizableObjectNode>(ResultNode))
 	{
 		TypedResultNode->BeginConstruct();
-		TypedResultNode->BackwardsCompatibleFixup(); // In theory not required but added to be consistent with PostLoad (called by DuplicateObject).
 		TypedResultNode->PostBackwardsCompatibleFixup();
 	}
 	ResultNode->ReconstructNode(); // Mutable node lifecycle always starts at ReconstructNode.

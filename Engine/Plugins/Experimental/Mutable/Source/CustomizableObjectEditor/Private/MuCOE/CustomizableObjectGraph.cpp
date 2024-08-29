@@ -2,6 +2,7 @@
 
 #include "MuCOE/CustomizableObjectGraph.h"
 
+#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 
@@ -19,6 +20,8 @@ void UCustomizableObjectGraph::PostLoad()
 {
 	Super::PostLoad();
 
+	// TODO UE-222779 If compatibility code has to be executed, loaded the full hierarchy and in sync the BackwardsCompatibleFixup 
+	
 	// Make sure all nodes have finished loading.
 	for (UEdGraphNode* Node : Nodes)
 	{
@@ -40,11 +43,34 @@ void UCustomizableObjectGraph::PostLoad()
 	}
 
 	// Execute backwards compatible code for all nodes. It requires all nodes to be loaded.
-	for (UEdGraphNode* Node : Nodes)
+
+	TArray<TObjectPtr<UEdGraphNode>> NodesCopy = Nodes; // Copy to be able to remove nodes inside the BackwardsCompatibleFixup.
+
+	for (int32 Version = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID) + 1; Version <= FCustomizableObjectCustomVersion::LatestVersion; ++Version)
 	{
-		if (UCustomizableObjectNode* CustomizableObjectNode = Cast<UCustomizableObjectNode>(Node))
+		for (UEdGraphNode* Node : NodesCopy)
 		{
-			CustomizableObjectNode->BackwardsCompatibleFixup();
+			if (UCustomizableObjectNode* CustomizableObjectNode = Cast<UCustomizableObjectNode>(Node))
+			{
+				TArray<UEdGraphPin*> PinsCopy = CustomizableObjectNode->GetAllPins(); // Copy to be able to remove pins inside the BackwardsCompatibleFixup.
+				for (UEdGraphPin* Pin : PinsCopy)
+				{
+					if (!Pin)
+					{
+						continue;
+					}
+					
+					UCustomizableObjectNodePinData* PinData = CustomizableObjectNode->GetPinData(*Pin);
+					if (!PinData)
+					{
+						continue;
+					}
+					
+					PinData->BackwardsCompatibleFixup(Version);
+				}
+				
+				CustomizableObjectNode->BackwardsCompatibleFixup(Version);
+			}
 		}
 	}
 

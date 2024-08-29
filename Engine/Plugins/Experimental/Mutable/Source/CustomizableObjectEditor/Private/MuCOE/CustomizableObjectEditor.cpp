@@ -67,6 +67,7 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "SMutableObjectViewer.h"
+#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCO/CustomizableSkeletalMeshActor.h"
 #include "MuCOE/CustomizableObjectInstanceFactory.h"
 
@@ -1901,14 +1902,6 @@ void FCustomizableObjectEditor::PasteNodesHere(const FVector2D& Location)
 
 	// Force new pasted Material Expressions to have same connections as graph nodes
 	//Material->MaterialGraph->LinkMaterialExpressionsFromGraph();
-
-	for (UEdGraphNode* PastedNode : PastedNodes) // Perform possible BackwardsCompatibleFixup. PostLoads have already been called at this point.
-	{
-		if (UCustomizableObjectNode* TypedNode = Cast<UCustomizableObjectNode>(PastedNode))
-		{
-			TypedNode->BackwardsCompatibleFixup();
-		}
-	}
 	
 	for (UEdGraphNode* PastedNode : PastedNodes)
 	{

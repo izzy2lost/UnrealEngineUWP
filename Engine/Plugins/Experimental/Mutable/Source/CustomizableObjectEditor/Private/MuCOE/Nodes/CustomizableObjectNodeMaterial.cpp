@@ -290,13 +290,11 @@ bool UCustomizableObjectNodeMaterialPinDataImage::CanEditChange(const FProperty*
 }
 
 
-void UCustomizableObjectNodeMaterialPinDataImage::PostLoad()
+void UCustomizableObjectNodeMaterialPinDataImage::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
 	Super::PostLoad();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NodeMaterialPinDataImageDetails)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::NodeMaterialPinDataImageDetails)
 	{
 		if (UVLayout == UV_LAYOUT_IGNORE)
 		{
@@ -371,13 +369,11 @@ UCustomizableObjectNodeRemapPinsByName* UCustomizableObjectNodeMaterial::CreateR
 }
 
 
-void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeMaterial)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AutomaticNodeMaterial)
 	{
 		for (const FCustomizableObjectNodeMaterialImage& Image : Images_DEPRECATED)
 		{
@@ -523,7 +519,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 	}
 
 	// Fill PinsParameter.
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeMaterialPerformanceBug) // || CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeMaterialPerformance
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AutomaticNodeMaterialPerformanceBug) // || CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeMaterialPerformance
 	{
 		for (const UEdGraphPin* Pin : GetAllNonOrphanPins())
 		{
@@ -534,14 +530,14 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 		}
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeMaterialUXImprovements)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AutomaticNodeMaterialUXImprovements)
 	{
 		TextureParametersMode = bDefaultPinModeMutable_DEPRECATED ?
 			ENodePinMode::Mutable :
 			ENodePinMode::Passthrough;
 	}
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::ExtendMaterialOnlyMutableModeParameters)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::ExtendMaterialOnlyMutableModeParameters)
 	{
 		const uint32 NumTextureParameters = GetNumParameters(EMaterialParameterType::Texture);
 		for (uint32 ImageIndex = 0; ImageIndex < NumTextureParameters; ++ImageIndex)
@@ -554,7 +550,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 		}
 	}
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::ExtendMaterialOnlyMutableModeParametersBug)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::ExtendMaterialOnlyMutableModeParametersBug)
 	{
 		for (const UEdGraphPin* Pin : GetAllPins())
 		{
@@ -565,12 +561,12 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 		}
 	}
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NodeMaterialAddTablePin)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::NodeMaterialAddTablePin)
 	{
 		Super::ReconstructNode();
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedTableMaterialSwitch)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AddedTableMaterialSwitch)
 	{
 		UMaterialInstance* DefaultPinValue = nullptr;
 
@@ -625,12 +621,12 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 		}
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NewComponentOptions)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::NewComponentOptions)
 	{
 		MeshComponentName = FName(FString::FromInt(MeshComponentIndex_DEPRECATED));
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NodeMaterialTypedImagePins)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::NodeMaterialTypedImagePins)
 	{
 		const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 		
@@ -678,7 +674,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 		}
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::FixedMultilayerMaterialIds)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::FixedMultilayerMaterialIds)
 	{
 		if (Material && Material->GetCachedExpressionData().bHasMaterialLayers)
 		{

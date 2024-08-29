@@ -19,7 +19,6 @@ public:
 	virtual FLinearColor GetNodeTitleColor() const override;
 
 	// UCustomizableObjectNode interface
-	virtual void PostBackwardsCompatibleFixup() override;
-
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 };
 

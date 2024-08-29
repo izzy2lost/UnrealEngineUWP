@@ -508,13 +508,11 @@ FText UCustomizableObjectNodeSkeletalMesh::GetTooltipText() const
 }
 
 
-void UCustomizableObjectNodeSkeletalMesh::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeSkeletalMesh::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 	
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::PostLoadToCustomVersion)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::PostLoadToCustomVersion)
 	{
 		for (FCustomizableObjectNodeSkeletalMeshLOD& LOD : LODs_DEPRECATED)
 		{
@@ -568,7 +566,7 @@ void UCustomizableObjectNodeSkeletalMesh::BackwardsCompatibleFixup()
 		}
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::ConvertAnimationSlotToFName)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::ConvertAnimationSlotToFName)
 	{
 		if (AnimBlueprintSlotName.IsNone() && AnimBlueprintSlot_DEPRECATED != -1)
 		{
@@ -577,7 +575,7 @@ void UCustomizableObjectNodeSkeletalMesh::BackwardsCompatibleFixup()
 		}
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeSkeletalMesh)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AutomaticNodeSkeletalMesh)
 	{
 		for (int32 LODIndex = 0; LODIndex < LODs_DEPRECATED.Num(); ++LODIndex)
 		{
@@ -642,22 +640,22 @@ void UCustomizableObjectNodeSkeletalMesh::BackwardsCompatibleFixup()
 		ReconstructNode();
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeSkeletalMeshPinDataOuter)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AutomaticNodeSkeletalMeshPinDataOuter)
 	{
 		ReconstructNode(); // Pins did not have Pin Data. Reconstruct them.
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeSkeletalMeshPinDataUProperty)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AutomaticNodeSkeletalMeshPinDataUProperty)
 	{
 		ReconstructNode(CreateRemapPinsByName()); // Correct pins but incorrect Pin Data. Reconstruct and remap pins only by name, no Pin Data.
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::IgnoreDisabledSections)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::IgnoreDisabledSections)
 	{
 		ReconstructNode(); // Pins representing disabled sections could be present. 
 	}
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::SkeletalMeshNodeDefaultPinWithoutPinData)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::SkeletalMeshNodeDefaultPinWithoutPinData)
 	{
 		if (const UEdGraphPin* Pin = DefaultPin.Get())
 		{

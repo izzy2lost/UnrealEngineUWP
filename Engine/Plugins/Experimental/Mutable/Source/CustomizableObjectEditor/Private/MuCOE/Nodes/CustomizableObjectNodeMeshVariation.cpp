@@ -7,11 +7,11 @@
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 
 
-void UCustomizableObjectNodeMeshVariation::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeMeshVariation::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NodeVariationSerializationIssue)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::NodeVariationSerializationIssue)
 	{
 		for (const FCustomizableObjectMeshVariation& OldVariation : Variations_DEPRECATED)
 		{
@@ -21,8 +21,6 @@ void UCustomizableObjectNodeMeshVariation::BackwardsCompatibleFixup()
 			VariationsData.Add(Variation);
 		}
 	}
-
-	Super::BackwardsCompatibleFixup();
 }
 
 

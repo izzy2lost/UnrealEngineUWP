@@ -20,7 +20,7 @@ public:
 	TArray<FCustomizableObjectFloatVariation> Variations_DEPRECATED;
 
 	// UCustomizableObjectNode interface
-	virtual void BackwardsCompatibleFixup() override;
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 	
 	// UCustomizableObjectNodeVariation interface
 	virtual FName GetCategory() const override;

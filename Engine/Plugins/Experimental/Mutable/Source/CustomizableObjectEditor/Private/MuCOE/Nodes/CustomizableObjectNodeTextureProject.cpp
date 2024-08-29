@@ -117,13 +117,11 @@ void UCustomizableObjectNodeTextureProject::AllocateDefaultPins(UCustomizableObj
 }
 
 
-void UCustomizableObjectNodeTextureProject::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeTextureProject::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::FixPinsNamesImageToTexture2)
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+	
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::FixPinsNamesImageToTexture2)
 	{
 		TArray<UEdGraphPin*> AllPins = GetAllPins();
 		uint32 TexturePinsCount = 0;

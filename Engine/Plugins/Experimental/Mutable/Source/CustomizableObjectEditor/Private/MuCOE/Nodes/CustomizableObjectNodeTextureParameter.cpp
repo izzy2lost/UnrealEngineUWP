@@ -59,13 +59,11 @@ void UCustomizableObjectNodeTextureParameter::OnRenameNode(const FString& NewNam
 }
 
 
-void UCustomizableObjectNodeTextureParameter::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeTextureParameter::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NodeTextureParameterDefaultToReferenceValue)
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+	
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::NodeTextureParameterDefaultToReferenceValue)
 	{
 		ReferenceValue = DefaultValue;
 		DefaultValue = {};

@@ -33,7 +33,7 @@ private:
 
 public:
 	// UCustomizableObjectNode interface
-	virtual void BackwardsCompatibleFixup() override;
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 	virtual bool IsSingleOutputNode() const override;
 	
 	// UCustomizableObjectNodeVariation interface

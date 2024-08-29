@@ -77,13 +77,11 @@ void UCustomizableObjectNodeFloatParameter::OnRenameNode(const FString& NewName)
 }
 
 
-void UCustomizableObjectNodeFloatParameter::BackwardsCompatibleFixup()
+void UCustomizableObjectNodeFloatParameter::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
-	Super::BackwardsCompatibleFixup();
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::RemovedParameterDecorations)
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::RemovedParameterDecorations)
 	{
 		ReconstructNode();
 	}
