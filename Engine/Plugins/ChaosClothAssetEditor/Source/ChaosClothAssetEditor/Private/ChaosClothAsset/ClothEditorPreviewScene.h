@@ -53,28 +53,24 @@ public:
 	UPROPERTY(EditAnywhere, Transient, Category = "SkeletalMesh")
 	bool bPostProcessBlueprint;
 
-	UPROPERTY(EditAnywhere, Transient, Category = "Transform", Meta=(DisplayName="Location"))
+	UPROPERTY(EditAnywhere, Transient, Category = "Transform", Meta = (EditCondition = "bValidSelectionForTransform", HideEditConditionToggle))
 	FVector3d Translation = FVector3d::ZeroVector;
 
-	UPROPERTY(EditAnywhere, Transient, Category = "Transform")
+	UPROPERTY(EditAnywhere, Transient, Category = "Transform", Meta = (EditCondition = "bValidSelectionForTransform", HideEditConditionToggle))
 	FVector3d Rotation = FVector3d::ZeroVector;
 
-	UPROPERTY(EditAnywhere, Transient, Category = "Transform", Meta = (AllowPreserveRatio))
+	UPROPERTY(EditAnywhere, Transient, Category = "Transform", Meta = (AllowPreserveRatio, EditCondition = "bValidSelectionForTransform", HideEditConditionToggle))
 	FVector3d Scale = FVector3d::OneVector;
 
 	UPROPERTY(EditAnywhere, Transient, Category = "ClothComponent", Meta = (UIMin = 0.0, UIMax = 10.0, ClampMin = 0.0, ClampMax = 10000.0))
 	float SolverGeometryScale = 1.f;
 
-	// TODO: We should be able to hook this boolean property up to the EditCondition meta tag for the properties above and toggle it
-	// on and off when the selection changes in the scene. However the EditCondition does not seem to propagate for some reason, 
-	// even if we manually call PostEditChangeProperty() after toggling it. It will take some more digging to figure out exactly
-	// what's going on. (UE-189504)
-	//UPROPERTY(Transient)
-	//bool bValidSelectionForTransform = true;
-
-private:
+	UPROPERTY(Transient)
+	bool bValidSelectionForTransform = false;
 
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+
+private:
 
 	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
 

@@ -44,6 +44,7 @@
 #include "FileHelpers.h"
 #include "UObject/PackageReload.h"
 #include "ContextObjectStore.h"
+#include "SClothEditorAdvancedPreviewDetailsTab.h"
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetEditorToolkit"
 
@@ -795,12 +796,12 @@ void FChaosClothAssetEditorToolkit::InitDetailsViewPanel()
 	TArray<FAdvancedPreviewSceneModule::FDetailDelegates> Delegates;	
 
 	ensure(ClothPreviewScene.IsValid());
-	FAdvancedPreviewSceneModule& AdvancedPreviewSceneModule = FModuleManager::LoadModuleChecked<FAdvancedPreviewSceneModule>("AdvancedPreviewScene");
-	AdvancedPreviewSettingsWidget = AdvancedPreviewSceneModule.CreateAdvancedPreviewSceneSettingsWidget(ClothPreviewScene.ToSharedRef(), 
-		ClothPreviewScene->GetPreviewSceneDescription(),
-		TArray<FAdvancedPreviewSceneModule::FDetailCustomizationInfo>(), 
-		TArray<FAdvancedPreviewSceneModule::FPropertyTypeCustomizationInfo>(),
-		Delegates);
+
+	AdvancedPreviewSettingsWidget = SNew(SChaosClothEditorAdvancedPreviewDetailsTab, ClothPreviewScene.ToSharedRef())
+		.AdditionalSettings(ClothPreviewScene->GetPreviewSceneDescription())
+		.DetailCustomizations(TArray<FAdvancedPreviewSceneModule::FDetailCustomizationInfo>())
+		.PropertyTypeCustomizations(TArray<FAdvancedPreviewSceneModule::FPropertyTypeCustomizationInfo>())
+		.Delegates(Delegates);
 
 	if (PreviewSceneDockTab.IsValid())
 	{

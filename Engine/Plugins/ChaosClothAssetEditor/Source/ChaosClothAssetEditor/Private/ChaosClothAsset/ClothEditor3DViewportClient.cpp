@@ -428,8 +428,16 @@ void FChaosClothAssetEditor3DViewportClient::ComponentSelectionChanged(UObject* 
 			Gizmo->SetVisibility(false);
 		}
 
-		// TODO: Set UChaosClothPreviewSceneDescription::bValidSelectionForTransform here once we figure out why it's not
-		// properly affecting the EditCondition on the other properties (UE-189504)
+		if (const TSharedPtr<FChaosClothPreviewScene> PinnedClothPreviewScene = ClothPreviewScene.Pin())
+		{
+			if (UChaosClothPreviewSceneDescription* const SceneDescription = PinnedClothPreviewScene->GetPreviewSceneDescription())
+			{
+				SceneDescription->bValidSelectionForTransform = (Components.Num() > 0);
+
+				FPropertyChangedEvent Event(UChaosClothPreviewSceneDescription::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UChaosClothPreviewSceneDescription, bValidSelectionForTransform)));
+				SceneDescription->PostEditChangeProperty(Event);
+			}
+		}
 
 	}
 }
