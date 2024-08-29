@@ -41,6 +41,7 @@
 //				{
 //					// DNS name and port for the server.
 //					// If connecting using "ssl:" prefix, ensure P4 server's fingerprint/certificate is trusted (see docs for "p4 trust")
+//					// See Horde's documentation on connecting to SSL-enabled Perforce servers.
 //					"serverAndPort": "perforce:1666"
 //				}
 //			],

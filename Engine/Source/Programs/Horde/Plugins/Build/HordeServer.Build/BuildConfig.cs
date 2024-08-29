@@ -356,7 +356,8 @@ namespace HordeServer
 	{
 		/// <summary>
 		/// The server and port. The server may be a DNS entry with multiple records, in which case it will be actively load balanced.
-		/// If "ssl:" prefix is used, ensure P4 server's fingerprint/certificate is trusted (see docs for "p4 trust")
+		/// If "ssl:" prefix is used, ensure P4 server's fingerprint/certificate is trusted.
+		/// See Horde's documentation on connecting to SSL-enabled Perforce servers.
 		/// </summary>
 		public string ServerAndPort { get; set; } = "perforce:1666";
 
