@@ -18,13 +18,6 @@ enum class EPCGClusterAlgorithm
 	EM UMETA(Tooltip = "Expectation-Maximization - Categorizes points by using a Gaussian Mixture Model.")
 };
 
-UENUM()
-enum class EPCGInitialClusteringCentroidSelection
-{
-	RandomPoints UMETA(Tooltip = "Random points from the input will be selected as the starting centroids."),
-	Input UMETA(Tooltip = "Point locations from the secondary pin will be used as the starting centroid locations."),
-};
-
 /** Given a desired number of clusters (categories), find the best fit cluster for each point by distance, using one of various clustering algorithms. */
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
 class UPCGClusterSettings : public UPCGSettings
@@ -43,7 +36,7 @@ public:
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
-	virtual TArray<FPCGPinProperties> OutputPinProperties() const override { return Super::DefaultPointOutputPinProperties(); }
+	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface
 
@@ -52,12 +45,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
 	EPCGClusterAlgorithm Algorithm = EPCGClusterAlgorithm::KMeans;
 
-	/** Method for selecting the initial average location of the clusters. A good estimate of these locations can rapidly speed up the process in some cases. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
-	EPCGInitialClusteringCentroidSelection InitialCentroidSelection = EPCGInitialClusteringCentroidSelection::RandomPoints;
-
 	/** Number of clusters (segments) to group the points into. Each point will be assigned a cluster at the end. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, DisplayName = "Clusters", meta = (ClampMin = "1", EditCondition = "InitialCentroidSelection == EPCGInitialClusteringCentroidSelection::RandomPoints", EditConditionHides, PCG_Overridable))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, DisplayName = "Clusters", meta = (ClampMin = "1", PCG_Overridable))
 	int32 NumClusters = 3;
 
 	/** Cluster IDs will be written to this attribute on the output. */
@@ -73,6 +62,10 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Advanced", meta = (ClampMin = "0.0001", EditCondition = "Algorithm == EPCGClusterAlgorithm::EM", EditConditionHides, PCG_Overridable))
 	double Tolerance = UE_DOUBLE_KINDA_SMALL_NUMBER;
+
+	/** Output the final location of the centroids or gaussians. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Advanced")
+	bool bOutputFinalCentroids = false;
 };
 
 namespace PCGClusterElement
@@ -136,6 +129,7 @@ namespace PCGClusterElement
 			FProbabilityArray Probabilities;
 
 			TArray<FVector> NormalizedPointLocations;
+			double ScalingFactor = 1.0;
 			double Tolerance = UE_DOUBLE_KINDA_SMALL_NUMBER;
 			// A value from -inf to some positive finite value to represent how well the model fits the data. It will be used to recognize convergence.
 			std::atomic<double> LogLikelihoodSum = 0;
@@ -149,6 +143,8 @@ namespace PCGClusterElement
 	{
 		using AlgoSignature = bool(*)(FPCGContext* Context, FClusteringData& ClusteringData, const int MaxIterations);
 		AlgoSignature ClusteringFunction = nullptr;
+
+		bool bSelectRandomCentroids = true;
 		TArray<FVector> InitialCentroids;
 	};
 }
