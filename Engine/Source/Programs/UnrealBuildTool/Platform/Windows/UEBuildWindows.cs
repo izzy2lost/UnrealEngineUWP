@@ -373,7 +373,27 @@ namespace UnrealBuildTool
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "TargetWindowsVersion")]
-		public int TargetWindowsVersion = 0x601;
+		public int TargetWindowsVersion
+		{
+			get => TargetWindowsVersionPrivate ?? GetTargetVersionFromPlatformSDK();
+			set => TargetWindowsVersionPrivate = value;
+		}
+		private int? TargetWindowsVersionPrivate = null;
+		private int GetTargetVersionFromPlatformSDK()
+		{
+			// due to some reflection property walking, this can actually be called with a non-Windows platform
+			// in which case, just use Win7. This should never matter (but it's hard to skip due to reflection causing it)
+			if (!Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
+			{
+				return 0x601;
+			}
+
+			// @todo some MS platforms are setting this hardcoded, they could move to their SDK.json
+			string Key = Architecture.bIsX64 ? "MinimumWindowsX64TargetVersion" : "MinimumWindowsArm64TargetVersion";
+			UEBuildPlatformSDK SDK = UEBuildPlatformSDK.GetSDKForPlatform(Target.Platform.ToString())!;
+			// the string in the .json will be eg. 0x601, so convert the string from hex
+			return Convert.ToInt32(SDK.GetRequiredVersionFromConfig(Key), 16);
+		}
 
 		/// <summary>
 		/// Value for the NTDDI_VERSION macro, defining the minimum supported Windows version.

@@ -59,5 +59,9 @@
 	"VisualStudio2022SuggestedComponents": [
 	],
 
-	"MinimumVisualStudio2022Version": "17.4"
+	"MinimumVisualStudio2022Version": "17.4",
+
+	"MinimumWindowsX64TargetVersion": "0x601", // Win7
+	"MinimumWindowsArm64TargetVersion":  "0xA00" // Win10
+
 }
