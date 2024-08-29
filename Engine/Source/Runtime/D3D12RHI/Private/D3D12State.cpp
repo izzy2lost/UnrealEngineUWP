@@ -8,6 +8,14 @@
 #include "D3D12RHIPrivate.h"
 #include "RHIUtilities.h"
 
+static int32 GPSOPrecacheD3D12DriverCacheAware = 0;
+static FAutoConsoleVariableRef CVarPSOPrecacheD3D12DriverCacheAware(
+	TEXT("r.PSOPrecache.D3D12.DriverCacheAware"),
+	GPSOPrecacheD3D12DriverCacheAware,
+	TEXT("If enabled, the PSO precaching system will not precache PSOs that the D3D12 graphics driver considers similar for caching, i.e. it will not precache PSOs that while technically different will still result in a driver cache hit.\n")
+	TEXT("This is not implemented for all GPU vendors and can result in performance issues or cache misses if the heuristics the engine uses does not match the graphics driver's behavior that decides whether a PSO is in the cache or not."),
+	ECVF_ReadOnly);
+
 // MSFT: Need to make sure sampler state is thread safe
 // Cache of Sampler States; we store pointers to both as we don't want the TMap to be artificially
 // modifying ref counts if not needed; so we manage that ourselves
@@ -488,10 +496,124 @@ bool FD3D12BlendState::GetInitializer(class FBlendStateInitializerRHI& Init)
 	return true;
 }
 
+uint64 FD3D12DynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipelineStateInitializer& Initializer)
+{
+	if (GPSOPrecacheD3D12DriverCacheAware)
+	{
+		if (IsRHIDeviceNVIDIA() && GMaxRHIFeatureLevel == ERHIFeatureLevel::SM6)
+		{
+			// NVIDIA drivers only care about the shaders for PSO caching.
+			struct FHashKey
+			{
+				uint32 VertexShader;
+				uint32 PixelShader;
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+				uint32 GeometryShader;
+#endif // PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+				uint32 MeshShader;
+#endif // PLATFORM_SUPPORTS_MESH_SHADERS
+			} HashKey;
+
+			FMemory::Memzero(&HashKey, sizeof(FHashKey));
+
+			HashKey.VertexShader = Initializer.BoundShaderState.GetVertexShader() ? GetTypeHash(Initializer.BoundShaderState.GetVertexShader()->GetHash()) : 0;
+			HashKey.PixelShader = Initializer.BoundShaderState.GetPixelShader() ? GetTypeHash(Initializer.BoundShaderState.GetPixelShader()->GetHash()) : 0;
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+			HashKey.GeometryShader = Initializer.BoundShaderState.GetGeometryShader() ? GetTypeHash(Initializer.BoundShaderState.GetGeometryShader()->GetHash()) : 0;
+#endif
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+			HashKey.MeshShader = Initializer.BoundShaderState.GetMeshShader() ? GetTypeHash(Initializer.BoundShaderState.GetMeshShader()->GetHash()) : 0;
+#endif
+			return CityHash64((const char*)&HashKey, sizeof(FHashKey));
+		}
+		else if (IsRHIDeviceIntel() && GMaxRHIFeatureLevel == ERHIFeatureLevel::SM6)
+		{
+			// Intel drivers have a few elements on top of the shaders that can cause PSO recompilation.
+			struct FHashKey
+			{
+				uint32 VertexShader;
+				uint32 PixelShader;
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+				uint32 GeometryShader;
+#endif // PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+				uint32 MeshShader;
+#endif // PLATFORM_SUPPORTS_MESH_SHADERS
+
+				uint32 BlendState;
+				uint8  MultisamplingEnabled;
+			} HashKey;
+
+			FMemory::Memzero(&HashKey, sizeof(FHashKey));
+
+			HashKey.VertexShader = Initializer.BoundShaderState.GetVertexShader() ? GetTypeHash(Initializer.BoundShaderState.GetVertexShader()->GetHash()) : 0;
+			HashKey.PixelShader = Initializer.BoundShaderState.GetPixelShader() ? GetTypeHash(Initializer.BoundShaderState.GetPixelShader()->GetHash()) : 0;
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+			HashKey.GeometryShader = Initializer.BoundShaderState.GetGeometryShader() ? GetTypeHash(Initializer.BoundShaderState.GetGeometryShader()->GetHash()) : 0;
+#endif
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+			HashKey.MeshShader = Initializer.BoundShaderState.GetMeshShader() ? GetTypeHash(Initializer.BoundShaderState.GetMeshShader()->GetHash()) : 0;
+#endif
+			FBlendStateInitializerRHI BlendStateInitializerRHI;
+			if (Initializer.BlendState && Initializer.BlendState->GetInitializer(BlendStateInitializerRHI))
+			{
+				HashKey.BlendState = GetTypeHash(BlendStateInitializerRHI);
+			}
+
+			// The only rasterizer state that matters is whether multisampling is enabled.
+			FRasterizerStateInitializerRHI RasterizerStateInitializerRHI;
+			if (Initializer.RasterizerState && Initializer.RasterizerState->GetInitializer(RasterizerStateInitializerRHI))
+			{
+				HashKey.MultisamplingEnabled = RasterizerStateInitializerRHI.bAllowMSAA;
+			}
+
+			return CityHash64((const char*)&HashKey, sizeof(FHashKey));
+		}
+	}
+
+	return FDynamicRHI::RHIComputeStatePrecachePSOHash(Initializer);
+}
+
 uint64 FD3D12DynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineStateInitializer& Initializer)
 {
 	// When compute precache PSO hash we assume a valid state precache PSO hash is already provided
 	checkf(Initializer.StatePrecachePSOHash != 0, TEXT("Initializer should have a valid state precache PSO hash set when computing the full initializer PSO hash"));
+
+	if (GPSOPrecacheD3D12DriverCacheAware)
+	{
+		if (IsRHIDeviceNVIDIA() && GMaxRHIFeatureLevel == ERHIFeatureLevel::SM6)
+		{
+			// We already hashed everything we needed.
+			return Initializer.StatePrecachePSOHash;
+		}
+		else if (IsRHIDeviceIntel() && GMaxRHIFeatureLevel == ERHIFeatureLevel::SM6)
+		{
+			// On top of the state already hashed, Intel drivers care about multisampling and render target count/format.
+			struct FHashKey
+			{
+				uint64 StatePrecachePSOHash;
+
+				uint8 NumSamples;
+				uint8 NumRenderTargets;
+				FGraphicsPipelineStateInitializer::TRenderTargetFormats	RenderTargetFormats;
+				FGraphicsPipelineStateInitializer::TRenderTargetFlags   RenderTargetFlags;
+			} HashKey;
+
+			FMemory::Memzero(&HashKey, sizeof(FHashKey));
+
+			HashKey.StatePrecachePSOHash = Initializer.StatePrecachePSOHash;
+			HashKey.NumSamples = Initializer.NumSamples;
+			HashKey.NumRenderTargets = Initializer.RenderTargetsEnabled;
+			HashKey.RenderTargetFormats = Initializer.RenderTargetFormats;
+			for (uint32 Index = 0; Index < HashKey.NumRenderTargets; ++Index)
+			{
+				HashKey.RenderTargetFlags[Index] = Initializer.RenderTargetFlags[Index] & FGraphicsPipelineStateInitializer::RelevantRenderTargetFlagMask;
+			}
+
+			return CityHash64((const char*)&HashKey, sizeof(FHashKey));
+		}
+	}
 
 	// All members which are not part of the state objects and influence the PSO on D3D12
 	struct FNonStateHashKey

@@ -150,6 +150,9 @@ namespace PipelineStateCache
 	// Waits for any pending tasks to complete.
 	extern RHI_API void WaitForAllTasks();
 
+	// Initializes any required component.
+	extern RHI_API void Init();
+
 	/* Clears all pipeline cached state. Called on shutdown, calling GetAndOrCreate after this will recreate state */
 	extern RHI_API void Shutdown();
 
