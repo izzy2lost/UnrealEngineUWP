@@ -347,6 +347,11 @@ namespace UsdUtils
 	USDUTILITIES_API void SetVectorParameterValue(UMaterialInstance& Material, const TCHAR* ParameterName, FLinearColor ParameterValue);
 	USDUTILITIES_API void SetTextureParameterValue(UMaterialInstance& Material, const TCHAR* ParameterName, UTexture* ParameterValue);
 	USDUTILITIES_API void SetBoolParameterValue(UMaterialInstance& Material, const TCHAR* ParameterName, bool bParameterValue);
+
+#if WITH_EDITOR
+	/** Retrieve MaterialX file from a prim*/
+	USDUTILITIES_API TArray<FString> GetMaterialXFilePaths(const pxr::UsdPrim& Prim);
+#endif // WITH_EDITOR
 }	 // namespace UsdUtils
 
 #endif	  // #if USE_USD_SDK

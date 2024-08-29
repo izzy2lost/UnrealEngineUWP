@@ -25,6 +25,7 @@
 #include "USDLuxLightTranslator.h"
 #include "USDMediaSpatialAudioTranslator.h"
 #include "USDMemory.h"
+#include "USDShadeConversion.h"
 #include "USDShadeMaterialTranslator.h"
 #include "USDSkelSkeletonTranslator.h"
 #include "USDVolVolumeTranslator.h"
@@ -64,7 +65,7 @@ public:
 			Registry.Register<FUsdVolVolumeTranslator>(TEXT("UsdVolVolume"))};
 
 #if WITH_EDITOR
-		ShaderRegistry.Register(FMaterialXUsdShadeMaterialTranslator::MaterialXRenderContext);
+		ShaderRegistry.Register(UnrealIdentifiers::MaterialXRenderContext);
 		TranslatorHandles.Add(Registry.Register<FMaterialXUsdShadeMaterialTranslator>(TEXT("UsdShadeMaterial")));
 
 		// Creating skeletal meshes technically works in Standalone mode, but by checking for this we artificially block it
@@ -106,7 +107,7 @@ public:
 
 #if USE_USD_SDK && WITH_EDITOR
 		ShaderRegistry.Unregister(FMdlUsdShadeMaterialTranslator::MdlRenderContext);
-		ShaderRegistry.Unregister(FMaterialXUsdShadeMaterialTranslator::MaterialXRenderContext);
+		ShaderRegistry.Unregister(UnrealIdentifiers::MaterialXRenderContext);
 #endif	  // WITH_EDITOR
 	}
 

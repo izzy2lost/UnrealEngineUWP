@@ -56,9 +56,11 @@
 #include "pxr/usd/ar/resolver.h"
 #include "pxr/usd/ar/resolverScopedCache.h"
 #include "pxr/usd/sdf/layerUtils.h"
+#include "pxr/usd/usd/primCompositionQuery.h"
 #include "pxr/usd/usdShade/material.h"
 #include "pxr/usd/usdShade/materialBindingAPI.h"
 #include "pxr/usd/usdShade/nodeDefAPI.h"
+
 #include "USDIncludesEnd.h"
 
 // Required for packaging
@@ -3034,6 +3036,43 @@ void UsdUtils::SetBoolParameterValue(UMaterialInstance& Material, const TCHAR* P
 		SetScalarParameterValue(Material, ParameterName, bParameterValue ? 1.0f : 0.0f);
 	}
 }
+
+#if WITH_EDITOR
+TArray<FString> UsdUtils::GetMaterialXFilePaths(const pxr::UsdPrim& Prim)
+{
+	FScopedUsdAllocs UsdAllocs;
+
+	TArray<FString> Result;
+
+	// We used to just fetch "direct references" here, but stages may compose the .mtlx file reference onto the prim
+	// via another sublayer or reference, so it will be marked as an "ancestral arc" and not be included in the "direct references" filter
+	pxr::UsdPrimCompositionQuery PrimCompositionQuery = pxr::UsdPrimCompositionQuery{ Prim };
+	for(const pxr::UsdPrimCompositionQueryArc& CompositionArc : PrimCompositionQuery.GetCompositionArcs())
+	{
+		if(CompositionArc.GetArcType() == pxr::PcpArcTypeReference)
+		{
+			pxr::SdfReferenceEditorProxy ReferenceEditor;
+			pxr::SdfReference UsdReference;
+
+			if(CompositionArc.GetIntroducingListEditor(&ReferenceEditor, &UsdReference))
+			{
+				// The mtlx file will be the "target layer". It's useful to get its real path via the SdfLayer
+				// interface as it already makes sure it is absolute
+				pxr::SdfLayerHandle TargetLayer = CompositionArc.GetTargetLayer();
+				FString AbsoluteFilePath = UsdToUnreal::ConvertString(TargetLayer->GetRealPath());
+
+				FString Extension = FPaths::GetExtension(AbsoluteFilePath);
+				if(Extension == UnrealIdentifiers::MaterialXRenderContext && FPaths::FileExists(AbsoluteFilePath))
+				{
+					Result.Add(AbsoluteFilePath);
+				}
+			}
+		}
+	}
+
+	return Result;
+}
+#endif // WITH_EDITOR
 
 void UsdUtils::AuthorUnrealMaterialBinding(pxr::UsdPrim& MeshOrGeomSubsetPrim, const FString& UnrealMaterialPathName)
 {

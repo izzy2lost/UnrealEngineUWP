@@ -30,11 +30,13 @@
 
 #include "Async/Async.h"
 #include "HAL/IConsoleManager.h"
+#include "InterchangeManager.h"
 #include "InterchangeCameraNode.h"
 #include "InterchangeLightNode.h"
 #include "InterchangeMaterialInstanceNode.h"
 #include "InterchangeMeshNode.h"
 #include "InterchangeSceneNode.h"
+#include "InterchangeShaderGraphNode.h"
 #include "InterchangeTexture2DNode.h"
 #include "InterchangeTranslatorHelper.h"
 #include "MovieSceneSection.h"
@@ -125,6 +127,13 @@ namespace UE::InterchangeUsdTranslator::Private
 	class UInterchangeUSDTranslatorImpl
 	{
 	public:
+
+		/** Add a material instance to the node container, otherwise it will add a material if it comes from a Translator (for example coming from MaterialX which cannot handle material instances) */
+		void AddMaterialNode(const UE::FUsdPrim& Prim, UInterchangeUsdTranslatorSettings* TranslatorSettings, UInterchangeBaseNodeContainer& NodeContainer);
+
+		void AddMeshNode(const UE::FUsdPrim& Prim, UInterchangeBaseNodeContainer& NodeContainer, const FTraversalInfo& Info);
+
+	public:
 		// We have to keep a stage reference so that we can parse the payloads after Translate() complete.
 		// ReleaseSource() clears this member, once translation is complete.
 		UE::FUsdStage UsdStage;
@@ -146,6 +155,19 @@ namespace UE::InterchangeUsdTranslator::Private
 		// For now we only generate a single LevelSequence per stage though, so we'll keep track of this
 		// here for easy access when parsing the tracks
 		UInterchangeAnimationTrackSetNode* CurrentTrackSet = nullptr;
+
+		// Array of translators that we call in the GetTexturePayload, the key has no real meaning, it's just here to avoid having duplicates and calling several times the Translate function
+		TMap<FString, UInterchangeTranslatorBase*> Translators;
+
+	private:
+
+		struct FMaterialSlotMesh
+		{
+			FString MaterialSlotName;
+			UInterchangeMeshNode* MeshNode;
+		};
+		TMap<FString, FString> PrimPathToMaterialPath; 
+		TMap<FString, TArray<FMaterialSlotMesh>> PrimPathToSlotMeshNodes;
 	};
 
 #if USE_USD_SDK
@@ -672,7 +694,7 @@ namespace UE::InterchangeUsdTranslator::Private
 		const FString* ParameterName = nullptr;
 	};
 
-	void AddMaterialInstanceNode(
+	void UInterchangeUSDTranslatorImpl::AddMaterialNode(
 		const UE::FUsdPrim& Prim,
 		UInterchangeUsdTranslatorSettings* TranslatorSettings,
 		UInterchangeBaseNodeContainer& NodeContainer
@@ -688,14 +710,86 @@ namespace UE::InterchangeUsdTranslator::Private
 			return;
 		}
 
+		auto SetMaterialSlotDependencies = [this, &NodeUid]()
+		{
+			// Now we need to check if we have to set the slot of the mesh nodes here
+			if(TArray<FMaterialSlotMesh>* SlotMeshes = PrimPathToSlotMeshNodes.Find(NodeUid))
+			{
+				if(FString* NewMaterialUID = PrimPathToMaterialPath.Find(NodeUid))
+				{
+					for(const FMaterialSlotMesh& MaterialSlotMesh : *SlotMeshes)
+					{
+						if(!MaterialSlotMesh.MeshNode->GetSlotMaterialDependencyUid(MaterialSlotMesh.MaterialSlotName, *NewMaterialUID))
+						{
+							MaterialSlotMesh.MeshNode->SetSlotMaterialDependencyUid(MaterialSlotMesh.MaterialSlotName, *NewMaterialUID);
+						}
+					}
+				}
+			}
+		};
+
+		FString RenderContext = TranslatorSettings ? TranslatorSettings->RenderContext.ToString() : FString();
+
+		// Check for any references of MaterialX
+		if(RenderContext == UnrealIdentifiers::MaterialXRenderContext)
+		{
+			TArray<FString> FilePaths = UsdUtils::GetMaterialXFilePaths(Prim);
+			for(const FString& File : FilePaths)
+			{
+				// the file has already been handled no need to do a Translate again
+				if(!Translators.Find(File))
+				{
+
+					UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
+					UInterchangeSourceData* SourceData = UInterchangeManager::CreateSourceData(File);
+
+					UInterchangeTranslatorBase* Translator = InterchangeManager.GetTranslatorForSourceData(SourceData);
+					//check on the Translator, it might return nullptr in case of reimport
+					if(Translator)
+					{
+						Translator->Translate(NodeContainer);
+						Translators.Add(File, Translator);
+					}
+				}
+
+				// The material from the MaterialXTranslator doesn't have the same UID, both the PrimPath have the same name but not the same path
+				// We need to retrieve that name (which is the Material name) in the translator, then we can map it to the right mesh
+				NodeContainer.BreakableIterateNodesOfType<UInterchangeShaderGraphNode>(
+					[this, &NodeName, &NodeUid](const FString&, UInterchangeShaderGraphNode* ShaderGraphNode)
+					{
+						FString UID = ShaderGraphNode->GetUniqueID();
+						if(FPaths::GetBaseFilename(UID) == NodeName)
+						{
+							PrimPathToMaterialPath.Add(NodeUid, UID);
+							return true;
+						}
+						else
+						{
+							return false;
+						}
+					});
+			}
+
+			SetMaterialSlotDependencies();
+
+			if(!FilePaths.IsEmpty())
+			{
+				return;
+			}
+		}
+		
 		UInterchangeMaterialInstanceNode* MaterialNode = NewObject<UInterchangeMaterialInstanceNode>(&NodeContainer);
 		MaterialNode->InitializeNode(NodeUid, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
 		MaterialNode->SetAssetName(NodeName);
 		NodeContainer.AddNode(MaterialNode);
+		
+		// Set the material instance node to the correct mesh nodes
+		PrimPathToMaterialPath.Add(NodeUid, NodeUid);
+		SetMaterialSlotDependencies();
 
 		UsdToUnreal::FUsdPreviewSurfaceMaterialData MaterialData;
-		FString RenderContext = TranslatorSettings ? TranslatorSettings->RenderContext.ToString() : FString();
 		const bool bSuccess = UsdToUnreal::ConvertMaterial(Prim, MaterialData, TranslatorSettings ? *RenderContext : nullptr);
+
 
 		// Set all the parameter values to the interchange node
 		bool bHasUDIMTexture = false;
@@ -1007,9 +1101,8 @@ namespace UE::InterchangeUsdTranslator::Private
 		}
 	}
 
-	void AddMeshNode(
+	void UInterchangeUSDTranslatorImpl::AddMeshNode(
 		const UE::FUsdPrim& Prim,
-		UInterchangeUSDTranslatorImpl& TranslatorImpl,
 		UInterchangeBaseNodeContainer& NodeContainer,
 		const FTraversalInfo& Info
 	)
@@ -1038,13 +1131,13 @@ namespace UE::InterchangeUsdTranslator::Private
 				MeshNode->SetSkeletonDependencyUid(Info.ActiveSkelQuery.GetSkeleton().GetPrimPath().GetString());
 			}
 
-			AddMorphTargetNodes(Prim, TranslatorImpl, *MeshNode, NodeContainer, Info);
+			AddMorphTargetNodes(Prim, *this, *MeshNode, NodeContainer, Info);
 
 			// When returning the payload data later, we'll need at the very least our SkeletonQuery, so
 			// here we store the Info object into the Impl
 			{
-				FWriteScopeLock ScopedInfoWriteLock{TranslatorImpl.CachedTraversalInfoLock};
-				TranslatorImpl.NodeUidToCachedTraversalInfo.Add(NodeUid, Info);
+				FWriteScopeLock ScopedInfoWriteLock{CachedTraversalInfoLock};
+				NodeUidToCachedTraversalInfo.Add(NodeUid, Info);
 			}
 		}
 		else
@@ -1060,8 +1153,8 @@ namespace UE::InterchangeUsdTranslator::Private
 				Prim,
 				TimeCode,
 				bProvideMaterialIndices,
-				TranslatorImpl.CachedMeshConversionOptions.RenderContext,
-				TranslatorImpl.CachedMeshConversionOptions.MaterialPurpose
+				CachedMeshConversionOptions.RenderContext,
+				CachedMeshConversionOptions.MaterialPurpose
 			);
 
 			for (const UsdUtils::FUsdPrimMaterialSlot& Slot : Assignments.Slots)
@@ -1102,7 +1195,23 @@ namespace UE::InterchangeUsdTranslator::Private
 					}
 				}
 
-				MeshNode->SetSlotMaterialDependencyUid(SlotName, MaterialInstanceUid);
+				// if we found a match let's set the slot to the corresponding Material (the Material path could come from another translator)
+				if(FString* NewMaterialInstanceUid = PrimPathToMaterialPath.Find(MaterialInstanceUid))
+				{
+					MeshNode->SetSlotMaterialDependencyUid(SlotName, *NewMaterialInstanceUid);
+				}
+				else // otherwise it's up to the Material to attach itself to the mesh
+				{
+					// one material can be attached to several meshes
+					if(TArray<FMaterialSlotMesh>* SlotsMeshes = PrimPathToSlotMeshNodes.Find(MaterialInstanceUid))
+					{
+						SlotsMeshes->Add({ SlotName, MeshNode });
+					}
+					else
+					{
+						PrimPathToSlotMeshNodes.Add(MaterialInstanceUid, { { SlotName, MeshNode } });
+					}
+				}
 			}
 		}
 
@@ -1586,12 +1695,12 @@ namespace UE::InterchangeUsdTranslator::Private
 		if (Prim.IsA(TEXT("Material")))
 		{
 			Prefix = &MaterialPrefix;
-			AddMaterialInstanceNode(Prim, TranslatorSettings, NodeContainer);
+			TranslatorImpl.AddMaterialNode(Prim, TranslatorSettings, NodeContainer);
 		}
 		else if (Prim.IsA(TEXT("Mesh")))
 		{
 			Prefix = &MeshPrefix;
-			AddMeshNode(Prim, TranslatorImpl, NodeContainer, Info);
+			TranslatorImpl.AddMeshNode(Prim, NodeContainer, Info);
 		}
 		else if (Prim.IsA(TEXT("Camera")))
 		{
@@ -2443,32 +2552,44 @@ TOptional<UE::Interchange::FImportImage> UInterchangeUSDTranslator::GetTexturePa
 	FString FilePath;
 	TextureGroup TextureGroup;
 	bool bDecoded = DecodeTexturePayloadKey(PayloadKey, FilePath, TextureGroup);
-	if (!bDecoded)
+	if(bDecoded)
 	{
-		return {};
+		// Defer back to another translator to actually parse the texture raw data
+		UE::Interchange::Private::FScopedTranslator ScopedTranslator(FilePath, Results);
+		const IInterchangeTexturePayloadInterface* TextureTranslator = ScopedTranslator.GetPayLoadInterface<IInterchangeTexturePayloadInterface>();
+		if(ensure(TextureTranslator))
+		{
+
+			AlternateTexturePath = FilePath;
+
+			// The texture translators don't use the payload key, and read the texture directly from the SourceData's file path
+			const FString UnusedPayloadKey = {};
+			TexturePayloadData = TextureTranslator->GetTexturePayloadData(UnusedPayloadKey, AlternateTexturePath);
+
+			// Move compression settings onto the payload data.
+			// Note: We don't author anything else on the texture payload data here (like the sRGB flag), because those
+			// settings were already on our translated node, and presumably already made their way to the factory node.
+			// The factory should use them to override whatever it finds in this payload data, with the exception of the
+			// compression settings (which can't be stored on the translated node)
+			TexturePayloadData->CompressionSettings = TextureGroup == TEXTUREGROUP_WorldNormalMap ? TC_Normalmap : TC_Default;
+		}
 	}
-
-	// Defer back to another translator to actually parse the texture raw data
-	UE::Interchange::Private::FScopedTranslator ScopedTranslator(FilePath, Results);
-	const IInterchangeTexturePayloadInterface* TextureTranslator = ScopedTranslator.GetPayLoadInterface<IInterchangeTexturePayloadInterface>();
-	if (!ensure(TextureTranslator))
-	{
-		return {};
-	}
-
-	AlternateTexturePath = FilePath;
-
-	// The texture translators don't use the payload key, and read the texture directly from the SourceData's file path
-	const FString UnusedPayloadKey = {};
-	TexturePayloadData = TextureTranslator->GetTexturePayloadData(UnusedPayloadKey, AlternateTexturePath);
-
-	// Move compression settings onto the payload data.
-	// Note: We don't author anything else on the texture payload data here (like the sRGB flag), because those
-	// settings were already on our translated node, and presumably already made their way to the factory node.
-	// The factory should use them to override whatever it finds in this payload data, with the exception of the
-	// compression settings (which can't be stored on the translated node)
-	TexturePayloadData->CompressionSettings = TextureGroup == TEXTUREGROUP_WorldNormalMap ? TC_Normalmap : TC_Default;
 #endif	  // USE_USD_SDK
+
+	// We did not find a suitable Payload in USD Translator, let's find one in one of the Translators (MaterialX for the moment)
+	// The best way would be to have a direct association between the payload and the right Translator, but we don't have a suitable way of knowing which Payload belongs to which Translator
+	// So let's just loop over them all
+	for(const TPair<FString, UInterchangeTranslatorBase*> & Pair : Impl->Translators)
+	{
+		if(IInterchangeTexturePayloadInterface* TexturePayloadInterface = Cast<IInterchangeTexturePayloadInterface>(Pair.Value))
+		{
+			TexturePayloadData = TexturePayloadInterface->GetTexturePayloadData(PayloadKey, AlternateTexturePath);
+			if(TexturePayloadData)
+			{
+				break;
+			}
+		}
+	}
 
 	return TexturePayloadData;
 }

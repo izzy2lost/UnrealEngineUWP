@@ -475,6 +475,10 @@ FString UnrealIdentifiers::ModelApplyDrawMode = TEXT("model:applyDrawMode");
 FString UnrealIdentifiers::UsdNamespaceDelimiter = TEXT(":");
 #endif	  // USE_USD_SDK
 
+#if WITH_EDITOR
+const FName UnrealIdentifiers::MaterialXRenderContext = TEXT("mtlx");
+#endif
+
 FUsdDelegates::FUsdImportDelegate FUsdDelegates::OnPreUsdImport;
 FUsdDelegates::FUsdImportDelegate FUsdDelegates::OnPostUsdImport;
 

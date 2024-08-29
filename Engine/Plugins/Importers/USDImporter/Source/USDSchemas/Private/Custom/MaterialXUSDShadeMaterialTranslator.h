@@ -15,9 +15,6 @@ class FMaterialXUsdShadeMaterialTranslator : public FUsdShadeMaterialTranslator
 	using Super = FUsdShadeMaterialTranslator;
 
 public:
-	static FName MaterialXRenderContext;
-
-public:
 	using FUsdShadeMaterialTranslator::FUsdShadeMaterialTranslator;
 
 	virtual void CreateAssets() override;
