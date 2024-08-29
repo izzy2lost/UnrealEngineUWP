@@ -128,10 +128,15 @@ void FWorldBrowserModule::ReleaseWorldModel()
 
 TSharedRef<SWidget> FWorldBrowserModule::CreateWorldBrowserHierarchy()
 {
+	return CreateWorldBrowserHierarchyWidget()->GetWidget();
+}
+
+TSharedRef<UE::WorldHierarchy::IWorldHierarchy> FWorldBrowserModule::CreateWorldBrowserHierarchyWidget()
+{
 	UWorld* EditorWorld = GEditor->GetEditorWorldContext().World();
 	return SNew(SWorldHierarchy).InWorld(EditorWorld);
 }
-	
+
 TSharedRef<SWidget> FWorldBrowserModule::CreateWorldBrowserDetails()
 {
 	UWorld* EditorWorld = GEditor->GetEditorWorldContext().World();

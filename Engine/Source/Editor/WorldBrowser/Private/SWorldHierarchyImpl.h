@@ -69,7 +69,6 @@ public:
 	SLATE_END_ARGS()
 
 	SWorldHierarchyImpl();
-
 	~SWorldHierarchyImpl();
 	
 	void Construct(const FArguments& InArgs);
@@ -100,6 +99,17 @@ public:
 	/** Helper funciton to get the selected items from the tree widget */
 	TArray<WorldHierarchy::FWorldTreeItemPtr> GetSelectedTreeItems() const { return TreeWidget->GetSelectedItems(); }
 
+	/**
+	 * @see WorldHierarchyColumns.h for named columns.
+	 * @return Whether Column is visible in the UI.
+	 */
+	bool IsColumnVisible(FName ColumnId) const;
+	/**
+	 * Sets whether Column is visible in the UI.
+	 * @see WorldHierarchyColumns.h for named columns.
+	 */
+	void SetColumnVisible(FName ColumnId, bool bVisible) const;
+
 public:
 	//~ FEditorUndoClient
 	virtual void PostUndo(bool bSuccess) override;
@@ -109,6 +119,9 @@ private:
 	// The maximum number of pending operations to process at one time
 	static const int32 MaxPendingOperations = 500;
 
+	/** Creates the header row for the level hierarchy. */
+	TSharedRef<SHeaderRow> CreateHeaderRow();
+	
 	/** Creates an item for the tree view */
 	TSharedRef<ITableRow> GenerateTreeRow(WorldHierarchy::FWorldTreeItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable);
 

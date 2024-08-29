@@ -26,6 +26,7 @@ class SDockTab;
 class SLevelEditorModeContent;
 class SLevelEditorToolBox;
 class UTypedElementSelectionSet;
+namespace UE::WorldHierarchy { class IWorldHierarchy; }
 
 /**
  * Unreal editor level editor Slate widget
@@ -165,6 +166,8 @@ public:
 	/** Return the most recently interacted with Outliner */
 	UE_DEPRECATED(5.1, "The Level Editor has multiple outliners, use GetAllSceneOutliners() or GetMostRecentlyUsedSceneOutliner() instead to avoid ambiguity")
 	virtual TSharedPtr<ISceneOutliner> GetSceneOutliner() const override;
+
+	virtual TWeakPtr<UE::WorldHierarchy::IWorldHierarchy> GetWorldHierarchy() override { return WorldHierarchy; }
 	
 	TSharedRef<SWidget> GetTitleBarMessageWidget() const { return TtileBarMessageBox.ToSharedRef(); }
 private:
@@ -338,6 +341,9 @@ private:
 
 	/** Weak pointer to the level editor's most recently created scene outliner */
 	TWeakPtr<ISceneOutliner> SceneOutlinerPtr;
+
+	/** The content displayed by the LevelEditorTabIds::WorldBrowserHierarchy tab. */
+	TWeakPtr<UE::WorldHierarchy::IWorldHierarchy> WorldHierarchy;
 
 	/** Map containing Weak pointers to all the Outliners in the level editor */
 	TMap<FName, TWeakPtr<ISceneOutliner>> SceneOutliners;

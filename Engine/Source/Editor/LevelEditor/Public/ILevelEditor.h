@@ -20,6 +20,7 @@ class ISceneOutliner;
 class IAssetViewport;
 class SLevelViewport;
 class UTypedElementSelectionSet;
+namespace UE::WorldHierarchy { class IWorldHierarchy; }
 
 /**
  * Public interface to SLevelEditor
@@ -106,6 +107,9 @@ public:
 
 	/** Return the most recently interacted with Outliner */
 	virtual TSharedPtr<ISceneOutliner> GetMostRecentlyUsedSceneOutliner() = 0;
+
+	/** @return The widget displayed in the Levels tab, if the tab is summoned. */
+	virtual TWeakPtr<UE::WorldHierarchy::IWorldHierarchy> GetWorldHierarchy() = 0;
 };
 
 

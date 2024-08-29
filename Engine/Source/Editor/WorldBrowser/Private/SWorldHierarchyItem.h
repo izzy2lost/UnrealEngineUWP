@@ -20,22 +20,6 @@ class FLevelModel;
 class SButton;
 class SWorldHierarchyImpl;
 
-namespace HierarchyColumns
-{
-	/** IDs for list columns */
-	static const FName ColumnID_LevelLabel( "Level" );
-	static const FName ColumnID_Visibility( "Visibility" );
-	static const FName ColumnID_LightingScenario( "LightingScenario" );
-	static const FName ColumnID_Lock( "Lock" );
-	static const FName ColumnID_SCCStatus( "SCC_Status" );
-	static const FName ColumnID_Save( "Save" );
-	static const FName ColumnID_Color("Color");
-	static const FName ColumnID_Kismet( "Blueprint" );
-	static const FName ColumnID_ActorCount( "ActorCount" );
-	static const FName ColumnID_LightmassSize( "LightmassSize" );
-	static const FName ColumnID_FileSize( "FileSize" );
-}
-
 /** A single item in the levels hierarchy tree. Represents a level model */
 class SWorldHierarchyItem 
 	: public SMultiColumnTableRow<WorldHierarchy::FWorldTreeItemPtr>

@@ -13,6 +13,7 @@
 #include "Editor.h"
 #include "LevelCollectionModel.h"
 #include "WorldBrowserDragDrop.h"
+#include "WorldHierarchyColumns.h"
 #include "SWorldHierarchyImpl.h"
 
 #include "Widgets/Views/SListView.h"
@@ -53,6 +54,7 @@ void SWorldHierarchyItem::Construct(const FArguments& InArgs, TSharedRef<STableV
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 TSharedRef< SWidget > SWorldHierarchyItem::GenerateWidgetForColumn( const FName& ColumnID )
 {
+	using namespace UE::WorldHierarchy;
 	TSharedPtr< SWidget > TableRowContent = SNullWidget::NullWidget;
 
 	if (ColumnID == HierarchyColumns::ColumnID_LevelLabel)
@@ -163,7 +165,7 @@ TSharedRef< SWidget > SWorldHierarchyItem::GenerateWidgetForColumn( const FName&
 				]
 			;
 		}
-		else if (ColumnID == HierarchyColumns::ColumnID_Visibility)
+		else if (ColumnID == HierarchyColumns::ColumnID_EditorVisibility)
 		{
 			TableRowContent =
 				SAssignNew(VisibilityButton, SButton)

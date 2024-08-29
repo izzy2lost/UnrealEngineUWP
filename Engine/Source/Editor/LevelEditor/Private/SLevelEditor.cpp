@@ -77,6 +77,7 @@
 #include "LevelViewportTabContent.h"
 #include "SLevelViewport.h"
 #include "LevelEditorOutlinerSettings.h"
+#include "IWorldHierarchy.h"
 
 #define LOCTEXT_NAMESPACE "SLevelEditor"
 
@@ -1058,10 +1059,12 @@ TSharedRef<SDockTab> SLevelEditor::SpawnLevelEditorTab( const FSpawnTabArgs& Arg
 	else if( TabIdentifier == LevelEditorTabIds::WorldBrowserHierarchy)
 	{
 		FWorldBrowserModule& WorldBrowserModule = FModuleManager::LoadModuleChecked<FWorldBrowserModule>( "WorldBrowser" );
+		const TSharedRef<UE::WorldHierarchy::IWorldHierarchy> LevelHierarchyWidget = WorldBrowserModule.CreateWorldBrowserHierarchyWidget();
+		WorldHierarchy = LevelHierarchyWidget;
 		return SNew( SDockTab )
 			.Label( NSLOCTEXT("LevelEditor", "WorldBrowserHierarchyTabTitle", "Levels") )
 			[
-				WorldBrowserModule.CreateWorldBrowserHierarchy()
+				LevelHierarchyWidget->GetWidget()
 			];
 	}
 	else if( TabIdentifier == LevelEditorTabIds::WorldBrowserDetails)

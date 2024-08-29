@@ -49,6 +49,24 @@ void SWorldHierarchy::Construct(const FArguments& InArgs)
 	OnBrowseWorld(InArgs._InWorld);
 }
 
+bool SWorldHierarchy::IsColumnVisible(FName Column) const
+{
+	const TSharedPtr<SWorldHierarchyImpl> WidgetPin = WeakWorldHierarchyImpl.Pin();
+	// This widget is destroyed during world construction
+	return ensureMsgf(WidgetPin, TEXT("Did you call this during world destruction?"))
+		&& WidgetPin->IsColumnVisible(Column);
+}
+
+void SWorldHierarchy::SetColumnVisible(FName Column, bool bVisible) const
+{
+	if (const TSharedPtr<SWorldHierarchyImpl> WidgetPin = WeakWorldHierarchyImpl.Pin();
+		// This widget is destroyed during world construction
+		ensureMsgf(WidgetPin, TEXT("Did you call this during world destruction?")))
+	{
+		WidgetPin->SetColumnVisible(Column, bVisible);
+	}
+}
+
 void SWorldHierarchy::OnBrowseWorld(UWorld* InWorld)
 {
 	// Remove all binding to an old world
