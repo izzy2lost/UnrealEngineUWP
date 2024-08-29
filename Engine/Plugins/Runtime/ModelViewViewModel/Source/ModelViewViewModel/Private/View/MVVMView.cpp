@@ -1256,12 +1256,12 @@ bool UMVVMView::AreSourcesValidForBinding(int32 InBindingKey) const
 			// Only log invalid bindings as info, since it is possible expected behavior for async functions
 #if UE_WITH_MVVM_DEBUGGING
 			UE::MVVM::FMessageLog Log(GetUserWidget());
-			Log.Info(FText::Format(LOCTEXT("ExecuteBindingFailInvalidSource", "The Binding '{0}' was not executed. There are invalid sources.")
+			Log.Info(FText::Format(LOCTEXT("ExecuteGraphBindingFailInvalidSource", "The binding '{0}' was not executed. There are invalid sources.")
 				, FText::FromString(ClassBinding.ToString(GeneratedViewClass, FMVVMViewClass_Binding::FToStringArgs::Short()))
 			));
 #else
 			UE::MVVM::FMessageLog Log(GetUserWidget());
-			Log.Info(FText::Format(LOCTEXT("ExecuteBindingFailInvalidSource", "The Binding '{0}' was not executed. There are invalid sources.")
+			Log.Info(FText::Format(LOCTEXT("ExecuteGraphBindingFailInvalidSource", "The binding '{0}' was not executed. There are invalid sources.")
 				, FText::AsNumber(BindingKey.GetIndex())
 			));
 #endif
