@@ -441,8 +441,9 @@ protected:
 	FGuid LandscapeGuid;
 
 	/** 
-	  * The original unmutated LandscapeGuid on the source asset, before instancing modfications.
+	  * The original unmutated LandscapeGuid on the source asset, before instancing modifications.
 	  **/
+	UPROPERTY(Transient, DuplicateTransient, meta = (LandscapeInherited))
 	FGuid OriginalLandscapeGuid;
 
 	/** Use Nanite to render landscape as a mesh on supported platforms. */
