@@ -12,12 +12,17 @@ namespace UE::DaySequence
 			return;
 		}
 
-		// If contributor is already registered, just early out.
-		if (Contributors.ContainsByPredicate([NewContributor](FStaticTimeContributor& Contributor)
-			{ return NewContributor.UserObject == Contributor.UserObject; }))
+		// We remove an existing matching contributor if necessary, making sure to keep PriorityGroupSizes up to date.
+		Contributors.RemoveAll([this, NewContributor](const FStaticTimeContributor& Contributor)
 		{
-			return;
-		}
+			if (NewContributor.UserObject == Contributor.UserObject)
+			{
+				PriorityGroupSizes[NewContributor.Priority]--;
+				return true;
+			}
+			
+			return false;
+		});
 
 		// Add the new contributor.
 		Contributors.Add(NewContributor);
@@ -134,4 +139,62 @@ namespace UE::DaySequence
 		
 		return GroupInfo;
 	}
+}
+
+UDaySequenceStaticTimeContributor::UDaySequenceStaticTimeContributor()
+: BlendWeight(1.f)
+, StaticTime(0.f)
+, bWantsStaticTime(true)
+, TargetActor(nullptr)
+{}
+
+void UDaySequenceStaticTimeContributor::BeginDestroy()
+{
+	UnbindFromDaySequenceActor();
+	
+	Super::BeginDestroy();
+}
+
+void UDaySequenceStaticTimeContributor::BindToDaySequenceActor(ADaySequenceActor* InTargetActor, int32 Priority)
+{
+	UnbindFromDaySequenceActor();
+
+	if (!InTargetActor)
+	{
+		return;
+	}
+		
+	TargetActor = InTargetActor;
+
+	UObject* Outer = GetOuter();
+	auto WantsStaticTime = [this, Outer]()
+	{
+		return IsValid(this) && IsValid(Outer) && bWantsStaticTime;
+	};
+
+	auto GetStaticTime = [this, WantsStaticTime](UE::DaySequence::FStaticTimeInfo& OutRequest)
+	{
+		if (WantsStaticTime())
+		{
+			OutRequest.BlendWeight = BlendWeight;
+			OutRequest.StaticTime = StaticTime;
+			return true;
+		}
+
+		return false;
+	};
+
+	TargetActor->RegisterStaticTimeContributor({ Outer, Priority, WantsStaticTime, GetStaticTime });
+}
+
+void UDaySequenceStaticTimeContributor::UnbindFromDaySequenceActor()
+{
+	if (!TargetActor)
+	{
+		return;
+	}
+
+	TargetActor->UnregisterStaticTimeContributor(this);
+
+	TargetActor = nullptr;
 }

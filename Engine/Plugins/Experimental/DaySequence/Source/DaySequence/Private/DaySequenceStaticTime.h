@@ -5,6 +5,9 @@
 #include "CoreMinimal.h"
 #include "UObject/WeakObjectPtr.h"
 #include "Algo/Sort.h"
+#include "DaySequenceActor.h"
+
+#include "DaySequenceStaticTime.generated.h"
 
 namespace UE::DaySequence
 {
@@ -57,3 +60,43 @@ namespace UE::DaySequence
 	};
 }
 
+/**
+ * A Blueprint exposed static time contributor.
+ * Used to contribute to static time blending for the specified Day Sequence Actor without needing to spawn actors and/or components.
+ */
+UCLASS(BlueprintType)
+class UDaySequenceStaticTimeContributor : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UDaySequenceStaticTimeContributor();
+	
+	virtual void BeginDestroy() override;
+	
+	/** The desired blend weight. Once bound to a Day Sequence Actor, this can be freely changed without rebinding. */
+	UPROPERTY(Interp, BlueprintReadWrite, Category = "Day Sequence")
+	float BlendWeight;
+
+	/** The desired static time. Once bound to a Day Sequence Actor, this can be freely changed without rebinding. */
+	UPROPERTY(Interp, BlueprintReadWrite, Category = "Day Sequence")
+	float StaticTime;
+
+	/** Determines whether or not this contributor is effective once we are bound. This can be freely changed to enable/disable the contributor without rebinding. */
+	UPROPERTY(Interp, BlueprintReadWrite, Category = "Day Sequence")
+	bool bWantsStaticTime;
+
+	/** Begin contributing static time to the specified actor. */
+	UFUNCTION(BlueprintCallable, Category = "Day Sequence")
+	void BindToDaySequenceActor(ADaySequenceActor* InTargetActor, int32 Priority = 1000);
+
+	/** Stop contributing static time. */
+	UFUNCTION(BlueprintCallable, Category = "Day Sequence")
+	void UnbindFromDaySequenceActor();
+	
+private:
+
+	UPROPERTY(Transient)
+	TObjectPtr<ADaySequenceActor> TargetActor;
+};	
