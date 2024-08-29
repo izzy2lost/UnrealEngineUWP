@@ -102,7 +102,7 @@ struct FSkyAtmosphereRenderContext
 
 	FIntRect Viewport;
 
-	bool bLightDiskEnabled;
+	bool bIsReflectionCapture;
 	bool bRenderSkyPixel;
 	float AerialPerspectiveStartDepthInCm;
 	float NearClippingDistance;

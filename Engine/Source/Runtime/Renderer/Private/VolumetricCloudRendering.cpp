@@ -2894,7 +2894,7 @@ bool FSceneRenderer::RenderVolumetricCloud(
 					SkyRC.Viewport = bShouldViewRenderVolumetricCloudRenderTarget ?
 						FIntRect(FIntPoint(0, 0), FIntPoint(DestinationRT->Desc.GetSize().X, DestinationRT->Desc.GetSize().Y)) // this texture is per view, so we don't need to use viewrect inside it
 						: ViewInfo.ViewRect;
-					SkyRC.bLightDiskEnabled = !ViewInfo.bIsReflectionCapture;
+					SkyRC.bIsReflectionCapture = ViewInfo.bIsReflectionCapture;
 					SkyRC.AerialPerspectiveStartDepthInCm = GetValidAerialPerspectiveStartDepthInCm(ViewInfo, SkyAtmosphereSceneProxy);
 					SkyRC.NearClippingDistance = ViewInfo.NearClippingDistance;
 					SkyRC.FeatureLevel = ViewInfo.FeatureLevel;

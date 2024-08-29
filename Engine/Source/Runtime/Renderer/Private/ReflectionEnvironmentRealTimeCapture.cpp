@@ -583,7 +583,7 @@ void FScene::AllocateAndCaptureFrameSkyEnvMap(
 				SkyRC.SkyAtmosphereCameraAerialPerspectiveVolumeRayOnly = BlackDummy3dTex;
 
 				SkyRC.Viewport = FIntRect(FIntPoint(0, 0), FIntPoint(CubeWidth, CubeWidth));
-				SkyRC.bLightDiskEnabled = false;
+				SkyRC.bIsReflectionCapture = true;
 				SkyRC.bRenderSkyPixel = true;
 				SkyRC.AerialPerspectiveStartDepthInCm = 0.01f;
 				SkyRC.NearClippingDistance = 0.01f;

@@ -1869,9 +1869,8 @@ void FSceneRenderer::RenderSkyAtmosphereInternal(
 		PsPassParameters->VolumetricCloudDepthTexture = SkyRC.VolumetricCloudDepthTexture;
 		PsPassParameters->InputCloudLuminanceTransmittanceTexture = SkyRC.InputCloudLuminanceTransmittanceTexture;
 		PsPassParameters->AerialPerspectiveStartDepthKm = AerialPerspectiveStartDepthInCm * CM_TO_KM;
-		// NOTE: bLightDiskEnabled == !View.bIsReflectionCapture
-		PsPassParameters->bPropagateAlphaNonReflection = (IsPostProcessingWithAlphaChannelSupported() && SkyRC.bLightDiskEnabled) ? 1 : 0;
-		PsPassParameters->SourceDiskEnabled = SkyRC.bLightDiskEnabled ? 1 : 0;
+		PsPassParameters->bPropagateAlphaNonReflection = (IsPostProcessingWithAlphaChannelSupported() && !SkyRC.bIsReflectionCapture) ? 1 : 0;
+		PsPassParameters->SourceDiskEnabled = SkyRC.bIsReflectionCapture ? 0 : 1;
 		PsPassParameters->DepthReadDisabled = SkyRC.bDepthReadDisabled ? 1 : 0;
 		if (bShouldSampleCloudShadow || SkyRC.bShouldSampleCloudSkyAO)
 		{
@@ -2034,7 +2033,7 @@ void FSceneRenderer::RenderSkyAtmosphere(FRDGBuilder& GraphBuilder, const FMinim
 		SkyRC.bSceneHasSkyMaterial = View.bSceneHasSkyMaterial;
 
 		SkyRC.Viewport = View.ViewRect;
-		SkyRC.bLightDiskEnabled = !View.bIsReflectionCapture;
+		SkyRC.bIsReflectionCapture = View.bIsReflectionCapture;
 		SkyRC.AerialPerspectiveStartDepthInCm = GetValidAerialPerspectiveStartDepthInCm(View, SkyAtmosphereSceneProxy);
 		SkyRC.NearClippingDistance = View.NearClippingDistance;
 		SkyRC.FeatureLevel = View.FeatureLevel;
