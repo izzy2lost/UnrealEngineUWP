@@ -47,8 +47,8 @@ FAutoConsoleVariableRef CVarBuoyancyCallbackDataEnabled(TEXT("p.Buoyancy.Callbac
 bool bBuoyancyCallbackDataParticleValidation = true;
 FAutoConsoleVariableRef CVarBuoyancyCallbackDataParticleValidation(TEXT("p.Buoyancy.CallbackData.ParticleValidation"), bBuoyancyCallbackDataParticleValidation, TEXT(""));
 
-#if ENABLE_DRAW_DEBUG
 bool bBuoyancyDebugDraw = false;
+#if ENABLE_DRAW_DEBUG
 FAutoConsoleVariableRef CVarBuoyancyDebugDraw(TEXT("p.Buoyancy.DebugDraw"), bBuoyancyDebugDraw, TEXT(""));
 #endif
 
