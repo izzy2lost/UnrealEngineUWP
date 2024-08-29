@@ -40,7 +40,10 @@ StructuredBuffer<float4> LightViewSpacePositionAndRadius;
 StructuredBuffer<float4> LightViewSpaceDirAndPreprocAngle;
 
 #define REFINE_SPOTLIGHT_BOUNDS 1
+
+#ifndef REFINE_RECTLIGHT_BOUNDS
 #define REFINE_RECTLIGHT_BOUNDS 1
+#endif
 
 #ifndef USE_LOCALSTORE_FOR_ATOMICS
 #define USE_LOCALSTORE_FOR_ATOMICS 0
