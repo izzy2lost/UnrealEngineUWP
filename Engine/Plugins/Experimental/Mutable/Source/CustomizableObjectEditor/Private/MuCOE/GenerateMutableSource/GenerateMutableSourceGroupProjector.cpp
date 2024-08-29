@@ -337,11 +337,11 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			FGuid SelectedImageParamUid = Node->NodeGuid;
 			SelectedImageParamUid.D += 4;
 
-			// Add to UCustomizableObjectNodeGroupProjectorParameter::OptionImages those textures that are present in
-			// UCustomizableObjectNodeGroupProjectorParameter::OptionImagesDataTable avoiding any repeated element
-			TArray<FGroupProjectorParameterImage> ArrayOptionImage = ProjParamNode->GetFinalOptionImagesNoRepeat();
+			// Add to UCustomizableObjectNodeGroupProjectorParameter::OptionTextures those textures that are present in
+			// UCustomizableObjectNodeGroupProjectorParameter::OptionTexturesDataTable avoiding any repeated element
+			TArray<FGroupProjectorParameterImage> ArrayOptionTexture = ProjParamNode->GetFinalOptionTexturesNoRepeat();
 
-			if ((ProjParamNode->OptionImagesDataTable != nullptr) &&
+			if ((ProjParamNode->OptionTexturesDataTable != nullptr) &&
 				(ProjParamNode->DataTableTextureColumnName.ToString().IsEmpty() || (ProjParamNode->DataTableTextureColumnName.ToString() == "None")))
 			{
 				FString msg = FString::Printf(TEXT("The group projection node has a table assigned to the Option Images Data Table property, but no column to read textures is specified at the Data Table Texture Column Name property."));
@@ -400,7 +400,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 				GenerationContext.ParameterUIDataMap.Add(OpacityParameterNodeName, ParameterUIData);
 			}
 			
-			if (ArrayOptionImage.Num() == 0)
+			if (ArrayOptionTexture.Num() == 0)
 			{
 				FString msg = FString::Printf(TEXT("The group projection node must have at least one option image connected to a texture or at least one valid element in Option Images Data Table."));
 				GenerationContext.Compiler->CompilerLog(FText::FromString(msg), ProjParamNode, EMessageSeverity::Error, true);
@@ -445,7 +445,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			EnumParameterNode->SetName(NodeEnumParamName);
 			EnumParameterNode->SetUid(SelectedImageParamUid.ToString());
 			GenerationContext.AddParameterNameUnique(originalGroup, NodeEnumParamName);
-			EnumParameterNode->SetValueCount(ArrayOptionImage.Num());
+			EnumParameterNode->SetValueCount(ArrayOptionTexture.Num());
 			EnumParameterNode->SetDefaultValueIndex(0);
 			EnumParameterNode->SetRangeCount(1);
 			EnumParameterNode->SetRange(0, NodeRangeFromScalar);
@@ -457,14 +457,14 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 				ParameterUIData.IntegerParameterGroupType = ECustomizableObjectGroupType::COGT_ONE;
 				ParameterUIData.ParamUIMetadata.ExtraInformation.Add(FString("UseThumbnails"));
 
-				for (int ImageIndex = 0; ImageIndex < ArrayOptionImage.Num(); ++ImageIndex)
+				for (int ImageIndex = 0; ImageIndex < ArrayOptionTexture.Num(); ++ImageIndex)
 				{
-					EnumParameterNode->SetValue(ImageIndex, (float)ImageIndex, ArrayOptionImage[ImageIndex].OptionName);
+					EnumParameterNode->SetValue(ImageIndex, (float)ImageIndex, ArrayOptionTexture[ImageIndex].OptionName);
 
 					FMutableParamUIMetadata OptionMetadata = ParameterUIData.ParamUIMetadata;
-					OptionMetadata.UIThumbnail = ArrayOptionImage[ImageIndex].OptionImage;
+					OptionMetadata.UIThumbnail = ArrayOptionTexture[ImageIndex].OptionTexture;
 					ParameterUIData.ArrayIntegerParameterOption.Add(
-						ArrayOptionImage[ImageIndex].OptionName,
+						ArrayOptionTexture[ImageIndex].OptionName,
 						FIntegerParameterUIData(OptionMetadata));
 				}
 
@@ -473,14 +473,14 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 
 			mu::NodeImageSwitchPtr SwitchNode = new mu::NodeImageSwitch;
 			SwitchNode->SetParameter(EnumParameterNode);
-			SwitchNode->SetOptionCount(ArrayOptionImage.Num());
+			SwitchNode->SetOptionCount(ArrayOptionTexture.Num());
 
 			const uint32 AdditionalLODBias = GenerationContext.Options.bUseLODAsBias ? GenerationContext.FirstLODAvailable : 0;
-			for (int32 SelectorIndex = 0; SelectorIndex < ArrayOptionImage.Num(); ++SelectorIndex)
+			for (int32 SelectorIndex = 0; SelectorIndex < ArrayOptionTexture.Num(); ++SelectorIndex)
 			{
-				if (const TObjectPtr<UTexture2D>& Texture = ArrayOptionImage[SelectorIndex].OptionImage)
+				if (const TObjectPtr<UTexture2D>& Texture = ArrayOptionTexture[SelectorIndex].OptionTexture)
 				{
-					mu::Ptr<mu::Image> ImageConstant = GenerateImageConstant(ArrayOptionImage[SelectorIndex].OptionImage, GenerationContext, false);
+					mu::Ptr<mu::Image> ImageConstant = GenerateImageConstant(ArrayOptionTexture[SelectorIndex].OptionTexture, GenerationContext, false);
 
 					mu::Ptr<mu::NodeImageConstant> ImageNode = new mu::NodeImageConstant();
 					ImageNode->SetValue(ImageConstant.get());

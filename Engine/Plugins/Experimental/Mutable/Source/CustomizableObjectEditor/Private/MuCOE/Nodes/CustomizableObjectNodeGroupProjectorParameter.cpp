@@ -11,18 +11,18 @@ class UCustomizableObjectNodeRemapPins;
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
-TArray<FGroupProjectorParameterImage> UCustomizableObjectNodeGroupProjectorParameter::GetOptionImagesFromTable() const
+TArray<FGroupProjectorParameterImage> UCustomizableObjectNodeGroupProjectorParameter::GetOptionTexturesFromTable() const
 {
 	TArray<FGroupProjectorParameterImage> ArrayResult;
 
-	if (OptionImagesDataTable == nullptr)
+	if (OptionTexturesDataTable == nullptr)
 	{
 		return ArrayResult;
 	}
 
-	TArray<FName> ArrayRowName = OptionImagesDataTable->GetRowNames();
+	TArray<FName> ArrayRowName = OptionTexturesDataTable->GetRowNames();
 
-	FProperty* PropertyTexturePath = OptionImagesDataTable->FindTableProperty(DataTableTextureColumnName);
+	FProperty* PropertyTexturePath = OptionTexturesDataTable->FindTableProperty(DataTableTextureColumnName);
 
 	if (PropertyTexturePath == nullptr)
 	{
@@ -32,7 +32,7 @@ TArray<FGroupProjectorParameterImage> UCustomizableObjectNodeGroupProjectorParam
 
 	int32 NameIndex = 0;
 
-	for (TMap<FName, uint8*>::TConstIterator RowIt = OptionImagesDataTable->GetRowMap().CreateConstIterator(); RowIt; ++RowIt)
+	for (TMap<FName, uint8*>::TConstIterator RowIt = OptionTexturesDataTable->GetRowMap().CreateConstIterator(); RowIt; ++RowIt)
 	{
 		uint8* RowData = RowIt.Value();
 		FString PropertyValue(TEXT(""));
@@ -47,7 +47,7 @@ TArray<FGroupProjectorParameterImage> UCustomizableObjectNodeGroupProjectorParam
 		{
 			FGroupProjectorParameterImage GroupProjectorParameterImage;
 			GroupProjectorParameterImage.OptionName = ArrayRowName[NameIndex].ToString();
-			GroupProjectorParameterImage.OptionImage = Texture;
+			GroupProjectorParameterImage.OptionTexture = Texture;
 			ArrayResult.Add(GroupProjectorParameterImage);
 		}
 
@@ -58,16 +58,16 @@ TArray<FGroupProjectorParameterImage> UCustomizableObjectNodeGroupProjectorParam
 }
 
 
-TArray<FGroupProjectorParameterImage> UCustomizableObjectNodeGroupProjectorParameter::GetFinalOptionImagesNoRepeat() const
+TArray<FGroupProjectorParameterImage> UCustomizableObjectNodeGroupProjectorParameter::GetFinalOptionTexturesNoRepeat() const
 {
-	TArray<FGroupProjectorParameterImage> ArrayDataTable = GetOptionImagesFromTable();
+	TArray<FGroupProjectorParameterImage> ArrayDataTable = GetOptionTexturesFromTable();
 
-	for (int32 i = 0; i < OptionImages.Num(); ++i)
+	for (int32 i = 0; i < OptionTextures.Num(); ++i)
 	{
 		bool AlreadyAdded = false;
 		for (int32 j = 0; j < ArrayDataTable.Num(); ++j)
 		{
-			if (OptionImages[i].OptionName == ArrayDataTable[j].OptionName)
+			if (OptionTextures[i].OptionName == ArrayDataTable[j].OptionName)
 			{
 				AlreadyAdded = true;
 				break;
@@ -76,7 +76,7 @@ TArray<FGroupProjectorParameterImage> UCustomizableObjectNodeGroupProjectorParam
 
 		if (!AlreadyAdded)
 		{
-			ArrayDataTable.Add(OptionImages[i]);
+			ArrayDataTable.Add(OptionTextures[i]);
 		}
 	}
 

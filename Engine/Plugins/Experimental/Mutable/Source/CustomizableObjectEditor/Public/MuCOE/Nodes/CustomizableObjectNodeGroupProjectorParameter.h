@@ -22,7 +22,7 @@ struct FGroupProjectorParameterImage
 	FString OptionName;
 
 	UPROPERTY(EditAnywhere, Category = ProjectorGroup)
-	TObjectPtr<UTexture2D> OptionImage = nullptr;
+	TObjectPtr<UTexture2D> OptionTexture = nullptr;
 };
 
 
@@ -46,11 +46,11 @@ public:
 	GENERATED_BODY()
 
 	/** Return array with the sticker name and UTexture2D for projection */
-	TArray<FGroupProjectorParameterImage> GetOptionImagesFromTable() const;
+	TArray<FGroupProjectorParameterImage> GetOptionTexturesFromTable() const;
 
 	/** Returns the final option images without repeated elements in the option names,
-	* the data table has preference over elements in the OptionImages array */
-	TArray<FGroupProjectorParameterImage> GetFinalOptionImagesNoRepeat() const;
+	* the data table has preference over elements in the OptionTextures array */
+	TArray<FGroupProjectorParameterImage> GetFinalOptionTexturesNoRepeat() const;
 
 	UPROPERTY(EditAnywhere, Category = ProjectorGroup, Meta = (ToolTip = "Only used when connected to a Group node. Specifies which material channel in the Group node's child material nodes will be connected to the projection."))
 	FString MaterialChannelNameToConnect;
@@ -71,7 +71,7 @@ public:
 	bool bShareProjectionTexturesBetweenLODs = false;
 
 	UPROPERTY(EditAnywhere, Category = ProjectorGroup)
-	TArray<FGroupProjectorParameterImage> OptionImages;
+	TArray<FGroupProjectorParameterImage> OptionTextures;
 
 	/** Poses will only affect component 0 of the CO */ // TODO UE-206803
 	UPROPERTY(EditAnywhere, Category = ProjectorGroup)
@@ -85,7 +85,7 @@ public:
 	* over elements from Option Images in case of duplicity. Use the "Data Table Texture Column Name" property to specify
 	* the name of the column where textures are read in the table. */
 	UPROPERTY(EditAnywhere, Category = ProjectorGroup)
-	TObjectPtr<UDataTable> OptionImagesDataTable = nullptr;
+	TObjectPtr<UDataTable> OptionTexturesDataTable = nullptr;
 
 	UPROPERTY(EditAnywhere, Category = ProjectorGroup)
 	FString AlternateProjectionResolutionStateName;
