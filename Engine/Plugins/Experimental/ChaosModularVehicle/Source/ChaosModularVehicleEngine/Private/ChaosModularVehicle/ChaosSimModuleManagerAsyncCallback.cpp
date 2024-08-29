@@ -319,28 +319,30 @@ bool FNetworkModularVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap*
 		{
 			if (NumNetModules > 0)
 			{
-				FName ModuleType = NAME_None;
+				uint32 ModuleTypeHash = 0;
 				int32 SimArrayIndex = 0;
-				Ar << ModuleType;
+				Ar << ModuleTypeHash;
 				Ar << SimArrayIndex;
 
 				if (I >= ModuleData.Num())
 				{
-					if (TSharedPtr<Chaos::FModuleNetData> Data = Chaos::FModuleFactoryRegister::Get().GenerateNetData(ModuleType, SimArrayIndex))
+					if (TSharedPtr<Chaos::FModuleNetData> Data = Chaos::FModuleFactoryRegister::Get().GenerateNetData(ModuleTypeHash, SimArrayIndex))
 					{
 						ModuleData.Emplace(Data);
 					}
 				}
 				if(I <= ModuleData.Num() && ModuleData[I].IsValid())
 				{
+					check(ModuleTypeHash == GetTypeHash(ModuleData[I]->GetSimType()));
 					ModuleData[I]->Serialize(Ar);
 				}
 			}
 		}
 		else
 		{
-			FName ModuleType = ModuleData[I]->GetSimType();
-			Ar << ModuleType;
+			int ModuleTypeHash = GetTypeHash(ModuleData[I]->GetSimType());
+			
+			Ar << ModuleTypeHash;
 			Ar << ModuleData[I]->SimArrayIndex;
 			ModuleData[I]->Serialize(Ar);
 		}
