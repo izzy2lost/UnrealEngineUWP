@@ -3239,12 +3239,20 @@ void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation(
 	const TMap<UObject*, UObject*>* OldToNewInstanceMap/* = nullptr*/, 
 	TArray< TTuple<UObject*, UObject*>>* OrderedListOfObjectToCopy /*= nullptr*/)
 {
+	// When handling only referenced owned subobjects, we absolutely need to have done the postload so that we are pointing 
+	// to all the correct loaded subobjects, otherwise we are skip important objects. Ex: Added subobjects in containers during the load.
+	// Scoped only for OS object for now as it is the only case so far that has problem with this filtering.
 	TSet<UObject*> OldInstancedSubObjects;
-	FReplaceReferenceHelper::GetOwnedSubobjectsRecursive(OldObject, OldInstancedSubObjects);
+	TSet<UObject*>* OldInstancedSubObjectsPtr = nullptr;
+	if (!FOverridableManager::Get().IsEnabled(*OldObject) || !OldObject->HasAnyFlags(RF_NeedPostLoad))
+	{
+		OldInstancedSubObjectsPtr = &OldInstancedSubObjects;
+		FReplaceReferenceHelper::GetOwnedSubobjectsRecursive(OldObject, OldInstancedSubObjects);
+	}
 
 	// Add the mapping from the old to the new object exists...
 	CreatedInstanceMap.Add(OldObject, NewUObject);
-	PreCreateSubObjectsForReinstantiation_Inner(OldInstancedSubObjects, OldToNewClassMap, OldObject, NewUObject, CreatedInstanceMap, OldToNewInstanceMap, OrderedListOfObjectToCopy);
+	PreCreateSubObjectsForReinstantiation_Inner(OldInstancedSubObjectsPtr, OldToNewClassMap, OldObject, NewUObject, CreatedInstanceMap, OldToNewInstanceMap, OrderedListOfObjectToCopy);
 	if (OrderedListOfObjectToCopy)
 	{
 		// Post add for deep first order
@@ -3253,7 +3261,7 @@ void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation(
 }
 
 void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation_Inner(
-	const TSet<UObject*>& OldInstancedSubObjects, 
+	const TSet<UObject*>* OldInstancedSubObjects, 
 	const TMap<UClass*, UClass*>& OldToNewClassMap, 
 	UObject* OldObject, UObject* NewUObject, 
 	TMap<UObject*, UObject*>& CreatedInstanceMap, 
@@ -3275,7 +3283,7 @@ void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation_Inner(
 		UObject* OldSubObject = ContainedOldSubObjects[i];
 
 		// Filter out SubObjects that are not referenced as instanced
-		if(!OldInstancedSubObjects.Contains(OldSubObject))
+		if(OldInstancedSubObjects && !OldInstancedSubObjects->Contains(OldSubObject))
 		{
 			continue;
 		}
