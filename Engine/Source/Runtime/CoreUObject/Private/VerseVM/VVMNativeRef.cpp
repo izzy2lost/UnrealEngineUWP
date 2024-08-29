@@ -4,6 +4,7 @@
 #include "VerseVM/VVMNativeRef.h"
 #include "UObject/EnumProperty.h"
 #include "UObject/PropertyOptional.h"
+#include "UObject/VerseStringProperty.h"
 #include "UObject/VerseValueProperty.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/Inline/VVMVarInline.h"
@@ -88,6 +89,11 @@ VValue VNativeRef::Get(FAllocationContext Context, void* Container, FProperty* P
 		return VArray::New(Context, NativeValue.Num(), [Context, ArrayProperty, &NativeValue](uint32 Index) {
 			return VNativeRef::Get(Context, NativeValue.GetElementPtr(Index), ArrayProperty->Inner);
 		});
+	}
+	else if (FVerseStringProperty* StringProperty = CastField<FVerseStringProperty>(Property))
+	{
+		FNativeString* NativeValue = StringProperty->ContainerPtrToValuePtr<FNativeString>(Container);
+		return FNativeConverter::ToVValue(Context, *NativeValue);
 	}
 	else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
 	{
@@ -270,6 +276,10 @@ FOpResult VNativeRef::Set(FAllocationContext Context, BaseType Base, void* Conta
 			FScriptArrayHelper_InContainer ValuePtr(ArrayProperty, Container);
 			ValuePtr.MoveAssign(&NativeValue);
 		});
+	}
+	else if (FVerseStringProperty* StringProperty = CastField<FVerseStringProperty>(Property))
+	{
+		return SetImpl<bTransactional, BaseType, FNativeString>(Context, Base, Container, StringProperty, Value);
 	}
 	else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
 	{

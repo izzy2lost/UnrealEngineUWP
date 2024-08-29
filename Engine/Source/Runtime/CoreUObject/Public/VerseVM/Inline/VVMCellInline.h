@@ -10,7 +10,6 @@
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMEmergentType.h"
 #include "VerseVM/VVMHeap.h"
-#include "VerseVM/VVMHeapPageHeader.h"
 #include "VerseVM/VVMWeakKeyMapGuard.h"
 
 namespace Verse

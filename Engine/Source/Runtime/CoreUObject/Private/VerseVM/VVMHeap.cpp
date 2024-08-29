@@ -25,7 +25,6 @@
 #include "VerseVM/VVMSubspace.h"
 #include "pas_scavenger_ue.h"
 #include "verse_heap_mark_bits_page_commit_controller_ue.h"
-#include "verse_heap_object_set_ue.h"
 #include "verse_heap_ue.h"
 
 namespace Verse
