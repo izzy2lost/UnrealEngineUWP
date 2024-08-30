@@ -82,6 +82,15 @@ class ArtifactsHandler {
          return;
       }
 
+      if (this.artifactId && !artifacts.find(a => a.id === this.artifactId)) {
+         try {
+            const artifact = await backend.getArtifactData(this.artifactId);
+            artifacts.push(artifact);
+         } catch (err) {
+            console.log(err);
+         }         
+      }
+
       this.artifacts = artifacts;
 
       if (!this.context) {
@@ -99,7 +108,6 @@ class ArtifactsHandler {
       if (!a) {
          a = artifacts.find(a => a.type === this.context)!;
       }
-
 
       if (!a) {
          console.error("Unable to find artifact for context", this.context, artifacts);
