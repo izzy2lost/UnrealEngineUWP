@@ -461,7 +461,7 @@ namespace uba
 	}
 
 
-#if PLATFORM_MAC
+#if 0//PLATFORM_MAC
 	Set<TString> g_visited;
 	void LogImports(const tchar* import, bool isKnown)
 	{
