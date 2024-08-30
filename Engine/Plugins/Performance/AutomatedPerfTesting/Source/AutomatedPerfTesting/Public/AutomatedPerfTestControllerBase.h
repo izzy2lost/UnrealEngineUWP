@@ -3,14 +3,23 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AutomatedPerfTestProjectSettings.h"
 #include "GauntletTestController.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
 
 #include "AutomatedPerfTestControllerBase.generated.h"
 
-class AGameModeBase;
+UENUM()
+enum class EAutomatedPerfTestCSVOutputMode : uint8
+{
+	Single UMETA(DisplayName = "Single CSV", ToolTip = "Output a single CSV with all of the results for the entire session, from SetupTest to ExitTest."),
+	Separate UMETA(DisplayName = "Separate CSVs", ToolTip = "Output CSVs from RunTest to TeardownTest. May result into multiple output CSVs that require special processing."),
+	Granular UMETA(DisplayName = "Granular CSVs", ToolTip = "Output granular CSVs during the test run, resulting in multiple CSVs between RunTest and TeardownTest.")
+};
 
+
+class AGameModeBase;
 
 namespace AutomatedPerfTest
 {
@@ -77,6 +86,7 @@ public:
 	bool TryStopInsightsTrace();
 
 	bool TryStartCSVProfiler();
+	bool TryStartCSVProfiler(FString CSVFileName);
 	bool TryStopCSVProfiler();
 	
 	bool TryStartFPSChart();
@@ -92,6 +102,12 @@ public:
 	virtual void Exit();
 
 	AGameModeBase* GetGameMode() const;
+
+	void TakeScreenshot(FString ScreenshotName);
+
+	// you'll need to set this via your subclass if you want to customize the behavior otherwise it will default to a single CSV per session
+	void SetCSVOutputMode(EAutomatedPerfTestCSVOutputMode NewOutputMode);
+	EAutomatedPerfTestCSVOutputMode GetCSVOutputMode() const;
 	
 protected:
 	// ~Begin UGauntletTestController Interface
@@ -127,4 +143,6 @@ private:
 	AGameModeBase* GameMode;
 
 	FDelegateHandle CsvProfilerDelegateHandle;
+
+	EAutomatedPerfTestCSVOutputMode CSVOutputMode;
 };

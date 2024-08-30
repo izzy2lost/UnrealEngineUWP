@@ -17,6 +17,7 @@
 
 UAutomatedSequencePerfTestProjectSettings::UAutomatedSequencePerfTestProjectSettings(const FObjectInitializer& Initializer)
 	: Super(Initializer)
+	, CSVOutputMode(EAutomatedPerfTestCSVOutputMode::Separate)
 {
 }
 
@@ -49,6 +50,9 @@ void UAutomatedSequencePerfTest::SetupTest()
 			// make sure the world exists, then create a sequence player
 			if(UWorld* const World = GetWorld())
 			{
+				// reset the camera cut number
+				NumCameraCuts = -1;
+				
 				// load the sequence specified by the user
 				UE_LOG(LogAutomatedPerfTest, Log, TEXT("Loading sequence %s"), *CurrentMapSequenceCombo->Sequence.ToString());
 				ULevelSequence* TargetSequence = LoadObject<ULevelSequence>(NULL, *CurrentMapSequenceCombo->Sequence.ToString(), NULL, LOAD_None, NULL);
@@ -136,8 +140,8 @@ void UAutomatedSequencePerfTest::RunTest()
 		UE_LOG(LogAutomatedPerfTest, Log, TEXT("RunTest::Valid Sequence Player, proceeding"));
 
 		// trigger a camera cut manually in order to start the region for the first camera cut
-		OnCameraCut(SequencePlayer->GetActiveCameraComponent());
         SequencePlayer->Play();
+		OnCameraCut(SequencePlayer->GetActiveCameraComponent());
 		
 		// When the sequence has finished, we'll tear down the test in this map via the OnSequenceFinished dispatch
 		// because TeardownTest's signature doesn't match OnFinished
@@ -196,6 +200,10 @@ void UAutomatedSequencePerfTest::OnCameraCut(UCameraComponent* CameraComponent)
 		if(RequestsCSVProfiler())
 		{
 			CSV_EVENT(AutomatedPerfTest, TEXT("END_%s"), *GetCameraCutID())
+			if(GetCSVOutputMode() == EAutomatedPerfTestCSVOutputMode::Granular)
+			{
+				TryStopCSVProfiler();
+			}
 		}
 #endif
 	}
@@ -203,6 +211,8 @@ void UAutomatedSequencePerfTest::OnCameraCut(UCameraComponent* CameraComponent)
 	// then null check the new CameraComponent so that we can use OnCameraCut to mark the end of the final camera cut region
 	if(CameraComponent)
 	{
+		NumCameraCuts += 1;
+		
 		// Then bring in the new camera component for this cut and mark the start of it
 		CurrentCamera = CameraComponent;
 		if(RequestsInsightsTrace())
@@ -212,7 +222,12 @@ void UAutomatedSequencePerfTest::OnCameraCut(UCameraComponent* CameraComponent)
 #if CSV_PROFILER
 		if(RequestsCSVProfiler())
 		{
+			if(GetCSVOutputMode() == EAutomatedPerfTestCSVOutputMode::Granular)
+			{
+				TryStartCSVProfiler(GetCameraCutFullName());
+			}
 			CSV_EVENT(AutomatedPerfTest, TEXT("START_%s"), *GetCameraCutID())
+			
 		}
 #endif
 	}
@@ -220,16 +235,37 @@ void UAutomatedSequencePerfTest::OnCameraCut(UCameraComponent* CameraComponent)
 
 FString UAutomatedSequencePerfTest::GetTestID()
 {
-	return CurrentMapSequenceCombo.IsSet() ? Super::GetTestID() + "_" + CurrentMapSequenceCombo->ComboName.ToString() : Super::GetTestID();
+	return CurrentMapSequenceCombo.IsSet() ? Super::GetTestID() + "_Sequence_" + CurrentMapSequenceCombo->ComboName.ToString() : Super::GetTestID();
 }
 
 FString UAutomatedSequencePerfTest::GetCameraCutID()
 {
 	if(CurrentCamera != nullptr)
 	{
-		const AActor* Owner = CurrentCamera->GetOwner();
-		FString CameraCutName = Owner ? Owner->GetActorNameOrLabel() : CurrentCamera->GetReadableName();
-		return GetTestID() + "_" + CameraCutName; 
+		// getting the label of a spawnable camera from Sequencer in a packaged build isn't possible
+		// via this method. TODO: find a more reliable way to return camera cut names that are set in Sequencerj
+		//const AActor* Owner = CurrentCamera->GetOwner();
+		//FString CutName = Owner ? Owner->GetActorNameOrLabel() : CurrentCamera->GetName();
+		//return CutName;
+		FString NumCuts = FString::FromInt(NumCameraCuts);
+
+		// Pad it out to at least four characters for now
+		while(NumCuts.Len() < 4)
+		{
+			NumCuts = "0" + NumCuts;
+		}
+		
+		return FString::Format(TEXT("CameraCut{0}"), {NumCuts});
+	}
+	return "";
+}
+
+FString UAutomatedSequencePerfTest::GetCameraCutFullName()
+{
+	// the full name for the camera cut should include the TestID so that the data can be 
+	if(CurrentCamera != nullptr)
+	{
+		return GetTestID() + "_" + GetCameraCutID(); 
 	}
 	return GetTestID();
 }
@@ -241,6 +277,8 @@ void UAutomatedSequencePerfTest::OnInit()
 	
 	Settings = GetDefault<UAutomatedSequencePerfTestProjectSettings>();
 
+	SetCSVOutputMode(Settings->CSVOutputMode);
+	
 	// if an explicit map/sequence name was set from commandline, use this to override the test
 	if (FParse::Value(FCommandLine::Get(), TEXT("AutomatedPerfTest.SequencePerfTest.MapSequenceName="), SequenceTestName))
 	{

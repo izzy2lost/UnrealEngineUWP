@@ -554,11 +554,6 @@ namespace AutomatedPerfTest
 					ClientRole.CommandLineParams.AddOrAppendParamValue("AutomatedPerfTest.TraceChannels", Config.TraceChannels);
 				}
 			}
-			
-			if (string.IsNullOrEmpty(Config.DataSourceName))
-			{
-				Config.DataSourceName = string.Format("Automation.{0}.Performance", Context.BuildInfo.ProjectName);
-			}
 
 			if (Config.DoFPSChart)
 			{
@@ -638,7 +633,7 @@ namespace AutomatedPerfTest
 				// just try the copy over, and log a failure, but don't bail out of the test.
 				try
 				{
-					InternalUtils.SafeCreateDirectory(PerfCachePath, true);
+					InternalUtils.SafeCreateDirectory(Path.GetDirectoryName(PerfCachePath), true);
 					File.Copy(SortedTraces[0], PerfCachePath);
 				}
 				catch (Exception e)
@@ -677,6 +672,8 @@ namespace AutomatedPerfTest
 		public override TConfigClass GetConfiguration()
 		{
 			TConfigClass Config = base.GetConfiguration();
+
+			Config.DataSourceName = Config.GetDataSourceName(Context.BuildInfo.ProjectName, "Sequence");
 			
 			// extend the role(s) that we initialized in the base class
 			if (Config.GetRequiredRoles(UnrealTargetRole.Client).Any())
@@ -692,6 +689,74 @@ namespace AutomatedPerfTest
 						ClientRole.CommandLineParams.AddUnique($"AutomatedPerfTest.SequencePerfTest.MapSequenceName",
 							Config.MapSequenceComboName);
 					}
+				}
+			}
+
+			return Config;
+		}
+	}
+
+	/// <summary>
+	/// Implementation of a Gauntlet TestNode for AutomatedPerfTest plugin
+	/// </summary>
+	/// <typeparam name="TConfigClass"></typeparam>
+	public abstract class AutomatedStaticCameraPerfTestNode<TConfigClass> : AutomatedPerfTestNode<TConfigClass>
+		where TConfigClass : AutomatedStaticCameraPerfTestConfig, new()
+	{
+		public AutomatedStaticCameraPerfTestNode(UnrealTestContext InContext) : base(InContext)
+		{
+		}
+
+		public override TConfigClass GetConfiguration()
+		{
+			TConfigClass Config = base.GetConfiguration();
+			
+			Config.DataSourceName = Config.GetDataSourceName(Context.BuildInfo.ProjectName, "StaticCamera");
+			
+			// extend the role(s) that we initialized in the base class
+			if (Config.GetRequiredRoles(UnrealTargetRole.Client).Any())
+			{
+				foreach(UnrealTestRole ClientRole in Config.GetRequiredRoles(UnrealTargetRole.Client))
+				{
+					ClientRole.Controllers.Add("AutomatedPlacedStaticCameraPerfTest");
+					
+					// if a specific MapName was defined in the commandline to UAT, then add that to the commandline for the role
+					if (!string.IsNullOrEmpty(Config.MapName))
+					{
+						// use add Unique, since there should only ever be one of these specified
+						ClientRole.CommandLineParams.AddUnique($"AutomatedPerfTest.StaticCameraPerfTest.MapName",
+							Config.MapName);
+					}
+				}
+			}
+
+			return Config;
+		}
+	}
+	
+	/// <summary>
+	/// Implementation of a Gauntlet TestNode for AutomatedPerfTest plugin
+	/// </summary>
+	/// <typeparam name="TConfigClass"></typeparam>
+	public abstract class AutomatedMaterialPerfTestNode<TConfigClass> : AutomatedPerfTestNode<TConfigClass>
+		where TConfigClass : AutomatedMaterialPerfTestConfig, new()
+	{
+		public AutomatedMaterialPerfTestNode(UnrealTestContext InContext) : base(InContext)
+		{
+		}
+
+		public override TConfigClass GetConfiguration()
+		{
+			TConfigClass Config = base.GetConfiguration();
+			
+			Config.DataSourceName = Config.GetDataSourceName(Context.BuildInfo.ProjectName, "Material");
+			
+			// extend the role(s) that we initialized in the base class
+			if (Config.GetRequiredRoles(UnrealTargetRole.Client).Any())
+			{
+				foreach(UnrealTestRole ClientRole in Config.GetRequiredRoles(UnrealTargetRole.Client))
+				{
+					ClientRole.Controllers.Add("AutomatedMaterialPerfTest");
 				}
 			}
 

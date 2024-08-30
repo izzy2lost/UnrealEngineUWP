@@ -2,8 +2,6 @@
 
 #include "AutomatedPerfTestControllerBase.h"
 
-#include <valarray>
-
 #include "AutomatedPerfTesting.h"
 #include "DeviceProfiles/DeviceProfileManager.h"
 #include "GameFramework/GameModeBase.h"
@@ -13,13 +11,14 @@
 #include "Misc/CommandLine.h"
 #include "ProfilingDebugging/TraceAuxiliary.h"
 #include "TimerManager.h"
-#include "Commandlets/Commandlet.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "VideoRecordingSystem.h"
 #include "PlatformFeatures.h"
 #include "Engine/Engine.h"
 #include "Misc/Paths.h"
+#include "ProfilingDebugging/TraceScreenshot.h"
+#include "UnrealClient.h"
 
 
 DEFINE_LOG_CATEGORY(LogAutomatedPerfTest)
@@ -95,8 +94,9 @@ UAutomatedPerfTestControllerBase::UAutomatedPerfTestControllerBase(const FObject
 	, bRequestsInsightsTrace(false)
 	, bRequestsCSVProfiler(false)
 	, bRequestsVideoCapture(false)
+    , CSVOutputMode(EAutomatedPerfTestCSVOutputMode::Single)
 {
-	// cache this off once, so that it's consistent across the board
+	// cache this off once, so that it's consistent throughout a session
 	TestDatetime = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S")); 
 }
 
@@ -173,14 +173,22 @@ bool UAutomatedPerfTestControllerBase::TryStopInsightsTrace()
 
 bool UAutomatedPerfTestControllerBase::TryStartCSVProfiler()
 {
+	return TryStartCSVProfiler(GetTestID());
+}
+
+bool UAutomatedPerfTestControllerBase::TryStartCSVProfiler(FString CSVFileName)
+{
 #if CSV_PROFILER
 	if(FCsvProfiler* const CsvProfiler = FCsvProfiler::Get())
 	{
-		const FString CSVFilename = GetTestID() + ".csv";
+		if(!CSVFileName.EndsWith(".csv"))
+		{
+			CSVFileName += TEXT(".csv");
+		}
 
-		UE_LOG(LogAutomatedPerfTest, Log, TEXT("Attempting to start CSV Profile to file %s"), *CSVFilename);
+		UE_LOG(LogAutomatedPerfTest, Log, TEXT("Attempting to start CSV Profile to file %s"), *CSVFileName);
 		
-		CsvProfiler->BeginCapture(-1, FString(), CSVFilename);
+		CsvProfiler->BeginCapture(-1, FString(), CSVFileName);
 		CsvProfiler->SetDeviceProfileName(GetDeviceProfile());
 		
 		return CsvProfiler->IsCapturing();
@@ -300,7 +308,7 @@ void UAutomatedPerfTestControllerBase::SetupTest()
 		TryStartInsightsTrace();
 	}
 
-	if(RequestsCSVProfiler())
+	if(RequestsCSVProfiler() && CSVOutputMode ==  EAutomatedPerfTestCSVOutputMode::Single)
 	{
 		TryStartCSVProfiler();
 	}
@@ -323,6 +331,8 @@ void UAutomatedPerfTestControllerBase::SetupTest()
 	}
 
 	// Subclasses should implement their own transitions from SetupTest to RunTest depending on their needs
+
+	UE_LOG(LogAutomatedPerfTest, Log, TEXT("CSV Output Mode: %s"), *UEnum::GetValueAsString(CSVOutputMode))
 }
 
 void UAutomatedPerfTestControllerBase::RunTest()
@@ -335,6 +345,10 @@ void UAutomatedPerfTestControllerBase::RunTest()
 
 	if(RequestsCSVProfiler())
 	{
+		if(CSVOutputMode == EAutomatedPerfTestCSVOutputMode::Separate)
+		{
+			TryStartCSVProfiler();
+		}
 		CSV_EVENT(AutomatedPerfTest, TEXT("START"), *GetOverallRegionName())
 	}
 	
@@ -356,7 +370,10 @@ void UAutomatedPerfTestControllerBase::TeardownTest(bool bExitAfterTeardown)
 	if(RequestsCSVProfiler())
 	{
 		CSV_EVENT(AutomatedPerfTest, TEXT("END"), *GetOverallRegionName())
-		TryStopCSVProfiler();
+		if(CSVOutputMode == EAutomatedPerfTestCSVOutputMode::Separate)
+		{
+			TryStopCSVProfiler();
+		}
 	}
 
 	if(RequestsFPSChart())
@@ -397,6 +414,15 @@ void UAutomatedPerfTestControllerBase::Exit()
 		TryStopInsightsTrace();
 	}
 
+	if(RequestsCSVProfiler())
+	{
+		CSV_EVENT(AutomatedPerfTest, TEXT("END"), *GetOverallRegionName())
+		if(CSVOutputMode == EAutomatedPerfTestCSVOutputMode::Single)
+		{
+			TryStopCSVProfiler();
+		}
+	}
+
 	if(GameMode && GameMode->GetClass()->ImplementsInterface(UAutomatedPerfTestInterface::StaticClass()))
 	{
 		IAutomatedPerfTestInterface::Execute_Exit(GameMode);
@@ -427,6 +453,23 @@ void UAutomatedPerfTestControllerBase::Exit()
 AGameModeBase* UAutomatedPerfTestControllerBase::GetGameMode() const
 {
 	return GameMode;
+}
+
+void UAutomatedPerfTestControllerBase::TakeScreenshot(FString ScreenshotName)
+{
+	if(RequestsInsightsTrace())
+	{
+		FTraceScreenshot::RequestScreenshot(ScreenshotName, false, LogAutomatedPerfTest);
+	}
+	else
+	{
+		FScreenshotRequest::RequestScreenshot(ScreenshotName, false, false);
+	}
+}
+
+void UAutomatedPerfTestControllerBase::SetCSVOutputMode(EAutomatedPerfTestCSVOutputMode NewOutputMode)
+{
+	CSVOutputMode = NewOutputMode;	
 }
 
 void UAutomatedPerfTestControllerBase::OnInit()
@@ -546,4 +589,9 @@ void UAutomatedPerfTestControllerBase::UnbindAllDelegates()
 			VideoRecordingSystem->GetOnVideoRecordingFinalizedDelegate().RemoveAll(this);
 		}
 	}
+}
+
+EAutomatedPerfTestCSVOutputMode UAutomatedPerfTestControllerBase::GetCSVOutputMode() const
+{
+	return CSVOutputMode;
 }

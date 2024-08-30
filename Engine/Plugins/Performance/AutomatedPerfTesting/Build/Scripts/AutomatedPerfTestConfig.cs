@@ -6,16 +6,26 @@ using System.IO;
 using System.Linq;
 using EpicGame;
 using Gauntlet;
+using Microsoft.Extensions.Logging;
+using Log = EpicGames.Core.Log;
 
 namespace AutomatedPerfTest
 {
 	public class AutomatedPerfTestConfigBase : UnrealTestConfiguration
 	{
 		/// <summary>
-		/// Name of the project (TODO: parse from the build metadata? What about github builds?)
+		/// Used to override the test controller portion of the data source name
+		/// Will be appended to Automation.ProjectName to construct the full data source name for the test
+		/// can be overridden with AutomatedPerfTest.DataSourceNameOverride 
 		/// </summary>
-		[AutoParamWithNames("AutomatedPerfTest.DataSourceName")]
-		public string DataSourceName = "";
+		[AutoParamWithNames("AutomatedPerfTest.DataSourceTypeOverride")]
+		public string DataSourceTypeOverride = "";
+		
+		/// <summary>
+		/// Fully override the data source name
+		/// </summary>
+		[AutoParamWithNames("AutomatedPerfTest.DataSourceNameOverride")]
+		public string DataSourceNameOverride = "";
 
 		/// <summary>
 		/// Name of the test, useful for identifying it later
@@ -77,6 +87,35 @@ namespace AutomatedPerfTest
 		/// </summary>
 		[AutoParamWithNames(true, "AutomatedPerfTest.UseShippingInsights")]
 		public bool UseShippingInsights;
+		
+		public string DataSourceName;
+
+		/// <summary>
+		/// Call this in the test node's GetConfiguration function to set the DataSourceName used for later data processing
+		/// </summary>
+		/// <param name="ProjectName">Name of the project</param>
+		/// <param name="DataSourceType">Which test controller is being used to generate the data</param>
+		/// <returns> the properly formatted data source name </returns>
+		public string GetDataSourceName(string ProjectName, string DataSourceType="")
+		{
+			// if the name has been fully overridden by the calling process, just use that
+			if (!string.IsNullOrEmpty(DataSourceNameOverride))
+			{
+				return DataSourceNameOverride;
+			}
+			
+			// otherwise, if the data source type has been override, use either that or the one passed into this function
+
+			if (string.IsNullOrEmpty(DataSourceType) && string.IsNullOrEmpty(DataSourceTypeOverride))
+			{
+				Log.Logger.LogError("No DataSourceType or DataSourceTypeOverride has been provided.");
+				return null;
+			}
+			
+			string dataSourceType = string.IsNullOrEmpty(DataSourceTypeOverride) ? DataSourceType : DataSourceTypeOverride;
+			
+			return $"Automation.{ProjectName}.{dataSourceType}";
+		}
 	}
 
 	public class AutomatedSequencePerfTestConfig : AutomatedPerfTestConfigBase
@@ -86,5 +125,18 @@ namespace AutomatedPerfTest
 		/// </summary>
 		[AutoParamWithNames("", "AutomatedPerfTest.SequencePerfTest.MapSequenceName")]
 		public string MapSequenceComboName;
+	}
+
+	public class AutomatedStaticCameraPerfTestConfig : AutomatedPerfTestConfigBase
+	{
+		/// <summary>
+		/// Which map to run the test on
+		/// </summary>
+		[AutoParamWithNames("", "AutomatedPerfTest.StaticCameraPerfTest.MapName")]
+		public string MapName;
+	}
+	
+	public class AutomatedMaterialPerfTestConfig : AutomatedPerfTestConfigBase
+	{
 	}
 }

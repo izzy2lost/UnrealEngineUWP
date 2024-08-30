@@ -8,7 +8,7 @@
 #include "AutomatedPerfTestProjectSettings.generated.h"
 
 
-UCLASS(BlueprintType, Config=Engine, DefaultConfig, DisplayName="Automated Performance Testing")
+UCLASS(Config=Engine)
 class AUTOMATEDPERFTESTING_API UAutomatedPerfTestProjectSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()

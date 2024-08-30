@@ -70,6 +70,12 @@ public:
 	/* How long to delay between setting up the sequence for the map before the sequence actually starts */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="Sequence Perf Test")
 	float SequenceStartDelay=5.0;
+
+	/*
+	 * For Sequence Perf Tests, Separate will output one CSV per map tested, and Granular will output one CSV per camera-cut. 
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="Sequence Perf Test")
+	EAutomatedPerfTestCSVOutputMode CSVOutputMode;
 };
 
 /**
@@ -103,6 +109,7 @@ public:
 	void OnCameraCut(UCameraComponent* CameraComponent);
 	
 	FString GetCameraCutID();
+	FString GetCameraCutFullName();
 	
 protected:
 	virtual void OnInit() override;
@@ -119,4 +126,5 @@ private:
 	ULevelSequencePlayer* SequencePlayer;
 
 	UCameraComponent* CurrentCamera;
+	int NumCameraCuts; // TODO this is temporary until a reliable method is found for getting the user-set name of a camera cut out of Sequencer in packaged builds
 };

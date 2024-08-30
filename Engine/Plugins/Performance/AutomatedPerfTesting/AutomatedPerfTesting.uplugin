@@ -1,9 +1,9 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "1.0",
+	"VersionName": "0.1",
 	"FriendlyName": "AutomatedPerfTesting",
-	"Description": "",
+	"Description": "This plugin provides Gauntlet Test Controllers to facilitate automatic performance testing.",
 	"Category": "Testing",
 	"CreatedBy": "",
 	"CreatedByURL": "",
