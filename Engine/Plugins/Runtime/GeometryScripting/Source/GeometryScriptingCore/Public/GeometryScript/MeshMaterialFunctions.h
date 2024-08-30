@@ -235,30 +235,6 @@ public:
 		bool bRemoveDuplicateMaterials = false,
 		UGeometryScriptDebug* Debug = nullptr);
 
-	/**
-	 * Get a map from material slot names to materials from a given component
-	 */
-	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Materials", meta = (ScriptMethod))
-	static UPARAM(DisplayName = "Slot Name to Material Map") TMap<FName, UMaterialInterface*> GetMaterialSlotToMaterialMapFromComponent(const UPrimitiveComponent* PrimitiveComponent);
 
-	/**
-	 * Get a map from material slot names to materials from a given static mesh
-	 * @param bUseImportedSlotNames If available (i.e., if editor-only data is available), use the imported slot names instead of the current slot names as the map keys.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Materials", meta = (ScriptMethod))
-	static UPARAM(DisplayName = "Slot Name to Material Map") TMap<FName, UMaterialInterface*> GetMaterialSlotToMaterialMapFromStaticMesh(const UStaticMesh* StaticMesh, bool bUseImportedSlotNames = false);
-
-	/**
-	 * Get a map from material slot names to materials from a given skeletal mesh
-	 * @param bUseImportedSlotNames If available (i.e., if editor-only data is available), use the imported slot names instead of the current slot names as the map keys.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Materials", meta = (ScriptMethod))
-	static UPARAM(DisplayName = "Slot Name to Material Map") TMap<FName, UMaterialInterface*> GetMaterialSlotToMaterialMapFromSkeletalMesh(const USkeletalMesh* SkeletalMesh, bool bUseImportedSlotNames = false);
-
-	/**
-	 * Converts materials map to materials array. Null materials will be kept in the list, and the list will have the same number of elements as the map.
-	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Material Map To Material List", CompactNodeTitle = "->", BlueprintAutocast), Category = "GeometryScript|Materials")
-	static UPARAM(DisplayName = "Material List") TArray<UMaterialInterface*> Conv_MaterialsMapToMaterialsArray(const TMap<FName, UMaterialInterface*>& MaterialMap);
 
 };

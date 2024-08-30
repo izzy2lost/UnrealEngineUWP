@@ -481,10 +481,11 @@ bool FPCGMeshSamplerElement::PrepareDataInternal(FPCGContext* InContext) const
 			Context->DynamicMeshes.Add(FPCGContext::NewObject_AnyThread<UDynamicMesh>(Context));
 			FGeometryScriptCopyMeshFromAssetOptions Options{};
 
-			UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromStaticMesh(StaticMesh, Context->DynamicMeshes.Last(), Options, MeshReadLOD, Outcome, Debug);
+			UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromStaticMeshV2(StaticMesh, Context->DynamicMeshes.Last(), Options, MeshReadLOD, Outcome, false, Debug);
 			if (Outcome == EGeometryScriptOutcomePins::Success && Settings->bOutputMaterialInfo)
 			{
-				UGeometryScriptLibrary_StaticMeshFunctions::GetMaterialListFromStaticMesh(StaticMesh, Context->AssetMaterialList.Emplace_GetRef());
+				TArray<FName> MaterialSlotNames;
+				UGeometryScriptLibrary_StaticMeshFunctions::GetMaterialListFromStaticMesh(StaticMesh, Context->AssetMaterialList.Emplace_GetRef(), MaterialSlotNames);
 			}
 		}
 		else

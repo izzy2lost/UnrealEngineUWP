@@ -8,10 +8,6 @@
 #include "UDynamicMesh.h"
 #include "Polygroups/PolygroupSet.h"
 
-#include "Components/PrimitiveComponent.h"
-#include "Engine/StaticMesh.h"
-#include "Engine/SkeletalMesh.h"
-
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MeshMaterialFunctions)
 
 using namespace UE::Geometry;
@@ -807,74 +803,5 @@ UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::CompactMaterialIDs(
 	}
 	return TargetMesh;
 }
-
-TMap<FName, UMaterialInterface*> UGeometryScriptLibrary_MeshMaterialFunctions::GetMaterialSlotToMaterialMapFromComponent(const UPrimitiveComponent* PrimitiveComponent)
-{
-	TMap<FName, UMaterialInterface*> ToRet;
-	TArray<FName> SlotNames = PrimitiveComponent->GetMaterialSlotNames();
-	ToRet.Reserve(SlotNames.Num());
-	for (const FName& SlotName : SlotNames)
-	{
-		ToRet.Add(SlotName, PrimitiveComponent->GetMaterialByName(SlotName));
-	}
-	return ToRet;
-}
-
-
-TMap<FName, UMaterialInterface*> UGeometryScriptLibrary_MeshMaterialFunctions::GetMaterialSlotToMaterialMapFromStaticMesh(const UStaticMesh* StaticMesh, bool bUseImportedSlotNames)
-{
-	TMap<FName, UMaterialInterface*> ToRet;
-	const TArray<FStaticMaterial>& Materials = StaticMesh->GetStaticMaterials();
-	ToRet.Reserve(Materials.Num());
-	for (const FStaticMaterial& Mat : Materials)
-	{
-#if WITH_EDITORONLY_DATA
-		if (bUseImportedSlotNames)
-		{
-			ToRet.Add(Mat.ImportedMaterialSlotName, Mat.MaterialInterface);
-		}
-		else
-#endif
-		{
-			ToRet.Add(Mat.MaterialSlotName, Mat.MaterialInterface);
-		}
-	}
-	return ToRet;
-}
-
-TMap<FName, UMaterialInterface*> UGeometryScriptLibrary_MeshMaterialFunctions::GetMaterialSlotToMaterialMapFromSkeletalMesh(const USkeletalMesh* SkeletalMesh, bool bUseImportedSlotNames)
-{
-	TMap<FName, UMaterialInterface*> ToRet;
-	const TArray<FSkeletalMaterial>& Materials = SkeletalMesh->GetMaterials();
-	ToRet.Reserve(Materials.Num());
-	for (const FSkeletalMaterial& Mat : Materials)
-	{
-#if WITH_EDITORONLY_DATA
-		if (bUseImportedSlotNames)
-		{
-			ToRet.Add(Mat.ImportedMaterialSlotName, Mat.MaterialInterface);
-		}
-		else
-#endif
-		{
-			ToRet.Add(Mat.MaterialSlotName, Mat.MaterialInterface);
-		}
-	}
-	return ToRet;
-}
-
-
-TArray<UMaterialInterface*> UGeometryScriptLibrary_MeshMaterialFunctions::Conv_MaterialsMapToMaterialsArray(const TMap<FName, UMaterialInterface*>& MaterialsMap)
-{
-	TArray<UMaterialInterface*> ToRet;
-	ToRet.Reserve(MaterialsMap.Num());
-	for (const TPair<FName, UMaterialInterface*>& NameMat : MaterialsMap)
-	{
-		// Note we add the materials even if they are null, so we always have the same number of materials in the list as were in the map
-		ToRet.Add(NameMat.Value);
-	}
-	return ToRet;
-}
-
 
 #undef LOCTEXT_NAMESPACE

@@ -458,8 +458,9 @@ int UGeometryScriptLibrary_StaticMeshFunctions::GetNumStaticMeshLODsOfType(
 
 
 void UGeometryScriptLibrary_StaticMeshFunctions::GetMaterialListFromStaticMesh(
-	UStaticMesh* FromStaticMeshAsset,
+	const UStaticMesh* FromStaticMeshAsset,
 	TArray<UMaterialInterface*>& MaterialList,
+	TArray<FName>& MaterialSlotNames,
 	UGeometryScriptDebug* Debug)
 {
 	if (FromStaticMeshAsset == nullptr)
@@ -469,10 +470,67 @@ void UGeometryScriptLibrary_StaticMeshFunctions::GetMaterialListFromStaticMesh(
 	}
 
 	const TArray<FStaticMaterial>& AssetMaterials = FromStaticMeshAsset->GetStaticMaterials();
+	MaterialList.Reset(AssetMaterials.Num());
+	MaterialSlotNames.Reset(AssetMaterials.Num());
 	for (int32 k = 0; k < AssetMaterials.Num(); ++k)
 	{
 		MaterialList.Add(AssetMaterials[k].MaterialInterface);
+		MaterialSlotNames.Add(AssetMaterials[k].MaterialSlotName);
 	}
+}
+
+void UGeometryScriptLibrary_StaticMeshFunctions::GetMaterialListFromSkeletalMesh(
+	const USkeletalMesh* FromSkeletalMeshAsset,
+	TArray<UMaterialInterface*>& MaterialList,
+	TArray<FName>& MaterialSlotNames,
+	UGeometryScriptDebug* Debug)
+{
+	if (FromSkeletalMeshAsset == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetMaterialListFromSkeletalMesh_InvalidInput1", "GetMaterialListFromSkeletalMesh: FromSkeletalMeshAsset is Null"));
+		return;
+	}
+
+	const TArray<FSkeletalMaterial>& AssetMaterials = FromSkeletalMeshAsset->GetMaterials();
+	MaterialList.Reset(AssetMaterials.Num());
+	MaterialSlotNames.Reset(AssetMaterials.Num());
+	for (int32 k = 0; k < AssetMaterials.Num(); ++k)
+	{
+		MaterialList.Add(AssetMaterials[k].MaterialInterface);
+		MaterialSlotNames.Add(AssetMaterials[k].MaterialSlotName);
+	}
+}
+
+void UGeometryScriptLibrary_StaticMeshFunctions::ConvertMaterialMapToMaterialList(const TMap<FName, UMaterialInterface*>& MaterialMap,
+	TArray<UMaterialInterface*>& MaterialList,
+	TArray<FName>& MaterialSlotNames)
+{
+	MaterialList.Reset(MaterialMap.Num());
+	MaterialSlotNames.Reset(MaterialMap.Num());
+	for (const TPair<FName, UMaterialInterface*> NameMat : MaterialMap)
+	{
+		MaterialList.Add(NameMat.Value);
+		MaterialSlotNames.Add(NameMat.Key);
+	}
+}
+
+TMap<FName, UMaterialInterface*> UGeometryScriptLibrary_StaticMeshFunctions::ConvertMaterialListToMaterialMap(const TArray<UMaterialInterface*>& MaterialList, const TArray<FName>& MaterialSlotNames)
+{
+	TMap<FName, UMaterialInterface*> ToRet;
+	if (MaterialSlotNames.Num() != MaterialList.Num())
+	{
+		UE_LOG(LogGeometry, Warning, TEXT("ConvertMaterialListToMaterialMap: Number of Material Slot Names does not match number of Materials"));
+	}
+
+	ToRet.Reserve(MaterialList.Num());
+	for (int32 Idx = 0; Idx < MaterialList.Num(); ++Idx)
+	{
+		UMaterialInterface* Mat = MaterialList[Idx];
+		// If we have fewer slot names than materials, we will have warned user via above AppendWarning, but make up a slot name so that we still have all materials in the map
+		FName SlotName = MaterialSlotNames.IsValidIndex(Idx) ? MaterialSlotNames[Idx] : FName(FString::Printf(TEXT("%s_%d"), *((Mat) ? Mat->GetName() : TEXT("Material")), Idx));
+		ToRet.Add(SlotName, Mat);
+	}
+	return ToRet;
 }
 
 void UGeometryScriptLibrary_StaticMeshFunctions::GetSectionMaterialListFromStaticMesh(

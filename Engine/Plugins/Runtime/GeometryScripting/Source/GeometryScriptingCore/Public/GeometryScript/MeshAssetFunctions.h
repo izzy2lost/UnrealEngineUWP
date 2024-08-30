@@ -270,9 +270,38 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|StaticMesh")
 	static void 
-	GetMaterialListFromStaticMesh(UStaticMesh* FromStaticMeshAsset,
+	GetMaterialListFromStaticMesh(const UStaticMesh* FromStaticMeshAsset,
 		TArray<UMaterialInterface*>& MaterialList,
+		TArray<FName>& MaterialSlotNames,
 		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Get the asset materials from the skeletal mesh asset.
+	 * Note: For LOD-specific materials, use GetLODMaterialListFromSkeletalMesh instead.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|SkeletalMesh")
+	static void
+	GetMaterialListFromSkeletalMesh(const USkeletalMesh* FromSkeletalMeshAsset,
+		TArray<UMaterialInterface*>& MaterialList,
+		TArray<FName>& MaterialSlotNames,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Converts material map to a material list and a slot names list. Null materials will be kept in the list, and the list will have the same number of elements as the map.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Materials")
+	static void ConvertMaterialMapToMaterialList(const TMap<FName, UMaterialInterface*>& MaterialMap,
+		TArray<UMaterialInterface*>& MaterialList,
+		TArray<FName>& MaterialSlotNames);
+
+	/**
+	 * Converts material list and slot names list to material map, which is the format expected by CreateNewSkeletalMeshAssetFromMesh.
+	 * Material List and Material Slot Names should have the same length. However, if there are fewer slot names than materials, 
+	 * slot names will be auto-generated (as '[Name of material]_[Index]', or 'Material_[Index]' for null materials)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Materials")
+	static UPARAM(DisplayName = "Material Map") TMap<FName, UMaterialInterface*> ConvertMaterialListToMaterialMap(const TArray<UMaterialInterface*>& MaterialList,
+		const TArray<FName>& MaterialSlotNames);
 
 	/** 
 	* Extracts a Dynamic Mesh from a Skeletal Mesh Asset. 
