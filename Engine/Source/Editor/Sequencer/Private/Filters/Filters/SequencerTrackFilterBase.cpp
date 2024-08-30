@@ -39,11 +39,6 @@ void FSequencerTrackFilter::BindCommands()
 	}
 }
 
-void FSequencerTrackFilter::BroadcastChangedEvent() const
-{
-	ChangedEvent.Broadcast();
-}
-
 ISequencerTrackFilters& FSequencerTrackFilter::GetFilterInterface() const
 {
 	return FilterInterface;

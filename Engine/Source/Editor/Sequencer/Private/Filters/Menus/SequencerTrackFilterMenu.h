@@ -9,7 +9,6 @@
 class FFilterCategory;
 class FSequencerFilterBar;
 class FSequencerTrackFilter;
-class SWidget;
 class UMovieSceneNodeGroup;
 class UToolMenu;
 struct FToolMenuSection;
@@ -62,5 +61,5 @@ protected:
 	bool CanResetFilters() const;
 
 private:
-	TSharedPtr<FSequencerFilterBar> FilterBar;
+	TWeakPtr<FSequencerFilterBar> WeakFilterBar;
 };

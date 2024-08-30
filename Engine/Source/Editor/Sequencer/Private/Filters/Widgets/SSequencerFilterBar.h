@@ -75,10 +75,6 @@ public:
 
 	void CreateAddCustomTextFilterWindowFromSearch(const FText& InSearchText);
 
-	TSharedRef<FFilterCategory> GetClassTypeCategory() const;
-	TSharedRef<FFilterCategory> GetComponentTypeCategory() const;
-	TSharedRef<FFilterCategory> GetMiscCategory() const;
-
 	void OnOpenTextExpressionHelp();
 
 	void SaveCurrentFilterSetAsCustomTextFilter();
@@ -91,7 +87,7 @@ protected:
 
 	TSharedPtr<SSequencerFilter> FindFilterWidget(const TSharedRef<FSequencerTrackFilter>& InFilter) const;
 
-	TSharedRef<SSequencerFilter> CreateAndAddFilterWidget(const TSharedRef<FSequencerTrackFilter>& InFilter);
+	void CreateAndAddFilterWidget(const TSharedRef<FSequencerTrackFilter>& InFilter);
 	void AddFilterWidget(const TSharedRef<SSequencerFilter>& InFilterWidget);
 
 	void RemoveFilterWidget(const TSharedRef<FSequencerTrackFilter>& InFilter, const bool ExecuteOnFilterChanged = true);
@@ -110,7 +106,7 @@ protected:
 
 	void CreateFilterWidgetsFromConfig();
 
-	TSharedPtr<FSequencerFilterBar> FilterBar;
+	TWeakPtr<FSequencerFilterBar> WeakFilterBar;
 
 	TWeakPtr<SFilterSearchBox> WeakSearchBox;
 

@@ -3,11 +3,9 @@
 #pragma once
 
 #include "Templates/SharedPointer.h"
-#include "UObject/WeakObjectPtr.h"
 
 class FSequencerFilterBar;
 class SWidget;
-class USequencerFilterBarContext;
 class UToolMenu;
 
 class FSequencerFilterBarContextMenu
@@ -24,5 +22,5 @@ protected:
 	void OnActivateAllFilters(const bool bInActivate);
 	void OnResetFilters();
 
-	TWeakObjectPtr<USequencerFilterBarContext> CurrentContext;
+	TWeakPtr<FSequencerFilterBar> WeakFilterBar;
 };

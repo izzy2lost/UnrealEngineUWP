@@ -3,12 +3,10 @@
 #pragma once
 
 #include "Templates/SharedPointer.h"
-#include "UObject/WeakObjectPtr.h"
 
 class FSequencer;
 class SSequencer;
 class SWidget;
-class USequencerMenuContext;
 class UToolMenu;
 enum class EFilterBarLayout : uint8;
 
@@ -21,7 +19,7 @@ protected:
 	void PopulateMenu(UToolMenu* const InMenu);
 	void PopulateFiltersSection(UToolMenu& InMenu);
 	void PopulateSortAndOrganizeSection(UToolMenu& InMenu);
-	void PopulateFilterOptionssSection(UToolMenu& InMenu);
+	void PopulateFilterOptionsSection(UToolMenu& InMenu);
 	void PopulateLayoutSection(UToolMenu& InMenu);
 
 	bool IsFilterLayout(const EFilterBarLayout InLayout) const;
@@ -35,5 +33,5 @@ protected:
 
 	TSharedPtr<SSequencer> GetSequencerWidget() const;
 
-	TWeakObjectPtr<USequencerMenuContext> CurrentContext;
+	TWeakPtr<FSequencer> WeakSequencer;
 };

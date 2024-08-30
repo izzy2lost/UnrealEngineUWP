@@ -20,7 +20,7 @@ using namespace UE::Sequencer;
 
 void SSequencerFilterBar::Construct(const FArguments& InArgs, const TSharedRef<FSequencerFilterBar>& InFilterBar)
 {
-	FilterBar = InFilterBar;
+	WeakFilterBar = InFilterBar;
 
 	WeakSearchBox = InArgs._FilterSearchBox;
 	FilterBarLayout = InArgs._FilterBarLayout;
@@ -34,7 +34,6 @@ void SSequencerFilterBar::Construct(const FArguments& InArgs, const TSharedRef<F
 			{
 				return (FilterBarLayout == EFilterBarLayout::Horizontal) ? 0 : 1;
 			})
-
 		+ SWidgetSwitcher::Slot()
 		.Padding(FMargin(0.f, 2.f, 0.f, 0.f))
 		[
@@ -57,11 +56,17 @@ void SSequencerFilterBar::Construct(const FArguments& InArgs, const TSharedRef<F
 
 	CreateFilterWidgetsFromConfig();
 
-	FilterBar->GetOnFiltersChanged().AddSP(this, &SSequencerFilterBar::OnFiltersChanged);
+	InFilterBar->GetOnFiltersChanged().AddSP(this, &SSequencerFilterBar::OnFiltersChanged);
 }
 
 FReply SSequencerFilterBar::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return FReply::Unhandled();
+	}
+
 	if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
 	{
 		const FWidgetPath* EventPath = MouseEvent.GetEventPath();
@@ -80,11 +85,17 @@ FReply SSequencerFilterBar::OnMouseButtonUp(const FGeometry& MyGeometry, const F
 
 TSharedPtr<FSequencerFilterBar> SSequencerFilterBar::GetFilterBar() const
 {
-	return FilterBar;
+	return WeakFilterBar.Pin();
 }
 
 void SSequencerFilterBar::SetTextFilterString(const FString& InText)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	if (const TSharedPtr<SFilterSearchBox> SearchBox = WeakSearchBox.Pin())
 	{
 		if (!InText.Equals(SearchBox->GetText().ToString()))
@@ -98,7 +109,7 @@ void SSequencerFilterBar::SetTextFilterString(const FString& InText)
 
 FText SSequencerFilterBar::GetFilterErrorText() const
 {
-	return FilterBar->GetFilterErrorText();
+	return WeakFilterBar.IsValid() ? WeakFilterBar.Pin()->GetFilterErrorText() : FText::GetEmpty();
 }
 
 EFilterBarLayout SSequencerFilterBar::GetLayout() const
@@ -180,6 +191,7 @@ void SSequencerFilterBar::AddWidgetToLayout(const TSharedRef<SWidget>& InWidget)
 	else
 	{
 		VerticalContainerWidget->AddSlot()
+			.AutoSize()
 			.Padding(SlotPadding)
 			[
 				InWidget
@@ -211,14 +223,18 @@ TSharedPtr<SSequencerFilter> SSequencerFilterBar::FindFilterWidget(const TShared
 	return nullptr;
 }
 
-TSharedRef<SSequencerFilter> SSequencerFilterBar::CreateAndAddFilterWidget(const TSharedRef<FSequencerTrackFilter>& InFilter)
+void SSequencerFilterBar::CreateAndAddFilterWidget(const TSharedRef<FSequencerTrackFilter>& InFilter)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	const TSharedRef<SSequencerFilter> NewFilter = SNew(SSequencerFilter, FilterBar.ToSharedRef(), InFilter)
 		.FilterPillStyle(FilterPillStyle);
 
 	AddFilterWidget(NewFilter);
-
-	return NewFilter;
 }
 
 void SSequencerFilterBar::AddFilterWidget(const TSharedRef<SSequencerFilter>& InFilterWidget)
@@ -294,9 +310,13 @@ void SSequencerFilterBar::RemoveFilterWidgetAndUpdate(const TSharedRef<SSequence
 
 void SSequencerFilterBar::OnEnableAllGroupFilters(bool bEnableAll)
 {
-	FSequencer& Sequencer = FilterBar->GetSequencer();
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
 
-	UMovieSceneSequence* const FocusedMovieSequence = Sequencer.GetFocusedMovieSceneSequence();
+	UMovieSceneSequence* const FocusedMovieSequence = FilterBar->GetSequencer().GetFocusedMovieSceneSequence();
 	if (!IsValid(FocusedMovieSequence))
 	{
 		return;
@@ -324,9 +344,13 @@ void SSequencerFilterBar::OnNodeGroupFilterClicked(UMovieSceneNodeGroup* NodeGro
 
 UWorld* SSequencerFilterBar::GetWorld() const
 {
-	FSequencer& Sequencer = FilterBar->GetSequencer();
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return nullptr;
+	}
 
-	UObject* const PlaybackContext = Sequencer.GetPlaybackContext();
+	UObject* const PlaybackContext = FilterBar->GetSequencer().GetPlaybackContext();
 	if (!IsValid(PlaybackContext))
 	{
 		return nullptr;
@@ -368,29 +392,27 @@ void SSequencerFilterBar::OnFiltersChanged(const ESequencerFilterChange InChange
 
 void SSequencerFilterBar::CreateAddCustomTextFilterWindowFromSearch(const FText& InSearchText)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	FCustomTextFilterData CustomTextFilterData;
 	CustomTextFilterData.FilterLabel = LOCTEXT("NewFilterName", "New Filter Name");
 	CustomTextFilterData.FilterString = InSearchText;
+
 	SSequencerCustomTextFilterDialog::CreateWindow_AddCustomTextFilter(FilterBar.ToSharedRef(), MoveTemp(CustomTextFilterData));
-}
-
-TSharedRef<FFilterCategory> SSequencerFilterBar::GetClassTypeCategory() const
-{
-	return FilterBar->GetClassTypeCategory();
-}
-
-TSharedRef<FFilterCategory> SSequencerFilterBar::GetComponentTypeCategory() const
-{
-	return FilterBar->GetComponentTypeCategory();
-}
-
-TSharedRef<FFilterCategory> SSequencerFilterBar::GetMiscCategory() const
-{
-	return FilterBar->GetMiscCategory();
 }
 
 void SSequencerFilterBar::OnOpenTextExpressionHelp()
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	if (TextExpressionHelpWindow.IsValid())
 	{
 		TextExpressionHelpWindow->BringToFront();
@@ -425,17 +447,30 @@ void SSequencerFilterBar::OnOpenTextExpressionHelp()
 }
 void SSequencerFilterBar::SaveCurrentFilterSetAsCustomTextFilter()
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	FCustomTextFilterData CustomTextFilterData;
 	CustomTextFilterData.FilterString = FText::FromString(FilterBar->GenerateTextFilterStringFromEnabledFilters());
 	if (CustomTextFilterData.FilterLabel.IsEmpty())
 	{
 		CustomTextFilterData.FilterLabel = LOCTEXT("NewFilterName", "New Filter Name");
 	}
+
 	SSequencerCustomTextFilterDialog::CreateWindow_AddCustomTextFilter(FilterBar.ToSharedRef(), MoveTemp(CustomTextFilterData));
 }
 
 void SSequencerFilterBar::CreateFilterWidgetsFromConfig()
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	USequencerSettings* const SequencerSettings = FilterBar->GetSequencer().GetSequencerSettings();
 	check(IsValid(SequencerSettings));
 

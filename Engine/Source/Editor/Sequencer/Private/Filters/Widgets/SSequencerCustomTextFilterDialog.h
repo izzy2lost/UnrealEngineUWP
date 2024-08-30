@@ -59,7 +59,7 @@ private:
 
 	void HandleWindowClosed(const TSharedRef<SWindow>& InWindow);
 
-	TSharedPtr<FSequencerFilterBar> FilterBar;
+	TWeakPtr<FSequencerFilterBar> WeakFilterBar;
 
 	TSharedPtr<FSequencerTrackFilter_CustomText> CustomTextFilter;
 

@@ -46,9 +46,13 @@ protected:
 
 	FMargin GetFilterNamePadding() const;
 
-	TSharedPtr<FSequencerFilterBar> FilterBar;
+	FText GetFilterDisplayName() const;
 
-	TSharedPtr<FSequencerTrackFilter> Filter;
+	bool IsButtonEnabled() const;
+
+	TWeakPtr<FSequencerFilterBar> WeakFilterBar;
+
+	TWeakPtr<FSequencerTrackFilter> WeakFilter;
 
 	TSharedPtr<SSequencerFilterCheckBox> ToggleButtonPtr;
 

@@ -36,20 +36,21 @@ TSharedRef<SWidget> FSequencerTrackFilterMenu::CreateMenu(const TSharedRef<FSequ
 
 void FSequencerTrackFilterMenu::PopulateMenu(UToolMenu* const InMenu)
 {
+	if (!IsValid(InMenu))
+	{
+		return;
+	}
+
 	USequencerFilterBarContext* const Context = InMenu->FindContext<USequencerFilterBarContext>();
 	if (!IsValid(Context))
 	{
 		return;
 	}
 
+	WeakFilterBar = Context->GetFilterBar();
+
 	UToolMenu& Menu = *InMenu;
 
-	FilterBar = Context->GetFilterBar();
-	if (!FilterBar.IsValid())
-	{
-		return;
-	}
-	
 	PopulateFilterOptionsSection(Menu);
 	PopulateCustomsSection(Menu);
 	PopulateCommonFilterSections(Menu);
@@ -58,7 +59,11 @@ void FSequencerTrackFilterMenu::PopulateMenu(UToolMenu* const InMenu)
 
 void FSequencerTrackFilterMenu::PopulateCustomsSection(UToolMenu& InMenu)
 {
-	const TSharedRef<FSequencerFilterBar> FilterBarRef = FilterBar.ToSharedRef();
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
 
 	FToolMenuSection& Section = InMenu.FindOrAddSection(TEXT("UserCreated"));
 
@@ -73,6 +78,12 @@ void FSequencerTrackFilterMenu::PopulateCustomsSection(UToolMenu& InMenu)
 
 void FSequencerTrackFilterMenu::PopulateFilterOptionsSection(UToolMenu& InMenu)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	FToolMenuSection& Section = InMenu.FindOrAddSection(TEXT("FilterOptions"), LOCTEXT("FilterOptionsHeading", "Filters"));
 
 	Section.AddMenuEntry(TEXT("ResetFilters"),
@@ -94,6 +105,12 @@ void FSequencerTrackFilterMenu::PopulateFilterOptionsSection(UToolMenu& InMenu)
 
 void FSequencerTrackFilterMenu::PopulateCommonFilterSections(UToolMenu& InMenu)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	const TSharedPtr<SSequencerFilterBar> FilterBarWidget = FilterBar->GetWidget();
 	if (!FilterBarWidget.IsValid())
 	{
@@ -139,6 +156,12 @@ void FSequencerTrackFilterMenu::PopulateCommonFilterSections(UToolMenu& InMenu)
 
 void FSequencerTrackFilterMenu::PopulateOtherFilterSections(UToolMenu& InMenu)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	FToolMenuSection& Section = InMenu.FindOrAddSection(TEXT("OtherFilters"), LOCTEXT("OtherFiltersHeading", "Other Filters"));
 
 	const UMovieSceneSequence* const FocusedSequence = FilterBar->GetSequencer().GetFocusedMovieSceneSequence();
@@ -182,6 +205,12 @@ void FSequencerTrackFilterMenu::FillLevelFilterMenu(UToolMenu* const InMenu)
 		return;
 	}
 
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	const TSharedRef<FSequencerFilterBar> FilterBarRef = FilterBar.ToSharedRef();
 
 	FToolMenuSection& LevelsSection = InMenu->FindOrAddSection(TEXT("Levels"), LOCTEXT("LevelFilters", "Level Filters"));
@@ -211,6 +240,12 @@ void FSequencerTrackFilterMenu::FillLevelFilterMenu(UToolMenu* const InMenu)
 void FSequencerTrackFilterMenu::FillGroupFilterMenu(UToolMenu* const InMenu)
 {
 	if (!IsValid(InMenu))
+	{
+		return;
+	}
+
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
 	{
 		return;
 	}
@@ -265,6 +300,12 @@ void FSequencerTrackFilterMenu::FillCustomTextFiltersMenu(UToolMenu* const InMen
 		return;
 	}
 
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	const TSharedPtr<SSequencerFilterBar> FilterBarWidget = FilterBar->GetWidget();
 	if (!FilterBarWidget.IsValid())
 	{
@@ -295,6 +336,12 @@ void FSequencerTrackFilterMenu::FillCustomTextFiltersMenu(UToolMenu* const InMen
 		FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.PlusCircle")),
 		FUIAction(FExecuteAction::CreateLambda([this]()
 			{
+				const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+				if (!FilterBar.IsValid())
+				{
+					return;
+				}
+
 				SSequencerCustomTextFilterDialog::CreateWindow_AddCustomTextFilter(FilterBar.ToSharedRef(), FCustomTextFilterData(), nullptr);
 			})));
 
@@ -323,6 +370,12 @@ void FSequencerTrackFilterMenu::FillCustomTextFiltersMenu(UToolMenu* const InMen
 
 void FSequencerTrackFilterMenu::FillFiltersMenuCategory(FToolMenuSection& InOutSection, const TSharedRef<FFilterCategory> InMenuCategory)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	const TSharedRef<FSequencerFilterBar> FilterBarRef = FilterBar.ToSharedRef();
 	UMovieSceneSequence* const FocusedSequence = FilterBar->GetSequencer().GetFocusedMovieSceneSequence();
 
@@ -348,7 +401,7 @@ void FSequencerTrackFilterMenu::FillFiltersMenuCategory(FToolMenuSection& InOutS
 				FExecuteAction::CreateSP(this, &FSequencerTrackFilterMenu::OnFilterClicked, Filter),
 				FCanExecuteAction::CreateLambda([this]()
 					{
-						return !FilterBar->AreFiltersMuted();
+						return WeakFilterBar.IsValid() ? !WeakFilterBar.Pin()->AreFiltersMuted() : false;
 					}),
 				FIsActionChecked::CreateSP(FilterBarRef, &FSequencerFilterBar::IsFilterEnabled, Filter)
 			),
@@ -424,6 +477,12 @@ TSharedRef<SWidget> FSequencerTrackFilterMenu::ConstructCustomMenuItemWidget(con
 
 void FSequencerTrackFilterMenu::OnFilterCategoryClicked(const TSharedRef<FFilterCategory> InMenuCategory)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	const ECheckBoxState CategoryCheckState = GetFilterCategoryCheckedState(InMenuCategory);
 	const bool bIsCategoryEnabled = (CategoryCheckState == ECheckBoxState::Checked);
 	FilterBar->ActivateCommonFilters(bIsCategoryEnabled, { InMenuCategory }, {});
@@ -431,6 +490,12 @@ void FSequencerTrackFilterMenu::OnFilterCategoryClicked(const TSharedRef<FFilter
 
 ECheckBoxState FSequencerTrackFilterMenu::GetFilterCategoryCheckedState(const TSharedRef<FFilterCategory> InMenuCategory) const
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return ECheckBoxState::Unchecked;
+	}
+
 	for (const TSharedRef<FSequencerTrackFilter>& Filter : FilterBar->GetCommonFilters())
 	{
 		if (Filter->GetCategory() == InMenuCategory && !FilterBar->IsFilterEnabled(Filter))
@@ -438,11 +503,18 @@ ECheckBoxState FSequencerTrackFilterMenu::GetFilterCategoryCheckedState(const TS
 			return ECheckBoxState::Unchecked;
 		}
 	}
+
 	return ECheckBoxState::Checked;
 }
 
 void FSequencerTrackFilterMenu::OnFilterClicked(const TSharedRef<FSequencerTrackFilter> InFilter)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	if (FilterBar->IsFilterEnabled(InFilter))
 	{
 		FilterBar->SetFilterEnabled(InFilter, false, true);
@@ -455,6 +527,12 @@ void FSequencerTrackFilterMenu::OnFilterClicked(const TSharedRef<FSequencerTrack
 
 void FSequencerTrackFilterMenu::OnCustomTextFilterClicked(const FText InFilterLabel)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	const TSharedPtr<FSequencerTrackFilter_CustomText> CustomTextFilter = FilterBar->FindCustomTextFilterByDisplayName(InFilterLabel.ToString());
 	if (!CustomTextFilter.IsValid())
 	{
@@ -475,15 +553,28 @@ void FSequencerTrackFilterMenu::OnCustomTextFilterClicked(const FText InFilterLa
 
 ECheckBoxState FSequencerTrackFilterMenu::GetCustomTextFilerCheckState(const FText InFilterLabel) const
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return ECheckBoxState::Unchecked;
+	}
+
 	if (const TSharedPtr<FSequencerTrackFilter_CustomText> CustomTextFilter = FilterBar->FindCustomTextFilterByDisplayName(InFilterLabel.ToString()))
 	{
 		return FilterBar->IsFilterEnabled(CustomTextFilter.ToSharedRef()) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 	}
+
 	return ECheckBoxState::Unchecked;
 }
 
 void FSequencerTrackFilterMenu::OnEditCustomTextFilterClicked(const FText InFilterLabel)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	if (const TSharedPtr<FSequencerTrackFilter_CustomText> CustomTextFilter = FilterBar->FindCustomTextFilterByDisplayName(InFilterLabel.ToString()))
 	{
 		SSequencerCustomTextFilterDialog::CreateWindow_EditCustomTextFilter(FilterBar.ToSharedRef(), CustomTextFilter);
@@ -492,12 +583,24 @@ void FSequencerTrackFilterMenu::OnEditCustomTextFilterClicked(const FText InFilt
 
 void FSequencerTrackFilterMenu::OnTrackLevelFilterClicked(const FString InLevelName)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	const bool bNewActiveState = !FilterBar->IsLevelFilterActive(InLevelName);
 	FilterBar->ActivateLevelFilter(InLevelName, bNewActiveState);
 }
 
 void FSequencerTrackFilterMenu::ToggleAllLevelFilters()
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	const ECheckBoxState AllState = GetAllLevelsCheckState();
 	switch (AllState)
 	{
@@ -513,10 +616,17 @@ void FSequencerTrackFilterMenu::ToggleAllLevelFilters()
 
 ECheckBoxState FSequencerTrackFilterMenu::GetAllLevelsCheckState() const
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return ECheckBoxState::Unchecked;
+	}
+
 	if (FilterBar->HasAllLevelFiltersActive())
 	{
 		return ECheckBoxState::Unchecked;
 	}
+
 	return FilterBar->HasActiveLevelFilter() ? ECheckBoxState::Undetermined : ECheckBoxState::Checked;
 }
 
@@ -530,6 +640,12 @@ void FSequencerTrackFilterMenu::OnNodeGroupFilterClicked(UMovieSceneNodeGroup* c
 
 void FSequencerTrackFilterMenu::ToggleAllGroupFilters()
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	const ECheckBoxState AllState = GetAllGroupsCheckState();
 	switch (AllState)
 	{
@@ -545,6 +661,12 @@ void FSequencerTrackFilterMenu::ToggleAllGroupFilters()
 
 ECheckBoxState FSequencerTrackFilterMenu::GetAllGroupsCheckState() const
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return ECheckBoxState::Unchecked;
+	}
+
 	const UMovieSceneSequence* const FocusedMovieSequence = FilterBar->GetSequencer().GetFocusedMovieSceneSequence();
 	if (!IsValid(FocusedMovieSequence))
 	{
@@ -583,24 +705,25 @@ ECheckBoxState FSequencerTrackFilterMenu::GetAllGroupsCheckState() const
 
 bool FSequencerTrackFilterMenu::CanResetFilters() const
 {
-	if (FilterBar.IsValid())
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
 	{
-		if (FilterBar->AreFiltersMuted())
-		{
-			return true;
-		}
-
-		const TArray<TSharedRef<FFilterCategory>> Categories = {
-			FilterBar->GetClassTypeCategory(),
-			FilterBar->GetComponentTypeCategory(),
-			FilterBar->GetMiscCategory()
-		};
-		const TArray<TSharedRef<FSequencerTrackFilter>> ClassAndCompFilters = FilterBar->GetCommonFilters(Categories);
-
-		return FilterBar->HasEnabledFilter(ClassAndCompFilters) || FilterBar->HasEnabledCustomTextFilters();
+		return false;
 	}
 
-	return false;
+	if (FilterBar->AreFiltersMuted())
+	{
+		return true;
+	}
+
+	const TArray<TSharedRef<FFilterCategory>> Categories = {
+		FilterBar->GetClassTypeCategory(),
+		FilterBar->GetComponentTypeCategory(),
+		FilterBar->GetMiscCategory()
+	};
+	const TArray<TSharedRef<FSequencerTrackFilter>> ClassAndCompFilters = FilterBar->GetCommonFilters(Categories);
+
+	return FilterBar->HasEnabledFilter(ClassAndCompFilters) || FilterBar->HasEnabledCustomTextFilters();
 }
 
 #undef LOCTEXT_NAMESPACE

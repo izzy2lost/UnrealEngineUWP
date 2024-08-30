@@ -28,16 +28,27 @@ TSharedRef<SWidget> FSequencerFilterBarContextMenu::CreateMenu(const TSharedRef<
 
 void FSequencerFilterBarContextMenu::PopulateMenu(UToolMenu* const InMenu)
 {
-	UToolMenu& MenuRef = *InMenu;
+	if (!IsValid(InMenu))
+	{
+		return;
+	}
 
-	CurrentContext = MenuRef.FindContext<USequencerFilterBarContext>();
+	USequencerFilterBarContext* const Context = InMenu->FindContext<USequencerFilterBarContext>();
+	if (!IsValid(Context))
+	{
+		return;
+	}
+
+	WeakFilterBar = Context->GetFilterBar();
+
+	UToolMenu& MenuRef = *InMenu;
 
 	PopulateOptionsSection(MenuRef);
 }
 
 void FSequencerFilterBarContextMenu::PopulateOptionsSection(UToolMenu& InMenu)
 {
-	const TSharedPtr<FSequencerFilterBar> FilterBar = CurrentContext->GetFilterBar();
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
 	if (!FilterBar.IsValid())
 	{
 		return;
@@ -107,7 +118,7 @@ void FSequencerFilterBarContextMenu::PopulateFilterBulkOptionsSection(UToolMenu&
 
 void FSequencerFilterBarContextMenu::OnActivateAllFilters(const bool bInActivate)
 {
-	const TSharedPtr<FSequencerFilterBar> FilterBar = CurrentContext->GetFilterBar();
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
 	if (!FilterBar.IsValid())
 	{
 		return;
@@ -118,7 +129,7 @@ void FSequencerFilterBarContextMenu::OnActivateAllFilters(const bool bInActivate
 
 void FSequencerFilterBarContextMenu::OnResetFilters()
 {
-	const TSharedPtr<FSequencerFilterBar> FilterBar = CurrentContext->GetFilterBar();
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
 	if (!FilterBar.IsValid())
 	{
 		return;

@@ -11,8 +11,8 @@ void SSequencerFilter::Construct(const FArguments& InArgs
 	, const TSharedRef<FSequencerFilterBar>& InFilterBar
 	, const TSharedRef<FSequencerTrackFilter>& InFilter)
 {
-	FilterBar = InFilterBar;
-	Filter = InFilter;
+	WeakFilterBar = InFilterBar;
+	WeakFilter = InFilter;
 
 	ContextMenu = MakeShared<FSequencerTrackFilterContextMenu>();
 
@@ -40,7 +40,7 @@ void SSequencerFilter::Construct(const FArguments& InArgs
 	[
 		SAssignNew(ToggleButtonPtr, SSequencerFilterCheckBox)
 		.Style(FAppStyle::Get(), BrushName)
-		.ToolTipText(TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateSP(Filter.ToSharedRef(), &FSequencerTrackFilter::GetToolTipText)))
+		.ToolTipText(TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateSP(InFilter, &FSequencerTrackFilter::GetToolTipText)))
 		.IsChecked(this, &SSequencerFilter::IsChecked)
 		.OnCheckStateChanged(this, &SSequencerFilter::OnFilterToggled)
 		.CheckBoxContentUsesAutoWidth(false)
@@ -59,13 +59,22 @@ TSharedRef<SWidget> SSequencerFilter::ConstructBasicFilterWidget()
 	return SNew(STextBlock)
 		.Margin(0.f)
 		.TextStyle(FAppStyle::Get(), TEXT("SmallText"))
-		.Text(Filter.ToSharedRef(), &FSequencerTrackFilter::GetDisplayName);
+		.Text(this, &SSequencerFilter::GetFilterDisplayName);
 }
 
 TSharedRef<SWidget> SSequencerFilter::ConstructDefaultFilterWidget()
 {
-	const TSharedRef<FSequencerFilterBar> FilterBarRef = FilterBar.ToSharedRef();
-	const TSharedRef<FSequencerTrackFilter> FilterRef = Filter.ToSharedRef();
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return SNullWidget::NullWidget;
+	}
+
+	const TSharedPtr<FSequencerTrackFilter> Filter = WeakFilter.Pin();
+	if (!Filter.IsValid())
+	{
+		return SNullWidget::NullWidget;
+	}
 
 	return SNew(SBorder)
 		.Padding(1.f)
@@ -87,30 +96,60 @@ TSharedRef<SWidget> SSequencerFilter::ConstructDefaultFilterWidget()
 			[
 				SNew(STextBlock)
 				.Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 8))
-				.Text(FilterRef, &FSequencerTrackFilter::GetDisplayName)
-				.IsEnabled(FilterBarRef, &FSequencerFilterBar::IsFilterActive, FilterRef)
+				.Text(this, &SSequencerFilter::GetFilterDisplayName)
+				.IsEnabled(this, &SSequencerFilter::IsButtonEnabled)
 			]
 		];
 }
 
 const TSharedPtr<FSequencerTrackFilter> SSequencerFilter::GetFilter() const
 {
-	return Filter;
+	return WeakFilter.IsValid() ? WeakFilter.Pin() : nullptr;
 }
 
 bool SSequencerFilter::IsActive() const
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return false;
+	}
+
+	const TSharedPtr<FSequencerTrackFilter> Filter = WeakFilter.Pin();
+	if (!Filter.IsValid())
+	{
+		return false;
+	}
+
 	return FilterBar->IsFilterActive(Filter.ToSharedRef());
 }
 
 void SSequencerFilter::OnFilterToggled(const ECheckBoxState NewState)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<FSequencerTrackFilter> Filter = WeakFilter.Pin();
+	if (!Filter.IsValid())
+	{
+		return;
+	}
+
 	const bool bNewActive = NewState == ECheckBoxState::Checked;
 	FilterBar->SetFilterActive(Filter.ToSharedRef(), bNewActive, true);
 }
 
 FReply SSequencerFilter::OnFilterMouseUp(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return FReply::Handled();
+	}
+
 	if (InMouseEvent.IsControlDown())
 	{
 		FilterBar->ActivateCommonFilters(true, {}, {});
@@ -121,7 +160,10 @@ FReply SSequencerFilter::OnFilterMouseUp(const FGeometry& InMyGeometry, const FP
 	}
 	else if(InMouseEvent.GetEffectingButton() == EKeys::MiddleMouseButton)
 	{
-		FilterBar->SetFilterEnabled(Filter.ToSharedRef(), false, true);
+		if (const TSharedPtr<FSequencerTrackFilter> Filter = WeakFilter.Pin())
+		{
+			FilterBar->SetFilterEnabled(Filter.ToSharedRef(), false, true);
+		}
 	}
 
 	return FReply::Handled();
@@ -129,10 +171,19 @@ FReply SSequencerFilter::OnFilterMouseUp(const FGeometry& InMyGeometry, const FP
 
 FReply SSequencerFilter::OnFilterDoubleClicked(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return FReply::Handled();
+	}
+
 	FilterBar->ActivateCommonFilters(false, {}, {});
 	FilterBar->ActivateCustomTextFilters(false, {});
 
-	FilterBar->SetFilterActive(Filter.ToSharedRef(), true, true);
+	if (const TSharedPtr<FSequencerTrackFilter> Filter = WeakFilter.Pin())
+	{
+		FilterBar->SetFilterActive(Filter.ToSharedRef(), true, true);
+	}
 
 	return FReply::Handled();
 }
@@ -149,7 +200,12 @@ ECheckBoxState SSequencerFilter::IsChecked() const
 
 FSlateColor SSequencerFilter::GetFilterImageColorAndOpacity() const
 {
-	return IsActive() ? Filter->GetColor() : FAppStyle::Get().GetSlateColor(TEXT("Colors.Recessed"));
+	const TSharedPtr<FSequencerTrackFilter> Filter = WeakFilter.Pin();
+	if (!Filter.IsValid() || !IsActive())
+	{
+		return FAppStyle::Get().GetSlateColor(TEXT("Colors.Recessed"));;
+	}
+	return Filter->GetColor();
 }
 
 EVisibility SSequencerFilter::GetFilterOverlayVisibility() const
@@ -160,6 +216,28 @@ EVisibility SSequencerFilter::GetFilterOverlayVisibility() const
 FMargin SSequencerFilter::GetFilterNamePadding() const
 {
 	return ToggleButtonPtr->IsPressed() ? FMargin(3, 1, 3, 0) : FMargin(3, 0, 3, 0);
+}
+
+FText SSequencerFilter::GetFilterDisplayName() const
+{
+	return WeakFilter.IsValid() ? WeakFilter.Pin()->GetDisplayName() : FText::GetEmpty();
+}
+
+bool SSequencerFilter::IsButtonEnabled() const
+{
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return false;
+	}
+
+	const TSharedPtr<FSequencerTrackFilter> Filter = WeakFilter.Pin();
+	if (!Filter.IsValid())
+	{
+		return false;
+	}
+
+	return FilterBar->IsFilterActive(Filter.ToSharedRef());
 }
 
 #undef LOCTEXT_NAMESPACE

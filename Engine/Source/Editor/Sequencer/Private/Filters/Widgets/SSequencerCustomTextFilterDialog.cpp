@@ -16,7 +16,7 @@ TSharedPtr<SSequencerCustomTextFilterDialog> SSequencerCustomTextFilterDialog::D
 
 void SSequencerCustomTextFilterDialog::Construct(const FArguments& InArgs, const TSharedRef<FSequencerFilterBar>& InFilterBar)
 {
-	FilterBar = InFilterBar;
+	WeakFilterBar = InFilterBar;
 
 	CustomTextFilter = InArgs._CustomTextFilter;
 	CustomTextFilterData = InArgs._CustomTextFilterData;
@@ -321,6 +321,12 @@ TSharedRef<SWidget> SSequencerCustomTextFilterDialog::ConstructButtonRow()
 
 bool SSequencerCustomTextFilterDialog::CheckFilterNameValidity() const
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return false;
+	}
+
 	USequencerSettings* const SequencerSettings = FilterBar->GetSequencer().GetSequencerSettings();
 	if (!IsValid(SequencerSettings))
 	{
@@ -376,6 +382,12 @@ FReply SSequencerCustomTextFilterDialog::OnColorBlockMouseButtonDown(const FGeom
 
 void SSequencerCustomTextFilterDialog::OnCreateCustomTextFilter(const bool bInApplyFilter)
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	USequencerSettings* const SequencerSettings = FilterBar->GetSequencer().GetSequencerSettings();
 	if (!IsValid(SequencerSettings))
 	{
@@ -412,6 +424,12 @@ void SSequencerCustomTextFilterDialog::OnCreateCustomTextFilter(const bool bInAp
 
 void SSequencerCustomTextFilterDialog::OnModifyCustomTextFilter()
 {
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
 	USequencerSettings* const SequencerSettings = FilterBar->GetSequencer().GetSequencerSettings();
 	if (!IsValid(SequencerSettings))
 	{
@@ -474,6 +492,12 @@ FReply SSequencerCustomTextFilterDialog::OnSaveButtonClick()
 FReply SSequencerCustomTextFilterDialog::OnDeleteButtonClick()
 {
 	if (!CustomTextFilter.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
 	{
 		return FReply::Handled();
 	}

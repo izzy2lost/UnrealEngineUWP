@@ -3,11 +3,10 @@
 #pragma once
 
 #include "Templates/SharedPointer.h"
-#include "UObject/WeakObjectPtr.h"
 
+class FSequencerTrackFilter;
 class SSequencerFilter;
 class SWidget;
-class USequencerFilterMenuContext;
 class UToolMenu;
 
 class FSequencerTrackFilterContextMenu
@@ -34,5 +33,7 @@ protected:
 	void OnEditFilter();
 	void OnDeleteFilter();
 
-	TWeakObjectPtr<USequencerFilterMenuContext> CurrentContext;
+	const TSharedPtr<FSequencerTrackFilter> GetFilter() const;
+
+	TWeakPtr<SSequencerFilter> WeakFilterWidget;
 };

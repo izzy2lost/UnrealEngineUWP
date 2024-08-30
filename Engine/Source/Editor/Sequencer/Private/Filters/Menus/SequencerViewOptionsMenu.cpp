@@ -39,13 +39,19 @@ void FSequencerViewOptionsMenu::PopulateMenu(UToolMenu* const InMenu)
 		return;
 	}
 
-	UToolMenu& Menu = *InMenu;
+	USequencerMenuContext* const Context = InMenu->FindContext<USequencerMenuContext>();
+	if (!IsValid(Context))
+	{
+		return;
+	}
 
-	CurrentContext = InMenu->FindContext<USequencerMenuContext>();
+	WeakSequencer = Context->GetSequencer();
+
+	UToolMenu& Menu = *InMenu;
 
 	PopulateFiltersSection(Menu);
 	PopulateSortAndOrganizeSection(Menu);
-	PopulateFilterOptionssSection(Menu);
+	PopulateFilterOptionsSection(Menu);
 	PopulateLayoutSection(Menu);
 }
 
@@ -74,7 +80,7 @@ void FSequencerViewOptionsMenu::PopulateFiltersSection(UToolMenu& InMenu)
 
 void FSequencerViewOptionsMenu::PopulateSortAndOrganizeSection(UToolMenu& InMenu)
 {
-	const TSharedPtr<FSequencer> Sequencer = CurrentContext->GetSequencer();
+	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer.IsValid())
 	{
 		return;
@@ -93,7 +99,7 @@ void FSequencerViewOptionsMenu::PopulateSortAndOrganizeSection(UToolMenu& InMenu
 	Section.AddMenuEntryWithCommandList(SequencerCommands.SortAllNodesAndDescendants, SequencerBindings);
 }
 
-void FSequencerViewOptionsMenu::PopulateFilterOptionssSection(UToolMenu& InMenu)
+void FSequencerViewOptionsMenu::PopulateFilterOptionsSection(UToolMenu& InMenu)
 {
 	FToolMenuSection& OptionsSection = InMenu.FindOrAddSection(TEXT("FilterOptions"), LOCTEXT("FilterOptionsHeading", "Filter Options"));
 
@@ -157,7 +163,7 @@ void FSequencerViewOptionsMenu::PopulateLayoutSection(UToolMenu& InMenu)
 
 bool FSequencerViewOptionsMenu::IsFilterLayout(const EFilterBarLayout InLayout) const
 {
-	const TSharedPtr<FSequencer> Sequencer = CurrentContext->GetSequencer();
+	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer.IsValid())
 	{
 		return false;
@@ -169,7 +175,7 @@ bool FSequencerViewOptionsMenu::IsFilterLayout(const EFilterBarLayout InLayout) 
 
 void FSequencerViewOptionsMenu::SetFilterLayout(const EFilterBarLayout InLayout)
 {
-	const TSharedPtr<FSequencer> Sequencer = CurrentContext->GetSequencer();
+	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer.IsValid())
 	{
 		return;
@@ -181,7 +187,7 @@ void FSequencerViewOptionsMenu::SetFilterLayout(const EFilterBarLayout InLayout)
 
 bool FSequencerViewOptionsMenu::IsIncludePinnedInFilter() const
 {
-	const TSharedPtr<FSequencer> Sequencer = CurrentContext->GetSequencer();
+	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer.IsValid())
 	{
 		return false;
@@ -198,7 +204,7 @@ bool FSequencerViewOptionsMenu::IsIncludePinnedInFilter() const
 
 void FSequencerViewOptionsMenu::ToggleIncludePinnedInFilter()
 {
-	const TSharedPtr<ISequencer> Sequencer = CurrentContext->GetSequencer();
+	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer.IsValid())
 	{
 		return;
@@ -217,7 +223,7 @@ void FSequencerViewOptionsMenu::ToggleIncludePinnedInFilter()
 
 bool FSequencerViewOptionsMenu::IsAutoExpandPassedFilterNodes() const
 {
-	const TSharedPtr<FSequencer> Sequencer = CurrentContext->GetSequencer();
+	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer.IsValid())
 	{
 		return false;
@@ -234,7 +240,7 @@ bool FSequencerViewOptionsMenu::IsAutoExpandPassedFilterNodes() const
 
 void FSequencerViewOptionsMenu::ToggleAutoExpandPassedFilterNodes()
 {
-	const TSharedPtr<ISequencer> Sequencer = CurrentContext->GetSequencer();
+	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer.IsValid())
 	{
 		return;
@@ -253,7 +259,7 @@ void FSequencerViewOptionsMenu::ToggleAutoExpandPassedFilterNodes()
 
 TSharedPtr<SSequencer> FSequencerViewOptionsMenu::GetSequencerWidget() const
 {
-	const TSharedPtr<FSequencer> Sequencer = CurrentContext->GetSequencer();
+	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
 	if (Sequencer.IsValid())
 	{
 		return StaticCastSharedRef<SSequencer>(Sequencer->GetSequencerWidget());

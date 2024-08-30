@@ -15,14 +15,14 @@ class USequencerFilterBarContext : public UObject
 public:
 	void Init(const TWeakPtr<FSequencerFilterBar>& InFilterBarWeak)
 	{
-		FilterBarWeak = InFilterBarWeak;
+		WeakFilterBar = InFilterBarWeak;
 	}
 
 	TSharedPtr<FSequencerFilterBar> GetFilterBar() const
 	{
-		return FilterBarWeak.IsValid() ? FilterBarWeak.Pin() : nullptr;
+		return WeakFilterBar.IsValid() ? WeakFilterBar.Pin() : nullptr;
 	}
 
 protected:
-	TWeakPtr<FSequencerFilterBar> FilterBarWeak;
+	TWeakPtr<FSequencerFilterBar> WeakFilterBar;
 };

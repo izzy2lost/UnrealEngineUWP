@@ -44,13 +44,15 @@ void FSequencerTrackFilterContextMenu::PopulateMenu(UToolMenu* const InMenu)
 		return;
 	}
 
-	UToolMenu& MenuRef = *InMenu;
-
-	CurrentContext = MenuRef.FindContext<USequencerFilterMenuContext>();
-	if (!CurrentContext.IsValid())
+	USequencerFilterMenuContext* const Context = InMenu->FindContext<USequencerFilterMenuContext>();
+	if (!IsValid(Context))
 	{
 		return;
 	}
+
+	WeakFilterWidget = Context->GetFilterWidget();
+
+	UToolMenu& MenuRef = *InMenu;
 
 	PopulateFilterOptionsSection(MenuRef);
 	PopulateCustomFilterOptionsSection(MenuRef);
@@ -59,7 +61,7 @@ void FSequencerTrackFilterContextMenu::PopulateMenu(UToolMenu* const InMenu)
 
 void FSequencerTrackFilterContextMenu::PopulateFilterOptionsSection(UToolMenu& InMenu)
 {
-	const TSharedPtr<FSequencerTrackFilter> Filter = CurrentContext->GetFilter();
+	const TSharedPtr<FSequencerTrackFilter> Filter = GetFilter();
 	if (!Filter.IsValid())
 	{
 		return;
@@ -86,7 +88,7 @@ void FSequencerTrackFilterContextMenu::PopulateFilterOptionsSection(UToolMenu& I
 void FSequencerTrackFilterContextMenu::PopulateCustomFilterOptionsSection(UToolMenu& InMenu)
 {
 	const TSharedPtr<FSequencerTrackFilter_CustomText> CustomTextFilter
-		= StaticCastSharedPtr<FSequencerTrackFilter_CustomText>(CurrentContext->GetFilter());
+		= StaticCastSharedPtr<FSequencerTrackFilter_CustomText>(GetFilter());
 	if (!CustomTextFilter.IsValid() || !CustomTextFilter->IsCustomTextFilter())
 	{
 		return;
@@ -151,7 +153,7 @@ void FSequencerTrackFilterContextMenu::PopulateBulkOptionsSection(UToolMenu& InM
 
 FText FSequencerTrackFilterContextMenu::GetFilterDisplayName() const
 {
-	const TSharedPtr<FSequencerTrackFilter> Filter = CurrentContext->GetFilter();
+	const TSharedPtr<FSequencerTrackFilter> Filter = GetFilter();
 	if (!Filter.IsValid())
 	{
 		return FText::GetEmpty();
@@ -162,7 +164,7 @@ FText FSequencerTrackFilterContextMenu::GetFilterDisplayName() const
 
 void FSequencerTrackFilterContextMenu::OnDisableFilter()
 {
-	const TSharedPtr<FSequencerTrackFilter> Filter = CurrentContext->GetFilter();
+	const TSharedPtr<FSequencerTrackFilter> Filter = GetFilter();
 	if (!Filter.IsValid())
 	{
 		return;
@@ -174,7 +176,7 @@ void FSequencerTrackFilterContextMenu::OnDisableFilter()
 
 void FSequencerTrackFilterContextMenu::OnResetFilters()
 {
-	const TSharedPtr<FSequencerTrackFilter> Filter = CurrentContext->GetFilter();
+	const TSharedPtr<FSequencerTrackFilter> Filter = GetFilter();
 	if (!Filter.IsValid())
 	{
 		return;
@@ -185,7 +187,7 @@ void FSequencerTrackFilterContextMenu::OnResetFilters()
 
 void FSequencerTrackFilterContextMenu::OnActivateWithFilterException()
 {
-	const TSharedPtr<FSequencerTrackFilter> Filter = CurrentContext->GetFilter();
+	const TSharedPtr<FSequencerTrackFilter> Filter = GetFilter();
 	if (!Filter.IsValid())
 	{
 		return;
@@ -200,7 +202,7 @@ void FSequencerTrackFilterContextMenu::OnActivateWithFilterException()
 
 void FSequencerTrackFilterContextMenu::OnActivateAllFilters(const bool bInActivate)
 {
-	const TSharedPtr<FSequencerTrackFilter> Filter = CurrentContext->GetFilter();
+	const TSharedPtr<FSequencerTrackFilter> Filter = GetFilter();
 	if (!Filter.IsValid())
 	{
 		return;
@@ -211,7 +213,7 @@ void FSequencerTrackFilterContextMenu::OnActivateAllFilters(const bool bInActiva
 
 void FSequencerTrackFilterContextMenu::OnEditFilter()
 {
-	const TSharedPtr<FSequencerTrackFilter> Filter = CurrentContext->GetFilter();
+	const TSharedPtr<FSequencerTrackFilter> Filter = GetFilter();
 	if (!Filter.IsValid() || !Filter->IsCustomTextFilter())
 	{
 		return;
@@ -230,7 +232,7 @@ void FSequencerTrackFilterContextMenu::OnEditFilter()
 
 void FSequencerTrackFilterContextMenu::OnDeleteFilter()
 {
-	const TSharedPtr<FSequencerTrackFilter> Filter = CurrentContext->GetFilter();
+	const TSharedPtr<FSequencerTrackFilter> Filter = GetFilter();
 	if (!Filter.IsValid() || !Filter->IsCustomTextFilter())
 	{
 		return;
@@ -260,6 +262,11 @@ void FSequencerTrackFilterContextMenu::OnDeleteFilter()
 
 		SequencerSettings->SaveConfig();
 	}
+}
+
+const TSharedPtr<FSequencerTrackFilter> FSequencerTrackFilterContextMenu::GetFilter() const
+{
+	return WeakFilterWidget.IsValid() ? WeakFilterWidget.Pin()->GetFilter() : nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE

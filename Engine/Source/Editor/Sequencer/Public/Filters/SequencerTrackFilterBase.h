@@ -97,8 +97,6 @@ public:
 
 	//~ End FSequencerTrackFilter
 
-	SEQUENCER_API void BroadcastChangedEvent() const;
-
 	SEQUENCER_API ISequencerTrackFilters& GetFilterInterface() const;
 	SEQUENCER_API ISequencer& GetSequencer() const;
 

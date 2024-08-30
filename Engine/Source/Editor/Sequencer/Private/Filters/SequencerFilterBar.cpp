@@ -70,6 +70,13 @@ FSequencerFilterBar::FSequencerFilterBar(FSequencer& InSequencer)
 FSequencerFilterBar::~FSequencerFilterBar()
 {
 	FSequencerTrackFilterCommands::Unregister();
+	
+	CommonFilters->OnChanged().RemoveAll(this);
+    InternalFilters->OnChanged().RemoveAll(this);
+    TextFilter->OnChanged().RemoveAll(this);
+    LevelFilter->OnChanged().RemoveAll(this);
+    HideIsolateFilter->OnChanged().RemoveAll(this);
+    SelectedFilter->OnChanged().RemoveAll(this);
 }
 
 TSharedPtr<ICustomTextFilter<FSequencerTrackFilterType>> FSequencerFilterBar::CreateTextFilter()
