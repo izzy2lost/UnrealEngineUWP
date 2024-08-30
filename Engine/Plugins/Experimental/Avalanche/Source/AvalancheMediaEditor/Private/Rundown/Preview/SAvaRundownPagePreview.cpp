@@ -308,7 +308,7 @@ void SAvaRundownPagePreview::HandleCheckerboardActionExecute() const
 		{
 			const FText NotificationText = LOCTEXT("AlphaSupport",
 				"An output requested Alpha Support but the required project setting is not enabled!\n"
-				"Go to Project Settings > Rendering > PostProcessing > 'Enable Alpha Output' and enable it.");
+				"Go to Project Settings > Rendering > PostProcessing > 'Alpha Output' and enable it.");
 
 			FNotificationInfo Info(NotificationText);
 			Info.ExpireDuration = 5.0f;	// The message is long, need more time to read it.

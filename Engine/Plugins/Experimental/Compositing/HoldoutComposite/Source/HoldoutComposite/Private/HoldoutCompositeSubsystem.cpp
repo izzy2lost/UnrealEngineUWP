@@ -82,7 +82,7 @@ bool UHoldoutCompositeSubsystem::ValidateProjectSettings()
 		// We inform the user and offer them the option to activate project settings.
 		UE_CALL_ONCE([&]{ PrimitiveHoldoutSettingsNotification(RendererSettings); });
 #else
-		UE_CALL_ONCE([&]{ UE_LOG(LogHoldoutComposite, Warning, TEXT("Both \"Enable Alpha Output\" and \"Support Primitive Alpha Holdout\" project settings must be enabled for holdout composite.")); });
+		UE_CALL_ONCE([&]{ UE_LOG(LogHoldoutComposite, Warning, TEXT("Both \"Alpha Output\" and \"Support Primitive Alpha Holdout\" project settings must be enabled for holdout composite.")); });
 #endif
 	}
 
@@ -92,7 +92,7 @@ bool UHoldoutCompositeSubsystem::ValidateProjectSettings()
 #if WITH_EDITOR
 void UHoldoutCompositeSubsystem::PrimitiveHoldoutSettingsNotification(class URendererSettings* RendererSettings)
 {
-	const FText HoldoutText = LOCTEXT("HoldoutSettingPrompt", "The following project settings must be enabled for holdout composite:\n- Enable Alpha Output\n- Support Primitive Alpha Holdout");
+	const FText HoldoutText = LOCTEXT("HoldoutSettingPrompt", "The following project settings must be enabled for holdout composite:\n- Alpha Output\n- Support Primitive Alpha Holdout");
 	const FText HoldoutConfirmText = LOCTEXT("HoldoutSettingConfirm", "Update");
 	const FText HoldoutCancelText = LOCTEXT("HoldoutSettingCancel", "Not Now");
 

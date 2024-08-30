@@ -740,10 +740,17 @@ class URendererSettings : public UDeveloperSettings
 		ToolTip = "Whether the custom depth pass has the TemporalAA jitter enabled. Disabling this can be useful when the result of the CustomDepth Pass is used after TAA (e.g. after Tonemapping)"))
 	uint32 bCustomDepthTaaJitter : 1;
 
-	UPROPERTY(config, EditAnywhere, Category = Postprocessing, meta = (
-		ConsoleVariable = "r.PostProcessing.PropagateAlpha", DisplayName = "Enable Alpha Output",
+	UPROPERTY(config, EditAnywhere, Category = DefaultSettings, meta = (
+		ConsoleVariable = "r.PostProcessing.PropagateAlpha", DisplayName = "Alpha Output",
 		ToolTip = "Enable r.PostProcessing.PropagateAlpha to enforce alpha in scene color (overriding r.SceneColorFormat if necessary) and propagate it through the renderer's post-processing chain. The legacy \"Linear color space only\" and \"Allow through tonemapper\" options now map to True and the engine keeps full alpha precision throughout post-processing. This feature can now be toggled without an engine restart."))
 	uint32 bEnableAlphaChannelInPostProcessing : 1;
+
+	UPROPERTY(config, EditAnywhere, Category = DefaultSettings, meta = (
+		EditCondition = "bEnableAlphaChannelInPostProcessing",
+		ConsoleVariable = "r.Deferred.SupportPrimitiveAlphaHoldout", DisplayName = "Support Primitive Alpha Holdout (Deferred)",
+		ToolTip = "Enable primitive alpha holdout support in multiple deferred renderer passes. If primitive holdout masks are not to be used, keep this setting disabled for increased performance. Requires \"Alpha Output\" to be enabled.",
+		ConfigRestartRequired = true))
+	uint32 bDeferredSupportPrimitiveAlphaHoldout : 1;
 
 	UPROPERTY(config, EditAnywhere, Category = DefaultSettings, meta = (
 		ConsoleVariable = "r.DefaultFeature.Bloom", DisplayName = "Bloom",
@@ -995,12 +1002,6 @@ class URendererSettings : public UDeveloperSettings
 		ToolTip = "Enable cloud shadow on translucent surface not relying on the translucenct lighting volume, e.g. using Forward lighting. This is evaluated per vertex to reduce GPU cost and requires extra samplers/textures to be bound to vertex shaders. This is not implemented on mobile as VolumetricClouds are not available on these platforms.",
 		ConfigRestartRequired = true))
 		uint32 bSupportCloudShadowOnForwardLitTranslucent : 1;
-
-	UPROPERTY(config, EditAnywhere, Category = Optimizations, meta = (
-		ConsoleVariable = "r.Deferred.SupportPrimitiveAlphaHoldout", DisplayName = "Support Primitive Alpha Holdout (Deferred)",
-		ToolTip = "Enable primitive alpha holdout support in multiple deferred renderer passes. If primitive holdout masks are not to be used, keep this setting disabled for increased performance.",
-		ConfigRestartRequired = true))
-	uint32 bDeferredSupportPrimitiveAlphaHoldout : 1;
 
 	/**
 	"Select the format of the light function atlas texture."

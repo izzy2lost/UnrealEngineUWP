@@ -1457,7 +1457,7 @@ protected:
 
 	/**
 	 * If this is True, this primitive should render black with an alpha of 0, but all secondary effects (shadows, refletions, indirect lighting)
-	 * should behave as usual. This feature requires activating the project setting(s) "Enable Alpha Output", and "Support Primitive Alpha Holdout" if using the deferred renderer.
+	 * should behave as usual. This feature requires activating the project setting(s) "Alpha Output", and "Support Primitive Alpha Holdout" if using the deferred renderer.
 	 */
 	uint8 bHoldout : 1;
 
