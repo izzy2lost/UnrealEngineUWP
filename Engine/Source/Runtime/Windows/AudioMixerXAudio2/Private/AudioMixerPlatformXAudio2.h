@@ -71,7 +71,8 @@ namespace Audio
 
 	};
 
-	class FMixerPlatformXAudio2 : public IAudioMixerPlatformInterface
+	class FMixerPlatformXAudio2 : public IAudioMixerPlatformInterface,
+								  public IXAudio2EngineCallback
 	{
 
 	public:
@@ -98,7 +99,7 @@ namespace Audio
 		virtual void ResumePlaybackOnNewDevice() override;
 		virtual FAudioPlatformDeviceInfo GetPlatformDeviceInfo() const override;
 		virtual void SubmitBuffer(const uint8* Buffer) override;
-		virtual bool DisablePCMAudioCaching() const override;
+		virtual bool DisablePCMAudioCaching() const override;		
 		virtual FString GetDefaultDeviceName() override;
 		virtual FAudioPlatformSettings GetPlatformSettings() const override;
 		virtual void OnHardwareUpdate() override;
@@ -118,7 +119,12 @@ namespace Audio
 		//~ End IAudioMixerDeviceChangedListener
 
 	private:
-	
+		//~ Begin IXAudio2EngineCallback
+		virtual void OnCriticalError(HRESULT Error) override;
+		virtual void OnProcessingPassStart() override;
+		virtual void OnProcessingPassEnd() override;
+		//~ End IXAudio2EngineCallback
+			
 		struct FXAudio2AsyncCreateResult
 		{
 			IXAudio2* XAudio2System = nullptr;
