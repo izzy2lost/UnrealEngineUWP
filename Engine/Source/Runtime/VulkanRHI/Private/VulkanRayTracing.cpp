@@ -450,13 +450,6 @@ FVulkanRayTracingGeometry::~FVulkanRayTracingGeometry()
 	RemoveCompactionRequest();
 }
 
-void FVulkanRayTracingGeometry::SetInitializer(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& InInitializer)
-{
-	Initializer = InInitializer;
-
-	// TODO: Update HitGroup Parameters
-}
-
 void FVulkanRayTracingGeometry::Swap(FVulkanRayTracingGeometry& Other)
 {
 	::Swap(Handle, Other.Handle);
@@ -465,7 +458,9 @@ void FVulkanRayTracingGeometry::Swap(FVulkanRayTracingGeometry& Other)
 
 	AccelerationStructureBuffer = Other.AccelerationStructureBuffer;
 
-	// The rest of the members should be updated using SetInitializer()
+	Initializer = Other.Initializer;
+
+	// TODO: Update HitGroup Parameters
 }
 
 void FVulkanRayTracingGeometry::RemoveCompactionRequest()

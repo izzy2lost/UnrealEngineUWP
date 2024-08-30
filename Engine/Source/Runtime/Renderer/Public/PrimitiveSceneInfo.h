@@ -564,6 +564,8 @@ public:
 	RENDERER_API FRHIRayTracingGeometry* GetStaticRayTracingGeometryInstance(int LodLevel) const;
 
 	int GetStaticRayTracingGeometryNum() const { return StaticRayTracingGeometries.Num(); }
+
+	const FRayTracingGeometry* GetCachedRayTracingGeometry() const { return CachedRayTracingGeometry; }
 #endif
 
 	/** Return primitive fullname (for debugging only). */

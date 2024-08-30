@@ -3380,6 +3380,8 @@ public:
 				}
 			}
 			ALLOC_COMMAND(FRHICommandBuildAccelerationStructures)(MakeArrayView(InlineParams, Params.Num()), ScratchBufferRange);
+
+			RHIThreadFence(true);
 		}
 	}
 

@@ -190,7 +190,7 @@ namespace RayTracing
 
 	struct FRelevantPrimitive
 	{
-		FRHIRayTracingGeometry* RayTracingGeometryRHI = nullptr;
+		const FRayTracingGeometry* RayTracingGeometry = nullptr;
 		FRayTracingCachedMeshCommandFlags CachedMeshCommandFlags;
 		int32 PrimitiveIndex = -1;
 		FPersistentPrimitiveIndex PersistentPrimitiveIndex;
@@ -217,7 +217,7 @@ namespace RayTracing
 			Key ^= CachedMeshCommandFlags.bIsSky ? 0x1ull << 46 : 0x0;
 			Key ^= CachedMeshCommandFlags.bAllSegmentsTranslucent ? 0x1ull << 47 : 0x0;
 			Key ^= CachedMeshCommandFlags.bAllSegmentsReverseCulling ? 0x1ull << 48 : 0x0;
-			return Key ^ reinterpret_cast<uint64>(RayTracingGeometryRHI);
+			return Key ^ reinterpret_cast<uint64>(RayTracingGeometry->GetRHI());
 		}
 	};
 
@@ -693,6 +693,7 @@ namespace RayTracing
 							FRelevantPrimitive* RelevantPrimitive = new (Context.CachedStaticPrimitives) FRelevantPrimitive();
 							RelevantPrimitive->PrimitiveIndex = PrimitiveIndex;
 							RelevantPrimitive->PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
+							RelevantPrimitive->RayTracingGeometry = SceneInfo->GetCachedRayTracingGeometry();
 
 							ensureMsgf(!SceneInfo->bCachedRaytracingDataDirty, TEXT("Cached ray tracing instances must be up-to-date at this point"));
 
@@ -702,7 +703,7 @@ namespace RayTracing
 
 							// CacheInstances expects to have one ray tracing mesh command per BLAS segment.
 							// If that's not the case in the future, other logic such as NumCachedStaticVisibleMeshCommands calculation needs to be updated.
-							checkf(RTLODData.CachedMeshCommandIndices.Num() == SceneInfo->CachedRayTracingInstance.GeometryRHI->GetNumSegments(),
+							checkf(RTLODData.CachedMeshCommandIndices.Num() == RelevantPrimitive->RayTracingGeometry->Initializer.Segments.Num(),
 								TEXT("Expected to have one ray tracing mesh command per BLAS segment (primitive has %d cached mesh commands but BLAS has %d segments)."),
 								RTLODData.CachedMeshCommandIndices.Num(), SceneInfo->CachedRayTracingInstance.GeometryRHI->GetNumSegments());
 
@@ -779,7 +780,7 @@ namespace RayTracing
 								RelevantPrimitive->PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
 
 								RelevantPrimitive->LODIndex = LODIndex;
-								RelevantPrimitive->RayTracingGeometryRHI = RayTracingGeometry->GetRHI();
+								RelevantPrimitive->RayTracingGeometry = RayTracingGeometry;
 
 								const FPrimitiveSceneInfo::FRayTracingLODData& RTLODData = SceneInfo->RayTracingLODData[LODIndex];
 								RelevantPrimitive->CachedMeshCommandFlags = RTLODData.CachedMeshCommandFlags;
@@ -1446,7 +1447,7 @@ namespace RayTracing
 							InstanceBatch.Add(RayTracingScene, SceneInfo->GetInstanceSceneDataOffset());
 
 							FRayTracingGeometryInstance RayTracingInstance;
-							RayTracingInstance.GeometryRHI = RelevantPrimitive.RayTracingGeometryRHI;
+							RayTracingInstance.GeometryRHI = RelevantPrimitive.RayTracingGeometry->GetRHI();
 							checkf(RayTracingInstance.GeometryRHI, TEXT("Ray tracing instance must have a valid geometry."));
 							RayTracingInstance.InstanceSceneDataOffsets = InstanceBatch.InstanceSceneDataOffsets;
 							RayTracingInstance.UserData = InstanceBatch.InstanceSceneDataOffsets;
@@ -1478,7 +1479,7 @@ namespace RayTracing
 								continue;
 							}
 							
-							uint32 SegmentCount = RayTracingInstance.GeometryRHI->GetNumSegments();
+							uint32 SegmentCount = RelevantPrimitive.RayTracingGeometry->Initializer.Segments.Num();
 							if (bNeedMainInstance)
 							{
 								RayTracingScene.NumSegments += SegmentCount;
@@ -1505,14 +1506,14 @@ namespace RayTracing
 									{
 										const bool bHidden = MeshCommand.bDecal;
 										const uint32 RecordIndex = RTLODData.SBTAllocation->GetRecordIndex(ERayTracingSceneLayer::Base, MeshCommand.GeometrySegmentIndex);
-										FRayTracingShaderBindingData RTShaderBindingData(&MeshCommand, RelevantPrimitive.RayTracingGeometryRHI, RecordIndex, bHidden);
+										FRayTracingShaderBindingData RTShaderBindingData(&MeshCommand, RelevantPrimitive.RayTracingGeometry->GetRHI(), RecordIndex, bHidden);
 										DirtyShaderBindingData.Add(RTShaderBindingData);
 									}
 									if (bNeedDecalInstance)
 									{
 										const bool bHidden = !MeshCommand.bDecal;
 										const uint32 RecordIndex = RTLODData.SBTAllocation->GetRecordIndex(ERayTracingSceneLayer::Decals, MeshCommand.GeometrySegmentIndex);
-										FRayTracingShaderBindingData RTShaderBindingData(&MeshCommand, RelevantPrimitive.RayTracingGeometryRHI, RecordIndex, bHidden);
+										FRayTracingShaderBindingData RTShaderBindingData(&MeshCommand, RelevantPrimitive.RayTracingGeometry->GetRHI(), RecordIndex, bHidden);
 										DirtyShaderBindingData.Add(RTShaderBindingData);
 									}
 								}

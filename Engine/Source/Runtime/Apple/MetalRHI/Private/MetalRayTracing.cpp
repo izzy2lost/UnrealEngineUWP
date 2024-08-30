@@ -387,13 +387,6 @@ void FMetalRayTracingGeometry::ReleaseUnderlyingResource()
 	}
 }
 
-void FMetalRayTracingGeometry::SetInitializer(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& InInitializer)
-{
-	Initializer = InInitializer;
-
-	// HitGroup Parameters Update is handled by the Scene
-}
-
 void FMetalRayTracingGeometry::Swap(FMetalRayTracingGeometry& Other)
 {
 	::Swap(AccelerationStructureDescriptor, Other.AccelerationStructureDescriptor);
@@ -402,6 +395,10 @@ void FMetalRayTracingGeometry::Swap(FMetalRayTracingGeometry& Other)
 		::Swap(AccelerationStructure[i], Other.AccelerationStructure[i]);
 	}
 	::Swap(AccelerationStructureIndex, Other.AccelerationStructureIndex);
+
+	Initializer = Other.Initializer;
+
+	// HitGroup Parameters Update is handled by the Scene
 }
 
 void FMetalRayTracingGeometry::RemoveCompactionRequest()

@@ -2921,7 +2921,25 @@ void FD3D12RayTracingGeometry::Swap(FD3D12RayTracingGeometry& Other)
 	});
 	::Swap(AccelerationStructureCompactedSize, Other.AccelerationStructureCompactedSize);
 
-	// The rest of the members should be updated using SetInitializer()
+	for (uint32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering; ++GPUIndex)
+	{
+		UnregisterAsRenameListener(GPUIndex);
+	}
+
+	Initializer = Other.Initializer;
+
+	DebugName = !Initializer.DebugName.IsNone() ? Initializer.DebugName : FName(TEXT("BLAS"));
+
+	checkf(Initializer.Segments.Num() > 0, TEXT("Ray tracing geometry must be initialized with at least one segment."));
+
+	GeometryDescs.SetNumUninitialized(Initializer.Segments.Num());
+	TranslateRayTracingGeometryDescs(Initializer, GeometryDescs);
+
+	for (uint32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering; ++GPUIndex)
+	{
+		RegisterAsRenameListener(GPUIndex);
+		SetupHitGroupSystemParameters(GPUIndex);
+	}
 }
 
 void FD3D12RayTracingGeometry::ReleaseUnderlyingResource()
@@ -3133,33 +3151,6 @@ void FD3D12RayTracingGeometry::UpdateResidency(FD3D12CommandContext& CommandCont
 
 	const uint32 GPUIndex = CommandContext.GetGPUIndex();
 	CommandContext.UpdateResidency(AccelerationStructureBuffers[GPUIndex]->GetResource());
-}
-
-void FD3D12RayTracingGeometry::SetInitializer(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& InInitializer)
-{
-	Initializer = InInitializer;
-
-	FOREACH_GPU(GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering,
-	{
-		UnregisterAsRenameListener(GPUIndex);
-	});
-
-	DebugName = !Initializer.DebugName.IsNone() ? Initializer.DebugName : FName(TEXT("BLAS"));
-
-	checkf(Initializer.Segments.Num() > 0, TEXT("Ray tracing geometry must be initialized with at least one segment."));
-
-	GeometryDescs.SetNumUninitialized(Initializer.Segments.Num());
-	TranslateRayTracingGeometryDescs(Initializer, GeometryDescs);
-	
-	RHICmdList.EnqueueLambda([this](FRHICommandListBase&)
-	{
-		FOREACH_GPU(GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering,
-		{				
-			RegisterAsRenameListener(GPUIndex);
-			SetupHitGroupSystemParameters(GPUIndex);		
-		});
-	});
-	RHICmdList.RHIThreadFence(true);
 }
 
 void FD3D12RayTracingGeometry::SetupHitGroupSystemParameters(uint32 InGPUIndex)

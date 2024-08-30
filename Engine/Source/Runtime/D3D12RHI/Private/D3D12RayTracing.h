@@ -32,7 +32,6 @@ public:
 			TEXT("Trying to get address of acceleration structure '%s' without allocated memory."), *DebugName.ToString());
 		return AccelerationStructureBuffers[GPUIndex]->ResourceLocation.GetGPUVirtualAddress();
 	}
-	virtual void SetInitializer(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& Initializer) final override;
 
 	void SetupHitGroupSystemParameters(uint32 InGPUIndex);
 	void TransitionBuffers(FD3D12CommandContext& CommandContext);
