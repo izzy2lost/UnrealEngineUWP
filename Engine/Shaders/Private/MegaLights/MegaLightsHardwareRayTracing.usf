@@ -16,6 +16,7 @@
 float RayTracingBias;
 float RayTracingEndBias;
 float RayTracingNormalBias;
+float RayTracingPullbackBias;
 uint DebugMode;
 uint MaxTraversalIterations;
 uint MeshSectionVisibilityTest;
@@ -64,7 +65,7 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		FRayDesc Ray = (FRayDesc)0;
 		Ray.Origin = TranslatedWorldPosition;
 		Ray.Direction = LightSampleTrace.Direction;
-		Ray.TMin = max(LightSampleRayMinT, RayTracingBias);
+		Ray.TMin = max(LightSampleRayMinT - RayTracingPullbackBias, RayTracingBias);
 		Ray.TMax = max(Ray.TMin, LightSampleTrace.Distance - RayTracingEndBias);
 
 		ApplyPositionBias(Ray.Origin, Ray.Direction, SceneWorldNormal, RayTracingNormalBias);

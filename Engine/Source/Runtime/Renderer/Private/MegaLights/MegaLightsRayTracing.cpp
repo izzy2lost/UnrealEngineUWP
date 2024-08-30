@@ -93,6 +93,13 @@ static TAutoConsoleVariable<float> CVarMegaLightsHardwareRayTracingNormalBias(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<float> CVarMegaLightsHardwareRayTracingPullbackBias(
+	TEXT("r.MegaLights.HardwareRayTracing.PullbackBias"),
+	1.0f,
+	TEXT("Determines the pull-back bias when resuming a screen-trace ray."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarMegaLightsHardwareRayTracingMaxIterations(
 	TEXT("r.MegaLights.HardwareRayTracing.MaxIterations"),
 	8192,
@@ -346,6 +353,7 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 		SHADER_PARAMETER(float, RayTracingBias)
 		SHADER_PARAMETER(float, RayTracingEndBias)
 		SHADER_PARAMETER(float, RayTracingNormalBias)
+		SHADER_PARAMETER(float, RayTracingPullbackBias)
 		// Ray Tracing
 		SHADER_PARAMETER(uint32, MaxTraversalIterations)
 		SHADER_PARAMETER(uint32, MeshSectionVisibilityTest)
@@ -715,6 +723,7 @@ namespace MegaLights
 		PassParameters->RayTracingBias = CVarMegaLightsHardwareRayTracingBias.GetValueOnRenderThread();
 		PassParameters->RayTracingEndBias = CVarMegaLightsHardwareRayTracingEndBias.GetValueOnRenderThread();
 		PassParameters->RayTracingNormalBias = CVarMegaLightsHardwareRayTracingNormalBias.GetValueOnRenderThread();
+		PassParameters->RayTracingPullbackBias = CVarMegaLightsHardwareRayTracingPullbackBias.GetValueOnRenderThread();
 
 		checkf(View.HasRayTracingScene(), TEXT("TLAS does not exist. Verify that the current pass is represented in Lumen::AnyLumenHardwareRayTracingPassEnabled()."));
 		PassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
