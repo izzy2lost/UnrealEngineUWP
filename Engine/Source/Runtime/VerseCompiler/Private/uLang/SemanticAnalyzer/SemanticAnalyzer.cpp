@@ -16261,13 +16261,14 @@ private:
             return nullptr;
         }
 
-        // when we encounter an expression of the form set Obj.X = Y,
-        // where Obj is an instance of a subclass of parameter_collection,
-        // we emit an additional "On_X_Changed" after:
-        //   set Obj.X = Y
+        // when we encounter an expression of the form set [Obj.]X = Y, where Obj (or implicit Self)
+        // is an instance of a subclass of parameter_collection, we emit an additional
+        // "On_X_Changed" after:
+        //
+        //   set [Obj.]X = Y
         // =>
         //   block:
-        //     Context := Obj
+        //     Context := Obj (or, := implicit Self)
         //     R := set Context.X = Y
         //     Context.OnPropertyChangedFromVerse("X")
         //     R
@@ -16283,20 +16284,22 @@ private:
             AssignmentVSTNode->AddMapping(Expr);
         };
 
-        TSPtr<CExpressionBase> Obj = ParameterCollectionVarLhs->Context();
-        ULANG_ASSERT(Obj);
-        TSPtr<CExprCodeBlock> Block = MakeCodeBlock();                  // block:
+        TSPtr<CExpressionBase> MaybeObj = ParameterCollectionVarLhs->Context();
+        TSPtr<CExprCodeBlock> Block = MakeCodeBlock();                                     // block:
         MapAssignmentVSTNodeTo(Block);
         {
-            // Note: Obj may have a reference type, if it is itself (projected from) a var.
-            // The local Context should store the object (pointer) itself, not a reference to it.
-            // This is okay because FindParameterCollectionVarLhs only accepts classes, not structs.
-            TSRef<CExprIdentifierData> Context = MakeFreshLocal(*Block, ToValue(Obj.AsRef())); //    Context := Obj
+            // Note: Obj may have a reference type, if it is itself (projected
+            // from) a var.  The local Context should store the object (pointer)
+            // itself, not a reference to it.  This is okay because
+            // FindParameterCollectionVarLhs only accepts classes, not structs.
+            TSPtr<CExprIdentifierData> MaybeContext;
+            if (MaybeObj)
             {
-                ParameterCollectionVarLhs->SetContext(Context);
+                MaybeContext = MakeFreshLocal(*Block, ToValue(MaybeObj.AsRef()));          //    Context := Obj
+                ParameterCollectionVarLhs->SetContext(MaybeContext);
             }
 
-            TSPtr<CExprIdentifierData> Result;                          //    R := set Context.X = Y
+            TSPtr<CExprIdentifierData> Result;                                             //    R := set Context.X = Y
             {
                 TSPtr<CExpressionBase> AssignmentResult = AnalyzeInPlace(
                     Assignment, &CSemanticAnalyzerImpl::AnalyzeAssignment_Internal, ExprCtx
@@ -16305,10 +16308,10 @@ private:
                 Result = MakeFreshLocal(*Block, AssignmentResult.AsRef());
             }
 
-            TSPtr<CExpressionBase> HookCall;                            //    Context.OnPropertyChangedFromVerse("X")
+            TSPtr<CExpressionBase> HookCall;                                               //    Context.OnPropertyChangedFromVerse("X")
             {
                 HookCall = MakeParameterCollectionOnChangeFuncInvocation(
-                    ParameterCollectionVarLhs->_DataDefinition.GetName().AsString(), Move(Context)
+                    ParameterCollectionVarLhs->_DataDefinition.GetName().AsString(), MaybeContext
                 );
                 MapAssignmentVSTNodeTo(HookCall);
 
@@ -16318,7 +16321,7 @@ private:
             }
             Block->AppendSubExpr(HookCall);
 
-            Block->AppendSubExpr(Result);                               //     R
+            Block->AppendSubExpr(Result);                                                 //     R
         }
 
         return Block;
