@@ -921,6 +921,12 @@ public:
 
 		Stack.StepCompiledIn<FArrayProperty>(NULL);
 		void* SrcArrayAddr = Stack.MostRecentPropertyAddress;
+		FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Stack.MostRecentProperty);
+		if (!ArrayProperty)
+		{
+			Stack.bArrayContextFailed = true;
+			return;
+		}
 
 		P_FINISH;
 
