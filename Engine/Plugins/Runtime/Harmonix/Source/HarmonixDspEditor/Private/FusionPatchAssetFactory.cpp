@@ -112,7 +112,7 @@ void UFusionPatchAssetFactory::CleanUp()
 {
 	ImportCounter = 0;
 	ApplyOptionsToAllImport = EApplyAllOption::Unset;
-	ReplaceExistingSamples = false;
+	ReplaceExistingSamples = true;
 
 	// prompt to save the imported objects collected during entire import
 	TArray<UPackage*> PackagesToSave;
@@ -128,10 +128,10 @@ bool UFusionPatchAssetFactory::GetReplaceExistingSamplesResponse(const FString& 
 {
 	const FText ReplaceExistingTitle = NSLOCTEXT("FusionPatchImporter", "ReplaceExistingSamplesTitle", "Replace Existing Samples");
 	const FText ReplaceExistingMessage = FText::Format(NSLOCTEXT("FusionPatchImporter", "ReplaceExistingSamplesMsg", 
-		"Existing samples were detected in the selected Sample directory. Would you like to reimport existing Sound Wave Assets?" 
+		"You are Reimporting a Fusion Patch with existing samples. Would you like to reimport existing Sound Wave Assets?" 
 		"\n\nPatch Name: {0}"
 		"\n\nYes. Reimport existing Samples. *If you made changes to any samples*, you will want to do this."
-		"\n\nNo.  Don't reimport existing Samples."), 
+		"\n\nNo.  Don't reimport existing Samples. Just reimport the Fusion Patch settings"), 
 		FText::FromString(InName));
 	EAppReturnType::Type ReplaceExistingSamplesResponse = UEditorDialogLibrary::ShowMessage(ReplaceExistingTitle, ReplaceExistingMessage, EAppMsgType::YesNo, EAppReturnType::No, EAppMsgCategory::Info);
 	
@@ -234,10 +234,9 @@ UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* I
 			return nullptr;
 		}
 
-		const FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>("AssetRegistry");
-		bool DestinationHasAssets = AssetRegistryModule.Get().HasAssets(FName(ImportOptions->SamplesImportDir.Path));
-		// if the destination is empty, then we don't need to prompt the user to replace existing samples since there are no existing samples to replace
-		ReplaceExistingSamples = DestinationHasAssets ? GetReplaceExistingSamplesResponse(InName.ToString()) : false;
+		// If the fusion patch already exists, ask whether we want to replace existing samples.
+		// otherwise, always replace existing samples by default
+		ReplaceExistingSamples = FusionPatch != nullptr ? GetReplaceExistingSamplesResponse(InName.ToString()) : true;
 	}
 	
 	const FString SourceFile = GetCurrentFilename();

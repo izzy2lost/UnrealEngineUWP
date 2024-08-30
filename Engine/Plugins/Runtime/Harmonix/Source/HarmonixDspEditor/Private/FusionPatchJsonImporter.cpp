@@ -222,6 +222,15 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 		{
 			KeyzonesImported[KeyzoneIdx].SoundWave = SoundWave;
 		}
+
+		// The importer failed to map a sound wave to this keyzone!
+		if (!KeyzonesImported[KeyzoneIdx].SoundWave) 
+		{
+			FString SamplePath = KeyzonesImported[KeyzoneIdx].SamplePath;
+            FString AssetName = AudioSampleFiles[KeyzoneIdx];
+			OutErrors.Add(FString::Printf(TEXT("Imported asset (Name: %s) failed to map file (%s) to keyzone: %d"), *AssetName, *SamplePath, KeyzoneIdx));
+			UE_LOG(LogFusionPatchJsonImporter, Error, TEXT("Failed to import FusionPatch. Imported asset (Name: %s) failed to map asset (%s) to keyzone: %d"), *AssetName, *SamplePath, KeyzoneIdx);
+		}
 	}
 
 	// no errors, update the FusionPatchData with the imported data
@@ -230,7 +239,9 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 		FusionPatch->UpdateSettings(PatchSettingsImport);
 		FusionPatch->UpdateKeyzones(KeyzonesImported);
 	}
-	return true;
+	
+	// return whether we had any errors
+	return OutErrors.Num() == 0;
 }
 
 #undef LOCTEXT_NAMESPACE
