@@ -244,7 +244,7 @@ FD3D12Texture* FD3D12Viewport::CreateDummyBackBufferTextures(FD3D12Adapter* InAd
 		.SetFlags(ETextureCreateFlags::RenderTargetable | ETextureCreateFlags::Presentable | ETextureCreateFlags::ResolveTargetable)
 		.SetInitialState(ERHIAccess::Present);
 
-	FD3D12Texture* Result = InAdapter->CreateLinkedObject<FD3D12Texture>(FRHIGPUMask::All(), [this, &CreateDesc](FD3D12Device* Device)
+	FD3D12Texture* Result = InAdapter->CreateLinkedObject<FD3D12Texture>(FRHIGPUMask::All(), [this, &CreateDesc](FD3D12Device* Device, FD3D12Texture* FirstLinkedObject)
 		{
 			return new FD3D12BackBufferReferenceTexture2D(CreateDesc, this, Device);
 		});

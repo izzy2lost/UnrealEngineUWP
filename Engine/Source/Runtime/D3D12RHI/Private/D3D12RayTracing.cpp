@@ -4152,7 +4152,7 @@ struct FD3D12RayTracingLocalResourceBinder
 		// If the amount of data is relatively small, it may also be possible to use root constants and avoid extra allocations entirely.
 
 	#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
-		FD3D12ConstantBufferView* ConstantBufferView = new FD3D12ConstantBufferView(GetDevice());
+		FD3D12ConstantBufferView* ConstantBufferView = new FD3D12ConstantBufferView(GetDevice(), nullptr);
 		ShaderTable.WorkerData[WorkerIndex].TransientCBVs.Add(ConstantBufferView);
 	#else // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		FD3D12ConstantBufferView* ConstantBufferView = nullptr;

@@ -9,12 +9,12 @@
 //
 // -----------------------------------------------------------------------------------------------------
 
-FD3D12ShaderResourceView::FD3D12ShaderResourceView(FD3D12Device* InDevice)
-	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard)
+FD3D12ShaderResourceView::FD3D12ShaderResourceView(FD3D12Device* InDevice, FD3D12ShaderResourceView* FirstLinkedObject)
+	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard, FirstLinkedObject)
 {}
 
-FD3D12ShaderResourceView::FD3D12ShaderResourceView(FD3D12Device* InDevice, FD3D12RayTracingScene* InRayTracingScene)
-	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard)
+FD3D12ShaderResourceView::FD3D12ShaderResourceView(FD3D12Device* InDevice, FD3D12ShaderResourceView* FirstLinkedObject, FD3D12RayTracingScene* InRayTracingScene)
+	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard, FirstLinkedObject)
 	, RayTracingScene(InRayTracingScene)
 {}
 
@@ -300,12 +300,12 @@ void FD3D12ShaderResourceView_RHI::UpdateView(FD3D12ContextArray const& Contexts
 	}
 }
 
-FD3D12ShaderResourceView_RHI::FD3D12ShaderResourceView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc)
+FD3D12ShaderResourceView_RHI::FD3D12ShaderResourceView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc, FD3D12ShaderResourceView_RHI* FirstLinkedObject)
 	: FRHIShaderResourceView(InResource, InViewDesc)
 #if RHI_RAYTRACING
-	, FD3D12ShaderResourceView(InDevice, InViewDesc.Buffer.SRV.BufferType == FRHIViewDesc::EBufferType::AccelerationStructure ? FD3D12DynamicRHI::ResourceCast(InViewDesc.Buffer.SRV.RayTracingScene) : nullptr)
+	, FD3D12ShaderResourceView(InDevice, FirstLinkedObject, InViewDesc.Buffer.SRV.BufferType == FRHIViewDesc::EBufferType::AccelerationStructure ? FD3D12DynamicRHI::ResourceCast(InViewDesc.Buffer.SRV.RayTracingScene) : nullptr)
 #else
-	, FD3D12ShaderResourceView(InDevice)
+	, FD3D12ShaderResourceView(InDevice, FirstLinkedObject)
 #endif
 {}
 
@@ -323,13 +323,13 @@ FShaderResourceViewRHIRef FD3D12DynamicRHI::RHICreateShaderResourceView(class FR
 		? FD3D12DynamicRHI::ResourceCast(static_cast<FRHIBuffer* >(Resource))->GetLinkedObjectsGPUMask()
 		: FD3D12DynamicRHI::ResourceCast(static_cast<FRHITexture*>(Resource))->GetLinkedObjectsGPUMask();
 
-	FD3D12ShaderResourceView_RHI* View = GetAdapter().CreateLinkedObject<FD3D12ShaderResourceView_RHI>(RelevantGPUs, [&](FD3D12Device* Device)
+	FD3D12ShaderResourceView_RHI* View = GetAdapter().CreateLinkedObject<FD3D12ShaderResourceView_RHI>(RelevantGPUs, [&](FD3D12Device* Device, FD3D12ShaderResourceView_RHI* FirstLinkedObject)
 	{
 		FRHIViewableResource* TargetResource = ViewDesc.IsBuffer()
 			? static_cast<FRHIViewableResource*>(FD3D12DynamicRHI::ResourceCast(static_cast<FRHIBuffer* >(Resource), Device->GetGPUIndex()))
 			: static_cast<FRHIViewableResource*>(FD3D12DynamicRHI::ResourceCast(static_cast<FRHITexture*>(Resource), Device->GetGPUIndex()));
 
-		return new FD3D12ShaderResourceView_RHI(Device, TargetResource, ViewDesc);
+		return new FD3D12ShaderResourceView_RHI(Device, TargetResource, ViewDesc, FirstLinkedObject);
 	});
 
 	View->CreateViews(RHICmdList);

@@ -14,7 +14,7 @@ FD3D12ConstantBuffer::FD3D12ConstantBuffer(FD3D12Device* InParent, FD3D12FastCon
 	Allocator(InAllocator)
 {
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
-	View = new FD3D12ConstantBufferView(InParent);
+	View = new FD3D12ConstantBufferView(InParent, nullptr);
 #endif
 }
 

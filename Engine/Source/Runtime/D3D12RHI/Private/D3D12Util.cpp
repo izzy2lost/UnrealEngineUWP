@@ -1363,8 +1363,8 @@ const FD3D12RootSignature* FD3D12Adapter::GetGlobalRayTracingRootSignature(const
 	QBSS.bUseDiagnosticBuffer = true;
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	QBSS.bUseDirectlyIndexedResourceHeap = bBindlessResourcesAllowed;
-	QBSS.bUseDirectlyIndexedSamplerHeap = bBindlessSamplersAllowed;
+	QBSS.bUseDirectlyIndexedResourceHeap = BindlessManager.GetResourcesAllowed();
+	QBSS.bUseDirectlyIndexedSamplerHeap = BindlessManager.GetSamplersAllowed();
 #endif
 
 	QBSSRegisterCounts.SamplerCount = MAX_SAMPLERS;

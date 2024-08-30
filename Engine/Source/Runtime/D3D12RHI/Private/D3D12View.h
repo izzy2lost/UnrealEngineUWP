@@ -219,7 +219,7 @@ public:
 #endif
 
 protected:
-	FD3D12View(FD3D12Device* InDevice, ERHIDescriptorHeapType InHeapType);
+	FD3D12View(FD3D12Device* InDevice, ERHIDescriptorHeapType InHeapType, FD3D12View* FirstLinkedObject);
 	virtual ~FD3D12View();
 
 	virtual void ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) override;
@@ -240,7 +240,10 @@ protected:
 	FD3D12OfflineDescriptor OfflineCpuHandle;
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	// BindlessHandle is shared across multi-GPU linked objects.  First linked object is responsible for destroying the handle.
+	// The D3D12View class doesn't have access to FD3D12LinkedAdapterObject::IsHeadLink(), so this separate bool is used.
 	FRHIDescriptorHandle BindlessHandle;
+	bool bFirstLinkedObject;
 #endif
 	ERHIDescriptorHeapType const HeapType;
 };
@@ -251,8 +254,8 @@ class TD3D12View : public FD3D12View
 protected:
 	TDesc D3DViewDesc;
 
-	TD3D12View(FD3D12Device* InDevice, ERHIDescriptorHeapType InHeapType)
-		: FD3D12View(InDevice, InHeapType)
+	TD3D12View(FD3D12Device* InDevice, ERHIDescriptorHeapType InHeapType, TD3D12View* FirstLinkedObject)
+		: FD3D12View(InDevice, InHeapType, FirstLinkedObject)
 	{}
 
 	void CreateView(FResourceInfo const& InResource, TDesc const& InD3DViewDesc)
@@ -278,7 +281,7 @@ class FD3D12ConstantBufferView final : public TD3D12View<FD3D12ConstantBufferVie
 public:
 	static constexpr FD3D12OfflineDescriptor FD3D12DefaultViews::*Null { &FD3D12DefaultViews::NullCBV };
 
-	FD3D12ConstantBufferView(FD3D12Device* InParent);
+	FD3D12ConstantBufferView(FD3D12Device* InParent, FD3D12ConstantBufferView* FirstLinkedObject);
 	void CreateView(FResourceInfo const& InResource, uint32 InOffset, uint32 InAlignedSize);
 
 private:
@@ -300,8 +303,8 @@ public:
 	};
 	FRIEND_ENUM_CLASS_FLAGS(EFlags)
 
-	FD3D12ShaderResourceView(FD3D12Device* InDevice);
-	FD3D12ShaderResourceView(FD3D12Device* InDevice, FD3D12RayTracingScene* InRayTracingScene);
+	FD3D12ShaderResourceView(FD3D12Device* InDevice, FD3D12ShaderResourceView* FirstLinkedObject);
+	FD3D12ShaderResourceView(FD3D12Device* InDevice, FD3D12ShaderResourceView* FirstLinkedObject, FD3D12RayTracingScene* InRayTracingScene);
 	void CreateView(FResourceInfo const& InResource, D3D12_SHADER_RESOURCE_VIEW_DESC const& InD3DViewDesc, EFlags InFlags);
 	void UpdateView(FD3D12ContextArray const& Contexts, const FResourceInfo& InResource, const D3D12_SHADER_RESOURCE_VIEW_DESC& InD3DViewDesc, EFlags InFlags);
 
@@ -338,7 +341,7 @@ public:
 	};
 	FRIEND_ENUM_CLASS_FLAGS(EFlags)
 
-	FD3D12UnorderedAccessView(FD3D12Device* InDevice);
+	FD3D12UnorderedAccessView(FD3D12Device* InDevice, FD3D12UnorderedAccessView* FirstLinkedObject);
 	void CreateView(FResourceInfo const& InResource, D3D12_UNORDERED_ACCESS_VIEW_DESC const& InD3DViewDesc, EFlags InFlags);
 	void UpdateView(FD3D12ContextArray const& Contexts, const FResourceInfo& InResource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& InD3DViewDesc, EFlags InFlags);
 
@@ -366,7 +369,7 @@ class FD3D12RenderTargetView final : public TD3D12View<FD3D12RenderTargetView, D
 public:
 	static constexpr FD3D12OfflineDescriptor FD3D12DefaultViews::*Null { &FD3D12DefaultViews::NullRTV };
 
-	FD3D12RenderTargetView(FD3D12Device* InDevice);
+	FD3D12RenderTargetView(FD3D12Device* InDevice, FD3D12RenderTargetView* FirstLinkedObject);
 	using TD3D12View::CreateView;
 
 private:
@@ -378,7 +381,7 @@ class FD3D12DepthStencilView final : public TD3D12View<FD3D12DepthStencilView, D
 public:
 	static constexpr FD3D12OfflineDescriptor FD3D12DefaultViews::*Null { &FD3D12DefaultViews::NullDSV };
 
-	FD3D12DepthStencilView(FD3D12Device* InDevice);
+	FD3D12DepthStencilView(FD3D12Device* InDevice, FD3D12DepthStencilView* FirstLinkedObject);
 	using TD3D12View::CreateView;
 
 	bool HasDepth  () const { return GetViewSubset().HasPlane(0); }
@@ -426,7 +429,7 @@ class FD3D12ShaderResourceView_RHI
 	, public FD3D12DeferredInitView<FD3D12ShaderResourceView_RHI>
 {
 public:
-	FD3D12ShaderResourceView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc);
+	FD3D12ShaderResourceView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc, FD3D12ShaderResourceView_RHI* FirstLinkedObject);
 
 	virtual void CreateView();
 	virtual void UpdateView(FD3D12ContextArray const& Contexts);
@@ -447,7 +450,7 @@ class FD3D12UnorderedAccessView_RHI
 	, public FD3D12DeferredInitView<FD3D12UnorderedAccessView_RHI>
 {
 public:
-	FD3D12UnorderedAccessView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc);
+	FD3D12UnorderedAccessView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc, FD3D12UnorderedAccessView_RHI* FirstLinkedObject);
 
 	virtual void CreateView();
 	virtual void UpdateView(FD3D12ContextArray const& Contexts);

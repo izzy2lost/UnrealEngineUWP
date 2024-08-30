@@ -153,7 +153,7 @@ uint32 FD3D12QueryHeap::Release()
 FRenderQueryRHIRef FD3D12DynamicRHI::RHICreateRenderQuery(ERenderQueryType QueryType)
 {
 	check(QueryType == RQT_Occlusion || QueryType == RQT_AbsoluteTime);
-	return GetAdapter().CreateLinkedObject<FD3D12RenderQuery>(FRHIGPUMask::All(), [QueryType](FD3D12Device* Device)
+	return GetAdapter().CreateLinkedObject<FD3D12RenderQuery>(FRHIGPUMask::All(), [QueryType](FD3D12Device* Device, FD3D12RenderQuery* FirstLinkedObject)
 	{
 		return new FD3D12RenderQuery(Device, QueryType);
 	});
