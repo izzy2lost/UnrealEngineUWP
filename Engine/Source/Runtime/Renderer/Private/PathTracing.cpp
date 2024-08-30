@@ -46,6 +46,19 @@ TAutoConsoleVariable<bool> CVarPathTracingExperimental(
 	ECVF_RenderThreadSafe | ECVF_ReadOnly
 );
 
+TAutoConsoleVariable<FString> CVarPathTracingDebugVisualize(
+	TEXT("r.PathTracing.DebugVisualize"),
+	TEXT(""),
+	TEXT("Enables a debug mode for the path tracer which can visualize payload fields and perform basic lighting without sample accumulation. (default: "")")
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingDebugVisualizeLightSamples(
+	TEXT("r.PathTracing.DebugVisualizeLightSamples"),
+	1,
+	TEXT("Number of light samples for the path tracing light sampling debug mode (default: 1)"),
+	ECVF_RenderThreadSafe
+);
+
 
 TAutoConsoleVariable<bool> CVarPathTracingCompaction(
 	TEXT("r.PathTracing.Compaction"),
@@ -356,27 +369,6 @@ TAutoConsoleVariable<int32> CVarPathTracingLightGridMaxCount(
 	ECVF_RenderThreadSafe
 );
 
-TAutoConsoleVariable<int32> CVarPathTracingLightGridVisualize(
-	TEXT("r.PathTracing.LightGridVisualize"),
-	0,
-	TEXT("Enables a visualization mode of the light grid density where red indicates the maximum light count has been reached (default = 0)\n")
-	TEXT("0: off (default)\n")
-	TEXT("1: light count heatmap (red - close to overflow, increase r.PathTracing.LightGridMaxCount)\n")
-	TEXT("2: unique light lists (colors are a function of which lights occupy each cell)\n")
-	TEXT("3: area light visualization (green: point light sources only, blue: some area light sources)\n"),
-	ECVF_RenderThreadSafe
-);
-
-TAutoConsoleVariable<int32> CVarPathTracingDecalGridVisualize(
-	TEXT("r.PathTracing.DecalGrid.Visualize"),
-	0,
-	TEXT("Enables a visualization mode of the decal grid density where red indicates the maximum decal count has been reached (default = 0)\n")
-	TEXT("0: off (default)\n")
-	TEXT("1: decal count heatmap (red - close to overflow, increase r.RayTracing.DecalGrid.MaxCount)\n")
-	TEXT("2: unique decal lists (colors are a function of which decals occupy each cell)\n"),
-	ECVF_RenderThreadSafe
-);
-
 TAutoConsoleVariable<bool> CVarPathTracingUseDBuffer(
 	TEXT("r.PathTracing.UseDBuffer"),
 	true,
@@ -525,8 +517,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FPathTracingData, )
 	SHADER_PARAMETER(uint32, ApproximateCaustics)
 	SHADER_PARAMETER(uint32, EnableCameraBackfaceCulling)
 	SHADER_PARAMETER(uint32, SamplerType)
-	SHADER_PARAMETER(uint32, VisualizeLightGrid)
-	SHADER_PARAMETER(uint32, VisualizeDecalGrid)
 	SHADER_PARAMETER(uint32, EnableDBuffer)
 	SHADER_PARAMETER(uint32, VolumeFlags)
 	SHADER_PARAMETER(uint32, EnabledDirectLightingContributions)   // PATHTRACER_CONTRIBUTION_*
@@ -580,8 +570,6 @@ struct FPathTracingConfig
 			PathTracingData.SamplerType != Other.PathTracingData.SamplerType ||
 			PathTracingData.ApproximateCaustics != Other.PathTracingData.ApproximateCaustics ||
 			PathTracingData.EnableCameraBackfaceCulling != Other.PathTracingData.EnableCameraBackfaceCulling ||
-			PathTracingData.VisualizeLightGrid != Other.PathTracingData.VisualizeLightGrid ||
-			PathTracingData.VisualizeDecalGrid != Other.PathTracingData.VisualizeDecalGrid ||
 			PathTracingData.EnableDBuffer != Other.PathTracingData.EnableDBuffer ||
 			PathTracingData.MaxPathIntensity != Other.PathTracingData.MaxPathIntensity ||
 			PathTracingData.FilterWidth != Other.PathTracingData.FilterWidth ||
@@ -707,7 +695,41 @@ struct FPathTracingState
 	uint32_t FrameIndex = 0;
 };
 
-uint32 PackRG16(float In0, float In1);
+int GetPathTracingDebugVisualizationMode() {
+	static TMap<FName, uint32> PathTracingDebugModes;
+	if (PathTracingDebugModes.Num() == 0)
+	{
+		PathTracingDebugModes.Emplace(FName(TEXT("Radiance"))			, PATH_TRACER_DEBUG_VIZ_RADIANCE				);
+		PathTracingDebugModes.Emplace(FName(TEXT("WorldNormal"))		, PATH_TRACER_DEBUG_VIZ_WORLD_NORMAL			);
+		PathTracingDebugModes.Emplace(FName(TEXT("WorldSmoothNormal"))	, PATH_TRACER_DEBUG_VIZ_WORLD_SMOOTH_NORMAL		);
+		PathTracingDebugModes.Emplace(FName(TEXT("WorldGeoNormal"))		, PATH_TRACER_DEBUG_VIZ_WORLD_GEO_NORMAL		);
+		PathTracingDebugModes.Emplace(FName(TEXT("BaseColor"))	    	, PATH_TRACER_DEBUG_VIZ_BASE_COLOR				);
+		PathTracingDebugModes.Emplace(FName(TEXT("DiffuseColor"))	   	, PATH_TRACER_DEBUG_VIZ_DIFFUSE_COLOR			);
+		PathTracingDebugModes.Emplace(FName(TEXT("SpecularColor"))	   	, PATH_TRACER_DEBUG_VIZ_SPECULAR_COLOR			);
+		PathTracingDebugModes.Emplace(FName(TEXT("Opacity"))	     	, PATH_TRACER_DEBUG_VIZ_OPACITY					);
+		PathTracingDebugModes.Emplace(FName(TEXT("Metallic"))	     	, PATH_TRACER_DEBUG_VIZ_METALLIC				);
+		PathTracingDebugModes.Emplace(FName(TEXT("Specular"))	     	, PATH_TRACER_DEBUG_VIZ_SPECULAR				);
+		PathTracingDebugModes.Emplace(FName(TEXT("Roughness"))	     	, PATH_TRACER_DEBUG_VIZ_ROUGHNESS				);
+		PathTracingDebugModes.Emplace(FName(TEXT("IOR"))	    	 	, PATH_TRACER_DEBUG_VIZ_IOR						);
+		PathTracingDebugModes.Emplace(FName(TEXT("ShadingModel"))  	 	, PATH_TRACER_DEBUG_VIZ_SHADING_MODEL			);
+		PathTracingDebugModes.Emplace(FName(TEXT("LightingChannelMask")), PATH_TRACER_DEBUG_VIZ_LIGHTING_CHANNEL_MASK 	);
+		PathTracingDebugModes.Emplace(FName(TEXT("CustomData0"))		, PATH_TRACER_DEBUG_VIZ_CUSTOM_DATA0 			);
+		PathTracingDebugModes.Emplace(FName(TEXT("CustomData1"))		, PATH_TRACER_DEBUG_VIZ_CUSTOM_DATA1 			);
+		PathTracingDebugModes.Emplace(FName(TEXT("WorldPosition"))		, PATH_TRACER_DEBUG_VIZ_WORLD_POSITION 			);
+		PathTracingDebugModes.Emplace(FName(TEXT("PrimaryRays"))		, PATH_TRACER_DEBUG_VIZ_PRIMARY_RAYS 			);
+		PathTracingDebugModes.Emplace(FName(TEXT("WorldTangent"))		, PATH_TRACER_DEBUG_VIZ_WORLD_TANGENT 			);
+		PathTracingDebugModes.Emplace(FName(TEXT("Anisotropy"))	    	, PATH_TRACER_DEBUG_VIZ_ANISOTROPY 				);
+		PathTracingDebugModes.Emplace(FName(TEXT("LightGridCount"))	   	, PATH_TRACER_DEBUG_VIZ_LIGHT_GRID_COUNT		);
+		PathTracingDebugModes.Emplace(FName(TEXT("DecalGridCount"))	   	, PATH_TRACER_DEBUG_VIZ_DECAL_GRID_COUNT		);
+	}
+	FString DebugMode = CVarPathTracingDebugVisualize.GetValueOnRenderThread();
+	if (!DebugMode.IsEmpty())
+	{
+		return PathTracingDebugModes.FindRef(FName(*DebugMode, FNAME_Find), -1);
+	}
+	// not doing debugging
+	return -1;
+}
 
 namespace PathTracing
 {
@@ -725,6 +747,11 @@ namespace PathTracing
 	bool UsesReferenceDOF(const FViewInfo& View)
 	{
 		return GEnableReferenceDOF < 0 ? View.FinalPostProcessSettings.PathTracingEnableReferenceDOF != 0 : GEnableReferenceDOF != 0;
+	}
+
+	bool NeedsAntiAliasing(const FViewInfo& View)
+	{
+		return GetPathTracingDebugVisualizationMode() >= 0;
 	}
 }
 
@@ -760,8 +787,6 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 	PathTracingData.ApproximateCaustics = CVarPathTracingApproximateCaustics.GetValueOnRenderThread();
 	PathTracingData.EnableCameraBackfaceCulling = CVarPathTracingEnableCameraBackfaceCulling.GetValueOnRenderThread();
 	PathTracingData.SamplerType = CVarPathTracingSamplerType.GetValueOnRenderThread();
-	PathTracingData.VisualizeLightGrid = CVarPathTracingLightGridVisualize.GetValueOnRenderThread();
-	PathTracingData.VisualizeDecalGrid = CVarPathTracingDecalGridVisualize.GetValueOnRenderThread();
 	PathTracingData.FilterWidth = CVarPathTracingFilterWidth.GetValueOnRenderThread();
 	PathTracingData.CameraFocusDistance = 0;
 	PathTracingData.CameraLensRadius = FVector2f::ZeroVector;
@@ -1194,6 +1219,77 @@ class FPathTracingRG : public FGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FPathTracingRG, "/Engine/Private/PathTracing/PathTracing.usf", "PathTracingMainRG", SF_RayGen);
+
+class FPathTracingDebugRG : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FPathTracingDebugRG)
+	SHADER_USE_ROOT_PARAMETER_STRUCT(FPathTracingDebugRG, FGlobalShader)
+
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return ShouldCompilePathTracingShadersForProject(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("USE_RECT_LIGHT_TEXTURES"), 1);
+		OutEnvironment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
+	}
+
+	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
+	{
+		return ERayTracingPayloadType::PathTracingMaterial | ERayTracingPayloadType::Decals;
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWSceneColor)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>,  RWSceneDepth)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
+		SHADER_PARAMETER(int32, DebugMode)
+
+		// scene lights
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FPathTracingLight>, SceneLights)
+		SHADER_PARAMETER(uint32, SceneLightCount)
+		SHADER_PARAMETER(uint32, SceneVisibleLightCount)
+		SHADER_PARAMETER(uint32, NumLightSamples)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingLightGrid, LightGridParameters)
+	
+		// scene decals
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FRayTracingDecals, DecalParameters)
+
+		// Skylight
+		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingSkylight, SkylightParameters)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FPathTracingDebugRG, "/Engine/Private/PathTracing/PathTracingDebug.usf", "PathTracingDebugRG", SF_RayGen);
+
+
+class FPathTracingCopyDepthPS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FPathTracingCopyDepthPS)
+	SHADER_USE_PARAMETER_STRUCT(FPathTracingCopyDepthPS, FGlobalShader)
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return ShouldCompileRayTracingShadersForProject(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		OutEnvironment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float>, DepthTexture)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_SHADER_TYPE(, FPathTracingCopyDepthPS, TEXT("/Engine/Private/PathTracing/PathTracingCopyDepth.usf"), TEXT("CopyDepth"), SF_Pixel);
+
 
 class FPathTracingInitExtinctionCoefficientRG : public FGlobalShader
 {
@@ -2523,9 +2619,27 @@ RENDERER_API void PrepareLightGrid(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::
 	}
 }
 
-void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* PassParameters, FScene* Scene, const FViewInfo& View, bool UseMISCompensation)
+uint32 PackRG16(float In0, float In1);
+
+void SetLightParameters(
+	FRDGBuilder& GraphBuilder,
+	FScene* Scene,
+	const FViewInfo& View,
+	const bool UseMISCompensation,
+	const bool bUseAtmosphere,
+	// output args
+	FPathTracingSkylight* SkylightParameters,
+	FPathTracingLightGrid* LightGridParameters,
+	uint32* SceneVisibleLightCount,
+	uint32* SceneLightCount,
+	FRDGBufferSRVRef* SceneLights
+)
 {
-	PassParameters->SceneVisibleLightCount = 0;
+	check(SkylightParameters != nullptr);
+	check(SceneVisibleLightCount != nullptr);
+	check(SceneLightCount != nullptr);
+	check(SceneLights != nullptr);
+	*SceneVisibleLightCount = 0;
 
 	// Lights
 	uint32 MaxNumLights = 1 + Scene->Lights.Num(); // upper bound
@@ -2535,9 +2649,8 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 
 	// Prepend SkyLight to light buffer since it is not part of the regular light list
 	// skylight should be excluded if we are using the reference atmosphere calculation (don't bother checking again if an atmosphere is present)
-	const bool bUseAtmosphere = (PassParameters->PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE) != 0;
 	const bool bEnableSkydome = !bUseAtmosphere;
-	if (PrepareSkyTexture(GraphBuilder, Scene, View, bEnableSkydome, UseMISCompensation, &PassParameters->SkylightParameters))
+	if (PrepareSkyTexture(GraphBuilder, Scene, View, bEnableSkydome, UseMISCompensation, SkylightParameters))
 	{
 		check(Scene->SkyLight != nullptr);
 		FPathTracingLight& DestLight = Lights[NumLights++];
@@ -2558,7 +2671,7 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 			// The one exception to this case is if the sky atmo has been marked as holdout.
 
 			// Also allow seeing just the sky via a cvar for debugging purposes
-			PassParameters->SceneVisibleLightCount = 1;
+			*SceneVisibleLightCount = 1;
 		}
 	}
 
@@ -2628,7 +2741,7 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 	{
 		// show directional lights when atmosphere is enabled and not marked as holdout
 		// NOTE: there cannot be any skydome in this case
-		PassParameters->SceneVisibleLightCount = NumLights;
+		*SceneVisibleLightCount = NumLights;
 	}
 
 	uint32 NumInfiniteLights = NumLights;
@@ -2737,21 +2850,21 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 		}
 	}
 
-	PassParameters->SceneLightCount = NumLights;
+	*SceneLightCount = NumLights;
 	{
 		// Upload the buffer of lights to the GPU
 		uint32 NumCopyLights = FMath::Max(1u, NumLights); // need at least one since zero-sized buffers are not allowed
 		size_t DataSize = sizeof(FPathTracingLight) * NumCopyLights;
-		PassParameters->SceneLights = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(CreateStructuredBuffer(GraphBuilder, TEXT("PathTracer.LightsBuffer"), sizeof(FPathTracingLight), NumCopyLights, Lights, DataSize, ERDGInitialDataFlags::NoCopy)));
+		*SceneLights = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(CreateStructuredBuffer(GraphBuilder, TEXT("PathTracer.LightsBuffer"), sizeof(FPathTracingLight), NumCopyLights, Lights, DataSize, ERDGInitialDataFlags::NoCopy)));
 	}
 
 	if (CVarPathTracingVisibleLights.GetValueOnRenderThread() == 1)
 	{
 		// make all lights in the scene visible
-		PassParameters->SceneVisibleLightCount = PassParameters->SceneLightCount;
+		*SceneVisibleLightCount = *SceneLightCount;
 	}
 
-	PrepareLightGrid(GraphBuilder, View.FeatureLevel, &PassParameters->LightGridParameters, Lights, NumLights, NumInfiniteLights, PassParameters->SceneLights);
+	PrepareLightGrid(GraphBuilder, View.FeatureLevel, LightGridParameters, Lights, NumLights, NumInfiniteLights, *SceneLights);
 }
 
 class FPathTracingCompositorPS : public FGlobalShader
@@ -2809,17 +2922,25 @@ void FDeferredShadingSceneRenderer::PreparePathTracing(const FSceneViewFamily& V
 	if (ViewFamily.EngineShowFlags.PathTracing
 		&& ShouldCompilePathTracingShadersForProject(ViewFamily.GetShaderPlatform()))
 	{
-		// Declare all RayGen shaders that require material closest hit shaders to be bound
-		FPathTracingRG::FPermutationDomain PermutationVector = GetPathTracingRGPermutation(Scene);
+		if (GetPathTracingDebugVisualizationMode() >= 0)
 		{
-			auto RayGenShader = GetGlobalShaderMap(ViewFamily.GetShaderPlatform())->GetShader<FPathTracingRG>(PermutationVector);
+			auto RayGenShader = GetGlobalShaderMap(ViewFamily.GetShaderPlatform())->GetShader<FPathTracingDebugRG>();
 			OutRayGenShaders.Add(RayGenShader.GetRayTracingShader());
 		}
-
+		else
 		{
-			auto RayGenShader = GetGlobalShaderMap(ViewFamily.GetShaderPlatform())->GetShader<FPathTracingInitExtinctionCoefficientRG>();
-			OutRayGenShaders.Add(RayGenShader.GetRayTracingShader());
-		}		
+			// Declare all RayGen shaders that require material closest hit shaders to be bound
+			FPathTracingRG::FPermutationDomain PermutationVector = GetPathTracingRGPermutation(Scene);
+			{
+				auto RayGenShader = GetGlobalShaderMap(ViewFamily.GetShaderPlatform())->GetShader<FPathTracingRG>(PermutationVector);
+				OutRayGenShaders.Add(RayGenShader.GetRayTracingShader());
+			}
+
+			{
+				auto RayGenShader = GetGlobalShaderMap(ViewFamily.GetShaderPlatform())->GetShader<FPathTracingInitExtinctionCoefficientRG>();
+				OutRayGenShaders.Add(RayGenShader.GetRayTracingShader());
+			}
+		}
 	}
 }
 
@@ -2961,6 +3082,92 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		// If they reach this code through ShowFlag manipulation, they may observe an incomplete image. Is there a way to inform the user here?
 		return;
 	}
+
+
+	if (int DebugMode = GetPathTracingDebugVisualizationMode(); DebugMode >= 0)
+	{
+		const int32 DispatchResX = View.ViewRect.Size().X;
+		const int32 DispatchResY = View.ViewRect.Size().Y;
+
+		// simplified pass for debugging purposes
+		RDG_GPU_STAT_SCOPE(GraphBuilder, PathTracing);
+		FRDGTextureDesc DepthDesc = FRDGTextureDesc::Create2D(
+			View.ViewRect.Size(),
+			PF_R32_FLOAT,
+			FClearValueBinding::None,
+			TexCreate_ShaderResource | TexCreate_UAV);
+		FRDGTextureRef DepthTexture    = GraphBuilder.CreateTexture(DepthDesc, TEXT("PathTracer.Depth"));
+
+
+		FPathTracingDebugRG::FParameters* PassParameters = GraphBuilder.AllocParameters<FPathTracingDebugRG::FParameters>();
+		PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneColorOutputTexture);
+		PassParameters->RWSceneDepth = GraphBuilder.CreateUAV(DepthTexture);
+		PassParameters->TLAS = Scene->RayTracingScene.GetLayerView(ERayTracingSceneLayer::Base);
+		PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
+		PassParameters->DebugMode = DebugMode;
+
+		PassParameters->NumLightSamples = FMath::Max(CVarPathTracingDebugVisualizeLightSamples.GetValueOnRenderThread(), 1);
+		SetLightParameters(
+			GraphBuilder,
+			Scene,
+			View,
+			true,
+			false,
+			&PassParameters->SkylightParameters,
+			&PassParameters->LightGridParameters,
+			&PassParameters->SceneVisibleLightCount,
+			&PassParameters->SceneLightCount,
+			&PassParameters->SceneLights
+		);
+
+		PassParameters->DecalParameters = View.RayTracingDecalUniformBuffer;
+
+		TShaderMapRef<FPathTracingDebugRG> RayGenShader(View.ShaderMap);
+		ClearUnusedGraphResources(RayGenShader, PassParameters);
+		GraphBuilder.AddPass(
+			RDG_EVENT_NAME("Path Tracing"),
+		  	PassParameters,
+		  	ERDGPassFlags::Compute,
+			[PassParameters, RayGenShader, &View, DispatchResX, DispatchResY](FRHICommandList& RHICmdList)
+			{
+				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
+				SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
+				RHICmdList.RayTraceDispatch(
+					View.RayTracingMaterialPipeline,
+					RayGenShader.GetRayTracingShader(),
+					View.RayTracingSBT, GlobalResources,
+					DispatchResX, DispatchResY
+				);
+			});
+
+		{
+			FPathTracingCopyDepthPS::FParameters* DisplayParameters = GraphBuilder.AllocParameters<FPathTracingCopyDepthPS::FParameters>();
+			DisplayParameters->ViewUniformBuffer = View.ViewUniformBuffer;
+			DisplayParameters->DepthTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(DepthTexture));
+			//DisplayParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorOutputTexture, ERenderTargetLoadAction::ELoad);
+			DisplayParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthOutputTexture,  ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthWrite_StencilNop);
+			FScreenPassTextureViewport Viewport(SceneColorOutputTexture, View.ViewRect);
+			TShaderMapRef<FPathTracingCopyDepthPS> PixelShader(View.ShaderMap);
+			TShaderMapRef<FScreenPassVS> VertexShader(View.ShaderMap);
+			FRHIBlendState* BlendState = FScreenPassPipelineState::FDefaultBlendState::GetRHI();
+			FRHIDepthStencilState* DepthStencilState = TStaticDepthStencilState<true /* bEnableDepthWrite */, CF_Always>::GetRHI();
+			AddDrawScreenPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("Path Tracer Copy Depth", View.ViewRect.Size().X, View.ViewRect.Size().Y),
+				View,
+				Viewport,
+				Viewport,
+				VertexShader,
+				PixelShader,
+				BlendState,
+				DepthStencilState,
+				DisplayParameters);
+		}
+
+		return;
+	}
+
+
 
 	FPathTracingConfig Config = {};
 
@@ -3525,7 +3732,18 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							{
 								// upload sky/lights data
 								RDG_GPU_MASK_SCOPE(GraphBuilder, GPUMask); // make sure this happens on all GPUs we will be rendering on
-								SetLightParameters(GraphBuilder, PassParameters, Scene, View, Config.UseMISCompensation);
+								SetLightParameters(
+									GraphBuilder,
+									Scene,
+									View,
+									Config.UseMISCompensation,
+									(Config.PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE) != 0,
+									&PassParameters->SkylightParameters,
+									&PassParameters->LightGridParameters,
+									&PassParameters->SceneVisibleLightCount,
+									&PassParameters->SceneLightCount,
+									&PassParameters->SceneLights
+								);
 							}
 							else
 							{
@@ -4100,6 +4318,11 @@ namespace PathTracing
 	}
 
 	bool UsesReferenceDOF(const FViewInfo& View)
+	{
+		return false;
+	}
+
+	bool NeedsAntiAliasing(const FViewInfo& View)
 	{
 		return false;
 	}

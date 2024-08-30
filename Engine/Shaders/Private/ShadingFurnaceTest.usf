@@ -124,7 +124,7 @@ void MainPS(
 				const float2 E = Hammersley(SampleIt, NumSamples[Set], 0);
 
 				// Sample generation
-				float3 L, H;
+				float3 L = 0, H = 0;
 				if (Set == 0)
 				{
 					H = TangentToWorld(ImportanceSampleGGX(E, Pow4(Roughness)).xyz, N);

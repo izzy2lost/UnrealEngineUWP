@@ -243,8 +243,8 @@ struct FPackedPathTracingPayload : FMinimalPayload
 
 	float3 UnpackDiffuseColor()       { return PayloadDecodeLDRColor(PackedData[5]); }
 	float3 UnpackSpecularColor()      { return PayloadDecodeLDRColor(PackedData[6]); }
-	float3 UnpackSpecularEdgeColor()  { return (GetShadingModelID() == SHADINGMODELID_UNLIT) ? 0.0 : PayloadDecodeLDRColor(PackedData[7]); }
-	float4 UnpackRoughnessAniso()     { return (GetShadingModelID() == SHADINGMODELID_UNLIT) ? 0.0 : PayloadDecodeRoughnessAniso(PackedData[8]); }
+	float3 UnpackSpecularEdgeColor()  { return PayloadDecodeLDRColor(PackedData[7]); }
+	float4 UnpackRoughnessAniso()     { return PayloadDecodeRoughnessAniso(PackedData[8]); }
 	float3 UnpackWorldTangent()       { return PayloadDecodeUnitVector(PackedData[9]); }
 	float3 UnpackTransparencyColor()  { return PayloadDecodeLDRColor(PackedData[10]); }
 	float3 UnpackMeanFreePath()       { return float3(f16tof32(PackedData[11]),
@@ -266,10 +266,10 @@ struct FPackedPathTracingPayload : FMinimalPayload
 #else
 	float3 UnpackBaseColor()         { return PayloadDecodeLDRColor(PackedData[5]); }
 	float3 UnpackTransparencyColor() { return PayloadDecodeLDRColor(PackedData[6]); }
-	float UnpackMetallic()           { return (GetShadingModelID() == SHADINGMODELID_UNLIT) ? 0.0 : f16tof32(PackedData[7]); }
-	float UnpackSpecular()           { return (GetShadingModelID() == SHADINGMODELID_UNLIT) ? 0.0 : f16tof32(PackedData[7] >> 16); }
-	float UnpackRoughness()          { return (GetShadingModelID() == SHADINGMODELID_UNLIT) ? 0.0 :  f16tof32(PackedData[8]); }
-	float UnpackAnisotropy()         { return (GetShadingModelID() == SHADINGMODELID_UNLIT) ? 0.0 : f16tof32(PackedData[8] >> 16); }
+	float UnpackMetallic()           { return f16tof32(PackedData[7]); }
+	float UnpackSpecular()           { return f16tof32(PackedData[7] >> 16); }
+	float UnpackRoughness()          { return f16tof32(PackedData[8]); }
+	float UnpackAnisotropy()         { return f16tof32(PackedData[8] >> 16); }
 	float3 UnpackWorldTangent()      { return PayloadDecodeUnitVector(PackedData[9]); }
 	float4 UnpackCustomData0()       { return float4(f16tof32(PackedData[10]),
 	                                                 f16tof32(PackedData[10] >> 16),

@@ -420,6 +420,17 @@ void ApplyCameraRelativeDepthBias(inout float3 RayOrigin, float3 RayDirection, u
 	ApplyPositionBias(RayOrigin, RayDirection, WorldNormal, RayBias);
 }
 
+// This strategy is similar to ApplyPositionBias, but is the version used in the path tracer
+void ApplyRayBias(inout float3 RayOrigin, float HitT, float3 GeoNormal)
+{
+	// Take maximum of position or hit distance to determine "radius" of hit avoidance
+	const float RefValue = max(max(abs(RayOrigin.x), abs(RayOrigin.y)), max(abs(RayOrigin.z), HitT));
+	const uint UlpRadius = 16; // number of floating point ulps to skip around an intersection
+	const float RelativeOffset = asfloat(asuint(RefValue) + UlpRadius) - RefValue;
+	const float BaseOffset = 0.00390625; // 2^-8cm (roughly 39micro meters) (This avoids precision issues very close to the origin where the ulps become too small)
+	RayOrigin += max(BaseOffset, RelativeOffset) * GeoNormal;
+}
+
 float3 TranslatedWorldToTLASWorld(float3 TranslatedWorldPosition)
 {
 	const FDFVector3 TLASPreViewTranslation = MakeDFVector3(View.TLASPreViewTranslationHigh, View.TLASPreViewTranslationLow);

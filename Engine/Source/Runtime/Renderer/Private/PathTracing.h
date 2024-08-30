@@ -38,4 +38,5 @@ namespace PathTracing
 	bool UsesDecals(const FSceneViewFamily& ViewFamily);
 	bool UsesReferenceAtmosphere(const FViewInfo& View);
 	bool UsesReferenceDOF(const FViewInfo& View);
+	bool NeedsAntiAliasing(const FViewInfo& View);
 }

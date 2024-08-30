@@ -62,8 +62,6 @@ uint VolumeMISMode;
 uint ApproximateCaustics;
 uint EnableCameraBackfaceCulling;
 uint SamplerType;
-uint VisualizeLightGrid;
-uint VisualizeDecalGrid;
 uint EnableDBuffer;
 uint ApplyDiffuseSpecularOverrides;
 uint EnabledDirectLightingContributions;
@@ -958,16 +956,6 @@ FProbeResult TraceSSSProbeRay(FRayDesc Ray, inout int InterfaceCounter)
 	}
 }
 
-void ApplyRayBias(inout FRayDesc Ray, float HitT, float3 Normal)
-{
-	// Take maximum of position or hit distance to determine "radius" of hit avoidance
-	const float RefValue = max(max(abs(Ray.Origin.x), abs(Ray.Origin.y)), max(abs(Ray.Origin.z), HitT));
-	const uint UlpRadius = 16; // number of floating point ulps to skip around an intersection
-	const float RelativeOffset = asfloat(asuint(RefValue) + UlpRadius) - RefValue;
-	const float BaseOffset = 0.00390625; // 2^-8cm (roughly 39micro meters) (This avoids precision issues very close to the origin where the ulps become too small)
-	Ray.Origin += max(BaseOffset, RelativeOffset) * Normal;
-}
-
 float3 ComputeDwivediScale(float3 Albedo)
 {
 	// "Zero-Variance Theory for Efficient Subsurface Scattering"
@@ -1187,7 +1175,7 @@ bool ProcessSubsurfaceRandomWalk(inout FPathTracingPayload Payload, inout float3
 	Ray.Origin = Payload.TranslatedWorldPos;
 	Ray.Direction = TangentToWorld(-CosineSampleHemisphere(RandSample.xy).xyz, Payload.WorldNormal);
 	Ray.TMin = 0;
-	ApplyRayBias(Ray, Payload.HitT, -Payload.WorldGeoNormal);
+	ApplyRayBias(Ray.Origin, Payload.HitT, -Payload.WorldGeoNormal);
 
 	// Support SSS for mfp smaller than 1mm.
 	SSS.Radius = max(SSS.Radius, 0.0009); // 0.009mm minimum to make sure random walk can move forward and to keep SigmaT finite
@@ -1352,7 +1340,7 @@ bool ProcessSubsurfaceRandomWalk(inout FPathTracingPayload Payload, inout float3
 				bDoSlabSearch = GuidedRatio > 0;
 #endif
 
-				ApplyRayBias(Ray, ProbeResult.HitT, ProbeResult.WorldGeoNormal);
+				ApplyRayBias(Ray.Origin, ProbeResult.HitT, ProbeResult.WorldGeoNormal);
 
 				// Reset interface counter as if we had just entered the model (taking into account that we are seeing it from the opposite side now)
 				InterfaceCounter = ProbeResult.FrontFace ? -1 : +1;
@@ -1408,12 +1396,16 @@ FPathState CreatePathState(int2 PixelIndex, int2 TextureIndex)
 	// Initialize ray and payload
 	{
 		float2 AAJitter = RandomSequence_GenerateSample2D(Output.RandSequence);
-
+#if 0
+		// Tent filter
+		float2 P = 2 * AAJitter - 0.99999994f;
+		AAJitter = 0.5 + sign(P) * (1.0 - sqrt(1.0 - abs(P)));
+#elif 1
 		// importance sample a gaussian kernel with variable sigma
 		float3 Disk = ConcentricDiskSamplingHelper(AAJitter);
 		float Sigma = FilterWidth / 6.0; // user-provided width covers +/-3*Sigma
 		AAJitter = 0.5 + Sigma * Disk.xy * sqrt(-2.0 * log(1.0 - Disk.z * Disk.z));
-
+#endif
 		float2 ViewportUV = (LaunchIndex + AAJitter) * View.BufferSizeAndInvSize.zw;
 		Output.Ray = CreatePrimaryRay(ViewportUV);
 	}
@@ -1625,25 +1617,6 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 		LightLoopCount.NumMISLights = SceneInfiniteLightCount;
 	}
 
-	// visualize the # of lights
-	if (VisualizeLightGrid)
-	{
-		PathState.Radiance = LightGridVisualize(LightLoopCount, VisualizeLightGrid);
-		PathState.Radiance *= abs(dot(Payload.WorldNormal, PathState.Ray.Direction));
-		PathState.Radiance /= View.PreExposure; // cancel out exposure
-		return false;
-	}
-
-	// visualize the # of decals
-	if (VisualizeDecalGrid)
-	{
-		FDecalLoopCount DecalLoopCount = DecalGridLookup(Payload.TranslatedWorldPos);
-		PathState.Radiance = DecalGridVisualize(DecalLoopCount, VisualizeDecalGrid);
-		PathState.Radiance *= abs(dot(Payload.WorldNormal, PathState.Ray.Direction));
-		PathState.Radiance /= View.PreExposure; // cancel out exposure
-		return false;
-	}
-
 	// Choose a random number for both Light sampling and BxDF sampling
 	float4 RandSample = RandomSequence_GenerateSample4D(PathState.RandSequence);
 
@@ -1719,7 +1692,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 				LightRay.TMin = 0;
 				LightRay.Direction = LightSample.Direction;
 				LightRay.TMax = LightSample.Distance;
-				ApplyRayBias(LightRay, Payload.HitT, SignedPositionBias * Payload.WorldGeoNormal);
+				ApplyRayBias(LightRay.Origin, Payload.HitT, SignedPositionBias * Payload.WorldGeoNormal);
 
 				float AvgRoughness = ApproximateCaustics ? GetAverageRoughness(Payload) : 0.0;
 
@@ -1803,7 +1776,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 	PathState.Ray.Direction = MaterialSample.Direction;
 	PathState.Ray.TMin = 0;
 	PathState.Ray.TMax = POSITIVE_INFINITY;
-	ApplyRayBias(PathState.Ray, Payload.HitT, MaterialSample.PositionBiasSign * Payload.WorldGeoNormal);
+	ApplyRayBias(PathState.Ray.Origin, Payload.HitT, MaterialSample.PositionBiasSign * Payload.WorldGeoNormal);
 
 	// enlarge roughness based on the chosen lobe roughness
 	float PreviousPathRoughness = PathState.GetPathRoughness();

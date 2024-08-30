@@ -3316,8 +3316,8 @@ void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHIC
 		{
 			const bool bWillApplyTemporalAA = (IsPostProcessingEnabled(View) || View.bIsPlanarReflection || View.bSceneCaptureMainViewJitter)
 #if RHI_RAYTRACING
-				// path tracer does its own anti-aliasing
-				&& (!ViewFamily.EngineShowFlags.PathTracing)
+				// path tracer does its own anti-aliasing (unless it specifically requests it, such as for the debug mode)
+				&& (!ViewFamily.EngineShowFlags.PathTracing || PathTracing::NeedsAntiAliasing(View))
 #endif
 			;
 

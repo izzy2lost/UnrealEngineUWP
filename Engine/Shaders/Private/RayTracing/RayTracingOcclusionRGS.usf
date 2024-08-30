@@ -709,10 +709,6 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(Occlusion)
 
 	if (all(PixelCoord >= LightScissor.xy) && all(PixelCoord <= LightScissor.zw))
 	{
-		RandomSequence RandSequence;
-		uint LinearIndex = CalcLinearIndex(PixelCoord);
-		RandomSequence_Initialize(RandSequence, LinearIndex, View.StateFrameIndex);
-
 		FLightShaderParameters LightParameters = GetRootLightShaderParameters();
 
 		// Read material data
