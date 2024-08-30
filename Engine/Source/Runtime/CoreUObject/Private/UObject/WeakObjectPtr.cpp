@@ -7,6 +7,7 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/GarbageCollection.h"
 #include "UObject/Object.h"
+#include "UObject/ObjectPtr.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogWeakObjectPtr, Log, All);
 
@@ -35,6 +36,10 @@ void FWeakObjectPtr::operator=(const class UObject *Object)
 	{
 		Reset();
 	}
+}
+void FWeakObjectPtr::operator=(TObjectPtr<UObject> Object)
+{
+	*this = Object.Get();
 }
 
 bool FWeakObjectPtr::IsValid(bool bEvenIfGarbage, bool bThreadsafeTest) const

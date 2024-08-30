@@ -107,6 +107,7 @@ public:
 	 * @param Object object to create a weak pointer to
 	 */
 	COREUOBJECT_API void operator=(const class UObject* Object);
+	COREUOBJECT_API void operator=(TObjectPtr<UObject> Object);
 
 	/**  
 	 * Construct from another weak pointer

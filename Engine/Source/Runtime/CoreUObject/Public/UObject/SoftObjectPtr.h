@@ -61,6 +61,11 @@ public:
 		(*this)=Object;
 	}
 
+	explicit FORCEINLINE FSoftObjectPtr(TObjectPtr<UObject> Object)
+	{
+		(*this)=Object;
+	}
+
 	/** Synchronously load (if necessary) and return the asset object represented by this asset ptr */
 	UObject* LoadSynchronous() const
 	{
@@ -114,7 +119,14 @@ public:
 	}
 #endif
 
+	// Implicit conversion from UObject* via assignment shouldn't really be allowed if the constructor is explicit
 	using TPersistentObjectPtr<FSoftObjectPath>::operator=;
+	FSoftObjectPtr& operator=(TObjectPtr<UObject> Ptr)
+	{
+		// It should be possible to do this without resolving
+		(*this) = Ptr.Get();
+		return *this;
+	}
 };
 
 template <> struct TIsPODType<FSoftObjectPtr> { enum { Value = TIsPODType<TPersistentObjectPtr<FSoftObjectPath> >::Value }; };
