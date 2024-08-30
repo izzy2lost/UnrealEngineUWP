@@ -6841,6 +6841,35 @@ TArray<FTransform> UGeometryCollectionComponent::GetInitialLocalRestTransforms()
 	return InitialLocalTransforms;
 }
 
+TArray<FTransform> UGeometryCollectionComponent::GetLocalRestTransforms(bool bInitialTransforms) const
+{
+	TArray<FTransform> CurrentLocalTransforms;
+	if (RestCollection && RestCollection->GetGeometryCollection())
+	{
+		const FGeometryCollection& RestGeometryCollection = *RestCollection->GetGeometryCollection();
+
+		const bool bHasRestTransformOverride = (RestTransforms.Num() > 0) && (RestTransforms.Num() == RestGeometryCollection.Transform.Num());
+		if (bInitialTransforms || !bHasRestTransformOverride)
+		{
+			GeometryCollectionAlgo::GlobalMatrices(RestCollection->GetGeometryCollection()->Transform, RestGeometryCollection.Parent, CurrentLocalTransforms);
+		}
+		else
+		{
+			GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform>(RestTransforms), RestGeometryCollection.Parent, CurrentLocalTransforms);
+		}
+
+		const TManagedArray<FTransform>* MassToLocal = RestGeometryCollection.FindAttribute<FTransform>("MassToLocal", FGeometryCollection::TransformGroup);
+		if (MassToLocal && CurrentLocalTransforms.Num() == MassToLocal->Num())
+		{
+			for (int32 TransformIndex = 0; TransformIndex < CurrentLocalTransforms.Num(); TransformIndex++)
+			{
+				CurrentLocalTransforms[TransformIndex] = (*MassToLocal)[TransformIndex] * CurrentLocalTransforms[TransformIndex];
+			}
+		}
+	}
+	return CurrentLocalTransforms;
+}
+
 void UGeometryCollectionComponent::SetLocalRestTransforms(const TArray<FTransform>& NewTransforms, bool bOnlyLeaves)
 {
 	if (RestCollection && RestCollection->GetGeometryCollection())

@@ -824,6 +824,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
 	GEOMETRYCOLLECTIONENGINE_API TArray<FTransform> GetInitialLocalRestTransforms() const;
 
+	/**
+	* Get the rest transforms in component (local) space  space,
+	* if none have been set by SetLocalRestTransforms or if RestTransform property is empty , then the initial ones are returned
+	* @param bInitialTransform force the initial transforms to be returned ( false by default )
+	*/
+	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
+	GEOMETRYCOLLECTIONENGINE_API TArray<FTransform> GetLocalRestTransforms(bool bInitialTransforms = false) const;
+
 	/** 
 	* Set the local rest transform, this may be different from the rest collection 
 	* If the geometry collection is already simulating those matrices will be overriden by the physics state updates
