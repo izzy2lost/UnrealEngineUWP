@@ -141,6 +141,9 @@ FAutoConsoleVariableRef CVarGeometryCollectionUseReplicationV2(TEXT("p.Chaos.GC.
 int32 GeometryCollectionNetAwakeningMode = 1;
 FAutoConsoleVariableRef CVarGeometryCollectionNetAwakeningMode(TEXT("p.Chaos.GC.NetAwakeningMode"), GeometryCollectionNetAwakeningMode, TEXT("Changes how GC components ensure that their owner is awake for replication. 0 = ForceDormancyAwake, 1 = Use Flush Net Dormancy"));
 
+bool bGeometryCollectionCustomRendererHiddenActorFix = true;
+FAutoConsoleVariableRef CVarGeometryCollectionCustomRendererHiddenActorFix(TEXT("p.Chaos.GC.CustomRendererHiddenActorFix"), bGeometryCollectionCustomRendererHiddenActorFix, TEXT("When true custom renderer will account for the actor hidden flag"));
+
 DEFINE_LOG_CATEGORY_STATIC(UGCC_LOG, Error, All);
 DEFINE_LOG_CATEGORY_STATIC(LogGeometryCollectionComponent, Warning, All);
 
@@ -6341,7 +6344,7 @@ void UGeometryCollectionComponent::RefreshCustomRenderer()
 		const bool bRenderRootProxy = !bForceBrokenForCustomRenderer && !bIsBroken && (RestCollection->RootProxyData.ProxyMeshes.Num() > 0);
 
 		const AActor* Owner = GetOwner();
-		const bool bIsActorHidden = Owner ? Owner->IsHidden() : false;
+		const bool bIsActorHidden = (Owner && bGeometryCollectionCustomRendererHiddenActorFix) ? Owner->IsHidden() : false;
 
 		uint32 StateFlags = 0;
 		StateFlags |= (bHiddenInGame || !IsVisible() || bIsActorHidden) ? 0 : IGeometryCollectionExternalRenderInterface::EState_Visible;
