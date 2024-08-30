@@ -447,11 +447,14 @@ class FDrawDebugStrandsCVsCS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER(uint32, MaxVertexCount)
+		SHADER_PARAMETER(uint32, InstanceIt)
+		SHADER_PARAMETER(FVector3f, GroupColor)
 		SHADER_PARAMETER(FMatrix44f, LocalToWorld)
 		SHADER_PARAMETER_SAMPLER(SamplerState, LinearSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, DepthTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, ColorTexture)
 		SHADER_PARAMETER_STRUCT_REF(FHairStrandsVertexFactoryUniformShaderParameters, HairStrandsVF)
+		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
@@ -466,15 +469,28 @@ public:
 
 IMPLEMENT_GLOBAL_SHADER(FDrawDebugStrandsCVsCS, "/Engine/Private/HairStrands/HairStrandsDebug.usf", "MainCS", SF_Compute);
 
+const FLinearColor GetHairGroupDebugColor(int32 GroupIt);
+
 static void AddDrawDebugStrandsCVsPass(
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& View,
 	FGlobalShaderMap* ShaderMap,
 	const FHairGroupInstance* Instance,
 	const FShaderPrintData* ShaderPrintData,
+	const uint32 InIndex,
 	FRDGTextureRef ColorTexture,
 	FRDGTextureRef DepthTexture)
 {
+	if (!ShaderPrint::IsSupported(View.GetShaderPlatform()))
+	{
+		return;
+	}
+
+	// Force ShaderPrint on.
+	ShaderPrint::SetEnabled(true);
+	ShaderPrint::RequestSpaceForLines(256);
+	ShaderPrint::RequestSpaceForCharacters(256);
+
 	if (Instance->HairGroupPublicData->VFInput.GeometryType != EHairGeometryType::Strands || ShaderPrintData == nullptr)
 	{
 		return;
@@ -494,6 +510,10 @@ static void AddDrawDebugStrandsCVsPass(
 	Parameters->ColorTexture = GraphBuilder.CreateUAV(ColorTexture);
 	Parameters->DepthTexture = DepthTexture;
 	Parameters->LinearSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	Parameters->InstanceIt = InIndex;
+	Parameters->GroupColor = FVector3f(GetHairGroupDebugColor(Instance->Debug.GroupIndex));
+
+	ShaderPrint::SetParameters(GraphBuilder, *ShaderPrintData, Parameters->ShaderPrintParameters);
 
 	const uint32 PointCount = Instance->HairGroupPublicData->VFInput.Strands.Common.PointCount;
 	FComputeShaderUtils::AddPass(
@@ -1298,6 +1318,7 @@ void RunHairStrandsDebug(
 
 	if (bEnabled)
 	{	
+		uint32 Index = 0;
 		for (FHairStrandsInstance* AbstractInstance : Instances)
 		{
 			FHairGroupInstance* Instance = static_cast<FHairGroupInstance*>(AbstractInstance);
@@ -1314,8 +1335,9 @@ void RunHairStrandsDebug(
 	
 			if (ViewMode == EGroomViewMode::ControlPoints)
 			{
-				AddDrawDebugStrandsCVsPass(GraphBuilder, View, ShaderMap, Instance, ShaderPrintData, SceneColorTexture, SceneDepthTexture);
+				AddDrawDebugStrandsCVsPass(GraphBuilder, View, ShaderMap, Instance, ShaderPrintData, Index, SceneColorTexture, SceneDepthTexture);
 			}
+			++Index;
 		}
 	}
 
