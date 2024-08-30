@@ -600,10 +600,54 @@ FName FObjectPropertyBase::GetID() const
 	return NAME_ObjectProperty;
 }
 
+UObject* FObjectPropertyBase::GetObjectPropertyValue(const void* PropertyValueAddress) const
+{
+	unimplemented(); // needs to be implemented by the derived class
+	return nullptr;
+}
+
 TObjectPtr<UObject> FObjectPropertyBase::GetObjectPtrPropertyValue(const void* PropertyValueAddress) const
 {
 	unimplemented(); // needs to be implemented by the derived class
 	return TObjectPtr<UObject>();
+}
+
+UObject* FObjectPropertyBase::GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
+{
+	unimplemented(); // needs to be implemented by the derived class
+	return nullptr;
+}
+
+void FObjectPropertyBase::SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const
+{
+	unimplemented(); // needs to be implemented by the derived class
+}
+
+void FObjectPropertyBase::SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
+{
+	unimplemented(); // needs to be implemented by the derived class
+}
+
+void FObjectPropertyBase::SetObjectPropertyValueUnchecked_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
+{
+	unimplemented(); // needs to be implemented by the derived class
+}
+
+void FObjectPropertyBase::SetObjectPtrPropertyValueUnchecked_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
+{
+	unimplemented(); // needs to be implemented by the derived class
+}
+
+void FObjectPropertyBase::SetObjectPropertyValue(void* PropertyValueAddress, UObject* Value) const
+{
+	if (Value || !HasAnyPropertyFlags(CPF_NonNullable))
+	{
+		SetObjectPropertyValueUnchecked(PropertyValueAddress, Value);
+	}
+	else
+	{
+		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
+	}
 }
 
 void FObjectPropertyBase::SetObjectPtrPropertyValue(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
@@ -618,50 +662,6 @@ void FObjectPropertyBase::SetObjectPtrPropertyValue(void* PropertyValueAddress, 
 	}
 }
 
-void FObjectPropertyBase::SetObjectPtrPropertyValue_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
-{
-	if (Ptr || !HasAnyPropertyFlags(CPF_NonNullable))
-	{
-		SetObjectPtrPropertyValueUnchecked_InContainer(ContainerAddress, Ptr, ArrayIndex);
-	}
-	else
-	{
-		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
-	}
-}
-
-void FObjectPropertyBase::SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
-{
-	unimplemented(); // needs to be implemented by the derived class
-}
-
-void FObjectPropertyBase::SetObjectPtrPropertyValueUnchecked_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
-{
-	unimplemented(); // needs to be implemented by the derived class
-}
-
-UObject* FObjectPropertyBase::GetObjectPropertyValue(const void* PropertyValueAddress) const
-{
-	unimplemented(); // needs to be implemented by the derived class
-	return nullptr;
-}
-
-UObject* FObjectPropertyBase::GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
-{
-	unimplemented(); // needs to be implemented by the derived class
-	return nullptr;
-}
-
-void FObjectPropertyBase::SetObjectPropertyValueUnchecked_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
-{
-	unimplemented(); // needs to be implemented by the derived class
-}
-
-void FObjectPropertyBase::SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const
-{
-	unimplemented(); // needs to be implemented by the derived class
-}
-
 void FObjectPropertyBase::SetObjectPropertyValue_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
 {
 	if (Value || !HasAnyPropertyFlags(CPF_NonNullable))
@@ -674,11 +674,11 @@ void FObjectPropertyBase::SetObjectPropertyValue_InContainer(void* ContainerAddr
 	}
 }
 
-void FObjectPropertyBase::SetObjectPropertyValue(void* PropertyValueAddress, UObject* Value) const
+void FObjectPropertyBase::SetObjectPtrPropertyValue_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
 {
-	if (Value || !HasAnyPropertyFlags(CPF_NonNullable))
+	if (Ptr || !HasAnyPropertyFlags(CPF_NonNullable))
 	{
-		SetObjectPropertyValueUnchecked(PropertyValueAddress, Value);
+		SetObjectPtrPropertyValueUnchecked_InContainer(ContainerAddress, Ptr, ArrayIndex);
 	}
 	else
 	{
