@@ -526,6 +526,11 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 				FPathTracingPayload LightHitPayload = (FPathTracingPayload)0; // clear all fields
 				LightHitPayload.HitT = LightHit.HitT;
 				LightHitPayload.Radiance = LightHit.Radiance;
+				if ((SceneLights[LightId].Flags & PATHTRACER_FLAG_TYPE_MASK) == PATHTRACING_LIGHT_SKY)
+				{
+					// UE-222576: cancel out scale factor that is baked into the texture for camera rays only
+					LightHitPayload.Radiance /= GetColor(LightId);
+				}
 				LightHitPayload.ShadingModelID = SHADINGMODELID_UNLIT;
 				// light hits are fully transparent to match how the light loop works (the light surface does not cast a shadow)
 				LightHitPayload.BSDFOpacity = 1.0;

@@ -2672,6 +2672,13 @@ void SetLightParameters(
 
 			// Also allow seeing just the sky via a cvar for debugging purposes
 			*SceneVisibleLightCount = 1;
+
+			if (Scene->SkyLight->bRealTimeCaptureEnabled)
+			{
+				// NOTE: this color is already baked into the skylight texture so that importance sampling takes it into account, we pass it in here so that camera rays can factor it out
+				// This is only for the realtime capture case, because otherwise (specified cube map case) we want the displayed texture and lighting to match
+				DestLight.Color = FVector3f(Scene->SkyLight->GetEffectiveLightColor());
+			}
 		}
 	}
 
