@@ -255,7 +255,6 @@ void CSemanticProgram::Initialize(TSPtr<CSymbolTable> Symbols)
     _EpicInternalModulePrefixes.Add("/Fortnite.com/TestDevices/");
     _EpicInternalModulePrefixes.Add("/Fortnite.com/Vehicles/");
     _EpicInternalModulePrefixes.Add("/Fortnite.com/VerseFortniteInternal/");
-    _EpicInternalModulePrefixes.Add("/Fortnite.com/VerseFortniteGameScript/");
     _EpicInternalModulePrefixes.Add("/Fortnite.com/UI/");
     _EpicInternalModulePrefixes.Add("/Fortnite.com/Itemization/");
     _EpicInternalModulePrefixes.Add("/Fortnite.com/VerseInternalTesting/");
