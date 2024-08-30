@@ -170,7 +170,8 @@ FReply FShallowWaterRiverDetails::OnBakeSelectedSystem()
 					UShallowWaterRiverComponent* ShallowWaterComponent = Cast<UShallowWaterRiverComponent>(AC);
 					if (ShallowWaterComponent)
 					{
-						ShallowWaterComponent->Bake();						
+						ShallowWaterComponent->Bake();
+						break;
 					}
 				}
 			}

@@ -14,12 +14,13 @@
 #include "NiagaraBakerSettings.h"
 #include "NiagaraSystem.h"
 #include "UObject/GCObject.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "Engine/TextureRenderTarget2DArray.h"
 #include "ShallowWaterRiverActor.generated.h"
 
 class UNiagaraComponent;
 class UNiagaraSystem;
 class AWaterBody;
-class UTextureRenderTarget2D;
 
 UENUM(BlueprintType)
 enum EShallowWaterRenderState : int
@@ -66,6 +67,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Shallow Water")
 	TObjectPtr<UTexture2D> BakedWaterSurfaceTexture;
 	
+	//UPROPERTY(EditAnywhere, Category = "Shallow Water")
+	//TObjectPtr<UTexture2D> SignedDistanceToSplineTexture;
+
 	UPROPERTY(EditAnywhere, Category = "Collisions")
 	bool bUseCapture = false;
 
@@ -87,7 +91,7 @@ public:
 	void Bake();
 
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	void OnWaterInfoTextureCreated(const UTextureRenderTarget2D* InWaterInfoTexture);
+	void OnWaterInfoTextureArrayCreated(const UTextureRenderTarget2DArray* InWaterInfoTexture);
 #endif // WITH_EDITOR
 
 protected:
@@ -96,7 +100,7 @@ protected:
 	TObjectPtr<UNiagaraComponent> RiverSimSystem;
 
 	UPROPERTY(BlueprintReadOnly, VisibleDefaultsOnly, Category = "Shallow Water")
-	TObjectPtr<const UTextureRenderTarget2D> WaterInfoTexture;
+	TObjectPtr<const UTextureRenderTarget2DArray> WaterInfoTexture;
 
 	UPROPERTY(BlueprintReadOnly, VisibleDefaultsOnly, Category = "Shallow Water")
 	TObjectPtr<UTextureRenderTarget2D> BakedWaterSurfaceRT;
@@ -105,6 +109,8 @@ protected:
 	TObjectPtr<UBakedShallowWaterSimulationComponent> BakedSim;
 
 	bool QueryWaterAtSplinePoint(TObjectPtr<AWaterBody> WaterBody, int SplinePoint, FVector& OutPos, FVector& OutTangent, float& OutWidth, float& OutDepth);
+
+	void UpdateRenderState();
 
 private:
 	bool bIsInitialized;	
