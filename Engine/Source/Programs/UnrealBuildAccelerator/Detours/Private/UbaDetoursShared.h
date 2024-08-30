@@ -37,9 +37,9 @@ namespace uba
 		//#define DEBUG_LOG(...)
 		#define DEBUG_LOG(...) { if (isLogging()) WriteDebugLog(__VA_ARGS__); }
 	#else
-		#define DEBUG_LOG(...)
-		#define DEBUG_LOG_DETOURED(Command, ...)
-		#define DEBUG_LOG_TRUE(Command, ...)
+		#define DEBUG_LOG(...) {}
+		#define DEBUG_LOG_DETOURED(Command, ...) {}
+		#define DEBUG_LOG_TRUE(Command, ...) {}
 		#define DEBUG_LOG_PIPE(...) ts.Leave();
 	#endif
 

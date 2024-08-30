@@ -1860,7 +1860,7 @@ void Shared_LoadLibrary(Set<TString>& handled, const char*& path, const char* co
 		Shared_LoadLibrary(handled, import, importLoaderPaths, temp);
 	}, error);
 	if (error.count)
-		DEBUG_LOG(error.data)
+		DEBUG_LOG(error.data);
 #endif
 }
 
