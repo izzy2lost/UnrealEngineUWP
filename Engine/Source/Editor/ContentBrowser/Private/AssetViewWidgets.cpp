@@ -247,6 +247,7 @@ TSharedRef<SWidget> FAssetViewItemHelper::CreateListTileItemContents(T* const In
 			]
 		];
 
+#if !UE_CONTENTBROWSER_NEW_STYLE
 		// Dirty state
 		ItemContentsOverlay->AddSlot()
 		.HAlign(HAlign_Left)
@@ -260,7 +261,7 @@ TSharedRef<SWidget> FAssetViewItemHelper::CreateListTileItemContents(T* const In
 				.Image(InTileOrListItem, &T::GetDirtyImage)
 			]
 		];
-
+#endif
 		// Tools for thumbnail edit mode
 		ItemContentsOverlay->AddSlot()
 		[
@@ -1952,6 +1953,7 @@ void SAssetTileItem::Construct( const FArguments& InArgs )
 		ThumbnailConfig.Padding= FMargin(2.0f);
 		ThumbnailConfig.GenericThumbnailSize = MakeAttributeSP(this, &SAssetTileItem::GetGenericThumbnailSize);
 #if UE_CONTENTBROWSER_NEW_STYLE
+		ThumbnailConfig.bAllowAssetStatusThumbnailOverlay = true;
 		ThumbnailConfig.bShowAssetChip = true;
 		ThumbnailConfig.AssetChipBorderImageOverride = TAttribute<const FSlateBrush*>::CreateSP(this, &SAssetTileItem::GetAssetAreaOverlayBackgroundImage);
 #endif

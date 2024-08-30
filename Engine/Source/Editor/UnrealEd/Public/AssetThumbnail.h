@@ -65,6 +65,7 @@ struct FAssetThumbnailConfig
 		, AssetTypeColorOverride()
 		, Padding(0)
 #if UE_CONTENTBROWSER_NEW_STYLE
+		, bAllowAssetStatusThumbnailOverlay( false )
 		, bShowAssetChip(false)
 		, AssetChipBorderImageOverride()
 #endif
@@ -85,6 +86,7 @@ struct FAssetThumbnailConfig
 	TAttribute<int32> GenericThumbnailSize = 64;
 	EThumbnailColorStripOrientation ColorStripOrientation = EThumbnailColorStripOrientation::HorizontalBottomEdge;
 #if UE_CONTENTBROWSER_NEW_STYLE
+	bool bAllowAssetStatusThumbnailOverlay;
 	bool bShowAssetChip;
 	TAttribute<const FSlateBrush*> AssetChipBorderImageOverride;
 #endif

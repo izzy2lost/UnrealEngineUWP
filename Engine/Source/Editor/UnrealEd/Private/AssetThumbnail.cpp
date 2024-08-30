@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AssetThumbnail.h"
+#include "AssetDefinitionRegistry.h"
+#include "AssetStatusAssetDataInfoProvider.h"
 #include "Engine/Blueprint.h"
 #include "GameFramework/Actor.h"
 #include "Layout/Margin.h"
@@ -82,6 +84,7 @@ public:
 		, _Padding(0)
 		, _GenericThumbnailSize(64)
 #if UE_CONTENTBROWSER_NEW_STYLE
+		, _AllowAssetStatusThumbnailOverlay(false)
 		, _ShowAssetChip(false)
 		, _AssetChipBorderImageOverride()
 #endif
@@ -104,6 +107,7 @@ public:
 		SLATE_ARGUMENT(FMargin, Padding)
 		SLATE_ATTRIBUTE(int32, GenericThumbnailSize)
 #if UE_CONTENTBROWSER_NEW_STYLE
+		SLATE_ARGUMENT(bool, AllowAssetStatusThumbnailOverlay)
 		SLATE_ARGUMENT(bool, ShowAssetChip)
 		SLATE_ARGUMENT(TAttribute<const FSlateBrush*>, AssetChipBorderImageOverride)
 #endif
@@ -329,11 +333,63 @@ public:
 		];
 #endif
 
+#if UE_CONTENTBROWSER_NEW_STYLE
+		const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForClass(Class);
+
+		if (InArgs._AllowAssetStatusThumbnailOverlay && AssetDefinition)
+		{
+			const TSharedPtr<FAssetStatusAssetDataInfoProvider> AssetDataInfoProvider = MakeShared<FAssetStatusAssetDataInfoProvider>(AssetData);
+			AssetDefinition->GetAssetStatusInfo(AssetDataInfoProvider, OverlayInfo);
+			// Sort the list based on Status Priority
+			auto SortStatus = [] (const FAssetStatus& InFirstStatus, const FAssetStatus& InSecondStatus)
+			{
+				if (!InFirstStatus.Priority.IsSet())
+				{
+					return false;
+				}
+
+				if (!InSecondStatus.Priority.IsSet())
+				{
+					return true;
+				}
+
+				return InSecondStatus.Priority.Get() < InFirstStatus.Priority.Get();
+			};
+			OverlayInfo.AssetStatus.Sort(SortStatus);
+
+			const TSharedRef<SHorizontalBox> HorizontalBox = SNew(SHorizontalBox);
+			for (int32 StatusIndex = 0; StatusIndex < OverlayInfo.AssetStatus.Num(); StatusIndex++)
+			{
+				Statuses.Add(CreateStatusWidget(StatusIndex, OverlayInfo.AssetStatus[StatusIndex]));
+				HorizontalBox->AddSlot()
+				[
+					Statuses[StatusIndex].ToSharedRef()
+				];
+			}
+
+			StatusOverflowWidget = CreateStatusOverflowWidget();
+			HorizontalBox->AddSlot()
+			[
+				StatusOverflowWidget.ToSharedRef()
+			];
+
+			OverlayWidget->AddSlot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Bottom)
+			.Padding(StatusPadding)
+			[
+				SNew(SBorder)
+				.BorderImage(FAppStyle::Get().GetBrush("ContentBrowser.AssetTileItem.AssetThumbnailStatusBar"))
+				.Visibility(this, &SAssetThumbnail::GetStatusBorderVisibility)
+				[
+					HorizontalBox
+				]
+			];
+		}
+#endif
 		if( InArgs._AllowAssetSpecificThumbnailOverlay && AssetTypeActions.IsValid() )
 		{
 #if UE_CONTENTBROWSER_NEW_STYLE
-			const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForClass(Class);
-
 			FAssetActionThumbnailOverlayInfo OutThumbnailInfo;
 			if (AssetDefinition && AssetDefinition->GetThumbnailActionOverlay(AssetData, OutThumbnailInfo))
 			{
@@ -498,6 +554,115 @@ public:
 	}
 
 private:
+#if UE_CONTENTBROWSER_NEW_STYLE
+	EVisibility GetStatusBorderVisibility() const
+	{
+		for (const FAssetStatus& AssetStatus : OverlayInfo.AssetStatus)
+		{
+			if (AssetStatus.IsVisible.IsSet() && AssetStatus.IsVisible.Get().IsVisible())
+			{
+				return EVisibility::Visible;
+			}
+		}
+		return EVisibility::Collapsed;
+	}
+
+	TSharedRef<SWidget> CreateStatusWidget(int32 StatusIndex, const FAssetStatus& InStatusInfo) const
+	{
+		return SNew(SBox)
+			.WidthOverride(StatusSize)
+			.HeightOverride(StatusSize)
+			.Visibility(this, &SAssetThumbnail::GetStatusVisibility, StatusIndex)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SImage)
+				.Image(InStatusInfo.StatusIcon)
+			];
+	}
+
+	EVisibility GetStatusVisibility(int32 StatusIndex) const
+	{
+		if (OverlayInfo.AssetStatus.IsValidIndex(StatusIndex))
+		{
+			const FAssetStatus& AssetStatus = OverlayInfo.AssetStatus[StatusIndex];
+			if (AssetStatus.IsVisible.IsSet() && AssetStatus.IsVisible.Get() == EVisibility::Visible)
+			{
+				return GetStatusVisibilityBasedOnGeometry(StatusIndex);
+			}
+		}
+		return EVisibility::Collapsed;
+	}
+
+	TSharedRef<SWidget> CreateStatusOverflowWidget() const
+	{
+		return SNew(SBox)
+			.WidthOverride(StatusSize)
+			.HeightOverride(StatusSize)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Visibility(this, &SAssetThumbnail::GetStatusOverflowVisibility)
+			[
+				SNew(STextBlock)
+				.Font(FSlateFontInfo( FPaths::EngineContentDir() / TEXT("Slate/Fonts/Roboto-Bold.ttf"), 9))
+				.Text(this, &SAssetThumbnail::GetStatusOverflowText)
+			];
+	}
+
+	EVisibility GetStatusOverflowVisibility() const
+	{
+		const FGeometry ThumbnailGeometry = GetPaintSpaceGeometry();
+		const float ThumbnailWidth = ThumbnailGeometry.GetAbsoluteSize().X - (StatusPadding * 2);
+		const int32 MaxShownStatus = FMath::FloorToInt32(ThumbnailWidth / StatusSize);
+
+		int32 ShownStatus = 0;
+		for (const FAssetStatus& Status : OverlayInfo.AssetStatus)
+		{
+			if (Status.IsVisible.IsSet() && Status.IsVisible.Get().IsVisible())
+			{
+				ShownStatus++;
+			}
+		}
+		return ShownStatus > MaxShownStatus? EVisibility::Visible : EVisibility::Collapsed;
+	}
+
+	FText GetStatusOverflowText() const
+	{
+		FGeometry ThumbnailGeometry = GetPaintSpaceGeometry();
+		const float ThumbnailWidth = ThumbnailGeometry.GetAbsoluteSize().X - (StatusPadding * 2);
+		const int32 MaxShownStatus = FMath::FloorToInt32(ThumbnailWidth / StatusSize);
+
+		int32 ShownStatus = 0;
+		for (const FAssetStatus& Status : OverlayInfo.AssetStatus)
+		{
+			if (Status.IsVisible.IsSet() && Status.IsVisible.Get().IsVisible())
+			{
+				ShownStatus++;
+			}
+		}
+
+		// We need to add 1 to the HiddenStatus since the Overflow "status" will occupy 1 extra slot
+		constexpr int32 OccupiedStatusSlot = 1;
+		const int32 HiddenStatus = ShownStatus - MaxShownStatus + OccupiedStatusSlot;
+		return FText::Format(NSLOCTEXT("AssetThumbnail", "StatusOverflowText", "+{0}"), HiddenStatus);
+	}
+
+	EVisibility GetStatusVisibilityBasedOnGeometry(int32 InStatusIndex) const
+	{
+		int32 CollapsedStatusBeforeThis = 0;
+		for (int32 StatusIndex = 0; StatusIndex < InStatusIndex; StatusIndex++)
+		{
+			CollapsedStatusBeforeThis += Statuses[StatusIndex]->GetVisibility().IsVisible() ? 0 : 1;
+		}
+
+		const FGeometry ThumbnailGeometry = GetPaintSpaceGeometry();
+		const float ThumbnailWidth = ThumbnailGeometry.GetAbsoluteSize().X - (StatusPadding * 2);
+		const int32 StatusIndexConsideringHiddenOnes = (InStatusIndex - CollapsedStatusBeforeThis);
+		const int32 ShownStatus = FMath::FloorToInt32(ThumbnailWidth / StatusSize);
+		const int32 StatusIndexConsideringClippedStatusIfVisible = StatusOverflowWidget.IsValid() && StatusOverflowWidget->GetVisibility().IsVisible() ? StatusIndexConsideringHiddenOnes + 1 : StatusIndexConsideringHiddenOnes;
+		return StatusIndexConsideringClippedStatusIfVisible < ShownStatus ? EVisibility::Visible : EVisibility::Collapsed;
+	}
+#endif
+
 	void OnAssetDataChanged()
 	{
 		if ( GenericLabelTextBlock.IsValid() )
@@ -914,6 +1079,11 @@ private:
 	TAttribute<int32> GenericThumbnailSize;
 	EThumbnailColorStripOrientation ColorStripOrientation;
 #if UE_CONTENTBROWSER_NEW_STYLE
+	TSharedPtr<SWidget> StatusOverflowWidget;
+	const float StatusSize = 16.f;
+	const float StatusPadding = 4.f;
+	FAssetStatusInfo OverlayInfo;
+	TArray<TSharedPtr<SWidget>> Statuses;
 	bool bShowAssetChip;
 	TAttribute<const FSlateBrush*> AssetChipBorderImageOverride;
 #endif
@@ -1056,6 +1226,7 @@ TSharedRef<SWidget> FAssetThumbnail::MakeThumbnailWidget( const FAssetThumbnailC
 		.Padding(InConfig.Padding)
 		.GenericThumbnailSize(InConfig.GenericThumbnailSize)
 #if UE_CONTENTBROWSER_NEW_STYLE
+		.AllowAssetStatusThumbnailOverlay(InConfig.bAllowAssetStatusThumbnailOverlay)
 		.ShowAssetChip(InConfig.bShowAssetChip)
 		.AssetChipBorderImageOverride(InConfig.AssetChipBorderImageOverride)
 #endif

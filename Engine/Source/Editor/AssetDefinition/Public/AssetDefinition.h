@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AssetDefinitionStatusBase.h"
 #include "UObject/Object.h"
 #include "UObject/SoftObjectPtr.h"
 #include "AssetRegistry/AssetData.h"
@@ -587,6 +588,14 @@ public:
 	{
 		return false;
 	}
+
+#if UE_CONTENTBROWSER_NEW_STYLE
+	// Implementation will change in the AssetDefinitionDefault in a later update
+	virtual void GetAssetStatusInfo(const TSharedPtr<IAssetStatusInfoProvider>& InAssetStatusInfoProvider, FAssetStatusInfo& OutStatusInfo) const
+	{
+		return;
+	}
+#endif
 
 	/** Whether this asset has external packages associated with it (impacts saving and dirty-state behavior) */
 	virtual bool ShouldSaveExternalPackages() const

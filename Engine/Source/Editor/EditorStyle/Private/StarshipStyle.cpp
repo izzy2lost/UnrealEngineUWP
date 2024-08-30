@@ -6496,6 +6496,10 @@ void FStarshipEditorStyle::FStyle::SetupContentBrowserStyle()
 		OverlayColorAssetThumbnailOverlay.A = 0.75f;
 		Set("ContentBrowser.AssetTileItem.AssetThumbnailBar", new FSlateRoundedBoxBrush(OverlayColorAssetThumbnailOverlay, 4.f));
 
+		FLinearColor OverlayColorAssetStatusOverlay = FStyleColors::Panel.GetSpecifiedColor();
+		OverlayColorAssetStatusOverlay.A = 0.75f;
+		Set("ContentBrowser.AssetTileItem.AssetThumbnailStatusBar", new FSlateRoundedBoxBrush(OverlayColorAssetStatusOverlay, 2.f));
+
 		Set( "ContentBrowser.ColumnViewAssetIcon", new IMAGE_BRUSH( "Icons/doc_16x", Icon16x16 ) );
 
 		Set( "ContentBrowser.ColumnViewFolderIcon", new CORE_IMAGE_BRUSH_SVG( "Starship/Common/folder-closed", Icon16x16 ) );
