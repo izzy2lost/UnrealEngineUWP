@@ -20,7 +20,7 @@ void SNewWorkspaceWindow::Construct(const FArguments& InArgs, TSharedPtr<SWorksp
 	Parent = InParent;
 
 	SWindow::Construct(SWindow::FArguments()
-	.Title(LOCTEXT("WindowTitle", "New Workspace"))
+	.Title(LOCTEXT("WindowTitleNew", "New Workspace"))
 	.SizingRule(ESizingRule::FixedSize)
 	.ClientSize(FVector2D(800, 200))
 	[

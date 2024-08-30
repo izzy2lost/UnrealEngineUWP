@@ -411,7 +411,7 @@ bool AOnlineBeaconHost::HandleControlMessage(UNetConnection* Connection, uint8 M
 
 				if (!VerifyJoinForBeaconType(*UniqueId, BeaconType))
 				{
-					static const FText AuthErrorText = NSLOCTEXT("NetworkErrors", "BeaconAuthError", "Unable to authenticate for beacon. Verifying auth for beacon type {0} failed for connection owned by {1}");
+					static const FText AuthErrorText = NSLOCTEXT("NetworkErrors", "BeaconAuthVerifyError", "Unable to authenticate for beacon. Verifying auth for beacon type {0} failed for connection owned by {1}");
 
 					SendFailurePacket(Connection, ENetCloseResult::BeaconAuthError,
 										FText::Format(AuthErrorText, FText::FromString(BeaconType),

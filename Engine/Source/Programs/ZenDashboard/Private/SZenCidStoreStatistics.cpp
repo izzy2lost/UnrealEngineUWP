@@ -86,7 +86,7 @@ TSharedRef<SWidget> SZenCidStoreStatistics::GetGridPanel()
 		.Margin(FMargin(ColumnMargin, RowMargin))
 		.ColorAndOpacity(TitleColor)
 		.Font(TitleFont)
-		.Text(LOCTEXT("CAS", "Local Cid Store"))
+		.Text(LOCTEXT("CASCid", "Local Cid Store"))
 	];
 
 	Row++;

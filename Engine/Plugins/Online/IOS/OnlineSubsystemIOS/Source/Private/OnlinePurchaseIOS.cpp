@@ -494,7 +494,7 @@ void FOnlinePurchaseIOS::Checkout(const FUniqueNetId& UserId, const FPurchaseChe
 			}
             else
             {
-                ErrorMessage = NSLOCTEXT("IOSPurchase", "ErrorPurchaseNotAllowed", "Failed to checkout, invalid FOnlineStoreIOS instance.");
+                ErrorMessage = NSLOCTEXT("IOSPurchase", "ErrorPurchaseInvalidInstance", "Failed to checkout, invalid FOnlineStoreIOS instance.");
             }		
         }
 		else

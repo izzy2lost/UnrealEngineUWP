@@ -29,9 +29,9 @@ namespace Metasound
 	DEFINE_METASOUND_ENUM_END()
 
 	DEFINE_METASOUND_ENUM_BEGIN(WaveTable::FWaveTableSampler::EInterpolationMode, FEnumWaveTableInterpolationMode, "WaveTableInterpolation")
-		DEFINE_METASOUND_ENUM_ENTRY(WaveTable::FWaveTableSampler::EInterpolationMode::None, "InterpModeDisplayName", "None (Step)", "EnvMode_InterpDescription", "No interpolation between values (uses lowest)."),
-		DEFINE_METASOUND_ENUM_ENTRY(WaveTable::FWaveTableSampler::EInterpolationMode::Linear, "InterpModeName", "Linear", "EnvMode_InterpDescription", "Linearly interpolates between values."),
-		DEFINE_METASOUND_ENUM_ENTRY(WaveTable::FWaveTableSampler::EInterpolationMode::Cubic, "InterpModeName", "Cubic", "EnvMode_InterpDescription", "Cubically interpolates between values.")
+		DEFINE_METASOUND_ENUM_ENTRY(WaveTable::FWaveTableSampler::EInterpolationMode::None, "InterpModeDisplayName", "None (Step)", "EnvMode_InterpDescriptionNone", "No interpolation between values (uses lowest)."),
+		DEFINE_METASOUND_ENUM_ENTRY(WaveTable::FWaveTableSampler::EInterpolationMode::Linear, "InterpModeNameLinear", "Linear", "EnvMode_InterpDescriptionLinearly", "Linearly interpolates between values."),
+		DEFINE_METASOUND_ENUM_ENTRY(WaveTable::FWaveTableSampler::EInterpolationMode::Cubic, "InterpModeNameCubic", "Cubic", "EnvMode_InterpDescriptionCubically", "Cubically interpolates between values.")
 	DEFINE_METASOUND_ENUM_END()
 
 	class FMetasoundWaveTableEnvelopeNodeOperator : public TExecutableOperator<FMetasoundWaveTableEnvelopeNodeOperator>
