@@ -172,7 +172,7 @@ ENCODED_VELOCITY_TYPE CalculateNaniteVelocity(FNaniteView NaniteView, FInstanceS
 	const bool bOutputVelocity = !bWPOEnabled && (PrimitiveFlags & PRIMITIVE_SCENE_DATA_FLAG_OUTPUT_VELOCITY) != 0;
 	if (!bOutputVelocity)
 	{
-		return 0.0f;
+		return (ENCODED_VELOCITY_TYPE)0;
 	}
 
 #if USE_SKINNING
