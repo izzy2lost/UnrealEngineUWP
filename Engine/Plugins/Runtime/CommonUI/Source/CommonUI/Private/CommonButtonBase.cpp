@@ -587,6 +587,8 @@ void UCommonButtonBase::BindTriggeringInputActionToClick()
 	{
 		FBindUIActionArgs BindArgs(TriggeringEnhancedInputAction, false, FSimpleDelegate::CreateUObject(this, &UCommonButtonBase::HandleTriggeringActionCommited));
 		BindArgs.OnHoldActionProgressed.BindUObject(this, &UCommonButtonBase::NativeOnActionProgress);
+		BindArgs.OnHoldActionPressed.BindUObject(this, &UCommonButtonBase::NativeOnPressed);
+		BindArgs.OnHoldActionReleased.BindUObject(this, &UCommonButtonBase::NativeOnReleased);
 		BindArgs.bIsPersistent = bIsPersistentBinding;
 
 		BindArgs.InputMode = InputModeOverride;
@@ -714,6 +716,7 @@ void UCommonButtonBase::SetIsInteractionEnabled(bool bInIsInteractionEnabled)
 			NativeOnUnhovered();
 		}
 	}
+	SetButtonStyle();
 }
 
 void UCommonButtonBase::SetHideInputAction(bool bInHideInputAction)
