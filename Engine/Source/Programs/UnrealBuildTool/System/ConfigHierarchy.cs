@@ -1140,10 +1140,44 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Returns a list of INI filenames for the given project
 		/// </summary>
-		public static IEnumerable<FileReference> EnumerateConfigFileLocations(ConfigHierarchyType Type, DirectoryReference? ProjectDir, UnrealTargetPlatform Platform, string CustomConfig = "")
+		public static IEnumerable<FileReference> EnumerateConfigFileLocations(ConfigHierarchyType Type, DirectoryReference? ProjectDir, UnrealTargetPlatform Platform, string CustomConfig, TargetType? IncludePluginsForTargetType)
 		{
 			string BaseIniName = Enum.GetName(typeof(ConfigHierarchyType), Type) ?? String.Empty;
 			string PlatformName = GetIniPlatformName(Platform);
+			List<DirectoryReference> PluginDirs = new();
+			List<DirectoryReference> PluginPlatformExtDirs = new();
+
+			if (IncludePluginsForTargetType.HasValue)
+			{
+				ProjectDescriptor? Project = null;
+				if (ProjectDir != null)
+				{
+					Project = ProjectDescriptor.FromFile(FileReference.Combine(ProjectDir, ProjectDir.GetDirectoryName() + ".uproject"));
+				}
+				List<PluginInfo> AllPLugins = Plugins.ReadAvailablePlugins(Unreal.EngineDirectory, ProjectDir, null);
+				foreach (PluginInfo Plugin in AllPLugins)
+				{
+					if (Plugins.IsPluginEnabledForTarget(Plugin, Project, Platform, UnrealTargetConfiguration.Development, IncludePluginsForTargetType.Value))
+					{
+						PluginDirs.Add(Plugin.Directory);
+						foreach (FileReference ChildPlugin in Plugin.ChildFiles)
+						{
+							// only look at a child plugin for a platform we are enumerating (ie, it is in a /PlatformName/ subdir), but always look in Restricted folders
+							if (ChildPlugin.ContainsName("Platforms", 0))
+							{
+								if (ChildPlugin.ContainsName(PlatformName, 0))
+								{
+									PluginPlatformExtDirs.Add(ChildPlugin.Directory);
+								}
+							}
+							else
+							{
+								PluginDirs.Add(ChildPlugin.Directory);
+							}
+						}
+					}
+				}
+			}
 
 			foreach (string Layer in ConfigLayers)
 			{
@@ -1206,6 +1240,16 @@ namespace UnrealBuildTool
 				{
 					yield return new FileReference(LayerPath);
 				}
+			}
+
+			foreach (DirectoryReference PluginDir in PluginDirs)
+			{
+				yield return FileReference.Combine(PluginDir, "Config", $"{Type}.ini");
+				yield return FileReference.Combine(PluginDir, "Config", PlatformName, $"{PlatformName}{Type}.ini");
+			}
+			foreach (DirectoryReference PluginDir in PluginPlatformExtDirs)
+			{
+				yield return FileReference.Combine(PluginDir, "Config", $"{PlatformName}{Type}.ini");
 			}
 
 			// Find all the generated config files

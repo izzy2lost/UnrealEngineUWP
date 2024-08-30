@@ -625,7 +625,7 @@ namespace UnrealBuildTool
 		/// <param name="Configuration">The target configuration</param>
 		/// <param name="TargetType">The type of target being built</param>
 		/// <returns>True if the plugin should be enabled for this project</returns>
-		public static bool IsPluginEnabledForTarget(PluginInfo Plugin, ProjectDescriptor Project, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, TargetType TargetType)
+		public static bool IsPluginEnabledForTarget(PluginInfo Plugin, ProjectDescriptor? Project, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, TargetType TargetType)
 		{
 			if (!Plugin.Descriptor.SupportsTargetPlatform(Platform))
 			{
