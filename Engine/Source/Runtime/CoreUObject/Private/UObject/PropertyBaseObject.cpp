@@ -429,7 +429,7 @@ const TCHAR* FObjectPropertyBase::ImportText_Internal( const TCHAR* InBuffer, vo
 
 	if (PropertyPointerType == EPropertyPointerType::Container && HasSetter())
 	{
-		SetObjectPropertyValue_InContainer(ContainerOrPropertyPtr, Result); //TODO change this to not resolve TObjectPtr's
+		SetObjectPtrPropertyValue_InContainer(ContainerOrPropertyPtr, Result);
 	}
 	else
 	{
@@ -608,7 +608,12 @@ TObjectPtr<UObject> FObjectPropertyBase::GetObjectPtrPropertyValue(const void* P
 
 void FObjectPropertyBase::SetObjectPtrPropertyValue(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
 {
-	SetObjectPropertyValue(PropertyValueAddress, Ptr.Get());
+	unimplemented(); // needs to be implemented by the derived class
+}
+
+void FObjectPropertyBase::SetObjectPtrPropertyValue_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
+{
+	unimplemented(); // needs to be implemented by the derived class
 }
 
 UObject* FObjectPropertyBase::GetObjectPropertyValue(const void* PropertyValueAddress) const

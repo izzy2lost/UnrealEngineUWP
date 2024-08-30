@@ -348,11 +348,11 @@ UObject* FObjectProperty::GetObjectPropertyValue_InContainer(const void* Contain
 	return Result;
 }
 
-void FObjectProperty::SetObjectPtrPropertyValue(void* PropertyValueAddress, TObjectPtr<UObject> Value) const
+void FObjectProperty::SetObjectPtrPropertyValue(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
 {
-	if (Value || !HasAnyPropertyFlags(CPF_NonNullable))
+	if (Ptr || !HasAnyPropertyFlags(CPF_NonNullable))
 	{
-		SetPropertyValue(PropertyValueAddress, Value);
+		SetPropertyValue(PropertyValueAddress, Ptr);
 	}
 	else
 	{
@@ -365,6 +365,18 @@ void FObjectProperty::SetObjectPropertyValue(void* PropertyValueAddress, UObject
 	if (Value || !HasAnyPropertyFlags(CPF_NonNullable))
 	{
 		SetPropertyValue(PropertyValueAddress, Value);
+	}
+	else
+	{
+		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
+	}
+}
+
+void FObjectProperty::SetObjectPtrPropertyValue_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
+{
+	if (Ptr || !HasAnyPropertyFlags(CPF_NonNullable))
+	{
+		SetWrappedUObjectPtrValues<FObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Ptr, ArrayIndex, 1);
 	}
 	else
 	{
