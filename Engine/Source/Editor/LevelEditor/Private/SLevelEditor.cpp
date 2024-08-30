@@ -90,6 +90,8 @@ static const FName WorldBrowserCompositionTab("WorldBrowserComposition");
 SLevelEditor::SLevelEditor()
 	: World(nullptr)
 	, bNeedsRefresh(false)
+	// Ensure the Actor main menu has a default label before the first selection change.
+	, CachedViewportContextMenuTitle(FLevelEditorContextMenu::GetContextMenuTitle(ELevelEditorMenuContext::MainMenu, nullptr))
 {
 }
 
