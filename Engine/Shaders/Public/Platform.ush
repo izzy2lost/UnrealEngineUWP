@@ -886,6 +886,10 @@ precise float4 MakePrecise(in precise float4 v) { precise float4 pv = v; return 
 #define DISABLE_TARGET_OCCUPANCY_WARNING
 #endif
 
+#ifndef DISABLE_POTENTIALLY_UNINITIALIZED_WARNING
+#define DISABLE_POTENTIALLY_UNINITIALIZED_WARNING
+#endif
+
 #ifndef ALLOW_NO_PS_EXPORT
 #define ALLOW_NO_PS_EXPORT
 #endif
