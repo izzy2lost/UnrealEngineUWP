@@ -568,7 +568,7 @@ bool FInstancedStructContainer::Serialize(FArchive& Ar)
 					// In this case we manually seek in the archive to skip its serialized content. 
 					// We don't want to rely on TaggedSerialization that will mark an error in the archive that
 					// may cause other serialization to fail (e.g. FArchive& operator<<(FArchive& Ar, TArray& A))
-					UE_LOG(LogCore, Warning, TEXT("Unable to find serialized UScriptStruct -> Advance %u bytes in the archive and reset to empty FInstancedStructContainer"), SerialSize);
+					UE_LOG(LogCore, Warning, TEXT("Unable to find serialized UScriptStruct -> Advance %u bytes in the archive and reset to empty FInstancedStructContainer. LinkerRoot:%s"), SerialSize, Ar.GetLinker() ? *GetPathNameSafe(Ar.GetLinker()->LinkerRoot) : TEXT("NoLinker"));
 					Ar.Seek(Ar.Tell() + SerialSize);
 				}
 				else if (NonConstStruct != nullptr)
