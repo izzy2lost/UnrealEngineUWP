@@ -158,17 +158,25 @@ void PruneLightGridCS(uint GridLinearIndex : SV_DispatchThreadID)
 	const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridLinearIndex, EyeIndex);
 
 	uint NumRetainedLights = 0U;
+	uint FirstLightWithVSM = CulledLightGridHeader.NumLights;
+	uint LastLightWithVSM = 0U;
 
 	// First pass add the non-distant lights with VSMs
 	LOOP
 	for (uint Index = 0; Index < CulledLightGridHeader.NumLights; ++Index)
 	{
 		int VirtualShadowMapId = GetLocalLightData(CulledLightGridHeader.DataStartIndex + Index, EyeIndex).VirtualShadowMapId;
-		if (VirtualShadowMapId != INDEX_NONE && !IsSinglePageVirtualShadowMap(VirtualShadowMapId))
+		if (VirtualShadowMapId != INDEX_NONE)
 		{
-			// Copy light grid data index
-			checkStructuredBufferAccessSlow(OutPrunedLightGridData, CulledLightGridHeader.DataStartIndex + NumRetainedLights);
-			OutPrunedLightGridData[CulledLightGridHeader.DataStartIndex + NumRetainedLights++] = GetCulledLightDataGrid(CulledLightGridHeader.DataStartIndex + Index);
+			FirstLightWithVSM = min(FirstLightWithVSM, Index);
+			LastLightWithVSM = max(LastLightWithVSM, Index);
+
+			if (!IsSinglePageVirtualShadowMap(VirtualShadowMapId))
+			{
+				// Copy light grid data index
+				checkStructuredBufferAccessSlow(OutPrunedLightGridData, CulledLightGridHeader.DataStartIndex + NumRetainedLights);
+				OutPrunedLightGridData[CulledLightGridHeader.DataStartIndex + NumRetainedLights++] = GetCulledLightDataGrid(CulledLightGridHeader.DataStartIndex + Index);
+			}
 		}
 	}
 
@@ -176,7 +184,7 @@ void PruneLightGridCS(uint GridLinearIndex : SV_DispatchThreadID)
 	// NOTE: We could add these to the end in the first pass and then re-pack them instead, but this works
 	// well enough for moderate light counts.
 	LOOP
-	for (uint Index = 0; Index < CulledLightGridHeader.NumLights; ++Index)
+	for (uint Index = FirstLightWithVSM; Index <= LastLightWithVSM; ++Index)
 	{
 		int VirtualShadowMapId = GetLocalLightData(CulledLightGridHeader.DataStartIndex + Index, EyeIndex).VirtualShadowMapId;
 		// Discard any light without a VSM

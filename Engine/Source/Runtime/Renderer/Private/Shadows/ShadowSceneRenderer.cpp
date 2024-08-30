@@ -481,12 +481,12 @@ void FShadowSceneRenderer::RenderVirtualShadowMapProjectionMaskBits(
 	FRDGBuilder& GraphBuilder,
 	FMinimalSceneTextures& SceneTextures)
 {
-	// VSM one pass projection (done first as it may be needed by clustered shading)
 	bShouldUseVirtualShadowMapOnePassProjection =
 		VirtualShadowMapArray.IsAllocated() &&
 		IsVSMOnePassProjectionEnabled(SceneRenderer.ViewFamily.EngineShowFlags);
 
-	if (!VirtualShadowMapArray.HasAnyShadowData())
+	// One pass projection is only for local lights, so not needed if we don't have any
+	if (!VirtualShadowMapArray.HasAnyShadowData() || LocalLights.Num() == 0)
 	{
 		return;
 	}

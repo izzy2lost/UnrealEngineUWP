@@ -861,6 +861,13 @@ int32 FTranslucencyLightingVolumeTextures::GetIndex(const FViewInfo& View, int32
 
 void FTranslucencyLightingVolumeTextures::Init(FRDGBuilder& GraphBuilder, TArrayView<const FViewInfo> Views, ERDGPassFlags PassFlags)
 {
+	// Skip init/clear if disabled
+	// GetTranslucencyLightingVolumeParameters will return black system textures
+	if (!GUseTranslucentLightingVolumes)
+	{
+		return;
+	}
+
 	check(PassFlags == ERDGPassFlags::Compute || PassFlags == ERDGPassFlags::AsyncCompute);
 
 	RDG_GPU_STAT_SCOPE(GraphBuilder, TranslucentLighting);
