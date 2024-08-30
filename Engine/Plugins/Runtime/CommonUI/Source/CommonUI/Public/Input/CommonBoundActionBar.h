@@ -4,6 +4,7 @@
 
 #include "CommonButtonBase.h"
 #include "Components/DynamicEntryBoxBase.h"
+#include "CommonInputTypeEnum.h"
 #include "Tickable.h"
 #include "CommonBoundActionBar.generated.h"
 
@@ -54,6 +55,7 @@ protected:
 #endif
 
 private:
+	void HandledInputTypeUpdated(ECommonInputType InputType);
 	void HandleBoundActionsUpdated(bool bFromOwningPlayer);
 	void HandleDeferredDisplayUpdate();
 	void HandlePlayerAdded(int32 PlayerIdx);
