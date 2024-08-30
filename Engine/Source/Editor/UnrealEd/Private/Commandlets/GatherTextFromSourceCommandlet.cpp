@@ -2419,6 +2419,13 @@ void UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::TryParse(const FSt
 		return;
 	}
 
+	// If this nested macro was found in a translation unit (.cpp) then it can only be used in the same file
+	if (Filename.EndsWith(TEXT(".cpp"), ESearchCase::IgnoreCase) &&
+		Filename != Context.Filename)
+	{
+		return;
+	}
+
 	// Ignore partial matches, such as METASOUND_PARAM_EXTERN when we're looking for METASOUND_PARAM
 	FString MacroName = GetToken();
 	int32 Pos = Text.Find(TEXT("("), ESearchCase::CaseSensitive);
@@ -2426,16 +2433,9 @@ void UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::TryParse(const FSt
 	{
 		return;
 	}
-	FString MacroNameCurrent = Text.Mid(0, Pos);	// excludes bracket
+	FString MacroNameCurrent = Text.Mid(0, Pos);		// excludes bracket
 	MacroNameCurrent.TrimEndInline();
 	if (MacroNameCurrent != MacroName)
-	{
-		return;
-	}
-
-	// If this nested macro was found in a translation unit (.cpp) then it can only be used in the same file
-	if (Filename.EndsWith(TEXT(".cpp"), ESearchCase::IgnoreCase) &&
-		Filename != Context.Filename)
 	{
 		return;
 	}
@@ -2603,19 +2603,23 @@ void UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::TryParseArgs(const
 	FString Collect;
 	Collect.Reserve(MacroInnerParams.Len());
 	bool bWithinQuote = false;
+	const TCHAR* CharPrev = *MacroInnerParams;
 	for (const TCHAR* Char = *MacroInnerParams; *Char; ++Char)
 	{
-		if (*Char == TEXT('\"'))
+		if (*Char == TEXT('\"') && *CharPrev != TEXT('\\'))
 		{
+			// Within non-escaped quotes
 			bWithinQuote = !bWithinQuote;
 		}
 		else if (*Char == TEXT(',') && !bWithinQuote)
 		{
 			Params.Add(Collect);
 			Collect.Reset();
+			CharPrev = Char;
 			continue;
 		}
 		Collect += *Char;
+		CharPrev = Char;
 	}
 	Params.Add(Collect);
 
@@ -2630,11 +2634,21 @@ void UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::TryParseArgs(const
 			Collect.Reserve(ParamTrim.Len());
 			bWithinQuote = false;
 			bool bWithinStringification = false;
+			CharPrev = *MacroInnerParams;
 			for (const TCHAR* Char = *ParamTrim; *Char; ++Char)
 			{
+				if (*Char == TEXT('\"') && *CharPrev != TEXT('\\'))
+				{
+					// Within non-escaped quotes
+					bWithinQuote = !bWithinQuote;
+					CharPrev = Char;
+					// Skip quotes, we'll requote
+					continue;
+				}
 				if (*Char == TEXT('#') && !bWithinQuote)
 				{
 					bWithinStringification = true;
+					CharPrev = Char;
 					continue;
 				}
 				if (bWithinStringification)
@@ -2649,18 +2663,15 @@ void UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::TryParseArgs(const
 					if (bIsQuote || bIsSpace)
 					{
 						bWithinStringification = false;
+						CharPrev = Char;
 						continue;
 					}
-				}
-				if (*Char == TEXT('\"'))
-				{
-					bWithinQuote = !bWithinQuote;
-					continue;		// Exclude quotes, we'll requote
 				}
 				if (bWithinStringification || bWithinQuote)
 				{
 					Collect += *Char;
 				}
+				CharPrev = Char;
 			}
 		}
 		else
