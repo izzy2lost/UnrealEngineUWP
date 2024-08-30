@@ -229,7 +229,7 @@ FReply SDataflowEdNode::OnAddPin()
 				MenuBuilder.AddMenuEntry(LOCTEXT("HideAllInputs", "Hide all"), LOCTEXT("HideAllInputsTooltip", "Hide all hideable input pins"), FSlateIcon(),
 					FUIAction(
 						FExecuteAction::CreateUObject(DataflowGraphNode, &UDataflowEdNode::HideAllInputPins)));
-				MenuBuilder.AddMenuEntry(LOCTEXT("UnhideAllInputs", "Unhide all"), LOCTEXT("UnhideAllInputsTooltip", "Unhide all hideable input pins"), FSlateIcon(),
+				MenuBuilder.AddMenuEntry(LOCTEXT("UnhideAllInputs", "Show all"), LOCTEXT("UnhideAllInputsTooltip", "Show all hideable input pins"), FSlateIcon(),
 					FUIAction(
 						FExecuteAction::CreateUObject(DataflowGraphNode, &UDataflowEdNode::ShowAllInputPins)));
 

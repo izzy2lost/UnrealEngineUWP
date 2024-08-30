@@ -79,7 +79,6 @@ void UDataflowSchema::GetContextMenuActions(class UToolMenu* Menu, class UGraphN
 					FToolMenuSection& InSection = PinVisibilityMenu->AddSection("TestGraphSchemaPinVisibility");
 					InSection.AddMenuEntry(FGraphEditorCommands::Get().ShowAllPins);
 					InSection.AddMenuEntry(FGraphEditorCommands::Get().HideNoConnectionPins);
-					InSection.AddMenuEntry(FGraphEditorCommands::Get().HideNoConnectionNoDefaultPins);
 				}));
 			}
 
