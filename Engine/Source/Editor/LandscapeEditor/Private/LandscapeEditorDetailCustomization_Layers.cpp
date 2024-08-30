@@ -67,23 +67,23 @@ void FLandscapeEditorDetailCustomization_Layers::CustomizeDetails(IDetailLayoutB
 	IDetailCategoryBuilder& LayerCategory = DetailBuilder.EditCategory("Edit Layers");
 
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-	if (LandscapeEdMode && LandscapeEdMode->CurrentToolMode != nullptr)
+	if (LandscapeEdMode 
+		&& LandscapeEdMode->GetLandscape() 
+		&& (LandscapeEdMode->CurrentToolMode != nullptr)
+		&& (FName(LandscapeEdMode->CurrentTool->GetToolName()) != TEXT("Mask")))
 	{
-		if (LandscapeEdMode->GetLandscape())
-		{
-			LayerCategory.AddCustomBuilder(MakeShareable(new FLandscapeEditorCustomNodeBuilder_Layers(DetailBuilder.GetThumbnailPool().ToSharedRef())));
+		LayerCategory.AddCustomBuilder(MakeShareable(new FLandscapeEditorCustomNodeBuilder_Layers(DetailBuilder.GetThumbnailPool().ToSharedRef())));
 
-			LayerCategory.AddCustomRow(FText())
-				.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateLambda([]() { return ShouldShowLayersErrorMessageTip() ? EVisibility::Visible : EVisibility::Collapsed; })))
-				[
-					SNew(SMultiLineEditableTextBox)
-					.IsReadOnly(true)
-					.Font(DetailBuilder.GetDetailFontBold())
-					.BackgroundColor(TAttribute<FSlateColor>::Create(TAttribute<FSlateColor>::FGetter::CreateLambda([]() { return FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor"); })))
-					.Text(TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_Layers::GetLayersErrorMessageText)))
-					.AutoWrapText(true)
-				];
-		}
+		LayerCategory.AddCustomRow(FText())
+			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateLambda([]() { return ShouldShowLayersErrorMessageTip() ? EVisibility::Visible : EVisibility::Collapsed; })))
+			[
+				SNew(SMultiLineEditableTextBox)
+				.IsReadOnly(true)
+				.Font(DetailBuilder.GetDetailFontBold())
+				.BackgroundColor(TAttribute<FSlateColor>::Create(TAttribute<FSlateColor>::FGetter::CreateLambda([]() { return FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor"); })))
+				.Text(TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_Layers::GetLayersErrorMessageText)))
+				.AutoWrapText(true)
+			];
 	}
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION

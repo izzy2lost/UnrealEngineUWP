@@ -27,7 +27,6 @@
 
 #include "SLandscapeEditor.h"
 #include "LandscapeEditorCommands.h"
-#include "LandscapeEditorDetailWidgets.h"
 #include "LandscapeEditorDetailCustomization_LayersBrushStack.h"
 #include "LandscapeEditorObject.h"
 #include "Landscape.h"
@@ -75,6 +74,7 @@ void FLandscapeEditorDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuild
 		
 		SafeSetOrder(FName("Tool Settings"));
 		SafeSetOrder(FName("Brush Settings"));
+		SafeSetOrder(FName("Select Mask"));
 		
 		SafeSetOrder(FName("Edit Layers"));
 		SafeSetOrder(FName("Edit Layer Blueprint Brushes"));

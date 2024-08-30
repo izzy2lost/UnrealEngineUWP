@@ -19,6 +19,7 @@ LandscapeEdit.cpp: Landscape editing
 #include "LandscapeStreamingProxy.h"
 #include "LandscapeInfo.h"
 #include "LandscapeComponent.h"
+#include "LandscapeModule.h"
 #include "LandscapeLayerInfoObject.h"
 #include "MaterialDomain.h"
 #include "Materials/Material.h"
@@ -7100,6 +7101,10 @@ void ULandscapeInfo::ClearSelectedRegion(bool bIsComponentwise /*= true*/)
 	{
 		SelectedRegion.Empty();
 	}
+
+	// Refresh the detail panel since the selected region affects the visibility of some landscape tool settings : 
+	ILandscapeModule& LandscapeModule = FModuleManager::GetModuleChecked<ILandscapeModule>("Landscape");
+	LandscapeModule.GetLandscapeEditorServices()->RefreshDetailPanel();
 }
 
 void ULandscapeComponent::ReallocateWeightmaps(FLandscapeEditDataInterface* DataInterface, bool InCanUseEditingWeightmap, bool InSaveToTransactionBuffer, bool InForceReallocate, 

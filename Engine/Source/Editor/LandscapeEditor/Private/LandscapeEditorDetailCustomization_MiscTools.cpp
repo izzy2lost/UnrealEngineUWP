@@ -45,9 +45,9 @@ void FLandscapeEditorDetailCustomization_MiscTools::CustomizeDetails(IDetailLayo
 		];
 	}
 
-	//if (IsToolActive("Mask"))
+	IDetailCategoryBuilder& SelectMaskCategory = DetailBuilder.EditCategory("Select Mask");
 	{
-		ToolsCategory.AddCustomRow(LOCTEXT("Mask.ClearSelection", "Clear Region Selection"))
+		SelectMaskCategory.AddCustomRow(LOCTEXT("Mask.ClearSelection", "Clear Region Selection"))
 		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_MiscTools::GetClearRegionSelectionVisibility)))
 		[
 			SNew(SButton)

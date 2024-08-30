@@ -118,7 +118,9 @@ bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowTargetLayers()
 
 		//// Visible if there are possible choices
 		//if (bSupportsWeightmap || bSupportsHeightmap || bSupportsVisibility)
-		if (LandscapeEdMode->CurrentToolMode->SupportedTargetTypes != 0 && CurrentToolName != TEXT("BlueprintBrush"))
+		if (LandscapeEdMode->CurrentToolMode->SupportedTargetTypes != 0 
+			&& CurrentToolName != TEXT("BlueprintBrush")
+			&& CurrentToolName != TEXT("Mask"))
 		{
 			return true;
 		}

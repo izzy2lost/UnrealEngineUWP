@@ -304,6 +304,7 @@ void FEdModeLandscape::UpdateToolModes()
 	ToolMode_Paint->ValidTools.Add(TEXT("Flatten"));
 	ToolMode_Paint->ValidTools.Add(TEXT("Noise"));
 	ToolMode_Paint->ValidTools.Add(TEXT("Visibility"));
+	ToolMode_Paint->ValidTools.Add(TEXT("Mask"));
 
 	if (CanHaveLandscapeLayersContent())
 	{
@@ -3736,7 +3737,7 @@ ALandscape* FEdModeLandscape::ChangeComponentSetting(int32 NumComponentsX, int32
 
 			// LandscapeGuid is stomped by CopySharedProperties, but original guid is not -- fix the mismatch or it will complain during Import
  			NewLandscape->SetLandscapeGuid(FGuid(), /* bValidateGuid= */ false);
-			
+
 			// Copy settings that are not copied by CopySharedProperties
 			NewLandscape->ExportLOD = OldLandscape->ExportLOD;
 			NewLandscape->StaticLightingLOD = OldLandscape->StaticLightingLOD;

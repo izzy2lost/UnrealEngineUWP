@@ -42,7 +42,10 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void FLandscapeEditorDetailCustomization_LayersBrushStack::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-	if (LandscapeEdMode && LandscapeEdMode->CurrentToolMode != nullptr)
+	if (LandscapeEdMode
+		&& LandscapeEdMode->GetLandscape()
+		&& (LandscapeEdMode->CurrentToolMode != nullptr)
+		&& (FName(LandscapeEdMode->CurrentTool->GetToolName()) != TEXT("Mask")))
 	{
 		IDetailCategoryBuilder& LayerCategory = DetailBuilder.EditCategory(FName("Edit Layer Blueprint Brushes"));
 

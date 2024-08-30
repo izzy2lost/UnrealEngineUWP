@@ -241,10 +241,9 @@ void FLandscapeToolKit::BuildToolPalette(FName PaletteName, class FToolBarBuilde
 		}
 
 		ToolBarBuilder.AddToolBarButton(Commands.MirrorTool);
-
-		ToolBarBuilder.AddToolBarButton(Commands.RegionSelectTool);
 		ToolBarBuilder.AddToolBarButton(Commands.RegionCopyPasteTool);
 
+		ToolBarBuilder.AddToolBarButton(Commands.RegionSelectTool);
 	}
 
 	else if (PaletteName == LandscapeEditorNames::Paint)
@@ -253,11 +252,13 @@ void FLandscapeToolKit::BuildToolPalette(FName PaletteName, class FToolBarBuilde
 		ToolBarBuilder.AddToolBarButton(Commands.SmoothTool);
 		ToolBarBuilder.AddToolBarButton(Commands.FlattenTool);
 		ToolBarBuilder.AddToolBarButton(Commands.NoiseTool);
-		
+
 		if (LandscapeEdMode->CanHaveLandscapeLayersContent() && Settings->AreBlueprintToolsAllowed())
 		{
 			ToolBarBuilder.AddToolBarButton(Commands.BlueprintBrushTool);
 		}
+
+		ToolBarBuilder.AddToolBarButton(Commands.RegionSelectTool);
 	}
 
 }
