@@ -9,6 +9,7 @@
 #include "ComputeFramework/ComputeGraph.h"
 #include "ComputeFramework/ComputeGraphRenderProxy.h"
 #include "ProfilingDebugging/RealtimeGPUProfiler.h"
+#include "RenderCaptureInterface.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
 #include "RHIDefinitions.h"
@@ -20,6 +21,14 @@ static TAutoConsoleVariable<int32> CVarComputeFrameworkSortSubmit(
 	TEXT("r.ComputeFramework.SortSubmit"),
 	1,
 	TEXT("Sort submission of work to GPU for optimal scheduling."),
+	ECVF_RenderThreadSafe
+);
+
+static int32 GTriggerGPUCaptureDispatches = 0;
+static FAutoConsoleVariableRef CVarComputeFrameworkTriggerGPUCapture(
+	TEXT("r.ComputeFramework.TriggerGPUCaptureDispatches"),
+	GTriggerGPUCaptureDispatches,
+	TEXT("Trigger GPU captures for this many of the subsequent compute graph dispatches."),
 	ECVF_RenderThreadSafe
 );
 
@@ -82,6 +91,9 @@ void FComputeGraphTaskWorker::SubmitWork(FRDGBuilder& GraphBuilder, FName InExec
 	TRACE_CPUPROFILER_EVENT_SCOPE(ComputeFramework::ExecuteBatches);
 	RDG_EVENT_SCOPE(GraphBuilder, "ComputeFramework::ExecuteBatches");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, ComputeFramework_ExecuteBatches);
+
+	RenderCaptureInterface::FScopedCapture RenderCapture(GTriggerGPUCaptureDispatches > 0, GraphBuilder, TEXT("FComputeGraphTaskWorker::SubmitWork"));
+	GTriggerGPUCaptureDispatches = FMath::Max(GTriggerGPUCaptureDispatches - 1, 0);
 
 	// Currently poll readbacks once at end of frame.
 	if (InExecutionGroupName == ComputeTaskExecutionGroup::EndOfFrameUpdate)
