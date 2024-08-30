@@ -192,7 +192,7 @@ void FBaseDynamicMeshSelector::UpdateSelectionFromSelection(
 	{ 
 		FGeometrySelection TempSelection;
 		TempSelection.InitializeTypes(SelectionEditor.GetElementType(), SelectionEditor.GetTopologyType());
-		bConverted = UE::Geometry::ConvertSelection(Mesh, GetGroupTopology(), FromSelection, TempSelection);		// todo do not always need group topology here...
+		bConverted = UE::Geometry::ConvertSelection(Mesh, GetGroupTopology(), FromSelection, TempSelection, EEnumerateSelectionConversionParams::ContainSelection);		// todo do not always need group topology here...
 		if ( bConverted )
 		{
 			UE::Geometry::UpdateSelectionWithNewElements(&SelectionEditor, UpdateConfig.ChangeType,

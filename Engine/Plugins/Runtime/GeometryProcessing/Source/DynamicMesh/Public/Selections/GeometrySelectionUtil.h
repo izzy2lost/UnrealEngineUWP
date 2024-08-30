@@ -30,6 +30,14 @@ enum class EEnumerateSelectionMapping : uint8
 };
 ENUM_CLASS_FLAGS(EEnumerateSelectionMapping);
 	
+enum class EEnumerateSelectionConversionParams
+{
+	/** Converts to components whose constituent parts are all contained in the initial selection. */
+	ContainSelection,
+	/** Converts to components where any of its constituent parts are included in the initial selection. */
+	ExpandSelection
+};
+	
 /**
  * Test if SelectionA and SelectionB are the same selection.
  * This is currently relatively expensive on Polygroup selections due to how they are encoded
@@ -364,11 +372,19 @@ DYNAMICMESH_API bool InitializeSelectionFromTriangles(
  *
  * @return true if conversion is supported and was computed successfully, return false otherwise
  */
+UE_DEPRECATED(5.5, "This version of ConvertSelection is deprecated, please use the version with the EENumerateSelectionConversionParams parameter going forward.")	
 DYNAMICMESH_API bool ConvertSelection(
 	const UE::Geometry::FDynamicMesh3& Mesh,
 	const FGroupTopology* GroupTopology,
 	const FGeometrySelection& FromSelectionIn,
 	FGeometrySelection& ToSelectionOut);
+
+DYNAMICMESH_API bool ConvertSelection(
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	const FGroupTopology* GroupTopology,
+	const FGeometrySelection& FromSelectionIn,
+	FGeometrySelection& ToSelectionOut,
+	const EEnumerateSelectionConversionParams ConversionParams);
 
 /**
  * Convert the given MeshSelection to a list of Triangles and Vertices into the Mesh,
