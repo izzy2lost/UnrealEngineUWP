@@ -35,6 +35,7 @@
 #include "Factories/FbxSkeletalMeshImportData.h"
 
 #include "Rendering/SkeletalMeshModel.h"
+#include "MeshPaintHelpers.h"
 #include "MeshPaintMode.h"
 #include "MeshPaintVisualize.h"
 #include "MeshTexturePaintingTool.h"
