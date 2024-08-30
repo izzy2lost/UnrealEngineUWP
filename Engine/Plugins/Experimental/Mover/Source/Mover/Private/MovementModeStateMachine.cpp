@@ -216,7 +216,7 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 		for (TSharedPtr<FLayeredMoveBase>& ActiveMove : ActiveMoves)
 		{
 			FProposedMove MoveStep;
-			if (ActiveMove->GenerateMove(StartState, TimeStep, MoverComp, SimBlackboard, MoveStep))
+			if (ActiveMove->GenerateMove(SubstepStartData, TimeStep, MoverComp, SimBlackboard, MoveStep))
 			{
 				bHasLayeredMoveContributions = true;
 				MoverComp->MovementMixer->MixLayeredMove(*ActiveMove, MoveStep, CombinedLayeredMove);
