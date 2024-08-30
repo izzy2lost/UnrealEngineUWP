@@ -36,6 +36,10 @@ void UTG_Expression_Output::Evaluate(FTG_EvaluationContext* InContext)
 			BufferDescriptor OutputDesc = Output.EditTexture().GetBufferDescriptor();
 			const BufferDescriptor& InputDesc = Source.GetTexture()->GetDescriptor();
 
+			// When Output and Input desc don't match, it just ignores input's Desc sRGB value and uses Output desc value (which is currently always false) 
+			// Right now, the sRGB settings cannot be changed in the output node, so we can safely apply the input sRGB setting here.
+			OutputDesc.bIsSRGB = InputDesc.bIsSRGB;
+			
 			/// If the descriptors are not the same
 			if (OutputDesc != InputDesc)
 			{
