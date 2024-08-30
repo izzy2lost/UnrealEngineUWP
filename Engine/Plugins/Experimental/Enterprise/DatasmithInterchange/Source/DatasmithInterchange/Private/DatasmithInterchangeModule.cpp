@@ -40,6 +40,30 @@ class FDatasmithInterchangeModule : public IDatasmithInterchangeModule
 public:
 	virtual void StartupModule() override
 	{
+		FCoreDelegates::OnPostEngineInit.AddRaw(this, &FDatasmithInterchangeModule::OnPostEngineInit);
+	}
+
+	virtual void ShutdownModule() override
+	{
+		FCoreDelegates::OnPostEngineInit.RemoveAll(this);
+
+		UE::DatasmithInterchange::FDatasmithReferenceMaterialManager::Destroy();
+		
+#if WITH_EDITOR
+		FPropertyEditorModule* PropertyEditorModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor");
+		if (PropertyEditorModule)
+		{
+			for (FName ClassName : ClassesToUnregisterOnShutdown)
+			{
+				PropertyEditorModule->UnregisterCustomClassLayout(ClassName);
+			}
+		}
+		ClassesToUnregisterOnShutdown.Empty();
+#endif
+	}
+
+	void OnPostEngineInit()
+	{
 		using namespace UE::DatasmithInterchange;
 
 		// Load the blueprint asset into memory while wew're on the game thread so that GetAreaLightActorBPClass() can safely be called from other threads.
@@ -74,7 +98,7 @@ public:
 		FDatasmithReferenceMaterialManager::Get().RegisterSelector(TEXT("SketchUp"), MakeShared< FDatasmithSketchUpMaterialSelector >());
 		FDatasmithReferenceMaterialManager::Get().RegisterSelector(TEXT("CityEngine"), MakeShared< FDatasmithCityEngineMaterialSelector >());
 		FDatasmithReferenceMaterialManager::Get().RegisterSelector(TEXT("StdMaterial"), MakeShared< FDatasmithStdMaterialSelector >());
-		
+
 #if WITH_EDITOR
 		ClassesToUnregisterOnShutdown.Reset();
 		// Register details customizations
@@ -82,23 +106,6 @@ public:
 
 		ClassesToUnregisterOnShutdown.Add(UInterchangeDatasmithTranslatorSettings::StaticClass()->GetFName());
 		PropertyEditorModule.RegisterCustomClassLayout(ClassesToUnregisterOnShutdown.Last(), FOnGetDetailCustomizationInstance::CreateStatic(&FInterchangeDatasmithTranslatorSettingsCustomization::MakeInstance));
-#endif
-	}
-
-	virtual void ShutdownModule() override
-	{
-		UE::DatasmithInterchange::FDatasmithReferenceMaterialManager::Destroy();
-		
-#if WITH_EDITOR
-		FPropertyEditorModule* PropertyEditorModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor");
-		if (PropertyEditorModule)
-		{
-			for (FName ClassName : ClassesToUnregisterOnShutdown)
-			{
-				PropertyEditorModule->UnregisterCustomClassLayout(ClassName);
-			}
-		}
-		ClassesToUnregisterOnShutdown.Empty();
 #endif
 	}
 
