@@ -57,7 +57,7 @@ struct VFunction : VHeapValue
 	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 
 	/// Checks if the function is already bound.
-	bool HasSelf() const;
+	COREUOBJECT_API bool HasSelf() const;
 
 private:
 	VFunction(FAllocationContext Context, VProcedure& InFunction, VValue InSelf, VScope* InParentScope)

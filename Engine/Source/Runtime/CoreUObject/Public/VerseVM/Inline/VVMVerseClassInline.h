@@ -29,7 +29,7 @@ inline Verse::VValue UVerseClass::LoadField(Verse::FAllocationContext Context, U
 		case EFieldType::Constant:
 		{
 			VValue FieldValue = Field->Value.Get();
-			// V_DIE_IF(FieldValue.IsCellOfType<VProcedure>());
+			V_DIE_IF(FieldValue.IsCellOfType<VProcedure>());
 			if (VFunction* Function = FieldValue.DynamicCast<VFunction>(); Function && !Function->HasSelf())
 			{
 				// NOTE: (yiliang.siew) Update the function-without-`Self` to point to the current object instance.

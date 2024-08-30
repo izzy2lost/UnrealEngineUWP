@@ -203,8 +203,8 @@ public:
 	COREUOBJECT_API static const FName StructPaddingDummyName;
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	COREUOBJECT_API static Verse::VValue LoadField(Verse::FAllocationContext Context, UObject* Object, Verse::VUniqueString& FieldName);
-	COREUOBJECT_API static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+	static Verse::VValue LoadField(Verse::FAllocationContext Context, UObject* Object, Verse::VUniqueString& FieldName);
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
 	Verse::TWriteBarrier<Verse::VShape> Shape;
 	Verse::TWriteBarrier<Verse::VClass> Class;

@@ -54,7 +54,7 @@ struct VNativeFunction : VHeapValue
 	// Lookup a native function and set it's thunk to a C++ function
 	static COREUOBJECT_API void SetThunk(Verse::VPackage* Package, FUtf8StringView VerseScopePath, FUtf8StringView DecoratedName, FThunkFn NativeFuncPtr);
 
-	bool HasSelf() const;
+	COREUOBJECT_API bool HasSelf() const;
 
 private:
 	VNativeFunction(FAllocationContext Context, uint32 InNumParameters, FThunkFn InThunk, VValue InSelf)
