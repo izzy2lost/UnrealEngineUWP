@@ -274,7 +274,7 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeVertexOptions
 	bool bSplitAtNormalSeams = false;
 
 	/** If true, compute a separate vertex color for each unique UV on a vertex. */
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta=(DisplayName = "Split at UV Seams"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta=(DisplayName = "Split at UV Seams"))
 	bool bSplitAtUVSeams = false;
 
 	/** Maximum allowed distance for the projection from target mesh to source mesh for the sample to be considered valid.
@@ -318,7 +318,7 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeTargetMeshOptions
 {
 	GENERATED_BODY();
 
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (DisplayName="Target UV Channel"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (DisplayName="Target UV Channel"))
 	int TargetUVLayer = 0;
 };
 
@@ -330,7 +330,7 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeSourceMeshOptions
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	TObjectPtr<UTexture2D> SourceNormalMap = nullptr;
 
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (DisplayName="Source Normal UV Channel"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (DisplayName="Source Normal UV Channel"))
 	int SourceNormalUVLayer = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)

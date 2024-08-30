@@ -40,23 +40,23 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptPolygonOffsetOptions
 public:
 
 	// How to join / extend corners between two edges
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	EGeometryScriptPolyOffsetJoinType JoinType = EGeometryScriptPolyOffsetJoinType::Square;
 
 	// if JoinType is Miter, limits how far the miter can extend
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	double MiterLimit = 2.0;
 
 	// Whether to apply the offset to both sides of the polygon, i.e. adding an inner hole to any polygon. If false, the offset is only applied to one side.
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bOffsetBothSides = false;
 
 	// Scales the default number of vertices (per radian) used for round joins.
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (ClampMin = "0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (ClampMin = "0"))
 	double StepsPerRadianScale = 1.0;
 
 	// Maximum vertices per radian for round joins. Only applied if > 0.
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (ClampMin = "-1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (ClampMin = "-1"))
 	double MaximumStepsPerRadian = 10.0;
 };
 
@@ -68,23 +68,23 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptOpenPathOffsetOptions
 public:
 
 	// How to join / extend corners between two edges
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	EGeometryScriptPolyOffsetJoinType JoinType = EGeometryScriptPolyOffsetJoinType::Square;
 
 	// if JoinType is Miter, limits how far the miter can extend
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	double MiterLimit = 2.0;
 
 	// How the ends of a path should be closed off
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	EGeometryScriptPathOffsetEndType EndType = EGeometryScriptPathOffsetEndType::Square;
 
 	// Scales the default number of vertices (per radian) used for round joins and ends.
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (ClampMin = "0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (ClampMin = "0"))
 	double StepsPerRadianScale = 1.0;
 
 	// Maximum vertices per radian for round joins and ends. Only applied if > 0.
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (ClampMin = "-1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (ClampMin = "-1"))
 	double MaximumStepsPerRadian = 10.0;
 
 };

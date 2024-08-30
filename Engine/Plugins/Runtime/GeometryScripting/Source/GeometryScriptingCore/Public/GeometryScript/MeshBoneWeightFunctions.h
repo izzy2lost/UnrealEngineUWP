@@ -192,27 +192,27 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBoneInfo
 	GENERATED_BODY()
 
 	/** Index of the bone in the skeletal hierarchy. */
-	UPROPERTY(BlueprintReadWrite, Category = Bone)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Bone)
 	int Index = INDEX_NONE;
 
 	/** Bone name. */
-	UPROPERTY(BlueprintReadWrite, Category = Bone)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Bone)
 	FName Name = NAME_None;
 	
 	/** Parent bone index. */
-	UPROPERTY(BlueprintReadWrite, Category = Bone)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Bone)
 	int ParentIndex = INDEX_NONE;
 
 	/** Local/bone space reference transform. */
-	UPROPERTY(BlueprintReadWrite, Category = Bone)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Bone)
 	FTransform LocalTransform = FTransform::Identity;
 
 	/** Global/world space reference transform. */
-	UPROPERTY(BlueprintReadWrite, Category = Bone)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Bone)
 	FTransform WorldTransform = FTransform::Identity;
 
 	/** Bone color. */
-	UPROPERTY(BlueprintReadWrite, Category = Bone)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Bone)
 	FLinearColor Color = FLinearColor::White;
 };
 

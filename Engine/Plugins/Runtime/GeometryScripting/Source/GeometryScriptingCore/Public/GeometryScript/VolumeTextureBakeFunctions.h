@@ -38,23 +38,23 @@ public:
 	// Whether to compute distances only in a band around the surface (faster) or compute the full grid
 	// Note: If full grid is computed, the distances will still be more accurately computed in the narrow band
 	// In narrow band mode, values outside the band will have a large magnitude with the correct sign
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	EDistanceFieldComputeMode ComputeMode = EDistanceFieldComputeMode::NarrowBand;
 
 	// Width of the narrow band where distances are computed accurately
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	float NarrowBandWidth = 2;
 
 	// Whether Narrow Band Width is expressed as a number of voxels (rounded up to nearest int) or a distance
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	EDistanceFieldUnits NarrowBandUnits = EDistanceFieldUnits::NumberOfVoxels;
 
 	// Number of voxels to use along each axis
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	FIntVector VoxelsPerDimensions = FIntVector(32,32,32);
 
 	// Whether to round voxel count on each dimension up to the nearest power of two
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bRequirePower2 = true;
 };
 
@@ -65,11 +65,11 @@ struct FDistanceFieldToTextureSettings
 public:
 
 	// Scale values by this amount before writing them to the texture
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	float Scale = 1;
 
 	// Offset values by this amount before writing them to the texture (after applying Scale)
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	float Offset = 0;
 };
 

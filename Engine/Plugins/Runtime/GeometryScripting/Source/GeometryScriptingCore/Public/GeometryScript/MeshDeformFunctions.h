@@ -21,7 +21,7 @@ public:
 	bool bSymmetricExtents = true;
 
 	/** Lower extent used when bSymmetricExtents = false */
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (EditCondition = "bSymmetricExtents == false"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (EditCondition = "bSymmetricExtents == false"))
 	float LowerExtent = 10;
 
 	/** If true, the Bend is "centered" at the Origin, ie the regions on either side of the extents are rigidly transformed. If false, the Bend begins at the start of the Lower Extents, and the "lower" region is not affected. */
@@ -41,7 +41,7 @@ public:
 	bool bSymmetricExtents = true;
 
 	/** Lower extent used when bSymmetricExtents = false */
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (EditCondition = "bSymmetricExtents == false"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (EditCondition = "bSymmetricExtents == false"))
 	float LowerExtent = 10;
 
 	/** If true, the Twist is "centered" at the Origin, ie the regions on either side of the extents are rigidly transformed. If false, the Twist begins at the start of the Lower Extents, and the "lower" region is not affected. */
@@ -72,7 +72,7 @@ public:
 	bool bSymmetricExtents = true;
 
 	/** Lower extent used when bSymmetricExtents = false */
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (EditCondition = "bSymmetricExtents == false"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (EditCondition = "bSymmetricExtents == false"))
 	float LowerExtent = 10;
 
 	/** Determines the profile used as a displacement */
