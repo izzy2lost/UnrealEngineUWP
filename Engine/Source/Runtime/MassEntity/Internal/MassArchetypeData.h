@@ -400,6 +400,17 @@ protected:
 	void BindConstSharedFragmentRequirements(FMassExecutionContext& RunContext, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FMassFragmentIndicesMapping& ChunkFragmentsMapping);
 	void BindSharedFragmentRequirements(FMassExecutionContext& RunContext, FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FMassFragmentIndicesMapping& ChunkFragmentsMapping);
 
+	/**
+	 * The function first creates new FMassArchetypeSharedFragmentValues instance combining existing values
+	 * and the contents of SharedFragmentValueOverrides. Then that is used to find the target chunk for Entity,
+	 * and if one cannot be found a new one will be created. 
+	 * @param SharedFragmentValueOverrides is expected to contain only instances of types already
+	 *    present in given archetypes FMassArchetypeSharedFragmentValues
+	 */
+	void SetSharedFragmentsData(const FMassEntityHandle Entity, TConstArrayView<FSharedStruct> SharedFragmentValueOverrides);
+
+	FMassArchetypeChunk& GetOrAddChunk(const FMassArchetypeSharedFragmentValues& SharedFragmentValues, int32& OutAbsoluteIndex, int32& OutIndexWithinChunk);
+	
 private:
 	int32 AddEntityInternal(FMassEntityHandle Entity, const FMassArchetypeSharedFragmentValues& InSharedFragmentValues);
 	void RemoveEntityInternal(const int32 AbsoluteIndex);

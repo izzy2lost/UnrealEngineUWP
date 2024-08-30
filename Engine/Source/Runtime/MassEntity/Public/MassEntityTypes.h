@@ -440,6 +440,14 @@ struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 	 */
 	FSharedStruct AddSharedFragment(const FSharedStruct& Fragment);
 
+	/**
+	 * Finds instances of fragment types given by Fragments and replaces their values with contents of respective
+	 * element of Fragments.
+	 * Note that it's callers responsibility to ensure every fragment type in Fragments already has an instance in
+	 * this FMassArchetypeSharedFragmentValues instance. Failing that assumption will result in ensure failure. 
+	 */
+	void ReplaceSharedFragments(TConstArrayView<FSharedStruct> Fragments);
+
 	/** 
 	 * Appends contents of Other to `this` instance. All common fragments will get overridden with values in Other.
 	 * Note that changing a fragments "role" (being const or non-const) is not supported and the function will fail an

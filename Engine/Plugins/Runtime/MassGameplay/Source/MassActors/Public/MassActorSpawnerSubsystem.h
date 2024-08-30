@@ -206,7 +206,7 @@ public:
 	 * @param Actor to destroy
 	 * @param bImmediate to do the destruction immediately, otherwise will be queued up for later
 	 */
-	void DestroyActor(AActor* Actor, bool bImmediate = false);
+	virtual void DestroyActor(AActor* Actor, bool bImmediate = false);
 	
 	void EnableActorPooling();
 	void DisableActorPooling();

@@ -187,6 +187,22 @@ int32 FMassArchetypeData::AddEntityInternal(FMassEntityHandle Entity, const FMas
 
 	int32 IndexWithinChunk = 0;
 	int32 AbsoluteIndex = 0;
+
+	FMassArchetypeChunk& DestinationChunk = GetOrAddChunk(SharedFragmentValues, AbsoluteIndex, IndexWithinChunk);
+	DestinationChunk.AddInstance();
+
+	// Add to the table and map
+	EntityMap.Add(Entity.Index, AbsoluteIndex);
+	DestinationChunk.GetEntityArrayElementRef(EntityListOffsetWithinChunk, IndexWithinChunk) = Entity;
+
+	return AbsoluteIndex;
+}
+
+FMassArchetypeChunk& FMassArchetypeData::GetOrAddChunk(const FMassArchetypeSharedFragmentValues& SharedFragmentValues, int32& OutAbsoluteIndex, int32& OutIndexWithinChunk)
+{
+	OutAbsoluteIndex = 0;
+	OutIndexWithinChunk = 0;
+
 	int32 ChunkIndex = 0;
 	int32 EmptyChunkIndex = INDEX_NONE;
 	int32 EmptyAbsoluteIndex = INDEX_NONE;
@@ -202,20 +218,18 @@ int32 FMassArchetypeData::AddEntityInternal(FMassEntityHandle Entity, const FMas
 			if (EmptyChunkIndex == INDEX_NONE)
 			{
 				EmptyChunkIndex = ChunkIndex;
-				EmptyAbsoluteIndex = AbsoluteIndex;
+				EmptyAbsoluteIndex = OutAbsoluteIndex;
 			}
 		}
 		else if (Chunk.GetNumInstances() < NumEntitiesPerChunk && Chunk.GetSharedFragmentValues().IsEquivalent(SharedFragmentValues))
 		{
-			IndexWithinChunk = Chunk.GetNumInstances();
-			AbsoluteIndex += IndexWithinChunk;
-
-			Chunk.AddInstance();
+			OutIndexWithinChunk = Chunk.GetNumInstances();
+			OutAbsoluteIndex += OutIndexWithinChunk;
 
 			DestinationChunk = &Chunk;
 			break;
 		}
-		AbsoluteIndex += NumEntitiesPerChunk;
+		OutAbsoluteIndex += NumEntitiesPerChunk;
 		++ChunkIndex;
 	}
 
@@ -226,22 +240,16 @@ int32 FMassArchetypeData::AddEntityInternal(FMassEntityHandle Entity, const FMas
 		{
 			DestinationChunk = &Chunks[EmptyChunkIndex];
 			DestinationChunk->Recycle(ChunkFragmentsTemplate, SharedFragmentValues);
-			AbsoluteIndex = EmptyAbsoluteIndex;
+			OutAbsoluteIndex = EmptyAbsoluteIndex;
 		}
 		else
 		{
 			DestinationChunk = &Chunks.Emplace_GetRef(GetChunkAllocSize(), ChunkFragmentsTemplate, SharedFragmentValues);
 		}
-
-		check(DestinationChunk);
-		DestinationChunk->AddInstance();
 	}
 
-	// Add to the table and map
-	EntityMap.Add(Entity.Index, AbsoluteIndex);
-	DestinationChunk->GetEntityArrayElementRef(EntityListOffsetWithinChunk, IndexWithinChunk) = Entity;
-
-	return AbsoluteIndex;
+	check(DestinationChunk);
+	return *DestinationChunk;
 }
 
 void FMassArchetypeData::RemoveEntity(FMassEntityHandle Entity)
@@ -366,6 +374,40 @@ void* FMassArchetypeData::GetFragmentDataForEntity(const UScriptStruct* Fragment
 		return GetFragmentData(*FragmentIndex, InternalIndex);
 	}
 	return nullptr;
+}
+
+void FMassArchetypeData::SetSharedFragmentsData(const FMassEntityHandle Entity, TConstArrayView<FSharedStruct> SharedFragmentValueOverrides)
+{
+	// Gets the current chunk where the entity is located
+	const int32 OldAbsoluteIndex = EntityMap.FindChecked(Entity.Index);
+	const int32 OldChunkIndex = OldAbsoluteIndex / NumEntitiesPerChunk;
+	const int32 OldIndexWithinChunk = OldAbsoluteIndex % NumEntitiesPerChunk;
+	const FMassArchetypeChunk& OldChunk = Chunks[OldChunkIndex];
+
+	// Gets or adds a new chunk that will hold the new entity with the new shared values
+	FMassArchetypeSharedFragmentValues NewSharedFragmentValues(OldChunk.GetSharedFragmentValues());
+	NewSharedFragmentValues.ReplaceSharedFragments(SharedFragmentValueOverrides);
+	NewSharedFragmentValues.Sort();
+
+	int32 NewAbsoluteIndex = 0;
+	int32 NewIndexWithinChunk = 0;
+	FMassArchetypeChunk& NewChunk = GetOrAddChunk(NewSharedFragmentValues, NewAbsoluteIndex, NewIndexWithinChunk);
+
+	if (ensureMsgf(&NewChunk != &OldChunk, TEXT("Found target chunk is the same as the source chunk. Probably "
+		"caused by setting shared fragment values resulted in no change, meaning the target values equal the source values")))
+	{
+		NewChunk.AddInstance();
+
+		// Update the new entity in the table and map
+		EntityMap[Entity.Index] = NewAbsoluteIndex;
+		NewChunk.GetEntityArrayElementRef(EntityListOffsetWithinChunk, NewIndexWithinChunk) = Entity;
+		
+		// Move the current entity fragments into the new chunk
+		MoveFragmentsToNewLocationInternal({ OldChunk.GetRawMemory(), OldIndexWithinChunk }, { NewChunk.GetRawMemory(), NewIndexWithinChunk }, 1);
+
+		// Clean up the old chunk
+		RemoveEntityInternal(OldAbsoluteIndex);
+	}
 }
 
 void FMassArchetypeData::SetFragmentsData(const FMassEntityHandle Entity, TArrayView<const FInstancedStruct> FragmentInstances)

@@ -143,6 +143,8 @@ struct MASSENTITY_API FMassEntityView
 		return HasTag(*T::StaticStruct());
 	}
 
+	bool HasTag(const UScriptStruct& TagType) const;
+
 	bool IsSet() const { return Archetype != nullptr && EntityDataHandle.IsValid(); }
 	bool IsValid() const { return IsSet(); }
 	bool operator==(const FMassEntityView& Other) const { return Archetype == Other.Archetype && EntityDataHandle == Other.EntityDataHandle; }
@@ -154,7 +156,6 @@ protected:
 	const void* GetConstSharedFragmentPtrChecked(const UScriptStruct& FragmentType) const;
 	void* GetSharedFragmentPtr(const UScriptStruct& FragmentType) const;
 	void* GetSharedFragmentPtrChecked(const UScriptStruct& FragmentType) const;
-	bool HasTag(const UScriptStruct& TagType) const;
 
 private:
 	FMassEntityHandle Entity;

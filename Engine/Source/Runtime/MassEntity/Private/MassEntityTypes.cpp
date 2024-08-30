@@ -54,6 +54,28 @@ FSharedStruct FMassArchetypeSharedFragmentValues::AddSharedFragment(const FShare
 	return StructInstance;
 }
 
+void FMassArchetypeSharedFragmentValues::ReplaceSharedFragments(TConstArrayView<FSharedStruct> Fragments)
+{
+	DirtyHashCache();
+	for (const FSharedStruct& NewFragment : Fragments)
+	{
+		const UScriptStruct* NewFragScriptStruct = NewFragment.GetScriptStruct();
+		check(NewFragScriptStruct);
+
+		bool bEntryFound = false;
+		for (FSharedStruct& MyFragment : SharedFragments)
+		{
+			if (MyFragment.GetScriptStruct() == NewFragScriptStruct)
+			{
+				MyFragment = NewFragment;
+				bEntryFound = true;
+				break;
+			}
+		}
+		ensureMsgf(bEntryFound, TEXT("Existing fragment of type %s could not be found"), *GetNameSafe(NewFragScriptStruct));
+	}
+}
+
 uint32 FMassArchetypeSharedFragmentValues::CalculateHash() const
 {
 	if (!testableEnsureMsgf(bSorted, TEXT("Expecting the containers to be sorted for the hash caluclation to be consistent")))
