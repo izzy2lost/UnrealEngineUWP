@@ -67,8 +67,8 @@ namespace PhysicsReplicationCVars
 		extern bool bApplyDataInsteadOfMergeData;
 		extern bool bAllowInputExtrapolation;
 		extern bool bValidateDataOnGameThread;
-		extern int32 InputRedundancy;
-		extern int32 StateRedundancy;
+		extern int32 RedundantInputs;
+		extern int32 RedundantStates;
 		extern bool bCompareStateToTriggerRewind;
 		extern bool bCompareInputToTriggerRewind;
 	}
@@ -309,17 +309,17 @@ struct FNetworkPhysicsSettingsNetworkPhysicsComponent
 
 	UPROPERTY(config, EditDefaultsOnly, Category = "Overrides", Meta = (InlineEditConditionToggle))
 	uint32 bOverrideRedundantInputs : 1;
-	// Overrides CVar: np2.Resim.InputRedundancy -- How many inputs to send with each unreliable network message to account for packetloss.
+	// Overrides CVar: np2.Resim.RedundantInputs -- How many extra inputs to send with each unreliable network message, to account for packetloss.
 	UPROPERTY(config, EditDefaultsOnly, Category = "Overrides", Meta = (EditCondition = "bOverrideRedundantInputs"))
-	uint8 RedundantInputs = PhysicsReplicationCVars::ResimulationCVars::InputRedundancy;
-	const uint8 GetRedundantInputs() const { return bOverrideRedundantInputs ? RedundantInputs : PhysicsReplicationCVars::ResimulationCVars::InputRedundancy; }
+	uint16 RedundantInputs = PhysicsReplicationCVars::ResimulationCVars::RedundantInputs;
+	const uint16 GetRedundantInputs() const { return bOverrideRedundantInputs ? RedundantInputs : PhysicsReplicationCVars::ResimulationCVars::RedundantInputs; }
 
 	UPROPERTY(config, EditDefaultsOnly, Category = "Overrides", Meta = (InlineEditConditionToggle))
 	uint32 bOverrideRedundantStates : 1;
-	// Overrides CVar: np2.Resim.StateRedundancy -- How many states to send with each unreliable network message to account for packetloss.
+	// Overrides CVar: np2.Resim.RedundantStates -- How many extra states to send with each unreliable network message, to account for packetloss.
 	UPROPERTY(config, EditDefaultsOnly, Category = "Overrides", Meta = (EditCondition = "bOverrideRedundantStates"))
-	uint8 RedundantStates = PhysicsReplicationCVars::ResimulationCVars::StateRedundancy;
-	const uint8 GetRedundantStates() const { return bOverrideRedundantStates ? RedundantStates : PhysicsReplicationCVars::ResimulationCVars::StateRedundancy; }
+	uint16 RedundantStates = PhysicsReplicationCVars::ResimulationCVars::RedundantStates;
+	const uint16 GetRedundantStates() const { return bOverrideRedundantStates ? RedundantStates : PhysicsReplicationCVars::ResimulationCVars::RedundantStates; }
 
 	UPROPERTY(config, EditDefaultsOnly, Category = "Overrides", Meta = (InlineEditConditionToggle))
 	uint32 bOverrideCompareStateToTriggerRewind : 1;

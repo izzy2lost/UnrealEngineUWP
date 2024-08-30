@@ -816,6 +816,18 @@ private:
 	/** Setup data type and history in async input and trigger the creation of data history in the async component */
 	ENGINE_API void CreateAsyncDataHistory();
 
+	/** Set number of inputs to send over the network with each message, clamped to 1 as minimum */
+	void SetNumberOfInputsToNetwork(uint16 RedundantInputs)
+	{
+		InputsToNetwork = FMath::Max((uint16)(1 + RedundantInputs), (uint16)1);
+	}
+
+	/** Set number of states to send over the network with each message, clamped to 1 as minimum */
+	void SetNumberOfStatesToNetwork(uint16 RedundantStates)
+	{
+		StatesToNetwork = FMath::Max((uint16)(1 + RedundantStates), (uint16)1);
+	}
+
 public:
 	/** Register and create both state and input to be both networked and cached in history */
 	template<typename PhysicsTraits>
@@ -851,10 +863,10 @@ private:
 	TUniquePtr<FNetworkPhysicsDataHelper> StateHelper;
 
 	// Send last N number of inputs each replication call to patch up holes due to packet loss
-	int8 InputRedundancy = 3;
+	uint16 InputsToNetwork = 3;
 
 	// Send last N number of states each replication call to patch up holes due to packet loss
-	int8 StateRedundancy = 1;
+	uint16 StatesToNetwork = 1;
 
 	// Actor component that will be used to fill the histories
 	TObjectPtr<UActorComponent> ActorComponent;
@@ -974,10 +986,10 @@ FORCEINLINE void UNetworkPhysicsComponent::CreateDataHistory(UActorComponent* Hi
 	InputHelper = MakeUnique<TNetworkPhysicsDataHelper<typename PhysicsTraits::InputsType>>();
 	StateHelper = MakeUnique<TNetworkPhysicsDataHelper<typename PhysicsTraits::StatesType>>();
 
-	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::InputsType>>(InputRedundancy);
+	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::InputsType>>(InputsToNetwork);
 	ReplicatedInputs.Owner = this;
 
-	ReplicatedStates.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::StatesType>>(StateRedundancy);
+	ReplicatedStates.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::StatesType>>(StatesToNetwork);
 	ReplicatedStates.Owner = this;
 
 	ReplicatedImportantInput.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::InputsType>>(1);
@@ -996,7 +1008,7 @@ FORCEINLINE void UNetworkPhysicsComponent::CreateInputHistory(UActorComponent* H
 {
 	InputHelper = MakeUnique<TNetworkPhysicsDataHelper<InputsType>>();
 
-	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<InputsType>>(InputRedundancy);
+	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<InputsType>>(InputsToNetwork);
 	ReplicatedInputs.Owner = this;
 
 	ReplicatedImportantInput.History = MakeUnique<TNetRewindHistory<InputsType>>(1);
@@ -1196,6 +1208,12 @@ private:
 
 	// Local temporary states data used by pre/post process inputs functions
 	TUniquePtr<FNetworkPhysicsData> StateData;
+
+	// Send last N number of inputs each replication call to patch up holes due to packet loss
+	uint16 InputsToNetwork = 3;
+
+	// Send last N number of states each replication call to patch up holes due to packet loss
+	uint16 StatesToNetwork = 1;
 
 	FDelegateHandle DelegateOnPreProcessInputs_Internal;
 	FDelegateHandle DelegateOnPostProcessInputs_Internal;
