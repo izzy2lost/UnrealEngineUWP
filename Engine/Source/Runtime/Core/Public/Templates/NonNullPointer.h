@@ -9,7 +9,6 @@
 #include "Templates/Requires.h"
 #include "Templates/UnrealTypeTraits.h"
 
-#include <gsl/pointers>
 #include <type_traits>
 
 class FArchive;
@@ -47,15 +46,6 @@ public:
 		: Object(InObject)
 	{
 		ensureMsgf(InObject, TEXT("Tried to initialize TNonNullPtr with a null pointer!"));
-	}
-
-	/**
-	 * Converts from gsl::not_null
-	 */
-	template <typename OtherType, typename = std::enable_if_t<std::is_convertible<OtherType, ObjectType*>::value>>
-	FORCEINLINE TNonNullPtr(const gsl::not_null<OtherType>& Other)
-		: Object(Other.get())
-	{
 	}
 
 	/**
@@ -98,17 +88,6 @@ public:
 		UE_REQUIRES(std::is_convertible_v<OtherObjectType*, ObjectType*>)
 	>
 	FORCEINLINE TNonNullPtr& operator=(const TNonNullPtr<OtherObjectType>& Other)
-	{
-		Object = Other.Get();
-		return *this;
-	}
-
-
-	/**
-	 * Assignment operator taking a gsl::not_null
-	 */
-	template <typename OtherType, typename = std::enable_if_t<std::is_convertible<OtherType, ObjectType*>::value>>
-	FORCEINLINE TNonNullPtr& operator=(const gsl::not_null<OtherType>& Other)
 	{
 		Object = Other.Get();
 		return *this;
@@ -173,15 +152,6 @@ public:
 	{
 		ensureMsgf(Object, TEXT("Tried to access null pointer!"));
 		return Object;
-	}
-	
-	/**
-	 * Converts to a gsl::not_null
-	 */
-	FORCEINLINE operator gsl::not_null<ObjectType*>() const
-	{
-		ensureMsgf(Object, TEXT("Tried to access null pointer!"));
-		return gsl::make_not_null<ObjectType*>(Object);
 	}
 
 	/**
