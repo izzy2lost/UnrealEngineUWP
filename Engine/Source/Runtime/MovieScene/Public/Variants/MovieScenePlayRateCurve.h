@@ -9,7 +9,7 @@
 
 
 /**
- * A time-wrap defined as a play rate curve.
+ * A time-warp defined as a play rate curve.
  * Time remapping is computed using the integral of the play rate curve.
  */
 UCLASS(MinimalAPI, DisplayName="Play Rate Curve")

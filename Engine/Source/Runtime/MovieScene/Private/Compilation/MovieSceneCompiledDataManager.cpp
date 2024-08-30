@@ -1606,7 +1606,7 @@ bool UMovieSceneCompiledDataManager::CompileHierarchy(UMovieSceneSequence* Seque
 					bContainsTimeWarp = true;
 				}
 
-				// Only 1 time-wrap track supported
+				// Only 1 time-warp track supported
 				break;
 			}
 		}
