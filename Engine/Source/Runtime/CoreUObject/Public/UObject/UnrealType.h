@@ -2639,6 +2639,7 @@ public:
 	virtual UObject* GetObjectPropertyValue(const void* PropertyValueAddress) const;
 	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const;
 	virtual UObject* GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const;
+	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const;
 
 	void SetObjectPropertyValue(void* PropertyValueAddress, UObject* Value) const;
 	void SetObjectPtrPropertyValue(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const;
@@ -2678,9 +2679,12 @@ protected:
 	// Disable false positive buffer overrun warning during pgoprofile linking step
 	PRAGMA_DISABLE_BUFFER_OVERRUN_WARNING
 	/* Helper functions for UObject property types that wrap the object pointer in a smart pointer */
-	template <typename T>
-	void GetWrappedUObjectPtrValues(UObject** OutObjects, const void* SrcAddress, EPropertyMemoryAccess SrcAccess, int32 ArrayIndex, int32 ArrayCount) const
+	template <typename T, typename OutType>
+	void GetWrappedUObjectPtrValues(OutType* OutObjects, const void* SrcAddress, EPropertyMemoryAccess SrcAccess, int32 ArrayIndex, int32 ArrayCount) const
 	{
+		// Outgoing values are expected to be UObject* or TObjectPtr
+		static_assert((std::is_pointer_v<OutType> && std::is_convertible_v<OutType, const UObject*>) || TIsTObjectPtr_V<OutType>);
+
 		// Ensure required range is valid
 		checkf(ArrayIndex >= 0 && ArrayCount >= 0 && ArrayIndex <= ArrayDim && ArrayCount <= ArrayDim && ArrayIndex <= ArrayDim - ArrayCount, TEXT("ArrayIndex (%d) and ArrayCount (%d) is invalid for an array of size %d"), ArrayIndex, ArrayCount, ArrayDim);
 
@@ -2915,6 +2919,7 @@ public:
 	virtual UObject* GetObjectPropertyValue(const void* PropertyValueAddress) const override;
 	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const override;
 	virtual UObject* GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
+	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
 protected:
 	virtual void SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const override;
 	virtual void SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const override;
@@ -3020,6 +3025,7 @@ public:
 	virtual UObject* GetObjectPropertyValue(const void* PropertyValueAddress) const override;
 	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const override;
 	virtual UObject* GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
+	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
 protected:
 	virtual void SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const override;
 	virtual void SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const override;
@@ -3074,6 +3080,7 @@ class COREUOBJECT_API FLazyObjectProperty : public TFObjectPropertyBase<FLazyObj
 	virtual UObject* GetObjectPropertyValue(const void* PropertyValueAddress) const override;
 	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const override;
 	virtual UObject* GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
+	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
 protected:
 	virtual void SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const override;
 	virtual void SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const override;
@@ -3140,6 +3147,7 @@ public:
 	virtual UObject* GetObjectPropertyValue(const void* PropertyValueAddress) const override;
 	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const override;
 	virtual UObject* GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
+	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
 protected:
 	virtual void SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const override;
 	virtual void SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const override;

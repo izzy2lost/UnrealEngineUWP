@@ -115,6 +115,13 @@ UObject* FWeakObjectProperty::GetObjectPropertyValue_InContainer(const void* Con
 	return Result;
 }
 
+TObjectPtr<UObject> FWeakObjectProperty::GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
+{
+	TObjectPtr<UObject> Result = nullptr;
+	GetWrappedUObjectPtrValues<FWeakObjectPtr>(&Result, ContainerAddress, EPropertyMemoryAccess::InContainer, ArrayIndex, 1);
+	return Result;
+}
+
 void FWeakObjectProperty::SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const
 {
 	SetPropertyValue(PropertyValueAddress, TCppType(Value));

@@ -134,6 +134,13 @@ UObject* FLazyObjectProperty::GetObjectPropertyValue_InContainer(const void* Con
 	return Result;
 }
 
+TObjectPtr<UObject> FLazyObjectProperty::GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
+{
+	TObjectPtr<UObject> Result = nullptr;
+	GetWrappedUObjectPtrValues<FLazyObjectPtr>(&Result, ContainerAddress, EPropertyMemoryAccess::InContainer, ArrayIndex, 1);
+	return Result;
+}
+
 void FLazyObjectProperty::SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const
 {
 	SetPropertyValue(PropertyValueAddress, TCppType(Value));

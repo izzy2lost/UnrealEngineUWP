@@ -618,6 +618,12 @@ UObject* FObjectPropertyBase::GetObjectPropertyValue_InContainer(const void* Con
 	return nullptr;
 }
 
+TObjectPtr<UObject> FObjectPropertyBase::GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
+{
+	unimplemented(); // needs to be implemented by the derived class
+	return TObjectPtr<UObject>();
+}
+
 void FObjectPropertyBase::SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const
 {
 	unimplemented(); // needs to be implemented by the derived class

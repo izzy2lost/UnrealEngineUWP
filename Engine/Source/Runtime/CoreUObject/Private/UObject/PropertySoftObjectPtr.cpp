@@ -296,6 +296,13 @@ UObject* FSoftObjectProperty::GetObjectPropertyValue_InContainer(const void* Con
 	return Result;
 }
 
+TObjectPtr<UObject> FSoftObjectProperty::GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
+{
+	TObjectPtr<UObject> Result = nullptr;
+	GetWrappedUObjectPtrValues<FSoftObjectPtr>(&Result, ContainerAddress, EPropertyMemoryAccess::InContainer, ArrayIndex, 1);
+	return Result;
+}
+
 void FSoftObjectProperty::SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const
 {
 	SetPropertyValue(PropertyValueAddress, TCppType(Value));

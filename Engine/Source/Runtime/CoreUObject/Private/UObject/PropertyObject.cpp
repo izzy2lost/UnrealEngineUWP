@@ -348,6 +348,13 @@ UObject* FObjectProperty::GetObjectPropertyValue_InContainer(const void* Contain
 	return Result;
 }
 
+TObjectPtr<UObject> FObjectProperty::GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
+{
+	TObjectPtr<UObject> Result = nullptr;
+	GetWrappedUObjectPtrValues<FObjectPtr>(&Result, ContainerAddress, EPropertyMemoryAccess::InContainer, ArrayIndex, 1);
+	return Result;
+}
+
 void FObjectProperty::SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
 {
 	SetPropertyValue(PropertyValueAddress, Ptr);
