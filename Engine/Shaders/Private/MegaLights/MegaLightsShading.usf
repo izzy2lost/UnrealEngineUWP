@@ -38,6 +38,7 @@ Texture2D<uint> LightSamples;
 Texture2D<float4> CompositeUpsampleWeights;
 
 uint UseShadingConfidence;
+uint DebugLightId;
 
 // 4x4 neighborhood with borders
 #define SHARED_TILE_SIZE_X ((4 + 2) * NUM_SAMPLES_PER_PIXEL_2D_X)
@@ -185,7 +186,7 @@ void ShadeLightSamplesCS(
 					Print(Context, ScreenCoord.y);
 					Newline(Context);
 
-					Print(Context, TEXT("LocalLightId |LightId   | Weight    | Diffuse   | Specular")); 
+					Print(Context, TEXT("LocalLightId | Weight  | Diffuse   | Specular")); 
 				}
 				#endif
 
@@ -240,8 +241,14 @@ void ShadeLightSamplesCS(
 						if (bDebug)
 						{
 							Newline(Context);
-							Print(Context, LocalLightIndex);
-							Print(Context, LocalLightData.LightSceneId);
+							if (LocalLightData.LightSceneId == DebugLightId)
+							{
+								Print(Context, LocalLightIndex, FontYellow);
+							}
+							else
+							{
+								Print(Context, LocalLightIndex);
+							}
 							Print(Context, SampleWeight);
 						}
 						#endif

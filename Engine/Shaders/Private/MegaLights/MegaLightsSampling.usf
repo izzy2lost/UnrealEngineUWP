@@ -348,7 +348,7 @@ void GenerateLightSamplesCS(
 					}
 					AddCrossTWS(Debug.Context, TranslatedWorldPosition, 5.0f, float4(1, 1, 0, 1));
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("LightId   | Weight    | LFAtlas   | IESAtlas  | History"));
+					Print(Debug.Context, TEXT("LocalLightId | Weight  | LFAtlas   | IESAtlas  | History"));
 				}
 				#endif
 
@@ -413,11 +413,11 @@ void GenerateLightSamplesCS(
 							Newline(Debug.Context);
 							if (LocalLightData.LightSceneId == DebugLightId)
 							{
-								Print(Debug.Context, LocalLightData.LightSceneId, FontYellow);
+								Print(Debug.Context, LocalLightIndex, FontYellow);
 							}
 							else
 							{
-								Print(Debug.Context, LocalLightData.LightSceneId, FontWhite);
+								Print(Debug.Context, LocalLightIndex, FontWhite);
 							}
 							Print(Debug.Context, LightTargetPDF.Weight);
 							Print(Debug.Context, LightData.LightFunctionAtlasLightIndex);
@@ -462,16 +462,23 @@ void GenerateLightSamplesCS(
 
 					for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 					{
-						FLightSample LightSample = LightSamples[LightSampleIndex];
+						const FLightSample LightSample = LightSamples[LightSampleIndex];
+						const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
 						
 						Newline(Debug.Context);
-						Print(Debug.Context, LightSample.LocalLightIndex); 
+						if (LocalLightData.LightSceneId == DebugLightId)
+						{
+							Print(Debug.Context, LightSample.LocalLightIndex, FontYellow);
+						}
+						else
+						{
+							Print(Debug.Context, LightSample.LocalLightIndex);
+						}
 						Print(Debug.Context, LightSample.Weight);
-						Print(Debug.Context, WeightSum /  LightSample.Weight);
+						Print(Debug.Context, WeightSum / LightSample.Weight);
 
 						if (DebugMode == DEBUG_MODE_VISUALIZE_SAMPLING)
 						{
-							const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
 							const FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, GetSampleCoord(DownsampledScreenCoord, LightSampleIndex));
 
 							AddLineTWS(Debug.Context, TranslatedWorldPosition, TranslatedWorldPosition + LightSampleTrace.Direction * LightSampleTrace.Distance, float4(LocalLightData.LightColorAndIdAndFalloffExponent.xyz / Luminance(LocalLightData.LightColorAndIdAndFalloffExponent.xyz), 1.0f));
