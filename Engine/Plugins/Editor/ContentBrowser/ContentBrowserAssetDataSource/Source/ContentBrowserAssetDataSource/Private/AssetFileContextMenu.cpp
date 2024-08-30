@@ -191,7 +191,7 @@ bool FAssetFileContextMenu::AddImportedAssetMenuOptions(UToolMenu* Menu)
 				Section.AddSubMenu(
 					"Reimport",
 					LOCTEXT("Reimport", "Reimport"),
-					LOCTEXT("ReimportEmptyTooltip", ""),
+					FText(),
 					FNewToolMenuDelegate::CreateLambda(CreateSubMenu, false),
 					false,
 					FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Import"));
@@ -199,7 +199,7 @@ bool FAssetFileContextMenu::AddImportedAssetMenuOptions(UToolMenu* Menu)
 				Section.AddSubMenu(
 					"ReimportWithNewFile",
 					LOCTEXT("ReimportWithNewFile", "Reimport With New File"),
-					LOCTEXT("ReimportEmptyTooltip", ""),
+					FText(),
 					FNewToolMenuDelegate::CreateLambda(CreateSubMenu, true),
 					false,
 					FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Import"));

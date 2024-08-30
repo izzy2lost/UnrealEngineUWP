@@ -221,7 +221,7 @@ TSharedRef<SHeaderRow> SDMXPixelMappingHierarchyView::GenerateHeaderRow()
 		HeaderRow->AddColumn(
 			SHeaderRow::FColumn::FArguments()
 			.ColumnId(FColumnIds::EditorColor)
-			.DefaultLabel(LOCTEXT("EditorColorColumnLabel", ""))
+			.DefaultLabel(FText())
 			.FixedWidth(16.f)
 			.VAlignHeader(VAlign_Center)
 		);

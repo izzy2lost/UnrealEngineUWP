@@ -447,7 +447,7 @@ void FLiveLinkSourcesView::CreateSourcesListView(const TSharedPtr<FUICommandList
 			.DefaultLabel(LOCTEXT("StatusColumnHeaderName", "Status"))
 			+ SHeaderRow::Column(SourceListUI::ActionsColumnName)
 			.ManualWidth(20.f)
-			.DefaultLabel(LOCTEXT("ActionsColumnHeaderName", ""))
+			.DefaultLabel(FText())
 		);
 }
 
@@ -651,7 +651,7 @@ void FLiveLinkSubjectsView::CreateSubjectsTreeView(const TSharedPtr<FUICommandLi
 		(
 			SNew(SHeaderRow)
 			+ SHeaderRow::Column(SubjectTreeUI::EnabledColumnName)
-			.DefaultLabel(LOCTEXT("EnabledName", ""))
+			.DefaultLabel(FText())
 			.FixedWidth(22)
 			+ SHeaderRow::Column(SubjectTreeUI::NameColumnName)
 			.DefaultLabel(LOCTEXT("SubjectItemName", "Subject Name"))
@@ -661,7 +661,7 @@ void FLiveLinkSubjectsView::CreateSubjectsTreeView(const TSharedPtr<FUICommandLi
 			.FillWidth(0.40f)
 			+ SHeaderRow::Column(SubjectTreeUI::ActionsColumnName)
 			.ManualWidth(20.f)
-			.DefaultLabel(LOCTEXT("ActionsColumnHeaderName", ""))
+			.DefaultLabel(FText())
 		);
 }
 

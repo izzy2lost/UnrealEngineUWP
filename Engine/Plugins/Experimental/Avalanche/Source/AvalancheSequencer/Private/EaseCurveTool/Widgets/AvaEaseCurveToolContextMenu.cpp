@@ -124,7 +124,7 @@ TSharedRef<SWidget> FAvaEaseCurveToolContextMenu::GenerateWidget()
 
 		Section.AddSubMenu(TEXT("Settings"),
 			LOCTEXT("SettingsSubMenuLabel", "Settings"),
-			LOCTEXT("SettingsSubMenuToolTip", ""),
+			FText(),
 			FNewToolMenuDelegate::CreateSP(this, &FAvaEaseCurveToolContextMenu::PopulateContextMenuSettings),
 			false,
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.Toolbar.Settings")));
@@ -143,7 +143,7 @@ TSharedRef<SWidget> FAvaEaseCurveToolContextMenu::GenerateWidget()
 
 		Section.AddSubMenu(TEXT("StraightenTangents"),
 			LOCTEXT("StraightenTangentsSubMenuLabel", "Straighten Tangents"),
-			LOCTEXT("StraightenTangentsSubMenuToolTip", ""),
+			FText(),
 			FNewToolMenuDelegate::CreateLambda([&EaseCurveToolCommands](UToolMenu* InToolMenu)
 				{
 					FToolMenuSection& NewSection = InToolMenu->FindOrAddSection(TEXT("StraightenTangents"));
@@ -156,7 +156,7 @@ TSharedRef<SWidget> FAvaEaseCurveToolContextMenu::GenerateWidget()
 
 		Section.AddSubMenu(TEXT("FlattenTangents"),
 			LOCTEXT("FlattenTangentsSubMenuLabel", "Flatten Tangents"),
-			LOCTEXT("FlattenTangentsSubMenuToolTip", ""),
+			FText(),
 			FNewToolMenuDelegate::CreateLambda([&EaseCurveToolCommands](UToolMenu* InToolMenu)
 				{
 					FToolMenuSection& NewSection = InToolMenu->FindOrAddSection(TEXT("FlattenTangents"));
@@ -169,7 +169,7 @@ TSharedRef<SWidget> FAvaEaseCurveToolContextMenu::GenerateWidget()
 
 		Section.AddSubMenu(TEXT("ResetTangents"),
 			LOCTEXT("ResetTangentsSubMenuLabel", "Reset Tangents"),
-			LOCTEXT("ResetTangentsSubMenuToolTip", ""),
+			FText(),
 			FNewToolMenuDelegate::CreateLambda([&EaseCurveToolCommands](UToolMenu* InToolMenu)
 				{
 					FToolMenuSection& NewSection = InToolMenu->FindOrAddSection(TEXT("ResetTangents"));

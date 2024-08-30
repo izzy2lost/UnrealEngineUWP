@@ -439,7 +439,7 @@ const FText& FTypePromotion::GetKeywordsForOperator(const FName Operator)
 		{ OperatorNames::LessEq,	LOCTEXT("LessEqKeywords",		"<= less") },
 		{ OperatorNames::NotEq,		LOCTEXT("NotEqKeywords",		"!= not equal") },
 		{ OperatorNames::Equal,		LOCTEXT("EqualKeywords",		"== equal") },
-		{ OperatorNames::NoOp,		LOCTEXT("NoOpKeywords",			"") },
+		{ OperatorNames::NoOp,		FText() },
 	};
 	const FText* Keywords = OpKeywords.Find(Operator);
 	return Keywords ? *Keywords : OpKeywords[OperatorNames::NoOp];
@@ -459,7 +459,7 @@ const FText& FTypePromotion::GetUserFacingOperatorName(const FName Operator)
 		{ OperatorNames::LessEq,	LOCTEXT("LessEqDisplayName",		"Less Equal ( <= )") },
 		{ OperatorNames::NotEq,		LOCTEXT("NotEqDisplayName",			"Not Equal ( != )") },
 		{ OperatorNames::Equal,		LOCTEXT("EqualDisplayName",			"Equal ( == )") },
-		{ OperatorNames::NoOp,		LOCTEXT("NoOpDisplayName",			"") },
+		{ OperatorNames::NoOp,		FText() },
 	};
 
 

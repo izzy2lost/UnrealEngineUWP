@@ -265,7 +265,7 @@ namespace UE::DMX::Private
 		constexpr int32 FixtureGroupEnabledColumnIndex = 1;
 		HeaderRow->InsertColumn(SHeaderRow::FColumn::FArguments()
 		.ColumnId(FDMXControlConsoleReadOnlyFixturePatchListCollumnIDs::FaderGroupEnabled)
-		.DefaultLabel(LOCTEXT("CheckBoxColumnLabel", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(32.f)
 		.HeaderContent()
 		[

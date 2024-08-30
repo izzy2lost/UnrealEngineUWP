@@ -159,7 +159,7 @@ namespace UE::DMX::Private
 		(
 			SHeaderRow::FColumn::FArguments()
 			.ColumnId(FDMXControlConsoleEditorCueListColumnIDs::Color)
-			.DefaultLabel(LOCTEXT("EditorColorColumnLabel", ""))
+			.DefaultLabel(FText())
 			.FixedWidth(16.f)
 		);
 
@@ -167,7 +167,7 @@ namespace UE::DMX::Private
 		(
 			SHeaderRow::FColumn::FArguments()
 			.ColumnId(FDMXControlConsoleEditorCueListColumnIDs::State)
-			.DefaultLabel(LOCTEXT("StateColumnLabel", ""))
+			.DefaultLabel(FText())
 			.FixedWidth(16.f)
 		);
 
@@ -189,7 +189,7 @@ namespace UE::DMX::Private
 		(
 			SHeaderRow::FColumn::FArguments()
 			.ColumnId(FDMXControlConsoleEditorCueListColumnIDs::Options)
-			.DefaultLabel(LOCTEXT("OptionsColumnLabel", ""))
+			.DefaultLabel(FText())
 			.FixedWidth(102.f)
 		);
 

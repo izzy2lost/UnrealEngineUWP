@@ -100,7 +100,7 @@ namespace UE::DMX
 					+ SWidgetSwitcher::Slot()
 					[
 						SNew(STextBlock)
-						.Text(LOCTEXT("UnavailableShowInContentBrowser", ""))
+						.Text(FText())
 						.TextStyle(FAppStyle::Get(), "NormalFont")
 					]
 

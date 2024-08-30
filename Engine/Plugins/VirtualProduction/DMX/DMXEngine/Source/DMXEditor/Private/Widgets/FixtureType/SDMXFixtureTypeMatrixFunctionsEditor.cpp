@@ -76,7 +76,7 @@ TSharedRef<SHeaderRow> SDMXFixtureTypeMatrixFunctionsEditor::GenerateHeaderRow()
 	HeaderRow->AddColumn(
 		SHeaderRow::FColumn::FArguments()
 		.ColumnId(FDMXFixtureTypeMatrixFunctionsEditorCollumnIDs::Status)
-		.DefaultLabel(LOCTEXT("StatusColumnLabel", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(StatusColumnWidth)
 	);
 
@@ -97,7 +97,7 @@ TSharedRef<SHeaderRow> SDMXFixtureTypeMatrixFunctionsEditor::GenerateHeaderRow()
 	HeaderRow->AddColumn(
 		SHeaderRow::FColumn::FArguments()
 		.ColumnId(FDMXFixtureTypeMatrixFunctionsEditorCollumnIDs::DeleteAttribute)
-		.DefaultLabel(LOCTEXT("DeleteAttributeColumnLabel", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(DeleteAttributeColumnWidth)
 	);
 

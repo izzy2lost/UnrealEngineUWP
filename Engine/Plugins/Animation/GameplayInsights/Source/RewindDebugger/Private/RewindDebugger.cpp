@@ -1227,31 +1227,31 @@ void FRewindDebugger::RegisterToolBar()
 	const FRewindDebuggerCommands& Commands = FRewindDebuggerCommands::Get();
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			Commands.FirstFrame,
-			LOCTEXT("Blank",""),
+			FText(),
 			TAttribute<FText>(),
 			FSlateIcon("RewindDebuggerStyle", "RewindDebugger.FirstFrame.small")));
 	
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			Commands.PreviousFrame,
-			LOCTEXT("Blank",""),
+			FText(),
 			TAttribute<FText>(),
 			FSlateIcon("RewindDebuggerStyle", "RewindDebugger.PreviousFrame.small")));
 			
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.ReversePlay,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.ReversePlay.small")));
 	
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.Pause,
-				LOCTEXT("Blank",""),
+				FText(),
 				FText::Format(LOCTEXT("PauseButtonTooltip", "{0} ({1})"), Commands.Pause->GetDescription(), Commands.PauseOrPlay->GetInputText()),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.Pause.small")));
 	
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.Play,
-				LOCTEXT("Blank",""),
+				FText(),
 				FText::Format(LOCTEXT("PlayButtonTooltip", "{0} ({1})"), Commands.Play->GetDescription(), Commands.PauseOrPlay->GetInputText()),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.Play.small")));
 
@@ -1370,7 +1370,7 @@ void FRewindDebugger::RegisterToolBar()
 						);
     				})
     			),
-				LOCTEXT("Blank",""),
+				FText(),
     			LOCTEXT("PlaybackRate_Tooltip", "Playback Options"),
 				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Sequencer.PlaybackOptions")
     		)
@@ -1378,26 +1378,26 @@ void FRewindDebugger::RegisterToolBar()
 
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.NextFrame,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.NextFrame.small")));
 	
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.LastFrame,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.LastFrame.small")));
 
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.StartRecording,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.StartRecording.small")));
 				
 
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.StopRecording,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.StopRecording.small")));
 
@@ -1406,39 +1406,39 @@ void FRewindDebugger::RegisterToolBar()
 
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.AttachToSession,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.ConnectToSession")));
 				
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.OpenTrace,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				 FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.FolderOpen")));
 	
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
     			Commands.SaveTrace,
-    			LOCTEXT("Blank",""),
+				FText(),
     			TAttribute<FText>(),
     			 FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Save")));
 				 
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.ClearTrace,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				 FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Delete")));
 
 	
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.AutoEject,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.AutoEject")));
 					Section.AddSeparator(NAME_None);
                 				
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.AutoRecord,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.AutoRecord")));
 	

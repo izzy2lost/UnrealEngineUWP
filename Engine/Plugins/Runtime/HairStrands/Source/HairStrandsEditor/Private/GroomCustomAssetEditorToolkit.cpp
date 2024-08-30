@@ -244,8 +244,8 @@ void FGroomCustomAssetEditorToolkit::ExtendToolbar()
 			{
 				FSlateIcon PlayIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Toolbar.Play");
 				FSlateIcon StopIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Toolbar.Stop");
-				ToolbarBuilder.AddToolBarButton(FGroomEditorCommands::Get().PlayAnimation, NAME_None, TAttribute<FText>(LOCTEXT("Groom.EmptyPlay", "")), TAttribute<FText>(), TAttribute<FSlateIcon>(PlayIcon));
-				ToolbarBuilder.AddToolBarButton(FGroomEditorCommands::Get().StopAnimation, NAME_None, TAttribute<FText>(LOCTEXT("Groom.EmptyStop", "")), TAttribute<FText>(), TAttribute<FSlateIcon>(StopIcon));
+				ToolbarBuilder.AddToolBarButton(FGroomEditorCommands::Get().PlayAnimation, NAME_None, TAttribute<FText>(FText()), TAttribute<FText>(), TAttribute<FSlateIcon>(PlayIcon));
+				ToolbarBuilder.AddToolBarButton(FGroomEditorCommands::Get().StopAnimation, NAME_None, TAttribute<FText>(FText()), TAttribute<FText>(), TAttribute<FSlateIcon>(StopIcon));
 
 				TAttribute<FText> AnimWidgetText(LOCTEXT("AnimationOptions", "Animation"));
 				

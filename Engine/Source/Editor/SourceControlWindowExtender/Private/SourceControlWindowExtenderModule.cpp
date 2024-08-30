@@ -145,7 +145,7 @@ void FSourceControlWindowExtenderModule::ExtendMenu()
             {
 				FindOrAddExtendSection()->AddSubMenu(TEXT("Actors"),
                     LOCTEXT("ActorSubMenu", "Actors"),
-                    LOCTEXT("ActorSubMenuTooltip", ""),
+                    FText(),
                     FNewToolMenuChoice(FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
                     {
                         MenuBuilder.AddMenuEntry(LOCTEXT("PinActors", "Pin"), LOCTEXT("PinActors_Tooltip", "Load actors"),
@@ -161,7 +161,7 @@ void FSourceControlWindowExtenderModule::ExtendMenu()
             {
 				FindOrAddExtendSection()->AddSubMenu(TEXT("Assets"),
                     LOCTEXT("AssetSubMenu", "Assets"),
-                    LOCTEXT("AssetSubMenuTooltip", ""),
+                    FText(),
                     FNewToolMenuChoice(FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
                     {
                         MenuBuilder.BeginSection(NAME_None);

@@ -130,7 +130,7 @@ void UE::RenderGrid::Private::SRenderGridJobList::Construct(const FArguments& In
 					SNew(SHeaderRow)
 
 					+ SHeaderRow::Column(FRenderGridJobListColumns::DragDropHandle)
-					.DefaultLabel(LOCTEXT("JobListDragDropHandleColumnHeader", ""))
+					.DefaultLabel(FText())
 					.FixedWidth(36.0f)
 
 					+ SHeaderRow::Column(FRenderGridJobListColumns::IsEnabled)

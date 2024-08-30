@@ -289,7 +289,7 @@ TSharedRef<SHeaderRow> SDMXReadOnlyFixturePatchList::GenerateHeaderRow()
 	HeaderRow->AddColumn(
 		SHeaderRow::FColumn::FArguments()
 		.ColumnId(FDMXReadOnlyFixturePatchListCollumnIDs::EditorColor)
-		.DefaultLabel(LOCTEXT("EditorColorColumnLabel", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(16.f)
 	);
 	

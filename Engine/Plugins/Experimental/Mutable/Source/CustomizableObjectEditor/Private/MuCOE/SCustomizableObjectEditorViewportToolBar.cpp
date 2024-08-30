@@ -462,7 +462,7 @@ TSharedRef<SWidget> SCustomizableObjectEditorViewportToolBar::GenerateViewportOp
 		]
 	];
 	
-	ShowMenuBuilder.AddWidget(BoneSizeWidget.ToSharedRef(), LOCTEXT("OptionMenu_CameraOptions_CameraSpeed", ""));
+	ShowMenuBuilder.AddWidget(BoneSizeWidget.ToSharedRef(), FText());
 	
 	ShowMenuBuilder.EndSection();
 

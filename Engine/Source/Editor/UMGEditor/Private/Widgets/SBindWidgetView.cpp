@@ -234,7 +234,7 @@ public:
 				.DefaultLabel(LOCTEXT("PropertyNameHeaderName", "Property"))
 				+ SHeaderRow::Column(Column_Optional)
 				.FixedWidth(16.f)
-				.DefaultLabel(LOCTEXT("EmptyHeaderName", ""))
+				.DefaultLabel(FText())
 			));
 
 		CommandList = MakeShareable(new FUICommandList);

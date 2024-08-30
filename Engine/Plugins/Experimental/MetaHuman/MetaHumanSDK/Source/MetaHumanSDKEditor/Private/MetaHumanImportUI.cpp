@@ -440,7 +440,7 @@ namespace UE::MetaHumanImportUI::Private
 
 			const TSharedRef<SHeaderRow> UpdateHeader = SNew(SHeaderRow)
 				+ SHeaderRow::Column(OverwriteDialogColumns::IconColumnName)
-				.DefaultLabel(LOCTEXT("IconHeader", ""))
+				.DefaultLabel(FText())
 				.FixedWidth(20.0f)
 				+ SHeaderRow::Column(OverwriteDialogColumns::FileNameColumnName)
 				.DefaultLabel(LOCTEXT("FileNameHeader", "File Name"))

@@ -87,12 +87,12 @@ TSharedPtr<SHeaderRow> FRCActionRangeMapModel::GetHeaderRow()
 		.Style(&RCPanelStyle->HeaderRowStyle)
 
 		+ SHeaderRow::Column(UE::RCActionPanelRangeMapList::Columns::TypeColorTag)
-		.DefaultLabel(LOCTEXT("RCActionVariableColorColumnHeader", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(5.f)
 		.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 		+ SHeaderRow::Column(UE::RCActionPanelRangeMapList::Columns::DragDropHandle)
-		.DefaultLabel(LOCTEXT("RCActionDragDropHandleColumnHeader", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(25.f)
 		.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 

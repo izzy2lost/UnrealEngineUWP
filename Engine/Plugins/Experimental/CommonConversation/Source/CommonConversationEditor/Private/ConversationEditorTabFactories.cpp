@@ -85,7 +85,7 @@ TSharedRef<SWidget> FConversationTreeEditorSummoner::CreateTabBody(const FWorkfl
 
 FText FConversationTreeEditorSummoner::GetTabToolTipText(const FWorkflowTabSpawnInfo& Info) const
 {
-	return LOCTEXT("ConversationTreeEditorTabTooltip", "");
+	return FText();
 }
 
 //////////////////////////////////////////////////////////////////////

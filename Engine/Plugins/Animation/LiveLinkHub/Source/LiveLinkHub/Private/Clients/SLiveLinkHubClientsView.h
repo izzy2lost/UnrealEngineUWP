@@ -387,7 +387,7 @@ public:
 					.FillWidth(0.25f)
 					+ SHeaderRow::Column(EnabledIconColumnId)
 					.ManualWidth(20.f)
-					.DefaultLabel(LOCTEXT("EnabledIconEmpty", ""))
+					.DefaultLabel(FText())
 				)
 			]
 		];

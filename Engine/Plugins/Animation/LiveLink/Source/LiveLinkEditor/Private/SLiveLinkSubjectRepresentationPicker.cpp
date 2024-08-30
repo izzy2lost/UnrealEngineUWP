@@ -261,7 +261,7 @@ TSharedRef<SWidget> SLiveLinkSubjectRepresentationPicker::BuildMenu()
 	TSharedRef<SHeaderRow> HeaderRow = SNew(SHeaderRow)
 		+ SHeaderRow::Column(SubjectUI::EnabledColumnName)
 		.ManualWidth(20.f)
-		.DefaultLabel(LOCTEXT("EnabledColumnHeaderName", ""));
+		.DefaultLabel(FText());
 
 	if (bShowSource)
 	{

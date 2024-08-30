@@ -2554,32 +2554,32 @@ void UCubeGridTool::RegisterActions(FInteractiveToolActionSet& ActionSet)
 	ActionSet.RegisterAction(this, ActionID++,
 		TEXT("PullBlock"),
 		LOCTEXT("PullAction", "Pull Out Blocks"),
-		LOCTEXT("PullTooltip", ""),
+		FText(),
 		EModifierKey::None, EKeys::E,
 		[this]() { RequestAction(ECubeGridToolAction::Pull); });
 	ActionSet.RegisterAction(this, ActionID++,
 		TEXT("PushBlock"),
 		LOCTEXT("PushAction", "Push In Holes"),
-		LOCTEXT("PushTooltip", ""),
+		FText(),
 		EModifierKey::None, EKeys::Q,
 		[this]() { RequestAction(ECubeGridToolAction::Push); });
 	ActionSet.RegisterAction(this, ActionID++,
 		TEXT("SlideBack"),
 		LOCTEXT("SlideBackAction", "Slide Selection Back"),
-		LOCTEXT("SlideBackTooltip", ""),
+		FText(),
 		EModifierKey::Shift, EKeys::E,
 		[this]() { RequestAction(ECubeGridToolAction::SlideBack); });
 	ActionSet.RegisterAction(this, ActionID++,
 		TEXT("SlideForward"),
 		LOCTEXT("SlideForwardAction", "Slide Selection Forward"),
-		LOCTEXT("SlideForwardTooltip", ""),
+		FText(),
 		EModifierKey::Shift, EKeys::Q,
 		[this]() { RequestAction(ECubeGridToolAction::SlideForward); });
 
 	ActionSet.RegisterAction(this, ActionID++,
 		TEXT("DecreaseGridPower"),
 		LOCTEXT("DecreaseGridPowerAction", "Decrease Grid Power"),
-		LOCTEXT("DecreaseGridPowerTooltip", ""),
+		FText(),
 		// Note that we can't use Ctrl+Q on Mac because that is mapped to Cmd+Q which kills the editor.
 		// At the same time we can't use Option+E because Mac consumes that for typing accented letters
 #if PLATFORM_MAC
@@ -2591,7 +2591,7 @@ void UCubeGridTool::RegisterActions(FInteractiveToolActionSet& ActionSet)
 	ActionSet.RegisterAction(this, ActionID++,
 		TEXT("IncreaseGridPower"),
 		LOCTEXT("IncreaseGridPowerAction", "Increase Grid Power"),
-		LOCTEXT("IncreaseGridPowerTooltip", ""),
+		FText(),
 #if PLATFORM_MAC
 		EModifierKey::Alt, EKeys::D,
 #else
@@ -2602,7 +2602,7 @@ void UCubeGridTool::RegisterActions(FInteractiveToolActionSet& ActionSet)
 	ActionSet.RegisterAction(this, ActionID++,
 		TEXT("ToggleGizmoVisibility"),
 		LOCTEXT("ToggleGizmoVisibilityAction", "Toggle Gizmo Visibility"),
-		LOCTEXT("ToggleGizmoVisibilityTooltip", ""),
+		FText(),
 		EModifierKey::None, EKeys::R,
 		[this]() {
 			if (Mode != EMode::FitGrid)
@@ -2614,7 +2614,7 @@ void UCubeGridTool::RegisterActions(FInteractiveToolActionSet& ActionSet)
 	ActionSet.RegisterAction(this, ActionID++,
 		TEXT("ToggleCornerMode"),
 		LOCTEXT("ToggleCornerModeAction", "Toggle Corner Mode"),
-		LOCTEXT("ToggleCornerModeTooltip", ""),
+		FText(),
 		EModifierKey::None, EKeys::Z,
 		[this]() {
 			if (Mode != EMode::Corner)
@@ -2630,7 +2630,7 @@ void UCubeGridTool::RegisterActions(FInteractiveToolActionSet& ActionSet)
 	ActionSet.RegisterAction(this, ActionID++,
 		TEXT("ToggleDiagonalMode"),
 		LOCTEXT("ToggleDiagonalModeAction", "Toggle Diagonal Mode"),
-		LOCTEXT("ToggleDiagonalModeTooltip", ""),
+		FText(),
 		EModifierKey::None, EKeys::X,
 		[this]() {
 			if (Mode == EMode::Corner)
@@ -2642,7 +2642,7 @@ void UCubeGridTool::RegisterActions(FInteractiveToolActionSet& ActionSet)
 	ActionSet.RegisterAction(this, ActionID++,
 		TEXT("FlipSelection"),
 		LOCTEXT("FlipSelectionAction", "Flip Selection"),
-		LOCTEXT("FlipSelectionTooltip", ""),
+		FText(),
 		EModifierKey::None, EKeys::T,
 		[this]() {
 			ApplyFlipSelection();

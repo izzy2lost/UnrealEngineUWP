@@ -17,7 +17,7 @@ namespace
 	const FName NAME_DataTypesTested(TEXT("DataTypesTested_ColumnID"));
 	const FName NAME_AdditionalDetails(TEXT("AdditionalDetails_ColumnID"));
 
-	const FText TEXT_Index(LOCTEXT("Index_Label", ""));
+	const FText TEXT_Index;
 	const FText TEXT_NodeTitle(LOCTEXT("NodeTitle_Label", "Title"));
 	const FText TEXT_NodeName(LOCTEXT("NodeName_Label", "Name"));
 	const FText TEXT_Seed(LOCTEXT("Seed_Label", "Seed"));

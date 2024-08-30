@@ -716,7 +716,7 @@ void SGraphEditorImpl::Construct( const FArguments& InArgs )
 		TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&Local::GetReadOnlyText, Appearance, DefaultReadOnlyText)) :
 		TAttribute<FText>(DefaultReadOnlyText);
 
-	FText DefaultWarningText(LOCTEXT("GraphWarningText", ""));
+	FText DefaultWarningText;
 	TAttribute<FText> WarningText = Appearance.IsBound() ?
 		TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&Local::GetWarningText, Appearance, DefaultWarningText)) :
 		TAttribute<FText>(DefaultWarningText);

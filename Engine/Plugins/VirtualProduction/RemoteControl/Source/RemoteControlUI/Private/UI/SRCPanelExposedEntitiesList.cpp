@@ -374,7 +374,7 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::Reset)
-			.DefaultLabel(LOCTEXT("RCPresetResetButtonColumnHeader", ""))
+			.DefaultLabel(FText())
 			.FixedWidth(48.f)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 			.ShouldGenerateWidget(true)
@@ -2153,7 +2153,7 @@ FText SRCPanelExposedEntitiesList::GetColumnLabel(const FName& ForColumn) const
 	}
 	else if (ForColumn == RemoteControlPresetColumns::Status)
 	{
-		return LOCTEXT("RCPresetStatusColumnHeader", "");
+		return FText();
 	}
 	else
 	{

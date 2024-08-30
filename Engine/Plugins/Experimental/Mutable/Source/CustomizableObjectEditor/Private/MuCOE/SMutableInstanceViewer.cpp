@@ -480,8 +480,8 @@ TSharedRef<SWidget> SMutableInstanceViewer::GenerateComponentsListView()
 	const FText LODTitle = FText(LOCTEXT("LODsTitle", "LODs"));
 
 	// Tooltips
-	const FText ComponentIndexTooltip = FText(LOCTEXT("ComponentIndexTooltip", ""));
-	const FText LODsTooltip = FText(LOCTEXT("LODsTooltip", ""));
+	const FText ComponentIndexTooltip;
+	const FText LODsTooltip;
 	
 	return SAssignNew(ComponentsSlateView, SListView<TSharedPtr<FMutableInstanceViewerComponentElement>>)
 		.ListItemsSource(&Components)

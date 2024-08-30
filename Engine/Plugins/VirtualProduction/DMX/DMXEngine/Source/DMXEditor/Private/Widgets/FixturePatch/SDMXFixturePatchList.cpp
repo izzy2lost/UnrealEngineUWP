@@ -954,7 +954,7 @@ TSharedRef<SHeaderRow> SDMXFixturePatchList::GenerateHeaderRow()
 	HeaderRow->AddColumn(
 		SHeaderRow::FColumn::FArguments()
 		.ColumnId(FDMXFixturePatchListCollumnID::EditorColor)
-		.DefaultLabel(LOCTEXT("EditorColorColumnLabel", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(EditorColorColumnWidth)
 	);
 
@@ -970,7 +970,7 @@ TSharedRef<SHeaderRow> SDMXFixturePatchList::GenerateHeaderRow()
 	HeaderRow->AddColumn(
 		SHeaderRow::FColumn::FArguments()
 		.ColumnId(FDMXFixturePatchListCollumnID::Status)
-		.DefaultLabel(LOCTEXT("StatusColumnLabel", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(StatusColumnWidth)
 	);
 

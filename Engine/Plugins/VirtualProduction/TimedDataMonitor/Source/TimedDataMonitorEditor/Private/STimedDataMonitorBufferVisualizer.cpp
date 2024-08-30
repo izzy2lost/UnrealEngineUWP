@@ -167,10 +167,10 @@ void STimedDataMonitorBufferVisualizer::Construct(const FArguments& InArgs)
 			SNew(SHeaderRow)
 			+ SHeaderRow::Column(TimedDataBufferVisualizer::HeaderIdName_DisplayName)
 			.FillWidth(0.2f)
-			.DefaultLabel(LOCTEXT("DisplayNameHeaderName", ""))
+			.DefaultLabel(FText())
 			+SHeaderRow::Column(TimedDataBufferVisualizer::HeaderIdName_Visual)
 			.FillWidth(0.8f)
-			.DefaultLabel(LOCTEXT("VisualHeaderName", ""))
+			.DefaultLabel(FText())
 		);
 
 	ChildSlot

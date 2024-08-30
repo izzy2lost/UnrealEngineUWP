@@ -886,7 +886,7 @@ TSharedRef<SWidget> FPropertyViewerImpl::CreateTree(bool bHasPreWidget, bool bSh
 			HeaderRowWidget->AddColumn(
 				SHeaderRow::FColumn::FArguments()
 				.ColumnId(ColumnName_FieldPostWidget)
-				.DefaultLabel(LOCTEXT("PropertyPostWidget", ""))
+				.DefaultLabel(FText())
 			);
 		}
 	}

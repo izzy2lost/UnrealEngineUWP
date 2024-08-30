@@ -317,12 +317,12 @@ void SRCControllerPanelList::Construct(const FArguments& InArgs, const TSharedRe
 			.Style(&RCPanelStyle->HeaderRowStyle)
 
 			+ SHeaderRow::Column(UE::RCControllerPanelList::Columns::TypeColor)
-			.DefaultLabel(LOCTEXT("ControllerColorColumnName", ""))
+			.DefaultLabel(FText())
 			.FixedWidth(15)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 			+ SHeaderRow::Column(UE::RCControllerPanelList::Columns::DragHandle)
-			.DefaultLabel(FText::GetEmpty())
+			.DefaultLabel(FText())
 			.FixedWidth(15)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 

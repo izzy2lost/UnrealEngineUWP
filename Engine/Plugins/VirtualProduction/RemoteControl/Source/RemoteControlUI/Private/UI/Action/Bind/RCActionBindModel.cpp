@@ -85,7 +85,7 @@ TSharedPtr<SHeaderRow> FRCActionBindModel::GetHeaderRow()
 		.Style(&RCPanelStyle->HeaderRowStyle)
 
 		+ SHeaderRow::Column(UE::RCActionPanelBindList::Columns::VariableColor)
-		.DefaultLabel(LOCTEXT("VariableColorColumnHeader", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(5.f)
 		.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
