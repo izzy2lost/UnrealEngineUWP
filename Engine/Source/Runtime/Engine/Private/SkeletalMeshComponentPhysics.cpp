@@ -3431,8 +3431,11 @@ void USkeletalMeshComponent::ProcessClothCollisionWithEnvironment()
 	ClothingSimulation->AddExternalCollisions(NewCollisionData);
 }
 
+#endif// #if WITH_CLOTH_COLLISION_DETECTION
+
 void USkeletalMeshComponent::AddClothCollisionSource(USkeletalMeshComponent* InSourceComponent, UPhysicsAsset* InSourcePhysicsAsset)
 {
+#if WITH_CLOTH_COLLISION_DETECTION
 	if(InSourceComponent && InSourcePhysicsAsset)
 	{
 		FClothCollisionSource* FoundCollisionSource = ClothCollisionSources.FindByPredicate(
@@ -3455,10 +3458,12 @@ void USkeletalMeshComponent::AddClothCollisionSource(USkeletalMeshComponent* InS
 			ClothTickFunction.AddPrerequisite(InSourceComponent, InSourceComponent->PrimaryComponentTick);
 		}
 	}
+#endif
 }
 
-void USkeletalMeshComponent::RemoveClothCollisionSource(USkeletalMeshComponent* InSourceComponent)
+void USkeletalMeshComponent::RemoveClothCollisionSources(USkeletalMeshComponent* InSourceComponent)
 {
+#if WITH_CLOTH_COLLISION_DETECTION
 	if(InSourceComponent)
 	{
 		ClothCollisionSources.RemoveAll([InSourceComponent](const FClothCollisionSource& InCollisionSource)
@@ -3466,10 +3471,12 @@ void USkeletalMeshComponent::RemoveClothCollisionSource(USkeletalMeshComponent* 
 			return !InCollisionSource.SourceComponent.IsValid() || InCollisionSource.SourceComponent.Get() == InSourceComponent; 
 		});
 	}
+#endif
 }
 
 void USkeletalMeshComponent::RemoveClothCollisionSource(USkeletalMeshComponent* InSourceComponent, UPhysicsAsset* InSourcePhysicsAsset)
 {
+#if WITH_CLOTH_COLLISION_DETECTION
 	if(InSourceComponent && InSourcePhysicsAsset)
 	{
 		ClothCollisionSources.RemoveAll([InSourceComponent, InSourcePhysicsAsset](const FClothCollisionSource& InCollisionSource)
@@ -3477,14 +3484,15 @@ void USkeletalMeshComponent::RemoveClothCollisionSource(USkeletalMeshComponent* 
 			return !InCollisionSource.SourceComponent.IsValid() || (InCollisionSource.SourceComponent.Get() == InSourceComponent && InCollisionSource.SourcePhysicsAsset.Get() == InSourcePhysicsAsset); 
 		});
 	}
+#endif
 }
 
 void USkeletalMeshComponent::ResetClothCollisionSources()
 {
+#if WITH_CLOTH_COLLISION_DETECTION
 	ClothCollisionSources.Reset();
+#endif
 }
-
-#endif// #if WITH_CLOTH_COLLISION_DETECTION
 
 void USkeletalMeshComponent::EndPhysicsTickComponent(FSkeletalMeshComponentEndPhysicsTickFunction& ThisTickFunction)
 {
