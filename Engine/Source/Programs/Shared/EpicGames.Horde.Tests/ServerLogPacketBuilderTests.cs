@@ -11,6 +11,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Logs;
+using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using Grpc.Core;
@@ -216,6 +217,7 @@ namespace EpicGames.Horde.Tests
 			public Uri ServerUrl => throw new NotImplementedException();
 
 			public IArtifactCollection Artifacts => throw new NotImplementedException();
+			public ISecretCollection Secrets => throw new NotImplementedException();
 
 			public Task<bool> LoginAsync(bool allowLogin, CancellationToken cancellationToken)
 				=> throw new NotImplementedException();

@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Secrets;
 using HordeServer.Plugins;
 using HordeServer.Secrets;
 using HordeServer.Secrets.Providers;

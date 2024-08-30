@@ -1,8 +1,9 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Horde.Secrets;
+using System.Threading;
+using System.Threading.Tasks;
 
-namespace HordeServer.Secrets
+namespace EpicGames.Horde.Secrets
 {
 	/// <summary>
 	/// Collection of secrets
@@ -14,6 +15,6 @@ namespace HordeServer.Secrets
 		/// </summary>
 		/// <param name="secretId">Identifier for the secret</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<ISecret?> GetAsync(SecretId secretId, CancellationToken cancellationToken);
+		Task<ISecret?> GetAsync(SecretId secretId, CancellationToken cancellationToken = default);
 	}
 }

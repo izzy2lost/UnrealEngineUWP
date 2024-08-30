@@ -21,6 +21,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Secrets;
 
 namespace JobDriver.Tests.Execution
 {
@@ -84,6 +85,7 @@ namespace JobDriver.Tests.Execution
 				=> new Uri("http://fake-horde-server");
 
 			public IArtifactCollection Artifacts => throw new NotImplementedException();
+			public ISecretCollection Secrets => throw new NotImplementedException();
 
 			public IComputeClient CreateComputeClient()
 				=> throw new NotImplementedException();

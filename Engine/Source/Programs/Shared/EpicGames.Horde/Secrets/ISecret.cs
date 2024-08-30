@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Collections.Generic;
 using EpicGames.Horde.Secrets;
 
-namespace HordeServer.Secrets
+namespace EpicGames.Horde.Secrets
 {
 	/// <summary>
 	/// Information about a secret

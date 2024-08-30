@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Logs;
+using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Tools;
 using Grpc.Core;
@@ -28,6 +29,11 @@ namespace EpicGames.Horde
 		/// Accessor for the artifact collection
 		/// </summary>
 		IArtifactCollection Artifacts { get; }
+
+		/// <summary>
+		/// Accessor for the secret collection
+		/// </summary>
+		ISecretCollection Secrets { get; }
 
 		/// <summary>
 		/// Connect to the Horde server

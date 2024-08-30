@@ -12,6 +12,7 @@ using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
 using EpicGames.Horde.Logs;
+using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
@@ -49,6 +50,9 @@ namespace EpicGames.Horde
 		/// <inheritdoc/>
 		public IArtifactCollection Artifacts { get; }
 
+		/// <inheritdoc/>
+		public ISecretCollection Secrets { get; }
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -61,6 +65,7 @@ namespace EpicGames.Horde
 			_logger = _loggerFactory.CreateLogger<HordeClient>();
 
 			Artifacts = new ArtifactHttpCollection(this);
+			Secrets = new SecretHttpCollection(this);
 		}
 
 		/// <inheritdoc/>
