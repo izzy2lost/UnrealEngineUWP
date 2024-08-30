@@ -131,7 +131,7 @@ namespace uba
 	struct CasKeyHasher
 	{
 		CasKeyHasher();
-		void Update(const void* data, u64 bytes);
+		CasKeyHasher& Update(const void* data, u64 bytes);
 		u64 hasher[1912/sizeof(u64)];
 	};
 

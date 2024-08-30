@@ -79,9 +79,10 @@ namespace uba
 		blake3_hasher_init((blake3_hasher*)&hasher);
 	}
 
-	void CasKeyHasher::Update(const void* data, u64 bytes)
+	CasKeyHasher& CasKeyHasher::Update(const void* data, u64 bytes)
 	{
 		blake3_hasher_update((blake3_hasher*)&hasher, data, bytes);
+		return *this;
 	}
 
 	CasKey ToCasKey(const CasKeyHasher& hasher, bool compressed)
