@@ -59,6 +59,7 @@ ADisplayClusterLightCardActor::ADisplayClusterLightCardActor(const FObjectInitia
 	, Scale(FVector2D(1.f))
 	, RadialOffset(-1)
 	, bAlwaysFlushToWall(true)
+	, PerLightcardRenderMode(EDisplayClusterConfigurationICVFX_PerLightcardRenderMode::Default)
 	, Mask(EDisplayClusterLightCardMask::Circle)
 	, Texture(nullptr)
 	, Color(FLinearColor(1.f, 1.f, 1.f, 1.f))

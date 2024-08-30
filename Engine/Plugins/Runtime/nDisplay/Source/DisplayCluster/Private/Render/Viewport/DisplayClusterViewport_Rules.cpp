@@ -35,6 +35,7 @@
 #include "UnrealClient.h"
 
 #include "DisplayClusterSceneViewExtensions.h"
+#include "DisplayClusterConfigurationTypes_Viewport.h"
 
 #include "LegacyScreenPercentageDriver.h"
 
@@ -47,7 +48,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewport
 ///////////////////////////////////////////////////////////////////////////////////////
-void FDisplayClusterViewport::ResetRuntimeParameters()
+void FDisplayClusterViewport::ResetRuntimeParameters(const UDisplayClusterConfigurationViewport* InConfigurationViewport)
 {
 	// Reset runtim flags from prev frame:
 	RenderSettings.BeginUpdateSettings();
@@ -63,8 +64,19 @@ void FDisplayClusterViewport::ResetRuntimeParameters()
 	// Obtain viewport media state from external multicast delegates (This viewport can be used by multiple media).
 	EDisplayClusterViewportMediaState AllMediaStates = EDisplayClusterViewportMediaState::None;
 	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().Broadcast(this, AllMediaStates);
+
 	// Update the media state for the new frame.
 	RenderSettings.AssignMediaStates(AllMediaStates);
+
+	// Read general settings from the configuration
+	if (InConfigurationViewport)
+	{
+		if (const FDisplayClusterConfigurationICVFX_StageSettings* StageSettings = Configuration->GetStageSettings())
+		{
+			// Update base ICVFX settings of viewport.
+			RenderSettingsICVFX.Flags = InConfigurationViewport->GetViewportICVFXFlags(*StageSettings);
+		}
+	}
 }
 
 bool FDisplayClusterViewport::IsInternalViewport() const

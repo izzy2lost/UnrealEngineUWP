@@ -275,7 +275,11 @@ bool FDisplayClusterViewportProxy::ImplGetResources_RenderThread(const EDisplayC
 					TSharedPtr<FDisplayClusterViewportLightCardManagerProxy, ESPMode::ThreadSafe> LightCardManager = ViewportManagerProxy->GetLightCardManagerProxy_RenderThread();
 					if (LightCardManager.IsValid())
 					{
-						if (FRHITexture* UVLightCardRHIResource = LightCardManager->GetUVLightCardRHIResource_RenderThread())
+						const EDisplayClusterUVLightCardType UVLightCardType =
+							EnumHasAllFlags(RenderSettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::OverInFrustum)
+							? EDisplayClusterUVLightCardType::Over : EDisplayClusterUVLightCardType::Under;
+
+						if (FRHITexture* UVLightCardRHIResource = LightCardManager->GetUVLightCardRHIResource_RenderThread(UVLightCardType))
 						{
 							for (int32 ContextIndex = 0; ContextIndex < Contexts.Num(); ContextIndex++)
 							{

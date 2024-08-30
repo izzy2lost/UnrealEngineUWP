@@ -31,11 +31,19 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationViewport_ICVF
 	GENERATED_BODY()
 
 public:
-	/** Get ligthcard render mode for this viewport. */
-	EDisplayClusterShaderParametersICVFX_LightCardRenderMode GetLightCardRenderMode(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
+	/** Get lightcard render mode for this viewport. */
+	UE_DEPRECATED(5.5, "This function has been moved to FDisplayClusterConfigurationICVFX_LightcardSettings.")
+	EDisplayClusterShaderParametersICVFX_LightCardRenderMode GetLightCardRenderMode(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
+	{
+		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None;
+	}
 
 	/** Get ICVFX settings flags for viewport*/
-	EDisplayClusterViewportICVFXFlags GetViewportICVFXFlags(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
+	UE_DEPRECATED(5.5, "This function has been moved to UDisplayClusterConfigurationViewport.")
+	EDisplayClusterViewportICVFXFlags GetViewportICVFXFlags(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
+	{
+		return EDisplayClusterViewportICVFXFlags::None;
+	}
 
 public:
 	/** Enable in-camera VFX for this Viewport (works only with supported Projection Policies) */
@@ -148,6 +156,9 @@ public:
 	{
 		return bAllowRendering;
 	}
+
+	/** Get ICVFX settings flags for viewport*/
+	EDisplayClusterViewportICVFXFlags GetViewportICVFXFlags(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
 
 #if WITH_EDITOR
 	/** Enable the preview texture. Only should be called by the object managing the preview texture state. */

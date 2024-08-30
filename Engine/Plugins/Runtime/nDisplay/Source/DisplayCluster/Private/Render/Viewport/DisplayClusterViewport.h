@@ -23,6 +23,8 @@
 
 #include "Templates/SharedPointer.h"
 
+class UDisplayClusterConfigurationViewport;
+
 class FDisplayClusterViewportManager;
 class FDisplayClusterViewportManagerProxy;
 class FDisplayClusterViewportProxy;
@@ -206,7 +208,7 @@ public:
 	void AddReferencedObjects(FReferenceCollector& Collector);
 
 	/** This function MUST always be called before configuring the viewport at the beginning of each frame. */
-	void ResetRuntimeParameters();	
+	void ResetRuntimeParameters(const UDisplayClusterConfigurationViewport* InConfigurationViewport = nullptr);
 
 	// Active view extension for this viewport
 	const TArray<FSceneViewExtensionRef> GatherActiveExtensions(FViewport* InViewport) const;
@@ -377,6 +379,12 @@ public:
 	/** setup viewport remap configuration for this viewport. */
 	bool UpdateConfiguration_ViewportRemap(const struct FDisplayClusterConfigurationViewport_Remap& InRemapConfiguration);
 
+	/** Returns viewport configuration data. */
+	const UDisplayClusterConfigurationViewport* GetViewportConfigurationData() const;
+
+	/** Sets viewport configuration data. */
+	void SetViewportConfigurationData(const UDisplayClusterConfigurationViewport* InConfigurationData);
+
 	/** Support view states for preview. */
 	FSceneViewStateInterface* GetViewState(uint32 ViewIndex);
 
@@ -470,6 +478,9 @@ private:
 
 	// View states (preview only)
 	TArray<TSharedPtr<FSceneViewStateReference, ESPMode::ThreadSafe>> ViewStates;
+
+	// The soft ptr to the configuration data of this viewport. Updated every frame.
+	TWeakObjectPtr<const UDisplayClusterConfigurationViewport> ConfigurationData;
 
 	// A recurring message in the log will be shown only once
 	mutable EDisplayClusterViewportShowLogMsgOnce ShowLogMsgOnceFlags = EDisplayClusterViewportShowLogMsgOnce::None;

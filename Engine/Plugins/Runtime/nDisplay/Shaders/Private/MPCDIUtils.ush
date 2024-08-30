@@ -31,8 +31,10 @@ Texture2D InnerCameraTexture;
 Texture2D ChromakeyCameraTexture;
 Texture2D ChromakeyMarkerTexture;
 
-Texture2D LightCardTexture;
-Texture2D UVLightCardTexture;
+Texture2D LightCardUnderTexture;
+Texture2D LightCardOverTexture;
+Texture2D UVLightCardUnderTexture;
+Texture2D UVLightCardOverTexture;
 
 SamplerState InputSampler;
 SamplerState WarpMapSampler;
@@ -43,8 +45,10 @@ SamplerState InnerCameraSampler;
 SamplerState ChromakeyCameraSampler;
 SamplerState ChromakeyMarkerSampler;
 
-SamplerState LightCardSampler;
-SamplerState UVLightCardSampler;
+SamplerState LightCardUnderSampler;
+SamplerState LightCardOverSampler;
+SamplerState UVLightCardUnderSampler;
+SamplerState UVLightCardOverSampler;
 
 float4x4 MeshToStageProjectionMatrix;
 float4x4 ViewportTextureProjectionMatrix;
@@ -65,6 +69,29 @@ float4 OverlappedInnerCameraSoftEdges[MAX_INNER_CAMERAS_AMOUNT];
 #endif
 
 float LightCardGamma;
+
+// These are the flags for the 'LightCardMode' parameter:
+
+// LIGHTCARD_UNDER - LightCard is rendered under InCamera. The image from the "LightCardUnderTexture" texture is used.
+#define LIGHTCARD_UNDER   (1 << 0)
+
+// LIGHTCARD_OVER - LightCard is rendered over InCamera. The image from the "LightCardOverTexture" texture is used.
+#define LIGHTCARD_OVER    (1 << 1)
+
+// UVLIGHTCARD_UNDER - UV LightCard is rendered under InCamera. The image from the "UVLightCardUnderTexture" texture is used.
+#define UVLIGHTCARD_UNDER (1 << 2)
+
+// UVLIGHTCARD_OVER - UV LightCard is rendered over InCamera. The image from the "UVLightCardOverTexture" texture is used.
+#define UVLIGHTCARD_OVER  (1 << 3)
+
+// UVLIGHTCARD_MERGE - special rendering mode, for Outer viewports that are forced to render LightCards only in "over" or "under" mode.
+// both UV lightcard textures are rendered under or over the inner frustum.
+// Images from the "UVLightCardOverTexture" and "UVLightCardOverTexture" textures are used.
+// Can only be combined in two ways: (UVLIGHTCARD_MERGE|UVLIGHTCARD_UNDER) or (UVLIGHTCARD_MERGE|UVLIGHTCARD_OVER)
+#define UVLIGHTCARD_MERGE (1 << 4)
+
+// Several flags in this parameter: LIGHTCARD_UNDER, LIGHTCARD_OVER, UVLIGHTCARD_UNDER, UVLIGHTCARD_OVER, UVLIGHTCARD_MERGE
+int LightCardMode;
 
 float4 InnerCameraSoftEdge;
 

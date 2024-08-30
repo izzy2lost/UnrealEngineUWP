@@ -42,9 +42,9 @@ static FAutoConsoleVariableRef CVarDisplayClusterEnableAlphaChannelRendering(
 ///////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportConfiguration_ICVFX
 ///////////////////////////////////////////////////////////////////
-bool FDisplayClusterViewportConfiguration_ICVFX::CreateLightcardViewport(FDisplayClusterViewport& BaseViewport)
+bool FDisplayClusterViewportConfiguration_ICVFX::CreateLightcardViewport(FDisplayClusterViewport& BaseViewport, const bool bOverInFrustum)
 {
-	if (FDisplayClusterViewport* LightcardViewport = FDisplayClusterViewportConfigurationHelpers_ICVFX::GetOrCreateLightcardViewport(BaseViewport))
+	if (FDisplayClusterViewport* LightcardViewport = FDisplayClusterViewportConfigurationHelpers_ICVFX::GetOrCreateLightcardViewport(BaseViewport, bOverInFrustum))
 	{
 		// Update lightcard viewport settings
 		FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateLightcardViewportSetting(*LightcardViewport, BaseViewport);
@@ -58,9 +58,9 @@ bool FDisplayClusterViewportConfiguration_ICVFX::CreateLightcardViewport(FDispla
 	return false;
 }
 
-bool FDisplayClusterViewportConfiguration_ICVFX::CreateUVLightcardViewport(FDisplayClusterViewport& BaseViewport)
+bool FDisplayClusterViewportConfiguration_ICVFX::CreateUVLightcardViewport(FDisplayClusterViewport& BaseViewport, const bool bOverInFrustum)
 {
-	if (FDisplayClusterViewport* UVLightCardViewport = FDisplayClusterViewportConfigurationHelpers_ICVFX::GetOrCreateUVLightcardViewport(BaseViewport))
+	if (FDisplayClusterViewport* UVLightCardViewport = FDisplayClusterViewportConfigurationHelpers_ICVFX::GetOrCreateUVLightcardViewport(BaseViewport, bOverInFrustum))
 	{
 		// Update UV LightCard viewport settings
 		FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateLightcardViewportSetting(*UVLightCardViewport, BaseViewport);
@@ -69,7 +69,7 @@ bool FDisplayClusterViewportConfiguration_ICVFX::CreateUVLightcardViewport(FDisp
 		UVLightCardViewport->UpdateConfiguration_ProjectionPolicy();
 
 		// Optimize: re-use UVLightCard viewports with equals OCIO
-		FDisplayClusterViewportConfigurationHelpers_ICVFX::ReuseUVLightCardViewportWithinClusterNode(*UVLightCardViewport);
+		FDisplayClusterViewportConfigurationHelpers_ICVFX::ReuseUVLightCardViewportWithinClusterNode(*UVLightCardViewport, bOverInFrustum);
 
 		return true;
 	}
@@ -128,25 +128,41 @@ void FDisplayClusterViewportConfiguration_ICVFX::Update()
 	if (!EnumHasAnyFlags(TargetViewportsFlags, EDisplayClusterViewportICVFXFlags::DisableLightcard))
 	{
 		// UVLightCard must be enabled in LC manager
-		const bool bUVLightCardEnabled = ViewportManager->LightCardManager->IsUVLightCardEnabled();
+		const bool bUVLightCardOverEnabled = ViewportManager->LightCardManager->IsUVLightCardEnabled(EDisplayClusterUVLightCardType::Over);
+		const bool bUVLightCardUnderEnabled = ViewportManager->LightCardManager->IsUVLightCardEnabled(EDisplayClusterUVLightCardType::Under);
+
+		// per-viewport lightcard use-case
+		const EDisplayClusterViewportICVFXFlags LightcardRenderModeFlags = TargetViewportsFlags & EDisplayClusterViewportICVFXFlags::LightcardRenderModeMask;
+		const bool bLightCardOverEnabled  = LightcardRenderModeFlags != EDisplayClusterViewportICVFXFlags::LightcardAlwaysUnder;
+		const bool bLightCardUnderEnabled = LightcardRenderModeFlags != EDisplayClusterViewportICVFXFlags::LightcardAlwaysOver;
 
 		// Allocate and assign lightcard resources
 		const bool bUseLightCard = StageSettings->Lightcard.ShouldUseLightCard(*StageSettings);
-		const bool bUseUVLightCard = bUVLightCardEnabled && StageSettings->Lightcard.ShouldUseUVLightCard(*StageSettings);
+		const bool bUseUVLightCard = StageSettings->Lightcard.ShouldUseUVLightCard(*StageSettings);
 
 		for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& TargetIt : TargetViewports)
 		{
 			// only for support targets
 			if (TargetIt.IsValid() && !EnumHasAnyFlags(TargetIt->GetRenderSettingsICVFX().Flags, EDisplayClusterViewportICVFXFlags::DisableLightcard))
 			{
-				if (bUseLightCard)
+				if (bLightCardOverEnabled && bUseLightCard)
 				{
-					CreateLightcardViewport(*TargetIt);
+					CreateLightcardViewport(*TargetIt, true);
+				}
+				
+				if (bLightCardUnderEnabled && bUseLightCard)
+				{
+					CreateLightcardViewport(*TargetIt, false);
 				}
 
-				if (bUseUVLightCard)
+				if (bUVLightCardOverEnabled && bUseUVLightCard)
 				{
-					CreateUVLightcardViewport(*TargetIt);
+					CreateUVLightcardViewport(*TargetIt, true);
+				}
+
+				if (bUVLightCardUnderEnabled && bUseUVLightCard)
+				{
+					CreateUVLightcardViewport(*TargetIt, false);
 				}
 			}
 		}

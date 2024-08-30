@@ -316,7 +316,7 @@ void FDisplayClusterViewport::SetupSceneView(uint32 ContextNum, class UWorld* Wo
 	if(RenderSettings.CaptureMode == EDisplayClusterViewportCaptureMode::MoviePipeline)
 	{
 		// Apply visibility settigns to view
-		VisibilitySettings.SetupSceneView(World, InOutView);
+		VisibilitySettings.SetupSceneView(InOutView);
 
 		return;
 	}
@@ -357,7 +357,7 @@ void FDisplayClusterViewport::SetupSceneView(uint32 ContextNum, class UWorld* Wo
 	}
 
 	// Apply visibility settigns to view
-	VisibilitySettings.SetupSceneView(World, InOutView);
+	VisibilitySettings.SetupSceneView(InOutView);
 
 	// Handle Motion blur parameters
 	CameraMotionBlur.SetupSceneView(Contexts[ContextNum], InOutView);
@@ -511,6 +511,12 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 		return false;
 	}
 
+	if (!VisibilitySettings.IsVisible())
+	{
+		// Exclude viewports that are empty from rendering.
+		return false;
+	}
+
 	if (PostRenderSettings.GenerateMips.IsEnabled())
 	{
 		//Check if current projection policy supports this feature
@@ -633,10 +639,13 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 
 		if (FDisplayClusterViewportManager* ViewportManager = Configuration->GetViewportManagerImpl())
 		{
-			if (ViewportManager->LightCardManager->IsUVLightCardEnabled())
+			const EDisplayClusterUVLightCardType UVLightCardType =
+				EnumHasAllFlags(RenderSettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::OverInFrustum)
+				? EDisplayClusterUVLightCardType::Over : EDisplayClusterUVLightCardType::Under;
+			if (ViewportManager->LightCardManager->IsUVLightCardEnabled(UVLightCardType))
 			{
 				// Custom viewport size from LC Manager
-				ContextSize = ViewportManager->LightCardManager->GetUVLightCardResourceSize();
+				ContextSize = ViewportManager->LightCardManager->GetUVLightCardResourceSize(UVLightCardType);
 
 				// Size must be not null
 				if (ContextSize.GetMin() > 1)

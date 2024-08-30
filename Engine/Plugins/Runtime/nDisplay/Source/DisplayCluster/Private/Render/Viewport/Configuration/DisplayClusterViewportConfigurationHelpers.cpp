@@ -88,10 +88,6 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDis
 {
 	// Gain direct access to internal settings of the viewport:
 	FDisplayClusterViewport_RenderSettings&           InOutRenderSettings = DstViewport.GetRenderSettingsImpl();
-	FDisplayClusterViewport_RenderSettingsICVFX& InOutRenderSettingsICVFX = DstViewport.GetRenderSettingsICVFXImpl();
-
-	// Reset runtime flags from prev frame:
-	DstViewport.ResetRuntimeParameters();
 
 	// UDisplayClusterConfigurationViewport
 	{
@@ -136,12 +132,5 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDis
 
 		InOutRenderSettings.StereoGPUIndex = InRenderSettings.StereoGPUIndex;
 		InOutRenderSettings.RenderTargetRatio = InRenderSettings.RenderTargetRatio;
-	}
-
-	// FDisplayClusterConfigurationViewport_ICVFX property:
-	if(const FDisplayClusterConfigurationICVFX_StageSettings* StageSettings = DstViewport.Configuration->GetStageSettings())
-	{
-		InOutRenderSettingsICVFX.Flags = InConfigurationViewport.ICVFX.GetViewportICVFXFlags(*StageSettings);
-		InOutRenderSettingsICVFX.ICVFX.LightCardMode = InConfigurationViewport.ICVFX.GetLightCardRenderMode(*StageSettings);
 	}
 }

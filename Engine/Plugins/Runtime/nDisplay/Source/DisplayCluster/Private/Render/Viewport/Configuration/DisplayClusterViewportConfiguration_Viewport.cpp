@@ -57,6 +57,12 @@ bool FDisplayClusterViewportConfiguration_Viewport::UpdateViewportConfiguration(
 {
 	check(IsInGameThread());
 
+	// Reset runtime flags from prev frame:
+	DstViewport.ResetRuntimeParameters(&ConfigurationViewport);
+
+	// Store viewport configuration data
+	DstViewport.SetViewportConfigurationData(&ConfigurationViewport);
+
 	FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(DstViewport, ConfigurationViewport);
 	DstViewport.UpdateConfiguration_ProjectionPolicy(&ConfigurationViewport.ProjectionPolicy);
 

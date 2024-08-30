@@ -107,7 +107,17 @@ public:
 
 	// Return hidden in game privitives set
 	bool GetHiddenInGamePrimitives(TSet<FPrimitiveComponentId>& OutPrimitives);
-	bool FindPrimitivesByName(const TArray<FString>& InNames, TSet<FPrimitiveComponentId>& OutPrimitives);
+
+	/** Collect UActorComponent primitives by names.
+	* Note: Components must have bHiddenInGame set to true.
+	* 
+	* @param InNames       - The names of the primitives to be searched for.
+	* @param OutPrimitives - (out) An array with the primitives that were found.
+	* @param bForceHide    - (opt) if true, collects components with any value of the bHiddenInGame property.
+	* 
+	* @return true if any primitives were found.
+	*/
+	bool FindPrimitivesByName(const TArray<FString>& InNames, TSet<FPrimitiveComponentId>& OutPrimitives, bool bForceHide = false);
 
 	bool IsBlueprint() const;
 
@@ -393,7 +403,7 @@ private:
 
 private:
 	template <typename TComp>
-	void GetTypedPrimitives(TSet<FPrimitiveComponentId>& OutPrimitives, const TArray<FString>* InCompNames = nullptr, bool bCollectChildrenVisualizationComponent = true) const;
+	void GetTypedPrimitives(TSet<FPrimitiveComponentId>& OutPrimitives, const TArray<FString>* InCompNames = nullptr, bool bForceHide = false, bool bCollectChildrenVisualizationComponent = true) const;
 
 public:
 	/** Set the priority for inner frustum rendering if there is any overlap when enabling multiple ICVFX cameras. */

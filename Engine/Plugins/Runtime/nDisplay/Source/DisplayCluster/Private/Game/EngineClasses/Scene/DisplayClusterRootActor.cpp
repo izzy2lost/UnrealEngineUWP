@@ -56,10 +56,17 @@
 
 namespace UE::DisplayCluster::RootActor
 {
+	/** Collect components by type
+	* 
+	* @param OutPrimitives - (out) Output variable for collected components.
+	* @param pComp         - (in) The component from which the collection will be made.
+	* @param bForceHide    - (opt) if true, collects components with any value of the bHiddenInGame property.
+	* @param bCollectChildrenVisualizationComponent - If true collects child components.
+	*/
 	template <typename TComp>
-	void CollectPrimitiveComponentsImpl(TSet<FPrimitiveComponentId>& OutPrimitives, TComp* pComp, bool bForceHide = false, const bool bCollectChildrenVisualizationComponent = true)
+	void CollectPrimitiveComponentsImpl(TSet<FPrimitiveComponentId>& OutPrimitives, const TComp* pComp, bool bForceHide = false, const bool bCollectChildrenVisualizationComponent = true)
 	{
-		if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(pComp))
+		if (const UPrimitiveComponent* PrimComp = Cast<const UPrimitiveComponent>(pComp))
 		{
 			if (PrimComp->bHiddenInGame
 			|| bForceHide
@@ -68,18 +75,19 @@ namespace UE::DisplayCluster::RootActor
 #endif
 				)
 			{
-				OutPrimitives.Add(PrimComp->GetPrimitiveSceneId());
+				const FPrimitiveComponentId CompId = PrimComp->GetPrimitiveSceneId();
+				OutPrimitives.Add(CompId);
 			}
 		}
 
 		if (bCollectChildrenVisualizationComponent)
 		{
-			if (USceneComponent* SceneComp = Cast<USceneComponent>(pComp))
+			if (const USceneComponent* SceneComp = Cast<const USceneComponent>(pComp))
 			{
 				TArray<USceneComponent*> ChildrenComponents;
 				SceneComp->GetChildrenComponents(false, ChildrenComponents);
 
-				for (USceneComponent* CompIt : ChildrenComponents)
+				for (const USceneComponent* CompIt : ChildrenComponents)
 				{
 					CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bForceHide, bCollectChildrenVisualizationComponent);
 				}
@@ -612,7 +620,7 @@ int ADisplayClusterRootActor::GetInnerFrustumPriority(const FString& InnerFrustu
 }
 
 template <typename TComp>
-void ADisplayClusterRootActor::GetTypedPrimitives(TSet<FPrimitiveComponentId>& OutPrimitives, const TArray<FString>* InCompNames, bool bCollectChildrenVisualizationComponent) const
+void ADisplayClusterRootActor::GetTypedPrimitives(TSet<FPrimitiveComponentId>& OutPrimitives, const TArray<FString>* InCompNames, bool bForceHide, bool bCollectChildrenVisualizationComponent) const
 {
 	using namespace UE::DisplayCluster::RootActor;
 
@@ -628,22 +636,22 @@ void ADisplayClusterRootActor::GetTypedPrimitives(TSet<FPrimitiveComponentId>& O
 				if (InCompNames->Find(CompIt->GetName()) != INDEX_NONE)
 				{
 					// add only comp from names list
-					CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bCollectChildrenVisualizationComponent);
+					CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bForceHide, bCollectChildrenVisualizationComponent);
 				}
 			}
 			else
 			{
-				CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bCollectChildrenVisualizationComponent);
+				CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bForceHide, bCollectChildrenVisualizationComponent);
 			}
 		}
 	}
 }
 
-bool ADisplayClusterRootActor::FindPrimitivesByName(const TArray<FString>& InNames, TSet<FPrimitiveComponentId>& OutPrimitives)
+bool ADisplayClusterRootActor::FindPrimitivesByName(const TArray<FString>& InNames, TSet<FPrimitiveComponentId>& OutPrimitives, bool bForceHide)
 {
-	GetTypedPrimitives<UActorComponent>(OutPrimitives, &InNames, false);
+	GetTypedPrimitives<UActorComponent>(OutPrimitives, &InNames, bForceHide, false);
 
-	return true;
+	return !OutPrimitives.IsEmpty();
 }
 
 // Gather components not rendered in game

@@ -28,31 +28,30 @@ public:
 	// Reset actor layers visibility rules
 	void BeginUpdateSettings()
 	{
-		LayersMode = EDisplayClusterViewport_VisibilityMode::None;
-
-		ActorLayers.Empty();
-		AdditionalComponentsList.Empty();
+		VisibilityMode = EDisplayClusterViewport_VisibilityMode::None;
+		ComponentsList.Empty();
 		RootActorHidePrimitivesList.Empty();
 	}
 
-	bool AppendHideList(const TArray<FName>& InActorLayers, const TSet<FPrimitiveComponentId>& InAdditionalComponentsList)
+	/** Sets the visibility mode and component list. */
+	void SetVisibilityModeAndComponentsList(EDisplayClusterViewport_VisibilityMode InVisibilityMode, const TSet<FPrimitiveComponentId>& InComponentsList)
 	{
-		if (LayersMode == EDisplayClusterViewport_VisibilityMode::Hide)
+
+		VisibilityMode = InVisibilityMode;
+		ComponentsList = InComponentsList;
+	}
+
+	/** Adds components to the list. Must be called after SetVisibilityModeAndComponentsList(). */
+	bool AppendVisibilityComponentsList(EDisplayClusterViewport_VisibilityMode InVisibilityMode, const TSet<FPrimitiveComponentId>& InComponentsList)
+	{
+		if (VisibilityMode == InVisibilityMode)
 		{
-			ActorLayers.Append(InActorLayers);
-			AdditionalComponentsList.Append(InAdditionalComponentsList);
+			ComponentsList.Append(InComponentsList);
+
 			return true;
 		}
 
 		return false;
-	}
-
-	void UpdateVisibilitySettings(EDisplayClusterViewport_VisibilityMode InMode, const TArray<FName>& InActorLayers, const TSet<FPrimitiveComponentId>& InAdditionalComponentsList)
-	{
-
-		LayersMode = InMode;
-		ActorLayers = InActorLayers;
-		AdditionalComponentsList = InAdditionalComponentsList;
 	}
 
 	void SetRootActorHideList(TSet<FPrimitiveComponentId>& InHidePrimitivesList)
@@ -60,14 +59,23 @@ public:
 		RootActorHidePrimitivesList = InHidePrimitivesList;
 	}
 
-	void SetupSceneView(UWorld* World, FSceneView& InOutView) const;
+	/** Returns true if this viewport contains any geometry and can be rendered. */
+	bool IsVisible() const
+	{
+		if (VisibilityMode == EDisplayClusterViewport_VisibilityMode::ShowOnly && ComponentsList.IsEmpty())
+		{
+			return false;
+		}
+		
+		return true;
+	}
+
+	void SetupSceneView(FSceneView& InOutView) const;
 
 private:
-	EDisplayClusterViewport_VisibilityMode LayersMode = EDisplayClusterViewport_VisibilityMode::None;
-	TArray<FName> ActorLayers;
-	TSet<FPrimitiveComponentId> AdditionalComponentsList;
+	EDisplayClusterViewport_VisibilityMode VisibilityMode = EDisplayClusterViewport_VisibilityMode::None;
+	TSet<FPrimitiveComponentId> ComponentsList;
 
 	// Additional hide primitives list from root actor
 	TSet<FPrimitiveComponentId> RootActorHidePrimitivesList;
 };
-

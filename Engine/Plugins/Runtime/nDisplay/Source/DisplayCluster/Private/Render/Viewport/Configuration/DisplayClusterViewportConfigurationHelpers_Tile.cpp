@@ -143,7 +143,7 @@ FDisplayClusterViewport* FDisplayClusterViewportConfigurationHelpers_Tile::GetOr
 		// Reset runtime flags from prev frame.
 		// Also this function update media states.
 		// Note: Save the new media states after calling ResetRuntimeParameters().
-		TileViewport->ResetRuntimeParameters();
+		TileViewport->ResetRuntimeParameters(InSourceViewport.GetViewportConfigurationData());
 		const EDisplayClusterViewportMediaState SavedTileViewportMediaStates = TileViewport->GetRenderSettings().GetMediaStates();
 
 		// Gain direct access to internal resources of the NewViewport:

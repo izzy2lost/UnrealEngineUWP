@@ -564,7 +564,7 @@ bool FDisplayClusterConfigurationICVFX_LightcardSettings::ShouldUseLightCard(con
 {
 	if (!bEnable)
 	{
-		// dont use lightcard if disabled
+		// Don't use the lightcard if it is disabled
 		return false;
 	}
 
@@ -585,6 +585,86 @@ bool FDisplayClusterConfigurationICVFX_LightcardSettings::ShouldUseUVLightCard(c
 {
 	//Note: Here we can add custom rules for UV lightcards
 	return ShouldUseLightCard(InStageSettings);
+}
+
+EDisplayClusterShaderParametersICVFX_LightCardRenderMode FDisplayClusterConfigurationICVFX_LightcardSettings::GetLightCardRenderModeOverride(const UDisplayClusterConfigurationViewport* InViewportConfiguration) const
+{
+	if (!bEnable || (InViewportConfiguration && !InViewportConfiguration->ICVFX.bAllowICVFX))
+	{
+		// When ICVFX is disabled we don't override lightcards rendering mode
+		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None;
+	}
+
+	if (InViewportConfiguration && InViewportConfiguration->ICVFX.LightcardRenderMode != EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Default)
+	{
+		// Use overridden values from the viewport:
+		switch (InViewportConfiguration->ICVFX.LightcardRenderMode)
+		{
+		case EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Over:
+			return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over;
+
+		case EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Under:
+			return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
+
+		default:
+			break;
+		}
+	}
+
+	return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None;
+}
+
+EDisplayClusterShaderParametersICVFX_LightCardRenderMode FDisplayClusterConfigurationICVFX_LightcardSettings::GetLightCardRenderMode(const EDisplayClusterConfigurationICVFX_PerLightcardRenderMode InPerLightcardRenderMode, const UDisplayClusterConfigurationViewport* InViewportConfiguration) const
+{
+	if (!bEnable || (InViewportConfiguration && !InViewportConfiguration->ICVFX.bAllowICVFX))
+	{
+		// When ICVFX is disabled we don't render lightcards
+		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None;
+	}
+
+	if (InViewportConfiguration && InViewportConfiguration->ICVFX.LightcardRenderMode != EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Default)
+	{
+		// Use overridden values from the viewport:
+		switch (InViewportConfiguration->ICVFX.LightcardRenderMode)
+		{
+		case EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Over:
+			return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over;
+
+		case EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Under:
+			return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
+
+		default:
+			break;
+		}
+
+		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None;
+	}
+
+	// Per-lightcard render mode:
+	switch (InPerLightcardRenderMode)
+	{
+	case EDisplayClusterConfigurationICVFX_PerLightcardRenderMode::Under:
+		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
+
+	case EDisplayClusterConfigurationICVFX_PerLightcardRenderMode::Over:
+		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over;
+
+	default:
+		break;
+	}
+
+	// Use global lightcard settings:
+	switch (Blendingmode)
+	{
+	case EDisplayClusterConfigurationICVFX_LightcardRenderMode::Under:
+		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
+
+	default:
+		break;
+	};
+
+	// By default, lightcards are rendered in “Over” mode.
+	return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////

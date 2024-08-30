@@ -19,6 +19,17 @@
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewport
 ///////////////////////////////////////////////////////////////////////////////////////
+const UDisplayClusterConfigurationViewport* FDisplayClusterViewport::GetViewportConfigurationData() const
+{
+	return ConfigurationData.Get();
+}
+
+/** Sets viewport configuration data. */
+void FDisplayClusterViewport::SetViewportConfigurationData(const UDisplayClusterConfigurationViewport* InConfigurationData)
+{
+	ConfigurationData = InConfigurationData;
+}
+
 void FDisplayClusterViewport::UpdateConfiguration_ProjectionPolicy(const FDisplayClusterConfigurationProjection* InConfigurationProjectionPolicy)
 {
 	// Runtime update projection policy

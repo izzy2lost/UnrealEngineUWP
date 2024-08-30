@@ -23,6 +23,7 @@
 #include "DisplayClusterConfigurationTypes_ICVFX.generated.h"
 
 class UCineCameraComponent;
+class UDisplayClusterConfigurationViewport;
 
 USTRUCT(Blueprintable)
 struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationICVFX_LightcardCustomOCIO
@@ -116,8 +117,10 @@ public:
 	bool IsVisibilityListValid() const;
 
 public:
-	/** Actor Layers */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Layers", ToolTip = "{LayersTooltip}"))
+	/** Actor layers.
+	* Warning: This option has a very expensive performance cost, especially on big projects.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Layers"))
 	TArray<FActorLayer> ActorLayers;
 
 	/** Actor references */
@@ -415,6 +418,12 @@ public:
 
 	/* Returns true if the use of the UVLightCard is allowed */
 	bool ShouldUseUVLightCard(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
+
+	/** Get lightcard render mode. */
+	EDisplayClusterShaderParametersICVFX_LightCardRenderMode GetLightCardRenderMode(const EDisplayClusterConfigurationICVFX_PerLightcardRenderMode InPerLightcardRenderMode, const UDisplayClusterConfigurationViewport* InViewportConfiguration = nullptr) const;
+
+	/** Get LC render mode override. */
+	EDisplayClusterShaderParametersICVFX_LightCardRenderMode GetLightCardRenderModeOverride(const UDisplayClusterConfigurationViewport* InViewportConfiguration) const;
 
 public:
 	/** Enable Light Cards */
