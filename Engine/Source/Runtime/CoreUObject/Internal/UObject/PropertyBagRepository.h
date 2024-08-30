@@ -224,27 +224,29 @@ struct FScopedIDOSerializationContext
 #if WITH_EDITORONLY_DATA
 	COREUOBJECT_API FScopedIDOSerializationContext(UObject* InObject, FArchive& Archive);
 	COREUOBJECT_API FScopedIDOSerializationContext(UObject* InObject, bool bImpersonate); // assumes save
-	COREUOBJECT_API FScopedIDOSerializationContext(bool bImpersonate); // assumes save
+	COREUOBJECT_API explicit FScopedIDOSerializationContext(bool bImpersonate); // assumes save
 	COREUOBJECT_API ~FScopedIDOSerializationContext();
 
-	bool bCreateIDO = false;
 	FArchive* Archive = nullptr;
 	UObject* const Object = nullptr;
-	const int64 PreSerializeOffset;
-	TOptional<TGuardValue<bool>> ScopedTrackSerializedPropertyPath;
-	TOptional<TGuardValue<bool>> ScopedSerializeUnknownProperties;
-	TOptional<TGuardValue<bool>> ScopedSerializeUnknownEnumNames;
-	TOptional<TGuardValue<bool>> ScopedImpersonateProperties;
-	TOptional<TGuardValue<bool>> ScopedTrackInitializedProperties;
-	TOptional<TGuardValue<bool>> ScopedTrackSerializedProperties;
-	TOptional<TGuardValue<UObject*>> ScopedSerializedObject;
+	const int64 PreSerializeOffset = 0;
+	UObject* SavedSerializedObject;
+	bool bSavedTrackSerializedPropertyPath;
+	bool bSavedTrackInitializedProperties;
+	bool bSavedTrackSerializedProperties;
+	bool bSavedTrackUnknownProperties;
+	bool bSavedTrackUnknownEnumNames;
+	bool bSavedImpersonateProperties;
+	bool bCreateIDO = false;
 
 private:
+	void SaveSerializeContext(FUObjectSerializeContext* SerializeContext);
+	void RestoreSerializeContext(FUObjectSerializeContext* SerializeContext) const;
 	// if we're loading and IDO should be created, this will be called when the context falls out of scope
 	void FinishCreatingInstanceDataObject() const;
 #else
 	inline FScopedIDOSerializationContext(UObject* InObject, FArchive& Archive) {}
-	inline explicit FScopedIDOSerializationContext(UObject* InObject, bool bImpersonate) {}
+	inline FScopedIDOSerializationContext(UObject* InObject, bool bImpersonate) {}
 	inline explicit FScopedIDOSerializationContext(bool bImpersonate) {}
 #endif
 
