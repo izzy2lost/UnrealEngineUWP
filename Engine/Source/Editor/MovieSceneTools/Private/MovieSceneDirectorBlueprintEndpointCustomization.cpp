@@ -1008,6 +1008,7 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::HandleQuickBindActionSel
 
 		if (Action)
 		{
+			Blueprint->Modify();
 			UK2Node* NewEndpoint = FMovieSceneDirectorBlueprintUtils::CreateEndpoint(Blueprint, EndpointDefinition);
 
 			UEdGraphPin* EndpointThenPin = NewEndpoint->FindPin(UEdGraphSchema_K2::PN_Then, EGPD_Output);

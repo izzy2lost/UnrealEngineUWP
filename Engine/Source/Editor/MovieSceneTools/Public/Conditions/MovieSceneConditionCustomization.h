@@ -101,6 +101,18 @@ private:
 	*/
 	void PopulateQuickBindSubMenu(FMenuBuilder& MenuBuilder);
 
+	/* Used by 'Use Selected' button when clicked to change the condition class to the selected condition class in the asset browser*/
+	void OnUseSelected();
+
+	/* Used to enable/disable the selected asset button based on whether a condition class is currently selected */
+	bool CanUseSelectedAsset() const;
+
+	/* Used by 'Browse To' button when clicked to browse to the condition class currently in use in the asset browser*/
+	void OnBrowseTo();
+
+	/* Used to enable/disable the browse to button based on whether a blueprint condition class is currently in use. */
+	bool CanBrowseToAsset() const;
+
 private:
 
 	/** The property handle for the condition container */
