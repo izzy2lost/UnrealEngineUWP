@@ -5,6 +5,7 @@
 #include "Containers/Set.h" // for BaseKeyFuncs
 #include "Containers/StringConv.h"
 #include "Containers/StringView.h"
+#include "Containers/Utf8String.h"
 #include "AutoRTFM/AutoRTFM.h"
 
 #include "uLang/Common/Text/UTF8String.h"
@@ -23,6 +24,11 @@ public:
 		FTCHARToUTF8 UFT8String(*String, String.Len());
 		const uLang::UTF8Char* UTF8CStr = (const uLang::UTF8Char*)UFT8String.Get();
 		return uLang::CUTF8String(uLang::CUTF8StringView(UTF8CStr, UTF8CStr + UFT8String.Length()));
+	}
+
+	static FORCEINLINE uLang::CUTF8String FUtf8StringToULangStr(const FUtf8String& String)
+	{
+		return FUtf8StringViewToULangString(FUtf8StringView(*String, String.Len()));
 	}
 
 	static FORCEINLINE uLang::CUTF8String TCharToULangStr(const TCHAR* Text)
@@ -72,6 +78,26 @@ public:
 	static FORCEINLINE FString ULangStrToFString(const uLang::CUTF8String& ULangString)
 	{
 		return UTF8_TO_TCHAR(ULangString.AsUTF8());
+	}
+
+	static FORCEINLINE FUtf8String ULangStrToFUtf8String(const uLang::CUTF8String& ULangString)
+	{
+		return FUtf8String::ConstructFromPtrSize(reinterpret_cast<const UTF8CHAR*>(ULangString.AsUTF8()), ULangString.ByteLen());
+	}
+
+	template <typename CharType>
+	static TString<CharType> ULangStrToTString(const uLang::CUTF8String& ULangString);
+
+	template <>
+	FORCEINLINE TString<TCHAR> ULangStrToTString<TCHAR>(const uLang::CUTF8String& ULangString)
+	{
+		return ULangStrToFString(ULangString);
+	}
+
+	template <>
+	FORCEINLINE TString<UTF8CHAR> ULangStrToTString<UTF8CHAR>(const uLang::CUTF8String& ULangString)
+	{
+		return ULangStrToFUtf8String(ULangString);
 	}
 
 	static FORCEINLINE FName ULangStrToFName(const uLang::CUTF8String& ULangString)

@@ -16,23 +16,6 @@ namespace Verse
 DEFINE_DERIVED_VCPPCLASSINFO(VTask);
 TGlobalHeapPtr<VEmergentType> VTask::EmergentType;
 
-namespace
-{
-void BindVFunction(Verse::VPackage* Package, FUtf8StringView VerseScopePath, const char* DecoratedFunctionName, const Verse::VNativeFunction::FThunkFn NativeThunkPtr)
-{
-	// Function names are decorated twice: Once with the scope path they are defined in,
-	// and once with the scope path of their base definition (usually these two are the same)
-	TUtf8StringBuilder<32> FullFunctionName = WriteToUtf8String<32>("(", VerseScopePath, ":)", DecoratedFunctionName);
-	Verse::VNativeFunction* Function = Package->LookupDefinition<Verse::VNativeFunction>(FullFunctionName);
-	if (!ensure(Function))
-	{
-		return;
-	}
-
-	Function->Thunk = NativeThunkPtr;
-}
-} // namespace
-
 void VTask::BindStruct(FAllocationContext Context, VClass& TaskClass)
 {
 	Verse::VPackage* VerseNativePackage = TaskClass.GetScope();
@@ -43,17 +26,17 @@ void VTask::BindStruct(FAllocationContext Context, VClass& TaskClass)
 	TUtf8StringBuilder<32> VerseScopePath;
 	VerseScopePath << VerseModulePath << "/" << VerseScopeName;
 
-	BindVFunction(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Active", &VTask::ActiveImpl);
-	BindVFunction(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Completed", &VTask::CompletedImpl);
-	BindVFunction(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Canceling", &VTask::CancelingImpl);
-	BindVFunction(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Canceled", &VTask::CanceledImpl);
-	BindVFunction(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Unsettled", &VTask::UnsettledImpl);
-	BindVFunction(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Settled", &VTask::SettledImpl);
-	BindVFunction(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Uninterrupted", &VTask::UninterruptedImpl);
-	BindVFunction(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Interrupted", &VTask::InterruptedImpl);
+	Verse::VNativeFunction::SetThunk(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Active", &VTask::ActiveImpl);
+	Verse::VNativeFunction::SetThunk(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Completed", &VTask::CompletedImpl);
+	Verse::VNativeFunction::SetThunk(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Canceling", &VTask::CancelingImpl);
+	Verse::VNativeFunction::SetThunk(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Canceled", &VTask::CanceledImpl);
+	Verse::VNativeFunction::SetThunk(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Unsettled", &VTask::UnsettledImpl);
+	Verse::VNativeFunction::SetThunk(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Settled", &VTask::SettledImpl);
+	Verse::VNativeFunction::SetThunk(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Uninterrupted", &VTask::UninterruptedImpl);
+	Verse::VNativeFunction::SetThunk(VerseNativePackage, VerseScopePath, "(/Verse.org/Concurrency/task:)Interrupted", &VTask::InterruptedImpl);
 
-	BindVFunction(VerseNativePackage, VerseScopePath, "Await", &VTask::AwaitImpl);
-	BindVFunction(VerseNativePackage, VerseScopePath, "Cancel", &VTask::CancelImpl);
+	Verse::VNativeFunction::SetThunk(VerseNativePackage, VerseScopePath, "Await", &VTask::AwaitImpl);
+	Verse::VNativeFunction::SetThunk(VerseNativePackage, VerseScopePath, "Cancel", &VTask::CancelImpl);
 
 	VEmergentType& NewEmergentType = TaskClass.GetOrCreateEmergentTypeForArchetype(Context, VUniqueStringSet::New(Context, {}), &VTask::StaticCppClassInfo);
 	VTask::EmergentType.Set(Context, &NewEmergentType);

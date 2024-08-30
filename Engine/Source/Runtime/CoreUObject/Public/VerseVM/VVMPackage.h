@@ -8,6 +8,7 @@
 #include "VVMCell.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMNameValueMap.h"
+#include "VerseVM/VVMNames.h"
 
 class UPackage;
 
@@ -51,6 +52,11 @@ struct VPackage : VCell
 	VValue LookupDefinition(FUtf8StringView Name) const { return Map.Lookup(Name); }
 	template <typename CellType>
 	CellType* LookupDefinition(FUtf8StringView Name) const { return Map.LookupCell<CellType>(Name); }
+
+	// The following two variations are primarily for VFunction lookup where the path must get prepended to the name prior to the map lookup
+	VValue LookupDefinition(FUtf8StringView Path, FUtf8StringView Name) const { return Map.Lookup(Names::GetDecoratedName(Path, Name).ToView()); }
+	template <typename CellType>
+	CellType* LookupDefinition(FUtf8StringView Path, FUtf8StringView Name) const { return Map.LookupCell<CellType>(Names::GetDecoratedName(Path, Name).ToView()); }
 
 	COREUOBJECT_API UPackage* GetUPackage(const TCHAR* UEPackageName) const;
 	COREUOBJECT_API UPackage* GetOrCreateUPackage(FAllocationContext Context, const TCHAR* UEPackageName);

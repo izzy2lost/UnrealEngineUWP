@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "VerseVM/VVMNames.h"
 
 class UObject;
 
@@ -15,17 +16,19 @@ namespace Verse
 class COREUOBJECT_API FPackageName
 {
 public:
+	// The following methods are being deprecated and should use Verse::Names methods found in VVMNames.h
 	static FString GetVersePackageNameForVni(const TCHAR* MountPointName, const TCHAR* CppModuleName);
 	static FString GetVersePackageNameForContent(const TCHAR* MountPointName);
 	static FString GetVersePackageNameForPublishedContent(const TCHAR* MountPointName);
 	static FString GetVersePackageNameForAssets(const TCHAR* MountPointName);
-
 	static FString GetVersePackageDirForContent(const TCHAR* MountPointName);
 	static FString GetVersePackageDirForAssets(const TCHAR* MountPointName);
 	static FString GetUClassPackagePath(const TCHAR* VersePackageName, const TCHAR* QualifiedClassName, EVersePackageType* OutPackageType = nullptr);
 	static FString GetUClassPackagePathForVni(const TCHAR* MountPointName, const TCHAR* CppModuleName);
 	static FString GetUClassPackagePathForContent(const TCHAR* MountPointName, const TCHAR* QualifiedClassName);
 	static FString GetUClassPackagePathForAssets(const TCHAR* MountPointName, const TCHAR* QualifiedClassName);
+
+	// The following methods don't have a Verse::Names version yet
 	static FName GetVersePackageNameFromUClassPackagePath(FName UClassPackagePath, EVersePackageType* OutPackageType = nullptr); // Reverse of what the above function does
 	static FString GetMountPointName(const TCHAR* VersePackageName);
 	static FName GetCppModuleName(const TCHAR* VersePackageName);
@@ -36,19 +39,6 @@ public:
 	static FString GetTaskUClassName(const UObject& OwnerScope, const TCHAR* DecoratedAndMangledFunctionName);
 
 	static bool PackageRequiresInternalAPI(const char* Name, const EVersePackageScope VerseScope);
-
-	// Constants used for package paths of compiled Verse code
-	static constexpr TCHAR const* const VerseSubPath = TEXT("_Verse");
-	static constexpr TCHAR const* const VniSubPath = TEXT("VNI");
-	static constexpr TCHAR const* const AssetsSubPath = TEXT("Assets");
-
-	// Constants used for package paths of Verse package names
-
-	static constexpr TCHAR const* const AssetsSubPathForPackageName = TEXT("Assets");
-	static constexpr char const* const AssetsSubPathForPackageNameUTF8 = "Assets";
-
-	static constexpr TCHAR const PublishedPackageNameSuffix[] = TEXT("-Published");
-	static constexpr char const* PublishedPackageNameSuffixUTF8 = "-Published";
 
 	// Class name substitute for root module classes of a package
 	static constexpr char const* const RootModuleClassName = "_Root"; // Keep in sync with RootModuleClassName in NativeInterfaceWriter.cpp

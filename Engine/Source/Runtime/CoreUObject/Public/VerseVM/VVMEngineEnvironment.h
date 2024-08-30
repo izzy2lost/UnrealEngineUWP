@@ -46,9 +46,6 @@ public:
 	// Collect property information during code generation.
 	virtual VPropertyType* CollectPropertyInfo(FAllocationContext Context, CSymbolToResult* Environment, const uLang::CTypeBase* Type) = 0;
 
-	// Build the key used to look up native binding info for a module, class, or struct.
-	virtual FTopLevelAssetPath GetAssetPathForScope(const uLang::CScope& Scope) = 0;
-
 	// Bind a native module, class, or struct.
 	virtual void TryBindNativeAsset(FAllocationContext Context, const FTopLevelAssetPath& Path) = 0;
 

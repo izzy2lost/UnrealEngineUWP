@@ -13,6 +13,7 @@
 namespace Verse
 {
 struct FOpResult;
+struct VPackage;
 struct VTask;
 
 using FNativeCallResult = FOpResult;
@@ -49,6 +50,9 @@ struct VNativeFunction : VHeapValue
 		checkf(!HasSelf(), TEXT("Attempting to bind `Self` to a `VNativeFunction` that already has it set; this is probably a mistake in the code generation."));
 		return *new (Context.AllocateFastCell(sizeof(VNativeFunction))) VNativeFunction(Context, NumParameters, Thunk, InSelf);
 	}
+
+	// Lookup a native function and set it's thunk to a C++ function
+	static void SetThunk(Verse::VPackage* Package, FUtf8StringView VerseScopePath, FUtf8StringView DecoratedName, FThunkFn NativeFuncPtr);
 
 	bool HasSelf() const;
 

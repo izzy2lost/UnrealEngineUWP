@@ -9,87 +9,52 @@ namespace Verse
 
 FString FPackageName::GetVersePackageNameForVni(const TCHAR* MountPointName, const TCHAR* CppModuleName)
 {
-	return FString::Format(TEXT("{0}/{1}"), {MountPointName, CppModuleName});
+	return *Verse::Names::GetVersePackageNameForVni(FStringView(MountPointName), FStringView(CppModuleName));
 }
 
 FString FPackageName::GetVersePackageNameForContent(const TCHAR* MountPointName)
 {
-	return FString(MountPointName);
+	return *Verse::Names::GetVersePackageNameForContent(FStringView(MountPointName));
 }
 
 FString FPackageName::GetVersePackageNameForPublishedContent(const TCHAR* MountPointName)
 {
-	return FString::Format(TEXT("{0}{1}"), {MountPointName, PublishedPackageNameSuffix});
+	return *Verse::Names::GetVersePackageNameForPublishedContent(FStringView(MountPointName));
 }
 
 FString FPackageName::GetVersePackageNameForAssets(const TCHAR* MountPointName)
 {
-	return FString::Format(TEXT("{0}/{1}"), {MountPointName, AssetsSubPathForPackageName});
+	return *Verse::Names::GetVersePackageNameForAssets(FStringView(MountPointName));
 }
 
 FString FPackageName::GetVersePackageDirForContent(const TCHAR* MountPointName)
 {
-	return FString::Format(TEXT("/{0}/{1}/"), {MountPointName, VerseSubPath});
+	return *Verse::Names::GetVersePackageDirForContent(FStringView(MountPointName));
 }
 
 FString FPackageName::GetVersePackageDirForAssets(const TCHAR* MountPointName)
 {
-	return FString::Format(TEXT("/{0}/{1}/{2}/"), {MountPointName, VerseSubPath, AssetsSubPath});
+	return *Verse::Names::GetVersePackageDirForAssets(FStringView(MountPointName));
 }
 
 FString FPackageName::GetUClassPackagePathForVni(const TCHAR* MountPointName, const TCHAR* CppModuleName)
 {
-	return FString::Format(TEXT("/{0}/{1}/{2}/{3}"), {MountPointName, VerseSubPath, VniSubPath, CppModuleName});
+	return *Verse::Names::GetUClassPackagePathForVni(FStringView(MountPointName), FStringView(CppModuleName));
 }
 
 FString FPackageName::GetUClassPackagePathForContent(const TCHAR* MountPointName, const TCHAR* QualifiedClassName)
 {
-	return FString::Format(TEXT("/{0}/{1}/{2}"), {MountPointName, VerseSubPath, QualifiedClassName});
+	return *Verse::Names::GetUClassPackagePathForContent(FStringView(MountPointName), FStringView(QualifiedClassName));
 }
 
 FString FPackageName::GetUClassPackagePathForAssets(const TCHAR* MountPointName, const TCHAR* QualifiedClassName)
 {
-	return FString::Format(TEXT("/{0}/{1}/{2}/{3}"), {MountPointName, VerseSubPath, AssetsSubPath, QualifiedClassName});
+	return *Verse::Names::GetUClassPackagePathForAssets(FStringView(MountPointName), FStringView(QualifiedClassName));
 }
 
 FString FPackageName::GetUClassPackagePath(const TCHAR* VersePackageName, const TCHAR* QualifiedClassName, EVersePackageType* OutPackageType /* = nullptr */)
 {
-	ensure(QualifiedClassName[0] != 0); // Must not be the empty string
-
-	// Ast package names are either
-	// "<plugin_name>" for the content Verse package in a plugin, or
-	// "<plugin_name>/<vni_module_name>" for VNI Verse packages inside plugins
-	// "<plugin_name>/Assets" for reflected assets Verse packages inside plugins
-
-	// Is this a VNI or assets package?
-	const TCHAR* Slash = FCString::Strchr(VersePackageName, '/');
-	if (Slash)
-	{
-		// Assets or VNI?
-		if (FCString::Strcmp(Slash + 1, AssetsSubPathForPackageName) == 0)
-		{
-			// Assets, each class is stored in its own UPackage
-			if (OutPackageType)
-			{
-				*OutPackageType = EVersePackageType::Assets;
-			}
-			return GetUClassPackagePathForAssets(*FString::ConstructFromPtrSize(VersePackageName, int32(Slash - VersePackageName)), QualifiedClassName);
-		}
-
-		// VNI: All VNI classes are combined in a single UPackage with the name of the UBT module
-		if (OutPackageType)
-		{
-			*OutPackageType = EVersePackageType::VNI;
-		}
-		return GetUClassPackagePathForVni(*FString::ConstructFromPtrSize(VersePackageName, int32(Slash - VersePackageName)), Slash + 1);
-	}
-
-	// No, each class is stored in its own UPackage
-	if (OutPackageType)
-	{
-		*OutPackageType = EVersePackageType::Content;
-	}
-	return GetUClassPackagePathForContent(VersePackageName, *FString(QualifiedClassName).Replace(TEXT("."), TEXT("_")));
+	return *Verse::Names::GetUClassPackagePath(FStringView(VersePackageName), FStringView(QualifiedClassName), OutPackageType);
 }
 
 FName FPackageName::GetVersePackageNameFromUClassPackagePath(FName UClassPackagePath, EVersePackageType* OutPackageType /* = nullptr */)
@@ -115,13 +80,13 @@ FName FPackageName::GetVersePackageNameFromUClassPackagePath(FName UClassPackage
 	FString ParsedVniSubPath = ParsePart();
 	FString ParsedCppModuleName = ParsePart();
 
-	if (ParsedMountPointName.Len() == 0 || ParsedVerseSubPath != VerseSubPath)
+	if (ParsedMountPointName.Len() == 0 || ParsedVerseSubPath != Verse::Names::GetVerseSubPath<TCHAR>())
 	{
 		return NAME_None;
 	}
 
 	// Is this a VNI package?
-	if (ParsedVniSubPath == VniSubPath && ParsedCppModuleName.Len() > 0)
+	if (ParsedVniSubPath == Verse::Names::GetVniSubPath<TCHAR>() && ParsedCppModuleName.Len() > 0)
 	{
 		// Yes, all VNI classes are combined in a single UPackage with the name of the UBT module
 		if (OutPackageType)
@@ -132,14 +97,14 @@ FName FPackageName::GetVersePackageNameFromUClassPackagePath(FName UClassPackage
 	}
 
 	// Is this an assets package?
-	if (ParsedVniSubPath == AssetsSubPath && ParsedCppModuleName.Len() > 0)
+	if (ParsedVniSubPath == Verse::Names::GetAssetsSubPath<TCHAR>() && ParsedCppModuleName.Len() > 0)
 	{
 		// Yes, each class is stored in its own UPackage
 		if (OutPackageType)
 		{
 			*OutPackageType = EVersePackageType::Assets;
 		}
-		return FName(ParsedMountPointName / AssetsSubPathForPackageName);
+		return FName(ParsedMountPointName / Verse::Names::GetAssetsSubPathForPackageName<TCHAR>());
 	}
 
 	// Is this a content package?
@@ -168,14 +133,17 @@ FName FPackageName::GetCppModuleName(const TCHAR* VersePackageName)
 	return Slash ? FName(Slash + 1) : FName();
 }
 
-EVersePackageType FPackageName::GetPackageType(const TCHAR* VersePackageName)
+namespace Private
+{
+template <typename CharType>
+EVersePackageType GetPackageType(const CharType* VersePackageName)
 {
 	// Is this a VNI or assets package?
-	const TCHAR* Slash = FCString::Strchr(VersePackageName, '/');
+	const CharType* Slash = TCString<CharType>::Strchr(VersePackageName, (CharType)'/');
 	if (Slash)
 	{
 		// Assets or VNI?
-		if (FCString::Strcmp(Slash + 1, AssetsSubPathForPackageName) == 0)
+		if (TCString<CharType>::Strcmp(Slash + 1, Verse::Names::GetAssetsSubPathForPackageName<CharType>()) == 0)
 		{
 			return EVersePackageType::Assets;
 		}
@@ -183,7 +151,7 @@ EVersePackageType FPackageName::GetPackageType(const TCHAR* VersePackageName)
 		return EVersePackageType::VNI;
 	}
 
-	if (FStringView(VersePackageName).EndsWith(PublishedPackageNameSuffix))
+	if (TStringView<CharType>(VersePackageName).EndsWith(Verse::Names::GetPublishedPackageNameSuffix<CharType>()))
 	{
 		return EVersePackageType::PublishedContent;
 	}
@@ -191,29 +159,16 @@ EVersePackageType FPackageName::GetPackageType(const TCHAR* VersePackageName)
 	// No, each class is stored in its own UPackage
 	return EVersePackageType::Content;
 }
+} // namespace Private
+
+EVersePackageType FPackageName::GetPackageType(const TCHAR* VersePackageName)
+{
+	return Private::GetPackageType(VersePackageName);
+}
 
 EVersePackageType FPackageName::GetPackageType(const UTF8CHAR* VersePackageName)
 {
-	// Is this a VNI or assets package?
-	const UTF8CHAR* Slash = FCStringUtf8::Strchr(VersePackageName, UTF8CHAR('/'));
-	if (Slash)
-	{
-		// Assets or VNI?
-		if (FCStringUtf8::Strcmp(Slash + 1, (const UTF8CHAR*)AssetsSubPathForPackageNameUTF8) == 0)
-		{
-			return EVersePackageType::Assets;
-		}
-
-		return EVersePackageType::VNI;
-	}
-
-	if (FUtf8StringView(VersePackageName).EndsWith(PublishedPackageNameSuffixUTF8))
-	{
-		return EVersePackageType::PublishedContent;
-	}
-
-	// No, each class is stored in its own UPackage
-	return EVersePackageType::Content;
+	return Private::GetPackageType(VersePackageName);
 }
 
 FString FPackageName::GetTaskUClassName(const TCHAR* OwnerScopeName, const TCHAR* DecoratedAndMangledFunctionName)
