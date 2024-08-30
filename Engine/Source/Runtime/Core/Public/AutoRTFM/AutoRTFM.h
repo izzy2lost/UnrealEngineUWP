@@ -280,6 +280,15 @@ static UE_AUTORTFM_FORCEINLINE void autortfm_register_open_function(void* origin
 #endif
 
 #if UE_AUTORTFM_ENABLED
+UE_AUTORTFM_API bool autortfm_is_inner_transaction_stack(void* Ptr);
+#else
+static UE_AUTORTFM_FORCEINLINE bool autortfm_is_inner_transaction_stack(void* Ptr)
+{
+	return false;
+}
+#endif
+
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API void autortfm_on_commit(void (*work)(void* arg), void* arg);
 #else
 static UE_AUTORTFM_FORCEINLINE void autortfm_on_commit(void (*work)(void* arg), void* arg)
@@ -423,6 +432,7 @@ namespace ForTheRuntime
 	UE_AUTORTFM_API void OnAbortInternal(TFunction<void()>&& Work);
 	UE_AUTORTFM_API void PushOnAbortHandlerInternal(const void* Key, TFunction<void()>&& Work);
 	UE_AUTORTFM_API void PopOnAbortHandlerInternal(const void* Key);
+	UE_AUTORTFM_API void PopAllOnAbortHandlersInternal(const void* Key);
 } // namespace ForTheRuntime
 #endif
 
@@ -464,6 +474,14 @@ static UE_AUTORTFM_FORCEINLINE bool IsClosed() { return autortfm_is_closed(); }
 // Tells us if we are currently committing or aborting a transaction. This will return true
 // in an on-abort or on-commit.
 static UE_AUTORTFM_FORCEINLINE bool IsCommittingOrAborting() { return autortfm_is_committing_or_aborting(); }
+
+// Returns true if the passed-in pointer is on the stack of the currently-executing transaction.
+// This is occasionally necessary when writing OnAbort handlers for objects on the stack, since 
+// we don't want to scribble on stack memory that might have been reused.
+static UE_AUTORTFM_FORCEINLINE bool IsInnerTransactionStack(void* Ptr) 
+{ 
+	return autortfm_is_inner_transaction_stack(Ptr);
+}
 
 // Run the functor in a transaction. Memory writes and other side effects get instrumented
 // and will be reversed if the transaction aborts.
@@ -652,13 +670,21 @@ template<typename TFunctor> static UE_AUTORTFM_FORCEINLINE void PushOnAbortHandl
 	}
 }
 
-// Unregister all handlers for transaction abort that were previously pushed
-// via PushOnAbortHandler with the given key
+// Unregister the most recently pushed handler (via PushOnAbortHandler) for the given key.
 static UE_AUTORTFM_FORCEINLINE void PopOnAbortHandler(const void* Key)
 {
 	if (autortfm_is_closed())
 	{
 		ForTheRuntime::PopOnAbortHandlerInternal(Key);
+	}
+}
+
+// Unregister all pushed handlers (via PushOnAbortHandler) for the given key.
+static UE_AUTORTFM_FORCEINLINE void PopAllOnAbortHandlers(const void* Key)
+{
+	if (autortfm_is_closed())
+	{
+		ForTheRuntime::PopAllOnAbortHandlersInternal(Key);
 	}
 }
 #else
@@ -672,9 +698,12 @@ template<typename TFunctor> static UE_AUTORTFM_FORCEINLINE void OnAbort(const TF
 // reaches the end of the relevant scope.
 template<typename TFunctor> static UE_AUTORTFM_FORCEINLINE void PushOnAbortHandler(const void* Key, const TFunctor&) {}
 
-// Unregister all handlers for transaction abort that were previously pushed
-// via PushOnAbortHandler with the given key
+// Unregister the most recently pushed handler (via PushOnAbortHandler) for the given key.
 static UE_AUTORTFM_FORCEINLINE void PopOnAbortHandler(const void* Key) {}
+
+
+// Unregister all pushed handlers (via PushOnAbortHandler) for the given key.
+static UE_AUTORTFM_FORCEINLINE void PopAllOnAbortHandlers(const void* Key) {}
 #endif
 
 // Inform the runtime that we have performed a new object allocation. It's only

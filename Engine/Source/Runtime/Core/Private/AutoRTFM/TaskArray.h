@@ -71,31 +71,19 @@ public:
 
 		auto EraseLastAddedKeyFromArray = [Key](FInternalArray& Array) -> bool
 		{
-			for(typename FInternalArray::SizeType Idx = 0; Idx < Array.Num(); Idx++)
+			typename FInternalArray::SizeType LastIdx = Array.FindLastByPredicate([Key](const SKeyValuePair& Pair)
 			{
-				typename FInternalArray::SizeType BackwardsIdx = Array.Num() - 1 - Idx;
+				return Pair.Key == Key;
+			});
 
-				if(Array[BackwardsIdx].Key != Key)
-				{
-					continue;
-				}
-
-				// We found our key to erase! Nuke it.
-
-				// We start at the element just after our element.
-				BackwardsIdx++;
-
-				for (; BackwardsIdx < Array.Num(); BackwardsIdx++)
-				{
-					Array[BackwardsIdx - 1] = MoveTemp(Array[BackwardsIdx]);
-				}
-
-				Array.SetNum(Array.Num() - 1, EAllowShrinking::No);
-
-				return true;
+			if (LastIdx == INDEX_NONE)
+			{
+				return false;
 			}
 
-			return false;
+			// We found our key to erase! Nuke it.
+			Array.RemoveAt(LastIdx);
+			return true;
 		};
 
 		if (EraseLastAddedKeyFromArray(Latest))
@@ -112,6 +100,28 @@ public:
 		}
 
 		return false;
+	}
+
+	bool DeleteAllMatchingKeys(SKey Key)
+	{
+		ASSERT(Key != SKey{});
+
+		auto EraseKeyFromArray = [Key](FInternalArray& Array) -> size_t
+		{
+			return Array.RemoveAll([Key](const SKeyValuePair& Pair)
+			{
+				return Pair.Key == Key;
+			});
+		};
+
+		size_t NumErased = EraseKeyFromArray(Latest);
+
+		for (FInternalArray& StashedVectorBox : Stash)
+		{
+			NumErased += EraseKeyFromArray(StashedVectorBox);
+		}
+
+		return NumErased > 0;
 	}
 
     void AddAll(TTaskArray&& Other)

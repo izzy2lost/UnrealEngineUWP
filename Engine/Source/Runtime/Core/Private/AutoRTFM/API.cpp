@@ -336,6 +336,13 @@ UE_AUTORTFM_ALWAYS_OPEN void RTFM_PopOnAbortHandlerInternal(const void* Key)
 	Context->GetCurrentTransaction()->PopDeferUntilAbortHandler(Key);
 }
 
+UE_AUTORTFM_ALWAYS_OPEN void RTFM_PopAllOnAbortHandlersInternal(const void* Key)
+{
+	FContext* Context = FContext::Get();
+	ASSERT(Context->GetStatus() == EContextStatus::OnTrack);
+	Context->GetCurrentTransaction()->PopAllDeferUntilAbortHandlers(Key);
+}
+
 UE_AUTORTFM_ALWAYS_OPEN void RTFM_autortfm_on_commit(void (*Work)(void*), void* Arg)
 {
 	RTFM_OnCommitInternal([Work, Arg] { Work(Arg); });
@@ -589,6 +596,11 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_register_open_function(void* Ori
     FunctionMapAdd(OriginalFunction, NewFunction);
 }
 
+extern "C" bool autortfm_is_inner_transaction_stack(void* Ptr)
+{
+	return FContext::Get()->IsInnerTransactionStack(Ptr);
+}
+
 void ForTheRuntime::OnCommitInternal(TFunction<void()> && Work)
 {
 	if (autortfm_is_closed())
@@ -620,6 +632,14 @@ void ForTheRuntime::PopOnAbortHandlerInternal(const void* Key)
 	if (autortfm_is_closed())
 	{
 		return RTFM_PopOnAbortHandlerInternal(Key);
+	}
+}
+
+void ForTheRuntime::PopAllOnAbortHandlersInternal(const void* Key)
+{
+	if (autortfm_is_closed())
+	{
+		return RTFM_PopAllOnAbortHandlersInternal(Key);
 	}
 }
 
