@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "StructUtils/InstancedStructContainer.h"
+#include "UObject/Linker.h"
 
 #if WITH_EDITOR
 #include "Serialization/MemoryReader.h"

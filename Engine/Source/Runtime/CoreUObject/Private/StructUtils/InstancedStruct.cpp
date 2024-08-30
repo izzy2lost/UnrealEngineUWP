@@ -2,6 +2,7 @@
 #include "StructUtils/InstancedStruct.h"
 #include "StructUtils/StructView.h"
 #include "Serialization/CustomVersion.h"
+#include "UObject/Linker.h"
 
 #if WITH_EDITOR
 #include "Serialization/MemoryReader.h"
