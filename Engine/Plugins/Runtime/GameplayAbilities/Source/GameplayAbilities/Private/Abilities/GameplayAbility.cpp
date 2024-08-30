@@ -12,6 +12,7 @@
 #include "AbilitySystemPrivate.h"
 #include "Abilities/Tasks/AbilityTask.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "GameplayAbilitiesDeveloperSettings.h"
 #include "GameplayCue_Types.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Character.h"
@@ -314,88 +315,86 @@ EDataValidationResult UGameplayAbility::IsDataValid(FDataValidationContext& Cont
 
 bool UGameplayAbility::DoesAbilitySatisfyTagRequirements(const UAbilitySystemComponent& AbilitySystemComponent, const FGameplayTagContainer* SourceTags, const FGameplayTagContainer* TargetTags, OUT FGameplayTagContainer* OptionalRelevantTags) const
 {
+	// Define a common lambda to check for blocked tags
 	bool bBlocked = false;
-	bool bMissing = false;
-
-	UAbilitySystemGlobals& AbilitySystemGlobals = UAbilitySystemGlobals::Get();
-	const FGameplayTag& BlockedTag = AbilitySystemGlobals.ActivateFailTagsBlockedTag;
-	const FGameplayTag& MissingTag = AbilitySystemGlobals.ActivateFailTagsMissingTag;
-	
-	// Check if any of this ability's tags are currently blocked
-	if (AbilitySystemComponent.AreAbilityTagsBlocked(GetAssetTags()))
+	auto CheckForBlocked = [&](const FGameplayTagContainer& ContainerA, const FGameplayTagContainer& ContainerB)
 	{
+		// Do we not have any tags in common?  Then we're not blocked
+		if (ContainerA.IsEmpty() || ContainerB.IsEmpty() || !ContainerA.HasAny(ContainerB))
+		{
+			return;
+		}
+
+		if (OptionalRelevantTags)
+		{
+			// Ensure the global blocking tag is only added once
+			if (!bBlocked)
+			{
+				UAbilitySystemGlobals& AbilitySystemGlobals = UAbilitySystemGlobals::Get();
+				const FGameplayTag& BlockedTag = AbilitySystemGlobals.ActivateFailTagsBlockedTag;
+				OptionalRelevantTags->AddTag(BlockedTag);
+			}
+
+			// Now append all the blocking tags
+			OptionalRelevantTags->AppendMatchingTags(ContainerA, ContainerB);
+		}
+
 		bBlocked = true;
-	}
+	};
 
-	// Check to see the required/blocked tags for this ability
-	if (ActivationBlockedTags.Num() || ActivationRequiredTags.Num())
+	// Define a common lambda to check for missing required tags
+	bool bMissing = false;
+	auto CheckForRequired = [&](const FGameplayTagContainer& TagsToCheck, const FGameplayTagContainer& RequiredTags)
 	{
-		static FGameplayTagContainer AbilitySystemComponentTags;
-		AbilitySystemComponentTags.Reset();
-
-		AbilitySystemComponent.GetOwnedGameplayTags(AbilitySystemComponentTags);
-
-		if (AbilitySystemComponentTags.HasAny(ActivationBlockedTags))
+		// Do we have no requirements, or have met all requirements?  Then nothing's missing
+		if (RequiredTags.IsEmpty() || TagsToCheck.HasAll(RequiredTags))
 		{
-			bBlocked = true;
+			return;
 		}
 
-		if (!AbilitySystemComponentTags.HasAll(ActivationRequiredTags))
+		if (OptionalRelevantTags)
 		{
-			bMissing = true;
-		}
-	}
+			// Ensure the global missing tag is only added once
+			if (!bMissing)
+			{
+				UAbilitySystemGlobals& AbilitySystemGlobals = UAbilitySystemGlobals::Get();
+				const FGameplayTag& MissingTag = AbilitySystemGlobals.ActivateFailTagsMissingTag;
+				OptionalRelevantTags->AddTag(MissingTag);
+			}
 
+			FGameplayTagContainer MissingTags = RequiredTags; 
+			MissingTags.RemoveTags(TagsToCheck.GetGameplayTagParents());
+			OptionalRelevantTags->AppendTags(MissingTags);
+		}
+
+		bMissing = true;
+	};
+
+	// Start by checking all of the blocked tags first (so OptionalRelevantTags will contain blocked tags first)
+	CheckForBlocked(AbilitySystemComponent.GetBlockedAbilityTags(), GetAssetTags());
+	CheckForBlocked(AbilitySystemComponent.GetOwnedGameplayTags(), ActivationBlockedTags);
 	if (SourceTags != nullptr)
 	{
-		if (SourceBlockedTags.Num() || SourceRequiredTags.Num())
-		{
-			if (SourceTags->HasAny(SourceBlockedTags))
-			{
-				bBlocked = true;
-			}
-
-			if (!SourceTags->HasAll(SourceRequiredTags))
-			{
-				bMissing = true;
-			}
-		}
+		CheckForBlocked(*SourceTags, SourceBlockedTags);
 	}
-
 	if (TargetTags != nullptr)
 	{
-		if (TargetBlockedTags.Num() || TargetRequiredTags.Num())
-		{
-			if (TargetTags->HasAny(TargetBlockedTags))
-			{
-				bBlocked = true;
-			}
-
-			if (!TargetTags->HasAll(TargetRequiredTags))
-			{
-				bMissing = true;
-			}
-		}
+		CheckForBlocked(*TargetTags, TargetBlockedTags);
 	}
 
-	if (bBlocked)
+	// Now check all required tags
+	CheckForRequired(AbilitySystemComponent.GetOwnedGameplayTags(), ActivationRequiredTags);
+	if (SourceTags != nullptr)
 	{
-		if (OptionalRelevantTags && BlockedTag.IsValid())
-		{
-			OptionalRelevantTags->AddTag(BlockedTag);
-		}
-		return false;
+		CheckForRequired(*SourceTags, SourceRequiredTags);
 	}
-	if (bMissing)
+	if (TargetTags != nullptr)
 	{
-		if (OptionalRelevantTags && MissingTag.IsValid())
-		{
-			OptionalRelevantTags->AddTag(MissingTag);
-		}
-		return false;
+		CheckForRequired(*TargetTags, TargetRequiredTags);
 	}
-	
-	return true;
+
+	// We succeeded if there were no blocked tags and no missing required tags	
+	return !bBlocked && !bMissing;
 }
 
 bool UGameplayAbility::ShouldActivateAbility(ENetRole Role) const
@@ -424,8 +423,6 @@ bool UGameplayAbility::CanActivateAbility(const FGameplayAbilitySpecHandle Handl
 	//make into a reference for simplicity
 	static FGameplayTagContainer DummyContainer;
 	DummyContainer.Reset();
-
-	FGameplayTagContainer& OutTags = OptionalRelevantTags ? *OptionalRelevantTags : DummyContainer;
 
 	// make sure the ability system component is valid, if not bail out.
 	UAbilitySystemComponent* const AbilitySystemComponent = ActorInfo->AbilitySystemComponent.Get();
@@ -506,12 +503,24 @@ bool UGameplayAbility::CanActivateAbility(const FGameplayAbilitySpecHandle Handl
 
 	if (bHasBlueprintCanUse)
 	{
-		if (K2_CanActivateAbility(*ActorInfo, Handle, OutTags) == false)
+		FGameplayTagContainer K2FailTags;
+		if (K2_CanActivateAbility(*ActorInfo, Handle, K2FailTags) == false)
 		{
 			if (FScopedCanActivateAbilityLogEnabler::IsLoggingEnabled())
 			{
 				UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: CanActivateAbility on %s failed, Blueprint override returned false"), *GetNameSafe(ActorInfo->OwnerActor.Get()), *GetNameSafe(Spec->Ability));
 				UE_VLOG(ActorInfo->OwnerActor.Get(), VLogAbilitySystem, Verbose, TEXT("CanActivateAbility on %s failed, Blueprint override returned false"), *GetNameSafe(Spec->Ability));
+			}
+
+			if (OptionalRelevantTags)
+			{
+				const FGameplayTag& FailTag = GetDefault<UGameplayAbilitiesDeveloperSettings>()->ActivateFailCanActivateAbilityTag;
+				if (FailTag.IsValid())
+				{
+					OptionalRelevantTags->AddTag(FailTag);
+				}
+
+				OptionalRelevantTags->AppendTags(K2FailTags);
 			}
 
 			return false;
@@ -1034,23 +1043,25 @@ bool UGameplayAbility::CheckCooldown(const FGameplayAbilitySpecHandle Handle, co
 	}
 
 	const FGameplayTagContainer* CooldownTags = GetCooldownTags();
-	if (CooldownTags)
+	if (CooldownTags && !CooldownTags->IsEmpty())
 	{
-		if (CooldownTags->Num() > 0)
+		if (UAbilitySystemComponent* AbilitySystemComponent = ActorInfo->AbilitySystemComponent.Get())
 		{
-			if (UAbilitySystemComponent* AbilitySystemComponent = ActorInfo->AbilitySystemComponent.Get())
+			if (AbilitySystemComponent->HasAnyMatchingGameplayTags(*CooldownTags))
 			{
-				if (AbilitySystemComponent->HasAnyMatchingGameplayTags(*CooldownTags))
+				if (OptionalRelevantTags)
 				{
-					const FGameplayTag& CooldownTag = UAbilitySystemGlobals::Get().ActivateFailCooldownTag;
-
-					if (OptionalRelevantTags && CooldownTag.IsValid())
+					const FGameplayTag& FailCooldownTag = UAbilitySystemGlobals::Get().ActivateFailCooldownTag;
+					if (FailCooldownTag.IsValid())
 					{
-						OptionalRelevantTags->AddTag(CooldownTag);
+						OptionalRelevantTags->AddTag(FailCooldownTag);
 					}
 
-					return false;
+					// Let the caller know which tags were blocking
+					OptionalRelevantTags->AppendMatchingTags(AbilitySystemComponent->GetOwnedGameplayTags(), *CooldownTags);
 				}
+
+				return false;
 			}
 		}
 	}

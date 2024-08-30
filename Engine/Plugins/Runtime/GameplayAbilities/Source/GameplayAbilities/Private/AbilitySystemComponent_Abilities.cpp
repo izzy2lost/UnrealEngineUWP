@@ -15,6 +15,7 @@
 #include "TimerManager.h"
 #include "AbilitySystemLog.h"
 #include "AttributeSet.h"
+#include "GameplayAbilitiesDeveloperSettings.h"
 #include "GameplayPrediction.h"
 #include "GameplayEffectTypes.h"
 #include "GameplayAbilitySpec.h"
@@ -1786,6 +1787,12 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 		FScopedCanActivateAbilityLogEnabler LogEnabler;
 		if (!AbilitySource->CanActivateAbility(Handle, ActorInfo, SourceTags, TargetTags, &InternalTryActivateAbilityFailureTags))
 		{
+			// At least let the user know that the native CanActivateAbility rejected it
+			if (InternalTryActivateAbilityFailureTags.IsEmpty())
+			{
+				InternalTryActivateAbilityFailureTags.AddTag(GetDefault<UGameplayAbilitiesDeveloperSettings>()->ActivateFailCanActivateAbilityTag);
+			}
+
 			// CanActivateAbility with LogEnabler will have UE_LOG/UE_VLOG so don't add more failure logs here
 			NotifyAbilityFailed(Handle, AbilitySource, InternalTryActivateAbilityFailureTags);
 			return false;

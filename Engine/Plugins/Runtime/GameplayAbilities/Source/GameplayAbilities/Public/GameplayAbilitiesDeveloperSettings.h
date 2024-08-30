@@ -75,6 +75,10 @@ public:
 	UPROPERTY(Config, EditDefaultsOnly, Category=Gameplay)
 	bool ReplicateActivationOwnedTags = true;
 
+	/** TryActive failed due to GameplayAbility's CanActivateAbility function (Blueprint or Native) */
+	UPROPERTY(Config, EditDefaultsOnly, Category=Gameplay, meta = (ConfigRestartRequired=true))
+	FGameplayTag ActivateFailCanActivateAbilityTag;
+
 	/** TryActivate failed due to being on cooldown */
 	UPROPERTY(Config, EditDefaultsOnly, Category=Gameplay, meta = (ConfigRestartRequired=true))
 	FGameplayTag ActivateFailCooldownTag; 
