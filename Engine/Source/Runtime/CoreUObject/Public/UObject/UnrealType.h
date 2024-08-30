@@ -2912,8 +2912,8 @@ public:
 	// End of FProperty interface
 
 	// FObjectPropertyBase interface
-	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const override;
 	virtual UObject* GetObjectPropertyValue(const void* PropertyValueAddress) const override;
+	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const override;
 	virtual UObject* GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
 protected:
 	virtual void SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const override;
@@ -3017,8 +3017,8 @@ public:
 	// End of FProperty interface
 
 	// FObjectProperty interface
-	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const override;
 	virtual UObject* GetObjectPropertyValue(const void* PropertyValueAddress) const override;
+	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const override;
 	virtual UObject* GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
 protected:
 	virtual void SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const override;
@@ -3071,8 +3071,8 @@ class COREUOBJECT_API FLazyObjectProperty : public TFObjectPropertyBase<FLazyObj
 	// End of FProperty interface
 
 	// FObjectProperty interface
-	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const override;
 	virtual UObject* GetObjectPropertyValue(const void* PropertyValueAddress) const override;
+	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const override;
 	virtual UObject* GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
 protected:
 	virtual void SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const override;
@@ -3136,8 +3136,9 @@ public:
 
 	// FObjectProperty interface
 	virtual UObject* LoadObjectPropertyValue(const void* PropertyValueAddress) const override;
-	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const override;
+
 	virtual UObject* GetObjectPropertyValue(const void* PropertyValueAddress) const override;
+	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const override;
 	virtual UObject* GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
 protected:
 	virtual void SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const override;

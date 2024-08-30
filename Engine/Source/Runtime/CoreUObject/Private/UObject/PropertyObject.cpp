@@ -331,14 +331,14 @@ uint32 FObjectProperty::GetValueTypeHashInternal(const void* Src) const
 	return GetTypeHash(GetPropertyValue(Src));
 }
 
-TObjectPtr<UObject> FObjectProperty::GetObjectPtrPropertyValue(const void* PropertyValueAddress) const
-{
-	return GetPropertyValue(PropertyValueAddress);
-}
-
 UObject* FObjectProperty::GetObjectPropertyValue(const void* PropertyValueAddress) const
 {
 	return GetPropertyValue(PropertyValueAddress).Get();
+}
+
+TObjectPtr<UObject> FObjectProperty::GetObjectPtrPropertyValue(const void* PropertyValueAddress) const
+{
+	return GetPropertyValue(PropertyValueAddress);
 }
 
 UObject* FObjectProperty::GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
