@@ -42,6 +42,9 @@ uint MegaLightsSupportedStartIndex;
 
 StructuredBuffer<float4> LightViewSpacePositionAndRadius;
 StructuredBuffer<float4> LightViewSpaceDirAndPreprocAngle;
+StructuredBuffer<float4> LightViewSpaceRectPlanes;
+
+#define NUM_PLANES_PER_RECT_LIGHT 4
 
 #define REFINE_SPOTLIGHT_BOUNDS 1
 
@@ -243,12 +246,13 @@ void LightGridInjectionCS(
 			{
 				float4 ViewSpaceDirAndPreprocAngle = LightViewSpaceDirAndPreprocAngle[LocalLightIndex];
 				bool bIsRectLight = asuint(ViewSpaceDirAndPreprocAngle.w) & 0x1;
-				bool bIsTexturedLight = asuint(ViewSpaceDirAndPreprocAngle.w) & 0x2;
+				bool bUseTightRectLightCulling = asuint(ViewSpaceDirAndPreprocAngle.w) & 0x2;
+				bool bIsTexturedLight = asuint(ViewSpaceDirAndPreprocAngle.w) & 0x4;
 
 				bool bPassSpotLightTest = true;
 #if REFINE_SPOTLIGHT_BOUNDS
 				{
-					float TanConeAngle = asfloat(asuint(ViewSpaceDirAndPreprocAngle.w) & 0xFFFFFFFC);
+					float TanConeAngle = asfloat(asuint(ViewSpaceDirAndPreprocAngle.w) & 0xFFFFFFF8);
 
 					// Set to 0 for non-acute cones, or non-spot lights.
 					if (TanConeAngle > 0.0f)
@@ -268,7 +272,16 @@ void LightGridInjectionCS(
 
 						bPassRectLightTest = !AabbOutsidePlane(D, ViewTileExtent, Plane);
 
-						// TODO: Refine using spot light test when BarnDoorAngle < 90 degrees and BarnDoorLength > 0
+						if(bPassRectLightTest && bUseTightRectLightCulling)
+						{
+							for (uint PlaneIndex = 0; PlaneIndex < NUM_PLANES_PER_RECT_LIGHT; PlaneIndex++)
+							{
+								if (AabbOutsidePlane(ViewTileCenter, ViewTileExtent, LightViewSpaceRectPlanes[LocalLightIndex * NUM_PLANES_PER_RECT_LIGHT + PlaneIndex]))
+								{
+									bPassRectLightTest = false;
+								}
+							}
+						}
 					}
 				}
 #endif // REFINE_RECTLIGHT_BOUNDS
