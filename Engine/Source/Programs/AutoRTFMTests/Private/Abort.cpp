@@ -251,28 +251,12 @@ TEST_CASE("Abort.PushOnAbortHandler_WithPop_NoAbort")
 	int Value = 55;
 
 	AutoRTFM::Commit([&]
-		{
-			Value = 66;
-			AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { Value = 77; });
-			Value = 88;
-
-			AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
-		});
-
-	REQUIRE(Value == 88);
-}
-
-TEST_CASE("Abort.PushOnAbortHandler_WithPopAll_NoAbort")
-{
-	int Value = 55;
-
-	AutoRTFM::Commit([&]
 	{
 		Value = 66;
 		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 77; });
 		Value = 88;
 
-		AutoRTFM::PopAllOnAbortHandlers(UIntToPointer(747));
+		AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
 	});
 
 	REQUIRE(Value == 88);
@@ -297,67 +281,26 @@ TEST_CASE("Abort.PushOnAbortHandler_WithPop_WithAbort")
 	REQUIRE(Value == 55);
 }
 
-TEST_CASE("Abort.PushOnAbortHandler_WithPopAll_WithAbort")
-{
-	int Value = 55;
-
-	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
-	{
-		Value = 66;
-		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { Value = 77; });
-		Value = 88;
-
-		AutoRTFM::PopAllOnAbortHandlers(UIntToPointer(747));
-
-		AutoRTFM::AbortTransaction();
-	});
-
-	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
-	REQUIRE(Value == 55);
-}
-
 TEST_CASE("Abort.PushOnAbortHandler_Duplicates1")
 {
 	int Value = 55;
 
 	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
-		{
-			Value = 66;
-			AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { Value = 77; });
-			AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { Value = 88; });
-			Value = 99;
-
-			AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
-
-			AutoRTFM::AbortTransaction();
-		});
-
-	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
-
-	// The first push on abort will still go through.
-	REQUIRE(Value == 77);
-}
-
-TEST_CASE("Abort.PushOnAbortHandler_PopAll_Duplicates")
-{
-	int Value = 55;
-
-	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
 	{
 		Value = 66;
-		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { Value = 77; });
-		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { Value = 88; });
+		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 77; });
+		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 88; });
 		Value = 99;
 
-		AutoRTFM::PopAllOnAbortHandlers(UIntToPointer(747));
+		AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
 
 		AutoRTFM::AbortTransaction();
 	});
 
 	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
 
-	// No abort handlers should execute.
-	REQUIRE(Value == 55);
+	// The first push on abort will still go through.
+	REQUIRE(Value == 77);
 }
 
 TEST_CASE("Abort.PushOnAbortHandler_Duplicates2")
@@ -488,7 +431,7 @@ TEST_CASE("Abort.PushOnAbortHandler_Order")
 			const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
 				{
 					AutoRTFM::OnAbort([&Value] { REQUIRE(40 == Value); Value += 1; });
-
+					
 					// Make a child transaction.
 					AutoRTFM::Commit([&]
 						{
