@@ -76,12 +76,28 @@ VValue VNativeRef::Get(FAllocationContext Context, void* Container, FProperty* P
 	else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
 	{
 		void* NativeValue = StructProperty->ContainerPtrToValuePtr<void>(Container);
-
 		UVerseStruct* UeStruct = CastChecked<UVerseStruct>(StructProperty->Struct);
-		VNativeStruct& Struct = VNativeStruct::NewUninitialized(Context, *UeStruct->EmergentType);
-		StructProperty->CopyCompleteValue(Struct.GetStruct(), NativeValue);
-
-		return Struct;
+		if (UeStruct->EmergentType)
+		{ // It's a native struct
+			VNativeStruct& Struct = VNativeStruct::NewUninitialized(Context, *UeStruct->EmergentType);
+			StructProperty->CopyCompleteValue(Struct.GetStruct(), NativeValue);
+			return Struct;
+		}
+		else
+		{ // It's a tuple
+			uint32 NumElements = 0;
+			for (TFieldIterator<FProperty> Counter(UeStruct); Counter; ++Counter)
+			{
+				++NumElements;
+			}
+			TFieldIterator<FProperty> Iterator(UeStruct);
+			// We assume here that the element initializer gets invoked in ascending index order
+			return VArray::New(Context, NumElements, [Context, NativeValue, &Iterator](uint32 Index) {
+				VValue ElementValue = VNativeRef::Get(Context, NativeValue, *Iterator);
+				++Iterator;
+				return ElementValue;
+			});
+		}
 	}
 	else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
 	{
@@ -247,14 +263,43 @@ FOpResult VNativeRef::Set(FAllocationContext Context, BaseType Base, void* Conta
 	else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
 	{
 		V_REQUIRE_CONCRETE(Value);
-		V_DIE_UNLESS(Value.IsCellOfType<VNativeStruct>());
-		VNativeStruct& Struct = Value.StaticCast<VNativeStruct>();
-		checkSlow(VNativeStruct::GetUScriptStruct(*Struct.GetEmergentType()) == StructProperty->Struct);
 
-		return WriteImpl<bTransactional>(Context, Base, [StructProperty, Container, &Struct] {
-			void* ValuePtr = StructProperty->ContainerPtrToValuePtr<void>(Container);
-			StructProperty->CopyCompleteValue(ValuePtr, Struct.GetStruct());
-		});
+		UVerseStruct* UeStruct = CastChecked<UVerseStruct>(StructProperty->Struct);
+		if (UeStruct->EmergentType)
+		{ // It's a native struct
+			V_DIE_UNLESS(Value.IsCellOfType<VNativeStruct>());
+			VNativeStruct& Struct = Value.StaticCast<VNativeStruct>();
+			checkSlow(VNativeStruct::GetUScriptStruct(*Struct.GetEmergentType()) == UeStruct);
+
+			return WriteImpl<bTransactional>(Context, Base, [StructProperty, Container, &Struct] {
+				void* ValuePtr = StructProperty->ContainerPtrToValuePtr<void>(Container);
+				StructProperty->CopyCompleteValue(ValuePtr, Struct.GetStruct());
+			});
+		}
+		else
+		{ // It's a tuple
+			V_DIE_UNLESS(Value.IsCellOfType<VArrayBase>());
+			VArrayBase& Array = Value.StaticCast<VArrayBase>();
+			// Unpack to temporary storage first
+			TStringBuilderWithBuffer<char, 64> TempStorage;
+			TempStorage.AddUninitialized(UeStruct->GetStructureSize()); // Uses heap memory if inline storage is exceeded
+			FOpResult Result = WriteImpl<bTransactional>(Context, nullptr, [&] {
+				StructProperty->InitializeValue(TempStorage.GetData());
+			});
+			OP_RESULT_HELPER(Result);
+			TFieldIterator<FProperty> Iterator(StructProperty->Struct);
+			for (int32 Index = 0; Index < Array.Num(); ++Index, ++Iterator)
+			{
+				FOpResult ElemResult = VNativeRef::Set<false>(Context, nullptr, TempStorage.GetData(), *Iterator, Array.GetValue(Index));
+				OP_RESULT_HELPER(ElemResult);
+			}
+			// Upon success, copy temporary storage to final destination
+			return WriteImpl<bTransactional>(Context, Base, [StructProperty, Container, &TempStorage] {
+				void* ValuePtr = StructProperty->ContainerPtrToValuePtr<void>(Container);
+				StructProperty->CopyCompleteValue(ValuePtr, TempStorage.GetData());
+				StructProperty->DestroyValue(TempStorage.GetData());
+			});
+		}
 	}
 	else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
 	{

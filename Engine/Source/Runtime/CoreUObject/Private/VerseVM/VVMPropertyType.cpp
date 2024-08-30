@@ -3,6 +3,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMPropertyType.h"
 #include "VerseVM/Inline/VVMCellInline.h"
+#include "VerseVM/VVMTupleType.h"
 
 namespace Verse
 {
@@ -33,6 +34,14 @@ template <typename TVisitor>
 void VClassPropertyType::VisitReferencesImpl(TVisitor& Visitor)
 {
 	Visitor.Visit(ClassValue, TEXT("ClassValue"));
+}
+
+DEFINE_DERIVED_VCPPCLASSINFO(VTuplePropertyType)
+TGlobalTrivialEmergentTypePtr<&VTuplePropertyType::StaticCppClassInfo> VTuplePropertyType::GlobalTrivialEmergentType;
+template <typename TVisitor>
+void VTuplePropertyType::VisitReferencesImpl(TVisitor& Visitor)
+{
+	Visitor.Visit(Type, TEXT("Type"));
 }
 
 DEFINE_DERIVED_VCPPCLASSINFO(VWrappedPropertyType)

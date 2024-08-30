@@ -22,6 +22,7 @@
 #include "VerseVM/VVMMap.h"
 #include "VerseVM/VVMMutableArray.h"
 #include "VerseVM/VVMNativeString.h"
+#include "VerseVM/VVMNativeTuple.h"
 #include "VerseVM/VVMOpResult.h"
 #include "VerseVM/VVMOption.h"
 #include "VerseVM/VVMUnreachable.h"
@@ -183,6 +184,18 @@ struct FNativeConverter
 		return StaticVClass<typename TDecay<StructType>::Type>().NewNativeStruct(Context, Forward<StructType>(Struct));
 	}
 
+	template <typename... ElementTypes>
+	static VValue ToVValue(FAllocationContext Context, const TNativeTuple<ElementTypes...>& Tuple)
+	{
+		return ToVValue(Context, Tuple, std::make_index_sequence<sizeof...(ElementTypes)>());
+	}
+
+	template <typename... ElementTypes, size_t... Indices>
+	static VValue ToVValue(FAllocationContext Context, const TNativeTuple<ElementTypes...>& Tuple, std::index_sequence<Indices...>)
+	{
+		return VArray::New(Context, {ToVValue(Context, Tuple.template Get<Indices>())...});
+	}
+
 	template <class ElementType>
 	static VValue ToVValue(FAllocationContext Context, const TArray<ElementType>& Array)
 	{
@@ -297,6 +310,34 @@ struct FNativeConverter
 		V_REQUIRE_CONCRETE(Value);
 		OutNative.Value = &Value.StaticCast<VNativeStruct>().GetStruct<StructType>();
 		return {FOpResult::Return};
+	}
+
+	template <typename... ElementTypes>
+	static FOpResult FromVValue(FAllocationContext Context, const VValue Value, TFromVValue<TNativeTuple<ElementTypes...>>& OutNative)
+	{
+		return FromVValue(Context, Value, OutNative, std::make_index_sequence<sizeof...(ElementTypes)>());
+	}
+
+	template <typename... ElementTypes, size_t... Indices>
+	static FOpResult FromVValue(FAllocationContext Context, const VValue Value, TFromVValue<TNativeTuple<ElementTypes...>>& OutNative, std::index_sequence<Indices...>)
+	{
+		V_REQUIRE_CONCRETE(Value);
+		const VArrayBase& Array = Value.StaticCast<VArrayBase>();
+		FOpResult Result{FOpResult::Return};
+		auto ElementFromVValue = [&](const VValue ElementValue, auto& OutNativeElement) {
+			// Only convert this element if the previous element successfully converted
+			if (Result.Kind == FOpResult::Return)
+			{
+				TFromVValue<typename TRemoveReference<decltype(OutNativeElement)>::Type> NativeElement;
+				Result = FromVValue(Context, ElementValue, NativeElement);
+				if (Result.Kind == FOpResult::Return)
+				{
+					OutNativeElement = NativeElement.GetValue();
+				}
+			}
+		};
+		(ElementFromVValue(Array.GetValue(Indices), OutNative.Value.template Get<Indices>()), ...);
+		return Result;
 	}
 
 	template <class ElementType>

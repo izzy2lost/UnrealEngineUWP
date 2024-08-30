@@ -15,7 +15,8 @@ TGlobalTrivialEmergentTypePtr<&VProgram::StaticCppClassInfo> VProgram::GlobalTri
 template <typename TVisitor>
 void VProgram::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Map.Visit(Visitor, TEXT("PackageMap"));
+	PackageMap.Visit(Visitor, TEXT("PackageMap"));
+	TupleTypeMap.Visit(Visitor, TEXT("TupleTypeMap"));
 	Visitor.Visit(Intrinsics, TEXT("Intrinsics"));
 }
 

@@ -268,10 +268,11 @@ protected:
 
 		if (NumValues)
 		{
-			SetBufferWithoutStoreBarrier(Context, VBuffer(Context, NumValues, DetermineArrayType(InitFunc(0))));
+			VValue Elem0 = InitFunc(0); // Avoid invoking InitFunc twice for element 0
+			SetBufferWithoutStoreBarrier(Context, VBuffer(Context, NumValues, DetermineArrayType(Elem0)));
 			for (uint32 Index = 0; Index < NumValues; ++Index)
 			{
-				SetValue(Context, Index, InitFunc(Index));
+				SetValue(Context, Index, Index > 0 ? InitFunc(Index) : Elem0);
 			}
 		}
 	}

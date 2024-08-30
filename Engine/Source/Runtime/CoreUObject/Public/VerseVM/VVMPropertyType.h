@@ -8,8 +8,13 @@
 #include "VVMGlobalTrivialEmergentTypePtr.h"
 #include "VVMUniqueString.h"
 
+class UVerseStruct;
+
 namespace Verse
 {
+
+struct VPackage;
+struct VTupleType;
 
 // These property types are similar to the uLang::ETypeKind enumeration but without the extra types
 enum class EPropertyType : uint8
@@ -155,6 +160,28 @@ protected:
 		, ClassValue(Context, InClassValue)
 	{
 	}
+};
+
+struct VTuplePropertyType final : VPropertyType
+{
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VPropertyType);
+	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+
+	VTupleType* GetType() const { return Type.Get(); }
+
+	static VTuplePropertyType& New(FAllocationContext Context, VTupleType* Type)
+	{
+		return *new (Context.AllocateFastCell(sizeof(VTuplePropertyType))) VTuplePropertyType(Context, Type);
+	}
+
+private:
+	VTuplePropertyType(FAllocationContext Context, VTupleType* InType)
+		: VPropertyType(Context, EPropertyType::Tuple, &GlobalTrivialEmergentType.Get(Context))
+		, Type(Context, InType)
+	{
+	}
+
+	TWriteBarrier<VTupleType> Type;
 };
 
 struct VWrappedPropertyType : VPropertyType

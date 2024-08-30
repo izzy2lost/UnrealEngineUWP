@@ -23,6 +23,7 @@ struct FAllocationContext;
 struct VClass;
 struct VPackage;
 struct VPropertyType;
+struct VTupleType;
 enum class EPackageStage : uint8;
 class CSymbolToResult;
 
@@ -33,7 +34,7 @@ public:
 	// Bind a VNI structure
 	virtual void TryBindVniStruct(UStruct* Struct) = 0;
 
-	// Bind a VNT enumaration
+	// Bind a VNI enumeration
 	virtual void TryBindVniEnum(UEnum* Enum) = 0;
 
 	// Add persistent vars
@@ -57,6 +58,9 @@ public:
 
 	// Create a new UClass/UScriptStruct from an existing VClass during native binding or for CVarUObjectProbability.
 	virtual void CreateUStruct(FAllocationContext Context, VClass* Class, TWriteBarrier<VValue>& Result) = 0;
+
+	// Create a new UScriptStruct for a given tuple type
+	virtual void CreateUStruct(FAllocationContext Context, VTupleType* Tuple, VPackage* Scope, TWriteBarrier<VValue>& Result) = 0;
 #endif // WITH_VERSE_VM
 };
 } // namespace Verse
