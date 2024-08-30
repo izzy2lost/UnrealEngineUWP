@@ -1,14 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MeshPaintModeCommands.h"
+
 #include "MeshPaintMode.h"
+#include "MeshTexturePaintingTool.h"
+#include "MeshVertexPaintingTool.h"
 
 #define LOCTEXT_NAMESPACE "MeshPaintEditorModeCommands"
 
 void FMeshPaintingToolActionCommands::GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs)
 {
 	ToolCDOs.Add(GetMutableDefault<USingleSelectionTool>());
-	ToolCDOs.Add(GetMutableDefault<UMeshColorPaintingTool>());
+	ToolCDOs.Add(GetMutableDefault<UMeshVertexColorPaintingTool>());
 }
 
 void FMeshPaintingToolActionCommands::RegisterAllToolActions()

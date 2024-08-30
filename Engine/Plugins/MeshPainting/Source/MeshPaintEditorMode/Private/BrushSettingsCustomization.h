@@ -36,10 +36,6 @@ public:
 
 	/** IPropertyTypeCustomization interface */
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
-
-protected:
-	/** Property restriction applied to blend paint enum dropdown box */
-	TSharedPtr<FPropertyRestriction> BlendPaintEnumRestriction;
 };
 
 class FVertexColorPaintingSettingsCustomization : public FVertexPaintingSettingsCustomization
@@ -60,6 +56,9 @@ public:
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
 
 protected:
+	/** Property restriction applied to blend paint enum dropdown box */
+	TSharedPtr<FPropertyRestriction> BlendPaintEnumRestriction;
+
 	/** Callback for when texture weight type changed so we can update restrictions */
 	void OnTextureWeightTypeChanged(TSharedRef<IPropertyHandle> WeightTypeProperty, TSharedRef<IPropertyHandle> PaintWeightProperty, TSharedRef<IPropertyHandle> EraseWeightProperty);
 };

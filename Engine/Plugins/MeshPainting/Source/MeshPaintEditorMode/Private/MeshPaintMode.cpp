@@ -22,6 +22,7 @@
 #include "MeshPaintModeHelpers.h"
 #include "MeshSelect.h"
 #include "MeshTexturePaintingTool.h"
+#include "MeshVertexPaintingTool.h"
 #include "Modules/ModuleManager.h"
 #include "LevelEditor.h"
 #include "TexturePaintToolset.h"
@@ -46,13 +47,20 @@ FString UMeshPaintMode::TextureColorPaintToolName = TEXT("TextureColorBrushTool"
 FString UMeshPaintMode::TextureAssetPaintToolName = TEXT("TextureBrushTool");
 
 
+UMeshPaintMode* UMeshPaintMode::GetMeshPaintMode()
+{
+	return Cast<UMeshPaintMode>(GLevelEditorModeTools().GetActiveScriptableMode("MeshPaintMode"));
+}
+
 template<typename T>
 static T* GetTypedToolProperties()
 {
-	if (GLevelEditorModeTools().GetActiveScriptableMode("MeshPaintMode")
-		&& GLevelEditorModeTools().GetActiveScriptableMode("MeshPaintMode")->GetToolManager()->GetActiveTool(EToolSide::Mouse))
+	UMeshPaintMode* MeshPaintMode = UMeshPaintMode::GetMeshPaintMode();
+	UInteractiveToolManager* ToolManager = MeshPaintMode != nullptr ? MeshPaintMode->GetToolManager() : nullptr;
+	UInteractiveTool* Tool = ToolManager != nullptr ? ToolManager->GetActiveTool(EToolSide::Mouse) : nullptr;
+	if (Tool != nullptr)
 	{
-		TArray<UObject*> PropertyArray = GLevelEditorModeTools().GetActiveScriptableMode("MeshPaintMode")->GetToolManager()->GetActiveTool(EToolSide::Mouse)->GetToolProperties();
+		const TArray<UObject*> PropertyArray = Tool->GetToolProperties();
 		for (UObject* Property : PropertyArray)
 		{
 			if (T* FoundProperty = Cast<T>(Property))
@@ -99,11 +107,6 @@ UMeshTextureAssetPaintingToolProperties* UMeshPaintMode::GetTextureAssetToolProp
 	return GetTypedToolProperties<UMeshTextureAssetPaintingToolProperties>();
 }
 
-UMeshPaintMode* UMeshPaintMode::GetMeshPaintMode()
-{
-	return Cast<UMeshPaintMode>(GLevelEditorModeTools().GetActiveScriptableMode("MeshPaintMode"));
-}
-
 
 UMeshPaintMode::UMeshPaintMode()
 	: Super()
@@ -138,10 +141,10 @@ void UMeshPaintMode::Enter()
 	UTextureAssetAdapterClickToolBuilder* TextureAssetClickToolBuilder = NewObject<UTextureAssetAdapterClickToolBuilder>(this);
 	RegisterTool(ToolManagerCommands.SelectTextureAsset, TextureAssetSelectToolName, TextureAssetClickToolBuilder);
 
-	UMeshColorPaintingToolBuilder* MeshColorPaintingToolBuilder = NewObject<UMeshColorPaintingToolBuilder>(this);
+	UMeshVertexColorPaintingToolBuilder* MeshColorPaintingToolBuilder = NewObject<UMeshVertexColorPaintingToolBuilder>(this);
 	RegisterTool(ToolManagerCommands.PaintVertexColor, VertexColorPaintToolName, MeshColorPaintingToolBuilder);
 
-	UMeshWeightPaintingToolBuilder* WeightPaintingToolBuilder = NewObject<UMeshWeightPaintingToolBuilder>(this);
+	UMeshVertexWeightPaintingToolBuilder* WeightPaintingToolBuilder = NewObject<UMeshVertexWeightPaintingToolBuilder>(this);
 	RegisterTool(ToolManagerCommands.PaintVertexWeight, VertexWeightPaintToolName, WeightPaintingToolBuilder);
 
 	UMeshTextureColorPaintingToolBuilder* MeshTextureColorPaintingToolBuilder = NewObject<UMeshTextureColorPaintingToolBuilder>(this);
@@ -378,9 +381,9 @@ void UMeshPaintMode::OnToolStarted(UInteractiveToolManager* Manager, UInteractiv
 
 void UMeshPaintMode::OnVertexPaintFinished()
 {
-	if (UMeshVertexColorPaintingToolProperties* ColorPaintingToolProperties = UMeshPaintMode::GetVertexColorToolProperties())
+	if (UMeshVertexPaintingToolProperties* VertexPaintingToolProperties = UMeshPaintMode::GetVertexToolProperties())
 	{
-		if (!ColorPaintingToolProperties->bPaintOnSpecificLOD)
+		if (!VertexPaintingToolProperties->bPaintOnSpecificLOD)
 		{
 			PropagateVertexColorsToLODs();
 		}
@@ -389,7 +392,6 @@ void UMeshPaintMode::OnVertexPaintFinished()
 			if (UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>())
 			{
 				bRecacheDataSizes = true;
-
 				MeshPaintingSubsystem->Refresh();
 			}
 		}
@@ -495,7 +497,7 @@ void UMeshPaintMode::FillVertexColors()
 	FColor FillColor = FColor::White;
 	FColor MaskColor = FColor::White;
 
-	if (GetToolManager()->GetActiveTool(EToolSide::Mouse)->IsA<UMeshWeightPaintingTool>())
+	if (GetToolManager()->GetActiveTool(EToolSide::Mouse)->IsA<UMeshVertexWeightPaintingTool>())
 	{
 		FillColor = MeshPaintingSubsystem->GenerateColorForTextureWeight((int32)GetVertexWeightToolProperties()->TextureWeightType, (int32)GetVertexWeightToolProperties()->PaintTextureWeightIndex).ToFColor(bConvertSRGB);
 	}
@@ -522,17 +524,16 @@ void UMeshPaintMode::FillVertexColors()
 			MeshAdapter->PreEdit();
 		}
 
-		UMeshVertexColorPaintingToolProperties* ColorProperties = UMeshPaintMode::GetVertexColorToolProperties();
-		
-		const bool bPaintOnSpecificLOD = ColorProperties ? ColorProperties->bPaintOnSpecificLOD : false;
+		UMeshVertexPaintingToolProperties* VertexProperties = UMeshPaintMode::GetVertexToolProperties();
+		const bool bPaintOnSpecificLOD = VertexProperties ? VertexProperties->bPaintOnSpecificLOD : false;
 
 		if (Component->IsA<UStaticMeshComponent>())
 		{
-			MeshPaintingSubsystem->FillStaticMeshVertexColors(Cast<UStaticMeshComponent>(Component), bPaintOnSpecificLOD ? ColorProperties->LODIndex : -1, FillColor, MaskColor);
+			MeshPaintingSubsystem->FillStaticMeshVertexColors(Cast<UStaticMeshComponent>(Component), bPaintOnSpecificLOD ? VertexProperties->LODIndex : -1, FillColor, MaskColor);
 		}
 		else if (Component->IsA<USkeletalMeshComponent>())
 		{
-			GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->FillSkeletalMeshVertexColors(Cast<USkeletalMeshComponent>(Component), bPaintOnSpecificLOD ? ColorProperties->LODIndex : -1, FillColor, MaskColor);
+			GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->FillSkeletalMeshVertexColors(Cast<USkeletalMeshComponent>(Component), bPaintOnSpecificLOD ? VertexProperties->LODIndex : -1, FillColor, MaskColor);
 		}
 		else if (MeshAdapter) 			// We don't have a custom fill function for this type of component; try to go through the adapter.
 		{
@@ -661,9 +662,9 @@ bool UMeshPaintMode::CanRemoveInstanceVertexColors() const
 {
 	const TArray<UStaticMeshComponent*> StaticMeshComponents = GetSelectedComponents<UStaticMeshComponent>();
 	int32 PaintingMeshLODIndex = 0;
-	if (UMeshVertexColorPaintingToolProperties* ColorProperties = UMeshPaintMode::GetVertexColorToolProperties())
+	if (UMeshVertexPaintingToolProperties* VertexProperties = UMeshPaintMode::GetVertexToolProperties())
 	{
-		PaintingMeshLODIndex = ColorProperties->bPaintOnSpecificLOD ? ColorProperties->LODIndex : 0;
+		PaintingMeshLODIndex = VertexProperties->bPaintOnSpecificLOD ? VertexProperties->LODIndex : 0;
 	}
 	int32 NumValidMeshes = 0;
 	// Retrieve per instance vertex color information (only valid if the component contains actual instance vertex colors)
@@ -694,9 +695,9 @@ bool UMeshPaintMode::CanCopyInstanceVertexColors() const
 {
 	const TArray<UStaticMeshComponent*> StaticMeshComponents = GetSelectedComponents<UStaticMeshComponent>();
 	int32 PaintingMeshLODIndex = 0;
-	if (UMeshVertexColorPaintingToolProperties* ColorProperties = UMeshPaintMode::GetVertexColorToolProperties())
+	if (UMeshVertexPaintingToolProperties* VertexProperties = UMeshPaintMode::GetVertexToolProperties())
 	{
-		PaintingMeshLODIndex = ColorProperties->bPaintOnSpecificLOD ? ColorProperties->LODIndex : 0;
+		PaintingMeshLODIndex = VertexProperties->bPaintOnSpecificLOD ? VertexProperties->LODIndex : 0;
 	}
 
 	return GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->CanCopyInstanceVertexColors(StaticMeshComponents, PaintingMeshLODIndex);
@@ -706,9 +707,9 @@ bool UMeshPaintMode::CanCopyInstanceVertexColors() const
 bool UMeshPaintMode::CanPropagateVertexColorsToLODs() const
 {
 	bool bPaintOnSpecificLOD = false;
-	if (UMeshVertexColorPaintingToolProperties* ColorProperties = UMeshPaintMode::GetVertexColorToolProperties())
+	if (UMeshVertexPaintingToolProperties* VertexProperties = UMeshPaintMode::GetVertexToolProperties())
 	{
-		bPaintOnSpecificLOD = ColorProperties ? ColorProperties->bPaintOnSpecificLOD : false;
+		bPaintOnSpecificLOD = VertexProperties ? VertexProperties->bPaintOnSpecificLOD : false;
 	}
 	// Can propagate when the mesh contains per-lod vertex colors or when we are not painting to a specific lod
 	const bool bSelectionContainsPerLODColors = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->SelectionContainsPerLODColors();
@@ -827,19 +828,16 @@ void UMeshPaintMode::PropagateVertexColorsToLODs()
 template<typename ComponentClass>
 TArray<ComponentClass*> UMeshPaintMode::GetSelectedComponents() const
 {
-	TArray<ComponentClass*> Components;
 	FToolBuilderState SelectionState;
 	GetToolManager()->GetContextQueriesAPI()->GetCurrentSelectionState(SelectionState);
-//	if (PaintSettings->PaintMode == EPaintMode::Textures)
-	{
 
-		for (int32 SelectionIndex = 0; SelectionIndex < SelectionState.SelectedComponents.Num(); ++SelectionIndex)
+	TArray<ComponentClass*> Components;
+	for (int32 SelectionIndex = 0; SelectionIndex < SelectionState.SelectedComponents.Num(); ++SelectionIndex)
+	{
+		ComponentClass* SelectedComponent = Cast<ComponentClass>(SelectionState.SelectedComponents[SelectionIndex]);
+		if (SelectedComponent)
 		{
-			ComponentClass* SelectedComponent = Cast<ComponentClass>(SelectionState.SelectedComponents[SelectionIndex]);
-			if (SelectedComponent)
-			{
-				Components.AddUnique(SelectedComponent);
-			}
+			Components.AddUnique(SelectedComponent);
 		}
 	}
 
@@ -893,14 +891,12 @@ void UMeshPaintMode::UpdateCachedDataSizes()
 	bRecacheDataSizes = false;
 }
 
-
-
 void UMeshPaintMode::CycleMeshLODs(int32 Direction)
 {
-	if (UMeshColorPaintingTool* ColorPaintingTool = Cast<UMeshColorPaintingTool>(GetToolManager()->GetActiveTool(EToolSide::Left)))
+	if (UMeshVertexPaintingTool* VertexPaintingTool = Cast<UMeshVertexPaintingTool>(GetToolManager()->GetActiveTool(EToolSide::Left)))
 	{
 		FScopedTransaction Transaction(LOCTEXT("LevelMeshPainter_CycleLOD", "Changed Current LOD"));
-		ColorPaintingTool->CycleMeshLODs(Direction);
+		VertexPaintingTool->CycleMeshLODs(Direction);
 	}
 }
 
@@ -918,7 +914,6 @@ bool UMeshPaintMode::CanCycleTextures() const
 	UMeshTextureAssetPaintingTool* TexturePaintingTool = Cast<UMeshTextureAssetPaintingTool>(GetToolManager()->GetActiveTool(EToolSide::Left));
 	return TexturePaintingTool != nullptr;
 }
-
 
 void UMeshPaintMode::ActivateDefaultTool()
 {

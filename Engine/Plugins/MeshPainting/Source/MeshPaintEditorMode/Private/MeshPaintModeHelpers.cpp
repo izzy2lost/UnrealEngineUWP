@@ -39,6 +39,7 @@
 #include "MeshPaintMode.h"
 #include "MeshPaintVisualize.h"
 #include "MeshTexturePaintingTool.h"
+#include "MeshVertexPaintingTool.h"
 #include "InterchangeAssetImportData.h"
 #include "InterchangeGenericAssetsPipeline.h"
 #include "InterchangePythonPipelineBase.h"
@@ -679,7 +680,7 @@ bool UMeshPaintModeSubsystem::CanPropagateVertexColors(TArray<UStaticMeshCompone
 		}
 
 		int32 CachedLODIndex = 0;
-		if (UMeshColorPaintingTool* ColorPaintingTool = Cast<UMeshColorPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)))
+		if (UMeshVertexColorPaintingTool* ColorPaintingTool = Cast<UMeshVertexColorPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)))
 		{
 			CachedLODIndex = ColorPaintingTool->GetCachedLODIndex();
 		}

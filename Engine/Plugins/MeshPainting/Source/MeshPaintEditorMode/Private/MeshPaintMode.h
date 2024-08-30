@@ -3,13 +3,13 @@
 #pragma once
 
 #include "Tools/UEdMode.h"
-#include "MeshVertexPaintingTool.h"
 #include "Tools/LegacyEdModeInterfaces.h"
 #include "MeshPaintMode.generated.h"
 
 class UMeshPaintingToolProperties;
 class UMeshVertexPaintingToolProperties;
 class UMeshVertexColorPaintingToolProperties;
+class UMeshVertexWeightPaintingToolProperties;
 class UMeshTexturePaintingToolProperties;
 class UMeshTextureColorPaintingToolProperties;
 class UMeshTextureAssetPaintingToolProperties;

@@ -102,7 +102,7 @@ class MESHPAINTINGTOOLSET_API UMeshTextureColorPaintingToolProperties : public U
 	GENERATED_BODY()
 
 public:
-	/** Whether to copy texture color painting to vertex colors on Apply. */
+	/** Whether to copy all texture color painting to vertex colors. */
 	UPROPERTY(EditAnywhere, Category = ColorPainting)
 	bool bPropagateToVertexColor = false;
 };
@@ -137,6 +137,16 @@ class MESHPAINTINGTOOLSET_API UMeshTexturePaintingTool : public UBaseBrushTool, 
 public:
 	UMeshTexturePaintingTool();
 
+	DECLARE_DELEGATE_OneParam(FOnPaintingFinishedDelegate, UMeshComponent*);
+	FOnPaintingFinishedDelegate& OnPaintingFinished() { return OnPaintingFinishedDelegate; }
+
+	void FloodCurrentPaintTexture();
+
+	virtual void GetModifiedTexturesToSave(TArray<UObject*>& OutTexturesToSave) const {}
+	virtual int32 GetSelectedUVChannel(UMeshComponent const* InMeshComponent) const { return 0; }
+
+protected:
+	// Begin UInteractiveTool Interface.
 	virtual void Setup() override;
 	virtual void Shutdown(EToolShutdownType ShutdownType) override;
 	virtual void Render(IToolsContextRenderAPI* RenderAPI) override;
@@ -152,16 +162,8 @@ public:
 	virtual	bool HitTest(const FRay& Ray, FHitResult& OutHit) override;
 	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
 	virtual double EstimateMaximumTargetDimension() override;
-	virtual bool IsPainting() const { return bArePainting; }
+	// End UInteractiveTool Interface.
 
-	DECLARE_DELEGATE_OneParam(FOnPaintingFinishedDelegate, UMeshComponent*);
-	FOnPaintingFinishedDelegate& OnPaintingFinished() { return OnPaintingFinishedDelegate; }
-
-	void FloodCurrentPaintTexture();
-	
-	virtual void GetModifiedTexturesToSave(TArray<UObject*>& OutTexturesToSave) const {}
-
-protected:
 	FPaintTexture2DData* GetPaintTargetData(const UTexture2D* InTexture);
 	FPaintTexture2DData* AddPaintTargetData(UTexture2D* InTexture);
 	
@@ -169,7 +171,6 @@ protected:
 	void ClearAllTextureOverrides();
 
 	virtual UTexture2D* GetSelectedPaintTexture(UMeshComponent const* InMeshComponent) const { return nullptr; }
-	virtual int32 GetSelectedUVChannel(UMeshComponent const* InMeshComponent) const { return 0; }
 	virtual void CacheTexturePaintData() {}
 	virtual bool CanPaintTextureToComponent(UTexture* InTexture, UMeshComponent const* InMeshComponent) const { return false; }
 
@@ -188,12 +189,6 @@ private:
 	void FinishPainting();
 
 protected:
-	UPROPERTY(Transient)
-	TObjectPtr<UMeshPaintSelectionMechanic> SelectionMechanic;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UMeshTexturePaintingToolProperties> TextureProperties;
-
 	/** Textures eligible for painting retrieved from the current selection */
 	TArray<FPaintableTexture> PaintableTextures;
 
@@ -201,11 +196,18 @@ protected:
 	UPROPERTY(Transient)
 	TMap<TObjectPtr<UTexture2D>, FPaintTexture2DData> PaintTargetData;
 
+private:
+	UPROPERTY(Transient)
+	TObjectPtr<UMeshPaintSelectionMechanic> SelectionMechanic;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMeshTexturePaintingToolProperties> TextureProperties;
+
 	/** The original texture that we're painting */
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> PaintingTexture2D;
 
-	/** The mesh components that we're currently painting */
+	/** The mesh component that we're currently painting on */
 	UPROPERTY(Transient)
 	TObjectPtr<UMeshComponent> TexturePaintingCurrentMeshComponent;
 
@@ -244,6 +246,7 @@ class MESHPAINTINGTOOLSET_API UMeshTextureColorPaintingTool : public UMeshTextur
 public:
 	UMeshTextureColorPaintingTool();
 
+protected:
 	// Begin UInteractiveTool Interface.
 	virtual void Setup() override;
 	// End UInteractiveTool Interface.
@@ -258,7 +261,7 @@ public:
 	virtual bool CanPaintTextureToComponent(UTexture* InTexture, UMeshComponent const* InMeshComponent) const override;
 	// End UMeshTexturePaintingTool Interface.
 
-protected:
+private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMeshTextureColorPaintingToolProperties> ColorProperties;
 };
@@ -276,6 +279,18 @@ class MESHPAINTINGTOOLSET_API UMeshTextureAssetPaintingTool : public UMeshTextur
 public:
 	UMeshTextureAssetPaintingTool();
 	
+	/** Change selected texture to previous or next available. */
+	void CycleTextures(int32 Direction);
+
+	/** Get the selected paint texture, and return the modified overriden texture if currently painting. */
+	UTexture* GetSelectedPaintTextureWithOverride() const;
+
+	/** Returns true if asset shouldn't be shown in UI because it is not in our paintable texture array. */
+	bool ShouldFilterTextureAsset(const FAssetData& AssetData) const;
+
+	virtual int32 GetSelectedUVChannel(UMeshComponent const* InMeshComponent) const override;
+
+protected:
 	// Begin UInteractiveTool Interface.
 	virtual void Setup() override;
 	// End UInteractiveTool Interface.
@@ -285,21 +300,12 @@ public:
 	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
 	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
 	virtual UTexture2D* GetSelectedPaintTexture(UMeshComponent const* InMeshComponent) const override;
-	virtual int32 GetSelectedUVChannel(UMeshComponent const* InMeshComponent) const override;
 	virtual void GetModifiedTexturesToSave(TArray<UObject*>& OutTexturesToSave) const override;
 	virtual void CacheTexturePaintData() override;
 	virtual bool CanPaintTextureToComponent(UTexture* InTexture, UMeshComponent const* InMeshComponent) const override;
 	// End UMeshTexturePaintingTool Interface.
 
-	/** Change selected texture to previous or next available. */
-	void CycleTextures(int32 Direction);
-	/** Get the selected paint texture, and return the modified overriden texture if currently painting. */
-	UTexture* GetSelectedPaintTextureWithOverride() const;
-
-	/** Returns true if asset shouldn't be shown in UI because it is not in our paintable texture array. */
-	bool ShouldFilterTextureAsset(const FAssetData& AssetData) const;
-
-protected:
+private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMeshTextureAssetPaintingToolProperties> AssetProperties;
 };

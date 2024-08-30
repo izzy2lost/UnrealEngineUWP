@@ -17,6 +17,7 @@
 #include "MeshPaintHelpers.h"
 #include "MeshPaintModeHelpers.h"
 #include "MeshTexturePaintingTool.h"
+#include "MeshVertexPaintingTool.h"
 #include "ContentBrowserDelegates.h"
 #include "GeometryCollection/GeometryCollectionComponent.h"
 
@@ -179,6 +180,115 @@ TSharedRef<IDetailCustomization> FVertexPaintingSettingsCustomization::MakeInsta
 
 void FVertexPaintingSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
 {
+	IDetailCategoryBuilder& VertexCategory = DetailLayout.EditCategory(TEXT("VertexPainting"));
+
+	/** Add custom row for painting on specific LOD level with callbacks to the painter to update the data */
+	TSharedRef<IPropertyHandle> LODPaintingEnabled = DetailLayout.GetProperty("bPaintOnSpecificLOD", UMeshVertexPaintingToolProperties::StaticClass());
+	LODPaintingEnabled->MarkHiddenByCustomization();
+	TSharedRef<IPropertyHandle> LODPaintingIndex = DetailLayout.GetProperty("LODIndex", UMeshVertexPaintingToolProperties::StaticClass());
+	LODPaintingIndex->MarkHiddenByCustomization();
+	TSharedPtr<SWidget> LODIndexWidget = LODPaintingIndex->CreatePropertyValueWidget();
+
+	VertexCategory.AddCustomRow(NSLOCTEXT("LODPainting", "LODPaintingLabel", "LOD Model Painting"))
+	.NameContent()
+	[
+		SNew(STextBlock)
+		.Text(NSLOCTEXT("LODPainting", "LODPaintingSetupLabel", "LOD Model Painting"))
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+		.ToolTipText(NSLOCTEXT("LODPainting", "LODPaintingSetupToolTip", "Allows for Painting Vertex Colors on Specific LOD Models."))
+	]
+	.ValueContent()
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.Padding(0.0f, 0.0f, 4.0f, 0.0f)
+		.AutoWidth()
+		[
+			SNew(SCheckBox)
+			.IsChecked_Lambda([=]() -> ECheckBoxState 
+			{
+				return (UMeshPaintMode::GetVertexToolProperties() && UMeshPaintMode::GetVertexToolProperties()->bPaintOnSpecificLOD ? ECheckBoxState::Checked : ECheckBoxState::Unchecked); 
+			})
+			.OnCheckStateChanged(FOnCheckStateChanged::CreateLambda([=](ECheckBoxState State) 
+			{ 
+				if (UMeshVertexPaintingTool* VertexBrush = Cast<UMeshVertexPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)))
+				{
+					VertexBrush->LODPaintStateChanged(State == ECheckBoxState::Checked);
+				}
+			}))
+		]
+		+ SHorizontalBox::Slot()
+		.Padding(0.0f, 0.0f, 4.0f, 0.0f)
+		[
+			SNew(SNumericEntryBox<int32>)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.IsEnabled_Lambda([=]() -> bool 
+			{
+				return UMeshPaintMode::GetVertexToolProperties() ? UMeshPaintMode::GetVertexToolProperties()->bPaintOnSpecificLOD : false;  
+			})
+			.AllowSpin(true)
+			.Value_Lambda([=]() -> int32 
+			{
+				return UMeshPaintMode::GetVertexToolProperties() ? UMeshPaintMode::GetVertexToolProperties()->LODIndex : 0; 
+			})
+			.MinValue(0)
+			.MaxValue_Lambda([=]() -> int32 
+			{ 
+				if (UMeshVertexPaintingTool* VertexBrush = Cast<UMeshVertexPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)))
+				{
+					return VertexBrush->GetMaxLODIndexToPaint();
+				}
+				return INT_MAX;
+			})
+			.MaxSliderValue_Lambda([=]() -> int32 
+			{ 
+				if (UMeshVertexPaintingTool* VertexBrush = Cast<UMeshVertexPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)))
+				{
+					return VertexBrush->GetMaxLODIndexToPaint();
+				}
+				return INT_MAX;
+			})
+			.OnValueChanged(SNumericEntryBox<int32>::FOnValueChanged::CreateLambda([=](int32 Value) { UMeshPaintMode::GetVertexToolProperties()->LODIndex = Value; }))
+			.OnValueCommitted(SNumericEntryBox<int32>::FOnValueCommitted::CreateLambda([=](int32 Value, ETextCommit::Type CommitType)
+			{ 
+				UMeshPaintMode::GetVertexToolProperties()->LODIndex = Value; 
+				if (UMeshVertexPaintingTool* VertexBrush = Cast<UMeshVertexPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)))
+				{
+					VertexBrush->PaintLODChanged();
+				}
+			}))
+		]
+	];
+
+	VertexCategory.AddCustomRow(NSLOCTEXT("LODPainting", "LODPaintingLabel", "LOD Model Painting"))
+	.WholeRowContent()
+	[
+		SNew(SWarningOrErrorBox)
+		.Visibility_Lambda([this]() -> EVisibility
+		{
+			if (UMeshVertexPaintingToolProperties* VertexProperties = UMeshPaintMode::GetVertexToolProperties())
+			{
+				return VertexProperties->bPaintOnSpecificLOD ? EVisibility::Collapsed : EVisibility::Visible;
+			}
+			return EVisibility::Collapsed;
+		})
+		.Message_Lambda([this]() -> FText
+		{
+			static const FText SkelMeshNotificationText = LOCTEXT("SkelMeshAssetPaintInfo", "Paint is propagated to Skeletal Mesh Asset(s)");
+			static const FText StaticMeshNotificationText = LOCTEXT("StaticMeshAssetPaintInfo", "Paint is applied to all LODs");
+			static const FText GeometryCollectionNotificationText = LOCTEXT("GeometryCollectionAssetPaintInfo", "Paint is propagated to Geometry Collection Asset(s), and Geometry Collection does not currently support LODs.");
+
+			const bool bGeometryCollectionText = UMeshPaintMode::GetMeshPaintMode()->GetSelectedComponents<UGeometryCollectionComponent>().Num() > 0;
+			const bool bSkelMeshText = UMeshPaintMode::GetMeshPaintMode()->GetSelectedComponents<USkeletalMeshComponent>().Num() > 0;
+			const bool bLODPaintText = UMeshPaintMode::GetVertexToolProperties() ?  !UMeshPaintMode::GetVertexToolProperties()->bPaintOnSpecificLOD : false;
+			return FText::Format(FTextFormat::FromString(TEXT("{0}{1}{2}{3}")), 
+				bSkelMeshText ? SkelMeshNotificationText : FText::GetEmpty(),
+				bGeometryCollectionText ? GeometryCollectionNotificationText : FText::GetEmpty(),
+				bSkelMeshText && bLODPaintText ? FText::FromString(TEXT("\n")) : FText::GetEmpty(),
+				bLODPaintText ? StaticMeshNotificationText : FText::GetEmpty()
+				);
+		})
+	];
 }
 
 
@@ -194,7 +304,6 @@ void FVertexColorPaintingSettingsCustomization::CustomizeDetails(IDetailLayoutBu
 
 	IDetailCategoryBuilder& ColorCategory = DetailLayout.EditCategory(TEXT("ColorPainting"));
 	ColorCategory.SetSortOrder(0);
-	IDetailCategoryBuilder& VertexCategory = DetailLayout.EditCategory(TEXT("VertexPainting"));
 
 	/** Creates a custom widget row containing all color channel flags */
 	TSharedRef<IPropertyHandle> RedChannel = DetailLayout.GetProperty("bWriteRed", UMeshVertexColorPaintingToolProperties::StaticClass());
@@ -209,17 +318,18 @@ void FVertexColorPaintingSettingsCustomization::CustomizeDetails(IDetailLayoutBu
 	TSharedPtr<SHorizontalBox> ChannelsWidget;
 
 	ColorCategory.AddCustomRow(NSLOCTEXT("VertexPaintSettings", "ChannelLabel", "Channels"))
-		.NameContent()
-		[
-			SNew(STextBlock)
-			.Text(NSLOCTEXT("VertexPaintSettings", "ChannelsLabel", "Channels"))
-			.ToolTipText(NSLOCTEXT("VertexPaintSettings", "ChannelsToolTip", "Colors Channels which should be influenced during Painting."))
-		]
-		.ValueContent()
-		.MaxDesiredWidth(250.0f)
-		[
-			SAssignNew(ChannelsWidget, SHorizontalBox)
-		];
+	.NameContent()
+	[
+		SNew(STextBlock)
+		.Text(NSLOCTEXT("VertexPaintSettings", "ChannelsLabel", "Channels"))
+		.ToolTipText(NSLOCTEXT("VertexPaintSettings", "ChannelsToolTip", "Colors Channels which should be influenced during Painting."))
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+	]
+	.ValueContent()
+	.MaxDesiredWidth(250.0f)
+	[
+		SAssignNew(ChannelsWidget, SHorizontalBox)
+	];
 
 	for (TSharedRef<IPropertyHandle> Channel : Channels)
 	{
@@ -230,102 +340,6 @@ void FVertexColorPaintingSettingsCustomization::CustomizeDetails(IDetailLayoutBu
 			CreateColorChannelWidget(Channel)
 		];
 	}
-
-	static FText RestrictReason = NSLOCTEXT("VertexPaintSettings", "TextureIndexRestriction", "Unable to paint this Texture, change Texture Weight Type");
-	BlendPaintEnumRestriction = MakeShareable(new FPropertyRestriction(RestrictReason));
-
-	/** Add custom row for painting on specific LOD level with callbacks to the painter to update the data */
-	TSharedRef<IPropertyHandle> LODPaintingEnabled = DetailLayout.GetProperty("bPaintOnSpecificLOD", UMeshVertexColorPaintingToolProperties::StaticClass());
-	LODPaintingEnabled->MarkHiddenByCustomization();
-	TSharedRef<IPropertyHandle> LODPaintingIndex = DetailLayout.GetProperty("LODIndex", UMeshVertexColorPaintingToolProperties::StaticClass());
-	LODPaintingIndex->MarkHiddenByCustomization();
-	TSharedPtr<SWidget> LODIndexWidget = LODPaintingIndex->CreatePropertyValueWidget();
-
-	VertexCategory.AddCustomRow(NSLOCTEXT("LODPainting", "LODPaintingLabel", "LOD Model Painting"))
-		.NameContent()
-		[
-			SNew(STextBlock)
-			.Text(NSLOCTEXT("LODPainting", "LODPaintingSetupLabel", "LOD Model Painting"))
-			.ToolTipText(NSLOCTEXT("LODPainting", "LODPaintingSetupToolTip", "Allows for Painting Vertex Colors on Specific LOD Models."))
-		]
-		.ValueContent()
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-		.Padding(0.0f, 0.0f, 4.0f, 0.0f)
-		.AutoWidth()
-		[
-			SNew(SCheckBox)
-				.IsChecked_Lambda([=]() -> ECheckBoxState { return (UMeshPaintMode::GetVertexColorToolProperties() && UMeshPaintMode::GetVertexColorToolProperties()->bPaintOnSpecificLOD ? ECheckBoxState::Checked : ECheckBoxState::Unchecked); })
-				.OnCheckStateChanged(FOnCheckStateChanged::CreateLambda([=](ECheckBoxState State) { 
-					if (UMeshColorPaintingTool* ColorBrush = Cast<UMeshColorPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)))
-					{
-						ColorBrush->LODPaintStateChanged(State == ECheckBoxState::Checked);
-					}
-				}))
-		]
-		+ SHorizontalBox::Slot()
-		.Padding(0.0f, 0.0f, 4.0f, 0.0f)
-		[
-			SNew(SNumericEntryBox<int32>)
-			.IsEnabled_Lambda([=]() -> bool { return UMeshPaintMode::GetVertexColorToolProperties() ? UMeshPaintMode::GetVertexColorToolProperties()->bPaintOnSpecificLOD : false;  })
-			.AllowSpin(true)
-			.Value_Lambda([=]() -> int32 { return UMeshPaintMode::GetVertexColorToolProperties() ? UMeshPaintMode::GetVertexColorToolProperties()->LODIndex : 0; })
-			.MinValue(0)
-			.MaxValue_Lambda([=]() -> int32 { 
-					if (UMeshColorPaintingTool* ColorBrush = Cast<UMeshColorPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)))
-					{
-						return ColorBrush->GetMaxLODIndexToPaint();
-					}
-					return INT_MAX;
-				})
-			.MaxSliderValue_Lambda([=]() -> int32 { 
-					if (UMeshColorPaintingTool* ColorBrush = Cast<UMeshColorPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)))
-					{
-						return ColorBrush->GetMaxLODIndexToPaint();
-					}
-					return INT_MAX;
-				})
-			.OnValueChanged(SNumericEntryBox<int32>::FOnValueChanged::CreateLambda([=](int32 Value) { UMeshPaintMode::GetVertexColorToolProperties()->LODIndex = Value; }))
-			.OnValueCommitted(SNumericEntryBox<int32>::FOnValueCommitted::CreateLambda([=](int32 Value, ETextCommit::Type CommitType) { 
-					UMeshPaintMode::GetVertexColorToolProperties()->LODIndex = Value; 
-					if (UMeshColorPaintingTool* ColorBrush = Cast<UMeshColorPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)))
-					{
-						ColorBrush->PaintLODChanged();
-					}
-				}))
-		]
-		];
-
-	VertexCategory.AddCustomRow(NSLOCTEXT("LODPainting", "LODPaintingLabel", "LOD Model Painting"))
-		.WholeRowContent()
-		[
-			SNew(SWarningOrErrorBox)
-			.Visibility_Lambda([this]() -> EVisibility
-			{
-				if (UMeshVertexColorPaintingToolProperties* ColorProperties = UMeshPaintMode::GetVertexColorToolProperties())
-				{
-					return ColorProperties->bPaintOnSpecificLOD ? EVisibility::Collapsed : EVisibility::Visible;
-				}
-				return EVisibility::Collapsed;
-			})
-			.Message_Lambda([this]() -> FText
-			{
-				static const FText SkelMeshNotificationText = LOCTEXT("SkelMeshAssetPaintInfo", "Paint is propagated to Skeletal Mesh Asset(s)");
-				static const FText StaticMeshNotificationText = LOCTEXT("StaticMeshAssetPaintInfo", "Paint is applied to all LODs");
-				static const FText GeometryCollectionNotificationText = LOCTEXT("GeometryCollectionAssetPaintInfo", "Paint is propagated to Geometry Collection Asset(s), and Geometry Collection does not currently support LODs.");
-
-				const bool bGeometryCollectionText = UMeshPaintMode::GetMeshPaintMode()->GetSelectedComponents<UGeometryCollectionComponent>().Num() > 0;
-				const bool bSkelMeshText = UMeshPaintMode::GetMeshPaintMode()->GetSelectedComponents<USkeletalMeshComponent>().Num() > 0;
-				const bool bLODPaintText = UMeshPaintMode::GetVertexColorToolProperties() ?  !UMeshPaintMode::GetVertexColorToolProperties()->bPaintOnSpecificLOD : false;
-				return FText::Format(FTextFormat::FromString(TEXT("{0}{1}{2}{3}")), 
-					bSkelMeshText ? SkelMeshNotificationText : FText::GetEmpty(),
-					bGeometryCollectionText ? GeometryCollectionNotificationText : FText::GetEmpty(),
-					bSkelMeshText && bLODPaintText ? FText::FromString(TEXT("\n")) : FText::GetEmpty(),
-					bLODPaintText ? StaticMeshNotificationText : FText::GetEmpty()
-					);
-			})
-		];
 }
 
 
