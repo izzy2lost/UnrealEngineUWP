@@ -338,6 +338,28 @@ namespace CrossCompiler
 				InsertToken(TEXT("half3x4"), EHlslToken::Half3x4);
 				InsertToken(TEXT("half4x4"), EHlslToken::Half4x4);
 
+				InsertToken(TEXT("min16float"), EHlslToken::Min16Float);
+				InsertToken(TEXT("min16float1"), EHlslToken::Min16Float1);
+				InsertToken(TEXT("min16float2"), EHlslToken::Min16Float2);
+				InsertToken(TEXT("min16float3"), EHlslToken::Min16Float3);
+				InsertToken(TEXT("min16float4"), EHlslToken::Min16Float4);
+				InsertToken(TEXT("min16float1x1"), EHlslToken::Min16Float1x1);
+				InsertToken(TEXT("min16float2x1"), EHlslToken::Min16Float2x1);
+				InsertToken(TEXT("min16float3x1"), EHlslToken::Min16Float3x1);
+				InsertToken(TEXT("min16float4x1"), EHlslToken::Min16Float4x1);
+				InsertToken(TEXT("min16float1x2"), EHlslToken::Min16Float1x2);
+				InsertToken(TEXT("min16float2x2"), EHlslToken::Min16Float2x2);
+				InsertToken(TEXT("min16float3x2"), EHlslToken::Min16Float3x2);
+				InsertToken(TEXT("min16float4x2"), EHlslToken::Min16Float4x2);
+				InsertToken(TEXT("min16float1x3"), EHlslToken::Min16Float1x3);
+				InsertToken(TEXT("min16float2x3"), EHlslToken::Min16Float2x3);
+				InsertToken(TEXT("min16float3x3"), EHlslToken::Min16Float3x3);
+				InsertToken(TEXT("min16float4x3"), EHlslToken::Min16Float4x3);
+				InsertToken(TEXT("min16float1x4"), EHlslToken::Min16Float1x4);
+				InsertToken(TEXT("min16float2x4"), EHlslToken::Min16Float2x4);
+				InsertToken(TEXT("min16float3x4"), EHlslToken::Min16Float3x4);
+				InsertToken(TEXT("min16float4x4"), EHlslToken::Min16Float4x4);
+
 				InsertToken(TEXT("float"), EHlslToken::Float);
 				InsertToken(TEXT("float1"), EHlslToken::Float1);
 				InsertToken(TEXT("float2"), EHlslToken::Float2);

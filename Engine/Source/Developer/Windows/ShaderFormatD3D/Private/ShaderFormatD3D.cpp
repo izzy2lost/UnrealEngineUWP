@@ -258,6 +258,12 @@ public:
 			AddShaderTargetDefines(Input, 6, 8);
 			break;
 		}
+
+		// For mobile emulation
+		if (Input.Environment.FullPrecisionInPS || (Input.SharedEnvironment.IsValid() && Input.SharedEnvironment->FullPrecisionInPS))
+		{
+			Input.Environment.SetDefine(TEXT("FORCE_FLOATS"), (uint32)1);
+		}
 	}
 
 	virtual const TCHAR* GetPlatformIncludeDirectory() const

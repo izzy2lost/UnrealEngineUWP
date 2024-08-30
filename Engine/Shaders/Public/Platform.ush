@@ -240,8 +240,6 @@
 
 #ifndef PLATFORM_SUPPORTS_REAL_TYPES
 #define PLATFORM_SUPPORTS_REAL_TYPES 0
-#elif FORCE_FLOATS
-#error Collision between FORCE_FLOATS and PLATFORM_SUPPORTS_REAL_TYPES
 #endif
 
 #ifndef COMPILER_SUPPORTS_WAVE_32_64_MODE
@@ -324,10 +322,19 @@
 #endif
 
 #if COMPILER_DXC && !FORCE_FLOATS && (ES3_1_PROFILE || METAL_PROFILE)
-    #pragma dxc diagnostic ignored "-Wconversion"
+	#pragma dxc diagnostic ignored "-Wconversion"
 #endif
 
-#if ((!(ES3_1_PROFILE || METAL_PROFILE)) && !PLATFORM_SUPPORTS_REAL_TYPES) || FORCE_FLOATS
+#if ES3_1_PROFILE && MOBILE_EMULATION && !FORCE_FLOATS
+	#define half min16float
+	#define half1 min16float1
+	#define half2 min16float2
+	#define half3 min16float3
+	#define half4 min16float4
+	#define half3x3 min16float3x3
+	#define half3x4 min16float3x4
+	#define half4x4 min16float4x4
+#elif ((!(ES3_1_PROFILE || METAL_PROFILE)) && !PLATFORM_SUPPORTS_REAL_TYPES) || FORCE_FLOATS
 	// Always use floats when using the ES3/METAL compiler, because platforms not optimized for lower precision, 
 	// And we don't want potential side effects on other platforms
 	#define half float
@@ -480,11 +487,11 @@
 	#define UB_INT(Dim)         int##Dim
 	#define UB_UINT(Dim)        uint##Dim
 	#define UB_FLOAT(Dim)       float##Dim
-    #if METAL_PROFILE
-        #define UB_HALF_FLOAT(Dim)  float##Dim
-    #else
-        #define UB_HALF_FLOAT(Dim)  half##Dim
-    #endif
+	#if METAL_PROFILE || COMPILER_HLSL
+		#define UB_HALF_FLOAT(Dim)  float##Dim
+	#else
+		#define UB_HALF_FLOAT(Dim)  half##Dim
+	#endif
 	#define UB_FIXED_FLOAT(Dim) fixed##Dim
 #else
 	#define UB_INT(Dim)         int##Dim

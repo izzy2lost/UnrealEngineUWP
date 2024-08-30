@@ -34,7 +34,11 @@
 struct FSharedMobileBasePassInterpolants
 {
 #if USE_VERTEX_FOG && !PACK_INTERPOLANTS
-	half4 VertexFog			: TEXCOORD7;
+	#if MOBILE_EMULATION
+		float4 VertexFog : TEXCOORD7; // half precision interpolators are causing issues in FXC fallback path as it's used in mobile preview
+	#else
+		half4 VertexFog : TEXCOORD7;
+	#endif
 #endif
 
 	float4 PixelPosition	: TEXCOORD8; // xyz = world position, w = clip z

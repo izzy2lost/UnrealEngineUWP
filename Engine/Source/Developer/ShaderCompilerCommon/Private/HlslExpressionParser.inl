@@ -323,6 +323,28 @@ namespace CrossCompiler
 		case EHlslToken::Half4x3:
 		case EHlslToken::Half4x4:
 
+		case EHlslToken::Min16Float:
+		case EHlslToken::Min16Float1:
+		case EHlslToken::Min16Float2:
+		case EHlslToken::Min16Float3:
+		case EHlslToken::Min16Float4:
+		case EHlslToken::Min16Float1x1:
+		case EHlslToken::Min16Float1x2:
+		case EHlslToken::Min16Float1x3:
+		case EHlslToken::Min16Float1x4:
+		case EHlslToken::Min16Float2x1:
+		case EHlslToken::Min16Float2x2:
+		case EHlslToken::Min16Float2x3:
+		case EHlslToken::Min16Float2x4:
+		case EHlslToken::Min16Float3x1:
+		case EHlslToken::Min16Float3x2:
+		case EHlslToken::Min16Float3x3:
+		case EHlslToken::Min16Float3x4:
+		case EHlslToken::Min16Float4x1:
+		case EHlslToken::Min16Float4x2:
+		case EHlslToken::Min16Float4x3:
+		case EHlslToken::Min16Float4x4:
+
 		case EHlslToken::Float:
 		case EHlslToken::Float1:
 		case EHlslToken::Float2:
