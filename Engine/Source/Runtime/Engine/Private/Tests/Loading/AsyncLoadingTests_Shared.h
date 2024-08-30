@@ -160,3 +160,8 @@ protected:
 };
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+namespace LoadingTestsUtils
+{
+	extern bool IsAssetSuitableForTests(const FAssetData& AssetData);
+}

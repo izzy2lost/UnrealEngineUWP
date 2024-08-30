@@ -34,7 +34,11 @@ bool FThreadSafeAsyncLoadingTest::RunTest(const FString& Parameters)
 		{
 			if (UniquePackages.Num() < MaxPackageCount)
 			{
-				UniquePackages.FindOrAdd(AssetData.PackageName);
+				if (LoadingTestsUtils::IsAssetSuitableForTests(AssetData))
+				{
+					UniquePackages.FindOrAdd(AssetData.PackageName);
+				}
+
 				return true;
 			}
 			

@@ -5,6 +5,7 @@
 #include "Misc/PackageName.h"
 #include "UObject/MetaData.h"
 #include "UObject/SavePackage.h"
+#include "AssetRegistry/AssetData.h"
 
 UAsyncLoadingTests_Shared::FOnPostLoadDelegate UAsyncLoadingTests_Shared::OnPostLoad;
 UAsyncLoadingTests_Shared::FOnSerializeDelegate UAsyncLoadingTests_Shared::OnSerialize;
@@ -121,3 +122,27 @@ void FLoadingTestsScope::CleanupObjects()
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+namespace LoadingTestsUtils
+{
+	extern bool IsAssetSuitableForTests(const FAssetData& AssetData)
+	{
+		FString PackageName = AssetData.PackageName.ToString();
+
+		// Assets from plugins can be problematic because they are either not accessible, or sometimes have issues,
+		// so let's limit ourselves to ones from the engine or the game.
+		if (!PackageName.StartsWith(TEXT("/Engine/")) && !PackageName.StartsWith(TEXT("/Game/")))
+		{
+			return false;
+		}
+
+		// We're skipping WorldPartition assets because some HLOD Layers (engine objects) reference settings objects
+		// defined in editor-only plugins, which obviously fails to load on non-editor targets.
+		if (PackageName.StartsWith(TEXT("/Game/Tests/WorldPartition")))
+		{
+			return false;
+		}
+
+		return true;
+	}
+}

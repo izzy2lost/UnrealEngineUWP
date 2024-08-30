@@ -6,6 +6,7 @@
 #include "AssetRegistry/AssetRegistryState.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Tasks/Task.h"
+#include "AsyncLoadingTests_Shared.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -200,7 +201,11 @@ bool FUnattendedLoadingTest::RunTest(const FString& Parameters)
 		{
 			if (UniquePackages.Num() < MaxPackageCount)
 			{
-				UniquePackages.FindOrAdd(AssetData.PackageName);
+				if (LoadingTestsUtils::IsAssetSuitableForTests(AssetData))
+				{
+					UniquePackages.FindOrAdd(AssetData.PackageName);
+				}
+
 				return true;
 			}
 			
