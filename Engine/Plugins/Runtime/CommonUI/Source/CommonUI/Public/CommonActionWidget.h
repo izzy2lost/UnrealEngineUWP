@@ -61,7 +61,7 @@ public:
 	void SetIconRimBrush(FSlateBrush InIconRimBrush);
 
 	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
-	bool IsHeldAction() const;
+	virtual bool IsHeldAction() const;
 
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInputMethodChanged, bool, bUsingGamepad);
 	UPROPERTY(BlueprintAssignable, Category = CommonActionWidget)

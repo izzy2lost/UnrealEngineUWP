@@ -124,8 +124,8 @@ public:
 	void NotifyUserWidgetConstructed(const UCommonUserWidget& Widget);
 	void NotifyUserWidgetDestructed(const UCommonUserWidget& Widget);
 	
-	void AddBinding(FUIActionBindingHandle Binding);
-	void RemoveBinding(FUIActionBindingHandle Binding);
+	virtual void AddBinding(FUIActionBindingHandle Binding);
+	virtual void RemoveBinding(FUIActionBindingHandle Binding);
 
 	int32 GetLocalPlayerIndex() const;
 
