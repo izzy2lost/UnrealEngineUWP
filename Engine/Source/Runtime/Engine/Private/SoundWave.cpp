@@ -1904,6 +1904,17 @@ void USoundWave::InvalidateCompressedData(bool bFreeResources, bool bRebuildStre
 	{
 		CachePlatformData(true /* bAsyncCache */);
 
+		const bool bHasSampleData = !(bIsSourceBus || bProcedural);
+		if (bHasSampleData)
+		{
+			// Source buses and procedural sources do not have sample data and should 
+			// avoid going through creation of streaming compressed data.
+			//
+			// procedural sources and source buses should be rebased to a yet-to-be
+			// created `USoundWaveBase`
+			SoundWaveDataPtr->InitializeDataFromSoundWave(*this);
+		}
+
 		CurrentChunkRevision += 1;
 		SoundWaveDataPtr->CurrentChunkRevision = CurrentChunkRevision;
 	}
@@ -3052,16 +3063,6 @@ void USoundWave::CreateNewSoundWaveData()
 	SoundWaveDataPtr = MakeShared<FSoundWaveData, ESPMode::ThreadSafe>();
 	Proxy.Reset();
 
-	const bool bHasSampleData = !(bIsSourceBus || bProcedural);
-	if (bHasSampleData)
-	{
-		// Source buses and procedural sources do not have sample data and should 
-		// avoid going through creation of streaming compressed data.
-		//
-		// procedural sources and source buses should be rebased to a yet-to-be
-		// created `USoundWaveBase`
-		SoundWaveDataPtr->InitializeDataFromSoundWave(*this);
-	}
 }
 
 bool USoundWave::CanEditChange(const FProperty* InProperty) const
