@@ -28,7 +28,7 @@ const TCHAR* UGatherTextCommandletBase::EnableSourceControlSwitch = TEXT("Enable
 const TCHAR* UGatherTextCommandletBase::DisableSubmitSwitch = TEXT("DisableSCCSubmit");
 const TCHAR* UGatherTextCommandletBase::PreviewSwitch = TEXT("Preview");
 const TCHAR* UGatherTextCommandletBase::GatherTypeParam = TEXT("GatherType");
-const TCHAR* UGatherTextCommandletBase::RunNestedMacroPrepassSwitch = TEXT("RunNestedMacroPrepass");
+const TCHAR* UGatherTextCommandletBase::SkipNestedMacroPrepassSwitch = TEXT("SkipNestedMacroPrepass");
 
 UGatherTextCommandletBase::UGatherTextCommandletBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

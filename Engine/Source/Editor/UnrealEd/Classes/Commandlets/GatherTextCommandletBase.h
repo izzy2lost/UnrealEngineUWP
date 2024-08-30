@@ -118,7 +118,7 @@ protected:
 	static UNREALED_API const TCHAR* DisableSubmitSwitch;
 	static UNREALED_API const TCHAR* PreviewSwitch;
 	static UNREALED_API const TCHAR* GatherTypeParam;
-	static UNREALED_API const TCHAR* RunNestedMacroPrepassSwitch;
+	static UNREALED_API const TCHAR* SkipNestedMacroPrepassSwitch;
 
 private:
 	UNREALED_API virtual void CreateCustomEngine(const FString& Params) override ; //Disallow other text commandlets to make their own engine.	

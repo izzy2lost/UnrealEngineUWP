@@ -259,10 +259,10 @@ int32 UGatherTextFromSourceCommandlet::Main( const FString& Params )
 	}
 
 	// Prepass for nested macros
-	bool RunNestedMacroPrepass = Switches.Contains(UGatherTextCommandletBase::RunNestedMacroPrepassSwitch);
+	bool SkipNestedMacroPrepass = Switches.Contains(UGatherTextCommandletBase::SkipNestedMacroPrepassSwitch);
 	static TArray<FParsedNestedMacro> PrepassResults;
 	static bool RanPrepassOnce = false;
-	if (RunNestedMacroPrepass && !RanPrepassOnce)
+	if (!SkipNestedMacroPrepass && !RanPrepassOnce)
 	{
 		double StartTime = FPlatformTime::Seconds();
 
@@ -1384,7 +1384,7 @@ void UGatherTextFromSourceCommandlet::PrunePrepassResults(TArray<FParsedNestedMa
 				// We mark them excluded as opposed to removing them, because the regular macro descriptors need to check if they are nested.
 
 				if (Results[i].Filename.EndsWith(TEXT(".h"), ESearchCase::IgnoreCase) ||
-					Results[i].Filename.EndsWith(TEXT(".h"), ESearchCase::IgnoreCase))
+					Results[j].Filename.EndsWith(TEXT(".h"), ESearchCase::IgnoreCase))
 				{
 					++NestedMacroStats.DuplicateExcluded;
 
@@ -2563,6 +2563,7 @@ void UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::TryParse(const FSt
 		if (PosClose < 0)
 		{
 			UE_LOG(LogGatherTextFromSourceCommandlet, Error, TEXT("%s(%d): Missing matching closing bracket in %s macro"), *Context.Filename, Context.LineNumber, *MacroName);
+			delete InnerDescriptor;
 			return;
 		}
 		FString MacroInnerParams = MacroInner.Mid(0, PosClose);						// exclude bracket
