@@ -62,25 +62,30 @@ void FModuleInputValue::SetMagnitude(float NewSize)
 
 void FModuleInputValue::Serialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess)
 {
-	// #TODO: send only when value changes also quantize what is sent, but just get it working for now
+	// #TODO: send only value changes/deltas
 	Ar << ValueType;
 
 	switch (GetValueType())
 	{
 	case EModuleInputValueType::MBoolean:
-		Ar << Value.X;
+		{
+			uint8 State = (Value.X != 0);
+			Ar << State;
+			if (Ar.IsLoading())
+			{
+				Value.X = State ? 1.0f : 0.0f;
+			}
+		}
 		break;
 	case EModuleInputValueType::MAxis1D:
-		Ar << Value.X;
+		ModularQuantize::SerializeFixedFloat<1, 16>(Value.X, Ar);
 		break;
 	case EModuleInputValueType::MAxis2D:
-		Ar << Value.X;
-		Ar << Value.Y;
+		ModularQuantize::SerializeFixedFloat<1, 16>(Value.X, Ar);
+		ModularQuantize::SerializeFixedFloat<1, 16>(Value.Y, Ar);
 		break;
 	case EModuleInputValueType::MAxis3D:
-		Ar << Value.X;
-		Ar << Value.Y;
-		Ar << Value.Z;
+		Value.NetSerialize(Ar, Map, bOutSuccess);
 		break;
 	default:
 		checkf(false, TEXT("Unsupported value type for module input value!"));
@@ -214,12 +219,12 @@ void FModuleInputContainer::Serialize(FArchive& Ar, UPackageMap* Map, bool& bOut
 {
 	bOutSuccess = true;
 
-	int Number = InputValues.Num();
+	uint32 Number = InputValues.Num();
 	Ar << Number;
 	if (Ar.IsLoading())
 	{
 		InputValues.Reset(Number);
-		for (int I = 0; I < Number; I++)
+		for (uint32 I = 0; I < Number; I++)
 		{
 			FModuleInputValue Value;
 			Value.Serialize(Ar, Map, bOutSuccess);
@@ -228,7 +233,7 @@ void FModuleInputContainer::Serialize(FArchive& Ar, UPackageMap* Map, bool& bOut
 	}
 	else
 	{
-		for (int I = 0; I < Number; I++)
+		for (uint32 I = 0; I < Number; I++)
 		{
 			InputValues[I].Serialize(Ar, Map, bOutSuccess);
 		}
