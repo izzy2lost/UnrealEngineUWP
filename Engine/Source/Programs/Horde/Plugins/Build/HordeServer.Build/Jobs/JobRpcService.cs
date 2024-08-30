@@ -460,7 +460,7 @@ namespace HordeServer.Jobs
 
 				foreach (IGraphArtifact artifact in graph.Artifacts)
 				{
-					if (node.OutputNames.Contains(artifact.OutputName))
+					if (artifact.OutputName != null && node.OutputNames.Contains(artifact.OutputName))
 					{
 						RpcCreateGraphArtifactRequest stepArtifact = new RpcCreateGraphArtifactRequest { Name = artifact.Name.ToString(), Type = artifact.Type.ToString(), Description = artifact.Description, BasePath = artifact.BasePath, OutputName = artifact.OutputName };
 						stepArtifact.Keys.AddRange(artifact.Keys);
@@ -679,7 +679,19 @@ namespace HordeServer.Jobs
 						description = artifact.Name;
 					}
 
-					newArtifacts.Add(new NewGraphArtifact(name, type, description, artifact.BasePath, artifact.Keys.ToList(), artifact.Metadata.ToList(), artifact.OutputName));
+					string? nodeName = null;
+					if (!String.IsNullOrEmpty(artifact.NodeName))
+					{
+						nodeName = artifact.NodeName;
+					}
+
+					string? outputName = null;
+					if (!String.IsNullOrEmpty(artifact.OutputName))
+					{
+						outputName = artifact.OutputName;
+					}
+
+					newArtifacts.Add(new NewGraphArtifact(name, type, description, artifact.BasePath, artifact.Keys.ToList(), artifact.Metadata.ToList(), nodeName, outputName));
 				}
 
 				// Create the new graph

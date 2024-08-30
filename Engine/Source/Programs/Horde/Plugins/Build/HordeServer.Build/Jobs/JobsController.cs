@@ -554,10 +554,18 @@ namespace HordeServer.Jobs
 					}
 				}
 
+				Dictionary<string, IGraphArtifact> nodeNameToArtifact = new Dictionary<string, IGraphArtifact>(StringComparer.OrdinalIgnoreCase);
 				Dictionary<string, IGraphArtifact> outputNameToArtifact = new Dictionary<string, IGraphArtifact>(StringComparer.OrdinalIgnoreCase);
 				foreach (IGraphArtifact artifact in graph.Artifacts)
 				{
-					outputNameToArtifact[artifact.OutputName] = artifact;
+					if (artifact.NodeName != null)
+					{
+						nodeNameToArtifact[artifact.NodeName] = artifact;
+					}
+					if (artifact.OutputName != null)
+					{
+						outputNameToArtifact[artifact.OutputName] = artifact;
+					}
 				}
 
 				foreach (IJobStepBatch batch in job.Batches)
@@ -566,9 +574,14 @@ namespace HordeServer.Jobs
 					foreach (IJobStep step in batch.Steps)
 					{
 						INode node = group.Nodes[step.NodeIdx];
+
+						IGraphArtifact? graphArtifact;
+						if (nodeNameToArtifact.TryGetValue(node.Name, out graphArtifact) && !addedArtifacts.Contains((graphArtifact.Name, step.Id)))
+						{
+							response.Artifacts.Add(new GetJobArtifactResponse(null, graphArtifact.Name, graphArtifact.Type, graphArtifact.Description, graphArtifact.Keys.ToList(), graphArtifact.Metadata.ToList(), step.Id));
+						}
 						foreach (string outputName in node.OutputNames)
 						{
-							IGraphArtifact? graphArtifact;
 							if (outputNameToArtifact.TryGetValue(outputName, out graphArtifact) && !addedArtifacts.Contains((graphArtifact.Name, step.Id)))
 							{
 								response.Artifacts.Add(new GetJobArtifactResponse(null, graphArtifact.Name, graphArtifact.Type, graphArtifact.Description, graphArtifact.Keys.ToList(), graphArtifact.Metadata.ToList(), step.Id));

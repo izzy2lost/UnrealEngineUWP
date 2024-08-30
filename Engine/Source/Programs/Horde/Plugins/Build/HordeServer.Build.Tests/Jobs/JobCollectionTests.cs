@@ -832,7 +832,7 @@ namespace HordeServer.Tests.Jobs
 			IGraph baseGraph = await GraphCollection.AddAsync(templateMock.Object, null);
 
 			List<NewGraphArtifact> newArtifacts = new List<NewGraphArtifact>();
-			newArtifacts.Add(new NewGraphArtifact(new ArtifactName("foo"), new ArtifactType("type"), "hello world", "Engine/Source", new List<string>(), new List<string>(), "fileset"));
+			newArtifacts.Add(new NewGraphArtifact(new ArtifactName("foo"), new ArtifactType("type"), "hello world", "Engine/Source", new List<string>(), new List<string>(), null, "fileset"));
 
 			IGraph graph = await GraphCollection.AppendAsync(baseGraph, newArtifactRequests: newArtifacts);
 			Assert.AreEqual(1, graph.Artifacts.Count);

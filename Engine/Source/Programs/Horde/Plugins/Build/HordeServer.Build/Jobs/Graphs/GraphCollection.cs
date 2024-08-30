@@ -194,7 +194,8 @@ namespace HordeServer.Jobs.Graphs
 			public string BasePath { get; set; }
 			public List<string> Keys { get; set; }
 			public List<string> Metadata { get; set; }
-			public string OutputName { get; set; }
+			public string? NodeName { get; set; }
+			public string? OutputName { get; set; }
 
 			IReadOnlyList<string> IGraphArtifact.Keys => Keys;
 			IReadOnlyList<string> IGraphArtifact.Metadata => Metadata;
@@ -205,10 +206,9 @@ namespace HordeServer.Jobs.Graphs
 				BasePath = String.Empty;
 				Keys = new List<string>();
 				Metadata = new List<string>();
-				OutputName = String.Empty;
 			}
 
-			public GraphArtifact(ArtifactName name, ArtifactType type, string description, string basePath, IReadOnlyList<string> keys, IReadOnlyList<string> metadata, string outputName)
+			public GraphArtifact(ArtifactName name, ArtifactType type, string description, string basePath, IReadOnlyList<string> keys, IReadOnlyList<string> metadata, string? nodeName, string? outputName)
 			{
 				Name = name;
 				Type = type;
@@ -216,6 +216,7 @@ namespace HordeServer.Jobs.Graphs
 				BasePath = basePath;
 				Keys = keys.ToList();
 				Metadata = metadata.ToList();
+				NodeName = nodeName;
 				OutputName = outputName;
 			}
 		}
@@ -335,7 +336,7 @@ namespace HordeServer.Jobs.Graphs
 				{
 					foreach (NewGraphArtifact newArtifactRequest in newArtifactRequests)
 					{
-						newArtifacts.Add(new GraphArtifact(newArtifactRequest.Name, newArtifactRequest.Type, newArtifactRequest.Description, newArtifactRequest.BasePath, newArtifactRequest.Keys, newArtifactRequest.Metadata, newArtifactRequest.OutputName));
+						newArtifacts.Add(new GraphArtifact(newArtifactRequest.Name, newArtifactRequest.Type, newArtifactRequest.Description, newArtifactRequest.BasePath, newArtifactRequest.Keys, newArtifactRequest.Metadata, newArtifactRequest.NodeName, newArtifactRequest.OutputName));
 					}
 				}
 

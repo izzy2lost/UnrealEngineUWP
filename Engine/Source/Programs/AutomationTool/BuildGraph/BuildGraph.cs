@@ -1256,7 +1256,14 @@ namespace AutomationTool
 				}
 
 				// Find all the output tags that are published artifacts
-				Dictionary<string, BgArtifactDef> outputNameToArtifact = graph.Artifacts.ToDictionary(x => x.TagName, x => x);
+				Dictionary<string, BgArtifactDef> outputNameToArtifact = new Dictionary<string, BgArtifactDef>(StringComparer.OrdinalIgnoreCase);
+				foreach (BgArtifactDef artifact in graph.Artifacts)
+				{
+					if (artifact.TagName != null)
+					{
+						outputNameToArtifact.Add(artifact.TagName, artifact);
+					}
+				}
 
 				// Publish all the output tags
 				foreach (BgNodeOutput output in node.Outputs)

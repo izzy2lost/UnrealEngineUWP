@@ -5,11 +5,13 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Schema;
+using AutomationTool.Tasks;
 using EpicGames.BuildGraph;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
@@ -841,7 +843,7 @@ namespace AutomationTool
 								lines.RemoveAt(lines.Count - 1);
 							}
 
-							foreach(string line in lines)
+							foreach (string line in lines)
 							{
 								int whitespaceLen = 0;
 								while (whitespaceLen < line.Length && Char.IsWhiteSpace(line[whitespaceLen]))
@@ -997,7 +999,7 @@ namespace AutomationTool
 							LogError(element, $"String operation 'SplitLast' requires exactly 1 argument.");
 							return;
 						}
-	
+
 						operationResult = input.Split(arguments[0]).Last();
 						break;
 					default:
@@ -1315,7 +1317,7 @@ namespace AutomationTool
 				string[] keys = ReadListAttribute(element, "Keys");
 				string[] metadata = ReadListAttribute(element, "Metadata");
 
-				BgArtifactDef newArtifact = new BgArtifactDef(name, type, description, basePath, tag, keys, metadata);
+				BgArtifactDef newArtifact = new BgArtifactDef(name, type, description, basePath, null, tag, keys, metadata);
 				_graph.Artifacts.Add(newArtifact);
 			}
 		}
@@ -1742,7 +1744,39 @@ namespace AutomationTool
 					}
 				}
 				_enclosingNode!.Tasks.Add(info);
+
+				if (info.Name.Equals("CreateArtifact", StringComparison.OrdinalIgnoreCase))
+				{
+					AddArtifactFromTask(element, info.Arguments);
+				}
 			}
+		}
+
+		void AddArtifactFromTask(BgScriptElement element, Dictionary<string, string> arguments)
+		{
+			CreateArtifactTaskParameters parameters = new CreateArtifactTaskParameters();
+			foreach (PropertyInfo propertyInfo in typeof(CreateArtifactTaskParameters).GetProperties())
+			{
+				TaskParameterAttribute? attribute = propertyInfo.GetCustomAttribute<TaskParameterAttribute>();
+				if (attribute != null)
+				{
+					if (arguments.TryGetValue(propertyInfo.Name, out string? value))
+					{
+						propertyInfo.SetValue(parameters, value);
+					}
+					else if (!attribute.Optional)
+					{
+						LogError(element, $"Missing '{propertyInfo.Name}' property for CreateArtifact task.");
+						return;
+					}
+				}
+			}
+
+			string[] keys = (parameters.Keys ?? String.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+			string[] metadata = (parameters.Metadata ?? String.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+			BgArtifactDef artifact = new BgArtifactDef(parameters.Name, parameters.Type, parameters.Description, null, _enclosingNode!.Name, null, keys, metadata);
+			_graph.Artifacts.Add(artifact);
 		}
 
 		/// <summary>

@@ -124,6 +124,7 @@ namespace JobDriver.Execution
 			public string? BasePath { get; set; }
 			public List<string> Keys { get; set; } = new List<string>();
 			public List<string> Metadata { get; set; } = new List<string>();
+			public string NodeName { get; set; } = String.Empty;
 			public string OutputName { get; set; } = String.Empty;
 		}
 
@@ -1032,6 +1033,7 @@ namespace JobDriver.Execution
 				createArtifact.BasePath = exportedArtifact.BasePath ?? String.Empty;
 				createArtifact.Keys.AddRange(exportedArtifact.Keys);
 				createArtifact.Metadata.AddRange(exportedArtifact.Metadata);
+				createArtifact.NodeName = exportedArtifact.NodeName;
 				createArtifact.OutputName = exportedArtifact.OutputName;
 
 				updateGraph.Artifacts.Add(createArtifact);
