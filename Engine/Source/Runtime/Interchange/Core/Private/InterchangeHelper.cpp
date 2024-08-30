@@ -4,17 +4,21 @@
 
 namespace UE::Interchange
 {
-	FString MakeName(const FString& InName, bool bIsJoint)
+	void SanitizeName(FString& OutName, bool bIsJoint)
 	{
 		const TCHAR* InvalidChar = bIsJoint ? INVALID_OBJECTNAME_CHARACTERS TEXT("+ ") : INVALID_OBJECTNAME_CHARACTERS;
-		FString TmpName = InName;
 
 		while (*InvalidChar)
 		{
-			TmpName.ReplaceCharInline(*InvalidChar, TCHAR('_'), ESearchCase::CaseSensitive);
+			OutName.ReplaceCharInline(*InvalidChar, TCHAR('_'), ESearchCase::CaseSensitive);
 			++InvalidChar;
 		}
+	}
 
+	FString MakeName(const FString& InName, bool bIsJoint)
+	{
+		FString TmpName = InName;
+		SanitizeName(TmpName, bIsJoint);
 		return TmpName;
 	}
 };

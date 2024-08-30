@@ -88,6 +88,11 @@ namespace UE
 				Key = Other.ToString();
 			}
 
+			explicit FAttributeKey(const FStringView& Other)
+			{
+				Key = Other;
+			}
+
 			explicit FAttributeKey(const FString& Other)
 			{
 				Key = Other;

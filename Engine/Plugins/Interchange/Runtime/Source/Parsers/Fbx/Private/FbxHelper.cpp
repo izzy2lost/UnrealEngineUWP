@@ -105,12 +105,15 @@ namespace UE
 
 			FString FFbxHelper::GetFbxPropertyName(const FbxProperty& Property) const
 			{
-				FString PropertyName = UE::Interchange::MakeName(FFbxConvert::MakeString(Property.GetName()));
+				FString PropertyName = FFbxConvert::MakeString(Property.GetName());
+				UE::Interchange::SanitizeName(PropertyName);
+
 				if (PropertyName.Equals(TEXT("none"), ESearchCase::IgnoreCase))
 				{
 					//Replace None by Null because None clash with NAME_None and the create asset will instead call the object ClassName_X
 					PropertyName = TEXT("Null");
 				}
+
 				return PropertyName;
 			}
 
@@ -120,7 +123,10 @@ namespace UE
 				{
 					return FString();
 				}
-				FString ObjName = UE::Interchange::MakeName(FFbxConvert::MakeString(Object->GetName()), bIsJoint);
+
+				FString ObjName = FFbxConvert::MakeString(Object->GetName());
+				UE::Interchange::SanitizeName(ObjName, bIsJoint);
+
 				if (ObjName.Equals(TEXT("none"), ESearchCase::IgnoreCase))
 				{
 					//Replace None by Null because None clash with NAME_None and the create asset will instead call the object ClassName_X
