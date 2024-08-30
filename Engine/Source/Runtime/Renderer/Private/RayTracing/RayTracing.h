@@ -24,12 +24,12 @@ namespace RayTracing
 	{
 		bool bTranslucentGeometry = true;
 
-		FSceneOptions(FScene& Scene,
+		FSceneOptions(
+			const FScene& Scene,
 			const FViewFamilyInfo& ViewFamily,
-			FViewInfo& View,
+			const FViewInfo& View,
 			EDiffuseIndirectMethod DiffuseIndirectMethod,
-			EReflectionsMethod ReflectionsMethod,
-			RayTracing::FSceneOptions& SceneOptions);
+			EReflectionsMethod ReflectionsMethod);
 	};
 };
 
