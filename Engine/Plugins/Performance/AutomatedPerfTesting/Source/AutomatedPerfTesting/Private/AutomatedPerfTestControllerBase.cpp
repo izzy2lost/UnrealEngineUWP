@@ -459,7 +459,10 @@ void UAutomatedPerfTestControllerBase::TakeScreenshot(FString ScreenshotName)
 {
 	if(RequestsInsightsTrace())
 	{
+		// trace screenshots are disabled in shipping by default
+#if UE_SCREENSHOT_TRACE_ENABLED
 		FTraceScreenshot::RequestScreenshot(ScreenshotName, false, LogAutomatedPerfTest);
+#endif
 	}
 	else
 	{
