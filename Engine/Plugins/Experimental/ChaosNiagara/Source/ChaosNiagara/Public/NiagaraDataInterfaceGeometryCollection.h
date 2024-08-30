@@ -104,6 +104,17 @@ struct FNDIGeometryCollectionBuffer : public FRenderResource
 	}
 };
 
+struct FResolvedNiagaraGeometryCollection
+{
+	const UGeometryCollection* GetGeometryCollection() const;
+	FTransform GetComponentRootTransform(FNiagaraSystemInstance* SystemInstance) const;
+	FTransform GetComponentSpaceTransform(int32 TransformIndex) const;
+	TArray<FTransform> GetInitialLocalRestTransforms() const;
+	
+	TWeakObjectPtr<UGeometryCollection> Collection;
+	TWeakObjectPtr<UGeometryCollectionComponent> Component;
+};
+
 /** Data stored per physics asset instance*/
 struct FNDIGeometryCollectionData
 {
@@ -140,6 +151,8 @@ struct FNDIGeometryCollectionData
 
 	// True if we need to upload new data to the gpu
 	bool bNeedsRenderUpdate = false;
+
+	FResolvedNiagaraGeometryCollection ResolvedSource;
 };
 
 UENUM()
@@ -165,23 +178,6 @@ enum class ENDIGeometryCollection_SourceMode : uint8
 
 	/** Only use the parameter binding. */
 	ParameterBinding,
-};
-
-USTRUCT()
-struct FResolvedNiagaraGeometryCollection
-{
-	GENERATED_BODY()
-	
-	const UGeometryCollection* GetGeometryCollection() const;
-	FTransform GetComponentRootTransform(FNiagaraSystemInstance* SystemInstance) const;
-	FTransform GetComponentSpaceTransform(int32 TransformIndex) const;
-	TArray<FTransform> GetInitialLocalRestTransforms() const;
-	
-	UPROPERTY()
-	TWeakObjectPtr<UGeometryCollection> Collection;
-
-	UPROPERTY()
-	TWeakObjectPtr<UGeometryCollectionComponent> Component;
 };
 
 /** Data Interface for the Collisions */
@@ -235,9 +231,6 @@ class UNiagaraDataInterfaceGeometryCollection : public UNiagaraDataInterface
 	UPROPERTY(EditAnywhere, Category = "Geometry Collection")
 	bool bIncludeIntermediateBones = false;
 
-	UPROPERTY(Transient)
-	FResolvedNiagaraGeometryCollection ResolvedSource;
-
 	/** UObject Interface */
 	virtual void PostInitProperties() override;
 
@@ -287,12 +280,12 @@ protected:
 	virtual bool CopyToInternal(UNiagaraDataInterface* Destination) const override;
 
 private:
-	void ResolveGeometryCollection(FNiagaraSystemInstance* SystemInstance);
-	bool ResolveGeometryCollectionFromDirectSource();
-	bool ResolveGeometryCollectionFromAttachParent(FNiagaraSystemInstance* SystemInstance);
-	bool ResolveGeometryCollectionFromActor(AActor* Actor);
-	bool ResolveGeometryCollectionFromDefaultCollection();
-	bool ResolveGeometryCollectionFromParamterBinding(UObject* UserParameter);
+	void ResolveGeometryCollection(FNiagaraSystemInstance* SystemInstance, FNDIGeometryCollectionData* InstanceData);
+	bool ResolveGeometryCollectionFromDirectSource(FResolvedNiagaraGeometryCollection& ResolvedSource);
+	bool ResolveGeometryCollectionFromAttachParent(FNiagaraSystemInstance* SystemInstance, FResolvedNiagaraGeometryCollection& ResolvedSource);
+	bool ResolveGeometryCollectionFromActor(AActor* Actor, FResolvedNiagaraGeometryCollection& ResolvedSource);
+	bool ResolveGeometryCollectionFromDefaultCollection(FResolvedNiagaraGeometryCollection& ResolvedSource);
+	bool ResolveGeometryCollectionFromParameterBinding(UObject* UserParameter, FResolvedNiagaraGeometryCollection& ResolvedSource);
 };
 
 /** Proxy to send data to gpu */
