@@ -258,7 +258,7 @@ UChimeraIslandComponent& UChimeraSubsystem::GetAvailableIsland()
 void UChimeraSubsystem::DestroyIsland(int32 Index)
 {
 	UChimeraIslandComponent& Island = *Islands[Index].Get();
-	Island.UninjectFromAllActors();
+	Island.Uninject();
 	Island.RemoveFromRoot();
 	Island.UnregisterComponent();
 	Island.DestroyComponent();
@@ -279,10 +279,7 @@ void UChimeraSubsystem::UninjectAllIslands()
 
 	for (TObjectPtr<UChimeraIslandComponent>& IslandPtr : Islands)
 	{
-		UChimeraIslandComponent& Island = *IslandPtr.Get();
-		Island.UninjectFromAllActors();
-		Island.ResetSearchContexts();
-		Island.ResetSearchResults();
+		IslandPtr.Get()->Uninject();
 	}
 }
 

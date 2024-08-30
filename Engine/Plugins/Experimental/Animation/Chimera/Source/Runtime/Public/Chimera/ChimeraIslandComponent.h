@@ -59,12 +59,10 @@ private:
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
 
 	void InjectToActor(AActor* Actor);
-	void UninjectFromAllActors();
+	void Uninject();
 	bool IsUninjected();
 
 	void AddSearchContext(const UE::Chimera::FSearchContext& SearchContext);
-	void ResetSearchContexts();
-	void ResetSearchResults();
 
 	bool GetResult_AnyThread(UObject* AnimInstance, FChimeraBlueprintResult& Result);
 
