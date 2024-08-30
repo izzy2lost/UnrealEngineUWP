@@ -617,7 +617,7 @@ namespace NamedNodes
 
 			if (!NewPreviousDataPin)
 			{
-				ensureMsgf(false, TEXT("A node in path doesn't have a return value."));
+				ensureMsgf(false, TEXT("A node in path doesn't have a return value. Node:%s"), *GetPathNameSafe(NewNode));
 				return MakeError();
 			}
 
