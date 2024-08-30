@@ -392,7 +392,8 @@ public:
 
 public:
 	/**
-	 * Sync the Content Browser to the given asset(s)
+	 * Browses to the associated asset and selects it in the most recently used Content Browser (summoning one if necessary)
+	 * This is an asynchronous operation that can take a couple of frames to resolve the request
 	 * @param	AssetPaths	The list of asset paths to sync to in the Content Browser
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Content Browser")
