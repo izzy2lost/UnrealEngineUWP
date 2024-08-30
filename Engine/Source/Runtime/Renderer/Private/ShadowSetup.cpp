@@ -4605,7 +4605,7 @@ void FSceneRenderer::GatherShadowDynamicMeshElements(FDynamicShadowsTaskData& Ta
 			FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
 			ShadowsToSetupViews[Index]->SetupShadowDepthView(this);
 		},
-		EParallelForFlags::None
+		GSupportsParallelRenderingTasksWithSeparateRHIThread ? EParallelForFlags::None : EParallelForFlags::ForceSingleThread
 	);
 
 	TaskData.ShadowsToGather.Reserve(128);
