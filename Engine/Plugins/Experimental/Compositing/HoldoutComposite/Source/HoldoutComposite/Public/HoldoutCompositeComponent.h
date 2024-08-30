@@ -23,6 +23,14 @@ public:
 	HOLDOUTCOMPOSITE_API virtual void DetachFromComponent(const FDetachmentTransformRules& DetachmentRules) override;
 	//~ End USceneComponent Interface
 
+	/* Get the enabled state of the component. */
+	UFUNCTION(BlueprintGetter)
+	bool IsEnabled() const;
+
+	/* Set the enabled state of the component. */
+	UFUNCTION(BlueprintSetter)
+	void SetEnabled(bool bInEnabled);
+
 private:
 
 	/* Private implementation of the register method. */
@@ -31,8 +39,10 @@ private:
 	/* Private implementation of the unregister method. */
 	void UnregisterCompositeImpl();
 
-	/* Primitive holdout property value of the parent component. */
-	UPROPERTY()
-	TOptional<bool> bCachedParentHoldout = false;
+private:
+
+	/* Whether or not the component activates the composite. */
+	UPROPERTY(EditAnywhere, BlueprintGetter = IsEnabled, BlueprintSetter = SetEnabled, Category = "HoldoutComposite", meta = (AllowPrivateAccess = true))
+	bool bIsEnabled = true;
 };
 

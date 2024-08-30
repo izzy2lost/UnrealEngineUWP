@@ -122,12 +122,37 @@ void UHoldoutCompositeComponent::OnAttachmentChanged()
 			RegisterCompositeImpl();
 		}
 	}
+}
 
+bool UHoldoutCompositeComponent::IsEnabled() const
+{
+	return bIsEnabled;
+}
 
+void UHoldoutCompositeComponent::SetEnabled(bool bInIsEnabled)
+{
+	if (bIsEnabled != bInIsEnabled)
+	{
+		bIsEnabled = bInIsEnabled;
+
+		if (bIsEnabled)
+		{
+			RegisterCompositeImpl();
+		}
+		else
+		{
+			UnregisterCompositeImpl();
+		}
+	}
 }
 
 void UHoldoutCompositeComponent::RegisterCompositeImpl()
 {
+	if (!bIsEnabled)
+	{
+		return;
+	}
+
 	UHoldoutCompositeSubsystem* Subsystem = UWorld::GetSubsystem<UHoldoutCompositeSubsystem>(GetWorld());
 	TArray<TSoftObjectPtr<UPrimitiveComponent>> ParentPrimitives = FindPrimitiveComponents(GetAttachParent());
 
