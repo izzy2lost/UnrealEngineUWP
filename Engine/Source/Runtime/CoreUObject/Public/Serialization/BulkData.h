@@ -416,6 +416,8 @@ public:
 	/** 
 	 * Serializes FBulkMetaResource from the given archive and builds the returned FBulkMetaData from it. 
 	 * The offset for duplicated data will also be returned
+	 * 
+	 * All fields of OutMetaData will be overwritten, including lock status.
 	 */
 	COREUOBJECT_API static bool FromSerialized(FArchive& Ar, int64 ElementSize, FBulkMetaData& OutMetaData, int64& OutDuplicateOffset);
 

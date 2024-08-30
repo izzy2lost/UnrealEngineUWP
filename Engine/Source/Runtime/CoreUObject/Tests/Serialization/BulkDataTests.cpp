@@ -380,6 +380,72 @@ TEST_CASE("CoreUObject::Serialization::FBulkData::Serialize", "[CoreUObject][Ser
 			CHECK(BulkData.GetBulkDataSize() == UncompressedPayloadSize );
 		}
 	}
+
+	SECTION("Reuse FBulkData for serialization")
+	{
+		// Zero size was chosen for the second payload, because there was a bug where the bulk data
+		// state wouldn't be initialized correctly if the payload was empty, leaving stale state
+		// from a previous serialization.
+		//
+		// This acts as a regression test for that bug.
+		const int64 FullPayloadSize = 128;
+		const int64 ZeroPayloadSize = 0;
+
+		FUniqueBuffer Payload = CreatePayload(FullPayloadSize);
+
+		FLargeMemoryWriter ArFullPayload;
+		FLargeMemoryWriter ArZeroPayload;
+		ArFullPayload.SetIsPersistent(true);
+		ArZeroPayload.SetIsPersistent(true);
+
+		// Write two different payloads with the same FBulkData
+		{
+			FBulkData BulkData;
+			CopyPayload(BulkData, Payload);
+			BulkData.Serialize(ArFullPayload, nullptr, false, 1, EFileRegionType::None);
+			CHECK(ArFullPayload.TotalSize() > BulkData.GetBulkDataSize()); // Bulk meta data + payload
+
+			// Remove the payload and zero ElementCount
+			BulkData.RemoveBulkData();
+
+			BulkData.Serialize(ArZeroPayload, nullptr, false, 1, EFileRegionType::None);
+			CHECK(ArZeroPayload.TotalSize() > BulkData.GetBulkDataSize()); // Bulk meta data + payload
+		}
+
+		// Read the two payloads with the same FBulkData
+		{
+			FBulkData BulkData;
+
+			{
+				FMemoryReaderView ReaderArFullPayload(ArFullPayload.GetView());
+				ReaderArFullPayload.SetIsPersistent(true);
+
+				BulkData.Serialize(ReaderArFullPayload, nullptr, false, 1, EFileRegionType::None);
+				FMemoryView PayloadView(BulkData.LockReadOnly(), BulkData.GetBulkDataSize());
+
+				CHECK(BulkData.GetBulkDataSize() == FullPayloadSize);
+				CHECK(BulkData.GetBulkDataOffsetInFile() == ReaderArFullPayload.Tell() - FullPayloadSize);
+				CHECK(BulkData.GetBulkDataFlags() == 0);
+				CHECK(BulkData.IsInlined());
+				CHECK(PayloadView.EqualBytes(Payload.GetView()));
+
+				BulkData.Unlock();
+			}
+
+			{
+				FMemoryReaderView ReaderArZeroPayload(ArZeroPayload.GetView());
+				ReaderArZeroPayload.SetIsPersistent(true);
+
+				BulkData.Serialize(ReaderArZeroPayload, nullptr, false, 1, EFileRegionType::None);
+
+				// Should be able to access these without locking
+				CHECK(BulkData.GetBulkDataSize() == ZeroPayloadSize);
+				CHECK(BulkData.GetBulkDataOffsetInFile() == ReaderArZeroPayload.Tell() - ZeroPayloadSize);
+				CHECK(BulkData.GetBulkDataFlags() == 0);
+				CHECK(BulkData.IsInlined());
+			}
+		}
+	}
 }
 
 #endif // WITH_EDITORONLY_DATA

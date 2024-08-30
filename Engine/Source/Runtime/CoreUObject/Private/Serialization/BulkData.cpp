@@ -271,9 +271,16 @@ FString GetDebugNameFromArchive(FArchive& Ar)
 
 bool FBulkMetaData::FromSerialized(FArchive& Ar, int64 ElementSize, FBulkMetaData& OutMetaData, int64& OutDuplicateOffset)
 {
+	check(Ar.IsLoading());
+
+	// Ensure all fields are initialized.
+	//
+	// Note that this will reset the lock status as well, so callers may want to first check that 
+	// the bulk data is unlocked before the lock state is lost.
+	OutMetaData = FBulkMetaData();
+
 	if (Ar.IsError())
 	{
-		OutMetaData = FBulkMetaData();
 		return false;
 	}
 
@@ -285,14 +292,12 @@ bool FBulkMetaData::FromSerialized(FArchive& Ar, int64 ElementSize, FBulkMetaDat
 		// Note that setting the error flag on the archive is not enough to stop the package from being loaded so for now we 
 		// need to fatal error to prevent the process from continuing to use the corrupted package.
 		UE_LOG(LogSerialization, Fatal, TEXT("Bulkdata error when serializing '%s', could not serialize FBulkMetaResource correctly"), *GetDebugNameFromArchive(Ar));
-		OutMetaData = FBulkMetaData();
 		return false;
 	}
 
 	if (Resource.ElementCount > 0)
 	{
-		// TODO: This would be a good use case for FGuardedInt64 once it is moved to core
-		FGuardedInt64 MetadataSize = FGuardedInt64(Resource.ElementCount) * ElementSize;
+		const FGuardedInt64 MetadataSize = FGuardedInt64(Resource.ElementCount) * ElementSize;
 		if (MetadataSize.IsValid())
 		{
 			OutMetaData.SetSize(MetadataSize.Get(0));
@@ -309,8 +314,7 @@ bool FBulkMetaData::FromSerialized(FArchive& Ar, int64 ElementSize, FBulkMetaDat
 				*GetDebugNameFromArchive(Ar),
 				Resource.ElementCount,
 				ElementSize);
-
-			OutMetaData = FBulkMetaData();
+			
 			return false;
 		}
 	}
@@ -319,12 +323,12 @@ bool FBulkMetaData::FromSerialized(FArchive& Ar, int64 ElementSize, FBulkMetaDat
 	OutMetaData.SetOffset(Resource.Offset);
 	OutMetaData.SetFlags(Resource.Flags);
 
-	check(Resource.ElementCount <= 0 || OutMetaData.GetSize() == Resource.ElementCount * ElementSize);
+	check(Resource.ElementCount < 0 || OutMetaData.GetSize() == Resource.ElementCount * ElementSize);
 	check(OutMetaData.GetOffset() == Resource.Offset);
 	check(OutMetaData.GetFlags() == Resource.Flags);
 
 #if !USE_RUNTIME_BULKDATA
-	check(Resource.ElementCount <= 0 || OutMetaData.GetSizeOnDisk() == Resource.SizeOnDisk);
+	check(Resource.ElementCount < 0 || OutMetaData.GetSizeOnDisk() == Resource.SizeOnDisk);
 #endif
 
 	OutDuplicateOffset = Resource.DuplicateOffset;
