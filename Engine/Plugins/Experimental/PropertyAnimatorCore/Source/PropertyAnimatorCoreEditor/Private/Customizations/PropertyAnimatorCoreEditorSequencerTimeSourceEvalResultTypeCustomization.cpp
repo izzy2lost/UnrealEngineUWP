@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Customizations/PropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization.h"
+#include "Customizations/PropertyAnimatorCoreEditorSequencerTimeSourceEvalResultTypeCustomization.h"
 
 #include "DetailWidgetRow.h"
 #include "Editor.h"
@@ -11,7 +11,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
-#define LOCTEXT_NAMESPACE "PropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization"
+#define LOCTEXT_NAMESPACE "PropertyAnimatorCoreEditorSequencerTimeSourceEvalResultTypeCustomization"
 
 void FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InPropertyHandle, FDetailWidgetRow& InRow, IPropertyTypeCustomizationUtils& InUtils)
 {
@@ -20,9 +20,9 @@ void FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::Cus
 		return;
 	}
 
-	ChannelPropertyHandle = InPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FPropertyAnimatorCoreSequencerTimeSourceChannel, Channel));
+	EvalTimePropertyHandle = InPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FPropertyAnimatorCoreSequencerTimeSourceEvalResult, EvalTime));
 
-	if (!ChannelPropertyHandle)
+	if (!EvalTimePropertyHandle->IsValidHandle())
 	{
 		return;
 	}
@@ -40,7 +40,7 @@ void FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::Cus
 		.AutoWidth()
 		.HAlign(HAlign_Fill)
 		[
-			ChannelPropertyHandle->CreatePropertyValueWidget()
+			EvalTimePropertyHandle->CreatePropertyValueWidget()
 		]
 		+ SHorizontalBox::Slot()
 		.Padding(5.f, 0.f)
@@ -56,7 +56,7 @@ void FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::Cus
 				SNew(STextBlock)
 				.Font(IPropertyTypeCustomizationUtils::GetRegularFont())
 				.Text(LOCTEXT("AddSequencerTrack", "Create track"))
-				.ToolTipText(LOCTEXT("AddSequencerTrackTooltip", "Create a sequencer track for this channel"))
+				.ToolTipText(LOCTEXT("AddSequencerTrackTooltip", "Create a sequencer track linked to this time source"))
 			]
 		]
 	];
@@ -64,9 +64,54 @@ void FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::Cus
 
 void FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& InBuilder, IPropertyTypeCustomizationUtils& InUtils)
 {
+	// No implementation
 }
 
 FReply FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::OnCreateTrackButtonClicked()
+{
+	const TArray<UObject*> BindingObjects = GetBindingObjects();
+
+	if (BindingObjects.IsEmpty())
+	{
+		return FReply::Handled();
+	}
+
+	TArray<AActor*> SelectedActors = GetSelectedActors();
+
+	FMovieSceneAnimatorTrackEditor::OnAddAnimatorTrack.Broadcast(BindingObjects);
+
+	// Reselect actors after track was created
+	if (GEditor)
+	{
+		GEditor->SelectNone(/** Notify */false, /** DeselectBSP */true);
+
+		for (int32 Index = 0; Index < SelectedActors.Num(); Index++)
+		{
+			GEditor->SelectActor(SelectedActors[Index], /** Selected */true, /** Notify */Index == SelectedActors.Num() - 1);
+		}
+	}
+
+	return FReply::Handled();
+}
+
+EVisibility FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::GetCreateTrackButtonVisibility() const
+{
+	return EvalTimePropertyHandle.IsValid() && EvalTimePropertyHandle->IsValidHandle()
+		? EVisibility::Visible
+		: EVisibility::Collapsed;
+}
+
+bool FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::IsCreateTrackButtonEnabled() const
+{
+	const TArray<UObject*> BindingObjects = GetBindingObjects();
+
+	int32 Count = 0;
+	FMovieSceneAnimatorTrackEditor::OnGetAnimatorTrackCount.Broadcast(BindingObjects, Count);
+
+	return !BindingObjects.IsEmpty() && BindingObjects.Num() != Count;
+}
+
+TArray<AActor*> FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::GetSelectedActors() const
 {
 	TArray<AActor*> SelectedActors;
 
@@ -78,54 +123,21 @@ FReply FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::O
 		}
 	}
 
-	if (ChannelPropertyHandle.IsValid())
-	{
-		uint8 Channel = 0;
-
-		if (ChannelPropertyHandle->GetValue(Channel) == FPropertyAccess::Success)
-		{
-			FMovieSceneAnimatorTrackEditor::OnAddAnimatorTrack.Broadcast(Channel);
-
-			// Reselect actors after track was created
-			if (GEditor)
-			{
-				GEditor->SelectNone(/** Notify */false, /** DeselectBSP */true);
-
-				for (int32 Index = 0; Index < SelectedActors.Num(); Index++)
-				{
-					GEditor->SelectActor(SelectedActors[Index], /** Selected */true, /** Notify */Index == SelectedActors.Num() - 1);
-				}
-			}
-		}
-	}
-
-	return FReply::Handled();
+	return SelectedActors;
 }
 
-EVisibility FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::GetCreateTrackButtonVisibility() const
+TArray<UObject*> FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::GetBindingObjects() const
 {
-	return ChannelPropertyHandle.IsValid()
-		&& ChannelPropertyHandle->GetNumPerObjectValues() == 1
-		? EVisibility::Visible
-		: EVisibility::Collapsed;
-}
+	TArray<UObject*> BindingObjects;
 
-bool FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::IsCreateTrackButtonEnabled() const
-{
-	if (!ChannelPropertyHandle.IsValid() || ChannelPropertyHandle->GetNumPerObjectValues() != 1)
+	if (!EvalTimePropertyHandle.IsValid() || !EvalTimePropertyHandle->IsValidHandle())
 	{
-		return false;
+		return BindingObjects;
 	}
 
-	uint8 Channel = 0;
-	int32 Count = 0;
+	EvalTimePropertyHandle->GetOuterObjects(BindingObjects);
 
-	if (ChannelPropertyHandle->GetValue(Channel) == FPropertyAccess::Success)
-	{
-		FMovieSceneAnimatorTrackEditor::OnGetAnimatorTrackCount.Broadcast(Channel, Count);
-	}
-
-	return Count == 0;
+	return BindingObjects;
 }
 
 #undef LOCTEXT_NAMESPACE

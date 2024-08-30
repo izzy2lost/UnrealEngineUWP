@@ -2,45 +2,22 @@
 
 #include "TimeSources/PropertyAnimatorCoreSequencerTimeSource.h"
 
-UPropertyAnimatorCoreSequencerTimeSource::FOnAnimatorTimeEvaluated UPropertyAnimatorCoreSequencerTimeSource::OnAnimatorTimeEvaluated;
-
 bool UPropertyAnimatorCoreSequencerTimeSource::UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData)
 {
-	if (!EvalTime.IsSet() || !EvalMagnitude.IsSet())
+	if (!EvalResult.bEvalValid)
 	{
 		return false;
 	}
 
-	OutData.TimeElapsed = EvalTime.GetValue();
-	OutData.Magnitude = EvalMagnitude.GetValue();
+	OutData.TimeElapsed = EvalResult.EvalTime;
+	OutData.Magnitude = EvalResult.EvalMagnitude;
 
 	return true;
 }
 
-void UPropertyAnimatorCoreSequencerTimeSource::OnTimeSourceActive()
+void UPropertyAnimatorCoreSequencerTimeSource::OnSequencerTimeEvaluated(const TOptional<double>& InTimeEval, const TOptional<float>& InMagnitudeEval)
 {
-	Super::OnTimeSourceActive();
-
-	OnAnimatorTimeEvaluated.AddUObject(this, &UPropertyAnimatorCoreSequencerTimeSource::OnSequencerTimeEvaluated);
-}
-
-void UPropertyAnimatorCoreSequencerTimeSource::OnTimeSourceInactive()
-{
-	Super::OnTimeSourceInactive();
-
-	OnAnimatorTimeEvaluated.RemoveAll(this);
-}
-
-void UPropertyAnimatorCoreSequencerTimeSource::SetChannel(uint8 InChannel)
-{
-	ChannelData.Channel = InChannel;
-}
-
-void UPropertyAnimatorCoreSequencerTimeSource::OnSequencerTimeEvaluated(uint8 InChannel, const TOptional<double>& InTimeEval, const TOptional<float>& InMagnitudeEval)
-{
-	if (ChannelData.Channel == InChannel)
-	{
-		EvalTime = InTimeEval;
-		EvalMagnitude = InMagnitudeEval;
-	}
+	EvalResult.bEvalValid = InTimeEval.IsSet() && InMagnitudeEval.IsSet();
+	EvalResult.EvalTime = InTimeEval.Get(0.0);
+	EvalResult.EvalMagnitude = InMagnitudeEval.Get(1.f);
 }

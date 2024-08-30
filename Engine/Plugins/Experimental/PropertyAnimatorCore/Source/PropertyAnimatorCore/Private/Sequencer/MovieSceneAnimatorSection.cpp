@@ -9,12 +9,17 @@ UMovieSceneAnimatorSection::UMovieSceneAnimatorSection()
 	EvalOptions.CompletionMode = EMovieSceneCompletionMode::RestoreState;
 }
 
-void UMovieSceneAnimatorSection::SetChannel(uint8 InChannel)
+void UMovieSceneAnimatorSection::SetEvalTimeMode(EMovieSceneAnimatorEvalTimeMode InMode)
 {
-	Channel = InChannel;
+	EvalTimeMode = InMode;
 }
 
-void UMovieSceneAnimatorSection::SetUseSectionTime(bool bInUse)
+void UMovieSceneAnimatorSection::SetCustomStartTime(double InTime)
 {
-	bUseSectionTime = bInUse;
+	CustomStartTime = InTime;
+}
+
+void UMovieSceneAnimatorSection::SetCustomEndTime(double InTime)
+{
+	CustomEndTime = InTime;
 }

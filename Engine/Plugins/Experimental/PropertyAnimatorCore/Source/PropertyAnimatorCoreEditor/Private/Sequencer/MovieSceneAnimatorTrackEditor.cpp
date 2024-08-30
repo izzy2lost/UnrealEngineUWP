@@ -2,9 +2,9 @@
 
 #include "MovieSceneAnimatorTrackEditor.h"
 
+#include "Components/PropertyAnimatorCoreComponent.h"
 #include "LevelSequence.h"
 #include "Sequencer/MovieSceneAnimatorSection.h"
-#include "Styling/SlateIconFinder.h"
 
 #define LOCTEXT_NAMESPACE "MovieSceneAnimatorTrackEditor"
 
@@ -19,17 +19,7 @@ FMovieSceneAnimatorTrackEditor::~FMovieSceneAnimatorTrackEditor()
 
 void FMovieSceneAnimatorTrackEditor::BuildAddTrackMenu(FMenuBuilder& InMenuBuilder)
 {
-	constexpr uint8 Channel = 0;
-
-	InMenuBuilder.AddMenuEntry(
-		LOCTEXT("AddAnimatorTrack.Label", "Animator"),
-		LOCTEXT("AddAnimatorTrack.Tooltip", "Adds a new track that uses the time of the current sequence to drive animators."),
-		FSlateIconFinder::FindIconForClass(UMovieSceneAnimatorTrack::StaticClass()),
-		FUIAction(
-			FExecuteAction::CreateSP(this, &FMovieSceneAnimatorTrackEditor::ExecuteAddTrack, Channel),
-			FCanExecuteAction::CreateSP(this, &FMovieSceneAnimatorTrackEditor::CanExecuteAddTrack)
-		)
-	);
+	// Empty, do not allow the creation of new tracks, only allow through sequencer time source
 }
 
 TSharedPtr<SWidget> FMovieSceneAnimatorTrackEditor::BuildOutlinerEditWidget(const FGuid& InObjectBinding, UMovieSceneTrack* InTrack, const FBuildEditWidgetParams& InParams)
@@ -56,7 +46,7 @@ void FMovieSceneAnimatorTrackEditor::BindDelegates()
 	OnGetAnimatorTrackCount.AddSP(this, &FMovieSceneAnimatorTrackEditor::GetTrackCount);
 }
 
-void FMovieSceneAnimatorTrackEditor::GetTrackCount(uint8 InChannel, int32& OutCount) const
+void FMovieSceneAnimatorTrackEditor::GetTrackCount(const TArray<UObject*>& InOwners, int32& OutCount) const
 {
 	const UMovieScene* FocusedMovieScene = GetFocusedMovieScene();
 	if (!FocusedMovieScene)
@@ -64,11 +54,32 @@ void FMovieSceneAnimatorTrackEditor::GetTrackCount(uint8 InChannel, int32& OutCo
 		return;
 	}
 
-	for (UMovieSceneTrack* Track : FocusedMovieScene->GetTracks())
+	const TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+	if (!SequencerPtr)
 	{
-		if (const UMovieSceneAnimatorTrack* AnimatorTrack = Cast<UMovieSceneAnimatorTrack>(Track))
+		return;
+	}
+
+	for (UObject* Owner : InOwners)
+	{
+		if (!Owner)
 		{
-			OutCount += AnimatorTrack->GetChannelCount(InChannel);
+			continue;
+		}
+
+		const FGuid ObjectBinding = SequencerPtr->GetHandleToObject(Owner, /** Create */false);
+
+		if (!ObjectBinding.IsValid())
+		{
+			return;
+		}
+
+		for (const UMovieSceneTrack* Track : FocusedMovieScene->FindTracks(UMovieSceneAnimatorTrack::StaticClass(), ObjectBinding))
+		{
+			if (Track->IsA<UMovieSceneAnimatorTrack>())
+			{
+				OutCount++;
+			}
 		}
 	}
 }
@@ -78,7 +89,7 @@ bool FMovieSceneAnimatorTrackEditor::CanExecuteAddTrack() const
 	return GetSequencer() && GetFocusedMovieScene();
 }
 
-void FMovieSceneAnimatorTrackEditor::ExecuteAddTrack(uint8 InChannel)
+void FMovieSceneAnimatorTrackEditor::ExecuteAddTrack(const TArray<UObject*>& InOwners)
 {
 	UMovieScene* FocusedMovieScene = GetFocusedMovieScene();
 	if (!FocusedMovieScene || FocusedMovieScene->IsReadOnly())
@@ -96,13 +107,40 @@ void FMovieSceneAnimatorTrackEditor::ExecuteAddTrack(uint8 InChannel)
 
 	FocusedMovieScene->Modify();
 
-	UMovieSceneAnimatorTrack* NewTrack = NewObject<UMovieSceneAnimatorTrack>(FocusedMovieScene, NAME_None, RF_Transactional);
-	UMovieSceneAnimatorSection* NewSection = Cast<UMovieSceneAnimatorSection>(NewTrack->CreateNewSection());
-	NewSection->SetChannel(InChannel);
-	NewTrack->AddSection(*NewSection);
+	for (UObject* Owner : InOwners)
+	{
+		if (!Owner || !Owner->GetOuter())
+		{
+			continue;
+		}
 
-	FocusedMovieScene->AddGivenTrack(NewTrack);
-	SequencerPtr->OnAddTrack(NewTrack, FGuid());
+		const FGuid ObjectBinding = SequencerPtr->GetHandleToObject(Owner, /** Create */true);
+
+		if (FocusedMovieScene->FindSpawnable(ObjectBinding))
+		{
+			// we only want to add tracks for possessables
+			return;
+		}
+
+		if (!FocusedMovieScene->FindTrack<UMovieSceneAnimatorTrack>(ObjectBinding))
+		{
+			UMovieSceneAnimatorTrack* NewTrack = FocusedMovieScene->AddTrack<UMovieSceneAnimatorTrack>(ObjectBinding);
+
+			if (const UPropertyAnimatorCoreBase* Animator = Cast<UPropertyAnimatorCoreBase>(Owner->GetOuter()))
+			{
+				NewTrack->SetDisplayName(FText::Format(LOCTEXT("MovieSceneAnimatorTrackName", "Animator {0} Track"), FText::FromName(Animator->GetAnimatorOriginalName())));
+			}
+			else
+			{
+				NewTrack->SetDisplayName(LOCTEXT("MovieSceneAnimatorComponentTrackName", "Animator Component Track"));
+			}
+
+			UMovieSceneAnimatorSection* NewSection = Cast<UMovieSceneAnimatorSection>(NewTrack->CreateNewSection());
+			NewTrack->AddSection(*NewSection);
+		}
+	}
+
+	SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 }
 
 #undef LOCTEXT_NAMESPACE

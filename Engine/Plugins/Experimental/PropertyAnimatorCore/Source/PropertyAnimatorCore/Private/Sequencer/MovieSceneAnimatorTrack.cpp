@@ -17,24 +17,6 @@ UMovieSceneAnimatorTrack::UMovieSceneAnimatorTrack()
 	SupportedBlendTypes.Add(EMovieSceneBlendType::Absolute);
 }
 
-int32 UMovieSceneAnimatorTrack::GetChannelCount(uint8 InChannel) const
-{
-	int32 Count = 0;
-
-	for (UMovieSceneSection* Section : GetAllSections())
-	{
-		if (const UMovieSceneAnimatorSection* AnimatorSection = Cast<UMovieSceneAnimatorSection>(Section))
-		{
-			if (AnimatorSection->GetChannel() == InChannel)
-			{
-				Count++;
-			}
-		}
-	}
-
-	return Count;
-}
-
 bool UMovieSceneAnimatorTrack::SupportsType(TSubclassOf<UMovieSceneSection> InSectionClass) const
 {
 	return InSectionClass == UMovieSceneAnimatorSection::StaticClass();
@@ -95,20 +77,7 @@ void UMovieSceneAnimatorTrack::RemoveSectionAt(int32 InSectionIndex)
 #if WITH_EDITORONLY_DATA
 FText UMovieSceneAnimatorTrack::GetDefaultDisplayName() const
 {
-	if (!Sections.IsEmpty() && Sections[0])
-	{
-		if (const UMovieSceneAnimatorSection* AnimatorSection = Cast<UMovieSceneAnimatorSection>(Sections[0]))
-		{
-			return FText::Format(LOCTEXT("MovieSceneAnimatorTrackChannelName", "Animator Channel {0}"), FText::AsNumber(AnimatorSection->GetChannel()));
-		}
-	}
-
-	return LOCTEXT("MovieSceneAnimatorTrackName", "Animator Channel");
-}
-
-bool UMovieSceneAnimatorTrack::CanRename() const
-{
-	return false;
+	return LOCTEXT("MovieSceneAnimatorTrackDefaultName", "Animator Track");
 }
 #endif
 
@@ -122,8 +91,9 @@ FMovieSceneEvalTemplatePtr UMovieSceneAnimatorTrack::CreateTemplateForSection(co
 	}
 
 	FMovieSceneAnimatorSectionData SectionData;
-	SectionData.Channel = AnimatorSection->GetChannel();
-	SectionData.bUseSectionTime = AnimatorSection->GetUseSectionTime();
+	SectionData.EvalTimeMode = AnimatorSection->GetEvalTimeMode();
+	SectionData.CustomStartTime = AnimatorSection->GetCustomStartTime();
+	SectionData.CustomEndTime = AnimatorSection->GetCustomEndTime();
 	SectionData.Section = AnimatorSection;
 
 	return FMovieSceneAnimatorEvalTemplate(SectionData);

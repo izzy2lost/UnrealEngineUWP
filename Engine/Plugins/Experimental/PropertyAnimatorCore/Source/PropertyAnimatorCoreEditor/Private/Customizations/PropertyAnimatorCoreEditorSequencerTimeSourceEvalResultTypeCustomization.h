@@ -2,14 +2,17 @@
 
 #pragma once
 
+#include "Containers/Array.h"
 #include "IPropertyTypeCustomization.h"
 #include "Templates/SharedPointer.h"
 
+class AActor;
 class FReply;
 class IPropertyHandle;
+class UObject;
 struct EVisibility;
 
-/** Type customization for FPropertyAnimatorCoreSequencerTimeSourceChannel */
+/** Type customization for FPropertyAnimatorCoreSequencerTimeSourceEvalResult */
 class FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization : public IPropertyTypeCustomization
 {
 public:
@@ -27,6 +30,8 @@ protected:
 	FReply OnCreateTrackButtonClicked();
 	EVisibility GetCreateTrackButtonVisibility() const;
 	bool IsCreateTrackButtonEnabled() const;
+	TArray<AActor*> GetSelectedActors() const;
+	TArray<UObject*> GetBindingObjects() const;
 
-	TSharedPtr<IPropertyHandle> ChannelPropertyHandle;
+	TSharedPtr<IPropertyHandle> EvalTimePropertyHandle;
 };

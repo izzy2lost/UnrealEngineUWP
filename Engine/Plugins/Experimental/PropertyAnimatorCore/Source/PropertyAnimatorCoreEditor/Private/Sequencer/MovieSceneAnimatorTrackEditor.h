@@ -11,10 +11,10 @@ class UMovieSceneSequence;
 class FMovieSceneAnimatorTrackEditor : public FKeyframeTrackEditor<UMovieSceneAnimatorTrack>
 {
 public:
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnAddAnimatorTrack, uint8 /** Channel */)
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnAddAnimatorTrack, const TArray<UObject*>& /** InOwners */)
 	static FOnAddAnimatorTrack OnAddAnimatorTrack;
 
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnGetAnimatorTrackCount, uint8 /** Channel */, int32& /** Count */)
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnGetAnimatorTrackCount, const TArray<UObject*>& /** InOwner */, int32& /** Count */)
 	static FOnGetAnimatorTrackCount OnGetAnimatorTrackCount;
 
 	FMovieSceneAnimatorTrackEditor(const TSharedRef<ISequencer>& InSequencer)
@@ -39,8 +39,8 @@ private:
 
 	void BindDelegates();
 
-	void GetTrackCount(uint8 InChannel, int32& OutCount) const;
+	void GetTrackCount(const TArray<UObject*>& InOwners, int32& OutCount) const;
 
 	bool CanExecuteAddTrack() const;
-	void ExecuteAddTrack(uint8 InChannel);
+	void ExecuteAddTrack(const TArray<UObject*>& InOwners);
 };

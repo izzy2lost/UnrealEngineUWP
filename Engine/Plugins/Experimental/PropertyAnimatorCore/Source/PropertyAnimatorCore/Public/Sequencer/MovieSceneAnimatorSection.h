@@ -6,7 +6,7 @@
 #include "MovieSceneSection.h"
 #include "MovieSceneAnimatorSection.generated.h"
 
-/** Movie scene section for a sequencer animator channel */
+/** Movie scene section for a sequencer animator track */
 UCLASS(MinimalAPI)
 class UMovieSceneAnimatorSection : public UMovieSceneSection
 {
@@ -15,26 +15,34 @@ class UMovieSceneAnimatorSection : public UMovieSceneSection
 public:
 	UMovieSceneAnimatorSection();
 
-	PROPERTYANIMATORCORE_API void SetChannel(uint8 InChannel);
+	PROPERTYANIMATORCORE_API void SetEvalTimeMode(EMovieSceneAnimatorEvalTimeMode InMode);
 
-	uint8 GetChannel() const
+	EMovieSceneAnimatorEvalTimeMode GetEvalTimeMode() const
 	{
-		return Channel;
+		return EvalTimeMode;
 	}
 
-	PROPERTYANIMATORCORE_API void SetUseSectionTime(bool bInUse);
+	PROPERTYANIMATORCORE_API void SetCustomStartTime(double InTime);
 
-	bool GetUseSectionTime() const
+	double GetCustomStartTime() const
 	{
-		return bUseSectionTime;
+		return CustomStartTime;
+	}
+
+	PROPERTYANIMATORCORE_API void SetCustomEndTime(double InTime);
+
+	double GetCustomEndTime() const
+	{
+		return CustomEndTime;
 	}
 
 protected:
-	/** Channel used to push sequencer time to */
-	UPROPERTY(EditAnywhere, Category="Animator")
-	uint8 Channel = 0;
+	UPROPERTY(EditAnywhere, Setter, Getter, Category="Animator")
+	EMovieSceneAnimatorEvalTimeMode EvalTimeMode = EMovieSceneAnimatorEvalTimeMode::Section;
 
-	/** Whether to use the section time (playback range) or track time (sequencer time) */
-	UPROPERTY(EditAnywhere, Category="Animator")
-	bool bUseSectionTime = true;
+	UPROPERTY(EditAnywhere, Setter, Getter, Category="Animator", meta=(EditCondition="EvalTimeMode == EMovieSceneAnimatorEvalTimeMode::Custom"))
+	double CustomStartTime = 0.0;
+
+	UPROPERTY(EditAnywhere, Setter, Getter, Category="Animator", meta=(EditCondition="EvalTimeMode == EMovieSceneAnimatorEvalTimeMode::Custom"))
+	double CustomEndTime = 1.0;
 };

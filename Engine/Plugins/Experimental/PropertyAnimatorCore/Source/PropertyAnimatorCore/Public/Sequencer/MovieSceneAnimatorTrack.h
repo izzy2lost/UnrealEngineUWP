@@ -15,9 +15,6 @@ class UMovieSceneAnimatorTrack : public UMovieSceneNameableTrack, public IMovieS
 public:
 	UMovieSceneAnimatorTrack();
 
-	/** Get the number of section using the channel under this track */
-	PROPERTYANIMATORCORE_API int32 GetChannelCount(uint8 InChannel) const;
-
 	//~ Begin UMovieSceneTrack
 	virtual bool SupportsType(TSubclassOf<UMovieSceneSection> InSectionClass) const override;
 	virtual UMovieSceneSection* CreateNewSection() override;
@@ -30,7 +27,6 @@ public:
 	virtual void RemoveSectionAt(int32 InSectionIndex) override;
 #if WITH_EDITORONLY_DATA
 	virtual FText GetDefaultDisplayName() const override;
-	virtual bool CanRename() const override;
 #endif
 	//~ End UMovieSceneTrack
 

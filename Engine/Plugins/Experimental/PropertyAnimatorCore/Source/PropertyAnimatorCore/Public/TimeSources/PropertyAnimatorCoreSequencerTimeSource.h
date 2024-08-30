@@ -6,50 +6,39 @@
 #include "PropertyAnimatorCoreSequencerTimeSource.generated.h"
 
 USTRUCT()
-struct FPropertyAnimatorCoreSequencerTimeSourceChannel
+struct FPropertyAnimatorCoreSequencerTimeSourceEvalResult
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditInstanceOnly, Category="Animator")
-	uint8 Channel = 0;
+	/** Is the evaluation state valid */
+	bool bEvalValid = false;
+
+	/** Last evaluated time received */
+	UPROPERTY(VisibleInstanceOnly, Transient, Category="Animator", meta=(Units=Seconds))
+	double EvalTime = 0.0;
+
+	/** Last evaluated magnitude received */
+	float EvalMagnitude = 1.f;
 };
 
-/** Sequencer time source that sync with animator track channel */
+/** Time source that sync with a sequencer animator track */
 UCLASS(MinimalAPI)
 class UPropertyAnimatorCoreSequencerTimeSource : public UPropertyAnimatorCoreTimeSourceBase
 {
 	GENERATED_BODY()
 
 public:
-	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnAnimatorTimeEvaluated, uint8 /** Channel */, const TOptional<double>& /** EvalTime */, const TOptional<float>& /** EvalMagnitude */)
-	static FOnAnimatorTimeEvaluated OnAnimatorTimeEvaluated;
-
 	UPropertyAnimatorCoreSequencerTimeSource()
 		: UPropertyAnimatorCoreTimeSourceBase(TEXT("Sequencer"))
 	{}
 
 	//~ Begin UPropertyAnimatorTimeSourceBase
 	virtual bool UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData) override;
-	virtual void OnTimeSourceActive() override;
-	virtual void OnTimeSourceInactive() override;
 	//~ End UPropertyAnimatorTimeSourceBase
 
-	void SetChannel(uint8 InChannel);
-	uint8 GetChannel() const
-	{
-		return ChannelData.Channel;
-	}
+	void OnSequencerTimeEvaluated(const TOptional<double>& InTimeEval, const TOptional<float>& InMagnitudeEval);
 
 protected:
-	void OnSequencerTimeEvaluated(uint8 InChannel, const TOptional<double>& InTimeEval, const TOptional<float>& InMagnitudeEval);
-
-	/** Channel to sample time from */
-	UPROPERTY(EditInstanceOnly, DisplayName="Channel", Category="Animator")
-	FPropertyAnimatorCoreSequencerTimeSourceChannel ChannelData;
-
-	/** Last evaluated time received */
-	TOptional<double> EvalTime;
-
-	/** Last evaluated magnitude received */
-	TOptional<float> EvalMagnitude;
+	UPROPERTY(EditInstanceOnly, DisplayName="EvalTime", Category="Animator")
+	FPropertyAnimatorCoreSequencerTimeSourceEvalResult EvalResult;
 };

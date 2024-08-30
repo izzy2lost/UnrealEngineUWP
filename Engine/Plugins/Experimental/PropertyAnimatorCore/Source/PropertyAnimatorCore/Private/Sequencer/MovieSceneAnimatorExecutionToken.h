@@ -8,43 +8,38 @@
 #include "TimeSources/PropertyAnimatorCoreSequencerTimeSource.h"
 
 /** Used to restore state back to previous when outside section */
-struct FMovieSceneAnimatorPreAnimatedTokenProducer : IMovieScenePreAnimatedGlobalTokenProducer
+struct FMovieSceneAnimatorPreAnimatedTokenProducer : IMovieScenePreAnimatedTokenProducer
 {
-	explicit FMovieSceneAnimatorPreAnimatedTokenProducer(uint8 InChannel)
-		: Channel(InChannel)
+	FMovieSceneAnimatorPreAnimatedTokenProducer()
 	{}
 
-	//~ Begin IMovieScenePreAnimatedGlobalTokenProducer
-	virtual IMovieScenePreAnimatedGlobalTokenPtr CacheExistingState() const override
+	//~ Begin IMovieScenePreAnimatedTokenProducer
+	virtual IMovieScenePreAnimatedTokenPtr CacheExistingState(UObject& InObject) const override
 	{
-		struct FMovieSceneAnimatorPreAnimatedGlobalToken : IMovieScenePreAnimatedGlobalToken
+		struct FMovieSceneAnimatorPreAnimatedToken : IMovieScenePreAnimatedToken
 		{
-			FMovieSceneAnimatorPreAnimatedGlobalToken(uint8 InChannel)
-				: Channel(InChannel)
+			FMovieSceneAnimatorPreAnimatedToken()
 			{}
 
-			//~ Begin IMovieScenePreAnimatedGlobalToken
-			virtual void RestoreState(const UE::MovieScene::FRestoreStateParams& InParams) override
+			//~ Begin IMovieScenePreAnimatedToken
+			virtual void RestoreState(UObject& InObject, const UE::MovieScene::FRestoreStateParams& InParams) override
 			{
-				UPropertyAnimatorCoreSequencerTimeSource::OnAnimatorTimeEvaluated.Broadcast(Channel, TOptional<double>(), TOptional<float>());
+				if (UPropertyAnimatorCoreSequencerTimeSource* SequencerTimeSource = Cast<UPropertyAnimatorCoreSequencerTimeSource>(&InObject))
+				{
+					SequencerTimeSource->OnSequencerTimeEvaluated(TOptional<double>(), TOptional<float>());
+				}
 			}
-			//~ End IMovieScenePreAnimatedGlobalToken
-
-		private:
-			uint8 Channel = 0;
+			//~ End IMovieScenePreAnimatedToken
 		};
 
-		return FMovieSceneAnimatorPreAnimatedGlobalToken(Channel);
+		return FMovieSceneAnimatorPreAnimatedToken();
 	}
-	//~ End IMovieScenePreAnimatedGlobalTokenProducer
+	//~ End IMovieScenePreAnimatedTokenProducer
 
 	static FMovieSceneAnimTypeID GetAnimTypeID()
 	{
 		return TMovieSceneAnimTypeID<FMovieSceneAnimatorPreAnimatedTokenProducer>();
 	}
-
-private:
-	uint8 Channel = 0;
 };
 
 /** Used to evaluate active section */
@@ -57,20 +52,44 @@ struct FMovieSceneAnimatorExecutionToken : IMovieSceneExecutionToken
 	//~ Begin IMovieSceneExecutionToken
 	virtual void Execute(const FMovieSceneContext& InContext, const FMovieSceneEvaluationOperand& InOperand, FPersistentEvaluationData& InPersistentData, IMovieScenePlayer& InPlayer) override
 	{
-		InPlayer.SavePreAnimatedState(FMovieSceneAnimatorPreAnimatedTokenProducer::GetAnimTypeID(), FMovieSceneAnimatorPreAnimatedTokenProducer(SectionData.Channel));
-
-		double EvaluatedTime = InContext.GetTime().AsDecimal();
-
-		if (SectionData.bUseSectionTime && SectionData.Section)
+		if (InOperand.ObjectBindingID.IsValid() && SectionData.Section)
 		{
-			EvaluatedTime -= SectionData.Section->GetInclusiveStartFrame().Value;
+			double EvaluatedTime = InContext.GetTime().AsDecimal();
+
+			if (SectionData.EvalTimeMode == EMovieSceneAnimatorEvalTimeMode::Section)
+			{
+				EvaluatedTime -= SectionData.Section->GetInclusiveStartFrame().Value;
+			}
+
+			EvaluatedTime /= InContext.GetFrameRate().AsDecimal();
+
+			if (SectionData.EvalTimeMode == EMovieSceneAnimatorEvalTimeMode::Custom)
+			{
+				const double SectionStartTime = (SectionData.Section->GetInclusiveStartFrame().Value * 1.f) / InContext.GetFrameRate().AsDecimal();
+				const double SectionEndTime = (SectionData.Section->GetExclusiveEndFrame().Value * 1.f) / InContext.GetFrameRate().AsDecimal();
+
+				EvaluatedTime = FMath::GetMappedRangeValueClamped(FVector2D(SectionStartTime, SectionEndTime), FVector2D(SectionData.CustomStartTime, SectionData.CustomEndTime), EvaluatedTime);
+			}
+
+			const float Magnitude = SectionData.Section->EvaluateEasing(InContext.GetTime());
+
+			for (const TWeakObjectPtr<UObject>& BoundObjectWeak : InPlayer.FindBoundObjects(InOperand))
+			{
+				UObject* BoundObject = BoundObjectWeak.Get();
+
+				if (!BoundObject)
+				{
+					continue;
+				}
+
+				if (UPropertyAnimatorCoreSequencerTimeSource* SequencerTimeSource = Cast<UPropertyAnimatorCoreSequencerTimeSource>(BoundObject))
+				{
+					InPlayer.SavePreAnimatedState(*SequencerTimeSource, FMovieSceneAnimatorPreAnimatedTokenProducer::GetAnimTypeID(), FMovieSceneAnimatorPreAnimatedTokenProducer());
+
+					SequencerTimeSource->OnSequencerTimeEvaluated(EvaluatedTime, Magnitude);
+				}
+			}
 		}
-
-		EvaluatedTime /= InContext.GetFrameRate().AsDecimal();
-
-		const float Magnitude = SectionData.Section ? SectionData.Section->EvaluateEasing(InContext.GetTime()) : 1;
-
-		UPropertyAnimatorCoreSequencerTimeSource::OnAnimatorTimeEvaluated.Broadcast(SectionData.Channel, EvaluatedTime, Magnitude);
 	}
 	//~ End IMovieSceneExecutionToken
 

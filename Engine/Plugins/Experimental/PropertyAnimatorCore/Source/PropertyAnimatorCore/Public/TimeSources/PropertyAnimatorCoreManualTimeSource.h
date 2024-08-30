@@ -84,7 +84,7 @@ protected:
 	bool bOverrideTime = true;
 
 	/** Time to evaluate */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="bOverrideTime"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="bOverrideTime", Units=Seconds))
 	double CustomTime = 0.f;
 
 	/** Playback state */
