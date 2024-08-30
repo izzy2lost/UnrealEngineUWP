@@ -9,6 +9,7 @@
 
 class FGroomExecDataInterfaceParameters;
 class UGroomComponent;
+struct FHairGroupInstance;
 
 UENUM()
 enum class EOptimusGroomExecDomain : uint8
@@ -92,5 +93,6 @@ private:
 	using FParameters = FGroomExecDataInterfaceParameters;
 
 	UGroomComponent* GroomComponent = nullptr;
+	TArray<FHairGroupInstance*> Instances;
 	EOptimusGroomExecDomain Domain = EOptimusGroomExecDomain::ControlPoint;
 };
