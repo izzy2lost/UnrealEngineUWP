@@ -484,7 +484,7 @@ void FD3D12Device::CreateDefaultViews()
 
 	{
 		const FSamplerStateInitializerRHI SamplerDesc(SF_Trilinear, AM_Clamp, AM_Clamp, AM_Clamp);
-		DefaultViews.DefaultSampler = CreateSampler(SamplerDesc);
+		DefaultViews.DefaultSampler = CreateSampler(SamplerDesc, GetGPUIndex() > 0 ? GetParentAdapter()->GetDevice(0)->DefaultViews.DefaultSampler : nullptr);
 
 		// The default sampler must have ID=0
 		// FD3D12DescriptorCache::SetSamplers relies on this

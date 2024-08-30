@@ -17,7 +17,7 @@ public:
 	const uint16 ID;
 
 	FD3D12SamplerState() = delete;
-	FD3D12SamplerState(FD3D12Device* InParent, const D3D12_SAMPLER_DESC& Desc, uint16 SamplerID);
+	FD3D12SamplerState(FD3D12Device* InParent, const D3D12_SAMPLER_DESC& Desc, uint16 SamplerID, FD3D12SamplerState* FirstLinkedObject);
 	~FD3D12SamplerState();
 
 	virtual FRHIDescriptorHandle GetBindlessHandle() const final { return BindlessHandle; }

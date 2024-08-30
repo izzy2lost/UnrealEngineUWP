@@ -258,7 +258,7 @@ public:
 	inline FD3D12ResidencyManager& GetResidencyManager() { return ResidencyManager; }
 
 	// Samplers
-	FD3D12SamplerState* CreateSampler(const FSamplerStateInitializerRHI& Initializer);
+	FD3D12SamplerState* CreateSampler(const FSamplerStateInitializerRHI& Initializer, FD3D12SamplerState* FirstLinkedObject);
 	void CreateSamplerInternal(const D3D12_SAMPLER_DESC& Desc, D3D12_CPU_DESCRIPTOR_HANDLE Descriptor);
 
 	// Command Allocators

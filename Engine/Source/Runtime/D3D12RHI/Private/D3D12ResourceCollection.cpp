@@ -8,7 +8,7 @@
 #include "D3D12CommandContext.h"
 #include "D3D12TextureReference.h"
 
-FD3D12ResourceCollection::FD3D12ResourceCollection(FD3D12Device* InParent, FRHICommandListBase& RHICmdList, FD3D12Buffer* InBuffer, TConstArrayView<FRHIResourceCollectionMember> InMembers)
+FD3D12ResourceCollection::FD3D12ResourceCollection(FD3D12Device* InParent, FRHICommandListBase& RHICmdList, FD3D12Buffer* InBuffer, TConstArrayView<FRHIResourceCollectionMember> InMembers, FD3D12ResourceCollection* FirstLinkedObject)
 	: FRHIResourceCollection(InMembers)
 	, FD3D12DeviceChild(InParent)
 	, Buffer(InBuffer->GetLinkedObject(InParent->GetGPUIndex()))
@@ -67,7 +67,7 @@ FD3D12ResourceCollection::FD3D12ResourceCollection(FD3D12Device* InParent, FRHIC
 	SRVDesc.Buffer.NumElements = UE::RHICore::CalculateResourceCollectionMemorySize(InMembers) / 4;
 	SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
 
-	BufferSRV = MakeShared<FD3D12ShaderResourceView>(InParent);
+	BufferSRV = MakeShared<FD3D12ShaderResourceView>(InParent, FirstLinkedObject ? FirstLinkedObject->BufferSRV.Get() : nullptr);
 	BufferSRV->CreateView(InBuffer, SRVDesc, FD3D12ShaderResourceView::EFlags::None);
 }
 
@@ -94,9 +94,9 @@ FRHIResourceCollectionRef FD3D12DynamicRHI::RHICreateResourceCollection(FRHIComm
 	FRHIViewDesc::FBufferSRV::FInitializer ViewDesc = FRHIViewDesc::CreateBufferSRV().SetType(FRHIViewDesc::EBufferType::Raw);
 	FShaderResourceViewRHIRef ShaderResourceView = RHICmdList.CreateShaderResourceView(Buffer, ViewDesc);
 
-	return GetAdapter().CreateLinkedObject<FD3D12ResourceCollection>(FRHIGPUMask::All(), [&RHICmdList, Buffer, InMembers](FD3D12Device* Device)
+	return GetAdapter().CreateLinkedObject<FD3D12ResourceCollection>(FRHIGPUMask::All(), [&RHICmdList, Buffer, InMembers](FD3D12Device* Device, FD3D12ResourceCollection* FirstLinkedObject)
 	{
-		return new FD3D12ResourceCollection(Device, RHICmdList, Buffer, InMembers);
+		return new FD3D12ResourceCollection(Device, RHICmdList, Buffer, InMembers, FirstLinkedObject);
 	});
 }
 

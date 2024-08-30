@@ -36,6 +36,7 @@
 #include "D3D12ThirdParty.h"
 #include "D3D12CommandContext.h"
 #include "D3D12RootSignature.h"
+#include "D3D12BindlessDescriptors.h"
 
 class FD3D12TransientHeapCache;
 class IRHITransientMemoryCache;
@@ -448,6 +449,8 @@ public:
 	HMODULE GetDxgiDllHandle() const { return DxgiDllHandle; };
 #endif
 
+	FD3D12BindlessManagerAdapter& GetBindlessManager() { return BindlessManager; }
+
 protected:
 
 	virtual void CreateRootDevice(bool bWithDebug);
@@ -548,11 +551,6 @@ protected:
 
 	FD3D12AdapterDesc Desc;
 
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	bool bBindlessResourcesAllowed = false;
-	bool bBindlessSamplersAllowed = false;
-#endif
-
 	TRefCountPtr<IDXGIAdapter> DxgiAdapter;
 
 	FD3D12RootSignatureManager RootSignatureManager;
@@ -621,6 +619,8 @@ protected:
 	FD3D12RootSignature StaticRayTracingGlobalRootSignature;
 	FD3D12RootSignature StaticRayTracingLocalRootSignature;
 #endif
+
+	FD3D12BindlessManagerAdapter BindlessManager;
 
 private:
 	// Insight memory trace helper

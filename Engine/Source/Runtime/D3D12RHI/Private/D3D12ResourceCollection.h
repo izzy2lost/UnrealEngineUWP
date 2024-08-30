@@ -10,14 +10,13 @@
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
 class FD3D12Buffer;
-class FD3D12ResourceCollection;
 class FD3D12RHITextureReference;
 class FD3D12ShaderResourceView;
 
 class FD3D12ResourceCollection : public FRHIResourceCollection, public FD3D12DeviceChild, public FD3D12LinkedAdapterObject<FD3D12ResourceCollection>
 {
 public:
-	FD3D12ResourceCollection(FD3D12Device* InParent, FRHICommandListBase& RHICmdList, FD3D12Buffer* InBuffer, TConstArrayView<FRHIResourceCollectionMember> InMembers);
+	FD3D12ResourceCollection(FD3D12Device* InParent, FRHICommandListBase& RHICmdList, FD3D12Buffer* InBuffer, TConstArrayView<FRHIResourceCollectionMember> InMembers, FD3D12ResourceCollection* FirstLinkedObject);
 	~FD3D12ResourceCollection();
 
 	virtual FRHIDescriptorHandle GetBindlessHandle() const final;
