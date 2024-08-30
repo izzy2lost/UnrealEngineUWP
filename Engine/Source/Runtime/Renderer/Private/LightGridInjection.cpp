@@ -62,6 +62,14 @@ FAutoConsoleVariableRef CVarLightGridDebug(
 	ECVF_RenderThreadSafe
 );
 
+int32 GLightGridHZBCull = 1;
+FAutoConsoleVariableRef CVarLightGridHZBCull(
+	TEXT("r.Forward.LightGridHZBCull"),
+	GLightGridHZBCull,
+	TEXT("Whether to use HZB culling to skip occluded grid cells."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 int32 GMaxCulledLightsPerCell = 32;
 FAutoConsoleVariableRef CVarMaxCulledLightsPerCell(
 	TEXT("r.Forward.MaxCulledLightsPerCell"),
@@ -190,7 +198,8 @@ class FLightGridInjectionCS : public FGlobalShader
 public:
 	class FUseLinkedListDim : SHADER_PERMUTATION_BOOL("USE_LINKED_CULL_LIST");
 	class FRefineRectLightBoundsDim : SHADER_PERMUTATION_BOOL("REFINE_RECTLIGHT_BOUNDS");
-	using FPermutationDomain = TShaderPermutationDomain<FUseLinkedListDim, FRefineRectLightBoundsDim>;
+	class FUseHZBCullDim : SHADER_PERMUTATION_BOOL("USE_HZB_CULL");
+	using FPermutationDomain = TShaderPermutationDomain<FUseLinkedListDim, FRefineRectLightBoundsDim, FUseHZBCullDim>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FReflectionCaptureShaderData, ReflectionCapture)
@@ -214,6 +223,13 @@ public:
 		SHADER_PARAMETER(uint32, MaxCulledLightsPerCell)
 		SHADER_PARAMETER(uint32, LightGridPixelSizeShift)
 		SHADER_PARAMETER(uint32, MegaLightsSupportedStartIndex)
+
+		SHADER_PARAMETER(FVector2f, HZBSize)
+		SHADER_PARAMETER(FVector2f, HZBViewSize)
+		SHADER_PARAMETER(FIntRect, HZBViewRect)
+
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HZBTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -898,9 +914,18 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 			PassParameters->LightViewSpacePositionAndRadius  = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(LightViewSpacePositionAndRadius));
 			PassParameters->LightViewSpaceDirAndPreprocAngle = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(LightViewSpaceDirAndPreprocAngle));
 
+			{
+				PassParameters->HZBTexture = View.HZB;
+				PassParameters->HZBSampler = TStaticSamplerState< SF_Point, AM_Clamp, AM_Clamp, AM_Clamp >::GetRHI();
+				PassParameters->HZBSize = FVector2f(View.HZBMipmap0Size);
+				PassParameters->HZBViewSize = FVector2f(View.ViewRect.Size());
+				PassParameters->HZBViewRect = FIntRect(0, 0, View.ViewRect.Width(), View.ViewRect.Height());
+			}
+
 			FLightGridInjectionCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FLightGridInjectionCS::FUseLinkedListDim>(GLightLinkedListCulling != 0);
 			PermutationVector.Set<FLightGridInjectionCS::FRefineRectLightBoundsDim>(bHasRectLights);
+			PermutationVector.Set<FLightGridInjectionCS::FUseHZBCullDim>(GLightGridHZBCull != 0);
 			TShaderMapRef<FLightGridInjectionCS> ComputeShader(View.ShaderMap, PermutationVector);
 
 			if (GLightLinkedListCulling != 0)

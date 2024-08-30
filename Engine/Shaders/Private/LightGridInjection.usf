@@ -10,6 +10,10 @@
 #include "ReflectionEnvironmentShared.ush"
 #include "LightGridCommon.ush"
 
+#if USE_HZB_CULL
+	#include "Nanite/NaniteHZBCull.ush"
+#endif
+
 RWStructuredBuffer<uint> RWNumCulledLightsGrid;
 
 #if LIGHT_GRID_USES_16BIT_BUFFERS
@@ -73,7 +77,7 @@ float ComputeCellNearViewDepthFromZSlice(uint ZSlice)
 	return SliceDepth;
 }
 
-void ComputeCellViewAABB(uint3 GridCoordinate, out float3 ViewTileMin, out float3 ViewTileMax)
+void ComputeCellViewAABB(uint3 GridCoordinate, out float3 ViewTileMin, out float3 ViewTileMax, out float3 CullRectMin, out float3 CullRectMax)
 {
 	// Compute extent of tiles in clip-space. Note that the last tile may extend a bit outside of view if view size is not evenly divisible tile size.
 	const float2 InvCulledGridSizeF = (1u << LightGridPixelSizeShift) * View.ViewSizeAndInvSize.zw;
@@ -125,7 +129,15 @@ void ComputeCellViewAABB(uint3 GridCoordinate, out float3 ViewTileMin, out float
 	ViewTileMax.xy = max(ViewTileMax.xy, ViewMaxDepthCorner3);
 
 	ViewTileMin.z = MinTileZ;
-	ViewTileMax.z = MaxTileZ; 
+	ViewTileMax.z = MaxTileZ;
+
+	CullRectMin.x = min(UnitPlaneTileMin.x, UnitPlaneTileMax.x);
+	CullRectMin.y = min(UnitPlaneTileMin.y, UnitPlaneTileMax.y);
+	CullRectMin.z = min(MinTileDeviceZ, MaxTileDeviceZ);
+
+	CullRectMax.x = max(UnitPlaneTileMin.x, UnitPlaneTileMax.x);
+	CullRectMax.y = max(UnitPlaneTileMin.y, UnitPlaneTileMax.y);
+	CullRectMax.z = max(MinTileDeviceZ, MaxTileDeviceZ);
 }
 
 bool IntersectConeWithSphere(float3 ConeVertex, float3 ConeAxis, float ConeRadius, float2 CosSinAngle, float4 SphereToTest)
@@ -191,11 +203,24 @@ void LightGridInjectionCS(
 	#if CULL_LIGHTS
 		float3 ViewTileMin;
 		float3 ViewTileMax;
-		ComputeCellViewAABB(GridCoordinate, ViewTileMin, ViewTileMax);
+		float3 CullRectMin;
+		float3 CullRectMax;
+		ComputeCellViewAABB(GridCoordinate, ViewTileMin, ViewTileMax, CullRectMin, CullRectMax);
 
 		float3 ViewTileCenter = .5f * (ViewTileMin + ViewTileMax);
 		float3 ViewTileExtent = ViewTileMax - ViewTileCenter;
 
+#if USE_HZB_CULL
+		FScreenRect Rect = GetScreenRect(int4(0, 0, HZBViewSize), CullRectMin, CullRectMax, 4);
+
+ 		if (!IsVisibleHZB(Rect, true /*bSample4x4*/))
+ 		{
+ 			RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(0, 0);
+ 			RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(GridIndex * MaxCulledLightsPerCell, false, false);
+ 			return;
+ 		}
+#endif
+		
 		uint NumAvailableLinks = NumGridCells * MaxCulledLightsPerCell * NUM_CULLED_GRID_PRIMITIVE_TYPES;
 
 		uint NumVisibleLights = 0;

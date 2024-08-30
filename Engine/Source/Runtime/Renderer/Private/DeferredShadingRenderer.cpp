@@ -2260,6 +2260,21 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessCardsAndMeshesInterpolation_ShadowView, HairStrandsBookmarkParameters);
 			}
 		}
+
+		// Early occlusion queries
+		const bool bOcclusionBeforeBasePass = ((DepthPass.EarlyZPassMode == EDepthDrawingMode::DDM_AllOccluders) || bIsEarlyDepthComplete);
+
+		if (bOcclusionBeforeBasePass)
+		{
+			FroxelRenderer = RenderOcclusionLambda();
+		}
+
+		// End early occlusion queries
+
+		for (FSceneViewExtensionRef& ViewExtension : ViewFamily.ViewExtensions)
+		{
+			ViewExtension->PreRenderBasePass_RenderThread(GraphBuilder, ShouldRenderPrePass() /*bDepthBufferIsPopulated*/);
+		}
 	
 		// NOTE: The ordering of the lights is used to select sub-sets for different purposes, e.g., those that support clustered deferred.
 		FSortedLightSetSceneInfo& SortedLightSet = *GraphBuilder.AllocObject<FSortedLightSetSceneInfo>();
@@ -2286,25 +2301,10 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			SkyAtmospherePendingRDGResources.CommitToSceneAndViewUniformBuffers(GraphBuilder, /* out */ ExternalAccessQueue);
 			ExternalAccessQueue.Submit(GraphBuilder);
 		}
-	
-		// Early occlusion queries
-		const bool bOcclusionBeforeBasePass = ((DepthPass.EarlyZPassMode == EDepthDrawingMode::DDM_AllOccluders) || bIsEarlyDepthComplete);
-
-		if (bOcclusionBeforeBasePass)
-		{
-			FroxelRenderer = RenderOcclusionLambda();
-		}
-
-		// End early occlusion queries
-
-		for (FSceneViewExtensionRef& ViewExtension : ViewFamily.ViewExtensions)
-		{
-			ViewExtension->PreRenderBasePass_RenderThread(GraphBuilder, ShouldRenderPrePass() /*bDepthBufferIsPopulated*/);
-		}
 
 		BeginAsyncDistanceFieldShadowProjections(GraphBuilder, SceneTextures, InitViewTaskDatas.DynamicShadows);
 
-		// Run local fog volume culling before base pass and after HZB generation tyo benefit from more culling.
+		// Run local fog volume culling before base pass and after HZB generation to benefit from more culling.
 		InitLocalFogVolumesForViews(Scene, Views, ViewFamily, GraphBuilder, bShouldRenderVolumetricFog, false /*bool bUseHalfResLocalFogVolume*/);
 
 		if (bShouldRenderVolumetricCloudBase)

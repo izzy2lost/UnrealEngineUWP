@@ -71,14 +71,14 @@ int MipLevelForRect( int4 RectPixels, int DesiredFootprintPixels )
 	return MipLevel;
 }
 
-FScreenRect GetScreenRect( int4 ViewRect, FFrustumCullData Cull, int DesiredFootprintPixels )
+FScreenRect GetScreenRect( int4 ViewRect, float3 CullRectMin, float3 CullRectMax, int DesiredFootprintPixels )
 {
 	FScreenRect Rect;
-	Rect.Depth = Cull.RectMax.z;
+	Rect.Depth = CullRectMax.z;
 
 	// Map from NDC [-1,1] to target 'texture UV' [0,1] space, X[-1,1] -> [0,1], Y[-1,1] -> [1, 0]
 	// CF DX11.3 Functional Spec 3.3.1 Pixel Coordinate System
-	float4 RectUV = saturate( float4( Cull.RectMin.xy, Cull.RectMax.xy ) * float2(0.5, -0.5).xyxy + 0.5 ).xwzy;
+	float4 RectUV = saturate( float4( CullRectMin.xy, CullRectMax.xy ) * float2(0.5, -0.5).xyxy + 0.5 ).xwzy;
 
 	// Calculate pixel footprint of rectangle in full resolution.
 	// To make the bounds as tight as possible we only consider a pixel part of the footprint when its pixel center is covered by the rectangle.
@@ -107,6 +107,11 @@ FScreenRect GetScreenRect( int4 ViewRect, FFrustumCullData Cull, int DesiredFoot
 	Rect.HZBTexels >>= Rect.HZBLevel;
 
 	return Rect;
+}
+
+FScreenRect GetScreenRect( int4 ViewRect, FFrustumCullData Cull, int DesiredFootprintPixels )
+{
+	return GetScreenRect(ViewRect, Cull.RectMin, Cull.RectMax, DesiredFootprintPixels);
 }
 
 #if !COMPILER_SUPPORTS_GATHER_LOD_RED
