@@ -3415,7 +3415,7 @@ void UNiagaraDataInterfaceHairStrands::SetShaderParameters(const FNiagaraDataInt
 	FNDIHairStrandsProxy& DIProxy = Context.GetProxy<FNDIHairStrandsProxy>();
 	FNDIHairStrandsData* ProxyData = DIProxy.SystemInstancesToProxyData.Find(Context.GetSystemInstanceID());
 
-	FHairGroupInstanceRDG InstanceRDG = Convert(GraphBuilder, ProxyData->HairGroupInstance);
+	FHairGroupInstanceRDG InstanceRDG = Convert(GraphBuilder, ProxyData ? ProxyData->HairGroupInstance : nullptr);
 	
 	const int32 MeshLODIndex = InstanceRDG.MeshLODIndex;
 	const bool bIsHairValid = ProxyData != nullptr && ProxyData->HairStrandsBuffer && ProxyData->HairStrandsBuffer->IsInitialized();
