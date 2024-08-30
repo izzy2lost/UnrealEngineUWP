@@ -80,7 +80,10 @@ void UCommonInputSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	CurrentInputType = LastInputType = Settings->GetDefaultInputType();
 
 	CommonInputPreprocessor = MakeInputProcessor();
-	FSlateApplication::Get().RegisterInputPreProcessor(CommonInputPreprocessor, EInputPreProcessorType::PreGame);
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().RegisterInputPreProcessor(CommonInputPreprocessor, EInputPreProcessorType::PreGame);
+	}
 
 	TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &UCommonInputSubsystem::Tick), 0.1f);
 

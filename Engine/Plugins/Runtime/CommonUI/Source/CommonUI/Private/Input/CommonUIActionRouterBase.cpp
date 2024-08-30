@@ -40,6 +40,12 @@ static const FAutoConsoleVariableRef CVarAutoFlushInput(
 	bAutoFlushPressedKeys,
 	TEXT("Causes the pressed keys to be flushed when the Input Mode is switched to Menu."));
 
+bool bResetUIInputConfigOnActivatableTreeDeactivation = true;
+static const FAutoConsoleVariableRef CVarResetUIInputConfigOnActivatableTreeDeactivation(
+	TEXT("CommonUI.ResetUIInputConfigOnActivatableTreeDeactivation"),
+	bResetUIInputConfigOnActivatableTreeDeactivation,
+	TEXT("Controls if input config is reset when root is changed via deactivation."));
+
 //////////////////////////////////////////////////////////////////////////
 
 static bool bTraceInputConfig = false;
@@ -252,24 +258,27 @@ void UCommonUIActionRouterBase::Initialize(FSubsystemCollectionBase& Collection)
 	UCommonActivatableWidget::OnRebuilding.AddUObject(this, &UCommonUIActionRouterBase::HandleActivatableWidgetRebuilding);
 	FCoreUObjectDelegates::GetPostGarbageCollect().AddUObject(this, &UCommonUIActionRouterBase::HandlePostGarbageCollect);
 
-	if (ensure(InputSubsystem))
+	if (FSlateApplication::IsInitialized())
 	{
-		AnalogCursor = MakeAnalogCursor();
-		PostAnalogCursorCreate();
-
-		if (bCheckGameViewportClientValid && !GEngine->GameViewportClientClass->IsChildOf<UCommonGameViewportClient>())
+		if (ensure(InputSubsystem))
 		{
-			UE_LOG(LogUIActionRouter, Error, 
-				TEXT("Using CommonUI without a CommonGameViewportClient derived game viewport client. CommonUI Input routing will not function correctly.\n")
-				TEXT("To disable this warning set CommonUI.Debug.CheckGameViewportClientValid=0 under [SystemSettings] in your project's DefaultEngine.ini."));
-		}
-	}
-	else
-	{
-		UE_LOG(LogUIActionRouter, Warning, TEXT("Input system not initialized before action router!"));
-	}
+			AnalogCursor = MakeAnalogCursor();
+			PostAnalogCursorCreate();
 
-	FSlateApplication::Get().OnFocusChanging().AddUObject(this, &UCommonUIActionRouterBase::HandleSlateFocusChanging);
+			if (bCheckGameViewportClientValid && !GEngine->GameViewportClientClass->IsChildOf<UCommonGameViewportClient>())
+			{
+				UE_LOG(LogUIActionRouter, Error,
+					TEXT("Using CommonUI without a CommonGameViewportClient derived game viewport client. CommonUI Input routing will not function correctly.\n")
+					TEXT("To disable this warning set CommonUI.Debug.CheckGameViewportClientValid=0 under [SystemSettings] in your project's DefaultEngine.ini."));
+			}
+		}
+		else
+		{
+			UE_LOG(LogUIActionRouter, Warning, TEXT("Input system not initialized before action router!"));
+		}
+
+		FSlateApplication::Get().OnFocusChanging().AddUObject(this, &UCommonUIActionRouterBase::HandleSlateFocusChanging);
+	}
 }
 
 void UCommonUIActionRouterBase::PostAnalogCursorCreate()
@@ -607,7 +616,11 @@ void UCommonUIActionRouterBase::RemoveBinding(FUIActionBindingHandle Handle)
 int32 UCommonUIActionRouterBase::GetLocalPlayerIndex() const
 {
 	ULocalPlayer* LocalPlayer = GetLocalPlayerChecked();
-	return LocalPlayer->GetGameInstance()->GetLocalPlayers().Find(LocalPlayer);
+	if (UGameInstance* GameInstance = LocalPlayer->GetGameInstance())
+	{
+		return GameInstance->GetLocalPlayers().Find(LocalPlayer);
+	}
+	return INDEX_NONE;
 }
 
 bool UCommonUIActionRouterBase::ShouldAlwaysShowCursor() const
@@ -1227,8 +1240,11 @@ void UCommonUIActionRouterBase::SetActiveRoot(FActivatableTreeRootPtr NewActiveR
 		bForceResetActiveRoot = false;
 		ActiveRootNode.Reset();
 
-		// Reset the input config when dormant so we don't get stuck in a non-default input mode when layout is dormant
-		SetActiveUIInputConfig(FUIInputConfig(ECommonInputMode::All, EMouseCaptureMode::NoCapture));
+		if (bForceResetActiveRoot || bResetUIInputConfigOnActivatableTreeDeactivation)
+		{
+			// Reset the input config when dormant so we don't get stuck in a non-default input mode when layout is dormant
+			SetActiveUIInputConfig(FUIInputConfig(ECommonInputMode::All, EMouseCaptureMode::NoCapture));
+		}
 	}
 	else
 	{

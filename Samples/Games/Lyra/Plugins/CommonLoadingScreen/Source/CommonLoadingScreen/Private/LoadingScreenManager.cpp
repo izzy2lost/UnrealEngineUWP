@@ -418,6 +418,13 @@ bool ULoadingScreenManager::ShouldShowLoadingScreen()
 	}
 #endif
 
+	// Can't show a loading screen if there's no game viewport
+	UGameInstance* LocalGameInstance = GetGameInstance();
+	if (LocalGameInstance->GetGameViewportClient() == nullptr)
+	{
+		return false;
+	}
+
 	// Check for a need to show the loading screen
 	const bool bNeedToShowLoadingScreen = CheckForAnyNeedToShowLoadingScreen();
 
