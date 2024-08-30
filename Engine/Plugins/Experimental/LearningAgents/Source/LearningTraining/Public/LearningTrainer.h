@@ -185,6 +185,11 @@ namespace UE::Learning
 		LEARNINGTRAINING_API FString GetPythonContentPath(const FString& EngineDir);
 
 		/**
+		* Gets the project's Python Content path.
+		*/
+		LEARNINGTRAINING_API FString GetProjectPythonContentPath();
+
+		/**
 		* Gets the LearningAgents Intermediate path from the intermediate directory.
 		*/
 		LEARNINGTRAINING_API FString GetIntermediatePath(const FString& IntermediateDir);

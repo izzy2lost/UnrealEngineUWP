@@ -5,8 +5,6 @@
 #include "LearningAgentsManagerListener.h"
 #include "LearningAgentsTrainer.h"
 
-#include "LearningArray.h"
-
 #include "Templates/SharedPointer.h"
 #include "UObject/ObjectPtr.h"
 
@@ -14,7 +12,8 @@
 
 namespace UE::Learning
 {
-	struct FSharedMemoryImitationTrainer;
+	struct FReplayBuffer;
+	struct IExternalTrainer;
 }
 
 class ULearningAgentsInteractor;
@@ -104,6 +103,8 @@ public:
 	/** If true, snapshots of the trained networks will be emitted to the intermediate directory. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
 	bool bSaveSnapshots = false;
+
+	TSharedRef<FJsonObject> AsJsonConfig() const;
 };
 
 /**
@@ -137,14 +138,18 @@ public:
 	 * @param InManager			The agent manager we are using.
 	 * @param InInteractor		The agent interactor we are recording with.
 	 * @param InPolicy			The policy we are using.
-	 * @param Class				The imitation trainer class
+	 * @param Communicator		The communicator.
+	 * @param Class				The trainer class.
+	 * @param Name				The trainer name.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (Class = "/Script/LearningAgentsTraining.LearningAgentsImitationTrainer", DeterminesOutputType = "Class"))
 	static ULearningAgentsImitationTrainer* MakeImitationTrainer(
 		UPARAM(ref) ULearningAgentsManager*& InManager,
 		UPARAM(ref) ULearningAgentsInteractor*& InInteractor,
 		UPARAM(ref) ULearningAgentsPolicy*& InPolicy,
-		TSubclassOf<ULearningAgentsImitationTrainer> Class);
+		const FLearningAgentsCommunicator& Communicator,
+		TSubclassOf<ULearningAgentsImitationTrainer> Class,
+		const FName Name = TEXT("ImitationTrainer"));
 
 	/**
 	 * Initializes the imitation trainer and runs the setup functions.
@@ -152,11 +157,13 @@ public:
 	 * @param InManager			The agent manager we are using.
 	 * @param InInteractor		The agent interactor we are recording with.
 	 * @param InPolicy			The policy we are using.
+	 * @param InCommunicator	The communicator.
 	 */
 	void SetupImitationTrainer(
 		ULearningAgentsManager* InManager,
 		ULearningAgentsInteractor* InInteractor,
-		ULearningAgentsPolicy* InPolicy);
+		ULearningAgentsPolicy* InPolicy,
+		const FLearningAgentsCommunicator& Communicator);
 
 	/** Returns true if the trainer is currently training; Otherwise, false. */
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
@@ -232,9 +239,21 @@ private:
 	UPROPERTY(VisibleAnywhere, Transient, Category = "LearningAgents")
 	bool bHasTrainingFailed = false;
 
-	float TrainerTimeout = 10.0f;
+	TSharedRef<FJsonObject> CreateConfig(const FLearningAgentsImitationTrainerTrainingSettings& TrainingSettings) const;
+	void SendConfig(const TSharedRef<FJsonObject>& ConfigObject);
 
 	void DoneTraining();
 
-	TUniquePtr<UE::Learning::FSharedMemoryImitationTrainer> ImitationTrainer;
+	TUniquePtr<UE::Learning::FReplayBuffer> ReplayBuffer;
+	TSharedPtr<UE::Learning::IExternalTrainer> Trainer;
+
+	int32 PolicyNetworkId = INDEX_NONE;
+	int32 EncoderNetworkId = INDEX_NONE;
+	int32 DecoderNetworkId = INDEX_NONE;
+
+	int32 ReplayBufferId = INDEX_NONE;
+
+	int32 ObservationId = INDEX_NONE;
+	int32 ActionId = INDEX_NONE;
+	int32 MemoryStateId = INDEX_NONE;
 };

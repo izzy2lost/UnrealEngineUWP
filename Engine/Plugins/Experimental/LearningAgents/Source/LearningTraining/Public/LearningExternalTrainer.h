@@ -39,6 +39,8 @@ namespace UE::Learning
 		*/
 		virtual ETrainerResponse Wait() = 0;
 
+		/** Returns true if we can receive a network or training completed. Otherwise, false. */
+		virtual bool HasNetworkOrCompleted() = 0;
 
 		/**
 		* Sends the given json config to the trainer process.
@@ -55,17 +57,15 @@ namespace UE::Learning
 		 * Adds the network to this external trainer. Allocates buffers, etc.
 		 * Must be called for each network prior to calling Send/Receive.
 		 * 
-		 * @params Name		The unique name of the network, used as a key.
-		 * @params Network	The network to be added.
+		 * @params Network	The network to be added
+		 * @returns			The network's unique id
 		 */
-		virtual void AddNetwork(const FName& Name, const ULearningNeuralNetworkData& Network) = 0;
-
-		/** Returns true if a network with the given Name has already been added. Otherwise, false. */
-		virtual bool ContainsNetwork(const FName& Name) const = 0;
+		virtual int32 AddNetwork(const ULearningNeuralNetworkData& Network) = 0;
 
 		/**
 		* Wait for the trainer to push an updated network.
 		*
+		* @param NetworkId		Unique network id
 		* @param OutNetwork		Network to update
 		* @param Timeout		Timeout to wait in seconds
 		* @param NetworkLock	Lock to use when updating network
@@ -73,7 +73,7 @@ namespace UE::Learning
 		* @returns				Trainer response
 		*/
 		virtual ETrainerResponse ReceiveNetwork(
-			const FName& Name,
+			const int32 NetworkId,
 			ULearningNeuralNetworkData& OutNetwork,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) = 0;
@@ -81,6 +81,7 @@ namespace UE::Learning
 		/**
 		* Wait for the trainer to be ready and push the current policy network.
 		*
+		* @param NetworkId		Unique network id
 		* @param Network		Network to push
 		* @param Timeout		Timeout to wait in seconds
 		* @param NetworkLock	Lock to use when pushing network
@@ -88,7 +89,7 @@ namespace UE::Learning
 		* @returns				Trainer response
 		*/
 		virtual ETrainerResponse SendNetwork(
-			const FName& Name,
+			const int32 NetworkId,
 			const ULearningNeuralNetworkData& Network,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) = 0;
@@ -97,25 +98,23 @@ namespace UE::Learning
 		 * Adds a named replay buffer to this external trainer.
 		 * Must be called for each buffer prior to calling SendReplayBuffer.
 		 *
-		 * @params Name						The unique name of the buffer, used as a key
-		 * @params ReplayBuffer				The buffer to be added
+		 * @params ReplayBuffer		The buffer to be added
+		 * @returns					The replay buffer's unique id		
 		 */
-		virtual void AddReplayBuffer(const FName& Name,	const FReplayBuffer& ReplayBuffer) = 0;
-
-		/** Returns true if a replay buffer with the given Name has already been added. Otherwise, false. */
-		virtual bool ContainsReplayBuffer(const FName& Name) const = 0;
+		virtual int32 AddReplayBuffer(const FReplayBuffer& ReplayBuffer) = 0;
 
 		/**
 		* Wait for the trainer to be ready and send new experience.
 		*
-		* @params Name			The unique name of the buffer, used as a key
-		* @param ReplayBuffer	Replay buffer to send
-		* @param Timeout		Timeout to wait in seconds
-		* @param LogSettings	The log verbosity level
-		* @returns				Trainer response
+		* @params ReplayBufferId	Unique replay buffer id
+		* @params Name				The unique name of the buffer, used as a key
+		* @param ReplayBuffer		Replay buffer to send
+		* @param Timeout			Timeout to wait in seconds
+		* @param LogSettings		The log verbosity level
+		* @returns					Trainer response
 		*/
 		virtual ETrainerResponse SendReplayBuffer(
-			const FName& Name,
+			const int32 ReplayBufferId,
 			const FReplayBuffer& ReplayBuffer,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) = 0;
 	};
@@ -157,6 +156,8 @@ namespace UE::Learning
 		* process has a non-zero "LearningProcessIdx".
 		*
 		* @param TaskName					The name of this training task (used to disambiguate filenames, etc.)
+		* @param CustomTrainerPath			Path to check for custom trainer files
+		* @param TrainerFileName			The name of the training file to use
 		* @param PythonExecutablePath		Path to the python executable used for training. In general should be the
 		*									python shipped with Unreal Editor.
 		* @param PythonContentPath			Path to the Python Content folder provided by the Learning plugin
@@ -168,6 +169,8 @@ namespace UE::Learning
 		*/
 		FSharedMemoryTrainerServerProcess(
 			const FString& TaskName,
+			const FString& CustomTrainerPath,
+			const FString& TrainerFileName,
 			const FString& PythonExecutablePath,
 			const FString& PythonContentPath,
 			const FString& IntermediatePath,
@@ -230,12 +233,13 @@ namespace UE::Learning
 			TSharedMemoryArrayView<2, int32> EpisodeStarts;
 			TSharedMemoryArrayView<2, int32> EpisodeLengths;
 			TSharedMemoryArrayView<2, ECompletionMode> EpisodeCompletionModes;
-			TSharedMemoryArrayView<3, float> EpisodeFinalObservations;
-			TSharedMemoryArrayView<3, float> EpisodeFinalMemoryStates;
-			TSharedMemoryArrayView<3, float> Observations;
-			TSharedMemoryArrayView<3, float> Actions;
-			TSharedMemoryArrayView<3, float> MemoryStates;
-			TSharedMemoryArrayView<2, float> Rewards;
+
+			TArray<TSharedMemoryArrayView<3, float>, TInlineAllocator<1>> EpisodeFinalObservations;
+			TArray<TSharedMemoryArrayView<3, float>, TInlineAllocator<1>> EpisodeFinalMemoryStates;
+			TArray<TSharedMemoryArrayView<3, float>, TInlineAllocator<1>> Observations;
+			TArray<TSharedMemoryArrayView<3, float>, TInlineAllocator<1>> Actions;
+			TArray<TSharedMemoryArrayView<3, float>, TInlineAllocator<1>> MemoryStates;
+			TArray<TSharedMemoryArrayView<3, float>, TInlineAllocator<1>> Rewards;
 
 			/** Free and deallocate all shared memory. */
 			void Deallocate();
@@ -264,32 +268,30 @@ namespace UE::Learning
 
 		virtual ETrainerResponse Wait() override final;
 
+		virtual bool HasNetworkOrCompleted() override final;
+
 		virtual ETrainerResponse SendConfig(
 			const TSharedRef<FJsonObject>& ConfigObject,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
-		virtual void AddNetwork(const FName& Name, const ULearningNeuralNetworkData& Network) override final;
-
-		virtual bool ContainsNetwork(const FName& Name) const override final;
+		virtual int32 AddNetwork(const ULearningNeuralNetworkData& Network) override final;
 
 		virtual ETrainerResponse ReceiveNetwork(
-			const FName& Name,
+			const int32 NetworkId,
 			ULearningNeuralNetworkData& OutNetwork,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
 		virtual ETrainerResponse SendNetwork(
-			const FName& Name,
+			const int32 NetworkId,
 			const ULearningNeuralNetworkData& Network,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
-		virtual void AddReplayBuffer(const FName& Name,	const FReplayBuffer& ReplayBuffer) override final;
-
-		virtual bool ContainsReplayBuffer(const FName& Name) const override final;
+		virtual int32 AddReplayBuffer(const FReplayBuffer& ReplayBuffer) override final;
 
 		virtual ETrainerResponse SendReplayBuffer(
-			const FName& Name,
+			const int32 ReplayBufferId,
 			const FReplayBuffer& ReplayBuffer,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
@@ -312,8 +314,8 @@ namespace UE::Learning
 
 		int32 ProcessIdx = INDEX_NONE;
 		TSharedMemoryArrayView<2, volatile int32> Controls;
-		TMap<FName, TSharedMemoryArrayView<1, uint8>> NeuralNetworkSharedMemoryArrayViews;
-		TMap<FName, FSharedMemoryExperienceContainer> SharedMemoryExperienceContainers;
+		TArray<TSharedMemoryArrayView<1, uint8>> NeuralNetworkSharedMemoryArrayViews;
+		TArray<FSharedMemoryExperienceContainer> SharedMemoryExperienceContainers;
 	};
 
 	/**
@@ -325,6 +327,8 @@ namespace UE::Learning
 		/**
 		* Creates a training server as a subprocess
 		*
+		* @param CustomTrainerPath			Path to check for custom trainer files
+		* @param TrainerFileName			The name of the training file to use
 		* @param PythonExecutablePath		Path to the python executable used for training. In general should be the python shipped with Unreal Editor.
 		* @param PythonContentPath			Path to the Python Content folder provided by the Learning plugin
 		* @param IntermediatePath			Path to the intermediate folder to write temporary files, logs, and snapshots to
@@ -334,6 +338,8 @@ namespace UE::Learning
 		* @param LogSettings				Logging settings to use
 		*/
 		FSocketTrainerServerProcess(
+			const FString& CustomTrainerPath,
+			const FString& TrainerFileName,
 			const FString& PythonExecutablePath,
 			const FString& PythonContentPath,
 			const FString& IntermediatePath,
@@ -404,39 +410,37 @@ namespace UE::Learning
 
 		virtual ETrainerResponse Wait() override final;
 
+		virtual bool HasNetworkOrCompleted() override final;
+
 		virtual ETrainerResponse SendConfig(
 			const TSharedRef<FJsonObject>& ConfigObject,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
-		virtual void AddNetwork(const FName& Name, const ULearningNeuralNetworkData& Network) override final;
-
-		virtual bool ContainsNetwork(const FName& Name) const override final;
+		virtual int32 AddNetwork(const ULearningNeuralNetworkData& Network) override final;
 
 		virtual ETrainerResponse ReceiveNetwork(
-			const FName& Name,
+			const int32 NetworkId,
 			ULearningNeuralNetworkData& OutNetwork,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
 		virtual ETrainerResponse SendNetwork(
-			const FName& Name,
+			const int32 NetworkId,
 			const ULearningNeuralNetworkData& Network,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
-		virtual void AddReplayBuffer(const FName& Name, const FReplayBuffer& ReplayBuffer) override final;
-
-		virtual bool ContainsReplayBuffer(const FName& Name) const override final;
+		virtual int32 AddReplayBuffer(const FReplayBuffer& ReplayBuffer) override final;
 
 		virtual ETrainerResponse SendReplayBuffer(
-			const FName& Name,
+			const int32 ReplayBufferId,
 			const FReplayBuffer& ReplayBuffer,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
 	private:
 
-		TMap<FName, TLearningArray<1, uint8>> NetworkBuffers;
-		TSet<FName> ExperienceBufferNames;
+		TArray<TLearningArray<1, uint8>> NetworkBuffers;
+		int32 LastReplayBufferId = -1;
 
 		float Timeout = Trainer::DefaultTimeout;
 

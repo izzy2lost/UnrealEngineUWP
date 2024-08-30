@@ -6,8 +6,11 @@
 #include "LearningAgentsTrainer.h"
 
 #include "Templates/SharedPointer.h"
+#include "UObject/ObjectPtr.h"
 
 #include "LearningAgentsPPOTrainer.generated.h"
+
+class FJsonObject;
 
 namespace UE::Learning
 {
@@ -233,62 +236,8 @@ public:
 	/** If true, snapshots of the trained networks will be emitted to the intermediate directory. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
 	bool bSaveSnapshots = false;
-};
 
-/**
- * The configurable game settings for a ULearningAgentsTrainer. These allow the timestep and physics tick to be fixed
- * during training, which can enable ticking faster than real-time.
- */
-USTRUCT(BlueprintType, Category = "LearningAgents")
-struct LEARNINGAGENTSTRAINING_API FLearningAgentsTrainingGameSettings
-{
-	GENERATED_BODY()
-
-public:
-
-	/**
-	 * If true, the game will run in fixed time step mode (i.e the frame's delta times will always be the same
-	 * regardless of how much wall time has passed). This can enable faster than real-time training if your game runs
-	 * quickly. If false, the time steps will match real wall time.
-	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents")
-	bool bUseFixedTimeStep = true;
-
-	/**
-	 * Determines the amount of time for each frame when bUseFixedTimeStep is true; Ignored if false. You want this
-	 * time step to match as closely as possible to the expected inference time steps, otherwise your training results
-	 * may not generalize to your game.
-	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (DisplayName = "Fixed Time Step Frequency (Hz)"), meta = (ClampMin = "0.0", UIMin = "0.0"))
-	float FixedTimeStepFrequency = 60.0f;
-
-	/** If true, set the physics delta time to match the fixed time step. */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents")
-	bool bSetMaxPhysicsStepToFixedTimeStep = true;
-
-	/** If true, the MaxFPS console variable will be set to a negative number during training; Otherwise, it will not. */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents")
-	bool bDisableMaxFPS = true;
-
-	/** If true, VSync will be disabled; Otherwise, it will not. Disabling VSync can speed up the game simulation. */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents")
-	bool bDisableVSync = true;
-
-	/** If true, the viewport rendering will be unlit; Otherwise, it will not. Disabling lighting can speed up the game simulation. */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents")
-	bool bUseUnlitViewportRendering = false;
-
-#if WITH_EDITORONLY_DATA
-
-	/** If true, the Use Less CPU In The Background editor setting will be disabled. This prevents the editor from running slowly when minimized. */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents")
-	bool bDisableUseLessCPUInTheBackground = true;
-
-	/** If true, Editor VSync will be disabled; Otherwise, it will not. Disabling Editor VSync can speed up the game simulation. */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents")
-	bool bDisableEditorVSync = true;
-
-#endif
+	TSharedRef<FJsonObject> AsJsonConfig() const;
 };
 
 UCLASS(BlueprintType, Blueprintable, meta = (BlueprintSpawnableComponent))
@@ -316,7 +265,7 @@ public:
 	 * @param InPolicy				The policy to be trained.
 	 * @param InCritic				The critic to be trained.
 	 * @param Communicator			The communicator.
-	 * @param Class					The trainer class
+	 * @param Class					The trainer class.
 	 * @param Name					The trainer name.
 	 * @param TrainerSettings		The trainer settings to use.
 	 */
@@ -465,22 +414,22 @@ private:
 	TUniquePtr<UE::Learning::FReplayBuffer> ReplayBuffer;
 	TSharedPtr<UE::Learning::IExternalTrainer> Trainer;
 
-	void ApplyGameSettings(const FLearningAgentsTrainingGameSettings& Settings);
-
-	void SendConfig(const FLearningAgentsPPOTrainingSettings& Settings);
+	TSharedRef<FJsonObject> CreateConfig(const FLearningAgentsPPOTrainingSettings& TrainingSettings) const;
+	void SendConfig(const TSharedRef<FJsonObject>& ConfigObject);
 
 	void DoneTraining();
 
-// ----- Private Recording of GameSettings ----- 
-private:
+	UE::Learning::Agents::FGameSettingsState PreviousGameSettingsState;
 
-	bool bFixedTimestepUsed = false;
-	float FixedTimeStepDeltaTime = -1.0f;
-	float MaxPhysicsStep = -1.0f;
-	int32 MaxFPS = 120;
-	bool bVSyncEnabled = true;
-	int32 ViewModeIndex = -1;
+	int32 PolicyNetworkId = INDEX_NONE;
+	int32 CriticNetworkId = INDEX_NONE;
+	int32 EncoderNetworkId = INDEX_NONE;
+	int32 DecoderNetworkId = INDEX_NONE;
 
-	bool bUseLessCPUInTheBackground = true;
-	bool bEditorVSyncEnabled = true;
+	int32 ReplayBufferId = INDEX_NONE;
+
+	int32 ObservationId = INDEX_NONE;
+	int32 ActionId = INDEX_NONE;
+	int32 MemoryStateId = INDEX_NONE;
+	int32 RewardId = INDEX_NONE;
 };

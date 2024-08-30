@@ -402,6 +402,11 @@ namespace UE::Learning::Trainer
 		return EngineDir / TEXT("Plugins/Experimental/LearningAgents/Content/Python/");
 	}
 
+	FString GetProjectPythonContentPath()
+	{
+		return FPaths::ProjectContentDir() / TEXT("Python/");
+	}
+
 	FString GetIntermediatePath(const FString& IntermediateDir)
 	{
 		return IntermediateDir / TEXT("LearningAgents");

@@ -3,6 +3,14 @@
 #pragma once
 
 #include "LearningArray.h"
+#include "LearningObservation.h"
+#include "LearningAction.h"
+
+#include "Containers/Set.h"
+#include "Templates/SharedPointer.h"
+#include "UObject/NameTypes.h"
+
+class FJsonObject;
 
 namespace UE::Learning
 {
@@ -14,62 +22,101 @@ namespace UE::Learning
 	*/
 	struct LEARNINGTRAINING_API FEpisodeBuffer
 	{
+		friend struct FReplayBuffer;
+
 		/**
 		* Resize the experience buffer
 		*
 		* @param InMaxInstanceNum				Maximum number of instances
 		* @param InMaxStepNum					Maximum number of steps in an episode
-		* @param InObservationVectorDimNum		Number of dimensions of the observation vector
-		* @param InActionVectorDimNum			Number of dimensions of the action vector
-		* @param InMemoryStateVectorDimNum		Number of dimensions of the memory state vector
 		*/
-		void Resize(
-			const int32 InMaxInstanceNum,
-			const int32 InMaxStepNum,
-			const int32 InObservationVectorDimNum,
-			const int32 InActionVectorDimNum,
-			const int32 InMemoryStateVectorDimNum);
+		void Resize(const int32 InMaxInstanceNum, const int32 InMaxStepNum);
 
 		/**
 		* Reset the buffer for the given set of instances
 		*/
 		void Reset(const FIndexSet Instances);
 
-		/**
-		* Push new experience to the buffer
-		*
-		* @param InObservations					Observation vectors of shape (MaxInstanceNum, ObservationVectorDimNum)
-		* @param InActions						Action vectors of shape (MaxInstanceNum, ActionVectorDimNum)
-		* @param InMemoryStates					Memory state vectors (pre-evaluation) of shape (MaxInstanceNum, MemoryStateVectorDimNum)
-		* @param InRewards						Rewards of shape (MaxInstanceNum)
-		* @param Instances						Instances to push to buffer
-		*/
-		void Push(
-			const TLearningArrayView<2, const float> InObservations,
-			const TLearningArrayView<2, const float> InActions,
-			const TLearningArrayView<2, const float> InMemoryStates,
-			const TLearningArrayView<1, const float> InRewards,
-			const FIndexSet Instances);
 
-		const int32 GetMaxInstanceNum() const;
-		const int32 GetMaxStepNum() const;
+		// Observations
+
+		int32 AddObservations(const FName& Name, const int32 SchemaId, const int32 Size);
+
+		void PushObservations(const int32 ObservationId, const TLearningArrayView<2, const float> InObservations, const FIndexSet Instances);
+
+		const TLearningArrayView<2, const float> GetObservations(const int32 ObservationId, const int32 InstanceIdx) const;
+
+
+		// Actions
+
+		int32 AddActions(const FName& Name, const int32 SchemaId, const int32 Size);
+
+		void PushActions(const int32 ActionId, const TLearningArrayView<2, const float> InActions, const FIndexSet Instances);
+
+		const TLearningArrayView<2, const float> GetActions(const int32 ActionId, const int32 InstanceIdx) const;
+
+
+		// Memory States
+
+		int32 AddMemoryStates(const FName& Name, const int32 Size);
+
+		void PushMemoryStates(const int32 MemoryStateId, const TLearningArrayView<2, const float> InMemoryStates, const FIndexSet Instances);
+
+		const TLearningArrayView<2, const float> GetMemoryStates(const int32 MemoryStateId, const int32 InstanceIdx) const;
+
+
+		// Rewards
+
+		int32 AddRewards(const FName& Name, const int32 Size);
+
+		// Convenience overload for pushing rewards from a Training Environment
+		void PushRewards(const int32 RewardId, const TLearningArrayView<1, const float> InRewards, const FIndexSet Instances);
+
+		void PushRewards(const int32 RewardId, const TLearningArrayView<2, const float> InRewards, const FIndexSet Instances);
+
+		const TLearningArrayView<2, const float> GetRewards(const int32 RewardId, const int32 InstanceIdx) const;
+
+
+		// Episode Step Nums
+
+		void IncrementEpisodeStepNums(const FIndexSet Instances);
+
 		const TLearningArrayView<1, const int32> GetEpisodeStepNums() const;
-		const TLearningArrayView<2, const float> GetObservations(const int32 InstanceIdx) const;
-		const TLearningArrayView<2, const float> GetActions(const int32 InstanceIdx) const;
-		const TLearningArrayView<2, const float> GetMemoryStates(const int32 InstanceIdx) const;
-		const TLearningArrayView<1, const float> GetRewards(const int32 InstanceIdx) const;
+
+		int32 GetMaxInstanceNum() const;
+		int32 GetMaxStepNum() const;
 
 	private:
 
+		bool bHasBeenSized = false;
 		int32 MaxInstanceNum = 0;
 		int32 MaxStepNum = 0;
-		TLearningArray<1, int32> EpisodeStepNums;
-		TLearningArray<3, float> Observations;
-		TLearningArray<3, float> Actions;
-		TLearningArray<3, float> MemoryStates;
-		TLearningArray<2, float> Rewards;
-	};
 
+		// Observations
+		TArray<FName, TInlineAllocator<1>> ObservationNames;
+		TArray<int32, TInlineAllocator<1>> ObservationSchemaIds;
+		TArray<int32, TInlineAllocator<1>> ObservationSizes;
+		TArray<TLearningArray<3, float>, TInlineAllocator<1>> ObservationArrays;
+
+		// Actions
+		TArray<FName, TInlineAllocator<1>> ActionNames;
+		TArray<int32, TInlineAllocator<1>> ActionSchemaIds;
+		TArray<int32, TInlineAllocator<1>> ActionSizes;
+		TArray<TLearningArray<3, float>, TInlineAllocator<1>> ActionArrays;
+
+		// Memory States
+		TArray<FName, TInlineAllocator<1>> MemoryStateNames;
+		TArray<int32, TInlineAllocator<1>> MemoryStateSizes;
+		TArray<TLearningArray<3, float>, TInlineAllocator<1>> MemoryStateArrays;
+
+		// Rewards
+		TArray<FName, TInlineAllocator<1>> RewardNames;
+		TArray<int32, TInlineAllocator<1>> RewardSizes;
+		TArray<TLearningArray<3, float>, TInlineAllocator<1>> RewardArrays;
+
+		// Episode Step Nums
+		TLearningArray<1, int32> EpisodeStepNums;
+	};
 
 	/**
 	* Large buffer that sequentially concatenates a series of episodes in a large
@@ -80,16 +127,12 @@ namespace UE::Learning
 		/**
 		* Resizes the replay buffer.
 		*
-		* @param ObservationVectorDimNum		Dimensionality of observation vector
-		* @param ActionVectorDimNum				Dimensionality of action vector
-		* @param MemoryStateVectorDimNum		Dimensionality of memory state vector
-		* @param MaxEpisodeNum					Maximum number of episodes to be stored in the buffer
-		* @param MaxStepNum						Maximum number of steps to be stored in the buffer
+		* @param EpisodeBuffer		Determines the dimensionality of the various arrays
+		* @param MaxEpisodeNum		Maximum number of episodes to be stored in the buffer
+		* @param MaxStepNum			Maximum number of steps to be stored in the buffer
 		*/
 		void Resize(
-			const int32 InObservationVectorDimNum,
-			const int32 InActionVectorDimNum,
-			const int32 InMemoryStateVectorDimNum,
+			const FEpisodeBuffer& EpisodeBuffer,
 			const int32 InMaxEpisodeNum = 2048,
 			const int32 InMaxStepNum = 16384);
 
@@ -112,27 +155,67 @@ namespace UE::Learning
 		*/
 		bool AddEpisodes(
 			const TLearningArrayView<1, const ECompletionMode> InEpisodeCompletionModes,
-			const TLearningArrayView<2, const float> InEpisodeFinalObservations,
-			const TLearningArrayView<2, const float> InEpisodeFinalMemoryStates,
+			const TArrayView<const TLearningArrayView<2, const float>> InEpisodeFinalObservations,
+			const TArrayView<const TLearningArrayView<2, const float>> InEpisodeFinalMemoryStates,
 			const FEpisodeBuffer& EpisodeBuffer,
 			const FIndexSet Instances,
 			const bool bAddTruncatedEpisodeWhenFull = true);
 
-		const int32 GetMaxEpisodeNum() const;
-		const int32 GetMaxStepNum() const;
-		const int32 GetEpisodeNum() const;
-		const int32 GetStepNum() const;
+		/**
+		 * Alternate way to add data from records generated via imitation learning. Does the resizing needed.
+		 * 
+		 * Putting this in place until we have more time later to rewrite how imitation learning stores data. At this
+		 * time, it seems logical to have the data records be implemented in terms of EpisodeBuffer(s), in which case
+		 * this method may no longer be needed.
+		 */
+		void AddRecords(
+			const int32 InEpisodeNum,
+			const int32 InMaxStepNum,
+			const int32 ObservationSchemaId,
+			const int32 ObservationNum,
+			const int32 ActionSchemaId,
+			const int32 ActionNum,
+			const TLearningArrayView<1, const int32> RecordedEpisodeStarts,
+			const TLearningArrayView<1, const int32> RecordedEpisodeLengths,
+			const TLearningArrayView<2, const float> RecordedObservations,
+			const TLearningArrayView<2, const float> RecordedActions);
+
+		bool HasCompletions() const;
+
+		bool HasFinalObservations() const;
+
+		bool HasFinalMemoryStates() const;
+
+		int32 GetMaxEpisodeNum() const;
+		int32 GetMaxStepNum() const;
+		int32 GetEpisodeNum() const;
+		int32 GetStepNum() const;
+
 		const TLearningArrayView<1, const int32> GetEpisodeStarts() const;
 		const TLearningArrayView<1, const int32> GetEpisodeLengths() const;
 		const TLearningArrayView<1, const ECompletionMode> GetEpisodeCompletionModes() const;
-		const TLearningArrayView<2, const float> GetEpisodeFinalObservations() const;
-		const TLearningArrayView<2, const float> GetEpisodeFinalMemoryStates() const;
-		const TLearningArrayView<2, const float> GetObservations() const;
-		const TLearningArrayView<2, const float> GetActions() const;
-		const TLearningArrayView<2, const float> GetMemoryStates() const;
-		const TLearningArrayView<1, const float> GetRewards() const;
+		
+		int32 GetObservationsNum() const;
+		const TLearningArrayView<2, const float> GetObservations(const int32 Index) const;
+		const TLearningArrayView<2, const float> GetEpisodeFinalObservations(const int32 Index) const;
+
+		int32 GetActionsNum() const;
+		const TLearningArrayView<2, const float> GetActions(const int32 Index) const;
+
+		int32 GetMemoryStatesNum() const;
+		const TLearningArrayView<2, const float> GetMemoryStates(const int32 Index) const;
+		const TLearningArrayView<2, const float> GetEpisodeFinalMemoryStates(const int32 Index) const;
+		
+		int32 GetRewardsNum() const;
+		const TLearningArrayView<2, const float> GetRewards(const int32 Index) const;
+
+		TSharedRef<FJsonObject> AsJsonConfig(const int32 ReplayBufferId) const;
 
 	private:
+
+		bool bHasCompletions = false;
+		bool bHasFinalObservations = false;
+		bool bHasFinalMemoryStates = false;
 
 		int32 MaxEpisodeNum = 0;
 		int32 MaxStepNum = 0;
@@ -143,12 +226,22 @@ namespace UE::Learning
 		TLearningArray<1, int32> EpisodeStarts;
 		TLearningArray<1, int32> EpisodeLengths;
 		TLearningArray<1, ECompletionMode> EpisodeCompletionModes;
-		TLearningArray<2, float> EpisodeFinalObservations;
-		TLearningArray<2, float> EpisodeFinalMemoryStates;
-		TLearningArray<2, float> Observations;
-		TLearningArray<2, float> Actions;
-		TLearningArray<2, float> MemoryStates;
-		TLearningArray<1, float> Rewards;
+		
+		TArray<FName, TInlineAllocator<1>> ObservationNames;
+		TArray<int32, TInlineAllocator<1>> ObservationSchemaIds;
+		TArray<TLearningArray<2, float>, TInlineAllocator<1>> Observations;
+		TArray<TLearningArray<2, float>, TInlineAllocator<1>> EpisodeFinalObservations;
+
+		TArray<FName, TInlineAllocator<1>> ActionNames;
+		TArray<int32, TInlineAllocator<1>> ActionSchemaIds;
+		TArray<TLearningArray<2, float>, TInlineAllocator<1>> Actions;
+
+		TArray<FName, TInlineAllocator<1>> MemoryStateNames;
+		TArray<TLearningArray<2, float>, TInlineAllocator<1>> MemoryStates;
+		TArray<TLearningArray<2, float>, TInlineAllocator<1>> EpisodeFinalMemoryStates;
+
+		TArray<FName, TInlineAllocator<1>> RewardNames;
+		TArray<TLearningArray<2, float>, TInlineAllocator<1>> Rewards;
 	};
 
 	namespace Experience
@@ -159,20 +252,20 @@ namespace UE::Learning
 		* @param ReplayBuffer							Replay Buffer
 		* @param EpisodeBuffer							Episode Buffer
 		* @param ResetBuffer							Reset Buffer
-		* @param ObservationVectorBuffer				Buffer to read/write observation vectors into
-		* @param ActionVectorBuffer						Buffer to read/write action vectors into
-		* @param PreEvaluationMemoryStateVectorBuffer	Buffer to read/write pre-evaluation memory state vectors into
-		* @param MemoryStateVectorBuffer				Buffer to read/write (post-evaluation) memory state vectors into
-		* @param RewardBuffer							Buffer to read/write rewards into
+		* @param ObservationVectorBuffers				Buffers to read/write observation vectors into
+		* @param ActionVectorBuffers					Buffers to read/write action vectors into
+		* @param PreEvaluationMemoryStateVectorBuffers	Buffers to read/write pre-evaluation memory state vectors into
+		* @param MemoryStateVectorBuffers				Buffers to read/write (post-evaluation) memory state vectors into
+		* @param RewardBuffers							Buffers to read/write rewards into
 		* @param CompletionBuffer						Buffer to read/write completions into
 		* @param EpisodeCompletionBuffer				Additional buffer to record completions from full episode buffers
 		* @param AllCompletionBuffer					Additional buffer to record all completions from full episodes and normal completions
 		* @param ResetFunction							Function to run for resetting the environment
-		* @param ObservationFunction					Function to run for evaluating observations
-		* @param PolicyFunction							Function to run generating actions from observations
-		* @param ActionFunction							Function to run for evaluating actions
-		* @param UpdateFunction							Function to run for updating the environment
-		* @param RewardFunction							Function to run for evaluating rewards
+		* @param ObservationFunctions					Functions to run for evaluating observations
+		* @param PolicyFunctions						Functions to run generating actions from observations
+		* @param ActionFunctions						Functions to run for evaluating actions
+		* @param UpdateFunctions						Functions to run for updating the environment
+		* @param RewardFunctions						Functions to run for evaluating rewards
 		* @param CompletionFunction						Function to run for evaluating completions
 		* @param Instances								Set of instances to gather experience for
 		*/
@@ -180,20 +273,20 @@ namespace UE::Learning
 			FReplayBuffer& ReplayBuffer,
 			FEpisodeBuffer& EpisodeBuffer,
 			FResetInstanceBuffer& ResetBuffer,
-			TLearningArrayView<2, float> ObservationVectorBuffer,
-			TLearningArrayView<2, float> ActionVectorBuffer,
-			TLearningArrayView<2, float> PreEvaluationMemoryStateVectorBuffer,
-			TLearningArrayView<2, float> MemoryStateVectorBuffer,
-			TLearningArrayView<1, float> RewardBuffer,
+			const TArrayView<const TLearningArrayView<2, const float>> ObservationVectorBuffers,
+			const TArrayView<const TLearningArrayView<2, const float>> ActionVectorBuffers,
+			const TArrayView<const TLearningArrayView<2, const float>> PreEvaluationMemoryStateVectorBuffers,
+			const TArrayView<const TLearningArrayView<2, const float>> MemoryStateVectorBuffers,
+			const TArrayView<const TLearningArrayView<1, const float>> RewardBuffers,
 			TLearningArrayView<1, ECompletionMode> CompletionBuffer,
 			TLearningArrayView<1, ECompletionMode> EpisodeCompletionBuffer,
 			TLearningArrayView<1, ECompletionMode> AllCompletionBuffer,
 			const TFunctionRef<void(const FIndexSet Instances)> ResetFunction,
-			const TFunctionRef<void(const FIndexSet Instances)> ObservationFunction,
-			const TFunctionRef<void(const FIndexSet Instances)> PolicyFunction,
-			const TFunctionRef<void(const FIndexSet Instances)> ActionFunction,
-			const TFunctionRef<void(const FIndexSet Instances)> UpdateFunction,
-			const TFunctionRef<void(const FIndexSet Instances)> RewardFunction,
+			const TArrayView<const TFunctionRef<void(const FIndexSet Instances)>> ObservationFunctions,
+			const TArrayView<const TFunctionRef<void(const FIndexSet Instances)>> PolicyFunctions,
+			const TArrayView<const TFunctionRef<void(const FIndexSet Instances)>> ActionFunctions,
+			const TArrayView<const TFunctionRef<void(const FIndexSet Instances)>> UpdateFunctions,
+			const TArrayView<const TFunctionRef<void(const FIndexSet Instances)>> RewardFunctions,
 			const TFunctionRef<void(const FIndexSet Instances)> CompletionFunction,
 			const FIndexSet Instances);
 	}

@@ -15,22 +15,47 @@
 #include "LearningAgentsTrainingEnvironment.h"
 #include "LearningExternalTrainer.h"
 
-#include "Misc/App.h"
-#include "GameFramework/GameUserSettings.h"
-#include "PhysicsEngine/PhysicsSettings.h"
-#include "Engine/GameViewportClient.h"
-
 #include "Dom/JsonObject.h"
-#include "Serialization/JsonSerializer.h"
-#include "Serialization/JsonWriter.h"
-
-#if WITH_EDITOR
-#include "Editor/EditorPerformanceSettings.h"
-#endif
 
 ULearningAgentsPPOTrainer::ULearningAgentsPPOTrainer() : Super(FObjectInitializer::Get()) {}
 ULearningAgentsPPOTrainer::ULearningAgentsPPOTrainer(FVTableHelper& Helper) : Super(Helper) {}
 ULearningAgentsPPOTrainer::~ULearningAgentsPPOTrainer() = default;
+
+TSharedRef<FJsonObject> FLearningAgentsPPOTrainingSettings::AsJsonConfig() const
+{
+	TSharedRef<FJsonObject> ConfigObject = MakeShared<FJsonObject>();
+
+	ConfigObject->SetNumberField(TEXT("IterationNum"), NumberOfIterations);
+	ConfigObject->SetNumberField(TEXT("LearningRatePolicy"), LearningRatePolicy);
+	ConfigObject->SetNumberField(TEXT("LearningRateCritic"), LearningRateCritic);
+	ConfigObject->SetNumberField(TEXT("LearningRateDecay"), LearningRateDecay);
+	ConfigObject->SetNumberField(TEXT("WeightDecay"), WeightDecay);
+	ConfigObject->SetNumberField(TEXT("PolicyBatchSize"), PolicyBatchSize);
+	ConfigObject->SetNumberField(TEXT("CriticBatchSize"), CriticBatchSize);
+	ConfigObject->SetNumberField(TEXT("PolicyWindow"), PolicyWindowSize);
+	ConfigObject->SetNumberField(TEXT("IterationsPerGather"), IterationsPerGather);
+	ConfigObject->SetNumberField(TEXT("CriticWarmupIterations"), CriticWarmupIterations);
+	ConfigObject->SetNumberField(TEXT("EpsilonClip"), EpsilonClip);
+	ConfigObject->SetNumberField(TEXT("ActionSurrogateWeight"), ActionSurrogateWeight);
+	ConfigObject->SetNumberField(TEXT("ActionRegularizationWeight"), ActionRegularizationWeight);
+	ConfigObject->SetNumberField(TEXT("ActionEntropyWeight"), ActionEntropyWeight);
+	ConfigObject->SetNumberField(TEXT("ReturnRegularizationWeight"), ReturnRegularizationWeight);
+	ConfigObject->SetNumberField(TEXT("GaeLambda"), GaeLambda);
+	ConfigObject->SetBoolField(TEXT("AdvantageNormalization"), bAdvantageNormalization);
+	ConfigObject->SetNumberField(TEXT("AdvantageMin"), MinimumAdvantage);
+	ConfigObject->SetNumberField(TEXT("AdvantageMax"), MaximumAdvantage);
+	ConfigObject->SetBoolField(TEXT("UseGradNormMaxClipping"), bUseGradNormMaxClipping);
+	ConfigObject->SetNumberField(TEXT("GradNormMax"), GradNormMax);
+	ConfigObject->SetNumberField(TEXT("TrimEpisodeStartStepNum"), NumberOfStepsToTrimAtStartOfEpisode);
+	ConfigObject->SetNumberField(TEXT("TrimEpisodeEndStepNum"), NumberOfStepsToTrimAtEndOfEpisode);
+	ConfigObject->SetNumberField(TEXT("Seed"), RandomSeed);
+	ConfigObject->SetNumberField(TEXT("DiscountFactor"), DiscountFactor);
+	ConfigObject->SetStringField(TEXT("Device"), UE::Learning::Trainer::GetDeviceString(UE::Learning::Agents::GetTrainingDevice(Device)));
+	ConfigObject->SetBoolField(TEXT("UseTensorBoard"), bUseTensorboard);
+	ConfigObject->SetBoolField(TEXT("SaveSnapshots"), bSaveSnapshots);
+
+	return ConfigObject;
+}
 
 void ULearningAgentsPPOTrainer::BeginDestroy()
 {
@@ -67,12 +92,12 @@ ULearningAgentsPPOTrainer* ULearningAgentsPPOTrainer::MakePPOTrainer(
 
 	const FName UniqueName = MakeUniqueObjectName(InManager, Class, Name, EUniqueObjectNameOptions::GloballyUnique);
 
-	ULearningAgentsPPOTrainer* Trainer = NewObject<ULearningAgentsPPOTrainer>(InManager, Class, UniqueName);
-	if (!Trainer) { return nullptr; }
+	ULearningAgentsPPOTrainer* PPOTrainer = NewObject<ULearningAgentsPPOTrainer>(InManager, Class, UniqueName);
+	if (!PPOTrainer) { return nullptr; }
 
-	Trainer->SetupPPOTrainer(InManager, InInteractor, InTrainingEnvironment, InPolicy, InCritic, Communicator, TrainerSettings);
+	PPOTrainer->SetupPPOTrainer(InManager, InInteractor, InTrainingEnvironment, InPolicy, InCritic, Communicator, TrainerSettings);
 
-	return Trainer->IsSetup() ? Trainer : nullptr;
+	return PPOTrainer->IsSetup() ? PPOTrainer : nullptr;
 }
 
 void ULearningAgentsPPOTrainer::SetupPPOTrainer(
@@ -157,21 +182,31 @@ void ULearningAgentsPPOTrainer::SetupPPOTrainer(
 	TrainingEnvironment = InTrainingEnvironment;
 	Trainer = Communicator.Trainer;
 
+	const int32 ObservationSchemaId = 0;
+	const int32 ActionSchemaId = 0;
+
 	// Create Episode Buffer
 	EpisodeBuffer = MakeUnique<UE::Learning::FEpisodeBuffer>();
-	EpisodeBuffer->Resize(
-		Manager->GetMaxAgentNum(),
-		TrainerSettings.MaxEpisodeStepNum,
-		Interactor->GetObservationVectorSize(),
-		Interactor->GetActionVectorSize(),
+	EpisodeBuffer->Resize(Manager->GetMaxAgentNum(), TrainerSettings.MaxEpisodeStepNum);
+	ObservationId = EpisodeBuffer->AddObservations(
+		TEXT("Observations"),
+		ObservationSchemaId,
+		Interactor->GetObservationVectorSize());
+	ActionId = EpisodeBuffer->AddActions(
+		TEXT("Actions"),
+		ActionSchemaId,
+		Interactor->GetActionVectorSize());
+	MemoryStateId = EpisodeBuffer->AddMemoryStates(
+		TEXT("MemoryStates"),
 		Policy->GetMemoryStateSize());
+	RewardId = EpisodeBuffer->AddRewards(
+		TEXT("Rewards"),
+		1);
 
 	// Create Replay Buffer
 	ReplayBuffer = MakeUnique<UE::Learning::FReplayBuffer>();
 	ReplayBuffer->Resize(
-		Interactor->GetObservationVectorSize(),
-		Interactor->GetActionVectorSize(),
-		Policy->GetMemoryStateSize(),
+		*EpisodeBuffer,
 		TrainerSettings.MaximumRecordedEpisodesPerIteration,
 		TrainerSettings.MaximumRecordedStepsPerIteration);
 
@@ -241,23 +276,24 @@ void ULearningAgentsPPOTrainer::BeginTraining(
 		return;
 	}
 
-	ApplyGameSettings(TrainingGameSettings);
+	UE::Learning::Agents::ApplyGameSettings(TrainingGameSettings, GetWorld(), PreviousGameSettingsState);
 
 	// We need to setup the trainer prior to sending the config
-	Trainer->AddNetwork(Policy->GetPolicyNetworkAsset()->GetFName(), *Policy->GetPolicyNetworkAsset()->NeuralNetworkData);
-	Trainer->AddNetwork(Critic->GetCriticNetworkAsset()->GetFName(), *Critic->GetCriticNetworkAsset()->NeuralNetworkData);
-	Trainer->AddNetwork(Policy->GetEncoderNetworkAsset()->GetFName(), *Policy->GetEncoderNetworkAsset()->NeuralNetworkData);
-	Trainer->AddNetwork(Policy->GetDecoderNetworkAsset()->GetFName(), *Policy->GetDecoderNetworkAsset()->NeuralNetworkData);
-	Trainer->AddReplayBuffer(TEXT("ReplayBuffer"), *ReplayBuffer);
+	PolicyNetworkId = Trainer->AddNetwork(*Policy->GetPolicyNetworkAsset()->NeuralNetworkData);
+	CriticNetworkId = Trainer->AddNetwork(*Critic->GetCriticNetworkAsset()->NeuralNetworkData);
+	EncoderNetworkId = Trainer->AddNetwork(*Policy->GetEncoderNetworkAsset()->NeuralNetworkData);
+	DecoderNetworkId = Trainer->AddNetwork(*Policy->GetDecoderNetworkAsset()->NeuralNetworkData);
+	ReplayBufferId = Trainer->AddReplayBuffer(*ReplayBuffer);
+	
+	TSharedRef<FJsonObject> ConfigObject = CreateConfig(TrainingSettings);
 
 	UE_LOG(LogLearning, Display, TEXT("%s: Sending config..."), *GetName());
-	SendConfig(TrainingSettings);
+	SendConfig(ConfigObject);
 
 	UE_LOG(LogLearning, Display, TEXT("%s: Sending initial policy..."), *GetName());
-
 	UE::Learning::ETrainerResponse Response = UE::Learning::ETrainerResponse::Success;
 
-	Response = Trainer->SendNetwork(Policy->GetPolicyNetworkAsset()->GetFName(), *Policy->GetPolicyNetworkAsset()->NeuralNetworkData);
+	Response = Trainer->SendNetwork(PolicyNetworkId, *Policy->GetPolicyNetworkAsset()->NeuralNetworkData);
 	if (Response != UE::Learning::ETrainerResponse::Success)
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Error sending policy to trainer: %s. Check log for additional errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
@@ -266,7 +302,7 @@ void ULearningAgentsPPOTrainer::BeginTraining(
 		return;
 	}
 
-	Response = Trainer->SendNetwork(Critic->GetCriticNetworkAsset()->GetFName(), *Critic->GetCriticNetworkAsset()->NeuralNetworkData);
+	Response = Trainer->SendNetwork(CriticNetworkId, *Critic->GetCriticNetworkAsset()->NeuralNetworkData);
 	if (Response != UE::Learning::ETrainerResponse::Success)
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Error sending critic to trainer: %s. Check log for additional errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
@@ -275,7 +311,7 @@ void ULearningAgentsPPOTrainer::BeginTraining(
 		return;
 	}
 
-	Response = Trainer->SendNetwork(Policy->GetEncoderNetworkAsset()->GetFName(), *Policy->GetEncoderNetworkAsset()->NeuralNetworkData);
+	Response = Trainer->SendNetwork(EncoderNetworkId, *Policy->GetEncoderNetworkAsset()->NeuralNetworkData);
 	if (Response != UE::Learning::ETrainerResponse::Success)
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Error sending encoder to trainer: %s. Check log for additional errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
@@ -284,7 +320,7 @@ void ULearningAgentsPPOTrainer::BeginTraining(
 		return;
 	}
 
-	Response = Trainer->SendNetwork(Policy->GetDecoderNetworkAsset()->GetFName(), *Policy->GetDecoderNetworkAsset()->NeuralNetworkData);
+	Response = Trainer->SendNetwork(DecoderNetworkId, *Policy->GetDecoderNetworkAsset()->NeuralNetworkData);
 	if (Response != UE::Learning::ETrainerResponse::Success)
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Error sending decoder to trainer: %s. Check log for additional errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
@@ -303,148 +339,121 @@ void ULearningAgentsPPOTrainer::BeginTraining(
 	bIsTraining = true;
 }
 
-void ULearningAgentsPPOTrainer::ApplyGameSettings(const FLearningAgentsTrainingGameSettings& Settings)
-{
-	// Record GameState Settings
-
-	bFixedTimestepUsed = FApp::UseFixedTimeStep();
-	FixedTimeStepDeltaTime = FApp::GetFixedDeltaTime();
-
-	UGameUserSettings* GameSettings = UGameUserSettings::GetGameUserSettings();
-	if (GameSettings)
-	{
-		bVSyncEnabled = GameSettings->IsVSyncEnabled();
-	}
-
-	UPhysicsSettings* PhysicsSettings = UPhysicsSettings::Get();
-	if (PhysicsSettings)
-	{
-		MaxPhysicsStep = PhysicsSettings->MaxPhysicsDeltaTime;
-	}
-
-	IConsoleVariable* MaxFPSCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS"));
-	if (MaxFPSCVar)
-	{
-		MaxFPS = MaxFPSCVar->GetInt();
-	}
-
-	UGameViewportClient* ViewportClient = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
-	if (ViewportClient)
-	{
-		ViewModeIndex = ViewportClient->ViewModeIndex;
-	}
-
-#if WITH_EDITOR
-	UEditorPerformanceSettings* EditorPerformanceSettings = GetMutableDefault<UEditorPerformanceSettings>();
-	if (EditorPerformanceSettings)
-	{
-		bUseLessCPUInTheBackground = EditorPerformanceSettings->bThrottleCPUWhenNotForeground;
-		bEditorVSyncEnabled = EditorPerformanceSettings->bEnableVSync;
-	}
-#endif
-
-	// Apply Training GameState Settings
-
-	FApp::SetUseFixedTimeStep(Settings.bUseFixedTimeStep);
-
-	if (Settings.FixedTimeStepFrequency > UE_SMALL_NUMBER)
-	{
-		FApp::SetFixedDeltaTime(1.0f / Settings.FixedTimeStepFrequency);
-		if (Settings.bSetMaxPhysicsStepToFixedTimeStep && PhysicsSettings)
-		{
-			PhysicsSettings->MaxPhysicsDeltaTime = 1.0f / Settings.FixedTimeStepFrequency;
-		}
-	}
-	else
-	{
-		UE_LOG(LogLearning, Warning, TEXT("%s: Provided invalid FixedTimeStepFrequency: %0.5f"), *GetName(), Settings.FixedTimeStepFrequency);
-	}
-
-	if (Settings.bDisableMaxFPS && MaxFPSCVar)
-	{
-		MaxFPSCVar->Set(0);
-	}
-
-	if (Settings.bDisableVSync && GameSettings)
-	{
-		GameSettings->SetVSyncEnabled(false);
-		GameSettings->ApplySettings(false);
-	}
-
-	if (Settings.bUseUnlitViewportRendering && ViewportClient)
-	{
-		ViewportClient->ViewModeIndex = EViewModeIndex::VMI_Unlit;
-	}
-
-#if WITH_EDITOR
-	if (Settings.bDisableUseLessCPUInTheBackground && EditorPerformanceSettings)
-	{
-		EditorPerformanceSettings->bThrottleCPUWhenNotForeground = false;
-		EditorPerformanceSettings->PostEditChange();
-	}
-
-	if (Settings.bDisableEditorVSync && EditorPerformanceSettings)
-	{
-		EditorPerformanceSettings->bEnableVSync = false;
-		EditorPerformanceSettings->PostEditChange();
-	}
-#endif
-}
-
-void ULearningAgentsPPOTrainer::SendConfig(const FLearningAgentsPPOTrainingSettings& Settings)
+TSharedRef<FJsonObject> ULearningAgentsPPOTrainer::CreateConfig(const FLearningAgentsPPOTrainingSettings& TrainingSettings) const
 {
 	TSharedRef<FJsonObject> ConfigObject = MakeShared<FJsonObject>();
+
+	// Add Training Config Entries
 	ConfigObject->SetStringField(TEXT("TaskName"), TEXT("Training"));
 	ConfigObject->SetStringField(TEXT("TrainerMethod"), TEXT("PPO"));
-	ConfigObject->SetStringField(TEXT("TrainerType"), TEXT("Network"));
 	ConfigObject->SetStringField(TEXT("TimeStamp"), *FDateTime::Now().ToFormattedString(TEXT("%Y-%m-%d_%H-%M-%S")));
 
-	ConfigObject->SetObjectField(TEXT("ObservationSchema"),
-		UE::Learning::Trainer::ConvertObservationSchemaToJSON(Interactor->GetObservationSchema()->ObservationSchema,
-		Interactor->GetObservationSchemaElement().SchemaElement));
-	ConfigObject->SetObjectField(TEXT("ActionSchema"),
-		UE::Learning::Trainer::ConvertActionSchemaToJSON(Interactor->GetActionSchema()->ActionSchema,
-		Interactor->GetActionSchemaElement().SchemaElement));
-	ConfigObject->SetNumberField(TEXT("ObservationVectorDimensionNum"), ReplayBuffer->GetObservations().Num<1>());
-	ConfigObject->SetNumberField(TEXT("ActionVectorDimensionNum"), ReplayBuffer->GetActions().Num<1>());
-	ConfigObject->SetNumberField(TEXT("MemoryStateVectorDimensionNum"), ReplayBuffer->GetMemoryStates().Num<1>());
-	ConfigObject->SetNumberField(TEXT("MaxEpisodeNum"), ReplayBuffer->GetMaxEpisodeNum());
-	ConfigObject->SetNumberField(TEXT("MaxStepNum"), ReplayBuffer->GetMaxStepNum());
-	
-	ConfigObject->SetNumberField(TEXT("PolicyNetworkByteNum"), Policy->GetPolicyNetworkAsset()->NeuralNetworkData->GetSnapshotByteNum());
-	ConfigObject->SetNumberField(TEXT("CriticNetworkByteNum"), Critic->GetCriticNetworkAsset()->NeuralNetworkData->GetSnapshotByteNum());
-	ConfigObject->SetNumberField(TEXT("EncoderNetworkByteNum"), Policy->GetEncoderNetworkAsset()->NeuralNetworkData->GetSnapshotByteNum());
-	ConfigObject->SetNumberField(TEXT("DecoderNetworkByteNum"), Policy->GetDecoderNetworkAsset()->NeuralNetworkData->GetSnapshotByteNum());
+	const int32 ObservationSchemaId = 0;
+	const int32 ActionSchemaId = 0;
 
-	ConfigObject->SetNumberField(TEXT("IterationNum"), Settings.NumberOfIterations);
-	ConfigObject->SetNumberField(TEXT("LearningRatePolicy"), Settings.LearningRatePolicy);
-	ConfigObject->SetNumberField(TEXT("LearningRateCritic"), Settings.LearningRateCritic);
-	ConfigObject->SetNumberField(TEXT("LearningRateDecay"), Settings.LearningRateDecay);
-	ConfigObject->SetNumberField(TEXT("WeightDecay"), Settings.WeightDecay);
-	ConfigObject->SetNumberField(TEXT("PolicyBatchSize"), Settings.PolicyBatchSize);
-	ConfigObject->SetNumberField(TEXT("CriticBatchSize"), Settings.CriticBatchSize);
-	ConfigObject->SetNumberField(TEXT("PolicyWindow"), Settings.PolicyWindowSize);
-	ConfigObject->SetNumberField(TEXT("IterationsPerGather"), Settings.IterationsPerGather);
-	ConfigObject->SetNumberField(TEXT("CriticWarmupIterations"), Settings.CriticWarmupIterations);
-	ConfigObject->SetNumberField(TEXT("EpsilonClip"), Settings.EpsilonClip);
-	ConfigObject->SetNumberField(TEXT("ActionSurrogateWeight"), Settings.ActionSurrogateWeight);
-	ConfigObject->SetNumberField(TEXT("ActionRegularizationWeight"), Settings.ActionRegularizationWeight);
-	ConfigObject->SetNumberField(TEXT("ActionEntropyWeight"), Settings.ActionEntropyWeight);
-	ConfigObject->SetNumberField(TEXT("ReturnRegularizationWeight"), Settings.ReturnRegularizationWeight);
-	ConfigObject->SetNumberField(TEXT("GaeLambda"), Settings.GaeLambda);
-	ConfigObject->SetBoolField(TEXT("AdvantageNormalization"), Settings.bAdvantageNormalization);
-	ConfigObject->SetNumberField(TEXT("AdvantageMin"), Settings.MinimumAdvantage);
-	ConfigObject->SetNumberField(TEXT("AdvantageMax"), Settings.MaximumAdvantage);
-	ConfigObject->SetBoolField(TEXT("UseGradNormMaxClipping"), Settings.bUseGradNormMaxClipping);
-	ConfigObject->SetNumberField(TEXT("GradNormMax"), Settings.GradNormMax);
-	ConfigObject->SetNumberField(TEXT("TrimEpisodeStartStepNum"), Settings.NumberOfStepsToTrimAtStartOfEpisode);
-	ConfigObject->SetNumberField(TEXT("TrimEpisodeEndStepNum"), Settings.NumberOfStepsToTrimAtEndOfEpisode);
-	ConfigObject->SetNumberField(TEXT("Seed"), Settings.RandomSeed);
-	ConfigObject->SetNumberField(TEXT("DiscountFactor"), Settings.DiscountFactor);
-	ConfigObject->SetStringField(TEXT("Device"), UE::Learning::Trainer::GetDeviceString(UE::Learning::Agents::GetTrainingDevice(Settings.Device)));
-	ConfigObject->SetBoolField(TEXT("UseTensorBoard"), Settings.bUseTensorboard);
-	ConfigObject->SetBoolField(TEXT("SaveSnapshots"), Settings.bSaveSnapshots);
+	// Add Neural Network Config Entries
+	TArray<TSharedPtr<FJsonValue>> NetworkObjects;
 
+	// Policy
+	{
+		TSharedPtr<FJsonObject> NetworkObject = MakeShared<FJsonObject>();
+		NetworkObject->SetNumberField(TEXT("Id"), PolicyNetworkId);
+		NetworkObject->SetStringField(TEXT("Name"), Policy->GetPolicyNetworkAsset()->GetFName().ToString());
+		NetworkObject->SetNumberField(TEXT("MaxByteNum"), Policy->GetPolicyNetworkAsset()->NeuralNetworkData->GetSnapshotByteNum());
+		
+		TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(NetworkObject);
+		NetworkObjects.Add(JsonValue);
+	}
+
+	// Critic
+	{
+		TSharedPtr<FJsonObject> NetworkObject = MakeShared<FJsonObject>();
+		NetworkObject->SetNumberField(TEXT("Id"), CriticNetworkId);
+		NetworkObject->SetStringField(TEXT("Name"), Critic->GetCriticNetworkAsset()->GetFName().ToString());
+		NetworkObject->SetNumberField(TEXT("MaxByteNum"), Critic->GetCriticNetworkAsset()->NeuralNetworkData->GetSnapshotByteNum());
+		NetworkObject->SetNumberField(TEXT("InputSchemaId"), ObservationSchemaId);
+
+		TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(NetworkObject);
+		NetworkObjects.Add(JsonValue);
+	}
+
+	// Encoder
+	{
+		TSharedPtr<FJsonObject> NetworkObject = MakeShared<FJsonObject>();
+		NetworkObject->SetNumberField(TEXT("Id"), EncoderNetworkId);
+		NetworkObject->SetStringField(TEXT("Name"), Policy->GetEncoderNetworkAsset()->GetFName().ToString());
+		NetworkObject->SetNumberField(TEXT("MaxByteNum"), Policy->GetEncoderNetworkAsset()->NeuralNetworkData->GetSnapshotByteNum());
+		NetworkObject->SetNumberField(TEXT("InputSchemaId"), ObservationSchemaId);
+
+		TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(NetworkObject);
+		NetworkObjects.Add(JsonValue);
+	}
+
+	// Decoder
+	{
+		TSharedPtr<FJsonObject> NetworkObject = MakeShared<FJsonObject>();
+		NetworkObject->SetNumberField(TEXT("Id"), DecoderNetworkId);
+		NetworkObject->SetStringField(TEXT("Name"), Policy->GetDecoderNetworkAsset()->GetFName().ToString());
+		NetworkObject->SetNumberField(TEXT("MaxByteNum"), Policy->GetDecoderNetworkAsset()->NeuralNetworkData->GetSnapshotByteNum());
+		NetworkObject->SetNumberField(TEXT("OutputSchemaId"), ActionSchemaId);
+
+		TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(NetworkObject);
+		NetworkObjects.Add(JsonValue);
+	}
+
+	ConfigObject->SetArrayField(TEXT("Networks"), NetworkObjects);
+
+	// Add Replay Buffers Config Entries
+	TArray<TSharedPtr<FJsonValue>> ReplayBufferObjects;
+	TSharedRef<FJsonValueObject> ReplayBufferJsonValue = MakeShared<FJsonValueObject>(ReplayBuffer->AsJsonConfig(ReplayBufferId));
+	ReplayBufferObjects.Add(ReplayBufferJsonValue);
+	ConfigObject->SetArrayField(TEXT("ReplayBuffers"), ReplayBufferObjects);
+
+	// Schemas
+	TSharedPtr<FJsonObject> SchemasObject = MakeShared<FJsonObject>();
+
+	// Add the observation schemas
+	TArray<TSharedPtr<FJsonValue>> ObservationSchemaObjects;
+	{
+		// For this PPO trainer, add the one observation schema we have
+		TSharedPtr<FJsonObject> ObservationSchemaObject = MakeShared<FJsonObject>();
+		ObservationSchemaObject->SetNumberField(TEXT("Id"), ObservationSchemaId);
+		ObservationSchemaObject->SetStringField(TEXT("Name"), "Default");
+		ObservationSchemaObject->SetObjectField(TEXT("Schema"),
+			UE::Learning::Trainer::ConvertObservationSchemaToJSON(Interactor->GetObservationSchema()->ObservationSchema,
+				Interactor->GetObservationSchemaElement().SchemaElement));
+
+		TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(ObservationSchemaObject);
+		ObservationSchemaObjects.Add(JsonValue);
+	}
+	SchemasObject->SetArrayField(TEXT("Observations"), ObservationSchemaObjects);
+
+	// Add the action schemas
+	TArray<TSharedPtr<FJsonValue>> ActionSchemaObjects;
+	{
+		// For this PPO trainer, add the one action schema we have
+		TSharedPtr<FJsonObject> ActionSchemaObject = MakeShared<FJsonObject>();
+		ActionSchemaObject->SetNumberField(TEXT("Id"), ActionSchemaId);
+		ActionSchemaObject->SetStringField(TEXT("Name"), "Default");
+		ActionSchemaObject->SetObjectField(TEXT("Schema"),
+			UE::Learning::Trainer::ConvertActionSchemaToJSON(Interactor->GetActionSchema()->ActionSchema,
+				Interactor->GetActionSchemaElement().SchemaElement));
+
+		TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(ActionSchemaObject);
+		ActionSchemaObjects.Add(JsonValue);
+	}
+	SchemasObject->SetArrayField(TEXT("Actions"), ActionSchemaObjects);
+
+	ConfigObject->SetObjectField(TEXT("Schemas"), SchemasObject);
+
+	// Add PPO Specific Config Entries
+	ConfigObject->SetObjectField(TEXT("PPOSettings"), TrainingSettings.AsJsonConfig());
+
+	return ConfigObject;
+}
+
+void ULearningAgentsPPOTrainer::SendConfig(const TSharedRef<FJsonObject>& ConfigObject)
+{
 	UE::Learning::ETrainerResponse Response = UE::Learning::ETrainerResponse::Success;
 	Response = Trainer->SendConfig(ConfigObject);
 	
@@ -461,49 +470,12 @@ void ULearningAgentsPPOTrainer::DoneTraining()
 {
 	if (IsTraining())
 	{
-		// Wait for Trainer to finish
 		Trainer->Wait();
 
 		// If not finished in time, terminate
 		Trainer->Terminate();
 
-		// Apply back previous game settings
-		FApp::SetUseFixedTimeStep(bFixedTimestepUsed);
-		FApp::SetFixedDeltaTime(FixedTimeStepDeltaTime);
-		UGameUserSettings* GameSettings = UGameUserSettings::GetGameUserSettings();
-		if (GameSettings)
-		{
-			GameSettings->SetVSyncEnabled(bVSyncEnabled);
-			GameSettings->ApplySettings(true);
-		}
-
-		UPhysicsSettings* PhysicsSettings = UPhysicsSettings::Get();
-		if (PhysicsSettings)
-		{
-			PhysicsSettings->MaxPhysicsDeltaTime = MaxPhysicsStep;
-		}
-
-		IConsoleVariable* MaxFPSCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS"));
-		if (MaxFPSCVar)
-		{
-			MaxFPSCVar->Set(MaxFPS);
-		}
-
-		UGameViewportClient* ViewportClient = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
-		if (ViewportClient)
-		{
-			ViewportClient->ViewModeIndex = ViewModeIndex;
-		}
-
-#if WITH_EDITOR
-		UEditorPerformanceSettings* EditorPerformanceSettings = GetMutableDefault<UEditorPerformanceSettings>();
-		if (EditorPerformanceSettings)
-		{
-			EditorPerformanceSettings->bThrottleCPUWhenNotForeground = bUseLessCPUInTheBackground;
-			EditorPerformanceSettings->bEnableVSync = bEditorVSyncEnabled;
-			EditorPerformanceSettings->PostEditChange();
-		}
-#endif
+		UE::Learning::Agents::RevertGameSettings(PreviousGameSettingsState, GetWorld());
 
 		bIsTraining = false;
 	}
@@ -585,12 +557,11 @@ void ULearningAgentsPPOTrainer::ProcessExperience(const bool bResetAgentsOnUpdat
 	}
 
 	// Add Experience to Episode Buffer
-	EpisodeBuffer->Push(
-		Interactor->GetObservationVectorArrayView(),
-		Interactor->GetActionVectorArrayView(),
-		Policy->GetPreEvaluationMemoryState(),
-		TrainingEnvironment->GetRewardArrayView(),
-		ValidAgentSet);
+	EpisodeBuffer->PushObservations(ObservationId, Interactor->GetObservationVectorArrayView(), ValidAgentSet);
+	EpisodeBuffer->PushActions(ActionId, Interactor->GetActionVectorArrayView(), ValidAgentSet);
+	EpisodeBuffer->PushMemoryStates(MemoryStateId, Policy->GetPreEvaluationMemoryState(), ValidAgentSet);
+	EpisodeBuffer->PushRewards(RewardId, TrainingEnvironment->GetRewardArrayView(), ValidAgentSet);
+	EpisodeBuffer->IncrementEpisodeStepNums(ValidAgentSet);
 
 	// Find the set of agents which have reached the maximum episode length and mark them as truncated
 	UE::Learning::Completion::EvaluateEndOfEpisodeCompletions(
@@ -615,14 +586,14 @@ void ULearningAgentsPPOTrainer::ProcessExperience(const bool bResetAgentsOnUpdat
 	// And push those episodes to the Replay Buffer
 	const bool bReplayBufferFull = ReplayBuffer->AddEpisodes(
 		TrainingEnvironment->GetAllCompletions(),
-		Interactor->GetObservationVectorArrayView(),
-		Policy->GetMemoryState(),
+		{ Interactor->GetObservationVectorArrayView() },
+		{ Policy->GetMemoryState() },
 		*EpisodeBuffer,
 		TrainingEnvironment->GetResetBuffer().GetResetInstances());
 
 	if (bReplayBufferFull)
 	{
-		UE::Learning::ETrainerResponse Response = Trainer->SendReplayBuffer(TEXT("ReplayBuffer"), *ReplayBuffer);
+		UE::Learning::ETrainerResponse Response = Trainer->SendReplayBuffer(ReplayBufferId, *ReplayBuffer);
 
 		if (Response != UE::Learning::ETrainerResponse::Success)
 		{
@@ -635,7 +606,7 @@ void ULearningAgentsPPOTrainer::ProcessExperience(const bool bResetAgentsOnUpdat
 		ReplayBuffer->Reset();
 
 		// Get Updated Policy
-		Response = Trainer->ReceiveNetwork(Policy->GetPolicyNetworkAsset()->GetFName(), *Policy->GetPolicyNetworkAsset()->NeuralNetworkData);
+		Response = Trainer->ReceiveNetwork(PolicyNetworkId, *Policy->GetPolicyNetworkAsset()->NeuralNetworkData);
 		Policy->GetPolicyNetworkAsset()->ForceMarkDirty();
 
 		if (Response == UE::Learning::ETrainerResponse::Completed)
@@ -653,7 +624,7 @@ void ULearningAgentsPPOTrainer::ProcessExperience(const bool bResetAgentsOnUpdat
 		}
 
 		// Get Updated Critic
-		Response = Trainer->ReceiveNetwork(Critic->GetCriticNetworkAsset()->GetFName(), *Critic->GetCriticNetworkAsset()->NeuralNetworkData);
+		Response = Trainer->ReceiveNetwork(CriticNetworkId, *Critic->GetCriticNetworkAsset()->NeuralNetworkData);
 		Critic->GetCriticNetworkAsset()->ForceMarkDirty();
 
 		if (Response != UE::Learning::ETrainerResponse::Success)
@@ -665,7 +636,7 @@ void ULearningAgentsPPOTrainer::ProcessExperience(const bool bResetAgentsOnUpdat
 		}
 
 		// Get Updated Encoder
-		Response = Trainer->ReceiveNetwork(Policy->GetEncoderNetworkAsset()->GetFName(), *Policy->GetEncoderNetworkAsset()->NeuralNetworkData);
+		Response = Trainer->ReceiveNetwork(EncoderNetworkId, *Policy->GetEncoderNetworkAsset()->NeuralNetworkData);
 		Policy->GetEncoderNetworkAsset()->ForceMarkDirty();
 
 		if (Response != UE::Learning::ETrainerResponse::Success)
@@ -677,7 +648,7 @@ void ULearningAgentsPPOTrainer::ProcessExperience(const bool bResetAgentsOnUpdat
 		}
 
 		// Get Updated Decoder
-		Response = Trainer->ReceiveNetwork(Policy->GetDecoderNetworkAsset()->GetFName(), *Policy->GetDecoderNetworkAsset()->NeuralNetworkData);
+		Response = Trainer->ReceiveNetwork(DecoderNetworkId, *Policy->GetDecoderNetworkAsset()->NeuralNetworkData);
 		Policy->GetDecoderNetworkAsset()->ForceMarkDirty();
 
 		if (Response != UE::Learning::ETrainerResponse::Success)

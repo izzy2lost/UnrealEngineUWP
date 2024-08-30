@@ -24,6 +24,8 @@ namespace UE::Learning
 {
 	FSharedMemoryTrainerServerProcess::FSharedMemoryTrainerServerProcess(
 		const FString& TaskName,
+		const FString& CustomTrainerPath,
+		const FString& TrainerFileName,
 		const FString& PythonExecutablePath,
 		const FString& PythonContentPath,
 		const FString& InIntermediatePath,
@@ -42,12 +44,12 @@ namespace UE::Learning
 		if (ProcessIdx == 0)
 		{
 			// Allocate the control memory if we are the parent UE process
-			Controls = SharedMemory::Allocate<2, volatile int32>({ ProcessNum, SharedMemoryTraining::GetControlNum() });
+			Controls = SharedMemory::Allocate<2, volatile int32>({ ProcessNum, SharedMemoryTraining::GetControlNum()});
 		}
 		else
 		{
 			FGuid ControlsGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningControlsGuid"), ControlsGuid));
-			Controls = SharedMemory::Map<2, volatile int32>(ControlsGuid, { ProcessNum, SharedMemoryTraining::GetControlNum() });
+			Controls = SharedMemory::Map<2, volatile int32>(ControlsGuid, { ProcessNum, SharedMemoryTraining::GetControlNum()});
 
 			// We do not want to launch another training process if we are a child process
 			return;
@@ -60,14 +62,22 @@ namespace UE::Learning
 		// uninitialized values or those left over from previous runs.
 		Array::Zero(Controls.View);
 
+		// Set the ID columns to -1
+		for (int32 Index = 0; Index < Controls.View.Num<0>(); Index++)
+		{
+			Controls.View[Index][(uint8)SharedMemoryTraining::EControls::NetworkId] = -1;
+			Controls.View[Index][(uint8)SharedMemoryTraining::EControls::ReplayBufferId] = -1;
+		}
+
 		const FString TimeStamp = FDateTime::Now().ToFormattedString(TEXT("%Y-%m-%d_%H-%M-%S"));
-		const FString TrainerMethod = TEXT("PPO");
 		const FString TrainerType = TEXT("SharedMemory");
-		ConfigPath = InIntermediatePath / TEXT("Configs") / FString::Printf(TEXT("%s_%s_%s_%s.json"), *TaskName, *TrainerMethod, *TrainerType, *TimeStamp);
+		ConfigPath = InIntermediatePath / TEXT("Configs") / FString::Printf(TEXT("%s_%s_%s_%s.json"), *TaskName, *TrainerFileName, *TrainerType, *TimeStamp);
 
 		IFileManager& FileManager = IFileManager::Get();
-		const FString CommandLineArguments = FString::Printf(TEXT("\"%s\" SharedMemory \"%s\" %i \"%s\""),
-			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*(PythonContentPath / TEXT("train_ppo.py"))),
+		const FString CommandLineArguments = FString::Printf(TEXT("\"%s\" \"%s\" \"%s\" SharedMemory \"%s\" %i \"%s\""),
+			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*(PythonContentPath / TEXT("train.py"))),
+			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*CustomTrainerPath),
+			*TrainerFileName,
 			*Controls.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces),
 			ProcessNum,
 			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*ConfigPath));
@@ -147,12 +157,36 @@ namespace UE::Learning
 			SharedMemory::Deallocate(EpisodeStarts);
 			SharedMemory::Deallocate(EpisodeLengths);
 			SharedMemory::Deallocate(EpisodeCompletionModes);
-			SharedMemory::Deallocate(EpisodeFinalObservations);
-			SharedMemory::Deallocate(EpisodeFinalMemoryStates);
-			SharedMemory::Deallocate(Observations);
-			SharedMemory::Deallocate(Actions);
-			SharedMemory::Deallocate(MemoryStates);
-			SharedMemory::Deallocate(Rewards);
+
+			for(TSharedMemoryArrayView<3, float>& SharedMemoryArrayView : EpisodeFinalObservations)
+			{
+				SharedMemory::Deallocate(SharedMemoryArrayView);
+			}
+
+			for (TSharedMemoryArrayView<3, float>& SharedMemoryArrayView : EpisodeFinalMemoryStates)
+			{
+				SharedMemory::Deallocate(SharedMemoryArrayView);
+			}
+
+			for (TSharedMemoryArrayView<3, float>& SharedMemoryArrayView : Observations)
+			{
+				SharedMemory::Deallocate(SharedMemoryArrayView);
+			}
+
+			for (TSharedMemoryArrayView<3, float>& SharedMemoryArrayView : Actions)
+			{
+				SharedMemory::Deallocate(SharedMemoryArrayView);
+			}
+
+			for (TSharedMemoryArrayView<3, float>& SharedMemoryArrayView : MemoryStates)
+			{
+				SharedMemory::Deallocate(SharedMemoryArrayView);
+			}
+
+			for (TSharedMemoryArrayView<3, float>& SharedMemoryArrayView : Rewards)
+			{
+				SharedMemory::Deallocate(SharedMemoryArrayView);
+			}
 		}
 	}
 
@@ -193,6 +227,11 @@ namespace UE::Learning
 		return ETrainerResponse::Success;
 	}
 
+	bool FSharedMemoryTrainer::HasNetworkOrCompleted()
+	{
+		return SharedMemoryTraining::HasNetworkOrCompleted(Controls.View[ProcessIdx]);
+	}
+
 	void FSharedMemoryTrainer::Terminate()
 	{
 		Deallocate();
@@ -220,33 +259,84 @@ namespace UE::Learning
 		ConfigObject->SetStringField(TEXT("IntermediatePath"), *FileManager.ConvertToAbsolutePathForExternalAppForRead(*IntermediatePath));
 		ConfigObject->SetBoolField(TEXT("LoggingEnabled"), LogSettings == ELogSetting::Silent ? false : true);
 
-		ConfigObject->SetNumberField(TEXT("ProcessNum"), ProcessNum);
+		TSharedPtr<FJsonObject> SharedMemoryObject = MakeShared<FJsonObject>();
+
+		SharedMemoryObject->SetNumberField(TEXT("ProcessNum"), ProcessNum);
 
 		TArray<TSharedPtr<FJsonValue>> NetworkGuidsArray;
-		for (const TPair<FName, TSharedMemoryArrayView<1, uint8>>& MapEntry : NeuralNetworkSharedMemoryArrayViews)
-		{
-			NetworkGuidsArray.Add(MakeShared<FJsonValueString>(*MapEntry.Value.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces)));
-		}
-		ConfigObject->SetArrayField(TEXT("NetworkGuids"), NetworkGuidsArray);
-
-		TArray<TSharedPtr<FJsonValue>> ExperienceContainerObjectsArray;
-		for (const TPair<FName, FSharedMemoryExperienceContainer>& MapEntry : SharedMemoryExperienceContainers)
+		for(int32 Index = 0; Index < NeuralNetworkSharedMemoryArrayViews.Num(); Index++)
 		{
 			TSharedPtr<FJsonObject> JsonObject = MakeShared<FJsonObject>();
-			JsonObject->SetStringField(TEXT("EpisodeStartsGuid"), *MapEntry.Value.EpisodeStarts.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
-			JsonObject->SetStringField(TEXT("EpisodeLengthsGuid"), *MapEntry.Value.EpisodeLengths.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
-			JsonObject->SetStringField(TEXT("EpisodeCompletionModesGuid"), *MapEntry.Value.EpisodeCompletionModes.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
-			JsonObject->SetStringField(TEXT("EpisodeFinalObservationsGuid"), *MapEntry.Value.EpisodeFinalObservations.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
-			JsonObject->SetStringField(TEXT("EpisodeFinalMemoryStatesGuid"), *MapEntry.Value.EpisodeFinalMemoryStates.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
-			JsonObject->SetStringField(TEXT("ObservationsGuid"), *MapEntry.Value.Observations.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
-			JsonObject->SetStringField(TEXT("ActionsGuid"), *MapEntry.Value.Actions.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
-			JsonObject->SetStringField(TEXT("MemoryStatesGuid"), *MapEntry.Value.MemoryStates.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
-			JsonObject->SetStringField(TEXT("RewardsGuid"), *MapEntry.Value.Rewards.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
+			JsonObject->SetNumberField(TEXT("NetworkId"), Index);
+			JsonObject->SetStringField(TEXT("Guid"), *NeuralNetworkSharedMemoryArrayViews[Index].Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
+
+			TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(JsonObject);
+			NetworkGuidsArray.Add(JsonValue);
+		}
+		SharedMemoryObject->SetArrayField(TEXT("NetworkGuids"), NetworkGuidsArray);
+
+		TArray<TSharedPtr<FJsonValue>> ExperienceContainerObjectsArray;
+		for (const FSharedMemoryExperienceContainer& SharedMemoryExperienceContainer : SharedMemoryExperienceContainers)
+		{
+			TSharedPtr<FJsonObject> JsonObject = MakeShared<FJsonObject>();
+			JsonObject->SetStringField(TEXT("EpisodeStartsGuid"), *SharedMemoryExperienceContainer.EpisodeStarts.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
+			JsonObject->SetStringField(TEXT("EpisodeLengthsGuid"), *SharedMemoryExperienceContainer.EpisodeLengths.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
+			JsonObject->SetStringField(TEXT("EpisodeCompletionModesGuid"), *SharedMemoryExperienceContainer.EpisodeCompletionModes.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
+
+			TArray<TSharedPtr<FJsonValue>> EpisodeFinalObservationsGuidsArray;
+			for (const TSharedMemoryArrayView<3, float>& EpisodeFinalObservations : SharedMemoryExperienceContainer.EpisodeFinalObservations)
+			{
+				EpisodeFinalObservationsGuidsArray.Add(MakeShared<FJsonValueString>(*EpisodeFinalObservations.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces)));
+				
+			}
+			JsonObject->SetArrayField(TEXT("EpisodeFinalObservationsGuids"), EpisodeFinalObservationsGuidsArray);
+
+			TArray<TSharedPtr<FJsonValue>> EpisodeFinalMemoryStatesGuidsArray;
+			for (const TSharedMemoryArrayView<3, float>& EpisodeFinalMemoryStates : SharedMemoryExperienceContainer.EpisodeFinalMemoryStates)
+			{
+				EpisodeFinalMemoryStatesGuidsArray.Add(MakeShared<FJsonValueString>(*EpisodeFinalMemoryStates.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces)));
+
+			}
+			JsonObject->SetArrayField(TEXT("EpisodeFinalMemoryStatesGuids"), EpisodeFinalMemoryStatesGuidsArray);
+
+			TArray<TSharedPtr<FJsonValue>> ObservationsGuidsArray;
+			for (const TSharedMemoryArrayView<3, float>& Observations : SharedMemoryExperienceContainer.Observations)
+			{
+				ObservationsGuidsArray.Add(MakeShared<FJsonValueString>(*Observations.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces)));
+
+			}
+			JsonObject->SetArrayField(TEXT("ObservationsGuids"), ObservationsGuidsArray);
+
+			TArray<TSharedPtr<FJsonValue>> ActionsGuidsArray;
+			for (const TSharedMemoryArrayView<3, float>& Actions : SharedMemoryExperienceContainer.Actions)
+			{
+				ActionsGuidsArray.Add(MakeShared<FJsonValueString>(*Actions.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces)));
+
+			}
+			JsonObject->SetArrayField(TEXT("ActionsGuids"), ActionsGuidsArray);
+
+			TArray<TSharedPtr<FJsonValue>> MemoryStatesGuidsArray;
+			for (const TSharedMemoryArrayView<3, float>& MemoryStates : SharedMemoryExperienceContainer.MemoryStates)
+			{
+				MemoryStatesGuidsArray.Add(MakeShared<FJsonValueString>(*MemoryStates.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces)));
+
+			}
+			JsonObject->SetArrayField(TEXT("MemoryStatesGuids"), MemoryStatesGuidsArray);
+
+			TArray<TSharedPtr<FJsonValue>> RewardsGuidsArray;
+			for (const TSharedMemoryArrayView<3, float>& Rewards : SharedMemoryExperienceContainer.Rewards)
+			{
+				RewardsGuidsArray.Add(MakeShared<FJsonValueString>(*Rewards.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces)));
+
+			}
+			JsonObject->SetArrayField(TEXT("RewardsGuids"), RewardsGuidsArray);
 			
 			TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(JsonObject);
 			ExperienceContainerObjectsArray.Add(JsonValue);
 		}
-		ConfigObject->SetArrayField(TEXT("ExperienceBuffers"), ExperienceContainerObjectsArray);
+		SharedMemoryObject->SetArrayField(TEXT("ReplayBuffers"), ExperienceContainerObjectsArray);
+
+		ConfigObject->SetObjectField(TEXT("SharedMemory"), SharedMemoryObject);
 		
 		FString ConfigString;
 		TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&ConfigString, 0);
@@ -256,57 +346,54 @@ namespace UE::Learning
 		return SharedMemoryTraining::SendConfigSignal(Controls.View[ProcessIdx], LogSettings);
 	}
 
-	void FSharedMemoryTrainer::AddNetwork(
-		const FName& Name,
-		const ULearningNeuralNetworkData& Network)
+	int32 FSharedMemoryTrainer::AddNetwork(const ULearningNeuralNetworkData& Network)
 	{
-		NeuralNetworkSharedMemoryArrayViews.Add(Name, SharedMemory::Allocate<1, uint8>({ Network.GetSnapshotByteNum() }));
-	}
-
-	bool FSharedMemoryTrainer::ContainsNetwork(const FName& Name) const
-	{
-		return NeuralNetworkSharedMemoryArrayViews.Contains(Name);
+		const int32 NetworkId = NeuralNetworkSharedMemoryArrayViews.Num();
+		NeuralNetworkSharedMemoryArrayViews.Add(SharedMemory::Allocate<1, uint8>({ Network.GetSnapshotByteNum() }));
+		return NetworkId;
 	}
 
 	ETrainerResponse FSharedMemoryTrainer::ReceiveNetwork(
-		const FName& Name,
+		const int32 NetworkId,
 		ULearningNeuralNetworkData& OutNetwork,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
 		check(ProcessIdx != INDEX_NONE);
 		checkf(Controls.Region, TEXT("ReceiveNetwork: Controls Shared Memory Region is nullptr"));
-		if (!ensureMsgf(NeuralNetworkSharedMemoryArrayViews.Contains(Name), TEXT("Network %s has not been added. Call AddNetwork prior to ReceiveNetwork."), *Name.ToString()))
+		if (!ensureMsgf(NeuralNetworkSharedMemoryArrayViews.Num() >= NetworkId, TEXT("Network %d has not been added. Call AddNetwork prior to ReceiveNetwork."), NetworkId))
 		{
 			return ETrainerResponse::Unexpected;
 		}
 
 		return SharedMemoryTraining::RecvNetwork(
 			Controls.View[ProcessIdx],
+			NetworkId,
 			OutNetwork,
 			*TrainingProcess,
-			NeuralNetworkSharedMemoryArrayViews[Name].View,
+			NeuralNetworkSharedMemoryArrayViews[NetworkId].View,
 			Timeout,
 			NetworkLock,
 			LogSettings);
 	}
 
 	ETrainerResponse FSharedMemoryTrainer::SendNetwork(
-		const FName& Name,
+		const int32 NetworkId,
 		const ULearningNeuralNetworkData& Network,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
 		check(ProcessIdx != INDEX_NONE);
 		checkf(Controls.Region, TEXT("SendNetwork: Controls Shared Memory Region is nullptr"));
-		if (!ensureMsgf(NeuralNetworkSharedMemoryArrayViews.Contains(Name), TEXT("Network %s has not been added. Call AddNetwork prior to SendNetwork."), *Name.ToString()))
+		if (!ensureMsgf(NeuralNetworkSharedMemoryArrayViews.Num() >= NetworkId, TEXT("Network %d has not been added. Call AddNetwork prior to SendNetwork."), NetworkId))
 		{
 			return ETrainerResponse::Unexpected;
 		}
 
 		return SharedMemoryTraining::SendNetwork(
 			Controls.View[ProcessIdx],
-			NeuralNetworkSharedMemoryArrayViews[Name].View,
+			NetworkId,
+			NeuralNetworkSharedMemoryArrayViews[NetworkId].View,
 			*TrainingProcess,
 			Network,
 			Timeout,
@@ -314,81 +401,270 @@ namespace UE::Learning
 			LogSettings);
 	}
 
-	void FSharedMemoryTrainer::AddReplayBuffer(
-		const FName& Name,
-		const FReplayBuffer& ReplayBuffer)
+	int32 FSharedMemoryTrainer::AddReplayBuffer(const FReplayBuffer& ReplayBuffer)
 	{
 		check(ProcessNum > 0);
-
-		const int32 ObservationVectorDimensionNum = ReplayBuffer.GetObservations().Num<1>();
-		const int32 ActionVectorDimensionNum = ReplayBuffer.GetActions().Num<1>();
-		const int32 MemoryStateVectorDimensionNum = ReplayBuffer.GetMemoryStates().Num<1>();
 
 		FSharedMemoryExperienceContainer ExperienceContainer;
 		if (ProcessIdx == 0)
 		{
 			ExperienceContainer.EpisodeStarts = SharedMemory::Allocate<2, int32>({ ProcessNum, ReplayBuffer.GetMaxEpisodeNum() });
 			ExperienceContainer.EpisodeLengths = SharedMemory::Allocate<2, int32>({ ProcessNum, ReplayBuffer.GetMaxEpisodeNum() });
-			ExperienceContainer.EpisodeCompletionModes = SharedMemory::Allocate<2, ECompletionMode>({ ProcessNum, ReplayBuffer.GetMaxEpisodeNum() });
-			ExperienceContainer.EpisodeFinalObservations = SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxEpisodeNum(), ObservationVectorDimensionNum });
-			ExperienceContainer.EpisodeFinalMemoryStates = SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxEpisodeNum(), MemoryStateVectorDimensionNum });
-			ExperienceContainer.Observations = SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxStepNum(), ObservationVectorDimensionNum });
-			ExperienceContainer.Actions = SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxStepNum(), ActionVectorDimensionNum });
-			ExperienceContainer.MemoryStates = SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxStepNum(), MemoryStateVectorDimensionNum });
-			ExperienceContainer.Rewards = SharedMemory::Allocate<2, float>({ ProcessNum, ReplayBuffer.GetMaxStepNum() });
+
+			if (ReplayBuffer.HasCompletions())
+			{
+				ExperienceContainer.EpisodeCompletionModes = SharedMemory::Allocate<2, ECompletionMode>({ ProcessNum, ReplayBuffer.GetMaxEpisodeNum() });
+			}
+
+			if (ReplayBuffer.HasFinalObservations())
+			{
+				for (int32 Index = 0; Index < ReplayBuffer.GetObservationsNum(); Index++)
+				{
+					const int32 DimNum = ReplayBuffer.GetEpisodeFinalObservations(Index).Num<1>();
+					ExperienceContainer.EpisodeFinalObservations.Add(SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxEpisodeNum(), DimNum }));
+				}
+			}
+
+			if (ReplayBuffer.HasFinalMemoryStates())
+			{
+				for (int32 Index = 0; Index < ReplayBuffer.GetMemoryStatesNum(); Index++)
+				{
+					const int32 DimNum = ReplayBuffer.GetEpisodeFinalMemoryStates(Index).Num<1>();
+					ExperienceContainer.EpisodeFinalMemoryStates.Add(SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxEpisodeNum(), DimNum }));
+				}
+			}
+
+			for (int32 Index = 0; Index < ReplayBuffer.GetObservationsNum(); Index++)
+			{
+				const int32 DimNum = ReplayBuffer.GetObservations(Index).Num<1>();
+				ExperienceContainer.Observations.Add(SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxStepNum(), DimNum }));
+			}
+
+			for (int32 Index = 0; Index < ReplayBuffer.GetActionsNum(); Index++)
+			{
+				const int32 DimNum = ReplayBuffer.GetActions(Index).Num<1>();
+				ExperienceContainer.Actions.Add(SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxStepNum(), DimNum }));
+			}
+
+			for (int32 Index = 0; Index < ReplayBuffer.GetMemoryStatesNum(); Index++)
+			{
+				const int32 DimNum = ReplayBuffer.GetMemoryStates(Index).Num<1>();
+				ExperienceContainer.MemoryStates.Add(SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxStepNum(), DimNum }));
+			}
+
+			for (int32 Index = 0; Index < ReplayBuffer.GetRewardsNum(); Index++)
+			{
+				const int32 DimNum = ReplayBuffer.GetRewards(Index).Num<1>();
+				ExperienceContainer.Rewards.Add(SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxStepNum(), DimNum }));
+			}
 		}
 		else
 		{
 			FGuid EpisodeStartsGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningEpisodeStartsGuid"), EpisodeStartsGuid));
-			FGuid EpisodeLengthsGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningEpisodeLengthsGuid"), EpisodeLengthsGuid));
-			FGuid EpisodeCompletionModesGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningEpisodeCompletionModesGuid"), EpisodeCompletionModesGuid));
-			FGuid EpisodeFinalObservationsGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningEpisodeFinalObservationsGuid"), EpisodeFinalObservationsGuid));
-			FGuid EpisodeFinalMemoryStatesGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningEpisodeFinalMemoryStatesGuid"), EpisodeFinalMemoryStatesGuid));
-			FGuid ObservationsGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningObservationsGuid"), ObservationsGuid));
-			FGuid ActionsGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningActionsGuid"), ActionsGuid));
-			FGuid MemoryStatesGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningMemoryStatesGuid"), MemoryStatesGuid));
-			FGuid RewardsGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningRewardsGuid"), RewardsGuid));
-
 			ExperienceContainer.EpisodeStarts = SharedMemory::Map<2, int32>(EpisodeStartsGuid, { ProcessNum, ReplayBuffer.GetMaxEpisodeNum() });
+
+			FGuid EpisodeLengthsGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningEpisodeLengthsGuid"), EpisodeLengthsGuid));
 			ExperienceContainer.EpisodeLengths = SharedMemory::Map<2, int32>(EpisodeLengthsGuid, { ProcessNum, ReplayBuffer.GetMaxEpisodeNum() });
-			ExperienceContainer.EpisodeCompletionModes = SharedMemory::Map<2, ECompletionMode>(EpisodeCompletionModesGuid, { ProcessNum, ReplayBuffer.GetMaxEpisodeNum() });
-			ExperienceContainer.EpisodeFinalObservations = SharedMemory::Map<3, float>(EpisodeFinalObservationsGuid, { ProcessNum, ReplayBuffer.GetMaxEpisodeNum(), ObservationVectorDimensionNum });
-			ExperienceContainer.EpisodeFinalMemoryStates = SharedMemory::Map<3, float>(EpisodeFinalMemoryStatesGuid, { ProcessNum, ReplayBuffer.GetMaxEpisodeNum(), MemoryStateVectorDimensionNum });
-			ExperienceContainer.Observations = SharedMemory::Map<3, float>(ObservationsGuid, { ProcessNum, ReplayBuffer.GetMaxStepNum(), ObservationVectorDimensionNum });
-			ExperienceContainer.Actions = SharedMemory::Map<3, float>(ActionsGuid, { ProcessNum, ReplayBuffer.GetMaxStepNum(), ActionVectorDimensionNum });
-			ExperienceContainer.MemoryStates = SharedMemory::Map<3, float>(MemoryStatesGuid, { ProcessNum, ReplayBuffer.GetMaxStepNum(), MemoryStateVectorDimensionNum });
-			ExperienceContainer.Rewards = SharedMemory::Map<2, float>(RewardsGuid, { ProcessNum, ReplayBuffer.GetMaxStepNum() });
+
+			if (ReplayBuffer.HasCompletions())
+			{
+				FGuid EpisodeCompletionModesGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningEpisodeCompletionModesGuid"), EpisodeCompletionModesGuid));
+				ExperienceContainer.EpisodeCompletionModes = SharedMemory::Map<2, ECompletionMode>(EpisodeCompletionModesGuid, { ProcessNum, ReplayBuffer.GetMaxEpisodeNum() });
+			}
+
+			// Final Observations
+			if (ReplayBuffer.HasFinalObservations())
+			{
+				FString StringOfGuids; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningEpisodeFinalObservationsGuids"), StringOfGuids));
+				TArray<FString> StringGuids;
+				StringOfGuids.ParseIntoArray(StringGuids, TEXT(","));
+				TArray<FGuid> Guids;
+				for (const FString& StringGuid : StringGuids)
+				{
+					FGuid Guid;
+					FGuid::Parse(StringGuid, Guid);
+					Guids.Add(Guid);
+				}
+				check(Guids.Num() == ReplayBuffer.GetObservationsNum());
+
+				for (int32 Index = 0; Index < ReplayBuffer.GetObservationsNum(); Index++)
+				{
+					const int32 DimNum = ReplayBuffer.GetEpisodeFinalObservations(Index).Num<1>();
+					ExperienceContainer.EpisodeFinalObservations.Add(SharedMemory::Map<3, float>(Guids[Index], { ProcessNum, ReplayBuffer.GetMaxEpisodeNum(), DimNum }));
+				}
+			}
+
+			// Final Memory States
+			if (ReplayBuffer.HasFinalMemoryStates())
+			{
+				FString StringOfGuids; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningEpisodeFinalMemoryStatesGuid"), StringOfGuids));
+				TArray<FString> StringGuids;
+				StringOfGuids.ParseIntoArray(StringGuids, TEXT(","));
+				TArray<FGuid> Guids;
+				for (const FString& StringGuid : StringGuids)
+				{
+					FGuid Guid;
+					FGuid::Parse(StringGuid, Guid);
+					Guids.Add(Guid);
+				}
+				check(Guids.Num() == ReplayBuffer.GetMemoryStatesNum());
+
+				for (int32 Index = 0; Index < ReplayBuffer.GetMemoryStatesNum(); Index++)
+				{
+					const int32 DimNum = ReplayBuffer.GetEpisodeFinalMemoryStates(Index).Num<1>();
+					ExperienceContainer.EpisodeFinalMemoryStates.Add(SharedMemory::Map<3, float>(Guids[Index], { ProcessNum, ReplayBuffer.GetMaxEpisodeNum(), DimNum }));
+				}
+			}
+
+			// Observations
+			{
+				FString StringOfGuids; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningObservationsGuid"), StringOfGuids));
+				TArray<FString> StringGuids;
+				StringOfGuids.ParseIntoArray(StringGuids, TEXT(","));
+				TArray<FGuid> Guids;
+				for (const FString& StringGuid : StringGuids)
+				{
+					FGuid Guid;
+					FGuid::Parse(StringGuid, Guid);
+					Guids.Add(Guid);
+				}
+				check(Guids.Num() == ReplayBuffer.GetObservationsNum());
+
+				for (int32 Index = 0; Index < ReplayBuffer.GetObservationsNum(); Index++)
+				{
+					const int32 DimNum = ReplayBuffer.GetObservations(Index).Num<1>();
+					ExperienceContainer.Observations.Add(SharedMemory::Map<3, float>(Guids[Index], { ProcessNum, ReplayBuffer.GetMaxStepNum(), DimNum }));
+				}
+			}
+
+			// Actions
+			{
+				FString StringOfGuids; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningActionsGuid"), StringOfGuids));
+				TArray<FString> StringGuids;
+				StringOfGuids.ParseIntoArray(StringGuids, TEXT(","));
+				TArray<FGuid> Guids;
+				for (const FString& StringGuid : StringGuids)
+				{
+					FGuid Guid;
+					FGuid::Parse(StringGuid, Guid);
+					Guids.Add(Guid);
+				}
+				check(Guids.Num() == ReplayBuffer.GetActionsNum());
+
+				for (int32 Index = 0; Index < ReplayBuffer.GetActionsNum(); Index++)
+				{
+					const int32 DimNum = ReplayBuffer.GetActions(Index).Num<1>();
+					ExperienceContainer.Actions.Add(SharedMemory::Map<3, float>(Guids[Index], { ProcessNum, ReplayBuffer.GetMaxStepNum(), DimNum }));
+				}
+			}
+
+			// Memory States
+			{
+				FString StringOfGuids; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningMemoryStatesGuid"), StringOfGuids));
+				TArray<FString> StringGuids;
+				StringOfGuids.ParseIntoArray(StringGuids, TEXT(","));
+				TArray<FGuid> Guids;
+				for (const FString& StringGuid : StringGuids)
+				{
+					FGuid Guid;
+					FGuid::Parse(StringGuid, Guid);
+					Guids.Add(Guid);
+				}
+				check(Guids.Num() == ReplayBuffer.GetMemoryStatesNum());
+
+				for (int32 Index = 0; Index < ReplayBuffer.GetMemoryStatesNum(); Index++)
+				{
+					const int32 DimNum = ReplayBuffer.GetMemoryStates(Index).Num<1>();
+					ExperienceContainer.MemoryStates.Add(SharedMemory::Map<3, float>(Guids[Index], { ProcessNum, ReplayBuffer.GetMaxStepNum(), DimNum }));
+				}
+			}
+
+			// Rewards
+			{
+				FString StringOfGuids; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningRewardsGuid"), StringOfGuids));
+				TArray<FString> StringGuids;
+				StringOfGuids.ParseIntoArray(StringGuids, TEXT(","));
+				TArray<FGuid> Guids;
+				for (const FString& StringGuid : StringGuids)
+				{
+					FGuid Guid;
+					FGuid::Parse(StringGuid, Guid);
+					Guids.Add(Guid);
+				}
+				check(Guids.Num() == ReplayBuffer.GetRewardsNum());
+
+				for (int32 Index = 0; Index < ReplayBuffer.GetRewardsNum(); Index++)
+				{
+					const int32 DimNum = ReplayBuffer.GetRewards(Index).Num<1>();
+					ExperienceContainer.Rewards.Add(SharedMemory::Map<3, float>(Guids[Index], { ProcessNum, ReplayBuffer.GetMaxStepNum(), DimNum }));
+				}
+			}
 		}
-
-		SharedMemoryExperienceContainers.Add(Name, ExperienceContainer);
+		
+		const int32 ReplayBufferId = SharedMemoryExperienceContainers.Num();
+		SharedMemoryExperienceContainers.Add(ExperienceContainer);
+		return ReplayBufferId;
 	}
 
-	bool FSharedMemoryTrainer::ContainsReplayBuffer(const FName& Name) const
-	{
-		return SharedMemoryExperienceContainers.Contains(Name);
-	}
-
-	ETrainerResponse FSharedMemoryTrainer::SendReplayBuffer(const FName& Name, const FReplayBuffer& ReplayBuffer, const ELogSetting LogSettings)
+	ETrainerResponse FSharedMemoryTrainer::SendReplayBuffer(const int32 ReplayBufferId, const FReplayBuffer& ReplayBuffer, const ELogSetting LogSettings)
 	{
 		check(ProcessIdx != INDEX_NONE);
 		checkf(Controls.Region, TEXT("SendReplayBuffer: Controls Shared Memory Region is nullptr"));
-		if (!ensureMsgf(SharedMemoryExperienceContainers.Contains(Name), TEXT("ReplayBuffer %s has not been added. Call AddReplayBuffer prior to SendReplayBuffer."), *Name.ToString()))
+		if (!ensureMsgf(SharedMemoryExperienceContainers.Num() >= ReplayBufferId, TEXT("ReplayBuffer %d has not been added. Call AddReplayBuffer prior to SendReplayBuffer."), ReplayBufferId))
 		{
 			return ETrainerResponse::Unexpected;
 		}
 
+		TArray<TLearningArrayView<2, float>> EpisodeFinalObservations;
+		for (TSharedMemoryArrayView<3, float>& EpisodeFinalObs : SharedMemoryExperienceContainers[ReplayBufferId].EpisodeFinalObservations)
+		{
+			EpisodeFinalObservations.Add(EpisodeFinalObs.View[ProcessIdx]);
+		}
+
+		TArray<TLearningArrayView<2, float>> EpisodeFinalMemoryStates;
+		for (TSharedMemoryArrayView<3, float>& EpisodeFinalMems : SharedMemoryExperienceContainers[ReplayBufferId].EpisodeFinalMemoryStates)
+		{
+			EpisodeFinalMemoryStates.Add(EpisodeFinalMems.View[ProcessIdx]);
+		}
+
+		TArray<TLearningArrayView<2, float>> Observations;
+		for (TSharedMemoryArrayView<3, float>& Obs : SharedMemoryExperienceContainers[ReplayBufferId].Observations)
+		{
+			Observations.Add(Obs.View[ProcessIdx]);
+		}
+
+		TArray<TLearningArrayView<2, float>> Actions;
+		for (TSharedMemoryArrayView<3, float>& Acts : SharedMemoryExperienceContainers[ReplayBufferId].Actions)
+		{
+			Actions.Add(Acts.View[ProcessIdx]);
+		}
+
+		TArray<TLearningArrayView<2, float>> MemoryStates;
+		for (TSharedMemoryArrayView<3, float>& Mems : SharedMemoryExperienceContainers[ReplayBufferId].MemoryStates)
+		{
+			MemoryStates.Add(Mems.View[ProcessIdx]);
+		}
+
+		TArray<TLearningArrayView<2, float>> Rewards;
+		for (TSharedMemoryArrayView<3, float>& Rews : SharedMemoryExperienceContainers[ReplayBufferId].Rewards)
+		{
+			Rewards.Add(Rews.View[ProcessIdx]);
+		}
+
+		TLearningArrayView<1, ECompletionMode> EmptyCompletionsArray;
 		return SharedMemoryTraining::SendExperience(
-			SharedMemoryExperienceContainers[Name].EpisodeStarts.View[ProcessIdx],
-			SharedMemoryExperienceContainers[Name].EpisodeLengths.View[ProcessIdx],
-			SharedMemoryExperienceContainers[Name].EpisodeCompletionModes.View[ProcessIdx],
-			SharedMemoryExperienceContainers[Name].EpisodeFinalObservations.View[ProcessIdx],
-			SharedMemoryExperienceContainers[Name].EpisodeFinalMemoryStates.View[ProcessIdx],
-			SharedMemoryExperienceContainers[Name].Observations.View[ProcessIdx],
-			SharedMemoryExperienceContainers[Name].Actions.View[ProcessIdx],
-			SharedMemoryExperienceContainers[Name].MemoryStates.View[ProcessIdx],
-			SharedMemoryExperienceContainers[Name].Rewards.View[ProcessIdx],
+			SharedMemoryExperienceContainers[ReplayBufferId].EpisodeStarts.View[ProcessIdx],
+			SharedMemoryExperienceContainers[ReplayBufferId].EpisodeLengths.View[ProcessIdx],
+			ReplayBuffer.HasCompletions() ? SharedMemoryExperienceContainers[ReplayBufferId].EpisodeCompletionModes.View[ProcessIdx] : EmptyCompletionsArray,
+			EpisodeFinalObservations,
+			EpisodeFinalMemoryStates,
+			Observations,
+			Actions,
+			MemoryStates,
+			Rewards,
 			Controls.View[ProcessIdx],
 			*TrainingProcess,
+			ReplayBufferId,
 			ReplayBuffer,
 			Timeout,
 			LogSettings);
@@ -396,23 +672,25 @@ namespace UE::Learning
 
 	void FSharedMemoryTrainer::Deallocate()
 	{
-		for (TPair<FName, TSharedMemoryArrayView<1, uint8>>& MapEntry : NeuralNetworkSharedMemoryArrayViews)
+		for (TSharedMemoryArrayView<1, uint8>& SharedMemoryArrayView : NeuralNetworkSharedMemoryArrayViews)
 		{
-			if (MapEntry.Value.Region != nullptr)
+			if (SharedMemoryArrayView.Region != nullptr)
 			{
-				SharedMemory::Deallocate(MapEntry.Value);
+				SharedMemory::Deallocate(SharedMemoryArrayView);
 			}
 		}
 		NeuralNetworkSharedMemoryArrayViews.Empty();
 
-		for (TPair<FName, FSharedMemoryExperienceContainer>& MapEntry : SharedMemoryExperienceContainers)
+		for (FSharedMemoryExperienceContainer& SharedMemoryExperienceContainer : SharedMemoryExperienceContainers)
 		{
-			MapEntry.Value.Deallocate();
+			SharedMemoryExperienceContainer.Deallocate();
 		}
 		SharedMemoryExperienceContainers.Empty();
 	}
 
 	FSocketTrainerServerProcess::FSocketTrainerServerProcess(
+		const FString& CustomTrainerPath,
+		const FString& TrainerFileName,
 		const FString& PythonExecutablePath,
 		const FString& PythonContentPath,
 		const FString& IntermediatePath,
@@ -428,8 +706,10 @@ namespace UE::Learning
 		UE_LEARNING_CHECK(FPaths::DirectoryExists(PythonContentPath));
 
 		IFileManager& FileManager = IFileManager::Get();
-		const FString CommandLineArguments = FString::Printf(TEXT("\"%s\" Socket \"%s:%i\" \"%s\" %i"),
-			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*(PythonContentPath / TEXT("train_ppo.py"))),
+		const FString CommandLineArguments = FString::Printf(TEXT("\"%s\" \"%s\" \"%s\" Socket \"%s:%i\" \"%s\" %i"),
+			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*(PythonContentPath / TEXT("train.py"))),
+			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*CustomTrainerPath),
+			*TrainerFileName,
 			IpAddress,
 			Port,
 			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*IntermediatePath),
@@ -525,6 +805,11 @@ namespace UE::Learning
 		return ETrainerResponse::Success;
 	}
 
+	bool FSocketTrainer::HasNetworkOrCompleted()
+	{
+		return SocketTraining::HasNetworkOrCompleted(*Socket, TrainingProcess);
+	}
+
 	void FSocketTrainer::Terminate()
 	{
 		if (Socket)
@@ -554,67 +839,58 @@ namespace UE::Learning
 		return SocketTraining::SendConfig(*Socket, ConfigString, TrainingProcess, Timeout, LogSettings);
 	}
 
-	void FSocketTrainer::AddNetwork(
-		const FName& Name,
-		const ULearningNeuralNetworkData& Network)
+	int32 FSocketTrainer::AddNetwork(const ULearningNeuralNetworkData& Network)
 	{
-		NetworkBuffers.Add(Name, TLearningArray<1, uint8>());
-		NetworkBuffers[Name].SetNumUninitialized({Network.GetSnapshotByteNum()});
-	}
-
-	bool FSocketTrainer::ContainsNetwork(const FName& Name) const
-	{
-		return NetworkBuffers.Contains(Name);
+		const int32 NetworkId = NetworkBuffers.Num();
+		NetworkBuffers.Add(TLearningArray<1, uint8>());
+		NetworkBuffers[NetworkId].SetNumUninitialized({Network.GetSnapshotByteNum()});
+		return NetworkId;
 	}
 
 	ETrainerResponse FSocketTrainer::ReceiveNetwork(
-		const FName& Name,
+		const int32 NetworkId,
 		ULearningNeuralNetworkData& OutNetwork,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
 		checkf(Socket, TEXT("Training socket is nullptr"));
-		if (!ensureMsgf(NetworkBuffers.Contains(Name), TEXT("Network %s has not been added. Call AddNetwork prior to ReceiveNetwork."), *Name.ToString()))
+		if (!ensureMsgf(NetworkBuffers.Num() >= NetworkId, TEXT("Network %d has not been added. Call AddNetwork prior to ReceiveNetwork."), NetworkId))
 		{
 			return ETrainerResponse::Unexpected;
 		}
 
-		return SocketTraining::RecvNetwork(*Socket, OutNetwork, TrainingProcess, NetworkBuffers[Name], Timeout, NetworkLock, LogSettings);
+		return SocketTraining::RecvNetwork(*Socket, NetworkId, OutNetwork, TrainingProcess, NetworkBuffers[NetworkId], Timeout, NetworkLock, LogSettings);
 	}
 
 	ETrainerResponse FSocketTrainer::SendNetwork(
-		const FName& Name,
+		const int32 NetworkId,
 		const ULearningNeuralNetworkData& Network,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
 		checkf(Socket, TEXT("Training socket is nullptr"));
-		if (!ensureMsgf(NetworkBuffers.Contains(Name), TEXT("Network %s has not been added. Call AddNetwork prior to SendNetwork."), *Name.ToString()))
+		if (!ensureMsgf(NetworkBuffers.Num() >= NetworkId, TEXT("Network %d has not been added. Call AddNetwork prior to SendNetwork."), NetworkId))
 		{
 			return ETrainerResponse::Unexpected;
 		}
 
-		return SocketTraining::SendNetwork(*Socket, NetworkBuffers[Name], TrainingProcess, Network, Timeout, NetworkLock, LogSettings);
+		return SocketTraining::SendNetwork(*Socket, NetworkBuffers[NetworkId], TrainingProcess, NetworkId, Network, Timeout, NetworkLock, LogSettings);
 	}
 
-	void FSocketTrainer::AddReplayBuffer(const FName& Name, const FReplayBuffer& ReplayBuffer)
+	int32 FSocketTrainer::AddReplayBuffer(const FReplayBuffer& ReplayBuffer)
 	{
-		ExperienceBufferNames.Add(Name);
+		LastReplayBufferId++;
+		return LastReplayBufferId;
 	}
 
-	bool FSocketTrainer::ContainsReplayBuffer(const FName& Name) const
-	{
-		return ExperienceBufferNames.Contains(Name);
-	}
-
-	ETrainerResponse FSocketTrainer::SendReplayBuffer(const FName& Name, const FReplayBuffer& ReplayBuffer, const ELogSetting LogSettings)
+	ETrainerResponse FSocketTrainer::SendReplayBuffer(const int32 ReplayBufferId, const FReplayBuffer& ReplayBuffer, const ELogSetting LogSettings)
 	{
 		checkf(Socket, TEXT("Training socket is nullptr"));
-		if (!ensureMsgf(ExperienceBufferNames.Contains(Name), TEXT("ReplayBuffer %s has not been added. Call AddReplayBuffer prior to SendReplayBuffer."), *Name.ToString()))
+		if (!ensureMsgf(ReplayBufferId <= LastReplayBufferId, TEXT("ReplayBuffer %d has not been added. Call AddReplayBuffer prior to SendReplayBuffer."), ReplayBufferId))
 		{
 			return ETrainerResponse::Unexpected;
 		}
 
-		return SocketTraining::SendExperience(*Socket, ReplayBuffer, TrainingProcess, Timeout, LogSettings);
+		return SocketTraining::SendExperience(*Socket, ReplayBufferId, ReplayBuffer, TrainingProcess, Timeout, LogSettings);
 	}
 }

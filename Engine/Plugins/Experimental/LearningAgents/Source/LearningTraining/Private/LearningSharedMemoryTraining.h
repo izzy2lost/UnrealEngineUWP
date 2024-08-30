@@ -23,8 +23,10 @@ namespace UE::Learning
 			CompleteSignal			= 5,
 			StopSignal				= 6,
 			PingSignal				= 7,
+			NetworkId				= 8,
+			ReplayBufferId			= 9,
 
-			ControlNum				= 8,
+			ControlNum				= 10,
 		};
 
 		LEARNINGTRAINING_API uint8 GetControlNum();
@@ -35,6 +37,7 @@ namespace UE::Learning
 
 		LEARNINGTRAINING_API ETrainerResponse RecvNetwork(
 			TLearningArrayView<1, volatile int32> Controls,
+			const int32 NetworkId,
 			ULearningNeuralNetworkData& OutNetwork,
 			FSubprocess& Process,
 			const TLearningArrayView<1, const uint8> NetworkData,
@@ -45,10 +48,11 @@ namespace UE::Learning
 		LEARNINGTRAINING_API ETrainerResponse SendStop(
 			TLearningArrayView<1, volatile int32> Controls);
 
-		LEARNINGTRAINING_API bool HasPolicyOrCompleted(TLearningArrayView<1, volatile int32> Controls);
+		LEARNINGTRAINING_API bool HasNetworkOrCompleted(TLearningArrayView<1, volatile int32> Controls);
 
 		LEARNINGTRAINING_API ETrainerResponse SendNetwork(
 			TLearningArrayView<1, volatile int32> Controls,
+			const int32 NetworkId,
 			TLearningArrayView<1, uint8> NetworkData,
 			FSubprocess& Process,
 			const ULearningNeuralNetworkData& Network,
@@ -60,31 +64,17 @@ namespace UE::Learning
 			TLearningArrayView<1, int32> EpisodeStarts,
 			TLearningArrayView<1, int32> EpisodeLengths,
 			TLearningArrayView<1, ECompletionMode> EpisodeCompletionModes,
-			TLearningArrayView<2, float> EpisodeFinalObservations,
-			TLearningArrayView<2, float> EpisodeFinalMemoryStates,
-			TLearningArrayView<2, float> Observations,
-			TLearningArrayView<2, float> Actions,
-			TLearningArrayView<2, float> MemoryStates,
-			TLearningArrayView<1, float> Rewards,
+			TArrayView<TLearningArrayView<2, float>> EpisodeFinalObservations,
+			TArrayView<TLearningArrayView<2, float>> EpisodeFinalMemoryStates,
+			TArrayView<TLearningArrayView<2, float>> Observations,
+			TArrayView<TLearningArrayView<2, float>> Actions,
+			TArrayView<TLearningArrayView<2, float>> MemoryStates,
+			TArrayView<TLearningArrayView<2, float>> Rewards,
 			TLearningArrayView<1, volatile int32> Controls,
 			FSubprocess& Process,
+			const int32 ReplayBufferId,
 			const FReplayBuffer& ReplayBuffer,
 			const float Timeout = Trainer::DefaultTimeout,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
-
-		LEARNINGTRAINING_API ETrainerResponse SendExperience(
-			TLearningArrayView<1, int32> EpisodeStarts,
-			TLearningArrayView<1, int32> EpisodeLengths,
-			TLearningArrayView<2, float> Observations,
-			TLearningArrayView<2, float> Actions,
-			TLearningArrayView<1, volatile int32> Controls,
-			FSubprocess& Process,
-			const TLearningArrayView<1, const int32> EpisodeStartsExperience,
-			const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
-			const TLearningArrayView<2, const float> ObservationExperience,
-			const TLearningArrayView<2, const float> ActionExperience,
-			const float Timeout = Trainer::DefaultTimeout,
-			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
-
 	}
 }

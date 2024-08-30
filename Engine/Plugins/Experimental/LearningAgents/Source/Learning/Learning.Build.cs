@@ -40,6 +40,8 @@ public class Learning : ModuleRules
 			{
 				"CoreUObject",
 				"Engine",
+				"Json",
+				"JsonUtilities",
 				"NNE",
 				"NNERuntimeBasicCpu",
 				// ... add private dependencies that you statically link with here ...	

@@ -22,7 +22,7 @@ namespace UE::Learning::SharedMemoryTraining
 		return ETrainerResponse::Success;
 	}
 
-	bool HasPolicyOrCompleted(TLearningArrayView<1, volatile int32> Controls)
+	bool HasNetworkOrCompleted(TLearningArrayView<1, volatile int32> Controls)
 	{
 		return Controls[(uint8)EControls::NetworkSignal] || Controls[(uint8)EControls::CompleteSignal];
 	}
@@ -43,6 +43,7 @@ namespace UE::Learning::SharedMemoryTraining
 
 	ETrainerResponse RecvNetwork(
 		TLearningArrayView<1, volatile int32> Controls,
+		const int32 NetworkId,
 		ULearningNeuralNetworkData& OutNetwork,
 		FSubprocess& Process,
 		const TLearningArrayView<1, const uint8> NetworkData,
@@ -98,6 +99,8 @@ namespace UE::Learning::SharedMemoryTraining
 		{
 			FScopeNullableWriteLock ScopeLock(NetworkLock);
 
+			UE_LEARNING_CHECKF(Controls[(uint8)EControls::NetworkId] == NetworkId, TEXT("Received unexpected NetworkId!"));
+
 			if (NetworkData.Num() != OutNetwork.GetSnapshotByteNum())
 			{
 				UE_LOG(LogLearning, Error, TEXT("Error receiving network. Incorrect buffer size. Buffer is %i bytes, expected %i."), NetworkData.Num(), OutNetwork.GetSnapshotByteNum());
@@ -118,6 +121,7 @@ namespace UE::Learning::SharedMemoryTraining
 		}
 
 		// Confirm we have read the network
+		Controls[(uint8)EControls::NetworkId] = -1;
 		Controls[(uint8)EControls::NetworkSignal] = false;
 
 		return bSuccess ? ETrainerResponse::Success : ETrainerResponse::Unexpected;
@@ -125,6 +129,7 @@ namespace UE::Learning::SharedMemoryTraining
 
 	ETrainerResponse SendNetwork(
 		TLearningArrayView<1, volatile int32> Controls,
+		const int32 NetworkId,
 		TLearningArrayView<1, uint8> NetworkData,
 		FSubprocess& Process,
 		const ULearningNeuralNetworkData& Network,
@@ -184,6 +189,7 @@ namespace UE::Learning::SharedMemoryTraining
 		}
 
 		// Confirm we have written the network
+		Controls[(uint8)EControls::NetworkId] = NetworkId;
 		Controls[(uint8)EControls::NetworkSignal] = false;
 
 		return bSuccess ? ETrainerResponse::Success : ETrainerResponse::Unexpected;
@@ -193,14 +199,15 @@ namespace UE::Learning::SharedMemoryTraining
 		TLearningArrayView<1, int32> EpisodeStarts,
 		TLearningArrayView<1, int32> EpisodeLengths,
 		TLearningArrayView<1, ECompletionMode> EpisodeCompletionModes,
-		TLearningArrayView<2, float> EpisodeFinalObservations,
-		TLearningArrayView<2, float> EpisodeFinalMemoryStates,
-		TLearningArrayView<2, float> Observations,
-		TLearningArrayView<2, float> Actions,
-		TLearningArrayView<2, float> MemoryStates,
-		TLearningArrayView<1, float> Rewards,
+		TArrayView<TLearningArrayView<2, float>> EpisodeFinalObservations,
+		TArrayView<TLearningArrayView<2, float>> EpisodeFinalMemoryStates,
+		TArrayView<TLearningArrayView<2, float>> Observations,
+		TArrayView<TLearningArrayView<2, float>> Actions,
+		TArrayView<TLearningArrayView<2, float>> MemoryStates,
+		TArrayView<TLearningArrayView<2, float>> Rewards,
 		TLearningArrayView<1, volatile int32> Controls,
 		FSubprocess& Process,
+		const int32 ReplayBufferId,
 		const FReplayBuffer& ReplayBuffer,
 		const float Timeout,
 		const ELogSetting LogSettings)
@@ -246,86 +253,54 @@ namespace UE::Learning::SharedMemoryTraining
 		// Write experience to the shared memory
 		Array::Copy(EpisodeStarts.Slice(0, EpisodeNum), ReplayBuffer.GetEpisodeStarts());
 		Array::Copy(EpisodeLengths.Slice(0, EpisodeNum), ReplayBuffer.GetEpisodeLengths());
-		Array::Copy(EpisodeCompletionModes.Slice(0, EpisodeNum), ReplayBuffer.GetEpisodeCompletionModes());
-		Array::Copy(EpisodeFinalObservations.Slice(0, EpisodeNum), ReplayBuffer.GetEpisodeFinalObservations());
-		Array::Copy(EpisodeFinalMemoryStates.Slice(0, EpisodeNum), ReplayBuffer.GetEpisodeFinalMemoryStates());
-		Array::Copy(Observations.Slice(0, StepNum), ReplayBuffer.GetObservations());
-		Array::Copy(Actions.Slice(0, StepNum), ReplayBuffer.GetActions());
-		Array::Copy(MemoryStates.Slice(0, StepNum), ReplayBuffer.GetMemoryStates());
-		Array::Copy(Rewards.Slice(0, StepNum), ReplayBuffer.GetRewards());
+
+		if (ReplayBuffer.HasCompletions())
+		{
+			Array::Copy(EpisodeCompletionModes.Slice(0, EpisodeNum), ReplayBuffer.GetEpisodeCompletionModes());
+		}
+
+		if (ReplayBuffer.HasFinalObservations())
+		{
+			for (int32 Index = 0; Index < ReplayBuffer.GetObservationsNum(); Index++)
+			{
+				Array::Copy(EpisodeFinalObservations[Index].Slice(0, EpisodeNum), ReplayBuffer.GetEpisodeFinalObservations(Index));
+			}
+		}
+
+		if (ReplayBuffer.HasFinalMemoryStates())
+		{
+			for (int32 Index = 0; Index < ReplayBuffer.GetMemoryStatesNum(); Index++)
+			{
+				Array::Copy(EpisodeFinalMemoryStates[Index].Slice(0, EpisodeNum), ReplayBuffer.GetEpisodeFinalMemoryStates(Index));
+			}
+		}
+
+		for (int32 Index = 0; Index < ReplayBuffer.GetObservationsNum(); Index++)
+		{
+			Array::Copy(Observations[Index].Slice(0, StepNum), ReplayBuffer.GetObservations(Index));
+		}
+
+		for (int32 Index = 0; Index < ReplayBuffer.GetActionsNum(); Index++)
+		{
+			Array::Copy(Actions[Index].Slice(0, StepNum), ReplayBuffer.GetActions(Index));
+		}
+
+		for (int32 Index = 0; Index < ReplayBuffer.GetMemoryStatesNum(); Index++)
+		{
+			Array::Copy(MemoryStates[Index].Slice(0, StepNum), ReplayBuffer.GetMemoryStates(Index));
+		}
+
+		for (int32 Index = 0; Index < ReplayBuffer.GetRewardsNum(); Index++)
+		{
+			Array::Copy(Rewards[Index].Slice(0, StepNum), ReplayBuffer.GetRewards(Index));
+		}
 
 		// Indicate that experience is written
 		Controls[(uint8)EControls::ExperienceEpisodeNum] = EpisodeNum;
 		Controls[(uint8)EControls::ExperienceStepNum] = StepNum;
+		Controls[(uint8)EControls::ReplayBufferId] = ReplayBufferId;
 		Controls[(uint8)EControls::ExperienceSignal] = true;
 
 		return ETrainerResponse::Success;
 	}
-
-	ETrainerResponse SendExperience(
-		TLearningArrayView<1, int32> EpisodeStarts,
-		TLearningArrayView<1, int32> EpisodeLengths,
-		TLearningArrayView<2, float> Observations,
-		TLearningArrayView<2, float> Actions,
-		TLearningArrayView<1, volatile int32> Controls,
-		FSubprocess& Process,
-		const TLearningArrayView<1, const int32> EpisodeStartsExperience,
-		const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
-		const TLearningArrayView<2, const float> ObservationExperience,
-		const TLearningArrayView<2, const float> ActionExperience,
-		const float Timeout,
-		const ELogSetting LogSettings)
-	{
-		const float SleepTime = 0.001f;
-		float WaitTime = 0.0f;
-
-		// Wait until the training process is done reading any experience
-		while (Controls[(uint8)EControls::ExperienceSignal])
-		{
-			// If we're monitoring a process, then has it has exited?
-			if (!Process.Update())
-			{
-				return ETrainerResponse::Unexpected;
-			}
-
-			// Check if we've timed out
-			if (WaitTime > Timeout)
-			{
-				return ETrainerResponse::Timeout;
-			}
-
-			// Check if ping has been sent
-			if (Controls[(uint8)EControls::PingSignal])
-			{
-				Controls[(uint8)EControls::PingSignal] = false;
-				WaitTime = 0.0f;
-			}
-
-			// Sleep for some time
-			FPlatformProcess::Sleep(SleepTime);
-			WaitTime += SleepTime;
-		}
-
-		if (LogSettings != ELogSetting::Silent)
-		{
-			UE_LOG(LogLearning, Display, TEXT("Pushing Experience..."));
-		}
-
-		const int32 EpisodeNum = EpisodeStartsExperience.Num<0>();
-		const int32 StepNum = ObservationExperience.Num<0>();
-
-		// Write experience to the shared memory
-		Array::Copy(EpisodeStarts.Slice(0, EpisodeNum), EpisodeStartsExperience);
-		Array::Copy(EpisodeLengths.Slice(0, EpisodeNum), EpisodeLengthsExperience);
-		Array::Copy(Observations.Slice(0, StepNum), ObservationExperience);
-		Array::Copy(Actions.Slice(0, StepNum), ActionExperience);
-
-		// Confirm that experience is written
-		Controls[(uint8)EControls::ExperienceEpisodeNum] = EpisodeNum;
-		Controls[(uint8)EControls::ExperienceStepNum] = StepNum;
-		Controls[(uint8)EControls::ExperienceSignal] = true;
-
-		return ETrainerResponse::Success;
-	}
-
 }

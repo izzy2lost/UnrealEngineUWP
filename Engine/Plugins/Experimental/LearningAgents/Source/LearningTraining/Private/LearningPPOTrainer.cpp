@@ -82,6 +82,8 @@ int32 ULearningSocketPPOTrainerServerCommandlet::Main(const FString& Commandline
 	UE_LOG(LogLearning, Display, TEXT("LogSettings: %s"), LogSettings == UE::Learning::ELogSetting::Normal ? TEXT("Normal") : TEXT("Silent"));
 
 	UE::Learning::FSocketTrainerServerProcess ServerProcess(
+		UE::Learning::Trainer::GetProjectPythonContentPath(),
+		TEXT("train_ppo"),
 		PythonExecutiblePath,
 		PythonContentPath,
 		IntermediatePath,
@@ -157,68 +159,155 @@ namespace UE::Learning::PPOTrainer
 			UE_LOG(LogLearning, Display, TEXT("Sending initial Policy..."));
 		}
 
-		ExternalTrainer->AddNetwork(TEXT("Policy"), PolicyNetwork);
-		ExternalTrainer->AddNetwork(TEXT("Critic"), CriticNetwork);
-		ExternalTrainer->AddNetwork(TEXT("Encoder"), EncoderNetwork);
-		ExternalTrainer->AddNetwork(TEXT("Decoder"), DecoderNetwork);
-		ExternalTrainer->AddReplayBuffer(TEXT("ReplayBuffer"), ReplayBuffer);
+		const int32 PolicyNetworkId = ExternalTrainer->AddNetwork(PolicyNetwork);
+		const int32 CriticNetworkId = ExternalTrainer->AddNetwork(CriticNetwork);
+		const int32 EncoderNetworkId = ExternalTrainer->AddNetwork(EncoderNetwork);
+		const int32 DecoderNetworkId = ExternalTrainer->AddNetwork(DecoderNetwork);
+		const int32 ReplayBufferId = ExternalTrainer->AddReplayBuffer(ReplayBuffer);
 
-		const int32 ObservationVectorDimensionNum = ReplayBuffer.GetObservations().Num<1>();
-		const int32 ActionVectorDimensionNum = ReplayBuffer.GetActions().Num<1>();
-		const int32 MemoryStateVectorDimensionNum = ReplayBuffer.GetMemoryStates().Num<1>();
+		const int32 ObservationVectorDimensionNum = ReplayBuffer.GetObservations(0).Num<1>();
+		const int32 ActionVectorDimensionNum = ReplayBuffer.GetActions(0).Num<1>();
+		const int32 MemoryStateVectorDimensionNum = ReplayBuffer.GetMemoryStates(0).Num<1>();
 
 		// Write PPO Config
 		TSharedRef<FJsonObject> ConfigObject = MakeShared<FJsonObject>();
 		ConfigObject->SetStringField(TEXT("TaskName"), TEXT("Training"));
 		ConfigObject->SetStringField(TEXT("TrainerMethod"), TEXT("PPO"));
-		ConfigObject->SetStringField(TEXT("TrainerType"), TEXT("Network"));
 		ConfigObject->SetStringField(TEXT("TimeStamp"), *FDateTime::Now().ToFormattedString(TEXT("%Y-%m-%d_%H-%M-%S")));
 
-		ConfigObject->SetObjectField(TEXT("ObservationSchema"), Trainer::ConvertObservationSchemaToJSON(ObservationSchema, ObservationSchemaElement));
-		ConfigObject->SetObjectField(TEXT("ActionSchema"), Trainer::ConvertActionSchemaToJSON(ActionSchema, ActionSchemaElement));
-		ConfigObject->SetNumberField(TEXT("ObservationVectorDimensionNum"), ObservationVectorDimensionNum);
-		ConfigObject->SetNumberField(TEXT("ActionVectorDimensionNum"), ActionVectorDimensionNum);
-		ConfigObject->SetNumberField(TEXT("MemoryStateVectorDimensionNum"), MemoryStateVectorDimensionNum);
-		ConfigObject->SetNumberField(TEXT("MaxEpisodeNum"), ReplayBuffer.GetMaxEpisodeNum());
-		ConfigObject->SetNumberField(TEXT("MaxStepNum"), ReplayBuffer.GetMaxStepNum());
+		const int32 ObservationSchemaId = 0;
+		const int32 ActionSchemaId = 0;
 
-		ConfigObject->SetNumberField(TEXT("PolicyNetworkByteNum"), PolicyNetwork.GetSnapshotByteNum());
-		ConfigObject->SetNumberField(TEXT("CriticNetworkByteNum"), CriticNetwork.GetSnapshotByteNum());
-		ConfigObject->SetNumberField(TEXT("EncoderNetworkByteNum"), EncoderNetwork.GetSnapshotByteNum());
-		ConfigObject->SetNumberField(TEXT("DecoderNetworkByteNum"), DecoderNetwork.GetSnapshotByteNum());
+		// Add Neural Network Config Entries
+		TArray<TSharedPtr<FJsonValue>> NetworkObjects;
 
-		ConfigObject->SetNumberField(TEXT("IterationNum"), TrainerSettings.IterationNum);
-		ConfigObject->SetNumberField(TEXT("LearningRatePolicy"), TrainerSettings.LearningRatePolicy);
-		ConfigObject->SetNumberField(TEXT("LearningRateCritic"), TrainerSettings.LearningRateCritic);
-		ConfigObject->SetNumberField(TEXT("LearningRateDecay"), TrainerSettings.LearningRateDecay);
-		ConfigObject->SetNumberField(TEXT("WeightDecay"), TrainerSettings.WeightDecay);
-		ConfigObject->SetNumberField(TEXT("PolicyBatchSize"), TrainerSettings.PolicyBatchSize);
-		ConfigObject->SetNumberField(TEXT("CriticBatchSize"), TrainerSettings.CriticBatchSize);
-		ConfigObject->SetNumberField(TEXT("PolicyWindow"), TrainerSettings.PolicyWindow);
-		ConfigObject->SetNumberField(TEXT("IterationsPerGather"), TrainerSettings.IterationsPerGather);
-		ConfigObject->SetNumberField(TEXT("CriticWarmupIterations"), TrainerSettings.CriticWarmupIterations);
-		ConfigObject->SetNumberField(TEXT("EpsilonClip"), TrainerSettings.EpsilonClip);
-		ConfigObject->SetNumberField(TEXT("ActionSurrogateWeight"), TrainerSettings.ActionSurrogateWeight);
-		ConfigObject->SetNumberField(TEXT("ActionRegularizationWeight"), TrainerSettings.ActionRegularizationWeight);
-		ConfigObject->SetNumberField(TEXT("ActionEntropyWeight"), TrainerSettings.ActionEntropyWeight);
-		ConfigObject->SetNumberField(TEXT("ReturnRegularizationWeight"), TrainerSettings.ReturnRegularizationWeight);
-		ConfigObject->SetNumberField(TEXT("GaeLambda"), TrainerSettings.GaeLambda);
-		ConfigObject->SetBoolField(TEXT("AdvantageNormalization"), TrainerSettings.bAdvantageNormalization);
-		ConfigObject->SetNumberField(TEXT("AdvantageMin"), TrainerSettings.AdvantageMin);
-		ConfigObject->SetNumberField(TEXT("AdvantageMax"), TrainerSettings.AdvantageMax);
-		ConfigObject->SetBoolField(TEXT("UseGradNormMaxClipping"), TrainerSettings.bUseGradNormMaxClipping);
-		ConfigObject->SetNumberField(TEXT("GradNormMax"), TrainerSettings.GradNormMax);
-		ConfigObject->SetNumberField(TEXT("TrimEpisodeStartStepNum"), TrainerSettings.TrimEpisodeStartStepNum);
-		ConfigObject->SetNumberField(TEXT("TrimEpisodeEndStepNum"), TrainerSettings.TrimEpisodeEndStepNum);
-		ConfigObject->SetNumberField(TEXT("Seed"), TrainerSettings.Seed);
-		ConfigObject->SetNumberField(TEXT("DiscountFactor"), TrainerSettings.DiscountFactor);
-		ConfigObject->SetStringField(TEXT("Device"), Trainer::GetDeviceString(TrainerSettings.Device));
-		ConfigObject->SetBoolField(TEXT("UseTensorBoard"), TrainerSettings.bUseTensorboard);
-		ConfigObject->SetBoolField(TEXT("SaveSnapshots"), TrainerSettings.bSaveSnapshots);
+		// Policy
+		{
+			TSharedPtr<FJsonObject> NetworkObject = MakeShared<FJsonObject>();
+			NetworkObject->SetNumberField(TEXT("Id"), PolicyNetworkId);
+			NetworkObject->SetStringField(TEXT("Name"), "Policy");
+			NetworkObject->SetNumberField(TEXT("MaxByteNum"), PolicyNetwork.GetSnapshotByteNum());
+
+			TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(NetworkObject);
+			NetworkObjects.Add(JsonValue);
+		}
+
+		// Critic
+		{
+			TSharedPtr<FJsonObject> NetworkObject = MakeShared<FJsonObject>();
+			NetworkObject->SetNumberField(TEXT("Id"), CriticNetworkId);
+			NetworkObject->SetStringField(TEXT("Name"), "Critic");
+			NetworkObject->SetNumberField(TEXT("MaxByteNum"), CriticNetwork.GetSnapshotByteNum());
+			NetworkObject->SetNumberField(TEXT("InputSchemaId"), ObservationSchemaId);
+
+			TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(NetworkObject);
+			NetworkObjects.Add(JsonValue);
+		}
+
+		// Encoder
+		{
+			TSharedPtr<FJsonObject> NetworkObject = MakeShared<FJsonObject>();
+			NetworkObject->SetNumberField(TEXT("Id"), EncoderNetworkId);
+			NetworkObject->SetStringField(TEXT("Name"), "Encoder");
+			NetworkObject->SetNumberField(TEXT("MaxByteNum"), EncoderNetwork.GetSnapshotByteNum());
+			NetworkObject->SetNumberField(TEXT("InputSchemaId"), ObservationSchemaId);
+
+			TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(NetworkObject);
+			NetworkObjects.Add(JsonValue);
+		}
+
+		// Decoder
+		{
+			TSharedPtr<FJsonObject> NetworkObject = MakeShared<FJsonObject>();
+			NetworkObject->SetNumberField(TEXT("Id"), DecoderNetworkId);
+			NetworkObject->SetStringField(TEXT("Name"), "Decoder");
+			NetworkObject->SetNumberField(TEXT("MaxByteNum"), DecoderNetwork.GetSnapshotByteNum());
+			NetworkObject->SetNumberField(TEXT("OutputSchemaId"), ActionSchemaId);
+
+			TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(NetworkObject);
+			NetworkObjects.Add(JsonValue);
+		}
+
+		ConfigObject->SetArrayField(TEXT("Networks"), NetworkObjects);
+
+		// Add Replay Buffers Config Entries
+		TArray<TSharedPtr<FJsonValue>> ReplayBufferObjects;
+		TSharedRef<FJsonValueObject> ReplayBufferJsonValue = MakeShared<FJsonValueObject>(ReplayBuffer.AsJsonConfig(ReplayBufferId));
+		ReplayBufferObjects.Add(ReplayBufferJsonValue);
+		ConfigObject->SetArrayField(TEXT("ReplayBuffers"), ReplayBufferObjects);
+
+		// Schemas
+		TSharedPtr<FJsonObject> SchemasObject = MakeShared<FJsonObject>();
+
+		// Add the observation schemas
+		TArray<TSharedPtr<FJsonValue>> ObservationSchemaObjects;
+		{
+			// For this PPO trainer, add the one observation schema we have
+			TSharedPtr<FJsonObject> ObservationSchemaObject = MakeShared<FJsonObject>();
+			ObservationSchemaObject->SetNumberField(TEXT("Id"), ObservationSchemaId);
+			ObservationSchemaObject->SetStringField(TEXT("Name"), "Default");
+			ObservationSchemaObject->SetObjectField(TEXT("Schema"),
+				UE::Learning::Trainer::ConvertObservationSchemaToJSON(ObservationSchema, ObservationSchemaElement));
+
+			TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(ObservationSchemaObject);
+			ObservationSchemaObjects.Add(JsonValue);
+		}
+		SchemasObject->SetArrayField(TEXT("Observations"), ObservationSchemaObjects);
+
+		// Add the action schemas
+		TArray<TSharedPtr<FJsonValue>> ActionSchemaObjects;
+		{
+			// For this PPO trainer, add the one action schema we have
+			TSharedPtr<FJsonObject> ActionSchemaObject = MakeShared<FJsonObject>();
+			ActionSchemaObject->SetNumberField(TEXT("Id"), ActionSchemaId);
+			ActionSchemaObject->SetStringField(TEXT("Name"), "Default");
+			ActionSchemaObject->SetObjectField(TEXT("Schema"),
+				UE::Learning::Trainer::ConvertActionSchemaToJSON(ActionSchema, ActionSchemaElement));
+
+			TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(ActionSchemaObject);
+			ActionSchemaObjects.Add(JsonValue);
+		}
+		SchemasObject->SetArrayField(TEXT("Actions"), ActionSchemaObjects);
+
+		ConfigObject->SetObjectField(TEXT("Schemas"), SchemasObject);
+
+		// Add PPO Specific Config Entries
+		TSharedRef<FJsonObject> PPOConfigObject = MakeShared<FJsonObject>();
+
+		PPOConfigObject->SetNumberField(TEXT("IterationNum"), TrainerSettings.IterationNum);
+		PPOConfigObject->SetNumberField(TEXT("LearningRatePolicy"), TrainerSettings.LearningRatePolicy);
+		PPOConfigObject->SetNumberField(TEXT("LearningRateCritic"), TrainerSettings.LearningRateCritic);
+		PPOConfigObject->SetNumberField(TEXT("LearningRateDecay"), TrainerSettings.LearningRateDecay);
+		PPOConfigObject->SetNumberField(TEXT("WeightDecay"), TrainerSettings.WeightDecay);
+		PPOConfigObject->SetNumberField(TEXT("PolicyBatchSize"), TrainerSettings.PolicyBatchSize);
+		PPOConfigObject->SetNumberField(TEXT("CriticBatchSize"), TrainerSettings.CriticBatchSize);
+		PPOConfigObject->SetNumberField(TEXT("PolicyWindow"), TrainerSettings.PolicyWindow);
+		PPOConfigObject->SetNumberField(TEXT("IterationsPerGather"), TrainerSettings.IterationsPerGather);
+		PPOConfigObject->SetNumberField(TEXT("CriticWarmupIterations"), TrainerSettings.CriticWarmupIterations);
+		PPOConfigObject->SetNumberField(TEXT("EpsilonClip"), TrainerSettings.EpsilonClip);
+		PPOConfigObject->SetNumberField(TEXT("ActionSurrogateWeight"), TrainerSettings.ActionSurrogateWeight);
+		PPOConfigObject->SetNumberField(TEXT("ActionRegularizationWeight"), TrainerSettings.ActionRegularizationWeight);
+		PPOConfigObject->SetNumberField(TEXT("ActionEntropyWeight"), TrainerSettings.ActionEntropyWeight);
+		PPOConfigObject->SetNumberField(TEXT("ReturnRegularizationWeight"), TrainerSettings.ReturnRegularizationWeight);
+		PPOConfigObject->SetNumberField(TEXT("GaeLambda"), TrainerSettings.GaeLambda);
+		PPOConfigObject->SetBoolField(TEXT("AdvantageNormalization"), TrainerSettings.bAdvantageNormalization);
+		PPOConfigObject->SetNumberField(TEXT("AdvantageMin"), TrainerSettings.AdvantageMin);
+		PPOConfigObject->SetNumberField(TEXT("AdvantageMax"), TrainerSettings.AdvantageMax);
+		PPOConfigObject->SetBoolField(TEXT("UseGradNormMaxClipping"), TrainerSettings.bUseGradNormMaxClipping);
+		PPOConfigObject->SetNumberField(TEXT("GradNormMax"), TrainerSettings.GradNormMax);
+		PPOConfigObject->SetNumberField(TEXT("TrimEpisodeStartStepNum"), TrainerSettings.TrimEpisodeStartStepNum);
+		PPOConfigObject->SetNumberField(TEXT("TrimEpisodeEndStepNum"), TrainerSettings.TrimEpisodeEndStepNum);
+		PPOConfigObject->SetNumberField(TEXT("Seed"), TrainerSettings.Seed);
+		PPOConfigObject->SetNumberField(TEXT("DiscountFactor"), TrainerSettings.DiscountFactor);
+		PPOConfigObject->SetStringField(TEXT("Device"), UE::Learning::Trainer::GetDeviceString(TrainerSettings.Device));
+		PPOConfigObject->SetBoolField(TEXT("UseTensorBoard"), TrainerSettings.bUseTensorboard);
+		PPOConfigObject->SetBoolField(TEXT("SaveSnapshots"), TrainerSettings.bSaveSnapshots);
+
+		ConfigObject->SetObjectField(TEXT("PPOSettings"), PPOConfigObject);
 
 		ExternalTrainer->SendConfig(ConfigObject, LogSettings);
 
-		Response = ExternalTrainer->SendNetwork(TEXT("Policy"), PolicyNetwork, PolicyNetworkLock);
+		Response = ExternalTrainer->SendNetwork(PolicyNetworkId, PolicyNetwork, PolicyNetworkLock);
 
 		if (Response != ETrainerResponse::Success)
 		{
@@ -238,7 +327,7 @@ namespace UE::Learning::PPOTrainer
 			UE_LOG(LogLearning, Display, TEXT("Sending initial Critic..."));
 		}
 
-		Response = ExternalTrainer->SendNetwork(TEXT("Critic"), CriticNetwork, CriticNetworkLock);
+		Response = ExternalTrainer->SendNetwork(CriticNetworkId, CriticNetwork, CriticNetworkLock);
 
 		if (Response != ETrainerResponse::Success)
 		{
@@ -258,7 +347,7 @@ namespace UE::Learning::PPOTrainer
 			UE_LOG(LogLearning, Display, TEXT("Sending initial Encoder..."));
 		}
 
-		Response = ExternalTrainer->SendNetwork(TEXT("Encoder"), EncoderNetwork, EncoderNetworkLock);
+		Response = ExternalTrainer->SendNetwork(EncoderNetworkId, EncoderNetwork, EncoderNetworkLock);
 
 		if (Response != ETrainerResponse::Success)
 		{
@@ -278,7 +367,7 @@ namespace UE::Learning::PPOTrainer
 			UE_LOG(LogLearning, Display, TEXT("Sending initial Decoder..."));
 		}
 
-		Response = ExternalTrainer->SendNetwork(TEXT("Decoder"), DecoderNetwork, DecoderNetworkLock);
+		Response = ExternalTrainer->SendNetwork(DecoderNetworkId, DecoderNetwork, DecoderNetworkLock);
 
 		if (Response != ETrainerResponse::Success)
 		{
@@ -324,24 +413,24 @@ namespace UE::Learning::PPOTrainer
 					ReplayBuffer,
 					EpisodeBuffer,
 					ResetBuffer,
-					ObservationVectorBuffer,
-					ActionVectorBuffer,
-					PreEvaluationMemoryStateVectorBuffer,
-					MemoryStateVectorBuffer,
-					RewardBuffer,
+					{ ObservationVectorBuffer },
+					{ ActionVectorBuffer},
+					{ PreEvaluationMemoryStateVectorBuffer },
+					{ MemoryStateVectorBuffer },
+					{ RewardBuffer },
 					CompletionBuffer,
 					EpisodeCompletionBuffer,
 					AllCompletionBuffer,
 					ResetFunction,
-					ObservationFunction,
-					PolicyFunction,
-					ActionFunction,
-					UpdateFunction,
-					RewardFunction,
+					{ ObservationFunction },
+					{ PolicyFunction },
+					{ ActionFunction },
+					{ UpdateFunction },
+					{ RewardFunction },
 					CompletionFunction,
 					Instances);
 
-				Response = ExternalTrainer->SendReplayBuffer(TEXT("ReplayBuffer"), ReplayBuffer);
+				Response = ExternalTrainer->SendReplayBuffer(ReplayBufferId, ReplayBuffer);
 
 				if (Response != ETrainerResponse::Success)
 				{
@@ -357,7 +446,7 @@ namespace UE::Learning::PPOTrainer
 
 			// Update Policy
 
-			Response = ExternalTrainer->ReceiveNetwork(TEXT("Policy"), PolicyNetwork, PolicyNetworkLock);
+			Response = ExternalTrainer->ReceiveNetwork(PolicyNetworkId, PolicyNetwork, PolicyNetworkLock);
 
 			if (Response == ETrainerResponse::Completed)
 			{
@@ -383,7 +472,7 @@ namespace UE::Learning::PPOTrainer
 
 			// Update Critic
 
-			Response = ExternalTrainer->ReceiveNetwork(TEXT("Critic"), CriticNetwork, CriticNetworkLock);
+			Response = ExternalTrainer->ReceiveNetwork(CriticNetworkId, CriticNetwork, CriticNetworkLock);
 
 			if (Response != ETrainerResponse::Success)
 			{
@@ -401,7 +490,7 @@ namespace UE::Learning::PPOTrainer
 
 			// Update Encoder
 
-			Response = ExternalTrainer->ReceiveNetwork(TEXT("Encoder"), EncoderNetwork, EncoderNetworkLock);
+			Response = ExternalTrainer->ReceiveNetwork(EncoderNetworkId, EncoderNetwork, EncoderNetworkLock);
 
 			if (Response != ETrainerResponse::Success)
 			{
@@ -419,7 +508,7 @@ namespace UE::Learning::PPOTrainer
 
 			// Update Decoder
 
-			Response = ExternalTrainer->ReceiveNetwork(TEXT("Decoder"), DecoderNetwork, DecoderNetworkLock);
+			Response = ExternalTrainer->ReceiveNetwork(DecoderNetworkId, DecoderNetwork, DecoderNetworkLock);
 
 			if (Response != ETrainerResponse::Success)
 			{

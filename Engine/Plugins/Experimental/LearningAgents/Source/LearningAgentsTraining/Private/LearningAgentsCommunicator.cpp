@@ -31,6 +31,8 @@ FLearningAgentsTrainerProcess ULearningAgentsCommunicatorLibrary::SpawnSharedMem
 
 	TrainerProcess.TrainerProcess = MakeShared<UE::Learning::FSharedMemoryTrainerServerProcess>(
 		SharedMemorySettings.TaskName,
+		UE::Learning::Trainer::GetProjectPythonContentPath(),
+		TrainerProcessSettings.TrainerFileName,
 		PythonExecutablePath,
 		PythonContentPath,
 		IntermediatePath,
@@ -85,6 +87,8 @@ FLearningAgentsTrainerProcess ULearningAgentsCommunicatorLibrary::SpawnSocketTra
 	const FString IntermediatePath = UE::Learning::Trainer::GetIntermediatePath(TrainerProcessSettings.GetIntermediatePath());
 
 	TrainerProcess.TrainerProcess = MakeShared<UE::Learning::FSocketTrainerServerProcess>(
+		UE::Learning::Trainer::GetProjectPythonContentPath(),
+		TrainerProcessSettings.TrainerFileName,
 		PythonExecutablePath,
 		PythonContentPath,
 		IntermediatePath,
