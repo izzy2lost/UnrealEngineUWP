@@ -6346,8 +6346,11 @@ void UGeometryCollectionComponent::RefreshCustomRenderer()
 
 		const bool bRenderRootProxy = !bForceBrokenForCustomRenderer && !bIsBroken && (RestCollection->RootProxyData.ProxyMeshes.Num() > 0);
 
+		const AActor* Owner = GetOwner();
+		const bool bIsActorHidden = Owner ? Owner->IsHidden() : false;
+
 		uint32 StateFlags = 0;
-		StateFlags |= bHiddenInGame || !IsVisible() ? 0 : IGeometryCollectionExternalRenderInterface::EState_Visible;
+		StateFlags |= (bHiddenInGame || !IsVisible() || bIsActorHidden) ? 0 : IGeometryCollectionExternalRenderInterface::EState_Visible;
 		StateFlags |= bRenderRootProxy ? 0 : IGeometryCollectionExternalRenderInterface::EState_Broken;
 		StateFlags |= bForceBrokenForCustomRenderer ? IGeometryCollectionExternalRenderInterface::EState_ForcedBroken : 0;
 
