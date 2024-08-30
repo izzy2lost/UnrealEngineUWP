@@ -248,12 +248,30 @@ FText UDMMaterialStageInputThroughput::GetComponentDescription() const
 	if (TSubclassOf<UDMMaterialStageThroughput> MaterialStageThroughputClass = GetMaterialStageThroughputClass())
 	{
 		check(MaterialStageThroughputClass.Get());
-		UDMMaterialStageThroughput* ThroughputCDO = Cast<UDMMaterialStageThroughput>(MaterialStageThroughputClass->GetDefaultObject(true));
+		UDMMaterialStageThroughput* ThroughputCDO = Cast<UDMMaterialStageThroughput>(MaterialStageThroughputClass->GetDefaultObject(/* Create if needed */ true));
 
 		return ThroughputCDO->GetComponentDescription();
 	}
 
 	return Super::GetComponentDescription();
+}
+
+FSlateIcon UDMMaterialStageInputThroughput::GetComponentIcon() const
+{
+	if (UDMMaterialStageThroughput* Throughput = GetMaterialStageThroughput())
+	{
+		return Throughput->GetComponentIcon();
+	}
+
+	if (TSubclassOf<UDMMaterialStageThroughput> MaterialStageThroughputClass = GetMaterialStageThroughputClass())
+	{
+		check(MaterialStageThroughputClass.Get());
+		UDMMaterialStageThroughput* ThroughputCDO = Cast<UDMMaterialStageThroughput>(MaterialStageThroughputClass->GetDefaultObject(/* Create if needed */ true));
+
+		return ThroughputCDO->GetComponentIcon();
+	}
+
+	return Super::GetComponentIcon();
 }
 
 FText UDMMaterialStageInputThroughput::GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel)

@@ -64,6 +64,7 @@ public:
 	//~ End UDMMaterialStageSource
 
 	//~ Begin UDMMaterialComponent
+	DYNAMICMATERIALEDITOR_API virtual FSlateIcon GetComponentIcon() const override;
 	DYNAMICMATERIALEDITOR_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
 	//~ End UDMMaterialComponent
 

@@ -724,38 +724,7 @@ TSharedRef<SDMMaterialSlotLayerView> SDMMaterialSlotEditor::CreateSlot_LayerView
 {
 	TSharedRef<SDMMaterialSlotLayerView> NewLayerView = SNew(SDMMaterialSlotLayerView, SharedThis(this));
 	NewLayerView->GetOnSelectionChanged().AddSP(this, &SDMMaterialSlotEditor::OnLayerSelected);
-
-	if (UDMMaterialSlot* Slot = GetSlot())
-	{
-		if (TSharedPtr<SDMMaterialEditor> EditorWidget = GetEditorWidget())
-		{
-			bool bHasValidComponentToEdit = false;
-
-			if (UDMMaterialComponent* ComponentToEdit = EditorWidget->GetComponentToEdit())
-			{
-				if (ComponentToEdit->GetTypedParent<UDMMaterialSlot>(/* Allow Subclasses */ true) == Slot)
-				{
-					bHasValidComponentToEdit = true;
-				}
-			}
-
-			if (!bHasValidComponentToEdit)
-			{
-				const TArray<UDMMaterialLayerObject*>& Layers = Slot->GetLayers();
-
-				if (!Layers.IsEmpty())
-				{
-					UDMMaterialLayerObject* LastLayer = Layers.Last();
-					NewLayerView->SetSelectedLayer(LastLayer);
-
-					if (UDMMaterialStage* Stage = LastLayer->GetFirstEnabledStage(EDMMaterialLayerStage::All))
-					{
-						EditorWidget->EditComponent(Stage);
-					}
-				}
-			}
-		}
-	}
+	NewLayerView->EnsureSelectedStage();
 
 	return NewLayerView;
 }
@@ -888,12 +857,7 @@ FText SDMMaterialSlotEditor::GetLayerButtonsDescription() const
 
 TSharedRef<SWidget> SDMMaterialSlotEditor::GetLayerButtonsMenuContent()
 {
-	if (UDMMaterialLayerObject* LayerObject = LayerViewSlot->GetSelectedLayer())
-	{
-		return FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(SharedThis(this), LayerObject);
-	}
-
-	return SNullWidget::NullWidget;
+	return FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(SharedThis(this), nullptr);
 }
 
 bool SDMMaterialSlotEditor::GetLayerCanAddEffect() const

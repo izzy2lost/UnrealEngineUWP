@@ -30,18 +30,19 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UDMMaterialSubStage* GetSubStage() const { return SubStage; }
 
-	//~ Start UDMMaterialStageInput
-	DYNAMICMATERIALEDITOR_API virtual FText GetComponentDescription() const override;
+	//~ Begin UDMMaterialStageInput
 	DYNAMICMATERIALEDITOR_API virtual FText GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel) override;
 	//~ End UDMMaterialStageInput
 
-	//~ Start UDMMaterialStageSource
+	//~ Begin UDMMaterialStageSource
 	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
 	DYNAMICMATERIALEDITOR_API virtual int32 GetInnateMaskOutput(int32 OutputIndex, int32 OutputChannels) const;
 	DYNAMICMATERIALEDITOR_API virtual int32 GetOutputChannelOverride(int32 InOutputIndex) const override;
 	//~ End UDMMaterialStageSource
 
-	//~ Start UDMMaterialComponent
+	//~ Begin UDMMaterialComponent
+	DYNAMICMATERIALEDITOR_API virtual FText GetComponentDescription() const override;
+	DYNAMICMATERIALEDITOR_API virtual FSlateIcon GetComponentIcon() const override;
 	DYNAMICMATERIALEDITOR_API virtual bool IsPropertyVisible(FName Property) const override;
 	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 	//~ End UDMMaterialComponent

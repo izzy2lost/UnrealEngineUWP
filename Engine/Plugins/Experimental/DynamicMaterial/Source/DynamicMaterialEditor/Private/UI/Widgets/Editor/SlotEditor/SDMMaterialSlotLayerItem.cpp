@@ -16,6 +16,7 @@
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Styling/StyleColors.h"
 #include "UI/DragDrop/DMSlotLayerDragDropOperation.h"
+#include "UI/Menus/DMMaterialStageSourceMenus.h"
 #include "UI/Utils/DMWidgetStatics.h"
 #include "UI/Widgets/Editor/SDMMaterialComponentEditor.h"
 #include "UI/Widgets/Editor/SDMMaterialSlotEditor.h"
@@ -24,7 +25,9 @@
 #include "UI/Widgets/Editor/SlotEditor/SDMMaterialStage.h"
 #include "UI/Widgets/SDMMaterialEditor.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "SDMMaterialSlotLayerItem"
 
@@ -221,9 +224,22 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateHeaderRowContent()
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
 			.VAlign(VAlign_Center)
-			.Padding(0.0f, VerticalSpacing, HorizontalSpacing, VerticalSpacing)
 			[
-				CreateLayerBaseToggleButton()
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				[
+					CreateLayerBaseToggleButton()
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				[
+					CreateStageSourceButton(EDMMaterialLayerStage::Base)
+				]
 			]
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
@@ -242,9 +258,22 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateHeaderRowContent()
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
 			.VAlign(VAlign_Center)
-			.Padding(0.0f, VerticalSpacing, HorizontalSpacing, VerticalSpacing)
 			[
-				CreateLayerMaskToggleButton()
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				[
+					CreateLayerMaskToggleButton()
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				[
+					CreateStageSourceButton(EDMMaterialLayerStage::Mask)
+				]
 			]
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
@@ -279,7 +308,7 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateHeaderRowContent()
 				[
 					SNew(STextBlock)
 					.TextStyle(FDynamicMaterialEditorStyle::Get(), "SmallFont")
-					.Text(this, &SDMMaterialSlotLayerItem::GetStageDescription)
+					.Text(this, &SDMMaterialSlotLayerItem::GetStageDescription, EDMMaterialLayerStage::All)
 				]
 			]
 			+ SHorizontalBox::Slot()
@@ -438,9 +467,7 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateLayerBaseToggleButton()
 		.ContentPadding(0.0f)
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 		.Cursor(EMouseCursor::Default)
-		.ToolTipText(LOCTEXT("MaterialLayerBaseToggleTooltip", "Toggle the layer base on and off.\n\n"
-			"Warning: Toggling a layer base off may result in inputs being reset where incompatibilities are found.\n\n"
-			"The base of the first layer cannot be toggled off."))
+		.ToolTipText(LOCTEXT("MaterialLayerBaseToggleTooltip", "Toggle the Layer Base."))
 		.OnClicked(this, &SDMMaterialSlotLayerItem::OnStageToggleButtonClicked, EDMMaterialLayerStage::Base)
 		[
 			SNew(SImage)
@@ -454,7 +481,7 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateLayerMaskToggleButton()
 		.IsEnabled(!bIsDynamic)
 		.ContentPadding(0.0f)
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
-		.ToolTipText(LOCTEXT("MaterialLayerMaskToggleTooltip", "Toggle the layer mask on and off."))
+		.ToolTipText(LOCTEXT("MaterialLayerMaskToggleTooltip", "Toggle the Layer Mask."))
 		.Cursor(EMouseCursor::Default)
 		.OnClicked(this, &SDMMaterialSlotLayerItem::OnStageToggleButtonClicked, EDMMaterialLayerStage::Mask)
 		[
@@ -469,7 +496,7 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateLayerLinkToggleButton()
 		.IsEnabled(!bIsDynamic)
 		.ContentPadding(0.0f)
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
-		.ToolTipText(LOCTEXT("MaterialStageLinkTooltip", "Click to toggle UV Link on and off."))
+		.ToolTipText(LOCTEXT("MaterialStageLinkTooltip", "Toggle Layer UV Link."))
 		.Cursor(EMouseCursor::Default)
 		.OnClicked(this, &SDMMaterialSlotLayerItem::OnLayerLinkToggleButton)
 		.Visibility(this, &SDMMaterialSlotLayerItem::GetLayerLinkToggleButtonVisibility)
@@ -548,6 +575,22 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateEffectsToggleButton()
 		[
 			SNew(SImage)
 			.Image(this, &SDMMaterialSlotLayerItem::GetEffectsToggleButtonImage)
+		];
+}
+
+TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateStageSourceButton(EDMMaterialLayerStage InStage)
+{
+	return SNew(SButton)
+		.IsEnabled(!bIsDynamic)
+		.ContentPadding(5.f)
+		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
+		.ToolTipText(this, &SDMMaterialSlotLayerItem::GetStageSourceButtonToolTip, InStage)
+		.Cursor(EMouseCursor::Default)
+		.OnClicked(this, &SDMMaterialSlotLayerItem::OnStageSourceButtonClicked, InStage)
+		[
+			SNew(SImage)
+			.DesiredSizeOverride(FVector2D(16.f))
+			.Image(this, &SDMMaterialSlotLayerItem::GetStageSourceButtonImage, InStage)
 		];
 }
 
@@ -813,6 +856,22 @@ FReply SDMMaterialSlotLayerItem::OnStageToggleButtonClicked(EDMMaterialLayerStag
 	return FReply::Handled();
 }
 
+FText SDMMaterialSlotLayerItem::GetStageSourceButtonToolTip(EDMMaterialLayerStage InLayerStage) const
+{
+	if (UDMMaterialLayerObject* Layer = GetLayer())
+	{
+		if (UDMMaterialStage* Stage = Layer->GetFirstEnabledStage(InLayerStage))
+		{
+			return FText::Format(
+				LOCTEXT("StageSourceToolTipFormat", "Click to change the Material Stage Source.\n\nSource: {0}."),
+				Stage->GetComponentDescription()
+			);
+		}
+	}
+
+	return GetDefault<UDMMaterialStage>()->GetComponentDescription();
+}
+
 FText SDMMaterialSlotLayerItem::GetToolTipText() const
 {
 	if (UDMMaterialLayerObject* Layer = GetLayer())
@@ -857,17 +916,74 @@ FText SDMMaterialSlotLayerItem::GetBlendModeText() const
 	return LOCTEXT("Error", "Error");
 }
 
-FText SDMMaterialSlotLayerItem::GetStageDescription() const
+FText SDMMaterialSlotLayerItem::GetStageDescription(EDMMaterialLayerStage InLayerStage) const
 {
 	if (UDMMaterialLayerObject* Layer = GetLayer())
 	{
-		if (UDMMaterialStage* Stage = Layer->GetFirstEnabledStage(EDMMaterialLayerStage::All))
+		if (UDMMaterialStage* Stage = Layer->GetFirstEnabledStage(InLayerStage))
 		{
 			return Stage->GetComponentDescription();
 		}
 	}
 
 	return GetDefault<UDMMaterialStage>()->GetComponentDescription();
+}
+
+const FSlateBrush* SDMMaterialSlotLayerItem::GetStageSourceButtonImage(EDMMaterialLayerStage InLayerStage) const
+{
+	if (UDMMaterialLayerObject* Layer = GetLayer())
+	{
+		if (UDMMaterialStage* Stage = Layer->GetFirstValidStage(InLayerStage))
+		{
+			return Stage->GetComponentIcon().GetIcon();
+		}
+	}
+
+	return FAppStyle::Get().GetBrush("Icons.ErrorWithColor");
+}
+
+FReply SDMMaterialSlotLayerItem::OnStageSourceButtonClicked(EDMMaterialLayerStage InLayerStage)
+{
+	FSlateApplication& SlateApplication = FSlateApplication::Get();
+
+	SlateApplication.PushMenu(
+		SharedThis(this),
+		FWidgetPath(),
+		GetStageSourceMenuContent(InLayerStage),
+		SlateApplication.GetCursorPos(),
+		FPopupTransitionEffect::ContextMenu
+	);
+
+	return FReply::Handled();
+}
+
+TSharedRef<SWidget> SDMMaterialSlotLayerItem::GetStageSourceMenuContent(EDMMaterialLayerStage InLayerStage)
+{
+	TSharedPtr<SDMMaterialSlotLayerView> LayerView = GetSlotLayerView();
+
+	if (!LayerView.IsValid())
+	{
+		return SNullWidget::NullWidget;
+	}
+
+	TSharedPtr<SDMMaterialSlotEditor> SlotEditorWidget = LayerView->GetSlotEditorWidget();
+
+	if (!SlotEditorWidget.IsValid())
+	{
+		return SNullWidget::NullWidget;
+	}
+
+	switch (InLayerStage)
+	{
+		case EDMMaterialLayerStage::Base:
+			return FDMMaterialStageSourceMenus::MakeChangeSourceMenu(SlotEditorWidget, BaseStageWidget);
+
+		case EDMMaterialLayerStage::Mask:
+			return FDMMaterialStageSourceMenus::MakeChangeSourceMenu(SlotEditorWidget, MaskStageWidget);
+
+		default:
+			return SNullWidget::NullWidget;
+	}
 }
 
 int32 SDMMaterialSlotLayerItem::OnLayerItemPaintDropIndicator(EItemDropZone InItemDropZone, const FPaintArgs& InArgs, 

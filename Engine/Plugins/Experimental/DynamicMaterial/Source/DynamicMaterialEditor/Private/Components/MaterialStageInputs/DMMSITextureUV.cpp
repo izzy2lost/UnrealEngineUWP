@@ -110,7 +110,12 @@ UDMMaterialStageInputTextureUV* UDMMaterialStageInputTextureUV::ChangeStageInput
 
 FText UDMMaterialStageInputTextureUV::GetComponentDescription() const
 {
-	return LOCTEXT("TexUV", "Tex UV");
+	return LOCTEXT("TexureUV", "Texture UV");
+}
+
+FSlateIcon UDMMaterialStageInputTextureUV::GetComponentIcon() const
+{
+	return GetDefault<UDMTextureUV>()->GetComponentIcon();
 }
 
 FText UDMMaterialStageInputTextureUV::GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel)

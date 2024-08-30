@@ -298,6 +298,16 @@ FText UDMMaterialStage::GetComponentDescription() const
 	return LOCTEXT("StageDescription", "Material Stage");
 }
 
+FSlateIcon UDMMaterialStage::GetComponentIcon() const
+{
+	if (Source && Source->IsComponentValid())
+	{
+		return Source->GetComponentIcon();
+	}
+
+	return Super::GetComponentIcon();
+}
+
 EDMValueType UDMMaterialStage::GetSourceType(const FDMMaterialStageConnectorChannel& InChannel) const
 {
 	if (InChannel.SourceIndex == FDMMaterialStageConnectorChannel::PREVIOUS_STAGE)

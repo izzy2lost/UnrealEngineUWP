@@ -7,11 +7,15 @@
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStageBlend.h"
 #include "Components/DMMaterialStageExpression.h"
+#include "Components/DMMaterialStageFunction.h"
 #include "Components/DMMaterialStageGradient.h"
 #include "Components/DMMaterialValue.h"
+#include "Components/MaterialStageExpressions/DMMSESceneTexture.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSampleEdgeColor.h"
 #include "Components/MaterialStageExpressions/DMMSEWorldPositionNoise.h"
+#include "Components/MaterialValues/DMMaterialValueColorAtlas.h"
+#include "Components/MaterialValues/DMMaterialValueFloat3RGB.h"
 #include "Components/RenderTargetRenderers/DMRenderTargetTextRenderer.h"
 #include "Components/RenderTargetRenderers/DMRenderTargetUMGWidgetRenderer.h"
 #include "DMDefs.h"
@@ -19,9 +23,11 @@
 #include "DMValueDefinition.h"
 #include "DynamicMaterialEditorCommands.h"
 #include "DynamicMaterialEditorModule.h"
+#include "DynamicMaterialEditorStyle.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "ScopedTransaction.h"
 #include "Styling/SlateIconFinder.h"
 #include "Templates/SharedPointer.h"
 #include "ToolMenus.h"
@@ -40,7 +46,7 @@ namespace UE::DynamicMaterialEditor::Private
 	static const FName GlobalValuesSectionName = TEXT("GlobalValues");
 }
 
-TSharedRef<SWidget> FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(const TSharedPtr<SDMMaterialSlotEditor>& InSlotWidget, UDMMaterialLayerObject* InLayerObject)
+TSharedRef<SWidget> FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(const TSharedPtr<SDMMaterialSlotEditor>& InSlotWidget, UDMMaterialLayerObject* InLayer)
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
@@ -63,7 +69,7 @@ TSharedRef<SWidget> FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(const TShar
 		NewToolMenu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateStatic(&FDMMaterialSlotLayerMenus::AddLayerModifySection));
 	}
 
-	FToolMenuContext MenuContext(UDMMenuContext::CreateEditor(InSlotWidget->GetEditorWidget()));
+	FToolMenuContext MenuContext(UDMMenuContext::CreateLayer(InSlotWidget->GetEditorWidget(), InLayer));
 
 	return UToolMenus::Get()->GenerateWidget(SlotLayerMenuName, MenuContext);
 }
@@ -72,7 +78,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
-	if (!IsValid(InMenu))
+	if (!IsValid(InMenu) || InMenu->ContainsSection(SlotLayerAddSectionName))
 	{
 		return;
 	}
@@ -118,7 +124,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		NAME_None,
 		LOCTEXT("AddTextureSample", "Texture"),
 		LOCTEXT("AddTextureSampleTooltip", "Add a Material Stage based on a Texture."),
-		FSlateIcon(),
+		GetDefault<UDMMaterialStageExpressionTextureSample>()->GetComponentIcon(),
 		FUIAction(FExecuteAction::CreateWeakLambda(
 			Slot,
 			[Slot, ExpressionClass = TSubclassOf<UDMMaterialStageExpression>(UDMMaterialStageExpressionTextureSample::StaticClass())]
@@ -132,7 +138,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		NAME_None,
 		LOCTEXT("AddColor", "Solid Color"),
 		LOCTEXT("AddColorTooltip", "Add a new Material Layer with a solid RGB color."),
-		FSlateIcon(),
+		GetDefault<UDMMaterialValueFloat3RGB>()->GetComponentIcon(),
 		FUIAction(FExecuteAction::CreateWeakLambda(
 			Slot,
 			[Slot]
@@ -146,7 +152,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		NAME_None,
 		LOCTEXT("AddEdgeColor", "Texture Edge Color"),
 		LOCTEXT("AddEdgeColorTooltip", "Add a new Material Layer with a solid color based on the edge color on a texture."),
-		FSlateIcon(),
+		GetDefault<UDMMaterialStageExpressionTextureSampleEdgeColor>()->GetComponentIcon(),
 		FUIAction(FExecuteAction::CreateWeakLambda(
 			Slot,
 			[Slot]
@@ -160,7 +166,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		NAME_None,
 		LOCTEXT("AddNoise", "Noise"),
 		LOCTEXT("AddNoiseTooltip", "Add a new Material Layer with a noise pattern."),
-		FSlateIcon(),
+		GetDefault<UDMMaterialStageExpressionWorldPositionNoise>()->GetComponentIcon(),
 		FUIAction(FExecuteAction::CreateWeakLambda(
 			Slot,
 			[Slot]
@@ -176,7 +182,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 			NAME_None,
 			LOCTEXT("AddSceneTexture", "Post Process"),
 			LOCTEXT("AddSceneTextureTooltip", "Add a new Material Layer that represents the Scene Texture for a post process material."),
-			FSlateIcon(),
+			GetDefault<UDMMaterialStageExpressionSceneTexture>()->GetComponentIcon(),
 			FUIAction(FExecuteAction::CreateWeakLambda(
 				Slot,
 				[Slot]
@@ -216,12 +222,56 @@ void FDMMaterialSlotLayerMenus::AddLayerModifySection(UToolMenu* InMenu)
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
-	if (!IsValid(InMenu))
+	if (!IsValid(InMenu) || InMenu->ContainsSection(SlotLayerModifySectionName))
 	{
 		return;
 	}
 
-	FToolMenuSection& NewSection = InMenu->AddSection(SlotLayerModifySectionName, LOCTEXT("LayerActions", "LayerActions"));
+	const UDMMenuContext* const MenuContext = InMenu->FindContext<UDMMenuContext>();
+	if (!MenuContext)
+	{
+		return;
+	}
+
+	UDMMaterialLayerObject* Layer = MenuContext->GetLayer();
+	if (!Layer)
+	{
+		return;
+	}
+
+	UDMMaterialSlot* Slot = Layer->GetSlot();
+	if (!Slot)
+	{
+		return;
+	}
+
+	FToolMenuSection& NewSection = InMenu->AddSection(SlotLayerModifySectionName, LOCTEXT("LayerActions", "Layer Actions"));
+
+	if (Slot->CanRemoveLayer(Layer))
+	{
+		FSlateIcon ToggleLayerIcon = Layer->IsEnabled()
+			? FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Kismet.VariableList.HideForInstance"))
+			: FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Kismet.VariableList.ExposeForInstance"));
+
+		NewSection.AddMenuEntry(NAME_None,
+			LOCTEXT("ToggleLayer", "Toggle Layer"),
+			LOCTEXT("ToggleLayerTooltip", "Toggle the Layer.\n\nAlt+Left Click"),
+			ToggleLayerIcon,
+			FUIAction(FExecuteAction::CreateWeakLambda(
+				Layer,
+				[Layer]()
+				{
+					FScopedTransaction Transaction(LOCTEXT("ToggleAllStageEnabled", "Toggle All Stage Enabled"));
+
+					for (UDMMaterialStage* Stage : Layer->GetStages(EDMMaterialLayerStage::All))
+					{
+						Stage->Modify();
+						Stage->SetEnabled(!Stage->IsEnabled());
+					}
+				}
+			))
+		);
+	}
 
 	NewSection.AddMenuEntry(
 		FDynamicMaterialEditorCommands::Get().InsertDefaultLayerAbove,
@@ -306,7 +356,7 @@ void FDMMaterialSlotLayerMenus::AddGlobalValueSection(UToolMenu* InMenu)
 							NAME_None,
 							Value->GetDescription(),
 							LOCTEXT("AddValueStageSpecificTooltip", "Add a Material Stage based on this Material Value."),
-							FSlateIcon(),
+							Value->GetComponentIcon(),
 							FUIAction(FExecuteAction::CreateWeakLambda(
 								Value,
 								[ValueWeak = TWeakObjectPtr<UDMMaterialValue>(Value)]
@@ -348,8 +398,10 @@ void FDMMaterialSlotLayerMenus::AddGlobalValueSection(UToolMenu* InMenu)
 
 				for (EDMValueType ValueType : UDMValueDefinitionLibrary::GetValueTypes())
 				{
-					FText Name = UDMValueDefinitionLibrary::GetValueDefinition(ValueType).GetDisplayName();
-					FText FormattedTooltip = FText::Format(LOCTEXT("AddTypeTooltipTemplate", "Add a new {0} Value and use it as a Material Stage."), Name);
+					const FText Name = UDMValueDefinitionLibrary::GetValueDefinition(ValueType).GetDisplayName();
+					const FText FormattedTooltip = FText::Format(LOCTEXT("AddTypeTooltipTemplate", "Add a new {0} Value and use it as a Material Stage."), Name);
+
+					const FSlateIcon ValueIcon = UDMValueDefinitionLibrary::GetValueIcon(ValueType);
 
 					InMenu->AddMenuEntry(
 						NAME_None,
@@ -357,7 +409,7 @@ void FDMMaterialSlotLayerMenus::AddGlobalValueSection(UToolMenu* InMenu)
 							NAME_None,
 							Name,
 							FormattedTooltip,
-							FSlateIcon(),
+							ValueIcon,
 							FUIAction(FExecuteAction::CreateWeakLambda(
 								Slot,
 								[Slot, ValueType]
@@ -387,7 +439,7 @@ void FDMMaterialSlotLayerMenus::AddSlotMenuEntry(const TSharedPtr<SDMMaterialSlo
 		FToolMenuEntry::InitMenuEntry(
 			NAME_None,
 			InName,
-			LOCTEXT("AddValueStageSpecificTooltip", "Add a Material Stage based on this Material Value."),
+			LOCTEXT("AddValueStageSpecificTooltip", "Add a Material Stage based on this Material Slot."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateWeakLambda(
 				TargetSlot,
@@ -592,7 +644,7 @@ void FDMMaterialSlotLayerMenus::AddLayerMenu_Gradients(UToolMenu* InMenu)
 				NAME_None,
 				MenuName,
 				LOCTEXT("ChangeGradientSourceTooltip", "Change the source of this stage to a Material Gradient."),
-				FSlateIcon(),
+				GradientCDO->GetComponentIcon(),
 				FUIAction(FExecuteAction::CreateWeakLambda(
 					Slot,
 					[Slot, GradientClass = TSubclassOf<UDMMaterialStageGradient>(Gradient.Get())]
@@ -610,7 +662,7 @@ void FDMMaterialSlotLayerMenus::AddLayerMenu_Gradients(UToolMenu* InMenu)
 			NAME_None,
 			LOCTEXT("AddColorAtlas", "Color Atlas"),
 			LOCTEXT("AddColorAtlasTooltip", "Add a new Material Layer with a Color Atlas."),
-			FSlateIcon(),
+			GetDefault<UDMMaterialValueColorAtlas>()->GetComponentIcon(),
 			FUIAction(FExecuteAction::CreateWeakLambda(
 				Slot,
 				[Slot]
@@ -675,7 +727,7 @@ void FDMMaterialSlotLayerMenus::AddLayerMenu_Advanced(UToolMenu* InMenu)
 		NAME_None,
 		LOCTEXT("AddText", "Text"),
 		LOCTEXT("AddTextTooltip", "Add a Material Stage based on a Text Renderer."),
-		FSlateIcon(),
+		GetDefault<UDMRenderTargetTextRenderer>()->GetComponentIcon(),
 		FUIAction(FExecuteAction::CreateWeakLambda(
 			Slot,
 			[Slot]
@@ -689,7 +741,7 @@ void FDMMaterialSlotLayerMenus::AddLayerMenu_Advanced(UToolMenu* InMenu)
 		NAME_None,
 		LOCTEXT("AddWidget", "Widget"),
 		LOCTEXT("AddWidgetTooltip", "Add a Material Stage based on a Widget Renderer."),
-		FSlateIcon(),
+		GetDefault<UDMRenderTargetUMGWidgetRenderer>()->GetComponentIcon(),
 		FUIAction(FExecuteAction::CreateWeakLambda(
 			Slot,
 			[Slot]
@@ -703,7 +755,7 @@ void FDMMaterialSlotLayerMenus::AddLayerMenu_Advanced(UToolMenu* InMenu)
 		NAME_None,
 		LOCTEXT("AddMaterialFunction", "Material Function"),
 		LOCTEXT("AddMaterialFunctionTooltip", "Add a new Material Layer based on a Material Function."),
-		FSlateIcon(),
+		GetDefault<UDMMaterialStageFunction>()->GetComponentIcon(),
 		FUIAction(FExecuteAction::CreateWeakLambda(
 			Slot,
 			[Slot]

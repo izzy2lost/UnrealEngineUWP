@@ -15,7 +15,7 @@ enum class EDMMaterialPropertyType : uint8;
 class FDMMaterialSlotLayerMenus final
 {
 public:
-	static TSharedRef<SWidget> GenerateSlotLayerMenu(const TSharedPtr<SDMMaterialSlotEditor>& InSlotWidget, UDMMaterialLayerObject* InLayerObject);
+	static TSharedRef<SWidget> GenerateSlotLayerMenu(const TSharedPtr<SDMMaterialSlotEditor>& InSlotWidget, UDMMaterialLayerObject* InLayer);
 
 	static void AddAddLayerSection(UToolMenu* InMenu);
 

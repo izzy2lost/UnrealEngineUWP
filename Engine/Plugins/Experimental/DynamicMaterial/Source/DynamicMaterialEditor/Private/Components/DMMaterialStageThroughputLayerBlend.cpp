@@ -1134,6 +1134,16 @@ void UDMMaterialStageThroughputLayerBlend::SetMaskChannelOverride(EAvaColorChann
 	Update(this, EDMUpdateType::Structure);
 }
 
+FSlateIcon UDMMaterialStageThroughputLayerBlend::GetComponentIcon() const
+{
+	if (UDMMaterialStageInput* InputMaskValue = GetInputMask())
+	{
+		return InputMaskValue->GetComponentIcon();
+	}
+
+	return Super::GetComponentIcon();
+}
+
 bool UDMMaterialStageThroughputLayerBlend::CanUseMaskChannelOverride() const
 {
 	return GetDefaultMaskChannelOverrideOutputIndex() != INDEX_NONE;

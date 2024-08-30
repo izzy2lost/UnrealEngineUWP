@@ -6,6 +6,7 @@
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "DMMaterialStageSourceMenus.h"
+#include "DynamicMaterialEditorStyle.h"
 #include "ScopedTransaction.h"
 #include "Templates/SharedPointer.h"
 #include "ToolMenu.h"
@@ -83,31 +84,11 @@ void FDMMaterialStageMenus::AddStageSettingsSection(UToolMenu* InMenu)
 	}
 
 	const EDMMaterialLayerStage StageType = Layer->GetStageType(Stage);
+
+	// Only if we can remove a layer can we toggle the base stage.
 	const bool bAllowRemoveLayer = Slot->CanRemoveLayer(Layer);
 
-	FToolMenuSection& NewSection = InMenu->AddSection(StageMenuToggleName, LOCTEXT("MaterialStageMenu", "Material Stage"));
-
-	if (StageType == EDMMaterialLayerStage::Mask)
-	{
-		NewSection.AddMenuEntry(NAME_None,
-			LOCTEXT("ToggleLayerMask", "Toggle Mask"),
-			LOCTEXT("ToggleLayerMaskTooltip", "Toggle the layer mask on and off.\n\nAlt+Shift+Left Click"),
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateWeakLambda(
-				Layer,
-				[Layer]()
-				{
-					FScopedTransaction Transaction(LOCTEXT("ToggleBaseStageEnabled", "Toggle Base Stage Enabled"));
-
-					if (UDMMaterialStage* Stage = Layer->GetStage(EDMMaterialLayerStage::Mask))
-					{
-						Stage->Modify();
-						Stage->SetEnabled(!Stage->IsEnabled());
-					}
-				}
-			))
-		);
-	}
+	FToolMenuSection& NewSection = InMenu->AddSection(StageMenuToggleName, LOCTEXT("MaterialStageMenu", "Stage Actions"));
 
 	if (bAllowRemoveLayer)
 	{
@@ -115,9 +96,8 @@ void FDMMaterialStageMenus::AddStageSettingsSection(UToolMenu* InMenu)
 		{
 			NewSection.AddMenuEntry(NAME_None,
 				LOCTEXT("ToggleLayerBase", "Toggle Base"),
-				LOCTEXT("ToggleLayerBaseTooltip", "Toggle the layer base on and off.\n\n"
-					"Warning: Toggling a layer base off may result in inputs being reset where incompatibilities are found.\n\nAlt+Shift+Left Click"),
-				FSlateIcon(),
+				LOCTEXT("ToggleLayerBaseTooltip", "Toggle the Layer Base.\n\nAlt+Shift+Left Click"),
+				FSlateIcon(FDynamicMaterialEditorStyle::Get().GetStyleSetName(), TEXT("Icons.Stage.Enabled")),
 				FUIAction(FExecuteAction::CreateWeakLambda(
 					Layer,
 					[Layer]()
@@ -133,51 +113,28 @@ void FDMMaterialStageMenus::AddStageSettingsSection(UToolMenu* InMenu)
 				))
 			);
 		}
+	}
 
+	if (StageType == EDMMaterialLayerStage::Mask)
+	{
 		NewSection.AddMenuEntry(NAME_None,
-			LOCTEXT("ToggleLayer", "Toggle Layer"),
-			LOCTEXT("ToggleLayerTooltip", "Toggle the entire layer on and off.\n\n"
-				"Warning: Toggling a layer off may result in inputs being reset where incompatibilities are found.\n\nAlt+Left Click"),
-			FSlateIcon(),
+			LOCTEXT("ToggleLayerMask", "Toggle Mask"),
+			LOCTEXT("ToggleLayerMaskTooltip", "Toggle the Layer Mask.\n\nAlt+Shift+Left Click"),
+			FSlateIcon(FDynamicMaterialEditorStyle::Get().GetStyleSetName(), TEXT("Icons.Stage.Enabled")),
 			FUIAction(FExecuteAction::CreateWeakLambda(
 				Layer,
 				[Layer]()
 				{
-					FScopedTransaction Transaction(LOCTEXT("ToggleAllStageEnabled", "Toggle All Stage Enabled"));
+					FScopedTransaction Transaction(LOCTEXT("ToggleMaskStageEnabled", "Toggle Mask Stage Enabled"));
 
-					for (UDMMaterialStage* Stage : Layer->GetStages(EDMMaterialLayerStage::All))
+					if (UDMMaterialStage* Stage = Layer->GetStage(EDMMaterialLayerStage::Mask))
 					{
 						Stage->Modify();
 						Stage->SetEnabled(!Stage->IsEnabled());
 					}
 				}
 			))
-		);			
-	}
-
-	if (bAllowRemoveLayer)
-	{
-		if (TSharedPtr<SDMMaterialEditor> EditorWidget = MenuContext->GetEditorWidget())
-		{
-			NewSection.AddMenuEntry(NAME_None,
-				LOCTEXT("RemoveLayer", "Remove Layer"),
-				LOCTEXT("RemoveLayerTooltip", "Remove this layer from its Material Slot.\n\n"
-					"Warning: Removing a stage off may result in inputs being reset where incompatibilities are found."),
-				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateWeakLambda(
-					Layer,
-					[Layer]()
-					{
-						FScopedTransaction Transaction(LOCTEXT("RemoverLayer", "Remover Layer"));
-
-						if (UDMMaterialSlot* Slot = Layer->GetSlot())
-						{
-							Slot->RemoveLayer(Layer);
-						}
-					}
-				))
-			);
-		}
+		);
 	}
 }
 
@@ -190,7 +147,7 @@ void FDMMaterialStageMenus::AddStageSourceSection(UToolMenu* InMenu)
 		return;
 	}
 
-	FToolMenuSection& NewSection = InMenu->AddSection(StageSourceMenuName, LOCTEXT("MaterialStageSource", "Stage Source"));
+	FToolMenuSection& NewSection = InMenu->AddSection(StageSourceMenuName, LOCTEXT("MaterialStageSource", "Change Stage Source"));
 	NewSection.Context.AddObject(InMenu->Context.FindContext<UDMMenuContext>());
 
 	FDMMaterialStageSourceMenus::CreateChangeMaterialStageSource(NewSection);

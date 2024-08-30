@@ -395,6 +395,16 @@ bool UDMMaterialStageBlend::GenerateStagePreviewMaterial(UDMMaterialStage* InSta
 	return true;
 }
 
+FSlateIcon UDMMaterialStageBlend::GetComponentIcon() const
+{
+	if (UDMMaterialStageInput* InputBValue = GetInputB())
+	{
+		return InputBValue->GetComponentIcon();
+	}
+
+	return Super::GetComponentIcon();
+}
+
 void UDMMaterialStageBlend::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	Super::Update(InSource, InUpdateType);

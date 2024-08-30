@@ -10,6 +10,10 @@
 
 class UDMMaterialValue;
 
+#if WITH_EDITOR
+struct FSlateIcon;
+#endif
+
 /**
  * Stores information about basic value types, such as EDMValueType::Float1.
  */
@@ -111,4 +115,8 @@ public:
 	/** Converts a number of floats into the value type */
 	UFUNCTION(BlueprintPure, CallInEditor, Category = "Material Designer")
 	static DYNAMICMATERIAL_API const FDMValueDefinition& GetTypeForFloatCount(int32 InFloatCount);
+
+#if WITH_EDITOR
+	static DYNAMICMATERIAL_API FSlateIcon GetValueIcon(EDMValueType InType);
+#endif
 };

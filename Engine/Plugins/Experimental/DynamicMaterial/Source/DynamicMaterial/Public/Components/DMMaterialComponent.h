@@ -9,8 +9,9 @@
 
 class UDynamicMaterialModel;
 enum class EDMUpdateType : uint8;
-struct FDMComponentPathSegment;
 struct FDMComponentPath;
+struct FDMComponentPathSegment;
+struct FSlateIcon;
 
 UENUM(BlueprintType)
 enum class EDMComponentLifetimeState : uint8
@@ -84,6 +85,9 @@ public:
 	/* Returns a description of this class/object. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	DYNAMICMATERIAL_API virtual FText GetComponentDescription() const;
+
+	/** Returns a brush which indicates this component (type) */
+	DYNAMICMATERIAL_API virtual FSlateIcon GetComponentIcon() const;
 
 	/** Returns true if this component has been marked dirty. */
 	DYNAMICMATERIAL_API bool NeedsClean();

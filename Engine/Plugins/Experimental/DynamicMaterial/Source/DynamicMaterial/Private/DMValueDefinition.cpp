@@ -13,6 +13,10 @@
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "Containers/Map.h"
 
+#if WITH_EDITOR
+#include "Textures/SlateIcon.h"
+#endif
+
 #define LOCTEXT_NAMESPACE "DMValueDefinition"
 
 namespace UE::MaterialDesigner::Private
@@ -272,5 +276,22 @@ const FDMValueDefinition& UDMValueDefinitionLibrary::GetValueDefinition(EDMValue
 
 	return TypeDefinitions[InValueType]; //-V558
 }
+
+#if WITH_EDITOR
+FSlateIcon UDMValueDefinitionLibrary::GetValueIcon(EDMValueType InType)
+{
+	using namespace UE::MaterialDesigner::Private;
+
+	if (UClass* ValueClass = TypeDefinitions[InType].GetValueClass())
+	{
+		if (UDMMaterialValue* ValueCDO = ValueClass->GetDefaultObject<UDMMaterialValue>())
+		{
+			return ValueCDO->GetComponentIcon();
+		}
+	}
+
+	return GetDefault<UDMMaterialComponent>()->GetComponentIcon();
+}
+#endif
 
 #undef LOCTEXT_NAMESPACE

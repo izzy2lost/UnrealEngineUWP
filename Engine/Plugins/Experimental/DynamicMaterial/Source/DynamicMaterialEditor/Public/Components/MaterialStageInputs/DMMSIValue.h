@@ -68,16 +68,17 @@ public:
 
 	DYNAMICMATERIALEDITOR_API void ApplyDefaultLayerSettings();
 
-	//~ Start UDMMaterialStageInput
+	//~ Begin UDMMaterialStageInput
 	DYNAMICMATERIALEDITOR_API virtual FText GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel) override;
 	//~ End UDMMaterialStageInput
 
-	//~ Start UDMMaterialStageSource
+	//~ Begin UDMMaterialStageSource
 	DYNAMICMATERIALEDITOR_API virtual int32 GetInnateMaskOutput(int32 OutputIndex, int32 OutputChannels) const override;
-	//~ Start UDMMaterialStageSource
+	//~ Begin UDMMaterialStageSource
 
-	//~ Start UDMMaterialComponent
+	//~ Begin UDMMaterialComponent
 	DYNAMICMATERIALEDITOR_API virtual FText GetComponentDescription() const override;
+	DYNAMICMATERIALEDITOR_API virtual FSlateIcon GetComponentIcon() const override;
 	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
 	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 	//~ End UDMMaterialComponent
@@ -101,7 +102,7 @@ protected:
 
 	void ApplyWholeLayerValue();
 
-	//~ Start UDMMaterialStageInput
+	//~ Begin UDMMaterialStageInput
 	DYNAMICMATERIALEDITOR_API virtual void UpdateOutputConnectors() override;
 	//~ End UDMMaterialStageInput
 

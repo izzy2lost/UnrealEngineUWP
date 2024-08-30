@@ -23,6 +23,8 @@
 #include "Components/MaterialStageInputs/DMMSIGradient.h"
 #include "Components/MaterialStageInputs/DMMSISlot.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
+#include "Components/MaterialValues/DMMaterialValueColorAtlas.h"
+#include "Components/MaterialValues/DMMaterialValueFloat3RGB.h"
 #include "Components/RenderTargetRenderers/DMRenderTargetTextRenderer.h"
 #include "Components/RenderTargetRenderers/DMRenderTargetUMGWidgetRenderer.h"
 #include "DMDefs.h"
@@ -149,10 +151,12 @@ void FDMMaterialStageSourceMenus::GenerateChangeSourceMenu_NewLocalValues(UToolM
 		const FText Name = UDMValueDefinitionLibrary::GetValueDefinition(ValueType).GetDisplayName();
 		const FText FormattedTooltip = FText::Format(NameTooltipFormat, Name);
 
+		const FSlateIcon ValueIcon = UDMValueDefinitionLibrary::GetValueIcon(ValueType);
+
 		InMenu->AddMenuEntry(NAME_None, FToolMenuEntry::InitMenuEntry(NAME_None,
 			Name,
 			FormattedTooltip,
-			FSlateIcon(),
+			ValueIcon,
 			FUIAction(
 				FExecuteAction::CreateWeakLambda(
 					MenuContext,
@@ -250,7 +254,7 @@ void FDMMaterialStageSourceMenus::GenerateChangeSourceMenu_GlobalValues(UToolMen
 		InMenu->AddMenuEntry(NAME_None, FToolMenuEntry::InitMenuEntry(NAME_None,
 			Value->GetDescription(),
 			LOCTEXT("ChangeSourceValueSourceTooltip2", "Change the source of this stage to this Material Value."),
-			FSlateIcon(),
+			Value->GetComponentIcon(),
 			FUIAction(FExecuteAction::CreateWeakLambda(
 				MenuContext,
 				[MenuContext, Value]()
@@ -337,10 +341,12 @@ void FDMMaterialStageSourceMenus::GenerateChangeSourceMenu_NewGlobalValues(UTool
 		const FText Name = UDMValueDefinitionLibrary::GetValueDefinition(ValueType).GetDisplayName();
 		const FText FormattedTooltip = FText::Format(NameTooltipFormat, Name);
 
+		const FSlateIcon ValueIcon = UDMValueDefinitionLibrary::GetValueIcon(ValueType);
+
 		InMenu->AddMenuEntry(NAME_None, FToolMenuEntry::InitMenuEntry(NAME_None,
 			Name,
 			FormattedTooltip,
-			FSlateIcon(),
+			ValueIcon,
 			FUIAction(
 				FExecuteAction::CreateWeakLambda(
 					MenuContext,
@@ -714,7 +720,7 @@ void FDMMaterialStageSourceMenus::GenerateChangeSourceMenu_Gradients(UToolMenu* 
 					NAME_None,
 					MenuName,
 					LOCTEXT("ChangeSourceGradientTooltip", "Change the source of this stage to a Material Gradient."),
-					FSlateIcon(),
+					GradientCDO->GetComponentIcon(),
 					FUIAction(FExecuteAction::CreateWeakLambda(
 						MenuContext,
 						[MenuContext, GradientClass]()
@@ -771,7 +777,7 @@ void FDMMaterialStageSourceMenus::GenerateChangeSourceMenu_Gradients(UToolMenu* 
 			NAME_None,
 			LOCTEXT("ChangeSourceColorAtlas", "Color Atlas"),
 			LOCTEXT("ChangeSourceColorAtlasTooltip", "Change the source of this stage to a Color Atlas."),
-			FSlateIcon(),
+			GetDefault<UDMMaterialValueColorAtlas>()->GetComponentIcon(),
 			FUIAction(
 				FExecuteAction::CreateStatic(
 					&ChangeSourceToColorAtlasFromContext,
@@ -819,7 +825,7 @@ void FDMMaterialStageSourceMenus::GenerateChangeSourceMenu_Advanced(UToolMenu* c
 	NewSection.AddMenuEntry("Text",
 		LOCTEXT("ChangeSourceText", "Text"),
 		LOCTEXT("ChangeSourceTextTooltip", "Change the source of this stage to a Text Renderer."),
-		FSlateIcon(),
+		GetDefault<UDMRenderTargetTextRenderer>()->GetComponentIcon(),
 		FUIAction(
 			FExecuteAction::CreateStatic(
 				&ChangeSourceToTextFromContext,
@@ -831,7 +837,7 @@ void FDMMaterialStageSourceMenus::GenerateChangeSourceMenu_Advanced(UToolMenu* c
 	NewSection.AddMenuEntry("Widget",
 		LOCTEXT("ChangeSourceWidget", "Widget"),
 		LOCTEXT("ChangeSourceWidgetTooltip", "Change the source of this stage to a Widget Renderer."),
-		FSlateIcon(),
+		GetDefault<UDMRenderTargetUMGWidgetRenderer>()->GetComponentIcon(),
 		FUIAction(
 			FExecuteAction::CreateStatic(
 				&ChangeSourceToWidgetFromContext,
@@ -843,7 +849,7 @@ void FDMMaterialStageSourceMenus::GenerateChangeSourceMenu_Advanced(UToolMenu* c
 	NewSection.AddMenuEntry("MaterialFunction",
 		LOCTEXT("ChangeSourceMaterialFunction", "Material Function"),
 		LOCTEXT("ChangeSourceMaterialFunctionTooltip", "Change the source of this stage to a Material Function."),
-		FSlateIcon(),
+		GetDefault<UDMMaterialStageFunction>()->GetComponentIcon(),
 		FUIAction(
 			FExecuteAction::CreateStatic(
 				&ChangeSourceToMaterialFunctionFromContext,
@@ -888,7 +894,7 @@ void FDMMaterialStageSourceMenus::GenerateChangeSourceMenu_Advanced(UToolMenu* c
 							LOCTEXT("ChangeSourceSlotOuptut", "Slot Output"),
 							LOCTEXT("ChangeSourceSlotOutputTooltip", "Change the source of this stage to the output from another Material Slot."),
 							FNewToolMenuDelegate::CreateStatic(&GenerateChangeSourceMenu_Slots)
-							);
+						);
 					}));
 		}
 	}
@@ -1462,7 +1468,7 @@ void FDMMaterialStageSourceMenus::CreateChangeMaterialStageSource(FToolMenuSecti
 	InSection.AddMenuEntry("TextureSample",
 		LOCTEXT("TextureSample", "Texture"),
 		LOCTEXT("ChangeSourceTextureSampleTooltip", "Change the source of this stage to a texture."),
-		FSlateIcon(),
+		GetDefault<UDMMaterialStageExpressionTextureSample>()->GetComponentIcon(),
 		FUIAction(
 			FExecuteAction::CreateStatic(
 				&ChangeSourceToTextureSampleFromContext,
@@ -1474,7 +1480,7 @@ void FDMMaterialStageSourceMenus::CreateChangeMaterialStageSource(FToolMenuSecti
 	InSection.AddMenuEntry("SolidColor",
 		LOCTEXT("ChangeSourceColorRGB", "Solid Color"),
 		LOCTEXT("ChangeSourceColorRGBTooltip", "Change the source of this stage to a Solid Color."),
-		FSlateIcon(),
+		GetDefault<UDMMaterialValueFloat3RGB>()->GetComponentIcon(),
 		FUIAction(
 			FExecuteAction::CreateStatic(
 				&ChangeSourceToSolidColorRGBFromContext,
@@ -1486,7 +1492,7 @@ void FDMMaterialStageSourceMenus::CreateChangeMaterialStageSource(FToolMenuSecti
 	InSection.AddMenuEntry("TextureSample_EdgeColor",
 		LOCTEXT("AddTextureSampleEgdeColor", "Texture Edge Color"),
 		LOCTEXT("ChangeSourceTextureSampleEdgeColorTooltip", "Change the source of this stage to the edge color of a texture."),
-		FSlateIcon(),
+		GetDefault<UDMMaterialStageExpressionTextureSampleEdgeColor>()->GetComponentIcon(),
 		FUIAction(
 			FExecuteAction::CreateStatic(
 				&ChangeSourceToTextureSampleEdgeColorFromContext,
@@ -1498,7 +1504,7 @@ void FDMMaterialStageSourceMenus::CreateChangeMaterialStageSource(FToolMenuSecti
 	InSection.AddMenuEntry("Noise",
 		LOCTEXT("ChangeSourceNoise", "Noise"),
 		LOCTEXT("ChangeSourceNoiseTooltip", "Change the source of this stage to a Noise Renderer."),
-		FSlateIcon(),
+		GetDefault<UDMMaterialStageExpressionWorldPositionNoise>()->GetComponentIcon(),
 		FUIAction(
 			FExecuteAction::CreateStatic(
 				&ChangeSourceToNoiseFromContext,
@@ -1507,21 +1513,24 @@ void FDMMaterialStageSourceMenus::CreateChangeMaterialStageSource(FToolMenuSecti
 		)
 	);
 
-	InSection.AddMenuEntry("SceneTexture",
-		LOCTEXT("AddSceneTexture", "Post Process"),
-		LOCTEXT("ChangeSourceSceneTextureTooltip", "Change the source of this stage to Scene Texture in post process materials."),
-		FSlateIcon(),
-		FUIAction(
-			FExecuteAction::CreateStatic(
-				&ChangeSourceToSolidColorRGBFromContext,
-				MenuContext
-			),
-			FCanExecuteAction::CreateStatic(
-				&CanChangeSourceToSceneTextureFromContext,
-				MenuContext
+	if (ModelEditorOnlyData->GetDomain() == EMaterialDomain::MD_PostProcess)
+	{
+		InSection.AddMenuEntry("SceneTexture",
+			LOCTEXT("AddSceneTexture", "Post Process"),
+			LOCTEXT("ChangeSourceSceneTextureTooltip", "Change the source of this stage to Scene Texture in post process materials."),
+			GetDefault<UDMMaterialStageExpressionSceneTexture>()->GetComponentIcon(),
+			FUIAction(
+				FExecuteAction::CreateStatic(
+					&ChangeSourceToSolidColorRGBFromContext,
+					MenuContext
+				),
+				FCanExecuteAction::CreateStatic(
+					&CanChangeSourceToSceneTextureFromContext,
+					MenuContext
+				)
 			)
-		)
-	);
+		);
+	}
 
 	if constexpr (UE::DynamicMaterialEditor::bGlobalValuesEnabled)
 	{

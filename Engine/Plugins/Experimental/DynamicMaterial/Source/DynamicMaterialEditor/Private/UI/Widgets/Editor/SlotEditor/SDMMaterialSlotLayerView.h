@@ -38,6 +38,8 @@ public:
 
 	FOnSelectionChanged::RegistrationType& GetOnSelectionChanged();
 
+	void EnsureSelectedStage();
+
 	//~ Begin FUndoClient
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override;

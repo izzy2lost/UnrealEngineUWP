@@ -128,6 +128,58 @@ SDMMaterialSlotLayerView::FOnSelectionChanged::RegistrationType& SDMMaterialSlot
 	return OnSelectionChanged;
 }
 
+void SDMMaterialSlotLayerView::EnsureSelectedStage()
+{
+	if (GetSelectedLayer())
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialSlotEditor> SlotEditorWidget = GetSlotEditorWidget();
+
+	if (!SlotEditorWidget.IsValid())
+	{
+		return;
+	}
+
+	UDMMaterialSlot* Slot = SlotEditorWidget->GetSlot();
+
+	if (!Slot)
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialEditor> EditorWidget = SlotEditorWidget->GetEditorWidget();
+
+	if (!EditorWidget.IsValid())
+	{
+		return;
+	}
+
+	if (UDMMaterialComponent* ComponentToEdit = EditorWidget->GetComponentToEdit())
+	{
+		if (ComponentToEdit->GetTypedParent<UDMMaterialSlot>(/* Allow Subclasses */ true) == Slot)
+		{
+			return;
+		}
+	}
+
+	const TArray<UDMMaterialLayerObject*>& Layers = Slot->GetLayers();
+
+	if (Layers.IsEmpty())
+	{
+		return;
+	}
+
+	UDMMaterialLayerObject* LastLayer = Layers.Last();
+	SetSelectedLayer(LastLayer);
+
+	if (UDMMaterialStage* Stage = LastLayer->GetFirstEnabledStage(EDMMaterialLayerStage::All))
+	{
+		EditorWidget->EditComponent(Stage);
+	}
+}
+
 void SDMMaterialSlotLayerView::PostUndo(bool bSuccess)
 {
 	OnUndo();
@@ -264,28 +316,7 @@ TSharedPtr<SWidget> SDMMaterialSlotLayerView::CreateLayerItemContextMenu()
 		return nullptr;
 	}
 
-	TSharedPtr<SDMMaterialEditor> EditorWidget = SlotEditor->GetEditorWidget();
-
-	if (!EditorWidget.IsValid())
-	{
-		return nullptr;
-	}
-
-	UDMMaterialLayerObject* LayerObject = nullptr;
-	const FVector2f MousePosition = FSlateApplication::Get().GetCursorPos();
-
-	for (const TSharedPtr<FDMMaterialLayerReference>& LayerItem : LayerItems)
-	{
-		TSharedPtr<SDMMaterialSlotLayerItem> LayerItemWidget = WidgetFromLayerItem(LayerItem);
-
-		if (LayerItemWidget.IsValid() && LayerItemWidget->GetTickSpaceGeometry().IsUnderLocation(MousePosition))
-		{
-			LayerObject = LayerItem->GetLayer();
-			break;
-		}
-	}
-
-	return FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(SlotEditor, LayerObject);
+	return FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(SlotEditor, GetSelectedLayer());
 }
 
 TSharedPtr<SDMMaterialSlotLayerItem> SDMMaterialSlotLayerView::WidgetFromLayerItem(const TSharedPtr<FDMMaterialLayerReference>& InItem) const
@@ -411,6 +442,7 @@ void SDMMaterialSlotLayerView::OnLayersUpdated(UDMMaterialSlot* InSlot)
 {
 	RegenerateItems();
 	RequestListRefresh();
+	EnsureSelectedStage();
 }
 
 #undef LOCTEXT_NAMESPACE

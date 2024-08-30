@@ -5,6 +5,11 @@
 #include "DynamicMaterialModule.h"
 #include "HAL/PlatformTime.h"
 
+#if WITH_EDITOR
+#include "Styling/SlateIconFinder.h"
+#include "Textures/SlateIcon.h"
+#endif
+
 #define LOCTEXT_NAMESPACE "DMMaterialComponent"
 
 double UDMMaterialComponent::MinCleanTime = FPlatformTime::Seconds();
@@ -153,6 +158,19 @@ UDMMaterialComponent* UDMMaterialComponent::GetTypedParent(UClass* InParentClass
 FText UDMMaterialComponent::GetComponentDescription() const
 {
 	return GetClass()->GetDisplayNameText();
+}
+
+FSlateIcon UDMMaterialComponent::GetComponentIcon() const
+{
+	FSlateIcon Icon = FSlateIconFinder::FindIconForClass(GetClass());
+
+	if (Icon.IsSet())
+	{
+		return Icon;
+	}
+
+	// Fall back to a default icon.
+	return FSlateIconFinder::FindIconForClass(UDMMaterialComponent::StaticClass());
 }
 
 bool UDMMaterialComponent::CanClean()

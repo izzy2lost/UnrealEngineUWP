@@ -17,15 +17,14 @@ public:
 	}
 
 	FDynamicMaterialEditorStyle();
-	virtual ~FDynamicMaterialEditorStyle() override = default;
-
-	FName GetBrushNameForType(EDMValueType InType) const;
+	virtual ~FDynamicMaterialEditorStyle() override;
 
 private:
-	void SetupGenericStyles();
+	void SetupGeneralStyles();
 	void SetupStageStyles();
 	void SetupLayerViewStyles();
 	void SetupLayerViewItemHandleStyles();
 	void SetupEffectsViewStyles();
 	void SetupTextStyles();
+	void SetupComponentIcons();
 };

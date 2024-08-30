@@ -53,12 +53,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	DYNAMICMATERIALEDITOR_API void SetMaterialProperty(EDMMaterialPropertyType InMaterialProperty);
 
-	//~ Start UDMMaterialStageInput
-	DYNAMICMATERIALEDITOR_API virtual FText GetComponentDescription() const override;
+	//~ Begin UDMMaterialStageInput
 	DYNAMICMATERIALEDITOR_API virtual FText GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel) override;
 	//~ End UDMMaterialStageInput
 
-	//~ Start UDMMaterialComponent
+	//~ Begin UDMMaterialComponent
+	DYNAMICMATERIALEDITOR_API virtual FText GetComponentDescription() const override;
+	DYNAMICMATERIALEDITOR_API virtual FSlateIcon GetComponentIcon() const override;
 	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
 	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 	//~ End UDMMaterialComponent
@@ -85,7 +86,7 @@ protected:
 	void InitSlot();
 	void DeinitSlot();
 
-	//~ Start UDMMaterialStageInput
+	//~ Begin UDMMaterialStageInput
 	DYNAMICMATERIALEDITOR_API virtual void UpdateOutputConnectors() override;
 	//~ End UDMMaterialStageInput
 

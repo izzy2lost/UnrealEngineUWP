@@ -149,6 +149,19 @@ FText UDMMaterialStageInputSlot::GetComponentDescription() const
 	return Super::GetComponentDescription();
 }
 
+FSlateIcon UDMMaterialStageInputSlot::GetComponentIcon() const
+{
+	if (Slot)
+	{
+		if (Slot->IsComponentValid())
+		{
+			return Slot->GetComponentIcon();
+		}
+	}
+
+	return Super::GetComponentIcon();
+}
+
 FText UDMMaterialStageInputSlot::GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel)
 {
 	return GetComponentDescription();

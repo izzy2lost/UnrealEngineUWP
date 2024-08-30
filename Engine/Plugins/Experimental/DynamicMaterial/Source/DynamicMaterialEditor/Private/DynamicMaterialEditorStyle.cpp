@@ -6,23 +6,11 @@
 #include "DMDefs.h"
 #include "Interfaces/IPluginManager.h"
 #include "Styling/SlateStyleMacros.h"
+#include "Styling/SlateStyleRegistry.h"
 #include "Styling/StyleColors.h"
 
 namespace UE::DynamicMaterialEditor::Private
 {
-	const TMap<EDMValueType, FName> TypeIcons = {
-		{EDMValueType::VT_None,        TEXT("Icons.Type.None")},
-		{EDMValueType::VT_Bool,        TEXT("Icons.Type.Bool")},
-		{EDMValueType::VT_Float1,      TEXT("Icons.Type.Float1")},
-		{EDMValueType::VT_Float2,      TEXT("Icons.Type.Float2")},
-		{EDMValueType::VT_Float3_RPY,  TEXT("Icons.Type.Float3_RPY")},
-		{EDMValueType::VT_Float3_RGB,  TEXT("Icons.Type.Float3_RGB")},
-		{EDMValueType::VT_Float3_XYZ,  TEXT("Icons.Type.Float3_XYZ")},
-		{EDMValueType::VT_Float4_RGBA, TEXT("Icons.Type.Float4_RGBA")},
-		{EDMValueType::VT_Float_Any,   TEXT("Icons.Type.Float_Any")},
-		{EDMValueType::VT_Texture,     TEXT("Icons.Type.Texture")},
-	};
-
 	FLinearColor ReplaceColorAlpha(const FLinearColor& InColor, const float InNewAlpha)
 	{
 		FLinearColor OutColor(InColor);
@@ -32,42 +20,36 @@ namespace UE::DynamicMaterialEditor::Private
 }
 
 FDynamicMaterialEditorStyle::FDynamicMaterialEditorStyle()
-	: FSlateStyleSet(TEXT("DynamicMaterialEditor"))
+	: FSlateStyleSet(UE_MODULE_NAME)
 {
-	SetupGenericStyles();
+	SetupGeneralStyles();
 	SetupStageStyles();
 	SetupLayerViewStyles();
 	SetupLayerViewItemHandleStyles();
 	SetupEffectsViewStyles();
 	SetupTextStyles();
+	SetupComponentIcons();
+
+	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }
 
-FName FDynamicMaterialEditorStyle::GetBrushNameForType(EDMValueType InType) const
+FDynamicMaterialEditorStyle::~FDynamicMaterialEditorStyle()
 {
-	if (UE::DynamicMaterialEditor::Private::TypeIcons.Contains(InType))
-	{
-		return UE::DynamicMaterialEditor::Private::TypeIcons[InType];
-	}
-
-	checkNoEntry();
-
-	static FName NoType = TEXT("Icons.Type.None");
-	return NoType;
+	FSlateStyleRegistry::UnRegisterSlateStyle(*this);
 }
 
-void FDynamicMaterialEditorStyle::SetupGenericStyles()
+void FDynamicMaterialEditorStyle::SetupGeneralStyles()
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
-	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("DynamicMaterial"));
+	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
 	check(Plugin.IsValid());
 
 	SetContentRoot(FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources")));
+	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate")); // This is the engine's content root.
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Color Styles
-	const FLinearColor EngineSelectColor = FStyleColors::Primary.GetSpecifiedColor();
-	const FLinearColor EngineSelectHoverColor = FStyleColors::PrimaryHover.GetSpecifiedColor();
 	const FLinearColor EngineSelectPressColor = FStyleColors::PrimaryPress.GetSpecifiedColor();
 
 	const FLinearColor SelectColor = ReplaceColorAlpha(FStyleColors::Select.GetSpecifiedColor(), 0.9f);
@@ -81,17 +63,6 @@ void FDynamicMaterialEditorStyle::SetupGenericStyles()
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Brush Styles
 	Set("Icons.Menu.Dropdown", new IMAGE_BRUSH_SVG("Icons/MenuDropdown", CoreStyleConstants::Icon16x16));
-
-	Set("Icons.Type.None", new IMAGE_BRUSH("Icons/ValueTypes/None", CoreStyleConstants::Icon12x12));
-	Set("Icons.Type.Bool", new IMAGE_BRUSH("Icons/ValueTypes/Bool", CoreStyleConstants::Icon12x12));
-	Set("Icons.Type.Float1", new IMAGE_BRUSH("Icons/ValueTypes/Float1", CoreStyleConstants::Icon12x12));
-	Set("Icons.Type.Float2", new IMAGE_BRUSH("Icons/ValueTypes/Float2", CoreStyleConstants::Icon12x12));
-	Set("Icons.Type.Float3_RPY", new IMAGE_BRUSH("Icons/ValueTypes/Float3_RPY", CoreStyleConstants::Icon12x12));
-	Set("Icons.Type.Float3_RGB", new IMAGE_BRUSH("Icons/ValueTypes/Float3_RGB", CoreStyleConstants::Icon12x12));
-	Set("Icons.Type.Float3_XYZ", new IMAGE_BRUSH("Icons/ValueTypes/Float3_XYZ", CoreStyleConstants::Icon12x12));
-	Set("Icons.Type.Float4_RGBA", new IMAGE_BRUSH("Icons/ValueTypes/Float4_RGBA", CoreStyleConstants::Icon12x12));
-	Set("Icons.Type.Float_Any", new IMAGE_BRUSH("Icons/ValueTypes/Float_Any", CoreStyleConstants::Icon12x12));
-	Set("Icons.Type.Texture", new IMAGE_BRUSH("Icons/ValueTypes/Texture", CoreStyleConstants::Icon12x12));
 
 	Set("Icons.Material.DefaultLit", new IMAGE_BRUSH("Icons/EditorIcons/MaterialTypeDefaultLit", CoreStyleConstants::Icon32x32));
 	Set("Icons.Material.Unlit", new IMAGE_BRUSH("Icons/EditorIcons/MaterialTypeUnlit", CoreStyleConstants::Icon32x32));
@@ -469,4 +440,36 @@ void FDynamicMaterialEditorStyle::SetupTextStyles()
 
 	Set("Font.Stage.Details.Small.Bold", FTextBlockStyle(NormalTextStyle)
 		.SetFont(IDetailLayoutBuilder::GetDetailFontBold()));
+}
+
+void FDynamicMaterialEditorStyle::SetupComponentIcons()
+{
+	Set(TEXT("ClassIcon.DMMaterialComponent"), new CORE_IMAGE_BRUSH("Icons/icon_help_16x", CoreStyleConstants::Icon16x16));
+
+	Set(TEXT("ClassIcon.DMMaterialValueBool"),         new IMAGE_BRUSH("Icons/ValueTypes/Bool", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialValueColorAtlas"),   new CORE_IMAGE_BRUSH("Icons/icon_help_16x", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialValueFloat1"),       new IMAGE_BRUSH("Icons/ValueTypes/Float1", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialValueFloat2"),       new IMAGE_BRUSH("Icons/ValueTypes/Float2", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialValueFloat3RGB"),    new FSlateImageBrush(FPaths::EngineContentDir() + TEXT("Slate/Common/ColorPicker_Mode_16x.png"), CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialValueFloat3RPY"),    new CORE_IMAGE_BRUSH("Icons/icon_ClockwiseRotation_16x", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialValueFloat3XYZ"),    new CORE_IMAGE_BRUSH("Icons/Movable_16x", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialValueFloat4"),       new FSlateImageBrush(FPaths::EngineContentDir() + TEXT("Slate/Common/ColorPicker_Mode_16x.png"), CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialValueRenderTarget"), new CORE_IMAGE_BRUSH("Icons/AssetIcons/TextureRenderTarget2D_16x", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialValueTexture"),      new IMAGE_BRUSH("Icons/ValueTypes/Texture", CoreStyleConstants::Icon16x16));
+
+	Set(TEXT("ClassIcon.DMRenderTargetRenderer"),           new CORE_IMAGE_BRUSH("Icons/icon_help_16x", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMRenderTargetWidgetRendererBase"), new CORE_IMAGE_BRUSH("Icons/AssetIcons/WidgetBlueprint_16x", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMRenderTargetTextRenderer"),       new CORE_IMAGE_BRUSH("Icons/icon_help_16x", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMRenderTargetUMGWidgetRenderer"),  new CORE_IMAGE_BRUSH("Icons/AssetIcons/WidgetBlueprint_16x", CoreStyleConstants::Icon16x16));
+
+	Set(TEXT("ClassIcon.DMMaterialStageGradientLinear"), new CORE_IMAGE_BRUSH("Icons/icon_help_16x", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialStageGradientRadial"), new CORE_IMAGE_BRUSH("Icons/icon_help_16x", CoreStyleConstants::Icon16x16));
+
+	Set(TEXT("ClassIcon.DMMaterialStageExpressionSceneTexture"),           new CORE_IMAGE_BRUSH("Icons/AssetIcons/PostProcessVolume_16x", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialStageExpressionTextureSampleBase"),      new IMAGE_BRUSH("Icons/ValueTypes/Texture", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialStageExpressionTextureSampleEdgeColor"), new IMAGE_BRUSH("Icons/ClassIcons/TextureEdgeColor", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialStageExpressionWorldPositionNoise"),     new CORE_IMAGE_BRUSH("Icons/icon_help_16x", CoreStyleConstants::Icon16x16));
+
+	Set(TEXT("ClassIcon.DMMaterialStageFunction"),      new CORE_IMAGE_BRUSH("Icons/AssetIcons/MaterialFunction_16x", CoreStyleConstants::Icon16x16));
+	Set(TEXT("ClassIcon.DMMaterialStageInputFunction"), new CORE_IMAGE_BRUSH("Icons/AssetIcons/MaterialFunction_16x", CoreStyleConstants::Icon16x16));
 }

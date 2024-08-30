@@ -365,6 +365,16 @@ FText UDMMaterialStageInputValue::GetComponentDescription() const
 	}
 }
 
+FSlateIcon UDMMaterialStageInputValue::GetComponentIcon() const
+{
+	if (Value && Value->IsComponentValid())
+	{
+		return Value->GetComponentIcon();
+	}
+
+	return Super::GetComponentIcon();
+}
+
 FText UDMMaterialStageInputValue::GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel)
 {
 	if (!Value->IsComponentValid())

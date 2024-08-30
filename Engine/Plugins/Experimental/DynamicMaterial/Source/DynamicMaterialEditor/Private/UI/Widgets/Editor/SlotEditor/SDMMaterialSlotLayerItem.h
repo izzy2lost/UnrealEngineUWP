@@ -15,6 +15,7 @@ class SDMMaterialSlotLayerView;
 class SDMMaterialStage;
 class UDMMaterialEffectStack;
 enum class EDMMaterialLayerStage : uint8;
+struct FSlateBrush;
 
 /**
  * Material Slot Layer
@@ -80,6 +81,7 @@ protected:
 	TSharedRef<SWidget> CreateLayerHeaderText();
 	TSharedPtr<SWidget> CreateLayerHeaderEditableText();
 	TSharedRef<SWidget> CreateEffectsToggleButton();
+	TSharedRef<SWidget> CreateStageSourceButton(EDMMaterialLayerStage InStage);
 
 	EVisibility GetEffectsListVisibility() const;
 	EVisibility GetEffectsToggleButtonVisibility() const;
@@ -101,12 +103,17 @@ protected:
 	const FSlateBrush* GetStageToggleButtonImage(EDMMaterialLayerStage InLayerStage) const;
 	FReply OnStageToggleButtonClicked(EDMMaterialLayerStage InLayerStage);
 
+	FText GetStageSourceButtonToolTip(EDMMaterialLayerStage InLayerStage) const;
+	const FSlateBrush* GetStageSourceButtonImage(EDMMaterialLayerStage InLayerStage) const;
+	FReply OnStageSourceButtonClicked(EDMMaterialLayerStage InLayerStage);
+	TSharedRef<SWidget> GetStageSourceMenuContent(EDMMaterialLayerStage InLayerStage);
+
 	/** Text */
 	FText GetToolTipText() const;
 	FText GetLayerHeaderText() const;
 	FText GetLayerIndexText() const;
 	FText GetBlendModeText() const;
-	FText GetStageDescription() const;
+	FText GetStageDescription(EDMMaterialLayerStage InLayerStage) const;
 
 	/** Drag and Drop */
 	int32 OnLayerItemPaintDropIndicator(EItemDropZone InItemDropZone, const FPaintArgs& InArgs, const FGeometry& InAllottedGeometry,
