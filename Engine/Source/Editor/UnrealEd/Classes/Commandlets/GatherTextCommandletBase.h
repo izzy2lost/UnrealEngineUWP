@@ -91,20 +91,16 @@ public:
 	static UNREALED_API const FString& GetProjectBasePath();
 
 	/**
-	* Returns true if this commandlet should run during a preview run.
-	* Override in child classes to conditionally skip a commandlet from being run.
-	* Most commandlets that require source control, write to files etc should be skipped for preview runs
-	*/
+* Returns true if this commandlet should run during a preview run.
+* Override in child classes to conditionally skip a commandlet from being run.
+* Most commandlets that require source control, write to files etc should be skipped for preview runs
+*/
 	virtual bool ShouldRunInPreview(const TArray<FString>& Switches, const TMap<FString, FString>& ParamVals) const
 	{
 		return false;
 	}
 
 protected:
-	void ResolveLocalizationPath(FString& InOutPath);
-
-	static FName GetSplitPlatformNameFromPath_Static(const FString& InPath, const TMap<FName, FString>& InSplitPlatforms);
-
 	TSharedPtr< FLocTextHelper > GatherManifestHelper;
 
 	TSharedPtr< FLocalizationSCC > SourceControlInfo;
@@ -112,13 +108,12 @@ protected:
 	/** Mapping from platform name to the path marker for that platform */
 	TMap<FName, FString> SplitPlatforms;
 
-	// Common params and switches among all text gathering commandlets 
+	// Common params and switches among all text gathering commadnlets 
 	static UNREALED_API const TCHAR* ConfigParam;
 	static UNREALED_API const TCHAR* EnableSourceControlSwitch;
 	static UNREALED_API const TCHAR* DisableSubmitSwitch;
 	static UNREALED_API const TCHAR* PreviewSwitch;
 	static UNREALED_API const TCHAR* GatherTypeParam;
-	static UNREALED_API const TCHAR* RunNestedMacroPrepassSwitch;
 
 private:
 	UNREALED_API virtual void CreateCustomEngine(const FString& Params) override ; //Disallow other text commandlets to make their own engine.	

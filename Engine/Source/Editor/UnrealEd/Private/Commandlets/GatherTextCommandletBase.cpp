@@ -28,7 +28,6 @@ const TCHAR* UGatherTextCommandletBase::EnableSourceControlSwitch = TEXT("Enable
 const TCHAR* UGatherTextCommandletBase::DisableSubmitSwitch = TEXT("DisableSCCSubmit");
 const TCHAR* UGatherTextCommandletBase::PreviewSwitch = TEXT("Preview");
 const TCHAR* UGatherTextCommandletBase::GatherTypeParam = TEXT("GatherType");
-const TCHAR* UGatherTextCommandletBase::RunNestedMacroPrepassSwitch = TEXT("RunNestedMacroPrepass");
 
 UGatherTextCommandletBase::UGatherTextCommandletBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -83,16 +82,11 @@ bool UGatherTextCommandletBase::ShouldSplitPlatformForPath(const FString& InPath
 
 FName UGatherTextCommandletBase::GetSplitPlatformNameFromPath(const FString& InPath) const
 {
-	return GetSplitPlatformNameFromPath_Static(InPath, SplitPlatforms);
-}
-
-FName UGatherTextCommandletBase::GetSplitPlatformNameFromPath_Static(const FString& InPath, const TMap<FName, FString>& InSplitPlatforms)
-{
-	for (const auto& Pair : InSplitPlatforms)
+	for (const auto& SplitPlatformsPair : SplitPlatforms)
 	{
-		if (InPath.Contains(Pair.Value))
+		if (InPath.Contains(SplitPlatformsPair.Value))
 		{
-			return Pair.Key;
+			return SplitPlatformsPair.Key;
 		}
 	}
 	return FName();
@@ -120,7 +114,7 @@ bool UGatherTextCommandletBase::GetStringFromConfig( const TCHAR* Section, const
 	return bSuccess;
 }
 
-void UGatherTextCommandletBase::ResolveLocalizationPath(FString& InOutPath)
+void ResolveLocalizationPath(FString& InOutPath)
 {
 	static const FString AbsoluteEnginePath = FPaths::ConvertRelativePathToFull(FPaths::EngineDir()) / FString();
 	static const FString AbsoluteProjectPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir()) / FString();

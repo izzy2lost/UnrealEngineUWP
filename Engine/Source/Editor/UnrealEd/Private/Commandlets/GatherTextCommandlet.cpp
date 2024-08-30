@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Commandlets/GatherTextCommandlet.h"
-#include "Commandlets/GatherTextFromSourceCommandlet.h"
 #include "Misc/App.h"
 #include "Misc/Paths.h"
 #include "Misc/ConfigCacheIni.h"
@@ -135,11 +134,9 @@ int32 UGatherTextCommandlet::Main( const FString& Params )
 		const int32 Result = ProcessGatherConfig(GatherTextConfigPath, CommandletSourceControlInfo, Tokens, Switches, ParamVals);
 		if (Result != 0)
 		{
-			UGatherTextFromSourceCommandlet::LogStats();
 			return Result;
 		}
 	}
-	UGatherTextFromSourceCommandlet::LogStats();
 
 	if (CommandletSourceControlInfo.IsValid() && !bDisableSubmit)
 	{
@@ -357,7 +354,7 @@ int32 UGatherTextCommandlet::ProcessGatherConfig(const FString& GatherTextConfig
 	return 0;
 }
 
-FText UGatherTextCommandlet::GetChangelistDescription(const TArray<FString>& GatherTextConfigPaths) const
+FText UGatherTextCommandlet::GetChangelistDescription(const TArray<FString>& GatherTextConfigPaths)
 {
 	FString ProjectName = FApp::GetProjectName();
 	if (ProjectName.IsEmpty())
