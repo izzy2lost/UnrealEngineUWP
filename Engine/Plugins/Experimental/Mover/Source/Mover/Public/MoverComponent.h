@@ -411,6 +411,21 @@ public:	// Queries
 	// Find movement modifier by it's handle. Returns nullptr if the modifier couldn't be found
 	const FMovementModifierBase* FindMovementModifier(const FMovementModifierHandle& ModifierHandle) const;
 
+	// Find movement modifier by type (returns the first modifier it finds). Returns nullptr if the modifier couldn't be found
+	const FMovementModifierBase* FindMovementModifierByType(const UScriptStruct* DataStructType) const;
+	
+	/** Find a movement modifier of a specific type in this components movement modifiers. If not found, null will be returned. */
+	template <typename T>
+	const T* FindMovementModifierByType() const
+	{
+		if (const FMovementModifierBase* FoundData = FindMovementModifierByType(T::StaticStruct()))
+		{
+			return static_cast<const T*>(FoundData);
+		}
+
+		return nullptr;
+	}
+	
 	/**
  	 * Check Mover systems for a gameplay tag.
  	 *

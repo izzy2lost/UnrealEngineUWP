@@ -3,7 +3,15 @@
 #pragma once
 
 #include "MoverComponent.h"
+#include "MovementModifiers/StanceModifier.h"
 #include "CharacterMoverComponent.generated.h"
+
+/**
+ * Fires when a stance is changed
+ * Note: If a stance was just Activated it will fire with an invalid OldStance
+ *		 If a stance was just Deactivated it will fire with an invalid NewStance
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMover_OnStanceChanged, EStanceMode, OldStance, EStanceMode, NewStance);
 
 UCLASS(BlueprintType, meta = (BlueprintSpawnableComponent))
 class MOVER_API UCharacterMoverComponent : public UMoverComponent
@@ -55,7 +63,30 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Mover)
     bool bHandleJump;
 	
+	// Whether this actor can currently crouch or not 
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	virtual bool CanCrouch();
+	
+	// Perform crouch on actor
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	virtual void Crouch();
+
+	// Perform uncrouch on actor
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	virtual void UnCrouch();
+
+	// Broadcast when this actor changes stances.
+	UPROPERTY(BlueprintAssignable, Category = Mover)
+	FMover_OnStanceChanged OnStanceChanged;
+	
 protected:
 	UFUNCTION()
 	virtual void OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd);
+	
+	// ID used to keep track of the modifier responsible for crouching
+	FMovementModifierHandle StanceModifierHandle;
+
+	/** If true, try to crouch (or keep crouching) on next update. If false, try to stop crouching on next update. */
+	UPROPERTY(Category = "Mover|Crouch", VisibleInstanceOnly, BlueprintReadOnly)
+	bool bWantsToCrouch;
 };

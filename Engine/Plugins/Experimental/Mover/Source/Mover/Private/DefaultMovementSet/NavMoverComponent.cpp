@@ -183,48 +183,27 @@ bool UNavMoverComponent::CanStartPathFollowing() const
 
 bool UNavMoverComponent::IsCrouching() const
 {
-	// TODO: Mover doesn't support crouching yet so return false for now
-	return false;
+	return MoverComponent->HasGameplayTag(Mover_IsCrouching, true);
 }
 
 bool UNavMoverComponent::IsFalling() const
 {
-	if (const UBaseMovementMode* Mode = MoverComponent->GetMovementMode())
-	{
-		return Mode->GameplayTags.HasTag(Mover_IsFalling);
-	}
-
-	return false;
+	return MoverComponent->HasGameplayTag(Mover_IsFalling, true);
 }
 
 bool UNavMoverComponent::IsMovingOnGround() const
 {
-	if (const UBaseMovementMode* Mode = MoverComponent->GetMovementMode())
-	{
-		return Mode->GameplayTags.HasTag(Mover_IsOnGround);
-	}
-
-	return false;
+	return MoverComponent->HasGameplayTag(Mover_IsOnGround, true);
 }
 
 bool UNavMoverComponent::IsSwimming() const
 {
-	if (const UBaseMovementMode* Mode = MoverComponent->GetMovementMode())
-	{
-		return Mode->GameplayTags.HasTag(Mover_IsSwimming);
-	}
-
-	return false;
+	return MoverComponent->HasGameplayTag(Mover_IsSwimming, true);
 }
 
 bool UNavMoverComponent::IsFlying() const
 {
-	if (const UBaseMovementMode* Mode = MoverComponent->GetMovementMode())
-	{
-		return Mode->GameplayTags.HasTag(Mover_IsFlying);
-	}
-
-	return false;
+	return MoverComponent->HasGameplayTag(Mover_IsFlying, true);
 }
 
 void UNavMoverComponent::GetSimpleCollisionCylinder(float& CollisionRadius, float& CollisionHalfHeight) const

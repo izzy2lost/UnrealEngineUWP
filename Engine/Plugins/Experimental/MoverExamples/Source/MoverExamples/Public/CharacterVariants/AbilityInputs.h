@@ -24,6 +24,8 @@ struct MOVEREXAMPLES_API FMoverExampleAbilityInputs : public FMoverDataStructBas
 	UPROPERTY(BlueprintReadWrite, Category = Mover)
 	bool bWantsToStartZiplining = false;
 
+	UPROPERTY(BlueprintReadWrite, Category = Mover)
+	bool bWantsToBeCrouched = false;
 
 	// @return newly allocated copy of this FMoverExampleAbilityInputs. Must be overridden by child classes
 	virtual FMoverDataStructBase* Clone() const override
@@ -41,6 +43,7 @@ struct MOVEREXAMPLES_API FMoverExampleAbilityInputs : public FMoverDataStructBas
 		Ar.SerializeBits(&bIsAimPressed, 1);
 		Ar.SerializeBits(&bIsVaultJustPressed, 1);
 		Ar.SerializeBits(&bWantsToStartZiplining, 1);
+		Ar.SerializeBits(&bWantsToBeCrouched, 1);
 
 		bOutSuccess = true;
 		return true;
@@ -55,6 +58,7 @@ struct MOVEREXAMPLES_API FMoverExampleAbilityInputs : public FMoverDataStructBas
 		Out.Appendf("bIsAimPressed: %i\n", bIsAimPressed);
 		Out.Appendf("bIsVaultJustPressed: %i\n", bIsVaultJustPressed);
 		Out.Appendf("bWantsToStartZiplining: %i\n", bWantsToStartZiplining);
+		Out.Appendf("bWantsToBeCrouched: %i\n", bWantsToBeCrouched);
 	}
 
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override { Super::AddReferencedObjects(Collector); }

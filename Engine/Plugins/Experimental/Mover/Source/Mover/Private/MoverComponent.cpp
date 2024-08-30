@@ -607,6 +607,36 @@ const FMovementModifierBase* UMoverComponent::FindMovementModifier(const FMoveme
 	return nullptr;
 }
 
+const FMovementModifierBase* UMoverComponent::FindMovementModifierByType(const UScriptStruct* DataStructType) const
+{
+	if (bHasValidCachedState)
+	{
+		// Check active modifiers for modifier handle
+		for (auto ActiveModifierFromSyncStateIt = CachedLastSyncState.MovementModifiers.GetActiveModifiersIterator(); ActiveModifierFromSyncStateIt; ++ActiveModifierFromSyncStateIt)
+		{
+			const TSharedPtr<FMovementModifierBase> ActiveModifierFromSyncState = *ActiveModifierFromSyncStateIt;
+
+			if (DataStructType == ActiveModifierFromSyncState->GetScriptStruct())
+			{
+				return ActiveModifierFromSyncState.Get();
+			}
+		}
+
+		// Check queued modifiers for modifier handle
+		for (auto QueuedModifierFromSyncStateIt = CachedLastSyncState.MovementModifiers.GetActiveModifiersIterator(); QueuedModifierFromSyncStateIt; ++QueuedModifierFromSyncStateIt)
+		{
+			const TSharedPtr<FMovementModifierBase> QueuedModifierFromSyncState = *QueuedModifierFromSyncStateIt;
+
+			if (DataStructType == QueuedModifierFromSyncState->GetScriptStruct())
+			{
+				return QueuedModifierFromSyncState.Get();
+			}
+		}
+	}
+	
+	return nullptr;
+}
+
 bool UMoverComponent::HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch) const
 {
 	if (bHasValidCachedState)

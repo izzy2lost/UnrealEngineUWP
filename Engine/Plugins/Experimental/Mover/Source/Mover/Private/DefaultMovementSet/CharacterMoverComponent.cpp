@@ -8,9 +8,11 @@
 #include "DefaultMovementSet/Modes/WalkingMode.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoveLibrary/FloorQueryUtils.h"
+#include "MoveLibrary/MovementUtils.h"
 
 UCharacterMoverComponent::UCharacterMoverComponent()
 	: bHandleJump(true)
+	, bWantsToCrouch(false)
 {
 	// Default movement modes
 	MovementModes.Add(DefaultModeNames::Walking, CreateDefaultSubobject<UWalkingMode>(TEXT("DefaultWalkingMode")));
@@ -29,57 +31,32 @@ void UCharacterMoverComponent::BeginPlay()
 
 bool UCharacterMoverComponent::IsCrouching() const
 {
-	return false; // Crouching not yet supported by Mover
+	return HasGameplayTag(Mover_IsCrouching, true);
 }
 
 bool UCharacterMoverComponent::IsFlying() const
 {
-	if (const UBaseMovementMode* Mode = GetMovementMode())
-	{
-		return Mode->GameplayTags.HasTag(Mover_IsFlying);
-	}
-
-	return false;
+	return HasGameplayTag(Mover_IsFlying, true);
 }
 
 bool UCharacterMoverComponent::IsFalling() const
 {
-	if (const UBaseMovementMode* Mode = GetMovementMode())
-	{
-		return Mode->GameplayTags.HasTag(Mover_IsFalling);
-	}
-
-	return false;
+	return HasGameplayTag(Mover_IsFalling, true);
 }
 
 bool UCharacterMoverComponent::IsAirborne() const
 {
-	if (const UBaseMovementMode* Mode = GetMovementMode())
-	{
-		return Mode->GameplayTags.HasTag(Mover_IsInAir);
-	}
-
-	return false;
+	return HasGameplayTag(Mover_IsInAir, true);
 }
 
 bool UCharacterMoverComponent::IsOnGround() const
 {
-	if (const UBaseMovementMode* Mode = GetMovementMode())
-	{
-		return Mode->GameplayTags.HasTag(Mover_IsOnGround);
-	}
-
-	return false;
+	return HasGameplayTag(Mover_IsOnGround, true);
 }
 
 bool UCharacterMoverComponent::IsSwimming() const
 {
-	if (const UBaseMovementMode* Mode = GetMovementMode())
-	{
-		return Mode->GameplayTags.HasTag(Mover_IsSwimming);
-	}
-
-	return false;
+	return HasGameplayTag(Mover_IsSwimming, true);
 }
 
 bool UCharacterMoverComponent::IsSlopeSliding() const
@@ -117,15 +94,75 @@ bool UCharacterMoverComponent::Jump()
 	return false;
 }
 
+bool UCharacterMoverComponent::CanCrouch()
+{
+	return true;
+}
+
+void UCharacterMoverComponent::Crouch()
+{
+	if (CanCrouch())
+	{
+		bWantsToCrouch = true;
+	}
+}
+
+void UCharacterMoverComponent::UnCrouch()
+{
+	bWantsToCrouch = false;
+}
+
 void UCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd)
 {
 	if (bHandleJump)
 	{
 		const FCharacterDefaultInputs* CharacterInputs = InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
-	
 		if (CharacterInputs && CharacterInputs->bIsJumpJustPressed && CanActorJump())
 		{
 			Jump();
 		}
+	}
+	
+	const FStanceModifier* StanceModifier = static_cast<const FStanceModifier*>(FindMovementModifier(StanceModifierHandle));
+	// This is a fail safe in case our handle was bad - try finding the modifier by type if we can
+	if (!StanceModifier)
+	{
+		StanceModifier = FindMovementModifierByType<FStanceModifier>();
+	}
+	
+	EStanceMode OldActiveStance = EStanceMode::Invalid;
+	if (StanceModifier)
+	{
+		OldActiveStance = StanceModifier->ActiveStance;
+	}
+	
+	const bool bIsCrouching = HasGameplayTag(Mover_IsCrouching, true);
+	if (bIsCrouching && (!bWantsToCrouch || !CanCrouch()))
+	{	
+		if (StanceModifier && StanceModifier->CanExpand(this))
+		{
+			CancelModifierFromHandle(StanceModifier->GetHandle());
+			StanceModifierHandle.Invalidate();
+
+			StanceModifier = nullptr;
+		}
+	}
+	else if (!bIsCrouching && bWantsToCrouch && CanCrouch())
+	{
+		TSharedPtr<FStanceModifier> NewStanceModifier = MakeShared<FStanceModifier>();
+		StanceModifierHandle = QueueMovementModifier(NewStanceModifier);
+
+		StanceModifier = NewStanceModifier.Get();
+	}
+	
+	EStanceMode NewActiveStance = EStanceMode::Invalid;
+	if (StanceModifier)
+	{
+		NewActiveStance = StanceModifier->ActiveStance;
+	}
+
+	if (OldActiveStance != NewActiveStance)
+	{
+		OnStanceChanged.Broadcast(OldActiveStance, NewActiveStance);
 	}
 }
