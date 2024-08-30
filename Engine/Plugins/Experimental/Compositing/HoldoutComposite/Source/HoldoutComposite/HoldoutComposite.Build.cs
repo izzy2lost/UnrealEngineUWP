@@ -43,7 +43,9 @@ public class HoldoutComposite : ModuleRules
 				new string[]
 				{
 					"UnrealEd",
+					"SettingsEditor",
 					"Slate",
+					"SlateCore",
 				}
 			);
 		}

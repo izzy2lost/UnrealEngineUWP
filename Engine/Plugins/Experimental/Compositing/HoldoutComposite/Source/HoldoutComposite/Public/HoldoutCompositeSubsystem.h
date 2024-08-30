@@ -9,6 +9,8 @@
 #include "HoldoutCompositeSubsystem.generated.h"
 
 class FHoldoutCompositeSceneViewExtension;
+class SNotificationItem;
+class URendererSettings;
 
 /**
  * Composite subsytem used as an interface to the (private) scene view extension.
@@ -41,6 +43,19 @@ public:
 	HOLDOUTCOMPOSITE_API void UnregisterPrimitives(TArrayView<TSoftObjectPtr<UPrimitiveComponent>> InPrimitiveComponents, bool bInHoldoutState=false);
 
 private:
+
+	/* Returns true if the (renderer) project settings are correctly enabled for the composite to be active. */
+	bool ValidateProjectSettings();
+
+#if WITH_EDITOR
+	/* Toast notification to ask users to enable the missing project settings. */
+	void PrimitiveHoldoutSettingsNotification(URendererSettings* RendererSettings);
+
+	/* Toast notification item. */
+	TWeakPtr<SNotificationItem> HoldoutNotificationItem;
+#endif
+
+	/* Owned scene view extension. */
 	TSharedPtr<FHoldoutCompositeSceneViewExtension, ESPMode::ThreadSafe> HoldoutCompositeViewExtension;
 };
 
