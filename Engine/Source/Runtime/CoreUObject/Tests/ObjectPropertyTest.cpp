@@ -64,7 +64,7 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddress")
 
 	FWarnFilterScope _([](const TCHAR* Message, ELogVerbosity::Type Verbosity, const FName& Category)
 		{
-			if (Category == TEXT("LogProperty") && FCString::Strstr(Message, TEXT("Reference will be nullptred")) && Verbosity == ELogVerbosity::Type::Warning)
+			if (Category == TEXT("LogProperty") && FCString::Strstr(Message, TEXT("Reference will be nulled")) && Verbosity == ELogVerbosity::Type::Warning)
 			{
 				return true;
 			}

@@ -799,7 +799,7 @@ void FObjectPropertyBase::CheckValidObject(void* ValueAddress, TObjectPtr<UObjec
 			if (!HasAnyPropertyFlags(CPF_NonNullable))
 			{
 				UE_LOG(LogProperty, Warning,
-					TEXT("Serialized %s for a property of %s. Reference will be nullptred.\n    ReferencingObject = %s\n    Property = %s\n    Item = %s"),
+					TEXT("Serialized %s for a property of %s. Reference will be nulled.\n    ReferencingObject = %s\n    Property = %s\n    Item = %s"),
 					*ObjectClass->GetFullName(),
 					*PropertyClass->GetFullName(),
 					*GetFullNameSafe(SerializeContext ? SerializeContext->SerializedObject : nullptr),

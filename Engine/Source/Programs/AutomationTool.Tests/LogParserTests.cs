@@ -655,7 +655,7 @@ namespace AutomationTool.Tests
 			string[] lines =
 			{
 				@"Execution of commandlet took:  749.68 seconds",
-				@"LogShooterGAme: Error: Serialized Class /Script/Engine.AnimSequence for a property of Class /Script/Engine.BlendSpace. Reference will be nullptred.",
+				@"LogShooterGAme: Error: Serialized Class /Script/Engine.AnimSequence for a property of Class /Script/Engine.BlendSpace. Reference will be nulled.",
 				@"    Property = ObjectProperty /Game/Animation/Game/Enemies/HuskHusky/HuskyHusk_AnimBlueprint.HuskyHusk_AnimBlueprint_C:AnimBlueprintGeneratedConstantData:ObjectProperty_358",
 				@"    Item = AnimSequence /Game/Animation/Game/Enemies/HuskyHusk_Riot/Locomotion/Idle/Idle_Shield.Idle_Shield",
 				@"LogDataAssetDirectoryExporter: Display: 'Platform' property is of type: string",
