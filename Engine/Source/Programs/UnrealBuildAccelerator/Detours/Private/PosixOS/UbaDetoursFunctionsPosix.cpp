@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#define UBA_IS_DETOURED_INCLUDE 1
+
 #include "UbaDetoursFileMappingTable.h"
 #include "UbaBinaryReaderWriter.h"
 #include "UbaDirectoryTable.h"
