@@ -2318,7 +2318,7 @@ void AddCameraActorSelectSection(UToolMenu* InMenu)
 		LookThroughActors.Add(Cast<AActor>(*It));
 	}
 
-	FText CameraActorsHeading = LOCTEXT("CameraActorsHeading", "Placed Cameras and Scene Capture Actors");
+	FText CameraActorsHeading = LOCTEXT("CameraActorsHeading", "Cameras");
 
 	FToolMenuInsert InsertPosition("LevelViewportCameraType_Perspective", EToolMenuInsertType::After);
 
