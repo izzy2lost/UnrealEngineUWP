@@ -7,19 +7,25 @@ namespace Chaos
 {
 	void FModuleFactoryRegister::RegisterFactory(const FName TypeName, TWeakPtr<IFactoryModule> InFactory)
 	{
-		if (!ContainsFactory(TypeName))
+		RegisterFactory(GetModuleHash(TypeName), InFactory);
+	}
+
+	void FModuleFactoryRegister::RegisterFactory(const uint32 TypeNameHash, TWeakPtr<IFactoryModule> InFactory)
+	{
+		if (!ContainsFactory(TypeNameHash))
 		{
-			RegisteredFactoriesByName.Add(TypeName, InFactory);
+			RegisteredFactoriesByName.Add(TypeNameHash, InFactory);
 		}
 	}
 
 	void FModuleFactoryRegister::RemoveFactory(TWeakPtr<IFactoryModule> InFactory)
 	{
-		for (TPair<FName, TWeakPtr<IFactoryModule>> Pair : RegisteredFactoriesByName)
+		for (TPair<uint32, TWeakPtr<IFactoryModule>> Pair : RegisteredFactoriesByName)
 		{
 			if (Pair.Value == InFactory)
-			{RegisteredFactoriesByName.Remove(Pair.Key);
-				
+			{
+				RegisteredFactoriesByName.Remove(Pair.Key);
+			
 				return;
 			}
 		}
@@ -32,16 +38,21 @@ namespace Chaos
 
 	bool FModuleFactoryRegister::ContainsFactory(const FName TypeName) const
 	{
-		return RegisteredFactoriesByName.Contains(TypeName);
+		return ContainsFactory(GetModuleHash(TypeName));
 	}
 
-	TSharedPtr<Chaos::FModuleNetData> FModuleFactoryRegister::GenerateNetData(const FName TypeName, const int32 SimArrayIndex)
+	bool FModuleFactoryRegister::ContainsFactory(const uint32 TypeNameHash) const
+	{
+		return RegisteredFactoriesByName.Contains(TypeNameHash);
+	}
+
+	TSharedPtr<Chaos::FModuleNetData> FModuleFactoryRegister::GenerateNetData(const uint32 TypeNameHash, const int32 SimArrayIndex)
 	{
 		using namespace Chaos;
 
-		if (RegisteredFactoriesByName.Contains(TypeName))
+		if (RegisteredFactoriesByName.Contains(TypeNameHash))
 		{
-			TSharedPtr<IFactoryModule> PinnedFactory = RegisteredFactoriesByName[TypeName].Pin();
+			TSharedPtr<IFactoryModule> PinnedFactory = RegisteredFactoriesByName[TypeNameHash].Pin();
 
 			if (PinnedFactory.IsValid())
 			{
@@ -50,7 +61,7 @@ namespace Chaos
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("No factory registered for name '%s'"), *TypeName.ToString());
+			UE_LOG(LogTemp, Error, TEXT("No factory registered for hashed type %d"), TypeNameHash);
 		}
 
 		return nullptr;
