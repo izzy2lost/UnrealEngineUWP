@@ -53,7 +53,7 @@ void UPropertyAnimatorCoreBase::UpdateAnimatorDisplayName()
 	TArray<FString> PropertiesNames;
 	for (const FPropertyAnimatorCoreData& LinkedProperty : GetLinkedProperties())
 	{
-		PropertiesNames.Add(LinkedProperty.GetPropertyDisplayName().ToString());
+		PropertiesNames.Add(LinkedProperty.GetPropertyDisplayName());
 	}
 
 	auto FindCommonPrefix = [](const TConstArrayView<FString>& InNames)->FString

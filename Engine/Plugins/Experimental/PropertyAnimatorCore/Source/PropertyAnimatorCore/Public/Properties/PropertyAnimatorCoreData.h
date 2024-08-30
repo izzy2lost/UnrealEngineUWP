@@ -94,11 +94,8 @@ struct FPropertyAnimatorCoreData
 		return !ChainProperties.IsEmpty() ? ChainProperties.Last().Get() : nullptr;
 	}
 
-	/** The full friendly display name from the member property to the inner property */
-	FName GetPropertyDisplayName() const
-	{
-		return PropertyDisplayName;
-	}
+	/** The friendly display name from the member property to the inner property */
+	PROPERTYANIMATORCORE_API FString GetPropertyDisplayName() const;
 
 	/** The full path of a property with its owner */
 	FString GetPathHash() const
@@ -206,9 +203,6 @@ private:
 
 	static FName GetPropertyTypeName(const FProperty* InProperty);
 
-	/** Internal use only, used to quickly identify a data within a controller */
-	explicit FPropertyAnimatorCoreData(const FString& InPathHash, FName InDisplayName);
-
 	/** Internal use only, get property value */
 	void GetPropertyValuePtrInternal(void* OutValue) const;
 
@@ -231,9 +225,9 @@ private:
 	UPROPERTY()
 	TWeakObjectPtr<UObject> OwnerWeak;
 
-	/** The friendly display name of the property we are controlling */
-	UPROPERTY(VisibleInstanceOnly, Category="Property")
-	FName PropertyDisplayName;
+	/** The cached friendly display name of the property we are controlling */
+	UPROPERTY(Transient)
+	FString PropertyDisplayName;
 
 	/** Used to quickly compare struct of this type */
 	UPROPERTY()

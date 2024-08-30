@@ -170,6 +170,73 @@ TArray<FString> FPropertyAnimatorCoreData::GetOuterNames() const
 	return OuterNames;
 }
 
+FString FPropertyAnimatorCoreData::GetPropertyDisplayName() const
+{
+	if (!PropertyDisplayName.IsEmpty())
+	{
+		return PropertyDisplayName;
+	}
+
+	const FString ResolverName = IsResolvable()
+		? (GetPropertyResolver()->GetResolverName().ToString() + TEXT("."))
+		: TEXT("");
+
+	FString DisplayName;
+	FString PropertyTypePath;
+	for (const TFieldPath<FProperty>& ChainProperty : ChainProperties)
+	{
+		FString FriendlyName = ChainProperty->GetName();
+
+		if (ChainProperty->IsA<FBoolProperty>())
+		{
+			FriendlyName.RemoveFromStart(TEXT("b"), ESearchCase::Type::CaseSensitive);
+		}
+
+		DisplayName += DisplayName.IsEmpty()
+			? FriendlyName
+			: (TEXT(".") + FriendlyName);
+
+		const FString TypeName = GetPropertyTypeName(ChainProperty.Get()).ToString();
+
+		PropertyTypePath += PropertyTypePath.IsEmpty()
+			? TypeName
+			: (TEXT(".") + TypeName);
+	}
+
+	if (!ChainProperties.IsEmpty())
+	{
+		const FString LeafPropertyName = ChainProperties.Last()->GetName();
+
+		PropertyTypePath += PropertyTypePath.IsEmpty()
+			? LeafPropertyName
+			: (TEXT(".") + LeafPropertyName);
+	}
+
+	FPropertyAnimatorCoreData* MutableThis = const_cast<FPropertyAnimatorCoreData*>(this);
+
+	// Find alias
+	FString AliasName;
+	if (const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
+	{
+		AliasName = AnimatorSubsystem->FindPropertyAlias(PropertyTypePath);
+	}
+
+	if (!AliasName.IsEmpty())
+	{
+		int32 LastPeriodIndex;
+		if (DisplayName.FindLastChar(TEXT('.'), LastPeriodIndex))
+		{
+			DisplayName = DisplayName.Left(LastPeriodIndex + 1);
+		}
+
+		DisplayName += AliasName;
+	}
+
+	MutableThis->PropertyDisplayName = ResolverName + DisplayName;
+
+	return PropertyDisplayName;
+}
+
 FName FPropertyAnimatorCoreData::GetMemberPropertyName() const
 {
 	const FProperty* MemberProperty = GetMemberProperty();
@@ -379,12 +446,6 @@ UPropertyAnimatorCoreHandlerBase* FPropertyAnimatorCoreData::GetPropertyHandler(
 	return PropertyHandler;
 }
 
-FPropertyAnimatorCoreData::FPropertyAnimatorCoreData(const FString& InPathHash, FName InDisplayName)
-	: PropertyDisplayName(InDisplayName)
-	, PathHash(InPathHash)
-{
-}
-
 void FPropertyAnimatorCoreData::GetPropertyValuePtrInternal(void* OutValue) const
 {
 	const FProperty* MemberProperty = GetMemberProperty();
@@ -579,17 +640,7 @@ void FPropertyAnimatorCoreData::GeneratePropertyPath()
 	for (const TFieldPath<FProperty>& ChainProperty : ChainProperties)
 	{
 		PathHash += TEXT(".") + ChainProperty->GetName();
-
-		FString FriendlyName = ChainProperty->GetName();
-		if (ChainProperty->IsA<FBoolProperty>())
-		{
-			FriendlyName.RemoveFromStart(TEXT("b"), ESearchCase::Type::CaseSensitive);
-		}
-
-		DisplayName += DisplayName.IsEmpty() ? FriendlyName : TEXT(".") + FriendlyName;
 	}
-
-	PropertyDisplayName = FName(DisplayName);
 }
 
 bool FPropertyAnimatorCoreData::FindSetterFunctions()

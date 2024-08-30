@@ -42,6 +42,13 @@ void UPropertyAnimatorCoreSubsystem::Initialize(FSubsystemCollectionBase& Collec
 	{
 		return InOwner->FindFunction(TEXT("SetActorHiddenInGame"));
 	});
+
+	// Register alias for Rotator properties
+
+	const FString PropertyType = TEXT("Rotator.double.");
+	RegisterPropertyAlias(PropertyType + GET_MEMBER_NAME_STRING_CHECKED(FRotator, Roll), TEXT("X"));
+	RegisterPropertyAlias(PropertyType + GET_MEMBER_NAME_STRING_CHECKED(FRotator, Pitch), TEXT("Y"));
+	RegisterPropertyAlias(PropertyType + GET_MEMBER_NAME_STRING_CHECKED(FRotator, Yaw), TEXT("Z"));
 }
 
 void UPropertyAnimatorCoreSubsystem::Deinitialize()
@@ -86,9 +93,12 @@ bool UPropertyAnimatorCoreSubsystem::RegisterAnimatorClass(const UClass* InAnima
 
 	if (UPropertyAnimatorCoreBase* CDO = InAnimatorClass->GetDefaultObject<UPropertyAnimatorCoreBase>())
 	{
-		AnimatorsWeak.Add(CDO);
+		if (!CDO->GetAnimatorOriginalName().IsNone())
+		{
+			AnimatorsWeak.Add(CDO);
 
-		return true;
+			return true;
+		}
 	}
 
 	return false;
@@ -1168,6 +1178,38 @@ TSet<UPropertyAnimatorCoreConverterBase*> UPropertyAnimatorCoreSubsystem::GetSup
 	}
 
 	return SupportedConverters;
+}
+
+bool UPropertyAnimatorCoreSubsystem::RegisterPropertyAlias(const FString& InPropertyIdentifier, const FString& InAliasPropertyName)
+{
+	if (InPropertyIdentifier.IsEmpty() || InAliasPropertyName.IsEmpty())
+	{
+		return false;
+	}
+
+	PropertyAliases.Add(InPropertyIdentifier, InAliasPropertyName);
+
+	return true;
+}
+
+bool UPropertyAnimatorCoreSubsystem::UnregisterPropertyAlias(const FString& InPropertyIdentifier)
+{
+	return PropertyAliases.Remove(InPropertyIdentifier) > 0;
+}
+
+FString UPropertyAnimatorCoreSubsystem::FindPropertyAlias(const FString& InPropertyIdentifier) const
+{
+	FString Alias;
+
+	if (!InPropertyIdentifier.IsEmpty())
+	{
+		if (const FString* const AliasPtr = PropertyAliases.Find(InPropertyIdentifier))
+		{
+			Alias = *AliasPtr;
+		}
+	}
+
+	return Alias;
 }
 
 void UPropertyAnimatorCoreSubsystem::SetActorAnimatorsEnabled(const TSet<AActor*>& InActors, bool bInEnabled, bool bInTransact)

@@ -143,6 +143,15 @@ public:
 	/** Finds suitable converters for a type conversion */
 	PROPERTYANIMATORCORE_API TSet<UPropertyAnimatorCoreConverterBase*> GetSupportedConverters(const FPropertyBagPropertyDesc& InFromProperty, const FPropertyBagPropertyDesc& InToProperty) const;
 
+	/** Registers a property alias by using a property identifier and property name, property identifier should be like Type.InnerType.PropertyName */
+	bool RegisterPropertyAlias(const FString& InPropertyIdentifier, const FString& InAliasPropertyName);
+
+	/** Unregisters a property alias */
+	bool UnregisterPropertyAlias(const FString& InPropertyIdentifier);
+
+	/** Finds a property alias registered or none */
+	FString FindPropertyAlias(const FString& InPropertyIdentifier) const;
+
 	/** Create an animator of specific class for an actor */
 	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreBase* CreateAnimator(AActor* InActor, const UClass* InAnimatorClass, UPropertyAnimatorCorePresetBase* InPreset = nullptr, bool bInTransact = false) const;
 
@@ -226,4 +235,7 @@ protected:
 
 	/** Some property and their setter cannot be identified automatically, use manual setter resolvers */
 	TMap<FName, TFunction<UFunction*(const UObject*)>> SetterResolvers;
+
+	/** Some property should have a friendlier name and replace the original name by an alias */
+	TMap<FString, FString> PropertyAliases;
 };
