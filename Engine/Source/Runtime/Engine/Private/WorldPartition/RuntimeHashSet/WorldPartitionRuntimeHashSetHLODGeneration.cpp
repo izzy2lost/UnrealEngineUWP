@@ -200,6 +200,12 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 			int32 CellDescInstanceIndex = 0;
 			for (URuntimePartition::FCellDescInstance& CellDescInstance : CellDescInstances)
 			{
+				// Skip non-spatially loaded cells as they require no HLOD representation
+				if (!CellDescInstance.bIsSpatiallyLoaded)
+				{
+					continue;
+				}
+
 				const FCellUniqueId CellUniqueId = GetCellUniqueId(CellDescInstance);
 
 				UE_LOG(LogWorldPartition, Display, TEXT("[%d / %d] Processing cell %s..."), ++CellDescInstanceIndex, CellDescInstances.Num(), *CellUniqueId.Name);
