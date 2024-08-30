@@ -22,17 +22,15 @@ namespace Chaos
 		}
 		
 		void RegisterFactory(const FName TypeName, TWeakPtr<IFactoryModule> InFactory);
-		void RegisterFactory(const uint32 TypeNameHash, TWeakPtr<IFactoryModule> InFactory);
 		void RemoveFactory(TWeakPtr<IFactoryModule> InFactory);
 		void Reset();
 		bool ContainsFactory(const FName TypeName) const;
-		bool ContainsFactory(const uint32 TypeNameHash) const;
-		TSharedPtr<Chaos::FModuleNetData> GenerateNetData(const uint32 TypeNameHash, const int32 SimArrayIndex);
+		TSharedPtr<Chaos::FModuleNetData> GenerateNetData(const FName TypeName, const int32 SimArrayIndex);
 
 	protected:
 
 		FModuleFactoryRegister() = default;
-		TMap<int32, TWeakPtr<IFactoryModule>> RegisteredFactoriesByName;
+		TMap<FName, TWeakPtr<IFactoryModule>> RegisteredFactoriesByName;
 	};
 	
 	template<typename _To, typename ..._Rest>
@@ -46,15 +44,14 @@ namespace Chaos
 		{
 			return false;
 		}
-		uint32 SimTypeNameHash = GetTypeHash(SimTypeName);
-		if(FModuleFactoryRegister::Get().ContainsFactory(SimTypeNameHash))
+		if(FModuleFactoryRegister::Get().ContainsFactory(SimTypeName))
 		{
 			return true;
 		}
 		static TSharedPtr<T> SharedFactory = MakeShared<T>(args...);
 		if (SharedFactory.IsValid())
 		{
-			FModuleFactoryRegister::Get().RegisterFactory(SimTypeNameHash, SharedFactory);
+			FModuleFactoryRegister::Get().RegisterFactory(SimTypeName, SharedFactory);
 			return true;
 		}
 		return false;
