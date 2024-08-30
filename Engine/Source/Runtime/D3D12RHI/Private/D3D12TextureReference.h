@@ -12,7 +12,7 @@ class FD3D12RHITextureReference : public FD3D12DeviceChild, public FRHITextureRe
 {
 public:
 	FD3D12RHITextureReference() = delete;
-	FD3D12RHITextureReference(FD3D12Device* InDevice, FD3D12Texture* InReferencedTexture, FD3D12RHITextureReference* FirstLinkedObject);
+	FD3D12RHITextureReference(FD3D12Device* InDevice, FD3D12Texture* InReferencedTexture);
 	~FD3D12RHITextureReference();
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING

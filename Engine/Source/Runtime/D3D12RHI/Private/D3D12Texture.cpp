@@ -626,7 +626,7 @@ FD3D12Texture* FD3D12DynamicRHI::CreateD3D12Texture(const FRHITextureCreateDesc&
 	const D3D12_RESOURCE_STATES CreateState = (CreateDesc.BulkData != nullptr) ? D3D12_RESOURCE_STATE_COPY_DEST : InitialState;
 
 	FD3D12Adapter* Adapter = &GetAdapter();
-	FD3D12Texture* D3D12TextureOut = Adapter->CreateLinkedObject<FD3D12Texture>(CreateDesc.GPUMask, [&](FD3D12Device* Device, FD3D12Texture* FirstLinkedObject)
+	FD3D12Texture* D3D12TextureOut = Adapter->CreateLinkedObject<FD3D12Texture>(CreateDesc.GPUMask, [&](FD3D12Device* Device)
 	{
 		FD3D12Texture* NewTexture = CreateNewD3D12Texture(CreateDesc, Device);
 
@@ -714,7 +714,7 @@ FD3D12Texture* FD3D12DynamicRHI::CreateD3D12Texture(const FRHITextureCreateDesc&
 			Adapter->CreateUAVAliasResource(ClearValuePtr, CreateDesc.DebugName, Location);
 		}
 
-		NewTexture->CreateViews(FirstLinkedObject);
+		NewTexture->CreateViews();
 
 #if WITH_GPUDEBUGCRASH
 		if (EnumHasAnyFlags(CreateDesc.Flags, TexCreate_Invalid))
@@ -862,7 +862,7 @@ FTextureRHIRef FD3D12DynamicRHI::RHIAsyncCreateTexture2D(uint32 SizeX, uint32 Si
 	const D3D12_RESOURCE_STATES InitialState = D3D12_RESOURCE_STATE_COMMON;
 
 	FD3D12Adapter* Adapter = &GetAdapter();
-	FD3D12Texture* TextureOut = Adapter->CreateLinkedObject<FD3D12Texture>(FRHIGPUMask::All(), [&](FD3D12Device* Device, FD3D12Texture* FirstLinkedObject)
+	FD3D12Texture* TextureOut = Adapter->CreateLinkedObject<FD3D12Texture>(FRHIGPUMask::All(), [&](FD3D12Device* Device)
 	{
 		FD3D12Texture* NewTexture = CreateNewD3D12Texture(CreateDesc, Device);
 
@@ -886,7 +886,7 @@ FTextureRHIRef FD3D12DynamicRHI::RHIAsyncCreateTexture2D(uint32 SizeX, uint32 Si
 		SRVDesc.Texture2D.PlaneSlice = UE::DXGIUtilities::GetPlaneSliceFromViewFormat(PlatformResourceFormat, SRVDesc.Format);
 
 		// Create a wrapper for the SRV and set it on the texture
-		NewTexture->EmplaceSRV(SRVDesc, FirstLinkedObject);
+		NewTexture->EmplaceSRV(SRVDesc);
 
 		return NewTexture;
 	});
@@ -1250,7 +1250,7 @@ FRHIDescriptorHandle FD3D12Texture::GetDefaultBindlessHandle() const
 }
 
 
-void FD3D12Texture::CreateViews(FD3D12Texture* FirstLinkedObject)
+void FD3D12Texture::CreateViews()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(D3D12RHI::CreateViews);
 
@@ -1309,7 +1309,7 @@ void FD3D12Texture::CreateViews(FD3D12Texture* FirstLinkedObject)
 			RTVDesc.Texture3D.WSize = Desc.Depth;
 
 			SetNumRTVs(1);
-			EmplaceRTV(RTVDesc, 0, FirstLinkedObject);
+			EmplaceRTV(RTVDesc, 0);
 		}
 		else
 		{
@@ -1336,7 +1336,7 @@ void FD3D12Texture::CreateViews(FD3D12Texture* FirstLinkedObject)
 						RTVDesc.Texture2DArray.MipSlice = MipIndex;
 						RTVDesc.Texture2DArray.PlaneSlice = UE::DXGIUtilities::GetPlaneSliceFromViewFormat(PlatformResourceFormat, RTVDesc.Format);
 
-						EmplaceRTV(RTVDesc, RTVIndex++, FirstLinkedObject);
+						EmplaceRTV(RTVDesc, RTVIndex++);
 					}
 				}
 				else
@@ -1378,7 +1378,7 @@ void FD3D12Texture::CreateViews(FD3D12Texture* FirstLinkedObject)
 						}
 					}
 
-					EmplaceRTV(RTVDesc, RTVIndex++, FirstLinkedObject);
+					EmplaceRTV(RTVDesc, RTVIndex++);
 				}
 			}
 		}
@@ -1431,7 +1431,7 @@ void FD3D12Texture::CreateViews(FD3D12Texture* FirstLinkedObject)
 				DSVDesc.Flags |= (AccessType & FExclusiveDepthStencil::DepthWrite_StencilRead) ? D3D12_DSV_FLAG_READ_ONLY_STENCIL : D3D12_DSV_FLAG_NONE;
 			}
 
-			EmplaceDSV(DSVDesc, AccessType, FirstLinkedObject);
+			EmplaceDSV(DSVDesc, AccessType);
 		}
 	}
 
@@ -1496,7 +1496,7 @@ void FD3D12Texture::CreateViews(FD3D12Texture* FirstLinkedObject)
 			}
 		}
 
-		EmplaceSRV(SRVDesc, FirstLinkedObject);
+		EmplaceSRV(SRVDesc);
 	}
 }
 
@@ -2461,7 +2461,7 @@ FD3D12Texture* FD3D12DynamicRHI::CreateTextureFromResource(bool bTextureArray, b
 		.SetNumSamples(NumSamples)
 		.SetInitialState(ERHIAccess::SRVMask);
 
-	FD3D12Texture* Texture2D = Adapter->CreateLinkedObject<FD3D12Texture>(Device->GetGPUMask(), [&](FD3D12Device* Device, FD3D12Texture* FirstLinkedObject)
+	FD3D12Texture* Texture2D = Adapter->CreateLinkedObject<FD3D12Texture>(Device->GetGPUMask(), [&](FD3D12Device* Device)
 	{
 		return CreateNewD3D12Texture(CreateDesc, Device);
 	});
@@ -2471,7 +2471,7 @@ FD3D12Texture* FD3D12DynamicRHI::CreateTextureFromResource(bool bTextureArray, b
 	Location.SetResource(TextureResource);
 	Location.SetGPUVirtualAddress(TextureResource->GetGPUVirtualAddress());
 
-	Texture2D->CreateViews(nullptr);		// Always single GPU object, so FirstLinkedObject is nullptr
+	Texture2D->CreateViews();
 
 	FD3D12TextureStats::D3D12TextureAllocated(*Texture2D);
 
@@ -2546,7 +2546,7 @@ FD3D12Texture* FD3D12DynamicRHI::CreateAliasedD3D12Texture2D(FD3D12Texture* Sour
 	const FString Name = SourceTexture->GetName().ToString() + TEXT("Alias");
 	FRHITextureCreateDesc CreateDesc(SourceTexture->GetDesc(), ERHIAccess::SRVMask, *Name);
 
-	FD3D12Texture* Texture2D = Adapter->CreateLinkedObject<FD3D12Texture>(Device->GetGPUMask(), [&](FD3D12Device* Device, FD3D12Texture* FirstLinkedObject)
+	FD3D12Texture* Texture2D = Adapter->CreateLinkedObject<FD3D12Texture>(Device->GetGPUMask(), [&](FD3D12Device* Device)
 	{
 		return CreateNewD3D12Texture(CreateDesc, Device);
 	});

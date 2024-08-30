@@ -2,10 +2,10 @@
 
 #include "D3D12TextureReference.h"
 
-FD3D12RHITextureReference::FD3D12RHITextureReference(FD3D12Device* InDevice, FD3D12Texture* InReferencedTexture, FD3D12RHITextureReference* FirstLinkedObject)
+FD3D12RHITextureReference::FD3D12RHITextureReference(FD3D12Device* InDevice, FD3D12Texture* InReferencedTexture)
 	: FD3D12DeviceChild(InDevice)
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	, FRHITextureReference(InReferencedTexture, FirstLinkedObject ? FirstLinkedObject->BindlessHandle : InDevice->GetParentAdapter()->GetBindlessManager().AllocateResourceHandle())
+	, FRHITextureReference(InReferencedTexture, InDevice->GetBindlessDescriptorManager().AllocateResourceHandle())
 #else
 	, FRHITextureReference(InReferencedTexture)
 #endif
@@ -30,11 +30,7 @@ FD3D12RHITextureReference::~FD3D12RHITextureReference()
 	{
 		FD3D12DynamicRHI::ResourceCast(GetReferencedTexture())->RemoveRenameListener(this);
 
-		// Bindless handle is shared, head link object handles freeing
-		if (IsHeadLink())
-		{
-			GetParentDevice()->GetBindlessDescriptorManager().DeferredFreeFromDestructor(BindlessHandle);
-		}
+		GetParentDevice()->GetBindlessDescriptorManager().DeferredFreeFromDestructor(BindlessHandle);
 	}
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 }
@@ -94,9 +90,9 @@ FTextureReferenceRHIRef FD3D12DynamicRHI::RHICreateTextureReference(FRHICommandL
 	FRHITexture* ReferencedTexture = InReferencedTexture ? InReferencedTexture : FRHITextureReference::GetDefaultTexture();
 
 	FD3D12Adapter* Adapter = &GetAdapter();
-	return Adapter->CreateLinkedObject<FD3D12RHITextureReference>(FRHIGPUMask::All(), [ReferencedTexture](FD3D12Device* Device, FD3D12RHITextureReference* FirstLinkedObject)
+	return Adapter->CreateLinkedObject<FD3D12RHITextureReference>(FRHIGPUMask::All(), [ReferencedTexture](FD3D12Device* Device)
 	{
-		return new FD3D12RHITextureReference(Device, ResourceCast(ReferencedTexture, Device->GetGPUIndex()), FirstLinkedObject);
+		return new FD3D12RHITextureReference(Device, ResourceCast(ReferencedTexture, Device->GetGPUIndex()));
 	});
 }
 

@@ -175,10 +175,6 @@ public:
 		return GetFirstLinkedObject() == this;
 	}
 
-	// The creation lambda function is passed FD3D12Device, and a pointer to the first linked object, or nullptr if the object being constructed
-	// is itself the first object.  The first object pointer is needed for cases where resources need to be shared for all linked objects,
-	// such as bindless resource descriptor handles, which need to be the same across GPUs for use in platform independent logic which generates
-	// descriptor tables.
 	template <typename ReturnType, typename CreationCoreFunction, typename CreationParameterFunction>
 	static ReturnType* CreateLinkedObjects(FRHIGPUMask GPUMask, const CreationParameterFunction& pfnGetCreationParameter, const CreationCoreFunction& pfnCreationCore)
 	{
@@ -187,7 +183,7 @@ public:
 #if WITH_MGPU
 		for (uint32 GPUIndex : GPUMask)
 		{
-			ReturnType* NewObject = pfnCreationCore(pfnGetCreationParameter(GPUIndex), ObjectOut);
+			ReturnType* NewObject = pfnCreationCore(pfnGetCreationParameter(GPUIndex));
 			CA_ASSUME(NewObject != nullptr);
 			if (ObjectOut == nullptr)
 			{

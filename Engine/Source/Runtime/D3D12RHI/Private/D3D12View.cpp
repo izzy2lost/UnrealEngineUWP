@@ -213,19 +213,15 @@ FD3D12ViewRange::FD3D12ViewRange(D3D12_UNORDERED_ACCESS_VIEW_DESC const& ViewDes
 //
 // -----------------------------------------------------------------------------------------------------
 
-FD3D12View::FD3D12View(FD3D12Device* InDevice, ERHIDescriptorHeapType InHeapType, FD3D12View* FirstLinkedObject)
+FD3D12View::FD3D12View(FD3D12Device* InDevice, ERHIDescriptorHeapType InHeapType)
 	: FD3D12DeviceChild(InDevice)
 	, OfflineCpuHandle(InDevice->GetOfflineDescriptorManager(InHeapType).AllocateHeapSlot())
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	, bFirstLinkedObject(FirstLinkedObject == nullptr)		// If FirstLinkedObject is nullptr, this newly constructed object itself must be the first
-#endif
 	, HeapType(InHeapType)
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (HeapType == ERHIDescriptorHeapType::Standard)
 	{
-		// Bindless handle is shared across linked objects, so pull the handle from the first object if available, or allocate if we are the first
-		BindlessHandle = FirstLinkedObject ? FirstLinkedObject->BindlessHandle : InDevice->GetParentAdapter()->GetBindlessManager().AllocateResourceHandle();
+		BindlessHandle = InDevice->GetBindlessDescriptorManager().AllocateResourceHandle();
 	}
 #endif
 }
@@ -241,11 +237,7 @@ FD3D12View::~FD3D12View()
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (BindlessHandle.IsValid())
 	{
-		// Bindless handle is shared, first linked object handles freeing
-		if (bFirstLinkedObject)
-		{
-			GetParentDevice()->GetBindlessDescriptorManager().DeferredFreeFromDestructor(BindlessHandle);
-		}
+		GetParentDevice()->GetBindlessDescriptorManager().DeferredFreeFromDestructor(BindlessHandle);
 		BindlessHandle = {};
 	}
 #endif
@@ -343,8 +335,8 @@ void FD3D12View::ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseS
 //
 // -----------------------------------------------------------------------------------------------------
 
-FD3D12ConstantBufferView::FD3D12ConstantBufferView(FD3D12Device* InDevice, FD3D12ConstantBufferView* FirstLinkedObject)
-	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard, FirstLinkedObject)
+FD3D12ConstantBufferView::FD3D12ConstantBufferView(FD3D12Device* InDevice)
+	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard)
 {}
 
 void FD3D12ConstantBufferView::CreateView(FResourceInfo const& InResource, uint32 InOffset, uint32 InAlignedSize)
@@ -375,12 +367,12 @@ void FD3D12ConstantBufferView::UpdateDescriptor()
 
 // -----------------------------------------------------------------------------------------------------
 //
-//                                       FD3D12RenderTargetView                                       
+//                                       FD3D12ConstantBufferView                                       
 //
 // -----------------------------------------------------------------------------------------------------
 
-FD3D12RenderTargetView::FD3D12RenderTargetView(FD3D12Device* InDevice, FD3D12RenderTargetView* FirstLinkedObject)
-	: TD3D12View(InDevice, ERHIDescriptorHeapType::RenderTarget, FirstLinkedObject)
+FD3D12RenderTargetView::FD3D12RenderTargetView(FD3D12Device* InDevice)
+	: TD3D12View(InDevice, ERHIDescriptorHeapType::RenderTarget)
 {}
 
 void FD3D12RenderTargetView::UpdateDescriptor()
@@ -402,8 +394,8 @@ void FD3D12RenderTargetView::UpdateDescriptor()
 //
 // -----------------------------------------------------------------------------------------------------
 
-FD3D12DepthStencilView::FD3D12DepthStencilView(FD3D12Device* InDevice, FD3D12DepthStencilView* FirstLinkedObject)
-	: TD3D12View(InDevice, ERHIDescriptorHeapType::DepthStencil, FirstLinkedObject)
+FD3D12DepthStencilView::FD3D12DepthStencilView(FD3D12Device* InDevice)
+	: TD3D12View(InDevice, ERHIDescriptorHeapType::DepthStencil)
 {}
 
 void FD3D12DepthStencilView::UpdateDescriptor()

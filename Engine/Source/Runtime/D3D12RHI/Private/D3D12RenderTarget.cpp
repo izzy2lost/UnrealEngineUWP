@@ -711,7 +711,7 @@ void FD3D12DynamicRHI::ReadSurfaceDataMSAARaw(FRHITexture* TextureRHI, FIntRect 
 	RTVDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 	RTVDesc.Texture2D.MipSlice = 0;
 
-	FD3D12RenderTargetView NonMSAARTV(Device, nullptr);			// Always single GPU object, so FirstLinkedObject is nullptr
+	FD3D12RenderTargetView NonMSAARTV(Device);
 	NonMSAARTV.CreateView(&ResourceLocation, RTVDesc);
 
 	// Create a CPU-accessible staging texture to copy the resolved sample data to.

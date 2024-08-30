@@ -111,7 +111,7 @@ FD3D12Texture* GetSwapChainSurface(FD3D12Device* Parent, EPixelFormat PixelForma
 
 	FD3D12DynamicRHI* DynamicRHI = FD3D12DynamicRHI::GetD3DRHI();
 
-	FD3D12Texture* SwapChainTexture = Adapter->CreateLinkedObject<FD3D12Texture>(FRHIGPUMask::All(), [&](FD3D12Device* Device, FD3D12Texture* FirstLinkedObject)
+	FD3D12Texture* SwapChainTexture = Adapter->CreateLinkedObject<FD3D12Texture>(FRHIGPUMask::All(), [&](FD3D12Device* Device)
 	{
 		FD3D12Texture* NewTexture = DynamicRHI->CreateNewD3D12Texture(CreateDesc, Device);
 
@@ -158,8 +158,8 @@ FD3D12Texture* GetSwapChainSurface(FD3D12Device* Parent, EPixelFormat PixelForma
 			RTVDescRight.Texture2DArray.ArraySize = 1;
 
 			NewTexture->SetNumRTVs(2);
-			NewTexture->EmplaceRTV(RTVDescLeft, 0, FirstLinkedObject);
-			NewTexture->EmplaceRTV(RTVDescRight, 1, FirstLinkedObject);
+			NewTexture->EmplaceRTV(RTVDescLeft, 0);
+			NewTexture->EmplaceRTV(RTVDescRight, 1);
 		}
 		else
 		{
@@ -170,7 +170,7 @@ FD3D12Texture* GetSwapChainSurface(FD3D12Device* Parent, EPixelFormat PixelForma
 			RTVDesc.Texture2D.MipSlice = 0;
 
 			NewTexture->SetNumRTVs(1);
-			NewTexture->EmplaceRTV(RTVDesc, 0, FirstLinkedObject);
+			NewTexture->EmplaceRTV(RTVDesc, 0);
 		}
 
 		// create a shader resource view to allow using the backbuffer as a texture
@@ -181,7 +181,7 @@ FD3D12Texture* GetSwapChainSurface(FD3D12Device* Parent, EPixelFormat PixelForma
 		SRVDesc.Texture2D.MostDetailedMip = 0;
 		SRVDesc.Texture2D.MipLevels = 1;
 
-		NewTexture->EmplaceSRV(SRVDesc, FirstLinkedObject);
+		NewTexture->EmplaceSRV(SRVDesc);
 
 		return NewTexture;
 	});

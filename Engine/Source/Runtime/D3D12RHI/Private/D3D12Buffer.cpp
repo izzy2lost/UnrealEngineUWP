@@ -242,7 +242,7 @@ FD3D12Buffer* FD3D12Adapter::CreateRHIBuffer(
 		const uint32 FirstGPUIndex = InGPUMask.GetFirstIndex();
 
 		FD3D12Buffer* NewBuffer0 = nullptr;
-		BufferOut = CreateLinkedObject<FD3D12Buffer>(InGPUMask, [&](FD3D12Device* Device, FD3D12Buffer* FirstLinkedObject)
+		BufferOut = CreateLinkedObject<FD3D12Buffer>(InGPUMask, [&](FD3D12Device* Device)
 		{
 			FD3D12Buffer* NewBuffer = new FD3D12Buffer(Device, BufferDesc);
 			NewBuffer->BufferAlignment = Alignment;
@@ -271,7 +271,7 @@ FD3D12Buffer* FD3D12Adapter::CreateRHIBuffer(
 	}
 	else
 	{
-		BufferOut = CreateLinkedObject<FD3D12Buffer>(InGPUMask, [&](FD3D12Device* Device, FD3D12Buffer* FirstLinkedObject)
+		BufferOut = CreateLinkedObject<FD3D12Buffer>(InGPUMask, [&](FD3D12Device* Device)
 		{
 			FD3D12Buffer* NewBuffer = new FD3D12Buffer(Device, BufferDesc);
 			NewBuffer->BufferAlignment = Alignment;
@@ -410,7 +410,7 @@ FBufferRHIRef FD3D12DynamicRHI::CreateBuffer(FRHICommandListBase& RHICmdList, FR
 {
 	if (BufferDesc.IsNull())
 	{
-		return GetAdapter().CreateLinkedObject<FD3D12Buffer>(CreateInfo.GPUMask, [BufferDesc](FD3D12Device* Device, FD3D12Buffer* FirstLinkedObject)
+		return GetAdapter().CreateLinkedObject<FD3D12Buffer>(CreateInfo.GPUMask, [BufferDesc](FD3D12Device* Device)
 		{
 			return new FD3D12Buffer(Device, BufferDesc);
 		});

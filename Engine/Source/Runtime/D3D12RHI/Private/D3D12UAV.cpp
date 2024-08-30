@@ -9,8 +9,8 @@
 //
 // -----------------------------------------------------------------------------------------------------
 
-FD3D12UnorderedAccessView::FD3D12UnorderedAccessView(FD3D12Device* InDevice, FD3D12UnorderedAccessView* FirstLinkedObject)
-	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard, FirstLinkedObject)
+FD3D12UnorderedAccessView::FD3D12UnorderedAccessView(FD3D12Device* InDevice)
+	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard)
 {}
 
 void FD3D12UnorderedAccessView::UpdateResourceInfo(const FResourceInfo& InResource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& InD3DViewDesc, EFlags InFlags)
@@ -238,9 +238,9 @@ void FD3D12UnorderedAccessView_RHI::UpdateView(FD3D12ContextArray const& Context
 	}
 }
 
-FD3D12UnorderedAccessView_RHI::FD3D12UnorderedAccessView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc, FD3D12UnorderedAccessView_RHI* FirstLinkedObject)
+FD3D12UnorderedAccessView_RHI::FD3D12UnorderedAccessView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc)
 	: FRHIUnorderedAccessView(InResource, InViewDesc)
-	, FD3D12UnorderedAccessView(InDevice, FirstLinkedObject)
+	, FD3D12UnorderedAccessView(InDevice)
 {}
 
 
@@ -257,13 +257,13 @@ FUnorderedAccessViewRHIRef FD3D12DynamicRHI::RHICreateUnorderedAccessView(FRHICo
 		? FD3D12DynamicRHI::ResourceCast(static_cast<FRHIBuffer* >(Resource))->GetLinkedObjectsGPUMask()
 		: FD3D12DynamicRHI::ResourceCast(static_cast<FRHITexture*>(Resource))->GetLinkedObjectsGPUMask();
 
-	FD3D12UnorderedAccessView_RHI* View = GetAdapter().CreateLinkedObject<FD3D12UnorderedAccessView_RHI>(RelevantGPUs, [&](FD3D12Device* Device, FD3D12UnorderedAccessView_RHI* FirstLinkedObject)
+	FD3D12UnorderedAccessView_RHI* View = GetAdapter().CreateLinkedObject<FD3D12UnorderedAccessView_RHI>(RelevantGPUs, [&](FD3D12Device* Device)
 	{
 		FRHIViewableResource* TargetResource = ViewDesc.IsBuffer()
 			? static_cast<FRHIViewableResource*>(FD3D12DynamicRHI::ResourceCast(static_cast<FRHIBuffer* >(Resource), Device->GetGPUIndex()))
 			: static_cast<FRHIViewableResource*>(FD3D12DynamicRHI::ResourceCast(static_cast<FRHITexture*>(Resource), Device->GetGPUIndex()));
 
-		return new FD3D12UnorderedAccessView_RHI(Device, TargetResource, ViewDesc, FirstLinkedObject);
+		return new FD3D12UnorderedAccessView_RHI(Device, TargetResource, ViewDesc);
 	});
 
 	View->CreateViews(RHICmdList);
@@ -356,7 +356,7 @@ void FD3D12CommandContext::ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12Com
 				}
 
 				// Scoped view will free the offline CPU handle once we return
-				FD3D12UnorderedAccessView UAV(ParentDevice, nullptr);			// Always single GPU object, so FirstLinkedObject is nullptr
+				FD3D12UnorderedAccessView UAV(ParentDevice);
 				UAV.CreateView(UnorderedAccessView->GetResourceLocation(), R32UAVDesc, FD3D12UnorderedAccessView::EFlags::None);
 
 				FD3D12OfflineDescriptor OfflineHandle = UAV.GetOfflineCpuHandle();

@@ -147,7 +147,7 @@ FRHITransientHeap* FD3D12TransientHeapCache::CreateHeap(const FRHITransientHeap:
 	// If heap is flagged for NNE buffers, make it visible on first GPU only.  Required by DirectML.
 	FRHIGPUMask VisibleNodeMask = HeapInitializer.Flags == ERHITransientHeapFlags::AllowNNEBuffers ? FRHIGPUMask::GPU0() : FRHIGPUMask::All();
 
-	return GetParentAdapter()->CreateLinkedObject<FD3D12TransientHeap>(VisibleNodeMask, [&](FD3D12Device* Device, FD3D12TransientHeap* FirstLinkedObject)
+	return GetParentAdapter()->CreateLinkedObject<FD3D12TransientHeap>(VisibleNodeMask, [&](FD3D12Device* Device)
 	{
 		return new FD3D12TransientHeap(HeapInitializer, GetParentAdapter(), Device, VisibleNodeMask);
 	});

@@ -1187,16 +1187,6 @@ void FD3D12Adapter::InitializeDevices()
 		bTrackAllAllocation = (GD3D12TrackAllAlocations || UE::RHI::UseGPUCrashDebugging() || bTraceMemAlloc) && (GetResourceHeapTier() == D3D12_RESOURCE_HEAP_TIER_2);
 #endif 
 
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-		if (Desc.MaxSupportedFeatureLevel >= D3D_FEATURE_LEVEL_12_0 && Desc.MaxSupportedShaderModel >= D3D_SHADER_MODEL_6_6 && Desc.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_3)
-		{
-			// Needs to happen before device creation below
-			BindlessManager.Init(this);
-
-			GRHIGlobals.ShaderBundles.RequiresSharedBindlessParameters = (BindlessManager.GetResourcesConfiguration() == ERHIBindlessConfiguration::AllShaders || BindlessManager.GetSamplersConfiguration() == ERHIBindlessConfiguration::AllShaders);
-		}
-#endif
-
 		// Context redirectors allow RHI commands to be executed on multiple GPUs at the
 		// same time in a multi-GPU system. Redirectors have a physical mask for the GPUs
 		// they can support and an active mask which restricts commands to operate on a
@@ -1239,6 +1229,19 @@ void FD3D12Adapter::InitializeDevices()
 
 		ERHIBindlessConfiguration BindlessResourcesConfig = ERHIBindlessConfiguration::Disabled;
 		ERHIBindlessConfiguration BindlessSamplersConfig = ERHIBindlessConfiguration::Disabled;
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+		if (Desc.MaxSupportedFeatureLevel >= D3D_FEATURE_LEVEL_12_0 && Desc.MaxSupportedShaderModel >= D3D_SHADER_MODEL_6_6 && Desc.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_3)
+		{
+			BindlessResourcesConfig = RHIGetRuntimeBindlessResourcesConfiguration(GMaxRHIShaderPlatform);
+			BindlessSamplersConfig = RHIGetRuntimeBindlessSamplersConfiguration(GMaxRHIShaderPlatform);
+
+			bBindlessResourcesAllowed = (BindlessResourcesConfig != ERHIBindlessConfiguration::Disabled);
+			bBindlessSamplersAllowed = (BindlessSamplersConfig != ERHIBindlessConfiguration::Disabled);
+
+			GRHIGlobals.ShaderBundles.RequiresSharedBindlessParameters = (BindlessResourcesConfig == ERHIBindlessConfiguration::AllShaders || BindlessSamplersConfig == ERHIBindlessConfiguration::AllShaders);
+		}
+#endif
 
 #if USE_STATIC_ROOT_SIGNATURE
 		EShaderBindingLayoutFlags GraphicsFlags{};

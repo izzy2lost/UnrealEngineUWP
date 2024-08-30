@@ -26,46 +26,6 @@ namespace UE::D3D12BindlessDescriptors
 	void DeferredFreeHeap(FD3D12Device* InDevice, FD3D12DescriptorHeap* InHeap);
 }
 
-/** Manager for configuration settings and shared descriptor allocators, stored on the adapter. */
-class FD3D12BindlessManagerAdapter : public FD3D12AdapterChild
-{
-public:
-	void Init(FD3D12Adapter* InParent);
-
-	ERHIBindlessConfiguration GetResourcesConfiguration() const { return BindlessResourcesConfiguration; }
-	ERHIBindlessConfiguration GetSamplersConfiguration() const { return BindlessSamplersConfiguration; }
-
-	bool GetResourcesAllowed() const { return bBindlessResourcesAllowed; }
-	bool GetSamplersAllowed() const { return bBindlessSamplersAllowed; }
-
-	// Bindless descriptor allocators are stored in the adapter, so descriptor handles can be allocated once and shared for multi-GPU objects
-	FRHIDescriptorHandle AllocateSamplerHandle();
-	FRHIDescriptorHandle AllocateResourceHandle();
-	void FreeSamplerHandle(FRHIDescriptorHandle Handle);
-	void FreeResourceHandle(FRHIDescriptorHandle Handle);
-
-	FCriticalSection& GetResourceHeapsCS() { return ResourceHeapsCS; }
-
-	uint32 GetResourceCapacity() const { return ResourceAllocator->GetCapacity(); }
-
-	bool GetResourceAllocatedRange(FRHIDescriptorAllocatorRange& OutAllocatedRange) const { return ResourceAllocator->GetAllocatedRange(OutAllocatedRange); }
-
-	FRHIDescriptorHandle& GetSamplerDefaultHandle() { return SamplerDefaultHandle; }
-
-private:
-	bool bBindlessResourcesAllowed = false;
-	bool bBindlessSamplersAllowed = false;
-
-	ERHIBindlessConfiguration BindlessResourcesConfiguration{};
-	ERHIBindlessConfiguration BindlessSamplersConfiguration{};
-
-	FCriticalSection ResourceHeapsCS;
-	FRHIHeapDescriptorAllocator* ResourceAllocator = nullptr;
-	FRHIHeapDescriptorAllocator* SamplerAllocator = nullptr;
-
-	FRHIDescriptorHandle SamplerDefaultHandle;
-};
-
 /** Manager specifically for bindless sampler descriptors. */
 class FD3D12BindlessSamplerManager : public FD3D12DeviceChild
 {
@@ -75,6 +35,9 @@ public:
 
 	void CleanupResources();
 
+	FRHIDescriptorHandle AllocateAndInitialize(FD3D12SamplerState* SamplerState);
+	void                 Free(FRHIDescriptorHandle InHandle);
+
 	void OpenCommandList(FD3D12CommandContext& Context);
 	void CloseCommandList(FD3D12CommandContext& Context);
 
@@ -82,8 +45,6 @@ public:
 
 	FD3D12DescriptorHeap* GetHeap() const { return GpuHeap.GetReference(); }
 	ERHIBindlessConfiguration GetConfiguration() const { return Configuration; }
-
-	void InitializeSampler(FRHIDescriptorHandle DstHandle, FD3D12SamplerState* SamplerState);
 
 private:
 	FD3D12DescriptorHeapPtr      GpuHeap;
@@ -160,9 +121,12 @@ class FD3D12BindlessResourceManager : public FD3D12DeviceChild
 {
 public:
 	FD3D12BindlessResourceManager() = delete;
-	FD3D12BindlessResourceManager(FD3D12Device* InDevice, FD3D12Adapter* InAdapter);
+	FD3D12BindlessResourceManager(FD3D12Device* InDevice, ERHIBindlessConfiguration InConfiguration, uint32 InNumDescriptors, TConstArrayView<TStatId> InStats);
 
 	void CleanupResources();
+
+	FRHIDescriptorHandle Allocate();
+	void                 Free(FRHIDescriptorHandle InHandle);
 	
 	void GarbageCollect();
 	void Recycle(FD3D12DescriptorHeap* DescriptorHeap);
@@ -181,9 +145,6 @@ public:
 
 	ERHIBindlessConfiguration GetConfiguration() const { return Configuration; }
 
-	// Called from FD3D12Adapter::AllocateBindlessResourceHandle
-	void GrowCPUHeap(uint32 OriginalNumDescriptors, uint32 NewNumDescriptors);
-
 private:
 	void CopyCpuHeap(FD3D12DescriptorHeap* DestinationHeap);
 	void AssignHeapToState(FD3D12ContextBindlessState& State);
@@ -193,10 +154,12 @@ private:
 	int AddActiveGPUHeap();
 	void ReleaseGPUHeaps();
 	void UpdateInUseGPUHeaps(bool bInUse);
+
+	FRHIDescriptorHandle ResizeGrowAndAllocate();
 	
-	// Critical section shared across devices
-	FCriticalSection&				HeapsCS;
+	FCriticalSection				HeapsCS;
 	FD3D12DescriptorHeapPtr         CpuHeap;
+	FRHIHeapDescriptorAllocator     Allocator;
 	const ERHIBindlessConfiguration Configuration;
 
 	uint64 							GarbageCollectCycle = 0;
@@ -252,13 +215,13 @@ public:
 	bool AreResourcesFullyBindless() const { return GetResourcesConfiguration() == ERHIBindlessConfiguration::AllShaders; }
 	bool AreSamplersFullyBindless () const { return GetSamplersConfiguration()  == ERHIBindlessConfiguration::AllShaders; }
 
+	FRHIDescriptorHandle AllocateResourceHandle();
+	FRHIDescriptorHandle AllocateAndInitialize(FD3D12SamplerState* SamplerState);
 	void                 ImmediateFree(FRHIDescriptorHandle InHandle);
 	void                 DeferredFreeFromDestructor(FRHIDescriptorHandle InHandle);
 
 	void GarbageCollect();
 	void Recycle(FD3D12DescriptorHeap* DescriptorHeap);
-
-	void InitializeSampler(FRHIDescriptorHandle DstHandle, FD3D12SamplerState* SamplerState) { SamplerManager->InitializeSampler(DstHandle, SamplerState); }
 
 	void InitializeDescriptor(FRHIDescriptorHandle DstHandle, FD3D12View* View);
 	void UpdateDescriptor(FD3D12ContextArray const& Contexts, FRHIDescriptorHandle DstHandle, FD3D12View* SourceView);
@@ -278,10 +241,6 @@ public:
 #endif
 
 private:
-	// Needs direct access to underlying resource manager for resource allocation functions
-	friend class FD3D12BindlessManagerAdapter;
-	FD3D12BindlessResourceManager& GetResourceManager() const { return *ResourceManager; }
-
 	TUniquePtr<FD3D12BindlessResourceManager> ResourceManager;
 	TUniquePtr<FD3D12BindlessSamplerManager>  SamplerManager;
 
@@ -289,20 +248,4 @@ private:
 	ERHIBindlessConfiguration SamplersConfiguration{};
 };
 
-#else // PLATFORM_SUPPORTS_BINDLESS_RENDERING
-
-// Stub version when bindless is compiled out
-class FD3D12BindlessManagerAdapter : public FD3D12AdapterChild
-{
-public:
-	inline void Init(FD3D12Adapter* InParent) { SetParentAdapter(InParent); }
-
-	inline FRHIDescriptorHandle AllocateSamplerHandle() { return FRHIDescriptorHandle(); }
-	inline FRHIDescriptorHandle AllocateResourceHandle() { return FRHIDescriptorHandle(); }
-	inline FRHIDescriptorHandle& GetSamplerDefaultHandle() { return SamplerDefaultHandle; }
-
-private:
-	FRHIDescriptorHandle SamplerDefaultHandle;
-};
-
-#endif // !PLATFORM_SUPPORTS_BINDLESS_RENDERING
+#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING

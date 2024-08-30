@@ -76,7 +76,7 @@ public:
 		
 	// Setup functionality
 	void InitializeTextureData(FRHICommandListBase& RHICmdList, const FRHITextureCreateDesc& CreateDesc, D3D12_RESOURCE_STATES DestinationState);
-	void CreateViews(FD3D12Texture* FirstLinkedObject);
+	void CreateViews();
 	void SetCreatedRTVsPerSlice(bool Value, int32 InRTVArraySize)
 	{
 		bCreatedRTVsPerSlice = Value;
@@ -88,25 +88,25 @@ public:
 		RenderTargetViews.SetNum(Num);
 	}
 
-	void EmplaceRTV(D3D12_RENDER_TARGET_VIEW_DESC const& RTVDesc, int32 Index, FD3D12Texture* FirstLinkedObject)
+	void EmplaceRTV(D3D12_RENDER_TARGET_VIEW_DESC const& RTVDesc, int32 Index)
 	{
 		check(RenderTargetViews.IsValidIndex(Index));
 		check(!RenderTargetViews[Index]);
 
-		RenderTargetViews[Index] = MakeShared<FD3D12RenderTargetView>(GetParentDevice(), FirstLinkedObject ? FirstLinkedObject->RenderTargetViews[Index].Get() : nullptr);
+		RenderTargetViews[Index] = MakeShared<FD3D12RenderTargetView>(GetParentDevice());
 		RenderTargetViews[Index]->CreateView(this, RTVDesc);
 	}
 
-	void EmplaceDSV(D3D12_DEPTH_STENCIL_VIEW_DESC const& DSVDesc, int32 Index, FD3D12Texture* FirstLinkedObject)
+	void EmplaceDSV(D3D12_DEPTH_STENCIL_VIEW_DESC const& DSVDesc, int32 Index)
 	{
 		check(Index < FExclusiveDepthStencil::MaxIndex);
 		check(!DepthStencilViews[Index]);
 
-		DepthStencilViews[Index] = MakeShared<FD3D12DepthStencilView>(GetParentDevice(), FirstLinkedObject ? FirstLinkedObject->DepthStencilViews[Index].Get() : nullptr);
+		DepthStencilViews[Index] = MakeShared<FD3D12DepthStencilView>(GetParentDevice());
 		DepthStencilViews[Index]->CreateView(this, DSVDesc);
 	}
 
-	void EmplaceSRV(D3D12_SHADER_RESOURCE_VIEW_DESC const& SRVDesc, FD3D12Texture* FirstLinkedObject)
+	void EmplaceSRV(D3D12_SHADER_RESOURCE_VIEW_DESC const& SRVDesc)
 	{
 		check(!ShaderResourceView);
 
@@ -114,7 +114,7 @@ public:
 			? FD3D12ShaderResourceView::EFlags::SkipFastClearFinalize
 			: FD3D12ShaderResourceView::EFlags::None;
 
-		ShaderResourceView = MakeShared<FD3D12ShaderResourceView>(GetParentDevice(), FirstLinkedObject ? FirstLinkedObject->ShaderResourceView.Get() : nullptr);
+		ShaderResourceView = MakeShared<FD3D12ShaderResourceView>(GetParentDevice());
 		ShaderResourceView->CreateView(this, SRVDesc, Flags);
 	}
 

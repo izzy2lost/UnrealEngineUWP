@@ -227,9 +227,9 @@ FSamplerStateRHIRef FD3D12DynamicRHI::RHICreateSamplerState(const FSamplerStateI
 {
 	FD3D12Adapter* Adapter = &GetAdapter();
 
-	return Adapter->CreateLinkedObject<FD3D12SamplerState>(FRHIGPUMask::All(), [&](FD3D12Device* Device, FD3D12SamplerState* FirstLinkedObject)
+	return Adapter->CreateLinkedObject<FD3D12SamplerState>(FRHIGPUMask::All(), [&](FD3D12Device* Device)
 	{
-		return Device->CreateSampler(Initializer, FirstLinkedObject);
+		return Device->CreateSampler(Initializer);
 	});
 }
 
@@ -257,7 +257,7 @@ static void LogSamplerStateWarning(const FSamplerStateInitializerRHI& Initialize
 	);
 }
 
-FD3D12SamplerState* FD3D12Device::CreateSampler(const FSamplerStateInitializerRHI& Initializer, FD3D12SamplerState* FirstLinkedObject)
+FD3D12SamplerState* FD3D12Device::CreateSampler(const FSamplerStateInitializerRHI& Initializer)
 {
 	D3D12_SAMPLER_DESC SamplerDesc;
 	FMemory::Memzero(&SamplerDesc, sizeof(D3D12_SAMPLER_DESC));
@@ -324,7 +324,7 @@ FD3D12SamplerState* FD3D12Device::CreateSampler(const FSamplerStateInitializerRH
 			LogSamplerStateWarning(Initializer);
 		}
 
-		FD3D12SamplerState* NewSampler = new FD3D12SamplerState(this, SamplerDesc, static_cast<uint16>(SamplerID), FirstLinkedObject);
+		FD3D12SamplerState* NewSampler = new FD3D12SamplerState(this, SamplerDesc, static_cast<uint16>(SamplerID));
 
 		SamplerMap.Add(SamplerDesc, NewSampler);
 
@@ -790,7 +790,7 @@ TRefCountPtr<FRHIComputePipelineState> FD3D12DynamicRHI::RHICreateComputePipelin
 	return PSOCache.CreateAndAdd(ComputeShader, RootSignature, LowLevelDesc);
 }
 
-FD3D12SamplerState::FD3D12SamplerState(FD3D12Device* InParent, const D3D12_SAMPLER_DESC& Desc, uint16 SamplerID, FD3D12SamplerState* FirstLinkedObject)
+FD3D12SamplerState::FD3D12SamplerState(FD3D12Device* InParent, const D3D12_SAMPLER_DESC& Desc, uint16 SamplerID)
 	: FD3D12DeviceChild(InParent)
 	, ID(SamplerID)
 {
@@ -800,13 +800,7 @@ FD3D12SamplerState::FD3D12SamplerState(FD3D12Device* InParent, const D3D12_SAMPL
 	GetParentDevice()->CreateSamplerInternal(Desc, OfflineDescriptor);
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	FD3D12Adapter* Adapter = InParent->GetParentAdapter();
-	if (Adapter->GetBindlessManager().GetSamplersConfiguration() != ERHIBindlessConfiguration::Disabled)
-	{
-		BindlessHandle = FirstLinkedObject ? FirstLinkedObject->BindlessHandle : InParent->GetParentAdapter()->GetBindlessManager().AllocateSamplerHandle();
-
-		InParent->GetBindlessDescriptorManager().InitializeSampler(BindlessHandle, this);
-	}
+	BindlessHandle = GetParentDevice()->GetBindlessDescriptorManager().AllocateAndInitialize(this);
 #endif
 }
 
@@ -818,8 +812,7 @@ FD3D12SamplerState::~FD3D12SamplerState()
 		OfflineAllocator.FreeHeapSlot(OfflineDescriptor);
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-		// Handle is shared -- freeing is handled by the head link in the FD3D12LinkedAdapterObject
-		if (BindlessHandle.IsValid() && IsHeadLink())
+		if (BindlessHandle.IsValid())
 		{
 			GetParentDevice()->GetBindlessDescriptorManager().DeferredFreeFromDestructor(BindlessHandle);
 		}
