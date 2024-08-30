@@ -96,12 +96,13 @@ void SNiagaraParameterPanel::Construct(const FArguments& InArgs, const TSharedPt
 	.ClearSelectionOnClick(true)
 	.CategoryRowStyle(FNiagaraEditorStyle::Get(), "NiagaraEditor.Parameters.TableRow")
 	.OnGetCategoryBackgroundImage(this, &SNiagaraParameterPanel::GetCategoryBackgroundImage)
-	.OnItemExpandedInitially(FilterCategoryExpandedDelegate)
+	.OnGetCategoryExpandedInitially(FilterCategoryExpandedDelegate)
 	.CategoryBorderBackgroundColor(FLinearColor(.6, .6, .6, 1.0f))
 	.CategoryChildSlotPadding(FMargin(0.0f, 2.0f, 0.0f, 0.0f))
 	.CategoryBorderBackgroundPadding(FMargin(0.0f, 3.0f))
 	.OnGetKeyForItem(this, &SNiagaraParameterPanel::OnGetKeyForItem)
 	.OnGetKeyForCategory(this, &SNiagaraParameterPanel::OnGetKeyForCategory)
+	.OnCategoryExpansionChanged(this, &SNiagaraParameterPanel::OnCategoryExpansionChanged)
 	.ExpandInitially(false)
 	.SearchBoxAdjacentContent()
 	[
@@ -190,9 +191,6 @@ void SNiagaraParameterPanel::OnSectionChecked(ECheckBoxState CheckState, FText S
 {
 	if (CheckState == ECheckBoxState::Checked)
 	{
-		TArray<FNiagaraParameterPanelCategory> ExpandedItems;
-		ItemSelector->GetExpandedCategoryItems(ExpandedItems);
-		ParameterPanelViewModel->PreSectionChange(ExpandedItems);
 		ParameterPanelViewModel->SetActiveSection(Section);
 		Refresh();
 	}
@@ -216,6 +214,11 @@ bool SNiagaraParameterPanel::OnCompareCategoriesForSorting(const FNiagaraParamet
 const FGuid& SNiagaraParameterPanel::OnGetKeyForCategory(const FNiagaraParameterPanelCategory& Category) const
 {
 	return Category.NamespaceMetaData.GetGuid();
+}
+
+void SNiagaraParameterPanel::OnCategoryExpansionChanged(const FNiagaraParameterPanelCategory& Category, bool bIsExpanded)
+{
+	ParameterPanelViewModel->UpdateCategoryExpansionState(Category, bIsExpanded);
 }
 
 bool SNiagaraParameterPanel::OnCompareItemsForEquality(const FNiagaraParameterPanelItem& ItemA, const FNiagaraParameterPanelItem& ItemB) const

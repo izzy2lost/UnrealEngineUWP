@@ -1769,25 +1769,22 @@ const TArray<UNiagaraParameterDefinitions*> FNiagaraSystemToolkitParameterPanelV
 	return SystemViewModel->GetAvailableParameterDefinitions(bSkipSubscribedParameterDefinitions);
 }
 
-void FNiagaraSystemToolkitParameterPanelViewModel::PreSectionChange(const TArray<FNiagaraParameterPanelCategory>& ExpandedItems)
+void FNiagaraSystemToolkitParameterPanelViewModel::UpdateCategoryExpansionState(const FNiagaraParameterPanelCategory& Category, bool bIsExpanded)
 {
-	// Before we go to a different setup, cache the existing expanded states.
+	// Update the cached expansion state for the active section if it's valid.
 	if (Sections.IsValidIndex(ActiveSectionIndex))
 	{
 		UNiagaraEditorSettings* Settings = GetMutableDefault<UNiagaraEditorSettings>();
 		bool bAdded = false;
 		FNiagaraParameterPanelSectionStorage& Storage = Settings->FindOrAddParameterPanelSectionStorage(Sections[ActiveSectionIndex].SectionId, bAdded);
-
-		TArray<FGuid> ExpandedCategories;
-
-		for (const FNiagaraParameterPanelCategory& Item : ExpandedItems)
+		if (bIsExpanded)
 		{
-			if (Item.NamespaceMetaData.IsValid() && Item.NamespaceMetaData.GetGuid().IsValid())
-			{
-				ExpandedCategories.AddUnique(Item.NamespaceMetaData.GetGuid());
-			}
+			Storage.ExpandedCategories.AddUnique(Category.NamespaceMetaData.GetGuid());
 		}
-		Storage.ExpandedCategories = ExpandedCategories;
+		else
+		{
+			Storage.ExpandedCategories.Remove(Category.NamespaceMetaData.GetGuid());
+		}
 		Settings->SaveConfig();
 	}
 }
