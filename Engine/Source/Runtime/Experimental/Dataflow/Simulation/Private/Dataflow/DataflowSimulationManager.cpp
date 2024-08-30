@@ -173,7 +173,7 @@ void UDataflowSimulationManager::Tick(float DeltaTime)
 	if(bIsSimulationEnabled)
 	{
 		// Transfer data from GT -> PT
-		ReadSimulationInterfaces(DeltaTime);
+		ReadSimulationInterfaces(DeltaTime, false);
 		
 		if(UE::Dataflow::Private::DataflowSimulationThreadingMode == static_cast<uint8>(UE::Dataflow::Private::ESimulationThreadingMode::GameThread))
 		{
@@ -181,7 +181,7 @@ void UDataflowSimulationManager::Tick(float DeltaTime)
 			AdvanceSimulationProxies(DeltaTime, GetWorld()->GetTimeSeconds());
 
 			// Transfer data from PT -> GT
-			WriteSimulationInterfaces(DeltaTime);
+			WriteSimulationInterfaces(DeltaTime, false);
 		}
 		else
 		{
@@ -194,7 +194,7 @@ void UDataflowSimulationManager::Tick(float DeltaTime)
             	CompleteSimulationTasks();
             
             	// Transfer data from PT -> GT
-            	WriteSimulationInterfaces(DeltaTime);
+            	WriteSimulationInterfaces(DeltaTime, false);
             }
 		}
 	}
@@ -218,7 +218,7 @@ void UDataflowSimulationManager::OnStartup()
 						DataflowManager->CompleteSimulationTasks();
 					
 						// Transfer data from PT -> GT
-						DataflowManager->WriteSimulationInterfaces(DeltaSeconds);
+						DataflowManager->WriteSimulationInterfaces(DeltaSeconds, false);
 					}
 				}
 			}
@@ -298,42 +298,7 @@ void UDataflowSimulationManager::PostProcessSimulation(const float DeltaTime)
 	}
 }
 
-void UDataflowSimulationManager::PreAdvanceProxies(const float DeltaTime)
-{
-	for(const TPair<TObjectPtr<UDataflow>, UE::Dataflow::Private::FDataflowSimulationData>& DataflowData : SimulationData)
-	{
-		if(DataflowData.Value.SimulationContext.IsValid())
-		{
-			TArray<FDataflowPhysicsSolverProxy*> SolverProxies;
-			DataflowData.Value.SimulationContext->GetTypedProxies(SolverProxies);
-		
-			for(FDataflowPhysicsSolverProxy* SolverProxy : SolverProxies)
-			{
-				SolverProxy->PreSolveProxy(DeltaTime);
-			}
-		}
-	}
-}
-
-void UDataflowSimulationManager::PostAdvanceProxies(const float DeltaTime)
-{
-	for(const TPair<TObjectPtr<UDataflow>, UE::Dataflow::Private::FDataflowSimulationData>& DataflowData : SimulationData)
-	{
-		if(DataflowData.Value.SimulationContext.IsValid())
-		{
-			TArray<FDataflowPhysicsSolverProxy*> SolverProxies;
-			DataflowData.Value.SimulationContext->GetTypedProxies(SolverProxies);
-
-			for(FDataflowPhysicsSolverProxy* SolverProxy : SolverProxies)
-			{
-				SolverProxy->PostSolveProxy(DeltaTime);
-			}
-		}
-	}
-}
-
-
-void UDataflowSimulationManager::ReadSimulationInterfaces(const float DeltaTime)
+void UDataflowSimulationManager::ReadSimulationInterfaces(const float DeltaTime, const bool bAsyncTask)
 {
 	// Pre-simulation callback that could be used in BP before the simulation
 	//Dataflow::PreSimulationTick(GetWorld(), GetWorld()->GetTimeSeconds(), DeltaTime);
@@ -347,7 +312,7 @@ void UDataflowSimulationManager::ReadSimulationInterfaces(const float DeltaTime)
 			{
 				if(SimulationInterface)
 				{
-					SimulationInterface->WriteToSimulation(DeltaTime);
+					SimulationInterface->WriteToSimulation(DeltaTime, bAsyncTask);
 				}
 			}
 		}
@@ -401,7 +366,7 @@ void UDataflowSimulationManager::ResetSimulationInterfaces()
 	}
 }
 
-void UDataflowSimulationManager::WriteSimulationInterfaces(const float DeltaTime)
+void UDataflowSimulationManager::WriteSimulationInterfaces(const float DeltaTime, const bool bAsyncTask)
 {
 	for(const TPair<TObjectPtr<UDataflow>, UE::Dataflow::Private::FDataflowSimulationData>& DataflowData : SimulationData)
 	{
@@ -411,7 +376,7 @@ void UDataflowSimulationManager::WriteSimulationInterfaces(const float DeltaTime
 			{
 				if(SimulationInterface)
 				{
-					SimulationInterface->ReadFromSimulation(DeltaTime);
+					SimulationInterface->ReadFromSimulation(DeltaTime, bAsyncTask);
 				}
 			}
 		}

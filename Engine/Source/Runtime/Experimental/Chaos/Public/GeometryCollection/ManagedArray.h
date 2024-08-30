@@ -843,6 +843,16 @@ public:
 
 		Exchange(*this, NewTypedArray);
 	}
+	
+	/**
+	* return true if index is in array range.
+	*
+	* @param Index Index to check.
+	*/
+	FORCEINLINE bool IsValidIndex(int32 Index) const
+	{
+		return Array.IsValidIndex(Index);
+	}
 
 	/**
 	* Returning a reference to the element at index.

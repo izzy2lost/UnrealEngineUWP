@@ -73,12 +73,6 @@ public:
 	virtual void Deinitialize() override;
 	// End USubsystem overrides
 
-	/** Pre solve all the solver proxies */
-	void PreAdvanceProxies(const float DeltaTime);
-
-	/** Post solve all the solver proxies */
-	void PostAdvanceProxies(const float DeltaTime);
-
 	/** Advance in time the registered simulation data (PT) */
     void AdvanceSimulationProxies(const float DeltaTime, const float SimulationTime);
 
@@ -92,10 +86,10 @@ public:
 	void RemoveSimulationInterface(const IDataflowSimulationInterface* SimulationInterface);
 
 	/** Read the simulation interfaces and Write all the data to the simulation proxies (to be send from GT->PT) */
-	void ReadSimulationInterfaces(const float DeltaTime);
+	void ReadSimulationInterfaces(const float DeltaTime, const bool bAsyncTask);
 
 	/** Read all the data from the simulation proxies and write the result onto the interfaces (received from PT->GT) */
-	void WriteSimulationInterfaces(const float DeltaTime);
+	void WriteSimulationInterfaces(const float DeltaTime, const bool bAsyncTask);
 
 	/** Init all the simulation interfaces*/
 	void InitSimulationInterfaces();

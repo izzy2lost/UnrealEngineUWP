@@ -68,10 +68,10 @@ public:
 	virtual void PreProcessSimulation(const float DeltaTime) {};
 
 	/** Write data to be sent to the simulation proxy */
-	virtual void WriteToSimulation(const float DeltaTime) {};
+	virtual void WriteToSimulation(const float DeltaTime, const bool bAsyncTask) {};
 
 	/** Read data received from the simulation proxy */
-	virtual void ReadFromSimulation(const float DeltaTime) {};
+	virtual void ReadFromSimulation(const float DeltaTime, const bool bAsyncTask) {};
 
 	/** Postprocess data after simulation */
 	virtual void PostProcessSimulation(const float DeltaTime) {};

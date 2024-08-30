@@ -195,8 +195,8 @@ protected:
 	virtual const FDataflowSimulationProxy* GetSimulationProxy() const  override;
 	virtual void BuildSimulationProxy() override;
 	virtual void ResetSimulationProxy() override;
-	virtual void WriteToSimulation(const float DeltaTime) override;
-	virtual void ReadFromSimulation(const float DeltaTime) override;
+	virtual void WriteToSimulation(const float DeltaTime, const bool bAsyncTask) override;
+	virtual void ReadFromSimulation(const float DeltaTime, const bool bAsyncTask) override;
 	virtual void PreProcessSimulation(const float DeltaTime) override;
 	// End IDataflowPhysicsSolverInterface overrides
 

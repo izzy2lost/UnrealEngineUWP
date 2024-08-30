@@ -92,8 +92,8 @@ public:
 	virtual const FDataflowSimulationProxy* GetSimulationProxy() const  override {return &FleshSolverProxy;}
 	virtual void BuildSimulationProxy() override;
 	virtual void ResetSimulationProxy() override;
-	virtual void WriteToSimulation(const float DeltaTime) override;
-	virtual void ReadFromSimulation(const float DeltaTime) override;
+	virtual void WriteToSimulation(const float DeltaTime, const bool bAsyncTask) override;
+	virtual void ReadFromSimulation(const float DeltaTime, const bool bAsyncTask) override;
 	// End IDataflowPhysicsSolverInterface overrides
 
 	//~ Begin UObject Interface

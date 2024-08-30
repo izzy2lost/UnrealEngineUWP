@@ -35,13 +35,13 @@ void FDataflowSimulationTask::DoWork()
 				UDataflowSimulationManager* DataflowManager = SimulationWorld->GetSubsystem<UDataflowSimulationManager>();
 
 				// Pre advance the proxies
-				DataflowManager->PreAdvanceProxies(DeltaTime);
+				DataflowManager->ReadSimulationInterfaces(DeltaTime, true);
 
 				// Advance the simulation proxies
                 DataflowManager->AdvanceSimulationProxies(DeltaTime, SimulationTime);
 
-				// Post advanc e the simulation proxies
-				DataflowManager->PostAdvanceProxies(DeltaTime);
+				// Post advance the simulation proxies
+				DataflowManager->WriteSimulationInterfaces(DeltaTime, true);
 			}
 			else
 			{
@@ -66,6 +66,7 @@ bool FDataflowTaskManager::AllocateSimulationResource(const FVector2f& TimeRange
 		const TObjectPtr<UChaosCacheCollection>& CacheAsset, const TSubclassOf<AActor>& ActorClass, const TObjectPtr<UDataflowBaseContent>& DataflowContent)
 {
 	SimulationWorld = UWorld::CreateWorld(EWorldType::Editor, false);
+	SimulationWorld->bPostTickComponentUpdate = false;
 
 	FWorldContext& WorldContext = GEngine->CreateNewWorldContext( SimulationWorld->WorldType );
 	WorldContext.SetCurrentWorld(SimulationWorld);

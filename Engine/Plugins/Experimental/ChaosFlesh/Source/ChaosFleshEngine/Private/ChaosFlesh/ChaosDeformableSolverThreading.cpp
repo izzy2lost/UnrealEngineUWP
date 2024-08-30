@@ -45,7 +45,7 @@ void FDeformableEndTickFunction::ExecuteTick(float DeltaTime, enum ELevelTick Ti
 
 	if (DeformableSolverComponent)
 	{
-		DeformableSolverComponent->ReadFromSimulation(DeltaTime);
+		DeformableSolverComponent->ReadFromSimulation(DeltaTime,false);
 	}
 }
 

@@ -24,12 +24,6 @@ struct DATAFLOWSIMULATION_API FDataflowPhysicsSolverProxy : public FDataflowSimu
 	
 	/** Advance the solver datas in time */
 	virtual void AdvanceSolverDatas(const float DeltaTime) {}
-	
-	/** Pre-solve the proxy */
-	virtual void PreSolveProxy(const float DeltaTime) {}
-
-	/** Post-solve the proxy */
-	virtual void PostSolveProxy(const float DeltaTime) {}
 
 	/** Get the solver time step */
 	virtual float GetTimeStep() { return 0.033f;}

@@ -644,7 +644,7 @@ void UChaosClothComponent::ResetSimulationProxy()
 	ClothSimulationProxy.Reset();
 }
 
-void UChaosClothComponent::WriteToSimulation(const float DeltaTime)
+void UChaosClothComponent::WriteToSimulation(const float DeltaTime, const bool bAsyncTask)
 {
 	if (ClothSimulationProxy.IsValid())
 	{
@@ -662,11 +662,11 @@ void UChaosClothComponent::PreProcessSimulation(const float DeltaTime)
 {
 	if (ClothSimulationProxy.IsValid() && ClothSimulationProxy->HasCacheData())
 	{
-		WriteToSimulation(DeltaTime);
+		WriteToSimulation(DeltaTime, false);
 	}
 }
 
-void UChaosClothComponent::ReadFromSimulation(const float DeltaTime)
+void UChaosClothComponent::ReadFromSimulation(const float DeltaTime, const bool bAsyncTask)
 {
 	if (ClothSimulationProxy.IsValid())
 	{

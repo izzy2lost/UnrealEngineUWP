@@ -116,6 +116,8 @@ bool UDeformableSolverComponent::IsSimulating(UDeformablePhysicsComponent* InCom
 }
 
 
+
+
 void UDeformableSolverComponent::UpdateDeformableEndTickState(bool bRegister)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_UpdateDeformableEndTickState);
@@ -177,7 +179,7 @@ void UDeformableSolverComponent::TickComponent(float DeltaTime, enum ELevelTick 
 		{
 			if(bSimulationTicking)
 			{
-				WriteToSimulation(DeltaTime);
+				WriteToSimulation(DeltaTime, false);
 
 				if (SolverTiming.bDoThreadedAdvance)
 				{
@@ -191,7 +193,7 @@ void UDeformableSolverComponent::TickComponent(float DeltaTime, enum ELevelTick 
 				{
 					Simulate(DeltaTime);
 
-					ReadFromSimulation(DeltaTime);
+					ReadFromSimulation(DeltaTime, false);
 				}
 			}
 		}
@@ -377,7 +379,7 @@ void UDeformableSolverComponent::Simulate(float DeltaTime)
 	}
 }
 
-void UDeformableSolverComponent::WriteToSimulation(float DeltaTime)
+void UDeformableSolverComponent::WriteToSimulation(float DeltaTime, const bool bAsyncTask)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_UpdateFromGameThread);
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_UpdateFromGameThread);
@@ -406,7 +408,7 @@ void UDeformableSolverComponent::WriteToSimulation(float DeltaTime)
 	}
 }
 
-void UDeformableSolverComponent::ReadFromSimulation(float DeltaTime)
+void UDeformableSolverComponent::ReadFromSimulation(float DeltaTime, const bool bAsyncTask)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_UpdateFromSimulation);
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_UpdateFromSimulation);
