@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Streams;
 
 namespace EpicGames.Horde.Artifacts
@@ -51,6 +52,9 @@ namespace EpicGames.Horde.Artifacts
 			public RefName RefName { get; }
 			public DateTime CreatedAtUtc { get; }
 
+			public IBlobRef<DirectoryNode> Content
+				=> _collection.Open(this);
+
 			public Task DeleteAsync(CancellationToken cancellationToken)
 				=> _collection.DeleteAsync(Id, cancellationToken);
 		}
@@ -59,6 +63,12 @@ namespace EpicGames.Horde.Artifacts
 
 		public ArtifactHttpCollection(IHordeClient hordeClient)
 			=> _hordeClient = hordeClient;
+
+		IBlobRef<DirectoryNode> Open(Artifact artifact)
+		{
+			IStorageClient store = _hordeClient.CreateStorageClient(artifact.Id);
+			return store.CreateBlobRef<DirectoryNode>(new RefName("default"));
+		}
 
 		/// <inheritdoc/>
 		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, CancellationToken cancellationToken = default)

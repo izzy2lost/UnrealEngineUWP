@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Streams;
 
 namespace EpicGames.Horde.Artifacts
@@ -69,6 +70,11 @@ namespace EpicGames.Horde.Artifacts
 		/// Time at which the artifact was created
 		/// </summary>
 		DateTime CreatedAtUtc { get; }
+
+		/// <summary>
+		/// Handle to the artifact data
+		/// </summary>
+		IBlobRef<DirectoryNode> Content { get; }
 
 		/// <summary>
 		/// Deletes this artifact

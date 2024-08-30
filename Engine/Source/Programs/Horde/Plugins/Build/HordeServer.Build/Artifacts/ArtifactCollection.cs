@@ -6,6 +6,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Streams;
 using HordeServer.Commits;
 using HordeServer.Projects;
@@ -45,6 +46,9 @@ namespace HordeServer.Artifacts
 			NamespaceId IArtifact.NamespaceId => _document.NamespaceId;
 			RefName IArtifact.RefName => _document.RefName;
 			DateTime IArtifact.CreatedAtUtc => (_document.CreatedAtUtc == default) ? _document.Id.CreationTime : _document.CreatedAtUtc;
+
+			IBlobRef<DirectoryNode> IArtifact.Content
+				=> _collection.Open(this);
 
 			public Artifact(ArtifactCollection collection, ArtifactDocument document)
 			{
@@ -183,6 +187,12 @@ namespace HordeServer.Artifacts
 		/// <inheritdoc/>
 		public async Task StopAsync(CancellationToken cancellationToken)
 			=> await _ticker.StopAsync();
+
+		IBlobRef<DirectoryNode> Open(Artifact artifact)
+		{
+			IStorageClient client = _storageService.CreateClient(artifact.Document.NamespaceId);
+			return client.CreateBlobRef<DirectoryNode>(artifact.Document.RefName);
+		}
 
 #pragma warning disable CA1308 // Expect ansi-only keys here
 		static string NormalizeKey(string key)

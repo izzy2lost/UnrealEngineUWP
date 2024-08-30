@@ -39,9 +39,13 @@ namespace Horde.Commands.Artifacts
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			HordeHttpClient httpClient = _hordeClient.CreateHttpClient();
+			IArtifact? artifact = await _hordeClient.Artifacts.GetAsync(Id);
+			if (artifact == null)
+			{
+				logger.LogError("Artifact {Id} not found", Id);
+				return 1;
+			}
 
-			GetArtifactResponse artifact = await httpClient.GetArtifactAsync(Id);
 			logger.LogInformation("Downloading artifact {Id}: {Description}", Id, artifact.Description);
 
 			if (CleanOutput)
@@ -50,10 +54,9 @@ namespace Horde.Commands.Artifacts
 				FileUtils.ForceDeleteDirectoryContents(OutputDir);
 			}
 
-			IStorageClient store = _hordeClient.CreateStorageClient(artifact.Id);
-
 			Stopwatch timer = Stopwatch.StartNew();
 
+			IStorageClient store = _hordeClient.CreateStorageClient(artifact.Id);
 			IBlobRef<DirectoryNode> handle = await store.ReadRefAsync<DirectoryNode>(new RefName("default"));
 			await handle.ExtractAsync(OutputDir.ToDirectoryInfo(), new ExtractStatsLogger(logger), logger, CancellationToken.None);
 
