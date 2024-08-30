@@ -11,6 +11,10 @@ bool UPCGDataCollectionExporter::ExportAsset(const FString& PackageName, UPCGDat
 {
 	// Relies on default behavior to duplicate if needed
 	Asset->Data = Data;
+#if WITH_EDITOR
+	Asset->Description = FText::FromString(AssetDescription);
+	Asset->Color = AssetColor;
+#endif
 	return true;
 }
 
@@ -48,10 +52,25 @@ bool FPCGSaveDataAssetElement::ExecuteInternal(FPCGContext* Context) const
 		Exporter = NewObject<UPCGDataCollectionExporter>();
 	}
 
-	check(Exporter);
-	Exporter->Data = Context->InputData;
+	TArray<FPCGPinProperties> InputPins = Settings->InputPinProperties();
 
-	UPCGAssetExporterUtils::CreateAsset(Exporter, Settings->Params);
+	check(Exporter);
+	// Implementation note: we can't simply copy the input wholesale because this will also gather overrides if any.
+	for (const FPCGTaggedData& TaggedData : Context->InputData.TaggedData)
+	{
+		// Accept data if its pin matches any of the actual input pins
+		if (InputPins.FindByPredicate([&TaggedData](const FPCGPinProperties& Pin) { return TaggedData.Pin == Pin.Label; }))
+		{
+			Exporter->Data.TaggedData.Add(TaggedData);
+		}
+	}
+
+#if WITH_EDITOR
+	Exporter->AssetDescription = Settings->AssetDescription;
+	Exporter->AssetColor = Settings->AssetColor;
+#endif
+
+	UPCGAssetExporterUtils::CreateAsset(Exporter, Settings->Params, Context);
 
 	return true;
 }

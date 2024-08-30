@@ -26,6 +26,14 @@ protected:
 public:
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = Data)
 	FPCGDataCollection Data;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = Data)
+	FString AssetDescription;
+
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = Data)
+	FLinearColor AssetColor = FLinearColor::White;
+#endif
 };
 
 /** Node that will save input data to a PCG data asset */
@@ -45,11 +53,11 @@ public:
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::InputOutput; }
 #endif // WITH_EDITOR
 
-protected:
-	virtual FPCGElementPtr CreateElement() const override;
-	
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return Pins; }
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override { return TArray<FPCGPinProperties>(); }
+
+protected:
+	virtual FPCGElementPtr CreateElement() const override;
 	// ~End UPCGSettings interface
 
 public:

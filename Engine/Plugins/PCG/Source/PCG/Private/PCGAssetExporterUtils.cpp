@@ -2,6 +2,7 @@
 
 #include "PCGAssetExporterUtils.h"
 
+#include "PCGContext.h"
 #include "PCGModule.h"
 
 #if WITH_EDITOR
@@ -11,12 +12,19 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #endif // WITH_EDITOR
 
+#define LOCTEXT_NAMESPACE "PCGAssetExporterUtils"
+
 UPackage* UPCGAssetExporterUtils::CreateAsset(UPCGAssetExporter* Exporter, FPCGAssetExporterParameters Parameters)
+{
+	return CreateAsset(Exporter, Parameters, nullptr);
+}
+
+UPackage* UPCGAssetExporterUtils::CreateAsset(UPCGAssetExporter* Exporter, const FPCGAssetExporterParameters& Parameters, FPCGContext* Context)
 {
 #if WITH_EDITOR
 	if (!Exporter || !Exporter->GetAssetType())
 	{
-		UE_LOG(LogPCG, Error, TEXT("Unable to create asset without an exporter, or exporter is not setup properly."));
+		PCGLog::LogErrorOnGraph(LOCTEXT("MissingExporter", "Unable to create asset without an exporter, or exporter is not setup properly."), Context);
 		return nullptr;
 	}
 
@@ -60,6 +68,16 @@ UPackage* UPCGAssetExporterUtils::CreateAsset(UPCGAssetExporter* Exporter, FPCGA
 			return nullptr;
 		}
 	}
+	else
+	{
+		// Perform some validation on the package name, so we can prevent crashes downstream when trying to create or save the package.
+		FText Reason;
+		if (!FPackageName::IsValidObjectPath(PackageName, &Reason))
+		{
+			PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("InvalidPackagePath", "Invalid package path '{0}': {1}."), { FText::FromString(PackageName), Reason }), Context);
+			return nullptr;
+		}
+	}
 
 	UPackage* Package = FPackageName::DoesPackageExist(PackageName) ? LoadPackage(nullptr, *PackageName, LOAD_None) : nullptr;
 
@@ -83,7 +101,16 @@ UPackage* UPCGAssetExporterUtils::CreateAsset(UPCGAssetExporter* Exporter, FPCGA
 	else
 	{
 		Package = CreatePackage(*PackageName);
-		NewAssetCreated = true;
+
+		if (Package)
+		{
+			NewAssetCreated = true;
+		}
+		else
+		{
+			PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("UnableToCreatePackage", "Unable to create the package with name '{0}'."), FText::FromString(PackageName)), Context);
+			return nullptr;
+		}
 	}
 
 	if (!Asset)
@@ -122,12 +149,17 @@ UPackage* UPCGAssetExporterUtils::CreateAsset(UPCGAssetExporter* Exporter, FPCGA
 
 	return Package;
 #else
-	UE_LOG(LogPCG, Error, TEXT("PCG Asset Exporter Utils cannot be used in non-editor builds."));
+	PCGLog::LogErrorOnGraph(LOCTEXT("CannotExportInNonEditor", "PCG Asset Exporter Utils cannot be used in non-editor builds."), Context);
 	return nullptr;
 #endif
 }
 
 void UPCGAssetExporterUtils::UpdateAssets(const TArray<FAssetData>& PCGAssets, FPCGAssetExporterParameters InParameters)
+{
+	UpdateAssets(PCGAssets, InParameters, nullptr);
+}
+
+void UPCGAssetExporterUtils::UpdateAssets(const TArray<FAssetData>& PCGAssets, const FPCGAssetExporterParameters& InParameters, FPCGContext* Context)
 {
 #if WITH_EDITOR
 	TArray<UPackage*> PackagesToSave;
@@ -148,7 +180,7 @@ void UPCGAssetExporterUtils::UpdateAssets(const TArray<FAssetData>& PCGAssets, F
 		}
 		else
 		{
-			UE_LOG(LogPCG, Error, TEXT("Unable to update asset '%s' because exporter isn't valid."), *PCGAsset.AssetName.ToString());
+			PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("InvalidExporterOnAsset", "Unable to update asset '{0}' because exporter isn't valid."), FText::FromName(PCGAsset.AssetName)), Context);
 			continue;
 		}
 
@@ -156,7 +188,7 @@ void UPCGAssetExporterUtils::UpdateAssets(const TArray<FAssetData>& PCGAssets, F
 
 		if (!Exporter)
 		{
-			UE_LOG(LogPCG, Error, TEXT("Unable to create exporter for asset '%s' during update process."), *PCGAsset.AssetName.ToString());
+			PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("UnableToCreateExporter", "Unable to create exporter for asset '{0}' during update process."), FText::FromName(PCGAsset.AssetName)), Context);
 			continue;
 		}
 
@@ -177,6 +209,8 @@ void UPCGAssetExporterUtils::UpdateAssets(const TArray<FAssetData>& PCGAssets, F
 		FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, /*bCheckDirty=*/false, /*bPromptToSave=*/false);
 	}
 #else
-	UE_LOG(LogPCG, Error, TEXT("PCG Asset Exporter Utils cannot be used in non-editor builds."));
+	PCGLog::LogErrorOnGraph(LOCTEXT("CannotExportInNonEditor", "PCG Asset Exporter Utils cannot be used in non-editor builds."), Context);
 #endif // WITH_EDITOR
 }
+
+#undef LOCTEXT_NAMESPACE
