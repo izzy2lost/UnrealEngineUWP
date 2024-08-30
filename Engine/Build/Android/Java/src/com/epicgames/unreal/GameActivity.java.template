@@ -7212,12 +7212,26 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			Log.debug("Cannot set \"UEEnableMemoryTracing\" environment variable");
 		}
 
+		if (!isUnderTest())
+		{
 //$${soLoadUnreal}$$
 //$${soLoadLibrary}$$
+		}
 	}
 
 	public native void nativeHandleSensorEvents(float[] tilt, float[] rotation_rate, float[] gravity, float[] acceleration);
 
 	protected static ClipboardManager clipboardManager;
 
+	private static boolean isUnderTest()
+	{
+		// Check for a specific environment variable set in tests
+		String testPackageName = System.getProperty("unreal.test.environment");
+		if (testPackageName == null)
+		{
+			return false;
+		}
+
+		return testPackageName.equals(GameApplication.getAppContext().getPackageName());
+	}
 }
