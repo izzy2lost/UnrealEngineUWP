@@ -668,6 +668,13 @@ bool UMeshPaintModeSubsystem::CanPropagateVertexColors(TArray<UStaticMeshCompone
 
 		if (StaticMesh != nullptr)
 		{
+			// Disallow propagation of vertex colors to cooked static mesh assets.
+			if (StaticMesh->GetOutermost()->bIsCookedForEditor)
+			{
+				bValid = false;
+				break;
+			}
+			
 			StaticMeshes.AddUnique(StaticMesh);
 		}
 

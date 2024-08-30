@@ -125,10 +125,15 @@ void UMeshPaintingSubsystem::RemoveComponentMeshPaintTexture(UStaticMeshComponen
 
 bool UMeshPaintingSubsystem::PropagateColorsToRawMesh(UStaticMesh* StaticMesh, int32 LODIndex, FStaticMeshComponentLODInfo& ComponentLODInfo)
 {
-	check(ComponentLODInfo.OverrideVertexColors);
-	check(StaticMesh->IsSourceModelValid(LODIndex));
-	check(StaticMesh->GetRenderData());
-	check(StaticMesh->GetRenderData()->LODResources.IsValidIndex(LODIndex));
+	if (!ComponentLODInfo.OverrideVertexColors ||
+		!StaticMesh ||
+		!StaticMesh->IsSourceModelValid(LODIndex) ||
+		!StaticMesh->GetRenderData() ||
+		!StaticMesh->GetRenderData()->LODResources.IsValidIndex(LODIndex) ||
+		StaticMesh->GetOutermost()->bIsCookedForEditor)
+	{
+		return false;
+	}
 
 	bool bPropagatedColors = false;
 	FStaticMeshSourceModel& SrcModel = StaticMesh->GetSourceModel(LODIndex);
