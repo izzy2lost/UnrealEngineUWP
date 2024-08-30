@@ -969,9 +969,9 @@ FNaniteSkinningHeader LoadNaniteSkinningHeader(uint InPrimitiveIndex)
 	return Scene.NaniteSkinning.SkinningHeaders.Load<FNaniteSkinningHeader>(Offset);
 }
 
-float3x4 LoadNaniteBoneTransform(uint TransformIndex)
+float4x3 LoadNaniteBoneTransform(uint TransformIndex)
 {
-	return Scene.NaniteSkinning.BoneTransforms.Load<float3x4>(TransformIndex * (uint)sizeof(float3x4));
+	return transpose(Scene.NaniteSkinning.BoneTransforms.Load<float3x4>(TransformIndex * (uint)sizeof(float3x4)));
 }
 
 FBoneTransformWithScale LoadNaniteBoneObjectSpaceWithScale(uint BufferOffset, uint BoneIndex)
