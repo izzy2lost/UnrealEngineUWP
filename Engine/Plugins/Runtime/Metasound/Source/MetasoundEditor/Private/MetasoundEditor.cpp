@@ -93,6 +93,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/SWindow.h"
+#include "Styling/StyleColors.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MetasoundEditor)
 
@@ -117,9 +118,82 @@ namespace Metasound
 				ECVF_Default);
 		} // namespace AssetEditorPrivate
 
-		bool PageEditorEnabled()
+		bool IsPreviewingMetaSound(const UObject& InMetaSound)
 		{
-			return AssetEditorPrivate::EnablePageEditor != 0;
+			using namespace Engine;
+			if (const UAudioComponent* PreviewComponent = GEditor->GetPreviewAudioComponent())
+			{
+				if (PreviewComponent->IsPlaying())
+				{
+					if (const USoundBase* Sound = PreviewComponent->Sound)
+					{
+						return Sound->GetUniqueID() == InMetaSound.GetUniqueID();
+					}
+				}
+			}
+
+			return false;
+		}
+
+		bool IsPreviewingPageInputDefault(const FMetaSoundFrontendDocumentBuilder& Builder, const FMetasoundFrontendClassInput& InClassInput, const FGuid& InPageID)
+		{
+			using namespace Engine;
+
+			const UObject& MetaSound = Builder.CastDocumentObjectChecked<const UObject>();
+			if (IsPreviewingMetaSound(MetaSound))
+			{
+				const FGuid TargetPageID = FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(InClassInput);
+				return TargetPageID == InPageID;
+			}
+
+			return false;
+		}
+
+		bool IsPreviewingPageGraph(const FMetaSoundFrontendDocumentBuilder& Builder, const FGuid& InPageID)
+		{
+			using namespace Engine;
+
+			const UObject& MetaSound = Builder.CastDocumentObjectChecked<const UObject>();
+			if (IsPreviewingMetaSound(MetaSound))
+			{
+				const FMetasoundFrontendGraphClass& GraphClass = Builder.GetConstDocumentChecked().RootGraph;
+				const FGuid TargetPageID = FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(GraphClass);
+				return TargetPageID == InPageID;
+			}
+
+			return false;
+		}
+
+		bool PageEditorEnabled(const FMetaSoundFrontendDocumentBuilder& Builder, bool bHasProjectPageValues, bool bPresetCanEditPageValues)
+		{
+			if (!AssetEditorPrivate::EnablePageEditor)
+			{
+				return false;
+			}
+
+			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+			if (!Settings)
+			{
+				return false;
+			}
+
+			if (Settings->GetProjectPageSettings().IsEmpty())
+			{
+				if (!bHasProjectPageValues)
+				{
+					return false;
+				}
+			}
+
+			if (!bPresetCanEditPageValues)
+			{
+				if (Builder.IsPreset())
+				{
+					return false;
+				}
+			}
+
+			return true;
 		}
 
 		namespace TabNamesPrivate
@@ -951,14 +1025,14 @@ namespace Metasound
 					InTabManager->RegisterTabSpawner(TabNamesPrivate::Pages, FOnSpawnTab::CreateLambda([this, InPagesDetails = PagesDetails](const FSpawnTabArgs&)
 					{
 						return SNew(SDockTab)
-							.Label(LOCTEXT("MetasoundPagesDetailsTitle", "Pages"))
-							[
-								InPagesDetails.ToSharedRef()
-							];
+						.Label(LOCTEXT("MetasoundPagesDetailsTitle", "Pages"))
+						[
+							InPagesDetails.ToSharedRef()
+						];
 					}), CanSpawnTab)
 					.SetDisplayName(LOCTEXT("PagesTab", "Pages"))
-						.SetGroup(WorkspaceMenuCategoryRef)
-						.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Kismet.Tabs.Palette"));
+					.SetGroup(WorkspaceMenuCategoryRef)
+					.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Kismet.Tabs.Palette"));
 				}
 			}
 
@@ -1130,6 +1204,16 @@ namespace Metasound
 			DocListener = MakeShared<FDocumentListener>(StaticCastSharedRef<FEditor>(AsShared()));
 			Builder->AddTransactionListener(DocListener->AsShared());
 
+			// Stat widgets are potentially intractable with transaction listener, so create then here
+			SAssignNew(FocusPageWidget, SPageStats)
+				.Visibility(EVisibility::HitTestInvisible);
+
+			SAssignNew(RenderPageWidget, SPageStats)
+				.Visibility(EVisibility::HitTestInvisible);
+
+			SAssignNew(RenderStatsWidget, SRenderStats)
+				.Visibility(EVisibility::HitTestInvisible);
+
 			if (FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(ObjectToEdit))
 			{
 				FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetBuilder();
@@ -1274,6 +1358,7 @@ namespace Metasound
 				UpdatePageInfo(false);
 			}
 
+			RefreshExecVisibility(Builder->GetConstBuilder().GetBuildPageID());
 			FSlateApplication::Get().SetUserFocus(0, MetasoundGraphEditor);
 		}
 
@@ -1340,23 +1425,16 @@ namespace Metasound
 
 		bool FEditor::ShowPageGraphDetails() const
 		{
-			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
-			if (!Settings)
+			if (Builder.IsValid())
 			{
-				return false;
+				const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetConstBuilder();
+				const FMetasoundFrontendDocument& Document = DocBuilder.GetConstDocumentChecked();
+				const bool bLastGraph = Document.RootGraph.GetConstGraphPages().Num() == 1;
+				const bool bHasProjectPageValues = !bLastGraph && Document.RootGraph.FindConstGraph(Frontend::DefaultPageID) != nullptr;
+				return Editor::PageEditorEnabled(DocBuilder, bHasProjectPageValues);
 			}
 
-			if (Settings->GetProjectPageSettings().IsEmpty())
-			{
-				return false;
-			}
-
-			if (!AssetEditorPrivate::EnablePageEditor)
-			{
-				return false;
-			}
-
-			return Builder.IsValid() && !Builder->IsPreset();
+			return false;
 		}
 
 		bool FEditor::GetBoundsForSelectedNodes(FSlateRect& Rect, float Padding)
@@ -1854,21 +1932,9 @@ namespace Metasound
 		TSharedRef<SWidget> FEditor::CreateAuditionMenuOptions()
 		{
 			TSharedPtr<FUICommandList> Commands = MakeShared<FUICommandList>();
-			FMenuBuilder MenuBuilder(true, Commands);
-			
-			constexpr bool bOpenOnClick = false;
-			constexpr bool bCloseAfterSelection = false;
-			const FText Label = LOCTEXT("PageAuditionSettingsSubMenu", "Pages");
-			const FText ToolTip = LOCTEXT("AuditionPageSettingsTooltip", "Settings related to auditioning pages");
-			MenuBuilder.AddSubMenu(Label, ToolTip,
-				FNewMenuDelegate::CreateLambda([this](FMenuBuilder& SubMenuBuilder)
-				{
-					CreateAuditionPageSubMenuOptions(SubMenuBuilder);
-				}),
-				bOpenOnClick,
-				FSlateIcon(),
-				bCloseAfterSelection
-			);
+			constexpr bool bShouldCloseWindowAfterMenuSelection = false;
+			FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, Commands);
+			CreateAuditionPageSubMenuOptions(MenuBuilder);
 			return MenuBuilder.MakeWidget();
 		}
 
@@ -1880,7 +1946,7 @@ namespace Metasound
 				return;
 			}
 
-			MenuBuilder.BeginSection("SetAuditionPlatformSectionHeader", LOCTEXT("SetAuditionPlatformDescription", "Platform"));
+			MenuBuilder.BeginSection("SetAuditionPlatformSectionHeader", LOCTEXT("AuditionPlatformSectionName", "Audition Platform"));
 			{
 				auto CreatePlatformEntry = [this, &MenuBuilder](FName PlatformName, const FText& PlatformText)
 				{
@@ -1891,26 +1957,38 @@ namespace Metasound
 						{
 							EditorSettings->AuditionPlatform = PlatformName;
 							Stop();
+							SyncAuditionState();
 						}
 					});
-
-					SetPlatformAction.CanExecuteAction = FCanExecuteAction::CreateLambda([this, PlatformName]()
+					SetPlatformAction.GetActionCheckState = FGetActionCheckState::CreateLambda([this, PlatformName]()
 					{
 						if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
 						{
-							return EditorSettings->AuditionPlatform != PlatformName;
+							if (EditorSettings->AuditionPlatform == PlatformName)
+							{
+								return ECheckBoxState::Checked;
+							}
 						}
 
-						return false;
+						return ECheckBoxState::Unchecked;
 					});
 
 					MenuBuilder.AddMenuEntry(PlatformText,
-						FText::Format(LOCTEXT("SetAuditionPlatformToolTip", "Sets the audition platform to '{0}'."), PlatformText),
+						FText::Format(LOCTEXT("SetAuditionPlatformToolTip", "Sets the page audition platform to '{0}'."), PlatformText),
 						FSlateIcon(),
-						SetPlatformAction);
+						SetPlatformAction,
+						{ },
+						EUserInterfaceActionType::RadioButton);
 				};
 
-				const TArray<FName> AuditionPlatforms = UMetasoundEditorSettings::GetAuditionPlatformNames();
+				TArray<FName> AuditionPlatforms = UMetasoundEditorSettings::GetAuditionPlatformNames();
+
+				// Protects against stale setting not showing after platform values are manipulated just for visibility
+				if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
+				{
+					AuditionPlatforms.AddUnique(EditorSettings->AuditionPlatform);
+				}
+
 				for (const FName& PlatformName : AuditionPlatforms)
 				{
 					const FText PlatformText = FText::FromName(PlatformName);
@@ -1919,9 +1997,11 @@ namespace Metasound
 			}
 			MenuBuilder.EndSection();
 
-			MenuBuilder.BeginSection("SetAuditionTargetPageSectionHeader", LOCTEXT("SetAuditionTargetPageDescription", "Target Page"));
+			MenuBuilder.BeginSection("SetAuditionPageSectionHeader", LOCTEXT("SetAuditionPageDescription", "Audition Target Page"));
 			{
-				const FText FocusPageTooltip = LOCTEXT("EnableFocusTargetPageSwapTooltip", "Dynamically swap which page is targeted based on which page is focused");
+				const FText FocusPageTooltip = LOCTEXT("EnableFocusTargetPageSwapTooltip", "Attempts to set audition target page to focused graph page. "
+					"If page focus is modified and newly selected graph is not targetable for a selected audition platform (see 'Audition' or `MetaSound Editor Settings`), "
+					"will fail to pass validation for preview audition.");
 				MenuBuilder.AddWidget(
 					SNew(SCheckBox)
 					.OnCheckStateChanged_Lambda([this](ECheckBoxState State)
@@ -1933,7 +2013,8 @@ namespace Metasound
 								case ECheckBoxState::Checked:
 								{
 									EdSettings->AuditionPageMode = EAuditionPageMode::Focused;
-									SyncFocusedPage();
+									Stop();
+									SyncAuditionState();
 									break;
 								}
 
@@ -1960,7 +2041,7 @@ namespace Metasound
 						return ECheckBoxState::Unchecked;
 					})
 					.ToolTipText(FocusPageTooltip),
-					LOCTEXT("EnableFocusTargetPageGraphSwap", "Set Target To Focused Graph"),
+					LOCTEXT("EnableFocusTargetPageGraphSync", "Sync Audition Target With Focused Graph"),
 					true,
 					true,
 					FocusPageTooltip
@@ -1968,50 +2049,86 @@ namespace Metasound
 
 				auto TryAddPageEntry = [this, &MenuBuilder](const FMetaSoundPageSettings& PageSettings)
 				{
-					const FName AuditionTargetPage = PageSettings.Name;
+					const FName AuditionPage = PageSettings.Name;
 					const FText PageText = FText::FromName(PageSettings.Name);
 					FUIAction SetTargetPageAction;
-					SetTargetPageAction.ExecuteAction = FExecuteAction::CreateLambda([this, AuditionTargetPage]()
+
+					SetTargetPageAction.ExecuteAction = FExecuteAction::CreateLambda([this, AuditionPage]()
 					{
 						if (UMetasoundEditorSettings* EditorSettings = GetMutableDefault<UMetasoundEditorSettings>())
 						{
-							EditorSettings->AuditionTargetPage = AuditionTargetPage;
-							Stop();
+							if (EditorSettings->AuditionPage != AuditionPage)
+							{
+								EditorSettings->AuditionPage = AuditionPage;
+								Stop();
+								SyncAuditionState();
+							}
 						}
 					});
 
-					SetTargetPageAction.CanExecuteAction = FCanExecuteAction::CreateLambda([this, AuditionTargetPage]()
+					SetTargetPageAction.GetActionCheckState = FGetActionCheckState::CreateLambda([this, AuditionPage]()
 					{
 						if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
 						{
+							if (EditorSettings->AuditionPage == AuditionPage)
+							{
+								return ECheckBoxState::Checked;
+							}
+						}
+
+						return ECheckBoxState::Unchecked;
+					});
+					SetTargetPageAction.CanExecuteAction = FCanExecuteAction::CreateLambda([this, AuditionPage]()
+					{
+						if (const UMetasoundEditorSettings* EdSettings = GetDefault<UMetasoundEditorSettings>())
+						{
+							return EdSettings->AuditionPageMode == EAuditionPageMode::User;
+						}
+
+						if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+						{
+							return Settings->FindPageSettings(AuditionPage) != nullptr;
+						}
+						return false;
+					});
+
+					TAttribute<FText> TooltipAttribute = TAttribute<FText>::CreateLambda([this, AuditionPage, PageText]()
+					{
+						if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
+						{
+							if (EditorSettings->AuditionPlatform != UMetasoundEditorSettings::EditorAuditionPlatform)
+							{
+								if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+								{
+									if (const FMetaSoundPageSettings* PageSetting = Settings->FindPageSettings(AuditionPage))
+									{
+										if (!PageSetting->PlatformCanTargetPage(EditorSettings->AuditionPlatform))
+										{
+											return FText::Format(LOCTEXT("AuditionPageInvalidForPlatformToolTip", "Platform '{0}' does not target page '{1}'. See 'MetaSound' Project Settings"), FText::FromName(EditorSettings->AuditionPlatform), PageText);
+										}
+									}
+								}
+							}
+
 							const bool bUserAuditionMode = EditorSettings->AuditionPageMode == EAuditionPageMode::User;
 							if (bUserAuditionMode)
 							{
-								return EditorSettings->AuditionTargetPage != AuditionTargetPage;
-							}
-						}
-						return false;
-					});
-
-					SetTargetPageAction.IsActionVisibleDelegate.BindLambda([PageName = PageSettings.Name]()
-					{
-						if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
-						{
-							if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
-							{
-								if (const FMetaSoundPageSettings* PageSetting = Settings->FindPageSettings(PageName))
+								if (EditorSettings->AuditionPage != AuditionPage)
 								{
-									return PageSetting->PlatformCanTargetPage(EditorSettings->AuditionPlatform);
+									return FText::Format(LOCTEXT("SetAuditionPageToolTip", "Sets the user's editor AuditionPage setting to '{0}'."), PageText);
 								}
 							}
 						}
-						return false;
+
+						return FText();
 					});
 
 					MenuBuilder.AddMenuEntry(PageText,
-						FText::Format(LOCTEXT("SetAuditionPageToolTip", "Sets the audition target page to '{0}'."), PageText),
+						MoveTemp(TooltipAttribute),
 						FSlateIcon(),
-						SetTargetPageAction);
+						SetTargetPageAction,
+						{ },
+						EUserInterfaceActionType::RadioButton);
 				};
 
 				Settings->IteratePageSettings(TryAddPageEntry);
@@ -2319,6 +2436,11 @@ namespace Metasound
 
 		FText FEditor::GetGraphStatusDescription() const
 		{
+			if (!GraphStatusDescriptionOverride.IsEmpty())
+			{
+				return GraphStatusDescriptionOverride;
+			}
+
 			switch (HighestMessageSeverity)
 			{
 				case EMessageSeverity::Error:
@@ -2423,13 +2545,12 @@ namespace Metasound
 
 			if (USoundBase* MetaSoundToPlay = Cast<USoundBase>(GetMetasoundObject()))
 			{
-				HighestMessageSeverity = GetMetaSoundGraphChecked().GetHighestMessageSeverity();
+				SyncAuditionState();
+
 				if (HighestMessageSeverity == EMessageSeverity::Error)
 				{
 					return;
 				}
-
-				SyncFocusedPage();
 
 				// Even though the MetaSoundSource will attempt to register via InitResources
 				// later in this execution (and deeper in the stack), this call forces
@@ -2578,16 +2699,35 @@ namespace Metasound
 			SetPreviewID(INDEX_NONE);
 		}
 
-		void FEditor::SyncFocusedPage() const
+		void FEditor::SyncAuditionState(bool bSetAuditionFocus)
 		{
-			if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+			GraphStatusDescriptionOverride = { };
+			HighestMessageSeverity = GetMetaSoundGraphChecked().GetHighestMessageSeverity();
+
+			if (Builder.IsValid())
 			{
-				if (Builder.IsValid())
+				constexpr bool bOpenEditor = false; // Already Focused
+				constexpr bool bPostTransaction = false;
+				const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetConstBuilder();
+				const FGuid BuildPageID = DocBuilder.GetBuildPageID();
+
+				UMetaSoundEditorSubsystem::GetChecked().SetFocusedPage(*Builder.Get(), BuildPageID, bOpenEditor, bPostTransaction);
+
+				if (const UMetasoundEditorSettings* EdSettings = GetDefault<UMetasoundEditorSettings>())
 				{
-					constexpr bool bOpenEditor = false; // Already Focused
-					constexpr bool bPostTransaction = false;
-					const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetConstBuilder();
-					UMetaSoundEditorSubsystem::GetChecked().SetFocusedPage(*Builder.Get(), DocBuilder.GetBuildPageID(), bOpenEditor, bPostTransaction);
+					if (EdSettings->AuditionPlatform != UMetasoundEditorSettings::EditorAuditionPlatform)
+					{
+						if (!UMetaSoundEditorSubsystem::GetChecked().IsPageAuditionPlatformCookTarget(EdSettings->AuditionPage))
+						{
+							GraphStatusDescriptionOverride = LOCTEXT("InvalidAuditionPageWarning",
+								"Selected Audition Page in MetaSound Editor Settings is not a target page for the selectd 'Audition Platform'. "
+								"Execution may result in behavior that does not exhibit runtime behavior.");
+							if (HighestMessageSeverity > EMessageSeverity::Warning)
+							{
+								HighestMessageSeverity = EMessageSeverity::Warning;
+							}
+						}
+					}
 				}
 			}
 		}
@@ -2940,15 +3080,6 @@ namespace Metasound
 				.Visibility(EVisibility::HitTestInvisible)
 				.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
 				.ColorAndOpacity(FLinearColor(1, 1, 1, 0.30f));
-
-			SAssignNew(FocusPageWidget, SPageStats)
-				.Visibility(EVisibility::HitTestInvisible);
-
-			SAssignNew(RenderPageWidget, SPageStats)
-				.Visibility(EVisibility::HitTestInvisible);
-
-			SAssignNew(RenderStatsWidget, SRenderStats)
-				.Visibility(EVisibility::HitTestInvisible);
 		}
 
 		FGraphAppearanceInfo FEditor::GetGraphAppearance() const
@@ -4443,7 +4574,8 @@ namespace Metasound
 					}
 				}
 
-				HighestMessageSeverity = Graph->GetHighestMessageSeverity();
+				constexpr bool bSetAuditionFocus = false;
+				SyncAuditionState(bSetAuditionFocus);
 
 				// Modify data has been observed both from synchronization & by
 				// updating views by this point, so full reset is completed here.
@@ -4726,7 +4858,9 @@ namespace Metasound
 
 		TUniquePtr<FGraphConnectionManager> FEditor::RebuildConnectionManager(UAudioComponent* PreviewComp) const
 		{
-			if (!PreviewComp)
+			using namespace Engine;
+
+			if (!PreviewComp || !Builder.IsValid())
 			{
 				return MakeUnique<FGraphConnectionManager>();
 			}
@@ -4737,21 +4871,14 @@ namespace Metasound
 				return MakeUnique<FGraphConnectionManager>();
 			}
 
-			const UMetasoundEditorSettings* EdSettings = GetDefault<UMetasoundEditorSettings>();
-			check(EdSettings);
-			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
-			check(Settings);
-
-			const FMetaSoundPageSettings* TargetPageSettings = Settings->FindPageSettings(EdSettings->AuditionTargetPage);
-			const FMetaSoundPageSettings* BuilderPageSettings = Settings->FindPageSettings(Builder->GetConstBuilder().GetBuildPageID());
-			if (TargetPageSettings != BuilderPageSettings)
+			const FGuid ResolvedGraphPageID = FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(Source->GetConstDocumentChecked().RootGraph);
+			if (ResolvedGraphPageID != Builder->GetConstBuilder().GetBuildPageID())
 			{
 				return MakeUnique<FGraphConnectionManager>();
 			}
 
 			FAudioDevice* AudioDevice = PreviewComp->GetAudioDevice();
 			check(AudioDevice);
-			const FName& AudioBufferTypeName = GetMetasoundDataTypeName<FAudioBuffer>();
 			const FSampleRate DeviceSampleRate = static_cast<FSampleRate>(AudioDevice->GetSampleRate());
 			const uint32 PlayOrder = PreviewComp->GetLastPlayOrder();
 			const uint64 TransmitterID = Audio::GetTransmitterID(PreviewComp->GetAudioComponentID(), 0, PlayOrder);
@@ -4768,15 +4895,28 @@ namespace Metasound
 
 			if (FocusPageWidget.IsValid())
 			{
+				const FSlateColor* Color = nullptr;
 				// For now, this is one and the same, but may change in the future to accommodate conflating
 				// the static nature of the active build graph ID with what the user is visualizing.
 				const FMetaSoundPageSettings* PageSettings = nullptr;
 				if (Builder.IsValid())
 				{
-					const FGuid& PageID = Builder->GetConstBuilder().GetBuildPageID();
+					const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetConstBuilder();
+					const FGuid& PageID = DocBuilder.GetBuildPageID();
+					if (bIsPlaying)
+					{
+						const FMetasoundFrontendGraphClass& GraphClass = DocBuilder.GetConstDocumentChecked().RootGraph;
+						const FGuid ResolvePageID = FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(GraphClass);
+						if (ResolvePageID == PageID)
+						{
+							Color = &FStyleColors::AccentGreen;
+						}
+					}
 					PageSettings = Settings->FindPageSettings(PageID);
 				}
-				FocusPageWidget->Update(PageSettings);
+
+				const FText GraphPageHeader = LOCTEXT("GraphPageTargetHeader", "Graph Page");
+				FocusPageWidget->Update(PageSettings, GraphPageHeader, Color);
 			}
 
 			if (RenderPageWidget.IsValid())
@@ -4786,10 +4926,12 @@ namespace Metasound
 				{
 					if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
 					{
-						PageSettings = Settings->FindPageSettings(EditorSettings->AuditionTargetPage);
+						PageSettings = Settings->FindPageSettings(EditorSettings->AuditionPage);
 					}
 				}
-				RenderPageWidget->Update(PageSettings);
+
+				const FText RenderPageHeader = LOCTEXT("AuditionPageHeader", "Audition Page");
+				RenderPageWidget->Update(PageSettings, RenderPageHeader, &FStyleColors::AccentGreen);
 			}
 		}
 
@@ -4837,6 +4979,27 @@ namespace Metasound
 				ParentPtr->Stop();
 				ParentPtr->UpdatePageInfo(false);
 				ParentPtr->bRefreshGraph = true;
+				ParentPtr->RefreshExecVisibility(Args.PageID);
+			}
+		}
+
+		void FEditor::RefreshExecVisibility(const FGuid& InPageID) const
+		{
+			if (FocusPageWidget.IsValid())
+			{
+				TAttribute<EVisibility> ExecVisibility = TAttribute<EVisibility>::CreateLambda([this, InPageID]()
+				{
+					using namespace Engine;
+					if (Builder.IsValid())
+					{
+						const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetConstBuilder();
+						const bool bIsPreviewing = IsPreviewingPageGraph(DocBuilder, InPageID);
+						return bIsPreviewing ? EVisibility::Visible : EVisibility::Collapsed;
+					}
+
+					return EVisibility::Collapsed;
+				});
+				FocusPageWidget->SetExecVisibility(MoveTemp(ExecVisibility));
 			}
 		}
 

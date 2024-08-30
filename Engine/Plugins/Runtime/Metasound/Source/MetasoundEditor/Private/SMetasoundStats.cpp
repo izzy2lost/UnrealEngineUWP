@@ -6,46 +6,77 @@
 #include "Editor.h"
 #include "Internationalization/Text.h"
 #include "MetasoundDocumentBuilderRegistry.h"
+#include "MetasoundEditorModule.h"
 #include "MetasoundEditorSettings.h"
 #include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundSettings.h"
 #include "MetasoundSource.h"
 #include "MetasoundGenerator.h"
+#include "Styling/SlateColor.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
 
+#define LOCTEXT_NAMESPACE "MetaSoundEditor"
+
 namespace Metasound::Editor
 {
+	namespace StatsPrivate
+	{
+		const FLinearColor BaseTextColor(1, 1, 1, 0.30f);
+	}
+
 	void SPageStats::Construct(const FArguments& InArgs)
 	{
 		SVerticalBox::Construct(SVerticalBox::FArguments());
-		AddSlot()
-			.HAlign(HAlign_Left)
+
+		TSharedRef<SHorizontalBox> PageWidgetBox = SNew(SHorizontalBox);
+		PageWidgetBox->AddSlot()
+			.Padding(2.0f)
+			.HAlign(HAlign_Center)
 			[
 				SAssignNew(PageTextWidget, STextBlock)
 				.Visibility(EVisibility::HitTestInvisible)
 				.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
-				.ColorAndOpacity(FLinearColor(1, 1, 1, 0.30f))
+				.ColorAndOpacity(StatsPrivate::BaseTextColor)
 			];
+
+		ExecImageWidget = SNew(SImage)
+			.Image(Style::CreateSlateIcon("MetasoundEditor.Page.Executing").GetIcon())
+			.DesiredSizeOverride(FVector2D(24.f, 24.f))
+			.ColorAndOpacity(FStyleColors::AccentGreen)
+			.Visibility(EVisibility::Collapsed);
+
+		PageWidgetBox->AddSlot()
+			.Padding(2.0f)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.AutoWidth()[ ExecImageWidget.ToSharedRef()];
+
+		AddSlot().HAlign(HAlign_Left) [ PageWidgetBox ];
 	}
 
-	void SPageStats::Update(const FMetaSoundPageSettings* PageSettings)
+	void SPageStats::SetExecVisibility(TAttribute<EVisibility> InVisibility)
+	{
+		ExecImageWidget->SetVisibility(MoveTemp(InVisibility));
+	}
+
+	void SPageStats::Update(const FMetaSoundPageSettings* PageSettings, const FText& Header, const FSlateColor* ColorOverride)
 	{
 		using namespace Engine;
 
-		FString PageInfo;
-		EVisibility Visibility = EVisibility::Hidden;
+		FText PageInfo;
+		EVisibility Visibility = EVisibility::Collapsed;
 		if (PageTextWidget.IsValid() && PageSettings)
 		{
-			PageInfo = FString::Printf(TEXT("Page: %s"), *PageSettings->Name.ToString());
+			PageInfo = FText::Format(LOCTEXT("PageStatsFormat", "{0}: {1}"), Header, FText::FromString(PageSettings->Name.ToString()));
 			Visibility = EVisibility::Visible;
 		}
 
-		PageTextWidget->SetText(FText::FromString(MoveTemp(PageInfo)));
-		PageTextWidget->SetVisibility(Visibility);
+		PageTextWidget->SetText(PageInfo);
+		PageTextWidget->SetColorAndOpacity(ColorOverride ? *ColorOverride : StatsPrivate::BaseTextColor);
 	}
 
 	void SRenderStats::Construct(const FArguments& InArgs)
@@ -116,3 +147,4 @@ namespace Metasound::Editor
 		}
 	}
 } // namespace Metasound::Editor
+#undef LOCTEXT_NAMESPACE

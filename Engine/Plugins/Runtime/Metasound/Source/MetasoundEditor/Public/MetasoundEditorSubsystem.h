@@ -69,6 +69,11 @@ public:
 	UE_DEPRECATED(5.5, "EdGraph is now transiently generated and privately managed for asset editor use only.")
 	void InitEdGraph(UObject& InMetaSound);
 
+	// Returns whether or not a page with the given name both exists and is set as
+	// a valid, cooked target for the currently set audition platform in editor.
+	bool IsPageAuditionPlatformCookTarget(FName InPageName) const;
+	bool IsPageAuditionPlatformCookTarget(const FGuid& InPageID) const;
+
 	// Wraps RegisterGraphWithFrontend logic in Frontend with any additional logic required to refresh editor & respective editor object state.
 	// @param InMetaSound - MetaSound to register
 	// @param bInForceSynchronize - Forces the synchronize flag for all open graphs being registered by this call (all referenced graphs and
@@ -79,16 +84,17 @@ public:
 	void RegisterToolbarExtender(TSharedRef<FExtender> InExtender);
 
 	// If the given page name is implemented on the provided builder, sets the focused page of
-	// the provided builder to the given page name if and sets the audition target page to
+	// the provided builder to the associated page and sets the audition page to
 	// the provided name. If the given builder has an asset editor open, optionally opens or brings
-	// that editor's associated page into user focus.
+	// that editor's associated PageID into user focus.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder|Editor", meta = (ExpandEnumAsExecs = "OutResult"))
 	void SetFocusedPage(UMetaSoundBuilderBase* Builder, FName PageName, bool bOpenEditor, EMetaSoundBuilderResult& OutResult) const;
 
 	// If the given PageID is implemented on the provided builder, sets the focused page of
-	// the provided builder to the given PageID if and sets the audition target page to
+	// the provided builder to the associated page and sets the audition target page to
 	// the provided ID. If the given builder has an asset editor open, optionally opens or brings
-	// that editor's associated PageID into user focus.
+	// that editor's associated PageID into user focus. Returns whether or not the audition page
+	// was set to the provided focus page.
 	bool SetFocusedPage(UMetaSoundBuilderBase& Builder, const FGuid& InPageID, bool bOpenEditor, bool bPostTransaction = true) const;
 
 	// Unregisters toolbar extender that is displayed in the MetaSound Asset Editor.

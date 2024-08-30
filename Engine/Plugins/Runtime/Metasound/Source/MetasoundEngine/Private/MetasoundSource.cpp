@@ -48,6 +48,12 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MetasoundSource)
 
+
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif // WITH_EDITOR
+
+
 #if WITH_EDITORONLY_DATA
 #include "EdGraph/EdGraph.h"
 #endif // WITH_EDITORONLY_DATA
@@ -496,7 +502,7 @@ bool UMetaSoundSource::CanEditChange(const FProperty* InProperty) const
 
 EDataValidationResult UMetaSoundSource::IsDataValid(FDataValidationContext& Context) const
 {
-	const EDataValidationResult Result = Metasound::Engine::FAssetHelper::IsDataValid(*this, Context);
+	const EDataValidationResult Result = Metasound::Engine::FAssetHelper::IsDataValid(*this, RootMetasoundDocument, Context);
 	return CombineDataValidationResults(Result, Super::IsDataValid(Context));
 }
 

@@ -66,7 +66,7 @@ struct METASOUNDENGINE_API FMetaSoundPageSettings
 	FGuid UniqueId = Metasound::Frontend::DefaultPageID;
 
 	/** Name of this page's setting to be displayed in editors and used for identification from Blueprint/native API. */
-	UPROPERTY(EditAnywhere, Category = "Pages")
+	UPROPERTY(EditAnywhere, Category = "Pages", meta = (EditCondition = "!bIsDefaultPage"))
 	FName Name = Metasound::Frontend::DefaultPageName;
 
 private:
@@ -77,11 +77,16 @@ private:
 	FPerPlatformBool CanTarget = true;
 
 #if WITH_EDITORONLY_DATA
+	// Just used to inform edit condition to enable/disable exclude from cook. Maintained by ConformPageSettings on object load/mutation.
+	// EditCondition meta mark-up is hack to avoid boolean being default added to name field
+	UPROPERTY(EditAnywhere, Category = "Pages", meta = (EditCondition = false, EditConditionHides))
+	bool bIsDefaultPage = true;
+
 	// When true, exclude page data when cooking from the assigned platform(s)/platform group(s).
 	// If false, page data may or may not be included in cook depending on whether or not the given
 	// page data is required in order to ensure a value is always resolved for the cook platform target(s).
 	// (Ignored if CanTarget true for corresponding platform/group).
-	UPROPERTY(EditAnywhere, Category = "Pages")
+	UPROPERTY(EditAnywhere, Category = "Pages", meta = (EditCondition = "!bIsDefaultPage"))
 	FPerPlatformBool ExcludeFromCook = false;
 #endif //WITH_EDITORONLY_DATA
 
@@ -166,21 +171,21 @@ private:
 
 	/** Page Name to target when attempting to execute MetaSound. If target page is not implemented (or cooked in a runtime build)
 	  * for the active platform, uses order of cooked pages (see 'Page Settings' for order) falling back to lower index-ordered page
-	  * implemented in MetaSound asset. If no fallback is found, uses default implementation. If any pages are specified, target
-	  * cannot be set directly to default (allows for removal of default implementation when cooking for performance reasons). */
-	UPROPERTY(EditAnywhere, config, Category = Pages, meta = (GetOptions = "MetasoundEngine.MetaSoundSettings.GetPageNames"))
+	  * implemented in MetaSound asset. If no fallback is found, uses default implementation.
+	  */
+	UPROPERTY(EditAnywhere, config, Category = "Pages (Experimental)", meta = (GetOptions = "MetasoundEngine.MetaSoundSettings.GetPageNames"))
 	FName TargetPageName = Metasound::Frontend::DefaultPageName;
+
+	/** Default page settings to be used in editor and if no other page settings are targeted or defined. */
+	UPROPERTY(EditAnywhere, config, Category = "Pages (Experimental)")
+	FMetaSoundPageSettings DefaultPageSettings;
 
 	/** Array of possible page settings that can be added to a MetaSound object. Order
 	  * defines default fallback logic whereby a higher index-ordered page
 	  * implemented in a MetaSound asset is higher priority (see 'Target Page').
 	  */
-	UPROPERTY(EditAnywhere, config, Category = Pages)
+	UPROPERTY(EditAnywhere, config, Category = "Pages (Experimental)")
 	TArray<FMetaSoundPageSettings> PageSettings;
-
-	/** Default page settings to be used in editor and if no other page settings are targeted or defined. */
-	UPROPERTY()
-	FMetaSoundPageSettings DefaultPageSettings;
 
 	/** Array of possible quality settings for Metasounds to chose from */
 	UPROPERTY(EditAnywhere, config, Category = Quality)
@@ -244,6 +249,8 @@ public:
 	// Iterates possible page settings in order (including the default page settings, which is always last). If 
 	// optionally set to reverse, iterates in reverse.
 	void IteratePageSettings(TFunctionRef<void(const FMetaSoundPageSettings&)> Iter, bool bReverse = false) const;
+
+	virtual void PostLoad() override;
 
 	// Sets the target page to the given name. Returns true if associated page settings were found
 	// and target set, false if not found and not set.

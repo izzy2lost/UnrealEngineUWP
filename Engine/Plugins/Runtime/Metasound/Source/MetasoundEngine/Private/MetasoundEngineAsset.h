@@ -9,6 +9,7 @@
 #include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendRegistryKey.h"
 #include "MetasoundGlobals.h"
+#include "MetasoundSettings.h"
 #include "MetasoundUObjectRegistry.h"
 #include "Misc/App.h"
 #include "Modules/ModuleManager.h"
@@ -105,8 +106,7 @@ namespace Metasound::Engine
 			}
 		}
 
-		template <typename TMetaSoundObject>
-		static EDataValidationResult IsClassNameUnique(const TMetaSoundObject& InMetaSound, FDataValidationContext& InOutContext)
+		static EDataValidationResult IsClassNameUnique(const FMetasoundFrontendDocument& Document, FDataValidationContext& InOutContext)
 		{
 			using namespace Metasound::Frontend;
 			using namespace Metasound::Engine;
@@ -136,7 +136,7 @@ namespace Metasound::Engine
 			AssetManager.SetLogActiveAssetsOnShutdown(false);
 
 			// Add error for multiple assets with the same class name
-			const FAssetKey Key(InMetaSound.GetConstDocument().RootGraph.Metadata);
+			const FAssetKey Key(Document.RootGraph.Metadata);
 			const TArray<FTopLevelAssetPath>* AssetPaths = AssetManager.FindAssetPaths(Key);
 			if (AssetPaths && AssetPaths->Num() > 1)
 			{
@@ -153,13 +153,51 @@ namespace Metasound::Engine
 			return Result;
 		}
 
-		template <typename TMetaSoundObject>
-		static EDataValidationResult IsDataValid(const TMetaSoundObject& InMetaSound, FDataValidationContext& InOutContext)
+		static EDataValidationResult IsDataValid(const UObject& MetaSound, const FMetasoundFrontendDocument& Document, FDataValidationContext& InOutContext)
 		{
+			using namespace Metasound::Engine;
+
 			EDataValidationResult Result = EDataValidationResult::Valid;
 			if (MetasoundEngineModulePrivate::EnableMetaSoundEditorAssetValidation)
 			{
-				Result = IsClassNameUnique(InMetaSound, InOutContext);
+				Result = IsClassNameUnique(Document, InOutContext);
+			}
+
+			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+			check(Settings);
+
+			TSet<FGuid> ValidPageIDs;
+			auto ErrorIfMissing = [&](const FGuid& PageID, const FText& DataDescriptor)
+			{
+				if (!ValidPageIDs.Contains(PageID))
+				{
+					if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(PageID))
+					{
+						ValidPageIDs.Add(PageSettings->UniqueId);
+					}
+					else
+					{
+						Result = EDataValidationResult::Invalid;
+						InOutContext.AddMessage(FAssetData(&MetaSound), EMessageSeverity::Error, FText::Format(
+							LOCTEXT("InvalidPageDataFormat", "MetaSound contains invalid {0} with page ID '{1}': page not found in Project 'MetaSound' Settings. Remove page data or migrate to existing page identifier."),
+							DataDescriptor,
+							FText::FromString(PageID.ToString())));
+					}
+				}
+			};
+
+			const TArray<FMetasoundFrontendGraph>& Graphs = Document.RootGraph.GetConstGraphPages();
+			for (const FMetasoundFrontendGraph& Graph : Graphs)
+			{
+				ErrorIfMissing(Graph.PageID, LOCTEXT("GraphPageDescriptor", "graph"));
+			}
+
+			for (const FMetasoundFrontendClassInput& ClassInput : Document.RootGraph.Interface.Inputs)
+			{
+				ClassInput.IterateDefaults([&](const FGuid& PageID, const FMetasoundFrontendLiteral&)
+				{
+					ErrorIfMissing(PageID, FText::Format(LOCTEXT("InputPageDefaultDescriptorFormat", "input '{0}' default value"), FText::FromName(ClassInput.Name)));
+				});
 			}
 			return Result;
 		}

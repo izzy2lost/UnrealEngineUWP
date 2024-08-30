@@ -19,6 +19,9 @@
 
 #define LOCTEXT_NAMESPACE "MetasoundEditorSettings"
 
+const FName UMetasoundEditorSettings::DefaultAuditionPlatform = "Default";
+const FName UMetasoundEditorSettings::EditorAuditionPlatform = "Editor";
+
 UMetasoundEditorSettings::UMetasoundEditorSettings(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -117,7 +120,7 @@ Metasound::Engine::FPageResolutionEditorResults UMetasoundEditorSettings::Resolv
 
 	FPageResolutionEditorResults PreviewInfo { .PlatformName = AuditionPlatform };
 
-	if (AuditionTargetPage == Frontend::DefaultPageName)
+	if (AuditionPage == Frontend::DefaultPageName)
 	{
 		check(InPageIDs.Contains(Frontend::DefaultPageID));
 		PreviewInfo.PageID = Frontend::DefaultPageID;
@@ -126,7 +129,7 @@ Metasound::Engine::FPageResolutionEditorResults UMetasoundEditorSettings::Resolv
 
 	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
 	{
-		if (const FMetaSoundPageSettings* TargetPageSettings = Settings->FindPageSettings(AuditionTargetPage))
+		if (const FMetaSoundPageSettings* TargetPageSettings = Settings->FindPageSettings(AuditionPage))
 		{
 			auto PageIsCooked = [&InPageIDs, &PreviewInfo](const FMetaSoundPageSettings& PageSettings)
 			{
@@ -149,7 +152,7 @@ Metasound::Engine::FPageResolutionEditorResults UMetasoundEditorSettings::Resolv
 					bFoundMatch |= PageSettings.UniqueId == TargetPageID;
 					if (bFoundMatch)
 					{
-						if (PageIsCooked(PageSettings))
+						if (AuditionPlatform == EditorAuditionPlatform || PageIsCooked(PageSettings))
 						{
 							bPageSelected = true;
 							PreviewInfo.PageID = PageSettings.UniqueId;
@@ -166,10 +169,45 @@ Metasound::Engine::FPageResolutionEditorResults UMetasoundEditorSettings::Resolv
 
 TArray<FName> UMetasoundEditorSettings::GetAuditionPlatformNames()
 {
+	TArray<FName> PlatformNames { EditorAuditionPlatform, DefaultAuditionPlatform };
 	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
 	{
-		return Settings->GetAllPlatformNamesImplementingTargets();
+		PlatformNames.Append(Settings->GetAllPlatformNamesImplementingTargets());
 	}
-	return { FPlatformProperties::IniPlatformName() };
+	return PlatformNames;
+}
+
+TArray<FName> UMetasoundEditorSettings::GetAuditionPageNames()
+{
+	const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+	const UMetasoundEditorSettings* EdSettings = GetDefault<UMetasoundEditorSettings>();
+
+	if (Settings && EdSettings)
+	{
+		TSet<FName> AuditionPageNames;
+		if (EdSettings->AuditionPlatform == EditorAuditionPlatform)
+		{
+			Algo::Transform(Settings->GetProjectPageSettings(), AuditionPageNames, [](const FMetaSoundPageSettings& PageSettings) { return PageSettings.Name; });
+			AuditionPageNames.Add(Settings->GetDefaultPageSettings().Name);
+		}
+		else
+		{
+			const TArray<FGuid> AuditionPageIDs = Settings->GetCookedTargetPageIDs(EdSettings->AuditionPlatform);
+			Algo::Transform(AuditionPageIDs, AuditionPageNames, [&Settings](const FGuid& PageID)
+			{
+				const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(PageID);
+				if (ensure(PageSettings))
+				{
+					return PageSettings->Name;
+				}
+
+				return FName { };
+			});
+		}
+
+		return AuditionPageNames.Array();
+	}
+
+	return { };
 }
 #undef LOCTEXT_NAMESPACE // "MetaSoundEditor"

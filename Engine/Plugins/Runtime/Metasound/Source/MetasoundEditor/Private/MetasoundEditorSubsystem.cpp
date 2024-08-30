@@ -240,6 +240,40 @@ void UMetaSoundEditorSubsystem::InitEdGraph(UObject& InMetaSound)
 	Metasound::Editor::FGraphBuilder::BindEditorGraph(IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&InMetaSound));
 }
 
+bool UMetaSoundEditorSubsystem::IsPageAuditionPlatformCookTarget(FName InPageName) const
+{
+	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+	{
+		if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(InPageName))
+		{
+			return IsPageAuditionPlatformCookTarget(PageSettings->UniqueId);
+		}
+	}
+
+	return false;
+}
+
+bool UMetaSoundEditorSubsystem::IsPageAuditionPlatformCookTarget(const FGuid& InPageID) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+	{
+		if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
+		{
+			bool bIsAuditionable = false;
+			auto PageIsTargetable = [&InPageID, &bIsAuditionable](const FGuid& PlatformTargetPageID)
+			{
+				bIsAuditionable |= PlatformTargetPageID == InPageID;
+			};
+			Settings->IterateCookedTargetPageIDs(EditorSettings->AuditionPlatform, PageIsTargetable);
+			return bIsAuditionable;
+		}
+	}
+#endif // WITH_EDITORONLY_DATA
+
+	return false;
+}
+
 void UMetaSoundEditorSubsystem::RegisterGraphWithFrontend(UObject& InMetaSound, bool bInForceViewSynchronization) const
 {
 	Metasound::Editor::FGraphBuilder::RegisterGraphWithFrontend(InMetaSound, bInForceViewSynchronization);
@@ -295,44 +329,43 @@ bool UMetaSoundEditorSubsystem::SetFocusedPageInternal(FName PageName, const FGu
 {
 	using namespace Metasound::Frontend;
 
-	if (!PageName.IsNone())
+	bool bAuditionPageSet = false;
+	// Must set audition target page before setting build page ID as listeners
+	// to build page ID changes need to reliably be able to adjust to newly assigned
+	// audition target page.
+	UMetasoundEditorSettings* EditorSettings = GetMutableDefault<UMetasoundEditorSettings>();
+	check(EditorSettings);
+	if (EditorSettings->AuditionPageMode == EAuditionPageMode::Focused)
 	{
-		if (UMetasoundEditorSettings* EditorSettings = GetMutableDefault<UMetasoundEditorSettings>())
+		if (EditorSettings->AuditionPage != PageName)
 		{
-			if (EditorSettings->AuditionPageMode == EAuditionPageMode::Focused)
-			{
-				// Must set audition target page before setting build page ID as listeners
-				// to build page ID changes need to reliably be able to adjust to newly assigned
-				// audition target page.
-				EditorSettings->AuditionTargetPage = PageName;
-			}
+			EditorSettings->AuditionPage = PageName;
+			bAuditionPageSet = true;
 		}
-
-		const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder.GetConstBuilder();
-		if (DocBuilder.GetBuildPageID() != InPageID)
-		{
-			const FScopedTransaction Transaction(FText::Format(LOCTEXT("SetFocusedPageTransactionFormat", "Set Focused Page '{0}'"), FText::FromName(PageName)), bPostTransaction);
-			Builder.Modify();
-			UObject& MetaSound = DocBuilder.CastDocumentObjectChecked<UObject>();
-			if (Builder.GetBuilder().SetBuildPageID(InPageID))
-			{
-				// Reregister to ensure all future audible instances are using the new page implementation.
-				RegisterGraphWithFrontend(MetaSound);
-			}
-
-			if (GEditor && bOpenEditor)
-			{
-				if (UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
-				{
-					AssetEditorSubsystem->OpenEditorForAsset(&MetaSound);
-				}
-			}
-		}
-
-		return true;
 	}
 
-	return false;
+	const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder.GetConstBuilder();
+	if (DocBuilder.GetBuildPageID() != InPageID)
+	{
+		const FScopedTransaction Transaction(FText::Format(LOCTEXT("SetFocusedPageTransactionFormat", "Set Focused Page '{0}'"), FText::FromName(PageName)), bPostTransaction);
+		Builder.Modify();
+		UObject& MetaSound = DocBuilder.CastDocumentObjectChecked<UObject>();
+		if (Builder.GetBuilder().SetBuildPageID(InPageID))
+		{
+			// Reregister to ensure all future audible instances are using the new page implementation.
+			RegisterGraphWithFrontend(MetaSound);
+		}
+
+		if (GEditor && bOpenEditor)
+		{
+			if (UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
+			{
+				AssetEditorSubsystem->OpenEditorForAsset(&MetaSound);
+			}
+		}
+	}
+
+	return bAuditionPageSet;
 }
 
 bool UMetaSoundEditorSubsystem::UnregisterToolbarExtender(TSharedRef<FExtender> InExtender)

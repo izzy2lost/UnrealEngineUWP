@@ -408,8 +408,10 @@ public:
 	// Returns true if the builder is already targeting the given ID or if it successfully
 	// found a page implementation with the given ID and was able to switch to it, false if not.
 	// Swapping the targeted build graph ID clears the local cache, so swapping frequently can
-	// induce cash thrashing.
-	bool SetBuildPageID(const FGuid& InBuildPageID);
+	// induce cash thrashing. BroadcastDelegate should always be true unless dealing with the controller
+	// API (exposed as a mechanism for mutating via controllers while deprecating.  Option will be removed
+	// in a future build).
+	bool SetBuildPageID(const FGuid& InBuildPageID, bool bBroadcastDelegate = true);
 
 	// Sets the given input`s IsAdvancedDisplay state. AdvancedDisplay pins are hidden in the node by default.
 	// returns true if state was changed.

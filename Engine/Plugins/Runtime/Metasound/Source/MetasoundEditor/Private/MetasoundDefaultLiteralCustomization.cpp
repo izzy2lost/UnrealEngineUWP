@@ -12,6 +12,7 @@
 #include "MetasoundSettings.h"
 #include "PropertyCustomizationHelpers.h"
 #include "SSearchableComboBox.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
 #define LOCTEXT_NAMESPACE "MetaSoundEditor"
 
@@ -226,75 +227,109 @@ namespace Metasound::Editor
 		const FGuid PageID = LiteralCustomizationPrivate::GetGuidPropertyValue(ElementProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMetasoundEditorMemberPageDefault, PageID)));
 		FName PageName;
 		PageNameProperty->GetValue(PageName);
-		// Can't delete the default page, so just return name selector
-		if (PageID == Frontend::DefaultPageID)
-		{
-			return PageNameProperty->CreatePropertyValueWidget();
-		}
 
-		TWeakObjectPtr<UMetasoundEditorGraphMemberDefaultLiteral> LiteralPtr(&Literal);
+		TSharedRef<SHorizontalBox> NameBox = SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(2, 0)
+			[
+				PageNameProperty->CreatePropertyValueWidget()
+			];
 
-		UMetasoundEditorGraphMember* Member = LiteralPtr->FindMember();
+		const UMetasoundEditorGraphMember* Member = Literal.FindMember();
 		if (!ensure(Member))
 		{
 			return SNullWidget::NullWidget;
 		}
 
-		const FText RemoveDescription = FText::Format(LOCTEXT("RemovePageDefaultTransactionFormat", "Remove '{0}' Page '{1}' Default Value"), FText::FromName(Member->GetMemberName()), FText::FromName(PageName));
-		TSharedRef<SWidget> RemovePageDefaultButton = PropertyCustomizationHelpers::MakeDeleteButton(FSimpleDelegate::CreateLambda([this, RemoveDescription, PageID, LiteralPtr]()
+		if (Member->IsDefaultPaged())
 		{
-			using namespace Frontend;
-
-			if (!LiteralPtr.IsValid())
+			TAttribute<FText> ToolTip = LOCTEXT("MetaSound_ExecutingInputPageDefaultTooltip", "Initial default used upon executing preview.");
+			TAttribute<EVisibility> ExecVisibility = TAttribute<EVisibility>::CreateLambda([MemberPtr = TWeakObjectPtr<const UMetasoundEditorGraphMember>(Member), PageID]()
 			{
-				return;
-			}
+				if (const UMetasoundEditorGraphMember* GraphMember = MemberPtr.Get())
+				{
+					const FMetaSoundFrontendDocumentBuilder& Builder = GraphMember->GetFrontendBuilderChecked();
+					if (const FMetasoundFrontendClassInput* ClassInput = Builder.FindGraphInput(GraphMember->GetMemberName()))
+					{
+						const bool bIsPreviewing = Editor::IsPreviewingPageInputDefault(Builder, *ClassInput, PageID);
+						return bIsPreviewing ? EVisibility::Visible : EVisibility::Collapsed;
+					}
+					return EVisibility::Collapsed;
+				}
 
-			UMetasoundEditorGraphMember* Member = LiteralPtr->FindMember();
-			if (!Member)
+				return EVisibility::Collapsed;
+			});
+			TSharedRef<SWidget> ExecImageWidget = SNew(SImage)
+				.Image(Style::CreateSlateIcon("MetasoundEditor.Page.Executing").GetIcon())
+				.ColorAndOpacity(FStyleColors::AccentGreen)
+				.Visibility(MoveTemp(ExecVisibility));
+			NameBox->AddSlot()
+				.FillWidth(1)
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				.Padding(2, 0)
+				[
+					ExecImageWidget
+				];
+		}
+
+		// Can't delete the default page, so only show remove page field if non-default/project defined page.
+		if (PageID != Frontend::DefaultPageID)
+		{
+			TWeakObjectPtr<UMetasoundEditorGraphMemberDefaultLiteral> LiteralPtr(&Literal);
+
+			const FText RemoveDescription = FText::Format(LOCTEXT("RemovePageDefaultTransactionFormat", "Remove '{0}' Page '{1}' Default Value"), FText::FromName(Member->GetMemberName()), FText::FromName(PageName));
+			TSharedRef<SWidget> RemovePageDefaultButton = PropertyCustomizationHelpers::MakeDeleteButton(FSimpleDelegate::CreateLambda([this, RemoveDescription, PageID, LiteralPtr]()
 			{
-				return;
-			}
+				using namespace Frontend;
 
-			const FScopedTransaction Transaction(RemoveDescription);
+				if (!LiteralPtr.IsValid())
+				{
+					return;
+				}
 
-			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
-			check(Settings);
+				UMetasoundEditorGraphMember* Member = LiteralPtr->FindMember();
+				if (!Member)
+				{
+					return;
+				}
 
-			FMetaSoundFrontendDocumentBuilder& Builder = Member->GetFrontendBuilderChecked();
-			UObject& MetaSound = Builder.CastDocumentObjectChecked<UObject>();
-			MetaSound.Modify();
-			LiteralPtr->Modify();
+				const FScopedTransaction Transaction(RemoveDescription);
 
-			LiteralPtr->RemoveDefault(PageID);
+				const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+				check(Settings);
 
-			constexpr bool bPostTransaction = false;
-			Member->UpdateFrontendDefaultLiteral(bPostTransaction);
+				FMetaSoundFrontendDocumentBuilder& Builder = Member->GetFrontendBuilderChecked();
+				UObject& MetaSound = Builder.CastDocumentObjectChecked<UObject>();
+				MetaSound.Modify();
+				LiteralPtr->Modify();
 
-			FMetasoundAssetBase& MetasoundAsset = Editor::FGraphBuilder::GetOutermostMetaSoundChecked(*LiteralPtr);
-			MetasoundAsset.GetModifyContext().AddMemberIDsModified({ Member->GetMemberID() });
-			UpdatePagePickerNames(LiteralPtr);
-			PageDefaultComboBox->RefreshOptions();
-			FGraphBuilder::RegisterGraphWithFrontend(MetaSound);
-		}),
-		RemoveDescription);
+				LiteralPtr->RemoveDefault(PageID);
 
-		return SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.VAlign(VAlign_Center)
-		.Padding(2, 0)
-		[
-			PageNameProperty->CreatePropertyValueWidget()
-		]
-		+ SHorizontalBox::Slot()
-		.FillWidth(1)
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Center)
-		.Padding(2, 0)
-		[
-			RemovePageDefaultButton
-		];
+				constexpr bool bPostTransaction = false;
+				Member->UpdateFrontendDefaultLiteral(bPostTransaction);
+
+				FMetasoundAssetBase& MetasoundAsset = Editor::FGraphBuilder::GetOutermostMetaSoundChecked(*LiteralPtr);
+				MetasoundAsset.GetModifyContext().AddMemberIDsModified({ Member->GetMemberID() });
+				UpdatePagePickerNames(LiteralPtr);
+				PageDefaultComboBox->RefreshOptions();
+				FGraphBuilder::RegisterGraphWithFrontend(MetaSound);
+			}),
+			RemoveDescription);
+
+			NameBox->AddSlot()
+			.FillWidth(1)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.Padding(2, 0)
+			[
+				RemovePageDefaultButton
+			];
+		}
+
+		return NameBox;
 	}
 
 	void FMetasoundDefaultLiteralCustomizationBase::CustomizeDefaults(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout)
@@ -328,15 +363,9 @@ namespace Metasound::Editor
 			if (DefaultValueArray.IsValid())
 			{
 				DefaultValueArray->GetNumElements(NumElements);
-
-				bool bShowPageModifiers = Editor::PageEditorEnabled();
-				if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
-				{
-					// Don't show if project-specific defaults exist and/or project-level pages are implemented.
-					// If one of either, assumption is its the required default page.
-					bShowPageModifiers &= !Settings->GetProjectPageSettings().IsEmpty() || NumElements > 1;
-				}
-
+				const bool bHasProjectPageValues = NumElements > 1; // 1 value is only the default
+				constexpr bool bPresetCanEditPageValues = true;
+				const bool bShowPageModifiers = Editor::PageEditorEnabled(Member->GetFrontendBuilderChecked(), bHasProjectPageValues, bPresetCanEditPageValues);
 				if (bIsPagedDefault && bShowPageModifiers)
 				{
 					BuildPageDefaultComboBox(InLiteral, DefaultPageArrayHandle->GetPropertyDisplayName());
@@ -438,10 +467,13 @@ namespace Metasound::Editor
 			ImplementedGuids.Add(PageID);
 		});
 
-		auto GetStringName = [](const FMetaSoundPageSettings& Page) -> TSharedPtr<FString> { return MakeShared<FString>(Page.Name.ToString()); };
-		auto RemoveImplementedItem = [&ImplementedGuids](const FMetaSoundPageSettings& Page) { return !ImplementedGuids.Contains(Page.UniqueId); };
-		AddablePageStringNames.Add(GetStringName(Settings->GetDefaultPageSettings()));
-		Algo::TransformIf(Settings->GetProjectPageSettings(), AddablePageStringNames, RemoveImplementedItem, GetStringName);
+		Settings->IteratePageSettings([this, &ImplementedGuids](const FMetaSoundPageSettings& PageSettings)
+		{
+			if (!ImplementedGuids.Contains(PageSettings.UniqueId))
+			{
+				AddablePageStringNames.Add(MakeShared<FString>(PageSettings.Name.ToString()));
+			}
+		});
 
 		auto GetPageName = [&Settings](const FGuid& PageID)
 		{

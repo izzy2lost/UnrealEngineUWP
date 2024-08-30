@@ -3,6 +3,7 @@
 
 #include "Templates/SharedPointer.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/SBoxPanel.h"
 
 
@@ -13,6 +14,7 @@ class UMetaSoundBuilderBase;
 class UMetaSoundSource;
 
 struct FMetaSoundPageSettings;
+struct FSlateColor;
 
 
 namespace Metasound::Editor
@@ -25,9 +27,11 @@ namespace Metasound::Editor
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs);
-		void Update(const FMetaSoundPageSettings* PageSettings);
+		void SetExecVisibility(TAttribute<EVisibility> InVisibility);
+		void Update(const FMetaSoundPageSettings* PageSettings, const FText& Header, const FSlateColor* TextColor);
 
 	private:
+		TSharedPtr<SImage> ExecImageWidget;
 		TSharedPtr<STextBlock> PageTextWidget;
 	};
 

@@ -3560,7 +3560,7 @@ void FMetaSoundFrontendDocumentBuilder::SetAuthor(const FString& InAuthor)
 #endif // WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA
-bool FMetaSoundFrontendDocumentBuilder::SetBuildPageID(const FGuid& InBuildPageID)
+bool FMetaSoundFrontendDocumentBuilder::SetBuildPageID(const FGuid& InBuildPageID, bool bBroadcastDelegate)
 {
 	using namespace Metasound::Frontend;
 
@@ -3573,7 +3573,10 @@ bool FMetaSoundFrontendDocumentBuilder::SetBuildPageID(const FGuid& InBuildPageI
 
 			constexpr bool bPrimeCache = false;
 			DocumentCache->SetBuildPageID(BuildPageID);
-			DocumentDelegates->PageDelegates.OnPageSet.Broadcast({ BuildPageID });
+			if (bBroadcastDelegate)
+			{
+				DocumentDelegates->PageDelegates.OnPageSet.Broadcast({ BuildPageID });
+			}
 		}
 		return true;
 	}

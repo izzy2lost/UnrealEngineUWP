@@ -17,6 +17,7 @@
 #include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundEditor.h"
 #include "MetasoundEditorGraphBuilder.h"
+#include "MetasoundEditorModule.h"
 #include "MetasoundEditorSettings.h"
 #include "MetasoundEditorSubsystem.h"
 #include "MetasoundFrontend.h"
@@ -35,6 +36,7 @@
 #include "Styling/CoreStyle.h"
 #include "Styling/SlateColor.h"
 #include "Styling/SlateTypes.h"
+#include "Styling/StyleColors.h"
 #include "Templates/Casts.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
@@ -487,28 +489,38 @@ namespace Metasound::Editor
 		{
 			using namespace Frontend;
 
-			TSharedRef<SWidget> SelectButtonWidget = PropertyCustomizationHelpers::MakeUseSelectedButton(FSimpleDelegate::CreateLambda([this, InEntryPageID, InName]()
-			{
-				constexpr bool bOpenEditor = false; // Already focused by user action
-				const bool bFocusedPage = UMetaSoundEditorSubsystem::GetConstChecked().SetFocusedPage(*Builder.Get(), InEntryPageID, bOpenEditor);
-				if (bFocusedPage)
-				{
-					BuildPageName = InName;
-				}
-			}),
-			TAttribute<FText>::Create([this, InName]()
-			{
-				return BuildPageName == InName
-					? LOCTEXT("FocusedPageTooltip", "Currently focused page.")
-					: LOCTEXT("SetFocusedPageTooltip", "Sets the actively focused graph page of the MetaSound.");
-			}),
-			TAttribute<bool>::Create([this, InName]()
-			{
-				return BuildPageName != InName;
-			}));
+			TSharedRef<SHorizontalBox> EntryWidget = SNew(SHorizontalBox);
 
-			TSharedRef<SHorizontalBox> EntryWidget = SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
+			// Page Focus
+			{
+				TSharedRef<SWidget> SelectButtonWidget = PropertyCustomizationHelpers::MakeUseSelectedButton(
+					FSimpleDelegate::CreateLambda([this, PageID = InEntryPageID, InName]()
+					{
+						constexpr bool bOpenEditor = false; // Already focused by user action
+						UMetaSoundEditorSubsystem::GetConstChecked().SetFocusedPage(*Builder.Get(), PageID, bOpenEditor);
+						BuildPageName = InName;
+					}),
+					TAttribute<FText>::Create([this, InName]()
+					{
+						return BuildPageName == InName
+							? LOCTEXT("FocusedPageTooltip", "Currently focused page.")
+							: LOCTEXT("SetFocusedPageTooltip", "Sets the actively focused graph page of the MetaSound.");
+					}),
+					TAttribute<bool>::Create([this, InName]()
+					{
+						return BuildPageName != InName;
+					}));
+
+				EntryWidget->AddSlot()
+					.Padding(2.0f)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.AutoWidth()[ SelectButtonWidget ];
+			}
+
+			// Page Name
+			{
+				EntryWidget->AddSlot()
 				.Padding(2.0f)
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
@@ -517,39 +529,61 @@ namespace Metasound::Editor
 					SNew(STextBlock)
 					.Text(FText::FromName(InName))
 				];
+			}
 
+			// Page Remove
 			if (!bIsDefault)
 			{
-				TSharedRef<SWidget> RemoveButtonWidget = PropertyCustomizationHelpers::MakeDeleteButton(FSimpleDelegate::CreateLambda([this, InName, InEntryPageID]()
-				{
-					using namespace Frontend;
-					const FScopedTransaction Transaction(FText::Format(LOCTEXT("RemovePageTransactionFormat", "Remove MetaSound Page '{0}'"), FText::FromName(InName)));
-					UObject& MetaSound = GetMetaSound();
-					MetaSound.Modify();
-
-					// Removal may modify the builder's build page ID if it is the currently set value
-					Builder->Modify();
-
-					const bool bGraphRemoved = Builder->GetBuilder().RemoveGraphPage(InEntryPageID);
-					if (bGraphRemoved)
+				TSharedRef<SWidget> RemoveButtonWidget = PropertyCustomizationHelpers::MakeDeleteButton(
+					FSimpleDelegate::CreateLambda([this, InName, InEntryPageID]()
 					{
-						UpdateItemNames();
-						ComboBox->RefreshOptions();
-						RebuildImplemented();
-					}
-				}), LOCTEXT("RemovePageTooltip2", "Removes the associated page from the MetaSound."));
+						using namespace Frontend;
+						const FScopedTransaction Transaction(FText::Format(LOCTEXT("RemovePageTransactionFormat", "Remove MetaSound Page '{0}'"), FText::FromName(InName)));
+						UObject& MetaSound = GetMetaSound();
+						MetaSound.Modify();
+
+						// Removal may modify the builder's build page ID if it is the currently set value
+						Builder->Modify();
+
+						const bool bGraphRemoved = Builder->GetBuilder().RemoveGraphPage(InEntryPageID);
+						if (bGraphRemoved)
+						{
+							UpdateItemNames();
+							ComboBox->RefreshOptions();
+							RebuildImplemented();
+						}
+					}), LOCTEXT("RemovePageGraphTooltip", "Removes the associated page graph from the MetaSound."));
 				EntryWidget->AddSlot()
 					.Padding(2.0f)
 					.HAlign(HAlign_Center)
 					.VAlign(VAlign_Center)
-					.AutoWidth()[RemoveButtonWidget];
+					.AutoWidth()[ RemoveButtonWidget ];
 			}
 
-			EntryWidget->AddSlot()
-				.Padding(2.0f)
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.AutoWidth() [ SelectButtonWidget ];
+			// Page Playing Icon
+			{
+				TAttribute<FText> ToolTip = LOCTEXT("MetaSound_ExecutingPageGraphTooltip", "Currently executing graph.");
+				TAttribute<EVisibility> Visibility = TAttribute<EVisibility>::CreateLambda([this, PageID = InEntryPageID]()
+				{
+					if (Builder.IsValid())
+					{
+						const bool bIsPreviewing = IsPreviewingPageGraph(Builder->GetConstBuilder(), PageID);
+						return bIsPreviewing ? EVisibility::Visible : EVisibility::Collapsed;
+					}
+
+					return EVisibility::Collapsed;
+				});
+				TSharedRef<SWidget> ExecImageWidget = SNew(SImage)
+					.Image(Style::CreateSlateIcon("MetasoundEditor.Page.Executing").GetIcon())
+					.ColorAndOpacity(FStyleColors::AccentGreen)
+					.Visibility(MoveTemp(Visibility));
+
+				EntryWidget->AddSlot()
+					.Padding(2.0f)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.AutoWidth()[ ExecImageWidget ];
+			}
 
 			EntryWidget->SetEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMetaSoundDetailCustomizationBase::IsGraphEditable)));
 			return EntryWidget;
@@ -602,11 +636,8 @@ namespace Metasound::Editor
 			else
 			{
 				constexpr bool bOpenEditor = false; // Already open/focused by user action
-				const bool bFocusedPage = UMetaSoundEditorSubsystem::GetConstChecked().SetFocusedPage(*Builder.Get(), PageID, bOpenEditor);
-				if (bFocusedPage)
-				{
-					BuildPageName = GetMissingPageName(PageID);
-				}
+				UMetaSoundEditorSubsystem::GetConstChecked().SetFocusedPage(*Builder.Get(), PageID, bOpenEditor);
+				BuildPageName = GetMissingPageName(PageID);
 			}
 		}
 		else

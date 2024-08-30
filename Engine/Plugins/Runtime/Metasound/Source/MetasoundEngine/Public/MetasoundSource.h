@@ -23,10 +23,13 @@
 
 
 // Forward Declarations
+#if WITH_EDITOR
+class FDataValidationContext;
+#endif // WITH_EDITOR
 class UMetaSoundSettings;
-struct FMetaSoundQualitySettings;
 
 struct FMetaSoundFrontendDocumentBuilder;
+struct FMetaSoundQualitySettings;
 
 namespace Audio
 {

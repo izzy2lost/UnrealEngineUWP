@@ -15,12 +15,14 @@
 #include "MetasoundEditorGraphNode.h"
 #include "MetasoundEditorGraphValidation.h"
 #include "MetasoundEditorModule.h"
+#include "MetasoundEditorSettings.h"
 #include "MetasoundEditorSubsystem.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundLog.h"
+#include "MetasoundSettings.h"
 #include "MetasoundUObjectRegistry.h"
 #include "MetasoundVariableNodes.h"
 #include "MetasoundVertex.h"
@@ -731,10 +733,19 @@ bool UMetasoundEditorGraphMemberDefaultLiteral::TryGetPreviewPageID(FGuid& OutPr
 	if (const FMetasoundFrontendClassInput* Input = Builder.FindGraphInput(Member->GetMemberName()))
 	{
 		const FGuid PageID = FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(*Input);
-		if (PageID == Builder.GetBuildPageID())
+
+		const UMetasoundEditorSettings* EdSettings = ::GetDefault<UMetasoundEditorSettings>();
+		const UMetaSoundSettings* Settings = ::GetDefault<UMetaSoundSettings>();
+		if (Settings && EdSettings)
 		{
-			OutPreviewPageID = PageID;
-			return true;
+			if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(EdSettings->AuditionPage))
+			{
+				if (PageID == PageSettings->UniqueId)
+				{
+					OutPreviewPageID = PageID;
+					return true;
+				}
+			}
 		}
 	}
 

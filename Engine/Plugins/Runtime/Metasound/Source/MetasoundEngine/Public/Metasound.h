@@ -20,6 +20,10 @@
 
 
 // Forward Declarations
+#if WITH_EDITOR
+class FDataValidationContext;
+#endif // WITH_EDITOR
+
 namespace Metasound::Engine
 {
 	struct FAssetHelper;

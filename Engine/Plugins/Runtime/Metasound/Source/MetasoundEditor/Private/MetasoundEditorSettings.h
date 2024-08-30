@@ -57,10 +57,10 @@ enum class EMetasoundActiveDetailView : uint8
 UENUM()
 enum class EAuditionPageMode : uint8
 {
-	// Audition Target Page set automatically set to page focused in asset editor
+	// Sets Audition Page automatically to graph page focused in asset editor
 	Focused,
 
-	// Audition Target Page is specified by user (does not automatically change when new page is visualized)
+	// Audition Page is specified by user (does not automatically change when graph page is focused)
 	User
 };
 
@@ -139,6 +139,12 @@ class METASOUNDEDITOR_API UMetasoundEditorSettings : public UObject
 	GENERATED_UCLASS_BODY()
 
 public:
+	// Represents auditioning any platform using the default target/cook settings
+	static const FName DefaultAuditionPlatform;
+
+	// Represents auditioning as the editor, ignoring any explicit target/cook settings
+	static const FName EditorAuditionPlatform;
+
 	/** Whether to pin the MetaSound Patch asset type when creating new assets.
 	  * Requires editor restart for change to take effect.*/
 	UPROPERTY(EditAnywhere, config, DisplayName = "Pin MetaSound Patch in Asset Menu", Category = AssetMenu)
@@ -149,40 +155,41 @@ public:
 	UPROPERTY(EditAnywhere, config, DisplayName = "Pin MetaSound Source in Asset Menu", Category = AssetMenu)
 	bool bPinMetaSoundSourceInAssetMenu = true;
 
-	/** If true, uses editor page/platform audition settings in PIE. If false, uses project's defined values (see 'MetaSound'
-	  * Developer Settings for TargetPage, which can be manipulated via code/Blueprint.)
+	/** If true, uses editor page/platform audition settings in PIE. If false, uses project's defined values
+	  * (see project 'MetaSound' setting 'TargetPage', which can be manipulated via code/Blueprint.)
 	  */
-	UPROPERTY(EditAnywhere, config, Category = Audition)
+	UPROPERTY(EditAnywhere, config, Category = "Audition (Experimental)")
 	bool bApplyAuditionSettingsInPIE = true;
 
 	/** Default author title to use when authoring a new
 	  * MetaSound.  If empty, uses machine name by default.
 	  */
-	UPROPERTY(EditAnywhere, config, Category=General)
+	UPROPERTY(EditAnywhere, config, Category = General)
 	FString DefaultAuthor;
 
 	/* Currently set page audition mode. Set by the MetaSound Asset Editor. */
-	UPROPERTY(EditAnywhere, config, Category = Audition, meta = (DisplayName = "Audition Mode"))
+	UPROPERTY(EditAnywhere, config, Category = "Audition (Experimental)", meta = (DisplayName = "Page Audition Mode"))
 	EAuditionPageMode AuditionPageMode = EAuditionPageMode::Focused;
 
-	/** Name of platform to mock when previewing playback. This will limit playback to only pages that are cooked for the given platform.
-	  * Set in the MetaSound Asset Editor.
+	/** Name of platform to mock when previewing playback. This will limit playback
+	  * to fallback only to paged data that are cooked for the given platform.
+	  * (see project 'MetaSound' Settings --> 'Page Settings' array for order)
+	  * If set to 'Editor', ignores cook settings and allows fallback to all page.
 	  */
-	UPROPERTY(EditAnywhere, config, Category = Audition, meta = (DisplayName = "Platform", GetOptions = "MetasoundEditor.MetasoundEditorSettings.GetAuditionPlatformNames"))
-	FName AuditionPlatform;
+	UPROPERTY(EditAnywhere, config, Category = "Audition (Experimental)", meta = (DisplayName = "Page Audition Platform", GetOptions = "MetasoundEditor.MetasoundEditorSettings.GetAuditionPlatformNames"))
+	FName AuditionPlatform = EditorAuditionPlatform;
 
-	/** Name of the page to target when previewing playback in editor. If target page is not implemented for the set audition platform,
-	  *  uses order of cooked pages (see 'project MetaSound Settings --> Page Settings' for order) falling back to lower index-ordered page
-	  * implemented in MetaSound asset. Set in the MetaSound Asset Editor.
+	/** Name of the page to audition in editor. If unimplemented on the auditioned MetaSound, uses order of cooked pages
+	  * (see project 'MetaSound' Settings --> 'Page Settings' array for order) falling back to lower index-ordered page implemented
+	  * in MetaSound asset.
 	  */
-	UPROPERTY(EditAnywhere, config, Category = Audition, meta =
+	UPROPERTY(EditAnywhere, config, Category = "Audition (Experimental)", meta =
 	(
-		DisplayName = "Audition Page",
 		EditCondition = "AuditionPageMode == EAuditionPageMode::User",
 		EditConditionHides = true,
-		GetOptions = "MetasoundEngine.MetaSoundSettings.GetPageNames")
+		GetOptions = "MetasoundEditor.MetasoundEditorSettings.GetAuditionPageNames")
 	)
-	FName AuditionTargetPage = Metasound::Frontend::DefaultPageName;
+	FName AuditionPage = Metasound::Frontend::DefaultPageName;
 
 	/** Maps Pin Category To Pin Color */
 	TMap<FName, FLinearColor> CustomPinTypeColors;
@@ -302,6 +309,9 @@ public:
 	const FAudioMaterialMeterStyle* GetMeterStyle() const;
 
 	Metasound::Engine::FPageResolutionEditorResults ResolveAuditionPage(const TArray<FGuid>& InPageIDs) const;
+
+	UFUNCTION()
+	static TArray<FName> GetAuditionPageNames();
 
 	UFUNCTION()
 	static TArray<FName> GetAuditionPlatformNames();

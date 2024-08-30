@@ -32,6 +32,12 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Metasound)
 
+
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif // WITH_EDITOR
+
+
 #if WITH_EDITORONLY_DATA
 #include "EdGraph/EdGraph.h"
 #endif // WITH_EDITORONLY_DATA
@@ -121,11 +127,11 @@ void UMetaSoundPatch::PostEditUndo()
 
 EDataValidationResult UMetaSoundPatch::IsDataValid(FDataValidationContext& Context) const
 {
-	const EDataValidationResult Result = Metasound::Engine::FAssetHelper::IsDataValid(*this, Context);
+	const EDataValidationResult Result = Metasound::Engine::FAssetHelper::IsDataValid(*this, RootMetaSoundDocument, Context);
 	return CombineDataValidationResults(Result, Super::IsDataValid(Context));
 }
 
-#endif // WITHEDITOR
+#endif // WITH_EDITOR
 
 void UMetaSoundPatch::BeginDestroy()
 {

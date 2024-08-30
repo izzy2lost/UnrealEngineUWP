@@ -28,6 +28,7 @@
 #include "MetasoundEditorGraphSchema.h"
 #include "MetasoundEditorModule.h"
 #include "MetasoundEditorSettings.h"
+#include "MetasoundEditorSubsystem.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundTrace.h"
@@ -766,29 +767,30 @@ namespace Metasound
 		{
 			using namespace Engine;
 
+			TSharedPtr<SWidget> OuterContentBox;
 			TWeakObjectPtr<UMetasoundEditorGraphInput> GraphMember;
 			{
 				GraphMember = Cast<UMetasoundEditorGraphInput>(GetMetaSoundMember());
 				if (!GraphMember.IsValid())
 				{
-					return { };
+					return OuterContentBox;
 				}
 			}
 
-			bool bUseAudioMaterialWidgets = false;
-			if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
+			const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
+			const UMetaSoundSettings* MetaSoundSettings = GetDefault<UMetaSoundSettings>();
+			if (!EditorSettings || !MetaSoundSettings)
 			{
-				bUseAudioMaterialWidgets = EditorSettings->bUseAudioMaterialWidgets;
+				return OuterContentBox;
 			}
 
 			const UMetasoundEditorGraph* OwningGraph = GraphMember->GetOwningGraph();
 			if (!OwningGraph || !OwningGraph->IsEditable() || GraphMember->GetVertexAccessType() == EMetasoundFrontendVertexAccessType::Unset)
 			{
-				return { };
+				return OuterContentBox;
 			}
 
-			TSharedPtr<SWidget> OuterContentBox;
-
+			const bool bUseAudioMaterialWidgets = EditorSettings->bUseAudioMaterialWidgets;
 			TWeakObjectPtr<UMetasoundEditorGraphMemberDefaultFloat> DefaultFloat = Cast<UMetasoundEditorGraphMemberDefaultFloat>(GraphMember->GetLiteral());
 			if (DefaultFloat.IsValid() && DefaultFloat->WidgetType != EMetasoundMemberDefaultWidget::None)
 			{
@@ -856,9 +858,6 @@ namespace Metasound
 				{
 					if (bUseAudioMaterialWidgets)
 					{
-						const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
-						check(EditorSettings)
-
 						SAssignNew(FloatInputWidget, SAudioMaterialLabeledSlider)
 							.Owner(GraphMember->GetOwningGraph())
 							.Style(EditorSettings->GetSliderStyle())
@@ -992,9 +991,6 @@ namespace Metasound
 
 					if (bUseAudioMaterialWidgets)
 					{
-						const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
-						check(EditorSettings)
-
 						SAssignNew(FloatInputWidget, SAudioMaterialLabeledKnob)
 							.Owner(GraphMember->GetOwningGraph())
 							.Style(EditorSettings->GetKnobStyle())
@@ -1154,9 +1150,6 @@ namespace Metasound
 									UE_LOG(LogMetaSound, Warning, TEXT("Unmatched MetaSound editor widget transaction."));
 								}
 							};
-
-							const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
-							check(EditorSettings);
 
 							SAssignNew(MaterialButtonWidget, SAudioMaterialButton)
 								.AudioMaterialButtonStyle(EditorSettings->GetButtonStyle())

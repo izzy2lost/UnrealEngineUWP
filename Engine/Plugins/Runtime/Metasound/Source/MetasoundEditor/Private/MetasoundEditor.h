@@ -53,6 +53,8 @@ class FSlateRect;
 class IDetailsView;
 class IToolkitHost;
 
+struct FMetaSoundFrontendDocumentBuilder;
+
 namespace Metasound::Editor
 {
 	class SFindInMetasound;
@@ -102,7 +104,10 @@ class UMetasoundPagesView : public UMetasoundEditorViewBase
 
 namespace Metasound::Editor
 {
-	bool PageEditorEnabled();
+	bool IsPreviewingMetaSound(const UObject& InMetaSound);
+	bool IsPreviewingPageInputDefault(const FMetaSoundFrontendDocumentBuilder& Builder, const FMetasoundFrontendClassInput& InClassInput, const FGuid& InPageID);
+	bool IsPreviewingPageGraph(const FMetaSoundFrontendDocumentBuilder& Builder, const FGuid& InPageID);
+	bool PageEditorEnabled(const FMetaSoundFrontendDocumentBuilder& Builder, bool bHasProjectPageValues, bool bPresetCanEditPageValues = false);
 
 	// Forward Declarations
 	class FMetasoundGraphMemberSchemaAction;
@@ -409,6 +414,8 @@ namespace Metasound::Editor
 	private:
 		int32 PromotableSelectedNodes();
 
+		void RefreshExecVisibility(const FGuid& InPageID) const;
+
 		/** Forces refresh of pages view. */
 		void RefreshPagesView();
 
@@ -421,8 +428,7 @@ namespace Metasound::Editor
 
 		void ExportNodesToText(FString& OutText) const;
 
-		// Sets the globally targeted audition page for execution to this editor's currently focused page
-		void SyncFocusedPage() const;
+		void SyncAuditionState(bool bSetAuditionFocus = true);
 
 		/** FNotifyHook interface */
 		virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
@@ -582,7 +588,11 @@ namespace Metasound::Editor
 		/** Whether or not registry is currently being primed due to assets still loading */
 		bool bPrimingRegistry = false;
 
+		/** Highest message severity set on last validation pass of graph. */
 		int32 HighestMessageSeverity = EMessageSeverity::Info;
+
+		/** If set, used to inform user of validation results on hover of play icon. */
+		FText GraphStatusDescriptionOverride;
 
 		TSharedPtr<SNotificationItem> NotificationPtr;
 
