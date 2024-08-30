@@ -798,6 +798,13 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphRenderPropertyModifier : public UMo
 
 public:
 	UMovieGraphRenderPropertyModifier();
+
+	// ~UObject interface
+	virtual void PostLoad() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+	// ~UObject Interface
 	
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void SetHidden(const bool bInIsHidden) { bIsHidden = bInIsHidden; }
@@ -835,6 +842,9 @@ private:
 
 	/** Updates an actor's visibility state to the state contained in NewVisibilityState. */
 	void SetActorVisibilityState(const FActorVisibilityState& NewVisibilityState);
+
+	/** Convienence function to ensure that output alpha and primitive alpha holdout settings are enabled if required. */
+	void ValidateProjectSettings() const;
 
 private:
 	/** Tracks actor visibility state prior to having the modifier applied. */

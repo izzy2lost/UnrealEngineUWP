@@ -54,7 +54,10 @@ public class MovieRenderPipelineCore : ModuleRules
 			        "Layers",
 			        "SceneOutliner",
 			        "UnrealEd",
-		        });
+					"SettingsEditor",
+					"Slate",
+					"SlateCore",
+				});
 	        
 			PublicDependencyModuleNames.Add("MovieSceneTools");
         }

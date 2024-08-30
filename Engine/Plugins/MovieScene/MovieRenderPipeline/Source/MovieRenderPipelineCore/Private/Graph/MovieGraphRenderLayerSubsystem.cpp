@@ -7,7 +7,6 @@
 #include "Components/VolumetricCloudComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "EngineUtils.h"
-#include "Engine/RendererSettings.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Materials/MaterialInterface.h"
 #include "Modules/ModuleManager.h"
@@ -46,6 +45,7 @@
 #include "ISceneOutlinerTreeItem.h"
 #include "LayersDragDropOp.h"
 #include "Layers/LayersSubsystem.h"
+#include "MovieGraphUtils.h"
 #include "SceneOutlinerModule.h"
 #include "SceneOutlinerPublicTypes.h"
 #include "SClassViewer.h"
@@ -183,6 +183,25 @@ UMovieGraphRenderPropertyModifier::UMovieGraphRenderPropertyModifier()
 	// override will initially be a no-op due to the defaults being the same.
 }
 
+void UMovieGraphRenderPropertyModifier::PostLoad()
+{
+	Super::PostLoad();
+
+	ValidateProjectSettings();
+}
+
+#if WITH_EDITOR
+void UMovieGraphRenderPropertyModifier::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+	
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMovieGraphRenderPropertyModifier, bHoldout))
+	{
+		ValidateProjectSettings();
+	}
+}
+#endif
+
 void UMovieGraphRenderPropertyModifier::ApplyModifier(const UWorld* World)
 {
 	ModifiedActors.Empty();
@@ -192,14 +211,7 @@ void UMovieGraphRenderPropertyModifier::ApplyModifier(const UWorld* World)
 	FActorVisibilityState NewVisibilityState;
 	NewVisibilityState.bIsHidden = bIsHidden;
 
-	// Generate a warning if holdout is being used, but alpha is not enabled in post processing. Without that setting enabled, holdout will not work.
-	const URendererSettings* RendererSettings = GetDefault<URendererSettings>();
-	if (bHoldout && (RendererSettings->bEnableAlphaChannelInPostProcessing == false))
-	{
-		// TODO: Ideally this is called in a general-purpose validation step instead, but that framework does not exist yet.
-		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("A modifier with 'Holdout' is active, but 'Alpha Output' in "
-													 "the project's Rendering settings is disabled: holdout will not work properly."));
-	}
+	ValidateProjectSettings();
 	
 	for (const UMovieGraphCollection* Collection : Collections)
 	{
@@ -380,6 +392,25 @@ void UMovieGraphRenderPropertyModifier::SetActorVisibilityState(const FActorVisi
 
 #if WITH_EDITOR
 		Actor->SetIsTemporarilyHiddenInEditor(NewVisibilityState.bIsHidden);
+#endif
+	}
+}
+
+void UMovieGraphRenderPropertyModifier::ValidateProjectSettings() const
+{
+	static const FText HoldoutModifierLabel = LOCTEXT("ConditionGroupQueryHoldoutModifier", "Holdout Modifier");
+
+	if (bHoldout)
+	{
+#if WITH_EDITOR
+		UE_CALL_ONCE([]
+			{
+				constexpr bool bMandatePrimitiveAlphaHoldout = true;
+				UE::MovieGraph::ValidateAlphaProjectSettings(HoldoutModifierLabel, bMandatePrimitiveAlphaHoldout);
+			}
+		);
+#else
+		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Both \"Alpha Output\" and \"Support Primitive Alpha Holdout\" project settings must be enabled, otherwise holdout modifiers will not work properly."));
 #endif
 	}
 }
