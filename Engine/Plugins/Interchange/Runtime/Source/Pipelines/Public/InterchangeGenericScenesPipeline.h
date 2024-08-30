@@ -67,6 +67,7 @@ protected:
 
 	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath) override;
 	virtual void ExecutePostImportPipeline(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& NodeKey, UObject* CreatedAsset, bool bIsAReimport) override;
+	virtual void ExecutePostBroadcastPipeline(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& NodeKey, UObject* CreatedAsset, bool bIsAReimport) override;
 
 	virtual bool CanExecuteOnAnyThread(EInterchangePipelineTask PipelineTask) override
 	{
@@ -119,7 +120,7 @@ protected:
 	private:
 		bool UpdateLevelInstanceInternal(ALevelInstance* LevelInstanceActor, UWorld* ReferenceWorld);
 
-		//The bool is to know if we have save this world already or not
+		//The bool is to know if we have already update this world
 		TMap<UWorld*, bool> Worlds;
 		TMap<ALevelInstance*, UWorld*> ReferenceWorldPerLevelInstanceToUpdates;
 	};

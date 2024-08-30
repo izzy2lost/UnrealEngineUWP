@@ -233,7 +233,42 @@ void UE::Interchange::FTaskCompletion_GameThread::Execute()
 					}
 				}
 
+				//Do a second pass for the post broadcast pipeline call
+				for (const FImportAsyncHelper::FImportedObjectInfo& AssetInfo : AssetInfos)
+				{
+					if (UObject* Asset = AssetInfo.ImportedObject)
+					{
+						for (UInterchangePipelineBase* PipelineBase : AsyncHelper->Pipelines)
+						{
+							PipelineBase->ScriptedExecutePostBroadcastPipeline(AsyncHelper->BaseNodeContainers[SourceIndex].Get()
+								, AssetInfo.FactoryNode ? AssetInfo.FactoryNode->GetUniqueID() : FString()
+								, Asset
+								, AssetInfo.bIsReimport);
+						}
+					}
+				}
+
 				UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange import completed [%s]"), *AsyncHelper->SourceDatas[SourceIndex]->ToDisplayString());
+			});
+
+		//Iterate the Scene Actors
+		AsyncHelper->IterateImportedSceneObjectsPerSourceIndex([AsyncHelper](int32 SourceIndex, const TArray<FImportAsyncHelper::FImportedObjectInfo>& AssetInfos)
+			{
+				for (const FImportAsyncHelper::FImportedObjectInfo& SceneObjectInfo : AssetInfos)
+				{
+					if (AActor* Actor = Cast<AActor>(SceneObjectInfo.ImportedObject))
+					{
+						for (UInterchangePipelineBase* PipelineBase : AsyncHelper->Pipelines)
+						{
+							PipelineBase->ScriptedExecutePostBroadcastPipeline(AsyncHelper->BaseNodeContainers[SourceIndex].Get()
+								, SceneObjectInfo.FactoryNode ? SceneObjectInfo.FactoryNode->GetUniqueID() : FString()
+								, Actor
+								, SceneObjectInfo.bIsReimport);
+						}
+					}
+				}
+
+				UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange import cancelled [%s]"), *AsyncHelper->SourceDatas[SourceIndex]->ToDisplayString());
 			});
 	}
 	else

@@ -190,6 +190,15 @@ protected:
 	TSharedPtr<SWindow> WidgetWindow = nullptr;
 };
 
+/**
+ * Pipeline implementation:
+ *
+ * 1. ExecutePipeline - Create the factory nodes from the translated nodes. This is where the logic is execute to create the unreal asset via the factory node. Called after the translation
+ * 2. ExecutePostFactoryPipeline - Called after the factory has create the unreal asset with the associate factory node, but before calling PostEditChange.
+ * 3. ExecutePostImportPipeline - Called after the asset PostEditChange is done. If the asset use the async build framework, the asset build should be completed.
+ * 4. ExecutePostBroadcastPipeline - Called after the asset was registered to the registry manager and all broadcast calls have been done.
+ */
+
 UCLASS(BlueprintType, Blueprintable, editinlinenew, Abstract, MinimalAPI)
 class UInterchangePipelineBase : public UObject
 {
@@ -260,6 +269,20 @@ public:
 	{
 		//By default we call the virtual import pipeline execution
 		ExecutePostImportPipeline(BaseNodeContainer, FactoryNodeKey, CreatedAsset, bIsAReimport);
+	}
+
+	/**
+	 * ScriptedExecutePostBroadcastPipeline is called after an asset is completely imported and the broadcast have been called.
+	 * This can be useful if you need to unload the asset for any reason (Level reference by level instance need to be unload).
+	 * @note - the FTaskCompletion_GameThread calls this function not the virtual one that is call by the default implementation.
+	 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Pipeline")
+	INTERCHANGECORE_API void ScriptedExecutePostBroadcastPipeline(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& FactoryNodeKey, UObject* CreatedAsset, bool bIsAReimport);
+	/** The default implementation, which is called if the Blueprint does not have any implementation, calls the virtual ExecutePostBroadcastPipeline(). */
+	void ScriptedExecutePostBroadcastPipeline_Implementation(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& FactoryNodeKey, UObject* CreatedAsset, bool bIsAReimport)
+	{
+		//By default we call the virtual import pipeline execution
+		ExecutePostBroadcastPipeline(BaseNodeContainer, FactoryNodeKey, CreatedAsset, bIsAReimport);
 	}
 
 	/**
@@ -548,6 +571,14 @@ protected:
 	 * @Note: Some Unreal assets have asynchronous build operations. It's possible they are still compiling.
 	 */
 	virtual void ExecutePostImportPipeline(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& NodeKey, UObject* CreatedAsset, bool bIsAReimport)
+	{
+	}
+
+	/**
+	 * This function is called after the Unreal asset is completely imported. PostEditChange and all broadcast have been called.
+	 * @Note: Some Unreal assets have asynchronous build operations. It's possible they are still compiling.
+	 */
+	virtual void ExecutePostBroadcastPipeline(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& NodeKey, UObject* CreatedAsset, bool bIsAReimport)
 	{
 	}
 

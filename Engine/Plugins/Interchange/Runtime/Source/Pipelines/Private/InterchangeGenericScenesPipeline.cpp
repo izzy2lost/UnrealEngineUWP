@@ -1127,11 +1127,11 @@ void UInterchangeGenericLevelPipeline::ExecutePostImportPipeline(const UIntercha
 	}
 	else if (ALevelInstance* LevelInstanceActor = Cast<ALevelInstance>(CreatedAsset))
 	{
-		const UInterchangeLevelInstanceActorFactoryNode* LevelInstanceFactoryNode = Cast<UInterchangeLevelInstanceActorFactoryNode>(BaseNodeContainer->GetFactoryNode(NodeKey));
+		const UInterchangeLevelInstanceActorFactoryNode* LevelInstanceFactoryNode = Cast<UInterchangeLevelInstanceActorFactoryNode>(InBaseNodeContainer->GetFactoryNode(NodeKey));
 		FString LevelFactoryNodeUid;
 		if (LevelInstanceFactoryNode->GetCustomLevelReference(LevelFactoryNodeUid))
 		{
-			if (const UInterchangeFactoryBaseNode* ReferenceLevelFactoryNode = BaseNodeContainer->GetFactoryNode(LevelFactoryNodeUid))
+			if (const UInterchangeFactoryBaseNode* ReferenceLevelFactoryNode = InBaseNodeContainer->GetFactoryNode(LevelFactoryNodeUid))
 			{
 				FSoftObjectPath ReferenceLevelPath;
 				if (ReferenceLevelFactoryNode->GetCustomReferenceObject(ReferenceLevelPath))
@@ -1143,6 +1143,25 @@ void UInterchangeGenericLevelPipeline::ExecutePostImportPipeline(const UIntercha
 				}
 			}
 		}
+	}
+#endif
+}
+
+void UInterchangeGenericLevelPipeline::ExecutePostBroadcastPipeline(const UInterchangeBaseNodeContainer* InBaseNodeContainer, const FString& NodeKey, UObject* CreatedAsset, bool bIsAReimport)
+{
+	Super::ExecutePostBroadcastPipeline(InBaseNodeContainer, NodeKey, CreatedAsset, bIsAReimport);
+	
+	if (!CreatedAsset || !ensure(IsInGameThread()))
+	{
+		return;
+	}
+
+#if WITH_EDITORONLY_DATA
+	if (ALevelInstance* LevelInstanceActor = Cast<ALevelInstance>(CreatedAsset))
+	{
+		//Commit an edit to properly finish the setup for the new Level instance actor and new level.
+		LevelInstanceActor->EnterEdit();
+		LevelInstanceActor->ExitEdit();
 	}
 #endif
 }
@@ -1191,9 +1210,9 @@ bool UInterchangeGenericLevelPipeline::FPostPipelineImportData::UpdateLevelInsta
 		return false;
 	}
 
-	bool& bWorldSaved = Worlds.FindChecked(ReferencedWorld);
+	bool& bWorldUpdate = Worlds.FindChecked(ReferencedWorld);
 	
-	if (!bWorldSaved)
+	if (!bWorldUpdate)
 	{
 		if (UInterchangeEditorUtilitiesBase* EditorUtilities = UInterchangeManager::GetInterchangeManager().GetEditorUtilities())
 		{
@@ -1202,26 +1221,27 @@ bool UInterchangeGenericLevelPipeline::FPostPipelineImportData::UpdateLevelInsta
 				UE_LOG(LogInterchangePipeline, Warning, TEXT("UInterchangeGenericAssetsPipeline: Cannot save the level instance actor (%s) referenced world (%s)"), *LevelInstanceActor->GetName(), *ReferencedWorld->GetName());
 			}
 		}
-		bWorldSaved = true;
+
+		// Make sure newly created level asset gets scanned
+		ULevel::ScanLevelAssets(ReferencedWorld->GetPackage()->GetName());
+
+		ParentWorld->PreEditChange(nullptr);
+
+		LevelInstanceActor->SetWorldAsset(ReferencedWorld);
+		LevelInstanceActor->UpdateLevelInstanceFromWorldAsset();
+		LevelInstanceActor->LoadLevelInstance();
+
+		//Reference world must be cleanup since they are not the main world.
+		//This remove all the world managers and prevent GC issue when unloading the main world referencing this world.
+		if (ReferencedWorld->bIsWorldInitialized)
+		{
+			ReferencedWorld->CleanupWorld();
+		}
+
+		ParentWorld->PostEditChange();
+
+		bWorldUpdate = true;
 	}
-
-	ParentWorld->PreEditChange(nullptr);
-
-	LevelInstanceActor->SetWorldAsset(ReferencedWorld);
-	LevelInstanceActor->UpdateLevelInstanceFromWorldAsset();
-	LevelInstanceActor->LoadLevelInstance();
-	
-	//A level instance referenced world cannot be RF_Standalone
-	ReferencedWorld->ClearFlags(RF_Standalone);
-
-	//Reference world must be cleanup since they are not the main world.
-	//This remove all the world managers and prevent GC issue when unloading the main world referencing this world.
-	if (ReferencedWorld->bIsWorldInitialized)
-	{
-		ReferencedWorld->CleanupWorld();
-	}
-
-	ParentWorld->PostEditChange();
 
 	return true;
 }
