@@ -65,6 +65,10 @@ void SCachedViewBindingConversionFunction::Construct(const FArguments& InArgs, c
 				else if (ConversionFunction.IsType<TSubclassOf<UK2Node>>())
 				{
 					TSubclassOf<UK2Node> FoundFunction = ConversionFunction.Get<TSubclassOf<UK2Node>>();
+					if (FoundFunction && FoundFunction->GetDefaultObject<UK2Node>())
+					{
+						return FoundFunction->GetDefaultObject<UK2Node>()->GetNodeTitle(ENodeTitleType::ListView);
+					}
 					return FoundFunction.Get() != nullptr ? FoundFunction->GetDisplayNameText() : FText::GetEmpty();
 				}
 				return FText::GetEmpty();

@@ -39,9 +39,11 @@ UMVVMDeveloperProjectSettings::UMVVMDeveloperProjectSettings()
 	FTopLevelAssetPath BlueprintFunctionLibrary = FTopLevelAssetPath("/Script/Engine", "BlueprintFunctionLibrary");
 	FTopLevelAssetPath FormatText = FTopLevelAssetPath("/Script/BlueprintGraph", "K2Node_FormatText");
 	FTopLevelAssetPath GenericToText = FTopLevelAssetPath("/Script/BlueprintGraph", "K2Node_GenericToText");
+	FTopLevelAssetPath LoadAsset = FTopLevelAssetPath("/Script/BlueprintGraph", "K2Node_LoadAsset");
 	AllowedClassForConversionFunctions.Add(FSoftClassPath(BlueprintFunctionLibrary.ToString()));
 	AllowedClassForConversionFunctions.Add(FSoftClassPath(FormatText.ToString()));
 	AllowedClassForConversionFunctions.Add(FSoftClassPath(GenericToText.ToString()));
+	AllowedClassForConversionFunctions.Add(FSoftClassPath(LoadAsset.ToString()));
 
 	SupportedListViewBaseClassesForExtension.Add(UListView::StaticClass());
 	SupportedPanelClassesForExtension.Add(UHorizontalBox::StaticClass());
