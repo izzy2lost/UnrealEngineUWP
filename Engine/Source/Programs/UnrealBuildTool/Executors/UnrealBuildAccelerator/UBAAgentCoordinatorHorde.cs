@@ -601,6 +601,17 @@ namespace UnrealBuildTool
 				self.NumLogicalCores = 0;
 				UpdateHordeStatus(null);
 			}
+			catch (ComputeExecutionCancelledException ex) 
+			{
+				// Cancellations are expected to happen due to spot instance interruptions or unscheduled maintenance of agents
+				self.NumLogicalCores = 0;
+				UpdateHordeStatus(null);
+				
+				if (!cancellationToken.IsCancellationRequested)
+				{
+					logger.Log(_strict ? LogLevel.Information : LogLevel.Debug, KnownLogEvents.Systemic_Horde_Compute, ex, "Compute lease cancelled");
+				}
+			}
 			catch (Exception ex)
 			{
 				self.NumLogicalCores = 0;

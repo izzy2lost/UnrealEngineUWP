@@ -204,11 +204,30 @@ namespace EpicGames.Horde.Compute
 	/// </summary>
 	public sealed class ComputeExecutionCancelledException : ComputeException
 	{
+		private const string Text = "Compute execution cancelled";
+		
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeExecutionCancelledException() : base("Compute execution cancelled")
+		public ComputeExecutionCancelledException() : base(Text)
 		{
+		}
+		
+		private ComputeExecutionCancelledException(Exception innerException) : base(Text, innerException)
+		{
+		}
+		
+		/// <summary>
+		/// Try constructing and throwing if the exception message matches a cancellation exception
+		/// </summary>
+		/// <param name="em">Deserialized exception message</param>
+		/// <exception cref="ComputeExecutionCancelledException">If message matches</exception>
+		public static void TryThrow(ExceptionMessage em)
+		{
+			if (em.Message == Text)
+			{
+				throw new ComputeExecutionCancelledException(new ComputeRemoteException(em));
+			}
 		}
 	}
 
