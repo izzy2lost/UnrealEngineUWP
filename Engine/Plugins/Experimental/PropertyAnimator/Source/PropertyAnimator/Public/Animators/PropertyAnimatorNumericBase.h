@@ -8,7 +8,7 @@
 UENUM(BlueprintType)
 enum class EPropertyAnimatorCycleMode : uint8
 {
-	/** Don't cycle time at all */
+	/** Disable cycle options */
 	None	UMETA(Hidden),
 	/** Cycle only once then stop */
 	DoOnce,
@@ -96,6 +96,7 @@ protected:
 	virtual void EvaluateProperties(FInstancedPropertyBag& InParameters) override;
 	virtual void OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty, EPropertyAnimatorPropertySupport InSupport) override;
 	virtual bool IsTimeSourceSupported(UPropertyAnimatorCoreTimeSourceBase* InTimeSource) const override;
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
 	//~ End UPropertyAnimatorCoreBase
 
 	/** Evaluate and return float value for a property */

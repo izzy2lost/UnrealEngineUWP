@@ -17,8 +17,6 @@ class UPropertyAnimatorSoundWave : public UPropertyAnimatorNumericBase
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* DefaultControllerName = TEXT("SoundWave");
-
 	UPropertyAnimatorSoundWave();
 
 	PROPERTYANIMATOR_API void SetSampledSoundWave(USoundWave* InSoundWave);
@@ -43,6 +41,7 @@ protected:
 	void OnSampledSoundWaveChanged();
 
 	//~ Begin UPropertyAnimatorFloatBase
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
 	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const override;
 	//~ End UPropertyAnimatorFloatBase
 

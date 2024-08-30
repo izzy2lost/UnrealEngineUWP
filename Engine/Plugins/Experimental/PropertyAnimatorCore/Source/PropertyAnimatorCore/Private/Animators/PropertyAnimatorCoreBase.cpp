@@ -33,12 +33,14 @@ FName UPropertyAnimatorCoreBase::GetLinkedPropertiesPropertyName()
 
 UPropertyAnimatorCoreBase::UPropertyAnimatorCoreBase()
 {
-#if WITH_EDITOR
 	if (!IsTemplate())
 	{
+		Metadata = GetClass()->GetDefaultObject<UPropertyAnimatorCoreBase>()->Metadata;
+
+#if WITH_EDITOR
 		FCoreUObjectDelegates::OnObjectsReplaced.AddUObject(this, &UPropertyAnimatorCoreBase::OnObjectReplaced);
-	}
 #endif
+	}
 }
 
 UPropertyAnimatorCoreComponent* UPropertyAnimatorCoreBase::GetAnimatorComponent() const
@@ -102,6 +104,18 @@ UPropertyAnimatorCoreContext* UPropertyAnimatorCoreBase::GetLinkedPropertyContex
 	});
 
 	return PropertyOptions ? *PropertyOptions : nullptr;
+}
+
+void UPropertyAnimatorCoreBase::PostCDOContruct()
+{
+	Super::PostCDOContruct();
+
+	if (IsTemplate() && !Metadata.IsValid())
+	{
+		Metadata = MakeShared<FPropertyAnimatorCoreMetadata>();
+		OnAnimatorRegistered(*Metadata);
+		SetAnimatorDisplayName(Metadata->Name);
+	}
 }
 
 void UPropertyAnimatorCoreBase::BeginDestroy()
@@ -241,10 +255,24 @@ void UPropertyAnimatorCoreBase::SetTimeSourceName(FName InTimeSourceName)
 	OnTimeSourceNameChanged();
 }
 
+FName UPropertyAnimatorCoreBase::GetAnimatorCategory() const
+{
+	if (Metadata.IsValid())
+	{
+		return Metadata->Category;
+	}
+
+	return NAME_None;
+}
+
 FName UPropertyAnimatorCoreBase::GetAnimatorOriginalName() const
 {
-	const UPropertyAnimatorCoreBase* CDO = GetClass()->GetDefaultObject<UPropertyAnimatorCoreBase>();
-	return CDO ? CDO->AnimatorDisplayName : NAME_None;
+	if (Metadata.IsValid())
+	{
+		return Metadata->Name;
+	}
+
+	return NAME_None;
 }
 
 bool UPropertyAnimatorCoreBase::GetPropertiesSupported(const FPropertyAnimatorCoreData& InPropertyData, TSet<FPropertyAnimatorCoreData>& OutProperties, uint8 InSearchDepth, EPropertyAnimatorPropertySupport InSupportExpected) const
@@ -348,7 +376,7 @@ void UPropertyAnimatorCoreBase::OnAnimatorEnabled()
 		, Log
 		, TEXT("%s : PropertyAnimator %s (%s) enabled")
 		, GetAnimatorActor() ? *GetAnimatorActor()->GetActorNameOrLabel() : TEXT("Invalid Actor")
-		, *GetAnimatorDisplayName()
+		, *GetAnimatorDisplayName().ToString()
 		, *GetAnimatorOriginalName().ToString());
 }
 
@@ -358,7 +386,7 @@ void UPropertyAnimatorCoreBase::OnAnimatorDisabled()
 		, Log
 		, TEXT("%s : PropertyAnimator %s (%s) disabled")
 		, GetAnimatorActor() ? *GetAnimatorActor()->GetActorNameOrLabel() : TEXT("Invalid Actor")
-		, *GetAnimatorDisplayName()
+		, *GetAnimatorDisplayName().ToString()
 		, *GetAnimatorOriginalName().ToString());
 
 	constexpr bool bForceReset = true;

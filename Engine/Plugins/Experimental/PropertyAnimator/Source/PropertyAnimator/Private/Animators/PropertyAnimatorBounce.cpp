@@ -6,11 +6,6 @@
 #include "Properties/PropertyAnimatorFloatContext.h"
 #include "PropertyAnimatorShared.h"
 
-UPropertyAnimatorBounce::UPropertyAnimatorBounce()
-{
-	SetAnimatorDisplayName(DefaultControllerName);
-}
-
 void UPropertyAnimatorBounce::SetInvertEffect(bool bInvert)
 {
 	if (bInvertEffect == bInvert)
@@ -20,6 +15,13 @@ void UPropertyAnimatorBounce::SetInvertEffect(bool bInvert)
 
 	bInvertEffect = bInvert;
 	OnInvertEffect();
+}
+
+void UPropertyAnimatorBounce::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
+{
+	Super::OnAnimatorRegistered(InMetadata);
+
+	InMetadata.Name = TEXT("Bounce");
 }
 
 bool UPropertyAnimatorBounce::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const

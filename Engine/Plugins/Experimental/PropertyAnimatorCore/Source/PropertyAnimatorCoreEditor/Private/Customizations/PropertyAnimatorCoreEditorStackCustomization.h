@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorCoreBase.h"
 #include "Customizations/OperatorStackEditorStackCustomization.h"
 #include "PropertyAnimatorCoreEditorStackCustomization.generated.h"
 

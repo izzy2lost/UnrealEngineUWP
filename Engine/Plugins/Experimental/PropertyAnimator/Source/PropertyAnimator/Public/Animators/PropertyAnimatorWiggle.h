@@ -14,12 +14,11 @@ class UPropertyAnimatorWiggle : public UPropertyAnimatorNumericBase
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* DefaultControllerName = TEXT("Wiggle");
-
 	UPropertyAnimatorWiggle();
 
 protected:
 	//~ Begin UPropertyAnimatorFloatBase
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
 	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const override;
 	//~ End UPropertyAnimatorFloatBase
 };

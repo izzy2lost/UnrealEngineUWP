@@ -215,10 +215,12 @@ void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemHeader(const FO
 		// Commands for item on key events
 		const TSharedPtr<FUICommandList> AnimatorCommands = CreateAnimatorCommands(InItem);
 
+		const FString AnimatorDisplayName = Animator->GetAnimatorDisplayName().ToString();
+
 		const TSet<FString> SearchKeywords
 		{
 			Animator->GetAnimatorOriginalName().ToString(),
-			Animator->GetAnimatorDisplayName()
+			AnimatorDisplayName
 		};
 
 		/** Show last execution error messages if failed execution */
@@ -228,7 +230,7 @@ void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemHeader(const FO
 
 		if (InItem->GetValueCount() == 1)
 		{
-			HeaderLabel = Animator->GetAnimatorDisplayName();
+			HeaderLabel = AnimatorDisplayName;
 
 			TWeakObjectPtr<UPropertyAnimatorCoreBase> AnimatorWeak(Animator);
 

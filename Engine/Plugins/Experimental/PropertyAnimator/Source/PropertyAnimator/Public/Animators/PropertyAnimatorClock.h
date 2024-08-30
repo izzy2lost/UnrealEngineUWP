@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorCoreBase.h"
 #include "HAL/Platform.h"
 #include "Misc/Timespan.h"
+#include "PropertyAnimatorTextBase.h"
 #include "PropertyAnimatorClock.generated.h"
 
 /** Mode supported for properties value */
@@ -21,13 +21,11 @@ enum class EPropertyAnimatorClockMode : uint8
 
 /** Animate supported string properties to display time */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorClock : public UPropertyAnimatorCoreBase
+class UPropertyAnimatorClock : public UPropertyAnimatorTextBase
 {
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* DefaultControllerName = TEXT("Clock");
-
 	static void RegisterFormat(TCHAR InChar, TFunction<FString(const FDateTime&)> InFormatter);
 	static void UnregisterFormat(TCHAR InChar);
 	static FString FormatDateTime(const FDateTime& InDateTime, const FString& InDisplayFormat);
@@ -42,9 +40,8 @@ public:
 
 protected:
 	//~ Begin UPropertyAnimatorCoreBase
-	virtual EPropertyAnimatorPropertySupport IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const override;
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
 	virtual void EvaluateProperties(FInstancedPropertyBag& InParameters) override;
-	virtual void OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty, EPropertyAnimatorPropertySupport InSupport) override;
 	//~ End UPropertyAnimatorCoreBase
 
 	/**

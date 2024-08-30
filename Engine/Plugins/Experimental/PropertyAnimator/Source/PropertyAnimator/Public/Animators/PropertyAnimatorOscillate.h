@@ -25,10 +25,6 @@ class UPropertyAnimatorOscillate : public UPropertyAnimatorNumericBase
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* DefaultControllerName = TEXT("Oscillate");
-
-	UPropertyAnimatorOscillate();
-
 	PROPERTYANIMATOR_API void SetOscillateFunction(EPropertyAnimatorOscillateFunction InFunction);
 	EPropertyAnimatorOscillateFunction GetOscillateFunction() const
 	{
@@ -37,6 +33,7 @@ public:
 
 protected:
 	//~ Begin UPropertyAnimatorFloatBase
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
 	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const override;
 	//~ End UPropertyAnimatorFloatBase
 

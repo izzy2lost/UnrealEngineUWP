@@ -13,10 +13,10 @@ struct FPropertyAnimatorCurveEasing
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditInstanceOnly, Category="Animator")
+	UPROPERTY(EditInstanceOnly, DisplayName="Curve", Category="Animator")
 	TObjectPtr<UPropertyAnimatorEaseCurve> EaseCurve;
 
-	UPROPERTY(EditInstanceOnly, Interp, Category="Animator", meta=(ClampMin="0", Units=Seconds))
+	UPROPERTY(EditInstanceOnly, Interp, DisplayName="Duration", Category="Animator", meta=(ClampMin="0", Units=Seconds))
 	float EaseDuration = 0.f;
 };
 
@@ -29,8 +29,6 @@ class UPropertyAnimatorCurve : public UPropertyAnimatorNumericBase
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* DefaultAnimatorName = TEXT("Curve");
-
 	UPropertyAnimatorCurve();
 
 	void SetWaveCurve(UPropertyAnimatorWaveCurve* InCurve);
@@ -76,16 +74,13 @@ protected:
 	//~ End UObject
 
 	//~ Begin UPropertyAnimatorFloatBase
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
 	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const override;
 	//~ End UPropertyAnimatorFloatBase
 
 	void OnEaseInChanged();
 	void OnEaseOutChanged();
 	virtual void OnCycleDurationChanged() override;
-
-	/** The wave curve to sample for the animation, base curve */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Base Curve", Category="Animator")
-	TObjectPtr<UPropertyAnimatorWaveCurve> WaveCurve;
 
 	/** Use ease in effect */
 	UPROPERTY(EditInstanceOnly, Setter="SetEaseInEnabled", Getter="GetEaseInEnabled", DisplayName="InEnabled", Category="Animator", meta=(InlineEditConditionToggle))
@@ -94,6 +89,10 @@ protected:
 	/** Ease in for this effect */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="In", Category="Animator", meta=(EditCondition="bEaseInEnabled"))
 	FPropertyAnimatorCurveEasing EaseIn;
+
+	/** The base curve to sample for the animation */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Loop Curve", Category="Animator")
+	TObjectPtr<UPropertyAnimatorWaveCurve> WaveCurve;
 
 	/** Use ease out effect */
 	UPROPERTY(EditInstanceOnly, Setter="SetEaseOutEnabled", Getter="GetEaseOutEnabled", DisplayName="OutEnabled", Category="Animator", meta=(InlineEditConditionToggle))

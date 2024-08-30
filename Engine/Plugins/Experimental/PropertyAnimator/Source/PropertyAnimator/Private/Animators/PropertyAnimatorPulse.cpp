@@ -5,11 +5,6 @@
 #include "Properties/PropertyAnimatorFloatContext.h"
 #include "PropertyAnimatorShared.h"
 
-UPropertyAnimatorPulse::UPropertyAnimatorPulse()
-{
-	SetAnimatorDisplayName(DefaultControllerName);
-}
-
 void UPropertyAnimatorPulse::SetEasingFunction(EPropertyAnimatorEasingFunction InEasingFunction)
 {
 	EasingFunction = InEasingFunction;
@@ -18,6 +13,13 @@ void UPropertyAnimatorPulse::SetEasingFunction(EPropertyAnimatorEasingFunction I
 void UPropertyAnimatorPulse::SetEasingType(EPropertyAnimatorEasingType InEasingType)
 {
 	EasingType = InEasingType;
+}
+
+void UPropertyAnimatorPulse::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
+{
+	Super::OnAnimatorRegistered(InMetadata);
+
+	InMetadata.Name = TEXT("Pulse");
 }
 
 bool UPropertyAnimatorPulse::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const

@@ -9,13 +9,11 @@
 
 UPropertyAnimatorCurve::UPropertyAnimatorCurve()
 {
-	SetAnimatorDisplayName(DefaultAnimatorName);
+	static const ConstructorHelpers::FObjectFinder<UPropertyAnimatorWaveCurve> BaseCurve(TEXT("/Script/PropertyAnimator.PropertyAnimatorWaveCurve'/PropertyAnimator/Waves/Constant.Constant'"));
 
-	static const ConstructorHelpers::FObjectFinder<UPropertyAnimatorWaveCurve> SineCurve(TEXT("/Script/PropertyAnimator.PropertyAnimatorWaveCurve'/PropertyAnimator/Waves/Sine.Sine'"));
-
-	if (SineCurve.Succeeded())
+	if (BaseCurve.Succeeded())
 	{
-		WaveCurve = SineCurve.Object;
+		WaveCurve = BaseCurve.Object;
 	}
 
 	static const ConstructorHelpers::FObjectFinder<UPropertyAnimatorEaseCurve> LinearCurve(TEXT("/Script/PropertyAnimator.PropertyAnimatorEaseCurve'/PropertyAnimator/Eases/Linear.Linear'"));
@@ -69,6 +67,13 @@ void UPropertyAnimatorCurve::PostEditChangeProperty(FPropertyChangedEvent& InPro
 	}
 }
 #endif
+
+void UPropertyAnimatorCurve::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
+{
+	Super::OnAnimatorRegistered(InMetadata);
+
+	InMetadata.Name = TEXT("Curve");
+}
 
 bool UPropertyAnimatorCurve::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const
 {

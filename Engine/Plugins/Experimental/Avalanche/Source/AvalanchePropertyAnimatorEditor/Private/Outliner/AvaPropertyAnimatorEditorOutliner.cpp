@@ -12,7 +12,7 @@ FAvaPropertyAnimatorEditorOutliner::FAvaPropertyAnimatorEditorOutliner(IAvaOutli
 	: FAvaOutlinerObject(InOutliner, InAnimator)
 	, PropertyAnimator(InAnimator)
 {
-	ItemName = FText::FromString(PropertyAnimator->GetAnimatorDisplayName());
+	ItemName = FText::FromName(PropertyAnimator->GetAnimatorDisplayName());
 	ItemIcon = FSlateIconFinder::FindIconForClass(UPropertyAnimatorCoreComponent::StaticClass());
 	ItemTooltip = FText::FromName(PropertyAnimator->GetAnimatorOriginalName());
 }

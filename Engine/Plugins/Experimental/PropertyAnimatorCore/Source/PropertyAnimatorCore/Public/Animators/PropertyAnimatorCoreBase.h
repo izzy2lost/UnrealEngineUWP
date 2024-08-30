@@ -20,6 +20,12 @@ enum class EPropertyAnimatorPropertySupport : uint8
 	All = Incomplete | Complete
 };
 
+struct FPropertyAnimatorCoreMetadata
+{
+	FName Name;
+	FName Category = TEXT("Default");
+};
+
 /** Abstract base class for any Animator, holds a set of linked properties */
 UCLASS(MinimalAPI, Abstract, EditInlineNew, AutoExpandCategories=("Animator"))
 class UPropertyAnimatorCoreBase : public UObject
@@ -99,10 +105,13 @@ public:
 
 	/** Set the display name of this animator */
 	PROPERTYANIMATORCORE_API void SetAnimatorDisplayName(FName InName);
-	FString GetAnimatorDisplayName() const
+
+	FName GetAnimatorDisplayName() const
 	{
-		return AnimatorDisplayName.ToString();
+		return AnimatorDisplayName;
 	}
+
+	PROPERTYANIMATORCORE_API FName GetAnimatorCategory() const;
 
 	/** Gets the Animator original name */
 	PROPERTYANIMATORCORE_API FName GetAnimatorOriginalName() const;
@@ -202,6 +211,7 @@ public:
 
 protected:
 	//~ Begin UObject
+	PROPERTYANIMATORCORE_API virtual void PostCDOContruct() override;
 	PROPERTYANIMATORCORE_API virtual void BeginDestroy() override;
 	PROPERTYANIMATORCORE_API virtual void PostLoad() override;
 	PROPERTYANIMATORCORE_API virtual void PostEditImport() override;
@@ -264,6 +274,8 @@ protected:
 
 	PROPERTYANIMATORCORE_API virtual void OnAnimatorEnabled();
 	PROPERTYANIMATORCORE_API virtual void OnAnimatorDisabled();
+
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) {}
 
 	virtual void OnTimeSourceChanged() {}
 
@@ -362,4 +374,7 @@ private:
 
 	/** Are we evaluating properties currently */
 	bool bEvaluatingProperties = false;
+
+	/** Animator metadata, same for all instances of this class */
+	TSharedPtr<FPropertyAnimatorCoreMetadata> Metadata;
 };

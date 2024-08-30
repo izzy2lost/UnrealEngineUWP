@@ -276,3 +276,10 @@ bool UPropertyAnimatorNumericBase::IsTimeSourceSupported(UPropertyAnimatorCoreTi
 {
 	return !InTimeSource->IsA<UPropertyAnimatorCoreSystemTimeSource>();
 }
+
+void UPropertyAnimatorNumericBase::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
+{
+	Super::OnAnimatorRegistered(InMetadata);
+
+	InMetadata.Category = TEXT("Numeric");
+}

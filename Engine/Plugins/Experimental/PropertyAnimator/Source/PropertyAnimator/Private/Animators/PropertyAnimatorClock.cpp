@@ -24,8 +24,6 @@ void UPropertyAnimatorClock::UnregisterFormat(const TCHAR InChar)
 
 UPropertyAnimatorClock::UPropertyAnimatorClock()
 {
-	SetAnimatorDisplayName(DefaultControllerName);
-
 	if (IsTemplate())
 	{
 		RegisterFormat(TEXT('a'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%a")); });
@@ -87,26 +85,11 @@ FString UPropertyAnimatorClock::FormatDateTime(const FDateTime& InDateTime, cons
     return Result;
 }
 
-EPropertyAnimatorPropertySupport UPropertyAnimatorClock::IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const
+void UPropertyAnimatorClock::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
 {
-	if (InPropertyData.IsA<FStrProperty>())
-	{
-		return EPropertyAnimatorPropertySupport::Complete;
-	}
+	Super::OnAnimatorRegistered(InMetadata);
 
-	// Check if a converter supports the conversion
-	if (UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
-	{
-		static const FPropertyBagPropertyDesc AnimatorTypeDesc("", EPropertyBagPropertyType::String);
-		const FPropertyBagPropertyDesc PropertyTypeDesc("", InPropertyData.GetLeafProperty());
-
-		if (AnimatorSubsystem->IsConversionSupported(AnimatorTypeDesc, PropertyTypeDesc))
-		{
-			return EPropertyAnimatorPropertySupport::Incomplete;
-		}
-	}
-
-	return Super::IsPropertySupported(InPropertyData);
+	InMetadata.Name = TEXT("Clock");
 }
 
 void UPropertyAnimatorClock::EvaluateProperties(FInstancedPropertyBag& InParameters)
@@ -131,24 +114,4 @@ void UPropertyAnimatorClock::EvaluateProperties(FInstancedPropertyBag& InParamet
 
 		return true;
 	});
-}
-
-void UPropertyAnimatorClock::OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty, EPropertyAnimatorPropertySupport InSupport)
-{
-	Super::OnPropertyLinked(InLinkedProperty, InSupport);
-
-	if (EnumHasAnyFlags(InSupport, EPropertyAnimatorPropertySupport::Incomplete))
-	{
-		if (const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
-		{
-			static const FPropertyBagPropertyDesc AnimatorTypeDesc("", EPropertyBagPropertyType::String);
-
-			const FPropertyAnimatorCoreData& Property = InLinkedProperty->GetAnimatedProperty();
-			const FPropertyBagPropertyDesc PropertyTypeDesc("", Property.GetLeafProperty());
-			const TSet<UPropertyAnimatorCoreConverterBase*> Converters = AnimatorSubsystem->GetSupportedConverters(AnimatorTypeDesc, PropertyTypeDesc);
-			check(!Converters.IsEmpty())
-
-			InLinkedProperty->SetConverterClass(Converters.Array()[0]->GetClass());
-		}
-	}
 }

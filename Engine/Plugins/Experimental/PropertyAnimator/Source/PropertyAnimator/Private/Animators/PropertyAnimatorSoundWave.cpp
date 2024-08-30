@@ -9,7 +9,6 @@
 
 UPropertyAnimatorSoundWave::UPropertyAnimatorSoundWave()
 {
-	SetAnimatorDisplayName(DefaultControllerName);
 	CycleMode = EPropertyAnimatorCycleMode::None;
 }
 
@@ -58,6 +57,13 @@ void UPropertyAnimatorSoundWave::OnSampledSoundWaveChanged()
 	FPropertyChangedEvent PropertyChangedEvent(SoundProperty, EPropertyChangeType::ValueSet);
 	AudioAnalyzer->PostEditChangeProperty(PropertyChangedEvent);
 #endif
+}
+
+void UPropertyAnimatorSoundWave::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
+{
+	Super::OnAnimatorRegistered(InMetadata);
+
+	InMetadata.Name = TEXT("SoundWave");
 }
 
 bool UPropertyAnimatorSoundWave::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const

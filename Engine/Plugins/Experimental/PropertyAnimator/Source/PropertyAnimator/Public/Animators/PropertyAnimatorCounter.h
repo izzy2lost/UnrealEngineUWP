@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorNumericBase.h"
+#include "PropertyAnimatorTextBase.h"
 #include "StructUtils/InstancedStruct.h"
 #include "PropertyAnimatorCounter.generated.h"
 
@@ -92,13 +92,11 @@ struct FPropertyAnimatorCounterFormat
 
 /** Animate supported string properties to display a counter */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorCounter : public UPropertyAnimatorCoreBase
+class UPropertyAnimatorCounter : public UPropertyAnimatorTextBase
 {
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* DefaultAnimatorName = TEXT("Counter");
-
 #if WITH_EDITOR
 	PROPERTYANIMATOR_API static FName GetUseCustomFormatPropertyName();
 #endif
@@ -136,9 +134,8 @@ protected:
 	//~ End UObject
 
 	//~ Begin UPropertyAnimatorCoreBase
-	virtual EPropertyAnimatorPropertySupport IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const override;
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
 	virtual void EvaluateProperties(FInstancedPropertyBag& InParameters) override;
-	virtual void OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty, EPropertyAnimatorPropertySupport InSupport) override;
 	//~ End UPropertyAnimatorCoreBase
 
 	UFUNCTION()

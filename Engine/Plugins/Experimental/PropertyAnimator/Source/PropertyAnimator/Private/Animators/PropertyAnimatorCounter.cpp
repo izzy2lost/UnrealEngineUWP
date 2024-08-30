@@ -117,8 +117,6 @@ FString FPropertyAnimatorCounterFormat::FormatNumber(double InNumber) const
 
 UPropertyAnimatorCounter::UPropertyAnimatorCounter()
 {
-	SetAnimatorDisplayName(DefaultAnimatorName);
-
 	if (!IsTemplate())
 	{
 		const TArray<FName> AvailableNames = GetAvailableFormatNames();
@@ -229,6 +227,13 @@ void UPropertyAnimatorCounter::PostEditChangeProperty(FPropertyChangedEvent& InP
 	}
 }
 
+void UPropertyAnimatorCounter::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
+{
+	Super::OnAnimatorRegistered(InMetadata);
+
+	InMetadata.Name = TEXT("Counter");
+}
+
 void UPropertyAnimatorCounter::OpenPropertyAnimatorSettings()
 {
 	if (const UPropertyAnimatorSettings* AnimatorSettings = GetDefault<UPropertyAnimatorSettings>())
@@ -254,28 +259,6 @@ void UPropertyAnimatorCounter::SaveCustomFormatAsPreset()
 }
 #endif
 
-EPropertyAnimatorPropertySupport UPropertyAnimatorCounter::IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const
-{
-	if (InPropertyData.IsA<FStrProperty>())
-	{
-		return EPropertyAnimatorPropertySupport::Complete;
-	}
-
-	// Check if a converter supports the conversion
-	if (UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
-	{
-		static const FPropertyBagPropertyDesc AnimatorTypeDesc("", EPropertyBagPropertyType::String);
-		const FPropertyBagPropertyDesc PropertyTypeDesc("", InPropertyData.GetLeafProperty());
-
-		if (AnimatorSubsystem->IsConversionSupported(AnimatorTypeDesc, PropertyTypeDesc))
-		{
-			return EPropertyAnimatorPropertySupport::Incomplete;
-		}
-	}
-
-	return Super::IsPropertySupported(InPropertyData);
-}
-
 void UPropertyAnimatorCounter::EvaluateProperties(FInstancedPropertyBag& InParameters)
 {
 	const double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
@@ -294,26 +277,6 @@ void UPropertyAnimatorCounter::EvaluateProperties(FInstancedPropertyBag& InParam
 
 		return true;
 	});
-}
-
-void UPropertyAnimatorCounter::OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty, EPropertyAnimatorPropertySupport InSupport)
-{
-	Super::OnPropertyLinked(InLinkedProperty, InSupport);
-
-	if (EnumHasAnyFlags(InSupport, EPropertyAnimatorPropertySupport::Incomplete))
-	{
-		if (const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
-		{
-			static const FPropertyBagPropertyDesc AnimatorTypeDesc("", EPropertyBagPropertyType::String);
-
-			const FPropertyAnimatorCoreData& Property = InLinkedProperty->GetAnimatedProperty();
-			const FPropertyBagPropertyDesc PropertyTypeDesc("", Property.GetLeafProperty());
-			const TSet<UPropertyAnimatorCoreConverterBase*> Converters = AnimatorSubsystem->GetSupportedConverters(AnimatorTypeDesc, PropertyTypeDesc);
-			check(!Converters.IsEmpty())
-
-			InLinkedProperty->SetConverterClass(Converters.Array()[0]->GetClass());
-		}
-	}
 }
 
 TArray<FName> UPropertyAnimatorCounter::GetAvailableFormatNames() const

@@ -5,9 +5,11 @@
 #include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
 #include "Properties/PropertyAnimatorFloatContext.h"
 
-UPropertyAnimatorTime::UPropertyAnimatorTime()
+void UPropertyAnimatorTime::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
 {
-	SetAnimatorDisplayName(DefaultControllerName);
+	Super::OnAnimatorRegistered(InMetadata);
+
+	InMetadata.Name = TEXT("Time");
 }
 
 bool UPropertyAnimatorTime::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const

@@ -43,6 +43,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSection(UToolMenu* InM
 	for (UPropertyAnimatorCoreBase* NewAnimator : NewAvailableAnimators)
 	{
 		const FName MenuName = NewAnimator->GetAnimatorOriginalName();
+		const FName MenuCategory = NewAnimator->GetAnimatorCategory();
 		const FText MenuLabel = FText::FromName(MenuName);
 		const FText MenuTooltip = LOCTEXT("NewAnimator.Tooltip", "Create a new animator");
 		const FSlateIcon MenuIcon = FSlateIconFinder::FindIconForClass(NewAnimator->GetClass());
@@ -63,7 +64,9 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSection(UToolMenu* InM
 		{
 			UPropertyAnimatorCorePresetBase* EmptyPreset = nullptr;
 
-			NewAnimatorsSection.AddMenuEntry(
+			FToolMenuSection& AnimatorCategorySection = InMenu->FindOrAddSection(MenuCategory, FText::FromName(MenuCategory));
+
+			AnimatorCategorySection.AddMenuEntry(
 				MenuName
 				, MenuLabel
 				, MenuTooltip
@@ -96,7 +99,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillExistingAnimatorSection(UToolMenu
 	{
 		for (UPropertyAnimatorCoreBase* Animator : Subsystem->GetExistingAnimators(Property))
 		{
-			const FName MenuName(Animator->GetAnimatorDisplayName());
+			const FName MenuName = Animator->GetAnimatorDisplayName();
 			const FText MenuLabel = FText::FromName(MenuName);
 			const FSlateIcon MenuIcon = FSlateIconFinder::FindIconForClass(Animator->GetClass());
 
@@ -185,8 +188,8 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillDeleteAnimatorSection(UToolMenu* 
 		}
 
 		ActorAnimatorsSection.AddMenuEntry(
-			FName(Animator->GetAnimatorDisplayName())
-			, FText::Format(LOCTEXT("DeleteSingleActorAnimator.Label", "Delete {0}"), FText::FromString(Animator->GetAnimatorDisplayName()))
+			Animator->GetAnimatorDisplayName()
+			, FText::Format(LOCTEXT("DeleteSingleActorAnimator.Label", "Delete {0}"), FText::FromName(Animator->GetAnimatorDisplayName()))
 			, LOCTEXT("DeleteSingleActorAnimator.Tooltip", "Delete selected animator")
 			, FSlateIcon()
 			, FUIAction(
@@ -252,8 +255,8 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillEnableAnimatorSection(UToolMenu* 
 		}
 
 		ActorAnimatorsSection.AddMenuEntry(
-			FName(Animator->GetAnimatorDisplayName())
-			, FText::Format(LOCTEXT("EnableAnimator.Label", "Enable {0}"), FText::FromString(Animator->GetAnimatorDisplayName()))
+			Animator->GetAnimatorDisplayName()
+			, FText::Format(LOCTEXT("EnableAnimator.Label", "Enable {0}"), FText::FromName(Animator->GetAnimatorDisplayName()))
 			, LOCTEXT("EnableAnimator.Tooltip", "Enable selected animator")
 			, FSlateIconFinder::FindIconForClass(Animator->GetClass())
 			, FUIAction(
@@ -319,8 +322,8 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillDisableAnimatorSection(UToolMenu*
 		}
 
 		ActorAnimatorsSection.AddMenuEntry(
-			FName(Animator->GetAnimatorDisplayName())
-			, FText::Format(LOCTEXT("DisableAnimator.Label", "Disable {0}"), FText::FromString(Animator->GetAnimatorDisplayName()))
+			Animator->GetAnimatorDisplayName()
+			, FText::Format(LOCTEXT("DisableAnimator.Label", "Disable {0}"), FText::FromName(Animator->GetAnimatorDisplayName()))
 			, LOCTEXT("DisableAnimator.Tooltip", "Disable selected animator")
 			, FSlateIconFinder::FindIconForClass(Animator->GetClass())
 			, FUIAction(

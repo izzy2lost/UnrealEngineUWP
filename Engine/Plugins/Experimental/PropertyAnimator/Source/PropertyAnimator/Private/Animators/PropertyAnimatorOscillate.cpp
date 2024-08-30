@@ -5,14 +5,16 @@
 #include "Properties/PropertyAnimatorFloatContext.h"
 #include "PropertyAnimatorShared.h"
 
-UPropertyAnimatorOscillate::UPropertyAnimatorOscillate()
-{
-	SetAnimatorDisplayName(DefaultControllerName);
-}
-
 void UPropertyAnimatorOscillate::SetOscillateFunction(EPropertyAnimatorOscillateFunction InFunction)
 {
 	OscillateFunction = InFunction;
+}
+
+void UPropertyAnimatorOscillate::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
+{
+	Super::OnAnimatorRegistered(InMetadata);
+
+	InMetadata.Name = TEXT("Oscillate");
 }
 
 bool UPropertyAnimatorOscillate::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const

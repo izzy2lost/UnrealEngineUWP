@@ -10,11 +10,16 @@ UPropertyAnimatorWiggle::UPropertyAnimatorWiggle()
 {
 	static int32 SeedIncrement = 0;
 
-	SetAnimatorDisplayName(DefaultControllerName);
-
 	bRandomTimeOffset = true;
 	Seed = SeedIncrement++;
 	CycleMode = EPropertyAnimatorCycleMode::None;
+}
+
+void UPropertyAnimatorWiggle::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
+{
+	Super::OnAnimatorRegistered(InMetadata);
+
+	InMetadata.Name = TEXT("Wiggle");
 }
 
 bool UPropertyAnimatorWiggle::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const
