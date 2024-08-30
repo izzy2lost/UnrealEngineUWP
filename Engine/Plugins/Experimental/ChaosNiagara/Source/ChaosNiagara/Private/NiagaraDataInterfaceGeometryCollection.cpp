@@ -210,11 +210,11 @@ void FNDIGeometryCollectionData::Update(UNiagaraDataInterfaceGeometryCollection*
 			{
 				Init(Interface, SystemInstance);
 				bNeedsRenderUpdate = true;
-				AssetArrays->ComponentRestTransformBuffer = ResolvedSource.GetInitialLocalRestTransforms();
+				AssetArrays->ComponentRestTransformBuffer = ResolvedSource.GetLocalRestTransforms();
 			}
 			else
 			{
-				TArray<FTransform> NewTransforms = ResolvedSource.GetInitialLocalRestTransforms();
+				TArray<FTransform> NewTransforms = ResolvedSource.GetLocalRestTransforms();
 				int32 TransformCount = NewTransforms.Num();
 				if (TransformCount != AssetArrays->ComponentRestTransformBuffer.Num() ||
 					FMemory::Memcmp(NewTransforms.GetData(), AssetArrays->ComponentRestTransformBuffer.GetData(), TransformCount * sizeof(FTransform)) != 0)
@@ -315,11 +315,11 @@ FTransform FResolvedNiagaraGeometryCollection::GetComponentSpaceTransform(int32 
 	return FTransform();
 }
 
-TArray<FTransform> FResolvedNiagaraGeometryCollection::GetInitialLocalRestTransforms() const
+TArray<FTransform> FResolvedNiagaraGeometryCollection::GetLocalRestTransforms() const
 {
 	if (Component.IsValid())
 	{
-		return Component->GetInitialLocalRestTransforms();
+		return Component->GetLocalRestTransforms();
 	}
 	if (Collection.IsValid())
 	{

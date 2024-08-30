@@ -109,7 +109,7 @@ struct FResolvedNiagaraGeometryCollection
 	const UGeometryCollection* GetGeometryCollection() const;
 	FTransform GetComponentRootTransform(FNiagaraSystemInstance* SystemInstance) const;
 	FTransform GetComponentSpaceTransform(int32 TransformIndex) const;
-	TArray<FTransform> GetInitialLocalRestTransforms() const;
+	TArray<FTransform> GetLocalRestTransforms() const;
 	
 	TWeakObjectPtr<UGeometryCollection> Collection;
 	TWeakObjectPtr<UGeometryCollectionComponent> Component;
