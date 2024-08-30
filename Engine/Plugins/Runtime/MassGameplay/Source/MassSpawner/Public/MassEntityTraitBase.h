@@ -58,7 +58,7 @@ public:
 	 * Called once all traits have been processed and fragment requirements have been checked. Override this function
 	 * to perform additional Trait's configuration validation. Returning `false` will indicate that the trait instance
 	 * is not happy with the validation results - this result will be treated as an error.
-	 * @param TraitRequirements contains requirements declared by this trait and gives ValidateTemplate a chance to add 
+	 * @param OutTraitRequirements contains requirements declared by this trait and gives ValidateTemplate a chance to add 
 	 *		to the dependencies based on the state of BuildContext, which by this point should contain all the elements 
 	 *		added by all the relevant traits.
 	 * @return whether the validation was successful

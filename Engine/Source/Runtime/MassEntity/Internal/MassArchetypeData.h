@@ -404,7 +404,7 @@ protected:
 	 * The function first creates new FMassArchetypeSharedFragmentValues instance combining existing values
 	 * and the contents of SharedFragmentValueOverrides. Then that is used to find the target chunk for Entity,
 	 * and if one cannot be found a new one will be created. 
-	 * @param SharedFragmentValueOverrides is expected to contain only instances of types already
+	 * @param SharedFragmentValueOverrides is expected to contain only instance of types already
 	 *    present in given archetypes FMassArchetypeSharedFragmentValues
 	 */
 	void SetSharedFragmentsData(const FMassEntityHandle Entity, TConstArrayView<FSharedStruct> SharedFragmentValueOverrides);
