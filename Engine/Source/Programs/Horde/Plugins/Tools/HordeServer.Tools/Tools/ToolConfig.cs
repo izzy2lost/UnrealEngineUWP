@@ -141,21 +141,4 @@ namespace HordeServer.Tools
 			Public = true;
 		}
 	}
-
-	/// <summary>
-	/// Options for a new deployment
-	/// </summary>
-	public class ToolDeploymentConfig
-	{
-		/// <inheritdoc cref="IToolDeployment.Version"/>
-		public string Version { get; set; } = "Unknown";
-
-		/// <inheritdoc cref="IToolDeployment.Duration"/>
-		public TimeSpan Duration { get; set; }
-
-		/// <summary>
-		/// Whether to create the deployment in a paused state
-		/// </summary>
-		public bool CreatePaused { get; set; }
-	}
 }

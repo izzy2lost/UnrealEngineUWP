@@ -1,13 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Tools;
 
 #pragma warning disable CA1716 // Rename virtual/interface member ITool.Public so that it no longer conflicts with the reserved language keyword 'Public'.
 
-namespace HordeServer.Tools
+namespace EpicGames.Horde.Tools
 {
 	/// <summary>
 	/// Describes a standalone, external tool hosted and deployed by Horde. Provides basic functionality for performing
@@ -167,6 +171,23 @@ namespace HordeServer.Tools
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Stream for the data</returns>
 		Task<Stream> OpenZipStreamAsync(CancellationToken cancellationToken = default);
+	}
+
+	/// <summary>
+	/// Options for a new deployment
+	/// </summary>
+	public class ToolDeploymentConfig
+	{
+		/// <inheritdoc cref="IToolDeployment.Version"/>
+		public string Version { get; set; } = "Unknown";
+
+		/// <inheritdoc cref="IToolDeployment.Duration"/>
+		public TimeSpan Duration { get; set; }
+
+		/// <summary>
+		/// Whether to create the deployment in a paused state
+		/// </summary>
+		public bool CreatePaused { get; set; }
 	}
 
 	/// <summary>

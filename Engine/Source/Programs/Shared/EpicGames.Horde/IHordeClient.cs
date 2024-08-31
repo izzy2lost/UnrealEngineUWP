@@ -42,6 +42,11 @@ namespace EpicGames.Horde
 		ISecretCollection Secrets { get; }
 
 		/// <summary>
+		/// Accessor for the tools collection
+		/// </summary>
+		IToolCollection Tools { get; }
+
+		/// <summary>
 		/// Connect to the Horde server
 		/// </summary>
 		/// <param name="allowPrompt">Whether to allow prompting for credentials</param>

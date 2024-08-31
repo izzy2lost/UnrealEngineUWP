@@ -23,6 +23,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Projects;
+using EpicGames.Horde.Tools;
 
 namespace JobDriver.Tests.Execution
 {
@@ -88,6 +89,7 @@ namespace JobDriver.Tests.Execution
 			public IArtifactCollection Artifacts => throw new NotImplementedException();
 			public IProjectCollection Projects => throw new NotImplementedException();
 			public ISecretCollection Secrets => throw new NotImplementedException();
+			public IToolCollection Tools => throw new NotImplementedException();
 
 			public IComputeClient CreateComputeClient()
 				=> throw new NotImplementedException();

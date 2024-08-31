@@ -7,6 +7,7 @@ using Amazon.EC2;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Tools;
 using HordeCommon.Rpc.Messages;
 using HordeServer.Acls;
 using HordeServer.Agents;

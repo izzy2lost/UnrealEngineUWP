@@ -18,6 +18,7 @@ using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Tools;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Grpc.Net.Client.Configuration;
@@ -57,6 +58,9 @@ namespace EpicGames.Horde
 		/// <inheritdoc/>
 		public ISecretCollection Secrets { get; }
 
+		/// <inheritdoc/>
+		public IToolCollection Tools { get; }
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -71,6 +75,7 @@ namespace EpicGames.Horde
 			Artifacts = new ArtifactHttpCollection(this);
 			Projects = new ProjectHttpCollection(this);
 			Secrets = new SecretHttpCollection(this);
+			Tools = new ToolHttpCollection(this);
 		}
 
 		/// <inheritdoc/>

@@ -9,7 +9,6 @@ using EpicGames.Horde.Tools;
 using HordeCommon.Rpc.Tasks;
 using HordeServer.Agents;
 using HordeServer.Logs;
-using HordeServer.Tools;
 using HordeServer.Utilities;
 using Microsoft.Extensions.Options;
 

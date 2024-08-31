@@ -2,6 +2,7 @@
 
 using System.Reflection;
 using EpicGames.Core;
+using EpicGames.Horde.Tools;
 using HordeServer.Acls;
 using HordeServer.Plugins;
 using HordeServer.Tools;

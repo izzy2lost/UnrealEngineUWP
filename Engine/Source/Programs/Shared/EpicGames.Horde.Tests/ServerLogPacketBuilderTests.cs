@@ -15,6 +15,7 @@ using EpicGames.Horde.Projects;
 using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Tools;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Horde.Common.Rpc;
@@ -220,6 +221,7 @@ namespace EpicGames.Horde.Tests
 			public IArtifactCollection Artifacts => throw new NotImplementedException();
 			public IProjectCollection Projects => throw new NotImplementedException();
 			public ISecretCollection Secrets => throw new NotImplementedException();
+			public IToolCollection Tools => throw new NotImplementedException();
 
 			public Task<bool> LoginAsync(bool allowLogin, CancellationToken cancellationToken)
 				=> throw new NotImplementedException();

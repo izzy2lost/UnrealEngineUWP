@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Horde.Tools;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
-namespace HordeServer.Tools
+namespace EpicGames.Horde.Tools
 {
 	/// <summary>
 	/// Collection of tools

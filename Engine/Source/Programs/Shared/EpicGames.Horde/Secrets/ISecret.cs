@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using EpicGames.Horde.Secrets;
 
 namespace EpicGames.Horde.Secrets
 {

@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde.Tools;
 using HordeServer.Server;
-using HordeServer.Tools;
 
 namespace HordeServer.Agents
 {
