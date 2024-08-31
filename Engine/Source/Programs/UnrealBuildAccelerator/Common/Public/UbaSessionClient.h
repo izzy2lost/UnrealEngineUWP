@@ -66,6 +66,7 @@ namespace uba
 		virtual bool GetNextProcess(Process& process, bool& outNewProcess, NextProcessInfo& outNextProcess, u32 prevExitCode, BinaryReader& statsReader) override;
 		virtual bool CustomMessage(Process& process, BinaryReader& reader, BinaryWriter& writer) override;
 		virtual bool SHGetKnownFolderPath(Process& process, BinaryReader& reader, BinaryWriter& writer) override;
+		virtual bool HostRun(BinaryReader& reader, BinaryWriter& writer) override;
 		virtual bool FlushWrittenFiles(ProcessImpl& process) override;
 		virtual bool UpdateEnvironment(ProcessImpl& process, const tchar* reason, bool resetStats) override;
 		virtual bool LogLine(ProcessImpl& process, const tchar* line, LogEntryType logType) override;
@@ -160,5 +161,8 @@ namespace uba
 		Atomic<u64> m_bestPing;
 		u64 m_lastPing = 0;
 		u64 m_lastPingSendTime = 0;
+
+		UnorderedMap<CasKey, Vector<u8>> m_hostRunCache;
+		ReaderWriterLock m_hostRunCacheLock;
 	};
 }

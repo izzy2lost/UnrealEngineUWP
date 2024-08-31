@@ -741,7 +741,7 @@ namespace uba
 			if (findIt != writtenFiles.end())
 			{
 				auto insres = writtenFiles.try_emplace(toName);
-				UBA_ASSERTF(insres.second, TC("Moving written file %s to other written file %s."), fromName, toName);
+				UBA_ASSERTF(insres.second, TC("Moving written file %s to other written file %s. (%s)"), fromName, toName, msg.process.m_startInfo.description);
 				insres.first->second = findIt->second;
 				insres.first->second.owner = &msg.process;
 				writtenFiles.erase(findIt);
@@ -2010,6 +2010,35 @@ namespace uba
 		}
 		writer.AllocWrite(msgReader.GetPosition());
 #endif
+		return true;
+	}
+
+	bool SessionClient::HostRun(BinaryReader& reader, BinaryWriter& writer)
+	{
+		const void* data = reader.GetPositionData();
+		u64 size = reader.GetLeft();
+
+		CasKey key = ToCasKey(CasKeyHasher().Update(data, size), false);
+
+		SCOPED_WRITE_LOCK(m_hostRunCacheLock, l);
+		auto insres = m_hostRunCache.try_emplace(key);
+		auto& buffer = insres.first->second;
+		if (!insres.second)
+		{
+			writer.WriteBytes(buffer.data(), buffer.size());
+			return true;
+		}
+
+		StackBinaryWriter<SendMaxSize> msgWriter;
+		NetworkMessage msg(m_client, ServiceId, SessionMessageType_HostRun, msgWriter);
+		msgWriter.WriteBytes(data, size);
+		BinaryReader msgReader(writer.GetData(), 0);
+		if (!msg.Send(msgReader, m_stats.customMsg))
+			return false;
+		writer.AllocWrite(msgReader.GetLeft());
+
+		buffer.resize(msgReader.GetLeft());
+		memcpy(buffer.data(), msgReader.GetPositionData(), buffer.size());
 		return true;
 	}
 

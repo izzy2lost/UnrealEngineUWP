@@ -36,6 +36,7 @@ namespace uba
 		UBA_PROCESS_MESSAGE(Custom) \
 		UBA_PROCESS_MESSAGE(SHGetKnownFolderPath) \
 		UBA_PROCESS_MESSAGE(RpcCommunication) \
+		UBA_PROCESS_MESSAGE(HostRun) \
 
 	enum MessageType : u8
 	{

@@ -794,7 +794,7 @@ UBA_EXPORT int UBA_WRAPPER(mkdir)(const char* path, mode_t mode)
 	g_directoryTable.ParseDirectoryTable(directoryTableSize);
 
 	errno = errorCode;
-	DEBUG_LOG_DETOURED("mkdir", "%ls -> %i (%u)", path, res, errorCode);
+	DEBUG_LOG_DETOURED("mkdir", "%s -> %i (%u)", path, res, errorCode);
 	return res ? 0 : -1;
 }
 
@@ -834,7 +834,7 @@ UBA_EXPORT int UBA_WRAPPER(rmdir)(const char* path)
 	g_directoryTable.ParseDirectoryTable(directoryTableSize);
 
 	errno = errorCode;
-	DEBUG_LOG_DETOURED("rmdir", "%ls -> %i (%u)", path, res, errorCode);
+	DEBUG_LOG_DETOURED("rmdir", "%s -> %i (%u)", path, res, errorCode);
 	return res ? 0 : -1;
 }
 
@@ -1338,7 +1338,9 @@ UBA_EXPORT int UBA_WRAPPER(access)(const char* pathname, int mode)
 	StringBuffer<> fixedPath;
 	if (!FixPath(fixedPath, pathname) || fixedPath.StartsWith(g_systemTemp.data) || fixedPath.StartsWith("/proc"))
 	{
-		return TRUE_WRAPPER(access)(pathname, mode);
+		auto res = TRUE_WRAPPER(access)(pathname, mode);
+		DEBUG_LOG_TRUE("access", "%s %i -> %i (%s)", pathname, mode, res, StrError(res, errno));
+		return res;
 	}
 
 	bool checkIfDir = false;
@@ -1601,7 +1603,7 @@ int Shared_DeleteFile(const char* funcName, const char* pathname)
 		errorCode = reader.ReadU32();
 		directoryTableSize = reader.ReadU32();
 		pcs.Leave();
-		DEBUG_LOG_PIPE(L"DeleteFile", L"%ls", lpFileName);
+		DEBUG_LOG_PIPE(L"DeleteFile", L"%s", lpFileName);
 	}
 	//DEBUG_LOG_DETOURED(L"DeleteFile", L"(%ls) -> %ls", pathname, ToString(result));
 
@@ -1636,6 +1638,57 @@ UBA_EXPORT int UBA_WRAPPER(unlink)(const char* pathname)
 }
 
 thread_local int t_inVfork;
+
+bool ExecuteHostRun(StringBufferBase& out, const char* const* argv)
+{
+	TimerScope ts(g_stats.getFullFileName);
+	SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+	BinaryWriter writer;
+	writer.WriteByte(MessageType_HostRun);
+	u16& size = *(u16*)writer.AllocWrite(2);
+	u64 pos = writer.GetPosition();
+	for (u32 i = 0; argv[i]; ++i)
+		writer.WriteString(argv[i]);
+	size = u16(writer.GetPosition() - pos);
+	writer.Flush();
+
+	BinaryReader reader;
+	bool success = reader.ReadBool();
+	reader.ReadString(out);
+	
+	if (out.count && out.data[out.count-1] == '\n')
+		out.Resize(out.count-1);
+
+	if (!success)
+		DEBUG_LOG("HOSTRUN FAILED: %s", out.data)
+	return success;
+}
+
+int SpawnEcho(char* str, pid_t* pid, const posix_spawn_file_actions_t* file_actions, const posix_spawnattr_t* attrp, char* const envp[])
+{
+	char cmd[] = "/bin/echo"; 
+	char* const argv2[] = { str, nullptr };
+	return TRUE_WRAPPER(posix_spawn)(pid, cmd, file_actions, attrp, argv2, envp);
+}
+
+void FlattenArgs(StringBufferBase& out, char* const argv[])
+{
+	if (!argv)
+		return;
+	for (u32 i = 0; argv[i]; ++i)
+	{
+		if (i != 0)
+			out.Append(' ');
+		out.Append(argv[i]);
+	}
+}
+
+void UnsupportedHostRun(char* const argv[], const char* msg)
+{
+	StringBuffer<4096> command;
+	FlattenArgs(command, argv);
+	UbaAssert(msg, __FILE__, __LINE__, command.data, 1999);
+}
 
 int shared_posix_spawn(pid_t* pid, const char* path, const posix_spawn_file_actions_t* file_actions, const posix_spawnattr_t* attrp, char* const argv[], char* const envp[])
 {
@@ -1691,8 +1744,8 @@ int shared_posix_spawn(pid_t* pid, const char* path, const posix_spawn_file_acti
 
 		BinaryReader reader;
 		processId = reader.ReadU32();
-		UBA_ASSERTF(processId > 0, "Process id was zero: path=%s", path);
-		if (!processId)
+
+		if (!processId) // Can happen if session client got disconnected from server session
 		{
 			errno = EINVAL; // This is not really correct but there is no errno for this failure
 			return -1;
@@ -1870,20 +1923,22 @@ UBA_EXPORT void* UBA_WRAPPER(dlopen)(const char* path, int mode)
 
 #if PLATFORM_MAC
 	StringBuffer<> tempBuf;
-	
-	auto originalPath = path;
-	if (StartsWith(path, "@rpath/"))
+	if (g_runningRemote)
 	{
-		path += 7;
-		Set<TString> handled;
-		handled.insert(path);
-		const char* loaderPaths[] = { "/", 0 };
-		Shared_LoadLibrary(handled, path, loaderPaths, tempBuf);
-	}
-	else if (!StartsWith(path, "/System") && !StartsWith(path, "/usr/lib"))
-	{
-		u64 nameLen = 0;
-		Rpc_GetFullFileName(path, nameLen, tempBuf, false);
+		auto originalPath = path;
+		if (StartsWith(path, "@rpath/"))
+		{
+			path += 7;
+			Set<TString> handled;
+			handled.insert(path);
+			const char* loaderPaths[] = { "/", 0 };
+			Shared_LoadLibrary(handled, path, loaderPaths, tempBuf);
+		}
+		else if (!StartsWith(path, "/System") && !StartsWith(path, "/usr/lib"))
+		{
+			u64 nameLen = 0;
+			Rpc_GetFullFileName(path, nameLen, tempBuf, false);
+		}
 	}
 #endif
 	void* res = TRUE_WRAPPER(dlopen)(path, mode);

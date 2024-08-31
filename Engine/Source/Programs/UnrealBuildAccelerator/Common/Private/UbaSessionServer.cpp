@@ -2110,4 +2110,9 @@ namespace uba
 #endif
 		return true;
 	}
+
+	bool SessionServer::HandleHostRun(const ConnectionInfo& connectionInfo, BinaryReader& reader, BinaryWriter& writer)
+	{
+		return HostRun(reader, writer);
+	}
 }

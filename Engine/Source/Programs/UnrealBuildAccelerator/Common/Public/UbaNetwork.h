@@ -88,6 +88,7 @@ namespace uba
 		UBA_SESSION_MESSAGE(Command) \
 		UBA_SESSION_MESSAGE(SHGetKnownFolderPath) \
 		UBA_SESSION_MESSAGE(DebugFileNotFoundError) \
+		UBA_SESSION_MESSAGE(HostRun) \
 
 	enum SessionMessageType : u8 
 	{

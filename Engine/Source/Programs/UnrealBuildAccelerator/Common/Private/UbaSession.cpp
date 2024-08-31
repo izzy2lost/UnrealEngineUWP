@@ -2381,6 +2381,49 @@ namespace uba
 		return false;
 	}
 
+	bool Session::HostRun(BinaryReader& reader, BinaryWriter& writer)
+	{
+		#if !PLATFORM_WINDOWS
+
+		Vector<TString> args;
+		while (reader.GetLeft())
+			args.push_back(reader.ReadString());
+		bool success = false;
+
+		StringBuffer<> command;
+		for (auto& arg : args)
+		{
+			if (command.count)
+				command.Append(' ');
+			command.Append(arg);
+		}
+
+		char result[4096];
+		if (FILE* fp = popen(command.data, "r"))
+		{
+			char* dest = result;
+			errno = 0;
+			while (true)
+			{
+				if (!fgets(dest, sizeof(result) - (dest - result), fp))
+				{
+					success = errno == 0;
+					if (!success)
+						snprintf(result, sizeof(result), "fgets failed with command: %s", command.data);
+					break;
+				}
+				dest += strlen(dest);
+			}
+			pclose(fp);
+		}
+		else
+			snprintf(result, sizeof(result), "popen failed with command: %s", command.data);
+		writer.WriteBool(success);
+		writer.WriteString(result);
+		#endif
+		return true;
+	}
+
 	void Session::FileEntryAdded(StringKey fileNameKey, u64 lastWritten, u64 size)
 	{
 	}

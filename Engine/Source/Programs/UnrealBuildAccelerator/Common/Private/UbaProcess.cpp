@@ -1254,6 +1254,14 @@ namespace uba
 		return true;
 	}
 
+	bool ProcessImpl::HandleHostRun(BinaryReader& reader, BinaryWriter& writer)
+	{
+		u16 size = reader.ReadU16();
+		BinaryReader reader2(reader.GetPositionData(), 0, size);
+		m_session.HostRun(reader2, writer);
+		return true;
+	}
+
 	bool ProcessImpl::CreateTempFile(BinaryReader& reader, ProcHandle nativeProcessHandle, const tchar* application)
 	{
 		StringKey key = reader.ReadStringKey();
