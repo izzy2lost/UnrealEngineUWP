@@ -32,6 +32,10 @@ TArray<TSharedRef<FRigVMTreeNode>> FRigVMTreeAssetRefAssetNode::GetChildrenImpl(
 				if (SoftObjectPath == Reference.GetWithoutSubPath())
 				{
 					TSharedRef<FRigVMTreeReferenceNode> RefNode = FRigVMTreeReferenceNode::Create(Reference);
+					if(GetCheckState() == ECheckBoxState::Checked)
+					{
+						RefNode->SetCheckState(ECheckBoxState::Checked);
+					}
 					AssetRefNodes.Add(RefNode);
 				}
 			}
@@ -215,11 +219,19 @@ void SRigVMSwapAssetReferencesWidget::Construct(const FArguments& InArgs)
 		{
 			GetBulkEditWidget()->GetTreeView()->GetTreeView()->ClearSelection();
 			
-			const TArray<TSharedRef<FRigVMTreeNode>> AllCheckedNodes = GetBulkEditWidget()->GetCheckedNodes();
+			TArray<TSharedRef<FRigVMTreeNode>> AllCheckedNodes = GetBulkEditWidget()->GetCheckedNodes();
 			if(AllCheckedNodes.IsEmpty())
 			{
 				GetBulkEditWidget()->CloseDialog();
 				return FReply::Handled();
+			}
+
+			const TSharedPtr<FRigVMSwapAssetReferencesContext> Context = Cast<FRigVMSwapAssetReferencesContext>(Phase->GetContext());
+			check(Context);
+
+			for(int32 Index = 0; Index < AllCheckedNodes.Num(); Index++)
+			{
+				AllCheckedNodes.Append(AllCheckedNodes[Index]->GetChildren(Context.ToSharedRef()));
 			}
 			
 			const TArray<TSharedRef<FRigVMTreeNode>> ModuleRefs = AllCheckedNodes.FilterByPredicate([](const TSharedRef<FRigVMTreeNode>& Node) {
@@ -230,10 +242,7 @@ void SRigVMSwapAssetReferencesWidget::Construct(const FArguments& InArgs)
 			{
 				return FReply::Handled();
 			}
-			
-			const TSharedPtr<FRigVMSwapAssetReferencesContext> Context = Cast<FRigVMSwapAssetReferencesContext>(Phase->GetContext());
-			check(Context);
-			
+		
 			TSet<FSoftObjectPath> VisitedPackages;
 			TArray<TSharedRef<FRigVMTreeTask>> Tasks;
 			
