@@ -46,6 +46,46 @@ namespace HordeServer.Storage
 		}
 
 		/// <summary>
+		/// Update aliases in the storage service
+		/// </summary>
+		/// <param name="namespaceId">Namespace to write to</param>
+		/// <param name="request">Request for the alias  to write</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		[HttpPost]
+		[Route("/api/v1/storage/{namespaceId}")]
+		public async Task<ActionResult> UpdateNamespaceAsync(NamespaceId namespaceId, [FromBody] UpdateNamespaceRequest request, CancellationToken cancellationToken)
+		{
+			IStorageBackend? backend = _storageService.TryCreateBackend(namespaceId);
+			if (backend == null)
+			{
+				return NotFound(namespaceId);
+			}
+			if (!Authorize(namespaceId, StorageAclAction.WriteRefs))
+			{
+				return Forbid(StorageAclAction.WriteRefs, namespaceId);
+			}
+
+			foreach (AddAliasRequest addAlias in request.AddAliases)
+			{
+				await backend.AddAliasAsync(addAlias.Name, addAlias.Target, addAlias.Rank, addAlias.Data ?? Array.Empty<byte>(), cancellationToken);
+			}
+			foreach (RemoveAliasRequest removeAlias in request.RemoveAliases)
+			{
+				await backend.RemoveAliasAsync(removeAlias.Name, removeAlias.Target, cancellationToken);
+			}
+			foreach (AddRefRequest writeRef in request.AddRefs)
+			{
+				await backend.WriteRefAsync(writeRef.RefName, new HashedBlobRefValue(writeRef.Hash, writeRef.Target), writeRef.Options, cancellationToken);
+			}
+			foreach (RemoveRefRequest removeRef in request.RemoveRefs)
+			{
+				await backend.DeleteRefAsync(removeRef.RefName, cancellationToken);
+			}
+
+			return Ok();
+		}
+
+		/// <summary>
 		/// Uploads data to the storage service. 
 		/// </summary>
 		/// <param name="namespaceId">Namespace to fetch from</param>
@@ -208,6 +248,30 @@ namespace HordeServer.Storage
 			}
 
 			return response;
+		}
+
+		/// <summary>
+		/// Deletes a ref from the storage service.
+		/// </summary>
+		/// <param name="namespaceId">Namespace to write to</param>
+		/// <param name="refName">Name of the ref</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		[HttpDelete]
+		[Route("/api/v1/storage/{namespaceId}/refs/{*refName}")]
+		public async Task<ActionResult> WriteRefAsync(NamespaceId namespaceId, RefName refName, CancellationToken cancellationToken)
+		{
+			IStorageBackend? backend = _storageService.TryCreateBackend(namespaceId);
+			if (backend == null)
+			{
+				return NotFound(namespaceId);
+			}
+			if (!Authorize(namespaceId, StorageAclAction.WriteRefs) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, refName.ToString()))
+			{
+				return Forbid(StorageAclAction.WriteRefs, namespaceId);
+			}
+
+			await backend.DeleteRefAsync(refName, cancellationToken);
+			return Ok();
 		}
 
 		/// <summary>

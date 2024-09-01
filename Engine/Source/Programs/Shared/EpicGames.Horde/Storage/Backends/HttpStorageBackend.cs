@@ -233,15 +233,29 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Aliases
 
 		/// <inheritdoc/>
-		public Task AddAliasAsync(string name, BlobLocator target, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+		public async Task AddAliasAsync(string name, BlobLocator target, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
 		{
-			throw new NotSupportedException("Http storage client does not currently support aliases.");
+			using (HttpClient httpClient = _createClient())
+			{
+				UpdateNamespaceRequest request = new UpdateNamespaceRequest();
+				request.AddAliases.Add(new AddAliasRequest { Name = name, Target = target, Rank = rank, Data = data.ToArray() });
+
+				using HttpResponseMessage response = await httpClient.PostAsJsonAsync($"{_basePath}", request, cancellationToken: cancellationToken);
+				response.EnsureSuccessStatusCode();
+			}
 		}
 
 		/// <inheritdoc/>
-		public Task RemoveAliasAsync(string name, BlobLocator target, CancellationToken cancellationToken = default)
+		public async Task RemoveAliasAsync(string name, BlobLocator target, CancellationToken cancellationToken = default)
 		{
-			throw new NotSupportedException("Http storage client does not currently support aliases.");
+			using (HttpClient httpClient = _createClient())
+			{
+				UpdateNamespaceRequest request = new UpdateNamespaceRequest();
+				request.RemoveAliases.Add(new RemoveAliasRequest { Name = name, Target = target });
+
+				using HttpResponseMessage response = await httpClient.PostAsJsonAsync($"{_basePath}", request, cancellationToken: cancellationToken);
+				response.EnsureSuccessStatusCode();
+			}
 		}
 
 		/// <inheritdoc/>
