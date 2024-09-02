@@ -3,12 +3,15 @@
 #include "NavigationDataHandler.h"
 #include "AI/Navigation/NavigationDirtyElement.h"
 #include "AI/Navigation/NavRelevantInterface.h"
-#include "DetourCrowd/DetourCrowd.h"
 #include "Engine/Level.h"
 #include "GameFramework/Actor.h"
 #include "NavAreas/NavArea.h"
 #include "NavMesh/RecastGeometryExport.h"
 #include "VisualLogger/VisualLogger.h"
+
+#if WITH_RECAST
+#include "DetourCrowd/DetourCrowd.h"
+#endif // WITH_RECAST
 
 DEFINE_LOG_CATEGORY_STATIC(LogNavOctree, Warning, All);
 

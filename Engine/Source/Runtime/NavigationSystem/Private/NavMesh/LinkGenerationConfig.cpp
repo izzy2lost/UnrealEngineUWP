@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NavMesh/LinkGenerationConfig.h"
 #include "BaseGeneratedNavLinksProxy.h"
@@ -6,11 +6,14 @@
 
 #if WITH_RECAST
 #include "Detour/DetourNavLinkBuilderConfig.h"
+#endif //WITH_RECAST
 
 FNavLinkGenerationJumpDownConfig::FNavLinkGenerationJumpDownConfig()
 {
 	AreaClass = UNavArea_Default::StaticClass();
 }
+
+#if WITH_RECAST
 
 void FNavLinkGenerationJumpDownConfig::CopyToDetourConfig(dtNavLinkBuilderJumpDownConfig& OutDetourConfig) const
 {
