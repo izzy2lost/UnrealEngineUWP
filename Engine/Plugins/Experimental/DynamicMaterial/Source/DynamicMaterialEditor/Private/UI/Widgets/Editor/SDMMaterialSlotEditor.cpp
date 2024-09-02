@@ -535,77 +535,7 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_SlotSettings()
 {
 	FDMWidgetStatics::Get().ClearPropertyHandles(this);
 
-	TSharedRef<SHorizontalBox> NewSlotSettings = SNew(SHorizontalBox)
-
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		[
-			CreateSlot_LayerBlendMode()
-		]
-
-		+ SHorizontalBox::Slot()
-		.FillWidth(0.5f)
-		[
-			CreateSlot_LayerOpacity()
-		];
-
-	return NewSlotSettings;
-}
-
-TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_LayerBlendMode()
-{
-	TSubclassOf<UDMMaterialStageBlend> SelectedBlendMode = nullptr;
-
-	if (LayerViewSlot.IsValid())
-	{
-		if (const UDMMaterialLayerObject* SelectedLayer = LayerViewSlot->GetSelectedLayer())
-		{
-			if (UDMMaterialStage* BaseStage = SelectedLayer->GetFirstEnabledStage(EDMMaterialLayerStage::Base))
-			{
-				if (UDMMaterialStageSource* BaseStageSource = BaseStage->GetSource())
-				{
-					SelectedBlendMode = BaseStageSource->GetClass();
-				}
-			}
-		}
-	}
-
-	return SNew(SHorizontalBox)
-		.IsEnabled(!bIsDynamic)
-		.ToolTipText(LOCTEXT("MaterialDesignerInstanceBlendModeTooltip", "Change the Blend Mode for selected Material Layer."))
-		
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-
-		[
-			SNew(SBox)
-			.HeightOverride(22.f)
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.Padding(5.f, 3.f, 5.f, 3.f)
-			[
-				SNew(STextBlock)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-				.Text(LOCTEXT("MaterialDesignerInstanceBlendMode", "Blend"))
-			]
-		]
-
-		+ SHorizontalBox::Slot()
-		.FillWidth(1.0f)
-		.MaxWidth(105.f)
-		[
-			SNew(SBox)
-			.HeightOverride(32.f)
-			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Center)
-			.VAlign(EVerticalAlignment::VAlign_Center)
-			.Padding(0.f, 3.f, 5.f, 3.f)
-			.Visibility(SelectedBlendMode.Get() ? EVisibility::Visible : EVisibility::Hidden)
-			[
-				SNew(SDMMaterialLayerBlendMode, SharedThis(this))
-				.SelectedItem(SelectedBlendMode)
-			]
-		];
+	return CreateSlot_LayerOpacity();
 }
 
 TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_LayerOpacity()

@@ -15,7 +15,7 @@
 #include "SDMMaterialLayerBlendMode.generated.h"
 
 class SDMMaterialLayerBlendMode;
-class SDMMaterialSlotEditor;
+class SDMMaterialSlotLayerItem;
 class SWidget;
 class UClass;
 class UDMMaterialStageBlend;
@@ -51,7 +51,7 @@ public:
 
 	virtual ~SDMMaterialLayerBlendMode() override = default;
 
-	void Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialSlotEditor> InSlotEditor);
+	void Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialSlotLayerItem> InSlotEditor);
 
 protected:
 	static TArray<TStrongObjectPtr<UClass>> SupportedBlendClasses;
@@ -61,7 +61,7 @@ protected:
 	static void EnsureMenuRegistered();
 	static void MakeSourceBlendMenu(UToolMenu* InToolMenu);
 
-	TWeakPtr<SDMMaterialSlotEditor> SlotEditorWidgetWeak;
+	TWeakPtr<SDMMaterialSlotLayerItem> LayerItemWidgetWeak;
 	TAttribute<TSubclassOf<UDMMaterialStageBlend>> SelectedItem;
 
 	TSharedRef<SWidget> OnGenerateWidget(const FName InItem);

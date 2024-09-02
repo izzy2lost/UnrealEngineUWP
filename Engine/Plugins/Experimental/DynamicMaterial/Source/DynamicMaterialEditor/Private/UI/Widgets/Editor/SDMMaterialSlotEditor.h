@@ -86,8 +86,6 @@ protected:
 
 	TSharedRef<SWidget> CreateSlot_SlotSettings();
 
-	TSharedRef<SWidget> CreateSlot_LayerBlendMode();
-
 	TSharedRef<SWidget> CreateSlot_LayerOpacity();
 
 	TSharedRef<SDMMaterialSlotLayerView> CreateSlot_LayerView();

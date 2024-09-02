@@ -20,6 +20,7 @@
 #include "UI/Utils/DMWidgetStatics.h"
 #include "UI/Widgets/Editor/SDMMaterialComponentEditor.h"
 #include "UI/Widgets/Editor/SDMMaterialSlotEditor.h"
+#include "UI/Widgets/Editor/SlotEditor/SDMMaterialLayerBlendMode.h"
 #include "UI/Widgets/Editor/SlotEditor/SDMMaterialSlotLayerEffectView.h"
 #include "UI/Widgets/Editor/SlotEditor/SDMMaterialSlotLayerView.h"
 #include "UI/Widgets/Editor/SlotEditor/SDMMaterialStage.h"
@@ -304,11 +305,9 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateHeaderRowContent()
 				.FillHeight(1.0f)
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
-				.Padding(0.0f, 0.0f, 0.0f, VerticalSpacing)
+				.Padding(0.0f, VerticalSpacing, 0.0f, VerticalSpacing)
 				[
-					SNew(STextBlock)
-					.TextStyle(FDynamicMaterialEditorStyle::Get(), "SmallFont")
-					.Text(this, &SDMMaterialSlotLayerItem::GetStageDescription, EDMMaterialLayerStage::All)
+					CreateBlendModeSelector()
 				]
 			]
 			+ SHorizontalBox::Slot()
@@ -592,6 +591,25 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateStageSourceButton(EDMMateria
 			.DesiredSizeOverride(FVector2D(16.f))
 			.Image(this, &SDMMaterialSlotLayerItem::GetStageSourceButtonImage, InStage)
 		];
+}
+
+TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateBlendModeSelector()
+{
+	TSubclassOf<UDMMaterialStageBlend> SelectedBlendMode = nullptr;
+
+	if (const UDMMaterialLayerObject* Layer = GetLayer())
+	{
+		if (UDMMaterialStage* BaseStage = Layer->GetFirstEnabledStage(EDMMaterialLayerStage::Base))
+		{
+			if (UDMMaterialStageSource* BaseStageSource = BaseStage->GetSource())
+			{
+				SelectedBlendMode = BaseStageSource->GetClass();
+			}
+		}
+	}
+
+	return SNew(SDMMaterialLayerBlendMode, SharedThis(this))
+		.SelectedItem(SelectedBlendMode);
 }
 
 EVisibility SDMMaterialSlotLayerItem::GetEffectsListVisibility() const
@@ -914,19 +932,6 @@ FText SDMMaterialSlotLayerItem::GetBlendModeText() const
 	}
 
 	return LOCTEXT("Error", "Error");
-}
-
-FText SDMMaterialSlotLayerItem::GetStageDescription(EDMMaterialLayerStage InLayerStage) const
-{
-	if (UDMMaterialLayerObject* Layer = GetLayer())
-	{
-		if (UDMMaterialStage* Stage = Layer->GetFirstEnabledStage(InLayerStage))
-		{
-			return Stage->GetComponentDescription();
-		}
-	}
-
-	return GetDefault<UDMMaterialStage>()->GetComponentDescription();
 }
 
 const FSlateBrush* SDMMaterialSlotLayerItem::GetStageSourceButtonImage(EDMMaterialLayerStage InLayerStage) const

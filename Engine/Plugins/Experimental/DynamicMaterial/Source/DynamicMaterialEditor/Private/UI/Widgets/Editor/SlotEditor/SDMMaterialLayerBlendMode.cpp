@@ -32,11 +32,11 @@
 #include "Components/MaterialStageBlends/DMMSBVividLight.h"
 #include "DetailLayoutBuilder.h"
 #include "DynamicMaterialEditorStyle.h"
-#include "SDMMaterialSlotLayerView.h"
 #include "ToolMenu.h"
 #include "ToolMenuDelegates.h"
 #include "ToolMenus.h"
-#include "UI/Widgets/Editor/SDMMaterialSlotEditor.h"
+#include "UI/Widgets/Editor/SlotEditor/SDMMaterialSlotLayerItem.h"
+#include "UI/Widgets/Editor/SlotEditor/SDMMaterialSlotLayerView.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
@@ -139,9 +139,9 @@ void UDMSourceBlendModeContextObject::SetBlendModeWidget(const TSharedPtr<SDMMat
 	BlendModeWidgetWeak = InBlendModeWidget;
 }
 
-void SDMMaterialLayerBlendMode::Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialSlotEditor> InSlotEditor)
+void SDMMaterialLayerBlendMode::Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialSlotLayerItem> InSlotEditor)
 {
-	SlotEditorWidgetWeak = InSlotEditor;
+	LayerItemWidgetWeak = InSlotEditor;
 	SelectedItem = InArgs._SelectedItem;
 
 	SetCanTick(false);
@@ -275,14 +275,14 @@ void SDMMaterialLayerBlendMode::OnBlendModeSelected(UClass* InBlendClass)
 {
 	SelectedItem = InBlendClass;
 
-	TSharedPtr<SDMMaterialSlotEditor> SlotEditorWidget = SlotEditorWidgetWeak.Pin();
+	TSharedPtr<SDMMaterialSlotLayerItem> LayerItemWiget = LayerItemWidgetWeak.Pin();
 
-	if (!SlotEditorWidget.IsValid())
+	if (!LayerItemWiget.IsValid())
 	{
 		return;
 	}
 
-	UDMMaterialLayerObject* Layer = SlotEditorWidget->GetLayerView()->GetSelectedLayer();
+	UDMMaterialLayerObject* Layer = LayerItemWiget->GetLayer();
 
 	if (!Layer)
 	{
@@ -300,8 +300,6 @@ void SDMMaterialLayerBlendMode::OnBlendModeSelected(UClass* InBlendClass)
 	FDMScopedUITransaction Transaction(LOCTEXT("SetStageBlendMode", "Set Blend Mode"));
 	BaseStage->Modify();
 	BaseStage->ChangeSource<UDMMaterialStageBlend>(InBlendClass);
-
-	SlotEditorWidget->InvalidateLayerSettings();
 }
 
 bool SDMMaterialLayerBlendMode::CanSelectBlendMode(UClass* InBlendClass)
@@ -316,14 +314,14 @@ bool SDMMaterialLayerBlendMode::InBlendModeSelected(UClass* InBlendClass)
 
 bool SDMMaterialLayerBlendMode::IsSelectorEnabled() const
 {
-	TSharedPtr<SDMMaterialSlotEditor> SlotEditorWidget = SlotEditorWidgetWeak.Pin();
+	TSharedPtr<SDMMaterialSlotLayerItem> LayerItemWiget = LayerItemWidgetWeak.Pin();
 
-	if (!SlotEditorWidget.IsValid())
+	if (!LayerItemWiget.IsValid())
 	{
 		return false;
 	}
 
-	UDMMaterialLayerObject* Layer = SlotEditorWidget->GetLayerView()->GetSelectedLayer();
+	UDMMaterialLayerObject* Layer = LayerItemWiget->GetLayer();
 
 	if (!Layer)
 	{

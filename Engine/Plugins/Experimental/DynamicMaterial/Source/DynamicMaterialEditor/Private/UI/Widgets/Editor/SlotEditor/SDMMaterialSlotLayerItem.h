@@ -82,6 +82,7 @@ protected:
 	TSharedPtr<SWidget> CreateLayerHeaderEditableText();
 	TSharedRef<SWidget> CreateEffectsToggleButton();
 	TSharedRef<SWidget> CreateStageSourceButton(EDMMaterialLayerStage InStage);
+	TSharedRef<SWidget> CreateBlendModeSelector();
 
 	EVisibility GetEffectsListVisibility() const;
 	EVisibility GetEffectsToggleButtonVisibility() const;
@@ -113,7 +114,6 @@ protected:
 	FText GetLayerHeaderText() const;
 	FText GetLayerIndexText() const;
 	FText GetBlendModeText() const;
-	FText GetStageDescription(EDMMaterialLayerStage InLayerStage) const;
 
 	/** Drag and Drop */
 	int32 OnLayerItemPaintDropIndicator(EItemDropZone InItemDropZone, const FPaintArgs& InArgs, const FGeometry& InAllottedGeometry,
