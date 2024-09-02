@@ -634,6 +634,7 @@ void FTG_Editor::OnRenderingDone(UMixInterface* TextureGraph, const FInvalidatio
 	if (TextureGraph != nullptr)
 	{
 		RefreshNodePreview(GraphEditorWidget->GetSelectedNodes(), Details, true);
+		RefreshViewport();
 	}
 }
 
@@ -1798,7 +1799,6 @@ void FTG_Editor::OnGraphChanged(UTG_Graph* InGraph, UTG_Node* InNode, bool Tweak
 		UpdateMixSettings();
 	}
 	RefreshViewport();
-	// OutputView->ForceRefresh();
 }
 
 void FTG_Editor::UpdateMixSettings()
