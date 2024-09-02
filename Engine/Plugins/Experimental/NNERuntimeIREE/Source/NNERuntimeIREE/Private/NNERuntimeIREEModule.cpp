@@ -32,38 +32,6 @@ void FNNERuntimeIREEModule::StartupModule()
 		UE::NNE::RegisterRuntime(NNERuntimeIREECpu.Get());
 	}
 
-#if WITH_EDITOR
-	ITargetPlatformManagerModule* TargetPlatformManagerModule = GetTargetPlatformManager();
-	if (TargetPlatformManagerModule)
-	{
-		TSet<FString> ProcessedPlatforms;
-		TArray<ITargetPlatform*> TargetPlatforms = TargetPlatformManagerModule->GetTargetPlatforms();
-		for (int32 i = 0; i < TargetPlatforms.Num(); i++)
-		{
-			FString IniPlatformName = TargetPlatforms[i]->IniPlatformName();
-			if (!ProcessedPlatforms.Contains(IniPlatformName))
-			{
-				ProcessedPlatforms.Add(IniPlatformName);
-				FString TargetPlatformDisplayName = IniPlatformName;
-				FConfigFile ConfigFile;
-				FString ConfigFilePath;
-				NNERuntimeIREECpu->GetUpdatedPlatformConfig(IniPlatformName, ConfigFile, ConfigFilePath);
-				if (ConfigFile.Dirty)
-				{
-					{
-						TUniquePtr<FArchive> Ar = TUniquePtr<FArchive>(IFileManager::Get().CreateFileWriter(*ConfigFilePath, EFileWrite::FILEWRITE_Append));
-						if (!Ar)
-						{
-							continue;
-						}
-					}
-					ConfigFile.Write(ConfigFilePath);
-				}
-			}
-		}
-	}
-#endif // WITH_EDITOR
-
 	NNERuntimeIREECuda = NewObject<UNNERuntimeIREECuda>();
 	if (NNERuntimeIREECuda.IsValid())
 	{

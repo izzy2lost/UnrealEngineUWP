@@ -89,13 +89,14 @@ namespace UE::NNERuntimeIREE::CPU::Private
 
 	FString GetStagedModelDirPath(const FString& PlatformName)
 	{
-		return FPaths::Combine("Saved", "Cooked", PlatformName, "Engine", "Plugins", UE_PLUGIN_NAME, "Binaries");
+		FString PlatformNameShort = PlatformName.Equals("Windows") ? "Win64" : PlatformName;
+
+		return FPaths::Combine("Binaries", PlatformNameShort, UE_PLUGIN_NAME);
 	}
 
 	FString GetPackagedModelDirPath(const FString& PlatformName)
 	{
-		FString PlatformNameShort = PlatformName.Equals("Windows") ? "Win64" : PlatformName;
-		return FPaths::Combine("Binaries", PlatformNameShort, UE_PLUGIN_NAME);
+		return GetStagedModelDirPath(PlatformName);
 	}
 } // UE::NNERuntimeIREE::CPU::Private
 
@@ -128,14 +129,6 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const 
 		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 
-	FConfigFile ConfigFile;
-	FString ConfigFilePath;
-	GetUpdatedPlatformConfig(TargetPlatformName, ConfigFile, ConfigFilePath);
-	if (ConfigFile.Dirty)
-	{
-		UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not find the required settings in config file %s. Please make the file writeable and re-start the editor or manually add the required staging settings or models will not work in packaged builds for platform %s!"), *ConfigFilePath, *TargetPlatformName);
-	}
-
 	TUniquePtr<UE::NNERuntimeIREE::CPU::FCompiler> Compiler = UE::NNERuntimeIREE::CPU::FCompiler::Make(TargetPlatformName);
 	if (!Compiler.IsValid())
 	{
@@ -151,7 +144,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const 
 
 	TArray<UE::NNERuntimeIREE::CPU::FCompilerResult> CompilerResults;
 	UNNERuntimeIREEModuleMetaData* CompilerModuleMetaData = NewObject<UNNERuntimeIREEModuleMetaData>();
-	FString StagingDir = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetStagedModelDirPath(TargetPlatformName)));
+	FString StagingDir = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetPackagedModelDirPath(TargetPlatformName)));
 	if (!Compiler->CompileMlir(FileData, FileIdString, IntermediateDir, StagingDir, CompilerResults, CompilerModuleMetaData))
 	{
 		UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to compile model %s"), *FileIdString);
@@ -395,21 +388,6 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(const TObjectP
 	}
 
 	return Model;
-}
-
-void UNNERuntimeIREECpu::GetUpdatedPlatformConfig(const FString& PlatformName, FConfigFile& ConfigFile, FString& ConfigFilePath)
-{ 
-	FString ConfigFolderPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir());
-	ConfigFilePath = FPaths::Combine(ConfigFolderPath, PlatformName, PlatformName + "Game.ini");
-
-	ConfigFile.Read(ConfigFilePath);
-
-	FString StagingPath = FString("/") + UE::NNERuntimeIREE::CPU::Private::GetStagedModelDirPath(PlatformName);
-	FString PackagingPath = FString("/") + UE::NNERuntimeIREE::CPU::Private::GetPackagedModelDirPath(PlatformName);
-
-	ConfigFile.AddUniqueToSection(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("+DirectoriesToAlwaysStageAsNonUFS"), FString("(Path=\"..") + StagingPath + FString("\")"));
-	ConfigFile.AddUniqueToSection(TEXT("Staging"), TEXT("+RemapDirectories"), FString("(From=\"") + FApp::GetProjectName() + StagingPath + FString("\", To=\"") + FApp::GetProjectName() + PackagingPath + FString("\")"));
-	ConfigFile.AddUniqueToSection(TEXT("Staging"), TEXT("+AllowedDirectories"), FApp::GetProjectName() + PackagingPath);
 }
 
 FString UNNERuntimeIREEGpu::GetRuntimeName() const
