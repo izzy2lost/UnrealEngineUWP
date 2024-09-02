@@ -107,6 +107,11 @@ public:
 	// To be used by ApplePlatformBackgroundHttpManager
 	static void SaveBackgroundHttpFileHashHelperState();
 
+	// Returns an ordered list of CDNs used to issue actual downloads.
+	// A list of URLS provided to CreateOrFindDownload might change order if CDNReorderingTimeout > 0 to ensure better success rate.
+	// List is empty before first CreateOrFindDownload call.
+	static TArray<FString> GetCDNOrderArray();
+
 #if !UE_BUILD_SHIPPING
 	static void GetDownloadDebugText(const uint64 DownloadId, TArray<FString>& Output);
 #endif
