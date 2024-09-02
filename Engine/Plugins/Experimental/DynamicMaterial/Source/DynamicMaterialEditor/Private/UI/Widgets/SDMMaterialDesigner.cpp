@@ -3,6 +3,7 @@
 #include "UI/Widgets/SDMMaterialDesigner.h"
 
 #include "Containers/Set.h"
+#include "DMTextureSet.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialModule.h"
 #include "Editor/SDMMaterialComponentEditor.h"
@@ -312,6 +313,7 @@ void SDMMaterialDesigner::SetWidget(const TSharedRef<SWidget>& InWidget, bool bI
 		TSharedRef<SAssetDropTarget> DropTarget = SNew(SAssetDropTarget)
 			.OnAreAssetsAcceptableForDrop(this, &SDMMaterialDesigner::OnAssetDraggedOver)
 			.OnAssetsDropped(this, &SDMMaterialDesigner::OnAssetsDropped)
+			.bSupportsMultiDrop(true)
 			[
 				InWidget
 			];
@@ -351,11 +353,21 @@ bool SDMMaterialDesigner::NeedsWizard(UDynamicMaterialModelBase* InMaterialModel
 
 bool SDMMaterialDesigner::OnAssetDraggedOver(TArrayView<FAssetData> InAssets)
 {
-	const TArray<UClass*> AllowedClasses = {
+	TArray<UClass*> AllowedClasses = {
 		AActor::StaticClass(),
 		UDynamicMaterialModelBase::StaticClass(),
 		UDynamicMaterialInstance::StaticClass()
 	};
+
+	const bool bIsEditor = Content.IsValid()
+		&& Content->GetWidgetClass().GetWidgetType() == SDMMaterialEditor::StaticWidgetClass().GetWidgetType();
+
+	if (bIsEditor)
+	{
+		AllowedClasses.Add(UDMTextureSet::StaticClass());
+	}
+
+	TArray<FAssetData> DroppedTextures;
 
 	for (const FAssetData& Asset : InAssets)
 	{
@@ -373,6 +385,16 @@ bool SDMMaterialDesigner::OnAssetDraggedOver(TArrayView<FAssetData> InAssets)
 				return true;
 			}
 		}
+
+		if (AssetClass->IsChildOf(UTexture::StaticClass()))
+		{
+			DroppedTextures.Add(Asset);
+		}
+	}
+
+	if (bIsEditor && DroppedTextures.Num() > 1)
+	{
+		return true;
 	}
 
 	return false;
@@ -380,6 +402,8 @@ bool SDMMaterialDesigner::OnAssetDraggedOver(TArrayView<FAssetData> InAssets)
 
 void SDMMaterialDesigner::OnAssetsDropped(const FDragDropEvent& InDragDropEvent, TArrayView<FAssetData> InAssets)
 {
+	TArray<FAssetData> DroppedTextures;
+
 	for (const FAssetData& Asset : InAssets)
 	{
 		UClass* AssetClass = Asset.GetClass(EResolveClass::Yes);
@@ -409,6 +433,26 @@ void SDMMaterialDesigner::OnAssetsDropped(const FDragDropEvent& InDragDropEvent,
 			{
 				return;
 			}
+		}
+		else if (AssetClass->IsChildOf(UTexture::StaticClass()))
+		{
+			DroppedTextures.Add(Asset);
+		}
+		else if (AssetClass->IsChildOf(UDMTextureSet::StaticClass()))
+		{
+			if (Content.IsValid() && Content->GetWidgetClass().GetWidgetType() == SDMMaterialEditor::StaticWidgetClass().GetWidgetType())
+			{
+				StaticCastSharedPtr<SDMMaterialEditor>(Content)->HandleDrop_CreateTextureSet({Asset});
+				return;
+			}
+		}
+	}
+
+	if (DroppedTextures.Num() > 1)
+	{
+		if (Content.IsValid() && Content->GetWidgetClass().GetWidgetType() == SDMMaterialEditor::StaticWidgetClass().GetWidgetType())
+		{
+			StaticCastSharedPtr<SDMMaterialEditor>(Content)->HandleDrop_CreateTextureSet(DroppedTextures);
 		}
 	}
 }

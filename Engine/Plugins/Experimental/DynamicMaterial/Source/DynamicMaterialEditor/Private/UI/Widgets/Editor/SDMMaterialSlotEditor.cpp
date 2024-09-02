@@ -20,7 +20,6 @@
 #include "CustomDetailsViewModule.h"
 #include "DetailLayoutBuilder.h"
 #include "DMTextureSet.h"
-#include "DMTextureSetBlueprintFunctionLibrary.h"
 #include "DMWorldSubsystem.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "DynamicMaterialModule.h"
@@ -29,7 +28,6 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "Items/ICustomDetailsViewItem.h"
 #include "Materials/MaterialFunctionInterface.h"
-#include "Misc/MessageDialog.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelDynamic.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
@@ -40,8 +38,8 @@
 #include "UI/DragDrop/DMSlotLayerDragDropOperation.h"
 #include "UI/Menus/DMMaterialSlotLayerAddEffectMenus.h"
 #include "UI/Menus/DMMaterialSlotLayerMenus.h"
+#include "UI/Utils/DMDropTargetPrivateSetter.h"
 #include "UI/Utils/DMWidgetStatics.h"
-#include "UI/Widgets/Editor/SlotEditor/SDMMaterialLayerBlendMode.h"
 #include "UI/Widgets/Editor/SlotEditor/SDMMaterialSlotLayerView.h"
 #include "UI/Widgets/SDMMaterialEditor.h"
 #include "Utils/DMMaterialSlotFunctionLibrary.h"
@@ -528,6 +526,9 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_Container()
 	const_cast<FSlotBase&>(DropTargetOverlayChildren->GetSlotAt(0)).AttachWidget(SecondChild);
 	const_cast<FSlotBase&>(DropTargetOverlayChildren->GetSlotAt(1)).AttachWidget(FirstChild);
 
+	using namespace UE::DynamicMaterialEditor::Private;
+	DropTarget::SetInvalidColor(DropTarget.Get(), FStyleColors::Transparent);
+
 	return NewContainer;
 }
 
@@ -853,10 +854,10 @@ bool SDMMaterialSlotEditor::OnAreAssetsAcceptableForDrop(TArrayView<FAssetData> 
 	}
 
 	const TArray<UClass*> AllowedClasses = {
-		UTexture::StaticClass(),
-		UDMTextureSet::StaticClass(),
 		UMaterialFunctionInterface::StaticClass()
 	};
+
+	TArray<FAssetData> DroppedTextures;
 
 	for (const FAssetData& Asset : InAssets)
 	{
@@ -874,6 +875,16 @@ bool SDMMaterialSlotEditor::OnAreAssetsAcceptableForDrop(TArrayView<FAssetData> 
 				return true;
 			}
 		}
+
+		if (AssetClass->IsChildOf(UTexture::StaticClass()))
+		{
+			DroppedTextures.Add(Asset);
+		}
+	}
+
+	if (DroppedTextures.Num() == 1)
+	{
+		return true;
 	}
 
 	return false;
@@ -992,24 +1003,14 @@ void SDMMaterialSlotEditor::HandleDrop_Texture(UTexture* InTexture)
 
 void SDMMaterialSlotEditor::HandleDrop_CreateTextureSet(const TArray<FAssetData>& InTextureAssets)
 {
-	if (InTextureAssets.Num() < 2)
+	TSharedPtr<SDMMaterialEditor> EditorWidget = GetEditorWidget();
+
+	if (!EditorWidget.IsValid())
 	{
 		return;
 	}
 
-	UDMTextureSetBlueprintFunctionLibrary::CreateTextureSetFromAssetsInteractive(
-		InTextureAssets,
-		FDMTextureSetBuilderOnComplete::CreateSPLambda(
-			this,
-			[this](UDMTextureSet* InTextureSet, bool bInWasAccepted)
-			{
-				if (bInWasAccepted)
-				{
-					HandleDrop_TextureSet(InTextureSet);
-				}
-			}
-		)
-	);
+	EditorWidget->HandleDrop_CreateTextureSet(InTextureAssets);
 }
 
 void SDMMaterialSlotEditor::HandleDrop_TextureSet(UDMTextureSet* InTextureSet)
@@ -1021,48 +1022,7 @@ void SDMMaterialSlotEditor::HandleDrop_TextureSet(UDMTextureSet* InTextureSet)
 		return;
 	}
 
-	UDynamicMaterialModel* MaterialModel = EditorWidget->GetMaterialModel();
-
-	if (!MaterialModel)
-	{
-		return;
-	}
-
-	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
-
-	if (!EditorOnlyData)
-	{
-		return;
-	}
-
-	const EAppReturnType::Type Result = FMessageDialog::Open(
-		EAppMsgType::YesNoCancel,
-		LOCTEXT("ReplaceSlotsTextureSet",
-			"You are about to import a Material Designer Texture Set.\n\n"
-			"Do you want to replace the slot contents?\n"
-			"- Yes: All layers are deleted in the matching slots.\n"
-			"- No: New texture layers are added to the matching slots.\n"
-			"- Cancel: Abort this operation.")
-	);
-
-	FDMScopedUITransaction Transaction(LOCTEXT("DropTextureSet", "Drop Texture Set"));
-
-	switch (Result)
-	{
-		case EAppReturnType::No:
-			EditorOnlyData->Modify();
-			EditorOnlyData->AddTextureSet(InTextureSet, /* Replace */ false);
-			break;
-
-		case EAppReturnType::Yes:
-			EditorOnlyData->Modify();
-			EditorOnlyData->AddTextureSet(InTextureSet, /* Replace */ true);
-			break;
-
-		default:
-			Transaction.Transaction.Cancel();
-			break;
-	}
+	EditorWidget->HandleDrop_TextureSet(InTextureSet);
 }
 
 void SDMMaterialSlotEditor::HandleDrop_MaterialFunction(UMaterialFunctionInterface* InMaterialFunction)

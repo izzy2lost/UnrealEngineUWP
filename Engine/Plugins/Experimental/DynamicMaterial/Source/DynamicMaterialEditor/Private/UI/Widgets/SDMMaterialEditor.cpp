@@ -6,6 +6,7 @@
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
+#include "DMTextureSetBlueprintFunctionLibrary.h"
 #include "DynamicMaterialEditorCommands.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialModule.h"
@@ -14,6 +15,7 @@
 #include "Framework/Commands/GenericCommands.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialFunctionInterface.h"
+#include "Misc/MessageDialog.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelBase.h"
 #include "Model/DynamicMaterialModelDynamic.h"
@@ -30,6 +32,7 @@
 #include "UI/Widgets/Editor/SDMToolBar.h"
 #include "UI/Widgets/SDMMaterialDesigner.h"
 #include "Utils/DMMaterialModelFunctionLibrary.h"
+#include "Utils/DMPrivate.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -840,6 +843,79 @@ bool SDMMaterialEditor::SetActivePage(const FDMMaterialEditorPage& InPage)
 		case EDMMaterialEditorMode::EditSlot:
 			SelectProperty(InPage.MaterialProperty);
 			return true;
+	}
+}
+
+void SDMMaterialEditor::HandleDrop_CreateTextureSet(const TArray<FAssetData>& InTextureAssets)
+{
+	if (InTextureAssets.Num() < 2)
+	{
+		return;
+	}
+
+	UDMTextureSetBlueprintFunctionLibrary::CreateTextureSetFromAssetsInteractive(
+		InTextureAssets,
+		FDMTextureSetBuilderOnComplete::CreateSPLambda(
+			this,
+			[this](UDMTextureSet* InTextureSet, bool bInWasAccepted)
+			{
+				if (bInWasAccepted)
+				{
+					HandleDrop_TextureSet(InTextureSet);
+				}
+			}
+		)
+	);
+}
+
+void SDMMaterialEditor::HandleDrop_TextureSet(UDMTextureSet* InTextureSet)
+{
+	if (!InTextureSet)
+	{
+		return;
+	}
+
+	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
+
+	if (!MaterialModel)
+	{
+		return;
+	}
+
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+
+	if (!EditorOnlyData)
+	{
+		return;
+	}
+
+	const EAppReturnType::Type Result = FMessageDialog::Open(
+		EAppMsgType::YesNoCancel,
+		LOCTEXT("ReplaceSlotsTextureSet",
+			"You are about to import a Material Designer Texture Set.\n\n"
+			"Do you want to replace the slot contents?\n"
+			"- Yes: All layers are deleted in the matching slots.\n"
+			"- No: New texture layers are added to the matching slots.\n"
+			"- Cancel: Abort this operation.")
+	);
+
+	FDMScopedUITransaction Transaction(LOCTEXT("DropTextureSet", "Drop Texture Set"));
+
+	switch (Result)
+	{
+		case EAppReturnType::No:
+			EditorOnlyData->Modify();
+			EditorOnlyData->AddTextureSet(InTextureSet, /* Replace */ false);
+			break;
+
+		case EAppReturnType::Yes:
+			EditorOnlyData->Modify();
+			EditorOnlyData->AddTextureSet(InTextureSet, /* Replace */ true);
+			break;
+
+		default:
+			Transaction.Transaction.Cancel();
+			break;
 	}
 }
 

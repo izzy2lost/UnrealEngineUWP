@@ -143,6 +143,10 @@ public:
 
 	bool SetActivePage(const FDMMaterialEditorPage& InPage);
 
+	void HandleDrop_CreateTextureSet(const TArray<FAssetData>& InTextureAssets);
+
+	void HandleDrop_TextureSet(UDMTextureSet* InTextureSet);
+
 	//~ Begin SWidget
 	virtual bool SupportsKeyboardFocus() const override;
 	virtual FReply OnKeyDown(const FGeometry& InMyGeometry, const FKeyEvent& InKeyEvent) override;
