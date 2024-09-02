@@ -169,7 +169,7 @@ FORCEINLINE ParameterStructType* FRDGBuilder::AllocParameters()
 }
 
 template <typename ParameterStructType>
-FORCEINLINE ParameterStructType* FRDGBuilder::AllocParameters(ParameterStructType* StructToCopy)
+FORCEINLINE ParameterStructType* FRDGBuilder::AllocParameters(const ParameterStructType* StructToCopy)
 {
 	ParameterStructType* Struct = Allocators.Root.Alloc<ParameterStructType>();
 	*Struct = *StructToCopy;

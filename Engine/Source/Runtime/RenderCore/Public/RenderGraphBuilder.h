@@ -195,7 +195,7 @@ public:
 
 	/** Allocates a parameter struct with a lifetime tied to graph execution, and copies contents from an existing parameters struct. */
 	template <typename ParameterStructType>
-	ParameterStructType* AllocParameters(ParameterStructType* StructToCopy);
+	ParameterStructType* AllocParameters(const ParameterStructType* StructToCopy);
 
 	/** Allocates a data-driven parameter struct with a lifetime tied to graph execution. */
 	template <typename BaseParameterStructType>
