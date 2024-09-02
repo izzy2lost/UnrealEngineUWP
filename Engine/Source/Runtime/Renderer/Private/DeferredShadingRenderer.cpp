@@ -555,12 +555,6 @@ static bool ShouldPrepareRayTracingDecals(const FScene& Scene, const FSceneViewF
 	return ViewFamily.EngineShowFlags.PathTracing && PathTracing::UsesDecals(ViewFamily);
 }
 
-struct FRayTracingRelevantPrimitiveTaskData
-{
-	RayTracing::FRelevantPrimitiveList* List;
-	FGraphEventRef Task;
-};
-
 static void DeduplicateRayGenerationShaders(TArray< FRHIRayTracingShader*>& RayGenShaders)
 {
 	TSet<FRHIRayTracingShader*> UniqueRayGenShaders;
@@ -1491,16 +1485,16 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		{
 			const int32 ReferenceViewIndex = 0;
 			FViewInfo& ReferenceView = Views[ReferenceViewIndex];
-			FGraphEventRef PrereqTask = CreateCompatibilityGraphEvent(MakeArrayView({ Scene->GetCacheRayTracingPrimitivesTask(), InitViewTaskDatas.VisibilityTaskData->GetFrustumCullTask() }));
 
-			InitViewTaskDatas.RayTracingRelevantPrimitives = Allocator.Create<FRayTracingRelevantPrimitiveTaskData>();
-			InitViewTaskDatas.RayTracingRelevantPrimitives->List = RayTracing::CreateRelevantPrimitiveList(Allocator);
-			InitViewTaskDatas.RayTracingRelevantPrimitives->Task = FFunctionGraphTask::CreateAndDispatchWhenReady(
-				[Scene = Scene, &ReferenceView, &RayTracingRelevantPrimitiveList = *InitViewTaskDatas.RayTracingRelevantPrimitives->List]()
-				{
-					FTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
-					RayTracing::GatherRelevantPrimitives(*Scene, ReferenceView, RayTracingRelevantPrimitiveList);
-				}, TStatId(), PrereqTask, ENamedThreads::AnyNormalThreadHiPriTask);
+			InitViewTaskDatas.RayTracingGatherInstances = RayTracing::CreateGatherInstancesTaskData(
+				Allocator,
+				*Scene,
+				ReferenceView,
+				ViewFamily,
+				GetViewPipelineState(ReferenceView).DiffuseIndirectMethod,
+				GetViewPipelineState(ReferenceView).ReflectionsMethod);
+
+			RayTracing::BeginGatherInstances(*InitViewTaskDatas.RayTracingGatherInstances, InitViewTaskDatas.VisibilityTaskData->GetFrustumCullTask());
 		}
 #endif
 	}
@@ -1781,27 +1775,13 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 #if RHI_RAYTRACING
 		if (bAnyRayTracingPassEnabled)
 		{
-			// Wait until RayTracingRelevantPrimitiveList is ready
-			if (InitViewTaskDatas.RayTracingRelevantPrimitives->Task.IsValid())
-			{
-				InitViewTaskDatas.RayTracingRelevantPrimitives->Task->Wait();
-				InitViewTaskDatas.RayTracingRelevantPrimitives->Task.SafeRelease();
-			}
-
-			checkf(InitViewTaskDatas.RayTracingRelevantPrimitives->List, TEXT("Should have a valid FRelevantPrimitiveList containing the result of RayTracing::GatherRelevantPrimitives here."));
-
-			RayTracing::GatherWorldInstancesForView(
+			RayTracing::FinishGatherInstances(
 				GraphBuilder,
-				*Scene,
-				ViewFamily,
-				ReferenceView,
-				GetViewPipelineState(ReferenceView).DiffuseIndirectMethod,
-				GetViewPipelineState(ReferenceView).ReflectionsMethod,
+				*InitViewTaskDatas.RayTracingGatherInstances,
 				RayTracingScene,
 				RayTracingSBT,
 				DynamicReadBufferForRayTracing,
-				Allocator, 
-				*InitViewTaskDatas.RayTracingRelevantPrimitives->List);
+				Allocator);
 		}
 #endif // RHI_RAYTRACING
 

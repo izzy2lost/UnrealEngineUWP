@@ -72,9 +72,10 @@ namespace Froxel
 
 class IVisibilityTaskData;
 
-#if RHI_RAYTRACING
-struct FRayTracingRelevantPrimitiveTaskData;
-#endif
+namespace RayTracing
+{
+	struct FGatherInstancesTaskData;
+}
 
 /**   
  * Data for rendering meshes into Surface Cache
@@ -560,9 +561,7 @@ private:
 
 		IVisibilityTaskData* VisibilityTaskData;
 		FILCUpdatePrimTaskData* ILCUpdatePrim = nullptr;
-	#if RHI_RAYTRACING
-		FRayTracingRelevantPrimitiveTaskData* RayTracingRelevantPrimitives = nullptr;
-	#endif
+		RayTracing::FGatherInstancesTaskData* RayTracingGatherInstances = nullptr;
 		FDynamicShadowsTaskData* DynamicShadows = nullptr;
 		FLumenDirectLightingTaskData* LumenDirectLighting = nullptr;
 		FLumenSceneFrameTemporaries* LumenFrameTemporaries = nullptr;
