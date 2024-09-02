@@ -47,6 +47,12 @@ namespace Electra
 		return StreamType == EStreamType::Audio ? 1 : StreamType == EStreamType::Subtitle ? 2 : 0;
 	}
 
+	static inline constexpr EStreamType StreamArrayIndexToType(int32 InIndex)
+	{
+		return InIndex == 0 ? EStreamType::Video :
+			   InIndex == 1 ? EStreamType::Audio :
+			   InIndex == 2 ? EStreamType::Subtitle : EStreamType::Unsupported;
+	}
 
 	class FStreamCodecInformation
 	{
@@ -812,6 +818,11 @@ namespace Electra
 		TOptional<int32> OverrideIndex;
 
 		virtual ~FStreamSelectionAttributes() = default;
+
+		virtual bool IsSet() const
+		{
+			return Kind.IsSet() || Language_ISO639.IsSet() || Codec.IsSet() || OverrideIndex.IsSet();
+		}
 
 		virtual bool IsCompatibleWith(const FStreamSelectionAttributes& Other)
 		{

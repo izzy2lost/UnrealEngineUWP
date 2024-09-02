@@ -448,7 +448,8 @@ namespace Electra
 			{
 				Changed,
 				NotChanged,
-				NewPeriodNeeded
+				NewPeriodNeeded,
+				StartOver
 			};
 
 			/**

@@ -1593,19 +1593,27 @@ bool FAdaptiveStreamingPlayer::InternalHandleThreadMessages()
 					switch(ev.StreamType)
 					{
 						case EStreamType::Video:
+						{
 							PendingTrackSelectionVid = MakeSharedTS<FStreamSelectionAttributes>(ev.TrackAttributes);
 							bIsVideoDeselected = false;
 							break;
+						}
 						case EStreamType::Audio:
+						{
 							PendingTrackSelectionAud = MakeSharedTS<FStreamSelectionAttributes>(ev.TrackAttributes);
 							bIsAudioDeselected = false;
 							break;
+						}
 						case EStreamType::Subtitle:
+						{
 							PendingTrackSelectionTxt = MakeSharedTS<FStreamSelectionAttributes>(ev.TrackAttributes);
 							bIsTextDeselected = false;
 							break;
+						}
 						default:
+						{
 							break;
+						}
 					}
 				}
 				break;
@@ -3637,24 +3645,32 @@ void FAdaptiveStreamingPlayer::InternalDeselectStream(EStreamType StreamType)
 	switch(StreamType)
 	{
 		case EStreamType::Video:
+		{
 			bIsVideoDeselected = true;
 			SelectedStreamAttributesVid.Deselect();
 			VideoDecoder.Flush();
 			VideoRender.Flush(false);
 			break;
+		}
 		case EStreamType::Audio:
+		{
 			bIsAudioDeselected = true;
 			SelectedStreamAttributesAud.Deselect();
 			AudioDecoder.Flush();
 			AudioRender.Flush();
 			break;
+		}
 		case EStreamType::Subtitle:
+		{
 			bIsTextDeselected = true;
 			SelectedStreamAttributesTxt.Deselect();
 			SubtitleDecoder.Flush();
 			break;
+		}
 		default:
+		{
 			break;
+		}
 	}
 }
 
@@ -3693,10 +3709,11 @@ void FAdaptiveStreamingPlayer::InternalStartoverAtLiveEdge()
 void FAdaptiveStreamingPlayer::InternalHandleSegmentTrackChanges(const FTimeValue& CurrentTime)
 {
 	bool bChangeMade = false;
+	bool bForceStartover = false;
 
 	if (ManifestType == EMediaFormatType::ISOBMFF || ManifestType == EMediaFormatType::MKV)
 	{
-		auto HandleISOBMFFTrackSelection = [&bChangeMade, this](FStreamSelectionAttributes& OutSelectionAttributes, FInternalStreamSelectionAttributes& InOutSelectedAttributes, EStreamType InType,
+		auto HandleMultiplexedTrackSelection = [&bChangeMade, this](FStreamSelectionAttributes& OutSelectionAttributes, FInternalStreamSelectionAttributes& InOutSelectedAttributes, EStreamType InType,
 																TSharedPtrTS<FStreamSelectionAttributes>& InPendingSelection, TSharedPtrTS<IManifest::IPlayPeriod> InCurrentPeriod) -> void
 		{
 			if (InPendingSelection.IsValid() && InCurrentPeriod.IsValid())
@@ -3719,37 +3736,18 @@ void FAdaptiveStreamingPlayer::InternalHandleSegmentTrackChanges(const FTimeValu
 			}
 		};
 
-		HandleISOBMFFTrackSelection(StreamSelectionAttributesVid, SelectedStreamAttributesVid, EStreamType::Video, PendingTrackSelectionVid, CurrentPlayPeriodVideo);
-		HandleISOBMFFTrackSelection(StreamSelectionAttributesAud, SelectedStreamAttributesAud, EStreamType::Audio, PendingTrackSelectionAud, CurrentPlayPeriodAudio);
-		HandleISOBMFFTrackSelection(StreamSelectionAttributesTxt, SelectedStreamAttributesTxt, EStreamType::Subtitle, PendingTrackSelectionTxt, CurrentPlayPeriodText);
+		HandleMultiplexedTrackSelection(StreamSelectionAttributesVid, SelectedStreamAttributesVid, EStreamType::Video, PendingTrackSelectionVid, CurrentPlayPeriodVideo);
+		HandleMultiplexedTrackSelection(StreamSelectionAttributesAud, SelectedStreamAttributesAud, EStreamType::Audio, PendingTrackSelectionAud, CurrentPlayPeriodAudio);
+		HandleMultiplexedTrackSelection(StreamSelectionAttributesTxt, SelectedStreamAttributesTxt, EStreamType::Subtitle, PendingTrackSelectionTxt, CurrentPlayPeriodText);
 	}
-	else if (ManifestType == EMediaFormatType::HLS)
-	{
-		if (PendingTrackSelectionAud.IsValid() && CurrentPlayPeriodAudio.IsValid())
-		{
-			TSharedPtrTS<FBufferSourceInfo> BufferSourceInfo = CurrentPlayPeriodAudio->GetSelectedStreamBufferSourceInfo(EStreamType::Audio);
-			TSharedPtrTS<FMultiTrackAccessUnitBuffer> StreamRcvBuf = GetCurrentReceiveStreamBuffer(EStreamType::Audio);
-			if (StreamRcvBuf.IsValid())
-			{
-				StreamRcvBuf->SelectTrackWhenAvailable(CurrentPlaybackSequenceID[StreamTypeToArrayIndex(EStreamType::Audio)], BufferSourceInfo);
-			}
-			StreamSelectionAttributesAud = *PendingTrackSelectionAud;
-			SelectedStreamAttributesAud.UpdateWith(BufferSourceInfo->Kind, BufferSourceInfo->Language, BufferSourceInfo->Codec, BufferSourceInfo->HardIndex);
-			PendingTrackSelectionAud.Reset();
-			bChangeMade = true;
-		}
-		// Ignore video and subtitle changes for now.
-		PendingTrackSelectionVid.Reset();
-		PendingTrackSelectionTxt.Reset();
-	}
-	else if (ManifestType == EMediaFormatType::DASH)
+	else if (ManifestType == EMediaFormatType::DASH || ManifestType == EMediaFormatType::HLS)
 	{
 		if (PendingStartRequest.IsValid() || PendingFirstSegmentRequest.IsValid())
 		{
 			return;
 		}
 
-		auto HandleDASHTrackSelection = [&bChangeMade, this](FStreamSelectionAttributes& OutSelectionAttributes, FInternalStreamSelectionAttributes& InOutSelectedAttributes, EStreamType InType,
+		auto HandleElementaryStreamTrackSelection = [&bChangeMade, &bForceStartover, this](FStreamSelectionAttributes& OutSelectionAttributes, FInternalStreamSelectionAttributes& InOutSelectedAttributes, EStreamType InType,
 															 TSharedPtrTS<FStreamSelectionAttributes>& InPendingSelection, TSharedPtrTS<IManifest::IPlayPeriod> InCurrentPeriod) -> void
 		{
 			if (InPendingSelection.IsValid() && InCurrentPeriod.IsValid())
@@ -3776,6 +3774,13 @@ void FAdaptiveStreamingPlayer::InternalHandleSegmentTrackChanges(const FTimeValu
 
 						bChangeMade = true;
 					}
+					else if (TrackChangeResult == IManifest::IPlayPeriod::ETrackChangeResult::StartOver)
+					{
+						OutSelectionAttributes = *InPendingSelection;
+						InOutSelectedAttributes.Select();
+						bChangeMade = true;
+						bForceStartover = true;
+					}
 				}
 				InOutSelectedAttributes.Select();
 				InPendingSelection.Reset();
@@ -3783,8 +3788,11 @@ void FAdaptiveStreamingPlayer::InternalHandleSegmentTrackChanges(const FTimeValu
 		};
 
 		PendingTrackSelectionVid.Reset();	// Ignore video changes for now.
-		HandleDASHTrackSelection(StreamSelectionAttributesAud, SelectedStreamAttributesAud, EStreamType::Audio, PendingTrackSelectionAud, CurrentPlayPeriodAudio);
-		HandleDASHTrackSelection(StreamSelectionAttributesTxt, SelectedStreamAttributesTxt, EStreamType::Subtitle, PendingTrackSelectionTxt, CurrentPlayPeriodText);
+		HandleElementaryStreamTrackSelection(StreamSelectionAttributesAud, SelectedStreamAttributesAud, EStreamType::Audio, PendingTrackSelectionAud, CurrentPlayPeriodAudio);
+		if (ManifestType == EMediaFormatType::DASH)
+		{
+			HandleElementaryStreamTrackSelection(StreamSelectionAttributesTxt, SelectedStreamAttributesTxt, EStreamType::Subtitle, PendingTrackSelectionTxt, CurrentPlayPeriodText);
+		}
 	}
 	else
 	{
@@ -3798,7 +3806,7 @@ void FAdaptiveStreamingPlayer::InternalHandleSegmentTrackChanges(const FTimeValu
 	if (bChangeMade)
 	{
 		DataBuffersCriticalSection.Lock();
-		bool bNeedStartover = (ActiveDataOutputBuffers.IsValid() && NextDataBuffers.Num() > 0) || NextDataBuffers.Num() > 1;
+		bool bNeedStartover = bForceStartover || (ActiveDataOutputBuffers.IsValid() && NextDataBuffers.Num() > 0) || NextDataBuffers.Num() > 1;
 		DataBuffersCriticalSection.Unlock();
 		if (bNeedStartover)
 		{
