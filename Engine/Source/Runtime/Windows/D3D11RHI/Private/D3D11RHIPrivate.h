@@ -513,7 +513,6 @@ public:
 	virtual void RHIBeginTransitions(TArrayView<const FRHITransition*> Transitions) override final;
 	virtual void RHIEndTransitions(TArrayView<const FRHITransition*> Transitions) override final;
 
-	virtual void RHIBeginRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery) override final;
 	virtual void RHIEndRenderQuery_TopOfPipe  (FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery) override final;
 	virtual void RHIBeginRenderQuery(FRHIRenderQuery* RenderQuery) final override;
 	virtual void RHIEndRenderQuery  (FRHIRenderQuery* RenderQuery) final override;

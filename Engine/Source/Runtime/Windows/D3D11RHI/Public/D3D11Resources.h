@@ -318,13 +318,9 @@ private:
 	FD3D11RenderQuery* Next = nullptr;
 
 public:
-	enum class EState : uint8
-	{
-		None,
-		Ended,
-		Completed
-	};
-	std::atomic<EState> State { EState::None };
+	uint8 TOPCounter = 0;
+	uint8 BOPCounter = 0;
+	std::atomic<uint8> LastCachedBOPCounter = 0;
 
 	enum class EType : uint8
 	{
