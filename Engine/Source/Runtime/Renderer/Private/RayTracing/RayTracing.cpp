@@ -255,7 +255,7 @@ namespace RayTracing
 
 		// Relevant static primitive LODs are computed asynchronously.
 		// This task must complete before accessing StaticPrimitives/CachedStaticPrimitives in FRayTracingSceneAddInstancesTask.
-		FGraphEventRef StaticPrimitiveLODTask;
+		UE::Tasks::FTask StaticPrimitiveLODTask;
 
 		// Array of primitives that should update their cached ray tracing instances via FPrimitiveSceneInfo::UpdateCachedRaytracingData()
 		TArray<FPrimitiveSceneInfo*> DirtyCachedRayTracingPrimitives; // TODO: remove this since it seems to be transient
@@ -434,7 +434,7 @@ namespace RayTracing
 		TaskDirtyShaderBindings->Reserve(NumPendingMeshBatches);
 		View.DirtyRayTracingShaderBindingsPerTask.Add(TaskDirtyShaderBindings);
 
-		View.AddRayTracingMeshBatchTaskList.Add(FFunctionGraphTask::CreateAndDispatchWhenReady(
+		View.AddRayTracingMeshBatchTaskList.Add(UE::Tasks::Launch(UE_SOURCE_LOCATION,
 			[TaskDataHead = MeshBatchTaskHead, &View, &Scene, TaskDynamicCommandStorage, TaskDirtyShaderBindings]()
 			{
 				FTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
@@ -461,7 +461,7 @@ namespace RayTracing
 					Page = NextPage;
 				}
 				check(ExpectedMaxVisibleCommands <= TaskDirtyShaderBindings->Max());
-			}, TStatId(), nullptr, ENamedThreads::AnyThread));
+			}));
 	};
 
 	void GatherRelevantPrimitives(FGatherInstancesTaskData& TaskData, bool bUsingReferenceBasedResidency)
@@ -618,7 +618,7 @@ namespace RayTracing
 		const float LODScaleCVarValue = ICVarStaticMeshLODDistanceScale->GetFloat();
 		const int32 ForcedLODLevel = GetCVarForceLOD();
 
-		TaskData.StaticPrimitiveLODTask = FFunctionGraphTask::CreateAndDispatchWhenReady(
+		TaskData.StaticPrimitiveLODTask = UE::Tasks::Launch(UE_SOURCE_LOCATION,
 			[&TaskData, LODScaleCVarValue, ForcedLODLevel, StaticPrimitiveIndices = MoveTemp(StaticPrimitives), bUsingReferenceBasedResidency]()
 			{
 				FTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
@@ -853,7 +853,7 @@ namespace RayTracing
 							}
 						}
 					}
-			}, TStatId(), nullptr, ENamedThreads::AnyThread);
+			});
 
 		TaskData.bValid = true;
 	}
@@ -1634,7 +1634,7 @@ namespace RayTracing
 
 		// Task to iterate over static ray tracing instances (also perform auto-instancing on non-cached instances).
 		// This adds final instances to the ray tracing scene and must be done before FRayTracingScene::BuildInitializationData().
-		FGraphEventRef AddStaticInstancesTask = FFunctionGraphTask::CreateAndDispatchWhenReady(
+		UE::Tasks::FTask AddStaticInstancesTask = UE::Tasks::Launch(UE_SOURCE_LOCATION,
 			[&TaskData, &Scene, &View, &RayTracingScene, &RayTracingSBT]()
 			{
 				FTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
@@ -1660,11 +1660,10 @@ namespace RayTracing
 					RayTracingScene,
 					View.DirtyRayTracingShaderBindings);
 
-			},
-			TStatId(), TaskData.StaticPrimitiveLODTask, ENamedThreads::AnyThread);
+			}, TaskData.StaticPrimitiveLODTask);
 
 		// Scene init task can run only when all pre-init tasks are complete (including culling tasks that are spawned while adding instances)
-		View.RayTracingSceneInitTask = FFunctionGraphTask::CreateAndDispatchWhenReady(
+		View.RayTracingSceneInitTask = UE::Tasks::Launch(UE_SOURCE_LOCATION,
 			[&View, &RayTracingScene, &RayTracingSBT]()
 			{
 				FTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
@@ -1694,8 +1693,7 @@ namespace RayTracing
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(RayTracingSceneInitTask);
 				RayTracingScene.BuildInitializationData();
-			},
-			TStatId(), AddStaticInstancesTask, ENamedThreads::AnyThread);
+			}, AddStaticInstancesTask);
 
 		return true;
 	}

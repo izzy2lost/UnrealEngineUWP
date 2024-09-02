@@ -599,7 +599,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 	{
 		SCOPE_CYCLE_COUNTER(STAT_WaitRayTracingAddMesh);
 
-		FTaskGraphInterface::Get().WaitUntilTasksComplete(ReferenceView.AddRayTracingMeshBatchTaskList, ENamedThreads::GetRenderThread_Local());
+		UE::Tasks::Wait(ReferenceView.AddRayTracingMeshBatchTaskList);
 
 		for (int32 TaskIndex = 0; TaskIndex < ReferenceView.AddRayTracingMeshBatchTaskList.Num(); TaskIndex++)
 		{
@@ -787,9 +787,7 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 
 	{
 		SCOPE_CYCLE_COUNTER(STAT_WaitRayTracingSceneInitTask);
-
-		FTaskGraphInterface::Get().WaitUntilTaskCompletes(ReferenceView.RayTracingSceneInitTask, ENamedThreads::GetRenderThread_Local());
-		ReferenceView.RayTracingSceneInitTask = {};
+		ReferenceView.RayTracingSceneInitTask.Wait();
 	}
 
 	const bool bRayTracingAsyncBuild = CVarRayTracingAsyncBuild.GetValueOnRenderThread() != 0 && GRHISupportsRayTracingAsyncBuildAccelerationStructure;

@@ -733,7 +733,7 @@ namespace MegaLights
 		// Inline
 		PassParameters->HitGroupData = View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer ? GraphBuilder.CreateSRV(View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer) : nullptr;
 		PassParameters->LumenHardwareRayTracingUniformBuffer = View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer;
-		checkf(View.RayTracingSceneInitTask == nullptr, TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
+		checkf(View.RayTracingSceneInitTask.IsCompleted(), TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
 		PassParameters->RayTracingSceneMetadata = View.GetRayTracingSceneChecked(ERayTracingSceneLayer::Base)->GetOrCreateMetadataBufferSRV(GraphBuilder.RHICmdList);
 	}
 
@@ -760,7 +760,7 @@ namespace MegaLights
 		// Inline
 		PassParameters->HitGroupData = View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer ? GraphBuilder.CreateSRV(View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer) : nullptr;
 		PassParameters->LumenHardwareRayTracingUniformBuffer = View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer;
-		checkf(View.RayTracingSceneInitTask == nullptr, TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
+		checkf(View.RayTracingSceneInitTask.IsCompleted(), TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
 		PassParameters->RayTracingSceneMetadata = View.GetRayTracingSceneChecked(ERayTracingSceneLayer::Base)->GetOrCreateMetadataBufferSRV(GraphBuilder.RHICmdList);
 	}
 }; // namespace MegaLights

@@ -1276,9 +1276,9 @@ public:
 
 	FRayTracingCullingParameters RayTracingCullingParameters;
 
-	FGraphEventRef RayTracingSceneInitTask; // Task to asynchronously call RayTracingScene.BuildInitializationData()
+	UE::Tasks::FTask RayTracingSceneInitTask; // Task to asynchronously call RayTracingScene.BuildInitializationData()
 
-	FGraphEventArray AddRayTracingMeshBatchTaskList;
+	TArray<UE::Tasks::FTask> AddRayTracingMeshBatchTaskList;
 	TArray<FRayTracingShaderBindingDataOneFrameArray*, SceneRenderingAllocator> DirtyRayTracingShaderBindingsPerTask;
 	TArray<FDynamicRayTracingMeshCommandStorage*, SceneRenderingAllocator> DynamicRayTracingMeshCommandStoragePerTask;
 #endif
