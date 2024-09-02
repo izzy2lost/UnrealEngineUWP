@@ -999,11 +999,11 @@ FName UCustomizableObjectNodeMaterial::GetParameterName(const EMaterialParameter
 }
 
 
-int32 UCustomizableObjectNodeMaterial::GetParameterLayerIndex(const EMaterialParameterType Type, const int32 ParameterIndex) const
+int32 UCustomizableObjectNodeMaterial::GetParameterLayerIndex(const UMaterialInterface* InMaterial, const EMaterialParameterType Type, const int32 ParameterIndex)
 {
-	check(Material);
+	check(InMaterial);
 
-	const FMaterialCachedParameterEntry& Entry = Material->GetCachedExpressionData().GetParameterTypeEntry(Type);
+	const FMaterialCachedParameterEntry& Entry = InMaterial->GetCachedExpressionData().GetParameterTypeEntry(Type);
 
 	for (TSet<FMaterialParameterInfo>::TConstIterator It(Entry.ParameterInfoSet); It; ++It)
 	{
@@ -1022,6 +1022,12 @@ int32 UCustomizableObjectNodeMaterial::GetParameterLayerIndex(const EMaterialPar
 }
 
 
+int32 UCustomizableObjectNodeMaterial::GetParameterLayerIndex(const EMaterialParameterType Type, const int32 ParameterIndex) const
+{
+	return GetParameterLayerIndex(Material.Get(), Type, ParameterIndex);
+}
+
+
 FText UCustomizableObjectNodeMaterial::GetParameterLayerName(const EMaterialParameterType Type, const int32 ParameterIndex) const
 {
 	check(Material)
@@ -1036,16 +1042,16 @@ FText UCustomizableObjectNodeMaterial::GetParameterLayerName(const EMaterialPara
 }
 
 
-bool UCustomizableObjectNodeMaterial::HasParameter(const FNodeMaterialParameterId& ParameterId) const
+bool UCustomizableObjectNodeMaterial::HasParameter(const UMaterialInterface* InMaterial, const FNodeMaterialParameterId& ParameterId)
 {
-	if (!Material)
+	if (!InMaterial)
 	{
 		return false;
 	}
 
 	for (const EMaterialParameterType Type : ParameterTypes)
 	{
-		const FMaterialCachedExpressionData& Data = Material->GetCachedExpressionData();
+		const FMaterialCachedExpressionData& Data = InMaterial->GetCachedExpressionData();
 		const FMaterialCachedParameterEntry& Entry = Data.GetParameterTypeEntry(Type);
 
 		if (!Data.EditorOnlyData || Data.EditorOnlyData->EditorEntries[(int32)Type].EditorInfo.IsEmpty())
@@ -1058,7 +1064,7 @@ bool UCustomizableObjectNodeMaterial::HasParameter(const FNodeMaterialParameterI
 			const int32 IteratorIndex = It.GetId().AsInteger();
 			
 			const FGuid& ParamGuid = Data.EditorOnlyData->EditorEntries[(int32)Type].EditorInfo[IteratorIndex].ExpressionGuid;
-			const int32 LayerIndex = GetParameterLayerIndex(Type, IteratorIndex);
+			const int32 LayerIndex = GetParameterLayerIndex(InMaterial, Type, IteratorIndex);
 			const FNodeMaterialParameterId ParamId = { ParamGuid, LayerIndex };
 
 			if (ParamId == ParameterId)
@@ -1069,6 +1075,12 @@ bool UCustomizableObjectNodeMaterial::HasParameter(const FNodeMaterialParameterI
 	}
 
 	return false;
+}
+
+
+bool UCustomizableObjectNodeMaterial::HasParameter(const FNodeMaterialParameterId& ParameterId) const
+{
+	return HasParameter( Material.Get(), ParameterId );
 }
 
 
@@ -1196,9 +1208,9 @@ FName UCustomizableObjectNodeMaterial::GetMeshComponentName() const
 }
 
 
-TArray<FString> UCustomizableObjectNodeMaterial::GetTags() const
+TArray<FString>* UCustomizableObjectNodeMaterial::GetEnableTags()
 {
-	return Tags;
+	return &Tags;
 }
 
 

@@ -42,9 +42,13 @@ namespace mu
 		/** In case of multiple tags in RequiredTags: are they all required, or one is enough? */
 		EMutableMultipleTagPolicy MultipleTagsPolicy = EMutableMultipleTagPolicy::OnlyOneRequired;
 
-		// Wether the modifier has to be applied after the normal node operations or before
+		/** Wether the modifier has to be applied before the normal node operations or after. */
 		bool bApplyBeforeNormalOperations = true;
 
+		/** Tags enabled by this modifier. Other modifiers activated by these tags will be applied to this modifier's "child data" like meshes added by this modifier.
+		* Not to be confused with the RequiredTags.
+		*/
+		TArray<FString> EnableTags;
 
 	public:
 

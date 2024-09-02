@@ -18,13 +18,14 @@
 #include "MuT/NodeModifierMeshClipMorphPlane.h"
 #include "MuT/NodeModifierMeshClipWithMesh.h"
 #include "MuT/NodeModifierMeshClipWithUVMask.h"
+#include "MuT/NodeModifierSurfaceEdit.h"
 #include "MuT/NodeObjectGroup.h"
 #include "MuT/NodeObjectNew.h"
-#include "MuT/NodeSurfaceEdit.h"
 #include "MuT/NodeSurfaceNew.h"
 #include "MuT/NodeSurfaceVariation.h"
 #include "MuT/NodeSurfaceSwitch.h"
 #include "MuT/ASTOpParameter.h"
+#include "MuT/ErrorLog.h"
 
 namespace mu
 {
@@ -47,7 +48,6 @@ namespace mu
 		void Generate_Generic(const Node*);
 		void Generate_Modifier(const NodeModifier*);
 		void Generate_SurfaceNew(const NodeSurfaceNew*);
-		void Generate_SurfaceEdit(const NodeSurfaceEdit*);
 		void Generate_SurfaceSwitch(const NodeSurfaceSwitch*);
 		void Generate_SurfaceVariation(const NodeSurfaceVariation*);
 		void Generate_ComponentNew(const NodeComponentNew*);
@@ -129,26 +129,9 @@ namespace mu
             // This is filled in the first pass.
             StateCondition StateCondition;
 
-            // Condition for this surface to be enabled when all the object conditions are met.
+            // Combined condition for the surface and the object conditions.
             // This is filled in CodeGenerator_SecondPass.
-            Ptr<ASTOp> SurfaceCondition;
-
-			// All surface editing nodes that edit this surface
-            struct FEdit
-            {
-				//! Reference to the edit node, used during compilation.
-				const NodeSurfaceEdit* Node = nullptr;
-				
-				// List of tags that are required for the presence of this surface
-            	TArray<FString> PositiveTags;
-
-            	// List of tags that block the presence of this surface
-            	TArray<FString> NegativeTags;
-            	
-                //! Condition that enables the effects of this edit node on the surface
-                Ptr<ASTOp> Condition;
-            };
-			TArray<FEdit> Edits;
+            Ptr<ASTOp> FinalCondition;
 
             // This is filled in the final code generation pass
             Ptr<ASTOp> ResultSurfaceOp;
@@ -171,9 +154,9 @@ namespace mu
             // be the parent object where this surface will be added.
             Ptr<ASTOp> ObjectCondition;
 
-            // This conditions is the condition for this modifier to be enabled when all the object conditions are met.
-            // This is filled in CodeGenerator_SecondPass.
-            Ptr<ASTOp> SurfaceCondition;
+			// Combined condition for the this modifier and the object conditions.
+			// This is filled in CodeGenerator_SecondPass.
+			Ptr<ASTOp> FinalCondition;
 
             // This is filled in CodeGenerator_SecondPass.
             StateCondition StateCondition;
@@ -183,22 +166,20 @@ namespace mu
         };
 		TArray<FModifier> Modifiers;
 
-		//! Info about all found tags.
+		/** Info about all found tags. */
 		struct FTag
 		{
 			FString Tag;
 
-            // Surfaces that activate the tag. These are indices to the FirstPassGenerator::surfaces
-            // vector.
+            /** Surfaces that activate the tag.These are indices to the FirstPassGenerator::Surfaces array.*/
 			TArray<int32> Surfaces;
 
-            // Edit Surfaces that activate the tag. These first element of the pair are indices to
-            // the FirstPassGenerator::surfaces vector. The second element are indices to the
-            // "edits" in the specific surface.
-			TArray<TPair<int32,int32>> Edits;
+            /** Modifiers that activate the tag. The index refers to the FirstPassGenerator::Modifiers. */
+			TArray<int32> Modifiers;
 
-            // This conditions is the condition for this tag to be enabled considering no other
-            // condition. This is filled in CodeGenerator_SecondPass.
+            /** This conditions is the condition for this tag to be enabled considering no other condition. 
+			* This is filled in CodeGenerator_SecondPass. 
+			*/
             Ptr<ASTOp> GenericCondition;
         };
         TArray<FTag> Tags;

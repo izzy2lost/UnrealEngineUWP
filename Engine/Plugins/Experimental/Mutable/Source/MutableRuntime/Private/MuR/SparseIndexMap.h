@@ -143,7 +143,7 @@ namespace mu
 				}
 			}
 
-			check(false);
+			ensure(false);
 			return false;
 		}
 

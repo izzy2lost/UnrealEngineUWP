@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MuCOE/Nodes/CustomizableObjectNodeMeshClipWithMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierClipWithMesh.h"
 
 #include "MuCOE/CustomizableObjectGraph.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
@@ -11,19 +11,19 @@ class UCustomizableObjectNodeRemapPins;
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
-UCustomizableObjectNodeMeshClipWithMesh::UCustomizableObjectNodeMeshClipWithMesh() :
+UCustomizableObjectNodeModifierClipWithMesh::UCustomizableObjectNodeModifierClipWithMesh() :
 	CustomizableObjectToClipWith(nullptr)
 {
 	// We allow this node to be shared
 	Transform = FTransform::Identity;
 
-	//When initialize we don't use materials neither tags
+	// When initialize we don't use materials neither tags
 	bUseMaterials = false;
 	bUseTags = false;
 }
 
 
-void UCustomizableObjectNodeMeshClipWithMesh::BeginPostDuplicate(bool bDuplicateForPIE)
+void UCustomizableObjectNodeModifierClipWithMesh::BeginPostDuplicate(bool bDuplicateForPIE)
 {
 	Super::BeginPostDuplicate(bDuplicateForPIE);
 
@@ -45,7 +45,7 @@ void UCustomizableObjectNodeMeshClipWithMesh::BeginPostDuplicate(bool bDuplicate
 }
 
 
-void UCustomizableObjectNodeMeshClipWithMesh::AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins)
+void UCustomizableObjectNodeModifierClipWithMesh::AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins)
 {
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
@@ -56,7 +56,7 @@ void UCustomizableObjectNodeMeshClipWithMesh::AllocateDefaultPins(UCustomizableO
 }
 
 
-void UCustomizableObjectNodeMeshClipWithMesh::ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode)
+void UCustomizableObjectNodeModifierClipWithMesh::ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode)
 {
 	Super::ReconstructNode(RemapPinsMode);
 
@@ -67,13 +67,13 @@ void UCustomizableObjectNodeMeshClipWithMesh::ReconstructNode(UCustomizableObjec
 }
 
 
-FText UCustomizableObjectNodeMeshClipWithMesh::GetNodeTitle(ENodeTitleType::Type TitleType) const
+FText UCustomizableObjectNodeModifierClipWithMesh::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	return LOCTEXT("Clip_Mesh_With_Mesh", "Clip Mesh With Mesh");
 }
 
 
-void UCustomizableObjectNodeMeshClipWithMesh::PinConnectionListChanged(UEdGraphPin* Pin)
+void UCustomizableObjectNodeModifierClipWithMesh::PinConnectionListChanged(UEdGraphPin* Pin)
 {
 	Super::PinConnectionListChanged(Pin);
 
@@ -86,25 +86,25 @@ void UCustomizableObjectNodeMeshClipWithMesh::PinConnectionListChanged(UEdGraphP
 }
 
 
-UEdGraphPin* UCustomizableObjectNodeMeshClipWithMesh::OutputPin() const
+UEdGraphPin* UCustomizableObjectNodeModifierClipWithMesh::OutputPin() const
 {
 	return FindPin(TEXT("Modifier"));
 }
 
 
-UEdGraphPin* UCustomizableObjectNodeMeshClipWithMesh::ClipMeshPin() const
+UEdGraphPin* UCustomizableObjectNodeModifierClipWithMesh::ClipMeshPin() const
 {
 	return FindPin(TEXT("Clip Mesh"));
 }
 
 
-void UCustomizableObjectNodeMeshClipWithMesh::UpdateReferencedNodeId(const FGuid& NewGuid)
+void UCustomizableObjectNodeModifierClipWithMesh::UpdateReferencedNodeId(const FGuid& NewGuid)
 {
 	ArrayMaterialNodeToClipWithID.Add(NewGuid);
 }
 
 
-FText UCustomizableObjectNodeMeshClipWithMesh::GetTooltipText() const
+FText UCustomizableObjectNodeModifierClipWithMesh::GetTooltipText() const
 {
 	return LOCTEXT("Clip_Mesh_Mesh_Tooltip", "Removes the part of a material that is completely enclosed in a mesh volume.\nIt only removes the faces that fall completely inside the cutting volume, along with the vertices and edges that define only faces that are deleted.");
 }

@@ -70,7 +70,7 @@ struct CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectNodeMaterialScalar
 // Deprecated, do not use!
 constexpr int32 UV_LAYOUT_DEFAULT = -2;
 
-// UCustomizableObjectNodeEditMaterial
+// UCustomizableObjectNodeModifierEditMeshSection
 // Deprecated, do not use!
 USTRUCT()
 struct CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectNodeEditMaterialImage
@@ -81,7 +81,7 @@ struct CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectNodeEditMaterialImage
 	FString Name;
 };
 
-// UCustomizableObjectNodeExtendMaterial
+// UCustomizableObjectNodeModifierExtendMeshSection
 // Deprecated, do not use!
 USTRUCT()
 struct CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectNodeExtendMaterialImage

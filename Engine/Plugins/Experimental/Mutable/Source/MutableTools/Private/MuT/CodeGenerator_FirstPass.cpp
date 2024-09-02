@@ -21,12 +21,12 @@
 #include "MuT/NodeModifierMeshClipMorphPlane.h"
 #include "MuT/NodeModifierMeshClipWithMesh.h"
 #include "MuT/NodeModifierMeshClipWithUVMask.h"
+#include "MuT/NodeModifierSurfaceEdit.h"
 #include "MuT/NodeObject.h"
 #include "MuT/NodeObjectGroupPrivate.h"
 #include "MuT/NodeObjectNew.h"
 #include "MuT/NodePrivate.h"
 #include "MuT/NodeSurface.h"
-#include "MuT/NodeSurfaceEdit.h"
 #include "MuT/NodeSurfaceNew.h"
 #include "MuT/NodeSurfaceVariation.h"
 #include "MuT/NodeSurfaceSwitch.h"
@@ -62,7 +62,7 @@ namespace mu
  			Generate_Generic(Root);
  		}
 
-		// Step 2: Collect all tags and a list of the surfaces that activate them
+		// Step 2: Collect all tags and a list of the surfaces and modifiers that activate them
 		for (int32 s=0; s<Surfaces.Num(); ++s)
 		{
 			// Collect the tags in new surfaces
@@ -92,43 +92,35 @@ namespace mu
                     Tags[tag].Surfaces.Add(s);
 				}
 			}
-
-            // Collect the tags in edit surfaces
-            for (int32 e=0; e< Surfaces[s].Edits.Num(); ++e)
-            {
-                const FSurface::FEdit& edit = Surfaces[s].Edits[e];
-                for (int32 t=0; t<edit.Node->EnableTags.Num(); ++t)
-                {
-                    int32 tag = -1;
-					const FString& tagStr = edit.Node->EnableTags[t];
-
-                    for (int32 i = 0; i<Tags.Num() && tag<0; ++i)
-                    {
-                        if (Tags[i].Tag == tagStr)
-                        {
-                            tag = i;
-                        }
-                    }
-
-                    // New tag?
-                    if (tag < 0)
-                    {
-                        tag = Tags.Num();
-						FTag newTag;
-                        newTag.Tag = tagStr;
-                        Tags.Add(newTag);
-                    }
-
-                    if (Tags[tag].Edits.Find({s,e}) == INDEX_NONE)
-                    {
-                        Tags[tag].Edits.Add({s,e});
-                    }
-                }
-            }
-
 		}
 
-        // Step 3: Create default state if necessary
+		// TODO: Modifier's enabling tags?
+		for (int32 ModifierIndex = 0; ModifierIndex < Modifiers.Num(); ++ModifierIndex)
+		{
+			// Collect the tags in the modifiers
+			for (const FString& ModifierTag: Modifiers[ModifierIndex].Node->EnableTags)
+			{
+				int32 TagIndex = Tags.IndexOfByPredicate([&](const FTag& Candidate)
+					{ 
+						return Candidate.Tag == ModifierTag;
+					});
+
+				// New tag?
+				if (TagIndex < 0)
+				{
+					FTag newTag;
+					newTag.Tag = ModifierTag;
+					TagIndex = Tags.Add(newTag);
+				}
+
+				if (Tags[TagIndex].Modifiers.Find(ModifierIndex) == INDEX_NONE)
+				{
+					Tags[TagIndex].Modifiers.Add(ModifierIndex);
+				}
+			}
+		}
+
+		// Step 3: Create default state if necessary
         if ( bIgnoreStates )
         {
             States.Empty();
@@ -153,10 +145,6 @@ namespace mu
 		if (Root->GetType()==NodeSurfaceNew::GetStaticType())
 		{
 			Generate_SurfaceNew(static_cast<const NodeSurfaceNew*>(Root));
-		}
-		else if (Root->GetType() == NodeSurfaceEdit::GetStaticType())
-		{
-			Generate_SurfaceEdit(static_cast<const NodeSurfaceEdit*>(Root));
 		}
 		else if (Root->GetType() == NodeSurfaceVariation::GetStaticType())
 		{
@@ -234,46 +222,6 @@ namespace mu
 		thisData.PositiveTags = CurrentPositiveTags;
 		thisData.NegativeTags = CurrentNegativeTags;
 		Surfaces.Add(thisData);
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void FirstPassGenerator::Generate_SurfaceEdit(const NodeSurfaceEdit* InNode)
-	{
-		// Store a reference to this node in the surface data for the surface that this node is
-		// editing.
-		FSurface* Surface = Surfaces.FindByPredicate([&InNode](const FSurface& s)
-        {
-            // Are we editing the main surface node of this surface?
-            if (s.Node.get() == InNode->Parent.get()) return true;
-
-            // Are we editing an edit node modifying this surface?
-            for (const FSurface::FEdit& e: s.Edits)
-            {
-                if (InNode->Parent && e.Node== InNode->Parent)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        });
-		
-		// The surface could be missing if the parent is not in the hierarchy. This could happen
-		// with wrong input or in case of partial models for preview.
-		if (Surface)
-		{
-			FSurface::FEdit edit;
-			edit.PositiveTags = CurrentPositiveTags;
-			edit.NegativeTags = CurrentNegativeTags;
-            edit.Node = InNode;
-            edit.Condition = CurrentCondition.Last().ObjectCondition;
-			Surface->Edits.Add(edit);
-		}
-		else
-		{
-			ErrorLog->GetPrivate()->Add("Missing parent object for edit node.", ELMT_WARNING, InNode->GetMessageContext());
-		}
 	}
 
 

@@ -1438,8 +1438,12 @@ namespace mu
 				ErrorLog->GetPrivate()->Add("Layout or block index error.", ELMT_ERROR, InNode->GetMessageContext());
 			}
 
-
-			Ptr<ASTOp> CurrentMeshToProjectOp = MeshResult.MeshOp;
+			// TODO: 
+			// MeshResult.MeshOp has some modifiers applied already: the ones applied before other operations directly in the mesh constant generation. 
+			// This is not what was happening before the refactor  so use MeshResult.BaseMeshOp. This is another case of ambiguity of order of modifiers 
+			// that whould be fixed with the general ordering design.
+			//Ptr<ASTOp> CurrentMeshToProjectOp = MeshResult.MeshOp;
+			Ptr<ASTOp> CurrentMeshToProjectOp = MeshResult.BaseMeshOp;
 
             if (projectorResult.type == PROJECTOR_TYPE::WRAPPING)
             {

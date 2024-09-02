@@ -365,24 +365,16 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 		break;
 	}
 
-	// This cannot be sunk since the result is different. Since the clipping is now correctly
-	// generated at the end of the chain when really necessary, this wrong optimisation is no 
-	// longer needed.
-	//case OP_TYPE::ME_CLIPMORPHPLANE:
-//         {
-//             // We move the mask creation down the source
-//             auto typedAt = dynamic_cast<const ASTOpMeshClipMorphPlane*>(at.get());
-//             newAt = Visit(typedAt->source.child());
-//             break;
-//         }
-
 	case OP_TYPE::ME_FORMAT:
 		// TODO: The child format can be removed. 
 		// Unless channels are removed and re-added, which would change their content?
 		break;
 
+
+	// This operation should not be optimized.
 	case OP_TYPE::ME_DIFFERENCE:
 
+	// If we reach here it means the operation type has not bee optimized.
 	default:
 		if (at != m_initialSource)
 		{

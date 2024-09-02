@@ -5,7 +5,6 @@
 #include "Toolkits/AssetEditorToolkit.h"
 
 class UPointLightComponent;
-class UCustomizableObjectNodeMeshClipWithMesh;
 class UCustomizableObjectNodeProjectorParameter;
 class UCustomizableObjectNodeProjectorConstant;
 class SCustomizableObjectEditorViewportTabBody;
@@ -13,8 +12,9 @@ class UCustomizableObject;
 class UCustomizableObjectInstance;
 class UProjectorParameter;
 class UCustomSettings;
-class UCustomizableObjectNodeMeshClipMorph;
-class UCustomizableObjectNodeMeshClipWithMesh;
+class UCustomizableObjectNodeModifierClipWithMesh;
+class UCustomizableObjectNodeModifierClipMorph;
+class UCustomizableObjectNodeModifierClipWithMesh;
 class ULightComponent;
 class UPoseAsset;
 class UCustomizableObjectEditorProperties;
@@ -70,7 +70,7 @@ public:
 	
 	/** Show the clip morph plane gizmo of the NodeClipMorph.
 	 * Synchronizes all editor widgets so that the selection and the widgets is always consistent. */
-	virtual void ShowGizmoClipMorph(UCustomizableObjectNodeMeshClipMorph& ClipPlainNode) {}
+	virtual void ShowGizmoClipMorph(UCustomizableObjectNodeModifierClipMorph& ClipPlainNode) {}
 
 	/** Hide the clip morph plane gizmo of the NodeClipMorph.
 	 * Synchronizes all editor widgets so that the selection and the widgets is always consistent. */
@@ -78,7 +78,7 @@ public:
 	
 	/** Show the clipping mesh gizmo from the NodeMeshClipWithMesh.
 	 * Synchronizes all editor widgets so that the selection and the widgets is always consistent. */
-	virtual void ShowGizmoClipMesh(UCustomizableObjectNodeMeshClipWithMesh& ClipMeshNode) {}
+	virtual void ShowGizmoClipMesh(UCustomizableObjectNodeModifierClipWithMesh& ClipMeshNode) {}
 
 	/** Hide the clipping mesh gizmo from the NodeMeshClipWithMesh.
 	 * Synchronizes all editor widgets so that the selection and the widgets is always consistent. */

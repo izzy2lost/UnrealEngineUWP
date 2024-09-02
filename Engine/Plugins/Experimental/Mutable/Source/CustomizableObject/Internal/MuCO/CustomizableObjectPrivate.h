@@ -1348,9 +1348,10 @@ public:
 		IntParameterOptionDataTablePartialRestore,
 
 		CorrectlySerializeTableToParamNames,
-
+		
 		AddMaterialSlotNameIndexToSurfaceMetadata,
 		
+		MoveEditNodesToModifiers,
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
 	};

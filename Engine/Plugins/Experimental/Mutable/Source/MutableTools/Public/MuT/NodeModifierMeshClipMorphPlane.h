@@ -13,6 +13,9 @@ namespace mu
 {
 
 	/** */
+
+	struct FBoneName;
+
 	struct FClipMorphPlaneParameters
 	{
 		// Morph field parameters

@@ -5,7 +5,7 @@
 #include "Containers/Map.h"
 #include "MuT/NodeSurfaceNew.h"
 
-class UCustomizableObjectNodeExtendMaterial;
+class UCustomizableObjectNodeModifierExtendMeshSection;
 class FString;
 class UCustomizableObjectNodeMaterial;
 class UCustomizableObjectNodeMaterialBase;
@@ -16,7 +16,7 @@ struct FMutableGraphGenerationContext;
 
 
 mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32 ImageIndex, mu::NodeMeshPtr MeshNode, FMutableGraphGenerationContext& GenerationContext,
-	UCustomizableObjectNodeMaterialBase* TypedNodeMat, UCustomizableObjectNodeExtendMaterial* TypedNodeExt, bool& bShareProjectionTexturesBetweenLODs, bool& bIsGroupProjectorImage,
+	UCustomizableObjectNodeMaterialBase* TypedNodeMat, UCustomizableObjectNodeModifierExtendMeshSection* TypedNodeExt, bool& bShareProjectionTexturesBetweenLODs, bool& bIsGroupProjectorImage,
 	UTexture2D*& GroupProjectionReferenceTexture, TMap<FString, float>& TextureNameToProjectionResFactor, FString& AlternateResStateName);
 
 

@@ -864,7 +864,9 @@ namespace mu
 		struct MeshMaskClipUVMaskArgs
 		{
 			ADDRESS Source = 0;
-			ADDRESS Mask = 0;
+			ADDRESS UVSource = 0;
+			ADDRESS MaskImage = 0;
+			ADDRESS MaskLayout = 0;
 			uint8 LayoutIndex = 0;
 		};
 

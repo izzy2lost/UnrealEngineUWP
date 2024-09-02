@@ -17,13 +17,13 @@
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceSurface.h"
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/ICustomizableObjectExtensionNode.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeEditMaterialBase.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeExtendMaterial.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierEditMeshSectionBase.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierExtendMeshSection.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialVariation.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialSwitch.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMesh.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeMeshClipWithMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierClipWithMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObjectGroup.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTable.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTexture.h"
@@ -48,7 +48,6 @@
 #include "MuT/NodeMeshConstant.h"
 #include "MuT/NodeObjectGroup.h"
 #include "MuT/NodeObjectNew.h"
-#include "MuT/NodeSurfaceEdit.h"
 #include "MuR/Mesh.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PlatformInfo.h"
@@ -294,12 +293,12 @@ void FMutableGraphGenerationContext::GenerateClippingCOInternalTags()
 			It->Value[j]->RequiredTags.Add(TagName);
 		}
 
-		UCustomizableObjectNodeMeshClipWithMesh* CustomizableObjectNodeMeshClipWithMesh = It->Key;
+		UCustomizableObjectNodeModifierClipWithMesh* CustomizableObjectNodeModifierClipWithMesh = It->Key;
 
 		// Tag also those nodes in the material side of the clipping functionality (since a CO can have several materials with the same LOD,
 		// all of them are considered, so CustomizableObjectNodeMeshClipWithMesh->ArrayMaterialNodeToClipWithID contains the Guids of all
 		// the material nodes with the same name selected for being affected by the clipping operation
-		TArray<FGuid>& ArrayMaterialNodeToClipWithID = CustomizableObjectNodeMeshClipWithMesh->ArrayMaterialNodeToClipWithID;
+		TArray<FGuid>& ArrayMaterialNodeToClipWithID = CustomizableObjectNodeModifierClipWithMesh->ArrayMaterialNodeToClipWithID;
 
 		for (j = 0; j < ArrayMaterialNodeToClipWithID.Num(); ++j)
 		{
@@ -448,7 +447,16 @@ FMutableComponentInfo& FMutableGraphGenerationContext::GetCurrentComponentInfo()
 {
 	FMutableComponentInfo* CurrentComponentInfo = ComponentInfos.FindByPredicate(
 		[this](const FMutableComponentInfo& Component) { return Component.ComponentName == CurrentMeshComponent; });
-	check(CurrentComponentInfo);
+	
+	// Temp workaround to the problem of modifiers that generate meshes (like ExtendMeshSection) not having a known component at generation time.
+	// TODO: Actually detect all possible components and change this query in GenerationContext state to accomodate a set of "current components" instead of one.
+	//check(CurrentComponentInfo);
+
+	if (!CurrentComponentInfo)
+	{
+		check(!ComponentInfos.IsEmpty());
+		CurrentComponentInfo = &ComponentInfos[0];
+	}
 
 	return *CurrentComponentInfo;
 }
@@ -832,7 +840,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 		return static_cast<mu::NodeObject*>(Generated->Node.get());
 	}
 
-	mu::NodeObjectPtr Result;
+	mu::Ptr<mu::NodeObject> Result;
 	
 	if (const UCustomizableObjectNodeObject* TypedNodeObj = Cast<UCustomizableObjectNodeObject>(Node))
 	{
@@ -1302,7 +1310,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 			FString* SelectedOptionName = GenerationContext.ParamNamesToSelectedOptions.Find(TypedNodeGroup->GroupName); // If the param is in the map restrict to only the selected option
 			mu::NodeObjectPtr ChildNode = nullptr;
 
-			if (bConnectAtLeastTheLastChild || !SelectedOptionName || *SelectedOptionName == CustomizableObjectNodeObject->ObjectName)
+			if (bConnectAtLeastTheLastChild || !SelectedOptionName || (CustomizableObjectNodeObject && *SelectedOptionName == CustomizableObjectNodeObject->ObjectName) )
 			{
 				bAtLeastOneConnected = true;
 
@@ -1410,7 +1418,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 			FString* SelectedOptionName = GenerationContext.ParamNamesToSelectedOptions.Find(TypedNodeGroup->GroupName); // If the param is in the map restrict to only the selected option
 			mu::NodeObjectPtr ChildNode = nullptr;
 
-			if (bConnectAtLeastTheLastChild || !SelectedOptionName || *SelectedOptionName == CustomizableObjectNodeObject->ObjectName)
+			if (bConnectAtLeastTheLastChild || !SelectedOptionName || (CustomizableObjectNodeObject  && *SelectedOptionName == CustomizableObjectNodeObject->ObjectName) )
 			{
 				bAtLeastOneConnected = true;
 
@@ -1595,32 +1603,12 @@ bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationCont
 	{
 		ComponentName = TypedNodeMat->GetMeshComponentName();
 	}
-	else if (const UCustomizableObjectNodeExtendMaterial* TypedNodeExt = Cast<UCustomizableObjectNodeExtendMaterial>(Node))
-	{
-		OriginalParentMaterialNode = TypedNodeExt->GetParentMaterialNode();
-		ComponentName = OriginalParentMaterialNode ? OriginalParentMaterialNode->GetMeshComponentName() : GenerationContext.CurrentMeshComponent;
-	}
-	else if (const UCustomizableObjectNodeEditMaterialBase* TypedNodeEdit = Cast<UCustomizableObjectNodeEditMaterialBase>(Node))
-	{
-		OriginalParentMaterialNode = TypedNodeEdit->GetParentMaterialNode();
-		ComponentName = OriginalParentMaterialNode ? OriginalParentMaterialNode->GetMeshComponentName() : GenerationContext.CurrentMeshComponent;
-	}
+
 	else if (const UCustomizableObjectNodeModifierBase* TypedNodeModifier = Cast<UCustomizableObjectNodeModifierBase>(Node))
 	{
-		// Because of the current implementation, modifiers affect all components at lod level. If there is only one component it is ok, but otherwise rise an error.
-		if (GenerationContext.NumMeshComponentsInRoot == 1)
-		{
-			ComponentName = GenerationContext.ComponentInfos[0].ComponentName;
-			return true;
-		}
-		else
-		{
-			// This case is not supported yet
-			FString Msg = FString::Printf(TEXT("Error! Node has modifiers when using multiple components in root object. This is currently not supported."));
-			GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Error);
-			ComponentName = GenerationContext.ComponentInfos[0].ComponentName;
-			return false;
-		}
+		// Modifiers can affect any component depending on tags.
+		// TODO: Scan
+		return true;
 	}
 	else
 	{

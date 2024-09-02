@@ -18,8 +18,8 @@ class FViewport;
 class ICustomizableObjectInstanceEditor;
 class UAnimationAsset;
 class UCustomizableObject;
-class UCustomizableObjectNodeMeshClipMorph;
-class UCustomizableObjectNodeMeshClipWithMesh;
+class UCustomizableObjectNodeModifierClipMorph;
+class UCustomizableObjectNodeModifierClipWithMesh;
 class UCustomizableObjectNodeProjectorConstant;
 class UCustomizableObjectNodeProjectorParameter;
 class UDebugSkelMeshComponent;
@@ -182,13 +182,13 @@ public:
 	void SetShowBounds();
 
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
-	void ShowGizmoClipMorph(UCustomizableObjectNodeMeshClipMorph& ClipPlainNode);
+	void ShowGizmoClipMorph(UCustomizableObjectNodeModifierClipMorph& ClipPlainNode);
 
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
 	void HideGizmoClipMorph();
 	
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
-	void ShowGizmoClipMesh(UCustomizableObjectNodeMeshClipWithMesh& ClipMeshNode, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex);
+	void ShowGizmoClipMesh(UCustomizableObjectNodeModifierClipWithMesh& ClipMeshNode, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex);
 
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
 	void HideGizmoClipMesh();
@@ -344,7 +344,7 @@ private:
 	int32 UVDrawLODIndex = 0;
 	int32 UVDrawUVIndex = 0;
 	
-	UCustomizableObjectNodeMeshClipMorph* ClipMorphNode;
+	UCustomizableObjectNodeModifierClipMorph* ClipMorphNode;
 	TObjectPtr<UMaterial> ClipMorphMaterial;
 	bool bClipMorphLocalStartOffset;
 	FVector ClipMorphOrigin;
@@ -355,7 +355,7 @@ private:
 	FVector ClipMorphYAxis;
 	float MorphLength;
 	FBoxSphereBounds MorphBounds;
-	UCustomizableObjectNodeMeshClipWithMesh* ClipMeshNode;
+	UCustomizableObjectNodeModifierClipWithMesh* ClipMeshNode;
 	TObjectPtr<UMaterial> ClipMeshMaterial;
 	UStaticMeshComponent* ClipMeshStaticMeshComp;
 	USkeletalMeshComponent* ClipMeshSkeletalMeshComp;

@@ -133,6 +133,7 @@ public:
 	virtual FString GetRefreshMessage() const override;
 	virtual TSharedPtr<IDetailsView> CustomizePinDetails(const UEdGraphPin& Pin) const override;
 	void ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode);
+	virtual TArray<FString>* GetEnableTags() override;
 
 	
 	// UCustomizableObjectNodeMaterialBase interface
@@ -141,7 +142,6 @@ public:
 	virtual UMaterialInterface* GetMaterial() const override;
 	virtual bool IsReuseMaterialBetweenLODs() const override;
 	virtual FName GetMeshComponentName() const override;
-	virtual TArray<FString> GetTags() const override;
 	virtual int32 GetNumParameters(EMaterialParameterType Type) const override;
 	virtual FNodeMaterialParameterId GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const override;
 	virtual FName GetParameterName(EMaterialParameterType Type, int32 ParameterIndex) const override;
@@ -166,6 +166,12 @@ public:
 	void SetMaterial(UMaterialInterface* InMaterial);
 	void SetComponentName(const FName& Name);
 
+	static bool HasParameter(const UMaterialInterface* InMaterial, const FNodeMaterialParameterId& ParameterId);
+	static int32 GetParameterLayerIndex(const UMaterialInterface* InMaterial, EMaterialParameterType Type, int32 ParameterIndex);
+
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	TArray<FString> Tags;
+
 private:
 	/** Set the Pin Mode of a Texture Parameter Pin. */
 	void SetImagePinMode(UEdGraphPin& Pin, EPinMode PinMode) const;
@@ -178,9 +184,6 @@ private:
 
 	UPROPERTY(EditAnywhere, Category=CustomizableObject, DisplayName = "Default Texture Parameter Mode", Meta = (ToolTip = "All Mateiral Texture Parameters set to \"Node Defined\" will use this mode."))
 	ENodePinMode TextureParametersMode = ENodePinMode::Passthrough;
-
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	TArray<FString> Tags;
 
 	UPROPERTY()
 	int32 MeshComponentIndex_DEPRECATED = 0;
@@ -196,6 +199,7 @@ private:
 	/** Last static or skeletal mesh connected. Used to remove the callback once disconnected. */
 	TWeakObjectPtr<UCustomizableObjectNode> LastMeshNodeConnected;
 
+	/** List of material parameter types that are actually relevant to mutable. */
 	static const TArray<EMaterialParameterType> ParameterTypes;
 
 	/** Relates a Parameter id (key) (and layer if is a layered material) to a Pin (value). Only used to improve performance.

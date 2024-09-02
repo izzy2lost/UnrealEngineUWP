@@ -16,8 +16,9 @@ class UEdGraphPin;
 UCLASS()
 class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeModifierClipWithUVMask : public UCustomizableObjectNodeModifierBase
 {
-public:
 	GENERATED_BODY()
+
+public:
 
 	/** Materials in all other objects that activate this tags will be clipped with this UV mask. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MeshToClip)
@@ -31,6 +32,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MeshToClip)
 	int32 UVChannelForMask = 0;
 
+public:
+
 	// EdGraphNode interface
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	virtual FText GetTooltipText() const override;
@@ -39,9 +42,13 @@ public:
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
 
-	// Own interface
-	UEdGraphPin* OutputPin() const;
+	// UCustomizableObjectNodeModifierBase interface
+	virtual const TArray<FString>* GetRequiredTags() const override { return &Tags; }
+	virtual EMutableMultipleTagPolicy GetMultipleTagsPolicy() const override { return MultipleTagPolicy; }
 
+	// Own interface
+
+	/** Access to input pins. */
 	UEdGraphPin* ClipMaskPin() const;
 };
 

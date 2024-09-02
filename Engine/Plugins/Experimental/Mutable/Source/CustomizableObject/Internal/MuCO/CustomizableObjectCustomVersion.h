@@ -137,6 +137,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 		MovedCompatibilityFromPostBackwardsCompatibleFixup,
 
 		FixModifierPin, 
+		
+		ConvertEditAndExtendToModifiers,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

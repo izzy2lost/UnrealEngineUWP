@@ -339,7 +339,7 @@ void SCustomizableObjectEditorViewportTabBody::Tick(const FGeometry& AllottedGeo
 }
 
 
-void SCustomizableObjectEditorViewportTabBody::ShowGizmoClipMorph(UCustomizableObjectNodeMeshClipMorph& ClipPlainNode) const
+void SCustomizableObjectEditorViewportTabBody::ShowGizmoClipMorph(UCustomizableObjectNodeModifierClipMorph& ClipPlainNode) const
 {
 	if (const TSharedPtr<SWidget> Toolbar = ViewportToolbarTransformWidget.Pin())
 	{
@@ -361,7 +361,7 @@ void SCustomizableObjectEditorViewportTabBody::HideGizmoClipMorph() const
 }
 
 
-void SCustomizableObjectEditorViewportTabBody::ShowGizmoClipMesh(UCustomizableObjectNodeMeshClipWithMesh& ClipMeshNode, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex) const
+void SCustomizableObjectEditorViewportTabBody::ShowGizmoClipMesh(UCustomizableObjectNodeModifierClipWithMesh& ClipMeshNode, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex) const
 {
 	if (const TSharedPtr<SWidget> Toolbar = ViewportToolbarTransformWidget.Pin())
 	{

@@ -120,7 +120,6 @@ namespace mu
 
 			Surface,
 			SurfaceNew,
-			SurfaceEdit,
 			SurfaceSwitch,
 			SurfaceVariation,
 
@@ -141,6 +140,7 @@ namespace mu
 			ModifierMeshClipWithMesh,
 			ModifierMeshClipDeform,
 			ModifierMeshClipWithUVMask,
+			ModifierSurfaceEdit,
 
 			ExtensionData,
 			ExtensionDataConstant,

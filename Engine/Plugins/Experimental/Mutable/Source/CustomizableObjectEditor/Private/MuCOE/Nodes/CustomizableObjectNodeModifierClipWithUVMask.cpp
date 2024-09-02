@@ -42,12 +42,6 @@ void UCustomizableObjectNodeModifierClipWithUVMask::PinConnectionListChanged(UEd
 }
 
 
-UEdGraphPin* UCustomizableObjectNodeModifierClipWithUVMask::OutputPin() const
-{
-	return FindPin(TEXT("Modifier"));
-}
-
-
 UEdGraphPin* UCustomizableObjectNodeModifierClipWithUVMask::ClipMaskPin() const
 {
 	return FindPin(TEXT("Clip Mask"));

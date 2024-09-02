@@ -141,85 +141,6 @@ namespace mu
 			//PartialOptimise( c, CompilerOptions->OptimisationOptions );
 		}
 
-
-		// Condition expression for all the edit-surfaces that activate the tag
-		for (const TPair<int32,int32>& EditKey : t.Edits)
-		{
-			if (negSurf.find(EditKey.Key) != negSurf.end())
-			{
-				// The surface in the edit is a negative requirement higher up in the condition so
-				// this branch never be true.
-				continue;
-			}
-
-			Ptr<ASTOp> surfCondition;
-			if (posSurf.find(EditKey.Key) != posSurf.end())
-			{
-				// This surface in the edit is already a positive requirement higher up in the condition
-				// so we don't need that part of the condition
-			}
-			else
-			{
-				auto PositiveTags = posTag;
-				PositiveTags.insert(tagIndex);
-
-				surfCondition = GenerateDataCodition(EditKey.Key,
-					FirstPass->Surfaces[EditKey.Key].PositiveTags,
-					FirstPass->Surfaces[EditKey.Key].NegativeTags,
-					posSurf,
-					negSurf,
-					PositiveTags,
-					negTag);
-			}
-
-			const FirstPassGenerator::FSurface& surface = FirstPass->Surfaces[EditKey.Key];
-			const FirstPassGenerator::FSurface::FEdit& edit = surface.Edits[EditKey.Value];
-
-			// Combine object and surface conditions
-			Ptr<ASTOp> fullCondition;
-			if (surfCondition)
-			{
-				Ptr<ASTOpFixed> f = new ASTOpFixed();
-				f->op.type = OP_TYPE::BO_AND;
-				f->SetChild(f->op.args.BoolBinary.a, surface.ObjectCondition);
-				f->SetChild(f->op.args.BoolBinary.b, surfCondition);
-				fullCondition = m_opPool.Add(f);
-			}
-			else
-			{
-				fullCondition = m_opPool.Add(surface.ObjectCondition);
-			}
-
-			// Combine with edit condition
-			if (fullCondition)
-			{
-				Ptr<ASTOpFixed> f = new ASTOpFixed();
-				f->op.type = OP_TYPE::BO_AND;
-				f->SetChild(f->op.args.BoolBinary.a, edit.Condition);
-				f->SetChild(f->op.args.BoolBinary.b, fullCondition);
-				fullCondition = m_opPool.Add(f);
-			}
-			else
-			{
-				fullCondition = m_opPool.Add(edit.Condition);
-			}
-
-
-			if (!c)
-			{
-				c = fullCondition;
-			}
-			else
-			{
-				Ptr<ASTOpFixed> o = new ASTOpFixed();
-				o->op.type = OP_TYPE::BO_OR;
-				o->SetChild(o->op.args.BoolBinary.a, fullCondition);
-				o->SetChild(o->op.args.BoolBinary.b, c);
-				c = m_opPool.Add(o);
-			}
-		}
-
-
 		TagConditionGenerationCache.insert(std::make_pair<>(key, c));
 
 		return c;
@@ -490,31 +411,37 @@ namespace mu
 			{
 				Ptr<ASTOp> c = GenerateDataCodition(
 					SurfaceIndex, 
-					FirstPass->Surfaces[SurfaceIndex].PositiveTags,
-					FirstPass->Surfaces[SurfaceIndex].NegativeTags,
+					Surface.PositiveTags,
+					Surface.NegativeTags,
 					Empty, Empty, Empty, Empty);
 
-				FirstPass->Surfaces[SurfaceIndex].SurfaceCondition = c;
+				Ptr<ASTOpFixed> ConditionOp = new ASTOpFixed();
+				ConditionOp->op.type = OP_TYPE::BO_AND;
+				ConditionOp->SetChild(ConditionOp->op.args.BoolBinary.a, Surface.ObjectCondition);
+				ConditionOp->SetChild(ConditionOp->op.args.BoolBinary.b, c);
+
+				Surface.FinalCondition = ConditionOp;
 			}
 			
-			for (int32 EditIndex = 0; EditIndex < Surface.Edits.Num(); ++EditIndex)
-			{
-				FirstPassGenerator::FSurface::FEdit& Edit = Surface.Edits[EditIndex];
-				
-				Ptr<ASTOp> c = GenerateDataCodition(
-					EditIndex, 
-					Surface.Edits[EditIndex].PositiveTags,
-					Surface.Edits[EditIndex].NegativeTags,
-					Empty, Empty, Empty, Empty);
+			// TODO: Convert to modifiers that enable tags?
+			//for (int32 EditIndex = 0; EditIndex < Surface.Edits.Num(); ++EditIndex)
+			//{
+			//	FirstPassGenerator::FSurface::FEdit& Edit = Surface.Edits[EditIndex];
+			//	
+			//	Ptr<ASTOp> c = GenerateDataCodition(
+			//		EditIndex, 
+			//		Surface.Edits[EditIndex].PositiveTags,
+			//		Surface.Edits[EditIndex].NegativeTags,
+			//		Empty, Empty, Empty, Empty);
 
-				Ptr<ASTOpFixed> OpAnd = new ASTOpFixed;
-				OpAnd->op.type = OP_TYPE::BO_AND;
-				OpAnd->SetChild(OpAnd->op.args.BoolBinary.a, Edit.Condition);
-				OpAnd->SetChild(OpAnd->op.args.BoolBinary.b, c);
-				c = m_opPool.Add(OpAnd);
-				
-				Edit.Condition = OpAnd;
-			}
+			//	Ptr<ASTOpFixed> OpAnd = new ASTOpFixed;
+			//	OpAnd->op.type = OP_TYPE::BO_AND;
+			//	OpAnd->SetChild(OpAnd->op.args.BoolBinary.a, Edit.Condition);
+			//	OpAnd->SetChild(OpAnd->op.args.BoolBinary.b, c);
+			//	c = m_opPool.Add(OpAnd);
+			//	
+			//	Edit.Condition = OpAnd;
+			//}
 		}
 
 		for (int32 ModifierIndex = 0; ModifierIndex < FirstPass->Modifiers.Num(); ++ModifierIndex)
@@ -525,7 +452,12 @@ namespace mu
 				FirstPass->Modifiers[ModifierIndex].NegativeTags,
 				Empty, Empty, Empty, Empty);
 			
-			FirstPass->Modifiers[ModifierIndex].SurfaceCondition = c;
+			Ptr<ASTOpFixed> ConditionOp = new ASTOpFixed();
+			ConditionOp->op.type = OP_TYPE::BO_AND;
+			ConditionOp->SetChild(ConditionOp->op.args.BoolBinary.a, FirstPass->Modifiers[ModifierIndex].ObjectCondition);
+			ConditionOp->SetChild(ConditionOp->op.args.BoolBinary.b, c);
+
+			FirstPass->Modifiers[ModifierIndex].FinalCondition = ConditionOp;
 		}
 
 		for (int32 ComponentIndex = 0; ComponentIndex < FirstPass->Components.Num(); ++ComponentIndex)

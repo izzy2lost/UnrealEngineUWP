@@ -1674,26 +1674,51 @@ namespace mu
 			{
 				AddOp(FScheduledOp(item.At, item, 1),
 					FScheduledOp(args.Source, item),
-					FScheduledOp(args.Mask, item));
+					FScheduledOp(args.UVSource, item),
+					FScheduledOp(args.MaskImage, item),
+					FScheduledOp(args.MaskLayout, item));
 				break;
 			}
 			case 1:
 			{
-				MUTABLE_CPUPROFILER_SCOPE(ME_MASKCLIPUVMASK_1)
+				MUTABLE_CPUPROFILER_SCOPE(ME_MASKCLIPUVMASK_1);
 
 				Ptr<const Mesh> Source = LoadMesh(FCacheAddress(args.Source, item));
-				Ptr<const Image> Mask = LoadImage(FCacheAddress(args.Mask, item));
+				Ptr<const Mesh> UVSource = LoadMesh(FCacheAddress(args.UVSource, item));
+				Ptr<const Image> MaskImage = LoadImage(FCacheAddress(args.MaskImage, item));
+				Ptr<const Layout> MaskLayout = LoadLayout(FCacheAddress(args.MaskLayout, item));
 
 				// Only if both are valid.
-				if (Source.get() && Mask.get())
+				if (Source.get() && MaskImage.get())
 				{
 					Ptr<Mesh> Result = CreateMesh();
 
 					bool bOutSuccess = false;
-					MeshMaskClipUVMask(Result.get(), Source.get(), Mask.get(), args.LayoutIndex, bOutSuccess);
+					MakeMeshMaskFromUVMask(Result.get(), Source.get(), UVSource.get(), MaskImage.get(), args.LayoutIndex, bOutSuccess);
 
 					Release(Source);
-					Release(Mask);
+					Release(UVSource);
+					Release(MaskImage);
+					if (!bOutSuccess)
+					{
+						Release(Result);
+						StoreMesh(item, nullptr);
+					}
+					else
+					{
+						StoreMesh(item, Result);
+					}
+				}
+				else if (Source.get() && MaskLayout.get())
+				{					
+					Ptr<Mesh> Result = CreateMesh();
+
+					bool bOutSuccess = false;
+					MakeMeshMaskFromLayout(Result.get(), Source.get(), UVSource.get(), MaskLayout.get(), args.LayoutIndex, bOutSuccess);
+
+					Release(Source);
+					Release(UVSource);
+					Release(MaskImage);
 					if (!bOutSuccess)
 					{
 						Release(Result);
@@ -1707,7 +1732,8 @@ namespace mu
 				else
 				{
 					Release(Source);
-					Release(Mask);
+					Release(UVSource);
+					Release(MaskImage);
 					StoreMesh(item, nullptr);
 				}
 

@@ -8,6 +8,7 @@
 #include "MuT/ASTOpMeshMorph.h"
 #include "MuT/ASTOpMeshRemoveMask.h"
 #include "MuT/ASTOpMeshClipMorphPlane.h"
+#include "MuT/ASTOpMeshApplyPose.h"
 #include "MuR/ModelPrivate.h"
 #include "MuR/RefCounted.h"
 #include "MuR/Types.h"
@@ -94,148 +95,168 @@ namespace mu
 		}
 	}
 
-
-	mu::Ptr<ASTOp> ASTOpMeshExtractLayoutBlocks::OptimiseSink(const FModelOptimizationOptions&, FOptimizeSinkContext&) const
+	 
+	mu::Ptr<ASTOp> ASTOpMeshExtractLayoutBlocks::OptimiseSink(const FModelOptimizationOptions&, FOptimizeSinkContext& Context) const
 	{
-		Ptr<ASTOp> NewOp;
+		mu::Ptr<ASTOp> NewOp = Context.MeshExtractLayoutBlocksSinker.Apply(this);
+		return NewOp;
+	}
 
-		if (!Source.child())
+
+	//---------------------------------------------------------------------------------------------
+	mu::Ptr<ASTOp> Sink_MeshExtractLayoutBlocksAST::Apply(const ASTOpMeshExtractLayoutBlocks* root)
+	{
+		m_root = root;
+
+		OldToNew.Reset();
+
+		m_initialSource = m_root->Source.child();
+		mu::Ptr<ASTOp> newSource = Visit(m_initialSource, m_root);
+
+		// If there is any change, it is the new root.
+		if (newSource != m_initialSource)
 		{
-			return nullptr;
+			return newSource;
 		}
 
-		OP_TYPE SourceType = Source.child()->GetOpType();
+		return nullptr;
+	}
 
-		// Optimize only the mesh parameter
-		switch (SourceType)
+	mu::Ptr<ASTOp> Sink_MeshExtractLayoutBlocksAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMeshExtractLayoutBlocks* currentSinkOp)
+	{
+		if (!at) return nullptr;
+
+		// Already visited?
+		const Ptr<ASTOp>* Cached = OldToNew.Find({ at, currentSinkOp });
+		if (Cached)
+		{
+			return *Cached;
+		}
+
+		mu::Ptr<ASTOp> newAt = at;
+		switch (at->GetOpType())
 		{
 
-		case OP_TYPE::ME_SWITCH:
+		case OP_TYPE::ME_APPLYLAYOUT:
 		{
-			// Move the operation down all the paths
-			Ptr<ASTOpSwitch> NewSwitch = mu::Clone<ASTOpSwitch>(Source.child());
-
-			if (NewSwitch->def)
-			{
-				Ptr<ASTOpMeshExtractLayoutBlocks> NewBind = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
-				NewBind->Source = NewSwitch->def.child();
-				NewSwitch->def = NewBind;
-			}
-
-			for (int32 v = 0; v < NewSwitch->cases.Num(); ++v)
-			{
-				if (NewSwitch->cases[v].branch)
-				{
-					Ptr<ASTOpMeshExtractLayoutBlocks> NewBind = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
-					NewBind->Source = NewSwitch->cases[v].branch.child();
-					NewSwitch->cases[v].branch = NewBind;
-				}
-			}
-
-			NewOp = NewSwitch;
+			Ptr<ASTOpFixed> newOp = mu::Clone<ASTOpFixed>(at);
+			newOp->SetChild(newOp->op.args.MeshApplyLayout.mesh, Visit(newOp->children[newOp->op.args.MeshApplyLayout.mesh].child(), currentSinkOp));
+			newAt = newOp;
 			break;
 		}
 
-		case OP_TYPE::ME_CONDITIONAL:
+		case OP_TYPE::ME_SETSKELETON:
 		{
-			// Move the operation down all the paths
-			Ptr<ASTOpConditional> NewConditional = mu::Clone<ASTOpConditional>(Source.child());
-
-			if (NewConditional->yes)
-			{
-				Ptr<ASTOpMeshExtractLayoutBlocks> NewBind = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
-				NewBind->Source = NewConditional->yes.child();
-				NewConditional->yes = NewBind;
-			}
-
-			if (NewConditional->no)
-			{
-				Ptr<ASTOpMeshExtractLayoutBlocks> NewBind = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
-				NewBind->Source = NewConditional->no.child();
-				NewConditional->no = NewBind;
-			}
-
-			NewOp = NewConditional;
+			Ptr<ASTOpFixed> newOp = mu::Clone<ASTOpFixed>(at);
+			newOp->SetChild(newOp->op.args.MeshSetSkeleton.source, Visit(newOp->children[newOp->op.args.MeshSetSkeleton.source].child(), currentSinkOp));
+			newAt = newOp;
 			break;
 		}
 
 		case OP_TYPE::ME_ADDTAGS:
 		{
-			Ptr<ASTOpMeshAddTags> NewAddTags = mu::Clone<ASTOpMeshAddTags>(Source.child());
-
-			if (NewAddTags->Source)
-			{
-				Ptr<ASTOpMeshExtractLayoutBlocks> New = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
-				New->Source = NewAddTags->Source.child();
-				NewAddTags->Source = New;
-			}
-
-			NewOp = NewAddTags;
-			break;
-		}
-
-		case OP_TYPE::ME_MORPH:
-		{
-			// Move the operation down the base and the target
-			Ptr<ASTOpMeshMorph> NewMorph = mu::Clone<ASTOpMeshMorph>(Source.child());
-
-			if (NewMorph->Base)
-			{
-				Ptr<ASTOpMeshExtractLayoutBlocks> New = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
-				New->Source = NewMorph->Base.child();
-				NewMorph->Base = New;
-			}
-
-			if (NewMorph->Target)
-			{
-				Ptr<ASTOpMeshExtractLayoutBlocks> New = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
-				New->Source = NewMorph->Target.child();
-				NewMorph->Target = New;
-			}
-
-			NewOp = NewMorph;
-			break;
-		}
-
-		case OP_TYPE::ME_REMOVEMASK:
-		{
-			// Move the operation down the base
-			// \TODO: mask too to try to make them smaller?
-			Ptr<ASTOpMeshRemoveMask> NewRemove = mu::Clone<ASTOpMeshRemoveMask>(Source.child());
-
-			if (NewRemove->source)
-			{
-				Ptr<ASTOpMeshExtractLayoutBlocks> New = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
-				New->Source = NewRemove->source.child();
-				NewRemove->source = New;
-			}
-
-			NewOp = NewRemove;
+			Ptr<ASTOpMeshAddTags> newOp = mu::Clone<ASTOpMeshAddTags>(at);
+			newOp->Source = Visit(newOp->Source.child(), currentSinkOp);
+			newAt = newOp;
 			break;
 		}
 
 		case OP_TYPE::ME_CLIPMORPHPLANE:
 		{
-			// Move the operation down the source
-			Ptr<ASTOpMeshClipMorphPlane> NewMorph = mu::Clone<ASTOpMeshClipMorphPlane>(Source.child());
+			Ptr<ASTOpMeshClipMorphPlane> newOp = mu::Clone<ASTOpMeshClipMorphPlane>(at);
+			newOp->source = Visit(newOp->source.child(), currentSinkOp);
+			newAt = newOp;
+			break;
+		}
 
-			if (NewMorph->source)
+		case OP_TYPE::ME_MORPH:
+		{
+			Ptr<ASTOpMeshMorph> NewOp = mu::Clone<ASTOpMeshMorph>(at);
+			NewOp->Base = Visit(NewOp->Base.child(), currentSinkOp);
+			NewOp->Target = Visit(NewOp->Target.child(), currentSinkOp);
+			newAt = NewOp;
+			break;
+		}
+
+		case OP_TYPE::ME_MERGE:
+		{
+			Ptr<ASTOpFixed> newOp = mu::Clone<ASTOpFixed>(at);
+			newOp->SetChild(newOp->op.args.MeshMerge.base, Visit(newOp->children[newOp->op.args.MeshMerge.base].child(), currentSinkOp));
+			newOp->SetChild(newOp->op.args.MeshMerge.added, Visit(newOp->children[newOp->op.args.MeshMerge.added].child(), currentSinkOp));
+			newAt = newOp;
+			break;
+		}
+
+		case OP_TYPE::ME_APPLYPOSE:
+		{
+			Ptr<ASTOpMeshApplyPose> NewOp = mu::Clone<ASTOpMeshApplyPose>(at);
+			NewOp->base = Visit(NewOp->base.child(), currentSinkOp);
+			newAt = NewOp;
+			break;
+		}
+
+		case OP_TYPE::ME_INTERPOLATE:
+		{
+			Ptr<ASTOpFixed> newOp = mu::Clone<ASTOpFixed>(at);
+			newOp->SetChild(newOp->op.args.MeshInterpolate.base, Visit(newOp->children[newOp->op.args.MeshInterpolate.base].child(), currentSinkOp));
+
+			for (int32 t = 0; t < MUTABLE_OP_MAX_INTERPOLATE_COUNT - 1; ++t)
 			{
-				Ptr<ASTOpMeshExtractLayoutBlocks> New = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
-				New->Source = NewMorph->source.child();
-				NewMorph->source = New;
+				if (newOp->children[newOp->op.args.MeshInterpolate.targets[t]])
+				{
+					newOp->SetChild(newOp->op.args.MeshInterpolate.targets[t], Visit(newOp->children[newOp->op.args.MeshInterpolate.targets[t]].child(), currentSinkOp));
+				}
 			}
 
-			NewOp = NewMorph;
+			newAt = newOp;
 			break;
 		}
 
+		case OP_TYPE::ME_REMOVEMASK:
+		{
+			// TODO: Make mask smaller?
+			Ptr<ASTOpMeshRemoveMask> newOp = mu::Clone<ASTOpMeshRemoveMask>(at);
+			newOp->source = Visit(newOp->source.child(), currentSinkOp);
+			newAt = newOp;
+			break;
+		}
+
+		case OP_TYPE::ME_CONDITIONAL:
+		{
+			Ptr<ASTOpConditional> newOp = mu::Clone<ASTOpConditional>(at);
+			newOp->yes = Visit(newOp->yes.child(), currentSinkOp);
+			newOp->no = Visit(newOp->no.child(), currentSinkOp);
+			newAt = newOp;
+			break;
+		}
+
+		case OP_TYPE::ME_SWITCH:
+		{
+			Ptr<ASTOpSwitch> newOp = mu::Clone<ASTOpSwitch>(at);
+			newOp->def = Visit(newOp->def.child(), currentSinkOp);
+			for (ASTOpSwitch::FCase& c : newOp->cases)
+			{
+				c.branch = Visit(c.branch.child(), currentSinkOp);
+			}
+			newAt = newOp;
+			break;
+		}
+
+		// If we reach here it means the operation type has not bee optimized.
 		default:
+			if (at != m_initialSource)
+			{
+				mu::Ptr<ASTOpMeshExtractLayoutBlocks> newOp = mu::Clone<ASTOpMeshExtractLayoutBlocks>(currentSinkOp);
+				newOp->Source = at;
+				newAt = newOp;
+			}
 			break;
 
 		}
 
-		return NewOp;
+		OldToNew.Add({ at, currentSinkOp }, newAt);
+
+		return newAt;
 	}
 
 

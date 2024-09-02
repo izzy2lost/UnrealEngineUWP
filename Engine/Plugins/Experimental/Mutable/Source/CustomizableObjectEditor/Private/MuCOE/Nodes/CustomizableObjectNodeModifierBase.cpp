@@ -4,8 +4,10 @@
 
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
-#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
+#include "MuCOE/GraphTraversal.h"
+#include "MuCO/CustomizableObjectCustomVersion.h"
+#include "MuT/NodeModifier.h"
 
 
 FLinearColor UCustomizableObjectNodeModifierBase::GetNodeTitleColor() const
@@ -15,20 +17,104 @@ FLinearColor UCustomizableObjectNodeModifierBase::GetNodeTitleColor() const
 }
 
 
+UEdGraphPin* UCustomizableObjectNodeModifierBase::OutputPin() const
+{
+	return FindPin(TEXT("Modifier"));
+}
+
+
+bool UCustomizableObjectNodeModifierBase::IsApplicableTo(UCustomizableObjectNode* Candidate) const
+{
+	if (!Candidate)
+	{
+		return false;
+	}
+
+	const TArray<FString>* EnabledTags = Candidate->GetEnableTags();
+	const TArray<FString>* RequiredTags = GetRequiredTags();
+	if (EnabledTags && RequiredTags)
+	{
+		switch ( GetMultipleTagsPolicy() )
+		{
+		case EMutableMultipleTagPolicy::OnlyOneRequired:
+		{
+			for (const FString& RequiredTag : *RequiredTags)
+			{
+				if (EnabledTags->Contains(RequiredTag))
+				{
+					return true;
+				}
+			}
+			break;
+		}
+
+		case EMutableMultipleTagPolicy::AllRequired:
+		{
+			for (const FString& RequiredTag : *RequiredTags)
+			{
+				if (!EnabledTags->Contains(RequiredTag))
+				{
+					return false;
+				}
+			}
+			return true;
+			break;
+		}
+
+		default:
+			// Not implemented
+			check(false);
+		}
+	}
+
+	return false;
+}
+
+
+void UCustomizableObjectNodeModifierBase::GetPossiblyModifiedNodes(TArray<UCustomizableObjectNode*>& CandidateNodes) const
+{
+	// Scan all potential receivers
+	UCustomizableObject* ThisNodeObject = GetRootObject(*this);
+	UCustomizableObject* RootObject = GetRootObject(ThisNodeObject);
+
+	TSet<UCustomizableObject*> AllCustomizableObject;
+	GetAllObjectsInGraph(RootObject, AllCustomizableObject);
+
+	for (const UCustomizableObject* CustObject : AllCustomizableObject)
+	{
+		if (CustObject)
+		{
+			for (const TObjectPtr<UEdGraphNode>& CandidateNode : CustObject->GetPrivate()->GetSource()->Nodes)
+			{
+				UCustomizableObjectNode* Typed = Cast<UCustomizableObjectNode>(CandidateNode);
+				if (IsApplicableTo(Typed))
+				{
+					CandidateNodes.Add(Typed);
+				}
+			}
+		}
+	}
+}
+
 void UCustomizableObjectNodeModifierBase::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
 	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
 	
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
-	// Remove "Material" pin and add "Modifier"
+	// Remove "Material" pin and add "Modifier", fix the other side of the connections, if possible
 	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::AddModifierPin)
 	{
 		// Replace the output pin
 		UEdGraphPin* OldPin = FindPin(TEXT("Material"));
-		UEdGraphPin* NewPin = CustomCreatePin(EGPD_Output, Schema->PC_Modifier, FName("Modifier"));
-		if (OldPin && NewPin)
+		if (OldPin)
 		{
+			UEdGraphPin* NewPin = FindPin(TEXT("Modifier")); 
+			if (!NewPin)
+			{
+				NewPin = CustomCreatePin(EGPD_Output, Schema->PC_Modifier, FName("Modifier"));
+			}
+
 			FGuid PinId = NewPin->PinId;
 			NewPin->CopyPersistentDataFromOldPin(*OldPin);
 			NewPin->PinId = PinId;
@@ -66,10 +152,6 @@ void UCustomizableObjectNodeModifierBase::BackwardsCompatibleFixup(int32 Customi
 					{
 						LinksToRemove.Add(LinkedToPin);
 						NewPin->MakeLinkTo(ToModifierPin);
-					}
-					else
-					{
-						ensure(false);
 					}
 				}
 			}
@@ -142,6 +224,8 @@ void UCustomizableObjectNodeModifierBase::BackwardsCompatibleFixup(int32 Customi
 
 void UCustomizableObjectNodeModifierBase::PostBackwardsCompatibleFixup()
 {
+	Super::PostBackwardsCompatibleFixup();
+
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
 	// Check for old legacy connections that need manual update
@@ -178,5 +262,35 @@ void UCustomizableObjectNodeModifierBase::PostBackwardsCompatibleFixup()
 			}
 		}
 	}
+
+	// Apply backwards compatibility auto-generated tags to external objects.
+	const TArray<FString>* RequiredTags = GetRequiredTags();
+	if (RequiredTags)
+	{
+		for (const FLegacyTag& Tag : LegacyBackportsRequiredTags)
+		{
+			// If we still have it in this node
+			if (RequiredTags->Contains(Tag.Tag))
+			{
+				UCustomizableObjectNode* ParentNode = GetCustomizableObjectExternalNode<UCustomizableObjectNode>(Tag.ParentObject.Get(), Tag.ParentNode);
+				if (ParentNode)
+				{
+					TArray<FString>* NodeEnableTags = ParentNode->GetEnableTags();
+					if (NodeEnableTags)
+					{
+						NodeEnableTags->AddUnique(Tag.Tag);
+					}
+				}
+			}
+		}
+	}
 }
 
+
+FString UCustomizableObjectNodeModifierBase::MakeNodeAutoTag( UEdGraphNode* Node )
+{
+	const FString PackageName = Node->GetOutermost()->GetPathName();
+	const FString ShortName = FPackageName::GetShortName(PackageName);
+	FString NewLegacyTag = FString::Printf(TEXT("%s_%s"), *ShortName, *Node->NodeGuid.ToString());
+	return NewLegacyTag;
+}

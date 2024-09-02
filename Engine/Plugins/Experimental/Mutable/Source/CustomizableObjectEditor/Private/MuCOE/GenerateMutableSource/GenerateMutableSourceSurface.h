@@ -2,9 +2,22 @@
 
 #pragma once
 
-#include "MuT/NodeComponentNew.h"
+#include "MuR/Ptr.h"
+#include "Hal/Platform.h"
 
 class UEdGraphPin;
 struct FMutableGraphGenerationContext;
+struct FMutableGraphMeshGenerationData;
+enum class ECustomizableObjectNumBoneInfluences:uint8;
+namespace mu
+{
+	class FMeshBufferSet;
+	class NodeSurface;
+}
 
-mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutableGraphGenerationContext & GenerationContext);
+extern mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin* Pin, FMutableGraphGenerationContext & GenerationContext);
+
+extern void SetSurfaceFormat(FMutableGraphGenerationContext& GenerationContext,
+	mu::FMeshBufferSet& OutVertexBufferFormat, mu::FMeshBufferSet& OutIndexBufferFormat, const FMutableGraphMeshGenerationData& MeshData,
+	ECustomizableObjectNumBoneInfluences ECustomizableObjectNumBoneInfluences, bool bWith16BitWeights);
+

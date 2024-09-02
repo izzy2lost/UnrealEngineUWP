@@ -21,7 +21,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	ASTOpMeshMaskClipUVMask::ASTOpMeshMaskClipUVMask()
 		: Source(this)
-		, Mask(this)
+		, UVSource(this)
+		, MaskImage(this)
+		, MaskLayout(this)
 	{
 	}
 
@@ -40,7 +42,11 @@ namespace mu
 		if (otherUntyped.GetOpType() == GetOpType())
 		{
 			const ASTOpMeshMaskClipUVMask* other = static_cast<const ASTOpMeshMaskClipUVMask*>(&otherUntyped);
-			return Source == other->Source && Mask == other->Mask && LayoutIndex==other->LayoutIndex;
+			return Source == other->Source
+				&& UVSource == other->UVSource
+				&& MaskImage == other->MaskImage
+				&& MaskLayout == other->MaskLayout 
+				&& LayoutIndex==other->LayoutIndex;
 		}
 		return false;
 	}
@@ -50,7 +56,9 @@ namespace mu
 	uint64 ASTOpMeshMaskClipUVMask::Hash() const
 	{
 		uint64 res = std::hash<void*>()(Source.child().get());
-		hash_combine(res, Mask.child());
+		hash_combine(res, UVSource.child());
+		hash_combine(res, MaskImage.child());
+		hash_combine(res, MaskLayout.child());
 		return res;
 	}
 
@@ -60,7 +68,9 @@ namespace mu
 	{
 		Ptr<ASTOpMeshMaskClipUVMask> n = new ASTOpMeshMaskClipUVMask();
 		n->Source = mapChild(Source.child());
-		n->Mask = mapChild(Mask.child());
+		n->UVSource = mapChild(UVSource.child());
+		n->MaskImage = mapChild(MaskImage.child());
+		n->MaskLayout = mapChild(MaskLayout.child());
 		n->LayoutIndex = LayoutIndex;
 		return n;
 	}
@@ -70,7 +80,9 @@ namespace mu
 	void ASTOpMeshMaskClipUVMask::ForEachChild(const TFunctionRef<void(ASTChild&)> f)
 	{
 		f(Source);
-		f(Mask);
+		f(UVSource);
+		f(MaskImage);
+		f(MaskLayout);
 	}
 
 
@@ -84,11 +96,13 @@ namespace mu
 			FMemory::Memzero(args);
 
 			if (Source) args.Source = Source->linkedAddress;
-			if (Mask) args.Mask = Mask->linkedAddress;
+			if (UVSource) args.UVSource = UVSource->linkedAddress;
+			if (MaskImage) args.MaskImage = MaskImage->linkedAddress;
+			if (MaskLayout) args.MaskLayout = MaskLayout->linkedAddress;
 			args.LayoutIndex = LayoutIndex;
 
 			linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
-			program.m_opAddress.Add((uint32_t)program.m_byteCode.Num());
+			program.m_opAddress.Add((uint32)program.m_byteCode.Num());
 			AppendCode(program.m_byteCode, OP_TYPE::ME_MASKCLIPUVMASK);
 			AppendCode(program.m_byteCode, args);
 		}
@@ -248,7 +262,7 @@ namespace mu
 				m_root = root;
 				m_oldToNew.Empty();
 
-				m_initialClip = root->Mask.child();
+				m_initialClip = root->MaskImage.child();
 				mu::Ptr<ASTOp> NewClip = Visit(m_initialClip);
 
 				// If there is any change, it is the new root.
@@ -321,7 +335,7 @@ namespace mu
 					if (at != m_initialClip)
 					{
 						Ptr<ASTOpMeshMaskClipUVMask> newOp = mu::Clone<ASTOpMeshMaskClipUVMask>(m_root);
-						newOp->Mask = at;
+						newOp->MaskImage = at;
 						newAt = newOp;
 					}
 					break;

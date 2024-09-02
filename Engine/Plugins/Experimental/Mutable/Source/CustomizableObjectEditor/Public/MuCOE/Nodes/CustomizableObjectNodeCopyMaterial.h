@@ -36,7 +36,7 @@ public:
 	virtual UMaterialInterface* GetMaterial() const override;
 	virtual bool IsReuseMaterialBetweenLODs() const override;
 	virtual FName GetMeshComponentName() const override;
-	virtual TArray<FString> GetTags() const override;
+	virtual TArray<FString>* GetEnableTags() override;
 	virtual UEdGraphPin* GetMaterialAssetPin() const override;
 	virtual int32 GetNumParameters(EMaterialParameterType Type) const override;
 	virtual FNodeMaterialParameterId GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const override;

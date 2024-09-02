@@ -14,6 +14,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 #include "MuT/NodeComponentNew.h"
 #include "MuT/NodeImageConstant.h"
+#include "MuT/NodeMeshConstant.h"
 #include "MuT/NodeMeshApplyPose.h"
 #include "MuT/NodeModifierMeshClipWithMesh.h"
 #include "MuT/NodeObject.h"
@@ -29,7 +30,7 @@
 #include "UObject/Package.h"
 
 class UCustomizableObjectNodeMaterialBase;
-class UCustomizableObjectNodeMeshClipWithMesh;
+class UCustomizableObjectNodeModifierClipWithMesh;
 class UCustomizableObjectNodeTable;
 struct FCustomizableObjectClothingAssetData;
 
@@ -717,8 +718,8 @@ struct FMutableGraphGenerationContext
 	// Check if the Id of the node Node already exists, if it's new adds it to NodeIds array, otherwise, returns new Id
 	const FGuid GetNodeIdUnique(const UCustomizableObjectNode* Node);
 
-	/** Generates new tags for the UCustomizableObjectNodeMeshClipWithMesh nodes which have assigned a CO in the
-	* UCustomizableObjectNodeMeshClipWithMesh::CustomizableObjectToClipWith field
+	/** Generates new tags for the UCustomizableObjectNodeModifierClipWithMesh nodes which have assigned a CO in the
+	* UCustomizableObjectNodeModifierClipWithMesh::CustomizableObjectToClipWith field
 	* @return nothing */
 	void GenerateClippingCOInternalTags();
 
@@ -772,7 +773,7 @@ struct FMutableGraphGenerationContext
 	TMap<class UCustomizableObjectNodeMaterial*, TArray<mu::Ptr<mu::NodeSurfaceNew>>> MapMaterialNodeToMutableSurfaceNodeArray;
 
 	// Map with pairs (Unreal Mutable clip mesh node, array with its corresponding Mutable mesh modifier nodes) to add tags
-	TMap<class UCustomizableObjectNodeMeshClipWithMesh*, TArray<mu::Ptr<mu::NodeModifierMeshClipWithMesh>>> MapClipMeshNodeToMutableClipMeshNodeArray;
+	TMap<class UCustomizableObjectNodeModifierClipWithMesh*, TArray<mu::Ptr<mu::NodeModifierMeshClipWithMesh>>> MapClipMeshNodeToMutableClipMeshNodeArray;
 
 	// Data used for MorphTarget reconstruction.
 	TMap<uint32, FRealTimeMorphMeshData> RealTimeMorphTargetPerMeshData;

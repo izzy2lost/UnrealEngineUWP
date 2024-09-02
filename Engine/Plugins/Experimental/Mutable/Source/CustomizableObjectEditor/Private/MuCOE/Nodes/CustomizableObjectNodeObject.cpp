@@ -41,12 +41,12 @@ UCustomizableObjectNodeObject::UCustomizableObjectNodeObject()
 void UCustomizableObjectNodeObject::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
 {
 	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
-	
+
 	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::StateTextureCompressionStrategyEnum)
 	{
 		for (FCustomizableObjectState& State : States)
 		{
-			if (State.TextureCompressionStrategy== ETextureCompressionStrategy::None
+			if (State.TextureCompressionStrategy == ETextureCompressionStrategy::None
 				&&
 				State.bDontCompressRuntimeTextures_DEPRECATED)
 			{
@@ -55,7 +55,7 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup(int32 CustomizableO
 			}
 		}
 	}
-	
+
 	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::RegenerateNodeObjectsIds)
 	{
 		// This will regenerate all the Node Object Guids to finally remove the duplicated Guids warning.
@@ -328,6 +328,7 @@ void UCustomizableObjectNodeObject::PostBackwardsCompatibleFixup()
 	// Reconstruct in case any extension pins have changed
 	ReconstructNode();
 }
+
 
 void UCustomizableObjectNodeObject::PostPasteNode()
 {

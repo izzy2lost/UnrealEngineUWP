@@ -39,7 +39,6 @@
 #include "MuT/NodeObjectGroup.h"
 #include "MuT/NodeObjectNew.h"
 #include "MuT/NodeSurfaceNew.h"
-#include "MuT/NodeSurfaceEdit.h"
 #include "MuT/NodeSurfaceSwitch.h"
 #include "MuT/NodeSurfaceVariation.h"
 #include "MuT/NodeLOD.h"
@@ -53,6 +52,7 @@
 #include "MuT/NodeModifierMeshClipMorphPlane.h"
 #include "MuT/NodeModifierMeshClipWithUVMask.h"
 #include "MuT/NodeModifierMeshClipMorphPlane.h"
+#include "MuT/NodeModifierSurfaceEdit.h"
 #include "MuT/NodeScalarConstant.h"
 #include "MuT/NodeScalarCurve.h"
 #include "MuT/NodeScalarSwitch.h"
@@ -360,13 +360,12 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 		}
 	}
 
-	else if (ParentNode->GetType() == mu::NodeSurfaceEdit::GetStaticType())
+	else if (ParentNode->GetType() == mu::NodeModifierSurfaceEdit::GetStaticType())
 	{
-		mu::NodeSurfaceEdit* SurfaceEdit = StaticCast<mu::NodeSurfaceEdit*>(ParentNode);
+		mu::NodeModifierSurfaceEdit* SurfaceEdit = StaticCast<mu::NodeModifierSurfaceEdit*>(ParentNode);
 		AddChildFunc(SurfaceEdit->MeshAdd.get(), TEXT("MESH_ADD"));
 		AddChildFunc(SurfaceEdit->MeshRemove.get(), TEXT("MESH_REMOVE"));
-		AddChildFunc(SurfaceEdit->MeshMorph.get(), TEXT("MORPH"));
-		AddChildFunc(SurfaceEdit->MorphFactor.get(), TEXT("MORPH_FACTOR"));
+		AddChildFunc(SurfaceEdit->MorphFactor.get(), FString::Printf(TEXT("MORPH_FACTOR [%s]"), *SurfaceEdit->MeshMorph) );
 
 		for (int32 l = 0; l < SurfaceEdit->Textures.Num(); ++l)
 		{
@@ -490,6 +489,7 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	{
 		mu::NodeModifierMeshClipWithUVMask* ModifierMeshClipWithUVMaskVar = StaticCast<mu::NodeModifierMeshClipWithUVMask*>(ParentNode);
 		AddChildFunc(ModifierMeshClipWithUVMaskVar->ClipMask.get(), FString::Printf(TEXT("CLIP MASK")));
+		AddChildFunc(ModifierMeshClipWithUVMaskVar->ClipLayout.get(), FString::Printf(TEXT("CLIP LAYOUT")));
 	}
 
 	else if (ParentNode->GetType() == mu::NodeImageSwitch::GetStaticType())

@@ -10,18 +10,17 @@
 
 namespace mu
 {
-struct FProgram;
+	struct FProgram;
 
-
-	//---------------------------------------------------------------------------------------------
-	//!
-	//---------------------------------------------------------------------------------------------
+	/** Generate a mesh mask from an image mask or a layout with blocks. */
 	class ASTOpMeshMaskClipUVMask final : public ASTOp
 	{
 	public:
 
 		ASTChild Source;
-		ASTChild Mask;
+		ASTChild UVSource;
+		ASTChild MaskImage;
+		ASTChild MaskLayout;
 		uint8 LayoutIndex = 0;
 
 	public:

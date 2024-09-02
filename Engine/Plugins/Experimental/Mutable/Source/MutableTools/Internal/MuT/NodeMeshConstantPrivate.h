@@ -21,6 +21,14 @@ namespace mu
 
 		TArray<Ptr<NodeLayout>> Layouts;
 
+		struct FMorph
+		{
+			FString Name;
+			Ptr<Mesh> MorphedMesh;
+		};
+
+		TArray<FMorph> Morphs;
+
 	};
 
 }

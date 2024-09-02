@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MuCOE/Nodes/CustomizableObjectNodeMeshClipDeform.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierClipDeform.h"
 
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 
@@ -9,7 +9,7 @@ class UCustomizableObjectNodeRemapPins;
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
-void UCustomizableObjectNodeMeshClipDeform::AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins)
+void UCustomizableObjectNodeModifierClipDeform::AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins)
 {
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 	
@@ -21,25 +21,19 @@ void UCustomizableObjectNodeMeshClipDeform::AllocateDefaultPins(UCustomizableObj
 }
 
 
-UEdGraphPin* UCustomizableObjectNodeMeshClipDeform::ClipShapePin() const
+UEdGraphPin* UCustomizableObjectNodeModifierClipDeform::ClipShapePin() const
 {
 	return FindPin(TEXT("Clip Shape"), EGPD_Input);
 }
 
 
-UEdGraphPin* UCustomizableObjectNodeMeshClipDeform::OutputPin() const
-{
-	return FindPin(TEXT("Modifier"));
-}
-
-
-FText UCustomizableObjectNodeMeshClipDeform::GetNodeTitle(ENodeTitleType::Type TitleType) const
+FText UCustomizableObjectNodeModifierClipDeform::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	return LOCTEXT("Clip_Deform_Mesh", "Clip Deform Mesh");
 }
 
 
-FText UCustomizableObjectNodeMeshClipDeform::GetTooltipText() const
+FText UCustomizableObjectNodeModifierClipDeform::GetTooltipText() const
 {
 	return LOCTEXT("Clip_Deform_Tooltip", "Defines a clip with mesh deformation based on a shape mesh and blend weights.");
 

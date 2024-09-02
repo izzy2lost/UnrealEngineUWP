@@ -164,7 +164,11 @@ public:
 	virtual bool CanConnect( const UEdGraphPin* InOwnedInputPin, const UEdGraphPin* InOutputPin, bool& bOutIsOtherNodeBlocklisted, bool& bOutArePinsCompatible) const;
 
 	// Used during compilation process to cache the node for all LODs, or generate it specifically for each of them.
-	virtual bool IsAffectedByLOD() const { return true; }
+	virtual bool IsAffectedByLOD() const;
+
+	/** Return an array of tags that this node will enable and apply to its data. Null if none, or of it doesn't apply. */
+	virtual TArray<FString>* GetEnableTags();
+
 
 	// Get the CustomizableObject graph that owns this node
 	class UCustomizableObjectGraph* GetCustomizableObjectGraph() const;
@@ -218,12 +222,6 @@ public:
 
 	/** Return the LOD which this node belongs to. Return -1 if it is not connected (directly or indirectly) to a LOD pin. */
 	int32 GetLOD() const;
-
-	/** Get all parent Object nodes of this node which are parents of this node.
-	 * 
-	 * If a Object node is connected through a LOD pin, it has to match the given LOD.
-	 */
-	TArray<UCustomizableObjectNodeObject*> GetParentObjectNodes(int LOD) const;
 	
 	/** Set a pin to be hidden or not. */
 	void SetPinHidden(UEdGraphPin& Pin, bool bHidden);
@@ -324,7 +322,7 @@ private:
 	UPROPERTY()
 	TMap<FGuid, TObjectPtr<UCustomizableObjectNodePinData>> PinsDataId;
 
-	// Deprectated properties
+	// Deprecated properties in favour of PinsDataId
 	UPROPERTY()
 	TMap<FEdGraphPinReference, TObjectPtr<UCustomizableObjectNodePinData>> PinsData_DEPRECATED;
 };

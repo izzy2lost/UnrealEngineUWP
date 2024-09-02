@@ -43,8 +43,8 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeGroupProjectorParameter.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialVariation.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeMeshClipMorph.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeMeshClipWithMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierClipMorph.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierClipWithMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObjectGroup.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeProjectorConstant.h"
@@ -1000,7 +1000,7 @@ void FCustomizableObjectEditor::HideGizmoProjectorParameter()
 }
 
 
-void FCustomizableObjectEditor::ShowGizmoClipMorph(UCustomizableObjectNodeMeshClipMorph& Node)
+void FCustomizableObjectEditor::ShowGizmoClipMorph(UCustomizableObjectNodeModifierClipMorph& Node)
 {
 	if (Node.BoneName == FName())
 	{	
@@ -1034,7 +1034,7 @@ void FCustomizableObjectEditor::HideGizmoClipMorph()
 	for (FGraphPanelSelectionSet::TConstIterator NodeIt( SelectedNodes ); NodeIt; ++NodeIt)
 	{
 		const UObject* Node = *NodeIt;
-		if (Node->IsA<UCustomizableObjectNodeMeshClipMorph>())
+		if (Node->IsA<UCustomizableObjectNodeModifierClipMorph>())
 		{
 			GraphEditor->ClearSelectionSet();
 			break;
@@ -1043,7 +1043,7 @@ void FCustomizableObjectEditor::HideGizmoClipMorph()
 }
 
 
-void FCustomizableObjectEditor::ShowGizmoClipMesh(UCustomizableObjectNodeMeshClipWithMesh& Node)
+void FCustomizableObjectEditor::ShowGizmoClipMesh(UCustomizableObjectNodeModifierClipWithMesh& Node)
 {
 	UObject* ClipMesh = nullptr;
 	int32 LODIndex = 0;
@@ -1113,7 +1113,7 @@ void FCustomizableObjectEditor::HideGizmoClipMesh()
 	for (FGraphPanelSelectionSet::TConstIterator NodeIt( SelectedNodes ); NodeIt; ++NodeIt)
 	{
 		const UObject* Node = *NodeIt;
-		if (Node->IsA<UCustomizableObjectNodeMeshClipWithMesh>())
+		if (Node->IsA<UCustomizableObjectNodeModifierClipWithMesh>())
 		{
 			GraphEditor->ClearSelectionSet();
 			break;
@@ -1717,13 +1717,13 @@ void FCustomizableObjectEditor::OnSelectedGraphNodesChanged(const FGraphPanelSel
 			return;
 		}
 
-		if (UCustomizableObjectNodeMeshClipMorph* NodeMeshClipMorph = Cast<UCustomizableObjectNodeMeshClipMorph>(Objects[0]))
+		if (UCustomizableObjectNodeModifierClipMorph* NodeModifierClipMorph = Cast<UCustomizableObjectNodeModifierClipMorph>(Objects[0]))
 		{		
-			ShowGizmoClipMorph(*NodeMeshClipMorph);			
+			ShowGizmoClipMorph(*NodeModifierClipMorph);
 		}
-		else if (UCustomizableObjectNodeMeshClipWithMesh* NodeMeshClipWithMesh = Cast<UCustomizableObjectNodeMeshClipWithMesh>(Objects[0]))
+		else if (UCustomizableObjectNodeModifierClipWithMesh* NodeModifierClipWithMesh = Cast<UCustomizableObjectNodeModifierClipWithMesh>(Objects[0]))
 		{
-			ShowGizmoClipMesh(*NodeMeshClipWithMesh);			
+			ShowGizmoClipMesh(*NodeModifierClipWithMesh);
 		}
 		else if (UCustomizableObjectNodeProjectorConstant* NodeProjectorConstant = Cast<UCustomizableObjectNodeProjectorConstant>(Objects[0]))
 		{

@@ -36,6 +36,25 @@ namespace mu
     }
 
 
+	void NodeMeshConstant::AddMorph(const FString& Name, Ptr<Mesh> Morphed)
+	{
+		m_pD->Morphs.Add({Name,Morphed});
+	}
+
+
+	Ptr<Mesh> NodeMeshConstant::FindMorph(const FString& Name) const
+	{
+		for (Private::FMorph& Morph : m_pD->Morphs )
+		{
+			if (Morph.Name == Name)
+			{
+				return Morph.MorphedMesh;
+			}
+		}
+		return nullptr;
+	}
+
+
 	int32 NodeMeshConstant::GetLayoutCount() const
 	{
 		return m_pD->Layouts.Num();

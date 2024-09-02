@@ -69,9 +69,7 @@ public:
 	virtual bool IsReuseMaterialBetweenLODs() const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::IsReuseMaterialBetweenLODs, return {}; );
 
 	virtual FName GetMeshComponentName() const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetComponentName, return {}; );
-	
-	virtual TArray<FString> GetTags() const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetTags, return {}; );
-	
+		
 	virtual UEdGraphPin* GetMeshPin() const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetMeshPin, return {}; );
 
 	virtual UEdGraphPin* GetMaterialAssetPin() const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetMaterialAssetPin, return {}; );

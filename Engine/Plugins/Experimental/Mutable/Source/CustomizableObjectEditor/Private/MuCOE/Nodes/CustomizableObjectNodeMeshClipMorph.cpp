@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MuCOE/Nodes/CustomizableObjectNodeMeshClipMorph.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierClipMorph.h"
 
 #include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
@@ -14,7 +14,7 @@ class UEdGraphPin;
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
-UCustomizableObjectNodeMeshClipMorph::UCustomizableObjectNodeMeshClipMorph()
+UCustomizableObjectNodeModifierClipMorph::UCustomizableObjectNodeModifierClipMorph()
 	: Super()
 {
 	StartOffset = FVector::ZeroVector;
@@ -31,7 +31,7 @@ UCustomizableObjectNodeMeshClipMorph::UCustomizableObjectNodeMeshClipMorph()
 }
 
 
-FVector UCustomizableObjectNodeMeshClipMorph::GetOriginWithOffset() const
+FVector UCustomizableObjectNodeModifierClipMorph::GetOriginWithOffset() const
 {
 	FVector NewOrigin;
 
@@ -50,7 +50,7 @@ FVector UCustomizableObjectNodeMeshClipMorph::GetOriginWithOffset() const
 	return NewOrigin;
 }
 
-void UCustomizableObjectNodeMeshClipMorph::FindLocalAxes(FVector& XAxis, FVector& YAxis, FVector& ZAxis) const
+void UCustomizableObjectNodeModifierClipMorph::FindLocalAxes(FVector& XAxis, FVector& YAxis, FVector& ZAxis) const
 {
 	YAxis = FVector(0.f, 1.f, 0.f);
 
@@ -69,7 +69,7 @@ void UCustomizableObjectNodeMeshClipMorph::FindLocalAxes(FVector& XAxis, FVector
 }
 
 
-void UCustomizableObjectNodeMeshClipMorph::ChangeStartOffsetTransform()
+void UCustomizableObjectNodeModifierClipMorph::ChangeStartOffsetTransform()
 {
 	// Local Offset
 	FVector XAxis, YAxis, ZAxis;
@@ -87,13 +87,13 @@ void UCustomizableObjectNodeMeshClipMorph::ChangeStartOffsetTransform()
 }
 
 
-UEdGraphPin* UCustomizableObjectNodeMeshClipMorph::OutputPin() const
+UEdGraphPin* UCustomizableObjectNodeModifierClipMorph::OutputPin() const
 {
 	return FindPin(TEXT("Modifier"));
 }
 
 
-void UCustomizableObjectNodeMeshClipMorph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void UCustomizableObjectNodeModifierClipMorph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
 
@@ -108,7 +108,7 @@ void UCustomizableObjectNodeMeshClipMorph::PostEditChangeProperty(FPropertyChang
 }
 
 
-void UCustomizableObjectNodeMeshClipMorph::Serialize(FArchive& Ar)
+void UCustomizableObjectNodeModifierClipMorph::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
 
@@ -133,7 +133,7 @@ void UCustomizableObjectNodeMeshClipMorph::Serialize(FArchive& Ar)
 }
 
 
-void UCustomizableObjectNodeMeshClipMorph::AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins)
+void UCustomizableObjectNodeModifierClipMorph::AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins)
 {
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
@@ -141,13 +141,13 @@ void UCustomizableObjectNodeMeshClipMorph::AllocateDefaultPins(UCustomizableObje
 }
 
 
-FText UCustomizableObjectNodeMeshClipMorph::GetNodeTitle(ENodeTitleType::Type TitleType) const
+FText UCustomizableObjectNodeModifierClipMorph::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	return LOCTEXT("Clip_Morph_Mesh", "Clip Morph Mesh");
 }
 
 
-void UCustomizableObjectNodeMeshClipMorph::PinConnectionListChanged(UEdGraphPin* Pin)
+void UCustomizableObjectNodeModifierClipMorph::PinConnectionListChanged(UEdGraphPin* Pin)
 {
 	Super::PinConnectionListChanged(Pin);
 
@@ -163,7 +163,7 @@ void UCustomizableObjectNodeMeshClipMorph::PinConnectionListChanged(UEdGraphPin*
 }
 
 
-FText UCustomizableObjectNodeMeshClipMorph::GetTooltipText() const
+FText UCustomizableObjectNodeModifierClipMorph::GetTooltipText() const
 {
 	return LOCTEXT("Clip_Mesh_Morph_Tooltip", "Defines a cutting plane on a bone to cut tagged Materials that go past it, while morphing the mesh after the cut to blend in more naturally.\nIt only cuts and morphs mesh that receives some influence of that bone or other descendant bones.");
 }

@@ -1301,7 +1301,6 @@ namespace mu
 		}
 
 		OutResult.BaseMeshOp = LastMeshOp;
-		OutResult.MeshOp = LastMeshOp;
 
 		// Add the tags operation
 		if (Tags.Num())
@@ -1312,9 +1311,11 @@ namespace mu
 			LastMeshOp = AddTagsOp;
 		}
 
+		OutResult.MeshOp = LastMeshOp;
+
 		// Apply the modifier for the pre-normal operations stage.
 		bool bModifiersForBeforeOperations = true;
-		OutResult.MeshOp = ApplyMeshModifiers(InOptions, LastMeshOp, bModifiersForBeforeOperations, InNode->GetMessageContext());
+		OutResult.MeshOp = ApplyMeshModifiers(InOptions, OutResult, nullptr, bModifiersForBeforeOperations, InNode->GetMessageContext(), InNode);
     }
 
 

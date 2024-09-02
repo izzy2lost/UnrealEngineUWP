@@ -42,7 +42,13 @@ namespace mu
 		Ptr<Mesh> GetValue() const;
 
 		//! Set the constant mesh that will be returned.
-		void SetValue( Ptr<Mesh> );
+		void SetValue(Ptr<Mesh>);
+
+		/** */
+		void AddMorph(const FString& Name, Ptr<Mesh>);
+
+		/** */
+		Ptr<Mesh> FindMorph(const FString& Name) const;
 
 		//! Get the number of layouts defined in this mesh.
 		int32 GetLayoutCount() const;

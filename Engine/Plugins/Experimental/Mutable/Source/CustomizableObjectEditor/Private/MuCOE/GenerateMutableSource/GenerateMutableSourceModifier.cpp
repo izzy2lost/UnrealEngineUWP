@@ -6,18 +6,33 @@
 #include "MuCOE/CustomizableObjectCompiler.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceMesh.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceImage.h"
+#include "MuCOE/GenerateMutableSource/GenerateMutableSourceFloat.h"
+#include "MuCOE/GenerateMutableSource/GenerateMutableSourceSurface.h"
+#include "MuCOE/GenerateMutableSource/GenerateMutableSourceLayout.h"
+#include "MuCOE/GenerateMutableSource/GenerateMutableSourceGroupProjector.h"
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/MutableUtils.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeMeshClipDeform.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeMeshClipMorph.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeMeshClipWithMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierClipDeform.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierClipMorph.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierClipWithMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierClipWithUVMask.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierExtendMeshSection.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierEditMeshSection.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierMorphMeshSection.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierRemoveMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierRemoveMeshBlocks.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeStaticMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeFloatParameter.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeFloatConstant.h"
 #include "MuR/Mesh.h"
 #include "MuT/NodeMeshTransform.h"
 #include "MuT/NodeModifierMeshClipDeform.h"
 #include "MuT/NodeModifierMeshClipMorphPlane.h"
 #include "MuT/NodeModifierMeshClipWithUVMask.h"
+#include "MuT/NodeModifierSurfaceEdit.h"
+#include "MuT/NodeMeshConstant.h"
+#include "MuT/NodeMeshFragment.h"
+#include "MuT/NodeMeshFormat.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -37,20 +52,18 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		return static_cast<mu::NodeModifier*>(Generated->Node.get());
 	}
 	
-	mu::NodeModifierPtr Result;
+	mu::Ptr<mu::NodeModifier> Result;
 
 	bool bDoNotAddToGeneratedCache = false; // TODO Remove on MTBL-829 
 
 	
-	// We don't need all the data for the modifiers meshes
-	const EMutableMeshConversionFlags ModifiersMeshFlags = 
+	if (const UCustomizableObjectNodeModifierClipMorph* TypedNodeClip = Cast<UCustomizableObjectNodeModifierClipMorph>(Node))
+	{
+		const EMutableMeshConversionFlags ModifiersMeshFlags =
 			EMutableMeshConversionFlags::IgnoreSkinning |
 			EMutableMeshConversionFlags::IgnorePhysics;
+		GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
 
-	GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
-
-	if (const UCustomizableObjectNodeMeshClipMorph* TypedNodeClip = Cast<UCustomizableObjectNodeMeshClipMorph>(Node))
-	{
 		mu::Ptr<mu::NodeModifierMeshClipMorphPlane> ClipNode = new mu::NodeModifierMeshClipMorphPlane();
 		Result = ClipNode;
 
@@ -68,10 +81,17 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		{
 			 ClipNode->RequiredTags.Add(Tag);
 		}
+
+		GenerationContext.MeshGenerationFlags.Pop();
 	}
 
-	else if (const UCustomizableObjectNodeMeshClipDeform* TypedNodeClipDeform = Cast<UCustomizableObjectNodeMeshClipDeform>(Node))
+	else if (const UCustomizableObjectNodeModifierClipDeform* TypedNodeClipDeform = Cast<UCustomizableObjectNodeModifierClipDeform>(Node))
 	{
+		const EMutableMeshConversionFlags ModifiersMeshFlags =
+			EMutableMeshConversionFlags::IgnoreSkinning |
+			EMutableMeshConversionFlags::IgnorePhysics;
+		GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
+
 		mu::Ptr<mu::NodeModifierMeshClipDeform> ClipNode = new mu::NodeModifierMeshClipDeform();
 		Result = ClipNode;
 	
@@ -113,10 +133,17 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		{
 			ClipNode->RequiredTags.Add(Tag);
 		}		
+
+		GenerationContext.MeshGenerationFlags.Pop();
 	}
 
-	else if (const UCustomizableObjectNodeMeshClipWithMesh* TypedNodeClipMesh = Cast<UCustomizableObjectNodeMeshClipWithMesh>(Node))
+	else if (const UCustomizableObjectNodeModifierClipWithMesh* TypedNodeClipMesh = Cast<UCustomizableObjectNodeModifierClipWithMesh>(Node))
 	{
+		const EMutableMeshConversionFlags ModifiersMeshFlags =
+			EMutableMeshConversionFlags::IgnoreSkinning |
+			EMutableMeshConversionFlags::IgnorePhysics;
+		GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
+
 		// MeshClipWithMesh can be connected to multiple objects, so the compiled NodeModifierMeshClipWithMesh
 		// needs to be different for each object. If it were added to the Generated cache, all the objects would get the same.
 		bDoNotAddToGeneratedCache = true;
@@ -182,13 +209,13 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 
 		if (TypedNodeClipMesh->CustomizableObjectToClipWith != nullptr)
 		{
-			TArray<mu::Ptr<mu::NodeModifierMeshClipWithMesh>>* ArrayDataPtr = GenerationContext.MapClipMeshNodeToMutableClipMeshNodeArray.Find(Cast<UCustomizableObjectNodeMeshClipWithMesh>(Pin->GetOwningNode()));
+			TArray<mu::Ptr<mu::NodeModifierMeshClipWithMesh>>* ArrayDataPtr = GenerationContext.MapClipMeshNodeToMutableClipMeshNodeArray.Find(Cast<UCustomizableObjectNodeModifierClipWithMesh>(Pin->GetOwningNode()));
 
 			if (ArrayDataPtr == nullptr)
 			{
 				TArray<mu::Ptr<mu::NodeModifierMeshClipWithMesh>> ArrayData;
 				ArrayData.Add(ClipNode);
-				UCustomizableObjectNodeMeshClipWithMesh* CastedNode = Cast<UCustomizableObjectNodeMeshClipWithMesh>(Pin->GetOwningNode());
+				UCustomizableObjectNodeModifierClipWithMesh* CastedNode = Cast<UCustomizableObjectNodeModifierClipWithMesh>(Pin->GetOwningNode());
 				GenerationContext.MapClipMeshNodeToMutableClipMeshNodeArray.Add(CastedNode, ArrayData);
 			}
 			else
@@ -196,10 +223,17 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 				ArrayDataPtr->AddUnique(ClipNode);
 			}
 		}
+
+		GenerationContext.MeshGenerationFlags.Pop();
 	}
 
 	else if (const UCustomizableObjectNodeModifierClipWithUVMask* TypedNodeClipUVMask = Cast<UCustomizableObjectNodeModifierClipWithUVMask>(Node))
 	{
+		const EMutableMeshConversionFlags ModifiersMeshFlags =
+			EMutableMeshConversionFlags::IgnoreSkinning |
+			EMutableMeshConversionFlags::IgnorePhysics;
+		GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
+
 		// This modifier can be connected to multiple objects, so the compiled node
 		// needs to be different for each object. If it were added to the Generated cache, all the objects would get the same.
 		bDoNotAddToGeneratedCache = true;
@@ -229,14 +263,331 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		{
 			ClipNode->RequiredTags.Add(Tag);
 		}
+
+		GenerationContext.MeshGenerationFlags.Pop();
+	}
+
+	else if (UCustomizableObjectNodeModifierExtendMeshSection* TypedNodeExt = Cast<UCustomizableObjectNodeModifierExtendMeshSection>(Node))
+	{
+		const EMutableMeshConversionFlags ModifiersMeshFlags = EMutableMeshConversionFlags::None;
+		GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
+
+		mu::Ptr<mu::NodeModifierSurfaceEdit> SurfNode = new mu::NodeModifierSurfaceEdit();
+		Result = SurfNode;
+
+		// TODO: This was used in the non-modifier version for group projectors. It may affect the "drop projection from LOD" feature.
+		const int32 LOD = Node->IsAffectedByLOD() ? GenerationContext.CurrentLOD : 0;
+
+		[&] // Using a lambda so control flow is easier to manage.
+		{
+			SurfNode->MultipleTagsPolicy = TypedNodeExt->MultipleTagPolicy;
+			for (const FString& Tag : TypedNodeExt->RequiredTags)
+			{
+				SurfNode->RequiredTags.Add(Tag);
+			}
+
+			mu::Ptr<mu::NodeMesh> AddMeshNode;
+			FMutableGraphMeshGenerationData MeshData;
+			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeExt->AddMeshPin()))
+			{
+				AddMeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, MeshData, true, false);
+			}
+
+			if (AddMeshNode)
+			{
+				mu::Ptr<mu::NodeMesh> MeshPtr = AddMeshNode;
+
+				const TArray<UCustomizableObjectLayout*> Layouts = TypedNodeExt->GetLayouts();
+
+				if (Layouts.Num())
+				{
+					mu::Ptr<mu::NodeMeshFragment> MeshFrag = new mu::NodeMeshFragment();
+
+					MeshFrag->SourceMesh = MeshPtr;
+					//TODO: Implement support for multiple UV channels (e.g. Add warning for vertices which have a block in a layout but not in the other)
+					MeshFrag->LayoutIndex = 0;
+
+					// For this case we don't want to create another layout: we will use the one defined in the mesh to be added since we want to add
+					// any block defined there.
+					//bool bWasEmpty = false;
+					//MeshFrag->Layout = CreateMutableLayoutNode(GenerationContext, Layouts[MeshFrag->LayoutIndex], true, bWasEmpty);
+
+					MeshPtr = MeshFrag;
+				}
+				else
+				{
+					GenerationContext.Compiler->CompilerLog(LOCTEXT("ExtendMaterialLayoutMissing", "Skeletal Mesh without Layout Node linked to an Extend Material. A 4x4 layout will be added as default layout."), Node);
+				}
+
+				mu::Ptr<mu::NodeMeshFormat> MeshFormat = new mu::NodeMeshFormat();
+				SetSurfaceFormat(GenerationContext,
+					MeshFormat->GetVertexBuffers(), MeshFormat->GetIndexBuffers(), MeshData,
+					GenerationContext.Options.CustomizableObjectNumBoneInfluences,
+					GenerationContext.Options.b16BitBoneWeightsEnabled);
+
+				MeshFormat->SetSource(MeshPtr.get());
+
+				SurfNode->MeshAdd = MeshFormat;
+			}
+
+			const int32 NumImages = TypedNodeExt->GetNumParameters(EMaterialParameterType::Texture);
+			SurfNode->Textures.SetNum(NumImages);
+			for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
+			{
+				mu::NodeImagePtr ImageNode;
+
+				if (!ImageNode) // If
+				{
+					const FString MaterialImageId = FGroupProjectorImageInfo::GenerateId(TypedNodeExt, ImageIndex);
+					const FGroupProjectorImageInfo* ProjectorInfo = GenerationContext.GroupProjectorLODCache.Find(MaterialImageId);
+
+					if (ProjectorInfo)
+					{
+						ensure(LOD > GenerationContext.FirstLODAvailable);
+						check(ProjectorInfo->SurfNode->Images[ImageIndex].Image == ProjectorInfo->ImageNode);
+						ImageNode = ProjectorInfo->ImageNode;
+
+						//TextureNameToProjectionResFactor.Add(ProjectorInfo->RealTextureName, ProjectorInfo->AlternateProjectionResolutionFactor);
+						//AlternateResStateName = ProjectorInfo->AlternateResStateName;
+					}
+				}
+
+				if (!ImageNode) // Else if
+				{
+					bool bShareProjectionTexturesBetweenLODs = false;
+					bool bIsGroupProjectorImage = false;
+					UTexture2D* GroupProjectionReferenceTexture = nullptr;
+					TMap<FString, float> TextureNameToProjectionResFactor;
+					FString AlternateResStateName;
+
+					ImageNode = GenerateMutableGroupProjection(LOD, ImageIndex, AddMeshNode, GenerationContext,
+						nullptr, TypedNodeExt, bShareProjectionTexturesBetweenLODs, bIsGroupProjectorImage,
+						GroupProjectionReferenceTexture, TextureNameToProjectionResFactor, AlternateResStateName);
+				}
+
+				if (!ImageNode) // Else if
+				{
+					const FNodeMaterialParameterId ImageId = TypedNodeExt->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+
+					if (TypedNodeExt->UsesImage(ImageId))
+					{
+						// TODO
+						//check(ParentMaterialNode->IsImageMutableMode(ImageIndex)); // Ensured at graph time. If it fails, something is wrong.
+
+						if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeExt->GetUsedImagePin(ImageId)))
+						{
+							// ReferenceTextureSize is used to limit the size of textures contributing to the final image.
+							const int32 ReferenceTextureSize = 0; // TODO GetBaseTextureSize(GenerationContext, TypedNodeExt, ImageIndex);
+
+							ImageNode = GenerateMutableSourceImage(ConnectedPin, GenerationContext, ReferenceTextureSize);
+						}
+					}
+				}
+
+				if (ImageNode)
+				{
+					SurfNode->Textures[ImageIndex].Extend = ImageNode;
+				}
+
+			}
+
+			for (const FString& Tag : TypedNodeExt->Tags)
+			{
+				SurfNode->EnableTags.Add(Tag);
+			}
+		}();
+
+		GenerationContext.MeshGenerationFlags.Pop();
+	}
+
+	else if (const UCustomizableObjectNodeModifierRemoveMesh* TypedNodeRem = Cast<UCustomizableObjectNodeModifierRemoveMesh>(Node))
+	{
+		const EMutableMeshConversionFlags ModifiersMeshFlags =
+			EMutableMeshConversionFlags::IgnoreSkinning |
+			EMutableMeshConversionFlags::IgnorePhysics;
+		GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
+
+		mu::Ptr<mu::NodeModifierSurfaceEdit> SurfNode = new mu::NodeModifierSurfaceEdit();
+		Result = SurfNode;
+
+		SurfNode->MultipleTagsPolicy = TypedNodeRem->MultipleTagPolicy;
+		for (const FString& Tag : TypedNodeRem->RequiredTags)
+		{
+			SurfNode->RequiredTags.Add(Tag);
+		}
+
+		mu::Ptr<mu::NodeMesh> RemoveMeshNode;
+
+		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeRem->RemoveMeshPin()))
+		{
+			FMutableGraphMeshGenerationData DummyMeshData;
+			RemoveMeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, DummyMeshData, false, true);
+		}
+
+		SurfNode->MeshRemove = RemoveMeshNode;
+
+		GenerationContext.MeshGenerationFlags.Pop();
+	}
+
+	else if (const UCustomizableObjectNodeModifierRemoveMeshBlocks* TypedNodeRemBlocks = Cast<UCustomizableObjectNodeModifierRemoveMeshBlocks>(Node))
+	{
+		const EMutableMeshConversionFlags ModifiersMeshFlags =
+			EMutableMeshConversionFlags::IgnoreSkinning |
+			EMutableMeshConversionFlags::IgnorePhysics;
+		GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
+
+		mu::Ptr<mu::NodeModifierMeshClipWithUVMask> ClipNode = new mu::NodeModifierMeshClipWithUVMask();
+		Result = ClipNode;
+
+		ClipNode->MultipleTagsPolicy = TypedNodeRemBlocks->MultipleTagPolicy;
+		for (const FString& Tag : TypedNodeRemBlocks->RequiredTags)
+		{
+			ClipNode->RequiredTags.Add(Tag);
+		}
+
+		bool bWasEmpty = false;
+		mu::Ptr<mu::NodeLayout> SourceLayout = CreateMutableLayoutNode(GenerationContext, TypedNodeRemBlocks->Layout, true, bWasEmpty);
+		ClipNode->ClipLayout = SourceLayout;
+		ClipNode->LayoutIndex = TypedNodeRemBlocks->ParentLayoutIndex;
+
+		GenerationContext.MeshGenerationFlags.Pop();
+	}
+
+	else if (UCustomizableObjectNodeModifierEditMeshSection* TypedNodeEdit = Cast<UCustomizableObjectNodeModifierEditMeshSection>(Node))
+	{
+		const EMutableMeshConversionFlags ModifiersMeshFlags =
+			EMutableMeshConversionFlags::IgnoreSkinning |
+			EMutableMeshConversionFlags::IgnorePhysics;
+		GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
+
+		mu::Ptr<mu::NodeModifierSurfaceEdit> SurfNode = new mu::NodeModifierSurfaceEdit();
+		Result = SurfNode;
+
+		SurfNode->MultipleTagsPolicy = TypedNodeEdit->MultipleTagPolicy;
+		for (const FString& Tag : TypedNodeEdit->RequiredTags)
+		{
+			SurfNode->RequiredTags.Add(Tag);
+		}
+
+		const int32 NumImages = TypedNodeEdit->GetNumParameters(EMaterialParameterType::Texture);
+		SurfNode->Textures.SetNum(NumImages);
+		for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
+		{
+			const FNodeMaterialParameterId ImageId = TypedNodeEdit->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+
+			if (TypedNodeEdit->UsesImage(ImageId))
+			{
+				// TODO
+				//check(ParentMaterialNode->IsImageMutableMode(ImageIndex)); // Ensured at graph time. If it fails, something is wrong.
+
+				const UEdGraphPin* ConnectedImagePin = FollowInputPin(*TypedNodeEdit->GetUsedImagePin(ImageId));
+
+				mu::NodeModifierSurfaceEdit::FTexture& ImagePatch = SurfNode->Textures[ImageIndex];
+
+				// \todo: expose these two options?
+				ImagePatch.PatchBlendType = mu::EBlendType::BT_BLEND;
+				ImagePatch.bPatchApplyToAlpha = true;
+
+				// ReferenceTextureSize is used to limit the size of textures contributing to the final image.
+				const int32 ReferenceTextureSize = 0; //TODO GetBaseTextureSize(GenerationContext, ParentMaterialNode, ImageIndex);
+
+				ImagePatch.PatchImage = GenerateMutableSourceImage(ConnectedImagePin, GenerationContext, ReferenceTextureSize);
+
+				const UEdGraphPin* ImageMaskPin = TypedNodeEdit->GetUsedImageMaskPin(ImageId);
+				check(ImageMaskPin); // Ensured when reconstructing EditMaterial nodes. If it fails, something is wrong.
+
+				if (const UEdGraphPin* ConnectedMaskPin = FollowInputPin(*ImageMaskPin))
+				{
+					ImagePatch.PatchMask = GenerateMutableSourceImage(ConnectedMaskPin, GenerationContext, ReferenceTextureSize);
+				}
+
+				// Add the blocks to patch
+				FIntPoint GridSize = TypedNodeEdit->Layout->GetGridSize();
+				FVector2f GridSizeF = FVector2f(GridSize);
+				ImagePatch.PatchBlocks.Reserve(TypedNodeEdit->Layout->Blocks.Num());
+				for (const FCustomizableObjectLayoutBlock& LayoutBlock : TypedNodeEdit->Layout->Blocks)
+				{
+					FBox2f Rect;
+					Rect.Min = FVector2f(LayoutBlock.Min) / GridSizeF;
+					Rect.Max = FVector2f(LayoutBlock.Max) / GridSizeF;
+					ImagePatch.PatchBlocks.Add(Rect);
+				}
+			}
+		}
+
+		GenerationContext.MeshGenerationFlags.Pop();
+	}
+
+	else if (const UCustomizableObjectNodeModifierMorphMeshSection* TypedNodeMorph = Cast<UCustomizableObjectNodeModifierMorphMeshSection>(Node))
+	{
+		const EMutableMeshConversionFlags ModifiersMeshFlags =
+			EMutableMeshConversionFlags::IgnoreSkinning |
+			EMutableMeshConversionFlags::IgnorePhysics;
+		GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
+
+		mu::Ptr<mu::NodeModifierSurfaceEdit> SurfNode = new mu::NodeModifierSurfaceEdit();
+		Result = SurfNode;
+
+		// This modifier needs to be applied right after the mesh constant is generated
+		SurfNode->bApplyBeforeNormalOperations = true;
+
+		SurfNode->MultipleTagsPolicy = TypedNodeMorph->MultipleTagPolicy;
+		for (const FString& Tag : TypedNodeMorph->RequiredTags)
+		{
+			SurfNode->RequiredTags.Add(Tag);
+		}
+
+		SurfNode->MeshMorph = TypedNodeMorph->MorphTargetName;
+
+		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMorph->FactorPin()))
+		{
+			UEdGraphNode* floatNode = ConnectedPin->GetOwningNode();
+			bool validStaticFactor = true;
+			if (const UCustomizableObjectNodeFloatParameter* floatParameterNode = Cast<UCustomizableObjectNodeFloatParameter>(floatNode))
+			{
+				if (floatParameterNode->DefaultValue < -1.0f || floatParameterNode->DefaultValue > 1.0f)
+				{
+					validStaticFactor = false;
+					FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the default value of the float parameter node is (%f). Factor will be ignored."), floatParameterNode->DefaultValue);
+					GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+				}
+				if (floatParameterNode->ParamUIMetadata.MinimumValue < -1.0f)
+				{
+					validStaticFactor = false;
+					FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the minimum UI value for the input float parameter node is (%f). Factor will be ignored."), floatParameterNode->ParamUIMetadata.MinimumValue);
+					GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+				}
+				if (floatParameterNode->ParamUIMetadata.MaximumValue > 1.0f)
+				{
+					validStaticFactor = false;
+					FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the maximum UI value for the input float parameter node is (%f). Factor will be ignored."), floatParameterNode->ParamUIMetadata.MaximumValue);
+					GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+				}
+			}
+			else if (const UCustomizableObjectNodeFloatConstant* floatConstantNode = Cast<UCustomizableObjectNodeFloatConstant>(floatNode))
+			{
+				if (floatConstantNode->Value < -1.0f || floatConstantNode->Value > 1.0f)
+				{
+					validStaticFactor = false;
+					FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the value of the float constant node is (%f). Factor will be ignored."), floatConstantNode->Value);
+					GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+				}
+			}
+
+			if (validStaticFactor)
+			{
+				mu::NodeScalarPtr FactorNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
+				SurfNode->MorphFactor = FactorNode;
+			}
+		}
+
+		GenerationContext.MeshGenerationFlags.Pop();
 	}
 
 	else
 	{
 		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
 	}
-
-	GenerationContext.MeshGenerationFlags.Pop();
 
 	if (!bDoNotAddToGeneratedCache)
 	{

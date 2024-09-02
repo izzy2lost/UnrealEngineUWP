@@ -755,12 +755,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 	const bool bIgnorePhysics = EnumHasAnyFlags(CurrentFlags, EMutableMeshConversionFlags::IgnorePhysics);
 	const bool bDoNotCreateMeshMetadata = EnumHasAnyFlags(CurrentFlags, EMutableMeshConversionFlags::DoNotCreateMeshMetadata);
 
-	mu::MeshPtr MutableMesh = new mu::Mesh();
-
-	// CurrentMeshComponent == None implies IgnoreSkeleton flag.
-	// CurrentMeshComponent == None will only happen with modifiers and, for now, any mesh generated from a modifier
-	// should ignore skinning.
-	check(!(GenerationContext.CurrentMeshComponent.IsNone()) || bIgnoreSkeleton);
+	mu::Ptr<mu::Mesh> MutableMesh = new mu::Mesh();
 
 	bool bBoneMapModified = false;
 	TArray<FBoneIndexType> BoneMap;
@@ -2465,45 +2460,28 @@ mu::Ptr<mu::Mesh> GenerateMutableMesh(UObject * Mesh, const TSoftClassPtr<UAnimI
 	EMutableMeshConversionFlags CurrentFlags = GenerationContext.MeshGenerationFlags.Last();
 
 	FMutableGraphGenerationContext::FGeneratedMeshData::FKey Key = { Mesh, LODIndex, GenerationContext.CurrentLOD, SectionIndex, CurrentFlags, UniqueTags, CurrentNode };
-	mu::MeshPtr MutableMesh = GenerationContext.FindGeneratedMesh(Key);
-	
-	if (!MutableMesh)
+	mu::Ptr<mu::Mesh> MutableMesh = GenerationContext.FindGeneratedMesh(Key);	
+	if (MutableMesh)
 	{
-		if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Mesh))
+		return MutableMesh;
+	}
+
+	if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Mesh))
+	{
+		// At some point we will want all meshes to be references at compile-time. For now, just create the actual pass-through meshes.
+		if (bIsReference)
 		{
-			// At some point we will want all meshes to be references at compile-time. For now, just create the actual pass-through meshes.
-			if (bIsReference)
-			{
-				MutableMesh = GenerateMeshConstant(SkeletalMesh, GenerationContext, bIsReference);
-			}
-			else
-			{
-				MutableMesh = ConvertSkeletalMeshToMutable(SkeletalMesh, AnimInstance, LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, GenerationContext, CurrentNode, TableReferenceSkeletalMesh);
-
-				FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
-
-				if (MutableMesh &&
-					ImportedModel->LODModels.IsValidIndex(LODIndex) &&
-					ImportedModel->LODModels[LODIndex].Sections.IsValidIndex(SectionIndex))
-				{
-					FMeshData MeshData;
-					MeshData.Mesh = Mesh;
-					MeshData.LOD = LODIndex;
-					MeshData.MaterialIndex = SectionIndex;
-					MeshData.Node = CurrentNode;
-					GenerationContext.PinData.GetCurrent().MeshesData.Add(MeshData); // Set::Emplace only supports single element constructors
-				}
-			}
+			MutableMesh = GenerateMeshConstant(SkeletalMesh, GenerationContext, bIsReference);
 		}
-		else if (const UStaticMesh* StaticMesh = Cast<UStaticMesh>(Mesh))
+		else
 		{
-			MutableMesh = ConvertStaticMeshToMutable(StaticMesh, LODIndex, SectionIndex, GenerationContext, CurrentNode);
+			MutableMesh = ConvertSkeletalMeshToMutable(SkeletalMesh, AnimInstance, LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, GenerationContext, CurrentNode, TableReferenceSkeletalMesh);
 
-			const FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
+			FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
 
 			if (MutableMesh &&
-				RenderData->LODResources.IsValidIndex(LODIndex) &&
-				RenderData->LODResources[LODIndex].Sections.IsValidIndex(SectionIndex))
+				ImportedModel->LODModels.IsValidIndex(LODIndex) &&
+				ImportedModel->LODModels[LODIndex].Sections.IsValidIndex(SectionIndex))
 			{
 				FMeshData MeshData;
 				MeshData.Mesh = Mesh;
@@ -2513,27 +2491,106 @@ mu::Ptr<mu::Mesh> GenerateMutableMesh(UObject * Mesh, const TSoftClassPtr<UAnimI
 				GenerationContext.PinData.GetCurrent().MeshesData.Add(MeshData); // Set::Emplace only supports single element constructors
 			}
 		}
-		else
-		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedMesh", "Mesh type not implemented yet."), CurrentNode);
-		}
+	}
+	else if (const UStaticMesh* StaticMesh = Cast<UStaticMesh>(Mesh))
+	{
+		MutableMesh = ConvertStaticMeshToMutable(StaticMesh, LODIndex, SectionIndex, GenerationContext, CurrentNode);
 
-		if (MutableMesh)
+		const FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
+
+		if (MutableMesh &&
+			RenderData->LODResources.IsValidIndex(LODIndex) &&
+			RenderData->LODResources[LODIndex].Sections.IsValidIndex(SectionIndex))
 		{
-			GenerationContext.GeneratedMeshes.Push({ Key, MutableMesh });
+			FMeshData MeshData;
+			MeshData.Mesh = Mesh;
+			MeshData.LOD = LODIndex;
+			MeshData.MaterialIndex = SectionIndex;
+			MeshData.Node = CurrentNode;
+			GenerationContext.PinData.GetCurrent().MeshesData.Add(MeshData); // Set::Emplace only supports single element constructors
 		}
+	}
+	else
+	{
+		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedMesh", "Mesh type not implemented yet."), CurrentNode);
+	}
+
+	if (MutableMesh)
+	{
+		GenerationContext.GeneratedMeshes.Push({ Key, MutableMesh });
 	}
 	
 	return MutableMesh;
 }
 
 
-mu::MeshPtr BuildMorphedMutableMesh(const UEdGraphPin* BaseSourcePin, const FString& MorphTargetName, FMutableGraphGenerationContext & GenerationContext, const bool bOnlyConnectedLOD, const FName& RowName)
+mu::Ptr<mu::Mesh> BuildMorphedMutableMeshFromMesh(mu::Ptr<mu::Mesh> BaseSourceMesh, USkeletalMesh* SkeletalMesh, const FString& MorphTargetName, int32 LODIndex, int32 SectionIndex)
+{
+	// Clone it (it will probably be shared)
+	mu::Ptr<mu::Mesh> MorphedSourceMesh = BaseSourceMesh->Clone();
+
+	// Bake the morph in the new mutable mesh
+	UMorphTarget* MorphTarget = SkeletalMesh ? SkeletalMesh->FindMorphTarget(*MorphTargetName) : nullptr;
+
+	if (MorphTarget && MorphTarget->GetMorphLODModels().IsValidIndex(LODIndex))
+	{
+		int32 PosBuf = -1;
+		int32 PosChannel = -1;
+		MorphedSourceMesh->GetVertexBuffers().FindChannel(mu::MBS_POSITION, 0, &PosBuf, &PosChannel);
+		check(PosBuf >= 0 && PosChannel >= 0);
+
+		int32 PosElemSize = MorphedSourceMesh->GetVertexBuffers().GetElementSize(PosBuf);
+		int32 PosOffset = MorphedSourceMesh->GetVertexBuffers().GetChannelOffset(PosBuf, PosChannel);
+		uint8* PosBuffer = MorphedSourceMesh->GetVertexBuffers().GetBufferData(PosBuf) + PosOffset;
+
+		int32 NorBuf = -1;
+		int32 NorChannel = -1;
+		MorphedSourceMesh->GetVertexBuffers().FindChannel(mu::MBS_NORMAL, 0, &NorBuf, &NorChannel);
+
+		const bool bHasNormals = NorBuf >= 0 && NorChannel >= 0;
+
+		int32 NorElemSize = bHasNormals ? MorphedSourceMesh->GetVertexBuffers().GetElementSize(NorBuf) : 0;
+		int32 NorOffset = bHasNormals ? MorphedSourceMesh->GetVertexBuffers().GetChannelOffset(NorBuf, NorChannel) : 0;
+		uint8* NorBuffer = bHasNormals ? MorphedSourceMesh->GetVertexBuffers().GetBufferData(NorBuf) + NorOffset : nullptr;
+
+		int32 MaterialVertexStart = SkeletalMesh->GetImportedModel()->LODModels[LODIndex].Sections[SectionIndex].GetVertexBufferIndex();
+		int32 MeshVertexCount = MorphedSourceMesh->GetVertexBuffers().GetElementCount();
+
+		const FMorphTargetLODModel& MorphLODModel = MorphTarget->GetMorphLODModels()[LODIndex];
+		for (const FMorphTargetDelta& MorphDelta : MorphLODModel.Vertices)
+		{
+			const int32 VertexIndex = MorphDelta.SourceIdx - MaterialVertexStart;
+			if (VertexIndex >= 0 && VertexIndex < MeshVertexCount)
+			{
+				{
+					float* const PosData = reinterpret_cast<float*>(PosBuffer + PosElemSize * VertexIndex);
+					const FVector3f MorphedPosition = FVector3f(PosData[0], PosData[1], PosData[2]) + MorphDelta.PositionDelta;
+					PosData[0] = MorphedPosition.X;
+					PosData[1] = MorphedPosition.Y;
+					PosData[2] = MorphedPosition.Z;
+				}
+
+				if (bHasNormals)
+				{
+					float* const NorData = reinterpret_cast<float*>(NorBuffer + NorElemSize * VertexIndex);
+					const FVector3f MorphedNormal = FVector3f(NorData[0], NorData[1], NorData[2]) + MorphDelta.TangentZDelta;
+					NorData[0] = MorphedNormal.X;
+					NorData[1] = MorphedNormal.Y;
+					NorData[2] = MorphedNormal.Z;
+				}
+			}
+		}
+	}
+
+	return MorphedSourceMesh;
+}
+
+
+mu::Ptr<mu::Mesh> BuildMorphedMutableMesh(const UEdGraphPin* BaseSourcePin, const FString& MorphTargetName, FMutableGraphGenerationContext& GenerationContext, const bool bOnlyConnectedLOD, const FName& RowName)
 {
 	check(BaseSourcePin);
 	SCOPED_PIN_DATA(GenerationContext, BaseSourcePin)
 
-	mu::MeshPtr MorphedSourceMesh;
 
 	if (!BaseSourcePin)
 	{
@@ -2543,10 +2600,10 @@ mu::MeshPtr BuildMorphedMutableMesh(const UEdGraphPin* BaseSourcePin, const FStr
 
 	int32 LODIndexConnected = -1; // LOD which the pin is connected to
 	int32 SectionIndexConnected = -1;
-	
+
 	int32 LODIndex = -1; // Initialization required to remove uninitialized warning.
 	int32 SectionIndex = -1;
-	
+
 	USkeletalMesh* SkeletalMesh = nullptr;
 	UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(BaseSourcePin->GetOwningNode());
 
@@ -2568,70 +2625,18 @@ mu::MeshPtr BuildMorphedMutableMesh(const UEdGraphPin* BaseSourcePin, const FStr
 		}
 	}
 
+	mu::Ptr<mu::Mesh> MorphedSourceMesh;
+
 	if (SkeletalMesh)
 	{
 		GetLODAndSectionForAutomaticLODs(GenerationContext, *Node, *SkeletalMesh, LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, bOnlyConnectedLOD);
 		// Get the base mesh
 		constexpr bool bIsReference = false;
-		mu::Ptr<mu::Mesh> BaseSourceMesh = GenerateMutableMesh(SkeletalMesh, TSoftClassPtr<UAnimInstance>(), LODIndexConnected, SectionIndexConnected, 
-															   LODIndex, SectionIndex, FString(), GenerationContext, Node, nullptr, bIsReference);
+		mu::Ptr<mu::Mesh> BaseSourceMesh = GenerateMutableMesh(SkeletalMesh, TSoftClassPtr<UAnimInstance>(), LODIndexConnected, SectionIndexConnected,
+			LODIndex, SectionIndex, FString(), GenerationContext, Node, nullptr, bIsReference);
 		if (BaseSourceMesh)
 		{
-			// Clone it (it will probably be shared)
-			MorphedSourceMesh = BaseSourceMesh->Clone();
-
-			// Bake the morph in the new mutable mesh
-			UMorphTarget* MorphTarget = SkeletalMesh ? SkeletalMesh->FindMorphTarget(*MorphTargetName) : nullptr;
-
-			if (MorphTarget && MorphTarget->GetMorphLODModels().IsValidIndex(LODIndex))
-			{
-				int32 PosBuf = -1;
-				int32 PosChannel = -1;
-				MorphedSourceMesh->GetVertexBuffers().FindChannel(mu::MBS_POSITION, 0, &PosBuf, &PosChannel);
-				check(PosBuf >= 0 && PosChannel >= 0);
-
-				int32 PosElemSize = MorphedSourceMesh->GetVertexBuffers().GetElementSize(PosBuf);
-				int32 PosOffset = MorphedSourceMesh->GetVertexBuffers().GetChannelOffset(PosBuf, PosChannel);
-				uint8* PosBuffer = MorphedSourceMesh->GetVertexBuffers().GetBufferData(PosBuf) + PosOffset;
-
-				int32 NorBuf = -1;
-				int32 NorChannel = -1;
-				MorphedSourceMesh->GetVertexBuffers().FindChannel(mu::MBS_NORMAL, 0, &NorBuf, &NorChannel);
-
-				const bool bHasNormals = NorBuf >= 0 && NorChannel >= 0;
-
-				int32 NorElemSize = bHasNormals ? MorphedSourceMesh->GetVertexBuffers().GetElementSize(NorBuf) : 0;
-				int32 NorOffset	  = bHasNormals ? MorphedSourceMesh->GetVertexBuffers().GetChannelOffset(NorBuf, NorChannel) : 0;
-				uint8* NorBuffer  = bHasNormals ? MorphedSourceMesh->GetVertexBuffers().GetBufferData(NorBuf) + NorOffset : nullptr;
-
-				int32 MaterialVertexStart = SkeletalMesh->GetImportedModel()->LODModels[LODIndex].Sections[SectionIndex].GetVertexBufferIndex();
-				int32 MeshVertexCount = MorphedSourceMesh->GetVertexBuffers().GetElementCount();
-
-				const FMorphTargetLODModel& MorphLODModel = MorphTarget->GetMorphLODModels()[LODIndex];
-				for (const FMorphTargetDelta& MorphDelta : MorphLODModel.Vertices)
-				{
-					const int32 VertexIndex = MorphDelta.SourceIdx - MaterialVertexStart;
-					if (VertexIndex >= 0 && VertexIndex < MeshVertexCount)
-					{
-						{
-							float* const PosData = reinterpret_cast<float*>(PosBuffer + PosElemSize * VertexIndex);
-							const FVector3f MorphedPosition = FVector3f(PosData[0], PosData[1], PosData[2]) + MorphDelta.PositionDelta;
-							PosData[0] = MorphedPosition.X;
-							PosData[1] = MorphedPosition.Y;
-							PosData[2] = MorphedPosition.Z;
-						}
-
-						if (bHasNormals)
-						{
-							float* const NorData = reinterpret_cast<float*>(NorBuffer + NorElemSize * VertexIndex);
-							const FVector3f MorphedNormal = FVector3f(NorData[0], NorData[1], NorData[2]) + MorphDelta.TangentZDelta;
-							NorData[0] = MorphedNormal.X;
-							NorData[1] = MorphedNormal.Y;
-							NorData[2] = MorphedNormal.Z;
-						}
-					}
-				}
-			}
+			MorphedSourceMesh = BuildMorphedMutableMeshFromMesh(BaseSourceMesh, SkeletalMesh, MorphTargetName, LODIndex, SectionIndex);
 		}
 	}
 
@@ -3437,6 +3442,21 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			if (MutableMesh)
 			{
 				MeshNode->SetValue(MutableMesh);
+
+				// Add the potentially required morphs. For now always add all morphs. A better implementation can narrow down with:
+				// - detecting morph names in all "ModifierMorphMeshSection" nodes
+				// - detecting morph names in "ModifierMorphMeshSection" nodes relevant for this current context.
+				{
+					MUTABLE_CPUPROFILER_SCOPE(GenerateMutableSourceMesh_AddAllMorphs);
+
+					const TArray<TObjectPtr<UMorphTarget>>& Morphs = TypedNodeSkel->SkeletalMesh->GetMorphTargets();
+					for (TObjectPtr<UMorphTarget> Morph : Morphs)
+					{
+						FString MorphTargetName = Morph->GetName();
+						mu::Ptr<mu::Mesh> MorphedMesh = BuildMorphedMutableMeshFromMesh(MutableMesh, TypedNodeSkel->SkeletalMesh, MorphTargetName, LODIndex, SectionIndex);
+						MeshNode->AddMorph(MorphTargetName,MorphedMesh);
+					}
+				}
 
 				if (TypedNodeSkel->SkeletalMesh->GetPhysicsAsset() && 
 					MutableMesh->GetPhysicsBody() && 

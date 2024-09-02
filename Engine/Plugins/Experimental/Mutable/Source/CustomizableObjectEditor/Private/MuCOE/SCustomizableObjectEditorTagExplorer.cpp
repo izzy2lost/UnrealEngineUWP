@@ -8,12 +8,13 @@
 #include "MuCOE/CustomizableObjectEditor.h"
 #include "MuCOE/CustomizableObjectGraph.h"
 #include "MuCOE/GraphTraversal.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeExtendMaterial.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierExtendMeshSection.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierEditMeshSection.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialVariation.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeMeshClipDeform.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeMeshClipMorph.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeMeshClipWithMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierClipDeform.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierClipMorph.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierClipWithMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierClipWithUVMask.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
@@ -155,95 +156,43 @@ void SCustomizableObjectEditorTagExplorer::FillTagInformation(const UCustomizabl
 	{
 		for (const TObjectPtr<UEdGraphNode>& Node : Object.GetPrivate()->GetSource()->Nodes)
 		{
-			if (UCustomizableObjectNodeMaterialBase* TypedNodeMat = Cast<UCustomizableObjectNodeMaterialBase>(Node))
+			// Gather tags from nodes that activate them
+			if (UCustomizableObjectNode* TypedNodeMat = Cast<UCustomizableObjectNode>(Node))
 			{
-				const TArray<FString>& MaterialTags = TypedNodeMat->GetTags();
+				const TArray<FString>* MaterialTags = TypedNodeMat->GetEnableTags();
 				
-				for (int32 i = 0; i < MaterialTags.Num(); ++i)
+				if (MaterialTags)
 				{
-					NodeTags.Add(MaterialTags[i], TypedNodeMat);
-					if (Tags.Find(MaterialTags[i]) == INDEX_NONE)
+					for (const FString& CurrentTag : *MaterialTags)
 					{
-						Tags.Add(MaterialTags[i]);
+						NodeTags.Add(CurrentTag, TypedNodeMat);
+						Tags.AddUnique(CurrentTag);
 					}
 				}
 			}
 
+			// Gather tags from nodes that require them
+
+			// TODO: All other variations?
 			if (UCustomizableObjectNodeMaterialVariation* TypedNodeVariations = Cast<UCustomizableObjectNodeMaterialVariation>(Node))
 			{
 				for (int32 i = 0; i < TypedNodeVariations->GetNumVariations(); ++i)
 				{
-					const FString& VairationTag = TypedNodeVariations->GetVariation(i).Tag; 
-					NodeTags.Add(VairationTag, TypedNodeVariations);
-					
-					if (Tags.Find(VairationTag) == INDEX_NONE)
-					{
-						Tags.Add(VairationTag);
-					}
+					const FString& VariationTag = TypedNodeVariations->GetVariation(i).Tag; 
+					NodeTags.Add(VariationTag, TypedNodeVariations);					
+					Tags.AddUnique(VariationTag);
 				}
 			}
 
-			if (UCustomizableObjectNodeMeshClipMorph* TypedNodeClipMorph = Cast<UCustomizableObjectNodeMeshClipMorph>(Node))
+			if (UCustomizableObjectNodeModifierBase* TypedNodeModifier = Cast<UCustomizableObjectNodeModifierBase>(Node))
 			{
-				for (int32 i = 0; i < TypedNodeClipMorph->Tags.Num(); ++i)
+				const TArray<FString>* RequiredTags = TypedNodeModifier->GetRequiredTags();
+				if (RequiredTags)
 				{
-					NodeTags.Add(TypedNodeClipMorph->Tags[i], TypedNodeClipMorph);
-					
-					if (Tags.Find(TypedNodeClipMorph->Tags[i]) == INDEX_NONE)
+					for (const FString& CurrentTag : *RequiredTags)
 					{
-						Tags.Add(TypedNodeClipMorph->Tags[i]);
-					}
-				}
-			}
-
-			if (UCustomizableObjectNodeMeshClipWithMesh* TypedNodeClipMesh = Cast<UCustomizableObjectNodeMeshClipWithMesh>(Node))
-			{
-				for (int32 i = 0; i < TypedNodeClipMesh->Tags.Num(); ++i)
-				{
-					NodeTags.Add(TypedNodeClipMesh->Tags[i], TypedNodeClipMesh);
-					
-					if (Tags.Find(TypedNodeClipMesh->Tags[i]) == INDEX_NONE)
-					{
-						Tags.Add(TypedNodeClipMesh->Tags[i]);
-					}
-				}
-			}
-
-			if (UCustomizableObjectNodeModifierClipWithUVMask* TypedNodeClipMask = Cast<UCustomizableObjectNodeModifierClipWithUVMask>(Node))
-			{
-				for (int32 i = 0; i < TypedNodeClipMask->Tags.Num(); ++i)
-				{
-					NodeTags.Add(TypedNodeClipMask->Tags[i], TypedNodeClipMask);
-					
-					if (Tags.Find(TypedNodeClipMask->Tags[i]) == INDEX_NONE)
-					{
-						Tags.Add(TypedNodeClipMask->Tags[i]);
-					}
-				}
-			}
-
-			if (UCustomizableObjectNodeExtendMaterial* TypedNodeExtend = Cast<UCustomizableObjectNodeExtendMaterial>(Node))
-			{
-				for (int32 i = 0; i < TypedNodeExtend->Tags.Num(); ++i)
-				{
-					NodeTags.Add(TypedNodeExtend->Tags[i], TypedNodeExtend);
-					
-					if (Tags.Find(TypedNodeExtend->Tags[i]) == INDEX_NONE)
-					{
-						Tags.Add(TypedNodeExtend->Tags[i]);
-					}
-				}
-			}
-
-			if (UCustomizableObjectNodeMeshClipDeform* TypedNodeClipDeform = Cast<UCustomizableObjectNodeMeshClipDeform>(Node))
-			{
-				for (int32 i = 0; i < TypedNodeClipDeform->Tags.Num(); ++i)
-				{
-					NodeTags.Add(TypedNodeClipDeform->Tags[i], TypedNodeClipDeform);
-					
-					if (Tags.Find(TypedNodeClipDeform->Tags[i]) == INDEX_NONE)
-					{
-						Tags.Add(TypedNodeClipDeform->Tags[i]);
+						NodeTags.Add(CurrentTag, TypedNodeModifier);
+						Tags.AddUnique(CurrentTag);
 					}
 				}
 			}

@@ -30,15 +30,15 @@
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/MutableUtils.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeCopyMaterial.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeEditMaterial.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeExtendMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeFloatConstant.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeFloatParameter.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialVariation.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialSwitch.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeMorphMaterial.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeRemoveMesh.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeRemoveMeshBlocks.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierEditMeshSection.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierExtendMeshSection.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierMorphMeshSection.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierRemoveMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierRemoveMeshBlocks.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeSkeletalMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTable.h"
 #include "MuT/NodeImageFormat.h"
@@ -50,7 +50,6 @@
 #include "MuT/NodeMeshFormat.h"
 #include "MuT/NodeMeshFragment.h"
 #include "MuT/NodeScalarConstant.h"
-#include "MuT/NodeSurfaceEdit.h"
 #include "MuT/NodeSurfaceSwitch.h"
 #include "MuT/NodeSurfaceVariation.h"
 #include "MuT/UnrealPixelFormatOverride.h"
@@ -201,30 +200,6 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 
 	// Index buffer
 	MutableMeshBufferUtils::SetupIndexBuffer(OutIndexBufferFormat);
-}
-
-
-void AddModifierToSharedSurface(FMutableGraphGenerationContext& GenerationContext, UCustomizableObjectNodeMaterialBase* NodeMaterial, const UCustomizableObjectNode& NodeModifier)
-{
-	if (!NodeMaterial || !NodeMaterial->IsReuseMaterialBetweenLODs())
-	{
-		return;
-	}
-
-	TArray<FMutableGraphGenerationContext::FSharedSurface>* SharedSurfaces = GenerationContext.SharedSurfaceIds.Find(NodeMaterial);
-	if (!SharedSurfaces)
-	{
-		return;
-	}
-
-	// Add the modifier to the key of modifiers per surface. Only add it if there are image operations involved.
-	for (FMutableGraphGenerationContext::FSharedSurface& SharedSurface : *SharedSurfaces)
-	{
-		if (SharedSurface.LOD == GenerationContext.CurrentLOD)
-		{
-			SharedSurface.NodeModifierIDs.Add(reinterpret_cast<SIZE_T>(&NodeModifier));
-		}
-	}
 }
 
 
@@ -977,9 +952,12 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		}
 		
 
-		for (const FString& Tag : TypedNodeMat->GetTags())
+		if (const TArray<FString>* EnableTags = TypedNodeMat->GetEnableTags())
 		{
-			SurfNode->Tags.Add(Tag);
+			for (const FString& Tag : *EnableTags)
+			{
+				SurfNode->Tags.AddUnique(Tag);
+			}
 		}
 
 		TArray<mu::Ptr<mu::NodeSurfaceNew>>* ArraySurfaceNodePtr = GenerationContext.MapMaterialNodeToMutableSurfaceNodeArray.Find(TypedNodeMat->GetMaterialNode());
@@ -1052,357 +1030,6 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			SurfaceVariation->Variations[0].Surfaces.Add(SurfNode2);
 
 			Result = SurfaceVariation;
-		}
-	}
-
-	else if (UCustomizableObjectNodeExtendMaterial* TypedNodeExt = Cast<UCustomizableObjectNodeExtendMaterial>(Node))
-	{
-		mu::Ptr<mu::NodeSurfaceEdit> SurfNode = new mu::NodeSurfaceEdit();
-		Result = SurfNode;
-
-		[&] // Using a lambda so control flow is easier to manage.
-		{
-			UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeExt->GetParentMaterialNode();
-			if (!ParentMaterialNode)
-			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);
-				return;
-			}
-
-			if (TypedNodeExt->IsNodeOutDatedAndNeedsRefresh())
-			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);
-				return;
-			}
-
-			// Parent, probably generated, will be retrieved from the cache
-			mu::Ptr<mu::NodeSurface> ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
-			SurfNode->Parent = ParentNode;
-
-			mu::Ptr<mu::NodeMesh> AddMeshNode;
-			FMutableGraphMeshGenerationData MeshData;
-			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeExt->AddMeshPin()))
-			{
-				AddMeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, MeshData, true, false);
-			}
-
-			if (AddMeshNode)
-			{
-				mu::Ptr<mu::NodeMesh> MeshPtr = AddMeshNode;
-
-				const TArray<UCustomizableObjectLayout*> Layouts = TypedNodeExt->GetLayouts();
-				
-				if (Layouts.Num())
-				{
-					mu::Ptr<mu::NodeMeshFragment> MeshFrag = new mu::NodeMeshFragment();
-				
-					MeshFrag->SourceMesh = MeshPtr;
-					//TODO: Implement support for multiple UV channels (e.g. Add warning for vertices which have a block in a layout but not in the other)
-					MeshFrag->LayoutIndex = 0;
-
-					// For this case we don't want to create another layout: we will use the one defined in the mesh to be added since we want to add
-					// any block defined there.
-					//bool bWasEmpty = false;
-					//MeshFrag->Layout = CreateMutableLayoutNode(GenerationContext, Layouts[MeshFrag->LayoutIndex], true, bWasEmpty);
-				
-					MeshPtr = MeshFrag;
-				}
-				else
-				{
-					GenerationContext.Compiler->CompilerLog(LOCTEXT("ExtendMaterialLayoutMissing","Skeletal Mesh without Layout Node linked to an Extend Material. A 4x4 layout will be added as default layout."), Node);
-				}
-
-				mu::Ptr<mu::NodeMeshFormat> MeshFormat = new mu::NodeMeshFormat();
-				SetSurfaceFormat( GenerationContext,
-						MeshFormat->GetVertexBuffers(), MeshFormat->GetIndexBuffers(), MeshData,
-						GenerationContext.Options.CustomizableObjectNumBoneInfluences,
-						GenerationContext.Options.b16BitBoneWeightsEnabled);
-
-				MeshFormat->SetSource(MeshPtr.get());
-
-				SurfNode->MeshAdd = MeshFormat;
-			}
-			
-			const int32 NumImages = ParentMaterialNode->GetNumParameters(EMaterialParameterType::Texture);
-			SurfNode->Textures.SetNum(NumImages);
-			for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
-			{
-				mu::NodeImagePtr ImageNode;
-				
-				if (!ImageNode) // If
-				{
-					const FString MaterialImageId = FGroupProjectorImageInfo::GenerateId(TypedNodeExt, ImageIndex);
-					const FGroupProjectorImageInfo* ProjectorInfo = GenerationContext.GroupProjectorLODCache.Find(MaterialImageId);
-
-					if (ProjectorInfo)
-					{
-						ensure(LOD > GenerationContext.FirstLODAvailable);
-						check(ProjectorInfo->SurfNode->Images[ImageIndex].Image == ProjectorInfo->ImageNode);
-						ImageNode = ProjectorInfo->ImageNode;
-
-						//TextureNameToProjectionResFactor.Add(ProjectorInfo->RealTextureName, ProjectorInfo->AlternateProjectionResolutionFactor);
-						//AlternateResStateName = ProjectorInfo->AlternateResStateName;
-					}
-				}
-
-				if (!ImageNode) // Else if
-				{
-					bool bShareProjectionTexturesBetweenLODs = false;
-					bool bIsGroupProjectorImage = false;
-					UTexture2D * GroupProjectionReferenceTexture = nullptr;
-					TMap<FString, float> TextureNameToProjectionResFactor;
-					FString AlternateResStateName;
-					
-					ImageNode = GenerateMutableGroupProjection(LOD, ImageIndex, AddMeshNode, GenerationContext,
-						nullptr, TypedNodeExt, bShareProjectionTexturesBetweenLODs, bIsGroupProjectorImage,
-						GroupProjectionReferenceTexture, TextureNameToProjectionResFactor, AlternateResStateName);
-				}
-				
-				if (!ImageNode) // Else if
-				{
-					const FNodeMaterialParameterId ImageId = ParentMaterialNode->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
-					
-					if (TypedNodeExt->UsesImage(ImageId))
-					{
-						check(ParentMaterialNode->IsImageMutableMode(ImageIndex)); // Ensured at graph time. If it fails, something is wrong.
-						
-						if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeExt->GetUsedImagePin(ImageId)))
-						{
-							// ReferenceTextureSize is used to limit the size of textures contributing to the final image.
-							const int32 ReferenceTextureSize = GetBaseTextureSize(GenerationContext, ParentMaterialNode, ImageIndex);
-
-							ImageNode = GenerateMutableSourceImage(ConnectedPin, GenerationContext, ReferenceTextureSize);
-						}
-					}
-				}
-
-				if (ImageNode)
-				{
-					SurfNode->Textures[ImageIndex].Extend = ImageNode;
-				}
-
-			}
-			AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeExt);
-		
-			for (const FString& Tag : TypedNodeExt->Tags)
-			{
-				SurfNode->EnableTags.Add(Tag);
-			}
-		}();
-	}
-
-	else if (const UCustomizableObjectNodeRemoveMesh* TypedNodeRem = Cast<UCustomizableObjectNodeRemoveMesh>(Node))
-	{
-		mu::Ptr<mu::NodeSurfaceEdit> SurfNode = new mu::NodeSurfaceEdit();
-		Result = SurfNode;
-
-		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeRem->GetParentMaterialNode();
-		if (!ParentMaterialNode)
-		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);
-		}
-		else
-		{
-			// Parent, probably generated, will be retrieved from the cache
-			mu::Ptr<mu::NodeSurface> ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
-			SurfNode->Parent = ParentNode;
-
-			mu::Ptr<mu::NodeMesh> RemoveMeshNode;
-
-			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeRem->RemoveMeshPin()))
-			{
-				FMutableGraphMeshGenerationData DummyMeshData;
-				RemoveMeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, DummyMeshData, false, true);
-			}
-
-			SurfNode->MeshRemove = RemoveMeshNode;
-
-			AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeRem);
-		}
-	}
-
-	else if (const UCustomizableObjectNodeRemoveMeshBlocks* TypedNodeRemBlocks = Cast<UCustomizableObjectNodeRemoveMeshBlocks>(Node))
-	{
-		mu::Ptr<mu::NodeSurfaceEdit> SurfNode = new mu::NodeSurfaceEdit();
-		Result = SurfNode;
-
-		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeRemBlocks->GetParentMaterialNode();
-		if (!ParentMaterialNode)
-		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);
-		}
-		else
-		{
-			SurfNode->Parent = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
-
-			const UEdGraphPin* BaseSourcePin = FindMeshBaseSource(*ParentMaterialNode->OutputPin(), false);
-
-			if (!BaseSourcePin)
-			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);
-			}
-			else
-			{
-				FMutableGraphMeshGenerationData DummyMeshData;
-				mu::Ptr<mu::NodeMesh> SourceMesh = GenerateMutableSourceMesh(BaseSourcePin, GenerationContext, DummyMeshData, false, false);
-				bool bWasEmpty = false;
-				mu::Ptr<mu::NodeLayout> SourceLayout = CreateMutableLayoutNode(GenerationContext, TypedNodeRemBlocks->Layout, true, bWasEmpty);
-
-				mu::Ptr<mu::NodeMeshFragment> MeshFrag = new mu::NodeMeshFragment();
-				MeshFrag->SourceMesh = SourceMesh;
-				MeshFrag->Layout = SourceLayout;
-				MeshFrag->LayoutIndex = TypedNodeRemBlocks->ParentLayoutIndex;
-				MeshFrag->SetMessageContext(TypedNodeRemBlocks);
-
-				SurfNode->MeshRemove = MeshFrag;
-			}
-
-			AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeRemBlocks);
-		}
-	}
-
-	else if (UCustomizableObjectNodeEditMaterial* TypedNodeEdit = Cast<UCustomizableObjectNodeEditMaterial>(Node))
-	{
-		mu::Ptr<mu::NodeSurfaceEdit> SurfNode = new mu::NodeSurfaceEdit();
-		Result = SurfNode;
-
-		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeEdit->GetParentMaterialNode();
-		if (!ParentMaterialNode)
-		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);
-		}
-		else
-		{
-			// Parent, probably generated, will be retrieved from the cache
-			mu::Ptr<mu::NodeSurface> ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
-			SurfNode->Parent = ParentNode;
-
-			const int32 NumImages = ParentMaterialNode->GetNumParameters(EMaterialParameterType::Texture);
-			SurfNode->Textures.SetNum(NumImages);
-			for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
-			{
-				const FNodeMaterialParameterId ImageId = ParentMaterialNode->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
-
-				if (TypedNodeEdit->UsesImage(ImageId))
-				{
-					check(ParentMaterialNode->IsImageMutableMode(ImageIndex)); // Ensured at graph time. If it fails, something is wrong.
-					
-					const UEdGraphPin* ConnectedImagePin = FollowInputPin(*TypedNodeEdit->GetUsedImagePin(ImageId));
-					
-					mu::NodeSurfaceEdit::FTexture& ImagePatch = SurfNode->Textures[ImageIndex];
-
-					// \todo: expose these two options?
-					ImagePatch.PatchBlendType = mu::EBlendType::BT_BLEND;
-					ImagePatch.bPatchApplyToAlpha=true;
-
-					// ReferenceTextureSize is used to limit the size of textures contributing to the final image.
-					const int32 ReferenceTextureSize = GetBaseTextureSize(GenerationContext, ParentMaterialNode, ImageIndex);
-
-					ImagePatch.PatchImage = GenerateMutableSourceImage(ConnectedImagePin, GenerationContext, ReferenceTextureSize);
-
-					const UEdGraphPin* ImageMaskPin = TypedNodeEdit->GetUsedImageMaskPin(ImageId);
-					check(ImageMaskPin); // Ensured when reconstructing EditMaterial nodes. If it fails, something is wrong.
-					
-					if (const UEdGraphPin* ConnectedMaskPin = FollowInputPin(*ImageMaskPin))
-					{
-						ImagePatch.PatchMask = GenerateMutableSourceImage(ConnectedMaskPin, GenerationContext, ReferenceTextureSize);
-					}
-
-					// Add the blocks to patch
-					FIntPoint GridSize = TypedNodeEdit->Layout->GetGridSize();
-					FVector2f GridSizeF = FVector2f(GridSize);
-					ImagePatch.PatchBlocks.Reserve(TypedNodeEdit->Layout->Blocks.Num());
-					for (const FCustomizableObjectLayoutBlock& LayoutBlock: TypedNodeEdit->Layout->Blocks)
-					{
-						FBox2f Rect;
-						Rect.Min = FVector2f(LayoutBlock.Min) / GridSizeF;
-						Rect.Max = FVector2f(LayoutBlock.Max) / GridSizeF;
-						ImagePatch.PatchBlocks.Add(Rect);
-					}
-				}
-
-				AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeEdit);
-			}
-		}
-	}
-
-	else if (const UCustomizableObjectNodeMorphMaterial* TypedNodeMorph = Cast<UCustomizableObjectNodeMorphMaterial>(Node))
-	{
-		mu::Ptr<mu::NodeSurfaceEdit> SurfNode = new mu::NodeSurfaceEdit();
-		Result = SurfNode;
-
-		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeMorph->GetParentMaterialNode();
-		if (!ParentMaterialNode)
-		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);
-		}
-		else
-		{
-			// Parent, probably generated, will be retrieved from the cache
-			mu::Ptr<mu::NodeSurface> ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
-			SurfNode->Parent = ParentNode;
-
-			const UEdGraphPin* BaseSourcePin = FindMeshBaseSource(*ParentMaterialNode->OutputPin(), false);
-			if (!BaseSourcePin)
-			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);
-			}
-			else
-			{
-				// Morph Mesh
-				// The Mesh Base Source from the Parent Material will always have all LODs since it is not an auxiliary Mesh (clipping, reshape...).
-				mu::MeshPtr MorphedSourceMesh = BuildMorphedMutableMesh(BaseSourcePin, TypedNodeMorph->MorphTargetName, GenerationContext, false); 
-
-				mu::NodeMeshConstantPtr MorphedSourceMeshNode = new mu::NodeMeshConstant;
-				MorphedSourceMeshNode->SetMessageContext(Node);					
-				MorphedSourceMeshNode->SetValue(MorphedSourceMesh);
-				
-				SurfNode->MeshMorph = MorphedSourceMeshNode;
-				
-				if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMorph->FactorPin()))
-				{
-					UEdGraphNode* floatNode = ConnectedPin->GetOwningNode();
-					bool validStaticFactor = true;
-					if (const UCustomizableObjectNodeFloatParameter* floatParameterNode = Cast<UCustomizableObjectNodeFloatParameter>(floatNode))
-					{
-						if (floatParameterNode->DefaultValue < -1.0f || floatParameterNode->DefaultValue > 1.0f)
-						{
-							validStaticFactor = false;
-							FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the default value of the float parameter node is (%f). Factor will be ignored."), floatParameterNode->DefaultValue);
-							GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
-						}
-						if (floatParameterNode->ParamUIMetadata.MinimumValue < -1.0f)
-						{
-							validStaticFactor = false;
-							FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the minimum UI value for the input float parameter node is (%f). Factor will be ignored."), floatParameterNode->ParamUIMetadata.MinimumValue);
-							GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
-						}
-						if (floatParameterNode->ParamUIMetadata.MaximumValue > 1.0f)
-						{
-							validStaticFactor = false;
-							FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the maximum UI value for the input float parameter node is (%f). Factor will be ignored."), floatParameterNode->ParamUIMetadata.MaximumValue);
-							GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
-						}
-					}
-					else if (const UCustomizableObjectNodeFloatConstant* floatConstantNode = Cast<UCustomizableObjectNodeFloatConstant>(floatNode))
-					{
-						if (floatConstantNode->Value < -1.0f || floatConstantNode->Value > 1.0f)
-						{
-							validStaticFactor = false;
-							FString msg = FString::Printf(TEXT("Mesh morph nodes only accept factors between -1.0 and 1.0 inclusive but the value of the float constant node is (%f). Factor will be ignored."), floatConstantNode->Value);
-							GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
-						}
-					}
-
-					if (validStaticFactor)
-					{
-						mu::NodeScalarPtr FactorNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
-						SurfNode->MorphFactor = FactorNode;
-					}
-				}
-			}
-
-			AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeMorph);
 		}
 	}
 

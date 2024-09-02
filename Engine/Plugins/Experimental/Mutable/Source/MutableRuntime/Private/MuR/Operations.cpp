@@ -849,7 +849,8 @@ namespace mu
 		{
 			OP::MeshMaskClipUVMaskArgs args = program.GetOpArgs<OP::MeshMaskClipUVMaskArgs>(at);
 			f(args.Source);
-			f(args.Mask);
+			f(args.MaskImage);
+			f(args.MaskLayout);
 			break;
 		}
 

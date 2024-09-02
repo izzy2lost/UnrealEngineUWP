@@ -111,13 +111,13 @@ public:
 	const TSharedPtr<FUICommandList>& GetCommandList() const { return UICommandList; }
 
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
-	void ShowGizmoClipMorph(UCustomizableObjectNodeMeshClipMorph& ClipPlainNode) const;
+	void ShowGizmoClipMorph(UCustomizableObjectNodeModifierClipMorph& ClipPlainNode) const;
 
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
 	void HideGizmoClipMorph() const;
 
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
-	void ShowGizmoClipMesh(UCustomizableObjectNodeMeshClipWithMesh& ClipMeshNode, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex) const;
+	void ShowGizmoClipMesh(UCustomizableObjectNodeModifierClipWithMesh& ClipMeshNode, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex) const;
 
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
 	void HideGizmoClipMesh() const;

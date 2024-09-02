@@ -36,6 +36,7 @@
 #include "MuT/NodeProjector.h"
 #include "MuT/NodeString.h"
 #include "MuT/NodeSurfaceNew.h"
+#include "MuT/NodeModifierSurfaceEdit.h"
 #include "MuT/Table.h"
 #include "MuT/TablePrivate.h"
 #include "Templates/TypeHash.h"
@@ -361,16 +362,6 @@ namespace mu
 		void GenerateComponent_Switch(const FComponentGenerationOptions&, FGenericGenerationResult&, const NodeComponentSwitch*);
 		void GenerateComponent_Variation(const FComponentGenerationOptions&, FGenericGenerationResult&, const NodeComponentVariation*);
 
-		//-----------------------------------------------------------------------------------------
-
-		// Get the modifiers that have to be applied to elements with a specific tag.
-		void GetModifiersFor(const TArray<FString>& SurfaceTags, int32 LOD,
-			bool bModifiersForBeforeOperations, TArray<FirstPassGenerator::FModifier>& OutModifiers);
-
-		// Apply the required mesh modifiers to the given operation.
-		Ptr<ASTOp> ApplyMeshModifiers(const FGenericGenerationOptions&, const Ptr<ASTOp>& SourceOp,
-			bool bModifiersForBeforeOperations, const void* errorContext);
-
         //-----------------------------------------------------------------------------------------
         //!
         Ptr<ASTOp> GenerateTableVariable(Ptr<const Node>, const FTableCacheKey&, bool bAddNoneOption, const FString& DefaultRowName);
@@ -504,10 +495,10 @@ namespace mu
 		Ptr<ASTOp> ApplyTiling(Ptr<ASTOp> Source, UE::Math::TIntVector2<int32> Size, EImageFormat Format);
 
 		/** Generate a layout block-sized image with a mask including all pixels in the blocks defined in the patch node. */
-		Ptr<Image> GenerateImageBlockPatchMask(const NodeSurfaceEdit::FTexture&, FIntPoint GridSize, int32 BlockPixelsX, int32 BlockPixelsY, box<FIntVector2> RectInCells);
+		Ptr<Image> GenerateImageBlockPatchMask(const NodeModifierSurfaceEdit::FTexture&, FIntPoint GridSize, int32 BlockPixelsX, int32 BlockPixelsY, box<FIntVector2> RectInCells);
 
 		/** Generate all the operations to apply the block patching on top of the BlockOp, and masking with PatchMask. */
-		Ptr<ASTOp> GenerateImageBlockPatch(Ptr<ASTOp> BlockOp, const NodeSurfaceEdit::FTexture&, Ptr<Image> PatchMask, Ptr<ASTOp> ConditionOp, const FImageGenerationOptions&);
+		Ptr<ASTOp> GenerateImageBlockPatch(Ptr<ASTOp> BlockOp, const NodeModifierSurfaceEdit::FTexture&, Ptr<Image> PatchMask, Ptr<ASTOp> ConditionOp, const FImageGenerationOptions&);
 
         //-----------------------------------------------------------------------------------------
         // Meshes
@@ -801,13 +792,50 @@ namespace mu
             Ptr<ASTOp> surfaceOp;
         };
 
-        void GenerateSurface( FSurfaceGenerationResult&, const FSurfaceGenerationOptions&,
-                              Ptr<const NodeSurfaceNew>,
-                              const TArray<FirstPassGenerator::FSurface::FEdit>& Edits );
+        void GenerateSurface( FSurfaceGenerationResult&, const FSurfaceGenerationOptions&, Ptr<const NodeSurfaceNew> );
 
 		//-----------------------------------------------------------------------------------------
-		//Default Table Parameters
+		// Default Table Parameters
 		Ptr<ASTOp> GenerateDefaultTableValue(ETableColumnType NodeType);
+
+
+		//-----------------------------------------------------------------------------------------
+
+		struct FLayoutBlockDesc
+		{
+			EImageFormat FinalFormat = EImageFormat::IF_NONE;
+			int32 BlockPixelsX = 0;
+			int32 BlockPixelsY = 0;
+			bool bBlocksHaveMips = false;
+		};
+
+		void UpdateLayoutBlockDesc(FLayoutBlockDesc& Out, FImageDesc BlockDesc, FIntVector2 LayoutCellSize);
+
+		// Get the modifiers that have to be applied to elements with a specific tag.
+		void GetModifiersFor(const TArray<FString>& SurfaceTags, int32 LOD, bool bModifiersForBeforeOperations, TArray<FirstPassGenerator::FModifier>& OutModifiers);
+
+		// Apply the required mesh modifiers to the given operation.
+		Ptr<ASTOp> ApplyMeshModifiers(const FMeshGenerationOptions&, FMeshGenerationResult& BaseResults, 
+			const FMeshGenerationResult* SharedSurfaceResults, 
+			bool bModifiersForBeforeOperations, const void* ErrorContext,
+			const NodeMeshConstant* OriginalMeshNode);
+
+		Ptr<ASTOp> ApplyImageBlockModifiers(const FImageGenerationOptions&, Ptr<ASTOp> BaseImageOp, int32 ImageIndex, 
+			FIntPoint GridSize,
+			const FLayoutBlockDesc& LayoutBlockDesc,
+			box< FIntVector2 > RectInCells,
+			bool bModifiersForBeforeOperations, const void* ErrorContext);
+
+		Ptr<ASTOp> ApplyImageExtendModifiers(
+			const FGenericGenerationOptions& Options, 
+			const FMeshGenerationResult& BaseMeshResults,
+			Ptr<ASTOp> ImageAd, 
+			CompilerOptions::TextureLayoutStrategy ImageLayoutStrategy, 
+			int32 LayoutIndex, int32 ImageIndex,
+			FIntPoint GridSize,
+			CodeGenerator::FLayoutBlockDesc& InOutLayoutBlockDesc,
+			bool bModifiersForBeforeOperations, const void* ErrorContext);
+
     };
 
 	

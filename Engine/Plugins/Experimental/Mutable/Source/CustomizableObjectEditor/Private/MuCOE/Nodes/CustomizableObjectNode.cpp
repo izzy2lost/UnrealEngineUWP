@@ -413,6 +413,18 @@ bool UCustomizableObjectNode::CanConnect( const UEdGraphPin* InOwnedInputPin, co
 }
 
 
+bool UCustomizableObjectNode::IsAffectedByLOD() const
+{ 
+	return true; 
+}
+
+
+TArray<FString>* UCustomizableObjectNode::GetEnableTags()
+{ 
+	return nullptr; 
+}
+
+
 UCustomizableObjectNodeRemapPins* UCustomizableObjectNode::CreateRemapPinsDefault() const
 {
 	return CreateRemapPinsByName();
@@ -576,55 +588,6 @@ int32 UCustomizableObjectNode::GetLOD() const
 	}
 
 	return -1; // UCustomizableObjectNodeObject not found.
-}
-
-
-TArray<UCustomizableObjectNodeObject*> UCustomizableObjectNode::GetParentObjectNodes(const int LOD) const
-{
-	// Search recursively all parent nodes. Add all Object nodes found.
-	check(LOD >= 0);
-
-	TArray<UCustomizableObjectNodeObject*> Result;
-
-	TQueue<const UCustomizableObjectNode*> PotentialCustomizableNodeObjects;
-	PotentialCustomizableNodeObjects.Enqueue(this);
-
-	const UCustomizableObjectNode* CurrentElement;
-	while (PotentialCustomizableNodeObjects.Dequeue(CurrentElement))
-	{
-		for (UEdGraphPin* Pin : CurrentElement->GetAllNonOrphanPins())
-		{
-			if (Pin->Direction == EEdGraphPinDirection::EGPD_Output)
-			{
-				for (UEdGraphPin* LinkedPin : FollowOutputPinArray(*Pin))
-				{
-					UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(LinkedPin->GetOwningNode());
-					check(Node); // All nodes inherit from UCustomizableObjectNode.
-					PotentialCustomizableNodeObjects.Enqueue(Node);
-
-					if (UCustomizableObjectNodeObject* CurrentCustomizableObjectNode = Cast<UCustomizableObjectNodeObject>(Node))
-					{
-						const int32 LODPin = CurrentCustomizableObjectNode->GetLOD(LinkedPin);
-						if (LODPin == -1 || LODPin == LOD) // Add to parents if it is not connected to a LOD pin or it is connected to the given LOD pin.
-						{
-							Result.Add(CurrentCustomizableObjectNode);
-
-							// Explore external CO.
-							if (CurrentCustomizableObjectNode->bIsBase)
-							{
-								if (UCustomizableObjectNodeObjectGroup* ObjectGroupNode = GetCustomizableObjectExternalNode<UCustomizableObjectNodeObjectGroup>(CurrentCustomizableObjectNode->ParentObject, CurrentCustomizableObjectNode->ParentObjectGroupId))
-								{
-									Result.Append(ObjectGroupNode->GetParentObjectNodes(LOD)); // Recursive call.
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return Result;
 }
 
 

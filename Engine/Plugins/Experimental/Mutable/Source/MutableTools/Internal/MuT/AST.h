@@ -372,9 +372,7 @@ namespace mu
 	};
 
 
-	//---------------------------------------------------------------------------------------------
-	//!
-	//---------------------------------------------------------------------------------------------
+	/** */
 	class Sink_MeshFormatAST
 	{
 	public:
@@ -389,6 +387,24 @@ namespace mu
 		TMap<FSinkerOldToNewKey, Ptr<ASTOp>> OldToNew;
 
 		Ptr<ASTOp> Visit(const Ptr<ASTOp>& at, const class ASTOpMeshFormat* currentFormatOp);
+	};
+
+
+	/** */
+	class Sink_MeshExtractLayoutBlocksAST
+	{
+	public:
+
+		// \TODO This is recursive and may cause stack overflows in big models.
+		Ptr<ASTOp> Apply(const class ASTOpMeshExtractLayoutBlocks* Root);
+
+	protected:
+
+		const class ASTOpMeshExtractLayoutBlocks* m_root = nullptr;
+		Ptr<ASTOp> m_initialSource;
+		TMap<FSinkerOldToNewKey, Ptr<ASTOp>> OldToNew;
+
+		Ptr<ASTOp> Visit(const Ptr<ASTOp>& at, const class ASTOpMeshExtractLayoutBlocks* currentFormatOp);
 	};
 
 
@@ -420,6 +436,7 @@ namespace mu
 		Sink_ImageSwizzleAST ImageSwizzleSinker;
 		Sink_ImageMipmapAST ImageMipmapSinker;
 		Sink_MeshFormatAST MeshFormatSinker;
+		Sink_MeshExtractLayoutBlocksAST MeshExtractLayoutBlocksSinker;
 	};
 
 

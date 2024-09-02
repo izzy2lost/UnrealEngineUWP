@@ -231,15 +231,15 @@ FName UCustomizableObjectNodeCopyMaterial::GetMeshComponentName() const
 }
 
 
-TArray<FString> UCustomizableObjectNodeCopyMaterial::GetTags() const
+TArray<FString>* UCustomizableObjectNodeCopyMaterial::GetEnableTags()
 {
 	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
 	{
-		return NodeMaterial->GetTags();
+		return NodeMaterial->GetEnableTags();
 	}
 	else
 	{
-		return {};
+		return nullptr;
 	}
 }
 
