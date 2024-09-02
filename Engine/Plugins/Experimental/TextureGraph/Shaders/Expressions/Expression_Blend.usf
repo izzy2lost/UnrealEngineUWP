@@ -31,6 +31,11 @@ float4 FSH_BlendNormal(in float2 uv : TEXCOORD0) : SV_Target0
 #else
 	float4 FinalColor = lerp(BackgroundTex, ForegroundTex, MaskingValue);
 #endif
+
+#if CLAMP
+	FinalColor = saturate(FinalColor);
+#endif
+	
     return FinalColor;
 }
 
@@ -46,6 +51,10 @@ float4 FSH_BlendAdd(in float2 uv : TEXCOORD0) : SV_Target0
 #else
 	float4 FinalColor = lerp(BackgroundTex, BackgroundTex + ForegroundTex, MaskingValue);
 #endif
+
+#if CLAMP
+	FinalColor = saturate(FinalColor);
+#endif
 	
 	return FinalColor;
 }
@@ -58,10 +67,14 @@ float4 FSH_BlendSubtract(in float2 uv : TEXCOORD0) : SV_Target0
 	float MaskingValue = GetMask(MaskTexture, uv, Opacity);
 
 #if IGNORE_ALPHA
-	float3 FinalRGB = lerp(BackgroundTex, saturate(BackgroundTex - ForegroundTex), MaskingValue);
+	float3 FinalRGB = lerp(BackgroundTex, BackgroundTex - ForegroundTex, MaskingValue);
 	float4 FinalColor = float4(FinalRGB, BackgroundTex.a);
 #else
-	float4 FinalColor = lerp(BackgroundTex, saturate(BackgroundTex - ForegroundTex), MaskingValue);
+	float4 FinalColor = lerp(BackgroundTex, BackgroundTex - ForegroundTex, MaskingValue);
+#endif
+
+#if CLAMP
+	FinalColor = saturate(FinalColor);
 #endif
 	
 	return FinalColor;
@@ -75,10 +88,14 @@ float4 FSH_BlendMultiply(in float2 uv : TEXCOORD0) : SV_Target0
 	float MaskingValue = GetMask(MaskTexture, uv, Opacity);
 
 #if IGNORE_ALPHA
-	float3 FinalRGB = lerp(BackgroundTex, saturate(ForegroundTex * BackgroundTex), MaskingValue);
+	float3 FinalRGB = lerp(BackgroundTex, ForegroundTex * BackgroundTex, MaskingValue);
 	float4 FinalColor = float4(FinalRGB, BackgroundTex.a);
 #else
-	float4 FinalColor = lerp(BackgroundTex, saturate(ForegroundTex * BackgroundTex), MaskingValue);
+	float4 FinalColor = lerp(BackgroundTex, ForegroundTex * BackgroundTex, MaskingValue);
+#endif
+
+#if CLAMP
+	FinalColor = saturate(FinalColor);
 #endif
 	
 	return FinalColor;
@@ -99,6 +116,10 @@ float4 FSH_BlendDivide(in float2 uv : TEXCOORD0) : SV_Target0
 #else
 	float4 FinalColor = lerp(BackgroundTex, DivisionResult, MaskingValue);
 #endif
+
+#if CLAMP
+	FinalColor = saturate(FinalColor);
+#endif
 	
 	return FinalColor;
 }
@@ -115,6 +136,10 @@ float4 FSH_BlendDifference(in float2 uv : TEXCOORD0) : SV_Target0
 	float4 FinalColor = float4(FinalRGB, BackgroundTex.a);
 #else
 	float4 FinalColor = lerp(BackgroundTex, abs(BackgroundTex - ForegroundTex), MaskingValue);
+#endif
+
+#if CLAMP
+	FinalColor = saturate(FinalColor);
 #endif
 	
 	return FinalColor;
@@ -133,6 +158,11 @@ float4 FSH_BlendMax(in float2 uv : TEXCOORD0) : SV_Target0
 #else
 	float4 FinalColor = lerp(BackgroundTex, max(BackgroundTex, ForegroundTex), MaskingValue);
 #endif
+
+#if CLAMP
+	FinalColor = saturate(FinalColor);
+#endif
+	
 	return FinalColor;
 }
 
@@ -148,6 +178,10 @@ float4 FSH_BlendMin(in float2 uv : TEXCOORD0) : SV_Target0
 	float4 FinalColor = float4(FinalRGB, BackgroundTex.a);
 #else
 	float4 FinalColor = lerp(BackgroundTex, min(BackgroundTex, ForegroundTex), MaskingValue);
+#endif
+
+#if CLAMP
+	FinalColor = saturate(FinalColor);
 #endif
 	
 	return FinalColor;
@@ -166,6 +200,10 @@ float4 FSH_BlendStep(in float2 uv : TEXCOORD0) : SV_Target0
 	float4 FinalColor = float4(FinalRGB, BackgroundTex.a);
 #else
 	float4 FinalColor = lerp(BackgroundTex, StepValue, MaskingValue);
+#endif
+
+#if CLAMP
+	FinalColor = saturate(FinalColor);
 #endif
 	
 	return FinalColor;
@@ -195,6 +233,10 @@ float4 FSH_BlendOverlay(in float2 uv : TEXCOORD0) : SV_Target0
 	float4 FinalColor = lerp(BackgroundTex, OverlayBlend(BackgroundTex, ForegroundTex), MaskingValue);
 #endif
 
+#if CLAMP
+	FinalColor = saturate(FinalColor);
+#endif
+	
 	return FinalColor;
 }
 

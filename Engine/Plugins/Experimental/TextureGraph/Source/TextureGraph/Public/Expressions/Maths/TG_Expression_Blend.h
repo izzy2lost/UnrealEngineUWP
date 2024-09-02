@@ -29,6 +29,9 @@ public:
 	// If true, it will ignore the alpha channel blending and keep the background alpha.  
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", DisplayName = "Ignore Alpha"))
 	bool bIgnoreAlpha = true;
+
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", DisplayName = "Clamp"))
+	bool bClamp = true;
 	
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Output", PinDisplayName = ""))
 	FTG_Texture Output;

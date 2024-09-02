@@ -67,6 +67,7 @@ TiledBlobPtr CreateGenericBlend(MixUpdateCyclePtr InCycle, int32 InTargetId, Buf
 {
 	FSH_BlendBase::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FSH_BlendBase::FIgnoreAlpha>(InBlendSettings->bIgnoreAlpha);
+	PermutationVector.Set<FSH_BlendBase::FClamp>(InBlendSettings->bClamp);
 	
 	const RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_Type>(InTransformName, PermutationVector);
 	check(RenderMaterial);
@@ -98,6 +99,7 @@ TiledBlobPtr CreateGenericBlend(MixUpdateCyclePtr InCycle, int32 InTargetId, Buf
 		->AddArg(ARG_BLOB(MaskTexture, "MaskTexture"))
 		->AddArg(ARG_FLOAT(InBlendSettings->Opacity, "Opacity"))
 		->AddArg(WithUnbounded(ARG_BOOL(InBlendSettings->bIgnoreAlpha, "IgnoreAlpha")))
+		->AddArg(WithUnbounded(ARG_BOOL(InBlendSettings->bClamp, "Clamp")))
 		;
 
 	const FString Name = FString::Printf(TEXT("[%llu] - Blend - %s"), InCycle->GetBatch()->GetBatchId(), *InTransformName);

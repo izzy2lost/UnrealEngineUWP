@@ -26,7 +26,8 @@ public:
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FIgnoreAlpha : SHADER_PERMUTATION_BOOL("IGNORE_ALPHA");
-	using FPermutationDomain = TShaderPermutationDomain<FIgnoreAlpha>;
+	class FClamp : SHADER_PERMUTATION_BOOL("CLAMP");
+	using FPermutationDomain = TShaderPermutationDomain<FIgnoreAlpha, FClamp>;
 
 public:
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -163,6 +164,7 @@ public:
 		TiledBlobPtr Mask;
 		float Opacity;
 		bool bIgnoreAlpha;
+		bool bClamp;
 	};
 	//////////////////////////////////////////////////////////////////////////
 	/// Static functions
