@@ -36,10 +36,10 @@ bool FDisplayClusterConfiguratorMPCDIImporter::ImportMPCDIIntoBlueprint(const FS
 
 	// The ViewPoint component cannot be used as a ViewOrigin. They have different purposes.
 	// The default ViewOrigin is the RootComponent.
-	const FName ViewOriginComponentName = !InParams.ViewOriginComponentName.IsNone() ? InParams.ViewOriginComponentName : TEXT("RootComponent");
+	const FName OriginComponentName = !InParams.OriginComponentName.IsNone() ? InParams.OriginComponentName : TEXT("RootComponent");
 
-	USCS_Node* ViewOriginNode = nullptr;
-	UDisplayClusterCameraComponent* ViewOriginComponent = Cast<UDisplayClusterCameraComponent>(FindBlueprintSceneComponent(InBlueprint, ViewOriginComponentName, &ViewOriginNode));
+	USCS_Node* OriginNode = nullptr;
+	UDisplayClusterCameraComponent* OriginComponent = Cast<UDisplayClusterCameraComponent>(FindBlueprintSceneComponent(InBlueprint, OriginComponentName, &OriginNode));
 
 	FIPv4Address CurrentIPAddress = InParams.HostStartingIPAddress;
 	for (const TPair<FString, TMap<FString, FDisplayClusterWarpMPCDIAttributes>>& Buffer : MPCDIFile)
@@ -56,7 +56,7 @@ bool FDisplayClusterConfiguratorMPCDIImporter::ImportMPCDIIntoBlueprint(const FS
 					if (ScreenNode)
 					{
 						UDisplayClusterScreenComponent* ScreenComponent = CastChecked<UDisplayClusterScreenComponent>(ScreenNode->GetActualComponentTemplate(InBlueprint->GetGeneratedClass()));
-						ConfigureScreenComponentFrom2DProfileRegion(ScreenComponent, ViewOriginComponent, Region.Value, InParams);
+						ConfigureScreenComponentFrom2DProfileRegion(ScreenComponent, OriginComponent, Region.Value, InParams);
 
 						// If a new screen had to be created, it needs to be parented to a valid parent component
 						if (!bFoundExistingScreen)
@@ -160,7 +160,7 @@ USCS_Node* FDisplayClusterConfiguratorMPCDIImporter::FindOrCreateScreenNodeForRe
 
 void FDisplayClusterConfiguratorMPCDIImporter::ConfigureScreenComponentFrom2DProfileRegion(
 	UDisplayClusterScreenComponent* InScreenComponent,
-	UDisplayClusterCameraComponent* InViewOriginComponent,
+	USceneComponent* InOriginComponent,
 	const FDisplayClusterWarpMPCDIAttributes& InAttributes,
 	const FDisplayClusterConfiguratorMPCDIImporterParams& InParams)
 {
@@ -171,16 +171,16 @@ void FDisplayClusterConfiguratorMPCDIImporter::ConfigureScreenComponentFrom2DPro
 		return;
 	}
 
-	if (InViewOriginComponent)
+	if (InOriginComponent)
 	{
-		// We want to position the screen component to be in front of the view origin it is assigned to, so we must compute
-		// the transforms from view origin to root and from root to screen component to correct position
+		// We want to position the screen component to be in front of the view point it is assigned to, so we must compute
+		// the transforms from view point to root and from root to screen component to correct position
 
-		// Blueprint components don't have world transforms, so compute the view origin to root transform manually
-		FTransform ViewOriginTransform = FTransform::Identity;
-		for (const USceneComponent* Comp = InViewOriginComponent; Comp != nullptr; Comp = Comp->GetAttachParent())
+		// Blueprint components don't have world transforms, so compute the view point to root transform manually
+		FTransform ViewPointTransform = FTransform::Identity;
+		for (const USceneComponent* Comp = InOriginComponent; Comp != nullptr; Comp = Comp->GetAttachParent())
 		{
-			ViewOriginTransform *= Comp->GetRelativeTransform();
+			ViewPointTransform *= Comp->GetRelativeTransform();
 		}
 
 		// The screen may also be parented to a non-root component, so also compute its root transform
@@ -190,8 +190,8 @@ void FDisplayClusterConfiguratorMPCDIImporter::ConfigureScreenComponentFrom2DPro
 			ScreenTransform *= Comp->GetRelativeTransform();
 		}
 
-		FTransform ViewOriginToScreen = ViewOriginTransform * ScreenTransform.Inverse();
-		ScreenPosition = ViewOriginToScreen.TransformPositionNoScale(ScreenPosition);
+		FTransform ViewPointToScreen = ViewPointTransform * ScreenTransform.Inverse();
+		ScreenPosition = ViewPointToScreen.TransformPositionNoScale(ScreenPosition);
 	}
 
 	InScreenComponent->SetRelativeLocation(ScreenPosition);
@@ -239,9 +239,9 @@ void FDisplayClusterConfiguratorMPCDIImporter::ConfigureViewportFromRegion(UDisp
 	FDisplayClusterConfiguratorViewportViewModel ViewportViewModel(InViewport);
 	ViewportViewModel.SetRegion(FDisplayClusterConfigurationRectangle(0, 0, InAttributes.Region.Resolution.X, InAttributes.Region.Resolution.Y));
 
-	if (InParams.ViewOriginComponentName != NAME_None)
+	if (InParams.ViewPointComponentName != NAME_None)
 	{
-		ViewportViewModel.SetCamera(InParams.ViewOriginComponentName.ToString());
+		ViewportViewModel.SetCamera(InParams.ViewPointComponentName.ToString());
 	}
 }
 

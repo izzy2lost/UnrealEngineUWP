@@ -13,6 +13,7 @@ namespace UE::DisplayClusterViewportHelpers
 {
 	/** Find a component by name from a RootActor of the specified type.
 	*
+	* @param InConfiguration - current configuration
 	* @param InRootActorType - the search is performed within the DCRA of the given type.
 	* @param InComponentName - the name of the component
 	*/
@@ -29,6 +30,36 @@ namespace UE::DisplayClusterViewportHelpers
 			if (TComp* Component = RequestedRootActor->GetComponentByName<TComp>(InComponentName))
 			{
 				return Component;
+			}
+		}
+
+		return nullptr;
+	}
+
+	/** Find a component by name from a RootActor of the specified type.
+	*
+	* @param ComponentOfRootActor
+	* @param InComponentName - the name of the component
+	*/
+	template<class TComp>
+	TComp* GetOwnerRootActorComponentByName(USceneComponent* ComponentOfRootActor, const FString& InComponentName)
+	{
+		if (InComponentName.IsEmpty())
+		{
+			return nullptr;
+		}
+
+		if (AActor* OwnerActor = ComponentOfRootActor->GetOwner())
+		{
+			if (OwnerActor->IsA<ADisplayClusterRootActor>())
+			{
+				if (ADisplayClusterRootActor* OwnerRootActor = Cast<ADisplayClusterRootActor>(OwnerActor))
+				{
+					if (TComp* OutComponent = OwnerRootActor->GetComponentByName<TComp>(InComponentName))
+					{
+						return OutComponent;
+					}
+				}
 			}
 		}
 

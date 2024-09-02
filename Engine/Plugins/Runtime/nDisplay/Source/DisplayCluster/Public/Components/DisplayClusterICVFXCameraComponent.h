@@ -88,7 +88,7 @@ public:
 	virtual void OnRegister() override;
 
 	/** Sets new depth of field parameters and updates the dynamically generated compensation LUT if needed */
-	UFUNCTION(BlueprintCallable, Category = "In Camera VFX")
+	UFUNCTION(BlueprintCallable, Category = "ICVFX Camera")
 	void SetDepthOfFieldParameters(const FDisplayClusterConfigurationICVFX_CameraDepthOfField& NewDepthOfFieldParams);
 
 private:

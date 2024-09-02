@@ -1243,6 +1243,15 @@ void ADisplayClusterRootActor::TickPreviewRenderer()
 		NewPreviewSettings.bPreviewEnable = false;
 	}
 
+#if WITH_EDITOR
+	// The StageIsosphereComponent can only be seen if DCRA preview is enabled.
+	const bool bShowStageIsosphere = NewPreviewSettings.bPreviewEnable && bPreviewStageGeometryMesh;
+	if (StageIsosphereComponent && StageIsosphereComponent->GetVisibleFlag() != bShowStageIsosphere)
+	{
+		StageIsosphereComponent->SetVisibility(bShowStageIsosphere);
+	}
+#endif
+
 	// Update entire cluster preview rendering
 	if (IDisplayClusterViewportManager* ViewportManager = bEnablePreviewInScene ? GetOrCreateViewportManager() : GetViewportManager())
 	{

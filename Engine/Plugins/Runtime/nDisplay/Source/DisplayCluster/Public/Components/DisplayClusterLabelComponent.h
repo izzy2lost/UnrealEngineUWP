@@ -16,7 +16,7 @@ class UUserWidget;
 class UWidgetComponent;
 
 /**
- * A label component specific to nDisplay. Displays a widget with a consistent scale facing the root actor view origin.
+ * A label component specific to nDisplay. Displays a widget with a consistent scale facing the root actor view point.
  * Visible only in scene capture when in the editor or in 3d space on the wall.
  *
  * The component needs to be transient so its settings aren't saved, but should still transact over multi-user.

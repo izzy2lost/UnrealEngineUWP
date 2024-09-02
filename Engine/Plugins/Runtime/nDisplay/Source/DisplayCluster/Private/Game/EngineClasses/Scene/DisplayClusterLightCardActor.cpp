@@ -567,19 +567,19 @@ void ADisplayClusterLightCardActor::UpdateLightCardPositionToRootActor()
 		{
 			if (ConfigData->StageSettings.Lightcard.bEnable)
 			{
-				// Find a view origin to use as the transform "anchor" of each light card. At the moment, assume the first view origin component
-				// found is the correct view origin (the same assumption is made in the light card editor). If no view origin is found, use the root component
-				const USceneComponent* ViewOriginComponent = RootActor->GetRootComponent();
+				// Find a origin to use as the transform "anchor" of each light card. At the moment, assume the first view point component
+				// found is the correct view point (the same assumption is made in the light card editor). If no view point is found, use the root component
+				const USceneComponent* ViewPointComponent = RootActor->GetRootComponent();
 
-				TArray<UDisplayClusterCameraComponent*> ViewOriginComponents;
-				RootActor->GetComponents(ViewOriginComponents);
+				TArray<UDisplayClusterCameraComponent*> ViewPointComponents;
+				RootActor->GetComponents(ViewPointComponents);
 
-				if (ViewOriginComponents.Num())
+				if (ViewPointComponents.Num())
 				{
-					ViewOriginComponent = ViewOriginComponents[0];
+					ViewPointComponent = ViewPointComponents[0];
 				}
 		
-				const FVector Location = ViewOriginComponent ? ViewOriginComponent->GetComponentLocation() : RootActor->GetActorLocation();
+				const FVector Location = ViewPointComponent ? ViewPointComponent->GetComponentLocation() : RootActor->GetActorLocation();
 				const FVector RelativeLocation = RootActor->GetTransform().InverseTransformPosition(Location);
 				const FRotator Rotation = RootActor->GetActorRotation();
 				

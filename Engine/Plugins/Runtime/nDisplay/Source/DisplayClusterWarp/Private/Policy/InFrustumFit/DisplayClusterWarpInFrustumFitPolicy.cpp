@@ -271,7 +271,7 @@ void FDisplayClusterWarpInFrustumFitPolicy::OnUpdateDisplayDeviceMeshAndMaterial
 
 		const FMatrix CameraBasis = FRotationMatrix::Make(WarpData.WarpProjection.CameraRotation).Inverse();
 
-		// Compute the relative transform from the view origin to the geometry
+		// Compute the relative transform from the origin to the geometry
 		FTransform RelativeTransform = FTransform(WarpData.WarpContext.MeshToStageMatrix * WarpData.Local2World.Inverse());
 		RelativeTransform.ScaleTranslation(Scale);
 

@@ -129,7 +129,7 @@ public:
 	 * Moves specified actors to desired coordinates. Actual radius will be based on flush constraint and actor's RadialOffset.
 	 *
 	 * @param Actors The actors that we are moving
-	 * @param SphericalCoords The desired location of the actors in spherical coordinates with respect to view origin.
+	 * @param SphericalCoords The desired location of the actors in spherical coordinates with respect to origin.
 	*/
 	DISPLAYCLUSTERSCENEPREVIEW_API void MoveActorsTo(const TArray<FDisplayClusterWeakStageActorPtr>& Actors, const FSphericalCoordinates& SphericalCoords);
 	
@@ -160,24 +160,24 @@ public:
 	DISPLAYCLUSTERSCENEPREVIEW_API void DragUVActors(const TArray<FDisplayClusterWeakStageActorPtr>& Actors, const FIntPoint& PixelPos, const FSceneView& SceneView,
 		const FVector& DragWidgetOffset, EAxisList::Type DragAxis, FDisplayClusterWeakStageActorPtr PrimaryActor = nullptr);
 
-	/** Ensures that the actor root component is at the same location as the projection/view origin */
+	/** Ensures that the actor root component is at the same location as the projection/origin */
 	DISPLAYCLUSTERSCENEPREVIEW_API void VerifyAndFixActorOrigin(const FDisplayClusterWeakStageActorPtr& Actor);
 
 	/**
-	 * Calculates the relative normal vector and world position in the specified direction from the given view origin.
+	 * Calculates the relative normal vector and world position in the specified direction from the given origin.
 	 * 
-	 * @param InViewOrigin The origin point of the view.
+	 * @param InOrigin The origin point of the view.
 	 * @param InDirection The direction in which check the normal.
 	 * @param OutWorldPosition The world-space coordinates of the calculated position.
 	 * @param OutRelativeNormal The normal vector at the calculated position.
 	 * @param InDesiredDistanceFromFlush The desired flush distance from the initial calculated position.
 	 * @return true if the position was found, or false if the normal maps need to be updated first.
 	 */
-	DISPLAYCLUSTERSCENEPREVIEW_API bool CalculateNormalAndPositionInDirection(const FVector& InViewOrigin, const FVector& InDirection, FVector& OutWorldPosition,
+	DISPLAYCLUSTERSCENEPREVIEW_API bool CalculateNormalAndPositionInDirection(const FVector& InOrigin, const FVector& InDirection, FVector& OutWorldPosition,
 		FVector& OutRelativeNormal, double InDesiredDistanceFromFlush = 0.);
 
 	/**
-	 * Calculates the desired direction from the view origin given a pixel position within the view.
+	 * Calculates the desired direction from the origin given a pixel position within the view.
 	 * 
 	 * @param InPixelPos The desired position within the view in pixels.
 	 * @param InSceneView The view that was displayed when the pixel position was chosen.
@@ -335,7 +335,7 @@ private:
 	/** Performs a ray trace against the stage's geometry, and returns the hit point. */
 	bool TraceStage(const FVector& RayStart, const FVector& RayEnd, FVector& OutHitLocation);
 
-	/** Traces the world geometry to find the best direction vector from the view origin to a valid point in space using a screen ray. Requires valid normal maps. */
+	/** Traces the world geometry to find the best direction vector from the origin to a valid point in space using a screen ray. Requires valid normal maps. */
 	FVector TraceScreenRay(const FVector& RayOrigin, const FVector& RayDirection, const FVector& ViewOrigin);
 
 	/** Calculates the final distance from the origin of a light card, given its flush distance and a desired offset */
@@ -384,7 +384,7 @@ private:
 	/** The level instance root actor of the DisplayCluster being controlled, if RootActor is a proxy. */
 	TWeakObjectPtr<ADisplayClusterRootActor> LevelInstanceRootActor;
 
-	/** The component of the root actor that is acting as the projection origin. Can be either the root component (stage origin) or a view origin component */
+	/** The component of the root actor that is acting as the projection origin. Can be either the root component (stage origin) or a view point component */
 	TWeakObjectPtr<USceneComponent> ProjectionOriginComponent;
 
 	/** The projection mode of the view this is helping. */

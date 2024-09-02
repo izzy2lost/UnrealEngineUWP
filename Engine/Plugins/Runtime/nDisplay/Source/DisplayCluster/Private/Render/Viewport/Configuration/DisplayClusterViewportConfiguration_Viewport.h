@@ -52,6 +52,6 @@ public:
 	// The viewport instance
 	TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe> Viewport;
 
-	// Pointer to the view origin component, used by this viewport instance.
+	// Pointer to the view point component, used by this viewport instance.
 	UDisplayClusterCameraComponent* ViewPointCameraComponent = nullptr;
 };

@@ -26,7 +26,7 @@ namespace DisplayClusterICVFXCameraComponentDetailsCustomizationUtils
 		{
 			TEXT("Variable"),
 			TEXT("TransformCommon"),
-			DisplayClusterConfigurationStrings::categories::ICVFXCategory,
+			DisplayClusterConfigurationStrings::categories::InnerFrustumCategory,
 			DisplayClusterConfigurationStrings::categories::ICVFXCameraCategory,
 			DisplayClusterConfigurationStrings::categories::CameraColorGradingCategory,
 			DisplayClusterConfigurationStrings::categories::OCIOCategory,

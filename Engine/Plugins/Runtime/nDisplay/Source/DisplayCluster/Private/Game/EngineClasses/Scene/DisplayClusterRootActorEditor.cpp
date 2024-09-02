@@ -715,10 +715,6 @@ void ADisplayClusterRootActor::PostEditChangeProperty(FPropertyChangedEvent& Pro
 		ResetEntireClusterPreviewRendering();
 		bReinitializeActor = false;
 	}
-	else if (PropertyName == GET_MEMBER_NAME_CHECKED(ADisplayClusterRootActor, bPreviewStageGeometryMesh))
-	{
-		StageIsosphereComponent->SetVisibility(bPreviewStageGeometryMesh);
-	}
 
 	if (bReinitializeActor)
 	{
@@ -755,7 +751,7 @@ void ADisplayClusterRootActor::OnEndObjectMovement(UObject& InObject)
 	{
 		if (SceneComponent->GetOwner() == this)
 		{
-			// Check to see if the object being moved is a part of the stage's geometry or a view origin
+			// Check to see if the object being moved is a part of the stage's geometry or a view point
 			TArray<FString> ProjectionMeshNames;
 			if (UDisplayClusterConfigurationData* Config = GetConfigData())
 			{
@@ -764,9 +760,9 @@ void ADisplayClusterRootActor::OnEndObjectMovement(UObject& InObject)
 
 			const bool bIsProjectionMesh = SceneComponent->IsA<UStaticMeshComponent>() && ProjectionMeshNames.Contains(SceneComponent->GetName());
 			const bool bIsScreen = SceneComponent->IsA<UDisplayClusterScreenComponent>();
-			const bool bIsViewOrigin = SceneComponent->IsA<UDisplayClusterCameraComponent>();
+			const bool bIsViewPoint = SceneComponent->IsA<UDisplayClusterCameraComponent>();
 
-			if (bIsProjectionMesh || bIsScreen || bIsViewOrigin)
+			if (bIsProjectionMesh || bIsScreen || bIsViewPoint)
 			{
 				StageGeometryComponent->Invalidate();
 			}

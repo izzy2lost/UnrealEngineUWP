@@ -130,7 +130,8 @@ void FDisplayClusterWarpBlendMath_Frustum::ImplCalcViewProjectionMatrices()
 		WarpData.Local2World = FRotationMatrix::MakeFromXY(NewX, FVector(0.f, 1.f, 0.f));
 	}
 
-	WarpData.Local2World.SetOrigin(WarpData.GeometryWarpProjection.EyeLocation); // Finally set view origin to eye location
+	// Finally, set the eye location for the view matrix.
+	WarpData.Local2World.SetOrigin(WarpData.GeometryWarpProjection.EyeLocation);
 }
 
 void FDisplayClusterWarpBlendMath_Frustum::InitializeWarpProjectionData()

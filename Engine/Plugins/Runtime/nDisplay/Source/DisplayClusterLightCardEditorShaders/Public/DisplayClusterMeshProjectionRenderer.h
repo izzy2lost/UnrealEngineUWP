@@ -73,7 +73,7 @@ struct FDisplayClusterMeshProjectionTypeSettings
 	/** The size of the plane the UVs are projected to, in view space */
 	float UVProjectionPlaneSize = 100.0f;
 
-	/** The distance from the view origin of the plane the UVs are projected to, in view space */
+	/** The distance from the view point of the plane the UVs are projected to, in view space */
 	float UVProjectionPlaneDistance = 100.0f;
 
 	/** A translation offset for the UV projection plane */

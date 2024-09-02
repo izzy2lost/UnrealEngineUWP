@@ -849,7 +849,7 @@ void FDisplayClusterLightCardEditorViewportClient::CreateDrawnLightCard(const TA
 	const FVector ViewOrigin = View->ViewLocation;
 	const FVector OriginOffset = ProjectionMode == EDisplayClusterMeshProjectionType::UV ? ViewOrigin : FVector::ZeroVector;
 
-	TArray<FVector> MouseWorldDirections; // directions from view origin
+	TArray<FVector> MouseWorldDirections; // directions from view point
 
 	FVector ScreenOrigin;
 	FVector ScreenDirection;
@@ -1305,7 +1305,7 @@ void FDisplayClusterLightCardEditorViewportClient::BeginCameraMovement(bool bHas
 	// A little bit of hackery here. FEditorViewportClient doesn't provide many ways to change how camera movement happens (e.g. what keys or mouse movements do what),
 	// but it does call BeginCameraMovement before it actually applies any of the movement stored in CameraUserImpulseData, so we can perform our own camera movement 
 	// impulses here. For most projection modes, we simply zero out any camera translation impulses since the user isn't generally allowed to move the camera away from
-	// the view origin. The UV projection mode is the exception, where the user is allowed to pan the camera around
+	// the view point. The UV projection mode is the exception, where the user is allowed to pan the camera around
 	if (ProjectionMode == EDisplayClusterMeshProjectionType::UV)
 	{
 		bool bIsLeftRightKeyPressed = false;
@@ -2757,26 +2757,26 @@ AActor* FDisplayClusterLightCardEditorViewportClient::TraceScreenForActor(const 
 			{
 				if (UDisplayClusterConfigurationViewport* CfgViewport = FindViewportForPrimitiveComponent(ScreenHitResult.Component.Get()))
 				{
-					FString ViewOriginName = CfgViewport->Camera;
-					UDisplayClusterCameraComponent* ViewOrigin = nullptr;
+					const FString ViewPointName = CfgViewport->Camera;
+					UDisplayClusterCameraComponent* ViewPointComponent= nullptr;
 
-					// If the view origin name is empty, use the first found view origin in the root actor
-					if (ViewOriginName.IsEmpty())
+					// If the view point name is empty, use the first found view point in the root actor
+					if (ViewPointName.IsEmpty())
 					{
-						ViewOrigin = RootActorProxy->GetDefaultCamera();
+						ViewPointComponent = RootActorProxy->GetDefaultCamera();
 					}
 					else
 					{
-						ViewOrigin = RootActorProxy->GetComponentByName<UDisplayClusterCameraComponent>(ViewOriginName);
+						ViewPointComponent = RootActorProxy->GetComponentByName<UDisplayClusterCameraComponent>(ViewPointName);
 					}
 
-					if (ViewOrigin)
+					if (ViewPointComponent)
 					{
-						const FVector ViewOriginRayStart = ViewOrigin->GetComponentLocation();
-						const FVector ViewOriginRayEnd = ViewOriginRayStart + (ScreenHitResult.Location - ViewOriginRayStart) * HALF_WORLD_MAX;
+						const FVector ViewPointRayStart = ViewPointComponent->GetComponentLocation();
+						const FVector ViewPointRayEnd = ViewPointRayStart + (ScreenHitResult.Location - ViewPointRayStart) * HALF_WORLD_MAX;
 
 						TArray<FHitResult> HitResults;
-						if (PreviewWorld->LineTraceMultiByObjectType(HitResults, ViewOriginRayStart, ViewOriginRayEnd, FCollisionObjectQueryParams(FCollisionObjectQueryParams::InitType::AllObjects), TraceParams))
+						if (PreviewWorld->LineTraceMultiByObjectType(HitResults, ViewPointRayStart, ViewPointRayEnd, FCollisionObjectQueryParams(FCollisionObjectQueryParams::InitType::AllObjects), TraceParams))
 						{
 							for (FHitResult& HitResult : HitResults)
 							{

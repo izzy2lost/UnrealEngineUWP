@@ -49,6 +49,16 @@ private:
 	/** Gets the text to display for the currently selected camera */
 	FText GetSelectedCameraText() const;
 
+	/** When select component button is pressed. */
+	void OnSelectComponentButton() const;
+
+	/** Return select component button tooltip text. */
+	FText GetSelectComponentButtonTooltipText() const;
+
+	/** Return camera component class. */
+	UClass* GetCameraComponentClass() const;
+
+
 private:
 	/** A weak reference to the UDisplayClusterCameraComponent object being edited by the details panel */
 	TWeakObjectPtr<UDisplayClusterCameraComponent> EditedObject;
@@ -68,4 +78,7 @@ private:
 
 	/** The combo box that is being displayed in the details panel for the Camera property */
 	TSharedPtr<SDisplayClusterConfigurationSearchableComboBox> CameraComboBox;
+
+	/** The widged that is being displayed in the details panel for the Camera property */
+	TSharedPtr<SWidget> CameraComboBoxWidged;
 };

@@ -35,6 +35,7 @@
 #include "Blueprints/DisplayClusterBlueprint.h"
 #include "Components/DisplayClusterScreenComponent.h"
 #include "Components/DisplayClusterCameraComponent.h"
+#include "Components/DisplayClusterInFrustumFitCameraComponent.h"
 #include "Components/DisplayClusterICVFXCameraComponent.h"
 #include "Misc/DisplayClusterObjectRef.h"
 #include "DisplayClusterRootActor.h"
@@ -267,8 +268,8 @@ void FDisplayClusterConfiguratorModule::RegisterSectionMappings()
 	}
 	{
 		const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(ADisplayClusterRootActor::StaticClass()->GetFName(),
-			DisplayClusterConfigurationStrings::categories::ICVFXCategory, LOCTEXT("In-Camera VFX", "In-Camera VFX"));
-		Section->AddCategory(DisplayClusterConfigurationStrings::categories::ICVFXCategory);
+			DisplayClusterConfigurationStrings::categories::InCameraVFXCategory, LOCTEXT("InCameraVFXCategoryLabel", "In-Camera VFX"));
+		Section->AddCategory(DisplayClusterConfigurationStrings::categories::InCameraVFXCategory);
 	}
 	{
 		const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(ADisplayClusterRootActor::StaticClass()->GetFName(),
@@ -287,20 +288,15 @@ void FDisplayClusterConfiguratorModule::RegisterSectionMappings()
 	}
 	{
 		const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(ADisplayClusterRootActor::StaticClass()->GetFName(),
-			DisplayClusterConfigurationStrings::categories::PreviewCategory, LOCTEXT("Editor Preview", "Editor Preview"));
+			DisplayClusterConfigurationStrings::categories::PreviewCategory, LOCTEXT("Preview", "Preview"));
 		Section->AddCategory(DisplayClusterConfigurationStrings::categories::PreviewCategory);
-	}
-	{
-		const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(ADisplayClusterRootActor::StaticClass()->GetFName(),
-			DisplayClusterConfigurationStrings::categories::PreviewInGameCategory, LOCTEXT("Preview In Game", "Preview In Game"));
-		Section->AddCategory(DisplayClusterConfigurationStrings::categories::PreviewInGameCategory);
-	}
+	}	
 
 	// ICVFX Component
 	{
 		const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(UDisplayClusterICVFXCameraComponent::StaticClass()->GetFName(),
-		DisplayClusterConfigurationStrings::categories::ICVFXCategory, LOCTEXT("InnerFrustumSectionLabel", "Inner Frustum"));
-		Section->AddCategory(DisplayClusterConfigurationStrings::categories::ICVFXCategory);
+		DisplayClusterConfigurationStrings::categories::InnerFrustumCategory, LOCTEXT("InnerFrustumCategoryLabel", "Inner Frustum"));
+		Section->AddCategory(DisplayClusterConfigurationStrings::categories::InnerFrustumCategory);
 	}
 	{
 		const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(UDisplayClusterICVFXCameraComponent::StaticClass()->GetFName(),
@@ -327,6 +323,26 @@ void FDisplayClusterConfiguratorModule::RegisterSectionMappings()
 			DisplayClusterConfigurationStrings::categories::ChromaKeyCategory, LOCTEXT("Chromakey", "Chromakey"));
 		Section->AddCategory(DisplayClusterConfigurationStrings::categories::ChromaKeyCategory);
 	}
+
+	// ViewPoint
+	{
+		const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(UDisplayClusterCameraComponent::StaticClass()->GetFName(),
+			DisplayClusterConfigurationStrings::categories::ViewPointStereoCategory, LOCTEXT("ViewPointStereoSectionLabel", "Stereo"));
+		Section->AddCategory(DisplayClusterConfigurationStrings::categories::ViewPointStereoCategory);
+	}
+	{
+		const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(UDisplayClusterCameraComponent::StaticClass()->GetFName(),
+			DisplayClusterConfigurationStrings::categories::ViewPointCameraPostProcessCategory, LOCTEXT("ViewPointCameraPostProcessSectionLabel", "Camera Post Process"));
+		Section->AddCategory(DisplayClusterConfigurationStrings::categories::ViewPointCameraPostProcessCategory);
+	}
+
+	// InFrustum ViewPoint
+	{
+		const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(UDisplayClusterInFrustumFitCameraComponent::StaticClass()->GetFName(),
+			DisplayClusterConfigurationStrings::categories::ViewPointInFrustumProjectionCategory, LOCTEXT("ViewPointInFrustumProjectionSectionLabel", "Frustum Fit"));
+		Section->AddCategory(DisplayClusterConfigurationStrings::categories::ViewPointInFrustumProjectionCategory);
+	}
+
 }
 
 void FDisplayClusterConfiguratorModule::UnregisterSectionMappings()
@@ -335,12 +351,12 @@ void FDisplayClusterConfiguratorModule::UnregisterSectionMappings()
 	{
 		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		PropertyModule.RemoveSection(ADisplayClusterRootActor::StaticClass()->GetFName(), DisplayClusterConfigurationStrings::categories::ViewportsCategory);
-		PropertyModule.RemoveSection(ADisplayClusterRootActor::StaticClass()->GetFName(), DisplayClusterConfigurationStrings::categories::ICVFXCategory);
+		PropertyModule.RemoveSection(ADisplayClusterRootActor::StaticClass()->GetFName(), DisplayClusterConfigurationStrings::categories::InCameraVFXCategory);
 		PropertyModule.RemoveSection(ADisplayClusterRootActor::StaticClass()->GetFName(), DisplayClusterConfigurationStrings::categories::ColorGradingCategory);
 		PropertyModule.RemoveSection(ADisplayClusterRootActor::StaticClass()->GetFName(), DisplayClusterConfigurationStrings::categories::OCIOCategory);
 		PropertyModule.RemoveSection(ADisplayClusterRootActor::StaticClass()->GetFName(), DisplayClusterConfigurationStrings::categories::LightcardCategory);
 
-		PropertyModule.RemoveSection(UDisplayClusterICVFXCameraComponent::StaticClass()->GetFName(), DisplayClusterConfigurationStrings::categories::ICVFXCategory);
+		PropertyModule.RemoveSection(UDisplayClusterICVFXCameraComponent::StaticClass()->GetFName(), DisplayClusterConfigurationStrings::categories::InnerFrustumCategory);
 		PropertyModule.RemoveSection(UDisplayClusterICVFXCameraComponent::StaticClass()->GetFName(), DisplayClusterConfigurationStrings::categories::CameraColorGradingCategory);
 		PropertyModule.RemoveSection(UDisplayClusterICVFXCameraComponent::StaticClass()->GetFName(), DisplayClusterConfigurationStrings::categories::OCIOCategory);
 		PropertyModule.RemoveSection(UDisplayClusterICVFXCameraComponent::StaticClass()->GetFName(), DisplayClusterConfigurationStrings::categories::ChromaKeyCategory);

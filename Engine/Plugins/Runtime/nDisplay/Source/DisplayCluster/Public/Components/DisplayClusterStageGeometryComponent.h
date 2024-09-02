@@ -64,8 +64,8 @@ public:
 	/**
 	 * Gets the distance and normal vector (in radial space) of the stage's geometry in the specified world direction
 	 * @param InDirection The direction in world coordinates to query the stage geometry map
-	 * @param OutDistance The distance from the stage's default view origin to the nearest stage geometry in the specified direction
-	 * @param OutNormal The normal vector in radial space (with x axis pointing in the direction of the stage's default view origin) of the nearest stage geometry in the specified direction
+	 * @param OutDistance The distance from the stage's default view point to the nearest stage geometry in the specified direction
+	 * @param OutNormal The normal vector in radial space (with x axis pointing in the direction of the stage's default view point) of the nearest stage geometry in the specified direction
 	 * @return true if the stage geometry map was successfully queried, otherwise false
 	 */
 	UFUNCTION(BlueprintCallable, Category = "NDisplay")
@@ -80,7 +80,7 @@ public:
 	/**
 	 * Morphs the specified procedural mesh to match the stage's geometry map
 	 * @param InProceduralMeshComponent - The mesh component to morph
-	 * @param bSyncMeshLocation - When true, the procedural mesh's world location will be synced to the view origin's world location
+	 * @param bSyncMeshLocation - When true, the procedural mesh's world location will be synced to the view point's world location
 	 */
 	bool MorphProceduralMesh(UProceduralMeshComponent* InProceduralMeshComponent, bool bSyncMeshLocation = false);
 

@@ -19,8 +19,11 @@ struct FDisplayClusterConfiguratorMPCDIImporterParams
 	/** The name of the component to make the parent of the MPCDI geometry */
 	FName ParentComponentName = NAME_None;
 
-	/** The name of the view origin component to link to the MPCDI geometry. If none is supplied, the default view origin is used */
-	FName ViewOriginComponentName = NAME_None;
+	/** The name of the view point component to link to the viewports. If none is supplied, the default view point is used */
+	FName ViewPointComponentName = NAME_None;
+
+	/** The name of the origin component to link to the MPCDI geometry. If none is supplied, the root component is used */
+	FName OriginComponentName = NAME_None;
 
 	/** The IP address to configure the first cluster node with */
 	FIPv4Address HostStartingIPAddress = FIPv4Address::InternalLoopback;
@@ -58,11 +61,11 @@ private:
 	 * Configures a screen component to match the configuration of an MPCDI region
 	 * 
 	 * @param InScreenComponent - The component to configure
-	 * @param InViewOriginComponent - The view origin component to configure the screens from
-	 * @param InAttributes - The attributes of the region to configure
-	 * @param InParams - The import parameters 
+	 * @param InOriginComponent - The Origin component to configure the screens from
+	 * @param InAttributes      - The attributes of the region to configure
+	 * @param InParams          - The import parameters
 	 **/
-	static void ConfigureScreenComponentFrom2DProfileRegion(UDisplayClusterScreenComponent* InScreenComponent, UDisplayClusterCameraComponent* InViewOriginComponent, const FDisplayClusterWarpMPCDIAttributes& InAttributes, const FDisplayClusterConfiguratorMPCDIImporterParams& InParams);
+	static void ConfigureScreenComponentFrom2DProfileRegion(UDisplayClusterScreenComponent* InScreenComponent, USceneComponent* InOriginComponent, const FDisplayClusterWarpMPCDIAttributes& InAttributes, const FDisplayClusterConfiguratorMPCDIImporterParams& InParams);
 
 	/**
 	 * Attempts to find an existing viewport configuration for the specified region, and if one is not found, creates a new viewport configuration

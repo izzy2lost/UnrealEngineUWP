@@ -153,7 +153,7 @@ void UDisplayClusterLabelComponent::UpdateWidgetComponent()
 			
 				WidgetComponent->SetWorldRotation(Rotation);
 
-				// Keep the label the same size regardless of distance to the view origin.
+				// Keep the label the same size regardless of distance to the view point.
 				const float Distance = (DestinationPoint - LightCardLocation).Length();
 
 				const float BaseLabelScale = 0.0025f;

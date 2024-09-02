@@ -10,6 +10,8 @@
 
 #include "DisplayClusterRootActor.h"
 
+#include "CineCameraComponent.h"
+
 #include "Engine/CollisionProfile.h"
 #include "Engine/Texture2D.h"
 #include "UObject/ConstructorHelpers.h"
@@ -33,7 +35,14 @@ UDisplayClusterCameraComponent::UDisplayClusterCameraComponent(const FObjectInit
 	{
 		ConstructorHelpers::FObjectFinderOptional<UTexture2D> SpriteTextureObject = TEXT("/nDisplay/Icons/S_nDisplayViewOrigin");
 		SpriteTexture = SpriteTextureObject.Get();
+
 	}
+
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.TickGroup = TG_PostUpdateWork;
+	PrimaryComponentTick.bStartWithTickEnabled = true;
+	bAutoActivate = true;
+
 #endif
 }
 
@@ -51,13 +60,20 @@ void UDisplayClusterCameraComponent::ApplyViewPointComponentPostProcessesToViewp
 	// Get the same component from DCRA that is used as the configuration source. Then this component can also be used as a configuration data source.
 	const UDisplayClusterCameraComponent& CfgCameraComponent = GetMatchingComponentFromRootActor(InViewport->GetConfiguration(), EDisplayClusterRootActorType::Configuration, *this);
 
+	const bool bICVFXCameraBeingUsed = CfgCameraComponent.IsICVFXCameraBeingUsed();
+	const bool bUseTargetCamera =
+		CfgCameraComponent.IsActiveEngineCameraBeingUsed()
+		|| bICVFXCameraBeingUsed
+		|| CfgCameraComponent.IsExternalCameraBeingUsed();
+
 	// Setup Outer Viewport postprocessing
-	if (CfgCameraComponent.bEnableOuterViewportCamera)
+	if (bUseTargetCamera)
 	{
-		const EDisplayClusterViewportCameraPostProcessFlags CameraPostProcessingFlags = CfgCameraComponent.OuterViewportPostProcessSettings.GetCameraPostProcessFlags();
+		const EDisplayClusterViewportCameraPostProcessFlags CameraPostProcessingFlags = CfgCameraComponent.GetCameraPostProcessFlags();
 
 		// Also, if we are referencing the ICVFXCamera component, use the special ICVFX PostProcess from it.
-		if (UDisplayClusterICVFXCameraComponent* SceneICVFXCameraComponent = GetRootActorComponentByName<UDisplayClusterICVFXCameraComponent>(InViewport->GetConfiguration(), EDisplayClusterRootActorType::Scene, CfgCameraComponent.OuterViewportCameraName))
+		if (UDisplayClusterICVFXCameraComponent* SceneICVFXCameraComponent
+			= !bICVFXCameraBeingUsed ? nullptr : GetRootActorComponentByName<UDisplayClusterICVFXCameraComponent>(InViewport->GetConfiguration(), EDisplayClusterRootActorType::Scene, CfgCameraComponent.ICVFXCameraComponentName))
 		{
 			// Use PostProcess from the ICVFXCamera
 			// This function also uses PostProcess from the parent CineCamera class.
@@ -67,7 +83,7 @@ void UDisplayClusterCameraComponent::ApplyViewPointComponentPostProcessesToViewp
 		{
 			// Use post-processing settings from Camera/CineCamera or from the active game camera.
 			FMinimalViewInfo CustomViewInfo;
-			if (CfgCameraComponent.GetOuterViewportCameraDesiredViewInternal(InViewport->GetConfiguration(), CustomViewInfo))
+			if (CfgCameraComponent.GetTargetCameraDesiredViewInternal(InViewport->GetConfiguration(), CustomViewInfo))
 			{
 				// Applies a filter to the post-processing settings.
 				FDisplayClusterViewportConfigurationHelpers_Postprocess::FilterPostProcessSettings(CustomViewInfo.PostProcessSettings, CameraPostProcessingFlags);
@@ -79,18 +95,25 @@ void UDisplayClusterCameraComponent::ApplyViewPointComponentPostProcessesToViewp
 	}
 }
 
-UCameraComponent* UDisplayClusterCameraComponent::GetOuterViewportCameraComponent(const IDisplayClusterViewportConfiguration& InViewportConfiguration) const
+UCameraComponent* UDisplayClusterCameraComponent::GetTargetCameraComponent(const IDisplayClusterViewportConfiguration& InViewportConfiguration) const
 {
 	using namespace UE::DisplayClusterViewportHelpers;
 
-	// Get the same component from DCRA that is used as the configuration source. Then this component can also be used as a configuration data source.
 	const UDisplayClusterCameraComponent& CfgCameraComponent = GetMatchingComponentFromRootActor(InViewportConfiguration, EDisplayClusterRootActorType::Configuration, *this);
-	if (CfgCameraComponent.bEnableOuterViewportCamera)
+
+	// 1. Active engine camera
+	if (CfgCameraComponent.IsActiveEngineCameraBeingUsed())
 	{
-		if(UCameraComponent* SceneCameraComponent = GetRootActorComponentByName<UCameraComponent>(InViewportConfiguration, EDisplayClusterRootActorType::Scene, CfgCameraComponent.OuterViewportCameraName))
+		return nullptr;
+	}
+
+	// 2. ICVFX camera component
+	if (CfgCameraComponent.IsICVFXCameraBeingUsed())
+	{
+		if (UCameraComponent* SceneCameraComponent = GetRootActorComponentByName<UCameraComponent>(InViewportConfiguration, EDisplayClusterRootActorType::Scene, CfgCameraComponent.ICVFXCameraComponentName))
 		{
 			// If we use the ICVFX camera component, we must use GetActualCineCameraComponent() to get the actual camera.
-			if(SceneCameraComponent->IsA<UDisplayClusterICVFXCameraComponent>())
+			if (SceneCameraComponent->IsA<UDisplayClusterICVFXCameraComponent>())
 			{
 				if (UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent = Cast<UDisplayClusterICVFXCameraComponent>(SceneCameraComponent))
 				{
@@ -99,67 +122,87 @@ UCameraComponent* UDisplayClusterCameraComponent::GetOuterViewportCameraComponen
 						// Use referenced camera as the source of Camera PP and CineCamera CustomNearClippingPlane
 						return ExtCineCameraComponent;
 					}
-					}
 				}
+			}
 
 			return SceneCameraComponent;
 		}
 	}
 
-	return nullptr;
+	// 3. External camera actor
+	return CfgCameraComponent.GetExternalCineCameraActorComponent();
 }
 
-bool UDisplayClusterCameraComponent::GetOuterViewportCameraDesiredViewInternal(const IDisplayClusterViewportConfiguration& InViewportConfiguration, FMinimalViewInfo& InOutViewInfo, float* OutCustomNCP) const
+bool UDisplayClusterCameraComponent::IsViewPointOverrideCameraPosition() const
+{
+	// If the ICFX camera component is used, it can override the viewpoint position.
+	if (IsICVFXCameraBeingUsed())
+	{
+		return !bUseICVFXCameraComponentTracking;
+	}
+
+	// By default, ViewPoint is always used as the camera.
+	return true;
+}
+
+bool UDisplayClusterCameraComponent::GetTargetCameraDesiredViewInternal(const IDisplayClusterViewportConfiguration& InViewportConfiguration, FMinimalViewInfo& InOutViewInfo, float* OutCustomNCP) const
 {
 	using namespace UE::DisplayClusterViewportHelpers;
 
-	bool bViewInfoFound = false;
-
 	// Get the same component from DCRA that is used as the configuration source. Then this component can also be used as a configuration data source.
 	const UDisplayClusterCameraComponent& CfgCameraComponent = GetMatchingComponentFromRootActor(InViewportConfiguration, EDisplayClusterRootActorType::Configuration, *this);
-	if (CfgCameraComponent.bEnableOuterViewportCamera)
+
+	const EDisplayClusterViewportCameraPostProcessFlags CameraPostProcessingFlags = CfgCameraComponent.GetCameraPostProcessFlags();
+	const bool bUseCameraPostprocess = EnumHasAnyFlags(CameraPostProcessingFlags, EDisplayClusterViewportCameraPostProcessFlags::EnablePostProcess);
+
+	float* OutCustomNearClippingPlane = OutCustomNCP;
+	if (!EnumHasAnyFlags(CameraPostProcessingFlags, EDisplayClusterViewportCameraPostProcessFlags::EnableNearClippingPlane))
 	{
-		const EDisplayClusterViewportCameraPostProcessFlags CameraPostProcessingFlags = CfgCameraComponent.OuterViewportPostProcessSettings.GetCameraPostProcessFlags();
+		// Ignore NCP from the custom camera.
+		OutCustomNearClippingPlane = nullptr;
+	}
 
-		const bool bUseCameraPostprocess = EnumHasAnyFlags(CameraPostProcessingFlags, EDisplayClusterViewportCameraPostProcessFlags::EnablePostProcess);
-
-		float* OutCustomNearClippingPlane = OutCustomNCP;
-		if (!EnumHasAnyFlags(CameraPostProcessingFlags, EDisplayClusterViewportCameraPostProcessFlags::EnableNearClippingPlane))
+	// 1. Active engine camera
+	if (CfgCameraComponent.IsActiveEngineCameraBeingUsed())
+	{
+		// Get PostProcess from the Game camera.
+		if (IDisplayClusterViewport::GetPlayerCameraView(InViewportConfiguration.GetCurrentWorld(), bUseCameraPostprocess, InOutViewInfo))
 		{
-			// Ignore NCP from the custom camera.
-			OutCustomNearClippingPlane = nullptr;
-		}
+			if (IsViewPointOverrideCameraPosition())
+			{
+				// Use this component as a camera
+				InOutViewInfo.Location = GetComponentLocation();
+				InOutViewInfo.Rotation = GetComponentRotation();
+			}
 
-		if (UCameraComponent* SceneCameraComponent = GetOuterViewportCameraComponent(InViewportConfiguration))
+			return true;
+		}
+	}
+	else
+	{
+		if (UCameraComponent* SceneCameraComponent = GetTargetCameraComponent(InViewportConfiguration))
 		{
 			if (IDisplayClusterViewport::GetCameraComponentView(SceneCameraComponent, InViewportConfiguration.GetRootActorWorldDeltaSeconds(), bUseCameraPostprocess, InOutViewInfo, OutCustomNearClippingPlane))
 			{
-				bViewInfoFound = true;
+				if (IsViewPointOverrideCameraPosition())
+				{
+					// Use this component as a camera
+					InOutViewInfo.Location = GetComponentLocation();
+					InOutViewInfo.Rotation = GetComponentRotation();
+				}
+
+				return true;
 			}
 		}
-		// Get PostProcess from the Game camera.
-		else if (IDisplayClusterViewport::GetPlayerCameraView(InViewportConfiguration.GetCurrentWorld(), bUseCameraPostprocess, InOutViewInfo))
-		{
-			
-			bViewInfoFound = true;
-		}
-
-		if (bViewInfoFound && !CfgCameraComponent.bFollowOuterViewportCamera)
-		{
-			// Use this component as a camera
-			InOutViewInfo.Location = GetComponentLocation();
-			InOutViewInfo.Rotation = GetComponentRotation();
-		}
-
-		// The default camera is not found, so we can't use the custom camera view.
 	}
 
-	return bViewInfoFound;
+	// The target camera is not found, so we can't use the custom camera view.
+	return false;
 }
 
 void UDisplayClusterCameraComponent::GetDesiredView(IDisplayClusterViewportConfiguration& InViewportConfiguration, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane)
 {
-	if (GetOuterViewportCameraDesiredViewInternal(InViewportConfiguration, InOutViewInfo, OutCustomNearClippingPlane))
+	if (GetTargetCameraDesiredViewInternal(InViewportConfiguration, InOutViewInfo, OutCustomNearClippingPlane))
 	{
 		return;
 	}
@@ -182,7 +225,7 @@ void UDisplayClusterCameraComponent::GetDesiredView(IDisplayClusterViewportConfi
 void UDisplayClusterCameraComponent::GetEyePosition(const IDisplayClusterViewportConfiguration& InViewportConfiguration, FVector& OutViewLocation, FRotator& OutViewRotation)
 {
 	FMinimalViewInfo ViewInfo;
-	if (GetOuterViewportCameraDesiredViewInternal(InViewportConfiguration, ViewInfo))
+	if (GetTargetCameraDesiredViewInternal(InViewportConfiguration, ViewInfo))
 	{
 		OutViewLocation = ViewInfo.Location;
 		OutViewRotation = ViewInfo.Rotation;
@@ -226,7 +269,7 @@ void UDisplayClusterCameraComponent::OnRegister()
 				SpriteComponent->SetMobility(EComponentMobility::Movable);
 				SpriteComponent->Sprite = SpriteTexture;
 				SpriteComponent->SpriteInfo.Category = TEXT("NDisplayViewOrigin");
-				SpriteComponent->SpriteInfo.DisplayName = NSLOCTEXT("DisplayClusterCameraComponent", "NDisplayViewOriginSpriteInfo", "nDisplay View Origin");
+				SpriteComponent->SpriteInfo.DisplayName = NSLOCTEXT("DisplayClusterCameraComponent", "NDisplayViewOriginSpriteInfo", "nDisplay View Point");
 				SpriteComponent->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 				SpriteComponent->bHiddenInGame = true;
 				SpriteComponent->bIsScreenSizeScaled = true;
@@ -244,6 +287,26 @@ void UDisplayClusterCameraComponent::OnRegister()
 }
 
 #if WITH_EDITOR
+bool UDisplayClusterCameraComponent::CanEditChange(const FProperty* InProperty) const
+{
+	// If other logic prevents editing, we want to respect that
+	bool bIsEditable = Super::CanEditChange(InProperty);
+	if (bIsEditable && InProperty)
+	{
+		// Can we edit tracking of the ICVFX camera component
+		const FName PropertyName = InProperty->GetFName();
+		if(PropertyName == GET_MEMBER_NAME_CHECKED(UDisplayClusterCameraComponent, bUseICVFXCameraComponentTracking)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDisplayClusterCameraComponent, bEnableICVFXDepthOfFieldCompensation)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDisplayClusterCameraComponent, bEnableICVFXColorGrading)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDisplayClusterCameraComponent, bEnableICVFXMotionBlur))
+		{
+			return IsICVFXCameraBeingUsed();
+		}
+	}
+
+	return bIsEditable;
+}
+
 void UDisplayClusterCameraComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -264,7 +327,22 @@ void UDisplayClusterCameraComponent::RefreshVisualRepresentation()
 }
 #endif
 
-EDisplayClusterViewportCameraPostProcessFlags FDisplayClusterCameraComponent_OuterViewportPostProcessSettings::GetCameraPostProcessFlags() const
+bool UDisplayClusterCameraComponent::IsActiveEngineCameraBeingUsed() const
+{
+	return TargetCameraType == EDisplayClusterTargetCameraType::ActiveEngineCamera;
+}
+
+bool UDisplayClusterCameraComponent::IsICVFXCameraBeingUsed() const
+{
+	return TargetCameraType == EDisplayClusterTargetCameraType::ICVFXCameraComponent && !ICVFXCameraComponentName.IsEmpty();
+}
+
+bool UDisplayClusterCameraComponent::IsExternalCameraBeingUsed() const
+{
+	return TargetCameraType == EDisplayClusterTargetCameraType::ExternalCineCameraActor && !IsICVFXCameraBeingUsed() && ExternalCineCameraActor.IsValid();
+}
+
+EDisplayClusterViewportCameraPostProcessFlags UDisplayClusterCameraComponent::GetCameraPostProcessFlags() const
 {
 	EDisplayClusterViewportCameraPostProcessFlags OutPostProcessFlags = EDisplayClusterViewportCameraPostProcessFlags::None;
 
@@ -301,3 +379,56 @@ EDisplayClusterViewportCameraPostProcessFlags FDisplayClusterCameraComponent_Out
 	return OutPostProcessFlags;
 }
 
+UCameraComponent* UDisplayClusterCameraComponent::GetExternalCineCameraActorComponent() const
+{
+	if (IsExternalCameraBeingUsed())
+	{
+		if (ACineCameraActor* CineCamera = ExternalCineCameraActor.Get())
+		{
+			return CineCamera->GetCameraComponent();
+		}
+	}
+
+	return nullptr;
+}
+
+#if WITH_EDITOR
+UCameraComponent* UDisplayClusterCameraComponent::GetEditorPreviewCameraComponent()
+{
+	using namespace UE::DisplayClusterViewportHelpers;
+
+	if (IsICVFXCameraBeingUsed())
+	{
+		if (UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent = GetOwnerRootActorComponentByName<UDisplayClusterICVFXCameraComponent>(this, ICVFXCameraComponentName))
+		{
+			return ICVFXCameraComponent;
+		}
+	}
+	else if (UCameraComponent* CameraComponent = GetExternalCineCameraActorComponent())
+	{
+		return CameraComponent;
+	}
+
+	return nullptr;
+}
+
+bool UDisplayClusterCameraComponent::GetEditorPreviewInfo(float DeltaTime, FMinimalViewInfo& ViewOut)
+{
+	if (UCameraComponent* CameraComponent = GetEditorPreviewCameraComponent())
+	{
+		return CameraComponent->GetEditorPreviewInfo(DeltaTime, ViewOut);
+	}
+
+	return false;
+}
+
+TSharedPtr<SWidget> UDisplayClusterCameraComponent::GetCustomEditorPreviewWidget()
+{
+	if (UCameraComponent* CameraComponent = GetEditorPreviewCameraComponent())
+	{
+		return CameraComponent->GetCustomEditorPreviewWidget();
+	}
+
+	return nullptr;
+}
+#endif

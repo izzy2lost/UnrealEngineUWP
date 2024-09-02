@@ -48,7 +48,7 @@ struct FDisplayClusterRootActorPropertyOverrides;
 /**
  * VR root. This contains nDisplay VR hierarchy in the game.
  */
-UCLASS(HideCategories=(Replication, Collision, Input, Actor, HLOD, Cooking, Physics, Activation, AssetUserData, ActorTick, Advanced, DataLayers, Events), meta=(DisplayName = "nDisplay Root Actor"))
+UCLASS(HideCategories=(Replication, Collision, Input, Actor, HLOD, Cooking, Physics, Activation, AssetUserData, ActorTick, Advanced, DataLayers, Events), meta = (DisplayName = "nDisplay Root Actor"))
 class DISPLAYCLUSTER_API ADisplayClusterRootActor
 	: public AActor
 {
@@ -203,7 +203,7 @@ public:
 	ULineBatchComponent* GetLineBatchComponent() const;
 
 	/**
-	 * Get the view origin most commonly used by viewports in this cluster.
+	 * Get the view point most commonly used by viewports in this cluster.
 	 * If no viewports override the camera, this returns the default camera, or if there isn't one, the actor's root component.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "NDisplay|DCRA")
@@ -407,7 +407,7 @@ private:
 
 public:
 	/** Set the priority for inner frustum rendering if there is any overlap when enabling multiple ICVFX cameras. */
-	UPROPERTY(EditInstanceOnly, EditFixedSize, Category = "In Camera VFX", meta = (TitleProperty = "Name", DisplayAfter = "ViewportAllowInnerFrustumRef"))
+	UPROPERTY(EditInstanceOnly, EditFixedSize, Category = "In Camera VFX", meta = (TitleProperty = "Name", DisplayAfter = "ShowInnerFrustumOverlapsRef"))
 	TArray<FDisplayClusterComponentRef> InnerFrustumPriority;
 
 	/**
@@ -442,31 +442,29 @@ public:
 // EDITOR RELATED SETTINGS
 //////////////////////////////////////////////////////////////////////////////////////////////
 public:
-	/** Render this DCRA in game for Standalone/Package builds. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview In Game", meta = (DisplayName = "Enable Preview in Game"))
-	bool bPreviewInGameEnable = false;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview In Game", meta = (DisplayName = "Render Preview Frustum in Game"))
-	bool bPreviewInGameRenderFrustum = false;
 
 	/** Render the scene and display it as a preview on the nDisplay root actor in the editor.  This will impact editor performance. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Enable Editor Preview"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (DisplayName = "Enable Editor Preview"))
 	bool bPreviewEnable = true;
 	
+	/** Render this DCRA in game for Standalone/Package builds. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", AdvancedDisplay, meta = (DisplayName = "Enable Preview in Game"))
+	bool bPreviewInGameEnable = false;
+
 	/** Adjust resolution scaling for the editor preview. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Preview Screen Percentage", ClampMin = "0.05", UIMin = "0.05", ClampMax = "1", UIMax = "1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (DisplayName = "Preview Screen Percentage", ClampMin = "0.05", UIMin = "0.05", ClampMax = "1", UIMax = "1"))
 	float PreviewRenderTargetRatioMult = 0.25;
 
 	/** Enable PostProcess for preview. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Enable Post Process"), BlueprintSetter = SetPreviewEnablePostProcess)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (DisplayName = "Enable Post Process"), BlueprintSetter = SetPreviewEnablePostProcess)
 	bool bPreviewEnablePostProcess = false;
 
 	/** Show overlay material on the preview mesh when preview rendering is enabled (UMeshComponent::OverlayMaterial). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Enable Preview Overlay"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", AdvancedDisplay, meta = (DisplayName = "Enable Preview Overlay"))
 	bool bPreviewEnableOverlayMaterial = true;
 
 	/** Configure the root actor for Techvis rendering with preview components. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", AdvancedDisplay)
 	bool bEnablePreviewTechvis = false;
 
 	/** Enable the use of a preview mesh for the preview for this DCRA. */
@@ -482,16 +480,20 @@ public:
 	EDisplayClusterConfigurationRootActorPreviewSettingsSource PreviewSetttingsSource = EDisplayClusterConfigurationRootActorPreviewSettingsSource::RootActor;
 
 	/** Freeze preview render.  This will impact editor performance. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Freeze Editor Preview"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (DisplayName = "Freeze Editor Preview"))
 	bool bFreezePreviewRender = false;
 
 	/** Render ICVFX Frustums */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Enable Camera Frustums"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (DisplayName = "Enable Camera Frustums"))
 	bool bPreviewICVFXFrustums = false;
 
 	/** Render ICVFX Frustums */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Camera Frustum Distance"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", AdvancedDisplay, meta = (DisplayName = "Camera Frustum Distance"))
 	float PreviewICVFXFrustumsFarDistance = 1000.0f;
+
+	/** Enables the use of 'bPreviewICVFXFrustums' in the game. */
+	UPROPERTY()
+	bool bPreviewInGameRenderFrustum = true;
 
 #if WITH_EDITORONLY_DATA
 	/** When the MRQ is rendered, this flag is raised. */
@@ -499,38 +501,38 @@ public:
 	bool bMoviePipelineRenderPass = false;
 
 	/** Selectively preview a specific viewport or show all/none. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Preview Node"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (DisplayName = "Preview Node"))
 	FString PreviewNodeId = DisplayClusterConfigurationStrings::gui::preview::PreviewNodeNone;
 
 	/** Render Mode */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Render Mode"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (DisplayName = "Render Mode"))
 	EDisplayClusterConfigurationRenderMode RenderMode = EDisplayClusterConfigurationRenderMode::Mono;
 #endif
 
 	/** Tick Per Frame */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", AdvancedDisplay, meta = (DisplayName = "Tick Per Frame", ClampMin = "1", UIMin = "1", ClampMax = "200", UIMax = "200"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", AdvancedDisplay, meta = (DisplayName = "Tick Per Frame", ClampMin = "1", UIMin = "1", ClampMax = "200", UIMax = "200"))
 	int TickPerFrame = 1;
 
 	/** Max amount of Viewports Per Frame */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", AdvancedDisplay, meta = (DisplayName = "Viewports Per Frame", ClampMin = "1", UIMin = "1", ClampMax = "200", UIMax = "200"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", AdvancedDisplay, meta = (DisplayName = "Viewports Per Frame", ClampMin = "1", UIMin = "1", ClampMax = "200", UIMax = "200"))
 	int ViewportsPerFrame = 1;
 
 	/** The maximum dimension of any internal texture for preview. Use less memory for large preview viewports */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", AdvancedDisplay, meta = (DisplayName = "Preview Texture Max Size", ClampMin = "64", UIMin = "64", ClampMax = "4096", UIMax = "4096"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", AdvancedDisplay, meta = (DisplayName = "Preview Texture Max Size", ClampMin = "64", UIMin = "64", ClampMax = "4096", UIMax = "4096"))
 	int PreviewMaxTextureDimension = 2048;
 
 	/** The included display device nDisplay provides by default */
-	UPROPERTY(VisibleDefaultsOnly, Category = "Editor Preview", DisplayName = "Basic Display Device")
+	UPROPERTY(VisibleDefaultsOnly, Category = "Preview", DisplayName = "Basic Display Device")
 	TObjectPtr<UDisplayClusterDisplayDeviceBaseComponent> BasicDisplayDeviceComponent;
 
 	/** Select the default display device class to use when a viewport doesn't have one assigned */
-	UPROPERTY(EditDefaultsOnly, Category = "Editor Preview", DisplayName = "Default Display Device")
+	UPROPERTY(EditDefaultsOnly, Category = "Preview", AdvancedDisplay, DisplayName = "Default Display Device")
 	FName DefaultDisplayDeviceName;
 
 
 #if WITH_EDITORONLY_DATA
 	/** Toggles the visibility of the stage's geometry mesh, a smooth, continuous mesh generated and processed from the stage's geometry */
-	UPROPERTY(EditInstanceOnly, Category = "Editor Preview", AdvancedDisplay)
+	UPROPERTY(EditInstanceOnly, Category = "Preview", AdvancedDisplay)
 	bool bPreviewStageGeometryMesh = false;
 #endif
 
