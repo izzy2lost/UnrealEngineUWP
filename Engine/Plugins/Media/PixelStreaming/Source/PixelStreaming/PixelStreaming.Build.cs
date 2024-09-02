@@ -139,6 +139,10 @@ namespace UnrealBuildTool.Rules
                 AddFolder("SignallingWebServer");
                 AddFolder("Matchmaker");
                 AddFolder("SFU");
+                AddFolder("Extras");
+                AddFolder("Signalling");
+                AddFolder("Common");
+                AddFolder("SS_Test");
 
                 RuntimeDependencies.Add("$(ProjectDir)/Samples/PixelStreaming/WebServers/get_ps_servers.bat", "$(PluginDir)/Resources/WebServers/get_ps_servers.bat", StagedFileType.NonUFS);
                 RuntimeDependencies.Add("$(ProjectDir)/Samples/PixelStreaming/WebServers/get_ps_servers.sh", "$(PluginDir)/Resources/WebServers/get_ps_servers.sh", StagedFileType.NonUFS);
