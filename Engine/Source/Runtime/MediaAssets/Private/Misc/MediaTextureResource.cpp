@@ -1326,6 +1326,19 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 				}
 				break;
 
+				case EMediaTextureSampleFormat::ExternalVYU:
+				{
+					auto YUVMtx = Sample->GetSampleToRGBMatrix();
+					FMatrix44f ColorSpaceMtx;
+					GetColorSpaceConversionMatrixForSample(Sample, ColorSpaceMtx);
+
+					TShaderMapRef<FVYUConvertPS> ConvertShader(ShaderMap);
+					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = ConvertShader.GetPixelShader();
+					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTexture, OutputDim, YUVMtx, Sample->GetEncodingType(), ColorSpaceMtx);
+				}
+				break;
+
 				default:
 				{
 					// This should not happen in normal use: still - end the render pass to avoid any trouble with RHI

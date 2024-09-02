@@ -122,6 +122,9 @@ enum class EMediaTextureSampleFormat
 
 	/** ARGB 16-bit per component, big endian */
 	ARGB16_BIG,
+
+	/** External texture with 4 components (VYUX) per texel. */
+	ExternalVYU,
 };
 
 namespace MediaTextureSampleFormat

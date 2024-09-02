@@ -640,9 +640,13 @@ public:
 
 	FReadTextureExternalPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
 		: FGlobalShader(Initializer)
-	{ }
+	{
+		InTexture.Bind(Initializer.ParameterMap, TEXT("InExternalTexture"), SPF_Mandatory);
+	}
 
 	RENDERCORE_API void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, FTextureRHIRef TextureExt, FSamplerStateRHIRef SamplerState, const FLinearColor & ScaleRotation, const FLinearColor & Offset);
+
+	LAYOUT_FIELD(FShaderResourceParameter, InTexture);
 };
 
 
@@ -723,5 +727,25 @@ public:
 	RENDERCORE_API FModifyAlphaSwizzleRgbaPS::FParameters* AllocateAndSetParameters(FRDGBuilder& GraphBuilder, FRDGTextureRef RGBATexture, FRDGTextureRef OutputTexture);
 };
 
+/**
+ * Pixel shader to convert a VYU frame to RGBA.
+ *
+ * This shader expects a VYU frame packed into a single texture in PF_R8G8B8A8
+ * format with the following memory layout: [V0, Y0, U0, unused][V1, Y1, U1, unused]..
+ *
+ * @see https://registry.khronos.org/vulkan/specs/1.3/html/vkspec.html#VkSamplerYcbcrModelConversion
+ */
+class FVYUConvertPS
+	: public FGlobalShader
+{
+	DECLARE_EXPORTED_SHADER_TYPE(FVYUConvertPS, Global, RENDERCORE_API);
 
+public:
+	FVYUConvertPS() { }
 
+	FVYUConvertPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+		: FGlobalShader(Initializer)
+	{ }
+
+	RENDERCORE_API void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, TRefCountPtr<FRHITexture> VYUTexture, const FIntPoint& OutputDimensions, const FMatrix44f& ColorTransform, UE::Color::EEncoding Encoding, const FMatrix44f& CSTransform);
+};

@@ -74,6 +74,8 @@ namespace UnrealBuildTool.Rules
 				PublicIncludePaths.Add("$(ModuleDir)/Public/Android");
 				string PluginPath = Utils.MakePathRelativeTo(ModuleDirectory, Target.RelativeEnginePath);
 				AdditionalPropertiesForReceipt.Add("AndroidPlugin", Path.Combine(PluginPath, "ElectraSamples_UPL.xml"));
+				PrivateDependencyModuleNames.Add("VulkanRHI");
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "Vulkan");
 			}
 			else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
 			{

@@ -852,7 +852,6 @@ void FRGB8toY8ConvertPS::SetParameters(FRHIBatchedShaderParameters& BatchedParam
  *****************************************************************************/
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FReadTextureExternalUB, )
-SHADER_PARAMETER_TEXTURE(Texture2D, Texture)
 SHADER_PARAMETER_SAMPLER(SamplerState, SamplerP)
 SHADER_PARAMETER(FLinearColor, ScaleRotation)
 SHADER_PARAMETER(FVector2f, Offset)
@@ -867,13 +866,13 @@ void FReadTextureExternalPS::SetParameters(FRHIBatchedShaderParameters& BatchedP
 	FReadTextureExternalUB UB;
 	{
 		UB.SamplerP = SamplerState;
-		UB.Texture = TextureExt;
 		UB.ScaleRotation = ScaleRotation;
 		UB.Offset = FVector2f(Offset.R, Offset.G);
 	}
 
 	TUniformBufferRef<FReadTextureExternalUB> Data = TUniformBufferRef<FReadTextureExternalUB>::CreateUniformBufferImmediate(UB, UniformBuffer_SingleFrame);
 	SetUniformBufferParameter(BatchedParameters, GetUniformBufferParameter<FReadTextureExternalUB>(), Data);
+	SetTextureParameter(BatchedParameters, InTexture, TextureExt);
 }
 
 /* FRGB8toUYVY8ConvertPS shader
@@ -940,3 +939,34 @@ FModifyAlphaSwizzleRgbaPS::FParameters* FModifyAlphaSwizzleRgbaPS::AllocateAndSe
 }
 
 
+/* FVYUConvertPS shader
+ *****************************************************************************/
+
+BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVYUConvertUB, )
+SHADER_PARAMETER(FMatrix44f, ColorTransform)
+SHADER_PARAMETER(FMatrix44f, CSTransform)
+SHADER_PARAMETER(uint32, EOTF)
+SHADER_PARAMETER(FVector2f, UVScale)
+SHADER_PARAMETER_TEXTURE(Texture2D, Texture)
+SHADER_PARAMETER_SAMPLER(SamplerState, Sampler)
+END_GLOBAL_SHADER_PARAMETER_STRUCT()
+
+IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FVYUConvertUB, "VYUConvertUB");
+IMPLEMENT_SHADER_TYPE(, FVYUConvertPS, TEXT("/Engine/Private/MediaShaders.usf"), TEXT("VYUConvertPS"), SF_Pixel);
+
+
+void FVYUConvertPS::SetParameters(FRHIBatchedShaderParameters& BatchedParameters, TRefCountPtr<FRHITexture> VYUTexture, const FIntPoint& OutputDimensions, const FMatrix44f& ColorTransform, UE::Color::EEncoding Encoding, const FMatrix44f& CSTransform)
+{
+	FVYUConvertUB UB;
+	{
+		UB.ColorTransform = ColorTransform;
+		UB.CSTransform = CSTransform;
+		UB.EOTF = int(Encoding);
+		UB.UVScale = FVector2f((float)OutputDimensions.X / (float)VYUTexture->GetSizeX(), (float)OutputDimensions.Y / (float)VYUTexture->GetSizeY());
+		UB.Texture = VYUTexture;
+		UB.Sampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
+	}
+
+	TUniformBufferRef<FVYUConvertUB> Data = TUniformBufferRef<FVYUConvertUB>::CreateUniformBufferImmediate(UB, UniformBuffer_SingleFrame);
+	SetUniformBufferParameter(BatchedParameters, GetUniformBufferParameter<FVYUConvertUB>(), Data);
+}
