@@ -54,9 +54,12 @@ struct FAISightTarget
 	static AIMODULE_API const FTargetId InvalidTargetId;
 
 	TWeakObjectPtr<AActor> Target;
-	IAISightTargetInterface* SightTargetInterface;
+	TWeakInterfacePtr<IAISightTargetInterface> WeakSightTargetInterface;
 	FGenericTeamId TeamId;
 	FTargetId TargetId;
+
+	UE_DEPRECATED_FORGAME(5.5, "SightTargetInterface is deprecated. Use WeakSightTargetInterface instead.")
+	IAISightTargetInterface* SightTargetInterface = nullptr;
 
 	AIMODULE_API FAISightTarget(AActor* InTarget = NULL, FGenericTeamId InTeamId = FGenericTeamId::NoTeam);
 
