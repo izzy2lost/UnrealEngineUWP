@@ -328,11 +328,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void UAbilitySystemGlobals::PerformDeveloperSettingsUpgrade()
 {
-	auto SyncToDeveloperSettings = [](FGameplayTag& DeveloperSettingsTag, const FGameplayTag& OurTag)
+	auto SyncTag = [](FGameplayTag& DestinationTag, const FGameplayTag& OurTag)
 	{
-		if (OurTag.IsValid() && DeveloperSettingsTag != OurTag)
+		if (OurTag.IsValid() && DestinationTag != OurTag)
 		{
-			DeveloperSettingsTag = OurTag;
+			DestinationTag = OurTag;
 			return true;
 		}
 
@@ -342,11 +342,11 @@ void UAbilitySystemGlobals::PerformDeveloperSettingsUpgrade()
 	UGameplayAbilitiesDeveloperSettings* DeveloperSettings = GetMutableDefault<UGameplayAbilitiesDeveloperSettings>();
 
 	bool bUpgraded = false;
-	bUpgraded |= SyncToDeveloperSettings(DeveloperSettings->ActivateFailCooldownTag, ActivateFailCooldownTag);
-	bUpgraded |= SyncToDeveloperSettings(DeveloperSettings->ActivateFailCostTag, ActivateFailCostTag);
-	bUpgraded |= SyncToDeveloperSettings(DeveloperSettings->ActivateFailNetworkingTag, ActivateFailNetworkingTag);
-	bUpgraded |= SyncToDeveloperSettings(DeveloperSettings->ActivateFailTagsBlockedTag, ActivateFailTagsBlockedTag);
-	bUpgraded |= SyncToDeveloperSettings(DeveloperSettings->ActivateFailTagsMissingTag, ActivateFailTagsMissingTag);
+	bUpgraded |= SyncTag(DeveloperSettings->ActivateFailCooldownTag, ActivateFailCooldownTag);
+	bUpgraded |= SyncTag(DeveloperSettings->ActivateFailCostTag, ActivateFailCostTag);
+	bUpgraded |= SyncTag(DeveloperSettings->ActivateFailNetworkingTag, ActivateFailNetworkingTag);
+	bUpgraded |= SyncTag(DeveloperSettings->ActivateFailTagsBlockedTag, ActivateFailTagsBlockedTag);
+	bUpgraded |= SyncTag(DeveloperSettings->ActivateFailTagsMissingTag, ActivateFailTagsMissingTag);
 
 	if (bUpgraded)
 	{
@@ -358,6 +358,13 @@ void UAbilitySystemGlobals::PerformDeveloperSettingsUpgrade()
 			UE_LOG(LogAbilitySystem, Warning, TEXT("AbilitySystemGlobals config file (DefaultGame.ini) couldn't be saved. Make sure the file is writable to update it."));
 		}
 	}
+
+	// Now that the upgrade is done, copy any settings set in the DeveloperSettings back to here (so calls to UAbilitySystemGlobals::Get().SomeTag work)
+	SyncTag(ActivateFailCooldownTag, DeveloperSettings->ActivateFailCooldownTag);
+	SyncTag(ActivateFailCostTag, DeveloperSettings->ActivateFailCostTag);
+	SyncTag(ActivateFailNetworkingTag, DeveloperSettings->ActivateFailNetworkingTag);
+	SyncTag(ActivateFailTagsBlockedTag, DeveloperSettings->ActivateFailTagsBlockedTag);
+	SyncTag(ActivateFailTagsMissingTag, DeveloperSettings->ActivateFailTagsMissingTag);
 }
 
 void UAbilitySystemGlobals::InitTargetDataScriptStructCache()

@@ -236,6 +236,14 @@ There is documentation for how the Gameplay Prediction mechanisms work at the to
 
 ---
 
+# Ability System Globals
+
+There is a class called [AbilitySystemGlobals](./Source/GameplayAbilities/Public/AbilitySystemGlobals.h) which provide project customization points for how to handle specific base Ability System scenarios.  For example, there a functions you can override to implement derived classes of types used throughout the code (such as `AllocGameplayEffectContext`).
+
+In UE5.5, a lot of these settings have started migrating to the [GameplayAbilitiesDeveloperSettings](./Source/GameplayAbilities/Public/GameplayAbilitiesDeveloperSettings.h) (which can be accessed using the Editor and choose the Project Settings menu item).  The rough division of responsibilities:  If it's a global setting (like a variable) then it should be configurable through Gameplay Abilities Developer Settings; if it's functionality (such as allocating project-specific classes) it should be in [AbilitySystemGlobals](./Source/GameplayAbilities/Public/AbilitySystemGlobals.h).
+
+---
+
 # Debugging the Gameplay Ability System
 
 ## Legacy ShowDebug Functionality
