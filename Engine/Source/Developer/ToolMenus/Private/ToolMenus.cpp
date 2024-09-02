@@ -353,7 +353,8 @@ public:
 			}
 			else
 			{
-				MenuBuilder.AddWidget(Widget.ToSharedRef(), LabelToDisplay.Get(), Block.WidgetData.bNoIndent, Block.WidgetData.bSearchable, Block.ToolTip.Get());
+				Block.WidgetData.StyleParams.bNoIndent = Block.WidgetData.bNoIndent;
+				MenuBuilder.AddWidget(Widget.ToSharedRef(), LabelToDisplay.Get(), Block.WidgetData.StyleParams, Block.WidgetData.bSearchable, Block.ToolTip.Get());
 			}
 		}
 		else
@@ -1701,7 +1702,13 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 		if (OnGetContent.IsBound())
 		{
 			ToolBarBuilder.AddComboButton(
-				UIAction, OnGetContent, Label, Block.ToolTip, Block.Icon, Block.ToolBarData.bSimpleComboBox, Block.TutorialHighlightName
+				UIAction,
+				OnGetContent,
+				Label,
+				Block.ToolTip,
+				Block.Icon,
+				Block.ToolBarData.bSimpleComboBox,
+				Block.TutorialHighlightName
 			);
 		}
 		else
@@ -1710,7 +1717,13 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 				this, &UToolMenus::GenerateToolbarComboButtonMenu, TWeakObjectPtr<UToolMenu>(MenuData), Block.Name);
 
 			ToolBarBuilder.AddComboButton(
-				UIAction, Delegate, Label, Block.ToolTip, Block.Icon, Block.ToolBarData.bSimpleComboBox, Block.TutorialHighlightName
+				UIAction,
+				Delegate,
+				Label,
+				Block.ToolTip,
+				Block.Icon,
+				Block.ToolBarData.bSimpleComboBox,
+				Block.TutorialHighlightName
 			);
 
 			// Also add any top-level flagged children to the toolbar.
@@ -1743,7 +1756,10 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 		}
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-		ToolBarBuilder.AddWidget(Widget.ToSharedRef(), Block.TutorialHighlightName, Block.WidgetData.bSearchable);
+		FMenuEntryStyleParams StyleParams = Block.WidgetData.StyleParams;
+		StyleParams.HorizontalAlignment = HAlign_Fill;
+
+		ToolBarBuilder.AddWidget(Widget.ToSharedRef(), StyleParams, Block.TutorialHighlightName, Block.WidgetData.bSearchable);
 	}
 	else
 	{
@@ -1795,7 +1811,12 @@ void UToolMenus::PopulateToolBarBuilder(FToolBarBuilder& ToolBarBuilder, UToolMe
 		// previous alignment group.
 		if (bIsMiddleOrLast && bDidAddSection)
 		{
-			ToolBarBuilder.AddWidget(SNew(SSpacer), NAME_None, true, HAlign_Right);
+			FMenuEntryStyleParams StyleParams;
+			StyleParams.HorizontalAlignment = HAlign_Right;
+			StyleParams.SizeRule = FSizeParam::ESizeRule::SizeRule_StretchContent;
+			StyleParams.MinSize = 0.5f;
+
+			ToolBarBuilder.AddWidget(SNew(SSpacer), StyleParams, NAME_None, true, {});
 		}
 
 		// Keep track if this is the first section we're adding for the CurrentAlignment. Make an exception if the

@@ -1573,10 +1573,10 @@ TSharedRef< SWidget > SMenuEntryBlock::MakeNewMenuWidget() const
 	}
 	else if (MenuEntryBlock->EntryWidget.IsValid())
 	{
-		const bool bCloseSelfOnly = false;
+		static constexpr bool bCloseSelfOnly = false;
 		FMenuBuilder MenuBuilder(MenuEntryBlock->bShouldCloseWindowAfterMenuSelection, nullptr, TSharedPtr<FExtender>(), bCloseSelfOnly, StyleSet );
 		{
-			MenuBuilder.AddWidget( MenuEntryBlock->EntryWidget.ToSharedRef(), FText::GetEmpty() );
+			MenuBuilder.AddWidget( MenuEntryBlock->EntryWidget.ToSharedRef(), FText::GetEmpty(), FMenuEntryStyleParams() );
 		}
 
 		return MenuBuilder.MakeWidget();

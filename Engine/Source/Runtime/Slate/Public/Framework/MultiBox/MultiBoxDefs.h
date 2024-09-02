@@ -6,6 +6,7 @@
 #include "Misc/Attribute.h"
 #include "Styling/ISlateStyle.h"
 #include "Framework/Commands/UICommandInfo.h"
+#include "Types/SlateStructs.h"
 #include "MultiBoxDefs.generated.h"
 
 class SToolTip;
@@ -137,3 +138,37 @@ namespace EMultiBlockLocation
 		return StyleName;
 	}
 }
+
+/** Contains various Style parameters and overrides. Not all are applicable to a given entry */
+struct FMenuEntryStyleParams
+{
+	FMenuEntryStyleParams() = default;
+
+	explicit FMenuEntryStyleParams(const EHorizontalAlignment InHorizontalAlignment)
+		: HorizontalAlignment(InHorizontalAlignment)
+	{
+	}
+
+	explicit FMenuEntryStyleParams(const bool bInNoIndent)
+		: bNoIndent(bInNoIndent)
+	{
+	}
+
+	/** If true, removes the padding from the left of the widget that lines it up with other menu items */
+	bool bNoIndent = false;
+
+	/** Horizontal alignment for this widget in its parent container. Note: only applies to toolbars */
+	EHorizontalAlignment HorizontalAlignment = HAlign_Fill;
+
+	/** (Optional) Vertical alignment for this widget in its parent container */
+	TOptional<EVerticalAlignment> VerticalAlignment;
+
+	/** (Optionally) override the size rule, where the default is generally Auto */
+	TOptional<FSizeParam::ESizeRule> SizeRule;
+
+	/** (Optionally) override the minimum size. This will apply to the width or height, depending on the menu orientation */
+	TOptional<float> MinSize;
+
+	/** (Optionally) override the maximum size. This will apply to the width or height, depending on the menu orientation */
+	TOptional<float> MaxSize;
+};

@@ -254,14 +254,23 @@ private:
 	virtual TSharedRef< class IMultiBlockBaseWidget > ConstructWidget() const = 0;
 
 	/**
- 	 * Gets any aligment overrides for this block
+ 	 * Gets any alignment overrides for this block
 	 *
-	 * @param OutHorizontalAligment	Horizontal alignment override
+	 * @param OutHorizontalAlignment	Horizontal alignment override
 	 * @param OutVerticalAlignment	Vertical Alignment override 
 	 * @param bOutAutoWidth		Fill or Auto width override
 	 * @return true if overrides should be applied, false to use defaults 
- 	 */ 
+ 	 */
+	UE_DEPRECATED(5.5, "Use the version that outputs FMenuEntryStyleParams.")
 	virtual bool GetAlignmentOverrides(EHorizontalAlignment& OutHorizontalAlignment, EVerticalAlignment& OutVerticalAlignment, bool& bOutAutoWidth) const { return false; }
+
+	/**
+	  * Gets any alignment overrides for this block
+	 *
+	 * @param OutAlignmentParameters	Alignment parameters and overrides
+	 * @return true if overrides should be applied, false to use defaults
+	  */
+	virtual bool GetAlignmentOverrides(FMenuEntryStyleParams& OutAlignmentParameters) const { return false; }
 private:
 
 	// We're friends with SMultiBoxWidget so that it can call MakeWidget() directly

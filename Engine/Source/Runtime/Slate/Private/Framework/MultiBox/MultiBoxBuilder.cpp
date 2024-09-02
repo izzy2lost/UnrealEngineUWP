@@ -351,9 +351,17 @@ void FMenuBuilder::AddWrapperSubMenu( const FText& InMenuLabel, const FText& InT
 
 void FMenuBuilder::AddWidget( TSharedRef<SWidget> InWidget, const FText& Label, bool bNoIndent, bool bInSearchable, const TAttribute<FText>& InToolTipText )
 {
+	FMenuEntryStyleParams StyleParams;
+	StyleParams.bNoIndent = bNoIndent;
+
+	return AddWidget(InWidget, Label, StyleParams, bInSearchable, InToolTipText);
+}
+
+void FMenuBuilder::AddWidget(const TSharedRef<SWidget>& InWidget, const FText& InLabel, const FMenuEntryStyleParams& InStyleParams, const bool bInSearchable, const TAttribute<FText>& InToolTipText)
+{
 	ApplySectionBeginning();
 
-	TSharedRef< FWidgetBlock > NewWidgetBlock(new FWidgetBlock( InWidget, Label, bNoIndent, EHorizontalAlignment::HAlign_Fill, InToolTipText ));
+	TSharedRef<FWidgetBlock> NewWidgetBlock = MakeShared<FWidgetBlock>(InWidget, InLabel, InToolTipText, InStyleParams);
 	NewWidgetBlock->SetSearchable( bInSearchable );
 
 	MultiBox->AddMultiBlock( NewWidgetBlock );
@@ -609,27 +617,37 @@ void FToolBarBuilder::AddToolBarWidget( TSharedRef<SWidget> InWidget, const TAtt
 			.Text( InLabel )
 			.TextStyle(&ToolBarStyle.LabelStyle)	// Smaller font for tool tip labels
 		] ;
-	
-	TSharedRef< FWidgetBlock > NewWidgetBlock( new FWidgetBlock( InWidget, FText::GetEmpty(), true ) );
+
+	static const TAttribute<FText> EmptyTextAttribute;
+	TSharedRef<FWidgetBlock> NewWidgetBlock = MakeShared<FWidgetBlock>(InWidget, FText::GetEmpty(), EmptyTextAttribute, FMenuEntryStyleParams(true));
 	MultiBox->AddMultiBlock( NewWidgetBlock );
 	NewWidgetBlock->SetSearchable(bSearchable);
 }
 
-void FToolBarBuilder::AddWidget( TSharedRef<SWidget> InWidget, FName InTutorialHighlightName, bool bSearchable, EHorizontalAlignment Alignment, FNewMenuDelegate InCustomMenuDelegate )
+void FToolBarBuilder::AddWidget( TSharedRef<SWidget> InWidget, FName InTutorialHighlightName, bool bSearchable, EHorizontalAlignment Alignment, FNewMenuDelegate InCustomMenuDelegate)
+{
+	AddWidget(InWidget, FMenuEntryStyleParams(Alignment), InTutorialHighlightName, bSearchable, InCustomMenuDelegate);
+}
+
+void FToolBarBuilder::AddWidget(TSharedRef<SWidget> InWidget, const FMenuEntryStyleParams& InStyleParams, FName InTutorialHighlightName, bool bInSearchable, FNewMenuDelegate InCustomMenuDelegate)
 {
 	ApplySectionBeginning();
 
 	TSharedRef<SWidget> ChildWidget = InWidget;
-	InWidget = 
+	InWidget =
 		SNew( SBox )
 		.AddMetaData<FTagMetaData>(FTagMetaData(InTutorialHighlightName))
 		[
 			ChildWidget
 		];
-	
-	TSharedRef< FWidgetBlock > NewWidgetBlock( new FWidgetBlock( InWidget, FText::GetEmpty(), true, Alignment) );
+
+	FMenuEntryStyleParams StyleParams = InStyleParams;
+	StyleParams.bNoIndent = true;
+
+	static const TAttribute<FText> EmptyTextAttribute;
+	TSharedRef<FWidgetBlock> NewWidgetBlock = MakeShared<FWidgetBlock>(InWidget, FText::GetEmpty(), EmptyTextAttribute, StyleParams);
 	MultiBox->AddMultiBlock( NewWidgetBlock );
-	NewWidgetBlock->SetSearchable(bSearchable);
+	NewWidgetBlock->SetSearchable(bInSearchable);
 	NewWidgetBlock->SetCustomMenuDelegate(InCustomMenuDelegate);
 }
 
@@ -652,7 +670,7 @@ void FToolBarBuilder::BeginSection(FName InExtensionHook, bool bInSectionShouldH
 	checkf(CurrentSectionExtensionHook == NAME_None && !bSectionNeedsToBeApplied, TEXT("Did you forget to call EndSection()?"));
 
 	ApplyHook(InExtensionHook, EExtensionHook::Before);
-	
+
 	// Do not actually apply the section header, because if this section is ended immediately
 	// then nothing ever gets created, preventing empty sections from ever appearing
 	bSectionNeedsToBeApplied = true;

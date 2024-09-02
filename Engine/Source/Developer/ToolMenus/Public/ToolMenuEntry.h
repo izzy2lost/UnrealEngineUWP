@@ -51,22 +51,21 @@ public:
 	{
 	}
 
-	/** Delegate that generates a widget for this combo button's menu content.  Called when the menu is summoned. */
+	/** Delegate that generates a widget for this combo button's menu content. Called when the menu is summoned. */
 	FNewToolMenuChoice ComboButtonContextMenuGenerator;
 
-	/** Legacy delegate that generates a widget for this combo button's menu content.  Called when the menu is summoned. */
+	/** Legacy delegate that generates a widget for this combo button's menu content. Called when the menu is summoned. */
 	FNewToolBarDelegateLegacy ConstructLegacy;
 
 	TSharedPtr<FToolMenuEntryOptionsDropdownData> OptionsDropdownData;
 
 	bool bSimpleComboBox;
 
-	/** Whether ToolBar will have Focusable buttons */
+	/** Whether ToolBar will have Focusable buttons. */
 	bool bIsFocusable;
 
-	/** Whether this toolbar should always use small icons, regardless of the current settings */
+	/** Whether this toolbar should always use small icons, regardless of the current settings. */
 	bool bForceSmallIcons;
-
 };
 
 
@@ -88,6 +87,9 @@ public:
 
 	/** If true, no padding will be added */
 	bool bNoPadding;
+
+	/** Various Style parameters and overrides */
+	FMenuEntryStyleParams StyleParams;
 };
 
 struct FToolMenuCustomWidgetContext

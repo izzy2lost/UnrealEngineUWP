@@ -384,11 +384,21 @@ public:
 	 * @param	InWidget			The widget that should be shown in the menu
 	 * @param	InLabel				Optional label text to be added to the left of the content
 	 * @param	bInNoIndent			If true, removes the padding from the left of the widget that lines it up with other menu items (default == false)
-	 * @param	bInSearchable			If true, widget will be searchable (default == true)
-	 * @param	InToolTipText	Optional tooltip text to be added to the widget and label
+	 * @param	bInSearchable		If true, widget will be searchable (default == true)
+	 * @param	InToolTipText		Optional tooltip text to be added to the widget and label
 	 */
-	SLATE_API void AddWidget( TSharedRef<SWidget> InWidget, const FText& InLabel, bool bInNoIndent = false, bool bInSearchable = true, const 
-	TAttribute<FText>&  InToolTipText = FText());
+	SLATE_API void AddWidget( TSharedRef<SWidget> InWidget, const FText& InLabel, bool bInNoIndent, bool bInSearchable = true, const TAttribute<FText>&  InToolTipText = FText());
+
+	/**
+	 * Adds any widget to the menu
+	 *
+	 * @param	InWidget			The widget that should be shown in the menu
+	 * @param	InLabel				Optional label text to be added to the left of the content
+	 * @param	InStyleParams		Optional style parameters and overrides, @see FMenuEntryStyleParams
+	 * @param	bInSearchable		If true, widget will be searchable (default == true)
+	 * @param	InToolTipText		Optional tooltip text to be added to the widget and label
+	 */
+	SLATE_API void AddWidget(const TSharedRef<SWidget>& InWidget, const FText& InLabel, const FMenuEntryStyleParams& InStyleParams = FMenuEntryStyleParams(false), bool bInSearchable = true, const TAttribute<FText>& InToolTipText = FText());
 
 	/**
 	* Adds the widget the multibox will use for searching
@@ -609,8 +619,19 @@ public:
 	 * @param	InAlignment				Horizontal alignment for the widget inside the toolbar
 	 * @param	InCustomMenuDelegate	Optional custom menu delegate for cases where the toolbar is compressed into a menu
 	 */
-	SLATE_API void AddWidget(TSharedRef<SWidget> InWidget, FName InTutorialHighlightName = NAME_None, bool bInSearchable = true, EHorizontalAlignment InAlignment = HAlign_Fill, FNewMenuDelegate InCustomMenuDelegate = FNewMenuDelegate());
-	
+	SLATE_API void AddWidget(TSharedRef<SWidget> InWidget, FName InTutorialHighlightName, bool bInSearchable = true, EHorizontalAlignment InAlignment = HAlign_Fill, FNewMenuDelegate InCustomMenuDelegate = FNewMenuDelegate());
+
+	/**
+	 * Adds any widget to the toolbar
+	 *
+	 * @param	InWidget				The widget that should be shown in the toolbar
+	 * @param	InStyleParams			Style parameters for the widget inside the toolbar
+	 * @param	InTutorialHighlightName	Name to identify this widget and highlight during tutorials
+	 * @param	bInSearchable			If true, widget will be searchable (default == true)
+	 * @param	InCustomMenuDelegate	Optional custom menu delegate for cases where the toolbar is compressed into a menu
+	 */
+	SLATE_API void AddWidget(TSharedRef<SWidget> InWidget, const FMenuEntryStyleParams& InStyleParams = FMenuEntryStyleParams(HAlign_Fill), FName InTutorialHighlightName = NAME_None, bool bInSearchable = true, FNewMenuDelegate InCustomMenuDelegate = FNewMenuDelegate());
+
 	/**
 	 * Adds a toolbar separator
 	 */

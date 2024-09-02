@@ -6,28 +6,19 @@
 #include "Styling/ToolBarStyle.h"
 #include "Widgets/SToolTip.h"
 
-
-/**
- * Constructor
- *
- * @param	InHeadingText	Heading text
- */
-FWidgetBlock::FWidgetBlock( TSharedRef<SWidget> InContent, const FText& InLabel, bool bInNoIndent, EHorizontalAlignment InHorizontalAlignment, const TAttribute<FText>& InToolTipText)
-	: FMultiBlock( nullptr, nullptr, NAME_None, EMultiBlockType::Widget )
-	, ContentWidget( InContent )
-	, Label( InLabel )
+FWidgetBlock::FWidgetBlock(TSharedRef<SWidget> InContent, const FText& InLabel, const TAttribute<FText>& InToolTipText, const FMenuEntryStyleParams& InStyleParams)
+	: FMultiBlock(nullptr, nullptr, NAME_None, EMultiBlockType::Widget)
+    , ContentWidget(InContent)
+	, Label(InLabel)
 	, ToolTipText(InToolTipText)
-	, bNoIndent( bInNoIndent )
-	, HorizontalAlignment(InHorizontalAlignment)
+	, StyleParams(InStyleParams)
 {
 }
-
 
 void FWidgetBlock::SetCustomMenuDelegate( FNewMenuDelegate& InCustomMenuDelegate )
 {
 	CustomMenuDelegate = InCustomMenuDelegate;	
 }
-
 
 void FWidgetBlock::CreateMenuEntry(FMenuBuilder& MenuBuilder) const
 {
@@ -38,10 +29,13 @@ void FWidgetBlock::CreateMenuEntry(FMenuBuilder& MenuBuilder) const
 	else
 	{
 		FText EntryLabel = (!Label.IsEmpty()) ? Label : NSLOCTEXT("WidgetBlock", "CustomControl", "Custom Control");
-		MenuBuilder.AddWidget(ContentWidget, FText::GetEmpty(), true);
+
+		FMenuEntryStyleParams MenuStyleParams;
+		MenuStyleParams.bNoIndent = true;
+
+		MenuBuilder.AddWidget(ContentWidget, FText::GetEmpty(), MenuStyleParams);
 	}
 }
-
 
 /**
  * Allocates a widget for this type of MultiBlock.  Override this in derived classes.
@@ -54,12 +48,23 @@ TSharedRef< class IMultiBlockBaseWidget > FWidgetBlock::ConstructWidget() const
 			.Cursor(EMouseCursor::Default);
 }
 
-
-bool FWidgetBlock::GetAlignmentOverrides(EHorizontalAlignment& OutHorizontalAlignment, EVerticalAlignment& OutVerticalAlignment, bool& bOutAutoWidth) const
+bool FWidgetBlock::GetAlignmentOverrides(FMenuEntryStyleParams& OutAlignmentParameters) const
 {
-	OutHorizontalAlignment = HorizontalAlignment;
-	OutVerticalAlignment = VAlign_Fill;
-	bOutAutoWidth = HorizontalAlignment != HAlign_Fill ? false : true;
+	OutAlignmentParameters.HorizontalAlignment = StyleParams.HorizontalAlignment;
+	OutAlignmentParameters.VerticalAlignment = StyleParams.VerticalAlignment.Get(VAlign_Fill);
+
+	if (StyleParams.SizeRule.IsSet())
+	{
+		OutAlignmentParameters.SizeRule = StyleParams.SizeRule;
+	}
+	else if (StyleParams.HorizontalAlignment == HAlign_Fill)
+	{
+		OutAlignmentParameters.SizeRule = FSizeParam::ESizeRule::SizeRule_Auto;
+	}
+
+	OutAlignmentParameters.MinSize = StyleParams.MinSize;
+	OutAlignmentParameters.MaxSize = StyleParams.MaxSize;
+
 	return true;
 }
 
@@ -72,17 +77,15 @@ void SWidgetBlock::Construct( const FArguments& InArgs )
 {
 }
 
-
-
 /**
  * Builds this MultiBlock widget up from the MultiBlock associated with it
  */
 void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FName& StyleName)
 {
-	TSharedPtr<SMultiBoxWidget> OwnerMultiBoxWidgetPinned = OwnerMultiBoxWidget.Pin();
+	const TSharedPtr<SMultiBoxWidget> OwnerMultiBoxWidgetPinned = OwnerMultiBoxWidget.Pin();
 
 	TSharedPtr< const FMultiBox > MultiBox = OwnerMultiBoxWidgetPinned->GetMultiBox();
-	TSharedRef< const FWidgetBlock > WidgetBlock = StaticCastSharedRef< const FWidgetBlock >( MultiBlock.ToSharedRef() );
+	const TSharedRef<const FWidgetBlock> WidgetBlock = StaticCastSharedRef<const FWidgetBlock>(MultiBlock.ToSharedRef());
 
 	// Support menus which do not have a defined widget style yet
 	bool bHasLabel = !WidgetBlock->Label.IsEmpty();
@@ -92,14 +95,12 @@ void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FNam
 	{
 		const FToolBarStyle& ToolBarStyle = StyleSet->GetWidgetStyle<FToolBarStyle>(StyleName);
 
-		Padding = WidgetBlock->bNoIndent ? ToolBarStyle.BlockPadding : ToolBarStyle.IndentedBlockPadding;
+		Padding = WidgetBlock->StyleParams.bNoIndent ? ToolBarStyle.BlockPadding : ToolBarStyle.IndentedBlockPadding;
 		LabelStyle = &ToolBarStyle.LabelStyle;
-
 	}
 	else
 	{
-		Padding = WidgetBlock->bNoIndent ? StyleSet->GetMargin(StyleName, ".Block.Padding") : StyleSet->GetMargin(StyleName, ".Block.IndentedPadding");
-
+		Padding = WidgetBlock->StyleParams.bNoIndent ? StyleSet->GetMargin(StyleName, ".Block.Padding") : StyleSet->GetMargin(StyleName, ".Block.IndentedPadding");
 		LabelStyle = &StyleSet->GetWidgetStyle<FTextBlockStyle>(ISlateStyle::Join(StyleName, ".Label"));
 	}
 
@@ -150,6 +151,8 @@ void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FNam
 		OwnerMultiBoxWidgetPinned->SetSearchBlockWidget(ThisWidget);
 	}
 
+	static constexpr float IconRightPadding = 4.f;
+
 	ChildSlot
 	.Padding( Padding )	// Large left margin mimics the indent of normal menu items when bNoIndent is false
 	[
@@ -162,8 +165,8 @@ void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FNam
 			.Visibility( bHasLabel ? EVisibility::Visible : EVisibility::Collapsed )
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
-			.Padding( bHasLabel ? FMargin(0.f, 0.f, 4.f, 0.f) : FMargin(0))
-			.VAlign( VAlign_Center )
+			.Padding(bHasLabel ? FMargin(0.f, 0.f, IconRightPadding, 0.f) : FMargin(0))
+			.VAlign(VAlign_Center)
 			[
 				SNew( STextBlock )
 				.TextStyle(LabelStyle)
@@ -217,4 +220,3 @@ void SWidgetBlock::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent
 
 	SMultiBlockBaseWidget::OnMouseEnter(MyGeometry, MouseEvent);
 }
-

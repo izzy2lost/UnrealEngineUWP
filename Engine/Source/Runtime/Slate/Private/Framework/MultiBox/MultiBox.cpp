@@ -808,11 +808,8 @@ void SMultiBoxWidget::AddBlockWidget(const FMultiBlock& Block, TSharedPtr<SHoriz
 	case EMultiBoxType::ToolBar:
 	case EMultiBoxType::SlimHorizontalToolBar:
 		{
-			EHorizontalAlignment HAlign;
-			EVerticalAlignment VAlign;
-			bool bAutoWidth;
-
-			bool bOverride = Block.GetAlignmentOverrides(HAlign, VAlign, bAutoWidth);
+			FMenuEntryStyleParams StyleParams;
+			const bool bOverride = Block.GetAlignmentOverrides(StyleParams);
 
 			{
 				SHorizontalBox::FScopedWidgetSlotArguments NewSlot = HorizontalBox->AddSlot();
@@ -824,13 +821,38 @@ void SMultiBoxWidget::AddBlockWidget(const FMultiBlock& Block, TSharedPtr<SHoriz
 
 				if (bOverride)
 				{
-					if (bAutoWidth)
+					if (StyleParams.SizeRule.IsSet()
+						&& StyleParams.SizeRule.GetValue() == FSizeParam::SizeRule_Auto)
 					{
 						NewSlot.AutoWidth();
 					}
 
-					NewSlot.HAlign(HAlign)
-						.VAlign(VAlign);
+					NewSlot
+					.HAlign(StyleParams.HorizontalAlignment)
+					.VAlign(StyleParams.VerticalAlignment.Get(VAlign_Fill));
+
+					if (StyleParams.SizeRule.IsSet())
+					{
+						FSizeParam::ESizeRule SizeRule = StyleParams.SizeRule.GetValue();
+						if (SizeRule == FSizeParam::SizeRule_Stretch)
+						{
+							NewSlot.FillWidth(1.0f);
+						}
+						else if (SizeRule == FSizeParam::SizeRule_StretchContent)
+						{
+							NewSlot.FillContentWidth(1.0f);
+						}
+					}
+
+					if (StyleParams.MinSize.IsSet())
+					{
+						NewSlot.MinWidth(StyleParams.MinSize.GetValue());
+					}
+
+					if (StyleParams.MaxSize.IsSet())
+					{
+						NewSlot.MaxWidth(StyleParams.MaxSize.GetValue());
+					}
 				}
 				else
 				{
@@ -933,7 +955,10 @@ void SMultiBoxWidget::CreateSearchTextWidget()
 				SearchTextWidget.ToSharedRef()
 			];
 
-	TSharedRef<FWidgetBlock> NewWidgetBlock(new FWidgetBlock(SearchBox, FText::GetEmpty(), false));
+	FMenuEntryStyleParams StyleParams;
+	StyleParams.bNoIndent = false;
+
+	TSharedRef<FWidgetBlock> NewWidgetBlock = MakeShared<FWidgetBlock>(SearchBox, FText::GetEmpty(), FText(), StyleParams);
 	NewWidgetBlock->SetSearchable(false);
 
 	MultiBox->AddMultiBlockToFront(NewWidgetBlock);
