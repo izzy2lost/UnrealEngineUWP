@@ -677,7 +677,7 @@ FToolMenuEntry CreateViewportToolbarTransformsSection()
 	);
 
 	Entry.ToolbarLabelOverride = FText();
-	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.RelativeCoordinateSystem_Local");
+	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.SelectMode");
 	return Entry;
 }
 
