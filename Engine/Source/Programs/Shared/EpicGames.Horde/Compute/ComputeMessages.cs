@@ -183,6 +183,11 @@ namespace EpicGames.Horde.Compute
 		/// Identifier for the remote machine
 		/// </summary>
 		public AgentId AgentId { get; set; }
+		
+		/// <summary>
+		/// Agent version for the remote machine
+		/// </summary>
+		public string? AgentVersion { get; set; }
 
 		/// <summary>
 		/// Identifier for the new lease on the remote machine

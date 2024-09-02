@@ -14,6 +14,7 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
+using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
@@ -57,6 +58,7 @@ namespace UnrealBuildTool
 		readonly ServiceProvider _serviceProvider;
 		readonly string _crypto;
 		IComputeClient? _client;
+		HordeHttpClient? _hordeHttpClient;
 
 		public class Worker
 		{
@@ -138,8 +140,10 @@ namespace UnrealBuildTool
 			}
 
 			_client = _serviceProvider.GetRequiredService<IHordeClient>().CreateComputeClient();
+			_hordeHttpClient = _serviceProvider.GetRequiredService<IHordeClient>().CreateHttpClient();
+			GetServerInfoResponse serverInfo = await _hordeHttpClient.GetServerInfoAsync(cancellationToken);
+			_logger.LogInformation("Horde server: {ServerVersion}, agent: {AgentVersion}", serverInfo.ServerVersion, serverInfo.AgentVersion);
 
-			_logger.LogInformation("Creating tool bundle...");
 			DirectoryReference ubaDir = UBAExecutor.UbaBinariesDir;
 			List<string> agentFiles = new();
 			if (OperatingSystem.IsWindows())
