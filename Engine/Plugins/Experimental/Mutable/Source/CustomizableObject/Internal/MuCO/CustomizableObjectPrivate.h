@@ -4,6 +4,7 @@
 
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectCompilerTypes.h"
+#include "MuCO/CustomizableObjectStreamedResourceData.h"
 #include "MuCO/StateMachine.h"
 #include "MuCO/CustomizableObjectUIData.h"
 #include "MuCO/CustomizableObjectIdentifier.h"
@@ -26,6 +27,15 @@ namespace mu
 	struct FBoneName;
 }
 
+#if WITH_EDITOR
+namespace UE::DerivedData
+{
+	struct FValueId;
+	struct FCacheKey;
+	enum class ECachePolicy : uint32;
+}
+#endif
+
 class USkeletalMesh;
 class USkeleton;
 class UPhysicsAsset;
@@ -33,7 +43,6 @@ class UMaterialInterface;
 class UTexture;
 class UAnimInstance;
 class UAssetUserData;
-class UCustomizableObject;
 class USkeletalMeshLODSettings;
 struct FModelResources;
 struct FModelStreamableBulkData;
@@ -433,7 +442,7 @@ struct CUSTOMIZABLEOBJECT_API FMutableRefSkeletalMeshData
 #if WITH_EDITORONLY_DATA
 	friend FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshData& Data);
 
-	void InitResources(UCustomizableObject* InOuter, const ITargetPlatform* InTargetPlatform);
+	void InitResources(UCustomizableObject* InOuter, FModelResources& InModelResources, const ITargetPlatform* InTargetPlatform);
 #endif
 
 };
@@ -489,6 +498,34 @@ struct CUSTOMIZABLEOBJECT_API FMutableSkinWeightProfileInfo
 	friend FArchive& operator<<(FArchive& Ar, FMutableSkinWeightProfileInfo& Info);
 #endif
 };
+
+
+USTRUCT()
+struct CUSTOMIZABLEOBJECT_API FMutableStreamableBlock
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY()
+	uint32 FileId = 0;
+
+	/** Used to store properties of the data, necessary for its recovery. For instance if it is high-res. */
+	UPROPERTY()
+	uint32 Flags = 0;
+
+	UPROPERTY()
+	uint64 Offset = 0;
+
+	friend FArchive& operator<<(FArchive& Ar, FMutableStreamableBlock& Data)
+	{
+		Ar << Data.FileId;
+		Ar << Data.Flags;
+		Ar << Data.Offset;
+		return Ar;
+	}
+};
+template<> struct TCanBulkSerialize<FMutableStreamableBlock> { enum { Value = true }; };
+static_assert(sizeof(FMutableStreamableBlock) == 8 * 2);
+
 
 USTRUCT()
 struct FRealTimeMorphStreamable
@@ -805,10 +842,16 @@ namespace MutablePrivate
 
 	struct CUSTOMIZABLEOBJECT_API FMutableCachedPlatformData
 	{
-		/** */
+		/** Serialized mu::Model */
 		TArray64<uint8> ModelData;
 
-		/** */
+		/** Serialized FModelResources */
+		TArray64<uint8> ModelResourcesData;
+
+		/** Streamable resources info such as files and offsets. */
+		TSharedPtr<FModelStreamableBulkData> ModelStreamables;
+
+		/** Struct containing map of RomId to RomBytes. */
 		FModelStreamableData ModelStreamableData;
 
 		/** */
@@ -827,7 +870,7 @@ namespace MutablePrivate
 	 */
 	void CUSTOMIZABLEOBJECT_API GenerateBulkDataFilesList(
 		TSharedPtr<const mu::Model, ESPMode::ThreadSafe> Model,
-		TSharedPtr<FModelStreamableBulkData> StreamableBulkData,
+		FModelStreamableBulkData& StreamableBulkData,
 		const ITargetPlatform* TargetPlatform,
 		uint64 TargetBulkDataFileBytes,
 		TArray<FFile>& OutBulkDataFiles);
@@ -838,6 +881,11 @@ namespace MutablePrivate
 		TFunctionRef<void(FFile&, TArray64<uint8>&)> WriteFile,
 		bool bDropData
 	);
+
+	UE::DerivedData::FValueId CUSTOMIZABLEOBJECT_API GetDerivedDataModelId();
+	UE::DerivedData::FValueId CUSTOMIZABLEOBJECT_API GetDerivedDataModelResourcesId();
+	UE::DerivedData::FValueId CUSTOMIZABLEOBJECT_API GetDerivedDataModelStreamableBulkDataId();
+	UE::DerivedData::FValueId CUSTOMIZABLEOBJECT_API GetDerivedDataBulkDataFilesId();
 }
 #endif
 
@@ -856,7 +904,16 @@ struct CUSTOMIZABLEOBJECT_API FModelStreamableBulkData
 	void Serialize(FArchive& Ar, UObject* Owner, bool bCooked);
 
 #if WITH_EDITORONLY_DATA
-	friend FArchive& operator<<(FArchive& Ar, FModelStreamableBulkData& Struct);
+	friend FArchive& operator<<(FArchive& Ar, FModelStreamableBulkData& Data)
+	{
+		Ar << Data.ModelStreamables;
+		Ar << Data.ClothingStreamables;
+		Ar << Data.RealTimeMorphStreamables;
+
+		// Don't serialize FByteBulkData manually, the data will be skipped.
+
+		return Ar;
+	}
 #endif
 };
 
@@ -885,7 +942,9 @@ struct FMutableParamNameSet
 };
 
 
-// Referenced materials, skeletons, passthrough textures...
+/** Struct containing all UE resources derived from a CO compilation. These resources will be embedded in the CO at cook time but not in the editor.
+  * Editor compilations will serialize this struct to disk using the Serialize methods. Ensure new fields are serialized, too.
+  * Variables and settings that should not change until the CO is re-compiled should be stored here. */
 USTRUCT()
 struct FModelResources
 {
@@ -993,7 +1052,34 @@ struct FModelResources
 	// Stores what param names use a certain table as a table can be used from multiple table nodes, useful for partial compilations to restrict params
 	UPROPERTY()
 	TMap<FString, FMutableParamNameSet> TableToParamNames;
+
+	/** Map to identify what CustomizableObject owns a parameter. Used to display a tooltip when hovering a parameter
+	 * in the Prev. instance panel */
+	TMap<FString, FString> CustomizableObjectPathMap;
+
+	TMap<FString, FCustomizableObjectIdPair> GroupNodeMap;
+
+	/** If the object is compiled with maximum optimizations. */
+	bool bIsCompiledWithOptimization = true;
+
+	/** This is a non-user-controlled flag to disable streaming (set at object compilation time, depending on optimization). */
+	bool bIsTextureStreamingDisabled = false;
+
+	/** List of external packages that if changed, a compilation is required.
+	  * Key is the package name. Value is the the UPackage::Guid, which is regenerated each time the packages is saved.
+	  *
+	  * Updated each time the CO is compiled and saved in the Derived Data. */
+	TMap<FName, FGuid> ParticipatingObjects;
+
+	// Used to know if roms and other resources must be streamed from the DDC.
+	bool bIsStoredInDDC = false;
+	UE::DerivedData::FCacheKey DDCKey = UE::DerivedData::FCacheKey::Empty;
+	UE::DerivedData::ECachePolicy DDCDefaultPolicy = UE::DerivedData::ECachePolicy::Default;
 #endif
+
+	// Constant Resources streamed in on demand when generating meshes
+	UPROPERTY()
+	TArray<FCustomizableObjectStreamedResourceData> StreamedResourceData;
 
 	/** Max number of components in the compiled Model. */
 	UPROPERTY()
@@ -1010,6 +1096,42 @@ struct FModelResources
 	/** First LOD available, some platforms may remove lower LODs when cooking, this MinLOD represents the first LOD we can generate */
 	UPROPERTY()
 	uint8 FirstLODAvailable = 0;
+
+#if WITH_EDITORONLY_DATA
+	void CUSTOMIZABLEOBJECT_API Serialize(FObjectAndNameAsStringProxyArchive& Ar, bool bIsCooking);
+	bool CUSTOMIZABLEOBJECT_API Unserialize(FObjectAndNameAsStringProxyArchive& Ar, UCustomizableObject& Outer, const ITargetPlatform* InTargetPlatform, bool bIsCooking);
+#endif
+};
+
+
+UCLASS(config = Engine)
+class CUSTOMIZABLEOBJECT_API UCustomizableObjectBulk : public UObject
+{
+public:
+	GENERATED_BODY()
+
+	//~ Begin UObject Interface
+	virtual void PostLoad() override;
+	//~ End UObject Interface
+
+	/**  */
+	const FString& GetBulkFilePrefix() const { return BulkFilePrefix; }
+
+	TUniquePtr<IAsyncReadFileHandle> OpenFileAsyncRead(uint32 FileId, uint32 Flags) const;
+
+#if WITH_EDITOR
+
+	//~ Begin UObject Interface
+	virtual void CookAdditionalFilesOverride(const TCHAR*, const ITargetPlatform*, TFunctionRef<void(const TCHAR*, void*, int64)>) override;
+	//~ End UObject Interface
+#endif
+
+#if WITH_EDITOR
+private:
+#endif
+
+	/** Prefix to locate bulkfiles for loading, using the file ids in each FMutableStreamableBlock. */
+	FString BulkFilePrefix;
 };
 
 
@@ -1109,6 +1231,14 @@ public:
 #if WITH_EDITOR
 	/** Compose file name. */
 	FString GetCompiledDataFileName(bool bIsModel, const ITargetPlatform* InTargetPlatform = nullptr, bool bIsDiskStreamer = false);
+
+	/** DDC helpers. BuildDerivedDataKey is expensive, try to cache it as much as possible. */
+	FString BuildDerivedDataKey(FCompilationOptions Options);
+	UE::DerivedData::FCacheKey GetDerivedDataCacheKeyForOptions(FCompilationOptions InOptions);
+
+	/** Attempts to load the compiled data from DDC. Builds key if not supplied. */
+	void LoadCompiledDataFromDDC(FCompilationOptions Options, UE::DerivedData::ECachePolicy DefaultPolicy, UE::DerivedData::FCacheKey* DDCKey);
+
 #endif
 	
 	/** Rebuild ParameterProperties from the current compiled model. */
@@ -1122,13 +1252,10 @@ public:
 	
 	FGuid GetVersionId() const;
 
-	// Unless we are packaging there is no need for keeping all the data generated during compilation, this information is stored in the derived data.
-	void ClearCompiledData(bool bIsCooking);
-
 	void SaveEmbeddedData(FArchive& Ar);
 
 	// Compile the object for a specific platform - Compile for Cook Customizable Object
-	void CompileForTargetPlatform(const ITargetPlatform* TargetPlatform);
+	void CompileForTargetPlatform(UCustomizableObject& CustomizableObject, const ITargetPlatform& TargetPlatform);
 	
 	// Add a profile that stores the values of the parameters used by the CustomInstance.
 	FReply AddNewParameterProfile(FString Name, class UCustomizableObjectInstance& CustomInstance);
@@ -1136,9 +1263,10 @@ public:
 	// Compose folder name where the data is stored
 	static FString GetCompiledDataFolderPath();
 
-	/** Generic Save/Load methods to write/read compiled data */
-	void SaveCompiledData(FObjectAndNameAsStringProxyArchive& Ar, bool bSkipEditorOnlyData = false);
-	void LoadCompiledData(FObjectAndNameAsStringProxyArchive& Ar, const ITargetPlatform* InTargetPlatform, bool bSkipEditorOnlyData = false);
+	/** Generic Load methods to read compiled data */
+	bool LoadModelResources(FArchive& Ar, const ITargetPlatform* InTargetPlatform, bool bSkipEditorOnlyData = false);
+	void LoadModelStreamableBulk(FArchive& Ar, bool bIsCooking);
+	void LoadModel(FArchive& Ar);
 
 	/** Load compiled data for the running platform from disk, this is used to load Editor Compilations. */
 	void LoadCompiledDataFromDisk();
@@ -1184,7 +1312,8 @@ public:
 
 	TArray<FCustomizableObjectStreamedResourceData>& GetStreamedExtensionData();
 	
-	TArray<FCustomizableObjectStreamedResourceData>& GetStreamedResourceData();
+	const FCustomizableObjectResourceData* LoadStreamedResource(int32 ResourceIndex);
+	void UnloadStreamedResource(int32 ResourceIndex);
 
 #if WITH_EDITORONLY_DATA
 	TObjectPtr<UEdGraph>& GetSource() const;
@@ -1213,38 +1342,17 @@ public:
 	/** Cook requests. */
 	TArray<TSharedRef<FCompilationRequest>> CompileRequests;
 
-	/** List of external packages that if changed, a compilation is required.
-	 * Key is the package name. Value is the the UPackage::Guid, which is regenerated each time the packages is saved.
-	 *
-	 * Updated each time the CO is compiled and saved in the Derived Data. */
-	TMap<FName, FGuid> ParticipatingObjects;
-
 	/** List of Participating Objects (packages) has been marked as dirty since the last compilation. */
 	TArray<FName> DirtyParticipatingObjects;
-	
-	/** Map to identify what CustomizableObject owns a parameter. Used to display a tooltip when hovering a parameter
-	 * in the Prev. instance panel */
-	UPROPERTY(Transient)
-	TMap<FString, FString> CustomizableObjectPathMap;
 
-	UPROPERTY(Transient)
-	TMap<FString, FCustomizableObjectIdPair> GroupNodeMap;
-
-	/** If the object is compiled, this flag is false unless it was compiled with maximum optimizations. If the object is not compiled, its value is meaningless. */
-	bool bIsCompiledWithoutOptimization = true;
-
-	/** This is a non-user-controlled flag to disable streaming (set at object compilation time, depending on optimization). */
-	bool bDisableTextureStreaming = false;
-	
 	ECompilationStatePrivate CompilationState = ECompilationStatePrivate::None;
 	ECompilationResultPrivate CompilationResult = ECompilationResultPrivate::Unknown;
 	
 	FPostCompileDelegate PostCompileDelegate;
 
-#if WITH_EDITOR
 	/** Map of PlatformName to CachedPlatformData. Only valid while cooking. */
 	TMap<FString, MutablePrivate::FMutableCachedPlatformData> CachedPlatformsData;
-#endif
+
 #endif
 
 	FCustomizableObjectStatus Status;
@@ -1352,6 +1460,9 @@ public:
 		AddMaterialSlotNameIndexToSurfaceMetadata,
 		
 		MoveEditNodesToModifiers,
+
+		DerivedDataCache,
+
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
 	};

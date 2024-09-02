@@ -221,7 +221,7 @@ FText SCustomizableObjectEditorViewport::GetWarningText() const
 	{
 		if (const UCustomizableObject* Object = Instance->GetCustomizableObject())
 		{
-			if (Object->GetPrivate()->bIsCompiledWithoutOptimization)
+			if (!Object->GetPrivate()->GetModelResources().bIsCompiledWithOptimization)
 			{
 				return LOCTEXT("CompiledWithoutOptimization", "Compiled without maximum optimization. Updates will be slower!");
 			}

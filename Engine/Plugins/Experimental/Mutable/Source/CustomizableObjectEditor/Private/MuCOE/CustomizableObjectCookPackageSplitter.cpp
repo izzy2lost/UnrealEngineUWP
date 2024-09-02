@@ -152,8 +152,9 @@ void GenerateNewPackage(const FCustomizableObjectStreamedResourceData& StreamedD
 bool FCustomizableObjectCookPackageSplitter::ShouldSplit(UObject* SplitData)
 {
 	const UCustomizableObject* Object = CastChecked<UCustomizableObject>(SplitData);
+	const FModelResources& ModelResources = Object->GetPrivate()->GetModelResources(true);
 
-	return !Object->IsChildObject() && (Object->GetPrivate()->GetStreamedResourceData().Num() > 0 || Object->GetPrivate()->GetStreamedExtensionData().Num() > 0);
+	return !Object->IsChildObject() && (ModelResources.StreamedResourceData.Num() > 0 || Object->GetPrivate()->GetStreamedExtensionData().Num() > 0);
 }
 
 TArray<ICookPackageSplitter::FGeneratedPackage> FCustomizableObjectCookPackageSplitter::GetGenerateList(
@@ -164,11 +165,12 @@ TArray<ICookPackageSplitter::FGeneratedPackage> FCustomizableObjectCookPackageSp
 	StrongObject.Reset(OwnerObject);
 	
 	const UCustomizableObject* Object = CastChecked<UCustomizableObject>(OwnerObject);
+	FModelResources& ModelResources = Object->GetPrivate()->GetModelResources(true);
 
 	TArray<ICookPackageSplitter::FGeneratedPackage> Result;
 
 	// Generate a new package for each streamed Resource Data
-	for (const FCustomizableObjectStreamedResourceData& StreamedData : Object->GetPrivate()->GetStreamedResourceData())
+	for (const FCustomizableObjectStreamedResourceData& StreamedData : ModelResources.StreamedResourceData)
 	{
 		GenerateNewPackage(StreamedData, OwnerPackage, OwnerObject, Result);
 	}
@@ -227,9 +229,10 @@ bool FCustomizableObjectCookPackageSplitter::PreSaveGeneratorPackage(
 	};
 
 	UCustomizableObject* Object = CastChecked<UCustomizableObject>(OwnerObject);
+	FModelResources& ModelResources = Object->GetPrivate()->GetModelResources(true);
 
 	// There should be one generated package per streamed Resource Data
-	const int32 NumStreamedData = Object->GetPrivate()->GetStreamedResourceData().Num();
+	const int32 NumStreamedData = ModelResources.StreamedResourceData.Num();
 	const int32 NumStreamedExtensionData = Object->GetPrivate()->GetStreamedExtensionData().Num();
 	
 	check(NumStreamedData + NumStreamedExtensionData == PlaceholderPackages.Num());
@@ -244,7 +247,7 @@ bool FCustomizableObjectCookPackageSplitter::PreSaveGeneratorPackage(
 	for (int32 Index = 0; Index < NumStreamedData; ++Index)
 	{
 		const ICookPackageSplitter::FGeneratedPackageForPreSave& GeneratedPackage = PlaceholderPackages[Index];
-		if (!PreSavePackage(GeneratedPackage, Object->GetPrivate()->GetStreamedResourceData()))
+		if (!PreSavePackage(GeneratedPackage, ModelResources.StreamedResourceData))
 		{
 			return false;
 		}
@@ -272,17 +275,18 @@ void FCustomizableObjectCookPackageSplitter::PostSaveGeneratorPackage(UPackage* 
 	// array on the CO to how it was before PreSaveGeneratorPackage.
 
 	UCustomizableObject* Object = CastChecked<UCustomizableObject>(OwnerObject);
+	FModelResources& ModelResources = Object->GetPrivate()->GetModelResources(true);
 
 	TArray<FCustomizableObjectStreamedResourceData> NewArray;
 	NewArray.Reset(SavedContainerNames.Num());
 
 	for (const FString& ContainerName : SavedContainerNames)
 	{
-		FCustomizableObjectStreamedResourceData* ResourceData = FindStreamedResourceData(Object->GetPrivate()->GetStreamedResourceData(), ContainerName);
+		FCustomizableObjectStreamedResourceData* ResourceData = FindStreamedResourceData(ModelResources.StreamedResourceData, ContainerName);
 		if (!ResourceData)
 		{
 			UE_LOG(LogMutable, Error, TEXT("Couldn't find streamed Resource Data container with name %s in array of %d entries"),
-				*ContainerName, Object->GetPrivate()->GetStreamedResourceData().Num());
+				*ContainerName, ModelResources.StreamedResourceData.Num());
 
 			continue;
 		}
@@ -294,7 +298,7 @@ void FCustomizableObjectCookPackageSplitter::PostSaveGeneratorPackage(UPackage* 
 		NewArray.Emplace(Container);
 	}
 
-	Object->GetPrivate()->GetStreamedResourceData() = NewArray;
+	ModelResources.StreamedResourceData = NewArray;
 
 	NewArray.Reset(SavedExtensionContainerNames.Num());
 
@@ -329,8 +333,9 @@ bool FCustomizableObjectCookPackageSplitter::PopulateGeneratedPackage(
 	// Move the container into its newly generated package
 
 	UCustomizableObject* Object = CastChecked<UCustomizableObject>(OwnerObject);
-	
-	FCustomizableObjectStreamedResourceData* ResourceData = FindStreamedResourceData(Object->GetPrivate()->GetStreamedResourceData(), GeneratedPackage.RelativePath);
+	FModelResources& ModelResources = Object->GetPrivate()->GetModelResources(true);
+
+	FCustomizableObjectStreamedResourceData* ResourceData = FindStreamedResourceData(ModelResources.StreamedResourceData, GeneratedPackage.RelativePath);
 	if (!ResourceData)
 	{
 		ResourceData = FindStreamedResourceData(Object->GetPrivate()->GetStreamedExtensionData(), GeneratedPackage.RelativePath);
@@ -339,7 +344,7 @@ bool FCustomizableObjectCookPackageSplitter::PopulateGeneratedPackage(
 	if (!ResourceData)
 	{
 		UE_LOG(LogMutable, Error, TEXT("Couldn't find streamed resource Data container with name %s in arrays of %d and %d entries"),
-			*GeneratedPackage.RelativePath, Object->GetPrivate()->GetStreamedResourceData().Num(), Object->GetPrivate()->GetStreamedExtensionData().Num());
+			*GeneratedPackage.RelativePath, ModelResources.StreamedResourceData.Num(), Object->GetPrivate()->GetStreamedExtensionData().Num());
 
 		return false;
 	}
@@ -376,8 +381,9 @@ void FCustomizableObjectCookPackageSplitter::PostSaveGeneratedPackage(
 	// that everything is the same as it was before cooking.
 
 	UCustomizableObject* Object = CastChecked<UCustomizableObject>(OwnerObject);
+	FModelResources& ModelResources = Object->GetPrivate()->GetModelResources(true);
 
-	FCustomizableObjectStreamedResourceData* ResourceData = FindStreamedResourceData(Object->GetPrivate()->GetStreamedResourceData(), GeneratedPackage.RelativePath);
+	FCustomizableObjectStreamedResourceData* ResourceData = FindStreamedResourceData(ModelResources.StreamedResourceData, GeneratedPackage.RelativePath);
 	if (!ResourceData)
 	{
 		ResourceData = FindStreamedResourceData(Object->GetPrivate()->GetStreamedExtensionData(), GeneratedPackage.RelativePath);
@@ -386,7 +392,7 @@ void FCustomizableObjectCookPackageSplitter::PostSaveGeneratedPackage(
 	if (!ResourceData)
 	{
 		UE_LOG(LogMutable, Error, TEXT("Couldn't find streamed resource Data container with name %s in arrays of %d and %d entries"),
-			*GeneratedPackage.RelativePath, Object->GetPrivate()->GetStreamedResourceData().Num(), Object->GetPrivate()->GetStreamedExtensionData().Num());
+			*GeneratedPackage.RelativePath, ModelResources.StreamedResourceData.Num(), Object->GetPrivate()->GetStreamedExtensionData().Num());
 
 		return;
 	}

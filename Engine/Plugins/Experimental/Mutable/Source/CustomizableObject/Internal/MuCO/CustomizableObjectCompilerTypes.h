@@ -4,6 +4,11 @@
 
 #include "UObject/WeakObjectPtr.h"
 
+#if WITH_EDITOR
+#include "DerivedDataCachePolicy.h"
+#include "DerivedDataCacheKey.h"
+#endif
+
 #include "CustomizableObjectCompilerTypes.generated.h"
 
 
@@ -110,6 +115,17 @@ struct FCompilationOptions
 
 	/** If true, gather all game asset references and save them in the Customizable Object. */
 	bool bGatherReferences = false;
+
+	/** Whether or not the compiler should query a request to load the compiled data from the DDC */
+	bool bQueryCompiledDatafromDDC = false;
+
+	/** Whether or not the compiler should store the compiled data to the DDC*/
+	bool bStoreCompiledDataInDDC = false;
+
+	/** High limit of the size in bytes of the packaged data when storing this object in the DDC.
+	 * This limit is before any pak or filesystem compression. This limit will be broken if a single piece of data is bigger because data is not fragmented for packaging purposes.
+	 */
+	uint64 DDCBytesLimit = 64 * 1024;
 };
 
 
@@ -141,6 +157,12 @@ struct CUSTOMIZABLEOBJECT_API FCompilationRequest
 
 	bool IsAsyncCompilation() const;
 
+	void SetDerivedDataCachePolicy(UE::DerivedData::ECachePolicy InCachePolicy);
+	UE::DerivedData::ECachePolicy GetDerivedDataCachePolicy() const;
+
+	void BuildDerivedDataCacheKey();
+	UE::DerivedData::FCacheKey GetDerivedDataCacheKey() const;
+
 	void SetCompilationState(ECompilationStatePrivate InState, ECompilationResultPrivate InResult);
 
 	ECompilationStatePrivate GetCompilationState() const;
@@ -164,6 +186,9 @@ private:
 	ECompilationResultPrivate Result = ECompilationResultPrivate::Unknown;
 
 	bool bAsync = true;
+
+	UE::DerivedData::ECachePolicy DDCPolicy = UE::DerivedData::ECachePolicy::None;
+	UE::DerivedData::FCacheKey DDCKey;
 
 	// Stores the only option of an Int Param that should be compiled
 	TMap<FString, FString> ParamNamesToSelectedOptions;
