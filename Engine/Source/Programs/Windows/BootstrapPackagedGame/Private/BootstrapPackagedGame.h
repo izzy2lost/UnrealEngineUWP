@@ -24,3 +24,4 @@ struct IUnknown;
 #include <stdio.h>
 #include <shlwapi.h>
 #include <winver.h>
+#include <appmodel.h>
