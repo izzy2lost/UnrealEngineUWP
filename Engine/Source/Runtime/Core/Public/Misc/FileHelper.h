@@ -139,7 +139,7 @@ struct FFileHelper
 	/**
 	 * Save a binary array to a file.
 	 */
-	static CORE_API bool SaveArrayToFile(TArrayView<const uint8> Array, const TCHAR* Filename, IFileManager* FileManager=&IFileManager::Get(), uint32 WriteFlags = 0);
+	static CORE_API bool SaveArrayToFile(TArrayView64<const uint8> Array, const TCHAR* Filename, IFileManager* FileManager = &IFileManager::Get(), uint32 WriteFlags = 0);
 
 	/**
 	 * Save a binary array to a file.

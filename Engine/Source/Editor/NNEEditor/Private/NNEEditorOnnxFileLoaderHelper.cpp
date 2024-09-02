@@ -71,7 +71,7 @@ namespace UE::NNEEditor::Internal::OnnxFileLoaderHelper
 
 		ModelFileSize = OnnxData.Num();
 
-		TMap<FString, TConstArrayView<uint8>> AdditionalBuffers;
+		TMap<FString, TConstArrayView64<uint8>> AdditionalBuffers;
 		TArray64<uint8> OnnxExternalDataBytesBuffer;
 		TArray64<uint8> OnnxExternalDataDescriptorBuffer;
 

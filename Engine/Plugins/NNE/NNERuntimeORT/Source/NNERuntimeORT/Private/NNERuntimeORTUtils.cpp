@@ -307,19 +307,13 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 #endif // PLATFORM_WINDOWS
 }
 
-bool OptimizeModel(const TSharedRef<FEnvironment> &Environment, Ort::SessionOptions &SessionOptions, ENNEInferenceFormat TargetFormat, FNNEModelRaw& Model)
+bool OptimizeModel(const TSharedRef<FEnvironment> &Environment, Ort::SessionOptions &SessionOptions, 
+					TConstArrayView64<uint8>& InputModel, TArray64<uint8>& OptimizedModel)
 {
 	SCOPED_NAMED_EVENT_TEXT("OrtHelper::OptimizeModel", FColor::Magenta);
 
-	if (Model.Format != ENNEInferenceFormat::ONNX)
-	{
-		UE_LOG(LogNNE, Warning, TEXT("NNERuntimeORT: ONNX Runtime Model Optimizer is expecting a model in ONNX format but received %u."), Model.Format);
-		return false;
-	}
-
 	FString ProjIntermediateDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectIntermediateDir());
-	FString TargetExtension = TargetFormat == ENNEInferenceFormat::ONNX ? TEXT(".onnx") : TEXT(".ort");
-	FString ModelOptimizedPath = FPaths::CreateTempFilename(*ProjIntermediateDir, TEXT("ORTOptimizerPass_Optimized"), *TargetExtension);
+	FString ModelOptimizedPath = FPaths::CreateTempFilename(*ProjIntermediateDir, TEXT("ORTOptimizerPass_Optimized"), TEXT(".onnx"));
 
 #if WITH_EDITOR
 	try
@@ -328,11 +322,11 @@ bool OptimizeModel(const TSharedRef<FEnvironment> &Environment, Ort::SessionOpti
 #if PLATFORM_WINDOWS
 		SessionOptions.SetOptimizedModelFilePath(*ModelOptimizedPath);
 
-		Ort::Session Session(Environment->GetOrtEnv(), Model.Data.GetData(), Model.Data.Num(), SessionOptions);
+		Ort::Session Session(Environment->GetOrtEnv(), InputModel.GetData(), InputModel.Num(), SessionOptions);
 #else
 		SessionOptions.SetOptimizedModelFilePath(TCHAR_TO_ANSI(*ModelOptimizedPath));
 
-		Ort::Session Session(Environment->GetOrtEnv(), Model.Data.GetData(), Model.Data.Num(), SessionOptions);
+		Ort::Session Session(Environment->GetOrtEnv(), InputModel.GetData(), InputModel.Num(), SessionOptions);
 #endif
 	}
 #if WITH_EDITOR
@@ -348,11 +342,9 @@ bool OptimizeModel(const TSharedRef<FEnvironment> &Environment, Ort::SessionOpti
 	}
 #endif // WITH_EDITOR
 
-	FFileHelper::LoadFileToArray(Model.Data, *ModelOptimizedPath);
+	FFileHelper::LoadFileToArray(OptimizedModel, *ModelOptimizedPath);
 
 	IFileManager::Get().Delete(*ModelOptimizedPath);
-
-	Model.Format = TargetFormat;
 
 	return true;
 }

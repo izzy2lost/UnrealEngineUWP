@@ -20,10 +20,10 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NNERuntimeORT)
 
 FGuid UNNERuntimeORTCpu::GUID = FGuid((int32)'O', (int32)'C', (int32)'P', (int32)'U');
-int32 UNNERuntimeORTCpu::Version = 0x00000003;
+int32 UNNERuntimeORTCpu::Version = 0x00000004;
 
 FGuid UNNERuntimeORTDml::GUID = FGuid((int32)'O', (int32)'D', (int32)'M', (int32)'L');
-int32 UNNERuntimeORTDml::Version = 0x00000003;
+int32 UNNERuntimeORTDml::Version = 0x00000004;
 
 namespace UE::NNERuntimeORT::Private::Details
 { 
@@ -31,7 +31,7 @@ namespace UE::NNERuntimeORT::Private::Details
 	static FString OnnxExternalDataDescriptorKey(TEXT("OnnxExternalDataDescriptor"));
 	static FString OnnxExternalDataBytesKey(TEXT("OnnxExternalDataBytes"));
 
-	FOnnxDataDescriptor MakeOnnxDataDescriptor(TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData)
+	FOnnxDataDescriptor MakeOnnxDataDescriptor(TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData)
 	{
 		FOnnxDataDescriptor OnnxDataDescriptor = {};
 		OnnxDataDescriptor.OnnxModelDataSize = FileData.Num();
@@ -60,7 +60,7 @@ namespace UE::NNERuntimeORT::Private::Details
 		return OnnxDataDescriptor;
 	}
 
-	void WriteOnnxModelData(FMemoryWriter Writer, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData)
+	void WriteOnnxModelData(FMemoryWriter64 Writer, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData)
 	{
 		FOnnxDataDescriptor Descriptor = MakeOnnxDataDescriptor(FileData, AdditionalFileData);
 		check(FileData.Num() == Descriptor.OnnxModelDataSize);
@@ -78,12 +78,12 @@ namespace UE::NNERuntimeORT::Private::Details
 	}
 } // namespace UE::NNERuntimeORT::Private::Details
 
-UNNERuntimeORTCpu::ECanCreateModelDataStatus UNNERuntimeORTCpu::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+UNNERuntimeORTCpu::ECanCreateModelDataStatus UNNERuntimeORTCpu::CanCreateModelData(const FString& FileType, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 	return (!FileData.IsEmpty() && FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0) ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::FailFileIdNotSupported;
 }
 
-TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
+TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(const FString& FileType, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
 {
 	using namespace UE::NNERuntimeORT::Private;
 
@@ -93,35 +93,39 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(const F
 		return {};
 	}
 
-	FNNEModelRaw InputModel{ TArray<uint8>{FileData}, ENNEInferenceFormat::ONNX };
+	TConstArrayView64<uint8> OptimizedModelView = FileData;
+	TArray64<uint8> OptimizedModelBuffer;
 
 	//For now only optimize model if there is no external data (as additional data are serialized from the unoptimized model below)
 	if (AdditionalFileData.IsEmpty())
 	{
+		
 		if (GraphOptimizationLevel OptimizationLevel = GetGraphOptimizationLevelForCPU(false, IsRunningCookCommandlet()); OptimizationLevel > GraphOptimizationLevel::ORT_DISABLE_ALL)
 		{
 			TUniquePtr<Ort::SessionOptions> SessionOptions = CreateSessionOptionsDefault(Environment.ToSharedRef());
 			SessionOptions->SetGraphOptimizationLevel(OptimizationLevel);
 			SessionOptions->EnableCpuMemArena();
 
-			if (!OptimizeModel(Environment.ToSharedRef(), *SessionOptions, ENNEInferenceFormat::ONNX, InputModel))
+			if (!OptimizeModel(Environment.ToSharedRef(), *SessionOptions, FileData, OptimizedModelBuffer))
 			{
 				return {};
 			}
+
+			OptimizedModelView = OptimizedModelBuffer;
 		}
 	}
 
-	TArray<uint8> Result;
-	FMemoryWriter Writer(Result, /*bIsPersitent =*/ true);
+	TArray64<uint8> Result;
+	FMemoryWriter64 Writer(Result, /*bIsPersitent =*/ true);
 	Writer << UNNERuntimeORTCpu::GUID;
 	Writer << UNNERuntimeORTCpu::Version;
 
-	Details::WriteOnnxModelData(Writer, InputModel.Data, AdditionalFileData);
+	Details::WriteOnnxModelData(Writer, OptimizedModelView, AdditionalFileData);
 
 	return MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Result)), 0);
 }
 
-FString UNNERuntimeORTCpu::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+FString UNNERuntimeORTCpu::GetModelDataIdentifier(const FString& FileType, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 	return FileId.ToString(EGuidFormats::Digits) + "-" + UNNERuntimeORTCpu::GUID.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeORTCpu::Version);
 }
@@ -149,7 +153,7 @@ UNNERuntimeORTCpu::ECanCreateModelCPUStatus UNNERuntimeORTCpu::CanCreateModelCPU
 		return ECanCreateModelCPUStatus::Fail;
 	}
 
-	TConstArrayView<uint8> Data = SharedData->GetView();
+	TConstArrayView64<uint8> Data = SharedData->GetView();
 
 	if (Data.Num() <= GuidSize + VersionSize)
 	{
@@ -206,12 +210,12 @@ FString UNNERuntimeORTDml::GetRuntimeName() const
 	return TEXT("NNERuntimeORTDml");
 }
 
-UNNERuntimeORTDml::ECanCreateModelDataStatus UNNERuntimeORTDml::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+UNNERuntimeORTDml::ECanCreateModelDataStatus UNNERuntimeORTDml::CanCreateModelData(const FString& FileType, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 	return (!FileData.IsEmpty() && FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0) ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::FailFileIdNotSupported;
 }
 
-TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTDml::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
+TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTDml::CreateModelData(const FString& FileType, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
 {
 	using namespace UE::NNERuntimeORT::Private;
 
@@ -221,7 +225,8 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTDml::CreateModelData(const F
 		return {};
 	}
 
-	FNNEModelRaw InputModel{ TArray<uint8>{FileData}, ENNEInferenceFormat::ONNX };
+	TConstArrayView64<uint8> OptimizedModelView = FileData;
+	TArray64<uint8> OptimizedModelBuffer;
 
 	//For now only optimize model if there is no external data (as additional data are serialized from the unoptimized model below)
 	if (AdditionalFileData.IsEmpty())
@@ -233,24 +238,26 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTDml::CreateModelData(const F
 			SessionOptions->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
 			SessionOptions->DisableMemPattern();
 
-			if (!OptimizeModel(Environment.ToSharedRef(), *SessionOptions, ENNEInferenceFormat::ONNX, InputModel))
+			if (!OptimizeModel(Environment.ToSharedRef(), *SessionOptions, FileData, OptimizedModelBuffer))
 			{
 				return {};
 			}
+
+			OptimizedModelView = OptimizedModelBuffer;
 		}
 	}
 
-	TArray<uint8> Result;
-	FMemoryWriter Writer(Result, /*bIsPersitent =*/ true);
+	TArray64<uint8> Result;
+	FMemoryWriter64 Writer(Result, /*bIsPersitent =*/ true);
 	Writer << UNNERuntimeORTDml::GUID;
 	Writer << UNNERuntimeORTDml::Version;
 
-	Details::WriteOnnxModelData(Writer, InputModel.Data, AdditionalFileData);
+	Details::WriteOnnxModelData(Writer, OptimizedModelView, AdditionalFileData);
 
 	return MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Result)), 0);
 }
 
-FString UNNERuntimeORTDml::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+FString UNNERuntimeORTDml::GetModelDataIdentifier(const FString& FileType, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 	return FileId.ToString(EGuidFormats::Digits) + "-" + UNNERuntimeORTDml::GUID.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeORTDml::Version);
 }
@@ -354,7 +361,7 @@ UNNERuntimeORTDml::ECanCreateModelCommonStatus UNNERuntimeORTDml::CanCreateModel
 		return ECanCreateModelCommonStatus::Fail;
 	}
 
-	TConstArrayView<uint8> Data = SharedData->GetView();
+	TConstArrayView64<uint8> Data = SharedData->GetView();
 
 	if (Data.Num() <= GuidSize + VersionSize)
 	{

@@ -208,7 +208,7 @@ UObject* UNNERuntimeIREEModelDataFactory::FactoryCreateBinary(UClass* Class, UOb
 	FMemoryWriter Writer(MetaDataByteArray);
 	ModuleMetaData->Serialize(Writer);
 
-	TMap<FString, TConstArrayView<uint8>> AdditionalFileData;
+	TMap<FString, TConstArrayView64<uint8>> AdditionalFileData;
 	AdditionalFileData.Add("IREEModuleMetaData", MetaDataByteArray);
 
 	UNNEModelData* ModelData = NewObject<UNNEModelData>(InParent, Class, Name, Flags);

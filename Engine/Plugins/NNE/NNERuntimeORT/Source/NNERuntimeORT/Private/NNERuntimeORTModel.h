@@ -31,7 +31,7 @@ public:
 
 	virtual typename ModelInterface::ESetInputTensorShapesStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
 
-	bool Init(TConstArrayView<uint8> ModelData);
+	bool Init(TConstArrayView64<uint8> ModelData);
 
 	typename ModelInterface::ERunSyncStatus RunSync(TConstArrayView<TensorBinding> InInputBindings, TConstArrayView<TensorBinding> InOutputBindings) override;
 

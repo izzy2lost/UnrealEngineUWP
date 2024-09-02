@@ -61,12 +61,12 @@ namespace Detail
 	}
 
 	bool CreateSession(
-		TConstArrayView<uint8> ModelData,
+		TConstArrayView64<uint8> ModelData,
 		const Ort::SessionOptions& SessionOptions,
 		const FEnvironment& Environment,
 		TUniquePtr<Ort::Session>& Session, FString& TempDirForModelWithExternalData)
 	{
-		FMemoryReaderView Reader(ModelData, /*bIsPersitent =*/ true);
+		FMemoryReaderView Reader(MakeMemoryView(ModelData), /*bIsPersitent =*/ true);
 		FGuid GUID;
 		int32 Version;
 		Reader << GUID;
@@ -76,7 +76,7 @@ namespace Detail
 		Reader << Descriptor;
 
 		int64 BaseDataOffset = Reader.Tell();
-		TConstArrayView<uint8> ModelBuffer = TConstArrayView<uint8>(&(ModelData.GetData()[BaseDataOffset]), Descriptor.OnnxModelDataSize);
+		TConstArrayView64<uint8> ModelBuffer = TConstArrayView64<uint8>(&(ModelData.GetData()[BaseDataOffset]), Descriptor.OnnxModelDataSize);
 
 		if (ModelBuffer.Num() == 0)
 		{
@@ -99,19 +99,19 @@ namespace Detail
 				if (!FFileHelper::SaveArrayToFile(ModelBuffer, *Filepath))
 				{
 					IFileManager::Get().DeleteDirectory(*TempDirForModelWithExternalData, false, true);
-					UE_LOG(LogNNE, Error, TEXT("NNERuntimeORT::Private::Details::CreateSession() could not write model to disk at %s."), *Filepath);
+					UE_LOG(LogNNE, Error, TEXT("Large models are an experimental feature at the moment. NNERuntimeORT::Private::Details::CreateSession() could not write model to disk at %s."), *Filepath);
 					return false;
 				}
 
 				for (const FOnnxAdditionalDataDescriptor& AdditionalDataDescriptor : Descriptor.AdditionalDataDescriptors)
 				{
 					FString AdditionalDataFilename = FPaths::Combine(TempDirForModelWithExternalData, *AdditionalDataDescriptor.Path);
-					TConstArrayView<uint8> AdditionalDataBuffer = TConstArrayView<uint8>(&(ModelData.GetData()[BaseDataOffset + AdditionalDataDescriptor.Offset]), AdditionalDataDescriptor.Size);
+					TConstArrayView64<uint8> AdditionalDataBuffer = TConstArrayView64<uint8>(&(ModelData.GetData()[BaseDataOffset + AdditionalDataDescriptor.Offset]), AdditionalDataDescriptor.Size);
 
 					if (!FFileHelper::SaveArrayToFile(AdditionalDataBuffer, *AdditionalDataFilename))
 					{
 						IFileManager::Get().DeleteDirectory(*TempDirForModelWithExternalData, false, true);
-						UE_LOG(LogNNE, Error, TEXT("NNERuntimeORT::Private::Details::CreateSession() could not write additional data to disk at %s."), *AdditionalDataFilename);
+						UE_LOG(LogNNE, Error, TEXT("Large models are an experimental feature at the moment. NNERuntimeORT::Private::Details::CreateSession() could not write additional data to disk at %s."), *AdditionalDataFilename);
 						return false;
 					}
 				}
@@ -152,13 +152,13 @@ FModelInstanceORTBase<ModelInterface, TensorBinding>::~FModelInstanceORTBase()
 	{
 		if (!IFileManager::Get().DeleteDirectory(*TempDirForModelWithExternalData, false, true))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("FModelInstanceORTBase could not delete temp directy %s on model instance destruction."), *TempDirForModelWithExternalData);
+			UE_LOG(LogNNE, Warning, TEXT("Large models are an experimental feature at the moment. FModelInstanceORTBase could not delete temp directy %s on model instance destruction."), *TempDirForModelWithExternalData);
 		}
 	}
 }
 
 template <class ModelInterface, class TensorBinding> 
-bool FModelInstanceORTBase<ModelInterface, TensorBinding>::Init(TConstArrayView<uint8> ModelData)
+bool FModelInstanceORTBase<ModelInterface, TensorBinding>::Init(TConstArrayView64<uint8> ModelData)
 {
 #if WITH_EDITOR
 	try
@@ -544,7 +544,7 @@ FModelInstanceORTDmlRDG::~FModelInstanceORTDmlRDG()
 	{
 		if (!IFileManager::Get().DeleteDirectory(*TempDirForModelWithExternalData, false, true))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("FModelInstanceORTDmlRDG could not delete temp directy %s on model instance destruction."), *TempDirForModelWithExternalData);
+			UE_LOG(LogNNE, Warning, TEXT("Large models are an experimental feature at the moment. FModelInstanceORTDmlRDG could not delete temp directy %s on model instance destruction."), *TempDirForModelWithExternalData);
 		}
 	}
 }
