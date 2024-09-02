@@ -5,9 +5,41 @@
 #include "MetaHumanVersionService.h"
 #include "MetaHumanImport.h"
 #include "MetaHumanTypes.h"
+#include "MetaHumanSDKSettings.h"
+
+#include "ISettingsModule.h"
 #include "Modules/ModuleManager.h"
 
-IMPLEMENT_MODULE(FDefaultModuleImpl, MetaHumanSDKEditor)
+#define LOCTEXT_NAMESPACE "MetaHumanProjectUtilities"
+
+class FMetaHumanSDKEditorModule final
+	: public IModuleInterface
+{
+public:
+	virtual void StartupModule() override
+	{
+		if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
+		{
+			SettingsModule->RegisterSettings("Project",
+											"Plugins",
+											"MetaHumanSDK",
+											LOCTEXT("SectionName", "MetaHuman SDK"),
+											LOCTEXT("SectionDescription", "Settings for the MetaHuman SDK"),
+											GetMutableDefault<UMetaHumanSDKSettings>()
+			);
+		}
+	}
+
+	virtual void ShutdownModule() override
+	{
+		if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
+		{
+			SettingsModule->UnregisterSettings("Project", "Plugins", "MetaHumanSDK");
+		}
+	}
+};
+
+IMPLEMENT_MODULE(FMetaHumanSDKEditorModule, MetaHumanSDKEditor)
 
 FMetaHumanVersion::FMetaHumanVersion(const FString& VersionString)
 {
@@ -51,5 +83,7 @@ void METAHUMANSDKEDITOR_API FMetaHumanProjectUtilities::OverrideVersionServiceUr
 
 TArray<FInstalledMetaHuman> METAHUMANSDKEDITOR_API FMetaHumanProjectUtilities::GetInstalledMetaHumans()
 {
-	return FInstalledMetaHuman::GetInstalledMetaHumans(FImportPaths{ FMetaHumanAssetImportDescription{} });
+	return FInstalledMetaHuman::GetInstalledMetaHumans(FImportPaths{FMetaHumanAssetImportDescription{}});
 }
+
+#undef LOCTEXT_NAMESPACE
