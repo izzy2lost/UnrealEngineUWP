@@ -14,6 +14,7 @@
 #include "Misc/TransactionallySafeScopeLock.h"
 #include "Misc/TransactionallySafeRWScopeLock.h"
 #include "Containers/Queue.h"
+#include "Misc/ConfigCacheIni.h"
 
 TEST_CASE("UECore.FDelegateHandle")
 {
@@ -1733,5 +1734,24 @@ TEST_CASE("UECore.TQueue")
 				REQUIRE(Queue.IsEmpty());
 			}
 		}
+	}
+}
+
+TEST_CASE("UECore.FConfigFile")
+{
+	SECTION("Empty")
+	{
+		FConfigFile Config;
+
+		Config.FindOrAddConfigSection(TEXT("WOW"));
+
+		REQUIRE(!Config.IsEmpty());
+	
+		AutoRTFM::Commit([&]
+			{
+				Config.Empty();
+			});
+		
+		REQUIRE(Config.IsEmpty());
 	}
 }

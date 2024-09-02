@@ -31,6 +31,7 @@
 #include "Async/Async.h"
 #include "Misc/OutputDeviceRedirector.h"
 #include "Logging/MessageLog.h"
+#include "Misc/TransactionallySafeRWLock.h"
 #include <limits>
 
 namespace
@@ -944,7 +945,7 @@ FConfigFile::FConfigFile(FConfigFile&& Other)
 
 FConfigFile& FConfigFile::operator=(const FConfigFile& Other)
 {
-	FWriteScopeLock ScopeLock(ConfigFileMapLock);
+	FTransactionallySafeWriteScopeLock ScopeLock(ConfigFileMapLock);
 	this->FConfigFileMap::operator=(Other);
 	Dirty = Other.Dirty;
 	NoSave = Other.NoSave;
@@ -991,7 +992,7 @@ FConfigFile& FConfigFile::operator=(const FConfigFile& Other)
 
 FConfigFile& FConfigFile::operator=(FConfigFile&& Other)
 {
-	FWriteScopeLock ScopeLock(ConfigFileMapLock);
+	FTransactionallySafeWriteScopeLock ScopeLock(ConfigFileMapLock);
 	this->FConfigFileMap::operator=(MoveTemp(Other));
 	Dirty = Other.Dirty;
 	NoSave = Other.NoSave;
@@ -1067,7 +1068,7 @@ UE::ConfigAccessTracking::FFile* FConfigFile::GetFileAccess() const
 
 bool FConfigFile::operator==( const FConfigFile& Other ) const
 {
-	FReadScopeLock ScopeLock(ConfigFileMapLock);
+	FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock);
 
 	if ( Pairs.Num() != Other.Pairs.Num() )
 		return 0;
@@ -1129,7 +1130,7 @@ void FConfigFile::Shrink()
 	if (IsInGameThread()) GConfigShrinkTime -= FPlatformTime::Seconds();
 #endif
 
-	FWriteScopeLock ScopeLock(ConfigFileMapLock);
+	FTransactionallySafeWriteScopeLock ScopeLock(ConfigFileMapLock);
 	FConfigFileMap::Shrink();
 
 	for (FConfigFileMap::TIterator It(*this); It; ++It)
@@ -6248,7 +6249,7 @@ FCriticalSection FConfigCacheIni::ConfigForPlatformLock;
 TMap<FName, FConfigCacheIni::FPluginInfo*> FConfigCacheIni::RegisteredPlugins;
 FTransactionallySafeCriticalSection FConfigCacheIni::RegisteredPluginsLock;
 
-FRWLock FConfigFile::ConfigFileMapLock;
+FTransactionallySafeRWLock FConfigFile::ConfigFileMapLock;
 
 void FConfigCacheIni::AddPluginToAllBranches(FName PluginName, FConfigModificationTracker* ModificationTracker)
 {
