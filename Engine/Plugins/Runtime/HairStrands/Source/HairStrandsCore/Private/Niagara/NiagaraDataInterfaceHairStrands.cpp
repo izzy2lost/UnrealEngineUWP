@@ -466,7 +466,7 @@ void FNDIHairStrandsData::Update(
 	const FNDIHairStrandsInfo& InData,
 	const float DeltaSeconds)
 {
-	if (Interface != nullptr)
+	if (Interface != nullptr && InData.IsValid())
 	{
 		const UGroomAsset* GroomAsset = Interface->SourceComponent->GroomAsset;
 
