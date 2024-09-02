@@ -32,6 +32,12 @@ private:
 	// Interchange factory base interface end
 	//////////////////////////////////////////////////////////////////////////
 
+	void ProcessTags(UInterchangeActorFactoryNode* FactoryNode, AActor* SpawnedActor);
+	void ProcessLayerNames(UInterchangeActorFactoryNode* FactoryNode, AActor* SpawnedActor);
+#if WITH_EDITORONLY_DATA
+	void AddUniqueLayersToWorld(UWorld* World, const TSet<FString>& LayerNames);
+#endif
+
 protected:
 	/**
 	 * Method called in UInterchangeActorFactory::ImportSceneObject_GameThread to allow

@@ -10,6 +10,15 @@
 #include "GameFramework/Actor.h"
 #include "Components/SceneComponent.h"
 
+#if WITH_EDITORONLY_DATA
+#include "Engine/World.h"
+#include "Layers/LayersSubsystem.h"
+#include "Layers/Layer.h"
+#include "Editor/EditorEngine.h"
+
+extern UNREALED_API UEditorEngine* GEditor;
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeActorFactory)
 
 namespace UE::InterchangeActorFactory::Private
@@ -115,6 +124,10 @@ UObject* UInterchangeActorFactory::ImportSceneObject_GameThread(const UInterchan
 				}
 			}
 		}
+
+		ProcessTags(FactoryNode, SpawnedActor);
+
+		ProcessLayerNames(FactoryNode, SpawnedActor);
 	}
 
 	return SpawnedActor;
@@ -124,3 +137,94 @@ UObject* UInterchangeActorFactory::ProcessActor(AActor& SpawnedActor, const UInt
 {
 	return SpawnedActor.GetRootComponent();
 }
+
+void UInterchangeActorFactory::ProcessTags(UInterchangeActorFactoryNode* FactoryNode, AActor* SpawnedActor)
+{
+	TArray<FString> TagsArray;
+	FactoryNode->GetTags(TagsArray);
+
+	TSet<FString> Tags(TagsArray);
+	TSet<FName> AlreadySetTags(SpawnedActor->Tags);
+
+	for (const FString& Tag : Tags)
+	{
+		FName TagName(Tag);
+		if (!AlreadySetTags.Contains(TagName))
+		{
+			SpawnedActor->Tags.Add(TagName);
+		}
+	}
+}
+
+void UInterchangeActorFactory::ProcessLayerNames(UInterchangeActorFactoryNode* FactoryNode, AActor* SpawnedActor)
+{
+	TArray<FString> LayerNamesArray;
+	FactoryNode->GetLayerNames(LayerNamesArray);
+
+	TSet<FString> LayerNames(LayerNamesArray);
+#if WITH_EDITORONLY_DATA
+	AddUniqueLayersToWorld(SpawnedActor->GetWorld(), LayerNames);
+#endif
+
+	TSet<FName> AlreadySetLayerNames(SpawnedActor->Layers);
+
+	for (const FString& LayerNameString : LayerNames)
+	{
+		FName LayerName(LayerNameString);
+		if (!AlreadySetLayerNames.Contains(LayerName))
+		{
+			SpawnedActor->Layers.Add(FName(LayerName));
+		}
+	}
+}
+
+#if WITH_EDITORONLY_DATA
+void UInterchangeActorFactory::AddUniqueLayersToWorld(UWorld* World, const TSet<FString>& LayerNames)
+{
+	if (!World || !IsValidChecked(World) || World->IsUnreachable() || LayerNames.Num() == 0)
+	{
+		return;
+	}
+
+	TSet< FName > ExistingLayers;
+	for (ULayer* Layer : World->Layers)
+	{
+		ExistingLayers.Add(Layer->GetLayerName());
+	}
+
+	int32 NumberOfExistingLayers = World->Layers.Num();
+
+	ULayersSubsystem* LayersSubsystem = GEditor ? GEditor->GetEditorSubsystem<ULayersSubsystem>() : nullptr;
+	for (const FString& LayerNameString : LayerNames)
+	{
+		FName LayerName(LayerNameString);
+
+		if (!ExistingLayers.Contains(LayerName))
+		{
+			// Use the ILayers if we are adding the layers to the currently edited world
+			if (LayersSubsystem && GWorld && World == GWorld.GetReference())
+			{
+				LayersSubsystem->CreateLayer(LayerName);
+			}
+			else
+			{
+				ULayer* NewLayer = NewObject<ULayer>(World, NAME_None, RF_Transactional);
+				if (!ensure(NewLayer != NULL))
+				{
+					continue;
+				}
+
+				World->Layers.Add(NewLayer);
+
+				NewLayer->SetLayerName(LayerName);
+				NewLayer->SetVisible(true);
+			}
+		}
+	}
+
+	if (NumberOfExistingLayers != World->Layers.Num())
+	{
+		World->Modify();
+	}
+}
+#endif

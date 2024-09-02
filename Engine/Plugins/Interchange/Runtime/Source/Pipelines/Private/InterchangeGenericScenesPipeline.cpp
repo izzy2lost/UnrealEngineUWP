@@ -498,6 +498,14 @@ void UInterchangeGenericLevelPipeline::ExecuteSceneNodePreImport(const FTransfor
 
 	UInterchangeUserDefinedAttributesAPI::DuplicateAllUserDefinedAttribute(SceneNode, ActorFactoryNode, false);
 
+	TArray<FString> LayerNames;
+	SceneNode->GetLayerNames(LayerNames);
+	ActorFactoryNode->AddLayerNames(LayerNames);
+
+	TArray<FString> Tags;
+	SceneNode->GetTags(Tags);
+	ActorFactoryNode->AddTags(Tags);
+
 	FString NodeUid = SceneNode->GetUniqueID() + (bRootJointNode ? TEXT("_SkeletonNode") : TEXT(""));
 	FString FactoryNodeUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(NodeUid);
 

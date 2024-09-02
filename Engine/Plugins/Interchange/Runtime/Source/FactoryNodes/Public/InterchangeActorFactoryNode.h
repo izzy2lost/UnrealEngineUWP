@@ -12,6 +12,8 @@ class INTERCHANGEFACTORYNODES_API UInterchangeActorFactoryNode : public UInterch
 	GENERATED_BODY()
 
 public:
+	UInterchangeActorFactoryNode();
+
 	virtual UClass* GetObjectClass() const override;
 
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | ActorFactory")
@@ -52,6 +54,32 @@ public:
 
 	virtual void CopyWithObject(const UInterchangeFactoryBaseNode* SourceNode, UObject* Object) override;
 
+
+	/** Gets the LayerNames that this Actor is supposed to be part of. */
+	void GetLayerNames(TArray<FString>& OutLayerNames) const;
+
+	/** Add LayerName that this Actor is supposed to be part of. */
+	bool AddLayerName(const FString& InLayerName);
+
+	/** Add LayerNames that this Actor is supposed to be part of. */
+	bool AddLayerNames(const TArray<FString>& InLayerNames);
+
+	/** Remove LayerName that this Actor is supposed to be part of. */
+	bool RemoveLayerName(const FString& InLayerName);
+
+
+	/** Gets the Tags that this Actor is supposed to have. */
+	void GetTags(TArray<FString>& OutTags) const;
+
+	/** Add Tag that this Actor is supposed to have. */
+	bool AddTag(const FString& Tag);
+
+	/** Add Tags that this Actor is supposed to have. */
+	bool AddTags(const TArray<FString>& InTags);
+
+	/** Remove Tag that this Actor is supposed to have. */
+	bool RemoveTag(const FString& Tag);
+
 private:
 
 	bool ApplyCustomGlobalTransformToAsset(UObject* Asset) const;
@@ -61,4 +89,8 @@ private:
 	const UE::Interchange::FAttributeKey Macro_CustomLocalTransformKey = UE::Interchange::FAttributeKey(TEXT("LocalTransform"));
 	const UE::Interchange::FAttributeKey Macro_CustomActorClassNameKey = UE::Interchange::FAttributeKey(TEXT("ActorClassName"));
 	const UE::Interchange::FAttributeKey Macro_CustomMobilityKey = UE::Interchange::FAttributeKey(TEXT("Mobility"));
+
+	//A scene node can be part of multiple Layers.
+	UE::Interchange::TArrayAttributeHelper<FString> LayerNames;
+	UE::Interchange::TArrayAttributeHelper<FString> Tags;
 };

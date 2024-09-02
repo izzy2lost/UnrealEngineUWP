@@ -96,3 +96,60 @@ void UInterchangeActorFactoryNode::CopyWithObject(const UInterchangeFactoryBaseN
 	}
 }
 
+UInterchangeActorFactoryNode::UInterchangeActorFactoryNode()
+{
+	LayerNames.Initialize(Attributes.ToSharedRef(), TEXT("__LayerNames__"));
+	Tags.Initialize(Attributes.ToSharedRef(), TEXT("__Tags__"));
+}
+
+void UInterchangeActorFactoryNode::GetLayerNames(TArray<FString>& OutLayerNames) const
+{
+	LayerNames.GetItems(OutLayerNames);
+}
+
+bool UInterchangeActorFactoryNode::AddLayerName(const FString& LayerName)
+{
+	return LayerNames.AddItem(LayerName);
+}
+
+bool UInterchangeActorFactoryNode::AddLayerNames(const TArray<FString>& InLayerNames)
+{
+	bool bSuccess = true;
+	for (const FString& LayerName : InLayerNames)
+	{
+		bSuccess &= LayerNames.AddItem(LayerName);
+	}
+
+	return bSuccess;
+}
+
+bool UInterchangeActorFactoryNode::RemoveLayerName(const FString& LayerName)
+{
+	return LayerNames.RemoveItem(LayerName);
+}
+
+void UInterchangeActorFactoryNode::GetTags(TArray<FString>& OutTags) const
+{
+	Tags.GetItems(OutTags);
+}
+
+bool UInterchangeActorFactoryNode::AddTag(const FString& Tag)
+{
+	return Tags.AddItem(Tag);
+}
+
+bool UInterchangeActorFactoryNode::AddTags(const TArray<FString>& InTags)
+{
+	bool bSuccess = true;
+	for (const FString& Tag : InTags)
+	{
+		bSuccess &= Tags.AddItem(Tag);
+	}
+
+	return bSuccess;
+}
+
+bool UInterchangeActorFactoryNode::RemoveTag(const FString& Tag)
+{
+	return Tags.RemoveItem(Tag);
+}

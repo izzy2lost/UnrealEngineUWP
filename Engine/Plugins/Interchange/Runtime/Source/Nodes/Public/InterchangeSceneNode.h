@@ -25,6 +25,8 @@ namespace UE
 			static const FString& GetMeshToGlobalBindPoseReferencesString();
 			static const FString& GetSlotMaterialDependenciesString();
 			static const FString& GetMorphTargetCurveWeightsKey();
+			static const FString& GetLayerNamesKey();
+			static const FString& GetTagsKey();
 		};
 
 	}//ns Interchange
@@ -239,6 +241,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Joint")
 	bool GetCustomHasBindPose(bool &bHasBindPose) const;
 
+	/** Gets the LayerNames that this SceneNode (Actor) is supposed to be part of. */
+	void GetLayerNames(TArray<FString>& OutLayerNames) const;
+
+	/** Add LayerName that this SceneNode (Actor) is supposed to be part of. */
+	bool AddLayerName(const FString& LayerName);
+
+	/** Remove LayerName that this SceneNode (Actor) is supposed to be part of. */
+	bool RemoveLayerName(const FString& LayerName);
+
+	/** Gets the Tags that this SceneNode (Actor) is supposed to have. */
+	void GetTags(TArray<FString>& OutTags) const;
+
+	/** Add Tag that this SceneNode (Actor) is supposed to have. */
+	bool AddTag(const FString& Tag);
+
+	/** Remove Tag that this SceneNode (Actor) is supposed to have. */
+	bool RemoveTag(const FString& Tag);
+
 private:
 
 	bool GetGlobalTransformInternal(const UE::Interchange::FAttributeKey LocalTransformKey
@@ -280,6 +300,12 @@ private:
 
 	//BindPose References per Mesh for a JointNode.
 	UE::Interchange::TMapAttributeHelper<FString, FMatrix> MeshToGlobalBindPoseReferences;
+
+	//A scene node can be part of multiple Layers.
+	UE::Interchange::TArrayAttributeHelper<FString> LayerNames;
+
+	//A scene node can have multiple Tags.
+	UE::Interchange::TArrayAttributeHelper<FString> Tags;
 
 	//A scene node can reference an animation asset on top of base asset:
 	const UE::Interchange::FAttributeKey Macro_CustomAnimationAssetUidToPlayKey = UE::Interchange::FAttributeKey(TEXT("AnimationAssetUidToPlay"));

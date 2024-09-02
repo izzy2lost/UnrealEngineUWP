@@ -53,12 +53,22 @@ namespace UE
 			return MeshToGlobalBindPoseReferncesString;
 		}
 
-		
-
 		const FString& FSceneNodeStaticData::GetMorphTargetCurveWeightsKey()
 		{
 			static FString MorphTargetCurvesKey(TEXT("__MorphTargetCurveWeights__Key"));
 			return MorphTargetCurvesKey;
+		}
+
+		const FString& FSceneNodeStaticData::GetLayerNamesKey()
+		{
+			static FString LayerNamesKey(TEXT("__LayerNames__Key"));
+			return LayerNamesKey;
+		}
+
+		const FString& FSceneNodeStaticData::GetTagsKey()
+		{
+			static FString TagsKey(TEXT("__Tags__Key"));
+			return TagsKey;
 		}
 	}//ns Interchange
 }//ns UE
@@ -69,6 +79,8 @@ UInterchangeSceneNode::UInterchangeSceneNode()
 	MeshToGlobalBindPoseReferences.Initialize(Attributes.ToSharedRef(), UE::Interchange::FSceneNodeStaticData::GetMeshToGlobalBindPoseReferencesString());
 	SlotMaterialDependencies.Initialize(Attributes.ToSharedRef(), UE::Interchange::FSceneNodeStaticData::GetSlotMaterialDependenciesString());
 	MorphTargetCurveWeights.Initialize(Attributes.ToSharedRef(), UE::Interchange::FSceneNodeStaticData::GetMorphTargetCurveWeightsKey());
+	LayerNames.Initialize(Attributes, UE::Interchange::FSceneNodeStaticData::GetLayerNamesKey());
+	Tags.Initialize(Attributes, UE::Interchange::FSceneNodeStaticData::GetTagsKey());
 }
 
 /**
@@ -448,4 +460,34 @@ bool UInterchangeSceneNode::SetCustomHasBindPose(const bool& AttributeValue)
 bool UInterchangeSceneNode::GetCustomHasBindPose(bool& AttributeValue) const
 {
 	IMPLEMENT_NODE_ATTRIBUTE_GETTER(HasBindPose, bool);
+}
+
+void UInterchangeSceneNode::GetLayerNames(TArray<FString>& OutLayerNames) const
+{
+	LayerNames.GetItems(OutLayerNames);
+}
+
+bool UInterchangeSceneNode::AddLayerName(const FString& LayerName)
+{
+	return LayerNames.AddItem(LayerName);
+}
+
+bool UInterchangeSceneNode::RemoveLayerName(const FString& LayerName)
+{
+	return LayerNames.RemoveItem(LayerName);
+}
+
+void UInterchangeSceneNode::GetTags(TArray<FString>& OutTags) const
+{
+	Tags.GetItems(OutTags);
+}
+
+bool UInterchangeSceneNode::AddTag(const FString& Tag)
+{
+	return Tags.AddItem(Tag);
+}
+
+bool UInterchangeSceneNode::RemoveTag(const FString& Tag)
+{
+	return Tags.RemoveItem(Tag);
 }
