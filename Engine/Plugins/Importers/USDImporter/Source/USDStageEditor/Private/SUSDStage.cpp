@@ -1849,6 +1849,51 @@ void SUsdStage::FillCollapsingSubMenu(FMenuBuilder& MenuBuilder)
 		EUserInterfaceActionType::ToggleButton
 	);
 
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("UsePrimKindsForCollapsing", "Use prim kinds for collapsing"),
+		LOCTEXT(
+			"UsePrimKindsForCollapsing_ToolTip",
+			"Use KindsToCollapse to determine when to collapse prim subtrees or not (defaults to enabled).\nDisable this if you want to prevent collapsing, or to control it manually by right-clicking on individual prims."
+		),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						FScopedTransaction Transaction(FText::Format(
+							LOCTEXT("UsePrimKindsForCollapsingTransaction", "Toggle bUsePrimKindsForCollapsing on USD stage actor '{0}'"),
+							FText::FromString(StageActor->GetActorLabel())
+						));
+
+						// c.f. comment within AddKindToCollapseEntry just below
+						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+						StageActor->SetUsePrimKindsForCollapsing(!StageActor->bUsePrimKindsForCollapsing);
+						if (StageActor->IsTemplate())
+						{
+							StageActor->SaveConfig();
+						}
+					}
+				}
+			),
+			FCanExecuteAction{},
+			FIsActionChecked::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						return StageActor->bUsePrimKindsForCollapsing;
+					}
+					return false;
+				}
+			)
+		),
+		NAME_None,
+		EUserInterfaceActionType::ToggleButton
+	);
+
 	auto AddKindToCollapseEntry = [&](const EUsdDefaultKind Kind, const FText& Text, FCanExecuteAction CanExecuteAction)
 	{
 		MenuBuilder.AddMenuEntry(
@@ -2158,10 +2203,7 @@ void SUsdStage::FillGeometryCacheImportSubMenu(FMenuBuilder& MenuBuilder)
 
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("ImportOnLoad", "On Load"),
-		LOCTEXT(
-			"ImportOnLoad_ToolTip",
-			"Geometry Caches are imported as persistents assets on stage load and played back from them."
-		),
+		LOCTEXT("ImportOnLoad_ToolTip", "Geometry Caches are imported as persistents assets on stage load and played back from them."),
 		FSlateIcon(),
 		FUIAction(
 			FExecuteAction::CreateLambda(

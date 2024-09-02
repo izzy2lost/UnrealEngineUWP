@@ -1524,7 +1524,7 @@ UsdUtils::ECollapsingPreference UsdUtils::GetCollapsingPreference(const pxr::Usd
 		}
 	}
 
-	return ECollapsingPreference::ByKind;
+	return ECollapsingPreference::Default;
 }
 
 bool UsdUtils::SetCollapsingPreference(const pxr::UsdPrim& Prim, UsdUtils::ECollapsingPreference NewPreference)
@@ -1554,9 +1554,9 @@ bool UsdUtils::SetCollapsingPreference(const pxr::UsdPrim& Prim, UsdUtils::EColl
 				return Attr.Set(UnrealIdentifiers::CollapsingAllow);
 				break;
 			}
-			case ECollapsingPreference::ByKind:
+			case ECollapsingPreference::Default:
 			{
-				return Attr.Set(UnrealIdentifiers::CollapsingByKind);
+				return Attr.Set(UnrealIdentifiers::CollapsingDefault);
 				break;
 			}
 			case ECollapsingPreference::Never:

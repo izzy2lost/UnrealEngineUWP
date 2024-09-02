@@ -296,8 +296,8 @@ namespace UsdUtils
 
 	enum class ECollapsingPreference : uint8
 	{
+		Default,
 		Allow,
-		ByKind,
 		Never
 	};
 

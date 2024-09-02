@@ -170,7 +170,7 @@ namespace UnrealIdentifiers
 	const TfToken UnrealCollapsingAPI = TfToken("CollapsingAPI");
 	const TfToken UnrealCollapsingAttr = TfToken("unreal:collapsing");
 	const TfToken CollapsingAllow = TfToken("allow");
-	const TfToken CollapsingByKind = TfToken("byKind");
+	const TfToken CollapsingDefault = TfToken("default");
 	const TfToken CollapsingNever = TfToken("never");
 }	 // namespace UnrealIdentifiers
 

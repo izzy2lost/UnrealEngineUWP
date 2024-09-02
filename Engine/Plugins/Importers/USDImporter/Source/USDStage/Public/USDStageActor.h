@@ -85,6 +85,13 @@ public:
 	EGeometryCacheImport GeometryCacheImport;
 
 	/**
+	 * Use KindsToCollapse to determine when to collapse prim subtrees or not (defaults to enabled).
+	 * Disable this if you want to prevent collapsing, or to control it manually by right-clicking on individual prims.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
+	bool bUsePrimKindsForCollapsing;
+
+	/**
 	 * Whether to try to combine individual assets and components of the same type on a kind-per-kind basis,
 	 * like multiple Mesh prims into a single Static Mesh
 	 */
@@ -192,6 +199,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetGeometryCacheImport(EGeometryCacheImport ImportOption);
+
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetUsePrimKindsForCollapsing(bool bUse);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetKindsToCollapse(int32 NewKindsToCollapse);

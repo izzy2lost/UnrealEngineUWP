@@ -101,7 +101,13 @@ public:
 	bool bUseExistingAssetCache;
 
 	/** Copy assets from an existing UsdAsset cache instead of generating them from scratch, if possible */
-	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "USD options", meta = (AllowedClasses = "/Script/USDClasses.UsdAssetCache3", EditCondition = "bUseExistingAssetCache"))
+	UPROPERTY(
+		BlueprintReadWrite,
+		config,
+		EditAnywhere,
+		Category = "USD options",
+		meta = (AllowedClasses = "/Script/USDClasses.UsdAssetCache3", EditCondition = "bUseExistingAssetCache")
+	)
 	FSoftObjectPath ExistingAssetCache = nullptr;
 
 	/** Only import prims with these specific purposes from the USD file */
@@ -189,6 +195,13 @@ public:
 	bool bPrimPathFolderStructure;
 
 	/**
+	 * Use KindsToCollapse to determine when to collapse prim subtrees or not (defaults to enabled).
+	 * Disable this if you want to prevent collapsing, or to control it manually by right-clicking on individual prims.
+	 */
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Processing")
+	bool bUsePrimKindsForCollapsing;
+
+	/**
 	 * Whether to try to combine individual assets and components of the same type on a kind-per-kind basis,
 	 * like multiple Mesh prims into a single Static Mesh
 	 */
@@ -197,7 +210,7 @@ public:
 		config,
 		EditAnywhere,
 		Category = "Processing",
-		meta = (Bitmask, BitmaskEnum = "/Script/UnrealUSDWrapper.EUsdDefaultKind")
+		meta = (Bitmask, BitmaskEnum = "/Script/UnrealUSDWrapper.EUsdDefaultKind", EditCondition = bUsePrimKindsForCollapsing)
 	)
 	int32 KindsToCollapse;
 

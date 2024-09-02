@@ -57,7 +57,9 @@ static bool GCollapsePrimsWithoutKind = true;
 static FAutoConsoleVariableRef CVarCollapsePrimsWithoutKind(
 	TEXT("USD.CollapsePrimsWithoutKind"),
 	GCollapsePrimsWithoutKind,
-	TEXT("Allow collapsing prims that have no authored 'Kind' value")
+	TEXT(
+		"If we're collapsing according to kind (i.e. when UsePrimKindsForCollapsing is enabled), this controls how prims should behave if they don't have any authored 'Kind' value. Set this to false, and a prim without kind can't be collapsed by its parent, even if the parent has a collapsible kind."
+	)
 );
 
 static bool GEnableCollision = true;
@@ -1046,7 +1048,7 @@ void FUsdGeomXformableTranslator::CreateAlternativeDrawModeAssets(EUsdDrawMode D
 
 namespace UE::UsdXformableTranslatorImpl::Private
 {
-	bool PrimCollapses(const pxr::UsdPrim& Prim, EUsdDefaultKind KindsToCollapse)
+	bool PrimCollapses(const pxr::UsdPrim& Prim, EUsdDefaultKind KindsToCollapse, bool bUsePrimKindsForCollapsing, bool bCanCollapseByDefault)
 	{
 		UsdUtils::ECollapsingPreference Preference = UsdUtils::GetCollapsingPreference(Prim);
 		switch (Preference)
@@ -1056,21 +1058,24 @@ namespace UE::UsdXformableTranslatorImpl::Private
 				return true;
 				break;
 			}
-			case UsdUtils::ECollapsingPreference::ByKind:
+			case UsdUtils::ECollapsingPreference::Default:
 			{
-				EUsdDefaultKind PrimKind = UsdUtils::GetDefaultKind(Prim);
-
-				// Note that this is false if PrimKind is None
-				const bool bPrimKindCollapses = EnumHasAnyFlags(KindsToCollapse, PrimKind);
-				bool bCanBeCollapsed = (KindsToCollapse != EUsdDefaultKind::None)
-									   && (bPrimKindCollapses || (PrimKind == EUsdDefaultKind::None && GCollapsePrimsWithoutKind));
-
-				if (!bCanBeCollapsed)
+				bool bCanBeCollapsed = bCanCollapseByDefault;
+				if (bUsePrimKindsForCollapsing)
 				{
-					pxr::UsdModelAPI Model{Prim};
-					bCanBeCollapsed = bCanBeCollapsed || Model.IsKind(pxr::TfToken("prop"), pxr::UsdModelAPI::KindValidationNone);
-				}
+					EUsdDefaultKind PrimKind = UsdUtils::GetDefaultKind(Prim);
 
+					// Note that this is false if PrimKind is None
+					const bool bPrimKindCollapses = EnumHasAnyFlags(KindsToCollapse, PrimKind);
+					bCanBeCollapsed = (KindsToCollapse != EUsdDefaultKind::None)
+									  && (bPrimKindCollapses || (PrimKind == EUsdDefaultKind::None && GCollapsePrimsWithoutKind));
+
+					if (!bCanBeCollapsed)
+					{
+						pxr::UsdModelAPI Model{Prim};
+						bCanBeCollapsed = bCanBeCollapsed || Model.IsKind(pxr::TfToken("prop"), pxr::UsdModelAPI::KindValidationNone);
+					}
+				}
 				return bCanBeCollapsed;
 			}
 			case UsdUtils::ECollapsingPreference::Never:	// Fallthrough
@@ -1117,7 +1122,15 @@ bool FUsdGeomXformableTranslator::CollapsesChildren(ECollapsingType CollapsingTy
 
 	if (Model)
 	{
-		bCollapsesChildren = UE::UsdXformableTranslatorImpl::Private::PrimCollapses(Prim, Context->KindsToCollapse);
+		// If we're not using prim kinds to collapse, we don't want anything to *try collapsing its children* by default
+		const bool bCanCollapseByDefault = false;
+
+		bCollapsesChildren = UE::UsdXformableTranslatorImpl::Private::PrimCollapses(
+			Prim,
+			Context->KindsToCollapse,
+			Context->bUsePrimKindsForCollapsing,
+			bCanCollapseByDefault
+		);
 
 		if (bCollapsesChildren)
 		{
@@ -1149,7 +1162,16 @@ bool FUsdGeomXformableTranslator::CanBeCollapsed(ECollapsingType CollapsingType)
 		return false;
 	}
 
-	return UE::UsdXformableTranslatorImpl::Private::PrimCollapses(UsdPrim, Context->KindsToCollapse);
+	// If we're not using prim kinds to collapse, we still want things to *be collapsible* by default (so that they can be controlled with the
+	// collapsing attributes)
+	const bool bCanCollapseByDefault = true;
+
+	return UE::UsdXformableTranslatorImpl::Private::PrimCollapses(
+		UsdPrim,
+		Context->KindsToCollapse,
+		Context->bUsePrimKindsForCollapsing,
+		bCanCollapseByDefault
+	);
 }
 
 TSet<UE::FSdfPath> FUsdGeomXformableTranslator::CollectAuxiliaryPrims() const

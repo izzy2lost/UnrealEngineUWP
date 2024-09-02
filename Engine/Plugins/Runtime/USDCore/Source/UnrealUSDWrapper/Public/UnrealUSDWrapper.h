@@ -158,7 +158,7 @@ enum class EGeometryCacheImport : uint8
 	// Imported on stage load; played back from the persistent assets
 	OnLoad,
 
-	// Imported on save; geometry caches are streamed from the stage until they are saved. 
+	// Imported on save; geometry caches are streamed from the stage until they are saved.
 	// Afterwards they are played back from the persistent assets
 	OnSave
 };
@@ -488,7 +488,7 @@ namespace UnrealIdentifiers
 	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealCollapsingAPI;
 	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealCollapsingAttr;
 	extern UNREALUSDWRAPPER_API const pxr::TfToken CollapsingAllow;
-	extern UNREALUSDWRAPPER_API const pxr::TfToken CollapsingByKind;
+	extern UNREALUSDWRAPPER_API const pxr::TfToken CollapsingDefault;
 	extern UNREALUSDWRAPPER_API const pxr::TfToken CollapsingNever;
 #endif	  // #if USE_USD_SDK
 

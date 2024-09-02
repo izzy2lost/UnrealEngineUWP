@@ -1705,13 +1705,13 @@ void SUsdStageTreeView::FillCollapsingSubmenu(FMenuBuilder& MenuBuilder)
 	);
 
 	MenuBuilder.AddMenuEntry(
-		LOCTEXT("CollapseOnKind", "Collapse according to kind"),
-		LOCTEXT("CollapseOnKind_ToolTip", "Collapse this prim only if its kind is allowed to collapse (default)"),
+		LOCTEXT("CollapseOnKind", "Default"),
+		LOCTEXT("CollapseOnKind_ToolTip", "When 'Use prim kinds for collapsing' is enabled, prims are collapsed according to their kind (default). When disabled, prims won't be collapsed by default."),
 		FSlateIcon(),
 		FUIAction(
-			FExecuteAction::CreateSP(this, &SUsdStageTreeView::OnSetCollapsingPreference, UsdUtils::ECollapsingPreference::ByKind),
+			FExecuteAction::CreateSP(this, &SUsdStageTreeView::OnSetCollapsingPreference, UsdUtils::ECollapsingPreference::Default),
 			FCanExecuteAction::CreateSP(this, &SUsdStageTreeView::DoesPrimExistOnStage),
-			FIsActionChecked::CreateSP(this, &SUsdStageTreeView::DoSelectedPrimsHaveCollapsingPreference, UsdUtils::ECollapsingPreference::ByKind)
+			FIsActionChecked::CreateSP(this, &SUsdStageTreeView::DoSelectedPrimsHaveCollapsingPreference, UsdUtils::ECollapsingPreference::Default)
 		),
 		NAME_None,
 		EUserInterfaceActionType::RadioButton

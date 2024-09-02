@@ -328,6 +328,7 @@ void FUsdStageViewModel::ImportStage(const TCHAR* TargetContentFolder, UUsdStage
 		ImportContext.ImportOptions->SubdivisionLevel = StageActor->SubdivisionLevel;
 		ImportContext.ImportOptions->MetadataOptions = StageActor->MetadataOptions;
 		ImportContext.ImportOptions->KindsToCollapse = StageActor->KindsToCollapse;
+		ImportContext.ImportOptions->bUsePrimKindsForCollapsing = StageActor->bUsePrimKindsForCollapsing;
 		ImportContext.ImportOptions->bMergeIdenticalMaterialSlots = StageActor->bMergeIdenticalMaterialSlots;
 		ImportContext.ImportOptions->bShareAssetsForIdenticalPrims = StageActor->bShareAssetsForIdenticalPrims;
 

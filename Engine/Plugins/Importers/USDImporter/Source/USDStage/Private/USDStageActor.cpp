@@ -179,6 +179,7 @@ struct FUsdStageActorImpl
 		TranslationContext->bAllowParsingSkeletalAnimations = true;
 
 		TranslationContext->KindsToCollapse = (EUsdDefaultKind)StageActor->KindsToCollapse;
+		TranslationContext->bUsePrimKindsForCollapsing = StageActor->bUsePrimKindsForCollapsing;
 		TranslationContext->bMergeIdenticalMaterialSlots = StageActor->bMergeIdenticalMaterialSlots;
 		TranslationContext->bShareAssetsForIdenticalPrims = StageActor->bShareAssetsForIdenticalPrims;
 
@@ -577,6 +578,7 @@ struct FUsdStageActorImpl
 			EventAttributes.Emplace(TEXT("InitialLoadSet"), LexToString((uint8)StageActor->InitialLoadSet));
 			EventAttributes.Emplace(TEXT("InterpolationType"), LexToString((uint8)StageActor->InterpolationType));
 			EventAttributes.Emplace(TEXT("KindsToCollapse"), LexToString(StageActor->KindsToCollapse));
+			EventAttributes.Emplace(TEXT("bUsePrimKindsForCollapsing"), StageActor->bUsePrimKindsForCollapsing);
 			EventAttributes.Emplace(TEXT("MergeIdenticalMaterialSlots"), LexToString(StageActor->bMergeIdenticalMaterialSlots));
 			EventAttributes.Emplace(TEXT("bShareAssetsForIdenticalPrims"), StageActor->bShareAssetsForIdenticalPrims);
 			EventAttributes.Emplace(TEXT("PurposesToLoad"), LexToString(StageActor->PurposesToLoad));
@@ -916,6 +918,7 @@ AUsdStageActor::AUsdStageActor()
 	, InitialLoadSet(EUsdInitialLoadSet::LoadAll)
 	, InterpolationType(EUsdInterpolationType::Linear)
 	, GeometryCacheImport(EGeometryCacheImport::Never)
+	, bUsePrimKindsForCollapsing(true)
 	, KindsToCollapse((int32)(EUsdDefaultKind::Component | EUsdDefaultKind::Subcomponent))
 	, bMergeIdenticalMaterialSlots(true)
 	, bShareAssetsForIdenticalPrims(true)
@@ -2625,6 +2628,20 @@ void AUsdStageActor::SetGeometryCacheImport(EGeometryCacheImport ImportOption)
 	Modify(bMarkDirty);
 
 	GeometryCacheImport = ImportOption;
+	LoadUsdStage();
+}
+
+void AUsdStageActor::SetUsePrimKindsForCollapsing(bool bUse)
+{
+	if (bUse == bUsePrimKindsForCollapsing)
+	{
+		return;
+	}
+
+	const bool bMarkDirty = false;
+	Modify(bMarkDirty);
+
+	bUsePrimKindsForCollapsing = bUse;
 	LoadUsdStage();
 }
 
@@ -4704,6 +4721,12 @@ void AUsdStageActor::HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyC
 		const EGeometryCacheImport CorrectImportOption = GeometryCacheImport;
 		GeometryCacheImport = (EGeometryCacheImport) !((uint8)GeometryCacheImport);
 		SetGeometryCacheImport(CorrectImportOption);
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, bUsePrimKindsForCollapsing))
+	{
+		const bool bCorrectUsePrimKindsForCollapsing = bUsePrimKindsForCollapsing;
+		bUsePrimKindsForCollapsing = !bUsePrimKindsForCollapsing;
+		SetUsePrimKindsForCollapsing(bCorrectUsePrimKindsForCollapsing);
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, KindsToCollapse))
 	{
