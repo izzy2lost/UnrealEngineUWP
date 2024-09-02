@@ -406,11 +406,13 @@ private:
 
 #else
 
-	#define RDG_EVENT_NAME(Format, ...) FRDGEventName()
+	#define RDG_EVENT_NAME(...) FRDGEventName()
 
-	#define RDG_EVENT_SCOPE(            GraphBuilder,            Format, ...) do { } while (false)
-	#define RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Condition, Format, ...) do { } while (false)
-	#define RDG_EVENT_SCOPE_FINAL(      GraphBuilder,            Format, ...) do { } while (false)
+	#define RDG_EVENT_SCOPE(...)                  do { } while (false)
+	#define RDG_EVENT_SCOPE_STAT(...)             do { } while (false)
+	#define RDG_EVENT_SCOPE_CONDITIONAL(...)      do { } while (false)
+	#define RDG_EVENT_SCOPE_CONDITIONAL_STAT(...) do { } while (false)
+	#define RDG_EVENT_SCOPE_FINAL(...)            do { } while (false)
 
 #endif
 
