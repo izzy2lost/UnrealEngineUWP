@@ -198,7 +198,8 @@ float3 IsotropicMediumSlabDirectionalAlbedoFade(float3 BaseColor, float3 MFP)
 	return Fade;
 }
 
-float3 IsotropicMediumSlabPunctualDirectionalAlbedo(FParticipatingMedia PM)
+// The ALU version is a lot simpler as compared to the LUT version: it is not view and not light dependent.
+float3 IsotropicMediumSlabPunctualDirectionalAlbedoALU(FParticipatingMedia PM)
 {
 	// Our measurement are only valid for a MFP of 0.01 meter so we clamp input MFP to that.
 	// This is relatively ok since all computation are done for a slab of 1 meter.
@@ -215,7 +216,7 @@ float3 IsotropicMediumSlabPunctualDirectionalAlbedo(FParticipatingMedia PM)
 // Platforms that do not support shared sampler will in fact quickly reach the limit of samplers in material pixel shaders.
 // This is mostly true for OpenGLES. In this case, we enforce disabling SimpleVolume LUT and use the lower quality ALU based one.
 // SUBSTRATE_TODO Implement an ALU based solution that give the same view dependent high quality as the LUT.
-#define USE_NEW_SIMPLEVOLUME (SUPPORTS_INDEPENDENT_SAMPLERS)
+#define USE_LUT_SIMPLEVOLUME (SUPPORTS_INDEPENDENT_SAMPLERS)
 
 float IsotropicMediumSlabDirectionalAlbedoFadeLUT(float MFP)
 {
@@ -291,7 +292,20 @@ float3 IsotropicMediumSlabPunctualDirectionalAlbedoLUT(FParticipatingMedia PM, f
 	);
 }
 
-float3 IsotropicMediumSlabEnvDirectionalAlbedo(FParticipatingMedia PM)
+float IsotropicMediumSlabPunctualDirectionalAlbedo(FParticipatingMedia PM, float NoV, float NoL)
+{
+#if USE_LUT_SIMPLEVOLUME
+	const float3 SlabDirectionalAlbedo = IsotropicMediumSlabPunctualDirectionalAlbedoLUT(PM, NoV, NoL);
+#else
+	const float3 SlabDirectionalAlbedo = IsotropicMediumSlabPunctualDirectionalAlbedoALU(PM);
+#endif
+	return SlabDirectionalAlbedo;
+}
+
+
+
+// The ALU version is a lot simpler as compared to the LUT version: it is not view dependent.
+float3 IsotropicMediumSlabEnvDirectionalAlbedoALU(FParticipatingMedia PM)
 {
 	// Our measurement are only valid for a MFP of 0.01 meter so we clamp input MFP to that.
 	// This is relatively ok since all computation are done for a slab of 1 meter.
@@ -352,4 +366,21 @@ float3 IsotropicMediumSlabEnvDirectionalAlbedoLUT(FParticipatingMedia PM, float 
 		IsotropicMediumSlabEnvDirectionalAlbedoLUT(PM.MeanFreePath.g, PM.BaseColor.g, NoV),
 		IsotropicMediumSlabEnvDirectionalAlbedoLUT(PM.MeanFreePath.b, PM.BaseColor.b, NoV)
 	);
+}
+
+float3 IsotropicMediumSlabEnvDirectionalAlbedo(FParticipatingMedia PM, float NoV)
+{
+#if USE_LUT_SIMPLEVOLUME
+	float3 SlabEnvAlbedo = IsotropicMediumSlabEnvDirectionalAlbedoLUT(PM, NoV);
+#else
+	// The environment response of has been measured for an hemisphere having a uniform radiance of 1. 
+	// This DirectionalAlbedo also contains the integral over the hemisphere according to the phase function.
+	// The spherical harmonic used for environment lighting contains the diffuse integral over the hemisphere as DiffLambert = int_{\omega} {1 * NoL d\Omega} = PI.
+	// We do not want to be affected by the NoL term here since The DirectionalAlbedo also contains the integral over the hemisphere according to the phase function.
+	// Integral of a value=1 over the Hemisphere is int_{\omega} {1  d\Omega} = 2PI.
+	// So, as an approximation, we recover the uniform hemisphere luminance as UniformEnvL = DiffLambert * (1 / PI) * (2 * PI).
+	// We consider that the diffuse integration of the environment SH over the hemisphere multiplied with the light response will be a good approximation similar to the "split sum integral".
+	float3 SlabEnvAlbedo = IsotropicMediumSlabEnvDirectionalAlbedoALU(PM) * ((1 / PI) * (2 * PI));
+#endif
+	return SlabEnvAlbedo;
 }

@@ -157,7 +157,7 @@ float3 GetSimpleVolumeDiffuseColor(float3 DiffuseColor, float3 MeanFreePath)
 	// SUBSTRATE_TODO: In the case of thin materials, we should also include a backscattering diffuse portion
 	FParticipatingMedia PM = SubstrateSlabCreateParticipatingMedia(DiffuseColor, MeanFreePath);
 	const float DiffuseToVolumeBlend = SubstrateSlabDiffuseToVolumeBlend(PM);
-	const float3 SlabDirectionalAlbedo = IsotropicMediumSlabEnvDirectionalAlbedo(PM);
+	const float3 SlabDirectionalAlbedo = IsotropicMediumSlabEnvDirectionalAlbedoALU(PM);
 	return lerp(DiffuseColor, SlabDirectionalAlbedo, DiffuseToVolumeBlend);
 }
 
