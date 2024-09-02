@@ -7,6 +7,7 @@
 */
 
 #include "ProfilingDebugging/CsvProfiler.h"
+#include "Async/Fundamental/Scheduler.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "CoreGlobals.h"
 #include "HAL/RunnableThread.h"
@@ -81,6 +82,14 @@ TAutoConsoleVariable<int32> CVarCsvBlockOnCaptureEnd(
 	1,
 	TEXT("When 1, blocks the game thread until the CSV file has been written completely when the capture is ended.\r\n")
 	TEXT("When 0, the game thread is not blocked whilst the file is written."),
+	ECVF_Default
+);
+
+TAutoConsoleVariable<bool> CVarCsvAggregateTaskWorkerStats(
+	TEXT("csv.AggregateTaskWorkerStats"),
+	true,
+	TEXT("If enabled, stats recorded on task worker threads are aggregated instead of outputting a single stat per thread.\r\n")
+	TEXT("This reduces CSV bloat when there are large numbers of worker threads and makes stat data more intelligible"),
 	ECVF_Default
 );
 
@@ -1846,6 +1855,8 @@ struct FCsvProcessThreadDataStats
 	uint32 EventCount;
 };
 
+class FCsvThreadGroupStatProcessor;
+
 class FCsvStreamWriter
 {
 	struct FCsvRow
@@ -1882,11 +1893,13 @@ class FCsvStreamWriter
 	TArray<FCsvStatSeries*> AllSeries;
 	TArray<class FCsvProfilerThreadDataProcessor*> DataProcessors;
 
+	TSharedPtr<FCsvThreadGroupStatProcessor> TaskWorkerThreadGroupStatProcessor;
+
 	uint32 RenderThreadId;
 	uint32 RHIThreadId;
 
 public:
-	FCsvStreamWriter(const TSharedRef<FArchive>& InOutputFile, bool bInContinuousWrites, int32 InBufferSize, int64 InNumFramesToBuffer, bool bInCompressOutput, uint32 RenderThreadId, uint32 RHIThreadId);
+	FCsvStreamWriter(const TSharedRef<FArchive>& InOutputFile, bool bInContinuousWrites, int32 InBufferSize, int64 InNumFramesToBuffer, bool bInCompressOutput, uint32 RenderThreadId, uint32 RHIThreadId, bool bAggregateTaskWorkerStats);
 	~FCsvStreamWriter();
 
 	void AddSeries(FCsvStatSeries* Series);
@@ -2038,6 +2051,7 @@ public:
 	FCsvProfilerThreadData()
 		: ThreadId(FPlatformTLS::GetCurrentThreadId())
 		, ThreadName(FThreadManager::GetThreadName(ThreadId))
+		, bIsTaskWorkerThread(LowLevelTasks::FScheduler::Get().IsWorkerThread())
 		, DataProcessor(nullptr)
 	{
 	}
@@ -2224,6 +2238,7 @@ public:
 
 	const uint32 ThreadId;
 	const FString ThreadName;
+	const bool bIsTaskWorkerThread;
 
 	class FCsvProfilerThreadDataProcessor* DataProcessor;
 	TArray<const char*> WaitStatNameStack;
@@ -2233,63 +2248,29 @@ uint32 FCsvProfilerThreadData::TlsSlot = FPlatformTLS::InvalidTlsSlot;
 FCriticalSection FCsvProfilerThreadData::TlsCS;
 TArray<FCsvProfilerThreadData::FWeakPtr> FCsvProfilerThreadData::TlsInstances;
 
-class FCsvProfilerThreadDataProcessor
+// Responsible to collating and accumulating stats for a thread, or group of threads
+class FCsvThreadGroupStatProcessor
 {
-	FCsvProfilerThreadData::FSharedPtr ThreadData;
 	FCsvStreamWriter* Writer;
-
-	TArray<FCsvTimingMarker> MarkerStack;
-	TArray<FCsvTimingMarker> ExclusiveMarkerStack;
-
 	TArray<FCsvStatSeries*> StatSeriesArray;
 	FCsvStatRegister StatRegister;
-
-	uint64 LastProcessedTimestamp;
-
-	uint32 RenderThreadId;
-	uint32 RHIThreadId;
+	FString Name;
 
 public:
-	FCsvProfilerThreadDataProcessor(FCsvProfilerThreadData::FSharedPtr InThreadData, FCsvStreamWriter* InWriter, uint32 InRenderThreadId, uint32 InRHIThreadId)
-		: ThreadData(InThreadData)
-		, Writer(InWriter)
-		, LastProcessedTimestamp(0)
-		, RenderThreadId(InRenderThreadId)
-		, RHIThreadId(InRHIThreadId)
+	FCsvThreadGroupStatProcessor(FCsvStreamWriter* InWriter, FString InName)
+		: Writer(InWriter)
+		, Name(InName)
 	{
-		check(ThreadData->DataProcessor == nullptr);
-		ThreadData->DataProcessor = this;
 	}
 
-	~FCsvProfilerThreadDataProcessor()
+	~FCsvThreadGroupStatProcessor()
 	{
-		check(ThreadData->DataProcessor == this);
-		ThreadData->DataProcessor = nullptr;
-
 		// Delete all the created stat series
 		for (FCsvStatSeries* Series : StatSeriesArray)
 		{
 			delete Series;
 		}
 	}
-
-	inline uint64 GetAllocatedSize() const
-	{
-		return
-			((uint64)MarkerStack.GetAllocatedSize()) +
-			((uint64)ExclusiveMarkerStack.GetAllocatedSize()) +
-			((uint64)StatSeriesArray.GetAllocatedSize()) +
-			((uint64)StatSeriesArray.Num() * sizeof(FCsvStatSeries)) +
-			((uint64)ThreadData->GetAllocatedSize());
-	}
-
-	void Process(FCsvProcessThreadDataStats& OutStats, int32& OutMinFrameNumberProcessed);
-
-private:
-	/** Temporary storage of data collected with every Process() call. */
-	TArray<FCsvTimingMarker> ThreadMarkers;
-	TArray<FCsvCustomStat> CustomStats;
-	TArray<FCsvEvent> Events;
 
 	FCsvStatSeries* FindOrCreateStatSeries(const FCsvStatBase& Stat, FCsvStatSeries::EType SeriesType, bool bIsCountStat)
 	{
@@ -2303,7 +2284,7 @@ private:
 		}
 		if (StatSeriesArray[StatIndex] == nullptr)
 		{
-			Series = new FCsvStatSeries(SeriesType, StatIndex, Writer, StatRegister, ThreadData->ThreadName);
+			Series = new FCsvStatSeries(SeriesType, StatIndex, Writer, StatRegister, Name);
 			StatSeriesArray[StatIndex] = Series;
 		}
 		else
@@ -2315,18 +2296,81 @@ private:
 		}
 		return Series;
 	}
+
+	inline uint64 GetAllocatedSize() const
+	{
+		return	((uint64)StatSeriesArray.GetAllocatedSize()) +
+				((uint64)StatSeriesArray.Num() * sizeof(FCsvStatSeries));
+	}
+
 };
 
-FCsvStreamWriter::FCsvStreamWriter(const TSharedRef<FArchive>& InOutputFile, bool bInContinuousWrites, int32 InBufferSize, int64 InNumFramesToBuffer, bool bInCompressOutput, uint32 InRenderThreadId, uint32 InRHIThreadId)
+
+class FCsvProfilerThreadDataProcessor
+{
+	FCsvProfilerThreadData::FSharedPtr ThreadData;
+	FCsvStreamWriter* Writer;
+
+	TArray<FCsvTimingMarker> MarkerStack;
+	TArray<FCsvTimingMarker> ExclusiveMarkerStack;
+
+	uint64 LastProcessedTimestamp;
+
+	uint32 RenderThreadId;
+	uint32 RHIThreadId;
+
+	TSharedPtr<FCsvThreadGroupStatProcessor> StatProcessor;
+
+public:
+	FCsvProfilerThreadDataProcessor(FCsvProfilerThreadData::FSharedPtr InThreadData, FCsvStreamWriter* InWriter, uint32 InRenderThreadId, uint32 InRHIThreadId)
+		: ThreadData(InThreadData)
+		, Writer(InWriter)
+		, LastProcessedTimestamp(0)
+		, RenderThreadId(InRenderThreadId)
+		, RHIThreadId(InRHIThreadId)
+		, StatProcessor(new FCsvThreadGroupStatProcessor(InWriter, InThreadData->ThreadName))
+	{
+		check(ThreadData->DataProcessor == nullptr);
+		ThreadData->DataProcessor = this;
+	}
+
+	~FCsvProfilerThreadDataProcessor()
+	{
+		check(ThreadData->DataProcessor == this);
+		ThreadData->DataProcessor = nullptr;
+	}
+
+	inline uint64 GetAllocatedSize() const
+	{
+		return
+			((uint64)MarkerStack.GetAllocatedSize()) +
+			((uint64)ExclusiveMarkerStack.GetAllocatedSize()) +
+			StatProcessor->GetAllocatedSize() +
+			((uint64)ThreadData->GetAllocatedSize());
+	}
+
+	void Process(FCsvProcessThreadDataStats& OutStats, int32& OutMinFrameNumberProcessed, TSharedPtr<FCsvThreadGroupStatProcessor> TaskWorkerThreadGroupStatProcessor);
+
+private:
+	/** Temporary storage of data collected with every Process() call. */
+	TArray<FCsvTimingMarker> ThreadMarkers;
+	TArray<FCsvCustomStat> CustomStats;
+	TArray<FCsvEvent> Events;
+};
+
+
+FCsvStreamWriter::FCsvStreamWriter(const TSharedRef<FArchive>& InOutputFile, bool bInContinuousWrites, int32 InBufferSize, int64 InNumFramesToBuffer, bool bInCompressOutput, uint32 InRenderThreadId, uint32 InRHIThreadId, bool bAggregateTaskWorkerStats)
 	: Stream(InOutputFile, InBufferSize, bInCompressOutput)
 	, NumFramesToBuffer(InNumFramesToBuffer)
 	, WriteFrameIndex(-1)
 	, ReadFrameIndex(-1)
 	, bContinuousWrites(bInContinuousWrites)
 	, bFirstRow(true)
+	, TaskWorkerThreadGroupStatProcessor(bAggregateTaskWorkerStats ? new FCsvThreadGroupStatProcessor(this, TEXT("AllWorkers")) : nullptr)
 	, RenderThreadId(InRenderThreadId)
 	, RHIThreadId(InRHIThreadId)
-{}
+{
+}
 
 FCsvStreamWriter::~FCsvStreamWriter()
 {
@@ -2492,14 +2536,13 @@ void FCsvStreamWriter::Process(FCsvProcessThreadDataStats& OutStats)
 			}
 		}
 	}
-	
 
 	int32 MinFrameNumberProcessed = MAX_int32;
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(CSVProfiler_Writer_ProcessDataProcessors);
 		for (FCsvProfilerThreadDataProcessor* DataProcessor : DataProcessors)
 		{
-			DataProcessor->Process(OutStats, MinFrameNumberProcessed);
+			DataProcessor->Process(OutStats, MinFrameNumberProcessed, TaskWorkerThreadGroupStatProcessor);
 		}
 	}
 	
@@ -2522,6 +2565,11 @@ uint64 FCsvStreamWriter::GetAllocatedSize() const
 		((uint64)AllSeries.GetAllocatedSize()) +
 		((uint64)DataProcessors.GetAllocatedSize()) +
 		((uint64)Stream.GetAllocatedSize());
+
+	if ( TaskWorkerThreadGroupStatProcessor.IsValid() )
+	{
+		Size += TaskWorkerThreadGroupStatProcessor->GetAllocatedSize();
+	}
 
 	for (const auto& Pair          : Rows)           { Size += (uint64)Pair.Value.GetAllocatedSize();     }
 	for (const auto& Series        : AllSeries)      { Size += (uint64)Series->GetAllocatedSize();        }
@@ -2622,7 +2670,7 @@ private:
 	FCsvProfiler& CsvProfiler;
 };
 
-void FCsvProfilerThreadDataProcessor::Process(FCsvProcessThreadDataStats& OutStats, int32& OutMinFrameNumberProcessed)
+void FCsvProfilerThreadDataProcessor::Process(FCsvProcessThreadDataStats& OutStats, int32& OutMinFrameNumberProcessed, TSharedPtr<FCsvThreadGroupStatProcessor> TaskWorkerThreadGroupStatProcessor)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCsvProfilerThreadData_ProcessThreadData);
 
@@ -2634,6 +2682,13 @@ void FCsvProfilerThreadDataProcessor::Process(FCsvProcessThreadDataStats& OutSta
 	CustomStats.Reset(0);
 	Events.Reset(0);
 	ThreadData->FlushResults(ThreadMarkers, CustomStats, Events);
+
+	// If we're aggregating task worker thread stats and this is a task worker thread, use the shared TaskWorkerThreadGroupStatProcessor instead of the per-thread one
+	FCsvThreadGroupStatProcessor* ThreadStatProcessor = StatProcessor.Get();
+	if (ThreadData->bIsTaskWorkerThread && TaskWorkerThreadGroupStatProcessor.IsValid())
+	{
+		ThreadStatProcessor = TaskWorkerThreadGroupStatProcessor.Get();
+	}
 
 	OutStats.TimestampCount += ThreadMarkers.Num();
 	OutStats.CustomStatCount += CustomStats.Num();
@@ -2755,13 +2810,13 @@ void FCsvProfilerThreadDataProcessor::Process(FCsvProcessThreadDataStats& OutSta
 							uint64 ElapsedCycles = Marker.GetTimestamp() - StartMarker.GetTimestamp();
 
 							// Add the elapsed time to the table entry for this frame/stat
-							FCsvStatSeries* Series = FindOrCreateStatSeries(Marker, FCsvStatSeries::EType::TimerData, false);
+							FCsvStatSeries* Series = ThreadStatProcessor->FindOrCreateStatSeries(Marker, FCsvStatSeries::EType::TimerData, false);
 							Series->SetTimerValue(FrameNumber, ElapsedCycles);
 
 							// Add the COUNT/ series if enabled. Ignore artificial markers (inserted above)
 							if (GCsvStatCounts && !Marker.IsExclusiveArtificialMarker())
 							{
-								FCsvStatSeries* CountSeries = FindOrCreateStatSeries(Marker, FCsvStatSeries::EType::CustomStatInt, true);
+								FCsvStatSeries* CountSeries = ThreadStatProcessor->FindOrCreateStatSeries(Marker, FCsvStatSeries::EType::CustomStatInt, true);
 								CountSeries->SetCustomStatValue_Int(FrameNumber, ECsvCustomStatOp::Accumulate, 1);
 							}
 						}
@@ -2782,7 +2837,7 @@ void FCsvProfilerThreadDataProcessor::Process(FCsvProcessThreadDataStats& OutSta
 			if (FrameNumber >= 0)
 			{
 				bool bIsInteger = CustomStat.IsInteger();
-				FCsvStatSeries* Series = FindOrCreateStatSeries(CustomStat, bIsInteger ? FCsvStatSeries::EType::CustomStatInt : FCsvStatSeries::EType::CustomStatFloat, false);
+				FCsvStatSeries* Series = ThreadStatProcessor->FindOrCreateStatSeries(CustomStat, bIsInteger ? FCsvStatSeries::EType::CustomStatInt : FCsvStatSeries::EType::CustomStatFloat, false);
 				if (bIsInteger)
 				{
 					Series->SetCustomStatValue_Int(FrameNumber, CustomStat.GetCustomStatOp(), CustomStat.Value.AsInt);
@@ -2795,7 +2850,7 @@ void FCsvProfilerThreadDataProcessor::Process(FCsvProcessThreadDataStats& OutSta
 				// Add the COUNT/ series if enabled
 				if (GCsvStatCounts)
 				{
-					FCsvStatSeries* CountSeries = FindOrCreateStatSeries(CustomStat, FCsvStatSeries::EType::CustomStatInt, true);
+					FCsvStatSeries* CountSeries = ThreadStatProcessor->FindOrCreateStatSeries(CustomStat, FCsvStatSeries::EType::CustomStatInt, true);
 					CountSeries->SetCustomStatValue_Int(FrameNumber, ECsvCustomStatOp::Accumulate, 1);
 				}
 			}
@@ -3056,7 +3111,7 @@ void FCsvProfiler::BeginCaptureInternal(const FCsvCaptureCommand& CurrentCommand
 
 	// Actually start the capture
 	int64 NumFramesToBuffer = CVarCsvStreamFramesToBuffer.GetValueOnAnyThread();
-	CsvWriter = new FCsvStreamWriter(OutputFile.ToSharedRef(), bContinuousWrites, BufferSize, NumFramesToBuffer, bCompressOutput, RenderThreadId, RHIThreadId);
+	CsvWriter = new FCsvStreamWriter(OutputFile.ToSharedRef(), bContinuousWrites, BufferSize, NumFramesToBuffer, bCompressOutput, RenderThreadId, RHIThreadId, CVarCsvAggregateTaskWorkerStats.GetValueOnAnyThread());
 
 	NumFramesToCapture = CurrentCommand.Value;
 	GCsvRepeatFrameCount = NumFramesToCapture;
