@@ -3,7 +3,7 @@
 #pragma once
 
 #include "MuR/Ptr.h"
-#include "Hal/Platform.h"
+#include "HAL/Platform.h"
 
 class UEdGraphPin;
 struct FMutableGraphGenerationContext;
