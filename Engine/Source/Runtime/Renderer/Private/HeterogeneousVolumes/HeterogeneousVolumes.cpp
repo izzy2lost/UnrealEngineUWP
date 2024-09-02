@@ -883,7 +883,7 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 		HeterogeneousVolumeRadiance = GraphBuilder.CreateTexture(Desc, TEXT("HeterogeneousVolumes"));
 		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(HeterogeneousVolumeRadiance), FLinearColor::Black);
 
-		if (IsPostProcessingWithAlphaChannelSupported())
+		if (IsPrimitiveAlphaHoldoutEnabledForAnyView(Views))
 		{
 			Desc.Format = PF_R8;
 			HeterogeneousVolumeHoldout = GraphBuilder.CreateTexture(Desc, TEXT("HeterogeneousVolume.Holdout"));

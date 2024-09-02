@@ -2961,7 +2961,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 					bComposeWithWater,
 					SceneWithoutWaterTextures, SceneTextures);
 
-				if (IsPostProcessingWithAlphaChannelSupported())
+				if (IsPrimitiveAlphaHoldoutEnabledForAnyView(Views))
 				{
 					// When alpha is enabled to work with holdout. We need another full screen tracing pass to update the alpha channel containing the "holdout alpha throughput".
 					// Alpha hold out only works when using r.volumetricrendertarget.mode 3 which is the mode use by MRQ.

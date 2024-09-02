@@ -2935,6 +2935,12 @@ inline const FViewFamilyInfo& GetViewFamilyInfo(const TArrayView<const FViewInfo
 	return *(const FViewFamilyInfo*)Views[0].Family;
 }
 
+/** Checks whether primitive alpha holdout is active.*/
+bool IsPrimitiveAlphaHoldoutEnabled(EShadingPath ShadingPath);
+
+/** Checks whether primitive alpha holdout is active for any view.*/
+bool IsPrimitiveAlphaHoldoutEnabledForAnyView(TArrayView<FViewInfo> Views);
+
 bool SceneCaptureRequiresAlphaChannel(const FSceneView& View);
 
 /** Checks whether the material and scene proxy combination will modify the mesh position. Useful for determining whether the material can be substituted with a default material for depth rendering etc. */

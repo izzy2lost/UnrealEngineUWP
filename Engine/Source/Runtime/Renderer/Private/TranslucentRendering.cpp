@@ -105,38 +105,6 @@ static TAutoConsoleVariable<int32> CVarParallelTranslucency(
 	TEXT("Toggles parallel translucency rendering. Parallel rendering must be enabled for this to have an effect."),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarRenderTranslucentHoldout(
-	TEXT("r.RenderTranslucentHoldout"),
-	-1,
-	TEXT("Toggles translucency holdout rendering.\n")
-	TEXT("   0: Disable the dedicated translucent holdout pass (legacy behavior). \n")
-	TEXT("Else: Automatically turn on/off the dedicated holdout pass based on whether Propagate Alpha is on/off\n"),
-	ECVF_RenderThreadSafe);
-
-bool IsTranslucentHoldoutEnabled(EShadingPath ShadingPath)
-{
-	const int32 RenderTranslucentHoldout = CVarRenderTranslucentHoldout.GetValueOnRenderThread();
-	bool bPropagateAlpha = false;
-
-	if (RenderTranslucentHoldout != 0)
-	{
-		static IConsoleVariable* CVarPropagateAlpha = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
-		static IConsoleVariable* CVarSupportAlphaHoldout = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Deferred.SupportPrimitiveAlphaHoldout"));
-		const bool bDeferredPropagateAlpha = CVarPropagateAlpha ? CVarPropagateAlpha->GetBool() : false;
-		const bool bDeferredSupportPrimitiveAlphaHoldout = CVarSupportAlphaHoldout ? CVarSupportAlphaHoldout->GetBool() : false;
-		// TODO: add support to Mobile renderer 
-		bPropagateAlpha = bDeferredPropagateAlpha && bDeferredSupportPrimitiveAlphaHoldout && (ShadingPath != EShadingPath::Mobile);
-	}
-
-	return bPropagateAlpha;
-}
-
-static bool IsTranslucentHoldoutEnabled(TArrayView<const FViewInfo> Views)
-{
-	ensure(Views.Num() > 0);
-	return IsTranslucentHoldoutEnabled(GetFeatureLevelShadingPath(Views[0].GetFeatureLevel()));
-}
-
 DynamicRenderScaling::FHeuristicSettings GetDynamicTranslucencyResolutionSettings()
 {
 	DynamicRenderScaling::FHeuristicSettings BucketSetting;
@@ -656,7 +624,7 @@ FScreenPassTexture FTranslucencyComposition::AddPass(
 	RDG_GPU_STAT_SCOPE(GraphBuilder, Translucency);
 	DynamicRenderScaling::FRDGScope DynamicTranslucencyResolutionScope(GraphBuilder, GDynamicTranslucencyResolution);
 
-	bool bPassthroughAlpha = IsTranslucentHoldoutEnabled(GetFeatureLevelShadingPath(View.GetFeatureLevel()));
+	bool bPassthroughAlpha = IsPrimitiveAlphaHoldoutEnabled(GetFeatureLevelShadingPath(View.GetFeatureLevel()));
 
 	const TCHAR* OpName = nullptr;
 	FRHIBlendState* BlendState = nullptr;
@@ -1819,7 +1787,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(
 	DynamicRenderScaling::FRDGScope DynamicTranslucencyResolutionScope(GraphBuilder, GDynamicTranslucencyResolution);
 
 	FRDGTextureRef SceneColorCopyTexture = nullptr;
-	const bool bIsTranslucentHoldoutEnabled = IsTranslucentHoldoutEnabled(Views);
+	const bool bIsTranslucentHoldoutEnabled = IsPrimitiveAlphaHoldoutEnabledForAnyView(Views);
 
 	if (EnumHasAnyFlags(ViewsToRender, ETranslucencyView::AboveWater))
 	{

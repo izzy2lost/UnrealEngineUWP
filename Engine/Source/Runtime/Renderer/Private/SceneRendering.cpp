@@ -6651,6 +6651,26 @@ FRDGTextureRef CreateQuarterResolutionDepthMinAndMax(FRDGBuilder& GraphBuilder, 
 	return SmallTexture;
 }
 
+bool IsPrimitiveAlphaHoldoutEnabled(EShadingPath ShadingPath)
+{
+	const bool bSupportPrimitiveAlphaHoldout = CVarPrimitiveAlphaHoldoutSupport.GetValueOnRenderThread();
+
+	return bSupportPrimitiveAlphaHoldout && (ShadingPath != EShadingPath::Mobile) && IsPostProcessingWithAlphaChannelSupported();
+}
+
+bool IsPrimitiveAlphaHoldoutEnabledForAnyView(TArrayView<FViewInfo> Views)
+{
+	for (const FViewInfo& View : Views)
+	{
+		if (IsPrimitiveAlphaHoldoutEnabled(GetFeatureLevelShadingPath(View.GetFeatureLevel())))
+		{
+			return true;
+		}
+	}
+	
+	return false;
+}
+
 bool SceneCaptureRequiresAlphaChannel(const FSceneView& View)
 {
 	// Planar reflections and scene captures use scene color alpha to keep track of where content has been rendered, for compositing into a different scene later
