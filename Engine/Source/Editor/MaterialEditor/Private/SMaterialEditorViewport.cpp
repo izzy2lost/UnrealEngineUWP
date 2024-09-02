@@ -951,6 +951,8 @@ TSharedPtr<SWidget> SMaterialEditor3DPreviewViewport::BuildViewportToolbar()
 				MaterialEditorViewportToolbarName, NAME_None /* parent */, EMultiBoxType::SlimHorizontalToolBar
 			);
 
+			ViewportToolbarMenu->StyleName = "ViewportToolbar";
+
 			// Add the Left-aligned part of the viewport toolbar.
 			{
 				// Adding it even if empty in order to keep proper toolbar layout

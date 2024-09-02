@@ -461,6 +461,8 @@ TSharedPtr<SWidget> SSCSEditorViewport::BuildViewportToolbar()
 			ViewportToolbarMenuName, NAME_None /* parent */, EMultiBoxType::SlimHorizontalToolBar
 		);
 
+		ViewportToolbarMenu->StyleName = "ViewportToolbar";
+
 		// Add the left-aligned part of the viewport toolbar.
 		{
 			FToolMenuSection& LeftSection = ViewportToolbarMenu->FindOrAddSection("Left");
