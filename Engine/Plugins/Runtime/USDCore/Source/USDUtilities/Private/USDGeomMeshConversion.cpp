@@ -4205,7 +4205,8 @@ namespace UE::UsdGeometryCacheConversion::Private
 
 		FGeometryCacheExportContext(const TArray<FName>& InSlotNames)
 			: SlotNames(InSlotNames)
-		{}
+		{
+		}
 
 		TArray<FName> SlotNames;
 		int32 InclusiveEndFrame;
@@ -4421,7 +4422,11 @@ namespace UE::UsdGeometryCacheConversion::Private
 	class FSkinnedVerticesDataWrapper : public FSkeletalMeshDataWrapper
 	{
 	public:
-		FSkinnedVerticesDataWrapper(const TArray<FFinalSkinVertex>& InSkinnedVertices, const FSkeletalMeshLODRenderData& InLODData, bool bVertexColors)
+		FSkinnedVerticesDataWrapper(
+			const TArray<FFinalSkinVertex>& InSkinnedVertices,
+			const FSkeletalMeshLODRenderData& InLODData,
+			bool bVertexColors
+		)
 			: FSkeletalMeshDataWrapper(InLODData, bVertexColors)
 			, SkinnedVertices(InSkinnedVertices)
 		{
@@ -4449,7 +4454,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 			return false;
 		}
 		// In case we want to use the UV from the skinned vertices, but they are not animated anyway
-		//FVector2D GetUV(int32 Index) const override
+		// FVector2D GetUV(int32 Index) const override
 		//{
 		//	return SkinnedVertices[Index].TextureCoordinates[0];
 		//}
@@ -4545,7 +4550,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 				pxr::TfToken UsdUVSetName = UsdUtils::GetUVSetName(TexCoordSourceIndex).Get();
 
 				pxr::UsdGeomPrimvar PrimvarST = pxr::UsdGeomPrimvarsAPI(MeshPrim)
-					.CreatePrimvar(UsdUVSetName, pxr::SdfValueTypeNames->TexCoord2fArray, pxr::UsdGeomTokens->vertex);
+													.CreatePrimvar(UsdUVSetName, pxr::SdfValueTypeNames->TexCoord2fArray, pxr::UsdGeomTokens->vertex);
 
 				if (PrimvarST)
 				{
@@ -4707,7 +4712,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 						);
 					}
 
-					pxr::UsdGeomSubset GeomSubsetSchema{ GeomSubsetPrim };
+					pxr::UsdGeomSubset GeomSubsetSchema{GeomSubsetPrim};
 
 					// Element type attribute
 					// Write the geomsubset attributes only once since they are at Default time anyway
@@ -4718,7 +4723,8 @@ namespace UE::UsdGeometryCacheConversion::Private
 
 						// Indices attribute
 						const uint32 TriangleCount = MeshData.GetSectionNumTriangles(SectionIndex);
-						const uint32 FirstTriangleIndex = MeshData.GetSectionStartIndex(SectionIndex) / 3;	 // StartIndex is the first *vertex* instance index
+						const uint32 FirstTriangleIndex = MeshData.GetSectionStartIndex(SectionIndex) / 3;	  // StartIndex is the first *vertex*
+																											  // instance index
 						pxr::VtArray<int> IndicesAttrValue;
 						for (uint32 TriangleIndex = FirstTriangleIndex; TriangleIndex - FirstTriangleIndex < TriangleCount; ++TriangleIndex)
 						{
@@ -4912,7 +4918,14 @@ bool UnrealToUsd::ConvertSkeletalMeshToStaticMesh(
 
 	FGeometryCacheExportContext ExportContext(SlotNames);
 	pxr::UsdPrim MaterialPrim = MaterialStage->OverridePrim(UsdPrim.GetPath());
-	ConvertMeshData(FSkeletalMeshDataWrapper(LODData, SkeletalMesh->GetHasVertexColors()), MaterialAssignments, TimeCode, MaterialPrim, ExportContext, MeshPrim);
+	ConvertMeshData(
+		FSkeletalMeshDataWrapper(LODData, SkeletalMesh->GetHasVertexColors()),
+		MaterialAssignments,
+		TimeCode,
+		MaterialPrim,
+		ExportContext,
+		MeshPrim
+	);
 
 	pxr::UsdAttribute ExtentsAttr = MeshPrim.CreateExtentAttr();
 	const FBox BoundingBox = SkeletalMesh->GetBounds().GetBox();
@@ -5030,7 +5043,14 @@ bool UnrealToUsd::ConvertAnimSequenceToAnimatedMesh(
 		TArray<FFinalSkinVertex> SkinnedVertices;
 		SkelMeshComponent->GetCPUSkinnedVertices(SkinnedVertices, LODLevel);
 
-		ConvertMeshData(FSkinnedVerticesDataWrapper(SkinnedVertices, LODData, bHasVertexColors), MaterialAssignments, FrameIndex, MaterialPrim, ExportContext, MeshPrim);
+		ConvertMeshData(
+			FSkinnedVerticesDataWrapper(SkinnedVertices, LODData, bHasVertexColors),
+			MaterialAssignments,
+			FrameIndex,
+			MaterialPrim,
+			ExportContext,
+			MeshPrim
+		);
 	}
 
 	World->DestroyActor(SkelMeshActor);
@@ -5038,7 +5058,11 @@ bool UnrealToUsd::ConvertAnimSequenceToAnimatedMesh(
 	return true;
 }
 
-bool UnrealToUsd::CreateSkeletalAnimationToMeshBaker(UE::FUsdPrim& UsdPrim, USkeletalMeshComponent& SkelMeshComponent, UnrealToUsd::FComponentBaker& OutBaker)
+bool UnrealToUsd::CreateSkeletalAnimationToMeshBaker(
+	UE::FUsdPrim& UsdPrim,
+	USkeletalMeshComponent& SkelMeshComponent,
+	UnrealToUsd::FComponentBaker& OutBaker
+)
 {
 	using namespace UE::UsdGeometryCacheConversion::Private;
 
@@ -5092,8 +5116,19 @@ bool UnrealToUsd::CreateSkeletalAnimationToMeshBaker(UE::FUsdPrim& UsdPrim, USke
 	const int32 LODLevel = 0;
 	const FSkeletalMeshLODRenderData& LODData = SkelMeshRenderData.LODRenderData[LODLevel];
 
+	static IConsoleVariable* SkipConstantValuesCvar = IConsoleManager::Get().FindConsoleVariable(TEXT("USD.LevelSequenceExport.SkipConstantValues"));
+	const bool bSkipConstantValues = SkipConstantValuesCvar && SkipConstantValuesCvar->GetBool();
+
 	const bool bHasVertexColors = SkeletalMesh->GetHasVertexColors();
-	OutBaker.BakerFunction = [&SkelMeshComponent, &LODData, MaterialAssignments, UsdPrim, bHasVertexColors, ExportContext = FGeometryCacheExportContext(SlotNames)](double UsdTimeCode) mutable
+	OutBaker.BakerFunction = [&SkelMeshComponent,
+							  &LODData,
+							  MaterialAssignments,
+							  UsdPrim,
+							  bHasVertexColors,
+							  ExportContext = FGeometryCacheExportContext(SlotNames),
+							  LastValue = TOptional<TArray<FFinalSkinVertex>>(),
+							  LastTimeCode = -DBL_MAX,
+							  bSkipConstantValues](double UsdTimeCode) mutable
 	{
 		FScopedUsdAllocs InnerAllocs;
 
@@ -5112,8 +5147,63 @@ bool UnrealToUsd::CreateSkeletalAnimationToMeshBaker(UE::FUsdPrim& UsdPrim, USke
 		TArray<FFinalSkinVertex> SkinnedVertices;
 		SkelMeshComponent.GetCPUSkinnedVertices(SkinnedVertices, LODLevel);
 
+		// This logic is copied over from the CreateCachedAttrSetter functions on USDPrimConversion.cpp so we don't have
+		// to expose neither CreateCachedAttrSetter nor the ConvertMeshData/IUnrealMeshData
+		bool bNewValueIsEqual = false;
+		if (LastValue.IsSet())
+		{
+			if (LastValue.GetValue().Num() != SkinnedVertices.Num())
+			{
+				bNewValueIsEqual = false;
+			}
+			else
+			{
+				bNewValueIsEqual = true;
+				for (int32 Index = 0; Index < SkinnedVertices.Num(); ++Index)
+				{
+					const FFinalSkinVertex& LastValueEntry = LastValue.GetValue()[Index];
+					const FFinalSkinVertex& NewValueEntry = SkinnedVertices[Index];
+
+					// Only checking these as these are the only members of FFinalSkinVertex that
+					// FSkinnedVerticesDataWrapper reads anyway
+					if (!LastValueEntry.Position.Equals(NewValueEntry.Position) || LastValueEntry.TangentZ != NewValueEntry.TangentZ)
+					{
+						bNewValueIsEqual = false;
+						break;
+					}
+				}
+			}
+		}
+		if (bSkipConstantValues && bNewValueIsEqual)
+		{
+			LastTimeCode = UsdTimeCode;
+			return;
+		}
+
 		pxr::UsdGeomMesh MeshPrim(UsdPrim);
-		ConvertMeshData(FSkinnedVerticesDataWrapper(SkinnedVertices, LODData, bHasVertexColors), MaterialAssignments, UsdTimeCode, UsdPrim, ExportContext, MeshPrim);
+		ConvertMeshData(
+			FSkinnedVerticesDataWrapper(SkinnedVertices, LODData, bHasVertexColors),
+			MaterialAssignments,
+			UsdTimeCode,
+			UsdPrim,
+			ExportContext,
+			MeshPrim
+		);
+
+		if (!bNewValueIsEqual && LastValue.IsSet())
+		{
+			ConvertMeshData(
+				FSkinnedVerticesDataWrapper(LastValue.GetValue(), LODData, bHasVertexColors),
+				MaterialAssignments,
+				LastTimeCode,
+				UsdPrim,
+				ExportContext,
+				MeshPrim
+			);
+		}
+
+		LastValue = SkinnedVertices;
+		LastTimeCode = UsdTimeCode;
 	};
 
 	return true;

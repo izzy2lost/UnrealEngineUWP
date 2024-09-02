@@ -528,6 +528,8 @@ namespace UE::LevelSequenceExporterUSD::Private
 		UMovieSceneSequence& RootSequence
 	)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ULevelSequenceExporterUsd::PreSpawnSpawnables);
+
 		FMovieSceneSequenceHierarchy HierarchyCache;
 		TMap<UMovieSceneSequence*, TArray<FMovieSceneSequenceID>> SequenceInstances = GetSequenceHierarchyInstances(
 			RootSequence,
@@ -835,6 +837,8 @@ namespace UE::LevelSequenceExporterUSD::Private
 		TMap<USceneComponent*, FCombinedComponentBakers>& InOutComponentBakers
 	)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ULevelSequenceExporterUsd::GenerateBakersForMovieScene);
+
 		UMovieScene* MovieScene = MovieSceneSequence.GetMovieScene();
 		if (!MovieScene)
 		{
@@ -1069,9 +1073,9 @@ namespace UE::LevelSequenceExporterUSD::Private
 									// Note that it's perfectly fine if this ends up being just "."
 									UE::FSdfPath RelativePrimPathInSourceStage = SdfPrimPathInSourceStage.MakeRelativePath(DefaultPrimPath);
 
-									FString PrimPathRelativeToParentStageActor = UE::FSdfPath{ *ParentStageActorPrimPathOnExport }
-										.AppendPath(RelativePrimPathInSourceStage)
-										.GetString();
+									FString PrimPathRelativeToParentStageActor = UE::FSdfPath{*ParentStageActorPrimPathOnExport}
+																					 .AppendPath(RelativePrimPathInSourceStage)
+																					 .GetString();
 
 									if (!PrimPathRelativeToParentStageActor.IsEmpty())
 									{
@@ -1101,11 +1105,12 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 			auto GetPrimForComponent = [&Context, &UsdStage](const USceneComponent& Component, FString* PrimPathStr = nullptr) -> UE::FUsdPrim
 			{
-				FString PrimPath = PrimPathStr ? *PrimPathStr : UsdUtils::GetPrimPathForObject(
-					&Component,
-					TEXT(""),
-					Context.ExportOptions && Context.ExportOptions->LevelExportOptions.bExportActorFolders
-				);
+				FString PrimPath = PrimPathStr ? *PrimPathStr
+											   : UsdUtils::GetPrimPathForObject(
+												   &Component,
+												   TEXT(""),
+												   Context.ExportOptions && Context.ExportOptions->LevelExportOptions.bExportActorFolders
+											   );
 				if (PrimPath.IsEmpty())
 				{
 					return {};
@@ -1119,7 +1124,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 				// We will define a prim here so that we can apply schemas and use the shortcut CreateXAttribute functions,
 				// and not have to worry about attribute names and types. Later on we will convert these prims back into just 'overs' though
-				return UsdStage.DefinePrim(UE::FSdfPath{ *PrimPath }, *SchemaName);
+				return UsdStage.DefinePrim(UE::FSdfPath{*PrimPath}, *SchemaName);
 			};
 
 			UE::FUsdPrim Prim = GetPrimForComponent(*BoundComponent, &PrimPath);
@@ -1129,55 +1134,60 @@ namespace UE::LevelSequenceExporterUSD::Private
 			}
 
 			TFunction<void(UnrealToUsd::FComponentBaker&)> AddBaker = [&InOutComponentBakers, &BoundComponent](UnrealToUsd::FComponentBaker& Baker)
+			{
+				// If we made a baker and we don't have one of this type for this component yet, add its lambda to the array
+				FCombinedComponentBakers& ExistingBakers = InOutComponentBakers.FindOrAdd(BoundComponent);
+				if (Baker.BakerType != UnrealToUsd::EBakingType::None && !EnumHasAnyFlags(ExistingBakers.CombinedBakingType, Baker.BakerType))
 				{
-					// If we made a baker and we don't have one of this type for this component yet, add its lambda to the array
-					FCombinedComponentBakers& ExistingBakers = InOutComponentBakers.FindOrAdd(BoundComponent);
-					if (Baker.BakerType != UnrealToUsd::EBakingType::None && !EnumHasAnyFlags(ExistingBakers.CombinedBakingType, Baker.BakerType))
-					{
-						ExistingBakers.Bakers.Add(Baker);
-						ExistingBakers.CombinedBakingType |= Baker.BakerType;
-					}
-				};
+					ExistingBakers.Bakers.Add(Baker);
+					ExistingBakers.CombinedBakingType |= Baker.BakerType;
+				}
+			};
 
 			const bool bBakeAsSkeletal = !Context.ExportOptions->LevelExportOptions.AssetOptions.bConvertSkeletalToNonSkeletal;
 			TFunction<void(UnrealToUsd::FComponentBaker&)> GenerateSkeletalBaker =
 				[&UsdStage, &BoundComponent, &PrimPath, &Prim, bBakeAsSkeletal](UnrealToUsd::FComponentBaker& InOutBaker)
+			{
+				if (USkeletalMeshComponent* SkeletalBoundComponent = Cast<USkeletalMeshComponent>(BoundComponent))
 				{
-					if (USkeletalMeshComponent* SkeletalBoundComponent = Cast<USkeletalMeshComponent>(BoundComponent))
+					if (bBakeAsSkeletal)
 					{
-						if (bBakeAsSkeletal)
+						UE::FUsdPrim SkelAnimPrim = UsdStage.DefinePrim(UE::FSdfPath{*PrimPath}.AppendChild(TEXT("Anim")), TEXT("SkelAnimation"));
+
+						UE::FUsdPrim SkeletonPrim = UsdStage.DefinePrim(
+							UE::FSdfPath{*PrimPath}.AppendChild(UnrealIdentifiers::ExportedSkeletonPrimName),
+							TEXT("Skeleton")
+						);
+
+						if (SkelAnimPrim && SkeletonPrim)
 						{
-							UE::FUsdPrim SkelAnimPrim = UsdStage.DefinePrim(UE::FSdfPath{ *PrimPath }.AppendChild(TEXT("Anim")), TEXT("SkelAnimation"));
-
-							UE::FUsdPrim SkeletonPrim = UsdStage.DefinePrim(
-								UE::FSdfPath{ *PrimPath }.AppendChild(UnrealIdentifiers::ExportedSkeletonPrimName),
-								TEXT("Skeleton")
-							);
-
-							if (SkelAnimPrim && SkeletonPrim)
-							{
-								UnrealToUsd::CreateSkeletalAnimationBaker(SkeletonPrim, SkelAnimPrim, *SkeletalBoundComponent, InOutBaker);
-							}
-							else
-							{
-								UE_LOG(LogUsd, Warning, TEXT("Failed to generate Skeleton or SkelAnimation prim when baking out SkelRoot '%s'"), *PrimPath);
-							}
+							UnrealToUsd::CreateSkeletalAnimationBaker(SkeletonPrim, SkelAnimPrim, *SkeletalBoundComponent, InOutBaker);
 						}
 						else
 						{
-							// Convert the prim for the skeletal mesh component from SkelRoot to Mesh
-							Prim.SetTypeName(TEXT("Mesh"));
-							UnrealToUsd::CreateSkeletalAnimationToMeshBaker(Prim, *SkeletalBoundComponent, InOutBaker);
+							UE_LOG(
+								LogUsd,
+								Warning,
+								TEXT("Failed to generate Skeleton or SkelAnimation prim when baking out SkelRoot '%s'"),
+								*PrimPath
+							);
 						}
 					}
-				};
+					else
+					{
+						// Convert the prim for the skeletal mesh component from SkelRoot to Mesh
+						Prim.SetTypeName(TEXT("Mesh"));
+						UnrealToUsd::CreateSkeletalAnimationToMeshBaker(Prim, *SkeletalBoundComponent, InOutBaker);
+					}
+				}
+			};
 
 			bool bHasTransformBaker = false;
 			bool bHasSkeletalBaker = false;
 
 			if (ACameraRig_Rail* RailActor = Cast<ACameraRig_Rail>(BoundObject))
 			{
-				// In the case of a CameraRig_Rail, what we want to bake is the transform animation of its 
+				// In the case of a CameraRig_Rail, what we want to bake is the transform animation of its
 				// RailMountComponent since that is where children camera will be attached to.
 				const static FString TransformPropertyPath = UnrealIdentifiers::TransformPropertyName.ToString();
 				USceneComponent* RailMountComponent = RailActor->GetDefaultAttachComponent();
@@ -1377,6 +1387,8 @@ namespace UE::LevelSequenceExporterUSD::Private
 		const TMap<USceneComponent*, FCombinedComponentBakers>& ComponentBakers
 	)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ULevelSequenceExporterUsd::BakeMovieSceneSequence);
+
 		UMovieScene* MovieScene = MovieSceneSequence.GetMovieScene();
 		if (!MovieScene)
 		{
@@ -1453,21 +1465,25 @@ namespace UE::LevelSequenceExporterUSD::Private
 			}
 		);
 
-		for (FFrameTime EvalTime = StartFrame; EvalTime <= EndFrame; EvalTime += Interval)
 		{
-			Context.Sequencer->SetLocalTimeDirectly(EvalTime);
-			Context.Sequencer->ForceEvaluate();
+			TRACE_CPUPROFILER_EVENT_SCOPE(PlaySequence);
 
-			// Evaluate constraints (these run on tick in the editor, so here we must trigger them manually)
-			// Can't iterate through a pre-sorted list since the parenting of the constraints can change between frames
-			Controller.EvaluateAllConstraints();
-
-			FFrameTime KeyTime = FFrameRate::Snap(EvalTime, Resolution, DisplayRate).FloorToFrame();
-			double UsdTimeCode = FFrameRate::TransformTime(KeyTime, Resolution, StageFrameRate).AsDecimal();
-
-			for (const UnrealToUsd::FComponentBaker& Baker : SortedBakers)
+			for (FFrameTime EvalTime = StartFrame; EvalTime <= EndFrame; EvalTime += Interval)
 			{
-				Baker.BakerFunction(UsdTimeCode);
+				Context.Sequencer->SetLocalTimeDirectly(EvalTime);
+				Context.Sequencer->ForceEvaluate();
+
+				// Evaluate constraints (these run on tick in the editor, so here we must trigger them manually)
+				// Can't iterate through a pre-sorted list since the parenting of the constraints can change between frames
+				Controller.EvaluateAllConstraints();
+
+				FFrameTime KeyTime = FFrameRate::Snap(EvalTime, Resolution, DisplayRate).FloorToFrame();
+				double UsdTimeCode = FFrameRate::TransformTime(KeyTime, Resolution, StageFrameRate).AsDecimal();
+
+				for (const UnrealToUsd::FComponentBaker& Baker : SortedBakers)
+				{
+					Baker.BakerFunction(UsdTimeCode);
+				}
 			}
 		}
 
@@ -1499,6 +1515,8 @@ namespace UE::LevelSequenceExporterUSD::Private
 		TArray<UE::FUsdStage>& InOutExportedStages
 	)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ULevelSequenceExporterUsd::ExportMovieSceneSequence);
+
 		if (FilePath.IsEmpty() || Context.ExportedMovieScenes.Contains(&MovieSceneSequence))
 		{
 			return;
@@ -1728,7 +1746,10 @@ namespace UE::LevelSequenceExporterUSD::Private
 		Context.ExportedMovieScenes.Add(&MovieSceneSequence, UniqueFilePath);
 		Context.UsedFilePaths.Add(UniqueFilePath);
 
-		UsdStage.GetRootLayer().Save();
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(Save);
+			UsdStage.GetRootLayer().Save();
+		}
 
 		InOutExportedStages.Add(UsdStage);
 	}
@@ -1754,6 +1775,8 @@ bool ULevelSequenceExporterUsd::ExportBinary(
 )
 {
 	namespace LevelSequenceExporterImpl = UE::LevelSequenceExporterUSD::Private;
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(ULevelSequenceExporterUsd::ExportBinary);
 
 #if USE_USD_SDK
 	ULevelSequence* LevelSequence = Cast<ULevelSequence>(Object);
@@ -1927,6 +1950,8 @@ bool ULevelSequenceExporterUsd::ExportBinary(
 	{
 		if (UWorld* WorldToExport = Options->Level.Get())
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(ULevelSequenceExporterUsd::LevelExport);
+
 			// Come up with a file path for the level
 			FString Directory;
 			FString Filename;

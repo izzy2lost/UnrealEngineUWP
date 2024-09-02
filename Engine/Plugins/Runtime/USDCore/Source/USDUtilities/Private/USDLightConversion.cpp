@@ -53,37 +53,6 @@ namespace LightConversionImpl
 		return 2.0f * PI * (1.0f - FMath::Cos(FMath::DegreesToRadians(SourceAngleDeg / 2.0f)));
 	}
 
-	// As far as we can tell in Aug 2021, the best approximation for a standard in USD light units is to
-	// use Nits all the time. This doesn't make a lot of sense in some cases but here we try our best to convert to Nits
-	float ConvertIntensityToNits(float Intensity, float Steradians, float AreaInSqMeters, ELightUnits SourceUnits)
-	{
-		switch (SourceUnits)
-		{
-			case ELightUnits::Candelas:
-				// Nit = candela / area
-				return Intensity / AreaInSqMeters;
-				break;
-			case ELightUnits::Lumens:
-				// Nit = lumen / ( sr * area );
-				// https://docs.unrealengine.com/en-US/Engine/Rendering/LightingAndShadows/PhysicalLightUnits/index.html#point,spot,andrectlights
-				return Intensity / (Steradians * AreaInSqMeters);
-				break;
-			case ELightUnits::EV:
-				// Nit = luminance (cd/m2)
-				return EV100ToLuminance(Intensity);
-				break;
-			case ELightUnits::Unitless:
-				// Nit = ( unitless / 625 ) / area = candela / area
-				// https://docs.unrealengine.com/en-US/Engine/Rendering/LightingAndShadows/PhysicalLightUnits/index.html#point,spot,andrectlights
-				return (Intensity / 625.0f) / AreaInSqMeters;
-				break;
-			default:
-				break;
-		}
-
-		return Intensity;
-	}
-
 	// Copied from USpotLightComponent::GetCosHalfConeAngle, so we don't need a component to do the same math
 	float GetSpotLightCosHalfConeAngle(float OuterConeAngle, float InnerConeAngle)
 	{
@@ -601,7 +570,6 @@ bool UnrealToUsd::ConvertRectLightComponent(const URectLightComponent& LightComp
 	// Common for both
 	if (pxr::UsdAttribute Attr = LightAPI.CreateIntensityAttr())
 	{
-		float FinalIntensityNits = 1.0f;
 		float OldIntensity = UsdUtils::GetUsdValue<float>(Attr, UsdTimeCode);
 
 		// Area light with no area probably shouldn't emit any light?
@@ -613,31 +581,8 @@ bool UnrealToUsd::ConvertRectLightComponent(const URectLightComponent& LightComp
 
 		AreaInSqMeters = FMath::Max(AreaInSqMeters, KINDA_SMALL_NUMBER);
 
-		switch (LightComponent.IntensityUnits)
-		{
-			case ELightUnits::Candelas:
-				// Nit = candela / area
-				FinalIntensityNits = OldIntensity / AreaInSqMeters;
-				break;
-			case ELightUnits::Lumens:
-				// Nit = lumen / ( sr * area ); For area lights sr is technically 2PI, but we cancel that with an
-				// extra factor of 2.0 here because URectLightComponent::SetLightBrightness uses just PI and not 2PI as steradian
-				// due to some cosine distribution. This also matches the PI factor between candelas and lumen for rect lights on
-				// https://docs.unrealengine.com/en-US/Engine/Rendering/LightingAndShadows/PhysicalLightUnits/index.html#point,spot,andrectlights
-				FinalIntensityNits = OldIntensity / (PI * AreaInSqMeters);
-				break;
-			case ELightUnits::EV:
-				// Nit = luminance (cd/m2)
-				FinalIntensityNits = EV100ToLuminance(OldIntensity);
-				break;
-			case ELightUnits::Unitless:
-				// Nit = (unitless/625) / area = candela / area
-				// https://docs.unrealengine.com/en-US/Engine/Rendering/LightingAndShadows/PhysicalLightUnits/index.html#point,spot,andrectlights
-				FinalIntensityNits = (OldIntensity / 625.0f) / AreaInSqMeters;
-				break;
-			default:
-				break;
-		}
+		const float Steradians = PI;
+		float FinalIntensityNits = UsdUtils::ConvertIntensityToNits(OldIntensity, Steradians, AreaInSqMeters, LightComponent.IntensityUnits);
 
 		Attr.Set<float>(FinalIntensityNits, UsdTimeCode);
 		UsdUtils::NotifyIfOverriddenOpinion(Attr);
@@ -692,31 +637,8 @@ bool UnrealToUsd::ConvertPointLightComponent(const UPointLightComponent& LightCo
 	const float AreaInSqMeters = FMath::Max(SolidAngle * FMath::Square(LightComponent.SourceRadius / 100.f), KINDA_SMALL_NUMBER);
 	if (pxr::UsdAttribute Attr = Light.CreateIntensityAttr())
 	{
-		float FinalIntensityNits = 1.0f;
 		const float OldIntensity = UsdUtils::GetUsdValue<float>(Attr, UsdTimeCode);
-
-		switch (LightComponent.IntensityUnits)
-		{
-			case ELightUnits::Candelas:
-				// Nit = candela / area
-				FinalIntensityNits = OldIntensity / AreaInSqMeters;
-				break;
-			case ELightUnits::Lumens:
-				// Nit = lumen / (sr * area); For a full sphere sr = 4PI
-				FinalIntensityNits = OldIntensity / (SolidAngle * AreaInSqMeters);
-				break;
-			case ELightUnits::EV:
-				// Nit = luminance (cd/m2)
-				FinalIntensityNits = EV100ToLuminance(OldIntensity);
-				break;
-			case ELightUnits::Unitless:
-				// Nit = (unitless/625) / area = candela / area
-				// https://docs.unrealengine.com/en-US/Engine/Rendering/LightingAndShadows/PhysicalLightUnits/index.html#point,spot,andrectlights
-				FinalIntensityNits = (OldIntensity / 625.0f) / AreaInSqMeters;
-				break;
-			default:
-				break;
-		}
+		float FinalIntensityNits = UsdUtils::ConvertIntensityToNits(OldIntensity, SolidAngle, AreaInSqMeters, LightComponent.IntensityUnits);
 
 		Attr.Set<float>(FinalIntensityNits, UsdTimeCode);
 		UsdUtils::NotifyIfOverriddenOpinion(Attr);
@@ -849,7 +771,7 @@ float UnrealToUsd::ConvertRectLightIntensityProperty(
 	// extra factor of 2.0 here because URectLightComponent::SetLightBrightness uses just PI and not 2PI as steradian
 	// due to some cosine distribution. This also matches the PI factor between candelas and lumen for rect lights on
 	// https://docs.unrealengine.com/en-US/Engine/Rendering/LightingAndShadows/PhysicalLightUnits/index.html#point,spot,andrectlights
-	return LightConversionImpl::ConvertIntensityToNits(UsdIntensity, PI, AreaInSqMeters, SourceUnits);
+	return UsdUtils::ConvertIntensityToNits(UsdIntensity, PI, AreaInSqMeters, SourceUnits);
 }
 
 float UnrealToUsd::ConvertRectLightIntensityProperty(float Intensity, float Radius, const FUsdStageInfo& StageInfo, ELightUnits SourceUnits)
@@ -869,7 +791,7 @@ float UnrealToUsd::ConvertRectLightIntensityProperty(float Intensity, float Radi
 	// extra factor of 2.0 here because URectLightComponent::SetLightBrightness uses just PI and not 2PI as steradian
 	// due to some cosine distribution. This also matches the PI factor between candelas and lumen for rect lights on
 	// https://docs.unrealengine.com/en-US/Engine/Rendering/LightingAndShadows/PhysicalLightUnits/index.html#point,spot,andrectlights
-	return LightConversionImpl::ConvertIntensityToNits(UsdIntensity, PI, AreaInSqMeters, SourceUnits);
+	return UsdUtils::ConvertIntensityToNits(UsdIntensity, PI, AreaInSqMeters, SourceUnits);
 }
 
 float UnrealToUsd::ConvertPointLightIntensityProperty(float Intensity, float SourceRadius, const FUsdStageInfo& StageInfo, ELightUnits SourceUnits)
@@ -883,7 +805,7 @@ float UnrealToUsd::ConvertPointLightIntensityProperty(float Intensity, float Sou
 	// area calculation is possibly incorrect, but I think it depends on the chosen convention
 	const float AreaInSqMeters = FMath::Max(SolidAngle * FMath::Square(SourceRadius / 100.f), KINDA_SMALL_NUMBER);
 
-	return LightConversionImpl::ConvertIntensityToNits(UsdIntensity, SolidAngle, AreaInSqMeters, SourceUnits);
+	return UsdUtils::ConvertIntensityToNits(UsdIntensity, SolidAngle, AreaInSqMeters, SourceUnits);
 }
 
 float UnrealToUsd::ConvertSpotLightIntensityProperty(
@@ -905,7 +827,7 @@ float UnrealToUsd::ConvertSpotLightIntensityProperty(
 	// area calculation is possibly incorrect, but I think it depends on the chosen convention
 	const float AreaInSqMeters = FMath::Max(SolidAngle * FMath::Square(SourceRadius / 100.f), KINDA_SMALL_NUMBER);
 
-	return LightConversionImpl::ConvertIntensityToNits(UsdIntensity, SolidAngle, AreaInSqMeters, SourceUnits);
+	return UsdUtils::ConvertIntensityToNits(UsdIntensity, SolidAngle, AreaInSqMeters, SourceUnits);
 }
 
 float UnrealToUsd::ConvertOuterConeAngleProperty(float OuterConeAngle)
@@ -917,6 +839,35 @@ float UnrealToUsd::ConvertInnerConeAngleProperty(float InnerConeAngle, float Out
 {
 	// Keep in [0, 1] range, where 1 is maximum softness, i.e. inner cone angle is zero
 	return FMath::IsNearlyZero(OuterConeAngle) ? 0.0 : 1.0f - InnerConeAngle / OuterConeAngle;
+}
+
+float UsdUtils::ConvertIntensityToNits(float Intensity, float Steradians, float AreaInSqMeters, ELightUnits SourceUnits)
+{
+	switch (SourceUnits)
+	{
+		case ELightUnits::Candelas:
+			// Nit = candela / area
+			return Intensity / AreaInSqMeters;
+			break;
+		case ELightUnits::Lumens:
+			// Nit = lumen / ( sr * area );
+			// https://docs.unrealengine.com/en-US/Engine/Rendering/LightingAndShadows/PhysicalLightUnits/index.html#point,spot,andrectlights
+			return Intensity / (Steradians * AreaInSqMeters);
+			break;
+		case ELightUnits::EV:
+			// Nit = luminance (cd/m2)
+			return EV100ToLuminance(Intensity);
+			break;
+		case ELightUnits::Unitless:
+			// Nit = ( unitless / 625 ) / area = candela / area
+			// https://docs.unrealengine.com/en-US/Engine/Rendering/LightingAndShadows/PhysicalLightUnits/index.html#point,spot,andrectlights
+			return (Intensity / 625.0f) / AreaInSqMeters;
+			break;
+		default:
+			break;
+	}
+
+	return Intensity;
 }
 
 #endif	  // #if USE_USD_SDK

@@ -6,6 +6,7 @@
 #include "USDExporterModule.h"
 
 #include "AnalyticsEventAttribute.h"
+#include "HAL/IConsoleManager.h"
 
 void UsdUtils::AddAnalyticsAttributes(const ULevelSequenceExporterUsdOptions& Options, TArray<struct FAnalyticsEventAttribute>& InOutAttributes)
 {
@@ -23,6 +24,7 @@ void UsdUtils::AddAnalyticsAttributes(const ULevelSequenceExporterUsdOptions& Op
 	{
 		InOutAttributes.Emplace(TEXT("UseExportedLevelAsSublayer"), Options.bUseExportedLevelAsSublayer);
 	}
+	InOutAttributes.Emplace(TEXT("ExportSeparatePrimsPerSpawnableInstance"), Options.bExportSeparatePrimsPerSpawnableInstance);
 	InOutAttributes.Emplace(TEXT("ReExportIdenticalLevelsAndSequences"), Options.bReExportIdenticalLevelsAndSequences);
 	InOutAttributes.Emplace(TEXT("ReExportIdenticalAssets"), Options.bReExportIdenticalAssets);
 	if (Options.bExportLevel)
@@ -52,4 +54,13 @@ void UsdUtils::HashForLevelSequenceExport(const ULevelSequenceExporterUsdOptions
 
 	const bool bUsingLevelSublayer = Options.bExportLevel && Options.bUseExportedLevelAsSublayer;
 	HashToUpdate.Update(reinterpret_cast<const uint8*>(&bUsingLevelSublayer), sizeof(bUsingLevelSublayer));
+
+	HashToUpdate.Update(
+		reinterpret_cast<const uint8*>(&Options.bExportSeparatePrimsPerSpawnableInstance),
+		sizeof(Options.bExportSeparatePrimsPerSpawnableInstance)
+	);
+
+	static IConsoleVariable* Cvar = IConsoleManager::Get().FindConsoleVariable(TEXT("USD.LevelSequenceExport.SkipConstantValues"));
+	const bool bSkipConstantValues = Cvar && Cvar->GetBool();
+	HashToUpdate.Update(reinterpret_cast<const uint8*>(&bSkipConstantValues), sizeof(bSkipConstantValues));
 }

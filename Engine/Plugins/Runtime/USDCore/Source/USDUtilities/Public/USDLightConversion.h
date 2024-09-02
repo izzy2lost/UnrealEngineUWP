@@ -188,4 +188,11 @@ namespace UnrealToUsd
 	USDUTILITIES_API float ConvertInnerConeAngleProperty(float InnerConeAngle, float OuterConeAngle);	 // Returns ConeSoftnessAttr() in USD
 }
 
+namespace UsdUtils
+{
+	// As far as we can tell in Aug 2021, the best approximation for a standard in USD light units is to
+	// use Nits all the time. This doesn't make a lot of sense in some cases but here we try our best to convert to Nits
+	float ConvertIntensityToNits(float Intensity, float Steradians, float AreaInSqMeters, ELightUnits SourceUnits);
+}
+
 #endif	  // #if USE_USD_SDK
