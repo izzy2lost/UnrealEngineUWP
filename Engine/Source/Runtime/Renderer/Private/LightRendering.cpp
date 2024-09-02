@@ -1193,6 +1193,8 @@ bool CanLightUsesAtlasForUnbatchedLight(ERHIFeatureLevel::Type FeatureLevel, con
 
 void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLights, bool bShadowedLightsInClustered)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(GatherAndSortLights);
+
 	if (AllowSimpleLights())
 	{
 		GatherSimpleLights(ViewFamily, Views, OutSortedLights.SimpleLights);
@@ -1385,7 +1387,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 	FMinimalSceneTextures& SceneTextures,
 	const FTranslucencyLightingVolumeTextures& TranslucencyLightingVolumeTextures,
 	FRDGTextureRef LightingChannelsTexture,
-	FSortedLightSetSceneInfo& SortedLightSet)
+	const FSortedLightSetSceneInfo& SortedLightSet)
 {
 	const bool bUseHairLighting = HairStrands::HasViewHairStrandsData(Views);
 #if RHI_RAYTRACING
@@ -2957,7 +2959,7 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 void FDeferredShadingSceneRenderer::RenderLightsForHair(
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
-	FSortedLightSetSceneInfo& SortedLightSet,
+	const FSortedLightSetSceneInfo& SortedLightSet,
 	FRDGTextureRef ScreenShadowMaskSubPixelTexture,
 	FRDGTextureRef LightingChannelsTexture)
 {

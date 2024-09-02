@@ -1778,6 +1778,8 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 	}
 
+	UE::Tasks::TTask<FSortedLightSetSceneInfo*> GatherAndSortLightsTask;
+
 	if (RendererOutput == ERendererOutput::FinalSceneColor)
 	{
 #if RHI_RAYTRACING
@@ -1822,6 +1824,23 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				ShouldVisualizeLightGrid() ||
 				ShouldRenderLocalFogVolume(Scene, ViewFamily)); // Needed when accessing forward light data for the directional light
 			bComputeLightGrid &= !ViewFamily.EngineShowFlags.PathTracing;
+		}
+
+		{
+			extern bool IsVSMOnePassProjectionEnabled(const FEngineShowFlags& ShowFlags);
+			extern UE::Tasks::FTask GetGatherAndSortLightsPrerequisiteTask(const FDynamicShadowsTaskData* TaskData);
+
+			auto* SortedLightSet = GraphBuilder.AllocObject<FSortedLightSetSceneInfo>();
+			const bool bShadowedLightsInClustered = ShouldUseClusteredDeferredShading()
+				&& IsVSMOnePassProjectionEnabled(ViewFamily.EngineShowFlags)
+				&& VirtualShadowMapArray.IsEnabled();
+
+			GatherAndSortLightsTask = LaunchSceneRenderTask<FSortedLightSetSceneInfo*>(UE_SOURCE_LOCATION, [this, SortedLightSet, bShadowedLightsInClustered]
+			{
+				GatherAndSortLights(*SortedLightSet, bShadowedLightsInClustered);
+				return SortedLightSet;
+
+			}, GetGatherAndSortLightsPrerequisiteTask(InitViewTaskDatas.DynamicShadows));
 		}
 	}
 
@@ -2265,22 +2284,23 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		{
 			ViewExtension->PreRenderBasePass_RenderThread(GraphBuilder, ShouldRenderPrePass() /*bDepthBufferIsPopulated*/);
 		}
-	
-		// NOTE: The ordering of the lights is used to select sub-sets for different purposes, e.g., those that support clustered deferred.
-		FSortedLightSetSceneInfo& SortedLightSet = *GraphBuilder.AllocObject<FSortedLightSetSceneInfo>();
+
 		{
+			const FSortedLightSetSceneInfo* SortedLightSet = GatherAndSortLightsTask.GetResult();
+
 			RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, SortLights);
 			RDG_EVENT_SCOPE_STAT(GraphBuilder, SortLights, "SortLights");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, SortLights);
 
-			ComputeLightGridOutput = GatherLightsAndComputeLightGrid(GraphBuilder, bComputeLightGrid, SortedLightSet);
+			GatherAndSortLightsTask.Wait();
+			ComputeLightGridOutput = GatherLightsAndComputeLightGrid(GraphBuilder, bComputeLightGrid, *SortedLightSet);
+
+			CSV_CUSTOM_STAT(LightCount, All,  float(SortedLightSet->SortedLights.Num()), ECsvCustomStatOp::Set);
+			CSV_CUSTOM_STAT(LightCount, Batched, float(SortedLightSet->UnbatchedLightStart), ECsvCustomStatOp::Set);
+			CSV_CUSTOM_STAT(LightCount, Unbatched, float(SortedLightSet->SortedLights.Num()) - float(SortedLightSet->UnbatchedLightStart), ECsvCustomStatOp::Set);
 		}
 
 		LightFunctionAtlas.RenderLightFunctionAtlas(GraphBuilder, Views);
-
-		CSV_CUSTOM_STAT(LightCount, All,  float(SortedLightSet.SortedLights.Num()), ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT(LightCount, Batched, float(SortedLightSet.UnbatchedLightStart), ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT(LightCount, Unbatched, float(SortedLightSet.SortedLights.Num()) - float(SortedLightSet.UnbatchedLightStart), ECsvCustomStatOp::Set);
 
 		// Run before RenderSkyAtmosphereLookUpTables for cloud shadows to be valid.
 		InitVolumetricCloudsForViews(GraphBuilder, bShouldRenderVolumetricCloudBase, InstanceCullingManager);
@@ -2649,7 +2669,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 					FFrontLayerTranslucencyData FrontLayerTranslucencyData = RenderFrontLayerTranslucency(GraphBuilder, Views, SceneTextures, true /*VSM page marking*/);
 
-					VirtualShadowMapArray.BuildPageAllocations(GraphBuilder, GetActiveSceneTextures(), Views, SortedLightSet, VisibleLightInfos, SingleLayerWaterPrePassResult, FrontLayerTranslucencyData, FroxelRenderer);
+					VirtualShadowMapArray.BuildPageAllocations(GraphBuilder, GetActiveSceneTextures(), Views, *GatherAndSortLightsTask.GetResult(), VisibleLightInfos, SingleLayerWaterPrePassResult, FrontLayerTranslucencyData, FroxelRenderer);
 				}
 
 				RenderShadowDepthMaps(GraphBuilder, InitViewTaskDatas.DynamicShadows, InstanceCullingManager, ExternalAccessQueue);
@@ -2789,6 +2809,8 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			}
 #endif
 
+			const FSortedLightSetSceneInfo& SortedLightSet = *GatherAndSortLightsTask.GetResult();
+
 			RenderLights(GraphBuilder, SceneTextures, TranslucencyLightingVolumeTextures, LightingChannelsTexture, SortedLightSet);
 
 			if (SortedLightSet.MegaLightsLightStart < SortedLightSet.SortedLights.Num())
@@ -2852,6 +2874,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 		else if (HairStrands::HasViewHairStrandsData(Views) && ViewFamily.EngineShowFlags.Lighting)
 		{
+			const FSortedLightSetSceneInfo& SortedLightSet = *GatherAndSortLightsTask.GetResult();
 			RenderLightsForHair(GraphBuilder, SceneTextures, SortedLightSet, ForwardScreenSpaceShadowMaskHairTexture, LightingChannelsTexture);
 			RenderDeferredReflectionsAndSkyLightingHair(GraphBuilder);
 		}

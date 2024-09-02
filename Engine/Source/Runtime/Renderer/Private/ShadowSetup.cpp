@@ -1362,6 +1362,7 @@ struct FDynamicShadowsTaskData
 	TArray<struct FGatherShadowPrimitivesPacket*, SceneRenderingAllocator> Packets;
 	FPerShadowGatherStats GatherStats;
 	FFilteredShadowArrays ShadowArrays;
+	UE::Tasks::FTaskEvent BeginGatherAndSortLightsTask{ UE_SOURCE_LOCATION };
 	UE::Tasks::FTaskEvent FilterDynamicShadowsTask{ UE_SOURCE_LOCATION };
 
 	// Gather Dynamic Mesh Elements state
@@ -1439,6 +1440,15 @@ struct FDynamicShadowsTaskData
 		check(MeshCollectors.IsEmpty());
 	}
 };
+
+UE::Tasks::FTask GetGatherAndSortLightsPrerequisiteTask(const FDynamicShadowsTaskData* TaskData)
+{
+	if (TaskData)
+	{
+		return TaskData->BeginGatherAndSortLightsTask;
+	}
+	return {};
+}
 
 void BeginShadowGatherDynamicMeshElements(FDynamicShadowsTaskData* TaskData)
 {
@@ -6327,6 +6337,9 @@ void FSceneRenderer::CreateDynamicShadows(FDynamicShadowsTaskData& TaskData)
 
 		// Calculate visibility of the projected shadows.
 		InitProjectedShadowVisibility(TaskData);
+
+		// At this point the shadows are initialized and we can start gathering lights for shading.
+		TaskData.BeginGatherAndSortLightsTask.Trigger();
 	}
 
 	// Clear old preshadows and attempt to add new ones to the cache

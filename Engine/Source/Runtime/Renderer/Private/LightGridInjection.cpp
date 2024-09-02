@@ -107,8 +107,6 @@ FAutoConsoleVariableRef CVarLightCullingMaxDistanceOverride(
 	ECVF_RenderThreadSafe
 );
 
-extern bool IsVSMOnePassProjectionEnabled(const FEngineShowFlags& ShowFlags);
-
 bool ShouldVisualizeLightGrid()
 {
 	return GForwardLightGridDebug > 0;
@@ -509,7 +507,7 @@ static void CalculateRectLightCullingPlanes(const FRectLightSceneProxy* RectProx
 	check(OutPlanes.Num() == NUM_PLANES_PER_RECT_LIGHT);
 }
 
-FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuilder, bool bCullLightsToGrid, FSortedLightSetSceneInfo& SortedLightSet)
+FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuilder, bool bCullLightsToGrid, const FSortedLightSetSceneInfo& SortedLightSet)
 {
 	FComputeLightGridOutput Result = {};
 
@@ -1056,17 +1054,11 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 	return Result;
 }
 
-FComputeLightGridOutput FDeferredShadingSceneRenderer::GatherLightsAndComputeLightGrid(FRDGBuilder& GraphBuilder, bool bNeedLightGrid, FSortedLightSetSceneInfo& SortedLightSet)
+FComputeLightGridOutput FDeferredShadingSceneRenderer::GatherLightsAndComputeLightGrid(FRDGBuilder& GraphBuilder, bool bNeedLightGrid, const FSortedLightSetSceneInfo& SortedLightSet)
 {
 	SCOPED_NAMED_EVENT(GatherLightsAndComputeLightGrid, FColor::Emerald);
 	FComputeLightGridOutput Result = {};
 
-	bool bShadowedLightsInClustered = ShouldUseClusteredDeferredShading()
-		&& IsVSMOnePassProjectionEnabled(ViewFamily.EngineShowFlags)
-		&& VirtualShadowMapArray.IsEnabled();
-
-	GatherAndSortLights(SortedLightSet, bShadowedLightsInClustered);
-	
 	if (!bNeedLightGrid)
 	{
 		SetDummyForwardLightUniformBufferOnViews(GraphBuilder, ShaderPlatform, Views);
