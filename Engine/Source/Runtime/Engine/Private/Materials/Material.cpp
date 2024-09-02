@@ -448,8 +448,24 @@ public:
 		{
 			if (Type == EMaterialParameterType::Scalar && ParameterInfo.Name == GetSubsurfaceProfileParameterName())
 			{
+				// Legacy single SubsurfaceProfile (Substrate do not add this one in the material shader)
 				OutValue = GetSubsurfaceProfileId(GetSubsurfaceProfileRT());
 				return true;
+			}
+			else if (Type == EMaterialParameterType::Scalar && NumSubsurfaceProfileRT() > 0)
+			{
+				const USubsurfaceProfile* SSProfileOverrideRT = GetSubsurfaceProfileRT();
+				// Substrate general SubsurfaceProfile
+				for (uint32 It = 0, Count = NumSubsurfaceProfileRT(); It < Count; ++It)
+				{
+					const USubsurfaceProfile* SSProfileRT = GetSubsurfaceProfileRT(It);
+					if (ParameterInfo.Name == CreateSubsurfaceProfileParameterName(SSProfileRT))
+					{
+						// Set the root material Profile, or the profile overriden by any instances.
+						OutValue = GetSubsurfaceProfileId(SSProfileOverrideRT ? SSProfileOverrideRT : SSProfileRT);
+						return true;
+					}
+				}
 			}
 			else if (Type == EMaterialParameterType::Scalar && NumSpecularProfileRT() > 0)
 			{
@@ -3000,6 +3016,15 @@ void UMaterial::Serialize(FArchive& Ar)
 		// All previous material must use the legacy pixel depth offset mode. New material will use the new mode.
 		PixelDepthOffsetMode = PDOM_Legacy;
 	}
+
+	if (Ar.IsLoading() && Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::SubsurfaceProfileGuid)
+	{
+		// Add the unique legacy profile to the Substrate profile list the first time we load an older asset.
+		if (SubsurfaceProfiles.IsEmpty() && SubsurfaceProfile)
+		{
+			SubsurfaceProfiles.Add(SubsurfaceProfile);
+		}
+	}
 }
 
 void UMaterial::PostDuplicate(bool bDuplicateForPIE)
@@ -5408,7 +5433,14 @@ void UMaterial::RebuildShadingModelField()
 		SubsurfaceProfile = nullptr;
 		if ((SubstrateMaterialInfo.HasShadingModel(SSM_Eye) || SubstrateMaterialInfo.HasShadingModel(SSM_SubsurfaceProfile)) && SubstrateMaterialInfo.CountSubsurfaceProfiles() > 0)
 		{
-			SubsurfaceProfile = SubstrateMaterialInfo.GetSubsurfaceProfile();
+			SubsurfaceProfile = SubstrateMaterialInfo.GetSubsurfaceProfile(0);
+		}
+
+		// Set subsurface profiles if any
+		SubsurfaceProfiles.SetNum(SubstrateMaterialInfo.CountSubsurfaceProfiles());
+		for (int32 It = 0, Count = SubstrateMaterialInfo.CountSubsurfaceProfiles(); It < Count; ++It)
+		{
+			SubsurfaceProfiles[It] = SubstrateMaterialInfo.GetSubsurfaceProfile(It);
 		}
 
 		// Set specular profile if any
@@ -6929,6 +6961,24 @@ USubsurfaceProfile* UMaterial::GetSubsurfaceProfile_Internal() const
 {
 	checkSlow(IsInGameThread());
 	return SubsurfaceProfile; 
+}
+
+uint32 UMaterial::NumSubsurfaceProfileRoot_Internal() const
+{
+	return SubsurfaceProfiles.Num();
+}
+
+USubsurfaceProfile* UMaterial::GetSubsurfaceProfileRoot_Internal(uint32 Index) const
+{
+	checkSlow(IsInGameThread());
+	check(Index<uint32(SubsurfaceProfiles.Num()));
+	return SubsurfaceProfiles[Index];
+}
+
+USubsurfaceProfile* UMaterial::GetSubsurfaceProfileOverride_Internal() const
+{
+	checkSlow(IsInGameThread());
+	return nullptr; // No override for root material
 }
 
 uint32 UMaterial::NumSpecularProfile_Internal() const

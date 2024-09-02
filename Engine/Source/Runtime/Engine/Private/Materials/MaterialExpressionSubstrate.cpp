@@ -290,7 +290,8 @@ int32 UMaterialExpressionSubstrateShadingModels::Compile(class FMaterialCompiler
 	const bool bHasSSS = HasSSS();
 	if (bHasSSS)
 	{
-		SSSProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(GetSubsurfaceProfileParameterName(), 1.0f), MCT_Float1);
+		const FName SubsurfaceProfileParameterName = CreateSubsurfaceProfileParameterName(SubsurfaceProfile);
+		SSSProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(SubsurfaceProfileParameterName, 1.0f), MCT_Float1);
 	}
 
 	FSubstrateOperator& SubstrateOperator = Compiler->SubstrateCompilationGetOperator(Compiler->SubstrateTreeStackGetPathUniqueId());
@@ -713,6 +714,7 @@ UMaterialExpressionSubstrateSlabBSDF::UMaterialExpressionSubstrateSlabBSDF(const
 
 #if WITH_EDITOR
 FName CreateSpecularProfileParameterName(USpecularProfile* InProfile);
+FName CreateSubsurfaceProfileParameterName(const USubsurfaceProfile* InProfile);
 int32 UMaterialExpressionSubstrateSlabBSDF::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	FGuid PathUniqueId = Compiler->SubstrateTreeStackGetPathUniqueId();
@@ -725,7 +727,8 @@ int32 UMaterialExpressionSubstrateSlabBSDF::Compile(class FMaterialCompiler* Com
 	int32 SSSProfileCodeChunk = INDEX_NONE;
 	if (SubstrateOperator.Has(ESubstrateBsdfFeature_SSS))
 	{
-		SSSProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(GetSubsurfaceProfileParameterName(), 1.0f), MCT_Float1);
+		const FName SubsurfaceProfileParameterName = CreateSubsurfaceProfileParameterName(SubsurfaceProfile);
+		SSSProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(SubsurfaceProfileParameterName, 1.0f), MCT_Float1);
 	}
 
 	int32 SpecularProfileCodeChunk = INDEX_NONE;
@@ -2058,7 +2061,8 @@ int32 UMaterialExpressionSubstrateEyeBSDF::Compile(class FMaterialCompiler* Comp
 	int32 SSSProfileCodeChunk = INDEX_NONE;
 	if (SubsurfaceProfile != nullptr)
 	{
-		SSSProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(GetSubsurfaceProfileParameterName(), 1.0f), MCT_Float1);
+		const FName SubsurfaceProfileParameterName = CreateSubsurfaceProfileParameterName(SubsurfaceProfile);
+		SSSProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(SubsurfaceProfileParameterName, 1.0f), MCT_Float1);
 	}
 
 	FSubstrateOperator& SubstrateOperator = Compiler->SubstrateCompilationGetOperator(Compiler->SubstrateTreeStackGetPathUniqueId());
@@ -3580,7 +3584,8 @@ int32 UMaterialExpressionSubstrateConvertMaterialAttributes::Compile(class FMate
 	const bool bHasSSS = HasSSS();
 	if (bHasSSS)
 	{
-		SSSProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(GetSubsurfaceProfileParameterName(), 1.0f), MCT_Float1);
+		const FName SubsurfaceProfileParameterName = CreateSubsurfaceProfileParameterName(SubsurfaceProfile);
+		SSSProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(SubsurfaceProfileParameterName, 1.0f), MCT_Float1);
 	}
 	SSSProfileCodeChunk = SSSProfileCodeChunk != INDEX_NONE ? SSSProfileCodeChunk : Compiler->Constant(0.0f);
 

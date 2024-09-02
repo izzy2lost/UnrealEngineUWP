@@ -213,9 +213,15 @@ public:
 	}
 #endif
 
-	// Subsurface profiles
+	// Subsurface profile.
+	// When Substrate is enabled, this is ONLY used as an override for Subsurface Profile on material instance (override all Subsurface Profiles at once for now)
 	void SetSubsurfaceProfileRT(const USubsurfaceProfile* Ptr) { SubsurfaceProfileRT = Ptr; }
 	const USubsurfaceProfile* GetSubsurfaceProfileRT() const { return SubsurfaceProfileRT; }
+
+	// Subsurface profiles
+	void AddSubsurfaceProfileRT(const USubsurfaceProfile* Ptr) { SubsurfaceProfilesRT.Add(Ptr); }
+	const USubsurfaceProfile* GetSubsurfaceProfileRT(uint32 Index) const { check(Index<uint32(SubsurfaceProfilesRT.Num())); return SubsurfaceProfilesRT[Index]; }
+	const uint32 NumSubsurfaceProfileRT() const { return SubsurfaceProfilesRT.Num(); }
 
 	// Specular profiles
 	void AddSpecularProfileRT(const USpecularProfile* Ptr) { SpecularProfilesRT.Add(Ptr); }
@@ -243,7 +249,8 @@ private:
 	virtual void FinishCacheUniformExpressions() const {}
 
 	/** 0 if not set, game thread pointer, do not dereference, only for comparison */
-	const USubsurfaceProfile* SubsurfaceProfileRT;
+	const USubsurfaceProfile* SubsurfaceProfileRT;	// Overrides all SubsurfaceProfilesRT when set, used when set from material instance to respect the legacy workflow
+	TArray<const USubsurfaceProfile*> SubsurfaceProfilesRT;
 	TArray<const USpecularProfile*> SpecularProfilesRT;
 	const UNeuralProfile* NeuralProfileRT;
 	FString MaterialName;

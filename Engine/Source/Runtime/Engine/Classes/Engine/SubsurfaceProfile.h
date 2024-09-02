@@ -154,9 +154,14 @@ class USubsurfaceProfile : public UObject
 	UPROPERTY(Category = USubsurfaceProfile, EditAnywhere, meta = (ShowOnlyInnerProperties))
 	struct FSubsurfaceProfileStruct Settings;
 
+	UPROPERTY()
+	FGuid Guid;
+
 	//~ Begin UObject Interface
 	virtual void BeginDestroy();
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent);
+	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode);
+	virtual void Serialize(FArchive& Ar) override;
 
 	// Upgrade parameters from Separable to Burley.
 	virtual void PostLoad();
@@ -282,3 +287,6 @@ ENGINE_API FName GetSubsurfaceProfileParameterName();
 
 // Returns the subsurface profile ID for a given Sub-surface Profile object
 ENGINE_API float GetSubsurfaceProfileId(const USubsurfaceProfile* In);
+
+// Returns the shader parameter name for a Subsurface profile.
+ENGINE_API FName CreateSubsurfaceProfileParameterName(const USubsurfaceProfile* InProfile);

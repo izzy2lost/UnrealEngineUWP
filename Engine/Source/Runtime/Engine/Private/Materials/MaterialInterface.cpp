@@ -1451,6 +1451,16 @@ USubsurfaceProfile* UMaterialInterface::GetSubsurfaceProfile_Internal() const
 	return nullptr;
 }
 
+USubsurfaceProfile* UMaterialInterface::GetSubsurfaceProfileRoot_Internal(uint32 Index) const
+{
+	return nullptr;
+}
+
+USubsurfaceProfile* UMaterialInterface::GetSubsurfaceProfileOverride_Internal() const
+{
+	return nullptr;
+}
+
 USpecularProfile* UMaterialInterface::GetSpecularProfile_Internal(uint32 Index) const
 {
 	return nullptr;
@@ -1461,6 +1471,10 @@ UNeuralProfile* UMaterialInterface::GetNeuralProfile_Internal() const
 	return nullptr;
 }
 
+uint32 UMaterialInterface::NumSubsurfaceProfileRoot_Internal() const
+{
+	return 0u;
+}
 
 uint32 UMaterialInterface::NumSpecularProfile_Internal() const
 {
@@ -1519,8 +1533,9 @@ void UMaterialInterface::UpdateMaterialRenderProxy(FMaterialRenderProxy& Proxy)
 
 	FMaterialShadingModelField MaterialShadingModels = GetShadingModels();
 
-	// for better performance we only update SubsurfaceProfileRT if the feature is used
-	if (UseSubsurfaceProfile(MaterialShadingModels))
+	// For better performance we only update SubsurfaceProfileRT if the feature is used and substrate is not enabled
+	// When Substrate is enabled, this is ONLY used as an override for Subsurface Profile on material instance (override all Subsurface Profiles at once for now)
+	if (UseSubsurfaceProfile(MaterialShadingModels) && !Substrate::IsSubstrateEnabled())
 	{
 		USubsurfaceProfile* LocalSubsurfaceProfile = GetSubsurfaceProfile_Internal();
 		
@@ -1579,43 +1594,93 @@ void UMaterialInterface::UpdateMaterialRenderProxy(FMaterialRenderProxy& Proxy)
 
 	if (Substrate::IsSubstrateEnabled())
 	{
-		struct FEntry
-		{
-			USpecularProfile* Profile = nullptr;
-			FSpecularProfileStruct Settings;
-			const FTextureReference* Texture = nullptr;
-			FGuid Guid;
-		};
-		TArray<FEntry> Entries;
-		for (int32 It = 0, Count = NumSpecularProfile_Internal(); It<Count; ++It)
-		{
-			FEntry& Entry = Entries.AddDefaulted_GetRef();
-			Entry.Profile = GetSpecularProfile_Internal(It);
-			if (Entry.Profile)
-			{
-				Entry.Settings 	= Entry.Profile->Settings;
-				Entry.Guid 		= Entry.Profile->Guid;	
-				if (!Entry.Settings.IsProcedural())
-				{
-					Entry.Texture = &Entry.Profile->Settings.Texture->TextureReference;
-				}
-			}
-		}
-
 		FMaterialRenderProxy* InProxy = &Proxy;
-		ENQUEUE_RENDER_COMMAND(UpdateMaterialRenderProxySpecular)(
-		[InProxy, Entries](FRHICommandListImmediate& RHICmdList)
+
 		{
-			for (const FEntry& Entry : Entries)
+			struct FEntry
 			{
+				USpecularProfile* Profile = nullptr;
+				FSpecularProfileStruct Settings;
+				const FTextureReference* Texture = nullptr;
+				FGuid Guid;
+			};
+			TArray<FEntry> Entries;
+			for (int32 It = 0, Count = NumSpecularProfile_Internal(); It<Count; ++It)
+			{
+				FEntry& Entry = Entries.AddDefaulted_GetRef();
+				Entry.Profile = GetSpecularProfile_Internal(It);
 				if (Entry.Profile)
 				{
-					const uint32 AllocationId = SpecularProfileAtlas::AddOrUpdateProfile(Entry.Profile, Entry.Guid, Entry.Settings, Entry.Texture);
-					check(AllocationId >= 0 && AllocationId < MAX_SPECULAR_PROFILE_COUNT);
+					Entry.Settings 	= Entry.Profile->Settings;
+					Entry.Guid 		= Entry.Profile->Guid;	
+					if (!Entry.Settings.IsProcedural())
+					{
+						Entry.Texture = &Entry.Profile->Settings.Texture->TextureReference;
+					}
 				}
-				InProxy->AddSpecularProfileRT(Entry.Profile);
 			}
-		});
+
+			ENQUEUE_RENDER_COMMAND(UpdateMaterialRenderProxySpecular)(
+			[InProxy, Entries](FRHICommandListImmediate& RHICmdList)
+			{
+				for (const FEntry& Entry : Entries)
+				{
+					if (Entry.Profile)
+					{
+						const uint32 AllocationId = SpecularProfileAtlas::AddOrUpdateProfile(Entry.Profile, Entry.Guid, Entry.Settings, Entry.Texture);
+						check(AllocationId >= 0 && AllocationId < MAX_SPECULAR_PROFILE_COUNT);
+					}
+					InProxy->AddSpecularProfileRT(Entry.Profile);
+				}
+			});
+		}
+
+		{
+			struct FEntry
+			{
+				USubsurfaceProfile* Profile = nullptr;
+				FSubsurfaceProfileStruct Settings;
+			};
+			TArray<FEntry> Entries;
+			for (int32 It = 0, Count = NumSubsurfaceProfileRoot_Internal(); It < Count; ++It)
+			{
+				FEntry& Entry = Entries.AddDefaulted_GetRef();
+				Entry.Profile = GetSubsurfaceProfileRoot_Internal(It);
+				if (Entry.Profile)
+				{
+					Entry.Settings = Entry.Profile->Settings;
+				}
+			}
+
+			USubsurfaceProfile* SubsurfaceProfileOverride = GetSubsurfaceProfileOverride_Internal();
+			FSubsurfaceProfileStruct SubsurfaceProfileOverrideSettings;
+			if (SubsurfaceProfileOverride)
+			{
+				SubsurfaceProfileOverrideSettings = SubsurfaceProfileOverride->Settings;
+			}
+
+			ENQUEUE_RENDER_COMMAND(UpdateMaterialRenderProxySubsurfaceProfiles)(
+			[InProxy, Entries, SubsurfaceProfileOverride, SubsurfaceProfileOverrideSettings](FRHICommandListImmediate& RHICmdList)
+			{
+				for (const FEntry& Entry : Entries)
+				{
+					if (Entry.Profile)
+					{
+						const uint32 AllocationId = GSubsurfaceProfileTextureObject.AddOrUpdateProfile(Entry.Settings, Entry.Profile);
+						check(AllocationId >= 0 && AllocationId < MAX_SUBSURFACE_PROFILE_COUNT);
+					}
+					InProxy->AddSubsurfaceProfileRT(Entry.Profile);
+				}
+
+				if (SubsurfaceProfileOverride)
+				{
+					GSubsurfaceProfileTextureObject.AddOrUpdateProfile(SubsurfaceProfileOverrideSettings, SubsurfaceProfileOverride);
+				}
+
+				// Set the subsurface profile override using the default SubsurfaceProfile pointer.
+				InProxy->SetSubsurfaceProfileRT(SubsurfaceProfileOverride);
+			});
+		}
 	}
 }
 

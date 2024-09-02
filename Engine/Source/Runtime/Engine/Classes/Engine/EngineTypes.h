@@ -753,12 +753,12 @@ public:
 	// Subsurface profiles
 	void AddSubsurfaceProfile(USubsurfaceProfile* InProfile) { if (InProfile) SubsurfaceProfiles.Add(InProfile); }
 	int32 CountSubsurfaceProfiles() const { return SubsurfaceProfiles.Num(); }
-	USubsurfaceProfile* GetSubsurfaceProfile() const { return SubsurfaceProfiles.Num() > 0 ? SubsurfaceProfiles[0] : nullptr; }
+	USubsurfaceProfile* GetSubsurfaceProfile(int32 Index) const { return SubsurfaceProfiles.IsValidIndex(Index) ? SubsurfaceProfiles[Index] : nullptr; }
 
 	// Specular profiles
 	void AddSpecularProfile(USpecularProfile* InProfile) { if (InProfile) SpecularProfiles.Add(InProfile); }
 	int32 CountSpecularProfiles() const { return SpecularProfiles.Num(); }
-	USpecularProfile* GetSpecularProfile(int32 Index) const { return Index < SpecularProfiles.Num() ? SpecularProfiles[Index] : nullptr; }
+	USpecularProfile* GetSpecularProfile(int32 Index) const { return SpecularProfiles.IsValidIndex(Index) ? SpecularProfiles[Index] : nullptr; }
 
 	// Shading model from expression
 	void SetShadingModelFromExpression(bool bIn) { bHasShadingModelFromExpression = bIn ? 1u : 0u; }

@@ -901,6 +901,9 @@ public:
 	ENGINE_API virtual bool HasCustomizedUVs() const override;
 	ENGINE_API virtual bool HasPixelAnimation() const override;
 	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfile_Internal() const override;
+	ENGINE_API uint32 NumSubsurfaceProfileRoot_Internal() const override;
+	ENGINE_API USubsurfaceProfile* GetSubsurfaceProfileRoot_Internal(uint32 Index) const override;
+	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfileOverride_Internal() const override;
 	ENGINE_API virtual bool CastsRayTracedShadows() const override;
 	ENGINE_API virtual bool IsTessellationEnabled() const override;
 

@@ -521,6 +521,9 @@ struct FFortniteMainBranchObjectVersion
 		// Multiple changes to AnimNext modules, variables etc.
 		AnimNextModuleRefactor,
 
+		// Subsurface profile now has a guid to be able to select one of many in a Substrate material.
+		SubsurfaceProfileGuid,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

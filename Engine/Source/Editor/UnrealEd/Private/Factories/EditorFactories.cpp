@@ -7686,6 +7686,9 @@ UObject* USubsurfaceProfileFactory::FactoryCreateNew(UClass* InClass, UObject* I
 	// loaded from files to be automatically converted to MFP.
 	Object->Settings.bEnableMeanFreePath = true;
 
+	// Assign a GUID to the asset
+	Object->Guid = FGuid::NewGuid();
+
 	return Object;
 }
 

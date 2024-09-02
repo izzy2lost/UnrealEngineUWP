@@ -300,6 +300,25 @@ bool FMaterialInstanceResource::GetParameterValue(EMaterialParameterType Type, c
 		OutValue = GetSubsurfaceProfileId(MySubsurfaceProfileRT);
 		bResult = true;
 	}
+	else if (Type == EMaterialParameterType::Scalar && NumSubsurfaceProfileRT() > 0)
+	{
+#if !ENABLE_MATERIAL_LAYER_PROTOTYPE
+		check(ParameterInfo.Association == EMaterialParameterAssociation::GlobalParameter);
+#endif
+		const USubsurfaceProfile* SSProfileOverrideRT = GetSubsurfaceProfileRT();
+		// Substrate general SubsurfaceProfile
+		for (uint32 It = 0, Count = NumSubsurfaceProfileRT(); It < Count; ++It)
+		{
+			const USubsurfaceProfile* SSProfileRT = GetSubsurfaceProfileRT(It);
+			if (ParameterInfo.Name == CreateSubsurfaceProfileParameterName(SSProfileRT))
+			{
+				// Set the root material Profile, or the profile overriden by any instances.
+				OutValue = GetSubsurfaceProfileId(SSProfileOverrideRT ? SSProfileOverrideRT : SSProfileRT);
+				bResult = true;
+				break;
+			}
+		}
+	}
 	else if (Type == EMaterialParameterType::Scalar && NumSpecularProfileRT() > 0)
 	{
 		for (uint32 It=0,Count=NumSpecularProfileRT();It<Count;++It)
@@ -4871,6 +4890,32 @@ USubsurfaceProfile* UMaterialInstance::GetSubsurfaceProfile_Internal() const
 
 	// go up the chain if possible
 	return Parent ? Parent->GetSubsurfaceProfile_Internal() : 0;
+}
+
+uint32 UMaterialInstance::NumSubsurfaceProfileRoot_Internal() const
+{
+	// Return the subsurface profile count form the root material.
+	checkSlow(IsInGameThread());
+	return Parent ? Parent->NumSubsurfaceProfileRoot_Internal() : 0;
+}
+
+USubsurfaceProfile* UMaterialInstance::GetSubsurfaceProfileRoot_Internal(uint32 Index) const
+{
+	// Return the Subsurface profile from the root material.
+	checkSlow(IsInGameThread());
+	return Parent ? Parent->GetSubsurfaceProfileRoot_Internal(Index) : 0;
+}
+
+USubsurfaceProfile* UMaterialInstance::GetSubsurfaceProfileOverride_Internal() const
+{
+	// Return the possible override for all the instance, but root material always return null as no override since in this case the material Profile itself will be used.
+	// The single overriden SSSProbile will overide all the Probile from the root material.
+	checkSlow(IsInGameThread());
+	if (bOverrideSubsurfaceProfile)
+	{
+		return SubsurfaceProfile;
+	}
+	return Parent ? Parent->GetSubsurfaceProfileOverride_Internal() : 0;
 }
 
 bool UMaterialInstance::CastsRayTracedShadows() const

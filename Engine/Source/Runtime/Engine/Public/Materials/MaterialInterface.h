@@ -275,6 +275,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Material, meta = (DisplayName = "Subsurface Profile"))
 	TObjectPtr<class USubsurfaceProfile> SubsurfaceProfile;
 
+	/** Subsurface Profiles. For internal usage, not editable/visible. 
+	 * For Substrate, there can be many in a material similarly to SpecularProfile (even though only one can be specified per pixel due to the post processing) 
+	 */
+	UPROPERTY()
+	TArray<TObjectPtr<class USubsurfaceProfile>> SubsurfaceProfiles;
+
 	/** Specular Profile. For internal usage, not editable/visible */
 	UPROPERTY()
 	TArray<TObjectPtr<class USpecularProfile>> SpecularProfiles;
@@ -945,6 +951,9 @@ public:
 	ENGINE_API virtual bool HasCustomizedUVs() const;
 	ENGINE_API virtual bool HasPixelAnimation() const;
 	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfile_Internal() const;
+	ENGINE_API virtual uint32 NumSubsurfaceProfileRoot_Internal() const;
+	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfileRoot_Internal(uint32 Index) const;
+	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfileOverride_Internal() const;
 	ENGINE_API virtual uint32 NumSpecularProfile_Internal() const;
 	ENGINE_API virtual USpecularProfile* GetSpecularProfile_Internal(uint32 Index) const;
 	ENGINE_API virtual UNeuralProfile* GetNeuralProfile_Internal() const;

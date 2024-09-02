@@ -1201,6 +1201,9 @@ public:
 	ENGINE_API virtual bool IsPostProcessMaterial() const;
 	ENGINE_API bool IsPostProcessMaterialOutputingAlpha() const;
 	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfile_Internal() const override;
+	ENGINE_API virtual uint32 NumSubsurfaceProfileRoot_Internal() const override;
+	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfileRoot_Internal(uint32 Index) const override;
+	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfileOverride_Internal() const override;
 	ENGINE_API virtual uint32 NumSpecularProfile_Internal() const override;
 	ENGINE_API virtual USpecularProfile* GetSpecularProfile_Internal(uint32 Index) const override;
 	ENGINE_API virtual UNeuralProfile* GetNeuralProfile_Internal() const override;
