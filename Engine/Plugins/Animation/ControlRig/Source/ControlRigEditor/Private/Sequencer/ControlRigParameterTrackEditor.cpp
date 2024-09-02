@@ -1847,9 +1847,9 @@ void FControlRigParameterTrackEditor::AddControlRigFromComponent(FGuid InGuid)
 
 bool FControlRigParameterTrackEditor::HasTransformKeyOverridePriority() const
 {
-	return CanAddTransformKeysForSelectedObjects();
-
+	return false; 
 }
+
 bool FControlRigParameterTrackEditor::CanAddTransformKeysForSelectedObjects() const
 {
 	// WASD hotkeys to fly the viewport can conflict with hotkeys for setting keyframes (ie. s). 
