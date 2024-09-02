@@ -752,7 +752,9 @@ void FGPUSortManager::OnPreRender(FRDGBuilder& GraphBuilder)
 				// Sort batches so that the next batch to handle is at the end of the array.
 				SortBatches.Sort([](const FSortBatch& A, const FSortBatch& B) { return (uint32)A.ProcessingOrder > (uint32)B.ProcessingOrder; });
 
+				RHI_BREADCRUMB_EVENT_STAT(RHICmdList, GPUKeyGenAndSort, "GPU KeyGen & Sort");
 				SCOPED_GPU_STAT(RHICmdList, GPUKeyGenAndSort);
+
 				while (SortBatches.Num() && SortBatches.Last().ProcessingOrder == ESortBatchProcessingOrder::KeyGenAndSortAfterPreRender)
 				{
 					// Remove the SortBatch but don't remove the SortBuffers from the pool since it can be reused immediately.
@@ -803,7 +805,9 @@ void FGPUSortManager::OnPostRenderOpaque(FRDGBuilder& GraphBuilder)
 		{
 			if (SortBatches.Num())
 			{
+				RHI_BREADCRUMB_EVENT_STAT(RHICmdList, GPUKeyGenAndSort, "GPU KeyGen & Sort");
 				SCOPED_GPU_STAT(RHICmdList, GPUKeyGenAndSort);
+
 				while (SortBatches.Num())
 				{
 					// Remove the SortBatch but don't remove the SortBuffers from the pool since it can be reused immediately.

@@ -634,6 +634,7 @@ void InitLocalFogVolumesForViews(
 	const bool bShouldRenderLocalFogVolume = ShouldRenderLocalFogVolume(Scene, SceneViewFamily);
 	if (LocalFogVolumeInstanceCount > 0 && bShouldRenderLocalFogVolume)
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, LocalFogVolumeVolumes, "LocalFogVolumeVolumes");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, LocalFogVolumeVolumes);
 
 		for (FViewInfo& View : Views)
@@ -784,6 +785,7 @@ void RenderLocalFogVolume(
 	uint32 LocalFogVolumeInstanceCount = Scene->LocalFogVolumes.Num();
 	if (LocalFogVolumeInstanceCount > 0 && ShouldRenderLocalFogVolume(Scene, SceneViewFamily))
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, LocalFogVolumeVolumes, "LocalFogVolumeVolumes");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, LocalFogVolumeVolumes);
 
 		FRDGTextureRef SceneColorTexture = SceneTextures.Color.Resolve;

@@ -183,6 +183,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingPrimaryRaysView(
 
 	FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, RayTracingPrimaryRays, "RayTracingPrimaryRays");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingPrimaryRays);
 
 	GraphBuilder.AddPass(

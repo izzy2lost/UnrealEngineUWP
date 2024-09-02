@@ -1316,8 +1316,8 @@ void FMediaIOCorePlayerBase::TransferTexture_RenderThread(FRHICommandListImmedia
 	const bool bIsSampleAwaitingForGpuTransfer = Sample->IsAwaitingForGPUTransfer();
 	if (CanUseGPUTextureTransfer() && bIsSampleAwaitingForGpuTransfer)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, STAT_MediaIOPlayer_JITR_TransferTexture, "JITR_TransferTexture");
 		SCOPED_GPU_STAT(RHICmdList, STAT_MediaIOPlayer_JITR_TransferTexture);
-		SCOPED_DRAW_EVENT(RHICmdList, STAT_MediaIOPlayer_JITR_TransferTexture);
 
 		// Prepare the proxy sample for DMA texture transfer
 		PreGPUTransferJITR(Sample, JITRProxySample);

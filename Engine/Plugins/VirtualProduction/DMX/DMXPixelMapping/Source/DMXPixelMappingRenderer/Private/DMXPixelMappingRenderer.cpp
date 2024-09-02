@@ -285,8 +285,8 @@ void FDMXPixelMappingRenderer::RenderPreview(const FTextureResource* TextureReso
 	[this, TextureResource, DownsampleResource, PixelPreviewParamSet = MoveTemp(InPixelPreviewParamSet)]
 	(FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, DMXPixelMappingPreviewStat, "PixelMappingPreview");
 		SCOPED_GPU_STAT(RHICmdList, DMXPixelMappingPreviewStat);
-		SCOPED_DRAW_EVENTF(RHICmdList, DMXPixelMappingPreviewStat, DMXPixelMappingRenderer::RenderPreviewPassName);
 
 		const FTextureRHIRef DownsampleTextureRef = DownsampleResource->TextureRHI;
 		const FTextureRHIRef RenderTargetRef = TextureResource->TextureRHI;

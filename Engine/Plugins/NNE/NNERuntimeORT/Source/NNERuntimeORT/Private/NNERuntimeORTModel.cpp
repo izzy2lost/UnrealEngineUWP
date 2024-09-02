@@ -922,7 +922,7 @@ FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(F
 		}
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "FModelInstanceORTDmlRDG::EnqueueRDG");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNERuntimeORTDmlRDG, "FModelInstanceORTDmlRDG::EnqueueRDG");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, FNNERuntimeORTDmlRDG);
 
 	GraphBuilder.AddPass(RDG_EVENT_NAME("FModelInstanceORTDmlRDG::EnqueueRDG.AddPass"), PassParameters, ERDGPassFlags::Readback,

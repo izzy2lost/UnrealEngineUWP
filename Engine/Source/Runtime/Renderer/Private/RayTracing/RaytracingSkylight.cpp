@@ -385,7 +385,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "RayTracingSkyLight");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, RayTracingSkyLight, "RayTracingSkyLight");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingSkyLight);
 
 	check(SceneColorTexture);

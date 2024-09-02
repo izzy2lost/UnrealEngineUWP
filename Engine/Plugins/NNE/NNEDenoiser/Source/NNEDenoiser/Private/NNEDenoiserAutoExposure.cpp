@@ -115,7 +115,7 @@ void FAutoExposure::EnqueueRDG(FRDGBuilder& GraphBuilder, FRDGTextureRef InputTe
 		FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 		TShaderMapRef<FAutoExposureDownsampleCS> Shader(GlobalShaderMap);
 
-		RDG_EVENT_SCOPE(GraphBuilder, "AutoExposure.Downsample");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, FAutoExposureDownsample, "AutoExposure.Downsample");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FAutoExposureDownsample);
 
 		FComputeShaderUtils::AddPass(
@@ -138,7 +138,7 @@ void FAutoExposure::EnqueueRDG(FRDGBuilder& GraphBuilder, FRDGTextureRef InputTe
 		FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 		TShaderMapRef<FAutoExposureReduceCS> Shader(GlobalShaderMap);
 
-		RDG_EVENT_SCOPE(GraphBuilder, "AutoExposure.Recude");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, FAutoExposureReduce, "AutoExposure.Recude");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FAutoExposureReduce);
 
 		FComputeShaderUtils::AddPass(
@@ -160,7 +160,7 @@ void FAutoExposure::EnqueueRDG(FRDGBuilder& GraphBuilder, FRDGTextureRef InputTe
 		FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 		TShaderMapRef<FAutoExposureReduceFinalCS> Shader(GlobalShaderMap);
 
-		RDG_EVENT_SCOPE(GraphBuilder, "AutoExposure.RecudeFinal");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, FAutoExposureReduceFinal, "AutoExposure.RecudeFinal");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FAutoExposureReduceFinal);
 
 		FComputeShaderUtils::AddPass(

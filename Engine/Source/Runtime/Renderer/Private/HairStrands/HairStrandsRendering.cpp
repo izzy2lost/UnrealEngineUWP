@@ -154,7 +154,6 @@ void RenderHairPrePass(
 			View.ViewState->HairStrandsViewStateData.Init();
 		}
 
-		//SCOPED_GPU_STAT(RHICmdList, HairRendering);
 		CreateHairStrandsMacroGroups(GraphBuilder, Scene, View, InstancesVisibilityType, View.HairStrandsViewData);
 
 		// Voxelization and Deep Opacity Maps

@@ -2036,9 +2036,12 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 		const TArray<FCardPageRenderData, SceneRenderingAllocator>& CardPagesToRender = LumenCardRenderer.CardPagesToRender;
 
 		QUICK_SCOPE_CYCLE_COUNTER(UpdateLumenScene);
-		RDG_RHI_GPU_STAT_SCOPE(GraphBuilder, UpdateLumenSceneBuffers);
+
+		RHI_BREADCRUMB_EVENT_STAT(GraphBuilder.RHICmdList, UpdateLumenSceneBuffers, "UpdateLumenSceneBuffers");
+		SCOPED_GPU_STAT(GraphBuilder.RHICmdList, UpdateLumenSceneBuffers);
+
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, LumenSceneUpdate, "LumenSceneUpdate: %u card captures %.3fM texels", CardPagesToRender.Num(), LumenCardRenderer.NumCardTexelsToCapture / (1024.0f * 1024.0f));
 		RDG_GPU_STAT_SCOPE(GraphBuilder, LumenSceneUpdate);
-		RDG_EVENT_SCOPE(GraphBuilder, "LumenSceneUpdate: %u card captures %.3fM texels", CardPagesToRender.Num(), LumenCardRenderer.NumCardTexelsToCapture / (1024.0f * 1024.0f));
 
 		// Atlas reallocation
 		if (FrameTemporaries.bReallocateAtlas || !LumenSceneData.AlbedoAtlas)

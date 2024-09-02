@@ -1428,6 +1428,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 
 		FIntRect ViewRect = View.ViewRect;
 
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, RayTracingDebug, "RayTracingDebug");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingDebug);
 
 		const FIntPoint GroupSize(FRayTracingDebugTraversalCS::ThreadGroupSizeX, FRayTracingDebugTraversalCS::ThreadGroupSizeY);
@@ -1606,6 +1607,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 	
 	FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, RayTracingDebug, "RayTracingDebug");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingDebug);
 
 	GraphBuilder.AddPass(

@@ -306,8 +306,8 @@ void FDeferredShadingSceneRenderer::AddClusteredDeferredShadingPass(
 
 	if (NumLightsToRender > 0)
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, ClusteredShading, "ClusteredShading");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, ClusteredShading);
-		RDG_EVENT_SCOPE(GraphBuilder, "ClusteredShading");
 
 		for (int32 ViewIndex = 0, Num = Views.Num(); ViewIndex < Num; ViewIndex++)
 		{

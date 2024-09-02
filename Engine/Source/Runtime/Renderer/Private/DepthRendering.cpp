@@ -480,9 +480,9 @@ extern const TCHAR* GetDepthPassReason(bool bDitheredLODTransitionsUseStencil, E
 
 void FDeferredShadingSceneRenderer::RenderPrePass(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> InViews, FRDGTextureRef SceneDepthTexture, FInstanceCullingManager& InstanceCullingManager, FRDGTextureRef* FirstStageDepthBuffer)
 {
-	RDG_EVENT_SCOPE(GraphBuilder, "PrePass %s %s", GetDepthDrawingModeString(DepthPass.EarlyZPassMode), GetDepthPassReason(DepthPass.bDitheredLODTransitionsUseStencil, ShaderPlatform));
-	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderPrePass);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, Prepass, "PrePass %s %s", GetDepthDrawingModeString(DepthPass.EarlyZPassMode), GetDepthPassReason(DepthPass.bDitheredLODTransitionsUseStencil, ShaderPlatform));
 	RDG_GPU_STAT_SCOPE(GraphBuilder, Prepass);
+	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderPrePass);
 
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_RenderPrePass, FColor::Emerald);
 	SCOPE_CYCLE_COUNTER(STAT_DepthDrawTime);
@@ -650,11 +650,11 @@ void FMobileSceneRenderer::RenderPrePass(FRHICommandList& RHICmdList, const FVie
 	checkSlow(RHICmdList.IsInsideRenderPass());
 
 	SCOPED_NAMED_EVENT(FMobileSceneRenderer_RenderPrePass, FColor::Emerald);
-	SCOPED_DRAW_EVENT(RHICmdList, MobileRenderPrePass);
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, Prepass, "MobileRenderPrePass");
+	SCOPED_GPU_STAT(RHICmdList, Prepass);
 
 	SCOPE_CYCLE_COUNTER(STAT_DepthDrawTime);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(RenderPrePass);
-	SCOPED_GPU_STAT(RHICmdList, Prepass);
 
 	SetStereoViewport(RHICmdList, View);
 	View.ParallelMeshDrawCommandPasses[EMeshPass::DepthPass].Draw(RHICmdList, InstanceCullingDrawParams);

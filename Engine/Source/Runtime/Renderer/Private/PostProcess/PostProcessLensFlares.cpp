@@ -372,6 +372,7 @@ FScreenPassTexture AddLensFlaresPass(
 
 	const FPostProcessSettings& Settings = View.FinalPostProcessSettings;
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, LensFlare, "LensFlare");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, LensFlare);
 
 	FRHITexture* BokehTextureRHI = GWhiteTexture->TextureRHI;

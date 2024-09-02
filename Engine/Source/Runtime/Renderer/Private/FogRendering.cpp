@@ -448,7 +448,7 @@ void RenderFogOnClouds(
 {
 	if (Scene->ExponentialFogs.Num() > 0)
 	{
-		RDG_EVENT_SCOPE(GraphBuilder, "ExponentialHeightFog on Clouds");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, Fog, "ExponentialHeightFog on Clouds");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, Fog);
 		RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
 
@@ -498,7 +498,7 @@ void FDeferredShadingSceneRenderer::RenderFog(
 		// Fog must be done in the base pass for MSAA to work
 		&& !IsForwardShadingEnabled(ShaderPlatform))
 	{
-		RDG_EVENT_SCOPE(GraphBuilder, "ExponentialHeightFog");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, Fog, "ExponentialHeightFog");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, Fog);
 
 		const bool bShouldRenderVolumetricFog = ShouldRenderVolumetricFog();
@@ -537,7 +537,7 @@ void FDeferredShadingSceneRenderer::RenderUnderWaterFog(
 		// Fog must be done in the base pass for MSAA to work
 		&& !IsForwardShadingEnabled(ShaderPlatform))
 	{
-		RDG_EVENT_SCOPE(GraphBuilder, "SLW::ExponentialHeightFog");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, Fog, "SLW::ExponentialHeightFog");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, Fog);
 
 		FRDGTextureRef WaterDepthTexture = SceneWithoutWaterTextures.DepthTexture;

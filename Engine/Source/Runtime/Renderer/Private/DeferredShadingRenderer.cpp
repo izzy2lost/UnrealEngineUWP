@@ -412,6 +412,7 @@ bool FDeferredShadingSceneRenderer::ShouldRenderNanite() const
 
 bool FDeferredShadingSceneRenderer::RenderHzb(FRDGBuilder& GraphBuilder, FRDGTextureRef SceneDepthTexture, const FBuildHZBAsyncComputeParams* AsyncComputeParams, Froxel::FRenderer& FroxelRenderer)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HZB, "HZB");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HZB);
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
@@ -504,6 +505,7 @@ static void RenderOpaqueFX(
 	// Notify the FX system that opaque primitives have been rendered and we now have a valid depth buffer.
 	if (FXSystem && Views.Num() > 0)
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, PostRenderOpsFX, "PostRenderOpsFX");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, PostRenderOpsFX);
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderOpaqueFX);
 
@@ -832,6 +834,7 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 
 
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, RayTracingScene, "RayTracingScene");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingScene);
 		RayTracingScene.Create(GraphBuilder, ReferenceView, &Scene->GPUScene, ComputePassFlags);
 		RayTracingScene.Build(GraphBuilder, ComputePassFlags | ERDGPassFlags::NeverCull, OutDynamicGeometryScratchBuffer);
@@ -1146,7 +1149,9 @@ void FDeferredShadingSceneRenderer::RenderNanite(FRDGBuilder& GraphBuilder, cons
 				}
 			}
 
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, NaniteVisBuffer, "Nanite::VisBuffer");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteVisBuffer);
+
 			RasterContext = Nanite::InitRasterContext(
 				GraphBuilder,
 				SharedContext,
@@ -1273,8 +1278,8 @@ void FDeferredShadingSceneRenderer::RenderNanite(FRDGBuilder& GraphBuilder, cons
 			{
 				DynamicRenderScaling::FRDGScope DynamicScalingScope(GraphBuilder, GDynamicNaniteScalingPrimary);
 
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, NaniteVisBuffer, "Nanite::VisBuffer");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteVisBuffer);
-				RDG_EVENT_SCOPE(GraphBuilder, "Nanite::VisBuffer");
 
 				NaniteRenderer = Nanite::IRenderer::Create(
 					GraphBuilder,
@@ -1301,6 +1306,7 @@ void FDeferredShadingSceneRenderer::RenderNanite(FRDGBuilder& GraphBuilder, cons
 
 			// Nanite::BasePass (Depth Pre-Pass and HZB Build)
 			{
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, NaniteBasePass, "NaniteBasePass");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteBasePass);
 
 				// Emit velocity with depth if not writing it in base pass.
@@ -1350,7 +1356,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		GRayTracingGeometryManager->PreRender();
 
 		// TODO: should only process build requests once per frame
+		RHI_BREADCRUMB_EVENT_STAT(GraphBuilder.RHICmdList, RayTracingGeometry, "RayTracingGeometry");
 		SCOPED_GPU_STAT(GraphBuilder.RHICmdList, RayTracingGeometry);
+
 		GRayTracingGeometryManager->ProcessBuildRequests(GraphBuilder.RHICmdList);
 	}
 #endif
@@ -1584,6 +1592,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	FSceneTextures& SceneTextures = GetActiveSceneTextures();
 
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, VisibilityCommands, "VisibilityCommands");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, VisibilityCommands);
 		BeginInitViews(GraphBuilder, SceneTexturesConfig, InstanceCullingManager, ExternalAccessQueue, InitViewTaskDatas);
 	}
@@ -1712,6 +1721,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	{
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, UpdateGPUScene);
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, GPUSceneUpdate, "GPUSceneUpdate");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, GPUSceneUpdate);
 
 		if (bIsFirstSceneRenderer)
@@ -1976,7 +1986,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	if (CustomRenderPassInfos.Num() > 0)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_CustomRenderPasses);
-		RDG_EVENT_SCOPE(GraphBuilder, "CustomRenderPasses");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, CustomRenderPasses, "CustomRenderPasses");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, CustomRenderPasses);
 
 		// We want to reset the scene texture uniform buffer to its original state after custom render passes,
@@ -2199,7 +2209,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 			if (bUseVirtualTexturing)
 			{
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, VirtualTextureUpdate, "VirtualTextureUpdate");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, VirtualTextureUpdate);
+
 				VirtualTextureFeedbackEnd(GraphBuilder);
 			}
 		}
@@ -2258,7 +2270,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		FSortedLightSetSceneInfo& SortedLightSet = *GraphBuilder.AllocObject<FSortedLightSetSceneInfo>();
 		{
 			RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, SortLights);
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, SortLights, "SortLights");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, SortLights);
+
 			ComputeLightGridOutput = GatherLightsAndComputeLightGrid(GraphBuilder, bComputeLightGrid, SortedLightSet);
 		}
 
@@ -2628,6 +2642,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				if (VirtualShadowMapArray.IsEnabled())
 				{
 					// TODO: actually move this inside RenderShadowDepthMaps instead of this extra scope to make it 1:1 with profiling captures/traces
+					RDG_EVENT_SCOPE_STAT(GraphBuilder, ShadowDepths, "ShadowDepths");
 					RDG_GPU_STAT_SCOPE(GraphBuilder, ShadowDepths);
 
 					ensureMsgf(AreLightsInLightGrid(), TEXT("Virtual shadow map setup requires local lights to be injected into the light grid (this may be caused by 'r.LightCulling.Quality=0')."));
@@ -2735,8 +2750,10 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		if (bRenderDeferredLighting)
 		{
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, RenderDeferredLighting, "RenderDeferredLighting");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, RenderDeferredLighting);
 			RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderLighting);
+
 			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_Lighting);
 			SCOPED_NAMED_EVENT(RenderLighting, FColor::Emerald);
 
@@ -3026,6 +3043,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		if (GetHairStrandsComposition() == EHairStrandsCompositionType::BeforeTranslucent)
 		{
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, HairRendering, "HairRendering");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, HairRendering);
 			RenderHairComposition(GraphBuilder, Views, SceneTextures.Color.Target, SceneTextures.Depth.Target, SceneTextures.Velocity, TranslucencyResourceMap);
 		}
@@ -3103,7 +3121,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			// and this would make the hair composition fails in this cases.
 			if (GetHairStrandsComposition() == EHairStrandsCompositionType::AfterTranslucent)
 			{
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, HairRendering, "HairRendering");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, HairRendering);
+
 				RenderHairComposition(GraphBuilder, Views, SceneTextures.Color.Target, SceneTextures.Depth.Target, SceneTextures.Velocity, TranslucencyResourceMap);
 			}
 
@@ -3127,7 +3147,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 		else if (GetHairStrandsComposition() == EHairStrandsCompositionType::AfterTranslucent)
 		{
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, HairRendering, "HairRendering");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, HairRendering);
+
 			RenderHairComposition(GraphBuilder, Views, SceneTextures.Color.Target, SceneTextures.Depth.Target, SceneTextures.Velocity, TranslucencyResourceMap);
 		}
 
@@ -3217,7 +3239,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 #endif
 		if (bUseVirtualTexturing)
 		{
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, VirtualTextureUpdate, "VirtualTextureUpdate");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, VirtualTextureUpdate);
+
 			VirtualTextureFeedbackEnd(GraphBuilder);
 		}
 
@@ -3307,7 +3331,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		// Finish rendering for each view.
 		if (ViewFamily.bResolveScene && ViewFamilyTexture)
 		{
-			RDG_EVENT_SCOPE(GraphBuilder, "PostProcessing");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, Postprocessing, "PostProcessing");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, Postprocessing);
 			SCOPED_NAMED_EVENT(PostProcessing, FColor::Emerald);
 
@@ -3421,7 +3445,10 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	{
 		SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_RenderFinish);
+
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, FrameRenderFinish, "FrameRenderFinish");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FrameRenderFinish);
+
 		OnRenderFinish(GraphBuilder, ViewFamilyTexture);
 		GraphBuilder.AddDispatchHint();
 		GraphBuilder.FlushSetupQueue();

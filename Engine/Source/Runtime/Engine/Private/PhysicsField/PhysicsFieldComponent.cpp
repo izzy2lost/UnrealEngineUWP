@@ -535,7 +535,7 @@ void FPhysicsFieldResource::UpdateResource(FRHICommandList& RHICmdList,
 	SCOPE_CYCLE_COUNTER(STAT_PhysicsFields_UpdateResource_RT);
 
 	{
-		SCOPED_DRAW_EVENT(RHICmdList, PhysicsFields_UpdateBuffers);
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, PhysicsFields_UpdateBuffers, "PhysicsFields_UpdateBuffers");
 		SCOPED_GPU_STAT(RHICmdList, PhysicsFields_UpdateBuffers);
 
 		UpdateInternalBuffer<float, 1, EPixelFormat::PF_R32_FLOAT>(RHICmdList, NodesParamsDatas.Num(), NodesParamsDatas.GetData(), NodesParams, true);
@@ -557,7 +557,7 @@ void FPhysicsFieldResource::UpdateResource(FRHICommandList& RHICmdList,
 	{
 		const int32 CellsCount = FieldInfos.ClipmapCount * EFieldPhysicsType::Field_PhysicsType_Max;
 		{
-			SCOPED_DRAW_EVENT(RHICmdList, PhysicsFields_ClearClipmap);
+			RHI_BREADCRUMB_EVENT_STAT(RHICmdList, PhysicsFields_ClearClipmap, "PhysicsFields_ClearClipmap");
 			SCOPED_GPU_STAT(RHICmdList, PhysicsFields_ClearClipmap);
 
 			RHICmdList.Transition(FRHITransitionInfo(this->ClipmapBuffer.UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute));
@@ -575,7 +575,7 @@ void FPhysicsFieldResource::UpdateResource(FRHICommandList& RHICmdList,
 			RHICmdList.Transition(FRHITransitionInfo(this->ClipmapBuffer.UAV, ERHIAccess::Unknown, ERHIAccess::SRVCompute));
 		}
 		{
-			SCOPED_DRAW_EVENT(RHICmdList, PhysicsFields_UpdateBuffers);
+			RHI_BREADCRUMB_EVENT_STAT(RHICmdList, PhysicsFields_UpdateBuffers, "PhysicsFields_UpdateBuffers");
 			SCOPED_GPU_STAT(RHICmdList, PhysicsFields_UpdateBuffers);
 
 			FieldInfos.ClipmapCenter = FieldInfos.ViewOrigin;
@@ -586,7 +586,7 @@ void FPhysicsFieldResource::UpdateResource(FRHICommandList& RHICmdList,
 			UpdateInternalBuffer<FIntVector4, 1, EPixelFormat::PF_R32G32B32A32_UINT>(RHICmdList, FieldInfos.CellsMax.Num(), FieldInfos.CellsMax.GetData(), CellsMax);
 		}
 		{
-			SCOPED_DRAW_EVENT(RHICmdList, PhysicsFields_BuildClipmap);
+			RHI_BREADCRUMB_EVENT_STAT(RHICmdList, PhysicsFields_BuildClipmap, "PhysicsFields_BuildClipmap");
 			SCOPED_GPU_STAT(RHICmdList, PhysicsFields_BuildClipmap);
 
 			RHICmdList.Transition(FRHITransitionInfo(this->ClipmapBuffer.UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute));

@@ -208,7 +208,7 @@ void UKismetRenderingLibrary::DrawMaterialToRenderTarget(UObject* WorldContextOb
 		Canvas->Init(TextureRenderTarget->SizeX, TextureRenderTarget->SizeY, nullptr, &RenderCanvas);
 
 		{
-			SCOPED_DRAW_EVENTF_GAMETHREAD(DrawMaterialToRenderTarget, TEXT("DrawMaterialToRenderTarget: %s"), TextureRenderTarget->GetFName());
+			RHI_BREADCRUMB_EVENT_GAMETHREAD("DrawMaterialToRenderTarget: %s", TextureRenderTarget->GetFName());
 
 			ENQUEUE_RENDER_COMMAND(FlushDeferredResourceUpdateCommand)(
 				[RenderTargetResource](FRHICommandListImmediate& RHICmdList)

@@ -109,7 +109,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			TBatchNormalizationCS::FPermutationDomain PermutationVector;
 			TShaderMapRef<TBatchNormalizationCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.BatchNormalization");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorBatchNormalization, "NNE.Operator.Hlsl.BatchNormalization");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorBatchNormalization);
 
 			FComputeShaderUtils::AddPass(

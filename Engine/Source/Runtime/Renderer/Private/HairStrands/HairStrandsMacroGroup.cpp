@@ -16,6 +16,8 @@
 static int32 GHairVirtualVoxel_NumPixelPerVoxel = 1;
 static FAutoConsoleVariableRef CVarHairVirtualVoxel_NumPixelPerVoxel(TEXT("r.HairStrands.Voxelization.VoxelSizeInPixel"), GHairVirtualVoxel_NumPixelPerVoxel, TEXT("Target size of voxel size in pixels"), ECVF_RenderThreadSafe);
 
+DECLARE_GPU_STAT(HairStrandsAABB);
+
 class FHairMacroGroupAABBCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FHairMacroGroupAABBCS);
@@ -283,8 +285,7 @@ void CreateHairStrandsMacroGroups(
 	const uint32 MacroGroupCount = MacroGroups.Num();
 	if (MacroGroupCount > 0 && bBuildGPUAABB)
 	{
-		DECLARE_GPU_STAT(HairStrandsAABB);
-		RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsAABB");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsAABB, "HairStrandsAABB");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsAABB);
 
 		MacroGroupResources.MacroGroupAABBsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 6 * MacroGroupCount), TEXT("Hair.MacroGroupAABBBuffer"));

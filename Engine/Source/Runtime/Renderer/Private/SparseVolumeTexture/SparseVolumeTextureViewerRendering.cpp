@@ -110,7 +110,7 @@ void AddSparseVolumeTextureViewerRenderPass(FRDGBuilder& GraphBuilder, FSceneRen
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "SparseVolumeTextureViewer");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SparseVolumeTextureViewer, "SparseVolumeTextureViewer");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SparseVolumeTextureViewer);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, SparseVolumeTextureViewer);
 

@@ -114,7 +114,8 @@ bool FMediaCaptureHelper::AreInputsValid(const UE::MediaCaptureData::FCaptureFra
 
 bool FMediaCaptureHelper::CaptureFrame(const UE::MediaCaptureData::FCaptureFrameArgs& Args, TSharedPtr<UE::MediaCaptureData::FCaptureFrame> CapturingFrame)
 {
-	RDG_GPU_STAT_SCOPE(Args.GraphBuilder, MediaCapture_CaptureFrame)
+	RDG_EVENT_SCOPE_STAT(Args.GraphBuilder, MediaCapture_CaptureFrame, "MediaCapture_CaptureFrame");
+	RDG_GPU_STAT_SCOPE(Args.GraphBuilder, MediaCapture_CaptureFrame);
 
 	if (!Args.HasValidResource())
 	{
@@ -152,8 +153,9 @@ bool FMediaCaptureHelper::CaptureFrame(const UE::MediaCaptureData::FCaptureFrame
 
 		if (Args.MediaCapture->bShouldCaptureRHIResource == false)
 		{
-			RDG_GPU_STAT_SCOPE(Args.GraphBuilder, MediaCapture_Readback)
-				TRACE_CPUPROFILER_EVENT_SCOPE(UMediaCapture::EnqueueReadback);
+			RDG_EVENT_SCOPE_STAT(Args.GraphBuilder, MediaCapture_Readback, "MediaCapture_Readback");
+			RDG_GPU_STAT_SCOPE(Args.GraphBuilder, MediaCapture_Readback);
+			TRACE_CPUPROFILER_EVENT_SCOPE(UMediaCapture::EnqueueReadback);
 
 			CapturingFrame->EnqueueCopy(Args.GraphBuilder, FinalPassOutputResource, Args.MediaCapture->UseAnyThreadCapture());
 			CapturingFrame->bReadbackRequested = true;
@@ -168,6 +170,7 @@ bool FMediaCaptureHelper::CaptureFrame(const UE::MediaCaptureData::FCaptureFrame
 
 		if (Args.MediaCapture->UseExperimentalScheduling())
 		{
+			RDG_EVENT_SCOPE_STAT(Args.GraphBuilder, MediaCapture_SyncPoint, "MediaCapture_SyncPoint");
 			RDG_GPU_STAT_SCOPE(Args.GraphBuilder, MediaCapture_SyncPoint);
 			if (CapturingFrame->IsTextureResource())
 			{

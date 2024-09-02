@@ -146,8 +146,8 @@ void FDeferredShadingSceneRenderer::RenderRayTracingAmbientOcclusion(
 	FRDGTextureRef* OutAmbientOcclusionTexture)
 #if RHI_RAYTRACING
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, RayTracingAmbientOcclusion, "Ray Tracing Ambient Occlusion");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingAmbientOcclusion);
-	RDG_EVENT_SCOPE(GraphBuilder, "Ray Tracing Ambient Occlusion");
 
 	const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
 

@@ -336,7 +336,9 @@ namespace
 		, FGlobalShaderMap* GlobalShaderMap
 		, FRHIBlendState* DefaultBlendState)
 	{
-		SCOPED_GPU_STAT(GraphBuilder.RHICmdList, ColorCorrectRegion);
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, ColorCorrectRegion, "ColorCorrectRegion");
+		RDG_RHI_GPU_STAT_SCOPE(GraphBuilder, ColorCorrectRegion);
+
 		FRHIDepthStencilState* DepthStencilState = FScreenPassPipelineState::FDefaultDepthStencilState::GetRHI();
 
 		/* If Region is pending for kill, invisible or disabled we don't need to render it.

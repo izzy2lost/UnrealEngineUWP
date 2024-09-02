@@ -89,9 +89,9 @@ namespace UE::DMXPixelMapping::Rendering::Private
 		ENQUEUE_RENDER_COMMAND(RenderTargetResource)(
 			[SharedThis = StaticCastSharedRef<FDMXPixelMappingRenderPixelMapProxy>(AsShared()), this, Elements = InElements, Brightness]
 			(FRHICommandListImmediate& RHICmdList)
-			{				
+			{
+				RHI_BREADCRUMB_EVENT_STAT(RHICmdList, DMXPixelMappingShadersStat, "RenderPixelMapping");
 				SCOPED_GPU_STAT(RHICmdList, DMXPixelMappingShadersStat);
-				SCOPED_DRAW_EVENTF(RHICmdList, DMXPixelMappingShadersStat, RenderPassName);
 
 				const FTextureResource* InputTextureResource = InputTexture ? InputTexture->GetResource() : nullptr;
 				const FTextureRenderTargetResource* RenderTargetResource = SharedThis->RenderTarget ? SharedThis->RenderTarget->GetRenderTargetResource() : nullptr;

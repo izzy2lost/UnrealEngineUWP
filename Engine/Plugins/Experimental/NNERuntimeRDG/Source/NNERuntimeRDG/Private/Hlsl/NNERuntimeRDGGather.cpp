@@ -126,7 +126,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			FIntVector ThreadGroupCount = TGatherCS::GetGroupCount(*Parameters);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Gather");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorGather, "NNE.Operator.Hlsl.Gather");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorGather);
 
 			FComputeShaderUtils::AddPass(

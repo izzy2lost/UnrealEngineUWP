@@ -253,6 +253,7 @@ void FSceneRenderer::RenderVelocities(
 	// Create mask for which GPUs we need clearing on
 	uint32 bNeedsClearMask = HasBeenProduced(SceneTextures.Velocity) ? 0 : ((1u << GNumExplicitGPUsForRendering) - 1);
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, RenderVelocities, "RenderVelocities");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RenderVelocities);
 
 	const EMeshPass::Type MeshPass = GetMeshPassFromVelocityPass(VelocityPass);

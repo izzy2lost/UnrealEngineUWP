@@ -181,8 +181,7 @@ FExrImgMediaReader::EReadResult FExrImgMediaReaderGpu::ReadMip
 		{
 			ENQUEUE_RENDER_COMMAND(CopyFromUploadBuffer)([SampleConverter, BufferData, BufferRegionsToCopy, FrameId = ConverterParams.FrameId](FRHICommandListImmediate& RHICmdList)
 				{
-					SCOPED_DRAW_EVENT(RHICmdList, FExrImgMediaReaderGpu_CopyBuffers);
-					TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.StartCopy %d"), FrameId));
+					RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ExrImgMediaReaderGpu_CopyUploadBuffer, "ExrReaderGpu.StartCopy %d", FrameId);
 					SCOPED_GPU_STAT(RHICmdList, ExrImgMediaReaderGpu_CopyUploadBuffer);
 
 					if (BufferRegionsToCopy.IsEmpty())
@@ -469,8 +468,7 @@ void FExrImgMediaReaderGpu::CreateSampleConverterCallback(TSharedPtr<FExrMediaTe
 {
 	auto RenderThreadSwizzler = [] (FRHICommandListImmediate& RHICmdList, FTextureRHIRef RenderTargetTextureRHI, TMap<int32, FStructuredBufferPoolItemSharedPtr>& MipBuffers, const FSampleConverterParameters ConverterParams)->bool
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.Convert %d"), ConverterParams.FrameId));
-		SCOPED_DRAW_EVENT(RHICmdList, FExrImgMediaReaderGpu_Convert);
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ExrImgMediaReaderGpu, "ExrReaderGpu.Convert %d", ConverterParams.FrameId);
 		SCOPED_GPU_STAT(RHICmdList, ExrImgMediaReaderGpu);
 
 		auto RenderMip = []
@@ -484,6 +482,7 @@ void FExrImgMediaReaderGpu::CreateSampleConverterCallback(TSharedPtr<FExrMediaTe
 			, const FIntPoint& TextureSize
 			, const TArray<FIntRect>& MipViewports)
 		{
+			RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ExrImgMediaReaderGpu_MipRender, "ExrImgGpu.MipRender");
 			SCOPED_GPU_STAT(RHICmdList, ExrImgMediaReaderGpu_MipRender);
 
 			FRHIRenderPassInfo RPInfo(RenderTargetTextureRHI, ERenderTargetActions::DontLoad_Store, nullptr, TextureMipLevel);
@@ -553,6 +552,7 @@ void FExrImgMediaReaderGpu::CreateSampleConverterCallback(TSharedPtr<FExrMediaTe
 			FIntPoint Dim = ConverterParams.FullResolution / MipLevelDiv;
 
 			{
+				RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ExrImgMediaReaderGpu_MipUpscale, "ExrImgGpu.MipRender.MipUpscale");
 				SCOPED_GPU_STAT(RHICmdList, ExrImgMediaReaderGpu_MipUpscale);
 
 				// Sanity check.
@@ -651,8 +651,8 @@ FStructuredBufferPoolItemSharedPtr FExrImgMediaReaderGpu::AllocateGpuBufferFromP
 				//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ExrReaderGpu.AllocBuffer_RenderThread");
 				TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.AllocBuffer_RenderThread %d"), AllocSize));
 
+				RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ExrImgMediaReaderGpu_AllocateBuffer, "ExrImgGpu.MipRender.AllocateBuffer");
 				SCOPED_GPU_STAT(RHICmdList, ExrImgMediaReaderGpu_AllocateBuffer);
-				SCOPED_DRAW_EVENT(RHICmdList, FExrImgMediaReaderGpu_AllocateBuffer);
 
 				FRHIResourceCreateInfo CreateInfo(TEXT(""));
 				CreateInfo.DebugName = TEXT("ExrReaderGpu.UploadBuffer");

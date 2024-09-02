@@ -553,7 +553,7 @@ FSingleLayerWaterPrePassResult* FDeferredShadingSceneRenderer::RenderSingleLayer
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, Water);
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_RenderSingleLayerWaterDepthPrepass, FColor::Emerald);
 	SCOPE_CYCLE_COUNTER(STAT_WaterPassDrawTime);
-	RDG_EVENT_SCOPE(GraphBuilder, "SingleLayerWaterDepthPrepass");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SingleLayerWaterDepthPrepass, "SingleLayerWaterDepthPrepass");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SingleLayerWaterDepthPrepass);
 
 	FSingleLayerWaterPrePassResult* Result = GraphBuilder.AllocObject<FSingleLayerWaterPrePassResult>();
@@ -1172,7 +1172,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWater(
 	FLumenSceneFrameTemporaries& LumenFrameTemporaries,
 	bool bIsCameraUnderWater)
 {
-	RDG_EVENT_SCOPE(GraphBuilder, "SingleLayerWater");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SingleLayerWater, "SingleLayerWater");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SingleLayerWater);
 	SCOPED_NAMED_EVENT(SingleLayerWater, FColor::Emerald);
 

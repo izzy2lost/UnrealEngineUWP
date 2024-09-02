@@ -104,7 +104,7 @@ UTextureRenderTarget2D* ALandscapeBlueprintBrushBase::Execute(const FLandscapeBr
 	}
 	UTextureRenderTarget2D* Result = nullptr;
 	{
-		SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("BP Render (%s): %s"), UEnum::GetValueAsString(InParameters.LayerType), LayerDetailString);
+		RHI_BREADCRUMB_EVENT_GAMETHREAD("BP Render (%s): %s", UEnum::GetValueAsString(InParameters.LayerType), LayerDetailString);
 
 		TGuardValue<bool> AutoRestore(GAllowActorScriptExecutionInEditor, true);
 		Result = RenderLayer(InParameters);
@@ -335,12 +335,12 @@ void ALandscapeBlueprintBrushBase::RenderLayer(ILandscapeEditLayerRenderer::FRen
 	for (int32 TargetLayerIndex = 0; TargetLayerIndex < NumTargetLayers; ++TargetLayerIndex)
 	{
 		const FName TargetLayerName = InRenderParams.RenderGroupTargetLayerNames[TargetLayerIndex];
-		SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("Render %s"), TargetLayerName);
+		RHI_BREADCRUMB_EVENT_GAMETHREAD("Render %s", TargetLayerName);
 
 		// If necessary, copy from the texture array's slice to the scratch render target 2D : 
 		if (!bIsHeightmapMerge)
 		{
-			SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("Copy Source (slice %i) -> %s"), TargetLayerIndex, CurrentLayerReadRT2D->GetDebugName());
+			RHI_BREADCRUMB_EVENT_GAMETHREAD("Copy Source (slice %i) -> %s", TargetLayerIndex, CurrentLayerReadRT2D->GetDebugName());
 
 			ULandscapeScratchRenderTarget::FCopyFromScratchRenderTargetParams CopyParams(CurrentLayerReadRT);
 			// Copy from the proper slice in the texture array : 
@@ -374,7 +374,7 @@ void ALandscapeBlueprintBrushBase::RenderLayer(ILandscapeEditLayerRenderer::FRen
 
 		// Resolve back to the write RT 
 		{
-			SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("Copy BP Render Result -> %s (slice %i)"), WriteRT->GetDebugName(), TargetLayerIndex);
+			RHI_BREADCRUMB_EVENT_GAMETHREAD("Copy BP Render Result -> %s (slice %i)", WriteRT->GetDebugName(), TargetLayerIndex);
 
 			// The RT returned by the brush is in SRV state so we need a transition: 
 			ENQUEUE_RENDER_COMMAND(TransitionToCopySrc)([Resource = OutputRT2D->GetResource()](FRHICommandListImmediate& InRHICmdList) mutable

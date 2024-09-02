@@ -895,7 +895,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 	}
 
 	check(AreLightsInLightGrid());
-	RDG_EVENT_SCOPE(GraphBuilder, "MegaLights");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, MegaLights, "MegaLights");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, MegaLights);
 
 	FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();

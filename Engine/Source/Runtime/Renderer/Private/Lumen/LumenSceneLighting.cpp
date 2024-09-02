@@ -228,7 +228,7 @@ void FDeferredShadingSceneRenderer::RenderLumenSceneLighting(
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(RenderLumenSceneLighting);
 		QUICK_SCOPE_CYCLE_COUNTER(RenderLumenSceneLighting);
-		RDG_EVENT_SCOPE(GraphBuilder, "LumenSceneLighting%s", LumenCardRenderer.bPropagateGlobalLightingChange ? TEXT(" PROPAGATE GLOBAL CHANGE!") : TEXT(""));
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, LumenSceneLighting, "LumenSceneLighting%s", LumenCardRenderer.bPropagateGlobalLightingChange ? TEXT(" PROPAGATE GLOBAL CHANGE!") : TEXT(""));
 		RDG_GPU_STAT_SCOPE(GraphBuilder, LumenSceneLighting);
 
 		const ERDGPassFlags ComputePassFlags = LumenSceneLighting::UseAsyncCompute(ViewFamily) ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute;

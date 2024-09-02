@@ -299,11 +299,11 @@ FScreenPassTexture AddEditorPrimitivePass(
 	// Load the color target if it already exists.
 	const FScreenPassTextureViewport EditorPrimitivesViewport(EditorPrimitiveColor, Inputs.SceneColor.ViewRect);
 
-	RDG_GPU_STAT_SCOPE(GraphBuilder, EditorPrimitives);
-	RDG_EVENT_SCOPE(GraphBuilder, "CompositeEditorPrimitives %dx%d MSAA=%d",
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, EditorPrimitives, "CompositeEditorPrimitives %dx%d MSAA=%d",
 		EditorPrimitivesViewport.Rect.Width(),
 		EditorPrimitivesViewport.Rect.Height(),
 		NumMSAASamples);
+	RDG_GPU_STAT_SCOPE(GraphBuilder, EditorPrimitives);
 
 	//Inputs is const so create a over-ridable texture reference
 	FScreenPassTexture SceneDepth = Inputs.SceneDepth;

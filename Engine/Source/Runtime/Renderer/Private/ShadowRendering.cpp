@@ -2305,7 +2305,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredShadowProjections(
 
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_RenderShadowProjections, FColor::Emerald);
 	SCOPE_CYCLE_COUNTER(STAT_ProjectedShadowDrawTime);
-	RDG_EVENT_SCOPE(GraphBuilder, "ShadowProjectionOnOpaque");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, ShadowProjection, "ShadowProjectionOnOpaque");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, ShadowProjection);
 
 	const FVisibleLightInfo& VisibleLightInfo = VisibleLightInfos[LightSceneInfo->Id];
@@ -2342,7 +2342,8 @@ void FMobileSceneRenderer::RenderModulatedShadowProjections(FRHICommandList& RHI
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(RenderShadowProjections);
 	SCOPED_NAMED_EVENT(FMobileSceneRenderer_RenderModulatedShadowProjections, FColor::Emerald);
 	SCOPE_CYCLE_COUNTER(STAT_ProjectedShadowDrawTime);
-	SCOPED_DRAW_EVENT(RHICmdList, ShadowProjectionOnOpaque);
+
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ShadowProjection, "ShadowProjectionOnOpaque");
 	SCOPED_GPU_STAT(RHICmdList, ShadowProjection);
 
 	// render shadowmaps for relevant lights.

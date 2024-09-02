@@ -870,6 +870,7 @@ void FTranslucencyLightingVolumeTextures::Init(FRDGBuilder& GraphBuilder, TArray
 
 	check(PassFlags == ERDGPassFlags::Compute || PassFlags == ERDGPassFlags::AsyncCompute);
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, TranslucentLighting, "InitTranslucencyLightingVolumeTextures");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, TranslucentLighting);
 
 	VolumeDim = GetTranslucencyLightingVolumeDim();
@@ -997,7 +998,7 @@ void InjectTranslucencyLightingVolumeAmbientCubemap(
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "InjectAmbientCubemapTranslucentVolumeLighting");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, TranslucentLighting, "InjectAmbientCubemapTranslucentVolumeLighting");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, TranslucentLighting);
 
 	const int32 TranslucencyLightingVolumeDim = Textures.VolumeDim;
@@ -1617,7 +1618,7 @@ void FilterTranslucencyLightingVolume(
 	FRHISamplerState* SamplerStateRHI = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
 	const int32 TranslucencyLightingVolumeDim = GetTranslucencyLightingVolumeDim();
-	RDG_EVENT_SCOPE(GraphBuilder, "FilterTranslucentVolume %dx%dx%d Cascades:%d", TranslucencyLightingVolumeDim, TranslucencyLightingVolumeDim, TranslucencyLightingVolumeDim, TVC_MAX);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, TranslucentLighting, "FilterTranslucentVolume %dx%dx%d Cascades:%d", TranslucencyLightingVolumeDim, TranslucencyLightingVolumeDim, TranslucencyLightingVolumeDim, TVC_MAX);
 	RDG_GPU_STAT_SCOPE(GraphBuilder, TranslucentLighting);
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)

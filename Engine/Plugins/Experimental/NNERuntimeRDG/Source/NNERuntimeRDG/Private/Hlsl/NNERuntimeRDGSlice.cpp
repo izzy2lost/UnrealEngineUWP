@@ -303,7 +303,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TShaderMapRef<FSliceCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Slice");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorSlice, "NNE.Operator.Hlsl.Slice");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorSlice);
 
 			FComputeShaderUtils::AddPass(

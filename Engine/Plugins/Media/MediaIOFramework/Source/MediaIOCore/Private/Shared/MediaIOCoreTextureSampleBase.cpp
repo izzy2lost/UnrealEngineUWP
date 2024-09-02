@@ -250,6 +250,7 @@ bool FMediaIOCoreTextureSampleBase::ApplyColorConversion(FRHICommandListImmediat
 		FRDGBuilder GraphBuilder(RHICmdList);
 		
 		{
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, MediaIO_ColorConversion, "MediaIO_ColorConversion");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, MediaIO_ColorConversion);
 
 			const FRDGTextureRef ColorConversionInput = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(InSrcTexture, TEXT("MediaTextureResourceColorConverisonInputRT")));

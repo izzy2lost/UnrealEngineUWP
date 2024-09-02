@@ -1029,7 +1029,7 @@ void UWorld::SendAllEndOfFrameUpdates()
 	}
 
 #if WANTS_DRAW_MESH_EVENTS
-	SCOPED_DRAW_EVENTF_GAMETHREAD(SendAllEndOfFrameUpdates, TEXT("SendAllEndOfFrameUpdates"))
+	RHI_BREADCRUMB_EVENT_GAMETHREAD("SendAllEndOfFrameUpdates");
 #endif
 
 	// Issue a GPU event to wrap GPU work done during SendAllEndOfFrameUpdates, like skin cache updates
@@ -1270,7 +1270,7 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 
 	FThreadIdleStats::BeginCriticalPath();
 
-	SCOPED_DRAW_EVENT_GAMETHREAD(WorldTick);
+	RHI_BREADCRUMB_EVENT_GAMETHREAD("WorldTick");
 
 	FWorldDelegates::OnWorldTickStart.Broadcast(this, TickType, DeltaSeconds);
 

@@ -115,7 +115,7 @@ void FSlate3DRenderer::DrawWindow_GameThread(FSlateDrawBuffer& DrawBuffer)
 void FSlate3DRenderer::DrawWindowToTarget_RenderThread(FRDGBuilder& GraphBuilder, const FRenderThreadUpdateContext& Context)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(Stat_Slate_WidgetRendererRenderThread);
-	RDG_EVENT_SCOPE(GraphBuilder, "SlateRenderToTarget");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, Slate3D, "SlateRenderToTarget");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, Slate3D);
 	check(Context.RenderTarget);
 

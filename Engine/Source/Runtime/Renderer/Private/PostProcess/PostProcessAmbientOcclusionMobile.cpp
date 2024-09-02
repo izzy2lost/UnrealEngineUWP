@@ -1109,7 +1109,7 @@ static void AddMobileAmbientOcclusionUpsamplePass(
 
 static void RenderSSAO(FRDGBuilder& GraphBuilder, FRDGTextureRef SceneDepthTexture, FRDGTextureRef AmbientOcclusionTexture, const TArray<FViewInfo>& Views)
 {
-	RDG_EVENT_SCOPE(GraphBuilder, "MobileSSAO");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, MobileSSAO, "MobileSSAO");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, MobileSSAO);
 
 	const int32 HalfResolutionSetting = CVarMobileSSAOHalfResolution.GetValueOnRenderThread();

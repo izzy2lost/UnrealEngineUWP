@@ -206,7 +206,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TShaderMapRef<FPadCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Pad");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorPad, "NNE.Operator.Hlsl.Pad");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorPad);
 
 			FComputeShaderUtils::AddPass(

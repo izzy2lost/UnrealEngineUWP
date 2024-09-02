@@ -488,6 +488,7 @@ void FFXSystem::PreRender(FRDGBuilder& GraphBuilder, TConstStridedView<FSceneVie
 
 	if (RHISupportsGPUParticles() && bAllowGPUParticleSceneUpdate)
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, FXSystemPreRender, "FXSystemPreRender");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FXSystemPreRender);
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, FXSystem);
 
@@ -526,6 +527,7 @@ void FFXSystem::PostRenderOpaque(FRDGBuilder& GraphBuilder, TConstStridedView<FS
 
 	if (RHISupportsGPUParticles() && IsParticleCollisionModeSupported(GetShaderPlatform(), PCM_DepthBuffer) && bAllowGPUParticleUpdate)
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, FXSystemPostRenderOpaque, "FXSystemPostRenderOpaque");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FXSystemPostRenderOpaque);
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, FXSystem);
 

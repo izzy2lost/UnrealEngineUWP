@@ -1324,7 +1324,7 @@ FMotionBlurOutputs AddMotionBlurPass(FRDGBuilder& GraphBuilder, const FViewInfo&
 	// NOTE: Use SceneDepth as the velocity viewport because SceneVelocity can actually be a 1x1 black texture when there are no moving objects in sight.
 	const FMotionBlurViewports Viewports(FScreenPassTextureViewport(Inputs.SceneColor), FScreenPassTextureViewport(Inputs.SceneDepth));
 
-	RDG_EVENT_SCOPE(GraphBuilder, "MotionBlur");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, MotionBlur, "MotionBlur");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, MotionBlur);
 
 	FRDGTextureRef VelocityFlatTexture = nullptr;

@@ -1298,8 +1298,8 @@ public:
 		{
 		case EIcvfxPassRenderPass::Base:
 		{
+			RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_IcvfxRenderPass_Base, "nDisplay_IcvfxRenderPass_Base");
 			SCOPED_GPU_STAT(RHICmdList, nDisplay_IcvfxRenderPass_Base);
-			SCOPED_DRAW_EVENT(RHICmdList, nDisplay_IcvfxRenderPass_Base);
 
 			RenderCurentPass(RHICmdList, RenderPassData);
 		}
@@ -1307,8 +1307,8 @@ public:
 
 		case EIcvfxPassRenderPass::InnerFrustumIterator:
 		{
+			RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_IcvfxRenderPass_InnerFrustumIterator, "nDisplay_IcvfxRenderPass_InnerFrustumIterator");
 			SCOPED_GPU_STAT(RHICmdList, nDisplay_IcvfxRenderPass_InnerFrustumIterator);
-			SCOPED_DRAW_EVENT(RHICmdList, nDisplay_IcvfxRenderPass_InnerFrustumIterator);
 
 			RenderCurentPass(RHICmdList, RenderPassData);
 		}
@@ -1316,8 +1316,8 @@ public:
 
 		case EIcvfxPassRenderPass::InnerFrustumChromakeyOverlapIterator:
 		{
+			RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_IcvfxRenderPass_InnerFrustumChromakeyOverlapIterator, "nDisplay_IcvfxRenderPass_InnerFrustumChromakeyOverlapIterator");
 			SCOPED_GPU_STAT(RHICmdList, nDisplay_IcvfxRenderPass_InnerFrustumChromakeyOverlapIterator);
-			SCOPED_DRAW_EVENT(RHICmdList, nDisplay_IcvfxRenderPass_InnerFrustumChromakeyOverlapIterator);
 
 			RenderCurentPass(RHICmdList, RenderPassData);
 		}
@@ -1325,8 +1325,8 @@ public:
 
 		case EIcvfxPassRenderPass::LightCardOver:
 		{
+			RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_IcvfxRenderPass_LightCardOver, "nDisplay_IcvfxRenderPass_LightCardOver");
 			SCOPED_GPU_STAT(RHICmdList, nDisplay_IcvfxRenderPass_LightCardOver);
-			SCOPED_DRAW_EVENT(RHICmdList, nDisplay_IcvfxRenderPass_LightCardOver);
 
 			RenderCurentPass(RHICmdList, RenderPassData);
 		}
@@ -1386,8 +1386,8 @@ bool FDisplayClusterShadersWarpblend_ICVFX::RenderWarpBlend_ICVFX(FRHICommandLis
 		return false;
 	}
 
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_Icvfx_WarpBlend, "nDisplay_Icvfx_WarpBlend");
 	SCOPED_GPU_STAT(RHICmdList, nDisplay_Icvfx_WarpBlend);
-	SCOPED_DRAW_EVENT(RHICmdList, nDisplay_Icvfx_WarpBlend);
 
 	// Do single warp render pass
 	bool bIsRenderSuccess = false;

@@ -94,7 +94,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			const NNE::FTensorShape& InputShape = Input.GetShape();
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Softmax");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorSoftmax, "NNE.Operator.Hlsl.Softmax");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorSoftmax);
 
 			// First apply Reduction(exp(x)) to temp buffer

@@ -339,7 +339,7 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bUseAsy
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "SVT::StreamingBeginAsyncUpdate");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SVTStreaming, "SVT::StreamingBeginAsyncUpdate");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SVTStreaming);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, SVTStreaming);
 	SCOPED_NAMED_EVENT_TEXT("SVT::StreamingBeginAsyncUpdate", FColor::Green);
@@ -512,7 +512,7 @@ void FStreamingManager::EndAsyncUpdate(FRDGBuilder& GraphBuilder)
 	}
 	check(AsyncState.bUpdateActive);
 
-	RDG_EVENT_SCOPE(GraphBuilder, "SVT::StreamingEndAsyncUpdate");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SVTStreaming, "SVT::StreamingEndAsyncUpdate");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SVTStreaming);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, SVTStreaming);
 	SCOPED_NAMED_EVENT_TEXT("SVT::StreamingEndAsyncUpdate", FColor::Green);
@@ -619,7 +619,7 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "SVT::StreamingAddInternal");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SVTStreaming, "SVT::StreamingAddInternal");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SVTStreaming);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, SVTStreaming);
 	SCOPED_NAMED_EVENT_TEXT("SVT::StreamingAddInternal", FColor::Green);

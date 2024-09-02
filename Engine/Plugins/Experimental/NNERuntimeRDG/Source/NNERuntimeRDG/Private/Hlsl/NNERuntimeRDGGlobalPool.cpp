@@ -84,7 +84,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			const FTensorRDG& Input = *InputTensors[0];
 			const FTensorRDG& Output = *OutputTensors[0];
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.GlobalPool");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorGlobalPool, "NNE.Operator.Hlsl.GlobalPool");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorGlobalPool);
 
 			TReduceCS::FParameters* Parameters = GraphBuilder.AllocParameters<TReduceCS::FParameters>();

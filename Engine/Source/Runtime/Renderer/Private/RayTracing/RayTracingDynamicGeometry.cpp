@@ -538,7 +538,7 @@ uint32 FRayTracingDynamicGeometryCollection::Update()
 void FRayTracingDynamicGeometryCollection::AddDynamicGeometryUpdatePass(const FViewInfo& View, FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePassFlags, FRDGBufferRef& OutDynamicGeometryScratchBuffer)
 {
 	RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
-	RDG_EVENT_SCOPE(GraphBuilder, "RayTracingDynamicGeometry");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, RayTracingDynamicGeometry, "RayTracingDynamicGeometry");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingDynamicGeometry);
 
 	const uint32 ScratchAlignment = GRHIRayTracingScratchBufferAlignment;

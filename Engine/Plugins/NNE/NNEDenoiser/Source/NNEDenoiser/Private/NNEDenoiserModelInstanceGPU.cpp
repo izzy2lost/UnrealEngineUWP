@@ -111,7 +111,7 @@ namespace UE::NNEDenoiser::Private
 			DenoiserParameters->OutputBuffers.Emplace(Binding.Buffer, ERHIAccess::CopyDest);
 		}
 
-		RDG_EVENT_SCOPE(GraphBuilder, "NNEDenoiser.ModelInstanceGPU");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, FModelInstanceGPU, "NNEDenoiser.ModelInstanceGPU");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FModelInstanceGPU);
 		
 		GraphBuilder.AddPass(RDG_EVENT_NAME("NNEDenoiser.DenoiseGPU"), DenoiserParameters, ERDGPassFlags::Readback,

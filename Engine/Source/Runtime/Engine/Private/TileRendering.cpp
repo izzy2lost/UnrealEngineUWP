@@ -171,8 +171,9 @@ void FCanvasTileRendererItem::FRenderData::RenderTiles(
 		return;
 	}
 
+	RDG_EVENT_SCOPE_STAT(RenderContext.GraphBuilder, CanvasDrawTiles, "%s", *MaterialRenderProxy->GetIncompleteMaterialWithFallback(GMaxRHIFeatureLevel).GetFriendlyName());
 	RDG_GPU_STAT_SCOPE(RenderContext.GraphBuilder, CanvasDrawTiles);
-	RDG_EVENT_SCOPE(RenderContext.GraphBuilder, "%s", *MaterialRenderProxy->GetIncompleteMaterialWithFallback(GMaxRHIFeatureLevel).GetFriendlyName());
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(CanvasDrawTiles);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_CanvasDrawTiles)
 

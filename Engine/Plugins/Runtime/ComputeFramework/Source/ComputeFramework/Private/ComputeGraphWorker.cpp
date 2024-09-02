@@ -89,7 +89,7 @@ bool FComputeGraphTaskWorker::HasWork(FName InExecutionGroupName) const
 void FComputeGraphTaskWorker::SubmitWork(FRDGBuilder& GraphBuilder, FName InExecutionGroupName, ERHIFeatureLevel::Type FeatureLevel)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ComputeFramework::ExecuteBatches);
-	RDG_EVENT_SCOPE(GraphBuilder, "ComputeFramework::ExecuteBatches");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, ComputeFramework_ExecuteBatches, "ComputeFramework::ExecuteBatches");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, ComputeFramework_ExecuteBatches);
 
 	RenderCaptureInterface::FScopedCapture RenderCapture(GTriggerGPUCaptureDispatches > 0, GraphBuilder, TEXT("FComputeGraphTaskWorker::SubmitWork"));

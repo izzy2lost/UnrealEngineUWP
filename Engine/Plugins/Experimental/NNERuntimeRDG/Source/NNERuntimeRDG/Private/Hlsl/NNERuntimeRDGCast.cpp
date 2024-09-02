@@ -93,7 +93,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TShaderMapRef<TCastCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Cast");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorCast, "NNE.Operator.Hlsl.Cast");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorCast);
 
 			FComputeShaderUtils::AddPass(

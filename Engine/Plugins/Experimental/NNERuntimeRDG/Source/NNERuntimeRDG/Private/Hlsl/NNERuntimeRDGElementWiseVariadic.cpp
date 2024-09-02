@@ -147,7 +147,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			check(InOutputTensors.Num() == 1);
 			check(InOutputTensors[0] != nullptr);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.ElementWise.Variadic");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorElementWiseVariadic, "NNE.Operator.Hlsl.ElementWise.Variadic");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorElementWiseVariadic);
 
 			FTensorRDGRef PassInputTensors[FElementWiseVariadicConstants::MAX_NUM_INPUT];

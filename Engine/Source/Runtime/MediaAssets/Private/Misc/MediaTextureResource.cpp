@@ -370,6 +370,7 @@ void FMediaTextureResource::FlushPendingData()
 void FMediaTextureResource::Render(const FRenderParams& Params)
 {
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, MediaTextureResource, "MediaTextureResource");
 	SCOPED_GPU_STAT(RHICmdList, MediaTextureResource);
 
 	LLM_SCOPE(ELLMTag::MediaStreaming);
@@ -815,7 +816,7 @@ void FMediaTextureResource::ClearTexture(FRHICommandListImmediate& RHICmdList, c
 
 	// draw the clear color
 	{
-		SCOPED_DRAW_EVENT(RHICmdList, FMediaTextureResource_ClearTexture);
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, MediaTextureResource, "FMediaTextureResource_ClearTexture");
 		SCOPED_GPU_STAT(RHICmdList, MediaTextureResource);
 
 		RHICmdList.Transition(FRHITransitionInfo(RenderTargetTextureRHI, ERHIAccess::SRVMask, ERHIAccess::RTV));
@@ -1048,7 +1049,7 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 		// We should never get here with a sample that contains mips!
 		check(Sample->GetNumMips() == 1);
 
-		SCOPED_DRAW_EVENT(RHICmdList, FMediaTextureResource_Convert);
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, MediaTextureResource, "FMediaTextureResource_Convert");
 		SCOPED_GPU_STAT(RHICmdList, MediaTextureResource);
 
 		// draw full size quad into render target
@@ -1463,7 +1464,7 @@ void FMediaTextureResource::CopyFromExternalTexture(FRHICommandListImmediate& RH
 		FExternalTextureRegistry::Get().GetExternalTextureCoordinateOffset(TextureGUID, Offset);
 		FExternalTextureRegistry::Get().GetExternalTextureCoordinateScaleRotation(TextureGUID, ScaleRotation);
 
-		SCOPED_DRAW_EVENT(RHICmdList, FMediaTextureResource_ConvertExternalTexture);
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, MediaTextureResource, "FMediaTextureResource_ConvertExternalTexture");
 		SCOPED_GPU_STAT(RHICmdList, MediaTextureResource);
 
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;

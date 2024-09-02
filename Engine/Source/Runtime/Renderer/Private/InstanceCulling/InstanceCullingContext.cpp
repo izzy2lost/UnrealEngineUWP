@@ -745,7 +745,7 @@ void FInstanceCullingContext::BuildRenderingCommandsInternal(
 	const bool bCullInstances = InstanceCullingManager != nullptr && CVarCullInstances.GetValueOnRenderThread() != 0;
 	const bool bAllowWPODisable = InstanceCullingManager != nullptr;
 
-	RDG_EVENT_SCOPE(GraphBuilder, "BuildRenderingCommands(Culling=%s)", bCullInstances ? TEXT("On") : TEXT("Off"));
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, BuildRenderingCommands, "BuildRenderingCommands(Culling=%s)", bCullInstances ? TEXT("On") : TEXT("Off"));
 	RDG_GPU_STAT_SCOPE(GraphBuilder, BuildRenderingCommands);
 
 	const bool bOrderPreservationEnabled = IsInstanceOrderPreservationEnabled();
@@ -1079,7 +1079,7 @@ FInstanceCullingDeferredContext *FInstanceCullingContext::CreateDeferredContext(
 	const bool bCullInstances = CVarCullInstances.GetValueOnRenderThread() != 0;
 	const bool bAllowWPODisable = true;
 
-	RDG_EVENT_SCOPE(GraphBuilder, "BuildRenderingCommandsDeferred(Culling=%s)", bCullInstances ? TEXT("On") : TEXT("Off"));
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, BuildRenderingCommandsDeferred, "BuildRenderingCommandsDeferred(Culling=%s)", bCullInstances ? TEXT("On") : TEXT("Off"));
 	RDG_GPU_STAT_SCOPE(GraphBuilder, BuildRenderingCommandsDeferred);
 
 	TArray<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FParameters*> PassParameters;

@@ -84,7 +84,7 @@ void ApplyTransferFunction(
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 	TShaderMapRef<FTransferFunctionOidnCS> Shader(GlobalShaderMap, PermutationVector);
 
-	RDG_EVENT_SCOPE(GraphBuilder, "NNEDenoiser.TransferFunctionOidn");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEDenoiserTransferFunctionOidn, "NNEDenoiser.TransferFunctionOidn");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEDenoiserTransferFunctionOidn);
 
 	FComputeShaderUtils::AddPass(

@@ -201,7 +201,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			PermutationVector.Set<FConvCS::FConvHasB>(HasBias);
 			TShaderMapRef<FConvCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Conv.Default");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorConvDefault, "NNE.Operator.Hlsl.Conv.Default");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorConvDefault);
 
 			FComputeShaderUtils::AddPass(
@@ -275,7 +275,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			PermutationVector.Set<FConvMatmulCS::FConvMatmulHasBias>(bHasBias);
 			TShaderMapRef<FConvMatmulCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Conv.Matmul");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorConvMatmul, "NNE.Operator.Hlsl.Conv.Matmul");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorConvMatmul);
 
 			FComputeShaderUtils::AddPass(
@@ -389,7 +389,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 				TShaderMapRef<FConvWinogradWeightsCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
-				RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Conv.Winograd.Weights");
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorConvWinogradWeights, "NNE.Operator.Hlsl.Conv.Winograd.Weights");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorConvWinogradWeights);
 
 				FComputeShaderUtils::AddPass(
@@ -418,7 +418,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 				TShaderMapRef<FConvWinogradInputCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
-				RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Conv.Winograd.Input");
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorConvWinogradInput, "NNE.Operator.Hlsl.Conv.Winograd.Input");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorConvWinogradInput);
 
 				FComputeShaderUtils::AddPass(
@@ -455,7 +455,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				PermutationVector.Set<FConvWinogradMMMCS::FBlockSizeN>(BlockSizeN);
 				TShaderMapRef<FConvWinogradMMMCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-				RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Conv.Winograd.MMM");
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorConvWinogradMMM, "NNE.Operator.Hlsl.Conv.Winograd.MMM");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorConvWinogradMMM);
 
 				FComputeShaderUtils::AddPass(
@@ -495,7 +495,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				PermutationVector.Set<FConvWinogradOutputCS::FDataType>(ShaderDataType);
 				TShaderMapRef<FConvWinogradOutputCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-				RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Conv.Winograd.Output");
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorConvWinogradOutput, "NNE.Operator.Hlsl.Conv.Winograd.Output");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorConvWinogradOutput);
 
 				FComputeShaderUtils::AddPass(

@@ -103,7 +103,7 @@ FScreenPassTexture AddSelectionOutlinePass(
 
 	const bool bNaniteEnabled = NaniteRasterResults != nullptr;
 
-	RDG_EVENT_SCOPE(GraphBuilder, "EditorSelectionOutlines");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, EditorPrimitives, "EditorSelectionOutlines");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, EditorPrimitives);
 
 	const uint32 NumSamples = View.GetSceneTexturesConfig().NumSamples;

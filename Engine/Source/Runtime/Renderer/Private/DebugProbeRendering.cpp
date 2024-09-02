@@ -133,7 +133,7 @@ void StampDeferredDebugProbeDepthPS(
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "StampDeferredDebugProbeDepth");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, StampDeferredDebugProbe, "StampDeferredDebugProbeDepth");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, StampDeferredDebugProbe);
 
 	const bool bVisualizeLightingOnProbes = CVarVisualizeLightingOnProbes.GetValueOnRenderThread() > 0;
@@ -167,7 +167,7 @@ void StampDeferredDebugProbeMaterialPS(
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "StampDeferredDebugProbeMaterial");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, StampDeferredDebugProbe, "StampDeferredDebugProbeMaterial");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, StampDeferredDebugProbe);
 
 	const bool bVisualizeLightingOnProbes = CVarVisualizeLightingOnProbes.GetValueOnRenderThread() > 0;
@@ -232,7 +232,7 @@ void StampDeferredDebugProbeVelocityPS(
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "StampDeferredDebugProbeVelocity");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, StampDeferredDebugProbe, "StampDeferredDebugProbeVelocity");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, StampDeferredDebugProbe);
 
 	const bool bVisualizeLightingOnProbes = CVarVisualizeLightingOnProbes.GetValueOnRenderThread() > 0;

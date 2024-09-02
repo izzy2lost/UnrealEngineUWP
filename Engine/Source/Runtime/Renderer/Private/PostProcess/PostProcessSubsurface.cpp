@@ -1051,6 +1051,7 @@ void AddSubsurfaceViewPass(
 	FRDGTextureRef QualityHistoryTexture = RegisterExternalRenderTarget(GraphBuilder, QualityHistoryState, SceneColorTextureDescriptor.Extent, TEXT("Subsurface.QualityHistoryTexture"));
 	FRDGTextureRef NewQualityHistoryTexture = nullptr;
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SubsurfaceScattering, "SubsurfaceScattering");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SubsurfaceScattering);
 
 	FSubsurfaceTiles Tiles;

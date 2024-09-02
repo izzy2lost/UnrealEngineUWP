@@ -1390,6 +1390,7 @@ void FDeferredShadingSceneRenderer::RenderOcclusion(
 
 	if (bIsOcclusionTesting)
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, HZB, "HZB");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, HZB);
 
 		uint32 DownsampleFactor = 1;
@@ -1450,6 +1451,7 @@ void FDeferredShadingSceneRenderer::RenderOcclusion(
 
 		PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(OcclusionDepthTexture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilWrite);
 
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, BeginOcclusionTests, "BeginOcclusionTests");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, BeginOcclusionTests);
 
 		GraphBuilder.AddPass(

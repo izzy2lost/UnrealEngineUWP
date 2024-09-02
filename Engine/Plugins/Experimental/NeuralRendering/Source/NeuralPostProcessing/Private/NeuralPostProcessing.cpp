@@ -434,6 +434,7 @@ static void	ApplyNeuralNetworks_RenderingThread(
 		return;
 	}
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, NeuralPostProcessing, "NeuralPostProcessing");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, NeuralPostProcessing);
 
 	FIntPoint TextureSize = NeuralTexture->Desc.Extent;

@@ -251,6 +251,7 @@ bool FSceneRenderer::RenderCustomDepthPass(
 	}
 
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderCustomDepthPass);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, CustomDepth, "CustomDepth");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, CustomDepth);
 
 	// Render non-Nanite Custom Depth primitives

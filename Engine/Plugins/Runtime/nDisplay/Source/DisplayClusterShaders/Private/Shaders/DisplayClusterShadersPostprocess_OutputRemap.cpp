@@ -150,8 +150,8 @@ bool FDisplayClusterShadersPostprocess_OutputRemap::RenderPostprocess_OutputRema
 
 	const bool bClearTextureEnabled = CVarClearOutputRemapClearRTT.GetValueOnRenderThread() != 0;
 
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_PostProcess_OutputRemap, "nDisplay_PostProcess_OutputRemap");
 	SCOPED_GPU_STAT(RHICmdList, nDisplay_PostProcess_OutputRemap);
-	SCOPED_DRAW_EVENT(RHICmdList, nDisplay_PostProcess_OutputRemap);
 
 	FRHIRenderPassInfo RPInfo(InRenderTargetableDestTexture, ERenderTargetActions::Load_Store);
 	RHICmdList.Transition(FRHITransitionInfo(InRenderTargetableDestTexture, ERHIAccess::Unknown, ERHIAccess::RTV));

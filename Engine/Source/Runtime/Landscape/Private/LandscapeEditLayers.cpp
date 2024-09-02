@@ -1116,8 +1116,8 @@ public:
 
 	void ExtractLayers(FRHICommandListImmediate& InRHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(InRHICmdList, LandscapeLayers_ExtractLayers, "LandscapeLayers_ExtractLayers");
 		SCOPED_GPU_STAT(InRHICmdList, LandscapeLayers_ExtractLayers);
-		SCOPED_DRAW_EVENTF(InRHICmdList, LandscapeLayers, TEXT("LandscapeLayers_ExtractLayers"));
 
 		TShaderMapRef<FLandscapeLayerWeightmapExtractMaterialLayersCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 		SetComputePipelineState(InRHICmdList, ComputeShader.GetComputeShader());
@@ -1310,8 +1310,8 @@ public:
 
 	void PackLayers(FRHICommandListImmediate& InRHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(InRHICmdList, LandscapeLayers_PackLayers, "LandscapeLayers_PackLayers");
 		SCOPED_GPU_STAT(InRHICmdList, LandscapeLayers_PackLayers);
-		SCOPED_DRAW_EVENTF(InRHICmdList, LandscapeLayers, TEXT("LandscapeLayers_PackLayers"));
 
 		TShaderMapRef<FLandscapeLayerWeightmapPackMaterialLayersCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 		SetComputePipelineState(InRHICmdList, ComputeShader.GetComputeShader());
@@ -2086,8 +2086,16 @@ private:
 	void CopyInternal(FRHICommandListImmediate& InRHICmdList)
 	{
 		// TODO [jonathan.bard] : make those perf tags optional : with the amount of textures we copy, it slows down texture copies quite a bit : 
+		RHI_BREADCRUMB_EVENT_STAT(InRHICmdList, LandscapeLayers_CopyTexture
+			, "LandscapeLayers_Copy %s -> %s, Mip (%d -> %d), Array Index (%d -> %d)"
+			, Params.SourceResourceDebugName
+			, Params.DestResourceDebugName
+			, Params.SourceMip
+			, Params.DestMip
+			, Params.SourceArrayIndex
+			, Params.DestArrayIndex
+		);
 		SCOPED_GPU_STAT(InRHICmdList, LandscapeLayers_CopyTexture);
-		SCOPED_DRAW_EVENTF(InRHICmdList, LandscapeLayers, TEXT("LandscapeLayers_Copy %s -> %s, Mip (%d -> %d), Array Index (%d -> %d)"), Params.SourceResourceDebugName, Params.DestResourceDebugName, Params.SourceMip, Params.DestMip, Params.SourceArrayIndex, Params.DestArrayIndex);
 
 		FIntPoint SourceSize(Params.SourceResource->GetSizeX() >> Params.SourceMip, Params.SourceResource->GetSizeY() >> Params.SourceMip);
 		FIntPoint DestSize(Params.DestResource->GetSizeX() >> Params.DestMip, Params.DestResource->GetSizeY() >> Params.DestMip);
@@ -2127,9 +2135,17 @@ private:
 		const int32 NumChannelsDest = GPixelFormats[Params.DestResource->TextureRHI->GetDesc().Format].NumComponents;
 
 		// TODO [jonathan.bard] : make those perf tags optional : with the amount of textures we copy, it slows down texture copies quite a bit : 
+		RHI_BREADCRUMB_EVENT_STAT(InRHICmdList, LandscapeLayers_CopyTexturePS
+			, "LandscapeLayers_CopyPS %s -> %s, Mip (%d -> %d), Array Index (%d -> %d), [%s]"
+			, Params.SourceResourceDebugName
+			, Params.DestResourceDebugName
+			, Params.SourceMip
+			, Params.DestMip
+			, Params.SourceArrayIndex
+			, Params.DestArrayIndex
+			, GetChannelSwizzleMaskDescription(Params.ChannelSwizzleMask, NumChannelsDest)
+		);
 		SCOPED_GPU_STAT(InRHICmdList, LandscapeLayers_CopyTexturePS);
-		SCOPED_DRAW_EVENTF(InRHICmdList, LandscapeLayers, TEXT("LandscapeLayers_CopyPS %s -> %s, Mip (%d -> %d), Array Index (%d -> %d), [%s]"),
-			Params.SourceResourceDebugName, Params.DestResourceDebugName, Params.SourceMip, Params.DestMip, Params.SourceArrayIndex, Params.DestArrayIndex, GetChannelSwizzleMaskDescription(Params.ChannelSwizzleMask, NumChannelsDest));
 
 		FIntPoint SourceSize(Params.SourceResource->GetSizeX() >> Params.SourceMip, Params.SourceResource->GetSizeY() >> Params.SourceMip);
 		FIntPoint DestSize(Params.DestResource->GetSizeX() >> Params.DestMip, Params.DestResource->GetSizeY() >> Params.DestMip);
@@ -2193,8 +2209,8 @@ public:
 
 	void Clear(FRHICommandListImmediate& InRHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(InRHICmdList, LandscapeLayers_Clear, "LandscapeLayers_Clear %s", DebugName);
 		SCOPED_GPU_STAT(InRHICmdList, LandscapeLayers_Clear);
-		SCOPED_DRAW_EVENTF(InRHICmdList, LandscapeLayers, TEXT("LandscapeLayers_Clear %s"), DebugName);
 		TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayersWeightmapClear_RenderThread::Clear);
 
 		check(IsInRenderingThread());
@@ -2237,8 +2253,8 @@ public:
 
 	void Render(FRHICommandListImmediate& InRHICmdList, bool InClearRT)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(InRHICmdList, LandscapeLayers_Render, "LandscapeLayers_Render %s", DebugName);
 		SCOPED_GPU_STAT(InRHICmdList, LandscapeLayers_Render);
-		SCOPED_DRAW_EVENTF(InRHICmdList, LandscapeLayers, TEXT("LandscapeLayers_Render %s"), DebugName);
 		INC_DWORD_STAT(STAT_LandscapeLayersRegenerateDrawCalls);
 		TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeLayersRender_RenderThread::Render);
 
@@ -3203,7 +3219,7 @@ struct FLandscapeLayersCopyReadbackTextureParams
 void ExecuteCopyToReadbackTexture(TArray<FLandscapeLayersCopyReadbackTextureParams>& InParams)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ExecuteCopyToReadbackTexture);
-	SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("Copy to readback textures (%d copies)"), InParams.Num());
+	RHI_BREADCRUMB_EVENT_GAMETHREAD("Copy to readback textures (%d copies)", InParams.Num());
 	if (!FApp::CanEverRender())
 	{
 		return;
@@ -3269,8 +3285,8 @@ void ALandscape::CopyTexturePS(const FString& InSourceDebugName, FTextureResourc
 		[InSourceDebugName, InSourceResource, InDestDebugName, InDestResource](FRHICommandListImmediate& RHICmdList)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_RT_CopyTexturePS);
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, LandscapeLayers_CopyTexturePS, "LandscapeLayers_CopyTexturePS %s -> %s", InSourceDebugName, InDestDebugName);
 		SCOPED_GPU_STAT(RHICmdList, LandscapeLayers_CopyTexturePS);
-		SCOPED_DRAW_EVENTF(RHICmdList, LandscapeLayers, TEXT("LandscapeLayers_CopyTexturePS %s -> %s"), InSourceDebugName, InDestDebugName);
 
 		check(InSourceResource->GetSizeX() == InDestResource->GetSizeX());
 		check(InSourceResource->GetSizeY() == InDestResource->GetSizeY());
@@ -7426,7 +7442,7 @@ int32 ALandscape::PerformLayersHeightmapsBatchedMerge(const FUpdateLayersContent
 	using namespace UE::Landscape::EditLayers::Private;
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(ALandscape::PerformLayersHeightmapsBatchedMerge);
-	SCOPED_DRAW_EVENT_GAMETHREAD(PerformLayersHeightmapsBatchedMerge);
+	RHI_BREADCRUMB_EVENT_GAMETHREAD("PerformLayersHeightmapsBatchedMerge");
 
 	ULandscapeInfo* Info = GetLandscapeInfo();
 	check(Info != nullptr);
@@ -7494,7 +7510,7 @@ int32 ALandscape::PerformLayersHeightmapsBatchedMerge(const FUpdateLayersContent
 		// Copy to mip0 of the final textures and expand the vertices on borders so that we can generate the mips from it:
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(CopyMip0AndExpand);
-			SCOPED_DRAW_EVENT_GAMETHREAD(CopyMip0AndExpand);
+			RHI_BREADCRUMB_EVENT_GAMETHREAD("CopyMip0AndExpand");
 
 			// Recompose mip0 of the final heightmaps, subsection by subsection, to duplicate borders : 
 			InParams.MergeRenderContext->CycleBlendRenderTargets(/*InDesiredWriteAccess = */ERHIAccess::SRVMask); // TODO [jonathan.bard] : This should be CopyDst but ExecuteCopyLayersTexture doesn't allow for it ATM
@@ -7532,7 +7548,7 @@ int32 ALandscape::PerformLayersHeightmapsBatchedMerge(const FUpdateLayersContent
 
 			// TODO [jonathan.bard] : move this after expand (and rename "Expand" to "Generate mip 0")
 			{
-				SCOPED_DRAW_EVENT_GAMETHREAD(CopyToMip0);
+				RHI_BREADCRUMB_EVENT_GAMETHREAD("CopyToMip0");
 				// Copy sub-section by sub-section in order to duplicate borders :
 				TArray<FLandscapeLayersCopyTextureParams> DeferredCopyTextures;
 				for (const FComponentCopyInfo& ComponentCopyInfo : ComponentCopyInfos)
@@ -7564,7 +7580,7 @@ int32 ALandscape::PerformLayersHeightmapsBatchedMerge(const FUpdateLayersContent
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(GenerateMips);
 			const int32 NumMips = (int32)FMath::CeilLogTwo(Landscape->SubsectionSizeQuads) + 1;
-			SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("Generate %i remaining mips"), NumMips - 1);
+			RHI_BREADCRUMB_EVENT_GAMETHREAD("Generate %i remaining mips", NumMips - 1);
 
 			FIntPoint CurrentMipResolution = InParams.RenderBatch->GetRenderTargetResolution(/*bInWithDuplicateBorders = */true); // Mips are generated after the borders have been duplicated
 			FIntPoint CurrentMipSubsectionSize = Landscape->SubsectionSizeQuads + 1;
@@ -7579,7 +7595,7 @@ int32 ALandscape::PerformLayersHeightmapsBatchedMerge(const FUpdateLayersContent
 				check(CurrentMipSubsectionSize.X > 0 && CurrentMipSubsectionSize.Y > 0);
 
 				{
-					SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("Generate mip %i"), MipIndex);
+					RHI_BREADCRUMB_EVENT_GAMETHREAD("Generate mip %i", MipIndex);
 
 					ENQUEUE_RENDER_COMMAND(LandscapeLayers_Cmd_HeightmapsGenerateMips)(
 						[ OutputResource = WriteRT->GetRenderTarget2D()->GetResource()
@@ -7606,7 +7622,7 @@ int32 ALandscape::PerformLayersHeightmapsBatchedMerge(const FUpdateLayersContent
 				// Then copy the appropriate regions to the destination texture mips : 
 				// TODO [jonathan.bard] : add this when we don't auto-transition to SRV in the copy texture thing : WriteRT->TransitionTo(ERHIAccess::CopySrc);
 				{
-					SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("Copy mip %i"), MipIndex);
+					RHI_BREADCRUMB_EVENT_GAMETHREAD("Copy mip %i", MipIndex);
 
 					WriteRT->TransitionTo(ERHIAccess::SRVMask);
 					TArray<FLandscapeLayersCopyTextureParams> DeferredCopyTextures;
@@ -7646,7 +7662,7 @@ int32 ALandscape::PerformLayersHeightmapsBatchedMerge(const FUpdateLayersContent
 	// Prepare the UTexture2D readbacks we'll need to perform :
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(CopyToReadback);
-		SCOPED_DRAW_EVENT_GAMETHREAD(CopyToReadback);
+		RHI_BREADCRUMB_EVENT_GAMETHREAD("CopyToReadback");
 
 		TArray<FLandscapeLayersCopyReadbackTextureParams> DeferredCopyReadbackTextures = PrepareLandscapeLayersCopyReadbackTextureParams(InUpdateLayersContentContext.MapHelper, InUpdateLayersContentContext.HeightmapsToResolve.Array(), /*bWeightmaps = */false);
 		ExecuteCopyToReadbackTexture(DeferredCopyReadbackTextures);
@@ -9943,7 +9959,7 @@ int32 ALandscape::PerformLayersWeightmapsGlobalMerge(FUpdateLayersContentContext
 					int32 LayerIndex = LayerInfoObject.Value;
 					ULandscapeLayerInfoObject* LayerInfoObj = LayerInfoObject.Key;
 
-					SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeEditLayers, TEXT("LS Weight: %s PaintLayer: %s"), Layer.Name, LayerInfoObj->LayerName);
+					RHI_BREADCRUMB_EVENT_GAMETHREAD("LS Weight: %s PaintLayer: %s", Layer.Name, LayerInfoObj->LayerName);
 
 					// Copy the layer we are working on
 					SourceDebugName = FString::Printf(TEXT("Weight: %s PaintLayer: %s, CurrentProcLayerWeightmapAllLayersResource"), *Layer.Name.ToString(), *LayerInfoObj->LayerName.ToString());
@@ -10298,7 +10314,7 @@ int32 ALandscape::PerformLayersWeightmapsBatchedMerge(FUpdateLayersContentContex
 	using namespace UE::Landscape::EditLayers::Private;
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(ALandscape::PerformLayersWeightmapsBatchedMerge);
-	SCOPED_DRAW_EVENT_GAMETHREAD(PerformLayersWeightmapsBatchedMerge);
+	RHI_BREADCRUMB_EVENT_GAMETHREAD("PerformLayersWeightmapsBatchedMerge");
 
 	ULandscapeInfo* Info = GetLandscapeInfo();
 	check(Info != nullptr);
@@ -10487,7 +10503,7 @@ int32 ALandscape::PerformLayersWeightmapsBatchedMerge(FUpdateLayersContentContex
 		if (!WeightmapResolveInfosForBatch.IsEmpty())
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FinalizeWeightmaps);
-			SCOPED_DRAW_EVENT_GAMETHREAD(FinalizeWeightmaps);
+			RHI_BREADCRUMB_EVENT_GAMETHREAD("FinalizeWeightmaps");
 
 			check(MinWeightmapResolution == MaxWeightmapResolution);
 
@@ -10605,7 +10621,7 @@ int32 ALandscape::PerformLayersWeightmapsBatchedMerge(FUpdateLayersContentContex
 	// Prepare the UTexture2D readbacks we'll need to perform :
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(CopyToReadback);
-		SCOPED_DRAW_EVENT_GAMETHREAD(CopyToReadback);
+		RHI_BREADCRUMB_EVENT_GAMETHREAD("CopyToReadback");
 
 		TArray<FLandscapeLayersCopyReadbackTextureParams> DeferredCopyReadbackTextures = PrepareLandscapeLayersCopyReadbackTextureParams(InUpdateLayersContentContext.MapHelper, InUpdateLayersContentContext.WeightmapsToResolve.Array(), /*bWeightmaps = */true);
 		ExecuteCopyToReadbackTexture(DeferredCopyReadbackTextures);

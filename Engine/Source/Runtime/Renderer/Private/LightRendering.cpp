@@ -1395,7 +1395,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 #endif // RHI_RAYTRACING
 	const bool bUseLightFunctionAtlas = LightFunctionAtlas::IsEnabled(*Scene, ELightFunctionAtlasSystem::DeferredLighting);
 
-	RDG_EVENT_SCOPE(GraphBuilder, "Lights");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, Lights, "Lights");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, Lights);
 
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_RenderLights, FColor::Emerald);

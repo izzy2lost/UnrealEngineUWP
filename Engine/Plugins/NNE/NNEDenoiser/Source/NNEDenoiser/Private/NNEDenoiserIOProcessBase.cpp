@@ -68,7 +68,7 @@ void AddPreOrPostProcess(
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 	TShaderMapRef<FDefaultIOProcessCS> Shader(GlobalShaderMap, PermutationVector);
 
-	RDG_EVENT_SCOPE(GraphBuilder, "NNEDenoiser.DefaultIOProcess");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEDenoiserDefaultIOProcess, "NNEDenoiser.DefaultIOProcess");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEDenoiserDefaultIOProcess);
 
 	FComputeShaderUtils::AddPass(
@@ -128,7 +128,7 @@ void AddReadInputPass(
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 	TShaderMapRef<FTextureBufferMappedCopyCS> ReadInputShader(GlobalShaderMap, PermutationVector);
 
-	RDG_EVENT_SCOPE(GraphBuilder, "NNEDenoiser.ReadInput");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEDenoiserReadInput, "NNEDenoiser.ReadInput");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEDenoiserReadInput);
 
 	FComputeShaderUtils::AddPass(
@@ -178,7 +178,7 @@ void AddWriteOutputPass(
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 	TShaderMapRef<FBufferTextureMappedCopyCS> WriteOutputShader(GlobalShaderMap, PermutationVector);
 
-	RDG_EVENT_SCOPE(GraphBuilder, "NNEDenoiser.WriteOutput");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEDenoiserWriteOutput, "NNEDenoiser.WriteOutput");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEDenoiserWriteOutput);
 
 	FComputeShaderUtils::AddPass(

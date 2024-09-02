@@ -2384,6 +2384,7 @@ public:
 		const int32 InputParameterCount,
 		TStaticArray<FShadowVisibilityOutputs, IScreenSpaceDenoiser::kMaxBatchSize>& Outputs) const
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, ShadowsDenoiser, "DenoiseShadowVisibilityMasks");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, ShadowsDenoiser);
 
 		FViewInfoPooledRenderTargets ViewInfoPooledRenderTargets;
@@ -2494,6 +2495,7 @@ public:
 		const FSceneTextureParameters& SceneTextures,
 		const FPolychromaticPenumbraHarmonics& Inputs) const override
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, ShadowsDenoiser, "DenoisePolychromaticPenumbraHarmonics");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, ShadowsDenoiser);
 
 		FRDGTextureRef BlackDummy = GraphBuilder.RegisterExternalTexture(GSystemTextures.BlackDummy);
@@ -2684,6 +2686,7 @@ public:
 		const FReflectionsInputs& ReflectionInputs,
 		const FReflectionsRayTracingConfig RayTracingConfig) const override
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, ReflectionsDenoiser, "DenoiseReflections");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, ReflectionsDenoiser);
 
 		// Imaginary depth is only used for Nvidia denoiser.
@@ -2734,6 +2737,7 @@ public:
 		const FReflectionsInputs& ReflectionInputs,
 		const FReflectionsRayTracingConfig RayTracingConfig) const override
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, ReflectionsDenoiser, "DenoiseWaterReflections");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, ReflectionsDenoiser);
 
 		// Imaginary depth is only used for Nvidia denoiser.
@@ -2786,6 +2790,7 @@ public:
 		const FAmbientOcclusionInputs& ReflectionInputs,
 		const FAmbientOcclusionRayTracingConfig RayTracingConfig) const override
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, AmbientOcclusionDenoiser, "DenoiseAmbientOcclusion");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, AmbientOcclusionDenoiser);
 
 		FViewInfoPooledRenderTargets ViewInfoPooledRenderTargets;
@@ -2835,6 +2840,7 @@ public:
 		const FDiffuseIndirectInputs& Inputs,
 		const FAmbientOcclusionRayTracingConfig Config) const override
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, DiffuseIndirectDenoiser, "DenoiseDiffuseIndirect");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, DiffuseIndirectDenoiser);
 
 		FViewInfoPooledRenderTargets ViewInfoPooledRenderTargets;
@@ -2898,6 +2904,7 @@ public:
 		const FDiffuseIndirectHarmonic& Inputs,
 		const HybridIndirectLighting::FCommonParameters& CommonDiffuseParameters) const override
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, DiffuseIndirectDenoiser, "DenoiseDiffuseIndirectHarmonic");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, DiffuseIndirectDenoiser);
 
 		FViewInfoPooledRenderTargets ViewInfoPooledRenderTargets;
@@ -2947,6 +2954,7 @@ public:
 		const FDiffuseIndirectInputs& Inputs,
 		const FAmbientOcclusionRayTracingConfig Config) const override
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, DiffuseIndirectDenoiser, "DenoiseScreenSpaceDiffuseIndirect");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, DiffuseIndirectDenoiser);
 
 		FViewInfoPooledRenderTargets ViewInfoPooledRenderTargets;
@@ -3057,6 +3065,7 @@ IScreenSpaceDenoiser::FDiffuseIndirectOutputs IScreenSpaceDenoiser::DenoiseSkyLi
 	const FDiffuseIndirectInputs& Inputs,
 	const FAmbientOcclusionRayTracingConfig Config)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, DiffuseIndirectDenoiser, "DenoiseSkyLight");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, DiffuseIndirectDenoiser);
 
 	FViewInfoPooledRenderTargets ViewInfoPooledRenderTargets;

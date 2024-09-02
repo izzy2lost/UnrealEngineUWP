@@ -1135,7 +1135,7 @@ void FDeferredShadingSceneRenderer::RenderForwardShadowProjections(
 			}
 		}
 
-		RDG_EVENT_SCOPE(GraphBuilder, "ShadowProjectionOnOpaque");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, ShadowProjection, "ShadowProjectionOnOpaque");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, ShadowProjection);
 
 		// All shadows render with min blending

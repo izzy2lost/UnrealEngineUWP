@@ -199,8 +199,8 @@ bool FDisplayClusterShadersPreprocess_UVLightCards::RenderPreprocess_UVLightCard
 		return false;
 	}
 
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_UVLightCards_Render, "nDisplay_UVLightCards_Render");
 	SCOPED_GPU_STAT(RHICmdList, nDisplay_UVLightCards_Render);
-	SCOPED_DRAW_EVENT(RHICmdList, nDisplay_UVLightCards_Render);
 
 	FRDGBuilder GraphBuilder(RHICmdList);
 

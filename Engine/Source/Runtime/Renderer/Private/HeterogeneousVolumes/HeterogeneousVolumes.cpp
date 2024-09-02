@@ -763,7 +763,7 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "HeterogeneousVolumeShadows");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HeterogeneousVolumeShadowsStat, "HeterogeneousVolumeShadows");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HeterogeneousVolumeShadowsStat);
 	SCOPED_NAMED_EVENT(HeterogeneousVolumes, FColor::Emerald);
 
@@ -866,7 +866,7 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 	const FSceneTextures& SceneTextures
 )
 {
-	RDG_EVENT_SCOPE(GraphBuilder, "HeterogeneousVolumes");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HeterogeneousVolumesStat, "HeterogeneousVolumes");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HeterogeneousVolumesStat);
 	SCOPED_NAMED_EVENT(HeterogeneousVolumes, FColor::Emerald);
 

@@ -320,7 +320,6 @@ TSharedPtr<FVideoResourceRHI> FVideoResourceRHI::TransformResource(FVideoDescrip
 				([Source = GetRaw().Texture, Dest = OutResource->GetRaw().Texture](FRHICommandListImmediate& RHICmdList) {
 
 					SCOPED_DRAW_EVENT(RHICmdList, FVideoResourceRHI_NV12toBGRA);
-					//SCOPED_GPU_STAT(RHICmdList, VideoResouceRHI);
 
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.Transition(FRHITransitionInfo(Dest, ERHIAccess::Unknown, ERHIAccess::RTV));
@@ -390,7 +389,6 @@ void FVideoResourceRHI::TransformResourceTo(FRHICommandListImmediate& RHICmdList
 		if (GetFormat() == EVideoFormat::NV12 && Target->GetDesc().Format == EVideoFormat::BGRA)
 		{
 				SCOPED_DRAW_EVENT(RHICmdList, FVideoResourceRHI_NV12toBGRA);
-				//SCOPED_GPU_STAT(RHICmdList, VideoResouceRHI);
 
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
 				RHICmdList.Transition(FRHITransitionInfo(Target, ERHIAccess::Unknown, ERHIAccess::RTV));

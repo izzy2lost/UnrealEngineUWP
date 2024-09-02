@@ -1065,7 +1065,7 @@ void MobileDeferredShadingPass(
 	const TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	EMobileSSRQuality MobileSSRQuality)
 {
-	SCOPED_DRAW_EVENT(RHICmdList, DeferredShading);
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, DeferredShading, "DeferredShading");
 	SCOPED_GPU_STAT(RHICmdList, DeferredShading);
 	
 	RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);

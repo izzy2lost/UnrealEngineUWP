@@ -1542,8 +1542,8 @@ bool DiaphragmDOF::AddPasses(
 		return false;
 	}
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, DepthOfField, "DOF(Alpha=%s)", bProcessSceneAlpha ? TEXT("Yes") : TEXT("No"));
 	RDG_GPU_STAT_SCOPE(GraphBuilder, DepthOfField);
-	RDG_EVENT_SCOPE(GraphBuilder, "DOF(Alpha=%s)", bProcessSceneAlpha ? TEXT("Yes") : TEXT("No"));
 
 	bool bGatherBackground = MaxBackgroundCocRadius > kMinimalAbsGatherPassCocRadius;
 	bool bGatherForeground = AbsMaxForegroundCocRadius > kMinimalAbsGatherPassCocRadius;

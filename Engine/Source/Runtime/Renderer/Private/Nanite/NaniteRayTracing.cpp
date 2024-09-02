@@ -863,6 +863,7 @@ namespace Nanite
 
 		if (BuildParams.Num() > 0)
 		{
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, RebuildNaniteBLAS, "RebuildNaniteBLAS");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, RebuildNaniteBLAS);
 
 			FRDGBufferDesc ScratchBufferDesc;

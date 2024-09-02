@@ -787,7 +787,7 @@ void FMergeRenderContext::Render(TFunction<void(const FOnRenderBatchTargetGroupD
 	{
 		const FMergeRenderBatch& RenderBatch = RenderBatches[CurrentRenderBatchIndex];
 		FString RenderBatchDebugName = FString::Format(TEXT("Render Batch [{0}] : ({1},{2})->({3},{4})"), { CurrentRenderBatchIndex, RenderBatch.SectionRect.Min.X, RenderBatch.SectionRect.Min.Y, RenderBatch.SectionRect.Max.X, RenderBatch.SectionRect.Max.Y });
-		SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("%s"), RenderBatchDebugName);
+		RHI_BREADCRUMB_EVENT_GAMETHREAD("%s", RenderBatchDebugName);
 
 		checkf((RenderBatch.RenderSteps.Num() >= 1) && (RenderBatch.RenderSteps.Last().Type == FMergeRenderStep::EType::SignalBatchMergeGroupDone), TEXT("Any batch should end with a SignalBatchMergeGroupDone step and there \
 			should be at least another step prior to that, otherwise, the batch is just useless."));
@@ -849,7 +849,7 @@ void FMergeRenderContext::Render(TFunction<void(const FOnRenderBatchTargetGroupD
 					//RenderParams.RenderAreaWorldTransform = FTransform(LandscapeTransform.GetRotation(), LandscapeTransform.GetTranslation() + FVector(RenderBatch.SectionRect.Min) /** (double)ComponentSizeQuads - FVector(0.5, 0.5, 0)*/, LandscapeTransform.GetScale3D());
 
 					FString RenderStepProfilingEventName = FString::Format(TEXT("Step [{0}] ({1}): Render {2}"), { RenderStepIndex, *ConvertTargetLayerNamesToString(RenderGroupTargetLayerNames), *Renderer->GetEditLayerRendererDebugName() });
-					SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("%s"), RenderStepProfilingEventName);
+					RHI_BREADCRUMB_EVENT_GAMETHREAD("%s", RenderStepProfilingEventName);
 
 					// TODO [jonathan.bard] : this is more of a Batch world transform/section rect at the moment. Shall we have a RenderAreaWorldTransform/RenderAreaSectionRect in FRenderParams and a BatchRenderAreaWorldTransform in FMergeRenderBatch?
 					//  because currently the old BP brushes work with FMergeRenderBatch data (i.e. 1 transform for the batch and a section rect for the entire batch) but eventually, renderers might be interested in just their Render step context, 
@@ -882,7 +882,7 @@ void FMergeRenderContext::Render(TFunction<void(const FOnRenderBatchTargetGroupD
 			else if ((RenderStep.Type == FMergeRenderStep::EType::SignalBatchMergeGroupDone))
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(MergeGroupDone);
-				SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("Step [%i] (%s) : Render Group Done"), RenderStepIndex, ConvertTargetLayerNamesToString(RenderGroupTargetLayerNames));
+				RHI_BREADCRUMB_EVENT_GAMETHREAD("Step [%i] (%s) : Render Group Done", RenderStepIndex, ConvertTargetLayerNamesToString(RenderGroupTargetLayerNames));
 
 				// The last render target we wrote to is the one containing the batch group's merge result : 
 				FOnRenderBatchTargetGroupDoneParams Params(this, RenderBatch, RenderGroupTargetLayerNames, RenderGroupTargetLayerInfos, SortedComponentMergeRenderInfos);

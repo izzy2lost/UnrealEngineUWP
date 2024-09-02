@@ -2784,6 +2784,7 @@ void FNiagaraGpuRibbonsDataManager::GenerateAllGPUData(FRHICommandListImmediate&
 		return;
 	}
 
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, NiagaraGPURibbons, "Niagara GPU Ribbons");
 	SCOPED_GPU_STAT(RHICmdList, NiagaraGPURibbons);
 
 	FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = GetOwnerInterface();

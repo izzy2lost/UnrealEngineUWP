@@ -2483,6 +2483,7 @@ void FVirtualTextureSystem::FinalizeRequests(FRDGBuilder& GraphBuilder)
 void FVirtualTextureSystem::AllocateResources(FRDGBuilder& GraphBuilder)
 {
 	LLM_SCOPE(ELLMTag::VirtualTextureSystem);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, VirtualTextureAllocate, "VirtualTextureAllocate");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, VirtualTextureAllocate);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, VirtualTextureSystem_Update);
 
@@ -2722,6 +2723,8 @@ TUniquePtr<FVirtualTextureUpdater> FVirtualTextureSystem::BeginUpdate(FRDGBuilde
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, VirtualTextureSystem_Update);
 	TRACE_CPUPROFILER_EVENT_SCOPE(FVirtualTextureSystem::BeginUpdate);
 	SCOPE_CYCLE_COUNTER(STAT_VirtualTextureSystem_Update);
+
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, VirtualTexture, "VirtualTextureBeginUpdate");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, VirtualTexture);
 
 	if (!Settings.bEnablePageRequests)
@@ -2835,6 +2838,8 @@ void FVirtualTextureSystem::EndUpdate(FRDGBuilder& GraphBuilder, TUniquePtr<FVir
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, VirtualTextureSystem_Update);
 	TRACE_CPUPROFILER_EVENT_SCOPE(FVirtualTextureSystem::EndUpdate);
 	SCOPE_CYCLE_COUNTER(STAT_VirtualTextureSystem_Update);
+
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, VirtualTexture, "VirtualTextureEndUpdate");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, VirtualTexture);
 
 	if (Updater->bAsyncTaskAllowed)

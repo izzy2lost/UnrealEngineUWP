@@ -128,6 +128,7 @@ IMPLEMENT_SHADER_TYPE(, FMobileFogPS, TEXT("/Engine/Private/MobileFog.usf"), TEX
 
 void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInfo& View)
 {
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, MobileFog, "MobileFog");
 	SCOPED_GPU_STAT(RHICmdList, MobileFog);
 
 	// RenderFog has some extra logic to skip the rendering of fog. So we account for that inside this function using a lambda.

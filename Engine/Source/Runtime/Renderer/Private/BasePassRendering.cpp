@@ -1445,6 +1445,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 		else
 	#endif
 		{
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, NaniteBasePass, "NaniteBasePass");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteBasePass);
 
 			Nanite::DispatchBasePass(
@@ -1494,7 +1495,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 	else
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BasePassDrawTime);
-		RDG_EVENT_SCOPE(GraphBuilder, "BasePass");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, Basepass, "BasePass");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, Basepass);
 
 		const bool bDrawSceneViewsInOneNanitePass = InViews.Num() > 1 && Nanite::ShouldDrawSceneViewsInOneNanitePass(InViews[0]);

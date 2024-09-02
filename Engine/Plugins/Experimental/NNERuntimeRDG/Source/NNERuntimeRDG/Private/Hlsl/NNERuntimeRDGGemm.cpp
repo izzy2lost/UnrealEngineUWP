@@ -147,7 +147,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			FIntVector ThreadGroupCount = TGemmCS::GetGroupCount(*Parameters, Algorithm, 0);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Gemm");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorGemm, "NNE.Operator.Hlsl.Gemm");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorGemm);
 
 			FComputeShaderUtils::AddPass(

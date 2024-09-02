@@ -1212,7 +1212,7 @@ bool FElectraTextureSample::ConvertCpuOutputPath(FRHICommandListImmediate& RHICm
 		InputTexture = Texture;
 	}
 
-	SCOPED_DRAW_EVENT(RHICmdList, AndroidMediaOutputConvertTexture);
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, MediaAndroidDecoder_Convert, "AndroidMediaOutputConvertTexture");
 	SCOPED_GPU_STAT(RHICmdList, MediaAndroidDecoder_Convert);
 
 	FIntPoint Dim = VideoDecoderOutput->GetDim();

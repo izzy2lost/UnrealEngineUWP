@@ -108,7 +108,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TShaderMapRef<FGatherElementsCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.GatherElements");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorGatherElements, "NNE.Operator.Hlsl.GatherElements");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorGatherElements);
 
 			FComputeShaderUtils::AddPass(

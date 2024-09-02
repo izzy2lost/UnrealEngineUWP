@@ -34,8 +34,9 @@ namespace
 		, FPostProcessMaterialInputs& PostProcessMaterialInputs
 		, EPPMChainGraphExecutionLocation PointOfExecution)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("PPMChainGraph.Render")));
-		SCOPED_GPU_STAT(GraphBuilder.RHICmdList, PPMChain);
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, PPMChain, "PPMChainGraph.Render");
+		RDG_RHI_GPU_STAT_SCOPE(GraphBuilder, PPMChain);
+
 		FRHIDepthStencilState* DepthStencilState = FScreenPassPipelineState::FDefaultDepthStencilState::GetRHI();
 		
 		const FScreenPassTextureViewport RegionViewport(SceneColorRenderTarget.Texture, PrimaryViewRect);

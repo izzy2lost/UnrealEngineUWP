@@ -707,6 +707,7 @@ void FLightFunctionAtlas::RenderAtlasSlots(FRDGBuilder& GraphBuilder, const TArr
 	AllocateTexture2DAtlas(GraphBuilder);
 
 	SCOPED_NAMED_EVENT(LightFunctionAtlasGeneration, FColor::Emerald);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, LightFunctionAtlasGeneration, "LightFunctionAtlasGeneration");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, LightFunctionAtlasGeneration);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, LightFunctionAtlasGeneration);
 	

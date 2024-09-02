@@ -632,7 +632,7 @@ void AddVisualizationPasses(
 					const FNaniteRasterPipelines& RasterPipelines = Scene->NaniteRasterPipelines[ENaniteMeshPass::BasePass];
 
 					LLM_SCOPE_BYTAG(Nanite);
-					RDG_EVENT_SCOPE(GraphBuilder, "Nanite::Visualization");
+					RDG_EVENT_SCOPE_STAT(GraphBuilder, NaniteDebug, "Nanite::Visualization");
 					RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteDebug);
 
 					const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
@@ -898,7 +898,7 @@ void RenderDebugViewMode(
 )
 {
 	LLM_SCOPE_BYTAG(Nanite);
-	RDG_EVENT_SCOPE(GraphBuilder, "Nanite::DebugView");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, NaniteDebug, "Nanite::DebugView");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteDebug);
 
 	if (!FExportDebugViewPS::IsPlatformSupported(View.GetShaderPlatform()))

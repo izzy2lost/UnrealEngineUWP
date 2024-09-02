@@ -146,8 +146,9 @@ void FCanvasTriangleRendererItem::FRenderData::RenderTriangles(
 		return;
 	}
 
+	RDG_EVENT_SCOPE_STAT(RenderContext.GraphBuilder, CanvasDrawTriangles, "%s", *MaterialRenderProxy->GetIncompleteMaterialWithFallback(GMaxRHIFeatureLevel).GetFriendlyName());
 	RDG_GPU_STAT_SCOPE(RenderContext.GraphBuilder, CanvasDrawTriangles);
-	RDG_EVENT_SCOPE(RenderContext.GraphBuilder, "%s", *MaterialRenderProxy->GetIncompleteMaterialWithFallback(GMaxRHIFeatureLevel).GetFriendlyName());
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(CanvasDrawTriangles);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_CanvasDrawTriangles)
 

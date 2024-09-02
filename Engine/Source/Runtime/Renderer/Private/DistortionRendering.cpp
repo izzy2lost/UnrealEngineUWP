@@ -511,7 +511,7 @@ void FDeferredShadingSceneRenderer::RenderDistortion(
 
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FSceneRenderer_RenderDistortion);
 	SCOPED_NAMED_EVENT(RenderDistortion, FColor::Emerald);
-	RDG_EVENT_SCOPE(GraphBuilder, "Distortion");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, Distortion, "Distortion");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, Distortion);
 
 	const FDepthStencilBinding StencilReadBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilRead);

@@ -39,7 +39,7 @@ namespace UE::DynamicMaterial::Private
 		Canvas->Init(InRenderTarget->SizeX, InRenderTarget->SizeY, nullptr, &RenderCanvas);
 
 		{
-			SCOPED_DRAW_EVENTF_GAMETHREAD(DrawMaterialToRenderTarget, TEXT("DrawMaterialToRenderTarget: %s"), InRenderTarget->GetFName());
+			RHI_BREADCRUMB_EVENT_GAMETHREAD("DrawMaterialToRenderTarget: %s", InRenderTarget->GetFName());
 
 			ENQUEUE_RENDER_COMMAND(FlushDeferredResourceUpdateCommand)(
 				[RenderTargetResource](FRHICommandListImmediate& RHICmdList)

@@ -1092,8 +1092,8 @@ void FNiagaraGpuComputeDispatch::ExecuteTicks(FRDGBuilder& GraphBuilder, TConstS
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraGpuComputeDispatch_ExecuteTicks);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraGPUSimTick_RT);
+	RDG_RHI_EVENT_SCOPE_STAT(GraphBuilder, NiagaraGPUSimulation, NiagaraGpuComputeDispatch);	//-TODO:RDG: Show TickStage
 	RDG_GPU_STAT_SCOPE(GraphBuilder, NiagaraGPUSimulation);
-	RDG_RHI_EVENT_SCOPE(GraphBuilder, NiagaraGpuComputeDispatch);	//-TODO:RDG: Show TickStage
 
 	// Setup Parameters that can be read from data interfaces
 	SimulationSceneViews = Views;
@@ -1352,7 +1352,7 @@ void FNiagaraGpuComputeDispatch::ExecuteTicks(FRDGBuilder& GraphBuilder, TConstS
 
 					// Update Free IDs
 					{
-						SCOPED_DRAW_EVENT(RHICmdList, NiagaraGPUComputeFreeIDs);
+						RHI_BREADCRUMB_EVENT_STAT(RHICmdList, NiagaraGPUComputeFreeIDs, "NiagaraGPUComputeFreeIDs");
 						SCOPED_GPU_STAT(RHICmdList, NiagaraGPUComputeFreeIDs);
 
 						RHICmdList.Transition(FRHITransitionInfo(FreeIDListSizesBuffer.UAV, ERHIAccess::UAVCompute, ERHIAccess::UAVCompute));

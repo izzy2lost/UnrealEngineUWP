@@ -3694,6 +3694,7 @@ void FSceneRenderer::DoCrossGPUTransfers(FRDGBuilder& GraphBuilder, FRDGTextureR
 #if WITH_MGPU
 	// Must be all GPUs because context redirector only supports single or all GPUs
 	RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, CrossGPUTransfers, "CrossGPUTransfers");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, CrossGPUTransfers);
 
 	// Need to use this structure as an intermediate, because the RHI texture reference isn't available yet,
@@ -3749,6 +3750,7 @@ void FSceneRenderer::FlushCrossGPUFences(FRDGBuilder& GraphBuilder)
 #if WITH_MGPU
 	if (CrossGPUTransferFencesWait.Num() > 0)
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, CrossGPUSync, "CrossGPUSync");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, CrossGPUSync);
 
 		AddPass(GraphBuilder, RDG_EVENT_NAME("CrossGPUTransferSync"),

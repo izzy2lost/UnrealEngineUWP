@@ -399,7 +399,7 @@ namespace
 		const FSceneView* View = ViewFamily.Views[0];
 		{
 			RDG_GPU_MASK_SCOPE(GraphBuilder, View->GPUMask);
-			RDG_EVENT_SCOPE(GraphBuilder, "RenderTraceRender");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, RenderTraceDraw, "RenderTraceRender");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, RenderTraceDraw);
 
 			auto* PassParameters = GraphBuilder.AllocParameters<FPhysicalMaterialSamplerPassParameters>();
@@ -428,7 +428,7 @@ namespace
 
 		{
 			RDG_GPU_MASK_SCOPE(GraphBuilder, View->GPUMask);
-			RDG_EVENT_SCOPE(GraphBuilder, "RenderTraceCopy");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, RenderTraceReadback, "RenderTraceCopy");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, RenderTraceReadback);
 			AddEnqueueCopyPass(GraphBuilder, Readback, OutputTexture);
 		}

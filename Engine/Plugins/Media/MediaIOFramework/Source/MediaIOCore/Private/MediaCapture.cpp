@@ -1340,8 +1340,11 @@ bool UMediaCapture::ProcessCapture_RenderThread(const TSharedPtr<UE::MediaCaptur
 {
 	using namespace UE::MediaCaptureData;
 	
-	RDG_GPU_STAT_SCOPE(Args.GraphBuilder, MediaCapture_ProcessCapture)
+	RDG_EVENT_SCOPE_STAT(Args.GraphBuilder, MediaCapture_ProcessCapture, "MediaCapture_ProcessCapture");
+	RDG_GPU_STAT_SCOPE(Args.GraphBuilder, MediaCapture_ProcessCapture);
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(UMediaCapture::ProcessCapture_RenderThread);
+
 	int FrameNumber = -1;
 	if (CapturingFrame)
 	{

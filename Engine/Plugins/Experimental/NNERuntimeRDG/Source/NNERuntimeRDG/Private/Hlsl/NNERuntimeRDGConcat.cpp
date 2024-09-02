@@ -119,7 +119,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			const uint64 NumElemLeftOfAxis = ConcatHelper::GetNumElemLeftOfAxisForShape(Output.GetShape(), Axis);
 			uint64 OutputOffset = 0;
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Concat");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorConcat, "NNE.Operator.Hlsl.Concat");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorConcat);
 
 			for (uint64 IndexShapeLeftOfAxis = 0; IndexShapeLeftOfAxis < NumElemLeftOfAxis; ++IndexShapeLeftOfAxis)

@@ -1327,7 +1327,7 @@ void FSceneRenderer::RenderSkyAtmosphereLookUpTables(FRDGBuilder& GraphBuilder, 
 {
 	check(ShouldRenderSkyAtmosphere(Scene, ViewFamily.EngineShowFlags)); // This should not be called if we should not render SkyAtmosphere
 
-	RDG_EVENT_SCOPE(GraphBuilder, "SkyAtmosphereLUTs");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SkyAtmosphereLUTs, "SkyAtmosphereLUTs");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SkyAtmosphereLUTs);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, SkyAtmosphere);
 	SCOPED_NAMED_EVENT(RenderSkyAtmosphereLookUpTables, FColor::Emerald);
@@ -1988,7 +1988,7 @@ void FSceneRenderer::RenderSkyAtmosphere(FRDGBuilder& GraphBuilder, const FMinim
 
 	check(ShouldRenderSkyAtmosphere(Scene, ViewFamily.EngineShowFlags)); // This should not be called if we should not render SkyAtmosphere
 
-	RDG_EVENT_SCOPE(GraphBuilder, "SkyAtmosphere");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SkyAtmosphere, "SkyAtmosphere");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SkyAtmosphere);
 	SCOPED_NAMED_EVENT(SkyAtmosphere, FColor::Emerald);
 
@@ -2103,7 +2103,7 @@ bool FSceneRenderer::ShouldRenderSkyAtmosphereEditorNotifications(TArrayView<FVi
 void FSceneRenderer::RenderSkyAtmosphereEditorNotifications(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> InViews, FRDGTextureRef SceneColorTexture) const
 {
 #if WITH_EDITOR
-	RDG_EVENT_SCOPE(GraphBuilder, "SkyAtmosphereEditor");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SkyAtmosphereEditor, "SkyAtmosphereEditor");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SkyAtmosphereEditor);
 
 	for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ViewIndex++)
@@ -2137,7 +2137,7 @@ FScreenPassTexture AddSkyAtmosphereDebugPasses(FRDGBuilder& GraphBuilder, FScene
 #if WITH_EDITOR
 	check(ShouldRenderSkyAtmosphere(Scene, ViewFamily.EngineShowFlags)); // This should not be called if we should not render SkyAtmosphere
 
-	RDG_EVENT_SCOPE(GraphBuilder, "SkyAtmosphereDebugVisualize");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SkyAtmosphereDebugVisualize, "SkyAtmosphereDebugVisualize");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SkyAtmosphereDebugVisualize);
 
 	const bool bSkyAtmosphereVisualizeShowFlag = ViewFamily.EngineShowFlags.VisualizeSkyAtmosphere;

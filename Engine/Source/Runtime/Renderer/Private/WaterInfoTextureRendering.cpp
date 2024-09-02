@@ -790,7 +790,7 @@ void RenderWaterInfoTexture(
 	}
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(WaterInfo::RenderWaterInfoTexture);
-	RDG_EVENT_SCOPE(GraphBuilder, "WaterInfoTexture");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, WaterInfoTexture, "WaterInfoTexture");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, WaterInfoTexture);
 
 	int32 RenderCaptureNextWaterInfoDraws = CVarRenderCaptureNextWaterInfoDraws.GetValueOnRenderThread();

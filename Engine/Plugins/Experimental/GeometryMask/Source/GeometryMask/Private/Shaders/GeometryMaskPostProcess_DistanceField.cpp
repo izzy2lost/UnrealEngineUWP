@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GeometryMaskPostProcess_DistanceField.h"
 
@@ -382,8 +382,9 @@ void FGeometryMaskPostProcess_DistanceField::Execute_RenderThread(
 			FRDGBufferUAVRef OutputBuffer_UAV = GraphBuilder.CreateUAV(InitOutputBuffer, EPixelFormat::PF_FloatRGBA);
 
 			{
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, GeometryMaskJFInit, "GeometryMaskJFInit");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, GeometryMaskJFInit);
-				RDG_EVENT_SCOPE(GraphBuilder, "GeometryMaskJFInit");
+
 				TRACE_CPUPROFILER_EVENT_SCOPE(GeometryMaskJFInit);
 				DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FGeometryMaskPostProcess_DistanceField::GeometryMaskJFInit"), STAT_GeometryMask_GeometryMaskJFInit, STATGROUP_GeometryMask);
 
@@ -468,8 +469,9 @@ void FGeometryMaskPostProcess_DistanceField::Execute_RenderThread(
 
 				for (int32 StepIdx = 0; StepIdx < MaxStepCount; ++StepIdx)
 				{
+					RDG_EVENT_SCOPE_STAT(GraphBuilder, GeometryMaskJFStep, "GeometryMaskJFStep");
 					RDG_GPU_STAT_SCOPE(GraphBuilder, GeometryMaskJFStep);
-					RDG_EVENT_SCOPE(GraphBuilder, "GeometryMaskJFStep");
+
 					TRACE_CPUPROFILER_EVENT_SCOPE(GeometryMaskJFStep);
 					DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FGeometryMaskPostProcess_DistanceField::GeometryMaskJFStep"), STAT_GeometryMask_GeometryMaskJFStep, STATGROUP_GeometryMask);
 
@@ -511,8 +513,9 @@ void FGeometryMaskPostProcess_DistanceField::Execute_RenderThread(
 		// 3. JF to DF
 		{
 			{
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, GeometryMaskJFtoDF, "GeometryMaskJFtoDF");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, GeometryMaskJFtoDF);
-				RDG_EVENT_SCOPE(GraphBuilder, "GeometryMaskJFtoDF");
+
 				TRACE_CPUPROFILER_EVENT_SCOPE(GeometryMaskJFtoDF);
 				DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FGeometryMaskPostProcess_DistanceField::GeometryMaskJFtoDF"), STAT_GeometryMask_GeometryMaskJFtoDF, STATGROUP_GeometryMask);
 

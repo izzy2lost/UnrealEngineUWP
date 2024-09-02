@@ -314,6 +314,7 @@ void DrawVisibleBricks(
 		BlockBuffer = BlockBufferL2;
 	}
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, NaniteVoxel, "NaniteVoxel");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteVoxel);
 
 	int32 VoxelMethod = CVarVoxelMethod.GetValueOnRenderThread();

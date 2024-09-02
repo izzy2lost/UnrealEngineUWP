@@ -270,8 +270,7 @@ bool URivermaxMediaCapture::ConfigureStream(URivermaxMediaOutput* InMediaOutput,
 
 void URivermaxMediaCapture::AddFrameReservationPass(FRDGBuilder& GraphBuilder)
 {
-	RDG_GPU_STAT_SCOPE(GraphBuilder, Rmax_FrameReservation);
-	SCOPED_DRAW_EVENT(GraphBuilder.RHICmdList, Rmax_FrameReservation);
+	RHI_BREADCRUMB_EVENT_STAT(GraphBuilder.RHICmdList, Rmax_FrameReservation, "Rmax_FrameReservation");
 	
 	// Scene rendering will already be enqueued but capture conversion pass will not
 	// Revisit to push slot reservation till last minute
@@ -393,7 +392,9 @@ FRDGBufferDesc URivermaxMediaCapture::GetCustomBufferDescription(const FIntPoint
 
 void URivermaxMediaCapture::OnCustomCapture_RenderingThread(FRDGBuilder& GraphBuilder, const FCaptureBaseData& InBaseData, TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, FRDGTextureRef InSourceTexture, FRDGBufferRef OutputBuffer, const FRHICopyTextureInfo& CopyInfo, FVector2D CropU, FVector2D CropV)
 {
-	RDG_GPU_STAT_SCOPE(GraphBuilder, Rmax_Capture)
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, Rmax_Capture, "Rmax_Capture");
+	RDG_GPU_STAT_SCOPE(GraphBuilder, Rmax_Capture);
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(URivermaxMediaCapture::OnCustomCapture_RenderingThread);
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*UE::RivermaxCore::FRivermaxTracingUtils::RmaxOutMediaCapturePipeTraceEvents[GFrameCounterRenderThread % 10]);
 

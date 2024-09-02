@@ -621,9 +621,6 @@ FScreenPassTexture FTranslucencyComposition::AddPass(
 		SeparateTranslucencyTexture = GraphBuilder.RegisterExternalTexture(GSystemTextures.BlackAlphaOneDummy);
 	}
 
-	RDG_GPU_STAT_SCOPE(GraphBuilder, Translucency);
-	DynamicRenderScaling::FRDGScope DynamicTranslucencyResolutionScope(GraphBuilder, GDynamicTranslucencyResolution);
-
 	bool bPassthroughAlpha = IsPrimitiveAlphaHoldoutEnabled(GetFeatureLevelShadingPath(View.GetFeatureLevel()));
 
 	const TCHAR* OpName = nullptr;
@@ -696,6 +693,10 @@ FScreenPassTexture FTranslucencyComposition::AddPass(
 	{
 		unimplemented();
 	}
+
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, Translucency, "%s", OpName);
+	RDG_GPU_STAT_SCOPE(GraphBuilder, Translucency);
+	DynamicRenderScaling::FRDGScope DynamicTranslucencyResolutionScope(GraphBuilder, GDynamicTranslucencyResolution);
 
 	const FVector2f SeparateTranslucencyExtentInv = FVector2f(1.0f, 1.0f) / FVector2f(TranslucencyViewport.Extent);
 
@@ -1783,6 +1784,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(
 		return;
 	}
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, Translucency, "RenderTranslucency");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, Translucency);
 	DynamicRenderScaling::FRDGScope DynamicTranslucencyResolutionScope(GraphBuilder, GDynamicTranslucencyResolution);
 

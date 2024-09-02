@@ -1357,6 +1357,7 @@ bool IsVisualizeTSREnabled(const FViewInfo& View)
 FScreenPassTexture AddTSRMeasureFlickeringLuma(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap, FScreenPassTexture SceneColor)
 {
 	check(SceneColor.Texture)
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, TemporalSuperResolution, "TemporalSuperResolution");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, TemporalSuperResolution);
 
 	FScreenPassTexture FlickeringLuma;
@@ -1584,7 +1585,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 	static auto CVarAntiAliasingQuality = IConsoleManager::Get().FindConsoleVariable(TEXT("sg.AntiAliasingQuality"));
 	check(CVarAntiAliasingQuality);
 	
-	RDG_EVENT_SCOPE(GraphBuilder, "TemporalSuperResolution(sg.AntiAliasingQuality=%d%s) %dx%d -> %dx%d",
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, TemporalSuperResolution, "TemporalSuperResolution(sg.AntiAliasingQuality=%d%s) %dx%d -> %dx%d",
 		CVarAntiAliasingQuality->GetInt(),
 		bSupportsAlpha ? TEXT(" AlphaChannel") : TEXT(""),
 		InputRect.Width(), InputRect.Height(),

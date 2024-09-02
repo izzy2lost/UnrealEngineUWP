@@ -1130,6 +1130,7 @@ void RenderScreenSpaceReflections(
 		TShaderMapRef<FScreenSpaceReflectionsStencilPS> PixelShader(View.ShaderMap, PermutationVector);
 		ClearUnusedGraphResources(PixelShader, PassParameters);
 
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, ScreenSpaceReflections, "ScreenSpaceReflections");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, ScreenSpaceReflections);
 
 		GraphBuilder.AddPass(
@@ -1245,6 +1246,7 @@ void RenderScreenSpaceReflections(
 		PassParametersPS->RenderTargets.ShadingRateTexture = GVRSImageManager.GetVariableRateShadingImage(GraphBuilder, View, FVariableRateShadingImageManager::EVRSPassType::SSR);
 	}
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, ScreenSpaceReflections, "ScreenSpaceReflections");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, ScreenSpaceReflections);
 
 	static const auto CVarSSRTiledCompositeVisualize = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("r.SSR.TiledComposite.Visualize"));

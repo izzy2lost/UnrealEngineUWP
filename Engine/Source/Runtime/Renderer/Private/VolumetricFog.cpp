@@ -1358,6 +1358,8 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 	TRACE_CPUPROFILER_EVENT_SCOPE(FSceneRenderer::ComputeVolumetricFog);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_VolumetricFog);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, VolumetricFog);
+
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, VolumetricFog, "ComputeVolumetricFog");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, VolumetricFog);
 
 	// Gather lights that need to be rendered with shadow from opaque or light functions.

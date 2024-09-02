@@ -19,6 +19,10 @@ static FAutoConsoleVariableRef CVarDeepShadowMinResolution(TEXT("r.HairStrands.D
 static int32 GDeepShadowInjectVoxelDepth = 0;
 static FAutoConsoleVariableRef CVarDeepShadowInjectVoxelDepth(TEXT("r.HairStrands.DeepShadow.InjectVoxelDepth"), GDeepShadowInjectVoxelDepth, TEXT("Inject voxel content to generate the deep shadow map instead of rasterizing groom. This is an experimental path"));
 
+DECLARE_GPU_STAT(HairStrandsDeepShadow);
+DECLARE_GPU_STAT(HairStrandsDeepShadowFrontDepth);
+DECLARE_GPU_STAT(HairStrandsDeepShadowLayers);
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Inject voxel structure into shadow map to amortize the tracing, and rely on look up kernel to 
 // filter limited resolution
@@ -213,8 +217,6 @@ float GetDeepShadowRasterizationScale();
 float GetDeepShadowAABBScale();
 FVector4f ComputeDeepShadowLayerDepths(float LayerDistribution);
 
-DECLARE_GPU_STAT(HairStrandsDeepShadow);
-
 void RenderHairStrandsDeepShadows(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
@@ -222,7 +224,7 @@ void RenderHairStrandsDeepShadows(
 	FInstanceCullingManager& InstanceCullingManager)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_CLM_RenderDeepShadow);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsDeepShadow");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsDeepShadow, "HairStrandsDeepShadow");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsDeepShadow);
 
 	const FLightSceneInfos VisibleLights = GetVisibleDeepShadowLights(Scene, View);
@@ -414,8 +416,7 @@ void RenderHairStrandsDeepShadows(
 				// Inject voxel result into the deep shadow
 				if (!bDeepShadow)
 				{
-					DECLARE_GPU_STAT(HairStrandsDeepShadowFrontDepth);
-					RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsDeepShadowFrontDepth");
+					RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsDeepShadowFrontDepth, "HairStrandsDeepShadowFrontDepth");
 					RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsDeepShadowFrontDepth);
 
 					AddInjectHairVoxelShadowCaster(
@@ -439,8 +440,7 @@ void RenderHairStrandsDeepShadows(
 				{
 					const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 
-					DECLARE_GPU_STAT(HairStrandsDeepShadowFrontDepth);
-					RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsDeepShadowFrontDepth");
+					RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsDeepShadowFrontDepth, "HairStrandsDeepShadowFrontDepth");
 					RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsDeepShadowFrontDepth);
 
 					FHairDeepShadowRasterPassParameters* PassParameters = GraphBuilder.AllocParameters<FHairDeepShadowRasterPassParameters>();
@@ -474,8 +474,7 @@ void RenderHairStrandsDeepShadows(
 				// Deep layers
 				if (bDeepShadow)
 				{
-					DECLARE_GPU_STAT(HairStrandsDeepShadowLayers);
-					RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsDeepShadowLayers");
+					RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsDeepShadowLayers, "HairStrandsDeepShadowLayers");
 					RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsDeepShadowLayers);
 
 					FHairDeepShadowRasterPassParameters* PassParameters = GraphBuilder.AllocParameters<FHairDeepShadowRasterPassParameters>();

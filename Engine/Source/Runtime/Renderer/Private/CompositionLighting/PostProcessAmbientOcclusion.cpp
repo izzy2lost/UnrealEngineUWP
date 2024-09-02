@@ -538,6 +538,7 @@ FScreenPassTexture AddAmbientOcclusionSetupPass(
 	const FSSAOCommonParameters& CommonParameters,
 	FScreenPassTexture Input)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SSAOSetup, "ScreenSpace AO Setup");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SSAOSetup);
 
 	const FScreenPassTextureViewport InputViewport(Input);
@@ -628,6 +629,7 @@ void AddAmbientOcclusionSmoothPass(
 	FScreenPassTexture Input,
 	FScreenPassRenderTarget Output)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SSAOSmooth, "SSAO smooth");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SSAOSmooth);
 
 	const FScreenPassTextureViewport InputViewport(Input);
@@ -795,6 +797,7 @@ void AddAmbientOcclusionPass(
 	ESSAOType AOType,
 	bool bAOSetupAsInput)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SSAO, "ScreenSpace AO");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SSAO);
 
 	// No setup texture falls back to a depth scene texture fetch.
@@ -1123,6 +1126,7 @@ FGTAOHorizonSearchOutputs AddGTAOHorizonSearchIntegratePass(
 	FScreenPassTexture SceneDepth,
 	FScreenPassTexture HZBInput)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, GTAO_HorizonSearchIntegrate, "GTAO HorizonSearch And Integrate");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, GTAO_HorizonSearchIntegrate);
 
 	const FScreenPassTextureViewport SceneViewport(SceneDepth);
@@ -1217,6 +1221,7 @@ FScreenPassTexture AddGTAOInnerIntegratePass(
 	FScreenPassTexture SceneDepth,
 	FScreenPassTexture HorizonsTexture)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, GTAO_InnerIntegrate, "GTAO InnerIntegrate");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, GTAO_InnerIntegrate);
 
 	const FScreenPassTextureViewport InputViewport(SceneDepth);
@@ -1314,6 +1319,7 @@ FGTAOHorizonSearchOutputs AddGTAOHorizonSearchPass(
 	FScreenPassTexture HZBInput,
 	FScreenPassRenderTarget HorizonOutput)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, GTAO_HorizonSearch, "GTAO HorizonSearch");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, GTAO_HorizonSearch);
 
 	const FScreenPassTextureViewport SceneViewport(SceneDepth);
@@ -1408,6 +1414,7 @@ FGTAOTemporalOutputs AddGTAOTemporalPass(
 	FScreenPassTexture HistoryColor,
 	FScreenPassTextureViewport HistoryViewport)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, GTAO_TemporalFilter, "GTAO Temportal Filter");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, GTAO_TemporalFilter);
 
 	const FScreenPassTextureViewport InputViewport(Input);
@@ -1533,6 +1540,7 @@ FScreenPassTexture AddGTAOSpatialFilter(
 	FScreenPassTexture InputDepth,
 	FScreenPassRenderTarget SuggestedOutput)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, GTAO_SpatialFilter, "GTAO Spatial Filter");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, GTAO_SpatialFilter);
 
 	const FScreenPassTextureViewport InputViewport(Input);
@@ -1641,6 +1649,7 @@ FScreenPassTexture AddGTAOUpsamplePass(
 	FScreenPassTexture SceneDepth,
 	FScreenPassRenderTarget Output)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, GTAO_Upsample, "GTAO Upsample");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, GTAO_Upsample);
 
 	const FScreenPassTextureViewport InputViewport(Input);

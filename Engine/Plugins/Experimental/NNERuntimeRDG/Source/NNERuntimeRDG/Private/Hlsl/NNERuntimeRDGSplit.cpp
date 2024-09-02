@@ -177,7 +177,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TShaderMapRef<FSplitCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
         
-            RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Split");
+            RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorSplit, "NNE.Operator.Hlsl.Split");
             RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorSplit);
 
             FComputeShaderUtils::AddPass(

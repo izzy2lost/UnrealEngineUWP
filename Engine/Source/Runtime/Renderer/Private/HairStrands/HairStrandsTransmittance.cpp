@@ -771,7 +771,7 @@ static FHairStrandsTransmittanceMaskData InternalRenderHairStrandsTransmittanceM
 		return Out;
 
 	DECLARE_GPU_STAT(HairStrandsTransmittanceMask);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairStrands::TransmittanceMask");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsTransmittanceMask, "HairStrands::TransmittanceMask");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsTransmittanceMask);
 
 	// Note: GbufferB.a store the shading model on the 4 lower bits (MATERIAL_SHADINGMODEL_HAIR)
@@ -863,7 +863,7 @@ FHairStrandsTransmittanceMaskData RenderHairStrandsOnePassTransmittanceMask(
 	if (HairStrands::HasViewHairStrandsData(View) && View.HairStrandsViewData.MacroGroupDatas.Num() > 0)
 	{
 		DECLARE_GPU_STAT(HairStrandsOnePassTransmittanceMask);
-		RDG_EVENT_SCOPE(GraphBuilder, "HairStrands::TransmittanceMask(OnePass)");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsOnePassTransmittanceMask, "HairStrands::TransmittanceMask(OnePass)");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsOnePassTransmittanceMask);
 
 		if (HairStrands::HasViewHairStrandsVoxelData(View))
@@ -933,7 +933,7 @@ static void InternalRenderHairStrandsShadowMask(
 		return;
 
 	DECLARE_GPU_STAT(HairStrandsOpaqueMask);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairStrands::OpaqueShadowMask");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsOpaqueMask, "HairStrands::OpaqueShadowMask");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsOpaqueMask);
 	const FMinimalSceneTextures& SceneTextures = View.GetSceneTextures();
 

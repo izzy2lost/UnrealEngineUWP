@@ -118,7 +118,7 @@ bool FWmfMediaHardwareVideoDecodingParameters::ConvertTextureFormat_RenderThread
 	TComPtr<ID3D11Texture2D> SampleTexture = InSample->GetSourceTexture();
 
 	{
-		SCOPED_DRAW_EVENT(RHICmdList, FWmfMediaHardwareVideoDecodingParameters_Convert);
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, MediaTextureConversion, "FWmfMediaHardwareVideoDecodingParameters_Convert");
 		SCOPED_GPU_STAT(RHICmdList, MediaTextureConversion);
 
 		RHICmdList.Transition(FRHITransitionInfo(InDstTexture, ERHIAccess::SRVMask, ERHIAccess::RTV));

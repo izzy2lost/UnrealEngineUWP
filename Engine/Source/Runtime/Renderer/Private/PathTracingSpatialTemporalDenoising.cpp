@@ -1972,9 +1972,8 @@ void PathTracingSpatialTemporalDenoising(FRDGBuilder& GraphBuilder,
 	FRDGTexture*& SpatialTemporalDenoisedTexture,
 	FPathTracingSpatialTemporalDenoisingContext& SpatialTemporalDenoisingContext)
 {
-
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, PathTracingSpatialTemporalDenoising, "PathTracingSpatialTemporalDenoising");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, PathTracingSpatialTemporalDenoising);
-	RDG_EVENT_SCOPE(GraphBuilder, "PathTracingSpatialTemporalDenoising");
 
 	FRDGTextureDesc RadianceTextureDesc = SpatialTemporalDenoisingContext.RadianceTexture->Desc;
 

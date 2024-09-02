@@ -142,8 +142,8 @@ void FDisplayClusterViewportManagerProxy::ImplUpdateViewportManagerProxy_GameThr
 		, ViewExtension = InViewportManager.GetViewportManagerViewExtension()
 		](FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_ViewportManager_UpdateViewportManagerProxy, "nDisplay_ViewportManager_UpdateViewportManagerProxy");
 		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_UpdateViewportManagerProxy);
-		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_UpdateViewportManagerProxy);
 
 		ViewportManagerProxy->ViewportManagerViewExtension = ViewExtension;
 
@@ -171,8 +171,8 @@ void FDisplayClusterViewportManagerProxy::ImplUpdateViewportProxies_GameThread(c
 	ENQUEUE_RENDER_COMMAND(DisplayClusterUpdateViewports)(
 		[ProxiesData = std::move(ViewportProxiesData)](FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_ViewportManager_UpdateViewports, "nDisplay_ViewportManager_UpdateViewports");
 		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_UpdateViewports);
-		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_UpdateViewports);
 
 		// Update game on rendering thread:
 		for (FDisplayClusterViewportProxyData* ProxyDataIt : ProxiesData)
@@ -193,8 +193,8 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 	ENQUEUE_RENDER_COMMAND(DisplayClusterRenderFrame_Setup)(
 		[InViewportManagerProxy = SharedThis(this)](FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_ViewportManager_RenderFrame, "nDisplay_ViewportManager_RenderFrame");
 		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_RenderFrame);
-		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_RenderFrame);
 
 		const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = &InViewportManagerProxy.Get();
 
@@ -205,8 +205,8 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 	ENQUEUE_RENDER_COMMAND(DisplayClusterRenderFrame_CrossGPUTransfer)(
 		[InViewportManagerProxy = SharedThis(this), OutputViewport = InViewport](FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_ViewportManager_CrossGPUTransfer, "nDisplay_ViewportManager_CrossGPUTransfer");
 		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_CrossGPUTransfer);
-		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_CrossGPUTransfer);
 
 		const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = &InViewportManagerProxy.Get();
 
@@ -227,8 +227,8 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 	ENQUEUE_RENDER_COMMAND(DisplayClusterRenderFrame_UpdateDeferredResources)(
 		[ViewportManagerProxy = SharedThis(this)](FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_ViewportManager_UpdateDeferredResources, "nDisplay_ViewportManager_UpdateDeferredResources");
 		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_UpdateDeferredResources);
-		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_UpdateDeferredResources);
 
 		// Update viewports resources: vp/texture overlay, OCIO, blur, nummips, etc
 		ViewportManagerProxy->UpdateDeferredResources_RenderThread(RHICmdList);
@@ -237,8 +237,8 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 	ENQUEUE_RENDER_COMMAND(DisplayClusterRenderFrame_WarpBlend)(
 		[InViewportManagerProxy = SharedThis(this), OutputViewport = InViewport](FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_ViewportManager_WarpBlend, "nDisplay_ViewportManager_WarpBlend");
 		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_WarpBlend);
-		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_WarpBlend);
 
 		const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = &InViewportManagerProxy.Get();
 

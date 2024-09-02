@@ -113,7 +113,7 @@ FScreenPassTexture ProcessAndRenderIlluminanceMeter(FRDGBuilder& GraphBuilder, c
 		return MoveTemp(ScreenPassSceneColor);
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "IlluminanceMeter");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, IlluminanceMeter, "IlluminanceMeter");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, IlluminanceMeter);
 
 	// 0- Get source cubemap and allocate cube map transient resources

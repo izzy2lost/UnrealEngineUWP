@@ -120,7 +120,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			constexpr int32 ReductionAxis = 2;
 			check(InputShape.Rank() >= ReductionAxis);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.InstanceNormalization");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorInstanceNormalization, "NNE.Operator.Hlsl.InstanceNormalization");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorInstanceNormalization);
 
 			// First apply Reduction() to temp buffers getting Mean and InvStdDev

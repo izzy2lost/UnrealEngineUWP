@@ -1216,7 +1216,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	if (CustomRenderPassInfos.Num() > 0)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_CustomRenderPasses);
-		RDG_EVENT_SCOPE(GraphBuilder, "CustomRenderPasses");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, CustomRenderPasses, "CustomRenderPasses");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, CustomRenderPasses);
 
 		// We want to reset the scene texture uniform buffer to its original state after custom render passes,
@@ -1307,6 +1307,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		if (bRequiresShadowProjections)
 		{
 			RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderMobileShadowProjections);
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, ShadowProjection, "ShadowProjection");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, ShadowProjection);
 			RenderMobileShadowProjections(GraphBuilder);
 		}
@@ -1414,6 +1415,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		if (bUseVirtualTexturing)
 		{
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, VirtualTextureUpdate, "VirtualTextureUpdate");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, VirtualTextureUpdate);
 			VirtualTextureFeedbackEnd(GraphBuilder);
 		}
@@ -1424,7 +1426,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			{
 				// Finish rendering for each view, or the full stereo buffer if enabled
 				{
-					RDG_EVENT_SCOPE(GraphBuilder, "PostProcessing");
+					RDG_EVENT_SCOPE_STAT(GraphBuilder, Postprocessing, "PostProcessing");
 					RDG_GPU_STAT_SCOPE(GraphBuilder, Postprocessing);
 					SCOPE_CYCLE_COUNTER(STAT_FinishRenderViewTargetTime);
 
@@ -2434,6 +2436,7 @@ void FMobileSceneRenderer::RenderHZB(FRHICommandListImmediate& RHICmdList, const
 
 void FMobileSceneRenderer::RenderHZB(FRDGBuilder& GraphBuilder, FRDGTextureRef SceneDepthTexture)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HZB, "HZB");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HZB);
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)

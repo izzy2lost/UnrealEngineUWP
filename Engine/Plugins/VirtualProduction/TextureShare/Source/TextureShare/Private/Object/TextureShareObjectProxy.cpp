@@ -232,8 +232,8 @@ bool FTextureShareObjectProxy::DoFrameSync_RenderThread(FRHICommandListImmediate
 
 	UE_TS_LOG(LogTextureShareObjectProxy, Log, TEXT("%s:DoFrameSync_RenderThread(%s)"), *GetName_RenderThread(), GetTEXT(InSyncStep));
 
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, TextureShareObjectProxyFrameSync, "TextureShareObjectProxyFrameSync");
 	SCOPED_GPU_STAT(RHICmdList, TextureShareObjectProxyFrameSync);
-	SCOPED_DRAW_EVENT(RHICmdList, TextureShareObjectProxyFrameSync);
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(TextureShare::FrameSync_RenderThread);
 
@@ -441,8 +441,8 @@ bool FTextureShareObjectProxy::ShareResource_RenderThread(FRHICommandListImmedia
 	{
 		UE_TS_LOG(LogTextureShareObjectProxy, Log, TEXT("%s:ShareResource_RenderThread(%s, from GPU=%d)"), *GetName_RenderThread(), *ToString(InResourceRequest), InTextureGPUIndex);
 
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, TextureShareObjectProxyShareResource, "TextureShareObjectProxyShareResource");
 		SCOPED_GPU_STAT(RHICmdList, TextureShareObjectProxyShareResource);
-		SCOPED_DRAW_EVENT(RHICmdList, TextureShareObjectProxyShareResource);
 		TRACE_CPUPROFILER_EVENT_SCOPE(TextureShare::ShareResource_RenderThread);
 
 		switch (InResourceRequest.ResourceDesc.OperationType)

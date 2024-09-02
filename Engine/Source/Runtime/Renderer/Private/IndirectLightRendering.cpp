@@ -1977,7 +1977,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 	bool bApplySkyShadowing = false;
 	if (bDynamicSkyLight)
 	{
-		RDG_EVENT_SCOPE(GraphBuilder, "SkyLightDiffuse");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, SkyLightDiffuse, "SkyLightDiffuse");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, SkyLightDiffuse);
 
 		extern int32 GDistanceFieldAOApplyToStaticIndirect;
@@ -2121,6 +2121,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 
 		if (bRequiresApply)
 		{
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, ReflectionEnvironment, "ReflectionEnvironment");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, ReflectionEnvironment);
 
 			FRDGTextureRef DynamicBentNormalAOTexture = DynamicBentNormalAOTextures.IsEmpty() ? nullptr : DynamicBentNormalAOTextures[CurrentViewIndex];

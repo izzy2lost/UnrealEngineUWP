@@ -397,8 +397,8 @@ DECLARE_GPU_STAT_NAMED(nDisplay_Device_RenderTexture, TEXT("nDisplay RenderDevic
 
 void FDisplayClusterDeviceBase::RenderTexture_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* BackBuffer, FRHITexture* SrcTexture, FVector2D WindowSize) const
 {
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_Device_RenderTexture, "nDisplay_Device_RenderTexture");
 	SCOPED_GPU_STAT(RHICmdList, nDisplay_Device_RenderTexture);
-	SCOPED_DRAW_EVENT(RHICmdList, nDisplay_Device_RenderTexture);
 
 	if (SrcTexture && BackBuffer)
 	{

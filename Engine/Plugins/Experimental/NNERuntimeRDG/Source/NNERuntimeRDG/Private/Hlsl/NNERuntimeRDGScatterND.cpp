@@ -142,7 +142,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TShaderMapRef<FScatterNDCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.ScatterND");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorScatterND, "NNE.Operator.Hlsl.ScatterND");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorScatterND);
 			
 			AddCopyBufferPass(GraphBuilder, Output.GetBuffer(), Input.GetBuffer());

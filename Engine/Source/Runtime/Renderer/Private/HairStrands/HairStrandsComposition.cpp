@@ -18,6 +18,8 @@
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_GPU_STAT(HairStrandsComposition);
+
 static int32 GHairFastResolveVelocityThreshold = 1;
 static FAutoConsoleVariableRef CVarHairFastResolveVelocityThreshold(TEXT("r.HairStrands.VelocityThreshold"), GHairFastResolveVelocityThreshold, TEXT("Threshold value (in pixel) above which a pixel is forced to be resolve with responsive AA (in order to avoid smearing). Default is 3."));
 
@@ -559,8 +561,7 @@ static void InternalRenderHairComposition(
 	FRDGTextureRef SceneDepthTexture,
 	FRDGTextureRef SceneVelocityTexture)
 {
-	DECLARE_GPU_STAT(HairStrandsComposition);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsComposition");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsComposition, "HairStrandsComposition");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsComposition);
 	SCOPED_NAMED_EVENT(HairStrandsComposition, FColor::Emerald);
 

@@ -63,8 +63,8 @@ bool FRivermaxMediaTextureSampleConverter::Convert(FRHICommandListImmediate& RHI
 	{
 		FRDGBufferRef InputBuffer;
 
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, RivermaxSource_SampleConversion, "Rivermax_SampleConverter");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, RivermaxSource_SampleConversion)
-		SCOPED_DRAW_EVENT(GraphBuilder.RHICmdList, Rivermax_SampleConverter);
 
 		FRDGTextureRef OutputResource = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(InDestinationTexture, TEXT("RivermaxMediaTextureOutputResource")));
 

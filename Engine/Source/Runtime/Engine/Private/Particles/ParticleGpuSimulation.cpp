@@ -1485,7 +1485,7 @@ void ExecuteSimulationCommands(
 	}
 
 	SCOPE_CYCLE_COUNTER(STAT_GPUParticlesSimulationCommands);
-	SCOPED_DRAW_EVENT(RHICmdList, ParticleSimulation);
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ParticleSimulation, "ParticleSimulation");
 	SCOPED_GPU_STAT(RHICmdList, ParticleSimulation);
 
 	FUniformBufferStaticBindings StaticUniformBuffers;
@@ -1660,7 +1660,7 @@ void ClearTiles(FRHICommandList& RHICmdList, FGraphicsPipelineStateInitializer& 
 		return;
 	}
 
-	SCOPED_DRAW_EVENT(RHICmdList, ClearTiles);
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ParticleSimulation, "ClearTiles");
 	SCOPED_GPU_STAT(RHICmdList, ParticleSimulation);
 
 	FParticleShaderParamRef ShaderParam = GParticleScratchVertexBuffer.GetShaderParam();
@@ -5027,7 +5027,7 @@ void FFXSystem::SimulateGPUParticles(
 	if (NewParticles.Num())
 	{
 		SCOPE_CYCLE_COUNTER(STAT_GPUParticlesInjectionTime);
-		SCOPED_DRAW_EVENT(RHICmdList, ParticleInjection);
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ParticleSimulation, "ParticleInjection");
 		SCOPED_GPU_STAT(RHICmdList, ParticleSimulation);
 
 		// Set render targets.
@@ -5161,7 +5161,7 @@ void FFXSystem::UpdateMultiGPUResources(FRHICommandListImmediate& RHICmdList)
 	if (LastFrameNewParticles.Num())
 	{		
 		//Inject particles spawned in the last frame, but only update the attribute textures
-		SCOPED_DRAW_EVENT(RHICmdList, ParticleInjection);
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ParticleSimulation, "ParticleInjection");
 		SCOPED_GPU_STAT(RHICmdList, ParticleSimulation);
 
 		// Set render targets.

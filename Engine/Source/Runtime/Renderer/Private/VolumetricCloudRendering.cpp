@@ -1863,7 +1863,7 @@ void FSceneRenderer::InitVolumetricCloudsForViews(FRDGBuilder& GraphBuilder, boo
 			FMaterialRenderProxy* CloudVolumeMaterialProxy = CloudProxy.GetCloudVolumeMaterial()->GetRenderProxy();
 			if (CloudVolumeMaterialProxy->GetIncompleteMaterialWithFallback(ViewFamily.GetFeatureLevel()).GetMaterialDomain() == MD_Volume && !ViewFamily.EngineShowFlags.PathTracing)
 			{
-				RDG_EVENT_SCOPE(GraphBuilder, "VolumetricCloudShadow");
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, VolumetricCloudShadow, "VolumetricCloudShadow");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, VolumetricCloudShadow);
 
 				TRefCountPtr<IPooledRenderTarget> BlackDummy = GSystemTextures.BlackDummy;
@@ -2598,7 +2598,7 @@ bool FSceneRenderer::RenderVolumetricCloud(
 		FMaterialRenderProxy* CloudVolumeMaterialProxy = CloudSceneProxy.GetCloudVolumeMaterial()->GetRenderProxy();
 		if (CloudVolumeMaterialProxy->GetIncompleteMaterialWithFallback(ViewFamily.GetFeatureLevel()).GetMaterialDomain() == MD_Volume)
 		{
-			RDG_EVENT_SCOPE(GraphBuilder, "%s", bAccumulateAlphaHoldOut ? TEXT("VolumetricCloudAlphaHoldout") : TEXT("VolumetricCloud"));
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, VolumetricCloud, "%s", bAccumulateAlphaHoldOut ? TEXT("VolumetricCloudAlphaHoldout") : TEXT("VolumetricCloud"));
 			RDG_GPU_STAT_SCOPE(GraphBuilder, VolumetricCloud);
 			SCOPED_NAMED_EVENT(VolumetricCloud, FColor::Emerald);
 

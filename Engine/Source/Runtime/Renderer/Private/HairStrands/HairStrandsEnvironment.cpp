@@ -554,6 +554,7 @@ void RenderHairStrandsEnvironmentLighting(
 	const FScene* Scene,
 	const FViewInfo& View)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairSkyLighting, "HairSkyLighting");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairSkyLighting);
 	InternalRenderHairStrandsEnvironmentLighting(GraphBuilder, Scene, View, EHairLightingSourceType::ReflectionProbe);
 }

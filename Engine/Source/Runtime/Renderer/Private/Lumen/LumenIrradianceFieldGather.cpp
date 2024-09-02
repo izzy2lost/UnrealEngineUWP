@@ -252,7 +252,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenIrradianceFieldGath
 	LumenRadianceCache::FRadianceCacheInterpolationParameters& TranslucencyVolumeRadianceCacheParameters,
 	ERDGPassFlags ComputePassFlags)
 {
-	RDG_EVENT_SCOPE(GraphBuilder, "LumenIrradianceFieldGather");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, LumenIrradianceFieldGather, "LumenIrradianceFieldGather");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, LumenIrradianceFieldGather);
 
 	check(GLumenIrradianceFieldGather != 0);

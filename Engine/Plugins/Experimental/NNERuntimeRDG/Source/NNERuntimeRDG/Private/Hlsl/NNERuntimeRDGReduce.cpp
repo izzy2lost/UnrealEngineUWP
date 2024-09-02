@@ -150,7 +150,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			const FTensorRDG& Output = *OutputTensors[0];
 			const int32 InputRank = Input.GetShape().Rank();
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Reduce");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorReduce, "NNE.Operator.Hlsl.Reduce");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorReduce);
 
 			if(Axes.IsEmpty())

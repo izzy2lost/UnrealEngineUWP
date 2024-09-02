@@ -93,7 +93,7 @@ void DrawHitProxies(
 #if WITH_EDITOR
 	LLM_SCOPE_BYTAG(Nanite);
 
-	RDG_EVENT_SCOPE(GraphBuilder, "NaniteHitProxyPass");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, NaniteEditor, "NaniteHitProxyPass");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteEditor);
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
@@ -250,6 +250,7 @@ static void AddEditorSelectionDepthPass(
 )
 {
 	LLM_SCOPE_BYTAG(Nanite);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, NaniteEditor, "NaniteEditor");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteEditor);
 
 	auto& MaterialsExtension = Scene.GetExtension<Nanite::FMaterialsSceneExtension>();

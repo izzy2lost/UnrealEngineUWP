@@ -226,7 +226,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			
 			if constexpr (PoolOperatorType == EPoolOperatorType::MAX_POOL)
 			{
-				RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.MaxPool");
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorMaxPool, "NNE.Operator.Hlsl.MaxPool");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorMaxPool);
 
 				FComputeShaderUtils::AddPass(
@@ -239,7 +239,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			}
 			else
 			{
-				RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.AveragePool");
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorAveragePool, "NNE.Operator.Hlsl.AveragePool");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorAveragePool);
 
 				FComputeShaderUtils::AddPass(

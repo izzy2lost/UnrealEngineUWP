@@ -332,6 +332,7 @@ namespace Nanite
 		FRDGBufferRef IndexBuffer,
 		uint32 MaxNumIndices)
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, NaniteStreamOutData, "NaniteStreamOutData");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteStreamOutData);
 
 		FQueueParameters QueueParameters;

@@ -355,7 +355,7 @@ bool FElectraTextureSample::Convert(FRHICommandListImmediate& RHICmdList, FTextu
 {
 	LLM_SCOPE(ELLMTag::MediaStreaming);
 
-	SCOPED_DRAW_EVENT(RHICmdList, WinMediaOutputConvertTexture);
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, MediaWinDecoder_Convert, "MediaWinDecoder_Convert");
 	SCOPED_GPU_STAT(RHICmdList, MediaWinDecoder_Convert);
 
 	bool bHasTexture = !!VideoDecoderOutputPC->GetTexture();

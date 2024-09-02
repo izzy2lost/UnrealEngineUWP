@@ -82,7 +82,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			const FTensorRDG& Data = *InputTensors[0];
 			const FTensorRDG& Output = *OutputTensors[0];
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Unsqueeze");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorUnsqueeze, "NNE.Operator.Hlsl.Unsqueeze");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorUnsqueeze);
 
 			AddCopyBufferPass(GraphBuilder, Output.GetBuffer(), Data.GetBuffer());

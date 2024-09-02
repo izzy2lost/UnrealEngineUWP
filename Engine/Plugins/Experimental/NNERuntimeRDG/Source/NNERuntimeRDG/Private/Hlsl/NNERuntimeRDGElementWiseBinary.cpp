@@ -114,7 +114,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TShaderMapRef<TElementWiseBinaryCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 		
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.ElementWise.Binary");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorElementWiseBinary, "NNE.Operator.Hlsl.ElementWise.Binary");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorElementWiseBinary);
 
 			FComputeShaderUtils::AddPass(

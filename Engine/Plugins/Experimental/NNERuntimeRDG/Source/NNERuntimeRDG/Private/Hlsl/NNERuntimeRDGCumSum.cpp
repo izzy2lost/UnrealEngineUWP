@@ -159,7 +159,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			check(OutputTensors[0] != FTensorRDGRef{});
 			check(ThreadGroupCount != FIntVector{});
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.CumSum");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorCumSum, "NNE.Operator.Hlsl.CumSum");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorCumSum);
 
 			const FTensorRDG& Input = *InputTensors[0];

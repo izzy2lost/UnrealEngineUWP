@@ -338,6 +338,8 @@ void FDeferredShadingSceneRenderer::RenderAnisotropyPass(
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderAnisotropyPass);
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_RenderAnisotropyPass, FColor::Emerald);
 	SCOPE_CYCLE_COUNTER(STAT_AnisotropyPassDrawTime);
+
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, RenderAnisotropyPass, "RenderAnisotropyPass");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RenderAnisotropyPass);
 
 	for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ViewIndex++)

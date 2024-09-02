@@ -891,7 +891,7 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLumenReflections(
 	RadianceCacheParameters.RadianceCacheInputs.ReprojectionRadiusScale = FMath::Clamp<float>(GLumenReflectionRadianceCacheReprojectionRadiusScale, 1.0f, 100000.0f);
 
 	LLM_SCOPE_BYTAG(Lumen);
-	RDG_EVENT_SCOPE(GraphBuilder, "LumenReflections");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, LumenReflections, "LumenReflections");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, LumenReflections);
 
 	FLumenReflectionTracingParameters ReflectionTracingParameters;

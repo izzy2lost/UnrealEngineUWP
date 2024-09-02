@@ -508,7 +508,7 @@ bool FDeferredShadingSceneRenderer::RenderCapsuleDirectShadows(
 		const FVector PreViewTranslation = View.ViewMatrices.GetPreViewTranslation();
 
 		RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
-		RDG_EVENT_SCOPE(GraphBuilder, "CapsuleShadows");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, CapsuleShadows, "CapsuleShadows");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, CapsuleShadows);
 
 		TArray<FCapsuleShape3f> CapsuleShapeData;
@@ -1014,6 +1014,7 @@ void FDeferredShadingSceneRenderer::RenderIndirectCapsuleShadows(FRDGBuilder& Gr
 		if (View.IndirectShadowPrimitives.Num() > 0 && View.ViewState)
 		{
 			RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, CapsuleShadows, "CapsuleShadows");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, CapsuleShadows);
 
 			int32 NumCapsuleShapes = 0;
@@ -1209,7 +1210,7 @@ void FDeferredShadingSceneRenderer::RenderCapsuleShadowsForMovableSkylight(
 		if (View.IndirectShadowPrimitives.Num() > 0 && View.ViewState)
 		{
 			RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
-			RDG_EVENT_SCOPE(GraphBuilder, "IndirectCapsuleShadows");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, CapsuleShadows, "IndirectCapsuleShadows");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, CapsuleShadows);
 
 			FRDGTextureRef NewBentNormal = nullptr;

@@ -853,8 +853,8 @@ namespace UE::RivermaxMedia
 			ERDGPassFlags::NeverCull, 
 			[FrameExpectation, this](FRHICommandList& RHICmdList)
 			{
+				RHI_BREADCRUMB_EVENT_STAT(RHICmdList, RivermaxMedia_SampleUsageFence, "RivermaxMedia_SampleUsageFence");
 				SCOPED_GPU_STAT(RHICmdList, RivermaxMedia_SampleUsageFence);
-				SCOPED_DRAW_EVENT(RHICmdList, RivermaxMedia_SampleUsageFence);
 
 				// Write a fence in the post sample usage pass to be able to know when we can reuse it
 				RHICmdList.WriteGPUFence(SamplePool[FrameExpectation.FrameIndex]->SampleConversionFence);
@@ -1137,8 +1137,8 @@ namespace UE::RivermaxMedia
 			}
 			
 			// Setup requirements for sample to be ready to be rendered
+			RHI_BREADCRUMB_EVENT_STAT(GraphBuilder.RHICmdList, Rmax_WaitForPixels, "Rmax_WaitForPixels");
 			SCOPED_GPU_STAT(GraphBuilder.RHICmdList, Rmax_WaitForPixels);
-			SCOPED_DRAW_EVENT(GraphBuilder.RHICmdList, Rmax_WaitForPixels);
 
 			// Since we are going to enqueue a lambda that can potentially sleep in the RHI thread if the pixels haven't arrived,
 			// we dispatch the existing commands (including the draw event start timing in the SCOPED_DRAW_EVENT above) before any potential sleep.

@@ -245,7 +245,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			const FTensorRDG& Input = *InputTensors[0];
 			const FTensorRDG& Output = *OutputTensors[0];
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Resize");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorResize, "NNE.Operator.Hlsl.Resize");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorResize);
 
 			const FRDGBufferSRVRef InputSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), BufferPixelFormat));
@@ -294,7 +294,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TShaderMapRef<FResizeCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Resize");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorResize, "NNE.Operator.Hlsl.Resize");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorResize);
 			
 			FComputeShaderUtils::AddPass(

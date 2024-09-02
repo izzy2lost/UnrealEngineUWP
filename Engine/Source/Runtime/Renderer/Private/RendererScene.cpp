@@ -6604,6 +6604,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	
 	{
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, UpdateGPUScene);
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, GPUSceneUpdate, "GPUSceneUpdate");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, GPUSceneUpdate);
 
 		FRDGExternalAccessQueue ExternalAccessQueue;

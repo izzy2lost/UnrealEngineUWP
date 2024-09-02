@@ -586,7 +586,7 @@ void ReconstructVolumetricRenderTarget(
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "VolCloudReconstruction");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, VolCloudReconstruction, "VolCloudReconstruction");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, VolCloudReconstruction);
 	SCOPED_NAMED_EVENT(VolCloudReconstruction, FColor::Emerald);
 
@@ -780,7 +780,7 @@ void ComposeVolumetricRenderTargetOverScene(
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "VolCloudComposeOverScene");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, VolCloudComposeOverScene, "VolCloudComposeOverScene");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, VolCloudComposeOverScene);
 	SCOPED_NAMED_EVENT(VolCloudComposeOverScene, FColor::Emerald);
 
@@ -884,7 +884,7 @@ void ComposeVolumetricRenderTargetOverSceneUnderWater(
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "VolCloudComposeUnderSLW");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, VolCloudComposeUnderSLW, "VolCloudComposeUnderSLW");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, VolCloudComposeUnderSLW);
 	SCOPED_NAMED_EVENT(VolCloudComposeUnderSLW, FColor::Emerald);
 
@@ -954,7 +954,7 @@ void ComposeVolumetricRenderTargetOverSceneForVisualization(
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "VolCloudComposeForVis");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, VolCloudComposeForVis, "VolCloudComposeForVis");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, VolCloudComposeForVis);
 	SCOPED_NAMED_EVENT(VolCloudComposeForVis, FColor::Emerald);
 

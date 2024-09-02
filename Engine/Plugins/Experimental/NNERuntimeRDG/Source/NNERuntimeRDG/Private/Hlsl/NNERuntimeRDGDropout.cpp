@@ -61,7 +61,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			const FTensorRDG& Data = *InputTensors[0];
 			const FTensorRDG& Output = *OutputTensors[0];
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Dropout");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorDropout, "NNE.Operator.Hlsl.Dropout");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorDropout);
 
 			AddCopyBufferPass(GraphBuilder, Output.GetBuffer(), Data.GetBuffer());

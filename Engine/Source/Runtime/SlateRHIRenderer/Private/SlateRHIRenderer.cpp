@@ -670,10 +670,10 @@ FSlateDrawWindowPassOutputs FSlateRHIRenderer::DrawWindow_RenderThread(FRDGBuild
 	{
 		RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::FromIndex(RHIGetViewportNextPresentGPUIndex(ViewportInfo.ViewportRHI)));
 #if WANTS_DRAW_MESH_EVENTS
-		RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Inputs.WindowTitle.IsEmpty(), "SlateUI Title = <none>");
-		RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, !Inputs.WindowTitle.IsEmpty(),"SlateUI Title = %s", *Inputs.WindowTitle);
+		RDG_EVENT_SCOPE_CONDITIONAL_STAT(GraphBuilder,  Inputs.WindowTitle.IsEmpty(), SlateUI, "SlateUI Title = <none>");
+		RDG_EVENT_SCOPE_CONDITIONAL_STAT(GraphBuilder, !Inputs.WindowTitle.IsEmpty(), SlateUI, "SlateUI Title = %s", *Inputs.WindowTitle);
 #else
-		RDG_EVENT_SCOPE(GraphBuilder, "SlateUI");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, SlateUI, "SlateUI");
 #endif
 		RDG_GPU_STAT_SCOPE(GraphBuilder, SlateUI);
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, Slate);

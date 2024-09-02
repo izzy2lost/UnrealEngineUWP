@@ -158,7 +158,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingTranslucency(FRDGBuilder& Gr
 	AddResolveSceneColorPass(GraphBuilder, Views, SceneColorTexture);
 
 	{
-		RDG_EVENT_SCOPE(GraphBuilder, "RayTracingTranslucency");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, RayTracingTranslucency, "RayTracingTranslucency");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingTranslucency)
 
 		for (int32 ViewIndex = 0, Num = Views.Num(); ViewIndex < Num; ViewIndex++)

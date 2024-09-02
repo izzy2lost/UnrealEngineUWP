@@ -208,8 +208,8 @@ bool FDisplayClusterShadersPostprocess_Blur::RenderPostprocess_Blur(FRHICommandL
 		return false;
 	}
 
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_Picp_PostProcess_Blur, "nDisplay_Picp_PostProcess_Blur");
 	SCOPED_GPU_STAT(RHICmdList, nDisplay_Picp_PostProcess_Blur);
-	SCOPED_DRAW_EVENT(RHICmdList, nDisplay_Picp_PostProcess_Blur);
 
 	switch (InSettings.Mode)
 	{

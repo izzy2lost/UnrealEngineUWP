@@ -705,6 +705,7 @@ FTAAOutputs AddTemporalAAPass(
 		}
 	}
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, TAA, "TAA");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, TAA);
 
 	TStaticArray<bool, FTemporalAAHistory::kRenderTargetCount> bUseHistoryTexture;

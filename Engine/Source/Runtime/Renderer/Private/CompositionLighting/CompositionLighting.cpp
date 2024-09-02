@@ -571,7 +571,7 @@ void FCompositionLighting::ProcessBeforeBasePass(FRDGBuilder& GraphBuilder, FDBu
 
 	TryInit();
 
-	RDG_EVENT_SCOPE(GraphBuilder, "CompositionBeforeBasePass");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, CompositionBeforeBasePass, "CompositionBeforeBasePass");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, CompositionBeforeBasePass);
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
@@ -621,7 +621,7 @@ void FCompositionLighting::ProcessAfterBasePass(FRDGBuilder& GraphBuilder, FInst
 
 	check(bInitialized);
 
-	RDG_EVENT_SCOPE(GraphBuilder, "LightCompositionTasks_PreLighting");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, CompositionPreLighting, "LightCompositionTasks_PreLighting");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, CompositionPreLighting);
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)

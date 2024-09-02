@@ -32,6 +32,12 @@
 #include "HairStrandsInterface.h"
 #include "ShaderPlatformCachedIniValue.h"
 
+DECLARE_GPU_STAT(HairStrandsInterpolationCurve);
+DECLARE_GPU_STAT(HairGuideInterpolation);
+DECLARE_GPU_STAT(HairStrandsClusterCulling);
+DECLARE_GPU_STAT(HairStrandsInterpolation);
+DECLARE_GPU_STAT(HairCardsInterpolation);
+
 static int32 GHairStrandsMinLOD = 0;
 static FAutoConsoleVariableRef CVarGHairStrandsMinLOD(TEXT("r.HairStrands.MinLOD"), GHairStrandsMinLOD, TEXT("Clamp the min hair LOD to this value, preventing to reach lower/high-quality LOD."), ECVF_Scalability);
 
@@ -791,8 +797,7 @@ static void RunHairStrandsInterpolation_Guide(
 {
 	check(IsInRenderingThread());
 
-	DECLARE_GPU_STAT(HairGuideInterpolation);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairGuideInterpolation");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairGuideInterpolation, "HairGuideInterpolation");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairGuideInterpolation);
 
 	// Update dynamic mesh triangles
@@ -1095,8 +1100,7 @@ static void RunHairStrandsInterpolation_Strands(
 	check(IsInRenderingThread());
 	check(View);
 
-	DECLARE_GPU_STAT(HairStrandsInterpolation);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairInterpolation(Strands)");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsInterpolation, "HairInterpolation(Strands)");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsInterpolation);
 
 	struct FInstanceRDGResources
@@ -1270,10 +1274,10 @@ static void RunHairStrandsInterpolation_Strands(
 		// Culling pass
 		if (Views.Num() > 0 && ClusterDatas.HairGroups.Num() > 0)
 		{
-			DECLARE_GPU_STAT(HairStrandsClusterCulling);
-			RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsClusterCulling");
-			TRACE_CPUPROFILER_EVENT_SCOPE(ComputeHairStrandsClustersCulling);
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsClusterCulling, "HairStrandsClusterCulling");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsClusterCulling);
+
+			TRACE_CPUPROFILER_EVENT_SCOPE(ComputeHairStrandsClustersCulling);
 
 			FRDGBufferUAVRef IndirectDispatchArgsUAVWithSkipBarrier = GraphBuilder.CreateUAV(TransientResources.IndirectDispatchArgsBuffer, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			AddClusterCullingPass(
@@ -1410,10 +1414,10 @@ static void RunHairStrandsInterpolation_Strands(
 	}
 
 	{
-		DECLARE_GPU_STAT(HairStrandsInterpolationCurve);
-		RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsInterpolationCurve");
-		TRACE_CPUPROFILER_EVENT_SCOPE(HairStrandsInterpolationCurve);
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsInterpolationCurve, "HairStrandsInterpolationCurve");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsInterpolationCurve);
+
+		TRACE_CPUPROFILER_EVENT_SCOPE(HairStrandsInterpolationCurve);
 
 		TArray<FRDGBufferSRVRef> Transitions;
 		Transitions.Reserve(InstanceDatas.Num());
@@ -1804,8 +1808,7 @@ static void RunHairStrandsInterpolation_Cards(
 	check(IsInRenderingThread());
 	check(View);
 
-	DECLARE_GPU_STAT(HairCardsInterpolation);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairCardsInterpolation");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairCardsInterpolation, "HairCardsInterpolation");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairCardsInterpolation);
 
 	struct FInstanceData

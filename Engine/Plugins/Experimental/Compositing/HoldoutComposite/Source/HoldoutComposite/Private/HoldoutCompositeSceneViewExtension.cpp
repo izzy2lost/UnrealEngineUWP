@@ -158,7 +158,7 @@ private:
 	
 	FRDGTextureRef CreateDilatedTexture(FRDGBuilder& GraphBuilder)
 	{
-		RDG_EVENT_SCOPE(GraphBuilder, "HoldoutComposite.Dilate");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, FHoldoutCompositeDilate, "HoldoutComposite.Dilate");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FHoldoutCompositeDilate);
 
 		FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(ViewFeatureLevel);
@@ -413,7 +413,7 @@ FHoldoutCompositeCommonParameters FHoldoutCompositeSceneViewExtension::BuildComm
 
 FScreenPassTexture FHoldoutCompositeSceneViewExtension::PostProcessPassSSRInput_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& InView, const FPostProcessMaterialInputs& Inputs)
 {
-	RDG_EVENT_SCOPE(GraphBuilder, "HoldoutComposite.SSRInput");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, FHoldoutCompositeSSRInput, "HoldoutComposite.SSRInput");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, FHoldoutCompositeSSRInput);
 
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(InView.GetFeatureLevel());
@@ -444,7 +444,7 @@ FScreenPassTexture FHoldoutCompositeSceneViewExtension::PostProcessPassSSRInput_
 
 FScreenPassTexture FHoldoutCompositeSceneViewExtension::PostProcessPassAfterTonemap_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& InView, const FPostProcessMaterialInputs& Inputs)
 {
-	RDG_EVENT_SCOPE(GraphBuilder, "HoldoutComposite.Final");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, FHoldoutCompositeFinal, "HoldoutComposite.Final");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, FHoldoutCompositeFinal);
 	using namespace HoldoutComposite;
 

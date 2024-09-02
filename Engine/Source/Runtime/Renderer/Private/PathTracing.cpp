@@ -3674,7 +3674,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			for (int32 GPUIndex : GPUMask)
 			{
 				RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::FromIndex(GPUIndex));
-				RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, NumGPUs > 1, "Path Tracing GPU%d", GPUIndex);
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, PathTracing, "Path Tracing GPU%d", GPUIndex);
 #if WITH_MGPU
 				RDG_GPU_STAT_SCOPE(GraphBuilder, PathTracing);
 #endif
@@ -3968,6 +3968,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			// pay attention to the mask, so it has no effect on behavior.  Technically the work of the copy is done on the second GPU,
 			// and the first GPU stalls waiting on that, so it's useful to show this interval on both GPUs.
 			RDG_GPU_MASK_SCOPE(GraphBuilder, GPUMask);
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, PathTracingCopy, "PathTracingCopy");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, PathTracingCopy);
 
 			FMGPUTransferParameters* Parameters = GraphBuilder.AllocParameters<FMGPUTransferParameters>();
@@ -4047,6 +4048,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	}
 
 	RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, PathTracingPost, "PathTracingPost");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, PathTracingPost);
 
 	// Figure out if the denoiser is enabled and needs to run

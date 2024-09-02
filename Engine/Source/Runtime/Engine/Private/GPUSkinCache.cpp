@@ -1328,9 +1328,10 @@ void FGPUSkinCache::DoDispatch(FRHICommandList& RHICmdList)
 	TRACE_CPUPROFILER_EVENT_SCOPE(FGPUSkinCache::DoDispatch);
 
 	bool bCapture = BatchCount > 0 && GNumDispatchesToCapture > 0;
-	RenderCaptureInterface::FScopedCapture RenderCapture(bCapture, &RHICmdList, TEXT("GPUSkinCache"));
+	RenderCaptureInterface::FScopedCapture RenderCapture(bCapture, &RHICmdList);
 	GNumDispatchesToCapture -= bCapture ? 1 : 0;
 
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, GPUSkinCache, "GPUSkinCache");
 	SCOPED_GPU_STAT(RHICmdList, GPUSkinCache);
 
 	TArray<FSkinCacheRWBuffer*> BuffersToTransitionForSkinning;

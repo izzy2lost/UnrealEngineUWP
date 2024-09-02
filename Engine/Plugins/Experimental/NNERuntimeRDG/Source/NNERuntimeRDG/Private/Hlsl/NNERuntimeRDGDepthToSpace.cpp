@@ -162,7 +162,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TShaderMapRef<FTransposeCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.DepthToSpace");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorDepthToSpace, "NNE.Operator.Hlsl.DepthToSpace");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorDepthToSpace);
 
 			FComputeShaderUtils::AddPass(

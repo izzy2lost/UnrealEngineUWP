@@ -148,7 +148,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			bool bWriteMean = OutputTensors.Num() >= 2;
 			bool bWriteInvStdDev = OutputTensors.Num() >= 3;
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.LayerNormalization");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorLayerNormalization, "NNE.Operator.Hlsl.LayerNormalization");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorLayerNormalization);
 
 			const FTensorRDG& Input = *InputTensors[0];

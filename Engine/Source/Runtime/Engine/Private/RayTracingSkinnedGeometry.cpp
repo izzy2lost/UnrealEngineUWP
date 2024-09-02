@@ -103,8 +103,8 @@ void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRHICommandList& RHICmdList, 
 
 			if (BatchedBuildParams.Num())
 			{
+				RHI_BREADCRUMB_EVENT_STAT(RHICmdList, SkinnedGeometryBuildBLAS, "SkinnedGeometryBuildBLAS");
 				SCOPED_GPU_STAT(RHICmdList, SkinnedGeometryBuildBLAS);
-				SCOPED_DRAW_EVENT(RHICmdList, SkinnedGeometryBuildBLAS);
 				
 				if (ScratchBuffer)
 				{
@@ -123,8 +123,8 @@ void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRHICommandList& RHICmdList, 
 
 			if (BatchedUpdateParams.Num())
 			{
+				RHI_BREADCRUMB_EVENT_STAT(RHICmdList, SkinnedGeometryUpdateBLAS, "SkinnedGeometryUpdateBLAS");
 				SCOPED_GPU_STAT(RHICmdList, SkinnedGeometryUpdateBLAS);
-				SCOPED_DRAW_EVENT(RHICmdList, SkinnedGeometryUpdateBLAS);
 
 				if (ScratchBuffer)
 				{
@@ -326,7 +326,7 @@ void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRDGBuilder& GraphBuilder, ER
 
 	if (GeometryBuildRequests.Num())
 	{
-		RDG_EVENT_SCOPE(GraphBuilder, "SkinnedGeometryBuildBLAS");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, SkinnedGeometryBuildBLAS, "SkinnedGeometryBuildBLAS");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, SkinnedGeometryBuildBLAS);
 
 		GraphBuilder.AddPass(RDG_EVENT_NAME("CommitRayTracingSkinnedGeometryUpdates"), BLASUpdateParams, ComputePassFlags | ERDGPassFlags::NeverCull,

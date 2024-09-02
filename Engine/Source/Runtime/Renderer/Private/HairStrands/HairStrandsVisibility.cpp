@@ -4598,7 +4598,7 @@ void RenderHairStrandsVisibilityBuffer(
 	FInstanceCullingManager& InstanceCullingManager)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_CLM_RenderHairStrandsVisibility);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsVisibility");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsVisibility, "HairStrandsVisibility");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsVisibility);
 
 	FHairStrandsMacroGroupDatas& MacroGroupDatas = View.HairStrandsViewData.MacroGroupDatas;
