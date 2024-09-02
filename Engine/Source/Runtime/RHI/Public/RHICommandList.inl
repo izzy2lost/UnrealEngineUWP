@@ -138,20 +138,20 @@ inline FRHIResourceReplaceBatcher::~FRHIResourceReplaceBatcher()
 
 	// Top-of-pipe breadcrumb event scope for RHI command lists
 	template<size_t N, typename... TArgs>
-	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
-		: FRHIBreadcrumbEventScope(InRHICmdList, InRHICmdList.GetPipeline(), bCondition, FormatString, Forward<TArgs>(Args)...)
+	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, TStatId StatId, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
+		: FRHIBreadcrumbEventScope(InRHICmdList, StatId, InRHICmdList.GetPipeline(), bCondition, FormatString, Forward<TArgs>(Args)...)
 	{}
 
 	// Bottom-of-pipe breadcrumb event scope for RHI contexts
 	template<size_t N, typename... TArgs>
-	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(IRHIComputeContext& InRHIContext, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
-		: FRHIBreadcrumbEventScope(static_cast<FRHIComputeCommandList&>(InRHIContext.GetExecutingCommandList()), InRHIContext.GetPipeline(), bCondition, FormatString, Forward<TArgs>(Args)...)
+	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(IRHIComputeContext& InRHIContext, TStatId StatId, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
+		: FRHIBreadcrumbEventScope(static_cast<FRHIComputeCommandList&>(InRHIContext.GetExecutingCommandList()), StatId, InRHIContext.GetPipeline(), bCondition, FormatString, Forward<TArgs>(Args)...)
 	{}
 
 	template<size_t N, typename... TArgs>
-	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, ERHIPipeline InPipeline, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
+	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, TStatId StatId, ERHIPipeline InPipeline, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
 		: RHICmdList(InRHICmdList)
-		, Node(bCondition ? RHICmdList.GetBreadcrumbAllocator().AllocBreadcrumb(FormatString, Forward<TArgs>(Args)...) : nullptr)
+		, Node(bCondition ? RHICmdList.GetBreadcrumbAllocator().AllocBreadcrumb(StatId, FormatString, Forward<TArgs>(Args)...) : nullptr)
 		, Pipeline(InPipeline)
 	{
 		if (Node)
@@ -172,8 +172,8 @@ inline FRHIResourceReplaceBatcher::~FRHIResourceReplaceBatcher()
 	}
 
 	template<size_t N, typename... TArgs>
-	inline FRHIBreadcrumbEventManual::FRHIBreadcrumbEventManual(FRHIComputeCommandList& RHICmdList, TCHAR const(&FormatString)[N], TArgs&&... Args)
-		: Node(RHICmdList.GetBreadcrumbAllocator().AllocBreadcrumb(FormatString, Forward<TArgs>(Args)...))
+	inline FRHIBreadcrumbEventManual::FRHIBreadcrumbEventManual(FRHIComputeCommandList& RHICmdList, TStatId StatId, TCHAR const(&FormatString)[N], TArgs&&... Args)
+		: Node(RHICmdList.GetBreadcrumbAllocator().AllocBreadcrumb(StatId, FormatString, Forward<TArgs>(Args)...))
 	#if DO_CHECK
 		, Pipeline(RHICmdList.GetPipeline())
 		, ThreadId(FPlatformTLS::GetCurrentThreadId())

@@ -1623,7 +1623,7 @@ void FD3D12DefaultBufferAllocator::BeginFrame(FD3D12ContextArray const& Contexts
 		FD3D12CommandContext& CommandContext = *Contexts[ERHIPipeline::Graphics]->GetSingleDeviceContext(GetParentDevice()->GetGPUIndex());
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(FlushPendingBufferCopyOps);
-		RHI_BREADCRUMB_EVENT(CommandContext, BufferPoolCopyOps);
+		RHI_BREADCRUMB_EVENT(CommandContext, "BufferPoolCopyOps");
 
 		for (FD3D12BufferPool* DefaultBufferPool : DefaultBufferPools)
 		{
@@ -1823,7 +1823,7 @@ void FD3D12TextureAllocatorPool::BeginFrame(FD3D12ContextArray const& Contexts)
 		FD3D12CommandContext& CommandContext = *Contexts[ERHIPipeline::Graphics]->GetSingleDeviceContext(GetParentDevice()->GetGPUIndex());
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(FlushPendingTextureCopyOps);
-		RHI_BREADCRUMB_EVENT(CommandContext, TexturePoolCopyOps);
+		RHI_BREADCRUMB_EVENT(CommandContext, "TexturePoolCopyOps");
 		
 		for (uint32 PoolIndex = 0; PoolIndex < (uint32)EPoolType::Count; ++PoolIndex)
 		{

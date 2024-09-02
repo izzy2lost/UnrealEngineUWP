@@ -706,29 +706,128 @@ namespace UE::RHI::GPUProfiler
 		}
 	}
 
-	struct FGPUProfilerSink_StatUnit final : public FEventSink
+	// Handles computing the "stat unit" GPU time, and "stat gpu" stats.
+	struct FGPUProfilerSink_StatSystem final : public FEventSink
 	{
-		struct FQueueTimestamps : public TArray<uint64>
+		class FTimestampStream
 		{
-			int32 TimestampIndex = 0;
-			uint64 BusyCycles = 0;
+		private:
+			TArray<uint64> Values;
 
-			uint64 GetCurrentTimestamp (uint64 Anchor) const { return (*this)[TimestampIndex] - Anchor; }
-			uint64 GetPreviousTimestamp(uint64 Anchor) const { return (*this)[TimestampIndex - 1] - Anchor; }
+		public:
+			struct FState
+			{
+				FTimestampStream const& Stream;
+				int32 TimestampIndex = 0;
+				uint64 BusyCycles = 0;
 
-			bool HasMoreTimestamps() const { return TimestampIndex < Num(); }
-			bool IsStartingWork()    const { return (TimestampIndex & 0x01) == 0x00; }
+				FState(FTimestampStream const& Stream)
+					: Stream(Stream)
+				{}
 
-			void AdvanceTimestamp() { TimestampIndex++; }
+				uint64 GetCurrentTimestamp (uint64 Anchor) const { return Stream.Values[TimestampIndex] - Anchor; }
+				uint64 GetPreviousTimestamp(uint64 Anchor) const { return Stream.Values[TimestampIndex - 1] - Anchor; }
+
+				bool HasMoreTimestamps() const { return TimestampIndex < Stream.Values.Num(); }
+				bool IsStartingWork   () const { return (TimestampIndex & 0x01) == 0x00; }
+				void AdvanceTimestamp () { TimestampIndex++; }
+			};
+
+			void AddTimestamp(uint64 Value, bool bBegin)
+			{
+				if (bBegin)
+				{
+					if (!Values.IsEmpty() && Value <= Values.Last())
+					{
+						//
+						// The Begin TOP event is sooner than the last End BOP event.
+						// The markers overlap, and the GPU was not idle.
+						// 
+						// Remove the previous End event, and discard this Begin event.
+						//
+						Values.RemoveAt(Values.Num() - 1, EAllowShrinking::No);
+					}
+					else
+					{
+						// GPU was idle. Keep this timestamp.
+						Values.Add(Value);
+					}
+				}
+				else
+				{
+					Values.Add(Value);
+				}
+			}
+
+			static uint64 ComputeUnion(TArrayView<FTimestampStream::FState> Streams)
+			{
+				// The total number of cycles where at least one GPU pipe was busy.
+				uint64 UnionBusyCycles = 0;
+
+				uint64 LastMinCycles = 0;
+				int32 BusyPipes = 0;
+				bool bFirst = true;
+
+				uint64 Anchor = 0; // @todo - handle possible timestamp wraparound
+
+				// Process the time ranges from each pipe.
+				while (true)
+				{
+					// Find the next minimum timestamp
+					FTimestampStream::FState* NextMin = nullptr;
+					for (auto& Current : Streams)
+					{
+						if (Current.HasMoreTimestamps() && (!NextMin || Current.GetCurrentTimestamp(Anchor) < NextMin->GetCurrentTimestamp(Anchor)))
+						{
+							NextMin = &Current;
+						}
+					}
+
+					if (!NextMin)
+						break; // No more timestamps to process
+
+					if (!bFirst)
+					{
+						if (BusyPipes > 0 && NextMin->GetCurrentTimestamp(Anchor) > LastMinCycles)
+						{
+							// Accumulate the union busy time across all pipes
+							UnionBusyCycles += NextMin->GetCurrentTimestamp(Anchor) - LastMinCycles;
+						}
+
+						if (!NextMin->IsStartingWork())
+						{
+							// Accumulate the busy time for this pipe specifically.
+							NextMin->BusyCycles += NextMin->GetCurrentTimestamp(Anchor) - NextMin->GetPreviousTimestamp(Anchor);
+						}
+					}
+
+					LastMinCycles = NextMin->GetCurrentTimestamp(Anchor);
+
+					BusyPipes += NextMin->IsStartingWork() ? 1 : -1;
+					check(BusyPipes >= 0);
+
+					NextMin->AdvanceTimestamp();
+					bFirst = false;
+				}
+
+				check(BusyPipes == 0);
+
+				return UnionBusyCycles;
+			}
 		};
 
 		struct FQueueState
 		{
 			bool bBusy = false;
-			FQueueTimestamps Timestamps;
+			FTimestampStream QueueTimestamps;
+
+		#if WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
+			TMap<TStatId, FTimestampStream> StatTimestamps;
+			TMap<TStatId, int32> ActiveStats;
+		#endif
 		};
 
-		using FFrameState = TMap<FQueue, FQueueTimestamps>;
+		using FFrameState = TMap<FQueue, FQueueState>;
 
 		TMap<FQueue, FQueueState> QueueStates;
 		TMap<uint32, FFrameState> Frames;
@@ -755,22 +854,15 @@ namespace UE::RHI::GPUProfiler
 						check(!QueueState.bBusy);
 						QueueState.bBusy = true;
 						uint64 Value = Event->Value.Get<FEvent::FBeginWork>().GPUTimestampTOP;
+						QueueState.QueueTimestamps.AddTimestamp(Value, true);
 
-						if (!QueueState.Timestamps.IsEmpty() && Value <= QueueState.Timestamps.Last())
+					#if WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
+						// Apply the timestamp to all active stats
+						for (auto const& [StatId, RefCount] : QueueState.ActiveStats)
 						{
-							//
-							// The Begin TOP event is sooner than the last End BOP event.
-							// The markers overlap, and the GPU was not idle.
-							// 
-							// Remove the previous End event, and discard this Begin event.
-							//
-							QueueState.Timestamps.RemoveAt(QueueState.Timestamps.Num() - 1, EAllowShrinking::No);
+							QueueState.StatTimestamps.FindChecked(StatId).AddTimestamp(Value, true);
 						}
-						else
-						{
-							// GPU was idle. Keep this timestamp.
-							QueueState.Timestamps.Add(Value);
-						}
+					#endif
 					}
 					break;
 
@@ -780,7 +872,15 @@ namespace UE::RHI::GPUProfiler
 						QueueState.bBusy = false;
 
 						uint64 Value = Event->Value.Get<FEvent::FEndWork>().GPUTimestampBOP;
-						QueueState.Timestamps.Add(Value);
+						QueueState.QueueTimestamps.AddTimestamp(Value, false);
+
+					#if WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
+						// Apply the timestamp to all active stats
+						for (auto const& [StatId, RefCount] : QueueState.ActiveStats)
+						{
+							QueueState.StatTimestamps.FindChecked(StatId).AddTimestamp(Value, false);
+						}
+					#endif
 					}
 					break;
 
@@ -790,7 +890,7 @@ namespace UE::RHI::GPUProfiler
 						FEvent::FFrameBoundary const& FrameBoundary = Event->Value.Get<FEvent::FFrameBoundary>();
 
 						FFrameState& FrameState = Frames.FindOrAdd(FrameBoundary.FrameNumber);
-						FrameState.Emplace(Queue, MoveTemp(QueueState.Timestamps));
+						FrameState.Emplace(Queue, MoveTemp(QueueState));
 
 						if (FrameState.Num() == QueueStates.Num())
 						{
@@ -802,68 +902,96 @@ namespace UE::RHI::GPUProfiler
 						}
 					}
 					break;
+
+			#if WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
+				case FEvent::EType::BeginBreadcrumb:
+					{
+						FEvent::FBeginBreadcrumb const& BeginBreadcrumb = Event->Value.Get<FEvent::FBeginBreadcrumb>();
+						TStatId StatId = BeginBreadcrumb.Breadcrumb->Name.StatId;
+
+						if (StatId.IsValidStat())
+						{
+							// Disregard the stat if it is nested within itself (i.e. its already in the ActiveStats map with a non-zero ref count).
+							// Only the outermost stat will count the busy time, otherwise we'd be double-counting the nested time.
+							int32 RefCount = QueueState.ActiveStats.FindOrAdd(StatId)++;
+							if (RefCount == 0)
+							{
+								QueueState.StatTimestamps.FindOrAdd(StatId).AddTimestamp(BeginBreadcrumb.GPUTimestampTOP, true);
+							}
+						}
+					}
+					break;
+
+				case FEvent::EType::EndBreadcrumb:
+					{
+						FEvent::FEndBreadcrumb const& EndBreadcrumb = Event->Value.Get<FEvent::FEndBreadcrumb>();
+						TStatId StatId = EndBreadcrumb.Breadcrumb->Name.StatId;
+
+						if (StatId.IsValidStat())
+						{
+							// Pop the stat when the refcount hits zero.
+							int32 RefCount = --QueueState.ActiveStats.FindChecked(StatId);
+							if (RefCount == 0)
+							{
+								QueueState.StatTimestamps.FindChecked(StatId).AddTimestamp(EndBreadcrumb.GPUTimestampBOP, false);
+								QueueState.ActiveStats.FindAndRemoveChecked(StatId);
+							}							
+						}
+					}
+					break;
+			#endif // WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
+
 				}
 			}
 		}
 
 		void ProcessFrame(FFrameState& FrameState)
 		{
-			// The total number of cycles where at least one GPU pipe was busy during the frame.
-			uint64 UnionBusyCycles = 0;
+			TArray<FTimestampStream::FState, TInlineAllocator<GetRHIPipelineCount() * MAX_NUM_GPUS>> StreamPointers;
 
-			uint64 LastMinCycles = 0;
-			int32 BusyPipes = 0;
-			bool bFirst = true;
-
-			uint64 Anchor = 0; // @todo - handle possible timestamp wraparound
-
-			// Process the time ranges from each pipe.
-			while (true)
+			// Compute the individual GPU stats
+		#if WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
+			TSet<TStatId> UniqueStats;
+			for (auto const& [Queue, State] : FrameState)
 			{
-				// Find the next minimum timestamp
-				FQueueTimestamps* NextMin = nullptr;
-				for (auto& [Queue, Current] : FrameState)
+				for (auto const& [StatId, Timestamps] : State.StatTimestamps)
 				{
-					if (Current.HasMoreTimestamps() && (!NextMin || Current.GetCurrentTimestamp(Anchor) < NextMin->GetCurrentTimestamp(Anchor)))
-					{
-						NextMin = &Current;
-					}
+					UniqueStats.Add(StatId);
 				}
-
-				if (!NextMin)
-					break; // No more timestamps to process
-
-				if (!bFirst)
-				{
-					if (BusyPipes > 0 && NextMin->GetCurrentTimestamp(Anchor) > LastMinCycles)
-					{
-						// Accumulate the union busy time across all pipes
-						UnionBusyCycles += NextMin->GetCurrentTimestamp(Anchor) - LastMinCycles;
-					}
-
-					if (!NextMin->IsStartingWork())
-					{
-						// Accumulate the busy time for this pipe specifically.
-						NextMin->BusyCycles += NextMin->GetCurrentTimestamp(Anchor) - NextMin->GetPreviousTimestamp(Anchor);
-					}
-				}
-
-				LastMinCycles = NextMin->GetCurrentTimestamp(Anchor);
-
-				BusyPipes += NextMin->IsStartingWork() ? 1 : -1;
-				check(BusyPipes >= 0);
-
-				NextMin->AdvanceTimestamp();
-				bFirst = false;
 			}
 
-			check(BusyPipes == 0);
+			for (TStatId StatId : UniqueStats)
+			{
+				StreamPointers.Reset();
+				for (auto const& [Queue, State] : FrameState)
+				{
+					FTimestampStream const* Stream = State.StatTimestamps.Find(StatId);
+					if (Stream)
+					{
+						StreamPointers.Emplace(*Stream);
+					}
+				}
+
+				uint64 Union = FTimestampStream::ComputeUnion(StreamPointers);
+				double Time = FPlatformTime::ToMilliseconds64(Union);
+
+				SET_FLOAT_STAT_FName(StatId.GetName(), Time);
+			}
+		#endif // WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
+
+			// Compute the whole-frame total GPU time.
+			StreamPointers.Reset();
+			for (auto const& [Queue, State] : FrameState)
+			{
+				StreamPointers.Emplace(State.QueueTimestamps);
+			}
+			uint64 WholeFrameUnion = FTimestampStream::ComputeUnion(StreamPointers);
 
 			// Update the global GPU frame time stats - need to convert to Cycles32 rather than Cycles64.
-			GGPUFrameTime = FPlatformMath::TruncToInt(FPlatformTime::ToSeconds64(UnionBusyCycles) / FPlatformTime::GetSecondsPerCycle());
+			GGPUFrameTime = FPlatformMath::TruncToInt(FPlatformTime::ToSeconds64(WholeFrameUnion) / FPlatformTime::GetSecondsPerCycle());
 		}
 
-	} GGPUProfilerSink_StatUnit;
+	} GGPUProfilerSink_StatSystem;
 
 	struct FGPUProfilerSink_ProfileGPU final : public FEventSink
 	{

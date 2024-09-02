@@ -2517,7 +2517,7 @@ FRDGPass* FRDGBuilder::SetupParameterPass(FRDGPass* Pass)
 	if (ScopeState.ScopeMode == ERDGScopeMode::AllEventsAndPassNames)
 	{
 		FRDGEventName Name = Pass->GetEventName();
-		PassNameScope.Emplace(*this, ERDGScopeFlags::None, MoveTemp(Name));
+		PassNameScope.Emplace(*this, ERDGScopeFlags::None, TStatId(), MoveTemp(Name));
 	}
 #endif
 

@@ -5493,12 +5493,12 @@ static inline void BeginFrameRenderThread(FRHICommandListImmediate& RHICmdList, 
 #if CSV_PROFILER
 	if (FCsvProfiler::Get()->IsCapturing_Renderthread())
 	{
-		GRHIFrameBreadcrumb.Emplace(RHICmdList, TEXT("CsvFrame %d"), FCsvProfiler::Get()->GetCaptureFrameNumberRT());
+		GRHIFrameBreadcrumb.Emplace(RHICmdList, TStatId(), TEXT("CsvFrame %d"), FCsvProfiler::Get()->GetCaptureFrameNumberRT());
 	}
 	else
 #endif
 	{
-		GRHIFrameBreadcrumb.Emplace(RHICmdList, TEXT("Frame %d"), CurrentFrameCounter);
+		GRHIFrameBreadcrumb.Emplace(RHICmdList, TStatId(), TEXT("Frame %d"), CurrentFrameCounter);
 	}
 #endif
 

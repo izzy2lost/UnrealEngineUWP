@@ -803,7 +803,7 @@ void UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(UObject* WorldContex
 				](FRHICommandListImmediate& RHICmdList)
 			{
 #if  WANTS_DRAW_MESH_EVENTS
-				Breadcrumb->Emplace(RHICmdList, TEXT("DrawCanvasToTarget: %s"), Name);
+				Breadcrumb->Emplace(RHICmdList, TStatId(), TEXT("DrawCanvasToTarget: %s"), Name);
 #endif
 				RenderTargetResource->FlushDeferredResourceUpdate(RHICmdList);
 			});

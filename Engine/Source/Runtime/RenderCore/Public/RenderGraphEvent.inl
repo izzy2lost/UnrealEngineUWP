@@ -100,10 +100,10 @@ inline void FRDGScope_GPU::EndGPU(FRHIComputeCommandList& RHICmdList)
 
 #if RDG_EVENTS
 
-	inline FRDGScope_RHI::FRDGScope_RHI(FRDGScopeState& State, FRDGEventName&& Name)
+	inline FRDGScope_RHI::FRDGScope_RHI(FRDGScopeState& State, TStatId StatId, FRDGEventName&& Name)
 		: Name(MoveTemp(Name))
 	#if WITH_RHI_BREADCRUMBS
-		, Node(Name.AllocBreadcrumb(State.GetBreadcrumbAllocator()))
+		, Node(Name.AllocBreadcrumb(StatId, State.GetBreadcrumbAllocator()))
 	#endif
 	{
 	#if WITH_RHI_BREADCRUMBS

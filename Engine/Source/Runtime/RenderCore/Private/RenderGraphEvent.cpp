@@ -286,7 +286,7 @@ FRDGEventName::FRDGEventName(const TCHAR* EventFormat, ...)
 }
 
 #if WITH_RHI_BREADCRUMBS
-FRHIBreadcrumbNode* FRDGEventName::AllocBreadcrumb(FRHIBreadcrumbAllocator& Allocator) const
+FRHIBreadcrumbNode* FRDGEventName::AllocBreadcrumb(TStatId StatId, FRHIBreadcrumbAllocator& Allocator) const
 {
 #if RDG_EVENTS == RDG_EVENTS_STRING_COPY
 
@@ -297,7 +297,7 @@ FRHIBreadcrumbNode* FRDGEventName::AllocBreadcrumb(FRHIBreadcrumbAllocator& Allo
 				: TEXT("<unnamed pass>");
 			
 			// Cast hack to force treating EventFormat as a string literal.
-			return Allocator.AllocBreadcrumb(*reinterpret_cast<TCHAR const(*)[1]>(String));
+			return Allocator.AllocBreadcrumb(StatId, *reinterpret_cast<TCHAR const(*)[1]>(String));
 		}
 		else
 		{
@@ -310,13 +310,13 @@ FRHIBreadcrumbNode* FRDGEventName::AllocBreadcrumb(FRHIBreadcrumbAllocator& Allo
 			FMemory::Memcpy(StrCopy, *FormattedEventName, Size);
 
 			// Cast hack to force treating StrCopy as a string literal.
-			return Allocator.AllocBreadcrumb(*reinterpret_cast<TCHAR const(*)[1]>(StrCopy));
+			return Allocator.AllocBreadcrumb(StatId, *reinterpret_cast<TCHAR const(*)[1]>(StrCopy));
 		}
 
 #elif RDG_EVENTS >= RDG_EVENTS_STRING_REF
 
 		// Cast hack to force treating EventFormat as a string literal.
-		return Allocator.AllocBreadcrumb(*reinterpret_cast<TCHAR const(*)[1]>(EventFormat));
+		return Allocator.AllocBreadcrumb(StatId, *reinterpret_cast<TCHAR const(*)[1]>(EventFormat));
 
 #else
 

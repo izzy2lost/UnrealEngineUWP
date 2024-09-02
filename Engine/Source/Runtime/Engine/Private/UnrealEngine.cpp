@@ -10709,7 +10709,7 @@ bool UEngine::PerformError(const TCHAR* Cmd, FOutputDevice& Ar)
 			static void RHIThreadCrash(FRHICommandList& CmdList)
 			{
 				// Test breadcrumb system
-				RHI_BREADCRUMB_EVENTF(CmdList, Event, TEXT("Debug RHI Thread Crash"));
+				RHI_BREADCRUMB_EVENT(CmdList, "Debug RHI Thread Crash");
 
 				CmdList.EnqueueLambda([](FRHICommandListBase& ExecutingCmdList)
 				{

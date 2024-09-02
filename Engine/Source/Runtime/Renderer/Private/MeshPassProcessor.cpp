@@ -2255,6 +2255,7 @@ void FPassProcessorManager::SetPassFlags(EShadingPath ShadingPath, EMeshPass::Ty
 FMeshDrawCommand::FMeshDrawEvent::FMeshDrawEvent(const FMeshDrawCommand& MeshDrawCommand, const uint32 InstanceFactor, FRHICommandList& RHICmdList)
 	: Breadcrumb(
 		  RHICmdList
+		, TStatId()
 		, GShowMaterialDrawEvents != 0
 		, TEXT("%s %s (%u instances)")
 		, MeshDrawCommand.DebugData.MaterialRenderProxy->GetMaterialName()

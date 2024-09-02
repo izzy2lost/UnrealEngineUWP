@@ -2826,7 +2826,7 @@ public:
 	{
 #if WITH_PROFILEGPU
 		extern RHI_API TAutoConsoleVariable<int32> GProfileGPUTransitions;
-		RHI_BREADCRUMB_EVENT_CONDITIONAL(*this, RHIBeginTransitions, GProfileGPUTransitions.GetValueOnAnyThread() != 0);
+		RHI_BREADCRUMB_EVENT_CONDITIONAL(*this, GProfileGPUTransitions.GetValueOnAnyThread() != 0, "RHIBeginTransitions");
 #endif
 
 		if (Bypass())
@@ -2852,7 +2852,7 @@ public:
 	{
 #if WITH_PROFILEGPU
 		extern RHI_API TAutoConsoleVariable<int32> GProfileGPUTransitions;
-		RHI_BREADCRUMB_EVENT_CONDITIONAL(*this, RHIEndTransitions, GProfileGPUTransitions.GetValueOnAnyThread() != 0);
+		RHI_BREADCRUMB_EVENT_CONDITIONAL(*this, GProfileGPUTransitions.GetValueOnAnyThread() != 0, "RHIEndTransitions");
 #endif
 
 		if (Bypass())

@@ -1,13 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-/**
- *
- * This file contains the various draw mesh macros that display draw calls
- * inside of PIX.
- */
-
-// Colors that are defined for a particular mesh type
-// Each event type will be displayed using the defined color
 #pragma once
 
 #include "Containers/Array.h"
@@ -56,7 +48,7 @@
 				{
 					std::apply([Event, &RHICmdList, &FormatString](auto&&... InnerArgs)
 					{
-						Event->Emplace(RHICmdList, true, FormatString, std::forward<TArgs>(InnerArgs)...);
+						Event->Emplace(RHICmdList, TStatId(), true, FormatString, std::forward<TArgs>(InnerArgs)...);
 					}, Values);
 				});
 			}
@@ -75,32 +67,32 @@
 		}
 	};
 
-	#define RHI_BREADCRUMB_EVENT_GAMETHREAD(             Name                        ) FRHIBreadcrumbEvent_GameThread PREPROCESSOR_JOIN(BreadcrumbEvent_GameThread_##Name,__LINE__)(true     , TEXT(#Name)          );
-	#define RHI_BREADCRUMB_EVENT_CONDITIONAL_GAMETHREAD( Name, Condition             ) FRHIBreadcrumbEvent_GameThread PREPROCESSOR_JOIN(BreadcrumbEvent_GameThread_##Name,__LINE__)(Condition, TEXT(#Name)          );
-	#define RHI_BREADCRUMB_EVENTF_GAMETHREAD(            Name,            Format, ...) FRHIBreadcrumbEvent_GameThread PREPROCESSOR_JOIN(BreadcrumbEvent_GameThread_##Name,__LINE__)(true     , Format, ##__VA_ARGS__);
-	#define RHI_BREADCRUMB_EVENTF_CONDITIONAL_GAMETHREAD(Name, Condition, Format, ...) FRHIBreadcrumbEvent_GameThread PREPROCESSOR_JOIN(BreadcrumbEvent_GameThread_##Name,__LINE__)(Condition, Format, ##__VA_ARGS__);
+	#define RHI_BREADCRUMB_EVENT_GAMETHREAD(                       Format, ...) FRHIBreadcrumbEvent_GameThread ANONYMOUS_VARIABLE(BreadcrumbEvent_GameThread)(true     , TEXT(Format), ##__VA_ARGS__)
+	#define RHI_BREADCRUMB_EVENT_CONDITIONAL_GAMETHREAD(Condition, Format, ...) FRHIBreadcrumbEvent_GameThread ANONYMOUS_VARIABLE(BreadcrumbEvent_GameThread)(Condition, TEXT(Format), ##__VA_ARGS__)
+
+	// Used only for back compat with SCOPED_DRAW_EVENTF_GAMETHREAD
+	#define RHI_BREADCRUMB_EVENT_GAMETHREAD_STR_DEPRECATED(Format, ...) FRHIBreadcrumbEvent_GameThread ANONYMOUS_VARIABLE(BreadcrumbEvent_GameThread)(true, Format, ##__VA_ARGS__)
 
 #else
 
-	#define RHI_BREADCRUMB_EVENT_GAMETHREAD(             Name                        ) do { } while(0)
-	#define RHI_BREADCRUMB_EVENT_CONDITIONAL_GAMETHREAD( Name, Condition             ) do { } while(0)
-	#define RHI_BREADCRUMB_EVENTF_GAMETHREAD(            Name,            Format, ...) do { } while(0)
-	#define RHI_BREADCRUMB_EVENTF_CONDITIONAL_GAMETHREAD(Name, Condition, Format, ...) do { } while(0)
+	#define RHI_BREADCRUMB_EVENT_GAMETHREAD(...)                do { } while(0)
+	#define RHI_BREADCRUMB_EVENT_CONDITIONAL_GAMETHREAD(...)    do { } while(0)
+	#define RHI_BREADCRUMB_EVENT_GAMETHREAD_STR_DEPRECATED(...) do { } while(0)
 
 #endif
 
 // Macros to allow for scoping of draw events outside of RHI function implementations
 // Render-thread event macros:
-#define SCOPED_DRAW_EVENT(RHICmdList, Name)                                             RHI_BREADCRUMB_EVENT(             RHICmdList, Name                                  );
-#define SCOPED_DRAW_EVENTF(RHICmdList, Name, Format, ...)                               RHI_BREADCRUMB_EVENTF(            RHICmdList, Name           , Format, ##__VA_ARGS__);
-#define SCOPED_CONDITIONAL_DRAW_EVENT(RHICmdList, Name, Condition)                      RHI_BREADCRUMB_EVENT_CONDITIONAL( RHICmdList, Name, Condition                       );
-#define SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, Name, Condition, Format, ...)        RHI_BREADCRUMB_EVENTF_CONDITIONAL(RHICmdList, Name, Condition, Format, ##__VA_ARGS__);
+#define SCOPED_DRAW_EVENT(RHICmdList, Name)                                      RHI_BREADCRUMB_EVENT(RHICmdList, #Name);
+#define SCOPED_DRAW_EVENTF(RHICmdList, Name, Format, ...)                        RHI_BREADCRUMB_EVENT_STR_DEPRECATED(RHICmdList, Format, ##__VA_ARGS__);
+#define SCOPED_CONDITIONAL_DRAW_EVENT(RHICmdList, Name, Condition)               RHI_BREADCRUMB_EVENT_CONDITIONAL(RHICmdList, Condition, #Name);
+#define SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, Name, Condition, Format, ...) RHI_BREADCRUMB_EVENT_CONDITIONAL_STR_DEPRECATED(RHICmdList, Condition, Format, ##__VA_ARGS__);
 
 // Non-render-thread event macros:
-#define SCOPED_DRAW_EVENT_GAMETHREAD(Name)                                              RHI_BREADCRUMB_EVENT_GAMETHREAD(             Name                                  )
-#define SCOPED_DRAW_EVENTF_GAMETHREAD(Name, Format, ...)                                RHI_BREADCRUMB_EVENTF_GAMETHREAD(            Name           , Format, ##__VA_ARGS__)
-#define SCOPED_CONDITIONAL_DRAW_EVENT_GAMETHREAD(Name, Condition)                       RHI_BREADCRUMB_EVENT_CONDITIONAL_GAMETHREAD( Name, Condition                       )
-#define SCOPED_CONDITIONAL_DRAW_EVENTF_GAMETHREAD(Name, Condition, Format, ...)         RHI_BREADCRUMB_EVENTF_CONDITIONAL_GAMETHREAD(Name, Condition, Format, ##__VA_ARGS__)
+#define SCOPED_DRAW_EVENT_GAMETHREAD(Name)                                       RHI_BREADCRUMB_EVENT_GAMETHREAD(#Name);
+#define SCOPED_DRAW_EVENTF_GAMETHREAD(Name, Format, ...)                         RHI_BREADCRUMB_EVENT_GAMETHREAD_STR_DEPRECATED(Format, ##__VA_ARGS__);
+#define SCOPED_CONDITIONAL_DRAW_EVENT_GAMETHREAD(Name, Condition)                RHI_BREADCRUMB_EVENT_CONDITIONAL_GAMETHREAD(Condition, #Name);
+#define SCOPED_CONDITIONAL_DRAW_EVENTF_GAMETHREAD(Name, Condition, Format, ...)  RHI_BREADCRUMB_EVENT_CONDITIONAL_GAMETHREAD(Condition, Format, ##__VA_ARGS__);
 
 // Deprecated macros
 #define BEGIN_DRAW_EVENTF(RHICmdList, Name, Event, Format, ...)                                      UE_DEPRECATED_MACRO(5.5, "BEGIN_DRAW_EVENTF has been deprecated. Equivalent functionality can be implemented by constructing / destructing an instance of FRHIBreadcrumbEventManual."                      )
@@ -108,34 +100,34 @@
 #define STOP_DRAW_EVENT_GAMETHREAD(...)                                                              UE_DEPRECATED_MACRO(5.5, "STOP_DRAW_EVENT_GAMETHREAD has been deprecated. Equivalent functionality can be implemented by constructing / destructing an instance of FRHIBreadcrumbEvent_GameThread."        )
 #define BEGIN_DRAW_EVENTF_GAMETHREAD(...)                                                            UE_DEPRECATED_MACRO(5.5, "BEGIN_DRAW_EVENTF_GAMETHREAD has been deprecated. Equivalent functionality can be implemented by constructing / destructing an instance of FRHIBreadcrumbEvent_GameThread."      )
 #define BEGIN_DRAW_EVENTF_COLOR_GAMETHREAD(...)                                                      UE_DEPRECATED_MACRO(5.5, "BEGIN_DRAW_EVENTF_COLOR_GAMETHREAD has been deprecated. Equivalent functionality can be implemented by constructing / destructing an instance of FRHIBreadcrumbEvent_GameThread.")
-#define SCOPED_DRAW_EVENT_COLOR(RHICmdList, Color, Name)                                             UE_DEPRECATED_MACRO(5.5, "SCOPED_DRAW_EVENT_COLOR has been deprecated. Use SCOPED_DRAW_EVENT instead."                                                ) SCOPED_DRAW_EVENT(RHICmdList, Name)
-#define SCOPED_GPU_EVENT(RHICmdList, Name)                                                           UE_DEPRECATED_MACRO(5.5, "SCOPED_GPU_EVENT has been deprecated. Use SCOPED_DRAW_EVENT instead."                                                       ) SCOPED_DRAW_EVENT(RHICmdList, Name)
-#define SCOPED_GPU_EVENT_COLOR(RHICmdList, Color, Name)                                              UE_DEPRECATED_MACRO(5.5, "SCOPED_GPU_EVENT_COLOR has been deprecated. Use SCOPED_DRAW_EVENT instead."                                                 ) SCOPED_DRAW_EVENT(RHICmdList, Name)
-#define SCOPED_COMPUTE_EVENT(RHICmdList, Name)                                                       UE_DEPRECATED_MACRO(5.5, "SCOPED_COMPUTE_EVENT has been deprecated. Use SCOPED_DRAW_EVENT instead."                                                   ) SCOPED_DRAW_EVENT(RHICmdList, Name)
-#define SCOPED_COMPUTE_EVENT_COLOR(RHICmdList, Color, Name)                                          UE_DEPRECATED_MACRO(5.5, "SCOPED_COMPUTE_EVENT_COLOR has been deprecated. Use SCOPED_DRAW_EVENT instead."                                             ) SCOPED_DRAW_EVENT(RHICmdList, Name)
-#define SCOPED_DRAW_EVENTF_COLOR(RHICmdList, Color, Name, Format, ...)                               UE_DEPRECATED_MACRO(5.5, "SCOPED_DRAW_EVENTF_COLOR has been deprecated. Use SCOPED_DRAW_EVENTF instead."                                              ) SCOPED_DRAW_EVENTF(RHICmdList, Name, Format, ##__VA_ARGS__)
-#define SCOPED_GPU_EVENTF(RHICmdList, Name, Format, ...)                                             UE_DEPRECATED_MACRO(5.5, "SCOPED_GPU_EVENTF has been deprecated. Use SCOPED_DRAW_EVENTF instead."                                                     ) SCOPED_DRAW_EVENTF(RHICmdList, Name, Format, ##__VA_ARGS__)
-#define SCOPED_GPU_EVENTF_COLOR(RHICmdList, Color, Name, Format, ...)                                UE_DEPRECATED_MACRO(5.5, "SCOPED_GPU_EVENTF_COLOR has been deprecated. Use SCOPED_DRAW_EVENTF instead."                                               ) SCOPED_DRAW_EVENTF(RHICmdList, Name, Format, ##__VA_ARGS__)
-#define SCOPED_COMPUTE_EVENTF(RHICmdList, Name, Format, ...)                                         UE_DEPRECATED_MACRO(5.5, "SCOPED_COMPUTE_EVENTF has been deprecated. Use SCOPED_DRAW_EVENTF instead."                                                 ) SCOPED_DRAW_EVENTF(RHICmdList, Name, Format, ##__VA_ARGS__)
-#define SCOPED_COMPUTE_EVENTF_COLOR(RHICmdList, Color, Name, Format, ...)                            UE_DEPRECATED_MACRO(5.5, "SCOPED_COMPUTE_EVENTF_COLOR has been deprecated. Use SCOPED_DRAW_EVENTF instead."                                           ) SCOPED_DRAW_EVENTF(RHICmdList, Name, Format, ##__VA_ARGS__)
-#define SCOPED_CONDITIONAL_DRAW_EVENT_COLOR(RHICmdList, Name, Color, Condition)                      UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_DRAW_EVENT_COLOR has been deprecated. Use SCOPED_CONDITIONAL_DRAW_EVENT instead."                        ) SCOPED_CONDITIONAL_DRAW_EVENT(RHICmdList, Name, Condition)
-#define SCOPED_CONDITIONAL_GPU_EVENT(RHICmdList, Name, Condition)                                    UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_GPU_EVENT has been deprecated. Use SCOPED_CONDITIONAL_DRAW_EVENT instead."                               ) SCOPED_CONDITIONAL_DRAW_EVENT(RHICmdList, Name, Condition)
-#define SCOPED_CONDITIONAL_GPU_EVENT_COLOR(RHICmdList, Name, Color, Condition)                       UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_GPU_EVENT_COLOR has been deprecated. Use SCOPED_CONDITIONAL_DRAW_EVENT instead."                         ) SCOPED_CONDITIONAL_DRAW_EVENT(RHICmdList, Name, Condition)
-#define SCOPED_CONDITIONAL_COMPUTE_EVENT(RHICmdList, Name, Condition)                                UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_COMPUTE_EVENT has been deprecated. Use SCOPED_CONDITIONAL_DRAW_EVENT instead."                           ) SCOPED_CONDITIONAL_DRAW_EVENT(RHICmdList, Name, Condition)
-#define SCOPED_CONDITIONAL_COMPUTE_EVENT_COLOR(RHICmdList, Name, Color, Condition)                   UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_COMPUTE_EVENT_COLOR has been deprecated. Use SCOPED_CONDITIONAL_DRAW_EVENT instead."                     ) SCOPED_CONDITIONAL_DRAW_EVENT(RHICmdList, Name, Condition)
-#define SCOPED_CONDITIONAL_DRAW_EVENTF_COLOR(RHICmdList, Color, Name, Condition, Format, ...)        UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_DRAW_EVENTF_COLOR has been deprecated. Use SCOPED_CONDITIONAL_DRAW_EVENTF instead."                      ) SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, Name, Condition, Format, ##__VA_ARGS__)
-#define SCOPED_CONDITIONAL_GPU_EVENTF(RHICmdList, Name, Condition, Format, ...)                      UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_GPU_EVENTF has been deprecated. Use SCOPED_CONDITIONAL_DRAW_EVENTF instead."                             ) SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, Name, Condition, Format, ##__VA_ARGS__)
-#define SCOPED_CONDITIONAL_GPU_EVENTF_COLOR(RHICmdList, Color, Name, Condition, Format, ...)         UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_GPU_EVENTF_COLOR has been deprecated. Use SCOPED_CONDITIONAL_DRAW_EVENTF instead."                       ) SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, Name, Condition, Format, ##__VA_ARGS__)
-#define SCOPED_CONDITIONAL_COMPUTE_EVENTF(RHICmdList, Name, Condition, Format, ...)                  UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_COMPUTE_EVENTF has been deprecated. Use SCOPED_CONDITIONAL_DRAW_EVENTF instead."                         ) SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, Name, Condition, Format, ##__VA_ARGS__)
-#define SCOPED_CONDITIONAL_COMPUTE_EVENTF_COLOR(RHICmdList, Color, Name, Condition, Format, ...)     UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_COMPUTE_EVENTF_COLOR has been deprecated. Use SCOPED_CONDITIONAL_DRAW_EVENTF instead."                   ) SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, Name, Condition, Format, ##__VA_ARGS__)
-#define BEGIN_DRAW_EVENTF_COLOR(RHICmdList, Color, Name, Event, Format, ...)                         UE_DEPRECATED_MACRO(5.5, "BEGIN_DRAW_EVENTF_COLOR has been deprecated. Use BEGIN_DRAW_EVENTF instead."                                                ) BEGIN_DRAW_EVENTF(RHICmdList, Name, Event, Format, ##__VA_ARGS__)
-#define BEGIN_GPU_EVENTF(RHICmdList, Name, Event, Format, ...)                                       UE_DEPRECATED_MACRO(5.5, "BEGIN_GPU_EVENTF has been deprecated. Use BEGIN_DRAW_EVENTF instead."                                                       ) BEGIN_DRAW_EVENTF(RHICmdList, Name, Event, Format, ##__VA_ARGS__)
-#define BEGIN_GPU_EVENTF_COLOR(RHICmdList, Color, Name, Event, Format, ...)                          UE_DEPRECATED_MACRO(5.5, "BEGIN_GPU_EVENTF_COLOR has been deprecated. Use BEGIN_DRAW_EVENTF instead."                                                 ) BEGIN_DRAW_EVENTF(RHICmdList, Name, Event, Format, ##__VA_ARGS__)
-#define STOP_GPU_EVENT(Event)                                                                        UE_DEPRECATED_MACRO(5.5, "STOP_GPU_EVENT has been deprecated. Use STOP_DRAW_EVENT instead."                                                           ) STOP_DRAW_EVENT(Event)
-#define SCOPED_DRAW_EVENT_COLOR_GAMETHREAD(Color, Name)                                              UE_DEPRECATED_MACRO(5.5, "SCOPED_DRAW_EVENT_COLOR_GAMETHREAD has been deprecated. Use SCOPED_DRAW_EVENT_GAMETHREAD instead."                          ) SCOPED_DRAW_EVENT_GAMETHREAD(Name)
-#define SCOPED_DRAW_EVENTF_COLOR_GAMETHREAD(Color, Name, Format, ...)                                UE_DEPRECATED_MACRO(5.5, "SCOPED_DRAW_EVENTF_COLOR_GAMETHREAD has been deprecated. Use SCOPED_DRAW_EVENTF_GAMETHREAD instead."                        ) SCOPED_DRAW_EVENTF_GAMETHREAD(Name, Format, ##__VA_ARGS__)
-#define SCOPED_CONDITIONAL_DRAW_EVENT_COLOR_GAMETHREAD(Name, Color, Condition)                       UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_DRAW_EVENT_COLOR_GAMETHREAD has been deprecated. Use SCOPED_CONDITIONAL_DRAW_EVENT_GAMETHREAD instead."  ) SCOPED_CONDITIONAL_DRAW_EVENT_GAMETHREAD(Name, Condition)
-#define SCOPED_CONDITIONAL_DRAW_EVENTF_COLOR_GAMETHREAD(Color, Name, Condition, Format, ...)         UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_DRAW_EVENTF_COLOR_GAMETHREAD has been deprecated. Use SCOPED_CONDITIONAL_DRAW_EVENTF_GAMETHREAD instead.") SCOPED_CONDITIONAL_DRAW_EVENTF_GAMETHREAD(Name, Condition, Format, ##__VA_ARGS__)
+#define SCOPED_DRAW_EVENT_COLOR(RHICmdList, Color, Name)                                             UE_DEPRECATED_MACRO(5.5, "SCOPED_DRAW_EVENT_COLOR has been deprecated. Use RHI_BREADCRUMB_EVENT instead."                                               ) RHI_BREADCRUMB_EVENT(RHICmdList, #Name)
+#define SCOPED_GPU_EVENT(RHICmdList, Name)                                                           UE_DEPRECATED_MACRO(5.5, "SCOPED_GPU_EVENT has been deprecated. Use RHI_BREADCRUMB_EVENT instead."                                                      ) RHI_BREADCRUMB_EVENT(RHICmdList, #Name)
+#define SCOPED_GPU_EVENT_COLOR(RHICmdList, Color, Name)                                              UE_DEPRECATED_MACRO(5.5, "SCOPED_GPU_EVENT_COLOR has been deprecated. Use RHI_BREADCRUMB_EVENT instead."                                                ) RHI_BREADCRUMB_EVENT(RHICmdList, #Name)
+#define SCOPED_COMPUTE_EVENT(RHICmdList, Name)                                                       UE_DEPRECATED_MACRO(5.5, "SCOPED_COMPUTE_EVENT has been deprecated. Use RHI_BREADCRUMB_EVENT instead."                                                  ) RHI_BREADCRUMB_EVENT(RHICmdList, #Name)
+#define SCOPED_COMPUTE_EVENT_COLOR(RHICmdList, Color, Name)                                          UE_DEPRECATED_MACRO(5.5, "SCOPED_COMPUTE_EVENT_COLOR has been deprecated. Use RHI_BREADCRUMB_EVENT instead."                                            ) RHI_BREADCRUMB_EVENT(RHICmdList, #Name)
+#define SCOPED_DRAW_EVENTF_COLOR(RHICmdList, Color, Name, Format, ...)                               UE_DEPRECATED_MACRO(5.5, "SCOPED_DRAW_EVENTF_COLOR has been deprecated. Use RHI_BREADCRUMB_EVENT instead."                                              ) RHI_BREADCRUMB_EVENT(RHICmdList, Format, ##__VA_ARGS__)
+#define SCOPED_GPU_EVENTF(RHICmdList, Name, Format, ...)                                             UE_DEPRECATED_MACRO(5.5, "SCOPED_GPU_EVENTF has been deprecated. Use RHI_BREADCRUMB_EVENT instead."                                                     ) RHI_BREADCRUMB_EVENT(RHICmdList, Format, ##__VA_ARGS__)
+#define SCOPED_GPU_EVENTF_COLOR(RHICmdList, Color, Name, Format, ...)                                UE_DEPRECATED_MACRO(5.5, "SCOPED_GPU_EVENTF_COLOR has been deprecated. Use RHI_BREADCRUMB_EVENT instead."                                               ) RHI_BREADCRUMB_EVENT(RHICmdList, Format, ##__VA_ARGS__)
+#define SCOPED_COMPUTE_EVENTF(RHICmdList, Name, Format, ...)                                         UE_DEPRECATED_MACRO(5.5, "SCOPED_COMPUTE_EVENTF has been deprecated. Use RHI_BREADCRUMB_EVENT instead."                                                 ) RHI_BREADCRUMB_EVENT(RHICmdList, Format, ##__VA_ARGS__)
+#define SCOPED_COMPUTE_EVENTF_COLOR(RHICmdList, Color, Name, Format, ...)                            UE_DEPRECATED_MACRO(5.5, "SCOPED_COMPUTE_EVENTF_COLOR has been deprecated. Use RHI_BREADCRUMB_EVENT instead."                                           ) RHI_BREADCRUMB_EVENT(RHICmdList, Format, ##__VA_ARGS__)
+#define SCOPED_CONDITIONAL_DRAW_EVENT_COLOR(RHICmdList, Name, Color, Condition)                      UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_DRAW_EVENT_COLOR has been deprecated. Use RHI_BREADCRUMB_EVENT_CONDITIONAL instead."                       ) RHI_BREADCRUMB_EVENT_CONDITIONAL(RHICmdList, Condition, #Name)
+#define SCOPED_CONDITIONAL_GPU_EVENT(RHICmdList, Name, Condition)                                    UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_GPU_EVENT has been deprecated. Use RHI_BREADCRUMB_EVENT_CONDITIONAL instead."                              ) RHI_BREADCRUMB_EVENT_CONDITIONAL(RHICmdList, Condition, #Name)
+#define SCOPED_CONDITIONAL_GPU_EVENT_COLOR(RHICmdList, Name, Color, Condition)                       UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_GPU_EVENT_COLOR has been deprecated. Use RHI_BREADCRUMB_EVENT_CONDITIONAL instead."                        ) RHI_BREADCRUMB_EVENT_CONDITIONAL(RHICmdList, Condition, #Name)
+#define SCOPED_CONDITIONAL_COMPUTE_EVENT(RHICmdList, Name, Condition)                                UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_COMPUTE_EVENT has been deprecated. Use RHI_BREADCRUMB_EVENT_CONDITIONAL instead."                          ) RHI_BREADCRUMB_EVENT_CONDITIONAL(RHICmdList, Condition, #Name)
+#define SCOPED_CONDITIONAL_COMPUTE_EVENT_COLOR(RHICmdList, Name, Color, Condition)                   UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_COMPUTE_EVENT_COLOR has been deprecated. Use RHI_BREADCRUMB_EVENT_CONDITIONAL instead."                    ) RHI_BREADCRUMB_EVENT_CONDITIONAL(RHICmdList, Condition, #Name)
+#define SCOPED_CONDITIONAL_DRAW_EVENTF_COLOR(RHICmdList, Color, Name, Condition, Format, ...)        UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_DRAW_EVENTF_COLOR has been deprecated. Use RHI_BREADCRUMB_EVENT_CONDITIONAL instead."                      ) RHI_BREADCRUMB_EVENT_CONDITIONAL(RHICmdList, Condition, Format, ##__VA_ARGS__)
+#define SCOPED_CONDITIONAL_GPU_EVENTF(RHICmdList, Name, Condition, Format, ...)                      UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_GPU_EVENTF has been deprecated. Use RHI_BREADCRUMB_EVENT_CONDITIONAL instead."                             ) RHI_BREADCRUMB_EVENT_CONDITIONAL(RHICmdList, Condition, Format, ##__VA_ARGS__)
+#define SCOPED_CONDITIONAL_GPU_EVENTF_COLOR(RHICmdList, Color, Name, Condition, Format, ...)         UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_GPU_EVENTF_COLOR has been deprecated. Use RHI_BREADCRUMB_EVENT_CONDITIONAL instead."                       ) RHI_BREADCRUMB_EVENT_CONDITIONAL(RHICmdList, Condition, Format, ##__VA_ARGS__)
+#define SCOPED_CONDITIONAL_COMPUTE_EVENTF(RHICmdList, Name, Condition, Format, ...)                  UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_COMPUTE_EVENTF has been deprecated. Use RHI_BREADCRUMB_EVENT_CONDITIONAL instead."                         ) RHI_BREADCRUMB_EVENT_CONDITIONAL(RHICmdList, Condition, Format, ##__VA_ARGS__)
+#define SCOPED_CONDITIONAL_COMPUTE_EVENTF_COLOR(RHICmdList, Color, Name, Condition, Format, ...)     UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_COMPUTE_EVENTF_COLOR has been deprecated. Use RHI_BREADCRUMB_EVENT_CONDITIONAL instead."                   ) RHI_BREADCRUMB_EVENT_CONDITIONAL(RHICmdList, Condition, Format, ##__VA_ARGS__)
+#define BEGIN_DRAW_EVENTF_COLOR(RHICmdList, Color, Name, Event, Format, ...)                         UE_DEPRECATED_MACRO(5.5, "BEGIN_DRAW_EVENTF_COLOR has been deprecated. Use BEGIN_DRAW_EVENTF instead."                                                  ) BEGIN_DRAW_EVENTF(RHICmdList, Name, Event, Format, ##__VA_ARGS__)
+#define BEGIN_GPU_EVENTF(RHICmdList, Name, Event, Format, ...)                                       UE_DEPRECATED_MACRO(5.5, "BEGIN_GPU_EVENTF has been deprecated. Use BEGIN_DRAW_EVENTF instead."                                                         ) BEGIN_DRAW_EVENTF(RHICmdList, Name, Event, Format, ##__VA_ARGS__)
+#define BEGIN_GPU_EVENTF_COLOR(RHICmdList, Color, Name, Event, Format, ...)                          UE_DEPRECATED_MACRO(5.5, "BEGIN_GPU_EVENTF_COLOR has been deprecated. Use BEGIN_DRAW_EVENTF instead."                                                   ) BEGIN_DRAW_EVENTF(RHICmdList, Name, Event, Format, ##__VA_ARGS__)
+#define STOP_GPU_EVENT(Event)                                                                        UE_DEPRECATED_MACRO(5.5, "STOP_GPU_EVENT has been deprecated. Use STOP_DRAW_EVENT instead."                                                             ) STOP_DRAW_EVENT(Event)
+#define SCOPED_DRAW_EVENT_COLOR_GAMETHREAD(Color, Name)                                              UE_DEPRECATED_MACRO(5.5, "SCOPED_DRAW_EVENT_COLOR_GAMETHREAD has been deprecated. Use RHI_BREADCRUMB_EVENT_GAMETHREAD instead."                         ) RHI_BREADCRUMB_EVENT_GAMETHREAD(#Name)
+#define SCOPED_DRAW_EVENTF_COLOR_GAMETHREAD(Color, Name, Format, ...)                                UE_DEPRECATED_MACRO(5.5, "SCOPED_DRAW_EVENTF_COLOR_GAMETHREAD has been deprecated. Use RHI_BREADCRUMB_EVENT_GAMETHREAD instead."                        ) RHI_BREADCRUMB_EVENT_GAMETHREAD(Format, ##__VA_ARGS__)
+#define SCOPED_CONDITIONAL_DRAW_EVENT_COLOR_GAMETHREAD(Name, Color, Condition)                       UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_DRAW_EVENT_COLOR_GAMETHREAD has been deprecated. Use RHI_BREADCRUMB_EVENT_CONDITIONAL_GAMETHREAD instead." ) RHI_BREADCRUMB_EVENT_CONDITIONAL_GAMETHREAD(Condition, #Name)
+#define SCOPED_CONDITIONAL_DRAW_EVENTF_COLOR_GAMETHREAD(Color, Name, Condition, Format, ...)         UE_DEPRECATED_MACRO(5.5, "SCOPED_CONDITIONAL_DRAW_EVENTF_COLOR_GAMETHREAD has been deprecated. Use RHI_BREADCRUMB_EVENT_CONDITIONAL_GAMETHREAD instead.") RHI_BREADCRUMB_EVENT_CONDITIONAL_GAMETHREAD(Condition, Format, ##__VA_ARGS__)
 #define SCOPED_RHI_DRAW_EVENT(RHICmdContext, Name)                                                   UE_DEPRECATED_MACRO(5.5, "SCOPED_RHI_DRAW_EVENT has been deprecated. Use standard RHI breadcrumb events instead."                   )
 #define SCOPED_RHI_DRAW_EVENTF(RHICmdContext, Name, Format, ...)                                     UE_DEPRECATED_MACRO(5.5, "SCOPED_RHI_DRAW_EVENTF has been deprecated. Use standard RHI breadcrumb events instead."                  )
 #define SCOPED_RHI_CONDITIONAL_DRAW_EVENT(RHICmdContext, Name, Condition)                            UE_DEPRECATED_MACRO(5.5, "SCOPED_RHI_CONDITIONAL_DRAW_EVENT has been deprecated. Use standard RHI breadcrumb events instead."       )
@@ -147,23 +139,42 @@
 
 #if RHI_NEW_GPU_PROFILER
 
-	// @todo
-	#define DECLARE_GPU_STAT(StatName)
-	#define DECLARE_GPU_STAT_NAMED(StatName, NameString)
-	#define DECLARE_GPU_DRAWCALL_STAT(StatName)
-	#define DECLARE_GPU_DRAWCALL_STAT_NAMED(StatName, NameString)
-	#define DECLARE_GPU_DRAWCALL_STAT_EXTERN(StatName)
+	#if HAS_GPU_STATS
 
-	#define DECLARE_GPU_STAT_NAMED_EXTERN(StatName, NameString)
-	#define DEFINE_GPU_STAT(StatName)
-	#define DEFINE_GPU_DRAWCALL_STAT(StatName)
+		CSV_DECLARE_CATEGORY_MODULE_EXTERN(RENDERCORE_API, GPU);
 
-	#define SCOPED_GPU_STAT_VERBOSE(RHICmdList, StatName, Description)
-	#define SCOPED_GPU_STAT(RHICmdList, StatName) 
+		// @todo
+		#define DECLARE_GPU_STAT(                StatName            ) DECLARE_FLOAT_COUNTER_STAT(TEXT(#StatName)       , Stat_GPU_##StatName, STATGROUP_GPU  ); CSV_DEFINE_STAT(GPU,StatName);
+		#define DECLARE_GPU_STAT_NAMED(          StatName, NameString) DECLARE_FLOAT_COUNTER_STAT(NameString            , Stat_GPU_##StatName, STATGROUP_GPU  ); CSV_DEFINE_STAT(GPU,StatName);
+		#define DECLARE_GPU_DRAWCALL_STAT(       StatName            ) DECLARE_FLOAT_COUNTER_STAT(TEXT(#StatName)       , Stat_GPU_##StatName, STATGROUP_GPU  ); CSV_DEFINE_STAT(GPU,StatName);
+		#define DECLARE_GPU_DRAWCALL_STAT_NAMED( StatName, NameString) DECLARE_FLOAT_COUNTER_STAT(NameString            , Stat_GPU_##StatName, STATGROUP_GPU  ); CSV_DEFINE_STAT(GPU,StatName);
+		#define DECLARE_GPU_DRAWCALL_STAT_EXTERN(StatName            ) DECLARE_FLOAT_COUNTER_STAT_EXTERN(TEXT(#StatName), Stat_GPU_##StatName, STATGROUP_GPU, ); CSV_DECLARE_STAT_EXTERN(GPU,StatName);
 
-	#define GPU_STATS_BEGINFRAME(RHICmdList) 
-	#define GPU_STATS_ENDFRAME(RHICmdList) 
-	#define GPU_STATS_SUSPENDFRAME()
+		// Extern GPU stats are needed where a stat is used in multiple CPPs. Use the DECLARE_GPU_STAT_NAMED_EXTERN in the header and DEFINE_GPU_STAT in the CPPs
+		#define DECLARE_GPU_STAT_NAMED_EXTERN(StatName, NameString) DECLARE_FLOAT_COUNTER_STAT_EXTERN(NameString, Stat_GPU_##StatName, STATGROUP_GPU, ); CSV_DECLARE_STAT_EXTERN(GPU,StatName);
+		#define DEFINE_GPU_STAT(              StatName            ) DEFINE_STAT(Stat_GPU_##StatName);                                                    CSV_DEFINE_STAT(GPU,StatName);
+		#define DEFINE_GPU_DRAWCALL_STAT(     StatName            ) DEFINE_STAT(Stat_GPU_##StatName);                                                    CSV_DEFINE_STAT(GPU,StatName);
+
+	#else
+
+		#define DECLARE_GPU_STAT(...)
+		#define DECLARE_GPU_STAT_NAMED(...)
+		#define DECLARE_GPU_DRAWCALL_STAT(...)
+		#define DECLARE_GPU_DRAWCALL_STAT_NAMED(...)
+		#define DECLARE_GPU_DRAWCALL_STAT_EXTERN(...)
+		#define DECLARE_GPU_STAT_NAMED_EXTERN(...)
+		#define DEFINE_GPU_STAT(...)
+		#define DEFINE_GPU_DRAWCALL_STAT(...)
+
+	#endif
+
+	// Empty when using the new RHI GPU profiler. GPU stats are handled via RHI_BREADCRUMB_EVENT_STAT etc.
+	// @todo deprecate
+	#define SCOPED_GPU_STAT_VERBOSE(...)
+	#define SCOPED_GPU_STAT(...)
+	#define GPU_STATS_BEGINFRAME(...) 
+	#define GPU_STATS_ENDFRAME(...) 
+	#define GPU_STATS_SUSPENDFRAME(...)
 
 #else
 

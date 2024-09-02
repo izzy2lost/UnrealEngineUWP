@@ -2117,7 +2117,7 @@ public:
 				FD3D12Resource* UploadBuffer = UpdateInfo.SrcResourceLocation->GetResource();
 				CD3DX12_TEXTURE_COPY_LOCATION SourceCopyLocation(UploadBuffer->GetResource(), UpdateInfo.PlacedSubresourceFootprint);
 
-				RHI_BREADCRUMB_EVENT(Context, EndMultiUpdateTexture3D);
+				RHI_BREADCRUMB_EVENT(Context, "EndMultiUpdateTexture3D");
 
 				Context.GraphicsCommandList()->CopyTextureRegion(
 					&DestCopyLocation,
@@ -2327,7 +2327,7 @@ void FD3D12DynamicRHI::EndUpdateTexture3D_Internal(FRHICommandListBase& RHICmdLi
 			for (FD3D12Texture& Texture : *FD3D12DynamicRHI::ResourceCast(RootTexture))
 			{
 				FD3D12CommandContext& Context = FD3D12CommandContext::Get(ExecutingCmdList, Texture.GetParentDevice()->GetGPUIndex());
-				RHI_BREADCRUMB_EVENT(Context, EndUpdateTexture3D);
+				RHI_BREADCRUMB_EVENT(Context, "EndUpdateTexture3D");
 
 				CD3DX12_TEXTURE_COPY_LOCATION DestCopyLocation(Texture.GetResource()->GetResource(), MipIdx);
 				CD3DX12_TEXTURE_COPY_LOCATION SourceCopyLocation(SrcResourceLocation->GetResource()->GetResource(), PlacedSubresourceFootprint);

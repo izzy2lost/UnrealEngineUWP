@@ -11,6 +11,7 @@
 #if RHI_NEW_GPU_PROFILER
 
 // @todo - new gpu profiler
+CSV_DEFINE_CATEGORY_MODULE(RENDERCORE_API, GPU, true);
 
 #elif HAS_GPU_STATS
 

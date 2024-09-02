@@ -12,7 +12,7 @@
 FRHIBreadcrumbNode::FRHIBreadcrumbNode()
 	: Name([]() -> FRHIBreadcrumb const&
 	{
-		static TRHIBreadcrumb<> Breadcrumb(TEXT("Sentinel"));
+		static TRHIBreadcrumb<> Breadcrumb(TStatId(), TEXT("Sentinel"));
 		return Breadcrumb;
 	}())
 {}

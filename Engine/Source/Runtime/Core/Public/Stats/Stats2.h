@@ -279,6 +279,11 @@ struct TStatId
 		return StatIdPtr != Other.StatIdPtr;
 	}
 
+	friend uint32 GetTypeHash(TStatId StatId)
+	{
+		return GetTypeHash(StatId.StatIdPtr);
+	}
+
 private:
 	/** NAME_None. */
 	CORE_API static TStatIdData TStatId_NAME_None;

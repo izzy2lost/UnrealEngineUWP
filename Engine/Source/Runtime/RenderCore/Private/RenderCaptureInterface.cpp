@@ -35,7 +35,7 @@ namespace RenderCaptureInterface
 #if WITH_RHI_BREADCRUMBS
 				if (bPushEvent)
 				{
-					Breadcrumb->Emplace(RHICommandListLocal, TEXT("%s"), EventName);
+					Breadcrumb->Emplace(RHICommandListLocal, TStatId(), TEXT("%s"), EventName);
 				}
 #endif
 			});
@@ -58,7 +58,7 @@ namespace RenderCaptureInterface
 			if (bEvent)
 			{
 				RHIBreadcrumb = MakeUnique<TOptional<FRHIBreadcrumbEventManual>>();
-				RHIBreadcrumb->Emplace(*RHICommandList, TEXT("%s"), FString(InEventName));
+				RHIBreadcrumb->Emplace(*RHICommandList, TStatId(), TEXT("%s"), FString(InEventName));
 			}
 #endif
 		}
@@ -85,7 +85,7 @@ namespace RenderCaptureInterface
 #if RDG_EVENTS
 			if (bEvent)
 			{
-				RDGEvent.Emplace(*GraphBuilder, ERDGScopeFlags::None, RDG_EVENT_NAME("%s", InEventName));
+				RDGEvent.Emplace(*GraphBuilder, ERDGScopeFlags::None, TStatId(), RDG_EVENT_NAME("%s", InEventName));
 			}
 #endif
 		}

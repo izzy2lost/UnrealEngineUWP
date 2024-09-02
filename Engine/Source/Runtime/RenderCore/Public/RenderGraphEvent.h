@@ -49,7 +49,7 @@ public:
 	const TCHAR* GetTCHAR() const;
 
 #if WITH_RHI_BREADCRUMBS
-	FRHIBreadcrumbNode* AllocBreadcrumb(FRHIBreadcrumbAllocator& Allocator) const;
+	FRHIBreadcrumbNode* AllocBreadcrumb(TStatId StatId, FRHIBreadcrumbAllocator& Allocator) const;
 #endif // WITH_RHI_BREADCRUMBS
 
 private:
@@ -74,6 +74,9 @@ enum class ERDGScopeFlags : uint8
 
 	// Ensures the scope is always emitted (ignores cvars that disable scopes)
 	AlwaysEnable = 1 << 1,
+
+	// The scope includes a GPU stat, so may need to be enabled even when cvars are disabling scopes.
+	Stat = 1 << 2,
 };
 ENUM_CLASS_FLAGS(ERDGScopeFlags);
 
@@ -168,7 +171,7 @@ struct FRDGScope_Budget
 		FRHIBreadcrumbNode* Node = nullptr;
 	#endif
 
-		inline FRDGScope_RHI(FRDGScopeState& State, FRDGEventName&& Name);
+		inline FRDGScope_RHI(FRDGScopeState& State, TStatId StatId, FRDGEventName&& Name);
 		inline void ImmediateEnd(FRDGScopeState& State);
 
 	#if WITH_RHI_BREADCRUMBS
@@ -341,10 +344,19 @@ private:
 	// Skip expensive string formatting for the relatively common case of no varargs.  We detect this by stringizing the varargs and checking if the string is non-empty (more than just a null terminator).
 	#define RDG_EVENT_NAME(Format, ...) (sizeof(#__VA_ARGS__ "") > 1 ? FRDGEventName(TEXT(Format), ##__VA_ARGS__) : FRDGEventName(1, TEXT(Format)))
 
-	#define RDG_EVENT_SCOPE(GraphBuilder, Format, ...)                                  \
+	#define RDG_EVENT_SCOPE(GraphBuilder, Format, ...) \
 		TRDGEventScopeGuard<FRDGScope_RHI> PREPROCESSOR_JOIN(__RDG_ScopeRef_,__LINE__)( \
 			(GraphBuilder)                                                              \
 			, ERDGScopeFlags::None                                                      \
+			, TStatId()                                                                 \
+			, RDG_EVENT_NAME(Format, ##__VA_ARGS__)                                     \
+		)
+
+	#define RDG_EVENT_SCOPE_STAT(GraphBuilder, StatName, Format, ...)                   \
+		TRDGEventScopeGuard<FRDGScope_RHI> PREPROCESSOR_JOIN(__RDG_ScopeRef_,__LINE__)( \
+			(GraphBuilder)                                                              \
+			, ERDGScopeFlags::Stat                                                      \
+			, GET_STATID(Stat_GPU_##StatName)                                           \
 			, RDG_EVENT_NAME(Format, ##__VA_ARGS__)                                     \
 		)
 
@@ -357,6 +369,22 @@ private:
 				PREPROCESSOR_JOIN(__RDG_ScopeRef_,__LINE__).Emplace(                               \
 					(GraphBuilder)                                                                 \
 					, ERDGScopeFlags::None                                                         \
+					, TStatId()                                                                    \
+					, RDG_EVENT_NAME(Format, ##__VA_ARGS__)                                        \
+				);                                                                                 \
+			}   \
+		} while (false)
+
+	#define RDG_EVENT_SCOPE_CONDITIONAL_STAT(GraphBuilder, Condition, StatName, Format, ...)       \
+		TOptional<TRDGEventScopeGuard<FRDGScope_RHI>> PREPROCESSOR_JOIN(__RDG_ScopeRef_,__LINE__); \
+		do                                                                                         \
+		{                                                                                          \
+			if (Condition)                                                                         \
+			{                                                                                      \
+				PREPROCESSOR_JOIN(__RDG_ScopeRef_,__LINE__).Emplace(                               \
+					(GraphBuilder)                                                                 \
+					, ERDGScopeFlags::Stat                                                         \
+					, GET_STATID(Stat_GPU_##StatName)                                              \
 					, RDG_EVENT_NAME(Format, ##__VA_ARGS__)                                        \
 				);                                                                                 \
 			}   \
@@ -371,6 +399,7 @@ private:
 			PREPROCESSOR_JOIN(__RDG_ScopeRef_,__LINE__).Emplace(                                   \
 				(GraphBuilder)                                                                     \
 				, ERDGScopeFlags::Final                                                            \
+				, TStatId()                                                                        \
 				, RDG_EVENT_NAME(Format, ##__VA_ARGS__)                                            \
 			);                                                                                     \
 		} while (false)
@@ -400,8 +429,9 @@ private:
 #endif
 
  /** Injects a scope onto both the RDG and RHI timeline. */
-#define RDG_RHI_EVENT_SCOPE(GraphBuilder, Name) RDG_EVENT_SCOPE(GraphBuilder, #Name); SCOPED_DRAW_EVENT(GraphBuilder.RHICmdList, Name);
-#define RDG_RHI_GPU_STAT_SCOPE(GraphBuilder, StatName) RDG_GPU_STAT_SCOPE(GraphBuilder, StatName); SCOPED_GPU_STAT(GraphBuilder.RHICmdList, StatName);
+#define RDG_RHI_EVENT_SCOPE(     GraphBuilder, Name)       RDG_EVENT_SCOPE(GraphBuilder, #Name);            RHI_BREADCRUMB_EVENT(GraphBuilder.RHICmdList, #Name)
+#define RDG_RHI_EVENT_SCOPE_STAT(GraphBuilder, Stat, Name) RDG_EVENT_SCOPE_STAT(GraphBuilder, Stat, #Name); RHI_BREADCRUMB_EVENT_STAT(GraphBuilder.RHICmdList, Stat, #Name)
+#define RDG_RHI_GPU_STAT_SCOPE(  GraphBuilder, StatName)   RDG_GPU_STAT_SCOPE(GraphBuilder, StatName);      SCOPED_GPU_STAT(GraphBuilder.RHICmdList, StatName);
 
 namespace DynamicRenderScaling
 {

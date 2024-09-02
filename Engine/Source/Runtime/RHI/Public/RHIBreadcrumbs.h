@@ -156,7 +156,7 @@
 		FRHIBreadcrumbAllocatorArray const& GetParents() const { return Parents; }
 
 		template<size_t N, typename... TArgs>
-		inline FRHIBreadcrumbNode* AllocBreadcrumb(TCHAR const(&FormatString)[N], TArgs&&... Args);
+		inline FRHIBreadcrumbNode* AllocBreadcrumb(TStatId StatId, TCHAR const(&FormatString)[N], TArgs&&... Args);
 
 		inline void* Alloc(uint32 Size, uint32 Align)
 		{
@@ -433,8 +433,9 @@
 		RHI_API static std::atomic<uint32> NextID;
 
 	protected:
-		FRHIBreadcrumb()
+		FRHIBreadcrumb(TStatId StatId)
 			: ID(NextID.fetch_add(1, std::memory_order_relaxed) | 0x80000000) // Set the top bit to avoid collision with zero (i.e. "no breadcrumb")
+			, StatId(StatId)
 		{}
 
 		FRHIBreadcrumb(FRHIBreadcrumb const&) = delete;
@@ -442,6 +443,7 @@
 
 	public:
 		uint32 const ID;
+		TStatId const StatId;
 
 #if RHI_BREADCRUMBS_EMIT_CPU
 		uint32 const CPUTraceMarkerID = 0;
@@ -655,8 +657,9 @@
 		TRHIBreadcrumb(TRHIBreadcrumb const& Other) = delete;
 
 	public:
-		TRHIBreadcrumb(TCHAR const* FormatString, TArgs const&... Args)
-			: FormatString(FormatString)
+		TRHIBreadcrumb(TStatId StatId, TCHAR const* FormatString, TArgs const&... Args)
+			: FRHIBreadcrumb(StatId)
+			, FormatString(FormatString)
 			, Values(Args...)
 		{
 			CreateTraceMarkers();
@@ -685,8 +688,9 @@
 		TRHIBreadcrumb(TRHIBreadcrumb const& Other) = delete;
 
 	public:
-		TRHIBreadcrumb(TCHAR const* StringLiteral)
-			: StringLiteral(StringLiteral)
+		TRHIBreadcrumb(TStatId StatId, TCHAR const* StringLiteral)
+			: FRHIBreadcrumb(StatId)
+			, StringLiteral(StringLiteral)
 		{
 			CreateTraceMarkers();
 		}
@@ -703,20 +707,20 @@
 	};
 
 	template<size_t N, typename... TArgs>
-	inline FRHIBreadcrumbNode* FRHIBreadcrumbAllocator::AllocBreadcrumb(TCHAR const(&FormatString)[N], TArgs&&... Args)
+	inline FRHIBreadcrumbNode* FRHIBreadcrumbAllocator::AllocBreadcrumb(TStatId StatId, TCHAR const(&FormatString)[N], TArgs&&... Args)
 	{
 		struct FStorage
 		{
 			TRHIBreadcrumb<std::decay_t<TArgs>...> Name;
 			FRHIBreadcrumbNode Node;
 
-			FStorage(FRHIBreadcrumbAllocator& Allocator, TCHAR const(&FormatString)[N], TArgs&&... Args)
-				: Name(FormatString, Forward<TArgs>(Args)...)
+			FStorage(FRHIBreadcrumbAllocator& Allocator, TStatId StatId, TCHAR const(&FormatString)[N], TArgs&&... Args)
+				: Name(StatId, FormatString, Forward<TArgs>(Args)...)
 				, Node(Allocator, Name)
 			{}
 		};
 
-		return &Alloc<FStorage>(*this, FormatString, Forward<TArgs>(Args)...)->Node;
+		return &Alloc<FStorage>(*this, StatId, FormatString, Forward<TArgs>(Args)...)->Node;
 	}
 
 	class FRHIBreadcrumbNodeRef
@@ -759,7 +763,7 @@
 
 	public:
 		template<size_t N, typename... TArgs>
-		inline FRHIBreadcrumbEventManual(FRHIComputeCommandList& RHICmdList, TCHAR const(&FormatString)[N], TArgs&&... Args);
+		inline FRHIBreadcrumbEventManual(FRHIComputeCommandList& RHICmdList, TStatId StatId, TCHAR const(&FormatString)[N], TArgs&&... Args);
 
 		inline void End(FRHIComputeCommandList& RHICmdList);
 
@@ -779,31 +783,43 @@
 		FRHIBreadcrumbEventScope(FRHIBreadcrumbEventScope&&) = delete;
 
 		template<size_t N, typename... TArgs>
-		inline FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, ERHIPipeline InPipeline, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args);
+		inline FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, TStatId StatId, ERHIPipeline InPipeline, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args);
 
 	public:
 		// Top-of-pipe breadcrumb event scope for RHI command lists
 		template<size_t N, typename... TArgs>
-		inline FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args);
+		inline FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, TStatId StatId, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args);
 
 		// Bottom-of-pipe breadcrumb event scope for RHI contexts
 		template<size_t N, typename... TArgs>
-		inline FRHIBreadcrumbEventScope(IRHIComputeContext& InRHIContext, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args);
+		inline FRHIBreadcrumbEventScope(IRHIComputeContext& InRHIContext, TStatId StatId, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args);
 
 		inline ~FRHIBreadcrumbEventScope();
 	};
 
-	#define RHI_BREADCRUMB_EVENT(             RHICmdList_Or_RHIContext, Name                        ) FRHIBreadcrumbEventScope PREPROCESSOR_JOIN(BreadcrumbEvent_##Name,__LINE__)(RHICmdList_Or_RHIContext, true     , TEXT(#Name)          );
-	#define RHI_BREADCRUMB_EVENT_CONDITIONAL( RHICmdList_Or_RHIContext, Name, Condition             ) FRHIBreadcrumbEventScope PREPROCESSOR_JOIN(BreadcrumbEvent_##Name,__LINE__)(RHICmdList_Or_RHIContext, Condition, TEXT(#Name)          );
-	#define RHI_BREADCRUMB_EVENTF(            RHICmdList_Or_RHIContext, Name           , Format, ...) FRHIBreadcrumbEventScope PREPROCESSOR_JOIN(BreadcrumbEvent_##Name,__LINE__)(RHICmdList_Or_RHIContext, true     , Format, ##__VA_ARGS__);
-	#define RHI_BREADCRUMB_EVENTF_CONDITIONAL(RHICmdList_Or_RHIContext, Name, Condition, Format, ...) FRHIBreadcrumbEventScope PREPROCESSOR_JOIN(BreadcrumbEvent_##Name,__LINE__)(RHICmdList_Or_RHIContext, Condition, Format, ##__VA_ARGS__);
+	#define RHI_BREADCRUMB_EVENT(                 RHICmdList_Or_RHIContext,                  Format, ...) FRHIBreadcrumbEventScope ANONYMOUS_VARIABLE(BreadcrumbEvent)(RHICmdList_Or_RHIContext, TStatId()                  , true     , TEXT(Format), ## __VA_ARGS__)
+	#define RHI_BREADCRUMB_EVENT_CONDITIONAL(     RHICmdList_Or_RHIContext,       Condition, Format, ...) FRHIBreadcrumbEventScope ANONYMOUS_VARIABLE(BreadcrumbEvent)(RHICmdList_Or_RHIContext, TStatId()                  , Condition, TEXT(Format), ## __VA_ARGS__)
+#if HAS_GPU_STATS
+	#define RHI_BREADCRUMB_EVENT_STAT(            RHICmdList_Or_RHIContext, Stat,            Format, ...) FRHIBreadcrumbEventScope ANONYMOUS_VARIABLE(BreadcrumbEvent)(RHICmdList_Or_RHIContext, GET_STATID(Stat_GPU_##Stat), true     , TEXT(Format), ## __VA_ARGS__)
+	#define RHI_BREADCRUMB_EVENT_CONDITIONAL_STAT(RHICmdList_Or_RHIContext, Stat, Condition, Format, ...) FRHIBreadcrumbEventScope ANONYMOUS_VARIABLE(BreadcrumbEvent)(RHICmdList_Or_RHIContext, GET_STATID(Stat_GPU_##Stat), Condition, TEXT(Format), ## __VA_ARGS__)
+#else
+	#define RHI_BREADCRUMB_EVENT_STAT(            RHICmdList_Or_RHIContext, Stat,            Format, ...) FRHIBreadcrumbEventScope ANONYMOUS_VARIABLE(BreadcrumbEvent)(RHICmdList_Or_RHIContext, TStatId()                  , true     , TEXT(Format), ## __VA_ARGS__)
+	#define RHI_BREADCRUMB_EVENT_CONDITIONAL_STAT(RHICmdList_Or_RHIContext, Stat, Condition, Format, ...) FRHIBreadcrumbEventScope ANONYMOUS_VARIABLE(BreadcrumbEvent)(RHICmdList_Or_RHIContext, TStatId()                  , Condition, TEXT(Format), ## __VA_ARGS__)
+#endif
+
+	// Used only for back compat with SCOPED_DRAW_EVENTF
+	#define RHI_BREADCRUMB_EVENT_STR_DEPRECATED(            RHICmdList_Or_RHIContext,            Format, ...) FRHIBreadcrumbEventScope ANONYMOUS_VARIABLE(BreadcrumbEvent)(RHICmdList_Or_RHIContext, TStatId(), true     , Format, ## __VA_ARGS__)
+	#define RHI_BREADCRUMB_EVENT_CONDITIONAL_STR_DEPRECATED(RHICmdList_Or_RHIContext, Condition, Format, ...) FRHIBreadcrumbEventScope ANONYMOUS_VARIABLE(BreadcrumbEvent)(RHICmdList_Or_RHIContext, TStatId(), Condition, Format, ## __VA_ARGS__)
 
 #else // WITH_RHI_BREADCRUMBS == 0
 
-	#define RHI_BREADCRUMB_EVENT(             RHICmdList_Or_RHIContext, Name                        )
-	#define RHI_BREADCRUMB_EVENT_CONDITIONAL( RHICmdList_Or_RHIContext, Name, Condition             )
-	#define RHI_BREADCRUMB_EVENTF(            RHICmdList_Or_RHIContext, Name           , Format, ...)
-	#define RHI_BREADCRUMB_EVENTF_CONDITIONAL(RHICmdList_Or_RHIContext, Name, Condition, Format, ...)
+	#define RHI_BREADCRUMB_EVENT(...)
+	#define RHI_BREADCRUMB_EVENT_STAT(...)
+	#define RHI_BREADCRUMB_EVENT_CONDITIONAL(...)
+	#define RHI_BREADCRUMB_EVENT_CONDITIONAL_STAT(...)
+
+	#define RHI_BREADCRUMB_EVENT_STR_DEPRECATED(...)
+	#define RHI_BREADCRUMB_EVENT_CONDITIONAL_STR_DEPRECATED(...)
 
 #endif
 //
