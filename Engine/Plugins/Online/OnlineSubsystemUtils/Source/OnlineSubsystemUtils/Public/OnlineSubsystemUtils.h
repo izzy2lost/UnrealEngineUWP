@@ -185,14 +185,8 @@ namespace Online
 	/** @return the single instance of the online subsystem utils interface */
 	static IOnlineSubsystemUtils* GetUtils()
 	{
-		static const FName OnlineSubsystemModuleName = TEXT("OnlineSubsystemUtils");
-		FOnlineSubsystemUtilsModule* OSSUtilsModule = FModuleManager::GetModulePtr<FOnlineSubsystemUtilsModule>(OnlineSubsystemModuleName);
-		if (OSSUtilsModule != nullptr)
-		{
-			return OSSUtilsModule->GetUtils();
-		}
-
-		return nullptr;
+		const FOnlineSubsystemUtilsModule* OSSUtilsModule = FModuleManager::LoadModulePtr<FOnlineSubsystemUtilsModule>(TEXT("OnlineSubsystemUtils"));
+		return OSSUtilsModule ? OSSUtilsModule->GetUtils() : nullptr;
 	}
 
 	/**

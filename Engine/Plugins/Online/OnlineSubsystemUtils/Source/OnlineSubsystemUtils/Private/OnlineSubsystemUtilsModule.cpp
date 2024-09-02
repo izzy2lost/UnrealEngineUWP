@@ -1,11 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemUtilsModule.h"
+
+#include "Misc/CommandLine.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Online.h"
-#include "OnlineSubsystemUtils.h"
-#include "OnlineServicesEngineUtilsImpl.h"
 #include "OnlineDelegates.h"
 #include "OnlinePIESettings.h"
+#include "OnlineServicesEngineUtilsImpl.h"
+#include "OnlineSubsystemUtils.h"
 
 #if WITH_EDITOR
 #include "Misc/CommandLine.h"
@@ -124,9 +127,9 @@ private:
 public:	
 	virtual bool SupportsOnlinePIE() const override
 	{
-		check(UObjectInitialized());
-		const UOnlinePIESettings* OnlinePIESettings = GetDefault<UOnlinePIESettings>();
-		if ((OnlinePIESettings->bOnlinePIEEnabled && GetNumPIELogins() > 0) || HasAuthCommandLine())
+		bool bOnlinePIEEnabled = false;
+		GConfig->GetBool(TEXT("/Script/OnlineSubsystemUtils.OnlinePIESettings"), TEXT("bOnlinePIEEnabled"), bOnlinePIEEnabled, GEditorPerProjectIni);
+		if ((bOnlinePIEEnabled && GetNumPIELogins() > 0) || HasAuthCommandLine())
 		{
 			// If we can't get the identity interface then things are either not configured right or disabled
 			IOnlineIdentityPtr IdentityInt = Online::GetIdentityInterface();
@@ -149,23 +152,21 @@ public:
 
 	virtual bool IsOnlinePIEEnabled() const override
 	{
-		check(UObjectInitialized());
-		if (!bShouldTryOnlinePIE)
-		{
-			return false;
-		}
-		const UOnlinePIESettings* OnlinePIESettings = GetDefault<UOnlinePIESettings>();
-		return OnlinePIESettings->bOnlinePIEEnabled || HasAuthCommandLine();
+		bool bOnlinePIEEnabled = false;
+		GConfig->GetBool(TEXT("/Script/OnlineSubsystemUtils.OnlinePIESettings"), TEXT("bOnlinePIEEnabled"), bOnlinePIEEnabled, GEditorPerProjectIni);
+		return bShouldTryOnlinePIE && (bOnlinePIEEnabled || HasAuthCommandLine());
 	}
 
 	virtual int32 GetNumPIELogins() const override
 	{
-		check(UObjectInitialized());
-
 		int32 NumValidLogins = 0;
-		const UOnlinePIESettings* OnlinePIESettings = GetDefault<UOnlinePIESettings>();
-		for (const FPIELoginSettingsInternal& Login : OnlinePIESettings->Logins)
+
+		TArray<FString> LoginStrings;
+		GConfig->GetArray(TEXT("/Script/OnlineSubsystemUtils.OnlinePIESettings"), TEXT("Logins"), LoginStrings, GEditorPerProjectIni);
+
+		for (const FString& LoginString : LoginStrings)
 		{
+			FPIELoginSettingsInternal Login = FPIELoginSettingsInternal::FromConfigString(LoginString);
 			if (Login.IsValid())
 			{
 				NumValidLogins++;
@@ -181,13 +182,15 @@ public:
 
 	virtual void GetPIELogins(TArray<FOnlineAccountCredentials>& Logins) override
 	{
-		check(UObjectInitialized());
-		const UOnlinePIESettings* OnlinePIESettings = GetDefault<UOnlinePIESettings>();
-		if (OnlinePIESettings->Logins.Num() > 0)
+		TArray<FString> LoginStrings;
+		GConfig->GetArray(TEXT("/Script/OnlineSubsystemUtils.OnlinePIESettings"), TEXT("Logins"), LoginStrings, GEditorPerProjectIni);
+
+		if (LoginStrings.Num() > 0)
 		{
-			Logins.Empty(OnlinePIESettings->Logins.Num());
-			for (const FPIELoginSettingsInternal& Login : OnlinePIESettings->Logins)
+			Logins.Empty(LoginStrings.Num());
+			for (const FString& LoginString : LoginStrings)
 			{
+				FPIELoginSettingsInternal Login = FPIELoginSettingsInternal::FromConfigString(LoginString);
 				if (Login.IsValid())
 				{
 					Logins.Emplace(Login.Type, Login.Id, Login.Token);

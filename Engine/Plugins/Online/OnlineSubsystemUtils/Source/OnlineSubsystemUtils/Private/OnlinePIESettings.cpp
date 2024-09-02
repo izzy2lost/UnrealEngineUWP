@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "OnlinePIESettings.h"
-#include "OnlineSubsystem.h"
+
 #include "Misc/AES.h"
+#include "Misc/Parse.h"
+#include "OnlineSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OnlinePIESettings)
 
@@ -83,6 +85,37 @@ void FPIELoginSettingsInternal::Decrypt()
 	{
 		Token.Empty();
 	}
+}
+
+FPIELoginSettingsInternal FPIELoginSettingsInternal::FromConfigString(const FString& ConfigString)
+{
+	FPIELoginSettingsInternal Result;
+	FParse::Value(*ConfigString, TEXT("Id="), Result.Id);
+	FParse::Value(*ConfigString, TEXT("Type="), Result.Type);
+	FParse::Value(*ConfigString, TEXT("Token="), Result.Token);
+
+	FString TokenBytesStr;
+	FParse::Value(*ConfigString, TEXT("TokenBytes="), TokenBytesStr, false);
+	if (!TokenBytesStr.IsEmpty())
+	{
+		check(TokenBytesStr[0] == TCHAR('('));
+		TokenBytesStr.LeftInline(FindMatchingClosingParenthesis(TokenBytesStr, 0));
+		TokenBytesStr.RemoveFromStart(TEXT("("));
+
+		TCHAR* ContextStr = nullptr;
+		const TCHAR* Elem = FCString::Strtok(TokenBytesStr.GetCharArray().GetData(), TEXT(","), &ContextStr);
+		while (Elem)
+		{
+			Result.TokenBytes.Emplace(FCString::Atoi(Elem));
+			Elem = FCString::Strtok(nullptr, TEXT(","), &ContextStr);
+		}
+		if (!Result.TokenBytes.IsEmpty())
+		{
+			Result.Decrypt();
+		}
+	}
+
+	return Result;
 }
 
 UOnlinePIESettings::UOnlinePIESettings(const FObjectInitializer& ObjectInitializer)
