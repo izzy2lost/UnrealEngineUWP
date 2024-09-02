@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -9,6 +9,7 @@ class FSequencer;
 class FSequencerFilterBarContextMenu;
 class FSequencerFilterBar;
 class FSequencerTrackFilter_CustomText;
+class SFilterBarClippingHorizontalBox;
 class SSequencerFilter;
 class UMovieSceneNodeGroup;
 enum class ESequencerFilterChange : uint8;
@@ -106,12 +107,14 @@ protected:
 
 	void CreateFilterWidgetsFromConfig();
 
+	TSharedRef<SWidget> OnWrapButtonClicked();
+
 	TWeakPtr<FSequencerFilterBar> WeakFilterBar;
 
 	TWeakPtr<SFilterSearchBox> WeakSearchBox;
 
 	TSharedPtr<SWidgetSwitcher> FilterBoxWidget;
-	TSharedPtr<SWrapBox> HorizontalContainerWidget;
+	TSharedPtr<SFilterBarClippingHorizontalBox> HorizontalContainerWidget;
 	TSharedPtr<SScrollBox> VerticalContainerWidget;
 
 	EFilterBarLayout FilterBarLayout = EFilterBarLayout::Vertical;

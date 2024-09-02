@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SequencerTrackFilterContextMenu.h"
 #include "Filters/Filters/SequencerTrackFilter_CustomText.h"
@@ -79,8 +79,8 @@ void FSequencerTrackFilterContextMenu::PopulateFilterOptionsSection(UToolMenu& I
 		FUIAction(FExecuteAction::CreateRaw(this, &FSequencerTrackFilterContextMenu::OnActivateWithFilterException)));
 
 	Section.AddMenuEntry(TEXT("DisableFilter"),
-		FText::Format(LOCTEXT("DisableFilter", "Disable: {0}"), FilterName),
-		LOCTEXT("DisableFilterTooltip", "Disable this filter from the list. It can be added again in the filters menu."),
+		FText::Format(LOCTEXT("DisableFilter", "Remove: {0}"), FilterName),
+		LOCTEXT("DisableFilterTooltip", "Disable this filter and remove it from the list. It can be added again in the filters menu."),
 		FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("Icons.Minus")),
 		FUIAction(FExecuteAction::CreateRaw(this, &FSequencerTrackFilterContextMenu::OnDisableFilter)));
 }

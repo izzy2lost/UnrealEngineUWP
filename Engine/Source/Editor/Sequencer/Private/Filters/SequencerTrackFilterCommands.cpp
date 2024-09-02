@@ -21,7 +21,7 @@ void FSequencerTrackFilterCommands::RegisterCommands()
 
 	UI_COMMAND(ToggleMuteFilters, "Mute Filters", "Mute or Unmute all active filters", EUserInterfaceActionType::ToggleButton, FInputChord());
 
-	UI_COMMAND(DisableAllFilters, "Disable All Filters", "Disables all filters and removes them from the filter bar", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(DisableAllFilters, "Remove All Filters", "Disables all filters and removes them from the filter bar", EUserInterfaceActionType::Button, FInputChord());
 
 	UI_COMMAND(ToggleActivateEnabledFilters, "Toggle Active State", "Activates or deactivates all enabled filters", EUserInterfaceActionType::Button, FInputChord());
 	

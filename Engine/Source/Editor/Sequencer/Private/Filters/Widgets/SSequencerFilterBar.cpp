@@ -1,10 +1,11 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Filters/Widgets/SSequencerFilterBar.h"
 #include "Filters/Filters/SequencerTrackFilter_CustomText.h"
 #include "Filters/Filters/SequencerTrackFilter_Text.h"
 #include "Filters/Menus/SequencerFilterBarContextMenu.h"
 #include "Filters/SequencerFilterBar.h"
+#include "Filters/Widgets/SFilterBarClippingHorizontalBox.h"
 #include "Filters/Widgets/SFilterExpressionHelpDialog.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "MovieScene.h"
@@ -27,6 +28,10 @@ void SSequencerFilterBar::Construct(const FArguments& InArgs, const TSharedRef<F
 	bCanChangeOrientation = InArgs._CanChangeOrientation;
 	FilterPillStyle = InArgs._FilterPillStyle;
 
+	HorizontalContainerWidget = SNew(SFilterBarClippingHorizontalBox)
+		.OnWrapButtonClicked(FOnGetContent::CreateSP(this, &SSequencerFilterBar::OnWrapButtonClicked))
+		.IsFocusable(false);
+
 	ChildSlot
 	[
 		SAssignNew(FilterBoxWidget, SWidgetSwitcher)
@@ -37,8 +42,16 @@ void SSequencerFilterBar::Construct(const FArguments& InArgs, const TSharedRef<F
 		+ SWidgetSwitcher::Slot()
 		.Padding(FMargin(0.f, 2.f, 0.f, 0.f))
 		[
-			SAssignNew(HorizontalContainerWidget, SWrapBox)
-			.UseAllottedSize(true)
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			[
+				HorizontalContainerWidget.ToSharedRef()
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				HorizontalContainerWidget->CreateWrapButton()
+			]
 		]
 		+ SWidgetSwitcher::Slot()
 		[
@@ -126,36 +139,21 @@ void SSequencerFilterBar::SetLayout(const EFilterBarLayout InFilterBarLayout)
 
 	FilterBarLayout = InFilterBarLayout;
 
-	if (FilterBarLayout == EFilterBarLayout::Horizontal)
-	{
-		VerticalContainerWidget->ClearChildren();
-
-		FilterBoxWidget->SetActiveWidget(HorizontalContainerWidget.ToSharedRef());
-	}
-	else
-	{
-		HorizontalContainerWidget->ClearChildren();
-
-		FilterBoxWidget->SetActiveWidget(VerticalContainerWidget.ToSharedRef());
-	}
+	HorizontalContainerWidget->ClearChildren();
+	VerticalContainerWidget->ClearChildren();
 
 	for (const TSharedRef<SSequencerFilter>& FilterWidget : FilterWidgets)
 	{
-		RemoveWidgetFromLayout(FilterWidget);
+		AddWidgetToLayout(FilterWidget);
 	}
-
-	for (const TSharedRef<SSequencerFilter>& Filter : FilterWidgets)
-	{
-		AddWidgetToLayout(Filter);
-	}
-
-	Invalidate(EInvalidateWidgetReason::Layout);
 }
 
 void SSequencerFilterBar::AttachFilterSearchBox(const TSharedPtr<SFilterSearchBox>& InFilterSearchBox)
 {
 	if (InFilterSearchBox)
 	{
+		WeakSearchBox = InFilterSearchBox;
+
 		InFilterSearchBox->SetOnSaveSearchHandler(
 			 SFilterSearchBox::FOnSaveSearchClicked::CreateSP(this, &SSequencerFilterBar::CreateAddCustomTextFilterWindowFromSearch));
 	}
@@ -183,6 +181,7 @@ void SSequencerFilterBar::AddWidgetToLayout(const TSharedRef<SWidget>& InWidget)
 		}
 
 		HorizontalContainerWidget->AddSlot()
+			.AutoWidth()
 			.Padding(SlotPadding)
 			[
 				InWidget
@@ -516,6 +515,39 @@ void SSequencerFilterBar::CreateFilterWidgetsFromConfig()
 	{
 		LoadFilterFromConfig(Filter);
 	}
+}
+
+TSharedRef<SWidget> SSequencerFilterBar::OnWrapButtonClicked()
+{
+	const TSharedRef<SVerticalBox> VerticalContainer = SNew(SVerticalBox);
+
+	const int32 NumSlots = HorizontalContainerWidget->NumSlots();
+	int32 SlotIndex = HorizontalContainerWidget->GetClippedIndex();
+	for (; SlotIndex < NumSlots; ++SlotIndex)
+	{
+		SHorizontalBox::FSlot& Slot = HorizontalContainerWidget->GetSlot(SlotIndex);
+
+		VerticalContainer->AddSlot()
+			.AutoHeight()
+			.Padding(1.f)
+			[
+				Slot.GetWidget()
+			];
+	}
+
+	const TSharedRef<SBorder> ContainerBorder = SNew(SBorder)
+		.BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+		.Padding(2.f)
+		[
+			VerticalContainer
+		];
+
+	return SNew(SBox)
+		.Padding(8.f)
+		[
+			HorizontalContainerWidget->WrapVerticalListWithHeading(ContainerBorder
+				, FPointerEventHandler::CreateSP(this, &SSequencerFilterBar::OnMouseButtonUp))
+		];
 }
 
 #undef LOCTEXT_NAMESPACE

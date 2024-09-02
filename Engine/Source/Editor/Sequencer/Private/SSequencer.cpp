@@ -7,6 +7,7 @@
 #include "Filters/Menus/SequencerViewOptionsMenu.h"
 #include "Filters/SequencerFilterBar.h"
 #include "Filters/SFilterSearchBox.h"
+#include "Filters/Widgets/SFilterBarClippingHorizontalBox.h"
 #include "Filters/Widgets/SFilterBarIsolateHideShow.h"
 #include "Filters/Widgets/SSequencerCustomTextFilterDialog.h"
 #include "Filters/Widgets/SSequencerFilterBar.h"
@@ -556,29 +557,8 @@ TSharedRef<SWidget> SSequencer::ConstructFilterBarContent()
 			})
 		.Expose(FilterSplitterSlot)
 		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				// Vertical Filters List Header
-				SNew(SBorder)
-				.BorderImage(FAppStyle::Get().GetBrush(TEXT("Brushes.Header")))
-				.Padding(FMargin(8.f, 6.f))
-				.OnMouseButtonUp(FilterBarWidgetRef, &SSequencerFilterBar::OnMouseButtonUp)
-				.Content()
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("FilterListVerticalHeader", "Filters"))
-					.TextStyle(FAppStyle::Get(), TEXT("ButtonText"))
-					.Font(FAppStyle::Get().GetFontStyle(TEXT("NormalFontBold")))
-				]
-			]
-			+ SVerticalBox::Slot()
-			.FillHeight(1.f)
-			.VAlign(VAlign_Fill)
-			[
-				FilterBarWidgetRef
-			]
+			SFilterBarClippingHorizontalBox::WrapVerticalListWithHeading(FilterBarWidgetRef
+				, FPointerEventHandler::CreateSP(FilterBarWidgetRef, &SSequencerFilterBar::OnMouseButtonUp))
 		]
 		+ SSplitter::Slot()
 		.Value(0.94f)
@@ -4377,6 +4357,7 @@ void SSequencer::RebuildSearchAndFilterRow()
 			{
 				SearchAndFilterRow->AddSlot()
 					.AutoHeight()
+					.Padding(0)
 					[
 						FilterBarWidget.ToSharedRef()
 					];
