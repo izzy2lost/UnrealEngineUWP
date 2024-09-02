@@ -12,8 +12,10 @@ class UDMXPixelMappingOutputComponent;
 class UTexture;
 
 
-/**
- * Public container of Pixel Mapping object and it using for asset
+/** 
+ * DMX Pixel Mapping.
+ *
+ * Reads pixel colors of a Texture, Material or UMG widget and sends them as DMX.
  */
 UCLASS(BlueprintType, Blueprintable)
 class DMXPIXELMAPPINGRUNTIME_API UDMXPixelMapping

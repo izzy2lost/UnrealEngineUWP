@@ -11,7 +11,11 @@ class UDMXControlConsoleEditorDataBase;
 class UDMXControlConsoleEditorLayoutsBase;
 
 
-/** The DMX Control Console */
+/** 
+ * DMX Control Console.
+ * 
+ * A DMX control console that can send DMX to output ports.
+ */
 UCLASS(BlueprintType)
 class DMXCONTROLCONSOLE_API UDMXControlConsole
 	: public UObject
