@@ -114,13 +114,10 @@ private:
 
 	FPixelCaptureCapturerMediaCapture(float InScale, int32 InFormat);
 	void InitializeMediaCapture();
-	void LateStartCapturer();
 
 	UPROPERTY(Transient)
 	TObjectPtr<UPixelCaptureMediaCapture> MediaCapture = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UPixelCaptureMediaOuput> MediaOutput = nullptr;
-
-	TOptional<FDelegateHandle> OnFrameEndDelegateHandle;
 };

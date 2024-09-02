@@ -173,7 +173,14 @@ ETextureCreateFlags UPixelCaptureMediaCapture::GetOutputTextureFlags() const
 TSharedPtr<FPixelCaptureCapturerMediaCapture> FPixelCaptureCapturerMediaCapture::Create(float InScale, int32 InFormat)
 {
 	TSharedPtr<FPixelCaptureCapturerMediaCapture> Capturer = TSharedPtr<FPixelCaptureCapturerMediaCapture>(new FPixelCaptureCapturerMediaCapture(InScale, InFormat));
-	Capturer->LateStartCapturer();
+
+	TWeakPtr<FPixelCaptureCapturerMediaCapture> WeakCapturer = Capturer;
+	AsyncTask(ENamedThreads::GameThread, [WeakCapturer]() {
+		if (TSharedPtr<FPixelCaptureCapturerMediaCapture> PinnedCapturer = WeakCapturer.Pin())
+		{
+			PinnedCapturer->InitializeMediaCapture();
+		}
+	});
 
 	return Capturer;
 }
@@ -212,20 +219,9 @@ FPixelCaptureCapturerMediaCapture::~FPixelCaptureCapturerMediaCapture()
 	}
 }
 
-void FPixelCaptureCapturerMediaCapture::LateStartCapturer()
-{
-	OnFrameEndDelegateHandle = FCoreDelegates::OnBeginFrame.AddSP(AsShared(), &FPixelCaptureCapturerMediaCapture::InitializeMediaCapture);
-	MediaCapture->OnCaptureComplete.AddSP(AsShared(), &FPixelCaptureCapturerMediaCapture::EndProcess);
-}
-
 void FPixelCaptureCapturerMediaCapture::InitializeMediaCapture()
 {
-	// If we were bound to the OnFrameEnd delegate to ensure a frame was rendered before starting, then we can unset it here.
-	if (OnFrameEndDelegateHandle.IsSet())
-	{
-		FCoreDelegates::OnBeginFrame.Remove(OnFrameEndDelegateHandle.GetValue());
-		OnFrameEndDelegateHandle.Reset();
-	}
+	MediaCapture->OnCaptureComplete.AddSP(AsShared(), &FPixelCaptureCapturerMediaCapture::EndProcess);
 
 	FMediaCaptureOptions CaptureOptions;
 	CaptureOptions.bSkipFrameWhenRunningExpensiveTasks = false;
