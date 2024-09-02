@@ -120,8 +120,7 @@ public:
 	virtual FSkinWeightVertexBuffer* GetSkinWeightVertexBuffer(int32 LODIndex) const;
 
 #if RHI_RAYTRACING	
-	FRayTracingGeometry RayTracingGeometry;	
-	FGPUSkinCacheEntry* SkinCacheEntryForRayTracing = nullptr;	
+	FRayTracingGeometry RayTracingGeometry;
 	FRayTracingSkinnedGeometryUpdateQueue* RayTracingUpdateQueue = nullptr;
 
 	virtual void UpdateRayTracingGeometry(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers) override;
@@ -130,6 +129,18 @@ public:
 
 	virtual FRayTracingGeometry* GetRayTracingGeometry() { check(!bRayTracingGeometryRequiresUpdate);  return &RayTracingGeometry; }
 	virtual const FRayTracingGeometry* GetRayTracingGeometry() const { check(!bRayTracingGeometryRequiresUpdate);  return &RayTracingGeometry; }
+
+	virtual int32 GetRayTracingLOD() const override
+	{
+		if (DynamicData)
+		{
+			return DynamicData->LODIndex;
+		}
+		else
+		{
+			return 0;
+		}
+	}
 #endif
 
 	inline bool HasValidMaterials() const

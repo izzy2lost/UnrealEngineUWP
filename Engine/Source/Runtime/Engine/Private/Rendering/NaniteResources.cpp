@@ -2509,21 +2509,21 @@ void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGather
 		return;
 	}
 
-	MeshObject->QueuePendingRayTracingGeometryUpdate(FRHICommandListImmediate::Get());
+	if (MeshObject->GetRayTracingLOD() < RenderData->CurrentFirstLODIdx)
+	{
+		return;
+	}
+
+	MeshObject->QueuePendingRayTracingGeometryUpdate(Context.RHICmdList);
 
 	FRayTracingGeometry* RayTracingGeometry = MeshObject->GetRayTracingGeometry();
 
-	if (RayTracingGeometry && RayTracingGeometry->IsValid() && RenderData)
+	if (RayTracingGeometry && RayTracingGeometry->IsValid())
 	{
 		// Setup materials for each segment
 		const int32 LODIndex = MeshObject->GetRayTracingLOD();
 		check(LODIndex < RenderData->LODRenderData.Num());
-		const FSkeletalMeshLODRenderData& LODData = RenderData->LODRenderData[LODIndex];
-
-		if (LODIndex < RenderData->CurrentFirstLODIdx)
-		{			
-			return;
-		}
+		const FSkeletalMeshLODRenderData& LODData = RenderData->LODRenderData[LODIndex];		
 
 		check(LODData.RenderSections.Num() > 0);		
 		check(LODData.RenderSections.Num() == RayTracingGeometry->Initializer.Segments.Num());
@@ -2533,8 +2533,6 @@ void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGather
 		RayTracingInstance.InstanceTransformsView = MakeArrayView(&GetLocalToWorld(), 1);
 		RayTracingInstance.NumTransforms = 1;
 
-		const FVertexFactory* VertexFactory = MeshObject->GetSkinVertexFactory(nullptr, 0, 0, ESkinVertexFactoryMode::RayTracing);
-
 		for (int32 SectionIndex = 0; SectionIndex < LODData.RenderSections.Num(); ++SectionIndex)
 		{
 			const FSkelMeshRenderSection& RenderSection = LODData.RenderSections[SectionIndex];
@@ -2542,21 +2540,21 @@ void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGather
 
 			FMeshBatch MeshBatch;				
 			MeshBatch.Type = PT_TriangleList;
-			MeshBatch.VertexFactory = VertexFactory;
+			MeshBatch.VertexFactory = MeshObject->GetSkinVertexFactory(nullptr, LODIndex, SectionIndex, ESkinVertexFactoryMode::RayTracing);
 
 			MeshBatch.MaterialRenderProxy = MaterialSection.ShadingMaterialProxy;
 			MeshBatch.bWireframe = false;
 			MeshBatch.SegmentIndex = SectionIndex;
-			MeshBatch.LODIndex = 0; // CacheRayTracingPrimitive(...) currently assumes that primitives with CacheInstances flag only cache mesh commands for one LOD
+			MeshBatch.LODIndex = LODIndex;
 			MeshBatch.CastRayTracedShadow = CastsDynamicShadow(); // Relying on BuildInstanceMaskAndFlags(...) to check Material.CastsRayTracedShadows()
 
 			FMeshBatchElement& MeshBatchElement = MeshBatch.Elements[0];
 			MeshBatchElement.IndexBuffer = LODData.MultiSizeIndexContainer.GetIndexBuffer();
 			MeshBatchElement.FirstIndex = RenderSection.BaseIndex;
-			MeshBatchElement.MinVertexIndex = 0; 
-			MeshBatchElement.MaxVertexIndex = 0;
-			MeshBatchElement.NumPrimitives = RenderSection.NumTriangles / 3;
-			MeshBatchElement.PrimitiveUniformBufferResource = &GIdentityPrimitiveUniformBuffer;
+			MeshBatchElement.MinVertexIndex = RenderSection.GetVertexBufferIndex();
+			MeshBatchElement.MaxVertexIndex = RenderSection.GetVertexBufferIndex() + RenderSection.GetNumVertices() - 1;
+			MeshBatchElement.NumPrimitives = RenderSection.NumTriangles;
+			MeshBatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
 
 			RayTracingInstance.Materials.Add(MeshBatch);
 		}

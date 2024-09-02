@@ -617,7 +617,7 @@ void FSkeletalMeshObjectNanite::QueuePendingRayTracingGeometryUpdate(FRHICommand
 			// Only create RHI object but enqueue actual BLAS creation so they can be accumulated
 			RayTracingGeometry.CreateRayTracingGeometry(RHICmdList, ERTAccelerationStructureBuildPriority::Skip);
 
-			bRayTracingGeometryRequiresUpdate = !bAnySegmentUsesWorldPositionOffset;
+			bRayTracingGeometryRequiresUpdate = !bAnySegmentUsesWorldPositionOffset && RayTracingGeometry.IsValid();
 		}
 
 		if (bRayTracingGeometryRequiresUpdate)
