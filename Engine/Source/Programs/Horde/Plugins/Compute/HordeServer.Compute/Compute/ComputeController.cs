@@ -154,6 +154,7 @@ namespace HordeServer.Compute
 			response.Certificate = StringUtils.FormatHexString(computeResource.Task.Certificate.Span);
 			response.ClusterId = clusterId;
 			response.AgentId = computeResource.AgentId;
+			response.AgentVersion = computeResource.AgentVersion;
 			response.LeaseId = computeResource.LeaseId;
 			response.Properties = computeResource.Properties;
 			response.Protocol = computeResource.Task.Protocol;

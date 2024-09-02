@@ -110,6 +110,11 @@ namespace HordeServer.Compute
 		/// Agent id on the remote machine
 		/// </summary>
 		public AgentId AgentId { get; }
+		
+		/// <summary>
+		/// Agent version on the remote machine
+		/// </summary>
+		public string? AgentVersion { get; }
 
 		/// <summary>
 		/// Lease id on the remote machine
@@ -119,7 +124,16 @@ namespace HordeServer.Compute
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeResource(ConnectionMode connectionMode, IPAddress ip, string? connectionAddress, IReadOnlyDictionary<string, ComputeResourcePort> ports, ComputeTask task, IReadOnlyList<string> properties, AgentId agentId, LeaseId leaseId)
+		public ComputeResource(
+			ConnectionMode connectionMode,
+			IPAddress ip,
+			string? connectionAddress,
+			IReadOnlyDictionary<string, ComputeResourcePort> ports,
+			ComputeTask task,
+			IReadOnlyList<string> properties,
+			AgentId agentId,
+			string? agentVersion,
+			LeaseId leaseId)
 		{
 			ConnectionMode = connectionMode;
 			Ip = ip;
@@ -128,6 +142,7 @@ namespace HordeServer.Compute
 			Task = task;
 			Properties = properties;
 			AgentId = agentId;
+			AgentVersion = agentVersion;
 			LeaseId = leaseId;
 		}
 	}

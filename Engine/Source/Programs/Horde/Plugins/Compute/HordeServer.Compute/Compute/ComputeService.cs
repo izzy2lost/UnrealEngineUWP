@@ -721,7 +721,7 @@ namespace HordeServer.Compute
 					ports[portId] = new ComputeResourcePort(port, port);
 				}
 
-				return new ComputeResource(ConnectionMode.Direct, agentIp, null, ports, computeTask, agent.Properties, agent.Id, leaseId);
+				return new ComputeResource(ConnectionMode.Direct, agentIp, null, ports, computeTask, agent.Properties, agent.Id, agent.Version, leaseId);
 			}
 			else if (arp.ConnectionMode == ConnectionMode.Tunnel && tunnelAddress != null)
 			{
@@ -733,7 +733,7 @@ namespace HordeServer.Compute
 					ports[portId] = new ComputeResourcePort(-1, port);
 				}
 
-				return new ComputeResource(ConnectionMode.Tunnel, agentIp, tunnelAddress, ports, computeTask, agent.Properties, agent.Id, leaseId);
+				return new ComputeResource(ConnectionMode.Tunnel, agentIp, tunnelAddress, ports, computeTask, agent.Properties, agent.Id, agent.Version, leaseId);
 			}
 			else if (arp.ConnectionMode == ConnectionMode.Relay)
 			{
@@ -764,7 +764,7 @@ namespace HordeServer.Compute
 					}
 				}
 
-				return new ComputeResource(ConnectionMode.Relay, agentIp, relayIp.ToString(), ports, computeTask, agent.Properties, agent.Id, leaseId);
+				return new ComputeResource(ConnectionMode.Relay, agentIp, relayIp.ToString(), ports, computeTask, agent.Properties, agent.Id, agent.Version, leaseId);
 			}
 
 			throw new Exception("Unable to resolve a suitable connection mode for compute task");
