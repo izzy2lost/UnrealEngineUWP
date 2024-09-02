@@ -150,19 +150,19 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::ApplyConfig()
 				if (!Encoder.IsValid())
 				{
 					Encoder = TUniquePtr<vpx_codec_ctx_t, LibVpxUtil::FCodecContextDeleter>(new vpx_codec_ctx_t, LibVpxUtil::FCodecContextDeleter());
-					memset(Encoder.Get(), 0, sizeof(*(Encoder.Get())));
+					memset(Encoder.Get(), 0, sizeof(vpx_codec_ctx_t));
 				}
 
 				if (!VpxConfig.IsValid())
 				{
 					VpxConfig.Reset(new vpx_codec_enc_cfg_t);
-					memset(VpxConfig.Get(), 0, sizeof(*(VpxConfig.Get())));
+					memset(VpxConfig.Get(), 0, sizeof(vpx_codec_enc_cfg_t));
 				}
 
 				if (!SvcParams.IsValid())
 				{
 					SvcParams.Reset(new vpx_svc_extra_cfg_t);
-					memset(SvcParams.Get(), 0, sizeof(*(SvcParams.Get())));
+					memset(SvcParams.Get(), 0, sizeof(vpx_svc_extra_cfg_t));
 				}
 
 				Timestamp = 0;
@@ -339,7 +339,7 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::ApplyConfig()
 }
 
 template <typename TResource>
-FAVResult TVideoEncoderLibVpxVP9<TResource>::SendFrame(TSharedPtr<FVideoResourceCPU> const& Resource, uint32 InTimestamp, bool bForceKeyframe)
+FAVResult TVideoEncoderLibVpxVP9<TResource>::SendFrame(TSharedPtr<FVideoResourceCPU> const& Resource, uint32 InTimestamp, bool bTriggerKeyFrame)
 {
 	if (!IsOpen())
 	{
@@ -358,6 +358,11 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::SendFrame(TSharedPtr<FVideoResource
 		{
 			// All spatial layers are disabled, return without encoding anything
 			return EAVResult::Success;
+		}
+
+		if (bTriggerKeyFrame)
+		{
+			bForceKeyFrame = true;
 		}
 
 		if (PicsSinceKey + 1 == static_cast<size_t>(this->AppliedConfig.KeyframeInterval))
@@ -810,7 +815,7 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::InitAndSetControlSettings(FVideoEnc
 			SvcDropFrame.Reset(new vpx_svc_frame_drop_t);
 		}
 
-		memset(SvcDropFrame.Get(), 0, sizeof(*(SvcDropFrame.Get())));
+		memset(SvcDropFrame.Get(), 0, sizeof(vpx_svc_frame_drop_t));
 
 		// Configure encoder to drop entire superframe whenever it needs to drop
 		// a layer. This mode is preferred over per-layer dropping which causes
@@ -830,7 +835,7 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::InitAndSetControlSettings(FVideoEnc
 
 	// Register callback for getting each spatial layer.
 	vpx_codec_priv_output_cx_pkt_cb_pair_t cbp = {
-		Internal::EncoderOutputCodedPacketCallback,
+		Internal::EncoderOutputCodedPacketCallback<TResource>,
 		reinterpret_cast<void*>(this)
 	};
 
@@ -1481,7 +1486,7 @@ vpx_svc_ref_frame_config_t TVideoEncoderLibVpxVP9<TResource>::SetReferences(bool
 	check(Gof.NumFramesInGof <= Video::MaxTemporalStreams);
 
 	vpx_svc_ref_frame_config_t RefConfig;
-	memset(&RefConfig, 0, sizeof(RefConfig));
+	memset(&RefConfig, 0, sizeof(vpx_svc_ref_frame_config_t));
 
 	const size_t   NumTemporalRefs = FMath::Max(1, NumTemporalLayers - 1);
 	const bool	   bIsInterLayerPredAllowed = InterLayerPrediction == EInterLayerPrediction::On || (InterLayerPrediction == EInterLayerPrediction::OnKeyPicture && bIsKeyPic);

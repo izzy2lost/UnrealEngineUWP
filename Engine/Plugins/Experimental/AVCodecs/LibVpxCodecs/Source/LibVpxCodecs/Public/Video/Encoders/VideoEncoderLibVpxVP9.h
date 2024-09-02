@@ -35,7 +35,7 @@ public:
 
 	virtual FAVResult ApplyConfig() override;
 
-	virtual FAVResult SendFrame(TSharedPtr<FVideoResourceCPU> const& Resource, uint32 Timestamp, bool bForceKeyframe = false) override;
+	virtual FAVResult SendFrame(TSharedPtr<FVideoResourceCPU> const& Resource, uint32 Timestamp, bool bTriggerKeyFrame = false) override;
 
 	virtual FAVResult ReceivePacket(FVideoPacket& OutPacket) override;
 
@@ -148,11 +148,11 @@ private:
 		}
 
 	public:
-		EFrameType	   FrameType;
-		int32		   Width;
-		int32		   Height;
-		uint32		   Timestamp;
-		int32		   QP;
+		EFrameType	   FrameType = EFrameType::P;
+		int32		   Width = 0;
+		int32		   Height = 0;
+		uint32		   Timestamp = 0;
+		int32		   QP = -1;
 		TOptional<int> SpatialIndex;
 		TOptional<int> TemporalIndex;
 
@@ -167,29 +167,29 @@ private:
 	};
 
 private:
-	EProfile				 Profile;
-	int64					 Timestamp = 0;
-	bool					 bForceKeyFrame = false;
-	size_t					 PicsSinceKey = 0;
-	uint8					 NumTemporalLayers;		 // Number of configured TLs
-	uint8					 NumSpatialLayers;		 // Number of configured SLs
-	uint8					 NumActiveSpatialLayers; // Number of actively encoded SLs
-	uint8					 FirstActiveLayer;
-	bool					 bIsSvc;
-	bool					 bIsFlexibleMode;
-	EInterLayerPrediction InterLayerPrediction;
-	bool					 bExternalRefControl;
-	bool					 bFullSuperframeDrop;
-	bool					 bLayerBuffering;
-	bool					 bFirstFrameInPicture;
-	uint32					 RCMaxIntraTarget;
-	FEncodedImage			 EncodedImage;
-	FGroupOfFramesInfo		 Gof;
-	FVideoBitrateAllocation	 CurrentBitrateAllocation;
-	bool					 bSsInfoNeeded;
-	bool					 bForceAllActiveLayers;
-	bool					 bVpxConfigChanged;
-	FCodecSpecificInfo		 CodecSpecific;
+	EProfile				Profile = EProfile::Profile0;
+	int64					Timestamp = 0;
+	bool					bForceKeyFrame = true;
+	size_t					PicsSinceKey = 0;
+	uint8					NumTemporalLayers = 0;		// Number of configured TLs
+	uint8					NumSpatialLayers = 0;		// Number of configured SLs
+	uint8					NumActiveSpatialLayers = 0; // Number of actively encoded SLs
+	uint8					FirstActiveLayer = 0;
+	bool					bIsSvc = false;
+	bool					bIsFlexibleMode = false;
+	EInterLayerPrediction	InterLayerPrediction = EInterLayerPrediction::On;
+	bool					bExternalRefControl = false;
+	bool					bFullSuperframeDrop = true;
+	bool					bLayerBuffering = false;
+	bool					bFirstFrameInPicture = true;
+	uint32					RCMaxIntraTarget = 0;
+	FEncodedImage			EncodedImage;
+	FGroupOfFramesInfo		Gof;
+	FVideoBitrateAllocation CurrentBitrateAllocation;
+	bool					bSsInfoNeeded = false;
+	bool					bForceAllActiveLayers = false;
+	bool					bVpxConfigChanged = true;
+	FCodecSpecificInfo		CodecSpecific;
 
 	// Performance flags, ordered by `min_pixel_count`.
 	const FPerformanceFlags PerformanceFlags = GetDefaultPerformanceFlags();
@@ -200,15 +200,15 @@ private:
 	TArray<FRefFrameBuffer>								RefBuf;
 	TArray<FScalableVideoController::FLayerFrameConfig> LayerFrames;
 
-	TUniquePtr<FScalableVideoController> SvcController;
-	TUniquePtr<FInputImage>				 InputImage;
+	TUniquePtr<FScalableVideoController> SvcController = nullptr;
+	TUniquePtr<FInputImage>				 InputImage = nullptr;
 
 private:
 	TUniquePtr<vpx_codec_ctx_t, LibVpxUtil::FCodecContextDeleter> Encoder = nullptr;
-	TUniquePtr<vpx_codec_enc_cfg_t>  VpxConfig = nullptr;
+	TUniquePtr<vpx_codec_enc_cfg_t>								  VpxConfig = nullptr;
 	TUniquePtr<vpx_image_t, LibVpxUtil::FImageDeleter>			  RawImage = nullptr;
-	TUniquePtr<vpx_svc_extra_cfg_t>  SvcParams = nullptr;
-	TUniquePtr<vpx_svc_frame_drop_t> SvcDropFrame = nullptr;
+	TUniquePtr<vpx_svc_extra_cfg_t>								  SvcParams = nullptr;
+	TUniquePtr<vpx_svc_frame_drop_t>							  SvcDropFrame = nullptr;
 
 public:
 	void GetEncodedLayerFrame(const vpx_codec_cx_pkt* Packet);
@@ -216,9 +216,10 @@ public:
 
 namespace Internal
 {
+	template <typename TResource>
 	inline void EncoderOutputCodedPacketCallback(vpx_codec_cx_pkt* Packet, void* UserData)
 	{
-		static_cast<TVideoEncoderLibVpxVP9<FVideoResourceCPU>*>(UserData)->GetEncodedLayerFrame(Packet);
+		static_cast<TVideoEncoderLibVpxVP9<TResource>*>(UserData)->GetEncodedLayerFrame(Packet);
 	}
 } // namespace Internal
 
