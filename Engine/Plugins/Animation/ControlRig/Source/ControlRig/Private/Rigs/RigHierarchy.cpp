@@ -251,6 +251,9 @@ void URigHierarchy::Load(FArchive& Ar)
 {
 	FScopeLock Lock(&ElementsLock);
 	
+	// unlink any existing pose adapter
+	UnlinkPoseAdapter();
+
 	TArray<FRigElementKey> SelectedKeys;
 	if(Ar.IsTransacting())
 	{
@@ -579,6 +582,9 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 		return;
 	}
 
+	// unlink any existing pose adapter
+	UnlinkPoseAdapter();
+
 	// check if we really need to do a deep copy all over again.
 	// for rigs which contain more elements (likely procedural elements)
 	// we'll assume we can just remove superfluous elements (from the end of the lists).
@@ -594,7 +600,7 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 			}
 			check(ElementsPerType.IsValidIndex(ElementTypeIndex));
 			check(InHierarchy->ElementsPerType.IsValidIndex(ElementTypeIndex));
-			if(ElementsPerType[ElementTypeIndex].Num() < InHierarchy->ElementsPerType[ElementTypeIndex].Num())
+			if(ElementsPerType[ElementTypeIndex].Num() != InHierarchy->ElementsPerType[ElementTypeIndex].Num())
 			{
 				bReallocateElements = true;
 				break;
@@ -6137,28 +6143,21 @@ bool URigHierarchy::SortElementStorage()
 	for(int32 Index = 0; Index < TransformInfos.Num(); Index++)
 	{
 		const int32 CurrentTransformIndex = TransformInfos[Index].ComputedTransform->StorageIndex;
-		if(CurrentTransformIndex == INDEX_NONE)
-		{
-			// we cannot sort this if some of the storage is no longer local
-			ElementTransformRanges.Reset();
-			return false;
-		}
-		if(CurrentTransformIndex != Index)
+		if(CurrentTransformIndex != INDEX_NONE && CurrentTransformIndex != Index)
 		{
 			bRequiresSort = true;
 		}
 
 		const int32 CurrentDirtyStateIndex = TransformInfos[Index].DirtyState->StorageIndex;
-		if(CurrentDirtyStateIndex == INDEX_NONE)
-		{
-			// we cannot sort this if some of the storage is no longer local
-			ElementTransformRanges.Reset();
-			return false;
-		}
-		
-		if(CurrentDirtyStateIndex != Index)
+		if(CurrentDirtyStateIndex != INDEX_NONE && CurrentDirtyStateIndex != Index)
 		{
 			bRequiresSort = true;
+		}
+
+		if(CurrentTransformIndex == INDEX_NONE && CurrentDirtyStateIndex == INDEX_NONE)
+		{
+			// skip over entries with external storage
+			continue;
 		}
 
 		if(CurrentTransformIndex != CurrentDirtyStateIndex)
@@ -6192,12 +6191,28 @@ bool URigHierarchy::SortElementStorage()
 	for(int32 Index = 0; Index < TransformInfos.Num(); Index++)
 	{
 		const int32 CurrentTransformIndex = TransformInfos[Index].ComputedTransform->StorageIndex;
-		const int32 NewTransformIndex = NewElementTransforms.Storage.Add(ElementTransforms[CurrentTransformIndex]);
-		TransformInfos[Index].ComputedTransform->StorageIndex = NewTransformIndex;
-
 		const int32 CurrentDirtyStateIndex = TransformInfos[Index].DirtyState->StorageIndex;
-		const int32 NewDirtyStateIndex = NewElementDirtyStates.Storage.Add(ElementDirtyStates[CurrentDirtyStateIndex]);
-		TransformInfos[Index].DirtyState->StorageIndex = NewDirtyStateIndex;
+
+		int32 NewTransformIndex = INDEX_NONE;
+		int32 NewDirtyStateIndex = INDEX_NONE;
+
+		if(CurrentTransformIndex != INDEX_NONE)
+		{
+			NewTransformIndex = NewElementTransforms.Storage.Add(ElementTransforms[CurrentTransformIndex]);
+			TransformInfos[Index].ComputedTransform->StorageIndex = NewTransformIndex;
+		}
+
+		if(CurrentDirtyStateIndex != INDEX_NONE)
+		{
+			NewDirtyStateIndex = NewElementDirtyStates.Storage.Add(ElementDirtyStates[CurrentDirtyStateIndex]);
+			TransformInfos[Index].DirtyState->StorageIndex = NewDirtyStateIndex;
+		}
+
+		if(CurrentTransformIndex == INDEX_NONE && CurrentDirtyStateIndex)
+		{
+			// ignore entries with external storage
+			continue;
+		}
 
 		if(NewTransformIndex == NewDirtyStateIndex)
 		{

@@ -452,7 +452,7 @@ public:
 	{
 		if(const FRigBaseElement* Element = Get(InIndex))
 		{
-			return FRigElementKeyAndIndex(Element);
+			return Element->GetKeyAndIndex();
 		}
 		return FRigElementKeyAndIndex();
 	};
@@ -937,6 +937,14 @@ public:
 	TArray<FRigCurveElement*> GetCurves() const
 	{
 		return GetElementsOfType<FRigCurveElement>();
+	}
+
+	/**
+	 * Returns all Curve elements without traversing the hierarchy
+	 */
+	TArray<FRigBaseElement*>& GetCurvesFast() const
+	{
+		return ElementsPerType[RigElementTypeToFlatIndex(ERigElementType::Curve)];
 	}
 
 	/**

@@ -392,28 +392,38 @@ struct CONTROLRIG_API FRigReusableElementStorage
 		if(!FreeList.IsEmpty())
 		{
 			TArray<bool> ToRemove;
-			ToRemove.AddZeroed(Storage.Num());
 
-			TArray<T> NewStorage;
-			
-			for(int32 FreeIndex : FreeList)
+			if(FreeList.Num() != Storage.Num() || OnDestroyCallback != nullptr)
 			{
-				ToRemove[FreeIndex] = true;
-				if(OnDestroyCallback)
+				ToRemove.AddZeroed(Storage.Num());
+				for(int32 FreeIndex : FreeList)
 				{
-					OnDestroyCallback(FreeIndex, Storage[FreeIndex]);
-				}
-			}
-			
-			for(int32 OldIndex = 0; OldIndex < Storage.Num(); OldIndex++)
-			{
-				if(!ToRemove[OldIndex])
-				{
-					OldToNew.Add(OldIndex, NewStorage.Add(Storage[OldIndex]));
+					ToRemove[FreeIndex] = true;
+					if(OnDestroyCallback)
+					{
+						OnDestroyCallback(FreeIndex, Storage[FreeIndex]);
+					}
 				}
 			}
 
-			Storage = NewStorage;
+			if(FreeList.Num() != Storage.Num())
+			{
+				TArray<T> NewStorage;
+				NewStorage.Reserve(FMath::Max(Storage.Num() - FreeList.Num(), 0));
+				for(int32 OldIndex = 0; OldIndex < Storage.Num(); OldIndex++)
+				{
+					if(!ToRemove[OldIndex])
+					{
+						OldToNew.Add(OldIndex, NewStorage.Add(Storage[OldIndex]));
+					}
+				}
+				Storage = NewStorage;
+			}
+			else
+			{
+				Storage.Reset();
+			}
+
 			FreeList.Reset();
 		}
 
@@ -994,6 +1004,7 @@ public:
 	virtual const FName& GetDisplayName() const { return GetFName(); }
 	ERigElementType GetType() const { return Key.Type; }
 	const FRigElementKey& GetKey() const { return Key; }
+	FRigElementKeyAndIndex GetKeyAndIndex() const { return {Key, Index}; };
 	int32 GetIndex() const { return Index; }
 	int32 GetSubIndex() const { return SubIndex; }
 	bool IsSelected() const { return bSelected; }
