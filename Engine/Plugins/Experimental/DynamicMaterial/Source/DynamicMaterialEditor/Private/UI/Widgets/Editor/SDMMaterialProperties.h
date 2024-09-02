@@ -7,6 +7,7 @@
 #include "Containers/Array.h"
 #include "UI/Utils/DMWidgetSlot.h"
 
+class ICustomDetailsView;
 class ICustomDetailsViewItem;
 class SDMMaterialEditor;
 class SVerticalBox;
@@ -36,9 +37,14 @@ protected:
 
 	TArray<TSharedRef<ICustomDetailsViewItem>> GlobalItems;
 
+	bool bConstructing = false;
+
 	TSharedRef<SWidget> CreateSlot_Content();
 
-	void AddProperty(const TSharedRef<SVerticalBox>& InList, UDMMaterialProperty* InProperty);
+	void AddProperty(const TSharedRef<ICustomDetailsView>& InDetailsView, const TSharedRef<ICustomDetailsViewItem>& InCategory, 
+		UDMMaterialProperty* InProperty);
+
+	TSharedRef<SWidget> CreatePropertyRow(UDMMaterialProperty* InProperty);
 
 	TSharedRef<SWidget> CreateSlot_EnabledButton(EDMMaterialPropertyType InMaterialProperty);
 
@@ -51,4 +57,6 @@ protected:
 	FReply OnPropertyClicked(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, EDMMaterialPropertyType InMaterialProperty);
 
 	TSharedRef<SWidget> CreateGlobalSlider(UDMMaterialProperty* InProperty);
+
+	void OnExpansionStateChanged(const TSharedRef<ICustomDetailsViewItem>& InItem, bool bInExpansionState);
 };
