@@ -141,7 +141,10 @@ void SDMXActivityInUniverse::UpdateChannels()
 	for (const TSharedPtr<FDMXUniverseMonitorChannelItem>& ChannelItem : Channels)
 	{
 		int32 ChannelIndex = ChannelItem->GetChannelID() - 1;
-		check(Buffer.IsValidIndex(ChannelIndex));
+		if (!Buffer.IsValidIndex(ChannelIndex))
+		{
+			return;
+		}
 
 		// Update channels that aren't of zero value or changed to zero to zero value
 		if (ChannelItem->GetValue() != Buffer[ChannelIndex])
