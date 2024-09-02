@@ -549,6 +549,12 @@ void FShadowSceneRenderer::ApplyVirtualShadowMapProjectionForLight(
 	}
 
 	const FVisibleLightInfo& VisibleLightInfo = SceneRenderer.VisibleLightInfos[LightSceneInfo->Id];
+
+	if (!VisibleLightInfo.HasVirtualShadowMap())
+	{
+		return;
+	}
+
 	FSceneTextureParameters SceneTextureParameters = GetSceneTextureParameters(GraphBuilder, SceneTextures.UniformBuffer);
 
 	for (int32 ViewIndex = 0; ViewIndex < SceneRenderer.Views.Num(); ViewIndex++)

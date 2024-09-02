@@ -226,6 +226,11 @@ public:
 	bool ContainsOnlyVirtualShadowMaps() const;
 
 	/**
+	 * Returns true if there are any virtual shadow maps for any views for this light.
+	 */
+	bool HasVirtualShadowMap() const { return VirtualShadowMapId != INDEX_NONE; }
+
+	/**
 	* Prefer this to direct access of the VirtualShadowMapId member when a view is known.
 	* For directional lights this will attempt to find a clipmap associated with the given view,
 	* while the VirtualShadowMapId variable will simply be an arbitrary one of them if multiple exist.
