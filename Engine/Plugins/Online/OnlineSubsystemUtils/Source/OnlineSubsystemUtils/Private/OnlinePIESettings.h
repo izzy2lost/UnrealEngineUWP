@@ -40,8 +40,6 @@ public:
 	 * Decrypt the TokenBytes field into the Token field
 	 */
 	void Decrypt();
-
-	static FPIELoginSettingsInternal FromConfigString(const FString& ConfigString);
 };
 
 /**
