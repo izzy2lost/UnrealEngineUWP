@@ -44,6 +44,7 @@ URectLightComponent::URectLightComponent(const FObjectInitializer& ObjectInitial
 	SourceTexture = nullptr;
 	BarnDoorAngle = GetRectLightBarnDoorMaxAngle();
 	BarnDoorLength = 20.0f;
+	LightFunctionConeAngle = 0.0f;
 	// RayTracingData will be initialised on the render thread.
 }
 
@@ -149,6 +150,25 @@ void URectLightComponent::SetLightBrightness(float InBrightness)
 		Super::SetLightBrightness(InBrightness / 16); // Legacy scale of 16
 	}
 }
+
+bool URectLightComponent::CanEditChange(const FProperty* InProperty) const
+{
+	if (InProperty)
+	{
+		FString PropertyName = InProperty->GetName();
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(URectLightComponent, LightFunctionConeAngle))
+		{
+			if (Mobility == EComponentMobility::Static)
+			{
+				return false;
+			}
+			return LightFunctionMaterial != NULL;
+		}
+	}
+
+	return Super::CanEditChange(InProperty);
+}
 #endif // WITH_EDITOR
 
 /**
@@ -209,6 +229,7 @@ FRectLightSceneProxy::FRectLightSceneProxy(const URectLightComponent* Component)
 	, BarnDoorLength(FMath::Max(0.1f, Component->BarnDoorLength))
 	, RayTracingData(Component->RayTracingData)
 	, SourceTexture(Component->SourceTexture)
+	, LightFunctionConeAngleTangent(Component->LightFunctionConeAngle > 0 ? FMath::Tan(FMath::Clamp(Component->LightFunctionConeAngle, 0.0f, 89.0f) * (float)UE_PI / 180.0f) : 0.0f)
 {
 	RectAtlasId = ~0u;
 }

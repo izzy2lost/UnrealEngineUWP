@@ -35,6 +35,7 @@
 #include "HeterogeneousVolumes/HeterogeneousVolumes.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "RHIResourceUtils.h"
+#include "RectLightSceneProxy.h"
 
 using namespace LightFunctionAtlas;
 
@@ -274,9 +275,26 @@ void FLightFunctionSharedParameters::Bind(const FShaderParameterMap& ParameterMa
 
 FVector4f FLightFunctionSharedParameters::GetLightFunctionSharedParameters(const FLightSceneInfo* LightSceneInfo, float ShadowFadeFraction)
 {
-	const bool bIsSpotLight = LightSceneInfo->Proxy->GetLightType() == LightType_Spot;
+	bool bIsSpotLight = LightSceneInfo->Proxy->GetLightType() == LightType_Spot;
 	const bool bIsPointLight = LightSceneInfo->Proxy->GetLightType() == LightType_Point;
-	const float TanOuterAngle = bIsSpotLight ? FMath::Tan(LightSceneInfo->Proxy->GetOuterConeAngle()) : 1.0f;
+	float TanOuterAngle = bIsSpotLight ? FMath::Tan(LightSceneInfo->Proxy->GetOuterConeAngle()) : 1.0f;
+
+	if (LightSceneInfo->Proxy->GetLightType() == LightType_Rect)
+	{
+		// Rect light can have a spot like perspective projection
+		FRectLightSceneProxy* RectLightProxy = (FRectLightSceneProxy*)LightSceneInfo->Proxy;
+		if (RectLightProxy->LightFunctionConeAngleTangent > 0.0f)
+		{
+			bIsSpotLight = true;
+			TanOuterAngle = RectLightProxy->LightFunctionConeAngleTangent;
+		}
+		else
+		{
+			bIsSpotLight = false;
+			TanOuterAngle = 0.0f;
+		}
+	}
+
 	return FVector4f(TanOuterAngle, ShadowFadeFraction, bIsSpotLight ? 1.0f : 0.0f, bIsPointLight ? 1.0f : 0.0f);
 }
 

@@ -20,6 +20,7 @@
 #include "Containers/HashTable.h"
 #include "RenderUtils.h"
 #include "VolumetricFog.h"
+#include "RectLightSceneProxy.h"
 
 DECLARE_GPU_STAT(LightFunctionAtlasGeneration);
 
@@ -649,7 +650,15 @@ void FLightFunctionAtlas::RenderLightFunctionAtlas(FRDGBuilder& GraphBuilder, TA
 			ensure(FMath::IsNearlyEqual((PackedAtlasSlotMinUV & 0xFFFF) / 65536.0f, AtlasSlot.MinU));
 			ensure(FMath::IsNearlyEqual(((PackedAtlasSlotMinUV >> 16) & 0xFFFF) / 65536.0f, AtlasSlot.MinV));
 
-			const float TanOuterAngle = LightType == LightType_Spot ? FMath::Tan(LightSceneInfo->Proxy->GetOuterConeAngle()) : 1.0f;
+			float TanOuterAngle = LightType == LightType_Spot ? FMath::Tan(LightSceneInfo->Proxy->GetOuterConeAngle()) : -1.0f;
+			if (LightType == LightType_Rect)
+			{
+				FRectLightSceneProxy* RectLightProxy = (FRectLightSceneProxy*)LightSceneInfo->Proxy;
+				if (RectLightProxy->LightFunctionConeAngleTangent > 0.0f)
+				{
+					TanOuterAngle = RectLightProxy->LightFunctionConeAngleTangent;
+				}
+			}
 
 			// ShadowFadeFraction is unused.
 			LightInfoDataBufferPtr[OutputBufferLightIndex].Parameters = FVector4f(Proxy->GetLightFunctionFadeDistance(), FMath::AsFloat(PackedLightInfoDataParams), FMath::AsFloat(PackedAtlasSlotMinUV), TanOuterAngle);

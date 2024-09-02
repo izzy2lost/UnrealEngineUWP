@@ -78,6 +78,15 @@ FLightFunctionColor GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, 
 		break;
 	}
 
+	case LIGHT_TYPE_RECT:
+	{
+		if (TanOuterAngle > 0.0f)
+		{
+			LightFunctionUV = LightVector.xy / (LightVector.z * TanOuterAngle) * .5f + .5f;
+		}
+		break;
+	}
+
 	//case LIGHT_TYPE_RECT:
 	//case LIGHT_TYPE_DIRECTIONAL:
 	default:

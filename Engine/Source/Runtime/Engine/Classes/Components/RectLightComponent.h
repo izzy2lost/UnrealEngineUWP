@@ -47,6 +47,13 @@ class URectLightComponent : public ULocalLightComponent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = Light, meta = (UIMin = "0.0"))
 	float BarnDoorLength;
 
+	/**
+	 * Aperture of cone angle for the perspective projection of the light function material.
+	 * If 0, an orthographic projection is used instead.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = LightFunction, meta = (UIMin = "0.0", UIMax = "89.0", ClampMin = "0.0", ClampMax = "89.0"))
+	float LightFunctionConeAngle;
+
 	/** Texture mapped to the light source rectangle */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Light)
 	TObjectPtr<class UTexture> SourceTexture;
@@ -71,6 +78,7 @@ public:
 	ENGINE_API virtual float ComputeLightBrightness() const override;
 #if WITH_EDITOR
 	ENGINE_API virtual void SetLightBrightness(float InBrightness) override;
+	ENGINE_API virtual bool CanEditChange(const FProperty* InProperty) const override;
 #endif
 
 	//~ Begin ULightComponent Interface.
