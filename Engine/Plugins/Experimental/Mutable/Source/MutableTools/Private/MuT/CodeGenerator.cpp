@@ -1306,7 +1306,8 @@ namespace mu
 							}
 							check(imageAd);
 
-							FMeshGenerationOptions ModifierOptions(Options);
+							FMeshGenerationOptions ModifierOptions;
+							ModifierOptions.State = Options.State;
 							ModifierOptions.ActiveTags = node.Tags;
 							bool bModifiersForBeforeOperations = false;
 							imageAd = ApplyImageExtendModifiers(ModifierOptions, MeshResults, imageAd, ImageLayoutStrategy, LayoutIndex, ImageIndex, GridSize, LayoutBlockDesc, bModifiersForBeforeOperations, surfaceNode->GetMessageContext());
