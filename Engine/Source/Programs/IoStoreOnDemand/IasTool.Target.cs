@@ -2,7 +2,7 @@
 
 using UnrealBuildTool;
 
-[SupportedPlatforms("Win64", "Linux")]
+[SupportedPlatforms("Win64", "Linux", "Mac")]
 public class IasToolTarget : TargetRules
 {
 	public IasToolTarget(TargetInfo Target) : base(Target)
