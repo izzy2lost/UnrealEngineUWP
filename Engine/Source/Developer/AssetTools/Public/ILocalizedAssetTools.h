@@ -50,6 +50,9 @@ public:
 	/** Open a dialog to required files in Revision Control to be on disk */
 	virtual void OpenFilesInRevisionControlRequiredDialog(const TArray<FText>& FileList) const = 0;
 
+	/** Open a dialog with a file list (localized variants) with a custom message */
+	virtual void OpenLocalizedVariantsListMessageDialog(const FText& Header, const FText& Message, const TArray<FText>& FileList) const = 0;
+
 	/** Get shared text to warn that some files need to be on disk (not only in Revision Control) */
 	virtual const FText& GetFilesNeedToBeOnDiskWarningText() const = 0;
 

@@ -27,6 +27,8 @@ public:
 
 	virtual void OpenFilesInRevisionControlRequiredDialog(const TArray<FText>& FileList) const override;
 
+	virtual void OpenLocalizedVariantsListMessageDialog(const FText& Header, const FText& Message, const TArray<FText>& FileList) const override;
+
 	virtual const FText& GetRevisionControlIsNotAvailableWarningText() const override;
 
 	virtual const FText& GetFilesNeedToBeOnDiskWarningText() const override;

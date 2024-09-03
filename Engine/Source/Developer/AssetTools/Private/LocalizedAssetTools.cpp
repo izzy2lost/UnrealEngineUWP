@@ -216,9 +216,14 @@ void FLocalizedAssetTools::OpenRevisionControlRequiredDialog() const
 
 void FLocalizedAssetTools::OpenFilesInRevisionControlRequiredDialog(const TArray<FText>& FileList) const
 {
-	SFileListReportDialog::OpenDialog(FilesNeedToBeOnDiskWarningText,
+	OpenLocalizedVariantsListMessageDialog(FilesNeedToBeOnDiskWarningText,
 		LOCTEXT("FilesToSyncDialogHeader", "The following assets were found only in Revision Control. They need to be on your disk to be renamed."),
 		FileList);
+}
+
+void FLocalizedAssetTools::OpenLocalizedVariantsListMessageDialog(const FText& Header, const FText& Message, const TArray<FText>& FileList) const
+{
+	SFileListReportDialog::OpenDialog(Header, Message, FileList);
 }
 
 const FText& FLocalizedAssetTools::GetRevisionControlIsNotAvailableWarningText() const
