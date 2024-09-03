@@ -20,6 +20,7 @@ class UMovieSceneSequence;
 class UMovieSceneTrack;
 class FMovieSceneDirectorBlueprintConditionCustomization;
 class IDetailsView;
+class ISequencer;
 
 // Helper UObject for editing optional track row metadata not in-place. A UObject instead of a UStruct because we need to support instanced sub objects (conditions)
 UCLASS(CollapseCategories)
@@ -41,7 +42,7 @@ class FMovieSceneConditionCustomization : public IPropertyTypeCustomization
 public:
 
 	static MOVIESCENETOOLS_API TSharedRef<IPropertyTypeCustomization> MakeInstance();
-	static MOVIESCENETOOLS_API TSharedRef<IPropertyTypeCustomization> MakeInstance(UMovieSceneSequence* Sequence);
+	static MOVIESCENETOOLS_API TSharedRef<IPropertyTypeCustomization> MakeInstance(UMovieSceneSequence* Sequence, const TWeakPtr<ISequencer> Sequencer);
 
 	// IPropertyTypeCustomization interface
 	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> InPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
@@ -137,4 +138,6 @@ private:
 
 	TWeakObjectPtr<UMovieSceneSequence> Sequence;
 	TWeakObjectPtr<UMovieSceneTrack> Track;
+
+	TWeakPtr<ISequencer> Sequencer;
 };

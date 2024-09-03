@@ -940,6 +940,8 @@ public:
 	 */
 	virtual bool UnregisterDrawerSection(const FName InDrawerId, const FName InSectionId) = 0;
 
+	virtual bool TrackSupportsConditions(const UMovieSceneTrack* Track) const = 0;
+
 protected:
 	FOnInitializeDetailsPanel InitializeDetailsPanelEvent;
 	FOnCameraAddedToSequencer CameraAddedToSequencer;

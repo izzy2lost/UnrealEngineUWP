@@ -8548,6 +8548,32 @@ TArray<FText> FSequencer::GetTrackFilterNames() const
 	return FilterBar->GetFilterDisplayNames();
 }
 
+bool FSequencer::TrackSupportsConditions(const UMovieSceneTrack* Track) const
+{
+	if (Track)
+	{
+		if (!Track->SupportsConditions())
+		{
+			return false;
+		}
+
+		// Non ECS tracks don't support conditions
+		if (CompiledDataManager)
+		{
+			if (const FMovieSceneEvaluationTemplate* Template = CompiledDataManager->FindTrackTemplate(CompiledDataManager->FindDataID(Track->GetTypedOuter<UMovieSceneSequence>())))
+			{
+				if (Template->FindTrack(Track->GetSignature()))
+				{
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+	return false;
+}
+
 void FSequencer::ToggleNodeLocked()
 {
 	using namespace UE::Sequencer;

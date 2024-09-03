@@ -24,6 +24,7 @@
 #include "MovieScene.h"
 #include "ClassViewerFilter.h"
 #include "ScopedTransaction.h"
+#include "ISequencer.h"
 
 #define LOCTEXT_NAMESPACE "MovieSceneConditionCustomization"
 
@@ -71,10 +72,11 @@ TSharedRef<IPropertyTypeCustomization> FMovieSceneConditionCustomization::MakeIn
 	return Instance;
 }
 
-TSharedRef<IPropertyTypeCustomization> FMovieSceneConditionCustomization::MakeInstance(UMovieSceneSequence* InMovieSceneSequence)
+TSharedRef<IPropertyTypeCustomization> FMovieSceneConditionCustomization::MakeInstance(UMovieSceneSequence* InMovieSceneSequence, const TWeakPtr<ISequencer> Sequencer)
 {
 	TSharedRef<FMovieSceneConditionCustomization> Instance = MakeShared<FMovieSceneConditionCustomization>();
 	Instance->Sequence = InMovieSceneSequence;
+	Instance->Sequencer = Sequencer;
 	return Instance;
 }
 
@@ -94,7 +96,9 @@ void FMovieSceneConditionCustomization::CustomizeHeader(TSharedRef<IPropertyHand
 	}
 
 	// If conditions not allowed, hide condition property functionality
-	if (!Sequence.IsValid() || !Sequence->GetMovieScene()->IsConditionClassAllowed(UMovieSceneCondition::StaticClass()) || (Track.IsValid() && !Track->SupportsConditions()))
+	if (!Sequence.IsValid() 
+	|| !Sequence->GetMovieScene()->IsConditionClassAllowed(UMovieSceneCondition::StaticClass()) 
+	|| (Track.IsValid() && Sequencer.IsValid() && !Sequencer.Pin()->TrackSupportsConditions(Track.Get())))
 	{
 		ConditionContainerPropertyHandle->MarkHiddenByCustomization();
 		return;

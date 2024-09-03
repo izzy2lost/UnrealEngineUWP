@@ -19,6 +19,7 @@
 
 #include "Channels/MovieSceneChannelProxy.h"
 #include "Channels/MovieSceneChannel.h"
+#include "Compilation/IMovieSceneTrackTemplateProducer.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneTrack)
 

@@ -719,8 +719,8 @@ void ULevelSequenceEditorSubsystem::AddTrackRowMetadataCustomizations(TSharedRef
 		if (MovieScene)
 		{
 			// Although we normally customize this type, we need to do it instanced here to pass in the sequence information, as it won't be part of an outer sequence UObject
-			DetailsView->RegisterInstancedCustomPropertyTypeLayout("MovieSceneConditionContainer", FOnGetPropertyTypeCustomizationInstance::CreateLambda([=]() {
-				return FMovieSceneConditionCustomization::MakeInstance(Sequence); }));
+			DetailsView->RegisterInstancedCustomPropertyTypeLayout("MovieSceneConditionContainer", FOnGetPropertyTypeCustomizationInstance::CreateLambda([Sequence, WeakSequencer=ActiveSequencer.ToWeakPtr()]() {
+				return FMovieSceneConditionCustomization::MakeInstance(Sequence, WeakSequencer); }));
 
 			DetailsView->RegisterInstancedCustomPropertyTypeLayout("MovieSceneDirectorBlueprintConditionData", FOnGetPropertyTypeCustomizationInstance::CreateLambda([=]() {
 				return FMovieSceneDirectorBlueprintConditionCustomization::MakeInstance(MovieScene); }));
@@ -3190,9 +3190,9 @@ void ULevelSequenceEditorSubsystem::RefreshTrackRowMetadataDetails(IDetailsView*
 		UMovieSceneTrackRowMetadataHelper* Helper = TrackRowMetadataHelperList.Add_GetRef(NewObject<UMovieSceneTrackRowMetadataHelper>(this));
 		if (Track && Helper)
 		{
+			Helper->OwnerTrack = Track;
 			if (const FMovieSceneTrackRowMetadata* Metadata = Track->FindTrackRowMetadata(SelectedTrackRows[Index].Value))
 			{
-				Helper->OwnerTrack = Track;
 				Helper->TrackRowMetadata = *Metadata;
 				if (Metadata->ConditionContainer.Condition)
 				{

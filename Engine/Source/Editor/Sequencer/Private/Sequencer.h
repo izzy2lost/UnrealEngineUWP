@@ -823,6 +823,8 @@ public:
 	virtual bool IsTrackFilterEnabled(const FText& InFilterName) const override;
 	virtual TArray<FText> GetTrackFilterNames() const override;
 
+	virtual bool TrackSupportsConditions(const UMovieSceneTrack* Track) const override;
+
 public:
 
 	// IMovieScenePlayer interface
