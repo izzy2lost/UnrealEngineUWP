@@ -143,25 +143,30 @@ namespace SkinPaintTool
 	struct FSingleBoneWeightEdits
 	{
 		int32 BoneIndex;
+		
 		TMap<VertexIndex, float> OldWeights;
 		TMap<VertexIndex, float> NewWeights;
+		
+		TArray<VertexIndex> VerticesAddedTo;
+		TArray<VertexIndex> VerticesRemovedFrom;
 	};
 
 	// store a sparse set of modifications to a set of vertex weights for a SET of bones
 	// with support for merging edits. these are used for transaction history undo/redo.
 	struct FMultiBoneWeightEdits
 	{
-		void MergeSingleEdit(const int32 BoneIndex, const int32 VertexID, const float OldWeight, const float NewWeight);
+		void MergeSingleEdit(
+			const int32 BoneIndex,
+			const int32 VertexID,
+			const float NewWeight,
+			bool bPruneInfluence,
+			const TArray<VertexWeights>& InPreChangeWeights);
 		void MergeEdits(const FSingleBoneWeightEdits& BoneWeightEdits);
 		float GetVertexDeltaFromEdits(const int32 BoneIndex, const int32 VertexIndex);
 		void AddEditedVerticesToSet(TSet<int32>& OutEditedVertexSet) const;
-		void AddPruneBoneEdit(const VertexIndex VertexToPruneFrom, const BoneIndex BoneToPrune);
-
+		
 		// map of bone indices to weight edits made to that bone
 		TMap<BoneIndex, FSingleBoneWeightEdits> PerBoneWeightEdits;
-
-		// influences to prune as part of these edits
-		TArray<TPair<VertexIndex, BoneIndex>> PrunedInfluences;
 	};
 	
 	class FMeshSkinWeightsChange : public FToolCommandChange
@@ -183,9 +188,7 @@ namespace SkinPaintTool
 		virtual void Revert(UObject* Object) override;
 
 		void StoreBoneWeightEdit(const FSingleBoneWeightEdits& BoneWeightEdit, const TFunction<int32(int32)>& VertexIndexConverter);
-
-		void StorePruneBoneEdit(const VertexIndex VertexToPruneFrom, const BoneIndex BoneToPrune);
-
+		
 		void StoreMultipleWeightEdits(const FMultiBoneWeightEdits& WeightEdits, const TFunction<int32(int32)>& VertexIndexConverter);
 
 	private:
@@ -216,6 +219,12 @@ namespace SkinPaintTool
 		static float GetWeightOfBoneOnVertex(
 			const int32 BoneIndex,
 			const int32 VertexID,
+			const TArray<VertexWeights>& InVertexWeights);
+
+		static void FillWeightEdit(
+			const int32 BoneIndex,
+			const int32 VertexID,
+			const float NewWeight,
 			const TArray<VertexWeights>& InVertexWeights);
 
 		void SetWeightOfBoneOnVertex(
@@ -492,8 +501,8 @@ public:
 	// using when ToolChange is applied via Undo/Redo
 	void ExternalUpdateWeights(const int32 BoneIndex, const TMap<int32, float>& IndexValues);
 	void ExternalUpdateSkinWeightLayer(const EMeshLODIdentifier InLOD, const FName InSkinWeightProfile);
-	void ExternalAddInfluences(const TArray<TPair<VertexIndex, BoneIndex>>& InfluencesToAdd);
-	void ExternalRemoveInfluences(const TArray<TPair<VertexIndex, BoneIndex>>& InfluencesToRemove);
+	void ExternalAddInfluenceToVertices(const BoneIndex InfluenceToAdd, const TArray<VertexIndex>& Vertices);
+	void ExternalRemoveInfluenceFromVertices(const BoneIndex InfluenceToRemove, const TArray<VertexIndex>& Vertices);
 
 	// weight editing operations (selection based)
 	void MirrorWeights(EAxis::Type Axis, EMirrorDirection Direction);
