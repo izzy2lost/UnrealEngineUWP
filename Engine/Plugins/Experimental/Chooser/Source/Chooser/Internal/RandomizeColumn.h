@@ -18,6 +18,10 @@ public:
 	FChooserPropertyBinding Binding;
 	
 	virtual bool GetValue(FChooserEvaluationContext& Context, const FChooserRandomizationContext*& OutResult) const override;
+	virtual bool IsBound() const override
+	{
+		return Binding.IsBoundToRoot || !Binding.PropertyBindingChain.IsEmpty();
+	}
 
 	CHOOSER_PARAMETER_BOILERPLATE();
 };
@@ -70,6 +74,18 @@ struct CHOOSER_API FRandomizeColumn : public FChooserColumnBase
 			InputValue.GetMutable<FChooserParameterBase>().PostLoad();
 		}
 	}
+
+	virtual void Compile(IHasContextClass* Owner, bool bForce) override
+	{
+		if (FChooserParameterRandomizeBase* Input = InputValue.GetMutablePtr<FChooserParameterRandomizeBase>())
+		{
+			// binding on randomize columns is optional, so don't call compile unless it's bound, to avoid error messages
+			if (Input->IsBound())
+			{
+				Input->Compile(Owner, bForce);
+			}
+		}
+	};
 
 	CHOOSER_COLUMN_BOILERPLATE(FChooserParameterRandomizeBase);
 

@@ -27,4 +27,5 @@ struct FChooserParameterRandomizeBase : public FChooserParameterBase
 {
 	GENERATED_BODY()
 	virtual bool GetValue(FChooserEvaluationContext& Context, const FChooserRandomizationContext*& OutResult) const { return false; }
+	virtual bool IsBound() const { return false; }
 };

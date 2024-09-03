@@ -48,6 +48,12 @@ public:
 
 	virtual void Compile(IHasContextClass* Owner, bool bForce)
 	{
+#if WITH_EDITORONLY_DATA
+		if (bDisabled)
+		{
+			return;
+		}
+#endif
 		if (FChooserParameterBase* Input = GetInputValue())
 		{
 			Input->Compile(Owner, bForce);

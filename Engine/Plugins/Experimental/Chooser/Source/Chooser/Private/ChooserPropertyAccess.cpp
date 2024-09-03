@@ -17,8 +17,8 @@
 
 TAutoConsoleVariable<bool> CVarEnableDetailedWarnings(
 	TEXT("Choosers.EnableDetailedWarnings"),
-	false,
-	TEXT("Enable detailed context validation with warnings when choosers are evaluated on an incorrect context. \n0: Disable (default), 1: Enable"),
+	true,
+	TEXT("Enable detailed context validation with warnings when choosers are evaluated on an incorrect context. \n0: Disable, 1: Enable (default)"),
 	ECVF_Default);
 
 TAutoConsoleVariable<bool> CVarUseCompiledPropertyChainsInEditor(
@@ -87,6 +87,7 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 #if WITH_EDITORONLY_DATA
 		CompileMessage = LOCTEXT("No Property Bound", "No Property Bound");
 #endif
+		UE_LOG(LogChooser, Error, TEXT("Chooser Property Compile Error (%s): Missing property binding."), *Owner->GetContextOwnerName());
 		CompiledBinding = nullptr;
 		return;
 	}
@@ -106,6 +107,7 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 #if WITH_EDITORONLY_DATA
 		CompileMessage = FText::Format(LOCTEXT("No valid struct", "No valid Context Object/Struct at index: {0}"), FText::FromString(FString::FromInt(ContextIndex)));
 #endif
+		UE_LOG(LogChooser, Error, TEXT("Chooser Property Compile Error (%s): No valid Context Object/Struct at index: %d"), *Owner->GetContextOwnerName(), ContextIndex);
 		CompiledBinding = nullptr;
 		return;
 	}
@@ -203,6 +205,7 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 #if WITH_EDITORONLY_DATA
 			CompileMessage = FText::Format(LOCTEXT("Property Not Found", "Property/Function: {0} not Found on Class/Struct: {1}"), FText::FromName(PropertyBindingChain[PropertyChainIndex]), StructType->GetDisplayNameText());
 #endif
+			UE_LOG(LogChooser, Error, TEXT(" Chooser Property Compile Error (%s): Property/Function: %s not Found on Class/Struct %s"), *Owner->GetContextOwnerName(), *PropertyBindingChain[PropertyChainIndex].ToString(), *StructType->GetName());
 			CompiledBinding = nullptr;
 			return;
 		}
@@ -303,6 +306,7 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 #if WITH_EDITORONLY_DATA
 		CompileMessage = FText::Format(LOCTEXT("Property Not Found", "Property/Function: {0} not Found on Class/Struct: {1}"), FText::FromName(PropertyBindingChain.Last()), StructType->GetDisplayNameText());
 #endif
+		UE_LOG(LogChooser, Error, TEXT(" Chooser Property Compile Error (%s): Property/Function: %s not Found on Class/Struct %s"), *Owner->GetContextOwnerName(), *PropertyBindingChain.Last().ToString(), *StructType->GetName());
 		CompiledBinding = nullptr;
  	}
 }
@@ -318,6 +322,7 @@ namespace UE::Chooser
 			return;
 		}
 
+		TRACE_CPUPROFILER_EVENT_SCOPE(ValidateChooserContext);
 		int ContextNum = ContextData.Num();
 		for (int i = 0; i < ContextNum; i++)
 		{
@@ -334,26 +339,26 @@ namespace UE::Chooser
 						{
 							if (!InputObjectParam->Object->GetClass()->IsChildOf(ExpectedClassType->Class))
 							{
-								UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an object of type %s, but an object of type %s was passed in."),
+								UE_LOG(LogChooser, Error, TEXT("Chooser Table: %s ContextData entry %d expects an object of type %s, but an object of type %s was passed in."),
 									ToCStr(Chooser->GetName()), i, ToCStr(ExpectedClassType->Class->GetName()), ToCStr(InputObjectParam->Object->GetClass()->GetName()));
 							}
 						}
 						else
 						{
-							UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an object of type %s, but null was passed in."),
+							UE_LOG(LogChooser, Error, TEXT("Chooser Table: %s ContextData entry %d expects an object of type %s, but null was passed in."),
 								ToCStr(Chooser->GetName()), i, ToCStr(ExpectedClassType->Class->GetName()));
 						}
 
 					}
 					else
 					{
-						UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an object of type %s, but was passed a struct of type %s."),
+						UE_LOG(LogChooser, Error, TEXT("Chooser Table: %s ContextData entry %d expects an object of type %s, but was passed a struct of type %s."),
 							ToCStr(Chooser->GetName()), i, ToCStr(ExpectedClassType->Class->GetName()), ToCStr(Context.Params[i].GetScriptStruct()->GetName()));
 					}
 				}
 				else
 				{
-					UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an object of type %s, but nothing was passed in."),
+					UE_LOG(LogChooser, Error, TEXT("Chooser Table: %s ContextData entry %d expects an object of type %s, but nothing was passed in."),
 						ToCStr(Chooser->GetName()), i, ToCStr(ExpectedClassType->Class->GetName()));
 				}
 			}
@@ -363,27 +368,27 @@ namespace UE::Chooser
 				{
 					if (FChooserEvaluationInputObject* InputObjectParam = Context.Params[i].GetPtr<FChooserEvaluationInputObject>())
 					{
-						UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an struct of type %s, but was passed a object of type %s."),
+						UE_LOG(LogChooser, Error, TEXT("Chooser Table: %s ContextData entry %d expects an struct of type %s, but was passed a object of type %s."),
 							ToCStr(Chooser->GetName()), i, ToCStr(ExpectedStructType->Struct->GetName()), ToCStr(InputObjectParam->Object->GetClass()->GetName()));
 					}
 					else
 					{
 						if (Context.Params[i].GetScriptStruct() != ExpectedStructType->Struct)
 						{
-							UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an struct of type %s, but was passed a struct of type %s."),
+							UE_LOG(LogChooser, Error, TEXT("Chooser Table: %s ContextData entry %d expects an struct of type %s, but was passed a struct of type %s."),
 								ToCStr(Chooser->GetName()), i, ToCStr(ExpectedStructType->Struct->GetName()), ToCStr(Context.Params[i].GetScriptStruct()->GetName()));
 						}
 					}
 				}
 				else
 				{
-					UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an struct of type %s, but nothing was passed in."),
+					UE_LOG(LogChooser, Error, TEXT("Chooser Table: %s ContextData entry %d expects an struct of type %s, but nothing was passed in."),
 						ToCStr(Chooser->GetName()), i, ToCStr(ExpectedStructType->Struct->GetName()));
 				}
 			}
 			else
 			{
-				UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s  ContextData entry %i is of unknown type or none."), ToCStr(Chooser->GetName()), i);
+				UE_LOG(LogChooser, Error, TEXT("Chooser Table: %s  ContextData entry %i is of unknown type or none."), ToCStr(Chooser->GetName()), i);
 			}
 		}
 	}
@@ -403,7 +408,7 @@ namespace UE::Chooser
 
 		if(!Context.Params.IsValidIndex(CompiledBinding.ContextIndex))
 		{
-			UE_LOG(LogChooser, Warning, TEXT("Invalid Index {%d} while resolving compiled property chain."), CompiledBinding.ContextIndex);
+			UE_LOG(LogChooser, Error, TEXT("Invalid Index {%d} while resolving compiled property chain."), CompiledBinding.ContextIndex);
 			return false;
 		}
 		
@@ -429,7 +434,7 @@ namespace UE::Chooser
 
 		if (!InputType->IsChildOf(CompiledBinding.TargetType))
 		{
-			UE_LOG(LogChooser, Warning, TEXT("Property Binding compiled for type: {%s} is being evaluated on incompatible type: {%s}."), ToCStr(CompiledBinding.TargetType->GetName()), ToCStr(InputType->GetName()));
+			UE_LOG(LogChooser, Error, TEXT("Property Binding compiled for type: {%s} is being evaluated on incompatible type: {%s}."), ToCStr(CompiledBinding.TargetType->GetName()), ToCStr(InputType->GetName()));
 			return false;
 		}
 		

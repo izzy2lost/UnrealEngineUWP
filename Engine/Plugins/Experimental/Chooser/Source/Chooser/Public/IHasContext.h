@@ -25,6 +25,8 @@ public:
 	FContextClassChanged OnContextClassChanged;
 	virtual TConstArrayView<FInstancedStruct> GetContextData() const { return TConstArrayView<FInstancedStruct>(); }
 
+	virtual FString GetContextOwnerName() const { return ""; }
+
 	virtual void Compile(bool bForce = false) {}
 #if WITH_EDITOR
 	virtual void AddCompileDependency(const UStruct* Struct) { }

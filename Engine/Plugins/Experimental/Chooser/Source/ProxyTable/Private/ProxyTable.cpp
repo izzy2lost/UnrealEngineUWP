@@ -173,11 +173,17 @@ void UProxyTable::PostLoad()
 			// need to compile results in case one is a LookupProxy
 			Result->Compile(Entry.ProxyAsset, false);
 		}
-
+		
 		/// compile any struct output property references
 		for(FProxyStructOutput& StructOutput : Entry.OutputStructData)
 		{
 			StructOutput.Binding.Compile(Entry.ProxyAsset);
+#if WITH_EDITORONLY_DATA
+			if (!StructOutput.Binding.CompileMessage.IsEmpty())
+			{
+				UE_LOG(LogChooser, Error, TEXT("ProxyTable Struct Output Compile Error (%s - %s): %s."),  *GetName(), *Entry.ProxyAsset.GetName(), *StructOutput.Binding.CompileMessage.ToString());
+			}
+#endif
 		}
 	}
 }

@@ -106,15 +106,6 @@ void UProxyAsset::PostLoad()
 	CachedPreviousType = Type;
 	CachedPreviousResultType = ResultType;
 #endif
-
-	if (ProxyTable.IsValid())
-	{
-		// compile property access for Proxy Table fallback codepath
-		if (FChooserParameterProxyTableBase* ProxyReference = ProxyTable.GetMutablePtr<FChooserParameterProxyTableBase>())
-		{
-			ProxyReference->Compile(this, false);
-		}
-	}
 }
 
 void UProxyAsset::PostDuplicate(EDuplicateMode::Type DuplicateMode)
@@ -132,42 +123,14 @@ void UProxyAsset::PostDuplicate(EDuplicateMode::Type DuplicateMode)
 UProxyAsset::UProxyAsset(const FObjectInitializer& Initializer)
 	: Super(Initializer)
 {
-	ProxyTable.InitializeAs(FProxyTableContextProperty::StaticStruct());
 }
 
 UObject* UProxyAsset::FindProxyObject(FChooserEvaluationContext& Context) const
 {
-	if (ProxyTable.IsValid())
-	{
-		const UProxyTable* Table;
-		if (ProxyTable.Get<FChooserParameterProxyTableBase>().GetValue(Context, Table))
-		{
-			if(Table)
-			{
-				if (UObject* Value = Table->FindProxyObject(Guid, Context))
-				{
-					return Value;
-				}
-			}
-		}
-	}
-	
 	return nullptr;
 }
 
 FObjectChooserBase::EIteratorStatus UProxyAsset::FindProxyObjectMulti(FChooserEvaluationContext &Context, FObjectChooserBase::FObjectChooserIteratorCallback Callback) const
 {
-	if (ProxyTable.IsValid())
-	{
-		const UProxyTable* Table;
-		if (ProxyTable.Get<FChooserParameterProxyTableBase>().GetValue(Context, Table))
-		{
-			if(Table)
-			{
-				return Table->FindProxyObjectMulti(Guid, Context, Callback);
-			}
-		}
-	}
-	
 	return FObjectChooserBase::EIteratorStatus::Continue;
 }
