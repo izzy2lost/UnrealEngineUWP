@@ -40,7 +40,7 @@ enum class EDayNightCycleMode : uint8
 	Default,
 	/** Force the day/night cycle to be fixed at the specified constant time */
 	FixedTime,
-	/** Set an initial time for the day/night cycle when this modifier is enabled */
+	/** Set an initial time for the day/night cycle when the modifier is enabled */
 	StartAtSpecifiedTime,
 	/** Use a random, fixed time for the day/night cycle */
 	RandomFixedTime,
@@ -48,14 +48,32 @@ enum class EDayNightCycleMode : uint8
 	RandomStartTime,
 };
 
-/** Enum specifying how to blend into and out of a UDaySequenceModifierComponent that is using a trigger volume */
+/** Enum that defines modifier behavior for auto enabling and computing the internal blend weight. */
 UENUM(BlueprintType)
-enum class EDaySequenceModifierBlendMode : uint8
+enum class EDaySequenceModifierMode : uint8
 {
-	/** Do not blend into the volume - modifier will immediately active when enabled */
-	None,
-	/** Blend the modifier in based on the distance within the volume. Only functional when EnableDistanceVolumeBlends is called. */
-	Distance,
+	// Blend weight is always 1.0.
+	Global,
+
+	// Blend weight smoothly moves between 0.0 and 1.0 as the blend target crosses the volume boundary.
+	Volume
+};
+
+/** Enum specifying how the modifier resolves the user specified blend weight against the internal blend weight. */
+UENUM(BlueprintType)
+enum class EDaySequenceModifierUserBlendPolicy : uint8
+{
+	// User specified weights are ignored (i.e. the effective weight is InternallyComputedWeight
+	Ignored,
+
+	// (default) The effective weight is FMath::Min(InternallyComputedWeight, UserSpecifiedWeight
+	Minimum,
+	
+	// The effective weight is FMath::Max(InternallyComputedWeight, UserSpecifiedWeight
+	Maximum,
+	
+	// The effective weight is UserSpecifiedWeight
+	Override
 };
 
 #if WITH_EDITOR
@@ -146,22 +164,7 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
 	DAYSEQUENCE_API void DisableComponent();
-
-	/**
-	 * Enable this modifier by enabling its sub-sequence within the root Day Sequence
-	 * Will initialize a new sub-sequence track if necessary.
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void EnableModifier();
-
-	/**
-	 * Disable this modifier by disabling its sub-sequence track
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void DisableModifier();
-
-public:
-
+	
 	/**
 	 * Remove all the Sequencer tracks within our procedural Day Sequence
 	 */
@@ -266,51 +269,27 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
 	DAYSEQUENCE_API void AddVisibilityOverride(UObject* Object, bool bValue);
 
-	/**
-	 * Sets the user day sequence
-	 */
+	/** Sets the user day sequence */
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
 	DAYSEQUENCE_API void SetUserDaySequence(UDaySequence* InDaySequence);
 
-	/**
-	 * Sets whether to enable modifier based on volume
-	 */
-	DAYSEQUENCE_API void SetUseVolume(bool bState);
-
-	/**
-	 * Enable distance-based volume blends based on the location of the specified actor relative to our volume.
-	 * FinalWeight = Min(DistanceVolumeBlendWeight, CustomVolumeBlendWeight).
-	 */
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void EnableDistanceVolumeBlends(APlayerController* InActor);
+	DAYSEQUENCE_API void SetMode(EDaySequenceModifierMode NewMode);
 
-	/**
-	 * Determines the number of volumes the current blend target is
-	 * overlapping and returns true if that number is greater than 0
-	 */
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API bool IsBlendTargetInAnyVolume();
+	DAYSEQUENCE_API void SetBlendPolicy(EDaySequenceModifierUserBlendPolicy NewPolicy);
+
+	/** Sets the blend target to use when in Volume mode. */
+	UFUNCTION(BlueprintCallable, Category="Day Sequence")
+	DAYSEQUENCE_API void SetBlendTarget(APlayerController* InActor);
 	
-	/**
-	 * Sets a custom blend weight for volume based blends.
-	 * FinalWeight = Min(DistanceVolumeBlendWeight, CustomVolumeBlendWeight).
-	 */
+	/** Sets a custom blend weight for volume based blends. Final weight depends on BlendPolicy. */
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void SetCustomVolumeBlendWeight(float Weight);
+	DAYSEQUENCE_API void SetUserBlendWeight(float Weight);
 
-	/**
-	 * Get the current blend weight.
-	 */
+	/** Get the current blend weight. */
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	float GetCurrentBlendWeight() const;
-	
-	float UpdateBlendWeight() const;
-
-	/**
-	 * Applies the given collision type to all valid volume shape components.
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	void SetVolumeCollisionEnabled(const ECollisionEnabled::Type InCollisionType) const;
+	float GetBlendWeight() const;
 
 	void EmptyVolumeShapeComponents();
 	void AddVolumeShapeComponent(const FComponentReference& InShapeReference);
@@ -321,8 +300,6 @@ public:
 	bool ShouldShowDebugInfo() const;
 #endif
 	
-public:
-
 	/*~ Begin UActorComponent interface */
 	void BeginPlay() override;
 	void EndPlay(EEndPlayReason::Type Reason) override;
@@ -348,16 +325,20 @@ public:
 #endif
 
 protected:
+	
+	/** Enable the modifier by enabling its subsection (creating it if necessary) in the Root Sequence. */
+	void EnableModifier();
 
-	virtual bool CanBeEnabled() const;
+	/** Disable the modifier by disabling its subsection. */
+	void DisableModifier();
+	
+	bool CanBeEnabled() const;
 
 	UPROPERTY(Instanced, Transient)
 	TObjectPtr<UDaySequenceModifierEasingFunction> EasingFunction;
 
 	TArray<UShapeComponent*> GetVolumeShapeComponents() const;
-
-protected:
-
+	
 	void SetInitialTimeOfDay();
 
 protected:
@@ -375,7 +356,7 @@ protected:
 
 	/** The actor to use for distance-based volume blend calculations */
 	UPROPERTY(Transient)
-	TWeakObjectPtr<APlayerController> ExternalVolumeBlendTarget;
+	TWeakObjectPtr<APlayerController> WeakBlendTarget;
 
 	/** An optional user-provided Day Sequence - used instead of our procedurally generated one if set */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence", meta=(EditCondition="!bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
@@ -396,24 +377,25 @@ protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Time", DisplayName="Time", meta=(DisplayAfter="DayNightCycle", EditCondition="DayNightCycle==EDayNightCycleMode::FixedTime || DayNightCycle==EDayNightCycleMode::StartAtSpecifiedTime", EditConditionHides))
 	float DayNightCycleTime;
 
-	/** Defines the blend range based on BlendMode. When BlendMode == Distance, this is interpreted as world units */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence", meta=(DisplayAfter="BlendMode", EditCondition="BlendMode!=EDaySequenceModifierBlendMode::None", EditConditionHides))
+	/** Defines the region in which the effective blend weight is in the range (0.0, 1.0) (not inclusive) when Mode == EDaySequenceModifierMode::Volume. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence", meta=(DisplayAfter="Mode", EditCondition="Mode==EDaySequenceModifierMode::Distance", EditConditionHides))
 	float BlendAmount;
 
-	/** Cached blend factor last time we ticked in the range 0-1. Used to prevent superfluous updates on a paused day sequence. */
-	float CachedBlendFactor;
+	/** User specified blend weight. The final blend weight is determined by BlendPolicy. */
+	UPROPERTY(Transient, BlueprintReadWrite, EditAnywhere, Category="Day Sequence", meta=(DisplayAfter="BlendPolicy", EditCondition="BlendPolicy!=EDaySequenceModifierUserBlendPolicy::Ignored", EditConditionHides))
+	float UserBlendWeight;
 
-	/** Defines a custom blend weight. The final blend weight is the minimum between the Distance blend weight and CustomVolumeBlendWeight. */
-	UPROPERTY(Transient)
-	float CustomVolumeBlendWeight;
-
-	/** Changes the way this modifier controls the day/night cycle time */
+	/** Changes the way the modifier controls the day/night cycle time when enabled. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Time", DisplayName="Day/Night Cycle")
 	EDayNightCycleMode DayNightCycle;
 
-	/** Changes the way this modifier blends in and out */
+	/** Determines how the modifier computes InternalBlendWeight. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence")
-	EDaySequenceModifierBlendMode BlendMode;
+	EDaySequenceModifierMode Mode;
+
+	/** Determines how the modifier uses UserBlendWeight to compute effective blend weight. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence")
+	EDaySequenceModifierUserBlendPolicy BlendPolicy;
 
 	/** Blueprint exposed delegate invoked after the component's subsequences are reinitialized. */
 	UPROPERTY(BlueprintAssignable, Transient, meta=(AllowPrivateAccess="true"))
@@ -423,23 +405,19 @@ protected:
 	UPROPERTY(BlueprintAssignable, Transient, meta=(AllowPrivateAccess="true"))
 	FOnPostEnableModifier OnPostEnableModifier;
 	
-	/** When enabled, these overrides will always override all settings regardless of their bias */
+	/** When enabled, these overrides will always override all settings regardless of their bias. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence", meta=(InlineEditConditionToggle))
 	uint8 bIgnoreBias : 1;
-
-	/** Whether to use the bounding volume for enabling this modifier. If not enabled this modifier will always be active. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence")
-	uint8 bUseVolume : 1;
 
 	/** Flag used track whether or not this component is enabled or disabled. */
 	UPROPERTY(Transient, DuplicateTransient, BlueprintReadOnly, Category="Day Sequence")
 	uint8 bIsComponentEnabled : 1;
 	
-	/** Non-serialized variable for tracking whether our overrides are enabled or not */
+	/** Non-serialized variable for tracking whether our overrides are enabled or not. */
 	UPROPERTY(Transient, DuplicateTransient, BlueprintReadOnly, Category="Day Sequence")
 	uint8 bIsEnabled : 1;
 
-	/** Preview this day sequence modifier in the editor */
+	/** When enabled, preview this day sequence modifier in the editor. */
 	UPROPERTY(Transient, BlueprintReadWrite, EditAnywhere, Category="Day Sequence")
 	uint8 bPreview : 1;
 
@@ -455,18 +433,28 @@ protected:
 	uint8 bSmoothBlending : 1;
 
 private:
+	
 	/**
 	 * Get the blend position (handles preview and game world).
 	 * @return Returns true if we have a valid blend position and InPosition was set, false if InPosition was not set.
 	 */
 	bool GetBlendPosition(FVector& InPosition) const;
-	float GetDistanceBlendFactorForShape(const UShapeComponent* Shape, const FVector& Position) const;
 
-	mutable float CachedDistanceBlendFactor;
-	float GetCachedDistanceBlendFactor() const { return CachedDistanceBlendFactor; }
-	float GetDistanceBlendFactor(const FVector& Position) const;
 	/**
-	 * Creates and adds or marks for preserve all subsections that this modifier is responsible for.
+	 * Updates InternalBlendWeight, the update method is determined by Mode.
+	 * @return Returns InternalBlendWeight.
+	 */
+	float UpdateInternalBlendWeight();
+
+	/**
+	 * The blend weight computed by the modifier.
+	 * When this is non-zero the modifier is automatically enabled.
+	 * Used to compute effective blend weight along with BlendPolicy and UserBlendWeight.
+	 */
+	float InternalBlendWeight;
+	
+	/**
+	 * Creates and adds or marks for preserve all subsections that the modifier is responsible for.
 	 * Optionally provided a map of all sections that exist in the root sequence to a bool flag used to mark that section as still relevant.
 	 */
 	void ReinitializeSubSequence(ADaySequenceActor::FSubSectionPreserveMap* SectionsToPreserve);
@@ -477,8 +465,6 @@ private:
 	void UpdateCachedExternalShapes() const;
 	mutable TArray<TWeakObjectPtr<UShapeComponent>> CachedExternalShapes;
 	mutable bool bCachedExternalShapesInvalid = true;
-	
-	int32 OccupiedVolumes = 0;
 	
 	/*~ Transient state for active gameplay */
 	TWeakObjectPtr<UMovieSceneSubSection> WeakSubSection;
@@ -491,7 +477,7 @@ private:
 	
 	void OnDebugLevelChanged(int32 InDebugLevel);
 	
-	/** Determines whether or not this modifier will show debug info */
+	/** Determines whether or not the modifier will show debug info */
 	int32 DebugLevel;
 
 	TSharedPtr<UE::DaySequence::FDaySequenceDebugEntry> DebugEntry;

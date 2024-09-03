@@ -24,18 +24,11 @@ ADaySequenceModifierVolume::ADaySequenceModifierVolume(const FObjectInitializer&
 	DefaultBox->SetupAttachment(DaySequenceModifier);
 	DefaultBox->SetLineThickness(10.f);
 	DefaultBox->SetBoxExtent(FVector(500.f));
-}
 
-void ADaySequenceModifierVolume::TryEnableModifier() const
-{	
-	if (DaySequenceModifier->IsBlendTargetInAnyVolume())
-	{
-		DaySequenceModifier->EnableModifier();
-	}
-	else
-	{
-		DaySequenceModifier->DisableModifier();
-	}
+	FComponentReference DefaultBoxReference;
+	DefaultBoxReference.OverrideComponent = DefaultBox;
+	DaySequenceModifier->EmptyVolumeShapeComponents();
+	DaySequenceModifier->AddVolumeShapeComponent(DefaultBoxReference);
 }
 
 void ADaySequenceModifierVolume::SetBlendTarget(APlayerController* InPC)
@@ -47,10 +40,8 @@ void ADaySequenceModifierVolume::SetBlendTarget(APlayerController* InPC)
 
 	CurrentBlendTarget = InPC;
 
-	DaySequenceModifier->EnableDistanceVolumeBlends(InPC);
-	DaySequenceModifier->SetCustomVolumeBlendWeight(1.f);
-
-	TryEnableModifier();
+	DaySequenceModifier->SetBlendTarget(InPC);
+	DaySequenceModifier->SetUserBlendWeight(1.f);
 }
 
 void ADaySequenceModifierVolume::BeginPlay()
@@ -94,23 +85,6 @@ void ADaySequenceModifierVolume::Initialize()
 #endif
 
 	DaySequenceActorSetup();
-}
-
-void ADaySequenceModifierVolume::VolumeSetup()
-{
-	DaySequenceModifier->EmptyVolumeShapeComponents();
-	
-	AddShapeComponentsToModifier();
-
-	// this is kind of a hack, we are calling this for the side effect of forcing the modifier to recache volume shapes after we just invalidated them.
-	DaySequenceModifier->IsBlendTargetInAnyVolume();
-}
-
-void ADaySequenceModifierVolume::AddShapeComponentsToModifier()
-{
-	FComponentReference DefaultBoxReference;
-	DefaultBoxReference.OverrideComponent = DefaultBox;
-	DaySequenceModifier->AddVolumeShapeComponent(DefaultBoxReference);
 }
 
 void ADaySequenceModifierVolume::PlayerControllerSetup()
@@ -199,7 +173,6 @@ void ADaySequenceModifierVolume::BindToDaySequenceActor()
 	{
 		DaySequenceModifier->BindToDaySequenceActor(DaySequenceActor);
 
-		VolumeSetup();
 		PlayerControllerSetup();
 
 		OnDaySequenceActorBound(DaySequenceActor);

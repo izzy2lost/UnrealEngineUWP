@@ -219,14 +219,14 @@ void UDaySequenceModifierEasingFunction::Initialize(EEasingFunctionType EasingTy
 		case EEasingFunctionType::EaseIn:
 			EvaluateImpl = [Outer](float)
 			{
-				return Outer->GetCurrentBlendWeight();
+				return Outer->GetBlendWeight();
 			};
 			break;
 	
 		case EEasingFunctionType::EaseOut:
 			EvaluateImpl = [Outer](float)
 			{
-				return 1.f - Outer->GetCurrentBlendWeight();
+				return 1.f - Outer->GetBlendWeight();
 			};
 			break;
 		}
@@ -249,7 +249,6 @@ UDaySequenceModifierComponent::UDaySequenceModifierComponent(const FObjectInitia
 	bIsComponentEnabled = true;
 	bIsEnabled = false;
 	bIgnoreBias = false;
-	bUseVolume = true;
 	bPreview = true;
 	bUseCollection = false;
 	bSmoothBlending = false;
@@ -257,10 +256,11 @@ UDaySequenceModifierComponent::UDaySequenceModifierComponent(const FObjectInitia
 	Bias = 1000;
 	DayNightCycleTime = 12.f;
 	DayNightCycle = EDayNightCycleMode::Default;
-	BlendMode = EDaySequenceModifierBlendMode::Distance;
+	Mode = EDaySequenceModifierMode::Volume;
+	BlendPolicy = EDaySequenceModifierUserBlendPolicy::Minimum;
 	BlendAmount = 100.f;
-	CachedBlendFactor = 0.f;
-	CustomVolumeBlendWeight = 1.0f;
+	UserBlendWeight = 1.f;
+	InternalBlendWeight = 1.f;
 #if ENABLE_DRAW_DEBUG
 	DebugLevel = 0;
 	
@@ -273,9 +273,9 @@ UDaySequenceModifierComponent::UDaySequenceModifierComponent(const FObjectInitia
 		(*DebugData).FindOrAdd("Owner Name") = GetOwner()->GetFName().ToString();
 		(*DebugData).FindOrAdd("Component Enabled") = bIsComponentEnabled ? "True" : "False";
 		(*DebugData).FindOrAdd("Modifier Enabled") = bIsEnabled ? "True" : "False";
-		(*DebugData).FindOrAdd("Blend Weight") = FString::Printf(TEXT("%.5f"), GetCurrentBlendWeight());
+		(*DebugData).FindOrAdd("Blend Weight") = FString::Printf(TEXT("%.5f"), GetBlendWeight());
 
-		const APlayerController* BlendTarget = ExternalVolumeBlendTarget.Get();
+		const APlayerController* BlendTarget = WeakBlendTarget.Get();
 		(*DebugData).FindOrAdd("Blend Target" ) = BlendTarget ? BlendTarget->GetName() : "None";
 
 		return DebugData;
@@ -303,17 +303,16 @@ void UDaySequenceModifierComponent::UpdateEditorPreview(float DeltaTime)
 {
 	using namespace UE::DaySequence;
 
-	if (bIsComponentEnabled && bPreview && bUseVolume && IsRegistered() && !GetWorld()->IsGameWorld())
+	if (bIsComponentEnabled && bPreview && IsRegistered() && !GetWorld()->IsGameWorld())
 	{
-		if (const float DistanceBlendFactor = GetDistanceBlendFactor(GVolumePreviewLocation); DistanceBlendFactor > UE_SMALL_NUMBER)
+		const float OldEffectiveBlendWeight = GetBlendWeight();
+		
+		if (UpdateInternalBlendWeight() > UE_SMALL_NUMBER)
 		{
-			if (!bIsEnabled)
-			{
-				EnableModifier();
-			}
+			EnableModifier();
 			
-			const float BlendFactor = FMath::Min(DistanceBlendFactor, CustomVolumeBlendWeight);
-			if (BlendMode != EDaySequenceModifierBlendMode::None && CachedBlendFactor != BlendFactor)
+			// this compares effective blend weights, which is necessary in case user blend weight is changing while the internal blend weight remains constant.
+			if (!FMath::IsNearlyEqual(OldEffectiveBlendWeight, GetBlendWeight()))
 			{
 				// If we're using a blend we have to mark active sections as changed
 				// in order to force an update in-editor:
@@ -333,7 +332,6 @@ void UDaySequenceModifierComponent::UpdateEditorPreview(float DeltaTime)
 					}
 				}
 			}
-			CachedBlendFactor = BlendFactor;
 		}
 		else
 		{
@@ -374,19 +372,9 @@ void UDaySequenceModifierComponent::PostEditChangeProperty(FPropertyChangedEvent
 			DisableModifier();
 		}
 	}
-	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UDaySequenceModifierComponent, bUseVolume))
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UDaySequenceModifierComponent, Mode))
 	{
-		if (!bUseVolume)
-		{
-			if (bPreview && !bIsEnabled)
-			{
-				EnableModifier();
-			}
-			else if (!bPreview && bIsEnabled)
-			{
-				DisableModifier();
-			}
-		}
+		EnableModifier();
 	}
 }
 
@@ -397,11 +385,6 @@ void UDaySequenceModifierComponent::OnRegister()
 	Super::OnRegister();
 
 	bCachedExternalShapesInvalid = true;
-	
-	if (!bUseVolume)
-	{
-		EnableModifier();
-	}
 }
 
 void UDaySequenceModifierComponent::OnUnregister()
@@ -418,32 +401,33 @@ void UDaySequenceModifierComponent::DaySequenceUpdate()
 {
 	CSV_SCOPED_TIMING_STAT(DaySequence, SequencePlayerUpdated);
 	
-	// Force expensive update
-	const float DistanceBlendFactor = UpdateBlendWeight();
-
-	// This block begins overriding the update interval if necessary.
-	if (OverrideUpdateIntervalHandle)
+	if (bIsComponentEnabled)
 	{
-		if (bSmoothBlending &&
-			FMath::IsWithin(DistanceBlendFactor, 0.f + UE_KINDA_SMALL_NUMBER, 1.f - UE_KINDA_SMALL_NUMBER))
-		{
-			OverrideUpdateIntervalHandle->StartOverriding();
-		}
-		else
-		{
-			OverrideUpdateIntervalHandle->StopOverriding();
-		}
-	}
-	
-	if (bIsComponentEnabled && bUseVolume)
-	{
-		if (DistanceBlendFactor > UE_SMALL_NUMBER)
+		// Force the expensive update
+		UpdateInternalBlendWeight();
+		
+		// For the purposes of enable/disable we ignore BlendPolicy and directly use InternalBlendWeight,
+		// but the easing function will respect it (by calling GetBlendWeight).
+		if (InternalBlendWeight > UE_SMALL_NUMBER)
 		{
 			EnableModifier();
 		}
 		else
 		{
 			DisableModifier();
+		}
+
+		if (OverrideUpdateIntervalHandle)
+		{
+			if (bIsEnabled && bSmoothBlending &&
+			FMath::IsWithin(GetBlendWeight(), 0.f + UE_KINDA_SMALL_NUMBER, 1.f - UE_KINDA_SMALL_NUMBER))
+			{
+				OverrideUpdateIntervalHandle->StartOverriding();
+			}
+			else
+			{
+				OverrideUpdateIntervalHandle->StopOverriding();
+			}
 		}
 	}
 }
@@ -589,7 +573,7 @@ bool UDaySequenceModifierComponent::CanBeEnabled() const
 		return false;
 	}
 	
-	if (bUseVolume)
+	if (Mode == EDaySequenceModifierMode::Volume)
 	{
 		ENetMode NetMode = Actor->GetNetMode();
 		return NetMode != NM_DedicatedServer;
@@ -687,9 +671,6 @@ void UDaySequenceModifierComponent::DisableModifier()
 			TargetActor->SetTimeOfDay(TargetActor->GetTimeOfDay());
 		}
 	}
-
-	// Necessary for correctly marking TargetActor as changed on enable.
-	CachedBlendFactor = -1.0f;
 }
 
 void UDaySequenceModifierComponent::SetInitialTimeOfDay()
@@ -716,7 +697,7 @@ void UDaySequenceModifierComponent::SetInitialTimeOfDay()
 				{
 					if (WantsStaticTime())
 					{
-						OutRequest.BlendWeight = bUseVolume ? GetCurrentBlendWeight() : 1.f;
+						OutRequest.BlendWeight = Mode == EDaySequenceModifierMode::Volume ? GetBlendWeight() : 1.f;
 						OutRequest.StaticTime = DayNightCycle == EDayNightCycleMode::RandomFixedTime ? RandomTime : DayNightCycleTime;
 						return true;
 					}
@@ -731,7 +712,7 @@ void UDaySequenceModifierComponent::SetInitialTimeOfDay()
 		case EDayNightCycleMode::StartAtSpecifiedTime:
 		case EDayNightCycleMode::RandomStartTime:
 
-		if (!bHasAuthority && !bUseVolume)
+		if (!bHasAuthority && Mode != EDaySequenceModifierMode::Volume)
 		{
 			// Never set initial time of day from non-volume based modifiers if they don't have authority and aren't setting static time.
 			// We'll just get the initial time of day from the server replication.
@@ -879,18 +860,14 @@ UMovieSceneSubSection* UDaySequenceModifierComponent::InitializeDaySequence(cons
 
 		RootTrack->AddSection(*SubSection);
 
-		if (bUseVolume && BlendMode != EDaySequenceModifierBlendMode::None && bBlendHierarchicalBias)
-		{
-			// In the Sequencer Editor, EaseIn pads the Sequence asset name by the EaseIn duration
-			// (see SSequencerSection::OnPaint). Since we set the Easing duration to the full section
-			// width to facilitate blending, the label is clipped. So we use EaseOut here instead and
-			// ensure that the weight is inverted in Evaluate().
-			SubSection->Easing.bManualEaseOut = true;
-			SubSection->Easing.ManualEaseOutDuration = MovieScene->GetPlaybackRange().Size<FFrameNumber>().Value;
-
-			EasingFunction->Initialize(UDaySequenceModifierEasingFunction::EEasingFunctionType::EaseOut);
-			SubSection->Easing.EaseOut = EasingFunction;
-		}
+		// In the Sequencer Editor, EaseIn pads the Sequence asset name by the EaseIn duration
+		// (see SSequencerSection::OnPaint). Since we set the Easing duration to the full section
+		// width to facilitate blending, the label is clipped. So we use EaseOut here instead and
+		// ensure that the weight is inverted in Evaluate().
+		SubSection->Easing.bManualEaseOut = true;
+		SubSection->Easing.ManualEaseOutDuration = MovieScene->GetPlaybackRange().Size<FFrameNumber>().Value;
+		EasingFunction->Initialize(UDaySequenceModifierEasingFunction::EEasingFunctionType::EaseOut);
+		SubSection->Easing.EaseOut = EasingFunction;
 
 #if WITH_EDITOR
 		FString Label = GetOwner()->GetActorLabel();
@@ -1388,6 +1365,16 @@ void UDaySequenceModifierComponent::SetUserDaySequence(UDaySequence* InDaySequen
 	ReinitializeSubSequence(nullptr);
 }
 
+void UDaySequenceModifierComponent::SetMode(EDaySequenceModifierMode NewMode)
+{
+	Mode = NewMode;
+}
+
+void UDaySequenceModifierComponent::SetBlendPolicy(EDaySequenceModifierUserBlendPolicy NewPolicy)
+{
+	BlendPolicy = NewPolicy;
+}
+
 bool UDaySequenceModifierComponent::GetBlendPosition(FVector& InPosition) const
 {
 	CSV_SCOPED_TIMING_STAT(DaySequence, GetBlendPosition);
@@ -1400,7 +1387,7 @@ bool UDaySequenceModifierComponent::GetBlendPosition(FVector& InPosition) const
 	}
 	else
 #endif
-	if (const APlayerController* BlendTarget = ExternalVolumeBlendTarget.Get(); BlendTarget && BlendTarget->PlayerCameraManager)
+	if (const APlayerController* BlendTarget = WeakBlendTarget.Get(); BlendTarget && BlendTarget->PlayerCameraManager)
 	{
 		CSV_SCOPED_TIMING_STAT(DaySequence, GetPlayerViewPoint);
 		InPosition = BlendTarget->PlayerCameraManager->GetCameraLocation();
@@ -1408,26 +1395,6 @@ bool UDaySequenceModifierComponent::GetBlendPosition(FVector& InPosition) const
 	}
 
 	return false;
-}
-
-float UDaySequenceModifierComponent::GetDistanceBlendFactorForShape(const UShapeComponent* Shape, const FVector& Position) const
-{
-	const float Distance = UE::DaySequence::ComputeSignedDistance(Shape, Position);
-	return Distance < 0.f ? FMath::Clamp(-Distance / BlendAmount, 0.f, 1.f) : 0.f;
-}
-
-float UDaySequenceModifierComponent::GetDistanceBlendFactor(const FVector& Position) const
-{
-	CSV_SCOPED_TIMING_STAT(DaySequence, GetDistanceBlendFactor);
-	
-	CachedDistanceBlendFactor = 0.f;
-
-	for (const UShapeComponent* Shape : GetVolumeShapeComponents())
-	{
-		CachedDistanceBlendFactor = FMath::Max(CachedDistanceBlendFactor, GetDistanceBlendFactorForShape(Shape, Position));
-	}
-
-	return CachedDistanceBlendFactor;
 }
 
 TArray<UShapeComponent*> UDaySequenceModifierComponent::GetVolumeShapeComponents() const
@@ -1481,33 +1448,60 @@ TArray<UShapeComponent*> UDaySequenceModifierComponent::GetVolumeShapeComponents
 	return ResolvedVolumeShapeComponents;
 }
 
-float UDaySequenceModifierComponent::GetCurrentBlendWeight() const
+float UDaySequenceModifierComponent::GetBlendWeight() const
 {
-	return FMath::Min(CachedDistanceBlendFactor, CustomVolumeBlendWeight);
-}
-
-float UDaySequenceModifierComponent::UpdateBlendWeight() const
-{
-	FVector BlendPosition;
-	const bool bHasBlendPosition = GetBlendPosition(BlendPosition);
-
-	const float OldBlendWeight = CachedDistanceBlendFactor;
-	const float NewBlendWeight = FMath::Min(bHasBlendPosition ? GetDistanceBlendFactor(BlendPosition) : 1.f, CustomVolumeBlendWeight);
-
-	// todo [nickolas.drake]: Enable blending for paused actors. Need to force set time of day if:
-	// 1) We have a blend position
-	// 2) The target DSA is valid and not playing
-	// 3) Our old blend weight is sufficiently different from our new blend weight
-	
-	return NewBlendWeight;
-}
-
-void UDaySequenceModifierComponent::SetVolumeCollisionEnabled(const ECollisionEnabled::Type InCollisionType) const
-{
-	for (UShapeComponent* Shape : GetVolumeShapeComponents())
+	switch (BlendPolicy)
 	{
-		Shape->SetCollisionEnabled(InCollisionType);
+	default:
+	case EDaySequenceModifierUserBlendPolicy::Ignored:
+		return InternalBlendWeight;
+		
+	case EDaySequenceModifierUserBlendPolicy::Minimum:
+		return FMath::Min(InternalBlendWeight, UserBlendWeight);
+		
+	case EDaySequenceModifierUserBlendPolicy::Maximum:
+		return FMath::Max(InternalBlendWeight, UserBlendWeight);
+		
+	case EDaySequenceModifierUserBlendPolicy::Override:
+		return UserBlendWeight;
 	}
+}
+
+float UDaySequenceModifierComponent::UpdateInternalBlendWeight()
+{
+	CSV_SCOPED_TIMING_STAT(DaySequence, UpdateInternalBlendWeight);
+	
+	switch (Mode)
+	{
+	default:
+	case EDaySequenceModifierMode::Global:
+		InternalBlendWeight = 1.f;
+		break;
+	
+	case EDaySequenceModifierMode::Volume:
+		if (FVector BlendPosition; GetBlendPosition(BlendPosition))
+		{
+			InternalBlendWeight = 0.f;
+
+			auto GetBlendWeightForShape = [this, BlendPosition](const UShapeComponent* Shape)
+			{
+				const float Distance = UE::DaySequence::ComputeSignedDistance(Shape, BlendPosition);
+				return Distance < 0.f ? FMath::Clamp(-Distance / BlendAmount, 0.f, 1.f) : 0.f;
+			};
+			
+			for (const UShapeComponent* Shape : GetVolumeShapeComponents())
+			{
+				InternalBlendWeight = FMath::Max(InternalBlendWeight, GetBlendWeightForShape(Shape));
+			}
+		}
+		else
+		{
+			InternalBlendWeight = 1.f;
+		}
+		break;
+	}
+
+	return InternalBlendWeight;
 }
 
 void UDaySequenceModifierComponent::EmptyVolumeShapeComponents()
@@ -1527,19 +1521,14 @@ void UDaySequenceModifierComponent::InvalidateMuteStates() const
 	OnInvalidateMuteStates.Broadcast();
 }
 
-void UDaySequenceModifierComponent::EnableDistanceVolumeBlends(APlayerController* InActor)
+void UDaySequenceModifierComponent::SetBlendTarget(APlayerController* InActor)
 {	
-	ExternalVolumeBlendTarget = InActor;
+	WeakBlendTarget = InActor;
 }
 
-void UDaySequenceModifierComponent::SetUseVolume(bool bState)
+void UDaySequenceModifierComponent::SetUserBlendWeight(float Weight)
 {
-	bUseVolume = bState;
-}
-
-void UDaySequenceModifierComponent::SetCustomVolumeBlendWeight(float Weight)
-{
-	CustomVolumeBlendWeight = FMath::Clamp(Weight, 0.f, 1.f);
+	UserBlendWeight = FMath::Clamp(Weight, 0.f, 1.f);
 }
 
 #if ENABLE_DRAW_DEBUG
@@ -1565,24 +1554,6 @@ bool UDaySequenceModifierComponent::ShouldShowDebugInfo() const
 	}
 }
 #endif
-
-bool UDaySequenceModifierComponent::IsBlendTargetInAnyVolume()
-{
-	OccupiedVolumes = 0;
-
-	if (FVector Position; GetBlendPosition(Position))
-	{
-		for (const UShapeComponent* Shape : GetVolumeShapeComponents())
-		{
-			if (GetDistanceBlendFactorForShape(Shape, Position) > 0.f)
-			{
-				OccupiedVolumes++;
-			}
-		}
-	}
-
-	return OccupiedVolumes > 0;
-}
 
 void UDaySequenceModifierComponent::UpdateCachedExternalShapes() const
 {

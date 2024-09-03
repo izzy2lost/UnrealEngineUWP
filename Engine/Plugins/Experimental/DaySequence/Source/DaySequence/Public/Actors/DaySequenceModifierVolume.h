@@ -36,24 +36,6 @@ protected:
 
 	
 	
-	/** Volume Setup Functions */
-	
-	/**
-	 * Unconditionally adds shape components to the day sequence modifier via AddShapeComponentsToModifier.
-	 * At runtime this also unconditionally calls SetupVolumeCallbacks.
-	 * In editor this conditionally calls SetupVolumeCallbacks if we are not in an Editor world.
-	 */
-	void VolumeSetup();
-
-	/**
-	 * By default this adds an FComponentReference pointing to DefaultBox to the day sequence modifier.
-	 * Derived classes should override this function to add their own shape components at the proper time.
-	 * If overridden, calling Super::AddShapeComponentsToModifier will determine if DefaultBox is used or ignored.
-	 */
-	virtual void AddShapeComponentsToModifier();
-
-	
-	
 	/** Player Controller Setup Functions */
 	
 	/**
@@ -91,9 +73,6 @@ protected:
 	void BindToDaySequenceActor();
 	
 
-	
-	/** Enables this modifier if the current blend target is in the volume. */
-	void TryEnableModifier() const;
 	
 	void SetBlendTarget(APlayerController* InPC);
 	
