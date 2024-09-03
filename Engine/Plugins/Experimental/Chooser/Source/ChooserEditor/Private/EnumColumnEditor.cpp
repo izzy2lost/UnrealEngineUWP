@@ -33,9 +33,9 @@ TSharedRef<SWidget> SEnumCell::GenerateEnumMenu() const
 					FText()/*todo tooltip*/,
 					FSlateIcon(),
 					FUIAction(
-					FExecuteAction::CreateLambda([this, EnumValue = EnumSource->GetValueByIndex(EnumIndex)]() 
+					FExecuteAction::CreateLambda([this, MenuEntryEnumValue = EnumSource->GetValueByIndex(EnumIndex)]() 
 					{
-						OnValueSet.ExecuteIfBound(EnumValue);
+						OnValueSet.ExecuteIfBound(MenuEntryEnumValue);
 					})	
 					));
 			}
