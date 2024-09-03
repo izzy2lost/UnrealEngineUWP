@@ -20,7 +20,7 @@ struct STATETREEEDITORMODULE_API FStateTreeEditorPropertyBindings
 	GENERATED_BODY()
 
 	/** Sets associated bindings owner, used to validate added property paths. */
-	void SetBindingsOwner(IStateTreeEditorPropertyBindingsOwner* BindingsOwner);
+	void SetBindingsOwner(gsl::not_null<TScriptInterface<IStateTreeEditorPropertyBindingsOwner>> BindingsOwner);
 
 	/**
 	 * Adds binding between source and destination paths. Removes any bindings to TargetPath before adding the new one.
@@ -44,17 +44,28 @@ struct STATETREEEDITORMODULE_API FStateTreeEditorPropertyBindings
 	 */
 	FStateTreePropertyPath AddFunctionPropertyBinding(const UScriptStruct* PropertyFunctionNodeStruct, TConstArrayView<FStateTreePropertyPathSegment> SourcePathSegments, const FStateTreePropertyPath& TargetPath);
 
+	enum class ESearchMode
+	{
+		Exact,				// Binding with exact matching path.
+		Includes,			// Binding with path that matches but the binding path can be longer.
+	};
+
 	/**
 	 * Removes all bindings to target path.
 	 * @param TargetPath Target property path.
 	 */ 
-	void RemovePropertyBindings(const FStateTreePropertyPath& TargetPath);
+	void RemovePropertyBindings(const FStateTreePropertyPath& TargetPath, ESearchMode SearchMode = ESearchMode::Exact);
 	
 	/**
-	 * @param TargetPath Target property path.
+	 * Has any binding to the target path.
 	 * @return True of the target path has any bindings.
 	 */
-	bool HasPropertyBinding(const FStateTreePropertyPath& TargetPath) const;
+	bool HasPropertyBinding(const FStateTreePropertyPath& TargetPath, ESearchMode SearchMode = ESearchMode::Exact) const;
+
+	/**
+	 * @return binding to the target path.
+	 */
+	const FStateTreePropertyPathBinding* FindPropertyBinding(const FStateTreePropertyPath& TargetPath, ESearchMode SearchMode = ESearchMode::Exact) const;
 
 	/**
 	 * Copies property bindings from an existing struct to another.
@@ -86,9 +97,15 @@ struct STATETREEEDITORMODULE_API FStateTreeEditorPropertyBindings
 	bool ContainsAnyStruct(const TSet<const UStruct*>& Structs);
 
 	/** @return array view to all bindings. */
-	TConstArrayView<FStateTreePropertyPathBinding> GetBindings() const { return PropertyBindings; }
+	const TConstArrayView<FStateTreePropertyPathBinding> GetBindings() const
+	{
+		return PropertyBindings;
+	}
 
-	TArrayView<FStateTreePropertyPathBinding> GetMutableBindings() { return PropertyBindings; }
+	const TArrayView<FStateTreePropertyPathBinding> GetMutableBindings()
+	{
+		return PropertyBindings;
+	}
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UE_DEPRECATED(5.3, "Use version with FStateTreePropertyPath instead.")
@@ -111,11 +128,11 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
 private:
-
 	UPROPERTY()
 	TArray<FStateTreePropertyPathBinding> PropertyBindings;
 
-	IStateTreeEditorPropertyBindingsOwner* BindingsOwner = nullptr; 
+	UPROPERTY(Transient)
+	TScriptInterface<IStateTreeEditorPropertyBindingsOwner> BindingsOwner = nullptr; 
 };
 
 

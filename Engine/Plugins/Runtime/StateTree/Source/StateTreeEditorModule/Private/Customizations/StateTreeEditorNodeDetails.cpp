@@ -160,12 +160,9 @@ namespace UE::StateTreeEditor::Internal
 			FDetailWidgetRow Row;
 			ChildRow.GetDefaultWidgets(NameWidget, ValueWidget, Row);
 
-			auto IsValueVisible = TAttribute<EVisibility>::Create([Path, EditorPropBindings]() -> EVisibility
-				{
-					return EditorPropBindings->HasPropertyBinding(Path) ? EVisibility::Collapsed : EVisibility::Visible;
-				});
-
-			if (Usage == EStateTreePropertyUsage::Input || Usage == EStateTreePropertyUsage::Output || Usage == EStateTreePropertyUsage::Context)
+			const bool bHasChildPropertyBinding = EditorPropBindings->HasPropertyBinding(Path, FStateTreeEditorPropertyBindings::ESearchMode::Includes);
+			const bool bValidUsage = Usage == EStateTreePropertyUsage::Input || Usage == EStateTreePropertyUsage::Output || Usage == EStateTreePropertyUsage::Context;
+			if (bHasChildPropertyBinding || bValidUsage)
 			{				
 				FEdGraphPinType PinType;
 				const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
@@ -189,7 +186,12 @@ namespace UE::StateTreeEditor::Internal
 				{
 					Schema->ConvertPropertyToPinType(Property, PinType);
 				}
-				
+
+				auto IsValueVisible = TAttribute<EVisibility>::Create([Path, EditorPropBindings]() -> EVisibility
+					{
+						return EditorPropBindings->HasPropertyBinding(Path, FStateTreeEditorPropertyBindings::ESearchMode::Exact) ? EVisibility::Collapsed : EVisibility::Visible;
+					});
+
 				const FSlateBrush* Icon = FBlueprintEditorUtils::GetIconFromPin(PinType, true);
 				FText Text = GetPinTypeText(PinType);
 				
@@ -197,6 +199,7 @@ namespace UE::StateTreeEditor::Internal
 				FLinearColor IconColor = Schema->GetPinTypeColor(PinType);
 				FText Label;
 				FText LabelToolTip;
+				FSlateColor TextColor = FSlateColor::UseForeground();
 
 				if (Usage == EStateTreePropertyUsage::Input)
 				{
@@ -242,6 +245,12 @@ namespace UE::StateTreeEditor::Internal
 						IconColor = FLinearColor::White;
 					}
 				}
+				else if (ensure(bHasChildPropertyBinding))
+				{
+					Icon = FCoreStyle::Get().GetBrush("Icons.Link");
+					Text = LOCTEXT("PropertyMemberIsBoundTooltip", "{Member(s) Bound_B}");
+					TextColor = FSlateColor::UseSubduedForeground();
+				}
 				
 				ChildRow
 					.CustomWidget(true)
@@ -262,7 +271,7 @@ namespace UE::StateTreeEditor::Internal
 						.Padding(4.0f, 0.0f)
 						[
 							SNew(SBorder)
-							.Padding(FMargin(6, 1))
+							.Padding(FMargin(6.0f, 1.0f))
 							.BorderImage(FStateTreeEditorStyle::Get().GetBrush("StateTree.Param.Background"))
 							.Visibility(Label.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible)
 							[
@@ -297,6 +306,7 @@ namespace UE::StateTreeEditor::Internal
 						[
 							SNew(STextBlock)
 							.Font(IDetailLayoutBuilder::GetDetailFont())
+							.ColorAndOpacity(TextColor)
 							.Text(Text)
 							.ToolTipText(ToolTip)
 						]

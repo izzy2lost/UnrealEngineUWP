@@ -465,7 +465,30 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		UE::StateTree::PropertyBinding::OnStateTreePropertyBindingChanged.Broadcast(SourcePath, TargetPath);
 	}
 
-	void RemoveBinding()
+	bool HasBinding(FStateTreeEditorPropertyBindings::ESearchMode SearchMode) const
+	{
+		UObject* OwnerObject = WeakOwnerObject.Get();
+		if (!OwnerObject)
+		{
+			return false;
+		}
+
+		IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(OwnerObject);
+		if (!BindingOwner)
+		{
+			return false;
+		}
+
+		FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings();
+		if (!EditorBindings)
+		{
+			return false;
+		}
+
+		return EditorBindings && EditorBindings->HasPropertyBinding(TargetPath, SearchMode);
+	}
+
+	void RemoveBinding(FStateTreeEditorPropertyBindings::ESearchMode RemoveMode)
 	{
 		UObject* OwnerObject = WeakOwnerObject.Get();
 		if (!OwnerObject)
@@ -486,7 +509,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		}
 
 		OwnerObject->Modify();
-		EditorBindings->RemovePropertyBindings(TargetPath);
+		EditorBindings->RemovePropertyBindings(TargetPath, RemoveMode);
 
 		UpdateData();
 		
@@ -1551,17 +1574,19 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 				}
 			}
 		}
+	}
 
-		// Wrap value widget 
-		if (EditorBindings)
-		{
-			auto IsValueVisible = TAttribute<EVisibility>::Create([TargetPath, EditorBindings]() -> EVisibility
+	TSharedPtr<UE::StateTree::PropertyBinding::FCachedBindingData> CachedBindingData = MakeShared<UE::StateTree::PropertyBinding::FCachedBindingData>(OwnerObject, TargetPath, InPropertyHandle, AccessibleStructs);
+
+	// Wrap value widget 
+	{
+		auto IsValueVisible = TAttribute<EVisibility>::Create([CachedBindingData]() -> EVisibility
 			{
-				return EditorBindings->HasPropertyBinding(TargetPath) ? EVisibility::Collapsed : EVisibility::Visible;
+				return CachedBindingData->HasBinding(FStateTreeEditorPropertyBindings::ESearchMode::Exact) ? EVisibility::Collapsed : EVisibility::Visible;
 			});
 
-			TSharedPtr<SWidget> ValueWidget = InWidgetRow.ValueContent().Widget;
-			InWidgetRow.ValueContent()
+		TSharedPtr<SWidget> ValueWidget = InWidgetRow.ValueContent().Widget;
+		InWidgetRow.ValueContent()
 			[
 				SNew(SBox)
 				.Visibility(IsValueVisible)
@@ -1569,11 +1594,7 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 					ValueWidget.ToSharedRef()
 				]
 			];
-		}
-		
 	}
-
-	TSharedPtr<UE::StateTree::PropertyBinding::FCachedBindingData> CachedBindingData = MakeShared<UE::StateTree::PropertyBinding::FCachedBindingData>(OwnerObject, TargetPath, InPropertyHandle, AccessibleStructs);
 	
 	FPropertyBindingWidgetArgs Args;
 	Args.Property = InPropertyHandle->GetProperty();
@@ -1606,13 +1627,13 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 
 	Args.OnRemoveBinding = FOnRemoveBinding::CreateLambda([CachedBindingData, &InDetailBuilder](FName InPropertyName)
 		{
-			CachedBindingData->RemoveBinding();
+			CachedBindingData->RemoveBinding(FStateTreeEditorPropertyBindings::ESearchMode::Exact);
 			InDetailBuilder.GetPropertyUtilities()->RequestForceRefresh();
 		});
 
-	Args.OnCanRemoveBinding = FOnCanRemoveBinding::CreateLambda([EditorBindings, TargetPath](FName InPropertyName)
+	Args.OnCanRemoveBinding = FOnCanRemoveBinding::CreateLambda([CachedBindingData](FName InPropertyName)
 		{
-			return EditorBindings && EditorBindings->HasPropertyBinding(TargetPath);
+			return CachedBindingData->HasBinding(FStateTreeEditorPropertyBindings::ESearchMode::Exact);
 		});
 
 	Args.CurrentBindingText = MakeAttributeLambda([CachedBindingData]()
@@ -1703,6 +1724,28 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 				);
 			})
 		);
+	}
+
+	// ResetToDefault
+	{
+		InWidgetRow.CustomResetToDefault = FResetToDefaultOverride::Create(
+			MakeAttributeLambda([CachedBindingData, InPropertyHandle]()
+			{
+				return InPropertyHandle->CanResetToDefault() || CachedBindingData->HasBinding(FStateTreeEditorPropertyBindings::ESearchMode::Includes);
+			}),
+			FSimpleDelegate::CreateLambda([CachedBindingData, &InDetailBuilder, InPropertyHandle]()
+				{
+					if (CachedBindingData->HasBinding(FStateTreeEditorPropertyBindings::ESearchMode::Includes))
+					{
+						CachedBindingData->RemoveBinding(FStateTreeEditorPropertyBindings::ESearchMode::Includes);
+						InDetailBuilder.GetPropertyUtilities()->RequestForceRefresh();
+					}
+					if (InPropertyHandle->CanResetToDefault())
+					{
+						InPropertyHandle->ResetToDefault();
+					}
+				}),
+			false);
 	}
 
 	InWidgetRow.ExtensionContent()
@@ -1796,8 +1839,10 @@ bool FStateTreeBindingsChildrenCustomization::ShouldCustomizeChildren(TSharedRef
 		IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(UE::StateTree::PropertyBinding::FindEditorBindingsOwner(OuterObjects[0]));
 		if (!TargetPath.IsPathEmpty() && BindingOwner)
 		{
-			FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings();
-			return EditorBindings->HasPropertyBinding(TargetPath);
+			if (FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings())
+			{
+				return EditorBindings->HasPropertyBinding(TargetPath);
+			}
 		}
 	}
 

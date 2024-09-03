@@ -1863,6 +1863,33 @@ bool FStateTreePropertyPath::ResolveIndirectionsWithValue(const FStateTreeDataVi
 	return true;
 }
 
+bool FStateTreePropertyPath::Includes(const FStateTreePropertyPath& Other) const
+{
+#if WITH_EDITORONLY_DATA
+	if (StructID != Other.StructID)
+	{
+		return false;
+	}
+#endif // WITH_EDITORONLY_DATA
+
+	if (Segments.Num() < Other.Segments.Num())
+	{
+		return false;
+	}
+
+	for (TEnumerateRef<const FStateTreePropertyPathSegment> OtherSegment : EnumerateRange(Other.Segments))
+	{
+		if (*OtherSegment != Segments[OtherSegment.GetIndex()])
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+
+
 bool FStateTreePropertyPath::operator==(const FStateTreePropertyPath& RHS) const
 {
 #if WITH_EDITORONLY_DATA
@@ -1871,6 +1898,7 @@ bool FStateTreePropertyPath::operator==(const FStateTreePropertyPath& RHS) const
 		return false;
 	}
 #endif // WITH_EDITORONLY_DATA
+
 	if (Segments.Num() != RHS.Segments.Num())
 	{
 		return false;

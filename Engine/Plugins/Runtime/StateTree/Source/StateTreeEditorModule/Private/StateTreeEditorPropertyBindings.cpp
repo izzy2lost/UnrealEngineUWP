@@ -19,14 +19,14 @@ UStateTreeEditorPropertyBindingsOwner::UStateTreeEditorPropertyBindingsOwner(con
 
 //////////////////////////////////////////////////////////////////////////
 
-void FStateTreeEditorPropertyBindings::SetBindingsOwner(IStateTreeEditorPropertyBindingsOwner* InBindingsOwner)
+void FStateTreeEditorPropertyBindings::SetBindingsOwner(gsl::not_null<TScriptInterface<IStateTreeEditorPropertyBindingsOwner>> InBindingsOwner)
 {
 	BindingsOwner = InBindingsOwner;
 }
 
 void FStateTreeEditorPropertyBindings::AddPropertyBinding(const FStateTreePropertyPath& SourcePath, const FStateTreePropertyPath& TargetPath)
 {
-	RemovePropertyBindings(TargetPath);
+	RemovePropertyBindings(TargetPath, ESearchMode::Exact);
 
 	FStateTreePropertyPathBinding Binding(SourcePath, TargetPath);
 
@@ -63,7 +63,7 @@ FStateTreePropertyPath FStateTreeEditorPropertyBindings::AddFunctionPropertyBind
 		PropertyFunction.Instance.InitializeAs(InstanceType);
 	}
 
-	RemovePropertyBindings(TargetPath);
+	RemovePropertyBindings(TargetPath, ESearchMode::Exact);
 	FStateTreePropertyPath SourcePath = FStateTreePropertyPath(NodeID, SourcePathSegments);
 	PropertyBindings.Emplace(MoveTemp(PropertyFunctionNode), SourcePath, TargetPath);
 	return SourcePath;
@@ -71,16 +71,26 @@ FStateTreePropertyPath FStateTreeEditorPropertyBindings::AddFunctionPropertyBind
 
 void FStateTreeEditorPropertyBindings::AddPropertyBinding(const FStateTreePropertyPathBinding& Binding)
 {
-	RemovePropertyBindings(Binding.GetTargetPath());
+	RemovePropertyBindings(Binding.GetTargetPath(), ESearchMode::Exact);
 	PropertyBindings.Add(Binding);
 }
 
-void FStateTreeEditorPropertyBindings::RemovePropertyBindings(const FStateTreePropertyPath& TargetPath)
+void FStateTreeEditorPropertyBindings::RemovePropertyBindings(const FStateTreePropertyPath& TargetPath, ESearchMode SearchMode)
 {
-	PropertyBindings.RemoveAll([&TargetPath](const FStateTreePropertyPathBinding& Binding)
-		{
-			return Binding.GetTargetPath() == TargetPath;
-		});
+	if (SearchMode == ESearchMode::Exact)
+	{
+		PropertyBindings.RemoveAllSwap([&TargetPath](const FStateTreePropertyPathBinding& Binding)
+			{
+				return Binding.GetTargetPath() == TargetPath;
+			});
+	}
+	else
+	{
+		PropertyBindings.RemoveAllSwap([&TargetPath](const FStateTreePropertyPathBinding& Binding)
+			{
+				return Binding.GetTargetPath().Includes(TargetPath);
+			});
+	}
 }
 
 void FStateTreeEditorPropertyBindings::CopyBindings(const FGuid FromStructID, const FGuid ToStructID)
@@ -98,12 +108,40 @@ void FStateTreeEditorPropertyBindings::CopyBindings(const FGuid FromStructID, co
 	PropertyBindings.Append(NewBindings);
 }
 
-bool FStateTreeEditorPropertyBindings::HasPropertyBinding(const FStateTreePropertyPath& TargetPath) const
+bool FStateTreeEditorPropertyBindings::HasPropertyBinding(const FStateTreePropertyPath& TargetPath, ESearchMode RemoveMode) const
 {
-	return PropertyBindings.ContainsByPredicate([&TargetPath](const FStateTreePropertyPathBinding& Binding)
-		{
-			return Binding.GetTargetPath() == TargetPath;
-		});
+	if (RemoveMode == ESearchMode::Exact)
+	{
+		return PropertyBindings.ContainsByPredicate([&TargetPath](const FStateTreePropertyPathBinding& Binding)
+			{
+				return Binding.GetTargetPath() == TargetPath;
+			});
+	}
+	else
+	{
+		return PropertyBindings.ContainsByPredicate([&TargetPath](const FStateTreePropertyPathBinding& Binding)
+			{
+				return Binding.GetTargetPath().Includes(TargetPath);
+			});
+	}
+}
+
+const FStateTreePropertyPathBinding* FStateTreeEditorPropertyBindings::FindPropertyBinding(const FStateTreePropertyPath& TargetPath, ESearchMode RemoveMode) const
+{
+	if (RemoveMode == ESearchMode::Exact)
+	{
+		return PropertyBindings.FindByPredicate([&TargetPath](const FStateTreePropertyPathBinding& Binding)
+			{
+				return Binding.GetTargetPath() == TargetPath;
+			});
+	}
+	else
+	{
+		return PropertyBindings.FindByPredicate([&TargetPath](const FStateTreePropertyPathBinding& Binding)
+			{
+				return Binding.GetTargetPath().Includes(TargetPath);
+			});
+	}
 }
 
 const FStateTreePropertyPath* FStateTreeEditorPropertyBindings::GetPropertyBindingSource(const FStateTreePropertyPath& TargetPath) const
@@ -128,7 +166,7 @@ void FStateTreeEditorPropertyBindings::GetPropertyBindingsFor(const FGuid Struct
 
 void FStateTreeEditorPropertyBindings::RemoveUnusedBindings(const TMap<FGuid, const FStateTreeDataView>& ValidStructs)
 {
-	PropertyBindings.RemoveAll([ValidStructs](FStateTreePropertyPathBinding& Binding)
+	PropertyBindings.RemoveAllSwap([ValidStructs](FStateTreePropertyPathBinding& Binding)
 		{
 			// Remove binding if it's target struct has been removed
 			if (!ValidStructs.Contains(Binding.GetTargetPath().GetStructID()))
@@ -217,12 +255,12 @@ void FStateTreeEditorPropertyBindings::AddPropertyBinding(const FStateTreeEditor
 
 void FStateTreeEditorPropertyBindings::RemovePropertyBindings(const FStateTreeEditorPropertyPath& TargetPath)
 {
-	RemovePropertyBindings(UE::StateTree::Private::ConvertEditorPath(TargetPath));
+	RemovePropertyBindings(UE::StateTree::Private::ConvertEditorPath(TargetPath), ESearchMode::Exact);
 }
 
 bool FStateTreeEditorPropertyBindings::HasPropertyBinding(const FStateTreeEditorPropertyPath& TargetPath) const
 {
-	return HasPropertyBinding(UE::StateTree::Private::ConvertEditorPath(TargetPath));
+	return HasPropertyBinding(UE::StateTree::Private::ConvertEditorPath(TargetPath), ESearchMode::Exact);
 }
 
 const FStateTreeEditorPropertyPath* FStateTreeEditorPropertyBindings::GetPropertyBindingSource(const FStateTreeEditorPropertyPath& TargetPath) const
@@ -247,7 +285,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FStateTreeEditorPropertyBindings::RemoveUnusedBindings(const TMap<FGuid, const UStruct*>& ValidStructs)
 {
-	PropertyBindings.RemoveAll([ValidStructs](const FStateTreePropertyPathBinding& Binding)
+	PropertyBindings.RemoveAllSwap([ValidStructs](const FStateTreePropertyPathBinding& Binding)
 		{
 			// Remove binding if it's target struct has been removed
 			if (!ValidStructs.Contains(Binding.GetTargetPath().GetStructID()))

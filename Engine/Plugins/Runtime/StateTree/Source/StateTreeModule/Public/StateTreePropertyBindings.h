@@ -493,6 +493,12 @@ struct STATETREEMODULE_API FStateTreePropertyPath
 		Segments.Add(PathSegment);
 	}
 
+	/**
+	 * Test if this paths includes the provided path.
+	 * A path includes another one when they are == but this path can be longer.
+	 */
+	bool Includes(const FStateTreePropertyPath& Other) const;
+
 	/** Test if paths are equal. */
 	bool operator==(const FStateTreePropertyPath& RHS) const;
 
