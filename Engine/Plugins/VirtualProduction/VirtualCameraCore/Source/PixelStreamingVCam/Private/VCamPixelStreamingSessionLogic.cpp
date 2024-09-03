@@ -283,7 +283,8 @@ namespace UE::PixelStreamingVCam
 	{
 		IOutputProviderLogic::OnPreEditChange(Args, PropertyAboutToChange);
 
-		StreamId_PreEditChange = ManagedOutputProvider->StreamerId;
+		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
+		StreamId_PreEditChange = This->StreamerId;
 	}
 
 #if WITH_EDITOR
