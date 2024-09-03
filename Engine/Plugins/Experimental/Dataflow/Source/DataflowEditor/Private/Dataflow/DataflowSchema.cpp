@@ -22,6 +22,25 @@
 
 #define LOCTEXT_NAMESPACE "DataflowNode"
 
+namespace Dataflow::Private
+{
+	static const FName ManagedArrayCollectionType = FName("FManagedArrayCollection");
+	static const FName FloatType = FName("float");
+	static const FName DoubleType = FName("double");
+	static const FName Int32Type = FName("int32");
+	static const FName BoolType = FName("bool");
+	static const FName StringType = FName("FString");
+	static const FName NameType = FName("FName");
+	static const FName TextType = FName("FText");
+	static const FName VectorType = FName("FVector");
+	static const FName TransformType = FName("FTransform");
+	static const FName RotatorType = FName("FRotator");
+	static const FName ArrayType = FName("TArray");
+	static const FName BoxType = FName("FBox");
+	static const FName SphereType = FName("FSphere");
+	static const FName DataflowAnyTypeType = FName("FDataflowAnyType");
+} // namespace Dataflow::Private
+
 UDataflowSchema::UDataflowSchema()
 {
 }
@@ -224,41 +243,65 @@ FLinearColor UDataflowSchema::GetTypeColor(const FName& Type)
 	const UGraphEditorSettings* Settings = GetDefault<UGraphEditorSettings>();
 	const UDataflowSettings* DataflowSettings = GetDefault<UDataflowSettings>();
 
-	if (Type == FName("FManagedArrayCollection"))
+	if (Type == Dataflow::Private::ManagedArrayCollectionType)
 	{
 		return DataflowSettings->ManagedArrayCollectionPinTypeColor;
 	}
-	else if (Type == FName("float"))
+	else if (Type == Dataflow::Private::FloatType)
 	{
 		return Settings->FloatPinTypeColor;
 	}
-	else if (Type == FName("int32"))
+	else if (Type == Dataflow::Private::DoubleType)
+	{
+		return Settings->DoublePinTypeColor;
+	}
+	else if (Type == Dataflow::Private::Int32Type)
 	{
 		return Settings->IntPinTypeColor;
 	}
-	else if (Type == FName("bool"))
+	else if (Type == Dataflow::Private::BoolType)
 	{
 		return Settings->BooleanPinTypeColor;
 	}
-	else if (Type == FName("FString"))
+	else if (Type == Dataflow::Private::StringType)
 	{
 		return Settings->StringPinTypeColor;
 	}
-	else if (Type == FName("FVector"))
+	else if (Type == Dataflow::Private::NameType)
+	{
+		return Settings->NamePinTypeColor;
+	}
+	else if (Type == Dataflow::Private::TextType)
+	{
+		return Settings->TextPinTypeColor;
+	}
+	else if (Type == Dataflow::Private::VectorType)
 	{
 		return Settings->VectorPinTypeColor;
 	}
-	else if (Type == FName("TArray"))
+	else if (Type == Dataflow::Private::TransformType)
+	{
+		return Settings->TransformPinTypeColor;
+	}
+	else if (Type == Dataflow::Private::RotatorType)
+	{
+		return Settings->RotatorPinTypeColor;
+	}
+	else if (Type == Dataflow::Private::ArrayType)
 	{
 		return DataflowSettings->ArrayPinTypeColor;
 	}
-	else if (Type == FName("FBox"))
+	else if (Type == Dataflow::Private::BoxType)
 	{
 		return DataflowSettings->BoxPinTypeColor;
 	}
-	else if (Type == FName("FSphere"))
+	else if (Type == Dataflow::Private::SphereType)
 	{
 		return DataflowSettings->SpherePinTypeColor;
+	}
+	else if (Type == Dataflow::Private::DataflowAnyTypeType)
+	{
+		return DataflowSettings->DataflowAnyTypePinTypeColor;
 	}
 
 	return Settings->DefaultPinTypeColor;
