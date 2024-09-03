@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Containers/LockFreeList.h"
+#include "HAL/MallocLeakDetection.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/IConsoleManager.h"
 #include "Stats/Stats.h"
@@ -192,6 +193,7 @@ private:
 		FThreadLocalCache* TLS = (FThreadLocalCache*)FPlatformTLS::GetTlsValue(TlsSlot);
 		if (!TLS)
 		{
+			MALLOCLEAK_IGNORE_SCOPE(); // TLS is never freed
 			TLS = new FThreadLocalCache();
 			FPlatformTLS::SetTlsValue(TlsSlot, TLS);
 		}
