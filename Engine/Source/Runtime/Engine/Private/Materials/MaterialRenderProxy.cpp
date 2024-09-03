@@ -11,6 +11,7 @@
 #include "RendererInterface.h"
 #include "RenderingThread.h"
 #include "TextureResource.h"
+#include "RenderGraphBuilder.h"
 #include "VT/RuntimeVirtualTexture.h"
 
 #if WITH_EDITOR
@@ -550,6 +551,9 @@ void FMaterialRenderProxy::InvalidateUniformExpressionCache(bool bRecreateUnifor
 {
 	GUniformExpressionCacheAsyncUpdateTask.Wait();
 
+	// Async RDG tasks can call FMaterialShader::SetParameters which touch the material uniform expression cache.
+	FRDGBuilder::WaitForAsyncExecuteTask();
+
 #if WITH_EDITOR
 	FStaticLightingSystemInterface::OnMaterialInvalidated.Broadcast(this);
 #endif
@@ -587,6 +591,8 @@ const FMaterial* FMaterialRenderProxy::UpdateUniformExpressionCacheIfNeeded(FRHI
 	UE::TScopeLock Lock(Mutex);
 	if (Material && Material->GetRenderingThreadShaderMap() != UniformExpressionCache[InFeatureLevel].CachedUniformExpressionShaderMap)
 	{
+		// Async RDG tasks can call FMaterialShader::SetParameters which touch the material uniform expression cache.
+		FRDGBuilder::WaitForAsyncExecuteTask();
 		FMaterialRenderContext MaterialRenderContext(this, *Material, nullptr);
 		MaterialRenderContext.bShowSelection = GIsEditor;
 		EvaluateUniformExpressions(RHICmdList, UniformExpressionCache[InFeatureLevel], MaterialRenderContext, nullptr);

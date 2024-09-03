@@ -1216,6 +1216,9 @@ void FScene::UpdateParameterCollections(const TArray<FMaterialParameterCollectio
 	ENQUEUE_RENDER_COMMAND(UpdateParameterCollectionsCommand)(
 		[this, InParameterCollections] (FRHICommandListBase&)
 	{
+		// Async RDG tasks can call FMaterialShader::SetParameters which touch material parameter collections.
+		FRDGBuilder::WaitForAsyncExecuteTask();
+
 		// Empty the scene's map so any unused uniform buffers will be released
 		ParameterCollections.Empty();
 
@@ -5398,7 +5401,9 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 		}
 	}
 
+	// Avoid overlapping prior scene render and async RDG execution tasks to simplify things as there are a lot of moving pieces.
 	FSceneRenderer::WaitForCleanUpTasks(GraphBuilder.RHICmdList);
+	FRDGBuilder::WaitForAsyncExecuteTask();
 
 	UE::Tasks::FTask UpdateUniformExpressionsTask;
 	FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions(GraphBuilder.RHICmdList, EnumHasAnyFlags(Parameters.AsyncOps, EUpdateAllPrimitiveSceneInfosAsyncOps::CacheMaterialUniformExpressions) ? &UpdateUniformExpressionsTask : nullptr);

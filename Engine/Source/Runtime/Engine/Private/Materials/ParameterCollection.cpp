@@ -11,6 +11,7 @@
 #include "Materials/MaterialParameterCollectionInstance.h"
 #include "Materials/MaterialParameterCollection.h"
 #include "Misc/App.h"
+#include "RenderGraphBuilder.h"
 
 int32 GDeferUpdateRenderStates = 1;
 FAutoConsoleVariableRef CVarDeferUpdateRenderStates(
@@ -78,7 +79,9 @@ void UMaterialParameterCollection::BeginDestroy()
 		FThreadSafeBool* Released = &ReleasedByRT;
 		ENQUEUE_RENDER_COMMAND(RemoveDefaultResourceCommand)(
 			[Resource, Id, Released](FRHICommandListImmediate& RHICmdList)
-			{	
+			{
+				// Async RDG tasks can call FMaterialShader::SetParameters which touch material parameter collections.
+				FRDGBuilder::WaitForAsyncExecuteTask();
 				GDefaultMaterialParameterCollectionInstances.RemoveSingle(Id, Resource);
 				*Released = true;
 			}
@@ -611,7 +614,9 @@ void UMaterialParameterCollection::UpdateDefaultResource(bool bRecreateUniformBu
 	FMaterialParameterCollectionInstanceResource* Resource = DefaultResource;
 	ENQUEUE_RENDER_COMMAND(UpdateDefaultResourceCommand)(
 		[Id, Resource](FRHICommandListImmediate& RHICmdList)
-		{	
+		{
+			// Async RDG tasks can call FMaterialShader::SetParameters which touch material parameter collections.
+			FRDGBuilder::WaitForAsyncExecuteTask();
 			GDefaultMaterialParameterCollectionInstances.Add(Id, Resource);
 		}
 	);
@@ -839,6 +844,11 @@ void FMaterialParameterCollectionInstanceResource::GameThread_UpdateContents(con
 	ENQUEUE_RENDER_COMMAND(UpdateCollectionCommand)(
 		[InGuid, Data, InOwnerName, Resource, bRecreateUniformBuffer](FRHICommandListImmediate& RHICmdList)
 		{
+			if (bRecreateUniformBuffer)
+			{
+				// Async RDG tasks can call FMaterialShader::SetParameters which touch material parameter collections.
+				FRDGBuilder::WaitForAsyncExecuteTask();
+			}
 			Resource->UpdateContents(InGuid, Data, InOwnerName, bRecreateUniformBuffer);
 		}
 	);
@@ -850,6 +860,8 @@ void FMaterialParameterCollectionInstanceResource::GameThread_Destroy()
 	ENQUEUE_RENDER_COMMAND(DestroyCollectionCommand)(
 		[Resource](FRHICommandListImmediate& RHICmdList)
 		{
+			// Async RDG tasks can call FMaterialShader::SetParameters which touch material parameter collections.
+			FRDGBuilder::WaitForAsyncExecuteTask();
 			Resource->UniformBuffer.SafeRelease();
 
 			// FRHIUniformBuffer instances take raw pointers to the layout struct.

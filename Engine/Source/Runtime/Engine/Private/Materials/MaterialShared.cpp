@@ -5341,6 +5341,9 @@ void SetShaderMapsOnMaterialResources_RenderThread(FRHICommandListImmediate& RHI
 #if WITH_EDITOR
 	bool bUpdateFeatureLevel[ERHIFeatureLevel::Num] = { false };
 
+	// Async RDG tasks can call FMaterialShader::SetParameters which touch the material uniform expression cache.
+	FRDGBuilder::WaitForAsyncExecuteTask();
+
 	for (auto& It : MaterialsToUpdate)
 	{
 		FMaterial* Material = It.Key;
@@ -5370,12 +5373,6 @@ void SetShaderMapsOnMaterialResources_RenderThread(FRHICommandListImmediate& RHI
 				{
 					MaterialProxy->CacheUniformExpressions(RHICmdList, true);
 					bFoundAnyInitializedMaterials = true;
-
-					/*const FMaterial& MaterialForRendering = *MaterialProxy->GetMaterial(MaterialFeatureLevel);
-					check(MaterialForRendering.GetRenderingThreadShaderMap());
-					check(!MaterialProxy->UniformExpressionCache[MaterialFeatureLevel].bUpToDate
-						|| MaterialProxy->UniformExpressionCache[MaterialFeatureLevel].CachedUniformExpressionShaderMap == MaterialForRendering.GetRenderingThreadShaderMap());
-					check(MaterialForRendering.GetRenderingThreadShaderMap()->IsValidForRendering());*/
 				}
 			}
 		}
