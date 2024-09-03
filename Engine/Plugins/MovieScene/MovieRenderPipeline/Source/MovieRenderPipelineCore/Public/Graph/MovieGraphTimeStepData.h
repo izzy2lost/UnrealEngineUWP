@@ -29,6 +29,8 @@ public:
 		, FrameRate(0, 0)
 		, TemporalSampleIndex(0)
 		, TemporalSampleCount(0)
+		, SpatialSampleIndex(0)
+		, SpatialSampleCount(0)
 		, bIsFirstTemporalSampleForFrame(false)
 		, bIsLastTemporalSampleForFrame(false)
 		, bDiscardOutput(false)
@@ -77,6 +79,14 @@ public:
 	*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	int32 TemporalSampleCount;
+
+	/** Index out of SpatialSampleCount that we're on. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	int32 SpatialSampleIndex;
+
+	/** The maximum number of Spatial Samples this frame is expected to be able to process. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	int32 SpatialSampleCount;
 
 	/** 
 	* Should be set to true for the first sample of each output frame. Used to determine

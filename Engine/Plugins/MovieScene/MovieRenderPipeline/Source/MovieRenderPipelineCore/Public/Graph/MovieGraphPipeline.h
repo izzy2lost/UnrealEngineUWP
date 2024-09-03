@@ -304,9 +304,6 @@ protected:
 	/** This gathers all of the produced data for an output frame (which may come in async, many frames later) before passing them onto the Output Containers. */
 	TSharedPtr<UE::MovieGraph::IMovieGraphOutputMerger> OutputMerger;
 
-	/** A debug image sequence writer in the event they want to dump every sample generated on its own. */
-	IImageWriteQueue* Debug_ImageWriteQueue;
-
 	/** 
 	* An array of Output Futures for files that have started writing to disk, but have not finished. 
 	* Each frame we take each future that finishes writing to disk and push it into the GeneratedOutputData array.

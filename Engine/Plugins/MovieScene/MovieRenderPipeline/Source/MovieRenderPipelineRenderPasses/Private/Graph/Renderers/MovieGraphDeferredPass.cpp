@@ -255,6 +255,8 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			// Take our per-frame Traversal Context and update it with context specific to this sample.
 			FMovieGraphTraversalContext UpdatedTraversalContext = InFrameTraversalContext;
 			UpdatedTraversalContext.Time = InTimeData;
+			UpdatedTraversalContext.Time.SpatialSampleIndex = SpatialIndex;
+			UpdatedTraversalContext.Time.SpatialSampleCount = NumSpatialSamples;
 			UpdatedTraversalContext.RenderDataIdentifier = RenderDataIdentifier;
 
 			SampleState.TraversalContext = MoveTemp(UpdatedTraversalContext);
@@ -319,8 +321,8 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		// Submit the renderer to be rendered
 		GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.ToSharedPtr().Get());
 
-		// If this was just to contribute to the history buffer, no need to go any further.
-		bool bDiscardOutput = InTimeData.bDiscardOutput || ShouldDiscardOutput(ViewFamily, CameraInfo);
+		// If this was just to contribute to the history buffer, no need to go any further. Never discard if we're writing individual samples, though.
+		bool bDiscardOutput = (InTimeData.bDiscardOutput || ShouldDiscardOutput(ViewFamily, CameraInfo)) && !SampleState.bWriteSampleToDisk;
 		if (bDiscardOutput)
 		{
 			continue;
@@ -372,7 +374,6 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		{
 			FramesToDelayPostSubmission--;
 		}
-
 	}
 }
 

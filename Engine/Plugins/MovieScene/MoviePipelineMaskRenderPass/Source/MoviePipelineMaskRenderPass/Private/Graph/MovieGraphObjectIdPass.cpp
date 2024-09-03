@@ -33,6 +33,8 @@ namespace UE::MovieGraph
 		const bool bIsWellFormed = SamplePixelData->IsDataWellFormed();
 		check(bIsWellFormed);
 
+		// Note: Object ID doesn't currently have a property to control writing samples to disk, so this condition will never be true. One can be
+		// added in the future though, if the need to write samples ever comes up.
 		if (SampleStatePayload->bWriteSampleToDisk)
 		{
 			// Debug Feature: Write the raw sample to disk for debugging purposes. We copy the data here,

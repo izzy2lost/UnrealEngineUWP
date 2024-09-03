@@ -26,7 +26,6 @@
 #include "Graph/Nodes/MovieGraphRenderPassNode.h"
 
 #include "HAL/PlatformFileManager.h"
-#include "ImageWriteQueue.h"
 #include "RenderingThread.h"
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
@@ -42,8 +41,6 @@ UMovieGraphPipeline::UMovieGraphPipeline()
 {
 	OutputMerger = MakeShared<UE::MovieGraph::FMovieGraphOutputMerger>(this);
 	CustomEngineTimeStep = CreateDefaultSubobject<UMovieGraphEngineTimeStep>("MovieGraphEngineTimeStep");
-
-	Debug_ImageWriteQueue = &FModuleManager::Get().LoadModuleChecked<IImageWriteQueueModule>("ImageWriteQueue").GetWriteQueue();
 }
 
 void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMovieGraphInitConfig& InitConfig)

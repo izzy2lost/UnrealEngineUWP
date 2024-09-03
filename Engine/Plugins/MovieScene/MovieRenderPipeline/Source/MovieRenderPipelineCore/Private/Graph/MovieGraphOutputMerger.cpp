@@ -1,15 +1,23 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MovieGraphOutputMerger.h"
+
+#include "Async/Async.h"
+#include "ImageWriteQueue.h"
+#include "ImageWriteTask.h"
+#include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/MovieGraphRenderDataIdentifier.h"
-#include "Async/Async.h"
+#include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
+#include "Modules/ModuleManager.h"
+#include "MoviePipelineQueue.h"
 
 namespace UE::MovieGraph
 {
 	FMovieGraphOutputMerger::FMovieGraphOutputMerger(UMovieGraphPipeline* InOwningMoviePipeline)
 		: WeakMoviePipeline(MakeWeakObjectPtr(InOwningMoviePipeline))
 	{
+		Debug_ImageWriteQueue = &FModuleManager::Get().LoadModuleChecked<IImageWriteQueueModule>("ImageWriteQueue").GetWriteQueue();
 	}
 
 	void FMovieGraphOutputMerger::AbandonOutstandingWork()
@@ -35,25 +43,64 @@ namespace UE::MovieGraph
 		check(PendingData.Find(InRenderedFrameNumber));
 		return *PendingData.Find(InRenderedFrameNumber);
 	}
-
 	
 	void FMovieGraphOutputMerger::OnSingleSampleDataAvailable_AnyThread(TUniquePtr<FImagePixelData>&& InData)
 	{
 		// This is to support outputting individual samples (skipping accumulation) for debug reasons,
 		// or because you want to post-process them yourself. We just forward this directly on for output to disk.
 
-		TWeakObjectPtr<UMovieGraphPipeline> LocalWeakPipeline = WeakMoviePipeline;
-
-		AsyncTask(ENamedThreads::GameThread, [LocalData = MoveTemp(InData), LocalWeakPipeline]() mutable
+		AsyncTask(ENamedThreads::GameThread, [LocalData = MoveTemp(InData), LocalWeakPipeline = WeakMoviePipeline, LocalDebugQueue = Debug_ImageWriteQueue]() mutable
 		{
-			if (ensureAlwaysMsgf(LocalWeakPipeline.IsValid(), TEXT("A memory lifespan issue has left an output builder alive without an owning Movie Pipeline.")))
+			if (!ensureAlwaysMsgf(LocalWeakPipeline.IsValid(), TEXT("A memory lifespan issue has left an output builder alive without an owning Movie Pipeline.")))
 			{
-				// LocalWeakPipeline->Debug_OnSampleRendered(MoveTemp(LocalData));
-				// ToDo: Read the finished frames from MRQ
-				// also implement the above function.
+				return;
 			}
-		}
-		);
+			
+			const UE::MovieGraph::FMovieGraphSampleState* Payload = LocalData->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
+			const FMovieGraphTraversalContext& TraversalContext = Payload->TraversalContext;
+			const TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = TraversalContext.Time.EvaluatedConfig;
+
+			// Resolve the file output path
+			FString FinalFilePath;
+			{
+				// TODO: Add Tile X/Y when tiling is available
+				const FString OutputName = FString::Printf(TEXT("%s_%s_%s_%s_SS_%d_TS_%d.%d"),
+					*TraversalContext.Shot->OuterName,
+					*TraversalContext.RenderDataIdentifier.LayerName,
+					*TraversalContext.RenderDataIdentifier.SubResourceName,
+					*TraversalContext.RenderDataIdentifier.CameraName,
+					TraversalContext.Time.SpatialSampleIndex,
+					TraversalContext.Time.TemporalSampleIndex,
+					TraversalContext.Time.OutputFrameNumber);
+
+				const UMovieGraphGlobalOutputSettingNode* OutputSettings =
+					EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphNode::GlobalsPinName);
+
+				const FString OutputDirectory = OutputSettings->OutputDirectory.Path;
+				const FString FileNameFormatString = OutputDirectory / OutputName;
+
+				TMap<FString, FString> AdditionalFormatArgs;
+				AdditionalFormatArgs.Add(TEXT("ext"), TEXT("exr"));
+
+				FMovieGraphResolveArgs MergedFormatArgs;
+				const FMovieGraphFilenameResolveParams ResolveParams = FMovieGraphFilenameResolveParams::MakeResolveParams(
+					TraversalContext.RenderDataIdentifier,
+					LocalWeakPipeline.Get(),
+					EvaluatedConfig.Get(),
+					Payload->TraversalContext,
+					AdditionalFormatArgs);
+
+				FinalFilePath = UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(FileNameFormatString, ResolveParams, MergedFormatArgs);
+			}
+
+			TUniquePtr<FImageWriteTask> TileImageTask = MakeUnique<FImageWriteTask>();
+			TileImageTask->Format = EImageFormat::EXR;
+			TileImageTask->CompressionQuality = static_cast<int32>(EImageCompressionQuality::Default);
+			TileImageTask->Filename = FinalFilePath;
+			TileImageTask->PixelData = MoveTemp(LocalData);	// The pixel data is currently owned by the async task; transfer ownership to the image write task
+
+			LocalDebugQueue->Enqueue(MoveTemp(TileImageTask));
+		});
 	}
 	
 	void FMovieGraphOutputMerger::OnCompleteRenderPassDataAvailable_AnyThread(TUniquePtr<FImagePixelData>&& InData)
