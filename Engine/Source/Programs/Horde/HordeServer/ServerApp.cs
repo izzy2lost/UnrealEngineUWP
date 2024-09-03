@@ -210,6 +210,7 @@ namespace HordeServer
 			pluginCollection.Add<DdcPlugin>();
 			pluginCollection.Add<SecretsPlugin>();
 			pluginCollection.Add<StoragePlugin>();
+			pluginCollection.Add<SymbolsPlugin>();
 			pluginCollection.Add<ToolsPlugin>();
 			return pluginCollection;
 		}
