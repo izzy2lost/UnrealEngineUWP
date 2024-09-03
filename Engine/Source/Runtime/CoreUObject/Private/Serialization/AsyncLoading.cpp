@@ -6180,10 +6180,6 @@ EAsyncPackageState::Type FAsyncPackage::CreateLinker()
 
 			// Always store package filename we loading from
 			Package->SetLoadedPath(Desc.PackagePath);
-#if WITH_EDITORONLY_DATA
-			// Assume all packages loaded through async loading are required by runtime
-			Package->SetLoadedByEditorPropertiesOnly(false);
-#endif
 		}
 
 		LastObjectWorkWasPerformedOn = Package;

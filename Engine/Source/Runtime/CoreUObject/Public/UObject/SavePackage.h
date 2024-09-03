@@ -326,7 +326,8 @@ namespace UE::SavePackageUtilities
 	COREUOBJECT_API void EDLCookInfoMoveToCompactBinaryAndClear(FCbWriter& Writer, bool& bOutHasData);
 	COREUOBJECT_API void EDLCookInfoMoveToCompactBinaryAndClear(FCbWriter& Writer, bool& bOutHasData, FName PackageName);
 	COREUOBJECT_API bool EDLCookInfoAppendFromCompactBinary(FCbFieldView Field);
-	COREUOBJECT_API bool CanSkipEditorReferencedPackagesWhenCooking();
+	UE_DEPRECATED(5.5, "No longer used; skiponlyeditoronly is used instead and tracks editoronly references via savepackage results.")
+	inline bool CanSkipEditorReferencedPackagesWhenCooking() { return false; }
 
 
 #if WITH_EDITOR

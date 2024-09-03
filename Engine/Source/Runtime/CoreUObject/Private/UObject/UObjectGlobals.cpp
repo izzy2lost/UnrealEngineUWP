@@ -1453,12 +1453,6 @@ UObject* StaticLoadObjectInternal(UClass* ObjectClass, UObject* InOuter, const T
 		StrName += FPackageName::GetShortName(InName);
 		Result = StaticLoadObjectInternal(ObjectClass, InOuter, *StrName, Filename, LoadFlags, Sandbox, bAllowObjectReconciliation, InstancingContext);
 	}
-#if WITH_EDITORONLY_DATA
-	else if (Result && !(LoadFlags & LOAD_EditorOnly))
-	{
-		Result->GetOutermost()->SetLoadedByEditorPropertiesOnly(false);
-	}
-#endif
 
 	if (Result && UE::GC::GIsIncrementalReachabilityPending)
 	{
@@ -1894,32 +1888,6 @@ UPackage* LoadPackageInternal(UPackage* InOuter, const FPackagePath& PackagePath
 			// Set package-requires-localization flags from archive after loading. This reinforces flagging of packages that haven't yet been resaved.
 			Result->ThisRequiresLocalizationGather(Linker->RequiresLocalizationGather());
 		};
-
-#if WITH_EDITORONLY_DATA
-		if (!(LoadFlags & (LOAD_IsVerifying|LOAD_EditorOnly)))
-		{
-			bool bIsEditorOnly = false;
-			FProperty* SerializingProperty = ImportLinker ? ImportLinker->GetSerializedProperty() : nullptr;
-			
-			// Check property parent chain
-			while (SerializingProperty)
-			{
-				if (SerializingProperty->IsEditorOnlyProperty())
-				{
-					bIsEditorOnly = true;
-					break;
-				}
-				SerializingProperty = SerializingProperty->GetOwner<FProperty>();
-			}
-
-			if (!bIsEditorOnly)
-			{
-				// If this package hasn't been loaded as part of import verification and there's no import linker or the
-				// currently serialized property is not editor-only mark this package as runtime.
-				Result->SetLoadedByEditorPropertiesOnly(false);
-			}
-		}
-#endif
 
 		if (Result->HasAnyFlags(RF_WasLoaded))
 		{

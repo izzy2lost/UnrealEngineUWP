@@ -336,10 +336,11 @@ public:
 	virtual bool IsPostLoadThreadSafe() const override;
 
 #if WITH_EDITORONLY_DATA
-	/** Sets the bLoadedByEditorPropertiesOnly flag */
-	COREUOBJECT_API void SetLoadedByEditorPropertiesOnly(bool bIsEditorOnly, bool bRecursive = false);
+	UE_DEPRECATED(5.5, "No longer used; skiponlyeditoronly is used instead and tracks editoronly references via savepackage results.")
+	void SetLoadedByEditorPropertiesOnly(bool bIsEditorOnly, bool bRecursive = false) {}
 	/** returns true when the package is only referenced by editor-only flag */
-	bool IsLoadedByEditorPropertiesOnly() const { return bLoadedByEditorPropertiesOnly; }
+	UE_DEPRECATED(5.5, "No longer used; skiponlyeditoronly is used instead and tracks editoronly references via savepackage results.")
+	bool IsLoadedByEditorPropertiesOnly() const { return false; }
 
 	/** Sets the bIsDynamicPIEPackagePending flag */
 	void SetDynamicPIEPackagePending(bool bInIsDynamicPIEPackagePending)

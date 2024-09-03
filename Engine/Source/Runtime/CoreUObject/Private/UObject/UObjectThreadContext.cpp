@@ -22,9 +22,15 @@ FUObjectThreadContext::FUObjectThreadContext()
 , SerializeContext(new FUObjectSerializeContext())
 {}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 FUObjectThreadContext::~FUObjectThreadContext()
 {
+#if WITH_EDITORONLY_DATA
+	// Remove PRAGMA_DISABLE_DEPRECATION_WARNINGS when PackagesMarkedEditorOnlyByOtherPackage is deleted
+	(void)PackagesMarkedEditorOnlyByOtherPackage;
+#endif
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
 FObjectInitializer& FUObjectThreadContext::ReportNull()
 {

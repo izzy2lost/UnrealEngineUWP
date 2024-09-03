@@ -1097,7 +1097,6 @@ UPackage* FGenerationHelper::TryCreateGeneratedPackage(FCookGenerationInfo& Gene
 	GeneratedPackage->SetSavedHash(GeneratedInfo.PackageHash);
 	GeneratedPackage->SetPersistentGuid(LocalOwnerPackage->GetPersistentGuid());
 	GeneratedPackage->SetPackageFlags(PKG_CookGenerated);
-	GeneratedPackage->SetLoadedByEditorPropertiesOnly(LocalOwnerPackage->IsLoadedByEditorPropertiesOnly());
 	GeneratedInfo.SetHasCreatedPackage(true);
 
 	return GeneratedPackage;

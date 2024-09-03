@@ -380,16 +380,6 @@ bool UPackage::IsPostLoadThreadSafe() const
 }
 
 #if WITH_EDITORONLY_DATA
-void FixupPackageEditorOnlyFlag(FName PackageThatGotEditorOnlyFlagCleared, bool bRecursive);
-
-void UPackage::SetLoadedByEditorPropertiesOnly(bool bIsEditorOnly, bool bRecursive /*= false*/)
-{
-	const bool bWasEditorOnly = bLoadedByEditorPropertiesOnly.exchange(bIsEditorOnly);
-	if (bWasEditorOnly && !bIsEditorOnly)
-	{
-		FixupPackageEditorOnlyFlag(GetFName(), bRecursive);
-	}
-}
 
 FIoHash UPackage::GetSavedHash()
 {

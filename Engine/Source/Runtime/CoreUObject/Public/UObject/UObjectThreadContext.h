@@ -110,7 +110,7 @@ public:
 	TArray<UObject*, TInlineAllocator<16> > DebugPostLoad;
 #endif
 #if WITH_EDITORONLY_DATA
-	/** Maps a package name to all packages marked as editor-only due to the fact it was marked as editor-only */
+	UE_DEPRECATED(5.5, "No longer used; skiponlyeditoronly is used instead and tracks editoronly references via savepackage results.")
 	TMap<FName, TSet<FName>> PackagesMarkedEditorOnlyByOtherPackage;
 #endif
 

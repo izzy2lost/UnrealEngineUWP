@@ -2032,19 +2032,24 @@ FScopedSavingFlag::~FScopedSavingFlag()
 }
 
 FCanSkipEditorReferencedPackagesWhenCooking::FCanSkipEditorReferencedPackagesWhenCooking()
-	: bCanSkipEditorReferencedPackagesWhenCooking(UE::SavePackageUtilities::CanSkipEditorReferencedPackagesWhenCooking())
 {
+	//UE_DEPRECATED(5.5, TEXT("No longer used; skiponlyeditoronly is used instead and tracks editoronly references via savepackage results."))
+	static bool bWarned = false;
+	if (!bWarned)
+	{
+		bWarned = true;
+		bool bResult = true;
+		GConfig->GetBool(TEXT("Core.System"), TEXT("CanSkipEditorReferencedPackagesWhenCooking"), bResult, GEngineIni);
+		if (bResult)
+		{
+			UE_LOG(LogSavePackage, Warning,
+				TEXT("Engine.ini:[Core.System]:CanSkipEditorReferencedPackagesWhenCooking is deprecated; it is replaced by Editor.ini:[CookSettings]:SkipOnlyEditorOnly. Remove this setting from your inis."));
+		}
+	}
 }
 
 namespace UE::SavePackageUtilities
 {
-
-bool CanSkipEditorReferencedPackagesWhenCooking()
-{
-	bool bResult = true;
-	GConfig->GetBool(TEXT("Core.System"), TEXT("CanSkipEditorReferencedPackagesWhenCooking"), bResult, GEngineIni);
-	return bResult;
-}
 
 /**
  * Static: Saves thumbnail data for the specified package outer and linker

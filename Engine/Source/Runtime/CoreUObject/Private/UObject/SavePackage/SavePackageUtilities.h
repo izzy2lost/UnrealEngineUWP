@@ -71,9 +71,7 @@ private:
 
 struct FCanSkipEditorReferencedPackagesWhenCooking
 {
-	bool bCanSkipEditorReferencedPackagesWhenCooking;
 	FCanSkipEditorReferencedPackagesWhenCooking();
-	FORCEINLINE operator bool() const { return bCanSkipEditorReferencedPackagesWhenCooking; }
 };
 
 

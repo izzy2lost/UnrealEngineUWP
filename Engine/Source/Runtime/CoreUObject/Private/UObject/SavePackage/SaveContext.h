@@ -738,11 +738,6 @@ public:
 		return !!(SaveArgs.SaveFlags & ESaveFlags::SAVE_CompareLinker);
 	}
 
-	bool CanSkipEditorReferencedPackagesWhenCooking() const
-	{
-		return SkipEditorRefCookingSetting;
-	}
-
 	bool IsIgnoringHeaderDiff() const
 	{
 		return bIgnoreHeaderDiffs;

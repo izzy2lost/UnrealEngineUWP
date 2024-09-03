@@ -4537,14 +4537,6 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 		UE_LOG(LogCook, Display, TEXT("Processing save for package %s"), *Package->GetName());
 #endif
 
-		if (Package->IsLoadedByEditorPropertiesOnly() && PackageTracker->UncookedEditorOnlyPackages.Contains(Package->GetFName()))
-		{
-			// We already attempted to cook this package and it's still not referenced by any non editor-only properties.
-			DemoteToIdle(PackageData, ESendFlags::QueueAdd, ESuppressCookReason::OnlyEditorOnly);
-			++OutNumPushed;
-			continue;
-		}
-
 		// This package is valid, so make sure it wasn't previously marked as being an uncooked editor only package or it would get removed from the
 		// asset registry at the end of the cook
 		PackageTracker->UncookedEditorOnlyPackages.Remove(Package->GetFName());
@@ -6338,15 +6330,6 @@ void FSaveCookedPackageContext::SetupPackage()
 	{
 		SaveFlags |= SAVE_CookSoftPackageReferences;
 	}
-
-	// removing editor only packages only works when cooking in commandlet and non iterative cooking
-	bool bCanSkipEditorOnlyPackages = COTFS.IsCookByTheBookMode() && !COTFS.IsCookingInEditor();
-	bCanSkipEditorOnlyPackages &= !COTFS.IsCookFlagSet(ECookInitializationFlags::Iterative);
-	// MPCOOKTODO: it also doesn't work in multiprocess cooking, because GetPackage()->IsLoadedByEditorPropertiesOnly()
-	// might have been set to false on a CookWorker and is not replicated. Rather than fixing this, we should delete
-	// the feature and instead use SkipOnlyEditorOnly.
-	bCanSkipEditorOnlyPackages &= !COTFS.CookDirector.IsValid() && !COTFS.CookWorkerClient.IsValid();
-	SaveFlags |= bCanSkipEditorOnlyPackages ? SAVE_None : SAVE_KeepEditorOnlyCookedPackages;
 
 	// Use SandboxFile to do path conversion to properly handle sandbox paths (outside of standard paths in particular).
 	Filename = COTFS.ConvertToFullSandboxPath(*Filename, true);
