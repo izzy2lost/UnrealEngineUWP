@@ -128,6 +128,7 @@ TEST_CASE("Allocators.ArrayDelete")
 
 		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
 		REQUIRE(10 == Data[10]);
+		delete[] Data;
 	}
 
 	SECTION("With Commit")
@@ -198,6 +199,7 @@ TEST_CASE("Allocators.DeleteNoOpts")
 
 		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
 		REQUIRE(42 == *Data);
+		delete Data;
 	}
 
 	SECTION("With Commit")

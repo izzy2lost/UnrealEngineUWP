@@ -155,10 +155,12 @@ TEST_CASE("SharedPointer.NestedTransactionWithPlacementNewlyAllocated")
 		{
 			AutoRTFM::Commit([&]
 				{
-					void* const Memory = MakeMemoryForT<TSharedPtr<int, ESPMode::ThreadSafe>>();
-					TSharedPtr<int, ESPMode::ThreadSafe>* const Foo = new (Memory) TSharedPtr<int, ESPMode::ThreadSafe>(new int(13));
-					TSharedPtr<int, ESPMode::ThreadSafe> Copy = *Foo;
+					using Ptr = TSharedPtr<int, ESPMode::ThreadSafe>;
+					void* const Memory = MakeMemoryForT<Ptr>();
+					Ptr* const Foo = new (Memory) Ptr(new int(13));
+					Ptr Copy = *Foo;
 					Result = *Copy;
+					reinterpret_cast<Ptr*>(Foo)->~Ptr();
 					free(Memory);
 				});
 		});
