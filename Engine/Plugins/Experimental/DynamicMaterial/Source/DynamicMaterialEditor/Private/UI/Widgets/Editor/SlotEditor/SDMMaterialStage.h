@@ -7,10 +7,12 @@
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 
+class SDMMaterialComponentPreview;
 class SDMMaterialEditor;
 class SDMMaterialSlotLayerItem;
 class UDMMaterialStage;
 class UTexture;
+struct FPropertyChangedEvent;
 
 class SDMMaterialStage : public SCompoundWidget
 {
@@ -20,7 +22,7 @@ class SDMMaterialStage : public SCompoundWidget
 	SLATE_END_ARGS()
 
 public:
-	virtual ~SDMMaterialStage() override = default;
+	virtual ~SDMMaterialStage() override;
 
 	void Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialSlotLayerItem>& InSlotLayerItem, UDMMaterialStage* InStage);
 
@@ -36,12 +38,16 @@ public:
 protected:
 	TWeakPtr<SDMMaterialSlotLayerItem> SlotLayerItemWeak;
 	TWeakObjectPtr<UDMMaterialStage> StageWeak;
+	TSharedPtr<SDMMaterialComponentPreview> PreviewImage;
+	TSharedPtr<SDMMaterialComponentPreview> ToolTipImage;
 
 	bool IsStageSelected() const;
 
 	const FSlateBrush* GetBorderBrush() const;
 
 	EVisibility GetDisabledOverlayVisibility() const;
+
+	void OnSettingsUpdated(const FPropertyChangedEvent& InPropertyChangedEvent);
 
 	/** Drag and drop. */
 	bool OnAssetDraggedOver(TArrayView<FAssetData> InAssets);

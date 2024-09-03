@@ -9,12 +9,15 @@
 
 class ICustomDetailsView;
 class ICustomDetailsViewItem;
+class SBox;
+class SDMMaterialComponentPreview;
 class SDMMaterialEditor;
 class SVerticalBox;
 class UDMMaterialProperty;
 class UDMMaterialSlot;
 enum class ECheckBoxState : uint8;
 enum class EDMMaterialPropertyType : uint8;
+struct FPropertyChangedEvent;
 
 class SDMMaterialProperties : public SCompoundWidget
 {
@@ -24,7 +27,7 @@ class SDMMaterialProperties : public SCompoundWidget
 	SLATE_END_ARGS()
 
 public:
-	virtual ~SDMMaterialProperties() override = default;
+	virtual ~SDMMaterialProperties() override;
 
 	void Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialEditor>& InEditorWidget);
 
@@ -36,6 +39,9 @@ protected:
 	TDMWidgetSlot<SWidget> Content;
 
 	TArray<TSharedRef<ICustomDetailsViewItem>> GlobalItems;
+	TArray<TSharedRef<SBox>> PropertyPreviewContainers;
+	TArray<TSharedRef<SBox>> PropertyEmptyContainers;
+	TArray<TSharedRef<SDMMaterialComponentPreview>> PropertyPreviews;
 
 	bool bConstructing = false;
 
@@ -59,4 +65,6 @@ protected:
 	TSharedRef<SWidget> CreateGlobalSlider(UDMMaterialProperty* InProperty);
 
 	void OnExpansionStateChanged(const TSharedRef<ICustomDetailsViewItem>& InItem, bool bInExpansionState);
+
+	void OnSettingsUpdated(const FPropertyChangedEvent& InPropertyChangedEvent);
 };

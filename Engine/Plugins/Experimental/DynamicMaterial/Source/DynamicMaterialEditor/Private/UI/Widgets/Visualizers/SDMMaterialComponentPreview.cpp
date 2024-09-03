@@ -18,6 +18,7 @@
 
 SDMMaterialComponentPreview::SDMMaterialComponentPreview()
 	: Brush(FSlateMaterialBrush(FVector2D(1.f, 1.f)))
+	, PreviewSize(FVector2D(48.f))
 {
 	Brush.SetUVRegion(FBox2f(FVector2f::ZeroVector, FVector2f::UnitVector));
 }
@@ -50,6 +51,7 @@ void SDMMaterialComponentPreview::Construct(const FArguments& InArgs, const TSha
 {
 	EditorWidgetWeak = InEditorWidget;
 	ComponentWeak = InComponent;
+	PreviewSize = InArgs._PreviewSize;
 
 	PreviewMaterialBaseWeak = InEditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterial(InComponent);
 	PreviewMaterialDynamicWeak = InEditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterialDynamic(PreviewMaterialBaseWeak.Get());
@@ -65,10 +67,35 @@ void SDMMaterialComponentPreview::Construct(const FArguments& InArgs, const TSha
 
 	ChildSlot
 	[
-		SNew(SImage)
+		SAssignNew(PreviewImage, SImage)
 		.Image(&Brush)
-		.DesiredSizeOverride(InArgs._PreviewSize)
+		.DesiredSizeOverride(PreviewSize)
 	];
+}
+
+FSlateMaterialBrush& SDMMaterialComponentPreview::GetBrush()
+{
+	return Brush;
+}
+
+const FVector2D& SDMMaterialComponentPreview::GetPreviewSize() const
+{
+	return PreviewSize;
+}
+
+void SDMMaterialComponentPreview::SetPreviewSize(const FVector2D& InSize)
+{
+	if (PreviewSize.Equals(InSize))
+	{
+		return;
+	}
+
+	PreviewSize = InSize;
+
+	if (PreviewImage.IsValid())
+	{
+		PreviewImage->SetDesiredSizeOverride(PreviewSize);
+	}
 }
 
 void SDMMaterialComponentPreview::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)

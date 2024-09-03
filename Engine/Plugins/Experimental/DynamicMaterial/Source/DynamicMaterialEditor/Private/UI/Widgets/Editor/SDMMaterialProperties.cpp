@@ -9,6 +9,8 @@
 #include "CustomDetailsViewModule.h"
 #include "DetailLayoutBuilder.h"
 #include "DMWorldSubsystem.h"
+#include "DynamicMaterialEditorSettings.h"
+#include "DynamicMaterialModule.h"
 #include "Engine/World.h"
 #include "ICustomDetailsView.h"
 #include "Items/ICustomDetailsViewCustomCategoryItem.h"
@@ -35,11 +37,29 @@ void SDMMaterialProperties::PrivateRegisterAttributes(FSlateAttributeDescriptor:
 {
 }
 
+SDMMaterialProperties::~SDMMaterialProperties()
+{
+	if (!FDynamicMaterialModule::AreUObjectsSafe())
+	{
+		return;
+	}
+
+	if (UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get())
+	{
+		Settings->GetOnSettingsChanged().RemoveAll(this);
+	}
+}
+
 void SDMMaterialProperties::Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialEditor>& InEditorWidget)
 {
 	EditorWidgetWeak = InEditorWidget;
 
 	Content = TDMWidgetSlot<SWidget>(SharedThis(this), 0, CreateSlot_Content());
+
+	if (UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get())
+	{
+		Settings->GetOnSettingsChanged().AddSP(this, &SDMMaterialProperties::OnSettingsUpdated);
+	}
 }
 
 void SDMMaterialProperties::Validate()
@@ -201,6 +221,13 @@ void SDMMaterialProperties::AddProperty(const TSharedRef<ICustomDetailsView>& In
 		return;
 	}
 
+	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
+
+	if (!Settings)
+	{
+		return;
+	}
+
 	TSharedPtr<SDMMaterialEditor> EditorWidget = EditorWidgetWeak.Pin();
 
 	if (!EditorWidget.IsValid())
@@ -240,10 +267,11 @@ TSharedRef<SWidget> SDMMaterialProperties::CreatePropertyRow(UDMMaterialProperty
 	TSharedPtr<SDMMaterialEditor> EditorWidget = EditorWidgetWeak.Pin();
 	UDynamicMaterialModel* MaterialModel = EditorWidget->GetMaterialModel();
 	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
-	EDMMaterialPropertyType MaterialProperty = InProperty->GetMaterialProperty();
+	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
+	const EDMMaterialPropertyType MaterialProperty = InProperty->GetMaterialProperty();
 
 	TSharedRef<SBox> PreviewWidgetContainer = SNew(SBox)
-		.WidthOverride(64.f)
+		.WidthOverride(Settings->PropertyPreviewSize + 4.f)
 		.HeightOverride(18.f);
 
 	TSharedRef<SWidget> PropertyName = CreateSlot_PropertyName(MaterialProperty);
@@ -255,21 +283,24 @@ TSharedRef<SWidget> SDMMaterialProperties::CreatePropertyRow(UDMMaterialProperty
 
 	if (bPropertyEnabled)
 	{
-		MaterialProperty = InProperty->GetMaterialProperty();
+		TSharedPtr<SDMMaterialComponentPreview> PreviewImage;
 
 		PreviewWidgetContainer = SNew(SBox)
-			.WidthOverride(64.f)
-			.HeightOverride(64.f)
+			.WidthOverride(Settings->PropertyPreviewSize + 4.f)
+			.HeightOverride(Settings->PropertyPreviewSize + 4.f)
 			[
 				SNew(SBorder)
 				.BorderBackgroundColor(FLinearColor(1, 1, 1, 1.f))
 				.Padding(2.0f)
 				.BorderImage(FAppStyle::GetBrush(UE::DynamicMaterialEditor::Private::EditorDarkBackground))
 				[
-					SNew(SDMMaterialComponentPreview, EditorWidget.ToSharedRef(), InProperty)
-					.PreviewSize(FVector2D(60.f, 60.f))
+					SAssignNew(PreviewImage, SDMMaterialComponentPreview, EditorWidget.ToSharedRef(), InProperty)
+					.PreviewSize(FVector2D(Settings->PropertyPreviewSize))
 				]
 			];
+
+		PropertyPreviewContainers.Add(PreviewWidgetContainer);
+		PropertyPreviews.Add(PreviewImage.ToSharedRef());
 
 		PreviewWidgetContainer->SetCursor(EMouseCursor::Hand);
 		PreviewWidgetContainer->SetOnMouseButtonUp(FPointerEventHandler::CreateSP(this, &SDMMaterialProperties::OnPropertyClicked, MaterialProperty));
@@ -279,6 +310,10 @@ TSharedRef<SWidget> SDMMaterialProperties::CreatePropertyRow(UDMMaterialProperty
 
 		Slider = CreateGlobalSlider(InProperty);
 	}
+	else
+	{
+		PropertyEmptyContainers.Add(PreviewWidgetContainer);
+	}
 
 	// If the property is just disabled, leave the slider widget blank.
 
@@ -286,7 +321,7 @@ TSharedRef<SWidget> SDMMaterialProperties::CreatePropertyRow(UDMMaterialProperty
 
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
-			.VAlign(EVerticalAlignment::VAlign_Top)
+			.VAlign(EVerticalAlignment::VAlign_Center)
 			.Padding(0.f, 5.f, 0.f, 5.f)
 			[
 				PreviewWidgetContainer
@@ -658,6 +693,37 @@ void SDMMaterialProperties::OnExpansionStateChanged(const TSharedRef<ICustomDeta
 	}
 
 	FDMWidgetStatics::Get().SetExpansionState(MaterialModelBase, *ItemId.GetItemName(), bInExpansionState);
+}
+
+void SDMMaterialProperties::OnSettingsUpdated(const FPropertyChangedEvent& InPropertyChangedEvent)
+{
+	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
+
+	if (!Settings)
+	{
+		return;
+	}
+
+	const FName MemberName = InPropertyChangedEvent.GetMemberPropertyName();
+
+	if (MemberName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, PropertyPreviewSize))
+	{
+		for (const TSharedRef<SBox>& PropertyPreviewContainer : PropertyPreviewContainers)
+		{
+			PropertyPreviewContainer->SetWidthOverride(Settings->PropertyPreviewSize + 4.f);
+			PropertyPreviewContainer->SetHeightOverride(Settings->PropertyPreviewSize + 4.f);
+		}
+
+		for (const TSharedRef<SBox>& PropertyEmptyContainer : PropertyEmptyContainers)
+		{
+			PropertyEmptyContainer->SetWidthOverride(Settings->PropertyPreviewSize + 4.f);
+		}
+
+		for (const TSharedRef<SDMMaterialComponentPreview>& PropertyPreview : PropertyPreviews)
+		{
+			PropertyPreview->SetPreviewSize(FVector2D(Settings->PropertyPreviewSize));
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

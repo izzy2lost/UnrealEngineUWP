@@ -272,7 +272,9 @@ void UDynamicMaterialEditorSettings::PostEditChangeProperty(FPropertyChangedEven
 		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, SplitterLocation)
 		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, bPreviewImagesUseTextureUVs)
 		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, PreviewMesh)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, bShowPreviewBackground))
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, bShowPreviewBackground)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, StagePreviewSize)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, PropertyPreviewSize))
 	{
 		OnSettingsChanged.Broadcast(InPropertyChangedEvent);
 	}
@@ -308,6 +310,8 @@ void UDynamicMaterialEditorSettings::ResetAllLayoutSettings()
 	bShowPreviewBackground = true;
 	bPreviewImagesUseTextureUVs = true;
 	bUVVisualizerVisible = true;
+	StagePreviewSize = 40.f;
+	PropertyPreviewSize = 64.f;
 }
 
 TArray<FDMMaterialEffectList> UDynamicMaterialEditorSettings::GetEffectList() const

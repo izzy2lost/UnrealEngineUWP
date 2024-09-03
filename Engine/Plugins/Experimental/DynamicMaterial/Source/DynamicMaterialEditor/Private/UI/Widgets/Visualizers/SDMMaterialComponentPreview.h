@@ -7,6 +7,7 @@
 #include "Delegates/IDelegateInstance.h"
 #include "DMEDefs.h"
 #include "SlateMaterialBrush.h"
+#include "UI/Utils/DMWidgetSlot.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
@@ -24,7 +25,7 @@ public:
 	SLATE_BEGIN_ARGS(SDMMaterialComponentPreview)
 		: _PreviewSize(FVector2D(48.f, 48.f))
 		{}
-		SLATE_ATTRIBUTE(TOptional<FVector2D>, PreviewSize)
+		SLATE_ARGUMENT(FVector2D, PreviewSize)
 	SLATE_END_ARGS()
 
 	SDMMaterialComponentPreview();
@@ -33,7 +34,11 @@ public:
 
 	void Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialEditor>& InEditorWidget, UDMMaterialComponent* InComponent);
 
-	FSlateMaterialBrush& GetBrush() { return Brush; }
+	FSlateMaterialBrush& GetBrush();
+
+	const FVector2D& GetPreviewSize() const;
+
+	void SetPreviewSize(const FVector2D& InSize);
 
 	//~ Begin SWidget
 	virtual void Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
@@ -47,6 +52,8 @@ protected:
 	TWeakObjectPtr<UMaterialInstanceDynamic> PreviewMaterialDynamicWeak;
 	FSlateMaterialBrush Brush;
 	FDelegateHandle EndOfFrameDelegateHandle;
+	TSharedPtr<SImage> PreviewImage;
+	FVector2D PreviewSize;
 
 	void OnComponentUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType);
 

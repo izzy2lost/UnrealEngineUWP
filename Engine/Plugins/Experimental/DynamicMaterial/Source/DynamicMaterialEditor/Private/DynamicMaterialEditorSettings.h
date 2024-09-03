@@ -190,6 +190,12 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout")
 	bool bUseFullChannelNamesInTopSlimLayout;
 
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout")
+	float StagePreviewSize;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout", meta = (DisplayName = "Channel Preview Size"))
+	float PropertyPreviewSize;
+
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Thumnnails")
 	double ThumbnailSize;
 

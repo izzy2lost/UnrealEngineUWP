@@ -13,6 +13,7 @@
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
+#include "DynamicMaterialModule.h"
 #include "Engine/Texture.h"
 #include "Framework/Application/SlateApplication.h"
 #include "SAssetDropTarget.h"
@@ -36,6 +37,19 @@ void SDMMaterialStage::PrivateRegisterAttributes(FSlateAttributeDescriptor::FIni
 {
 }
 
+SDMMaterialStage::~SDMMaterialStage()
+{
+	if (!FDynamicMaterialModule::AreUObjectsSafe())
+	{
+		return;
+	}
+
+	if (UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get())
+	{
+		Settings->GetOnSettingsChanged().RemoveAll(this);
+	}
+}
+
 void SDMMaterialStage::Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialSlotLayerItem>& InSlotLayerItem, 
 	UDMMaterialStage* InStage)
 {
@@ -46,6 +60,13 @@ void SDMMaterialStage::Construct(const FArguments& InArgs, const TSharedRef<SDMM
 	SetCursor(EMouseCursor::Default);
 
 	if (!IsValid(InStage))
+	{
+		return;
+	}
+
+	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
+
+	if (!Settings)
 	{
 		return;
 	}
@@ -85,6 +106,7 @@ void SDMMaterialStage::Construct(const FArguments& InArgs, const TSharedRef<SDMM
 			.BorderImage(FAppStyle::Get().GetBrush("ContentBrowser.AssetTileItem.DropShadow"))
 			[
 				SNew(SOverlay)
+
 				+ SOverlay::Slot()
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
@@ -97,20 +119,21 @@ void SDMMaterialStage::Construct(const FArguments& InArgs, const TSharedRef<SDMM
 						SNew(SOverlay)
 						+ SOverlay::Slot()
 						[
-							SNew(SDMMaterialComponentPreview, EditorWidget.ToSharedRef(), InStage)
-							.PreviewSize(FVector2D(40.f))
+							SAssignNew(PreviewImage, SDMMaterialComponentPreview, EditorWidget.ToSharedRef(), InStage)
+							.PreviewSize(FVector2D(Settings->StagePreviewSize))
 						]
 						+ SOverlay::Slot()
 						.Padding(5.f)
 						[
 							SNew(SImage)
 							.Image(FAppStyle::Get().GetBrush("Icons.X"))
-							.DesiredSizeOverride(FVector2D(30.f))
+							.DesiredSizeOverride(FVector2D(Settings->StagePreviewSize - 10.f))
 							.ColorAndOpacity(FStyleColors::AccentRed)
 							.Visibility(this, &SDMMaterialStage::GetDisabledOverlayVisibility)
 						]
 					]
 				]
+
 				+ SOverlay::Slot()
 				.HAlign(HAlign_Fill)
 				.VAlign(VAlign_Fill)
@@ -124,23 +147,17 @@ void SDMMaterialStage::Construct(const FArguments& InArgs, const TSharedRef<SDMM
 		]
 	];
 
-	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
-
 	SetToolTip(
 		SNew(SToolTip)
 		.IsInteractive(false)
 		.BorderImage(FCoreStyle::Get().GetBrush("ToolTip.Background"))
 		[
-			SNew(SDMMaterialComponentPreview, EditorWidget.ToSharedRef(), InStage)
-			.PreviewSize(TAttribute<TOptional<FVector2D>>::CreateWeakLambda(
-				Settings,
-				[Settings]()
-				{
-					return FVector2D(Settings->ThumbnailSize, Settings->ThumbnailSize);
-				}
-			))
+			SAssignNew(ToolTipImage, SDMMaterialComponentPreview, EditorWidget.ToSharedRef(), InStage)
+			.PreviewSize(FVector2D(Settings->ThumbnailSize))
 		]
 	);
+
+	Settings->GetOnSettingsChanged().AddSP(this, &SDMMaterialStage::OnSettingsUpdated);
 }
 
 TSharedPtr<SDMMaterialSlotLayerItem> SDMMaterialStage::GetSlotLayerView() const
@@ -260,6 +277,34 @@ EVisibility SDMMaterialStage::GetDisabledOverlayVisibility() const
 	return EVisibility::Collapsed;
 }
 
+
+void SDMMaterialStage::OnSettingsUpdated(const FPropertyChangedEvent& InPropertyChangedEvent)
+{
+	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
+
+	if (!Settings)
+	{
+		return;
+	}
+
+	const FName MemberName = InPropertyChangedEvent.GetMemberPropertyName();
+
+	if (MemberName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, StagePreviewSize))
+	{		
+		if (PreviewImage.IsValid())
+		{
+			PreviewImage->SetPreviewSize(FVector2D(Settings->StagePreviewSize));
+		}
+	}
+	else if (MemberName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, ThumbnailSize))
+	{
+		if (ToolTipImage.IsValid())
+		{
+			ToolTipImage->SetPreviewSize(FVector2D(Settings->ThumbnailSize));
+		}
+	}
+}
+
 bool SDMMaterialStage::OnAssetDraggedOver(TArrayView<FAssetData> InAssets)
 {
 	UDMMaterialStage* Stage = GetStage();
@@ -355,7 +400,7 @@ void SDMMaterialStage::HandleDrop_Texture(UTexture* InTexture)
 	}
 	else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
 	{
-		bool bHasAlpha = UE::DynamicMaterial::Private::HasAlpha(InTexture);
+		const bool bHasAlpha = UE::DynamicMaterial::Private::HasAlpha(InTexture);
 
 		UDMMaterialStageInputExpression* NewInput = UDMMaterialStageInputExpression::ChangeStageInput_Expression(
 			Stage,
