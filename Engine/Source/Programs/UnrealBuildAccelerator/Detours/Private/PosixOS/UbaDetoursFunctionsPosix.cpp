@@ -2212,6 +2212,10 @@ namespace uba
 			}
 			DEBUG_LOG("");
 #endif
+			DEBUG_LOG("SystemTemp: %s", g_systemTemp.data);
+			if (g_runningRemote)
+				DEBUG_LOG("RunningRemote: true");
+			DEBUG_LOG("");
 		}
 		#endif
 
@@ -2246,6 +2250,7 @@ namespace uba
 			BinaryReader reader;
 
 			bool echoOn = reader.ReadBool();
+			g_isChild = reader.ReadBool();
 
 			reader.ReadString(g_virtualApplication);
 			reader.ReadString(g_virtualWorkingDir);
@@ -2283,6 +2288,9 @@ namespace uba
 		u8* dirTableMem = (u8*)mmap(NULL, DirTableMemSize, PROT_READ, MAP_SHARED, dirTableFd, 0);
 		UBA_ASSERTF(dirTableMem != MAP_FAILED, "mmap for dirtable mem failed (%s)", strerror(errno));
 		g_directoryTable.Init(dirTableMem, directoryTableCount, directoryTableSize);
+
+		if (g_runningRemote && g_isChild)
+			Rpc_GetParentWrittenFiles();
 
 		g_isDetouring = true;
 		DEBUG_LOG("Detouring enabled");

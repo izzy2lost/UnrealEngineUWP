@@ -137,15 +137,33 @@ namespace uba
 			return false;
 
 		{
-			StringBuffer<MaxPath> dir1;
-			dir1.Append(workingDir).Append(TC("Dir1"));
-			if (!CreateDirectoryW(dir1.data))
-				return logger.Error(TC("Failed to create dir %s"), dir1.data);
+			StringBuffer<MaxPath> dir;
+			dir.Append(workingDir).Append(TC("Dir1"));
+			if (!CreateDirectoryW(dir.data))
+				return logger.Error(TC("Failed to create dir %s"), dir.data);
+
+			dir.Clear().Append(workingDir).Append(TC("Dir2"));
+			if (!CreateDirectoryW(dir.data))
+				return logger.Error(TC("Failed to create dir %s"), dir.data);
+			dir.EnsureEndsWithSlash().Append(TC("Dir3"));
+			if (!CreateDirectoryW(dir.data))
+				return logger.Error(TC("Failed to create dir %s"), dir.data);
+			dir.EnsureEndsWithSlash().Append(TC("Dir4"));
+			if (!CreateDirectoryW(dir.data))
+				return logger.Error(TC("Failed to create dir %s"), dir.data);
+			dir.EnsureEndsWithSlash().Append(TC("Dir5"));
+			if (!CreateDirectoryW(dir.data))
+				return logger.Error(TC("Failed to create dir %s"), dir.data);
 		}
 
 		ProcessStartInfo processInfo;
 		processInfo.application = testApp.data;
 		processInfo.workingDir = workingDir;
+		processInfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type)
+			{
+				LoggerWithWriter(g_consoleLogWriter, TC("")).Info(line);
+			};
+
 		ProcessHandle process = runProcess(processInfo);
 		if (!process.WaitForExit(100000))
 			return logger.Error(TC("UbaTestApp did not exit in 10 seconds"));

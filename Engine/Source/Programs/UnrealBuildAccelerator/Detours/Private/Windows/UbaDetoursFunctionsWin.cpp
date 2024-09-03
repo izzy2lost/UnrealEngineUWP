@@ -836,6 +836,7 @@ void Init(const DetoursPayload& payload, u64 startTime)
 		BinaryReader reader;
 
 		g_echoOn = reader.ReadBool();
+		g_isChild = reader.ReadBool();
 
 		reader.ReadString(applicationBuffer);
 		reader.ReadString(workingDirBuffer);
@@ -931,6 +932,9 @@ void Init(const DetoursPayload& payload, u64 startTime)
 		TimerScope ts2(g_stats.dirTable);
 		g_directoryTable.Init(directoryTableMem, directoryTableCount, directoryTableSize);
 	}
+
+	if (g_runningRemote && g_isChild)
+		Rpc_GetParentWrittenFiles();
 
 	g_stats.attach.time += GetTime() - startTime;
 	g_stats.attach.count = 1;

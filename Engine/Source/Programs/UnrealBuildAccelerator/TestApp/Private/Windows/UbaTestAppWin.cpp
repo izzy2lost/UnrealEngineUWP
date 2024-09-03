@@ -150,7 +150,46 @@ int wmain(int argc, wchar_t* argv[])
 
 			if (GetFileAttributesW(L"DirA") != INVALID_FILE_ATTRIBUTES)
 				return LogError(L"Found attributes of deleted directory");
+
+			if (CreateDirectoryW(L"Dir2\\Dir3", NULL))
+				return LogError(L"Should not succeed creation directory that exists");
+			if (GetLastError() != ERROR_ALREADY_EXISTS)
+				return LogError(L"Did not get correct error when failing to create existing directory");
+			if (GetFileAttributesW(L"Dir2\\Dir3\\Dir4\\Dir5") == INVALID_FILE_ATTRIBUTES)
+				return LogError(L"Failed to get attributes of directory");
 		}
+
+
+		{
+			STARTUPINFOW si;
+			memset(&si, 0, sizeof(si));
+			PROCESS_INFORMATION pi;
+			memset(&pi, 0, sizeof(pi));
+			wchar_t arg[1024];
+			wcscpy_s(arg, 1024, argv[0]);
+			wcscat_s(arg, 1024, L" -child");
+			if (!CreateProcessW(nullptr, arg, nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi))
+				return LogError(L"Failed to create child process");
+			CloseHandle(pi.hThread);
+			
+			if (WaitForSingleObject(pi.hProcess, 10000) != WAIT_OBJECT_0)
+				return LogError(L"Failed waiting for child process");
+
+			DWORD exitCode;
+			if (!GetExitCodeProcess(pi.hProcess, &exitCode) || exitCode)
+				return LogError(L"Child process failed");
+			CloseHandle(pi.hProcess);
+		}
+
+	}
+	else if (wcscmp(argv[1], L"-child") == 0)
+	{
+		if (GetFileAttributes(L"FileW2") == INVALID_FILE_ATTRIBUTES)
+			return LogError(L"Child process could not get attributes of FileW2");
+		if (GetFileAttributes(L"FileWF") == INVALID_FILE_ATTRIBUTES)
+			return LogError(L"Child process could not get attributes of FileWF");
+		if (GetFileAttributes(L"FileW") != INVALID_FILE_ATTRIBUTES)
+			return LogError(L"Child process found FileW which should not exist anymore");
 	}
 	else if (wcscmp(argv[1], L"-reuse") == 0)
 	{

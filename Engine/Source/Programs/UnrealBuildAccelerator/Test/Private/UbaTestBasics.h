@@ -484,10 +484,11 @@ namespace uba
 		GetDirectoryOfCurrentModule(logger, path);
 		path.EnsureEndsWithSlash().Append(TC("UbaTestApp.exe"));
 		bool importKernel = false;
-		FindImports(path.data, [&](const tchar* import, bool isKnown)
+		StringBuffer<> error;
+		FindImports(path.data, [&](const tchar* import, bool isKnown, const char* const* importLoaderPaths)
 		{
 			importKernel = isKnown && Contains(import, TC("KERNEL32.dll"));
-		});
+		}, error);
 		if (!importKernel)
 			return logger.Error(TC("Failed to find Kernel32 as import"));
 #elif PLATFORM_MAC

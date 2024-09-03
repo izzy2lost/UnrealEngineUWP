@@ -198,6 +198,29 @@ namespace uba
 		g_mappedFileTable.Parse(fileMappingTableSize);
 	}
 
+	void Rpc_GetParentWrittenFiles()
+	{
+		TimerScope ts(g_stats.updateTables);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+		BinaryWriter writer;
+		writer.WriteByte(MessageType_GetParentWrittenFiles);
+		writer.Flush();
+		BinaryReader reader;
+
+		u32 count = reader.ReadU32();
+		while (count--)
+		{
+			StringKey key = reader.ReadStringKey();
+			auto insres = g_mappedFileTable.m_lookup.try_emplace(key);
+			FileInfo& info = insres.first->second;
+			StringBuffer<> name;
+			reader.ReadString(name);
+			u64 fileSize = reader.ReadU64();
+			info.name = g_mappedFileTable.m_memoryBlock.Strdup(name.data);
+			info.size = fileSize;
+		}
+	}
+
 	u32 Rpc_GetEntryOffset(const StringKey& entryNameKey, const tchar* entryName, u64 entryNameLen, bool checkIfDir)
 	{
 		u32 dirTableOffset = ~u32(0);
@@ -251,9 +274,13 @@ namespace uba
 	void Rpc_GetFullFileName(const tchar*& path, u64& pathLen, StringBufferBase& tempBuf, bool useVirtualName, const tchar* const* loaderPaths)
 	{
 		StringKey fileNameKey;
+		StringBuffer<> temp2;
 		if (IsAbsolutePath(path))
 		{
 			FixPath(tempBuf, path);
+			temp2.Append(tempBuf);
+			path = temp2.data;
+
 			if (CaseInsensitiveFs)
 				tempBuf.MakeLower();
 			fileNameKey = ToStringKey(tempBuf);

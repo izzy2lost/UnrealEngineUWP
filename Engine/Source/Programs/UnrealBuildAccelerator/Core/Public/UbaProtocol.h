@@ -20,6 +20,7 @@ namespace uba
 		UBA_PROCESS_MESSAGE(RemoveDirectory) \
 		UBA_PROCESS_MESSAGE(ListDirectory) \
 		UBA_PROCESS_MESSAGE(UpdateTables) \
+		UBA_PROCESS_MESSAGE(GetParentWrittenFiles) \
 		UBA_PROCESS_MESSAGE(CreateProcess) \
 		UBA_PROCESS_MESSAGE(StartProcess) \
 		UBA_PROCESS_MESSAGE(ExitChildProcess) \

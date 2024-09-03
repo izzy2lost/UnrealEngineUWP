@@ -153,9 +153,19 @@ namespace uba
 
 		m_startInfo = startInfo;
 
-		FixPathSeparators(m_startInfo.applicationStr.data());
 		FixPathSeparators(m_startInfo.workingDirStr.data());
 		FixPathSeparators(m_startInfo.logFileStr.data());
+
+		if (IsAbsolutePath(m_startInfo.application))
+		{
+			StringBuffer<256> temp2;
+			FixPath(m_startInfo.applicationStr.data(), nullptr, 0, temp2);
+			m_startInfo.applicationStr = temp2.data;
+			m_startInfo.application = m_startInfo.applicationStr.data();
+		}
+		else
+			FixPathSeparators(m_startInfo.applicationStr.data());
+
 
 		m_startInfo.Expand();
 
@@ -535,8 +545,12 @@ namespace uba
 
 		// For some reason a parent can exit before a child. Need to figure out repro for this but I've seen it happen on ClangEditor win64
 		for (auto& child : m_childProcesses)
-			while (!((ProcessImpl*)child.m_process)->m_hasExited)
+		{
+			auto& childProcess = *(ProcessImpl*)child.m_process;
+			childProcess.m_waitForParent.Set();
+			while (!childProcess.m_hasExited)
 				Sleep(10);
+		}
 
 		UBA_ASSERT(!m_parentProcess || !m_parentProcess->m_hasExited);
 
@@ -681,6 +695,7 @@ namespace uba
 		InitResponse response;
 		m_messageSuccess = m_session.GetInitResponse(response, msg) && m_messageSuccess;
 		writer.WriteBool(m_echoOn);
+		writer.WriteBool(m_parentProcess != nullptr);
 		writer.WriteString(m_startInfo.application);
 		writer.WriteString(m_startInfo.workingDir);
 		writer.WriteU64(response.directoryTableHandle);
@@ -875,6 +890,31 @@ namespace uba
 		return true;
 	}
 
+	bool ProcessImpl::HandleGetParentWrittenFiles(BinaryReader& reader, BinaryWriter& writer)
+	{
+		// TODO: Recurse
+		UBA_ASSERT(m_parentProcess);
+		u32& writtenCount = *(u32*)writer.AllocWrite(4);
+		
+		//writer.WriteU32(u32(m_parentProcess->m_writtenFiles.size()));
+		u32 count = 0;
+		for (auto& kv : m_parentProcess->m_writtenFiles)
+		{
+			WrittenFile& wf = kv.second;
+			if (wf.mappingHandle.IsValid())
+				continue;
+			u64 fileSize;
+			if (!FileExists(m_session.m_logger, wf.name.c_str(), &fileSize))
+				continue;
+			writer.WriteStringKey(wf.key);
+			writer.WriteString(wf.name);
+			writer.WriteU64(fileSize);
+			++count;
+		}
+		writtenCount = count;
+		return true;
+	}
+
 	bool ProcessImpl::HandleCreateProcess(BinaryReader& reader, BinaryWriter& writer)
 	{
 		#if PLATFORM_LINUX
@@ -923,8 +963,6 @@ namespace uba
 			if (applicationStr.empty())
 				applicationStr.assign(fullCommandLine.data, u64(secondParamStart - fullCommandLine.data));
 		}
-
-		FixPathSeparators(applicationStr.data());
 
 		while (*commandLine == ' ')
 			++commandLine;

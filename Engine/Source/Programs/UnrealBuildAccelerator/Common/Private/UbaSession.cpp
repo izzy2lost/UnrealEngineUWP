@@ -964,13 +964,15 @@ namespace uba
 			if (attr == INVALID_FILE_ATTRIBUTES)
 				return m_logger.Error("Failed to find file %s", applicationName);
 			//UBA_ASSERTF(false, TC("DIR NOT FOUND: %s"), applicationName);
+			#else
+			return m_logger.Error("Code path not implemented for linux!");
 			#endif
 
 			applicationName = temp;
 			attr = DefaultAttributes();
 
 			tchar* lastSlash = TStrrchr(temp, PathSeparator);
-			UBA_ASSERT(lastSlash);
+			UBA_ASSERTF(lastSlash, TC("No slash found in path %s"), temp);
 			u64 applicationDirLen = u64(lastSlash + 1 - temp);
 			memcpy(temp2, temp, applicationDirLen * sizeof(tchar));
 			applicationDir = temp2;
@@ -2042,13 +2044,6 @@ namespace uba
 			if (msg.process.m_extractExports && msg.process.m_startInfo.rules->ShouldExtractSymbols(file.name))
 				if (!ExtractSymbolsFromObjectFile(msg, name, fileSize))
 					return false;
-
-			// It might be that child processes need this file so we need to add the mapping
-			if (m_runningRemote && registerRealFile) // Note, if file is in file mapping it never touches the disk on remotes. no point adding it
-			{
-				FileExists(m_logger, writtenFile.name.c_str(), &fileSize); // Need to get file size from disk
-				AddFileMapping(writtenFile.key, name, writtenFile.name.c_str(), fileSize);
-			}
 		}
 
 		if (!msg.newName.IsEmpty())

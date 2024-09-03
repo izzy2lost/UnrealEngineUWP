@@ -278,7 +278,6 @@ namespace uba
 				startInfo.application = startInfo.applicationStr.c_str();
 			}
 			return true;
-
 		}
 
 		List<ModuleInfo> modules;
@@ -733,18 +732,24 @@ namespace uba
 	{
 		const tchar* fromName = msg.fromName.data;
 		const tchar* toName = msg.toName.data;
+		auto& process = msg.process;
 
 		{
-			SCOPED_WRITE_LOCK(msg.process.m_writtenFilesLock, lock);
-			auto& writtenFiles = msg.process.m_writtenFiles;
+			SCOPED_WRITE_LOCK(process.m_writtenFilesLock, lock);
+			auto& writtenFiles = process.m_writtenFiles;
 			auto findIt = writtenFiles.find(fromName);
 			if (findIt != writtenFiles.end())
 			{
 				auto insres = writtenFiles.try_emplace(toName);
-				UBA_ASSERTF(insres.second, TC("Moving written file %s to other written file %s. (%s)"), fromName, toName, msg.process.m_startInfo.description);
+				UBA_ASSERTF(insres.second, TC("Moving written file %s to other written file %s. (%s)"), fromName, toName, process.m_startInfo.description);
 				insres.first->second = findIt->second;
-				insres.first->second.owner = &msg.process;
+				insres.first->second.key = msg.toKey;
+				insres.first->second.owner = &process;
 				writtenFiles.erase(findIt);
+			}
+			else
+			{
+				// TODO: Need to tell server 
 			}
 		}
 
@@ -768,6 +773,8 @@ namespace uba
 			out.errorCode = ERROR_SUCCESS;
 			return true;
 		}
+
+		// TODO: This should be done by server?
 
 		out.result = uba::MoveFileExW(fromName, toName, 0);
 		out.errorCode = GetLastError();
