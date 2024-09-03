@@ -2,6 +2,9 @@
 
 #include "Chaos/PhysicalMaterials.h"
 #include "HAL/LowLevelMemTracker.h"
+#if UE_CHAOS_ASYNC_INITBODY_ENABLED
+#include "Misc/ScopeRWLock.h"
+#endif
 
 namespace Chaos
 {
@@ -56,35 +59,37 @@ namespace Chaos
 
 	FChaosPhysicsMaterial* FPhysicalMaterialManager::Resolve(FChaosMaterialHandle InHandle) const
 	{
+		UE_CHAOS_ASYNC_INITBODY_READSCOPELOCK(MaterialsLock);
 		return Materials.Get(InHandle);
 	}
 
 	const FChaosPhysicsMaterial* FPhysicalMaterialManager::Resolve(FChaosConstMaterialHandle InHandle) const
 	{
+		UE_CHAOS_ASYNC_INITBODY_READSCOPELOCK(MaterialsLock);
 		return Materials.Get(InHandle);
 	}
 
 	FChaosPhysicsMaterialMask* FPhysicalMaterialManager::Resolve(FChaosMaterialMaskHandle InHandle) const
 	{
+		UE_CHAOS_ASYNC_INITBODY_READSCOPELOCK(MaterialMasksLock);
 		return MaterialMasks.Get(InHandle);
 	}
 
 	const FChaosPhysicsMaterialMask* FPhysicalMaterialManager::Resolve(FChaosConstMaterialMaskHandle InHandle) const
 	{
+		UE_CHAOS_ASYNC_INITBODY_READSCOPELOCK(MaterialMasksLock);
 		return MaterialMasks.Get(InHandle);
 	}
 	
 	void FPhysicalMaterialManager::UpdateMaterial(FMaterialHandle InHandle)
 	{
-		check(IsInGameThread());
-
+		check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
 		OnMaterialUpdated.Broadcast(InHandle);
 	}
 
 	void FPhysicalMaterialManager::UpdateMaterialMask(FMaterialMaskHandle InHandle)
 	{
-		check(IsInGameThread());
-
+		check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
 		OnMaterialMaskUpdated.Broadcast(InHandle);
 	}
 
@@ -112,10 +117,12 @@ namespace Chaos
 	{
 		LLM_SCOPE(ELLMTag::ChaosMaterial);
 
-		check(IsInGameThread());
+		check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
 		FMaterialHandle OutHandle;
-		OutHandle.InnerHandle = Materials.Create();
-
+		{
+			UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MaterialsLock);
+			OutHandle.InnerHandle = Materials.Create();
+		}
 		OnMaterialCreated.Broadcast(OutHandle);
 
 		return OutHandle;
@@ -123,10 +130,12 @@ namespace Chaos
 
 	FMaterialMaskHandle FPhysicalMaterialManager::CreateMask()
 	{
-		check(IsInGameThread());
+		check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
 		FMaterialMaskHandle OutHandle;
-		OutHandle.InnerHandle = MaterialMasks.Create();
-
+		{
+			UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MaterialMasksLock);
+			OutHandle.InnerHandle = MaterialMasks.Create();
+		}
 		OnMaterialMaskCreated.Broadcast(OutHandle);
 
 		return OutHandle;
@@ -136,23 +145,27 @@ namespace Chaos
 	{
 		LLM_SCOPE(ELLMTag::ChaosMaterial);
 
-		check(IsInGameThread());
+		check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
 		if(InHandle.InnerHandle.IsValid())
 		{
 			OnMaterialDestroyed.Broadcast(InHandle);
-
-			Materials.Destroy(InHandle.InnerHandle);
+			{
+				UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MaterialsLock);
+				Materials.Destroy(InHandle.InnerHandle);
+			}
 		}
 	}
 
 	void FPhysicalMaterialManager::Destroy(FMaterialMaskHandle InHandle)
 	{
-		check(IsInGameThread());
+		check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
 		if (InHandle.InnerHandle.IsValid())
 		{
 			OnMaterialMaskDestroyed.Broadcast(InHandle);
-
-			MaterialMasks.Destroy(InHandle.InnerHandle);
+			{
+				UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MaterialMasksLock);
+				MaterialMasks.Destroy(InHandle.InnerHandle);
+			}
 		}
 	}
 }

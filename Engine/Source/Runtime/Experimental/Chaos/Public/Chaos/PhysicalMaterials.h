@@ -167,6 +167,11 @@ namespace Chaos
 
 		/** Handle-managed array of global material masks. This is pushed to all solvers who all maintain a copy */
 		THandleArray<FChaosPhysicsMaterialMask> MaterialMasks;
+
+#if UE_CHAOS_ASYNC_INITBODY_ENABLED
+		mutable FRWLock MaterialsLock;
+		mutable FRWLock MaterialMasksLock;
+#endif
 	};
 }
 

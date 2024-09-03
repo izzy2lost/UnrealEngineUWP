@@ -325,38 +325,43 @@ namespace Chaos
 		void AddDirtyProxy(IPhysicsProxyBase * ProxyBaseIn)
 		{
 			check(ProxyBaseIn->GetMarkedDeleted() == false);
-			MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.Add(ProxyBaseIn);
+			MarshallingManager.AddDirtyProxy(ProxyBaseIn);
 		}
 		void RemoveDirtyProxy(IPhysicsProxyBase * ProxyBaseIn)
 		{
-			MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.Remove(ProxyBaseIn);
+			MarshallingManager.RemoveDirtyProxy(ProxyBaseIn);
 		}
 
 		void RemoveDirtyProxyIfNoShapesAreDirty(IPhysicsProxyBase* ProxyBaseIn)
 		{
-			MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.RemoveIfNoShapesAreDirty(ProxyBaseIn);
+			MarshallingManager.RemoveDirtyProxyIfNoShapesAreDirty(ProxyBaseIn);
 		}
 
 		const FDirtyProxiesBucketInfo& GetDirtyProxyBucketInfo_External()
 		{
-			return MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.GetDirtyProxyBucketInfo();
+			return MarshallingManager.GetDirtyProxyBucketInfo_External();
+		}
+
+		int32 GetDirtyProxyBucketInfoNum_External(EPhysicsProxyType Type)
+		{
+			return MarshallingManager.GetDirtyProxyBucketInfoNum_External(Type);
 		}
 
 		// Batch dirty proxies without checking DirtyIdx.
 		template <typename TProxiesArray>
 		void AddDirtyProxiesUnsafe(TProxiesArray& ProxiesArray)
 		{
-			MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.AddMultipleUnsafe(ProxiesArray);
+			MarshallingManager.AddDirtyProxiesUnsafe(ProxiesArray);
 		}
 
 		void AddDirtyProxyShape(IPhysicsProxyBase* ProxyBaseIn, int32 ShapeIdx)
 		{
-			MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.AddShape(ProxyBaseIn,ShapeIdx);
+			MarshallingManager.AddDirtyProxyShape(ProxyBaseIn, ShapeIdx);
 		}
 
 		void SetNumDirtyShapes(IPhysicsProxyBase* Proxy, int32 NumShapes)
 		{
-			MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.SetNumDirtyShapes(Proxy,NumShapes);
+			MarshallingManager.SetNumDirtyShapes(Proxy, NumShapes);
 		}
 
 		/** Creates a new sim callback object of the type given. Caller expected to free using FreeSimCallbackObject_External*/
@@ -418,7 +423,7 @@ namespace Chaos
 		void EnqueueCommandImmediate(Lambda&& Func)
 		{
 			//TODO: remove this check. Need to rename with _External
-			check(IsInGameThread());
+			check(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
 			RegisterSimOneShotCallback(MoveTemp(Func));
 		}
 

@@ -29,6 +29,9 @@
 #include "Chaos/PendingSpatialData.h"
 #include "Chaos/PhysicsSolverBaseImpl.h"
 #include "Misc/CoreMisc.h"
+#if UE_CHAOS_ASYNC_INITBODY_ENABLED
+#include "Misc/ScopeRWLock.h"
+#endif
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -846,7 +849,7 @@ void FPhysScene_Chaos::AddReferencedObjects(FReferenceCollector& Collector)
 	Super::AddReferencedObjects(Collector);
 	Collector.AddReferencedObject(ChaosEventRelay);
 #if WITH_EDITOR
-
+	UE_CHAOS_ASYNC_INITBODY_READSCOPELOCK(PhysicsProxyComponentMapsLock);
 	for (auto& Pair : PhysicsProxyToComponentMap)
 	{
 		Collector.AddReferencedObject(Pair.Get<1>());
@@ -857,6 +860,7 @@ void FPhysScene_Chaos::AddReferencedObjects(FReferenceCollector& Collector)
 template<>
 UPrimitiveComponent* FPhysScene_Chaos::GetOwningComponent(const IPhysicsProxyBase* PhysicsProxy) const
 {
+	UE_CHAOS_ASYNC_INITBODY_READSCOPELOCK(PhysicsProxyComponentMapsLock);
 	if (const TObjectPtr<UPrimitiveComponent>* FoundComp = PhysicsProxyToComponentMap.Find(PhysicsProxy))
 	{
 		return *FoundComp;
@@ -1308,6 +1312,7 @@ void FPhysScene_Chaos::AddToComponentMaps(UPrimitiveComponent* Component, IPhysi
 {
 	if (Component != nullptr && InObject != nullptr)
 	{
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(PhysicsProxyComponentMapsLock);
 		PhysicsProxyToComponentMap.Add(InObject, ObjectPtrWrap(Component));
 
 		TArray<IPhysicsProxyBase*>* ProxyArray = ComponentToPhysicsProxyMap.Find(Component);
@@ -1360,6 +1365,7 @@ void FPhysScene_Chaos::CreatePhysicsReplicationCache()
 
 void FPhysScene_Chaos::RemoveFromComponentMaps(IPhysicsProxyBase* InObject)
 {
+	UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(PhysicsProxyComponentMapsLock);
 	auto* const Component = PhysicsProxyToComponentMap.Find(InObject);
 	if (Component)
 	{
@@ -1444,6 +1450,7 @@ void FPhysScene_Chaos::OnWorldEndPlay()
 	PieModifiedObjects.Reset();
 #endif
 
+	UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(PhysicsProxyComponentMapsLock);
 	PhysicsProxyToComponentMap.Reset();
 	ComponentToPhysicsProxyMap.Reset();
 }

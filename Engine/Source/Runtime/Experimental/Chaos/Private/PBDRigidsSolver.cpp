@@ -28,6 +28,9 @@
 #include "Chaos/PullPhysicsDataImp.h"
 #include "Chaos/PhysicsSolverBaseImpl.h"
 #include "Chaos/ConvexOptimizer.h"
+#if UE_CHAOS_ASYNC_INITBODY_ENABLED
+#include "Misc/ScopeRWLock.h"
+#endif
 
 #include "ChaosDebugDraw/ChaosDDContext.h"
 #include "ChaosDebugDraw/ChaosDDScene.h"
@@ -742,6 +745,7 @@ namespace Chaos
 
 	void FPBDRigidsSolver::RegisterObject(FSingleParticlePhysicsProxy* Proxy)
 	{
+		UE_CHAOS_ASYNC_INITBODY_PHYSICSSCENE_WRITESCOPELOCK(GetExternalDataLock_External());
 		LLM_SCOPE(ELLMTag::ChaosBody);
 
 		UE_LOG(LogPBDRigidsSolver, Verbose, TEXT("FPBDRigidsSolver::RegisterObject()"));
@@ -796,6 +800,7 @@ namespace Chaos
 
 	void FPBDRigidsSolver::UnregisterObject(FSingleParticlePhysicsProxy* Proxy)
 	{
+		UE_CHAOS_ASYNC_INITBODY_PHYSICSSCENE_WRITESCOPELOCK(GetExternalDataLock_External());
 		UE_LOG(LogPBDRigidsSolver, Verbose, TEXT("FPBDRigidsSolver::UnregisterObject()"));
 
 		PullResultsManager->RemoveProxy_External(Proxy);
@@ -1363,6 +1368,7 @@ namespace Chaos
 		ensure(NumExternalSteps > 0);
 		//TODO: interpolate some data based on num steps
 
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManager.GetMarshallingManagerLock());
 		FPushPhysicsData* PushData = MarshallingManager.GetProducerData_External();
 		const FReal DynamicsWeight = FReal(1) / FReal(NumExternalSteps);
 		FDirtySet* DirtyProxiesData = &PushData->DirtyProxiesDataBuffer;

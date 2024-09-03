@@ -2,6 +2,9 @@
 
 #include "Chaos/ChaosMarshallingManager.h"
 #include "Chaos/PullPhysicsDataImp.h"
+#if UE_CHAOS_ASYNC_INITBODY_ENABLED
+#include "Misc/ScopeRWLock.h"
+#endif
 
 namespace Chaos
 {
@@ -48,6 +51,7 @@ void FChaosMarshallingManager::PreparePullData()
 
 void FChaosMarshallingManager::PrepareExternalQueue_External()
 {
+	// Here, we assume that MarshallingManagerLock is locked (when UE_CHAOS_ASYNC_INITBODY_ENABLED = 1)
 	if(!PushDataPool.Dequeue(ProducerData))
 	{
 		BackingBuffer.Add(MakeUnique<FPushPhysicsData>());
@@ -59,6 +63,7 @@ void FChaosMarshallingManager::PrepareExternalQueue_External()
 
 void FChaosMarshallingManager::Step_External(FReal ExternalDT, const int32 NumSteps, bool bInSolverSubstepped)
 {
+	// Here, we assume that MarshallingManagerLock is locked (when UE_CHAOS_ASYNC_INITBODY_ENABLED = 1)
 	ensure(NumSteps > 0);
 
 	FPushPhysicsData* FirstStepData = nullptr;
@@ -97,7 +102,7 @@ void FChaosMarshallingManager::Step_External(FReal ExternalDT, const int32 NumSt
 			ProducerData->CopySubstepData(*FirstStepData);
 		}
 
-		ExternalTime_External += ExternalDT;
+		ExternalTime_External.store(ExternalTime_External.load() + ExternalDT);
 		PrepareExternalQueue_External();
 	}
 
@@ -106,6 +111,7 @@ void FChaosMarshallingManager::Step_External(FReal ExternalDT, const int32 NumSt
 
 FPushPhysicsData* FChaosMarshallingManager::StepInternalTime_External()
 {
+	UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
 	if (Delay == 0)
 	{
 		if(ExternalQueue.Num())
@@ -123,6 +129,7 @@ FPushPhysicsData* FChaosMarshallingManager::StepInternalTime_External()
 
 void FChaosMarshallingManager::FreeData_Internal(FPushPhysicsData* PushData)
 {
+	UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
 	//TODO: we know entire manager is cleared, so we can probably just iterate over its pools and reset
 	//instead of going through dirty proxies. If perf matters fix this
 	FDirtyPropertiesManager* Manager = &PushData->DirtyPropertiesManager;

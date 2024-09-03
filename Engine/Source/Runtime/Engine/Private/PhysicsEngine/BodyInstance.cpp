@@ -1167,27 +1167,41 @@ static void GetSimulatingAndBlendWeight(const USkeletalMeshComponent* SkelMeshCo
 	}
 }
 
-void FInitBodiesHelperBase::UpdateSimulatingAndBlendWeight()
+namespace Chaos::Private
 {
-	GetSimulatingAndBlendWeight(SkelMeshComp, BodySetup, InstanceBlendWeight, bInstanceSimulatePhysics);
-}
+	void FInitBodiesHelperBaseInternal::SetBodyInstanceExternalCollisionProfileBodySetup(FBodyInstance* BodyInstance, UBodySetup* ExternalCollisionProfileBodySetup)
+	{
+		BodyInstance->ExternalCollisionProfileBodySetup = ExternalCollisionProfileBodySetup;
+	}
 
-template<bool bCompileStatic>
-FInitBodiesHelper<bCompileStatic>::FInitBodiesHelper(
-	TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, UBodySetup* InBodySetup, 
+	void FInitBodiesHelperBaseInternal::UpdateBodyInstanceSolverAsyncDeltaTime(FBodyInstance* BodyInstance)
+	{
+		BodyInstance->UpdateSolverAsyncDeltaTime();
+	}
+};
+
+template<bool bCompileStatic, typename InAllocatorType>
+FInitBodiesHelper<bCompileStatic, InAllocatorType>::FInitBodiesHelper(
+	TArray<FBodyInstance*, InAllocatorType>& InBodies, TArray<FTransform, InAllocatorType>& InTransforms, UBodySetup* InBodySetup,
 	UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene, 
 	const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate)
-	: FInitBodiesHelper<bCompileStatic>(InBodies, InTransforms, InBodySetup, InPrimitiveComp,
+	: FInitBodiesHelper<bCompileStatic, InAllocatorType>(InBodies, InTransforms, InBodySetup, InPrimitiveComp,
 		InPrimitiveComp ? InPrimitiveComp->GetOwner() : nullptr, 
 		InRBScene, InSpawnParams, InAggregate)
 {
 }
+
 template struct FInitBodiesHelper<true>;
 template struct FInitBodiesHelper<false>;
+using BodyInstanceSingleElementArrayInlineAllocator = TInlineAllocator<1>;
+template struct FInitBodiesHelper<true, BodyInstanceSingleElementArrayInlineAllocator>;
+template struct FInitBodiesHelper<false, BodyInstanceSingleElementArrayInlineAllocator>;
+using FInitSingleBodyHelperStatic = FInitBodiesHelper<true, BodyInstanceSingleElementArrayInlineAllocator>;
+using FInitSingleBodyHelperDynamic = FInitBodiesHelper<false, BodyInstanceSingleElementArrayInlineAllocator>;
 
-
-FInitBodiesHelperBase::FInitBodiesHelperBase(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, 
-	class UBodySetup* InBodySetup, UPrimitiveComponent* InComponent, UObject* InSourceObject, FPhysScene* InRBScene, 
+template<typename InAllocatorType>
+TInitBodiesHelperBase<InAllocatorType>::TInitBodiesHelperBase(TArray<FBodyInstance*, InAllocatorType>& InBodies, TArray<FTransform, InAllocatorType>& InTransforms,
+	class UBodySetup* InBodySetup, UPrimitiveComponent* InComponent, UObject* InSourceObject, FPhysScene* InRBScene,
 	const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate)
 	: Bodies(InBodies)
 	, Transforms(InTransforms)
@@ -1203,26 +1217,34 @@ FInitBodiesHelperBase::FInitBodiesHelperBase(TArray<FBodyInstance*>& InBodies, T
 	, InstanceBlendWeight(-1.f)
 	, SkelMeshComp(nullptr)
 	, SpawnParams(InSpawnParams)
-	, DisableQueryOnlyActors(!!CDisableQueryOnlyActors.GetValueOnGameThread())
+	, DisableQueryOnlyActors(!!CDisableQueryOnlyActors.GetValueOnAnyThread())
 {
 #if USE_BODYINSTANCE_DEBUG_NAMES
 	PhysXName = GetDebugDebugName(PrimitiveComp, BodySetup, *DebugName);
 #endif
 }
 
-FInitBodiesHelperBase::FInitBodiesHelperBase(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms,
+template<typename InAllocatorType>
+TInitBodiesHelperBase<InAllocatorType>::TInitBodiesHelperBase(TArray<FBodyInstance*, InAllocatorType>& InBodies, TArray<FTransform, InAllocatorType>& InTransforms,
 	class UBodySetup* InBodySetup, class UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene,
 	const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate)
 	// Forward to the other constructor
-	: FInitBodiesHelperBase(InBodies, InTransforms, InBodySetup,
+	: TInitBodiesHelperBase<InAllocatorType>(InBodies, InTransforms, InBodySetup,
 		InPrimitiveComp,
 		InPrimitiveComp ? InPrimitiveComp->GetOwner() : nullptr,
 		InRBScene, InSpawnParams, InAggregate)
 {
 }
 
+template<typename InAllocatorType>
+void TInitBodiesHelperBase<InAllocatorType>::UpdateSimulatingAndBlendWeight()
+{
+	GetSimulatingAndBlendWeight(SkelMeshComp, BodySetup, InstanceBlendWeight, bInstanceSimulatePhysics);
+}
+
 // Return to actor ref
-void FInitBodiesHelperBase::CreateActor_AssumesLocked(FBodyInstance* Instance, const FTransform& Transform) const
+template<typename InAllocatorType>
+void TInitBodiesHelperBase<InAllocatorType>::CreateActor_AssumesLocked(FBodyInstance* Instance, const FTransform& Transform) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_CreatePhysicsActor);
 	checkSlow(!FPhysicsInterface::IsValid(Instance->ActorHandle));
@@ -1250,19 +1272,20 @@ void FInitBodiesHelperBase::CreateActor_AssumesLocked(FBodyInstance* Instance, c
 	{
 		FPhysicsInterface::CreateActor(ActorParams, Instance->ActorHandle);
 		FPhysicsInterface::SetCcdEnabled_AssumesLocked(Instance->ActorHandle, Instance->bUseCCD);
-		FPhysicsInterface::SetMACDEnabled_AssumesLocked(Instance->ActorHandle, Instance->bUseMACD);
+		FPhysicsInterface::SetMACDEnabled_AssumesLocked(Instance->ActorHandle, Instance->IsUsingMACD());
 		FPhysicsInterface::SetIsKinematic_AssumesLocked(Instance->ActorHandle, !Instance->ShouldInstanceSimulatingPhysics());
 
 		FPhysicsInterface::SetMaxLinearVelocity_AssumesLocked(Instance->ActorHandle, TNumericLimits<float>::Max());
 		FPhysicsInterface::SetSmoothEdgeCollisionsEnabled_AssumesLocked(Instance->ActorHandle, Instance->bSmoothEdgeCollisions);
-		FPhysicsInterface::SetInertiaConditioningEnabled_AssumesLocked(Instance->ActorHandle, Instance->bInertiaConditioning);
+		FPhysicsInterface::SetInertiaConditioningEnabled_AssumesLocked(Instance->ActorHandle, Instance->IsInertiaConditioningEnabled());
 
 		// Set sleep event notification
 		FPhysicsInterface::SetSendsSleepNotifies_AssumesLocked(Instance->ActorHandle, Instance->bGenerateWakeEvents);
 	}
 }
 
-bool FInitBodiesHelperBase::CreateShapes_AssumesLocked(FBodyInstance* Instance) const
+template<typename InAllocatorType>
+bool TInitBodiesHelperBase<InAllocatorType>::CreateShapes_AssumesLocked(FBodyInstance* Instance) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_CreatePhysicsShapes);
 	UPhysicalMaterial* SimplePhysMat = Instance->GetSimplePhysicalMaterial();
@@ -1280,7 +1303,7 @@ bool FInitBodiesHelperBase::CreateShapes_AssumesLocked(FBodyInstance* Instance) 
 	// #PHYS2 Call interface AddGeometry
 	BodySetup->AddShapesToRigidActor_AssumesLocked(Instance, Instance->Scale3D, SimplePhysMat, ComplexPhysMats, ComplexPhysMatMasks, BodyCollisionData, FTransform::Identity);
 
-	FPhysicsInterface::SetIgnoreAnalyticCollisions_AssumesLocked(Instance->ActorHandle, CVarIgnoreAnalyticCollisionsOverride.GetValueOnGameThread() ? true : Instance->bIgnoreAnalyticCollisions);
+	FPhysicsInterface::SetIgnoreAnalyticCollisions_AssumesLocked(Instance->ActorHandle, CVarIgnoreAnalyticCollisionsOverride.GetValueOnAnyThread() ? true : Instance->bIgnoreAnalyticCollisions);
 
 	const int32 NumShapes = FPhysicsInterface::GetNumShapes(Instance->ActorHandle);
 	bInitFail |= NumShapes == 0;
@@ -1298,7 +1321,8 @@ UBodySetup* FBodyInstance::GetBodySetup() const
 	return nullptr;
 }
 
-const FString& GetBodyInstanceDebugName(FInitBodiesHelperBase& InitHelper)
+template<typename InAllocatorType>
+const FString& GetBodyInstanceDebugName(TInitBodiesHelperBase<InAllocatorType>& InitHelper)
 {
 	static FString NullName = TEXT("<NoName>");
 
@@ -1357,14 +1381,25 @@ bool ValidateTransformNaN(const FTransform& Transform, const FString& DebugName,
 
 // Takes actor ref arrays.
 // #PHYS2 this used to return arrays of low-level physics bodies, which would be added to scene in InitBodies. Should it still do that, rather then later iterate over BodyInstances to get phys actor refs?
-bool FInitBodiesHelperBase::CreateShapesAndActors()
+template<typename InAllocatorType>
+bool TInitBodiesHelperBase<InAllocatorType>::CreateShapesAndActors()
 {
 	SCOPE_CYCLE_COUNTER(STAT_CreatePhysicsShapesAndActors);
+	TRACE_CPUPROFILER_EVENT_SCOPE(CreatePhysicsShapesAndActors);
 
 	const int32 NumBodies = Bodies.Num();
 
-	// Ensure we have the AggGeom inside the body setup so we can calculate the number of shapes
-	BodySetup->CreatePhysicsMeshes();
+	const bool bIsInGameThread = IsInGameThread();
+	check(UE_CHAOS_ASYNC_INITBODY_ENABLED || bIsInGameThread);
+#if UE_CHAOS_ASYNC_INITBODY_ENABLED
+	// Current case where CreateShapesAndActors is not called from the GameThread is when experimental UE_CHAOS_ASYNC_INITBODY_ENABLED = 1
+	check(bIsInGameThread || (BodySetup->bCreatedPhysicsMeshes || BodySetup->bNeverNeedsCookedCollisionData));
+	if (bIsInGameThread)
+#endif
+	{
+		// Ensure we have the AggGeom inside the body setup so we can calculate the number of shapes
+		BodySetup->CreatePhysicsMeshes();
+	}
 
 	if (bSkipShapeCreationForEmptyBodySetup)
 	{
@@ -1429,6 +1464,7 @@ bool FInitBodiesHelperBase::CreateShapesAndActors()
 					UWorld* World = PrimitiveComp->GetWorld();
 					if (World && World->IsGameWorld())
 					{
+						check(bIsInGameThread);
 						//if we have a parent we will now do the weld and exit any further initialization
 						if (PrimitiveComp->WeldToImplementation(ParentPrimComponent, PrimitiveComp->GetAttachSocketName(), false))	//welded new simulated body so initialization is done
 						{
@@ -1446,8 +1482,9 @@ bool FInitBodiesHelperBase::CreateShapesAndActors()
 			Instance->OwnerComponent = nullptr;
 			Instance->SourceObject = nullptr;
 			Instance->BodySetup = nullptr;
-			Bodies.RemoveAt(BodyIdx);  // so we wont add it to the physx scene again later.
-			Transforms.RemoveAt(BodyIdx);
+			constexpr uint32 Count = 1;
+			Bodies.RemoveAt(BodyIdx, Count, EAllowShrinking::No);  // so we wont add it to the physx scene again later.
+			Transforms.RemoveAt(BodyIdx, Count, EAllowShrinking::No);
 			continue;
 		}
 
@@ -1481,7 +1518,7 @@ bool FInitBodiesHelperBase::CreateShapesAndActors()
 			Instance->OwnerComponent = nullptr;
 			Instance->SourceObject = nullptr;
 			Instance->BodySetup = nullptr;
-			Instance->ExternalCollisionProfileBodySetup = nullptr;
+			SetBodyInstanceExternalCollisionProfileBodySetup(Instance, nullptr);
 
 			continue;
 		}
@@ -1495,16 +1532,21 @@ bool FInitBodiesHelperBase::CreateShapesAndActors()
 	return true;
 }
 
-void FInitBodiesHelperBase::InitBodies()
+template<typename InAllocatorType>
+void TInitBodiesHelperBase<InAllocatorType>::InitBodies()
 {
 	LLM_SCOPE(ELLMTag::ChaosBody);
 
-	//check(IsInGameThread());
-
-	if (CreateShapesAndActors())
+	const bool bIsInGameThread = IsInGameThread();
+	check(UE_CHAOS_ASYNC_INITBODY_ENABLED || bIsInGameThread);
+	if (bIsInGameThread ? CreateShapesAndActors() : true)
 	{
 		FPhysicsCommand::ExecuteWrite(PhysScene, [&]()
 		{
+			if (!bIsInGameThread && !CreateShapesAndActors())
+			{
+				return;
+			}
 			// If an aggregate present, add to that
 			if (Aggregate.IsValid())
 			{
@@ -1543,11 +1585,11 @@ void FInitBodiesHelperBase::InitBodies()
 								Body_External.SetShapeSimCollisionEnabled(ShapeIndex, false);
 							}
 						}
-						if (BI->BodySetup.IsValid())
+						if (const UBodySetupCore* BS = BI->BodySetup.Get())
 						{
 							for (int32 ShapeIndex = 0; ShapeIndex < NumShapes; ++ShapeIndex)
 							{
-								Body_External.SetShapeCollisionTraceType(ShapeIndex, ChaosInterface::ConvertCollisionTraceFlag(BI->BodySetup->GetCollisionTraceFlag())) ;
+								Body_External.SetShapeCollisionTraceType(ShapeIndex, ChaosInterface::ConvertCollisionTraceFlag(BS->GetCollisionTraceFlag())) ;
 							}
 						}
 					}
@@ -1576,7 +1618,7 @@ void FInitBodiesHelperBase::InitBodies()
 			// set solver async delta time if any bodies are overriding the sim delta time
 			for (FBodyInstance* BI : Bodies)
 			{				
-				BI->UpdateSolverAsyncDeltaTime();			
+				UpdateBodyInstanceSolverAsyncDeltaTime(BI);
 			}
 
 			// Set up dynamic instance data
@@ -1632,7 +1674,7 @@ void FBodyInstance::InitBody(UBodySetup* Setup, const FTransform& Transform, UPr
 
 void FBodyInstance::InitBody(class UBodySetup* Setup, const FTransform& Transform, UPrimitiveComponent* PrimComp, UObject* InSourceObject, FPhysScene* InRBScene, const FInitBodySpawnParams& SpawnParams)
 {
-	if (CVarAllowCreatePhysxBodies.GetValueOnGameThread() == 0)
+	if (CVarAllowCreatePhysxBodies.GetValueOnAnyThread() == 0)
 	{
 		return;
 	}
@@ -1640,11 +1682,8 @@ void FBodyInstance::InitBody(class UBodySetup* Setup, const FTransform& Transfor
 	SCOPE_CYCLE_COUNTER(STAT_InitBody);
 	check(Setup);
 	
-	static TArray<FBodyInstance*> Bodies;
-	static TArray<FTransform> Transforms;
-
-	check(Bodies.Num() == 0);
-	check(Transforms.Num() == 0);
+	TArray<FBodyInstance*, BodyInstanceSingleElementArrayInlineAllocator> Bodies;
+	TArray<FTransform, BodyInstanceSingleElementArrayInlineAllocator> Transforms;
 
 	Bodies.Add(this);
 	Transforms.Add(Transform);
@@ -1658,17 +1697,14 @@ void FBodyInstance::InitBody(class UBodySetup* Setup, const FTransform& Transfor
 	bool bIsStatic = SpawnParams.bStaticPhysics;
 	if(bIsStatic)
 	{
-		FInitBodiesHelper<true> InitBodiesHelper(Bodies, Transforms, Setup, PrimComp, SourceObjectToUse, InRBScene, SpawnParams, SpawnParams.Aggregate);
-		InitBodiesHelper.InitBodies();
+		FInitSingleBodyHelperStatic InitBodyHelper(Bodies, Transforms, Setup, PrimComp, SourceObjectToUse, InRBScene, SpawnParams, SpawnParams.Aggregate);
+		InitBodyHelper.InitBodies();
 	}
 	else
 	{
-		FInitBodiesHelper<false> InitBodiesHelper(Bodies, Transforms, Setup, PrimComp, SourceObjectToUse, InRBScene, SpawnParams, SpawnParams.Aggregate);
-		InitBodiesHelper.InitBodies();
+		FInitSingleBodyHelperDynamic InitBodyHelper(Bodies, Transforms, Setup, PrimComp, SourceObjectToUse, InRBScene, SpawnParams, SpawnParams.Aggregate);
+		InitBodyHelper.InitBodies();
 	}
-
-	Bodies.Reset();
-	Transforms.Reset();
 
 	UpdateInterpolateWhenSubStepping();
 }
@@ -4351,7 +4387,7 @@ void FBodyInstance::BuildBodyFilterData(FBodyCollisionFilterData& OutFilterData,
 	//        should configure the bodies to reflect this desired behavior.
 	if(USkeletalMeshComponent* SkelMeshComp = Cast<USkeletalMeshComponent>(OwnerComponentInst))
 	{
-		if (CVarEnableDynamicPerBodyFilterHacks.GetValueOnGameThread() && bHACK_DisableCollisionResponse)
+		if (CVarEnableDynamicPerBodyFilterHacks.GetValueOnAnyThread() && bHACK_DisableCollisionResponse)
 		{
 			UseResponse.SetAllChannels(ECR_Ignore);
 			UseCollisionEnabled = ECollisionEnabled::PhysicsOnly;
@@ -4366,7 +4402,7 @@ void FBodyInstance::BuildBodyFilterData(FBodyCollisionFilterData& OutFilterData,
 			UseCollisionEnabled = ECollisionEnabled::PhysicsOnly;		// this will prevent object traces hitting this as well
 		}
 
-		const bool bDisableSkelComponentOverride = CVarEnableDynamicPerBodyFilterHacks.GetValueOnGameThread() && bHACK_DisableSkelComponentFilterOverriding;
+		const bool bDisableSkelComponentOverride = CVarEnableDynamicPerBodyFilterHacks.GetValueOnAnyThread() && bHACK_DisableSkelComponentFilterOverriding;
 		if (bDisableSkelComponentOverride)
 		{
 			// if we are disabling the skeletal component override, we want the original body instance collision response
@@ -4452,6 +4488,7 @@ void FBodyInstance::InitStaticBodies(const TArray<FBodyInstance*>& Bodies, const
 	check(BodySetup);
 	check(InRBScene);
 	check(Bodies.Num() > 0);
+	check(IsInGameThread());
 
 	static TArray<FBodyInstance*> BodiesStatic;
 	static TArray<FTransform> TransformsStatic;
@@ -4467,6 +4504,16 @@ void FBodyInstance::InitStaticBodies(const TArray<FBodyInstance*>& Bodies, const
 
 	BodiesStatic.Reset();
 	TransformsStatic.Reset();
+}
+
+void FBodyInstance::InitStaticBodies(TArray<FBodyInstance*>&& Bodies, TArray<FTransform>&& Transforms, UBodySetup* BodySetup, UPrimitiveComponent* PrimitiveComp, FPhysScene* InRBScene)
+{
+	SCOPE_CYCLE_COUNTER(STAT_StaticInitBodies);
+	check(BodySetup);
+	check(InRBScene);
+	check(Bodies.Num() > 0);
+	FInitBodiesHelperWithData<true> InitBodiesHelper(MoveTemp(Bodies), MoveTemp(Transforms), BodySetup, PrimitiveComp, InRBScene, FInitBodySpawnParams(PrimitiveComp), FPhysicsAggregateHandle());
+	InitBodiesHelper.InitBodies();
 }
 
 int32 SimCollisionEnabled = 1;

@@ -3047,16 +3047,13 @@ protected:
 	template <typename Lambda>
 	void ModifyGeometry(const Lambda& Func, const bool bDirectAccess = false)
 	{
-		ensure(IsInGameThread());
-
 		return ModifyGeometry(bDirectAccess ? EGeometryAccess::Direct : EGeometryAccess::DeepCopy, Func);
 	}
 
 	template <typename Lambda>
 	void ModifyGeometry(EGeometryAccess AccessType, const Lambda& Func)
 	{
-		ensure(IsInGameThread());
-
+		ensure(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
 		FPhysicsSolverBase* Solver = Proxy ? Proxy->GetSolverBase() : nullptr;
 
 		if(Solver == nullptr)
@@ -3801,7 +3798,7 @@ FORCEINLINE_DEBUGGABLE FAccelerationStructureHandle::FAccelerationStructureHandl
 	if (InGeometryParticle)
 	{
 		ensure(CachedUniqueIdx.IsValid());
-		ensure(IsInGameThread());
+		ensure(UE_CHAOS_ASYNC_INITBODY_ENABLED || IsInGameThread());
 		if (bUsePrefiltering)
 		{
 			UpdatePrePreFilter(*InGeometryParticle);

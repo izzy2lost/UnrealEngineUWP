@@ -16,6 +16,10 @@
 #include "Chaos/Real.h"
 #include "UObject/ObjectKey.h"
 
+#if UE_CHAOS_ASYNC_INITBODY_ENABLED
+#include "Misc/ScopeRWLock.h"
+#endif
+
 #ifndef CHAOS_WITH_PAUSABLE_SOLVER
 #define CHAOS_WITH_PAUSABLE_SOLVER 1
 #endif
@@ -175,6 +179,7 @@ public:
 	template<class OwnerType>
 	OwnerType* GetOwningComponent(const IPhysicsProxyBase* PhysicsProxy) const
 	{ 
+		UE_CHAOS_ASYNC_INITBODY_READSCOPELOCK(PhysicsProxyComponentMapsLock);
 		auto* CompPtr = PhysicsProxyToComponentMap.Find(PhysicsProxy);
 		return CompPtr ? Cast<OwnerType>(*CompPtr) : nullptr;
 	}
@@ -185,6 +190,7 @@ public:
 	/** Given a component, returns its associated solver objects. */
 	const TArray<IPhysicsProxyBase*>* GetOwnedPhysicsProxies(UPrimitiveComponent* Comp) const
 	{
+		UE_CHAOS_ASYNC_INITBODY_READSCOPELOCK(PhysicsProxyComponentMapsLock);
 		return ComponentToPhysicsProxyMap.Find(Comp);
 	}
 
@@ -444,6 +450,12 @@ private:
 	TArray<TPair<TWeakObjectPtr<USkeletalMeshComponent>, FDeferredKinematicUpdateInfo>> DeferredKinematicUpdateSkelMeshes;
 
 	TSet<UPrimitiveComponent*> DeferredCreatePhysicsStateComponents;
+
+#if UE_CHAOS_ASYNC_INITBODY_ENABLED
+	// RWLock for for thread safe access to PhysicsProxyToComponentMap and ComponentToPhysicsProxyMap.
+	mutable FRWLock PhysicsProxyComponentMapsLock;
+#endif
+
 	//Body Instances
 	TUniquePtr<Chaos::TArrayCollectionArray<FBodyInstance*>> BodyInstances;
 	// Temp Interface

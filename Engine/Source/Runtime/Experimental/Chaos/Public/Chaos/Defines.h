@@ -19,6 +19,18 @@
 #endif
 #endif
 
+// Experimental UE_CHAOS_ASYNC_INITBODY_ENABLED option: Set to 1 to allow InitBody to be called outside of GameThread
+#define UE_CHAOS_ASYNC_INITBODY_ENABLED 0 
+#if UE_CHAOS_ASYNC_INITBODY_ENABLED
+#define UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(x) FWriteScopeLock WriteLock(x)
+#define UE_CHAOS_ASYNC_INITBODY_READSCOPELOCK(x) FReadScopeLock ReadLock(x)
+#define UE_CHAOS_ASYNC_INITBODY_PHYSICSSCENE_WRITESCOPELOCK(x) Chaos::FPhysicsSceneGuardScopedWrite WriteLock(x)
+#else
+#define UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(x)
+#define UE_CHAOS_ASYNC_INITBODY_READSCOPELOCK(x)
+#define UE_CHAOS_ASYNC_INITBODY_PHYSICSSCENE_WRITESCOPELOCK(x)
+#endif
+
 #if COMPILE_WITHOUT_UNREAL_SUPPORT
 	#include <stdint.h>
 #else

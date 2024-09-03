@@ -78,26 +78,40 @@ struct FInitBodySpawnParams
 	FPhysicsAggregateHandle Aggregate;
 };
 
-struct FInitBodiesHelperBase
+namespace Chaos::Private
 {
-	ENGINE_API FInitBodiesHelperBase(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, 
+	// Private base class necessary to keep friend access to FBodyInstance
+	struct FInitBodiesHelperBaseInternal
+	{
+	protected:
+		void SetBodyInstanceExternalCollisionProfileBodySetup(FBodyInstance* BodyInstance, UBodySetup* ExternalCollisionProfileBodySetup);
+		void UpdateBodyInstanceSolverAsyncDeltaTime(FBodyInstance* BodyInstance);
+	};
+}
+
+template <typename InAllocatorType = FDefaultAllocator>
+struct TInitBodiesHelperBase : public Chaos::Private::FInitBodiesHelperBaseInternal
+{
+public:
+	ENGINE_API TInitBodiesHelperBase(TArray<FBodyInstance*, InAllocatorType>& InBodies, TArray<FTransform, InAllocatorType>& InTransforms,
 		class UBodySetup* InBodySetup, class UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene, 
 		const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate);
 	
-	ENGINE_API FInitBodiesHelperBase(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, 
+	ENGINE_API TInitBodiesHelperBase(TArray<FBodyInstance*, InAllocatorType>& InBodies, TArray<FTransform, InAllocatorType>& InTransforms,
 		class UBodySetup* InBodySetup, class UPrimitiveComponent* InComponent, UObject* InSourceObject, FPhysScene* InRBScene,
 		const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate);
 
-	FInitBodiesHelperBase(const FInitBodiesHelperBase& InHelper) = delete;
-	FInitBodiesHelperBase(FInitBodiesHelperBase&& InHelper) = delete;
-	FInitBodiesHelperBase& operator=(const FInitBodiesHelperBase& InHelper) = delete;
-	FInitBodiesHelperBase& operator=(FInitBodiesHelperBase&& InHelper) = delete;
+	TInitBodiesHelperBase(const TInitBodiesHelperBase& InHelper) = delete;
+	TInitBodiesHelperBase(TInitBodiesHelperBase&& InHelper) = delete;
+	TInitBodiesHelperBase& operator=(const TInitBodiesHelperBase& InHelper) = delete;
+	TInitBodiesHelperBase& operator=(TInitBodiesHelperBase&& InHelper) = delete;
 
 	FORCEINLINE bool IsStatic() const { return bStatic; }
 
 	//The arguments passed into InitBodies
-	TArray<FBodyInstance*>& Bodies;   
-	TArray<FTransform>& Transforms;
+	TArray<FBodyInstance*, InAllocatorType>& Bodies;
+	TArray<FTransform, InAllocatorType>& Transforms;
+
 	class UBodySetup* BodySetup;
 	class UPrimitiveComponent* PrimitiveComp;
 	UObject* SourceObject;
@@ -134,22 +148,24 @@ protected:
 
 };
 
-template <bool bCompileStatic>
-struct FInitBodiesHelper : public FInitBodiesHelperBase
+using FInitBodiesHelperBase = TInitBodiesHelperBase<FDefaultAllocator>;
+
+template <bool bCompileStatic, typename InAllocatorType = FDefaultAllocator>
+struct FInitBodiesHelper : public TInitBodiesHelperBase<InAllocatorType>
 {
-	FInitBodiesHelper(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, class UBodySetup* InBodySetup,
+	FInitBodiesHelper(TArray<FBodyInstance*, InAllocatorType>& InBodies, TArray<FTransform, InAllocatorType>& InTransforms, class UBodySetup* InBodySetup,
 		class UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene,
 		const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate);
 
-	FInitBodiesHelper(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, class UBodySetup* InBodySetup, 
+	FInitBodiesHelper(TArray<FBodyInstance*, InAllocatorType>& InBodies, TArray<FTransform, InAllocatorType>& InTransforms, class UBodySetup* InBodySetup,
 		class UPrimitiveComponent* InComponent, class UObject* InOwnerObject, FPhysScene* InRBScene,
 		const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate)
-		: FInitBodiesHelperBase(InBodies, InTransforms, InBodySetup, InComponent, InOwnerObject, InRBScene, InSpawnParams, InAggregate)
+		: TInitBodiesHelperBase<InAllocatorType>(InBodies, InTransforms, InBodySetup, InComponent, InOwnerObject, InRBScene, InSpawnParams, InAggregate)
 	{
 		//Compute all the needed constants
-		bStatic = bCompileStatic || SpawnParams.bStaticPhysics;
-		SkelMeshComp = bCompileStatic ? nullptr : Cast<USkeletalMeshComponent>(PrimitiveComp);
-		if (SpawnParams.bPhysicsTypeDeterminesSimulation)
+		this->bStatic = bCompileStatic || this->SpawnParams.bStaticPhysics;
+		this->SkelMeshComp = bCompileStatic ? nullptr : Cast<USkeletalMeshComponent>(this->PrimitiveComp);
+		if (this->SpawnParams.bPhysicsTypeDeterminesSimulation)
 		{
 			this->UpdateSimulatingAndBlendWeight();
 		}
@@ -179,16 +195,8 @@ struct FInitBodiesHelperWithData : public FInitBodiesHelperBase
 	}
 
 	FInitBodiesHelperWithData(FInitBodiesHelperWithData&& InHelper)
-	: FInitBodiesHelperBase(OwnedBodies, OwnedTransforms, InHelper.BodySetup, InHelper.PrimitiveComp, InHelper.PhysScene, InHelper.SpawnParams, InHelper.Aggregate), OwnedBodies(MoveTemp(InHelper.OwnedBodies)), OwnedTransforms(MoveTemp(InHelper.OwnedTransforms)) //-V1050
-	{
-		//Compute all the needed constants
-		bStatic = bCompileStatic || SpawnParams.bStaticPhysics;
-		SkelMeshComp = bCompileStatic ? nullptr : Cast<USkeletalMeshComponent>(PrimitiveComp);
-		if(SpawnParams.bPhysicsTypeDeterminesSimulation)
-		{
-			this->UpdateSimulatingAndBlendWeight();
-		}
-	}
+	: FInitBodiesHelperWithData(OwnedBodies, OwnedTransforms, InHelper.BodySetup, InHelper.PrimitiveComp, InHelper.PhysScene, InHelper.SpawnParams, InHelper.Aggregate), OwnedBodies(MoveTemp(InHelper.OwnedBodies)), OwnedTransforms(MoveTemp(InHelper.OwnedTransforms)) //-V1050
+	{}
 
 	FInitBodiesHelperWithData& operator=(const FInitBodiesHelperWithData& InHelper) = delete;
 	FInitBodiesHelperWithData& operator=(FInitBodiesHelperWithData&& InHelper) = delete;
@@ -548,6 +556,8 @@ public:
 	/** Returns the mass override. See MassInKgOverride for documentation */
 	float GetMassOverride() const { return MassInKgOverride; }
 
+	bool IsUsingMACD() const { return bUseMACD; }
+
 	/** Sets the mass override */
 	ENGINE_API void SetMassOverride(float MassInKG, bool bNewOverrideMass = true);
 
@@ -716,8 +726,18 @@ public:
 	 *	@param InRBScene
 	 */
 	static ENGINE_API void InitStaticBodies(const TArray<FBodyInstance*>& Bodies, const TArray<FTransform>& Transforms, UBodySetup* BodySetup, class UPrimitiveComponent* PrimitiveComp, FPhysScene* InRBScene);
-
-
+	
+	/**
+	 * Standalone path to batch initialize large amounts of static bodies.
+	 * Note that this function will steal Bodies and Transforms arrays.
+	 *	@param Bodies The list of BodyInstances to initialize.
+	 *	@param Transforms The list of BodyInstance transform
+	 *	@param BodySetup The BodySetup to use
+	 *	@param PrimitiveComp The associated primitive component
+	 *	@param InRBScene The associated physics scene
+	 */
+	static ENGINE_API void InitStaticBodies(TArray<FBodyInstance*>&& Bodies, TArray<FTransform>&& Transforms, UBodySetup* BodySetup, class UPrimitiveComponent* PrimitiveComp, FPhysScene* InRBScene);
+	
 	/** Get the scene that owns this body. */
 	ENGINE_API FPhysScene* GetPhysicsScene();
 	ENGINE_API const FPhysScene* GetPhysicsScene() const;
@@ -1373,7 +1393,7 @@ private:
 	friend struct FUpdateCollisionResponseHelper;
 	friend class FBodySetupDetails;
 	
-	friend struct FInitBodiesHelperBase;
+	friend struct Chaos::Private::FInitBodiesHelperBaseInternal;
 	friend class FBodyInstanceCustomizationHelper;
 	friend class FFoliageTypeCustomizationHelpers;
 
