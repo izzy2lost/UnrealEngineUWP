@@ -51,7 +51,7 @@ namespace HordeServer.Tools
 			}
 
 			IStorageClient storageClient = _storageService.CreateClient(symbolStoreConfig.NamespaceId);
-			BlobAlias? alias = await storageClient.FindAliasAsync($"sym:{path}", cancellationToken);
+			BlobAlias? alias = await storageClient.FindAliasAsync($"sym:{path.ToUpperInvariant()}", cancellationToken);
 			if (alias == null)
 			{
 				return NotFound();
