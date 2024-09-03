@@ -15,6 +15,7 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeComponent : public UCu
 public:
 	GENERATED_BODY()
 
-
+	// UCustomizableObjectNode interface
+	virtual bool IsAffectedByLOD() const override;
 };
 

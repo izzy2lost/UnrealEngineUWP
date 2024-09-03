@@ -113,6 +113,14 @@ public:
 	 * When called, it is guaranteed that all nodes in this graph will have executed the PostLoad function. */
 	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion);
 
+	/** Reconstructs the node pins using the provided AllocateDefaultPins function.
+	 * Safe to call in BackwardsCompatibleFixup.
+	 * Notice that this function will not call the node AllocateDefaultPins function nor the ReconstructNode overrides.
+	 *
+	 * Since this function is used BackwardsCompatibleFixup, it should not have major changes (or they will break existing fixups).
+	 * If changes are needed, duplicate this function so old fixups remain unchanged. */
+	void FixupReconstructPins(UCustomizableObjectNodeRemapPins* RemapPinsAction, TFunction<void(UCustomizableObjectNode*, UCustomizableObjectNodeRemapPins*)> AllocateDefaultPins);
+	
 	/** Add post load work here.
 	 * When called, it is guaranteed that all nodes in this graph will have executed the BackwardsCompatibleFixup function.
 	 * Notice that no compatibility code should not go here. Use BackwardsCompatibleFixup instead. */

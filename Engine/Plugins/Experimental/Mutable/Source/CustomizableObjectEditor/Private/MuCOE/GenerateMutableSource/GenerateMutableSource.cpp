@@ -2,6 +2,7 @@
 
 #include "MuCOE/GenerateMutableSource/GenerateMutableSource.h"
 
+#include "GenerateMutableSourceComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Engine/TextureLODSettings.h"
@@ -56,10 +57,6 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeCopyMaterial.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
-
-
-// Forward declarations 
-bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext);
 
 
 uint32 GetTypeHash(const FGraphCycleKey& Key)
@@ -821,7 +818,7 @@ mu::NodeMeshApplyPosePtr CreateNodeMeshApplyPose(FMutableGraphGenerationContext&
 
 
 // Convert a CustomizableObject Source Graph into a mutable source graph  
-mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGenerationContext & GenerationContext, bool bPartialCompilation)
+mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGenerationContext & GenerationContext)
 {
 	MUTABLE_CPUPROFILER_SCOPE(GenerateMutableSource);
 
@@ -844,15 +841,6 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 	
 	if (const UCustomizableObjectNodeObject* TypedNodeObj = Cast<UCustomizableObjectNodeObject>(Node))
 	{
-		// Add it to the current processing hierarchy if we have none
-		// \TODO: or special flag starting a separate component in the future.
-		bool bStartedComponent = false;
-		if (!GenerationContext.ComponentNewNode.Num())
-		{
-			GenerationContext.ComponentNewNode.Push(FMutableGraphGenerationContext::ObjectParent());
-			bStartedComponent = true;
-		}
-
 		mu::Ptr<mu::NodeObjectNew> ObjectNode = new mu::NodeObjectNew();
 		Result = ObjectNode;
 
@@ -863,105 +851,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 			GenerationContext.Compiler->CompilerLog(FText::FromString(TEXT("Warning: Node has a duplicated GUID. A new ID has been generated, but cooked data will not be deterministic.")), Node, EMessageSeverity::Warning);
 		}
 		ObjectNode->SetUid(FinalGuid.ToString());
-
-
-		// Process the pins defining components implicitly (original method)
-		//-------------------------------------------------------------------
-
-		// LOD
-		const int32 NumLODs = TypedNodeObj->GetNumLODPins();
-
-		// Fill the basic LOD Settings
-		if (!GenerationContext.NumLODsInRoot)
-		{
-			check(!GenerationContext.ComponentInfos.IsEmpty());
-
-			// NumLODsInRoot
-			int32 MaxRefMeshLODs = 1;
-			for (int32 MeshIndex = 0; MeshIndex < GenerationContext.ComponentInfos.Num(); ++MeshIndex)
-			{
-				const USkeletalMesh* RefSkeletalMesh = GenerationContext.ComponentInfos[MeshIndex].RefSkeletalMesh;
-				if (RefSkeletalMesh && RefSkeletalMesh->GetLODNum() > MaxRefMeshLODs)
-				{
-					MaxRefMeshLODs = RefSkeletalMesh->GetLODNum();
-				}
-
-				if (TypedNodeObj->ComponentSettings.IsValidIndex(MeshIndex))
-				{
-					GenerationContext.ComponentInfos[MeshIndex].AccumulateBonesToRemovePerLOD(TypedNodeObj->ComponentSettings[MeshIndex], TypedNodeObj->NumLODs);
-				}
-			}
-
-			if (MaxRefMeshLODs < NumLODs)
-			{
-				FString Msg = FString::Printf(TEXT("The object has %d LODs but the reference mesh only %d. Resulting objects will have %d LODs."),
-					NumLODs, MaxRefMeshLODs, MaxRefMeshLODs);
-				GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Warning);
-				GenerationContext.NumLODsInRoot = MaxRefMeshLODs;
-			}
-			else
-			{
-				GenerationContext.NumLODsInRoot = NumLODs;
-			}
 		
-			USkeletalMesh* RefSkeletalMesh = GenerationContext.ComponentInfos[0].RefSkeletalMesh;
-			check(RefSkeletalMesh);
-
-			const FMutableLODSettings& LODSettings = GenerationContext.Object->LODSettings;
-
-			// Find the MinLOD available for the target platform
-			if (RefSkeletalMesh->IsMinLodQualityLevelEnable())
-			{
-				FSupportedQualityLevelArray SupportedQualityLevels = LODSettings.MinQualityLevelLOD.GetSupportedQualityLevels(*GenerationContext.Options.TargetPlatform->GetPlatformInfo().IniPlatformName.ToString());
-				
-				int32 MinValue = GenerationContext.NumLODsInRoot - 1;
-				for (int32& QL : SupportedQualityLevels)
-				{
-					// check if have data for the supported quality level or set to default.
-					if (LODSettings.MinQualityLevelLOD.IsQualityLevelValid(QL))
-					{
-						MinValue = FMath::Min(LODSettings.MinQualityLevelLOD.GetValueForQualityLevel(QL), MinValue);
-					}
-					else 
-					{
-						MinValue = LODSettings.MinQualityLevelLOD.GetDefault();
-						break;
-					}
-				}
-
-				GenerationContext.FirstLODAvailable = FMath::Max(0, MinValue);
-			}
-			else
-			{
-				GenerationContext.FirstLODAvailable = LODSettings.MinLOD.GetValueForPlatform(*GenerationContext.Options.TargetPlatform->IniPlatformName());
-			}
-
-			GenerationContext.FirstLODAvailable = FMath::Clamp(GenerationContext.FirstLODAvailable, 0, GenerationContext.NumLODsInRoot - 1);
-
-			// Find the streaming settings for the target platform
-			if (LODSettings.bOverrideLODStreamingSettings)
-			{
-				GenerationContext.bEnableLODStreaming = LODSettings.bEnableLODStreaming.GetValueForPlatform(*GenerationContext.Options.TargetPlatform->IniPlatformName());
-				GenerationContext.NumMaxLODsToStream = LODSettings.NumMaxStreamedLODs.GetValueForPlatform(*GenerationContext.Options.TargetPlatform->IniPlatformName());
-			}
-			else
-			{
-				for (int32 MeshIndex = 0; MeshIndex < GenerationContext.ComponentInfos.Num(); ++MeshIndex)
-				{
-					RefSkeletalMesh = GenerationContext.ComponentInfos[MeshIndex].RefSkeletalMesh;
-					check(RefSkeletalMesh);
-
-					GenerationContext.bEnableLODStreaming = GenerationContext.bEnableLODStreaming &&
-						RefSkeletalMesh->GetEnableLODStreaming(GenerationContext.Options.TargetPlatform);
-
-					GenerationContext.NumMaxLODsToStream = FMath::Min(static_cast<int32>(GenerationContext.NumMaxLODsToStream),
-						RefSkeletalMesh->GetMaxNumStreamedLODs(GenerationContext.Options.TargetPlatform));
-				}
-			}
-
-			GenerationContext.NumMaxLODsToStream = FMath::Clamp(GenerationContext.NumMaxLODsToStream, 0, GenerationContext.NumLODsInRoot - 1);
-		}
-
 		// States
 		int NumStates = TypedNodeObj->States.Num();
 		ObjectNode->SetStateCount(NumStates);
@@ -969,7 +859,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 		// In a partial compilation we will filter the states of the root object
 		bool bFilterStates = true;
 
-		if (bPartialCompilation)
+		if (GenerationContext.bPartialCompilation)
 		{
 			if (!TypedNodeObj->ParentObject)
 			{
@@ -1009,163 +899,8 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 
 			GenerationContext.StateUIDataMap.Add(State.Name, StateUIData);
 		}
-
-		// Update the current automatic LOD policy
-		ECustomizableObjectAutomaticLODStrategy LastLODStrategy = GenerationContext.CurrentAutoLODStrategy;
-		if (TypedNodeObj->AutoLODStrategy != ECustomizableObjectAutomaticLODStrategy::Inherited)
-		{
-			GenerationContext.CurrentAutoLODStrategy = TypedNodeObj->AutoLODStrategy;
-		}
-
-		// Mesh components per instance
-		if (!GenerationContext.NumMeshComponentsInRoot)
-		{
-			GenerationContext.NumMeshComponentsInRoot = GenerationContext.Object->GetPrivate()->MutableMeshComponents.Num();
-		}
-
-		const int32 NumLODsInRoot = GenerationContext.NumLODsInRoot;
-		const int32 NumMeshComponentsInRoot = GenerationContext.NumMeshComponentsInRoot;
-		if (GenerationContext.ComponentNewNode.Last().Components.Num() < NumMeshComponentsInRoot)
-		{
-			GenerationContext.ComponentNewNode.Last().Components.SetNum(NumMeshComponentsInRoot);
-		}
-
-		// Number of components defined in the traditional way: in the object node, and referenced in graph materials
-		int32 NumImplicitComponents = GenerationContext.NumMeshComponentsInRoot;
-
-		// Add implicit components
-		for (int32 CurrentComponent = 0; CurrentComponent < NumImplicitComponents; ++CurrentComponent)
-		{
-			FName ComponentName = GenerationContext.Object->GetPrivate()->MutableMeshComponents[CurrentComponent].Name;
-			GenerationContext.CurrentMeshComponent = ComponentName;
-
-			mu::Ptr<mu::NodeComponent> ComponentNode = Invoke([&GenerationContext, CurrentComponent]() -> mu::Ptr<mu::NodeComponent>
-				{
-					mu::Ptr<mu::NodeComponentNew>& ParentComponent =
-						GenerationContext.ComponentNewNode.Last().Components[CurrentComponent];
-
-					if (!ParentComponent)
-					{
-						ParentComponent = new mu::NodeComponentNew();
-						ParentComponent->Id = CurrentComponent;
-
-						return ParentComponent;
-					}
-
-					mu::Ptr<mu::NodeComponentEdit> EditComponent = new mu::NodeComponentEdit();
-					EditComponent->SetParent(ParentComponent.get());
-
-					return EditComponent;
-				});
-
-			ComponentNode->SetMessageContext(Node);
-			ObjectNode->Components.Add(ComponentNode);
-
-
-			int32 FirstLOD = -1;
-			for (int32 CurrentLOD = 0; CurrentLOD < NumLODsInRoot; ++CurrentLOD)
-			{
-				GenerationContext.CurrentLOD = CurrentLOD;
-
-				mu::Ptr<mu::NodeLOD> LODNode = new mu::NodeLOD();
-				ComponentNode->LODs.Add(LODNode);
-				LODNode->SetMessageContext(Node);
-
 		
-				const bool bUseAutomaticLods = GenerationContext.CurrentAutoLODStrategy == ECustomizableObjectAutomaticLODStrategy::AutomaticFromMesh;
-				FirstLOD = (CurrentLOD < NumLODs) && (FirstLOD == INDEX_NONE || !bUseAutomaticLods) ? CurrentLOD : FirstLOD;
-
-				if (FirstLOD < 0)
-				{
-					continue;
-				}
-
-				if (GenerationContext.CurrentLOD < GenerationContext.FirstLODAvailable)
-				{
-					continue;
-				} 
-			
-				// Generate all relevant LODs for this object up until the current LODIndex.
-				for (int32 LODIndex = FirstLOD; LODIndex <= CurrentLOD; ++LODIndex)
-				{
-
-					const UEdGraphPin* LODPin = TypedNodeObj->LODPin(LODIndex);
-					if (!LODPin)
-					{
-						continue;
-					}
-
-					GenerationContext.FromLOD = LODIndex;
-
-					TArray<UEdGraphPin*> ConnectedLODPins = FollowInputPinArray(*LODPin);
-
-					// Proccess non modifier nodes.
-					for (UEdGraphPin* const ChildNodePin : ConnectedLODPins)
-					{
-						// Modifiers are shared for all components and are processed per LOD and not component.
-						if (Cast<UCustomizableObjectNodeModifierBase>(ChildNodePin->GetOwningNode()))
-						{
-							continue;
-						}
-
-						if (!AffectsCurrentComponent(ChildNodePin, GenerationContext))
-						{
-							continue;
-						}
-
-						mu::Ptr<mu::NodeSurface> SurfaceNode = GenerateMutableSourceSurface(ChildNodePin, GenerationContext);
-						LODNode->Surfaces.Add(SurfaceNode);
-					}
-
-					// Process legacy modifiers.
-					for (UEdGraphPin* const ChildNodePin : ConnectedLODPins)
-					{
-						if (!Cast<UCustomizableObjectNodeModifierBase>(ChildNodePin->GetOwningNode()))
-						{
-							continue;
-						}
-
-						// Warn about legacy modifier connection
-						FString Msg = FString::Printf(TEXT("The object has legacy modifier connections (to material pins?) that should be updated."));
-						GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Warning);
-
-						// Set it to "None" to indicate we don't care about component id.
-						GenerationContext.CurrentMeshComponent = FName();
-
-						mu::Ptr<mu::NodeModifier> ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
-						LODNode->Modifiers.Add(ModifierNode);
-
-						GenerationContext.CurrentMeshComponent = ComponentName;
-					}
-				}
-
-				// Process modifiers.
-				const UEdGraphPin* ModifierPin = TypedNodeObj->ModifiersPin();
-				if (ModifierPin)
-				{
-					TArray<UEdGraphPin*> ConnectedModifierPins = FollowInputPinArray(*ModifierPin);
-					for (UEdGraphPin* const ChildNodePin : ConnectedModifierPins)
-					{
-						if (!Cast<UCustomizableObjectNodeModifierBase>(ChildNodePin->GetOwningNode()))
-						{
-							continue;
-						}
-
-						// Set it to "None" to indicate we don't care about component id.
-						GenerationContext.CurrentMeshComponent = FName();
-
-						mu::Ptr<mu::NodeModifier> ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
-						LODNode->Modifiers.Add(ModifierNode);
-
-						GenerationContext.CurrentMeshComponent = ComponentName;
-					}
-				}
-
-			}
-		}
-
-
-		// Process the pins defining explicit components
+		// Process components.
 		//-------------------------------------------------------------------
 		TArray<mu::Ptr<mu::NodeComponent>> ExplicitComponents;
 
@@ -1173,17 +908,51 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 		TArray<UEdGraphPin*> ConnectedComponentPins = FollowInputPinArray(*ComponentsPin);
 		for (const UEdGraphPin* ComponentNodePin : ConnectedComponentPins)
 		{		
-			// \TODO: Needed?
-			//GenerationContext.ComponentInfos.Add(RefSkeletalMesh);
-			//GenerationContext.ReferencedSkeletons.Add(RefSkeleton);
-
-			++GenerationContext.NumExplicitMeshComponents;
-
 			mu::Ptr<mu::NodeComponent> ComponentNode = GenerateMutableSourceComponent(ComponentNodePin, GenerationContext);
 			ObjectNode->Components.Add(ComponentNode);
 		}
 
+		// Process modifiers.
+		//-------------------------------------------------------------------
+		if (const UEdGraphPin* ModifierPin = TypedNodeObj->ModifiersPin())
+		{
+			TArray<UEdGraphPin*> ConnectedModifierPins = FollowInputPinArray(*ModifierPin);
+			for (UEdGraphPin* const ChildNodePin : ConnectedModifierPins)
+			{
+				if (!Cast<UCustomizableObjectNodeModifierBase>(ChildNodePin->GetOwningNode()))
+				{
+					continue;
+				}
 
+				// Set it to "None" to indicate we don't care about component id.
+				FName OldCurrentMeshComponent = GenerationContext.CurrentMeshComponent;
+				GenerationContext.CurrentMeshComponent = FName();
+
+				mu::Ptr<mu::NodeModifier> ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
+				for (int32 ComponentIndex = 0; ComponentIndex < ObjectNode->Components.Num(); ++ComponentIndex)
+				{
+					mu::Ptr<mu::NodeComponent> Component = ObjectNode->Components[ComponentIndex];
+					if (!Component)
+					{
+						continue;
+					}
+					
+					for (int32 LODIndex = 0; LODIndex < Component->LODs.Num(); ++LODIndex)
+					{
+						mu::Ptr<mu::NodeLOD> LOD = Component->LODs[LODIndex];
+						if (!LOD)
+						{
+							continue;
+						}
+						
+						LOD->Modifiers.Add(ModifierNode);
+					}
+				}
+
+				GenerationContext.CurrentMeshComponent = OldCurrentMeshComponent;
+			}
+		}
+		
 		// Generate inputs to Object node pins added by extensions
 		//-------------------------------------------------------------------
 		for (const FRegisteredObjectNodeInputPin& ExtensionInputPin : ICustomizableObjectModule::Get().GetAdditionalObjectNodePins())
@@ -1226,17 +995,9 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 		ObjectNode->Children.Reserve(ConnectedChildrenPins.Num());
 		for (int32 ChildIndex = 0; ChildIndex < ConnectedChildrenPins.Num(); ++ChildIndex)
 		{
-			mu::Ptr<mu::NodeObject> ChildNode = GenerateMutableSource(ConnectedChildrenPins[ChildIndex], GenerationContext, bPartialCompilation);
+			mu::Ptr<mu::NodeObject> ChildNode = GenerateMutableSource(ConnectedChildrenPins[ChildIndex], GenerationContext);
 			ObjectNode->Children.Add(ChildNode);
 		}
-
-		// Remove from the current processing hierarchy
-		if (bStartedComponent)
-		{
-			GenerationContext.ComponentNewNode.Pop();
-		}
-
-		GenerationContext.CurrentAutoLODStrategy = LastLODStrategy;
 	}
 
 	else if (const UCustomizableObjectNodeObjectGroup* TypedNodeGroup = Cast<UCustomizableObjectNodeObjectGroup>(Node))
@@ -1314,7 +1075,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 			{
 				bAtLeastOneConnected = true;
 
-				ChildNode = GenerateMutableSource(ConnectedChildrenPins[ChildIndex], GenerationContext, bPartialCompilation);
+				ChildNode = GenerateMutableSource(ConnectedChildrenPins[ChildIndex], GenerationContext);
 				GroupNode->SetChild(ChildIndex, ChildNode.get());
 
 				if (CustomizableObjectNodeObject)
@@ -1422,7 +1183,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 			{
 				bAtLeastOneConnected = true;
 
-				ChildNode = GenerateMutableSource(ExternalChildNode->OutputPin(), GenerationContext, bPartialCompilation);
+				ChildNode = GenerateMutableSource(ExternalChildNode->OutputPin(), GenerationContext);
 				GroupNode->SetChild(ChildIndex, ChildNode.get());
 
 				if (CustomizableObjectNodeObject)
@@ -1513,118 +1274,6 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 	return Result;
 }
 
-bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext)
-{
-	check(Pin);
-	RETURN_ON_CYCLE(*Pin, GenerationContext)
-	
-	FName ComponentName = FName();
-	const UCustomizableObjectNode* Node = CastChecked<UCustomizableObjectNode>(Pin->GetOwningNode());
-
-	// Parent material for extend and edit material nodes
-	UCustomizableObjectNodeMaterialBase* OriginalParentMaterialNode = nullptr;
-
-	if (const UCustomizableObjectNodeMaterialVariation* TypedNodeVar = Cast<UCustomizableObjectNodeMaterialVariation>(Node))
-	{
-		bool bAffectsCurrentComponent = false;
-
-		for (const UEdGraphPin* ConnectedPin : FollowInputPinArray(*TypedNodeVar->DefaultPin()))
-		{
-			if (!AffectsCurrentComponent(ConnectedPin, GenerationContext))
-			{
-				if (bAffectsCurrentComponent)
-				{
-					FString Msg = FString::Printf(TEXT("Error! One or more materials nodes linked to a material variation node have different component name"));
-					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Error);
-				}
-
-				return false;
-			}
-		
-			bAffectsCurrentComponent = true;
-		}
-
-		for (int VariationIndex = 0; VariationIndex < TypedNodeVar->GetNumVariations(); ++VariationIndex)
-		{
-			if (UEdGraphPin* VariationPin = TypedNodeVar->VariationPin(VariationIndex))
-			{
-				for (const UEdGraphPin* ConnectedPin : FollowInputPinArray(*VariationPin))
-				{
-					if (!AffectsCurrentComponent(ConnectedPin, GenerationContext))
-					{
-						if (bAffectsCurrentComponent)
-						{
-							FString Msg = FString::Printf(TEXT("Error! One or more materials nodes linked to a material variation node have different component name"));
-							GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Error);
-						}
-
-						return false;
-					}
-
-					bAffectsCurrentComponent = true;
-				}
-			}
-		}
-
-		return bAffectsCurrentComponent;
-	}
-
-	else if (const UCustomizableObjectNodeMaterialSwitch* TypedNodeSwitch = Cast<UCustomizableObjectNodeMaterialSwitch>(Node))
-	{
-		bool bAffectsCurrentComponent = false;
-
-		int32 OptionCount = TypedNodeSwitch->GetNumElements();
-		for (int32 OptionIndex=0; OptionIndex<OptionCount; ++OptionIndex)
-		{
-			if (UEdGraphPin* OptionPin = TypedNodeSwitch->GetElementPin(OptionIndex))
-			{
-				for (const UEdGraphPin* ConnectedPin : FollowInputPinArray(*OptionPin))
-				{
-					if (!AffectsCurrentComponent(ConnectedPin, GenerationContext))
-					{
-						if (bAffectsCurrentComponent)
-						{
-							FString Msg = FString::Printf(TEXT("Error! One or more materials nodes linked to a material switch node have different component name"));
-							GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Error);
-						}
-
-						return false;
-					}
-
-					bAffectsCurrentComponent = true;
-				}
-			}
-		}
-
-		return bAffectsCurrentComponent;
-	}
-
-	else if (const UCustomizableObjectNodeMaterialBase* TypedNodeMat = Cast<UCustomizableObjectNodeMaterialBase>(Node))
-	{
-		ComponentName = TypedNodeMat->GetMeshComponentName();
-	}
-
-	else if (const UCustomizableObjectNodeModifierBase* TypedNodeModifier = Cast<UCustomizableObjectNodeModifierBase>(Node))
-	{
-		// Modifiers can affect any component depending on tags.
-		// TODO: Scan
-		return true;
-	}
-	else
-	{
-		unimplemented();
-		return false;
-	}
-
-	// Check if this material has a valid component
-	if (!GenerationContext.Object->GetPrivate()->MutableMeshComponents.ContainsByPredicate([&](const FMutableMeshComponentData& Component) { return Component.Name == ComponentName; }))
-	{
-		FString Msg = ("Error! Material Node with an invalid Component assigned.");
-		GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), OriginalParentMaterialNode ? OriginalParentMaterialNode : Node, EMessageSeverity::Error);
-	}
-
-	return ComponentName == GenerationContext.CurrentMeshComponent;
-}
 
 int32 AddTagToMutableMeshUnique(mu::Mesh& MutableMesh, const FString& Tag)
 {
@@ -2125,20 +1774,20 @@ FMutableComponentInfo::FMutableComponentInfo(FName InComponentName, USkeletalMes
 }
 
 
-void FMutableComponentInfo::AccumulateBonesToRemovePerLOD(const FComponentSettings& ComponentSettings, int32 NumLODs)
+void FMutableComponentInfo::AccumulateBonesToRemovePerLOD(const TArray<FLODReductionSettings>& LODReductionSettings, int32 NumLODs)
 {
 	BonesToRemovePerLOD.SetNum(NumLODs);
 
 	TMap<FName, bool> BonesToRemove;
 
-	const int32 ComponentSettingsLODCount = ComponentSettings.LODReductionSettings.Num();
+	const int32 ComponentSettingsLODCount = LODReductionSettings.Num();
 	for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 	{
 		if (LODIndex < ComponentSettingsLODCount)
 		{
-			const FLODReductionSettings& LODReductionSettings = ComponentSettings.LODReductionSettings[LODIndex];
+			const FLODReductionSettings& LODReductionSetting = LODReductionSettings[LODIndex];
 
-			for (const FBoneToRemove& Bone : LODReductionSettings.BonesToRemove)
+			for (const FBoneToRemove& Bone : LODReductionSetting.BonesToRemove)
 			{
 				if (bool* bOnlyRemoveChildren = BonesToRemove.Find(Bone.BoneName))
 				{

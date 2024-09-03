@@ -168,13 +168,9 @@ void FCustomizableObjectNodeObjectDetails::CustomizeDetails( IDetailLayoutBuilde
 	}
 
 	IDetailCategoryBuilder& StatesCategory = DetailBuilder.EditCategory("States");
-	IDetailCategoryBuilder& RuntimeParameters = DetailBuilder.EditCategory("States Runtime Parameters");
 	IDetailCategoryBuilder& ExternalCategory = DetailBuilder.EditCategory("AttachedToExternalObject");
 	IDetailCategoryBuilder& RealTimeMorphTargets = DetailBuilder.EditCategory("RealTime Morph Targets");
-	IDetailCategoryBuilder& LODCustomSettings = DetailBuilder.EditCategory("LOD Custom Settings");
-
-	//StatesCategory.CategoryIcon( "ActorClassIcon.CustomizableObject" );
-
+	
 	if (BaseObjectNode.IsValid())
 	{
 		// Properties
@@ -183,35 +179,13 @@ void FCustomizableObjectNodeObjectDetails::CustomizeDetails( IDetailLayoutBuilde
 		//TSharedRef<IPropertyHandle> ComponentsProperty = DetailBuilder.GetProperty("Components");
 		TSharedRef<IPropertyHandle> ParentObjectProperty = DetailBuilder.GetProperty("ParentObject");
 		TSharedRef<IPropertyHandle> LODsProperty = DetailBuilder.GetProperty("NumLODs");
-		TSharedRef<IPropertyHandle> ComponentSettingsProperty= DetailBuilder.GetProperty("ComponentSettings");
-
-		// Index of the component shown in the Bones to edit widget
-		int32 CurrentComponentIndex = 0;
-
-		for (int32 ComponentIndex = 0; ComponentIndex < BaseObjectNode->ComponentSettings.Num(); ++ComponentIndex)
-		{
-			if (BaseObjectNode->CurrentComponent == BaseObjectNode->ComponentSettings[ComponentIndex].ComponentName)
-			{
-				CurrentComponentIndex = ComponentIndex;
-				break;
-			}
-		}
-
-		FName BonesToRemovePropertyPath = FName("ComponentSettings[" + FString::FromInt(CurrentComponentIndex) + "].LODReductionSettings[" + FString::FromInt(BaseObjectNode->CurrentLOD) + "].BonesToRemove");
-		TSharedRef<IPropertyHandle> BonesToRemoveProperty = DetailBuilder.GetProperty(BonesToRemovePropertyPath);
-
+		
 		// Callbacks
 		StatesProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FCustomizableObjectNodeObjectDetails::OnStatesPropertyChanged));
-
-		//TODO(Max UE-215837)
-		//ComponentsProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FCustomizableObjectNodeObjectDetails::OnStatesPropertyChanged));
-		//NumComponentsProperty->SetOnPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateSP(this, &FCustomizableObjectNodeObjectDetails::OnNumComponentsOrLODsChanged));
-		LODsProperty->SetOnPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateSP(this, &FCustomizableObjectNodeObjectDetails::OnNumComponentsOrLODsChanged));
 
 		// Hidden Properties
 		DetailBuilder.HideProperty("ParentObjectGroupId");
 		DetailBuilder.HideProperty("ParentObject");
-		DetailBuilder.HideProperty("ComponentSettings");
 
 		GroupNodeComboOptions.Empty();
 
@@ -271,11 +245,8 @@ void FCustomizableObjectNodeObjectDetails::CustomizeDetails( IDetailLayoutBuilde
 						]
 					]
 				];
-
-				DetailBuilder.HideProperty("NumMeshComponents");
+				
 				DetailBuilder.HideProperty(StatesProperty);
-				//TODO(Max UE-215837)
-				//DetailBuilder.HideProperty(ComponentsProperty);
 			}
             else
             {
@@ -286,42 +257,7 @@ void FCustomizableObjectNodeObjectDetails::CustomizeDetails( IDetailLayoutBuilde
                     SNew(SCustomizableObjectNodeSkeletalMeshRTMorphTargetOverride)
                     .Node(BaseObjectNode.Get())
                 ];
-
-				// Component Settings Category ----------
-
-				// Component Picker
-				LODCustomSettings.AddCustomRow((LOCTEXT("ComponentCustomModeSelect", "Select Component")))
-				.NameContent()
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("ComponentCustomSettingsSelectTitle", "Component"))
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-					.ToolTipText(LOCTEXT("ComponentCustomSettingsSelectTooltip", "Select the component to edit."))
-				]
-				.ValueContent()
-				.VAlign(VAlign_Center)
-				[
-					OnGenerateComponentComboBoxForPicker()
-				];
-				
-				// LOD Picker
-				LODCustomSettings.AddCustomRow((LOCTEXT("LODCustomModeSelect", "Select LOD")))
-				.NameContent()
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("LODCustomSettingsSelectTitle", "LOD"))
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-					.ToolTipText(LOCTEXT("LODCustomSettingsSelectTooltip", "Select the component's LOD to edit."))
-				]
-				.ValueContent()
-				.VAlign(VAlign_Center)
-				[
-					OnGenerateLODComboBoxForPicker()
-				];
-
-				// Bones to remove widget
-				LODCustomSettings.AddProperty(BonesToRemoveProperty);
-			}
+            }
 		}
 		else
 		{
@@ -424,153 +360,6 @@ void FCustomizableObjectNodeObjectDetails::OnStatesPropertyChanged()
 {
 	if (DetailBuilderPtr)
 	{
-		DetailBuilderPtr->ForceRefreshDetails();
-	}
-}
-
-
-TSharedRef<SWidget> FCustomizableObjectNodeObjectDetails::OnGenerateComponentComboBoxForPicker()
-{
-	return SNew(SComboButton)
-		.OnGetMenuContent(this, &FCustomizableObjectNodeObjectDetails::OnGenerateComponentMenuForPicker)
-		.VAlign(VAlign_Center)
-		.ContentPadding(0)
-		.ButtonContent()
-		[
-			SNew(STextBlock)
-			.Font(IDetailLayoutBuilder::GetDetailFont())
-			.Text(this, &FCustomizableObjectNodeObjectDetails::GetCurrentComponentName)
-		];
-}
-
-
-TSharedRef<SWidget> FCustomizableObjectNodeObjectDetails::OnGenerateLODComboBoxForPicker()
-{
-	return SNew(SComboButton)
-		.OnGetMenuContent(this, &FCustomizableObjectNodeObjectDetails::OnGenerateLODMenuForPicker)
-		.VAlign(VAlign_Center)
-		.ButtonContent()
-		[
-			SNew(STextBlock)
-			.Font(IDetailLayoutBuilder::GetDetailFont())
-			.Text(this, &FCustomizableObjectNodeObjectDetails::GetCurrentLODName)
-		];
-}
-
-
-TSharedRef<SWidget> FCustomizableObjectNodeObjectDetails::OnGenerateComponentMenuForPicker()
-{
-	if (BaseObjectNode.IsValid())
-	{
-		if (const UCustomizableObject* ParentObject = Cast<UCustomizableObject>(BaseObjectNode->GetOutermostObject()))
-		{
-			int32 NumComponents = ParentObject->GetPrivate()->MutableMeshComponents.Num();
-			FMenuBuilder MenuBuilder(true, NULL);
-
-			for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
-			{
-				FText ComponentString = FText::FromName(ParentObject->GetPrivate()->MutableMeshComponents[ComponentIndex].Name);
-				FUIAction Action(FExecuteAction::CreateSP(this, &FCustomizableObjectNodeObjectDetails::OnSelectedComponentChanged, ParentObject->GetPrivate()->MutableMeshComponents[ComponentIndex].Name));
-				MenuBuilder.AddMenuEntry(ComponentString, FText::GetEmpty(), FSlateIcon(), Action);
-			}
-
-			return MenuBuilder.MakeWidget();
-		}
-	}
-
-	return SNullWidget::NullWidget;
-}
-
-
-TSharedRef<SWidget> FCustomizableObjectNodeObjectDetails::OnGenerateLODMenuForPicker()
-{
-	if (BaseObjectNode.IsValid())
-	{
-		int32 NumLODs = BaseObjectNode->NumLODs;
-		FMenuBuilder MenuBuilder(true, NULL);
-
-		for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
-		{
-			FText LODString = FText::FromString((TEXT("LOD ") + FString::FromInt(LODIndex)));
-			FUIAction Action(FExecuteAction::CreateSP(this, &FCustomizableObjectNodeObjectDetails::OnSelectedLODChanged, LODIndex));
-			MenuBuilder.AddMenuEntry(LODString, FText::GetEmpty(), FSlateIcon(), Action);
-		}
-
-		return MenuBuilder.MakeWidget();
-	}
-
-	return SNullWidget::NullWidget;
-}
-
-
-void FCustomizableObjectNodeObjectDetails::OnSelectedComponentChanged(const FName NewComponentSelected)
-{
-	if (BaseObjectNode.IsValid())
-	{
-		BaseObjectNode->CurrentComponent = NewComponentSelected;
-		BaseObjectNode->CurrentLOD = 0;
-	}
-	
-	DetailBuilderPtr->ForceRefreshDetails();
-}
-
-
-void FCustomizableObjectNodeObjectDetails::OnSelectedLODChanged(int32 NewLODIndex)
-{
-	if (BaseObjectNode.IsValid())
-	{
-		BaseObjectNode->CurrentLOD = NewLODIndex;
-	}
-
-	DetailBuilderPtr->ForceRefreshDetails();
-}
-
-
-FText FCustomizableObjectNodeObjectDetails::GetCurrentComponentName() const
-{
-	FText ComponentText;
-
-	if (BaseObjectNode.IsValid())
-	{
-		ComponentText = FText::FromName(BaseObjectNode->CurrentComponent);
-	}
-
-	return ComponentText;
-}
-
-
-FText FCustomizableObjectNodeObjectDetails::GetCurrentLODName() const
-{
-	FText LODText;
-
-	if (BaseObjectNode.IsValid())
-	{
-		LODText = FText::FromString(FString(TEXT("LOD ")) + FString::FromInt(BaseObjectNode->CurrentLOD));
-	}
-
-	return LODText;
-}
-
-
-void FCustomizableObjectNodeObjectDetails::OnNumComponentsOrLODsChanged(const FPropertyChangedEvent& PropertyChangedEvent)
-{
-	if (DetailBuilderPtr && PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
-	{
-		if (const UCustomizableObject* ParentObject = Cast<UCustomizableObject>(BaseObjectNode->GetOutermostObject()))
-		{
-			if (ParentObject->GetPrivate()->MutableMeshComponents.FindByPredicate([&](const FMutableMeshComponentData& Component) { return Component.Name == BaseObjectNode->CurrentComponent; }) == nullptr)
-			{
-				BaseObjectNode->CurrentComponent = ParentObject->GetPrivate()->MutableMeshComponents.Last().Name;
-
-				// Reset the LOD selection
-				BaseObjectNode->CurrentLOD = 0;
-			}
-			else
-			{
-				BaseObjectNode->CurrentLOD = FMath::Min(BaseObjectNode->NumLODs - 1, BaseObjectNode->CurrentLOD);
-			}
-		}
-	
 		DetailBuilderPtr->ForceRefreshDetails();
 	}
 }

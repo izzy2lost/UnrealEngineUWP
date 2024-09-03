@@ -1458,6 +1458,8 @@ public:
 		CorrectlySerializeTableToParamNames,
 		
 		AddMaterialSlotNameIndexToSurfaceMetadata,
+
+		NodeComponentMesh,
 		
 		MoveEditNodesToModifiers,
 

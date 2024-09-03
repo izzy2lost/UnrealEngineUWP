@@ -11,29 +11,33 @@
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/ICustomizableObjectEditor.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeComponentMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialVariation.h"
 #include "Misc/UObjectToken.h"
 #include "Logging/MessageLog.h"
 #include "Containers/Queue.h"
 #include "MuCO/CustomizableObjectCustomVersion.h"
+#include "MuCOE/CustomizableObjectEditor_Deprecated.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeComponentMeshAddTo.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeCopyMaterial.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeMaterialSwitch.h"
 
 class UCustomizableObjectNodeRemapPins;
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
+
 const FName UCustomizableObjectNodeObject::ChildrenPinName(TEXT("Children"));
 const FName UCustomizableObjectNodeObject::ComponentsPinName(TEXT("Components"));
 const FName UCustomizableObjectNodeObject::ModifiersPinName(TEXT("Modifiers"));
 const FName UCustomizableObjectNodeObject::OutputPinName(TEXT("Object"));
-const TCHAR* UCustomizableObjectNodeObject::LODPinNamePrefix = TEXT("LOD ");
+
 
 UCustomizableObjectNodeObject::UCustomizableObjectNodeObject()
 	: Super()
 {
 	bIsBase = true;
 	ObjectName = "Unnamed Object";
-	NumLODs = 1;
 	Identifier = FGuid::NewGuid();
 }
 
@@ -97,23 +101,23 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup(int32 CustomizableO
 	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::NewComponentOptions)
 	{
 		// Like we did in the CO components, we use the index of the component as the name of the component
-		for (int32 ComponentIndex = 0; ComponentIndex < ComponentSettings.Num(); ++ComponentIndex)
+		for (int32 ComponentIndex = 0; ComponentIndex < ComponentSettings_DEPRECATED.Num(); ++ComponentIndex)
 		{
-			ComponentSettings[ComponentIndex].ComponentName = FString::FromInt(ComponentIndex);
+			ComponentSettings_DEPRECATED[ComponentIndex].ComponentName = FString::FromInt(ComponentIndex);
 		}
 	}
 
 	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::MovedCompatibilityFromPostBackwardsCompatibleFixup)
 	{
 		// Fix up ComponentSettings. Only root nodes
-		if (ComponentSettings.IsEmpty() && bIsBase && !ParentObject)
+		if (ComponentSettings_DEPRECATED.IsEmpty() && bIsBase && !ParentObject)
 		{
 			FComponentSettings ComponentSettingsTemplate;
-			ComponentSettingsTemplate.LODReductionSettings.SetNum(NumLODs);
+			ComponentSettingsTemplate.LODReductionSettings.SetNum(NumLODs_DEPRECATED);
 
 			if (UCustomizableObject* CurrentObject = Cast<UCustomizableObject>(GetOutermostObject()))
 			{
-				ComponentSettings.Init(ComponentSettingsTemplate, CurrentObject->GetPrivate()->MutableMeshComponents.Num());
+				ComponentSettings_DEPRECATED.Init(ComponentSettingsTemplate, CurrentObject->GetPrivate()->MutableMeshComponents.Num());
 			}
 		}
 	}
@@ -128,6 +132,277 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup(int32 CustomizableO
 		{
 			CustomCreatePin(EGPD_Input, Schema->PC_Modifier, ModifiersPinName, true);
 		}
+	}
+	
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::NodeComponentMesh)
+	{
+		auto NodeComponentMeshBaseAllocateDefaultPins = [](UCustomizableObjectNode* Node, UCustomizableObjectNodeRemapPins*)
+		{
+			UCustomizableObjectNodeComponentMeshBase* NodeComponentMesh = CastChecked<UCustomizableObjectNodeComponentMeshBase>(Node);
+						
+			const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
+
+			NodeComponentMesh->LODPins.Empty(NodeComponentMesh->NumLODs);
+			for (int32 NodeComponentLODIndex = 0; NodeComponentLODIndex < NodeComponentMesh->NumLODs; ++NodeComponentLODIndex)
+			{
+				FString LODName = FString::Printf(TEXT("LOD %d"), NodeComponentLODIndex);
+
+				UEdGraphPin* Pin = NodeComponentMesh->CustomCreatePin(EGPD_Input, Schema->PC_Material, FName(*LODName), true);
+				NodeComponentMesh->LODPins.Add(Pin);
+			}
+						
+			NodeComponentMesh->OutputPin = NodeComponentMesh->CustomCreatePin(EGPD_Output, Schema->PC_Component, TEXT("Component"));
+		};
+
+		auto NodeObjectAllocateDefaultPins = [](UCustomizableObjectNode* Node, UCustomizableObjectNodeRemapPins*)
+		{
+			UCustomizableObjectNodeObject* NodeObject = CastChecked<UCustomizableObjectNodeObject>(Node);
+
+			const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
+
+			NodeObject->CustomCreatePin(EGPD_Input, Schema->PC_Component, ComponentsPinName, true);
+	
+			NodeObject->CustomCreatePin(EGPD_Input, Schema->PC_Modifier, ModifiersPinName, true);
+
+			NodeObject->CustomCreatePin(EGPD_Input, Schema->PC_Object, ChildrenPinName, true);
+	
+			for (const FRegisteredObjectNodeInputPin& Pin : ICustomizableObjectModule::Get().GetAdditionalObjectNodePins())
+			{
+				// Use the global pin name here to prevent extensions using the same pin names from
+				// interfering with each other.
+				//
+				// This also prevents extension pins from clashing with the built-in pins from this node,
+				// such as "Object".
+				UEdGraphPin* GraphPin = NodeObject->CustomCreatePin(EGPD_Input, Pin.InputPin.PinType, Pin.GlobalPinName, Pin.InputPin.bIsArray);
+
+				GraphPin->PinFriendlyName = Pin.InputPin.DisplayName;
+			}
+
+			UEdGraphPin* OutputPin = NodeObject->CustomCreatePin(EGPD_Output, Schema->PC_Object, OutputPinName);
+
+			if (NodeObject->bIsBase)
+			{
+				OutputPin->bHidden = true;
+			}
+		};
+		
+		const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
+		
+		bool bMoved = false;
+
+		int32 NodesCreated = 0;
+
+		if (!ComponentsPin()) // Some old nodes do not have the component pin.
+		{
+			CustomCreatePin(EGPD_Input, Schema->PC_Component, ComponentsPinName, true);
+		}
+		
+		if (!ParentObject && // Is a root object
+			bIsBase)
+		{
+			if (!bMoved)
+			{
+				bMoved = true;
+				NodePosX += 400; // Move it a bit to make space for the new component nodes.
+			}
+
+			for (const FMutableMeshComponentData& MeshComponent : GetRootObject(*this)->GetPrivate()->MutableMeshComponents)
+			{
+				UCustomizableObjectNodeComponentMesh* DefaultObject = UCustomizableObjectNodeComponentMesh::StaticClass()->GetDefaultObject<UCustomizableObjectNodeComponentMesh>();
+				UEdGraphNode* Node = FCustomizableObjectSchemaAction_NewNode::CreateNode(GetGraph(), ComponentsPin(), FVector2D(NodePosX - 300.0,  NodePosY + 200.0 * NodesCreated), DefaultObject);
+				UCustomizableObjectNodeComponentMesh* NodeComponentMesh = CastChecked<UCustomizableObjectNodeComponentMesh>(Node);
+
+				++NodesCreated;
+				
+				NodeComponentMesh->ComponentName = MeshComponent.Name;
+				NodeComponentMesh->NumLODs = NumLODs_DEPRECATED;
+				if (FComponentSettings* Result = ComponentSettings_DEPRECATED.FindByPredicate([&](const FComponentSettings& Settings)
+				{
+					return Settings.ComponentName == NodeComponentMesh->ComponentName;
+				}))
+				{
+					NodeComponentMesh->LODReductionSettings = Result->LODReductionSettings;
+				}
+
+				NodeComponentMesh->FixupReconstructPins(CreateRemapPinsByName(), NodeComponentMeshBaseAllocateDefaultPins);
+				
+				ComponentsPin()->MakeLinkTo(NodeComponentMesh->OutputPin.Get());
+			}
+		}
+
+		TMap<FName, UCustomizableObjectNodeComponentMeshAddTo*> ExistingNodeComponentMeshAddTo;
+		
+		// Create all NodeComponentMeshAddTo.
+		for (int32 LODIndex = 0; LODIndex < NumLODs_DEPRECATED; ++LODIndex)
+		{
+			UEdGraphPin* OldLODPin = FindPin(FString::Printf(TEXT("%s%d "), TEXT("LOD "), LODIndex));
+
+			TArray<UEdGraphPin*> CopyLinkedPins = OldLODPin->LinkedTo;
+			for (UEdGraphPin* LinkedPin : CopyLinkedPins) // Import/Exports/Reroute not supported.
+			{
+				UEdGraphNode* LinkedNode = LinkedPin->GetOwningNode();
+
+				auto CreateNodeComponent = [&, this](const FName& MeshComponentName)
+				{
+					if (UCustomizableObjectNodeComponentMeshAddTo** Result = ExistingNodeComponentMeshAddTo.Find(MeshComponentName))
+					{
+						return *Result;
+					}
+					
+					if (!bMoved)
+					{
+						bMoved = true;
+						NodePosX += 400; // Move it a bit to make space for the new component nodes.
+					}
+					
+					UCustomizableObjectNodeComponentMeshAddTo* DefaultObject = UCustomizableObjectNodeComponentMeshAddTo::StaticClass()->GetDefaultObject<UCustomizableObjectNodeComponentMeshAddTo>();
+					UEdGraphNode* Node = FCustomizableObjectSchemaAction_NewNode::CreateNode(GetGraph(), ComponentsPin(), FVector2D(NodePosX - 300.0,  NodePosY + 200.0 * NodesCreated), DefaultObject);
+					UCustomizableObjectNodeComponentMeshAddTo* NodeComponentMeshAddTo = CastChecked<UCustomizableObjectNodeComponentMeshAddTo>(Node);
+
+					++NodesCreated;
+
+					NodeComponentMeshAddTo->ParentComponentName = MeshComponentName;
+					NodeComponentMeshAddTo->NumLODs = NumLODs_DEPRECATED;
+					NodeComponentMeshAddTo->AutoLODStrategy = AutoLODStrategy_DEPRECATED;
+					
+					// Create LOD pins.
+					NodeComponentMeshAddTo->FixupReconstructPins(CreateRemapPinsByName(), NodeComponentMeshBaseAllocateDefaultPins);
+
+					ComponentsPin()->MakeLinkTo(NodeComponentMeshAddTo->OutputPin.Get());
+
+					ExistingNodeComponentMeshAddTo.Add(NodeComponentMeshAddTo->ParentComponentName ,NodeComponentMeshAddTo);
+					
+					return NodeComponentMeshAddTo;
+				};
+
+				
+				UCustomizableObjectNodeComponentMeshAddTo* NodeComponentMeshAddTo = nullptr;
+				bool bFixNode = false;
+				
+				if (UCustomizableObjectNodeMaterial* NodeMaterial = Cast<UCustomizableObjectNodeMaterial>(LinkedNode))
+				{
+					bFixNode = true;
+
+					NodeComponentMeshAddTo = CreateNodeComponent(NodeMaterial->MeshComponentName_DEPRECATED);
+				}
+				else if (UCustomizableObjectNodeMaterialSwitch* NodeMaterialSwitch = Cast<UCustomizableObjectNodeMaterialSwitch>(LinkedNode))
+				{
+					bFixNode = true;
+
+					[&]() // Lambda to ease the control flow.
+					{
+						if (!NodeMaterialSwitch->GetNumElements()) // We should at least have a component to know were to connect this material. If not, not supported.
+						{
+							return;
+						}
+
+						FName ComponentName;
+						bool bFirst = true;
+						for (int32 ElementIndex = 0; ElementIndex < NodeMaterialSwitch->GetNumElements(); ++ElementIndex)
+						{
+							if (UEdGraphPin* ConnectedPin = FollowInputPin(*NodeMaterialSwitch->GetElementPin(ElementIndex)))
+							{
+								if (UCustomizableObjectNodeMaterialBase* FirstNodeMaterialBase = Cast<UCustomizableObjectNodeMaterialBase>(ConnectedPin->GetOwningNode()))
+								{
+									if (UCustomizableObjectNodeMaterial* FirstNodeMaterial = FirstNodeMaterialBase->GetMaterialNode())
+									{
+										if (bFirst)
+										{
+											bFirst = false;
+											ComponentName = FirstNodeMaterial->MeshComponentName_DEPRECATED;
+										}
+										else
+										{
+											if (ComponentName != FirstNodeMaterial->MeshComponentName_DEPRECATED) // All components must match. If not, not supported.
+											{
+												return;
+											}
+										}
+									}
+								}
+							}
+						}
+
+						NodeComponentMeshAddTo = CreateNodeComponent(ComponentName);
+					}();
+				}
+				else if (UCustomizableObjectNodeMaterialVariation* NodeMaterialVariation = Cast<UCustomizableObjectNodeMaterialVariation>(LinkedNode))
+				{
+					bFixNode = true;
+
+					[&]() // Lambda to ease the control flow.
+					{
+						if (!NodeMaterialVariation->GetNumVariations()) // We should at least have a component to know were to connect this material. If not, not supported.
+						{
+							return;
+						}
+
+						FName ComponentName;
+						bool bFirst = true;
+
+						if (UEdGraphPin* ConnectedPin = FollowInputPin(*NodeMaterialVariation->DefaultPin()))
+						{
+							if (UCustomizableObjectNodeMaterialBase* FirstNodeMaterialBase = Cast<UCustomizableObjectNodeMaterialBase>(ConnectedPin->GetOwningNode()))
+							{
+								if (UCustomizableObjectNodeMaterial* FirstNodeMaterial = FirstNodeMaterialBase->GetMaterialNode())
+								{
+									bFirst = false;
+									ComponentName = FirstNodeMaterial->MeshComponentName_DEPRECATED;
+								}
+							}
+						}
+						
+						for (int32 ElementIndex = 0; ElementIndex < NodeMaterialVariation->GetNumVariations(); ++ElementIndex)
+						{
+							if (UEdGraphPin* ConnectedPin = FollowInputPin(*NodeMaterialVariation->VariationPin(ElementIndex)))
+							{
+								if (UCustomizableObjectNodeMaterialBase* FirstNodeMaterialBase = Cast<UCustomizableObjectNodeMaterialBase>(ConnectedPin->GetOwningNode()))
+								{
+									if (UCustomizableObjectNodeMaterial* FirstNodeMaterial = FirstNodeMaterialBase->GetMaterialNode())
+									{
+										if (bFirst)
+										{
+											bFirst = false;
+											ComponentName = FirstNodeMaterial->MeshComponentName_DEPRECATED;
+										}
+										else
+										{
+											if (ComponentName != FirstNodeMaterial->MeshComponentName_DEPRECATED) // All components must match. If not, not supported.
+											{
+												return;
+											}
+										}
+									}
+								}
+							}
+						}
+
+						if (!bFirst)
+						{
+							NodeComponentMeshAddTo = CreateNodeComponent(ComponentName);
+						}
+					}();
+				}
+
+				if (bFixNode && !NodeComponentMeshAddTo)
+				{
+					FString Msg = FString::Printf(TEXT("A Object node has a legacy connection to a node [%s] without automatic upgrade support. Manual update is probably needed."), *LinkedNode->GetName());
+					FCustomizableObjectEditorLogger::CreateLog(FText::FromString(Msg))
+						.Severity(EMessageSeverity::Warning)
+						.Context(*this)
+						.BaseObject(true)
+						.Log();
+				}
+
+				if (NodeComponentMeshAddTo)
+				{
+					LinkedPin->MakeLinkTo(NodeComponentMeshAddTo->LODPins[LODIndex].Get());
+					LinkedPin->BreakLinkTo(OldLODPin);
+				}
+			}
+		}
+		
+		FixupReconstructPins(CreateRemapPinsByName(), NodeObjectAllocateDefaultPins);
 	}
 }
 
@@ -149,11 +424,11 @@ void UCustomizableObjectNodeObject::PostEditChangeProperty(FPropertyChangedEvent
 	FProperty* PropertyThatChanged = PropertyChangedEvent.Property;
 	if (PropertyThatChanged && PropertyThatChanged->GetName() == TEXT("NumLODs"))
 	{
-		NumLODs = FMath::Clamp(NumLODs, 1, 64);
+		NumLODs_DEPRECATED = FMath::Clamp(NumLODs_DEPRECATED, 1, 64);
 
-		for (int32 CompSetIndex = 0; CompSetIndex < ComponentSettings.Num(); ++CompSetIndex)
+		for (int32 CompSetIndex = 0; CompSetIndex < ComponentSettings_DEPRECATED.Num(); ++CompSetIndex)
 		{
-			ComponentSettings[CompSetIndex].LODReductionSettings.SetNum(NumLODs);
+			ComponentSettings_DEPRECATED[CompSetIndex].LODReductionSettings.SetNum(NumLODs_DEPRECATED);
 		}
 
 		ReconstructNode();
@@ -167,25 +442,12 @@ void UCustomizableObjectNodeObject::AllocateDefaultPins(UCustomizableObjectNodeR
 {
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
-	// NOTE: Ensure all built-in pins are handled in UCustomizableObjectNodeObject::IsBuiltInPin
+	CustomCreatePin(EGPD_Input, Schema->PC_Component, ComponentsPinName, true);
+	
+	CustomCreatePin(EGPD_Input, Schema->PC_Modifier, ModifiersPinName, true);
 
-	for (int32 i = 0; i < NumLODs; ++i)
-	{
-		FString LODName = FString::Printf(TEXT("%s%d "), LODPinNamePrefix, i);
-
-		UEdGraphPin* Pin = CustomCreatePin(EGPD_Input, Schema->PC_Material, FName(*LODName), true);
-		Pin->bDefaultValueIsIgnored = true;
-	}
-
-	UEdGraphPin* ComponentsPin = CustomCreatePin(EGPD_Input, Schema->PC_Component, ComponentsPinName, true);
-	ComponentsPin->bDefaultValueIsIgnored = true;
-
-	UEdGraphPin* ModifiersPin = CustomCreatePin(EGPD_Input, Schema->PC_Modifier, ModifiersPinName, true);
-	ModifiersPin->bDefaultValueIsIgnored = true;
-
-	UEdGraphPin* ChildrenPin = CustomCreatePin(EGPD_Input, Schema->PC_Object, ChildrenPinName, true);
-	ChildrenPin->bDefaultValueIsIgnored = true;
-
+	CustomCreatePin(EGPD_Input, Schema->PC_Object, ChildrenPinName, true);
+	
 	for (const FRegisteredObjectNodeInputPin& Pin : ICustomizableObjectModule::Get().GetAdditionalObjectNodePins())
 	{
 		// Use the global pin name here to prevent extensions using the same pin names from
@@ -253,20 +515,6 @@ void UCustomizableObjectNodeObject::PrepareForCopying()
 }
 
 
-int32 UCustomizableObjectNodeObject::GetLOD(UEdGraphPin* Pin) const
-{
-	for (int32 LOD = 0; LOD < GetNumLODPins(); ++LOD)
-	{
-		if (Pin == LODPin(LOD))
-		{
-			return LOD;
-		}
-	}
-
-	return -1;
-}
-
-
 bool UCustomizableObjectNodeObject::CanUserDeleteNode() const
 {
 	return !bIsBase;
@@ -276,48 +524,6 @@ bool UCustomizableObjectNodeObject::CanUserDeleteNode() const
 bool UCustomizableObjectNodeObject::CanDuplicateNode() const
 {
 	return !bIsBase;
-}
-
-
-TArray<UCustomizableObjectNodeMaterialBase*> UCustomizableObjectNodeObject::GetMaterialNodes(const int LOD) const
-{
-	TArray<UCustomizableObjectNodeMaterialBase*> Result;
-
-	TQueue<UEdGraphNode*> PotentialCustomizableNodeObjects;
-
-	for (const UEdGraphPin* LinkedPin : FollowInputPinArray(*LODPin(LOD)))
-	{
-		PotentialCustomizableNodeObjects.Enqueue(LinkedPin->GetOwningNode());
-	}
-
-	UEdGraphNode* CurrentElement;
-	while (PotentialCustomizableNodeObjects.Dequeue(CurrentElement))
-	{
-		if (UCustomizableObjectNodeMaterialBase* CurrentMaterialNode = Cast<UCustomizableObjectNodeMaterialBase>(CurrentElement))
-		{
-			Result.Add(CurrentMaterialNode);
-		}
-		else if (UCustomizableObjectNodeMaterialVariation* CurrentMaterialVariationNode = Cast<UCustomizableObjectNodeMaterialVariation>(CurrentElement))
-		{
-			// Case of material variation. It's not a material, but a node that further references any material, add all its inputs that could be a material
-			for (int numMaterialPin = 0; numMaterialPin < CurrentMaterialVariationNode->GetNumVariations(); ++numMaterialPin)
-			{
-				const UEdGraphPin* VariationPin = CurrentMaterialVariationNode->VariationPin(numMaterialPin);
-				for (const UEdGraphPin* LinkedPin : FollowInputPinArray(*VariationPin))
-				{
-					PotentialCustomizableNodeObjects.Enqueue(LinkedPin->GetOwningNode());
-				}
-			}
-
-			const UEdGraphPin* DefaultPin = CurrentMaterialVariationNode->DefaultPin();
-			for (const UEdGraphPin* LinkedPin : FollowInputPinArray(*DefaultPin))
-			{
-				PotentialCustomizableNodeObjects.Enqueue(LinkedPin->GetOwningNode());
-			}
-		} 
-	}
-
-	return Result;
 }
 
 
@@ -380,12 +586,5 @@ bool UCustomizableObjectNodeObject::IsSingleOutputNode() const
 	return true;
 }
 
-bool UCustomizableObjectNodeObject::IsBuiltInPin(FName PinName)
-{
-	return PinName == ChildrenPinName
-		|| PinName == ComponentsPinName
-		|| PinName == OutputPinName
-		|| PinName.ToString().StartsWith(LODPinNamePrefix);
-}
 
 #undef LOCTEXT_NAMESPACE

@@ -11,6 +11,7 @@
 #include "MuCOE/CustomizableObjectPin.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/GraphTraversal.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeComponentMeshAddTo.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObjectGroup.h"
 #include "MuCOE/RemapPins/CustomizableObjectNodeRemapPinsByName.h"
@@ -195,7 +196,7 @@ void UCustomizableObjectNode::ReconstructNode()
 }
 
 
-void UCustomizableObjectNode::ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsAction)
+void UCustomizableObjectNode::FixupReconstructPins(UCustomizableObjectNodeRemapPins* RemapPinsAction, TFunction<void(UCustomizableObjectNode*, UCustomizableObjectNodeRemapPins*)> FuncAllocateDefaultPins)
 {
 	Modify();
 
@@ -221,7 +222,7 @@ void UCustomizableObjectNode::ReconstructNode(UCustomizableObjectNodeRemapPins* 
 	TArray<UEdGraphPin*> OldPins(Pins); // We can not empty Pins at this point since it will break all FEdGraphPinReference during the reconstruction.
 
 	// Recreate the new pins
-	AllocateDefaultPins(RemapPinsAction);
+	FuncAllocateDefaultPins(this, RemapPinsAction);
 	
 	// Try to remap orphan and non orphan pins.
 	TArray<UEdGraphPin*> NewPins;
@@ -401,6 +402,12 @@ void UCustomizableObjectNode::BackwardsCompatibleFixup(int32 CustomizableObjectC
 }
 
 
+void UCustomizableObjectNode::ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode)
+{
+	FixupReconstructPins(RemapPinsMode, [](UCustomizableObjectNode* Node, UCustomizableObjectNodeRemapPins* Action){ Node->AllocateDefaultPins(Action); });
+}
+
+
 bool UCustomizableObjectNode::CanConnect( const UEdGraphPin* InOwnedInputPin, const UEdGraphPin* InOutputPin, bool& bOutIsOtherNodeBlocklisted, bool& bOutArePinsCompatible) const
 {
 	bOutIsOtherNodeBlocklisted = false;
@@ -572,9 +579,12 @@ int32 UCustomizableObjectNode::GetLOD() const
 			{
 				for (UEdGraphPin* LinkedPin : FollowOutputPinArray(*Pin))
 				{
-					if (UCustomizableObjectNodeObject* CurrentCustomizableObjectNode = Cast<UCustomizableObjectNodeObject>(LinkedPin->GetOwningNode()))
+					if (UCustomizableObjectNodeComponentMeshBase* ComponentMesh = Cast<UCustomizableObjectNodeComponentMeshBase>(LinkedPin->GetOwningNode()))
 					{
-						return CurrentCustomizableObjectNode->GetLOD(LinkedPin);
+						return ComponentMesh->LODPins.IndexOfByPredicate([&](const FEdGraphPinReference& LODPin)
+						{
+							return LinkedPin == LODPin.Get();
+						});
 					}
 					else
 					{

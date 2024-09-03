@@ -623,7 +623,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup(int32 Customizabl
 
 	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::NewComponentOptions)
 	{
-		MeshComponentName = FName(FString::FromInt(MeshComponentIndex_DEPRECATED));
+		MeshComponentName_DEPRECATED = FName(FString::FromInt(MeshComponentIndex_DEPRECATED));
 	}
 
 	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::NodeMaterialTypedImagePins)
@@ -1163,27 +1163,6 @@ bool UCustomizableObjectNodeMaterial::CustomRemovePin(UEdGraphPin& Pin)
 }
 
 
-void UCustomizableObjectNodeMaterial::ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode)
-{
-	Super::ReconstructNode(RemapPinsMode);
-
-	// When a material node is created, the first component is set as its mesh component
-	if (MeshComponentName.IsNone())
-	{
-		if (UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(GetOutermostObject()))
-		{
-			if (UCustomizableObject* RootObject = GetRootObject(CustomizableObject))
-			{
-				if (RootObject->GetPrivate()->MutableMeshComponents.Num())
-				{
-					MeshComponentName = RootObject->GetPrivate()->MutableMeshComponents[0].Name;
-				}
-			}
-		}
-	}
-}
-
-
 void UCustomizableObjectNodeMaterial::SetMaterial(UMaterialInterface* InMaterial)
 {
 	Material = InMaterial;
@@ -1199,12 +1178,6 @@ UMaterialInterface* UCustomizableObjectNodeMaterial::GetMaterial() const
 bool UCustomizableObjectNodeMaterial::IsReuseMaterialBetweenLODs() const
 {
 	return bReuseMaterialBetweenLODs;	
-}
-
-
-FName UCustomizableObjectNodeMaterial::GetMeshComponentName() const
-{
-	return MeshComponentName;
 }
 
 
@@ -1504,12 +1477,6 @@ void UCustomizableObjectNodeMaterial::BreakExistingConnectionsPostConnection(UEd
 			GetSchema()->BreakSinglePinLink(OutputPin, RemovePin); // Can not be called inside the range for loop.
 		}
 	}
-}
-
-
-void UCustomizableObjectNodeMaterial::SetComponentName(const FName& Name)
-{
-	MeshComponentName = Name;
 }
 
 

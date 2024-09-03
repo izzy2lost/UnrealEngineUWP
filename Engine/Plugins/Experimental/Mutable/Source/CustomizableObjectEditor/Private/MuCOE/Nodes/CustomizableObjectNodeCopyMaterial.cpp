@@ -218,19 +218,6 @@ bool UCustomizableObjectNodeCopyMaterial::IsReuseMaterialBetweenLODs() const
 }
 
 
-FName UCustomizableObjectNodeCopyMaterial::GetMeshComponentName() const
-{
-	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
-	{
-		return NodeMaterial->GetMeshComponentName();
-	}
-	else
-	{
-		return FName();
-	}
-}
-
-
 TArray<FString>* UCustomizableObjectNodeCopyMaterial::GetEnableTags()
 {
 	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())

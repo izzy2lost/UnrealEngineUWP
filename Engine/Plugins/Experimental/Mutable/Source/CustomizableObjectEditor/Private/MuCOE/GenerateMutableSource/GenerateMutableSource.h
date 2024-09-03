@@ -399,14 +399,16 @@ struct FMutableComponentInfo
 {
 	FMutableComponentInfo(FName InComponentName, USkeletalMesh* InRefSkeletalMesh);
 
-	void AccumulateBonesToRemovePerLOD(const FComponentSettings& ComponentSettings, int32 NumLODs);
+	void AccumulateBonesToRemovePerLOD(const TArray<FLODReductionSettings>& LODReductionSettings, int32 NumLODs);
 
 	FName ComponentName;
 
 	// Each component must have a reference SkeletalMesh with a valid Skeleton
 	USkeletalMesh* RefSkeletalMesh = nullptr;
 	USkeleton* RefSkeleton = nullptr;
-
+	
+	UCustomizableObjectNodeComponentMesh* NodeComponentMesh = nullptr;
+	
 	// Map to check skeleton compatibility
 	TMap<const USkeleton*, bool> SkeletonCompatibility;
 	
@@ -793,13 +795,6 @@ struct FMutableGraphGenerationContext
 
 	TArray<FAnimBpOverridePhysicsAssetsInfo> AnimBpOverridePhysicsAssetsInfo;
 
-	// Hierarchy of current ComponentNew nodes
-	struct ObjectParent
-	{
-		TArray<mu::Ptr<mu::NodeComponentNew>> Components;
-	};
-	TArray< ObjectParent > ComponentNewNode;
-
 	uint8 FromLOD = 0; // LOD to append to the CurrentLOD when using AutomaticLODs. 
 	uint8 CurrentLOD = 0;
 	FName CurrentMeshComponent;
@@ -810,13 +805,14 @@ struct FMutableGraphGenerationContext
 	uint8 NumLODsInRoot = 0;
 	uint8 NumMeshComponentsInRoot = 0;
 
-	/** Number of additional mesh components added with explict Component nodes to the root or another object node. */
-	uint8 NumExplicitMeshComponents = 0;
+	uint8 NumPassthroughMeshComponents = 0;
 
 	uint8 FirstLODAvailable = MAX_MESH_LOD_COUNT;
 	uint8 NumMaxLODsToStream = MAX_MESH_LOD_COUNT;
 
 	bool bEnableLODStreaming = true;
+
+	bool bPartialCompilation = false;
 
 	// Based on the last object visited.
 	ECustomizableObjectAutomaticLODStrategy CurrentAutoLODStrategy = ECustomizableObjectAutomaticLODStrategy::Manual;
@@ -977,9 +973,7 @@ namespace Private
 } //Private
 
 //
-mu::Ptr<mu::NodeObject> GenerateMutableSource(const class UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext, bool bPartialCompilation);
-mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext);
-
+mu::Ptr<mu::NodeObject> GenerateMutableSource(const class UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext);
 
 /** Populate an array with all the information related to the reference skeletal meshes we might need in-game to generate instances */
 void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& GenerationContext);

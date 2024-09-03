@@ -657,14 +657,7 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 			}
 		}
 	}
-
-	// Ensure that the CO has a valid AutoLODStrategy on the ActualRoot.
-	if (ActualRoot->AutoLODStrategy == ECustomizableObjectAutomaticLODStrategy::Inherited)
-	{
-		CompilerLog(LOCTEXT("RootInheritsFromParent", "Error! Base CustomizableObject's LOD Strategy can't be set to 'Inherit from parent object'"), ActualRoot, EMessageSeverity::Error);
-		return nullptr;
-	}
-
+	
 	if (ActualRootObject->GetPrivate()->MutableMeshComponents.IsEmpty())
 	{
 		CompilerLog(LOCTEXT("NoComponentsError", "Error! There are no components defined in the Object Properties Tab."), ActualRoot, EMessageSeverity::Error);
@@ -719,6 +712,62 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 		GenerationContext.AddParticipatingObject(*RefSkeletalMesh);
 	}
 
+	// Find all component nodes
+	TSet<UCustomizableObject*> ParticipatingObjects; // All COs participating in the hierarchy
+	{
+		auto GetParents = [&ParticipatingObjects](UCustomizableObject* Object)
+		{
+			TArray<UCustomizableObjectNodeObject*> ArrayNodeObject;
+			TArray<UCustomizableObject*> ArrayCustomizableObject;
+
+			GetParentsUntilRoot(Object, ArrayNodeObject, ArrayCustomizableObject);
+
+			ParticipatingObjects.Append(ArrayCustomizableObject);
+		};
+
+		// Parents
+		GetParents(Object);
+
+		// Working set and their parents
+		for (TSoftObjectPtr<UCustomizableObject> SoftObject :  Object->WorkingSet)
+		{
+			if (UCustomizableObject* WorkingSetObject = SoftObject.LoadSynchronous())
+			{
+				GetParents(WorkingSetObject);
+			}
+		}
+
+		// Children
+		for (FAssetData& AssetData : ArrayAssetData)
+		{
+			ParticipatingObjects.Add(Cast<UCustomizableObject>(AssetData.GetAsset()));
+		}
+	}
+	
+	for (UCustomizableObject* ParticipatingObject : ParticipatingObjects)
+	{
+		for (UEdGraphNode* Node : ParticipatingObject->GetPrivate()->GetSource()->Nodes)
+		{
+			if (UCustomizableObjectNodeComponentMesh* NodeComponentMesh = Cast<UCustomizableObjectNodeComponentMesh>(Node))
+			{
+				if (FMutableComponentInfo* ComponentInfo = GenerationContext.ComponentInfos.FindByPredicate([&](const FMutableComponentInfo& Element)
+				{
+					return Element.ComponentName == NodeComponentMesh->ComponentName;
+				}))
+				{
+					if (ComponentInfo->NodeComponentMesh)
+					{
+						FText Msg = FText::Format(LOCTEXT("NoReferenceMeshObjectTab", "Already exist a Component node with the same name in Customizable Object [{0}]"), FText::FromString(GetRootObject(*ComponentInfo->NodeComponentMesh)->GetName()));
+						CompilerLog(Msg, Node, EMessageSeverity::Error);
+						return nullptr;
+					}
+
+					ComponentInfo->NodeComponentMesh = NodeComponentMesh;
+				}
+			}
+		}
+	}
+
 	// Copy component data to the object being compiled
 	Object->GetPrivate()->MutableMeshComponents = ActualRootObject->GetPrivate()->MutableMeshComponents;
 
@@ -730,9 +779,11 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 		GenerationContext.TableToParamNames = Object->GetPrivate()->GetModelResources().TableToParamNames;
 	}
 
+	GenerationContext.bPartialCompilation = !bOutIsRootObject;
+
 	// Generate the object expression
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] GenerateMutableSource start."), FPlatformTime::Seconds());
-	mu::NodeObjectPtr MutableRoot = GenerateMutableSource(ActualRoot->OutputPin(), GenerationContext, !bOutIsRootObject);
+	mu::NodeObjectPtr MutableRoot = GenerateMutableSource(ActualRoot->OutputPin(), GenerationContext);
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] GenerateMutableSource end."), FPlatformTime::Seconds());
 
     ActualRoot->RealTimeMorphSelectionOverrides = GenerationContext.RealTimeMorphTargetsOverrides;
@@ -1143,7 +1194,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 		ModelResources.CustomizableObjectPathMap = MoveTemp(GenerationContext.CustomizableObjectPathMap);
 #endif
 
-		ModelResources.NumComponents = GenerationContext.NumMeshComponentsInRoot + GenerationContext.NumExplicitMeshComponents;
+		ModelResources.NumComponents = GenerationContext.NumMeshComponentsInRoot + GenerationContext.NumPassthroughMeshComponents;
 		ModelResources.NumLODs = GenerationContext.NumLODsInRoot;
 		ModelResources.NumLODsToStream = GenerationContext.bEnableLODStreaming ? GenerationContext.NumMaxLODsToStream : 0;
 		ModelResources.FirstLODAvailable = GenerationContext.FirstLODAvailable;

@@ -2,107 +2,66 @@
 
 #pragma once
 
-#include "MuCOE/Nodes/CustomizableObjectNodeComponent.h"
-#include "MuCOE/RemapPins/CustomizableObjectNodeRemapPinsByNameDefaultPin.h"
-#include "SGraphNode.h"
-#include "GameplayTagContainer.h"
+#include "CustomizableObjectNodeComponentMeshBase.h"
+#include "MuR/System.h"
 
 #include "CustomizableObjectNodeComponentMesh.generated.h"
 
-namespace ENodeTitleType { enum Type : int; }
 
-class FArchive;
-class FAssetThumbnail;
-class FAssetThumbnailPool;
-class FSkeletalMeshModel;
-class ISinglePropertyView;
-class UAnimInstance;
-class UCustomizableObjectLayout;
-class UCustomizableObjectNodeRemapPins;
-class UCustomizableObjectNodeRemapPinsByName;
-class UMaterialInterface;
-class UObject;
-class USkeletalMesh;
-class UTexture2D;
-struct FPropertyChangedEvent;
-struct FSkeletalMaterial;
-
-
-/** PinData of a pin that belongs to a Skeletal Mesh Section. */
-UCLASS()
-class UCustomizableObjectNodeComponentMeshPinDataSection : public UCustomizableObjectNodePinData
+UENUM()
+enum class ECustomizableObjectSelectionOverride : uint8
 {
-	GENERATED_BODY()
-
-public:
-	void Init(int32 InLODIndex, int32 InSectionIndex);
-
-	int32 GetLODIndex() const;
-
-	int32 GetSectionIndex() const;
-
-protected:
-	virtual bool Equals(const UCustomizableObjectNodePinData& Other) const override;
-
-private:
-	UPROPERTY()
-	int32 LODIndex = -1;
-
-	UPROPERTY()
-	int32 SectionIndex = -1;
+	NoOverride = 0 UMETA(DisplayName = "No Override"),
+	Disable    = 1 UMETA(DisplayName = "Disable"    ),
+	Enable     = 2 UMETA(DisplayName = "Enable"     )
 };
 
 
-/** PinData of a Mesh pin. */
-UCLASS()
-class UCustomizableObjectNodeComponentMeshPinDataMaterial : public UCustomizableObjectNodeComponentMeshPinDataSection
+USTRUCT()
+struct FBoneToRemove
 {
-	GENERATED_BODY()
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	bool bOnlyRemoveChildren = false;
+
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	FName BoneName;
+};
+
+
+USTRUCT()
+struct FLODReductionSettings
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Selects which bones will be removed from the final skeleton
+	* BoneName: Name of the bone that will be removed. Its children will be removed too.
+	* Remove Only Children: If true, only the children of the selected bone will be removed. The selected bone will remain.
+	*/
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	TArray<FBoneToRemove> BonesToRemove;
 };
 
 
 UCLASS()
-class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeComponentMesh : public UCustomizableObjectNodeComponent
+class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeComponentMesh : public UCustomizableObjectNodeComponentMeshBase
 {
-public:
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category = Mesh)
-	FName ComponentName;
-
-	UPROPERTY(EditAnywhere, Category = Mesh, Meta = (DisplayName = Mesh, AllowedClasses = "/Script/Engine.StaticMesh, /Script/Engine.SkeletalMesh"))
-	FSoftObjectPath Mesh;
-
-	// UObject interface.
+public:
+	// UObject interface
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	
+
 	// UEdGraphNode interface
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
-	virtual FLinearColor GetNodeTitleColor() const override;
-	virtual FText GetTooltipText() const override;
-
-	// UCustomizableObjectNode interface
-	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
-	//virtual UCustomizableObjectNodeRemapPins* CreateRemapPinsDefault() const override;
-
-	// UCustomizableObjectNodeComponent interface
-
-
-	// Own interface
 	
-	void GetPinSection(const UEdGraphPin& Pin, int32& OutLODIndex, int32& OutSectionIndex) const;
+	UPROPERTY(EditAnywhere, Category = ComponentMesh)
+	FName ComponentName;
+	
+	UPROPERTY(EditAnywhere, Category = ComponentMesh)
+	TArray<FLODReductionSettings> LODReductionSettings;
 
-	/** Find the pin for a given lod and section. */
-	UEdGraphPin* GetMaterialPin(const int32 LODIndex, const int32 SectionIndex) const;
-
-	/** Returns the material associated to the given output pin. */
-	UMaterialInterface* GetMaterialFor(const UEdGraphPin* Pin) const;
-	FSkeletalMaterial* GetSkeletalMaterialFor(const UEdGraphPin& Pin) const;
-
-private:
-	UMaterialInterface* GetMaterialInterfaceFor(const int32 LODIndex, const int32 MaterialIndex, const FSkeletalMeshModel* ImportedModel = nullptr) const;
-	FSkeletalMaterial* GetSkeletalMaterialFor(const int32 LODIndex, const int32 MaterialIndex, const FSkeletalMeshModel* ImportedModel = nullptr) const;
-
-	static const FName OutputPinName;
-
+	/** Details selected LOD. */
+	int32 SelectedLOD = 0;
 };

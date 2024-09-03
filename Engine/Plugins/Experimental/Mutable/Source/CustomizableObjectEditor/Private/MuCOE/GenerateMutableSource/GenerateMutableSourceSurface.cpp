@@ -234,13 +234,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 	if (UCustomizableObjectNodeMaterialBase* TypedNodeMat = Cast<UCustomizableObjectNodeMaterialBase>(Node))
 	{
-		bool bGeneratingImplicitComponent = GenerationContext.ComponentMeshOverride.get()!=nullptr;
-
-		bool bValidForCurrentComponent = bGeneratingImplicitComponent || (TypedNodeMat->GetMeshComponentName() == GenerationContext.CurrentMeshComponent);
-		if (!bValidForCurrentComponent)
-		{
-			return Result;
-		}
+		bool bGeneratingImplicitComponent = GenerationContext.ComponentMeshOverride.get() != nullptr;
 
 		const UEdGraphPin* ConnectedMaterialPin = FollowInputPin(*TypedNodeMat->GetMeshPin());
 		// Warn when texture connections are improperly used by connecting them directly to material inputs when no layout is used

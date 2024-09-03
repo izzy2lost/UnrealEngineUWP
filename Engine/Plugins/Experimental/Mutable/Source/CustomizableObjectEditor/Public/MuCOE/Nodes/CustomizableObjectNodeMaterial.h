@@ -132,7 +132,6 @@ public:
 	virtual bool IsNodeOutDatedAndNeedsRefresh() override;
 	virtual FString GetRefreshMessage() const override;
 	virtual TSharedPtr<IDetailsView> CustomizePinDetails(const UEdGraphPin& Pin) const override;
-	void ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode);
 	virtual TArray<FString>* GetEnableTags() override;
 
 	
@@ -141,7 +140,6 @@ public:
 	virtual UEdGraphPin* OutputPin() const override;
 	virtual UMaterialInterface* GetMaterial() const override;
 	virtual bool IsReuseMaterialBetweenLODs() const override;
-	virtual FName GetMeshComponentName() const override;
 	virtual int32 GetNumParameters(EMaterialParameterType Type) const override;
 	virtual FNodeMaterialParameterId GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const override;
 	virtual FName GetParameterName(EMaterialParameterType Type, int32 ParameterIndex) const override;
@@ -164,7 +162,6 @@ public:
 	// Own Interface
 
 	void SetMaterial(UMaterialInterface* InMaterial);
-	void SetComponentName(const FName& Name);
 
 	static bool HasParameter(const UMaterialInterface* InMaterial, const FNodeMaterialParameterId& ParameterId);
 	static int32 GetParameterLayerIndex(const UMaterialInterface* InMaterial, EMaterialParameterType Type, int32 ParameterIndex);
@@ -188,10 +185,12 @@ private:
 	UPROPERTY()
 	int32 MeshComponentIndex_DEPRECATED = 0;
 
+public:
 	/** Selects which Mesh component of the Instance this material belongs to */
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	FName MeshComponentName;
+	UPROPERTY()
+	FName MeshComponentName_DEPRECATED;
 
+private:
 	/** Materials will be reused between LODs when possible unless explicitly disabled. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	bool bReuseMaterialBetweenLODs = true;

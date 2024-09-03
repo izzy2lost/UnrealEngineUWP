@@ -140,6 +140,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 		
 		ConvertEditAndExtendToModifiers,
 
+		NodeComponentMesh, // Moved LOD pins from NodeObject to NodeComponentMesh.
+		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "CustomizableObjectNodeComponentMesh.h"
+#include "CustomizableObjectNodeComponentMeshBase.h"
 #include "MuCOE/Nodes/CustomizableObjectNode.h"
 #include "MuR/System.h"
 
@@ -15,45 +17,7 @@ class UCustomizableObjectNodeRemapPins;
 class UObject;
 struct FPropertyChangedEvent;
 struct FSoftObjectPath;
-
-USTRUCT()
-struct FBoneToRemove
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	bool bOnlyRemoveChildren = false;
-
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	FName BoneName;
-};
-
-
-USTRUCT()
-struct FLODReductionSettings
-{
-	GENERATED_USTRUCT_BODY()
-
-	/** Selects which bones will be removed from the final skeleton
-	* BoneName: Name of the bone that will be removed. Its children will be removed too.
-	* Remove Only Children: If true, only the children of the selected bone will be removed. The selected bone will remain.
-	*/
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	TArray<FBoneToRemove> BonesToRemove;
-};
-
-
-USTRUCT()
-struct FComponentSettings
-{
-	GENERATED_USTRUCT_BODY()
-	
-	UPROPERTY(VisibleInstanceOnly, Category = CustomizableObject)
-	FString ComponentName;
-
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	TArray<FLODReductionSettings> LODReductionSettings;
-};
+struct FComponentSettings;
 
 
 USTRUCT()
@@ -111,25 +75,6 @@ private:
 };
 
 
-UENUM()
-enum class ECustomizableObjectAutomaticLODStrategy : uint8
-{
-	// Use the same strategy than the parent object. If root, then use "Manual".
-	Inherited = 0 UMETA(DisplayName = "Inherit from parent object"),
-	// Don't try to generate LODs automatically for the child nodes. Only the ones tha explicitely define them will be used.
-	Manual = 1 UMETA(DisplayName = "Only manually created LODs"),
-	// Try to generate the same material structure than LOd 0 if the source meshes have LODs.
-	AutomaticFromMesh = 2 UMETA(DisplayName = "Automatic from mesh")
-};
-
-UENUM()
-enum class ECustomizableObjectSelectionOverride : uint8
-{
-    NoOverride = 0 UMETA(DisplayName = "No Override"),
-    Disable    = 1 UMETA(DisplayName = "Disable"    ),
-    Enable     = 2 UMETA(DisplayName = "Enable"     )
-};
-
 USTRUCT()
 struct FRealTimeMorphSelectionOverride
 {
@@ -158,6 +103,7 @@ struct FRealTimeMorphSelectionOverride
     TArray<ECustomizableObjectSelectionOverride> Override;
 };
 
+
 UCLASS()
 class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeObject : public UCustomizableObjectNode
 {
@@ -172,11 +118,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = UI, meta = (DisplayName = "Parameter UI Metadata"))
 	FMutableParamUIMetadata ParamUIMetadata;
 
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	int32 NumLODs;
+	UPROPERTY()
+	int32 NumLODs_DEPRECATED = 1;
 
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	ECustomizableObjectAutomaticLODStrategy AutoLODStrategy = ECustomizableObjectAutomaticLODStrategy::AutomaticFromMesh;
+	UPROPERTY()
+	ECustomizableObjectAutomaticLODStrategy AutoLODStrategy_DEPRECATED = ECustomizableObjectAutomaticLODStrategy::AutomaticFromMesh;
 
 	UPROPERTY()
 	int32 NumMeshComponents_DEPRECATED = 1;
@@ -193,21 +139,11 @@ public:
 	UPROPERTY()
 	FGuid Identifier;
 
-    // Soft references SkeletalMeshes found in the previous compilation.
-    // Only populated if the node is the root.
-    UPROPERTY()
-    TArray<FSoftObjectPath> ReferencedSkeletalMeshes;
-
-    // Information about the realtime morph targets usage. It indexes to ReferncedSkeletakMeshes array
-    // so it is need to keep them syncronized. 
-    // This overrides the per skeletal mesh node selection 
     UPROPERTY()
     TArray<FRealTimeMorphSelectionOverride> RealTimeMorphSelectionOverrides;
 
-	// Array of bones to remove from the mesh.All influences assigned to these bones will be transferred to the closest valid bone.
-	// Selected per component and LOD. Bones will be accumulated down the line.
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	TArray<FComponentSettings> ComponentSettings;
+	UPROPERTY()
+	TArray<FComponentSettings> ComponentSettings_DEPRECATED;
 	
 	// UObject interface.
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -231,28 +167,7 @@ public:
 	// Own interface
 	UPROPERTY()
 	bool bIsBase;
-
-	UEdGraphPin* LODPin(int32 LODIndex) const
-	{
-		FString LODName = FString::Printf(TEXT("%s%d "), LODPinNamePrefix, LODIndex);
-		return FindPin(LODName);
-	}
-
-	int32 GetNumLODPins() const
-	{
-		int32 Count = 0;
-
-		for (UEdGraphPin* Pin : GetAllNonOrphanPins())
-		{
-			if (Pin->GetName().StartsWith(LODPinNamePrefix))
-			{
-				Count++;
-			}
-		}
-
-		return Count;
-	}
-
+	
 	UEdGraphPin* ComponentsPin() const
 	{
 		return FindPin(ComponentsPinName);
@@ -273,24 +188,12 @@ public:
 		return FindPin(OutputPinName);
 	}
 
-	/** Return the LOD which a LOD pin references to. Return -1 if a pin does not belong to any LOD. */
-	int32 GetLOD(UEdGraphPin* Pin) const;
-
+	
 	virtual bool CanUserDeleteNode() const override;
 	virtual bool CanDuplicateNode() const override;
-
-	/** Get all Material Nodes int his Customizable Object which belong to the given LOD.
-	 *
-	 * @param LOD LOD which materials have to belong to.
-	 */
-	TArray<UCustomizableObjectNodeMaterialBase*> GetMaterialNodes(int LOD) const;
-
+	
 	bool IsSingleOutputNode() const override;
-
-	// Node Details Support
-	FName CurrentComponent;
-	int32 CurrentLOD = 0;
-
+	
 	// Array filled in the Details of the node to store all the parameter names of a CO graph (full tree)
 	TArray<FString> ParameterNames;
 
@@ -299,8 +202,5 @@ private:
 	static const FName ComponentsPinName;
 	static const FName ModifiersPinName;
 	static const FName OutputPinName;
-	static const TCHAR* LODPinNamePrefix;
-
-	static bool IsBuiltInPin(FName PinName);
 };
 

@@ -9,6 +9,8 @@
 #include "CustomizableObjectEditor_Deprecated.generated.h"
 
 class UTexture2D;
+struct FLODReductionSettings;
+
 
 // Place to hide all deprecated data structures. They are still needed for deserialization backwards compatibility.
 
@@ -173,6 +175,21 @@ struct CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectMeshVariation
 
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	FString Tag;
+};
+
+
+// UCustomizableObjectNodeObject
+// Deprecated, do not use!
+USTRUCT()
+struct FComponentSettings
+{
+	GENERATED_USTRUCT_BODY()
+	
+	UPROPERTY()
+	FString ComponentName;
+
+	UPROPERTY()
+	TArray<FLODReductionSettings> LODReductionSettings;
 };
 
 

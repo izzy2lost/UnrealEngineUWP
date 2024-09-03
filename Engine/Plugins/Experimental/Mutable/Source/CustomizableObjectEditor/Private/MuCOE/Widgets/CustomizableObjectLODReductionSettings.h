@@ -4,6 +4,7 @@
 
 #include "IPropertyTypeCustomization.h"
 
+class UCustomizableObjectNodeComponentMesh;
 class IPropertyHandle;
 class IPropertyHandleArray;
 class SBoneSelectionWidget;
@@ -37,12 +38,12 @@ private:
 	void OnBoneCheckBoxChanged(ECheckBoxState NewState);
 
 	// Returns the object node of the property represented in the widget
-	UCustomizableObjectNodeObject* GetObjectNode();
+	UCustomizableObjectNodeComponentMesh* GetObjectNode();
 
 private:
 
 	// Pointer to the object node
-	UCustomizableObjectNodeObject* ObjectNode;
+	UCustomizableObjectNodeComponentMesh* NodeComponentMesh;
 
 	// Property to change after bone has been picked
 	TSharedPtr<IPropertyHandle> BoneNameProperty;

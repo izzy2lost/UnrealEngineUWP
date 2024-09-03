@@ -37,7 +37,7 @@ void FCustomizableObjectLODReductionSettings::CustomizeHeader(TSharedRef<IProper
 	if (BoneNameProperty.IsValid() && BoneNameProperty->IsValidHandle() 
 		&& IncludeBoneProperty.IsValid() && IncludeBoneProperty->IsValidHandle())
 	{
-		ObjectNode = GetObjectNode();
+		NodeComponentMesh = GetObjectNode();
 
 		bool bOnlyRemoveChildrenProperty = false;
 		IncludeBoneProperty->GetValue(bOnlyRemoveChildrenProperty);
@@ -107,7 +107,7 @@ void FCustomizableObjectLODReductionSettings::CustomizeHeader(TSharedRef<IProper
 }
 
 
-UCustomizableObjectNodeObject* FCustomizableObjectLODReductionSettings::GetObjectNode()
+UCustomizableObjectNodeComponentMesh* FCustomizableObjectLODReductionSettings::GetObjectNode()
 {
 	if (!BoneNameProperty->IsValidHandle())
 	{
@@ -119,7 +119,7 @@ UCustomizableObjectNodeObject* FCustomizableObjectLODReductionSettings::GetObjec
 
 	if (Objects.Num())
 	{
-		return Cast<UCustomizableObjectNodeObject>(Objects[0]);
+		return Cast<UCustomizableObjectNodeComponentMesh>(Objects[0]);
 	}
 
 	return nullptr;
@@ -146,14 +146,14 @@ const struct FReferenceSkeleton& FCustomizableObjectLODReductionSettings::GetRef
 	static FReferenceSkeleton DummySkeleton;
 	USkeletalMesh* SkeletalMesh = nullptr;
 
-	if (ObjectNode)
+	if (NodeComponentMesh)
 	{
-		if (const UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(ObjectNode->GetCustomizableObjectGraph()->GetOuter()))
+		if (const UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(NodeComponentMesh->GetCustomizableObjectGraph()->GetOuter()))
 		{
 			if (const FMutableMeshComponentData* Component = CustomizableObject->GetPrivate()->MutableMeshComponents.FindByPredicate(
 				[&](const FMutableMeshComponentData& Component) 
 				{ 
-					return Component.Name == ObjectNode->CurrentComponent; 
+					return Component.Name == NodeComponentMesh->ComponentName; 
 				}))
 			{
 				SkeletalMesh = Component->ReferenceSkeletalMesh;
