@@ -26,6 +26,7 @@ uint4 ViewRect;
 
 float InvShaderBudget;
 float3 SelectionColor;
+float3 OverlayIntensityColor;
 
 uint DebugViewMode;
 
@@ -299,7 +300,7 @@ void ExportDebugViewPS(
 			else if (DebugViewMode == DEBUG_VIEW_PRIMITIVE_COLOR)
 			{
 				const bool bIsSelected = IsInstanceSelected(InstanceData, VisibleCluster, TriIndex);
-				const float3 SolidColor = CondMask(bIsSelected, SelectionColor, PrimitiveData.PrimitiveColor);
+				const float3 SolidColor = CondMask(bIsSelected, SelectionColor, OverlayIntensityColor * PrimitiveData.PrimitiveColor);
 				OutColor = float4(SolidColor, 1.0f);
 			}
 		#endif

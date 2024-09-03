@@ -276,6 +276,7 @@ public:
 		SHADER_PARAMETER(FIntVector4, ViewRect)
 		SHADER_PARAMETER(float, InvShaderBudget)
 		SHADER_PARAMETER(FVector3f, SelectionColor)
+		SHADER_PARAMETER(FVector3f, OverlayIntensityColor)
 		SHADER_PARAMETER(uint32, DebugViewMode)
 		SHADER_PARAMETER(uint32, NumEditorSelectedHitProxyIds)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ClusterPageData)
@@ -913,7 +914,7 @@ void RenderDebugViewMode(
 	const uint32 NaniteShaderBudget = GlobalShaderBudget + uint32(GNaniteVisualizeComplexityOverhead);
 
 	const FLinearColor SelectionColor = GetSelectionColor(FLinearColor::White, true /* selected */, false /* hovered */, false /* use overlay intensity */);
-
+	const FLinearColor OverlayIntensityColor = GetSelectionColor(FLinearColor::White, false /* selected */, false /* hovered */, true /* use overlay intensity */);
 	// TODO: Need to apply hover intensity to per-primitive wireframe color, not white
 	//const FLinearColor HoveredColor = GetSelectionColor(FLinearColor::White, false /* selected */, true /* hovered */);
 
@@ -932,6 +933,7 @@ void RenderDebugViewMode(
 		PassParameters->InvShaderBudget = 1.0f / float(NaniteShaderBudget);
 	}
 	PassParameters->SelectionColor = FVector3f(SelectionColor.R, SelectionColor.G, SelectionColor.B);
+	PassParameters->OverlayIntensityColor = FVector3f(OverlayIntensityColor.R, OverlayIntensityColor.G, OverlayIntensityColor.B);
 	PassParameters->DebugViewMode = uint32(DebugViewMode);
 	PassParameters->ClusterPageData = Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 	PassParameters->VisBuffer64 = RasterResults.VisBuffer64;
