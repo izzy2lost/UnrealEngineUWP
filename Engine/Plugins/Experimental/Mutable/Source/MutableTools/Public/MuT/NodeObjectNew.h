@@ -29,6 +29,9 @@ namespace mu
 		/** Components defined in the object. */
 		TArray<Ptr<NodeComponent>> Components;
 
+		/** Modifiers defined in the object. */
+		TArray<Ptr<NodeModifier>> Modifiers;
+
 		/** Children objects. */
 		TArray<Ptr<NodeObject>> Children;
 

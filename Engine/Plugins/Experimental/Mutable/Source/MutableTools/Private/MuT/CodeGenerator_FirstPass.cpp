@@ -195,14 +195,11 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void FirstPassGenerator::Generate_Modifier(const NodeModifier* InNode)
 	{
-		check(CurrentLOD>=0);
-
 		// Add the data about this modifier
 		FModifier thisData;
 		thisData.Node = InNode;
 		thisData.ObjectCondition = CurrentCondition.Last().ObjectCondition;
 		thisData.StateCondition = CurrentStateCondition.Last();
-		thisData.LOD = CurrentLOD;
 		thisData.PositiveTags = CurrentPositiveTags;
 		thisData.NegativeTags = CurrentNegativeTags;
 		Modifiers.Add(thisData);
@@ -556,14 +553,6 @@ namespace mu
 				Generate_Generic(c.get());
 			}
 		}
-
-		for (const Ptr<NodeModifier>& c : InNode->Modifiers)
-		{
-			if (c)
-			{
-				Generate_Modifier(c.get());
-			}
-		}
 	}
 
 
@@ -596,6 +585,15 @@ namespace mu
 			if (Component)
 			{
 				Generate_Generic(Component.get());
+			}
+		}
+
+		// Process the modifiers
+		for (const Ptr<NodeModifier>& c : InNode->Modifiers)
+		{
+			if (c)
+			{
+				Generate_Modifier(c.get());
 			}
 		}
 

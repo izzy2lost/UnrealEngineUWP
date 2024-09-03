@@ -40,7 +40,7 @@
 /** Generate LOD pins of the given NodeComponentBase (NodeComponent, NodeComponentExtend...).
  * @param TypedComponentMesh Given component node.
  * @param NodeComponent Core node to connect LOD generated pins. */
-void GenerateMutableSourceComponentMesh(FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectNodeComponentMeshBase& TypedComponentMesh, mu::Ptr<mu::NodeComponent> NodeComponent)
+void GenerateMutableSourceComponentMesh(FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectNodeComponentMeshBase& TypedComponentMesh, mu::Ptr<mu::NodeComponent> NodeComponent, mu::Ptr<mu::NodeObjectNew> NodeObject)
 {
 	int32 FirstLOD = -1;
 
@@ -109,18 +109,26 @@ void GenerateMutableSourceComponentMesh(FMutableGraphGenerationContext& Generati
 					continue;
 				}
 
-				// Warn about legacy modifier connection
-				FString Msg = FString::Printf(TEXT("The object has legacy modifier connections (to material pins?) that should be updated."));
-				GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), &TypedComponentMesh, EMessageSeverity::Warning);
+				if (NodeObject)
+				{
+					// Warn about legacy modifier connection
+					FString Msg = FString::Printf(TEXT("The object has legacy modifier connections (to material pins?) that should be updated."));
+					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), &TypedComponentMesh, EMessageSeverity::Warning);
 
-				// Set it to "None" to indicate we don't care about component id.
-				FName OldCurrentMeshComponent = GenerationContext.CurrentMeshComponent;
-				GenerationContext.CurrentMeshComponent = FName();
+					// Set it to "None" to indicate we don't care about component id.
+					FName OldCurrentMeshComponent = GenerationContext.CurrentMeshComponent;
+					GenerationContext.CurrentMeshComponent = FName();
 
-				mu::Ptr<mu::NodeModifier> ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
-				LODNode->Modifiers.Add(ModifierNode);
+					mu::Ptr<mu::NodeModifier> ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
+					NodeObject->Modifiers.AddUnique(ModifierNode);
 
-				GenerationContext.CurrentMeshComponent = OldCurrentMeshComponent;
+					GenerationContext.CurrentMeshComponent = OldCurrentMeshComponent;
+				}
+				else
+				{
+					FString Msg = FString::Printf(TEXT("The object has legacy modifier connections that cannot be generated. Their connections should be updated."));
+					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), &TypedComponentMesh, EMessageSeverity::Warning);
+				}
 			}
 		}
 	}
@@ -283,7 +291,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 		ObjectNode->Components.Add(NodeComponentNew);
 
 		GenerationContext.CurrentMeshComponent = TypedComponentMesh->ComponentName;
-		GenerateMutableSourceComponentMesh(GenerationContext, *TypedComponentMesh, NodeComponentNew);
+		GenerateMutableSourceComponentMesh(GenerationContext, *TypedComponentMesh, NodeComponentNew, ObjectNode);
 		
 		Result = NodeComponentNew;
 	}
@@ -316,7 +324,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 				TypedParentComponentMesh->AutoLODStrategy :
 				TypedComponentMeshExtend->AutoLODStrategy;
 			
-			GenerateMutableSourceComponentMesh(GenerationContext, *TypedComponentMeshExtend, NodeComponentEdit);
+			GenerateMutableSourceComponentMesh(GenerationContext, *TypedComponentMeshExtend, NodeComponentEdit, nullptr);
 
 			Result = NodeComponentEdit;	
 		}

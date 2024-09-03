@@ -318,6 +318,11 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 			AddChildFunc(ObjectNew->Components[l].get(), TEXT("COMP") );
 		}
 
+		for (int32 Modifier = 0; Modifier < ObjectNew->Modifiers.Num(); Modifier++)
+		{
+			AddChildFunc(ObjectNew->Modifiers[Modifier].get(), FString::Printf(TEXT("MOD [%d]"), Modifier));
+		}
+
 		for (int32 l = 0; l < ObjectNew->Children.Num(); ++l)
 		{
 			AddChildFunc(ObjectNew->Children[l].get(), TEXT("CHILD"));
@@ -419,10 +424,6 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 		for (int32 SurfaceIndex = 0; SurfaceIndex < LodVar->Surfaces.Num(); SurfaceIndex++)
 		{
 			AddChildFunc(LodVar->Surfaces[SurfaceIndex].get(), FString::Printf(TEXT("SURFACE [%d]"), SurfaceIndex));
-		}
-		for (int32 Modifier = 0; Modifier < LodVar->Modifiers.Num(); Modifier++)
-		{
-			AddChildFunc(LodVar->Modifiers[Modifier].get(), FString::Printf(TEXT("MOD [%d]"), Modifier));
 		}
 	}
 	

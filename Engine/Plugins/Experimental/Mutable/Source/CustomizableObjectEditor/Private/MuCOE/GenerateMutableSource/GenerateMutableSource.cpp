@@ -929,25 +929,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 				GenerationContext.CurrentMeshComponent = FName();
 
 				mu::Ptr<mu::NodeModifier> ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
-				for (int32 ComponentIndex = 0; ComponentIndex < ObjectNode->Components.Num(); ++ComponentIndex)
-				{
-					mu::Ptr<mu::NodeComponent> Component = ObjectNode->Components[ComponentIndex];
-					if (!Component)
-					{
-						continue;
-					}
-					
-					for (int32 LODIndex = 0; LODIndex < Component->LODs.Num(); ++LODIndex)
-					{
-						mu::Ptr<mu::NodeLOD> LOD = Component->LODs[LODIndex];
-						if (!LOD)
-						{
-							continue;
-						}
-						
-						LOD->Modifiers.Add(ModifierNode);
-					}
-				}
+				ObjectNode->Modifiers.Add(ModifierNode);
 
 				GenerationContext.CurrentMeshComponent = OldCurrentMeshComponent;
 			}

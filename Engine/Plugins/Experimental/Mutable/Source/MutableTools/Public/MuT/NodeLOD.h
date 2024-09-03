@@ -28,7 +28,6 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		TArray<Ptr<NodeSurface>> Surfaces;
-		TArray<Ptr<NodeModifier>> Modifiers;
 
 	protected:
 

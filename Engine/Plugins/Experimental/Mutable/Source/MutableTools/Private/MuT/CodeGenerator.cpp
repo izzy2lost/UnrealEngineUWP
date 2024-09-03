@@ -1866,10 +1866,11 @@ namespace mu
 		for (const FirstPassGenerator::FModifier& m: FirstPass.Modifiers)
 		{
 			// Correct LOD?
-			if (m.LOD != LOD)
-			{
-				continue;
-			}
+			// TODO: LOD restrictions inside the modifiers data.
+			//if (m.LOD != LOD)
+			//{
+			//	continue;
+			//}
 
 			// Correct stage?
 			if (m.Node->bApplyBeforeNormalOperations != bModifiersForBeforeOperations)

@@ -160,9 +160,6 @@ namespace mu
 
             // This is filled in CodeGenerator_SecondPass.
             StateCondition StateCondition;
-
-            //
-            int32 LOD = 0;
         };
 		TArray<FModifier> Modifiers;
 
