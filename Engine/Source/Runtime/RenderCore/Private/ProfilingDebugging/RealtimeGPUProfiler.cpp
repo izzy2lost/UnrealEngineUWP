@@ -11,25 +11,15 @@
 #if RHI_NEW_GPU_PROFILER
 
 // @todo - new gpu profiler
-CSV_DEFINE_CATEGORY_MODULE(RENDERCORE_API, GPU, true);
 
 #elif HAS_GPU_STATS
 
 typedef TArray<TCHAR, TInlineAllocator<4096u>> FDescriptionStringBuffer;
 
-CSV_DEFINE_CATEGORY_MODULE(RENDERCORE_API, GPU, true);
-
 static TAutoConsoleVariable<int> CVarGPUStatsEnabled(
 	TEXT("r.GPUStatsEnabled"),
 	1,
 	TEXT("Enables or disables GPU stat recording"));
-
-static TAutoConsoleVariable<int> CVarGPUCsvStatsEnabled(
-	TEXT("r.GPUCsvStatsEnabled"),
-	0,
-	TEXT("Enables or disables GPU stat recording to CSVs"));
-
-DECLARE_GPU_STAT_NAMED( Total, TEXT("[TOTAL]") );
 
 static TAutoConsoleVariable<int> CVarGPUTracingStatsEnabled(
 	TEXT("r.GPUTracingStatsEnabled"),
@@ -472,8 +462,11 @@ public:
 
 		// Update the stats
 #if CSV_PROFILER_STATS
-		const bool bCsvStatsEnabled = !!CVarGPUCsvStatsEnabled.GetValueOnRenderThread();
+		static IConsoleVariable* CVarGPUCsvStatsEnabled = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUCsvStatsEnabled"));
+		const bool bCsvStatsEnabled = CVarGPUCsvStatsEnabled ? CVarGPUCsvStatsEnabled->GetBool() : false;
 		FCsvProfiler* CsvProfiler = bCsvStatsEnabled ? FCsvProfiler::Get() : nullptr;
+#else
+		const bool bCsvStatsEnabled = false;
 #endif
 		const bool GPUStatsChildTimesIncluded = !!CVarGPUStatsChildTimesIncluded.GetValueOnRenderThread();
 		uint64 TotalUs = 0llu;
@@ -517,18 +510,8 @@ public:
 			}
 		}
 
-#if STATS
-		const double TotalMs = TotalUs / 1000.;
-		FThreadStats::AddMessage(GET_STATFNAME(Stat_GPU_Total), EStatOperation::Set, TotalMs);
-		TRACE_STAT_SET(GET_STATFNAME(Stat_GPU_Total), TotalMs);
-#endif
-
-#if CSV_PROFILER_STATS
-		if (CsvProfiler)
-		{
-			CsvProfiler->RecordCustomStat(CSV_STAT_FNAME(Total), CSV_CATEGORY_INDEX(GPU), TotalUs / 1000.f, ECsvCustomStatOp::Set);
-		}
-#endif
+		extern RHI_API void RHISetGPUStatTotals(bool bCsvStatsEnabled, double TotalMs);
+		RHISetGPUStatTotals(bCsvStatsEnabled, TotalUs / 1000.0);
 
 #if GPUPROFILERTRACE_ENABLED
 		TArray<TArray<int32>> GpuProfilerEventChildrenIndices;
@@ -903,7 +886,8 @@ void LatchAreGPUStatsEnabled()
 #else
 
 		// If we only have CSV stats, only capture if CSV GPU stats are enabled, and we're capturing
-		if (!CVarGPUCsvStatsEnabled.GetValueOnRenderThread())
+		static IConsoleVariable* CVarGPUCsvStatsEnabled = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUCsvStatsEnabled"));
+		if (!CVarGPUCsvStatsEnabled || !CVarGPUCsvStatsEnabled->GetBool())
 		{
 			return false;
 		}

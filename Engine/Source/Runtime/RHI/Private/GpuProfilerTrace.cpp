@@ -78,7 +78,7 @@ void FGpuProfilerTrace::BeginFrame(FGPUTimingCalibrationTimestamp& Calibration)
 	GCurrentFrame.EventBufferSize = 0;
 	GCurrentFrame.bActive = true;
 
-	int32 NeededSize = CVarGpuProfilerMaxEventBufferSizeKB.GetValueOnRenderThread() * 1024;
+	int32 NeededSize = CVarGpuProfilerMaxEventBufferSizeKB.GetValueOnAnyThread() * 1024;
 	if ((GCurrentFrame.MaxEventBufferSize != NeededSize) && (NeededSize > 0))
 	{
 		FMemory::Free(GCurrentFrame.EventBuffer);

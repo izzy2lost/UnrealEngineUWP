@@ -2589,7 +2589,7 @@ FRDGPass* FRDGBuilder::SetupParameterPass(FRDGPass* Pass)
 	if (ScopeState.ScopeMode == ERDGScopeMode::AllEventsAndPassNames)
 	{
 		FRDGEventName Name = Pass->GetEventName();
-		PassNameScope.Emplace(*this, ERDGScopeFlags::None, TStatId(), MoveTemp(Name));
+		PassNameScope.Emplace(*this, ERDGScopeFlags::None, FRHIBreadcrumbData(__FILE__, __LINE__, TStatId(), NAME_None), MoveTemp(Name));
 	}
 #endif
 

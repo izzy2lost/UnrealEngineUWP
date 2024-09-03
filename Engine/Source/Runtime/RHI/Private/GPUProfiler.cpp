@@ -8,12 +8,41 @@
 #include "Async/TaskGraphInterfaces.h"
 #include "Misc/WildcardString.h"
 #include "RHI.h"
+#include "GpuProfilerTrace.h"
 
 #if !UE_BUILD_SHIPPING
 #include "VisualizerEvents.h"
 #include "ProfileVisualizerModule.h"
 #include "Modules/ModuleManager.h"
 #endif
+
+#if HAS_GPU_STATS
+CSV_DEFINE_CATEGORY_MODULE(RHI_API, GPU, true);
+DECLARE_FLOAT_COUNTER_STAT(TEXT("[TOTAL]"), Stat_GPU_Total, STATGROUP_GPU);
+CSV_DEFINE_STAT(GPU, Total);
+#endif
+
+// Temporary function to resolve link issues with the above "Total" GPU stat moving from RenderCore to RHI.
+// We can remove this once the old GPU profiler code has been deleted, and RHI_NEW_GPU_PROFILER is set to 1 permanently.
+extern RHI_API void RHISetGPUStatTotals(bool bCsvStatsEnabled, double TotalMs)
+{
+#if STATS
+	FThreadStats::AddMessage(GET_STATFNAME(Stat_GPU_Total), EStatOperation::Set, TotalMs);
+	TRACE_STAT_SET(GET_STATFNAME(Stat_GPU_Total), TotalMs);
+#endif
+
+#if CSV_PROFILER_STATS
+	if (bCsvStatsEnabled)
+	{
+		FCsvProfiler::Get()->RecordCustomStat(CSV_STAT_FNAME(Total), CSV_CATEGORY_INDEX(GPU), TotalMs, ECsvCustomStatOp::Set);
+	}
+#endif
+}
+
+static TAutoConsoleVariable<int> CVarGPUCsvStatsEnabled(
+	TEXT("r.GPUCsvStatsEnabled"),
+	0,
+	TEXT("Enables or disables GPU stat recording to CSVs"));
 
 #define LOCTEXT_NAMESPACE "GpuProfiler"
 
@@ -669,6 +698,10 @@ bool FGPUTiming::GAreGlobalsInitialized = false;
 
 #else
 
+// Temporary. Adds Insights markers for the 0th GPU graphics queue
+// until we have a new API that is capable of displaying more info.
+#define RHI_TEMP_USE_GPU_TRACE (1 && GPUPROFILERTRACE_ENABLED)
+
 namespace UE::RHI::GPUProfiler
 {
 	static TArray<FEventSink*>& GetSinks()
@@ -816,21 +849,37 @@ namespace UE::RHI::GPUProfiler
 			}
 		};
 
-		struct FQueueState
+		struct FQueueTimestamps
 		{
-			bool bBusy = false;
-			FTimestampStream QueueTimestamps;
+			FTimestampStream Queue;
 
-		#if WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
-			TMap<TStatId, FTimestampStream> StatTimestamps;
-			TMap<TStatId, int32> ActiveStats;
+		#if WITH_RHI_BREADCRUMBS
+			TMap<FRHIBreadcrumbData_Stats, FTimestampStream> Stats;
 		#endif
 		};
 
-		using FFrameState = TMap<FQueue, FQueueState>;
+		struct FQueueState
+		{
+			bool bBusy = false;
+			FQueueTimestamps Timestamps;
+
+		#if WITH_RHI_BREADCRUMBS
+			TMap<FRHIBreadcrumbData_Stats, int32> ActiveStats;
+		#endif
+		};
+
+		using FFrameState = TMap<FQueue, FQueueTimestamps>;
 
 		TMap<FQueue, FQueueState> QueueStates;
 		TMap<uint32, FFrameState> Frames;
+
+	#if RHI_TEMP_USE_GPU_TRACE
+		uint32 FrameNumber = 0;
+		bool ShouldEmitGPU(FQueue const& Queue)
+		{
+			return Queue.Type == FQueue::EType::Graphics && Queue.GPU == 0 && Queue.Index == 0;
+		}
+	#endif
 
 		void InitializeQueues(TConstArrayView<FQueue> Queues) override
 		{
@@ -838,6 +887,17 @@ namespace UE::RHI::GPUProfiler
 			{
 				check(QueueStates.Find(Queue) == nullptr);
 				QueueStates.Add(Queue);
+
+			#if RHI_TEMP_USE_GPU_TRACE
+				// Start the first Insights GPU frame
+				if (ShouldEmitGPU(Queue))
+				{
+					// Use 1,1 calibration to disable any adjustments Insights makes.
+					// The timestamps we use in the GPU event stream are already in the CPU clock domain.
+					FGPUTimingCalibrationTimestamp Calibration{ 1, 1 };
+					FGpuProfilerTrace::BeginFrame(Calibration);
+				}
+			#endif
 			}
 		}
 
@@ -853,14 +913,15 @@ namespace UE::RHI::GPUProfiler
 					{
 						check(!QueueState.bBusy);
 						QueueState.bBusy = true;
-						uint64 Value = Event->Value.Get<FEvent::FBeginWork>().GPUTimestampTOP;
-						QueueState.QueueTimestamps.AddTimestamp(Value, true);
 
-					#if WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
+						FEvent::FBeginWork const& BeginWork = Event->Value.Get<FEvent::FBeginWork>();
+						QueueState.Timestamps.Queue.AddTimestamp(BeginWork.GPUTimestampTOP, true);
+
+					#if WITH_RHI_BREADCRUMBS
 						// Apply the timestamp to all active stats
-						for (auto const& [StatId, RefCount] : QueueState.ActiveStats)
+						for (auto const& [Stat, RefCount] : QueueState.ActiveStats)
 						{
-							QueueState.StatTimestamps.FindChecked(StatId).AddTimestamp(Value, true);
+							QueueState.Timestamps.Stats.FindChecked(Stat).AddTimestamp(BeginWork.GPUTimestampTOP, true);
 						}
 					#endif
 					}
@@ -872,17 +933,74 @@ namespace UE::RHI::GPUProfiler
 						QueueState.bBusy = false;
 
 						uint64 Value = Event->Value.Get<FEvent::FEndWork>().GPUTimestampBOP;
-						QueueState.QueueTimestamps.AddTimestamp(Value, false);
+						QueueState.Timestamps.Queue.AddTimestamp(Value, false);
 
-					#if WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
+					#if WITH_RHI_BREADCRUMBS
 						// Apply the timestamp to all active stats
-						for (auto const& [StatId, RefCount] : QueueState.ActiveStats)
+						for (auto const& [Stat, RefCount] : QueueState.ActiveStats)
 						{
-							QueueState.StatTimestamps.FindChecked(StatId).AddTimestamp(Value, false);
+							QueueState.Timestamps.Stats.FindChecked(Stat).AddTimestamp(Value, false);
 						}
 					#endif
 					}
 					break;
+
+			#if WITH_RHI_BREADCRUMBS
+				case FEvent::EType::BeginBreadcrumb:
+					{
+						FEvent::FBeginBreadcrumb const& BeginBreadcrumb = Event->Value.Get<FEvent::FBeginBreadcrumb>();
+						FRHIBreadcrumbData_Stats const& Stat = BeginBreadcrumb.Breadcrumb->Name.Data;
+
+					#if RHI_TEMP_USE_GPU_TRACE
+						if (ShouldEmitGPU(Queue))
+						{
+							FRHIBreadcrumb::FBuffer Buffer;
+							TCHAR const* Str = BeginBreadcrumb.Breadcrumb->Name.GetTCHAR(Buffer);
+							FName Name(Str);
+
+							FGpuProfilerTrace::SpecifyEventByName(Name);
+							FGpuProfilerTrace::BeginEventByName(Name, FrameNumber, (uint64)(FPlatformTime::ToMilliseconds64(BeginBreadcrumb.GPUTimestampTOP) * 1000.0));
+						}
+					#endif
+
+						if (Stat.ShouldComputeStat())
+						{
+							// Disregard the stat if it is nested within itself (i.e. its already in the ActiveStats map with a non-zero ref count).
+							// Only the outermost stat will count the busy time, otherwise we'd be double-counting the nested time.
+							int32 RefCount = QueueState.ActiveStats.FindOrAdd(Stat)++;
+							if (RefCount == 0)
+							{
+								QueueState.Timestamps.Stats.FindOrAdd(Stat).AddTimestamp(BeginBreadcrumb.GPUTimestampTOP, true);
+							}
+						}
+					}
+					break;
+
+				case FEvent::EType::EndBreadcrumb:
+					{
+						FEvent::FEndBreadcrumb const& EndBreadcrumb = Event->Value.Get<FEvent::FEndBreadcrumb>();
+						FRHIBreadcrumbData_Stats const& Stat = EndBreadcrumb.Breadcrumb->Name.Data;
+
+					#if RHI_TEMP_USE_GPU_TRACE
+						if (ShouldEmitGPU(Queue))
+						{
+							FGpuProfilerTrace::EndEvent((uint64)(FPlatformTime::ToMilliseconds64(EndBreadcrumb.GPUTimestampBOP) * 1000.0));
+						}
+					#endif
+
+						if (Stat.ShouldComputeStat())
+						{
+							// Pop the stat when the refcount hits zero.
+							int32 RefCount = --QueueState.ActiveStats.FindChecked(Stat);
+							if (RefCount == 0)
+							{
+								QueueState.Timestamps.Stats.FindChecked(Stat).AddTimestamp(EndBreadcrumb.GPUTimestampBOP, false);
+								QueueState.ActiveStats.FindAndRemoveChecked(Stat);
+							}							
+						}
+					}
+					break;
+			#endif // WITH_RHI_BREADCRUMBS
 
 				case FEvent::EType::FrameBoundary:
 					{
@@ -890,7 +1008,14 @@ namespace UE::RHI::GPUProfiler
 						FEvent::FFrameBoundary const& FrameBoundary = Event->Value.Get<FEvent::FFrameBoundary>();
 
 						FFrameState& FrameState = Frames.FindOrAdd(FrameBoundary.FrameNumber);
-						FrameState.Emplace(Queue, MoveTemp(QueueState));
+						FrameState.Emplace(Queue, MoveTemp(QueueState.Timestamps));
+
+						// Reinsert timestamp streams for the current active stats on 
+						// this queue, since these got moved into the frame state.
+						for (auto& [Stat, RefCount] : QueueState.ActiveStats)
+						{
+							QueueState.Timestamps.Stats.FindOrAdd(Stat);
+						}
 
 						if (FrameState.Num() == QueueStates.Num())
 						{
@@ -900,47 +1025,23 @@ namespace UE::RHI::GPUProfiler
 
 							Frames.Remove(FrameBoundary.FrameNumber);
 						}
-					}
-					break;
 
-			#if WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
-				case FEvent::EType::BeginBreadcrumb:
-					{
-						FEvent::FBeginBreadcrumb const& BeginBreadcrumb = Event->Value.Get<FEvent::FBeginBreadcrumb>();
-						TStatId StatId = BeginBreadcrumb.Breadcrumb->Name.StatId;
-
-						if (StatId.IsValidStat())
+					#if RHI_TEMP_USE_GPU_TRACE
+						// End the current Insights GPU frame + start the next one
+						if (ShouldEmitGPU(Queue))
 						{
-							// Disregard the stat if it is nested within itself (i.e. its already in the ActiveStats map with a non-zero ref count).
-							// Only the outermost stat will count the busy time, otherwise we'd be double-counting the nested time.
-							int32 RefCount = QueueState.ActiveStats.FindOrAdd(StatId)++;
-							if (RefCount == 0)
-							{
-								QueueState.StatTimestamps.FindOrAdd(StatId).AddTimestamp(BeginBreadcrumb.GPUTimestampTOP, true);
-							}
+							check(FrameNumber == FrameBoundary.FrameNumber);
+							FGpuProfilerTrace::EndFrame(0);
+							FrameNumber++;
+
+							// Use 1,1 calibration to disable any adjustments Insights makes.
+							// The timestamps we use in the GPU event stream are already in the CPU clock domain.
+							FGPUTimingCalibrationTimestamp Calibration{ 1, 1 };
+							FGpuProfilerTrace::BeginFrame(Calibration);
 						}
+					#endif
 					}
 					break;
-
-				case FEvent::EType::EndBreadcrumb:
-					{
-						FEvent::FEndBreadcrumb const& EndBreadcrumb = Event->Value.Get<FEvent::FEndBreadcrumb>();
-						TStatId StatId = EndBreadcrumb.Breadcrumb->Name.StatId;
-
-						if (StatId.IsValidStat())
-						{
-							// Pop the stat when the refcount hits zero.
-							int32 RefCount = --QueueState.ActiveStats.FindChecked(StatId);
-							if (RefCount == 0)
-							{
-								QueueState.StatTimestamps.FindChecked(StatId).AddTimestamp(EndBreadcrumb.GPUTimestampBOP, false);
-								QueueState.ActiveStats.FindAndRemoveChecked(StatId);
-							}							
-						}
-					}
-					break;
-			#endif // WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
-
 				}
 			}
 		}
@@ -949,23 +1050,31 @@ namespace UE::RHI::GPUProfiler
 		{
 			TArray<FTimestampStream::FState, TInlineAllocator<GetRHIPipelineCount() * MAX_NUM_GPUS>> StreamPointers;
 
+		#if CSV_PROFILER_STATS
+			const bool bCsvStatsEnabled = !!CVarGPUCsvStatsEnabled.GetValueOnAnyThread();
+			FCsvProfiler* CsvProfiler = bCsvStatsEnabled ? FCsvProfiler::Get() : nullptr;
+		#else
+			const bool bCsvStatsEnabled = false;
+		#endif
+
 			// Compute the individual GPU stats
-		#if WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
-			TSet<TStatId> UniqueStats;
+		#if WITH_RHI_BREADCRUMBS
+
+			TSet<FRHIBreadcrumbData_Stats> UniqueStats;
 			for (auto const& [Queue, State] : FrameState)
 			{
-				for (auto const& [StatId, Timestamps] : State.StatTimestamps)
+				for (auto const& [Stat, Timestamps] : State.Stats)
 				{
-					UniqueStats.Add(StatId);
+					UniqueStats.Add(Stat);
 				}
 			}
 
-			for (TStatId StatId : UniqueStats)
+			for (FRHIBreadcrumbData_Stats const& Stat : UniqueStats)
 			{
 				StreamPointers.Reset();
 				for (auto const& [Queue, State] : FrameState)
 				{
-					FTimestampStream const* Stream = State.StatTimestamps.Find(StatId);
+					FTimestampStream const* Stream = State.Stats.Find(Stat);
 					if (Stream)
 					{
 						StreamPointers.Emplace(*Stream);
@@ -973,22 +1082,32 @@ namespace UE::RHI::GPUProfiler
 				}
 
 				uint64 Union = FTimestampStream::ComputeUnion(StreamPointers);
-				double Time = FPlatformTime::ToMilliseconds64(Union);
+				double Milliseconds = FPlatformTime::ToMilliseconds64(Union);
 
-				SET_FLOAT_STAT_FName(StatId.GetName(), Time);
+				SET_FLOAT_STAT_FName(Stat.StatId.GetName(), Milliseconds);
+
+			#if CSV_PROFILER_STATS
+				if (CsvProfiler)
+				{
+					CsvProfiler->RecordCustomStat(Stat.CsvStat, CSV_CATEGORY_INDEX(GPU), Milliseconds, ECsvCustomStatOp::Set);
+				}
+			#endif
 			}
-		#endif // WITH_RHI_BREADCRUMBS && HAS_GPU_STATS
+
+		#endif // WITH_RHI_BREADCRUMBS
 
 			// Compute the whole-frame total GPU time.
 			StreamPointers.Reset();
 			for (auto const& [Queue, State] : FrameState)
 			{
-				StreamPointers.Emplace(State.QueueTimestamps);
+				StreamPointers.Emplace(State.Queue);
 			}
 			uint64 WholeFrameUnion = FTimestampStream::ComputeUnion(StreamPointers);
 
 			// Update the global GPU frame time stats - need to convert to Cycles32 rather than Cycles64.
 			GGPUFrameTime = FPlatformMath::TruncToInt(FPlatformTime::ToSeconds64(WholeFrameUnion) / FPlatformTime::GetSecondsPerCycle());
+
+			RHISetGPUStatTotals(bCsvStatsEnabled, FPlatformTime::ToMilliseconds64(WholeFrameUnion));
 		}
 
 	} GGPUProfilerSink_StatSystem;

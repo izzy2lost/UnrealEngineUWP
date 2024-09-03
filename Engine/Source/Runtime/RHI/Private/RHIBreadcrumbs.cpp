@@ -12,7 +12,7 @@
 FRHIBreadcrumbNode::FRHIBreadcrumbNode()
 	: Name([]() -> FRHIBreadcrumb const&
 	{
-		static TRHIBreadcrumb<> Breadcrumb(TStatId(), TEXT("Sentinel"));
+		static TRHIBreadcrumb<> Breadcrumb(FRHIBreadcrumbData(__FILE__, __LINE__, TStatId(), NAME_None), TEXT("Sentinel"));
 		return Breadcrumb;
 	}())
 {}

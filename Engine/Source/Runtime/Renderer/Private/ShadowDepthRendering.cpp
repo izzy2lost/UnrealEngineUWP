@@ -1597,7 +1597,7 @@ void FSceneRenderer::RenderShadowDepthMapAtlases(FRDGBuilder& GraphBuilder)
 				FString LightNameWithLevel;
 				GetLightNameForDrawEvent(CurrentLightForDrawEvent, LightNameWithLevel);
 
-				RDGScope.Emplace(GraphBuilder, ERDGScopeFlags::None, TStatId(), RDG_EVENT_NAME("%s", *LightNameWithLevel));
+				RDGScope.Emplace(GraphBuilder, ERDGScopeFlags::None, FRHIBreadcrumbData(__FILE__, __LINE__, TStatId(), NAME_None), RDG_EVENT_NAME("%s", *LightNameWithLevel));
 			}
 		#endif
 		};

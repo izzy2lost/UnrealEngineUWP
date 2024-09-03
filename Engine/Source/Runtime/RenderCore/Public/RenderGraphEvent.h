@@ -49,7 +49,7 @@ public:
 	const TCHAR* GetTCHAR() const;
 
 #if WITH_RHI_BREADCRUMBS
-	FRHIBreadcrumbNode* AllocBreadcrumb(TStatId StatId, FRHIBreadcrumbAllocator& Allocator) const;
+	FRHIBreadcrumbNode* AllocBreadcrumb(FRHIBreadcrumbData&& Data, FRHIBreadcrumbAllocator& Allocator) const;
 #endif // WITH_RHI_BREADCRUMBS
 
 private:
@@ -171,7 +171,7 @@ struct FRDGScope_Budget
 		FRHIBreadcrumbNode* Node = nullptr;
 	#endif
 
-		inline FRDGScope_RHI(FRDGScopeState& State, TStatId StatId, FRDGEventName&& Name);
+		inline FRDGScope_RHI(FRDGScopeState& State, FRHIBreadcrumbData&& Data, FRDGEventName&& Name);
 		inline void ImmediateEnd(FRDGScopeState& State);
 
 	#if WITH_RHI_BREADCRUMBS
@@ -348,7 +348,7 @@ private:
 		TRDGEventScopeGuard<FRDGScope_RHI> PREPROCESSOR_JOIN(__RDG_ScopeRef_,__LINE__)( \
 			(GraphBuilder)                                                              \
 			, ERDGScopeFlags::None                                                      \
-			, TStatId()                                                                 \
+			, FRHIBreadcrumbData(__FILE__, __LINE__, TStatId(), NAME_None)              \
 			, RDG_EVENT_NAME(Format, ##__VA_ARGS__)                                     \
 		)
 
@@ -357,7 +357,12 @@ private:
 			TRDGEventScopeGuard<FRDGScope_RHI> PREPROCESSOR_JOIN(__RDG_ScopeRef_,__LINE__)( \
 				(GraphBuilder)                                                              \
 				, ERDGScopeFlags::Stat                                                      \
-				, GET_STATID(Stat_GPU_##StatName)                                           \
+				, FRHIBreadcrumbData(                                                       \
+					  __FILE__                                                              \
+					, __LINE__                                                              \
+					, GET_STATID(Stat_GPU_##StatName)                                       \
+					, CSV_STAT_FNAME(StatName)                                              \
+				)                                                                           \
 				, RDG_EVENT_NAME(Format, ##__VA_ARGS__)                                     \
 			)
 	#else
@@ -374,7 +379,12 @@ private:
 				PREPROCESSOR_JOIN(__RDG_ScopeRef_,__LINE__).Emplace(                               \
 					(GraphBuilder)                                                                 \
 					, ERDGScopeFlags::None                                                         \
-					, TStatId()                                                                    \
+					, FRHIBreadcrumbData(                                                          \
+						  __FILE__                                                                 \
+						, __LINE__                                                                 \
+						, TStatId()                                                                \
+						, NAME_None                                                                \
+					)                                                                              \
 					, RDG_EVENT_NAME(Format, ##__VA_ARGS__)                                        \
 				);                                                                                 \
 			}   \
@@ -390,7 +400,12 @@ private:
 					PREPROCESSOR_JOIN(__RDG_ScopeRef_,__LINE__).Emplace(                               \
 						(GraphBuilder)                                                                 \
 						, ERDGScopeFlags::Stat                                                         \
-						, GET_STATID(Stat_GPU_##StatName)                                              \
+						, FRHIBreadcrumbData(                                                          \
+							  __FILE__                                                                 \
+							, __LINE__                                                                 \
+							, GET_STATID(Stat_GPU_##StatName)                                          \
+							, CSV_STAT_FNAME(StatName)                                                 \
+						)                                                                              \
 						, RDG_EVENT_NAME(Format, ##__VA_ARGS__)                                        \
 					);                                                                                 \
 				}   \
@@ -409,7 +424,7 @@ private:
 			PREPROCESSOR_JOIN(__RDG_ScopeRef_,__LINE__).Emplace(                                   \
 				(GraphBuilder)                                                                     \
 				, ERDGScopeFlags::Final                                                            \
-				, TStatId()                                                                        \
+				, FRHIBreadcrumbData(__FILE__, __LINE__, TStatId(), NAME_None)                     \
 				, RDG_EVENT_NAME(Format, ##__VA_ARGS__)                                            \
 			);                                                                                     \
 		} while (false)

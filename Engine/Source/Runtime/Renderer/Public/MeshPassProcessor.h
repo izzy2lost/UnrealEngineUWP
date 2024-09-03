@@ -1395,18 +1395,6 @@ private:
 	mutable FMeshDrawCommandDebugData DebugData;
 #endif
 
-#if WANTS_DRAW_MESH_EVENTS
-public:
-	friend struct FMeshDrawEvent;
-	struct FMeshDrawEvent
-	{
-	private:
-		FRHIBreadcrumbEventScope Breadcrumb;
-	public:
-		FMeshDrawEvent(const FMeshDrawCommand& MeshDrawCommand, const uint32 InstanceFactor, FRHICommandList& RHICmdList);
-	};
-#endif
-
 #if MESH_DRAW_COMMAND_STATS
 private:
 	FMeshDrawCommandStatsData StatsData;

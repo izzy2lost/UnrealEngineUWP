@@ -1522,8 +1522,13 @@ bool FMeshDrawCommand::SubmitDraw(
 	FMeshDrawCommandStateCache& RESTRICT StateCache)
 {
 #if WANTS_DRAW_MESH_EVENTS
-	FMeshDrawEvent MeshEvent(MeshDrawCommand, InstanceFactor, RHICmdList);
+	RHI_BREADCRUMB_EVENT_CONDITIONAL(RHICmdList, GShowMaterialDrawEvents != 0, "%s %s (%u instances)"
+		, MeshDrawCommand.DebugData.MaterialRenderProxy->GetMaterialName()
+		, MeshDrawCommand.DebugData.ResourceName
+		, MeshDrawCommand.NumInstances * InstanceFactor
+	);
 #endif
+
 	bool bAllowSkipDrawCommand = true;
 	if (SubmitDrawBegin(MeshDrawCommand, GraphicsMinimalPipelineStateSet, SceneArgs, InstanceFactor, RHICmdList, StateCache, bAllowSkipDrawCommand))
 	{
@@ -2250,20 +2255,6 @@ void FPassProcessorManager::SetPassFlags(EShadingPath ShadingPath, EMeshPass::Ty
 		Flags[(uint32)ShadingPath][PassType] = NewFlags;
 	}
 }
-
-#if WANTS_DRAW_MESH_EVENTS
-FMeshDrawCommand::FMeshDrawEvent::FMeshDrawEvent(const FMeshDrawCommand& MeshDrawCommand, const uint32 InstanceFactor, FRHICommandList& RHICmdList)
-	: Breadcrumb(
-		  RHICmdList
-		, TStatId()
-		, GShowMaterialDrawEvents != 0
-		, TEXT("%s %s (%u instances)")
-		, MeshDrawCommand.DebugData.MaterialRenderProxy->GetMaterialName()
-		, MeshDrawCommand.DebugData.ResourceName
-		, MeshDrawCommand.NumInstances * InstanceFactor
-	)
-{}
-#endif
 
 void AddRenderTargetInfo(
 	EPixelFormat PixelFormat,

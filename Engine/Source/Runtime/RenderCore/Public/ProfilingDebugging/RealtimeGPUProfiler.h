@@ -33,7 +33,7 @@
 
 	public:
 		template<size_t N, typename... TArgs>
-		FRHIBreadcrumbEvent_GameThread(bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
+		FRHIBreadcrumbEvent_GameThread(bool bCondition, FRHIBreadcrumbData&& Data, TCHAR const(&FormatString)[N], TArgs&&... Args)
 			: Event(bCondition ? new TOptional<FRHIBreadcrumbEventScope> : nullptr)
 		{
 			check(IsInGameThread());
@@ -42,13 +42,14 @@
 				ENQUEUE_RENDER_COMMAND(FRHIBreadcrumbEvent_GameThread_Begin)(
 				[
 					Event = Event,
+					Data = MoveTemp(Data),
 					Values = std::make_tuple(std::forward<TArgs>(Args)...),
 					&FormatString
 				](FRHICommandListImmediate& RHICmdList) mutable
 				{
-					std::apply([Event, &RHICmdList, &FormatString](auto&&... InnerArgs)
+					std::apply([Event, &RHICmdList, &Data, &FormatString](auto&&... InnerArgs)
 					{
-						Event->Emplace(RHICmdList, TStatId(), true, FormatString, std::forward<TArgs>(InnerArgs)...);
+						Event->Emplace(RHICmdList, MoveTemp(Data), true, FormatString, std::forward<TArgs>(InnerArgs)...);
 					}, Values);
 				});
 			}
@@ -67,11 +68,11 @@
 		}
 	};
 
-	#define RHI_BREADCRUMB_EVENT_GAMETHREAD(                       Format, ...) FRHIBreadcrumbEvent_GameThread ANONYMOUS_VARIABLE(BreadcrumbEvent_GameThread)(true     , TEXT(Format), ##__VA_ARGS__)
-	#define RHI_BREADCRUMB_EVENT_CONDITIONAL_GAMETHREAD(Condition, Format, ...) FRHIBreadcrumbEvent_GameThread ANONYMOUS_VARIABLE(BreadcrumbEvent_GameThread)(Condition, TEXT(Format), ##__VA_ARGS__)
+	#define RHI_BREADCRUMB_EVENT_GAMETHREAD(                       Format, ...) FRHIBreadcrumbEvent_GameThread ANONYMOUS_VARIABLE(BreadcrumbEvent_GameThread)(true     , FRHIBreadcrumbData(__FILE__, __LINE__, TStatId(), NAME_None), TEXT(Format), ##__VA_ARGS__)
+	#define RHI_BREADCRUMB_EVENT_CONDITIONAL_GAMETHREAD(Condition, Format, ...) FRHIBreadcrumbEvent_GameThread ANONYMOUS_VARIABLE(BreadcrumbEvent_GameThread)(Condition, FRHIBreadcrumbData(__FILE__, __LINE__, TStatId(), NAME_None), TEXT(Format), ##__VA_ARGS__)
 
 	// Used only for back compat with SCOPED_DRAW_EVENTF_GAMETHREAD
-	#define RHI_BREADCRUMB_EVENT_GAMETHREAD_STR_DEPRECATED(Format, ...) FRHIBreadcrumbEvent_GameThread ANONYMOUS_VARIABLE(BreadcrumbEvent_GameThread)(true, Format, ##__VA_ARGS__)
+	#define RHI_BREADCRUMB_EVENT_GAMETHREAD_STR_DEPRECATED(Format, ...) FRHIBreadcrumbEvent_GameThread ANONYMOUS_VARIABLE(BreadcrumbEvent_GameThread)(true, FRHIBreadcrumbData(__FILE__, __LINE__, TStatId(), NAME_None), Format, ##__VA_ARGS__)
 
 #else
 
@@ -141,8 +142,6 @@
 
 	#if HAS_GPU_STATS
 
-		CSV_DECLARE_CATEGORY_MODULE_EXTERN(RENDERCORE_API, GPU);
-
 		// @todo
 		#define DECLARE_GPU_STAT(                StatName            ) DECLARE_FLOAT_COUNTER_STAT(TEXT(#StatName)       , Stat_GPU_##StatName, STATGROUP_GPU  ); CSV_DEFINE_STAT(GPU,StatName);
 		#define DECLARE_GPU_STAT_NAMED(          StatName, NameString) DECLARE_FLOAT_COUNTER_STAT(NameString            , Stat_GPU_##StatName, STATGROUP_GPU  ); CSV_DEFINE_STAT(GPU,StatName);
@@ -183,8 +182,6 @@ class FRealtimeGPUProfilerEvent;
 class FRealtimeGPUProfilerFrame;
 
 #if HAS_GPU_STATS
-
-	CSV_DECLARE_CATEGORY_MODULE_EXTERN(RENDERCORE_API,GPU);
 
 	// The DECLARE_GPU_STAT macros both declare and define a stat (for use in a single CPP)
 	#define DECLARE_GPU_STAT(StatName)                            DECLARE_FLOAT_COUNTER_STAT(TEXT(#StatName)       , Stat_GPU_##StatName, STATGROUP_GPU  ); CSV_DEFINE_STAT(GPU,StatName);         static FRHIDrawStatsCategory DrawcallCountCategory_##StatName;

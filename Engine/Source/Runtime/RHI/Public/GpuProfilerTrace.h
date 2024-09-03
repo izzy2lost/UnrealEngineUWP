@@ -6,7 +6,7 @@
 #include "Trace/Config.h"
 
 #if !defined(GPUPROFILERTRACE_ENABLED)
-#if UE_TRACE_ENABLED && !UE_BUILD_SHIPPING && (RHI_NEW_GPU_PROFILER == 0)
+#if UE_TRACE_ENABLED && !UE_BUILD_SHIPPING
 #define GPUPROFILERTRACE_ENABLED 1
 #else
 #define GPUPROFILERTRACE_ENABLED 0
@@ -14,6 +14,17 @@
 #endif
 
 #if GPUPROFILERTRACE_ENABLED
+
+#if RHI_NEW_GPU_PROFILER
+// Define this structure here when the new GPU profiler is enabled so we can still build the old trace API.
+// @todo - remove this. GPU timestamp calibration is no longer necessary with the new GPU profiler, as the
+// platform RHIs are expected to translate timestamps from GPU to CPU clock domain before they reach the profiler.
+struct FGPUTimingCalibrationTimestamp
+{
+	uint64 GPUMicroseconds = 0;
+	uint64 CPUMicroseconds = 0;
+};
+#endif
 
 class FName;
 

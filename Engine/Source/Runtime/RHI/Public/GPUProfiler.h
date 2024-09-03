@@ -8,8 +8,13 @@
 
 #include "CoreMinimal.h"
 #include "Misc/TVariant.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 #include "RHIBreadcrumbs.h"
+
+#if HAS_GPU_STATS
+CSV_DECLARE_CATEGORY_MODULE_EXTERN(RHI_API, GPU);
+#endif
 
 #if RHI_NEW_GPU_PROFILER
 
