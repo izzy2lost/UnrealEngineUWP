@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Net;
-using System.Text;
 using EpicGames.Core;
+using HordeAgent.Leases;
 using HordeAgent.Utility;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -231,7 +231,7 @@ class AwsInstanceLifecycleService : BackgroundService
 
 		// Create and write the termination signal file, containing the time-to-live for the EC2 instance.
 		// Workloads executed by the agent that support this protocol can pick this up and prepare/clean up prior to termination
-		await WriteTerminationSignalFileAsync(info, cancellationToken);
+		await LeaseManager.WriteTerminationSignalFileAsync(_terminationSignalFile.FullName, info.Reason, info.TerminateAt, info.TimeToLive, cancellationToken);
 	}
 
 	private Task OnTerminationAsync(Ec2TerminationInfo info, CancellationToken cancellationToken)
@@ -243,16 +243,6 @@ class AwsInstanceLifecycleService : BackgroundService
 		}
 
 		return Task.CompletedTask;
-	}
-
-	private Task WriteTerminationSignalFileAsync(Ec2TerminationInfo info, CancellationToken cancellationToken)
-	{
-		StringBuilder sb = new(100);
-		sb.Append("v1\n");
-		sb.Append($"{info.TimeToLive.TotalMilliseconds}\n");
-		sb.Append($"{new DateTimeOffset(info.TerminateAt).ToUnixTimeMilliseconds()}\n");
-		sb.Append($"{info.Reason}\n");
-		return File.WriteAllTextAsync(_terminationSignalFile.FullName, sb.ToString(), cancellationToken);
 	}
 
 	/// <inheritdoc/>
