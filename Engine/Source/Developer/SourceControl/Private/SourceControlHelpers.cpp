@@ -1725,6 +1725,7 @@ bool USourceControlHelpers::GetFilesInDepotAtPaths(const TArray<FString>& Paths,
 
 			TSharedRef<FGetFileList, ESPMode::ThreadSafe> Operation = ISourceControlOperation::Create<FGetFileList>();
 			Operation->SetIncludeDeleted(bIncludeDeleted);
+			Operation->SetQuiet(bSilent);
 			Operation->SetSearchPattern(PathsToQuery);
 			if (bIsFileRegexSearch)
 			{

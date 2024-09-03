@@ -812,6 +812,10 @@ bool FPerforceGetFileListWorker::Execute(FPerforceSourceControlCommand& InComman
 		}
 		FP4RecordSet Records;
 		InCommand.bCommandSuccessful = Connection.RunCommand(TEXT("files"), Parameters, Records, InCommand.ResultInfo, FOnIsCancelled::CreateRaw(&InCommand, &FPerforceSourceControlCommand::IsCanceled), InCommand.bConnectionDropped);
+		if (Operation->ShouldBeQuiet())
+		{
+			RemoveRedundantErrors(InCommand, TEXT(" - no such file(s)."), false);
+		}
 		bool bConsiderDepotFiles = Operation->GetMethodUsed() == FGetFileList::FileRegexSearch;
 		ParseRecordSetForState(Records, OutResults, bConsiderDepotFiles);
 
