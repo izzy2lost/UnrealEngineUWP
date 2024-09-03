@@ -13,18 +13,40 @@
 FSequencerTrackFilter_Selected::FSequencerTrackFilter_Selected(ISequencerTrackFilters& InFilterInterface, TSharedPtr<FFilterCategory> InCategory)
 	: FSequencerTrackFilter(InFilterInterface, MoveTemp(InCategory))
 {
-	if (const TSharedPtr<IToolkitHost> ToolkitHost = GetSequencer().GetToolkitHost())
+	if (const FEditorModeTools* const EditorMode = GetEditorModeManager())
 	{
-		ToolkitHost->GetEditorModeManager().GetSelectedObjects()->SelectionChangedEvent.AddRaw(this, &FSequencerTrackFilter_Selected::OnSelectionChanged);
+		EditorMode->GetSelectedObjects()->SelectionChangedEvent.AddRaw(this, &FSequencerTrackFilter_Selected::OnSelectionChanged);
 	}
 }
 
 FSequencerTrackFilter_Selected::~FSequencerTrackFilter_Selected()
 {
-	if (const TSharedPtr<IToolkitHost> ToolkitHost = GetSequencer().GetToolkitHost())
+	if (const FEditorModeTools* const EditorMode = GetEditorModeManager())
 	{
-		ToolkitHost->GetEditorModeManager().GetSelectedObjects()->SelectionChangedEvent.RemoveAll(this);
+		EditorMode->GetSelectedObjects()->SelectionChangedEvent.RemoveAll(this);
 	}
+}
+
+TSharedPtr<ILevelEditor> FSequencerTrackFilter_Selected::GetLevelEditor() const
+{
+	const FLevelEditorModule* const LevelEditorModule = FModuleManager::GetModulePtr<FLevelEditorModule>(TEXT("LevelEditor"));
+	if (!LevelEditorModule)
+	{
+		return nullptr;
+	}
+
+	return LevelEditorModule->GetLevelEditorInstance().Pin();
+}
+
+FEditorModeTools* FSequencerTrackFilter_Selected::GetEditorModeManager() const
+{
+	const TSharedPtr<ILevelEditor> LevelEditor = GetLevelEditor();
+	if (!LevelEditor.IsValid())
+	{
+		return nullptr;
+	}
+
+	return &LevelEditor->GetEditorModeManager();
 }
 
 bool FSequencerTrackFilter_Selected::ShouldUpdateOnTrackValueChanged() const
@@ -59,8 +81,7 @@ FString FSequencerTrackFilter_Selected::GetName() const
 
 bool FSequencerTrackFilter_Selected::PassesFilter(FSequencerTrackFilterType InItem) const
 {
-	const FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
-	const TSharedPtr<ILevelEditor> LevelEditor = LevelEditorModule.GetFirstLevelEditor();
+	const TSharedPtr<ILevelEditor> LevelEditor = GetLevelEditor();
 	if (!LevelEditor.IsValid())
 	{
 		return false;
@@ -87,13 +108,13 @@ bool FSequencerTrackFilter_Selected::PassesFilter(FSequencerTrackFilterType InIt
 		return true;
 	}
 
-	USceneComponent* const Component = TrackObject->GetTypedOuter<USceneComponent>();
+	const USceneComponent* const Component = TrackObject->GetTypedOuter<USceneComponent>();
 	if (IsValid(Component) && SelectedObjects.Contains(Component))
 	{
 		return true;
 	}
 
-	AActor* const Actor = TrackObject->GetTypedOuter<AActor>();
+	const AActor* const Actor = TrackObject->GetTypedOuter<AActor>();
 	if (IsValid(Actor) && SelectedObjects.Contains(Actor))
 	{
 		return true;

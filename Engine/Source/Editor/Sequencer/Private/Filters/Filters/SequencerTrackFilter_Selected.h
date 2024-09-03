@@ -4,6 +4,9 @@
 
 #include "Filters/SequencerTrackFilterBase.h"
 
+class FEditorModeTools;
+class ILevelEditor;
+
 class FSequencerTrackFilter_Selected : public FSequencerTrackFilter
 {
 public:
@@ -29,5 +32,8 @@ public:
 	void ToggleShowOnlySelectedTracks();
 
 protected:
+	TSharedPtr<ILevelEditor> GetLevelEditor() const;
+	FEditorModeTools* GetEditorModeManager() const;
+
 	void OnSelectionChanged(UObject* const InObject);
 };
