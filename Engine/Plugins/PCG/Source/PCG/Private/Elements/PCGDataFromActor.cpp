@@ -828,6 +828,7 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* InContext, const UPCGDa
 		GDFRParams.ComponentSelector = &Context->ComponentSelector;
 		GDFRParams.bParseActor = bParseActor;
 		GDFRParams.DataTypeFilter = DataType;
+		GDFRParams.bIgnorePCGGeneratedComponents = Settings->bIgnorePCGGeneratedComponents;
 
 		FPCGGetDataFunctionRegistryOutput GDFROutput;
 		FPCGModule::ConstGetDataFunctionRegistry().GetDataFromActor(Context, GDFRParams, Actor, GDFROutput);
