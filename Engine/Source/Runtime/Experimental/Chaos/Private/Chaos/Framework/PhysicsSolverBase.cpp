@@ -274,11 +274,7 @@ namespace Chaos
 	void FPhysicsSolverBase::EnableAsyncMode(FReal FixedDt)
 	{
 		AsyncDt = FixedDt;
-		if (AsyncDt != FixedDt)
-		{
-			AccumulatedTime = 0;
-			UE_LOG(LogChaos, Verbose, TEXT("FPhysicsSolverBase::AsyncDt:%f"), IsUsingAsyncResults() ? AsyncDt : -1);
-		}
+		UE_LOG(LogChaos, Verbose, TEXT("FPhysicsSolverBase::AsyncDt:%f"), IsUsingAsyncResults() ? AsyncDt : -1);
 	}
 
 	void FPhysicsSolverBase::DisableAsyncMode()
@@ -286,7 +282,6 @@ namespace Chaos
 		AsyncDt = -1;
 		UE_LOG(LogChaos, Verbose, TEXT("FPhysicsSolverBase::AsyncDt:%f"), AsyncDt);
 	}
-
 
 	FPhysicsSolverBase::~FPhysicsSolverBase()
 	{
