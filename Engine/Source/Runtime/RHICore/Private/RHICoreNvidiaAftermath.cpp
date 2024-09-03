@@ -158,7 +158,7 @@ namespace UE::RHICore::Nvidia::Aftermath
 #else
 			GFSDK_Aftermath_GpuCrashDumpWatchedApiFlags_Vulkan
 #endif
-			GFSDK_Aftermath_GpuCrashDumpFeatureFlags_Default,
+			GFSDK_Aftermath_GpuCrashDumpFeatureFlags_DeferDebugInfoCallbacks,
 			&Callback_GpuCrashDump,
 			bDumpShaderDebugInfo ? &Callback_ShaderDebugInfo : nullptr,
 			&Callback_GpuCrashDumpDesc,

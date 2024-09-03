@@ -107,7 +107,7 @@ ED3D12DredMode D3D12_GetDredMode()
 	{
 		return ED3D12DredMode::Full;
 	}
-	else if (UE::RHI::ShouldEnableGPUCrashFeature(*CVarD3D12EnableLightweightDRED, TEXT("dred")))
+	else if (UE::RHI::ShouldEnableGPUCrashFeature(*CVarD3D12EnableLightweightDRED, TEXT("lightdred")))
 	{
 		// Intel suffers a significant performance hit.
 		return IsRHIDeviceIntel()

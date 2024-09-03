@@ -155,8 +155,8 @@ void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSi
 #if WITH_RHI_BREADCRUMBS
 	void FD3D12CommandContext::RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
 	{
-		// Always emit breadcrumb ID when the diagnostic buffer is available.
-		if (FD3D12DiagnosticBuffer* DiagBuffer = Device->GetQueue(QueueType).DiagnosticBuffer.Get())
+		FD3D12DiagnosticBuffer* DiagBuffer = Device->GetQueue(QueueType).DiagnosticBuffer.Get();
+		if (DiagBuffer && UE::RHI::UseGPUCrashBreadcrumbs())
 		{
 			D3D12_GPU_VIRTUAL_ADDRESS Marker = DiagBuffer->GetGPUQueueMarkerIn();
 			WriteMarker(Marker, Breadcrumb->Name.ID, EMarkerType::In);
@@ -264,8 +264,8 @@ void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSi
 		UE::RHICore::Nvidia::Aftermath::D3D12::EndBreadcrumb(AftermathHandle(), Breadcrumb);
 	#endif
 
-		// Always emit breadcrumb ID when the diagnostic buffer is available.
-		if (FD3D12DiagnosticBuffer* DiagBuffer = Device->GetQueue(QueueType).DiagnosticBuffer.Get())
+		FD3D12DiagnosticBuffer* DiagBuffer = Device->GetQueue(QueueType).DiagnosticBuffer.Get();
+		if (DiagBuffer && UE::RHI::UseGPUCrashBreadcrumbs())
 		{
 			D3D12_GPU_VIRTUAL_ADDRESS Marker = DiagBuffer->GetGPUQueueMarkerOut();
 			WriteMarker(Marker, Breadcrumb->Name.ID, EMarkerType::Out);
