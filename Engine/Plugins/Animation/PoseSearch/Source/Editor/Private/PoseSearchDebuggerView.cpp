@@ -100,6 +100,9 @@ void SDebuggerDetailsView::UpdateReflection(const FTraceMotionMatchingStateMessa
 	Reflection->SimAngularVelocity = State.SimAngularVelocity;
 	Reflection->AnimLinearVelocity = State.AnimLinearVelocity;
 	Reflection->AnimAngularVelocity = State.AnimAngularVelocity;
+	Reflection->Playrate = State.Playrate;
+	Reflection->AnimLinearVelocityNoTimescale = State.AnimLinearVelocityNoTimescale;
+	Reflection->AnimAngularVelocityNoTimescale = State.AnimAngularVelocityNoTimescale;
 }
 
 void SDebuggerView::Construct(const FArguments& InArgs, uint64 InAnimInstanceId, int32 InWantedSearchId)

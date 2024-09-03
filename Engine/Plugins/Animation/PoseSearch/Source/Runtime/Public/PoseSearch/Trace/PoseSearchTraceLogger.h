@@ -68,6 +68,9 @@ struct POSESEARCH_API FTraceMotionMatchingStateMessage : public FTraceMessage
 	float SimAngularVelocity = 0.f;
 	float AnimLinearVelocity = 0.f;
 	float AnimAngularVelocity = 0.f;
+	float Playrate = 0.f;
+	float AnimLinearVelocityNoTimescale = 0.f;
+	float AnimAngularVelocityNoTimescale = 0.f;
 	
 	float RecordingTime = 0.f;
 	float SearchBestCost = 0.f;

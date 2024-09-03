@@ -42,8 +42,10 @@ enum class EPoseSearchInterruptMode : uint8
 	ForceInterruptAndInvalidateContinuingPose,
 };
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 struct FMotionMatchingState
 {
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	// Reset the state to a default state using the current Database
 	void Reset(const FTransform& ComponentTransform);
 
@@ -82,7 +84,7 @@ struct FMotionMatchingState
 	float AnimationDeltaYaw = 0.f;
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
-	// Root motion delta for currently playing animation (or animation tree if from the blend stack)
+	UE_DEPRECATED(5.4, "Debug RootMotionDelta is now calculated in-place.")
 	FTransform RootMotionTransformDelta = FTransform::Identity;
 #endif //UE_POSE_SEARCH_TRACE_ENABLED
 };
@@ -127,6 +129,15 @@ class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
+
+	static void TraceMotionMatching(
+		UE::PoseSearch::FSearchContext& SearchContext,
+		FMotionMatchingState& CurrentState,
+		float DeltaTime,
+		bool bSearch,
+		float RecordingTime);
+	
+	UE_DEPRECATED(5.5, "Use TraceMotionMatching with different signature instead.")
 	static void TraceMotionMatching(
 		UE::PoseSearch::FSearchContext& SearchContext,
 		const UE::PoseSearch::FSearchResult& CurrentResult,
@@ -134,7 +145,13 @@ class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 		const FTransform& RootMotionTransformDelta,
 		float DeltaTime,
 		bool bSearch,
-		float RecordingTime);
+		float RecordingTime)
+	{
+		FMotionMatchingState MotionMatchingState;
+		MotionMatchingState.CurrentSearchResult = CurrentResult;
+		MotionMatchingState.ElapsedPoseSearchTime = ElapsedPoseSearchTime;
+		TraceMotionMatching(SearchContext, MotionMatchingState, DeltaTime, bSearch, RecordingTime);
+	}
 
 	UE_DEPRECATED(5.4, "Use TraceMotionMatching instead")
 	static void TraceMotionMatchingState(
@@ -147,7 +164,10 @@ class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 		bool bSearch,
 		float RecordingTime)
 	{
-		TraceMotionMatching(SearchContext, CurrentResult, ElapsedPoseSearchTime, RootMotionTransformDelta, DeltaTime, bSearch, RecordingTime);
+		FMotionMatchingState MotionMatchingState;
+		MotionMatchingState.CurrentSearchResult = CurrentResult;
+		MotionMatchingState.ElapsedPoseSearchTime = ElapsedPoseSearchTime;
+		TraceMotionMatching(SearchContext, MotionMatchingState, DeltaTime, bSearch, RecordingTime);
 	}
 	
 #endif // UE_POSE_SEARCH_TRACE_ENABLED

@@ -77,6 +77,9 @@ FArchive& operator<<(FArchive& Ar, FTraceMotionMatchingStateMessage& State)
 	Ar << State.SimAngularVelocity;
 	Ar << State.AnimLinearVelocity;
 	Ar << State.AnimAngularVelocity;
+	Ar << State.Playrate;
+	Ar << State.AnimLinearVelocityNoTimescale;
+	Ar << State.AnimAngularVelocityNoTimescale;
 	Ar << State.RecordingTime;
 	Ar << State.SearchBestCost;
 	Ar << State.SearchBruteForceCost;

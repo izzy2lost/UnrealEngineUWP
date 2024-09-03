@@ -202,10 +202,6 @@ void FMotionMatchingState::Reset(const FTransform& ComponentTransform)
 	AnimationDeltaYaw = 0.f;
 
 	PoseIndicesHistory.Reset();
-
-#if UE_POSE_SEARCH_TRACE_ENABLED
-	RootMotionTransformDelta = FTransform::Identity;
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
 }
 
 void FMotionMatchingState::AdjustAssetTime(float AssetTime)
@@ -281,21 +277,16 @@ void FMotionMatchingState::UpdateWantedPlayRate(const UE::PoseSearch::FSearchCon
 }
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
-void UPoseSearchLibrary::TraceMotionMatching(
-	UE::PoseSearch::FSearchContext& SearchContext,
-	const UE::PoseSearch::FSearchResult& CurrentResult,
-	float ElapsedPoseSearchTime,
-	const FTransform& RootMotionTransformDelta,
-	float DeltaTime,
-	bool bSearch,
-	float RecordingTime)
+void UPoseSearchLibrary::TraceMotionMatching(UE::PoseSearch::FSearchContext& SearchContext, FMotionMatchingState& CurrentState, float DeltaTime, bool bSearch, float RecordingTime)
 {
 	using namespace UE::PoseSearch;
 	
 	uint32 SearchId = 787;
 
 	FTraceMotionMatchingStateMessage TraceState;
-	
+	FSearchResult& CurrentResult = CurrentState.CurrentSearchResult;
+	const float ElapsedPoseSearchTime = CurrentState.ElapsedPoseSearchTime;
+
 	const int32 AnimInstancesNum = SearchContext.GetAnimInstances().Num();
 	TraceState.SkeletalMeshComponentIds.SetNum(AnimInstancesNum);
 
@@ -393,9 +384,32 @@ void UPoseSearchLibrary::TraceMotionMatching(
 			}
 		}
 
-		// animation
-		TraceState.AnimLinearVelocity = RootMotionTransformDelta.GetTranslation().Size() / DeltaTime;
-		TraceState.AnimAngularVelocity = FMath::RadiansToDegrees(RootMotionTransformDelta.GetRotation().GetAngle()) / DeltaTime;
+		const FSearchIndexAsset* SearchIndexAsset = CurrentResult.GetSearchIndexAsset();
+		const UPoseSearchDatabase* CurrentResultDatabase = CurrentResult.Database.Get();
+		if (SearchIndexAsset && CurrentResultDatabase)
+		{
+			const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = CurrentResultDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(*SearchIndexAsset);
+			check(DatabaseAsset);
+			if (UAnimationAsset* AnimationAsset = Cast<UAnimationAsset>(DatabaseAsset->GetAnimationAsset()))
+			{
+				// Simulate the time step to get accurate root motion prediction for this frame.
+				FAnimationAssetSampler Sampler(AnimationAsset);
+
+				const float TimeStep = DeltaTime * CurrentState.WantedPlayRate;
+				const FTransform PrevRoot = Sampler.ExtractRootTransform(CurrentResult.AssetTime);
+				const FTransform CurrRoot = Sampler.ExtractRootTransform(CurrentResult.AssetTime + TimeStep);
+				const FTransform RootMotionTransformDelta = PrevRoot.GetRelativeTransform(CurrRoot);
+				TraceState.AnimLinearVelocity = RootMotionTransformDelta.GetTranslation().Size() / DeltaTime;
+				TraceState.AnimAngularVelocity = FMath::RadiansToDegrees(RootMotionTransformDelta.GetRotation().GetAngle()) / DeltaTime;
+
+				// Need another root motion extraction for non-playrate version in case acceleration isn't the same.
+				const FTransform CurrRootNoTimescale = Sampler.ExtractRootTransform(CurrentResult.AssetTime + DeltaTime);
+				const FTransform RootMotionTransformDeltaNoTimescale = PrevRoot.GetRelativeTransform(CurrRootNoTimescale);
+				TraceState.AnimLinearVelocityNoTimescale = RootMotionTransformDeltaNoTimescale.GetTranslation().Size() / DeltaTime;
+				TraceState.AnimAngularVelocityNoTimescale = FMath::RadiansToDegrees(RootMotionTransformDeltaNoTimescale.GetRotation().GetAngle()) / DeltaTime;
+			}
+		}
+		TraceState.Playrate = CurrentState.WantedPlayRate;
 	}
 
 	TraceState.ElapsedPoseSearchTime = ElapsedPoseSearchTime;
@@ -599,8 +613,7 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 	// Record debugger details
 	if (IsTracing(Context))
 	{
-		TraceMotionMatching(SearchContext, InOutMotionMatchingState.CurrentSearchResult, InOutMotionMatchingState.ElapsedPoseSearchTime,
-			InOutMotionMatchingState.RootMotionTransformDelta, DeltaTime, bSearch,
+		TraceMotionMatching(SearchContext, InOutMotionMatchingState, DeltaTime, bSearch,
 			AnimInstance ? FObjectTrace::GetWorldElapsedTime(AnimInstance->GetWorld()) : 0.f);
 	}
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
@@ -1019,7 +1032,10 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
-	TraceMotionMatching(SearchContext, SearchResult, 0.f, FTransform::Identity,
+	FMotionMatchingState MotionMatchingState;
+	MotionMatchingState.CurrentSearchResult = SearchResult;
+	MotionMatchingState.ElapsedPoseSearchTime = 0.0f;
+	TraceMotionMatching(SearchContext, MotionMatchingState,
 		DeltaSeconds, true, FObjectTrace::GetWorldElapsedTime(AnimInstances[0]->GetWorld()));
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 
