@@ -105,6 +105,7 @@ URigHierarchy::URigHierarchy()
 , MetadataTagVersion(0)
 , bEnableDirtyPropagation(true)
 , Elements()
+, bRecordCurveChanges(true)
 , IndexLookup()
 , TransformStackIndex(0)
 , bTransactingForTransformChange(false)
@@ -524,6 +525,7 @@ void URigHierarchy::Reset_Impl(bool bResetElements)
 	OrderedSelection.Reset();
 	PoseVersionPerElement.Reset();
 	ElementDependencyCache.Reset();
+	ResetChangedCurveIndices();
 
 	ChildElementOffsetAndCountCache.Reset();
 	ChildElementCache.Reset();
@@ -804,6 +806,9 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 
 		PreviousNameMap.Append(InHierarchy->PreviousNameMap);
 
+		// make sure the curves are marked as unset after copying
+		UnsetCurveValues();
+
 		// copy the topology version from the hierarchy.
 		// for this we'll include the hash of the hierarchy to make sure we
 		// are deterministic for different hierarchies.
@@ -1062,6 +1067,7 @@ void URigHierarchy::ResetPoseToInitial(ERigElementType InTypeFilter)
 	bool bPerformFiltering = InTypeFilter != ERigElementType::All;
 	
 	FScopeLock Lock(&ElementsLock);
+	const TGuardValue<bool> DisableRecordingOfCurveChanges(bRecordCurveChanges, false);
 	
 	// if we are resetting the pose on some elements, we need to check if
 	// any of affected elements has any children that would not be affected
@@ -1195,9 +1201,13 @@ void URigHierarchy::ResetPoseToInitial(ERigElementType InTypeFilter)
 void URigHierarchy::ResetCurveValues()
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
-	for(int32 ElementIndex=0; ElementIndex<Elements.Num(); ElementIndex++)
+
+	const TGuardValue<bool> DisableRecordingOfCurveChanges(bRecordCurveChanges, false);
+
+	TArray<FRigBaseElement*> Curves = GetCurvesFast();
+	for(FRigBaseElement* Element : Curves)
 	{
-		if(FRigCurveElement* CurveElement = Cast<FRigCurveElement>(Elements[ElementIndex]))
+		if(FRigCurveElement* CurveElement = CastChecked<FRigCurveElement>(Element))
 		{
 			SetCurveValue(CurveElement, 0.f);
 		}
@@ -1207,13 +1217,25 @@ void URigHierarchy::ResetCurveValues()
 void URigHierarchy::UnsetCurveValues(bool bSetupUndo)
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
-	for(int32 ElementIndex=0; ElementIndex<Elements.Num(); ElementIndex++)
+	TArray<FRigBaseElement*> Curves = GetCurvesFast();
+	for(FRigBaseElement* Element : Curves)
 	{
-		if(FRigCurveElement* CurveElement = Cast<FRigCurveElement>(Elements[ElementIndex]))
+		if(FRigCurveElement* CurveElement = CastChecked<FRigCurveElement>(Element))
 		{
 			UnsetCurveValue(CurveElement, bSetupUndo);
 		}
 	}
+	ResetChangedCurveIndices();
+}
+
+const TArray<int32>& URigHierarchy::GetChangedCurveIndices() const
+{
+	return ChangedCurveIndices;
+}
+
+void URigHierarchy::ResetChangedCurveIndices()
+{
+	ChangedCurveIndices.Reset();
 }
 
 int32 URigHierarchy::Num(ERigElementType InElementType) const
@@ -4864,7 +4886,11 @@ void URigHierarchy::SetCurveValue(FRigCurveElement* InCurveElement, float InValu
 		return;
 	}
 
-	InCurveElement->Set(InValue);
+	InCurveElement->Set(InValue, bRecordCurveChanges);
+	if(bRecordCurveChanges)
+	{
+		ChangedCurveIndices.Add(InCurveElement->GetIndex());
+	}
 
 #if WITH_EDITOR
 	if(bSetupUndo || IsTracingChanges())
@@ -4912,6 +4938,7 @@ void URigHierarchy::UnsetCurveValue(FRigCurveElement* InCurveElement, bool bSetu
 	}
 
 	InCurveElement->bIsValueSet = false;
+	ChangedCurveIndices.Remove(InCurveElement->GetIndex());
 
 #if WITH_EDITOR
 	if(bSetupUndo || IsTracingChanges())

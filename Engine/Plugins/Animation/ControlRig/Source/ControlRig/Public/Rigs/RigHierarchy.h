@@ -284,6 +284,21 @@ public:
 	void UnsetCurveValues(bool bSetupUndo = false);
 
 	/**
+	 * Returns all changed curve values
+	 */
+	const TArray<int32>& GetChangedCurveIndices() const;
+
+	/**
+	 * Returns all changed curve values
+	 */
+	void ResetChangedCurveIndices();
+
+	/**
+	 * Returns the flag used decide if we should be recording curve changes
+	 */
+	bool& GetRecordCurveChangesFlag() { return bRecordCurveChanges; }
+	
+	/**
 	 * Returns the number of elements in the Hierarchy.
 	 * @return The number of elements in the Hierarchy
 	 */
@@ -4317,6 +4332,9 @@ private:
 	// Storage for the elements
 	mutable TArray<TArray<FRigBaseElement*>> ElementsPerType;
 
+	TArray<int32> ChangedCurveIndices;
+	bool bRecordCurveChanges;
+	
 	//
 	struct FMetadataStorage
 	{

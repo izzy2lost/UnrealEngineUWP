@@ -26,8 +26,18 @@ void FRigHierarchyPoseAdapter::PostUnlinked(URigHierarchy* InHierarchy)
 	WeakHierarchy.Reset();
 }
 
+TTuple<FRigComputedTransform*, FRigTransformDirtyState*> FRigHierarchyPoseAdapter::GetElementTransformStorage(
+	const FRigElementKeyAndIndex& InKeyAndIndex, ERigTransformType::Type InTransformType, ERigTransformStorageType::Type InStorageType) const
+{
+	if(URigHierarchy* Hierarchy = GetHierarchy())
+	{
+		return Hierarchy->GetElementTransformStorage(InKeyAndIndex, InTransformType, InStorageType);
+	}
+	return {nullptr, nullptr};
+}
+
 bool FRigHierarchyPoseAdapter::RelinkTransformStorage(const FRigElementKeyAndIndex& InKeyAndIndex, ERigTransformType::Type InTransformType,
-	ERigTransformStorageType::Type InStorageType, FTransform* InTransformStorage, bool* InDirtyFlagStorage)
+                                                      ERigTransformStorageType::Type InStorageType, FTransform* InTransformStorage, bool* InDirtyFlagStorage)
 {
 	TArray<TTuple<FRigElementKeyAndIndex, ERigTransformType::Type, ERigTransformStorageType::Type, FTransform*, bool*>> Data =
 		{{InKeyAndIndex, InTransformType, InStorageType, InTransformStorage, InDirtyFlagStorage}};
@@ -59,22 +69,26 @@ bool FRigHierarchyPoseAdapter::RelinkTransformStorage(
 
 			if(FTransform* NewTransformStorage = Tuple.Get<3>())
 			{
+				const FTransform PreviousTransform = CurrentStorage.Get<0>()->Get();
 				if(Hierarchy->ElementTransforms.Contains(CurrentStorage.Get<0>()))
 				{
 					TransformIndicesToDeallocate.Add(CurrentStorage.Get<0>()->GetStorageIndex());
 				}
 				CurrentStorage.Get<0>()->StorageIndex = INDEX_NONE;
 				CurrentStorage.Get<0>()->Storage = NewTransformStorage;
+				CurrentStorage.Get<0>()->Set(PreviousTransform);
 				bPerformedChange = true;
 			}
 			if(bool* NewDirtyStateStorage = Tuple.Get<4>())
 			{
+				const bool bPreviousState = CurrentStorage.Get<1>()->Get();
 				if(Hierarchy->ElementDirtyStates.Contains(CurrentStorage.Get<1>()))
 				{
 					DirtyStateIndicesToDeallocate.Add(CurrentStorage.Get<1>()->GetStorageIndex());
 				}
 				CurrentStorage.Get<1>()->StorageIndex = INDEX_NONE;
 				CurrentStorage.Get<1>()->Storage = NewDirtyStateStorage;
+				CurrentStorage.Get<1>()->Set(bPreviousState);
 				bPerformedChange = true;
 			}
 		}
@@ -121,14 +135,26 @@ bool FRigHierarchyPoseAdapter::RestoreTransformStorage(
 		check(StoragePerElement.Num() == NewDirtyStateIndices.Num());
 		for(int32 Index = 0; Index < StoragePerElement.Num(); Index++)
 		{
-			StoragePerElement[Index].Get<0>()->StorageIndex = NewTransformIndices[Index];
-			StoragePerElement[Index].Get<1>()->StorageIndex = NewDirtyStateIndices[Index];
+			FRigComputedTransform* ComputedTransform = StoragePerElement[Index].Get<0>();
+			FRigTransformDirtyState* DirtyState = StoragePerElement[Index].Get<1>();
+
+			const FTransform PreviousTransform = ComputedTransform->Get();
+			const bool bPreviousState = DirtyState->Get();
+
+			ComputedTransform->StorageIndex = NewTransformIndices[Index];
+			ComputedTransform->Storage = &Hierarchy->ElementTransforms[ComputedTransform->StorageIndex];
+
+			DirtyState->StorageIndex = NewDirtyStateIndices[Index];
+			DirtyState->Storage = &Hierarchy->ElementDirtyStates[DirtyState->StorageIndex];
+			
+			ComputedTransform->Set(PreviousTransform);
+			DirtyState->Set(bPreviousState);
 		}
 		
 		if(bUpdateElementStorage)
 		{
-			(void)UpdateElementStorage();
-			(void)SortStorage();
+			(void)UpdateHierarchyStorage();
+			(void)SortHierarchyStorage();
 		}
 		return true;
 	}
@@ -158,6 +184,7 @@ bool FRigHierarchyPoseAdapter::RelinkCurveStorage(const TArrayView<TTuple<FRigEl
 		for(const TTuple<FRigElementKeyAndIndex, float*>& Tuple : InData)
 		{
 			FRigCurveElement* CurveElement = Hierarchy->Get<FRigCurveElement>(Tuple.Get<0>());
+			const float PreviousValue = CurveElement->Get();
 
 			if(float* NewCurveStorage = Tuple.Get<1>())
 			{
@@ -169,6 +196,8 @@ bool FRigHierarchyPoseAdapter::RelinkCurveStorage(const TArrayView<TTuple<FRigEl
 				CurveElement->Storage = NewCurveStorage;
 				bPerformedChange = true;
 			}
+
+			CurveElement->Set(PreviousValue, CurveElement->bIsValueSet);
 		}
 
 		Hierarchy->ElementCurves.Deallocate(CurveIndicesToDeallocate);
@@ -203,19 +232,23 @@ bool FRigHierarchyPoseAdapter::RestoreCurveStorage(const TArrayView<FRigElementK
 		check(Curves.Num() == NewCurveIndices.Num());
 		for(int32 Index = 0; Index < Curves.Num(); Index++)
 		{
-			Curves[Index]->StorageIndex = NewCurveIndices[Index];
+			FRigCurveElement* CurveElement = Curves[Index];
+			const float PreviousValue = CurveElement->Get();
+			CurveElement->StorageIndex = NewCurveIndices[Index];
+			CurveElement->Storage = &Hierarchy->ElementCurves[CurveElement->StorageIndex];
+			CurveElement->Set(PreviousValue, CurveElement->bIsValueSet);
 		}
 
 		if(bUpdateElementStorage)
 		{
-			(void)UpdateElementStorage();
+			(void)UpdateHierarchyStorage();
 		}
 		return true;
 	}
 	return false;
 }
 
-bool FRigHierarchyPoseAdapter::SortStorage()
+bool FRigHierarchyPoseAdapter::SortHierarchyStorage()
 {
 	if(URigHierarchy* Hierarchy = GetHierarchy())
 	{
@@ -224,7 +257,7 @@ bool FRigHierarchyPoseAdapter::SortStorage()
 	return false;
 }
 
-bool FRigHierarchyPoseAdapter::ShrinkStorage()
+bool FRigHierarchyPoseAdapter::ShrinkHierarchyStorage()
 {
 	if(URigHierarchy* Hierarchy = GetHierarchy())
 	{
@@ -233,7 +266,7 @@ bool FRigHierarchyPoseAdapter::ShrinkStorage()
 	return false;
 }
 
-bool FRigHierarchyPoseAdapter::UpdateElementStorage()
+bool FRigHierarchyPoseAdapter::UpdateHierarchyStorage()
 {
 	if(URigHierarchy* Hierarchy = GetHierarchy())
 	{

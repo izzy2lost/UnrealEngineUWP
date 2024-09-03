@@ -1578,9 +1578,7 @@ void FRigCurveElement::Load(FArchive& Ar, ESerializationPhase SerializationPhase
 		float Value = 0.f;
 		Ar << Value;
 
-		// maintain the deserialized bIsValueSet flag
-		TGuardValue<bool> ValueIsSetGuard(bIsValueSet, bIsValueSet);
-		Set(Value);
+		Set(Value, bIsValueSet);
 	}
 }
 
@@ -1606,12 +1604,12 @@ const float& FRigCurveElement::Get() const
 	return DefaultCurve;
 }
 
-void FRigCurveElement::Set(const float& InValue)
+void FRigCurveElement::Set(const float& InValue, bool InValueIsSet)
 {
 	if(Storage)
 	{
 		*Storage = InValue;
-		bIsValueSet = true;
+		bIsValueSet = InValueIsSet;
 	}
 }
 

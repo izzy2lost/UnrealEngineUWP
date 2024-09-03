@@ -1879,7 +1879,7 @@ struct CONTROLRIG_API FRigCurveElement final : public FRigBaseElement
 	virtual void CopyPose(FRigBaseElement* InOther, bool bCurrent, bool bInitial, bool bWeights) override;
 
 	const float& Get() const;
-	void Set(const float& InValue);
+	void Set(const float& InValue, bool InValueIsSet = true);
 
 	bool IsValueSet() const { return bIsValueSet; }
 
