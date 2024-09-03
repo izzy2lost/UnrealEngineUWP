@@ -4360,8 +4360,12 @@ void FLandscapeTextureDataInterface::CopyTextureChannel(UTexture2D* Dest, int32 
 	int32 SrcMips = SrcDataInfo->NumMips();
 	if (SrcMips != NumMips)
 	{
-		UE_LOG(LogLandscape, Warning, TEXT("Unexpected mip count mismatch when copying landscape texture channels from '%s' (%d mips) to '%s' (%d mips) -- mip data may be lost, or left uninitialized"),
-			*Src->GetPathName(), SrcMips, *Dest->GetPathName(), NumMips);
+		// We could migrate data from an old landscape that still had multiple mips in its edit layer data so it's not worth displaying a warning then since no data loss will actually occur : 
+		if (SrcMips < NumMips)
+		{
+			UE_LOG(LogLandscape, Warning, TEXT("Unexpected mip count mismatch when copying landscape texture channels from '%s' (%d mips) to '%s' (%d mips) -- mip data may be lost, or left uninitialized"),
+				*Src->GetPathName(), SrcMips, *Dest->GetPathName(), NumMips);
+		}
 		NumMips = FMath::Min(NumMips, SrcMips);
 	}
 
