@@ -144,16 +144,6 @@ struct FMenuEntryStyleParams
 {
 	FMenuEntryStyleParams() = default;
 
-	explicit FMenuEntryStyleParams(const EHorizontalAlignment InHorizontalAlignment)
-		: HorizontalAlignment(InHorizontalAlignment)
-	{
-	}
-
-	explicit FMenuEntryStyleParams(const bool bInNoIndent)
-		: bNoIndent(bInNoIndent)
-	{
-	}
-
 	/** If true, removes the padding from the left of the widget that lines it up with other menu items */
 	bool bNoIndent = false;
 

@@ -619,14 +619,21 @@ void FToolBarBuilder::AddToolBarWidget( TSharedRef<SWidget> InWidget, const TAtt
 		] ;
 
 	static const TAttribute<FText> EmptyTextAttribute;
-	TSharedRef<FWidgetBlock> NewWidgetBlock = MakeShared<FWidgetBlock>(InWidget, FText::GetEmpty(), EmptyTextAttribute, FMenuEntryStyleParams(true));
+
+	FMenuEntryStyleParams StyleParams;
+	StyleParams.bNoIndent = true;
+
+	TSharedRef<FWidgetBlock> NewWidgetBlock = MakeShared<FWidgetBlock>(InWidget, FText::GetEmpty(), EmptyTextAttribute, StyleParams);
 	MultiBox->AddMultiBlock( NewWidgetBlock );
 	NewWidgetBlock->SetSearchable(bSearchable);
 }
 
 void FToolBarBuilder::AddWidget( TSharedRef<SWidget> InWidget, FName InTutorialHighlightName, bool bSearchable, EHorizontalAlignment Alignment, FNewMenuDelegate InCustomMenuDelegate)
 {
-	AddWidget(InWidget, FMenuEntryStyleParams(Alignment), InTutorialHighlightName, bSearchable, InCustomMenuDelegate);
+	FMenuEntryStyleParams StyleParams;
+	StyleParams.HorizontalAlignment = Alignment;
+
+	AddWidget(InWidget, StyleParams, InTutorialHighlightName, bSearchable, InCustomMenuDelegate);
 }
 
 void FToolBarBuilder::AddWidget(TSharedRef<SWidget> InWidget, const FMenuEntryStyleParams& InStyleParams, FName InTutorialHighlightName, bool bInSearchable, FNewMenuDelegate InCustomMenuDelegate)
