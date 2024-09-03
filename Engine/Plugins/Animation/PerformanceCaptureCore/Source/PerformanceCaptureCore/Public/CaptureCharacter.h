@@ -24,7 +24,7 @@ public:
 	* CapturePerformer Actor that will be the source for retargeting.
 	*/
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Performance Capture|Character")
-	TObjectPtr<ACapturePerformer> SourcePerformer;
+	TSoftObjectPtr<ACapturePerformer> SourcePerformer;
 
 	/**
 	* The IKRetarget Asset to use for retargeting between the SourcePerformer and this Character.

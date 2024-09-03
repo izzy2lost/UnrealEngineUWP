@@ -65,7 +65,7 @@ public:
 	void SetEvaluateLiveLinkData(bool bEvaluateLinkLink);
 	
 	/**
-	* Get the LiveLink Subject Name. Subject must have the Animation Role Type.
+	* Get the LiveLink Evaluation State. Subject must have the Animation Role Type.
 	* @return bool Is LiveLink data being evaluated.
 	*/
 	UFUNCTION(BlueprintPure, Category ="Performance Capture|Performer")
