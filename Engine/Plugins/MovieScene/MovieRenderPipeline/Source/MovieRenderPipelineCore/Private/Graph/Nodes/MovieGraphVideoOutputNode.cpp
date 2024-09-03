@@ -18,7 +18,7 @@
 UMovieGraphVideoOutputNode::UMovieGraphVideoOutputNode()
 	: bHasError(false)
 {
-	FileNameFormat = TEXT("{sequence_name}");
+	FileNameFormat = TEXT("{sequence_name}.{layer_name}");
 }
 
 void UMovieGraphVideoOutputNode::OnAllShotFramesSubmittedImpl(UMovieGraphPipeline* InPipeline, const UMoviePipelineExecutorShot* InShot, TObjectPtr<UMovieGraphEvaluatedConfig>& InShotEvaluatedGraph)
