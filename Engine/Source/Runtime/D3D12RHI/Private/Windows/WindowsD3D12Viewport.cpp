@@ -362,7 +362,11 @@ HRESULT FD3D12Viewport::PresentInternal(int32 SyncInterval)
 		}
 #endif
 
-		HRESULT PresentHR = SwapChain1->Present(SyncInterval, Flags);
+		HRESULT PresentHR;
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(D3D12_Present);
+			PresentHR = SwapChain1->Present(SyncInterval, Flags);
+		}
 
 		UINT PresentID;
 		if (SUCCEEDED(SwapChain1->GetLastPresentCount(&PresentID)))
