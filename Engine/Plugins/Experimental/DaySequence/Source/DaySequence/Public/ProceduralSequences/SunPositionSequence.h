@@ -27,16 +27,16 @@ struct DAYSEQUENCE_API FSunPositionSequence : public FProceduralDaySequence
 	FDateTime Time;
 
 	UPROPERTY(EditAnywhere, Category = "Procedural Parameters")
-	double TimeZone;
+	double TimeZone = 0.0;
 	
 	UPROPERTY(EditAnywhere, Category = "Procedural Parameters")
-	double Latitude;
+	double Latitude = 0.0;
 
 	UPROPERTY(EditAnywhere, Category = "Procedural Parameters")
-	double Longitude;
+	double Longitude = 0.0;
 	
 	UPROPERTY(EditAnywhere, Category = "Procedural Parameters")
-	bool bIsDaylightSavings;
+	bool bIsDaylightSavings = false;
 	
 private:
 	
