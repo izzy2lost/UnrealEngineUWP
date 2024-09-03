@@ -439,7 +439,7 @@ void FDMMaterialSlotLayerMenus::AddSlotMenuEntry(const TSharedPtr<SDMMaterialSlo
 		FToolMenuEntry::InitMenuEntry(
 			NAME_None,
 			InName,
-			LOCTEXT("AddValueStageSpecificTooltip", "Add a Material Stage based on this Material Slot."),
+			LOCTEXT("AddSlotStageSpecificTooltip", "Add a Material Stage based on this Material Slot."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateWeakLambda(
 				TargetSlot,
