@@ -231,4 +231,42 @@ bool FSkeletalMeshOperations::CopySkinWeightAttributeFromMesh(
 	return true;
 }
 
+bool FSkeletalMeshOperations::RemapBoneIndicesOnSkinWeightAttribute(FMeshDescription& InMesh, TConstArrayView<int32> InBoneIndexMapping)
+{
+	using namespace UE::AnimationCore;
+	
+	FSkeletalMeshAttributes MeshAttributes(InMesh);
+
+	// Don't renormalize, since we are not changing the weights or order.
+	FBoneWeightsSettings Settings;
+	Settings.SetNormalizeType(EBoneWeightNormalizeType::None);
+	
+	TArray<FBoneWeight> NewBoneWeights;
+	for (const FName AttributeName: MeshAttributes.GetSkinWeightProfileNames())
+	{
+		FSkinWeightsVertexAttributesRef SkinWeights(MeshAttributes.GetVertexSkinWeights(AttributeName));
+
+		for (FVertexID VertexID: InMesh.Vertices().GetElementIDs())
+		{
+			FVertexBoneWeights OldBoneWeights = SkinWeights.Get(VertexID);
+			NewBoneWeights.Reset(OldBoneWeights.Num());
+
+			for (FBoneWeight BoneWeight: OldBoneWeights)
+			{
+				if (!ensure(InBoneIndexMapping.IsValidIndex(BoneWeight.GetBoneIndex())))
+				{
+					return false;
+				}
+				
+				BoneWeight.SetBoneIndex(InBoneIndexMapping[BoneWeight.GetBoneIndex()]);
+				NewBoneWeights.Add(BoneWeight);
+			}
+
+			SkinWeights.Set(VertexID, FBoneWeights::Create(NewBoneWeights, Settings));
+		}
+	}
+	return true;
+}
+
+
 #undef LOCTEXT_NAMESPACE

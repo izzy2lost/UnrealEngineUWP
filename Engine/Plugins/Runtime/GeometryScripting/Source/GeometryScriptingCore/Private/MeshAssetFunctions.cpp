@@ -22,9 +22,11 @@
 
 #include "MeshDescriptionToDynamicMesh.h"
 #include "DynamicMeshToMeshDescription.h"
+#include "SkeletalMeshOperations.h"
 #include "StaticMeshLODResourcesToDynamicMesh.h"
 #include "AssetUtils/StaticMeshMaterialUtil.h"
 #include "ConversionUtils/SceneComponentToDynamicMesh.h"
+#include "DynamicMesh/DynamicBoneAttribute.h"
 #include "DynamicMesh/NonManifoldMappingSupport.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MeshAssetFunctions)
@@ -909,6 +911,31 @@ UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToSkeletalMesh
 		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshToSkeletalMesh_TargetMeshDescription", "CopyMeshToSkeletalMesh: Failed to generate the mesh data for the Target LOD Index"));
 		return FromDynamicMesh;
 	}
+
+	// Verify that the bones on the dynamic mesh are a proper subset of the bones on the skeletal mesh. The order is not important, since
+	// we re-order as needed below. If the mesh has no bones, then we create, or get, the default skin weight attribute and bind everything 
+	// to root, since we can't verify that any current skin binding is valid.
+	TArray<int32> BoneRemapping;
+	const FDynamicMesh3& Mesh{FromDynamicMesh->GetMeshRef()}; 
+	if (Mesh.HasAttributes() && Mesh.Attributes()->HasBones())
+	{
+		const FDynamicMeshBoneNameAttribute* SrcBoneNames = Mesh.Attributes()->GetBoneNames();
+		TArray<FName> DstBoneNames = ToSkeletalMeshAsset->GetRefSkeleton().GetRawRefBoneNames();
+		for (int32 SrcBoneIndex = 0; SrcBoneIndex < SrcBoneNames->Num(); ++SrcBoneIndex)
+		{
+			const FName SrcBoneName = SrcBoneNames->GetValue(SrcBoneIndex);
+			const int32 DstBoneIndex = DstBoneNames.IndexOfByKey(SrcBoneName);
+			if (DstBoneIndex == INDEX_NONE)
+			{
+				UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs,
+					FText::Format(LOCTEXT("CopyMeshToSkeletalMesh_MissingBonesOnAsset", "CopyMeshToSkeletalMesh: Source geometry contains bone '{0}' which does not exist on the skeletal mesh asset ({1})."),
+						FText::FromName(SrcBoneName), FText::FromString(ToSkeletalMeshAsset->GetPackage()->GetPathName())));
+				return FromDynamicMesh;
+			}
+
+			BoneRemapping.Add(DstBoneIndex);
+		}
+	}
 	
 	FSkeletalMeshAttributes MeshAttributes(*MeshDescription);
 	MeshAttributes.Register();
@@ -921,7 +948,27 @@ UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToSkeletalMesh
 	{
 		Converter.Convert(&ReadMesh, *MeshDescription, !Options.bEnableRecomputeTangents);
 	});
+	
+	if (!BoneRemapping.IsEmpty())
+	{
+		FSkeletalMeshOperations::RemapBoneIndicesOnSkinWeightAttribute(*MeshDescription, BoneRemapping);
+	}
+	else
+	{
+		using namespace UE::AnimationCore;
+		FBoneWeight RootWeight(0, 1.0f);
+		FBoneWeights RootBinding = FBoneWeights::Create({RootWeight});
+		for (const FName AttributeName: MeshAttributes.GetSkinWeightProfileNames())
+		{
+			FSkinWeightsVertexAttributesRef SkinWeights(MeshAttributes.GetVertexSkinWeights(AttributeName));
 
+			for (FVertexID VertexID: MeshDescription->Vertices().GetElementIDs())
+			{
+				SkinWeights.Set(VertexID, RootBinding);
+			}
+		}
+	}
+	
 	FSkeletalMeshLODInfo* SkeletalLODInfo = ToSkeletalMeshAsset->GetLODInfo(TargetLOD.LODIndex);
 	SkeletalLODInfo->BuildSettings.bRecomputeNormals = Options.bEnableRecomputeNormals;
 	SkeletalLODInfo->BuildSettings.bRecomputeTangents = Options.bEnableRecomputeTangents;

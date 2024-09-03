@@ -51,4 +51,18 @@ public:
 		const FName InTargetProfile,
 		const TMap<int32, int32>* SourceBoneIndexToTargetBoneIndexMap
 		);
+
+	/** Remaps the bone indices on all skin weight attributes from one index to another. The array view should contain a full mapping of all the
+	 *  bone indices contained in the skin weights. The array is indexed by the current bone index and the value at that index is the new bone index.
+	 *  If the mapping is incomplete or if two entries map to the same bone, the result is undefined. No prior checking is performed.
+	 *  \param InMesh The mesh on which to modify all skin weight attributes to remap their bone indices.
+	 *  \param InBoneIndexMapping The mapping from one bone index to another. The old bone index is used to index into the array, the value at that
+	 *     position is the new bone index.
+	 *  \return true if the operation was successful. If the mapping array was incomplete then this will return false. If there are no skin weight
+	 *     attributes on the mesh, then the operation is still deemed successful.
+	 */  
+	static SKELETALMESHDESCRIPTION_API bool RemapBoneIndicesOnSkinWeightAttribute(
+		FMeshDescription& InMesh,
+		TConstArrayView<int32> InBoneIndexMapping
+		);
 };
