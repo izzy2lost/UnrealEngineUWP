@@ -1531,11 +1531,11 @@ bool FStateTreeCompiler::CreateConsiderations(UStateTreeState& State, const FStr
 	{
 		if (!State.Parent
 			|| (State.Parent->SelectionBehavior != EStateTreeStateSelectionBehavior::TrySelectChildrenWithHighestUtility
-				&& State.Parent->SelectionBehavior != EStateTreeStateSelectionBehavior::TrySelectChildrenBasedOnRelativeUtility))
+				&& State.Parent->SelectionBehavior != EStateTreeStateSelectionBehavior::TrySelectChildrenAtRandomWeightedByUtility))
 		{
 			Log.Reportf(EMessageSeverity::Warning, TEXT("State's Utility Considerations data are compiled but they don't have effect."
 					"The Utility Considerations are used only when parent State's Selection Behavior is:"
-					"\"Try Select Children with Highest Utility\" or \"Try Select Children Based on Relative Utility\"."));
+					"\"Try Select Children with Highest Utility\" or \"Try Select Children At Random Weighted By Utility\"."));
 		}
 	}
 

@@ -4201,7 +4201,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				break;
 			}
 		}
-		else if (NextState.SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenAtUniformRandom)
+		else if (NextState.SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenAtRandom)
 		{
 			if (NextState.HasChildren())
 			{
@@ -4303,7 +4303,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				break;
 			}
 		}
-		else if (NextState.SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenBasedOnRelativeUtility)
+		else if (NextState.SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenAtRandomWeightedByUtility)
 		{
 			if (NextState.HasChildren())
 			{

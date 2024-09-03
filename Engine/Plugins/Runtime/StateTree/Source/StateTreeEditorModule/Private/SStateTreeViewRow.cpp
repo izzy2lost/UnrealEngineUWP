@@ -1027,9 +1027,9 @@ FText SStateTreeViewRow::GetSelectorTooltip() const
 			case EStateTreeStateSelectionBehavior::TryFollowTransitions:
 				return Enum->GetToolTipTextByIndex(Index);
 			case EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder:
-			case EStateTreeStateSelectionBehavior::TrySelectChildrenAtUniformRandom:
+			case EStateTreeStateSelectionBehavior::TrySelectChildrenAtRandom:
 			case EStateTreeStateSelectionBehavior::TrySelectChildrenWithHighestUtility:
-			case EStateTreeStateSelectionBehavior::TrySelectChildrenBasedOnRelativeUtility:
+			case EStateTreeStateSelectionBehavior::TrySelectChildrenAtRandomWeightedByUtility:
 				if (State->Children.IsEmpty()
 					|| State->Type == EStateTreeStateType::Linked
 					|| State->Type == EStateTreeStateType::LinkedAsset)
@@ -1332,14 +1332,14 @@ bool SStateTreeViewRow::GetStateWarnings(FText* OutText) const
 	{
 		if (!State->Parent 
 			|| (State->Parent->SelectionBehavior != EStateTreeStateSelectionBehavior::TrySelectChildrenWithHighestUtility
-				&& State->Parent->SelectionBehavior != EStateTreeStateSelectionBehavior::TrySelectChildrenBasedOnRelativeUtility))
+				&& State->Parent->SelectionBehavior != EStateTreeStateSelectionBehavior::TrySelectChildrenAtRandomWeightedByUtility))
 		{
 			if (OutText)
 			{
 				*OutText = LOCTEXT("ChildStateUtilityConsiderationWarning", 
 					"State has Utility Considerations but they don't have effect."
 					"The Utility Considerations are used only when parent State's Selection Behavior is:"
-					"\"Try Select Children with Highest Utility\" or \"Try Select Children Based on Relative Utility.");
+					"\"Try Select Children with Highest Utility\" or \"Try Select Children At Random Weighted By Utility.");
 			}
 			bHasWarnings = true;
 		}

@@ -300,12 +300,12 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	ConsiderationsProperty->MarkHiddenByCustomization();
 	if (Schema && Schema->AllowUtilityConsiderations())
 	{
-		const FName UtilityCategoryName(TEXT("Utility"));
+		const FName UtilityCategoryName(TEXT("Selection Utility"));
 		IDetailCategoryBuilder& UtilityConsiderationsCategory = UE::StateTreeEditor::EditorNodeUtils::MakeArrayCategory(
 			DetailBuilder,
 			ConsiderationsProperty,
 			UtilityCategoryName,
-			LOCTEXT("StateDetailsUtility", "Utility"),
+			LOCTEXT("StateDetailsSelectionUtility", "Selection Utility"),
 			FName("StateTreeEditor.Utility"),
 			UE::StateTree::Colors::Orange,
 			UE::StateTree::Colors::Orange.WithAlpha(192),

@@ -420,7 +420,7 @@ const FSlateBrush* FStateTreeEditorStyle::GetBrushForSelectionBehaviorType(EStat
 	}
 	else if (InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder
 		|| InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenWithHighestUtility
-		|| InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenBasedOnRelativeUtility)
+		|| InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenAtRandomWeightedByUtility)
 	{
 		if (!bHasChildren
 			|| StateType == EStateTreeStateType::Linked
@@ -433,7 +433,7 @@ const FSlateBrush* FStateTreeEditorStyle::GetBrushForSelectionBehaviorType(EStat
 			return Get().GetBrush("StateTreeEditor.TrySelectChildrenInOrder");
 		}
 	}
-	else if (InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenAtUniformRandom)
+	else if (InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenAtRandom)
 	{
 		return Get().GetBrush("StateTreeEditor.TrySelectChildrenAtRandom");
 	}
