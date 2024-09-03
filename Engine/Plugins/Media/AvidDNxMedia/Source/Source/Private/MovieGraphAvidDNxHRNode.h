@@ -10,14 +10,6 @@
 
 class FAvidDNxEncoder;
 
-/** The container formats available for use with the Avid DNxHR node. */
-UENUM(BlueprintType)
-enum class EMovieGraphAvidDNxHRFormat : uint8
-{
-	Mxf UMETA(DisplayName = "Material Exchange Format (MXF)"),
-	Mov UMETA(DisplayName = "QuickTime (MOV)")
-};
-
 /** A node which can output Avid DNxHR movies. */
 UCLASS(BlueprintType, PrioritizeCategories=("FileOutput"))
 class UMovieGraphAvidDNxHRNode : public UMovieGraphVideoOutputNode
@@ -57,9 +49,6 @@ protected:
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_Format : 1;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_Quality : 1;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
@@ -74,11 +63,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_OCIOContext : 1;
 
-	/** The format to output the movie to. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Avid DNxHR", meta=(EditCondition="bOverride_Format"))
-	EMovieGraphAvidDNxHRFormat Format;
-
-	/**  */
+	/** The quality that the movie will be encoded with. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Avid DNxHR", meta=(EditCondition="bOverride_Quality"))
 	EAvidDNxEncoderQuality Quality = EAvidDNxEncoderQuality::HQ_8bit;
 
