@@ -1245,6 +1245,7 @@ bool FAutomationTestInequalityString::RunTest(const FString& Parameters)
 {
 	FString ExpectedString("Forty-two");
 	const TCHAR* ExpectedCharPtr = TEXT("Forty-two");
+	const UTF8CHAR* ExpectedCharPtrUtf8 = UTF8TEXT("Forty-two");
 	FString IdenticalString("Forty-two");
 	const TCHAR* IdenticalCharPtr = TEXT("Forty-two");
 	FString LowercaseString("forty-two");
@@ -1256,6 +1257,7 @@ bool FAutomationTestInequalityString::RunTest(const FString& Parameters)
 	FString DifferentString("42");
 	const TCHAR* DifferentCharPtr = TEXT("42");
 	const TCHAR* NullCharPtr = nullptr;
+	const UTF8CHAR* NullCharPtrUtf8 = nullptr;
 
 	TestEqual(TEXT("String identity equal"), IdenticalString, ExpectedString);
 	TestEqual(TEXT("char* identity equal"), IdenticalCharPtr, ExpectedCharPtr);
@@ -1270,16 +1272,88 @@ bool FAutomationTestInequalityString::RunTest(const FString& Parameters)
 	TestNotEqual(TEXT("char* unequal empty"), EmptyCharPtr, ExpectedCharPtr);
 	TestNotEqual(TEXT("char* unequal null"), NullCharPtr, ExpectedCharPtr);
 
-	TestEqualInsensitive(TEXT("String insensitive equal identity"), IdenticalString, ExpectedString);
-	TestEqualInsensitive(TEXT("char* insensitive equal identity"), IdenticalCharPtr, ExpectedCharPtr);
-	TestEqualInsensitive(TEXT("String insensitive equal lower"), LowercaseString, ExpectedString);
-	TestEqualInsensitive(TEXT("char* insensitive equal lower"), LowercaseCharPtr, ExpectedCharPtr);
-	TestEqualInsensitive(TEXT("String insensitive equal upper"), UppercaseString, ExpectedString);
-	TestEqualInsensitive(TEXT("char* insensitive equal upper"), UppercaseCharPtr, ExpectedCharPtr);
-	TestNotEqualInsensitive(TEXT("String insensitive unequal"), DifferentString, ExpectedString);
-	TestNotEqualInsensitive(TEXT("char* insensitive unequal"), DifferentCharPtr, ExpectedCharPtr);
-	TestNotEqualInsensitive(TEXT("char* insensitive unequal null"), NullCharPtr, ExpectedCharPtr);
-	
+	TestEqual(TEXT("String insensitive equal identity"), IdenticalString, ExpectedString);
+	TestEqual(TEXT("char* insensitive equal identity"), IdenticalCharPtr, ExpectedCharPtr);
+	TestEqual(TEXT("String insensitive equal lower"), LowercaseString, ExpectedString);
+	TestEqual(TEXT("char* insensitive equal lower"), LowercaseCharPtr, ExpectedCharPtr);
+	TestEqual(TEXT("String insensitive equal upper"), UppercaseString, ExpectedString);
+	TestEqual(TEXT("char* insensitive equal upper"), UppercaseCharPtr, ExpectedCharPtr);
+	TestNotEqual(TEXT("String insensitive unequal"), DifferentString, ExpectedString);
+	TestNotEqual(TEXT("char* insensitive unequal"), DifferentCharPtr, ExpectedCharPtr);
+	TestNotEqual(TEXT("char* insensitive unequal null"), NullCharPtr, ExpectedCharPtr);
+
+	TestEqualSensitive(TEXT("String sensitive equal identity"), IdenticalString, ExpectedString);
+	TestEqualSensitive(TEXT("char* sensitive equal identity"), IdenticalCharPtr, ExpectedCharPtr);	
+	TestNotEqualSensitive(TEXT("String sensitive unequal lower"), LowercaseString, ExpectedString);
+	TestNotEqualSensitive(TEXT("char* sensitive unequal lower"), LowercaseCharPtr, ExpectedCharPtr);
+	TestNotEqualSensitive(TEXT("String sensitive unequal upper"), UppercaseString, ExpectedString);
+	TestNotEqualSensitive(TEXT("char* sensitive unequal upper"), UppercaseCharPtr, ExpectedCharPtr);	
+	TestNotEqualSensitive(TEXT("String sensitive unequal"), DifferentString, ExpectedString);
+	TestNotEqualSensitive(TEXT("char* sensitive unequal"), DifferentCharPtr, ExpectedCharPtr);
+	TestNotEqualSensitive(TEXT("char* sensitive unequal null"), NullCharPtr, ExpectedCharPtr);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityStringNulls, "TestFramework.Validation.TestInequalityStringNulls", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::NegativeFilter);
+bool FAutomationTestInequalityStringNulls::RunTest(const FString& Parameters)
+{
+	const TCHAR* ExpectedCharPtr = TEXT("Forty-two");
+	const UTF8CHAR* ExpectedCharPtrUtf8 = UTF8TEXT("Forty-two");
+	const TCHAR* NullCharPtr = nullptr;
+	const UTF8CHAR* NullCharPtrUtf8 = nullptr;
+
+	// TCHAR*
+	TestEqual(TEXT("char* equal null null"), NullCharPtr, NullCharPtr);
+	TestEqual(TEXT("char* equal null string"), NullCharPtr, ExpectedCharPtr);
+	TestEqual(TEXT("char* equal string null"), ExpectedCharPtr, NullCharPtr);
+
+	TestNotEqual(TEXT("char* unequal null null"), NullCharPtr, NullCharPtr);
+	TestNotEqual(TEXT("char* unequal null string"), NullCharPtr, ExpectedCharPtr);
+	TestNotEqual(TEXT("char* unequal string null"), ExpectedCharPtr, NullCharPtr);
+
+	TestEqualSensitive(TEXT("char* equal(sensitive) null null"), NullCharPtr, NullCharPtr);
+	TestEqualSensitive(TEXT("char* equal(sensitive) null string"), NullCharPtr, ExpectedCharPtr);
+	TestEqualSensitive(TEXT("char* equal(sensitive) string null"), ExpectedCharPtr, NullCharPtr);
+
+	TestNotEqualSensitive(TEXT("char* unequal(sensitive) null null"), NullCharPtr, NullCharPtr);
+	TestNotEqualSensitive(TEXT("char* unequal(sensitive) null string"), NullCharPtr, ExpectedCharPtr);
+	TestNotEqualSensitive(TEXT("char* unequal(sensitive) string null"), ExpectedCharPtr, NullCharPtr);
+
+	// TStringView
+	TestEqual(TEXT("stringview equal null null"), MakeStringView(NullCharPtr), MakeStringView(NullCharPtr));
+	TestEqual(TEXT("stringview equal null string"), MakeStringView(NullCharPtr), MakeStringView(ExpectedCharPtr));
+	TestEqual(TEXT("stringview equal string null"), MakeStringView(ExpectedCharPtr), MakeStringView(NullCharPtr));
+
+	TestNotEqual(TEXT("stringview unequal null null"), MakeStringView(NullCharPtr), MakeStringView(NullCharPtr));
+	TestNotEqual(TEXT("stringview unequal null string"), MakeStringView(NullCharPtr), MakeStringView(ExpectedCharPtr));
+	TestNotEqual(TEXT("stringview unequal string null"), MakeStringView(ExpectedCharPtr), MakeStringView(NullCharPtr));
+
+	TestEqualSensitive(TEXT("stringview equal(sensitive) null null"), MakeStringView(NullCharPtr), MakeStringView(NullCharPtr));
+	TestEqualSensitive(TEXT("stringview equal(sensitive) null string"), MakeStringView(NullCharPtr), MakeStringView(ExpectedCharPtr));
+	TestEqualSensitive(TEXT("stringview equal(sensitive) string null"), MakeStringView(ExpectedCharPtr), MakeStringView(NullCharPtr));
+
+	TestNotEqualSensitive(TEXT("stringview unequal(sensitive) null null"), MakeStringView(NullCharPtr), MakeStringView(NullCharPtr));
+	TestNotEqualSensitive(TEXT("stringview unequal(sensitive) null string"), MakeStringView(NullCharPtr), MakeStringView(ExpectedCharPtr));
+	TestNotEqualSensitive(TEXT("stringview unequal(sensitive) string null"), MakeStringView(ExpectedCharPtr), MakeStringView(NullCharPtr));
+
+	// FUtf8StringView
+	TestEqual(TEXT("stringview8 equal null null"), MakeStringView(NullCharPtrUtf8), MakeStringView(NullCharPtrUtf8));
+	TestEqual(TEXT("stringview8 equal null string"), MakeStringView(NullCharPtrUtf8), MakeStringView(ExpectedCharPtrUtf8));
+	TestEqual(TEXT("stringview8 equal string null"), MakeStringView(ExpectedCharPtrUtf8), MakeStringView(NullCharPtrUtf8));
+
+	TestNotEqual(TEXT("stringview8 unequal null null"), MakeStringView(NullCharPtrUtf8), MakeStringView(NullCharPtrUtf8));
+	TestNotEqual(TEXT("stringview8 unequal null string"), MakeStringView(NullCharPtrUtf8), MakeStringView(ExpectedCharPtrUtf8));
+	TestNotEqual(TEXT("stringview8 unequal string null"), MakeStringView(ExpectedCharPtrUtf8), MakeStringView(NullCharPtrUtf8));
+
+	TestEqualSensitive(TEXT("stringview8 equal(sensitive) null null"), MakeStringView(NullCharPtrUtf8), MakeStringView(NullCharPtrUtf8));
+	TestEqualSensitive(TEXT("stringview8 equal(sensitive) null string"), MakeStringView(NullCharPtrUtf8), MakeStringView(ExpectedCharPtrUtf8));
+	TestEqualSensitive(TEXT("stringview8 equal(sensitive) string null"), MakeStringView(ExpectedCharPtrUtf8), MakeStringView(NullCharPtrUtf8));
+
+	TestNotEqualSensitive(TEXT("stringview8 unequal(sensitive) null null"), MakeStringView(NullCharPtrUtf8), MakeStringView(NullCharPtrUtf8));
+	TestNotEqualSensitive(TEXT("stringview8 unequal(sensitive) null string"), MakeStringView(NullCharPtrUtf8), MakeStringView(ExpectedCharPtrUtf8));
+	TestNotEqualSensitive(TEXT("stringview8 unequal(sensitive) string null"), MakeStringView(ExpectedCharPtrUtf8), MakeStringView(NullCharPtrUtf8));
+
 	return true;
 }
 
@@ -1302,6 +1376,7 @@ protected:
 	static const float ExpectedFloatValueLess;
 	static const float ExpectedFloatValueGreater;
 	static const FString ActualFStringValue;
+	static const FString ActualFStringValueCopy;
 	static const FString ExpectedFStringValueLowerCase;
 	static const FString UnexpectedFStringValueLowerCase;
 	static const FString CustomDescriptionString;
@@ -1316,6 +1391,7 @@ const float FAutomationUTestMacrosExpr::ExpectedFloatValueOutOfToleranceNegative
 const float FAutomationUTestMacrosExpr::ExpectedFloatValueLess(ActualFloatValue + (PositiveToleranceFloat*2)); //actual < expected
 const float FAutomationUTestMacrosExpr::ExpectedFloatValueGreater(ActualFloatValue - (PositiveToleranceFloat*2)); //actual > expected
 const FString FAutomationUTestMacrosExpr::ActualFStringValue(TEXT("EQUALS"));
+const FString FAutomationUTestMacrosExpr::ActualFStringValueCopy(TEXT("EQUALS"));
 const FString FAutomationUTestMacrosExpr::ExpectedFStringValueLowerCase(TEXT("equals"));
 const FString FAutomationUTestMacrosExpr::UnexpectedFStringValueLowerCase(TEXT("not-equals"));
 const FString FAutomationUTestMacrosExpr::CustomDescriptionString(TEXT("Error string appears when UTEST_ macro diverges from _EXPR variant"));
@@ -1336,6 +1412,10 @@ bool FAutomationEqualEXPR::RunTest(const FString& Parameters)
 	UTEST_EQUAL_INSENSITIVE(*CustomDescriptionString, *ActualFStringValue, *ExpectedFStringValueLowerCase);
 	UTEST_NOT_EQUAL_INSENSITIVE_EXPR(*ActualFStringValue, *UnexpectedFStringValueLowerCase);
 	UTEST_NOT_EQUAL_INSENSITIVE(*CustomDescriptionString, *ActualFStringValue, *UnexpectedFStringValueLowerCase);
+	UTEST_EQUAL_SENSITIVE_EXPR(*ActualFStringValue, *ActualFStringValueCopy);
+	UTEST_EQUAL_SENSITIVE(*CustomDescriptionString, *ActualFStringValue, *ActualFStringValueCopy);
+	UTEST_NOT_EQUAL_SENSITIVE_EXPR(*ActualFStringValue, *ExpectedFStringValueLowerCase);
+	UTEST_NOT_EQUAL_SENSITIVE(*CustomDescriptionString, *ActualFStringValue, *ExpectedFStringValueLowerCase);
 
 	return true;
 }

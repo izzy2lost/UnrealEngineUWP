@@ -1944,12 +1944,26 @@ public:
 	CORE_API bool TestNotEqual(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
 	CORE_API bool TestNotEqual(const TCHAR* What, FStringView Actual, FStringView Expected);
 	CORE_API bool TestNotEqual(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
+
+	UE_DEPRECATED(5.5, "Use TestEqual instead (string tests are case insensitive by default)")
 	CORE_API bool TestEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	UE_DEPRECATED(5.5, "Use TestEqual instead (string tests are case insensitive by default)")
 	CORE_API bool TestEqualInsensitive(const TCHAR* What, FStringView Actual, FStringView Expected);
+	UE_DEPRECATED(5.5, "Use TestEqual instead (string tests are case insensitive by default)")
 	CORE_API bool TestEqualInsensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
+	UE_DEPRECATED(5.5, "Use TestNotEqual instead (string tests are case insensitive by default)")
 	CORE_API bool TestNotEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	UE_DEPRECATED(5.5, "Use TestNotEqual instead (string tests are case insensitive by default)")
 	CORE_API bool TestNotEqualInsensitive(const TCHAR* What, FStringView Actual, FStringView Expected);
+	UE_DEPRECATED(5.5, "Use TestNotEqual instead (string tests are case insensitive by default)")
 	CORE_API bool TestNotEqualInsensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
+
+	CORE_API bool TestEqualSensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	CORE_API bool TestEqualSensitive(const TCHAR* What, FStringView Actual, FStringView Expected);
+	CORE_API bool TestEqualSensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
+	CORE_API bool TestNotEqualSensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	CORE_API bool TestNotEqualSensitive(const TCHAR* What, FStringView Actual, FStringView Expected);
+	CORE_API bool TestNotEqualSensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
 
 	bool TestEqual(const FString& What, const int32 Actual, const int32 Expected)
 	{
@@ -1991,28 +2005,86 @@ public:
 		return TestEqual(*What, Actual, Expected);
 	}
 
-	bool TestEqual(const FString& What, FUtf8StringView Actual, FUtf8StringView  Expected)
+	bool TestEqual(const FString& What, FUtf8StringView Actual, FUtf8StringView Expected)
 	{
-		return TestEqualInsensitive(*What, Actual, Expected);
+		return TestEqual(*What, Actual, Expected);
 	}
 
 	bool TestEqual(const FString& What, FStringView Actual, FStringView Expected)
 	{
-		return TestEqualInsensitive(*What, Actual, Expected);
+		return TestEqual(*What, Actual, Expected);
 	}
 
 	bool TestEqual(const FString& What, FStringView Actual, FUtf8StringView Expected)
 	{
 		// This overload is here because there are some tests that have raw string literals as the expected value.
 		FString Tmp(Expected);
-		return TestEqualInsensitive(*What, Actual, Tmp);
+		return TestEqual(*What, Actual, Tmp);
 	}
 
 	bool TestEqual(const FString& What, FUtf8StringView Actual, FStringView Expected)
 	{
 		// This overload is here because there are some tests that have raw string literals as the Actual value.
 		FString Tmp(Actual);
-		return TestEqualInsensitive(*What, Tmp, Expected);
+		return TestEqual(*What, Tmp, Expected);
+	}
+
+	bool TestEqualSensitive(const FString& What, const TCHAR* Actual, const TCHAR* Expected)
+	{
+		return TestEqualSensitive(*What, Actual, Expected);
+	}
+
+	bool TestEqualSensitive(const FString& What, FUtf8StringView Actual, FUtf8StringView Expected)
+	{
+		return TestEqualSensitive(*What, Actual, Expected);
+	}
+
+	bool TestEqualSensitive(const FString& What, FStringView Actual, FStringView Expected)
+	{
+		return TestEqualSensitive(*What, Actual, Expected);
+	}
+
+	bool TestEqualSensitive(const FString& What, FStringView Actual, FUtf8StringView Expected)
+	{
+		// This overload is here because there are some tests that have raw string literals as the expected value.
+		FString Tmp(Expected);
+		return TestEqualSensitive(*What, Actual, Tmp);
+	}
+
+	bool TestEqualSensitive(const FString& What, FUtf8StringView Actual, FStringView Expected)
+	{
+		// This overload is here because there are some tests that have raw string literals as the Actual value.
+		FString Tmp(Actual);
+		return TestEqualSensitive(*What, Tmp, Expected);
+	}
+
+	bool TestNotEqualSensitive(const FString& What, const TCHAR* Actual, const TCHAR* Expected)
+	{
+		return TestNotEqualSensitive(*What, Actual, Expected);
+	}
+
+	bool TestNotEqualSensitive(const FString& What, FUtf8StringView Actual, FUtf8StringView Expected)
+	{
+		return TestNotEqualSensitive(*What, Actual, Expected);
+	}
+
+	bool TestNotEqualSensitive(const FString& What, FStringView Actual, FStringView Expected)
+	{
+		return TestNotEqualSensitive(*What, Actual, Expected);
+	}
+
+	bool TestNotEqualSensitive(const FString& What, FStringView Actual, FUtf8StringView Expected)
+	{
+		// This overload is here because there are some tests that have raw string literals as the expected value.
+		FString Tmp(Expected);
+		return TestNotEqualSensitive(*What, Actual, Tmp);
+	}
+
+	bool TestNotEqualSensitive(const FString& What, FUtf8StringView Actual, FStringView Expected)
+	{
+		// This overload is here because there are some tests that have raw string literals as the Actual value.
+		FString Tmp(Actual);
+		return TestNotEqualSensitive(*What, Tmp, Expected);
 	}
 
 	/**
@@ -2512,6 +2584,14 @@ private:
 	 * @param	bSuccessful	true to mark the test successful, false to mark the test as failed
 	 */
 	CORE_API void InternalSetSuccessState(bool bSuccessful);
+
+	/**
+	 * Returns a string description of the value stored in the passed string view in a form suitable for error messages.
+	 * Proper string values will be output with quotation marks e.g. "value".
+	 * Null will be represented as nullptr.
+	 */
+	FString GetStringValueToDisplay(FStringView Value) const;
+	FString GetStringValueToDisplay(FUtf8StringView Value) const;
 
 	/* Log messages to be expected while processing this test.*/
 	TSet<FAutomationExpectedMessage> ExpectedMessages;
@@ -4227,25 +4307,49 @@ public: \
 	}
 
 #define UTEST_EQUAL_INSENSITIVE(What, Actual, Expected)\
-	if (!TestEqualInsensitive(What, Actual, Expected))\
+	if (!TestEqual(What, Actual, Expected))\
 	{\
 		return false;\
 	}
 
 #define UTEST_EQUAL_INSENSITIVE_EXPR(Actual, Expected)\
-	if (!TestEqualInsensitive(TEXT(#Actual), Actual, Expected))\
+	if (!TestEqual(TEXT(#Actual), Actual, Expected))\
 	{\
 		return false;\
 	}
 
 #define UTEST_NOT_EQUAL_INSENSITIVE(What, Actual, Expected)\
-	if (!TestNotEqualInsensitive(What, Actual, Expected))\
+	if (!TestNotEqual(What, Actual, Expected))\
 	{\
 		return false;\
 	}
 
 #define UTEST_NOT_EQUAL_INSENSITIVE_EXPR(Actual, Expected)\
-	if (!TestNotEqualInsensitive(TEXT(#Actual), Actual, Expected))\
+	if (!TestNotEqual(TEXT(#Actual), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_EQUAL_SENSITIVE(What, Actual, Expected)\
+	if (!TestEqualSensitive(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_EQUAL_SENSITIVE_EXPR(Actual, Expected)\
+	if (!TestEqualSensitive(TEXT(#Actual), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_NOT_EQUAL_SENSITIVE(What, Actual, Expected)\
+	if (!TestNotEqualSensitive(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_NOT_EQUAL_SENSITIVE_EXPR(Actual, Expected)\
+	if (!TestNotEqualSensitive(TEXT(#Actual), Actual, Expected))\
 	{\
 		return false;\
 	}

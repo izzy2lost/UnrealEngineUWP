@@ -140,7 +140,9 @@ FString CaptureExpressionsAndValues(const FString& InExpressions, ArgTypes&&... 
 #define STATIC_CHECK_FALSE(...) static_assert(!(__VA_ARGS__), "!(" #__VA_ARGS__ ")");
 
 #define CHECK_EQUALS(What, X, Y) FAutomationTestFramework::Get().GetCurrentTest()->TestEqual(What, X, Y);
+#define CHECK_EQUALS_SENSITIVE(What, X, Y) FAutomationTestFramework::Get().GetCurrentTest()->TestEqualSensitive(What, X, Y);
 #define CHECK_NOT_EQUALS(What, X, Y) FAutomationTestFramework::Get().GetCurrentTest()->TestNotEqual(What, X, Y);
+#define CHECK_NOT_EQUALS_SENSITIVE(What, X, Y) FAutomationTestFramework::Get().GetCurrentTest()->TestNotEqualSensitive(What, X, Y);
 
 #define SECTION(Text) FAutomationTestFramework::Get().GetCurrentTest()->AddInfo(TEXT(Text));
 #define FAIL_CHECK(Message) FAutomationTestFramework::Get().GetCurrentTest()->AddError(Message);

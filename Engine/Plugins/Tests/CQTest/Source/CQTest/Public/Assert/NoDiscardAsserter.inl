@@ -206,7 +206,7 @@ template <>
 template <>
 [[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreEqual(const FString& Expected, const FString& Actual, const FString& FailureMessage)
 {
-	return TestRunner.TestEqual(FailureMessage, *Actual, *Expected); //FAutomationTestBase expects Actual then Expected
+	return TestRunner.TestEqualSensitive(FailureMessage, *Actual, *Expected); //FAutomationTestBase expects Actual then Expected
 }
 
 template <typename TExpected, typename TActual>

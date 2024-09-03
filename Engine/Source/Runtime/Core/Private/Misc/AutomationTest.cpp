@@ -1592,6 +1592,30 @@ void FAutomationTestBase::InternalSetSuccessState( bool bSuccessful )
 	ExecutionInfo.bSuccessful = bSuccessful;
 }
 
+FString FAutomationTestBase::GetStringValueToDisplay(FStringView Value) const
+{
+	if (Value.GetData())
+	{
+		return FString::Printf(TEXT("\"%.*s\""), Value.Len(), Value.GetData());
+	}
+	else
+	{
+		return TEXT("nullptr");
+	}
+}
+
+FString FAutomationTestBase::GetStringValueToDisplay(FUtf8StringView Value) const
+{
+	if (Value.GetData())
+	{
+		return FString::Printf(TEXT("\"%.*hs\""), Value.Len(), Value.GetData());
+	}
+	else
+	{
+		return TEXT("nullptr");
+	}
+}
+
 bool FAutomationTestBase::GetLastExecutionSuccessState()
 {
 	return ExecutionInfo.bSuccessful;
@@ -1859,75 +1883,71 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const FLinearColor Actual
 
 bool FAutomationTestBase::TestEqual(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
 {
-	if (FCString::Strcmp(Actual, Expected) != 0)
-	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be \"%s\", but it was \"%s\"."), What, Expected, Actual), 1);
-		return false;
-	}
-	return true;
+ 	bool bAreEqual = (Actual && Expected) ? (FCString::Stricmp(Actual, Expected) == 0) : (Actual == Expected);
+ 
+ 	if (!bAreEqual)
+ 	{
+ 		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+ 	}
+ 
+ 	return bAreEqual;
 }
 
 bool FAutomationTestBase::TestEqual(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
 {
-	if (Actual.Compare(Expected, ESearchCase::CaseSensitive))
+	if (Actual.Compare(Expected, ESearchCase::IgnoreCase) != 0)
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be \"%.*hs\", but it was \"%.*hs\"."), What, Expected.Len(), Expected.GetData(), Actual.Len(), Actual.GetData()), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
 		return false;
 	}
+
 	return true;
 }
 
 bool FAutomationTestBase::TestEqual(const TCHAR* What, FStringView Actual, FStringView Expected)
 {
-	if (Actual.Compare(Expected, ESearchCase::CaseSensitive))
+	if (Actual.Compare(Expected, ESearchCase::IgnoreCase) != 0)
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be \"%.*s\", but it was \"%.*s\"."), What, Expected.Len(), Expected.GetData(), Actual.Len(), Actual.GetData()), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
 		return false;
 	}
+
 	return true;
 }
 
 bool FAutomationTestBase::TestNotEqual(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
 {
-	if (Actual && Expected)
+	bool bAreDifferent = (Actual && Expected) ? (FCString::Stricmp(Actual, Expected) != 0) : (Actual != Expected);
+
+	if (!bAreDifferent)
 	{
-		if (FCString::Strcmp(Actual, Expected) == 0)
-		{
-			AddError(FString::Printf(TEXT("Expected '%s' not to be\"%s\", but it was \"%s\"."), What, Expected, Actual), 1);
-			return false;
-		}
+		AddError(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
 	}
-	else // null exists
-	{
-		if (Actual == Expected)
-		{
-			AddError(FString::Printf(TEXT("Expected '%s' to differ but both values were unexpectedly null"), What), 1);
-			return false;
-		}
-	}
-	return true;
+
+ 	return bAreDifferent;
 }
 
 bool FAutomationTestBase::TestNotEqual(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
 {
-	if (Actual.Compare(Expected, ESearchCase::CaseSensitive) == 0)
+	if (Actual.Compare(Expected, ESearchCase::IgnoreCase) == 0)
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' not to be \"%.*hs\", but it was \"%.*hs\"."), What, Expected.Len(), Expected.GetData(), Actual.Len(), Actual.GetData()), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
 		return false;
 	}
+
 	return true;
 }
 
 bool FAutomationTestBase::TestNotEqual(const TCHAR* What, FStringView Actual, FStringView Expected)
 {
-	if (Actual.Compare(Expected, ESearchCase::CaseSensitive) == 0)
+	if (Actual.Compare(Expected, ESearchCase::IgnoreCase) == 0)
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' not to be \"%.*s\", but it was \"%.*s\"."), What, Expected.Len(), Expected.GetData(), Actual.Len(), Actual.GetData()), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
 		return false;
 	}
+
 	return true;
 }
-
 
 bool FAutomationTestBase::TestNotEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance)
 {
@@ -1951,94 +1971,99 @@ bool FAutomationTestBase::TestNotEqual(const TCHAR* What, const double Actual, c
 
 bool FAutomationTestBase::TestEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
 {
-	if (FCString::Stricmp(Actual, Expected) != 0)
-	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be \"%s\", but it was \"%s\"."), What, Expected, Actual), 1);
-		return false;
-	}
-	return true;
+	return TestEqual(What, Actual, Expected);
 }
 
 bool FAutomationTestBase::TestEqualInsensitive(const TCHAR* What, FStringView Actual, FStringView Expected)
 {
-	if (Actual.Compare(Expected, ESearchCase::IgnoreCase) != 0)
-	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be \"%.*s\", but it was \"%.*s\"."), What, Expected.Len(), Expected.GetData(), Actual.Len(), Actual.GetData()), 1);
-		return false;
-	}
-	return true;
+	return TestEqual(What, Actual, Expected);
 }
 
 bool FAutomationTestBase::TestEqualInsensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
 {
-	if (Actual.Compare(Expected, ESearchCase::IgnoreCase) != 0)
-	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be \"%.*hs\", but it was \"%.*hs\"."), What, Expected.Len(), Expected.GetData(), Actual.Len(), Actual.GetData()), 1);
-		return false;
-	}
-	return true;
+	return TestEqual(What, Actual, Expected);
 }
 
 bool FAutomationTestBase::TestNotEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
 {
-	if (Actual && Expected)
-	{
-		if (FCString::Stricmp(Actual, Expected) == 0)
-		{
-			AddError(FString::Printf(TEXT("Expected '%s' to differ from \"%s\", but it was \"%s\"."), What, Expected, Actual), 1);
-			return false;
-		}
-	}
-	else // null exists
-	{ 
-		if (Actual == Expected)
-		{
-			AddError(FString::Printf(TEXT("Expected '%s' to differ but both values were unexpectedly null"), What), 1);
-			return false;
-		}
-	}
-	return true;
+	return TestNotEqual(What, Actual, Expected);
 }
 
 bool FAutomationTestBase::TestNotEqualInsensitive(const TCHAR* What, FStringView Actual, FStringView Expected)
 {
-	if (Actual.GetData() && Expected.GetData())
-	{
-		if (Actual.Compare(Expected, ESearchCase::IgnoreCase) == 0)
-		{
-			AddError(FString::Printf(TEXT("Expected '%s' to differ from \"%.*s\", but it was \"%.*s\"."), What, Expected.Len(), Expected.GetData(), Actual.Len(), Actual.GetData()), 1);
-			return false;
-		}
-	}
-	else // null exists
-	{
-		if (Actual == Expected)
-		{
-			AddError(FString::Printf(TEXT("Expected '%s' to differ but both values were unexpectedly null"), What), 1);
-			return false;
-		}
-	}
-	return true;
+	return TestNotEqual(What, Actual, Expected);
 }
 
 bool FAutomationTestBase::TestNotEqualInsensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
 {
-	if (Actual.GetData() && Expected.GetData())
+	return TestNotEqual(What, Actual, Expected);
+}
+
+bool FAutomationTestBase::TestEqualSensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
+{
+ 	bool bAreEqual = (Actual && Expected) ? (FCString::Strcmp(Actual, Expected) == 0) : (Actual == Expected);
+ 
+ 	if (!bAreEqual)
+ 	{
+ 		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+ 	}
+ 
+ 	return bAreEqual;
+}
+
+bool FAutomationTestBase::TestEqualSensitive(const TCHAR* What, FStringView Actual, FStringView Expected)
+{
+	if (Actual.Compare(Expected, ESearchCase::CaseSensitive) != 0)
 	{
-		if (Actual.Compare(Expected, ESearchCase::IgnoreCase) == 0)
-		{
-			AddError(FString::Printf(TEXT("Expected '%s' to differ from \"%.*hs\", but it was \"%.*hs\"."), What, Expected.Len(), Expected.GetData(), Actual.Len(), Actual.GetData()), 1);
-			return false;
-		}
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+		return false;
 	}
-	else // null exists
+
+	return true;
+}
+
+bool FAutomationTestBase::TestEqualSensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
+{
+	if (Actual.Compare(Expected, ESearchCase::CaseSensitive) != 0)
 	{
-		if (Actual == Expected)
-		{
-			AddError(FString::Printf(TEXT("Expected '%s' to differ but both values were unexpectedly null"), What), 1);
-			return false;
-		}
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+		return false;
 	}
+
+	return true;
+}
+
+bool FAutomationTestBase::TestNotEqualSensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
+{
+ 	bool bAreDifferent = (Actual && Expected) ? (FCString::Strcmp(Actual, Expected) != 0) : (Actual != Expected);
+ 
+ 	if (!bAreDifferent)
+ 	{
+ 		AddError(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+ 	}
+ 
+ 	return bAreDifferent;
+}
+
+bool FAutomationTestBase::TestNotEqualSensitive(const TCHAR* What, FStringView Actual, FStringView Expected)
+{
+	if (Actual.Compare(Expected, ESearchCase::CaseSensitive) == 0)
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+		return false;
+	}
+
+	return true;
+}
+
+bool FAutomationTestBase::TestNotEqualSensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
+{
+	if (Actual.Compare(Expected, ESearchCase::CaseSensitive) == 0)
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+		return false;
+	}
+
 	return true;
 }
 
