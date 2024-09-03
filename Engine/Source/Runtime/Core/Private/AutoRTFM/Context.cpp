@@ -494,6 +494,8 @@ void FContext::AbortByLanguageAndThrow()
 
 void FContext::Reset()
 {
+	ASSERT(CurrentThreadId == FPlatformTLS::GetCurrentThreadId() || CurrentThreadId == FPlatformTLS::InvalidTlsSlot);
+
 	CurrentThreadId = FPlatformTLS::InvalidTlsSlot;
     OuterTransactStackAddress = nullptr;
 	CurrentTransactStackAddress = nullptr;
