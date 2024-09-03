@@ -82,7 +82,7 @@ namespace HordeServer.Tests.Stubs.Services
 				return new ValueTask<bool>(filter.ApplyTo(Files).Any());
 			}
 
-			public ValueTask<IReadOnlyList<string>> GetFilesAsync(int maxFiles, CancellationToken cancellationToken)
+			public ValueTask<IReadOnlyList<string>> GetFilesAsync(int? minFiles, int? maxFiles, CancellationToken cancellationToken)
 			{
 				return new ValueTask<IReadOnlyList<string>>(Files);
 			}
