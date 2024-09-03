@@ -55,6 +55,9 @@ struct FMallocLeakReportOptions
 
 	/** Sort allocations by this (default - size) */
 	ESortOption		SortBy;
+
+	/** Output device used for writing reports. If null, a memreport file will be written */
+	FOutputDevice*	OutputDevice;
 };
 
 #if MALLOC_LEAKDETECTION
