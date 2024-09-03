@@ -56,7 +56,7 @@ FMetaHumanVersion::FMetaHumanVersion(const FString& VersionString)
 
 FMetaHumanVersion FInstalledMetaHuman::GetVersion() const
 {
-	const FString VersionFilePath = FPaths::Combine(MetaHumansFilePath, Name, TEXT("VersionInfo.txt"));
+	const FString VersionFilePath = CharacterFilePath / TEXT("VersionInfo.txt");
 	return FMetaHumanVersion::ReadFromFile(VersionFilePath);
 }
 
@@ -83,7 +83,8 @@ void METAHUMANSDKEDITOR_API FMetaHumanProjectUtilities::OverrideVersionServiceUr
 
 TArray<FInstalledMetaHuman> METAHUMANSDKEDITOR_API FMetaHumanProjectUtilities::GetInstalledMetaHumans()
 {
-	return FInstalledMetaHuman::GetInstalledMetaHumans(FImportPaths{FMetaHumanAssetImportDescription{}});
+	// TODO - now that MHs can be installed in various locations, this needs updating
+	return FInstalledMetaHuman::GetInstalledMetaHumans(TEXT("/Game/MetaHumans"), TEXT("/Game/MetaHumans/Common"));
 }
 
 #undef LOCTEXT_NAMESPACE

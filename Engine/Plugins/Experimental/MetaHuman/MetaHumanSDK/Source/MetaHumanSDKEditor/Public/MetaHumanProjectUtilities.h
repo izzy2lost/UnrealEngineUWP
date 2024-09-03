@@ -14,7 +14,7 @@ struct FQuixelAccountMetaHumanEntry
 
 struct FMetaHumanAssetImportDescription
 {
-	inline static const FString DefaultDestinationPath = TEXT("/Game");
+	inline static const FString DefaultDestinationPath = TEXT("/Game/MetaHumans");
 
 	FString CharacterPath; // The file path to the source unique assets for this import operation
 	FString CommonPath; // The file path to the source common assets for this import operation
@@ -107,7 +107,7 @@ struct FMetaHumanVersion
 
 	FString AsString() const
 	{
-		return FString::Format(TEXT("{0}.{1}.{2}"), { Major, Minor, Revision });
+		return FString::Format(TEXT("{0}.{1}.{2}"), {Major, Minor, Revision});
 	}
 
 	static FMetaHumanVersion ReadFromFile(const FString& VersionFilePath);
@@ -121,25 +121,28 @@ struct FMetaHumanVersion
 class METAHUMANSDKEDITOR_API FInstalledMetaHuman
 {
 public:
-	// For now, it is assumed that a MetaHuman has files in {MetaHumansFilePath}/{Name} and {MetaHumansFilePath}/Common.
-	FInstalledMetaHuman(const FString& Name, const FString& MetaHumansFilePath);
+	FInstalledMetaHuman(const FString& InName, const FString& InCharacterFilePath, const FString& InCommonFilePath);
 
 	const FString& GetName() const
 	{
 		return Name;
 	}
 
+	FString GetRootAsset() const;
+
 	FMetaHumanVersion GetVersion() const;
 
 	EMetaHumanQualityLevel GetQualityLevel() const;
 
 	// Finds MetaHumans in the destination of a given import
-	static TArray<FInstalledMetaHuman> GetInstalledMetaHumans(const struct FImportPaths& ImportPaths);
+	static TArray<FInstalledMetaHuman> GetInstalledMetaHumans(const FString& CharactersFolder, const FString& CommonAssetsFolder);
 
 private:
 	FString Name;
-	FString MetaHumansFilePath;
-	FString MetaHumansAssetPath;
+	FString CharacterFilePath;
+	FString CommonFilePath;
+	FString CharacterAssetPath;
+	FString CommonAssetPath;
 };
 
 class FMetaHumanProjectUtilities

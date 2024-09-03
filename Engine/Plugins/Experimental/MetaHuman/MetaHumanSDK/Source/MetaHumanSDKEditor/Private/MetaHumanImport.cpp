@@ -1,9 +1,10 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetaHumanImport.h"
-#include "MetaHumanTypes.h"
-#include "MetaHumanProjectUtilities.h"
 #include "MetaHumanImportUI.h"
+#include "MetaHumanProjectUtilities.h"
+#include "MetaHumanSDKSettings.h"
+#include "MetaHumanTypes.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/AssetData.h"
@@ -54,7 +55,7 @@ namespace UE::MetaHumanImport::Private
 			}
 
 			// If we are doing a force update or the asset is unique to the MetaHuman we always replace it
-			if (ForceUpdate || !SourceAssetInfo.Key.StartsWith(TEXT("MetaHumans/Common/")))
+			if (ForceUpdate || !SourceAssetInfo.Key.StartsWith(FImportPaths::CommonFolderName + TEXT("/")))
 			{
 				AssetOperations.Replace.Add(SourceAssetInfo.Key);
 				continue;
@@ -151,6 +152,11 @@ namespace UE::MetaHumanImport::Private
 		for (const TSharedPtr<FJsonValue>& AssetVersionInfoObject : AssetsVersionInfoArray)
 		{
 			FString AssetPath = AssetVersionInfoObject->AsObject()->GetStringField(TEXT("path"));
+			// Remove leading "MetaHumans/" as this can be configured to an arbitrary value by the users
+			if (const FString DefaultRoot = FImportPaths::MetaHumansFolderName + TEXT("/"); AssetPath.StartsWith(DefaultRoot))
+			{
+				AssetPath = AssetPath.RightChop(DefaultRoot.Len());
+			}
 			FMetaHumanAssetVersion AssetVersion = FMetaHumanAssetVersion::FromString(AssetVersionInfoObject->AsObject()->GetStringField(TEXT("version")));
 			VersionInfo.Add(AssetPath, AssetVersion);
 		}
@@ -181,7 +187,7 @@ namespace UE::MetaHumanImport::Private
 			for (const FString& AssetToUpdate : UpdateOperations)
 			{
 				AssetLoadProgress.EnterProgressFrame();
-				if (FPaths::GetExtension(AssetToUpdate) == TEXT("uasset"))
+				if (AssetToUpdate.EndsWith(LexToString(EPackageExtension::Asset)))
 				{
 					const FSoftObjectPath AssetToReplace(ImportPaths.GetDestinationAsset(AssetToUpdate));
 					FAssetData GameAssetData = AssetRegistry.GetAssetByObjectPath(AssetToReplace);
@@ -277,16 +283,51 @@ void FMetaHumanImport::SetBulkImportHandler(IMetaHumanBulkImportHandler* Handler
 void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& ImportDescription)
 {
 	using namespace UE::MetaHumanImport::Private;
-	UE_LOG(LogMetaHumanImport, Display, TEXT("Importing MetaHuman: %s"), *ImportDescription.CharacterName);
+
+	// Determine the source and destination paths. There are two ways they can be updated from the standard /Game/MetaHumans
+	// location. In UEFN we can request that instead of installing to /Game we install to the content folder of the
+	// project. Also, we can use project settings to override the destination paths for both cinematic and optimized
+	// MetaHumans
+	FString DefaultImportPath = ImportDescription.DestinationPath;
+	FString DestinationCommonAssetPath{DefaultImportPath / FImportPaths::CommonFolderName}; // At the moment this can not be changed
+	FString CharactersRootImportPath = DefaultImportPath; // This is the location we will look for other characters in the project
+
+	// Get overrides from settings
+	const UMetaHumanSDKSettings* ProjectSettings = GetDefault<UMetaHumanSDKSettings>();
+	const FString CinematicOverridePath = ProjectSettings->CinematicImportPath.Path;
+	const FString OptimizedOverridePath = ProjectSettings->OptimizedImportPath.Path;
+
+	// Calculate the final effective destination paths
+
+	const FSourceMetaHuman SourceMetaHuman{ImportDescription.CharacterPath, ImportDescription.CommonPath, ImportDescription.CharacterName};
+	if (SourceMetaHuman.GetQualityLevel() == EMetaHumanQualityLevel::Cinematic)
+	{
+		if (!CinematicOverridePath.IsEmpty() && CinematicOverridePath != DefaultImportPath)
+		{
+			// Use the project-configured destination path for cinematic MHs
+			CharactersRootImportPath = CinematicOverridePath;
+		}
+	}
+	else if (!OptimizedOverridePath.IsEmpty() && OptimizedOverridePath != DefaultImportPath)
+	{
+		// Use the project-configured destination path for optimized MHs
+		CharactersRootImportPath = OptimizedOverridePath;
+	}
+	// Calculate whether we need to fixup references in the assets after importing (which we need to do if the asset
+	// path has changed for any imported assets).
+	const bool bRequiresReferenceFixup = CharactersRootImportPath != ImportDescription.SourcePath;
+
+	// This is the location we are installing the character to
+	FString DestinationCharacterAssetPath{CharactersRootImportPath / ImportDescription.CharacterName};
+	UE_LOG(LogMetaHumanImport, Display, TEXT("Importing MetaHuman: %s to %s"), *ImportDescription.CharacterName, *DestinationCharacterAssetPath);
 
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 
 	// Helpers for managing source data
-	const FImportPaths ImportPaths(ImportDescription);
-	const FSourceMetaHuman SourceMetaHuman{ImportPaths.SourceMetaHumansFilePath, ImportDescription.CharacterName};
+	const FImportPaths ImportPaths(ImportDescription.CommonPath, ImportDescription.CharacterPath, DestinationCommonAssetPath, DestinationCharacterAssetPath);
 
 	// Determine what other MetaHumans are installed and if any are incompatible
-	const TArray<FInstalledMetaHuman> InstalledMetaHumans = FInstalledMetaHuman::GetInstalledMetaHumans(ImportPaths);
+	const TArray<FInstalledMetaHuman> InstalledMetaHumans = FInstalledMetaHuman::GetInstalledMetaHumans(CharactersRootImportPath, ImportPaths.DestinationCommonFilePath);
 	const TSet<FString> IncompatibleCharacters = CheckVersionCompatibility(SourceMetaHuman, InstalledMetaHumans);
 
 	// Get the names of all installed MetaHumans and see if the MetaHuman we are trying to install is among them
@@ -297,7 +338,7 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 
 	// Get Manifest of files and version information included in downloaded MetaHuman
 	IFileManager& FileManager = IFileManager::Get();
-	const FString SourceAssetVersionFilePath = FPaths::Combine(ImportPaths.SourceMetaHumansFilePath, TEXT("MHAssetVersions.txt"));
+	const FString SourceAssetVersionFilePath = ImportPaths.SourceRootFilePath / TEXT("MHAssetVersions.txt");
 	if (!FileManager.FileExists(*SourceAssetVersionFilePath))
 	{
 		FMessageDialog::Open(EAppMsgType::Ok, FText(FText::FromString(TEXT("The downloaded MetaHuman is corrupted and can not be imported. Please re-generate and re-download the MetaHuman and try again."))));
@@ -355,7 +396,7 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 	// If the user is changing the export quality level of the MetaHuman then warn them that they are doing do
 	if (!bIsNewCharacter && ImportDescription.bWarnOnQualityChange)
 	{
-		const FInstalledMetaHuman TargetMetaHuman(ImportDescription.CharacterName, ImportPaths.DestinationMetaHumansFilePath);
+		const FInstalledMetaHuman TargetMetaHuman(ImportDescription.CharacterName, ImportPaths.DestinationCharacterFilePath, ImportPaths.DestinationCommonFilePath);
 		const EMetaHumanQualityLevel SourceQualityLevel = SourceMetaHuman.GetQualityLevel();
 		const EMetaHumanQualityLevel TargetQualityLevel = TargetMetaHuman.GetQualityLevel();
 		if (SourceQualityLevel != TargetQualityLevel)
@@ -382,20 +423,25 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 	EnableMissingPlugins();
 
 	FText CharacterCopyMsgDialogMessage = FText::FromString((bIsNewCharacter ? TEXT("Importing : ") : TEXT("Re-Importing : ")) + ImportDescription.CharacterName);
-	const bool bRequiresRedirects = ImportDescription.DestinationPath != ImportDescription.SourcePath;
-	FScopedSlowTask ImportProgress(bRequiresRedirects ? 3.0f : 2.0f, CharacterCopyMsgDialogMessage, true);
+	FScopedSlowTask ImportProgress(bRequiresReferenceFixup ? 3.0f : 2.0f, CharacterCopyMsgDialogMessage, true);
 	ImportProgress.MakeDialog();
 
 	// If required, set up redirects
 	TArray<FCoreRedirect> Redirects;
-	if (bRequiresRedirects)
+	if (bRequiresReferenceFixup)
 	{
+		const FString AssetExtension = LexToString(EPackageExtension::Asset);
 		for (const FString& AssetFilePath : TouchedAssets)
 		{
-			if (FPaths::GetExtension(AssetFilePath) == TEXT("uasset"))
+			if (AssetFilePath.EndsWith(AssetExtension))
 			{
-				const FString PackageName = AssetFilePath.LeftChop(7); // ".uasset"
-				Redirects.Emplace(ECoreRedirectFlags::Type_Package, FPaths::Combine(ImportDescription.SourcePath, PackageName), FPaths::Combine(ImportDescription.DestinationPath, PackageName));
+				const FString PackageName = AssetFilePath.LeftChop(AssetExtension.Len());
+				FString SourcePackage = ImportDescription.SourcePath / PackageName;
+				FString DestinationPackage = ImportPaths.GetDestinationPackage(PackageName);
+				if (SourcePackage != DestinationPackage)
+				{
+					Redirects.Emplace(ECoreRedirectFlags::Type_Package, SourcePackage, DestinationPackage);
+				}
 			}
 		}
 		FCoreRedirects::AddRedirectList(Redirects, TEXT("MetaHumanImportTool"));
@@ -407,8 +453,8 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 
 	// Copy in text version files
 	const FString VersionFile = TEXT("VersionInfo.txt");
-	FileManager.Copy(*FPaths::Combine(ImportPaths.DestinationCharacterFilePath, VersionFile), *FPaths::Combine(ImportPaths.SourceCharacterFilePath, VersionFile), true, true);
-	FileManager.Copy(*FPaths::Combine(ImportPaths.DestinationCommonFilePath, VersionFile), *FPaths::Combine(ImportPaths.SourceCommonFilePath, VersionFile), true, true);
+	FileManager.Copy(*(ImportPaths.DestinationCharacterFilePath / VersionFile), *(ImportPaths.SourceCharacterFilePath / VersionFile), true, true);
+	FileManager.Copy(*(ImportPaths.DestinationCommonFilePath / VersionFile), *(ImportPaths.SourceCommonFilePath / VersionFile), true, true);
 
 	// Copy in optional DNA files
 	const FString SourceAssetsFolder = TEXT("SourceAssets");
@@ -420,15 +466,15 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 
 	// Refresh asset registry
 	TArray<FString> AssetBasePaths;
-	AssetBasePaths.Add(ImportPaths.DestinationMetaHumansAssetPath);
+	AssetBasePaths.Add(ImportPaths.DestinationCommonAssetPath);
 	AssetBasePaths.Add(ImportPaths.DestinationCharacterAssetPath);
 	ImportProgress.EnterProgressFrame();
 	AssetRegistryModule.Get().ScanPathsSynchronous(AssetBasePaths, true);
 
 
-	if (bRequiresRedirects)
+	if (bRequiresReferenceFixup)
 	{
-		// Re save assets to bake-in new reference paths
+		// Re-save assets to bake-in new reference paths
 		ImportProgress.EnterProgressFrame();
 		FScopedSlowTask MetaDataWriteProgress(TouchedAssets.Num(), FText::FromString(TEXT("Finalizing imported assets")));
 		MetaDataWriteProgress.MakeDialog();

@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "Misc/Paths.h"
 #include "MetaHumanProjectUtilities.h"
+
+#include "Misc/PackagePath.h"
+#include "Misc/Paths.h"
 
 // Common data types used in various parts of the MetaHumanProjectUtilities module
 
@@ -50,7 +52,7 @@ struct FAssetUpdateReason
 	FMetaHumanAssetVersion OldVersion;
 	FMetaHumanAssetVersion NewVersion;
 
-	// Whether or not the update is a breaking change (change in major version number)
+	// Whether the update is a breaking change (change in major version number)
 	bool IsBreakingChange() const
 	{
 		return NewVersion.Major != OldVersion.Major;
@@ -67,14 +69,14 @@ struct FAssetOperationPaths
 	TArray<FAssetUpdateReason> UpdateReasons;
 };
 
-// Helper structure to simplify management of file and asset paths. All paths are absolute and explicit as to whether
-// they are a file path or an asset path.
+// Helper structure to simplify management of file and asset paths. All paths are absolute and explicitly either
+// a file path or an asset path.
 struct FImportPaths
 {
-	const FString MetaHumansFolderName = TEXT("MetaHumans");
-	const FString CommonFolderName = TEXT("Common");
+	inline static const FString MetaHumansFolderName = TEXT("MetaHumans");
+	inline static const FString CommonFolderName = TEXT("Common");
 
-	explicit FImportPaths(FMetaHumanAssetImportDescription ImportDescription);
+	explicit FImportPaths(const FString& InSourceCommonFilePath, const FString& InSourceCharacterFilePath, const FString& InDestinationCommonAssetPath, const FString& InDestinationCharacterAssetPath);
 
 	static FString FilenameToAssetName(const FString& Filename)
 	{
@@ -83,41 +85,57 @@ struct FImportPaths
 
 	static FString AssetNameToFilename(const FString& AssetName)
 	{
-		return FString::Format(TEXT("{0}.uasset"), {AssetName});
+		return FString::Format(TEXT("{0}{1}"), {AssetName, LexToString(EPackageExtension::Asset)});
 	}
 
 	FString CharacterNameToBlueprintAssetPath(const FString& CharacterName) const
 	{
-		return FPaths::Combine(DestinationMetaHumansAssetPath, CharacterName, FString::Format(TEXT("BP_{0}.BP_{0}"), {CharacterName}));
+		return DestinationCharacterAssetPath / FString::Format(TEXT("BP_{0}.BP_{0}"), {CharacterName});
 	}
 
+	/** Given a relative path from the manifest, calculate the full path to the corresponding source file. */
 	FString GetSourceFile(const FString& RelativeFilePath) const
 	{
 		return FPaths::Combine(SourceRootFilePath, RelativeFilePath);
 	}
 
+	/** Given a relative path from the manifest, calculate the full path to the corresponding destination file. */
 	FString GetDestinationFile(const FString& RelativeFilePath) const
 	{
-		return FPaths::Combine(DestinationRootFilePath, RelativeFilePath);
+		FString RootPath;
+		FString ChildPath;
+		RelativeFilePath.Split(TEXT("/"), &RootPath, &ChildPath);
+		const FString DestinationRoot = RootPath == CommonFolderName ? DestinationCommonFilePath : DestinationCharacterFilePath;
+		return DestinationRoot / ChildPath;
 	}
 
+	/** Given a relative path from the manifest, calculate the asset path to the corresponding destination asset. */
 	FString GetDestinationAsset(const FString& RelativeFilePath) const
 	{
-		return FPaths::Combine(DestinationRootAssetPath, FPaths::GetPath(RelativeFilePath), FilenameToAssetName(RelativeFilePath));
+		FString RootPath;
+		FString ChildPath;
+		RelativeFilePath.Split(TEXT("/"), &RootPath, &ChildPath);
+		const FString DestinationRoot = RootPath == CommonFolderName ? DestinationCommonAssetPath : DestinationCharacterAssetPath;
+		return DestinationRoot / FPaths::GetPath(ChildPath) / FilenameToAssetName(ChildPath);
+	}
+
+	/** Given a relative path from the manifest, calculate the asset path to the corresponding destination package. */
+	FString GetDestinationPackage(const FString& RelativeFilePath) const
+	{
+		FString RootPath;
+		FString ChildPath;
+		RelativeFilePath.Split(TEXT("/"), &RootPath, &ChildPath);
+		const FString DestinationRoot = RootPath == CommonFolderName ? DestinationCommonAssetPath : DestinationCharacterAssetPath;
+		return DestinationRoot / ChildPath;
 	}
 
 	FString SourceRootFilePath;
-	FString SourceMetaHumansFilePath;
 	FString SourceCharacterFilePath;
 	FString SourceCommonFilePath;
 
-	FString DestinationRootFilePath;
-	FString DestinationMetaHumansFilePath;
 	FString DestinationCharacterFilePath;
 	FString DestinationCommonFilePath;
 
-	FString DestinationRootAssetPath;
-	FString DestinationMetaHumansAssetPath;
 	FString DestinationCharacterAssetPath;
 	FString DestinationCommonAssetPath;
 };
@@ -128,11 +146,12 @@ struct FImportPaths
 class FSourceMetaHuman
 {
 public:
-	FSourceMetaHuman(const FString& RootPath, const FString& Name)
-		: RootPath(RootPath)
-		, Name(Name)
+	FSourceMetaHuman(const FString& InCharacterPath, const FString& InCommonPath, const FString& InName)
+		: CharacterPath(FPaths::ConvertRelativePathToFull(InCharacterPath))
+		, CommonPath(FPaths::ConvertRelativePathToFull(InCommonPath))
+		, Name(InName)
 	{
-		const FString VersionFilePath = FPaths::Combine(RootPath, Name, TEXT("VersionInfo.txt"));
+		const FString VersionFilePath = CharacterPath / TEXT("VersionInfo.txt");
 		Version = FMetaHumanVersion::ReadFromFile(VersionFilePath);
 	}
 
@@ -148,11 +167,21 @@ public:
 
 	EMetaHumanQualityLevel GetQualityLevel() const
 	{
-		if (RootPath.Contains(TEXT("Tier0")))
+		if (CharacterPath.Contains(TEXT("Tier0")))
 		{
+			// For UEFN Tier0 is High, for UE Tier0 is cinematic
+			if(!CharacterPath.Contains(TEXT("asset_uefn")))
+			{
+				return EMetaHumanQualityLevel::Cinematic;
+			}
 			return EMetaHumanQualityLevel::High;
 		}
-		if (RootPath.Contains(TEXT("Tier2")))
+		if (CharacterPath.Contains(TEXT("Tier1")))
+		{
+			// Tier 1 only exists for UE
+			return EMetaHumanQualityLevel::High;
+		}
+		if (CharacterPath.Contains(TEXT("Tier2")))
 		{
 			return EMetaHumanQualityLevel::Medium;
 		}
@@ -163,10 +192,8 @@ public:
 	}
 
 private:
-	FString RootPath;
+	FString CharacterPath;
+	FString CommonPath;
 	FString Name;
 	FMetaHumanVersion Version;
 };
-
-
-
