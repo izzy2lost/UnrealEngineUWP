@@ -214,8 +214,8 @@ namespace Gauntlet
 			}
 			Dictionary<string, object> RequestArgs = new Dictionary<string, object>();
 			RequestArgs.Add("command", CheatString);
-			RpcExecutor.CallRpc(InTarget, "CheatCommand", 5000, RequestArgs);
-			return true;
+			HttpResponseMessage Response = RpcExecutor.CallRpc(InTarget, "CheatCommand", 5000, RequestArgs);
+			return Response != null && Response.IsSuccessStatusCode;
 		}
 
 

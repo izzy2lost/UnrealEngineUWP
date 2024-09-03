@@ -218,7 +218,7 @@ namespace Gauntlet
 
 
 			RouteMapping CallPath = new RouteMapping(ListenerContext.Request.Url.LocalPath, ListenerContext.Request.HttpMethod);
-			Log.Info(string.Format("In ReceiveListenRequest callback for {0} | {1}", CallPath.Path, CallPath.Verb));
+			Log.Verbose(string.Format("In ReceiveListenRequest callback for {0} | {1}", CallPath.Path, CallPath.Verb));
 			ResponseData CallResponse = new ResponseData();
 			CallResponse.ResponseBody = "This endpoint is not handled";
 
