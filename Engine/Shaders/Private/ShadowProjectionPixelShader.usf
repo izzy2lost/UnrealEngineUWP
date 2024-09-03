@@ -420,6 +420,8 @@ void Main(
 #endif
 }
 
+#if FEATURE_LEVEL >= FEATURE_LEVEL_SM4
+
 // .x:DepthBias, y: SlopeDepthBias, z: MaxSlopeDepthBias, 
 float3 PointLightDepthBias;
 
@@ -487,7 +489,7 @@ void MainOnePassPointLightPS(
 	// Unlike spot/rect/direction light, point lights performs depth bias only at projection time. 
 	// This is why the slope bias drives the normal receiver bias here.
 	float SlopeBias = 0;
-#if !SUBPIXEL_SHADOW && !(FORWARD_SHADING && SHADING_PATH_MOBILE)
+#if !SUBPIXEL_SHADOW
 	{
 #if SUBSTRATE_ENABLED
 		const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(SVPos.xy, 0)));
@@ -571,3 +573,5 @@ void MainOnePassPointLightPS(
 	OutColor.a = IsSubsurfaceProfile ? EncodeLightAttenuation(Thickness) : OutColor.b;
 #endif // USE_TRANSMISSION
 }
+ 
+#endif

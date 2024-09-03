@@ -41,7 +41,6 @@
 #include "Shadows/ShadowScene.h"
 #include "LineTypes.h"
 #include "SceneCulling/SceneCulling.h"
-#include "ReadOnlyCVARCache.h"
 
 using namespace UE::Geometry;
 
@@ -3704,7 +3703,7 @@ void ComputeWholeSceneShadowCacheModes(
 	}
 
 	if (GCacheWholeSceneShadows 
-		&& (!bCubeShadowMap || RHISupportsGeometryShaders(GShaderPlatformForFeatureLevel[Scene->GetFeatureLevel()]) || (RHISupportsVertexShaderLayer(Scene->GetShaderPlatform()) && GRHISupportsArrayIndexFromAnyShader)))
+		&& (!bCubeShadowMap || RHISupportsGeometryShaders(GShaderPlatformForFeatureLevel[Scene->GetFeatureLevel()]) || RHISupportsVertexShaderLayer(GShaderPlatformForFeatureLevel[Scene->GetFeatureLevel()])))
 	{
 		TArray<FCachedShadowMapData>* CachedShadowMapDatas = Scene->GetCachedShadowMapDatas(LightSceneInfo->Id);
 
@@ -5987,7 +5986,7 @@ void FSceneRenderer::AllocateCSMDepthTargets(
 
 void FSceneRenderer::AllocateOnePassPointLightDepthTargets(FRHICommandListBase& RHICmdList, TConstArrayView<FProjectedShadowInfo*> WholeScenePointShadows)
 {
-	if (FeatureLevel >= ERHIFeatureLevel::SM5 || DoesRuntimeSupportOnePassPointLightShadows(ShaderPlatform))
+	if (FeatureLevel >= ERHIFeatureLevel::SM5)
 	{
 		for (int32 ShadowIndex = 0; ShadowIndex < WholeScenePointShadows.Num(); ShadowIndex++)
 		{
@@ -6116,7 +6115,7 @@ void FSceneRenderer::CreateDynamicShadows(FDynamicShadowsTaskData& TaskData)
 	const bool bMobile = FeatureLevel < ERHIFeatureLevel::SM5;
 	const bool bHairStrands = HairStrands::HasHairInstanceInScene(*Scene);
 
-	const bool bProjectEnablePointLightShadows = FReadOnlyCVARCache::EnablePointLightShadows(ShaderPlatform);
+	const bool bProjectEnablePointLightShadows = FReadOnlyCVARCache::EnablePointLightShadows() && !bMobile; // Point light shadow is unsupported on mobile for now.
 	const bool bProjectEnableMovableSpotLightShadows = !bMobile || IsMobileMovableSpotlightShadowsEnabled(ShaderPlatform);
 
 	uint32 NumPointShadowCachesUpdatedThisFrame = 0;

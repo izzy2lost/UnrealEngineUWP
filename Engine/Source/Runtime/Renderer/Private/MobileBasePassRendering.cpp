@@ -39,14 +39,8 @@ static TAutoConsoleVariable<int32> CVarMobileEnableMovableSpotLightShadows(
 static TAutoConsoleVariable<int32> CVarMobileMaxVisibleMovableSpotLightShadows(
 	TEXT("r.Mobile.MaxVisibleMovableSpotLightShadows"),
 	8,
-	TEXT("The max number of visible spotlights can cast shadow sorted by screen size, should be as less as possible for performance reason"),
+	TEXT("The max number of visible spotlighs can cast shadow sorted by screen size, should be as less as possible for performance reason"),
 	ECVF_RenderThreadSafe);
-
-static TAutoConsoleVariable<int32> CVarMobileEnableMovablePointLightShadows(
-	TEXT("r.Mobile.EnableMovablePointLightsShadows"),
-	0,
-	TEXT("If 1 then enable movable point light shadow support"),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarMobileSceneDepthAux(
 	TEXT("r.Mobile.SceneDepthAux"),

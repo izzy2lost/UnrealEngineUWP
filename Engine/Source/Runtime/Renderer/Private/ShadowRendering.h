@@ -1571,25 +1571,13 @@ public:
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters,OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADOW_QUALITY"), Quality);
-		if (IsMobilePlatform(Parameters.Platform))
-		{
-			OutEnvironment.SetDefine(TEXT("USE_TRANSMISSION"), 0);
-		}
-		else
-		{
-			OutEnvironment.SetDefine(TEXT("USE_TRANSMISSION"), (uint32)(bUseTransmission ? 1 : 0));
-		}
+		OutEnvironment.SetDefine(TEXT("USE_TRANSMISSION"), (uint32)(bUseTransmission ? 1 : 0));
 		OutEnvironment.SetDefine(TEXT("SUBPIXEL_SHADOW"), (uint32)(bUseSubPixel ? 1 : 0));
 	}
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		if (IsMobilePlatform(Parameters.Platform))
-		{
-			return !bUseTransmission;
-		}
-
-		return true;
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
 	}
 
 	void SetParameters(

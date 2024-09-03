@@ -131,7 +131,7 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 
 	if (bCastDynamicShadow && IsMobilePlatform(SceneInterface->GetShaderPlatform()))
 	{
-		if ((GetLightType() == LightType_Point && !DoesRuntimeSupportOnePassPointLightShadows(SceneInterface->GetShaderPlatform()))
+		if (GetLightType() == LightType_Point
 			|| GetLightType() == LightType_Rect
 			|| (GetLightType() == LightType_Spot && !IsMobileMovableSpotlightShadowsEnabled(SceneInterface->GetShaderPlatform())))
 		{

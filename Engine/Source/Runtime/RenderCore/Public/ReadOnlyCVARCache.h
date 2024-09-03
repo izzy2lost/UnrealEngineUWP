@@ -6,9 +6,6 @@
 
 #pragma once
 #include "RHIShaderPlatform.h"
-#include "DataDrivenShaderPlatformInfo.h"
-#include "ShaderPlatformCachedIniValue.h"
-
 
 struct FReadOnlyCVARCache
 {
@@ -24,17 +21,9 @@ struct FReadOnlyCVARCache
 		#endif	
 	}
 
-	static inline bool EnablePointLightShadows(const FStaticShaderPlatform Platform)
+	static inline bool EnablePointLightShadows()
 	{
-		if (!IsMobilePlatform(Platform))
-		{
-			return bEnablePointLightShadows;
-		}
-		else
-		{
-			static FShaderPlatformCachedIniValue<bool> MobileMovablePointLightShadowsIniValue(TEXT("r.Mobile.EnableMovablePointLightsShadows"));
-			return MobileMovablePointLightShadowsIniValue.Get(Platform) && FReadOnlyCVARCache::MobileSupportsGPUScene();
-		}
+		return bEnablePointLightShadows;
 	}
 	
 	static inline bool EnableStationarySkylight()
