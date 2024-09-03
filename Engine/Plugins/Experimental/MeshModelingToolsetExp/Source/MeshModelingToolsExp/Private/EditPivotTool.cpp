@@ -364,7 +364,7 @@ void UEditPivotTool::ResetActiveGizmos()
 // does not make sense that CanBeginClickDragSequence() returns a RayHit? Needs to be an out-argument...
 FInputRayHit UEditPivotTool::CanBeginClickDragSequence(const FInputDeviceRay& PressPos)
 {
-	if (TransformProps->bEnableSnapDragging == false || ActiveGizmos.Num() == 0)
+	if ((!TransformProps->bSnapDragPosition && !TransformProps->bSnapDragRotation) || ActiveGizmos.Num() == 0)
 	{
 		return FInputRayHit();
 	}
@@ -389,12 +389,15 @@ void UEditPivotTool::OnClickPress(const FInputDeviceRay& PressPos)
 	FEditPivotTarget& ActiveTarget = ActiveGizmos[0];
 	USceneComponent* GizmoComponent = ActiveTarget.TransformGizmo->GetGizmoActor()->GetRootComponent();
 	StartDragTransform = GizmoComponent->GetComponentToWorld();
+
+	// Apply the drag logic as well so that the snap-drag position/orientation update is applied on first click
+	OnClickDrag(PressPos);
 }
 
 
 void UEditPivotTool::OnClickDrag(const FInputDeviceRay& DragPos)
 {
-	bool bRotate = (TransformProps->RotationMode != EEditPivotSnapDragRotationMode::Ignore);
+	bool bRotate = TransformProps->bSnapDragRotation;
 	float NormalSign = (TransformProps->RotationMode == EEditPivotSnapDragRotationMode::AlignFlipped) ? -1.0f : 1.0f;
 
 	FHitResult Result;
@@ -413,7 +416,10 @@ void UEditPivotTool::OnClickDrag(const FInputDeviceRay& DragPos)
 
 	FTransform NewTransform = StartDragTransform;
 	NewTransform.SetRotation((FQuat)AlignRotation);
-	NewTransform.SetTranslation(HitPos);
+	if (TransformProps->bSnapDragPosition)
+	{
+		NewTransform.SetTranslation(HitPos);
+	}
 
 	FEditPivotTarget& ActiveTarget = ActiveGizmos[0];
 	ActiveTarget.TransformGizmo->SetNewGizmoTransform(NewTransform);
