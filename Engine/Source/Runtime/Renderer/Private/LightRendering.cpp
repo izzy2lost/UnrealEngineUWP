@@ -1454,7 +1454,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 
 			// Shadowed and light function lights
 			{
-				FTranslucentLightInjectionCollector Collector(GraphBuilder, Views);
+				FTranslucentLightInjectionCollector Collector(GraphBuilder, Views, bAreLightsInLightGrid);
 
 				// Collect all the light injection data
 				for (int32 LightIndex = SimpleLightsEnd; LightIndex < SortedLights.Num(); LightIndex++)

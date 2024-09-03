@@ -57,7 +57,8 @@ struct FTranslucentLightInjectionCollector
 public:
 	FTranslucentLightInjectionCollector(
 		FRDGBuilder& GraphBuilder,
-		TArrayView<const FViewInfo> Views);
+		TArrayView<const FViewInfo> Views,
+		bool bAreLightsInLightGrid);
 
 	/** 
 	* Information about a light to be injected.
@@ -102,6 +103,8 @@ public:
 		TArrayView<const FVisibleLightInfo> VisibleLightInfos,
 		const FLightSceneInfo& LightSceneInfo,
 		const FProjectedShadowInfo* InProjectedShadowInfo = nullptr);
+
+	bool bCollectorSupportsBatching = false;
 };
 
 /** Initializes translucency volume lighting shader parameters from an optional textures struct. If null or uninitialized, fallback textures are used. */

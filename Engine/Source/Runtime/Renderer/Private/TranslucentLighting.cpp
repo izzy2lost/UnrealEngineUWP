@@ -1087,11 +1087,17 @@ FVolumeBounds CalculateLightVolumeBounds(const FSphere& LightBounds, const FView
 
 FTranslucentLightInjectionCollector::FTranslucentLightInjectionCollector(
 	FRDGBuilder& GraphBuilder,
-	TArrayView<const FViewInfo> Views)
+	TArrayView<const FViewInfo> Views,
+	bool bAreLightsInLightGrid)
 	// NOTE: This data is directly referenced inside the render pass lamba, so must be allocated in the graph
 	: InjectionDataPerView(*GraphBuilder.AllocObject<TArray<FPerViewData, SceneRenderingAllocator>>())
 {
 	InjectionDataPerView.SetNum(Views.Num());
+
+	// Static conditions for supporting batching
+	bCollectorSupportsBatching =
+		CVarTranslucencyLightingVolumeBatch.GetValueOnRenderThread() != 0 &&
+		bAreLightsInLightGrid;
 }
 
 /**
@@ -1145,7 +1151,7 @@ void FTranslucentLightInjectionCollector::AddLightForInjection(
 
 		// Lights without certain features can be batched into a single draw (loop in shader) which is more efficient
 		bool bSupportsBatching =
-			CVarTranslucencyLightingVolumeBatch.GetValueOnRenderThread() != 0 &&
+			bCollectorSupportsBatching &&
 			LightType != LightType_Directional &&
 			(bSupportRectLights || LightType != LightType_Rect) &&
 			!bStaticShadowing &&
