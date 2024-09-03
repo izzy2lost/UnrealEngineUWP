@@ -389,7 +389,7 @@ FVisualLogEntry* FVisualLogger::GetLastEntryForObject(const UObject* Object)
 {
 	const UObject* LogOwner = nullptr;
 	{
-		FReadScopeLock Lock(RedirectRWLock);
+		FTransactionallySafeReadScopeLock Lock(RedirectRWLock);
 		LogOwner = FindRedirectionInternal(Object);
 	}
 	if (LogOwner == nullptr)
@@ -405,7 +405,7 @@ FVisualLogEntry* FVisualLogger::GetEntryToWrite(const UObject* Object, const dou
 {
 	const UObject* LogOwner = nullptr;
 	{
-		FReadScopeLock Lock(RedirectRWLock);
+		FTransactionallySafeReadScopeLock Lock(RedirectRWLock);
 		LogOwner = FindRedirectionInternal(Object);
 	}
 	if (LogOwner == nullptr)
@@ -548,7 +548,7 @@ FVisualLogEntry* FVisualLogger::GetEntryToWriteInternal(const UObject* Object, c
 			CurrentEntry->bIsLocationValid = true;
 		}
 
-		FReadScopeLock RedirectScopeLock(RedirectRWLock);
+		FTransactionallySafeReadScopeLock RedirectScopeLock(RedirectRWLock);
 		FOwnerToChildrenRedirectionMap& RedirectionMap = GetRedirectionMap(LogOwner);
 		if (const IVisualLoggerDebugSnapshotInterface* DebugSnapshotInterface = Cast<const IVisualLoggerDebugSnapshotInterface>(LogOwner))
 		{
@@ -1048,7 +1048,7 @@ UObject* FVisualLogger::FindRedirectionInternal(const UObject* Object) const
 
 void FVisualLogger::CleanupRedirects()
 {
-	FWriteScopeLock Lock(RedirectRWLock);
+	FTransactionallySafeWriteScopeLock Lock(RedirectRWLock);
 	for (auto It = ChildToOwnerMap.CreateIterator(); It; ++It)
 	{
 		if(!It.Value().IsValid())

@@ -12,6 +12,8 @@
 #include "Traits/IsCharEncodingCompatibleWith.h"
 #include "UObject/ObjectKey.h"
 #include "Containers/Ticker.h"
+#include "Misc/TransactionallySafeRWLock.h"
+#include "Misc/TransactionallySafeRWScopeLock.h"
 
 #if ENABLE_VISUAL_LOG
 
@@ -675,7 +677,7 @@ public:
 		FVisualLogger& Logger = FVisualLogger::Get();
 		UObject* NewRedirection = nullptr;
 		{
-			FWriteScopeLock Lock(Logger.RedirectRWLock);
+			FTransactionallySafeWriteScopeLock Lock(Logger.RedirectRWLock);
 			NewRedirection = Logger.RedirectInternal(FromObject, ToObject);
 		}
 		UE_CVLOG(FromObject != nullptr && NewRedirection != nullptr, FromObject, LogVisual, Log, TEXT("Redirected '%s' to '%s'"), *FromObject->GetName(), *NewRedirection->GetName());
@@ -685,7 +687,7 @@ public:
 	static UObject* FindRedirection(const UObject* Object)
 	{ 
 		FVisualLogger& Logger = FVisualLogger::Get();
-		FReadScopeLock Lock(Logger.RedirectRWLock);
+		FTransactionallySafeReadScopeLock Lock(Logger.RedirectRWLock);
 		return Logger.FindRedirectionInternal(Object);
 	}
 
@@ -873,7 +875,7 @@ protected:
 	// redirect the traffic to
 	FChildToOwnerRedirectionMap ChildToOwnerMap;
 	// Read Write lock protecting redirection maps (ChildToOwnerMap and ObjectToWorldMap)
-	mutable FRWLock RedirectRWLock;
+	mutable FTransactionallySafeRWLock RedirectRWLock;
 	// if set all categories are blocked from logging
 	bool bBlockedAllCategories : 1;
 	// if set we are recording to file
