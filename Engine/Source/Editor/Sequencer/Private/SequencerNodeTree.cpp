@@ -2,7 +2,6 @@
 
 #include "SequencerNodeTree.h"
 #include "Filters/SequencerFilterBar.h"
-#include "Filters/Widgets/SSequencerFilterBar.h"
 #include "MVVM/ViewModels/ViewModelHierarchy.h"
 #include "MVVM/Selection/Selection.h"
 #include "MovieSceneBinding.h"

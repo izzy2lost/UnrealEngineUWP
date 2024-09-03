@@ -30,8 +30,11 @@ class FAssetDragDropOp;
 class FClassDragDropOp;
 class FMovieSceneClipboard;
 class FSequencerTimeSliderController;
+class FSequencerTrackFilter;
+class FSequencerViewOptionsMenu;
 class ISidebarDrawerContent;
 class SCurveEditorTree;
+class SSequencerFilterBar;
 class SSequencerTransformBox;
 class SSequencerStretchBox;
 class SCurveEditorPanel;
@@ -46,9 +49,6 @@ class USequencerSettings;
 class SSequencerGroupManager;
 class SSequencerTreeFilterStatusBar;
 class SFilterSearchBox;
-class FSequencerFilterMenu;
-class FSequencerTrackFilter;
-class FSequencerViewOptionsMenu;
 enum class ESequencerFilterChange : uint8;
 struct FPaintPlaybackRangeArgs;
 struct FSequencerCustomizationInfo;
@@ -703,11 +703,10 @@ public:
 	SEQUENCER_API void EnablePendingFocusOnHovering(const bool InEnabled);
 	
 	TSharedPtr<FSequencerFilterBar> GetFilterBar() const;
+	TSharedPtr<SSequencerFilterBar> GetFilterBarWidget() const;
 
 	bool IsFilterBarVisible() const;
 	void ToggleFilterBarVisibility();
-
-	TSharedPtr<SSequencerFilterBar> GetFilterBarWidget() const;
 
 	EFilterBarLayout GetFilterBarLayout() const;
 	void SetFilterBarLayout(const EFilterBarLayout InLayout);
@@ -911,8 +910,6 @@ private:
 	TSharedPtr<SComboButton> ViewOptionsComboButton;
 	TSharedPtr<FSequencerViewOptionsMenu> ViewOptionsMenu;
 
-	TSharedPtr<FSequencerFilterMenu> FilterMenu;
-	
 	SSplitter::FSlot* FilterSplitterSlot = nullptr;
 
 	TSharedPtr<SVerticalBox> SearchAndFilterRow;

@@ -4258,6 +4258,11 @@ TSharedPtr<FSequencerFilterBar> SSequencer::GetFilterBar() const
 	return nullptr;
 }
 
+TSharedPtr<SSequencerFilterBar> SSequencer::GetFilterBarWidget() const
+{
+	return FilterBarWidget;
+}
+
 bool SSequencer::IsFilterBarVisible() const
 {
 	if (!FilterBarWidget.IsValid())
@@ -4301,11 +4306,6 @@ void SSequencer::ToggleFilterBarVisibility()
 	}
 
 	RebuildFilterBarContent();
-}
-
-TSharedPtr<SSequencerFilterBar> SSequencer::GetFilterBarWidget() const
-{
-	return FilterBarWidget;
 }
 
 EFilterBarLayout SSequencer::GetFilterBarLayout() const

@@ -59,6 +59,16 @@ protected:
 	ECheckBoxState GetAllGroupsCheckState() const;
 
 	bool CanResetFilters() const;
+	void ResetFilters();
+
+	bool IsLevelFilterActive(const FString InLevelName) const;
+
+	void OpenNodeGroupsManager();
+
+	void OnOpenTextExpressionHelp();
+
+	void SaveCurrentFilterSetAsCustomTextFilter();
+	void CreateNewTextFilter();
 
 private:
 	TWeakPtr<FSequencerFilterBar> WeakFilterBar;

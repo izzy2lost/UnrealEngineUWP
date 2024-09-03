@@ -24,11 +24,18 @@ TSharedRef<SWidget> FSequencerTrackFilterMenu::CreateMenu(const TSharedRef<FSequ
 	{
 		UToolMenu* const Menu = UToolMenus::Get()->RegisterMenu(FilterMenuName);
 		Menu->bShouldCloseWindowAfterMenuSelection = false;
-		Menu->AddDynamicSection(TEXT("FilterMenu"), FNewToolMenuDelegate::CreateSP(this, &FSequencerTrackFilterMenu::PopulateMenu));
+		Menu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateLambda([this](UToolMenu* const InMenu)
+			{
+				if (USequencerFilterBarContext* const Context = InMenu->FindContext<USequencerFilterBarContext>())
+				{
+					Context->OnPopulateFilterBarMenu.ExecuteIfBound(InMenu);
+				}
+			}));
 	}
 
 	USequencerFilterBarContext* const ContextObject = NewObject<USequencerFilterBarContext>();
 	ContextObject->Init(InFilterBar);
+	ContextObject->OnPopulateFilterBarMenu = FOnPopulateFilterBarMenu::CreateSP(this, &FSequencerTrackFilterMenu::PopulateMenu);
 
 	const FToolMenuContext MenuContext(InFilterBar->GetCommandList(), nullptr, ContextObject);
 	return UToolMenus::Get()->GenerateWidget(FilterMenuName, MenuContext);
@@ -91,7 +98,7 @@ void FSequencerTrackFilterMenu::PopulateFilterOptionsSection(UToolMenu& InMenu)
 		LOCTEXT("FilterListResetToolTip", "Resets current filter selection"),
 		FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("PropertyWindow.DiffersFromDefault")),
 		FUIAction(
-			FExecuteAction::CreateSP(FilterBar.ToSharedRef(), &FSequencerFilterBar::ResetFilters),
+			FExecuteAction::CreateSP(this, &FSequencerTrackFilterMenu::ResetFilters),
 			FCanExecuteAction::CreateSP(this, &FSequencerTrackFilterMenu::CanResetFilters)
 		));
 
@@ -107,12 +114,6 @@ void FSequencerTrackFilterMenu::PopulateCommonFilterSections(UToolMenu& InMenu)
 {
 	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
 	if (!FilterBar.IsValid())
-	{
-		return;
-	}
-
-	const TSharedPtr<SSequencerFilterBar> FilterBarWidget = FilterBar->GetWidget();
-	if (!FilterBarWidget.IsValid())
 	{
 		return;
 	}
@@ -211,8 +212,6 @@ void FSequencerTrackFilterMenu::FillLevelFilterMenu(UToolMenu* const InMenu)
 		return;
 	}
 
-	const TSharedRef<FSequencerFilterBar> FilterBarRef = FilterBar.ToSharedRef();
-
 	FToolMenuSection& LevelsSection = InMenu->FindOrAddSection(TEXT("Levels"), LOCTEXT("LevelFilters", "Level Filters"));
 
 	const UWorld* const World = FilterBar->GetWorld();
@@ -231,7 +230,7 @@ void FSequencerTrackFilterMenu::FillLevelFilterMenu(UToolMenu* const InMenu)
 			FUIAction(
 				FExecuteAction::CreateSP(this, &FSequencerTrackFilterMenu::OnTrackLevelFilterClicked, LevelName),
 				FCanExecuteAction(),
-				FIsActionChecked::CreateSP(FilterBarRef, &FSequencerFilterBar::IsLevelFilterActive, LevelName)
+				FIsActionChecked::CreateSP(this, &FSequencerTrackFilterMenu::IsLevelFilterActive, LevelName)
 			),
 			EUserInterfaceActionType::ToggleButton);
 	}
@@ -252,8 +251,6 @@ void FSequencerTrackFilterMenu::FillGroupFilterMenu(UToolMenu* const InMenu)
 
 	FSequencer& Sequencer = FilterBar->GetSequencer();
 
-	const TSharedRef<SSequencer> SequencerWidget = StaticCastSharedRef<SSequencer>(Sequencer.GetSequencerWidget());
-
 	FToolMenuSection& GroupFilterOptionsSection = InMenu->FindOrAddSection(TEXT("GroupFilterOptions")
 		, FText(), FToolMenuInsert(NAME_None, EToolMenuInsertType::First));
 
@@ -261,7 +258,7 @@ void FSequencerTrackFilterMenu::FillGroupFilterMenu(UToolMenu* const InMenu)
 		LOCTEXT("OpenGroupFilters", "Open Group Filters..."),
 		LOCTEXT("OpenGroupFiltersToolTip", "Opens the group filter dialog for managing groups"),
 		FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("Icons.GroupActors")),
-		FUIAction(FExecuteAction::CreateSP(SequencerWidget, &SSequencer::OpenNodeGroupsManager)));
+		FUIAction(FExecuteAction::CreateSP(this, &FSequencerTrackFilterMenu::OpenNodeGroupsManager)));
 
 	const UMovieSceneSequence* const FocusedMovieSequence = Sequencer.GetFocusedMovieSceneSequence();
 	if (!IsValid(FocusedMovieSequence))
@@ -306,14 +303,6 @@ void FSequencerTrackFilterMenu::FillCustomTextFiltersMenu(UToolMenu* const InMen
 		return;
 	}
 
-	const TSharedPtr<SSequencerFilterBar> FilterBarWidget = FilterBar->GetWidget();
-	if (!FilterBarWidget.IsValid())
-	{
-		return;
-	}
-
-	const TSharedRef<SSequencerFilterBar> FilterBarWidgetRef = FilterBarWidget.ToSharedRef();
-
 	FToolMenuSection& CustomTextOptionsSection = InMenu->FindOrAddSection(TEXT("CustomTextFilterOptions")
 		, LOCTEXT("CustomTextFilterOptions", "Custom Text Filter Options")
 		, FToolMenuInsert(NAME_None, EToolMenuInsertType::First));
@@ -322,28 +311,19 @@ void FSequencerTrackFilterMenu::FillCustomTextFiltersMenu(UToolMenu* const InMen
 		LOCTEXT("TextExpressionHelp", "Text Expression Help"),
 		LOCTEXT("TextExpressionHelpToolTip", "Opens the help dialog for the advanced search syntax text expressions"),
 		FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("Icons.Help")),
-		FUIAction(FExecuteAction::CreateSP(FilterBarWidgetRef, &SSequencerFilterBar::OnOpenTextExpressionHelp)));
+		FUIAction(FExecuteAction::CreateSP(this, &FSequencerTrackFilterMenu::OnOpenTextExpressionHelp)));
 
 	CustomTextOptionsSection.AddMenuEntry(TEXT("SaveCurrentAsNewTextFilter"),
 		LOCTEXT("SaveCurrentAsNewTextFilter", "Save Current as New Filter"),
 		LOCTEXT("SaveCurrentAsNewTextFilterToolTip", "Saves the enabled and active set of common filters as a custom text filter"),
 		FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("LevelEditor.SaveAs")),
-		FUIAction(FExecuteAction::CreateSP(FilterBarWidgetRef, &SSequencerFilterBar::SaveCurrentFilterSetAsCustomTextFilter)));
+		FUIAction(FExecuteAction::CreateSP(this, &FSequencerTrackFilterMenu::SaveCurrentFilterSetAsCustomTextFilter)));
 
 	CustomTextOptionsSection.AddMenuEntry(TEXT("CreateNewTextFilter"),
 		LOCTEXT("CreateNewTextFilter", "Create New Filter"),
 		LOCTEXT("CreateNewTextFilterTooltip", "Create a new text filter"),
 		FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.PlusCircle")),
-		FUIAction(FExecuteAction::CreateLambda([this]()
-			{
-				const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
-				if (!FilterBar.IsValid())
-				{
-					return;
-				}
-
-				SSequencerCustomTextFilterDialog::CreateWindow_AddCustomTextFilter(FilterBar.ToSharedRef(), FCustomTextFilterData(), nullptr);
-			})));
+		FUIAction(FExecuteAction::CreateSP(this, &FSequencerTrackFilterMenu::CreateNewTextFilter)));
 
 	USequencerSettings* const SequencerSettings = FilterBar->GetSequencer().GetSequencerSettings();
 	check(SequencerSettings);
@@ -376,7 +356,6 @@ void FSequencerTrackFilterMenu::FillFiltersMenuCategory(FToolMenuSection& InOutS
 		return;
 	}
 
-	const TSharedRef<FSequencerFilterBar> FilterBarRef = FilterBar.ToSharedRef();
 	UMovieSceneSequence* const FocusedSequence = FilterBar->GetSequencer().GetFocusedMovieSceneSequence();
 
 	for (const TSharedRef<FSequencerTrackFilter>& Filter : FilterBar->GetCommonFilters())
@@ -403,7 +382,10 @@ void FSequencerTrackFilterMenu::FillFiltersMenuCategory(FToolMenuSection& InOutS
 					{
 						return WeakFilterBar.IsValid() ? !WeakFilterBar.Pin()->AreFiltersMuted() : false;
 					}),
-				FIsActionChecked::CreateSP(FilterBarRef, &FSequencerFilterBar::IsFilterEnabled, Filter)
+				FIsActionChecked::CreateLambda([this, Filter]()
+					{
+						return WeakFilterBar.IsValid() ? WeakFilterBar.Pin()->IsFilterEnabled(Filter) : false;
+					})
 			),
 			EUserInterfaceActionType::ToggleButton);
 	}
@@ -724,6 +706,98 @@ bool FSequencerTrackFilterMenu::CanResetFilters() const
 	const TArray<TSharedRef<FSequencerTrackFilter>> ClassAndCompFilters = FilterBar->GetCommonFilters(Categories);
 
 	return FilterBar->HasEnabledFilter(ClassAndCompFilters) || FilterBar->HasEnabledCustomTextFilters();
+}
+
+void FSequencerTrackFilterMenu::ResetFilters()
+{
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
+	FilterBar->ResetFilters();
+}
+
+bool FSequencerTrackFilterMenu::IsLevelFilterActive(const FString InLevelName) const
+{
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return false;
+	}
+
+	return FilterBar->IsLevelFilterActive(InLevelName);
+}
+
+void FSequencerTrackFilterMenu::OpenNodeGroupsManager()
+{
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
+	FSequencer& Sequencer = FilterBar->GetSequencer();
+
+	const TSharedPtr<SSequencer> SequencerWidget = StaticCastSharedRef<SSequencer>(Sequencer.GetSequencerWidget());
+	if (!SequencerWidget.IsValid())
+	{
+		return;
+	}
+
+	SequencerWidget->OpenNodeGroupsManager();
+}
+
+void FSequencerTrackFilterMenu::OnOpenTextExpressionHelp()
+{
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<SSequencer> SequencerWidget = StaticCastSharedRef<SSequencer>(FilterBar->GetSequencer().GetSequencerWidget());
+	if (!SequencerWidget.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<SSequencerFilterBar> FilterBarWidget = FilterBar->GetWidget();
+	if (!FilterBarWidget.IsValid())
+	{
+		return;
+	}
+
+	FilterBarWidget->OnOpenTextExpressionHelp();
+}
+
+void FSequencerTrackFilterMenu::SaveCurrentFilterSetAsCustomTextFilter()
+{
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<SSequencerFilterBar> FilterBarWidget = FilterBar->GetWidget();
+	if (!FilterBarWidget.IsValid())
+	{
+		return;
+	}
+
+	FilterBarWidget->SaveCurrentFilterSetAsCustomTextFilter();
+}
+
+void FSequencerTrackFilterMenu::CreateNewTextFilter()
+{
+	const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin();
+	if (!FilterBar.IsValid())
+	{
+		return;
+	}
+
+	SSequencerCustomTextFilterDialog::CreateWindow_AddCustomTextFilter(FilterBar.ToSharedRef(), FCustomTextFilterData(), nullptr);
 }
 
 #undef LOCTEXT_NAMESPACE

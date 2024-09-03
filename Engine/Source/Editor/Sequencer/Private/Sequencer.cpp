@@ -553,6 +553,7 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 	UpdateTimeBases();
 	PlayPosition.Reset(ConvertFrameTime(GetPlaybackRange().GetLowerBoundValue(), GetRootTickResolution(), PlayPosition.GetInputRate()));
 
+	FilterBar = MakeShared<FSequencerFilterBar>(*this);
 	FilterBar->CreateCustomTextFiltersFromConfig();
 
 	// Make internal widgets
@@ -741,7 +742,6 @@ FSequencer::FSequencer()
 	, bUpdatingExternalSelection( false )
 	, bNeedsEvaluate(false)
 	, bNeedsInvalidateCachedData(false)
-	, FilterBar(MakeShared<FSequencerFilterBar>(*this))
 {
 	// Exposes the sequencer and curve editor command lists to subscribers from other systems
 	FInputBindingManager::Get().RegisterCommandList(FSequencerCommands::Get().GetContextName(), SequencerCommandBindings);
@@ -778,6 +778,8 @@ FSequencer::~FSequencer()
 	SequencerWidget.Reset();
 
 	TrackEditors.Empty();
+
+	FilterBar.Reset();
 
 	RootTemplateInstance.TearDown();
 }
@@ -820,6 +822,8 @@ void FSequencer::Close()
 
 	SequencerWidget.Reset();
 	TrackEditors.Empty();
+
+	FilterBar.Reset();
 
 	GUnrealEd->UpdatePivotLocationForSelection();
 
@@ -12306,12 +12310,12 @@ FText FSequencer::GetSidebarSelectionDrawerToolTipText() const
 
 TSharedRef<ISequencerTrackFilters> FSequencer::GetFilterInterface() const
 {
-	return FilterBar;
+	return FilterBar.ToSharedRef();
 }
 
 TSharedRef<FSequencerFilterBar> FSequencer::GetFilterBar() const
 {
-	return FilterBar;
+	return FilterBar.ToSharedRef();
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -1577,5 +1577,5 @@ private:
 	/** Delegate that is called when selection limiting has been toggled on or off */
 	FOnViewportSelectionLimitedChanged OnSelectionLimitedChangedDelegate;
 
-	TSharedRef<FSequencerFilterBar> FilterBar;
+	TSharedPtr<FSequencerFilterBar> FilterBar;
 };

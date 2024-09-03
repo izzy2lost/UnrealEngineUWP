@@ -86,8 +86,6 @@ TSharedPtr<ICustomTextFilter<FSequencerTrackFilterType>> FSequencerFilterBar::Cr
 
 void FSequencerFilterBar::CreateDefaultFilters()
 {
-	SetTextFilterString(FString());
-
 	// Add internal filters that won't be saved to config
 	InternalFilters->RemoveAll();
 
@@ -253,26 +251,12 @@ FName FSequencerFilterBar::GetIdentifier() const
 	return TEXT("SequencerMain");
 }
 
-TSharedPtr<SSequencerFilterBar> FSequencerFilterBar::GetWidget() const
-{
-	return FilterBarWidget;
-}
-
 TSharedRef<SSequencerFilterBar> FSequencerFilterBar::GenerateWidget(const TSharedPtr<SFilterSearchBox>& InSearchBox, const EFilterBarLayout InLayout)
 {
-	if (!FilterBarWidget.IsValid())
-	{
-		FilterBarWidget = SNew(SSequencerFilterBar, SharedThis(this))
-			.FilterBarLayout(InLayout)
-			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("SequencerTrackFilters")))
-			.FilterSearchBox(InSearchBox);
-	}
-	else
-	{
-		FilterBarWidget->SetLayout(InLayout);
-	}
-
-	return FilterBarWidget.ToSharedRef();
+	return SNew(SSequencerFilterBar, SharedThis(this))
+		.FilterBarLayout(InLayout)
+		.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("SequencerTrackFilters")))
+		.FilterSearchBox(InSearchBox);
 }
 
 bool FSequencerFilterBar::AreFiltersMuted() const
@@ -284,7 +268,7 @@ void FSequencerFilterBar::MuteFilters(const bool bInMute)
 {
 	bFiltersMuted = bInMute;
 
-	if (FilterBarWidget.IsValid())
+	if (const TSharedPtr<SSequencerFilterBar> FilterBarWidget = GetWidget())
 	{
 		FilterBarWidget->SetEnabled(!bFiltersMuted);
 
@@ -325,7 +309,7 @@ void FSequencerFilterBar::SetTextFilterString(const FString& InText)
 {
 	TextFilter->SetRawFilterText(FText::FromString(InText));
 
-	if (FilterBarWidget.IsValid())
+	if (const TSharedPtr<SSequencerFilterBar> FilterBarWidget = GetWidget())
 	{
 		FilterBarWidget->SetTextFilterString(InText);
 	}
@@ -1655,6 +1639,16 @@ TSharedRef<SComboButton> FSequencerFilterBar::MakeAddFilterButton()
 	ComboButton->AddMetadata(MakeShared<FTagMetaData>(TEXT("SequencerTrackFiltersCombo")));
 
 	return ComboButton;
+}
+
+TSharedPtr<SSequencerFilterBar> FSequencerFilterBar::GetWidget() const
+{
+	const TSharedPtr<SSequencer> SequencerWidget = StaticCastSharedRef<SSequencer>(GetSequencer().GetSequencerWidget());
+	if (!SequencerWidget.IsValid())
+	{
+		return nullptr;
+	}
+	return SequencerWidget->GetFilterBarWidget();
 }
 
 #undef LOCTEXT_NAMESPACE

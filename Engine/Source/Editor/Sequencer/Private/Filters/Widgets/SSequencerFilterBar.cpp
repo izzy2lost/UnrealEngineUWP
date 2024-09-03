@@ -19,6 +19,11 @@ using namespace UE::Sequencer;
 
 #define LOCTEXT_NAMESPACE "SSequencerFilterBar"
 
+SSequencerFilterBar::~SSequencerFilterBar()
+{
+	ContextMenu.Reset();
+}
+
 void SSequencerFilterBar::Construct(const FArguments& InArgs, const TSharedRef<FSequencerFilterBar>& InFilterBar)
 {
 	WeakFilterBar = InFilterBar;

@@ -59,8 +59,6 @@ public:
 
 	virtual TSharedPtr<FUICommandList> GetCommandList() const override;
 
-	TSharedPtr<SSequencerFilterBar> GetWidget() const;
-
 	TSharedRef<SSequencerFilterBar> GenerateWidget(const TSharedPtr<SFilterSearchBox>& InSearchBox, const EFilterBarLayout InLayout);
 
 	bool AreFiltersMuted() const;
@@ -234,6 +232,9 @@ public:
 	TSharedRef<SFilterBarIsolateHideShow> MakeIsolateHideShowPanel();
 	TSharedRef<SComboButton> MakeAddFilterButton();
 
+	/** Attempts to get the filter bar widget from the Sequencer widget */
+	TSharedPtr<SSequencerFilterBar> GetWidget() const;
+
 protected:
 	void CreateDefaultFilters();
 
@@ -267,8 +268,6 @@ protected:
 	TSharedRef<FSequencerTrackFilter_Modified> ModifiedFilter;
 	
 	TArray<TSharedRef<FSequencerTrackFilter_CustomText>> CustomTextFilters;
-
-	TSharedPtr<SSequencerFilterBar> FilterBarWidget;
 
 	TSharedPtr<FSequencerTrackFilterMenu> FilterMenu;
 

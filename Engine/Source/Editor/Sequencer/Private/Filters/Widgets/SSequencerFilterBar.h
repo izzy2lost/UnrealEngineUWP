@@ -54,6 +54,8 @@ public:
 
 	SLATE_END_ARGS()
 
+	virtual ~SSequencerFilterBar() override;
+
 	/** Constructs this widget with InArgs */
 	void Construct(const FArguments& InArgs, const TSharedRef<FSequencerFilterBar>& InFilterBar);
 

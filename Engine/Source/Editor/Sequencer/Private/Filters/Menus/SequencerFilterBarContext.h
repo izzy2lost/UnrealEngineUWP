@@ -6,6 +6,9 @@
 #include "SequencerFilterBarContext.generated.h"
 
 class FSequencerFilterBar;
+class UToolMenu;
+
+DECLARE_DELEGATE_OneParam(FOnPopulateFilterBarMenu, UToolMenu*);
 
 UCLASS()
 class USequencerFilterBarContext : public UObject
@@ -22,6 +25,8 @@ public:
 	{
 		return WeakFilterBar.IsValid() ? WeakFilterBar.Pin() : nullptr;
 	}
+
+	FOnPopulateFilterBarMenu OnPopulateFilterBarMenu;
 
 protected:
 	TWeakPtr<FSequencerFilterBar> WeakFilterBar;

@@ -21,7 +21,6 @@ class FSequencerFilterBar;
 class FSequencerTrackFilterCollection;
 class FSequencerTrackFilter_Level;
 class ISequencerTrackEditor;
-class SSequencerFilterBar;
 class UMovieScene;
 class UMovieSceneFolder;
 class UMovieSceneTrack;
