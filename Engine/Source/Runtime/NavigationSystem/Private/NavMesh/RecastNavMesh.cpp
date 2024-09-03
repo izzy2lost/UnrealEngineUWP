@@ -1012,7 +1012,8 @@ void ARecastNavMesh::SortAreasForGenerator(TArray<FRecastAreaNavModifierElement>
 			const bool bIsBReplacing = (B.GetAreaClassToReplace() != NULL);
 			if (bIsAReplacing != bIsBReplacing)
 			{
-				return bIsAReplacing;
+				// We want the "Replace" modifiers last because we want them to replace any NavArea from the "Apply" modifiers.
+				return !bIsAReplacing;
 			}
 
 			if (A.Cost != B.Cost)
