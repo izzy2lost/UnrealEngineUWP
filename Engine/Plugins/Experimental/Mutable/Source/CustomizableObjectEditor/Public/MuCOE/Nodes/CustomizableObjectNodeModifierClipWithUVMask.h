@@ -21,12 +21,9 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeModifierClipWithUVMask
 public:
 
 	/** Materials in all other objects that activate this tags will be clipped with this UV mask. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MeshToClip)
-	TArray<FString> Tags;
+	UPROPERTY()
+	TArray<FString> Tags_DEPRECATED;
 
-	/** Policy to use tags in case more than one is added. */
-	UPROPERTY(EditAnywhere, Category = MeshToClip)
-	EMutableMultipleTagPolicy MultipleTagPolicy = EMutableMultipleTagPolicy::OnlyOneRequired;
 
 	/** UV channel index that will be used to get the UVs to apply the clipping mask to. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MeshToClip)
@@ -41,10 +38,8 @@ public:
 	// UCustomizableObjectNode interface
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 
-	// UCustomizableObjectNodeModifierBase interface
-	virtual const TArray<FString>* GetRequiredTags() const override { return &Tags; }
-	virtual EMutableMultipleTagPolicy GetMultipleTagsPolicy() const override { return MultipleTagPolicy; }
 
 	// Own interface
 

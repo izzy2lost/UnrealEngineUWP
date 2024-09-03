@@ -186,14 +186,11 @@ void SCustomizableObjectEditorTagExplorer::FillTagInformation(const UCustomizabl
 
 			if (UCustomizableObjectNodeModifierBase* TypedNodeModifier = Cast<UCustomizableObjectNodeModifierBase>(Node))
 			{
-				const TArray<FString>* RequiredTags = TypedNodeModifier->GetRequiredTags();
-				if (RequiredTags)
+				const TArray<FString>& RequiredTags = TypedNodeModifier->RequiredTags;
+				for (const FString& CurrentTag : RequiredTags)
 				{
-					for (const FString& CurrentTag : *RequiredTags)
-					{
-						NodeTags.Add(CurrentTag, TypedNodeModifier);
-						Tags.AddUnique(CurrentTag);
-					}
+					NodeTags.Add(CurrentTag, TypedNodeModifier);
+					Tags.AddUnique(CurrentTag);
 				}
 			}
 		}

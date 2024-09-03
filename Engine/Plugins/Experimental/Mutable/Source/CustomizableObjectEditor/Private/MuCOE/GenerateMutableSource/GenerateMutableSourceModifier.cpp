@@ -77,7 +77,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		ClipNode->SetVertexSelectionBone(GenerationContext.GetBoneUnique(TypedNodeClip->BoneName), TypedNodeClip->MaxEffectRadius);
 
 		ClipNode->MultipleTagsPolicy = TypedNodeClip->MultipleTagPolicy;
-		for (const FString& Tag : TypedNodeClip->Tags)
+		for (const FString& Tag : TypedNodeClip->RequiredTags)
 		{
 			 ClipNode->RequiredTags.Add(Tag);
 		}
@@ -129,7 +129,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		}
 	
 		ClipNode->MultipleTagsPolicy = TypedNodeClipDeform->MultipleTagPolicy;
-		for (const FString& Tag : TypedNodeClipDeform->Tags)
+		for (const FString& Tag : TypedNodeClipDeform->RequiredTags)
 		{
 			ClipNode->RequiredTags.Add(Tag);
 		}		
@@ -202,7 +202,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		}
 
 		ClipNode->MultipleTagsPolicy = TypedNodeClipMesh->MultipleTagPolicy;
-		for (const FString& Tag : TypedNodeClipMesh->Tags)
+		for (const FString& Tag : TypedNodeClipMesh->RequiredTags)
 		{
 			 ClipNode->RequiredTags.Add(Tag);
 		}
@@ -259,7 +259,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		ClipNode->LayoutIndex = TypedNodeClipUVMask->UVChannelForMask;
 
 		ClipNode->MultipleTagsPolicy = TypedNodeClipUVMask->MultipleTagPolicy;
-		for (const FString& Tag : TypedNodeClipUVMask->Tags)
+		for (const FString& Tag : TypedNodeClipUVMask->RequiredTags)
 		{
 			ClipNode->RequiredTags.Add(Tag);
 		}

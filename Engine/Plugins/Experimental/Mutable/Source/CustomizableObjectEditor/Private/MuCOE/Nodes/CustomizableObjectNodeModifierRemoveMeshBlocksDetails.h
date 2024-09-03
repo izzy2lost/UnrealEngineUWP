@@ -3,7 +3,7 @@
 #pragma once
 
 
-#include "CustomizableObjectNodeDetails.h"
+#include "CustomizableObjectNodeModifierBaseDetails.h"
 #include "IDetailCustomization.h"
 #include "Types/SlateEnums.h"
 
@@ -13,7 +13,7 @@ class UCustomizableObjectNodeModifierRemoveMeshBlocks;
 class SCustomizableObjectNodeLayoutBlocksEditor;
 
 
-class FCustomizableObjectNodeModifierRemoveMeshBlocksDetails : public FCustomizableObjectNodeDetails
+class FCustomizableObjectNodeModifierRemoveMeshBlocksDetails : public FCustomizableObjectNodeModifierBaseDetails
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */
@@ -21,6 +21,9 @@ public:
 
 	/** ILayoutDetails interface */
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+
+	/** FCustomizableObjectNodeModifierBaseDetails interface. */
+	virtual void OnRequiredTagsPropertyChanged() override;
 
 private:
 	UCustomizableObjectNodeModifierRemoveMeshBlocks* Node;

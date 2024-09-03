@@ -163,6 +163,20 @@ void UCustomizableObjectNodeModifierClipMorph::PinConnectionListChanged(UEdGraph
 }
 
 
+void UCustomizableObjectNodeModifierClipMorph::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
+{
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+
+	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
+
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::UnifyRequiredTags)
+	{
+		RequiredTags = Tags_DEPRECATED;
+		Tags_DEPRECATED.Empty();
+	}
+}
+
+
 FText UCustomizableObjectNodeModifierClipMorph::GetTooltipText() const
 {
 	return LOCTEXT("Clip_Mesh_Morph_Tooltip", "Defines a cutting plane on a bone to cut tagged Materials that go past it, while morphing the mesh after the cut to blend in more naturally.\nIt only cuts and morphs mesh that receives some influence of that bone or other descendant bones.");

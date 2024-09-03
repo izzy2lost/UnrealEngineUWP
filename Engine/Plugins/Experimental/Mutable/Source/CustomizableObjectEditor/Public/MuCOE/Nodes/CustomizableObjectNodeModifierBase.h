@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MuCOE/Nodes/CustomizableObjectNode.h"
+#include "MuT/NodeModifier.h"
 
 #include "CustomizableObjectNodeModifierBase.generated.h"
 
@@ -35,6 +36,16 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeModifierBase : public 
 
 public:
 
+	/** Materials in all other objects that activate this tags will be affected by this modifier. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Modifier)
+	TArray<FString> RequiredTags;
+
+	/** Policy to use required tags in case more than one is added. */
+	UPROPERTY(EditAnywhere, Category = Modifier)
+	EMutableMultipleTagPolicy MultipleTagPolicy = EMutableMultipleTagPolicy::OnlyOneRequired;
+
+public:
+
 	// EdGraphNode interface
 	virtual FLinearColor GetNodeTitleColor() const override;
 
@@ -44,18 +55,15 @@ public:
 
 	// Own interface
 	virtual UEdGraphPin* OutputPin() const;
-	virtual const TArray<FString>* GetRequiredTags() const PURE_VIRTUAL(UCustomizableObjectNodeModifierBase::GetRequiredTags, return nullptr; );
-
-	virtual EMutableMultipleTagPolicy GetMultipleTagsPolicy() const PURE_VIRTUAL(UCustomizableObjectNodeModifierBase::GetMultipleTagsPolicy, return {}; );
 
 	/** Return true if the tags and policy in this node would make this node modify the given parameter node. */
-	bool IsApplicableTo(UCustomizableObjectNode* Candidate) const;
+	bool IsApplicableTo(UCustomizableObjectNode* Candidate);
 
 	/** Get the list of all nodes of this object that may be affected by this modifier. This is an approximate
 	* query: it includes all nodes that may be affected by this modifier but it may include nodes that will not 
 	* be modified by this modifier because of other conditions.
 	*/
-	void GetPossiblyModifiedNodes(TArray<UCustomizableObjectNode*>&) const;
+	void GetPossiblyModifiedNodes(TArray<UCustomizableObjectNode*>&);
 
 	/** Generate a tag that is unique and stable for the given node. */
 	static FString MakeNodeAutoTag(UEdGraphNode*);

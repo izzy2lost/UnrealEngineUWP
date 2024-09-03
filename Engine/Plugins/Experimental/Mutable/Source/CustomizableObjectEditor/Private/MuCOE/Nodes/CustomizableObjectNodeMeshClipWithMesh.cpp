@@ -5,6 +5,7 @@
 #include "MuCOE/CustomizableObjectGraph.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/ICustomizableObjectEditor.h"
+#include "MuCO/CustomizableObjectCustomVersion.h"
 
 class UCustomizableObjectNodeRemapPins;
 
@@ -53,6 +54,20 @@ void UCustomizableObjectNodeModifierClipWithMesh::AllocateDefaultPins(UCustomiza
 	ClipMeshPin->bDefaultValueIsIgnored = true;
 
 	UEdGraphPin* OutputPin_p = CustomCreatePin(EGPD_Output, Schema->PC_Modifier, FName("Modifier"));
+}
+
+
+void UCustomizableObjectNodeModifierClipWithMesh::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
+{
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+
+	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
+
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::UnifyRequiredTags)
+	{
+		RequiredTags = Tags_DEPRECATED;
+		Tags_DEPRECATED.Empty();
+	}
 }
 
 

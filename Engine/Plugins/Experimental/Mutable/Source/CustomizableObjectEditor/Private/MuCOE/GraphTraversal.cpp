@@ -437,6 +437,8 @@ const UEdGraphPin* FindMeshBaseSource(const UEdGraphPin& Pin, const bool bOnlyLo
 		Pin.PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_PassThroughMesh
 		||
 		Pin.PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_Material
+		||
+		Pin.PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_Modifier
 	);
 	
 	const UEdGraphNode* Node = Pin.GetOwningNode();

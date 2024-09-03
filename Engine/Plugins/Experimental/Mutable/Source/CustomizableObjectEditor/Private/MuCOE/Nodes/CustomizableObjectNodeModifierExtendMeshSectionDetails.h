@@ -19,7 +19,7 @@ class IPropertyHandle;
 class UCustomizableObjectNodeObject;
 
 
-class FCustomizableObjectNodeModifierMorphMeshSectionDetails : public FCustomizableObjectNodeModifierBaseDetails
+class FCustomizableObjectNodeModifierExtendMeshSectionDetails : public FCustomizableObjectNodeModifierBaseDetails
 {
 public:
 	// Makes a new instance of this detail layout class for a specific detail view requesting it 
@@ -30,11 +30,7 @@ public:
 
 private:
 
-	class UCustomizableObjectNodeModifierMorphMeshSection* Node = nullptr;
+	class UCustomizableObjectNodeModifierExtendMeshSection* Node = nullptr;
 
-	/** */
-	TSharedPtr<SMutableSearchComboBox> MorphCombo;
-	TArray< TSharedPtr<FString> > MorphOptionsSource;
-	void OnMorphTargetComboBoxSelectionChanged(const FText& NewText);
 
 };

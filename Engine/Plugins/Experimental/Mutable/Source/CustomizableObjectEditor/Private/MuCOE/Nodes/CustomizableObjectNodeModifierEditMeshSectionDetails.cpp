@@ -30,7 +30,7 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeModifierEditMeshSectionD
 
 void FCustomizableObjectNodeModifierEditMeshSectionDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 {
-	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+	FCustomizableObjectNodeModifierBaseDetails::CustomizeDetails(DetailBuilder);
 
 	Node = nullptr;
 	const IDetailsView* DetailsView = DetailBuilder.GetDetailsView();
@@ -132,6 +132,13 @@ void FCustomizableObjectNodeModifierEditMeshSectionDetails::CustomizeDetails( ID
 		]
 	];
 
+	UpdateLayout();
+}
+
+
+void FCustomizableObjectNodeModifierEditMeshSectionDetails::OnRequiredTagsPropertyChanged()
+{
+	FCustomizableObjectNodeModifierBaseDetails::OnRequiredTagsPropertyChanged();
 	UpdateLayout();
 }
 

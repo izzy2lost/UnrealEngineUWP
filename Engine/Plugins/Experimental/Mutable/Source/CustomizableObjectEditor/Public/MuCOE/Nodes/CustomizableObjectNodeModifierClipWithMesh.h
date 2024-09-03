@@ -23,11 +23,8 @@ public:
 
 	UCustomizableObjectNodeModifierClipWithMesh();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MeshToClip)
-	TArray<FString> Tags;
-
-	UPROPERTY(EditAnywhere, Category = CustomizableObjectToClip)
-	EMutableMultipleTagPolicy MultipleTagPolicy = EMutableMultipleTagPolicy::OnlyOneRequired;
+	UPROPERTY()
+	TArray<FString> Tags_DEPRECATED;
 
 	//!< If assigned, then a material inside this CO will be clipped by this node.
     //!< If several materials with the same name, all are considered (to cover all LOD levels)
@@ -59,10 +56,7 @@ public:
 	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
 	virtual void UpdateReferencedNodeId(const FGuid& NewGuid) override;
 	virtual void BeginPostDuplicate(bool bDuplicateForPIE) override;
-
-	// UCustomizableObjectNodeModifierBase interface
-	virtual const TArray<FString>* GetRequiredTags() const override { return &Tags; }
-	virtual EMutableMultipleTagPolicy GetMultipleTagsPolicy() const override { return MultipleTagPolicy; }
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 
 	// Own interface
 	UEdGraphPin* OutputPin() const;

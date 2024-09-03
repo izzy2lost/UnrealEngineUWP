@@ -28,7 +28,7 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeModifierRemoveMeshBlocks
 
 void FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
-	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+	FCustomizableObjectNodeModifierBaseDetails::CustomizeDetails(DetailBuilder);
 
 	Node = nullptr;
 	const IDetailsView* DetailsView = DetailBuilder.GetDetailsView();
@@ -39,9 +39,6 @@ void FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::CustomizeDetails(ID
 
 	// This property is not relevant for this node
 	DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeModifierWithMaterial, ReferenceMaterial), UCustomizableObjectNodeModifierWithMaterial::StaticClass());
-
-	IDetailCategoryBuilder& ModifierCategory = DetailBuilder.EditCategory("Modifier");
-	ModifierCategory.SetSortOrder(-10000);
 
 	IDetailCategoryBuilder& LayoutCategory = DetailBuilder.EditCategory("LayoutOptions");
 	LayoutCategory.SetSortOrder(10000);
@@ -137,6 +134,13 @@ void FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::CustomizeDetails(ID
 				]
 		];
 
+	UpdateLayout();
+}
+
+
+void FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::OnRequiredTagsPropertyChanged()
+{
+	FCustomizableObjectNodeModifierBaseDetails::OnRequiredTagsPropertyChanged();
 	UpdateLayout();
 }
 

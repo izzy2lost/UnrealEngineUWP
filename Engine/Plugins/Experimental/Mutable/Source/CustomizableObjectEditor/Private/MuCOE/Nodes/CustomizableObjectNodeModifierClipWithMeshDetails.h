@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CustomizableObjectNodeDetails.h"
+#include "CustomizableObjectNodeModifierBaseDetails.h"
 #include "IDetailCustomization.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -17,7 +17,7 @@ class UCustomizableObjectNodeModifierClipWithMesh;
 struct FAssetData;
 
 
-class FCustomizableObjectNodeModifierClipWithMeshDetails : public FCustomizableObjectNodeDetails
+class FCustomizableObjectNodeModifierClipWithMeshDetails : public FCustomizableObjectNodeModifierBaseDetails
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */

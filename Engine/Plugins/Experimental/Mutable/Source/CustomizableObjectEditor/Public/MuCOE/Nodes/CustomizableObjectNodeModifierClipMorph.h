@@ -24,12 +24,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = MeshToClipAndMorph)
 	FName BoneName;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MeshToClipAndMorph)
-	TArray<FString> Tags;
-
-	/** Policy to use tags in case more than one is added. */
-	UPROPERTY(EditAnywhere, Category = MeshToClipAndMorph)
-	EMutableMultipleTagPolicy MultipleTagPolicy = EMutableMultipleTagPolicy::OnlyOneRequired;
+	UPROPERTY()
+	TArray<FString> Tags_DEPRECATED;
 
 	UPROPERTY(EditAnywhere, Category = MeshToClipAndMorph)
 	uint32 ReferenceSkeletonIndex = 0;
@@ -87,10 +83,7 @@ public:
 	// UCustomizableObjectNode interface
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
-
-	// UCustomizableObjectNodeModifierBase interface
-	virtual const TArray<FString>* GetRequiredTags() const override { return &Tags; }
-	virtual EMutableMultipleTagPolicy GetMultipleTagsPolicy() const override { return MultipleTagPolicy; }
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 
 	// Own interface
 	UEdGraphPin* OutputPin() const;

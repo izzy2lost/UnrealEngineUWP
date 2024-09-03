@@ -3,6 +3,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierClipDeform.h"
 
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
+#include "MuCO/CustomizableObjectCustomVersion.h"
 
 class UCustomizableObjectNodeRemapPins;
 
@@ -18,6 +19,20 @@ void UCustomizableObjectNodeModifierClipDeform::AllocateDefaultPins(UCustomizabl
 	
 	UEdGraphPin* OutputPin = CustomCreatePin(EGPD_Output, Schema->PC_Modifier, FName("Modifier"));
 	ClipMeshPin->bDefaultValueIsIgnored = true;
+}
+
+
+void UCustomizableObjectNodeModifierClipDeform::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
+{
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+
+	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
+
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::UnifyRequiredTags)
+	{
+		RequiredTags = Tags_DEPRECATED;
+		Tags_DEPRECATED.Empty();
+	}
 }
 
 

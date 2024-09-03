@@ -137,11 +137,13 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 		MovedCompatibilityFromPostBackwardsCompatibleFixup,
 
 		FixModifierPin, 
-		
+
 		ConvertEditAndExtendToModifiers,
 
 		NodeComponentMesh, // Moved LOD pins from NodeObject to NodeComponentMesh.
 		
+		UnifyRequiredTags,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

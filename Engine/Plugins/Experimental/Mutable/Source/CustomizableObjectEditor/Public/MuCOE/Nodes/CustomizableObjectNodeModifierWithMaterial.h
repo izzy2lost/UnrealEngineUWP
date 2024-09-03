@@ -4,7 +4,6 @@
 
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierBase.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialBase.h"
-#include "MuT/NodeModifier.h"
 
 #include "CustomizableObjectNodeModifierWithMaterial.generated.h"
 
@@ -18,14 +17,6 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeModifierWithMaterial :
 	GENERATED_BODY()
 
 public:
-
-	/** Materials in all other objects that activate this tags will be affected by this modifier. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Modifier)
-	TArray<FString> RequiredTags;
-
-	/** Policy to use required tags in case more than one is added. */
-	UPROPERTY(EditAnywhere, Category = Modifier)
-	EMutableMultipleTagPolicy MultipleTagPolicy = EMutableMultipleTagPolicy::OnlyOneRequired;
 
 	/** Reference material that defines the structure of the data to be extended.
 	* The Sections modified with this modifier are supposed to have the same texture parameters, but don't need to have exactly
@@ -45,10 +36,6 @@ public:
 
 	// UCustomizableObjectNode interface
 	virtual bool IsNodeOutDatedAndNeedsRefresh() override;
-
-	// UCustomizableObjectNodeModifierBase interface
-	virtual const TArray<FString>* GetRequiredTags() const override { return &RequiredTags;  }
-	virtual EMutableMultipleTagPolicy GetMultipleTagsPolicy() const override { return MultipleTagPolicy;  }
 
 	// Own interface
 

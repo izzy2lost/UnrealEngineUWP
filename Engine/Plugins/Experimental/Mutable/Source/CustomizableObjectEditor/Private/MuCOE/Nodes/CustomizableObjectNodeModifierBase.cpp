@@ -23,7 +23,7 @@ UEdGraphPin* UCustomizableObjectNodeModifierBase::OutputPin() const
 }
 
 
-bool UCustomizableObjectNodeModifierBase::IsApplicableTo(UCustomizableObjectNode* Candidate) const
+bool UCustomizableObjectNodeModifierBase::IsApplicableTo(UCustomizableObjectNode* Candidate)
 {
 	if (!Candidate)
 	{
@@ -31,14 +31,13 @@ bool UCustomizableObjectNodeModifierBase::IsApplicableTo(UCustomizableObjectNode
 	}
 
 	const TArray<FString>* EnabledTags = Candidate->GetEnableTags();
-	const TArray<FString>* RequiredTags = GetRequiredTags();
-	if (EnabledTags && RequiredTags)
+	if (EnabledTags)
 	{
-		switch ( GetMultipleTagsPolicy() )
+		switch ( MultipleTagPolicy )
 		{
 		case EMutableMultipleTagPolicy::OnlyOneRequired:
 		{
-			for (const FString& RequiredTag : *RequiredTags)
+			for (const FString& RequiredTag : RequiredTags)
 			{
 				if (EnabledTags->Contains(RequiredTag))
 				{
@@ -50,7 +49,7 @@ bool UCustomizableObjectNodeModifierBase::IsApplicableTo(UCustomizableObjectNode
 
 		case EMutableMultipleTagPolicy::AllRequired:
 		{
-			for (const FString& RequiredTag : *RequiredTags)
+			for (const FString& RequiredTag : RequiredTags)
 			{
 				if (!EnabledTags->Contains(RequiredTag))
 				{
@@ -71,7 +70,7 @@ bool UCustomizableObjectNodeModifierBase::IsApplicableTo(UCustomizableObjectNode
 }
 
 
-void UCustomizableObjectNodeModifierBase::GetPossiblyModifiedNodes(TArray<UCustomizableObjectNode*>& CandidateNodes) const
+void UCustomizableObjectNodeModifierBase::GetPossiblyModifiedNodes(TArray<UCustomizableObjectNode*>& CandidateNodes)
 {
 	// Scan all potential receivers
 	UCustomizableObject* ThisNodeObject = GetRootObject(*this);
@@ -264,22 +263,18 @@ void UCustomizableObjectNodeModifierBase::PostBackwardsCompatibleFixup()
 	}
 
 	// Apply backwards compatibility auto-generated tags to external objects.
-	const TArray<FString>* RequiredTags = GetRequiredTags();
-	if (RequiredTags)
+	for (const FLegacyTag& Tag : LegacyBackportsRequiredTags)
 	{
-		for (const FLegacyTag& Tag : LegacyBackportsRequiredTags)
+		// If we still have it in this node
+		if (RequiredTags.Contains(Tag.Tag))
 		{
-			// If we still have it in this node
-			if (RequiredTags->Contains(Tag.Tag))
+			UCustomizableObjectNode* ParentNode = GetCustomizableObjectExternalNode<UCustomizableObjectNode>(Tag.ParentObject.Get(), Tag.ParentNode);
+			if (ParentNode)
 			{
-				UCustomizableObjectNode* ParentNode = GetCustomizableObjectExternalNode<UCustomizableObjectNode>(Tag.ParentObject.Get(), Tag.ParentNode);
-				if (ParentNode)
+				TArray<FString>* NodeEnableTags = ParentNode->GetEnableTags();
+				if (NodeEnableTags)
 				{
-					TArray<FString>* NodeEnableTags = ParentNode->GetEnableTags();
-					if (NodeEnableTags)
-					{
-						NodeEnableTags->AddUnique(Tag.Tag);
-					}
+					NodeEnableTags->AddUnique(Tag.Tag);
 				}
 			}
 		}

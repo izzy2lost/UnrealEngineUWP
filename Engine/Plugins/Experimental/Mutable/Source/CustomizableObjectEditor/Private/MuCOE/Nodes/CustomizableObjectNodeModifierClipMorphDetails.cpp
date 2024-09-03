@@ -29,7 +29,7 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeModifierClipMorphDetails
 
 void FCustomizableObjectNodeModifierClipMorphDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
-	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+	FCustomizableObjectNodeModifierBaseDetails::CustomizeDetails(DetailBuilder);
 
 	Node = nullptr;
 	DetailBuilderPtr = &DetailBuilder;

@@ -27,12 +27,8 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeModifierClipDeform : p
 
 public:
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MeshClipDeform)
-	TArray<FString> Tags;
-	
-	/** Policy to use tags in case more than one is added. */
-	UPROPERTY(EditAnywhere, Category = MeshClipDeform)
-	EMutableMultipleTagPolicy MultipleTagPolicy = EMutableMultipleTagPolicy::OnlyOneRequired;
+	UPROPERTY()
+	TArray<FString> Tags_DEPRECATED;
 
 	UPROPERTY(EditAnywhere, Category = MeshClipDeform)
 	EShapeBindingMethod BindingMethod;
@@ -45,10 +41,7 @@ public:
 
 	// UCustomizableObjectNode interface
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
-
-	// UCustomizableObjectNodeModifierBase interface
-	virtual const TArray<FString>* GetRequiredTags() const override { return &Tags; }
-	virtual EMutableMultipleTagPolicy GetMultipleTagsPolicy() const override { return MultipleTagPolicy; }
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 
 	// Own interface
 

@@ -31,7 +31,7 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeModifierClipWithMeshDeta
 
 void FCustomizableObjectNodeModifierClipWithMeshDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
-	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+	FCustomizableObjectNodeModifierBaseDetails::CustomizeDetails(DetailBuilder);
 
 	Node = nullptr;
 	DetailBuilderPtr = &DetailBuilder;
@@ -241,7 +241,7 @@ TSharedPtr<FString> FCustomizableObjectNodeModifierClipWithMeshDetails::SetIniti
 			Node->bUseMaterials = true;
 		}
 
-		if (Node->Tags.Num() > 0)
+		if (Node->RequiredTags.Num() > 0)
 		{
 			InitialMethod = ClippingMethods[1];
 			Node->bUseTags = true;
@@ -286,7 +286,7 @@ void FCustomizableObjectNodeModifierClipWithMeshDetails::OnClippingMethodComboBo
 		{
 			Node->bUseMaterials = true;
 			Node->bUseTags = false;
-			Node->Tags.Empty();
+			Node->RequiredTags.Empty();
 		}
 		else
 		{
@@ -324,7 +324,7 @@ FReply FCustomizableObjectNodeModifierClipWithMeshDetails::OnAddTagPressed()
 {
 	if (Node)
 	{
-		Node->Tags.Add("");
+		Node->RequiredTags.Add("");
 		DetailBuilderPtr->ForceRefreshDetails();
 
 		return FReply::Handled();
