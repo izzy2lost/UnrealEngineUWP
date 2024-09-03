@@ -3,6 +3,7 @@
 #pragma once
 
 #include "HAL/MallocLeakDetection.h"
+#include "AutoRTFM/AutoRTFM.h"
 #include "Misc/AssertionMacros.h"
 #include "HAL/UnrealMemory.h"
 #include "Misc/NoopCounter.h"
@@ -10,8 +11,8 @@
 
 /**
 * Thread safe, lock free pooling allocator of fixed size blocks that
-* never returns free space, even at shutdown
-* alignment isn't handled, assumes FMemory::Malloc will work
+* never returns free space, even at shutdown.
+* Alignment isn't handled; assumes FMemory::Malloc will work.
 */
 
 #ifndef USE_NAIVE_TLockFreeFixedSizeAllocator_TLSCacheBase
@@ -189,19 +190,29 @@ private:
 
 /**
  * Thread safe, lock free pooling allocator of fixed size blocks that
- * never returns free space until program shutdown.
- * alignment isn't handled, assumes FMemory::Malloc will work
+ * only returns free space when the allocator is destroyed.
+ * Alignment isn't handled; assumes FMemory::Malloc will work.
  */
 template<int32 SIZE, int TPaddingForCacheContention, typename TTrackingCounter = FNoopCounter>
 class TLockFreeFixedSizeAllocator
 {
 public:
-
 	/** Destructor, returns all memory via FMemory::Free **/
 	~TLockFreeFixedSizeAllocator()
 	{
-		check(!NumUsed.GetValue());
-		Trim();
+		UE_AUTORTFM_OPEN2
+		{
+			check(!NumUsed.GetValue());
+			Trim();
+		};
+
+		// If we are in a transaction and this allocator exists on the transaction's stack, 
+		// running the ONABORT handler after destruction is dangerous and could stomp memory
+		// that belongs to someone else.
+		if (AutoRTFM::IsClosed() && AutoRTFM::IsInnerTransactionStack(this))
+		{
+			AutoRTFM::PopAllOnAbortHandlers(this);
+		}
 	}
 
 	/**
@@ -212,8 +223,24 @@ public:
 	 */
 	void* Allocate()
 	{
-		NumUsed.Increment();
-		void *Memory = FreeList.Pop();
+		UE_AUTORTFM_OPEN2
+		{
+			NumUsed.Increment();
+		};
+		AutoRTFM::PushOnAbortHandler(this, [this]() 
+		{
+			// TODO: investigate reusing the same OnAbort handler for multiple allocations/frees.
+			NumUsed.Decrement();
+		});
+		// When we are in an AutoRTFM transaction, it is simpler and faster to allocate a new block instead
+		// of reusing an existing one, since we don't need to track changes on newly allocated memory.
+		// If the transaction is aborted, AutoRTFM should clean it up for us automatically.
+		if (AutoRTFM::IsClosed())
+		{
+			return FMemory::Malloc(SIZE);
+		}
+		// Outside of a transaction, we prefer to reuse blocks from the FreeList.
+		void* Memory = FreeList.Pop();
 		if (Memory)
 		{
 			NumFree.Decrement();
@@ -231,23 +258,45 @@ public:
 	 * @param Item The item to free.
 	 * @see Allocate
 	 */
-	void Free(void *Item)
+	void Free(void* Item)
 	{
-		NumUsed.Decrement();
-		FreeList.Push(Item);
-		NumFree.Increment();
+		UE_AUTORTFM_OPEN2
+		{
+			NumUsed.Decrement();
+		};
+		AutoRTFM::PushOnAbortHandler(this, [this]()
+		{
+			// TODO: investigate reusing the same OnAbort handler for multiple allocations/frees.
+			NumUsed.Increment();
+		});
+		if (AutoRTFM::IsClosed())
+		{
+			// When we are in an AutoRTFM transaction, it is simpler to free blocks directly.
+			// Frees are deferred until the transaction is complete, and we don't need to
+			// worry about leaks occurring if transactions are aborted at inopportune times.
+			FMemory::Free(Item);
+		}
+		else
+		{
+			// Outside of a transaction, we push blocks onto the FreeList for reuse.
+			FreeList.Push(Item);
+			NumFree.Increment();
+		}
 	}
 
 	/**
-	* Returns all free memory to the heap
+	* Returns all free memory to the heap.
 	*/
 	void Trim()
 	{
-		while (void* Mem = FreeList.Pop())
+		UE_AUTORTFM_OPEN2
 		{
-			FMemory::Free(Mem);
-			NumFree.Decrement();
-		}
+			while (void* Mem = FreeList.Pop())
+			{
+				FMemory::Free(Mem);
+				NumFree.Decrement();
+			}
+		};
 	}
 
 	/**
@@ -278,7 +327,7 @@ private:
 	TLockFreePointerListUnordered<void, TPaddingForCacheContention> FreeList;
 
 	/** Total number of blocks outstanding and not in the free list. */
-	TTrackingCounter NumUsed; 
+	TTrackingCounter NumUsed;
 
 	/** Total number of blocks in the free list. */
 	TTrackingCounter NumFree;
