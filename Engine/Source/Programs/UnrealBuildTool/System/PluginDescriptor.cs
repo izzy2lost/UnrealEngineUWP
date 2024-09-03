@@ -304,7 +304,7 @@ namespace UnrealBuildTool
 					{
 						SupportedTargetPlatforms.Add(Platform);
 					}
-					else
+					else if ( !IsAllowableMissingPlatform(TargetPlatformName, PluginPath.Directory) )
 					{
 						Log.TraceWarningTask(PluginPath, $"Unknown platform {TargetPlatformName} listed in plugin with FriendlyName \"{FriendlyName}\"");
 					}
@@ -705,6 +705,34 @@ namespace UnrealBuildTool
 		public string[]? GetSupportedTargetPlatformNames()
 		{
 			return SupportedTargetPlatforms?.Select(P => P.ToString()).ToArray();
+		}
+
+
+		/// <summary>
+		/// Indicates whether it is acceptable for the given platform to be missing
+		/// Typically for platform extensions that are not covered by NDA in third party plugins
+		/// </summary>
+		/// <param name="Platform"></param>
+		/// <param name="PluginFolder"></param>
+		internal static bool IsAllowableMissingPlatform(string Platform, DirectoryReference PluginFolder)
+		{
+			// certain directories should always show "best practice" and enforce plugin extensions
+			DirectoryReference[] EnforcedDirectories = new DirectoryReference[]
+			{
+				DirectoryReference.Combine(UnrealBuildBase.Unreal.EngineDirectory, "Plugins"),
+				DirectoryReference.Combine(UnrealBuildBase.Unreal.RootDirectory, "Samples"),
+			};
+			if (EnforcedDirectories.Any( X => PluginFolder.IsUnderDirectory(X) ) )
+			{
+				return false;
+			}
+
+			// all other plugin locations allow some unknown platforms (internal code, game projects etc)
+			string[] AllowedMissingPlatforms = new string[] 
+			{ 
+				"WinGDK",
+			};
+			return AllowedMissingPlatforms.Contains(Platform);
 		}
 	}
 }

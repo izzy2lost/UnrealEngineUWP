@@ -275,7 +275,7 @@ namespace UnrealBuildTool
 						{
 							Module.PlatformAllowList.Add(Platform);
 						}
-						else
+						else if ( !PluginDescriptor.IsAllowableMissingPlatform(TargetPlatformName, JsonFilePath.Directory) )
 						{
 							Log.TraceWarningTask(JsonFilePath, $"Unknown platform {TargetPlatformName} while parsing allow list for module descriptor {Module.Name}");
 						}
@@ -293,7 +293,7 @@ namespace UnrealBuildTool
 						{
 							Module.PlatformDenyList.Add(Platform);
 						}
-						else
+						else if ( !PluginDescriptor.IsAllowableMissingPlatform(TargetPlatformName, JsonFilePath.Directory) )
 						{
 							Log.TraceWarningTask(JsonFilePath, $"Unknown platform {TargetPlatformName} while parsing deny list for module descriptor {Module.Name}");
 						}
