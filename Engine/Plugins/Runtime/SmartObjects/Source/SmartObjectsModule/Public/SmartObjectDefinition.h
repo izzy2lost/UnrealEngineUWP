@@ -443,18 +443,6 @@ public:
 	 * Returns the transform (in world space) of the given slot index.
 	 * @param OwnerTransform Transform (in world space) of the slot owner.
 	 * @param SlotIndex Index within the list of slots.
-	 * @return Transform (in world space) of the slot associated to SlotIndex.
-	 * @note Method will ensure on invalid slot index.
-	 */
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UE_DEPRECATED(5.3, "Please use GetSlotWorldTransform() instead.")
-	TOptional<FTransform> GetSlotTransform(const FTransform& OwnerTransform, const FSmartObjectSlotIndex SlotIndex) const;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	/**
-	 * Returns the transform (in world space) of the given slot index.
-	 * @param OwnerTransform Transform (in world space) of the slot owner.
-	 * @param SlotIndex Index within the list of slots.
 	 * @return Transform (in world space) of the slot associated to SlotIndex, or OwnerTransform if index is invalid.
 	 * @note Method will ensure on invalid slot index.
 	 */
@@ -483,14 +471,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/** Sets the tag query to run on the user tags provided by a request to accept this definition */
 	UFUNCTION(BlueprintCallable, Category="SmartObject")
 	void SetUserTagFilter(const FGameplayTagQuery& InUserTagFilter) { UserTagFilter = InUserTagFilter; }
-
-	/** Returns the tag query to run on the runtime tags of a smart object instance to accept it */
-	UE_DEPRECATED(5.2, "Use FWorldCondition_SmartObjectActorTagQuery or FSmartObjectWorldConditionObjectTagQuery in Preconditions instead.")
-	const FGameplayTagQuery& GetObjectTagFilter() const { static FGameplayTagQuery Dummy; return Dummy; }
-
-	/** Sets the tag query to run on the runtime tags of a smart object instance to accept it */
-	UE_DEPRECATED(5.2, "Use FWorldCondition_SmartObjectActorTagQuery or FSmartObjectWorldConditionObjectTagQuery in Preconditions instead.")
-	void SetObjectTagFilter(const FGameplayTagQuery& InObjectTagFilter) {}
 
 	/** Returns the list of tags describing the activity associated to this definition */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")

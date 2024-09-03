@@ -204,21 +204,6 @@ void USmartObjectDefinition::GetSlotActivityTags(const FSmartObjectSlotDefinitio
 	}
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-TOptional<FTransform> USmartObjectDefinition::GetSlotTransform(const FTransform& OwnerTransform, const FSmartObjectSlotIndex SlotIndex) const
-{
-	TOptional<FTransform> Transform;
-
-	if (ensureMsgf(Slots.IsValidIndex(SlotIndex), TEXT("Requesting slot transform for an out of range index: %s"), *LexToString(SlotIndex)))
-	{
-		const FSmartObjectSlotDefinition& Slot = Slots[SlotIndex];
-		Transform = FTransform(FRotator(Slot.Rotation), FVector(Slot.Offset)) * OwnerTransform;
-	}
-
-	return Transform;
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 FTransform USmartObjectDefinition::GetSlotWorldTransform(const int32 SlotIndex, const FTransform& OwnerTransform) const
 {
 	if (ensureMsgf(Slots.IsValidIndex(SlotIndex), TEXT("Requesting slot transform for an out of range index: %s"), *LexToString(SlotIndex)))
