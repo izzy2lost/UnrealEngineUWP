@@ -100,9 +100,8 @@ void UCustomizableObjectNodeModifierExtendMeshSection::BackwardsCompatibleFixup(
 		}
 		else
 		{
-			// Conversion failed?
-			ensure(false);
-			UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeModifierEditMeshSectionBase version upgrade failed."), *GetOutermost()->GetName());
+			// No parent, no conversion.
+			UE_LOG(LogMutable, Log, TEXT("[%s] UCustomizableObjectNodeModifierExtendMeshSection has no parent. It will not be upgraded."), *GetOutermost()->GetName());
 		}
 
 		ReconstructNode();

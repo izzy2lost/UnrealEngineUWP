@@ -57,9 +57,7 @@ void UCustomizableObjectNodeModifierEditMeshSectionBase::BackwardsCompatibleFixu
 		}
 		else
 		{
-			// Conversion failed?
-			ensure(false);
-			UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeModifierEditMeshSectionBase version upgrade failed."), *GetOutermost()->GetName());
+			UE_LOG(LogMutable, Log, TEXT("[%s] UCustomizableObjectNodeModifierEditMeshSectionBase has no parent. It will not be upgraded."), *GetOutermost()->GetName());
 		}
 	}
 }
