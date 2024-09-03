@@ -1,38 +1,35 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Elements/PCGCreateSplineMesh.h"
+#include "Elements/PCGSpawnSplineMesh.h"
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
 #include "PCGManagedResource.h"
 #include "PCGPin.h"
 #include "PCGSettings.h"
+#include "PCGSubsystem.h"
 #include "Data/PCGLandscapeSplineData.h"
 #include "Data/PCGSplineData.h"
 #include "Helpers/PCGActorHelpers.h"
 #include "Helpers/PCGHelpers.h"
 
+#include "DrawDebugHelpers.h"
 #include "Components/SplineMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInterface.h"
 #include "VT/RuntimeVirtualTexture.h"
 
-#include "DrawDebugHelpers.h"
-#include "PCGSubsystem.h"
-
-#include UE_INLINE_GENERATED_CPP_BY_NAME(PCGCreateSplineMesh)
-
 #define LOCTEXT_NAMESPACE "PCGCreateSplineMeshElement"
 
 #if WITH_EDITOR
-FText UPCGCreateSplineMeshSettings::GetNodeTooltipText() const
+FText UPCGSpawnSplineMeshSettings::GetNodeTooltipText() const
 {
 	return LOCTEXT("CreateSplineMeshTooltip", "Create a USplineMeshComponent for each segment along a given spline.");
 }
 #endif
 
-TArray<FPCGPinProperties> UPCGCreateSplineMeshSettings::InputPinProperties() const
+TArray<FPCGPinProperties> UPCGSpawnSplineMeshSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::PolyLine);
@@ -40,24 +37,19 @@ TArray<FPCGPinProperties> UPCGCreateSplineMeshSettings::InputPinProperties() con
 	return PinProperties;
 }
 
-FPCGElementPtr UPCGCreateSplineMeshSettings::CreateElement() const
+FPCGElementPtr UPCGSpawnSplineMeshSettings::CreateElement() const
 {
-	return MakeShared<FPCGCreateSplineMeshElement>();
+	return MakeShared<FPCGSpawnSplineMeshElement>();
 }
 
-FPCGContext* FPCGCreateSplineMeshElement::CreateContext()
-{
-	return new FPCGCreateSplineMeshContext();
-}
-
-bool FPCGCreateSplineMeshElement::PrepareDataInternal(FPCGContext* InContext) const
+bool FPCGSpawnSplineMeshElement::PrepareDataInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGCreateSplineMeshElement::PrepareDataInternal);
 
-	FPCGCreateSplineMeshContext* Context = static_cast<FPCGCreateSplineMeshContext*>(InContext);
+	FPCGSpawnSplineMeshContext* Context = static_cast<FPCGSpawnSplineMeshContext*>(InContext);
 	check(Context);
 
-	const UPCGCreateSplineMeshSettings* Settings = Context->GetInputSettings<UPCGCreateSplineMeshSettings>();
+	const UPCGSpawnSplineMeshSettings* Settings = Context->GetInputSettings<UPCGSpawnSplineMeshSettings>();
 	check(Settings);
 
 	const FSoftSplineMeshComponentDescriptor& Descriptor = Settings->SplineMeshDescriptor;
@@ -98,11 +90,11 @@ bool FPCGCreateSplineMeshElement::PrepareDataInternal(FPCGContext* InContext) co
 	return true;
 }
 
-bool FPCGCreateSplineMeshElement::ExecuteInternal(FPCGContext* Context) const
+bool FPCGSpawnSplineMeshElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGCreateSplineMeshElement::Execute);
 
-	const UPCGCreateSplineMeshSettings* Settings = Context->GetInputSettings<UPCGCreateSplineMeshSettings>();
+	const UPCGSpawnSplineMeshSettings* Settings = Context->GetInputSettings<UPCGSpawnSplineMeshSettings>();
 	check(Settings);
 
 	FSplineMeshComponentDescriptor Descriptor(Settings->SplineMeshDescriptor);

@@ -12,23 +12,23 @@
 
 #include "Engine/SplineMeshComponentDescriptor.h"
 
-#include "PCGCreateSplineMesh.generated.h"
+#include "PCGSpawnSplineMesh.generated.h"
 
 struct FPCGContext;
 
 /** Create a USplineMeshComponent for each segment along a given spline. */
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
-class UPCGCreateSplineMeshSettings : public UPCGSettings
+class UPCGSpawnSplineMeshSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
 public:
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
-	virtual FName GetDefaultNodeName() const override { return FName(TEXT("CreateSplineMesh")); }
-	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGCreateSplineMeshElement", "NodeTitle", "Create Spline Mesh"); }
+	virtual FName GetDefaultNodeName() const override { return FName(TEXT("SpawnSplineMesh")); }
+	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGSpawnSplineMeshElement", "NodeTitle", "Spawn Spline Mesh"); }
 	virtual FText GetNodeTooltipText() const override;
-	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
+	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spawner; }
 #endif
 
 protected:
@@ -60,16 +60,15 @@ public:
 	TArray<FPCGObjectPropertyOverrideDescription> SplineMeshOverrideDescriptions;
 };
 
-struct FPCGCreateSplineMeshContext : public FPCGContext, public IPCGAsyncLoadingContext {};
+struct FPCGSpawnSplineMeshContext : public FPCGContext, public IPCGAsyncLoadingContext {};
 
-class FPCGCreateSplineMeshElement : public IPCGElement
+class FPCGSpawnSplineMeshElement : public IPCGElementWithCustomContext<FPCGSpawnSplineMeshContext>
 {
 public:
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 
 protected:
-	virtual FPCGContext* CreateContext() override;
 	virtual bool PrepareDataInternal(FPCGContext* InContext) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
