@@ -6,9 +6,16 @@
 #include "ChooserTraceModule.h"
 #include "Modules/ModuleInterface.h"
 #include "RewindDebuggerChooser.h"
+#include "Kismet2/EnumEditorUtils.h"
 
 namespace UE::ChooserEditor
 {
+
+class FEnumChangedListener : public FEnumEditorUtils::FEnumEditorManager::BaseNotifyOnChanged
+{
+	virtual void PostChange(const UUserDefinedEnum* Changed, FEnumEditorUtils::EEnumEditorChangeInfo ChangedType) override;
+	virtual void PreChange(const UUserDefinedEnum* Changed, FEnumEditorUtils::EEnumEditorChangeInfo ChangedType) override {};
+};
 
 class FModule : public IModuleInterface
 {
@@ -18,6 +25,8 @@ private:
 	
 	FRewindDebuggerChooser RewindDebuggerChooser;
 	FChooserTraceModule ChooserTraceModule;
+
+	FEnumChangedListener EnumChanged;
 };
 
 }

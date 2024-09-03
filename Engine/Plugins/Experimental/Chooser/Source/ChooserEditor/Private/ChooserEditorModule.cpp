@@ -26,6 +26,9 @@
 #include "PropertyEditorModule.h"
 #include "RandomizeColumnEditor.h"
 #include "ChooserTrack.h"
+#include "Kismet2/EnumEditorUtils.h"
+#include "EnumColumn.h"
+#include "UObject/UObjectIterator.h"
 
 #define LOCTEXT_NAMESPACE "ChooserEditorModule"
 
@@ -33,6 +36,22 @@ namespace UE::ChooserEditor
 {
 	
 FChoosersTrackCreator GChoosersTrackCreator;
+
+void FEnumChangedListener::PostChange(const UUserDefinedEnum* Changed, FEnumEditorUtils::EEnumEditorChangeInfo ChangedType)
+{
+	// iterate over all loaded choosers
+	for (TObjectIterator<UChooserTable> It; It; ++It)
+	{
+		UChooserTable* Chooser = *It;
+		for (FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
+		{
+			if (FEnumColumnBase* EnumColumn = ColumnData.GetMutablePtr<FEnumColumnBase>())
+			{
+				EnumColumn->EnumChanged(Changed);
+			}
+		}
+	}
+}
 
 void FModule::StartupModule()
 {
@@ -67,6 +86,8 @@ void FModule::StartupModule()
 	IModularFeatures::Get().RegisterModularFeature( IRewindDebuggerExtension::ModularFeatureName, &RewindDebuggerChooser);
 	IModularFeatures::Get().RegisterModularFeature(RewindDebugger::IRewindDebuggerTrackCreator::ModularFeatureName, &GChoosersTrackCreator);
 	IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, &ChooserTraceModule);
+
+	FEnumEditorUtils::FEnumEditorManager::Get().AddListener(&EnumChanged);
 }
 
 void FModule::ShutdownModule()
@@ -77,6 +98,8 @@ void FModule::ShutdownModule()
 	FChooserTableEditorCommands::Unregister();
 	
 	FChooserEditorStyle::Shutdown();
+	
+	FEnumEditorUtils::FEnumEditorManager::Get().RemoveListener(&EnumChanged);
 }
 
 }

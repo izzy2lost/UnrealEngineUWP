@@ -35,6 +35,15 @@ void UChooserTable::PostLoad()
 	Super::PostLoad();
 
 #if WITH_EDITORONLY_DATA
+	for (FInstancedStruct& ColumnData : ColumnsStructs)
+	{
+		if (ColumnData.IsValid())
+		{
+			FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
+			Column.PostLoad();
+		}
+	}
+
 	CachedPreviousOutputObjectType = OutputObjectType;
 	CachedPreviousResultType = ResultType;
 

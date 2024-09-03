@@ -149,10 +149,11 @@ TSharedRef<SWidget> CreateMultiEnumColumnWidget(UChooserTable* Chooser, FChooser
 		TSharedPtr<SWidget> DebugWidget = nullptr;
 		if (Chooser->GetEnableDebugTesting())
 		{
-			DebugWidget = SNew(SEnumCell<FMultiEnumColumn>).TransactionObject(Chooser).EnumColumn(MultiEnumColumn)
-								.OnValueSet_Lambda([MultiEnumColumn](int Value) { MultiEnumColumn->TestValue = Value; })
-								.EnumValue_Lambda([MultiEnumColumn]() { return MultiEnumColumn->TestValue; })
-								.IsEnabled_Lambda([Chooser] { return !Chooser->HasDebugTarget(); });
+			DebugWidget = SNew(SEnumCell)
+							.Enum_Lambda([MultiEnumColumn] () { return MultiEnumColumn->GetEnum(); })
+							.OnValueSet_Lambda([MultiEnumColumn](int Value) { MultiEnumColumn->TestValue = Value; })
+							.EnumValue_Lambda([MultiEnumColumn]() { return MultiEnumColumn->TestValue; })
+							.IsEnabled_Lambda([Chooser] { return !Chooser->HasDebugTarget(); });
 			
 			// need to fix support for bitfield enums:
 			// DebugWidget = SNew(SMultiEnumCell<FMultiEnumColumn>).TransactionObject(Chooser).MultiEnumColumn(MultiEnumColumn)

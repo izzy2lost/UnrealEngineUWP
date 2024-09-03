@@ -50,6 +50,16 @@ public:
 	virtual void Filter(FChooserEvaluationContext& Context, const FChooserIndexArray& IndexListIn, FChooserIndexArray& IndexListOut) const override;
 	
 #if WITH_EDITOR
+	const UEnum* GetEnum() const 
+	{
+		const UEnum* Enum = nullptr;
+		if (const FChooserParameterEnumBase* Input = InputValue.GetPtr<FChooserParameterEnumBase>())
+		{
+			Enum = Input->GetEnum();
+		}
+		return Enum;
+	}
+	
 	mutable uint8 TestValue = 0;
 	virtual bool EditorTestFilter(int32 RowIndex) const override
 	{

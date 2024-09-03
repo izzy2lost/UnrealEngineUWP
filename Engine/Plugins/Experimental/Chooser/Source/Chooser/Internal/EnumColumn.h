@@ -69,6 +69,9 @@ struct FChooserEnumRowData
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	bool CompareNotEqual_DEPRECATED = false;
+
+	UPROPERTY(EditAnywhere, Category = EditorOnly)
+	FName ValueName;
 #endif
 	
 	UPROPERTY(EditAnywhere, Category = Runtime, Meta = (ValidEnumValues = "MatchEqual, MatchNotEqual, MatchAny"))
@@ -81,8 +84,16 @@ struct FChooserEnumRowData
 };
 
 
+USTRUCT(Meta=(Hidden))
+struct CHOOSER_API FEnumColumnBase : public FChooserColumnBase
+{
+	GENERATED_BODY()
+	
+	virtual void EnumChanged(const UEnum* Enum) {}
+};
+
 USTRUCT()
-struct CHOOSER_API FEnumColumn : public FChooserColumnBase
+struct CHOOSER_API FEnumColumn : public FEnumColumnBase
 {
 	GENERATED_BODY()
 public:
@@ -104,6 +115,16 @@ public:
 	virtual void Filter(FChooserEvaluationContext& Context, const FChooserIndexArray& IndexListIn, FChooserIndexArray& IndexListOut) const override;
 	
 #if WITH_EDITOR
+	const UEnum* GetEnum() const 
+	{
+		const UEnum* Enum = nullptr;
+		if (const FChooserParameterEnumBase* Input = InputValue.GetPtr<FChooserParameterEnumBase>())
+		{
+			Enum = Input->GetEnum();
+		}
+		return Enum;
+	}
+	
 	mutable uint8 TestValue = 0;
 	virtual bool EditorTestFilter(int32 RowIndex) const override
 	{
@@ -116,8 +137,10 @@ public:
 		Reader << TestValue;
 	}
 	
-	virtual void AddToDetails (FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex);
-	virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex);
+	virtual void AddToDetails (FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
+	virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
+
+	virtual void EnumChanged(const UEnum* Enum) override;
 #endif
 	
 	CHOOSER_COLUMN_BOILERPLATE(FChooserParameterEnumBase);

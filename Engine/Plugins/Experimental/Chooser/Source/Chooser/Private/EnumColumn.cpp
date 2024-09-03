@@ -3,6 +3,7 @@
 #include "ChooserIndexArray.h"
 #include "ChooserPropertyAccess.h"
 #include "ChooserTrace.h"
+#include "Engine/UserDefinedEnum.h"
 #if WITH_EDITOR
 #include "StructUtils/PropertyBag.h"
 #endif
@@ -34,13 +35,32 @@ void FEnumColumn::PostLoad()
 	}
 
 #if WITH_EDITORONLY_DATA
-	// upgrade data for "Any" support
+	const UEnum* Enum = nullptr;
+	if (InputValue.IsValid())
+	{
+		Enum = InputValue.Get<FChooserParameterEnumBase>().GetEnum();
+	}
+	
 	for(FChooserEnumRowData& CellData : RowValues)
 	{
+		// upgrade data for "Any" support
 		if (CellData.CompareNotEqual_DEPRECATED)
 		{
 			CellData.CompareNotEqual_DEPRECATED = false;
 			CellData.Comparison = EEnumColumnCellValueComparison::MatchNotEqual;
+		}
+
+		if (Enum)
+		{
+			if (Enum->IsValidEnumName(CellData.ValueName))
+			{
+				CellData.Value = Enum->GetValueByName(CellData.ValueName);
+			}
+			else
+			// if StringValue is empty (or the names in the enum have changed) upgrade old data, to have a valid Name
+			{
+				CellData.ValueName = Enum->GetNameByValue(CellData.Value);
+			}
 		}
 	}
 #endif
@@ -138,6 +158,28 @@ void FEnumColumn::Filter(FChooserEvaluationContext& Context, const FChooserIndex
 			if (const FEnumProperty* ComparisonProperty = CastField<FEnumProperty>(StructDefinition->FindPropertyByName("Comparison")))
 			{
 				ComparisonProperty->GetValue_InContainer(StructView->GetMemory(), &RowValues[RowIndex].Comparison);
+			}
+		}
+	}
+
+	void FEnumColumn::EnumChanged(const UEnum* Enum)
+	{
+		if (InputValue.IsValid())
+		{
+			if (Enum == InputValue.Get<FChooserParameterEnumBase>().GetEnum())
+			{
+				for(FChooserEnumRowData& CellData : RowValues)
+				{
+					if (Enum->IsValidEnumName(CellData.ValueName))
+					{
+						CellData.Value = Enum->GetValueByName(CellData.ValueName);
+					}
+					else
+					// if StringValue is empty (or the names in the enum have changed) upgrade old data, to have a valid Name
+					{
+						CellData.ValueName = Enum->GetNameByValue(CellData.Value);
+					}
+				}
 			}
 		}
 	}

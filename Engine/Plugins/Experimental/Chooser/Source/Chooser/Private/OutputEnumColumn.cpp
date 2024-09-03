@@ -33,7 +33,48 @@ void FOutputEnumColumn::SetOutputs(FChooserEvaluationContext& Context, int RowIn
 #endif
 }
 
+#if WITH_EDITORONLY_DATA
+void FOutputEnumColumn::PostLoad()
+{
+	Super::PostLoad();
+    	
+    if (InputValue.IsValid())
+    {
+    	InputValue.GetMutable<FChooserParameterBase>().PostLoad();
+    	
+	    if (const UEnum* Enum = InputValue.Get<FChooserParameterEnumBase>().GetEnum())
+	    {
+	    	for(FChooserOutputEnumRowData& CellData : RowValues)
+	    	{
+	    		if (Enum)
+	    		{
+	    			if (Enum->IsValidEnumName(CellData.ValueName))
+	    			{
+	    				CellData.Value = Enum->GetValueByName(CellData.ValueName);
+	    			}
+	    			else
+					// if StringValue is empty (or the names in the enum have changed) upgrade old data, to have a valid Name
+					{
+						CellData.ValueName = Enum->GetNameByValue(CellData.Value);
+					}
+	    		}
+	    	}
+	    	if (Enum->IsValidEnumName(FallbackValue.ValueName))
+			{
+				FallbackValue.Value = Enum->GetValueByName(FallbackValue.ValueName);
+			}
+			else
+			// if StringValue is empty (or the names in the enum have changed) upgrade old data, to have a valid Name
+			{
+				FallbackValue.ValueName = Enum->GetNameByValue(FallbackValue.Value);
+			}
+	    }
+    }
+}
+#endif
+
 #if WITH_EDITOR
+
 	void FOutputEnumColumn::AddToDetails (FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)
 	{
 		FText DisplayName;
@@ -58,4 +99,36 @@ void FOutputEnumColumn::SetOutputs(FChooserEvaluationContext& Context, int RowIn
 			RowValues[RowIndex].Value = *Value;
 		}
 	}
+
+void FOutputEnumColumn::EnumChanged(const UEnum* Enum)
+{
+	if (InputValue.IsValid())
+	{
+		if (Enum == InputValue.Get<FChooserParameterEnumBase>().GetEnum())
+		{
+			for(FChooserOutputEnumRowData& CellData : RowValues)
+			{
+				if (Enum->IsValidEnumName(CellData.ValueName))
+				{
+					CellData.Value = Enum->GetValueByName(CellData.ValueName);
+				}
+				else
+				// if StringValue is empty (or the names in the enum have changed) upgrade old data, to have a valid Name
+				{
+					CellData.ValueName = Enum->GetNameByValue(CellData.Value);
+				}
+			}
+			
+			if (Enum->IsValidEnumName(FallbackValue.ValueName))
+			{
+				FallbackValue.Value = Enum->GetValueByName(FallbackValue.ValueName);
+			}
+			else
+			// if StringValue is empty (or the names in the enum have changed) upgrade old data, to have a valid Name
+			{
+				FallbackValue.ValueName = Enum->GetNameByValue(FallbackValue.Value);
+			}
+		}
+	}
+}
 #endif

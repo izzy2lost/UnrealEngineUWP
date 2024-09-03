@@ -6,6 +6,7 @@
 #include "IChooserParameterEnum.h"
 #include "StructUtils/InstancedStruct.h"
 #include "ChooserPropertyAccess.h"
+#include "EnumColumn.h"
 #include "OutputEnumColumn.generated.h"
 
 USTRUCT()
@@ -15,11 +16,16 @@ struct FChooserOutputEnumRowData
 
 	UPROPERTY(EditAnywhere, Category = Runtime)
 	uint8 Value = 0;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(EditAnywhere, Category = EditorOnly)
+	FName ValueName;
+#endif
 };
 
 
 USTRUCT()
-struct CHOOSER_API FOutputEnumColumn : public FChooserColumnBase
+struct CHOOSER_API FOutputEnumColumn : public FEnumColumnBase
 {
 	GENERATED_BODY()
 public:
@@ -38,6 +44,8 @@ public:
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = "Data")
 	FChooserOutputEnumRowData DefaultRowValue;
+
+	virtual void PostLoad() override;
 #endif
 	
 	UPROPERTY(EditAnywhere, Category = "Data")
@@ -46,10 +54,22 @@ public:
 	TArray<FChooserOutputEnumRowData> RowValues;
 	
 #if WITH_EDITOR
+	const UEnum* GetEnum() const 
+	{
+		const UEnum* Enum = nullptr;
+		if (const FChooserParameterEnumBase* Input = InputValue.GetPtr<FChooserParameterEnumBase>())
+		{
+			Enum = Input->GetEnum();
+		}
+		return Enum;
+	}
+
 	mutable uint8 TestValue;
 
 	virtual void AddToDetails (FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
 	virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
+	
+	virtual void EnumChanged(const UEnum* Enum) override;
 #endif
 	
 	CHOOSER_COLUMN_BOILERPLATE(FChooserParameterEnumBase);

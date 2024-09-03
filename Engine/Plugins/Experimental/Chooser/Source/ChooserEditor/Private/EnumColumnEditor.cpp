@@ -1,22 +1,87 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "EnumColumnEditor.h"
-#include "EnumColumn.h"
-#include "OutputEnumColumn.h"
-#include "SPropertyAccessChainWidget.h"
-#include "ObjectChooserWidgetFactories.h"
-#include "ChooserTableEditor.h"
 #include "ChooserColumnHeader.h"
+#include "ChooserTableEditor.h"
+#include "DetailLayoutBuilder.h"
+#include "EnumColumn.h"
 #include "GraphEditorSettings.h"
-#include "SEnumCombo.h"
-#include "TransactionCommon.h"
-#include "Widgets/Input/SButton.h"
+#include "ObjectChooserWidgetFactories.h"
+#include "OutputEnumColumn.h"
 #include "ScopedTransaction.h"
+#include "SPropertyAccessChainWidget.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SComboButton.h"
 
 #define LOCTEXT_NAMESPACE "EnumColumnEditor"
 
 namespace UE::ChooserEditor
 {
+
+TSharedRef<SWidget> SEnumCell::GenerateEnumMenu() const
+{
+	if (const UEnum* EnumSource = Enum.Get())
+	{
+		FMenuBuilder MenuBuilder(true, nullptr);
+		for (int32 EnumIndex = 0; EnumIndex < EnumSource->NumEnums() - 1; ++EnumIndex)
+		{
+			const bool bIsHidden = EnumSource->HasMetaData(TEXT("Hidden"), EnumIndex);
+			if (!bIsHidden)
+			{
+				MenuBuilder.AddMenuEntry(EnumSource->GetDisplayNameTextByIndex(EnumIndex),
+					FText()/*todo tooltip*/,
+					FSlateIcon(),
+					FUIAction(
+					FExecuteAction::CreateLambda([this, EnumValue = EnumSource->GetValueByIndex(EnumIndex)]() 
+					{
+						OnValueSet.ExecuteIfBound(EnumValue);
+					})	
+					));
+			}
+		}
+		return MenuBuilder.MakeWidget();
+	}
+	return SNullWidget::NullWidget;
+}
+	
+TSharedRef<SWidget> SEnumCell::CreateEnumComboBox()
+{
+	return SNew(SComboButton)
+		.IsEnabled_Lambda([this](){ return IsEnabled(); } )
+		.OnGetMenuContent(this, &SEnumCell::GenerateEnumMenu)
+		.VAlign(VAlign_Center)
+		.ButtonContent()
+		[
+			SNew(STextBlock)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.Text_Lambda([this]()
+			{
+				if (const UEnum* EnumSource = Enum.Get())
+				{
+					return EnumSource->GetDisplayNameTextByValue(EnumValue.Get());
+				}
+				return FText();
+			})
+		];
+	
+	return SNullWidget::NullWidget;
+}
+
+void SEnumCell::Construct( const FArguments& InArgs)
+{
+	SetEnabled(InArgs._IsEnabled);
+	
+	Enum = InArgs._Enum;
+	EnumValue = InArgs._EnumValue;
+	OnValueSet = InArgs._OnValueSet;
+
+	ChildSlot
+	[
+		CreateEnumComboBox()
+	];
+}
+
 
 TSharedRef<SWidget> CreateEnumColumnWidget(UChooserTable* Chooser, FChooserColumnBase* Column, int Row)
 {
@@ -35,13 +100,18 @@ TSharedRef<SWidget> CreateEnumColumnWidget(UChooserTable* Chooser, FChooserColum
 		TSharedPtr<SWidget> DebugWidget = nullptr;
 		if (Chooser->GetEnableDebugTesting())
 		{
-			DebugWidget = SNew(SEnumCell<FEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn)
+			DebugWidget = SNew(SEnumCell)
+								.Enum_Lambda([EnumColumn]() { return EnumColumn->GetEnum(); })
 								.OnValueSet_Lambda([EnumColumn](int Value) { EnumColumn->TestValue = Value; })
 								.EnumValue_Lambda([EnumColumn]() { return EnumColumn->TestValue; })
 								.IsEnabled_Lambda([Chooser] { return !Chooser->HasDebugTarget(); });
 		}
 
-		return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget);
+		return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget,
+			FChooserWidgetValueChanged::CreateLambda([EnumColumn]()
+			{
+				EnumColumn->EnumChanged(EnumColumn->InputValue.Get<FChooserParameterEnumBase>().GetEnum());
+			}));
 	}
 
 	// create cell widget
@@ -85,19 +155,31 @@ TSharedRef<SWidget> CreateEnumColumnWidget(UChooserTable* Chooser, FChooserColum
 			]
 			+ SHorizontalBox::Slot().FillWidth(1)
 			[
-				SNew(SEnumCell<FEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn)
-					.OnValueSet_Lambda([EnumColumn, Row](int Value)
+				SNew(SEnumCell)
+					.Enum_Lambda([EnumColumn]() { return EnumColumn->GetEnum(); })
+					.OnValueSet_Lambda([Chooser, EnumColumn, Row](int Value)
 					{
+						FScopedTransaction Transaction(LOCTEXT("Set Enum Value", "Set Enum Value"));
+						Chooser->Modify();
+						
 						if (EnumColumn->RowValues.IsValidIndex(Row))
 						{
 							EnumColumn->RowValues[Row].Value = static_cast<uint8>(Value);
+
+							if (EnumColumn->InputValue.IsValid())
+							{
+								if (const UEnum* Enum = EnumColumn->InputValue.Get<FChooserParameterEnumBase>().GetEnum())
+								{
+									EnumColumn->RowValues[Row].ValueName = Enum->GetNameByValue(Value);
+								}
+							}
 						}
 					})
 					.EnumValue_Lambda([EnumColumn, Row]()
 					{
 						return EnumColumn->RowValues.IsValidIndex(Row) ? static_cast<int32>(EnumColumn->RowValues[Row].Value) : 0;
 					})
-				.Visibility_Lambda([EnumColumn,Column, Row]()
+					.Visibility_Lambda([EnumColumn,Column, Row]()
 					{
 						return (EnumColumn->RowValues.IsValidIndex(Row) &&
 								EnumColumn->RowValues[Row].Comparison == EEnumColumnCellValueComparison::MatchAny)
@@ -120,27 +202,60 @@ TSharedRef<SWidget> CreateOutputEnumColumnWidget(UChooserTable* Chooser, FChoose
 		TSharedPtr<SWidget> DebugWidget = nullptr;
 		if (Chooser->GetEnableDebugTesting())
 		{
-			DebugWidget = SNew(SEnumCell<FOutputEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn).IsEnabled(false)
+			DebugWidget = SNew(SEnumCell)
+					.IsEnabled(false)
+					.Enum_Lambda([EnumColumn](){ return EnumColumn->GetEnum(); } )
 					.EnumValue_Lambda([EnumColumn]() { return static_cast<int32>(EnumColumn->TestValue); });
 		}
 
-		return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget);
+		return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget,
+				FChooserWidgetValueChanged::CreateLambda([EnumColumn]()
+				{
+					EnumColumn->EnumChanged(EnumColumn->InputValue.Get<FChooserParameterEnumBase>().GetEnum());
+				}));	
 	}
 	else if (Row == ColumnWidget_SpecialIndex_Fallback)
 	{
-		return 	SNew(SEnumCell<FOutputEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn)
-        			.OnValueSet_Lambda([EnumColumn](int Value) { EnumColumn->FallbackValue.Value = Value; })
+		return SNew(SEnumCell)
+					.Enum_Lambda([EnumColumn](){ return EnumColumn->GetEnum(); } )
+        			.OnValueSet_Lambda([Chooser, EnumColumn](int Value)
+        			{
+						FScopedTransaction Transaction(LOCTEXT("Set Enum Value", "Set Enum Value"));
+						Chooser->Modify();
+					
+						EnumColumn->FallbackValue.Value = Value;
+
+						if (EnumColumn->InputValue.IsValid())
+						{
+							if (const UEnum* Enum = EnumColumn->InputValue.Get<FChooserParameterEnumBase>().GetEnum())
+							{
+								EnumColumn->FallbackValue.ValueName = Enum->GetNameByValue(Value);
+							}
+						}
+        			})
         			.EnumValue_Lambda([EnumColumn]() { return EnumColumn->FallbackValue.Value; });
 	}
 
 	// create cell widget
 	
-	return SNew(SEnumCell<FOutputEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn)
-		.OnValueSet_Lambda([EnumColumn, Row](int Value)
+	return SNew(SEnumCell)
+		.Enum_Lambda([EnumColumn](){ return EnumColumn->GetEnum(); } )
+		.OnValueSet_Lambda([EnumColumn, Chooser, Row](int Value)
 		{
+			FScopedTransaction Transaction(LOCTEXT("Set Enum Value", "Set Enum Value"));
+			Chooser->Modify();
+			
 			if (EnumColumn->RowValues.IsValidIndex(Row))
 			{
 				EnumColumn->RowValues[Row].Value = static_cast<uint8>(Value);
+
+				if (EnumColumn->InputValue.IsValid())
+				{
+					if (const UEnum* Enum = EnumColumn->InputValue.Get<FChooserParameterEnumBase>().GetEnum())
+					{
+						EnumColumn->RowValues[Row].ValueName = Enum->GetNameByValue(Value);
+					}
+				}
 			}
 		})
 		.EnumValue_Lambda([EnumColumn, Row]()
