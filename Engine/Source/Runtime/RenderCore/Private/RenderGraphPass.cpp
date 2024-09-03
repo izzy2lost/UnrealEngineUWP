@@ -4,6 +4,8 @@
 #include "RenderGraphPrivate.h"
 #include "RenderGraphBuilder.h"
 
+FEmptyShaderParameters FRDGSentinelPass::EmptyShaderParameters;
+
 FUniformBufferStaticBindings FRDGParameterStruct::GetStaticUniformBuffers() const
 {
 	FUniformBufferStaticBindings GlobalUniformBuffers;

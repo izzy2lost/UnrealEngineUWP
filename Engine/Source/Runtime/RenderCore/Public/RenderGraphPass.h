@@ -793,9 +793,12 @@ public:
 	{}
 
 private:
-	FEmptyShaderParameters EmptyShaderParameters;
+	static FEmptyShaderParameters EmptyShaderParameters;
 	friend class FRDGBuilder;
 };
+
+template <typename ExecuteLambdaType>
+FEmptyShaderParameters TRDGEmptyLambdaPass<ExecuteLambdaType>::EmptyShaderParameters;
 
 /** Render graph pass used for the prologue / epilogue passes. */
 class FRDGSentinelPass final
@@ -809,7 +812,7 @@ public:
 	}
 
 private:
-	FEmptyShaderParameters EmptyShaderParameters;
+	static FEmptyShaderParameters EmptyShaderParameters;
 };
 
 #include "RenderGraphParameters.inl" // IWYU pragma: export
