@@ -5,13 +5,17 @@
 #include "Dataflow/DataflowNodeFactory.h"
 #include "Dataflow/DataflowNodeColorsRegistry.h"
 
+#include "MathUtil.h"
+
 namespace Dataflow
 {
 	void RegisterDataflowMathNodes()
 	{
+		// scalar
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathAbsNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathAddNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathCeilNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathConstantNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathCubeNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathDivideNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathExpNode);
@@ -24,6 +28,7 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathMinimumNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathMultiplyNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathNegateNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathOneMinusNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathPowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathReciprocalNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathRoundNode);
@@ -32,6 +37,17 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathSquareRootNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathSubtractNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathTruncNode);
+
+		// trigonometric
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathCosNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathSinNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathTanNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathArcCosNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathArcSinNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathArcTanNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathArcTan2Node)
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathDegToRadNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowMathRadToDegNode);
 
 		// Math
 		static constexpr FLinearColor CDefaultMathNodeBodyTintColor(0.f, 0.f, 0.f, 0.5f);
@@ -51,8 +67,8 @@ void FDataflowMathOneInputOperatorNode::RegisterInputsAndOutputs()
 	RegisterInputConnection(&A);
 	RegisterOutputConnection(&Result);
 
-	// set the output to double for now so that it is strongly type and easy to connect to the next node
-	// Cnce we can change the outpout type from the UI , this could be removed 
+	// Set the output to double for now so that it is strongly type and easy to connect to the next node
+	// Once we can change the output type from the UI, this could be removed 
 	SetOutputConcreteType(&Result, TDataflowSingleTypePolicy<double>::TypeName);
 }
 
@@ -79,8 +95,8 @@ void FDataflowMathTwoInputsOperatorNode::RegisterInputsAndOutputs()
 	RegisterInputConnection(&B);
 	RegisterOutputConnection(&Result);
 
-	// set the output to double for now so that it is strongly type and easy to connect to the next node
-	// Cnce we can change the outpout type from the UI , this could be removed 
+	// Set the output to double for now so that it is strongly type and easy to connect to the next node
+	// Once we can change the output type from the UI, this could be removed 
 	SetOutputConcreteType(&Result, TDataflowSingleTypePolicy<double>::TypeName);
 }
 
@@ -419,4 +435,182 @@ FDataflowMathSignNode::FDataflowMathSignNode(const Dataflow::FNodeParameters& In
 double FDataflowMathSignNode::ComputeResult(Dataflow::FContext& Context, double InA) const
 {
 	return FMath::Sign(InA);
+}
+
+//-----------------------------------------------------------------------------------------------
+
+FDataflowMathOneMinusNode::FDataflowMathOneMinusNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
+{
+	RegisterInputsAndOutputs();
+}
+
+double FDataflowMathOneMinusNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+{
+	return (1.0 - InA);
+}
+
+//-----------------------------------------------------------------------------------------------
+
+FDataflowMathConstantNode::FDataflowMathConstantNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowNode(InParam, InGuid)
+{
+	RegisterOutputConnection(&Result);
+
+	// Set the output to double for now so that it is strongly type and easy to connect to the next node
+	// Once we can change the output type from the UI, this could be removed 
+	SetOutputConcreteType(&Result, TDataflowSingleTypePolicy<double>::TypeName);
+}
+
+double FDataflowMathConstantNode::GetConstant() const
+{
+	switch (Constant)
+	{
+	case EDataflowMathConstantsEnum::Dataflow_Math_Constants_Pi:			return FMathd::Pi;
+	case EDataflowMathConstantsEnum::Dataflow_Math_Constants_HalfPi:		return FMathd::HalfPi;
+	case EDataflowMathConstantsEnum::Dataflow_Math_Constants_TwoPi:			return FMathd::TwoPi;
+	case EDataflowMathConstantsEnum::Dataflow_Math_Constants_FourPi:		return FMathd::FourPi;
+	case EDataflowMathConstantsEnum::Dataflow_Math_Constants_InvPi:			return FMathd::InvPi;
+	case EDataflowMathConstantsEnum::Dataflow_Math_Constants_InvTwoPi:		return FMathd::InvTwoPi;
+	case EDataflowMathConstantsEnum::Dataflow_Math_Constants_Sqrt2:			return FMathd::Sqrt2;
+	case EDataflowMathConstantsEnum::Dataflow_Math_Constants_InvSqrt2:		return FMathd::InvSqrt2;
+	case EDataflowMathConstantsEnum::Dataflow_Math_Constants_Sqrt3:			return FMathd::Sqrt3;
+	case EDataflowMathConstantsEnum::Dataflow_Math_Constants_InvSqrt3:		return FMathd::InvSqrt3;
+	case EDataflowMathConstantsEnum::Dataflow_Math_Constants_E:				return 2.71828182845904523536;
+	case EDataflowMathConstantsEnum::Dataflow_Math_Constants_Gamma:			return 0.577215664901532860606512090082;
+	case EDataflowMathConstantsEnum::Dataflow_Math_Constants_GoldenRatio:	return 1.618033988749894;
+	default:
+		break;
+	}
+	ensureMsgf(false, TEXT("Unexpected constant enum, returning a zero value. Is it missing from the list above ?"));
+	return 0.0;
+}
+
+void FDataflowMathConstantNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&Result))
+	{
+		SetValue(Context, GetConstant(), &Result);
+	}
+}
+
+//--------------------------------------------------------------------------
+//
+// Trigonometric nodes
+//
+//--------------------------------------------------------------------------
+
+FDataflowMathSinNode::FDataflowMathSinNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
+{
+	RegisterInputsAndOutputs();
+}
+
+double FDataflowMathSinNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+{
+	return FMath::Sin(InA);
+}
+
+//-----------------------------------------------------------------------------------------------
+
+FDataflowMathCosNode::FDataflowMathCosNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
+{
+	RegisterInputsAndOutputs();
+}
+
+double FDataflowMathCosNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+{
+	return FMath::Cos(InA);
+}
+
+//-----------------------------------------------------------------------------------------------
+
+FDataflowMathTanNode::FDataflowMathTanNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
+{
+	RegisterInputsAndOutputs();
+}
+
+double FDataflowMathTanNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+{
+	return FMath::Tan(InA);
+}
+
+//-----------------------------------------------------------------------------------------------
+
+FDataflowMathArcSinNode::FDataflowMathArcSinNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
+{
+	RegisterInputsAndOutputs();
+}
+
+double FDataflowMathArcSinNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+{
+	return FMath::Asin(InA);
+}
+
+//-----------------------------------------------------------------------------------------------
+
+FDataflowMathArcCosNode::FDataflowMathArcCosNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
+{
+	RegisterInputsAndOutputs();
+}
+
+double FDataflowMathArcCosNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+{
+	return FMath::Acos(InA);
+}
+
+//-----------------------------------------------------------------------------------------------
+
+FDataflowMathArcTanNode::FDataflowMathArcTanNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
+{
+	RegisterInputsAndOutputs();
+}
+
+double FDataflowMathArcTanNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+{
+	return FMath::Atan(InA);
+}
+
+//-----------------------------------------------------------------------------------------------
+
+FDataflowMathArcTan2Node::FDataflowMathArcTan2Node(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowMathTwoInputsOperatorNode(InParam, InGuid)
+{
+	RegisterInputsAndOutputs();
+}
+
+double FDataflowMathArcTan2Node::ComputeResult(Dataflow::FContext& Context, double InA, double InB) const
+{
+	return FMath::Atan2(InA, InB);
+}
+
+//-----------------------------------------------------------------------------------------------
+
+FDataflowMathDegToRadNode::FDataflowMathDegToRadNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
+{
+	RegisterInputsAndOutputs();
+}
+
+double FDataflowMathDegToRadNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+{
+	return FMath::DegreesToRadians(InA);
+}
+
+//-----------------------------------------------------------------------------------------------
+
+FDataflowMathRadToDegNode::FDataflowMathRadToDegNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowMathOneInputOperatorNode(InParam, InGuid)
+{
+	RegisterInputsAndOutputs();
+}
+
+double FDataflowMathRadToDegNode::ComputeResult(Dataflow::FContext& Context, double InA) const
+{
+	return FMath::RadiansToDegrees(InA);
 }

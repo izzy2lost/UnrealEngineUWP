@@ -5,6 +5,7 @@
 #include "Dataflow/DataflowNode.h"
 #include "Dataflow/DataflowCoreNodes.h"
 #include "Dataflow/DataflowMathNodes.h"
+#include "Dataflow/DataflowVectorNodes.h"
 #include "Misc/MessageDialog.h"
 #include "Logging/LogMacros.h"
 
@@ -18,6 +19,7 @@ namespace Dataflow
 	{
 		Dataflow::RegisterCoreNodes();
 		Dataflow::RegisterDataflowMathNodes();
+		Dataflow::RegisterDataflowVectorNodes();
 	}
 
 	TSharedPtr<FDataflowNode> FNodeFactory::NewNodeFromRegisteredType(FGraph& Graph, const FNewNodeParameters& Param)

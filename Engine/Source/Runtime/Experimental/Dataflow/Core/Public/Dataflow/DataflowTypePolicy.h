@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Misc/TVariant.h"
 #include "UObject/Object.h"
+#include "Math/MathFwd.h"
 #include <string>
 
 class UObject;
@@ -38,6 +39,12 @@ UE_DATAFLOW_POLICY_DECLARE_TYPENAME(double)
 UE_DATAFLOW_POLICY_DECLARE_TYPENAME(FName)
 UE_DATAFLOW_POLICY_DECLARE_TYPENAME(FString)
 UE_DATAFLOW_POLICY_DECLARE_TYPENAME(TObjectPtr<UObject>)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(FVector2D)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(FVector)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(FVector4)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(FVector2f)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(FVector3f)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(FVector4f)
 
 #undef UE_DATAFLOW_POLICY_DECLARE_TYPENAME
 
@@ -157,6 +164,12 @@ struct FDataflowNumericTypePolicy :
 {
 };
 
+struct FDataflowVectorTypePolicy:
+	public TDataflowMultiTypePolicy<FVector2D, FVector, FVector4, FVector2f, FVector3f, FVector4f>
+{
+};
+
+
 struct FDataflowStringTypePolicy :
 	public TDataflowMultiTypePolicy<FString, FName>
 {
@@ -166,6 +179,7 @@ struct FDataflowStringTypePolicy :
 * string comvertible types
 * - FString / Fname
 * - Numeric types ( see FDataflowNumericTypePolicy )
+* - Vector types ( see FDataflowVectorTypePolicy )
 * - bool
 */
 struct FDataflowStringConvertibleTypePolicy : IDataflowTypePolicy
@@ -179,6 +193,7 @@ struct FDataflowStringConvertibleTypePolicy : IDataflowTypePolicy
 	{
 		return FDataflowStringTypePolicy::SupportsTypeStatic(InType)
 			|| FDataflowNumericTypePolicy::SupportsTypeStatic(InType)
+			|| FDataflowVectorTypePolicy::SupportsTypeStatic(InType)
 			|| TDataflowSingleTypePolicy<bool>::SupportsTypeStatic(InType)
 			;
 	}
@@ -188,6 +203,7 @@ struct FDataflowStringConvertibleTypePolicy : IDataflowTypePolicy
 	{
 		return FDataflowStringTypePolicy::VisitPolicyByType(RequestedType, Visitor)
 			|| FDataflowNumericTypePolicy::VisitPolicyByType(RequestedType, Visitor)
+			|| FDataflowVectorTypePolicy::VisitPolicyByType(RequestedType, Visitor)
 			|| TDataflowSingleTypePolicy<bool>::VisitPolicyByType(RequestedType, Visitor)
 			;
 	}
@@ -267,6 +283,19 @@ struct FDataflowConverter
 	static void To(const T& From, TToType& To) { To = From; }
 };
 
+template<typename T>
+concept HasToStringMethod =
+	requires(T t) {
+		static_cast<FString>(t.ToString());
+};
+
+
+template<typename T>
+concept HasInitFromStringMethod =
+	requires(T t, const FString& s ) {
+		static_cast<bool>(t.InitFromString(s));
+};
+
 template <>
 struct FDataflowConverter<FString>
 {
@@ -284,6 +313,10 @@ struct FDataflowConverter<FString>
 		else if constexpr (std::is_convertible_v<TFromType, double>)
 		{
 			To = FString::SanitizeFloat(double(From), 0);
+		}
+		else if constexpr (HasToStringMethod<TFromType>)
+		{
+			To = From.ToString();
 		}
 		else
 		{
@@ -304,9 +337,67 @@ struct FDataflowConverter<FString>
 		}
 		else if constexpr (std::is_convertible_v<double, TToType>)
 		{
-			double Result = {};
+			double Result = {0};
 			LexTryParseString(Result, *From);
 			To = Result;
+		}
+		else if constexpr (HasInitFromStringMethod<TToType>)
+		{
+			To.InitFromString(From);
+		}
+		else
+		{
+			To = From;
+		}
+	}
+};
+
+template <>
+struct FDataflowConverter<FVector4>
+{
+	template <typename TFromType>
+	static void From(const TFromType& From, FVector4& To)
+	{
+		if constexpr (std::is_same_v<TFromType, FVector2D> || std::is_same_v<TFromType, FVector2f>)
+		{
+			To = FVector4{ (double)From.X, (double)From.Y, 0, 0};
+		}
+		else if constexpr (std::is_same_v<TFromType, FVector> || std::is_same_v<TFromType, FVector3f>)
+		{
+			To = FVector4{ (double)From.X, (double)From.Y, (double)From.Z, 0 };
+		}
+		else if constexpr (std::is_same_v<TFromType, FVector4f>)
+		{
+			To = FVector4{ (double)From.X, (double)From.Y, (double)From.Z, (double)From.W };
+		}
+		else
+		{
+			To = From;
+		}
+	}
+
+	template <typename TToType>
+	static void To(const FVector4& From, TToType& To)
+	{
+		if constexpr (std::is_same_v<TToType, FVector2D>)
+		{
+			To = FVector2D{ From.X, From.Y };
+		}
+		else if constexpr (std::is_same_v<TToType, FVector2f>)
+		{
+			To = FVector2f{ (float)From.X, (float)From.Y };
+		}
+		else if constexpr (std::is_same_v<TToType, FVector>)
+		{
+			To = FVector{ From.X, From.Y, From.Z };
+		}
+		else if constexpr (std::is_same_v<TToType, FVector3f>)
+		{
+			To = FVector3f{ (float)From.X, (float)From.Y, (float)From.Z };
+		}
+		else if constexpr (std::is_same_v<TToType, FVector4f>)
+		{
+			To = FVector4f{ (float)From.X, (float)From.Y, (float)From.Z, (float)From.W };
 		}
 		else
 		{

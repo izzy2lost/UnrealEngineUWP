@@ -7,6 +7,7 @@
 
 #include "DataflowAnyType.generated.h"
 
+/** Any supported type */
 USTRUCT()
 struct FDataflowAnyType
 {
@@ -17,6 +18,7 @@ struct FDataflowAnyType
 	DATAFLOWCORE_API static const FName TypeName;
 };
 
+/** Any supported type */
 USTRUCT()
 struct FDataflowAllTypes : public FDataflowAnyType
 {
@@ -25,6 +27,10 @@ struct FDataflowAllTypes : public FDataflowAnyType
 	GENERATED_USTRUCT_BODY()
 };
 
+/**
+* Numeric types
+* (double, float, int64, uint64, int32, uint32, int16, uint16, int8, uint8)"
+*/
 USTRUCT()
 struct FDataflowNumericTypes : public FDataflowAnyType
 {
@@ -37,6 +43,23 @@ struct FDataflowNumericTypes : public FDataflowAnyType
 	double Value = 0.0;
 };
 
+/**
+* Vector types
+* (2D, 3D and 4D vector, single and double precision)
+*/
+USTRUCT()
+struct FDataflowVectorTypes : public FDataflowAnyType
+{
+	using FPolicyType = FDataflowVectorTypePolicy;
+	using FStorageType = FVector4;
+
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, Category = Value)
+	FVector4 Value = FVector4(0, 0, 0, 0);
+};
+
+/** String types (FString or FName) */
 USTRUCT()
 struct FDataflowStringTypes : public FDataflowAnyType
 {
@@ -49,6 +72,10 @@ struct FDataflowStringTypes : public FDataflowAnyType
 	FString Value;
 };
 
+/**
+* String convertible types
+* (String types, Numeric types, Vector types and Booleans)
+*/
 USTRUCT()
 struct FDataflowStringConvertibleTypes : public FDataflowAnyType
 {
@@ -61,7 +88,7 @@ struct FDataflowStringConvertibleTypes : public FDataflowAnyType
 	FString Value;
 };
 
-
+/** UObject types */
 USTRUCT()
 struct FDataflowUObjectConvertibleTypes : public FDataflowAnyType
 {

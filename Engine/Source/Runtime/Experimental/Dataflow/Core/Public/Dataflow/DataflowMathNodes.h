@@ -10,6 +10,12 @@
 
 #include "DataflowMathNodes.generated.h"
 
+//--------------------------------------------------------------------------
+//
+// Trigonometric nodes
+//
+//--------------------------------------------------------------------------
+
 #define DATAFLOW_MATH_NODES_CATEGORY "Math|Scalar"
 
 /** One input operators base class */
@@ -365,16 +371,187 @@ public:
 	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
 };
 
-namespace Dataflow
+/** One minus (1 - A) */
+USTRUCT()
+struct FDataflowMathOneMinusNode : public FDataflowMathOneInputOperatorNode
 {
-	void RegisterDataflowMathNodes();
-}
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathOneMinusNode, "OneMinus", DATAFLOW_MATH_NODES_CATEGORY, "")
+
+public:
+	FDataflowMathOneMinusNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+};
+
+UENUM(BlueprintType)
+enum class EDataflowMathConstantsEnum : uint8
+{
+	Dataflow_Math_Constants_Pi			UMETA(DisplayName = "Pi"),
+	Dataflow_Math_Constants_HalfPi		UMETA(DisplayName = "HalfPi"),
+	Dataflow_Math_Constants_TwoPi		UMETA(DisplayName = "TwoPi"),
+	Dataflow_Math_Constants_FourPi		UMETA(DisplayName = "FourPi"),
+	Dataflow_Math_Constants_InvPi		UMETA(DisplayName = "InvPi"),
+	Dataflow_Math_Constants_InvTwoPi	UMETA(DisplayName = "InvTwoPi"),
+	Dataflow_Math_Constants_Sqrt2		UMETA(DisplayName = "Sqrt2"),
+	Dataflow_Math_Constants_InvSqrt2	UMETA(DisplayName = "InvSqrt2"),
+	Dataflow_Math_Constants_Sqrt3		UMETA(DisplayName = "Sqrt3"),
+	Dataflow_Math_Constants_InvSqrt3	UMETA(DisplayName = "InvSqrt3"),
+	Dataflow_Math_Constants_E			UMETA(DisplayName = "e"),
+	Dataflow_Math_Constants_Gamma		UMETA(DisplayName = "Gamma"),
+	Dataflow_Math_Constants_GoldenRatio	UMETA(DisplayName = "GoldenRatio"),
+	//~~~
+	//256th entry
+	Dataflow_Math_Constants_Max UMETA(Hidden)
+};
+
+/** Math constants ( see EDataflowMathConstantsEnum ) */
+USTRUCT()
+struct FDataflowMathConstantNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathConstantNode, "Constants", DATAFLOW_MATH_NODES_CATEGORY, "")
+
+	/** Math constant to output */
+	UPROPERTY(EditAnywhere, Category = "Constants");
+	EDataflowMathConstantsEnum Constant = EDataflowMathConstantsEnum::Dataflow_Math_Constants_Pi;
+
+	UPROPERTY(meta = (DataflowOutput))
+	FDataflowNumericTypes Result;
+
+public:
+	FDataflowMathConstantNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+
+private:
+	double GetConstant() const;
+};
+
+//--------------------------------------------------------------------------
+//
+// Trigonometric nodes
+//
+//--------------------------------------------------------------------------
+
+#define DATAFLOW_MATH_TRIG_NODES_CATEGORY "Math|Trig"
+
+/** Sin(A) with A in radians  */
+USTRUCT()
+struct FDataflowMathSinNode : public FDataflowMathOneInputOperatorNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathSinNode, "Sin", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
+
+public:
+	FDataflowMathSinNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+};
+
+/** Cos(A) with A in radians  */
+USTRUCT()
+struct FDataflowMathCosNode : public FDataflowMathOneInputOperatorNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathCosNode, "Cos", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
+
+public:
+	FDataflowMathCosNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+};
+
+/** Tan(A) with A in radians  */
+USTRUCT()
+struct FDataflowMathTanNode : public FDataflowMathOneInputOperatorNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathTanNode, "Tan", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
+
+public:
+	FDataflowMathTanNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+};
+
+/** ArcSin(A) returns a value in radians  */
+USTRUCT()
+struct FDataflowMathArcSinNode : public FDataflowMathOneInputOperatorNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathArcSinNode, "ArcSin", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
+
+public:
+	FDataflowMathArcSinNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+};
+
+/** ArcCos(A) returns a value in radians  */
+USTRUCT()
+struct FDataflowMathArcCosNode : public FDataflowMathOneInputOperatorNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathArcCosNode, "ArcCos", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
+
+public:
+	FDataflowMathArcCosNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+};
+
+/** ArcTan(A) returns a value in radians  */
+USTRUCT()
+struct FDataflowMathArcTanNode : public FDataflowMathOneInputOperatorNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathArcTanNode, "ArcTan", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
+
+public:
+	FDataflowMathArcTanNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+};
+
+/** ArcTan2(A, B) returns a value in radians  */
+USTRUCT()
+struct FDataflowMathArcTan2Node : public FDataflowMathTwoInputsOperatorNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathArcTan2Node, "ArcTan2", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
+
+public:
+	FDataflowMathArcTan2Node(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(Dataflow::FContext& Context, double InA, double InB) const override;
+};
+
+
+/** DegToRad(A) convert degrees to radians */
+USTRUCT()
+struct FDataflowMathDegToRadNode : public FDataflowMathOneInputOperatorNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathDegToRadNode, "DegToRad", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
+
+public:
+	FDataflowMathDegToRadNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+};
+
+/** RadToDeg(A) convert radians to degrees */
+USTRUCT()
+struct FDataflowMathRadToDegNode : public FDataflowMathOneInputOperatorNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowMathRadToDegNode, "RadToDeg", DATAFLOW_MATH_TRIG_NODES_CATEGORY, "")
+
+public:
+	FDataflowMathRadToDegNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	virtual double ComputeResult(Dataflow::FContext& Context, double InA) const override;
+};
+
+//--------------------------------------------------------------------------
+//
+// Trigonometric nodes
+//
+//--------------------------------------------------------------------------
+
 
 /*
 Nodes Left to be converted :
-	FMathConstantsDataflowNode);
-	FOneMinusDataflowNode);
-	
 	FFloatMathExpressionDataflowNode);
 	FMathExpressionDataflowNode);
 	
@@ -385,16 +562,7 @@ Nodes Left to be converted :
 	FLerpDataflowNode);
 	FWrapDataflowNode);
 
-	// trig
-	FSinDataflowNode);
-	FArcSinDataflowNode);
-	FCosDataflowNode);
-	FArcCosDataflowNode);
-	FTanDataflowNode);
-	FArcTanDataflowNode);
-	FArcTan2DataflowNode);
-	FRadiansToDegreesDataflowNode);
-	FDegreesToRadiansDataflowNode);
+
 
 	// vectors - requires Vector any type ? 
 	FNormalizeToRangeDataflowNode);
@@ -413,3 +581,8 @@ Nodes Left to be converted :
 	FRandomUnitVectorInConeDataflowNode);
 
 */
+
+namespace Dataflow
+{
+	void RegisterDataflowMathNodes();
+}
