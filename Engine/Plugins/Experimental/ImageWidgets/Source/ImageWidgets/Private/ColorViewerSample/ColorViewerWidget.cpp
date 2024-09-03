@@ -6,6 +6,9 @@
 
 #include "ColorViewerCommands.h"
 #include "ColorViewerStyle.h"
+#include "Algo/AllOf.h"
+#include "Algo/NoneOf.h"
+#include "Algo/Sort.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
 #define LOCTEXT_NAMESPACE "ColorViewerWidget"
@@ -36,7 +39,20 @@ namespace UE::ImageWidgets::Sample
 						.Value(0.0f)
 						[
 							SAssignNew(Catalog, ImageWidgets::SImageCatalog)
-								.OnItemSelected_Lambda([this](const FGuid& ImageGuid) { ColorViewer->OnImageSelected(ImageGuid); })
+								.PinnedItemsHeading(LOCTEXT("PinnedColors", "Pinned Colors"))
+								.ItemsHeading(LOCTEXT("Colors", "Colors"))
+								.OnItemSelected_Lambda([&ColorViewer = ColorViewer, &Viewport = Viewport](const FGuid& ImageGuid)
+								{
+									if (ColorViewer)
+									{
+										ColorViewer->OnImageSelected(ImageGuid);
+									}
+									if (Viewport)
+									{
+										Viewport->RequestRedraw();
+									}
+								})
+								.OnGetContextMenu(this, &SColorViewerWidget::GetContextMenu)
 						]
 					+ SSplitter::Slot()
 						.Value(1.0f)
@@ -138,6 +154,85 @@ namespace UE::ImageWidgets::Sample
 		}
 	}
 
+	TSharedPtr<SWidget> SColorViewerWidget::GetContextMenu(const TArray<FGuid>& Guids) const
+	{
+		checkSlow(!Guids.IsEmpty());
+		checkSlow(Algo::AllOf(Guids, [&Catalog = Catalog](const FGuid& Guid) { return Catalog->ItemIsPinned(Guid); })
+			|| Algo::NoneOf(Guids, [&Catalog = Catalog] (const FGuid& Guid) { return Catalog->ItemIsPinned(Guid); }));
+
+		FMenuBuilder MenuBuilder(true, nullptr);
+
+		if (Catalog->ItemIsPinned(Guids[0]))
+		{
+			MenuBuilder.AddMenuEntry(
+				LOCTEXT("UnpinItems", "Unpin"),
+				LOCTEXT("UnpinItemsTooltip", "Removes the selected item(s) from the list of pinned items."),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Unpinned"),
+				FUIAction(FExecuteAction::CreateLambda(
+					[Guids, Catalog = Catalog]
+					{
+						if (Catalog)
+						{
+							for (const FGuid& Guid : Guids)
+							{
+								Catalog->UnpinItem(Guid);
+							}
+							Catalog->SelectItem(Guids[0]);
+						}
+					})));
+		}
+		else
+		{
+			MenuBuilder.AddMenuEntry(
+				LOCTEXT("PinItems", "Pin"),
+				LOCTEXT("PinItemsTooltip", "Adds the selected item(s) to the list of pinned items."),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Pinned"),
+				FUIAction(
+					FExecuteAction::CreateLambda(
+						[Guids, Catalog = Catalog]
+						{
+							if (Catalog)
+							{
+								for (const FGuid& Guid : Guids)
+								{
+									Catalog->PinItem(Guid);
+								}
+								Catalog->SelectItem(Guids[0]);
+							}
+						})));
+		}
+
+#if 0
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("RenameItem", "Rename"),
+			LOCTEXT("RenameItemTooltip", "Renames a single selected item."),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Rename"),
+			FUIAction(
+				FExecuteAction::CreateLambda([]{}),
+				FCanExecuteAction::CreateLambda([bSingleItem = Guids.Num() == 1] { return bSingleItem; })));
+#endif
+
+		MenuBuilder.AddSeparator();
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("DeleteItems", "Delete"), LOCTEXT("DeleteItemsTooltip", "Deletes the selected item(s) from the catalog."),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Delete"),
+			FUIAction(FExecuteAction::CreateLambda(
+				[Guids, Catalog = Catalog, ColorViewer = ColorViewer]
+				{
+					if (Catalog && ColorViewer)
+					{
+						for (const FGuid& Guid : Guids)
+						{
+							Catalog->RemoveItem(Guid);
+							ColorViewer->RemoveColor(Guid);
+						}
+					}
+				})));
+
+		return MenuBuilder.MakeWidget();
+	}
+
 	void SColorViewerWidget::BindCommands()
 	{
 		const FColorViewerCommands& Commands = FColorViewerCommands::Get();
@@ -158,7 +253,7 @@ namespace UE::ImageWidgets::Sample
 			Commands.ToneMappingRGB,
 			FExecuteAction::CreateSP(ColorViewer.ToSharedRef(), &FColorViewer::SetToneMapping, FToneMapping::EMode::RGB),
 			FCanExecuteAction(),
-			FIsActionChecked::CreateLambda([this]
+			FIsActionChecked::CreateLambda([ColorViewer = ColorViewer]
 			{
 				return ColorViewer->GetToneMapping() == FToneMapping::EMode::RGB;
 			})
@@ -168,7 +263,7 @@ namespace UE::ImageWidgets::Sample
 			Commands.ToneMappingLum,
 			FExecuteAction::CreateSP(ColorViewer.ToSharedRef(), &FColorViewer::SetToneMapping, FToneMapping::EMode::Lum),
 			FCanExecuteAction(),
-			FIsActionChecked::CreateLambda([this]
+			FIsActionChecked::CreateLambda([ColorViewer = ColorViewer]
 			{
 				return ColorViewer->GetToneMapping() == FToneMapping::EMode::Lum;
 			})

@@ -43,6 +43,9 @@ namespace UE::ImageWidgets::Sample
 		/** Choose a random color for the current entry. */
 		void RandomizeColor();
 
+		/** Creates a context menu for a set of selected guids. */
+		TSharedPtr<SWidget> GetContextMenu(const TArray<FGuid>& Guids) const;
+
 		/** The image viewer implementation that contains the image data and renders the image. */
 		TSharedPtr<FColorViewer> ColorViewer;
 

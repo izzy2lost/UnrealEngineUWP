@@ -67,6 +67,9 @@ namespace UE::ImageWidgets::Sample
 
 		/** Adds a color item. */
 		const FColorItem* AddColor();
+
+		/** Removes a color item. */
+		void RemoveColor(const FGuid& Guid);
 		
 		/** Sets a random color as the current "image" as a simple proxy for the image content changing and/or users choosing different images to display. */
 		const FColorItem* RandomizeColor();
@@ -84,7 +87,10 @@ namespace UE::ImageWidgets::Sample
 
 	private:
 		/** Checks if a given index is a valid image. */
-		bool ColorIsValid(int32 Index) const;
+		bool ColorIndexIsValid(int32 Index) const;
+
+		/** Checks if a given guid is a valid image. */
+		bool ColorGuidIsValid(const FGuid& Guid) const;
 
 		/** Draws the color image with the given index. The UVs determine if all or only a part of the image is drawn, i.e. for AB comparisons. */
 		void DrawImage(int32 Index, FCanvas* Canvas, const FDrawProperties::FPlacement& Placement, const FVector2d& UV0, const FVector2d& UV1) const;

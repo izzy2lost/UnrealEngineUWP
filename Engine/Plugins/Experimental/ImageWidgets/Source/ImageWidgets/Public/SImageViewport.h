@@ -208,6 +208,11 @@ namespace UE::ImageWidgets
 		IMAGEWIDGETS_API FPixelCoordinatesUnderCursorResult GetPixelCoordinatesUnderCursor() const;
 
 		/**
+		 * Request to redraw the viewport contents as soon as possible.
+		 */
+		IMAGEWIDGETS_API void RequestRedraw() const;
+
+		/**
 		 * Resets the camera controller to default values.
 		 * @param ImageSize Size of the currently displayed image in pixels
 		 */

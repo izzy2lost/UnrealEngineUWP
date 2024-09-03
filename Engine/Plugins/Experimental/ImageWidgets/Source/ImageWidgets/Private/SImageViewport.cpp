@@ -238,6 +238,15 @@ namespace UE::ImageWidgets
 		return {PixelCoordsValid, PixelCoords};
 	}
 
+	void SImageViewport::RequestRedraw() const
+	{
+		const TSharedPtr<FEditorViewportClient> ViewportClient = GetViewportClient();
+		if (ViewportClient.IsValid())
+		{
+			ViewportClient->RedrawRequested(ViewportClient->Viewport);
+		}
+	}
+
 	TSharedRef<FEditorViewportClient> SImageViewport::MakeEditorViewportClient()
 	{
 		if (!Client.IsValid())

@@ -12,18 +12,262 @@
 
 namespace UE::ImageWidgets
 {
-FImageCatalogItemData::FImageCatalogItemData(FGuid Guid, const FSlateBrush& Brush, const FText& Name, const FText& Info, const FText& ToolTip)
+FImageCatalogItemData::FImageCatalogItemData(const FGuid Guid, const FSlateBrush& Brush, const FText& Name, const FText& Info, const FText& ToolTip)
 	: Guid(Guid), Thumbnail(Brush), Name(Name), Info(Info), ToolTip(ToolTip)
 {
 }
 
+using FItemType = TSharedPtr<FImageCatalogItemData>;
+	
+class FItemModel
+{
+public:
+
+	bool Add(const FItemType& Item, bool bIsPinned, const FGuid* BeforeThisGuid);
+	TTuple<bool, bool> Remove(const FGuid& Guid);
+
+	TTuple<const FItemType*, bool> GetItem(const FGuid& Guid) const;
+	const FItemType* GetItemAt(int32 Index, bool bIsPinned) const;
+	TOptional<TTuple<bool, int32>> GetItemIndex(const FGuid& Guid) const;
+	TOptional<FGuid> GetGuidAt(int32 Index, bool bIsPinned) const;
+	
+	bool IsPinned(const FGuid& Guid);
+	bool Pin(const FGuid& Guid);
+	bool Unpin(const FGuid& Guid);
+	
+	const TArray<FItemType>& GetPinnedItems() const { return PinnedItems; }
+	const TArray<FItemType>& GetUnpinnedItems() const { return UnpinnedItems; }
+	bool HasPinnedItems() const { return PinnedItems.Num() > 0; }
+	bool HasUnpinnedItems() const { return UnpinnedItems.Num() > 0; }
+	int32 NumPinnedItems() const { return PinnedItems.Num(); }
+	int32 NumUnpinnedItems() const { return UnpinnedItems.Num(); }
+
+	void SortSelection(TArray<FGuid>& Selection);
+
+private:
+
+	struct FLookupData
+	{
+		bool bIsPinned;	// Is this item pinned?
+		int32 Index;	// Index in the respective array.
+	};
+
+	const FLookupData* FindLookupData(const FGuid& Guid) const;
+	FLookupData* FindLookupData(const FGuid& Guid)
+	{
+		return const_cast<FLookupData*>(const_cast<const FItemModel*>(this)->FindLookupData(Guid));
+	}
+
+	const FItemType* GetItem(const FLookupData& LookupData) const;
+
+	void SwapBetweenPinnedAndUnpinned(FLookupData& LookupData);
+	void UpdateMappingIndices(const TArray<FItemType>& Container, int32 FirstIndex);
+
+	TArray<FItemType> PinnedItems;
+	TArray<FItemType> UnpinnedItems;
+	TMap<FGuid, FLookupData> GuidToLookupDataMapping;
+};
+
+bool FItemModel::Add(const FItemType& Item, const bool bIsPinned, const FGuid* BeforeThisGuid)
+{
+	if (!GuidToLookupDataMapping.Contains(Item->Guid))
+	{
+		TArray<FItemType>& Container = bIsPinned ? PinnedItems : UnpinnedItems;
+
+		const int32 Index = [this, &Item, bIsPinned, BeforeThisGuid, &Container]
+		{
+			if (BeforeThisGuid)
+			{
+				if (FLookupData *const LookupData = FindLookupData(*BeforeThisGuid))
+				{
+					if (LookupData->bIsPinned == bIsPinned)
+					{
+						// Set index for added item.
+						const int32 NewIndex = LookupData->Index;
+
+						// Increase index for the item we push back.
+						++LookupData->Index;
+
+						// Add item at the new index.
+						Container.EmplaceAt(NewIndex, Item);
+
+						// Update all lookup data for items that come after the item we used to determine the insert location.
+						// This way we save the effort for finding the same lookup data again.
+						UpdateMappingIndices(Container, LookupData->Index + 1);
+
+						// Tell the outside where the new item was added.
+						return NewIndex;
+					}
+				}
+			}
+			
+			return Container.Add(Item);
+		}();
+
+		GuidToLookupDataMapping.Add(Item->Guid, {bIsPinned, Index});
+		return true;
+	}
+
+	return false;
+}
+
+TTuple<bool, bool> FItemModel::Remove(const FGuid& Guid)
+{
+	if (const FLookupData *const LookupData = FindLookupData(Guid))
+	{
+		const bool bIsPinned = LookupData->bIsPinned;
+		TArray<FItemType>& Container = bIsPinned ? PinnedItems : UnpinnedItems;
+		Container.RemoveAt(LookupData->Index, EAllowShrinking::No);
+		GuidToLookupDataMapping.Remove(Guid);
+		UpdateMappingIndices(Container, LookupData->Index);
+		return {true, bIsPinned};
+	}
+
+	return {false, false};
+}
+
+TTuple<const FItemType*, bool> FItemModel::GetItem(const FGuid& Guid) const
+{
+	if (const FLookupData *const LookupData = FindLookupData(Guid))
+	{
+		return {GetItem(*LookupData), LookupData->bIsPinned};
+	}
+
+	return {nullptr, false};
+}
+
+const FItemType* FItemModel::GetItemAt(const int32 Index, const bool bIsPinned) const
+{
+	const TArray<FItemType>& Container = bIsPinned ? PinnedItems : UnpinnedItems;
+	if (0 <= Index && Index < Container.Num())
+	{
+		return &Container[Index];
+	}
+
+	return nullptr;
+}
+
+TOptional<TTuple<bool, int32>> FItemModel::GetItemIndex(const FGuid& Guid) const
+{
+	if (const FLookupData *const LookupData = FindLookupData(Guid))
+	{
+		return {{LookupData->bIsPinned, LookupData->Index}};
+	}
+
+	return {};
+}
+
+TOptional<FGuid> FItemModel::GetGuidAt(const int32 Index, const bool bIsPinned) const
+{
+	const TArray<FItemType>& Container = bIsPinned ? PinnedItems : UnpinnedItems;
+	if (0 <= Index && Index < Container.Num())
+	{
+		return Container[Index]->Guid;
+	}
+
+	return {};
+}
+
+bool FItemModel::IsPinned(const FGuid& Guid)
+{
+	const FLookupData *const LookupData = FindLookupData(Guid);
+	return LookupData && LookupData->bIsPinned;
+}
+
+bool FItemModel::Pin(const FGuid& Guid)
+{
+	FLookupData *const LookupData = FindLookupData(Guid);
+	if (LookupData && !LookupData->bIsPinned)
+	{
+		SwapBetweenPinnedAndUnpinned(*LookupData);
+		return true;
+	}
+
+	return false;
+}
+
+bool FItemModel::Unpin(const FGuid& Guid)
+{
+	FLookupData *const LookupData = FindLookupData(Guid);
+	if (LookupData && LookupData->bIsPinned)
+	{
+		SwapBetweenPinnedAndUnpinned(*LookupData);
+		return true;
+	}
+
+	return false;
+}
+
+void FItemModel::SortSelection(TArray<FGuid>& Selection)
+{
+	Algo::Sort(Selection, [this, NumPinned = PinnedItems.Num()](const FGuid& A, const FGuid& B)
+	{
+		const FLookupData *const LookupDataA = FindLookupData(A);
+		const FLookupData *const LookupDataB = FindLookupData(B);
+
+		if (LookupDataA && !LookupDataB) return true;
+		if (!LookupDataA && LookupDataB) return false;
+		if (!LookupDataA && !LookupDataB) return true;
+
+		const int32 PositionA = (LookupDataA->bIsPinned ? 0 : NumPinned) + LookupDataA->Index;
+		const int32 PositionB = (LookupDataB->bIsPinned ? 0 : NumPinned) + LookupDataB->Index;
+		
+		return PositionA < PositionB;
+	});
+}
+
+const FItemModel::FLookupData* FItemModel::FindLookupData(const FGuid& Guid) const
+{
+	if (const FLookupData* LookupData = GuidToLookupDataMapping.Find(Guid))
+	{
+		return LookupData;
+	}
+
+	UE_LOG(LogImageWidgets, Warning, TEXT("Cannot find catalog item for guid '%s'."), *Guid.ToString());
+	return nullptr;
+}
+
+const FItemType* FItemModel::GetItem(const FLookupData& LookupData) const
+{
+	const TArray<FItemType> *const Container = LookupData.bIsPinned ? &PinnedItems : &UnpinnedItems;
+	check(0 <= LookupData.Index && LookupData.Index < Container->Num());
+	return &(*Container)[LookupData.Index];
+}
+
+void FItemModel::SwapBetweenPinnedAndUnpinned(FLookupData& LookupData)
+{
+	TArray<FItemType>& From = LookupData.bIsPinned ? PinnedItems : UnpinnedItems;
+	TArray<FItemType>& To = LookupData.bIsPinned ? UnpinnedItems : PinnedItems;
+	
+	const int32 NewIndex = To.Emplace(static_cast<FItemType&&>(From[LookupData.Index]));
+	From.RemoveAt(LookupData.Index, EAllowShrinking::No);
+
+	UpdateMappingIndices(From, LookupData.Index);
+
+	LookupData.Index = NewIndex;
+	LookupData.bIsPinned = !LookupData.bIsPinned;
+}
+
+void FItemModel::UpdateMappingIndices(const TArray<FItemType>& Container, const int32 FirstIndex)
+{
+	for (int32 Index = FirstIndex, Num = Container.Num(); Index < Num; ++Index)
+	{
+		FLookupData *const LookupData = GuidToLookupDataMapping.Find(Container[Index]->Guid);
+		check(LookupData);
+		LookupData->Index = Index;
+	}
+}
+
 void SImageCatalog::Construct(const FArguments& InArgs)
 {
+	Model = MakePimpl<FItemModel>();
+	
+	ItemsHeading = InArgs._ItemsHeading;
+	PinnedItemsHeading = InArgs._PinnedItemsHeading;
 	OnItemSelected = InArgs._OnItemSelected;
+	OnGetContextMenu = InArgs._OnGetContextMenu;
 
-	Items.Reserve(1000);
-
-	const auto GenerateItemRow = [](const TSharedPtr<FImageCatalogItemData>& ItemData, const TSharedRef<STableViewBase>& OwnerTable)
+	const auto GenerateItemRow = [](const FItemType& ItemData, const TSharedRef<STableViewBase>& OwnerTable)
 	{
 		static const FTableRowStyle TableRowStyle = []
 		{
@@ -38,7 +282,7 @@ void SImageCatalog::Construct(const FArguments& InArgs)
 		TSharedPtr<SImageCatalogItem> ItemWidget;
 		SAssignNew(ItemWidget, SImageCatalogItem, ItemData);
 
-		return SNew(STableRow<TSharedPtr<FImageCatalogItemData>>, OwnerTable)
+		return SNew(STableRow<FItemType>, OwnerTable)
 			.Style(&TableRowStyle)
 			.ShowSelection(true)
 			[
@@ -46,42 +290,51 @@ void SImageCatalog::Construct(const FArguments& InArgs)
 			];
 	};
 
-	const auto HasPinnedItems = [this]
+	const auto GetPinnedItemsVisibility = [&Model = Model]
 	{
-		return PinnedItems.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible;
+		return Model->HasPinnedItems() ? EVisibility::Visible : EVisibility::Collapsed;
 	};
 
-	const auto PinnedItemSelectionChanged = [this](const TSharedPtr<FImageCatalogItemData>& Item, ESelectInfo::Type SelectInfo)
+	const auto GetItemsVisibility = [&Model = Model]
+	{
+		return Model->HasUnpinnedItems() ? EVisibility::Visible : EVisibility::Collapsed;
+	};
+
+	const auto PinnedItemsSelectionChanged = [this](const FItemType& Item, ESelectInfo::Type SelectInfo)
 	{
 		// Note that Item might be a nullptr since this callback is also executed when clearing the selection of the list.
-		if (Item.IsValid() && OnItemSelected.IsBound())
+		if (Item.IsValid())
 		{
 			ItemsListView->ClearSelection();
-			OnItemSelected.Execute(Item->Guid);
+			OnItemSelected.ExecuteIfBound(Item->Guid);
 		}
 	};
 
-	const auto ItemSelectionChanged = [this](const TSharedPtr<FImageCatalogItemData>& Item, ESelectInfo::Type SelectInfo)
+	const auto ItemsSelectionChanged = [this](const FItemType& Item, ESelectInfo::Type SelectInfo)
 	{
 		// Note that Item might be a nullptr since this callback is also executed when clearing the selection of the list.
-		if (Item.IsValid() && OnItemSelected.IsBound())
+		if (Item.IsValid())
 		{
 			PinnedItemsListView->ClearSelection();
-			OnItemSelected.Execute(Item->Guid);
+			OnItemSelected.ExecuteIfBound(Item->Guid);
 		}
 	};
 
-	SAssignNew(PinnedItemsListView, SListView<TSharedPtr<FImageCatalogItemData>>)
-					.ListItemsSource(&PinnedItems)
+	SAssignNew(PinnedItemsListView, SListView<FItemType>)
+					.ListItemsSource(&Model->GetPinnedItems())
+					.OnContextMenuOpening(this, &SImageCatalog::OnContextMenuOpening)
 					.OnGenerateRow_Lambda(GenerateItemRow)
-					.OnSelectionChanged_Lambda(PinnedItemSelectionChanged)
+					.SelectionMode(InArgs._SelectionMode)
+					.OnSelectionChanged_Lambda(PinnedItemsSelectionChanged)
 					.ClearSelectionOnClick(false)
-					.Visibility_Lambda(HasPinnedItems);
+					.Visibility_Lambda(GetPinnedItemsVisibility);
 
-	SAssignNew(ItemsListView, SListView<TSharedPtr<FImageCatalogItemData>>)
-					.ListItemsSource(&Items)
+	SAssignNew(ItemsListView, SListView<FItemType>)
+					.ListItemsSource(&Model->GetUnpinnedItems())
+					.OnContextMenuOpening(this, &SImageCatalog::OnContextMenuOpening)
 					.OnGenerateRow_Lambda(GenerateItemRow)
-					.OnSelectionChanged_Lambda(ItemSelectionChanged)
+					.SelectionMode(InArgs._SelectionMode)
+					.OnSelectionChanged_Lambda(ItemsSelectionChanged)
 					.ClearSelectionOnClick(false)
 					.ScrollbarVisibility(EVisibility::Visible);
 	
@@ -93,9 +346,12 @@ void SImageCatalog::Construct(const FArguments& InArgs)
 			.Padding(2.0f, 4.0f, 2.0f, 4.0f)
 			[
 				SNew(STextBlock)
-					.Text(InArgs._PinnedItemsHeading)
+					.Text_Lambda([&PinnedItemsHeading = PinnedItemsHeading] { return PinnedItemsHeading.Get({}); })
+					.Visibility_Lambda([&PinnedItemsHeading = PinnedItemsHeading, GetPinnedItemsVisibility]
+					{
+						return PinnedItemsHeading.Get({}).IsEmpty() ? EVisibility::Collapsed : GetPinnedItemsVisibility();
+					})
 					.TextStyle(FAppStyle::Get(), "DetailsView.CategoryTextStyle")
-					.Visibility(InArgs._PinnedItemsHeading.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible)
 			]
 		+ SVerticalBox::Slot()
 			.AutoHeight()
@@ -107,16 +363,19 @@ void SImageCatalog::Construct(const FArguments& InArgs)
 			[
 				SNew(SSeparator)
 					.Thickness(6.0f)
-					.Visibility_Lambda(HasPinnedItems)
+					.Visibility_Lambda(GetPinnedItemsVisibility)
 			]
 		+ SVerticalBox::Slot()
 			.AutoHeight()
 			.Padding(2.0f, 4.0f, 2.0f, 4.0f)
 			[
 				SNew(STextBlock)
-					.Text(InArgs._ItemsHeading)
+					.Text_Lambda([&ItemsHeading = ItemsHeading] { return ItemsHeading.Get({}); })
+					.Visibility_Lambda([&ItemsHeading = ItemsHeading, GetItemsVisibility]
+					{
+						return ItemsHeading.Get({}).IsEmpty() ? EVisibility::Collapsed : GetItemsVisibility();
+					})
 					.TextStyle(FAppStyle::Get(), "DetailsView.CategoryTextStyle")
-					.Visibility(InArgs._ItemsHeading.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible)
 			]
 		+ SVerticalBox::Slot()
 			[
@@ -125,28 +384,113 @@ void SImageCatalog::Construct(const FArguments& InArgs)
 	];
 }
 
-void SImageCatalog::AddItem(const TSharedPtr<FImageCatalogItemData>& Item)
+bool SImageCatalog::AddItem(const FItemType& Item)
 {
-	Items.Add(Item);
-	GuidToItemMapping.Add(Item->Guid, TPair<const TSharedPtr<FImageCatalogItemData>, bool>(Item, false));
-	ItemsListView->ReGenerateItems(GetCachedGeometry());
+	if (Model->Add(Item, false, nullptr))
+	{
+		ItemsListView->RequestListRefresh();
+		return true;
+	}
+
+	return false;
 }
 
-void SImageCatalog::AddPinnedItem(const TSharedPtr<FImageCatalogItemData>& Item)
+bool SImageCatalog::AddItem(const TSharedPtr<FImageCatalogItemData>& Item, const FGuid& BeforeItemWithThisGuid)
 {
-	PinnedItems.Add(Item);
-	GuidToItemMapping.Add(Item->Guid, TPair<const TSharedPtr<FImageCatalogItemData>, bool>(Item, true));
-	PinnedItemsListView->ReGenerateItems(GetCachedGeometry());
+	if (Model->Add(Item, false, &BeforeItemWithThisGuid))
+	{
+		ItemsListView->RequestListRefresh();
+		return true;
+	}
+
+	return false;
+}
+
+bool SImageCatalog::AddPinnedItem(const FItemType& Item)
+{
+	if (Model->Add(Item, true, nullptr))
+	{
+		PinnedItemsListView->RequestListRefresh();
+		return true;
+	}
+
+	return false;
+}
+
+bool SImageCatalog::AddPinnedItem(const TSharedPtr<FImageCatalogItemData>& Item, const FGuid& BeforeItemWithThisGuid)
+{
+	if (Model->Add(Item, true, &BeforeItemWithThisGuid))
+	{
+		PinnedItemsListView->RequestListRefresh();
+		return true;
+	}
+
+	return false;
+}
+
+bool SImageCatalog::RemoveItem(const FGuid& Guid)
+{
+	const auto [bSuccess, bIsPinned] = Model->Remove(Guid);
+	if (bSuccess)
+	{
+		const TSharedPtr<SListView<FItemType>>& ListView = bIsPinned ? PinnedItemsListView : ItemsListView;
+		ListView->RequestListRefresh();
+		return true;
+	}
+
+	return false;
+}
+
+TSharedPtr<const FImageCatalogItemData> SImageCatalog::GetItem(const FGuid& Guid) const
+{
+	if (const FItemType* ItemPtr = Model->GetItem(Guid).Get<0>())
+	{
+		return *ItemPtr;
+	}
+	return {};
+}
+
+TOptional<TTuple<bool, int32>> SImageCatalog::GetItemIndex(const FGuid& Guid) const
+{
+	return Model->GetItemIndex(Guid);
+}
+
+TSharedPtr<const FImageCatalogItemData> SImageCatalog::GetItemAt(const int32 Index) const
+{
+	if (const FItemType* ItemPtr = Model->GetItemAt(Index, false))
+	{
+		return *ItemPtr;
+	}
+	return {};
+}
+
+TSharedPtr<const FImageCatalogItemData> SImageCatalog::GetPinnedItemAt(const int32 Index) const
+{
+	if (const FItemType* ItemPtr = Model->GetItemAt(Index, true))
+	{
+		return *ItemPtr;
+	}
+	return {};
+}
+
+TOptional<FGuid> SImageCatalog::GetItemGuidAt(const int32 Index) const
+{
+	return Model->GetGuidAt(Index, false);
+}
+
+TOptional<FGuid> SImageCatalog::GetPinnedItemGuidAt(const int32 Index) const 
+{
+	return Model->GetGuidAt(Index, true);
 }
 
 int32 SImageCatalog::NumItems() const
 {
-	return Items.Num();
+	return Model->NumUnpinnedItems();
 }
 
 int32 SImageCatalog::NumPinnedItems() const
 {
-	return PinnedItems.Num();
+	return Model->NumPinnedItems();
 }
 
 int32 SImageCatalog::NumTotalItems() const
@@ -154,67 +498,109 @@ int32 SImageCatalog::NumTotalItems() const
 	return NumItems() + NumPinnedItems();
 }
 
+bool SImageCatalog::ItemIsPinned(const FGuid& Guid) const
+{
+	return Model->IsPinned(Guid);
+}
+	
+bool SImageCatalog::PinItem(const FGuid& Guid)
+{
+	const bool bSuccess = Model->Pin(Guid);
+	if (bSuccess)
+	{
+		PinnedItemsListView->RequestListRefresh();
+		ItemsListView->RequestListRefresh();
+	}
+	return bSuccess;
+}
+
+bool SImageCatalog::UnpinItem(const FGuid& Guid)
+{
+	const bool bSuccess = Model->Unpin(Guid);
+	if (bSuccess)
+	{
+		PinnedItemsListView->RequestListRefresh();
+		ItemsListView->RequestListRefresh();
+	}
+	return bSuccess;
+}
+
 void SImageCatalog::SelectItem(const FGuid& Guid)
 {
-	if (const TPair<const TSharedPtr<FImageCatalogItemData>, bool> *const ExistingItem = FindItemData(Guid))
+	const auto [ItemPtr, bIsPinned] = Model->GetItem(Guid);
+	if (ItemPtr)
 	{
 		ItemsListView->ClearSelection();
 		PinnedItemsListView->ClearSelection();
 
-		SListView<TSharedPtr<FImageCatalogItemData>>* ListView = ExistingItem->Get<1>() ? PinnedItemsListView.Get() : ItemsListView.Get();
-
-		ListView->SetItemSelection(ExistingItem->Get<0>(), true);
+		SListView<FItemType> *const ListView = bIsPinned ? PinnedItemsListView.Get() : ItemsListView.Get();
+		ListView->SetItemSelection(*ItemPtr, true);
 	}
 }
 
-const TPair<const TSharedPtr<FImageCatalogItemData>, bool>* SImageCatalog::FindItemData(const FGuid& Guid)
+TSharedPtr<SWidget> SImageCatalog::OnContextMenuOpening() const
 {
-	if (const TPair<const TSharedPtr<FImageCatalogItemData>, bool>* ItemPtr = GuidToItemMapping.Find(Guid))
+	if (!OnGetContextMenu.IsBound())
 	{
-		return ItemPtr;
+		return SNullWidget::NullWidget;
 	}
 
-	UE_LOG(LogImageWidgets, Warning, TEXT("Cannot find catalog item for guid '%s'."), *Guid.ToString());
-	return nullptr;
+	TArray<FGuid> SelectedGuids = [&PinnedItemsListView = PinnedItemsListView, &ItemsListView = ItemsListView]
+	{
+		TArray<FGuid> Guids;
+		auto GetItemGuid = [](const FItemType& Item) { return Item->Guid; };
+		Algo::Transform(PinnedItemsListView->GetSelectedItems(), Guids, GetItemGuid);
+		Algo::Transform(ItemsListView->GetSelectedItems(), Guids, GetItemGuid);
+		return Guids;
+	}();
+
+	if (SelectedGuids.IsEmpty())
+	{
+		return SNullWidget::NullWidget;
+	}
+
+	Model->SortSelection(SelectedGuids);
+
+	return OnGetContextMenu.Execute(SelectedGuids);
 }
 
 void SImageCatalog::UpdateItem(const FImageCatalogItemData& Item)
 {
-	if (const TPair<const TSharedPtr<FImageCatalogItemData>, bool> *const ExistingItem = FindItemData(Item.Guid))
+	if (const TSharedPtr<FImageCatalogItemData>* const ItemPtr = Model->GetItem(Item.Guid).Get<0>())
 	{
-		*ExistingItem->Get<0>() = Item;
+		**ItemPtr = Item;
 	}
 }
 
 void SImageCatalog::UpdateItemInfo(const FGuid& Guid, const FText& Info)
 {
-	if (const TPair<const TSharedPtr<FImageCatalogItemData>, bool> *const ExistingItem = FindItemData(Guid))
+	if (const TSharedPtr<FImageCatalogItemData>* const ItemPtr = Model->GetItem(Guid).Get<0>())
 	{
-		ExistingItem->Get<0>()->Info = Info;
+		(*ItemPtr)->Info = Info;
 	}
 }
 
 void SImageCatalog::UpdateItemName(const FGuid& Guid, const FText& Name)
 {
-	if (const TPair<const TSharedPtr<FImageCatalogItemData>, bool> *const ExistingItem = FindItemData(Guid))
+	if (const TSharedPtr<FImageCatalogItemData>* const ItemPtr = Model->GetItem(Guid).Get<0>())
 	{
-		ExistingItem->Get<0>()->Name = Name;
+		(*ItemPtr)->Name = Name;
 	}
 }
 
 void SImageCatalog::UpdateItemThumbnail(const FGuid& Guid, const FSlateBrush& Thumbnail)
 {
-	if (const TPair<const TSharedPtr<FImageCatalogItemData>, bool> *const ExistingItem = FindItemData(Guid))
+	if (const TSharedPtr<FImageCatalogItemData>* const ItemPtr = Model->GetItem(Guid).Get<0>())
 	{
-		ExistingItem->Get<0>()->Thumbnail = Thumbnail;
+		(*ItemPtr)->Thumbnail = Thumbnail;
 	}
 }
 
 void SImageCatalog::UpdateItemToolTip(const FGuid& Guid, const FText& ToolTip)
 {
-	if (const TPair<const TSharedPtr<FImageCatalogItemData>, bool> *const ExistingItem = FindItemData(Guid))
+	if (const TSharedPtr<FImageCatalogItemData>* const ItemPtr = Model->GetItem(Guid).Get<0>())
 	{
-		ExistingItem->Get<0>()->ToolTip = ToolTip;
+		(*ItemPtr)->ToolTip = ToolTip;
 	}
 }
 }
