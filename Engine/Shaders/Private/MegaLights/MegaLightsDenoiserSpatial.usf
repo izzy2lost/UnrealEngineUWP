@@ -167,7 +167,7 @@ void DenoiserSpatialCS(
 				Print(Context, bFilterSpecular ? 1u : 0u);
 				Newline(Context);
 				Print(Context, TEXT("ShadingConfidence: "));
-				Print(Context, ShadingConfidence);
+				Print(Context, ShadingConfidence, Select(ShadingConfidence > 0.75f, FontYellow, Select(ShadingConfidence > 0.25f, FontWhite, FontGrey)));
 			}
 			#endif
 

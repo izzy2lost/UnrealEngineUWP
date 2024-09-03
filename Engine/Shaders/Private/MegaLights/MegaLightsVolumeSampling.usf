@@ -80,7 +80,7 @@ void VolumeGenerateLightSamplesCS(
 				AddCrossTWS(Debug.Context, TranslatedWorldPosition, 5.0f, float4(1, 0, 0, 1));
 
 				Newline(Debug.Context);
-				Print(Debug.Context, TEXT("LightId  | SampleWeight"));
+				Print(Debug.Context, TEXT("LightId | LocalLightId | Weight"));
 			}
 			#endif
 
@@ -134,7 +134,8 @@ void VolumeGenerateLightSamplesCS(
 				if (Debug.bActive)
 				{
 					Newline(Debug.Context);
-					Print(Debug.Context, LocalLightIndex);
+					Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
+					Print(Debug.Context, LocalLightIndex, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
 					Print(Debug.Context, SampleWeight);
 				}
 				#endif
@@ -186,7 +187,8 @@ void VolumeGenerateLightSamplesCS(
 						const uint3 SampleCoord = GetSampleCoord(DownsampledVolumeCoord, LightSampleIndex);
 
 						const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
-						const FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, VolumeCoordToNoiseCoord(SampleCoord));
+						const float2 LightSampleUV = BlueNoiseVec2(VolumeCoordToNoiseCoord(SampleCoord), MegaLightsStateFrameIndex);
+						const FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, LightSampleUV);
 
 						AddLineTWS(Debug.Context, TranslatedWorldPosition, TranslatedWorldPosition + LightSampleTrace.Direction * LightSampleTrace.Distance, float4(LocalLightData.LightColorAndIdAndFalloffExponent.xyz / Luminance(LocalLightData.LightColorAndIdAndFalloffExponent.xyz), 1.0f));
 					}

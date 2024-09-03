@@ -33,8 +33,11 @@ static TAutoConsoleVariable<float> CVarMegaLightsMinSampleWeight(
 
 static TAutoConsoleVariable<int32> CVarMegaLightsGuideByHistory(
 	TEXT("r.MegaLights.GuideByHistory"),
-	1,
-	TEXT("Whether to reduce sampling chance for lights which were hidden last frame. Reduces noise in areas where bright lights are shadowed."),
+	2,
+	TEXT("Whether to reduce sampling chance for lights which were hidden last frame. Reduces noise in areas where bright lights are shadowed.\n")
+	TEXT("0 - disabled\n")
+	TEXT("1 - more rays towards visible lights\n")
+	TEXT("2 - more rays towards visible parts of lights"),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -217,6 +220,7 @@ namespace MegaLights
 	constexpr int32 TileSize = 8;
 	constexpr int32 MaxLocalLightIndex = 1024;
 	constexpr int32 LightMaskSize = MaxLocalLightIndex / 32;
+	constexpr int32 VisibleLightHashSize = 4; // 4 uint32
 
 	bool ShouldCompileShaders(EShaderPlatform ShaderPlatform)
 	{
@@ -470,9 +474,11 @@ class FGenerateLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWDownsampledSceneDepth)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<UNORM float3>, RWDownsampledSceneWorldNormal)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSampleUV)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, DownsampledTileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, DownsampledTileData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, VisibleLightHashHistory)
+		SHADER_PARAMETER(uint32, GuideByHistoryMode)
 		SHADER_PARAMETER(float, LightWasHiddenPDFWeightScale)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, MegaLightsDepthHistory)
 		SHADER_PARAMETER(FVector4f, HistoryScreenPositionScaleBias)
@@ -481,12 +487,10 @@ class FGenerateLightSamplesCS : public FGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FTileType : SHADER_PERMUTATION_INT("TILE_TYPE", (int32)MegaLights::ETileType::SHADING_MAX);
-	class FIESProfile : SHADER_PERMUTATION_BOOL("USE_IES_PROFILE");
-	class FLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FNumSamplesPerPixel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL_1D", 2, 4, 16);
 	class FGuideByHistory : SHADER_PERMUTATION_BOOL("GUIDE_BY_HISTORY");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FNumSamplesPerPixel1d, FGuideByHistory, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FTileType, FNumSamplesPerPixel1d, FGuideByHistory, FDebugMode>;
 
 	static int32 GetGroupSize()
 	{	
@@ -503,11 +507,6 @@ class FGenerateLightSamplesCS : public FGlobalShader
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
 
 		// precache all tile types
-
-		if (PermutationVector.Get<FIESProfile>() != (CVarMegaLightsIESProfiles.GetValueOnAnyThread() != 0))
-		{
-			return EShaderPermutationPrecacheRequest::NotUsed;
-		}
 
 		int NumSamplesPerPixel1d = PermutationVector.Get<FNumSamplesPerPixel1d>();
 		const FIntPoint NumSamplesPerPixel2d = MegaLights::GetNumSamplesPerPixel2d();
@@ -666,6 +665,7 @@ class FShadeLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileData)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<flaot4>, CompositeUpsampleWeights)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSamples)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSampleUVTexture)
 		SHADER_PARAMETER(uint32, UseShadingConfidence)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -675,12 +675,10 @@ class FShadeLightSamplesCS : public FGlobalShader
 	}
 
 	class FTileType : SHADER_PERMUTATION_INT("TILE_TYPE", (int32)MegaLights::ETileType::SHADING_MAX);
-	class FIESProfile : SHADER_PERMUTATION_BOOL("USE_IES_PROFILE");
-	class FLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FNumSamplesPerPixel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL_1D", 2, 4, 16);
 	class FOutputVisibleLightMask : SHADER_PERMUTATION_BOOL("OUTPUT_VISIBLE_LIGHT_MASK");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FNumSamplesPerPixel1d, FOutputVisibleLightMask, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FTileType, FNumSamplesPerPixel1d, FOutputVisibleLightMask, FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -690,11 +688,6 @@ class FShadeLightSamplesCS : public FGlobalShader
 	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
-
-		if (PermutationVector.Get<FIESProfile>() != (CVarMegaLightsIESProfiles.GetValueOnAnyThread() != 0))
-		{
-			return EShaderPermutationPrecacheRequest::NotUsed;
-		}
 
 		if (PermutationVector.Get<FDebugMode>())
 		{
@@ -948,12 +941,16 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			FRDGTextureDesc::Create2D(DonwnsampledSampleBufferSize, PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 			TEXT("MegaLights.LightSamples"));
 
+		FRDGTextureRef LightSampleUV = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(DonwnsampledSampleBufferSize, PF_R16_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("MegaLights.LightSampleUV"));
+
 		FRDGTextureRef LightSampleRayDistance = GraphBuilder.CreateTexture(
 			FRDGTextureDesc::Create2D(DonwnsampledSampleBufferSize, PF_R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 			TEXT("MegaLights.LightSampleRayDistance"));
 
 		const FIntPoint LightMaskSizeInTiles = FMath::DivideAndRoundUp<FIntPoint>(SceneTextures.Config.Extent, MegaLights::TileSize);
-		const uint32 LightMaskBufferSize = LightMaskSizeInTiles.X * LightMaskSizeInTiles.Y;
+		const uint32 LightMaskBufferSize = LightMaskSizeInTiles.X * LightMaskSizeInTiles.Y * MegaLights::VisibleLightHashSize;
 
 		bool bTemporal = CVarMegaLightsTemporal.GetValueOnRenderThread() != 0;
 		bool bGuideByHistory = CVarMegaLightsGuideByHistory.GetValueOnRenderThread() != 0;
@@ -1069,6 +1066,8 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			MegaLightsParameters.bOverrideCursorPosition = GIsEditor ? 0u : 1u;
 			MegaLightsParameters.DebugMode = MegaLights::GetDebugMode();
 			MegaLightsParameters.DebugLightId = INDEX_NONE;
+			MegaLightsParameters.UseIESProfiles = CVarMegaLightsIESProfiles.GetValueOnRenderThread() != 0;
+			MegaLightsParameters.UseLightFunctionAtlas = bUseLightFunctionAtlas;
 
 			// Volume
 			extern float GInverseSquaredLightDistanceBiasScale;
@@ -1202,6 +1201,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			FRDGTextureUAVRef DownsampledSceneDepthUAV = GraphBuilder.CreateUAV(DownsampledSceneDepth, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			FRDGTextureUAVRef DownsampledSceneWorldNormalUAV = GraphBuilder.CreateUAV(DownsampledSceneWorldNormal, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			FRDGTextureUAVRef LightSamplesUAV = GraphBuilder.CreateUAV(LightSamples, ERDGUnorderedAccessViewFlags::SkipBarrier);
+			FRDGTextureUAVRef LightSampleUVUAV = GraphBuilder.CreateUAV(LightSampleUV, ERDGUnorderedAccessViewFlags::SkipBarrier);
 
 			// Clear tiles which don't contain any lights or geometry
 			{
@@ -1245,15 +1245,12 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				PassParameters->RWDownsampledSceneDepth = DownsampledSceneDepthUAV;
 				PassParameters->RWDownsampledSceneWorldNormal = DownsampledSceneWorldNormalUAV;
 				PassParameters->RWLightSamples = LightSamplesUAV;
+				PassParameters->RWLightSampleUV = LightSampleUVUAV;
 				PassParameters->DownsampledTileAllocator = GraphBuilder.CreateSRV(DownsampledTileAllocator);
 				PassParameters->DownsampledTileData = GraphBuilder.CreateSRV(DownsampledTileData);
-
-				if (VisibleLightHashHistory != nullptr)
-				{
-					PassParameters->VisibleLightHashHistory = GraphBuilder.CreateSRV(VisibleLightHashHistory);
-					PassParameters->LightWasHiddenPDFWeightScale = CVarMegaLightsGuideByHistoryHiddenPDFWeightScale.GetValueOnRenderThread();
-				}
-
+				PassParameters->VisibleLightHashHistory = VisibleLightHashHistory != nullptr ? GraphBuilder.CreateSRV(VisibleLightHashHistory) : nullptr;
+				PassParameters->GuideByHistoryMode = CVarMegaLightsGuideByHistory.GetValueOnRenderThread();
+				PassParameters->LightWasHiddenPDFWeightScale = CVarMegaLightsGuideByHistoryHiddenPDFWeightScale.GetValueOnRenderThread();
 				PassParameters->MegaLightsDepthHistory = SceneDepthHistory;
 				PassParameters->HistoryScreenPositionScaleBias = HistoryScreenPositionScaleBias;
 				PassParameters->HistoryUVMinMax = HistoryUVMinMax;
@@ -1261,8 +1258,6 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 
 				FGenerateLightSamplesCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FGenerateLightSamplesCS::FTileType>(TileType);
-				PermutationVector.Set<FGenerateLightSamplesCS::FIESProfile>(CVarMegaLightsIESProfiles.GetValueOnRenderThread() != 0);
-				PermutationVector.Set<FGenerateLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
 				PermutationVector.Set<FGenerateLightSamplesCS::FNumSamplesPerPixel1d>(NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y);
 				PermutationVector.Set<FGenerateLightSamplesCS::FGuideByHistory>(VisibleLightHashHistory != nullptr && SceneDepthHistory != nullptr);
 				PermutationVector.Set<FGenerateLightSamplesCS::FDebugMode>(bDebug);
@@ -1316,6 +1311,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			VirtualShadowMapArray,
 			SampleBufferSize,
 			LightSamples,
+			LightSampleUV,
 			LightSampleRayDistance,
 			VolumeSampleBufferSize,
 			VolumeLightSamples,
@@ -1409,12 +1405,11 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				PassParameters->TileData = GraphBuilder.CreateSRV(TileData);
 				PassParameters->CompositeUpsampleWeights = CompositeUpsampleWeights;
 				PassParameters->LightSamples = LightSamples;
+				PassParameters->LightSampleUVTexture = LightSampleUV;
 				PassParameters->UseShadingConfidence = CVarMegaLightsShadingConfidence.GetValueOnRenderThread();
 
 				FShadeLightSamplesCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FShadeLightSamplesCS::FTileType>(TileType);
-				PermutationVector.Set<FShadeLightSamplesCS::FIESProfile>(CVarMegaLightsIESProfiles.GetValueOnRenderThread() != 0);
-				PermutationVector.Set<FShadeLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
 				PermutationVector.Set<FShadeLightSamplesCS::FNumSamplesPerPixel1d>(NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y);
 				PermutationVector.Set<FShadeLightSamplesCS::FOutputVisibleLightMask>(bGuideByHistory);
 				PermutationVector.Set<FShadeLightSamplesCS::FDebugMode>(bDebug);

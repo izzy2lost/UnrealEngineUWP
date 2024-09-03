@@ -54,6 +54,7 @@ float HistoryDepthTestRelativeThickness;
 uint MinimumTracingThreadOccupancy;
 
 Texture2D<uint> LightSamples;
+Texture2D<uint> LightSampleUVTexture;
 
 Texture2D<uint> RWTraceTile;
 RWBuffer<uint> RWCompactedTraceTexelData;
@@ -211,7 +212,8 @@ void ScreenSpaceRayTraceLightSamplesCS(
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
 
 		FLightSample LightSample = UnpackLightSample(RWLightSamples[SampleCoord]);
-		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, SampleCoord);
+		float2 LightSampleUV = UnpackLightSampleUV(LightSampleUVTexture[SampleCoord]);
+		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, LightSampleUV);
 
 		#if DEBUG_MODE
 			int2 DebugScreenCoord = GetDebugScreenCoord();
@@ -311,7 +313,8 @@ void SoftwareRayTraceLightSamplesCS(
 
 		FLightSample LightSample = UnpackLightSample(RWLightSamples[SampleCoord]);
 		const float LightSampleRayMinT = LightSampleRayDistance[SampleCoord];
-		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, SampleCoord);
+		float2 LightSampleUV = UnpackLightSampleUV(LightSampleUVTexture[SampleCoord]);
+		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, LightSampleUV);
 
 		FGlobalSDFTraceInput TraceInput = SetupGlobalSDFTraceInput(TranslatedWorldPosition, LightSampleTrace.Direction, LightSampleRayMinT, LightSampleTrace.Distance, 1.0f, 1.0f);
 

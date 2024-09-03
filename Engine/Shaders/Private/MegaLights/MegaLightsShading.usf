@@ -13,6 +13,9 @@
 // When loading SSS checkerboard pixel, do not adjust DiffuseColor/SpecularColor to preserve specular and diffuse lighting values for each pixel
 #define ALLOW_SSS_MATERIAL_OVERRIDE 0
 
+#define USE_IES_PROFILE 1
+#define USE_LIGHT_FUNCTION_ATLAS 1
+
 #include "../Common.ush"
 #include "../BlueNoise.ush"
 #include "MegaLightsShading.ush"
@@ -35,9 +38,12 @@ StructuredBuffer<uint> TileData;
 uint TileDataStride;
 
 Texture2D<uint> LightSamples;
+Texture2D<uint> LightSampleUVTexture;
 Texture2D<float4> CompositeUpsampleWeights;
 
 uint UseShadingConfidence;
+int UseIESProfiles;
+int UseLightFunctionAtlas;
 uint DebugLightId;
 
 // 4x4 neighborhood with borders
@@ -48,7 +54,7 @@ groupshared uint SharedSamples[SHARED_TILE_SIZE_X][SHARED_TILE_SIZE_Y];
 // Light scalarization
 groupshared uint SharedLightHiMask;
 groupshared uint SharedLightMask[SHARED_LIGHT_MASK_SIZE];
-groupshared uint SharedVisibleLightHash;
+groupshared uint SharedVisibleLightHash[VISIBLE_LIGHT_HASH_SIZE];
 
 void AccumulateLightSample(uint2 SharedSampleCoord, uint LocalLightIndex, float UpsampleWeight, inout float SampleWeightSum, inout float WeightRatioSum)
 {
@@ -63,7 +69,7 @@ void AccumulateLightSample(uint2 SharedSampleCoord, uint LocalLightIndex, float 
 				if (LightSample.Weight * UpsampleWeight)
 				{
 					SampleWeightSum += LightSample.Weight * UpsampleWeight;
-					WeightRatioSum += (1.0f / LightSample.Weight) * UpsampleWeight;
+					WeightRatioSum += (1.0f / LightSample.Weight) * UpsampleWeight * (LightSample.bPartiallyVisibleLight ? 0.25f : 1.0f);
 				}
 			}
 		}
@@ -84,7 +90,11 @@ void ShadeLightSamplesCS(
 	if (LinearThreadIndex == 0)
 	{
 		SharedLightHiMask = 0;
-		SharedVisibleLightHash = 0;
+	}
+
+	if (LinearThreadIndex < VISIBLE_LIGHT_HASH_SIZE)
+	{
+		SharedVisibleLightHash[LinearThreadIndex] = 0;
 	}
 
 	if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
@@ -119,13 +129,27 @@ void ShadeLightSamplesCS(
 
 					if (LightSample.bVisible && LightSample.LocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
 					{
-						uint DWORDIndex = LightSample.LocalLightIndex / 32;
-						uint BitMask = 1u << (LightSample.LocalLightIndex % 32);
-						InterlockedOr(SharedLightMask[DWORDIndex], BitMask);
-						InterlockedOr(SharedVisibleLightHash, BitMask);
+						// Mark light as visible in SharedLightMask
+						{
+							uint DWORDIndex = LightSample.LocalLightIndex / 32;
+							uint BitMask = 1u << (LightSample.LocalLightIndex % 32);
+							InterlockedOr(SharedLightMask[DWORDIndex], BitMask);
+							uint HiBitMask = 1u << DWORDIndex;
+							LocalLightHiMask |= HiBitMask;
+						}
 
-						uint HiBitMask = 1u << DWORDIndex;
-						LocalLightHiMask |= HiBitMask;
+						// Mark light as visible in SharedVisibleLightHash
+						{
+							float2 LightSampleUV = UnpackLightSampleUV(LightSampleUVTexture[SampleCoord]);
+
+							uint2 RandomCoord;
+							RandomCoord.x = LightSampleUV.x > 0.5f ? 1 : 0;
+							RandomCoord.y = LightSampleUV.y > 0.5f ? 1 : 0;
+
+							uint DWORDIndex = (LightSample.LocalLightIndex % 32) / 8;
+							uint BitMask = 1u << (4 * (LightSample.LocalLightIndex % 8) + RandomCoord.x + 2 * RandomCoord.y);
+							InterlockedOr(SharedVisibleLightHash[DWORDIndex], BitMask);
+						}
 					}
 					else
 					{
@@ -179,14 +203,14 @@ void ShadeLightSamplesCS(
 				#if DEBUG_MODE
 				if (bDebug)
 				{
-					Print(Context, TEXT("ShadeSamplesCS"));
+					Print(Context, TEXT("ShadeSamples"));
 					Newline(Context);
 					Print(Context, TEXT("ScreenCoord: "));
 					Print(Context, ScreenCoord.x);
 					Print(Context, ScreenCoord.y);
 					Newline(Context);
 
-					Print(Context, TEXT("LocalLightId | Weight  | Diffuse   | Specular")); 
+					Print(Context, TEXT("LightId    | Weight  | Diffuse  | Specular")); 
 				}
 				#endif
 
@@ -210,6 +234,16 @@ void ShadeLightSamplesCS(
 
 						const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 						FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
+
+						if (UseLightFunctionAtlas == 0)
+						{
+							LightData.LightFunctionAtlasLightIndex = 0;
+						}
+
+						if (UseIESProfiles == 0)
+						{
+							LightData.IESAtlasIndex = -1;
+						}
 						
 						const bool bTileHasRect = TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT || TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED;
 						if (!bTileHasRect)
@@ -241,14 +275,7 @@ void ShadeLightSamplesCS(
 						if (bDebug)
 						{
 							Newline(Context);
-							if (LocalLightData.LightSceneId == DebugLightId)
-							{
-								Print(Context, LocalLightIndex, FontYellow);
-							}
-							else
-							{
-								Print(Context, LocalLightIndex);
-							}
+							Print(Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
 							Print(Context, SampleWeight);
 						}
 						#endif
@@ -302,6 +329,12 @@ void ShadeLightSamplesCS(
 				Newline(Context);
 				Print(Context, TEXT("WeightRatioSum: ")); 
 				Print(Context, WeightRatioSum);
+				Newline(Context);
+				Print(Context, TEXT("SharedVisibleLightHash: ")); 
+				Print(Context, SharedVisibleLightHash[0]);
+				Print(Context, SharedVisibleLightHash[1]);
+				Print(Context, SharedVisibleLightHash[2]);
+				Print(Context, SharedVisibleLightHash[3]);
 			}
 			#endif
 
@@ -310,12 +343,12 @@ void ShadeLightSamplesCS(
 			RWShadingConfidence[ScreenCoord] = UseShadingConfidence != 0 ? WeightRatioSum : 0.0f;
 		}
 
-#if OUTPUT_VISIBLE_LIGHT_MASK
-		if (LinearThreadIndex == 0)
+		#if OUTPUT_VISIBLE_LIGHT_MASK
+		if (LinearThreadIndex < VISIBLE_LIGHT_HASH_SIZE)
 		{
-			RWVisibleLightHash[(TileCoord.y * LightMaskSizeInTiles.x + TileCoord.x)] = SharedVisibleLightHash;
+			RWVisibleLightHash[VISIBLE_LIGHT_HASH_SIZE * (TileCoord.y * LightMaskSizeInTiles.x + TileCoord.x) + LinearThreadIndex] = SharedVisibleLightHash[LinearThreadIndex];
 		}	
-#endif
+		#endif
 	}
 }
 

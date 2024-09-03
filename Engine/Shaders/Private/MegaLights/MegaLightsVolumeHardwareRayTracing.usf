@@ -55,7 +55,8 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(VolumeHardwareRayTraceLightSamples)
 		float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(VolumeCoord, VolumeFrameJitterOffset, SceneDepth);
 
 		FLightSample LightSample = UnpackLightSample(RWVolumeLightSamples[SampleCoord]);
-		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, VolumeCoordToNoiseCoord(SampleCoord));
+		const float2 LightSampleUV = BlueNoiseVec2(VolumeCoordToNoiseCoord(SampleCoord), MegaLightsStateFrameIndex);
+		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, LightSampleUV);
 
 		FRayDesc Ray = (FRayDesc)0;
 		Ray.Origin = TranslatedWorldPosition;

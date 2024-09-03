@@ -28,6 +28,7 @@ RaytracingAccelerationStructure TLAS;
 #endif
 
 RWTexture2D<uint> RWLightSamples;
+Texture2D<uint> LightSampleUVTexture;
 
 Texture2D<float> LightSampleRayDistance;
 Buffer<uint> CompactedTraceTexelData;
@@ -59,7 +60,8 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
 
 		FLightSample LightSample = UnpackLightSample(RWLightSamples[SampleCoord]);
-		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, SampleCoord);
+		float2 LightSampleUV = UnpackLightSampleUV(LightSampleUVTexture[SampleCoord]);
+		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, LightSampleUV);
 		const float LightSampleRayMinT = LightSampleRayDistance[SampleCoord];
 
 		FRayDesc Ray = (FRayDesc)0;

@@ -185,6 +185,15 @@ FFontColor InitFontColor(float InX, float InY, float InZ)	{ FFontColor Out; Out.
 FFontColor InitFontColor(float3 In)							{ FFontColor Out; Out.Color = In; return Out; }
 FFontColor GetDefaultFontColor()							{ FFontColor Out; Out.Color = float3(1,1,1); return Out; }
 
+FFontColor Select(bool Condition, FFontColor A, FFontColor B)
+{
+	if (Condition)
+	{
+		return A;
+	}
+	return B; 
+}
+
 // Predefined colors
 #define FontWhite		InitFontColor(1, 1, 1)
 #define FontGrey		InitFontColor(0.5, 0.5, 0.5)

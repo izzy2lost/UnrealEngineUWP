@@ -89,10 +89,8 @@ struct FLightSampleTrace
 /**
  * Compute shadow ray direction and distance for a given light sample.
  */
-FLightSampleTrace GetLightSampleTrace(float3 TranslatedWorldPosition, uint LocalLightIndex, uint2 SampleCoord)
+FLightSampleTrace GetLightSampleTrace(float3 TranslatedWorldPosition, uint LocalLightIndex, float2 LightSampleUV)
 {
-	const float2 LightSampleRandom = BlueNoiseVec2(SampleCoord, MegaLightsStateFrameIndex);
-
 	FLightSampleTrace LightSampleTrace;
 	LightSampleTrace.Direction = 0.0f;
 	LightSampleTrace.Distance = 0.0f;
@@ -112,7 +110,7 @@ FLightSampleTrace GetLightSampleTrace(float3 TranslatedWorldPosition, uint Local
 			LightData.bRectLight,
 			TranslatedWorldPosition,
 			float3(0, 0, 0),
-			LightSampleRandom,
+			LightSampleUV,
 			Unused,
 			LightSampleTrace.Direction,
 			Unused2,

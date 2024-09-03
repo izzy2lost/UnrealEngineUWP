@@ -45,6 +45,7 @@
 // Limited by PackLightSample and SharedCandidateLightHiMask
 #define MAX_LOCAL_LIGHT_INDEX		1024
 #define SHARED_LIGHT_MASK_SIZE		(MAX_LOCAL_LIGHT_INDEX / 32)
+#define VISIBLE_LIGHT_HASH_SIZE		4 // 4 uints
 
 #if DEBUG_MODE
 void PrintTileTypeString(inout FShaderPrintContext Context, uint TileType)
@@ -95,6 +96,7 @@ struct FLightSample
 	float Weight;
 	bool bVisible;
 	bool bCompleted; // Whether tracing was completed
+	bool bPartiallyVisibleLight; // Whether light was partially visible last frame
 };
 
 FLightSample InitLightSample()
@@ -104,14 +106,16 @@ FLightSample InitLightSample()
 	LightSample.Weight = 0.0f;
 	LightSample.bVisible = false;
 	LightSample.bCompleted = true;
+	LightSample.bPartiallyVisibleLight = false;
 	return LightSample;
 }
 
 uint PackLightSample(FLightSample LightSample)
 {
-	uint PackedLightSample = LightSample.LocalLightIndex & 0x3FFF;
+	uint PackedLightSample = LightSample.LocalLightIndex & 0x3FF;
 	PackedLightSample |= LightSample.bVisible ? 0x8000 : 0;
 	PackedLightSample |= LightSample.bCompleted ? 0x4000 : 0;
+	PackedLightSample |= LightSample.bPartiallyVisibleLight ? 0x2000 : 0;
 	PackedLightSample |= f32tof16(LightSample.Weight) << 16;
 	return PackedLightSample;
 }
@@ -119,11 +123,28 @@ uint PackLightSample(FLightSample LightSample)
 FLightSample UnpackLightSample(uint PackedLightSample)
 {
 	FLightSample LightSample;
-	LightSample.LocalLightIndex = PackedLightSample & 0x3FFF;
+	LightSample.LocalLightIndex = PackedLightSample & 0x3FF;
 	LightSample.bVisible = PackedLightSample & 0x8000 ? true : false;
 	LightSample.bCompleted = PackedLightSample & 0x4000 ? true : false;
+	LightSample.bPartiallyVisibleLight = PackedLightSample & 0x2000 ? true : false;
 	LightSample.Weight = f16tof32(PackedLightSample >> 16);
 	return LightSample;
+}
+
+uint PackLightSampleUV(float2 UV)
+{
+	uint V;
+	V = uint(UV.x * 255.0f + 0.5f);
+	V |= uint(UV.y * 255.0f + 0.5f) << 8;
+	return V;
+}
+
+float2 UnpackLightSampleUV(uint V)
+{
+	float2 UV;
+	UV.x = (V & 0xFF) / 255.0f;
+	UV.y = (V >> 8) / 255.0f;
+	return UV;
 }
 
 uint MegaLightsStateFrameIndex;

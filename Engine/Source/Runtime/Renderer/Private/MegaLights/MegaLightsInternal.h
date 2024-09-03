@@ -36,6 +36,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FMegaLightsParameters, )
 	SHADER_PARAMETER(uint32, bOverrideCursorPosition)
 	SHADER_PARAMETER(int32, DebugMode)
 	SHADER_PARAMETER(int32, DebugLightId)
+	SHADER_PARAMETER(int32, UseIESProfiles)
+	SHADER_PARAMETER(int32, UseLightFunctionAtlas)
 	SHADER_PARAMETER(float, VolumeMinSampleWeight)
 	SHADER_PARAMETER(int32, VolumeDebugMode)
 	SHADER_PARAMETER(int32, VolumeDebugSliceIndex)
@@ -71,6 +73,7 @@ namespace MegaLights
 		const FVirtualShadowMapArray& VirtualShadowMapArray,
 		const FIntPoint SampleBufferSize,
 		FRDGTextureRef LightSamples,
+		FRDGTextureRef LightSampleUV,
 		FRDGTextureRef LightSampleRayDistance,
 		FIntVector VolumeSampleBufferSize,
 		FRDGTextureRef VolumeLightSamples,

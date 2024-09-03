@@ -349,6 +349,7 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(MegaLights::FHairVoxelTraceParameters, HairVoxelTraceParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSampleUVTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LightSampleRayDistance)
 		SHADER_PARAMETER(float, RayTracingBias)
 		SHADER_PARAMETER(float, RayTracingEndBias)
@@ -495,6 +496,7 @@ class FSoftwareRayTraceLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(MegaLights::FHairVoxelTraceParameters, HairVoxelTraceParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSampleUVTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LightSampleRayDistance)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -573,6 +575,7 @@ class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(MegaLights::FCompactedTraceParameters, CompactedTraceParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSampleUVTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWLightSampleRayDistance)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHZBScreenTraceParameters, HZBScreenTraceParameters)
 		SHADER_PARAMETER(float, MaxHierarchicalScreenTraceIterations)
@@ -712,6 +715,7 @@ namespace MegaLights
 		const FMegaLightsParameters& MegaLightsParameters,
 		const FHairVoxelTraceParameters& HairVoxelTraceParameters,
 		FRDGTextureRef LightSamples,
+		FRDGTextureRef LightSampleUV,
 		FRDGTextureRef LightSampleRayDistance,
 		FHardwareRayTraceLightSamples::FParameters* PassParameters)
 	{
@@ -719,6 +723,7 @@ namespace MegaLights
 		PassParameters->MegaLightsParameters = MegaLightsParameters;
 		PassParameters->HairVoxelTraceParameters = HairVoxelTraceParameters;
 		PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
+		PassParameters->LightSampleUVTexture = LightSampleUV;
 		PassParameters->LightSampleRayDistance = LightSampleRayDistance;
 		PassParameters->RayTracingBias = CVarMegaLightsHardwareRayTracingBias.GetValueOnRenderThread();
 		PassParameters->RayTracingEndBias = CVarMegaLightsHardwareRayTracingEndBias.GetValueOnRenderThread();
@@ -916,6 +921,7 @@ void MegaLights::RayTraceLightSamples(
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
 	const FIntPoint SampleBufferSize,
 	FRDGTextureRef LightSamples,
+	FRDGTextureRef LightSampleUV,
 	FRDGTextureRef LightSampleRayDistance,
 	FIntVector VolumeSampleBufferSize,
 	FRDGTextureRef VolumeLightSamples,
@@ -965,6 +971,7 @@ void MegaLights::RayTraceLightSamples(
 		PassParameters->CompactedTraceParameters = CompactedTraceParameters;
 		PassParameters->MegaLightsParameters = MegaLightsParameters;
 		PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
+		PassParameters->LightSampleUVTexture = LightSampleUV;
 		PassParameters->RWLightSampleRayDistance = GraphBuilder.CreateUAV(LightSampleRayDistance);
 		PassParameters->HZBScreenTraceParameters = SetupHZBScreenTraceParameters(GraphBuilder, View, SceneTextures);
 		PassParameters->MaxHierarchicalScreenTraceIterations = CVarMegaLightsScreenTracesMaxIterations.GetValueOnRenderThread();
@@ -1037,6 +1044,7 @@ void MegaLights::RayTraceLightSamples(
 					MegaLightsParameters,
 					HairVoxelTraceParameters,
 					LightSamples,
+					LightSampleUV,
 					LightSampleRayDistance,
 					PassParameters);
 
@@ -1133,6 +1141,7 @@ void MegaLights::RayTraceLightSamples(
 					MegaLightsParameters,
 					HairVoxelTraceParameters,
 					LightSamples,
+					LightSampleUV,
 					LightSampleRayDistance,
 					PassParameters);
 

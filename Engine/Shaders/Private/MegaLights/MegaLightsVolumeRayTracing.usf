@@ -165,7 +165,8 @@ void VolumeSoftwareRayTraceLightSamplesCS(
 		float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(VolumeCoord, VolumeFrameJitterOffset, SceneDepth);
 
 		FLightSample LightSample = UnpackLightSample(RWVolumeLightSamples[SampleCoord]);
-		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, VolumeCoordToNoiseCoord(SampleCoord));
+		const float2 LightSampleUV = BlueNoiseVec2(VolumeCoordToNoiseCoord(SampleCoord), MegaLightsStateFrameIndex);
+		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, LightSampleUV);
 
 		FGlobalSDFTraceInput TraceInput = SetupGlobalSDFTraceInput(TranslatedWorldPosition, LightSampleTrace.Direction, 0.0f, LightSampleTrace.Distance, 1.0f, 1.0f);
 
