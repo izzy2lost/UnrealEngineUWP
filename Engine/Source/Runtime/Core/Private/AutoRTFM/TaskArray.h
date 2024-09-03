@@ -167,6 +167,30 @@ public:
     }
 
     template<typename TFunc>
+    bool ForEachForward(const TFunc& Func)
+    {
+        for (FInternalArray& StashedVectorBox : Stash)
+        {
+            for (SKeyValuePair& EntryKVP : StashedVectorBox)
+            {
+                if (!Func(EntryKVP.Val))
+                {
+                    return false;
+                }
+            }
+        }
+
+        for (SKeyValuePair& EntryKVP : Latest)
+        {
+            if (!Func(EntryKVP.Val))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    template<typename TFunc>
     bool ForEachBackward(const TFunc& Func) const
     {
 		for (const SKeyValuePair& EntryKVP : TBackwards(Latest))

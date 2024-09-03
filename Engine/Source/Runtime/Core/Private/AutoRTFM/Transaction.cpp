@@ -186,7 +186,14 @@ bool FTransaction::AttemptToCommitOuterNest()
 	Context->DumpState();
 	UE_LOG(LogAutoRTFM, Verbose, TEXT("Running commit tasks..."));
 
-    CommitTasks.ForEachForward([] (const TFunction<void()>& Task) -> bool { Task(); return true; });
+    AbortTasks.Reset();
+
+    CommitTasks.ForEachForward([] (TFunction<void()>& Task) -> bool
+    { 
+        Task(); 
+        Task.Reset();
+        return true; 
+    });
 
     return true;
 }
