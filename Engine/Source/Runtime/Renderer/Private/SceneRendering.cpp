@@ -1794,7 +1794,7 @@ void FViewInfo::SetupUniformBufferParameters(
 
 		// Profiles
 		{
-			FRHITexture* Texture = GetSubsurfaceProfileTextureWithFallback();
+			FRHITexture* Texture = SubsurfaceProfile::GetSubsurfaceProfileTextureWithFallback();
 			FIntVector TextureSize = Texture->GetSizeXYZ();
 			ViewUniformShaderParameters.SSProfilesTextureSizeAndInvSize = FVector4f(TextureSize.X, TextureSize.Y, 1.0f / TextureSize.X, 1.0f / TextureSize.Y);
 			ViewUniformShaderParameters.SSProfilesTexture = Texture;
@@ -1804,7 +1804,7 @@ void FViewInfo::SetupUniformBufferParameters(
 
 		// Pre-integrated profiles
 		{
-			FRHITexture* Texture = GetSSProfilesPreIntegratedTextureWithFallback();
+			FRHITexture* Texture = SubsurfaceProfile::GetSSProfilesPreIntegratedTextureWithFallback();
 			FIntVector TextureSize = Texture->GetSizeXYZ();
 			ViewUniformShaderParameters.SSProfilesPreIntegratedTextureSizeAndInvSize = FVector4f(TextureSize.X, TextureSize.Y, 1.0f / TextureSize.X, 1.0f / TextureSize.Y);
 			ViewUniformShaderParameters.SSProfilesPreIntegratedTexture = Texture;
@@ -1814,7 +1814,7 @@ void FViewInfo::SetupUniformBufferParameters(
 
 	// Specular Profiles
 	{
-		FRHITexture* Texture = SpecularProfileAtlas::GetSpecularProfileTextureAtlasWithFallback();
+		FRHITexture* Texture = SpecularProfile::GetSpecularProfileTextureAtlasWithFallback();
 		FIntVector TextureSize = Texture->GetSizeXYZ();
 		ViewUniformShaderParameters.SpecularProfileTextureSizeAndInvSize = FVector4f(TextureSize.X, TextureSize.Y, 1.0f / TextureSize.X, 1.0f / TextureSize.Y);
 		ViewUniformShaderParameters.SpecularProfileTexture = Texture;

@@ -291,13 +291,13 @@ bool FMaterialInstanceResource::GetParameterValue(EMaterialParameterType Type, c
 	bool bResult = false;
 
 	// Check for hard-coded parameters
-	if (Type == EMaterialParameterType::Scalar && ParameterInfo.Name == GetSubsurfaceProfileParameterName())
+	if (Type == EMaterialParameterType::Scalar && ParameterInfo.Name == SubsurfaceProfile::GetSubsurfaceProfileParameterName())
 	{
 #if !ENABLE_MATERIAL_LAYER_PROTOTYPE
 		check(ParameterInfo.Association == EMaterialParameterAssociation::GlobalParameter);
 #endif
 		const USubsurfaceProfile* MySubsurfaceProfileRT = GetSubsurfaceProfileRT();
-		OutValue = GetSubsurfaceProfileId(MySubsurfaceProfileRT);
+		OutValue = SubsurfaceProfile::GetSubsurfaceProfileId(MySubsurfaceProfileRT);
 		bResult = true;
 	}
 	else if (Type == EMaterialParameterType::Scalar && NumSubsurfaceProfileRT() > 0)
@@ -310,10 +310,10 @@ bool FMaterialInstanceResource::GetParameterValue(EMaterialParameterType Type, c
 		for (uint32 It = 0, Count = NumSubsurfaceProfileRT(); It < Count; ++It)
 		{
 			const USubsurfaceProfile* SSProfileRT = GetSubsurfaceProfileRT(It);
-			if (ParameterInfo.Name == CreateSubsurfaceProfileParameterName(SSProfileRT))
+			if (ParameterInfo.Name == SubsurfaceProfile::CreateSubsurfaceProfileParameterName(SSProfileRT))
 			{
 				// Set the root material Profile, or the profile overriden by any instances.
-				OutValue = GetSubsurfaceProfileId(SSProfileOverrideRT ? SSProfileOverrideRT : SSProfileRT);
+				OutValue = SubsurfaceProfile::GetSubsurfaceProfileId(SSProfileOverrideRT ? SSProfileOverrideRT : SSProfileRT);
 				bResult = true;
 				break;
 			}
@@ -323,12 +323,12 @@ bool FMaterialInstanceResource::GetParameterValue(EMaterialParameterType Type, c
 	{
 		for (uint32 It=0,Count=NumSpecularProfileRT();It<Count;++It)
 		{
-			if (ParameterInfo.Name == SpecularProfileAtlas::GetSpecularProfileParameterName(GetSpecularProfileRT(It)))
+			if (ParameterInfo.Name == SpecularProfile::GetSpecularProfileParameterName(GetSpecularProfileRT(It)))
 			{
 #if !ENABLE_MATERIAL_LAYER_PROTOTYPE
 				check(ParameterInfo.Association == EMaterialParameterAssociation::GlobalParameter);
 #endif
-				OutValue = SpecularProfileAtlas::GetSpecularProfileId(GetSpecularProfileRT(It));
+				OutValue = SpecularProfile::GetSpecularProfileId(GetSpecularProfileRT(It));
 				bResult = true;
 				break;
 			}

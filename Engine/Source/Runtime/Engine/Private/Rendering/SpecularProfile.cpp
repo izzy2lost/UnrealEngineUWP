@@ -185,16 +185,6 @@ TGlobalResource<FSpecularProfileTextureManager> GSpecularProfileTextureManager;
 // SpecularProfile atlas storing several texture profiles or 0 if there is no user
 static TRefCountPtr<IPooledRenderTarget> GSpecularProfileTextureAtlas;
 
-static FName CreateSpecularProfileParameterName(const FGuid& InGuid)
-{
-	return FName(TEXT("__SpecularProfile") + InGuid.ToString());
-}
-
-FName CreateSpecularProfileParameterName(USpecularProfile* InProfile)
-{
-	return InProfile ? CreateSpecularProfileParameterName(InProfile->Guid) : FName();
-}
-
 FSpecularProfileTextureManager::FSpecularProfileTextureManager()
 {
 	check(IsInGameThread());
@@ -555,7 +545,7 @@ void USpecularProfile::PostDuplicate(EDuplicateMode::Type DuplicateMode)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Public API
 
-namespace SpecularProfileAtlas
+namespace SpecularProfile
 {
 	FName GetSpecularProfileParameterName(const USpecularProfile* In)
 	{
@@ -594,4 +584,14 @@ namespace SpecularProfileAtlas
 		GSpecularProfileTextureManager.GetAtlasTexture(GraphBuilder, ShaderPlatform);
 	}
 
-} // namespace SpecularProfileAtlas
+	
+	static FName CreateSpecularProfileParameterName(const FGuid& InGuid)
+	{
+		return FName(TEXT("__SpecularProfile") + InGuid.ToString());
+	}
+
+	FName CreateSpecularProfileParameterName(USpecularProfile* InProfile)
+	{
+		return InProfile ? CreateSpecularProfileParameterName(InProfile->Guid) : FName();
+	}
+} // namespace SpecularProfile

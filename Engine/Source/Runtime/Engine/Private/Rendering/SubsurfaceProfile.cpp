@@ -281,7 +281,7 @@ IPooledRenderTarget* FSubsurfaceProfileTexture::GetSSProfilesPreIntegratedTextur
 			FSSProfilePreIntegratedPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSSProfilePreIntegratedPS::FParameters>();
 			PassParameters->RenderTargets[0] = FRenderTargetBinding(ProfileTexture, ERenderTargetLoadAction::EClear, 0, i);
 
-			PassParameters->SourceSSProfilesTexture = GetSubsurfaceProfileTextureWithFallback();
+			PassParameters->SourceSSProfilesTexture = SubsurfaceProfile::GetSubsurfaceProfileTextureWithFallback();
 			PassParameters->SourceSSProfilesSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
 			FIntVector SourceSSProfilesTextureSize = PassParameters->SourceSSProfilesTexture->GetSizeXYZ();
@@ -713,6 +713,44 @@ void FSubsurfaceProfileTexture::Dump()
 
 FName GetSubsurfaceProfileParameterName()
 {
+	return SubsurfaceProfile::GetSubsurfaceProfileParameterName();
+}
+
+FName CreateSubsurfaceProfileParameterName(const USubsurfaceProfile* InProfile)
+{
+	return SubsurfaceProfile::CreateSubsurfaceProfileParameterName(InProfile);
+}
+
+float GetSubsurfaceProfileId(const USubsurfaceProfile* In)
+{
+	return SubsurfaceProfile::GetSubsurfaceProfileId(In);
+}
+
+FRHITexture* GetSubsurfaceProfileTexture()
+{
+	return SubsurfaceProfile::GetSubsurfaceProfileTexture();
+}
+
+FRHITexture* GetSubsurfaceProfileTextureWithFallback()
+{
+	return SubsurfaceProfile::GetSubsurfaceProfileTextureWithFallback();
+}
+
+FRHITexture* GetSSProfilesPreIntegratedTextureWithFallback()
+{
+	return SubsurfaceProfile::GetSSProfilesPreIntegratedTextureWithFallback();
+}
+
+void UpdateSubsurfaceProfileTexture(FRDGBuilder& GraphBuilder, EShaderPlatform ShaderPlatform)
+{
+	SubsurfaceProfile::UpdateSubsurfaceProfileTexture(GraphBuilder, ShaderPlatform);
+}
+
+namespace SubsurfaceProfile
+{
+
+FName GetSubsurfaceProfileParameterName()
+{
 	static FName NameSubsurfaceProfile(TEXT("__SubsurfaceProfile"));
 	return NameSubsurfaceProfile;
 }
@@ -763,6 +801,8 @@ void UpdateSubsurfaceProfileTexture(FRDGBuilder& GraphBuilder, EShaderPlatform S
 	GSubsurfaceProfileTextureObject.GetTexture(GraphBuilder.RHICmdList);
 	GSubsurfaceProfileTextureObject.GetSSProfilesPreIntegratedTexture(GraphBuilder, ShaderPlatform);
 }
+
+}// namespace SubsurfaceProfile
 
 // ------------------------------------------------------
 

@@ -61,6 +61,7 @@
 #include "DerivedDataCache.h"
 #include "MaterialCachedData.h"
 #include "PostProcess/PostProcessMaterialInputs.h"
+#include "Engine/SubsurfaceProfile.h"
 
 #if WITH_EDITORONLY_DATA
 #include "Materials/MaterialExpressionSubstrate.h"
@@ -1623,7 +1624,7 @@ void FHLSLMaterialTranslator::TranslateMaterial()
 			int32 SubsurfaceColor = Material->CompilePropertyAndSetMaterialProperty(MP_SubsurfaceColor, this);
 			SubsurfaceColor = ForceCast(SubsurfaceColor, FMaterialAttributeDefinitionMap::GetValueType(MP_SubsurfaceColor), MFCF_ExactMatch | MFCF_ReplicateValue);
 
-			static FName NameSubsurfaceProfile(TEXT("__SubsurfaceProfile"));
+			static FName NameSubsurfaceProfile = SubsurfaceProfile::GetSubsurfaceProfileParameterName();
 
 			// 1.0f is is a not used profile - later this gets replaced with the actual profile
 			int32 CodeSubsurfaceProfile = ForceCast(ScalarParameter(NameSubsurfaceProfile, 1.0f), MCT_Float1);

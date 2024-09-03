@@ -877,7 +877,7 @@ bool MaterialEmitHLSL(const FMaterialCompileTargetParameters& InCompilerTarget,
 			const EMaterialDomain MaterialDomain = EmitContext.Material->GetMaterialDomain();
 			if (MaterialDomain == MD_Volume || (MaterialDomain == MD_Surface && IsSubsurfaceShadingModel(EmitMaterialData.ShadingModelsFromCompilation)))
 			{
-				const FMaterialParameterInfo SubsurfaceProfileParameterInfo(GetSubsurfaceProfileParameterName());
+				const FMaterialParameterInfo SubsurfaceProfileParameterInfo(SubsurfaceProfile::GetSubsurfaceProfileParameterName());
 				const FMaterialParameterMetadata SubsurfaceProfileParameterMetadata(1.f);
 				const Material::FExpressionParameter SubsurfaceProfileExpression(SubsurfaceProfileParameterInfo, SubsurfaceProfileParameterMetadata);
 

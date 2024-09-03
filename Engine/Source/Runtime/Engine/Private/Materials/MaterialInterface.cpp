@@ -1627,7 +1627,7 @@ void UMaterialInterface::UpdateMaterialRenderProxy(FMaterialRenderProxy& Proxy)
 				{
 					if (Entry.Profile)
 					{
-						const uint32 AllocationId = SpecularProfileAtlas::AddOrUpdateProfile(Entry.Profile, Entry.Guid, Entry.Settings, Entry.Texture);
+						const uint32 AllocationId = SpecularProfile::AddOrUpdateProfile(Entry.Profile, Entry.Guid, Entry.Settings, Entry.Texture);
 						check(AllocationId >= 0 && AllocationId < MAX_SPECULAR_PROFILE_COUNT);
 					}
 					InProxy->AddSpecularProfileRT(Entry.Profile);

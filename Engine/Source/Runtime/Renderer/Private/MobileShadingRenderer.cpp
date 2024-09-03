@@ -1037,8 +1037,8 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	if (bRendererOutputFinalSceneColor)
 	{
 		// Force the subsurface profile texture to be updated.
-		UpdateSubsurfaceProfileTexture(GraphBuilder, ShaderPlatform);
-		SpecularProfileAtlas::UpdateSpecularProfileTextureAtlas(GraphBuilder, ShaderPlatform);
+		SubsurfaceProfile::UpdateSubsurfaceProfileTexture(GraphBuilder, ShaderPlatform);
+		SpecularProfile::UpdateSpecularProfileTextureAtlas(GraphBuilder, ShaderPlatform);
 
 		if (bDeferredShading)
 		{

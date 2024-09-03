@@ -175,20 +175,17 @@ static int32 CompileWithDefaultTangentWS(class FMaterialCompiler* Compiler, FExp
 	return Compiler->VertexTangent();
 }
 
-FName CreateSpecularProfileParameterName(USpecularProfile* InProfile);
-FName CreateSubsurfaceProfileParameterName(const USubsurfaceProfile* InProfile);
-
 static int32 CreateSubsurfaceProfileParameter(class FMaterialCompiler* Compiler, USubsurfaceProfile* InProfile)
 {
 	check(InProfile);
-	const FName SubsurfaceProfileParameterName = CreateSubsurfaceProfileParameterName(InProfile);
+	const FName SubsurfaceProfileParameterName = SubsurfaceProfile::CreateSubsurfaceProfileParameterName(InProfile);
 	const int32 SSSProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(SubsurfaceProfileParameterName, 1.0f), MCT_Float1);
 	return SSSProfileCodeChunk;
 }
 
 static int32 CreateDefaultSubsurfaceProfileParameter(class FMaterialCompiler* Compiler)
 {
-	const int32 SSSProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(GetSubsurfaceProfileParameterName(), 1.0f), MCT_Float1);
+	const int32 SSSProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(SubsurfaceProfile::GetSubsurfaceProfileParameterName(), 1.0f), MCT_Float1);
 	return SSSProfileCodeChunk;
 }
 
@@ -756,7 +753,7 @@ int32 UMaterialExpressionSubstrateSlabBSDF::Compile(class FMaterialCompiler* Com
 	int32 SpecularProfileCodeChunk = INDEX_NONE;
 	if (SubstrateOperator.Has(ESubstrateBsdfFeature_SpecularProfile))
 	{
-		const FName SpecularProfileParameterName = CreateSpecularProfileParameterName(SpecularProfile);
+		const FName SpecularProfileParameterName = SpecularProfile::CreateSpecularProfileParameterName(SpecularProfile);
 		SpecularProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(SpecularProfileParameterName, 1.0f), MCT_Float1);
 	}
 

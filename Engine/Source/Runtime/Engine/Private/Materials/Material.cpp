@@ -446,10 +446,10 @@ public:
 		const FMaterialResource* MaterialResource = Material->GetMaterialResource(Context.Material.GetFeatureLevel());
 		if (MaterialResource && MaterialResource->GetRenderingThreadShaderMap())
 		{
-			if (Type == EMaterialParameterType::Scalar && ParameterInfo.Name == GetSubsurfaceProfileParameterName())
+			if (Type == EMaterialParameterType::Scalar && ParameterInfo.Name == SubsurfaceProfile::GetSubsurfaceProfileParameterName())
 			{
 				// Legacy single SubsurfaceProfile (Substrate do not add this one in the material shader)
-				OutValue = GetSubsurfaceProfileId(GetSubsurfaceProfileRT());
+				OutValue = SubsurfaceProfile::GetSubsurfaceProfileId(GetSubsurfaceProfileRT());
 				return true;
 			}
 			else if (Type == EMaterialParameterType::Scalar && NumSubsurfaceProfileRT() > 0)
@@ -459,10 +459,10 @@ public:
 				for (uint32 It = 0, Count = NumSubsurfaceProfileRT(); It < Count; ++It)
 				{
 					const USubsurfaceProfile* SSProfileRT = GetSubsurfaceProfileRT(It);
-					if (ParameterInfo.Name == CreateSubsurfaceProfileParameterName(SSProfileRT))
+					if (ParameterInfo.Name == SubsurfaceProfile::CreateSubsurfaceProfileParameterName(SSProfileRT))
 					{
 						// Set the root material Profile, or the profile overriden by any instances.
-						OutValue = GetSubsurfaceProfileId(SSProfileOverrideRT ? SSProfileOverrideRT : SSProfileRT);
+						OutValue = SubsurfaceProfile::GetSubsurfaceProfileId(SSProfileOverrideRT ? SSProfileOverrideRT : SSProfileRT);
 						return true;
 					}
 				}
@@ -471,9 +471,9 @@ public:
 			{
 				for (uint32 It=0,Count=NumSpecularProfileRT();It<Count;++It)
 				{
-					if (ParameterInfo.Name == SpecularProfileAtlas::GetSpecularProfileParameterName(GetSpecularProfileRT(It)))
+					if (ParameterInfo.Name == SpecularProfile::GetSpecularProfileParameterName(GetSpecularProfileRT(It)))
 					{
-						OutValue = SpecularProfileAtlas::GetSpecularProfileId(GetSpecularProfileRT(It));
+						OutValue = SpecularProfile::GetSpecularProfileId(GetSpecularProfileRT(It));
 						return true;
 					}
 				}
