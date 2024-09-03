@@ -740,7 +740,7 @@ struct SMARTOBJECTSMODULE_API FSmartObjectActorOwnerData
 /**
  * Struct used as a friend to FSmartObjectHandle that is the only caller allowed to create a handle from a uint64.
  */
-struct FSmartObjectHandleFactory
+struct SMARTOBJECTSMODULE_API FSmartObjectHandleFactory
 {
 	static FSmartObjectHandle CreateHandleForDynamicObject();
 	static FSmartObjectHandle CreateHandleForComponent(const UWorld& World, const USmartObjectComponent& Component);

@@ -13,7 +13,8 @@
 #include "Misc/DataValidation.h"
 #include "SmartObjectPropertyHelpers.h"
 #include "Interfaces/ITargetPlatform.h"
-#endif
+#include "UObject/AssetRegistryTagsContext.h"
+#endif // WITH_EDITOR
 
 #include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 #include "Serialization/MemoryWriter.h"
@@ -32,6 +33,8 @@ namespace UE::SmartObject
 #if WITH_EDITOR
 		FOnParametersChanged OnParametersChanged;
 		FOnSavingDefinition OnSavingDefinition;
+		FOnGetAssetRegistryTags OnGetAssetRegistryTags;
+		FOnSlotDefinitionCreated OnSlotDefinitionCreated;
 #endif // WITH_EDITOR
 	} // Delegates
 
@@ -292,6 +295,13 @@ bool USmartObjectDefinition::FindSlotAndDefinitionDataIndexByID(const FGuid ID, 
 	return false;
 }
 
+void USmartObjectDefinition::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
+
+	(void)UE::SmartObject::Delegates::OnGetAssetRegistryTags.ExecuteIfBound(*this, Context);
+}
+
 void USmartObjectDefinition::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeChainProperty(PropertyChangedEvent);
@@ -320,6 +330,12 @@ void USmartObjectDefinition::PostEditChangeChainProperty(FPropertyChangedChainEv
 				for (FSmartObjectDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
 				{
 					DataProxy.ID = FGuid::NewGuid();
+				}
+
+				// Call delegate only when a new definition is created (not called when duplicating an existing one)
+				if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayAdd)
+				{
+					(void)UE::SmartObject::Delegates::OnSlotDefinitionCreated.ExecuteIfBound(*this, Slots[SlotIndex]);
 				}
 			}
 		}

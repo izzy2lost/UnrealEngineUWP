@@ -28,6 +28,14 @@ namespace UE::SmartObject::Delegates
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnParametersChanged, const USmartObjectDefinition& /*SmartObjectDefinition*/);
 	extern SMARTOBJECTSMODULE_API FOnParametersChanged OnParametersChanged;
 
+	/** Delegate to retrieve Registry Tags for SmartObjectDefinition */
+	DECLARE_DELEGATE_TwoParams(FOnGetAssetRegistryTags, const USmartObjectDefinition& /*SmartObjectDefinition*/, FAssetRegistryTagsContext /*Context*/);
+	extern SMARTOBJECTSMODULE_API FOnGetAssetRegistryTags OnGetAssetRegistryTags;
+
+	/** Called in editor when a new SmartObjectSlotDefinition is created (not called when duplicating an existing one). */
+	DECLARE_DELEGATE_TwoParams(FOnSlotDefinitionCreated, USmartObjectDefinition& /*SmartObjectDefinition*/, FSmartObjectSlotDefinition& /*SmartObjectSlotDefinition*/);
+	extern SMARTOBJECTSMODULE_API FOnSlotDefinitionCreated OnSlotDefinitionCreated;
+
 	/** Called in editor when a SmartObjectDefinition is about to be saved. */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSavingDefinition, const USmartObjectDefinition& /*SmartObjectDefinition*/);
 	extern SMARTOBJECTSMODULE_API FOnSavingDefinition OnSavingDefinition;
@@ -420,7 +428,9 @@ public:
 	 * @param OutDefinitionDataIndex Index of the definition data the ID points to, or INDEX_NONE, if ID points directly to a slot.
 	 * @return true if ID matches data in the definition. */
 	bool FindSlotAndDefinitionDataIndexByID(const FGuid ID, int32& OutSlotIndex, int32& OutDefinitionDataIndex) const;
-#endif
+
+	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+#endif // WITH_EDITOR
 
 	/** Return bounds encapsulating all slots */
 	UFUNCTION(BlueprintCallable, Category="SmartObject")

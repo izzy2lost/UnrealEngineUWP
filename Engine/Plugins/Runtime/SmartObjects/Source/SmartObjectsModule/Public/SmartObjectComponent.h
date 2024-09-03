@@ -124,6 +124,13 @@ public:
 	static FOnSmartObjectChanged& GetOnSmartObjectChanged() { return OnSmartObjectChanged; }
 #endif // WITH_EDITORONLY_DATA
 
+#if WITH_EDITOR
+	FSmartObjectDefinitionReference& GetMutableDefinitionReference()
+	{
+		return DefinitionRef;
+	}
+#endif // WITH_EDITOR
+
 protected:
 	friend FSmartObjectComponentInstanceData;
 	virtual TStructOnScope<FActorComponentInstanceData> GetComponentInstanceData() const override;
