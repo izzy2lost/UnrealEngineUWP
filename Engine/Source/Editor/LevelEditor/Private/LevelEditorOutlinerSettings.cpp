@@ -309,7 +309,10 @@ bool FLevelEditorOutlinerSettings::DoesActorPassUncontrolledFilter(const ISceneO
 	
 	for (const TSharedRef<FUncontrolledChangelistState>& UncontrolledChangelistState : UncontrolledChangelistStates)
 	{
-		return UncontrolledChangelistState->GetFilenames().Contains(ExternalPackageFilename);
+		if (UncontrolledChangelistState->GetFilenames().Contains(ExternalPackageFilename))
+		{
+			return true;
+		}
 	}
 	
 	return false;
