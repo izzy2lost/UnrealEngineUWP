@@ -1335,6 +1335,16 @@ FString UCustomizableObject::GetStateParameterName(int32 StateIndex, int32 Param
 #if WITH_EDITORONLY_DATA
 void UCustomizableObjectPrivate::PostCompile()
 {
+	for (TObjectIterator<UCustomizableObjectInstance> It; It; ++It)
+	{
+		if (It->GetCustomizableObject() == this->GetPublic())
+		{
+			// This cannot be bound to the PostCompileDelegate below because the CO Editor binds to it too and the order of broadcast is indeterminate.
+			// The Instance's OnPostCompile() must happen before all the other bindings.
+			It->GetPrivate()->OnPostCompile();
+		}
+	}
+
 	PostCompileDelegate.Broadcast();
 }
 #endif
