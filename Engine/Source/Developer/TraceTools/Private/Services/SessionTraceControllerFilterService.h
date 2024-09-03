@@ -39,6 +39,10 @@ public:
 
 	virtual const FString& GetTraceEndpoint() const override { return TraceEndpoint; }
 	virtual FTraceStatus::ETraceSystemStatus GetTraceSystemStatus() const { return TraceSystemStatus; }
+
+	void SetInstanceId(const FGuid& Id) override;
+	bool HasAvailableInstance() const override;
+
 	/** End ISessionTraceFilterService overrides */
 
 protected:
@@ -52,7 +56,7 @@ protected:
 
 	void UpdateChannels(const FTraceStatus& InStatus);
 
-	void OnSessionSelectionChanged();
+	void Reset();
 
 protected:
 	TSharedPtr<ITraceController> TraceController;
@@ -80,6 +84,8 @@ protected:
 
 	FString TraceEndpoint;
 	FTraceStatus::ETraceSystemStatus TraceSystemStatus;
+
+	FGuid InstanceId;
 };
 
 } // namespace UE::TraceTools

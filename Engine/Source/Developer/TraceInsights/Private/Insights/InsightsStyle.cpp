@@ -274,6 +274,11 @@ void FInsightsStyle::FStyle::Initialize()
 	Set("Icons.MemTag.TreeItem", new TODO_IMAGE_BRUSH(Icon12x12));
 
 	//////////////////////////////////////////////////
+	// Trace Control
+
+	Set("Icons.TraceControl", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/TraceDataFiltering", Icon16x16));
+
+	//////////////////////////////////////////////////
 }
 
 #undef TODO_IMAGE_BRUSH

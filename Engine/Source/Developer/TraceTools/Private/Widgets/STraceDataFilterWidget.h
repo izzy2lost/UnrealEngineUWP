@@ -39,9 +39,11 @@ public:
 	SLATE_END_ARGS()
 
 	/** Constructs this widget. */
-	void Construct(const FArguments& InArgs, TSharedPtr<ITraceController> InTraceController);
+	void Construct(const FArguments& InArgs, TSharedPtr<ITraceController> InTraceController, TSharedPtr<ISessionTraceFilterService> InSessionFilterService);
 
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+
+	void SetWarningBannerText(const FText& InText) { WarningBannerText = InText; };
 
 protected:
 	/** Callback from SFilterPresetList, should save the current tileview filter state as the specified preset */
@@ -85,6 +87,8 @@ protected:
 
 	void OnSessionSelectionChanged();
 
+	FText GetWarningBannerText() const;
+
 protected:
 	/** Flat list of contained items */
 	TArray<TSharedPtr<ITraceObject>> ListItems;
@@ -127,6 +131,8 @@ protected:
 
 	bool bHasChannelData = false;
 	bool bHasSettings = false;
+
+	FText WarningBannerText;
 };
 
 } // namespace UE::TraceTools

@@ -67,7 +67,9 @@ void FInsightsMenuBuilder::PopulateMenu(FMenuBuilder& MenuBuilder)
 		LOCTEXT("ImportTable_ToolTip", "Import CSV or TSV data from a file to an Insights Table."),
 		FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.ImportTable"),
 		FUIAction(FExecuteAction::CreateLambda([] { Insights::FTableImportTool::Get()->StartImportProcess(); })));
+
 	MenuBuilder.AddSeparator();
+
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("OpenSessionBrowser", "Session Browser"),
 		LOCTEXT("OpenSessionBrowser_ToolTip", "Opens the Unreal Insights Session Browser window."),
@@ -80,6 +82,13 @@ void FInsightsMenuBuilder::PopulateMenu(FMenuBuilder& MenuBuilder)
 		false,
 		FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.FolderOpen")
 	);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("OpenTraceControl", "Live Trace Control"),
+		LOCTEXT("OpenTraceControl_ToolTip", "Opens the Trace Control window."),
+		FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.TraceControl"),
+		FUIAction(FExecuteAction::CreateLambda([] { FInsightsManager::Get()->OpenTraceControlWindow(); })));
+
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("AutoOpenLiveTrace", "Auto Open Live Trace"),
 		LOCTEXT("AutoOpenLiveTrace_ToolTip", "If enabled, the analysis starts automatically for each new live trace session, replacing the current analysis session."),
@@ -91,6 +100,7 @@ void FInsightsMenuBuilder::PopulateMenu(FMenuBuilder& MenuBuilder)
 		),
 		NAME_None,
 		EUserInterfaceActionType::ToggleButton);
+
 	MenuBuilder.EndSection();
 
 	FGlobalTabmanager::Get()->PopulateLocalTabSpawnerMenu(MenuBuilder);

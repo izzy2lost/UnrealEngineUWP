@@ -26,16 +26,13 @@ FSessionTraceControllerFilterService::FSessionTraceControllerFilterService(TShar
 	FCoreDelegates::OnEndFrame.AddRaw(this, &FSessionTraceControllerFilterService::OnApplyChannelChanges);
 
 	TraceController = InTraceController;
-	TraceController->OnSelectedSessionStatusReceived().AddRaw(this, &FSessionTraceControllerFilterService::OnTraceStatusUpdated);
-	TraceController->OnSessionSelectionChanged().AddRaw(this, &FSessionTraceControllerFilterService::OnSessionSelectionChanged);
+	TraceController->OnStatusReceived().AddRaw(this, &FSessionTraceControllerFilterService::OnTraceStatusUpdated);
 }
 
 FSessionTraceControllerFilterService::~FSessionTraceControllerFilterService()
 {
 	FCoreDelegates::OnEndFrame.RemoveAll(this);
-
-	TraceController->OnSelectedSessionStatusReceived().RemoveAll(this);
-	TraceController->OnSessionSelectionChanged().RemoveAll(this);
+	TraceController->OnStatusReceived().RemoveAll(this);
 }
 
 void FSessionTraceControllerFilterService::GetRootObjects(TArray<FTraceObjectInfo>& OutObjects) const
@@ -104,11 +101,16 @@ void FSessionTraceControllerFilterService::DisableAllChannels()
 
 void FSessionTraceControllerFilterService::OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType, ITraceControllerCommands& Commands)
 {
-	if (!TraceController->HasAvailableSelectedInstance())
+	if (!InstanceId.IsValid() || InStatus.InstanceId != InstanceId)
 	{
-		Objects.Empty();
 		return;
 	}
+
+	if (!TraceController->HasAvailableInstance(InstanceId))
+	{
+		return;
+	}
+
 	if (EnumHasAnyFlags(InUpdateType, FTraceStatus::EUpdateType::ChannelsDesc) ||
 		(EnumHasAnyFlags(InUpdateType, FTraceStatus::EUpdateType::ChannelsStatus)))
 	{
@@ -171,14 +173,14 @@ void FSessionTraceControllerFilterService::UpdateChannels(const FTraceStatus& In
 
 void FSessionTraceControllerFilterService::OnApplyChannelChanges()
 {
-	if (!TraceController->HasAvailableSelectedInstance() || !bChannelsReceived)
+	if (!TraceController->HasAvailableInstance(InstanceId) || !bChannelsReceived)
 	{
 		return;
 	}
 
 	if (FrameEnabledChannels.Num() || FrameDisabledChannels.Num())
 	{
-		TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+		TraceController->WithInstance(InstanceId, [&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
 		{
 			Commands.SetChannels(FrameEnabledChannels.Array(), FrameDisabledChannels.Array());
 		});
@@ -208,11 +210,27 @@ const FTraceStats& FSessionTraceControllerFilterService::GetStats() const
 	return Stats;
 }
 
-void FSessionTraceControllerFilterService::OnSessionSelectionChanged()
+void FSessionTraceControllerFilterService::Reset()
 {
 	bHasStats = false;
 	bHasSettings = false;
 	TraceEndpoint.Empty();
+}
+
+void FSessionTraceControllerFilterService::SetInstanceId(const FGuid& Id)
+{
+	InstanceId = Id;
+	Reset();
+}
+
+bool FSessionTraceControllerFilterService::HasAvailableInstance() const
+{
+	if (InstanceId.IsValid())
+	{
+		return TraceController->HasAvailableInstance(InstanceId);
+	}
+
+	return false;
 }
 
 } // namespace UE::TraceTools

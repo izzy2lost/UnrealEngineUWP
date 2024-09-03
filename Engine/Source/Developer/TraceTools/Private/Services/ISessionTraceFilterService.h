@@ -75,6 +75,12 @@ public:
 
 	/** Get the current status of the trace system. */
 	virtual FTraceStatus::ETraceSystemStatus GetTraceSystemStatus() const = 0;
+
+	/** Sets the InstanceId to control. Supports invalid guid value for disabled state. */
+	virtual void SetInstanceId(const FGuid& Id) = 0;
+
+	/** Returns true if the session with the currently set InstanceId is available for communication. */
+	virtual bool HasAvailableInstance() const = 0;
 };
 
 } // namespace UE::TraceTools

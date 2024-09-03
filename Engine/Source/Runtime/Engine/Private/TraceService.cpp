@@ -289,7 +289,7 @@ void FTraceServiceImpl::OnSettingsPing(const FTraceControlSettingsPing& Message,
 
 void FTraceServiceImpl::OnDiscoveryPing(const FTraceControlDiscoveryPing& Message, const TSharedRef<IMessageContext>& Context)
 {
-	if ((!Message.SessionId.IsValid() && !Message.InstanceId.IsValid()) || (Message.InstanceId == FApp::GetInstanceId() && Message.SessionId == FApp::GetSessionId()))
+	if ((!Message.SessionId.IsValid() && !Message.InstanceId.IsValid()) || (Message.InstanceId == FApp::GetInstanceId() || Message.SessionId == FApp::GetSessionId()))
 	{
 		const auto Response = FMessageEndpoint::MakeMessage<FTraceControlDiscovery>();
 		Response->SessionId = FApp::GetSessionId();

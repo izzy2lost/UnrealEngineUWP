@@ -29,7 +29,7 @@ STraceControlToolbar::STraceControlToolbar()
 
 STraceControlToolbar::~STraceControlToolbar()
 {
-	TraceController->OnSelectedSessionStatusReceived().Remove(OnStatusReceivedDelegate);
+	TraceController->OnStatusReceived().RemoveAll(this);
 }
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
@@ -40,7 +40,7 @@ void STraceControlToolbar::Construct(const FArguments& InArgs, const TSharedRef<
 	FTraceControlCommands::Register();
 	TraceController = InTraceController;
 
-	OnStatusReceivedDelegate = TraceController->OnSelectedSessionStatusReceived().AddSP(this, &STraceControlToolbar::OnTraceStatusUpdated);
+	OnStatusReceivedDelegate = TraceController->OnStatusReceived().AddRaw(this, &STraceControlToolbar::OnTraceStatusUpdated);
 
 	BindCommands(CommandList);
 
@@ -186,7 +186,7 @@ void STraceControlToolbar::InitializeSettings()
 
 bool STraceControlToolbar::SetTraceTarget_CanExecute() const
 {
-	return TraceController->HasAvailableSelectedInstance() && !bIsTracing;
+	return IsInstanceAvailable() && !bIsTracing;
 }
 
 void STraceControlToolbar::SetTraceTarget_Execute(ETraceTarget InTraceTarget)
@@ -194,16 +194,21 @@ void STraceControlToolbar::SetTraceTarget_Execute(ETraceTarget InTraceTarget)
 	TraceTarget = InTraceTarget;
 }
 
+bool STraceControlToolbar::IsInstanceAvailable() const
+{
+	return InstanceId.IsValid() && TraceController->HasAvailableInstance(InstanceId) && bIsTracingAvailable;
+}
+
 bool STraceControlToolbar::ToggleTrace_CanExecute() const
 {
-	return TraceController->HasAvailableSelectedInstance() && bIsTracingAvailable;
+	return IsInstanceAvailable();
 }
 
 void STraceControlToolbar::ToggleTrace_Execute()
 {
 	if (!bIsTracing)
 	{
-		TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+		TraceController->WithInstance(InstanceId, [&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
 			{
 				if (TraceTarget == ETraceTarget::Server)
 				{
@@ -218,7 +223,7 @@ void STraceControlToolbar::ToggleTrace_Execute()
 	}
 	else
 	{
-		TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+		TraceController->WithInstance(InstanceId, [&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
 			{
 				Commands.Stop();
 			});
@@ -228,12 +233,12 @@ void STraceControlToolbar::ToggleTrace_Execute()
 
 bool STraceControlToolbar::TraceSnapshot_CanExecute() const
 {
-	return TraceController->HasAvailableSelectedInstance() && bIsTracingAvailable;
+	return IsInstanceAvailable();
 }
 
 void STraceControlToolbar::TraceSnapshot_Execute()
 {
-	TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+	TraceController->WithInstance(InstanceId, [&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
 	{
 		if (TraceTarget == ETraceTarget::Server)
 		{
@@ -248,13 +253,13 @@ void STraceControlToolbar::TraceSnapshot_Execute()
 
 bool STraceControlToolbar::TraceBookmark_CanExecute() const
 {
-	return TraceController->HasAvailableSelectedInstance() && bIsTracingAvailable && bIsTracing && !bIsPaused;
+	return IsInstanceAvailable() && bIsTracing && !bIsPaused;
 }
 
 void STraceControlToolbar::TraceBookmark_Execute()
 {
 	const FString BookmarkName = FDateTime::Now().ToString(TEXT("Bookmark_%Y%m%d_%H%M%S"));
-	TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+	TraceController->WithInstance(InstanceId, [&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
 	{
 		Commands.Bookmark(BookmarkName);
 	});
@@ -262,12 +267,12 @@ void STraceControlToolbar::TraceBookmark_Execute()
 
 bool STraceControlToolbar::TraceScreenshot_CanExecute() const
 {
-	return TraceController->HasAvailableSelectedInstance() && bIsTracing && !bIsPaused;
+	return IsInstanceAvailable() && bIsTracing && !bIsPaused;
 }
 
 void STraceControlToolbar::TraceScreenshot_Execute()
 {
-	TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+	TraceController->WithInstance(InstanceId, [&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
 	{
 		Commands.Screenshot(TEXT(""), false);
 	});
@@ -275,7 +280,7 @@ void STraceControlToolbar::TraceScreenshot_Execute()
 
 bool STraceControlToolbar::ToggleStatNamedEvents_CanExecute() const
 {
-	return TraceController->HasAvailableSelectedInstance() && bIsTracing;
+	return IsInstanceAvailable();
 }
 
 bool STraceControlToolbar::ToggleStatNamedEvents_IsChecked() const
@@ -286,7 +291,7 @@ bool STraceControlToolbar::ToggleStatNamedEvents_IsChecked() const
 void STraceControlToolbar::ToggleStatNamedEvents_Execute()
 {
 	bAreStatNamedEventsEnabled = !bAreStatNamedEventsEnabled;
-	TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+	TraceController->WithInstance(InstanceId, [&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
 	{
 		Commands.SetStatNamedEventsEnabled(bAreStatNamedEventsEnabled);
 	});
@@ -319,6 +324,11 @@ FSlateIcon STraceControlToolbar::GetTraceTargetIcon() const
 
 void STraceControlToolbar::OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType, ITraceControllerCommands& Commands)
 {
+	if (!InstanceId.IsValid() || InstanceId != InStatus.InstanceId)
+	{
+		return;
+	}
+
 	bIsTracing = InStatus.bIsTracing;
 	bIsPaused = InStatus.bIsPaused;
 	bAreStatNamedEventsEnabled = InStatus.bAreStatNamedEventsEnabled;
@@ -336,14 +346,14 @@ void STraceControlToolbar::OnTraceStatusUpdated(const FTraceStatus& InStatus, FT
 
 bool STraceControlToolbar::TogglePauseResume_CanExecute() const
 {
-	return TraceController->HasAvailableSelectedInstance() && bIsTracing;
+	return IsInstanceAvailable() && bIsTracing;
 }
 
 FReply STraceControlToolbar::TogglePauseResume_OnClicked()
 {
 	if (bIsPaused)
 	{
-		TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+		TraceController->WithInstance(InstanceId, [&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
 			{
 				Commands.Resume();
 			});
@@ -351,7 +361,7 @@ FReply STraceControlToolbar::TogglePauseResume_OnClicked()
 	}
 	else
 	{
-		TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+		TraceController->WithInstance(InstanceId, [&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
 			{
 				Commands.Pause();
 			});

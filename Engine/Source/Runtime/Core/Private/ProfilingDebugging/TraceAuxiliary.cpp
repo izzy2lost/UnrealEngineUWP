@@ -1316,6 +1316,7 @@ UE_TRACE_EVENT_BEGIN(Diagnostics, Session2, NoSync|Important)
 	UE_TRACE_EVENT_FIELD(uint32, Changelist)
 	UE_TRACE_EVENT_FIELD(uint8, ConfigurationType)
 	UE_TRACE_EVENT_FIELD(uint8, TargetType)
+	UE_TRACE_EVENT_FIELD(uint32[], InstanceId)
 UE_TRACE_EVENT_END()
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1600,6 +1601,8 @@ void FTraceAuxiliary::Initialize(const TCHAR* CommandLine)
 	}
 #endif
 
+	constexpr int InstanceIdSize = 4;
+
 	// Trace out information about this session. This is done before initialization,
 	// so that it is always sent (all channels are enabled prior to initialization).
 	const TCHAR* BranchName = BuildSettings::GetBranchName();
@@ -1616,7 +1619,16 @@ void FTraceAuxiliary::Initialize(const TCHAR* CommandLine)
 		(ProjectNameLen * sizeof(TCHAR)) +
 		(CommandLineLen * sizeof(TCHAR)) +
 		(BranchNameLen * sizeof(TCHAR)) +
-		(BuildVersionLen * sizeof(TCHAR));
+		(BuildVersionLen * sizeof(TCHAR)) +
+		(InstanceIdSize * sizeof(uint32));
+
+	FGuid InstanceGuid = FApp::GetInstanceId();
+	uint32 InstanceId[InstanceIdSize];
+	for (int Index = 0; Index < InstanceIdSize; ++Index)
+	{
+		InstanceId[Index] = InstanceGuid[Index];
+	}
+	
 	UE_TRACE_LOG(Diagnostics, Session2, UE::Trace::TraceLogChannel, DataSize)
 		<< Session2.Platform(PREPROCESSOR_TO_STRING(UBT_COMPILED_PLATFORM), PlatformLen)
 		<< Session2.AppName(AppName, AppNameLen)
@@ -1626,7 +1638,8 @@ void FTraceAuxiliary::Initialize(const TCHAR* CommandLine)
 		<< Session2.BuildVersion(BuildVersion, BuildVersionLen)
 		<< Session2.Changelist(BuildSettings::GetCurrentChangelist())
 		<< Session2.ConfigurationType(uint8(FApp::GetBuildConfiguration()))
-		<< Session2.TargetType(uint8(FApp::GetBuildTargetType()));
+		<< Session2.TargetType(uint8(FApp::GetBuildTargetType()))
+		<< Session2.InstanceId(InstanceId, InstanceIdSize);
 
 	// Attempt to send trace data somewhere from the command line. It perhaps
 	// seems odd to do this before initializing Trace, but it is done this way

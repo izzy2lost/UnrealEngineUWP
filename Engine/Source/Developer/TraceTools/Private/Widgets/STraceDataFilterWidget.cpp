@@ -34,15 +34,12 @@ STraceDataFilterWidget::STraceDataFilterWidget() : bNeedsListRefresh(false), bHi
 
 STraceDataFilterWidget::~STraceDataFilterWidget()
 {
-	TraceController->OnSessionSelectionChanged().RemoveAll(this);
 }
 
-void STraceDataFilterWidget::Construct(const FArguments& InArgs, TSharedPtr<ITraceController> InTraceController)
+void STraceDataFilterWidget::Construct(const FArguments& InArgs, TSharedPtr<ITraceController> InTraceController, TSharedPtr<ISessionTraceFilterService> InSessionFilterService)
 {
 	TraceController = InTraceController;
-	SessionFilterService = MakeShareable(new FSessionTraceControllerFilterService(InTraceController));
-
-	TraceController->OnSessionSelectionChanged().AddSP(this, &STraceDataFilterWidget::OnSessionSelectionChanged);
+	SessionFilterService = InSessionFilterService;
 
 	SAssignNew(ExternalScrollbar, SScrollBar)
 	.AlwaysShowScrollbar(true);
@@ -151,7 +148,7 @@ void STraceDataFilterWidget::Construct(const FArguments& InArgs, TSharedPtr<ITra
 					.Padding(4.0f, 0.0f, 0.0f, 0.0f)
 					[
 						SNew(STextBlock)
-						.Text(LOCTEXT("NoSessionSelectedWarning", "Please select an active instance from the Session Browser."))
+						.Text(this, &STraceDataFilterWidget::GetWarningBannerText)
 						.ColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, 1.0f))
 					]
 				]
@@ -436,12 +433,12 @@ TSharedRef<ITraceObject> STraceDataFilterWidget::AddFilterableObject(const FTrac
 
 bool STraceDataFilterWidget::HasValidData() const
 {
-	return bHasChannelData && TraceController->GetNumSelectedInstances() == 1 && TraceController->HasAvailableSelectedInstance() && SessionFilterService.IsValid();
+	return bHasChannelData && SessionFilterService.IsValid() && SessionFilterService->HasAvailableInstance();
 }
 
 bool STraceDataFilterWidget::ShouldShowBanner() const
 {
-	return TraceController->GetNumSelectedInstances() != 1 || !TraceController->HasAvailableSelectedInstance() || !SessionFilterService.IsValid();
+	return !HasValidData();
 }
 
 void STraceDataFilterWidget::EnumerateSelectedItems(TFunction<void(TSharedPtr<ITraceObject> InItem)> InFunction) const
@@ -572,6 +569,16 @@ void STraceDataFilterWidget::OnSessionSelectionChanged()
 {
 	bHasChannelData = false;
 	bHasSettings = false;
+}
+
+FText STraceDataFilterWidget::GetWarningBannerText() const
+{
+	if (!WarningBannerText.IsEmpty())
+	{
+		return WarningBannerText;
+	}
+
+	return LOCTEXT("ConnectingToSessionWarning", "Connecting to live session.");
 }
 
 } // namespace UE::TraceTools

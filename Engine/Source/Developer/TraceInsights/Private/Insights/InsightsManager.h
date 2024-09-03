@@ -251,6 +251,8 @@ public:
 	/** Resets (closes) current session instance. */
 	void ResetSession(bool bNotify = true);
 
+	void OpenTraceControlWindow();
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// SessionChangedEvent
 
@@ -297,6 +299,12 @@ private:
 	void ActivateTimingInsightsTab();
 
 	bool HandleResponseFileCmd(const TCHAR* ResponseFile, FOutputDevice& Ar);
+
+	void RegisterTraceControlTab();
+
+	TSharedRef<SDockTab> SpawnTraceControlTab(const FSpawnTabArgs& Args);
+
+	void OnTraceControlTabClosed(TSharedRef<SDockTab> TabBeingClosed);
 
 private:
 	bool bIsInitialized = false;
@@ -376,6 +384,9 @@ private:
 
 	/** The Trace Store connection */
 	UE::Trace::FStoreConnection TraceStoreConnection;
+
+	FGuid InstanceId;
+	TWeakPtr<SWidget> TraceControl;
 };
 
 } // namespace UE::Insights

@@ -22,6 +22,7 @@ struct FSessionInfo
 	uint32 Changelist = 0;
 	EBuildConfiguration ConfigurationType = EBuildConfiguration::Unknown;
 	EBuildTargetType TargetType = EBuildTargetType::Unknown;
+	FGuid InstanceId;
 };
 
 class IDiagnosticsProvider : public IProvider

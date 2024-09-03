@@ -4,8 +4,10 @@
 
 #include "DesktopPlatformModule.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/Docking/TabManager.h"
 #include "HAL/PlatformMemory.h"
 #include "HAL/PlatformProcess.h"
+#include "ISessionServicesModule.h"
 #include "ISourceCodeAccessModule.h"
 #include "ISourceCodeAccessor.h"
 #include "Logging/MessageLog.h"
@@ -17,6 +19,9 @@
 #include "Templates/UniquePtr.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
+
+// TraceTools
+#include "TraceTools/Interfaces/ITraceToolsModule.h"
 
 // TraceAnalysis
 #include "Trace/StoreClient.h"
@@ -59,6 +64,7 @@ const FName FInsightsManagerTabs::NetworkingProfilerTabId(TEXT("NetworkingProfil
 
 const FName FInsightsManagerTabs::AutomationWindowTabId(TEXT("AutomationWindow"));
 const FName FInsightsManagerTabs::MessageLogTabId(TEXT("MessageLog"));
+const FName FInsightsManagerTabs::TraceControlTabId(TEXT("TraceControl"));
 
 namespace UE::Insights
 {
@@ -125,6 +131,8 @@ void FInsightsManager::Initialize(IUnrealInsightsModule& InsightsModule)
 	MessageLogModule.RegisterLogListing(GetLogListingName(), LOCTEXT("UnrealInsights", "Unreal Insights"));
 	MessageLogModule.RegisterLogListing(AnalysisLogListingName, LOCTEXT("TraceAnalysis", "Trace Analysis"));
 	MessageLogModule.EnableMessageLogDisplay(true);
+
+	RegisterTraceControlTab();
 
 	// Register tick functions.
 	OnTick = FTickerDelegate::CreateSP(this, &FInsightsManager::Tick);
@@ -312,8 +320,15 @@ bool FInsightsManager::Tick(float DeltaTime)
 			if (DiagnosticsProvider && DiagnosticsProvider->IsSessionInfoAvailable())
 			{
 				bIsSessionInfoSet = true;
+				InstanceId = DiagnosticsProvider->GetSessionInfo().InstanceId;
+				TSharedPtr<SWidget> TraceControlPtr = TraceControl.Pin();
+				if (TraceControlPtr.IsValid())
+				{
+					FModuleManager::LoadModuleChecked<UE::TraceTools::ITraceToolsModule>("TraceTools").SetTraceControlWidgetInstanceId(TraceControlPtr.ToSharedRef(), InstanceId);
+				}
 			}
 		}
+
 		if (bIsSessionInfoSet)
 		{
 			UpdateAppTitle();
@@ -1022,6 +1037,58 @@ bool FInsightsManager::HandleResponseFileCmd(const TCHAR* ResponseFile, FOutputD
 	}
 
 	return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FInsightsManager::RegisterTraceControlTab()
+{
+#if !WITH_EDITOR
+	FTabSpawnerEntry& TabSpawnerEntry = FGlobalTabmanager::Get()->RegisterNomadTabSpawner(FInsightsManagerTabs::TraceControlTabId,
+		FOnSpawnTab::CreateRaw(this, &FInsightsManager::SpawnTraceControlTab))
+		.SetDisplayName(LOCTEXT("TraceControl", "Trace Control"))
+		.SetTooltipText(LOCTEXT("TraceControlTooltip", "Open the Trace Control tab."))
+		.SetIcon(FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.TraceControl"))
+		.SetAutoGenerateMenuEntry(false);
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef<SDockTab> FInsightsManager::SpawnTraceControlTab(const FSpawnTabArgs& Args)
+{
+	const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
+		.TabRole(ETabRole::NomadTab);
+
+	DockTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateRaw(this, &FInsightsManager::OnTraceControlTabClosed));
+
+	ISessionServicesModule& SessionServicesModule = FModuleManager::LoadModuleChecked<ISessionServicesModule>("SessionServices");
+	TSharedPtr<ITraceController> TraceController = SessionServicesModule.GetTraceController();
+
+	TSharedRef<SWidget> TraceControlRef = FModuleManager::LoadModuleChecked<UE::TraceTools::ITraceToolsModule>("TraceTools").CreateTraceControlWidget(TraceController, InstanceId);
+
+	DockTab->SetContent(TraceControlRef);
+
+	TraceControl = TraceControlRef;
+
+	return DockTab;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FInsightsManager::OnTraceControlTabClosed(TSharedRef<SDockTab> TabBeingClosed)
+{
+	TraceControl.Reset();
+
+	// Disable TabClosed delegate.
+	TabBeingClosed->SetOnTabClosed(SDockTab::FOnTabClosedCallback());
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FInsightsManager::OpenTraceControlWindow()
+{
+	FGlobalTabmanager::Get()->TryInvokeTab(FInsightsManagerTabs::TraceControlTabId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

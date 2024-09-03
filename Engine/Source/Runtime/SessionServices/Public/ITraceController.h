@@ -141,13 +141,7 @@ ENUM_CLASS_FLAGS(FTraceStatus::EUpdateType);
  *		Commands.Send("localhost", "audio,audiomixer,bookmark,log");
  *		Commands.Bookmark("My remote bookmark");
  * });
- *
- * // We can also use the "selection" feature in session manager
- * TraceController->WithSelectedInstances([](const FTraceStatus& Status, ITraceControllerCommands& Commands){
- *		Commands.SnapshotSend("localhost");
- * });
  * ```
- * 
  */
 class ITraceController
 {
@@ -195,34 +189,11 @@ public:
 	virtual FStatusRecievedEvent& OnStatusReceived() = 0;
 
 	/**
-	 * Event triggered whenever the status for the selected instance (in session manager)
-	 * is updated. A reference to the status and what has changed is provided along with a 
-	 * structure to issue commands.
+	 * Return true if an instance with the provided Id exists and has been discovered.
 	 */
-	virtual FStatusRecievedEvent& OnSelectedSessionStatusReceived() = 0;
-
-	/**
-	* Session selection changed event.
-	*/
-	DECLARE_EVENT(ITraceController, FSessionSelectionChanged);
-
-	/**
-	 * Event triggered when the session selection changes.
-	 */
-	virtual FSessionSelectionChanged& OnSessionSelectionChanged() = 0;
-
-	/**
-	 * Return true if a selected instance exists and has been discovered.
-	 */
-	virtual bool HasAvailableSelectedInstance() = 0;
-
+	virtual bool HasAvailableInstance(const FGuid& InstanceId) = 0;
 
 	typedef TFunction<void(const FTraceStatus&, ITraceControllerCommands&)> FCallback;
-	/**
-	 * Execute a function for each instance selected in the session manager.
-	 * @param Func Functor to execute
-	 */
-	virtual void WithSelectedInstances(FCallback Func) = 0;
 
 	/**
 	 * Execute a function on a specific session.
@@ -230,11 +201,6 @@ public:
 	 * @param Func Functor to execute
 	 */
 	virtual void WithInstance(FGuid InstanceId, FCallback Func) = 0;
-
-	/**
-	 * Returns the number of selected sessions.
-	 */
-	virtual uint32 GetNumSelectedInstances() = 0;
 
 	/**
 	 * Create an instance using a custom message bus

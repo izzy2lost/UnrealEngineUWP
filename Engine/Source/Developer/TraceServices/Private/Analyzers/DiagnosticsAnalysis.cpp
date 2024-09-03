@@ -90,6 +90,13 @@ bool FDiagnosticsAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventC
 		SessionInfo.ConfigurationType = (EBuildConfiguration)EventData.GetValue<uint8>("ConfigurationType");
 		SessionInfo.TargetType = (EBuildTargetType)EventData.GetValue<uint8>("TargetType");
 
+		TArrayView<const uint32> Data = EventData.GetArrayView<uint32>("InstanceId");
+		if (Data.Num() > 0)
+		{
+			check(Data.Num() == 4);
+			SessionInfo.InstanceId = FGuid(Data[0], Data[1], Data[2], Data[3]);
+		}
+
 		FAnalysisSessionEditScope _(Session);
 		Provider->SetSessionInfo(SessionInfo);
 		UpdateSessionMetadata(EventData);
