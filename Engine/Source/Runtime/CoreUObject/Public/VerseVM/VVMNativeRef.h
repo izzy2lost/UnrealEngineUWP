@@ -31,13 +31,13 @@ struct VNativeRef : VCell
 
 	EType Type;
 
-	VValue Get(FAllocationContext Context);
+	COREUOBJECT_API VValue Get(FAllocationContext Context);
 
-	static VValue Get(FAllocationContext Context, void* Container, FProperty* Property);
+	COREUOBJECT_API static VValue Get(FAllocationContext Context, void* Container, FProperty* Property);
 
-	FOpResult Set(FAllocationContext Context, VValue Value);
+	COREUOBJECT_API FOpResult Set(FAllocationContext Context, VValue Value);
 
-	FOpResult SetNonTransactionally(FAllocationContext Context, VValue Value);
+	COREUOBJECT_API FOpResult SetNonTransactionally(FAllocationContext Context, VValue Value);
 
 	template <bool bTransactional, typename BaseType>
 	static FOpResult Set(FAllocationContext Context, BaseType Base, void* Container, FProperty* Property, VValue Value);
@@ -52,7 +52,7 @@ struct VNativeRef : VCell
 		return *new (Context.AllocateFastCell(sizeof(VNativeRef))) VNativeRef(Context, *Base, Property);
 	}
 
-	VValue FreezeImpl(FAllocationContext Context);
+	COREUOBJECT_API VValue FreezeImpl(FAllocationContext Context);
 
 private:
 	VNativeRef(FAllocationContext Context, VValue InBase, FProperty* InProperty)
