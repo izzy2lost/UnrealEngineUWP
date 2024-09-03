@@ -685,19 +685,19 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FParticleCollisionSignature OnParticleCollide;
 
-	UPROPERTY()
+	UPROPERTY(Transient, DuplicateTransient)
 	bool bOldPositionValid;
 
-	UPROPERTY()
+	UPROPERTY(Transient, DuplicateTransient)
 	FVector OldPosition;
 
-	UPROPERTY()
+	UPROPERTY(Transient, DuplicateTransient)
 	FVector PartSysVelocity;
 
-	UPROPERTY()
+	UPROPERTY(Transient, DuplicateTransient)
 	float WarmupTime;
 
-	UPROPERTY()
+	UPROPERTY(Transient, DuplicateTransient)
 	float WarmupTickRate;
 
 private:
