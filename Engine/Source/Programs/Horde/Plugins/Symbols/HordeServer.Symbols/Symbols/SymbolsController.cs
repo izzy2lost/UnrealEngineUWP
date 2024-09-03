@@ -3,6 +3,7 @@
 using System.Net;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
+using EpicGames.Horde.Symbols;
 using HordeServer.Storage;
 using HordeServer.Symbols;
 using HordeServer.Utilities;
@@ -12,7 +13,7 @@ using Microsoft.Extensions.Options;
 namespace HordeServer.Tools
 {
 	/// <summary>
-	/// Controller for the /api/v1/tools endpoint
+	/// Controller for the /api/v1/symbols endpoint
 	/// </summary>
 	[ApiController]
 	[TryAuthorize]
@@ -37,7 +38,7 @@ namespace HordeServer.Tools
 		/// <param name="path">Path for the file to retrieve</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[HttpGet]
-		[Route("/api/v1/storage/{storeId}/{*path}")]
+		[Route("/api/v1/symbols/{storeId}/{*path}")]
 		public async Task<ActionResult> ReadFileAsync(SymbolStoreId storeId, string path, CancellationToken cancellationToken)
 		{
 			SymbolStoreConfig? symbolStoreConfig;
@@ -47,7 +48,7 @@ namespace HordeServer.Tools
 			}
 			if (!symbolStoreConfig.Authorize(SymbolStoreAclAction.ReadSymbols, User))
 			{
-				return Forbid(SymbolStoreAclAction.ReadSymbols);//, storeId);
+				return Forbid(SymbolStoreAclAction.ReadSymbols, storeId);
 			}
 
 			IStorageClient storageClient = _storageService.CreateClient(symbolStoreConfig.NamespaceId);

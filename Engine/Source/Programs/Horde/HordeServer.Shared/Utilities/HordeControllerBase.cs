@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Linq.Expressions;
 using EpicGames.Core;
 using EpicGames.Horde.Accounts;
 using EpicGames.Horde.Acls;
@@ -14,6 +15,7 @@ using EpicGames.Horde.Projects;
 using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Symbols;
 using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Tools;
 using Microsoft.AspNetCore.Http;
@@ -129,6 +131,15 @@ namespace HordeServer.Utilities
 		protected ActionResult Forbid(AclAction action, StreamId streamId)
 		{
 			return Forbid(action, "stream {StreamId}", streamId);
+		}
+
+		/// <summary>
+		/// Returns a 403 (forbidden) response with the given action and object
+		/// </summary>
+		[NonAction]
+		protected ActionResult Forbid(AclAction action, SymbolStoreId storeId)
+		{
+			return Forbid(action, "symbol store {StoreId}", storeId);
 		}
 
 		/// <summary>

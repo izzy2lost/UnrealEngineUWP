@@ -3,6 +3,7 @@
 using System.Security.Claims;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Symbols;
 using HordeServer.Acls;
 
 namespace HordeServer.Symbols

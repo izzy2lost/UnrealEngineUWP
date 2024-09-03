@@ -5,7 +5,7 @@ using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Serialization;
 
-namespace HordeServer.Symbols
+namespace EpicGames.Horde.Symbols
 {
 	/// <summary>
 	/// Identifier for a symbol store

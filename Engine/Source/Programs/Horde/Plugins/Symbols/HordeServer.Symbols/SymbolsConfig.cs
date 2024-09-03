@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Diagnostics.CodeAnalysis;
+using EpicGames.Horde.Symbols;
 using HordeServer.Acls;
 using HordeServer.Plugins;
 
