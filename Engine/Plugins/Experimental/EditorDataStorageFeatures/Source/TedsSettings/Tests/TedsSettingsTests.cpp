@@ -189,6 +189,52 @@ namespace UE::Editor::Settings::Tests
 				});
 			});
 		});
+
+		Describe("RegisterSettings same container/category/section twice with different UObjects", [this]()
+		{
+			LatentIt("Should result in only a single row in editor data storage", [this](const FDoneDelegate& Done)
+			{
+				const FName& ContainerName = FName(TEXT("TestContainer"));
+				const FName& CategoryName = FName(TEXT("TestCategory"));
+				const FName& SectionName = FName(TEXT("TestSection"));
+
+				TObjectPtr<UTestSettings> TestSettingsObject1 = NewObject<UTestSettings>();
+				TObjectPtr<UTestSettings> TestSettingsObject2 = NewObject<UTestSettings>();
+
+				SettingsModule->RegisterSettings(ContainerName, CategoryName, SectionName, FText(), FText(), TestSettingsObject1);
+				SettingsModule->RegisterSettings(ContainerName, CategoryName, SectionName, FText(), FText(), TestSettingsObject2);
+
+				DataStorage::RowHandle RowHandle = DataStorageCompatibility->FindRowWithCompatibleObject(TestSettingsObject1);
+				TestEqual(TEXT("RowHandle"), RowHandle, DataStorage::InvalidRowHandle);
+
+				if (RowHandle != DataStorage::InvalidRowHandle)
+				{
+					TestRowHandles.Push(RowHandle);
+				}
+
+				RowHandle = DataStorageCompatibility->FindRowWithCompatibleObject(TestSettingsObject2);
+				TestNotEqual(TEXT("RowHandle"), RowHandle, DataStorage::InvalidRowHandle);
+
+				if (RowHandle == DataStorage::InvalidRowHandle)
+				{
+					Done.Execute();
+					return;
+				}
+
+				TestRowHandles.Push(RowHandle);
+
+				AwaitRowHandleThenVerify(RowHandle, Done, [this, RowHandle, ContainerName, CategoryName, SectionName]()
+				{
+					uint32 AfterRowCount = CountSettingsRowsInDataStorage();
+
+					TestEqual(TEXT("RowCount"), AfterRowCount, BeforeRowCount + 1);
+
+					TestEqual(TEXT("ContainerName"), DataStorage->GetColumn<FSettingsContainerReferenceColumn>(RowHandle)->ContainerName, ContainerName);
+					TestEqual(TEXT("CategoryName"), DataStorage->GetColumn<FSettingsCategoryReferenceColumn>(RowHandle)->CategoryName, CategoryName);
+					TestEqual(TEXT("SectionName"), DataStorage->GetColumn<FNameColumn>(RowHandle)->Name, SectionName);
+				});
+			});
+		});
 	}
 } // namespace UE::Editor::Settings::Tests
 
