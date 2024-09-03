@@ -460,6 +460,13 @@ class URendererSettings : public UDeveloperSettings
 
 	UPROPERTY(config, EditAnywhere, Category = VirtualTextures, meta = (
 		EditCondition = "bVirtualTextures",
+		ConsoleVariable = "r.MeshPaintVirtualTexture.UseCompression", DisplayName = "Mesh paint use compressed textures",
+		ToolTip = "Whether to use a compressed texture format for storing mesh paint textures.",
+		ConfigRestartRequired = true))
+	bool MeshPaintVirtualTextureUseCompression;
+
+	UPROPERTY(config, EditAnywhere, Category = VirtualTextures, meta = (
+		EditCondition = "bVirtualTextures",
 		ConsoleVariable = "r.StaticMesh.DefaultMeshPaintTextureSupport", DisplayName = "Mesh paint default static mesh support",
 		ToolTip = "Default setting for whether static mesh assets support mesh paint textures."))
 	bool MeshPaintDefaultOnStaticMesh;

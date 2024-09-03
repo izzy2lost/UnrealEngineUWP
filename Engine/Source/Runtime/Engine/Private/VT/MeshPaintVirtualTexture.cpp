@@ -29,6 +29,12 @@ static TAutoConsoleVariable<bool> CVarMeshPaintVirtualTextureEnable(
 	}),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<bool> CVarMeshPaintVirtualTextureUseCompression(
+	TEXT("r.MeshPaintVirtualTexture.UseCompression"),
+	true,
+	TEXT("Whether mesh paint textures use a compressed format"),
+	ECVF_ReadOnly);
+
 static TAutoConsoleVariable<int32> CVarMeshPaintVirtualTextureTileSize(
 	TEXT("r.MeshPaintVirtualTexture.TileSize"),
 	32,
@@ -82,6 +88,11 @@ namespace MeshPaintVirtualTexture
 	static bool IsEnabled()
 	{
 		return CVarMeshPaintVirtualTextureEnable.GetValueOnAnyThread();
+	}
+
+	static bool UseCompressedTextureFormat()
+	{
+		return CVarMeshPaintVirtualTextureUseCompression.GetValueOnGameThread();
 	}
 
 	static uint32 GetTileSize()
@@ -262,6 +273,8 @@ UMeshPaintVirtualTexture::UMeshPaintVirtualTexture(const FObjectInitializer& Obj
 	VirtualTextureStreaming = true;
 	
 #if WITH_EDITORONLY_DATA
+	CompressionNone = !MeshPaintVirtualTexture::UseCompressedTextureFormat();
+
 	// Force alpha channel so that we the platform format is consistent for all content.
 	CompressionForceAlpha = true;
 #endif

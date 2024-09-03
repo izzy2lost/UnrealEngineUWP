@@ -1305,7 +1305,7 @@ void UMeshTexturePaintingTool::SetAllTextureOverrides()
 
 					TextureData->PaintRenderTargetTextureAdapter = NewObject<UVirtualTextureAdapter>(GetTransientPackage(), NAME_None, RF_Transient);
 					TextureData->PaintRenderTargetTextureAdapter->Texture = TextureData->PaintRenderTargetTexture;
-					TextureData->PaintRenderTargetTextureAdapter->bUseCompressedFormat = true;
+					TextureData->PaintRenderTargetTextureAdapter->OverrideWithTextureFormat = Texture2D;
 					TextureData->PaintRenderTargetTextureAdapter->bUseDefaultTileSizes = false;
 					TextureData->PaintRenderTargetTextureAdapter->TileSize = VirtualTextureBuildSettings.TileSize;
 					TextureData->PaintRenderTargetTextureAdapter->TileBorderSize = VirtualTextureBuildSettings.TileBorderSize;

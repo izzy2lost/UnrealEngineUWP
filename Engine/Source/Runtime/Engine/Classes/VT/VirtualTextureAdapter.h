@@ -32,9 +32,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = Texture)
 	TObjectPtr<UTexture> Texture;
 
-	/** Use a compressed format for the virtual texture even when the wrapped Texture does not have a compressed format. */
-	UPROPERTY(EditAnywhere, Category = Texture)
-	bool bUseCompressedFormat = false;
+	/** Optional UTexture object that has the final texture format that we would like to use. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Texture)
+	TObjectPtr<class UTexture2D> OverrideWithTextureFormat;
 
 	/** Set to true if we want to use the default project virtual texture tile settings. */
 	UPROPERTY(EditAnywhere, Category = Texture)

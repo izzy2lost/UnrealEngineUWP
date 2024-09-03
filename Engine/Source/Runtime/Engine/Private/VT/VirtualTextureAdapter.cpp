@@ -62,29 +62,17 @@ namespace VirtualTextureAdapter
 
 
 	/** Get the final virtual texture format from the wrapped texture format. */
-	static EPixelFormat GetFinalFormat(EPixelFormat InSourceFormat, bool bInUseCompressedFormat)
+	static EPixelFormat GetFinalFormat(EPixelFormat InSourcePixelFormat, EPixelFormat InFinalPixelFormat)
 	{
-		if (!bInUseCompressedFormat || IsBlockCompressedFormat(InSourceFormat) || IsInteger(InSourceFormat))
+		EPixelFormat FinalPixelFormat = InFinalPixelFormat != PF_Unknown ? InFinalPixelFormat : InSourcePixelFormat;
+
+		// Can't override some formats.
+		if (IsBlockCompressedFormat(InSourcePixelFormat) || IsInteger(InSourcePixelFormat) || IsInteger(FinalPixelFormat))
 		{
-			return InSourceFormat;
+			return InSourcePixelFormat;
 		}
 
-		if (IsHDR(InSourceFormat))
-		{
-			return PF_BC6H;
-		}
-
-		EPixelFormatChannelFlags ChannelFlags = GetPixelFormatValidChannels(InSourceFormat);
-		if (EnumHasAnyFlags(ChannelFlags, EPixelFormatChannelFlags::A))
-		{
-			return PF_DXT5;
-		}
-		if (!EnumHasAnyFlags(ChannelFlags, EPixelFormatChannelFlags::G | EPixelFormatChannelFlags::B | EPixelFormatChannelFlags::A))
-		{
-			return PF_BC4;
-		}
-
-		return PF_DXT1;
+		return FinalPixelFormat;
 	}
 
 	/** Get the intermediate texture format that we use for transient intermediate targets. */
@@ -477,26 +465,26 @@ class FVirtualTextureAdapterRenderResource : public FVirtualTexture2DResource
 	uint32 NumSourceMips = 1;
 
 public:
-	FVirtualTextureAdapterRenderResource(UVirtualTextureAdapter const* InOwner, UTexture* InTexture, int32 InTileSize, int32 InTileBorderSize, bool bUseCompressedFormat)
+	FVirtualTextureAdapterRenderResource(UVirtualTextureAdapter const* InOwner, UTexture* InTexture, int32 InTileSize, int32 InTileBorderSize, EPixelFormat InFinalPixelFormat)
 	{
 		TextureName = InOwner->GetFName();
 		PackageName = InOwner->GetOutermost()->GetFName();
 
 		SourceResource = InTexture->GetResource();
 
-		EPixelFormat SourceFormat = PF_Unknown;
+		EPixelFormat SourcePixelFormat = PF_Unknown;
 		if (UTexture2D* Texture2D = Cast<UTexture2D>(InTexture))
 		{
-			SourceFormat = Texture2D->GetPixelFormat(0);
+			SourcePixelFormat = Texture2D->GetPixelFormat(0);
 			NumSourceMips = Texture2D->GetNumMips();
 			bSRGB = Texture2D->SRGB;
 		}
 		else if (UTextureRenderTarget2D* RenderTarget2D = Cast<UTextureRenderTarget2D>(InTexture))
 		{
-			SourceFormat = RenderTarget2D->GetFormat();
+			SourcePixelFormat = RenderTarget2D->GetFormat();
 			bSRGB = RenderTarget2D->SRGB;
 		}
-		Format = VirtualTextureAdapter::GetFinalFormat(SourceFormat, bUseCompressedFormat);
+		Format = VirtualTextureAdapter::GetFinalFormat(SourcePixelFormat, InFinalPixelFormat);
 
 		TileSize = InTileSize;
 		TileBorderSize = InTileBorderSize;
@@ -572,7 +560,9 @@ FTextureResource* UVirtualTextureAdapter::CreateResource()
 	const uint32 FinalTileSize = bUseDefaultTileSizes ? DefaultSettings.TileSize : FVirtualTextureBuildSettings::ClampAndAlignTileSize(TileSize);
 	const uint32 FinalTileBorderSize = bUseDefaultTileSizes ? DefaultSettings.TileBorderSize : FVirtualTextureBuildSettings::ClampAndAlignTileBorderSize(TileBorderSize);
 	
-	return new FVirtualTextureAdapterRenderResource(this, Texture, FinalTileSize, FinalTileBorderSize, bUseCompressedFormat);
+	const EPixelFormat FinalPixelFormat = OverrideWithTextureFormat ? OverrideWithTextureFormat->GetPixelFormat(0) : PF_Unknown;
+
+	return new FVirtualTextureAdapterRenderResource(this, Texture, FinalTileSize, FinalTileBorderSize, FinalPixelFormat);
 }
 
 
