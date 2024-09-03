@@ -133,7 +133,7 @@ void FConsoleVariablesEditorModule::OpenConsoleVariablesDialogWithPreset(
 	}
 }
 
-void FConsoleVariablesEditorModule::OpenConsoleVariablesDialogWithAssetSelected(const FAssetData& InAssetData) const
+void FConsoleVariablesEditorModule::OpenConsoleVariablesDialogWithAssetSelected(const FAssetData& InAssetData, const EConsoleVariablesEditorPresetImportMode InImportMode) const
 {
 	if (InAssetData.IsValid())
 	{
@@ -142,7 +142,7 @@ void FConsoleVariablesEditorModule::OpenConsoleVariablesDialogWithAssetSelected(
 
 	if (MainPanel.IsValid())
 	{
-		MainPanel->ImportPreset(InAssetData);
+		MainPanel->ImportPreset(InAssetData, InImportMode);
 	}
 }
 

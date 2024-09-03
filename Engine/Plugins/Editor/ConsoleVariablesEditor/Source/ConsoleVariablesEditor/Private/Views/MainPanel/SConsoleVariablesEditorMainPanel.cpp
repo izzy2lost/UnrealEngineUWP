@@ -283,8 +283,14 @@ TSharedRef<SWidget> SConsoleVariablesEditorMainPanel::OnGeneratePresetsMenu()
 		AssetPickerConfig.AssetShowWarningText = LOCTEXT("NoPresets_Warning", "No Presets Found");
 		AssetPickerConfig.Filter.ClassPaths.Add(UConsoleVariablesAsset::StaticClass()->GetClassPathName());
 		AssetPickerConfig.Filter.bRecursiveClasses = true;
-		AssetPickerConfig.OnAssetSelected =
-			FOnAssetSelected::CreateRaw(MainPanel.Pin().Get(), &FConsoleVariablesEditorMainPanel::ImportPreset);
+		AssetPickerConfig.OnAssetSelected = FOnAssetSelected::CreateLambda(
+			[this](const FAssetData& InAssetData)
+			{
+				if (MainPanel.IsValid())
+				{
+					MainPanel.Pin()->ImportPreset(InAssetData);
+				}
+			});
 	}
 
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ImportPreset_MenuSection", "Import Preset"));

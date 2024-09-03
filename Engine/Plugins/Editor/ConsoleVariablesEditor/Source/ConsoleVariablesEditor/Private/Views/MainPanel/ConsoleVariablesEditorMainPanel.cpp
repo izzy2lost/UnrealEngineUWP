@@ -278,13 +278,13 @@ void FConsoleVariablesEditorMainPanel::SaveSpecificPresetAs(const TObjectPtr<UCo
 	}
 }
 
-void FConsoleVariablesEditorMainPanel::ImportPreset(const FAssetData& InPresetAsset)
+void FConsoleVariablesEditorMainPanel::ImportPreset(const FAssetData& InPresetAsset, const EConsoleVariablesEditorPresetImportMode InImportMode)
 {
 	FSlateApplication::Get().DismissAllMenus();
 	
 	if (UConsoleVariablesAsset* Preset = CastChecked<UConsoleVariablesAsset>(InPresetAsset.GetAsset()))
 	{
-		if (const TObjectPtr<UConsoleVariablesAsset> EditingAsset = GetEditingAsset(); ImportPreset_Impl(Preset, EditingAsset))
+		if (const TObjectPtr<UConsoleVariablesAsset> EditingAsset = GetEditingAsset(); ImportPreset_Impl(Preset, EditingAsset, InImportMode))
 		{
 			EditorList->RebuildList("", false);
 		}
@@ -295,25 +295,28 @@ void FConsoleVariablesEditorMainPanel::ImportPreset(const TObjectPtr<UConsoleVar
 {
 	FSlateApplication::Get().DismissAllMenus();
 
-	if (const TObjectPtr<UConsoleVariablesAsset> EditingAsset = GetEditingAsset(); ImportPreset_Impl(InPreset, EditingAsset))
+	if (const TObjectPtr<UConsoleVariablesAsset> EditingAsset = GetEditingAsset(); ImportPreset_Impl(InPreset, EditingAsset, EConsoleVariablesEditorPresetImportMode::UseDefault))
 	{
 		EditorList->RebuildList("", false);
 	}
 }
 
 bool FConsoleVariablesEditorMainPanel::ImportPreset_Impl(
-	const TObjectPtr<UConsoleVariablesAsset> Preset, const TObjectPtr<UConsoleVariablesAsset> EditingAsset)
+	const TObjectPtr<UConsoleVariablesAsset> Preset, const TObjectPtr<UConsoleVariablesAsset> EditingAsset, const EConsoleVariablesEditorPresetImportMode InImportMode)
 {
 	if (Preset && EditingAsset)
 	{
-		bool bReplaceExisting = false;
+		bool bReplaceExisting = InImportMode == EConsoleVariablesEditorPresetImportMode::ReplaceExisting ? true : false;
 
 		FConsoleVariablesEditorModule& CVarModule = GetConsoleVariablesModule();
-		if (UConsoleVariablesEditorProjectSettings* ProjectSettingsPtr =
-			GetMutableDefault<UConsoleVariablesEditorProjectSettings>())
+		if (InImportMode == EConsoleVariablesEditorPresetImportMode::UseDefault)
 		{
-			bReplaceExisting = ProjectSettingsPtr->PresetImportMode == 
-				EConsoleVariablesEditorPresetImportMode::ReplaceExisting;
+			if (UConsoleVariablesEditorProjectSettings* ProjectSettingsPtr =
+				GetMutableDefault<UConsoleVariablesEditorProjectSettings>())
+			{
+				bReplaceExisting = ProjectSettingsPtr->PresetImportMode ==
+					EConsoleVariablesEditorPresetImportMode::ReplaceExisting;
+			}
 		}
 
 		if (bReplaceExisting || EditingAsset->GetSavedCommands().IsEmpty())

@@ -24,7 +24,12 @@ enum class EConsoleVariablesEditorPresetImportMode : uint8
 	 * Completely replace the list of variables in the current preset, resetting them to their default values and removing
 	 * them from the list before importing the new preset's variable list.
 	 */
-	ReplaceExisting
+	ReplaceExisting,
+
+	/**
+	 * Use the global import setting.
+	 */
+	UseDefault UMETA(Hidden)
 };
 
 UCLASS(config = Engine, defaultconfig)

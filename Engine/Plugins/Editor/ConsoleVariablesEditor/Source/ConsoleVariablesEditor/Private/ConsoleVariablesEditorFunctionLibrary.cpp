@@ -19,7 +19,7 @@ UConsoleVariablesAsset* UConsoleVariablesEditorFunctionLibrary::GetCurrentlyLoad
 	return ConsoleVariablesEditorModule.GetPresetAsset();
 }
 
-void UConsoleVariablesEditorFunctionLibrary::LoadPresetIntoConsoleVariablesEditor(const UConsoleVariablesAsset* InAsset)
+void UConsoleVariablesEditorFunctionLibrary::LoadPresetIntoConsoleVariablesEditor(const UConsoleVariablesAsset* InAsset, const EConsoleVariablesEditorPresetImportMode InImportMode)
 {
 	if (!InAsset)
 	{
@@ -31,7 +31,7 @@ void UConsoleVariablesEditorFunctionLibrary::LoadPresetIntoConsoleVariablesEdito
 	
 	const FConsoleVariablesEditorModule& ConsoleVariablesEditorModule = FConsoleVariablesEditorModule::Get();
 
-	ConsoleVariablesEditorModule.OpenConsoleVariablesDialogWithAssetSelected(FAssetData(InAsset));
+	ConsoleVariablesEditorModule.OpenConsoleVariablesDialogWithAssetSelected(FAssetData(InAsset), InImportMode);
 }
 
 bool UConsoleVariablesEditorFunctionLibrary::CopyCurrentListToAsset(UConsoleVariablesAsset* InAsset)
