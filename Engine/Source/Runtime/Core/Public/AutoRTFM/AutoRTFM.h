@@ -819,6 +819,22 @@ static UE_AUTORTFM_FORCEINLINE void DidFree(void* Ptr)
     autortfm_did_free(Ptr);
 }
 
+// Informs the runtime that a block of memory is about to be overwritten in the open.
+// During a transaction, this allows the runtime to copy the data in preparation for
+// a possible abort. Normally, tracking memory overwrites should be automatically
+// handled by AutoRTFM, but manual overwrite tracking may be required for third-party 
+// libraries or outside compilers (such as ISPC).
+static UE_AUTORTFM_FORCEINLINE void RecordOpenWrite(void* Ptr, size_t Size)
+{
+	autortfm_record_open_write(Ptr, Size);
+}
+
+// Informs the runtime that a block of memory is about to be overwritten.
+template<typename TTYPE> static UE_AUTORTFM_FORCEINLINE void RecordOpenWrite(TTYPE* Ptr)
+{
+	autortfm_record_open_write(Ptr, sizeof(TTYPE));
+}
+
 // A collection of power-user functions that are reserved for use by the AutoRTFM runtime only.
 namespace ForTheRuntime
 {
@@ -936,18 +952,6 @@ namespace ForTheRuntime
 			RegisterOpenFunction(OriginalFunction, NewFunction);
 		}
 	};
-
-	// Manually records that the memory span was written in the current transaction.
-	static UE_AUTORTFM_FORCEINLINE void RecordOpenWrite(void* Ptr, size_t Size)
-	{
-		autortfm_record_open_write(Ptr, Size);
-	}
-
-	// Manually records that the memory span was written in the current transaction.
-	template<typename TTYPE> static UE_AUTORTFM_FORCEINLINE void RecordOpenWrite(TTYPE* Ptr)
-	{
-		autortfm_record_open_write(Ptr, sizeof(TTYPE));
-	}
 
 	// Reserved for future.
 	static UE_AUTORTFM_FORCEINLINE void RecordOpenRead(void const*, size_t) {}

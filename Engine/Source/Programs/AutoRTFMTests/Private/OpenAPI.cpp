@@ -18,14 +18,14 @@ TEST_CASE("OpenAPI.StartAbortAndStartAgain")
 		AutoRTFM::Open([&]()
 		{
 			AutoRTFM::ForTheRuntime::StartTransaction();
-			AutoRTFM::ForTheRuntime::RecordOpenWrite(&valueB);
+			AutoRTFM::RecordOpenWrite(&valueB);
 			valueB=10;
 			AutoRTFM::AbortTransaction();
 
 			AutoRTFM::ForTheRuntime::ClearTransactionStatus();
 
 			AutoRTFM::ForTheRuntime::StartTransaction();
-			AutoRTFM::ForTheRuntime::RecordOpenWrite(&valueC);
+			AutoRTFM::RecordOpenWrite(&valueC);
 			valueC = 30;
 			AutoRTFM::AbortTransaction();
 		});
@@ -55,7 +55,7 @@ TEST_CASE("OpenAPI.RecordDataClosed_Illegal", "[.]")
 	{
 		REQUIRE(AutoRTFM::EContextStatus::OnTrack == AutoRTFM::Close([&]()
 		{
-			AutoRTFM::ForTheRuntime::RecordOpenWrite(&value); // Illegal. Can't record writes explicitly while closed
+			AutoRTFM::RecordOpenWrite(&value); // Illegal. Can't record writes explicitly while closed
 			value = 1;
 		}));
 	});
@@ -71,7 +71,7 @@ TEST_CASE("OpenAPI.WriteDataInTheOpen")
 	{
 		AutoRTFM::Open([&]()
 		{
-			AutoRTFM::ForTheRuntime::RecordOpenWrite(&value);
+			AutoRTFM::RecordOpenWrite(&value);
 			value = 1;
 		});
 	});
@@ -469,7 +469,7 @@ TEST_CASE("OpenAPI.StackWriteCommitInTheOpen1")
 		AutoRTFM::Open([&]()
 		{
 			AutoRTFM::ForTheRuntime::StartTransaction();
-			AutoRTFM::ForTheRuntime::RecordOpenWrite(&value);
+			AutoRTFM::RecordOpenWrite(&value);
 			value = 10;
 			AutoRTFM::ForTheRuntime::CommitTransaction();
 			REQUIRE(value == 10);
@@ -489,7 +489,7 @@ TEST_CASE("OpenAPI.StackWriteCommitInTheOpen2")
 			{
 				AutoRTFM::Open([&]()
 				{
-					AutoRTFM::ForTheRuntime::RecordOpenWrite(&value);
+					AutoRTFM::RecordOpenWrite(&value);
 					value = 10;
 				});
 			}));
@@ -508,7 +508,7 @@ TEST_CASE("OpenAPI.StackWriteAbortInTheOpen1")
 		AutoRTFM::Open([&]()
 		{
 			AutoRTFM::ForTheRuntime::StartTransaction();
-			AutoRTFM::ForTheRuntime::RecordOpenWrite(&value);
+			AutoRTFM::RecordOpenWrite(&value);
 			value = 10;
 			AutoRTFM::AbortTransaction();
 			REQUIRE(value == 0);
@@ -724,7 +724,7 @@ TEST_CASE("OpenAPI.Footgun2")
 				// Unrecorded assignments in the open
 				valueB = 10;
 				valueC = 10;
-				AutoRTFM::ForTheRuntime::RecordOpenWrite(&valueC);
+				AutoRTFM::RecordOpenWrite(&valueC);
 				// valueC was recorded in the open after the change - too late
 			});
 
@@ -761,7 +761,7 @@ TEST_CASE("OpenAPI.StartCloseOnCommit")
 
 	// Setting a value in the open requires us to register the memory address with the transaction
 	value = 42;
-	AutoRTFM::ForTheRuntime::RecordOpenWrite(&value);
+	AutoRTFM::RecordOpenWrite(&value);
 
 	AutoRTFM::ForTheRuntime::CommitTransaction();
 
