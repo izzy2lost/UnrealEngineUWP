@@ -177,7 +177,22 @@ void UPCGDataFromActorSettings::PostEditChangeProperty(FPropertyChangedEvent& Pr
 	}
 }
 
-#endif
+EPCGChangeType UPCGDataFromActorSettings::GetChangeTypeForProperty(FPropertyChangedEvent& PropertyChangedEvent) const
+{
+	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(PropertyChangedEvent) | EPCGChangeType::Cosmetic;
+
+	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UPCGDataFromActorSettings, ActorSelector))
+	{
+		// If we change from/to FromInput, this needs to trigger a graph recompilation especially for culling.
+		if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FPCGActorSelectorSettings, ActorFilter))
+		{
+			ChangeType |= EPCGChangeType::Structural;
+		}
+	}
+
+	return ChangeType;
+}
+#endif // WITH_EDITOR
 
 TSubclassOf<AActor> UPCGDataFromActorSettings::GetDefaultActorSelectorClass() const
 {
