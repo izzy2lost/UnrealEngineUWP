@@ -53,14 +53,20 @@ namespace UE::MultiUserClient::Replication
 		TSharedPtr<IConcertClient> ConcertClient;
 		/** Keeps track of the properties that the user has selected to iterate on. */
 		FUserPropertySelector* UserSelectedProperties = nullptr;
-
+		
 		// These are used to know when to refresh the UI.
 		FOnlineClientManager* OnlineClientManager = nullptr;
 		FOfflineClientManager* OfflineClientManager = nullptr;
 		IOnlineClientSelectionModel* OnlineClientSelectionModel = nullptr;
 		IOfflineClientSelectionModel* OfflineClientSelectionModel = nullptr;
 		
-		/** Combines the clients */
+		/**
+		 * Controls the content shown in the UI.
+		 * Important: Some systems keep a reference to ViewOptions. Evaluate destruction order if you move the member ordering.
+		 */
+		FMultiViewOptions ViewOptions;
+		
+		/** Combines the online and offline clients. */
 		TSharedPtr<FMultiStreamModel> StreamModel;
 		/** Displayed in the UI. */
 		TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor> StreamEditor;
@@ -74,10 +80,7 @@ namespace UE::MultiUserClient::Replication
 		TSharedPtr<SPropertySelectionComboButton> PropertySelectionButton;
 		/** Displays the properties for the objects displayed in the top view. */
 		TSharedPtr<ConcertSharedSlate::IMultiObjectPropertyAssignmentView> PropertyAssignmentView;
-
-		/** Controls the content shown in the UI. */
-		FMultiViewOptions ViewOptions;
-
+		
 		/** This logic helps us decide whether an object should be displayed and lets us know that the object list needs to be refreshed (e.g. due to world change). */
 		ConcertClientSharedSlate::FHideObjectsNotInWorldLogic HideObjectsNotInEditorWorld;
 

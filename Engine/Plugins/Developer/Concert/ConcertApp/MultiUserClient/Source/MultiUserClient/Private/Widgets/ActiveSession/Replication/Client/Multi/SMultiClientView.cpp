@@ -82,6 +82,16 @@ namespace UE::MultiUserClient::Replication
 
 	SMultiClientView::~SMultiClientView()
 	{
+		// Some of StreamEditor's columns reference some of our members.
+		// Hence, StreamEditor needs to be destroyed before ~SCompoundWidget destroys it.
+		// E.g. MultiStreamColumns::AssignedClientsColumn references ViewOptions so make sure ViewOptions is destroyed after the widget.
+		ChildSlot.DetachWidget();
+		StreamEditor.Reset();
+		// These objects depend on ViewOptions. These resets are strictly not needed to be safe but doing this explicitly protects us in case
+		// somebody moves declaration order of properties without realising dependency order.
+		StreamModel.Reset();
+		PropertyAssignmentView.Reset();
+		
 		OnlineClientManager->OnRemoteClientsChanged().RemoveAll(this);
 		UserSelectedProperties->OnPropertySelectionChanged().RemoveAll(this);
 		CleanClientSubscriptions();
