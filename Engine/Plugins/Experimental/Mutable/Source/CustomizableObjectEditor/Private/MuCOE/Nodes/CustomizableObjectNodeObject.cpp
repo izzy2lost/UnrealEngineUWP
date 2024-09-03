@@ -402,22 +402,26 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup(int32 CustomizableO
 						
 						for (int32 ElementIndex = 0; ElementIndex < NodeMaterialVariation->GetNumVariations(); ++ElementIndex)
 						{
-							if (UEdGraphPin* ConnectedPin = FollowInputPin(*NodeMaterialVariation->VariationPin(ElementIndex)))
+							UEdGraphPin* VariationPin = NodeMaterialVariation->VariationPin(ElementIndex);
+							if (VariationPin)
 							{
-								if (UCustomizableObjectNodeMaterialBase* FirstNodeMaterialBase = Cast<UCustomizableObjectNodeMaterialBase>(ConnectedPin->GetOwningNode()))
+								if (UEdGraphPin* ConnectedPin = FollowInputPin(*VariationPin))
 								{
-									if (UCustomizableObjectNodeMaterial* FirstNodeMaterial = FirstNodeMaterialBase->GetMaterialNode())
+									if (UCustomizableObjectNodeMaterialBase* FirstNodeMaterialBase = Cast<UCustomizableObjectNodeMaterialBase>(ConnectedPin->GetOwningNode()))
 									{
-										if (bFirst)
+										if (UCustomizableObjectNodeMaterial* FirstNodeMaterial = FirstNodeMaterialBase->GetMaterialNode())
 										{
-											bFirst = false;
-											ComponentName = FirstNodeMaterial->MeshComponentName_DEPRECATED;
-										}
-										else
-										{
-											if (ComponentName != FirstNodeMaterial->MeshComponentName_DEPRECATED) // All components must match. If not, not supported.
+											if (bFirst)
 											{
-												return;
+												bFirst = false;
+												ComponentName = FirstNodeMaterial->MeshComponentName_DEPRECATED;
+											}
+											else
+											{
+												if (ComponentName != FirstNodeMaterial->MeshComponentName_DEPRECATED) // All components must match. If not, not supported.
+												{
+													return;
+												}
 											}
 										}
 									}

@@ -74,7 +74,11 @@ UEdGraphPin* UCustomizableObjectNodeVariation::DefaultPin() const
 
 UEdGraphPin* UCustomizableObjectNodeVariation::VariationPin(int32 Index) const
 {
-	return VariationsPins[Index].Get();
+	if (VariationsPins.IsValidIndex(Index))
+	{
+		return VariationsPins[Index].Get();
+	}
+	return nullptr;
 }
 
 
