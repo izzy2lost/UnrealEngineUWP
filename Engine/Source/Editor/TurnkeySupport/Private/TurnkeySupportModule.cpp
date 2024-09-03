@@ -936,7 +936,14 @@ static void TurnkeyInstallSdk(FString IniPlatformName, bool bPreferFull, bool bF
 			RenderUtilsInit();
 #endif
 
-			FTurnkeyEditorSupport::ShowRestartToast();
+			if (FDataDrivenPlatformInfoRegistry::HasCompiledSupportForPlatform(*IniPlatformName, FDataDrivenPlatformInfoRegistry::EPlatformNameType::Ini))
+			{
+				FTurnkeyEditorSupport::ShowRestartToast();
+			}
+			else
+			{
+				FTurnkeyEditorSupport::ShowRebuildToast();
+			}
 		});
 	}
 	);
