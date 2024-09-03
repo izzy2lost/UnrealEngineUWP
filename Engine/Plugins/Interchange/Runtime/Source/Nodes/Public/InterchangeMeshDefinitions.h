@@ -33,11 +33,8 @@ enum class EInterchangeMeshCollision : uint8
 	
 	/** Generates a new axis-aligned box collision mesh with all edges and corners beveled (26 total sides) encompassing the static mesh*/
 	Convex26DOP UMETA(DisplayName = "26DOP Simplified"),
-	
-	/** Generates only collisions retrieved from the file. This option is mostly useful in case of a reimport,
-	  * to only import collisions by removing the previous imported ones and preserving the ones that were editor-created.*/
-	Custom UMETA(DisplayName = "From File"),
 
+	/** Generates no collisions, but continue to import custom collisions if the file has ones*/
 	None = 0xFF
 };
 

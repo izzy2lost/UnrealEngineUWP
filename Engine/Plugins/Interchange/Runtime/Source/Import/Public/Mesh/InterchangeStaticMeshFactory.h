@@ -6,6 +6,7 @@
 #include "InterchangeFactoryBase.h"
 #include "InterchangeMeshDefinitions.h"
 #include "MeshDescription.h"
+#include "PhysicsEngine/AggregateGeom.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 #include "Mesh/InterchangeMeshPayload.h"
@@ -77,11 +78,12 @@ private:
 #endif
 	struct FImportAssetObjectData
 	{
+		TArray<FMeshDescription> LodMeshDescriptions;
+		EInterchangeMeshCollision Collision = EInterchangeMeshCollision::None;
+		FKAggregateGeom AggregateGeom;
 		bool bIsAppGame = false;
 		bool bImportedCustomCollision = false;
 		bool bImportCollision = false;
-		EInterchangeMeshCollision Collision = EInterchangeMeshCollision::None;
-		TArray<FMeshDescription> LodMeshDescriptions;
 	};
 	FImportAssetObjectData ImportAssetObjectData;
 };

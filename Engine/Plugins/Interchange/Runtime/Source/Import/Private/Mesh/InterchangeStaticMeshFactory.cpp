@@ -31,7 +31,6 @@
 #include "Model.h"
 #include "Nodes/InterchangeBaseNode.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
-#include "PhysicsEngine/AggregateGeom.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "PhysicsEngine/BoxElem.h"
 #include "PhysicsEngine/ConvexElem.h"
@@ -430,27 +429,17 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 		{
 			LodDataNode->GetImportCollision(bImportCollision);
 			LodDataNode->GetImportCollisionType(Collision);
-			if(bImportCollision && Collision != EInterchangeMeshCollision::None)
+			if(bImportCollision)
 			{
 				if (bReimport)
 				{
-					EReimportStrategyFlags ReimportStrategy = StaticMeshFactoryNode->GetReimportStrategyFlags();
-					switch(ReimportStrategy)
-					{
-					using enum EReimportStrategyFlags;
-					case ApplyNoProperties:	// do nothing
-						break;
-
-					case ApplyPipelineProperties:
-						StaticMesh->GetBodySetup()->AggGeom.EmptyElements();
-						break;
-
-					case ApplyEditorChangedProperties:
-#if WITH_EDITORONLY_DATA
-						StaticMesh->GetBodySetup()->AggGeom.EmptyImportedElements();
+					//Let's clean only the imported collisions first in order 
+					// to store the previous editor-generated collisions to re-generate them later in the Game Thread with their properties
+#if WITH_EDITOR
+					StaticMesh->GetBodySetup()->AggGeom.EmptyImportedElements();
 #endif
-						break;
-					}
+					ImportAssetObjectData.AggregateGeom = StaticMesh->GetBodySetup()->AggGeom;
+					StaticMesh->GetBodySetup()->AggGeom.EmptyElements();
 				}
 
 				bImportedCustomCollision |= ImportBoxCollision(Arguments, StaticMesh, LodDataNode);
@@ -687,12 +676,79 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 			}
 		}
 	}
-#endif // WITH_EDITOR
 
-#if WITH_EDITOR
+	//Let's now re-generate the previous collisions with their properties, only the extents will be updated	
+	if(bReimport)
+	{
+		for(FKBoxElem& BoxElem : ImportAssetObjectData.AggregateGeom.BoxElems)
+		{
+			int32 Index = GenerateBoxAsSimpleCollision(StaticMesh, false);
+			FKBoxElem& NewBoxElem = StaticMesh->GetBodySetup()->AggGeom.BoxElems[Index];
+
+			//Preserve the new extents
+			float X = NewBoxElem.X;
+			float Y = NewBoxElem.Y;
+			float Z = NewBoxElem.Z;
+
+			//Copy the previous settings, we just want the new extents
+			NewBoxElem = BoxElem;
+			NewBoxElem.X = X;
+			NewBoxElem.Y = Y;
+			NewBoxElem.Z = Z;
+		}
+
+		for(FKSphereElem& SphereElem : ImportAssetObjectData.AggregateGeom.SphereElems)
+		{
+			int32 Index = GenerateSphereAsSimpleCollision(StaticMesh, false);
+			FKSphereElem& NewSphereElem = StaticMesh->GetBodySetup()->AggGeom.SphereElems[Index];
+
+			//Preserve the new extents
+			float Radius = NewSphereElem.Radius;
+
+			//Copy the previous settings, we just want the new extents
+			NewSphereElem = SphereElem;
+			NewSphereElem.Radius = Radius;
+		}
+
+		for(FKSphylElem& CapsuleElem: ImportAssetObjectData.AggregateGeom.SphylElems)
+		{
+			int32 Index = GenerateSphylAsSimpleCollision(StaticMesh, false);
+			FKSphylElem& NewCapsuleElem = StaticMesh->GetBodySetup()->AggGeom.SphylElems[Index];
+
+			//Preserve the new extents
+			float Radius = NewCapsuleElem.Radius;
+			float Length = NewCapsuleElem.Length;
+
+			//Copy the previous settings, we just want the new extents
+			NewCapsuleElem = CapsuleElem;
+			NewCapsuleElem.Radius = Radius;
+			NewCapsuleElem.Length = Length;
+		}
+
+		for(FKConvexElem& ConvexElem: ImportAssetObjectData.AggregateGeom.ConvexElems)
+		{
+			int32 Index = GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir18, sizeof(KDopDir18) / sizeof(FVector)), false);
+			FKConvexElem& NewConvexElem = StaticMesh->GetBodySetup()->AggGeom.ConvexElems[Index];
+
+			//Preserve the new extents
+			TArray<FVector> VertexData = NewConvexElem.VertexData;
+			TArray<int32> IndexData = NewConvexElem.IndexData;
+			FBox ElemBox = NewConvexElem.ElemBox;
+			Chaos::FConvexPtr ChaosConvex = NewConvexElem.GetChaosConvexMesh();
+			NewConvexElem.ResetChaosConvexMesh();
+
+			//Copy the previous settings, we just want the new extents
+			NewConvexElem = ConvexElem;
+			NewConvexElem.VertexData = VertexData;
+			NewConvexElem.IndexData = IndexData;
+			NewConvexElem.ElemBox = ElemBox;
+			NewConvexElem.SetConvexMeshObject(MoveTemp(ChaosConvex));
+		}
+	}
+
 	if(ImportAssetObjectData.bImportCollision)
 	{
-		if(!ImportAssetObjectData.bImportedCustomCollision)
+		if(!ImportAssetObjectData.bImportedCustomCollision && ImportAssetObjectData.Collision != EInterchangeMeshCollision::None)
 		{
 			// Don't generate collisions if the mesh already has one of the requested type, otherwise it will continue to create collisions,
 			// it can happen in the case of an import, and then importing the same file without deleting the asset in the content browser (different from a reimport)
@@ -757,7 +813,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 				break;
 			}
 		}
-#endif
+#endif // WITH_EDITOR
 #if WITH_EDITORONLY_DATA
 		else
 		{
