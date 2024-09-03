@@ -291,6 +291,17 @@ FText& FText::operator=(FText&& Other)
 	return *this;
 }
 
+void FText::AutoRTFMAssignFromOpenToClosed(FText& Closed, const FText& Open)
+{
+	// Copy (instead of move) in a closed transaction to ensure the ref-counts
+	// are correctly tracked in the transaction.
+	const AutoRTFM::EContextStatus Status = AutoRTFM::Close([&]
+	{
+		Closed = Open; 
+	});
+	ensure(AutoRTFM::EContextStatus::OnTrack == Status);
+}
+
 bool FText::IsEmpty() const
 {
 	return ToString().IsEmpty();

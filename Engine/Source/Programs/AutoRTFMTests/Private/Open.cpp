@@ -105,13 +105,13 @@ TEST_CASE("Open.Atomics")
 
 TEST_CASE("Open.ReturnValue")
 {
-    static_assert(AutoRTFM::TIsSafeToReturnFromOpen<int>::value);
-    static_assert(AutoRTFM::TIsSafeToReturnFromOpen<float>::value);
-    static_assert(AutoRTFM::TIsSafeToReturnFromOpen<int*>::value);
-    static_assert(AutoRTFM::TIsSafeToReturnFromOpen<void>::value);
-    static_assert(AutoRTFM::TIsSafeToReturnFromOpen<std::tuple<int, float>>::value);
-    static_assert(!AutoRTFM::TIsSafeToReturnFromOpen<std::string>::value);
-    static_assert(!AutoRTFM::TIsSafeToReturnFromOpen<std::tuple<int, std::string>>::value);
+    static_assert(AutoRTFM::IsSafeToReturnFromOpen<int>);
+    static_assert(AutoRTFM::IsSafeToReturnFromOpen<float>);
+    static_assert(AutoRTFM::IsSafeToReturnFromOpen<int*>);
+    static_assert(AutoRTFM::IsSafeToReturnFromOpen<void>);
+    static_assert(AutoRTFM::IsSafeToReturnFromOpen<std::tuple<int, float>>);
+    static_assert(!AutoRTFM::IsSafeToReturnFromOpen<std::string>);
+    static_assert(!AutoRTFM::IsSafeToReturnFromOpen<std::tuple<int, std::string>>);
 
     SECTION("int")
     {
@@ -157,5 +157,76 @@ TEST_CASE("Open.ReturnValue")
         REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
         REQUIRE(42 == Int);
         REQUIRE("woof" == String);
+    }
+
+    SECTION("Custom type")
+    {
+        SECTION("AutoRTFMAssignFromOpenToClosed() by value")
+        {
+            struct FMyStruct
+            {
+                int Value = 0;
+                static void AutoRTFMAssignFromOpenToClosed(FMyStruct& Closed, FMyStruct Open)
+                {
+                    Closed.Value = Open.Value;
+                }
+            };
+            static_assert(AutoRTFM::IsSafeToReturnFromOpen<FMyStruct>);
+
+            FMyStruct StructResult;
+            AutoRTFM::ETransactionResult TransactionResult = AutoRTFM::Transact([&]
+            {
+                FMyStruct Closed = AutoRTFM::Open([] { return FMyStruct{42}; });
+                AutoRTFM::Open([&] { StructResult = Closed; });
+            });
+            REQUIRE(AutoRTFM::ETransactionResult::Committed == TransactionResult);
+            REQUIRE(42 == StructResult.Value);
+        }
+        SECTION("AutoRTFMAssignFromOpenToClosed() by const-ref")
+        {
+            struct FMyStruct
+            {
+                int Value = 0;
+                static void AutoRTFMAssignFromOpenToClosed(FMyStruct& Closed, const FMyStruct& Open)
+                {
+                    Closed.Value = Open.Value;
+                }
+            };
+            static_assert(AutoRTFM::IsSafeToReturnFromOpen<FMyStruct>);
+
+            FMyStruct StructResult;
+            AutoRTFM::ETransactionResult TransactionResult = AutoRTFM::Transact([&]
+            {
+                FMyStruct Closed = AutoRTFM::Open([] { return FMyStruct{42}; });
+                AutoRTFM::Open([&] { StructResult = Closed; });
+            });
+            REQUIRE(AutoRTFM::ETransactionResult::Committed == TransactionResult);
+            REQUIRE(42 == StructResult.Value);
+        }
+        SECTION("AutoRTFMAssignFromOpenToClosed() by rvalue-ref")
+        {
+            struct FMyStruct
+            {
+                int Value = 0;
+                bool* WasMoved = nullptr;
+                static void AutoRTFMAssignFromOpenToClosed(FMyStruct& Closed, FMyStruct&& Open)
+                {
+                    Closed.Value = Open.Value;
+                    *Open.WasMoved = true;
+                }
+            };
+            static_assert(AutoRTFM::IsSafeToReturnFromOpen<FMyStruct>);
+
+            bool WasMoved = false;
+            FMyStruct StructResult;
+            AutoRTFM::ETransactionResult TransactionResult = AutoRTFM::Transact([&]
+            {
+                FMyStruct Closed = AutoRTFM::Open([&] { return FMyStruct{42, &WasMoved}; });
+                AutoRTFM::Open([&] { StructResult = Closed; });
+            });
+            REQUIRE(AutoRTFM::ETransactionResult::Committed == TransactionResult);
+            REQUIRE(true == WasMoved);
+            REQUIRE(42 == StructResult.Value);
+        }
     }
 }

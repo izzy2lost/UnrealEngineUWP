@@ -4,6 +4,7 @@
 
 #include "Containers/UnrealString.h"
 #include "HAL/LowLevelMemTracker.h"
+#include "Internationalization/Text.h"
 #include "Internationalization/TextKey.h"
 #include "Misc/CString.h"
 #include "Misc/LazySingleton.h"
@@ -33,42 +34,44 @@ FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const TCHAR* InNamespa
 	return FindOrCache(InTextLiteral, FTextId(InNamespace, InKey));
 }
 
-UE_AUTORTFM_ALWAYS_OPEN FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextId)
+FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextId)
 {
-	LLM_SCOPE(ELLMTag::Localization);
-
-	// First try and find a cached instance
+	return AutoRTFM::Open([&]
 	{
-		FText* ReturnFoundText = nullptr;
+		LLM_SCOPE(ELLMTag::Localization);
 
-		FScopeLock Lock(&CachedTextCS);
-
-		FText* FoundText = CachedText.Find(InTextId);
-		if (FoundText)
+		// First try and find a cached instance
 		{
-			const FString* FoundTextLiteral = FTextInspector::GetSourceString(*FoundText);
-			if (FoundTextLiteral && FCString::Strcmp(**FoundTextLiteral, InTextLiteral) == 0)
-			{
+			FText* ReturnFoundText = nullptr;
 
-				ReturnFoundText = FoundText;
+			FScopeLock Lock(&CachedTextCS);
+
+			FText* FoundText = CachedText.Find(InTextId);
+			if (FoundText)
+			{
+				const FString* FoundTextLiteral = FTextInspector::GetSourceString(*FoundText);
+				if (FoundTextLiteral && FCString::Strcmp(**FoundTextLiteral, InTextLiteral) == 0)
+				{
+					ReturnFoundText = FoundText;
+				}
+			}
+
+			if (ReturnFoundText)
+			{
+				return *ReturnFoundText;
 			}
 		}
 
-		if (ReturnFoundText)
-		{
-			return *ReturnFoundText;
-		}
-	}
+		// Not currently cached, make a new instance...
+		FText NewText = FText(InTextLiteral, InTextId.GetNamespace(), InTextId.GetKey(), ETextFlag::Immutable);
 
-	// Not currently cached, make a new instance...
-	FText NewText = FText(InTextLiteral, InTextId.GetNamespace(), InTextId.GetKey(), ETextFlag::Immutable);
+		// ... and add it to the cache
+		FScopeLock Lock(&CachedTextCS);
 
-	// ... and add it to the cache
-	FScopeLock Lock(&CachedTextCS);
+		CachedText.Emplace(InTextId, NewText);
 
-	CachedText.Emplace(InTextId, NewText);
-
-	return NewText;
+		return NewText;
+	});
 }
 
 UE_AUTORTFM_NOAUTORTFM void FTextCache::RemoveCache(const FTextId& InTextId)

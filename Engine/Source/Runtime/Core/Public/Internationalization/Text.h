@@ -394,6 +394,10 @@ public:
 	CORE_API FText(FText&& Other);
 	CORE_API FText& operator=(FText&& Other);
 
+	// Safely copies an FText from the open to a closed transaction.
+	// See AutoRTFM::Open().
+	static CORE_API void AutoRTFMAssignFromOpenToClosed(FText& Closed, const FText& Open);
+
 	/**
 	 * Generate an FText that represents the passed number in the current culture
 	 */
