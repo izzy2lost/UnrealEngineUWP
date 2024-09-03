@@ -613,7 +613,7 @@ void AccumulateLightGridLocalLighting(const FCulledLightsGridHeader InLightGridH
 
 		half DynamicShadowing = 1.0f;
 #if USE_SHADOWMASKTEXTURE
-		if (LightType == LIGHT_TYPE_SPOT)
+		if (LightType == LIGHT_TYPE_SPOT || LightType == LIGHT_TYPE_POINT)
 		{
 			half4 PreviewShadowMapChannelMask = UnpackShadowMapChannelMask(LightTypeAndPackedShadowMapChannelMask >> 4);
 			DynamicShadowing = dot(PreviewShadowMapChannelMask, DynamicShadowFactors);

@@ -93,7 +93,11 @@ public:
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5) && (!bUsingVertexLayers || (!RHISupportsGeometryShaders(Parameters.Platform) && RHISupportsVertexShaderLayer(Parameters.Platform)));
+		if (IsMobilePlatform(Parameters.Platform))
+		{
+			return bUsingVertexLayers;
+		}
+		return true;
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -212,6 +216,18 @@ void SetupShadowDepthPassUniformBuffer(
 
 	ShadowDepthPassParameters.ShadowParams = FVector4f(ShadowInfo->GetShaderDepthBias(), ShadowInfo->GetShaderSlopeDepthBias(), ShadowInfo->GetShaderMaxSlopeDepthBias(), ShadowInfo->InvMaxSubjectDepth);
 	ShadowDepthPassParameters.bClampToNearPlane = ShadowInfo->ShouldClampToNearPlane() ? 1.0f : 0.0f;
+
+	if (ShadowInfo->bOnePassPointLightShadow)
+	{
+		check(ShadowInfo->BorderSize == 0);
+
+		// offset from translated world space to (pre translated) shadow space 
+		const FMatrix Translation = FTranslationMatrix(ShadowInfo->PreShadowTranslation - View.ViewMatrices.GetPreViewTranslation());
+		for (int32 FaceIndex = 0; FaceIndex < 6; FaceIndex++)
+		{
+			ShadowDepthPassParameters.ShadowViewProjectionMatrices[FaceIndex] = FMatrix44f(Translation * ShadowInfo->OnePassShadowViewProjectionMatrices[FaceIndex]);		// LWC_TODO: Precision loss?
+		}
+	}
 }
 
 void AddClearShadowDepthPass(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture)
@@ -329,10 +345,11 @@ public:
 		const bool bForceAllPermutations = SupportAllShaderPermutationsVar && SupportAllShaderPermutationsVar->GetValueOnAnyThread() != 0;
 		const bool bSupportPointLightWholeSceneShadows = CVarSupportPointLightWholeSceneShadows.GetValueOnAnyThread() != 0 || bForceAllPermutations;
 
-		// Mobile only needs OutputDepth, and optionally PerspectiveCorrect
+		// Mobile only needs OutputDepth, and optionally PerspectiveCorrect and OnePassPointLight
 		if (!IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) &&
 			!(ShaderMode == VertexShadowDepth_OutputDepth || 
-				(ShaderMode == VertexShadowDepth_PerspectiveCorrect && MobileUsesPerspectiveCorrectShadowPermutation(Platform))))
+				(ShaderMode == VertexShadowDepth_PerspectiveCorrect && MobileUsesPerspectiveCorrectShadowPermutation(Platform))
+					 || ((ShaderMode == VertexShadowDepth_OnePassPointLight) && FReadOnlyCVARCache::EnablePointLightShadows(Platform))))
 		{
 			return false;
 		}
@@ -355,8 +372,6 @@ public:
 		return (Parameters.MaterialParameters.bIsSpecialEngineMaterial
 			// Masked and WPO materials need their shaders but cannot be used with a position only stream.
 			|| ((!Parameters.MaterialParameters.bWritesEveryPixelShadowPass || Parameters.MaterialParameters.bMaterialMayModifyMeshPosition) && !bUsePositionOnlyStream))
-			// Only compile one pass point light shaders for feature levels >= SM5
-			&& (ShaderMode != VertexShadowDepth_OnePassPointLight || IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5))
 			// Only compile position-only shaders for vertex factories that support it. (Note: this assumes that a vertex factor which supports PositionOnly, supports also PositionAndNormalOnly)
 			&& (!bUsePositionOnlyStream || Parameters.VertexFactoryType->SupportsPositionOnly())
 			// Don't render ShadowDepth for translucent unlit materials
@@ -454,11 +469,12 @@ public:
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
 		const EShaderPlatform Platform = Parameters.Platform;
-		
-		// Mobile only needs NonPerspectiveCorrect, and optionally PerspectiveCorrect
+
+		// Mobile only needs NonPerspectiveCorrect, and optionally PerspectiveCorrect and OnePassPointLight
 		if (!IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) &&
 			!(ShaderMode == PixelShadowDepth_NonPerspectiveCorrect || 
-				(ShaderMode == PixelShadowDepth_PerspectiveCorrect && MobileUsesPerspectiveCorrectShadowPermutation(Platform))))
+				(ShaderMode == PixelShadowDepth_PerspectiveCorrect && MobileUsesPerspectiveCorrectShadowPermutation(Platform))
+					|| ((ShaderMode == PixelShadowDepth_OnePassPointLight) && FReadOnlyCVARCache::EnablePointLightShadows(Platform))))
 		{
 			return false;
 		}
@@ -773,11 +789,6 @@ public:
 		SHADER_PARAMETER_SAMPLER(SamplerState, ShadowDepthSampler)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
-	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FCopyShadowMapsCubePS, "/Engine/Private/CopyShadowMaps.usf", "CopyCubeDepthPS", SF_Pixel);
@@ -870,7 +881,7 @@ void FProjectedShadowInfo::CopyCachedShadowMap(
 				else
 	#endif
 				{
-					check(RHISupportsVertexShaderLayer(GShaderPlatformForFeatureLevel[SceneRenderer->FeatureLevel]));
+					check((RHISupportsVertexShaderLayer(SceneRenderer->ShaderPlatform) && GRHISupportsArrayIndexFromAnyShader));
 					TShaderMapRef<TScreenVSForGS<true>> VertexShader(View.ShaderMap);
 					GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 					ScreenVertexShader = VertexShader;
@@ -2350,6 +2361,7 @@ FMeshPassProcessor* CreateOnePassPointLightShadowDepthPassProcessor(ERHIFeatureL
 }
 
 REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(OnePassPointLightShadowDepthPass, CreateOnePassPointLightShadowDepthPassProcessor, EShadingPath::Deferred, EMeshPass::OnePassPointLightShadowDepth, EMeshPassFlags::CachedMeshCommands);
+REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(OnePassPointLightMobileShadowDepthPass, CreateOnePassPointLightShadowDepthPassProcessor, EShadingPath::Mobile, EMeshPass::OnePassPointLightShadowDepth, EMeshPassFlags::CachedMeshCommands);
 
 FMeshPassProcessor* CreateVSMShadowDepthPassProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
 {
