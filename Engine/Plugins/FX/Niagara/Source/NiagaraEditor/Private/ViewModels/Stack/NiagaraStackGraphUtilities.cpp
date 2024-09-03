@@ -121,13 +121,14 @@ void FNiagaraStackGraphUtilities::RelayoutGraph(UEdGraph& Graph)
 	TArray<TArray<TArray<UEdGraphNode*>>> OutputNodeTraversalStacks;
 	TArray<UNiagaraNodeOutput*> OutputNodes;
 	Graph.GetNodesOfClass(OutputNodes);
-	TSet<UEdGraphNode*> AllTraversedNodes;
+	TMap<UEdGraphNode*, int32> AllTraversedNodes; // track indentation level per node
 	for (UNiagaraNodeOutput* OutputNode : OutputNodes)
 	{
-		TSet<UEdGraphNode*> TraversedNodes;
+		TMap<UEdGraphNode*, int32> TraversedNodes; // map to track node level
 		TArray<TArray<UEdGraphNode*>> TraversalStack;
 		TArray<UEdGraphNode*> CurrentNodesToTraverse;
 		CurrentNodesToTraverse.Add(OutputNode);
+		int32 NodeLevel = 0;
 		while (CurrentNodesToTraverse.Num() > 0)
 		{
 			TArray<UEdGraphNode*> TraversedNodesThisLevel;
@@ -136,6 +137,11 @@ void FNiagaraStackGraphUtilities::RelayoutGraph(UEdGraph& Graph)
 			{
 				if (TraversedNodes.Contains(CurrentNodeToTraverse))
 				{
+					if (NodeLevel > TraversedNodes[CurrentNodeToTraverse])
+					{
+						// if the node is referenced in a longer chain we pull it back
+						TraversedNodes[CurrentNodeToTraverse] = NodeLevel;
+					}
 					continue;
 				}
 				
@@ -152,18 +158,31 @@ void FNiagaraStackGraphUtilities::RelayoutGraph(UEdGraph& Graph)
 						}
 					}
 				}
-				TraversedNodes.Add(CurrentNodeToTraverse);
+				TraversedNodes.Add(CurrentNodeToTraverse, NodeLevel);
 				TraversedNodesThisLevel.Add(CurrentNodeToTraverse);
 			}
 			TraversalStack.Add(TraversedNodesThisLevel);
+			NodeLevel++;
 			CurrentNodesToTraverse.Empty();
 			CurrentNodesToTraverse.Append(NextNodesToTraverse);
 		}
 		OutputNodeTraversalStacks.Add(TraversalStack);
-		AllTraversedNodes = AllTraversedNodes.Union(TraversedNodes);
+
+		for (const auto& Pair : TraversedNodes)
+		{
+			if (AllTraversedNodes.Contains(Pair.Key))
+			{
+				// if the node was already traversed, update the indentation level to get the longest chain
+				AllTraversedNodes[Pair.Key] = FMath::Max(AllTraversedNodes[Pair.Key], Pair.Value);
+			}
+			else
+			{
+				AllTraversedNodes.Add(Pair);
+			}
+		}
 	}
 
-	// Find all nodes which were not traversed and put them them in a separate traversal stack.
+	// Find all nodes which were not traversed and put them in a separate traversal stack.
 	TArray<UEdGraphNode*> UntraversedNodes;
 	for (UEdGraphNode* Node : Graph.Nodes)
 	{
@@ -180,21 +199,23 @@ void FNiagaraStackGraphUtilities::RelayoutGraph(UEdGraph& Graph)
 		UntraversedNodeStack.Add(UntraversedStackItem);
 	}
 	OutputNodeTraversalStacks.Add(UntraversedNodeStack);
-
+	
 	// Layout the traversed node stacks.
 	float YOffset = 0;
-	float XDistance = 400;
+	float XDistance = -400;
 	float YDistance = 50;
 	float YPinDistance = 50;
 	for (const TArray<TArray<UEdGraphNode*>>& TraversalStack : OutputNodeTraversalStacks)
 	{
-		float CurrentXOffset = 0;
+		
 		float MaxYOffset = YOffset;
 		for (const TArray<UEdGraphNode*>& TraversalLevel : TraversalStack)
 		{
 			float CurrentYOffset = YOffset;
 			for (UEdGraphNode* Node : TraversalLevel)
 			{
+				int32 Level = AllTraversedNodes.FindOrAdd(Node);
+				float CurrentXOffset = Level * XDistance;
 				Node->Modify();
 				Node->NodePosX = FMath::RoundToInt(CurrentXOffset);
 				Node->NodePosY = FMath::RoundToInt(CurrentYOffset);
@@ -215,7 +236,6 @@ void FNiagaraStackGraphUtilities::RelayoutGraph(UEdGraph& Graph)
 				CurrentYOffset += YDistance + (MaxPins * YPinDistance);
 			}
 			MaxYOffset = FMath::Max(MaxYOffset, CurrentYOffset);
-			CurrentXOffset -= XDistance;
 		}
 		YOffset = MaxYOffset + YDistance;
 	}

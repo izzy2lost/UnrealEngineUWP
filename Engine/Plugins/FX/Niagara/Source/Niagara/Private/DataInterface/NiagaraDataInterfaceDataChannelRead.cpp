@@ -1182,6 +1182,9 @@ bool UNiagaraDataInterfaceDataChannelRead::CopyToInternal(UNiagaraDataInterface*
 #if WITH_EDITORONLY_DATA
 void UNiagaraDataInterfaceDataChannelRead::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
+	/////
+	// NOTE: *any* changes to function inputs or outputs needs to be included in FReadNDCModel::GenerateNewModuleContent()
+	/////
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_Num());
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_GetNDCSpawnData());
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_Read());

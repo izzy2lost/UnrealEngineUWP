@@ -16,6 +16,11 @@
 #include "Customizations/NiagaraDataInterfaceSimCacheVisualizer.h"
 #include "NiagaraEditorModule.generated.h"
 
+namespace UE::Niagara::Wizard
+{
+	class FModuleWizardGenerator;
+}
+
 class FNiagaraRecentAndFavoritesManager;
 class IAssetTools;
 class IAssetTypeActions;
@@ -191,6 +196,10 @@ public:
 
 	/** Registers niagara editor property utilities for a specific struct type. */
 	void RegisterPropertyUtilities(const UScriptStruct* InStruct, TSharedRef<INiagaraEditorPropertyUtilities, ESPMode::ThreadSafe> PropertyUtilities);
+
+	/** Registers niagara wizards that can be used to add generated modules to the stack. */
+	void RegisterModuleWizards(TSharedRef<UE::Niagara::Wizard::FModuleWizardGenerator> WizardGenerator);
+	TConstArrayView<TSharedRef<UE::Niagara::Wizard::FModuleWizardGenerator>> GetModuleWizards() const { return ModuleWizards; }
 
 	/** Register/unregister niagara editor settings. */
 	void RegisterSettings();
@@ -414,6 +423,7 @@ private:
 
 	/** All created asset type actions.  Cached here so that we can unregister it during shutdown. */
 	TArray< TSharedPtr<IAssetTypeActions> > CreatedAssetTypeActions;
+	TArray<TSharedRef<UE::Niagara::Wizard::FModuleWizardGenerator>> ModuleWizards;
 
 	FCriticalSection TypeEditorsCS;
 	TMap<FNiagaraTypeDefinition, TSharedRef<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe>> TypeToEditorUtilitiesMap;

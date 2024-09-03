@@ -33,7 +33,6 @@ public class NiagaraEditor : ModuleRules
                 "ShaderFormatVectorVM",
                 "TargetPlatform",
                 "DesktopPlatform",
-                "AppFramework",
 				"MovieSceneTools",
                 "MovieSceneTracks",
                 "AdvancedPreviewScene",
@@ -86,6 +85,7 @@ public class NiagaraEditor : ModuleRules
                 "Niagara",
 				"EditorFramework",
                 "UnrealEd",
+                "AppFramework",
             }
         );
 

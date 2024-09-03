@@ -179,6 +179,7 @@
 #include "ViewModels/HierarchyEditor/NiagaraHierarchyCommands.h"
 #include "Widgets/AssetBrowser/SNiagaraSelectedAssetDetails.h"
 #include "NiagaraRecentAndFavoritesManager.h"
+#include "Widgets/DataChannel/NiagaraDataChannelWizard.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraEditorModule)
 
@@ -1557,6 +1558,8 @@ void FNiagaraEditorModule::StartupModule()
 		}
 	}
 
+	RegisterModuleWizards(UE::Niagara::Wizard::DataChannel::CreateNDCWizardGenerator());
+
 #if NIAGARA_PERF_BASELINES
 	UNiagaraEffectType::OnGeneratePerfBaselines().BindRaw(this, &FNiagaraEditorModule::GeneratePerfBaselines);
 #endif
@@ -1832,6 +1835,11 @@ void FNiagaraEditorModule::RegisterPropertyUtilities(const UScriptStruct* InStru
 	TypeEditorsCS.Unlock();
 }
 
+void FNiagaraEditorModule::RegisterModuleWizards(TSharedRef<UE::Niagara::Wizard::FModuleWizardGenerator> WizardGenerator)
+{
+	ModuleWizards.Add(WizardGenerator);
+}
+
 TSharedPtr<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe> FNiagaraEditorModule::GetTypeUtilities(const FNiagaraTypeDefinition& Type)
 {
 	TypeEditorsCS.Lock();
@@ -2051,7 +2059,7 @@ void FNiagaraEditorModule::GetDataInterfaceFeedbackSafe(UNiagaraDataInterface* I
 
 	if (OwningSystem == nullptr)
 	{
-		// If no outer was find try to find one by componenet.
+		// If no outer was found, try to find one by component.
 		if (OwningComponent != nullptr)
 		{
 			OwningSystem = OwningComponent->GetAsset();
@@ -2060,7 +2068,7 @@ void FNiagaraEditorModule::GetDataInterfaceFeedbackSafe(UNiagaraDataInterface* I
 
 	if (OwningSystem == nullptr)
 	{
-		// If no outer information is available check system view models for placeholder DIs.
+		// If no outer information is available, check system view models for placeholder DIs.
 		TArray<TSharedRef<FNiagaraSystemViewModel>> SystemViewModels;
 		FNiagaraSystemViewModel::GetAllViewModels(SystemViewModels);
 		for (TSharedRef<FNiagaraSystemViewModel> SystemViewModel : SystemViewModels)

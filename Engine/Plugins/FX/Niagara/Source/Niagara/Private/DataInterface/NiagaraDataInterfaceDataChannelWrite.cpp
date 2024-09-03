@@ -774,9 +774,14 @@ bool UNiagaraDataInterfaceDataChannelWrite::CopyToInternal(UNiagaraDataInterface
 #if WITH_EDITORONLY_DATA
 void UNiagaraDataInterfaceDataChannelWrite::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
+
+	/////
+	// NOTE: *any* changes to function inputs or outputs here needs to be included in FWriteNDCModel::GenerateNewModuleContent()
+	/////
 	{
 		FNiagaraFunctionSignature Sig;
 		Sig.Name = NDIDataChannelWriteLocal::NumName;
+		NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
 		Sig.Description = LOCTEXT("NumFunctionDescription", "Returns the current number of DataChannel accessible by this interface.");
 		Sig.bMemberFunction = true;
 		Sig.bExperimental = true;
@@ -791,12 +796,13 @@ void UNiagaraDataInterfaceDataChannelWrite::GetFunctionsInternal(TArray<FNiagara
 	{
 		FNiagaraFunctionSignature Sig;
 		Sig.Name = NDIDataChannelWriteLocal::WriteName;
+		NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
 		Sig.Description = LOCTEXT("WriteFunctionDescription", "Writes DataChannel data at a specific index.  Values in the DataChannel that are not written here are set to their defaults. Returns success if an DataChannel was written to.");
 		Sig.bMemberFunction = true;
 		Sig.bRequiresExecPin = true;
 		Sig.bExperimental = true;
 		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("DataChannel interface")));
-		Sig.AddInput(EmitVar);
+		Sig.AddInput(EmitVar, LOCTEXT("ExecuteFlagTooltip", "If true then the write is executed, if false then the whole write is skipped"));
 		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")));
 		Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")));
 		Sig.RequiredInputs = IntCastChecked<int16>(Sig.Inputs.Num());//The user defines what we write in the graph.
@@ -805,12 +811,13 @@ void UNiagaraDataInterfaceDataChannelWrite::GetFunctionsInternal(TArray<FNiagara
 	{
 		FNiagaraFunctionSignature Sig;
 		Sig.Name = NDIDataChannelWriteLocal::AppendName;
+		NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
 		Sig.Description = LOCTEXT("AppendFunctionDescription", "Appends a new DataChannel to the end of the DataChannel array and writes the specified values. Values in the DataChannel that are not written here are set to their defaults. Returns success if an DataChannel was successfully pushed.");
 		Sig.bMemberFunction = true;
 		Sig.bRequiresExecPin = true;
 		Sig.bExperimental = true;
 		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("DataChannel interface")));
-		Sig.AddInput(EmitVar);
+		Sig.AddInput(EmitVar, LOCTEXT("ExecuteAppendFlagTooltip", "If true then the append is executed, if false then the append call is skipped"));
 		Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")));
 		Sig.RequiredInputs = IntCastChecked<int16>(Sig.Inputs.Num());//The user defines what we write in the graph.
 		OutFunctions.Add(Sig);
@@ -868,7 +875,6 @@ void UNiagaraDataInterfaceDataChannelWrite::Write(FVectorVMExternalFunctionConte
 	FNDIInputParam<FNiagaraBool> InEmit(Context);
 	FNDIInputParam<int32> InIndex(Context);
 
-	const FNDIDataChannelFunctionInfo& FuncInfo = CompiledData.GetFunctionInfo()[FuncIdx];
 	const FNDIDataChannel_FunctionToDataSetBinding* BindingInfo = InstData->FunctionToDatSetBindingInfo.IsValidIndex(FuncIdx) ? InstData->FunctionToDatSetBindingInfo[FuncIdx].Get() : nullptr;
 	FNDIVariadicInputHandler<16> VariadicInputs(Context, BindingInfo);//TODO: Make static / avoid allocation
 
@@ -883,13 +889,14 @@ void UNiagaraDataInterfaceDataChannelWrite::Write(FVectorVMExternalFunctionConte
 		{			
 			bAllFailedFallback = false;
 			uint32 MaxLocalIndex = 0;
-			int32 NumAllocated = (int32)Data->GetNumInstancesAllocated();
+			int32 NumAllocated = IntCastChecked<int32>(Data->GetNumInstancesAllocated());
 			for (int32 i = 0; i < Context.GetNumInstances(); ++i)
 			{
-				int32 Index = InIndex.GetAndAdvance();
-				bool bEmit = InEmit.GetAndAdvance() && Index >= 0 && Index < NumAllocated;
+				int32 RawIndex = InIndex.GetAndAdvance();
+				bool bEmit = InEmit.GetAndAdvance() && RawIndex >= 0 && RawIndex < NumAllocated;
 
-				MaxLocalIndex = bEmit ? FMath::Max((uint32)Index, MaxLocalIndex) : MaxLocalIndex;
+				uint32 Index = static_cast<uint32>(RawIndex);
+				MaxLocalIndex = bEmit ? FMath::Max(Index, MaxLocalIndex) : MaxLocalIndex;
 
 				bool bSuccess = false;
 
@@ -898,17 +905,17 @@ void UNiagaraDataInterfaceDataChannelWrite::Write(FVectorVMExternalFunctionConte
 				auto FloatFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<float>& FloatData)
 				{
 					if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
-						*Data->GetInstancePtrFloat(VMBinding.DataSetRegisterIndex, (uint32)Index) = FloatData.GetAndAdvance();
+						*Data->GetInstancePtrFloat(VMBinding.DataSetRegisterIndex, Index) = FloatData.GetAndAdvance();
 				};
 				auto IntFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<int32>& IntData)
 				{
 					if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
-						*Data->GetInstancePtrInt32(VMBinding.DataSetRegisterIndex, (uint32)Index) = IntData.GetAndAdvance();
+						*Data->GetInstancePtrInt32(VMBinding.DataSetRegisterIndex, Index) = IntData.GetAndAdvance();
 				};
 				auto HalfFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<FFloat16>& HalfData)
 				{
 					if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
-						*Data->GetInstancePtrHalf(VMBinding.DataSetRegisterIndex, (uint32)Index) = HalfData.GetAndAdvance();
+						*Data->GetInstancePtrHalf(VMBinding.DataSetRegisterIndex, Index) = HalfData.GetAndAdvance();
 				};
 
 				bSuccess = VariadicInputs.Process(bEmit, 1, BindingInfo, FloatFunc, IntFunc, HalfFunc);
@@ -920,7 +927,6 @@ void UNiagaraDataInterfaceDataChannelWrite::Write(FVectorVMExternalFunctionConte
 			}
 
 			//Update the shared instance count with an updated max.
-			bool bAtomicNumInstancesWritten = false;
 			uint32 CurrNumInstances = AtomicNumInstances;
 			while(CurrNumInstances < MaxLocalIndex && !AtomicNumInstances.compare_exchange_weak(CurrNumInstances, MaxLocalIndex))
 			{
@@ -947,7 +953,6 @@ void UNiagaraDataInterfaceDataChannelWrite::Append(FVectorVMExternalFunctionCont
 	VectorVM::FUserPtrHandler<FNDIDataChannelWriteInstanceData> InstData(Context);
 	FNDIInputParam<FNiagaraBool> InEmit(Context);
 
-	const FNDIDataChannelFunctionInfo& FuncInfo = CompiledData.GetFunctionInfo()[FuncIdx];
 	const FNDIDataChannel_FunctionToDataSetBinding* BindingInfo = InstData->FunctionToDatSetBindingInfo.IsValidIndex(FuncIdx) ? InstData->FunctionToDatSetBindingInfo[FuncIdx].Get() : nullptr;
 	FNDIVariadicInputHandler<16> VariadicInputs(Context, BindingInfo);//TODO: Make static / avoid allocation
 
@@ -962,7 +967,7 @@ void UNiagaraDataInterfaceDataChannelWrite::Append(FVectorVMExternalFunctionCont
 		{
 			//Get the total number to emit.
 			//Allows going via a faster write path if we're emiting every instance.
-			//Aslo needed to update the atomic num instances and get our start index for writing.
+			//Also needed to update the atomic num instances and get our start index for writing.
 			uint32 LocalNumToEmit = 0;
 			if(InEmit.IsConstant())
 			{
