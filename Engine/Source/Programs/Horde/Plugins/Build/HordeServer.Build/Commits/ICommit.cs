@@ -70,9 +70,26 @@ namespace HordeServer.Commits
 		/// <summary>
 		/// Gets the files for this change, relative to the root of the stream
 		/// </summary>
+		/// <param name="minFiles">Minimum number of files to return. The response will include at least this number of files, unless the commit has fewer files.</param>
 		/// <param name="maxFiles">Maximum number of files to return. Querying large number of files may cause performance issues with merge commits.</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of files modified by this commit</returns>
-		ValueTask<IReadOnlyList<string>> GetFilesAsync(int maxFiles, CancellationToken cancellationToken);
+		ValueTask<IReadOnlyList<string>> GetFilesAsync(int? minFiles, int? maxFiles, CancellationToken cancellationToken);
+	}
+
+	/// <summary>
+	/// Extension methods for operating on commits
+	/// </summary>
+	public static class CommitExtensions
+	{
+		/// <summary>
+		/// Gets the files for this change, relative to the root of the stream
+		/// </summary>
+		/// <param name="commit">Commit to operate on</param>
+		/// <param name="files">Number of files to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>List of files modified by this commit</returns>
+		public static ValueTask<IReadOnlyList<string>> GetFilesAsync(this ICommit commit, int files, CancellationToken cancellationToken)
+			=> commit.GetFilesAsync(files, files, cancellationToken);
 	}
 }

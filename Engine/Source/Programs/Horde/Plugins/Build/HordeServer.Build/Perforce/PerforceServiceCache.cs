@@ -210,14 +210,14 @@ namespace HordeServer.Perforce
 				return await other.MatchesFilterAsync(filter, cancellationToken);
 			}
 
-			public async ValueTask<IReadOnlyList<string>> GetFilesAsync(int maxFiles, CancellationToken cancellationToken)
+			public async ValueTask<IReadOnlyList<string>> GetFilesAsync(int? minFiles, int? maxFiles, CancellationToken cancellationToken)
 			{
 				ICommit? other = await _owner!.GetChangeDetailsAsync(_streamConfig, Number, cancellationToken);
 				if (other == null)
 				{
 					return Array.Empty<string>();
 				}
-				return await other.GetFilesAsync(maxFiles, cancellationToken);
+				return await other.GetFilesAsync(minFiles, maxFiles, cancellationToken);
 			}
 		}
 
@@ -533,19 +533,14 @@ namespace HordeServer.Perforce
 
 						if (files.Count > 0)
 						{
-							ICommit commit = await CreateCommitAsync(perforce, streamInfo.StreamConfig, describeRecord, MaxFiles, info, cancellationToken);
+							bool hasAllFiles = describeRecord.Files.Count < MaxFiles;
+
+							ICommit commit = await CreateCommitAsync(perforce, streamInfo.StreamConfig, describeRecord, hasAllFiles, info, cancellationToken);
 							_logger.LogInformation("Replicating {StreamId} commit {Change}", streamInfo.StreamConfig.Id, describeRecord.Number);
 
-							List<CommitTag> commitTags = new List<CommitTag>();
-							foreach (CommitTagInfo commitTagInfo in streamInfo.CommitTags)
-							{
-								if (commitTagInfo.Filter.ApplyTo(files.Select(x => "/" + x)).Any())
-								{
-									commitTags.Add(commitTagInfo.Name);
-								}
-							}
+							IReadOnlyList<CommitTag> commitTags = await commit.GetTagsAsync(cancellationToken);
 
-							CachedCommitDoc commitDoc = new CachedCommitDoc(commit, commitTags);
+							CachedCommitDoc commitDoc = new CachedCommitDoc(commit, commitTags.ToList());
 							await AddCachedCommitAsync(commitDoc, cancellationToken);
 
 							await _redisService.PublishAsync(s_commitUpdateChannel, streamInfo.StreamConfig.Id, CommandFlags.FireAndForget);
