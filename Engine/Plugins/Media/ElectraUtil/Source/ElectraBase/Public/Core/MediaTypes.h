@@ -2,7 +2,6 @@
 
 #pragma once
 
-
 #include "Misc/Build.h"
 
 // Include low level includes. This will also include HAL/Platform.h for our types

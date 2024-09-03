@@ -4,18 +4,14 @@
 
 #include "Core/MediaTypes.h"
 #include "Core/MediaMacros.h"
-
 #include "Core/MediaLock.h"
-
 #include "Core/MediaInterlocked.h"
-#include "Runtime/Core/MediaNoncopyable.h"
-
-
+#include "Core/MediaNoncopyable.h"
 
 
 /**
  * Default memory allocator.
-**/
+ */
 template <typename T>
 class TMediaQueueAllocator
 {
@@ -48,7 +44,7 @@ public:
  * are dangerous when used in a multi-threaded environment since the elements cannot be protected by an internal mutex.
  * If you are using an external mutex to ensure object safety you may add such functions, but please derive a new class for this!!!
  *
-**/
+ */
 template <typename T, typename L = FMediaLockNone, typename M = TMediaQueueAllocator<T> >
 class TMediaQueue : public L
 {
@@ -208,11 +204,11 @@ public:
 	}
 
 protected:
-	T* 		Elements = nullptr;
-	int32	MaxNum = 0;
-	int32	NumIn = 0;
-	int32	IdxIn = 0;
-	int32	IdxOut = 0;
+	T* Elements = nullptr;
+	int32 MaxNum = 0;
+	int32 NumIn = 0;
+	int32 IdxIn = 0;
+	int32 IdxOut = 0;
 };
 
 
@@ -223,7 +219,7 @@ protected:
  * A mutex-less version of TMediaQueue to enable working with references.
  *
  * Since this is not thread-safe you must ensure access with an external mutex.
-**/
+ */
 template <typename T, typename M = TMediaQueueAllocator<T> >
 class TMediaQueueNoLock : public TMediaQueue<T, FMediaLockNone, M>
 {
@@ -369,17 +365,6 @@ public:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 /**
  * Object safe queue class.
  *
@@ -394,7 +379,7 @@ public:
  * If you are using an external mutex to ensure object safety you may add such functions, but please derive a new class for this!!!
  * (or use the one below)
  *
-**/
+ */
 template <typename T, uint32 CAPACITY, typename L = FMediaLockCriticalSection >
 class TMediaQueueFixedStatic : public L
 {
@@ -402,9 +387,7 @@ public:
 	using MyType = TMediaQueueFixedStatic<T, CAPACITY, L>;
 	using ElementType = T;
 
-	TMediaQueueFixedStatic()
-	{
-	}
+	TMediaQueueFixedStatic() = default;
 
 	// Not copyable (for now) because of the possible mutex class.
 	TMediaQueueFixedStatic(const MyType& rhs) = delete;
@@ -511,12 +494,12 @@ public:
 protected:
 
 	MS_ALIGN(16)
-	uint8	FixedElements[CAPACITY * sizeof(T)]
+	uint8 FixedElements[CAPACITY * sizeof(T)]
 	GCC_ALIGN(16);
-	T*		Elements = (T*)FixedElements;
-	int32	NumIn = 0;
-	int32	IdxIn = 0;
-	int32	IdxOut = 0;
+	T* Elements = (T*)FixedElements;
+	int32 NumIn = 0;
+	int32 IdxIn = 0;
+	int32 IdxOut = 0;
 };
 
 
@@ -625,23 +608,12 @@ public:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 /**
  * Dynamically sized queue.
  *
  * Will grow when capacity is reached.
  * Therefore a lock is REQUIRED! Never use this with a null-mutex unless you know what you're doing.
-**/
+ */
 template <typename T, typename L = FMediaLockCriticalSection, typename M = TMediaQueueAllocator<T> >
 class TMediaQueueDynamic : public L, private TMediaNoncopyable<TMediaQueueDynamic<T> >
 {
@@ -808,21 +780,17 @@ public:
 
 protected:
 	T* Elements = nullptr;
-	int32	MaxNum = 0;
-	int32	NumIn = 0;
-	int32	IdxIn = 0;
-	int32	IdxOut = 0;
-	int32	IncrementBy = 32;
+	int32 MaxNum = 0;
+	int32 NumIn = 0;
+	int32 IdxIn = 0;
+	int32 IdxOut = 0;
+	int32 IncrementBy = 32;
 };
 
 
 
 
 
-
-/**
- *
-**/
 template <typename T, typename M = TMediaQueueAllocator<T> >
 class TMediaQueueDynamicNoLock : public TMediaQueueDynamic<T, FMediaLockNone, M>
 {

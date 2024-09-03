@@ -11,9 +11,7 @@
 class FMediaCriticalSection : private TMediaNoncopyable<FMediaCriticalSection>
 {
 public:
-	FMediaCriticalSection()
-	{
-	}
+	FMediaCriticalSection() = default;
 
 	~FMediaCriticalSection()
 	{
@@ -58,5 +56,4 @@ public:
 
 private:
 	mutable FCriticalSection CriticalSection;
-
 };

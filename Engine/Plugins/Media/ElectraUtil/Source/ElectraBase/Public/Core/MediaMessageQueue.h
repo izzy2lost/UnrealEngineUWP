@@ -4,11 +4,9 @@
 
 #include "Core/MediaTypes.h"
 #include "Core/MediaMacros.h"
+#include "Core/MediaNoncopyable.h"
 #include "Core/MediaSemaphore.h"
 #include "Core/MediaQueue.h"
-
-
-
 
 
 /**
@@ -18,7 +16,7 @@
  *
  * This version supports only a maximum number of messages that needs to be specified in the constructor
  * or by calling Resize() before first use.
-**/
+ */
 template <typename T>
 class TMediaMessageQueueNoTimeout
 {
@@ -26,7 +24,7 @@ public:
 	// ----------------------------------------------------------------------------
 	/**
 	 * Constructor.
-	**/
+	 */
 	TMediaMessageQueueNoTimeout(SIZE_T MaxMessages = 0)
 		: Messages(MaxMessages)
 		, AvailSema(MaxMessages)
@@ -37,8 +35,8 @@ public:
 	/**
 	 * Waits indefinitely for a message to arrive.
 	 *
-	 * @return		Received message
-	**/
+	 * @return Received message
+	 */
 	T ReceiveMessage()
 	{
 		ReadySema.Obtain();
@@ -51,10 +49,10 @@ public:
 	/**
 	 * Receives a message if one is already pending in the queue.
 	 *
-	 * @param		message     Receives the message if true is returned, unchanged otherwise
+	 * @param message Receives the message if true is returned, unchanged otherwise
 	 *
-	 * @return		true if message received and stored in 'message', false if no message received.
-	**/
+	 * @return true if message received and stored in 'message', false if no message received.
+	 */
 	bool ReceiveMessage(T& Message)
 	{
 		bool bHave;
@@ -72,11 +70,11 @@ public:
 	/**
 	 * Sends a message.
 	 *
-	 * @param		message         Message to send
-	 * @param		bWaitIfFull     true to wait for the queue to have room if it's full, false to return immediately.
+	 * @param message Message to send
+	 * @param bWaitIfFull true to wait for the queue to have room if it's full, false to return immediately.
 	 *
-	 * @return		true if message sent successfully, false if queue is full and bWaitIfFull was false.
-	**/
+	 * @return true if message sent successfully, false if queue is full and bWaitIfFull was false.
+	 */
 	bool SendMessage(const T& Message, bool bWaitIfFull = true)
 	{
 		bool bOk = bWaitIfFull ? AvailSema.Obtain() : AvailSema.TryToObtain();
@@ -93,11 +91,11 @@ public:
 	/**
 	 * Jams a message to the front of the queue.
 	 *
-	 * @param		message         Message to send
-	 * @param		bWaitIfFull     true to wait for the queue to have room if it's full, false to return immediately.
+	 * @param message Message to send
+	 * @param bWaitIfFull true to wait for the queue to have room if it's full, false to return immediately.
 	 *
-	 * @return		true if message sent successfully, false if queue is full and bWaitIfFull was false.
-	**/
+	 * @return true if message sent successfully, false if queue is full and bWaitIfFull was false.
+	 */
 	bool JamMessage(const T& Message, bool bWaitIfFull = true)
 	{
 		bool bOk = bWaitIfFull ? AvailSema.Obtain() : AvailSema.TryToObtain();
@@ -114,8 +112,8 @@ public:
 	/**
 	 * Checks if there are pending messages.
 	 *
-	 * @return		true if there are pending messages, false if not.
-	**/
+	 * @return true if there are pending messages, false if not.
+	 */
 	bool HaveMessage() const
 	{
 		return !Messages.IsEmpty();
@@ -125,8 +123,8 @@ public:
 	/**
 	 * Queries the number of messages in the queue.
 	 *
-	 * @return		Number of enqueued messages.
-	**/
+	 * @return Number of enqueued messages.
+	 */
 	SIZE_T NumWaitingMessages() const
 	{
 		return Messages.Num();
@@ -138,10 +136,10 @@ public:
 	 *
 	 * Should only be used after the queue was created, but before it gets used!
 	 *
-	 * @param		maxMessages New message queue size.
+	 * @param maxMessages New message queue size.
 	 *
-	 * @return		none
-	**/
+	 * @return none
+	 */
 	void Resize(SIZE_T MaxMessages)
 	{
 		ReadySema.SetCount(0);
@@ -149,11 +147,10 @@ public:
 		Messages.Resize(MaxMessages);
 	}
 
-protected:
 private:
-	TMediaQueue<T, FMediaLockCriticalSection>		Messages;
-	FMediaSemaphore									AvailSema;
-	FMediaSemaphore									ReadySema;
+	TMediaQueue<T, FMediaLockCriticalSection> Messages;
+	FMediaSemaphore AvailSema;
+	FMediaSemaphore ReadySema;
 };
 
 
@@ -166,7 +163,7 @@ private:
  *
  * This version supports only a maximum number of messages that needs to be specified in the constructor
  * or by calling Resize() before first use.
-**/
+ */
 template <typename T>
 class TMediaMessageQueueWithTimeout
 {
@@ -174,7 +171,7 @@ public:
 	// ----------------------------------------------------------------------------
 	/**
 	 * Constructor.
-	**/
+	 */
 	TMediaMessageQueueWithTimeout(SIZE_T MaxMessages = 0)
 		: Messages(MaxMessages)
 		, AvailSema(MaxMessages)
@@ -185,8 +182,8 @@ public:
 	/**
 	 * Waits indefinitely for a message to arrive.
 	 *
-	 * @return		Received message
-	**/
+	 * @return Received message
+	 */
 	T ReceiveMessage()
 	{
 		ReadySema.Obtain();
@@ -199,10 +196,10 @@ public:
 	/**
 	 * Receives a message if one is already pending in the queue.
 	 *
-	 * @param		message     Receives the message if true is returned, unchanged otherwise
+	 * @param message Receives the message if true is returned, unchanged otherwise
 	 *
-	 * @return		true if message received and stored in 'message', false if no message received.
-	**/
+	 * @return true if message received and stored in 'message', false if no message received.
+	 */
 	bool ReceiveMessage(T& Message)
 	{
 		bool bHave;
@@ -220,11 +217,11 @@ public:
 	/**
 	 * Waits a maximum amount of time for a message to arrive.
 	 *
-	 * @param		message                 Receives the message if true is returned, unchanged otherwise
-	 * @param		maxWaitMicroseconds     Maximum wait time in microseconds
+	 * @param message Receives the message if true is returned, unchanged otherwise
+	 * @param maxWaitMicroseconds Maximum wait time in microseconds
 	 *
-	 * @return		true if message received and stored in 'message', false if no message received.
-	**/
+	 * @return true if message received and stored in 'message', false if no message received.
+	 */
 	bool ReceiveMessage(T& Message, int64 MaxWaitMicroseconds)
 	{
 		check(MaxWaitMicroseconds >= 0);
@@ -243,11 +240,11 @@ public:
 	/**
 	 * Sends a message.
 	 *
-	 * @param		message         Message to send
-	 * @param		bWaitIfFull     true to wait for the queue to have room if it's full, false to return immediately.
+	 * @param message Message to send
+	 * @param bWaitIfFull true to wait for the queue to have room if it's full, false to return immediately.
 	 *
-	 * @return		true if message sent successfully, false if queue is full and bWaitIfFull was false.
-	**/
+	 * @return true if message sent successfully, false if queue is full and bWaitIfFull was false.
+	 */
 	bool SendMessage(const T& Message, bool bWaitIfFull = true)
 	{
 		bool bOk = bWaitIfFull ? AvailSema.Obtain() : AvailSema.TryToObtain();
@@ -264,11 +261,11 @@ public:
 	/**
 	 * Jams a message to the front of the queue.
 	 *
-	 * @param		message         Message to send
-	 * @param		bWaitIfFull     true to wait for the queue to have room if it's full, false to return immediately.
+	 * @param message Message to send
+	 * @param bWaitIfFull true to wait for the queue to have room if it's full, false to return immediately.
 	 *
-	 * @return		true if message sent successfully, false if queue is full and bWaitIfFull was false.
-	**/
+	 * @return true if message sent successfully, false if queue is full and bWaitIfFull was false.
+	 */
 	bool JamMessage(const T& Message, bool bWaitIfFull = true)
 	{
 		bool bOk = bWaitIfFull ? AvailSema.Obtain() : AvailSema.TryToObtain();
@@ -285,8 +282,8 @@ public:
 	/**
 	 * Checks if there are pending messages.
 	 *
-	 * @return		true if there are pending messages, false if not.
-	**/
+	 * @return true if there are pending messages, false if not.
+	 */
 	bool HaveMessage() const
 	{
 		return !Messages.IsEmpty();
@@ -296,8 +293,8 @@ public:
 	/**
 	 * Queries the number of messages in the queue.
 	 *
-	 * @return		Number of enqueued messages.
-	**/
+	 * @return Number of enqueued messages.
+	 */
 	SIZE_T NumWaitingMessages() const
 	{
 		return Messages.Num();
@@ -309,10 +306,10 @@ public:
 	 *
 	 * Should only be used after the queue was created, but before it gets used!
 	 *
-	 * @param		maxMessages New message queue size.
+	 * @param maxMessages New message queue size.
 	 *
-	 * @return		none
-	**/
+	 * @return none
+	 */
 	void Resize(SIZE_T MaxMessages)
 	{
 		ReadySema.SetCount(0);
@@ -320,11 +317,10 @@ public:
 		Messages.Resize(MaxMessages);
 	}
 
-protected:
 private:
-	TMediaQueue<T, FMediaLockCriticalSection>		Messages;
-	FMediaSemaphore									AvailSema;
-	FMediaSemaphore									ReadySema;
+	TMediaQueue<T, FMediaLockCriticalSection> Messages;
+	FMediaSemaphore AvailSema;
+	FMediaSemaphore ReadySema;
 };
 
 
@@ -504,7 +500,6 @@ public:
 		return Messages.Num();
 	}
 
-protected:
 private:
 	TMediaQueueDynamic<T>	Messages;
 	FMediaSemaphore			AvailSema;
@@ -660,12 +655,10 @@ public:
 		return Messages.Num();
 	}
 
-protected:
 private:
 	TMediaQueueDynamic<T>			Messages;
 	FMediaSemaphore					AvailSema;
 	FMediaSemaphore					ReadySema;
-
 };
 
 

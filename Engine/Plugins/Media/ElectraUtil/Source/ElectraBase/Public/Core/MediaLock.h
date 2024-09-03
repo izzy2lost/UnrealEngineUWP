@@ -4,11 +4,11 @@
 
 #include "Misc/Build.h"
 #include "HAL/CriticalSection.h"
-#include "Runtime/Core/MediaNoncopyable.h"
+#include "Core/MediaNoncopyable.h"
 
 /**
  * Empty lock class.
-**/
+ */
 class FMediaLockNone : private TMediaNoncopyable<FMediaLockNone>
 {
 public:
@@ -18,13 +18,9 @@ public:
 	class ScopedLock : private TMediaNoncopyable<ScopedLock>
 	{
 	public:
-		explicit ScopedLock(const FMediaLockNone& lock)
-			: LockToUse(lock)
-		{
-		}
-		~ScopedLock()
-		{
-		}
+		explicit ScopedLock(const FMediaLockNone& lock) : LockToUse(lock)
+		{ }
+		~ScopedLock() = default;
 	private:
 		ScopedLock();
 		const FMediaLockNone& LockToUse;
@@ -35,7 +31,7 @@ public:
 
 /**
  * Lock class for generic container classes requiring mutual exclusion access.
-**/
+ */
 class FMediaLockCriticalSection : private TMediaNoncopyable<FMediaLockCriticalSection>
 {
 public:
@@ -57,8 +53,7 @@ public:
 	class ScopedLock : private TMediaNoncopyable<ScopedLock>
 	{
 	public:
-		explicit ScopedLock(const FMediaLockCriticalSection& lock)
-			: LockToUse(lock)
+		explicit ScopedLock(const FMediaLockCriticalSection& lock) : LockToUse(lock)
 		{
 			LockToUse.Lock();
 		}
@@ -72,5 +67,4 @@ public:
 	};
 private:
 	mutable FCriticalSection CriticalSection;
-
 };

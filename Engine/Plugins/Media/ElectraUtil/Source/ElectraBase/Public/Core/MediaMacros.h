@@ -16,34 +16,34 @@
 // Endian swapping
 //
 static inline uint16 MEDIA_ENDIAN_SWAP(uint16 value)
-	{
+{
 	return((value >> 8) | (value << 8));
-	}
+}
 
 static inline int16 MEDIA_ENDIAN_SWAP(int16 value)
-	{
+{
 	return(int16(MEDIA_ENDIAN_SWAP(uint16(value))));
-	}
+}
 
 static inline uint32 MEDIA_ENDIAN_SWAP(uint32 value)
-	{
+{
 	return((value << 24) | ((value & 0xff00) << 8) | ((value >> 8) & 0xff00) | (value >> 24));
-	}
+}
 
 static inline int32 MEDIA_ENDIAN_SWAP(int32 value)
-	{
+{
 	return(int32(MEDIA_ENDIAN_SWAP(uint32(value))));
-	}
+}
 
 static inline uint64 MEDIA_ENDIAN_SWAP(uint64 value)
-	{
+{
 	return((uint64(MEDIA_ENDIAN_SWAP(uint32(value & 0xffffffffU))) << 32) | uint64(MEDIA_ENDIAN_SWAP(uint32(value >> 32))));
-	}
+}
 
 static inline int64 MEDIA_ENDIAN_SWAP(int64 value)
-	{
+{
 	return(int64(MEDIA_ENDIAN_SWAP(uint64(value))));
-	}
+}
 
 
 // Yes, there's no endian swapping with 8 bit values. We put them here so templated functions can be used with these types.
@@ -119,9 +119,3 @@ static inline int64 MEDIA_FROM_LITTLE_ENDIAN(int64 value)	{ return(value); }
 static inline uint64 MEDIA_FROM_LITTLE_ENDIAN(uint64 value)	{ return(value); }
 
 #endif
-
-//---------------------------------------------------------------------------------------
-// Unused variables, parameters, etc.
-//
-#define MEDIA_UNUSED_VAR(var)	((void)&var)
-

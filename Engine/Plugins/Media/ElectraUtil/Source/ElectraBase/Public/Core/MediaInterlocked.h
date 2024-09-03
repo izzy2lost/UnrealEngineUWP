@@ -100,8 +100,3 @@ inline T* TMediaInterlockedExchangePointer(T* volatile& variable, X* pExchangeVa
 {
 	return((T*)FMediaInterlockedExchangePointerVoid((void* volatile&)variable, (void*)pExchangeValue));
 }
-
-
-
-
-

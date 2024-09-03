@@ -19,28 +19,20 @@
 #include "Templates/Function.h"
 
 
-/**
- *
- *
-*/
-class FMediaRunnable : private TMediaNoncopyable<FMediaRunnable>, public FRunnable
+class ELECTRABASE_API FMediaRunnable : private TMediaNoncopyable<FMediaRunnable>, public FRunnable
 {
 public:
 	DECLARE_DELEGATE(FStartDelegate);
 
-	//! Common thread configuration parameters.
+	/**
+	 * Common thread configuration parameters.
+	 */
 	struct Param
 	{
-		Param()
-		{
-			// Set some standard values as defaults.
-			Priority = TPri_Normal;
-			StackSize = 65536;
-			CoreAffinity = -1;
-		}
-		EThreadPriority		Priority;
-		uint32				StackSize;
-		int32				CoreAffinity;
+		// Set some standard values as defaults.
+		EThreadPriority Priority = TPri_Normal;
+		uint32 StackSize = 65536;;
+		int32 CoreAffinity = -1;
 	};
 
 	static void Startup();
@@ -63,13 +55,11 @@ public:
 		return ThreadPriority;
 	}
 
-	//! Returns the size of the stack.
 	uint32 StackSizeGet() const
 	{
 		return StackSize;
 	}
 
-	//! Returns the default stack size passed to Startup()
 	static uint32 StackSizeGetDefault()
 	{
 		return 0;
@@ -91,17 +81,16 @@ public:
 	}
 
 private:
-
-	FRunnableThread*		MediaThreadRunnable;
-	EThreadPriority			ThreadPriority;
-	uint64					InitialCoreAffinity;
-	uint32					StackSize;
-	FString					ThreadName;
-	FCriticalSection		StateAccessMutex;
-	FEvent*					SignalRunning;
-	FStartDelegate			EntryFunction;
-	FMediaEvent*			DoneSignal;
-	bool					bIsStarted;
+	FCriticalSection StateAccessMutex;
+	FStartDelegate EntryFunction;
+	FString ThreadName;
+	FRunnableThread* MediaThreadRunnable = nullptr;
+	FEvent* SignalRunning = nullptr;
+	FMediaEvent* DoneSignal = nullptr;
+	EThreadPriority ThreadPriority = TPri_Normal;
+	uint64 InitialCoreAffinity = 0;
+	uint32 StackSize = 0;
+	bool bIsStarted = false;
 
 	FMediaRunnable();
 	~FMediaRunnable();
@@ -129,50 +118,49 @@ private:
  *            Either wait for thread completion by calling ThreadWaitDone() *OR*
  *            have the destructor wait for the thread itself by calling ThreadWaitDoneOnDelete(true)
  *            at some point prior to destruction - preferably before starting the thread.
-**/
-class FMediaThread : private TMediaNoncopyable<FMediaThread>
+ */
+class ELECTRABASE_API FMediaThread : private TMediaNoncopyable<FMediaThread>
 {
 public:
 	virtual ~FMediaThread();
 
-	//! Default constructor. Uses system defaults if no values given.
+	// Default constructor. Uses system defaults if no values given.
 	FMediaThread(const char* AnsiName = nullptr);
 
-	//! Set a thread priority other than the one given to the constructor before starting the thread.
+	// Set a thread priority other than the one given to the constructor before starting the thread.
 	void ThreadSetPriority(EThreadPriority Priority);
 
-	//! Set a core affinity before starting the thread. Defaults to -1 for no affinity (run on any core).
+	// Set a core affinity before starting the thread. Defaults to -1 for no affinity (run on any core).
 	void ThreadSetCoreAffinity(int32 CoreAffinity);
 
-	//! Set a thread stack size other than the one given to the constructor before starting the thread.
+	// Set a thread stack size other than the one given to the constructor before starting the thread.
 	void ThreadSetStackSize(uint32 StackSize);
 
-	//! Set a thread name other than the one given to the constructor before starting the thread.
+	// Set a thread name other than the one given to the constructor before starting the thread.
 	void ThreadSetName(const char* InAnsiThreadName);
 
-	//! Sets a new thread name once the thread is running.
+	// Sets a new thread name once the thread is running.
 	void ThreadRename(const char* InAnsiThreadName);
 
-	//! Sets whether or not the destructor needs to wait for the thread to have finished. Defaults to false. Useful when using this as a member variable.
+	// Sets whether or not the destructor needs to wait for the thread to have finished. Defaults to false. Useful when using this as a member variable.
 	void ThreadWaitDoneOnDelete(bool bWait);
 
-	//! Waits for the thread to have finished.
+	// Waits for the thread to have finished.
 	void ThreadWaitDone();
 
-	//! Starts the thread at the given function void(*)(void)
+	// Starts the thread at the given function void(*)(void)
 	void ThreadStart(FMediaRunnable::FStartDelegate EntryFunction);
 
-	//! Resets the thread to be started again. Must have waited for thread termination using ThreadWaitDone() first!
+	// Resets the thread to be started again. Must have waited for thread termination using ThreadWaitDone() first!
 	void ThreadReset();
 
 private:
-	FMediaEvent						SigDone;
-	FMediaRunnable*					MediaRunnable;
-	EThreadPriority					Priority;
-	int32							CoreAffinity;
-	uint32							StackSize;
-	FString 						ThreadName;
-	bool							bIsStarted;
-	bool							bWaitDoneOnDelete;
-
+	FMediaEvent SigDone;
+	FString ThreadName;
+	FMediaRunnable* MediaRunnable = nullptr;
+	EThreadPriority Priority = TPri_Normal;
+	uint32 StackSize = 0;
+	int32 CoreAffinity = 0;
+	bool bIsStarted = false;;
+	bool bWaitDoneOnDelete = false;
 };
