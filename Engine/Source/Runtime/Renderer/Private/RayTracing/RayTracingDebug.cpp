@@ -159,6 +159,7 @@ class FRayTracingDebugRGS : public FGlobalShader
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, SceneUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FRayTracingDebugHitStatsUniformBufferParameters, RayTracingDebugHitStatsUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FRayTracingLightGrid, LightGridPacked)
+		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintUniformBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -1329,7 +1330,7 @@ static void DrawInstanceOverlap(FRDGBuilder& GraphBuilder, const FScene* Scene, 
 	}
 }
 
-void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuilder, const FViewInfo& View, FRDGTextureRef SceneColorTexture, FRayTracingPickingFeedback& PickingFeedback)
+static uint32 GetRaytracingDebugViewMode(const FSceneView& View)
 {
 	static TMap<FName, uint32> RayTracingDebugVisualizationModes;
 	if (RayTracingDebugVisualizationModes.Num() == 0)
@@ -1371,26 +1372,49 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 		RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Instance Overlap", "Instance Overlap").ToString()),							RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP);
 		RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Triangle Hit Count", "Triangle Hit Count").ToString()),						RAY_TRACING_DEBUG_VIZ_TRIANGLE_HITCOUNT);
 		RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Hit Count Per Instance", "Hit Count Per Instance").ToString()),				RAY_TRACING_DEBUG_VIZ_HITCOUNT_PER_INSTANCE);
-		RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Light Grid Occupancy", "Light Grid Occupancy").ToString()),                   RAY_TRACING_DEBUG_VIZ_LIGHT_GRID_COUNT);
+		RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Light Grid Occupancy", "Light Grid Occupancy").ToString()),					RAY_TRACING_DEBUG_VIZ_LIGHT_GRID_COUNT);
+		if (Substrate::IsSubstrateEnabled())
+		{
+			RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Subtrate Material Properties", "Subtrate Material Properties").ToString()),RAY_TRACING_DEBUG_VIZ_SUBSTRATE_DATA);
+		}
 	}
 
-	uint32 DebugVisualizationMode;
+	uint32 OutMode;
 	
 	FString ConsoleViewMode = CVarRayTracingDebugMode.GetValueOnRenderThread();
 
 	if (!ConsoleViewMode.IsEmpty())
 	{
-		DebugVisualizationMode = RayTracingDebugVisualizationModes.FindRef(FName(*ConsoleViewMode));
+		OutMode = RayTracingDebugVisualizationModes.FindRef(FName(*ConsoleViewMode));
 	}
 	else if(View.CurrentRayTracingDebugVisualizationMode != NAME_None)
 	{
-		DebugVisualizationMode = RayTracingDebugVisualizationModes.FindRef(View.CurrentRayTracingDebugVisualizationMode);
+		OutMode = RayTracingDebugVisualizationModes.FindRef(View.CurrentRayTracingDebugVisualizationMode);
 	}
 	else
 	{
 		// Set useful default value
-		DebugVisualizationMode = RAY_TRACING_DEBUG_VIZ_BARYCENTRICS;
+		OutMode = RAY_TRACING_DEBUG_VIZ_BARYCENTRICS;
 	}
+
+	return OutMode;
+}
+
+bool HasRaytracingDebugViewModeRaytracedOverlay(const FSceneViewFamily& ViewFamily)
+{
+	for (const FSceneView* View : ViewFamily.Views)
+	{
+		if (View && GetRaytracingDebugViewMode(*View) != RAY_TRACING_DEBUG_VIZ_SUBSTRATE_DATA)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuilder, const FViewInfo& View, FRDGTextureRef SceneColorTexture, FRayTracingPickingFeedback& PickingFeedback)
+{
+	const uint32 DebugVisualizationMode = GetRaytracingDebugViewMode(View);
 
 	if (DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_BARYCENTRICS)
 	{
@@ -1568,7 +1592,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 	RayGenParameters->LightGridPacked = View.RayTracingLightGridUniformBuffer;
 	RayGenParameters->TopKMostHitInstances = CVarRayTracingDebugHitCountTopKHits.GetValueOnRenderThread();
 	RayGenParameters->NumTotalInstances = NumInstances;
-
+	ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, RayGenParameters->ShaderPrintUniformBuffer);
 	
 	// If we don't output depth, create dummy 1x1 texture
 	const bool bOutputDepth = DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP;

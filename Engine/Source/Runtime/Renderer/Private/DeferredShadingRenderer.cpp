@@ -3554,13 +3554,14 @@ bool ShouldRenderRayTracingEffect(bool bEffectEnabled, ERayTracingPipelineCompat
 	}
 }
 
+bool HasRaytracingDebugViewModeRaytracedOverlay(const FSceneViewFamily& ViewFamily);
 bool HasRayTracedOverlay(const FSceneViewFamily& ViewFamily)
 {
 	// Return true if a full screen ray tracing pass will be displayed on top of the raster pass
 	// This can be used to skip certain calculations
 	return
 		ViewFamily.EngineShowFlags.PathTracing ||
-		ViewFamily.EngineShowFlags.RayTracingDebug;
+		(ViewFamily.EngineShowFlags.RayTracingDebug && HasRaytracingDebugViewModeRaytracedOverlay(ViewFamily));
 }
 
 void FDeferredShadingSceneRenderer::InitializeRayTracingFlags_RenderThread()
