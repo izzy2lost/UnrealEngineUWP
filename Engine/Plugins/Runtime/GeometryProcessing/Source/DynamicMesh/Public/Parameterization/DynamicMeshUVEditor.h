@@ -331,6 +331,9 @@ private:
 	 * Helper method to solve either the Least Squares Conformal Map or the Spectral Conformal Map problems.
 	 */
 	bool SetTriangleUVsFromConformal(const TArray<int32>& Triangles, const FSetUVsFromConformalOptions& Options, FUVEditResult* Result);
+
+	// Helper to split bowties on element IDs
+	void SplitBowtiesOnUVElements(TArray<int32>& UVElementIDs, bool bAddNewElementsToInputArray = true);
 	
 };
 

@@ -1409,6 +1409,9 @@ void FDynamicMeshUVEditor::SetTriangleUVsFromBoxProjection(
 		UVOverlay->SetTriangle(tid, ElemTri);
 	}
 
+	// Above process can introduce bowties, so we split any bowties on new element IDs
+	SplitBowtiesOnUVElements(NewUVIndices, true);
+
 	if (Result != nullptr)
 	{
 		Result->NewUVElements = MoveTemp(NewUVIndices);
@@ -1417,7 +1420,20 @@ void FDynamicMeshUVEditor::SetTriangleUVsFromBoxProjection(
 
 
 
+void FDynamicMeshUVEditor::SplitBowtiesOnUVElements(TArray<int32>& UVElementIDs, bool bAddNewElementsToInputArray)
+{
+	if (!ensure(UVOverlay)) return;
 
+	const int32 InitialNumElements = UVElementIDs.Num();
+	for (int32 Idx = 0; Idx < InitialNumElements; ++Idx)
+	{
+		int32 ParentVID = UVOverlay->GetParentVertex(UVElementIDs[Idx]);
+		if (UVOverlay->IsBowtieInOverlay(ParentVID))
+		{
+			UVOverlay->SplitBowtiesAtVertex(ParentVID, bAddNewElementsToInputArray ? &UVElementIDs : nullptr);
+		}
+	}
+}
 
 
 void FDynamicMeshUVEditor::SetTriangleUVsFromCylinderProjection(
@@ -1546,6 +1562,9 @@ void FDynamicMeshUVEditor::SetTriangleUVsFromCylinderProjection(
 
 		UVOverlay->SetTriangle(tid, ElemTri);
 	}
+
+	// Above process can introduce bowties, so we split any bowties on new element IDs
+	SplitBowtiesOnUVElements(NewUVIndices, true);
 
 	if (Result != nullptr)
 	{
