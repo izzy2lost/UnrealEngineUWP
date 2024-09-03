@@ -1233,7 +1233,7 @@ public:
 
 	bool IsLayered() const
 	{
-		return IsTexture() && GetTexture()->GetDesc().Dimension == ETextureDimension::Texture3D;
+		return IsTexture() && (GetTexture()->GetDesc().Dimension == ETextureDimension::Texture3D || GetTexture()->GetDesc().Dimension == ETextureDimension::Texture2DArray);
 	}
 
 	GLint GetLayer() const
