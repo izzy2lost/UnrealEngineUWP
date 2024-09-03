@@ -26,6 +26,7 @@ public class EngineAssetDefinitions : ModuleRules
 				"ApplicationCore",
 				"ContentBrowser",
 				"ContentBrowserData",
+				"JsonObjectGraph",
 				"AssetDefinition",
 				"UnrealEd",
 				"ToolMenus",

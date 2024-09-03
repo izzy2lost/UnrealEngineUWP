@@ -28,6 +28,7 @@ public:
 
 	virtual TArray<FAssetData> PrepareToActivateAssets(const FAssetActivateArgs& ActivateArgs) const override;
 	virtual EAssetCommandResult OpenAssets(const FAssetOpenArgs& OpenArgs) const override;
+	virtual EAssetCommandResult PerformAssetDiff(const FAssetDiffArgs& DiffArgs) const override;
 	
 	virtual FAssetSupportResponse CanRename(const FAssetData& InAsset) const override;
 	virtual FAssetSupportResponse CanDuplicate(const FAssetData& InAsset) const override;
