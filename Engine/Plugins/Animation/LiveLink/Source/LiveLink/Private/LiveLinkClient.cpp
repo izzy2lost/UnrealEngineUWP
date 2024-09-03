@@ -110,6 +110,7 @@ void FLiveLinkClient::Initialize()
 
 	bPreProcessRebroadcastFrames = GetDefault<ULiveLinkSettings>()->bPreProcessRebroadcastFrames;
 	bTranslateRebroadcastFrames = GetDefault<ULiveLinkSettings>()->bTranslateRebroadcastFrames;
+	bEnableParentSubjects = GConfig->GetBoolOrDefault(TEXT("LiveLink"), TEXT("bEnableParentSubjects"), false, GEngineIni);
 }
 
 void FLiveLinkClient::DoPendingWork()
@@ -1011,7 +1012,40 @@ void FLiveLinkClient::PushSubjectFrameData_Internal(FPendingSubjectFrame&& Subje
 		AllSubjectsHandler->OnFrameDataAdded.Broadcast(SubjectItem->Key, Role, SubjectFrameData.FrameData);
 	}
 
-	HandleSubjectRebroadcast(LinkSubject, SubjectFrameData.FrameData);
+	const bool bHasParentSubject = SourceItem->Setting->ParentSubject != FLiveLinkSubjectName();
+	if (!bHasParentSubject)
+	{
+		HandleSubjectRebroadcast(LinkSubject, SubjectFrameData.FrameData);
+
+		if (bEnableParentSubjects)
+		{
+			Collection->ForEachSubject([this, &SubjectFrameData](const FLiveLinkCollectionSourceItem& SourceItem, const FLiveLinkCollectionSubjectItem& SubjectItem)
+			{
+				const FLiveLinkSubjectKey SubjectKey = SubjectFrameData.SubjectKey;
+				if (SourceItem.Setting->ParentSubject.Name == SubjectKey.SubjectName)
+				{
+					const FLiveLinkFrameDataStruct& FrameData = SubjectFrameData.FrameData;
+
+					// todo: Time offset evaluation
+					FLiveLinkSubjectFrameData ChildData;
+					if (SubjectItem.GetLiveSubject()->EvaluateFrameAtWorldTime(SubjectFrameData.FrameData.GetBaseData()->WorldTime.GetSourceTime(), SubjectItem.GetLinkSettings()->Role, ChildData))
+					{
+						const FTimecode FrameTC = FTimecode::FromFrameNumber(FrameData.GetBaseData()->MetaData.SceneTime.Time.GetFrame(), FrameData.GetBaseData()->MetaData.SceneTime.Rate);
+						UE_LOG(LogLiveLink, Verbose, TEXT("LiveLinkHub Parent (%s) - Child '%s' adding frame with Timecode:[%s.%0.3f] - SourceTime: %0.4f, Offset: %0.6f, CorrectedTime: %0.4f"), *SubjectKey.SubjectName.ToString(), *SubjectItem.Key.SubjectName.ToString(), *FrameTC.ToString(), FrameData.GetBaseData()->MetaData.SceneTime.Time.GetSubFrame(), FrameData.GetBaseData()->WorldTime.GetSourceTime(), FrameData.GetBaseData()->WorldTime.GetOffset(), FrameData.GetBaseData()->WorldTime.GetOffsettedTime());
+
+						ChildData.FrameData.GetBaseData()->MetaData.SceneTime = FrameData.GetBaseData()->MetaData.SceneTime;
+						ChildData.FrameData.GetBaseData()->MetaData.SceneTime.Rate = FrameData.GetBaseData()->MetaData.SceneTime.Rate;
+
+						HandleSubjectRebroadcast(SubjectItem.GetLiveSubject(), ChildData.FrameData);
+					}
+					else
+					{
+						FLiveLinkLog::Warning(TEXT("Child subjects %s could not be evaluated for data resampling."), *SubjectKey.SubjectName.Name.ToString());
+					}
+				}
+			});
+		}
+	}
 
 	//Finally, add the new frame to the subject. After this point, the frame data is unusable, it has been moved!
 	LinkSubject->AddFrameData(MoveTemp(SubjectFrameData.FrameData));

@@ -7,6 +7,7 @@
 #include "ILiveLinkClient.h"
 #include "LiveLinkSourceSettings.h"
 #include "LiveLinkSubjectSettings.h"
+#include "Misc/ConfigCacheIni.h"
 
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
@@ -61,6 +62,13 @@ void FLiveLinkSourceSettingsDetailCustomization::CustomizeDetails(IDetailLayoutB
 
 	InDetailBuilder.AddPropertyToCategory(ModePropertyHandle);
 	ModePropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FLiveLinkSourceSettingsDetailCustomization::ForceRefresh));
+
+	bool bEnableParentSubjects = GConfig->GetBoolOrDefault(TEXT("LiveLink"), TEXT("bEnableParentSubjects"), false, GEngineIni);
+
+	if (!bEnableParentSubjects)
+	{
+		InDetailBuilder.HideProperty(InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ULiveLinkSourceSettings, ParentSubject)));
+	}
 
 	IDetailCategoryBuilder& CategoryBuilder = InDetailBuilder.EditCategory("Buffer - Settings");
 

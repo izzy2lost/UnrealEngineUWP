@@ -326,6 +326,9 @@ private:
 	/** Whether to translate frames before rebroadcasting them. */
 	bool bTranslateRebroadcastFrames = false;
 
+	/** Whether or not parent subject support is enabled. Parent subjects allow resampling data to a different subject's rate before rebroadcasting it. */
+	bool bEnableParentSubjects = false;
+
 #if WITH_EDITOR
 	/** Delegate when a subject is evaluated. */
 	FOnLiveLinkSubjectEvaluated OnLiveLinkSubjectEvaluatedDelegate;

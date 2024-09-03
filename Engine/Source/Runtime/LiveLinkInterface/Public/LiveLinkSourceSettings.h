@@ -186,7 +186,7 @@ public:
 
 	/** 
 	 * Parent subject used for resampling.
-	 * If this is set, this source's subjects will only be updated when the parent subject receives data.
+	 * If this is set, this source's subjects will only be rebroadcast when the parent subject receives data.
 	 * Additionally this source's subjects' timecode will match the parent's subject received timecode.
 	 * This can be useful for synchronizing a higher frequency source to a lower frequency one.
 	 */
