@@ -482,6 +482,18 @@ UTickableConstraint* UControlRigSequencerEditorLibrary::AddConstraint(UWorld* Wo
 		return nullptr;
 	}
 
+	if (!InChildHandle || !InChildHandle->IsValid())
+    {
+    	UE_LOG(LogControlRig, Error, TEXT("AddConstraint: Need Valid Child Handle"));
+    	return nullptr;
+    }
+
+	if (!InParentHandle || !InParentHandle->IsValid())
+	{
+		UE_LOG(LogControlRig, Error, TEXT("AddConstraint: Need Valid Parent Handle"));
+		return nullptr;
+	}
+
 	UTickableTransformConstraint* Constraint = FTransformConstraintUtils::CreateFromType(World, InType);
 	if (!Constraint)
 	{
