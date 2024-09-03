@@ -17,6 +17,7 @@ class HHitProxy;
 struct FConvexVolume;
 struct FViewportClick;
 
+DECLARE_DELEGATE_RetVal(UWorld*, FOnGetWorld);
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnIsObjectSelectableInViewport, UObject* /*InObject*/);
 
 /**
@@ -49,7 +50,7 @@ public:
 	static void DrawEnabledTextNotice(FCanvas* const InCanvas, const FText& InText);
 
 	FEditorViewportSelectability() = delete;
-	FEditorViewportSelectability(const FOnIsObjectSelectableInViewport& InOnIsObjectSelectableInViewport);
+	FEditorViewportSelectability(const FOnGetWorld& InOnGetWorld, const FOnIsObjectSelectableInViewport& InOnIsObjectSelectableInViewport);
 
 	/** Enables or disables the selectability tool */
 	void EnableLimitedSelection(const bool bInEnabled);
@@ -93,7 +94,8 @@ protected:
 	 * @param bInClearSelection If true, clears the current selection before selecting the new actors
 	 * @return True if atleast one new actor was selected/deselected
 	 */
-	static bool SelectActorsByPredicate(const bool bInSelect
+	static bool SelectActorsByPredicate(UWorld* const InWorld
+		, const bool bInSelect
 		, const bool bInClearSelection
 		, const TFunctionRef<bool(AActor*)> InPredicate
 		, const TArray<AActor*>& InActors = {});
@@ -108,6 +110,8 @@ protected:
 
 	/** Mouse cursor to display for the viewport when selection is limited. */
 	TOptional<EMouseCursor::Type> MouseCursor;
+
+	FOnGetWorld OnGetWorld;
 
 	/** Delegate used to check if an object is selectable in the viewport */
 	FOnIsObjectSelectableInViewport OnIsObjectSelectableInViewportDelegate;

@@ -8,9 +8,8 @@
 
 #define LOCTEXT_NAMESPACE "SequencerSelectabilityTool"
 
-FSequencerSelectabilityTool::FSequencerSelectabilityTool(const FOnIsObjectSelectableInViewport& InOnIsObjectSelectableInViewport)
-	: FModeTool()
-	, FEditorViewportSelectability(InOnIsObjectSelectableInViewport)
+FSequencerSelectabilityTool::FSequencerSelectabilityTool(const FOnGetWorld& InOnGetWorld, const FOnIsObjectSelectableInViewport& InOnIsObjectSelectableInViewport)
+	: FEditorViewportSelectability(InOnGetWorld, InOnIsObjectSelectableInViewport)
 {
 }
 

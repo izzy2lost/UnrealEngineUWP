@@ -16,8 +16,9 @@
 
 const FText FEditorViewportSelectability::DefaultLimitedSelectionText = LOCTEXT("DefaultSelectionLimitedHelp", "Viewport Selection Limited");
 
-FEditorViewportSelectability::FEditorViewportSelectability(const FOnIsObjectSelectableInViewport& InOnIsObjectSelectableInViewport)
-	: OnIsObjectSelectableInViewportDelegate(InOnIsObjectSelectableInViewport)
+FEditorViewportSelectability::FEditorViewportSelectability(const FOnGetWorld& InOnGetWorld, const FOnIsObjectSelectableInViewport& InOnIsObjectSelectableInViewport)
+	: OnGetWorld(InOnGetWorld)
+	, OnIsObjectSelectableInViewportDelegate(InOnIsObjectSelectableInViewport)
 {
 }
 
@@ -223,7 +224,9 @@ void FEditorViewportSelectability::DeselectNonSelectableActors()
 	TArray<AActor*> SelectedActors;
 	ActorSelection->GetSelectedObjects<AActor>(SelectedActors);
 
-	SelectActorsByPredicate(false, false
+	UWorld* const World = OnGetWorld.IsBound() ? OnGetWorld.Execute() : nullptr;
+
+	SelectActorsByPredicate(World, false, false
 		, [this](AActor* const InActor) -> bool
 		{
 			return IsObjectSelectableInViewport(InActor);
@@ -231,13 +234,19 @@ void FEditorViewportSelectability::DeselectNonSelectableActors()
 		, SelectedActors);
 }
 
-bool FEditorViewportSelectability::SelectActorsByPredicate(const bool bInSelect
+bool FEditorViewportSelectability::SelectActorsByPredicate(UWorld* const InWorld
+	, const bool bInSelect
 	, const bool bInClearSelection
 	, const TFunctionRef<bool(AActor*)> InPredicate
 	, const TArray<AActor*>& InActors)
 {
-	USelection* const ActorSelection = GEditor ? GEditor->GetSelectedActors() : nullptr;
-	if (!ActorSelection || ActorSelection->Num() == 0)
+	if (!GEditor || !IsValid(InWorld))
+	{
+		return false;
+	}
+
+	USelection* const ActorSelection = GEditor->GetSelectedActors();
+	if (!ActorSelection)
 	{
 		return false;
 	}
@@ -250,14 +259,14 @@ bool FEditorViewportSelectability::SelectActorsByPredicate(const bool bInSelect
 	ActorSelection->BeginBatchSelectOperation();
 	ActorSelection->Modify();
 
-	if (bInClearSelection)
+	if (bInSelect && bInClearSelection)
 	{
 		ActorSelection->DeselectAll();
 	}
 
 	auto SelectIfPossible = [bInSelect, ActorSelection, &InPredicate, &bSomethingSelected](AActor* const InActor)
 	{
-		if (IsValid(InActor) && !ActorSelection->IsSelected(InActor) && InPredicate(InActor))
+		if (IsValid(InActor) && ActorSelection->IsSelected(InActor) != bInSelect && InPredicate(InActor) == bInSelect)
 		{
 			bSomethingSelected = true;
 			GEditor->SelectActor(InActor, bInSelect, true);
@@ -266,14 +275,10 @@ bool FEditorViewportSelectability::SelectActorsByPredicate(const bool bInSelect
 
 	if (InActors.IsEmpty())
 	{
-		const UWorld* const World = ActorSelection->GetWorld();
-		if (IsValid(World))
+		for (FActorIterator Iter(InWorld); Iter; ++Iter)
 		{
-			for (FActorIterator Iter(World); Iter; ++Iter)
-			{
-				AActor* const Actor = *Iter;
-				SelectIfPossible(Actor);
-			}
+			AActor* const Actor = *Iter;
+			SelectIfPossible(Actor);
 		}
 	}
 	else
@@ -485,7 +490,9 @@ bool FEditorViewportSelectability::BoxSelectWorldActors(FBox& InBox, FEditorView
 	const bool bShiftDown = InEditorViewportClient->Viewport->KeyState(EKeys::LeftShift)
 		|| InEditorViewportClient->Viewport->KeyState(EKeys::RightShift);
 
-	return SelectActorsByPredicate(bInSelect, bShiftDown, Predicate);
+	SelectActorsByPredicate(World, bInSelect, bShiftDown, Predicate);
+
+	return true;
 }
 
 bool FEditorViewportSelectability::FrustumSelectWorldActors(const FConvexVolume& InFrustum, FEditorViewportClient* const InEditorViewportClient, const bool bInSelect)
@@ -515,7 +522,9 @@ bool FEditorViewportSelectability::FrustumSelectWorldActors(const FConvexVolume&
 	const bool bShiftDown = InEditorViewportClient->Viewport->KeyState(EKeys::LeftShift)
 		|| InEditorViewportClient->Viewport->KeyState(EKeys::RightShift);
 
-	return SelectActorsByPredicate(bInSelect, bShiftDown, Predicate);
+	SelectActorsByPredicate(World, bInSelect, bShiftDown, Predicate);
+
+	return true;
 }
 
 void FEditorViewportSelectability::DrawEnabledTextNotice(FCanvas* const InCanvas, const FText& InText)

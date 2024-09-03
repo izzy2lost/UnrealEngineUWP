@@ -9,7 +9,7 @@ class FSequencerSelectabilityTool : public FModeTool, public FEditorViewportSele
 {
 public:
 	FSequencerSelectabilityTool() = delete;
-	FSequencerSelectabilityTool(const FOnIsObjectSelectableInViewport& InOnIsObjectSelectableInViewport);
+	FSequencerSelectabilityTool(const FOnGetWorld& InOnGetWorld, const FOnIsObjectSelectableInViewport& InOnIsObjectSelectableInViewport);
 
 	//~ Begin FModeTool
 	virtual FString GetName() const override

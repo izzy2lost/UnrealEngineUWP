@@ -12135,8 +12135,6 @@ void FSequencer::SetViewportSelectionLimited(const bool bInSelectionLimited)
 
 bool FSequencer::IsObjectSelectableInViewport(UObject* const InObject)
 {
-	using namespace UE::Sequencer;
-
 	if (!bSelectionLimited)
 	{
 		return true;
@@ -12145,6 +12143,12 @@ bool FSequencer::IsObjectSelectableInViewport(UObject* const InObject)
 	if (const IViewportSelectableObject* const SelectableObject = Cast<IViewportSelectableObject>(InObject))
 	{
 		return SelectableObject->IsSelectable();
+	}
+
+	const FGuid ObjectGuid = FindObjectId(*InObject, GetFocusedTemplateID());
+	if (ObjectGuid.IsValid())
+	{
+		return true;
 	}
 
 	UMovieSceneSequence* const FocusedSequence = GetFocusedMovieSceneSequence();

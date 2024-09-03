@@ -159,7 +159,8 @@ struct FTrackTransforms
 FSequencerEdMode::FSequencerEdMode()
 {
 	DefaultTool = MakeShared<FSequencerEdModeTool>(this);
-	SelectabilityTool = MakeShared<FSequencerSelectabilityTool>(FOnIsObjectSelectableInViewport::CreateRaw(this, &FSequencerEdMode::IsObjectSelectableInViewport));
+	SelectabilityTool = MakeShared<FSequencerSelectabilityTool>(FOnGetWorld::CreateRaw(this, &FSequencerEdMode::GetWorld)
+		, FOnIsObjectSelectableInViewport::CreateRaw(this, &FSequencerEdMode::IsObjectSelectableInViewport));
 
 	Tools.Add(DefaultTool.Get());
 	Tools.Add(SelectabilityTool.Get());
