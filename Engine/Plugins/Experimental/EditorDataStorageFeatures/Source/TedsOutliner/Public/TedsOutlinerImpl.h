@@ -153,9 +153,6 @@ public:
 	// Funtion to combine 2 queries (adds to second query to the first)
 	static void AppendQuery(DataStorage::FQueryDescription& Query1, const DataStorage::FQueryDescription& Query2);
 
-	// Check if the given item's parent has changed (i.e ParentRowHandle does not match what the Outliner reports as the parent)
-	bool HasItemParentChanged(DataStorage::RowHandle ItemRowHandle, DataStorage::RowHandle ParentRowHandle) const;
-
 	// Outliner specific functionality
 	void CreateItemsFromQuery(TArray<FSceneOutlinerTreeItemPtr>& OutItems, ISceneOutlinerMode* InMode) const;
 	void CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TArray<FSceneOutlinerTreeItemPtr>& OutChildren) const;
@@ -170,7 +167,6 @@ protected:
 	
 	void OnItemAdded(DataStorage::RowHandle ItemRowHandle);
 	void OnItemRemoved(DataStorage::RowHandle ItemRowHandle);
-	void OnItemMoved(DataStorage::RowHandle ItemRowHandle);
 
 	void UnregisterQueries() const;
 	void ClearSelection() const;
