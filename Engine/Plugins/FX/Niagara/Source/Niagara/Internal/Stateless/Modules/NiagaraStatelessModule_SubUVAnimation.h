@@ -17,6 +17,8 @@ enum class ENSMSubUVAnimation_Mode
 	Random,
 };
 
+// Sets the sub image frame index value based on the select animation mode
+// The sub image index is a float value where the fractional part can be used to blend frames together
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Sub UV Animation"))
 class UNiagaraStatelessModule_SubUVAnimation : public UNiagaraStatelessModule
 {

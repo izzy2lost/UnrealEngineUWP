@@ -9,6 +9,7 @@
 
 #include "NiagaraStatelessModule_Drag.generated.h"
 
+// Applies Drag directly to particle velocity, irrespective of Mass.
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Drag"))
 class UNiagaraStatelessModule_Drag : public UNiagaraStatelessModule
 {

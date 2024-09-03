@@ -10,6 +10,8 @@
 
 #include "NiagaraStatelessModule_ScaleSpriteSize.generated.h"
 
+// Multiply Particle.SpriteSize by the module calculated scale value
+// This can be a constant, random or curve indexed by Particle.NormalizedAge
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Scale Sprite Size"))
 class UNiagaraStatelessModule_ScaleSpriteSize : public UNiagaraStatelessModule
 {

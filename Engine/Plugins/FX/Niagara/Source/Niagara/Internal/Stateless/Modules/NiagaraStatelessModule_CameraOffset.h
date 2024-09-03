@@ -9,6 +9,7 @@
 
 #include "NiagaraStatelessModule_CameraOffset.generated.h"
 
+// Offset the particle along the vector between the particle and the camera.
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Camera Offset"))
 class UNiagaraStatelessModule_CameraOffset : public UNiagaraStatelessModule
 {

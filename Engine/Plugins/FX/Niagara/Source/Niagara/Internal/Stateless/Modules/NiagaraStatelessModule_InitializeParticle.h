@@ -13,6 +13,7 @@
 
 #include "NiagaraStatelessModule_InitializeParticle.generated.h"
 
+// Initialize common particle attributes using common settings and options.
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Initialize Particle"))
 class UNiagaraStatelessModule_InitializeParticle : public UNiagaraStatelessModule
 {

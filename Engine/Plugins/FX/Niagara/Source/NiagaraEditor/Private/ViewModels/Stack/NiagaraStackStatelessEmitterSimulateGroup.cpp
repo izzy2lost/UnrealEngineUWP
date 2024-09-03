@@ -166,6 +166,18 @@ void UNiagaraStackStatelessModuleItem::Initialize(FRequiredEntryData InRequiredE
 	DisplayName = InStatelessModule->GetClass()->GetDisplayNameText();
 }
 
+FText UNiagaraStackStatelessModuleItem::GetTooltipText() const
+{
+	if (UNiagaraStatelessModule* Module = StatelessModuleWeak.Get())
+	{
+		if (UClass* ModuleClass = Module->GetClass())
+		{
+			return ModuleClass->GetToolTipText();
+		}
+	}
+	return Super::GetTooltipText();
+}
+
 bool UNiagaraStackStatelessModuleItem::TestCanDeleteWithMessage(FText& OutCanDeleteMessage) const
 {
 	UNiagaraStatelessModule* StatelessModule = StatelessModuleWeak.Get();

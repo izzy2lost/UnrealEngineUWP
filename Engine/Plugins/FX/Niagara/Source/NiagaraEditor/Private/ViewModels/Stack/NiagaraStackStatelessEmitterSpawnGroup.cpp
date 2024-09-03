@@ -174,11 +174,29 @@ FText UNiagaraStackStatelessEmitterSpawnItem::GetDisplayName(ENiagaraStatelessSp
 	}
 }
 
+FText UNiagaraStackStatelessEmitterSpawnItem::GetTooltipText(ENiagaraStatelessSpawnInfoType SpawnInfoType)
+{
+	switch (SpawnInfoType)
+	{
+		case ENiagaraStatelessSpawnInfoType::Burst:	return LOCTEXT("EmitterSpawnBurstTooltpText", "Spawns a burst of particles instantaneously.");
+		case ENiagaraStatelessSpawnInfoType::Rate:	return LOCTEXT("EmitterSpawnRateTooltpText", "Spawns particles continuously at a particular rate.");
+		default:									checkNoEntry();	return LOCTEXT("EmitterSpawnUnknownTooltpText", "Unknown");
+	}
+}
+
+
 FText UNiagaraStackStatelessEmitterSpawnItem::GetDisplayName() const
 {
 	const FNiagaraStatelessSpawnInfo* SpawnInfo = GetSpawnInfo();
 	const ENiagaraStatelessSpawnInfoType SpawnInfoType = SpawnInfo ? SpawnInfo->Type : ENiagaraStatelessSpawnInfoType::Burst;
 	return GetDisplayName(SpawnInfoType);
+}
+
+FText UNiagaraStackStatelessEmitterSpawnItem::GetTooltipText() const
+{
+	const FNiagaraStatelessSpawnInfo* SpawnInfo = GetSpawnInfo();
+	const ENiagaraStatelessSpawnInfoType SpawnInfoType = SpawnInfo ? SpawnInfo->Type : ENiagaraStatelessSpawnInfoType::Burst;
+	return GetTooltipText(SpawnInfoType);
 }
 
 FGuid UNiagaraStackStatelessEmitterSpawnItem::GetSelectionId() const

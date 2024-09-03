@@ -9,6 +9,7 @@
 
 #include "NiagaraStatelessModule_MeshRotationRate.generated.h"
 
+// Applies a constant rotation rate to mesh orientation
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Mesh Rotation Rate"))
 class UNiagaraStatelessModule_MeshRotationRate : public UNiagaraStatelessModule
 {

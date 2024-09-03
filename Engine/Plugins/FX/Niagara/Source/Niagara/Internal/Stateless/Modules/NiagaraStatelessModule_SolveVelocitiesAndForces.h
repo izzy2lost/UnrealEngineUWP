@@ -14,6 +14,7 @@
 
 #include "NiagaraStatelessModule_SolveVelocitiesAndForces.generated.h"
 
+// Integrates all the forces applying them to position
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Solve Forces And Velocity"))
 class UNiagaraStatelessModule_SolveVelocitiesAndForces : public UNiagaraStatelessModule
 {

@@ -9,6 +9,7 @@
 
 #include "NiagaraStatelessModule_AccelerationForce.generated.h"
 
+// Apply acceleration which accumulates per frame
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Acceleration Force"))
 class UNiagaraStatelessModule_AccelerationForce : public UNiagaraStatelessModule
 {

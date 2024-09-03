@@ -9,6 +9,7 @@
 
 #include "NiagaraStatelessModule_SpriteFacingAndAlignment.generated.h"
 
+// Sets the sprite facing and alignment attributes
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Sprite Facing Alignment"))
 class UNiagaraStatelessModule_SpriteFacingAndAlignment : public UNiagaraStatelessModule
 {

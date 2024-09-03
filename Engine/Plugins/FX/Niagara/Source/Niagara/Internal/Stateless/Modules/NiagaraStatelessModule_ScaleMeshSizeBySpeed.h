@@ -9,6 +9,7 @@
 
 #include "NiagaraStatelessModule_ScaleMeshSizeBySpeed.generated.h"
 
+// Applies a modifier to mesh scale based on the velocity of the particle
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Scale Mesh Size By Speed"))
 class UNiagaraStatelessModule_ScaleMeshSizeBySpeed : public UNiagaraStatelessModule
 {

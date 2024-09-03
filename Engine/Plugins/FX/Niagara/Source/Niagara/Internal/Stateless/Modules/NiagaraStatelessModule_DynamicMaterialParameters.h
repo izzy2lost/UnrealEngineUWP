@@ -39,6 +39,7 @@ struct FNiagaraStatelessDynamicParameterSet
 	FNiagaraDistributionFloat WChannelDistribution = FNiagaraDistributionFloat(FNiagaraStatelessGlobals::GetDefaultDynamicMaterialParametersValue().W);
 };
 
+// Write to the Dynamic Parameters that can be read in the material vertex & pixel shader vertex
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Dynamic Material Parameters"))
 class UNiagaraStatelessModule_DynamicMaterialParameters : public UNiagaraStatelessModule
 {

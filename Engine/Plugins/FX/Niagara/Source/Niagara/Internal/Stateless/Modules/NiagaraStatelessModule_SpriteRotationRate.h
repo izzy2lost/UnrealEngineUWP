@@ -9,6 +9,7 @@
 
 #include "NiagaraStatelessModule_SpriteRotationRate.generated.h"
 
+// Applies a constant value to sprite rotation
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Sprite Rotation Rate"))
 class UNiagaraStatelessModule_SpriteRotationRate : public UNiagaraStatelessModule
 {

@@ -9,6 +9,7 @@
 
 #include "NiagaraStatelessModule_GravityForce.generated.h"
 
+// Applies a gravitational force (in cm/s)
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Gravity Force"))
 class UNiagaraStatelessModule_GravityForce : public UNiagaraStatelessModule
 {

@@ -11,6 +11,8 @@
 
 #include "NiagaraStatelessModule_ScaleMeshSize.generated.h"
 
+// Multiply Particle.Scale by the module calculated scale value
+// This can be a constant, random or curve indexed by Particle.NormalizedAge
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Scale Mesh Size"))
 class UNiagaraStatelessModule_ScaleMeshSize : public UNiagaraStatelessModule
 {

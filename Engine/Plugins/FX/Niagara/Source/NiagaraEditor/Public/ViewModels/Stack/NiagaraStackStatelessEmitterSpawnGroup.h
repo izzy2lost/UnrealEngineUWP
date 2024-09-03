@@ -55,6 +55,7 @@ public:
 	void Initialize(FRequiredEntryData InRequiredEntryData, UNiagaraStatelessEmitter* InStatelessEmitter, int32 InIndex);
 
 	virtual FText GetDisplayName() const override;
+	virtual FText GetTooltipText() const override;
 	virtual FGuid GetSelectionId() const override;
 
 	virtual bool SupportsDelete() const override { return true; }
@@ -75,6 +76,7 @@ public:
 	FOnRequestDelete& OnRequestDelete() { return OnRequestDeleteDelegate; }
 
 	static FText GetDisplayName(ENiagaraStatelessSpawnInfoType SpawnInfoType);
+	static FText GetTooltipText(ENiagaraStatelessSpawnInfoType SpawnInfoType);
 
 protected:
 	virtual void RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues) override;

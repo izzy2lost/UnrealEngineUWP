@@ -9,6 +9,7 @@
 
 #include "NiagaraStatelessModule_ScaleSpriteSizeBySpeed.generated.h"
 
+// Applies a modifier to sprite size based on the velocity of the particle
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Scale Sprite Size By Speed"))
 class UNiagaraStatelessModule_ScaleSpriteSizeBySpeed : public UNiagaraStatelessModule
 {

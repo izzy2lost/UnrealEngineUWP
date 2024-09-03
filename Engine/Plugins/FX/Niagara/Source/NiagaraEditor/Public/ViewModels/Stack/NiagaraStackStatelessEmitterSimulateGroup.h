@@ -52,6 +52,7 @@ public:
 	void Initialize(FRequiredEntryData InRequiredEntryData, UNiagaraStatelessModule* InStatelessModule);
 
 	virtual FText GetDisplayName() const override { return DisplayName; }
+	virtual FText GetTooltipText() const override;
 
 	virtual bool SupportsDelete() const override { return true; }
 	virtual bool TestCanDeleteWithMessage(FText& OutCanDeleteMessage) const override;

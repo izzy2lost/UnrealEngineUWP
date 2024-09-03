@@ -19,6 +19,7 @@ enum class ENSMInitialMeshOrientationMode
 	//OrientToQuaternion,
 };
 
+// Set the initial mesh orientation, directly, randomly or by orienting by axis
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Initial Mesh Orientation"))
 class UNiagaraStatelessModule_InitialMeshOrientation : public UNiagaraStatelessModule
 {

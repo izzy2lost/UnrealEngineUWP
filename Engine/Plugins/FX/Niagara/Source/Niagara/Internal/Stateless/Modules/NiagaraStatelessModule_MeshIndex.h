@@ -8,6 +8,7 @@
 
 #include "NiagaraStatelessModule_MeshIndex.generated.h"
 
+// Sets the mesh index to use with mesh renderers
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Mesh Index"))
 class UNiagaraStatelessModule_MeshIndex : public UNiagaraStatelessModule
 {

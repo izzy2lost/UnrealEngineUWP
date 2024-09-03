@@ -17,6 +17,7 @@ enum class ENSM_VelocityType
 	InCone,			// Max, Min, Cone| Cone Axis, Cone Angle, Inner Cone
 };
 
+// Add to the velocity applied to all particles
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Add Velocity"))
 class UNiagaraStatelessModule_AddVelocity : public UNiagaraStatelessModule
 {

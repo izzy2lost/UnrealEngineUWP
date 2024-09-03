@@ -9,6 +9,7 @@
 
 #include "NiagaraStatelessModule_ScaleColor.generated.h"
 
+// Scales the color of the particle
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Scale Color"))
 class UNiagaraStatelessModule_ScaleColor : public UNiagaraStatelessModule
 {
