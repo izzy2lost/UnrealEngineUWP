@@ -532,20 +532,12 @@ FReply STransformViewportToolBar::OnCycleCoordinateSystem()
 
 FSlateIcon STransformViewportToolBar::GetLocalToWorldIcon() const
 {
-	if( Viewport.IsValid() && Viewport.Pin()->IsCoordSystemActive(COORD_World) )
+	ECoordSystem CoordSystem = ECoordSystem::COORD_Local;
+	if (TSharedPtr<SEditorViewport> PinnedViewport = Viewport.Pin())
 	{
-		static FName WorldIcon("EditorViewport.RelativeCoordinateSystem_World");
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), WorldIcon);
+		CoordSystem = PinnedViewport->GetViewportClient()->GetWidgetCoordSystemSpace();
 	}
-
-	if( Viewport.IsValid() && Viewport.Pin()->IsCoordSystemActive(COORD_Parent) )
-	{
-		static const FName ParentIcon("Icons.ConstraintManager.ParentHierarchy");
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), ParentIcon);
-	}
-	
-	static FName LocalIcon("Icons.Transform");
-	return FSlateIcon(FAppStyle::GetAppStyleSetName(), LocalIcon);
+	return UE::UnrealEd::GetIconFromCoordSystem(CoordSystem);
 }
 
 FText STransformViewportToolBar::GetLayer2DLabel() const

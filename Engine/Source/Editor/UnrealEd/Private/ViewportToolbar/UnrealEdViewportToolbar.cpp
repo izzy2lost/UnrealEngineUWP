@@ -573,6 +573,25 @@ bool ShowNewViewportToolbars()
 	return Private::CVarToolMenusViewportToolbarsValue >= 1;
 }
 
+FSlateIcon GetIconFromCoordSystem(ECoordSystem InCoordSystem)
+{
+	if (InCoordSystem == COORD_World)
+	{
+		static FName WorldIcon("EditorViewport.RelativeCoordinateSystem_World");
+		return FSlateIcon(FAppStyle::GetAppStyleSetName(), WorldIcon);
+	}
+	else if (InCoordSystem == COORD_Parent)
+	{
+		static const FName ParentIcon("Icons.ConstraintManager.ParentHierarchy");
+		return FSlateIcon(FAppStyle::GetAppStyleSetName(), ParentIcon);
+	}
+	else
+	{
+		static FName LocalIcon("Icons.Transform");
+		return FSlateIcon(FAppStyle::GetAppStyleSetName(), LocalIcon);
+	}
+}
+
 FToolMenuEntry CreateViewportToolbarTransformsSection()
 {
 	FToolMenuEntry Entry = FToolMenuEntry::InitSubMenu(
@@ -606,22 +625,59 @@ FToolMenuEntry CreateViewportToolbarTransformsSection()
 					ScaleMode.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
 					ScaleMode.SetShowInToolbarTopLevel(true);
 					TransformToolsSection.AddEntry(ScaleMode);
-				}
 
-				{
-					FToolMenuSection& SpacesSection = Submenu->FindOrAddSection("Spaces", LOCTEXT("SpacesLabel", "Spaces"));
+					// Build a submenu for selecting the coordinate system to use.
+					{
+						TransformToolsSection.AddSeparator("CoordinateSystemSeparator");
 
-					FToolMenuEntry WorldSpace =
-						FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().RelativeCoordinateSystem_World);
-					WorldSpace.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
-					WorldSpace.SetShowInToolbarTopLevel(true);
-					SpacesSection.AddEntry(WorldSpace);
+						FToolMenuEntry& CoordianteSystemSubmenu = TransformToolsSection.AddSubMenu(
+							"CoordinateSystem",
+							LOCTEXT("CoordinateSystemLabel", "Coordinate System"),
+							LOCTEXT("CoordinateSystemTooltip", "Select between coordinate systems"),
+							FNewToolMenuDelegate::CreateLambda(
+								[](UToolMenu* InSubmenu)
+								{
+									FToolMenuSection& UnnamedSection = InSubmenu->FindOrAddSection(NAME_None);
 
-					FToolMenuEntry LocalSpace =
-						FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().RelativeCoordinateSystem_Local);
-					LocalSpace.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
-					LocalSpace.SetShowInToolbarTopLevel(true);
-					SpacesSection.AddEntry(LocalSpace);
+									FToolMenuEntry WorldCoords = FToolMenuEntry::InitMenuEntry(
+										FEditorViewportCommands::Get().RelativeCoordinateSystem_World
+									);
+									WorldCoords.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
+									UnnamedSection.AddEntry(WorldCoords);
+
+									FToolMenuEntry LocalCoords = FToolMenuEntry::InitMenuEntry(
+										FEditorViewportCommands::Get().RelativeCoordinateSystem_Local
+									);
+									LocalCoords.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
+									UnnamedSection.AddEntry(LocalCoords);
+								}
+							)
+						);
+
+						// Set the icon based on the current coordinate system and fall back to the Local icon.
+						{
+							TWeakPtr<SEditorViewport> WeakViewport;
+							if (UUnrealEdViewportToolbarContext* const Context =
+									Submenu->FindContext<UUnrealEdViewportToolbarContext>())
+							{
+								WeakViewport = Context->Viewport;
+							}
+
+							CoordianteSystemSubmenu.Icon = TAttribute<FSlateIcon>::CreateLambda(
+								[WeakViewport]() -> FSlateIcon
+								{
+									ECoordSystem CoordSystem = ECoordSystem::COORD_Local;
+									if (const TSharedPtr<SEditorViewport> EditorViewport = WeakViewport.Pin())
+									{
+										CoordSystem = EditorViewport->GetViewportClient()->GetWidgetCoordSystemSpace();
+									}
+									return GetIconFromCoordSystem(CoordSystem);
+								}
+							);
+						}
+						CoordianteSystemSubmenu.ToolbarLabelOverride = FText();
+						CoordianteSystemSubmenu.SetShowInToolbarTopLevel(true);
+					}
 				}
 
 				{

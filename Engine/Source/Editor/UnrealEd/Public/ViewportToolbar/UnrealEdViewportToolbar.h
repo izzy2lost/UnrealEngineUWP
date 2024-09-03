@@ -7,6 +7,7 @@
 #include "Templates/SharedPointerFwd.h"
 #include "ToolMenuDelegates.h"
 #include "UnrealEdViewportToolbarContext.h"
+#include "UnrealWidgetFwd.h"
 
 class FEditorViewportClient;
 class FText;
@@ -36,6 +37,7 @@ UNREALED_API bool ShowOldViewportToolbars();
 /** The value of this function is controlled by the CVAR "ToolMenusViewportToolbars". */
 UNREALED_API bool ShowNewViewportToolbars();
 
+UNREALED_API FSlateIcon GetIconFromCoordSystem(ECoordSystem InCoordSystem);
 UNREALED_API FToolMenuEntry CreateViewportToolbarTransformsSection();
 
 UNREALED_API FToolMenuEntry CreateViewportToolbarSelectSection();
