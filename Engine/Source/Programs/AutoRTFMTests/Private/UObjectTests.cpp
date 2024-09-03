@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GenericPlatform/GenericPlatformMisc.h"
+#include "HAL/MallocLeakDetection.h"
 
 THIRD_PARTY_INCLUDES_START
 #include "Catch2Includes.h"
@@ -123,6 +124,9 @@ TEST_CASE("UObject.MarkAsReachable")
 
 	UMyAutoRTFMTestObject* const Object = NewObject<UMyAutoRTFMTestObject>();
 
+	// Somewhat ironically, garbage collection can leak memory.
+	MALLOCLEAK_IGNORE_SCOPE();
+
 	PerformGarbageCollectionWithIncrementalReachabilityAnalysis([Object](int32 index)
 	{
 		if (0 != index)
@@ -142,8 +146,7 @@ TEST_CASE("UObject.MarkAsReachable")
 	SetReachabilityAnalysisTimeLimit(Original);
 }
 
-
-namespace
+TEST_CASE("UObject.TestAddAnnotation")
 {
 	struct FTestAnnotation
 	{
@@ -159,11 +162,9 @@ namespace
 			return TestAnnotationNumber == 32;
 		}
 	};
-	FUObjectAnnotationSparse<FTestAnnotation, true> GTestAnnotation;
-}
 
-TEST_CASE("UObject.TestAddAnnotation")
-{
+	FUObjectAnnotationSparse<FTestAnnotation, true> GTestAnnotation;
+
 	SECTION("Create")
 	{
 		UMyAutoRTFMTestObject* Outer = NewObject<UMyAutoRTFMTestObject>();
