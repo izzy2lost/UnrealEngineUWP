@@ -309,6 +309,7 @@ struct CONTROLRIG_API FRigReusableElementStorage
 			else
 			{
 				Indices.Push(FreeList.Pop(EAllowShrinking::No));
+				Storage[Indices.Last()] = InDefault;
 			}
 		}
 
