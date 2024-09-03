@@ -94,6 +94,7 @@
     defined(VK_KHR_deferred_host_operations) && \
     defined(VK_KHR_ray_query) && \
     defined(VK_KHR_ray_tracing_pipeline) && \
+    defined(VK_KHR_ray_tracing_position_fetch) && \
     defined(VK_KHR_shader_float_controls) && \
     defined(VK_KHR_spirv_1_4)
 #define VP_UE_Vulkan_SM6_RT 1
@@ -1230,6 +1231,10 @@ static const VkStructureType featureStructTypes[] = {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR,
 };
 
+static const VkStructureType propertyStructTypes[] = {
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR,
+};
+
 static const VkStructureType formatStructTypes[] = {
     VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2_KHR,
     VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_3_KHR,
@@ -1359,6 +1364,7 @@ static const VpStructChainerDesc chainerDesc = {
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(nullptr));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
@@ -1404,6 +1410,7 @@ static const VpStructChainerDesc chainerDesc = {
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(nullptr));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
@@ -1520,9 +1527,23 @@ static const VpFeatureDesc featureDesc = {
 
 static const VpPropertyDesc propertyDesc = {
     [](VkBaseOutStructure* p) { (void)p;
+            switch (p->sType) {
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR: {
+                    VkPhysicalDeviceProperties2KHR* s = static_cast<VkPhysicalDeviceProperties2KHR*>(static_cast<void*>(p));
+                    s->properties.limits.maxBoundDescriptorSets = 9;
+                } break;
+                default: break;
+            }
     },
     [](VkBaseOutStructure* p) -> bool { (void)p;
         bool ret = true;
+            switch (p->sType) {
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR: {
+                    VkPhysicalDeviceProperties2KHR* prettify_VkPhysicalDeviceProperties2KHR = static_cast<VkPhysicalDeviceProperties2KHR*>(static_cast<void*>(p));
+                    ret = ret && (prettify_VkPhysicalDeviceProperties2KHR->properties.limits.maxBoundDescriptorSets >= 9); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceProperties2KHR->properties.limits.maxBoundDescriptorSets >= 9), "Unsupported properties condition: VkPhysicalDeviceProperties2KHR::properties.limits.maxBoundDescriptorSets >= 9");
+                } break;
+                default: break;
+            }
         return ret;
     }
 };
@@ -1567,6 +1588,7 @@ static const VpStructChainerDesc chainerDesc = {
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(nullptr));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
@@ -1620,6 +1642,7 @@ static const VkExtensionProperties deviceExtensions[] = {
     VkExtensionProperties{ VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_KHR_RAY_QUERY_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, 1 },
+    VkExtensionProperties{ VK_KHR_RAY_TRACING_POSITION_FETCH_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_KHR_SPIRV_1_4_EXTENSION_NAME, 1 },
 };
@@ -1949,9 +1972,23 @@ static const VpFeatureDesc featureDesc = {
 
 static const VpPropertyDesc propertyDesc = {
     [](VkBaseOutStructure* p) { (void)p;
+            switch (p->sType) {
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR: {
+                    VkPhysicalDeviceProperties2KHR* s = static_cast<VkPhysicalDeviceProperties2KHR*>(static_cast<void*>(p));
+                    s->properties.limits.maxBoundDescriptorSets = 9;
+                } break;
+                default: break;
+            }
     },
     [](VkBaseOutStructure* p) -> bool { (void)p;
         bool ret = true;
+            switch (p->sType) {
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR: {
+                    VkPhysicalDeviceProperties2KHR* prettify_VkPhysicalDeviceProperties2KHR = static_cast<VkPhysicalDeviceProperties2KHR*>(static_cast<void*>(p));
+                    ret = ret && (prettify_VkPhysicalDeviceProperties2KHR->properties.limits.maxBoundDescriptorSets >= 9); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceProperties2KHR->properties.limits.maxBoundDescriptorSets >= 9), "Unsupported properties condition: VkPhysicalDeviceProperties2KHR::properties.limits.maxBoundDescriptorSets >= 9");
+                } break;
+                default: break;
+            }
         return ret;
     }
 };
@@ -2022,6 +2059,7 @@ static const VkExtensionProperties deviceExtensions[] = {
     VkExtensionProperties{ VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_KHR_RAY_QUERY_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, 1 },
+    VkExtensionProperties{ VK_KHR_RAY_TRACING_POSITION_FETCH_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_KHR_SPIRV_1_4_EXTENSION_NAME, 1 },
 };
@@ -2100,7 +2138,7 @@ static const VpPropertyDesc propertyDesc = {
             switch (p->sType) {
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR: {
                     VkPhysicalDeviceProperties2KHR* s = static_cast<VkPhysicalDeviceProperties2KHR*>(static_cast<void*>(p));
-                    s->properties.limits.maxBoundDescriptorSets = 8;
+                    s->properties.limits.maxBoundDescriptorSets = 9;
                 } break;
                 default: break;
             }
@@ -2110,7 +2148,7 @@ static const VpPropertyDesc propertyDesc = {
             switch (p->sType) {
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR: {
                     VkPhysicalDeviceProperties2KHR* prettify_VkPhysicalDeviceProperties2KHR = static_cast<VkPhysicalDeviceProperties2KHR*>(static_cast<void*>(p));
-                    ret = ret && (prettify_VkPhysicalDeviceProperties2KHR->properties.limits.maxBoundDescriptorSets >= 8); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceProperties2KHR->properties.limits.maxBoundDescriptorSets >= 8), "Unsupported properties condition: VkPhysicalDeviceProperties2KHR::properties.limits.maxBoundDescriptorSets >= 8");
+                    ret = ret && (prettify_VkPhysicalDeviceProperties2KHR->properties.limits.maxBoundDescriptorSets >= 9); VP_DEBUG_COND_MSG(!(prettify_VkPhysicalDeviceProperties2KHR->properties.limits.maxBoundDescriptorSets >= 9), "Unsupported properties condition: VkPhysicalDeviceProperties2KHR::properties.limits.maxBoundDescriptorSets >= 9");
                 } break;
                 default: break;
             }
@@ -2468,7 +2506,7 @@ namespace VP_UE_VULKAN_SM6 {
                 static_cast<uint32_t>(std::size(SM6::deviceExtensions)), SM6::deviceExtensions,
                 static_cast<uint32_t>(std::size(featureStructTypes)), featureStructTypes,
                 SM6::featureDesc,
-                0, nullptr,
+                static_cast<uint32_t>(std::size(propertyStructTypes)), propertyStructTypes,
                 SM6::propertyDesc,
                 0, nullptr,
                 0, nullptr,
@@ -2535,7 +2573,7 @@ namespace VP_UE_VULKAN_SM6_RT {
                 static_cast<uint32_t>(std::size(SM6::deviceExtensions)), SM6::deviceExtensions,
                 static_cast<uint32_t>(std::size(featureStructTypes)), featureStructTypes,
                 SM6::featureDesc,
-                0, nullptr,
+                static_cast<uint32_t>(std::size(propertyStructTypes)), propertyStructTypes,
                 SM6::propertyDesc,
                 0, nullptr,
                 0, nullptr,
@@ -2667,6 +2705,7 @@ struct FeaturesChain {
     VkPhysicalDeviceMaintenance4Features physicalDeviceMaintenance4Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES, nullptr };
     VkPhysicalDeviceMaintenance5FeaturesKHR physicalDeviceMaintenance5FeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES_KHR, nullptr };
     VkPhysicalDeviceMaintenance6FeaturesKHR physicalDeviceMaintenance6FeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_6_FEATURES_KHR, nullptr };
+    VkPhysicalDeviceMaintenance7FeaturesKHR physicalDeviceMaintenance7FeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_7_FEATURES_KHR, nullptr };
     VkPhysicalDeviceShaderDrawParametersFeatures physicalDeviceShaderDrawParametersFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES, nullptr };
     VkPhysicalDeviceShaderFloat16Int8Features physicalDeviceShaderFloat16Int8Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES, nullptr };
     VkPhysicalDeviceHostQueryResetFeatures physicalDeviceHostQueryResetFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_QUERY_RESET_FEATURES, nullptr };
@@ -2757,10 +2796,12 @@ struct FeaturesChain {
     VkPhysicalDeviceImage2DViewOf3DFeaturesEXT physicalDeviceImage2DViewOf3DFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_2D_VIEW_OF_3D_FEATURES_EXT, nullptr };
     VkPhysicalDeviceImageSlicedViewOf3DFeaturesEXT physicalDeviceImageSlicedViewOf3DFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_SLICED_VIEW_OF_3D_FEATURES_EXT, nullptr };
     VkPhysicalDeviceAttachmentFeedbackLoopDynamicStateFeaturesEXT physicalDeviceAttachmentFeedbackLoopDynamicStateFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ATTACHMENT_FEEDBACK_LOOP_DYNAMIC_STATE_FEATURES_EXT, nullptr };
+    VkPhysicalDeviceLegacyVertexAttributesFeaturesEXT physicalDeviceLegacyVertexAttributesFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LEGACY_VERTEX_ATTRIBUTES_FEATURES_EXT, nullptr };
     VkPhysicalDeviceMutableDescriptorTypeFeaturesEXT physicalDeviceMutableDescriptorTypeFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MUTABLE_DESCRIPTOR_TYPE_FEATURES_EXT, nullptr };
     VkPhysicalDeviceDepthClipControlFeaturesEXT physicalDeviceDepthClipControlFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_CONTROL_FEATURES_EXT, nullptr };
     VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT physicalDeviceVertexInputDynamicStateFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_INPUT_DYNAMIC_STATE_FEATURES_EXT, nullptr };
     VkPhysicalDeviceExternalMemoryRDMAFeaturesNV physicalDeviceExternalMemoryRDMAFeaturesNV{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_RDMA_FEATURES_NV, nullptr };
+    VkPhysicalDeviceShaderRelaxedExtendedInstructionFeaturesKHR physicalDeviceShaderRelaxedExtendedInstructionFeaturesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_RELAXED_EXTENDED_INSTRUCTION_FEATURES_KHR, nullptr };
     VkPhysicalDeviceColorWriteEnableFeaturesEXT physicalDeviceColorWriteEnableFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COLOR_WRITE_ENABLE_FEATURES_EXT, nullptr };
     VkPhysicalDeviceSynchronization2Features physicalDeviceSynchronization2Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES, nullptr };
     VkPhysicalDeviceHostImageCopyFeaturesEXT physicalDeviceHostImageCopyFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_FEATURES_EXT, nullptr };
@@ -2847,6 +2888,8 @@ struct FeaturesChain {
     VkPhysicalDeviceShaderAtomicFloat16VectorFeaturesNV physicalDeviceShaderAtomicFloat16VectorFeaturesNV{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT16_VECTOR_FEATURES_NV, nullptr };
     VkPhysicalDeviceMapMemoryPlacedFeaturesEXT physicalDeviceMapMemoryPlacedFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_FEATURES_EXT, nullptr };
     VkPhysicalDeviceRawAccessChainsFeaturesNV physicalDeviceRawAccessChainsFeaturesNV{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAW_ACCESS_CHAINS_FEATURES_NV, nullptr };
+    VkPhysicalDeviceImageAlignmentControlFeaturesMESA physicalDeviceImageAlignmentControlFeaturesMESA{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_ALIGNMENT_CONTROL_FEATURES_MESA, nullptr };
+    VkPhysicalDeviceShaderReplicatedCompositesFeaturesEXT physicalDeviceShaderReplicatedCompositesFeaturesEXT{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_REPLICATED_COMPOSITES_FEATURES_EXT, nullptr };
     VkPhysicalDeviceFeatures2KHR physicalDeviceFeatures2KHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR, nullptr };
 
     FeaturesChain() {
@@ -2868,6 +2911,7 @@ struct FeaturesChain {
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES, size<VkPhysicalDeviceMaintenance4Features>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES_KHR, size<VkPhysicalDeviceMaintenance5FeaturesKHR>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_6_FEATURES_KHR, size<VkPhysicalDeviceMaintenance6FeaturesKHR>() });
+        this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_7_FEATURES_KHR, size<VkPhysicalDeviceMaintenance7FeaturesKHR>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES, size<VkPhysicalDeviceShaderDrawParametersFeatures>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES, size<VkPhysicalDeviceShaderFloat16Int8Features>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_QUERY_RESET_FEATURES, size<VkPhysicalDeviceHostQueryResetFeatures>() });
@@ -2958,10 +3002,12 @@ struct FeaturesChain {
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_2D_VIEW_OF_3D_FEATURES_EXT, size<VkPhysicalDeviceImage2DViewOf3DFeaturesEXT>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_SLICED_VIEW_OF_3D_FEATURES_EXT, size<VkPhysicalDeviceImageSlicedViewOf3DFeaturesEXT>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ATTACHMENT_FEEDBACK_LOOP_DYNAMIC_STATE_FEATURES_EXT, size<VkPhysicalDeviceAttachmentFeedbackLoopDynamicStateFeaturesEXT>() });
+        this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LEGACY_VERTEX_ATTRIBUTES_FEATURES_EXT, size<VkPhysicalDeviceLegacyVertexAttributesFeaturesEXT>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MUTABLE_DESCRIPTOR_TYPE_FEATURES_EXT, size<VkPhysicalDeviceMutableDescriptorTypeFeaturesEXT>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_CONTROL_FEATURES_EXT, size<VkPhysicalDeviceDepthClipControlFeaturesEXT>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_INPUT_DYNAMIC_STATE_FEATURES_EXT, size<VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_RDMA_FEATURES_NV, size<VkPhysicalDeviceExternalMemoryRDMAFeaturesNV>() });
+        this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_RELAXED_EXTENDED_INSTRUCTION_FEATURES_KHR, size<VkPhysicalDeviceShaderRelaxedExtendedInstructionFeaturesKHR>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COLOR_WRITE_ENABLE_FEATURES_EXT, size<VkPhysicalDeviceColorWriteEnableFeaturesEXT>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES, size<VkPhysicalDeviceSynchronization2Features>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_FEATURES_EXT, size<VkPhysicalDeviceHostImageCopyFeaturesEXT>() });
@@ -3048,6 +3094,8 @@ struct FeaturesChain {
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT16_VECTOR_FEATURES_NV, size<VkPhysicalDeviceShaderAtomicFloat16VectorFeaturesNV>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_FEATURES_EXT, size<VkPhysicalDeviceMapMemoryPlacedFeaturesEXT>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAW_ACCESS_CHAINS_FEATURES_NV, size<VkPhysicalDeviceRawAccessChainsFeaturesNV>() });
+        this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_ALIGNMENT_CONTROL_FEATURES_MESA, size<VkPhysicalDeviceImageAlignmentControlFeaturesMESA>() });
+        this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_REPLICATED_COMPOSITES_FEATURES_EXT, size<VkPhysicalDeviceShaderReplicatedCompositesFeaturesEXT>() });
         this->structureSize.insert({ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR, size<VkPhysicalDeviceFeatures2KHR>() });
 
         //Initializing the full list of available structure features
@@ -3086,6 +3134,8 @@ struct FeaturesChain {
         pNext = &physicalDeviceMaintenance5FeaturesKHR;
         physicalDeviceMaintenance6FeaturesKHR.pNext = pNext;
         pNext = &physicalDeviceMaintenance6FeaturesKHR;
+        physicalDeviceMaintenance7FeaturesKHR.pNext = pNext;
+        pNext = &physicalDeviceMaintenance7FeaturesKHR;
         physicalDeviceShaderDrawParametersFeatures.pNext = pNext;
         pNext = &physicalDeviceShaderDrawParametersFeatures;
         physicalDeviceShaderFloat16Int8Features.pNext = pNext;
@@ -3264,6 +3314,8 @@ struct FeaturesChain {
         pNext = &physicalDeviceImageSlicedViewOf3DFeaturesEXT;
         physicalDeviceAttachmentFeedbackLoopDynamicStateFeaturesEXT.pNext = pNext;
         pNext = &physicalDeviceAttachmentFeedbackLoopDynamicStateFeaturesEXT;
+        physicalDeviceLegacyVertexAttributesFeaturesEXT.pNext = pNext;
+        pNext = &physicalDeviceLegacyVertexAttributesFeaturesEXT;
         physicalDeviceMutableDescriptorTypeFeaturesEXT.pNext = pNext;
         pNext = &physicalDeviceMutableDescriptorTypeFeaturesEXT;
         physicalDeviceDepthClipControlFeaturesEXT.pNext = pNext;
@@ -3272,6 +3324,8 @@ struct FeaturesChain {
         pNext = &physicalDeviceVertexInputDynamicStateFeaturesEXT;
         physicalDeviceExternalMemoryRDMAFeaturesNV.pNext = pNext;
         pNext = &physicalDeviceExternalMemoryRDMAFeaturesNV;
+        physicalDeviceShaderRelaxedExtendedInstructionFeaturesKHR.pNext = pNext;
+        pNext = &physicalDeviceShaderRelaxedExtendedInstructionFeaturesKHR;
         physicalDeviceColorWriteEnableFeaturesEXT.pNext = pNext;
         pNext = &physicalDeviceColorWriteEnableFeaturesEXT;
         physicalDeviceSynchronization2Features.pNext = pNext;
@@ -3436,6 +3490,10 @@ struct FeaturesChain {
         pNext = &physicalDeviceMapMemoryPlacedFeaturesEXT;
         physicalDeviceRawAccessChainsFeaturesNV.pNext = pNext;
         pNext = &physicalDeviceRawAccessChainsFeaturesNV;
+        physicalDeviceImageAlignmentControlFeaturesMESA.pNext = pNext;
+        pNext = &physicalDeviceImageAlignmentControlFeaturesMESA;
+        physicalDeviceShaderReplicatedCompositesFeaturesEXT.pNext = pNext;
+        pNext = &physicalDeviceShaderReplicatedCompositesFeaturesEXT;
         physicalDeviceFeatures2KHR.pNext = pNext;
 
     }
@@ -4547,9 +4605,9 @@ VPAPI_ATTR VkResult vpGetPhysicalDeviceProfileVariantsSupport(
         VpBlockProperties block{gathered_profiles[profile_index], profile_desc->minApiVersion};
 
         {
-            VkPhysicalDeviceProperties device_properties{};
-            VulkanRHI::vkGetPhysicalDeviceProperties(physicalDevice, &device_properties);
-            if (!detail::vpCheckVersion(device_properties.apiVersion, profile_desc->minApiVersion)) {
+            VkPhysicalDeviceProperties2KHR properties2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR };
+            userData.gpdp2.pfnGetPhysicalDeviceProperties2(physicalDevice, &properties2);
+            if (!detail::vpCheckVersion(properties2.properties.apiVersion, profile_desc->minApiVersion)) {
                 VP_DEBUG_MSGF("Unsupported API version: %u.%u.%u", VK_API_VERSION_MAJOR(profile_desc->minApiVersion), VK_API_VERSION_MINOR(profile_desc->minApiVersion), VK_API_VERSION_PATCH(profile_desc->minApiVersion));
                 supported_profile = false;
             }

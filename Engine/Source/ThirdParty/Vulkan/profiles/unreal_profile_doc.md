@@ -67,6 +67,7 @@
 | [VK_KHR_multiview](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_KHR_multiview.html) | 1.1 Core | 1.1 Core | 1.1 Core | 1.1 Core | 1.1 Core | 1.1 Core |
 | [VK_KHR_ray_query](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_KHR_ray_query.html) | :x: | :x: | :x: | :heavy_check_mark: | :x: | :heavy_check_mark: |
 | [VK_KHR_ray_tracing_pipeline](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_KHR_ray_tracing_pipeline.html) | :x: | :x: | :x: | :x: | :x: | :heavy_check_mark: |
+| [VK_KHR_ray_tracing_position_fetch](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_KHR_ray_tracing_position_fetch.html) | :x: | :x: | :x: | :x: | :x: | :heavy_check_mark: |
 | [VK_KHR_relaxed_block_layout](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_KHR_relaxed_block_layout.html) | 1.1 Core | 1.1 Core | 1.1 Core | 1.1 Core | 1.1 Core | 1.1 Core |
 | [VK_KHR_sampler_mirror_clamp_to_edge](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_KHR_sampler_mirror_clamp_to_edge.html) | :x: | :x: | :x: | 1.2 Core | 1.2 Core | 1.2 Core |
 | [VK_KHR_sampler_ycbcr_conversion](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_KHR_sampler_ycbcr_conversion.html) | 1.1 Core | 1.1 Core | 1.1 Core | 1.1 Core | 1.1 Core | 1.1 Core |
@@ -177,7 +178,7 @@
 | Profiles | VP_UE_Vulkan_ES3_1_Android | VP_UE_Vulkan_SM5 | VP_UE_Vulkan_SM5_Android | VP_UE_Vulkan_SM5_Android_RT | VP_UE_Vulkan_SM6 | VP_UE_Vulkan_SM6_RT |
 |----------|----------------------------|------------------|--------------------------|-----------------------------|------------------|---------------------|
 | **Vulkan 1.0** |
-| [maxBoundDescriptorSets (max)](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceLimits.html) | - | <span title="defined in VkPhysicalDeviceProperties (Vulkan 1.0)">4</span> | - | <span title="defined in VkPhysicalDeviceProperties (Vulkan 1.0)">7</span> | - | <span title="defined in VkPhysicalDeviceProperties (Vulkan 1.0)">8</span> |
+| [maxBoundDescriptorSets (max)](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPhysicalDeviceLimits.html) | - | <span title="defined in VkPhysicalDeviceProperties (Vulkan 1.0)">4</span> | - | <span title="defined in VkPhysicalDeviceProperties (Vulkan 1.0)">7</span> | <span title="defined in VkPhysicalDeviceProperties (Vulkan 1.0)">9</span> | <span title="defined in VkPhysicalDeviceProperties (Vulkan 1.0)">9</span> |
 
 ## Vulkan Profile Queue Families
 

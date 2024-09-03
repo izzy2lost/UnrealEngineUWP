@@ -67,14 +67,19 @@
 			},
 			
             "properties": {
-			},
-			
-			"formats": {
+                "VkPhysicalDeviceProperties": {
+                    "limits": {
+                        "maxBoundDescriptorSets": 9                
+					}
+                }
+            },
+            
+            "formats": {
                 "VK_FORMAT_R64_UINT": {
                     "VkFormatProperties": {
                         "optimalTilingFeatures": [
                             "VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT",
-							"VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT"
+                            "VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT"
                         ]
                     }
 				}
@@ -90,7 +95,8 @@
 				"VK_KHR_shader_float_controls": 1,
 				"VK_KHR_buffer_device_address": 1,
 				"VK_EXT_scalar_block_layout": 1,
-				"VK_EXT_descriptor_buffer": 1
+				"VK_EXT_descriptor_buffer": 1,
+				"VK_KHR_ray_tracing_position_fetch": 1
 			},
             "features": {
                 "VkPhysicalDeviceRayQueryFeaturesKHR": {
@@ -118,7 +124,7 @@
             "properties": {
                 "VkPhysicalDeviceProperties": {
                     "limits": {
-                        "maxBoundDescriptorSets": 8                
+                        "maxBoundDescriptorSets": 9                
 					}
                 }
             }
