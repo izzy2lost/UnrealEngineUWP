@@ -369,10 +369,12 @@ FRDGBarrierBatchEnd& FRDGPass::GetEpilogueBarriersToEnd(FRDGAllocator& Allocator
 FRDGPass::FRDGPass(
 	FRDGEventName&& InName,
 	FRDGParameterStruct InParameterStruct,
-	ERDGPassFlags InFlags)
+	ERDGPassFlags InFlags,
+	ERDGPassTaskMode InTaskMode)
 	: Name(Forward<FRDGEventName&&>(InName))
 	, ParameterStruct(InParameterStruct)
 	, Flags(InFlags)
+	, TaskMode(InTaskMode)
 	, Pipeline(EnumHasAnyFlags(Flags, ERDGPassFlags::AsyncCompute) ? ERHIPipeline::AsyncCompute : ERHIPipeline::Graphics)
 	, PrologueBarriersToEnd(this, ERDGBarrierLocation::Prologue)
 	, EpilogueBarriersToBeginForGraphics(Pipeline, ERHIPipeline::Graphics, GetEpilogueBarriersToBeginDebugName(ERHIPipeline::Graphics), this)

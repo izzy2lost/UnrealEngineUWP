@@ -806,6 +806,16 @@ void FRenderGraphTrack::Draw(const ITimingTrackDrawContext& Context) const
 				DrawHelper.DrawBox(*this, X, Y, W, H, FLinearColor(0.8f, 0.2f, 0.2f, 0.75f), EDrawLayer::Background);
 			}
 
+			if (Pass.bParallelExecuteAsyncAllowed)
+			{
+				const float W = VisiblePassBox.Max.X - VisiblePassBox.Min.X;
+				const float H = BarDepth;
+				const float X = VisiblePassBox.Min.X;
+				const float Y = VisibleGraph.HeaderPassBarDepth + BarMargin * 3.0f + BarDepth;
+
+				DrawHelper.DrawBox(*this, X, Y, W, H, FLinearColor(0.2f, 0.2f, 0.8f, 0.75f), EDrawLayer::Background);
+			}
+
 			const float X = Viewport.TimeToSlateUnitsRounded(Pass.StartTime);
 			const float Y = VisiblePassBox.Max.Y;
 			const float H = VisibleGraph.DepthH - VisiblePassBox.Max.Y;
@@ -2301,7 +2311,11 @@ void FRenderGraphTrack::InitTooltip(FTooltipDrawState& Tooltip, const ITimingEve
 
 			if (Pass.bParallelExecuteAllowed)
 			{
-				Tooltip.AddNameValueTextLine(TEXT("Parallel Execute:"), Pass.bParallelExecute ? TEXT("Yes") : TEXT("No"));
+				Tooltip.AddNameValueTextLine(TEXT("Parallel Execute:"), Pass.bParallelExecute
+					? Pass.bParallelExecuteAsyncAllowed
+						? TEXT("Yes (Async)")
+						: TEXT("Yes (Await)")
+					: TEXT("No"));
 			}
 			else
 			{

@@ -42,6 +42,7 @@ UE_TRACE_EVENT_BEGIN(RDGTrace, PassMessage)
 	UE_TRACE_EVENT_FIELD(bool, IsParallelExecuteEnd)
 	UE_TRACE_EVENT_FIELD(bool, IsParallelExecute)
 	UE_TRACE_EVENT_FIELD(bool, IsParallelExecuteAllowed)
+	UE_TRACE_EVENT_FIELD(bool, IsParallelExecuteAsyncAllowed)
 	UE_TRACE_EVENT_FIELD(bool, IsHandleType32Bits)
 UE_TRACE_EVENT_END()
 
@@ -198,7 +199,8 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 			<< PassMessage.IsParallelExecuteBegin(Pass->bParallelExecuteBegin != 0)
 			<< PassMessage.IsParallelExecuteEnd(Pass->bParallelExecuteEnd != 0)
 			<< PassMessage.IsParallelExecute(Pass->bParallelExecute != 0)
-			<< PassMessage.IsParallelExecuteAllowed(Pass->bParallelExecuteAllowed != 0)
+			<< PassMessage.IsParallelExecuteAllowed(Pass->TaskMode != ERDGPassTaskMode::Inline)
+			<< PassMessage.IsParallelExecuteAsyncAllowed(Pass->TaskMode == ERDGPassTaskMode::Async)
 			<< PassMessage.IsHandleType32Bits(true);
 	}
 

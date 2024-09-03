@@ -40,7 +40,7 @@ template <typename ReferencedType> class TRefCountPtr;
 class FRDGUserValidation final
 {
 public:
-	FRDGUserValidation(FRDGAllocator& Allocator, bool bParallelExecuteEnabled);
+	FRDGUserValidation(FRDGAllocator& Allocator);
 	FRDGUserValidation(const FRDGUserValidation&) = delete;
 	RENDERCORE_API ~FRDGUserValidation();
 
@@ -127,6 +127,11 @@ public:
 
 	/** Traverses all resources in the pass and marks whether they are externally accessible by user pass implementations. */
 	static RENDERCORE_API void SetAllowRHIAccess(const FRDGPass* Pass, bool bAllowAccess);
+
+	void SetParallelExecuteEnabled(bool bInParallelExecuteEnabled)
+	{
+		bParallelExecuteEnabled = bInParallelExecuteEnabled;
+	}
 
 private:
 	void ValidateCreateViewableResource(FRDGViewableResource* Resource);

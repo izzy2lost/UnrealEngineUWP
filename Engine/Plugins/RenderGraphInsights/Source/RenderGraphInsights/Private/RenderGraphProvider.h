@@ -145,6 +145,7 @@ public:
 	bool bParallelExecuteEnd{};
 	bool bParallelExecute{};
 	bool bParallelExecuteAllowed{};
+	bool bParallelExecuteAsyncAllowed{};
 
 	FPassPacket(const UE::Trace::IAnalyzer::FOnEventContext& Context);
 };

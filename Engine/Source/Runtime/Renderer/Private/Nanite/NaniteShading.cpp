@@ -2595,7 +2595,7 @@ void DispatchLumenMeshCapturePass(
 		LumenCardPassParameters,
 		ERDGPassFlags::Compute,
 		[LumenCardPassParameters, SharedView, &ShadingCommands, &CapturePasses = CaptureContext.Passes]
-		(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
+		(FRHIComputeCommandList& RHICmdList)
 		{
 			// This is processed within the RDG pass lambda, so the setup task should be complete by now.
 			check(ShadingCommands.BuildCommandsTask.IsCompleted());

@@ -37,6 +37,7 @@ extern int32 GRDGTransitionLog;
 extern int32 GRDGImmediateMode;
 extern int32 GRDGOverlapUAVs;
 extern bool  GRDGAllowRHIAccess;
+extern bool  GRDGAllowRHIAccessAsync;
 
 class FRDGAllowRHIAccessScope
 {
@@ -104,6 +105,7 @@ extern int32 GRDGParallelSetup;
 extern int32 GRDGParallelExecute;
 extern int32 GRDGParallelExecutePassMin;
 extern int32 GRDGParallelExecutePassMax;
+extern int32 GRDGParallelExecutePassTaskModeThreshold;
 
 #else
 
@@ -112,6 +114,7 @@ const int32 GRDGParallelSetup = 0;
 const int32 GRDGParallelExecute = 0;
 const int32 GRDGParallelExecutePassMin = 0;
 const int32 GRDGParallelExecutePassMax = 0;
+const int32 GRDGParallelExecutePassTaskModeThreshold = 0;
 
 #endif
 

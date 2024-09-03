@@ -568,7 +568,7 @@ namespace FComputeShaderUtils
 			ParametersMetadata,
 			Parameters,
 			PassFlags,
-			[ParametersMetadata, Parameters, ComputeShader, GroupCount](FRHIComputeCommandList& RHICmdList)
+			[ParametersMetadata, Parameters, ComputeShader, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, ParametersMetadata, *Parameters, GroupCount);
 		});
@@ -598,7 +598,7 @@ namespace FComputeShaderUtils
 			ParametersMetadata,
 			Parameters,
 			PassFlags,
-			[ParametersMetadata, Parameters, ComputeShader, GroupCountCallback = MoveTemp(GroupCountCallback)](FRHIComputeCommandList& RHICmdList)
+			[ParametersMetadata, Parameters, ComputeShader, GroupCountCallback = MoveTemp(GroupCountCallback)](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				const FIntVector GroupCount = GroupCountCallback();
 				if (GroupCount.X > 0 && GroupCount.Y > 0 && GroupCount.Z > 0)
@@ -668,8 +668,8 @@ namespace FComputeShaderUtils
 			Forward<FRDGEventName>(PassName),
 			Parameters,
 			PassFlags,
-			[Parameters, ComputeShader, IndirectArgsBuffer, IndirectArgsOffset, DispatchLateParamCallback = MoveTemp(DispatchLateParamCallback)](FRHIComputeCommandList& RHICmdList)
-		{			
+			[Parameters, ComputeShader, IndirectArgsBuffer, IndirectArgsOffset, DispatchLateParamCallback = MoveTemp(DispatchLateParamCallback)](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
+		{
 			// Marks the indirect draw parameter as used by the pass manually, given it can't be bound directly by any of the shader,
 			// meaning SetShaderParameters() won't be able to do it.
 			IndirectArgsBuffer->MarkResourceAsUsed();

@@ -58,6 +58,50 @@
 
 #define SUPPORTS_VISUALIZE_TEXTURE (WITH_ENGINE && (!UE_BUILD_SHIPPING || WITH_EDITOR))
 
+/** An RDG pass execution lambda MAY be executed in a parallel task IF the lambda references a non-immediate command list AND the builder flags are set to execute in parallel.
+ *  By default, if a pass executes in parallel, the task will be awaited at the end of FRDGBuilder::Execute(). This behavior may be overridden by tagging the lambda with FRDGAsyncTask as the
+ *  first argument. A tagged lambda, when executed in parallel, is NOT awaited at the end of FRDGBuilder::Execute(). Instead, the task is recorded as an outstanding RHI command list task
+ *  (which share semantics with mesh passes or other parallel command list tasks) and can be manually awaited by calling FRDGBuilder::WaitForAsyncExecuteTasks() or formed into a task
+ *  graph with FRDGBuilder::GetAsyncExecuteTask() (both static methods). The lifetime of RDG allocations is tied to these tasks and RDG will not release any memory or allocated objects
+ *  until the last task completes, even though the FRDGBuilder instance itself may go out of scope and destruct.
+ *
+ *  Consider the following examples:
+ *
+ *      // Builder is marked as supporting parallel execute.
+ *      FRDGBuilder GraphBuilder(RDG_EVENT_NAME("MyBuilder"), ERDGBuilderFlags::Parallel)
+ *
+ *      GraphBuilder.AddPass(RDG_EVENT_NAME("..."), PassParameters, PassFlags, [...] (FRHICommandList& RHICmdList)
+ *      {
+ *         // This will execute in parallel and is awaited by RDG on the render thread at the end of FRDGBuilder::Execute().
+ *      });
+ *
+ *      GraphBuilder.AddPass(RDG_EVENT_NAME("..."), PassParameters, PassFlags, [...] (FRHICommandListImmediate& RHICmdList)
+ *      {
+ *         // This will execute inline on the render thread, because the immediate command list is referenced.
+ *      });
+ *
+ *      FMyObject* Object = GraphBuilder.AllocObject<FMyObject>();
+ *
+ *      GraphBuilder.AddPass(RDG_EVENT_NAME("..."), PassParameters, PassFlags, [Object] (FRDGAsyncTask, FRHICommandList& RHICmdList)
+ *      {
+ *         // This will execute in parallel and is NOT awaited at the end of FRDGBuilder::Execute(). Accessing 'Object' is safe.
+ *      });
+ *
+ *      GraphBuilder.Execute();
+ *
+ *  Tasks can be synced in a few different ways. RDG async execute tasks are chained, so syncing the last batch will sync ALL prior batches.
+ *
+ *      // This will sync all RDG async execute tasks.
+ *      RHICmdList.ImmediateFlush(EImmediateFlushType::WaitForOutstandingTasksOnly);
+ *
+ *      // This will also sync all RDG async execute tasks.
+ *      FRDGBuilder::WaitForAsyncExecuteTasks();
+ *
+ *      // Launch a task that will do something when RDG async execute tasks complete.
+ *      UE::Tasks::Launch(UE_SOURCE_LOCATION, [...] { ... }, FRDGBuilder::GetAsyncExecuteTask());
+ */
+struct FRDGAsyncTask {};
+
 /** ENUMS */
 
 enum class ERDGBuilderFlags

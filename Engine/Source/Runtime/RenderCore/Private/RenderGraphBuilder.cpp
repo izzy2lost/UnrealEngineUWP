@@ -16,6 +16,7 @@ struct FParallelPassSet : public FRHICommandListImmediate::FQueuedCommandList
 
 	TArray<FRDGPass*, FRDGArrayAllocator> Passes;
 	bool bDispatchAfterExecute = false;
+	bool bTaskModeAsync = false;
 };
 
 inline void BeginUAVOverlap(const FRDGPass* Pass, FRHIComputeCommandList& RHICmdList)
@@ -576,7 +577,7 @@ FRDGBuilder::FRDGBuilder(FRHICommandListImmediate& InRHICmdList, FRDGEventName I
 	, TransientResourceAllocator(GRDGTransientAllocator != 0 && !::IsImmediateMode() ? GRDGTransientResourceAllocator.Get() : nullptr)
 	, ExtendResourceLifetimeScope(RHICmdList)
 #if RDG_ENABLE_DEBUG
-	, UserValidation(Allocators.Root, ParallelExecute.bEnabled)
+	, UserValidation(Allocators.Root)
 	, BarrierValidation(&Passes, BuilderName)
 #endif
 {
@@ -588,7 +589,22 @@ FRDGBuilder::FRDGBuilder(FRHICommandListImmediate& InRHICmdList, FRDGEventName I
 
 	ProloguePass = SetupEmptyPass(Passes.Allocate<FRDGSentinelPass>(Allocators.Root, RDG_EVENT_NAME("Graph Prologue (Graphics)")));
 
-	ParallelExecute.bEnabled = ::IsParallelExecuteEnabled() && EnumHasAnyFlags(InFlags, ERDGBuilderFlags::ParallelExecute);
+	const bool bParallelExecuteFlag = EnumHasAnyFlags(InFlags, ERDGBuilderFlags::ParallelExecute);
+	const bool bParallelExecuteAllowedAwait = ::IsParallelExecuteEnabled();
+	const bool bParallelExecuteAllowedAsync = bParallelExecuteAllowedAwait && GRDGParallelExecute > 1;
+
+	if (bParallelExecuteFlag)
+	{
+		if (bParallelExecuteAllowedAsync)
+		{
+			ParallelExecute.TaskMode = ERDGPassTaskMode::Async;
+		}
+		else if (bParallelExecuteAllowedAwait)
+		{
+			ParallelExecute.TaskMode = ERDGPassTaskMode::Await;
+		}
+	}
+
 	ParallelSetup.bEnabled   = ::IsParallelSetupEnabled()   && EnumHasAnyFlags(InFlags, ERDGBuilderFlags::ParallelSetup);
 	bParallelCompileEnabled  = ::IsParallelSetupEnabled()   && EnumHasAnyFlags(InFlags, ERDGBuilderFlags::ParallelCompile);
 
@@ -601,6 +617,15 @@ FRDGBuilder::FRDGBuilder(FRHICommandListImmediate& InRHICmdList, FRDGEventName I
 #if RDG_DUMP_RESOURCES
 	DumpNewGraphBuilder();
 #endif
+
+#if RDG_ENABLE_DEBUG
+	UserValidation.SetParallelExecuteEnabled(ParallelExecute.TaskMode != ERDGPassTaskMode::Inline);
+	if (GRDGAllowRHIAccessAsync != bParallelExecuteAllowedAsync)
+	{
+		WaitForAsyncExecuteTask();
+		GRDGAllowRHIAccessAsync = bParallelExecuteAllowedAsync;
+	}
+#endif
 }
 
 UE::Tasks::FTask FRDGBuilder::FAsyncDeleter::LastTask;
@@ -610,7 +635,7 @@ FRDGBuilder::FAsyncDeleter::~FAsyncDeleter()
 	if (Function)
 	{
 		// Launch the task with a prerequisite on any previously launched RDG async delete task.
-		LastTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Function = MoveTemp(Function)]() mutable {}, LastTask);
+		LastTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Function = MoveTemp(Function)]() mutable {}, MakeArrayView({ LastTask, Prerequisites }));
 	}
 }
 
@@ -619,10 +644,33 @@ void FRDGBuilder::WaitForAsyncDeleteTask()
 	FAsyncDeleter::LastTask.Wait();
 }
 
+UE::Tasks::FTask FRDGBuilder::FParallelExecute::LastAsyncExecuteTask;
+
+void FRDGBuilder::WaitForAsyncExecuteTask()
+{
+	if (FParallelExecute::LastAsyncExecuteTask.IsValid())
+	{
+		FParallelExecute::LastAsyncExecuteTask.Wait();
+		FParallelExecute::LastAsyncExecuteTask = {};
+	}
+}
+
+const UE::Tasks::FTask& FRDGBuilder::GetAsyncExecuteTask()
+{
+	return FParallelExecute::LastAsyncExecuteTask;
+}
+
 FRDGBuilder::~FRDGBuilder()
 {
-	if (ParallelExecute.bEnabled && GRDGParallelDestruction > 0)
+	if (ParallelExecute.TaskMode != ERDGPassTaskMode::Inline && (ParallelExecute.TasksAsync || GRDGParallelDestruction > 0))
 	{
+		if (ParallelExecute.TasksAsync)
+		{
+			ParallelExecute.TasksAsync->Trigger();
+			AsyncDeleter.Prerequisites  = MoveTemp(*ParallelExecute.TasksAsync);
+			ParallelExecute.TasksAsync.Reset();
+		}
+
 		AsyncDeleter.Function = [
 			Allocators				= MoveTemp(Allocators),
 			Passes					= MoveTemp(Passes),
@@ -634,6 +682,9 @@ FRDGBuilder::~FRDGBuilder()
 			ActivePooledTextures	= MoveTemp(ActivePooledTextures),
 			ActivePooledBuffers		= MoveTemp(ActivePooledBuffers),
 			UploadedBuffers			= MoveTemp(UploadedBuffers)
+#if WITH_RHI_BREADCRUMBS
+			, BreadcrumbAllocator	= GetBreadcrumbAllocator().AsShared()
+#endif
 		] () mutable {};
 	}
 }
@@ -954,7 +1005,7 @@ void FRDGBuilder::FlushAccessModeQueue()
 
 	if (EnumHasAnyFlags(ParameterPipelines, ERHIPipeline::Graphics))
 	{
-		auto ExecuteLambda = [](FRHIComputeCommandList&) {};
+		auto ExecuteLambda = [](FRDGAsyncTask, FRHIComputeCommandList&) {};
 		using LambdaPassType = TRDGLambdaPass<FAccessModePassParameters, decltype(ExecuteLambda)>;
 
 		FAccessModePassParameters* Parameters = ParametersByPipeline[GetRHIPipelineIndex(ERHIPipeline::Graphics)];
@@ -975,7 +1026,7 @@ void FRDGBuilder::FlushAccessModeQueue()
 
 	if (EnumHasAnyFlags(ParameterPipelines, ERHIPipeline::AsyncCompute))
 	{
-		auto ExecuteLambda = [](FRHIComputeCommandList&) {};
+		auto ExecuteLambda = [](FRDGAsyncTask, FRHIComputeCommandList&) {};
 		using LambdaPassType = TRDGLambdaPass<FAccessModePassParameters, decltype(ExecuteLambda)>;
 
 		FAccessModePassParameters* Parameters = ParametersByPipeline[GetRHIPipelineIndex(ERHIPipeline::AsyncCompute)];
@@ -1689,7 +1740,7 @@ void FRDGBuilder::Execute()
 	FlushAccessModeQueue();
 
 	// Create the epilogue pass at the end of the graph just prior to compilation.
-	SetupEmptyPass(EpiloguePass = Passes.Allocate<FRDGSentinelPass>(Allocators.Root, RDG_EVENT_NAME("Graph Epilogue")));
+	EpiloguePass = SetupEmptyPass(Passes.Allocate<FRDGSentinelPass>(Allocators.Root, RDG_EVENT_NAME("Graph Epilogue")));
 
 	const FRDGPassHandle ProloguePassHandle = GetProloguePassHandle();
 	const FRDGPassHandle EpiloguePassHandle = GetEpiloguePassHandle();
@@ -1713,17 +1764,19 @@ void FRDGBuilder::Execute()
 			ProcessAsyncSetupQueue();
 		}
 
+		const int32 ParallelCompileResourceThreshold = 32;
+		const int32 NumBuffers   = Buffers.Num();
+		const int32 NumTextures  = Textures.Num();
+		const int32 NumExternalBuffers = ExternalBuffers.Num();
+		const int32 NumExternalTextures = ExternalTextures.Num();
+		const int32 NumTransientBuffers = bSupportsTransientBuffers ? (NumBuffers - NumExternalBuffers) : 0;
+		const int32 NumTransientTextures = bSupportsTransientTextures ? (NumTextures - NumExternalTextures) : 0;
+		const int32 NumPooledTextures = NumTextures - NumTransientTextures;
+		const int32 NumPooledBuffers = NumBuffers - NumTransientBuffers;
+		const int32 NumUniformBuffers = UniformBuffers.Num();
+
 		// Pre-allocate containers.
 		{
-			const int32 NumBuffers           = Buffers.Num();
-			const int32 NumTextures          = Textures.Num();
-			const int32 NumExternalBuffers   = ExternalBuffers.Num();
-			const int32 NumExternalTextures  = ExternalTextures.Num();
-			const int32 NumTransientBuffers  = bSupportsTransientBuffers ? (NumBuffers - NumExternalBuffers) : 0;
-			const int32 NumTransientTextures = bSupportsTransientTextures ? (NumTextures - NumExternalTextures) : 0;
-			const int32 NumPooledTextures    = NumTextures - NumTransientTextures;
-			const int32 NumPooledBuffers     = NumBuffers - NumTransientBuffers;
-
 			CollectResourceContext.TransientResources.Reserve(NumTransientBuffers + NumTransientTextures);
 			CollectResourceContext.PooledTextures.Reserve(bSupportsTransientTextures ? NumExternalTextures : NumTextures);
 			CollectResourceContext.PooledBuffers.Reserve(bSupportsTransientBuffers ? NumExternalBuffers : NumBuffers);
@@ -1743,6 +1796,10 @@ void FRDGBuilder::Execute()
 
 		const UE::Tasks::ETaskPriority TaskPriority = UE::Tasks::ETaskPriority::High;
 
+		const bool bParallelCompileBuffers = NumBuffers > ParallelCompileResourceThreshold;
+		const bool bParallelCompileTextures = NumTextures > ParallelCompileResourceThreshold;
+		const bool bParallelCompileResources = bParallelCompileBuffers || bParallelCompileTextures;
+
 		UE::Tasks::FTask BufferNumElementsCallbacksTask = AddSetupTask([this]
 		{
 			SCOPED_NAMED_EVENT_TEXT("FRDGBuilder::FinalizeDescs", FColor::Magenta);
@@ -1753,7 +1810,7 @@ void FRDGBuilder::Execute()
 			}
 			NumElementsCallbackBuffers.Empty();
 
-		}, TaskPriority, bParallelCompileEnabled);
+		}, TaskPriority, bParallelCompileBuffers && !NumElementsCallbackBuffers.IsEmpty());
 
 		UE::Tasks::FTask PrepareCollectResourcesTask = AddSetupTask([this]
 		{
@@ -1789,7 +1846,7 @@ void FRDGBuilder::Execute()
 				}
 			});
 
-		}, TaskPriority, bParallelCompileEnabled);
+		}, TaskPriority, bParallelCompileResources);
 
 		UE::Tasks::FTaskEvent AllocateUploadBuffersTask{ UE_SOURCE_LOCATION };
 
@@ -1797,7 +1854,7 @@ void FRDGBuilder::Execute()
 		{
 			SubmitBufferUploads(RHICmdListTask, &AllocateUploadBuffersTask);
 
-		}, BufferNumElementsCallbacksTask, TaskPriority, bParallelCompileEnabled);
+		}, BufferNumElementsCallbacksTask, TaskPriority, bParallelCompileEnabled && !UploadedBuffers.IsEmpty());
 
 		Compile();
 
@@ -1806,9 +1863,9 @@ void FRDGBuilder::Execute()
 			CompilePassBarriers();
 			CollectPassBarriers();
 
-		}, TaskPriority, bParallelCompileEnabled);
+		}, TaskPriority, bParallelCompileResources);
 
-		if (ParallelExecute.bEnabled)
+		if (ParallelExecute.IsEnabled())
 		{
 			AddSetupTask([this, QueryBatchData = RHICmdList.GetQueryBatchData(RQT_AbsoluteTime)]
 			{
@@ -1885,13 +1942,13 @@ void FRDGBuilder::Execute()
 			{
 				AllocatePooledBuffers(RHICmdListTask, PooledBuffers);
 
-			}, AllocateUploadBuffersTask, TaskPriority, bParallelCompileEnabled);
+			}, AllocateUploadBuffersTask, TaskPriority, bParallelCompileBuffers);
 
 			AllocatePooledTexturesTask = AddCommandListSetupTask([this, PooledTextures = MoveTemp(CollectResourceContext.PooledTextures)] (FRHICommandListBase& RHICmdListTask)
 			{
 				AllocatePooledTextures(RHICmdListTask, PooledTextures);
 
-			}, TaskPriority, bParallelCompileEnabled);
+			}, TaskPriority, bParallelCompileTextures);
 
 			AllocateTransientResources(MoveTemp(CollectResourceContext.TransientResources));
 
@@ -1899,13 +1956,13 @@ void FRDGBuilder::Execute()
 			{
 				FinalizeResources();
 
-			}, MakeArrayView<UE::Tasks::FTask>({ CollectPassBarriersTask, AllocatePooledBuffersTask, AllocatePooledTexturesTask }), TaskPriority, bParallelCompileEnabled);
+			}, MakeArrayView<UE::Tasks::FTask>({ CollectPassBarriersTask, AllocatePooledBuffersTask, AllocatePooledTexturesTask }), TaskPriority, bParallelCompileResources);
 
 			CreateViewsTask = AddCommandListSetupTask([this, InViews = MoveTemp(CollectResourceContext.Views)] (FRHICommandListBase& RHICmdListTask)
 			{
 				CreateViews(RHICmdListTask, InViews);
 
-			}, MakeArrayView<UE::Tasks::FTask>({ AllocatePooledBuffersTask, AllocatePooledTexturesTask, SubmitBufferUploadsTask}), TaskPriority, bParallelCompileEnabled);
+			}, MakeArrayView<UE::Tasks::FTask>({ AllocatePooledBuffersTask, AllocatePooledTexturesTask, SubmitBufferUploadsTask}), TaskPriority, bParallelCompileResources);
 
 			if (TransientResourceAllocator)
 			{
@@ -1921,7 +1978,7 @@ void FRDGBuilder::Execute()
 		{
 			CreateUniformBuffers(InUniformBuffers);
 
-		}, CreateViewsTask, TaskPriority, bParallelCompileEnabled); // Uniform buffer creation require views to be valid.
+		}, CreateViewsTask, TaskPriority, NumUniformBuffers >= ParallelCompileResourceThreshold); // Uniform buffer creation require views to be valid.
 
 		AllocatePooledBuffersTask.Wait();
 		AllocatePooledTexturesTask.Wait();
@@ -1935,7 +1992,7 @@ void FRDGBuilder::Execute()
 	EndFlushResourcesRHI();
 	WaitForParallelSetupTasks(ERDGSetupTaskWaitPoint::Execute);
 
-	IF_RDG_ENABLE_DEBUG(GRDGAllowRHIAccess = ParallelExecute.bEnabled);
+	IF_RDG_ENABLE_DEBUG(GRDGAllowRHIAccess = ParallelExecute.IsEnabled());
 	IF_RDG_ENABLE_TRACE(Trace.OutputGraphBegin());
 
 	ERHIPipeline OriginalPipeline = RHICmdList.GetPipeline();
@@ -1945,12 +2002,12 @@ void FRDGBuilder::Execute()
 		SCOPE_CYCLE_COUNTER(STAT_RDG_ExecuteTime);
 		CSV_SCOPED_TIMING_STAT_EXCLUSIVE(RDG_Execute);
 
-		if (ParallelExecute.bEnabled)
+		if (ParallelExecute.IsEnabled())
 		{
 			// Launch a task to gather and launch dispatch pass tasks.
 			if (!DispatchPasses.IsEmpty())
 			{
-				ParallelExecute.Tasks.Emplace(UE::Tasks::Launch(UE_SOURCE_LOCATION, [this]
+				ParallelExecute.TasksAwait->AddPrerequisites(UE::Tasks::Launch(UE_SOURCE_LOCATION, [this]
 				{
 					FOptionalTaskTagScope TagScope(ETaskTag::EParallelRenderingThread);
 					SetupDispatchPassExecute();
@@ -1959,7 +2016,21 @@ void FRDGBuilder::Execute()
 			}
 
 			// Launch a task to absorb the cost of waking up threads and avoid stalling the render thread.
-			ParallelExecute.Tasks.Emplace(UE::Tasks::Launch(UE_SOURCE_LOCATION, [this] { ParallelExecute.DispatchTaskEvent->Trigger(); }));
+			ParallelExecute.TasksAwait->AddPrerequisites(UE::Tasks::Launch(UE_SOURCE_LOCATION, [this]
+			{
+				ParallelExecute.DispatchTaskEventAwait->Trigger();
+
+				if (ParallelExecute.DispatchTaskEventAsync)
+				{
+					ParallelExecute.DispatchTaskEventAsync->Trigger();
+	
+					UE::Tasks::FTaskEvent Event(UE_SOURCE_LOCATION);
+					Event.AddPrerequisites(MakeArrayView<UE::Tasks::FTask>({ *ParallelExecute.TasksAsync, FParallelExecute::LastAsyncExecuteTask }));
+					Event.Trigger();
+	
+					FParallelExecute::LastAsyncExecuteTask = Event;
+				}
+			}));
 		}
 		else
 		{
@@ -2070,10 +2141,11 @@ void FRDGBuilder::Execute()
 	RHICmdList.SetTrackedAccess(EpilogueResourceAccesses);
 
 	// Wait on the actual parallel execute tasks in the Execute call. This needs to be done before extraction of external resources to be consistent with non-parallel rendering.
-	if (!ParallelExecute.Tasks.IsEmpty())
+	if (ParallelExecute.TasksAwait)
 	{
-		UE::Tasks::Wait(ParallelExecute.Tasks);
-		ParallelExecute.Tasks.Empty();
+		ParallelExecute.TasksAwait->Trigger();
+		ParallelExecute.TasksAwait->Wait();
+		ParallelExecute.TasksAwait.Reset();
 	}
 
 	for (const FExtractedTexture& ExtractedTexture : ExtractedTextures)
@@ -2636,9 +2708,13 @@ void FRDGBuilder::SetupParallelExecute(TStaticArray<void*, MAX_NUM_GPUS> const& 
 {
 	SCOPED_NAMED_EVENT(SetupParallelExecute, FColor::Emerald);
 	FRDGAllocatorScope AllocatorScope(Allocators.Task);
+
+	const bool bTaskModeAsyncAllowed = ParallelExecute.TaskMode == ERDGPassTaskMode::Async;
+
 	TArray<FRDGPass*, TInlineAllocator<64, FRDGArrayAllocator>> ParallelPassCandidates;
 	uint32 ParallelPassCandidatesWorkload = 0;
 	bool bDispatchAfterExecute = false;
+	bool bTaskModeAsync = bTaskModeAsyncAllowed;
 
 	const auto FlushParallelPassCandidates = [&]()
 	{
@@ -2702,12 +2778,23 @@ void FRDGBuilder::SetupParallelExecute(TStaticArray<void*, MAX_NUM_GPUS> const& 
 			FParallelPassSet& ParallelPassSet = ParallelExecute.ParallelPassSets.Emplace_GetRef();
 			ParallelPassSet.Passes.Append(ParallelPassCandidates.GetData() + PassBeginIndex, ParallelPassCandidateCount);
 			ParallelPassSet.bDispatchAfterExecute = bDispatchAfterExecute;
+			ParallelPassSet.bTaskModeAsync = bTaskModeAsync;
 		}
 
 		ParallelPassCandidates.Reset();
 		ParallelPassCandidatesWorkload = 0;
 		bDispatchAfterExecute = false;
+		bTaskModeAsync = bTaskModeAsyncAllowed;
 	};
+
+	ParallelExecute.TasksAwait.Emplace(UE_SOURCE_LOCATION);
+	ParallelExecute.DispatchTaskEventAwait.Emplace(UE_SOURCE_LOCATION);
+
+	if (bTaskModeAsyncAllowed)
+	{
+		ParallelExecute.TasksAsync.Emplace(UE_SOURCE_LOCATION);
+		ParallelExecute.DispatchTaskEventAsync.Emplace(UE_SOURCE_LOCATION);
+	}
 
 	ParallelExecute.ParallelPassSets.Reserve(32);
 	ParallelPassCandidates.Emplace(ProloguePass);
@@ -2721,7 +2808,7 @@ void FRDGBuilder::SetupParallelExecute(TStaticArray<void*, MAX_NUM_GPUS> const& 
 			continue;
 		}
 
-		if (!Pass->bParallelExecuteAllowed)
+		if (Pass->TaskMode == ERDGPassTaskMode::Inline)
 		{
 			FlushParallelPassCandidates();
 			continue;
@@ -2737,6 +2824,15 @@ void FRDGBuilder::SetupParallelExecute(TStaticArray<void*, MAX_NUM_GPUS> const& 
 			continue;
 		}
 
+		const bool bPassTaskModeAsync = Pass->TaskMode == ERDGPassTaskMode::Async;
+		const bool bPassTaskModeThresholdReached = ParallelPassCandidatesWorkload >= (uint32)GRDGParallelExecutePassTaskModeThreshold && GRDGParallelExecutePassTaskModeThreshold != 0;
+
+		if (bTaskModeAsyncAllowed && bTaskModeAsync != bPassTaskModeAsync && bPassTaskModeThresholdReached)
+		{
+			FlushParallelPassCandidates();
+		}
+
+		bTaskModeAsync &= bPassTaskModeAsync;
 		bDispatchAfterExecute |= Pass->bDispatchAfterExecute;
 
 		ParallelPassCandidates.Emplace(Pass);
@@ -2755,10 +2851,6 @@ void FRDGBuilder::SetupParallelExecute(TStaticArray<void*, MAX_NUM_GPUS> const& 
 	ParallelPassCandidates.Emplace(EpiloguePass);
 	FlushParallelPassCandidates();
 
-	check(ParallelExecute.Tasks.IsEmpty());
-	ParallelExecute.Tasks.Reserve(ParallelExecute.ParallelPassSets.Num());
-	ParallelExecute.DispatchTaskEvent.Emplace(UE_SOURCE_LOCATION);
-
 	for (FParallelPassSet& ParallelPassSet : ParallelExecute.ParallelPassSets)
 	{
 		FRHICommandList* RHICmdListPass = new FRHICommandList(FRHIGPUMask::All());
@@ -2769,14 +2861,23 @@ void FRDGBuilder::SetupParallelExecute(TStaticArray<void*, MAX_NUM_GPUS> const& 
 
 		ParallelPassSet.CmdList = RHICmdListPass;
 
-		ParallelExecute.Tasks.Emplace(UE::Tasks::Launch(TEXT("FRDGBuilder::ParallelExecute"),
-			[ParallelPasses = MakeArrayView(ParallelPassSet.Passes), RHICmdListPass
+		const UE::Tasks::FTask& PrerequisiteTask = ParallelPassSet.bTaskModeAsync
+			? *ParallelExecute.DispatchTaskEventAsync
+			: *ParallelExecute.DispatchTaskEventAwait;
+		
+		const UE::Tasks::ETaskPriority TaskPriority = ParallelPassSet.bTaskModeAsync
+			? UE::Tasks::ETaskPriority::Normal
+			: UE::Tasks::ETaskPriority::High;
+
+		UE::Tasks::FTask Task = UE::Tasks::Launch(TEXT("ParallelExecute"),
+			[ParallelPasses = MakeArrayView(ParallelPassSet.Passes), bTaskModeAsync = ParallelPassSet.bTaskModeAsync, RHICmdListPass
 #if WITH_RHI_BREADCRUMBS
-			, LocalCurrentBreadcrumb = LocalCurrentBreadcrumb
+				, LocalCurrentBreadcrumb = LocalCurrentBreadcrumb
 #endif
 			]
 		{
-			SCOPED_NAMED_EVENT(ParallelExecute, FColor::Emerald);
+			SCOPED_NAMED_EVENT_TCHAR_CONDITIONAL(TEXT("ParallelExecute (Await)"), FColor::Emerald, !bTaskModeAsync);
+			SCOPED_NAMED_EVENT_TCHAR_CONDITIONAL(TEXT("ParallelExecute (Async)"), FColor::Emerald, bTaskModeAsync);
 			FOptionalTaskTagScope TagScope(ETaskTag::EParallelRenderingThread);
 
 #if WITH_RHI_BREADCRUMBS
@@ -2801,7 +2902,16 @@ void FRDGBuilder::SetupParallelExecute(TStaticArray<void*, MAX_NUM_GPUS> const& 
 
 			RHICmdListPass->FinishRecording();
 
-		}, *ParallelExecute.DispatchTaskEvent, LowLevelTasks::ETaskPriority::High));
+		}, PrerequisiteTask, TaskPriority);
+
+		if (ParallelPassSet.bTaskModeAsync)
+		{
+			ParallelExecute.TasksAsync->AddPrerequisites(Task);
+		}
+		else
+		{
+			ParallelExecute.TasksAwait->AddPrerequisites(Task);
+		}
 	}
 }
 

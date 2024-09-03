@@ -183,6 +183,7 @@ FPassPacket::FPassPacket(const UE::Trace::IAnalyzer::FOnEventContext& Context)
 	, bParallelExecuteEnd(Context.EventData.GetValue<bool>("IsParallelExecuteEnd"))
 	, bParallelExecute(Context.EventData.GetValue<bool>("IsParallelExecute"))
 	, bParallelExecuteAllowed(Context.EventData.GetValue<bool>("IsParallelExecuteAllowed"))
+	, bParallelExecuteAsyncAllowed(Context.EventData.GetValue<bool>("IsParallelExecuteAsyncAllowed"))
 {}
 
 static const uint64 PageSize = 1024;

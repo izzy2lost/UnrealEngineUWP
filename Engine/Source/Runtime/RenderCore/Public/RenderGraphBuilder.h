@@ -50,6 +50,7 @@ class FRDGBuilder
 	struct FAsyncDeleter
 	{
 		TUniqueFunction<void()> Function;
+		UE::Tasks::FTask Prerequisites;
 		static UE::Tasks::FTask LastTask;
 
 		RENDERCORE_API ~FAsyncDeleter();
@@ -248,7 +249,7 @@ public:
 
 	/** Adds a pass that takes a FRDGDispatchPassBuilder instead of a RHI command list. The lambda should create command lists
      *  and launch tasks to record commands into them. Each task should call EndRenderPass() (if raster) and FinishRecording()
-     *  to complete each command list.
+     *  to complete each command list. The user is responsible for task management of dispatched command lists.
 	 */
 	template <typename ParameterStructType, typename LaunchLambdaType>
 	FRDGPassRef AddDispatchPass(FRDGEventName&& Name, const ParameterStructType* ParameterStruct, ERDGPassFlags Flags, LaunchLambdaType&& LaunchLambda);
@@ -429,8 +430,14 @@ public:
 	/** Whether RDG is running in immediate mode. */
 	static RENDERCORE_API bool IsImmediateMode();
 
-	/** Waits for the last RDG async delete task that was launched. */
+	/** Waits for the last RDG async delete task that was launched. If the event is valid it is consumed. Thus, it is not thread safe to wait from multiple threads at once. */
 	static RENDERCORE_API void WaitForAsyncDeleteTask();
+
+	/** Waits for the last RDG chained execution task that was launched. */
+	static RENDERCORE_API void WaitForAsyncExecuteTask();
+
+	/** Returns the last RDG chained execution task that was launched. */
+	static RENDERCORE_API const UE::Tasks::FTask& GetAsyncExecuteTask();
 
 	/** The blackboard used to hold common data tied to the graph lifetime. */
 	FRDGBlackboard Blackboard;
@@ -502,7 +509,7 @@ private:
 	FRHIRenderPassInfo GetRenderPassInfo(const FRDGPass* Pass) const;
 
 	template <typename ParameterStructType, typename ExecuteLambdaType>
-	FRDGPassRef AddPassInternal(
+	FRDGPass* AddPassInternal(
 		FRDGEventName&& Name,
 		const FShaderParametersMetadata* ParametersMetadata,
 		const ParameterStructType* ParameterStruct,
@@ -994,12 +1001,18 @@ private:
 
 	bool bParallelCompileEnabled = false;
 
-	struct
+	struct FParallelExecute
 	{
 		TArray<FParallelPassSet, FRDGArrayAllocator> ParallelPassSets;
-		TArray<UE::Tasks::FTask, FRDGArrayAllocator> Tasks;
-		TOptional<UE::Tasks::FTaskEvent> DispatchTaskEvent;
-		bool bEnabled = false;
+		TOptional<UE::Tasks::FTaskEvent> TasksAwait;
+		TOptional<UE::Tasks::FTaskEvent> TasksAsync;
+		TOptional<UE::Tasks::FTaskEvent> DispatchTaskEventAwait;
+		TOptional<UE::Tasks::FTaskEvent> DispatchTaskEventAsync;
+		ERDGPassTaskMode TaskMode = ERDGPassTaskMode::Inline;
+
+		bool IsEnabled() const { return TaskMode != ERDGPassTaskMode::Inline; }
+
+		static UE::Tasks::FTask LastAsyncExecuteTask;
 
 	} ParallelExecute;
 

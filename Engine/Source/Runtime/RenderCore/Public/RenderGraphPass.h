@@ -175,6 +175,18 @@ private:
 
 using FRDGTransitionCreateQueue = TArray<FRDGBarrierBatchBegin*, FRDGArrayAllocator>;
 
+enum class ERDGPassTaskMode : uint8
+{
+	/** Execute must be called inline on the render thread. */
+	Inline,
+
+	/** Execute may be called in a task that is awaited at the end of FRDGBuilder::Execute. */
+	Await,
+
+	/** Execute may be called in a task that must be manually awaited. */
+	Async
+};
+
 class FRDGBarrierBatchEnd
 {
 public:
@@ -210,52 +222,57 @@ private:
 class FRDGPass
 {
 public:
-	RENDERCORE_API FRDGPass(FRDGEventName&& InName, FRDGParameterStruct InParameterStruct, ERDGPassFlags InFlags);
+	RENDERCORE_API FRDGPass(FRDGEventName&& InName, FRDGParameterStruct InParameterStruct, ERDGPassFlags InFlags, ERDGPassTaskMode InTaskMode);
 	FRDGPass(const FRDGPass&) = delete;
 	virtual ~FRDGPass() = default;
 
 #if RDG_ENABLE_DEBUG
 	RENDERCORE_API const TCHAR* GetName() const;
 #else
-	FORCEINLINE const TCHAR* GetName() const
+	const TCHAR* GetName() const
 	{
 		return Name.GetTCHAR();
 	}
 #endif
 
-	FORCEINLINE const FRDGEventName& GetEventName() const
+	const FRDGEventName& GetEventName() const
 	{
 		return Name;
 	}
 
-	FORCEINLINE ERDGPassFlags GetFlags() const
+	ERDGPassFlags GetFlags() const
 	{
 		return Flags;
 	}
 
-	FORCEINLINE ERHIPipeline GetPipeline() const
+	ERHIPipeline GetPipeline() const
 	{
 		return Pipeline;
 	}
 
-	FORCEINLINE FRDGParameterStruct GetParameters() const
+	FRDGParameterStruct GetParameters() const
 	{
 		return ParameterStruct;
 	}
 
-	FORCEINLINE FRDGPassHandle GetHandle() const
+	FRDGPassHandle GetHandle() const
 	{
 		return Handle;
 	}
 
-	FORCEINLINE uint32 GetWorkload() const
+	uint32 GetWorkload() const
 	{
 		return Workload;
 	}
 
+	ERDGPassTaskMode GetTaskMode() const
+	{
+		return TaskMode;
+	}
+
 	bool IsParallelExecuteAllowed() const
 	{
-		return bParallelExecuteAllowed;
+		return TaskMode != ERDGPassTaskMode::Inline;
 	}
 
 	bool IsMergedRenderPassBegin() const
@@ -376,6 +393,7 @@ protected:
 	const FRDGEventName Name;
 	const FRDGParameterStruct ParameterStruct;
 	const ERDGPassFlags Flags;
+	const ERDGPassTaskMode TaskMode;
 	const ERHIPipeline Pipeline;
 	FRDGPassHandle Handle;
 	uint32 Workload = 1;
@@ -398,9 +416,6 @@ protected:
 
 			/** Whether the pass only writes to resources in its render pass. */
 			uint32 bRenderPassOnlyWrites : 1;
-
-			/** Whether the pass is allowed to execute in parallel. */
-			uint32 bParallelExecuteAllowed : 1;
 
 			/** Whether this pass is a sentinel (prologue / epilogue) pass. */
 			uint32 bSentinel : 1;
@@ -547,40 +562,88 @@ template <typename ParameterStructType, typename ExecuteLambdaType>
 class TRDGLambdaPass
 	: public FRDGPass
 {
-	// Verify that the amount of stuff captured by the pass lambda is reasonable.
-	static constexpr int32 kMaximumLambdaCaptureSize = 1024;
-	static_assert(sizeof(ExecuteLambdaType) <= kMaximumLambdaCaptureSize, "The amount of data of captured for the pass looks abnormally high.");
+	class ExecuteLambdaTraits
+	{
+	private:
+		// Verify that the amount of stuff captured by the pass lambda is reasonable.
+		static constexpr int32 kMaximumLambdaCaptureSize = 1024;
+		static_assert(sizeof(ExecuteLambdaType) <= kMaximumLambdaCaptureSize, "The amount of data of captured for the pass looks abnormally high.");
 
-	template <typename T>
-	struct TLambdaTraits
-		: TLambdaTraits<decltype(&T::operator())>
-	{};
-	template <typename ReturnType, typename ClassType, typename ArgType>
-	struct TLambdaTraits<ReturnType(ClassType::*)(ArgType&) const>
-	{
-		using TRHICommandList = ArgType;
-		using TRDGPass = void;
+		template <typename T>
+		struct TLambdaTraits
+			: TLambdaTraits<decltype(&T::operator())>
+		{};
+		template <typename ReturnType, typename ClassType, typename ArgType>
+		struct TLambdaTraits<ReturnType(ClassType::*)(ArgType&) const>
+		{
+			using TRHICommandList = ArgType;
+			using TRDGPass = void;
+			static constexpr bool bIsTaskAsync = false;
+		};
+		template <typename ReturnType, typename ClassType, typename ArgType>
+		struct TLambdaTraits<ReturnType(ClassType::*)(ArgType&)>
+		{
+			using TRHICommandList = ArgType;
+			using TRDGPass = void;
+			using TRDGAsyncToken = void;
+			static constexpr bool bIsTaskAsync = false;
+		};
+		template <typename ReturnType, typename ClassType, typename ArgType>
+		struct TLambdaTraits<ReturnType(ClassType::*)(FRDGAsyncTask, ArgType&) const>
+		{
+			using TRHICommandList = ArgType;
+			using TRDGPass = void;
+			static constexpr bool bIsTaskAsync = true;
+		};
+		template <typename ReturnType, typename ClassType, typename ArgType>
+		struct TLambdaTraits<ReturnType(ClassType::*)(FRDGAsyncTask, ArgType&)>
+		{
+			using TRHICommandList = ArgType;
+			using TRDGPass = void;
+			static constexpr bool bIsTaskAsync = true;
+		};
+		template <typename ReturnType, typename ClassType, typename ArgType1, typename ArgType2>
+		struct TLambdaTraits<ReturnType(ClassType::*)(const ArgType1*, ArgType2&) const>
+		{
+			using TRHICommandList = ArgType2;
+			using TRDGPass UE_DEPRECATED(5.5, "An FRDGPass* lambda argument is no longer supported.") = ArgType1;
+			static constexpr bool bIsTaskAsync = false;
+		};
+		template <typename ReturnType, typename ClassType, typename ArgType1, typename ArgType2>
+		struct TLambdaTraits<ReturnType(ClassType::*)(const ArgType1*, ArgType2&)>
+		{
+			using TRHICommandList = ArgType2;
+			using TRDGPass UE_DEPRECATED(5.5, "An FRDGPass* lambda argument is no longer supported.")  = ArgType1;
+			static constexpr bool bIsTaskAsync = false;
+		};
+		template <typename ReturnType, typename ClassType, typename ArgType1, typename ArgType2>
+		struct TLambdaTraits<ReturnType(ClassType::*)(const ArgType1*, FRDGAsyncTask, ArgType2&) const>
+		{
+			using TRHICommandList = ArgType2;
+			using TRDGPass UE_DEPRECATED(5.5, "An FRDGPass* lambda argument is no longer supported.") = ArgType1;
+			static constexpr bool bIsTaskAsync = true;
+		};
+		template <typename ReturnType, typename ClassType, typename ArgType1, typename ArgType2>
+		struct TLambdaTraits<ReturnType(ClassType::*)(const ArgType1*, FRDGAsyncTask, ArgType2&)>
+		{
+			using TRHICommandList = ArgType2;
+			using TRDGPass UE_DEPRECATED(5.5, "An FRDGPass* lambda argument is no longer supported.") = ArgType1;
+			static constexpr bool bIsTaskAsync = true;
+		};
+
+	public:
+		using TRHICommandList = typename TLambdaTraits<ExecuteLambdaType>::TRHICommandList;
+
+		static constexpr bool bIsCommandListImmediate = std::is_same_v<TRHICommandList, FRHICommandListImmediate>;
+		static constexpr bool bIsPassArgValid = !std::is_same_v<typename TLambdaTraits<ExecuteLambdaType>::TRDGPass, void>;
+		static constexpr ERDGPassTaskMode TaskMode = bIsCommandListImmediate
+			? ERDGPassTaskMode::Inline
+			: TLambdaTraits<ExecuteLambdaType>::bIsTaskAsync
+				? ERDGPassTaskMode::Async
+				: ERDGPassTaskMode::Await;
+
+		static_assert((bIsCommandListImmediate && TLambdaTraits<ExecuteLambdaType>::bIsTaskAsync) == false, "RDG pass is marked with RDG_TASK_ASYNC but is using the immediate command list. This is not allowed.");
 	};
-	template <typename ReturnType, typename ClassType, typename ArgType>
-	struct TLambdaTraits<ReturnType(ClassType::*)(ArgType&)>
-	{
-		using TRHICommandList = ArgType;
-		using TRDGPass = void;
-	};
-	template <typename ReturnType, typename ClassType, typename ArgType1, typename ArgType2>
-	struct TLambdaTraits<ReturnType(ClassType::*)(const ArgType1*, ArgType2&) const>
-	{
-		using TRHICommandList = ArgType2;
-		using TRDGPass = ArgType1;
-	};
-	template <typename ReturnType, typename ClassType, typename ArgType1, typename ArgType2>
-	struct TLambdaTraits<ReturnType(ClassType::*)(const ArgType1*, ArgType2&)>
-	{
-		using TRHICommandList = ArgType2;
-		using TRDGPass = ArgType1;
-	};
-	using TRHICommandList = typename TLambdaTraits<ExecuteLambdaType>::TRHICommandList;
-	using TRDGPass = typename TLambdaTraits<ExecuteLambdaType>::TRDGPass;
 
 public:
 	TRDGLambdaPass(
@@ -589,26 +652,37 @@ public:
 		const ParameterStructType* InParameterStruct,
 		ERDGPassFlags InPassFlags,
 		ExecuteLambdaType&& InExecuteLambda)
-		: FRDGPass(MoveTemp(InName), FRDGParameterStruct(InParameterStruct, InParameterMetadata), InPassFlags)
+		: FRDGPass(MoveTemp(InName), FRDGParameterStruct(InParameterStruct, InParameterMetadata), InPassFlags, ExecuteLambdaTraits::TaskMode)
 		, ExecuteLambda(MoveTemp(InExecuteLambda))
 #if RDG_ENABLE_DEBUG
 		, DebugParameterStruct(InParameterStruct)
 #endif
-	{
-		bParallelExecuteAllowed = !std::is_same_v<TRHICommandList, FRHICommandListImmediate> && !EnumHasAnyFlags(InPassFlags, ERDGPassFlags::NeverParallel);
-	}
+	{}
 
 private:
-	template<class T>
 	void ExecuteLambdaFunc(FRHIComputeCommandList& RHICmdList)
 	{
-		if constexpr (std::is_same_v<T, FRDGPass>)
+		if constexpr (ExecuteLambdaTraits::TaskMode == ERDGPassTaskMode::Async)
 		{
-			ExecuteLambda(this, static_cast<TRHICommandList&>(RHICmdList));
+			if constexpr (ExecuteLambdaTraits::bIsPassArgValid)
+			{
+				ExecuteLambda(this, FRDGAsyncTask(), static_cast<typename ExecuteLambdaTraits::TRHICommandList&>(RHICmdList));
+			}
+			else
+			{
+				ExecuteLambda(FRDGAsyncTask(), static_cast<typename ExecuteLambdaTraits::TRHICommandList&>(RHICmdList));
+			}
 		}
 		else
 		{
-			ExecuteLambda(static_cast<TRHICommandList&>(RHICmdList));
+			if constexpr (ExecuteLambdaTraits::bIsPassArgValid)
+			{
+				ExecuteLambda(this, static_cast<typename ExecuteLambdaTraits::TRHICommandList&>(RHICmdList));
+			}
+			else
+			{
+				ExecuteLambda(static_cast<typename ExecuteLambdaTraits::TRHICommandList&>(RHICmdList));
+			}
 		}
 	}
 
@@ -617,7 +691,7 @@ private:
 #if !USE_NULL_RHI
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_FRDGPass_Execute);
 		RHICmdList.SetStaticUniformBuffers(ParameterStruct.GetStaticUniformBuffers());
-		ExecuteLambdaFunc<TRDGPass>(static_cast<TRHICommandList&>(RHICmdList));
+		ExecuteLambdaFunc(static_cast<typename ExecuteLambdaTraits::TRHICommandList&>(RHICmdList));
 #else
 		checkNoEntry();
 #endif // !USE_NULL_RHI
@@ -633,10 +707,9 @@ class FRDGDispatchPass
 {
 public:
 	FRDGDispatchPass(FRDGEventName&& InName, FRDGParameterStruct InParameterStruct, ERDGPassFlags InFlags)
-		: FRDGPass(MoveTemp(InName), InParameterStruct, InFlags)
+		: FRDGPass(MoveTemp(InName), InParameterStruct, InFlags, ERDGPassTaskMode::Async)
 	{
 		bDispatchPass = 1;
-		bParallelExecuteAllowed = 1;
 	}
 
 private:
@@ -730,10 +803,9 @@ class FRDGSentinelPass final
 {
 public:
 	FRDGSentinelPass(FRDGEventName&& Name, ERDGPassFlags InPassFlagsToAdd = ERDGPassFlags::None)
-		: FRDGPass(MoveTemp(Name), FRDGParameterStruct(&EmptyShaderParameters, FEmptyShaderParameters::FTypeInfo::GetStructMetadata()), ERDGPassFlags::NeverCull | InPassFlagsToAdd) //-V1050
+		: FRDGPass(MoveTemp(Name), FRDGParameterStruct(&EmptyShaderParameters, FEmptyShaderParameters::FTypeInfo::GetStructMetadata()), ERDGPassFlags::NeverCull | InPassFlagsToAdd, ERDGPassTaskMode::Async)
 	{
 		bSentinel = 1;
-		bParallelExecuteAllowed = 1;
 	}
 
 private:

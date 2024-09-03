@@ -239,6 +239,7 @@ void EmitRDGWarning(const FString& WarningMessage)
 }
 
 bool GRDGAllowRHIAccess = false;
+bool GRDGAllowRHIAccessAsync = false;
 
 #endif
 
@@ -341,12 +342,13 @@ FAutoConsoleVariableRef CVarRDGParallelSetup(
 	TEXT(" 1: pass setup is done asynchronously (default);"),
 	ECVF_RenderThreadSafe);
 
-int32 GRDGParallelExecute = 1;
+int32 GRDGParallelExecute = 2;
 FAutoConsoleVariableRef CVarRDGParallelExecute(
 	TEXT("r.RDG.ParallelExecute"), GRDGParallelExecute,
 	TEXT("Whether to enable parallel execution of passes when supported.")
 	TEXT(" 0: off;")
-	TEXT(" 1: on (default)"),
+	TEXT(" 1: parallel with all tasks awaited)")
+	TEXT(" 2: parallel with async tasks) (default)"),
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Variable)
 	{
 		if (Variable->GetInt())
@@ -374,6 +376,14 @@ int32 GRDGParallelExecutePassMax = 32;
 FAutoConsoleVariableRef CVarRDGParallelExecutePassMax(
 	TEXT("r.RDG.ParallelExecute.PassMax"), GRDGParallelExecutePassMax,
 	TEXT("The maximum span of contiguous passes eligible for parallel execution for the span to be offloaded to a task."),
+	ECVF_RenderThreadSafe);
+
+int32 GRDGParallelExecutePassTaskModeThreshold = 0;
+FAutoConsoleVariableRef CVarRDGParallelExecutePassTaskModeThreshold(
+	TEXT("r.RDG.ParallelExecute.PassTaskModeThreshold"), GRDGParallelExecutePassTaskModeThreshold,
+	TEXT(" 0: A pass that is not marked async will mark the entire parallel pass set as awaited.")
+	TEXT(" 1: A pass that does not match the task mode of the current batch will always flush the current batch.")
+    TEXT(">1: Same as the above, but only if the current batch is larger than the threshold."),
 	ECVF_RenderThreadSafe);
 
 int32 GRDGParallelExecuteStress = 0;

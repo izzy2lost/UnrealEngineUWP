@@ -240,33 +240,9 @@ TRDGUniformBufferRef<ParameterStructType> FRDGBuilder::CreateUniformBuffer(const
 #endif // !USE_NULL_RHI
 }
 
-template <typename ExecuteLambdaType>
-FRDGPassRef FRDGBuilder::AddPass(
-	FRDGEventName&& Name,
-	ERDGPassFlags Flags,
-	ExecuteLambdaType&& ExecuteLambda)
-{
-#if !USE_NULL_RHI
-	using LambdaPassType = TRDGEmptyLambdaPass<ExecuteLambdaType>;
-
-	IF_RDG_ENABLE_DEBUG(UserValidation.ValidateAddPass(Name, Flags));
-
-	Flags |= ERDGPassFlags::NeverCull;
-
-	FlushAccessModeQueue();
-
-	LambdaPassType* Pass = Passes.Allocate<LambdaPassType>(Allocators.Root, MoveTemp(Name), Flags, MoveTemp(ExecuteLambda));
-	SetupEmptyPass(Pass);
-	return Pass;
-#else
-	checkNoEntry();
-	return nullptr;
-#endif // !USE_NULL_RHI
-}
-
 #if !USE_NULL_RHI
 template <typename ParameterStructType, typename ExecuteLambdaType>
-FRDGPassRef FRDGBuilder::AddPassInternal(
+FRDGPass* FRDGBuilder::AddPassInternal(
 	FRDGEventName&& Name,
 	const FShaderParametersMetadata* ParametersMetadata,
 	const ParameterStructType* ParameterStruct,
@@ -274,19 +250,15 @@ FRDGPassRef FRDGBuilder::AddPassInternal(
 	ExecuteLambdaType&& ExecuteLambda)
 {
 	using LambdaPassType = TRDGLambdaPass<ParameterStructType, ExecuteLambdaType>;
-
 	IF_RDG_ENABLE_DEBUG(UserValidation.ValidateAddPass(ParameterStruct, ParametersMetadata, Name, Flags));
-
 	FlushAccessModeQueue();
-
 	const TCHAR* NameString = Name.GetTCHAR();
-
 	FRDGPass* Pass = Allocators.Root.AllocNoDestruct<LambdaPassType>(
-		MoveTemp(Name),
+		Forward<FRDGEventName&&>(Name),
 		ParametersMetadata,
 		ParameterStruct,
 		OverridePassFlags(NameString, Flags),
-		MoveTemp(ExecuteLambda));
+		Forward<ExecuteLambdaType&&>(ExecuteLambda));
 
 	IF_RDG_ENABLE_DEBUG(ClobberPassOutputs(Pass));
 	Passes.Insert(Pass);
@@ -296,7 +268,27 @@ FRDGPassRef FRDGBuilder::AddPassInternal(
 #endif // !USE_NULL_RHI
 
 template <typename ExecuteLambdaType>
-FRDGPassRef FRDGBuilder::AddPass(
+FRDGPass* FRDGBuilder::AddPass(
+	FRDGEventName&& Name,
+	ERDGPassFlags Flags,
+	ExecuteLambdaType&& ExecuteLambda)
+{
+#if !USE_NULL_RHI
+	using LambdaPassType = TRDGEmptyLambdaPass<ExecuteLambdaType>;
+	IF_RDG_ENABLE_DEBUG(UserValidation.ValidateAddPass(Name, Flags));
+	Flags |= ERDGPassFlags::NeverCull;
+	FlushAccessModeQueue();
+	LambdaPassType* Pass = Passes.Allocate<LambdaPassType>(Allocators.Root, Forward<FRDGEventName&&>(Name), Flags, Forward<ExecuteLambdaType&&>(ExecuteLambda));
+	SetupEmptyPass(Pass);
+	return Pass;
+#else
+	checkNoEntry();
+	return nullptr;
+#endif // !USE_NULL_RHI
+}
+
+template <typename ExecuteLambdaType>
+FRDGPass* FRDGBuilder::AddPass(
 	FRDGEventName&& Name,
 	const FShaderParametersMetadata* ParametersMetadata,
 	const void* ParameterStruct,
@@ -304,7 +296,7 @@ FRDGPassRef FRDGBuilder::AddPass(
 	ExecuteLambdaType&& ExecuteLambda)
 {
 #if !USE_NULL_RHI
-	return AddPassInternal(Forward<FRDGEventName>(Name), ParametersMetadata, ParameterStruct, Flags, Forward<ExecuteLambdaType>(ExecuteLambda));
+	return AddPassInternal(Forward<FRDGEventName&&>(Name), ParametersMetadata, ParameterStruct, Flags, Forward<ExecuteLambdaType&&>(ExecuteLambda));
 #else
 	checkNoEntry();
 	return nullptr;
@@ -312,14 +304,14 @@ FRDGPassRef FRDGBuilder::AddPass(
 }
 
 template <typename ParameterStructType, typename ExecuteLambdaType>
-FRDGPassRef FRDGBuilder::AddPass(
+FRDGPass* FRDGBuilder::AddPass(
 	FRDGEventName&& Name,
 	const ParameterStructType* ParameterStruct,
 	ERDGPassFlags Flags,
 	ExecuteLambdaType&& ExecuteLambda)
 {
 #if !USE_NULL_RHI
-	return AddPassInternal(Forward<FRDGEventName>(Name), ParameterStructType::FTypeInfo::GetStructMetadata(), ParameterStruct, Flags, Forward<ExecuteLambdaType>(ExecuteLambda));
+	return AddPassInternal(Forward<FRDGEventName&&>(Name), ParameterStructType::FTypeInfo::GetStructMetadata(), ParameterStruct, Flags, Forward<ExecuteLambdaType&&>(ExecuteLambda));
 #else
 	checkNoEntry();
 	return nullptr;
@@ -327,7 +319,7 @@ FRDGPassRef FRDGBuilder::AddPass(
 }
 
 template <typename ParameterStructType, typename LaunchLambdaType>
-FRDGPassRef FRDGBuilder::AddDispatchPass(
+FRDGPass* FRDGBuilder::AddDispatchPass(
 	FRDGEventName&& Name,
 	const ParameterStructType* ParameterStruct,
 	ERDGPassFlags Flags,
@@ -349,11 +341,11 @@ FRDGPassRef FRDGBuilder::AddDispatchPass(
 	const TCHAR* NameString = Name.GetTCHAR();
 
 	FRDGDispatchPass* Pass = Allocators.Root.AllocNoDestruct<DispatchPassType>(
-		MoveTemp(Name),
+		Forward<FRDGEventName&&>(Name),
 		ParametersMetadata,
 		ParameterStruct,
 		OverridePassFlags(NameString, Flags),
-		MoveTemp(LaunchLambda));
+		Forward<LaunchLambdaType&&>(LaunchLambda));
 
 	IF_RDG_ENABLE_DEBUG(ClobberPassOutputs(Pass));
 	Passes.Insert(Pass);

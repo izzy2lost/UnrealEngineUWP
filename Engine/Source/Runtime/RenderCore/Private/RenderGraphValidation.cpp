@@ -50,7 +50,7 @@ void FRDGResource::ValidateRHIAccess() const
 	}
 
 	check(DebugData);
-	checkf(DebugData->bAllowRHIAccess || GRDGAllowRHIAccess,
+	checkf(DebugData->bAllowRHIAccess || GRDGAllowRHIAccess || GRDGAllowRHIAccessAsync,
 		TEXT("Accessing the RHI resource of %s at this time is not allowed. If you hit this check in pass, ")
 		TEXT("that is due to this resource not being referenced in the parameters of your pass."),
 		Name);
@@ -130,9 +130,8 @@ void FRDGUniformBuffer::MarkResourceAsUsed()
 	});
 }
 
-FRDGUserValidation::FRDGUserValidation(FRDGAllocator& InAllocator, bool bInParallelExecuteEnabled)
+FRDGUserValidation::FRDGUserValidation(FRDGAllocator& InAllocator)
 	: Allocator(InAllocator)
-	, bParallelExecuteEnabled(bInParallelExecuteEnabled)
 {
 	checkf(!GRDGBuilderActive, TEXT("Another FRDGBuilder already exists on the stack. Only one builder can be created at a time. This builder instance should be merged into the parent one."));
 	GRDGBuilderActive = true;
