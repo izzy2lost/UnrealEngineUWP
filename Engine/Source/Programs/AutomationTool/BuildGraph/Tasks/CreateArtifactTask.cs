@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
@@ -13,6 +14,7 @@ using EpicGames.Horde.Commits;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Symbols;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -78,6 +80,12 @@ namespace AutomationTool.Tasks
 		/// </summary>
 		[TaskParameter(Optional = true)]
 		public string? Metadata { get; set; }
+
+		/// <summary>
+		/// Whether to add aliases for symbol files
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public bool Symbols { get; set; }
 	}
 
 	/// <summary>
@@ -194,6 +202,69 @@ namespace AutomationTool.Tasks
 			await storage.WriteRefAsync(artifact.RefName, rootRef);
 
 			Logger.LogInformation("Uploaded artifact {ArtifactId} in {Time:n1}s", artifact.Id, timer.Elapsed.TotalSeconds);
+
+			// Tag any uploaded symbols
+			if (_parameters.Symbols)
+			{
+				foreach (FileReference file in files)
+				{
+					string? hash = await SymStore.GetHashAsync(file, Logger, default);
+					if (hash != null)
+					{
+						string path = file.MakeRelativeTo(baseDir);
+
+						FileEntry? fileEntry = await FindFileAsync(rootRef, path);
+						if (fileEntry == null)
+						{
+							Logger.LogWarning("Unable to find file {Path} in uploaded data.", path);
+						}
+						else
+						{
+							string fileName = file.GetFileName().ToUpperInvariant();
+							string alias = $"sym:{fileName}/{hash}/{fileName}";
+							Logger.LogInformation("Adding symbol alias: {Alias}", alias);
+							await storage.AddAliasAsync(alias, fileEntry.Target.Handle);
+						}
+					}
+				}
+			}
+		}
+
+		static async Task<FileEntry?> FindFileAsync(IBlobRef<DirectoryNode> rootDir, string path, CancellationToken cancellationToken = default)
+		{
+			string[] fragments = path.Split('/', '\\');
+			if (fragments.Length == 0)
+			{
+				return null;
+			}
+
+			IBlobRef<DirectoryNode> directoryRef = rootDir;
+			for (int idx = 0;; idx++)
+			{
+				DirectoryNode directory = await directoryRef.ReadBlobAsync(cancellationToken);
+				if (idx + 1 < fragments.Length)
+				{
+					if (directory.TryGetDirectoryEntry(fragments[idx], out DirectoryEntry? directoryEntry))
+					{
+						directoryRef = directoryEntry.Handle;
+					}
+					else
+					{
+						return null;
+					}
+				}
+				else
+				{
+					if (directory.TryGetFileEntry(fragments[idx], out FileEntry? fileEntry))
+					{
+						return fileEntry;
+					}
+					else
+					{
+						return null;
+					}
+				}
+			}
 		}
 
 		/// <inheritdoc/>

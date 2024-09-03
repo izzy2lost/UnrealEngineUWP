@@ -1754,28 +1754,16 @@ namespace AutomationTool
 
 		void AddArtifactFromTask(BgScriptElement element, Dictionary<string, string> arguments)
 		{
-			CreateArtifactTaskParameters parameters = new CreateArtifactTaskParameters();
-			foreach (PropertyInfo propertyInfo in typeof(CreateArtifactTaskParameters).GetProperties())
-			{
-				TaskParameterAttribute? attribute = propertyInfo.GetCustomAttribute<TaskParameterAttribute>();
-				if (attribute != null)
-				{
-					if (arguments.TryGetValue(propertyInfo.Name, out string? value))
-					{
-						propertyInfo.SetValue(parameters, value);
-					}
-					else if (!attribute.Optional)
-					{
-						LogError(element, $"Missing '{propertyInfo.Name}' property for CreateArtifact task.");
-						return;
-					}
-				}
-			}
+			arguments.TryGetValue(nameof(CreateArtifactTaskParameters.Name), out string? name);
+			arguments.TryGetValue(nameof(CreateArtifactTaskParameters.Type), out string? type);
+			arguments.TryGetValue(nameof(CreateArtifactTaskParameters.Description), out string? description);
+			arguments.TryGetValue(nameof(CreateArtifactTaskParameters.Keys), out string? keys);
+			arguments.TryGetValue(nameof(CreateArtifactTaskParameters.Metadata), out string? metadata);
 
-			string[] keys = (parameters.Keys ?? String.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-			string[] metadata = (parameters.Metadata ?? String.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+			string[] keysArray = (keys ?? String.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+			string[] metadataArray = (metadata ?? String.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-			BgArtifactDef artifact = new BgArtifactDef(parameters.Name, parameters.Type, parameters.Description, null, _enclosingNode!.Name, null, keys, metadata);
+			BgArtifactDef artifact = new BgArtifactDef(name ?? String.Empty, type, description, null, _enclosingNode!.Name, null, keysArray, metadataArray);
 			_graph.Artifacts.Add(artifact);
 		}
 
