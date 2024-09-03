@@ -497,7 +497,7 @@ public:
 	void ThrottleReleasedParticlesIfNecessary(TArray<FPBDRigidParticleHandle*>& Particles);
 
 	/** disable a particle and make sure the related internal structure are up to date */
-	void DisableParticle(FPBDRigidParticleHandle* ParticleToDisable);
+	void DisableParticle(FPBDRigidParticleHandle* ParticleToDisable, bool bRemoveFromChildrenMap = true);
 
  protected:
 
