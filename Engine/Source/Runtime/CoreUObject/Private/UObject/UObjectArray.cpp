@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "UObject/UObjectArray.h"
+#include "AutoRTFM/AutoRTFM.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/LowLevelMemStats.h"
 #include "Misc/ScopeLock.h"
@@ -68,21 +69,32 @@ void FUObjectItem::CreateStatID() const
 #if STATS
 	StatID = FDynamicStats::CreateStatId<FStatGroup_STATGROUP_UObjects>(LongName);
 #else // ENABLE_STATNAMEDEVENTS
-	UE_AUTORTFM_OPEN2
+	const auto& ConversionData = StringCast<PROFILER_CHAR>(*LongName);
+	const int32 NumStorageChars = (ConversionData.Length() + 1);	//length doesn't include null terminator
+
+	PROFILER_CHAR* const StoragePtr = new PROFILER_CHAR[NumStorageChars];
+	FMemory::Memcpy(StoragePtr, ConversionData.Get(), NumStorageChars * sizeof(PROFILER_CHAR));
+
+	bool bExchanged = AutoRTFM::Open([&]
+	{ 
+		return FPlatformAtomics::InterlockedCompareExchangePointer((void**)&StatIDStringStorage, StoragePtr, nullptr) == nullptr;
+	});
+
+	if (bExchanged)
 	{
-		const auto& ConversionData = StringCast<PROFILER_CHAR>(*LongName);
-		const int32 NumStorageChars = (ConversionData.Length() + 1);	//length doesn't include null terminator
-
-		PROFILER_CHAR* const StoragePtr = new PROFILER_CHAR[NumStorageChars];
-		FMemory::Memcpy(StoragePtr, ConversionData.Get(), NumStorageChars * sizeof(PROFILER_CHAR));
-
-		if (FPlatformAtomics::InterlockedCompareExchangePointer((void**)&StatIDStringStorage, StoragePtr, nullptr) != nullptr)
+		// If we abort, then StoragePtr will be freed so reset StatIDStringStorage.
+		// This is abort handler is popped in the destructor.
+		AutoRTFM::PushOnAbortHandler(StoragePtr, [this, StoragePtr]
 		{
-			delete[] StoragePtr;
-		}
+			FPlatformAtomics::InterlockedCompareExchangePointer((void**)&StatIDStringStorage, nullptr, StoragePtr);
+		});
+	}
+	else
+	{
+		delete[] StoragePtr;
+	}
 
-		StatID = TStatId(StatIDStringStorage);
-	};
+	StatID = TStatId(StatIDStringStorage);
 #endif
 }
 #endif

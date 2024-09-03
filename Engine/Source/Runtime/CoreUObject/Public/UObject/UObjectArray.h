@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "AutoRTFM/AutoRTFM.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "Containers/LockFreeList.h"
 #include "Misc/TransactionallySafeCriticalSection.h"
@@ -82,8 +83,11 @@ public:
 	~FUObjectItem()
 	{
 #if ENABLE_STATNAMEDEVENTS_UOBJECT
-		delete[] StatIDStringStorage;
-		StatIDStringStorage = nullptr;
+		if (PROFILER_CHAR* Storage = StatIDStringStorage)
+		{
+			AutoRTFM::PopOnAbortHandler(Storage);
+			delete[] Storage;
+		}
 #endif
 	}
 

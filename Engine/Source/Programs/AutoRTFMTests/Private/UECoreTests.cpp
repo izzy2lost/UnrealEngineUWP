@@ -3,6 +3,7 @@
 #include "Catch2Includes.h"
 #include "AutoRTFM/AutoRTFM.h"
 #include "Delegates/IDelegateInstance.h"
+#include "HAL/MallocLeakDetection.h"
 #include "HAL/ThreadSingleton.h"
 #include "Internationalization/TextCache.h"
 #include "Internationalization/TextFormatter.h"
@@ -74,6 +75,8 @@ TEST_CASE("UECore.TThreadSingleton")
 
 	SECTION("Get")
 	{
+		MALLOCLEAK_IGNORE_SCOPE(); // TThreadSingleton will appear as a leak.
+
 		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
 			{
 				TThreadSingleton<MyStruct>::Get().I = 42;
@@ -543,6 +546,7 @@ TEST_CASE("UECore.TIntrusiveReferenceController")
 
 			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
 			REQUIRE(1 == Controller->WeakReferenceCount);
+			delete Controller;
 		}
 
 		SECTION("With Commit")
@@ -853,10 +857,8 @@ TEST_CASE("UECore.FUObjectItem")
 			});
 
 		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
-		REQUIRE(nullptr != Item.StatIDStringStorage);
-		REQUIRE(Item.StatID.IsValidStat());
-
-		PROFILER_CHAR* const StatIDStringStorage = Item.StatIDStringStorage;
+		REQUIRE(nullptr == Item.StatIDStringStorage);
+		REQUIRE(!Item.StatID.IsValidStat());
 
 		// If we commit though we'll create the stat ID.
 		Result = AutoRTFM::Transact([&]
@@ -865,7 +867,7 @@ TEST_CASE("UECore.FUObjectItem")
 			});
 
 		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
-		REQUIRE(StatIDStringStorage == Item.StatIDStringStorage);
+		REQUIRE(nullptr != Item.StatIDStringStorage);
 		REQUIRE(Item.StatID.IsValidStat());
 	}
 
@@ -933,8 +935,8 @@ TEST_CASE("UECore.FUObjectItem")
 				});
 
 			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
-			REQUIRE(nullptr != Item.StatIDStringStorage);
-			REQUIRE(Item.StatID.IsValidStat());
+			REQUIRE(nullptr == Item.StatIDStringStorage);
+			REQUIRE(!Item.StatID.IsValidStat());
 		}
 
 		{
