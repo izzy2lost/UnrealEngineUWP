@@ -24,7 +24,7 @@ namespace Metasound::Engine
 		~FOperatorCacheStatTracker();
 
 		// Called when we're pre-caching an operator. Called before AddOperator.
-		void RecordPreCacheRequest(const FOperatorBuildData& BuildData, int32 NumIntancesToBuild);
+		void RecordPreCacheRequest(const FOperatorBuildData& BuildData, int32 NumInstancesToBuild, int32 NumInstancesInCache);
 		void RecordCacheEvent(const FOperatorPoolEntryID& OperatorID, bool bCacheHit, const FOperatorContext& Context);
 		void OnOperatorAdded(const FOperatorPoolEntryID& OperatorID);
 		void OnOperatorTrimmed(const FOperatorPoolEntryID& OperatorID);

@@ -47,7 +47,7 @@ namespace Metasound::Engine
 #endif // CSV_PROFILER
 	}
 
-	void FOperatorCacheStatTracker::RecordPreCacheRequest(const FOperatorBuildData& BuildData, int32 NumIntancesToBuild)
+	void FOperatorCacheStatTracker::RecordPreCacheRequest(const FOperatorBuildData& BuildData, int32 NumInstancesToBuild, int32 NumInstancesInCache)
 	{
 		if (BuildData.NumInstances <= 0)
 		{
@@ -60,14 +60,14 @@ namespace Metasound::Engine
 
 		if (FStatEntry* Entry = StatEntries.Find(EntryID))
 		{
-			Entry->NumCacheSlots += NumIntancesToBuild;
+			Entry->NumCacheSlots += NumInstancesToBuild;
 
 			// Show how much we're increasing the existing cache for this sound by.
 			UE_LOG(LogMetasoundGenerator, Log,
 				TEXT("Pre-cached Metasound: %s [Graph: %s]. Added %d instances, Total: %d."),
 				*BuildData.InitParams.MetaSoundName,
 				*Entry->GraphName.ToString(),
-				NumIntancesToBuild,
+				NumInstancesToBuild,
 				Entry->NumCacheSlots);
 		}
 		else
@@ -78,8 +78,8 @@ namespace Metasound::Engine
 			FStatEntry& StatEntry = StatEntries.Add(EntryID, FStatEntry
 			{
 				.GraphName = FName(*GraphName),
-				.NumInstancesBuilt = NumIntancesToBuild,
-				.NumCacheSlots = NumIntancesToBuild
+				.NumInstancesBuilt = NumInstancesToBuild,
+				.NumCacheSlots = NumInstancesToBuild
 			});
 
 			if (GraphName == BuildData.InitParams.MetaSoundName)
@@ -88,7 +88,7 @@ namespace Metasound::Engine
 					TEXT("Pre-cached Metasound: %s. Requested: %d, Built: %d."),
 					*BuildData.InitParams.MetaSoundName,
 					BuildData.NumInstances,
-					NumIntancesToBuild);
+					NumInstancesToBuild);
 			}
 			else
 			{
@@ -98,7 +98,48 @@ namespace Metasound::Engine
 					*BuildData.InitParams.MetaSoundName,
 					*StatEntry.GraphName.ToString(),
 					BuildData.NumInstances,
-					NumIntancesToBuild);
+					NumInstancesToBuild);
+			}
+		}
+
+		// HACK: Validate the num of tracked cache slots/available instances matches the pool.
+		// This is a temporary work-around to an existing issue:
+		// 
+		// 1. A sound is pre-cached and the operator is added to the pool.
+		// 2. That sound is played so the operator is claimed from the cache.
+		// 3. The pre-cached operators are removed from the cached (eg. due to match ending), but the sound is still playing.
+		// 4. The operator that was claimed is now returned to the cache.
+		// 5. The sounds are pre-cached again (eg. new match starting). <-- This is where the mismatch occurs.
+		// 6. The operator is claimed from the cache, but the stat tracker's number of available slots doesn't match the operator pool, so we can end up with negative available.
+		// 
+		// Further detail:
+		// - In step 3, when removing an operator from the cache we remove the corresponding stat entry.
+		// - In step 4 when the operator is returned, the operator pool will add it as a new operator, but since our entry was removed we don't update that it's back in the cache.
+		// - During step 5 when we pre-cache again, let's say 1 instance is pre-cached.
+		//		- If touchExisting is set, we'll see we already have 1 instance in the operator pool so we don't build any additional ones. We inform the stat tracker a pre-cache request
+		//		  happened but no slots are added since numInstancesToBuild is 0. So we've added the stat entry but it has 0 cache slots which doesn't match the pool.
+		//		  Furthermore, since no instances were built, AddOperatorInternal is never called so we also don't increment NumAvailableInCache.
+		//		- If touchExisting isn't set we have a similar issue. Newly cached instances will be correctly tracked by the tracker but we'll always be off by however many were already in the pool.
+		// - This ultimately results in NumAvailableInCache going negative as there are more instances of the operator in the pool than we're aware of.
+		{
+			FStatEntry& StatEntry = StatEntries[EntryID];
+			const int32 ExpectedCacheSlots = NumInstancesToBuild + NumInstancesInCache;
+			// We only correct if expected is greater since the num in the cache is affected by the number currently in use.
+			// So if an operator was claimed then we pre-cached that same operator, NumInCache would be less than the actual value once it's returned.
+			if (ExpectedCacheSlots > StatEntry.NumCacheSlots)
+			{
+				const int32 NumMissing = ExpectedCacheSlots - StatEntry.NumCacheSlots;
+				UE_LOG(LogMetasoundGenerator, Log,
+					TEXT("FOperatorCacheStatTracker detected a cache slot mismatch for %s. Have %d, expected %d. Updating to expected value."),
+					*StatEntry.GraphName.ToString(),
+					StatEntry.NumCacheSlots,
+					ExpectedCacheSlots);
+
+				StatEntry.NumCacheSlots = ExpectedCacheSlots;
+				for (int32 Index = 0; Index < NumMissing; ++Index)
+				{
+					OnOperatorAdded(EntryID);
+				}
 			}
 		}
 	}
@@ -123,11 +164,11 @@ namespace Metasound::Engine
 		if (FStatEntry* StatEntry = StatEntries.Find(OperatorID))
 		{
 			--StatEntry->NumAvailableInCache;
-			check(StatEntry->NumAvailableInCache >= 0);
+			ensure(StatEntry->NumAvailableInCache >= 0);
 		}
 
 		--NumInCache;
-		check(NumInCache >= 0);
+		ensure(NumInCache >= 0);
 	}
 
 	void FOperatorCacheStatTracker::OnOperatorAdded(const FOperatorPoolEntryID& OperatorID)
@@ -150,8 +191,8 @@ namespace Metasound::Engine
 		{
 			--StatEntry->NumCacheSlots;
 			--StatEntry->NumAvailableInCache;
-			check(StatEntry->NumCacheSlots >= 0);
-			check(StatEntry->NumAvailableInCache >= 0);
+			ensure(StatEntry->NumCacheSlots >= 0);
+			ensure(StatEntry->NumAvailableInCache >= 0);
 
 			if (StatEntry->NumCacheSlots == 0)
 			{
@@ -167,7 +208,7 @@ namespace Metasound::Engine
 		}
 
 		--NumInCache;
-		check(NumInCache >= 0);
+		ensure(NumInCache >= 0);
 	}
 
 	void FOperatorCacheStatTracker::OnOperatorRemoved(const FOperatorPoolEntryID& OperatorID)
@@ -181,7 +222,7 @@ namespace Metasound::Engine
 
 		StatEntries.Remove(OperatorID);
 
-		check(NumInCache >= 0);
+		ensure(NumInCache >= 0);
 	}
 
 	void FOperatorCacheStatTracker::OnCsvProfileEndFrame()
@@ -206,8 +247,8 @@ namespace Metasound::Engine
 			}
 
 			// Record cache utilization stats.
+			if (ensure(Entry.NumCacheSlots > 0))
 			{
-				check(Entry.NumCacheSlots > 0);
 				const int32 NumAvailableIncache = Entry.NumAvailableInCache;
 				const int32 NumUsed = Entry.NumCacheSlots - NumAvailableIncache;
 				const float UtilizationRatio = static_cast<float>(NumUsed) / static_cast<float>(Entry.NumCacheSlots);

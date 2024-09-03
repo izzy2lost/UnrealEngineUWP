@@ -500,7 +500,8 @@ namespace Metasound
 			if (TSharedPtr<FOperatorPool> OperatorPool = WeakPoolPtr.Pin();
 				OperatorPool.IsValid())
 			{
-				OperatorPool->CacheStatTracker->RecordPreCacheRequest(*PreCacheData, NumToBuild);
+				const int32 NumInCache = OperatorPool->GetNumCachedOperatorsWithID(EntryID);
+				OperatorPool->CacheStatTracker->RecordPreCacheRequest(*PreCacheData, NumToBuild, NumInCache);
 			}
 #endif // METASOUND_OPERATORCACHEPROFILER_ENABLED
 
