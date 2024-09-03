@@ -155,7 +155,7 @@ public:
 	 * @param Box     Bounding Box containing the scene to be captured
 	 * @param Options Defines the Camera viewing directions into the box and other Camera parameters
 	 */
-	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSampling")
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSampling", meta = (AutoCreateRefTerm = "Options"))
 	static void
 	ComputeRenderCaptureCamerasForBox(
 		TArray<FGeometryScriptRenderCaptureCamera>& Cameras,

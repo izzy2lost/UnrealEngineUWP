@@ -568,7 +568,7 @@ public:
 	 * @param Options		Options controlling the convex decomposition
 	 * @return				The resulting convex hulls as simple collision shapes
 	 */
-	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision")
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision", meta = (AutoCreateRefTerm = "Options"))
 	static UPARAM(DisplayName = "Convex Decomposition") FGeometryScriptSimpleCollision ComputeNavigableConvexDecomposition(
 		const UDynamicMesh* TargetMesh,
 		const FNavigableConvexDecompositionOptions& Options,
