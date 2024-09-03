@@ -68,7 +68,7 @@ TEST_CASE("Parse::Value::ToBuffer", "[Parse][Smoke]")
 
 	SECTION("Key may appear mutiple times")
 	{
-		const TCHAR* Line = TEXT("rep=a1 rep=b2 rep=c3");
+		const TCHAR* Line = TEXT("rep=a1 rep=\"b2\" rep=c3");
 		const TCHAR* ExpectedResults[] = { TEXT("a1"), TEXT("b2"), TEXT("c3") };
 
 		const TCHAR* Cursor = Line;

@@ -298,6 +298,11 @@ bool FParse::Value(
 
 	if (OptStreamGotTo)
 	{
+		if (bArgumentsQuoted && *ValueEndInStream == '"')
+		{
+			++ValueEndInStream;
+		}
+
 		*OptStreamGotTo = ValueEndInStream;
 	}
 
