@@ -162,7 +162,7 @@ FTestDriver::~FTestDriver()
 
 bool FTestDriver::AddPipeline(FTestPipeline&& Pipeline, const FPipelineTestContext& TestContext)
 {
-	SubsystemType OnlineSubsystem = UE::Online::FOnlineServicesRegistry::Get().GetNamedServicesInstance(TestContext.InitOptions.ServiceType, NAME_None);
+	SubsystemType OnlineSubsystem = UE::Online::FOnlineServicesRegistry::Get().GetNamedServicesInstance(TestContext.InitOptions.ServiceType, NAME_None, NAME_None);
 	if (OnlineSubsystem == nullptr)
 	{
 		return false;

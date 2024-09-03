@@ -76,7 +76,7 @@ EOnlineServices OnlineTestBase::GetServiceType() const
 
 SubsystemType OnlineTestBase::GetSubsystem() const
 {
-	return UE::Online::FOnlineServicesRegistry::Get().GetNamedServicesInstance(ServiceType, NAME_None);
+	return UE::Online::FOnlineServicesRegistry::Get().GetNamedServicesInstance(ServiceType, NAME_None, NAME_None);
 }
 
 bool OnlineTestBase::DeleteAccounts(int32 TemplateRequestedNum) const
@@ -90,7 +90,7 @@ bool OnlineTestBase::DeleteAccounts(int32 TemplateRequestedNum) const
 
 void OnlineTestBase::DestroyCurrentServiceModule() const
 {
-	UE::Online::FOnlineServicesRegistry::Get().DestroyNamedServicesInstance(ServiceType, NAME_None);
+	UE::Online::FOnlineServicesRegistry::Get().DestroyNamedServicesInstance(ServiceType, NAME_None, NAME_None);
 }
 
 bool OnlineTestBase::ResetAccountStatus(int32 TemplateRequestedNum) const
