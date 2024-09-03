@@ -463,9 +463,6 @@ void SContentBrowser::Construct( const FArguments& InArgs, const FName& InInstan
 			.OnItemsActivated(this, &SContentBrowser::OnItemsActivated)
 			.OnGetItemContextMenu(this, &SContentBrowser::GetItemContextMenu, EContentBrowserViewContext::AssetView)
 			.OnItemRenameCommitted(this, &SContentBrowser::OnItemRenameCommitted)
-			.OnShouldFilterItem(bPrivateContentFilterEnabled
-				? FOnShouldFilterItem::CreateSP(this, &SContentBrowser::HandlePrivateContentFilter)
-				: FOnShouldFilterItem())
 			.FrontendFilters(FrontendFilters)
 			.TextFilter(TextFilter)
 			.ShowRedirectors_Lambda([this]() { return ContentBrowserUtils::ShouldShowRedirectors(FilterListPtr); })
@@ -3685,20 +3682,6 @@ void SContentBrowser::OnConsoleVariableChanged()
 
 void SContentBrowser::UpdatePrivateContentFeatureEnabled(bool bUpdateFilterIfChanged)
 {
-	static const IConsoleVariable* EnablePublicAssetFeatureCVar =
-		IConsoleManager::Get().FindConsoleVariable(TEXT("AssetTools.EnablePublicAssetFeature"));
-	const bool bShouldEnablePrivateContentFilter = EnablePublicAssetFeatureCVar
-		&& EnablePublicAssetFeatureCVar->GetBool();
-	if (bPrivateContentFilterEnabled != bShouldEnablePrivateContentFilter)
-	{
-		if (bUpdateFilterIfChanged)
-		{
-			AssetViewPtr->SetShouldFilterItem(bShouldEnablePrivateContentFilter
-				? FOnShouldFilterItem::CreateSP(this, &SContentBrowser::HandlePrivateContentFilter)
-				: FOnShouldFilterItem());
-		}
-		bPrivateContentFilterEnabled = bShouldEnablePrivateContentFilter;
-	}
 }
 
 FReply SContentBrowser::BackClicked()
@@ -4411,25 +4394,6 @@ void SContentBrowser::HandleItemDataUpdated(TArrayView<const FContentBrowserItem
 			break;
 		}
 	}
-}
-
-bool SContentBrowser::HandlePrivateContentFilter(const FContentBrowserItem& AssetItem)
-{
-	static const IConsoleVariable* EnablePublicAssetFeatureCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("AssetTools.EnablePublicAssetFeature"));
-	if (!EnablePublicAssetFeatureCVar || !EnablePublicAssetFeatureCVar->GetBool())
-	{
-		return false;
-	}
-
-	FAssetData ItemAssetData;
-	if ((AssetItem.Legacy_TryGetAssetData(ItemAssetData) && (ItemAssetData.PackageFlags & PKG_NotExternallyReferenceable)))
-	{
-		const FNameBuilder AssetItemFolderPath(AssetItem.GetVirtualPath());
-
-		return !FContentBrowserSingleton::Get().IsShowingPrivateContent(AssetItemFolderPath);
-	}
-
-	return false;
 }
 
 FText SContentBrowser::GetSearchAssetsHintText() const
