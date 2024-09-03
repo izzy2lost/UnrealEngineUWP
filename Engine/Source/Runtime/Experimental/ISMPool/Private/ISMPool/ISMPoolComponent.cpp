@@ -41,7 +41,7 @@ FAutoConsoleVariableRef CVarISMPoolComponentFreeListTargetSize(
 
 // Keep copies of all custom instance data for restoration on readding an instance.
 static bool GShadowCopyCustomData = false;
-FAutoConsoleVariableRef CVarShadowCopyCustomData(
+FAutoConsoleVariableRef CVarISMPoolShadowCopyCustomData(
 	TEXT("r.ISMPool.ShadowCopyCustomData"),
 	GShadowCopyCustomData,
 	TEXT("Keeps a copy of custom instance data so it can be restored if the instance is removed and readded."));

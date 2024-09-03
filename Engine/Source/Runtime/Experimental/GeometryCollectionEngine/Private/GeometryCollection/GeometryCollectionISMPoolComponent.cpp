@@ -14,8 +14,8 @@
 // This can remove the high cost associated with repeated registration, scene proxy creation and mesh draw command creation.
 // But it can also have a high memory overhead since the ISMs retain hard references to their static meshes.
 static bool GComponentKeepAlive = false; 
-FAutoConsoleVariableRef CVarISMPoolComponentKeepAlive(
-	TEXT("r.ISMPool.ComponentKeepAlive"),
+FAutoConsoleVariableRef CVarGCISMPoolComponentKeepAlive(
+	TEXT("r.GC.ISMPool.ComponentKeepAlive"),
 	GComponentKeepAlive,
 	TEXT("Keep ISM components alive when all their instances are removed."));
 
@@ -26,23 +26,23 @@ FAutoConsoleVariableRef CVarISMPoolComponentKeepAlive(
 // But there is more CPU cost to recycling a component then to simply keeping it alive because scene proxy creation and mesh draw command caching isn't cheap.
 // The component memory cost is kept bounded when compared to keeping components alive.
 static bool GComponentRecycle = true;
-FAutoConsoleVariableRef CVarISMPoolComponentRecycle(
-	TEXT("r.ISMPool.ComponentRecycle"),
+FAutoConsoleVariableRef CVarGCISMPoolComponentRecycle(
+	TEXT("r.GC.ISMPool.ComponentRecycle"),
 	GComponentRecycle,
 	TEXT("Recycle ISM components to a free list for reuse when all their instances are removed."));
 
 // Target free list size when recycling ISM components.
 // We try to maintain a pool of free components for fast allocation, but want to clean up when numbers get too high.
 static int32 GComponentFreeListTargetSize = 50;
-FAutoConsoleVariableRef CVarISMPoolComponentFreeListTargetSize(
-	TEXT("r.ISMPool.ComponentFreeListTargetSize"),
+FAutoConsoleVariableRef CVarGCISMPoolComponentFreeListTargetSize(
+	TEXT("r.GC.ISMPool.ComponentFreeListTargetSize"),
 	GComponentFreeListTargetSize,
 	TEXT("Target size for number of ISM components in the recycling free list."));
 
 // Keep copies of all custom instance data for restoration on readding an instance.
 static bool GShadowCopyCustomData = false;
 FAutoConsoleVariableRef CVarShadowCopyCustomData(
-	TEXT("r.ISMPool.ShadowCopyCustomData"),
+	TEXT("r.GC.ISMPool.ShadowCopyCustomData"),
 	GShadowCopyCustomData,
 	TEXT("Keeps a copy of custom instance data so it can be restored if the instance is removed and readded."));
 
