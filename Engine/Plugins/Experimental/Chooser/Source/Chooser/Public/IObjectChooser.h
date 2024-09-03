@@ -64,12 +64,19 @@ struct CHOOSER_API FChooserEvaluationContext
 		AddStructParam(ObjectParams.Last());
 	}
 
+	// Add a struct view Parameter to the Context
+	// the struct will be referred to by reference, and so must have a lifetime that is longer than this context
+	void AddStructViewParam(FStructView Param)
+	{
+		Params.Add(Param);
+	}
+	
 	// Add a struct Parameter to the Context
 	// the struct will be referred to by reference, and so must have a lifetime that is longer than this context
 	template <class T>
 	void AddStructParam(T& Param)
 	{
-		Params.Add(FStructView::Make(Param));
+		AddStructViewParam(FStructView::Make(Param));
 	}
 
 	#if CHOOSER_DEBUGGING_ENABLED

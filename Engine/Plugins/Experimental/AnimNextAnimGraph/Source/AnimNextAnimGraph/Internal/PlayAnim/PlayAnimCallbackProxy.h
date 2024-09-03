@@ -36,6 +36,16 @@ class UPlayAnimCallbackProxy : public UObject
 		FAnimNextPlayAnimBlendSettings BlendInSettings = FAnimNextPlayAnimBlendSettings(),
 		FAnimNextPlayAnimBlendSettings BlendOutSettings = FAnimNextPlayAnimBlendSettings());
 
+	// Called to perform the query internally
+	UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true"))
+	static ANIMNEXTANIMGRAPH_API UPlayAnimCallbackProxy* CreateProxyObjectForPlayAsset(
+		class UAnimNextComponent* AnimNextComponent,
+		FName SlotName,
+		UObject* Asset,
+		const FInstancedStruct& Payload,
+		FAnimNextPlayAnimBlendSettings BlendInSettings = FAnimNextPlayAnimBlendSettings(),
+		FAnimNextPlayAnimBlendSettings BlendOutSettings = FAnimNextPlayAnimBlendSettings());
+	
 public:
 	//~ Begin UObject Interface
 	ANIMNEXTANIMGRAPH_API virtual void BeginDestroy() override;
@@ -46,7 +56,16 @@ protected:
 	ANIMNEXTANIMGRAPH_API void OnPlayAnimInterrupted(const UE::AnimNext::FPlayAnimRequest& Request);
 	ANIMNEXTANIMGRAPH_API void OnPlayAnimBlendingOut(const UE::AnimNext::FPlayAnimRequest& Request);
 
-	// Attempts to play a montage with the specified settings. Returns whether it started or not.
+	// Attempts to play an object with the specified payload. Returns whether it started or not.
+	ANIMNEXTANIMGRAPH_API bool Play(
+		class UAnimNextComponent* AnimNextComponent,
+		FName SlotName,
+		UObject* Object,
+		FInstancedStruct&& Payload,
+		const UE::AnimNext::FPlayAnimBlendSettings& BlendInSettings,
+		const UE::AnimNext::FPlayAnimBlendSettings& BlendOutSettings);
+	
+	// Attempts to play an animation with the specified settings. Returns whether it started or not.
 	ANIMNEXTANIMGRAPH_API bool Play(
 		class UAnimNextComponent* AnimNextComponent,
 		FName SlotName,

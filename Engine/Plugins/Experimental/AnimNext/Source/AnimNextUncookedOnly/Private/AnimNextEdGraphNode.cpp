@@ -193,7 +193,7 @@ void UAnimNextEdGraphNode::BuildExposeVariablesContextMenu(UToolMenu* SubMenu)
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 
 	FAssetPickerConfig AssetPickerConfig;
-	AssetPickerConfig.Filter.ClassPaths.Add(UAnimNextAnimationGraph::StaticClass()->GetClassPathName());
+	AssetPickerConfig.Filter.ClassPaths.Add(UAnimNextDataInterface::StaticClass()->GetClassPathName());
 	AssetPickerConfig.InitialAssetViewType = EAssetViewType::List;
 	AssetPickerConfig.AssetShowWarningText = LOCTEXT("NoAssetsWithPublicVariablesMessage", "No animation graphs with public variables found");
 	AssetPickerConfig.OnAssetSelected = FOnAssetSelected::CreateLambda([VMController, VMNode](const FAssetData& InAssetData)
@@ -203,7 +203,7 @@ void UAnimNextEdGraphNode::BuildExposeVariablesContextMenu(UToolMenu* SubMenu)
 		FString DefaultValue;
 		FRigVMTrait_AnimNextPublicVariables DefaultTrait;
 		FRigVMTrait_AnimNextPublicVariables NewTrait;
-		UAnimNextRigVMAsset* Asset = CastChecked<UAnimNextRigVMAsset>(InAssetData.GetAsset());
+		UAnimNextDataInterface* Asset = CastChecked<UAnimNextDataInterface>(InAssetData.GetAsset());
 		NewTrait.Asset = Asset;
 		const FInstancedPropertyBag& PublicVariableDefaults = Asset->GetPublicVariableDefaults();
 		TConstArrayView<FPropertyBagPropertyDesc> Descs = PublicVariableDefaults.GetPropertyBagStruct()->GetPropertyDescs();
@@ -234,9 +234,6 @@ void UAnimNextEdGraphNode::BuildExposeVariablesContextMenu(UToolMenu* SubMenu)
 				}
 			}
 		}
-
-		// TODO: filter already-added traits
-
 		return true;
 	});
 

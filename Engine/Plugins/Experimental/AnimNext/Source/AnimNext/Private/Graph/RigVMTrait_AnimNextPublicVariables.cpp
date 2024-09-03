@@ -2,6 +2,7 @@
 
 #include "Graph/RigVMTrait_AnimNextPublicVariables.h"
 #include "AnimNextRigVMAsset.h"
+#include "Logging/StructuredLog.h"
 #if WITH_EDITOR
 #include "RigVMModel/RigVMController.h"
 #include "RigVMModel/RigVMPin.h"
@@ -59,3 +60,43 @@ bool FRigVMTrait_AnimNextPublicVariables::ShouldCreatePinForProperty(const FProp
 		VariableNames.Contains(InProperty->GetFName());
 }
 #endif
+
+namespace UE::AnimNext
+{
+
+const UAnimNextDataInterface* FPublicVariablesTraitToDataInterfaceHostAdapter::GetDataInterface() const
+{
+	return Trait.Asset;
+}
+
+uint8* FPublicVariablesTraitToDataInterfaceHostAdapter::GetMemoryForVariable(int32 InVariableIndex, FName InVariableName, const FProperty* InVariableProperty) const
+{
+	// Note we dont use InVariableIndex here as we may not have bound all variables in an interface
+
+	int32 TraitVariableIndex = Trait.VariableNames.Find(InVariableName);
+	if(TraitVariableIndex == INDEX_NONE)
+	{
+		// Variable not bound here
+		return nullptr;
+	}
+
+	if(!TraitScope.GetAdditionalMemoryHandles().IsValidIndex(TraitVariableIndex))
+	{
+		// Memory handle is out of bounds
+		// If this ensure fires then we have a mismatch between the variable names and the compiled memory handles, indicating a bug with the
+		// compilation of trait additional memory handles (programmatic pins)
+		ensure(false);
+		return nullptr;
+	}
+
+	const FRigVMMemoryHandle& MemoryHandle = TraitScope.GetAdditionalMemoryHandles()[TraitVariableIndex];
+	if(InVariableProperty->GetClass() != MemoryHandle.GetProperty()->GetClass())
+	{
+		UE_LOGFMT(LogAnimation, Error, "FPublicVariablesTraitToDataInterfaceHostAdapter::GetMemoryForVariable: Mismatched variable types: {Name}:{Type} vs {OtherType}", InVariableName, InVariableProperty->GetFName(), MemoryHandle.GetProperty()->GetFName());
+		return nullptr;
+	}
+
+	return const_cast<uint8*>(MemoryHandle.GetData());
+}
+
+}

@@ -8,9 +8,11 @@
 #include "TraitCore/TraitEvent.h"
 #include "TraitInterfaces/ITimeline.h"
 #include "PlayAnim/PlayAnimStatus.h"
+#include "StructUtils/PropertyBag.h"
 
 #include "PlayAnimRequest.generated.h"
 
+class UAnimNextDataInterface;
 class FReferenceCollector;
 class UAnimNextModule;
 class UAnimNextComponent;
@@ -58,6 +60,33 @@ struct FAnimNextPlayAnimBlendSettings
 };
 
 /**
+ * PlayAnim payload
+ *
+ * Encapsulates the data interface used to play a simple animation
+ */
+USTRUCT(BlueprintType)
+struct FAnimNextPlayAnimPayload
+{
+	GENERATED_BODY()
+
+	// The animation object to play with this request
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayAnim")
+	TObjectPtr<UAnimSequence> AnimationObject;
+
+	// The play rate of the request
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayAnim")
+	double PlayRate = 1.0f;
+
+	// The timeline start position of the request
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayAnim")
+	double StartPosition = 0.0f;
+
+	// Whether to loop the animation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayAnim")
+	bool IsLooping = false;
+};
+
+/**
  * PlayAnim Request Arguments
  *
  * Encapsulates the parameters required to initiate a Play animation request.
@@ -71,18 +100,6 @@ struct FAnimNextPlayAnimRequestArgs
 	UPROPERTY()
 	FName SlotName;
 
-	// The animation object to play with this request
-	UPROPERTY()
-	TObjectPtr<UAnimSequence> AnimationObject;
-
-	// The play rate of the request
-	UPROPERTY()
-	float PlayRate = 1.0f;
-
-	// The timeline start position of the request
-	UPROPERTY()
-	float StartPosition = 0.0f;
-
 	// The blend settings to use when blending in
 	UPROPERTY()
 	FAnimNextPlayAnimBlendSettings BlendInSettings;
@@ -90,6 +107,15 @@ struct FAnimNextPlayAnimRequestArgs
 	// The blend settings to use when blending out (if not interrupted)
 	UPROPERTY()
 	FAnimNextPlayAnimBlendSettings BlendOutSettings;
+
+	// Object to 'play'.
+	// The animation graph to be instantiated for this request will be chosen by interrogating this object's class.
+	UPROPERTY()
+	TObjectPtr<UObject> Object;
+
+	// Payload that will be applied to the animation graph's variables via its data interfaces.
+	UPROPERTY()
+	FInstancedStruct Payload;
 };
 
 namespace UE::AnimNext
@@ -130,13 +156,16 @@ namespace UE::AnimNext
 		FAnimNextOnPlayAnimBlendingOut OnBlendingOut;
 
 		// Sends this request to the specified component and it will attempt to play with the requested arguments
-		bool Play(const FPlayAnimRequestArgs& InRequestArgs, UAnimNextComponent* InComponent);
+		bool Play(FPlayAnimRequestArgs&& InRequestArgs, UAnimNextComponent* InComponent);
 
 		// Interrupts this request and request that we transition to the source input on the playing slot
 		void Stop();
 
 		// Returns the arguments this request is playing
 		const FPlayAnimRequestArgs& GetArgs() const;
+
+		// Returns the arguments this request is playing
+		FPlayAnimRequestArgs& GetMutableArgs();
 
 		// Returns the request status
 		EPlayAnimStatus GetStatus() const;

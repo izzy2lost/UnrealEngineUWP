@@ -25,6 +25,16 @@ void RigVMPropertyUtils::GetTypeFromProperty(const FProperty* InProperty, FName&
 		OutTypeName = TEXT("int64");
 		OutTypeObject = nullptr;
 	}
+	else if (CastField<FUInt32Property>(InProperty))
+	{
+		OutTypeName = TEXT("uint32");
+		OutTypeObject = nullptr;
+	}
+	else if (CastField<FUInt64Property>(InProperty))
+	{
+		OutTypeName = TEXT("uint64");
+		OutTypeObject = nullptr;
+	}
 	else if (CastField<FFloatProperty>(InProperty))
 	{
 		OutTypeName = TEXT("float");

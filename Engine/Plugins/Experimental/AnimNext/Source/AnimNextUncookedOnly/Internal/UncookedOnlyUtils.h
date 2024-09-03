@@ -101,7 +101,7 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 {
 	static void CompileVariables(UAnimNextRigVMAsset* InAsset);
 
-	static URigVMGraph* CompileVariableBindings(const FRigVMCompileSettings& InSettings, UAnimNextRigVMAsset* InAsset);
+	static void CompileVariableBindings(const FRigVMCompileSettings& InSettings, UAnimNextRigVMAsset* InAsset, TArray<URigVMGraph*>& OutGraphs);
 
 	static void RecreateVM(UAnimNextRigVMAsset* InAsset);
 
@@ -111,7 +111,8 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	template<typename AssetType, typename EditorDataType>
 	static AssetType* GetAsset(EditorDataType* InEditorData)
 	{
-		return CastChecked<AssetType>(GetAsset(const_cast<EditorDataType*>(InEditorData)));
+		using NonConstEditorDataType = std::remove_const_t<EditorDataType>;
+		return CastChecked<AssetType>(GetAsset(const_cast<NonConstEditorDataType*>(InEditorData)));
 	}
 
 	// Get the corresponding editor data from an asset (casts the editor data appropriately)
@@ -120,7 +121,8 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	template<typename EditorDataType, typename AssetType>
 	static EditorDataType* GetEditorData(AssetType* InAsset)
 	{
-		return CastChecked<EditorDataType>(GetEditorData(const_cast<AssetType*>(InAsset)));
+		using NonConstAssetType = std::remove_const_t<AssetType>;
+		return CastChecked<EditorDataType>(GetEditorData(const_cast<NonConstAssetType*>(InAsset)));
 	}
 
 	/**

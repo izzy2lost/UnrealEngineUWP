@@ -6,6 +6,7 @@
 #include "AnimNextModule.h"
 #include "ModuleHandle.h"
 #include "Component/AnimNextPublicVariablesProxy.h"
+#include "DataInterface/AnimNextDataInterfaceInstance.h"
 #include "Module/ModuleTickFunction.h"
 #include "TraitCore/TraitEvent.h"
 #include "TraitCore/TraitEventList.h"
@@ -45,7 +46,7 @@ namespace UE::AnimNext::Private
 
 // Root memory owner of a parameterized schedule 
 USTRUCT()
-struct FAnimNextModuleInstance
+struct FAnimNextModuleInstance : public FAnimNextDataInterfaceInstance
 {
 	GENERATED_BODY()
 
@@ -83,8 +84,8 @@ struct FAnimNextModuleInstance
 	void OnModuleCompiled();
 #endif
 
-	UPROPERTY(Transient)
-	TObjectPtr<UAnimNextModule> Module = nullptr;
+	// Get the module that this instance represents
+	ANIMNEXT_API const UAnimNextModule* GetModule() const;
 
 	// Object this entry is bound to
 	UPROPERTY(Transient)
@@ -108,13 +109,8 @@ struct FAnimNextModuleInstance
 	// Lock to ensure event list actions are thread safe
 	FRWLock EventListLock;
 
-	// Execute context for the RigVM instance to execute with
-	FRigVMExtendedExecuteContext ExtendedExecuteContext;
-
-	// Variables state
-	FInstancedPropertyBag Variables;
-
 	// Proxy public variables
+	UPROPERTY(Transient)
 	FAnimNextPublicVariablesProxy PublicVariablesProxy;
 
 	enum class ERunState : uint8

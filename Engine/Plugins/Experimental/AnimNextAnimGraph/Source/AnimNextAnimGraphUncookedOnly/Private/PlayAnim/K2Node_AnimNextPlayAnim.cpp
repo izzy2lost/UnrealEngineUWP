@@ -1,30 +1,29 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PlayAnim/K2Node_PlayAnim.h"
+#include "PlayAnim/K2Node_AnimNextPlayAnim.h"
 
 #include "PlayAnim/PlayAnimCallbackProxy.h"
 
-#define LOCTEXT_NAMESPACE "K2Node_PlayAnim"
+#define LOCTEXT_NAMESPACE "K2Node_AnimNextPlayAnim"
 
-UK2Node_PlayAnim::UK2Node_PlayAnim(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
+UK2Node_AnimNextPlayAnim::UK2Node_AnimNextPlayAnim()
 {
 	ProxyFactoryFunctionName = GET_FUNCTION_NAME_CHECKED(UPlayAnimCallbackProxy, CreateProxyObjectForPlayAnim);
 	ProxyFactoryClass = UPlayAnimCallbackProxy::StaticClass();
 	ProxyClass = UPlayAnimCallbackProxy::StaticClass();
 }
 
-FText UK2Node_PlayAnim::GetTooltipText() const
+FText UK2Node_AnimNextPlayAnim::GetTooltipText() const
 {
-	return LOCTEXT("K2Node_PlayAnim_Tooltip", "Plays an Animation object on an AnimNextComponent");
+	return LOCTEXT("K2Node_PlayAnim_Tooltip", "Plays an Animation Sequence on an AnimNextComponent");
 }
 
-FText UK2Node_PlayAnim::GetNodeTitle(ENodeTitleType::Type TitleType) const
+FText UK2Node_AnimNextPlayAnim::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	return LOCTEXT("PlayAnim", "Play Animation");
 }
 
-FText UK2Node_PlayAnim::GetMenuCategory() const
+FText UK2Node_AnimNextPlayAnim::GetMenuCategory() const
 {
 	return LOCTEXT("PlayAnimCategory", "Animation|AnimNext");
 }

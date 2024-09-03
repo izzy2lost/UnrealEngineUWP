@@ -14,6 +14,7 @@ struct FAnimNextModuleInstance;
 namespace UE::AnimNext
 {
 	struct FProxyVariablesContext;
+	struct FModuleEventTickFunction;
 }
 
 namespace UE::AnimNext::UncookedOnly
@@ -31,6 +32,7 @@ protected:
 	friend class UAnimNextVariableEntry;
 	friend class UAnimNextRigVMAssetEditorData;
 	friend struct FAnimNextModuleInstance;
+	friend struct UE::AnimNext::FModuleEventTickFunction;
 	friend struct UE::AnimNext::FProxyVariablesContext;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 

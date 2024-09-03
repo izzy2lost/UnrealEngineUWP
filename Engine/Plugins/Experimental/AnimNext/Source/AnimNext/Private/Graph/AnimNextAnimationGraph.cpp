@@ -57,7 +57,7 @@ void UAnimNextAnimationGraph::AllocateInstanceImpl(FAnimNextModuleInstance* InMo
 	{
 		TSharedPtr<FAnimNextGraphInstance> InstanceImpl = MakeShared<FAnimNextGraphInstance>();
 
-		InstanceImpl->AnimationGraph = this;
+		InstanceImpl->DataInterface = this;
 		InstanceImpl->ModuleInstance = InModuleInstance;
 		InstanceImpl->ParentGraphInstance = ParentGraphInstance;
 		InstanceImpl->EntryPoint = EntryPoint;

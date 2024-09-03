@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Graph/AnimNextGraphEntryPoint.h"
-#include "AnimNextRigVMAsset.h"
+#include "DataInterface/AnimNextDataInterface.h"
 #include "Graph/RigUnit_AnimNextGraphRoot.h"
 #include "RigVMCore/RigVM.h"
 #include "TraitCore/TraitPtr.h"
@@ -56,7 +56,7 @@ namespace UE::AnimNext::Graph
 
 // A user-created collection of animation logic & data
 UCLASS(BlueprintType)
-class ANIMNEXT_API UAnimNextAnimationGraph : public UAnimNextRigVMAsset
+class ANIMNEXT_API UAnimNextAnimationGraph : public UAnimNextDataInterface
 {
 	GENERATED_BODY()
 

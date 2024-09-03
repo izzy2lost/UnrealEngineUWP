@@ -309,6 +309,9 @@ bool FAnimNextParamType::IsValidObject() const
 			const UObject* ResolvedObject = ValueTypeObject.Get();
 			return ResolvedObject && ResolvedObject->IsA(UClass::StaticClass());
 		}
+	case EValueType::UInt32:
+	case EValueType::UInt64:
+		return false;
 	}
 }
 
@@ -373,6 +376,10 @@ size_t FAnimNextParamType::GetValueTypeSize() const
 		return sizeof(TSubclassOf<UObject>);
 	case EValueType::SoftClass:
 		return sizeof(TSoftClassPtr<UObject>);
+	case EValueType::UInt32:
+		return sizeof(uint32);
+	case EValueType::UInt64:
+		return sizeof(uint64);
 	default:
 		break;
 	}
@@ -442,6 +449,10 @@ size_t FAnimNextParamType::GetValueTypeAlignment() const
 		return alignof(TSubclassOf<UObject>);
 	case EValueType::SoftClass:
 		return alignof(TSoftClassPtr<UObject>);
+	case EValueType::UInt32:
+		return alignof(uint32);
+	case EValueType::UInt64:
+		return alignof(uint64);
 	default:
 		break;
 	}
@@ -555,6 +566,12 @@ void FAnimNextParamType::ToString(FStringBuilderBase& InStringBuilder) const
 			{
 				InStringBuilder.Append(TEXT("Error: TSoftClassPtr of Unknown Class"));
 			}
+			break;
+		case EValueType::UInt32:
+			InStringBuilder.Append(TEXT("uint32"));
+			break;
+		case EValueType::UInt64:
+			InStringBuilder.Append(TEXT("uint64"));
 			break;
 		default:
 			InStringBuilder.Append(TEXT("Error: Unknown value type"));

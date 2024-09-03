@@ -44,3 +44,16 @@ struct FTestTraitSharedData : public FAnimNextTraitSharedData
 	GENERATE_TRAIT_LATENT_PROPERTIES(FTestTraitSharedData, TRAIT_LATENT_PROPERTIES_ENUMERATOR)
 	#undef TRAIT_LATENT_PROPERTIES_ENUMERATOR
 };
+
+USTRUCT()
+struct FTestDerivedVector : public FVector
+{
+	GENERATED_BODY()
+	
+	FTestDerivedVector()
+		: FVector(FVector::OneVector)
+	{}
+
+	UPROPERTY()
+	int32 W = 1;
+};

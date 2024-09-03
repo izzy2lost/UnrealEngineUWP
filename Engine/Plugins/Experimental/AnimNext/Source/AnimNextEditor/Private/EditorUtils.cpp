@@ -314,51 +314,6 @@ void FUtils::GetFilteredVariableTypeTree(TArray<TSharedPtr<UEdGraphSchema_K2::FP
 	}
 };
 
-
-FName FUtils::GetNewParameterName(FName InBaseName, const FAssetData& InAssetData, TArrayView<FName> InExistingNames)
-{
-	auto NameExists = [&InExistingNames, &InAssetData](FName InName)
-	{
-		for(FName AdditionalName : InExistingNames)
-		{
-			if(AdditionalName == InName)
-			{
-				return true;
-			}
-		}
-
-		if(DoesParameterNameExistInAsset(InName, InAssetData))
-		{
-			return true;
-		}
-		
-		return false;
-	};
-
-	if(!NameExists(InBaseName))
-	{
-		// Early out - name is valid
-		return InBaseName;
-	}
-
-	int32 PostFixIndex = 0;
-	TStringBuilder<128> StringBuilder;
-	while(true)
-	{
-		StringBuilder.Reset();
-		InBaseName.GetDisplayNameEntry()->AppendNameToString(StringBuilder);
-		StringBuilder.Appendf(TEXT("_%d"), PostFixIndex++);
-
-		FName TestName(StringBuilder.ToString()); 
-		if(!NameExists(TestName))
-		{
-			return TestName;
-		}
-	}
-
-	return NAME_None;
-}
-
 bool FUtils::IsValidParameterNameString(FStringView InStringView, FText& OutErrorText)
 {
 	// See if this can be represented as an FName
@@ -403,14 +358,6 @@ bool FUtils::IsValidParameterName(const FName InName, FText& OutErrorText)
 
 	return true;
 }
-
-bool FUtils::DoesParameterNameExistInAsset(const FName InName, const FAssetData& InAsset)
-{
-	FAnimNextAssetRegistryExports Exports;
-	UncookedOnly::FUtils::GetExportedVariablesForAsset(InAsset, Exports);
-	return Exports.Variables.ContainsByPredicate([InName](const FAnimNextAssetRegistryExportedVariable& Entry) { return Entry.Name == InName; });
-}
-
 
 }
 

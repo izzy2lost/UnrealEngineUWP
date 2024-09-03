@@ -16,11 +16,13 @@ struct FRigUnit_AnimNextRunAnimationGraph;
 class UAnimNextAnimationGraph;
 class FRigVMTraitScope;
 struct FRigVMExtendedExecuteContext;
+struct FAnimNextExecuteContext;
 
 namespace UE::AnimNext
 {
 	struct FExecutionContext;
 	struct FGraphInstanceComponent;
+	class IDataInterfaceHost;
 }
 
 using GraphInstanceComponentMapType = TMap<FName, TSharedPtr<UE::AnimNext::FGraphInstanceComponent>>;
@@ -90,15 +92,15 @@ struct ANIMNEXT_API FAnimNextGraphInstancePtr
 	// Whether public variables require a binding
 	bool RequiresPublicVariableBinding() const;
 
+	// Bind the variables in the supplied traits in scope to their respective public variables
+	void BindPublicVariables(TConstArrayView<UE::AnimNext::IDataInterfaceHost*> InHosts) const;
+
 private:
 	// Returns a pointer to the specified component, or nullptr if not found
 	UE::AnimNext::FGraphInstanceComponent* TryGetComponent(int32 ComponentNameHash, FName ComponentName) const;
 
 	// Adds the specified component and returns a reference to it
 	UE::AnimNext::FGraphInstanceComponent& AddComponent(int32 ComponentNameHash, FName ComponentName, TSharedPtr<UE::AnimNext::FGraphInstanceComponent>&& Component);
-
-	// Bind the variables in the supplied traits in scope to their respective public variables
-	void BindPublicVariables(TConstArrayView<FRigVMTraitScope> InTraitScopes) const;
 
 	// Indirection to hide implementation details and to fix the graph instance into a single memory location
 	TSharedPtr<FAnimNextGraphInstance> Impl;

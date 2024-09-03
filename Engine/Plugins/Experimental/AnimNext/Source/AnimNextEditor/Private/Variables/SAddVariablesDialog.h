@@ -4,30 +4,31 @@
 
 #include "Param/ParamType.h"
 #include "Widgets/SWindow.h"
-#include "AssetRegistry/AssetData.h"
-#include "Widgets/Views/SListView.h"
+#include "Widgets/Views/STreeView.h"
 
+class UAnimNextDataInterface;
 class SWrapBox;
 class UAnimNextModule_EditorData;
+class UAnimNextRigVMAssetEditorData;
 
 namespace UE::AnimNext::Editor
 {
 
+struct FDataInterfaceToAdd
+{
+	FDataInterfaceToAdd(UAnimNextDataInterface* InDataInterface)
+		: DataInterface(InDataInterface)
+	{}
+
+	UAnimNextDataInterface* DataInterface;
+};
+
 struct FVariableToAdd
 {
-	FVariableToAdd() = default;
-
 	FVariableToAdd(const FAnimNextParamType& InType, FName InName)
 		: Type(InType)
 		, Name(InName)
 	{}
-
-	bool IsValid() const
-	{
-		return Name != NAME_None && Type.IsValid(); 
-	}
-
-	bool IsValid(FText& OutReason) const;
 
 	// Type
 	FAnimNextParamType Type;
@@ -62,44 +63,98 @@ public:
 	/** Initial variable type to use */
 	SLATE_ARGUMENT(FAnimNextParamType, InitialParamType)
 
+	/** Whether we should add an initial variable */
+	SLATE_ARGUMENT(bool, ShouldAddInitialVariable)
+
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const FAssetData& InAsset);
+	void Construct(const FArguments& InArgs, const TArray<UAnimNextRigVMAssetEditorData*>& InAssetEditorDatas);
 
-	bool ShowModal(TArray<FVariableToAdd>& OutVariables);
+	bool ShowModal(TArray<FVariableToAdd>& OutVariables, TArray<FDataInterfaceToAdd>& OutDataInterfaces);
+
+	enum class EEntryType : uint8
+	{
+		Variable,
+		DataInterface,
+	};
+
+	struct FEntry
+	{
+		FEntry(EEntryType InEntryType, const TSharedRef<SAddVariablesDialog>& InDialog)
+			: Dialog(InDialog)
+			, EntryType(InEntryType)
+		{}
+
+		virtual ~FEntry() = default;
+
+		virtual bool IsValid(FText& OutReason) const = 0;
+
+		TWeakPtr<SAddVariablesDialog> Dialog;
+		TWeakPtr<FEntry> Parent;
+		TArray<TSharedRef<FEntry>> Children;
+		EEntryType EntryType;
+		bool bIsNew = true;
+	};
 
 private:
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
+
+	void AddDataInterface(UAnimNextDataInterface* InDataInterface);
 
 	void AddEntry(const FAnimNextParamType& InParamType = FAnimNextParamType());
 
 	void RefreshEntries();
 
-	struct FVariableToAddEntry : FVariableToAdd
+	void RefreshCanCreate();
+
+	void DeleteSelectedItems();
+
+	struct FDataInterfaceToAddEntry : FEntry, FDataInterfaceToAdd
 	{
-		FVariableToAddEntry() = default;
+		FDataInterfaceToAddEntry(UAnimNextDataInterface* InDataInterface, const TSharedRef<SAddVariablesDialog>& InDialog)
+			: FEntry(EEntryType::DataInterface, InDialog)
+			, FDataInterfaceToAdd(InDataInterface)
+		{
+		}
 
-		FVariableToAddEntry(const FAnimNextParamType& InType, FName InName)
-			: FVariableToAdd(InType, InName)
-		{}
-
-		bool bIsNew = true;
+		virtual bool IsValid(FText& OutReason) const override;
 	};
 
-	TSharedRef<ITableRow> HandleGenerateRow(TSharedRef<FVariableToAddEntry> InEntry, const TSharedRef<STableViewBase>& InOwnerTable);
+	struct FVariableToAddEntry : FEntry, FVariableToAdd
+	{
+		FVariableToAddEntry(const FAnimNextParamType& InType, FName InName, const TSharedRef<SAddVariablesDialog>& InDialog)
+			: FEntry(EEntryType::Variable, InDialog)
+			, FVariableToAdd(InType, InName)
+		{}
 
-	TSharedRef<SWidget> HandleGetAddVariableMenuContent(TSharedPtr<FVariableToAddEntry> InEntry);
+		virtual bool IsValid(FText& OutReason) const override;
+	};
+
+	TSharedRef<ITableRow> HandleGenerateRow(TSharedRef<FEntry> InEntry, const TSharedRef<STableViewBase>& InOwnerTable);
+
+	void HandleGetChildren(TSharedRef<FEntry> InEntry, TArray<TSharedRef<FEntry>>& OutChildren);
 	
+	TSharedRef<SWidget> HandleGetAddVariableMenuContent(TSharedPtr<FEntry> InEntry);
+
+	void GetPendingNamesRecursive(UAnimNextRigVMAssetEditorData* InEditorData, TArray<FName>& OutPendingNames) const;
+
+	void GetPendingNames(TArray<FName>& OutPendingNames) const;
+
 private:
 	friend class SVariableToAdd;
 
-	TSharedPtr<SListView<TSharedRef<FVariableToAddEntry>>> EntriesList;
+	TSharedPtr<STreeView<TSharedRef<FEntry>>> EntriesTree;
 
-	TArray<TSharedRef<FVariableToAddEntry>> Entries;
+	// Root entries of the tree
+	TArray<TSharedRef<FEntry>> RootEntries;
 
 	FOnFilterVariableType OnFilterVariableType;
 
-	FAssetData Asset;
+	TArray<UAnimNextRigVMAssetEditorData*> AssetEditorDatas;
+
+	FText CreateErrorMessage;
+
+	bool bCanCreateVariables = false;
 
 	bool bOKPressed = false;
 };

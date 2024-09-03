@@ -7,6 +7,7 @@
 #include "Curves/CurveFloat.h"
 #include "Module/AnimNextModule.h"
 #include "Entries/AnimNextAnimationGraphEntry.h"
+#include "Entries/AnimNextDataInterfaceEntry.h"
 #include "Graph/AnimNextAnimationGraph.h"
 #include "Entries/AnimNextEventGraphEntry.h"
 #include "Entries/AnimNextVariableEntry.h"
@@ -688,6 +689,7 @@ TConstArrayView<TSubclassOf<UAnimNextRigVMAssetEntry>> UAnimNextAnimationGraph_E
 		UAnimNextAnimationGraphEntry::StaticClass(),
 		UAnimNextEventGraphEntry::StaticClass(),	// TODO: remove when assets are reworked post-refactor
 		UAnimNextVariableEntry::StaticClass(),
+		UAnimNextDataInterfaceEntry::StaticClass(),
 	};
 
 	return Classes;

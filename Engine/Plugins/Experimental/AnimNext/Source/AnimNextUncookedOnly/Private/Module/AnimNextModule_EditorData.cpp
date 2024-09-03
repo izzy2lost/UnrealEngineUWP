@@ -9,12 +9,14 @@
 #include "Entries/AnimNextAnimationGraphEntry.h"
 #include "Entries/AnimNextEventGraphEntry.h"
 #include "AnimNextEventGraphSchema.h"
+#include "Entries/AnimNextDataInterfaceEntry.h"
 #include "Entries/AnimNextVariableEntry.h"
 #include "Graph/AnimNextAnimationGraphSchema.h"
 #include "RigVMModel/Nodes/RigVMAggregateNode.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/LinkerLoad.h"
+#include "Variables/AnimNextUniversalObjectLocatorBindingData.h"
 
 void UAnimNextModule_EditorData::RecompileVM()
 {
@@ -169,6 +171,7 @@ TConstArrayView<TSubclassOf<UAnimNextRigVMAssetEntry>> UAnimNextModule_EditorDat
 		UAnimNextAnimationGraphEntry::StaticClass(),	// TEMP: Remove this once we have ported all old data
 		UAnimNextEventGraphEntry::StaticClass(),
 		UAnimNextVariableEntry::StaticClass(),
+		UAnimNextDataInterfaceEntry::StaticClass(),
 	};
 	
 	return Classes;
@@ -178,10 +181,18 @@ void UAnimNextModule_EditorData::GetProgrammaticGraphs(const FRigVMCompileSettin
 {
 	using namespace UE::AnimNext::UncookedOnly;
 
-	URigVMGraph* BindingsGraph = FUtils::CompileVariableBindings(InSettings, FUtils::GetAsset<UAnimNextModule>(this));
-	if(BindingsGraph)
-	{
-		OutGraphs.Add(BindingsGraph);
-	}
+	FUtils::CompileVariableBindings(InSettings, FUtils::GetAsset<UAnimNextModule>(this), OutGraphs);
 }
 
+void UAnimNextModule_EditorData::CustomizeNewAssetEntry(UAnimNextRigVMAssetEntry* InNewEntry) const
+{
+	Super::CustomizeNewAssetEntry(InNewEntry);
+	
+	UAnimNextVariableEntry* VariableEntry = Cast<UAnimNextVariableEntry>(InNewEntry);
+	if(VariableEntry == nullptr)
+	{
+		return;
+	}
+
+	VariableEntry->SetBindingType(FAnimNextUniversalObjectLocatorBindingData::StaticStruct(), false);
+}

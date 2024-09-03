@@ -24,6 +24,10 @@
 		{
 			"Name": "Chooser",
 			"Enabled": true
+		},
+		{
+			"Name": "ControlRig",
+			"Enabled": true
 		}
 	],
 	"Modules" :
@@ -32,6 +36,6 @@
 			"Name" : "AnimNextChooser",
 			"Type" : "Runtime",
 			"LoadingPhase" : "Default"
-		},
+		}
 	]
 }

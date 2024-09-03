@@ -59,8 +59,7 @@ void UAnimNextWorldSubsystem::AddReferencedObjects(UObject* InThis, FReferenceCo
 	UAnimNextWorldSubsystem* This = CastChecked<UAnimNextWorldSubsystem>(InThis);
 	for(FAnimNextModuleInstance& Instance : This->Instances)
 	{
-		Collector.AddReferencedObject(Instance.Module);
-		Collector.AddReferencedObject(Instance.Object);
+		Collector.AddPropertyReferences(FAnimNextModuleInstance::StaticStruct(), &Instance, InThis);
 	}
 }
 
@@ -211,7 +210,7 @@ void UAnimNextWorldSubsystem::QueueTaskHandle(UE::AnimNext::FModuleHandle InOutH
 		}
 		else
 		{
-			UE_LOGFMT(LogAnimation, Warning, "QueueTask: Could not find event '{EventName}' in module '{ModuleName}'", InModuleEventName, Instance.Module->GetName());
+			UE_LOGFMT(LogAnimation, Warning, "QueueTask: Could not find event '{EventName}' in module '{ModuleName}'", InModuleEventName, Instance.GetDataInterfaceName());
 		}
 	}
 }
@@ -225,7 +224,7 @@ void UAnimNextWorldSubsystem::OnModuleCompiled(UAnimNextModule* InModule)
 
 	for(FAnimNextModuleInstance& Instance : Instances)
 	{
-		if(Instance.Module == InModule)
+		if(Instance.GetModule() == InModule)
 		{
 			Instance.OnModuleCompiled();
 		}

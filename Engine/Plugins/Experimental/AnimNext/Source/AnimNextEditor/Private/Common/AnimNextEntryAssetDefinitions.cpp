@@ -18,8 +18,14 @@ FText UAssetDefinition_AnimNextAnimationGraphEntry::GetObjectDisplayNameText(UOb
 
 FText UAssetDefinition_AnimNextEventGraphEntry::GetObjectDisplayNameText(UObject* Object) const
 {
-	UAnimNextRigVMAssetEntry* Parameter = CastChecked<UAnimNextRigVMAssetEntry>(Object);
-	return Parameter->GetDisplayName();
+	UAnimNextRigVMAssetEntry* Variable = CastChecked<UAnimNextRigVMAssetEntry>(Object);
+	return Variable->GetDisplayName();
+}
+
+FText UAssetDefinition_AnimNextDataInterfaceEntry::GetObjectDisplayNameText(UObject* Object) const
+{
+	UAnimNextDataInterfaceEntry* DataInterface = CastChecked<UAnimNextDataInterfaceEntry>(Object);
+	return DataInterface->GetDisplayName();
 }
 
 #undef LOCTEXT_NAMESPACE

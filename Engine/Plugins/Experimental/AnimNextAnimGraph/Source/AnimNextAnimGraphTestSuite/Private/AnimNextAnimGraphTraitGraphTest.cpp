@@ -5,11 +5,14 @@
 #include "AnimNextRuntimeTest.h"
 #include "AnimNextTest.h"
 #include "AssetToolsModule.h"
+#include "IAnimNextRigVMExportInterface.h"
 #include "UncookedOnlyUtils.h"
+#include "Animation/AnimSequence.h"
 #include "TraitCore/TraitRegistry.h"
 #include "TraitInterfaces/IEvaluate.h"
 #include "TraitInterfaces/IUpdate.h"
 #include "Editor/Transactor.h"
+#include "Entries/AnimNextVariableEntry.h"
 #include "Graph/AnimNextAnimationGraph_EditorData.h"
 #include "Graph/AnimNextAnimationGraph.h"
 #include "Graph/AnimNextAnimationGraphFactory.h"
@@ -618,5 +621,300 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 
 	return true;
 }
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextRuntimeTest_Variables, "Animation.AnimNext.Runtime.Graph.Variables", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FAnimationAnimNextRuntimeTest_Variables::RunTest(const FString& InParameters)
+{
+	using namespace UE::AnimNext;
+
+	{
+		UFactory* GraphFactory = NewObject<UAnimNextAnimationGraphFactory>();
+		UAnimNextAnimationGraph* AnimationGraph = CastChecked<UAnimNextAnimationGraph>(GraphFactory->FactoryCreateNew(UAnimNextAnimationGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+		UE_RETURN_ON_ERROR(AnimationGraph != nullptr, "FAnimationAnimNextRuntimeTest_Variables -> Failed to create animation graph");
+
+		auto AddPublicVariable = [this](UAnimNextAnimationGraph* InAnimationGraph, FName InName, const auto& InValue)
+		{
+			using ValueType = std::remove_reference_t<decltype(InValue)>;
+			FAnimNextParamType Type = FAnimNextParamType::GetType<ValueType>();
+			UAnimNextVariableEntry* VariableEntry = UAnimNextRigVMAssetLibrary::AddVariable(InAnimationGraph, InName, Type.GetValueType(), Type.GetContainerType(), Type.GetValueTypeObject(), TEXT(""), false, false);
+			UE_RETURN_ON_ERROR(VariableEntry != nullptr, "FAnimationAnimNextRuntimeTest_Variables::AddPublicVariable -> Failed to create variable");
+			VariableEntry->SetExportAccessSpecifier(EAnimNextExportAccessSpecifier::Public, false);
+			UE_RETURN_ON_ERROR(VariableEntry->SetDefaultValue(InValue, false), "FAnimationAnimNextRuntimeTest_Variables::AddPublicVariable -> Failed to set variable default value");
+			return true;
+		};
+
+		AddPublicVariable(AnimationGraph, "Bool", true);
+		AddPublicVariable(AnimationGraph, "Byte", (uint8)42);
+		AddPublicVariable(AnimationGraph, "Int32", (int32)-4679222);
+		AddPublicVariable(AnimationGraph, "UInt32", (uint32)3415919103);
+		AddPublicVariable(AnimationGraph, "Int64", (int64)-3415919105);
+		AddPublicVariable(AnimationGraph, "UInt64", (uint64)34159191067);
+		AddPublicVariable(AnimationGraph, "Float", 1.0f);
+		AddPublicVariable(AnimationGraph, "Double", 1.0);
+		AddPublicVariable(AnimationGraph, "Name", FName("Test"));
+		AddPublicVariable(AnimationGraph, "String", FString("Test"));
+		AddPublicVariable(AnimationGraph, "Text", NSLOCTEXT("Tests", "Test", "Test"));
+		AddPublicVariable(AnimationGraph, "Enum", EPropertyBagPropertyType::Double);
+		AddPublicVariable(AnimationGraph, "Struct", FVector::OneVector);
+		AddPublicVariable(AnimationGraph, "DerivedStruct", FTestDerivedVector());
+		AddPublicVariable(AnimationGraph, "Object", UAnimNextDataInterface::StaticClass()->GetDefaultObject<UAnimNextDataInterface>());
+		AddPublicVariable(AnimationGraph, "SoftObject", FSoftObjectPath(UAnimNextDataInterface::StaticClass()->GetDefaultObject<UAnimNextDataInterface>()));
+		AddPublicVariable(AnimationGraph, "Class", UAnimNextDataInterface::StaticClass());
+		AddPublicVariable(AnimationGraph, "SoftClass", FSoftClassPath(UAnimNextDataInterface::StaticClass()));
+
+		FAnimNextGraphInstancePtr GraphInstance;
+		AnimationGraph->AllocateInstance(GraphInstance);
+
+		// Bool/Integers + conversions
+		{
+			// Gets
+			bool TestBool = false;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Bool", TestBool) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestBool == true, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			uint8 TestByte = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Byte", TestByte) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestByte == 42, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			int32 TestInt32 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Int32", TestInt32) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestInt32 == -4679222, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			uint32 TestUInt32 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("UInt32", TestUInt32) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestUInt32 == 3415919103, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			int64 TestInt64 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Int64", TestInt64) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestInt64 == -3415919105, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			uint64 TestUInt64 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("UInt64", TestUInt64) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestUInt64 == 34159191067, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			// Conversions
+
+			// Bool
+			TestByte = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Bool", TestByte) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestByte == 1, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestInt32 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Bool", TestInt32) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestInt32 == 1, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestUInt32 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Bool", TestUInt32) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestUInt32 == 1, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestInt64 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Bool", TestInt64) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestInt64 == 1, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestUInt64 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Bool", TestUInt64) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestUInt64 == 1, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			// Byte
+			TestBool = false;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Byte", TestBool) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestBool == true, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestInt32 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Byte", TestInt32) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestInt32 == 42, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestUInt32 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Byte", TestUInt32) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestUInt32 == 42, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestInt64 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Byte", TestInt64) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestInt64 == 42, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestUInt64 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Byte", TestUInt64) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestUInt64 == 42, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			// Int32
+			TestBool = false;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Int32", TestBool) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestBool == true, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestByte = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Int32", TestByte) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestByte == 202/*(uint8)-4679222*/, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestUInt32 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Int32", TestUInt32) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestUInt32 == 4290288074/*(uint32)-4679222*/, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestInt64 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Int32", TestInt64) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestInt64 == -4679222, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestUInt64 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Int32", TestUInt64) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestUInt64 == 4290288074/*(uint64)-4679222*/, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			// Uint32
+			TestBool = false;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("UInt32", TestBool) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestBool == true, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestByte = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("UInt32", TestByte) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestByte == 255/*(uint8)3415919103*/, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestInt32 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("UInt32", TestInt32) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestInt32 == -879048193/*(int32)3415919103*/, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestInt64 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("UInt32", TestInt64) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestInt64 == 3415919103, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestUInt64 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("UInt32", TestUInt64) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestUInt64 == 3415919103, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			// Int64
+			TestBool = false;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Int64", TestBool) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestBool == true, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestByte = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Int64", TestByte) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestByte == 255/*(uint8)-3415919105*/, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestInt32 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Int64", TestInt32) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestInt32 == 879048191/*(int32)-3415919105*/, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestUInt32 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Int64", TestUInt32) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestUInt32 == 879048191/*(uint32)-3415919105*/, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestUInt64 = 0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Int64", TestUInt64) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestUInt64 == 18446744070293632511ull/*(uint64)-3415919105*/, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+		}
+
+		// Float/double + conversions
+		{
+			// Gets
+			float TestFloat = 0.0f;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Float", TestFloat) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestFloat == 1.0f, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			double TestDouble = 0.0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Double", TestDouble) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestDouble == 1.0, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			// Conversions
+			TestDouble = 0.0f;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Float", TestDouble) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestDouble == 1.0f, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			TestFloat = 0.0;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Double", TestFloat) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestFloat == 1.0, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+		}
+		
+		FName TestFName = NAME_None;
+		UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Name", TestFName) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+		UE_RETURN_ON_ERROR(TestFName == "Test", "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+		FString TestString;
+		UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("String", TestString) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+		UE_RETURN_ON_ERROR(TestString == "Test", "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+		FText TestText;
+		UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Text", TestText) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+		UE_RETURN_ON_ERROR(TestText.EqualTo(NSLOCTEXT("Tests", "Test", "Test")), "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+		// Enums
+		{
+			EPropertyBagPropertyType TestEnum = EPropertyBagPropertyType::None;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Enum", TestEnum) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestEnum == EPropertyBagPropertyType::Double, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			// Test mismatched enum fails
+			EPropertyBagContainerType MismatchedEnum = EPropertyBagContainerType::None;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Enum", MismatchedEnum) != EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable succeeded");
+		}
+
+		// Structs
+		{
+			FVector TestStruct = FVector::ZeroVector;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Struct", TestStruct) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestStruct == FVector::OneVector, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			// Test conversion from base -> derived fails 
+			FTestDerivedVector TestDerived;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Struct", TestDerived) != EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable succeeded");
+
+			// Test conversion from derived -> base
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("DerivedStruct", TestStruct) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestStruct == FVector::OneVector, "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+		}
+
+		// Objects
+		{
+			UAnimNextDataInterface* TestObject = nullptr;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Object", TestObject) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestObject == UAnimNextDataInterface::StaticClass()->GetDefaultObject<UAnimNextDataInterface>(), "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			// Test unrelated object fails
+			UAnimSequence* TestAnimSequence = nullptr;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Object", TestAnimSequence) != EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable succeeded");
+
+			// Test Derived -> Base succeeds
+			UObject* BaseObject = nullptr;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Object", BaseObject) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(BaseObject == UAnimNextDataInterface::StaticClass()->GetDefaultObject<UAnimNextDataInterface>(), "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			// Test Base -> Derived fails
+			UAnimNextAnimationGraph* DerivedObject = nullptr;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Object", DerivedObject) != EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable succeeded");
+		}
+
+		FSoftObjectPath TestSoftObjectPath;
+		UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("SoftObject", TestSoftObjectPath) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+		UE_RETURN_ON_ERROR(TestSoftObjectPath == FSoftObjectPath(UAnimNextDataInterface::StaticClass()->GetDefaultObject<UAnimNextDataInterface>()), "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+		// Classes
+		{
+			UClass* TestClass = nullptr;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Class", TestClass) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(TestClass == UAnimNextDataInterface::StaticClass(), "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+
+			// Test unrelated class fails
+			TSubclassOf<UAnimSequence> TestUnrelatedSubclassOf;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Class", TestUnrelatedSubclassOf) != EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable succeeded");
+
+			// Test Derived -> Base succeeds
+			TSubclassOf<UObject> BaseSubclassOf;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Class", BaseSubclassOf) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+			UE_RETURN_ON_ERROR(BaseSubclassOf == UAnimNextDataInterface::StaticClass(), "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+
+			// Test Base -> Derived fails
+			TSubclassOf<UAnimNextAnimationGraph> DerivedSubclassOf;
+			UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("Class", DerivedSubclassOf) != EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable succeeded");
+		}
+
+		FSoftClassPath TestSoftClassPath;
+		UE_RETURN_ON_ERROR(GraphInstance.GetImpl()->GetVariable("SoftClass", TestSoftClassPath) == EPropertyBagResult::Success, "FAnimationAnimNextRuntimeTest_Variables -> GetVariable failed");
+		UE_RETURN_ON_ERROR(TestSoftClassPath == FSoftClassPath(UAnimNextDataInterface::StaticClass()), "FAnimationAnimNextRuntimeTest_Variables -> Variable value did not match");
+	}
+
+	Tests::FUtils::CleanupAfterTests();
+
+	return true;
+}
+
 
 #endif

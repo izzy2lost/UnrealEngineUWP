@@ -3,10 +3,13 @@
 #include "PlayAnim/PlayAnimSlotTrait.h"
 
 #include "Animation/AnimSequence.h"
+#include "DataInterface/AnimNextDataInterfaceHost.h"
+#include "DataInterface/DataInterfaceStructAdapter.h"
 #include "TraitCore/ExecutionContext.h"
 #include "TraitCore/NodeInstance.h"
 #include "TraitInterfaces/ITimeline.h"
 #include "Graph/AnimNextGraphInstance.h"
+#include "Logging/StructuredLog.h"
 #include "Module/ModuleEvents.h"
 
 namespace UE::AnimNext
@@ -159,13 +162,19 @@ namespace UE::AnimNext
 			if (Request)
 			{
 				// This is a new pending request, lookup the sub-graph to use with our chooser and the desired animation object
+
+				// TODO: Rather than this built-in choosing logic, this could be implemented by a new optional trait:
+				// - Implement some new trait that converts an event payload's object into a graph + payload struct for variable binding
+				// - Could possibly remove Object from FAnimNextPlayAnimRequestArgs, or AnimationObject from FAnimNextPlayAnimPayload, as they are duplicated
+				// - Call this trait's interface here and use the resulting animation graph (binding variables in OnBlendInitiated)
+				// - Reentrancy needs to handle 'same graph, different parameters'
 				const FAnimNextPlayAnimRequestArgs& RequestArgs = Request->GetArgs();
-				if (RequestArgs.AnimationObject)
+				if (RequestArgs.Object)
 				{
 					if (const UChooserTable* Chooser = SharedData->GetSubGraphChooser(Binding))
 					{
 						FAnimNextPlayAnimChooserParameters ChooserParameters;
-						ChooserParameters.AnimationObjectType = RequestArgs.AnimationObject->GetClass();
+						ChooserParameters.AnimationObjectType = RequestArgs.Object->GetClass();
 
 						FChooserEvaluationContext ChooserContext;
 						ChooserContext.AddStructParam(ChooserParameters);
@@ -376,27 +385,9 @@ namespace UE::AnimNext
 				SlotRequest.AnimationGraph->AllocateInstance(Binding.GetTraitPtr().GetNodeInstance()->GetOwner(), SlotRequest.GraphInstance, EntryPoint);
 				SlotRequest.ChildPtr = SlotRequest.GraphInstance.GetGraphRootPtr();
 
-				// Setup our graph parameters
-				const FAnimNextPlayAnimRequestArgs& RequestArgs = SlotRequest.Request->GetArgs();
-
-				const FString SubGraphPath = SlotRequest.AnimationGraph->GetPathName();
-
-				const FName AnimationObjectName(FString::Printf(TEXT("%s:AnimationObject"), *SubGraphPath));
-				const FName StartPositionName(FString::Printf(TEXT("%s:StartPosition"), *SubGraphPath));
-				const FName PlayRateName(FString::Printf(TEXT("%s:PlayRate"), *SubGraphPath));
-				const FName IsLoopingName(FString::Printf(TEXT("%s:IsLooping"), *SubGraphPath));
-
-				FInstancedPropertyBag SubGraphParameters;
-				SubGraphParameters.AddProperty(AnimationObjectName, EPropertyBagPropertyType::Object, UAnimSequence::StaticClass());
-				SubGraphParameters.SetValueObject(AnimationObjectName, RequestArgs.AnimationObject);
-				SubGraphParameters.AddProperty(StartPositionName, EPropertyBagPropertyType::Double);
-				SubGraphParameters.SetValueFloat(StartPositionName, RequestArgs.StartPosition);
-				SubGraphParameters.AddProperty(PlayRateName, EPropertyBagPropertyType::Double);
-				SubGraphParameters.SetValueFloat(PlayRateName, RequestArgs.PlayRate);
-				SubGraphParameters.AddProperty(IsLoopingName, EPropertyBagPropertyType::Bool);
-				SubGraphParameters.SetValueBool(IsLoopingName, false);
-
-				// TODO: forwarding variables to playanim 
+				// Note: args are mutable here as bindings allow writes!
+				FDataInterfaceStructAdapter VariableBinding(SlotRequest.AnimationGraph, SlotRequest.Request->GetMutableArgs().Payload);
+				SlotRequest.GraphInstance.BindPublicVariables({ &VariableBinding });
 
 				// TODO: Validate that our child implements the ITimeline interface
 

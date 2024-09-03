@@ -66,10 +66,17 @@ protected:
 
 	struct FBindingGraphFragmentArgs
 	{
+		// The event (e.g. FRigUnit_AnimNextExecuteBindings) that is currently being processed
+		UScriptStruct* Event;
+		// All inputs, corresponding to variables
 		TConstArrayView<FBindingGraphInput> Inputs;
+		// Controller to use for instantiation 
 		URigVMController* Controller;
+		// Graph to instantiate nodes into
 		URigVMGraph* BindingGraph;
+		// The exec pin of the last node that was instantiated, for chaining 
 		URigVMPin* ExecTail;
+		// The current spawn location, useful for making user-readable graphs
 		FVector2D CurrentLocation;
 	};
 	

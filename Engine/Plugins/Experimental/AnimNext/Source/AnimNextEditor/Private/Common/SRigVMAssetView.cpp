@@ -442,6 +442,7 @@ void SRigVMAssetView::HandleAssetModified(UAnimNextRigVMAssetEditorData* InEdito
 
 	switch (InType)
 	{
+	case EAnimNextEditorDataNotifType::UndoRedo:
 	case EAnimNextEditorDataNotifType::EntryAdded:
 	case EAnimNextEditorDataNotifType::EntryRemoved:
 		RequestRefresh();
@@ -594,7 +595,7 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 					AssetEntry->MarkPackageDirty();
 
 					// Ensure that default values get picked up and forwarded to compiler
-					EditorData->BroadcastModified(EAnimNextEditorDataNotifType::PropertyChanged, AssetEntry);
+					EditorData->BroadcastModified(EAnimNextEditorDataNotifType::VariableDefaultValueChanged, AssetEntry);
 				}
 			}
 		}

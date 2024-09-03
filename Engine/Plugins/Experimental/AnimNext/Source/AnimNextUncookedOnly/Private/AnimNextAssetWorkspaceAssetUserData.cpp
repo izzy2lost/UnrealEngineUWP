@@ -3,6 +3,7 @@
 #include "AnimNextAssetWorkspaceAssetUserData.h"
 
 #include "UncookedOnlyUtils.h"
+#include "DataInterface/AnimNextDataInterface.h"
 #include "Module/AnimNextModule.h"
 #include "Module/AnimNextModule_EditorData.h"
 #include "UObject/AssetRegistryTagsContext.h"
@@ -25,6 +26,14 @@ void UAnimNextAssetWorkspaceAssetUserData::GetAssetRegistryTags(FAssetRegistryTa
 			else if(UAnimNextAnimationGraph* AnimationGraph = Cast<UAnimNextAnimationGraph>(Asset))
 			{
 				RootAssetExport.GetData().InitializeAsScriptStruct(FAnimNextAnimationGraphOutlinerData::StaticStruct());
+			}
+			else if(UAnimNextDataInterface* DataInterface = Cast<UAnimNextDataInterface>(Asset))
+			{
+				RootAssetExport.GetData().InitializeAsScriptStruct(FAnimNextDataInterfaceOutlinerData::StaticStruct());
+			}
+			else
+			{
+				RootAssetExport.GetData().InitializeAsScriptStruct(FAnimNextRigVMAssetOutlinerData::StaticStruct());
 			}
 			FAnimNextRigVMAssetOutlinerData& Data = RootAssetExport.GetData().GetMutable<FAnimNextRigVMAssetOutlinerData>();
 			Data.Asset = Asset;

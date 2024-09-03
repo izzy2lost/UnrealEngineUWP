@@ -12,13 +12,10 @@ bool UAnimNextEventGraphSchema::SupportsUnitFunction(URigVMController* InControl
 	{
 		if(FunctionExecuteContextStruct == FAnimNextExecuteContext::StaticStruct())
 		{
-			if(InUnitFunction->Struct)
+			// Disallow trait stacks in event graphs 
+			if(InUnitFunction->Struct && InUnitFunction->Struct->IsChildOf(FRigUnit_AnimNextTraitStack::StaticStruct()))
 			{
-				if(InUnitFunction->Struct->IsChildOf(FRigUnit_AnimNextTraitStack::StaticStruct()))
-				{
-					return false;
-				}
-				return InUnitFunction->Struct->IsChildOf(FRigUnit_AnimNextBase::StaticStruct());
+				return false;
 			}
 		}
 	}

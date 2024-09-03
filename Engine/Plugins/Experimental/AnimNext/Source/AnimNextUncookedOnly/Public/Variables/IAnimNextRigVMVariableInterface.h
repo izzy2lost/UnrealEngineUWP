@@ -8,6 +8,7 @@
 
 struct FAnimNextParamType;
 struct FAnimNextVariableBinding;
+struct FAnimNextVariableBindingData;
 
 UINTERFACE(meta=(CannotImplementInterfaceInBlueprint))
 class ANIMNEXTUNCOOKEDONLY_API UAnimNextRigVMVariableInterface : public UInterface
@@ -32,8 +33,11 @@ public:
 	// Set the variable name
 	virtual void SetVariableName(FName InName, bool bSetupUndoRedo = true) = 0;
 
+	// Set the default value
+	virtual bool SetDefaultValue(TConstArrayView<uint8> InValue, bool bSetupUndoRedo = true) = 0;
+
 	// Set the default value from a string
-	virtual bool SetDefaultValue(const FString& InDefaultValue, bool bSetupUndoRedo = true) = 0;
+	virtual bool SetDefaultValueFromString(const FString& InDefaultValue, bool bSetupUndoRedo = true) = 0;
 
 	// Access the backing storage property bag for the parameter
 	virtual const FInstancedPropertyBag& GetPropertyBag() const = 0;
@@ -44,8 +48,13 @@ public:
 		return const_cast<FInstancedPropertyBag&>(GetPropertyBag());
 	}
 
+	virtual bool GetDefaultValue(const FProperty*& OutProperty, TConstArrayView<uint8>& OutValue) const = 0;
+	
+	// Set the binding type for this variable
+	virtual void SetBindingType(UScriptStruct* InBindingTypeStruct, bool bSetupUndoRedo) = 0;
+	
 	// Get the binding for this variable, if any
-	virtual const FAnimNextVariableBinding& GetBinding() const = 0;
+	virtual TConstStructView<FAnimNextVariableBindingData> GetBinding() const = 0;
 
 	// Access the memory for the internal value
 	const uint8* GetValuePtr() const

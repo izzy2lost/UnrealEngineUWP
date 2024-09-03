@@ -17,8 +17,8 @@ enum class FAnimNextUniversalObjectLocatorBindingType : uint8
 	HoistedFunction,
 };
 
-// Wraps a universal object locator to identify external object instances to the parameter system
-USTRUCT()
+// Allows binding of module variables to gameplay data via Universal Object Locators
+USTRUCT(DisplayName = "Universal Object Locator")
 struct FAnimNextUniversalObjectLocatorBindingData : public FAnimNextVariableBindingData
 {
 	GENERATED_BODY()

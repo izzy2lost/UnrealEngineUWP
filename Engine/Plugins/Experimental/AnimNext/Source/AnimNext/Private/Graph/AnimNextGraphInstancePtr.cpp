@@ -56,6 +56,8 @@ void FAnimNextGraphInstancePtr::AddStructReferencedObjects(FReferenceCollector& 
 {
 	if (Impl)
 	{
+		FAnimNextGraphInstance* ImplPtr = Impl.Get();
+		Collector.AddPropertyReferences(FAnimNextGraphInstance::StaticStruct(), ImplPtr);
 		Impl->AddStructReferencedObjects(Collector);
 	}
 }
@@ -95,8 +97,8 @@ bool FAnimNextGraphInstancePtr::RequiresPublicVariableBinding() const
 	return Impl->PublicVariablesState == FAnimNextGraphInstance::EPublicVariablesState::Unbound;
 }
 
-void FAnimNextGraphInstancePtr::BindPublicVariables(TConstArrayView<FRigVMTraitScope> InTraitScopes) const
+void FAnimNextGraphInstancePtr::BindPublicVariables(TConstArrayView<UE::AnimNext::IDataInterfaceHost*> InHosts) const
 {
 	check(Impl);
-	return Impl->BindPublicVariables(InTraitScopes);
+	return Impl->BindPublicVariables(InHosts);
 }

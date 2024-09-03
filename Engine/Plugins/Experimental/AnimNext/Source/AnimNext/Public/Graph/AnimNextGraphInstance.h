@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "DataInterface/AnimNextDataInterfaceInstance.h"
 #include "HAL/CriticalSection.h"
 #include "TraitCore/TraitEvent.h"
 #include "TraitCore/TraitEventList.h"
@@ -20,10 +21,11 @@ class UAnimNextModule;
 struct FAnimNextModuleInstance;
 class FRigVMTraitScope;
 struct FRigVMExtendedExecuteContext;
+struct FAnimNextExecuteContext;
 
 namespace UE::AnimNext
 {
-	class IParameterSource;
+	class IDataInterfaceHost;
 	struct FExecutionContext;
 	struct FGraphInstanceComponent;
 	struct FLatentPropertyHandle;
@@ -36,7 +38,7 @@ using GraphInstanceComponentMapType = TMap<FName, TSharedPtr<UE::AnimNext::FGrap
 // This struct uses UE reflection because we wish for the GC to keep the graph
 // alive while we own a reference to it. It is not intended to be serialized on disk with a live instance.
 USTRUCT()
-struct ANIMNEXT_API FAnimNextGraphInstance
+struct ANIMNEXT_API FAnimNextGraphInstance : public FAnimNextDataInterfaceInstance
 {
 	GENERATED_BODY()
 
@@ -107,8 +109,8 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Called each time the graph updates
 	void Update();
 
-	// Get the extended execute context that we own
-	FRigVMExtendedExecuteContext& GetExtendedExecuteContext();
+	// Get the hosting instance, if any, that owns us
+	FAnimNextDataInterfaceInstance* GetHost() const;
 
 private:
 	// Returns a pointer to the specified component, or nullptr if not found
@@ -131,20 +133,16 @@ private:
 
 	// Hook into module compilation
 	void OnModuleCompiled(UAnimNextModule* InModule);
-
-	// Rebind any public variables when this instance is recompiled
-	void RebindPublicVariables();
 #endif
 
+	template<typename HostType>
+	bool BindToHostHelper(const HostType& InHost, bool bInAutoBind);
+
 	// Bind the variables in the supplied traits in scope to their respective public variables, so they point at host memory
-	void BindPublicVariables(TConstArrayView<FRigVMTraitScope> InTraitScopes);
+	void BindPublicVariables(TConstArrayView<UE::AnimNext::IDataInterfaceHost*> InHosts);
 
 	// Unbind any public variables that were pointing at host memory and re-point them at the internal defaults
 	void UnbindPublicVariables();
-
-	// Hard reference to the graph used to create this instance to ensure we can release it safely
-	UPROPERTY()
-	TObjectPtr<const UAnimNextAnimationGraph> AnimationGraph;
 
 	// The entry point in Graph that this instance corresponds to 
 	FName EntryPoint;
@@ -161,9 +159,6 @@ private:
 	// The root graph instance that owns us and the components
 	FAnimNextGraphInstance* RootGraphInstance = nullptr;
 
-	// User variables used to operate the graph
-	FInstancedPropertyBag Variables;
-
 #if WITH_EDITORONLY_DATA
 	struct FCachedVariableBinding
 	{
@@ -174,10 +169,6 @@ private:
 	// Cached public variable bindings used to correctly thaw instances with input pin bindings
 	TArray<FCachedVariableBinding> CachedVariableBindings;
 #endif
-
-	// Extended execute context instance for this graph instance, we own it
-	UPROPERTY()
-	FRigVMExtendedExecuteContext ExtendedExecuteContext;
 
 	// Graph instance components that persist from update to update
 	GraphInstanceComponentMapType Components;

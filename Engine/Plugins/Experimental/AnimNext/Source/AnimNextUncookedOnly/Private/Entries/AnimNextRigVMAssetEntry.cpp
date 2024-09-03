@@ -2,6 +2,7 @@
 
 #include "Entries/AnimNextRigVMAssetEntry.h"
 #include "AnimNextRigVMAssetEditorData.h"
+#include "Misc/TransactionObjectEvent.h"
 
 void UAnimNextRigVMAssetEntry::Initialize(UAnimNextRigVMAssetEditorData* InEditorData)
 {
@@ -23,6 +24,16 @@ void UAnimNextRigVMAssetEntry::PostEditChangeProperty(FPropertyChangedEvent& Pro
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	BroadcastModified(EAnimNextEditorDataNotifType::PropertyChanged);
+}
+
+void UAnimNextRigVMAssetEntry::PostTransacted(const FTransactionObjectEvent& TransactionEvent)
+{
+	Super::PostTransacted(TransactionEvent);
+
+	if (TransactionEvent.GetEventType() == ETransactionObjectEventType::UndoRedo)
+	{
+		BroadcastModified(EAnimNextEditorDataNotifType::UndoRedo);
+	}
 }
 
 #endif

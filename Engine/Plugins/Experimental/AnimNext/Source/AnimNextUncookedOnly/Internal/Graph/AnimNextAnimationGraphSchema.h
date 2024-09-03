@@ -11,7 +11,5 @@ class UAnimNextAnimationGraphSchema : public UAnimNextRigVMAssetSchema
 {
 	GENERATED_BODY()
 
-	// URigVMSchema interface
-	virtual bool SupportsUnitFunction(URigVMController* InController, const FRigVMFunction* InUnitFunction) const override;
-	virtual bool SupportsDispatchFactory(URigVMController* InController, const FRigVMDispatchFactory* InDispatchFactory) const override;
+	// Schema reserved for future filtering of units etc.
 };

@@ -7,6 +7,7 @@
 #include "EditorUtils.h"
 #include "IAnimNextUncookedOnlyModule.h"
 #include "PropertyHandle.h"
+#include "SInstancedStructPicker.h"
 #include "UncookedOnlyUtils.h"
 #include "Entries/AnimNextVariableEntry.h"
 #include "Modules/ModuleManager.h"
@@ -59,47 +60,66 @@ void FVariableBindingPropertyCustomization::CustomizeHeader(TSharedRef<IProperty
 	]
 	.ValueContent()
 	[
-		SAssignNew(ValueWidget, SComboButton)
-		.ToolTipText_Lambda([this]()
-		{
-			return TooltipText;
-		})
-		.MenuContent()
+		SAssignNew(ContainerWidget, SHorizontalBox)
+		+SHorizontalBox::Slot()
+		.Padding(0.0f, 0.0f, 5.0f, 0.0f)
+		.AutoWidth()
 		[
-			CreateBindingWidget()
+			SAssignNew(ValueWidget, SComboButton)
+			.Visibility_Lambda([this]()
+			{
+				return bShowBindingSelector ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+			.ToolTipText_Lambda([this]()
+			{
+				return TooltipText;
+			})
+			.MenuContent()
+			[
+				CreateBindingWidget()
+			]
+			.ButtonContent()
+			[
+				SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Center)
+				.Padding(0.0f, 2.0f, 2.0f, 2.0f)
+				[
+					SNew(SImage)
+					.Image_Lambda([this]()
+					{
+						return Icon;
+					})
+					.ColorAndOpacity_Lambda([this]()
+					{
+						return IconColor;
+					})
+				]
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Left)
+				.Padding(0.0f, 2.0f, 0.0f, 2.0f)
+				[
+					SNew(STextBlock)
+					.TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>("SmallText"))
+					.Text_Lambda([this]()
+					{
+						return NameText;
+					})
+				]
+			]
 		]
-		.ButtonContent()
+		+SHorizontalBox::Slot()
+		.AutoWidth()
 		[
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.AutoWidth()
-			.VAlign(VAlign_Center)
-			.HAlign(HAlign_Center)
-			.Padding(0.0f, 2.0f, 2.0f, 2.0f)
-			[
-				SNew(SImage)
-				.Image_Lambda([this]()
-				{
-					return Icon;
-				})
-				.ColorAndOpacity_Lambda([this]()
-				{
-					return IconColor;
-				})
-			]
-			+SHorizontalBox::Slot()
-			.AutoWidth()
-			.VAlign(VAlign_Center)
-			.HAlign(HAlign_Left)
-			.Padding(0.0f, 2.0f, 0.0f, 2.0f)
-			[
-				SNew(STextBlock)
-				.TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>("SmallText"))
-				.Text_Lambda([this]()
-				{
-					return NameText;
-				})
-			]
+			SNew(SInstancedStructPicker, BindingDataHandle, InCustomizationUtils.GetPropertyUtilities())
+			.OnStructPicked_Lambda([this](const UScriptStruct* InStruct)
+			{
+				RequestRefresh();
+			})
 		]
 	];
 
@@ -120,7 +140,7 @@ void FVariableBindingPropertyCustomization::RequestRefresh()
 	if(!bRefreshRequested)
 	{
 		bRefreshRequested = true;
-		ValueWidget->RegisterActiveTimer(0.0f, FWidgetActiveTimerDelegate::CreateLambda([this](double /*InCurrentTime*/, float /*InDeltaTime*/)
+		ContainerWidget->RegisterActiveTimer(0.0f, FWidgetActiveTimerDelegate::CreateLambda([this](double /*InCurrentTime*/, float /*InDeltaTime*/)
 		{
 			bRefreshRequested = false;
 			Refresh();
@@ -131,12 +151,23 @@ void FVariableBindingPropertyCustomization::RequestRefresh()
 
 void FVariableBindingPropertyCustomization::Refresh()
 {
+	bShowBindingSelector = false;
+
+	if(!Type.IsValid())
+	{
+		NameText = LOCTEXT("MultipleTypes", "Multiple Types");
+		TooltipText = LOCTEXT("MultipleTypes", "Multiple Types");
+		bShowBindingSelector = true;
+		return;
+	}
+
 	FEdGraphPinType PinType  = UncookedOnly::FUtils::GetPinTypeFromParamType(Type);
 	Icon = FBlueprintEditorUtils::GetIconFromPin(PinType, true);
 	IconColor = GetDefault<UEdGraphSchema_K2>()->GetPinTypeColor(PinType);
 
+	TOptional<const UScriptStruct*> CommonBindingStruct;
 	TOptional<TInstancedStruct<FAnimNextVariableBindingData>> CommonBindingData;
-	BindingDataHandle->EnumerateConstRawData([this, &CommonBindingData](const void* RawData, const int32 DataIndex, const int32 NumDatas)
+	BindingDataHandle->EnumerateConstRawData([this, &CommonBindingData, &CommonBindingStruct](const void* RawData, const int32 DataIndex, const int32 NumDatas)
 	{
 		const TInstancedStruct<FAnimNextVariableBindingData>& BindingData = *static_cast<const TInstancedStruct<FAnimNextVariableBindingData>*>(RawData);
 		if(!CommonBindingData.IsSet())
@@ -147,18 +178,42 @@ void FVariableBindingPropertyCustomization::Refresh()
 		{
 			// No common binding
 			CommonBindingData = TInstancedStruct<FAnimNextVariableBindingData>();
-			NameText = LOCTEXT("MutipleValues", "Multiple Values");
-			TooltipText = LOCTEXT("MutipleValues", "Multiple Values");
-			return false;
+		}
+
+		if(!CommonBindingStruct.IsSet())
+		{
+			CommonBindingStruct = BindingData.GetScriptStruct();
+		}
+		else if(CommonBindingStruct.GetValue() != BindingData.GetScriptStruct())
+		{
+			// No common struct
+			CommonBindingStruct = nullptr;
 		}
 		return true;
 	});
 
+	const UScriptStruct* BindingStruct = CommonBindingStruct.IsSet() ? CommonBindingStruct.GetValue() : nullptr;
 	TInstancedStruct<FAnimNextVariableBindingData> BindingData = CommonBindingData.IsSet() ? CommonBindingData.GetValue() : TInstancedStruct<FAnimNextVariableBindingData>();
 	if(BindingData.IsValid())
 	{
+		// Common values
 		NameText = GetBindingDisplayNameText(BindingData);
 		TooltipText = GetBindingTooltipText(BindingData);
+		bShowBindingSelector = true;
+	}
+	else if(BindingStruct != nullptr)
+	{
+		// No common values, but common struct, allow selection
+		NameText = LOCTEXT("MultipleValues", "Multiple Values");
+		TooltipText = LOCTEXT("MultipleValues", "Multiple Values");
+		bShowBindingSelector = true;
+	}
+	else
+	{
+		// No common struct, dont allow binding selection 
+		NameText = LOCTEXT("MultipleValues", "Multiple Values");
+		TooltipText = LOCTEXT("MultipleValues", "Multiple Values");
+		bShowBindingSelector = false;
 	}
 }
 
@@ -206,6 +261,11 @@ FText FVariableBindingPropertyCustomization::GetBindingTooltipText(TConstStructV
 
 TSharedRef<SWidget> FVariableBindingPropertyCustomization::CreateBindingWidget() const
 {
+	if(!Type.IsValid())
+	{
+		return SNullWidget::NullWidget;
+	}
+
 	TOptional<const UScriptStruct*> CommonBindingStruct;
 	BindingDataHandle->EnumerateConstRawData([&CommonBindingStruct](const void* RawData, const int32 DataIndex, const int32 NumDatas)
 	{

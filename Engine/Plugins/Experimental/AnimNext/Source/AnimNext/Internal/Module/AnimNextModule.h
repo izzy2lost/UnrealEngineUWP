@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Graph/AnimNextGraphEntryPoint.h"
-#include "AnimNextRigVMAsset.h"
+#include "DataInterface/AnimNextDataInterface.h"
 #include "RigVMCore/RigVM.h"
 #include "TraitCore/TraitPtr.h"
 #include "RigVMHost.h"
@@ -60,7 +60,7 @@ enum class EAnimNextModuleInitMethod : uint8
 
 // Root asset represented by a component when instantiated
 UCLASS(BlueprintType)
-class ANIMNEXT_API UAnimNextModule : public UAnimNextRigVMAsset
+class ANIMNEXT_API UAnimNextModule : public UAnimNextDataInterface
 {
 	GENERATED_BODY()
 

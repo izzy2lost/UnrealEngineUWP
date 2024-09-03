@@ -9,6 +9,7 @@
 #include "RigVMModel/Nodes/RigVMFunctionReferenceNode.h"
 #include "Graph/AnimNextAnimationGraph.h"
 #include "Module/AnimNextModule.h"
+#include "DataInterface/AnimNextDataInterface.h"
 
 #include "AnimNextAssetWorkspaceAssetUserData.generated.h"
 
@@ -48,6 +49,19 @@ struct FAnimNextAnimationGraphOutlinerData : public FAnimNextRigVMAssetOutlinerD
 	UAnimNextAnimationGraph* GetAnimationGraph() const
 	{
 		return Cast<UAnimNextAnimationGraph>(Asset);
+	}
+};
+
+USTRUCT()
+struct FAnimNextDataInterfaceOutlinerData : public FAnimNextRigVMAssetOutlinerData
+{
+	GENERATED_BODY()
+
+	FAnimNextDataInterfaceOutlinerData() = default;
+
+	UAnimNextDataInterface* GetDataInteface() const
+	{
+		return Cast<UAnimNextDataInterface>(Asset);
 	}
 };
 

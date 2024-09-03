@@ -14,6 +14,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/PropertyViewer/IFieldExpander.h"
 #include "Framework/PropertyViewer/IFieldIterator.h"
+#include "Module/RigUnit_AnimNextModuleEvents.h"
 #include "Modules/ModuleManager.h"
 #include "Param/ParamCompatibility.h"
 #include "Param/ParamUtils.h"
@@ -680,6 +681,11 @@ FText FUniversalObjectLocatorBindingType::GetTooltipText(TConstStructView<FAnimN
 
 void FUniversalObjectLocatorBindingType::BuildBindingGraphFragment(const FRigVMCompileSettings& InSettings, const FBindingGraphFragmentArgs& InArgs, URigVMPin*& OutExecTail, FVector2D& OutLocation) const
 {
+	if(InArgs.Event != FRigUnit_AnimNextExecuteBindings::StaticStruct())
+	{
+		return;
+	}
+	
 	URigVMPin* ExecTail = InArgs.ExecTail;
 
 	struct FBindingData

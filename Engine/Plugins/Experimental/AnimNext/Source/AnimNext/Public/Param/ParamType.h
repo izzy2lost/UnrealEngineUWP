@@ -97,7 +97,7 @@ private:
 		{
 			ParameterType.ValueType = EValueType::Byte;
 		}
-		else if constexpr (std::is_same_v<ParamType, int32>)
+		else if constexpr (std::is_same_v<ParamType, int32> || std::is_same_v<ParamType, int>)
 		{
 			ParameterType.ValueType = EValueType::Int32;
 		}
@@ -315,7 +315,7 @@ public:
 	{
 		const bool bHasValidValueType = ValueType != EValueType::None;
 		const bool bHasValidContainerType = (ContainerType == EContainerType::None) || (bHasValidValueType && ContainerType != EContainerType::None);
-		const bool bHasValidObjectType = (ValueType < EValueType::Enum) || (ValueType >= EValueType::Enum && ValueType <= EValueType::SoftClass && IsValidObject());
+		const bool bHasValidObjectType = ((ValueType < EValueType::Enum) || ValueType == EValueType::UInt32 || ValueType == EValueType::UInt64) || (ValueType >= EValueType::Enum && ValueType <= EValueType::SoftClass && IsValidObject());
 		return bHasValidValueType && bHasValidContainerType && bHasValidObjectType;
 	}
 

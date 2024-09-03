@@ -49,7 +49,7 @@ void UAnimNextComponentWorldSubsystem::OnModuleCompiled(UAnimNextModule* InModul
 
 	for(FAnimNextModuleInstance& Instance : Instances)
 	{
-		if(Instance.Module == InModule)
+		if(Instance.GetModule() == InModule)
 		{
 			UAnimNextComponent* AnimNextComponent = CastChecked<UAnimNextComponent>(Instance.Object);
 			AnimNextComponent->OnModuleCompiled();

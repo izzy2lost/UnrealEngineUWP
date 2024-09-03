@@ -6,12 +6,14 @@
 
 #include "K2Node_BaseAsyncTask.h"
 
-#include "K2Node_PlayAnim.generated.h"
+#include "K2Node_AnimNextPlayAnim.generated.h"
 
 UCLASS()
-class UK2Node_PlayAnim : public UK2Node_BaseAsyncTask
+class UK2Node_AnimNextPlayAnim : public UK2Node_BaseAsyncTask
 {
-	GENERATED_UCLASS_BODY()
+	GENERATED_BODY()
+
+	UK2Node_AnimNextPlayAnim();
 
 	//~ Begin UEdGraphNode Interface
 	virtual FText GetTooltipText() const override;

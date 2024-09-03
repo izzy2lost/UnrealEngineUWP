@@ -26,6 +26,9 @@
 #include "Variables/IVariableBindingType.h"
 #include "Variables/RigUnit_CopyModuleProxyVariables.h"
 #include "WorkspaceAssetRegistryInfo.h"
+#include "Entries/AnimNextDataInterfaceEntry.h"
+#include "DataInterface/AnimNextDataInterface.h"
+#include "DataInterface/AnimNextDataInterface_EditorData.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextUncookedOnlyUtils"
 
@@ -47,47 +50,150 @@ void FUtils::CompileVariables(UAnimNextRigVMAsset* InAsset)
 {
 	check(InAsset);
 
-	UAnimNextRigVMAssetEditorData* EditorData = GetEditorData(InAsset);
+	UAnimNextDataInterface* DataInterface = Cast<UAnimNextDataInterface>(InAsset);
+	if(DataInterface == nullptr)
+	{
+		// Currently only support data interface types (TODO: could make UAnimNextDataInterface the common base rather than UAnimNextRigVMAsset)
+		return;
+	}
+
+	FMessageLog Log("AnimNextCompilerResults");
+
+	UAnimNextDataInterface_EditorData* EditorData = GetEditorData<UAnimNextDataInterface_EditorData>(DataInterface);
 
 	struct FStructEntryInfo
 	{
+		const UAnimNextDataInterface* FromDataInterface;
 		FName Name;
 		FAnimNextParamType Type;
 		EAnimNextExportAccessSpecifier AccessSpecifier;
+		bool bAutoBindDataInterfaceToHost;
 		TConstArrayView<uint8> Value;
 	};
 
+	// Gather all variables in this asset.
+	// Variables are harvested from the valid entries and data interfaces.
+	// Data interface harvesting is performed recursively
+	// The topmost value for a data interface 'wins' if a value is to be supplied
+	TMap<FName, int32> EntryInfoIndexMap;
 	TArray<FStructEntryInfo> StructEntryInfos;
 	StructEntryInfos.Reserve(EditorData->Entries.Num());
-
-	// Gather all parameters in this asset
 	int32 NumPublicVariables = 0;
-	for(const UAnimNextRigVMAssetEntry* Entry : EditorData->Entries)
+
+	auto AddVariable = [&Log, &NumPublicVariables, &StructEntryInfos, &EntryInfoIndexMap](const UAnimNextVariableEntry* InVariable, const UAnimNextDataInterfaceEntry* InFromInterfaceEntry, const UAnimNextDataInterface* InFromInterface, bool bInAutoBindInterface)
 	{
-		const IAnimNextRigVMExportInterface* Export = Cast<IAnimNextRigVMExportInterface>(Entry);
-		const IAnimNextRigVMVariableInterface* Variable = Cast<IAnimNextRigVMVariableInterface>(Entry);
-		if(Export && Variable)
+		const FName Name = InVariable->GetExportName();
+		const FAnimNextParamType& Type = InVariable->GetExportType();
+		if(!Type.IsValid())
 		{
-			const FAnimNextParamType& Type = Export->GetExportType();
-			ensure(Type.IsValid());
-			const FName Name = Export->GetExportName();
-			const EAnimNextExportAccessSpecifier AccessSpecifier = Export->GetExportAccessSpecifier();
+			Log.Error(FText::Format(LOCTEXT("InvalidVariableTypeFound", "Variable '{0}' with invalid type found"), FText::FromName(Name)));
+			return;
+		}
+
+		const EAnimNextExportAccessSpecifier AccessSpecifier = InVariable->GetExportAccessSpecifier();
+
+		// Check for type conflicts
+		int32* ExistingIndexPtr = EntryInfoIndexMap.Find(Name);
+		if(ExistingIndexPtr)
+		{
+			const FStructEntryInfo& ExistingInfo = StructEntryInfos[*ExistingIndexPtr];
+			if(ExistingInfo.Type != Type)
+			{
+				Log.Error(FText::Format(LOCTEXT("ConflictingVariableTypeFound", "Variable '{0}' with conflicting type found ({1} vs {2})"), FText::FromName(Name), FText::FromString(ExistingInfo.Type.ToString()), FText::FromString(Type.ToString())));
+				return;
+			}
+
+			if(ExistingInfo.AccessSpecifier != AccessSpecifier)
+			{
+				Log.Error(FText::Format(LOCTEXT("ConflictingVariableAccessFound", "Variable '{0}' with conflicting access specifier found ({1} vs {2})"), FText::FromName(Name), FText::FromString(UEnum::GetValueAsString(ExistingInfo.AccessSpecifier)), FText::FromString(UEnum::GetValueAsString(AccessSpecifier))));
+				return;
+			}
+		}
+		else
+		{
 			if(AccessSpecifier == EAnimNextExportAccessSpecifier::Public)
 			{
 				NumPublicVariables++;
 			}
-
-			StructEntryInfos.Add(
-				{
-					Name,
-					FAnimNextParamType(Type.GetValueType(),  Type.GetContainerType(), Type.GetValueTypeObject()),
-					AccessSpecifier,
-					TConstArrayView<uint8>(Variable->GetValuePtr(), Type.GetSize())
-				});
 		}
-	}
 
-	// Sort public entries first & then by size, largest first, for better packing
+		// Check the overrides to see if this variable's default is overriden
+		const FProperty* OverrideProperty = nullptr;
+		TConstArrayView<uint8> OverrideValue;
+		if(InFromInterfaceEntry != nullptr)
+		{
+			InFromInterfaceEntry->FindValueOverrideRecursive(Name, OverrideProperty, OverrideValue);
+		}
+
+		TConstArrayView<uint8> Value;
+		if(!OverrideValue.IsEmpty())
+		{
+			Value = OverrideValue;
+		}
+		else
+		{
+			Value = TConstArrayView<uint8>(InVariable->GetValuePtr(), Type.GetSize());
+		}
+
+		if(ExistingIndexPtr)
+		{
+			StructEntryInfos[*ExistingIndexPtr].Value = Value;
+		}
+		else
+		{
+			int32 Index = StructEntryInfos.Add(
+			{
+				InFromInterface,
+				Name,
+				FAnimNextParamType(Type.GetValueType(), Type.GetContainerType(), Type.GetValueTypeObject()),
+				AccessSpecifier,
+				bInAutoBindInterface,
+				Value
+			});
+
+			EntryInfoIndexMap.Add(Name, Index);
+		}
+	};
+
+	auto AddDataInterface = [&Log, &AddVariable, &DataInterface](const UAnimNextDataInterface* InDataInterface, const UAnimNextDataInterfaceEntry* InDataInterfaceEntry, bool bInPublicOnly, bool bInAutoBindInterface, auto& InAddDataInterface) -> void
+	{
+		const UAnimNextDataInterface_EditorData* DataInterfaceEditorData = GetEditorData<const UAnimNextDataInterface_EditorData>(InDataInterface);
+		check(DataInterfaceEditorData != nullptr);
+
+		for(UAnimNextRigVMAssetEntry* OtherEntry : DataInterfaceEditorData->Entries)
+		{
+			if(const UAnimNextVariableEntry* VariableEntry = Cast<UAnimNextVariableEntry>(OtherEntry))
+			{
+				if(!bInPublicOnly || VariableEntry->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public)
+				{
+					AddVariable(VariableEntry, InDataInterfaceEntry, InDataInterface, bInAutoBindInterface);
+				}
+			}
+			else if(const UAnimNextDataInterfaceEntry* DataInterfaceEntry = Cast<UAnimNextDataInterfaceEntry>(OtherEntry))
+			{
+				UAnimNextDataInterface* SubDataInterface = DataInterfaceEntry->GetDataInterface();
+				if(SubDataInterface == nullptr)
+				{
+					Log.Error(FText::Format(LOCTEXT("MissingDataInterfaceWarning", "Invalid data interface found: {0}"), FText::FromString(DataInterfaceEntry->GetDataInterfacePath().ToString())));
+					return;
+				}
+				else if(DataInterface == SubDataInterface)
+				{
+					Log.Error(FText::Format(LOCTEXT("CircularDataInterfaceRefError", "Circular data interface reference found: {0}"), FText::FromString(DataInterfaceEntry->GetDataInterfacePath().ToString())));
+					return;
+				}
+				else
+				{
+					bool bAutoBindInterface = DataInterfaceEntry->AutomaticBinding == EAnimNextDataInterfaceAutomaticBindingMode::BindSharedInterfaces;
+					InAddDataInterface(SubDataInterface, DataInterfaceEntry, true, bAutoBindInterface, InAddDataInterface);
+				}
+			}
+		}
+	};
+
+	AddDataInterface(DataInterface, nullptr, false, false, AddDataInterface);
+
+	// Sort public entries first, then by data interface & then by size, largest first, for better packing
 	static_assert(EAnimNextExportAccessSpecifier::Private < EAnimNextExportAccessSpecifier::Public, "Private must be less than Public as parameters are sorted internally according to this assumption");
 	StructEntryInfos.Sort([](const FStructEntryInfo& InLHS, const FStructEntryInfo& InRHS)
 	{
@@ -95,9 +201,17 @@ void FUtils::CompileVariables(UAnimNextRigVMAsset* InAsset)
 		{
 			return InLHS.AccessSpecifier > InRHS.AccessSpecifier;
 		}
-		else
+		else if(InLHS.FromDataInterface != InRHS.FromDataInterface)
+		{
+			return InLHS.FromDataInterface->GetFName().LexicalLess(InRHS.FromDataInterface->GetFName());
+		}
+		else if(InLHS.Type.GetSize() != InRHS.Type.GetSize())
 		{
 			return InLHS.Type.GetSize() > InRHS.Type.GetSize();
+		}
+		else
+		{
+			return InLHS.Name.LexicalLess(InRHS.Name);
 		}
 	});
 
@@ -109,40 +223,68 @@ void FUtils::CompileVariables(UAnimNextRigVMAsset* InAsset)
 		TArray<TConstArrayView<uint8>> Values;
 		Values.Reserve(StructEntryInfos.Num());
 
+		DataInterface->ImplementedInterfaces.Empty();
+
 		for (TEnumerateRef<const FStructEntryInfo> StructEntryInfo : EnumerateRange(StructEntryInfos))
 		{
 			PropertyDescs.Emplace(StructEntryInfo->Name, StructEntryInfo->Type.ContainerType, StructEntryInfo->Type.ValueType, StructEntryInfo->Type.ValueTypeObject);
 			Values.Add(StructEntryInfo->Value);
+
+			if(StructEntryInfo->AccessSpecifier != EAnimNextExportAccessSpecifier::Public)
+			{
+				continue;
+			}
+
+			// Now process any data interfaces (sets of public variables) 
+			auto CheckForExistingDataInterface = [&StructEntryInfo](const FAnimNextImplementedDataInterface& InImplementedDataInterface)
+			{
+				return InImplementedDataInterface.DataInterface == StructEntryInfo->FromDataInterface;
+			};
+
+			FAnimNextImplementedDataInterface* ExistingImplementedDataInterface = DataInterface->ImplementedInterfaces.FindByPredicate(CheckForExistingDataInterface);
+			if(ExistingImplementedDataInterface == nullptr)
+			{
+				FAnimNextImplementedDataInterface& NewImplementedDataInterface = DataInterface->ImplementedInterfaces.AddDefaulted_GetRef();
+				NewImplementedDataInterface.DataInterface = StructEntryInfo->FromDataInterface;
+				NewImplementedDataInterface.VariableIndex = StructEntryInfo.GetIndex();
+				NewImplementedDataInterface.NumVariables = 1;
+				NewImplementedDataInterface.bAutoBindToHost = StructEntryInfo->bAutoBindDataInterfaceToHost; 
+			}
+			else
+			{
+				ExistingImplementedDataInterface->NumVariables++;
+			}
 		}
 
 		// Create new property bags and migrate
-		EPropertyBagResult Result = InAsset->VariableDefaults.ReplaceAllPropertiesAndValues(PropertyDescs, Values);
+		EPropertyBagResult Result = DataInterface->VariableDefaults.ReplaceAllPropertiesAndValues(PropertyDescs, Values);
 		check(Result == EPropertyBagResult::Success);
 
 		if(NumPublicVariables > 0)
 		{
 			TConstArrayView<FPropertyBagPropertyDesc> PublicPropertyDescs(PropertyDescs.GetData(), NumPublicVariables);
 			TConstArrayView<TConstArrayView<uint8>> PublicValues(Values.GetData(), NumPublicVariables);
-			Result = InAsset->PublicVariableDefaults.ReplaceAllPropertiesAndValues(PublicPropertyDescs, PublicValues);
+			Result = DataInterface->PublicVariableDefaults.ReplaceAllPropertiesAndValues(PublicPropertyDescs, PublicValues);
 			check(Result == EPropertyBagResult::Success);
 		}
 		else
 		{
-			InAsset->PublicVariableDefaults.Reset();
+			DataInterface->PublicVariableDefaults.Reset();
 		}
 
 		// Rebuild external variables
-		InAsset->VM->SetExternalVariableDefs(InAsset->GetExternalVariablesImpl(false));
+		DataInterface->VM->SetExternalVariableDefs(DataInterface->GetExternalVariablesImpl(false));
 	}
 	else
 	{
-		InAsset->VariableDefaults.Reset();
-		InAsset->PublicVariableDefaults.Reset();
-		InAsset->VM->ClearExternalVariables(InAsset->ExtendedExecuteContext);
+		DataInterface->ImplementedInterfaces.Empty();
+		DataInterface->VariableDefaults.Reset();
+		DataInterface->PublicVariableDefaults.Reset();
+		DataInterface->VM->ClearExternalVariables(DataInterface->ExtendedExecuteContext);
 	}
 }
 
-URigVMGraph* FUtils::CompileVariableBindings(const FRigVMCompileSettings& InSettings, UAnimNextRigVMAsset* InAsset)
+void FUtils::CompileVariableBindings(const FRigVMCompileSettings& InSettings, UAnimNextRigVMAsset* InAsset, TArray<URigVMGraph*>& OutGraphs)
 {
 	check(InAsset);
 
@@ -158,13 +300,13 @@ URigVMGraph* FUtils::CompileVariableBindings(const FRigVMCompileSettings& InSett
 			continue;
 		}
 
-		const FAnimNextVariableBinding& Binding = Variable->GetBinding();
-		if(!Binding.IsValid())
+		TConstStructView<FAnimNextVariableBindingData> Binding = Variable->GetBinding();
+		if(!Binding.IsValid() || !Binding.Get<FAnimNextVariableBindingData>().IsValid())
 		{
 			continue;
 		}
 
-		TSharedPtr<IVariableBindingType> BindingType = Module.FindVariableBindingType(Binding.BindingData.GetScriptStruct());
+		TSharedPtr<IVariableBindingType> BindingType = Module.FindVariableBindingType(Binding.GetScriptStruct());
 		if(!BindingType.IsValid())
 		{
 			continue;
@@ -172,7 +314,7 @@ URigVMGraph* FUtils::CompileVariableBindings(const FRigVMCompileSettings& InSett
 
 		TArray<IVariableBindingType::FBindingGraphInput>& Group = BindingGroups.FindOrAdd(BindingType.Get());
 		FRigVMTemplateArgumentType RigVMArg = Variable->GetType().ToRigVMTemplateArgument();
-		Group.Add({ Variable->GetVariableName(), RigVMArg.CPPType.ToString(), RigVMArg.CPPTypeObject, Binding.BindingData });
+		Group.Add({ Variable->GetVariableName(), RigVMArg.CPPType.ToString(), RigVMArg.CPPTypeObject, Binding });
 	}
 
 	const bool bHasBindings = BindingGroups.Num() > 0;
@@ -180,7 +322,7 @@ URigVMGraph* FUtils::CompileVariableBindings(const FRigVMCompileSettings& InSett
 	if(!bHasBindings && !bHasPublicVariablesToCopy)
 	{
 		// Nothing to do here
-		return nullptr;
+		return;
 	}
 
 	URigVMGraph* BindingGraph = NewObject<URigVMGraph>(EditorData, NAME_None, RF_Transient);
@@ -191,13 +333,13 @@ URigVMGraph* FUtils::CompileVariableBindings(const FRigVMCompileSettings& InSett
 	if(ExcecuteBindingsNode == nullptr)
 	{
 		InSettings.ReportError(TEXT("Could not spawn Execute Bindings node"));
-		return nullptr;
+		return;
 	}
 	URigVMPin* ExecuteBindingsExecPin = ExcecuteBindingsNode->FindPin(FRigVMStruct::ExecuteContextName.ToString());
 	if(ExecuteBindingsExecPin == nullptr)
 	{
 		InSettings.ReportError(TEXT("Could not find execute pin on Execute Bindings node"));
-		return nullptr;
+		return;
 	}
 	URigVMPin* ExecPin = ExecuteBindingsExecPin;
 
@@ -207,24 +349,25 @@ URigVMGraph* FUtils::CompileVariableBindings(const FRigVMCompileSettings& InSett
 		if(CopyProxyVariablesNode == nullptr)
 		{
 			InSettings.ReportError(TEXT("Could not spawn Copy Module Proxy Variables node"));
-			return nullptr;
+			return;
 		}
 		URigVMPin* CopyProxyVariablesExecPin = CopyProxyVariablesNode->FindPin(FRigVMStruct::ExecuteContextName.ToString());
 		if(ExecPin == nullptr)
 		{
 			InSettings.ReportError(TEXT("Could not find execute pin on Execute Bindings node"));
-			return nullptr;
+			return;
 		}
 		bool bLinkAdded = Controller->AddLink(ExecuteBindingsExecPin, CopyProxyVariablesExecPin, false);
 		if(!bLinkAdded)
 		{
 			InSettings.ReportError(TEXT("Could not link Execute Bindings node"));
-			return nullptr;
+			return;
 		}
 		ExecPin = CopyProxyVariablesExecPin;
 	}
 
 	IVariableBindingType::FBindingGraphFragmentArgs Args;
+	Args.Event = FRigUnit_AnimNextExecuteBindings::StaticStruct();
 	Args.Controller = Controller;
 	Args.BindingGraph = BindingGraph;
 	Args.ExecTail = ExecPin;
@@ -236,7 +379,7 @@ URigVMGraph* FUtils::CompileVariableBindings(const FRigVMCompileSettings& InSett
 		BindingGroupPair.Key->BuildBindingGraphFragment(InSettings, Args, ExecPin, Location);
 	}
 
-	return BindingGraph;
+	OutGraphs.Add(BindingGraph);
 }
 
 UAnimNextRigVMAsset* FUtils::GetAsset(UAnimNextRigVMAssetEditorData* InEditorData)
@@ -618,9 +761,9 @@ void FUtils::GetAssetVariables(const UAnimNextRigVMAssetEditorData* EditorData, 
 	OutExports.Variables = ExportSet.Array();
 }
 
-void FUtils::GetAssetVariables(const UAnimNextRigVMAssetEditorData* EditorData, TSet<FAnimNextAssetRegistryExportedVariable>& OutExports)
+void FUtils::GetAssetVariables(const UAnimNextRigVMAssetEditorData* InEditorData, TSet<FAnimNextAssetRegistryExportedVariable>& OutExports)
 {
-	for(const UAnimNextRigVMAssetEntry* Entry : EditorData->Entries)
+	for(const UAnimNextRigVMAssetEntry* Entry : InEditorData->Entries)
 	{
 		if(const IAnimNextRigVMExportInterface* ExportInterface = Cast<IAnimNextRigVMExportInterface>(Entry))
 		{
@@ -630,6 +773,14 @@ void FUtils::GetAssetVariables(const UAnimNextRigVMAssetEditorData* EditorData, 
 				Flags |= EAnimNextExportedVariableFlags::Public;
 				FAnimNextAssetRegistryExportedVariable NewParam(ExportInterface->GetExportName(), ExportInterface->GetExportType(), Flags);
 				AddParamToSet(NewParam, OutExports);
+			}
+		}
+		else if(const UAnimNextDataInterfaceEntry* DataInterfaceEntry = Cast<UAnimNextDataInterfaceEntry>(Entry))
+		{
+			if(DataInterfaceEntry->DataInterface)
+			{
+				UAnimNextDataInterface_EditorData* EditorData = GetEditorData<UAnimNextDataInterface_EditorData>(DataInterfaceEntry->DataInterface.Get());
+				GetAssetVariables(EditorData, OutExports);
 			}
 		}
 	}

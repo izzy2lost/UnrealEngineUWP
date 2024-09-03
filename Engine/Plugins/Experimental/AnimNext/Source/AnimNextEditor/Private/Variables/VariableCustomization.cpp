@@ -27,7 +27,7 @@ void FVariableCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 		return;
 	}
 
-	// Only allow bindings on module variables
+	
 	for(TWeakObjectPtr<UObject> WeakObject : Objects)
 	{
 		UAnimNextVariableEntry* Variable = Cast<UAnimNextVariableEntry>(WeakObject.Get());
@@ -36,12 +36,14 @@ void FVariableCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 			continue;
 		}
 
+
 		UAnimNextRigVMAsset* Asset = Variable->GetTypedOuter<UAnimNextRigVMAsset>();
-		if(!Asset->IsA<UAnimNextModule>())
+
+		// Disable access specifier switching specifically for data interfaces
+		if(UAnimNextDataInterface* DataInterface = ExactCast<UAnimNextDataInterface>(Asset))
 		{
-			TSharedPtr<IPropertyHandle> BindingProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAnimNextVariableEntry, Binding));
-			BindingProperty->MarkHiddenByCustomization();
-			break;
+			TSharedPtr<IPropertyHandle> AccessProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAnimNextVariableEntry, Access));
+			AccessProperty->MarkHiddenByCustomization();
 		}
 	}
 

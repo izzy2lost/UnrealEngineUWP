@@ -7,6 +7,7 @@
 #include "IAnimNextModuleInterface.h"
 #include "Module/AnimNextModuleInstance.h"
 #include "Graph/AnimNextAnimationGraph.h"
+#include "Graph/RigVMTrait_AnimNextPublicVariables.h"
 #include "TraitCore/TraitEventList.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_AnimNextRunAnimationGraph)
@@ -52,7 +53,23 @@ FRigUnit_AnimNextRunAnimationGraph_Execute()
 	if(Instance.RequiresPublicVariableBinding())
 	{
 		// Bind any public variables we find
-		Instance.BindPublicVariables(ExecuteContext.GetTraits());
+		TArray<FPublicVariablesTraitToDataInterfaceHostAdapter, TInlineAllocator<4>> Adapters;
+		Adapters.Reserve(ExecuteContext.GetTraits().Num());
+		TArray<IDataInterfaceHost*, TInlineAllocator<4>> Hosts;
+		Hosts.Reserve(ExecuteContext.GetTraits().Num());
+		for(const FRigVMTraitScope& TraitScope : ExecuteContext.GetTraits())
+		{
+			const FRigVMTrait_AnimNextPublicVariables* VariablesTrait = TraitScope.GetTrait<FRigVMTrait_AnimNextPublicVariables>();
+			if(VariablesTrait == nullptr)
+			{
+				continue;
+			}
+
+			FPublicVariablesTraitToDataInterfaceHostAdapter& Adapter = Adapters.Emplace_GetRef(*VariablesTrait, TraitScope);
+			Hosts.Add(&Adapter);
+		}
+
+		Instance.BindPublicVariables(Hosts);
 	}
 
 	const UE::AnimNext::FReferencePose& RefPose = ReferencePose.ReferencePose.GetRef<UE::AnimNext::FReferencePose>();

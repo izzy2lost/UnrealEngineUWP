@@ -12,9 +12,9 @@ struct FBoolAnimProperty :  public FChooserParameterBoolBase
 	GENERATED_BODY()
 public:
 
-	UPROPERTY(DisplayName = "Parameter", EditAnywhere, Category="Parameter", meta=(CustomWidget = "ParamName", AllowedParamType = "bool"))
-	FName PropertyName;
-	
+	UPROPERTY(DisplayName = "Variable", EditAnywhere, Category="Variable")
+	FName VariableName;
+
 	virtual bool GetValue(FChooserEvaluationContext& Context, bool& OutResult) const override;
 	virtual bool SetValue(FChooserEvaluationContext& Context, bool InValue) const override;
 	virtual void GetDisplayName(FText& OutName) const override;
@@ -26,9 +26,9 @@ struct FFloatAnimProperty :  public FChooserParameterFloatBase
 	GENERATED_BODY()
 public:
 
-	UPROPERTY(DisplayName = "Parameter", EditAnywhere, Category="Parameter", meta=(CustomWidget = "ParamName", AllowedParamType = "double"))
-	FName PropertyName;
-	
+	UPROPERTY(DisplayName = "Variable", EditAnywhere, Category="Variable")
+	FName VariableName;
+
 	virtual bool GetValue(FChooserEvaluationContext& Context, double& OutResult) const override;
 	virtual bool SetValue(FChooserEvaluationContext& Context, double InValue) const override;
 	virtual void GetDisplayName(FText& OutName) const override;

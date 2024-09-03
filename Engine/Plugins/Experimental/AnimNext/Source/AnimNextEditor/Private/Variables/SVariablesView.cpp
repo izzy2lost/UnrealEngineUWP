@@ -125,23 +125,23 @@ FReply SVariablesOutliner::HandleAddVariablesClicked()
 	}
 
 	TSharedRef<SAddVariablesDialog> AddVariablesDialog =
-		SNew(SAddVariablesDialog, AssetsToAddTo.Num() == 1 ? FAssetData(UncookedOnly::FUtils::GetAsset<UAnimNextRigVMAsset>(AssetsToAddTo[0])) : FAssetData());
+		SNew(SAddVariablesDialog, AssetsToAddTo);
 
 	TArray<FVariableToAdd> VariablesToAdd;
-	if(AddVariablesDialog->ShowModal(VariablesToAdd))
+	TArray<FDataInterfaceToAdd> DataInterfacesToAdd;
+	if(AddVariablesDialog->ShowModal(VariablesToAdd, DataInterfacesToAdd))
 	{
-		if(VariablesToAdd.Num() > 0)
+		FScopedTransaction Transaction(FText::Format(LOCTEXT("AddVariablesFormat", "Add {0}|plural(one=variable, other=variables)"), (DataInterfacesToAdd.Num() + VariablesToAdd.Num()) * AssetsToAddTo.Num()));
+		for(UAnimNextRigVMAssetEditorData* EditorData : AssetsToAddTo)
 		{
-			FScopedTransaction Transaction(FText::Format(LOCTEXT("AddVariablesFormat", "Add {0}|plural(one=variable, other=variables)"), VariablesToAdd.Num() * AssetsToAddTo.Num()));
-			for(UAnimNextRigVMAssetEditorData* EditorData : AssetsToAddTo)
+			for (const FVariableToAdd& VariableToAdd : VariablesToAdd)
 			{
-				for (const FVariableToAdd& VariableToAdd : VariablesToAdd)
-				{
-					if(EditorData->FindEntry(VariableToAdd.Name) == nullptr)
-					{
-						EditorData->AddVariable(VariableToAdd.Name, VariableToAdd.Type);
-					}
-				}
+				EditorData->AddVariable(VariableToAdd.Name, VariableToAdd.Type);
+			}
+
+			for (const FDataInterfaceToAdd& DataInterfaceToAdd : DataInterfacesToAdd)
+			{
+				EditorData->AddDataInterface(DataInterfaceToAdd.DataInterface);
 			}
 		}
 	}
@@ -201,6 +201,7 @@ void SVariablesOutliner::OnEditorDataModified(UAnimNextRigVMAssetEditorData* InE
 
 	switch(InType)
 	{
+	case EAnimNextEditorDataNotifType::UndoRedo:
 	case EAnimNextEditorDataNotifType::EntryAdded:
 	case EAnimNextEditorDataNotifType::EntryRemoved:
 		FullRefresh();

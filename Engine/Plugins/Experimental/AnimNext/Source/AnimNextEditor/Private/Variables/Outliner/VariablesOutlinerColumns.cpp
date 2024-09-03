@@ -15,11 +15,14 @@
 #include "SPinTypeSelector.h"
 #include "UncookedOnlyUtils.h"
 #include "VariablesOutlinerEntryItem.h"
+#include "Entries/AnimNextDataInterfaceEntry.h"
 #include "Entries/AnimNextRigVMAssetEntry.h"
+#include "Entries/AnimNextVariableEntry.h"
 #include "Widgets/Images/SImage.h"
 #include "UObject/Package.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
+#include "Variables/SVariableOverride.h"
 
 #define LOCTEXT_NAMESPACE "VariablesOutlinerColumns"
 
@@ -68,6 +71,7 @@ const TSharedRef<SWidget> FVariablesOutlinerTypeColumn::ConstructRowWidget(FScen
 		SNew(SBox)
 		.HAlign(HAlign_Left)
 		.VAlign(VAlign_Center)
+		.IsEnabled(!TreeItem->WeakDataInterfaceEntry.IsValid())
 		[
 			SNew(SPinTypeSelector, FGetPinTypeTree::CreateStatic(&Editor::FUtils::GetFilteredVariableTypeTree))
 			.TargetPinType_Lambda([WeakEntry = TreeItem->WeakEntry]()
@@ -113,12 +117,12 @@ SHeaderRow::FColumn::FArguments FVariablesOutlinerValueColumn::ConstructHeaderRo
 		.FillWidth(1.0f)
 		.HAlignHeader(HAlign_Left)
 		.VAlignHeader(VAlign_Center)
-		.HAlignCell(HAlign_Left)
+		.HAlignCell(HAlign_Fill)
 		.VAlignCell(VAlign_Center)
 		[
 			SNew(SBox) 
 			.VAlign(VAlign_Center)
-			.HAlign(HAlign_Left)
+			.HAlign(HAlign_Fill)
 			[
 				SNew(STextBlock)
 				.Text(LOCTEXT("ValueLabel", "Value"))
@@ -136,10 +140,95 @@ class SVariablesOutlinerValue : public SCompoundWidget, public FNotifyHook
 	{
 		WeakTreeItem = StaticCastSharedRef<FVariablesOutlinerEntryItem>(InTreeItem.AsShared());
 
+		if(UAnimNextVariableEntry* VariableEntry = Cast<UAnimNextVariableEntry>(InTreeItem.WeakEntry.Get()))
+		{
+			if(UAnimNextRigVMAssetEditorData* EditorData = VariableEntry->GetTypedOuter<UAnimNextRigVMAssetEditorData>())
+			{
+				EditorData->ModifiedDelegate.AddSP(this, &SVariablesOutlinerValue::HandleModified);
+			}
+		}
+		if(UAnimNextDataInterfaceEntry* DataInterfaceEntry = Cast<UAnimNextDataInterfaceEntry>(InTreeItem.WeakDataInterfaceEntry.Get()))
+		{
+			if(UAnimNextRigVMAssetEditorData* EditorData = DataInterfaceEntry->GetTypedOuter<UAnimNextRigVMAssetEditorData>())
+			{
+				EditorData->ModifiedDelegate.AddSP(this, &SVariablesOutlinerValue::HandleModified);
+			}
+		}
+
+		ChildSlot
+		[
+			SAssignNew(WidgetContainer, SBox)
+		];
+
+		BuildValueWidget();
+	}
+
+	void BuildValueWidget()
+	{
+		TSharedPtr<FVariablesOutlinerEntryItem> TreeItem = WeakTreeItem.Pin();
+		if(!TreeItem.IsValid())
+		{
+			return;
+		}
+
+		UAnimNextVariableEntry* VariableEntry = TreeItem->WeakEntry.Get();
+		if(VariableEntry == nullptr)
+		{
+			return;
+		}
+
 		TSharedPtr<SWidget> ValueWidget = SNullWidget::NullWidget;
-		IAnimNextRigVMVariableInterface* Variable = CastChecked<IAnimNextRigVMVariableInterface>(InTreeItem.WeakEntry.Get());
-		FInstancedPropertyBag& PropertyBag = Variable->GetMutablePropertyBag();
-		const FPropertyBagPropertyDesc* PropertyDesc = PropertyBag.FindPropertyDescByName(IAnimNextRigVMVariableInterface::ValueName);
+		const FName VariableName = VariableEntry->GetEntryName();
+		FInstancedPropertyBag* PropertyBag = nullptr;
+		FName ValueName;
+		bool bCanOverride = false;
+		UAnimNextDataInterfaceEntry* DataInterfaceEntry = TreeItem->WeakDataInterfaceEntry.Get();
+		if(DataInterfaceEntry != nullptr)
+		{
+			// Update for override status
+			bCanOverride = true;
+			OverrideStatus = DataInterfaceEntry->FindValueOverridePropertyBagRecursive(VariableName, PropertyBag);
+			switch(OverrideStatus)
+			{
+			case EAnimNextDataInterfaceValueOverrideStatus::NotOverridden:
+				{
+					// Use the internal property bag (copying from the source) and the default name
+					InternalPropertyBag = VariableEntry->GetPropertyBag();
+					PropertyBag = &InternalPropertyBag;
+					ValueName = IAnimNextRigVMVariableInterface::ValueName;
+					break;
+				}
+			case EAnimNextDataInterfaceValueOverrideStatus::OverriddenInThisAsset:
+				{
+					// Use the found property bag and the variable name
+					check(PropertyBag);
+					ValueName = VariableName;
+					break;
+				}
+			case EAnimNextDataInterfaceValueOverrideStatus::OverriddenInParentAsset:
+				{
+					// Use the internal property bag (copying just the value from the overriding asset's property bag) and the default name
+					check(PropertyBag);
+					const FPropertyBagPropertyDesc* Desc = PropertyBag->FindPropertyDescByName(VariableName);
+					check(Desc);
+					const uint8* DataPtr = Desc->CachedProperty->ContainerPtrToValuePtr<uint8>(PropertyBag->GetValue().GetMemory());
+					TConstArrayView<uint8> Value(DataPtr, Desc->CachedProperty->GetElementSize());
+					InternalPropertyBag.ReplaceAllPropertiesAndValues(TConstArrayView<FPropertyBagPropertyDesc>(Desc, 1), TConstArrayView<TConstArrayView<uint8>>(&Value, 1));
+					PropertyBag = &InternalPropertyBag;
+					ValueName = VariableName;
+					break;
+				}
+			}
+		}
+		else
+		{
+			// No data interface present, use the variable's internal property bag
+			bCanOverride = false;
+			PropertyBag = &VariableEntry->GetMutablePropertyBag();
+			ValueName = IAnimNextRigVMVariableInterface::ValueName;
+		}
+
+		const FPropertyBagPropertyDesc* PropertyDesc = PropertyBag ? PropertyBag->FindPropertyDescByName(ValueName) : nullptr;
 		if (PropertyDesc != nullptr)
 		{
 			if (PropertyDesc->ContainerTypes.IsEmpty()) // avoid trying to inline containers
@@ -147,27 +236,37 @@ class SVariablesOutlinerValue : public SCompoundWidget, public FNotifyHook
 				FSinglePropertyParams SinglePropertyArgs;
 				SinglePropertyArgs.NamePlacement = EPropertyNamePlacement::Hidden;
 				SinglePropertyArgs.NotifyHook = this;
+				SinglePropertyArgs.bHideResetToDefault = true;
 
 				FPropertyEditorModule& PropertyEditorModule = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 				
-				const TSharedPtr<ISinglePropertyView> SingleStructPropertyView = PropertyEditorModule.CreateSingleProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(PropertyBag), IAnimNextRigVMVariableInterface::ValueName, SinglePropertyArgs);
+				const TSharedPtr<ISinglePropertyView> SingleStructPropertyView = PropertyEditorModule.CreateSingleProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(*PropertyBag), ValueName, SinglePropertyArgs);
 				if (SingleStructPropertyView.IsValid())
 				{
-					ValueWidget = SingleStructPropertyView;
+					ValueWidget = SNew(SHorizontalBox)
+						+SHorizontalBox::Slot()
+						.FillWidth(1.0f)
+						[
+							SNew(SBox)
+							.HAlign(HAlign_Left)
+							[
+								SingleStructPropertyView.ToSharedRef()
+							]
+						]
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.HAlign(HAlign_Center)
+						[
+							SNew(SVariableOverride, DataInterfaceEntry, VariableName)
+							.Visibility(bCanOverride ? EVisibility::Visible : EVisibility::Collapsed)
+							.OverrideStatus(OverrideStatus)
+						];
 				}
 			}
 		}
 
-		ChildSlot
-		[
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.HAlign(HAlign_Center)
-			.AutoWidth()
-			[
-				ValueWidget.ToSharedRef()
-			]
-		];
+		WidgetContainer->SetContent(ValueWidget.ToSharedRef());
 	}
 
 	// FNotifyHook interface
@@ -178,27 +277,71 @@ class SVariablesOutlinerValue : public SCompoundWidget, public FNotifyHook
 		{
 			return;
 		}
-		
-		UAnimNextRigVMAssetEntry* Entry = CastChecked<UAnimNextRigVMAssetEntry>(TreeItem->WeakEntry.Get());
-		if(Entry == nullptr)
+
+		UAnimNextVariableEntry* VariableEntry = Cast<UAnimNextVariableEntry>(TreeItem->WeakEntry.Get());
+		if(VariableEntry == nullptr)
 		{
 			return;
 		}
 
-		UAnimNextRigVMAssetEditorData* EditorData = Entry->GetTypedOuter<UAnimNextRigVMAssetEditorData>();
+		UAnimNextRigVMAssetEditorData* EditorData = VariableEntry->GetTypedOuter<UAnimNextRigVMAssetEditorData>();
 		if (EditorData == nullptr)
 		{
 			return;
 		}
 
-		// Needed to show the changed sign in the table when we modify the PropertyBag
-		Entry->MarkPackageDirty();
+		UAnimNextDataInterfaceEntry* DataInterfaceEntry = Cast<UAnimNextDataInterfaceEntry>(TreeItem->WeakDataInterfaceEntry.Get());
+		if(DataInterfaceEntry != nullptr)
+		{
+			const FName VariableName = VariableEntry->GetVariableName();
+			if(!TreeItem->WeakDataInterfaceEntry->HasValueOverride(VariableName))
+			{
+				// No value override yet, so we copy from the internal property bag
+				check(InternalPropertyBag.IsValid() && InternalPropertyBag.GetPropertyBagStruct()->GetPropertyDescs().Num() == 1);
+				const FProperty* Property = InternalPropertyBag.GetPropertyBagStruct()->GetPropertyDescs()[0].CachedProperty; 
+				const uint8* DataPtr = Property->ContainerPtrToValuePtr<uint8>(InternalPropertyBag.GetValue().GetMemory());
+				TreeItem->WeakDataInterfaceEntry->SetValueOverride(VariableName, VariableEntry->GetType(), TConstArrayView<uint8>(DataPtr, Property->GetElementSize()));
+				ensure(TreeItem->WeakDataInterfaceEntry->HasValueOverride(VariableName));
+			}
 
-		// Ensure that default values get picked up and forwarded to compiler
-		EditorData->BroadcastModified(EAnimNextEditorDataNotifType::PropertyChanged, Entry);
+			DataInterfaceEntry->MarkPackageDirty();
+			DataInterfaceEntry->BroadcastModified(EAnimNextEditorDataNotifType::VariableDefaultValueChanged);
+		}
+		else
+		{
+			VariableEntry->MarkPackageDirty();
+			VariableEntry->BroadcastModified(EAnimNextEditorDataNotifType::VariableDefaultValueChanged);
+		}
+	}
+
+	void HandleModified(UAnimNextRigVMAssetEditorData* InEditorData, EAnimNextEditorDataNotifType InType, UObject* InSubject)
+	{
+		if( InType != EAnimNextEditorDataNotifType::VariableDefaultValueChanged &&
+			InType != EAnimNextEditorDataNotifType::UndoRedo)
+		{
+			return;
+		}
+		
+		TSharedPtr<FVariablesOutlinerEntryItem> TreeItem = WeakTreeItem.Pin();
+		if(!TreeItem.IsValid())
+		{
+			return;
+		}
+
+		UAnimNextVariableEntry* VariableEntry = Cast<UAnimNextVariableEntry>(TreeItem->WeakEntry.Get());
+		UAnimNextDataInterfaceEntry* DataInterfaceEntry = Cast<UAnimNextDataInterfaceEntry>(TreeItem->WeakDataInterfaceEntry.Get());
+		if(VariableEntry != InSubject && DataInterfaceEntry != InSubject)
+		{
+			return;
+		}
+
+		BuildValueWidget();
 	}
 
 	TWeakPtr<FVariablesOutlinerEntryItem> WeakTreeItem;
+	TSharedPtr<SBox> WidgetContainer;
+	FInstancedPropertyBag InternalPropertyBag;
+	EAnimNextDataInterfaceValueOverrideStatus OverrideStatus = EAnimNextDataInterfaceValueOverrideStatus::NotOverridden;
 };
 
 const TSharedRef<SWidget> FVariablesOutlinerValueColumn::ConstructRowWidget(FSceneOutlinerTreeItemRef Item, const STableRow<FSceneOutlinerTreeItemPtr>& Row)
@@ -259,6 +402,7 @@ class SVariablesOutlinerAccessSpecifier : public SCompoundWidget, public FNotify
 		ChildSlot
 		[
 			SNew(SBox)
+			.IsEnabled(!InTreeItem.WeakDataInterfaceEntry.IsValid())
 			.WidthOverride(16.0f)
 			.HeightOverride(16.0f)
 			.VAlign(VAlign_Center)

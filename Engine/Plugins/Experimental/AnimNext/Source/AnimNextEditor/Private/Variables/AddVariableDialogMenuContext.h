@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "SAddVariablesDialog.h"
 #include "AddVariableDialogMenuContext.generated.h"
 
 namespace UE::AnimNext::Editor
@@ -21,5 +22,5 @@ class UAddVariableDialogMenuContext : public UObject
 	TWeakPtr<UE::AnimNext::Editor::SAddVariablesDialog> AddVariablesDialog;
 
 	// The entry that we are editing
-	TWeakPtr<UE::AnimNext::Editor::FVariableToAdd> Entry;
+	TWeakPtr<UE::AnimNext::Editor::SAddVariablesDialog::FEntry> Entry;
 };

@@ -4,15 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "AnimNextController.h"
-#include "RigVMModel/RigVMGraph.h"
-#include "AnimNextEdGraph.h"
-#include "AnimNextRigVMAssetEditorData.h"
+#include "DataInterface/AnimNextDataInterface_EditorData.h"
 #include "AnimNextExecuteContext.h"
-#include "Kismet/BlueprintFunctionLibrary.h"
+
 #include "AnimNextAnimationGraph_EditorData.generated.h"
 
-class UAnimNextAnimationGraph;
-enum class ERigVMGraphNotifType : uint8;
 class FAnimationAnimNextRuntimeTest_GraphAddTrait;
 class FAnimationAnimNextRuntimeTest_GraphExecute;
 class FAnimationAnimNextRuntimeTest_GraphExecuteLatent;
@@ -31,7 +27,7 @@ namespace UE::AnimNext::Editor
 
 /** Editor data for AnimNext animation graphs */
 UCLASS(MinimalAPI)
-class UAnimNextAnimationGraph_EditorData : public UAnimNextRigVMAssetEditorData
+class UAnimNextAnimationGraph_EditorData : public UAnimNextDataInterface_EditorData
 {
 	GENERATED_BODY()
 

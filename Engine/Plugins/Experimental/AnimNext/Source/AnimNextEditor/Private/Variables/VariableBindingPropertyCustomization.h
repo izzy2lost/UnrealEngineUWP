@@ -45,7 +45,9 @@ private:
 	const FSlateBrush* Icon = nullptr;
 	FSlateColor IconColor = FLinearColor::Gray;
 	TSharedPtr<SWidget> ValueWidget;
+	TSharedPtr<SWidget> ContainerWidget;
 	bool bRefreshRequested = false;
+	bool bShowBindingSelector = false;
 };
 
 }

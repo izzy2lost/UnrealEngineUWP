@@ -3,19 +3,19 @@
 #pragma once
 
 #include "ISceneOutlinerTreeItem.h"
+#include "Variables/AnimNextVariableEntryProxy.h"
 
-class UAnimNextRigVMAssetEntry;
+class UAnimNextDataInterfaceEntry;
+class UAnimNextVariableEntry;
 
 namespace UE::AnimNext::Editor
 {
-
-class IWorkspaceOutlinerItemDetails;
 
 struct FVariablesOutlinerEntryItem : ISceneOutlinerTreeItem
 {
 	static const FSceneOutlinerTreeItemType Type;
 
-	FVariablesOutlinerEntryItem(UAnimNextRigVMAssetEntry* InEntry);
+	FVariablesOutlinerEntryItem(UAnimNextVariableEntry* InEntry);
 
 	// Begin ISceneOutlinerTreeItem overrides
 	virtual bool IsValid() const override;
@@ -33,7 +33,13 @@ struct FVariablesOutlinerEntryItem : ISceneOutlinerTreeItem
 	bool ValidateName(const FText& InNewName, FText& OutErrorMessage) const;
 
 	// Ptr to the underlying entry
-	TWeakObjectPtr<UAnimNextRigVMAssetEntry> WeakEntry;
+	TWeakObjectPtr<UAnimNextVariableEntry> WeakEntry;
+
+	// The data interface entry this entry is from, if any
+	TWeakObjectPtr<UAnimNextDataInterfaceEntry> WeakDataInterfaceEntry;
+
+	// Proxy entry used for details panel editing of variables in implemented data interfaces
+	TStrongObjectPtr<UAnimNextVariableEntryProxy> ProxyEntry;
 };
 
 }

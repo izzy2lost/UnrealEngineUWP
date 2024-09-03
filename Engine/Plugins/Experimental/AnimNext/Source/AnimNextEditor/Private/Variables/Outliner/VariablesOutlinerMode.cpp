@@ -20,10 +20,13 @@
 #include "Variables/AnimNextVariableItemMenuContext.h"
 #include "AnimNextRigVMAsset.h"
 #include "VariablesOutlinerAssetItem.h"
+#include "VariablesOutlinerDataInterfaceItem.h"
 #include "VariablesOutlinerDragDrop.h"
 #include "Common/GraphEditorSchemaActions.h"
 #include "Entries/AnimNextVariableEntry.h"
 #include "Variables/SVariablesView.h"
+#include "Entries/AnimNextDataInterfaceEntry.h"
+#include "Variables/AnimNextVariableEntryProxy.h"
 
 #define LOCTEXT_NAMESPACE "VariablesOutlinerMode"
 
@@ -155,11 +158,32 @@ void FVariablesOutlinerMode::HandleItemSelection(const FSceneOutlinerItemSelecti
 		EntriesToShow.Reserve(SelectedItems.Num());
 		for(const FSceneOutlinerTreeItemPtr& Item : SelectedItems)
 		{
-			if (const FVariablesOutlinerEntryItem* VariablesItem = Item->CastTo<FVariablesOutlinerEntryItem>())
+			if (FVariablesOutlinerEntryItem* VariablesItem = Item->CastTo<FVariablesOutlinerEntryItem>())
 			{
-				if(UAnimNextRigVMAssetEntry* Entry = VariablesItem->WeakEntry.Get())
+				if(UAnimNextVariableEntry* VariableEntry = VariablesItem->WeakEntry.Get())
 				{
-					EntriesToShow.Add(Entry);
+					if(UAnimNextDataInterfaceEntry* DataInterfaceEntry = VariablesItem->WeakDataInterfaceEntry.Get())
+					{
+						// Create proxy object to display in the details panel
+						if(!VariablesItem->ProxyEntry.IsValid())
+						{
+							VariablesItem->ProxyEntry = TStrongObjectPtr(NewObject<UAnimNextVariableEntryProxy>(GetTransientPackage(), NAME_None, RF_Transient));
+						}
+						VariablesItem->ProxyEntry.Get()->VariableEntry = VariableEntry;
+						VariablesItem->ProxyEntry.Get()->DataInterfaceEntry = DataInterfaceEntry;
+						EntriesToShow.Add(VariablesItem->ProxyEntry.Get());
+					}
+					else
+					{
+						EntriesToShow.Add(VariableEntry);
+					}
+				}
+			}
+			else if(const FVariablesOutlinerDataInterfaceItem* DataInterfaceItem = Item->CastTo<FVariablesOutlinerDataInterfaceItem>())
+			{
+				if(UAnimNextDataInterfaceEntry* DataInterfaceEntry = DataInterfaceItem->WeakEntry.Get())
+				{
+					EntriesToShow.Add(DataInterfaceEntry);
 				}
 			}
 		}
@@ -255,20 +279,39 @@ void FVariablesOutlinerMode::Delete()
 	{
 		if (const FVariablesOutlinerEntryItem* VariablesItem = Item->CastTo<FVariablesOutlinerEntryItem>())
 		{
-			UAnimNextRigVMAssetEntry* Entry = VariablesItem->WeakEntry.Get();
-			if(Entry == nullptr)
+			UAnimNextVariableEntry* VariableEntry = VariablesItem->WeakEntry.Get();
+			UAnimNextDataInterfaceEntry* DataInterfaceEntry = VariablesItem->WeakDataInterfaceEntry.Get();
+			if(VariableEntry == nullptr || DataInterfaceEntry != nullptr)	// Cant delete variables in other data interfaces
 			{
 				continue;
 			}
 
-			UAnimNextRigVMAssetEditorData* EditorData = Entry->GetTypedOuter<UAnimNextRigVMAssetEditorData>();
+			UAnimNextRigVMAssetEditorData* EditorData = VariableEntry->GetTypedOuter<UAnimNextRigVMAssetEditorData>();
 			if(EditorData == nullptr)
 			{
 				continue;
 			}
 
 			TArray<UAnimNextRigVMAssetEntry*>& EntriesToDelete = EntriesToDeletePerAsset.FindOrAdd(EditorData);
-			EntriesToDelete.Add(Entry);
+			EntriesToDelete.Add(VariableEntry);
+			NumEntries++;
+		}
+		else if (const FVariablesOutlinerDataInterfaceItem* DataInterfaceItem = Item->CastTo<FVariablesOutlinerDataInterfaceItem>())
+		{
+			UAnimNextDataInterfaceEntry* DataInterfaceEntry = DataInterfaceItem->WeakEntry.Get();
+			if(DataInterfaceEntry == nullptr)
+			{
+				continue;
+			}
+
+			UAnimNextRigVMAssetEditorData* EditorData = DataInterfaceEntry->GetTypedOuter<UAnimNextRigVMAssetEditorData>();
+			if(EditorData == nullptr)
+			{
+				continue;
+			}
+
+			TArray<UAnimNextRigVMAssetEntry*>& EntriesToDelete = EntriesToDeletePerAsset.FindOrAdd(EditorData);
+			EntriesToDelete.Add(DataInterfaceEntry);
 			NumEntries++;
 		}
 	}
@@ -319,7 +362,7 @@ TSharedPtr<FDragDropOperation> FVariablesOutlinerMode::CreateDragDropOperation(c
 	{
 		if(ExternalVariable.Name == VariableName)
 		{
-			const bool bIsGetter = MouseEvent.IsControlDown();
+			const bool bIsGetter = !(MouseEvent.IsShiftDown() || MouseEvent.IsAltDown());
 			TSharedPtr<FAnimNextSchemaAction_Variable> Action = MakeShared<FAnimNextSchemaAction_Variable>(ExternalVariable, bIsGetter);
 			return FVariableDragDropOp::New(Action);
 		}

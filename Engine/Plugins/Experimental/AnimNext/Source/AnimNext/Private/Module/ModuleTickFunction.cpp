@@ -135,9 +135,9 @@ void FModuleEventTickFunction::Run(float InDeltaTime)
 		Function.GetValue()(FModuleTaskContext(*ModuleInstance));
 	}
 
-	if (URigVM* VM = ModuleInstance->Module->GetVM())
+	if (URigVM* VM = ModuleInstance->GetModule()->RigVM)
 	{
-		FRigVMExtendedExecuteContext& Context = ModuleInstance->ExtendedExecuteContext;
+		FRigVMExtendedExecuteContext& Context = ModuleInstance->GetExtendedExecuteContext();
 		check(Context.VMHash == VM->GetVMHash());
 
 		FAnimNextExecuteContext& AnimNextContext = Context.GetPublicDataSafe<FAnimNextExecuteContext>();

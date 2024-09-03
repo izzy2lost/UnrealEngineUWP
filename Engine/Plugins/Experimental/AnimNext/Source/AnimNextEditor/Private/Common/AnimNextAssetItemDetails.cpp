@@ -14,6 +14,7 @@
 #include "ScopedTransaction.h"
 #include "RigVMModel/RigVMClient.h"
 #include "ToolMenus.h"
+#include "Entries/AnimNextDataInterfaceEntry.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Module/AnimNextModule_EditorData.h"
 #include "Module/RigUnit_AnimNextModuleEvents.h"
@@ -154,19 +155,41 @@ void FAnimNextAssetItemDetails::RegisterToolMenuExtensions()
 							if(SubEntryClass == UAnimNextVariableEntry::StaticClass())
 							{
 								TSharedRef<SAddVariablesDialog> AddVariablesDialog =
-									SNew(SAddVariablesDialog, FAssetData(OutlinerData.Asset));
+									SNew(SAddVariablesDialog, TArray<UAnimNextRigVMAssetEditorData*>({ UncookedOnly::FUtils::GetEditorData<UAnimNextRigVMAssetEditorData>(OutlinerData.Asset.Get()) }));
 
 								TArray<FVariableToAdd> VariablesToAdd;
-								if(AddVariablesDialog->ShowModal(VariablesToAdd))
+								TArray<FDataInterfaceToAdd> DataInterfacesToAdd;
+								if(AddVariablesDialog->ShowModal(VariablesToAdd, DataInterfacesToAdd))
 								{
-									if(VariablesToAdd.Num() > 0)
+									FScopedTransaction Transaction(LOCTEXT("AddVariables", "Add Variable(s)"));
+									for (const FVariableToAdd& VariableToAdd : VariablesToAdd)
 									{
-										FScopedTransaction Transaction(LOCTEXT("AddVariable", "Add Variable"));
-										for (const FVariableToAdd& VariableToAdd : VariablesToAdd)
-										{
-											check(EditorData->FindEntry(VariableToAdd.Name) == nullptr);
-											EditorData->AddVariable(VariableToAdd.Name, VariableToAdd.Type);
-										}
+										EditorData->AddVariable(VariableToAdd.Name, VariableToAdd.Type);
+									}
+									for (const FDataInterfaceToAdd& DataInterfaceToAdd : DataInterfacesToAdd)
+									{
+										EditorData->AddDataInterface(DataInterfaceToAdd.DataInterface);
+									}
+								}
+							}
+							else if(SubEntryClass == UAnimNextDataInterfaceEntry::StaticClass())
+							{
+								TSharedRef<SAddVariablesDialog> AddVariablesDialog =
+									SNew(SAddVariablesDialog, TArray<UAnimNextRigVMAssetEditorData*>({ UncookedOnly::FUtils::GetEditorData<UAnimNextRigVMAssetEditorData>(OutlinerData.Asset.Get()) }))
+									.ShouldAddInitialVariable(false);
+
+								TArray<FVariableToAdd> VariablesToAdd;
+								TArray<FDataInterfaceToAdd> DataInterfacesToAdd;
+								if(AddVariablesDialog->ShowModal(VariablesToAdd, DataInterfacesToAdd))
+								{
+									FScopedTransaction Transaction(LOCTEXT("AddVariables", "Add Variable(s)"));
+									for (const FVariableToAdd& VariableToAdd : VariablesToAdd)
+									{
+										EditorData->AddVariable(VariableToAdd.Name, VariableToAdd.Type);
+									}
+									for (const FDataInterfaceToAdd& DataInterfaceToAdd : DataInterfacesToAdd)
+									{
+										EditorData->AddDataInterface(DataInterfaceToAdd.DataInterface);
 									}
 								}
 							}

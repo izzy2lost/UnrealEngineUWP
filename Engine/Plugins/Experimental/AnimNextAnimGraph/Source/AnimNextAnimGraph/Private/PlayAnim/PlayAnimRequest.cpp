@@ -7,10 +7,10 @@
 
 namespace UE::AnimNext
 {
-	bool FPlayAnimRequest::Play(const FPlayAnimRequestArgs& InRequestArgs, UAnimNextComponent* InComponent)
+	bool FPlayAnimRequest::Play(FPlayAnimRequestArgs&& InRequestArgs, UAnimNextComponent* InComponent)
 	{
 		check(IsInGameThread());
-		if (InRequestArgs.AnimationObject == nullptr || InComponent == nullptr)
+		if (!InRequestArgs.Payload.IsValid() || InComponent == nullptr)
 		{
 			return false;	// Nothing to play
 		}
@@ -20,7 +20,7 @@ namespace UE::AnimNext
 			return false;	// Already playing, cannot play again
 		}
 
-		RequestArgs = InRequestArgs;
+		RequestArgs = MoveTemp(InRequestArgs);
 		Component = InComponent;
 		Status = EPlayAnimStatus::Pending;
 
@@ -62,6 +62,11 @@ namespace UE::AnimNext
 	}
 
 	const FPlayAnimRequestArgs& FPlayAnimRequest::GetArgs() const
+	{
+		return RequestArgs;
+	}
+
+	FPlayAnimRequestArgs& FPlayAnimRequest::GetMutableArgs()
 	{
 		return RequestArgs;
 	}
@@ -154,7 +159,8 @@ namespace UE::AnimNext
 
 	void FPlayAnimRequest::AddReferencedObjects(FReferenceCollector& Collector)
 	{
-		Collector.AddReferencedObject(RequestArgs.AnimationObject);
+		Collector.AddReferencedObject(RequestArgs.Object);
+		Collector.AddPropertyReferencesWithStructARO(FInstancedPropertyBag::StaticStruct(), &RequestArgs.Payload);
 		Collector.AddReferencedObject(Component);
 	}
 }

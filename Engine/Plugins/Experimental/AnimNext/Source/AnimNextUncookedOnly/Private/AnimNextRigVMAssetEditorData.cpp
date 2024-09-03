@@ -14,23 +14,23 @@
 #include "IAnimNextRigVMGraphInterface.h"
 #include "IWorkspaceEditor.h"
 #include "IWorkspaceEditorModule.h"
-#include "Variables/IAnimNextRigVMVariableInterface.h"
 #include "UncookedOnlyUtils.h"
+#include "DataInterface/AnimNextDataInterface_EditorData.h"
 #include "Entries/AnimNextAnimationGraphEntry.h"
+#include "Entries/AnimNextDataInterfaceEntry.h"
 #include "Entries/AnimNextEventGraphEntry.h"
 #include "Entries/AnimNextVariableEntry.h"
 #include "Graph/AnimNextAnimationGraphSchema.h"
 #include "Graph/RigUnit_AnimNextBeginExecution.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "Module/AnimNextEventGraphSchema.h"
-#include "Module/AnimNextModule_EditorData.h"
 #include "Module/RigUnit_AnimNextModuleEvents.h"
-#include "Param/AnimNextTag.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
 #include "RigVMModel/RigVMNotifications.h"
 #include "RigVMModel/Nodes/RigVMAggregateNode.h"
 #include "RigVMModel/Nodes/RigVMCollapseNode.h"
 #include "UObject/AssetRegistryTagsContext.h"
+#include "DataInterface/AnimNextDataInterface_EditorData.h"
 
 TAutoConsoleVariable<bool> CVarDumpProgrammaticGraphs(
 	TEXT("AnimNext.DumpProgrammaticGraphs"),
@@ -200,7 +200,7 @@ void UAnimNextRigVMAssetEditorData::PostTransacted(const FTransactionObjectEvent
 
 	if (TransactionEvent.GetEventType() == ETransactionObjectEventType::UndoRedo)
 	{
-		BroadcastModified(EAnimNextEditorDataNotifType::PropertyChanged, this);
+		BroadcastModified(EAnimNextEditorDataNotifType::UndoRedo, this);
 	}
 }
 
@@ -978,6 +978,29 @@ bool UAnimNextRigVMAssetEditorData::RemoveEntries(TConstArrayView<UAnimNextRigVM
 	return bResult;
 }
 
+bool UAnimNextRigVMAssetLibrary::RemoveAllEntries(UAnimNextRigVMAsset* InAsset, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InAsset)->RemoveAllEntries(bSetupUndoRedo, bPrintPythonCommand);
+}
+
+bool UAnimNextRigVMAssetEditorData::RemoveAllEntries(bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	bool bResult = false;
+	{
+		TGuardValue<bool> DisableEditorDataNotifications(bSuspendEditorDataNotifications, true);
+		TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
+		TArray<UAnimNextRigVMAssetEntry*> EntriesCopy = Entries; 
+		for(UAnimNextRigVMAssetEntry* Entry : EntriesCopy)
+		{
+			bResult |= RemoveEntry(Entry, bSetupUndoRedo, bPrintPythonCommand);
+		}
+	}
+
+	BroadcastModified(EAnimNextEditorDataNotifType::EntryRemoved, this);
+
+	return bResult;
+}
+
 UObject* UAnimNextRigVMAssetEditorData::CreateNewSubEntry(UAnimNextRigVMAssetEditorData* InEditorData, TSubclassOf<UObject> InClass)
 {
 	UObject* NewEntry = NewObject<UObject>(InEditorData, InClass.Get(), NAME_None, RF_Transactional);
@@ -1272,10 +1295,10 @@ bool UAnimNextRigVMAssetEditorData::RemoveEdGraph(URigVMGraph* InModel)
 	return false;
 }
 
-UAnimNextVariableEntry* UAnimNextRigVMAssetLibrary::AddVariable(UAnimNextModule* InModule, FName InName, EPropertyBagPropertyType InValueType,
+UAnimNextVariableEntry* UAnimNextRigVMAssetLibrary::AddVariable(UAnimNextRigVMAsset* InAsset, FName InName, EPropertyBagPropertyType InValueType,
 	EPropertyBagContainerType InContainerType, const UObject* InValueTypeObject, const FString& InDefaultValue, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
-	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InModule)->AddVariable(InName, FAnimNextParamType(InValueType, InContainerType, InValueTypeObject), InDefaultValue, bSetupUndoRedo, bPrintPythonCommand);
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InAsset)->AddVariable(InName, FAnimNextParamType(InValueType, InContainerType, InValueTypeObject), InDefaultValue, bSetupUndoRedo, bPrintPythonCommand);
 }
 
 UAnimNextVariableEntry* UAnimNextRigVMAssetEditorData::AddVariable(FName InName, FAnimNextParamType InType, const FString& InDefaultValue, bool bSetupUndoRedo, bool bPrintPythonCommand)
@@ -1316,8 +1339,10 @@ UAnimNextVariableEntry* UAnimNextRigVMAssetEditorData::AddVariable(FName InName,
 		NewEntry->SetType(InType, false);
 		if(InDefaultValue.Len() > 0)
 		{
-			NewEntry->SetDefaultValue(InDefaultValue, false);
+			NewEntry->SetDefaultValueFromString(InDefaultValue, false);
 		}
+
+		NewEntry->Initialize(this);
 	}
 
 	if(bSetupUndoRedo)
@@ -1328,14 +1353,16 @@ UAnimNextVariableEntry* UAnimNextRigVMAssetEditorData::AddVariable(FName InName,
 
 	Entries.Add(NewEntry);
 
+	CustomizeNewAssetEntry(NewEntry);
+
 	BroadcastModified(EAnimNextEditorDataNotifType::EntryAdded, NewEntry);
 
 	return NewEntry;
 }
 
-UAnimNextEventGraphEntry* UAnimNextRigVMAssetLibrary::AddEventGraph(UAnimNextModule* InModule, FName InName, UScriptStruct* InEventStruct, bool bSetupUndoRedo, bool bPrintPythonCommand)
+UAnimNextEventGraphEntry* UAnimNextRigVMAssetLibrary::AddEventGraph(UAnimNextRigVMAsset* InAsset, FName InName, UScriptStruct* InEventStruct, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
-	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InModule)->AddEventGraph(InName, InEventStruct, bSetupUndoRedo, bPrintPythonCommand);
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InAsset)->AddEventGraph(InName, InEventStruct, bSetupUndoRedo, bPrintPythonCommand);
 }
 
 UAnimNextEventGraphEntry* UAnimNextRigVMAssetEditorData::AddEventGraph(FName InName, UScriptStruct* InEventStruct, bool bSetupUndoRedo, bool bPrintPythonCommand)
@@ -1375,6 +1402,7 @@ UAnimNextEventGraphEntry* UAnimNextRigVMAssetEditorData::AddEventGraph(FName InN
 
 	UAnimNextEventGraphEntry* NewEntry = CreateNewSubEntry<UAnimNextEventGraphEntry>(this);
 	NewEntry->GraphName = NewGraphName;
+	NewEntry->Initialize(this);
 
 	if(bSetupUndoRedo)
 	{
@@ -1407,14 +1435,16 @@ UAnimNextEventGraphEntry* UAnimNextRigVMAssetEditorData::AddEventGraph(FName InN
 		}
 	}
 
+	CustomizeNewAssetEntry(NewEntry);
+
 	BroadcastModified(EAnimNextEditorDataNotifType::EntryAdded, NewEntry);
 
 	return NewEntry;
 }
 
-UAnimNextAnimationGraphEntry* UAnimNextRigVMAssetLibrary::AddAnimationGraph(UAnimNextModule* InModule, FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+UAnimNextAnimationGraphEntry* UAnimNextRigVMAssetLibrary::AddAnimationGraph(UAnimNextRigVMAsset* InAsset, FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
-	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InModule)->AddAnimationGraph(InName, bSetupUndoRedo, bPrintPythonCommand);
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InAsset)->AddAnimationGraph(InName, bSetupUndoRedo, bPrintPythonCommand);
 }
 
 UAnimNextAnimationGraphEntry* UAnimNextRigVMAssetEditorData::AddAnimationGraph(FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
@@ -1448,6 +1478,7 @@ UAnimNextAnimationGraphEntry* UAnimNextRigVMAssetEditorData::AddAnimationGraph(F
 
 	UAnimNextAnimationGraphEntry* NewEntry = CreateNewSubEntry<UAnimNextAnimationGraphEntry>(this);
 	NewEntry->GraphName = NewGraphName;
+	NewEntry->Initialize(this);
 
 	if(bSetupUndoRedo)
 	{
@@ -1480,6 +1511,131 @@ UAnimNextAnimationGraphEntry* UAnimNextRigVMAssetEditorData::AddAnimationGraph(F
 		}
 	}
 
+	CustomizeNewAssetEntry(NewEntry);
+
+	BroadcastModified(EAnimNextEditorDataNotifType::EntryAdded, NewEntry);
+
+	return NewEntry;
+}
+
+UAnimNextDataInterfaceEntry* UAnimNextRigVMAssetLibrary::AddDataInterface(UAnimNextRigVMAsset* InAsset, UAnimNextDataInterface* InDataInterface, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InAsset)->AddDataInterface(InDataInterface, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+UAnimNextDataInterfaceEntry* UAnimNextRigVMAssetEditorData::AddDataInterface(UAnimNextDataInterface* InDataInterface, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if(InDataInterface == nullptr)
+	{
+		ReportError(TEXT("UAnimNextRigVMAssetEditorData::AddDataInterface: Invalid data interface supplied."));
+		return nullptr;
+	}
+
+	if(!GetEntryClasses().Contains(UAnimNextDataInterfaceEntry::StaticClass()) || !CanAddNewEntry(UAnimNextDataInterfaceEntry::StaticClass()))
+	{
+		ReportError(TEXT("UAnimNextRigVMAssetEditorData::AddDataInterface: Cannot add a data interface to this asset - entry is not allowed."));
+		return nullptr;
+	}
+	
+	// Check if interface has any public members or if any of its parent interfaces do
+	UAnimNextDataInterface_EditorData* EditorData = UE::AnimNext::UncookedOnly::FUtils::GetEditorData<UAnimNextDataInterface_EditorData>(InDataInterface);
+	if(EditorData == nullptr)
+	{
+		ReportError(TEXT("UAnimNextRigVMAssetEditorData::AddDataInterface: Invalid data interface supplied - asset has no editor data."));
+		return nullptr;
+	}
+
+	// Check for circularity
+	auto CheckForCircularity = [this](UAnimNextDataInterface_EditorData* InEditorData, auto& InCheckForCircularity)
+	{
+		if(InEditorData == this)
+		{
+			return true;
+		}
+
+		for(UAnimNextRigVMAssetEntry* Entry : InEditorData->Entries)
+		{
+			if(UAnimNextDataInterfaceEntry* DataInterfaceEntry = Cast<UAnimNextDataInterfaceEntry>(Entry))
+			{
+				UAnimNextDataInterface* DataInterface = DataInterfaceEntry->GetDataInterface();
+				UAnimNextDataInterface_EditorData* EditorData = UE::AnimNext::UncookedOnly::FUtils::GetEditorData<UAnimNextDataInterface_EditorData>(DataInterface);
+				if(InCheckForCircularity(EditorData, InCheckForCircularity))
+				{
+					return true;
+				}
+			}
+		}
+
+		return false;
+	};
+
+	if(CheckForCircularity(EditorData, CheckForCircularity))
+	{
+		ReportError(TEXT("UAnimNextRigVMAssetEditorData::AddDataInterface: Circular reference detected."));
+		return nullptr;
+	}
+
+	auto CheckForPublicMembers = [](UAnimNextDataInterface_EditorData* InEditorData, auto& InCheckForPublicMembers)
+	{
+		for(UAnimNextRigVMAssetEntry* Entry : InEditorData->Entries)
+		{
+			if(UAnimNextVariableEntry* VariableEntry = Cast<UAnimNextVariableEntry>(Entry))
+			{
+				if(VariableEntry->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public)
+				{
+					return true;
+				}
+			}
+			else if(UAnimNextDataInterfaceEntry* DataInterfaceEntry = Cast<UAnimNextDataInterfaceEntry>(Entry))
+			{
+				UAnimNextDataInterface* DataInterface = DataInterfaceEntry->GetDataInterface();
+				UAnimNextDataInterface_EditorData* EditorData = UE::AnimNext::UncookedOnly::FUtils::GetEditorData<UAnimNextDataInterface_EditorData>(DataInterface);
+				if(InCheckForPublicMembers(EditorData, InCheckForPublicMembers))
+				{
+					return true;
+				}
+			}
+		}
+
+		return false;
+	};
+
+	if(!CheckForPublicMembers(EditorData, CheckForPublicMembers))
+	{
+		ReportError(TEXT("UAnimNextRigVMAssetEditorData::AddDataInterface: No public variables found."));
+		return nullptr;
+	}
+
+	// Check for duplicate interface
+	auto DuplicatePredicate = [InDataInterface](const UAnimNextRigVMAssetEntry* InEntry)
+	{
+		if(const UAnimNextDataInterfaceEntry* InterfaceEntry = Cast<UAnimNextDataInterfaceEntry>(InEntry))
+		{
+			return InterfaceEntry->DataInterface == InDataInterface;
+		}
+		return false;
+	};
+
+	if(Entries.ContainsByPredicate(DuplicatePredicate))
+	{
+		ReportError(TEXT("UAnimNextRigVMAssetEditorData::AddDataInterface: Data interface already implemented."));
+		return nullptr;
+	}
+
+	UAnimNextDataInterfaceEntry* NewEntry = CreateNewSubEntry<UAnimNextDataInterfaceEntry>(this);
+	NewEntry->SetDataInterface(InDataInterface);
+	NewEntry->Initialize(this);
+
+	if(bSetupUndoRedo)
+	{
+		NewEntry->Modify();
+		Modify();
+	}
+
+	Entries.Add(NewEntry);
+
+	CustomizeNewAssetEntry(NewEntry);
+
 	BroadcastModified(EAnimNextEditorDataNotifType::EntryAdded, NewEntry);
 
 	return NewEntry;
@@ -1489,9 +1645,20 @@ bool UAnimNextRigVMAssetEditorData::HasPublicVariables() const
 {
 	for(UAnimNextRigVMAssetEntry* Entry : Entries)
 	{
-		if(UAnimNextVariableEntry* Variable = Cast<UAnimNextVariableEntry>(Entry))
+		if(UAnimNextVariableEntry* VariableEntry = Cast<UAnimNextVariableEntry>(Entry))
 		{
-			return Variable->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public;
+			if(VariableEntry->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public)
+			{
+				return true;
+			}
+		}
+		else if(UAnimNextDataInterfaceEntry* DataInterfaceEntry = Cast<UAnimNextDataInterfaceEntry>(Entry))
+		{
+			if(DataInterfaceEntry->DataInterface)
+			{
+				UAnimNextDataInterface_EditorData* EditorData = UE::AnimNext::UncookedOnly::FUtils::GetEditorData<UAnimNextDataInterface_EditorData>(DataInterfaceEntry->DataInterface.Get());
+				return EditorData->HasPublicVariables();
+			}
 		}
 	}
 	return false;

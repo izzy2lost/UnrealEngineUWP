@@ -20,7 +20,7 @@ struct FAnimNextVariableBinding
 		return BindingData.IsValid() && BindingData.Get<FAnimNextVariableBindingData>().IsValid();
 	}
 
-	UPROPERTY(EditAnywhere, Category = "Binding", NoClear, meta=(ExcludeBaseStruct))
+	UPROPERTY(EditAnywhere, Category = "Binding", meta=(ExcludeBaseStruct))
 	TInstancedStruct<FAnimNextVariableBindingData> BindingData;
 };
 

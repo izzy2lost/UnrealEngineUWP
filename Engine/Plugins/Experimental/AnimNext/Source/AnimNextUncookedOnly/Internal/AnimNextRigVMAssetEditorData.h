@@ -14,6 +14,7 @@ enum class ERigVMGraphNotifType : uint8;
 class UAnimNextRigVMAssetEntry;
 class UAnimNextRigVMAssetEditorData;
 class UAnimNextEdGraph;
+class UAnimNextDataInterfaceEntry;
 
 namespace UE::AnimNext::UncookedOnly
 {
@@ -37,6 +38,8 @@ namespace UE::AnimNext::Editor
 	class FVariablesOutlinerHierarchy;
 	class SVariablesOutlinerValue;
 	class SVariablesOutliner;
+	class SAddVariablesDialog;
+	class FVariableProxyCustomization;
 }
 
 namespace UE::AnimNext::Tests
@@ -44,6 +47,7 @@ namespace UE::AnimNext::Tests
 	class FEditor_Graphs;
 	class FEditor_Variables;
 	class FVariables;
+	class FDataInterfaceCompile;
 }
 
 enum class EAnimNextEditorDataNotifType : uint8
@@ -54,6 +58,9 @@ enum class EAnimNextEditorDataNotifType : uint8
 	EntryRenamed,	// An entry has been renamed (Subject == UAnimNextRigVMAssetEntry)
 	EntryAccessSpecifierChanged,	// An entry access specifier has been changed (Subject == UAnimNextRigVMAssetEntry)
 	VariableTypeChanged,	// A variable entry type changed (Subject == UAnimNextVariableEntry)
+	UndoRedo,		// Transaction was performed (Subject == UObject)
+	VariableDefaultValueChanged,	// A variable entry default value changed (Subject == UAnimNextVariableEntry)
+	VariableBindingChanged,	// A variable entry binding changed (Subject == UAnimNextVariableEntry)
 };
 
 namespace UE::AnimNext::UncookedOnly
@@ -71,29 +78,38 @@ class UAnimNextRigVMAssetLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
+public:
 	/** Finds an entry in an AnimNext asset */
 	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
-	static UAnimNextRigVMAssetEntry* FindEntry(UAnimNextRigVMAsset* InAsset, FName InName);
+	static ANIMNEXTUNCOOKEDONLY_API UAnimNextRigVMAssetEntry* FindEntry(UAnimNextRigVMAsset* InAsset, FName InName);
 
 	/** Removes an entry from an AnimNext asset */
 	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
-	static bool RemoveEntry(UAnimNextRigVMAsset* InAsset, UAnimNextRigVMAssetEntry* InEntry, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	static ANIMNEXTUNCOOKEDONLY_API bool RemoveEntry(UAnimNextRigVMAsset* InAsset, UAnimNextRigVMAssetEntry* InEntry, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	/** Removes multiple entries from an AnimNext asset */
 	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
-	static bool RemoveEntries(UAnimNextRigVMAsset* InAsset, const TArray<UAnimNextRigVMAssetEntry*>& InEntries, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	static ANIMNEXTUNCOOKEDONLY_API bool RemoveEntries(UAnimNextRigVMAsset* InAsset, const TArray<UAnimNextRigVMAssetEntry*>& InEntries, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+
+	/** Removes all entries from an AnimNext asset */
+	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
+	static ANIMNEXTUNCOOKEDONLY_API bool RemoveAllEntries(UAnimNextRigVMAsset* InAsset, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	/** Adds an animation graph to an AnimNext asset */
 	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
-	static UAnimNextAnimationGraphEntry* AddAnimationGraph(UAnimNextModule* InModule, FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	static ANIMNEXTUNCOOKEDONLY_API UAnimNextAnimationGraphEntry* AddAnimationGraph(UAnimNextRigVMAsset* InAsset, FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	/** Adds a parameter to an AnimNext asset */
 	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
-	static UAnimNextVariableEntry* AddVariable(UAnimNextModule* InModule, FName InName, EPropertyBagPropertyType InValueType, EPropertyBagContainerType InContainerType = EPropertyBagContainerType::None, const UObject* InValueTypeObject = nullptr, const FString& InDefaultValue = TEXT(""), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	static ANIMNEXTUNCOOKEDONLY_API UAnimNextVariableEntry* AddVariable(UAnimNextRigVMAsset* InAsset, FName InName, EPropertyBagPropertyType InValueType, EPropertyBagContainerType InContainerType = EPropertyBagContainerType::None, const UObject* InValueTypeObject = nullptr, const FString& InDefaultValue = TEXT(""), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	/** Adds an event graph to an AnimNext asset */
 	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
-	static UAnimNextEventGraphEntry* AddEventGraph(UAnimNextModule* InModule, FName InName, UScriptStruct* InEventStruct, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	static ANIMNEXTUNCOOKEDONLY_API UAnimNextEventGraphEntry* AddEventGraph(UAnimNextRigVMAsset* InAsset, FName InName, UScriptStruct* InEventStruct, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+
+	/** Adds a data interface to an AnimNext asset */
+	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
+	static ANIMNEXTUNCOOKEDONLY_API UAnimNextDataInterfaceEntry* AddDataInterface(UAnimNextRigVMAsset* InAsset, UAnimNextDataInterface* InDataInterface, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 };
 
 /* Base class for all AnimNext editor data objects that use RigVM */
@@ -111,7 +127,10 @@ public:
 
 	/** Adds an event graph to this asset */
 	ANIMNEXTUNCOOKEDONLY_API UAnimNextEventGraphEntry* AddEventGraph(FName InName, UScriptStruct* InEventStruct, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
-	
+
+	/** Adds a data interface to this asset */
+	ANIMNEXTUNCOOKEDONLY_API UAnimNextDataInterfaceEntry* AddDataInterface(UAnimNextDataInterface* InDataInterface, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+
 	// Report an error to the user, typically used for scripting APIs
 	ANIMNEXTUNCOOKEDONLY_API static void ReportError(const TCHAR* InMessage);
 
@@ -128,6 +147,7 @@ protected:
 	friend class UE::AnimNext::Tests::FEditor_Graphs;
 	friend class UE::AnimNext::Tests::FEditor_Variables;
 	friend class UE::AnimNext::Tests::FVariables;
+	friend class UE::AnimNext::Tests::FDataInterfaceCompile;
 	friend class UE::AnimNext::Editor::FVariableCustomization;
 	friend class UE::AnimNext::Editor::FAnimNextAssetItemDetails;
 	friend class UE::AnimNext::Editor::FAnimNextGraphItemDetails;
@@ -137,6 +157,9 @@ protected:
 	friend class UE::AnimNext::Editor::SVariablesOutlinerValue;
 	friend class UE::AnimNext::Editor::SVariablesOutliner;
 	friend class UAnimNextModuleWorkspaceAssetUserData;
+	friend class UE::AnimNext::Editor::SAddVariablesDialog;
+	friend class UE::AnimNext::Editor::FVariableProxyCustomization;
+	friend class UAnimNextDataInterfaceEntry;
 
 	// UObject interface
 	virtual void Serialize(FArchive& Ar) override;
@@ -232,6 +255,9 @@ protected:
 	// Allows this asset to generate graphs to be injected at compilation time
 	virtual void GetProgrammaticGraphs(const FRigVMCompileSettings& InSettings, TArray<URigVMGraph*>& OutGraphs) {}
 
+	// Customization point for derived types to transform new asset entries
+	virtual void CustomizeNewAssetEntry(UAnimNextRigVMAssetEntry* InNewEntry) const {}
+
 	// Helper for creating new sub-entries. Sets package flags and outers appropriately 
 	static UObject* CreateNewSubEntry(UAnimNextRigVMAssetEditorData* InEditorData, TSubclassOf<UObject> InClass);
 
@@ -321,6 +347,10 @@ protected:
 	// Remove a number of entries from the asset
 	// @return true if any items were removed
 	ANIMNEXTUNCOOKEDONLY_API bool RemoveEntries(TConstArrayView<UAnimNextRigVMAssetEntry*> InEntries, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+
+	// Remove all entries from the asset
+	// @return true if any items were removed
+	ANIMNEXTUNCOOKEDONLY_API bool RemoveAllEntries(bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	ANIMNEXTUNCOOKEDONLY_API void BroadcastModified(EAnimNextEditorDataNotifType InType, UObject* InSubject);
 

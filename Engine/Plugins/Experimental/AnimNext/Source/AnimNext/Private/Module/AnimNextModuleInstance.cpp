@@ -18,11 +18,11 @@ FAnimNextModuleInstance::FAnimNextModuleInstance(
 		UAnimNextModule* InModule,
 		UObject* InObject,
 		EAnimNextModuleInitMethod InInitMethod)
-	: Module(InModule)
-	, Object(InObject)
+	: Object(InObject)
 	, RunState(ERunState::None)
 	, InitMethod(InInitMethod)
 {
+	DataInterface = InModule;
 }
 
 FAnimNextModuleInstance::~FAnimNextModuleInstance()
@@ -30,7 +30,7 @@ FAnimNextModuleInstance::~FAnimNextModuleInstance()
 	ResetBindingsAndInstanceData();
 
 	Object = nullptr;
-	Module = nullptr;
+	DataInterface = nullptr;
 	Handle.Reset();
 }
 
@@ -75,7 +75,7 @@ void CacheAllModuleEvents()
 }
 
 // Gets information about the module events that are implemented by the supplied VM
-static TConstArrayView<FImplementedModuleEvent> GetImplementedModuleEvents(URigVM* VM)
+static TConstArrayView<FImplementedModuleEvent> GetImplementedModuleEvents(const URigVM* VM)
 {
 	check(IsInGameThread());	// This function cannot be run concurrently because of static usage
 	check(GAllModuleEvents.Num() > 0);	// Call CacheAllModuleEvents before this function
@@ -105,6 +105,7 @@ void FAnimNextModuleInstance::Initialize()
 	check(IsInGameThread());
 
 	check(Object)
+	const UAnimNextModule* Module = GetModule();
 	check(Module);
 	check(Handle.IsValid());
 
@@ -112,7 +113,7 @@ void FAnimNextModuleInstance::Initialize()
 	bIsEditor = World && World->WorldType == EWorldType::Editor;
 
 	// Get all the module events from the VM entry points, sorted by phase
-	URigVM* VM = Module->GetVM();
+	URigVM* VM = Module->RigVM;
 	TConstArrayView<Private::FImplementedModuleEvent> ImplementedModuleEvents = Private::GetImplementedModuleEvents(VM);
 
 	// Setup tick function graph using module events
@@ -247,7 +248,7 @@ void FAnimNextModuleInstance::Invalidate()
 
 	ResetBindingsAndInstanceData();
 
-	Module = nullptr;
+	DataInterface = nullptr;
 	Object = nullptr;
 	Handle.Reset();
 }
@@ -335,7 +336,7 @@ void FAnimNextModuleInstance::CopyProxyVariables()
 			TConstArrayView<FPropertyBagPropertyDesc> PublicProxyDescs = PublicVariablesProxy.Data.GetPropertyBagStruct()->GetPropertyDescs();
 			const uint8* SourceContainerPtr = PublicVariablesProxy.Data.GetValue().GetMemory();
 			uint8* TargetContainerPtr = Variables.GetMutableValue().GetMemory();
-			for (TBitArray<>::FConstIterator It(PublicVariablesProxy.DirtyFlags); It; ++It)
+			for (TConstSetBitIterator<> It(PublicVariablesProxy.DirtyFlags); It; ++It)
 			{
 				const int32 Index = It.GetIndex();
 				const FProperty* SourceProperty = PublicProxyDescs[Index].CachedProperty;
@@ -349,6 +350,11 @@ void FAnimNextModuleInstance::CopyProxyVariables()
 			PublicVariablesProxy.bIsDirty = false;
 		}
 	}
+}
+
+const UAnimNextModule* FAnimNextModuleInstance::GetModule() const
+{
+	return CastChecked<UAnimNextModule>(DataInterface);
 }
 
 #if WITH_EDITOR

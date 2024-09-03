@@ -6,9 +6,8 @@
 #include "AnimNextController.h"
 #include "RigVMModel/RigVMGraph.h"
 #include "AnimNextEdGraph.h"
-#include "AnimNextRigVMAssetEditorData.h"
+#include "DataInterface/AnimNextDataInterface_EditorData.h"
 #include "AnimNextExecuteContext.h"
-#include "Kismet/BlueprintFunctionLibrary.h"
 #include "AnimNextModule_EditorData.generated.h"
 
 class UAnimNextModule;
@@ -32,7 +31,7 @@ namespace UE::AnimNext::Editor
 
 /** Editor data for AnimNext modules */
 UCLASS(MinimalAPI)
-class UAnimNextModule_EditorData : public UAnimNextRigVMAssetEditorData
+class UAnimNextModule_EditorData : public UAnimNextDataInterface_EditorData
 {
 	GENERATED_BODY()
 
@@ -59,6 +58,7 @@ private:
 	virtual TConstArrayView<TSubclassOf<UAnimNextRigVMAssetEntry>> GetEntryClasses() const override;
 	virtual void RecompileVM() override;
 	virtual void GetProgrammaticGraphs(const FRigVMCompileSettings& InSettings, TArray<URigVMGraph*>& OutGraphs) override;
+	virtual void CustomizeNewAssetEntry(UAnimNextRigVMAssetEntry* InNewEntry) const override;
 
 private:
 	UPROPERTY()

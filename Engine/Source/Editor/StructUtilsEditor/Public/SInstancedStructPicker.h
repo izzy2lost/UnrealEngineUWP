@@ -43,7 +43,7 @@ class STRUCTUTILSEDITOR_API SInstancedStructPicker : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SInstancedStructPicker) { }
-		SLATE_ARGUMENT(FOnStructPicked, OnStructPicked)
+		SLATE_EVENT(FOnStructPicked, OnStructPicked)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, TSharedPtr<IPropertyHandle> InStructProperty, TSharedPtr<IPropertyUtilities> InPropertyUtils);

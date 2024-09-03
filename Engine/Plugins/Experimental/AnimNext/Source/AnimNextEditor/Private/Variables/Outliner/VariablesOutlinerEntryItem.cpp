@@ -23,6 +23,7 @@
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/SListView.h"
 #include "EdGraphSchema_K2.h"
+#include "Entries/AnimNextVariableEntry.h"
 
 #define LOCTEXT_NAMESPACE "VariablesOutlinerTreeItem"
 
@@ -75,7 +76,7 @@ class SVariablesOutlinerEntrylabel : FSceneOutlinerCommonLabelData, public SComp
 			FTextBuilder TextBuilder;
 			TextBuilder.AppendLine(LOCTEXT("ModifiedTooltip", "Modified"));
 
-			if(UAnimNextRigVMAssetEntry* AssetEntry = Item->WeakEntry.Get())
+			if(UAnimNextVariableEntry* AssetEntry = Item->WeakEntry.Get())
 			{
 				const UPackage* ExternalPackage = AssetEntry->GetExternalPackage();
 				if(ExternalPackage && ExternalPackage->IsDirty())
@@ -93,7 +94,7 @@ class SVariablesOutlinerEntrylabel : FSceneOutlinerCommonLabelData, public SComp
 	{
 		if (const TSharedPtr<FVariablesOutlinerEntryItem> Item = TreeItem.Pin())
 		{
-			if(UAnimNextRigVMAssetEntry* AssetEntry = Item->WeakEntry.Get())
+			if(UAnimNextVariableEntry* AssetEntry = Item->WeakEntry.Get())
 			{
 				bool bIsDirty = false;
 				const UPackage* ExternalPackage = AssetEntry->GetExternalPackage();
@@ -147,7 +148,7 @@ class SVariablesOutlinerEntrylabel : FSceneOutlinerCommonLabelData, public SComp
 	TSharedPtr<SInlineEditableTextBlock> TextBlock;
 };
 
-FVariablesOutlinerEntryItem::FVariablesOutlinerEntryItem(UAnimNextRigVMAssetEntry* InEntry)
+FVariablesOutlinerEntryItem::FVariablesOutlinerEntryItem(UAnimNextVariableEntry* InEntry)
 	: ISceneOutlinerTreeItem(FVariablesOutlinerEntryItem::Type)
 	, WeakEntry(InEntry)
 {
@@ -160,7 +161,7 @@ bool FVariablesOutlinerEntryItem::IsValid() const
 
 FSceneOutlinerTreeItemID FVariablesOutlinerEntryItem::GetID() const
 {
-	return GetTypeHash(WeakEntry);
+	return HashCombine(GetTypeHash(WeakEntry), GetTypeHash(WeakDataInterfaceEntry));
 }
 
 FString FVariablesOutlinerEntryItem::GetDisplayString() const
@@ -206,7 +207,7 @@ void FVariablesOutlinerEntryItem::Rename(const FText& InNewName)
 
 bool FVariablesOutlinerEntryItem::ValidateName(const FText& InNewName, FText& OutErrorMessage) const
 {
-	UAnimNextRigVMAssetEntry* Entry = WeakEntry.Get();
+	UAnimNextVariableEntry* Entry = WeakEntry.Get();
 	if(Entry == nullptr)
 	{
 		OutErrorMessage = LOCTEXT("InvalidVariableError", "Variable is invalid");

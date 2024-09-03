@@ -46,8 +46,11 @@
 #include "Graph/AnimNextAnimationGraph.h"
 #include "Graph/AnimNextAnimationGraph_EditorData.h"
 #include "Common/AnimNextAssetItemDetails.h"
+#include "DataInterface/AnimNextDataInterface.h"
 #include "Module/RigUnit_AnimNextModuleEvents.h"
 #include "Variables/SVariablesView.h"
+#include "Variables/VariableOverrideCommands.h"
+#include "Variables/VariableProxyCustomization.h"
 #include "Workspace/AnimNextWorkspaceSchema.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorModule"
@@ -57,6 +60,8 @@ namespace UE::AnimNext::Editor
 
 void FAnimNextEditorModule::StartupModule()
 {
+	FVariableOverrideCommands::Register();
+
 	// Register settings for user editing
 	ISettingsModule& SettingsModule = FModuleManager::Get().LoadModuleChecked<ISettingsModule>("Settings");
 	SettingsModule.RegisterSettings("Editor", "General", "AnimNext",
@@ -78,6 +83,9 @@ void FAnimNextEditorModule::StartupModule()
 	PropertyModule.RegisterCustomClassLayout("AnimNextVariableEntry", 
 		FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FVariableCustomization>(); }));
 
+	PropertyModule.RegisterCustomClassLayout("AnimNextVariableEntryProxy", 
+		FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FVariableProxyCustomization>(); }));
+	
 	AnimNextGraphPanelNodeFactory = MakeShared<FAnimNextGraphPanelNodeFactory>();
 	FEdGraphUtilities::RegisterVisualNodeFactory(AnimNextGraphPanelNodeFactory);
 
@@ -147,19 +155,17 @@ void FAnimNextEditorModule::StartupModule()
 			.OnClicked_Lambda([EditorData, Asset]()
 			{
 				TSharedRef<SAddVariablesDialog> AddVariablesDialog =
-					SNew(SAddVariablesDialog, FAssetData(EditorData));
+					SNew(SAddVariablesDialog, TArray<UAnimNextRigVMAssetEditorData*>({ EditorData }));
 
 				TArray<FVariableToAdd> VariablesToAdd;
-				if(AddVariablesDialog->ShowModal(VariablesToAdd))
+				TArray<FDataInterfaceToAdd> DataInterfacesToAdd;
+				if(AddVariablesDialog->ShowModal(VariablesToAdd, DataInterfacesToAdd))
 				{
-					if(VariablesToAdd.Num() > 0)
+					FScopedTransaction Transaction(LOCTEXT("AddVariables", "Add variable(s)"));
+					for (const FVariableToAdd& VariableToAdd : VariablesToAdd)
 					{
-						FScopedTransaction Transaction(LOCTEXT("AddVariable", "Add variable"));
-						for (const FVariableToAdd& VariableToAdd : VariablesToAdd)
-						{
-							check(EditorData->FindEntry(VariableToAdd.Name) == nullptr);
-							EditorData->AddVariable(VariableToAdd.Name, VariableToAdd.Type);
-						}
+						check(EditorData->FindEntry(VariableToAdd.Name) == nullptr);
+						EditorData->AddVariable(VariableToAdd.Name, VariableToAdd.Type);
 					}
 				}
 				return FReply::Handled();
@@ -236,7 +242,8 @@ void FAnimNextEditorModule::StartupModule()
 	SupportedAssetClasses.Append(
 		{
 			UAnimNextAnimationGraph::StaticClass()->GetClassPathName(),
-			UAnimNextModule::StaticClass()->GetClassPathName()
+			UAnimNextModule::StaticClass()->GetClassPathName(),
+			UAnimNextDataInterface::StaticClass()->GetClassPathName()
 		});
 }
 
@@ -248,6 +255,7 @@ void FAnimNextEditorModule::ShutdownModule()
 		PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextParamType");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextVariableBinding");
 		PropertyModule.UnregisterCustomClassLayout("AnimNextVariableEntry");
+		PropertyModule.UnregisterCustomClassLayout("AnimNextVariableEntryProxy");
 	}
 
 	FEdGraphUtilities::UnregisterVisualNodeFactory(AnimNextGraphPanelNodeFactory);

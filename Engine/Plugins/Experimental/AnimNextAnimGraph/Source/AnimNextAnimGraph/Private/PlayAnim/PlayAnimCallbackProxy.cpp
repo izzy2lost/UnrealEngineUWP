@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PlayAnim/PlayAnimCallbackProxy.h"
+#include "Animation/AnimSequence.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PlayAnimCallbackProxy)
 
@@ -27,6 +28,21 @@ UPlayAnimCallbackProxy* UPlayAnimCallbackProxy::CreateProxyObjectForPlayAnim(
 	return Proxy;
 }
 
+UPlayAnimCallbackProxy* UPlayAnimCallbackProxy::CreateProxyObjectForPlayAsset(
+	UAnimNextComponent* AnimNextComponent,
+	FName SlotName,
+	UObject* Asset,
+	const FInstancedStruct& Payload,
+	UE::AnimNext::FPlayAnimBlendSettings BlendInSettings,
+	UE::AnimNext::FPlayAnimBlendSettings BlendOutSettings)
+{
+	UPlayAnimCallbackProxy* Proxy = NewObject<UPlayAnimCallbackProxy>();
+	Proxy->SetFlags(RF_StrongRefOnFrame);
+	FInstancedStruct PayloadCopy(Payload);
+	Proxy->Play(AnimNextComponent, SlotName, Asset, MoveTemp(PayloadCopy), BlendInSettings, BlendOutSettings);
+	return Proxy;
+}
+
 bool UPlayAnimCallbackProxy::Play(
 	UAnimNextComponent* AnimNextComponent,
 	FName SlotName,
@@ -36,23 +52,39 @@ bool UPlayAnimCallbackProxy::Play(
 	const UE::AnimNext::FPlayAnimBlendSettings& BlendInSettings,
 	const UE::AnimNext::FPlayAnimBlendSettings& BlendOutSettings)
 {
+	FInstancedStruct Payload;
+	Payload.InitializeAs<FAnimNextPlayAnimPayload>();
+	FAnimNextPlayAnimPayload& PlayAnimPayload = Payload.GetMutable<FAnimNextPlayAnimPayload>();
+	PlayAnimPayload.AnimationObject = AnimationObject;
+	PlayAnimPayload.PlayRate = PlayRate;
+	PlayAnimPayload.StartPosition = StartPosition;
+	return Play(AnimNextComponent, SlotName, AnimationObject, MoveTemp(Payload), BlendInSettings, BlendOutSettings);
+}
+
+bool UPlayAnimCallbackProxy::Play(
+	UAnimNextComponent* AnimNextComponent,
+	FName SlotName,
+	UObject* Object,
+	FInstancedStruct&& Payload,
+	const UE::AnimNext::FPlayAnimBlendSettings& BlendInSettings,
+	const UE::AnimNext::FPlayAnimBlendSettings& BlendOutSettings)
+{
 	bool bPlayedSuccessfully = false;
 	if (AnimNextComponent != nullptr)
 	{
 		UE::AnimNext::FPlayAnimRequestArgs RequestArgs;
 		RequestArgs.SlotName = SlotName;
-		RequestArgs.AnimationObject = AnimationObject;
-		RequestArgs.PlayRate = PlayRate;
-		RequestArgs.StartPosition = StartPosition;
+		RequestArgs.Object = Object;
 		RequestArgs.BlendInSettings = BlendInSettings;
 		RequestArgs.BlendOutSettings = BlendOutSettings;
+		RequestArgs.Payload = MoveTemp(Payload);
 
 		auto Request = UE::AnimNext::MakePlayAnimRequest();
 		Request->OnCompleted.BindUObject(this, &UPlayAnimCallbackProxy::OnPlayAnimCompleted);
 		Request->OnInterrupted.BindUObject(this, &UPlayAnimCallbackProxy::OnPlayAnimInterrupted);
 		Request->OnBlendingOut.BindUObject(this, &UPlayAnimCallbackProxy::OnPlayAnimBlendingOut);
 
-		bPlayedSuccessfully = Request->Play(RequestArgs, AnimNextComponent);
+		bPlayedSuccessfully = Request->Play(MoveTemp(RequestArgs), AnimNextComponent);
 
 		PlayingRequest = Request;
 		bWasInterrupted = false;

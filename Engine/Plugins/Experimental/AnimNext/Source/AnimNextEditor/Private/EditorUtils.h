@@ -30,13 +30,9 @@ struct FUtils
 
 	static void GetFilteredVariableTypeTree(TArray<TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>>& TypeTree, ETypeTreeFilter TypeTreeFilter);
 
-	static FName GetNewParameterName(FName InBaseName, const FAssetData& InAssetData, TArrayView<FName> InExistingNames);
-
 	static bool IsValidParameterNameString(FStringView InStringView, FText& OutErrorText);
 
 	static bool IsValidParameterName(const FName InName, FText& OutErrorText);
-
-	static bool DoesParameterNameExistInAsset(const FName InName, const FAssetData& InAsset);
 };
 
 }

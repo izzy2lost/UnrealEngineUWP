@@ -4,6 +4,7 @@
 
 #include "AnimNextRigVMAssetEditorData.h"
 #include "UncookedOnlyUtils.h"
+#include "Logging/StructuredLog.h"
 #include "Module/AnimNextModule.h"
 #include "Variables/AnimNextUniversalObjectLocatorBindingData.h"
 
@@ -69,14 +70,54 @@ bool UAnimNextVariableEntry::SetType(const FAnimNextParamType& InType, bool bSet
 	return true;
 }
 
-bool UAnimNextVariableEntry::SetDefaultValue(const FString& InDefaultValue, bool bSetupUndoRedo)
+bool UAnimNextVariableEntry::SetDefaultValue(TConstArrayView<uint8> InValue, bool bSetupUndoRedo)
+{
+	check(!InValue.IsEmpty());
+
+	if(bSetupUndoRedo)
+	{
+		Modify();
+	}
+
+	const FPropertyBagPropertyDesc* Desc = DefaultValue.FindPropertyDescByName(IAnimNextRigVMVariableInterface::ValueName);
+	if(Desc == nullptr)
+	{
+		UE_LOGFMT(LogAnimation, Error, "UAnimNextVariableEntry::SetDefaultValue: Could not find default value in property bag");
+		return false;
+	}
+
+	check(Desc->CachedProperty);
+	if(Desc->CachedProperty->GetElementSize() != InValue.Num())
+	{
+		UE_LOGFMT(LogAnimation, Error, "UAnimNextVariableEntry::SetDefaultValue: Mismatched buffer sizes");
+		return false;
+	}
+
+	uint8* DestPtr = Desc->CachedProperty->ContainerPtrToValuePtr<uint8>(DefaultValue.GetMutableValue().GetMemory());
+	const uint8* SrcPtr = InValue.GetData();
+	Desc->CachedProperty->CopyCompleteValue(DestPtr, SrcPtr);
+
+	BroadcastModified(EAnimNextEditorDataNotifType::VariableDefaultValueChanged);
+
+	return true;
+}
+
+bool UAnimNextVariableEntry::SetDefaultValueFromString(const FString& InDefaultValue, bool bSetupUndoRedo)
 {
 	if(bSetupUndoRedo)
 	{
 		Modify();
 	}
-	
-	return DefaultValue.SetValueSerializedString(IAnimNextRigVMVariableInterface::ValueName, InDefaultValue) == EPropertyBagResult::Success;
+
+	if(DefaultValue.SetValueSerializedString(IAnimNextRigVMVariableInterface::ValueName, InDefaultValue) != EPropertyBagResult::Success)
+	{
+		UE_LOGFMT(LogAnimation, Error, "UAnimNextVariableEntry::SetDefaultValueFromString: Could not set value from string");
+		return false;
+	}
+
+	BroadcastModified(EAnimNextEditorDataNotifType::VariableDefaultValueChanged);
+
+	return true;
 }
 
 FName UAnimNextVariableEntry::GetVariableName() const
@@ -94,9 +135,46 @@ const FInstancedPropertyBag& UAnimNextVariableEntry::GetPropertyBag() const
 	return DefaultValue;
 }
 
-const FAnimNextVariableBinding& UAnimNextVariableEntry::GetBinding() const
+bool UAnimNextVariableEntry::GetDefaultValue(const FProperty*& OutProperty, TConstArrayView<uint8>& OutValue) const
 {
-	return Binding;
+	const FPropertyBagPropertyDesc* Desc = DefaultValue.FindPropertyDescByName(IAnimNextRigVMVariableInterface::ValueName);
+	if(Desc == nullptr)
+	{
+		UE_LOGFMT(LogAnimation, Error, "UAnimNextVariableEntry::SetDefaultValue: Could not find default value in property bag");
+		return false;
+	}
+
+	check(Desc->CachedProperty);
+	OutProperty = Desc->CachedProperty;
+	const uint8* ValuePtr = Desc->CachedProperty->ContainerPtrToValuePtr<uint8>(DefaultValue.GetValue().GetMemory());
+	OutValue = TConstArrayView<uint8>(ValuePtr, Desc->CachedProperty->GetElementSize());
+	return true;
+}
+
+void UAnimNextVariableEntry::SetBindingType(UScriptStruct* InBindingTypeStruct, bool bSetupUndoRedo)
+{
+	check(InBindingTypeStruct == nullptr || InBindingTypeStruct->IsChildOf(FAnimNextVariableBindingData::StaticStruct()));
+
+	if(bSetupUndoRedo)
+	{
+		Modify();
+	}
+
+	if(InBindingTypeStruct)
+	{
+		Binding.BindingData.InitializeAsScriptStruct(InBindingTypeStruct);
+	}
+	else
+	{
+		Binding.BindingData.Reset();
+	}
+
+	BroadcastModified(EAnimNextEditorDataNotifType::VariableBindingChanged);
+}
+
+TConstStructView<FAnimNextVariableBindingData> UAnimNextVariableEntry::GetBinding() const
+{
+	return Binding.BindingData;
 }
 
 void UAnimNextVariableEntry::SetEntryName(FName InName, bool bSetupUndoRedo)
