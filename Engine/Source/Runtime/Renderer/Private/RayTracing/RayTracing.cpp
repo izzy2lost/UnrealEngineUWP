@@ -674,9 +674,10 @@ namespace RayTracing
 
 				if (EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::CacheInstances))
 				{
+					const FRayTracingGeometryInstance& CachedRayTracingInstance = SceneInfo->GetCachedRayTracingInstance();
 					if (bUsingNaniteRayTracing)
 					{
-						if (SceneInfo->CachedRayTracingInstance.GeometryRHI == nullptr)
+						if (CachedRayTracingInstance.GeometryRHI == nullptr)
 						{
 							// Nanite ray tracing geometry not ready yet, doesn't include primitive in ray tracing scene
 							return;
@@ -686,7 +687,7 @@ namespace RayTracing
 					{
 						// Currently IsCachedRayTracingGeometryValid() can only be called for non-nanite geometries
 						checkf(SceneInfo->IsCachedRayTracingGeometryValid(), TEXT("Cached ray tracing instance is expected to be valid. Was mesh LOD streamed but cached data was not invalidated?"));
-						checkf(SceneInfo->CachedRayTracingInstance.GeometryRHI, TEXT("Ray tracing instance must have a valid geometry."));
+						checkf(CachedRayTracingInstance.GeometryRHI, TEXT("Ray tracing instance must have a valid geometry."));
 					}
 
 					if (ShouldExcludeDecals() && SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal)
@@ -694,14 +695,14 @@ namespace RayTracing
 						return;
 					}
 
-					checkf(SceneInfo->CachedRayTracingInstance.GeometryRHI, TEXT("Ray tracing instance must have a valid geometry."));
+					checkf(CachedRayTracingInstance.GeometryRHI, TEXT("Ray tracing instance must have a valid geometry."));
 
 					// For primitives with ERayTracingPrimitiveFlags::CacheInstances flag we only cache the instance/mesh commands of the current LOD
 					// (see FPrimitiveSceneInfo::UpdateCachedRayTracingInstance(...) and CacheRayTracingPrimitive(...))
 					check(!EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::ComputeLOD));
 					LODIndex = 0;
 
-					const FPrimitiveSceneInfo::FRayTracingLODData& RTLODData = SceneInfo->RayTracingLODData[LODIndex];
+					const FPrimitiveSceneInfo::FRayTracingLODData& RTLODData = SceneInfo->GetRayTracingLODData(LODIndex);
 					ensure(RTLODData.SBTAllocation);
 					if (RTLODData.SBTAllocation == nullptr)
 					{
@@ -715,15 +716,15 @@ namespace RayTracing
 
 					ensureMsgf(!SceneInfo->bCachedRaytracingDataDirty, TEXT("Cached ray tracing instances must be up-to-date at this point"));
 
-					RelevantPrimitive->CachedRayTracingInstance = &SceneInfo->CachedRayTracingInstance;
+					RelevantPrimitive->CachedRayTracingInstance = &CachedRayTracingInstance;
 					RelevantPrimitive->CachedMeshCommandFlags.bAnySegmentsDecal = SceneInfo->bCachedRayTracingInstanceAnySegmentsDecal;
 					RelevantPrimitive->CachedMeshCommandFlags.bAllSegmentsDecal = SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal;
 
 					// CacheInstances expects to have one ray tracing mesh command per BLAS segment.
 					// If that's not the case in the future, other logic such as NumCachedStaticVisibleMeshCommands calculation needs to be updated.
-					checkf(RTLODData.CachedMeshCommandIndices.Num() == RelevantPrimitive->RayTracingGeometry->Initializer.Segments.Num(),
+					checkf(RTLODData.CachedMeshCommandIndices.Num() == CachedRayTracingInstance.GeometryRHI->GetNumSegments(),
 						TEXT("Expected to have one ray tracing mesh command per BLAS segment (primitive has %d cached mesh commands but BLAS has %d segments)."),
-						RTLODData.CachedMeshCommandIndices.Num(), SceneInfo->CachedRayTracingInstance.GeometryRHI->GetNumSegments());
+						RTLODData.CachedMeshCommandIndices.Num(), CachedRayTracingInstance.GeometryRHI->GetNumSegments());
 
 					const bool bNeedMainInstance = !RelevantPrimitive->CachedMeshCommandFlags.bAllSegmentsDecal;
 
@@ -791,7 +792,7 @@ namespace RayTracing
 
 					// Sometimes LODIndex is out of range because it is clamped by ClampToFirstLOD, like the requested LOD is being streamed in and hasn't been available
 					// According to InitViews, we should hide the static mesh instance
-					if (SceneInfo->RayTracingLODData.IsValidIndex(LODIndex))
+					if (SceneInfo->GetRayTracingLODDataNum() > uint32(LODIndex))
 					{
 						FRelevantPrimitive* RelevantPrimitive = new (Context.StaticPrimitives) FRelevantPrimitive();
 						RelevantPrimitive->PrimitiveIndex = PrimitiveIndex;
@@ -800,7 +801,7 @@ namespace RayTracing
 						RelevantPrimitive->LODIndex = LODIndex;
 						RelevantPrimitive->RayTracingGeometry = RayTracingGeometry;
 
-						const FPrimitiveSceneInfo::FRayTracingLODData& RTLODData = SceneInfo->RayTracingLODData[LODIndex];
+						const FPrimitiveSceneInfo::FRayTracingLODData& RTLODData = SceneInfo->GetRayTracingLODData(LODIndex);
 						RelevantPrimitive->CachedMeshCommandFlags = RTLODData.CachedMeshCommandFlags;
 					}
 				}
@@ -1019,7 +1020,7 @@ namespace RayTracing
 
 				InstanceBatch.InstanceHandle = FRayTracingScene::INVALID_INSTANCE_HANDLE;
 
-				FPrimitiveSceneInfo::FRayTracingLODData& RTLODData = SceneInfo->RayTracingLODData[LODIndex];
+				const FPrimitiveSceneInfo::FRayTracingLODData& RTLODData = SceneInfo->GetRayTracingLODData(LODIndex);
 				ensure(RTLODData.SBTAllocation);
 				if (RTLODData.SBTAllocation == nullptr)
 				{
@@ -1129,7 +1130,7 @@ namespace RayTracing
 
 				// Cached instances always use single LOD 0 - see above
 				const int8 LODIndex = 0;
-				FPrimitiveSceneInfo::FRayTracingLODData& RTLODData = SceneInfo->RayTracingLODData[LODIndex];
+				const FPrimitiveSceneInfo::FRayTracingLODData& RTLODData = SceneInfo->GetRayTracingLODData(LODIndex);
 
 				if (bNeedMainInstance)
 				{
@@ -1357,27 +1358,7 @@ namespace RayTracing
 							InstanceMaskAndFlags = BuildRayTracingInstanceMaskAndFlags(Instance, *SceneProxy);
 						}
 
-						SceneInfo->CachedRayTracingInstance.Mask = InstanceMaskAndFlags.Mask; // When no cached command is found, InstanceMask == 0 and the instance is effectively filtered out
-
-						if (InstanceMaskAndFlags.bForceOpaque)
-						{
-							SceneInfo->CachedRayTracingInstance.Flags |= ERayTracingInstanceFlags::ForceOpaque;
-						}
-
-						if (InstanceMaskAndFlags.bDoubleSided)
-						{
-							SceneInfo->CachedRayTracingInstance.Flags |= ERayTracingInstanceFlags::TriangleCullDisable;
-						}
-
-						if (InstanceMaskAndFlags.bReverseCulling)
-						{
-							SceneInfo->CachedRayTracingInstance.Flags |= ERayTracingInstanceFlags::TriangleCullReverse;
-						}
-
-						SceneInfo->bCachedRayTracingInstanceAnySegmentsDecal = InstanceMaskAndFlags.bAnySegmentsDecal;
-						SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal = InstanceMaskAndFlags.bAllSegmentsDecal;
-
-						SceneInfo->bCachedRayTracingInstanceMaskAndFlagsDirty = false;
+						SceneInfo->UpdateCachedRayTracingInstanceMaskAndFlags(InstanceMaskAndFlags);
 					}
 
 					const bool bNeedMainInstance = !SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal;
@@ -1409,8 +1390,8 @@ namespace RayTracing
 					RayTracingInstance.DefaultUserData = InstanceSceneDataOffset;
 					RayTracingInstance.bIncrementUserDataPerInstance = true;
 					RayTracingInstance.bApplyLocalBoundsTransform = Instance.bApplyLocalBoundsTransform;
-					RayTracingInstance.Mask = SceneInfo->CachedRayTracingInstance.Mask;
-					RayTracingInstance.Flags = SceneInfo->CachedRayTracingInstance.Flags;
+					RayTracingInstance.Mask = SceneInfo->GetCachedRayTracingInstance().Mask;
+					RayTracingInstance.Flags = SceneInfo->GetCachedRayTracingInstance().Flags;
 					AddDebugRayTracingInstanceFlags(RayTracingInstance.Flags);
 
 					if (!Instance.GetPrimitiveInstanceIndices().IsEmpty())

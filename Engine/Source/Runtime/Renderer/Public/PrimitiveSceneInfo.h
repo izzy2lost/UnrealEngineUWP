@@ -50,6 +50,7 @@ struct FNaniteRasterBin;
 struct FNaniteShadingBin;
 struct FRayTracingInstance;
 struct FRayTracingSBTAllocation;
+struct FRayTracingMaskAndFlags;
 
 template<typename ElementType,typename OctreeSemantics> class TOctree2;
 
@@ -711,11 +712,40 @@ public:
 		TArray<int32, TInlineAllocator<2>> CachedMeshCommandIndices;
 		FRayTracingSBTAllocation* SBTAllocation = nullptr;
 	};
+
+	uint32 GetRayTracingLODDataNum() const
+	{
+		return RayTracingLODData.Num();
+	}
+
+	const FRayTracingLODData& GetRayTracingLODData(uint32 Index) const
+	{
+		return RayTracingLODData[Index];
+	}
+
+	const FRayTracingGeometryInstance& GetCachedRayTracingInstance() const
+	{
+		return CachedRayTracingInstance;
+	}
+
+	void SetRayTracingLODData(TArray<FRayTracingLODData> LODData)
+	{
+		RayTracingLODData = MoveTemp(LODData);
+	}
+
+	void SetCachedRayTracingInstanceGeometryRHI(FRHIRayTracingGeometry* Geometry);
+	void UpdateCachedRayTracingInstanceMaskAndFlags(FRayTracingMaskAndFlags& InstanceMaskAndFlags);
+
+private:
+
 	TArray<FRayTracingLODData> RayTracingLODData;
+
+	// Allocate the RayTracing SBT ranges for all the setup LODs
+	void AllocateRayTracingSBT();
 
 	// TODO: this should be placed in FRayTracingScene and we have a pointer/handle here. It's here for now for PoC
 	FRayTracingGeometryInstance CachedRayTracingInstance;
-#endif
+#endif // RHI_RAYTRACING
 
 private:
 	// Don't access this directly, even internally unless you are sure what you're up to. Use GetInstanceSceneDataBuffers() which handles thread safety.
@@ -785,7 +815,7 @@ private:
 
 	/** Updates cached ray tracing instances. Utility closely mirrors CacheRayTracingPrimitives(..) */
 	static void UpdateCachedRayTracingInstances(FScene* Scene, const TArrayView<FPrimitiveSceneInfo*>& SceneInfos);
-	static void UpdateCachedRayTracingInstance(FPrimitiveSceneInfo* SceneInfo, const FRayTracingInstance& CachedRayTracingInstance, const ERayTracingPrimitiveFlags Flags);
+	static void UpdateCachedRayTracingInstance(FPrimitiveSceneInfo* SceneInfo, const FRayTracingInstance& RayTracingInstance, const ERayTracingPrimitiveFlags Flags);
 #endif
 
 public:

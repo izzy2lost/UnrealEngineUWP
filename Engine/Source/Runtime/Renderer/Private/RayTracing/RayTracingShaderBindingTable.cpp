@@ -104,7 +104,7 @@ uint32 FRayTracingShaderBindingTable::GetMaxAllocatedStaticSegmentCount() const
 FRayTracingSBTAllocation* FRayTracingShaderBindingTable::AllocateStaticRangeInternal(
 	ERayTracingSceneLayerMask AllocatedLayers, 
 	uint32 SegmentCount, 
-	const FRayTracingGeometry* Geometry, 
+	const FRHIRayTracingGeometry* Geometry, 
 	FRayTracingCachedMeshCommandFlags Flags)
 {
 	// Should be allowed to make static SBT allocations
@@ -123,7 +123,7 @@ FRayTracingSBTAllocation* FRayTracingShaderBindingTable::AllocateStaticRangeInte
 	return Allocation;
 }
 
-FRayTracingSBTAllocation* FRayTracingShaderBindingTable::AllocateStaticRange(const FRayTracingGeometry* Geometry, FRayTracingCachedMeshCommandFlags Flags)
+FRayTracingSBTAllocation* FRayTracingShaderBindingTable::AllocateStaticRange(uint32 SegmentCount, const FRHIRayTracingGeometry* Geometry, FRayTracingCachedMeshCommandFlags Flags)
 {
 	check(Geometry != nullptr);
 
@@ -157,8 +157,7 @@ FRayTracingSBTAllocation* FRayTracingShaderBindingTable::AllocateStaticRange(con
 	// Already allocated for given hash
 	FRefCountedAllocation& Allocation = TrackedAllocationMap.FindOrAdd(Key);
 	if (Allocation.RefCount == 0)
-	{
-		uint32 SegmentCount = Geometry->Initializer.Segments.Num();
+	{		
 		Allocation.Allocation = AllocateStaticRangeInternal(AllocatedLayers, SegmentCount, Geometry, Flags);
 	}
 	else

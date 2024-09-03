@@ -60,7 +60,7 @@ public:
 
 private:
 
-	void InitStatic(ERayTracingSceneLayerMask InAllocatedLayers, uint32 InBaseRecordIndex, uint32 InRecordsPerLayer, uint32 InNumRecords, const FRayTracingGeometry* InGeometry, const FRayTracingCachedMeshCommandFlags& InFlags)
+	void InitStatic(ERayTracingSceneLayerMask InAllocatedLayers, uint32 InBaseRecordIndex, uint32 InRecordsPerLayer, uint32 InNumRecords, const FRHIRayTracingGeometry* InGeometry, const FRayTracingCachedMeshCommandFlags& InFlags)
 	{
 		check(InAllocatedLayers != ERayTracingSceneLayerMask::None);
 		AllocatedLayers = InAllocatedLayers;
@@ -88,7 +88,7 @@ private:
 	ERayTracingSceneLayerMask AllocatedLayers;
 
 	// Store the original geometry and flags in the allocation object so it can be used to build the lookup key again used for deduplication
-	const FRayTracingGeometry* Geometry = nullptr;
+	const FRHIRayTracingGeometry* Geometry = nullptr;
 	FRayTracingCachedMeshCommandFlags Flags;
 };
 
@@ -125,7 +125,7 @@ public:
 	/**
 	 * Allocate or share static allocation range - sharing can happen if geometry and cached RT MDC flags are the same (will result in exactly the same binding data written in the SBT)
 	 */
-	RENDERER_API FRayTracingSBTAllocation* AllocateStaticRange(const FRayTracingGeometry* Geometry, FRayTracingCachedMeshCommandFlags Flags);
+	RENDERER_API FRayTracingSBTAllocation* AllocateStaticRange(uint32 SegmentCount, const FRHIRayTracingGeometry* Geometry, FRayTracingCachedMeshCommandFlags Flags);
 	RENDERER_API void FreeStaticRange(const FRayTracingSBTAllocation* Allocation);
 	 
 	/**
@@ -155,11 +155,11 @@ private:
 	/**
 	* Allocate single static range of records for the given SegmentCount for all layers in the AllocatedLayersMask
 	*/
-	RENDERER_API FRayTracingSBTAllocation* AllocateStaticRangeInternal(ERayTracingSceneLayerMask AllocatedLayers, uint32 SegmentCount, const FRayTracingGeometry* Geometry, FRayTracingCachedMeshCommandFlags Flags);
+	RENDERER_API FRayTracingSBTAllocation* AllocateStaticRangeInternal(ERayTracingSceneLayerMask AllocatedLayers, uint32 SegmentCount, const FRHIRayTracingGeometry* Geometry, FRayTracingCachedMeshCommandFlags Flags);
 
 	struct FAllocationKey
 	{
-		const FRayTracingGeometry* Geometry;
+		const FRHIRayTracingGeometry* Geometry;
 		FRayTracingCachedMeshCommandFlags Flags;
 
 		bool operator==(const FAllocationKey& Other) const
