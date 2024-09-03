@@ -2125,7 +2125,6 @@ public:
 	bool DoOcclusionQueries() const;
 
 	void FenceOcclusionTests(FRDGBuilder& GraphBuilder);
-	void FenceOcclusionTestsInternal(FRHICommandListImmediate& RHICmdList);
 	void WaitOcclusionTests(FRHICommandListImmediate& RHICmdList);
 
 	// fences to make sure the rhi thread has digested the occlusion query renders before we attempt to read them back async
