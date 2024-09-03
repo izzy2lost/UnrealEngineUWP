@@ -408,3 +408,10 @@ enum class EPCGDensityMergeOperation : uint8
 	/** D = A / B */
 	Divide
 };
+
+UENUM(BlueprintType)
+enum class EPCGGenerationStatus : uint8
+{
+	Completed,
+	Aborted
+};

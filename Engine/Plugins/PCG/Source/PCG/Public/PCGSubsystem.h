@@ -36,8 +36,13 @@ typedef TSharedPtr<IPCGElement, ESPMode::ThreadSafe> FPCGElementPtr;
 class UWorld;
 
 #if WITH_EDITOR
-DECLARE_MULTICAST_DELEGATE_OneParam(FPCGOnComponentUnregistered, UPCGComponent*);
-DECLARE_MULTICAST_DELEGATE_TwoParams(FPCGOnComponentGenerationCompleteOrCancelled, UPCGSubsystem*, UPCGComponent*);
+/** Deprecated - use FPCGOnPCGComponentUnregistered */
+DECLARE_MULTICAST_DELEGATE(FPCGOnComponentUnregistered);
+/** Deprecated - use FPCGOnPCGComponentGenerationDone */
+DECLARE_MULTICAST_DELEGATE_OneParam(FPCGOnComponentGenerationCompleteOrCancelled, UPCGSubsystem*);
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FPCGOnPCGComponentUnregistered, UPCGComponent*);
+DECLARE_MULTICAST_DELEGATE_ThreeParams(FPCGOnPCGComponentGenerationDone, UPCGSubsystem*, UPCGComponent*, EPCGGenerationStatus);
 #endif // WITH_EDITOR
 
 /**
@@ -327,8 +332,14 @@ public:
 	void ClearExecutedStacks(FPCGStack BeginningWithStack);
 	void ClearExecutedStacks(const UPCGGraph* InContainingGraph);
 
+	UE_DEPRECATED(5.5, "Deprecated in favor of OnPCGComponentUnregistered, will not be notified anymore")
 	FPCGOnComponentUnregistered OnComponentUnregistered;
+
+	UE_DEPRECATED(5.5, "Deprecated in favor of OnPCGComponentGenerationDone, will not be notified anymore")
 	FPCGOnComponentGenerationCompleteOrCancelled OnComponentGenerationCompleteOrCancelled;
+
+	FPCGOnPCGComponentUnregistered OnPCGComponentUnregistered;
+	FPCGOnPCGComponentGenerationDone OnPCGComponentGenerationDone;
 
 	void CreateMissingPartitionActors();
 private:

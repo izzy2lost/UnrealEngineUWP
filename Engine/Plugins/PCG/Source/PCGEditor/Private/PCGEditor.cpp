@@ -3071,7 +3071,7 @@ void FPCGEditor::OnComponentUnregistered(UPCGComponent* Component)
 	}
 }
 
-void FPCGEditor::OnComponentGenerationCompleteOrCancelled(UPCGSubsystem* Subsystem, UPCGComponent* Component)
+void FPCGEditor::OnComponentGenerationDone(UPCGSubsystem* Subsystem, UPCGComponent* Component, EPCGGenerationStatus Status)
 {
 	if(Component && Component->GetGraph() != PCGGraphBeingEdited)
 	{
@@ -3114,8 +3114,8 @@ void FPCGEditor::RegisterDelegatesForWorld(UWorld* World)
 
 	if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(World))
 	{
-		Subsystem->OnComponentUnregistered.AddRaw(this, &FPCGEditor::OnComponentUnregistered);
-		Subsystem->OnComponentGenerationCompleteOrCancelled.AddRaw(this, &FPCGEditor::OnComponentGenerationCompleteOrCancelled);
+		Subsystem->OnPCGComponentUnregistered.AddRaw(this, &FPCGEditor::OnComponentUnregistered);
+		Subsystem->OnPCGComponentGenerationDone.AddRaw(this, &FPCGEditor::OnComponentGenerationDone);
 	}
 }
 
@@ -3123,8 +3123,8 @@ void FPCGEditor::UnregisterDelegatesForWorld(UWorld* World)
 {
 	if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(World))
 	{
-		Subsystem->OnComponentUnregistered.RemoveAll(this);
-		Subsystem->OnComponentGenerationCompleteOrCancelled.RemoveAll(this);
+		Subsystem->OnPCGComponentUnregistered.RemoveAll(this);
+		Subsystem->OnPCGComponentGenerationDone.RemoveAll(this);
 	}
 }
 

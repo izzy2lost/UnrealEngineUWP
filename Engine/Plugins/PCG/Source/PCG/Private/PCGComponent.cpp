@@ -650,7 +650,7 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 	StopGenerationInProgress();
 
 	UPCGSubsystem* Subsystem = GetSubsystem();
-	Subsystem->OnComponentGenerationCompleteOrCancelled.Broadcast(Subsystem, IsValid(this) ? this : nullptr);
+	Subsystem->OnPCGComponentGenerationDone.Broadcast(Subsystem, IsValid(this) ? this : nullptr, EPCGGenerationStatus::Completed);
 #endif
 }
 
@@ -758,7 +758,7 @@ void UPCGComponent::OnProcessGraphAborted(bool bQuiet)
 	OnPCGGraphCancelledDelegate.Broadcast(this);
 
 	UPCGSubsystem* Subsystem = GetSubsystem();
-	Subsystem->OnComponentGenerationCompleteOrCancelled.Broadcast(Subsystem, this);
+	Subsystem->OnPCGComponentGenerationDone.Broadcast(Subsystem, this, EPCGGenerationStatus::Aborted);
 #endif
 
 	PCGComponent::BroadcastDynamicDelegate(OnPCGGraphCancelledExternal, this);
@@ -1555,7 +1555,7 @@ void UPCGComponent::OnUnregister()
 			Subsystem->CancelGeneration(this);
 		}
 
-		Subsystem->OnComponentUnregistered.Broadcast(IsValid(this) ? this : nullptr);
+		Subsystem->OnPCGComponentUnregistered.Broadcast(IsValid(this) ? this : nullptr);
 	}
 #endif // WITH_EDITOR
 
