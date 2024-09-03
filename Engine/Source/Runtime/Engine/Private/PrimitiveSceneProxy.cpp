@@ -1286,7 +1286,7 @@ FInstanceDataBufferHeader FPrimitiveSceneProxy::GetInstanceDataHeader() const
 
 	if (InstanceSceneDataBuffersInternal)
 	{
-		InstanceSceneDataBuffersInternal->GetHeader();
+		return InstanceSceneDataBuffersInternal->GetHeader();
 	}
 	return FInstanceDataBufferHeader::SinglePrimitiveHeader;
 }
