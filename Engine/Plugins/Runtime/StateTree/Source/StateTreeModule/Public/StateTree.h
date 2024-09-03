@@ -6,6 +6,7 @@
 #include "StateTreeSchema.h"
 #include "StateTreePropertyBindings.h"
 #include "StateTreeInstanceData.h"
+#include "UObject/ObjectKey.h"
 #include "StateTree.generated.h"
 
 class UUserDefinedStruct;
@@ -240,7 +241,7 @@ private:
 	void ResetLinked();
 
 	/** @return true if all the source instance data types match with the node's instance data types */
-	bool ValidateInstanceData() const;
+	bool ValidateInstanceData();
 
 	bool PatchBindings();
 
@@ -336,6 +337,11 @@ private:
 
 	/** True if the StateTree was linked successfully. */
 	bool bIsLinked = false;
+
+#if WITH_EDITORONLY_DATA
+	/** List of Struct that are out of date and waiting to be replaced with the new instance. */
+	TSet<FObjectKey> OutOfDateStructs;
+#endif
 
 	friend struct FStateTreeInstance;
 	friend struct FStateTreeExecutionContext;
