@@ -9,6 +9,8 @@
 
 #include "SceneTextureParameters.ush"
 
+#include "Substrate/Substrate.ush"
+
 #ifndef CLOUD_MIN_AND_MAX_DEPTH
 #define CLOUD_MIN_AND_MAX_DEPTH 0
 #endif
@@ -865,8 +867,14 @@ void ComposeVolumetricRTOverScenePS(
 
 	// We only want to run the special "cloud over water" code path on actual water pixels, otherwise depth threshold can cause visual issues.
 	// However, with Forward Shading, we do not have access to the gbuffer: so we still run that simple water depth test to occlude cloud on forrground meshes. Not the perfect but it will work in most cases.
+#if SUBSTRATE_ENABLED
+	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
+	const bool bIsWaterPixel = SubstratePixelHeader.IsSingleLayerWater(); 
+#else
 	FScreenSpaceData ScreenSpaceData = GetScreenSpaceData(ScreenUV);
 	const bool bIsWaterPixel = ForwardShadingEnable || ScreenSpaceData.GBuffer.ShadingModelID == SHADINGMODELID_SINGLELAYERWATER;
+#endif
 
 	uint2 VolumeCoord0 = max(0, int2(VolumeCoordUInt) + int2(0, 0));
 	uint2 VolumeCoord1 = max(0, int2(VolumeCoordUInt) + int2(OffsetX, 0));
