@@ -54,11 +54,7 @@ void ULiveLinkUAssetRecording::PostRename(UObject* OldOuter, const FName OldName
 
 FFrameRate ULiveLinkUAssetRecording::GetGlobalFrameRate() const
 {
-	const double LastTimestamp = GetLastTimestamp();
-	const double FramesPerSecond = GetMaxFrames() / LastTimestamp;
-	const int64 FramesPerSecondInt = FMath::RoundToInt(FramesPerSecond);
-
-	return FFrameRate(static_cast<uint32>(FramesPerSecondInt), 1);
+	return CalculateFrameRate(GetMaxFrames(), GetLastTimestamp());
 }
 
 void ULiveLinkUAssetRecording::SaveRecordingData()
@@ -329,25 +325,44 @@ void ULiveLinkUAssetRecording::InitializeNewRecordingData(FLiveLinkUAssetRecordi
 	double MaxLastTimestamp = 0.0;
 	for (const TTuple<FLiveLinkSubjectKey, FLiveLinkRecordingBaseDataContainer>& FrameData : RecordingData.FrameData)
 	{
-		if (FrameData.Value.Timestamps.Num() > MaxFrames)
+		const int32 LocalMaxFrames = FrameData.Value.Timestamps.Num();
+		if (LocalMaxFrames > MaxFrames)
 		{
-			MaxFrames = FrameData.Value.Timestamps.Num();
+			MaxFrames = LocalMaxFrames;
 		}
 
+		double LocalLastTimestamp = 0.0;
 		if (FrameData.Value.Timestamps.Num() > 0)
 		{
-			const double LastTimestamp = FrameData.Value.Timestamps.Last();
-			if (LastTimestamp > MaxLastTimestamp)
+			LocalLastTimestamp = FrameData.Value.Timestamps.Last();
+			if (LocalLastTimestamp > MaxLastTimestamp)
 			{
-				MaxLastTimestamp = LastTimestamp;
+				MaxLastTimestamp = LocalLastTimestamp;
 			}
 		}
+
+		// The metadata for a recording already loaded is relevant just for the frame rate.
+		UE::LiveLinkHub::FrameData::Private::FFrameMetaData MetaData;
+		{
+			MetaData.LastTimestamp = LocalLastTimestamp;
+			MetaData.MaxFrames = LocalMaxFrames;
+			MetaData.LocalFrameRate = CalculateFrameRate(LocalMaxFrames, LocalLastTimestamp);
+		}
+		FrameFileData.Add(FrameData.Key, MoveTemp(MetaData));
 	}
 
 	RecordingMaxFrames = MaxFrames;
 	RecordingLastTimestamp = MaxLastTimestamp;
 	
 	bIsFullyLoaded = true;
+}
+
+FFrameRate ULiveLinkUAssetRecording::CalculateFrameRate(const int32 InMaxFrames, const double InTime)
+{
+	const double FramesPerSecond = InTime > 0.0 ? InMaxFrames / InTime : 0.0;
+	const int64 FramesPerSecondInt = FMath::RoundToInt(FramesPerSecond);
+
+	return FFrameRate(static_cast<uint32>(FramesPerSecondInt), 1);
 }
 
 void ULiveLinkUAssetRecording::SaveFrameData(FArchive* InFileWriter, const FLiveLinkSubjectKey& InSubjectKey, FLiveLinkRecordingBaseDataContainer& InBaseDataContainer)
@@ -645,7 +660,7 @@ bool ULiveLinkUAssetRecording::LoadInitialFrameData(UE::LiveLinkHub::FrameData::
 		}
 	}
 
-	// Find the last timestamp, this is so we can calculate correct framerate for this track.
+	// Find the last timestamp, this is so we can calculate the correct framerate for this track.
 	{
 		const int32 LastFrame = OutFrameData.MaxFrames - 1;
 		double Timestamp;
@@ -659,12 +674,7 @@ bool ULiveLinkUAssetRecording::LoadInitialFrameData(UE::LiveLinkHub::FrameData::
 	}
 
 	// Calculate frame rate.
-	{
-		const double FramesPerSecond = OutFrameData.MaxFrames / OutFrameData.LastTimestamp;
-		const int64 FramesPerSecondInt = FMath::RoundToInt(FramesPerSecond);
-
-		OutFrameData.LocalFrameRate = FFrameRate(static_cast<uint32>(FramesPerSecondInt), 1);
-	}
+	OutFrameData.LocalFrameRate = CalculateFrameRate(OutFrameData.MaxFrames, OutFrameData.LastTimestamp);
 	
 	return true;
 }
@@ -681,9 +691,9 @@ void ULiveLinkUAssetRecording::LoadFrameData(UE::LiveLinkHub::FrameData::Private
 	// First, localize the frame times to this frame data.
 	if (InFrameData.LocalFrameRate.IsValid())
 	{
-		FFrameRate RecordingFrameRate = GetGlobalFrameRate();
-		FQualifiedFrameTime StartFrameTime(FFrameTime(RequestedStartFrame), RecordingFrameRate);
-		FQualifiedFrameTime StartInitialFrameTime(FFrameTime(RequestedInitialFrame), RecordingFrameRate);
+		const FFrameRate RecordingFrameRate = GetGlobalFrameRate();
+		const FQualifiedFrameTime StartFrameTime(FFrameTime(RequestedStartFrame), RecordingFrameRate);
+		const FQualifiedFrameTime StartInitialFrameTime(FFrameTime(RequestedInitialFrame), RecordingFrameRate);
 
 		RequestedStartFrame = StartFrameTime.ConvertTo(InFrameData.LocalFrameRate).FrameNumber.Value;
 		RequestedInitialFrame = StartInitialFrameTime.ConvertTo(InFrameData.LocalFrameRate).FrameNumber.Value;

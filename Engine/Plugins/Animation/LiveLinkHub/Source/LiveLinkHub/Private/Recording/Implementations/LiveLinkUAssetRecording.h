@@ -66,6 +66,9 @@ public:
 
 	/** Initial setup of new recording data. */
 	void InitializeNewRecordingData(FLiveLinkUAssetRecordingData&& InRecordingData, double InRecordingLengthSeconds);
+
+	/** Calculate the framerate. */
+	static FFrameRate CalculateFrameRate(const int32 InMaxFrames, const double InTime);
 	
 private:
 	/** Serialize the number of frames (array size) of the BaseDataContainer to the archive. */
@@ -74,7 +77,7 @@ private:
 	/** Initialize or update an async load. */
 	void LoadRecordingAsync(int32 InStartFrame, int32 InCurrentFrame, int32 InNumFramesToLoad);
 
-	/** Initial processing on a frame, finding the correct struct and offsets. The RecordingFileReader is assumed to be at the correct position.  */
+	/** Initial processing on a frame, finding the correct struct and offsets. The RecordingFileReader is assumed to be at the correct position. */
 	bool LoadInitialFrameData(UE::LiveLinkHub::FrameData::Private::FFrameMetaData& OutFrameData);
 	
 	/** Load frame data to a data container. */
