@@ -549,34 +549,85 @@ public:
 	/** 
 	 * Depending on the current state of Manager's command buffer the function will either move all the commands out of 
 	 * InOutCommandBuffer into the main command buffer or append it to the list of command buffers waiting to be flushed.
-	 * @note as a consequence of the call InOutCommandBuffer can get its contents emptied due some of the undelying code using Move semantics
+	 * @note as a consequence of the call InOutCommandBuffer can get its contents emptied due some of the underlying code using Move semantics
 	 */
 	void AppendCommands(TSharedPtr<FMassCommandBuffer>& InOutCommandBuffer);
 
 	template<typename T>
+	UE_DEPRECATED(5.5, "This method will no longer be exposed. Use GetOrCreateConstSharedFragment instead.")
 	const FConstSharedStruct& GetOrCreateConstSharedFragmentByHash(const uint32 Hash, const T& Fragment)
 	{
 		static_assert(TIsDerivedFrom<T, FMassConstSharedFragment>::IsDerived, "Given struct doesn't represent a valid const shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.");
 		int32& Index = ConstSharedFragmentsMap.FindOrAddByHash(Hash, Hash, INDEX_NONE);
 		if (Index == INDEX_NONE)
 		{
-			Index = ConstSharedFragments.Add(FSharedStruct::Make(Fragment));
+			Index = ConstSharedFragments.Add(FConstSharedStruct::Make(Fragment));
 		}
 		return ConstSharedFragments[Index];
 	}
 
+private:
 	template<typename T>
-	const FConstSharedStruct& GetOrCreateConstSharedFragment(const T& Fragment)
+	const FSharedStruct& GetOrCreateSharedFragmentByHash(const uint32 Hash, const T& Fragment)
 	{
-		const uint32 Hash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(Fragment));
-		return GetOrCreateConstSharedFragmentByHash(Hash, Fragment);
+		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived, "Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
+		int32& Index = SharedFragmentsMap.FindOrAddByHash(Hash, Hash, INDEX_NONE);
+		if (Index == INDEX_NONE)
+		{
+			Index = SharedFragments.Add(FSharedStruct::Make(Fragment));
+			// note that even though we're copying the freshly created FSharedStruct instance it's perfectly fine since 
+			// FSharedStruct do guarantee there's not going to be data duplication (via a member shared pointer to hosted data)
+			TArray<FSharedStruct>& InstancesOfType = SharedFragmentsTypeMap.FindOrAdd(T::StaticStruct(), {});
+			InstancesOfType.Add(SharedFragments[Index]);
+		}
+
+		return SharedFragments[Index];
+	}
+
+	const FConstSharedStruct& GetOrCreateConstSharedFragmentByHash(const uint32 Hash, const UScriptStruct* InScriptStruct, const uint8* InStructMemory)
+	{
+		int32& Index = ConstSharedFragmentsMap.FindOrAddByHash(Hash, Hash, INDEX_NONE);
+		if (Index == INDEX_NONE)
+		{
+			Index = ConstSharedFragments.Add(FConstSharedStruct::Make(InScriptStruct, InStructMemory));
+		}
+		return ConstSharedFragments[Index];
+	}
+
+	const FSharedStruct& GetOrCreateSharedFragmentByHash(const uint32 Hash, const UScriptStruct* InScriptStruct, const uint8* InStructMemory)
+	{
+		int32& Index = SharedFragmentsMap.FindOrAddByHash(Hash, Hash, INDEX_NONE);
+		if (Index == INDEX_NONE)
+		{
+			Index = SharedFragments.Add(FSharedStruct::Make(InScriptStruct, InStructMemory));
+			// note that even though we're copying the freshly created FSharedStruct instance it's perfectly fine since 
+			// FSharedStruct do guarantee there's not going to be data duplication (via a member shared pointer to hosted data)
+			TArray<FSharedStruct>& InstancesOfType = SharedFragmentsTypeMap.FindOrAdd(InScriptStruct, {});
+			InstancesOfType.Add(SharedFragments[Index]);
+		}
+		return SharedFragments[Index];
 	}
 
 	template<typename T, typename... TArgs>
+	const FConstSharedStruct& GetOrCreateConstSharedFragmentByHash(const uint32 Hash, TArgs&&... InArgs)
+	{
+		static_assert(TIsDerivedFrom<T, FMassConstSharedFragment>::IsDerived, "Given struct doesn't represent a valid const shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.");
+		int32& Index = ConstSharedFragmentsMap.FindOrAddByHash(Hash, Hash, INDEX_NONE);
+		if (Index == INDEX_NONE)
+		{
+			Index = ConstSharedFragments.Add(FConstSharedStruct::Make<T>(Forward<TArgs>(InArgs)...));
+		}
+
+		return ConstSharedFragments[Index];
+	}
+
+public:
+
+	template<typename T, typename... TArgs>
+	UE_DEPRECATED(5.5, "This method will no longer be exposed. Use GetOrCreateSharedFragment instead.")
 	const FSharedStruct& GetOrCreateSharedFragmentByHash(const uint32 Hash, TArgs&&... InArgs)
 	{
 		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived, "Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
-
 		int32& Index = SharedFragmentsMap.FindOrAddByHash(Hash, Hash, INDEX_NONE);
 		if (Index == INDEX_NONE)
 		{
@@ -588,6 +639,268 @@ public:
 		}
 
 		return SharedFragments[Index];
+	}
+
+	/**
+	 * Returns or creates a shared struct associated to a given shared fragment set of values
+	 * identified internally by a CRC.
+	 * Use this overload when an instance of the desired const shared fragment type is available and
+	 * that can be used directly to compute a CRC (i.e., UE::StructUtils::GetStructCrc32)
+	 *	e.g.,
+	 *	USTRUCT()
+	 *	struct FIntConstSharedFragment : public FMassConstSharedFragment
+	 *	{
+	 *		GENERATED_BODY()
+	 *
+	 *		UPROPERTY()
+	 *		int32 Value = 0;
+	 *	};
+	 *
+	 *	FIntConstSharedFragment Fragment;
+	 *	Fragment.Value = 123;
+	 *	const FConstSharedStruct SharedStruct = EntityManager.GetOrCreateConstSharedFragment(Fragment);
+	 *
+	 * @params Fragment Instance of the desired fragment type
+	 * @return FConstSharedStruct to the matching, or newly created shared fragment
+	 */
+	template<typename T>
+	const FConstSharedStruct& GetOrCreateConstSharedFragment(const T& Fragment)
+	{
+		static_assert(TIsDerivedFrom<T, FMassConstSharedFragment>::IsDerived,
+			"Given struct doesn't represent a valid const shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.");
+		const uint32 Hash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(Fragment));
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return GetOrCreateConstSharedFragmentByHash(Hash, Fragment);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	/**
+	 * Returns or creates a shared struct associated to a given shared fragment set of values
+	 * identified internally by a CRC.
+	 * Use this overload when an instance of the desired shared fragment type is available and
+	 * that can be used directly to compute a CRC (i.e., UE::StructUtils::GetStructCrc32)
+	 *	e.g.,
+	 *	USTRUCT()
+	 *	struct FIntSharedFragment : public FMassSharedFragment
+	 *	{
+	 *		GENERATED_BODY()
+	 *
+	 *		UPROPERTY()
+	 *		int32 Value = 0;
+	 *	};
+	 *
+	 *	FIntSharedFragment Fragment;
+	 *	Fragment.Value = 123;
+	 *	const FSharedStruct SharedStruct = EntityManager.GetOrCreateSharedFragment(Fragment);
+	 *
+	 * @params Fragment Instance of the desired fragment type
+	 * @return FSharedStruct to the matching, or newly created shared fragment
+	 */
+	template<typename T>
+	const FSharedStruct& GetOrCreateSharedFragment(const T& Fragment)
+	{
+		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived,
+			"Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
+		const uint32 Hash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(Fragment));
+		return GetOrCreateSharedFragmentByHash(Hash, Fragment);
+	}
+
+	/**
+	 * Returns or creates a shared struct associated to a given shared fragment set of values
+	 * identified internally by a CRC.
+	 * Use this overload when values can be provided as constructor arguments for the desired const shared fragment type and
+	 * that can be used directly to compute a CRC (i.e., UE::StructUtils::GetStructCrc32)
+ 	 *	e.g.,
+	 *	USTRUCT()
+	 *	struct FIntConstSharedFragment : public FMassConstSharedFragment
+	 *	{
+	 *		GENERATED_BODY()
+	 *
+	 *		FIntConstSharedFragment(const int32 InValue) : Value(InValue) {}
+	 *
+	 *		UPROPERTY()
+	 *		int32 Value = 0;
+	 *	};
+	 *
+	 *	const FConstSharedStruct SharedStruct = EntityManager.GetOrCreateConstSharedFragment<FIntConstSharedFragment>(123);
+	 *
+	 * @params InArgs List of arguments provided to the constructor of the desired fragment type
+	 * @return FConstSharedStruct to the matching, or newly created shared fragment
+	 */
+	template<typename T, typename... TArgs>
+	const FConstSharedStruct& GetOrCreateConstSharedFragment(TArgs&&... InArgs)
+	{
+		static_assert(TIsDerivedFrom<T, FMassConstSharedFragment>::IsDerived,
+			"Given struct doesn't represent a valid const shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.");
+		T Struct(Forward<TArgs>(InArgs)...);
+		const uint32 Hash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(Struct));
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return GetOrCreateConstSharedFragmentByHash(Hash, MoveTemp(Struct));
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	/**
+	 * Returns or creates a shared struct associated to a given shared fragment set of values
+	 * identified internally by a CRC.
+	 * Use this overload when values can be provided as constructor arguments for the desired shared fragment type and
+	 * that can be used directly to compute a CRC (i.e., UE::StructUtils::GetStructCrc32)
+ 	 *	e.g.,
+	 *	USTRUCT()
+	 *	struct FIntSharedFragment : public FMassSharedFragment
+	 *	{
+	 *		GENERATED_BODY()
+	 *
+	 *		FIntSharedFragment(const int32 InValue) : Value(InValue) {}
+	 *
+	 *		UPROPERTY()
+	 *		int32 Value = 0;
+	 *	};
+	 *
+	 *	const FSharedStruct SharedStruct = EntityManager.GetOrCreateSharedFragment<FIntSharedFragment>(123);
+	 *
+	 * @params InArgs List of arguments provided to the constructor of the desired fragment type
+	 * @return FSharedStruct to the matching, or newly created shared fragment
+	 */
+	template<typename T, typename... TArgs>
+	const FSharedStruct& GetOrCreateSharedFragment(TArgs&&... InArgs)
+	{
+		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived,
+			"Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
+		T Struct(Forward<TArgs>(InArgs)...);
+		const uint32 Hash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(Struct));
+		return GetOrCreateSharedFragmentByHash(Hash, MoveTemp(Struct));
+	}
+
+	/**
+	 * Returns or creates a shared struct associated to a given shared fragment set of values
+	 * identified internally by a CRC.
+	 * Use this overload when the reflection data and the memory of an instance of the desired const shared fragment type
+	 * is available and that can be used directly to compute a CRC (i.e., UE::StructUtils::GetStructCrc32)
+	 * e.g.,
+	 * FSharedStruct SharedStruct = EntityManager.GetOrCreateConstSharedFragment(*StructView.GetScriptStruct(), StructView.GetMemory());
+	 *
+	 * @params InScriptStruct Reflection data structure associated to the desired fragment type
+	 * @params InStructMemory Actual data of the desired fragment type 
+	 * @return FConstSharedStruct to the matching, or newly created shared fragment
+	 */
+	const FConstSharedStruct& GetOrCreateConstSharedFragment(const UScriptStruct& InScriptStruct, const uint8* InStructMemory)
+	{
+		checkf(InScriptStruct.IsChildOf(TBaseStructure<FMassConstSharedFragment>::Get()),
+			TEXT("Given struct doesn't represent a valid const shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types."));
+		const uint32 Hash = UE::StructUtils::GetStructCrc32(InScriptStruct, InStructMemory);
+		return GetOrCreateConstSharedFragmentByHash(Hash, &InScriptStruct, InStructMemory);
+	}
+
+	/**
+	 * Returns or creates a shared struct associated to a given shared fragment set of values
+	 * identified internally by a CRC.
+	 * Use this overload when the reflection data and the memory of an instance of the desired shared fragment type
+	 * is available and that can be used directly to compute a CRC (i.e., UE::StructUtils::GetStructCrc32)
+	 * e.g.,
+	 * FSharedStruct SharedStruct = EntityManager.GetOrCreateSharedFragment(*StructView.GetScriptStruct(), StructView.GetMemory());
+	 *
+	 * @params InScriptStruct Reflection data structure associated to the desired fragment type
+	 * @params InStructMemory Actual data of the desired fragment type 
+	 * @return FSharedStruct to the matching, or newly created shared fragment
+	 */
+	const FSharedStruct& GetOrCreateSharedFragment(const UScriptStruct& InScriptStruct, const uint8* InStructMemory)
+	{
+		checkf(InScriptStruct.IsChildOf(TBaseStructure<FMassSharedFragment>::Get()),
+			TEXT("Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types."));
+		const uint32 Hash = UE::StructUtils::GetStructCrc32(InScriptStruct, InStructMemory);
+		return GetOrCreateSharedFragmentByHash(Hash, &InScriptStruct, InStructMemory);
+	}
+
+	/**
+	 * Returns or creates a shared struct associated to a given shared fragment set of values
+	 * identified internally by a CRC.
+	 * Use this overload when a different struct should be used to compute a CRC (i.e., UE::StructUtils::GetStructCrc32)
+	 * and values can be provided as constructor arguments for the desired const shared fragment type
+	 *	e.g.,
+	 *
+	 *	USTRUCT()
+	 *	struct FIntConstSharedFragmentParams
+	 *	{
+	 *		GENERATED_BODY()
+	 *
+	 *		FIntConstSharedFragmentParams(const int32 InValue) : Value(InValue) {}
+	 *
+	 *		UPROPERTY()
+	 *		int32 Value = 0;
+	 *	};
+	 *
+	 *	USTRUCT()
+	 *	struct FIntConstSharedFragment : public FMassConstSharedFragment
+	 *	{
+	 *		GENERATED_BODY()
+	 *
+	 *		FIntConstSharedFragment(const FIntConstSharedFragmentParams& InParams) : Value(InParams.Value) {}
+	 *
+	 *		int32 Value = 0;
+	 *	};
+	 *
+	 *	FIntConstSharedFragmentParams Params(123);
+	 *	const FConstSharedStruct SharedStruct = EntityManager.GetOrCreateConstSharedFragment<FIntConstSharedFragment>(FConstStructView::Make(Params), Params);
+	 *
+	 * @params HashingHelperStruct Struct view passed to UE::StructUtils::GetStructCrc32 to compute the CRC
+	 * @params InArgs List of arguments provided to the constructor of the desired fragment type
+	 * @return FConstSharedStruct to the matching, or newly created shared fragment
+	 */
+	template<typename T, typename... TArgs>
+	const FConstSharedStruct& GetOrCreateConstSharedFragment(const FConstStructView HashingHelperStruct, TArgs&&... InArgs)
+	{
+		static_assert(TIsDerivedFrom<T, FMassConstSharedFragment>::IsDerived,
+			"Given struct doesn't represent a valid const shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.");
+		T Fragment(Forward<TArgs>(InArgs)...);
+		const uint32 Hash = UE::StructUtils::GetStructCrc32(HashingHelperStruct);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return GetOrCreateConstSharedFragmentByHash(Hash, MoveTemp(Fragment));
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	/**
+	 * Returns or creates a shared struct associated to a given shared fragment set of values
+	 * identified internally by a CRC.
+	 * Use this overload when a different struct should be used to compute a CRC (i.e., UE::StructUtils::GetStructCrc32)
+	 * and values can be provided as constructor arguments for the desired shared fragment type
+	 *	e.g.,
+	 *
+	 *	USTRUCT()
+	 *	struct FIntSharedFragmentParams
+	 *	{
+	 *		GENERATED_BODY()
+	 *
+	 *		FInSharedFragmentParams(const int32 InValue) : Value(InValue) {}
+	 *
+	 *		UPROPERTY()
+	 *		int32 Value = 0;
+	 *	};
+	 *
+	 *	USTRUCT()
+	 *	struct FIntSharedFragment : public FMassSharedFragment
+	 *	{
+	 *		GENERATED_BODY()
+	 *
+	 *		FIntSharedFragment(const FIntConstSharedFragmentParams& InParams) : Value(InParams.Value) {}
+	 *
+	 *		int32 Value = 0;
+	 *	};
+	 *
+	 *	FIntSharedFragmentParams Params(123);
+	 *	const FSharedStruct SharedStruct = EntityManager.GetOrCreateSharedFragment<FIntSharedFragment>(FConstStructView::Make(Params), Params);
+	 *
+	 * @params HashingHelperStruct Struct view passed to UE::StructUtils::GetStructCrc32 to compute the CRC
+	 * @params InArgs List of arguments provided to the constructor of the desired fragment type
+	 * @return FSharedStruct to the matching, or newly created shared fragment
+	 */
+	template<typename T, typename... TArgs>
+	const FSharedStruct& GetOrCreateSharedFragment(const FConstStructView HashingHelperStruct, TArgs&&... InArgs)
+	{
+		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived,
+			"Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
+		T Fragment(Forward<TArgs>(InArgs)...);
+		const uint32 Hash = UE::StructUtils::GetStructCrc32(HashingHelperStruct);
+		return GetOrCreateSharedFragmentByHash(Hash, MoveTemp(Fragment));
 	}
 
 	template<typename T>

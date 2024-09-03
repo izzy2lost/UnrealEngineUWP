@@ -33,17 +33,16 @@ void UMassReplicationTrait::BuildTemplate(FMassEntityTemplateBuildContext& Build
 	FConstSharedStruct ParamsFragment = EntityManager.GetOrCreateConstSharedFragment(Params);
 	BuildContext.AddConstSharedFragment(ParamsFragment);
 
-	uint32 ParamsHash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(Params));
 	if (LIKELY(!BuildContext.IsInspectingData()))
 	{
 		check(ReplicationSubsystem);
-		FSharedStruct SharedFragment = EntityManager.GetOrCreateSharedFragmentByHash<FMassReplicationSharedFragment>(ParamsHash, *ReplicationSubsystem, Params);
+		FSharedStruct SharedFragment = EntityManager.GetOrCreateSharedFragment<FMassReplicationSharedFragment>(FConstStructView::Make(Params), *ReplicationSubsystem, Params);
 		BuildContext.AddSharedFragment(SharedFragment);
 	}
 	else
 	{
 		// in the investigation mode we only care about the fragment type
-		FSharedStruct SharedFragment = EntityManager.GetOrCreateSharedFragmentByHash<FMassReplicationSharedFragment>(ParamsHash);
+		FSharedStruct SharedFragment = EntityManager.GetOrCreateSharedFragment<FMassReplicationSharedFragment>();
 		BuildContext.AddSharedFragment(SharedFragment);
 	}
 }

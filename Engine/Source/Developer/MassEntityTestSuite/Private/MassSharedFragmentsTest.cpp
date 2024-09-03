@@ -636,6 +636,133 @@ struct FSharedFragmentValues_TypeEquivalency : FEntityTestBase
 };
 IMPLEMENT_AI_INSTANT_TEST(FSharedFragmentValues_TypeEquivalency, "System.Mass.SharedFragments.TypeEquivalency");
 
+struct FSharedFragmentValues_GetOrCreateWithArgs : FEntityTestBase
+{
+	virtual bool InstantTest() override
+	{
+		constexpr int32 ConstIntValueOne = 1;
+		constexpr int32 ConstIntValueTwo = 2;
+
+		const FSharedStruct SharedFragment1 = EntityManager->GetOrCreateSharedFragment<FTestSharedFragment_Int>(/*Args*/ConstIntValueOne);
+		const FSharedStruct SharedFragment2 = EntityManager->GetOrCreateSharedFragment<FTestSharedFragment_Int>(/*Args*/ConstIntValueOne);
+		const FSharedStruct SharedFragment3 = EntityManager->GetOrCreateSharedFragment<FTestSharedFragment_Int>(/*Args*/ConstIntValueTwo);
+
+		AITEST_EQUAL("Shared fragments created for same struct type using same constructor value should share memory", SharedFragment1, SharedFragment2);
+		AITEST_EQUAL("Value in shared struct should be the same as the argument provided to GetOrCreateSharedFragment", SharedFragment1.Get<FTestSharedFragment_Int>().Value, ConstIntValueOne);
+
+		AITEST_NOT_EQUAL("Shared fragments created for same struct type using different constructor values should not share memory", SharedFragment1, SharedFragment3);
+		AITEST_EQUAL("Value in shared struct should be the same as the argument provided to GetOrCreateSharedFragment", SharedFragment3.Get<FTestSharedFragment_Int>().Value, ConstIntValueTwo);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FSharedFragmentValues_GetOrCreateWithArgs, "System.Mass.SharedFragments.GetOrCreate.WithArgs");
+
+struct FSharedFragmentValues_GetOrCreateWithStruct : FEntityTestBase
+{
+	virtual bool InstantTest() override
+	{
+		constexpr int32 ConstIntValueOne = 1;
+		constexpr int32 ConstIntValueTwo = 2;
+
+		const FTestSharedFragment_Int TestSharedFragment_Int1(ConstIntValueOne);
+		const FTestSharedFragment_Int TestSharedFragment_Int2(ConstIntValueOne);
+		const FTestSharedFragment_Int TestSharedFragment_Int3(ConstIntValueTwo);
+		const FSharedStruct SharedFragment1 = EntityManager->GetOrCreateSharedFragment(TestSharedFragment_Int1);
+		const FSharedStruct SharedFragment2 = EntityManager->GetOrCreateSharedFragment(TestSharedFragment_Int2);
+		const FSharedStruct SharedFragment3 = EntityManager->GetOrCreateSharedFragment(TestSharedFragment_Int3);
+
+		AITEST_EQUAL("Shared fragments created for same struct type using same constructor value should share memory", SharedFragment1, SharedFragment2);
+		AITEST_EQUAL("Value in shared struct should be the same as the argument provided to GetOrCreateSharedFragment", SharedFragment1.Get<FTestSharedFragment_Int>().Value, ConstIntValueOne);
+
+		AITEST_NOT_EQUAL("Shared fragments created for same struct type using different constructor values should not share memory", SharedFragment1, SharedFragment3);
+		AITEST_EQUAL("Value in shared struct should be the same as the argument provided to GetOrCreateSharedFragment", SharedFragment3.Get<FTestSharedFragment_Int>().Value, ConstIntValueTwo);
+
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FSharedFragmentValues_GetOrCreateWithStruct, "System.Mass.SharedFragments.GetOrCreate.WithStruct");
+
+struct FSharedFragmentValues_GetOrCreateNoArgs : FEntityTestBase
+{
+	virtual bool InstantTest() override
+	{
+		const FSharedStruct SharedFragment1 = EntityManager->GetOrCreateSharedFragment<FTestSharedFragment_Int>();
+		const FSharedStruct SharedFragment2 = EntityManager->GetOrCreateSharedFragment<FTestSharedFragment_Int>();
+		const FSharedStruct SharedFragment3 = EntityManager->GetOrCreateSharedFragment<FTestSharedFragment_Int>();
+
+		AITEST_EQUAL("Shared fragments created for same struct type using default constructor should share memory", SharedFragment1, SharedFragment2);
+		AITEST_EQUAL("Shared fragments created for same struct type using default constructor should share memory", SharedFragment1, SharedFragment3);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FSharedFragmentValues_GetOrCreateNoArgs, "System.Mass.SharedFragments.GetOrCreate.NoArgs");
+
+struct FSharedFragmentValues_GetOrCreateConstNoArgs : FEntityTestBase
+{
+	virtual bool InstantTest() override
+	{
+		const FConstSharedStruct SharedFragment1 = EntityManager->GetOrCreateConstSharedFragment<FTestConstSharedFragment_Int>();
+		const FConstSharedStruct SharedFragment2 = EntityManager->GetOrCreateConstSharedFragment<FTestConstSharedFragment_Int>();
+		const FConstSharedStruct SharedFragment3 = EntityManager->GetOrCreateConstSharedFragment<FTestConstSharedFragment_Int>();
+
+		AITEST_EQUAL("Shared fragments created for same struct type using default constructor should share memory", SharedFragment1, SharedFragment2);
+		AITEST_EQUAL("Shared fragments created for same struct type using default constructor should share memory", SharedFragment1, SharedFragment3);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FSharedFragmentValues_GetOrCreateConstNoArgs, "System.Mass.SharedFragments.GetOrCreate.ConstNoArgs");
+
+struct FSharedFragmentValues_GetOrCreateConstWithArgs : FEntityTestBase
+{
+	virtual bool InstantTest() override
+	{
+		constexpr int32 ConstIntValueOne = 1;
+		constexpr int32 ConstIntValueTwo = 2;
+
+		const FConstSharedStruct SharedFragment1 = EntityManager->GetOrCreateConstSharedFragment<FTestConstSharedFragment_Int>(/*Args*/ConstIntValueOne);
+		const FConstSharedStruct SharedFragment2 = EntityManager->GetOrCreateConstSharedFragment<FTestConstSharedFragment_Int>(/*Args*/ConstIntValueOne);
+		const FConstSharedStruct SharedFragment3 = EntityManager->GetOrCreateConstSharedFragment<FTestConstSharedFragment_Int>(/*Args*/ConstIntValueTwo);
+
+		AITEST_EQUAL("Shared fragments created for same struct type using same constructor value should share memory", SharedFragment1, SharedFragment2);
+		AITEST_EQUAL("Value in shared struct should be the same as the argument provided to GetOrCreateConstSharedFragment", SharedFragment1.Get<const FTestConstSharedFragment_Int>().Value, ConstIntValueOne);
+
+		AITEST_NOT_EQUAL("Shared fragments created for same struct type using different constructor values should not share memory", SharedFragment1, SharedFragment3);
+		AITEST_EQUAL("Value in shared struct should be the same as the argument provided to GetOrCreateConstSharedFragment", SharedFragment3.Get<const FTestConstSharedFragment_Int>().Value, ConstIntValueTwo);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FSharedFragmentValues_GetOrCreateConstWithArgs, "System.Mass.SharedFragments.GetOrCreate.ConstWithArgs");
+
+struct FSharedFragmentValues_GetOrCreateConstWithStruct : FEntityTestBase
+{
+	virtual bool InstantTest() override
+	{
+		constexpr int32 ConstIntValueOne = 1;
+		constexpr int32 ConstIntValueTwo = 2;
+
+		const FTestConstSharedFragment_Int TestSharedFragment_Int1(ConstIntValueOne);
+		const FTestConstSharedFragment_Int TestSharedFragment_Int2(ConstIntValueOne);
+		const FTestConstSharedFragment_Int TestSharedFragment_Int3(ConstIntValueTwo);
+		const FConstSharedStruct SharedFragment1 = EntityManager->GetOrCreateConstSharedFragment(TestSharedFragment_Int1);
+		const FConstSharedStruct SharedFragment2 = EntityManager->GetOrCreateConstSharedFragment(TestSharedFragment_Int2);
+		const FConstSharedStruct SharedFragment3 = EntityManager->GetOrCreateConstSharedFragment(TestSharedFragment_Int3);
+
+		AITEST_EQUAL("Shared fragments created for same struct type using same constructor value should share memory", SharedFragment1, SharedFragment2);
+		AITEST_EQUAL("Value in shared struct should be the same as the argument provided to GetOrCreateConstSharedFragment", SharedFragment1.Get<const FTestConstSharedFragment_Int>().Value, ConstIntValueOne);
+
+		AITEST_NOT_EQUAL("Shared fragments created for same struct type using different constructor values should not share memory", SharedFragment1, SharedFragment3);
+		AITEST_EQUAL("Value in shared struct should be the same as the argument provided to GetOrCreateConstSharedFragment", SharedFragment3.Get<const FTestConstSharedFragment_Int>().Value, ConstIntValueTwo);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FSharedFragmentValues_GetOrCreateConstWithStruct, "System.Mass.SharedFragments.GetOrCreate.ConstWithStruct");
+
 } // FMassEntityTest
 
 UE_ENABLE_OPTIMIZATION_SHIP
