@@ -224,7 +224,6 @@ void UColorCorrectRegionsSubsystem::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	RefreshRegions();
-	TransferStates();
 
 	// Check to make sure that no ids have been changed externally.
 	{

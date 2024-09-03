@@ -663,6 +663,11 @@ FColorCorrectRegionsSceneViewExtension::FColorCorrectRegionsSceneViewExtension(c
 {
 }
 
+void FColorCorrectRegionsSceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
+{
+	WorldSubsystem->TransferStates();
+}
+
 void FColorCorrectRegionsSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessingInputs& Inputs)
 {
 	if (IsValid(WorldSubsystem))
