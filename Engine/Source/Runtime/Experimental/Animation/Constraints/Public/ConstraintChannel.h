@@ -32,7 +32,7 @@ struct FMovieSceneConstraintChannel : public FMovieSceneBoolChannel
 	 */
 	virtual FORCEINLINE TMovieSceneChannelData<bool> GetData() override
 	{
-		return TMovieSceneChannelData<bool>(&Times, &Values, &KeyHandles, this);
+		return TMovieSceneChannelData<bool>(&Times, &Values, this, &KeyHandles);
 	}
 
 	/**

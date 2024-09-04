@@ -136,7 +136,7 @@ struct FMovieSceneFloatChannel : public FMovieSceneChannel
 	 */
 	FORCEINLINE TMovieSceneChannelData<FMovieSceneFloatValue> GetData()
 	{
-		return TMovieSceneChannelData<FMovieSceneFloatValue>(&Times, &Values, &KeyHandles);
+		return TMovieSceneChannelData<FMovieSceneFloatValue>(&Times, &Values, this, &KeyHandles);
 	}
 
 	/**

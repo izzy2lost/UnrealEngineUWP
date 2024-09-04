@@ -156,7 +156,7 @@ struct FMovieSceneEventSectionData : public FMovieSceneChannel
 	 */
 	FORCEINLINE TMovieSceneChannelData<FEventPayload> GetData()
 	{
-		return TMovieSceneChannelData<FEventPayload>(&Times, &KeyValues, &KeyHandles);
+		return TMovieSceneChannelData<FEventPayload>(&Times, &KeyValues, this, &KeyHandles);
 	}
 
 	/**

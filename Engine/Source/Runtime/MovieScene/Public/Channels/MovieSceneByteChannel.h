@@ -54,7 +54,7 @@ struct FMovieSceneByteChannel : public FMovieSceneChannel
 	 */
 	FORCEINLINE TMovieSceneChannelData<uint8> GetData()
 	{
-		return TMovieSceneChannelData<uint8>(&Times, &Values, &KeyHandles);
+		return TMovieSceneChannelData<uint8>(&Times, &Values, this, &KeyHandles);
 	}
 
 	/**

@@ -50,7 +50,7 @@ struct FMovieSceneNiagaraEmitterChannel : public FMovieSceneChannel
 	*/
 	FORCEINLINE TMovieSceneChannelData<FNiagaraEmitterSectionKey> GetData()
 	{
-		return TMovieSceneChannelData<FNiagaraEmitterSectionKey>(&Times, &Values, &KeyHandles);
+		return TMovieSceneChannelData<FNiagaraEmitterSectionKey>(&Times, &Values, this, &KeyHandles);
 	}
 
 	/**

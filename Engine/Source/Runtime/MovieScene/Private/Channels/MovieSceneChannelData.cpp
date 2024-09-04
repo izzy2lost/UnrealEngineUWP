@@ -91,7 +91,7 @@ namespace MovieScene
 } // namespace MovieScene
 } // namespace UE
 
-FMovieSceneChannelData::FMovieSceneChannelData(TArray<FFrameNumber>* InTimes, FKeyHandleLookupTable* InKeyHandles, FMovieSceneChannel* InChannel)
+FMovieSceneChannelData::FMovieSceneChannelData(FMovieSceneChannel* InChannel, TArray<FFrameNumber>* InTimes, FKeyHandleLookupTable* InKeyHandles)
 	: Times(InTimes), KeyHandles(InKeyHandles), OwningChannel(InChannel)
 {}
 

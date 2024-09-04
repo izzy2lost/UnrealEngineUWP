@@ -33,7 +33,7 @@ struct MOVIESCENETEXTTRACK_API FMovieSceneTextChannel : public FMovieSceneChanne
 	 */
 	FORCEINLINE TMovieSceneChannelData<FText> GetData()
 	{
-		return TMovieSceneChannelData<FText>(&Times, &Values, &KeyHandles);
+		return TMovieSceneChannelData<FText>(&Times, &Values, this, &KeyHandles);
 	}
 
 	/**

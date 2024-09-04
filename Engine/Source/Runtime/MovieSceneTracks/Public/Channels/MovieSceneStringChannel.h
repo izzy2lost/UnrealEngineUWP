@@ -47,7 +47,7 @@ struct FMovieSceneStringChannel : public FMovieSceneChannel
 	 */
 	FORCEINLINE TMovieSceneChannelData<FString> GetData()
 	{
-		return TMovieSceneChannelData<FString>(&Times, &Values, &KeyHandles);
+		return TMovieSceneChannelData<FString>(&Times, &Values, this, &KeyHandles);
 	}
 
 	/**

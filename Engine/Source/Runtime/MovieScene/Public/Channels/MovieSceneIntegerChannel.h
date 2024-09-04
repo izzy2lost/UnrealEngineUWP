@@ -49,7 +49,7 @@ struct FMovieSceneIntegerChannel : public FMovieSceneChannel
 	 */
 	FORCEINLINE TMovieSceneChannelData<int32> GetData()
 	{
-		return TMovieSceneChannelData<int32>(&Times, &Values, &KeyHandles);
+		return TMovieSceneChannelData<int32>(&Times, &Values, this, &KeyHandles);
 	}
 
 	/**

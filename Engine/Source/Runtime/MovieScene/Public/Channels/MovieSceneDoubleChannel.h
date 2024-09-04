@@ -145,7 +145,7 @@ struct FMovieSceneDoubleChannel : public FMovieSceneChannel
 	 */
 	FORCEINLINE TMovieSceneChannelData<FMovieSceneDoubleValue> GetData()
 	{
-		return TMovieSceneChannelData<FMovieSceneDoubleValue>(&Times, &Values, &KeyHandles);
+		return TMovieSceneChannelData<FMovieSceneDoubleValue>(&Times, &Values, this, &KeyHandles);
 	}
 
 	/**

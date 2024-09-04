@@ -93,7 +93,7 @@ struct FMovieSceneObjectPathChannel : public FMovieSceneChannel
 	 */
 	FORCEINLINE TMovieSceneChannelData<FMovieSceneObjectPathChannelKeyValue> GetData()
 	{
-		return TMovieSceneChannelData<FMovieSceneObjectPathChannelKeyValue>(&Times, &Values, &KeyHandles);
+		return TMovieSceneChannelData<FMovieSceneObjectPathChannelKeyValue>(&Times, &Values, this, &KeyHandles);
 	}
 
 	/**

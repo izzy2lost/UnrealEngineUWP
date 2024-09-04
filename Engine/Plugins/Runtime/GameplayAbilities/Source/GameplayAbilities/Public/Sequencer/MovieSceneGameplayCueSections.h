@@ -87,7 +87,7 @@ struct FMovieSceneGameplayCueChannel : public FMovieSceneChannel
 	 */
 	FORCEINLINE TMovieSceneChannelData<FMovieSceneGameplayCueKey> GetData()
 	{
-		return TMovieSceneChannelData<FMovieSceneGameplayCueKey>(&KeyTimes, &KeyValues, &KeyHandles);
+		return TMovieSceneChannelData<FMovieSceneGameplayCueKey>(&KeyTimes, &KeyValues, this, &KeyHandles);
 	}
 
 	/**
