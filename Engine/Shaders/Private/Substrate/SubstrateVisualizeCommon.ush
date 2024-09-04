@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "/Engine/Private/Common.ush"
+
+#if SUBSTRATE_ENABLED
+
 #include "/Engine/Private/ShaderPrint.ush"
 
 #ifndef SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE
@@ -679,3 +682,5 @@ void SubstratePrintMaterialProperties(inout FShaderPrintContext Context, uint2 I
 	}
 }
 #endif
+
+#endif // SUBSTRATE_ENABLED
