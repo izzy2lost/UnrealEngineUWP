@@ -3947,7 +3947,8 @@ void URigHierarchy::SetTransform(FRigTransformElement* InTransformElement, const
 		if(bUsePreferredEulerAngles && ERigTransformType::IsLocal(InTransformType))
 		{
 			const bool bInitial = ERigTransformType::IsInitial(InTransformType);
-			ControlElement->PreferredEulerAngles.SetRotator(InTransform.Rotator(), bInitial, true);
+			const FVector Angle = GetControlAnglesFromQuat(ControlElement, InTransform.GetRotation(), true);
+			ControlElement->PreferredEulerAngles.SetAngles(Angle, bInitial, ControlElement->PreferredEulerAngles.RotationOrder, true);
 		}
 	}
 

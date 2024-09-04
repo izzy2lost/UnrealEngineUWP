@@ -1814,6 +1814,7 @@ struct TControlRigParameterActuatorTransform : TMovieSceneBlendingActuator<FCont
 						FEulerTransform Transform = InFinalValue.Value;
 						Transform.Rotation = UERotator;
 						ControlRig->SetControlValue<FRigControlValue::FEulerTransform_Float>(ParameterName, Transform, true, EControlRigSetKey::Never, bSetupUndo);	
+						Hierarchy->SetControlSpecifiedEulerAngle(ControlElement, EulerAngle);
 					}
 				}
 			}
