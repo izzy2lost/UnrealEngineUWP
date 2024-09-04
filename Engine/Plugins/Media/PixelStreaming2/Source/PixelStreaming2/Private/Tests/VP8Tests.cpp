@@ -1,0 +1,27 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "CodecUtils.h"
+#include "TestUtils.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+namespace UE::PixelStreaming2
+{
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVP8FrameReceivedTest, "System.Plugins.PixelStreaming2.FVP8FrameReceivedTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	bool FVP8FrameReceivedTest::RunTest(const FString& Parameters)
+	{
+		SetCodec(EVideoCodec::VP8);
+		DoFrameReceiveTest();
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVP8FrameResizeTest, "System.Plugins.PixelStreaming2.FVP8FrameResizeTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	bool FVP8FrameResizeTest::RunTest(const FString& Parameters)
+	{
+		SetCodec(EVideoCodec::VP8);
+		DoFrameResizeMultipleTimesTest();
+		return true;
+	}
+} // namespace UE::PixelStreaming2
+
+#endif // WITH_DEV_AUTOMATION_TESTS
