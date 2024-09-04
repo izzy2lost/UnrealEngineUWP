@@ -6,7 +6,8 @@ namespace UnrealBuildTool.Rules
 	{
 		public GPUTextureTransfer(ReadOnlyTargetRules Target) : base(Target)
 		{
-			if (Target.Platform == UnrealTargetPlatform.Win64)
+			// no dvp.lib for Arm64
+			if (Target.Platform == UnrealTargetPlatform.Win64 && Target.Architecture != UnrealArch.Arm64)
 			{
 				AddEngineThirdPartyPrivateStaticDependencies(Target, "GPUDirect");
 				PublicDefinitions.Add("DVP_SUPPORTED_PLATFORM=1");
