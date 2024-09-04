@@ -48,7 +48,7 @@ namespace AbilityTaskCVars
 	static FAutoConsoleVariableRef CVarRecordAbilityTaskSourceAbilityCounts(
 		TEXT("AbilitySystem.AbilityTask.Debug.SourceRecordingEnabled"),
 		bRecordAbilityTaskSourceAbilityCounts,
-		TEXT("Requires bRecordAbilityTaskCounts to be set to enabled (1 for non-shipping builds, 2 for all builds) for this value to do anything.  If both are enabled, all new AbilityTasks (after InitTask is called in NewAbilityTask) will be counted by the class of the ability that created them.  Use 'AbilitySystem.AbilityTask.Debug.PrintCounts' to print out the current counts.")
+		TEXT("Requires AbilityTaskRecordingType to be set to enabled (1 for non-shipping builds, 2 for all builds) for this value to do anything.  If both are enabled, all new AbilityTasks (after InitTask is called in NewAbilityTask) will be counted by the class of the ability that created them.  Use 'AbilitySystem.AbilityTask.Debug.PrintCounts' to print out the current counts.")
 	);
 
 	static int32 AbilityTaskDebugPrintTopNResults = 5;
@@ -373,7 +373,7 @@ void DebugPrintAbilityTasksByClass()
 		const int32 UnaccountedAbilityTasks = GlobalAbilityTaskCount - AccumulatedAbilityTasks;
 		if (UnaccountedAbilityTasks > 0)
 		{
-			// It's possible to allocate AbilityTasks before AbilityTaskCVars::bRecordAbilityTaskCounts was set to 'true', even if set via command line.
+			// It's possible to allocate AbilityTasks before AbilityTaskCVars::AbilityTaskRecordingType was set to enabled, even if set via command line.
 			// However, if this value increases during play, there is an issue.
 			ABILITY_LOG(Display, TEXT("- Unknown (allocated before recording): %d"), UnaccountedAbilityTasks);
 		}
