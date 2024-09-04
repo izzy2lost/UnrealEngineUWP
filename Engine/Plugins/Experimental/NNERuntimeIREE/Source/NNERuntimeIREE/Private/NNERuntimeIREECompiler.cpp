@@ -229,26 +229,34 @@ namespace UE::NNERuntimeIREE
 			return TUniquePtr<FCompiler>(new FCompiler(CompilerCommand, LinkerCommand, SharedLibExt, BuildTargets));
 		}
 
-		bool FCompiler::CompileMlir(TConstArrayView<uint8> InFileData, const FString& InModelName, const FString& InIntermediateDir, const FString& InStagingDir, TArray<FCompilerResult>& OutCompilerResults, UNNERuntimeIREEModuleMetaData* ModuleMetaData)
+		bool FCompiler::CompileMlir(TConstArrayView<uint8> InFileData, const FString& InModelName, const FString& InOutputDir, FNNERuntimeIREECompilerResultCPU& OutCompilerResult, UNNERuntimeIREEModuleMetaData& ModuleMetaData)
 		{
+			SCOPED_NAMED_EVENT_TEXT("FCompiler::CompileMlir", FColor::Magenta);
+
 			using namespace Private;
 
-			FString InputFilePath = FPaths::Combine(InIntermediateDir, InModelName) + ".mlir";
-			FFileHelper::SaveArrayToFile(InFileData, *InputFilePath);
-
-			if (ModuleMetaData)
 			{
+				SCOPED_NAMED_EVENT_TEXT("Metadata", FColor::Magenta);
+
 				FString FileDataString = "";
 				FileDataString.AppendChars((char*)InFileData.GetData(), InFileData.Num());
-				ModuleMetaData->ParseFromString(FileDataString);
+				ModuleMetaData.ParseFromString(FileDataString);
 			}
 
-			TArray<FCompilerResult> Results;
-			bool bResult = true;
 			IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+
+			FString InputFilePath = FPaths::Combine(InOutputDir, InModelName) + ".mlir";
+			if (!PlatformFile.FileExists(*InputFilePath))
+			{
+				SCOPED_NAMED_EVENT_TEXT("InputFile", FColor::Magenta);
+
+				FFileHelper::SaveArrayToFile(InFileData, *InputFilePath);
+			}
+
+			bool bResult = true;
 			for (int32 i = 0; i < BuildTargets.Num(); i++)
 			{
-				FString IntermediateDirPath = FPaths::Combine(InIntermediateDir, BuildTargets[i].Architecture);
+				FString IntermediateDirPath = FPaths::Combine(InOutputDir, BuildTargets[i].Architecture);
 				PlatformFile.CreateDirectoryTree(*IntermediateDirPath);
 				FString IntermediateFilePathNoExt = FPaths::Combine(IntermediateDirPath, InModelName);
 				FString ObjectFilePath = IntermediateFilePathNoExt + ".o";
@@ -265,7 +273,11 @@ namespace UE::NNERuntimeIREE
 				CompilerArguments.ReplaceInline(*FString("${VMFB_PATH}"), *(FString("\"") + VmfbFilePath + "\""));
 				CompilerArguments.ReplaceInline(*FString("${INPUT_PATH}"), *(FString("\"") + InputFilePath + "\""));
 
-				RunCommand(CompilerCommand, CompilerArguments, IntermediateFilePathNoExt + "_compile-log.txt");
+				{
+					SCOPED_NAMED_EVENT_TEXT("Compile", FColor::Magenta);
+
+					RunCommand(CompilerCommand, CompilerArguments, IntermediateFilePathNoExt + "_compile-log.txt");
+				}
 
 				if (!PlatformFile.FileExists(*ObjectFilePath) || !PlatformFile.FileExists(*VmfbFilePath))
 				{
@@ -285,7 +297,11 @@ namespace UE::NNERuntimeIREE
 				LinkerArguments.ReplaceInline(*FString("${OBJECT_PATH}"), *(FString("\"") + ObjectFilePath + "\""));
 				LinkerArguments.ReplaceInline(*FString("${SHARED_LIB_PATH}"), *(FString("\"") + SharedLibFilePath + "\""));
 
-				RunCommand(LinkerCommand, LinkerArguments, IntermediateFilePathNoExt + "_link-log.txt");
+				{
+					SCOPED_NAMED_EVENT_TEXT("Link", FColor::Magenta);
+
+					RunCommand(LinkerCommand, LinkerArguments, IntermediateFilePathNoExt + "_link-log.txt");
+				}
 
 				if (!PlatformFile.FileExists(*SharedLibFilePath))
 				{
@@ -293,20 +309,6 @@ namespace UE::NNERuntimeIREE
 					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("\"%s\" %s"), *LinkerCommand, *LinkerArguments);
 					bResult = false;
 					continue;
-				}
-
-				FString StagingFilePathNoExt = FPaths::Combine(InStagingDir, BuildTargets[i].Architecture, InModelName);
-				FString StagedVmfbFilePath = StagingFilePathNoExt + ".vmfb";
-				FString StagedSharedLibFilePath = StagingFilePathNoExt + SharedLibExt;
-				if (IFileManager::Get().Copy(*StagedSharedLibFilePath, *SharedLibFilePath) != COPY_OK)
-				{
-					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to copy \"%s\" to \"%s\""), *SharedLibFilePath, *StagedSharedLibFilePath);
-					bResult = false;
-				}
-				if (IFileManager::Get().Copy(*StagedVmfbFilePath, *VmfbFilePath) != COPY_OK)
-				{
-					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to copy \"%s\" to \"%s\""), *VmfbFilePath, *StagedVmfbFilePath);
-					bResult = false;
 				}
 
 				FString SharedLibraryEntryPointName = "";
@@ -332,20 +334,22 @@ namespace UE::NNERuntimeIREE
 					continue;
 				}
 
-				FCompilerResult Result;
-				Result.Architecture = BuildTargets[i].Architecture;
-				Result.RelativeDirPath = BuildTargets[i].Architecture;
-				Result.SharedLibraryFileName = InModelName + SharedLibExt;
-				Result.VmfbFileName = InModelName + ".vmfb";
-				Result.SharedLibraryEntryPointName = SharedLibraryEntryPointName;
-				Results.Add(Result);
+				FNNERuntimeIREEArchitectureInfoCPU ArchitectureInfo;
+				ArchitectureInfo.Architecture = BuildTargets[i].Architecture;
+				ArchitectureInfo.RelativeDirPath = BuildTargets[i].Architecture;
+				ArchitectureInfo.SharedLibraryFileName = InModelName + SharedLibExt;
+				ArchitectureInfo.VmfbFileName = InModelName + ".vmfb";
+				ArchitectureInfo.SharedLibraryEntryPointName = SharedLibraryEntryPointName;
+				OutCompilerResult.ArchitectureInfos.Add(MoveTemp(ArchitectureInfo));
 			}
 
-			bResult &= !Results.IsEmpty();
-			if (bResult)
+			bResult &= !OutCompilerResult.ArchitectureInfos.IsEmpty();
+
+			if (!bResult)
 			{
-				OutCompilerResults = Results;
+				OutCompilerResult.ArchitectureInfos.Empty();
 			}
+
 			return bResult;
 		}
 	} // CPU

@@ -24,11 +24,33 @@
 #include "NNERuntimeIREELog.h"
 #include "NNERuntimeIREEMetaData.h"
 #include "NNERuntimeIREEModel.h"
+#include "NNERuntimeIREEModelData.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 
 namespace UE::NNERuntimeIREE::CPU::Private
 {
+	FString GetTargetPlatformName(const ITargetPlatform* TargetPlatform)
+	{
+		return TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
+	}
+
+	FString GetBinariesSubdirectory(const FString& PlatformName)
+	{
+		if (PlatformName.Equals("Windows"))
+		{
+			if (PLATFORM_64BITS)
+			{
+				return TEXT("Win64");
+			}
+			return TEXT("Win32");
+		}
+		else
+		{
+			return PlatformName;
+		}
+	}
+
 	FString GetModelDataIdentifier(const FString& RuntimeName, const FGuid& Guid, const FString& FileIdString, const FString& PlatformName, const FString& Architecture)
 	{
 		return RuntimeName + "-" + Guid.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeIREECpu::Version) + "-" + FileIdString + "-" + PlatformName + (!Architecture.IsEmpty() ? ("-" + Architecture) : "");
@@ -36,24 +58,31 @@ namespace UE::NNERuntimeIREE::CPU::Private
 
 	FString GetIntermediateModelDirPath(const FString& PlatformName, const FString& ModelName)
 	{
-		return FPaths::Combine("Intermediate", "Build", PlatformName, UE_PLUGIN_NAME, ModelName);
+		return FPaths::Combine("Intermediate", "Build", GetBinariesSubdirectory(PlatformName), UE_PLUGIN_NAME, ModelName);
 	}
 
 	FString GetStagedModelDirPath(const FString& PlatformName)
 	{
-		FString PlatformNameShort = PlatformName.Equals("Windows") ? "Win64" : PlatformName;
-
-		return FPaths::Combine("Binaries", PlatformNameShort, UE_PLUGIN_NAME);
+		return FPaths::Combine("Binaries", GetBinariesSubdirectory(PlatformName), UE_PLUGIN_NAME);
 	}
 
 	FString GetPackagedModelDirPath(const FString& PlatformName)
 	{
 		return GetStagedModelDirPath(PlatformName);
 	}
+
+	FString GetSharedLibDirPath(const FString& ModelName)
+	{
+#if WITH_EDITOR
+	return GetIntermediateModelDirPath(UGameplayStatics::GetPlatformName(), ModelName);
+#else
+	return GetPackagedModelDirPath(UGameplayStatics::GetPlatformName());
+#endif // WITH_EDITOR
+	}
 } // UE::NNERuntimeIREE::CPU::Private
 
 FGuid UNNERuntimeIREECpu::GUID = FGuid((int32)'I', (int32)'C', (int32)'P', (int32)'U');
-int32 UNNERuntimeIREECpu::Version = 0x00000004;
+int32 UNNERuntimeIREECpu::Version = 0x00000005;
 
 FString UNNERuntimeIREECpu::GetRuntimeName() const
 {
@@ -77,66 +106,128 @@ UNNERuntimeIREECpu::ECanCreateModelDataStatus UNNERuntimeIREECpu::CanCreateModel
 
 TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const FString& FileType, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
 {
+	SCOPED_NAMED_EVENT_TEXT("UNNERuntimeIREECpu::CreateModelData", FColor::Magenta);
+
 #if WITH_EDITOR
 	using namespace UE::NNERuntimeIREE::CPU::Private;
 
-	FString TargetPlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
+	const FString TargetPlatformName = GetTargetPlatformName(TargetPlatform);
 	if (CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform) != ECanCreateModelDataStatus::Ok)
 	{
 		UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu cannot create the model data with id %s (Filetype: %s) for platform %s"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType, *TargetPlatformName);
 		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 
-	TUniquePtr<UE::NNERuntimeIREE::CPU::FCompiler> Compiler = UE::NNERuntimeIREE::CPU::FCompiler::Make(TargetPlatformName);
-	if (!Compiler.IsValid())
-	{
-		UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to create a compiler to compile for platform %s"), *TargetPlatformName);
-		return TSharedPtr<UE::NNE::FSharedModelData>();
-	}
-	
-	FString FileIdString = FileId.ToString(EGuidFormats::Digits).ToLower();
-	FString IntermediateDir = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetIntermediateModelDirPath(TargetPlatformName, FileIdString)));
 	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
-	PlatformFile.DeleteDirectoryRecursively(*IntermediateDir);
-	PlatformFile.CreateDirectoryTree(*IntermediateDir);
 
-	TArray<UE::NNERuntimeIREE::CPU::FCompilerResult> CompilerResults;
-	UNNERuntimeIREEModuleMetaData* CompilerModuleMetaData = NewObject<UNNERuntimeIREEModuleMetaData>();
-	FString StagingDir = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetPackagedModelDirPath(TargetPlatformName)));
-	if (!Compiler->CompileMlir(FileData, FileIdString, IntermediateDir, StagingDir, CompilerResults, CompilerModuleMetaData))
-	{
-		UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to compile model %s"), *FileIdString);
-		return TSharedPtr<UE::NNE::FSharedModelData>();
-	}
+	const FString FileIdString = FileId.ToString(EGuidFormats::Digits).ToLower();
+	const FString IntermediateDirFullPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetIntermediateModelDirPath(TargetPlatformName, FileIdString)));
+	const FString SharedLibraryDirFullPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetSharedLibDirPath(FileIdString)));
+
+	FString IREEModelDataFilePath = FPaths::Combine(IntermediateDirFullPath, FileIdString) + ".ireemodeldata";
 
 	TArray64<uint8> ResultData;
-	FMemoryWriter64 Writer(ResultData);
-	Writer << UNNERuntimeIREECpu::GUID;
-	Writer << UNNERuntimeIREECpu::Version;
-	FGuid FileIdCopy = FileId;
-	Writer << FileIdCopy;
+	TWeakObjectPtr<UNNERuntimeIREEModelData> IREEModelData = NewObject<UNNERuntimeIREEModelData>();
+	FNNERuntimeIREECompilerResultCPU CompilerResult{};
 
-	TArray64<uint8> ModuleMetaData;
-	if (AdditionalFileData.Contains("IREEModuleMetaData"))
+	bool bNeedCompileMlir = true;
+	if (PlatformFile.FileExists(*IREEModelDataFilePath))
 	{
-		ModuleMetaData = AdditionalFileData["IREEModuleMetaData"];
-	}
-	if (ModuleMetaData.IsEmpty())
-	{
-		FMemoryWriter64 ObjectWriter(ModuleMetaData);
-		CompilerModuleMetaData->Serialize(ObjectWriter);
-	}
-	Writer << ModuleMetaData;
+		SCOPED_NAMED_EVENT_TEXT("Validate", FColor::Magenta);
 
-	int32 NumArchitectures = CompilerResults.Num();
-	Writer << NumArchitectures;
-	for (int32 i = 0; i < NumArchitectures; i++)
+		FFileHelper::LoadFileToArray(ResultData, *IREEModelDataFilePath);
+		
+		{
+			FMemoryReaderView Reader(ResultData);
+			IREEModelData->Serialize(Reader);
+		}
+
+		check(FileIdString.Equals(IREEModelData->FileId.ToString(EGuidFormats::Digits).ToLower()));
+
+		{
+			FMemoryReaderView Reader(IREEModelData->CompilerResult);
+			FNNERuntimeIREECompilerResultCPU::StaticStruct()->SerializeBin(Reader, &CompilerResult);
+		}
+
+		bNeedCompileMlir = false;
+		for (int32 i = 0; i < CompilerResult.ArchitectureInfos.Num(); i++)
+		{
+			const FNNERuntimeIREEArchitectureInfoCPU& Info = CompilerResult.ArchitectureInfos[i];
+			const FString SharedLibrarySubDirFullPath = FPaths::Combine(SharedLibraryDirFullPath, Info.RelativeDirPath);
+
+			const FString SharedLibraryFilePath = FPaths::Combine(SharedLibrarySubDirFullPath, Info.SharedLibraryFileName);
+			const FString VmfbFilePath = FPaths::Combine(SharedLibrarySubDirFullPath, Info.VmfbFileName);
+
+			bNeedCompileMlir |= !PlatformFile.FileExists(*SharedLibraryFilePath);
+			bNeedCompileMlir |= !PlatformFile.FileExists(*VmfbFilePath);
+		}
+	}
+	
+	if (bNeedCompileMlir)
 	{
-		Writer << CompilerResults[i].Architecture;
-		Writer << CompilerResults[i].RelativeDirPath;
-		Writer << CompilerResults[i].SharedLibraryFileName;
-		Writer << CompilerResults[i].VmfbFileName;
-		Writer << CompilerResults[i].SharedLibraryEntryPointName;
+		SCOPED_NAMED_EVENT_TEXT("Compile", FColor::Magenta);
+
+		PlatformFile.DeleteDirectoryRecursively(*IntermediateDirFullPath);
+		PlatformFile.CreateDirectoryTree(*IntermediateDirFullPath);
+
+		TUniquePtr<UE::NNERuntimeIREE::CPU::FCompiler> Compiler = UE::NNERuntimeIREE::CPU::FCompiler::Make(TargetPlatformName);
+		if (!Compiler.IsValid())
+		{
+			UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to create a compiler to compile for platform %s"), *TargetPlatformName);
+			return TSharedPtr<UE::NNE::FSharedModelData>();
+		}
+
+		TWeakObjectPtr<UNNERuntimeIREEModuleMetaData> CompilerModuleMetaData = NewObject<UNNERuntimeIREEModuleMetaData>();
+
+		if (!Compiler->CompileMlir(FileData, FileIdString, IntermediateDirFullPath, CompilerResult, *CompilerModuleMetaData))
+		{
+			UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to compile model %s"), *FileIdString);
+			return TSharedPtr<UE::NNE::FSharedModelData>();
+		}
+
+		IREEModelData->GUID = UNNERuntimeIREECpu::GUID;
+		IREEModelData->Version = UNNERuntimeIREECpu::Version;
+		IREEModelData->FileId = FileId;
+		if (AdditionalFileData.Contains("IREEModuleMetaData"))
+		{
+			IREEModelData->ModuleMetaData = AdditionalFileData["IREEModuleMetaData"];
+		}
+		if (IREEModelData->ModuleMetaData.IsEmpty())
+		{
+			FMemoryWriter64 Writer(IREEModelData->ModuleMetaData);
+			CompilerModuleMetaData->Serialize(Writer);
+		}
+		{
+			FMemoryWriter64 Writer(IREEModelData->CompilerResult);
+			FNNERuntimeIREECompilerResultCPU::StaticStruct()->SerializeBin(Writer, &CompilerResult);
+		}
+
+		{
+			FMemoryWriter64 Writer(ResultData);
+			IREEModelData->Serialize(Writer);
+		}
+
+		FFileHelper::SaveArrayToFile(ResultData, *IREEModelDataFilePath);
+	}
+
+	// Copy files for staging
+	FString StagingDirFullPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetPackagedModelDirPath(TargetPlatformName)));
+	for (int32 i = 0; i < CompilerResult.ArchitectureInfos.Num(); i++)
+	{
+		SCOPED_NAMED_EVENT_TEXT("Copy", FColor::Magenta);
+
+		const FNNERuntimeIREEArchitectureInfoCPU& Info = CompilerResult.ArchitectureInfos[i];
+		const FString SharedLibrarySubDirFullPath = FPaths::Combine(SharedLibraryDirFullPath, Info.RelativeDirPath);
+		const FString StagingSubDirFullPath = FPaths::Combine(StagingDirFullPath, Info.Architecture);
+		
+		const FString SharedLibraryFilePathSrc = FPaths::Combine(SharedLibrarySubDirFullPath, Info.SharedLibraryFileName);
+		const FString VmfbFilePathSrc = FPaths::Combine(SharedLibrarySubDirFullPath, Info.VmfbFileName);
+
+		const FString SharedLibraryFilePathDest = FPaths::Combine(StagingSubDirFullPath, Info.SharedLibraryFileName);
+		const FString VmfbFilePathDest = FPaths::Combine(StagingSubDirFullPath, Info.VmfbFileName);
+
+		IFileManager::Get().Copy(*SharedLibraryFilePathDest, *SharedLibraryFilePathSrc, bNeedCompileMlir);
+		IFileManager::Get().Copy(*VmfbFilePathDest, *VmfbFilePathSrc, bNeedCompileMlir);
 	}
 
 	return MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(ResultData)), 0);
@@ -148,7 +239,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const 
 FString UNNERuntimeIREECpu::GetModelDataIdentifier(const FString& FileType, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 	// Leave architecture blank as there is only one model data for all architectures of a given platform, only the vmfb and shared lib are different
-	FString PlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
+	FString PlatformName = UE::NNERuntimeIREE::CPU::Private::GetTargetPlatformName(TargetPlatform);
 	return UE::NNERuntimeIREE::CPU::Private::GetModelDataIdentifier(GetRuntimeName(), UNNERuntimeIREECpu::GUID, FileId.ToString(EGuidFormats::Digits), PlatformName, "");
 }
 
@@ -162,18 +253,12 @@ UNNERuntimeIREECpu::ECanCreateModelCPUStatus UNNERuntimeIREECpu::CanCreateModelC
 		return ECanCreateModelCPUStatus::Fail;
 	}
 
-	TConstArrayView<uint8> SharedDataView = SharedData->GetView();
-	int32 GuidSize = sizeof(UNNERuntimeIREECpu::GUID);
-	int32 VersionSize = sizeof(UNNERuntimeIREECpu::Version);
-	if (SharedDataView.Num() <= GuidSize + VersionSize)
+	if (!UNNERuntimeIREEModelData::IsSameGuidAndVersion(SharedData->GetView(), UNNERuntimeIREECpu::GUID, UNNERuntimeIREECpu::Version))
 	{
 		return ECanCreateModelCPUStatus::Fail;
 	}
 
-	bool bResult = FGenericPlatformMemory::Memcmp(&(SharedDataView[0]), &(UNNERuntimeIREECpu::GUID), GuidSize) == 0;
-	bResult &= FGenericPlatformMemory::Memcmp(&(SharedDataView[GuidSize]), &(UNNERuntimeIREECpu::Version), VersionSize) == 0;
-
-	return bResult ? ECanCreateModelCPUStatus::Ok : ECanCreateModelCPUStatus::Fail;
+	return ECanCreateModelCPUStatus::Ok;
 }
 
 TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(const TObjectPtr<UNNEModelData> ModelData)
@@ -197,86 +282,61 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(const TObjectP
 
 	TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
 	check(SharedData.IsValid());
-	TConstArrayView<uint8> SharedDataView = SharedData->GetView();
-	FMemoryReaderView Reader(SharedDataView);
-	FGuid DataGuid = FGuid();
-	Reader << DataGuid;
-	int32 VersionVersion = 0;
-	Reader << VersionVersion;
-	FGuid FileId = FGuid();
-	Reader << FileId;
 
-	TArray<uint8> ModuleDataArray;
-	Reader << ModuleDataArray;
-	if (ModuleDataArray.IsEmpty())
+	TConstArrayView<uint8> SharedDataView = SharedData->GetView();
+
+	TWeakObjectPtr<UNNERuntimeIREEModelData> IREEModelData = NewObject<UNNERuntimeIREEModelData>();
+	{
+		FMemoryReaderView Reader(SharedDataView);
+		IREEModelData->Serialize(Reader);
+	}
+
+	if (IREEModelData->ModuleMetaData.IsEmpty())
 	{
 		UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to find any module meta data, please reimport the original model"));
 		return TSharedPtr<UE::NNE::IModelCPU>();
 	}
-	UNNERuntimeIREEModuleMetaData* ModuleMetaData = NewObject<UNNERuntimeIREEModuleMetaData>();
-	FMemoryReaderView ObjectReader(ModuleDataArray);
-	ModuleMetaData->Serialize(ObjectReader);
+
+	TWeakObjectPtr<UNNERuntimeIREEModuleMetaData> ModuleMetaData = NewObject<UNNERuntimeIREEModuleMetaData>();
+	{
+		FMemoryReaderView Reader(IREEModelData->ModuleMetaData);
+		ModuleMetaData->Serialize(Reader);
+	}
+
 	if (ModuleMetaData->FunctionMetaData.IsEmpty())
 	{
 		UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to parse the module meta data, please reimport the original model"));
 		return TSharedPtr<UE::NNE::IModelCPU>();
 	}
 
-	int32 NumArchitectures = 0;
-	Reader << NumArchitectures;
-
-	bool bFound = false;
-	FString Architecture = "";
-	FString RelativeDirPath = "";
-	FString SharedLibraryFileName = "";
-	FString VmfbFileName = "";
-	FString SharedLibraryEntryPointName = "";
-	for (int32 i = 0; i < NumArchitectures; i++)
+	FNNERuntimeIREECompilerResultCPU CompilerResult{};
 	{
-		FString TmpArchitecture = "";
-		Reader << TmpArchitecture;
-		FString TmpRelativeDirPath = "";
-		Reader << TmpRelativeDirPath;
-		FString TmpSharedLibraryFileName = "";
-		Reader << TmpSharedLibraryFileName;
-		FString TmpVmfbFileName = "";
-		Reader << TmpVmfbFileName;
-		FString TmpSharedLibraryEntryPointName = "";
-		Reader << TmpSharedLibraryEntryPointName;
+		FMemoryReaderView Reader(IREEModelData->CompilerResult);
+		FNNERuntimeIREECompilerResultCPU::StaticStruct()->SerializeBin(Reader, &CompilerResult);
+	}
 
-		if (TmpArchitecture.IsEmpty() && !bFound)
+	int32 ArchitectureIndex = -1;
+	for (int32 i = 0; i < CompilerResult.ArchitectureInfos.Num(); i++)
+	{
+		if ((CompilerResult.ArchitectureInfos[i].Architecture.IsEmpty() && ArchitectureIndex < 0) || CompilerResult.ArchitectureInfos[i].Architecture.Equals(CurrentArchitecture))
 		{
-			Architecture = TmpArchitecture;
-			RelativeDirPath = TmpRelativeDirPath;
-			SharedLibraryFileName = TmpSharedLibraryFileName;
-			VmfbFileName = TmpVmfbFileName;
-			SharedLibraryEntryPointName = TmpSharedLibraryEntryPointName;
-			bFound = true;
-		}
-		else if (TmpArchitecture.Equals(CurrentArchitecture))
-		{
-			Architecture = TmpArchitecture;
-			RelativeDirPath = TmpRelativeDirPath;
-			SharedLibraryFileName = TmpSharedLibraryFileName;
-			VmfbFileName = TmpVmfbFileName;
-			SharedLibraryEntryPointName = TmpSharedLibraryEntryPointName;
-			bFound = true;
+			ArchitectureIndex = i;
 		}
 	}
-	if (!bFound)
+
+	if (ArchitectureIndex < 0)
 	{
 		UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to find a matching architecture for \'%s\'"), *CurrentArchitecture);
 		return TSharedPtr<UE::NNE::IModelCPU>();
 	}
 
-	FString FileIdString = FileId.ToString(EGuidFormats::Digits).ToLower();
-#if WITH_EDITOR
-	FString SharedLibraryDirPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetIntermediateModelDirPath(UGameplayStatics::GetPlatformName(), FileIdString), RelativeDirPath));
-#else
-	FString SharedLibraryDirPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetPackagedModelDirPath(UGameplayStatics::GetPlatformName()), RelativeDirPath));
-#endif // WITH_EDITOR
+	const FNNERuntimeIREEArchitectureInfoCPU& ArchitectureInfo = CompilerResult.ArchitectureInfos[ArchitectureIndex];
 
-	TSharedPtr<UE::NNE::IModelCPU> Model = UE::NNERuntimeIREE::CPU::FModel::Make(SharedLibraryDirPath, SharedLibraryFileName, VmfbFileName, SharedLibraryEntryPointName, *ModuleMetaData);
+	const FString FileIdString = IREEModelData->FileId.ToString(EGuidFormats::Digits).ToLower();
+	const FString SharedLibraryDirFullPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetSharedLibDirPath(FileIdString)));
+	const FString SharedLibrarySubDirFullPath = FPaths::Combine(SharedLibraryDirFullPath, ArchitectureInfo.RelativeDirPath);
+
+	TSharedPtr<UE::NNE::IModelCPU> Model = UE::NNERuntimeIREE::CPU::FModel::Make(SharedLibrarySubDirFullPath, ArchitectureInfo.SharedLibraryFileName, ArchitectureInfo.VmfbFileName, ArchitectureInfo.SharedLibraryEntryPointName, *ModuleMetaData);
 	if (!Model.IsValid())
 	{
 		UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not initialize the model created from model data with id %s"), *FileIdString);
@@ -323,7 +383,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREEGpu::CreateModelData(const 
 
 FString UNNERuntimeIREEGpu::GetModelDataIdentifier(const FString& FileType, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
-	FString PlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
+	FString PlatformName = UE::NNERuntimeIREE::CPU::Private::GetTargetPlatformName(TargetPlatform);
 	return UE::NNERuntimeIREE::CPU::Private::GetModelDataIdentifier(GetRuntimeName(), GetGUID(), FileId.ToString(EGuidFormats::Digits), PlatformName, "");
 }
 
@@ -472,7 +532,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREERdg::CreateModelData(const 
 
 FString UNNERuntimeIREERdg::GetModelDataIdentifier(const FString& FileType, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
-	FString PlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
+	FString PlatformName = UE::NNERuntimeIREE::CPU::Private::GetTargetPlatformName(TargetPlatform);
 	return UE::NNERuntimeIREE::CPU::Private::GetModelDataIdentifier(GetRuntimeName(), UNNERuntimeIREERdg::GUID, FileId.ToString(EGuidFormats::Digits), PlatformName, "");
 }
 
