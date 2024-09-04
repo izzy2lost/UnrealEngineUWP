@@ -961,7 +961,10 @@ void UWorldPartition::RegisterDelegates()
 
 		if (!IsRunningCommandlet())
 		{
-			FCoreUObjectDelegates::PostReachabilityAnalysis.AddUObject(this, &UWorldPartition::OnGCPostReachabilityAnalysis);
+			if (IsMainWorldPartition())
+			{
+				FCoreUObjectDelegates::PostReachabilityAnalysis.AddUObject(this, &UWorldPartition::OnGCPostReachabilityAnalysis);
+			}
 			ExternalDirtyActorsTracker = MakeUnique<FWorldPartitionExternalDirtyActorsTracker>(this);
 		}
 	}
@@ -1007,7 +1010,10 @@ void UWorldPartition::UnregisterDelegates()
 		{
 			if (!IsEngineExitRequested())
 			{
-				FCoreUObjectDelegates::PostReachabilityAnalysis.RemoveAll(this);
+				if (IsMainWorldPartition())
+				{
+					FCoreUObjectDelegates::PostReachabilityAnalysis.RemoveAll(this);
+				}
 			}
 
 			ExternalDirtyActorsTracker.Reset();
