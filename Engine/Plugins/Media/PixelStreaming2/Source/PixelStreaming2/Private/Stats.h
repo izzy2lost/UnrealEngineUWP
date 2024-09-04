@@ -133,8 +133,8 @@ namespace UE::PixelStreaming2
 
 	// Stats about Pixel Streaming that can displayed either in the in-application HUD, in the log, or simply reported to some subscriber.
 	// Stats can be enabled to draw on screen with:
-	// `stat pixelstreaming`
-	// `stat pixelstreaminggraphs`
+	// `stat pixelstreaming2`
+	// `stat pixelstreaming2graphs`
 	class FStats : public FTickableGameObject, public IPixelStreaming2Stats
 	{
 	public:

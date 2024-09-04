@@ -216,13 +216,13 @@ namespace UE::PixelStreaming2
 
 		AutoCompleteList.AddDefaulted();
 		FAutoCompleteCommand& AutoCompleteCommand = AutoCompleteList.Last();
-		AutoCompleteCommand.Command = TEXT("Stat PixelStreaming");
+		AutoCompleteCommand.Command = TEXT("Stat PixelStreaming2");
 		AutoCompleteCommand.Desc = TEXT("Displays stats about Pixel Streaming on screen.");
 		AutoCompleteCommand.Color = ConsoleSettings->AutoCompleteCommandColor;
 
 		AutoCompleteList.AddDefaulted();
 		FAutoCompleteCommand& AutoCompleteGraphCommand = AutoCompleteList.Last();
-		AutoCompleteGraphCommand.Command = TEXT("Stat PixelStreamingGraphs");
+		AutoCompleteGraphCommand.Command = TEXT("Stat PixelStreaming2Graphs");
 		AutoCompleteGraphCommand.Desc = TEXT("Displays graphs about Pixel Streaming on screen.");
 		AutoCompleteGraphCommand.Color = ConsoleSettings->AutoCompleteCommandColor;
 	}
@@ -451,7 +451,7 @@ namespace UE::PixelStreaming2
 
 		// We register this console command so we get autocomplete on `Stat PixelStreaming2`
 		IConsoleManager::Get().RegisterConsoleCommand(
-			TEXT("Stat PixelStreaming"),
+			TEXT("Stat PixelStreaming2"),
 			TEXT("Stats for the Pixel Streaming plugin and its peers."),
 			FConsoleCommandDelegate::CreateRaw(this, &FStats::ExecStatPS),
 			ECVF_Default);
@@ -464,7 +464,7 @@ namespace UE::PixelStreaming2
 
 		// We register this console command so we get autocomplete on `Stat PixelStreaming2Graphs`
 		IConsoleManager::Get().RegisterConsoleCommand(
-			TEXT("Stat PixelStreamingGraphs"),
+			TEXT("Stat PixelStreaming2Graphs"),
 			TEXT("Draws stats graphs for the Pixel Streaming plugin."),
 			FConsoleCommandDelegate::CreateRaw(this, &FStats::ExecStatPSGraphs),
 			ECVF_Default);
