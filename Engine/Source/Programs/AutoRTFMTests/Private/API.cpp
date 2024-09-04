@@ -950,33 +950,33 @@ TEST_CASE("API.CheckConsistencyAssumingNoRaces")
     });
 }
 
-TEST_CASE("API.IsInnerTransactionStack")
+TEST_CASE("API.IsOnCurrentTransactionStack")
 {
 	{
 		int OnStackNotInTransaction = 1;
-		REQUIRE(!AutoRTFM::IsInnerTransactionStack(&OnStackNotInTransaction));
+		REQUIRE(!AutoRTFM::IsOnCurrentTransactionStack(&OnStackNotInTransaction));
 
 		int* OnHeapNotInTransaction = new int{2};
-		REQUIRE(!AutoRTFM::IsInnerTransactionStack(OnHeapNotInTransaction));
+		REQUIRE(!AutoRTFM::IsOnCurrentTransactionStack(OnHeapNotInTransaction));
 		delete OnHeapNotInTransaction;
 	}
 
 	AutoRTFM::Commit([&]
 	{
 		int OnStackInTransaction = 3;
-		REQUIRE(AutoRTFM::IsInnerTransactionStack(&OnStackInTransaction));
+		REQUIRE(AutoRTFM::IsOnCurrentTransactionStack(&OnStackInTransaction));
 
 		int* OnHeapInTransaction = new int{4};
-		REQUIRE(!AutoRTFM::IsInnerTransactionStack(OnHeapInTransaction));
+		REQUIRE(!AutoRTFM::IsOnCurrentTransactionStack(OnHeapInTransaction));
 		delete OnHeapInTransaction;
 
 		AutoRTFM::Commit([&]
 		{
 			// `OnStackInTransaction` is no longer in the innermost scope.
-			REQUIRE(!AutoRTFM::IsInnerTransactionStack(&OnStackInTransaction));
+			REQUIRE(!AutoRTFM::IsOnCurrentTransactionStack(&OnStackInTransaction));
 
 			int OnInnermostStackInTransaction = 5;
-			REQUIRE(AutoRTFM::IsInnerTransactionStack(&OnInnermostStackInTransaction));
+			REQUIRE(AutoRTFM::IsOnCurrentTransactionStack(&OnInnermostStackInTransaction));
 		});
 	});
 }

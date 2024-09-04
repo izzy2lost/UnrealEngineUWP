@@ -5,6 +5,7 @@
 #include "HitSet.h"
 #include "IntervalTree.h"
 #include "LongJump.h"
+#include "StackRange.h"
 #include "Stats.h"
 #include "TaggedPtr.h"
 #include "TaskArray.h"
@@ -79,6 +80,13 @@ public:
     void DidAllocate(void* LogicalAddress, size_t Size);
     void DidFree(void* LogicalAddress);
 
+    // The stack range represents all stack memory inside the transaction scope
+    inline void SetStackRange(FStackRange Range) { StackRange = Range;} 
+    inline FStackRange GetStackRange() const { return StackRange; }
+
+    // Returns true if the LogicalAddress is within the stack of the transaction.
+    inline bool IsOnStack(const void* LogicalAddress) const;
+
 private:
     void Undo();
 
@@ -89,6 +97,8 @@ private:
 
     void CollectStats() const;
     
+    bool ShouldRecordWrite(void* LogicalAddress) const;
+
     FContext* Context;
     
     // Are we nested? Then this is the parent.
@@ -106,6 +116,7 @@ private:
     FWriteLog WriteLog;
     FWriteLogBumpAllocator WriteLogBumpAllocator;
     TStatStorage<uint64_t> StatDepth = 1;
+    FStackRange StackRange;
 };
 
 } // namespace AutoRTFM

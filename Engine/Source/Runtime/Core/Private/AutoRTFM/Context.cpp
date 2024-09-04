@@ -63,12 +63,9 @@ bool FContext::IsCommittingOrAborting()
 
 bool FContext::StartTransaction()
 {
+	ensureMsgf(CurrentTransaction, TEXT("FContext::StartTransaction() can only be called within a scoped transaction"));
 	FTransaction* NewTransaction = new FTransaction(this);
-
-	void* TransactStackAddress = &NewTransaction; // get the stack-local position pointer.
-	ASSERT(TransactStackAddress > StackBegin);
-	ASSERT(TransactStackAddress < StackEnd);
-	ASSERT(TransactStackAddress < CurrentTransactStackAddress);
+	NewTransaction->SetStackRange(CurrentTransaction->GetStackRange());
 
 	// This form of transaction is always ultimately within a scoped Transact 
 	ASSERT(Status == EContextStatus::OnTrack);
@@ -163,8 +160,7 @@ bool FContext::IsAborting() const
 
 EContextStatus FContext::CallClosedNest(void (*ClosedFunction)(void* Arg), void* Arg)
 {
-	TScopedGuard<void*> CurrentNestStackAddressGuard(CurrentTransactStackAddress, &CurrentNestStackAddressGuard);
-
+	TScopedGuard<void*> ClosedStackAddressGuard(ClosedStackAddress, &ClosedStackAddressGuard);
 	PushCallNest(new FCallNest(this));
 
 	CurrentNest->Try([&]() { ClosedFunction(Arg); });
@@ -295,8 +291,7 @@ ETransactionResult FContext::Transact(void (*InstrumentedFunction)(void*), void*
 	// Transact requires a return from the lambda to commit the results
 	NewTransaction->SetIsScopedTransaction();
 
-	void* TransactStackAddress = &NewTransaction;
-	TScopedGuard<void*> CurrentNestStackAddressGuard(CurrentTransactStackAddress, TransactStackAddress);
+	void* TransactStackStart = &NewTransaction;
 
 	ETransactionResult Result = ETransactionResult::Committed; // Initialize to something to make the compiler happy.
 
@@ -307,30 +302,28 @@ ETransactionResult FContext::Transact(void (*InstrumentedFunction)(void*), void*
 		ASSERT(FPlatformTLS::InvalidTlsSlot == CurrentThreadId);
 		CurrentThreadId = FPlatformTLS::GetCurrentThreadId();
 
-		ASSERT(nullptr == StackBegin);
-		ASSERT(nullptr == StackEnd);
+		ASSERT(Stack == FStackRange{});
 
 #if PLATFORM_WINDOWS
-		GetCurrentThreadStackLimits(&StackBegin, &StackEnd);
+		GetCurrentThreadStackLimits(&Stack.Low, &Stack.High);
 #elif defined(__APPLE__)         
-		StackEnd = pthread_get_stackaddr_np(pthread_self());
+		Stack.High = pthread_get_stackaddr_np(pthread_self());
 		size_t StackSize = pthread_get_stacksize_np(pthread_self());
-		StackBegin = static_cast<char*>(StackEnd) - StackSize;
+		StackLow = static_cast<char*>(Stack.High) - StackSize;
 #else
 		pthread_attr_t Attr;
 		pthread_getattr_np(pthread_self(), &Attr);
-		size_t StackSize;
-		pthread_attr_getstack(&Attr, &StackBegin, &StackSize);
-		StackEnd = static_cast<char*>(StackBegin) + StackSize;
+		size_t StackSize = 0;
+		pthread_attr_getstack(&Attr, &Stack.Low, &StackSize);
+		Stack.High = static_cast<char*>(Stack.Low) + StackSize;
 #endif
-		ASSERT(StackEnd > StackBegin);
+		ASSERT(Stack.High > Stack.Low);
 
-		ASSERT(TransactStackAddress > StackBegin);
-		ASSERT(TransactStackAddress < StackEnd);
+		ASSERT(Stack.Contains(TransactStackStart));
+		NewTransaction->SetStackRange({Stack.Low, &TransactStackStart});
 
 		PushTransaction(NewTransaction);
 		PushCallNest(NewNest);
-        OuterTransactStackAddress = TransactStackAddress;
 
 		bool bTriedToRunOnce = false;
 
@@ -357,14 +350,14 @@ ETransactionResult FContext::Transact(void (*InstrumentedFunction)(void*), void*
 
 					// We've tried to run at least once if we get here!
 					bTriedToRunOnce = true;
-
 					continue;
 				}
-                else if (AttemptToCommitTransaction(CurrentTransaction))
-                {
-                    Result = ETransactionResult::Committed;
-                    break;
-                }
+
+				if (AttemptToCommitTransaction(CurrentTransaction))
+				{
+					Result = ETransactionResult::Committed;
+					break;
+				}
 
 				UE_LOG(LogAutoRTFM, Verbose, TEXT("Commit failed!"));
 
@@ -411,10 +404,8 @@ ETransactionResult FContext::Transact(void (*InstrumentedFunction)(void*), void*
 
 		ASSERT(CurrentThreadId == FPlatformTLS::GetCurrentThreadId());
 
-		ASSERT(nullptr != StackBegin);
-		ASSERT(nullptr != StackEnd);
-		ASSERT(TransactStackAddress > StackBegin);
-		ASSERT(TransactStackAddress < StackEnd);
+		ASSERT(Stack.Contains(TransactStackStart));
+		NewTransaction->SetStackRange({Stack.Low, &TransactStackStart});
 
 		PushTransaction(NewTransaction);
 		PushCallNest(NewNest);
@@ -497,10 +488,7 @@ void FContext::Reset()
 	ASSERT(CurrentThreadId == FPlatformTLS::GetCurrentThreadId() || CurrentThreadId == FPlatformTLS::InvalidTlsSlot);
 
 	CurrentThreadId = FPlatformTLS::InvalidTlsSlot;
-    OuterTransactStackAddress = nullptr;
-	CurrentTransactStackAddress = nullptr;
-	StackBegin = nullptr;
-	StackEnd = nullptr;
+	Stack = {};
     CurrentTransaction = nullptr;
 	CurrentNest = nullptr;
     Status = EContextStatus::Idle;
@@ -513,7 +501,7 @@ void FContext::Throw()
 
 void FContext::DumpState() const
 {
-	UE_LOG(LogAutoRTFM, Verbose, TEXT("Context at %p, transaction stack: %p..%p."), this, StackBegin, OuterTransactStackAddress);
+	UE_LOG(LogAutoRTFM, Verbose, TEXT("Context at %p"), this);
 }
 
 } // namespace AutoRTFM

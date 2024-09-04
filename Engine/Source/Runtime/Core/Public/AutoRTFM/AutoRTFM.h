@@ -280,9 +280,9 @@ static UE_AUTORTFM_FORCEINLINE void autortfm_register_open_function(void* origin
 #endif
 
 #if UE_AUTORTFM_ENABLED
-UE_AUTORTFM_API bool autortfm_is_inner_transaction_stack(void* Ptr);
+UE_AUTORTFM_API bool autortfm_is_on_current_transaction_stack(void* Ptr);
 #else
-static UE_AUTORTFM_FORCEINLINE bool autortfm_is_inner_transaction_stack(void* Ptr)
+static UE_AUTORTFM_FORCEINLINE bool autortfm_is_on_current_transaction_stack(void* Ptr)
 {
 	return false;
 }
@@ -480,9 +480,9 @@ static UE_AUTORTFM_FORCEINLINE bool IsCommittingOrAborting() { return autortfm_i
 // Returns true if the passed-in pointer is on the stack of the currently-executing transaction.
 // This is occasionally necessary when writing OnAbort handlers for objects on the stack, since 
 // we don't want to scribble on stack memory that might have been reused.
-static UE_AUTORTFM_FORCEINLINE bool IsInnerTransactionStack(void* Ptr) 
+static UE_AUTORTFM_FORCEINLINE bool IsOnCurrentTransactionStack(void* Ptr) 
 { 
-	return autortfm_is_inner_transaction_stack(Ptr);
+	return autortfm_is_on_current_transaction_stack(Ptr);
 }
 
 // Run the functor in a transaction. Memory writes and other side effects get instrumented

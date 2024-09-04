@@ -355,7 +355,6 @@ TEST_CASE("OpenAPI.Commit_TransactOpenCloseCommit")
 	REQUIRE(!AutoRTFM::IsTransactional());
 }
 
-
 TEST_CASE("OpenAPI.Commit_TransactOpenCloseAbort")
 {
 	REQUIRE(!AutoRTFM::IsTransactional());
@@ -363,8 +362,8 @@ TEST_CASE("OpenAPI.Commit_TransactOpenCloseAbort")
 	// We're open
 	REQUIRE(!AutoRTFM::IsClosed());
 
-	int value = 10;
-	value++;
+	int Value = 10;
+	Value++;
 
 	// Close and start the top-level transaction
 	AutoRTFM::Transact([&]()
@@ -373,24 +372,22 @@ TEST_CASE("OpenAPI.Commit_TransactOpenCloseAbort")
 
 		AutoRTFM::Open([&]()
 		{
-			double valueLocal = 1.0;
 			AutoRTFM::ForTheRuntime::StartTransaction();
 
-			// Closing from the open doesn't work
 			REQUIRE(AutoRTFM::EContextStatus::OnTrack == AutoRTFM::Close([&]()
 			{
-				value = 42;
-				valueLocal = 10.0;
+				int Local = 0;
+				Local = 42;
+				Value = Local;
 			}));
 
-			AutoRTFM::AbortTransaction(); // undoes value = 42 in the open
-			REQUIRE(valueLocal == 1.0);
+			AutoRTFM::AbortTransaction(); // undoes Value = 42 in the open
 		});
 
 		FAIL("Should not reach here!");
 	});
 
-	REQUIRE(value == 11);
+	REQUIRE(Value == 11);
 	REQUIRE(!AutoRTFM::IsTransactional());
 }
 
@@ -479,9 +476,9 @@ TEST_CASE("OpenAPI.StackWriteCommitInTheOpen1")
 
 TEST_CASE("OpenAPI.StackWriteCommitInTheOpen2")
 {
+	int Value = 0;
 	AutoRTFM::Transact([&]()
 	{
-		int value = 0;
 		AutoRTFM::Open([&]()
 		{
 			AutoRTFM::ForTheRuntime::StartTransaction();
@@ -489,13 +486,13 @@ TEST_CASE("OpenAPI.StackWriteCommitInTheOpen2")
 			{
 				AutoRTFM::Open([&]()
 				{
-					AutoRTFM::RecordOpenWrite(&value);
-					value = 10;
+					AutoRTFM::RecordOpenWrite(&Value);
+					Value = 10;
 				});
 			}));
 
 			AutoRTFM::ForTheRuntime::CommitTransaction();
-			REQUIRE(value == 10);
+			REQUIRE(Value == 10);
 		});
 	});
 }
@@ -781,19 +778,20 @@ TEST_CASE("OpenAPI.TransOpenStartCloseAbortAbort")
 
 	REQUIRE(!AutoRTFM::IsTransactional());
 
+	int Value = 10;
+
 	AutoRTFM::Transact([&]() 
 	{
 		AutoRTFM::Open([&]()
 		{
 			AutoRTFM::ForTheRuntime::StartTransaction();
 
-			int value = 10;
-			value++;
+			Value++;
 
-			value = 42;
+			Value = 42;
 			AutoRTFM::EContextStatus CloseStatus = AutoRTFM::Close([&]()
 			{
-				value = 420;
+				Value = 420;
 				AutoRTFM::AbortTransaction();
 				bGetsToA = true;
 			});
@@ -805,10 +803,10 @@ TEST_CASE("OpenAPI.TransOpenStartCloseAbortAbort")
 			REQUIRE(bGetsToA == false);
 
 			bGetsToB = true;
-			REQUIRE(value == 42);
+			REQUIRE(Value == 42);
 			AutoRTFM::AbortTransaction();
 			bGetsToC = true;
-			REQUIRE(value == 42);
+			REQUIRE(Value == 42);
 		});
 
 		bGetsToD = true;

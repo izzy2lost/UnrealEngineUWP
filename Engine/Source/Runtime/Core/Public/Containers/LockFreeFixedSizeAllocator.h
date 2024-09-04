@@ -209,7 +209,7 @@ public:
 		// If we are in a transaction and this allocator exists on the transaction's stack, 
 		// running the ONABORT handler after destruction is dangerous and could stomp memory
 		// that belongs to someone else.
-		if (AutoRTFM::IsClosed() && AutoRTFM::IsInnerTransactionStack(this))
+		if (AutoRTFM::IsClosed() && AutoRTFM::IsOnCurrentTransactionStack(this))
 		{
 			AutoRTFM::PopAllOnAbortHandlers(this);
 		}

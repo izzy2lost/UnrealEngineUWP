@@ -584,10 +584,7 @@ extern "C" void autortfm_record_open_write(void* Ptr, size_t Size)
 		return RTFM_autortfm_record_open_write(Ptr, Size);
 	}
 
-	FContext* const Context = FContext::Get();
-
-    Context->CheckOpenRecordWrite(Ptr);
-	Context->RecordWrite(Ptr, Size);
+	FContext::Get()->RecordWrite(Ptr, Size);
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_register_open_function(void* OriginalFunction, void* NewFunction)
@@ -596,9 +593,13 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_register_open_function(void* Ori
     FunctionMapAdd(OriginalFunction, NewFunction);
 }
 
-extern "C" bool autortfm_is_inner_transaction_stack(void* Ptr)
+extern "C" bool autortfm_is_on_current_transaction_stack(void* Ptr)
 {
-	return FContext::Get()->IsInnerTransactionStack(Ptr);
+	if (FTransaction* CurrentTransaction = FContext::Get()->GetCurrentTransaction())
+	{
+		return CurrentTransaction->IsOnStack(Ptr);
+	}
+	return false;
 }
 
 void ForTheRuntime::OnCommitInternal(TFunction<void()> && Work)

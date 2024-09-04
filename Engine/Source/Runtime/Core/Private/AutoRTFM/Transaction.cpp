@@ -101,12 +101,8 @@ void FTransaction::Undo()
 		FWriteLogEntry& Entry = *Iter;
 		void* const Original = Entry.GetOriginal();
 
-        // Skip writes to our current transaction nest if we're scoped. We're about to
-		// leave so the changes don't matter. 
-        if (IsScopedTransaction() && Context->IsInnerTransactionStack(Original))
-        {
-            continue;
-        }
+        // No write records should be within the transaction's stack range.
+        ensure(!IsOnStack(Original));
 
 		const size_t Size = Entry.GetSize();
         void* const Copy = Entry.GetCopy();
@@ -149,20 +145,17 @@ void FTransaction::CommitNested()
 {
     ASSERT(Parent);
 
-    // We need to pass our write log to our parent transaction, but with care!
-    // We need to discard any writes to locations within the stack of our
-    // current transaction, which could be placed there if a child of the
-    // current transaction had written to stack local memory in the parent.
+	// We need to pass our write log to our parent transaction, but with care!
+	// We need to discard any writes if the memory location is on the parent
+	// transaction's stack range.
+	for (FWriteLogEntry& Write : WriteLog)
+	{
+		if (Parent->IsOnStack(Write.GetOriginal()))
+		{
+			continue;
+		}
 
-    for (FWriteLogEntry& Write : WriteLog)
-    {
-        // Skip writes that are into our current transactions stack.
-        if (IsScopedTransaction() && Context->IsInnerTransactionStack(Write.GetOriginal()))
-        {
-            continue;
-        }
-
-        Parent->WriteLog.Push(Write);
+		Parent->WriteLog.Push(Write);
 
 		FHitSet::Key HitSetEntry(Write.GetOriginal());
 		HitSetEntry.SetTopTag(static_cast<uint16_t>(Write.GetSize()));
