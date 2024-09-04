@@ -396,7 +396,7 @@ namespace HordeServer.Storage
 
 		internal IMongoCollection<BlobInfo> BlobCollection => _blobCollection;
 
-		static FieldDefinition<BlobInfo, string> s_blobAliasField
+		static readonly FieldDefinition<BlobInfo, string> s_blobAliasField
 			= new StringFieldDefinition<BlobInfo, string>($"{GetFieldName<BlobInfo>(x => x.Aliases)}.{GetFieldName<AliasInfo>(x => x.Name)}");
 
 		/// <summary>
