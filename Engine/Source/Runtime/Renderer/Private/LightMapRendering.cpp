@@ -760,7 +760,7 @@ void GetIndirectLightingCacheParameters(
 		// If we are using FCachedVolumeIndirectLightingPolicy then InitViews should have updated the lighting cache which would have initialized it
 		// However the conditions for updating the lighting cache are complex and fail very occasionally in non-reproducible ways
 		// Silently skipping setting the cache texture under failure for now
-		if (FeatureLevel >= ERHIFeatureLevel::SM5 && LightingCache && LightingCache->IsInitialized() && RHISupportsVolumeTextureRendering())
+		if (FeatureLevel >= ERHIFeatureLevel::SM5 && LightingCache && LightingCache->IsInitialized() && RHISupportsVolumeTextureRendering(GetFeatureLevelShaderPlatform(FeatureLevel)))
 		{
 			Parameters.IndirectLightingCacheTexture0 = const_cast<FIndirectLightingCache*>(LightingCache)->GetTexture0();
 			Parameters.IndirectLightingCacheTexture1 = const_cast<FIndirectLightingCache*>(LightingCache)->GetTexture1();

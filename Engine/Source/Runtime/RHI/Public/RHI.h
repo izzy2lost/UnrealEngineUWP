@@ -84,7 +84,7 @@ RHI_API int32 RHIGetPreferredClearUAVRectPSResourceType(const FStaticShaderPlatf
 RHI_API void RHIDumpResourceMemoryToCSV();
 
 // helper to check whether rendering to volume textures is supported. This takes both GSupportsVolumeTextureRendering and DDPI entries into account as this is dependent on the preview platform.
-RHI_API bool RHISupportsVolumeTextureRendering();
+RHI_API bool RHISupportsVolumeTextureRendering(const FStaticShaderPlatform Platform);
 
 struct FRHIResourceStats
 {

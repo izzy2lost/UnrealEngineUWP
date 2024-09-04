@@ -2330,7 +2330,7 @@ public:
 
 	ENGINE_API ERHIFeatureLevel::Type GetFeatureLevel() const;
 
-	EShaderPlatform GetShaderPlatform() const { return GShaderPlatformForFeatureLevel[GetFeatureLevel()]; }
+	EShaderPlatform GetShaderPlatform() const { return GetFeatureLevelShaderPlatform(GetFeatureLevel()); }
 
 #if WITH_DEBUG_VIEW_MODES
 	EDebugViewShaderMode DebugViewShaderMode;
