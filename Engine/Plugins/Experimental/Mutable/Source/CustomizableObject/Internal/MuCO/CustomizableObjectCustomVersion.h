@@ -141,6 +141,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 		ConvertEditAndExtendToModifiers,
 
 		NodeComponentMesh, // Moved LOD pins from NodeObject to NodeComponentMesh.
+
+		MergeNodeComponents,
 		
 		UnifyRequiredTags,
 

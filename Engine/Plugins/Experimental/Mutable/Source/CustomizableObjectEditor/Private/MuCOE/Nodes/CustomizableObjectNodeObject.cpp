@@ -456,6 +456,58 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup(int32 CustomizableO
 		
 		FixupReconstructPins(CreateRemapPinsByName(), NodeObjectAllocateDefaultPins);
 	}
+
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::MergeNodeComponents)
+	{
+		if (UEdGraphPin* PinComponents = ComponentsPin())
+		{
+			// Find all Mesh Component nodes.
+			TMap<FName, UCustomizableObjectNodeComponentMesh*> NodeComponentMeshes;
+			for (UEdGraphPin* Pin : PinComponents->LinkedTo)
+			{
+				if (UCustomizableObjectNodeComponentMesh* NodeComponentMesh = Cast<UCustomizableObjectNodeComponentMesh>(Pin->GetOwningNode()))
+				{
+					NodeComponentMeshes.Emplace(NodeComponentMesh->ComponentName, NodeComponentMesh);
+				}
+			}
+
+			TArray<UCustomizableObjectNodeComponentMeshAddTo*> NodesToRemove;
+
+			// Find all Add To Mesh Component nodes.
+			for (UEdGraphPin* Pin : PinComponents->LinkedTo)
+			{
+				if (UCustomizableObjectNodeComponentMeshAddTo* NodeComponentMeshAddTo = Cast<UCustomizableObjectNodeComponentMeshAddTo>(Pin->GetOwningNode()))
+				{
+					UCustomizableObjectNodeComponentMesh** Result = NodeComponentMeshes.Find(NodeComponentMeshAddTo->ParentComponentName);
+					if (!Result)
+					{
+						continue;
+					}
+
+					UCustomizableObjectNodeComponentMesh* NodeComponentMesh = *Result;
+					if (NodeComponentMesh->NumLODs != NodeComponentMeshAddTo->NumLODs)
+					{
+						continue;
+					}
+				
+					for (int32 LODIndex = 0; LODIndex < NodeComponentMesh->NumLODs; ++LODIndex)
+					{
+						for (UEdGraphPin* LinkedPin : NodeComponentMeshAddTo->LODPins[LODIndex].Get()->LinkedTo)
+						{
+							LinkedPin->MakeLinkTo(NodeComponentMesh->LODPins[LODIndex].Get());
+						}
+					}
+
+					NodesToRemove.Add(NodeComponentMeshAddTo);
+				}
+			}
+
+			for (UCustomizableObjectNodeComponentMeshAddTo* Node : NodesToRemove)
+			{
+				GetGraph()->RemoveNode(Node);
+			}
+		}
+	}
 }
 
 
