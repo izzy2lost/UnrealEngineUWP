@@ -186,6 +186,7 @@ public:
 
 	virtual TConstArrayView<FInstancedStruct> GetContextData() const override { return GetRootChooser()->ContextData; }
 	virtual FString GetContextOwnerName() const override { return GetName(); }
+	virtual UObject* GetContextOwnerAsset() override { return this; }
 
 	bool IsCookedData() const { return !CookedResults.IsEmpty(); }
 	static FObjectChooserBase::EIteratorStatus EvaluateChooser(FChooserEvaluationContext& Context, const UChooserTable* Chooser, FObjectChooserBase::FObjectChooserIteratorCallback Callback);

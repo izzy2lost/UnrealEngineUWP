@@ -87,7 +87,7 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 #if WITH_EDITORONLY_DATA
 		CompileMessage = LOCTEXT("No Property Bound", "No Property Bound");
 #endif
-		UE_LOG(LogChooser, Error, TEXT("Chooser Property Compile Error (%s): Missing property binding."), *Owner->GetContextOwnerName());
+		UE_ASSET_LOG(LogChooser, Error, Owner->GetContextOwnerAsset(), TEXT("Missing property binding."));
 		CompiledBinding = nullptr;
 		return;
 	}
@@ -107,7 +107,7 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 #if WITH_EDITORONLY_DATA
 		CompileMessage = FText::Format(LOCTEXT("No valid struct", "No valid Context Object/Struct at index: {0}"), FText::FromString(FString::FromInt(ContextIndex)));
 #endif
-		UE_LOG(LogChooser, Error, TEXT("Chooser Property Compile Error (%s): No valid Context Object/Struct at index: %d"), *Owner->GetContextOwnerName(), ContextIndex);
+		UE_ASSET_LOG(LogChooser, Error, Owner->GetContextOwnerAsset(), TEXT("No valid Context Object/Struct at index: %d"), ContextIndex);
 		CompiledBinding = nullptr;
 		return;
 	}
@@ -205,7 +205,7 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 #if WITH_EDITORONLY_DATA
 			CompileMessage = FText::Format(LOCTEXT("Property Not Found", "Property/Function: {0} not Found on Class/Struct: {1}"), FText::FromName(PropertyBindingChain[PropertyChainIndex]), StructType->GetDisplayNameText());
 #endif
-			UE_LOG(LogChooser, Error, TEXT(" Chooser Property Compile Error (%s): Property/Function: %s not Found on Class/Struct %s"), *Owner->GetContextOwnerName(), *PropertyBindingChain[PropertyChainIndex].ToString(), *StructType->GetName());
+			UE_ASSET_LOG(LogChooser, Error, Owner->GetContextOwnerAsset(), TEXT("Property/Function: %s not Found on Class/Struct %s"), *PropertyBindingChain[PropertyChainIndex].ToString(), *StructType->GetName());
 			CompiledBinding = nullptr;
 			return;
 		}
@@ -306,7 +306,7 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 #if WITH_EDITORONLY_DATA
 		CompileMessage = FText::Format(LOCTEXT("Property Not Found", "Property/Function: {0} not Found on Class/Struct: {1}"), FText::FromName(PropertyBindingChain.Last()), StructType->GetDisplayNameText());
 #endif
-		UE_LOG(LogChooser, Error, TEXT(" Chooser Property Compile Error (%s): Property/Function: %s not Found on Class/Struct %s"), *Owner->GetContextOwnerName(), *PropertyBindingChain.Last().ToString(), *StructType->GetName());
+		UE_ASSET_LOG(LogChooser, Error, Owner->GetContextOwnerAsset(), TEXT("Property/Function: %s not Found on Class/Struct %s"), *PropertyBindingChain.Last().ToString(), *StructType->GetName());
 		CompiledBinding = nullptr;
  	}
 }

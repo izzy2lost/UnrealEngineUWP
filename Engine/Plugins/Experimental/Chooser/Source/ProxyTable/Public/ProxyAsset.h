@@ -49,6 +49,8 @@ public:
 
 	virtual TConstArrayView<FInstancedStruct> GetContextData() const override { return ContextData; }
 	virtual FString GetContextOwnerName() const override { return GetName(); }
+	virtual UObject* GetContextOwnerAsset() override { return this; }
+
 	UObject* FindProxyObject(struct FChooserEvaluationContext& Context) const;
 	FObjectChooserBase::EIteratorStatus FindProxyObjectMulti(FChooserEvaluationContext &Context, FObjectChooserBase::FObjectChooserIteratorCallback Callback) const;
 

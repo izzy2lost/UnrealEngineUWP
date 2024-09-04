@@ -26,6 +26,7 @@ public:
 	virtual TConstArrayView<FInstancedStruct> GetContextData() const { return TConstArrayView<FInstancedStruct>(); }
 
 	virtual FString GetContextOwnerName() const { return ""; }
+	virtual UObject* GetContextOwnerAsset() { return nullptr; }
 
 	virtual void Compile(bool bForce = false) {}
 #if WITH_EDITOR
