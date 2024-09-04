@@ -286,7 +286,7 @@ namespace CruncherSharp
             return TotalPadding.Value;
         }
 
-		public ulong ComputePotentialSaving()
+		public ulong ComputePotentialSaving(SymbolAnalyzer symbolAnalyzer)
 		{
 			if (PotentialSaving.HasValue)
 			{
@@ -298,20 +298,55 @@ namespace CruncherSharp
 				PotentialSaving = 0;
 			}
 
+			//List<uint> BitsRemaining = new List<uint>();
+			uint BitsRemaining = 0;
+			foreach (var member in Members)
+			{
+				if (member.Category != SymbolMemberInfo.MemberCategory.Member)
+				{
+					continue;
+				}
+				if (member.Size == 1 &&member.TypeName.StartsWith("bool"))
+				{
+					if (member.BitField)
+					{
+						BitsRemaining += member.BitPaddingAfter; 
+					}
+					else if (BitsRemaining == 0)
+					{
+						BitsRemaining = 7u;
+					}
+					else
+					{
+						BitsRemaining--;
+						member.PotentialSaving = 1u;
+					}
+				}
+				else if (member.Size == 4 && member.TypeName.StartsWith("enum "))
+				{
+					if (!symbolAnalyzer.ConfigEnum.ContainsKey(member.TypeName.Remove(0, 5)))
+					{
+						member.PotentialSaving = 1u;
+					}
+				}
+			}
+
 			PotentialSaving = 0;
 
 			if (EndPadding < 16)
 			{
 				uint InternalPadding = (uint)Members.Sum(info => (long)info.PaddingBefore);
+
+				InternalPadding += BitsRemaining / 8u;
+				
 				InternalPadding += (uint)(Members.Sum(info =>
 				{
 					if (info.AlignWithPrevious)
 						return 0u;
 
-					if (info.TypeName.StartsWith("enum ") && info.Size == 4)
-					{
-						return 3u;
-					}
+					if (info.PotentialSaving.HasValue)
+						return info.PotentialSaving;
+
 					return 0u;
 				}));
 				uint MinAlignment = ComputeMinAlignment();
@@ -328,17 +363,19 @@ namespace CruncherSharp
 			PotentialSaving += (ulong)(Members.Sum(info =>
 			{
 				if (info.AlignWithPrevious)
-					return 0;
+					return 0u;
 				if (info.Category == SymbolMemberInfo.MemberCategory.Member)
-					return 0;
+					return 0u;
+				if (info.PotentialSaving.HasValue)
+					return info.PotentialSaving;
 				if (info.TypeName == Name)
-					return 0; // avoid infinite loops
+					return 0u; // avoid infinite loops
 				if (info.TypeInfo == null)
 				{
-					return 0;
+					return 0u;
 				}
 
-				return (long)info.Count * (long)info.TypeInfo.ComputePotentialSaving();
+				return (long)info.Count * (long)info.TypeInfo.ComputePotentialSaving(symbolAnalyzer);
 			}));
 			return PotentialSaving.Value;
 		}

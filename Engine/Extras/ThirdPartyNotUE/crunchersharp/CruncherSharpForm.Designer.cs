@@ -878,7 +878,7 @@
             this.colBitPosition.HeaderText = "Bit offset";
             this.colBitPosition.Name = "colBitPosition";
             this.colBitPosition.ReadOnly = true;
-            this.colBitPosition.Width = 73;
+            this.colBitPosition.Width = 68;
             // 
             // colFieldSize
             // 
@@ -911,10 +911,10 @@
             // colFieldSaving
             // 
             this.colFieldSaving.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
-            this.colFieldSaving.HeaderText = "Potential aving";
+            this.colFieldSaving.HeaderText = "Potential saving";
             this.colFieldSaving.Name = "colFieldSaving";
             this.colFieldSaving.ReadOnly = true;
-            this.colFieldSaving.Width = 102;
+            this.colFieldSaving.Width = 98;
             // 
             // tabFunctions
             // 

@@ -33,6 +33,7 @@ namespace CruncherSharp
         public string FileName { get; set; }
 
 		public Dictionary<string, uint> ConfigAlignment { get; set;  }
+		public Dictionary<string, uint> ConfigEnum { get; set; }
 
 		private List<uint> _MemPools;
 		public List<uint> MemPools 
@@ -70,6 +71,7 @@ namespace CruncherSharp
         {
             Symbols = new Dictionary<string, SymbolInfo>();
 			ConfigAlignment = new Dictionary<string, uint>();
+			ConfigEnum = new Dictionary<string, uint>();
 			RootNamespaces = new SortedSet<string>();
             Namespaces = new SortedSet<string>();
 			_MemPools = new List<uint>();
@@ -138,7 +140,7 @@ namespace CruncherSharp
 			foreach (var symbol in Symbols.Values)
 			{
 				symbol.ComputeMinAlignment();
-				symbol.ComputePotentialSaving();
+				symbol.ComputePotentialSaving(this);
 			}
 
 			if (!FunctionAnalysis)

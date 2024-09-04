@@ -47,6 +47,8 @@ namespace CruncherSharp
 
 		private SymbolInfo _SelectedSymbol;
 
+		private Timer _TypingTimer;
+
 		private SymbolAnalyzer CurrentSymbolAnalyzer
 		{
 			get
@@ -92,13 +94,22 @@ namespace CruncherSharp
 				mB2ToolStripMenuItem.Checked = true;
 			}
 
-			NameValueCollection customSection = (NameValueCollection)ConfigurationManager.GetSection("Alignment");
-			if (customSection != null)
+			NameValueCollection alignmentSection = (NameValueCollection)ConfigurationManager.GetSection("Alignment");
+			if (alignmentSection != null)
 			{
-				foreach (string Key in customSection.AllKeys)
+				foreach (string Key in alignmentSection.AllKeys)
 				{
-					uint align = uint.Parse(customSection.Get(Key));
+					uint align = uint.Parse(alignmentSection.Get(Key));
 					CurrentSymbolAnalyzer.ConfigAlignment.Add(Key, align);
+				}
+			}
+			NameValueCollection enumSection = (NameValueCollection)ConfigurationManager.GetSection("Enums");
+			if (enumSection != null)
+			{
+				foreach (string Key in enumSection.AllKeys)
+				{
+					uint align = uint.Parse(enumSection.Get(Key));
+					CurrentSymbolAnalyzer.ConfigEnum.Add(Key, align);
 				}
 			}
 		}
@@ -557,7 +568,7 @@ namespace CruncherSharp
             foreach (DataGridViewRow dr in dataGridSymbols.Rows)
             {
                 var dc = dr.Cells[0]; // name
-                if (dc.Value.ToString() != name)
+                if (!dc.Value.ToString().Equals(name))
                     continue;
 				_IgnoreSelectionChange = !ShowSelection;
 				dataGridSymbols.CurrentCell = dc;
@@ -678,7 +689,10 @@ namespace CruncherSharp
 						PaddingRowName,
                         paddingOffset.ToString(),
                         string.Empty,
-                        member.PaddingBefore.ToString()
+                        member.PaddingBefore.ToString(),
+						string.Empty,
+						string.Empty,
+						member.PaddingBefore.ToString()
 					};
                     dataGridViewSymbolInfo.Rows.Add(paddingRow);
                 }
@@ -738,9 +752,9 @@ namespace CruncherSharp
                     expand = whitespaceIncrementText + "+ ";
 
 				string PotentialSaving = string.Empty;
-				if (member.TypeName.StartsWith("enum ") && member.Size == 4)
+				if (member.PotentialSaving.HasValue)
 				{
-					PotentialSaving = "3";
+					PotentialSaving = member.PotentialSaving.ToString();
 				}
 				else if (member.Category == SymbolMemberInfo.MemberCategory.VTable && symbol.HasUnusedVTable())
 				{
@@ -797,8 +811,11 @@ namespace CruncherSharp
 					PaddingRowName, 
 					endPaddingOffset.ToString(),
 					string.Empty,
+					symbol.EndPadding.ToString(),
+					string.Empty,                                       
+					string.Empty,
 					symbol.EndPadding.ToString()
-                };
+				};
                 dataGridViewSymbolInfo.Rows.Add(paddingRow);
             }
 
@@ -808,9 +825,9 @@ namespace CruncherSharp
 				{
 					object[] row =
 					{
-					function.DisplayName, function.Virtual, function.IsPure, function.IsOverride, function.IsOverloaded,
-					function.IsMasking
-				};
+						function.DisplayName, function.Virtual, function.IsPure, function.IsOverride, function.IsOverloaded,
+						function.IsMasking
+					};
 					dataGridViewFunctionsInfo.Rows.Add(row);
 					dataGridViewFunctionsInfo.Rows[dataGridViewFunctionsInfo.Rows.Count - 1].Tag = function;
 				}
@@ -897,6 +914,26 @@ namespace CruncherSharp
 
         private void textBoxFilter_TextChanged(object sender, EventArgs e)
         {
+			if (_TypingTimer == null)
+			{
+				_TypingTimer = new Timer();
+				_TypingTimer.Interval = 500;
+				_TypingTimer.Tick += new EventHandler(this.HandleTypingTimerTimeout);
+			}
+			_TypingTimer.Stop();
+			_TypingTimer.Start();
+        }
+
+
+		private void HandleTypingTimerTimeout(object sender, EventArgs e)
+		{
+			var timer = sender as Timer; 
+			if (timer == null)
+			{
+				return;
+			}
+			timer.Stop();
+
 			if (checkBoxMember.Checked || checkBoxSubclasses.Checked)
 				PopulateDataTable();
 			else

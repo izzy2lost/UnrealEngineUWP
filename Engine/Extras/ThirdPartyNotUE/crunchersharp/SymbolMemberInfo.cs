@@ -98,6 +98,8 @@ namespace CruncherSharp
 
 		public SymbolInfo TypeInfo { get; set; }
 
+		public uint? PotentialSaving { get; set; }
+
 		public SymbolMemberInfo(MemberCategory category, string name, string typeName, ulong size, uint bitSize, ulong offset, uint bitPosition)
         {
             Category = category;
@@ -113,6 +115,7 @@ namespace CruncherSharp
             BitField = false;
             Volatile = false;
             Expanded = false;
+			PotentialSaving = null;
 
 			if (TypeName.EndsWith("]"))
 			{
