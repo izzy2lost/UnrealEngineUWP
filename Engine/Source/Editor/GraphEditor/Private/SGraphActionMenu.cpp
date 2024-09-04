@@ -1144,23 +1144,8 @@ bool SGraphActionMenu::OnMouseButtonDownEvent( TWeakPtr<FEdGraphSchemaAction> In
 	bool bResult = false;
 	if( (!bIgnoreUIUpdate) && InAction.IsValid() )
 	{
-		TArray< TSharedPtr<FGraphActionNode> > SelectionList = TreeView->GetSelectedItems();
-		TSharedPtr<FGraphActionNode> SelectedNode;
-		if (SelectionList.Num() == 1)
-		{	
-			SelectedNode = SelectionList[0];
-		}
-		else if (GetTotalLeafNodes() == 1)
-		{
-			SelectedNode = GetFirstAction();
-		}
-		if (SelectedNode.IsValid() && SelectedNode->HasValidAction())
-		{
-			if( SelectedNode->GetPrimaryAction().Get() == InAction.Pin().Get() )
-			{				
-				bResult = HandleSelection( SelectedNode, ESelectInfo::OnMouseClick );
-			}
-		}
+		OnActionSelected.Execute({InAction.Pin()}, ESelectInfo::OnMouseClick);
+		bResult = true;
 	}
 	return bResult;
 }
