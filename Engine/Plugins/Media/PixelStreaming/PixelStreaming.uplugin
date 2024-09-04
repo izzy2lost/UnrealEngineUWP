@@ -14,7 +14,6 @@
 	"CanContainContent": true,
 	"IsBetaVersion": false,
 	"Installed": false,
-	"DeprecatedEngineVersion": "5.5",
 	"Modules": [
 		{
 			"Name": "PixelStreaming",
