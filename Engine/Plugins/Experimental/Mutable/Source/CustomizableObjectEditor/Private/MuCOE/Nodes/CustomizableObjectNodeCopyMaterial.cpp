@@ -9,6 +9,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeSkeletalMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
+#include "MuCO/CustomizableObjectCustomVersion.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -17,15 +18,15 @@
 const static FString MeshPinName = TEXT("Mesh_Input_Pin");
 
 /** Material input pin key */
-const static FString MaterialPinName = TEXT("Material_Input_Pin");
+const static FString MeshSectionPinName = TEXT("MeshSection_Input_Pin");
 
 /** Material output pin key*/
-const static FString OutputPinName = TEXT("Material_Output_Pin");
+const static FString OutputPinName = TEXT("MeshSection_Output_Pin");
 
 
 FText UCustomizableObjectNodeCopyMaterial::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("Copy_Material", "Copy Material");
+	return LOCTEXT("Copy_MeshSection", "Copy Mesh Section");
 }
 
 
@@ -38,13 +39,38 @@ void UCustomizableObjectNodeCopyMaterial::AllocateDefaultPins(UCustomizableObjec
 	Pin->PinFriendlyName = LOCTEXT("MeshPin", "Mesh");
 	Pin->bDefaultValueIsIgnored = true;
 
-	Pin = CustomCreatePin(EGPD_Input, Schema->PC_Material, FName(MaterialPinName));
-	Pin->PinFriendlyName = LOCTEXT("BaseMaterialPin", "Base Material");;
+	Pin = CustomCreatePin(EGPD_Input, Schema->PC_Material, FName(MeshSectionPinName));
+	Pin->PinFriendlyName = LOCTEXT("BaseMeshSectionPin", "Base Mesh Section");;
 	Pin->bDefaultValueIsIgnored = true;
 
 	// Output pins
 	Pin = CustomCreatePin(EGPD_Output, Schema->PC_Material, FName(OutputPinName));
-	Pin->PinFriendlyName = LOCTEXT("MaterialPin", "Material");
+	Pin->PinFriendlyName = LOCTEXT("MeshSectionPin", "Mesh Section");
+}
+
+
+void UCustomizableObjectNodeCopyMaterial::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
+{
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::MaterialPinsRename)
+	{
+		UEdGraphPin* BaseMaterialPin = FindPin(TEXT("Material_Input_Pin"), EEdGraphPinDirection::EGPD_Input);
+		if (BaseMaterialPin)
+		{
+			const FString PinFriendlyName = TEXT("Base Mesh Section");
+			BaseMaterialPin->PinName = FName(MeshSectionPinName);
+			BaseMaterialPin->PinFriendlyName = FText::FromString(PinFriendlyName);
+		}
+
+		UEdGraphPin* MaterialPin = FindPin(TEXT("Material_Output_Pin"), EEdGraphPinDirection::EGPD_Output);
+		if (MaterialPin)
+		{
+			const FString PinFriendlyName = TEXT("Mesh Section");
+			MaterialPin->PinName = FName(OutputPinName);
+			MaterialPin->PinFriendlyName = FText::FromString(PinFriendlyName);
+		}
+	}
 }
 
 
@@ -82,7 +108,15 @@ TArray<UCustomizableObjectLayout*> UCustomizableObjectNodeCopyMaterial::GetLayou
 
 UEdGraphPin* UCustomizableObjectNodeCopyMaterial::OutputPin() const
 {
-	return FindPin(OutputPinName);
+	UEdGraphPin* Pin = FindPin(OutputPinName, EEdGraphPinDirection::EGPD_Output);
+
+	// Legacy name
+	if (!Pin)
+	{
+		Pin = FindPin(TEXT("Material_Output_Pin"), EEdGraphPinDirection::EGPD_Output);
+	}
+
+	return Pin;
 }
 
 
@@ -99,9 +133,17 @@ bool UCustomizableObjectNodeCopyMaterial::RealMaterialDataHasChanged() const
 }
 
 
-UEdGraphPin* UCustomizableObjectNodeCopyMaterial::GetMaterialPin() const
+UEdGraphPin* UCustomizableObjectNodeCopyMaterial::GetMeshSectionPin() const
 {
-	return FindPin(MaterialPinName);
+	UEdGraphPin* Pin = FindPin(MeshSectionPinName, EEdGraphPinDirection::EGPD_Input);
+
+	// Legacy name
+	if (!Pin)
+	{
+		Pin = FindPin(TEXT("Material_Input_Pin"), EEdGraphPinDirection::EGPD_Input);
+	}
+
+	return Pin;
 }
 
 
@@ -127,7 +169,7 @@ UCustomizableObjectNodeMaterial* UCustomizableObjectNodeCopyMaterial::GetMateria
 {
 	UCustomizableObjectNodeMaterial* Result = nullptr;
 
-	UEdGraphPin* MaterialPin = GetMaterialPin();
+	UEdGraphPin* MaterialPin = GetMeshSectionPin();
 	if (const UEdGraphPin* ConnectedPin = FollowInputPin(*MaterialPin))
 	{
 		return Cast<UCustomizableObjectNodeMaterial>(ConnectedPin->GetOwningNode());
@@ -144,7 +186,7 @@ bool UCustomizableObjectNodeCopyMaterial::CanConnect(const UEdGraphPin* InOwnedI
 		return false;
 	}
 
-	if (InOwnedInputPin == GetMaterialPin())
+	if (InOwnedInputPin == GetMeshSectionPin())
 	{
 		const UEdGraphNode* OuputPinOwningNode = InOutputPin->GetOwningNode();
 		return (OuputPinOwningNode->IsA(UCustomizableObjectNodeMaterial::StaticClass()) && !OuputPinOwningNode->IsA(UCustomizableObjectNodeCopyMaterial::StaticClass()))
@@ -394,11 +436,5 @@ FText UCustomizableObjectNodeCopyMaterial::GetTooltipText() const
 	return LOCTEXT("CopyMaterial_Tooltip", "Copies a Customizable Object material.\nDuplicates all Material node input pins and properties except for the Mesh input pin.");
 }
 
-
-FLinearColor UCustomizableObjectNodeCopyMaterial::GetNodeTitleColor() const
-{
-	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
-	return Schema->GetPinTypeColor(Schema->PC_Material);
-}
 
 #undef LOCTEXT_NAMESPACE

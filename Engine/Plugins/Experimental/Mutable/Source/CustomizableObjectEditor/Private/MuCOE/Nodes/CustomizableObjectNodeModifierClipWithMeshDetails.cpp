@@ -91,9 +91,9 @@ void FCustomizableObjectNodeModifierClipWithMeshDetails::CustomizeDetails(IDetai
 
 		// Filling ComboBox options
 		ClippingMethods.Empty();
-		ClippingMethods.Add(MakeShareable(new FString("Material")));
+		ClippingMethods.Add(MakeShareable(new FString("Mesh Section")));
 		ClippingMethods.Add(MakeShareable(new FString("Tags")));
-		ClippingMethods.Add(MakeShareable(new FString("Material & Tags")));
+		ClippingMethods.Add(MakeShareable(new FString("Mesh Section & Tags")));
 
 		// Initializing the inital value of the ComboBox
 		SelectedMethod = SetInitialClippingMethod();

@@ -22,7 +22,6 @@ public:
 	// UEdGraphNode interface
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	virtual FText GetTooltipText() const override;
-	virtual FLinearColor GetNodeTitleColor() const override;
 
 	// UCustomizableObjectNode interface
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
@@ -31,6 +30,7 @@ public:
 	virtual bool IsNodeOutDatedAndNeedsRefresh() override;
 	virtual bool ProvidesCustomPinRelevancyTest() const override;
 	virtual bool IsPinRelevant(const UEdGraphPin* Pin) const override;
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 
 	// UCustomizableObjectNodeMaterialBase interface
 	virtual UMaterialInterface* GetMaterial() const override;
@@ -60,5 +60,8 @@ public:
 	// Own interface
 	UCustomizableObjectNodeSkeletalMesh* GetMeshNode() const;
 	
-	UEdGraphPin* GetMaterialPin() const;
+protected:
+
+	UEdGraphPin* GetMeshSectionPin() const;
+
 };

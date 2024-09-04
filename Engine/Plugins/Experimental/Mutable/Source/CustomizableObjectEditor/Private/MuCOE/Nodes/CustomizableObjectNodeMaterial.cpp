@@ -341,7 +341,7 @@ void UCustomizableObjectNodeMaterial::AllocateDefaultPins(UCustomizableObjectNod
 	}
 
 	{
-		const FString PinFriendlyName = TEXT("Material");
+		const FString PinFriendlyName = TEXT("Mesh Section");
 		const FString PinName = PinFriendlyName + FString(TEXT("_Output_Pin"));
 		UEdGraphPin* OutputPin = CustomCreatePin(EGPD_Output, Schema->PC_Material, FName(*PinName));
 		OutputPin->PinFriendlyName = FText::FromString(PinFriendlyName);
@@ -708,6 +708,19 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup(int32 Customizabl
 			}
 		}
 	}
+
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::MaterialPinsRename)
+	{
+		UEdGraphPin* MaterialPin = FindPin(TEXT("Material_Output_Pin"), EEdGraphPinDirection::EGPD_Output);
+		if (MaterialPin)
+		{
+			const FString PinFriendlyName = TEXT("Mesh Section");
+			const FString PinName = PinFriendlyName + FString(TEXT("_Output_Pin"));
+			MaterialPin->PinName = FName(PinName);
+			MaterialPin->PinFriendlyName = FText::FromString(PinFriendlyName);
+		}
+
+	}
 }
 
 
@@ -753,14 +766,14 @@ FText UCustomizableObjectNodeMaterial::GetNodeTitle(ENodeTitleType::Type TitleTy
 {
 	if (TitleType == ENodeTitleType::ListView || !Material)
 	{
-		return LOCTEXT("Material", "Material");
+		return LOCTEXT("Mesh Section", "Mesh Section");
 	}
 	else
 	{
 		FFormatNamedArguments Args;
-		Args.Add(TEXT("MaterialName"), FText::FromString(Material->GetName()));
+		Args.Add(TEXT("MeshSectionName"), FText::FromString(Material->GetName()));
 
-		return FText::Format(LOCTEXT("Material_Title", "{MaterialName}\nMaterial"), Args);
+		return FText::Format(LOCTEXT("MeshSection_Title", "{MeshSectionName}\nMesh Section"), Args);
 	}
 }
 
@@ -774,19 +787,29 @@ FLinearColor UCustomizableObjectNodeMaterial::GetNodeTitleColor() const
 
 UEdGraphPin* UCustomizableObjectNodeMaterial::OutputPin() const
 {
-	FString PinFriendlyName = TEXT("Material");
+	FString PinFriendlyName = TEXT("Mesh Section");
 	FString PinName = PinFriendlyName + FString(TEXT("_Output_Pin"));
 
-	UEdGraphPin* Pin = FindPin(PinName);
+	UEdGraphPin* Pin = FindPin(PinName, EEdGraphPinDirection::EGPD_Output);
+	if (!Pin)
+	{
+		Pin = FindPin(TEXT("Mesh Section"), EEdGraphPinDirection::EGPD_Output);
+	}
 
-	if (Pin)
+	// Legacy name
+	if (!Pin)
 	{
-		return Pin;
+		PinFriendlyName = TEXT("Material");
+		PinName = PinFriendlyName + FString(TEXT("_Output_Pin"));
+
+		Pin = FindPin(PinName, EEdGraphPinDirection::EGPD_Output);
+		if (!Pin)
+		{
+			Pin = FindPin(TEXT("Material"), EEdGraphPinDirection::EGPD_Output);
+		}		
 	}
-	else
-	{
-		return FindPin(TEXT("Material"));
-	}
+
+	return Pin;
 }
 
 
@@ -1232,7 +1255,7 @@ bool UCustomizableObjectNodeMaterial::IsPinRelevant(const UEdGraphPin* Pin) cons
 
 FText UCustomizableObjectNodeMaterial::GetTooltipText() const
 {
-	return LOCTEXT("Material_Tooltip", "Defines a Customizable Object material.\nConsists of a mesh section, a material asset to paint it, and the runtime modifiable inputs to the material asset parameters.");
+	return LOCTEXT("MeshSection_Tooltip", "Defines a Customizable Object mesh section.\nIt has a mesh section, a material assigned to it and the runtime modifiable inputs to the material asset parameters.");
 }
 
 

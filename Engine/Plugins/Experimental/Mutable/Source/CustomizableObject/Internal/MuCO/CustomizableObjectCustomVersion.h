@@ -146,6 +146,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 		
 		UnifyRequiredTags,
 
+		MaterialPinsRename, // Moved from "Material" to "Mesh Section"
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

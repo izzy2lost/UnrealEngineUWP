@@ -1349,7 +1349,7 @@ FText UEdGraphSchema_CustomizableObject::GetPinCategoryName(const FName& PinCate
 	}
 	else if (PinCategory == UEdGraphSchema_CustomizableObject::PC_Material)
 	{
-		return LOCTEXT("Material_Pin_Category", "Material");
+		return LOCTEXT("MeshSection_Pin_Category", "Mesh Section");
 	}
 	else if (PinCategory == UEdGraphSchema_CustomizableObject::PC_Modifier)
 	{
