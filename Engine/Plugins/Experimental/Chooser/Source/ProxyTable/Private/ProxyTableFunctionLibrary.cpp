@@ -16,7 +16,7 @@ UObject* UProxyTableFunctionLibrary::EvaluateProxyAsset(const UObject* ContextOb
 		FChooserEvaluationContext Context(const_cast<UObject*>(ContextObject));
 		
 		Result = Proxy->FindProxyObject(Context);
-		if (ObjectClass && Result && !Result->IsA(ObjectClass))
+		if (ObjectClass && Result && !Result->IsA(ObjectClass)) //-V522
 		{
 			return nullptr;
 		}
