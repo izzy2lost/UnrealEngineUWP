@@ -6,6 +6,8 @@
 #include "AutoRTFM/AutoRTFM.h"
 #include "Templates/SharedPointer.h"
 
+#if UE_AUTORTFM
+
 // A transactionally safe lock that works in the following novel ways:
 	// - In the open (non-transactional):
 	//   - Take the lock like before. Simple!
@@ -179,8 +181,8 @@ private:
 	TSharedPtr<FState> State;
 };
 
-#if UE_AUTORTFM
 using FTransactionallySafeRWLock = FTransactionallySafeRWLockDefinition;
+
 #else
 using FTransactionallySafeRWLock = FRWLock;
 #endif
