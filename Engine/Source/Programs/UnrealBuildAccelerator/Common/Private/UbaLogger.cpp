@@ -56,7 +56,7 @@ namespace uba
 
 		ExitProcess(terminateCode);
 #else
-		exit(-1);
+		_Exit(-1);
 #endif
 	}
 
@@ -83,7 +83,7 @@ namespace uba
 #else
 		printf(TC("FATAL ERROR %u: %s\n"), code, buffer);
 		fflush(stdout);
-		exit(int(code));
+		kill(getpid(), SIGKILL);
 #endif
 	}
 

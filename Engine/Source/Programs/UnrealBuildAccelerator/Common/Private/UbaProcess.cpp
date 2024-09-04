@@ -1913,13 +1913,13 @@ namespace uba
 			pipeGuard0.Cancel();
 
 			#if UBA_DEBUG_TRACK_PROCESS
-			g_debugLogger.Info(TC("CreateRealProcess  (%u) %s %s\n"), m_id, m_realApplication.c_str(), m_startInfo.arguments);
+			g_debugLogger.Info(TC("CreateRealProcess  (%u) %s %.100s\n"), m_id, m_realApplication.c_str(), m_startInfo.arguments);
 			#endif
 		}
 		else
 		{
 			#if UBA_DEBUG_TRACK_PROCESS
-			g_debugLogger.Info(TC("WaitingForParent (%u) %s\n"), m_id, m_realApplication.c_str());
+			g_debugLogger.Info(TC("WaitingForParent (%u) %.100s\n"), m_id, m_realApplication.c_str());
 			#endif
 
 			//logger.Info("Waiting for parent");
