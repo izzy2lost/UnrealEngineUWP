@@ -68,6 +68,13 @@ TArray<TObjectPtr<UAssetDefinition>> UAssetDefinitionRegistry::GetAllAssetDefini
 	return AllAssetDefinitions;
 }
 
+TArray<TSoftClassPtr<UObject>> UAssetDefinitionRegistry::GetAllRegisteredAssetClasses() const
+{
+	TArray<TSoftClassPtr<UObject>> AllRegisteredClasses;
+	AssetDefinitions.GenerateKeyArray(AllRegisteredClasses);
+	return AllRegisteredClasses;
+}
+
 uint64 UAssetDefinitionRegistry::GetAssetDefinitionVersion() const
 {
 	return Version;

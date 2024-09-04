@@ -114,4 +114,20 @@ void FTedsAssetDataModule::InitAssetRegistryStorage()
 	AssetRegistryStorage = MakeUnique<Private::FTedsAssetData>(MutableDataStorage);
 }
 
-} // namespace UE::Editor::AssetData
+void FTedsAssetDataModule::EnableAssetDataMetadataStorage()
+{
+	if (AssetDataCBDataSource)
+	{
+		AssetDataCBDataSource->EnableMetadataStorage(true);
+	}
+}
+
+void FTedsAssetDataModule::DisableAssetDataMetadataStorage()
+{
+	if (AssetDataCBDataSource)
+	{
+		AssetDataCBDataSource->EnableMetadataStorage(false);
+	}
+}
+
+}// namespace UE::Editor::AssetData

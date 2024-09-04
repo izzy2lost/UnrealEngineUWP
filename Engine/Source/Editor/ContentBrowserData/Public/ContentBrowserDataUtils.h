@@ -10,6 +10,10 @@
 #include "Internationalization/Text.h"
 #include "UObject/NameTypes.h"
 
+class UObject;
+
+struct FAssetData;
+
 namespace ContentBrowserDataUtils
 {
 	/** Returns number of folders in forward slashed path (Eg, 1 for "/Path", 2 for "/Path/Name") */
@@ -46,4 +50,8 @@ namespace ContentBrowserDataUtils
 	 * @return Override display name or empty string
 	 */
 	CONTENTBROWSERDATA_API FText GetFolderItemDisplayNameOverride(const FName InFolderPath, const FString& InFolderItemName, const bool bIsClassesFolder, const bool bIsCookedPath = false);
+
+	CONTENTBROWSERDATA_API bool IsPrimaryAsset(const FAssetData& InAssetData);
+
+	CONTENTBROWSERDATA_API bool IsPrimaryAsset(UObject* InObject);
 }

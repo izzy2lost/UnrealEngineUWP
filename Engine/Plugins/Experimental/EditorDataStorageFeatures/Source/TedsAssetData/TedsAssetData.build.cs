@@ -19,15 +19,17 @@ public class TedsAssetData : ModuleRules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
+					"AssetDefinition",
 					"AssetRegistry",
 					"ContentBrowserData",
 					"Core",
 					"CoreUObject",
 					"Engine",
+					"Slate",
+					"SlateCore",
 					"TypedElementFramework",
 					"UnrealEd",
-					"SlateCore",
-					"Slate"
+					"UnrealEd",
 				});
 
 			PublicDependencyModuleNames.AddRange(

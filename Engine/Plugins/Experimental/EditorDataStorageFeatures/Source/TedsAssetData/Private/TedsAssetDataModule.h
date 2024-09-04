@@ -22,11 +22,11 @@ public:
 
 	static FTedsAssetDataModule* Get();
 	static FTedsAssetDataModule& GetChecked();
-
 	void EnableTedsAssetRegistryStorage();
 	void DisableTedsAssetRegistryStorage();
 	bool IsTedsAssetRegistryStorageEnabled() const;
-
+	void EnableAssetDataMetadataStorage();
+	void DisableAssetDataMetadataStorage();
 
 	/**
 	 * Process now any pending event that might make the Teds database out of sync with the asset registry.

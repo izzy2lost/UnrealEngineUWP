@@ -2,10 +2,16 @@
 
 #pragma once
 
+#include "TedsAssetDataStructs.h"
+
 #include "AssetRegistry/AssetData.h"
+#include "Containers/UnrealString.h"
+#include "Containers/VersePath.h"
 #include "Elements/Common/TypedElementCommonTypes.h"
 #include "Elements/Interfaces/TypedElementQueryStorageInterfaces.h"
-#include "Containers/VersePath.h"
+#include "Internationalization/Text.h"
+#include "Templates/SharedPointer.h"
+#include "UObject/NameTypes.h"
 
 #include "TedsAssetDataColumns.generated.h"
 
@@ -150,4 +156,30 @@ struct FItemNameColumn_Experimental : public FEditorDataStorageColumn
 
 	UPROPERTY(meta = (Searchable))
 	FName Name;
+};
+
+USTRUCT()
+struct FItemAttributeBaseColumn_Experimental : public FEditorDataStorageColumn
+{
+	GENERATED_BODY()
+
+	TSharedPtr<const UE::Editor::AssetData::FItemAttributeMetadata> AttributeMetadata;
+};
+
+USTRUCT()
+struct FItemTextAttributeColumn_Experimental : public FItemAttributeBaseColumn_Experimental
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FText Value;
+};
+
+USTRUCT()
+struct FItemStringAttributeColumn_Experimental : public FItemAttributeBaseColumn_Experimental
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Value;
 };
