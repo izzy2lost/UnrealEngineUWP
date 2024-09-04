@@ -2,10 +2,18 @@
 
 #pragma once
 
-#ifdef NNEEDITORONNXTOOLS_EXPORT
-#define NNEEDITORONNXTOOLS_API __declspec(dllexport)
+#if defined(NNEEDITORONNXTOOLS_EXPORT)
+    #if defined(_MSC_VER)
+        //  Microsoft 
+        #define NNEEDITORONNXTOOLS_API __declspec(dllexport)
+    #elif defined(__GNUC__)
+        //  GCC
+        #define NNEEDITORONNXTOOLS_API __attribute__((visibility("default")))
+    #else
+	    #define NNEEDITORONNXTOOLS_API unsupported_platform
+    #endif
 #else
-#define NNEEDITORONNXTOOLS_API
+    #define NNEEDITORONNXTOOLS_API
 #endif
 
 #ifndef UE_NNEEDITORONNXTOOLS

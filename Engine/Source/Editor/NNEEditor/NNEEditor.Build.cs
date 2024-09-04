@@ -28,14 +28,26 @@ public class NNEEditor : ModuleRules
 			}
 		);
 
+		string SharedLibPath = Path.Combine(ModuleDirectory, "Bin", Target.Platform.ToString());
+
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
-			string SharedLibPath = Path.Combine(ModuleDirectory, "Bin", Target.Platform.ToString());
 			string SharedLibFileName = "NNEEditorOnnxTools.dll";
 
 			PublicDelayLoadDLLs.Add(SharedLibFileName);
 
 			RuntimeDependencies.Add("$(TargetOutputDir)/"+ SharedLibFileName, Path.Combine(SharedLibPath, SharedLibFileName));
+
+			PublicDefinitions.Add("NNEEDITORONNXTOOLS_SUPPORTED");
+			PublicDefinitions.Add("NNEEDITORONNXTOOLS_SHAREDLIB_FILENAME=" + SharedLibFileName);
+		}
+		else if (Target.Platform == UnrealTargetPlatform.Linux)
+		{
+			string SharedLibFileName = "libNNEEditorOnnxTools.so";
+
+			PublicDelayLoadDLLs.Add(SharedLibFileName);
+
+			RuntimeDependencies.Add("$(TargetOutputDir)/" + SharedLibFileName, Path.Combine(SharedLibPath, SharedLibFileName));
 
 			PublicDefinitions.Add("NNEEDITORONNXTOOLS_SUPPORTED");
 			PublicDefinitions.Add("NNEEDITORONNXTOOLS_SHAREDLIB_FILENAME=" + SharedLibFileName);
