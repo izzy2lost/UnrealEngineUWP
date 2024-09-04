@@ -268,7 +268,6 @@ private:
 		const UPCGNode* Node = nullptr;
 		bool bDoDynamicTaskCulling = false;
 		bool bIsPostGraphTask = false;		
-		bool bIsBypassed = false;
 	};
 		
 	void PostTaskExecute(TSharedPtr<FPCGGraphActiveTask> ActiveTask, bool bIsDone);
