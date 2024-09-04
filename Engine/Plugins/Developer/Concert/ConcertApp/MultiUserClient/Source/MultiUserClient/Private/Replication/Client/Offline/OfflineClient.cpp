@@ -21,5 +21,10 @@ namespace UE::MultiUserClient::Replication
 					)
 				)
 			)
-	{}
+	{
+		ContentPredictor.OnPredictionChanged().AddLambda([this]
+		{
+			OnStreamPredictionChangedDelegate.Broadcast();
+		});
+	}
 }

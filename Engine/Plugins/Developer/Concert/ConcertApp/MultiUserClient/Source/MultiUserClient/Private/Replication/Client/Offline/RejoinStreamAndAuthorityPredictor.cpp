@@ -3,9 +3,11 @@
 #include "RejoinStreamAndAuthorityPredictor.h"
 
 #include "EndpointCache.h"
+#include "IConcertClientWorkspace.h"
 #include "Replication/Messages/ReplicationActivity.h"
 
 #include "Replication/Misc/ClientPredictionUtils.h"
+#include "Replication/Misc/StreamAndAuthorityPredictionUtils.h"
 
 namespace UE::MultiUserClient::Replication
 {
@@ -54,14 +56,42 @@ namespace UE::MultiUserClient::Replication
 			}
 		}
 	}
-	
-	FRejoinStreamAndAuthorityPredictor::FRejoinStreamAndAuthorityPredictor(const IConcertClientWorkspace& InWorkspace, FConcertClientInfo InClientInfo)
-		: ClientInfo(MoveTemp(InClientInfo))
+
+	FRejoinStreamAndAuthorityPredictor::FRejoinStreamAndAuthorityPredictor(IConcertClientWorkspace& InWorkspace, FConcertClientInfo InClientInfo)
+		: Workspace(InWorkspace)
+		, ClientInfo(MoveTemp(InClientInfo))
 		, PredictedStream({ .Identifier = MultiUserStreamID })
 	{
-		// For now, we only look at the FConcertSyncReplicationPayload_LeaveReplication activity. It can be looked up once.
-		// In the future, we'll add an event for FConcertReplication_PutState_Requests, which can affect offline clients, invoked by presets.
-		// Then, we'll have to listen for activity changes.
-		Private::AnalyzeActivityHistory(InWorkspace, ClientInfo, PredictedStream, PredictedAuthority);
+		// Whenever a leave replication activity is received, update the predicted stream.
+		// Usually when a remote client leaves, a FOfflineClient is created is response to the session's client list changing but the leave replication
+		// activity is only received later. Hence, we need to listen for changes.
+		Workspace.OnActivityAddedOrUpdated().AddRaw(this, &FRejoinStreamAndAuthorityPredictor::OnActivityAddedOrUpdated);
+		
+		AnalyzeHistory();
+	}
+
+	FRejoinStreamAndAuthorityPredictor::~FRejoinStreamAndAuthorityPredictor()
+	{
+		Workspace.OnActivityAddedOrUpdated().RemoveAll(this);
+	}
+
+	void FRejoinStreamAndAuthorityPredictor::OnActivityAddedOrUpdated(
+		const FConcertClientInfo& ActivityClientInfo,
+		const FConcertSyncActivity& Activity,
+		const FStructOnScope& Summary
+		)
+	{
+		if (ConcertSyncCore::Replication::AreLogicallySameClients(ClientInfo, ActivityClientInfo)
+			&& Activity.EventType == EConcertSyncActivityEventType::Replication)
+		{
+			AnalyzeHistory();
+		}
+	}
+
+	
+	void FRejoinStreamAndAuthorityPredictor::AnalyzeHistory()
+	{
+		Private::AnalyzeActivityHistory(Workspace, ClientInfo, PredictedStream, PredictedAuthority);
+		OnPredictionChangedDelegate.Broadcast();
 	}
 }
