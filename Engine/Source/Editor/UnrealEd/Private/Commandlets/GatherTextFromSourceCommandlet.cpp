@@ -282,6 +282,7 @@ int32 UGatherTextFromSourceCommandlet::Main( const FString& Params )
 		}
 		TArray<FString> ExcludePathFiltersPrepass;
 		ExcludePathFiltersPrepass.Add(TEXT("../Engine/Source/ThirdParty/*"));
+		ExcludePathFiltersPrepass.Add(TEXT("../Engine/Restricted/NotForLicensees/Source/ThirdParty/*"));
 		for (FString& Path : ExcludePathFiltersPrepass)
 		{
 			ResolveLocalizationPath(Path);
