@@ -70,8 +70,23 @@ FRigUnit_ModifyTransforms_Execute()
 						{
 							Transform = FControlRigMathLibrary::LerpTransform(FTransform::Identity, Transform, T);
 						}
-						Transform = Transform * Hierarchy->GetLocalTransform(CachedItem);
-						Hierarchy->SetLocalTransform(CachedItem, Transform, true);
+							
+						FRigTransformElement* TransformElement = const_cast<FRigTransformElement*>(Cast<FRigTransformElement>(CachedItem.GetElement()));
+						if(TransformElement == nullptr)
+						{
+							return;
+						}
+
+						// figure out which transform type has already been computed (is clean) to avoid compute
+						ERigTransformType::Type TransformTypeToUse = ERigTransformType::CurrentLocal;
+						if(TransformElement->GetDirtyState().IsDirty(ERigTransformType::CurrentLocal))
+						{
+							check(!TransformElement->GetDirtyState().IsDirty(ERigTransformType::CurrentGlobal));
+							TransformTypeToUse = ERigTransformType::CurrentGlobal;
+						}
+
+						Transform = Transform * Hierarchy->GetTransform(TransformElement, TransformTypeToUse);
+						Hierarchy->SetTransform(TransformElement, Transform, TransformTypeToUse, true);
 						break;
 					}
 					case EControlRigModifyBoneMode::AdditiveGlobal:

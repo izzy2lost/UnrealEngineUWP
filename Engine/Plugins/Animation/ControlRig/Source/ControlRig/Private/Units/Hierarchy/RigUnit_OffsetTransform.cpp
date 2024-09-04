@@ -20,9 +20,28 @@ FRigUnit_OffsetTransformForItem_Execute()
 	FTransform PreviousTransform = FTransform::Identity;
 	FTransform GlobalTransform = FTransform::Identity;
 
-	FRigUnit_GetTransform::StaticExecute(ExecuteContext, Item, ERigVMTransformSpace::GlobalSpace, false, PreviousTransform, CachedIndex);
+	if(!CachedIndex.UpdateCache(Item, ExecuteContext.Hierarchy))
+	{
+		return;
+	}
+
+	const FRigTransformElement* TransformElement = Cast<FRigTransformElement>(CachedIndex.GetElement());
+	if(TransformElement == nullptr)
+	{
+		return;
+	}
+
+	// figure out which transform type has already been computed (is clean) to avoid compute
+	ERigVMTransformSpace TransformTypeToUse = ERigVMTransformSpace::GlobalSpace;
+	if(TransformElement->GetDirtyState().IsDirty(ERigTransformType::CurrentGlobal))
+	{
+		check(!TransformElement->GetDirtyState().IsDirty(ERigTransformType::CurrentLocal));
+		TransformTypeToUse = ERigVMTransformSpace::LocalSpace;
+	}
+
+	FRigUnit_GetTransform::StaticExecute(ExecuteContext, Item, TransformTypeToUse, false, PreviousTransform, CachedIndex);
 	FRigVMFunction_MathTransformMakeAbsolute::StaticExecute(ExecuteContext, OffsetTransform, PreviousTransform, GlobalTransform);
-	FRigUnit_SetTransform::StaticExecute(ExecuteContext, Item, ERigVMTransformSpace::GlobalSpace, false, GlobalTransform, Weight, bPropagateToChildren, CachedIndex);
+	FRigUnit_SetTransform::StaticExecute(ExecuteContext, Item, TransformTypeToUse, false, GlobalTransform, Weight, bPropagateToChildren, CachedIndex);
 }
 
 #if WITH_EDITOR
