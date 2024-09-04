@@ -6,6 +6,7 @@
 #include "IDisplayCluster.h"
 #include "Camera/CameraTypes.h"
 #include "CineCameraComponent.h"
+#include "CineCameraActor.h"
 
 namespace UE::DisplayClusterConfiguration::ICVFX
 {
@@ -194,6 +195,31 @@ const FOpenColorIOColorConversionSettings* FDisplayClusterConfigurationICVFX_Lig
 FDisplayClusterConfigurationICVFX_CameraSettings::FDisplayClusterConfigurationICVFX_CameraSettings()
 {
 	AllNodesColorGrading.bEnableEntireClusterColorGrading = true;
+}
+
+ACineCameraActor* FDisplayClusterConfigurationICVFX_CameraSettings::GetExternalCineCameraActor() const
+{
+	ACineCameraActor* ExternalCineCameraActor = ExternalCameraActor.Get();
+	if (IsValid(ExternalCineCameraActor))
+	{
+		return ExternalCineCameraActor;
+	}
+
+	return nullptr;
+}
+
+UCineCameraComponent* FDisplayClusterConfigurationICVFX_CameraSettings::GetExternalCineCameraComponent() const
+{
+	if (ACineCameraActor* ExternalCineCameraActor = GetExternalCineCameraActor())
+	{
+		UCineCameraComponent* ExternalCineCameraComponent = ExternalCineCameraActor->GetCineCameraComponent();
+		if (IsValid(ExternalCineCameraComponent))
+		{
+			return ExternalCineCameraComponent;
+		}
+	}
+
+	return nullptr;
 }
 
 bool FDisplayClusterConfigurationICVFX_CameraSettings::IsICVFXEnabled(const UDisplayClusterConfigurationData& InConfigurationData, const FString& InClusterNodeId) const

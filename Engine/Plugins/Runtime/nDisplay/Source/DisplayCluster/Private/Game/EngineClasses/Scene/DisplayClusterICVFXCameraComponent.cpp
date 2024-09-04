@@ -87,10 +87,10 @@ void UDisplayClusterICVFXCameraComponent::GetCameraView(float DeltaTime, FMinima
 		return;
 	}
 
-	if (CameraSettings.ExternalCameraActor.IsValid())
+	if (UCineCameraComponent* ExternalCineCameraComponent = CameraSettings.GetExternalCineCameraComponent())
 	{
 		// Get ViewInfo from external CineCamera
-		CameraSettings.ExternalCameraActor->GetCineCameraComponent()->GetCameraView(DeltaTime, InOutViewInfo);
+		ExternalCineCameraComponent->GetCameraView(DeltaTime, InOutViewInfo);
 	}
 	else
 	{
@@ -103,12 +103,9 @@ void UDisplayClusterICVFXCameraComponent::GetCameraView(float DeltaTime, FMinima
 
 UCineCameraComponent* UDisplayClusterICVFXCameraComponent::GetActualCineCameraComponent()
 {
-	if (UCineCameraComponent* ExternalCineCameraComponent = CameraSettings.ExternalCameraActor.IsValid() ? CameraSettings.ExternalCameraActor->GetCineCameraComponent() : nullptr)
-	{
-		return ExternalCineCameraComponent;
-	}
+	UCineCameraComponent* ExternalCineCameraComponent = CameraSettings.GetExternalCineCameraComponent();
 
-	return this;
+	return ExternalCineCameraComponent ? ExternalCineCameraComponent : this;
 }
 
 FString UDisplayClusterICVFXCameraComponent::GetCameraUniqueId() const
@@ -119,15 +116,17 @@ FString UDisplayClusterICVFXCameraComponent::GetCameraUniqueId() const
 #if WITH_EDITOR
 bool UDisplayClusterICVFXCameraComponent::GetEditorPreviewInfo(float DeltaTime, FMinimalViewInfo& ViewOut)
 {
-	return CameraSettings.ExternalCameraActor.IsValid() ?
-		CameraSettings.ExternalCameraActor->GetCineCameraComponent()->GetEditorPreviewInfo(DeltaTime, ViewOut) :
+	UCineCameraComponent* ExternalCineCameraComponent = CameraSettings.GetExternalCineCameraComponent();
+	return ExternalCineCameraComponent ?
+		ExternalCineCameraComponent->GetEditorPreviewInfo(DeltaTime, ViewOut) :
 		UCameraComponent::GetEditorPreviewInfo(DeltaTime, ViewOut);
 }
 
 TSharedPtr<SWidget> UDisplayClusterICVFXCameraComponent::GetCustomEditorPreviewWidget()
 {
-	return CameraSettings.ExternalCameraActor.IsValid() ?
-		CameraSettings.ExternalCameraActor->GetCineCameraComponent()->GetCustomEditorPreviewWidget() :
+	UCineCameraComponent* ExternalCineCameraComponent = CameraSettings.GetExternalCineCameraComponent();
+	return ExternalCineCameraComponent ?
+		ExternalCineCameraComponent->GetCustomEditorPreviewWidget() :
 		UCameraComponent::GetCustomEditorPreviewWidget();
 }
 #endif
@@ -146,10 +145,10 @@ void UDisplayClusterICVFXCameraComponent::TickComponent(float DeltaTime, ELevelT
 		{
 			FVector CameraLocation = FVector::ZeroVector;
 			FVector CameraDirection = FVector::XAxisVector;
-			if (CameraSettings.ExternalCameraActor.IsValid())
+			if (ACineCameraActor* ExternalCineCameraActor = CameraSettings.GetExternalCineCameraActor())
 			{
-				CameraLocation = CameraSettings.ExternalCameraActor->GetActorLocation();
-				CameraDirection = CameraSettings.ExternalCameraActor->GetActorRotation().RotateVector(FVector::XAxisVector);
+				CameraLocation = ExternalCineCameraActor->GetActorLocation();
+				CameraDirection = ExternalCineCameraActor->GetActorRotation().RotateVector(FVector::XAxisVector);
 			}
 			else
 			{
@@ -333,33 +332,40 @@ void UDisplayClusterICVFXCameraComponent::PostEditChangeProperty(FPropertyChange
 void UDisplayClusterICVFXCameraComponent::UpdateICVFXPreviewState()
 {
 	// handle frustum visibility
-	if (CameraSettings.ExternalCameraActor.IsValid())
+	if (ACineCameraActor* ExternalCineCameraActor = CameraSettings.GetExternalCineCameraActor())
 	{
-		ACineCameraActor* CineCamera = CameraSettings.ExternalCameraActor.Get();
-		CineCamera->GetCineCameraComponent()->bDrawFrustumAllowed = false;
+		UCineCameraComponent* ExternalCineCameraComponent = ExternalCineCameraActor->GetCineCameraComponent();
+		if (IsValid(ExternalCineCameraComponent))
+		{
+			ExternalCineCameraComponent->bDrawFrustumAllowed = false;
+		}
 
-		UDrawFrustumComponent* DrawFustumComponent = Cast<UDrawFrustumComponent>(CineCamera->GetComponentByClass(UDrawFrustumComponent::StaticClass()));
-		if (DrawFustumComponent != nullptr)
+		UDrawFrustumComponent* DrawFustumComponent = Cast<UDrawFrustumComponent>(ExternalCineCameraActor->GetComponentByClass(UDrawFrustumComponent::StaticClass()));
+		if (IsValid(DrawFustumComponent))
 		{
 			DrawFustumComponent->bFrustumEnabled = false;
 			DrawFustumComponent->MarkRenderStateDirty();
 		}
 
-		if (ProxyMeshComponent)
+		if (IsValid(ProxyMeshComponent))
 		{
 			ProxyMeshComponent->DestroyComponent();
 			ProxyMeshComponent = nullptr;
 		}
 	}
 
-
 	// restore frustum visibility if reference was changed
-	if (ExternalCameraCachedValue.IsValid())
+	if (ACineCameraActor* ExternalCineCameraCachedActor = ExternalCameraCachedValue.Get())
 	{
-		ACineCameraActor* CineCamera = ExternalCameraCachedValue.Get();
-		UDrawFrustumComponent* DrawFustumComponent = Cast<UDrawFrustumComponent>(CineCamera->GetComponentByClass(UDrawFrustumComponent::StaticClass()));
-		DrawFustumComponent->bFrustumEnabled = true;
-		DrawFustumComponent->MarkRenderStateDirty();
+		if (IsValid(ExternalCineCameraCachedActor))
+		{
+			UDrawFrustumComponent* DrawFustumComponent = Cast<UDrawFrustumComponent>(ExternalCineCameraCachedActor->GetComponentByClass(UDrawFrustumComponent::StaticClass()));
+			if (IsValid(DrawFustumComponent))
+			{
+				DrawFustumComponent->bFrustumEnabled = true;
+				DrawFustumComponent->MarkRenderStateDirty();
+			}
+		}
 
 		ExternalCameraCachedValue.Reset();
 	}

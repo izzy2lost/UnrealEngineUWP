@@ -733,6 +733,12 @@ public:
 	**/
 	bool IsICVFXEnabled(const class UDisplayClusterConfigurationData& InConfigurationData, const FString& InClusterNodeId) const;
 
+	/** Returns the CineCameraActor from the 'ExternalCameraActor' parameter. */
+	ACineCameraActor* GetExternalCineCameraActor() const;
+
+	/** Returns the CineCameraComponent from the 'ExternalCameraActor' parameter. */
+	UCineCameraComponent* GetExternalCineCameraComponent() const;
+
 public:
 	FDisplayClusterConfigurationICVFX_CameraSettings();
 
