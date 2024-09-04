@@ -464,14 +464,17 @@ void FToolBarBuilder::AddToolBarButton(
 	const TAttribute<FSlateIcon>& InIconOverride,
 	FName InTutorialHighlightName,
 	FNewMenuDelegate InCustomMenuDelegate,
-	TAttribute<EVisibility> InVisibilityOverride
+	TAttribute<EVisibility> InVisibilityOverride,
+	TAttribute<FText> InToolbarLabelOverride
 )
 {
 	ApplySectionBeginning();
 
 	ApplyHook(InExtensionHook, EExtensionHook::Before);
 
-	TSharedRef< FToolBarButtonBlock > NewToolBarButtonBlock( new FToolBarButtonBlock( InCommand.ToSharedRef(), CommandListStack.Last(), InLabelOverride, InToolTipOverride, InIconOverride ) );
+	TSharedRef<FToolBarButtonBlock> NewToolBarButtonBlock(new FToolBarButtonBlock(
+		InCommand.ToSharedRef(), CommandListStack.Last(), InLabelOverride, InToolTipOverride, InIconOverride, InToolbarLabelOverride
+	));
 
 	if ( LabelVisibility.IsSet() )
 	{
@@ -497,11 +500,20 @@ void FToolBarBuilder::AddToolBarButton(const FButtonArgs& Args)
 	ApplyHook(Args.ExtensionHook, EExtensionHook::Before);
 
 	const bool bHasUserInteractionType = Args.UserInterfaceActionType != EUserInterfaceActionType::None;
-	
-	const TSharedPtr< FToolBarButtonBlock > NewToolBarButtonBlock( bHasUserInteractionType ?
-		new FToolBarButtonBlock( Args.LabelOverride, Args.ToolTipOverride, Args.IconOverride, Args.Action, Args.UserInterfaceActionType ) :
-		new FToolBarButtonBlock( Args.Command.ToSharedRef(), CommandListStack.Last(), Args.LabelOverride, Args.ToolTipOverride, Args.IconOverride )
-		);
+
+	const TSharedPtr<FToolBarButtonBlock> NewToolBarButtonBlock(
+		bHasUserInteractionType ? new FToolBarButtonBlock(
+			Args.LabelOverride, Args.ToolTipOverride, Args.IconOverride, Args.Action, Args.UserInterfaceActionType, Args.ToolbarLabelOverride
+		)
+								: new FToolBarButtonBlock(
+									Args.Command.ToSharedRef(),
+									CommandListStack.Last(),
+									Args.LabelOverride,
+									Args.ToolTipOverride,
+									Args.IconOverride,
+									Args.ToolbarLabelOverride
+								)
+	);
 
 	if ( LabelVisibility.IsSet() )
 	{
@@ -535,14 +547,17 @@ void FToolBarBuilder::AddToolBarButton(
 	const TAttribute<FSlateIcon>& InIconOverride,
 	const EUserInterfaceActionType UserInterfaceActionType,
 	FName InTutorialHighlightName,
-	TAttribute<EVisibility> InVisibilityOverride
+	TAttribute<EVisibility> InVisibilityOverride,
+	TAttribute<FText> InToolbarLabelOverride
 )
 {
 	ApplySectionBeginning();
 
 	ApplyHook(InExtensionHook, EExtensionHook::Before);
 
-	TSharedRef< FToolBarButtonBlock > NewToolBarButtonBlock( new FToolBarButtonBlock( InLabelOverride, InToolTipOverride, InIconOverride, InAction, UserInterfaceActionType ) );
+	TSharedRef<FToolBarButtonBlock> NewToolBarButtonBlock(new FToolBarButtonBlock(
+		InLabelOverride, InToolTipOverride, InIconOverride, InAction, UserInterfaceActionType, InToolbarLabelOverride
+	));
 
 	if ( LabelVisibility.IsSet() )
 	{
@@ -568,12 +583,15 @@ void FToolBarBuilder::AddComboButton(
 	const TAttribute<FSlateIcon>& InIconOverride,
 	bool bInSimpleComboBox,
 	FName InTutorialHighlightName,
-	TAttribute<EVisibility> InVisibilityOverride
+	TAttribute<EVisibility> InVisibilityOverride,
+	TAttribute<FText> InToolbarLabelOverride
 )
 {
 	ApplySectionBeginning();
 
-	TSharedRef<FToolBarComboButtonBlock> NewToolBarComboButtonBlock( new FToolBarComboButtonBlock( InAction, InMenuContentGenerator, InLabelOverride, InToolTipOverride, InIconOverride, bInSimpleComboBox ) );
+	TSharedRef<FToolBarComboButtonBlock> NewToolBarComboButtonBlock(new FToolBarComboButtonBlock(
+		InAction, InMenuContentGenerator, InLabelOverride, InToolTipOverride, InIconOverride, bInSimpleComboBox, InToolbarLabelOverride
+	));
 
 	if ( LabelVisibility.IsSet() )
 	{

@@ -561,6 +561,7 @@ public:
 	 * @param	InTutorialHighlightName	Name to identify this widget and highlight during tutorials
 	 * @param	InCustomMenuDelegate	Optional custom menu delegate for cases where the toolbar is compressed into a menu
 	 * @param	InVisibilityOverride	Optional visibility override which, if set and returning anything but Visible, overrides the visibility of the toolbar button.
+	 * @param	InToolbarLabelOverride	Optional label override for wh.  If omitted, then the action's label will be used instead.
 	 */
 	SLATE_API void AddToolBarButton(
 		const TSharedPtr<const FUICommandInfo> InCommand,
@@ -570,7 +571,8 @@ public:
 		const TAttribute<FSlateIcon>& InIconOverride = TAttribute<FSlateIcon>(),
 		FName InTutorialHighlightName = NAME_None,
 		FNewMenuDelegate InCustomMenuDelegate = FNewMenuDelegate(),
-		TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>()
+		TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>(),
+		TAttribute<FText> InToolbarLabelOverride = TAttribute<FText>()
 	);
 
 	/**
@@ -584,6 +586,7 @@ public:
 	 * @param	UserInterfaceActionType	Type of interface action
 	 * @param	InTutorialHighlightName	Name to identify this widget and highlight during tutorials
 	 * @param	InVisibilityOverride	Optional visibility override which, if set and returning anything but Visible, overrides the visibility of the toolbar button.
+	 * @param	InToolbarLabelOverride	Optional label override for wh.  If omitted, then the action's label will be used instead.
 	 */
 	SLATE_API void AddToolBarButton(
 		const FUIAction& InAction,
@@ -593,8 +596,8 @@ public:
 		const TAttribute<FSlateIcon>& InIconOverride = TAttribute<FSlateIcon>(),
 		const EUserInterfaceActionType UserInterfaceActionType = EUserInterfaceActionType::Button,
 		FName InTutorialHighlightName = NAME_None,
-		TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>()
-	);
+		TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>(),
+		TAttribute<FText> InToolbarLabelOverride = TAttribute<FText>() );
 
 	/**
 	 * Adds a combo button
@@ -607,6 +610,7 @@ public:
 	 * @param	bInSimpleComboBox			If true, the icon and label won't be displayed
 	 * @param	InTutorialHighlightName		Name to identify this widget and highlight during tutorials
 	 * @param	InVisibilityOverride		Optional visibility override which, if set and returning anything but Visible, overrides the visibility of the combo button.
+	 * @param	InToolbarLabelOverride		Optional label override for wh.  If omitted, then the action's label will be used instead.
 	 */
 	SLATE_API void AddComboButton(
 		const FUIAction& InAction,
@@ -616,8 +620,8 @@ public:
 		const TAttribute<FSlateIcon>& InIconOverride = TAttribute<FSlateIcon>(),
 		bool bInSimpleComboBox = false,
 		FName InTutorialHighlightName = NAME_None,
-		TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>()
-	);
+		TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>(),
+		TAttribute<FText> InToolbarLabelOverride = TAttribute<FText>() );
 
 	/**
 	 * Adds a tool bar stack button

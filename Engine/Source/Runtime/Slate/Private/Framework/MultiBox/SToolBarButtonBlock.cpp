@@ -13,25 +13,36 @@
 #include "Widgets/Images/SLayeredImage.h"
 #include "Widgets/Layout/SSeparator.h"
 
-FToolBarButtonBlock::FToolBarButtonBlock( FButtonArgs ButtonArgs )
-: FMultiBlock( ButtonArgs.Command, ButtonArgs.CommandList, NAME_None, EMultiBlockType::ToolBarButton )
-	, LabelOverride( ButtonArgs.LabelOverride )
-	, ToolTipOverride( ButtonArgs.ToolTipOverride )
-	, IconOverride( ButtonArgs.IconOverride )
+FToolBarButtonBlock::FToolBarButtonBlock(FButtonArgs ButtonArgs)
+	: FMultiBlock(ButtonArgs.Command, ButtonArgs.CommandList, NAME_None, EMultiBlockType::ToolBarButton)
+	, LabelOverride(ButtonArgs.LabelOverride)
+	, ToolbarLabelOverride(ButtonArgs.ToolbarLabelOverride)
+	, ToolTipOverride(ButtonArgs.ToolTipOverride)
+	, IconOverride(ButtonArgs.IconOverride)
 	, LabelVisibility()
-	, UserInterfaceActionType(ButtonArgs.UserInterfaceActionType != EUserInterfaceActionType::None ?
-		ButtonArgs.UserInterfaceActionType : EUserInterfaceActionType::Button)
+	, UserInterfaceActionType(
+		  ButtonArgs.UserInterfaceActionType != EUserInterfaceActionType::None ? ButtonArgs.UserInterfaceActionType
+																			   : EUserInterfaceActionType::Button
+	  )
 	, bIsFocusable(false)
 	, bForceSmallIcons(false)
-	, GetDecoratedButtonDelegate( ButtonArgs.GetDecoratedButtonDelegate )
+	, GetDecoratedButtonDelegate(ButtonArgs.GetDecoratedButtonDelegate)
 {
 }
 
-FToolBarButtonBlock::FToolBarButtonBlock( const TSharedPtr< const FUICommandInfo > InCommand, TSharedPtr< const FUICommandList > InCommandList, const TAttribute<FText>& InLabelOverride, const TAttribute<FText>& InToolTipOverride, const TAttribute<FSlateIcon>& InIconOverride )
-	: FMultiBlock( InCommand, InCommandList, NAME_None, EMultiBlockType::ToolBarButton )
-	, LabelOverride( InLabelOverride )
-	, ToolTipOverride( InToolTipOverride )
-	, IconOverride( InIconOverride )
+FToolBarButtonBlock::FToolBarButtonBlock(
+	const TSharedPtr<const FUICommandInfo> InCommand,
+	TSharedPtr<const FUICommandList> InCommandList,
+	const TAttribute<FText>& InLabelOverride,
+	const TAttribute<FText>& InToolTipOverride,
+	const TAttribute<FSlateIcon>& InIconOverride,
+	TAttribute<FText> InToolbarLabelOverride
+)
+	: FMultiBlock(InCommand, InCommandList, NAME_None, EMultiBlockType::ToolBarButton)
+	, LabelOverride(InLabelOverride)
+	, ToolbarLabelOverride(InToolbarLabelOverride)
+	, ToolTipOverride(InToolTipOverride)
+	, IconOverride(InIconOverride)
 	, LabelVisibility()
 	, UserInterfaceActionType(EUserInterfaceActionType::Button)
 	, bIsFocusable(false)
@@ -39,11 +50,19 @@ FToolBarButtonBlock::FToolBarButtonBlock( const TSharedPtr< const FUICommandInfo
 {
 }
 
-FToolBarButtonBlock::FToolBarButtonBlock( const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const TAttribute<FSlateIcon>& InIcon, const FUIAction& InUIAction, const EUserInterfaceActionType InUserInterfaceActionType )
-	: FMultiBlock( InUIAction )
-	, LabelOverride( InLabel )
-	, ToolTipOverride( InToolTip )
-	, IconOverride( InIcon )
+FToolBarButtonBlock::FToolBarButtonBlock(
+	const TAttribute<FText>& InLabel,
+	const TAttribute<FText>& InToolTip,
+	const TAttribute<FSlateIcon>& InIcon,
+	const FUIAction& InUIAction,
+	const EUserInterfaceActionType InUserInterfaceActionType,
+	TAttribute<FText> InToolbarLabelOverride
+)
+	: FMultiBlock(InUIAction)
+	, LabelOverride(InLabel)
+	, ToolbarLabelOverride(InToolbarLabelOverride)
+	, ToolTipOverride(InToolTip)
+	, IconOverride(InIcon)
 	, LabelVisibility()
 	, UserInterfaceActionType(InUserInterfaceActionType)
 	, bIsFocusable(false)
@@ -191,7 +210,11 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 
 	// Allow the block to override the action's label and tool tip string, if desired
 	TAttribute<FText> ActualLabel;
-	if (ToolBarButtonBlock->LabelOverride.IsSet())
+	if (ToolBarButtonBlock->ToolbarLabelOverride.IsSet())
+	{
+		ActualLabel = ToolBarButtonBlock->ToolbarLabelOverride;
+	}
+	else if (ToolBarButtonBlock->LabelOverride.IsSet())
 	{
 		ActualLabel = ToolBarButtonBlock->LabelOverride;
 	}

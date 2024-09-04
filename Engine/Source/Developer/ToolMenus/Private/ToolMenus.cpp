@@ -1613,23 +1613,18 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 
 	const FUIAction UIAction = UToolMenus::ConvertUIAction(Block, MenuData->Context);
 
-	TAttribute<FText> Label;
+	TAttribute<FText> ToolbarLabelOverride;
+	if (Block.ToolbarLabelOverride.IsSet())
 	{
-		const bool bHasIcon = Block.Icon.IsSet() || (Block.Command.IsValid() && Block.Command->GetIcon().IsSet());
-
-		if (Block.ToolbarLabelOverride.IsSet())
-		{
-			Label = Block.ToolbarLabelOverride;
-		}
-		else if (!bIsRaisingToTopLevel || (bIsRaisingToTopLevel && !bHasIcon))
-		{
-			Label = Block.Label;
-		}
-		else
-		{
-			// This explicitly sets it empty, which will override the label on commands, for example.
-			Label = FText();
-		}
+		ToolbarLabelOverride = Block.ToolbarLabelOverride;
+	}
+	else if (const bool bHasIcon = Block.Icon.IsSet() || (Block.Command.IsValid() && Block.Command->GetIcon().IsSet());
+			 bHasIcon && bIsRaisingToTopLevel)
+	{
+		// Set the toolbar label to the empty string if we're raising an entry that has an icon. This makes
+		// raising/pinning of icons less annoying because the intended design is for them to not have a label. We can
+		// still use the ToolbarLabelOverride to bypass this.
+		ToolbarLabelOverride = FText();
 	}
 
 	if (Block.Type == EMultiBlockType::ToolBarButton || (Block.Type == EMultiBlockType::MenuEntry && !Block.IsSubMenu()))
@@ -1651,7 +1646,15 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 			}
 
 			ToolBarBuilder.AddToolBarButton(
-				Block.Command, Block.Name, Label, Block.ToolTip, Block.Icon, Block.TutorialHighlightName, FNewMenuDelegate(), VisibilityOverride
+				Block.Command,
+				Block.Name,
+				Block.Label,
+				Block.ToolTip,
+				Block.Icon,
+				Block.TutorialHighlightName,
+				FNewMenuDelegate(),
+				VisibilityOverride,
+				ToolbarLabelOverride
 			);
 
 			if (bPopCommandList)
@@ -1671,13 +1674,22 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 				Icon,
 				Block.UserInterfaceActionType,
 				Block.TutorialHighlightName,
-				VisibilityOverride
+				VisibilityOverride,
+				ToolbarLabelOverride
 			);
 		}
 		else
 		{
 			ToolBarBuilder.AddToolBarButton(
-				UIAction, Block.Name, Label, Block.ToolTip, Block.Icon, Block.UserInterfaceActionType, Block.TutorialHighlightName, VisibilityOverride
+				UIAction,
+				Block.Name,
+				Block.Label,
+				Block.ToolTip,
+				Block.Icon,
+				Block.UserInterfaceActionType,
+				Block.TutorialHighlightName,
+				VisibilityOverride,
+				ToolbarLabelOverride
 			);
 		}
 
@@ -1688,12 +1700,13 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 			ToolBarBuilder.AddComboButton(
 				Block.ToolBarData.OptionsDropdownData->Action,
 				OnGetContent,
-				Label,
+				Block.Label,
 				Block.ToolBarData.OptionsDropdownData->ToolTip,
 				Block.Icon,
 				true,
 				Block.TutorialHighlightName,
-				VisibilityOverride
+				VisibilityOverride,
+				ToolbarLabelOverride
 			);
 		}
 	}
@@ -1707,12 +1720,13 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 			ToolBarBuilder.AddComboButton(
 				UIAction,
 				OnGetContent,
-				Label,
+				Block.Label,
 				Block.ToolTip,
 				Block.Icon,
 				Block.ToolBarData.bSimpleComboBox,
 				Block.TutorialHighlightName,
-				VisibilityOverride
+				VisibilityOverride,
+				ToolbarLabelOverride
 			);
 		}
 		else
@@ -1721,7 +1735,15 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 				this, &UToolMenus::GenerateToolbarComboButtonMenu, TWeakObjectPtr<UToolMenu>(MenuData), Block.Name);
 
 			ToolBarBuilder.AddComboButton(
-				UIAction, Delegate, Label, Block.ToolTip, Block.Icon, Block.ToolBarData.bSimpleComboBox, Block.TutorialHighlightName, VisibilityOverride
+				UIAction,
+				Delegate,
+				Block.Label,
+				Block.ToolTip,
+				Block.Icon,
+				Block.ToolBarData.bSimpleComboBox,
+				Block.TutorialHighlightName,
+				VisibilityOverride,
+				ToolbarLabelOverride
 			);
 
 			// Also add any top-level flagged children to the toolbar.
