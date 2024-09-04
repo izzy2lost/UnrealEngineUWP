@@ -46,7 +46,11 @@ public class MetaHumanSDKEditor : ModuleRules
 				"Slate",
 				"SlateCore",
 				"ToolWidgets",
-				"UnrealEd"
+				"UnrealEd",
+				"HairStrandsCore",
+				"RigLogicModule",
+				"ControlRig",
+				"ControlRigDeveloper",
 			}
 			);
 		
