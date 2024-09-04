@@ -73,11 +73,11 @@ void FGeometryScriptSphereCovering::Reset()
 }
 
 
-void FGeometryScriptGeneralPolygonList::Reset()
+void FGeometryScriptGeneralPolygonList::Reset(int32 Num)
 {
 	if (!Polygons.IsValid())
 	{
 		Polygons = MakeShared<TArray<UE::Geometry::FGeneralPolygon2d>>();
 	}
-	Polygons->Reset();
+	Polygons->Reset(Num);
 }
