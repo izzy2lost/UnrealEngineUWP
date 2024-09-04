@@ -281,7 +281,7 @@ void FStateTreeEditorModeToolkit::ExtendSecondaryModeToolbar(UToolMenu* ToolBar)
 						 FOnGetContent::CreateSP(this, &FStateTreeEditorModeToolkit::GenerateTaskBPBaseClassesMenu),
 						 LOCTEXT("CreateNewTask_Title", "New Task"),
 						 LOCTEXT("CreateNewTask_ToolbarTooltip", "Create a new Blueprint State Tree Task"),
-						 TAttribute<FSlateIcon>::CreateSP(this, &FStateTreeEditorModeToolkit::GetNewTaskButtonImage)
+						 GetNewTaskButtonImage()
 					 ));
 						
 					InSection.AddEntry(FToolMenuEntry::InitComboButton(
@@ -290,7 +290,7 @@ void FStateTreeEditorModeToolkit::ExtendSecondaryModeToolbar(UToolMenu* ToolBar)
 						 FOnGetContent::CreateSP(this, &FStateTreeEditorModeToolkit::GenerateConditionBPBaseClassesMenu),
 						 LOCTEXT("CreateNewCondition_Title", "New Condition"),
 						 LOCTEXT("CreateNewCondition_ToolbarTooltip", "Create a new Blueprint State Tree Condition"),
-						 TAttribute<FSlateIcon>::CreateSP(this, &FStateTreeEditorModeToolkit::GetNewConditionButtonImage)
+						 GetNewConditionButtonImage()
 					 ));
 						
 					 InSection.AddEntry(FToolMenuEntry::InitComboButton(
@@ -299,7 +299,7 @@ void FStateTreeEditorModeToolkit::ExtendSecondaryModeToolbar(UToolMenu* ToolBar)
 						 FOnGetContent::CreateSP(this, &FStateTreeEditorModeToolkit::GenerateConsiderationBPBaseClassesMenu),
 						 LOCTEXT("CreateNewConsideration_Title", "New Consideration"),
 						 LOCTEXT("CreateNewConsideration_ToolbarTooltip", "Create a new Blueprint State Tree Utility Consideration"),
-						 TAttribute<FSlateIcon>::CreateSP(this, &FStateTreeEditorModeToolkit::GetNewConsiderationButtonImage)
+						 GetNewConsiderationButtonImage()
 					 ));
 				}
 			}
@@ -343,8 +343,7 @@ using FStateTreeConsiderationBPClassFilter = FEditorNodeClassFilter<UStateTreeCo
 
 FSlateIcon FStateTreeEditorModeToolkit::GetNewTaskButtonImage() const
 {
-	//placeholder
-	return FSlateIcon(FAppStyle::GetAppStyleSetName(), NAME_None, NAME_None, NAME_None);
+	return FSlateIcon("StateTreeEditorStyle", "StateTreeEditor.Tasks.Large");
 }
 
 TSharedRef<SWidget> FStateTreeEditorModeToolkit::GenerateTaskBPBaseClassesMenu() const
@@ -360,8 +359,7 @@ TSharedRef<SWidget> FStateTreeEditorModeToolkit::GenerateTaskBPBaseClassesMenu()
 
 FSlateIcon FStateTreeEditorModeToolkit::GetNewConditionButtonImage() const
 {
-	//placeholder
-    return FSlateIcon(FAppStyle::GetAppStyleSetName(), NAME_None, NAME_None, NAME_None);
+	return FSlateIcon("StateTreeEditorStyle", "StateTreeEditor.Conditions.Large");
 }
 
 TSharedRef<SWidget> FStateTreeEditorModeToolkit::GenerateConditionBPBaseClassesMenu() const
@@ -377,8 +375,7 @@ TSharedRef<SWidget> FStateTreeEditorModeToolkit::GenerateConditionBPBaseClassesM
 
 FSlateIcon FStateTreeEditorModeToolkit::GetNewConsiderationButtonImage() const
 {
-	//placeholder
-    return FSlateIcon(FAppStyle::GetAppStyleSetName(), NAME_None, NAME_None, NAME_None);
+    return FSlateIcon("StateTreeEditorStyle", "StateTreeEditor.Utility.Large");
 }
 
 TSharedRef<SWidget> FStateTreeEditorModeToolkit::GenerateConsiderationBPBaseClassesMenu() const
