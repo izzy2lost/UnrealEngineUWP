@@ -47,7 +47,7 @@ namespace UE::Sequencer
 	protected:
 
 		/** Handles left click-type inputs and potentially begins drag and drop operation. */
-		FReply HandleClick() { /* no - op for now, no toggle*/ }
+		FReply HandleClick() { return FReply::Handled(); }
 
 	private:
 
