@@ -33,6 +33,12 @@ class ICookPackageSplitter
 public:
 	// Static API functions - these static functions are referenced by REGISTER_COOKPACKAGE_SPLITTER
 	// before creating an instance of the class.
+	/**
+	 * Return whether IsCachedCookedPlatformDataLoaded needs to return true for all UObjects in the
+	 * generator package before ShouldSplit or GetGenerateList can be called. If true this slows down
+	 * our ability to parallelize the cook of the generated packages.
+	 */
+	static bool RequiresCachedCookedPlatformDataBeforeSplit() { return false; }
 	/** Return whether the CookPackageSplitter subclass should handle the given SplitDataClass instance. */
 	static bool ShouldSplit(UObject* SplitData) { return false; }
 	/** Return DebugName for this SplitterClass in cook log messages. */
@@ -319,6 +325,7 @@ public:
 	UNREALED_API virtual ~FRegisteredCookPackageSplitter();
 
 	virtual UClass* GetSplitDataClass() const = 0;
+	virtual bool RequiresCachedCookedPlatformDataBeforeSplit() const = 0;
 	virtual bool ShouldSplitPackage(UObject* Object) const = 0;
 	virtual ICookPackageSplitter* CreateInstance(UObject* Object) const = 0;
 	virtual FString GetSplitterDebugName() const = 0;
@@ -338,16 +345,36 @@ private:
  *
  * Example usage:
  *
+ * // In header or cpp
  * class FMyCookPackageSplitter : public ICookPackageSplitter { ... }
+ * 
+ * // In cpp
  * REGISTER_COOKPACKAGE_SPLITTER(FMyCookPackageSplitter, UMySplitDataClass);
  */
 #define REGISTER_COOKPACKAGE_SPLITTER(SplitterClass, SplitDataClass) \
-class PREPROCESSOR_JOIN(PREPROCESSOR_JOIN(SplitterClass, SplitDataClass), _Register) : public UE::Cook::Private::FRegisteredCookPackageSplitter \
+class PREPROCESSOR_JOIN(PREPROCESSOR_JOIN(SplitterClass, SplitDataClass), _Register) \
+	: public UE::Cook::Private::FRegisteredCookPackageSplitter \
 { \
-	virtual UClass* GetSplitDataClass() const override { return SplitDataClass::StaticClass(); } \
-	virtual bool ShouldSplitPackage(UObject* Object) const override { return SplitterClass::ShouldSplit(Object); } \
-	virtual ICookPackageSplitter* CreateInstance(UObject* SplitData) const override { return new SplitterClass(); } \
-	virtual FString GetSplitterDebugName() const override { return SplitterClass::GetSplitterDebugName(); } \
+	virtual UClass* GetSplitDataClass() const override \
+	{ \
+		return SplitDataClass::StaticClass(); \
+	} \
+	virtual bool RequiresCachedCookedPlatformDataBeforeSplit() const override \
+	{ \
+		return SplitterClass::RequiresCachedCookedPlatformDataBeforeSplit(); \
+	} \
+	virtual bool ShouldSplitPackage(UObject* Object) const override \
+	{ \
+		return SplitterClass::ShouldSplit(Object); \
+	} \
+	virtual ICookPackageSplitter* CreateInstance(UObject* SplitData) const override \
+	{ \
+		return new SplitterClass(); \
+	} \
+	virtual FString GetSplitterDebugName() const override \
+	{ \
+		return SplitterClass::GetSplitterDebugName(); \
+	} \
 }; \
 namespace PREPROCESSOR_JOIN(SplitterClass, SplitDataClass) \
 { \

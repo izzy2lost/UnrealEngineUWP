@@ -244,6 +244,37 @@ namespace UE::Cook
 	};
 	ENUM_CLASS_FLAGS(EPackageStateProperty);
 
+	/** SubState when in a Saving state. */
+	enum class ESaveSubState : uint8
+	{
+		StartSave = 0,
+		FirstCookedPlatformData_CreateObjectCache,
+		FirstCookedPlatformData_CallingBegin,
+		FirstCookedPlatformData_CheckForGenerator,
+		FirstCookedPlatformData_CheckForGeneratorAfterWaitingForIsLoaded,
+		Generation_TryGenerateList,
+		Generation_QueueGeneratedPackages,
+
+		CheckForIsGenerated,
+
+		Generation_PreMoveCookedPlatformData_WaitingForIsLoaded,
+		Generation_CallObjectsToMove,
+		Generation_BeginCacheObjectsToMove,
+		Generation_FinishCacheObjectsToMove,
+		Generation_CallPopulate,
+		Generation_CallGetPostMoveObjects,
+
+		LastCookedPlatformData_CallingBegin,
+		LastCookedPlatformData_WaitingForIsLoaded,
+
+		ReadyForSave,
+		Last = ReadyForSave,
+		Count = Last + 1,
+		/** Number of bits required to store a valid ESaveSubState */
+		BitCount = FPlatformMath::ConstExprCeilLogTwo(Count),
+	};
+	const TCHAR* LexToString(UE::Cook::ESaveSubState State);
+
 	/** Used as a helper to timeslice cooker functions. */
 	struct FCookerTimer
 	{

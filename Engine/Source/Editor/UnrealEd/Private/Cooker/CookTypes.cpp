@@ -93,6 +93,32 @@ const TCHAR* LexToString(UE::Cook::EPackageState Reason)
 	}
 }
 
+const TCHAR* LexToString(UE::Cook::ESaveSubState State)
+{
+	static_assert(static_cast<int>(ESaveSubState::Count) == 17);
+	switch (State)
+	{
+	case ESaveSubState::StartSave: return TEXT("StartSave");
+	case ESaveSubState::FirstCookedPlatformData_CreateObjectCache: return TEXT("FirstCookedPlatformData_CreateObjectCache");
+	case ESaveSubState::FirstCookedPlatformData_CallingBegin: return TEXT("FirstCookedPlatformData_CallingBegin");
+	case ESaveSubState::FirstCookedPlatformData_CheckForGenerator: return TEXT("FirstCookedPlatformData_CheckForGenerator");
+	case ESaveSubState::FirstCookedPlatformData_CheckForGeneratorAfterWaitingForIsLoaded: return TEXT("FirstCookedPlatformData_CheckForGeneratorAfterWaitingForIsLoaded");
+	case ESaveSubState::Generation_TryGenerateList: return TEXT("Generation_TryGenerateList");
+	case ESaveSubState::Generation_QueueGeneratedPackages: return TEXT("Generation_QueueGeneratedPackages");
+	case ESaveSubState::CheckForIsGenerated: return TEXT("CheckForIsGenerated");
+	case ESaveSubState::Generation_PreMoveCookedPlatformData_WaitingForIsLoaded: return TEXT("Generation_PreMoveCookedPlatformData_WaitingForIsLoaded");
+	case ESaveSubState::Generation_CallObjectsToMove: return TEXT("Generation_CallObjectsToMove");
+	case ESaveSubState::Generation_BeginCacheObjectsToMove: return TEXT("Generation_BeginCacheObjectsToMove");
+	case ESaveSubState::Generation_FinishCacheObjectsToMove: return TEXT("Generation_FinishCacheObjectsToMove");
+	case ESaveSubState::Generation_CallPopulate: return TEXT("Generation_CallPopulate");
+	case ESaveSubState::Generation_CallGetPostMoveObjects: return TEXT("Generation_CallGetPostMoveObjects");
+	case ESaveSubState::LastCookedPlatformData_CallingBegin: return TEXT("LastCookedPlatformData_CallingBegin");
+	case ESaveSubState::LastCookedPlatformData_WaitingForIsLoaded: return TEXT("LastCookedPlatformData_WaitingForIsLoaded");
+	case ESaveSubState::ReadyForSave: return TEXT("ReadyForSave");
+	default: return TEXT("Invalid");
+	}
+}
+
 EStateChangeReason ConvertToStateChangeReason(ESuppressCookReason Reason)
 {
 	switch (Reason)

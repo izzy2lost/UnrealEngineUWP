@@ -96,13 +96,14 @@ FPackageData::FPackageData(FPackageDatas& PackageDatas, const FName& InPackageNa
 	, Instigator(EInstigator::NotYetRequested), bIsUrgent(0), bIsCookLast(0)
 	, bIsVisited(0), bIsPreloadAttempted(0)
 	, bIsPreloaded(0), bHasSaveCache(0), bPrepareSaveFailed(0), bPrepareSaveRequiresGC(0)
-	, bCookedPlatformDataStarted(0), bCookedPlatformDataCalled(0), bCookedPlatformDataComplete(0)
 	, MonitorCookResult((uint8)ECookResult::NotAttempted)
-	, bInitializedGeneratorSave(0), bCompletedGeneration(0), bGenerated(0), bKeepReferencedDuringGC(0)
+	, bCompletedGeneration(0), bGenerated(0), bKeepReferencedDuringGC(0)
 	, bWasCookedThisSession(0)
 	, DoesGeneratedRequireGeneratorValue(static_cast<uint32>(ICookPackageSplitter::EGeneratedRequiresGenerator::None))
 {
 	SetState(EPackageState::Idle);
+	SetSaveSubState(ESaveSubState::StartSave);
+
 	SendToState(EPackageState::Idle, ESendFlags::QueueAdd, EStateChangeReason::Discovered);
 }
 
@@ -1444,8 +1445,7 @@ EPollStatus FPackageData::RefreshObjectCache(bool& bOutFoundNewObjects)
 			CachedObjectsInOuter.Emplace(MoveTemp(ObjectWeakPointer));
 		}
 		// GetCookedPlatformDataNextIndex is already where it should be, pointing at the first of the objects we have
-		// added Change our state back so we know we need to CallBeginCacheOnObjects again 
-		SetCookedPlatformDataCalled(false);
+		// added. Caller is respnsible for changing state back to calling BeginCacheForCookedPlatformData.
 
 		if (++GetNumRetriesBeginCacheOnObjects() > FPackageData::GetMaxNumRetriesBeginCacheOnObjects())
 		{
@@ -1503,21 +1503,31 @@ int32 FPackageData::GetMaxNumRetriesBeginCacheOnObjects()
 	return 10;
 }
 
+void FPackageData::SetSaveSubState(ESaveSubState Value)
+{
+	if (Value != ESaveSubState::StartSave && !IsInStateProperty(EPackageStateProperty::Saving))
+	{
+		UE_LOG(LogCook, Error, TEXT("SetSaveSubState(%s) called from invalid PackageState %s. The call will be ignored"),
+			LexToString(Value), LexToString(GetState()));
+		FDebug::DumpStackTraceToLog(ELogVerbosity::Warning);
+		return;
+	}
+	SaveSubState = static_cast<uint32>(Value);
+}
+
+void FPackageData::SetSaveSubStateComplete(ESaveSubState Value)
+{
+	if (Value < ESaveSubState::Last)
+	{
+		Value = static_cast<ESaveSubState>(static_cast<uint32>(Value) + 1);
+	}
+	SetSaveSubState(Value);
+}
+
 void FPackageData::CheckCookedPlatformDataEmpty() const
 {
 	check(GetCookedPlatformDataNextIndex() <= 0);
-	check(!GetCookedPlatformDataStarted());
-	check(!GetCookedPlatformDataCalled());
-	check(!GetCookedPlatformDataComplete());
-	if (GetGenerationHelper())
-	{
-		check(GetGenerationHelper()->GetOwnerInfo().GetSaveState() <= FCookGenerationInfo::ESaveState::StartPopulate);
-	}
-	if (ParentGenerationHelper)
-	{
-		FCookGenerationInfo* Info = ParentGenerationHelper->FindInfo(*this);
-		check(!Info || Info->GetSaveState() <= FCookGenerationInfo::ESaveState::StartPopulate);
-	}
+	check(GetSaveSubState() <= ESaveSubState::StartSave);
 }
 
 void FPackageData::ClearCookedPlatformData()
@@ -1525,9 +1535,7 @@ void FPackageData::ClearCookedPlatformData()
 	CookedPlatformDataNextIndex = -1;
 	NumRetriesBeginCacheOnObject = 0;
 	// Note that GetNumPendingCookedPlatformData is not cleared; it persists across Saves and CookSessions
-	SetCookedPlatformDataStarted(false);
-	SetCookedPlatformDataCalled(false);
-	SetCookedPlatformDataComplete(false);
+	// Caller is responsible for calling SetSaveSubState(ESaveSubState::StartSave);
 }
 
 void FPackageData::OnRemoveSessionPlatform(const ITargetPlatform* Platform)
@@ -1583,7 +1591,10 @@ void FPackageData::UpdateSaveAfterGarbageCollect(bool& bOutDemote)
 
 	// Reexecute PrepareSave if we already completed it; we need to refresh our CachedObjectsInOuter list
 	// and call BeginCacheOnCookedPlatformData on any new objects.
-	SetCookedPlatformDataComplete(false);
+	if (GetSaveSubState() >= ESaveSubState::LastCookedPlatformData_WaitingForIsLoaded)
+	{
+		SetSaveSubState(ESaveSubState::LastCookedPlatformData_WaitingForIsLoaded);
+	}
 
 	if (GetPackage() == nullptr || !GetPackage()->IsFullyLoaded())
 	{
@@ -1685,7 +1696,15 @@ TRefCountPtr<FGenerationHelper> FPackageData::TryCreateValidParentGenerationHelp
 		return nullptr;
 	}
 
-	ParentGenerationHelper = OwnerPackageData->TryCreateValidGenerationHelper();
+	// MPCOOKTODO: We need to support calling BeginCacheForCookedPlatformData/IsCachedCookedPlatformData
+	// on all objects in the generator package if they have not already been called, if 
+	// RequiresCachedCookedPlatformDataBeforeSplit. For now we workaround our inability to do this
+	// by forcing EGeneratedRequiresGenerator::Save.
+	constexpr bool bCookedPlatformDataIsLoaded = true;
+	bool bNeedWaitForIsLoaded;
+	ParentGenerationHelper = OwnerPackageData->TryCreateValidGenerationHelper(bCookedPlatformDataIsLoaded,
+		bNeedWaitForIsLoaded);
+	check(ParentGenerationHelper.IsValid() || !bNeedWaitForIsLoaded);
 
 	return ParentGenerationHelper;
 }
@@ -1701,8 +1720,11 @@ TRefCountPtr<FGenerationHelper> FPackageData::CreateUninitializedGenerationHelpe
 	return Result;
 }
 
-TRefCountPtr<UE::Cook::FGenerationHelper> FPackageData::TryCreateValidGenerationHelper()
+TRefCountPtr<UE::Cook::FGenerationHelper> FPackageData::TryCreateValidGenerationHelper(
+	bool bCookedPlatformDataIsLoaded, bool& bOutNeedWaitForIsLoaded)
 {
+	bOutNeedWaitForIsLoaded = false;
+
 	if (GenerationHelper && GenerationHelper->IsInitialized())
 	{
 		if (!GenerationHelper->IsValid())
@@ -1738,7 +1760,7 @@ TRefCountPtr<UE::Cook::FGenerationHelper> FPackageData::TryCreateValidGeneration
 		}
 		FGenerationHelper::SearchForRegisteredSplitDataObject(COTFS, GetPackageName(),
 			LocalPackage, LocalCachedObjectsInOuter, SplitDataObject, RegisteredSplitterType,
-			CookPackageSplitterInstance);
+			CookPackageSplitterInstance, bCookedPlatformDataIsLoaded, bOutNeedWaitForIsLoaded);
 	}
 	TRefCountPtr<UE::Cook::FGenerationHelper> Result = GenerationHelper;
 	if (!SplitDataObject || !CookPackageSplitterInstance)

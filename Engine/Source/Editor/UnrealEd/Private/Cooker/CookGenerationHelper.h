@@ -61,32 +61,7 @@ public:
 struct FCookGenerationInfo
 {
 public:
-	/** State variable for reentrant SplitPackage calls */
-	enum class ESaveState : uint8
-	{
-		StartSave = 0,
-
-		QueueGeneratedPackages = StartSave,
-
-		StartPopulate,
-		FinishCachePreMove = StartPopulate,
-		CallObjectsToMove,
-		BeginCacheObjectsToMove,
-		FinishCacheObjectsToMove,
-		CallPopulate,
-		CallGetPostMoveObjects,
-		BeginCachePostMove,
-		FinishCachePostMove,
-
-		ReadyForSave,
-		Last = ReadyForSave,
-	};
-
 	FCookGenerationInfo(FPackageData& InPackageData, bool bInGenerator);
-
-	ESaveState GetSaveState() const;
-	void SetSaveState(ESaveState InValue);
-	void SetSaveStateComplete(ESaveState CompletedState);
 
 	bool IsCreateAsMap() const;
 	void SetIsCreateAsMap(bool bValue);
@@ -114,12 +89,12 @@ public:
 	/**
 	 * Fetch all the objects currently in the package and add them to the list of objects that need
 	 * BeginCacheForCookedPlatformData.
-	 * Reports whether new objects were found. If DemotionState is not ESaveState::Last,
-	 * will SetState back to DemotionState
+	 * Reports whether new objects were found. If DemotionState is not ESaveSubState::Last,
+	 * will SetSaveSubState back to DemotionState
 	 * if new objects were found, and will error exit if this demotion has happened too many times.
 	 */
 	EPollStatus RefreshPackageObjects(FGenerationHelper& GenerationHelper, UPackage* Package,
-		bool& bOutFoundNewObjects, ESaveState DemotionState);
+		bool& bOutFoundNewObjects, ESaveSubState DemotionState);
 
 	void AddKeepReferencedPackages(FGenerationHelper& GenerationHelper, TArray<UPackage*>& InKeepReferencedPackages);
 
@@ -159,7 +134,6 @@ public:
 	TMap<UObject*, FCachedObjectInOuterGeneratorInfo> CachedObjectsInOuterInfo;
 	FWorkerId SavedOnWorker = FWorkerId::Invalid();
 private:
-	ESaveState GeneratorSaveState = ESaveState::StartSave;
 	bool bCreateAsMap : 1;
 	bool bHasCreatedPackage : 1;
 	bool bHasSaved : 1;
@@ -437,7 +411,8 @@ public:
 	static void SearchForRegisteredSplitDataObject(UCookOnTheFlyServer& COTFS, FName PackageName, UPackage* Package,
 		TOptional<TConstArrayView<FCachedObjectInOuter>> CachedObjectsInOuter, UObject*& OutSplitDataObject,
 		UE::Cook::Private::FRegisteredCookPackageSplitter*& OutRegisteredSplitterType,
-		TUniquePtr<ICookPackageSplitter>& OutSplitterInstance);
+		TUniquePtr<ICookPackageSplitter>& OutSplitterInstance, bool bCookedPlatformDataIsLoaded,
+		bool& bOutNeedWaitForIsLoaded);
 	/** Helper function for Initialize and for TryCreateValidGenerationHelper. */
 	static UPackage* FindOrLoadPackage(UCookOnTheFlyServer& COTFS, FPackageData& OwnerPackageData);
 
@@ -510,15 +485,6 @@ private:
 // Inline implementations
 ///////////////////////////////////////////////////////
 
-inline FCookGenerationInfo::ESaveState FCookGenerationInfo::GetSaveState() const
-{
-	return GeneratorSaveState;
-}
-
-inline void FCookGenerationInfo::SetSaveState(ESaveState InValue)
-{
-	GeneratorSaveState = InValue;
-}
 
 inline bool FCookGenerationInfo::IsCreateAsMap() const
 {

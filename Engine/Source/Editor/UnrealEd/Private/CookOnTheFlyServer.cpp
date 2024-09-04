@@ -3347,7 +3347,7 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::QueueGeneratedPackages(UE::Cook::FGen
 
 	UPackage* Owner = PackageData.GetPackage();
 	FName OwnerName = Owner->GetFName();
-	if (Info.GetSaveState() <= FCookGenerationInfo::ESaveState::QueueGeneratedPackages)
+	if (PackageData.GetSaveSubState() <= ESaveSubState::Generation_QueueGeneratedPackages)
 	{
 		GenerationHelper.StartQueueGeneratedPackages(*this);
 		TArray<const ITargetPlatform*, TInlineAllocator<ExpectedMaxNumPlatforms>> ReachablePlatforms;
@@ -3366,8 +3366,6 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::QueueGeneratedPackages(UE::Cook::FGen
 				EDiscoveredPlatformSet::CopyFromInstigator, bUrgent, &GenerationHelper);
 		}
 		GenerationHelper.EndQueueGeneratedPackages(*this);
-
-		Info.SetSaveStateComplete(FCookGenerationInfo::ESaveState::QueueGeneratedPackages);
 	}
 	return EPollStatus::Success;
 }
@@ -3386,7 +3384,7 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveGenerationPackage(UE::Cook
 	}
 	FCookGenerationInfo& Info(*InfoPtr);
 
-	if (Info.GetSaveState() <= FCookGenerationInfo::ESaveState::FinishCachePreMove)
+	if (PackageData.GetSaveSubState() <= ESaveSubState::Generation_PreMoveCookedPlatformData_WaitingForIsLoaded)
 	{
 		// Both Generator packages and Generated packages should wait for all IsCachedCookedPlatformData
 		// to finish before they start BeginCache calls on the objects to move.
@@ -3429,30 +3427,30 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveGenerationPackage(UE::Cook
 				return EPollStatus::Incomplete;
 			}
 		}
-		Info.SetSaveStateComplete(FCookGenerationInfo::ESaveState::FinishCachePreMove);
+		PackageData.SetSaveSubStateComplete(ESaveSubState::Generation_PreMoveCookedPlatformData_WaitingForIsLoaded);
 	}
 
 	// GeneratedPackagesForPresave is used by multiple steps, recreate it when needed each time we come in to this function
 	TArray<ICookPackageSplitter::FGeneratedPackageForPreSave> GeneratedPackagesForPresave;
-	if (Info.GetSaveState() <= FCookGenerationInfo::ESaveState::FinishCacheObjectsToMove)
+	if (PackageData.GetSaveSubState() <= ESaveSubState::Generation_FinishCacheObjectsToMove)
 	{
-		if (Info.GetSaveState() <= FCookGenerationInfo::ESaveState::BeginCacheObjectsToMove)
+		if (PackageData.GetSaveSubState() <= ESaveSubState::Generation_BeginCacheObjectsToMove)
 		{
 			EPollStatus Result = BeginCacheObjectsToMove(GenerationHelper, Info, Timer, GeneratedPackagesForPresave);
 			if (Result != EPollStatus::Success)
 			{
 				return Result;
 			}
-			Info.SetSaveStateComplete(FCookGenerationInfo::ESaveState::BeginCacheObjectsToMove);
+			PackageData.SetSaveSubStateComplete(ESaveSubState::Generation_BeginCacheObjectsToMove);
 		}
-		check(Info.GetSaveState() <= FCookGenerationInfo::ESaveState::FinishCacheObjectsToMove);
+		check(PackageData.GetSaveSubState() <= ESaveSubState::Generation_FinishCacheObjectsToMove);
 		if (PackageData.GetNumPendingCookedPlatformData() > 0)
 		{
 			return EPollStatus::Incomplete;
 		}
 		bool bFoundNewObjects;
 		EPollStatus Result = Info.RefreshPackageObjects(GenerationHelper, PackageData.GetPackage(), bFoundNewObjects,
-			FCookGenerationInfo::ESaveState::BeginCacheObjectsToMove);
+			ESaveSubState::Generation_BeginCacheObjectsToMove);
 		if (Result != EPollStatus::Success)
 		{
 			return Result;
@@ -3463,10 +3461,10 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveGenerationPackage(UE::Cook
 			// Note that RefreshPackageObjects checked for too many recursive calls and ErrorExited if so.
 			return PrepareSaveGenerationPackage(GenerationHelper, PackageData, Timer, bPrecaching);
 		}
-		Info.SetSaveStateComplete(FCookGenerationInfo::ESaveState::FinishCacheObjectsToMove);
+		PackageData.SetSaveSubStateComplete(ESaveSubState::Generation_FinishCacheObjectsToMove);
 	}
 
-	if (Info.GetSaveState() <= FCookGenerationInfo::ESaveState::CallPopulate)
+	if (PackageData.GetSaveSubState() <= ESaveSubState::Generation_CallPopulate)
 	{
 		if (bPrecaching)
 		{
@@ -3489,28 +3487,28 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveGenerationPackage(UE::Cook
 		{
 			return Result;
 		}
-		Info.SetSaveStateComplete(FCookGenerationInfo::ESaveState::CallPopulate);
+		PackageData.SetSaveSubStateComplete(ESaveSubState::Generation_CallPopulate);
 	}
 
-	if (Info.GetSaveState() <= FCookGenerationInfo::ESaveState::FinishCachePostMove)
+	if (PackageData.GetSaveSubState() <= ESaveSubState::LastCookedPlatformData_WaitingForIsLoaded)
 	{
-		if (Info.GetSaveState() <= FCookGenerationInfo::ESaveState::BeginCachePostMove)
+		if (PackageData.GetSaveSubState() <= ESaveSubState::LastCookedPlatformData_CallingBegin)
 		{
 			EPollStatus Result = BeginCachePostMove(GenerationHelper, Info, Timer);
 			if (Result != EPollStatus::Success)
 			{
 				return Result;
 			}
-			Info.SetSaveStateComplete(FCookGenerationInfo::ESaveState::BeginCachePostMove);
+			PackageData.SetSaveSubStateComplete(ESaveSubState::LastCookedPlatformData_CallingBegin);
 		}
-		check(Info.GetSaveState() <= FCookGenerationInfo::ESaveState::FinishCachePostMove);
+		check(PackageData.GetSaveSubState() <= ESaveSubState::LastCookedPlatformData_WaitingForIsLoaded);
 		if (PackageData.GetNumPendingCookedPlatformData() > 0)
 		{
 			return EPollStatus::Incomplete;
 		}
 		bool bFoundNewObjects;
 		EPollStatus Result = Info.RefreshPackageObjects(GenerationHelper, PackageData.GetPackage(), bFoundNewObjects,
-			FCookGenerationInfo::ESaveState::BeginCachePostMove);
+			ESaveSubState::LastCookedPlatformData_CallingBegin);
 		if (Result != EPollStatus::Success)
 		{
 			return Result;
@@ -3522,9 +3520,9 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveGenerationPackage(UE::Cook
 			return PrepareSaveGenerationPackage(GenerationHelper, PackageData, Timer, bPrecaching);
 		}
 
-		Info.SetSaveStateComplete(FCookGenerationInfo::ESaveState::FinishCachePostMove);
+		PackageData.SetSaveSubStateComplete(ESaveSubState::LastCookedPlatformData_WaitingForIsLoaded);
 	}
-	check(Info.GetSaveState() == FCookGenerationInfo::ESaveState::ReadyForSave);
+	check(PackageData.GetSaveSubState() == ESaveSubState::ReadyForSave);
 
 	return EPollStatus::Success;
 }
@@ -3545,7 +3543,7 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::BeginCacheObjectsToMove(UE::Cook::FGe
 		return EPollStatus::Error;
 	}
 
-	if (Info.GetSaveState() <= FCookGenerationInfo::ESaveState::CallObjectsToMove)
+	if (PackageData.GetSaveSubState() <= ESaveSubState::Generation_CallObjectsToMove)
 	{
 		bool bPopulateSucceeded = false;
 		if (Info.IsGenerator() || GenerationHelper.DoesGeneratedRequireGenerator()
@@ -3578,7 +3576,7 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::BeginCacheObjectsToMove(UE::Cook::FGe
 		}
 
 		Info.TakeOverCachedObjectsAndAddMoved(GenerationHelper, PackageData.GetCachedObjectsInOuter(), ObjectsToMove);
-		Info.SetSaveStateComplete(FCookGenerationInfo::ESaveState::CallObjectsToMove);
+		PackageData.SetSaveSubStateComplete(ESaveSubState::Generation_CallObjectsToMove);
 	}
 
 	EPollStatus Result = CallBeginCacheOnObjects(PackageData, Package, PackageData.GetCachedObjectsInOuter(),
@@ -3678,16 +3676,16 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::BeginCachePostMove(UE::Cook::FGenerat
 		return EPollStatus::Error;
 	}
 
-	if (Info.GetSaveState() <= FCookGenerationInfo::ESaveState::CallGetPostMoveObjects)
+	if (PackageData.GetSaveSubState() <= ESaveSubState::Generation_CallGetPostMoveObjects)
 	{
 		bool bFoundNewObjects;
 		EPollStatus Result = Info.RefreshPackageObjects(GenerationHelper, Package, bFoundNewObjects,
-			FCookGenerationInfo::ESaveState::Last);
+			ESaveSubState::Last);
 		if (Result != EPollStatus::Success)
 		{
 			return Result;
 		}
-		Info.SetSaveStateComplete(FCookGenerationInfo::ESaveState::CallGetPostMoveObjects);
+		PackageData.SetSaveSubStateComplete(ESaveSubState::Generation_CallGetPostMoveObjects);
 	}
 
 	EPollStatus Result = CallBeginCacheOnObjects(PackageData, Package, PackageData.GetCachedObjectsInOuter(),
@@ -3795,7 +3793,7 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSave(UE::Cook::FPackageData& P
 	using namespace UE::Cook;
 
 	EPollStatus Result = EPollStatus::Incomplete;
-	if (PackageData.GetCookedPlatformDataComplete())
+	if (PackageData.GetSaveSubState() == ESaveSubState::ReadyForSave)
 	{
 		Result = EPollStatus::Success;
 	}
@@ -3844,9 +3842,9 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveInternal(UE::Cook::FPackag
 	check(PackageData.GetState() == EPackageState::SaveActive);
 	TRefCountPtr<FGenerationHelper> GenerationHelper;
 
-	if (!PackageData.GetCookedPlatformDataCalled())
+	if (PackageData.GetSaveSubState() < ESaveSubState::CheckForIsGenerated)
 	{
-		if (!PackageData.GetCookedPlatformDataStarted())
+		if (PackageData.GetSaveSubState() <= ESaveSubState::StartSave)
 		{
 			if (PackageData.GetNumPendingCookedPlatformData() > 0)
 			{
@@ -3870,43 +3868,77 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveInternal(UE::Cook::FPackag
 					return EPollStatus::Error;
 				}
 			}
-			PackageData.SetCookedPlatformDataStarted(true);
+			PackageData.SetSaveSubStateComplete(ESaveSubState::StartSave);
 		}
 
-		PackageData.CreateObjectCache();
-
-		// Note that we cache cooked data for all requested platforms, rather than only for the requested platforms that have not cooked yet.  This allows
-		// us to avoid the complexity of needing to cancel the Save and keep track of the old list of uncooked platforms whenever the cooked platforms change
-		// while PrepareSave is active.
-		// Currently this does not cause significant cost since saving new platforms with some platforms already saved is a rare operation.
-
-		int32& CookedPlatformDataNextIndex = PackageData.GetCookedPlatformDataNextIndex();
-		if (CookedPlatformDataNextIndex < 0)
+		if (PackageData.GetSaveSubState() <= ESaveSubState::FirstCookedPlatformData_CreateObjectCache)
 		{
-			if (!BuildDefinitions->TryRemovePendingBuilds(PackageData.GetPackageName()))
+			PackageData.CreateObjectCache();
+			PackageData.SetSaveSubStateComplete(ESaveSubState::FirstCookedPlatformData_CreateObjectCache);
+		}
+
+		if (PackageData.GetSaveSubState() <= ESaveSubState::FirstCookedPlatformData_CallingBegin)
+		{
+			// Note that we cache cooked data for all requested platforms, rather than only for the requested platforms that have not cooked yet.  This allows
+			// us to avoid the complexity of needing to cancel the Save and keep track of the old list of uncooked platforms whenever the cooked platforms change
+			// while PrepareSave is active.
+			// Currently this does not cause significant cost since saving new platforms with some platforms already saved is a rare operation.
+
+			int32& CookedPlatformDataNextIndex = PackageData.GetCookedPlatformDataNextIndex();
+			if (CookedPlatformDataNextIndex < 0)
 			{
-				// Builds are in progress; wait for them to complete
+				if (!BuildDefinitions->TryRemovePendingBuilds(PackageData.GetPackageName()))
+				{
+					// Builds are in progress; wait for them to complete
+					return EPollStatus::Incomplete;
+				}
+				CookedPlatformDataNextIndex = 0;
+			}
+
+			TArray<FCachedObjectInOuter>& CachedObjectsInOuter = PackageData.GetCachedObjectsInOuter();
+			EPollStatus Result = CallBeginCacheOnObjects(PackageData, Package, CachedObjectsInOuter,
+				CookedPlatformDataNextIndex, Timer);
+			if (Result != EPollStatus::Success)
+			{
+				return Result;
+			}
+
+			PackageData.SetSaveSubStateComplete(ESaveSubState::FirstCookedPlatformData_CallingBegin);
+		}
+
+		if (PackageData.GetSaveSubState() <= ESaveSubState::FirstCookedPlatformData_CheckForGeneratorAfterWaitingForIsLoaded)
+		{
+			bool bCookedPlatformDataIsLoaded = PackageData.GetNumPendingCookedPlatformData() == 0;
+			bool bWaitingForIsLoaded = PackageData.GetSaveSubState() > ESaveSubState::FirstCookedPlatformData_CheckForGenerator;
+			if (bWaitingForIsLoaded && !bCookedPlatformDataIsLoaded)
+			{
 				return EPollStatus::Incomplete;
 			}
-			CookedPlatformDataNextIndex = 0;
-		}
 
-		TArray<FCachedObjectInOuter>& CachedObjectsInOuter = PackageData.GetCachedObjectsInOuter();
-		EPollStatus Result = CallBeginCacheOnObjects(PackageData, Package, CachedObjectsInOuter,
-			CookedPlatformDataNextIndex, Timer);
-		if (Result != EPollStatus::Success)
-		{
-			return Result;
-		}
-
-		// Check for whether the Package has a Splitter and initialize its list if so
-		if (!PackageData.HasInitializedGeneratorSave())
-		{
+			// Check for whether the Package has a Splitter and initialize its list if so
 			// The GenerationHelper might have already been created by a child generated package;
 			// or it might have been created and not initialized by iterative cook startup.
 			// If not created or initialized, try looking for it
-			GenerationHelper = PackageData.TryCreateValidGenerationHelper();
-			if (GenerationHelper)
+			bool bNeedWaitForIsLoaded = false;
+			GenerationHelper = PackageData.TryCreateValidGenerationHelper(bCookedPlatformDataIsLoaded, bNeedWaitForIsLoaded);
+			if (!GenerationHelper && bNeedWaitForIsLoaded)
+			{
+				// bNeedWaitForIsLoaded can only be set to true if we pass in !bCookedPlatformDataIsLoaded, and that can only happen
+				// if !bWaitingForIsLoaded, due to the early exit above.
+				check(!bWaitingForIsLoaded);
+				PackageData.SetSaveSubState(ESaveSubState::FirstCookedPlatformData_CheckForGeneratorAfterWaitingForIsLoaded);
+				return EPollStatus::Incomplete;
+			}
+			PackageData.SetSaveSubStateComplete(ESaveSubState::FirstCookedPlatformData_CheckForGeneratorAfterWaitingForIsLoaded);
+		}
+		else
+		{
+			GenerationHelper = PackageData.GetGenerationHelperIfValid();
+		}
+
+		if (GenerationHelper)
+		{
+			if (PackageData.GetSaveSubState() <= ESaveSubState::Generation_TryGenerateList)
 			{
 				// Keep it referenced even if we are only precaching, so we do not recreate it
 				GenerationHelper->SetKeepForGeneratorSave();
@@ -3931,80 +3963,109 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveInternal(UE::Cook::FPackag
 					{
 						return EPollStatus::Error;
 					}
-					// The earlier exit from SaveState should have reset the progress back to StartPopulate or earlier
-					check(GenerationHelper->GetOwnerInfo().GetSaveState() <= FCookGenerationInfo::ESaveState::StartPopulate);
 					GenerationHelper->StartOwnerSave();
+					PackageData.SetSaveSubStateComplete(ESaveSubState::Generation_TryGenerateList);
 				}
 			}
-			PackageData.SetInitializedGeneratorSave(true);
+
+			if (PackageData.GetSaveSubState() <= ESaveSubState::Generation_QueueGeneratedPackages)
+			{
+				EPollStatus Result = QueueGeneratedPackages(*GenerationHelper, PackageData);
+				if (Result != EPollStatus::Success)
+				{
+					return Result;
+				}
+				PackageData.SetSaveSubStateComplete(ESaveSubState::Generation_QueueGeneratedPackages);
+			}
 		}
 		else
 		{
-			GenerationHelper = PackageData.GetGenerationHelperIfValid();
+			PackageData.SetSaveSubState(ESaveSubState::CheckForIsGenerated);
 		}
-		if (GenerationHelper)
-		{
-			Result = QueueGeneratedPackages(*GenerationHelper, PackageData);
-			if (Result != EPollStatus::Success)
-			{
-				return Result;
-			}
-		}
-
-		PackageData.SetCookedPlatformDataCalled(true);
 	}
 	else
 	{
 		GenerationHelper = PackageData.GetGenerationHelperIfValid();
 	}
 
-	if (GenerationHelper)
+	if (PackageData.GetSaveSubState() < ESaveSubState::ReadyForSave)
 	{
-		EPollStatus Result = PrepareSaveGenerationPackage(*GenerationHelper, PackageData, Timer, bPrecaching);
-		if (Result != EPollStatus::Success)
+		if (GenerationHelper)
 		{
-			return Result;
+			EPollStatus Result = PrepareSaveGenerationPackage(*GenerationHelper, PackageData, Timer, bPrecaching);
+			if (Result != EPollStatus::Success)
+			{
+				return Result;
+			}
 		}
-	}
-	else if (PackageData.IsGenerated())
-	{
-		TRefCountPtr<FGenerationHelper> ParentGenerationHelper = PackageData.GetParentGenerationHelper();
-		if (!ParentGenerationHelper || !ParentGenerationHelper->IsValid())
+		else if (PackageData.IsGenerated())
 		{
-			UE_LOG(LogCook, Error, TEXT("Generated package %s %s ParentGenerator package %s and cannot be saved."),
-				(!ParentGenerationHelper ? TEXT("is missing its") : TEXT("has an invalid")),
-				*PackageData.GetPackageName().ToString(), *PackageData.GetParentGenerator().ToString());
-			return EPollStatus::Error;
-		}
+			TRefCountPtr<FGenerationHelper> ParentGenerationHelper = PackageData.GetParentGenerationHelper();
+			if (!ParentGenerationHelper || !ParentGenerationHelper->IsValid())
+			{
+				UE_LOG(LogCook, Error, TEXT("Generated package %s %s ParentGenerator package %s and cannot be saved."),
+					(!ParentGenerationHelper ? TEXT("is missing its") : TEXT("has an invalid")),
+					*PackageData.GetPackageName().ToString(), *PackageData.GetParentGenerator().ToString());
+				return EPollStatus::Error;
+			}
 
-		EPollStatus Result = PrepareSaveGenerationPackage(*ParentGenerationHelper, PackageData, Timer, bPrecaching);
-		if (Result != EPollStatus::Success)
-		{
-			return Result;
+			EPollStatus Result = PrepareSaveGenerationPackage(*ParentGenerationHelper, PackageData, Timer, bPrecaching);
+			if (Result != EPollStatus::Success)
+			{
+				return Result;
+			}
 		}
-	}
-	else
-	{
-		if (PackageData.GetNumPendingCookedPlatformData() > 0)
+		else
 		{
-			return EPollStatus::Incomplete;
-		}
-		bool bFoundNewObjects;
-		EPollStatus Result = PackageData.RefreshObjectCache(bFoundNewObjects);
-		if (Result != EPollStatus::Success)
-		{
-			return Result;
-		}
-		if (bFoundNewObjects)
-		{
-			// Call this function recursively to reexecute CallBeginCacheOnObjects.
-			// Note that RefreshObjectCache checked for too many recursive calls and ErrorExited if so.
-			return PrepareSaveInternal(PackageData, Timer, bPrecaching);
+			if (PackageData.GetSaveSubState() <= ESaveSubState::CheckForIsGenerated)
+			{
+				// Skip over the LastCookedPlatformData_CallingBegin state; we only need to enter that
+				// state if RefreshObjectCache finds some new objects
+				PackageData.SetSaveSubState(ESaveSubState::LastCookedPlatformData_WaitingForIsLoaded);
+			}
+
+			if (PackageData.GetSaveSubState() <= ESaveSubState::LastCookedPlatformData_CallingBegin)
+			{
+				int32& CookedPlatformDataNextIndex = PackageData.GetCookedPlatformDataNextIndex();
+				TArray<FCachedObjectInOuter>& CachedObjectsInOuter = PackageData.GetCachedObjectsInOuter();
+				EPollStatus Result = CallBeginCacheOnObjects(PackageData, Package, CachedObjectsInOuter,
+					CookedPlatformDataNextIndex, Timer);
+				if (Result != EPollStatus::Success)
+				{
+					return Result;
+				}
+				PackageData.SetSaveSubStateComplete(ESaveSubState::LastCookedPlatformData_CallingBegin);
+			}
+
+			if (PackageData.GetSaveSubState() <= ESaveSubState::LastCookedPlatformData_WaitingForIsLoaded)
+			{
+				if (PackageData.GetNumPendingCookedPlatformData() > 0)
+				{
+					return EPollStatus::Incomplete;
+				}
+				bool bFoundNewObjects;
+				EPollStatus Result = PackageData.RefreshObjectCache(bFoundNewObjects);
+				if (Result != EPollStatus::Success)
+				{
+					return Result;
+				}
+				if (bFoundNewObjects)
+				{
+					PackageData.SetSaveSubState(ESaveSubState::LastCookedPlatformData_CallingBegin);
+					// Call this function recursively to immediately reexecute CallBeginCacheOnObjects.
+					// Note that RefreshObjectCache checked for too many recursive calls and ErrorExited if so.
+					return PrepareSaveInternal(PackageData, Timer, bPrecaching);
+				}
+				else
+				{
+					PackageData.SetSaveSubStateComplete(ESaveSubState::LastCookedPlatformData_WaitingForIsLoaded);
+				}
+			}
 		}
 	}
 
+	check(PackageData.GetSaveSubState() == ESaveSubState::ReadyForSave);
 	check(PackageData.GetNumPendingCookedPlatformData() == 0);
-	PackageData.SetCookedPlatformDataComplete(true);
 	return EPollStatus::Success;
 }
 
@@ -4101,7 +4162,7 @@ void UCookOnTheFlyServer::ReleaseCookedPlatformData(UE::Cook::FPackageData& Pack
 {
 	using namespace UE::Cook;
 
-	if (!PackageData.GetCookedPlatformDataStarted())
+	if (PackageData.GetSaveSubState() == ESaveSubState::StartSave)
 	{
 		PackageData.CheckCookedPlatformDataEmpty();
 		return;
@@ -4195,10 +4256,6 @@ void UCookOnTheFlyServer::ReleaseCookedPlatformData(UE::Cook::FPackageData& Pack
 	if (GenerationInfo)
 	{
 		GenerationHelper->ResetSaveState(*GenerationInfo, PackageData.GetPackage(), ReleaseSaveReason, NewState);
-		if (GenerationInfo->IsGenerator())
-		{
-			PackageData.SetInitializedGeneratorSave(false);
-		}
 	}
 
 	PackageData.ClearCookedPlatformData();
@@ -4216,6 +4273,8 @@ void UCookOnTheFlyServer::ReleaseCookedPlatformData(UE::Cook::FPackageData& Pack
 			}
 		}
 	}
+
+	PackageData.SetSaveSubState(ESaveSubState::StartSave);
 }
 
 void UCookOnTheFlyServer::TickCancels()
@@ -11961,9 +12020,7 @@ void UCookOnTheFlyServer::GetPackagesToRetract(int32 NumToRetract, TArray<FName>
 		}
 		if (FGenerationHelper* GenerationHelper = PackageData->GetGenerationHelper())
 		{
-			if (GenerationHelper->IsInitialized() &&
-				GenerationHelper->GetOwnerInfo().GetSaveState()
-					>= FCookGenerationInfo::ESaveState::QueueGeneratedPackages)
+			if (PackageData->GetSaveSubState() >= ESaveSubState::Generation_QueueGeneratedPackages)
 			{
 				if (GenerationHelper->DoesGeneratedRequireGenerator()
 					>= ICookPackageSplitter::EGeneratedRequiresGenerator::Save
@@ -12028,7 +12085,7 @@ void UCookOnTheFlyServer::GetPackagesToRetract(int32 NumToRetract, TArray<FName>
 	// Send back all packages that have not started saving before sending back any that have
 	for (FPackageData* PackageData : PackageDatas->GetSaveQueue())
 	{
-		if (!PackageData->GetCookedPlatformDataStarted())
+		if (PackageData->GetSaveSubState() <= ESaveSubState::StartSave)
 		{
 			if (AddPackageIfPossibleAndReportDone(PackageData))
 			{
@@ -12038,7 +12095,7 @@ void UCookOnTheFlyServer::GetPackagesToRetract(int32 NumToRetract, TArray<FName>
 	}
 	for (FPackageData* PackageData : PackageDatas->GetSaveQueue())
 	{
-		if (PackageData->GetCookedPlatformDataStarted())
+		if (PackageData->GetSaveSubState() > ESaveSubState::StartSave)
 		{
 			if (AddPackageIfPossibleAndReportDone(PackageData))
 			{

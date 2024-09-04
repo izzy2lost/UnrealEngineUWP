@@ -63,11 +63,21 @@ void FGenerationHelper::Initialize()
 	UObject* LocalSplitDataObject;
 	UE::Cook::Private::FRegisteredCookPackageSplitter* LocalRegisteredSplitterType = nullptr;
 	TUniquePtr<ICookPackageSplitter> LocalSplitter;
+
+	// When asked to Initialize for cases outside of the generator's Save state, ignore the
+	// RequiresCachedCookedPlatformDataBeforeSplit requirement before calling ShouldSplit.
+	// MPCOOKTODO: This breaks a contract and we should fix it. We have worked around it for now by requiring
+	// that RequiresCachedCookedPlatformDataBeforeSplit forces EGeneratedRequiresGenerator::Save, so that Initialize
+	// is not called outside of the generator's Save state.
+	constexpr bool bCookedPlatformDataIsLoaded = true;
+	bool bNeedWaitForIsLoaded;
+
 	SearchForRegisteredSplitDataObject(COTFS, OwnerPackageName, LocalOwnerPackage,
 		TOptional<TConstArrayView<FCachedObjectInOuter>>(), LocalSplitDataObject, LocalRegisteredSplitterType,
-		LocalSplitter);
+		LocalSplitter, bCookedPlatformDataIsLoaded, bNeedWaitForIsLoaded);
 	if (!LocalSplitDataObject || !LocalSplitter)
 	{
+		check(!bNeedWaitForIsLoaded);
 		InitializeStatus = EInitializeStatus::Invalid;
 		return;
 	}
@@ -99,6 +109,17 @@ void FGenerationHelper::Initialize(const UObject* InSplitDataObject,
 		CookPackageSplitterInstance->RequiresGeneratorPackageDestructBeforeResplit();
 	DoesGeneratedRequireGeneratorValue =
 		CookPackageSplitterInstance->DoesGeneratedRequireGenerator();
+
+	// Workaround for our current inability to handle RequiresCachedCookedPlatformDataBeforeSplit when
+	// calling Initialize or TryCreateValidParentGenerationHelper. We force EGeneratedRequiresGenerator::Save
+	// in the RequiresCachedCookedPlatformDataBeforeSplit case, so that the generator is always initialized before
+	// we call either of those functions. See the comments in TryCreateValidParentGenerationHelper and
+	// FGenerationHelper::Initialize(void)
+	if (RegisteredSplitterType->RequiresCachedCookedPlatformDataBeforeSplit()
+		&& DoesGeneratedRequireGeneratorValue < ICookPackageSplitter::EGeneratedRequiresGenerator::Save)
+	{
+		DoesGeneratedRequireGeneratorValue = ICookPackageSplitter::EGeneratedRequiresGenerator::Save;
+	}
 }
 
 void FGenerationHelper::InitializeAsInvalid()
@@ -394,8 +415,10 @@ void FGenerationHelper::SearchForRegisteredSplitDataObject(UCookOnTheFlyServer& 
 	FName PackageName, UPackage* Package,
 	TOptional<TConstArrayView<FCachedObjectInOuter>> CachedObjectsInOuter,
 	UObject*& OutSplitDataObject, UE::Cook::Private::FRegisteredCookPackageSplitter*& OutRegisteredSplitter,
-	TUniquePtr<ICookPackageSplitter>& OutSplitterInstance)
+	TUniquePtr<ICookPackageSplitter>& OutSplitterInstance, bool bCookedPlatformDataIsLoaded,
+	bool& bOutNeedWaitForIsLoaded)
 {
+	bOutNeedWaitForIsLoaded = false;
 	OutSplitDataObject = nullptr;
 	OutRegisteredSplitter = nullptr;
 	OutSplitterInstance = nullptr;
@@ -405,13 +428,23 @@ void FGenerationHelper::SearchForRegisteredSplitDataObject(UCookOnTheFlyServer& 
 	Private::FRegisteredCookPackageSplitter* SplitterType = nullptr;
 	TArray<Private::FRegisteredCookPackageSplitter*> FoundRegisteredSplitters;
 	auto TryLookForSplitterOfObject =
-		[&COTFS, PackageName, &FoundRegisteredSplitters, &SplitterType, &LocalSplitDataObject](UObject* Obj)
+		[&COTFS, PackageName, &FoundRegisteredSplitters, &SplitterType, &LocalSplitDataObject,
+		bCookedPlatformDataIsLoaded, &bOutNeedWaitForIsLoaded](UObject* Obj)
 		{
 			FoundRegisteredSplitters.Reset();
 			COTFS.RegisteredSplitDataClasses.MultiFind(Obj->GetClass(), FoundRegisteredSplitters);
 
 			for (Private::FRegisteredCookPackageSplitter* SplitterForObject : FoundRegisteredSplitters)
 			{
+				if (!SplitterForObject)
+				{
+					continue;
+				}
+				if (SplitterForObject->RequiresCachedCookedPlatformDataBeforeSplit() && !bCookedPlatformDataIsLoaded)
+				{
+					bOutNeedWaitForIsLoaded = true;
+					return false;
+				}
 				if (SplitterForObject && SplitterForObject->ShouldSplitPackage(Obj))
 				{
 					if (!Obj->HasAnyFlags(RF_Public))
@@ -449,7 +482,7 @@ void FGenerationHelper::SearchForRegisteredSplitDataObject(UCookOnTheFlyServer& 
 			}
 			if (!TryLookForSplitterOfObject(Obj))
 			{
-				return; // error condition, exit the entire search function
+				return; // unable to complete the search, exit the entire search function
 			}
 		}
 	}
@@ -462,7 +495,7 @@ void FGenerationHelper::SearchForRegisteredSplitDataObject(UCookOnTheFlyServer& 
 		{
 			if (!TryLookForSplitterOfObject(Obj))
 			{
-				return; // error condition, exit the entire search function
+				return; // unable to complete the search, exit the entire search function
 			}
 		}
 	}
@@ -1198,7 +1231,7 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 	// We release references to *this in this function so keep a local reference to avoid deletion during the function.
 	TRefCountPtr<FGenerationHelper> LocalRefCount = this;
 
-	if (Info.GetSaveState() > FCookGenerationInfo::ESaveState::CallPopulate)
+	if (Info.PackageData->GetSaveSubState() > ESaveSubState::Generation_CallPopulate)
 	{
 		UObject* SplitObject = GetWeakSplitDataObject();
 		UPackage* LocalOwnerPackage = Info.IsGenerator() ? Package : GetOwnerPackage();
@@ -1255,8 +1288,6 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 			Info.PackageData->SetParentGenerationHelper(nullptr);
 		}
 	}
-	Info.SetSaveState(Info.IsGenerator() ? FCookGenerationInfo::ESaveState::StartSave
-		: FCookGenerationInfo::ESaveState::StartPopulate);
 
 	if (Info.HasTakenOverCachedCookedPlatformData())
 	{
@@ -1303,7 +1334,7 @@ bool FGenerationHelper::ShouldRetractionStallRatherThanDemote(FPackageData& Pack
 	{
 		if (PackageData.IsInStateProperty(EPackageStateProperty::Saving))
 		{
-			if (Info->GetSaveState() > FCookGenerationInfo::ESaveState::StartPopulate)
+			if (PackageData.GetSaveSubState() > ESaveSubState::Generation_PreMoveCookedPlatformData_WaitingForIsLoaded)
 			{
 				return true;
 			}
@@ -1402,7 +1433,7 @@ void FGenerationHelper::PreGarbageCollect(const TRefCountPtr<FGenerationHelper>&
 	{
 		// If we don't have a contract to keep the packagedata referenced during GC, don't report
 		// anything to garbage collection, and demote the package if it has progressed too far
-		if (Info.GetSaveState() > FCookGenerationInfo::ESaveState::CallPopulate)
+		if (Info.PackageData->GetSaveSubState() > ESaveSubState::Generation_CallPopulate)
 		{
 			bOutShouldDemote = true;
 		}
@@ -1449,7 +1480,7 @@ void FGenerationHelper::PreGarbageCollect(const TRefCountPtr<FGenerationHelper>&
 
 	// Keep the generator and generated package referenced if we've passed the call to populate, or if we are keeping
 	// any other objects referenced
-	if (bKeepingAnyObjects || Info.GetSaveState() > FCookGenerationInfo::ESaveState::CallPopulate)
+	if (bKeepingAnyObjects || Info.PackageData->GetSaveSubState() > ESaveSubState::Generation_CallPopulate)
 	{
 		bNeedsGeneratorPackage = true;
 		if (&Info != &OwnerInfo)
@@ -1823,7 +1854,6 @@ void FGenerationHelper::UpdateSaveAfterGarbageCollect(const FPackageData& Packag
 
 FCookGenerationInfo::FCookGenerationInfo(FPackageData& InPackageData, bool bInGenerator)
 	: PackageData(&InPackageData)
-	, GeneratorSaveState(bInGenerator ? ESaveState::StartSave : ESaveState::StartPopulate)
 	, bCreateAsMap(false), bHasCreatedPackage(false), bHasSaved(false), bTakenOverCachedCookedPlatformData(false)
 	, bIssuedUndeclaredMovedObjectsWarning(false), bGenerator(bInGenerator), bHasCalledPopulate(false)
 	, bIterativelySkipped(false)
@@ -1833,10 +1863,11 @@ FCookGenerationInfo::FCookGenerationInfo(FPackageData& InPackageData, bool bInGe
 void FCookGenerationInfo::Uninitialize()
 {
 	// Check that we have left the save state first, since other assertions assume we have left the save state
-	checkf(GeneratorSaveState == (bGenerator ? ESaveState::StartSave : ESaveState::StartPopulate),
+	checkf(PackageData->GetSaveSubState() == ESaveSubState::StartSave,
 		TEXT("Cooker bug: Expected FCookGenerationInfo::Uninitialize to not be called for a package still in the save state, ")
-		TEXT("but %s package %s has SaveState %d."),
-		bGenerator ? TEXT("generator") : TEXT("generated"), *GetPackageName(), static_cast<int32>(GeneratorSaveState));
+		TEXT("but %s package %s has SaveSubState %s."),
+		bGenerator ? TEXT("generator") : TEXT("generated"), *GetPackageName(),
+		LexToString(PackageData->GetSaveSubState()));
 
 	PackageHash.Reset();
 	RelativePath.Empty();
@@ -1855,15 +1886,6 @@ void FCookGenerationInfo::Uninitialize()
 	// Keep bGenerator; it is allowed in the uninitialized state
 	bHasCalledPopulate = false;
 	// Keep bIterativelySkipped; it is allowed in the uninitialized state
-}
-
-void FCookGenerationInfo::SetSaveStateComplete(ESaveState CompletedState)
-{
-	GeneratorSaveState = CompletedState;
-	if (GeneratorSaveState < ESaveState::Last)
-	{
-		GeneratorSaveState = static_cast<ESaveState>(static_cast<uint8>(GeneratorSaveState) + 1);
-	}
 }
 
 void FCachedObjectInOuterGeneratorInfo::Initialize(UObject* Object)
@@ -1938,7 +1960,7 @@ void FCookGenerationInfo::TakeOverCachedObjectsAndAddMoved(FGenerationHelper& Ge
 }
 
 EPollStatus FCookGenerationInfo::RefreshPackageObjects(FGenerationHelper& GenerationHelper, UPackage* Package,
-	bool& bOutFoundNewObjects, ESaveState DemotionState)
+	bool& bOutFoundNewObjects, ESaveSubState DemotionState)
 {
 	bOutFoundNewObjects = false;
 	TArray<UObject*> CurrentObjectsInOuter;
@@ -1962,9 +1984,9 @@ EPollStatus FCookGenerationInfo::RefreshPackageObjects(FGenerationHelper& Genera
 	}
 	bOutFoundNewObjects = FirstNewObject != nullptr;
 
-	if (FirstNewObject != nullptr && DemotionState != ESaveState::Last)
+	if (FirstNewObject != nullptr && DemotionState != ESaveSubState::Last)
 	{
-		SetSaveState(DemotionState);
+		PackageData->SetSaveSubState(DemotionState);
 		if (++PackageData->GetNumRetriesBeginCacheOnObjects() > FPackageData::GetMaxNumRetriesBeginCacheOnObjects())
 		{
 			UE_LOG(LogCook, Error,

@@ -558,24 +558,16 @@ public:
 	/** Get/Set the flag for whether CachedObjectsInOuter is populated. Always false except during save state. */
 	bool GetHasSaveCache() const { return static_cast<bool>(bHasSaveCache); }
 	void SetHasSaveCache(bool Value) { bHasSaveCache = Value != 0; }
-	/** Get/Set the flag for whether CachedObjectsInOuter iteration has started. Always false except during save. */
-	bool GetCookedPlatformDataStarted() const { return static_cast<bool>(bCookedPlatformDataStarted); }
-	void SetCookedPlatformDataStarted(bool Value) { bCookedPlatformDataStarted = (Value != 0); }
+
 	/**
-	 * Get/Set the flag for whether BeginCacheForCookedPlatformData has been called on every CachedObjectsInOuter.
-	 * Some objects might still be working asynchronously and have not yet returned true from
-	 * IsCachedCookedPlatformDataLoaded, in which case GetNumPendingCookedPlatformData will be non-zero.
-	 * Always false except during the save state.
+	 * Get/Set the SubState within EPackageState::Save. Outside of EPackageStateProperty::Saving it is always
+	 * ESaveSubState::StartSave, and is ignored and logs an error if attempting to set to any other value.
 	 */
-	bool GetCookedPlatformDataCalled() const { return static_cast<bool>(bCookedPlatformDataCalled); }
-	void SetCookedPlatformDataCalled(bool bValue) { bCookedPlatformDataCalled = bValue != 0; }
-	/**
-	 * Get/Set the flag for whether BeginCacheForCookedPlatformData has been called and
-	 * IsCachedCookedPlatformDataLoaded has subsequently returned true for every object in GetCachedObjectsInOuter.
-	 * Always false except during the save state.
-	 */
-	bool GetCookedPlatformDataComplete() const { return static_cast<bool>(bCookedPlatformDataComplete); }
-	void SetCookedPlatformDataComplete(bool bValue) { bCookedPlatformDataComplete = bValue != 0; }
+	ESaveSubState GetSaveSubState() const;
+	void SetSaveSubState(ESaveSubState Value);
+	/** Set the SaveSubState to the next state after Value. */
+	void SetSaveSubStateComplete(ESaveSubState Value);
+
 	/**
 	 * Check whether savestate contracts on the PackageData were invalidated by by e.g. garbage collection.
 	 * Request demotion if so unless we have a contract to keep it, in which case it is fixed up.
@@ -626,19 +618,17 @@ public:
 	/**
 	 * Return the GenerationHelper if it already exists, otherwise load the package and check all the objects
 	 * to see whether any of them have a registered CookPackageSplitter. If a split object exists, create the
-	 * GenerationHelper and return it. Otherwise return nullptr.
+	 * GenerationHelper and return it. Otherwise return nullptr. If the splitter requires it, also return nullptr
+	 * if the caller needs to call IsCachedCookedPlatformDataLoaded before creation.
 	 */
-	TRefCountPtr<FGenerationHelper> TryCreateValidGenerationHelper();
+	TRefCountPtr<FGenerationHelper> TryCreateValidGenerationHelper(bool bCookedPlatformDataIsLoaded,
+		bool& bOutNeedWaitForIsLoaded);
 	/** Helper function for ~FGenerationHelper: clear the pointer this->GenerationHelper. */
 	void OnGenerationHelperDestroyed(FGenerationHelper& InGenerationHelper);
 	/** Get whether the PackageData has done any necessary Generator steps and is ready for BeginCache calls. */
 	bool HasCompletedGeneration() const;
 	/** Set whether the PackageData has done any necessary Generator steps and is ready for BeginCache calls. */
 	void SetCompletedGeneration(bool Value);
-	/** Get whether the PackageData has completed the check for whether it is a Generator. */
-	bool HasInitializedGeneratorSave() const;
-	/** Set whether the PackageData has completed the check for whether it is a Generator. */
-	void SetInitializedGeneratorSave(bool Value);
 	/** Return whether the PackageData is a generated package created by a owning generator PackageData. */
 	bool IsGenerated() const;
 	/** Mark that the PackageData is a generated package created by a ParentGenerator. */
@@ -841,6 +831,7 @@ private:
 	FWorkerId WorkerAssignment = FWorkerId::Invalid();
 	FWorkerId WorkerAssignmentConstraint = FWorkerId::Invalid();
 	uint32 State : int32(EPackageState::BitCount);
+	uint32 SaveSubState : int32(ESaveSubState::BitCount);
 	uint32 bIsUrgent : 1;
 	uint32 bIsCookLast : 1;
 	uint32 bIsVisited : 1;
@@ -849,11 +840,7 @@ private:
 	uint32 bHasSaveCache : 1;
 	uint32 bPrepareSaveFailed : 1;
 	uint32 bPrepareSaveRequiresGC : 1;
-	uint32 bCookedPlatformDataStarted : 1;
-	uint32 bCookedPlatformDataCalled : 1;
-	uint32 bCookedPlatformDataComplete : 1;
 	uint32 MonitorCookResult : (int) ECookResult::NumBits;
-	uint32 bInitializedGeneratorSave : 1;
 	uint32 bCompletedGeneration : 1;
 	uint32 bGenerated : 1;
 	uint32 bKeepReferencedDuringGC : 1;
@@ -1524,6 +1511,11 @@ inline void FPackageData::GetReachablePlatforms(ArrayType& OutPlatforms) const
 	}
 }
 
+inline ESaveSubState FPackageData::GetSaveSubState() const
+{
+	return static_cast<ESaveSubState>(SaveSubState);
+}
+
 inline bool FPackageData::HasCompletedGeneration() const
 {
 	return static_cast<bool>(bCompletedGeneration);
@@ -1532,16 +1524,6 @@ inline bool FPackageData::HasCompletedGeneration() const
 inline void FPackageData::SetCompletedGeneration(bool Value)
 {
 	bCompletedGeneration = Value != 0;
-}
-
-inline bool FPackageData::HasInitializedGeneratorSave() const
-{
-	return static_cast<bool>(bInitializedGeneratorSave);
-}
-
-inline void FPackageData::SetInitializedGeneratorSave(bool Value)
-{
-	bInitializedGeneratorSave = Value != 0;
 }
 
 inline bool FPackageData::IsGenerated() const
