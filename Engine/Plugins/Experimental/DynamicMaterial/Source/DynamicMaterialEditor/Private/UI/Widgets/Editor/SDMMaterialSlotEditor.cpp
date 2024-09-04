@@ -53,48 +53,6 @@
 
 #define LOCTEXT_NAMESPACE "SDMMaterialSlotEditor"
 
-namespace UE::DynamicMaterialEditor::Private
-{
-	const FLazyName PropertyValueWidget = TEXT("SPropertyValueWidget");
-
-	TSharedPtr<SWidget> FindWidgetInHierarchy(const TSharedRef<SWidget>& InParent, const FName& InName)
-	{
-		if (InParent->GetType() == InName)
-		{
-			return InParent;
-		}
-
-		FChildren* Children = InParent->GetChildren();
-
-		if (!Children)
-		{
-			return nullptr;
-		}
-
-		const int32 ChildNum = Children->Num();
-
-		for (int32 Index = 0; Index < ChildNum; ++Index)
-		{
-			const TSharedRef<SWidget>& Widget = Children->GetChildAt(Index);
-
-			if (Widget->GetType() == InName)
-			{
-				return Widget;
-			}
-		}
-
-		for (int32 Index = 0; Index < ChildNum; ++Index)
-		{
-			if (TSharedPtr<SWidget> FoundChild = FindWidgetInHierarchy(Children->GetChildAt(Index), InName))
-			{
-				return FoundChild;
-			}
-		}
-
-		return nullptr;
-	}
-}
-
 void SDMMaterialSlotEditor::PrivateRegisterAttributes(FSlateAttributeDescriptor::FInitializer&)
 {
 }
@@ -647,17 +605,11 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_LayerOpacity()
 
 	if (ValueWidget.IsValid())
 	{
-		if (TSharedPtr<SWidget> FoundPropertyValueWidget = FindWidgetInHierarchy(ValueWidget.ToSharedRef(), PropertyValueWidget))
+		if (TSharedPtr<SWidget> FoundPropertyValueWidget = FDMWidgetStatics::Get().FindWidgetInHierarchy(ValueWidget.ToSharedRef(), FDMWidgetStatics::PropertyValueWidget))
 		{
-			if (FoundPropertyValueWidget.IsValid())
+			if (TSharedPtr<SWidget> InnerPropertyWidget = FDMWidgetStatics::Get().GetInnerPropertyValueWidget(FoundPropertyValueWidget.ToSharedRef()))
 			{
-				if (FChildren* Children = FoundPropertyValueWidget->GetChildren())
-				{
-					if (Children->Num() > 0)
-					{
-						ValueWidget = Children->GetChildAt(0);
-					}
-				}
+				ValueWidget = InnerPropertyWidget;
 			}
 		}
 	}

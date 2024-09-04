@@ -42,6 +42,7 @@ protected:
 	TArray<TSharedRef<SBox>> PropertyPreviewContainers;
 	TArray<TSharedRef<SBox>> PropertyEmptyContainers;
 	TArray<TSharedRef<SDMMaterialComponentPreview>> PropertyPreviews;
+	TArray<TSharedRef<ICustomDetailsViewItem>> SliderItems;
 
 	bool bConstructing = false;
 

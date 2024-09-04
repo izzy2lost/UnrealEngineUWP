@@ -15,6 +15,8 @@ class UObject;
 class FDMWidgetStatics
 {
 public:
+	static const FLazyName PropertyValueWidget;
+
 	static FDMWidgetStatics& Get();
 
 	bool GetExpansionState(UObject* InOwner, FName InName, bool& bOutExpanded);
@@ -24,6 +26,10 @@ public:
 	FDMPropertyHandle GetPropertyHandle(const SWidget* InOwningWidget, UObject* InObject, FName InPropertyName);
 
 	void ClearPropertyHandles(const SWidget* InOwningWidget);
+
+	TSharedPtr<SWidget> FindWidgetInHierarchy(const TSharedRef<SWidget>& InParent, const FName& InName);
+
+	TSharedPtr<SWidget> GetInnerPropertyValueWidget(const TSharedRef<SWidget>& InWidget);
 
 private:
 	struct FExpansionItem

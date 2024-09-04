@@ -8,6 +8,8 @@
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 
+const FLazyName FDMWidgetStatics::PropertyValueWidget = TEXT("SPropertyValueWidget");
+
 FDMWidgetStatics& FDMWidgetStatics::Get()
 {
 	 static FDMWidgetStatics Instance;
@@ -86,6 +88,56 @@ FDMPropertyHandle FDMWidgetStatics::GetPropertyHandle(const SWidget* InOwningWid
 void FDMWidgetStatics::ClearPropertyHandles(const SWidget* InOwningWidget)
 {
 	PropertyHandleMap.Remove(InOwningWidget);
+}
+
+TSharedPtr<SWidget> FDMWidgetStatics::FindWidgetInHierarchy(const TSharedRef<SWidget>& InParent, const FName& InName)
+{
+	if (InParent->GetType() == InName)
+	{
+		return InParent;
+	}
+
+	FChildren* Children = InParent->GetChildren();
+
+	if (!Children)
+	{
+		return nullptr;
+	}
+
+	const int32 ChildNum = Children->Num();
+
+	for (int32 Index = 0; Index < ChildNum; ++Index)
+	{
+		const TSharedRef<SWidget>& Widget = Children->GetChildAt(Index);
+
+		if (Widget->GetType() == InName)
+		{
+			return Widget;
+		}
+	}
+
+	for (int32 Index = 0; Index < ChildNum; ++Index)
+	{
+		if (TSharedPtr<SWidget> FoundChild = FindWidgetInHierarchy(Children->GetChildAt(Index), InName))
+		{
+			return FoundChild;
+		}
+	}
+
+	return nullptr;
+}
+
+TSharedPtr<SWidget> FDMWidgetStatics::GetInnerPropertyValueWidget(const TSharedRef<SWidget>& InWidget)
+{
+	if (FChildren* Children = InWidget->GetChildren())
+	{
+		if (Children->Num() > 0)
+		{
+			return Children->GetChildAt(0);
+		}
+	}
+
+	return nullptr;
 }
 
 FDMPropertyHandle FDMWidgetStatics::CreatePropertyHandle(const void* InOwningWidget, UObject* InObject, FName InPropertyName)

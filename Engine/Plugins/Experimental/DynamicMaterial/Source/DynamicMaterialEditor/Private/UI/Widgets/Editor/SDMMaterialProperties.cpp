@@ -66,6 +66,11 @@ void SDMMaterialProperties::Validate()
 {
 	if (Content.HasBeenInvalidated())
 	{
+		GlobalItems.Empty();
+		PropertyPreviewContainers.Empty();
+		PropertyEmptyContainers.Empty();
+		PropertyPreviews.Empty();
+		SliderItems.Empty();
 		Content << CreateSlot_Content();
 	}
 }
@@ -329,7 +334,7 @@ TSharedRef<SWidget> SDMMaterialProperties::CreatePropertyRow(UDMMaterialProperty
 
 			+ SHorizontalBox::Slot()
 			.FillWidth(1.f)
-			.HAlign(EHorizontalAlignment::HAlign_Left)
+			.HAlign(EHorizontalAlignment::HAlign_Fill)
 			.VAlign(EVerticalAlignment::VAlign_Fill)
 			.Padding(5.f, 5.f, 0.f, 5.f)
 			[
@@ -625,8 +630,22 @@ TSharedRef<SWidget> SDMMaterialProperties::CreateGlobalSlider(UDMMaterialPropert
 
 	AlphaItem->MakeWidget(nullptr, SharedThis(this));
 
+	SliderItems.Add(AlphaItem);
+
 	TSharedPtr<SWidget> ValueWidget = AlphaItem->GetWidget(ECustomDetailsViewWidgetType::Value);
 	TSharedPtr<SWidget> ExtensionWidget = AlphaItem->GetWidget(ECustomDetailsViewWidgetType::Extensions);
+
+	if (ValueWidget.IsValid())
+	{
+		if (TSharedPtr<SWidget> FoundPropertyValueWidget = FDMWidgetStatics::Get().FindWidgetInHierarchy(ValueWidget.ToSharedRef(), FDMWidgetStatics::PropertyValueWidget))
+		{
+			if (TSharedPtr<SWidget> InnerPropertyWidget = FDMWidgetStatics::Get().GetInnerPropertyValueWidget(FoundPropertyValueWidget.ToSharedRef()))
+			{
+				ValueWidget = InnerPropertyWidget;
+			}
+		}
+	}
+
 
 	const FText PropertyGlobalSliderToolTipFormat = LOCTEXT("PropertyGlobalSliderToolTipFormat", "Change the global {0} value.");
 
@@ -639,11 +658,11 @@ TSharedRef<SWidget> SDMMaterialProperties::CreateGlobalSlider(UDMMaterialPropert
 		.ToolTipText(PropertyGlobalSliderToolTip)
 		
 		+ SHorizontalBox::Slot()
-		.AutoWidth()
+		.FillWidth(1.f)
 		[
 			SNew(SBox)
 			.HeightOverride(32.f)
-			.VAlign(VAlign_Center)
+			.HAlign(EHorizontalAlignment::HAlign_Fill)
 			.VAlign(EVerticalAlignment::VAlign_Center)
 			[
 				ValueWidget.IsValid() ? ValueWidget.ToSharedRef() : SNullWidget::NullWidget
@@ -651,12 +670,10 @@ TSharedRef<SWidget> SDMMaterialProperties::CreateGlobalSlider(UDMMaterialPropert
 		]
 
 		+ SHorizontalBox::Slot()
-		.FillWidth(1.f)
+		.AutoWidth()
 		[
 			SNew(SBox)
 			.HeightOverride(32.f)
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
 			.VAlign(EVerticalAlignment::VAlign_Center)
 			[
 				ExtensionWidget.IsValid() ? ExtensionWidget.ToSharedRef() : SNullWidget::NullWidget
