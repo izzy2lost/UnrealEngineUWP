@@ -1952,7 +1952,6 @@ void FSceneRenderer::RenderShadowDepthMaps(FRDGBuilder& GraphBuilder, FDynamicSh
 				GraphBuilder,
 				View.GetSceneTextures(),
 				Scene,
-				ViewFamily,
 				View,
 				VisibleLightInfos
 			);

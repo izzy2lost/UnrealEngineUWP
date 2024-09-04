@@ -712,7 +712,6 @@ void RenderWithInscatteringVolumePipelineWithPreshadingCompute(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
@@ -846,7 +845,6 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingCompute(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
@@ -972,7 +970,6 @@ void RenderWithPreshadingCompute(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
@@ -1021,7 +1018,6 @@ void RenderWithPreshadingCompute(
 			// Scene data
 			SceneTextures,
 			Scene,
-			ViewFamily,
 			View,
 			// Shadow data
 			VisibleLightInfos,
@@ -1048,7 +1044,6 @@ void RenderWithPreshadingCompute(
 			// Scene data
 			SceneTextures,
 			Scene,
-			ViewFamily,
 			View,
 			// Shadow data
 			VisibleLightInfos,
@@ -1075,7 +1070,6 @@ void RenderWithInscatteringVolumePipelineWithPreshadingHardwareRayTracing(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
@@ -1205,7 +1199,6 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingHardwareRayTracing(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
@@ -1327,7 +1320,6 @@ void RenderWithPreshadingHardwareRayTracing(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
@@ -1387,7 +1379,6 @@ void RenderWithPreshadingHardwareRayTracing(
 			GraphBuilder,
 			SceneTextures,
 			Scene,
-			ViewFamily,
 			View,
 			// Shadow data
 			VisibleLightInfos,
@@ -1411,7 +1402,6 @@ void RenderWithPreshadingHardwareRayTracing(
 			GraphBuilder,
 			SceneTextures,
 			Scene,
-			ViewFamily,
 			View,
 			// Shadow data
 			VisibleLightInfos,
@@ -1544,7 +1534,6 @@ void RenderWithPreshading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
@@ -1700,7 +1689,6 @@ void RenderWithPreshading(
 			// Scene data
 			SceneTextures,
 			Scene,
-			ViewFamily,
 			View,
 			// Shadow data
 			VisibleLightInfos,
@@ -1725,7 +1713,6 @@ void RenderWithPreshading(
 			// Scene data
 			SceneTextures,
 			Scene,
-			ViewFamily,
 			View,
 			// Shadow data
 			VisibleLightInfos,

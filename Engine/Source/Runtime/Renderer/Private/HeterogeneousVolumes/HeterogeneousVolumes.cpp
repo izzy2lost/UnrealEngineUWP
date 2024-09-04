@@ -732,7 +732,6 @@ void RenderHeterogeneousVolumeShadows(
 	FScene* Scene,
 	const FSceneTextures& SceneTextures,
 	FViewInfo& View,
-	const FSceneViewFamily& ViewFamily,
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos
 )
 {
@@ -746,7 +745,6 @@ void RenderHeterogeneousVolumeShadows(
 			GraphBuilder,
 			SceneTextures,
 			Scene,
-			ViewFamily,
 			View,
 			VisibleLightInfos
 		);
@@ -795,7 +793,6 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 					GraphBuilder,
 					SceneTextures,
 					Scene,
-					ViewFamily,
 					View
 				);
 			}
@@ -806,7 +803,6 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 					// Scene data
 					SceneTextures,
 					Scene,
-					ViewFamily,
 					View,
 					// Volume data
 					OrthoGridUniformBuffer,
@@ -826,7 +822,6 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 					// Scene data
 					SceneTextures,
 					Scene,
-					ViewFamily,
 					View,
 					// Light data
 					VisibleLightInfos
@@ -840,7 +835,6 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 					// Scene data
 					SceneTextures,
 					Scene,
-					ViewFamily,
 					View,
 					// Shadow Data
 					VisibleLightInfos,
@@ -903,7 +897,6 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 					GraphBuilder,
 					SceneTextures,
 					Scene,
-					ViewFamily,
 					View,
 					OrthoGridUniformBuffer,
 					FrustumGridUniformBuffer,
@@ -1009,7 +1002,6 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 							GraphBuilder,
 							SceneTextures,
 							Scene,
-							ViewFamily,
 							View,
 							// Shadow Data
 							VisibleLightInfos,

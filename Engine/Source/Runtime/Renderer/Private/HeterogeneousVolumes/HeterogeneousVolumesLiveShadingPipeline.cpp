@@ -1880,7 +1880,6 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Light data
 	uint32 LightType,
@@ -2038,7 +2037,6 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Light data
 	uint32 LightType,
@@ -2209,7 +2207,6 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 			GraphBuilder,
 			SceneTextures,
 			Scene,
-			ViewFamily,
 			View,
 			// Light Info
 			LightType,
@@ -2245,7 +2242,6 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 				GraphBuilder,
 				SceneTextures,
 				Scene,
-				ViewFamily,
 				View,
 				// Light Info
 				LightType,
@@ -2298,7 +2294,6 @@ void RenderAdaptiveVolumetricShadowMapWithLiveShading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Light data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos
@@ -2379,7 +2374,6 @@ void RenderAdaptiveVolumetricShadowMapWithLiveShading(
 					// Scene data
 					SceneTextures,
 					Scene,
-					ViewFamily,
 					View,
 					// Light data
 					LightType,
@@ -2452,7 +2446,6 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View
 )
 {
@@ -2543,7 +2536,6 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 			GraphBuilder,
 			SceneTextures,
 			Scene,
-			ViewFamily,
 			View,
 			// Light Info
 			LightType,
@@ -2580,7 +2572,6 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 				GraphBuilder,
 				SceneTextures,
 				Scene,
-				ViewFamily,
 				View,
 				// Light Info
 				LightType,

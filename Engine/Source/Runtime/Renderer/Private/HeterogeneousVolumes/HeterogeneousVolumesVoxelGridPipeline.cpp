@@ -2877,7 +2877,6 @@ void RenderTransmittanceWithVoxelGrid(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	const TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters>& OrthoGridUniformBuffer,
 	const TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters>& FrustumGridUniformBuffer,
@@ -3400,7 +3399,6 @@ void RenderVolumetricShadowMapForLightWithVoxelGrid(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Light data
 	bool bApplyEmissionAndTransmittance,
@@ -3632,7 +3630,6 @@ void RenderVolumetricShadowMapForCameraWithVoxelGrid(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Volume data
 	const TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters>& OrthoGridUniformBuffer,
@@ -3754,7 +3751,6 @@ void RenderAdaptiveVolumetricShadowMapWithVoxelGrid(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
@@ -3841,7 +3837,6 @@ void RenderAdaptiveVolumetricShadowMapWithVoxelGrid(
 					// Scene data
 					SceneTextures,
 					Scene,
-					ViewFamily,
 					View,
 					// Light data
 					bApplyEmissionAndTransmittance,
@@ -3915,7 +3910,6 @@ void RenderAdaptiveVolumetricCameraMapWithVoxelGrid(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Volume data
 	const TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters>& OrthoGridUniformBuffer,
@@ -3958,7 +3952,6 @@ void RenderAdaptiveVolumetricCameraMapWithVoxelGrid(
 			// Scene data
 			SceneTextures,
 			Scene,
-			ViewFamily,
 			View,
 			// Volume data
 			OrthoGridUniformBuffer,
