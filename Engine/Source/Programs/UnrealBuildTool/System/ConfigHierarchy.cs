@@ -1152,7 +1152,7 @@ namespace UnrealBuildTool
 				ProjectDescriptor? Project = null;
 				if (ProjectDir != null)
 				{
-					Project = ProjectDescriptor.FromFile(FileReference.Combine(ProjectDir, ProjectDir.GetDirectoryName() + ".uproject"));
+					Project = ProjectDescriptor.FromDirectory(ProjectDir);
 				}
 				List<PluginInfo> AllPLugins = Plugins.ReadAvailablePlugins(Unreal.EngineDirectory, ProjectDir, null);
 				foreach (PluginInfo Plugin in AllPLugins)
