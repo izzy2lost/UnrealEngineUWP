@@ -459,13 +459,28 @@ void FDetailLayoutBuilderImpl::GenerateDetailLayout()
 				FDetailNodeList ChildNodes;
 				DetailCategory->GenerateLayout();
 				DetailCategory->GetGeneratedChildren(ChildNodes, /*bIgnoreVisibility*/true, /*bIgnoreAdvancedDropdown*/true);
-
+				TArray<TSharedPtr<FPropertyNode>> AddedNodes;
 				for (const TSharedRef<FDetailTreeNode>& ChildNode : ChildNodes)
 				{
 					TSharedPtr<FPropertyNode> PropertyNode = ChildNode->GetPropertyNode();
 					if (!PropertyNode.IsValid())
 					{
-						continue;
+						// If we don't have a property node, then we're likely a custom generated node from a parent node. 
+						// If so, add the parent node to the parent category if it has a valid property node, but ensure we don't add more than once, 
+						// as there may be more than one custom row added.
+						TWeakPtr<FDetailTreeNode> ParentNode = ChildNode->GetParentNode();
+						if (ParentNode.IsValid())
+						{
+							PropertyNode = ParentNode.Pin()->GetPropertyNode();
+							if (AddedNodes.Contains(PropertyNode))
+							{
+								continue;
+							}
+						}
+						if (!PropertyNode.IsValid())
+						{
+							continue;
+						}
 					}
 
 					// If there is no outer object then the class is the object root and there is only one instance
@@ -476,6 +491,7 @@ void FDetailLayoutBuilderImpl::GenerateDetailLayout()
 						InstanceName = ParentNode->GetProperty()->GetFName();
 					}
 					ParentDetailCategory->AddPropertyNode(PropertyNode.ToSharedRef(), InstanceName);
+					AddedNodes.Add(PropertyNode);
 				}
 			}
 
