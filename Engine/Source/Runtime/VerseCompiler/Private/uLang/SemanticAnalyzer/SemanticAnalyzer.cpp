@@ -3391,6 +3391,7 @@ private:
                         ULANG_UNREACHABLE();
                         break;
                     }
+                    VerifyQualificationIsOk(QualifierType, *Definition, *DefinitionAst, ExprCtx);
                 });
         }
     }
@@ -14821,55 +14822,61 @@ private:
         }
         const SQualifier QualifierType = AnalyzeQualifier(Qualifier, DefinitionAst, ExprCtx);
         Definition._Qualifier = QualifierType;
+        VerifyQualificationIsOk(QualifierType, Definition, DefinitionAst, ExprCtx);
+    }
+
+    //-------------------------------------------------------------------------------------------------
+    void VerifyQualificationIsOk(const SQualifier QualifierType, CDefinition& Definition, CExpressionBase& DefinitionAst, const SExprCtx& ExprCtx)
+    {
         switch (QualifierType._Type)
         {
-            case SQualifier::EType::NominalType:
-                EnqueueDeferredTask(Deferred_ValidateType,
-                    [this, &Definition, &DefinitionAst]()
+        case SQualifier::EType::NominalType:
+            EnqueueDeferredTask(Deferred_ValidateType,
+                [this, &Definition, &DefinitionAst]()
+                {
+                    const CNominalType* QualifiedType = Definition._Qualifier._Definition;
+                    const CScope* ParentScope = &Definition._EnclosingScope;
+                    if (ParentScope->IsModuleOrSnippet())
                     {
-                        const CNominalType* QualifiedType = Definition._Qualifier._Definition;
-                        const CScope* ParentScope = &Definition._EnclosingScope;
-                        if (ParentScope->IsModuleOrSnippet())
+                        if (QualifiedType != ParentScope->GetModule()->ScopeAsType())
                         {
-                            if (QualifiedType != ParentScope->GetModule()->ScopeAsType())
-                            {
-                                AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier, CUTF8String("Qualifier on definition in module must be the module itself."));
-                            }
+                            AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier, CUTF8String("Qualifier on definition in module must be the module itself."));
                         }
-                        else if (const CTypeBase* EnclosingType = ParentScope->ScopeAsType(); EnclosingType && !IsSubtype(EnclosingType, QualifiedType))
+                    }
+                    else if (const CTypeBase* EnclosingType = ParentScope->ScopeAsType(); EnclosingType && !IsSubtype(EnclosingType, QualifiedType))
+                    {
+                        AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier,
+                            CUTF8String("Qualifier on definition is invalid, `%s` doesn't inherit from or implement `%s`", EnclosingType->AsCode().AsCString(), Definition._Qualifier._Definition->AsCode().AsCString()));
+                    }
+                    // NOTE: (yiliang.siew) For qualifiers that refer to a class, we check if that class actually has a definition that matches.
+                    else if (QualifiedType->IsA<CClassDefinition>())
+                    {
+                        const CClassDefinition& ClassDefinition = QualifiedType->AsChecked<CClassDefinition>();
+                        const SmallDefinitionArray DefinitionsFound = ClassDefinition.FindDefinitions(Definition.GetName());
+                        if (DefinitionsFound.Num() == 0)
                         {
                             AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier,
-                                CUTF8String("Qualifier on definition is invalid, `%s` doesn't inherit from or implement `%s`", EnclosingType->AsCode().AsCString(), Definition._Qualifier._Definition->AsCode().AsCString()));
+                                CUTF8String("Qualifier on definition is invalid; the class `%s` doesn't define `%s`.", ClassDefinition.GetName().AsCString(), Definition.GetName().AsCString()));
                         }
-                        // NOTE: (yiliang.siew) For qualifiers that refer to a class, we check if that class actually has a definition that matches.
-                        else if (QualifiedType->IsA<CClassDefinition>())
-                        {
-                            const CClassDefinition& ClassDefinition = QualifiedType->AsChecked<CClassDefinition>();
-                            const SmallDefinitionArray DefinitionsFound = ClassDefinition.FindDefinitions(Definition.GetName());
-                            if (DefinitionsFound.Num() == 0)
-                            {
-                                AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier,
-                                    CUTF8String("Qualifier on definition is invalid; the class `%s` doesn't define `%s`.", ClassDefinition.GetName().AsCString(), Definition.GetName().AsCString()));
-                            }
-                        }
-                    });
-                break;
-            case SQualifier::EType::Local:
-                EnqueueDeferredTask(Deferred_ValidateType,
-                    [this, &Definition, &DefinitionAst]()
+                    }
+                });
+            break;
+        case SQualifier::EType::Local:
+            EnqueueDeferredTask(Deferred_ValidateType,
+                [this, &Definition, &DefinitionAst]()
+                {
+                    if (!Definition._EnclosingScope.GetScopeOfKind(CScope::EKind::Function))
                     {
-                        if (!Definition._EnclosingScope.GetScopeOfKind(CScope::EKind::Function))
-                        {
-                            AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier, CUTF8String("The (%s:) qualifier should only be used on identifiers within functions.", _LocalName.AsCString()));
-                        }
-                    });
-                break;
-            case SQualifier::EType::Unknown:
-                // Not a qualifier, nothing to do.
-                return;
-            default:
-                ULANG_UNREACHABLE();
-                break;
+                        AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier, CUTF8String("The (%s:) qualifier should only be used on identifiers within functions.", _LocalName.AsCString()));
+                    }
+                });
+            break;
+        case SQualifier::EType::Unknown:
+            // Not a qualifier, nothing to do.
+            return;
+        default:
+            ULANG_UNREACHABLE();
+            break;
         }
     }
 
