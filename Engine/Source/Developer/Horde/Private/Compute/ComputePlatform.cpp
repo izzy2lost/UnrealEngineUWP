@@ -73,6 +73,7 @@ bool FComputeEvent::Create(const char* Name)
 		Handle = Value;
 		return true;
 	}
+	checkf(false, TEXT("sem_open failed (%hs)"), strerror(errno));
 	return false;
 #endif
 }

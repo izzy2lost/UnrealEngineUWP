@@ -354,12 +354,14 @@ struct FComputeBufferDetail
 		TUniquePtr<FComputeBufferDetail> Detail = MakeUnique<FComputeBufferDetail>(Name);
 		if (!Detail->MemoryMappedFile.Create(NameBuffer, Capacity))
 		{
+			checkf(false, TEXT("Failed to create memory mapped file %hs"), NameBuffer);
 			return nullptr;
 		}
 
 		void* Pointer = Detail->MemoryMappedFile.GetPointer();
 		if (Pointer == nullptr)
 		{
+			checkf(false, TEXT("Failed to get pointer to memory mapping %hs"), NameBuffer);
 			return nullptr;
 		}
 
@@ -368,6 +370,7 @@ struct FComputeBufferDetail
 		snprintf(NameBuffer, FComputeBuffer::MaxNameLength, "%s_W", Name);
 		if (!Detail->WriterEvent.Create(NameBuffer))
 		{
+			checkf(false, TEXT("Failed to create writer event %hs in memory mapping"), NameBuffer);
 			return nullptr;
 		}
 
@@ -376,6 +379,7 @@ struct FComputeBufferDetail
 			snprintf(NameBuffer, FComputeBuffer::MaxNameLength, "%s_R%d", Name, ReaderIdx);
 			if (!Detail->ReaderEvents[ReaderIdx].Create(NameBuffer))
 			{
+				checkf(false, TEXT("Failed to create reader event %hs in memory mapping"), NameBuffer);
 				return nullptr;
 			}
 		}

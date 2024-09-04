@@ -25,13 +25,13 @@ TSharedPtr<FComputeChannel> FComputeSocket::CreateChannel(int ChannelId)
 	FComputeBuffer RecvBuffer;
 	if (!RecvBuffer.CreateNew(FComputeBuffer::FParams()))
 	{
-		return MakeShared<FComputeChannel>(FComputeChannel());
+		return MakeShared<FComputeChannel>();
 	}
 
 	FComputeBuffer SendBuffer;
 	if (!SendBuffer.CreateNew(FComputeBuffer::FParams()))
 	{
-		return MakeShared<FComputeChannel>(FComputeChannel());
+		return MakeShared<FComputeChannel>();
 	}
 
 	return CreateChannel(ChannelId, std::move(RecvBuffer), std::move(SendBuffer));
