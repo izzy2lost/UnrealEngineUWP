@@ -21,6 +21,7 @@
 #include "Materials/Material.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelDynamic.h"
+#include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
@@ -529,6 +530,92 @@ bool UDMMaterialModelFunctionLibrary::IsModelValid(UDynamicMaterialModelBase* In
 	{
 		return false;
 	}
+
+	return true;
+}
+
+bool UDMMaterialModelFunctionLibrary::DuplicateModelBetweenInstances(UDynamicMaterialModel* InFromModel, UDynamicMaterialInstance* InToInstance)
+{
+	if (!InFromModel || !InToInstance)
+	{
+		return false;
+	}
+
+	UDynamicMaterialModelBase* CurrentModel = InToInstance->GetMaterialModelBase();
+	const FString CurrentName = CurrentModel->GetName();
+
+	if (CurrentModel)
+	{
+		const FString NewName = CurrentName + TEXT("_OLD");
+		CurrentModel->Rename(*NewName, GetTransientPackage(), UE::DynamicMaterial::RenameFlags);
+
+		InToInstance->SetMaterialModel(nullptr);
+	}
+
+	FObjectDuplicationParameters Params = InitStaticDuplicateObjectParams(InFromModel, InToInstance, InFromModel->GetFName(),
+		InFromModel->GetFlags(), nullptr, EDuplicateMode::Normal, EInternalObjectFlags::None);
+
+	UDynamicMaterialModel* NewModel = Cast<UDynamicMaterialModel>(StaticDuplicateObjectEx(Params));
+
+	if (!NewModel)
+	{
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to copy Material Model."));
+
+		// Put back the original model
+		CurrentModel->Rename(*CurrentName, InToInstance, UE::DynamicMaterial::RenameFlags);
+
+		return false;
+	}
+
+	NewModel->Rename(*CurrentName, InToInstance, UE::DynamicMaterial::RenameFlags);
+
+	InToInstance->SetMaterialModel(NewModel);
+	NewModel->SetDynamicMaterialInstance(InToInstance);
+	InToInstance->InitializeMIDPublic();
+
+	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(NewModel))
+	{
+		EditorOnlyData->RequestMaterialBuild();
+	}
+
+	return true;
+}
+
+bool UDMMaterialModelFunctionLibrary::CreateDynamicModelInInstance(UDynamicMaterialModel* InFromModel, UDynamicMaterialInstance* InToInstance)
+{
+	if (!InFromModel || !InToInstance)
+	{
+		return false;
+	}
+
+	UDynamicMaterialModelBase* CurrentModel = InToInstance->GetMaterialModelBase();
+	const FString CurrentName = CurrentModel->GetName();
+
+	if (CurrentModel)
+	{
+		const FString NewName = CurrentName + TEXT("_OLD");
+		CurrentModel->Rename(*NewName, GetTransientPackage(), UE::DynamicMaterial::RenameFlags);
+
+		InToInstance->SetMaterialModel(nullptr);
+	}
+
+	UDynamicMaterialModelDynamic* NewModelDynamic = UDynamicMaterialModelDynamic::Create(InToInstance, InFromModel);
+
+	if (!NewModelDynamic)
+	{
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to make Dynamic Material."));
+
+		// Put back the original model
+		CurrentModel->Rename(*CurrentName, InToInstance, UE::DynamicMaterial::RenameFlags);
+
+		return false;
+	}
+
+	NewModelDynamic->Rename(*CurrentName, InToInstance, UE::DynamicMaterial::RenameFlags);
+
+	InToInstance->SetMaterialModel(NewModelDynamic);
+	NewModelDynamic->SetDynamicMaterialInstance(InToInstance);
+	InToInstance->InitializeMIDPublic();
 
 	return true;
 }

@@ -2,11 +2,9 @@
 
 #include "Material/DynamicMaterialInstanceFactory.h"
 
-#include "AssetToolsModule.h"
 #include "DMDefs.h"
 #include "EngineAnalytics.h"
 #include "GameFramework/Actor.h"
-#include "IAssetTools.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelFactory.h"
@@ -72,9 +70,6 @@ UObject* UDynamicMaterialInstanceFactory::FactoryCreateNew(UClass* Class, UObjec
 			}
 		}
 	}
-
-	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	AssetTools.OpenEditorForAssets({NewInstance});
 
 	if (FEngineAnalytics::IsAvailable())
 	{

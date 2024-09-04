@@ -7,7 +7,6 @@
 #include "DynamicMaterialEditorStyle.h"
 #include "IDynamicMaterialEditorModule.h"
 #include "Material/DynamicMaterialInstance.h"
-#include "Material/DynamicMaterialInstanceFactory.h"
 #include "Model/DynamicMaterialModel.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyHandle.h"
@@ -146,32 +145,29 @@ FReply SDMDetailsPanelMaterialInterfaceWidget::CreateDynamicMaterialInstance()
 	// We already have an instance, so we don't need to create one
 	if (Instance)
 	{
-		return FReply::Unhandled();
+		return FReply::Handled();
 	}
 
 	TArray<UObject*> OuterObjects;
 	PropertyHandle->GetOuterObjects(OuterObjects);
 
-	if (OuterObjects.IsEmpty())
+	if (OuterObjects.IsEmpty() || !IsValid(OuterObjects[0]))
 	{
-		return FReply::Unhandled();
+		return FReply::Handled();
 	}
 
-	UDynamicMaterialInstanceFactory* DynamicMaterialInstanceFactory = NewObject<UDynamicMaterialInstanceFactory>();
-	check(DynamicMaterialInstanceFactory);
+	const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();
+	constexpr bool bInvokeTab = true;
 
-	UDynamicMaterialInstance* NewInstance = Cast<UDynamicMaterialInstance>(DynamicMaterialInstanceFactory->FactoryCreateNew(
-		UDynamicMaterialInstance::StaticClass(),
-		OuterObjects[0],
-		"DynamicMaterialInstance",
-		RF_NoFlags,
-		nullptr,
-		GWarn
-	));
+	if (FProperty* Property = PropertyHandle->GetProperty())
+	{
+		if (Property->IsA<FObjectPropertyBase>())
+		{
+			MaterialDesignerModule.OpenMaterialObjectProperty({OuterObjects[0], Property}, OuterObjects[0]->GetWorld(), bInvokeTab);
+		}
+	}
 
-	PropertyHandle->SetValueFromFormattedString(NewInstance->GetPathName());
-
-	return OpenDynamicMaterialInstanceTab();
+	return FReply::Handled();
 }
 
 FReply SDMDetailsPanelMaterialInterfaceWidget::ClearDynamicMaterialInstance()
@@ -181,7 +177,7 @@ FReply SDMDetailsPanelMaterialInterfaceWidget::ClearDynamicMaterialInstance()
 	// We don't have an instance, so we don't need to clear it (and don't clear non-MDIs)
 	if (!Instance)
 	{
-		return FReply::Unhandled();
+		return FReply::Handled();
 	}
 
 	SetDynamicMaterialInstance(nullptr);
@@ -196,7 +192,7 @@ FReply SDMDetailsPanelMaterialInterfaceWidget::OpenDynamicMaterialInstanceTab()
 	// We don't have a MDI, so don't try to open it.
 	if (!Instance)
 	{
-		return FReply::Unhandled();
+		return FReply::Handled();
 	}
 
 	const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();

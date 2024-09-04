@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DynamicMeshes/AvaShapeDynMeshBase.h"
+
 #include "Async/Async.h"
 #include "Async/ParallelFor.h"
 #include "AvaShapeActor.h"
@@ -28,6 +29,7 @@
 #if WITH_EDITOR
 #include "Editor.h"
 #include "Elements/Actor/ActorElementEditorViewportInteractionCustomization.h"
+#include "IDynamicMaterialEditorModule.h"
 #include "LevelEditor/AvaLevelEditorUtils.h"
 #include "Material/DynamicMaterialInstanceFactory.h"
 #include "PropertyEditorModule.h"
@@ -1190,6 +1192,11 @@ void UAvaShapeDynamicMeshBase::OnMaterialTypeChanged(int32 MaterialIndex)
 					UDynamicMaterialInstance* NewInstance = NewObject<UDynamicMaterialInstance>(this);
 #endif
 					SetMaterial(MaterialIndex, NewInstance);
+
+#if WITH_EDITOR
+					const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();
+					MaterialDesignerModule.OpenMaterialInstance(NewInstance, GetWorld(), /* Invoke Tab */ true);
+#endif
 				}
 				break;
 			}

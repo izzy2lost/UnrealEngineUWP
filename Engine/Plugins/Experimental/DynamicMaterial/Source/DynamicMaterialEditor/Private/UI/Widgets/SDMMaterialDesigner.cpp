@@ -200,18 +200,11 @@ void SDMMaterialDesigner::OpenObjectMaterialProperty_Internal(const FDMObjectMat
 		{
 			SetEditorView(InObjectMaterialProperty);
 		}
-
-		return;
 	}
-
-	if (AActor* MaterialActor = InObjectMaterialProperty.GetTypedOuter<AActor>())
+	else
 	{
-		TArray<FDMObjectMaterialProperty> ActorProperties = UDMMaterialModelFunctionLibrary::GetActorMaterialProperties(MaterialActor);
-		SetMaterialSelectorView(MaterialActor, MoveTemp(ActorProperties));
-		return;
+		SetWizardView(InObjectMaterialProperty);
 	}
-
-	SetSelectPromptView();
 }
 
 void SDMMaterialDesigner::OpenActor_Internal(AActor* InActor)
@@ -235,7 +228,14 @@ void SDMMaterialDesigner::OpenActor_Internal(AActor* InActor)
 		}
 	}
 
-	SetMaterialSelectorView(InActor, MoveTemp(ActorProperties));
+	if (ActorProperties.Num() == 1)
+	{
+		OpenObjectMaterialProperty_Internal(ActorProperties[0]);
+	}
+	else
+	{
+		SetMaterialSelectorView(InActor, MoveTemp(ActorProperties));
+	}
 }
 
 void SDMMaterialDesigner::SetEmptyView()

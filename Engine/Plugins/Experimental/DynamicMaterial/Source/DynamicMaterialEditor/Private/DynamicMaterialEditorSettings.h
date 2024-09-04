@@ -11,6 +11,7 @@
 #include "DynamicMaterialEditorSettings.generated.h"
 
 class FModifierKeysState;
+class UDynamicMaterialModel;
 class UMaterialFunctionInterface;
 enum EOrientation : int;
 struct FDMMaterialChannelListPreset;
@@ -243,6 +244,16 @@ public:
 	UPROPERTY(Config)
 	bool bValidatedPresets = false;
 
+	/*
+	 * Add paths to search for custom material templates.
+	 *
+	 * Format examples:
+	 * - /Game/Some/Path
+	 * - /Plugin/Some/Path
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Templates")
+	TArray<FName> CustomTemplateFolders;
+
 	/** This variable is accessed in multiple places, so this is a quick accessor. */
 	static bool IsUseLinearColorForVectorsEnabled();
 
@@ -251,6 +262,8 @@ public:
 	void ResetAllLayoutSettings();
 
 	TArray<FDMMaterialEffectList> GetEffectList() const;
+
+	TArray<FAssetData> GetTemplateList() const;
 
 	const FDMDefaultMaterialPropertySlotValue& GetDefaultSlotValue(EDMMaterialPropertyType InProperty) const;
 

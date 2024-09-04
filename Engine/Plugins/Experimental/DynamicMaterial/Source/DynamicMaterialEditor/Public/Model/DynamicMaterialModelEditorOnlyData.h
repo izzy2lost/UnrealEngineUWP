@@ -150,9 +150,6 @@ public:
 	DYNAMICMATERIALEDITOR_API void SetResponsiveAAEnabled(bool bInEnabled);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	DYNAMICMATERIALEDITOR_API FName GetChannelListPreset() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	DYNAMICMATERIALEDITOR_API void SetChannelListPreset(FName InPresetName);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
@@ -238,7 +235,6 @@ public:
 	DYNAMICMATERIALEDITOR_API virtual void PostEditImport() override;
 	DYNAMICMATERIALEDITOR_API virtual void PostDuplicate(bool bInDuplicateForPIE) override;
 	DYNAMICMATERIALEDITOR_API virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& InPropertyChangedEvent) override;
-	DYNAMICMATERIALEDITOR_API virtual void Serialize(FArchive& InAr) override;
 	//~ End UObject
 
 	//~ Begin IDMBuildable
@@ -300,11 +296,6 @@ protected:
 	 */
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer", meta = (DisplayName = "Responsive AA"))
 	bool bResponsiveAAEnabled;
-
-	/** Sets the available channels and default material properties. */
-	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer", 
-		meta = (GetOptions = GetPresetOptions, NoResetToDefault, DisplayName = "Material Type Preset"))
-	FName ChannelListPreset;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, TextExportTransient, Category = "Material Designer")
 	TMap<EDMMaterialPropertyType, TObjectPtr<UDMMaterialSlot>> PropertySlotMap;
@@ -411,11 +402,6 @@ protected:
 
 	void AssignPropertyAlphaValues();
 
-	UFUNCTION()
-	TArray<FName> GetPresetOptions() const;
-
-	void OnChannelListPresetChanged();
-	void EnsurePresetSlots();
 	void OnDomainChanged();
 	void OnBlendModeChanged();
 	void OnShadingModelChanged();

@@ -114,7 +114,7 @@ void FDMContentBrowserIntegration::OnCreateMaterialDesignerInstanceFromTextureSe
 		return;
 	}
 
-	UDynamicMaterialInstance* Instance = Cast<UDynamicMaterialInstance>(GetMutableDefault<UDynamicMaterialInstanceFactory>()->FactoryCreateNew(
+	UDynamicMaterialInstance* NewInstance = Cast<UDynamicMaterialInstance>(GetMutableDefault<UDynamicMaterialInstanceFactory>()->FactoryCreateNew(
 		UDynamicMaterialInstance::StaticClass(),
 		GetTransientPackage(),
 		NAME_None,
@@ -123,12 +123,18 @@ void FDMContentBrowserIntegration::OnCreateMaterialDesignerInstanceFromTextureSe
 		GWarn
 	));
 
-	if (!Instance)
+	if (!NewInstance)
 	{
 		return;
 	}
 
-	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(Instance);
+	ON_SCOPE_EXIT
+	{
+		const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();
+		MaterialDesignerModule.OpenMaterialInstance(NewInstance, nullptr, /* Invoke Tab */ true);
+	};
+
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(NewInstance);
 
 	if (!EditorOnlyData)
 	{
@@ -157,10 +163,10 @@ void FDMContentBrowserIntegration::OnCreateMaterialDesignerInstanceFromTextureSe
 		return;
 	}
 
-	Instance->SetFlags(RF_Standalone | RF_Public);
-	Instance->Rename(*UniqueAssetName, Package, REN_DontCreateRedirectors);
+	NewInstance->SetFlags(RF_Standalone | RF_Public);
+	NewInstance->Rename(*UniqueAssetName, Package, REN_DontCreateRedirectors);
 
-	FAssetRegistryModule::AssetCreated(Instance);
+	FAssetRegistryModule::AssetCreated(NewInstance);
 }
 
 void FDMContentBrowserIntegration::UpdateMaterialDesignerInstanceFromTextureSet(TArray<FAssetData> InSelectedAssets, bool bInReplace)

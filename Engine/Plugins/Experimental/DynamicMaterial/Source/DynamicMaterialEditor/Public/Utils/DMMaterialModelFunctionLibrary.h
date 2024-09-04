@@ -45,4 +45,10 @@ public:
 	DYNAMICMATERIALEDITOR_API static UDynamicMaterialInstance* ExportToTemplateMaterialInstance(UDynamicMaterialModelDynamic* InMaterialModelDynamic, const FString& InSavePath);
 
 	DYNAMICMATERIALEDITOR_API static bool IsModelValid(UDynamicMaterialModelBase* InMaterialModelBase);
+
+	DYNAMICMATERIALEDITOR_API static bool DuplicateModelBetweenInstances(UDynamicMaterialModel* InFromModel, UDynamicMaterialInstance* InToInstance);
+
+	DYNAMICMATERIALEDITOR_API static bool CreateDynamicModelInInstance(UDynamicMaterialModel* InFromModel, UDynamicMaterialInstance* InToInstance);
+
+
 };

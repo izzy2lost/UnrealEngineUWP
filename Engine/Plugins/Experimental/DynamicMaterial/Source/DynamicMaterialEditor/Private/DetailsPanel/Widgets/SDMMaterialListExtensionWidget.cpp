@@ -157,26 +157,31 @@ FReply SDMMaterialListExtensionWidget::CreateDynamicMaterialInstance()
 	// We already have an instance, so we don't need to create one
 	if (Instance)
 	{
-		return FReply::Unhandled();
+		return FReply::Handled();
 	}
 
-	FName InstanceName = MakeUniqueObjectName(CurrentComponentWeak.Get(), UDynamicMaterialInstance::StaticClass(), "DynamicMaterialInstance");
+	TSharedPtr<FMaterialItemView> ListItem = MaterialItemViewWeak.Pin();
 
-	UDynamicMaterialInstanceFactory* DynamicMaterialInstanceFactory = NewObject<UDynamicMaterialInstanceFactory>();
-	check(DynamicMaterialInstanceFactory);
+	if (!ListItem.IsValid())
+	{
+		return FReply::Handled();
+	}
 
-	UDynamicMaterialInstance* NewInstance = Cast<UDynamicMaterialInstance>(DynamicMaterialInstanceFactory->FactoryCreateNew(
-		UDynamicMaterialInstance::StaticClass(),
-		CurrentComponentWeak.Get(),
-		InstanceName,
-		RF_NoFlags,
-		nullptr,
-		GWarn
-	));
+	UPrimitiveComponent* Component = CurrentComponentWeak.Get();
 
-	SetDynamicMaterialInstance(NewInstance);
+	if (!Component)
+	{
+		return FReply::Handled();
+	}
 
-	return OpenDynamicMaterialInstanceTab();
+	const FDMObjectMaterialProperty MaterialProperty(Component, ListItem->GetMaterialListItem().SlotIndex);
+
+	constexpr bool bInvokeTab = true;
+
+	const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();
+	MaterialDesignerModule.OpenMaterialObjectProperty(MaterialProperty, Component->GetWorld(), bInvokeTab);
+
+	return FReply::Handled();
 }
 
 FReply SDMMaterialListExtensionWidget::ClearDynamicMaterialInstance()
@@ -186,7 +191,7 @@ FReply SDMMaterialListExtensionWidget::ClearDynamicMaterialInstance()
 	// We don't have an instance, so we don't need to clear it (or any other asset in its place)
 	if (!Instance)
 	{
-		return FReply::Unhandled();
+		return FReply::Handled();
 	}
 
 	SetDynamicMaterialInstance(nullptr);

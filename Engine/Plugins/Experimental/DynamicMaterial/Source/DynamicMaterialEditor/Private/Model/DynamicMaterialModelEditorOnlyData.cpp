@@ -182,7 +182,6 @@ UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
 	, bOutputTranslucentVelocityEnabled(true)
 	, bNaniteTessellationEnabled(true)
 	, bResponsiveAAEnabled(true)
-	, ChannelListPreset(NAME_None)
 {
 	BaseColor =           CreateDefaultSubobject<UDMMaterialPropertyBaseColor>(          "MaterialProperty_BaseColor");
 	EmissiveColor =       CreateDefaultSubobject<UDMMaterialPropertyEmissiveColor>(      "MaterialProperty_EmissiveColor");
@@ -241,81 +240,11 @@ void UDynamicMaterialModelEditorOnlyData::AssignPropertyAlphaValues()
 	SurfaceThickness   ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalSurfaceThicknessValueName));
 }
 
-TArray<FName> UDynamicMaterialModelEditorOnlyData::GetPresetOptions() const
-{
-	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
-
-	if (!Settings)
-	{
-		return {ChannelListPreset};
-	}
-
-	TArray<FName> PresetNames;
-	PresetNames.Reserve(Settings->MaterialChannelPresets.Num());
-
-	for (const FDMMaterialChannelListPreset& Preset : Settings->MaterialChannelPresets)
-	{
-		PresetNames.Add(Preset.Name);
-	}
-
-	return PresetNames;
-}
-
-void UDynamicMaterialModelEditorOnlyData::OnChannelListPresetChanged()
-{
-	const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->GetPresetByName(ChannelListPreset);
-
-	if (!Preset)
-	{
-		return;
-	}
-
-	EnsurePresetSlots();
-
-	SetBlendMode(Preset->DefaultBlendMode);
-	SetShadingModel(Preset->DefaultShadingModel);
-	SetHasPixelAnimation(Preset->bDefaultAnimated);
-	SetIsTwoSided(Preset->bDefaultTwoSided);
-}
-
-void UDynamicMaterialModelEditorOnlyData::EnsurePresetSlots()
-{
-	const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->GetPresetByName(ChannelListPreset);
-
-	if (!Preset)
-	{
-		return;
-	}
-
-	UE::DynamicMaterial::ForEachMaterialPropertyType(
-		[this, Preset](EDMMaterialPropertyType InProperty)
-		{
-			if (InProperty == EDMMaterialPropertyType::OpacityMask)
-			{
-				return EDMIterationResult::Continue;
-			}
-
-			if (Preset->IsPropertyEnabled(InProperty))
-			{
-				AddSlotForMaterialProperty(InProperty);
-			}
-			else
-			{
-				RemoveSlotForMaterialProperty(InProperty);
-			}
-
-			return EDMIterationResult::Continue;
-		});
-}
-
 void UDynamicMaterialModelEditorOnlyData::OnDomainChanged()
 {
 	if (Domain == EMaterialDomain::MD_PostProcess)
 	{
 		const FDMUpdateGuard Guard;
-
-		// Make sure we have the correct slots, then adjust for domains.
-		EnsurePresetSlots();
 
 		// Post process only supports emissive.
 		UDMMaterialSlot* BaseColorSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor);
@@ -347,8 +276,6 @@ void UDynamicMaterialModelEditorOnlyData::OnDomainChanged()
 
 void UDynamicMaterialModelEditorOnlyData::OnBlendModeChanged()
 {
-	EnsurePresetSlots();
-
 	switch (BlendMode)
 	{
 		case EBlendMode::BLEND_Opaque:
@@ -390,9 +317,6 @@ void UDynamicMaterialModelEditorOnlyData::Initialize()
 	}
 
 	AssignPropertyAlphaValues();
-
-	// Will choose appropriate type between BaseColor and EmissiveColor
-	AddSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor);
 }
 
 UMaterial* UDynamicMaterialModelEditorOnlyData::GetGeneratedMaterial() const
@@ -845,7 +769,7 @@ bool UDynamicMaterialModelEditorOnlyData::AddTextureSet(UDMTextureSet* InTexture
 
 bool UDynamicMaterialModelEditorOnlyData::NeedsWizard() const
 {
-	return ChannelListPreset.IsNone();
+	return PropertySlotMap.IsEmpty();
 }
 
 void UDynamicMaterialModelEditorOnlyData::OnWizardComplete()
@@ -858,9 +782,37 @@ void UDynamicMaterialModelEditorOnlyData::OnWizardComplete()
 
 void UDynamicMaterialModelEditorOnlyData::SetChannelListPreset(FName InPresetName)
 {
-	ChannelListPreset = InPresetName;
+	const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->GetPresetByName(InPresetName);
 
-	OnChannelListPresetChanged();
+	if (!Preset)
+	{
+		return;
+	}
+
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
+		[this, Preset](EDMMaterialPropertyType InProperty)
+		{
+			if (InProperty == EDMMaterialPropertyType::OpacityMask)
+			{
+				return EDMIterationResult::Continue;
+			}
+
+			if (Preset->IsPropertyEnabled(InProperty))
+			{
+				AddSlotForMaterialProperty(InProperty);
+			}
+			else
+			{
+				RemoveSlotForMaterialProperty(InProperty);
+			}
+
+			return EDMIterationResult::Continue;
+		});
+
+	SetBlendMode(Preset->DefaultBlendMode);
+	SetShadingModel(Preset->DefaultShadingModel);
+	SetHasPixelAnimation(Preset->bDefaultAnimated);
+	SetIsTwoSided(Preset->bDefaultTwoSided);
 }
 
 const FMaterialStatistics& UDynamicMaterialModelEditorOnlyData::GetMaterialStats() const
@@ -1121,11 +1073,6 @@ void UDynamicMaterialModelEditorOnlyData::SetResponsiveAAEnabled(bool bInEnabled
 	bResponsiveAAEnabled = bInEnabled;
 
 	OnMaterialFlagChanged();
-}
-
-FName UDynamicMaterialModelEditorOnlyData::GetChannelListPreset() const
-{
-	return ChannelListPreset;
 }
 
 void UDynamicMaterialModelEditorOnlyData::OpenMaterialEditor() const
@@ -1534,11 +1481,7 @@ void UDynamicMaterialModelEditorOnlyData::PostEditChangeChainProperty(FPropertyC
 
 	const FName Property = InPropertyChangedEvent.GetMemberPropertyName();
 
-	if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, ChannelListPreset))
-	{
-		OnChannelListPresetChanged();
-	}
-	else if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, Domain))
+	 if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, Domain))
 	{
 		OnDomainChanged();
 	}
@@ -1557,50 +1500,6 @@ void UDynamicMaterialModelEditorOnlyData::PostEditChangeChainProperty(FPropertyC
 		|| Property == GET_MEMBER_NAME_CHECKED(ThisClass, bResponsiveAAEnabled))
 	{
 		OnMaterialFlagChanged();
-	}
-}
-
-void UDynamicMaterialModelEditorOnlyData::Serialize(FArchive& InAr)
-{
-	InAr.UsingCustomVersion(FDynamicMaterialModelEditorOnlyDataVersion::GUID);
-
-	Super::Serialize(InAr);
-
-	const int32 Version = InAr.CustomVer(FDynamicMaterialModelEditorOnlyDataVersion::GUID);
-
-	// The default blend mode was changed from translucent and to opaque. If we have a
-	// transparent channel, let's set it back to translucent.
-	if (Version < FDynamicMaterialModelEditorOnlyDataVersion::GlobalValueRename)
-	{
-		if (ChannelListPreset.IsNone())
-		{
-			// Try to guess from the available slots.
-			if (GetSlotForMaterialProperty(EDMMaterialPropertyType::Opacity))
-			{
-				ChannelListPreset = "Translucent";
-				BlendMode = BLEND_Translucent;
-				ShadingModel = EDMMaterialShadingModel::Unlit;
-			}
-			else if (GetSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask))
-			{
-				ChannelListPreset = "Translucent";
-				BlendMode = BLEND_Masked;
-				ShadingModel = EDMMaterialShadingModel::Unlit;
-			}
-			if (GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
-			{
-				ChannelListPreset = "Translucent";
-				BlendMode = BLEND_Translucent;
-				ShadingModel = EDMMaterialShadingModel::Unlit;
-			}
-			// Else let's stay on opaque
-			else
-			{
-				BlendMode = BLEND_Opaque;
-				ShadingModel = EDMMaterialShadingModel::DefaultLit;
-				ChannelListPreset = "Opaque";
-			}
-		}
 	}
 }
 

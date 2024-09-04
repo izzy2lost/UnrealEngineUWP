@@ -2,13 +2,12 @@
 
 #include "DetailsPanel/Widgets/SDMDetailsPanelTabSpawner.h"
 
-#include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
+#include "DMObjectMaterialProperty.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "IAssetTools.h"
-#include "Model/DynamicMaterialModel.h"
+#include "IDynamicMaterialEditorModule.h"
 #include "Model/DynamicMaterialModelBase.h"
-#include "Model/DynamicMaterialModelFactory.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyHandle.h"
 #include "Widgets/Input/SButton.h"
@@ -127,46 +126,29 @@ FReply SDMDetailsPanelTabSpawner::CreateDynamicMaterialModel()
 	// We already have a builder, so we don't need to create one
 	if (MaterialModelBase)
 	{
-		return FReply::Unhandled();
+		return FReply::Handled();
 	}
 
 	TArray<UObject*> OuterObjects;
 	PropertyHandle->GetOuterObjects(OuterObjects);
 
-	if (OuterObjects.IsEmpty())
+	if (OuterObjects.IsEmpty() || !IsValid(OuterObjects[0]))
 	{
-		return FReply::Unhandled();
+		return FReply::Handled();
 	}
 
-	FString PackageName, AssetName;
-	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	AssetTools.CreateUniqueAssetName(
-		UDynamicMaterialModelFactory::BaseDirectory / UDynamicMaterialModelFactory::BaseName + FGuid::NewGuid().ToString(),
-		"",
-		PackageName,
-		AssetName
-	);
+	const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();
+	constexpr bool bInvokeTab = true;
 
-	UPackage* Package = CreatePackage(*PackageName);
-	check(Package);
+	if (FProperty* Property = PropertyHandle->GetProperty())
+	{
+		if (Property->IsA<FObjectPropertyBase>())
+		{
+			MaterialDesignerModule.OpenMaterialObjectProperty({OuterObjects[0], Property}, OuterObjects[0]->GetWorld(), bInvokeTab);
+		}
+	}
 
-	UDynamicMaterialModelFactory* DynamicMaterialModelFactory = NewObject<UDynamicMaterialModelFactory>();
-	check(DynamicMaterialModelFactory);
-
-	UDynamicMaterialModel* NewModel = Cast<UDynamicMaterialModel>(DynamicMaterialModelFactory->FactoryCreateNew(
-		UDynamicMaterialModelBase::StaticClass(),
-		Package,
-		*AssetName,
-		RF_Standalone | RF_Public,
-		nullptr,
-		GWarn
-	));
-
-	FAssetRegistryModule::AssetCreated(NewModel);
-
-	PropertyHandle->SetValueFromFormattedString(NewModel->GetPathName());
-
-	return OpenDynamicMaterialModelTab();
+	return FReply::Handled();
 }
 
 FReply SDMDetailsPanelTabSpawner::ClearDynamicMaterialModel()
@@ -176,7 +158,7 @@ FReply SDMDetailsPanelTabSpawner::ClearDynamicMaterialModel()
 	// We don't have a builder, so we don't need to clear it
 	if (!MaterialModelBase)
 	{
-		return FReply::Unhandled();
+		return FReply::Handled();
 	}
 
 	SetMaterialModelBase(nullptr);
@@ -191,7 +173,7 @@ FReply SDMDetailsPanelTabSpawner::OpenDynamicMaterialModelTab()
 	// We don't have a builder, so we can't open it
 	if (!MaterialModelBase)
 	{
-		return FReply::Unhandled();
+		return FReply::Handled();
 	}
 
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();

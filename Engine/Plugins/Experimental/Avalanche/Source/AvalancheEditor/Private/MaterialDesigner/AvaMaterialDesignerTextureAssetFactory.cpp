@@ -14,8 +14,10 @@
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "DynamicMeshes/AvaShapeDynMeshBase.h"
 #include "DynamicMeshes/AvaShapeRectangleDynMesh.h"
+#include "Engine/Level.h"
 #include "Engine/Texture.h"
 #include "Framework/Application/SlateApplication.h"
+#include "IDynamicMaterialEditorModule.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Material/DynamicMaterialInstanceFactory.h"
 #include "Model/DynamicMaterialModel.h"
@@ -124,6 +126,12 @@ AActor* UAvaMaterialDesignerTextureAssetFactory::SpawnActor(UObject* InAsset, UL
 
 	EditorOnlyData->SetChannelListPreset(TEXT("Emissive"));
 	EditorOnlyData->OnWizardComplete();
+
+	ON_SCOPE_EXIT
+	{
+		const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();
+		MaterialDesignerModule.OpenMaterialInstance(NewInstance, InLevel->GetWorld(), /* Invoke Tab */ true);
+	};
 
 	const UDMMaterialSlot* Slot = EditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
 

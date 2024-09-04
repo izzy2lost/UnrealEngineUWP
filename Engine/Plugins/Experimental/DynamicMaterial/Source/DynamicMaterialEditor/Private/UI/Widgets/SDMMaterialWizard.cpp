@@ -2,21 +2,28 @@
 
 #include "UI/Widgets/SDMMaterialWizard.h"
 
+#include "AssetRegistry/AssetData.h"
+#include "AssetThumbnail.h"
 #include "DMDefs.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "DynamicMaterialModule.h"
 #include "Engine/EngineTypes.h"
+#include "Material/DynamicMaterialInstance.h"
+#include "Material/DynamicMaterialInstanceFactory.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Styling/SlateTypes.h"
 #include "Styling/StyleColors.h"
+#include "ThumbnailRendering/ThumbnailManager.h"
 #include "UI/Widgets/SDMMaterialDesigner.h"
+#include "Utils/DMMaterialModelFunctionLibrary.h"
 #include "Utils/DMPrivate.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SExpandableArea.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
@@ -43,14 +50,11 @@ SDMMaterialWizard::~SDMMaterialWizard()
 		return;
 	}
 
-	if (TSharedPtr<SDMMaterialDesigner> DesignerWidget = DesignerWidgetWeak.Pin())
+	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
 	{
-		if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(DesignerWidget->GetMaterialModelBase()))
+		if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 		{
-			if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
-			{
-				EditorOnlyData->GetOnMaterialBuiltDelegate().RemoveAll(this);
-			}
+			EditorOnlyData->GetOnMaterialBuiltDelegate().RemoveAll(this);
 		}
 	}
 }
@@ -108,6 +112,16 @@ UDynamicMaterialModel* SDMMaterialWizard::GetMaterialModel() const
 	return MaterialModelWeak.Get();
 }
 
+TArray<FAssetData> SDMMaterialWizard::GetTemplateMaterials()
+{
+	if (const UDynamicMaterialEditorSettings* Settings = GetDefault<UDynamicMaterialEditorSettings>())
+	{
+		return Settings->GetTemplateList();
+	}
+
+	return {};
+}
+
 TSharedRef<SWidget> SDMMaterialWizard::CreateLayout()
 {
 	using namespace UE::DynamicMaterialDesigner::Private;
@@ -128,54 +142,127 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateLayout()
 
 			+ SVerticalBox::Slot()
 			.AutoHeight()
-			.HAlign(HAlign_Left)
-			.Padding(0.0f, SeparationDistance, 0.0f, TitleContentDistance)
-			[
-				SNew(STextBlock)
-				.TextStyle(FDynamicMaterialEditorStyle::Get(), "BoldFont")
-				.Text(LOCTEXT("MaterialType", "Material Type"))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(EHorizontalAlignment::HAlign_Fill)
-			.Padding(0.0f, 0.f, 0.0f, TitleContentDistance)
-			[
-				CreateChannelPresets()
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(HAlign_Left)
-			.Padding(0.0f, SeparationDistance, 0.0f, TitleContentDistance)
-			[
-				SNew(STextBlock)
-				.TextStyle(FDynamicMaterialEditorStyle::Get(), "BoldFont")
-				.Text(LOCTEXT("AvailableChannels", "Available Channels"))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(EHorizontalAlignment::HAlign_Fill)
-			[
-				SAssignNew(PresetChannelContainer, SBox)
-				.HAlign(EHorizontalAlignment::HAlign_Fill)
-				[
-					CreateChannelList()
-				]
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(EHorizontalAlignment::HAlign_Fill)
 			.Padding(0.0f, SeparationDistance, 0.0f, 0.f)
 			[
-				CreateAcceptButton()
+				CreateModeSelector()
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, SeparationDistance, 0.0f, 0.f)
+			[
+				SAssignNew(Switcher, SWidgetSwitcher)
+				+ SWidgetSwitcher::Slot()
+				[
+					CreateTemplateListLayout()
+				]
+				+ SWidgetSwitcher::Slot()
+				[
+					CreateSelectPresetLayout()
+				]
 			]
 		];
 }
 
-TSharedRef<SWidget> SDMMaterialWizard::CreateChannelPresets()
+TSharedRef<SWidget> SDMMaterialWizard::CreateModeSelector()
+{
+	return SNew(SHorizontalBox)
+
+		+ SHorizontalBox::Slot()
+		.FillContentWidth(1.f)
+		.HAlign(EHorizontalAlignment::HAlign_Right)
+		.Padding(0.f, 0.f, 5.f, 0.f)
+		[
+			SNew(SCheckBox)
+			.Style(FAppStyle::Get(), "DetailsView.SectionButton")
+			.HAlign(EHorizontalAlignment::HAlign_Center)
+			.Padding(FMargin(10.f, 6.f))
+			.IsChecked(this, &SDMMaterialWizard::IsModeSelected, 0)
+			.OnCheckStateChanged(this, &SDMMaterialWizard::SetMode, 0)
+			.ToolTipText(LOCTEXT("TemplateModeToolTip", "Create a new Dynamic Material Instance based on a template."))
+			.Content()
+			[
+				SNew(STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "BoldFont")
+				.Text(LOCTEXT("TemplateMode", "New Instance"))
+			]
+		]
+
+		+ SHorizontalBox::Slot()
+		.FillContentWidth(1.f)
+		.HAlign(EHorizontalAlignment::HAlign_Left)
+		.Padding(5.f, 0.f, 0.f, 0.f)
+		[
+			SNew(SCheckBox)
+			.Style(FAppStyle::Get(), "DetailsView.SectionButton")
+			.HAlign(EHorizontalAlignment::HAlign_Center)
+			.Padding(FMargin(10.f, 6.f))
+			.IsChecked(this, &SDMMaterialWizard::IsModeSelected, 1)
+			.OnCheckStateChanged(this, &SDMMaterialWizard::SetMode, 1)
+			.ToolTipText(LOCTEXT("PresetModeToolTip", "Set up a new Material based on simple channel presets."))
+			.Content()
+			[
+				SNew(STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "BoldFont")
+				.Text(LOCTEXT("PresetMode", "New Template"))
+			]
+		];
+}
+
+TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPresetLayout()
+{
+	using namespace UE::DynamicMaterialDesigner::Private;
+
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.HAlign(HAlign_Left)
+		.Padding(0.0f, SeparationDistance, 0.0f, TitleContentDistance)
+		[
+			SNew(STextBlock)
+			.TextStyle(FDynamicMaterialEditorStyle::Get(), "BoldFont")
+			.Text(LOCTEXT("MaterialType", "Material Type"))
+		]
+
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.HAlign(EHorizontalAlignment::HAlign_Fill)
+		.Padding(0.0f, 0.f, 0.0f, TitleContentDistance)
+		[
+			CreateSelectPreset_ChannelPresets()
+		]
+
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.HAlign(HAlign_Left)
+		.Padding(0.0f, SeparationDistance, 0.0f, TitleContentDistance)
+		[
+			SNew(STextBlock)
+			.TextStyle(FDynamicMaterialEditorStyle::Get(), "BoldFont")
+			.Text(LOCTEXT("AvailableChannels", "Available Channels"))
+		]
+
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.HAlign(EHorizontalAlignment::HAlign_Fill)
+		[
+			SAssignNew(PresetChannelContainer, SBox)
+			.HAlign(EHorizontalAlignment::HAlign_Fill)
+			[
+				CreateSelectPreset_ChannelList()
+			]
+		]
+
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.HAlign(EHorizontalAlignment::HAlign_Fill)
+		.Padding(0.0f, SeparationDistance, 0.0f, 0.f)
+		[
+			CreateSelectPreset_AcceptButton()
+		];
+}
+
+TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPreset_ChannelPresets()
 {
 	using namespace UE::DynamicMaterialDesigner::Private;
 
@@ -205,7 +292,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateChannelPresets()
 	return ChannelPresets;
 }
 
-TSharedRef<SWidget> SDMMaterialWizard::CreateChannelList()
+TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPreset_ChannelList()
 {
 	using namespace UE::DynamicMaterialDesigner::Private;
 
@@ -215,8 +302,6 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateChannelList()
 	{
 		return SNullWidget::NullWidget;
 	}
-
-	UEnum* MaterialPropertyEnum = StaticEnum<EDMMaterialPropertyType>();
 
 	TSharedRef<SWrapBox> ChannelPresets = SNew(SWrapBox)
 		.UseAllottedSize(true)
@@ -248,7 +333,61 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateChannelList()
 	return ChannelPresets;
 }
 
-TSharedRef<SWidget> SDMMaterialWizard::CreateAcceptButton()
+TSharedRef<SWidget> SDMMaterialWizard::CreateTemplateListLayout()
+{
+	TSharedRef<SWrapBox> WrapBox = SNew(SWrapBox)
+		.InnerSlotPadding(FVector2D(5.f))
+		.UseAllottedSize(true);
+
+	TArray<FAssetData> Templates = GetTemplateMaterials();
+
+	for (const FAssetData& Template : Templates)
+	{
+		WrapBox->AddSlot()
+			[
+				CreateTemplateList_Entry(Template)
+			];
+	}
+
+	return WrapBox;
+}
+
+TSharedRef<SWidget> SDMMaterialWizard::CreateTemplateList_Entry(const FAssetData& InTemplateAsset)
+{
+	Assets.Add(InTemplateAsset);
+
+	TSharedRef<FAssetThumbnail> Thumbnail = MakeShared<FAssetThumbnail>(InTemplateAsset, 100.f, 100.f, UThumbnailManager::Get().GetSharedThumbnailPool());
+	Thumbnails.Add(Thumbnail);
+
+	TSharedRef<SWidget> Entry = SNew(SBox)
+		.WidthOverride(100.f)
+		.HeightOverride(123.f)
+		.Cursor(EMouseCursor::Hand)
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				Thumbnail->MakeThumbnailWidget()
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.f, 5.f, 0.f, 0.f)
+			[
+				SNew(STextBlock)
+				.WrapTextAt(100.f)
+				.WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
+				.Text(FText::FromName(InTemplateAsset.AssetName))
+			]
+		];
+
+	Entry->SetOnMouseButtonDown(FPointerEventHandler::CreateSP(this, &SDMMaterialWizard::OnTemplateMouseDown, Assets.Num() - 1));
+
+	return Entry;
+}
+
+TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPreset_AcceptButton()
 {
 	using namespace UE::DynamicMaterialDesigner::Private;
 
@@ -282,32 +421,48 @@ void SDMMaterialWizard::Preset_OnChange(ECheckBoxState InState, FName InPresetNa
 
 		if (PresetChannelContainer.IsValid())
 		{
-			PresetChannelContainer->SetContent(CreateChannelList());
+			PresetChannelContainer->SetContent(CreateSelectPreset_ChannelList());
 		}
 	}
 }
 
 FReply SDMMaterialWizard::Accept_OnClick()
 {
-	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
+	if (CurrentPreset.IsNone())
+	{
+		FReply::Handled();
+	}
 
-	if (!MaterialModel)
+	TSharedPtr<SDMMaterialDesigner> DesignerWidget = GetDesignerWidget();
+
+	if (!DesignerWidget.IsValid())
 	{
 		return FReply::Handled();
 	}
 
-	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
-
-	if (!EditorOnlyData)
+	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
 	{
-		return FReply::Handled();
+		SetChannelListInModel(CurrentPreset, MaterialModel);
 	}
+	else if (MaterialObjectProperty.IsSet())
+	{
+		if (MaterialObjectProperty->IsValid())
+		{
+			CreateTemplateMaterialInActor(CurrentPreset, MaterialObjectProperty.GetValue());
+		}
+		else
+		{
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Invalid actor property to create new template in."));
 
-	EditorOnlyData->GetOnMaterialBuiltDelegate().RemoveAll(this);
-	EditorOnlyData->SetChannelListPreset(CurrentPreset);
-	EditorOnlyData->OnWizardComplete();
+			DesignerWidget->ShowSelectPrompt();
+		}
+	}
+	else
+	{
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Missing material information for new template."));
 
-	OpenMaterialInEditor();
+		DesignerWidget->ShowSelectPrompt();
+	}
 
 	return FReply::Handled();
 }
@@ -349,6 +504,178 @@ void SDMMaterialWizard::OpenMaterialInEditor()
 		return;
 	}
 
+	DesignerWidget->Empty();
+
+	if (MaterialObjectProperty.IsSet())
+	{
+		DesignerWidget->OpenObjectMaterialProperty(MaterialObjectProperty.GetValue());
+	}
+	else if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+	{
+		DesignerWidget->OpenMaterialModelBase(MaterialModel);
+	}
+}
+
+ECheckBoxState SDMMaterialWizard::IsModeSelected(int32 InMode) const
+{
+	if (Switcher.IsValid() && Switcher->GetActiveWidgetIndex() == InMode)
+	{
+		return ECheckBoxState::Checked;
+	}
+
+	return ECheckBoxState::Unchecked;
+}
+
+void SDMMaterialWizard::SetMode(ECheckBoxState InState, int32 InMode)
+{
+	if (InState == ECheckBoxState::Checked && Switcher.IsValid())
+	{
+		Switcher->SetActiveWidgetIndex(InMode);
+	}
+}
+
+FReply SDMMaterialWizard::OnTemplateMouseDown(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, int32 InAssetIndex)
+{
+	if (!Assets.IsValidIndex(InAssetIndex))
+	{
+		return FReply::Handled();
+	}
+
+	TSharedPtr<SDMMaterialDesigner> DesignerWidget = GetDesignerWidget();
+
+	if (!DesignerWidget.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	UDynamicMaterialInstance* TemplateInstance = Cast<UDynamicMaterialInstance>(Assets[InAssetIndex].GetAsset());
+
+	if (!TemplateInstance)
+	{
+		return FReply::Handled();
+	}
+
+	UDynamicMaterialModel* TemplateModel = Cast<UDynamicMaterialModel>(TemplateInstance->GetMaterialModelBase());
+
+	if (!TemplateModel)
+	{
+		return FReply::Handled();
+	}
+
+	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+	{
+		if (UDynamicMaterialInstance* Instance = MaterialModel->GetDynamicMaterialInstance())
+		{
+			CreateDynamicMaterialInInstance(TemplateModel, Instance);
+		}
+		else
+		{
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Unable to find material instance to create new dynamic material in."));
+
+			DesignerWidget->ShowSelectPrompt();
+		}
+	}
+	else if (MaterialObjectProperty.IsSet())
+	{
+		if (MaterialObjectProperty->IsValid())
+		{
+			if (UDynamicMaterialInstance* Instance = MaterialObjectProperty->GetMaterial())
+			{
+				CreateDynamicMaterialInInstance(TemplateModel, Instance);
+			}
+			else
+			{
+				CreateNewDynamicInstanceInActor(TemplateModel, MaterialObjectProperty.GetValue());
+			}
+		}
+		else
+		{
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Invalid actor property to create new dynamic material in."));
+
+			DesignerWidget->ShowSelectPrompt();
+		}
+	}
+	else
+	{
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Missing material information for dynamic material."));
+
+		DesignerWidget->ShowSelectPrompt();
+	}
+
+	return FReply::Handled();
+}
+
+void SDMMaterialWizard::CreateDynamicMaterialInInstance(UDynamicMaterialModel* InTemplateModel, UDynamicMaterialInstance* InToInstance)
+{
+	TSharedPtr<SDMMaterialDesigner> DesignerWidget = GetDesignerWidget();
+
+	if (!DesignerWidget.IsValid())
+	{
+		return;
+	}
+
+	if (!UDMMaterialModelFunctionLibrary::CreateDynamicModelInInstance(InTemplateModel, InToInstance))
+	{
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to create new dynamic model in existing instance."));
+		return;
+	}
+
+	DesignerWidget->OpenMaterialModelBase(InToInstance->GetMaterialModelBase());
+}
+
+void SDMMaterialWizard::CreateNewDynamicInstanceInActor(UDynamicMaterialModel* InFromModel, FDMObjectMaterialProperty& InMaterialObjectProperty)
+{
+	TSharedPtr<SDMMaterialDesigner> DesignerWidget = GetDesignerWidget();
+
+	if (!DesignerWidget.IsValid())
+	{
+		return;
+	}
+
+	UObject* Outer = InMaterialObjectProperty.GetOuter();
+
+	if (!Outer)
+	{
+		return;
+	}
+
+	UDynamicMaterialInstanceFactory* Factory = NewObject<UDynamicMaterialInstanceFactory>(GetTransientPackage());
+
+	UDynamicMaterialInstance* NewInstance = Cast<UDynamicMaterialInstance>(Factory->FactoryCreateNew(
+		UDynamicMaterialInstance::StaticClass(),
+		Outer,
+		NAME_None,
+		RF_Transactional | RF_Public,
+		nullptr,
+		GWarn
+	));
+
+	if (!NewInstance)
+	{
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to create new material instance."));
+		return;
+	}
+
+	if (!UDMMaterialModelFunctionLibrary::CreateDynamicModelInInstance(InFromModel, NewInstance))
+	{
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to create new dynamic model in new instance."));
+		return;
+	}
+
+	InMaterialObjectProperty.SetMaterial(NewInstance);
+
+	DesignerWidget->OpenObjectMaterialProperty(InMaterialObjectProperty);
+}
+
+void SDMMaterialWizard::SetChannelListInModel(FName InChannelList, UDynamicMaterialModel* InMaterialModel)
+{
+	TSharedPtr<SDMMaterialDesigner> DesignerWidget = GetDesignerWidget();
+
+	if (!DesignerWidget.IsValid())
+	{
+		return;
+	}
+
 	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
 
 	if (!MaterialModel)
@@ -356,16 +683,62 @@ void SDMMaterialWizard::OpenMaterialInEditor()
 		return;
 	}
 
-	DesignerWidget->Empty();
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
 
-	if (MaterialObjectProperty.IsSet())
+	if (!EditorOnlyData)
 	{
-		DesignerWidget->OpenObjectMaterialProperty(MaterialObjectProperty.GetValue());
+		return;
 	}
-	else
+
+	EditorOnlyData->GetOnMaterialBuiltDelegate().RemoveAll(this);
+	EditorOnlyData->SetChannelListPreset(InChannelList);
+	EditorOnlyData->OnWizardComplete();
+
+	DesignerWidget->OpenMaterialModelBase(MaterialModel);
+}
+
+void SDMMaterialWizard::CreateTemplateMaterialInActor(FName InChannelList, FDMObjectMaterialProperty& InMaterialObjectProperty)
+{
+	TSharedPtr<SDMMaterialDesigner> DesignerWidget = GetDesignerWidget();
+
+	if (!DesignerWidget.IsValid())
 	{
-		DesignerWidget->OpenMaterialModelBase(MaterialModel);
+		return;
 	}
+
+	UObject* Outer = InMaterialObjectProperty.GetOuter();
+
+	if (!Outer)
+	{
+		return;
+	}
+
+	UDynamicMaterialInstanceFactory* Factory = NewObject<UDynamicMaterialInstanceFactory>(GetTransientPackage());
+
+	UDynamicMaterialInstance* NewInstance = Cast<UDynamicMaterialInstance>(Factory->FactoryCreateNew(
+		UDynamicMaterialInstance::StaticClass(),
+		Outer,
+		NAME_None,
+		RF_Transactional | RF_Public,
+		nullptr,
+		GWarn
+	));
+
+	if (!NewInstance)
+	{
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to create new material instance."));
+		return;
+	}
+
+	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(NewInstance))
+	{
+		EditorOnlyData->SetChannelListPreset(InChannelList);
+		EditorOnlyData->OnWizardComplete();
+	}
+
+	InMaterialObjectProperty.SetMaterial(NewInstance);
+
+	DesignerWidget->OpenMaterialModelBase(NewInstance->GetMaterialModelBase());
 }
 
 #undef LOCTEXT_NAMESPACE
