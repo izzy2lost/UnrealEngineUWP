@@ -11,16 +11,26 @@ public static class KnownPropertyNames
 	/// The agent id
 	/// </summary>
 	public const string Id = "Id";
-	
+
 	/// <summary>
-	/// Handle of the primary device (usually the agent VM itself)
+	/// The UBT platform enum
 	/// </summary>
-	public const string PrimaryDeviceHandle = "Primary";
+	public const string Platform = "Platform";
+
+	/// <summary>
+	/// The UBT platform group enum
+	/// </summary>
+	public const string PlatformGroup = "PlatformGroup";
 
 	/// <summary>
 	/// The operating system (Linux, MacOS, Windows)
 	/// </summary>
 	public const string OsFamily = "OSFamily";
+
+	/// <summary>
+	/// Compatible operating system (mainly for Linux WINE agents to advertise Windows support)
+	/// </summary>
+	public const string OsFamilyCompatibility = "OSFamilyCompatibility";
 
 	/// <summary>
 	/// Whether the agent is a .NET self-contained app
