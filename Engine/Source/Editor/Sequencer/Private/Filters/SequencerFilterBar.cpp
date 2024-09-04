@@ -1,8 +1,9 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Filters/SequencerFilterBar.h"
 #include "CurveEditor.h"
 #include "Filters/Filters/SequencerTrackFilter_Keyed.h"
+#include "Filters/Filters/SequencerTrackFilter_Condition.h"
 #include "Filters/Filters/SequencerTrackFilter_CustomText.h"
 #include "Filters/Filters/SequencerTrackFilter_Group.h"
 #include "Filters/Filters/SequencerTrackFilter_HideIsolate.h"
@@ -118,6 +119,7 @@ void FSequencerFilterBar::CreateDefaultFilters()
 	//CommonFilters->Add(ModifiedFilter); // Disabling until clear direction on what this should do
 	CommonFilters->Add(SelectedFilter);
 	CommonFilters->Add(MakeShared<FSequencerTrackFilter_Unbound>(*this, MiscCategory));
+	CommonFilters->Add(MakeShared<FSequencerTrackFilter_Condition>(*this, MiscCategory));
 
 	// Add global user-defined filters
 	for (TObjectIterator<USequencerTrackFilterExtension> ExtensionIt(RF_NoFlags); ExtensionIt; ++ExtensionIt)

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -60,6 +60,7 @@ public:
 	TSharedPtr<FUICommandInfo> ToggleFilter_Light;
 	TSharedPtr<FUICommandInfo> ToggleFilter_SkeletalMesh;
 
+	TSharedPtr<FUICommandInfo> ToggleFilter_Condition;
 	TSharedPtr<FUICommandInfo> ToggleFilter_Keyed;
 	TSharedPtr<FUICommandInfo> ToggleFilter_Modified;
 	TSharedPtr<FUICommandInfo> ToggleFilter_Selected;

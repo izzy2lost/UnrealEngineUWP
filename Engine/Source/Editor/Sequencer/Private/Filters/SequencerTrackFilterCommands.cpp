@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SequencerTrackFilterCommands.h"
 #include "Styling/AppStyle.h"
@@ -54,6 +54,7 @@ void FSequencerTrackFilterCommands::RegisterCommands()
 	UI_COMMAND(ToggleFilter_Light, "Toggle Light Filter", "Toggle the filter for Light tracks", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ToggleFilter_SkeletalMesh, "Toggle Skeletal Mesh Filter", "Toggle the filter for Skeletal Mesh tracks", EUserInterfaceActionType::Button, FInputChord());
 
+	UI_COMMAND(ToggleFilter_Condition, "Toggle Condition Filter", "Toggle the filter for tracks with conditions", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ToggleFilter_Keyed, "Toggle Keyed Filter", "Toggle the filter for Keyed tracks", EUserInterfaceActionType::Button, FInputChord(EKeys::U));
 	UI_COMMAND(ToggleFilter_Modified, "Toggle Modified Filter", "Toggle the filter for Modified tracks", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ToggleFilter_Selected, "Toggle Selected In Viewport Filter", "Toggle the filter for Selected In Viewport tracks", EUserInterfaceActionType::Button, FInputChord());

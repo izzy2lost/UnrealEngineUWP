@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SequencerTrackFilter_Text.h"
 #include "Filters/SequencerFilterBar.h"
@@ -7,6 +7,10 @@
 #include "Misc/TextFilterExpressionEvaluator.h"
 #include "MVVM/ViewModelPtr.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Keyed.h"
+#include "Filters/TextExpressions/SequencerTextFilterExpression_Condition.h"
+#include "Filters/TextExpressions/SequencerTextFilterExpression_ConditionClass.h"
+#include "Filters/TextExpressions/SequencerTextFilterExpression_ConditionFunc.h"
+#include "Filters/TextExpressions/SequencerTextFilterExpression_ConditionPasses.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Class.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Group.h"
 #include "Filters/TextExpressions/SequencerTextFilterExpression_Level.h"
@@ -37,6 +41,10 @@ FSequencerTrackFilter_Text::FSequencerTrackFilter_Text(ISequencerTrackFilters& I
 	// Ordered by importance and most often used. This will dictate the order of display in the text expressions help dialog.
 	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_Name>(InFilterInterface));
 	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_Class>(InFilterInterface));
+	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_Condition>(InFilterInterface));
+	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_ConditionClass>(InFilterInterface));
+	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_ConditionFunc>(InFilterInterface));
+	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_ConditionPasses>(InFilterInterface));
 	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_Keyed>(InFilterInterface));
 	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_Selected>(InFilterInterface));
 	TextFilterExpressionContexts.Add(MakeShared<FSequencerTextFilterExpression_Unbound>(InFilterInterface));
