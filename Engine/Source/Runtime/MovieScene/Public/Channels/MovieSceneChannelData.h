@@ -202,7 +202,7 @@ protected:
 	MOVIESCENE_API FMovieSceneChannelData(FMovieSceneChannel* InChannel, TArray<FFrameNumber>* InTimes, FKeyHandleLookupTable* InKeyHandles);
 
 	UE_DEPRECATED(5.5, "Constructor that takes an optional FMovieSceneChannel is now deprecated. FMovieSceneChannel is now required.")
-	MOVIESCENE_API FMovieSceneChannelData(TArray<FFrameNumber>* InTimes, FKeyHandleLookupTable* InKeyHandles, FMovieSceneChannel* InChannel = nullptr) { FMovieSceneChannelData(InChannel, InTimes, InKeyHandles); }
+	MOVIESCENE_API FMovieSceneChannelData(TArray<FFrameNumber>* InTimes, FKeyHandleLookupTable* InKeyHandles, FMovieSceneChannel* InChannel = nullptr);
 
 	/**
 	 * Move the key at index KeyIndex to a new time

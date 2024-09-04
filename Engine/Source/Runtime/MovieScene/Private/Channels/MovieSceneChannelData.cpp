@@ -95,6 +95,10 @@ FMovieSceneChannelData::FMovieSceneChannelData(FMovieSceneChannel* InChannel, TA
 	: Times(InTimes), KeyHandles(InKeyHandles), OwningChannel(InChannel)
 {}
 
+FMovieSceneChannelData::FMovieSceneChannelData(TArray<FFrameNumber>* InTimes, FKeyHandleLookupTable* InKeyHandles, FMovieSceneChannel* InChannel)
+	: Times(InTimes), KeyHandles(InKeyHandles), OwningChannel(InChannel)
+{}
+
 FKeyHandle FMovieSceneChannelData::GetHandle(int32 Index)
 {
 	check(Times->IsValidIndex(Index));
