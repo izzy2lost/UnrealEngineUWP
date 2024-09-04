@@ -1684,6 +1684,7 @@ void USkinWeightsPaintTool::PostEditMeshInitialization(
 	if (!IsProfileValid(WeightToolProperties->GetActiveSkinWeightProfile()))
 	{
 		WeightToolProperties->ActiveSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
+		WeightToolProperties->bShowNewProfileName = false;
 	}
 	Weights.Profile = WeightToolProperties->GetActiveSkinWeightProfile();
 	Weights.InitializeSkinWeights(InComponent, &InMeshDescription);
