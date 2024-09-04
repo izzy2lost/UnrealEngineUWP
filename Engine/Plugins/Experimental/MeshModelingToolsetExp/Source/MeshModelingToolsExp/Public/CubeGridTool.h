@@ -419,6 +419,12 @@ public:
 	virtual bool SupportsWorldSpaceFocusBox() { return bHaveSelection; }
 	virtual FBox GetWorldSpaceFocusBox() override;
 
+	void SetInitialGridPivot(FVector3d PivotPos)
+	{
+		InitialGridPivot = PivotPos;
+		bHasInitialGridPivot = true;
+	}
+
 protected:
 
 	UPROPERTY()
@@ -614,4 +620,8 @@ protected:
 
 	void OutputCurrentResults(bool bSetSelection);
 	void AcceptToolAndStartNew();
+
+private:
+	bool bHasInitialGridPivot = false;
+	FVector3d InitialGridPivot;
 };

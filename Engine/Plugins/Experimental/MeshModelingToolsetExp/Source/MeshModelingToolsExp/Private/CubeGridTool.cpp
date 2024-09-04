@@ -31,6 +31,7 @@
 #include "Properties/MeshMaterialProperties.h"
 #include "PropertySets/CreateMeshObjectTypeProperties.h"
 #include "SceneView.h"
+#include "Selection/StoredMeshSelectionUtil.h"
 #include "Selection/ToolSelectionUtil.h"
 #include "ToolContextInterfaces.h"
 #include "ToolHostCustomizationAPI.h"
@@ -748,6 +749,20 @@ UInteractiveTool* UCubeGridToolBuilder::BuildTool(const FToolBuilderState& Scene
 
 	TObjectPtr<UToolTarget> Target = SceneState.TargetManager->BuildFirstSelectedTargetable(SceneState, GetTargetRequirements());
 	NewTool->SetTarget(Target); // May be null
+	if (Target)
+	{
+		// if there is an element selection, use its frame origin as an initial pivot
+		FFrame3d Frame;
+		FAxisAlignedBox3d Bounds;
+		bool bIsElementSelection;
+		if (GetCurrentSelectionWorldFrameBounds(SceneState, Frame, Bounds, bIsElementSelection))
+		{
+			if (bIsElementSelection)
+			{
+				NewTool->SetInitialGridPivot(Frame.Origin);
+			}
+		}
+	}
 	NewTool->SetWorld(SceneState.World);
 
 	return NewTool;
@@ -998,6 +1013,10 @@ void UCubeGridTool::Setup()
 	UpdateOpMaterials();
 
 	CubeGrid = MakeShared<FCubeGrid>();
+	if (bHasInitialGridPivot)
+	{
+		Settings->GridFrameOrigin = InitialGridPivot;
+	}
 	CubeGrid->SetGridFrame(FFrame3d(Settings->GridFrameOrigin, Settings->GridFrameOrientation.Quaternion()));
 	CubeGrid->SetGridPowerMode(Settings->bPowerOfTwoBlockSizes ? FCubeGrid::EPowerMode::PowerOfTwo : FCubeGrid::EPowerMode::FiveAndTen);
 	CubeGrid->SetGridPower(Settings->GridPower);
