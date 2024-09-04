@@ -666,6 +666,67 @@ void FTrackModel::SetIsLocked(bool bInIsLocked)
 	}
 }
 
+const UMovieSceneCondition* FTrackModel::GetCondition() const
+{
+	UMovieSceneTrack* const Track = GetTrack();
+	if (IsValid(Track))
+	{
+		return Track->ConditionContainer.Condition;
+	}
+	return nullptr;
+}
+
+EConditionableConditionState FTrackModel::GetConditionState() const
+{
+	UMovieSceneTrack* const Track = GetTrack();
+	if (IsValid(Track))
+	{
+		if (Track->ConditionContainer.Condition)
+		{
+			if (Track->ConditionContainer.Condition->bEditorForceTrue)
+			{
+				return EConditionableConditionState::HasConditionEditorForceTrue;
+			}
+
+			TSharedPtr<FSequenceModel> SequenceModel = FindAncestorOfType<FSequenceModel>();
+			TSharedPtr<ISequencer> Sequencer = SequenceModel ? SequenceModel->GetSequencer() : nullptr;
+			if (Sequencer)
+			{
+				FGuid BindingID;
+
+				if (TSharedPtr<IObjectBindingExtension> ParentBinding = FindAncestorOfType<IObjectBindingExtension>())
+				{
+					BindingID = ParentBinding->GetObjectGuid();
+				}
+				
+				if (MovieSceneHelpers::EvaluateSequenceCondition(BindingID, Sequencer->GetFocusedTemplateID(), Track->ConditionContainer.Condition, Track, Sequencer->GetSharedPlaybackState()))
+				{
+					return EConditionableConditionState::HasConditionEvaluatingTrue;
+				}
+				else
+				{
+					return EConditionableConditionState::HasConditionEvaluatingFalse;
+				}
+			}
+		}
+	}
+	return EConditionableConditionState::None;
+}
+
+void FTrackModel::SetConditionEditorForceTrue(bool bEditorForceTrue)
+{
+	UMovieSceneTrack* const Track = GetTrack();
+	if (IsValid(Track))
+	{
+		if (Track->ConditionContainer.Condition)
+		{
+			const FScopedTransaction Transaction(NSLOCTEXT("SequencerTrackNode", "ConditionEditorForceTrue", "Set Condition Editor Force True"));
+			Track->ConditionContainer.Condition->Modify();
+			Track->ConditionContainer.Condition->bEditorForceTrue = bEditorForceTrue;
+		}
+	}
+}
+
 bool FTrackModel::CanDrag() const
 {
 	// Can only drag root tracks at the moment

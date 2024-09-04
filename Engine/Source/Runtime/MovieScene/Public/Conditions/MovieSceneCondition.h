@@ -101,6 +101,14 @@ public:
 
 	bool CanCacheResult(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const;
 
+#if WITH_EDITORONLY_DATA
+	/* If true, will skip evaluating the condition and always return true. Useful for authoring or debugging. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	bool bEditorForceTrue = false;
+
+	friend class FMovieSceneConditionCustomization;
+#endif
+
 protected:
 
 	/* Override to implement your condition.*/
@@ -129,11 +137,4 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	bool bInvert = false;
 
-#if WITH_EDITORONLY_DATA
-	/* If true, will skip evaluating the condition and always return true. Useful for authoring or debugging. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	bool bEditorForceTrue = false;
-
-	friend class FMovieSceneConditionCustomization;
-#endif
 };

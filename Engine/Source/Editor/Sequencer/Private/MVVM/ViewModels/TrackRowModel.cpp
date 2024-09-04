@@ -212,6 +212,83 @@ void FTrackRowModel::SetIsLocked(bool bInIsLocked)
 	}
 }
 
+const UMovieSceneCondition* FTrackRowModel::GetCondition() const
+{
+	UMovieSceneTrack* Track = GetTrack();
+
+	if (Track)
+	{
+		if (const FMovieSceneTrackRowMetadata* TrackRowMetadata = Track->FindTrackRowMetadata(GetRowIndex()))
+		{
+			return TrackRowMetadata->ConditionContainer.Condition;
+		}
+	}
+
+	return nullptr;
+}
+
+
+EConditionableConditionState FTrackRowModel::GetConditionState() const
+{
+	UMovieSceneTrack* Track = GetTrack();
+
+	if (Track)
+	{
+		FGuid BindingID;
+		FMovieSceneSequenceID SequenceID = MovieSceneSequenceID::Root;
+		if (TViewModelPtr<FObjectBindingModel> ObjectBindingModel = FindAncestorOfType<FObjectBindingModel>())
+		{
+			BindingID = ObjectBindingModel->GetObjectGuid();
+		}
+
+		if (TViewModelPtr<FSequenceModel> SequenceModel = FindAncestorOfType<FSequenceModel>())
+		{
+			SequenceID = SequenceModel->GetSequenceID();
+
+			if (TSharedPtr<FSequencerEditorViewModel> SequencerModel = SequenceModel->GetEditor())
+			{
+				if (const FMovieSceneTrackRowMetadata* TrackRowMetadata = Track->FindTrackRowMetadata(GetRowIndex()))
+				{
+					if (TrackRowMetadata->ConditionContainer.Condition)
+					{
+						if (TrackRowMetadata->ConditionContainer.Condition->bEditorForceTrue)
+						{
+							return EConditionableConditionState::HasConditionEditorForceTrue;
+						}
+						else if (MovieSceneHelpers::EvaluateSequenceCondition(BindingID, SequencerModel->GetSequencer()->GetFocusedTemplateID(), TrackRowMetadata->ConditionContainer.Condition, Track, SequencerModel->GetSequencer()->GetSharedPlaybackState()))
+						{
+							return EConditionableConditionState::HasConditionEvaluatingTrue;
+						}
+						else
+						{
+							return EConditionableConditionState::HasConditionEvaluatingFalse;
+						}
+					}
+				}
+			}
+		}
+	}
+	return EConditionableConditionState::None;
+}
+
+void FTrackRowModel::SetConditionEditorForceTrue(bool bEditorForceTrue)
+{
+	UMovieSceneTrack* Track = GetTrack();
+
+	if (Track)
+	{
+		if (const FMovieSceneTrackRowMetadata* TrackRowMetadata = Track->FindTrackRowMetadata(GetRowIndex()))
+		{
+			if (TrackRowMetadata->ConditionContainer.Condition)
+			{
+				const FScopedTransaction Transaction(NSLOCTEXT("SequencerTrackRowNode", "ConditionEditorForceTrue", "Set Condition Editor Force True"));
+				TrackRowMetadata->ConditionContainer.Condition->Modify();
+				TrackRowMetadata->ConditionContainer.Condition->bEditorForceTrue = bEditorForceTrue;
+			}
+		}
+	}
+}
+
 FSlateFontInfo FTrackRowModel::GetLabelFont() const
 {
 	bool bAllAnimated = false;

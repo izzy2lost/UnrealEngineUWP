@@ -5,6 +5,7 @@
 namespace UE::Sequencer
 {
 
+FName FCommonOutlinerNames::Indicator("Indicator");
 FName FCommonOutlinerNames::Pin("Pin");
 FName FCommonOutlinerNames::Lock("Lock");
 FName FCommonOutlinerNames::Mute("Mute");

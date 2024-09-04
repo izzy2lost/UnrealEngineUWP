@@ -12,6 +12,7 @@
 #include "MovieSceneSection.h"
 #include "Channels/MovieSceneChannel.h"
 #include "Channels/MovieSceneChannelProxy.h"
+#include "ScopedTransaction.h"
 
 namespace UE
 {
@@ -540,6 +541,67 @@ TArray<FOverlappingSections> FSectionModel::GetEasingSegments()
 	}
 
 	return Result;
+}
+
+const UMovieSceneCondition* FSectionModel::GetCondition() const
+{
+	UMovieSceneSection* Section = GetSection();
+	if (IsValid(Section))
+	{
+		return Section->ConditionContainer.Condition;
+	}
+	return nullptr;
+}
+
+EConditionableConditionState FSectionModel::GetConditionState() const
+{
+	UMovieSceneSection* Section = GetSection();
+	if (IsValid(Section))
+	{
+		if (Section->ConditionContainer.Condition)
+		{
+			if (Section->ConditionContainer.Condition->bEditorForceTrue)
+			{
+				return EConditionableConditionState::HasConditionEditorForceTrue;
+			}
+
+			TSharedPtr<FSequenceModel> SequenceModel = FindAncestorOfType<FSequenceModel>();
+			TSharedPtr<ISequencer> Sequencer = SequenceModel ? SequenceModel->GetSequencer() : nullptr;
+			if (Sequencer)
+			{
+				FGuid BindingID;
+
+				if (TSharedPtr<IObjectBindingExtension> ParentBinding = FindAncestorOfType<IObjectBindingExtension>())
+				{
+					BindingID = ParentBinding->GetObjectGuid();
+				}
+
+				if (MovieSceneHelpers::EvaluateSequenceCondition(BindingID, Sequencer->GetFocusedTemplateID(), Section->ConditionContainer.Condition, Section, Sequencer->GetSharedPlaybackState()))
+				{
+					return EConditionableConditionState::HasConditionEvaluatingTrue;
+				}
+				else
+				{
+					return EConditionableConditionState::HasConditionEvaluatingFalse;
+				}
+			}
+		}
+	}
+	return EConditionableConditionState::None;
+}
+
+void FSectionModel::SetConditionEditorForceTrue(bool bEditorForceTrue)
+{
+	UMovieSceneSection* Section = GetSection();
+	if (IsValid(Section))
+	{
+		if (Section->ConditionContainer.Condition)
+		{
+			const FScopedTransaction Transaction(NSLOCTEXT("SequencerTrackNode", "ConditionEditorForceTrue", "Set Condition Editor Force True"));
+			Section->ConditionContainer.Condition->Modify();
+			Section->ConditionContainer.Condition->bEditorForceTrue = bEditorForceTrue;
+		}
+	}
 }
 
 } // namespace Sequencer

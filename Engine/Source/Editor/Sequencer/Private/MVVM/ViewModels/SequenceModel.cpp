@@ -51,6 +51,7 @@ void FSequenceModel::InitializeExtensions()
 	NewSharedData->AddDynamicExtension(FMuteStateCacheExtension::ID);
 	NewSharedData->AddDynamicExtension(FSoloStateCacheExtension::ID);
 	NewSharedData->AddDynamicExtension(FLockStateCacheExtension::ID);
+	NewSharedData->AddDynamicExtension(FConditionStateCacheExtension::ID);
 
 	// Add our hierarchical cache processor
 	TSharedPtr<FOutlinerCacheExtension> OutlinerCache = NewSharedData->CastThisSharedChecked<FOutlinerCacheExtension>();

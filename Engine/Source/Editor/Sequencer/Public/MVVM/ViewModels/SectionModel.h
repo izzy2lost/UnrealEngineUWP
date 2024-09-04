@@ -13,6 +13,7 @@
 #include "MVVM/Extensions/IDraggableTrackAreaExtension.h"
 #include "MVVM/Extensions/IStretchableExtension.h"
 #include "MVVM/Extensions/LinkedOutlinerExtension.h"
+#include "MVVM/Extensions/IConditionableExtension.h"
 #include "Delegates/DelegateCombinations.h"
 #include "EventHandlers/ISignedObjectEventHandler.h"
 #include "EventHandlers/ISectionEventHandler.h"
@@ -41,6 +42,7 @@ class SEQUENCER_API FSectionModel
 	, public ISnappableExtension
 	, public IDraggableTrackAreaExtension
 	, public IStretchableExtension
+	, public IConditionableExtension
 	, public UE::MovieScene::TIntrusiveEventHandler<UE::MovieScene::ISignedObjectEventHandler>
 	, public UE::MovieScene::TIntrusiveEventHandler<UE::MovieScene::ISectionEventHandler>
 {
@@ -54,6 +56,7 @@ public:
 		, ISnappableExtension
 		, IDraggableTrackAreaExtension
 		, IStretchableExtension
+		, IConditionableExtension
 	);
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnModelUpdated, FSectionModel*)
@@ -119,6 +122,11 @@ public:
 	EStretchResult OnBeginStretch(const IStretchOperation& StretchOperation, const FStretchScreenParameters& ScreenParameters, FStretchParameters* InOutParameters) override;
 	void OnStretch(const IStretchOperation& StretchOperation, const FStretchScreenParameters& ScreenParameters, FStretchParameters* InOutParameters) override;
 	void OnEndStretch(const IStretchOperation& StretchOperation, const FStretchScreenParameters& ScreenParameters, FStretchParameters* InOutParameters) override;
+
+	/*~ IConditionableExtension Interface */
+	const UMovieSceneCondition* GetCondition() const override;
+	EConditionableConditionState GetConditionState() const override;
+	void SetConditionEditorForceTrue(bool bEditorForceTrue) override;
 
 private:
 

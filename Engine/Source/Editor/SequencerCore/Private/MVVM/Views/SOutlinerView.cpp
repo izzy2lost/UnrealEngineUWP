@@ -378,24 +378,30 @@ void SOutlinerView::UpdateOutlinerColumns()
 
 	// ----------------------------------------------------------------------------------------------------------
 	// Populate columns
-	const int32 NumLeftGutter  = CreateOutlinerColumnsForGroup(0,                         EOutlinerColumnGroup::LeftGutter);
-	const int32 NumCenter      = CreateOutlinerColumnsForGroup(NumLeftGutter,             EOutlinerColumnGroup::Center);
-	const int32 NumRightGutter = CreateOutlinerColumnsForGroup(NumLeftGutter + NumCenter, EOutlinerColumnGroup::RightGutter);
+	const int32 NumFarLeftGutter	= CreateOutlinerColumnsForGroup(0,											  EOutlinerColumnGroup::FarLeftGutter);
+	const int32 NumLeftGutter		= CreateOutlinerColumnsForGroup(NumFarLeftGutter,							  EOutlinerColumnGroup::LeftGutter);
+	const int32 NumCenter			= CreateOutlinerColumnsForGroup(NumFarLeftGutter + NumLeftGutter,             EOutlinerColumnGroup::Center);
+	const int32 NumRightGutter		= CreateOutlinerColumnsForGroup(NumFarLeftGutter + NumLeftGutter + NumCenter, EOutlinerColumnGroup::RightGutter);
 
 	// ----------------------------------------------------------------------------------------------------------
 	// Add some padding to the leading and trailing edge of the first and last columns in each group respectively
 	//    This is implemented this way because columns can be turned on and off dynamically, but we must
 	//    always have a consistent padding within the group. Separators dynamically appear based on the presence of
 	//    each group so we can't put padding on those
+	if (NumFarLeftGutter > 0)
+	{
+		ColumnMetaData->Columns[0].CellPadding.Left += 4.f;
+		ColumnMetaData->Columns[NumFarLeftGutter - 1].CellPadding.Right += 4.f;
+	}
 	if (NumLeftGutter > 0)
 	{
-		ColumnMetaData->Columns[0              ].CellPadding.Left  += 4.f;
-		ColumnMetaData->Columns[NumLeftGutter-1].CellPadding.Right += 4.f;
+		ColumnMetaData->Columns[NumFarLeftGutter].CellPadding.Left  += 4.f;
+		ColumnMetaData->Columns[NumFarLeftGutter+NumLeftGutter-1].CellPadding.Right += 4.f;
 	}
 	if (NumCenter > 0)
 	{
-		ColumnMetaData->Columns[NumLeftGutter            ].CellPadding.Left  += 4.f;
-		ColumnMetaData->Columns[NumLeftGutter+NumCenter-1].CellPadding.Right += 4.f;
+		ColumnMetaData->Columns[NumFarLeftGutter+NumLeftGutter            ].CellPadding.Left  += 4.f;
+		ColumnMetaData->Columns[NumFarLeftGutter+NumLeftGutter+NumCenter-1].CellPadding.Right += 4.f;
 	}
 
 	// No additional padding on the right gutter intentionally
@@ -405,10 +411,19 @@ void SOutlinerView::UpdateOutlinerColumns()
 	//      Only add separators if they actually separate columns.
 	int32 NumSeparators = 0;
 
-	int32 InsertIndex = NumLeftGutter;
+	int32 InsertIndex = NumFarLeftGutter;
 	if (InsertIndex < ColumnMetaData->Columns.Num())
 	{
 		InsertSeparatorColumn(InsertIndex++, ++NumSeparators);
+		if (NumLeftGutter > 0)
+		{
+			InsertIndex += NumLeftGutter;
+			if (InsertIndex < ColumnMetaData->Columns.Num())
+			{
+				InsertSeparatorColumn(InsertIndex++, ++NumSeparators);
+			}
+		}
+
 		if (NumCenter > 0)
 		{
 			InsertIndex += NumCenter;

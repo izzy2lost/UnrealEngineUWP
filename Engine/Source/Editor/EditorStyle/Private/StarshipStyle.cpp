@@ -2397,6 +2397,7 @@ void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
 	// Sequencer outliner column UI
 	if (IncludeEditorSpecificStyles())
 	{
+		Set("Sequencer.Column.Condition", new IMAGE_BRUSH_SVG("Sequencer/Column_Widgets/SequencerCondition", Icon14x14));
 		Set("Sequencer.Column.Mute", new IMAGE_BRUSH_SVG("Sequencer/Column_Widgets/SequencerMute", Icon14x14));
 		Set("Sequencer.Column.Locked", new IMAGE_BRUSH_SVG("Sequencer/Column_Widgets/SequencerLocked", Icon14x14));
 		Set("Sequencer.Column.Solo", new IMAGE_BRUSH_SVG("Sequencer/Column_Widgets/SequencerSolo", Icon14x14));

@@ -305,7 +305,7 @@ public:
 	{
 		if (const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
 		{
-			Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
+			Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
 		}
 	}
 
