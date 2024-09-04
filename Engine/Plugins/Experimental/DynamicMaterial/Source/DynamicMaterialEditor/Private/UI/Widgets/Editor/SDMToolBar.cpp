@@ -531,10 +531,35 @@ FReply SDMToolBar::OnFollowSelectionButtonClicked()
 
 FReply SDMToolBar::OnExportMaterialInstanceButtonClicked()
 {
-	if (UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase())
+	TSharedPtr<SDMMaterialEditor> EditorWidget = GetEditorWidget();
+
+	if (!EditorWidget.IsValid())
 	{
-		UDMMaterialModelFunctionLibrary::ExportMaterialInstance(MaterialModelBase);
+		return FReply::Handled();
 	}
+
+	TSharedPtr<SDMMaterialDesigner> DesignerWidget = EditorWidget->GetDesignerWidget();
+
+	if (!DesignerWidget.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
+
+	if (!MaterialModelBase)
+	{
+		return FReply::Handled();
+	}
+
+	UDynamicMaterialInstance* NewInstance = UDMMaterialModelFunctionLibrary::ExportMaterialInstance(MaterialModelBase);
+
+	if (!NewInstance)
+	{
+		return FReply::Handled();
+	}
+
+	DesignerWidget->OpenMaterialInstance(NewInstance);
 
 	return FReply::Handled();
 }
