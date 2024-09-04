@@ -18,7 +18,7 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogSkeletalMeshPersonaMeshDetail, Log, All);
 
 struct FAssetData;
-class FNaniteSettingsLayout;
+class FNaniteSkeletalMeshLayout;
 class FDetailWidgetRow;
 class FPersonaMeshDetails;
 class IDetailChildrenBuilder;
@@ -725,7 +725,7 @@ private:
 	TWeakPtr<class IPersonaToolkit> PersonaToolkitPtr;
 
 	/** Nanite settings for the details panel. */
-	TSharedPtr<FNaniteSettingsLayout> NaniteSettings;
+	TSharedPtr<FNaniteSkeletalMeshLayout> NaniteSettings;
 
 	IDetailLayoutBuilder* MeshDetailLayout;
 

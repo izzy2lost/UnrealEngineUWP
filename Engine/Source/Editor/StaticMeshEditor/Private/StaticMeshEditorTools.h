@@ -22,7 +22,7 @@ struct FAssetData;
 class FAssetThumbnailPool;
 class FDetailWidgetRow;
 class FLevelOfDetailSettingsLayout;
-class FNaniteSettingsLayout;
+class FNaniteStaticMeshLayout;
 class FStaticMeshEditor;
 class IDetailCategoryBuilder;
 class IDetailChildrenBuilder;
@@ -64,7 +64,7 @@ private:
 	TSharedPtr<FLevelOfDetailSettingsLayout> LevelOfDetailSettings;
 
 	/** Nanite settings for the details panel. */
-	TSharedPtr<FNaniteSettingsLayout> NaniteSettings;
+	TSharedPtr<FNaniteStaticMeshLayout> NaniteSettings;
 
 	/** Static mesh editor */
 	class FStaticMeshEditor& StaticMeshEditor;

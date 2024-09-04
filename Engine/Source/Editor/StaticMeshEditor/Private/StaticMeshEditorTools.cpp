@@ -84,23 +84,32 @@ static FAutoConsoleVariableRef CVarIsNaniteStaticMeshSettingsInitiallyCollapsed(
  * Window for Nanite settings.
  */
 
-typedef Nanite::FSettingsLayout<UStaticMesh, true /* ForceEnable */, true /* HighRes */> FNaniteSettingsLayoutInner;
+typedef Nanite::FSettingsLayout<UStaticMesh, true /* ForceEnable */, true /* HighRes */> FNaniteStaticMeshLayoutImpl;
 
-class FNaniteSettingsLayout : public FNaniteSettingsLayoutInner
+class FNaniteStaticMeshLayout : public TSharedFromThis<FNaniteStaticMeshLayout>
 {
 public:
-	typedef FNaniteSettingsLayoutInner Super;
-
-public:
-	FNaniteSettingsLayout(FStaticMeshEditor& InStaticMeshEditor)
+	FNaniteStaticMeshLayout(FStaticMeshEditor& InStaticMeshEditor)
 	: StaticMeshEditor(InStaticMeshEditor)
 	{
-		const UStaticMesh* StaticMesh = GetMesh();
+		LayoutImpl = MakeShareable(new FNaniteStaticMeshLayoutImpl());
+
+		LayoutImpl->OnGetMesh = TDelegate<UStaticMesh*()>::CreateLambda([this]
+		{
+			return StaticMeshEditor.GetStaticMesh();
+		});
+
+		LayoutImpl->OnRefreshTool = TDelegate<void()>::CreateLambda([this]
+		{
+			StaticMeshEditor.RefreshTool();
+		});
+
+		const UStaticMesh* StaticMesh = LayoutImpl->GetMesh();
 		check(StaticMesh);
-		UpdateSettings(StaticMesh->NaniteSettings);
+		LayoutImpl->UpdateSettings(StaticMesh->NaniteSettings);
 	}
 
-	virtual ~FNaniteSettingsLayout()
+	~FNaniteStaticMeshLayout()
 	{
 	}
 
@@ -110,23 +119,24 @@ public:
 
 		UStaticMesh* StaticMesh = StaticMeshEditor.GetStaticMesh();
 		TWeakObjectPtr<UStaticMesh> WeakStaticMesh = StaticMesh;
-		Super::AddToDetailsPanel(WeakStaticMesh, DetailBuilder, bInitiallyCollapsed);
+		LayoutImpl->AddToDetailsPanel(WeakStaticMesh, DetailBuilder, bInitiallyCollapsed);
 	}
 
-	virtual void RefreshTool() override
+	inline bool IsApplyNeeded() const
 	{
-		StaticMeshEditor.RefreshTool();
+		return LayoutImpl->IsApplyNeeded();
 	}
 
-private:
-	virtual MeshType* GetMesh() const override
+	inline void ApplyChanges()
 	{
-		return StaticMeshEditor.GetStaticMesh();
+		return LayoutImpl->ApplyChanges();
 	}
 
 private:
 	// The Static Mesh Editor this tool is associated with.
 	FStaticMeshEditor& StaticMeshEditor;
+
+	TSharedPtr<FNaniteStaticMeshLayoutImpl> LayoutImpl;
 };
 
 /*
@@ -197,7 +207,7 @@ void FStaticMeshDetails::CustomizeDetails( class IDetailLayoutBuilder& DetailBui
 	TSharedRef<IPropertyHandle> NaniteSettingsProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStaticMesh, NaniteSettings));
 	NaniteSettingsProperty->MarkHiddenByCustomization();
 
-	NaniteSettings = MakeShareable(new FNaniteSettingsLayout(StaticMeshEditor));
+	NaniteSettings = MakeShareable(new FNaniteStaticMeshLayout(StaticMeshEditor));
 	NaniteSettings->AddToDetailsPanel(DetailBuilder);
 
 	TSharedRef<IPropertyHandle> BodyProp = DetailBuilder.GetProperty(UStaticMesh::GetBodySetupName());

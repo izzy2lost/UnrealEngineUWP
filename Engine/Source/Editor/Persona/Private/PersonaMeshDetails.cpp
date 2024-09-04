@@ -191,24 +191,33 @@ static FAutoConsoleVariableRef CVarIsNaniteSkeletalMeshSettingsInitiallyCollapse
 	ECVF_ReadOnly
 );
 
-typedef Nanite::FSettingsLayout<USkeletalMesh, false /* ForceEnable */, false /* HighRes */> FNaniteSettingsLayoutInner;
+typedef Nanite::FSettingsLayout<USkeletalMesh, false /* ForceEnable */, false /* HighRes */> FNaniteSkeletalMeshLayoutImpl;
 
-class FNaniteSettingsLayout : public FNaniteSettingsLayoutInner
+class FNaniteSkeletalMeshLayout : public TSharedFromThis<FNaniteSkeletalMeshLayout>
 {
 public:
-	typedef FNaniteSettingsLayoutInner Super;
-
-public:
-	FNaniteSettingsLayout(FPersonaMeshDetails& InMeshDetails, TSharedRef<IPersonaToolkit> InPersonaToolkit)
+	FNaniteSkeletalMeshLayout(FPersonaMeshDetails& InMeshDetails, TSharedRef<IPersonaToolkit> InPersonaToolkit)
 	: MeshDetails(InMeshDetails)
 	, PersonaToolkit(InPersonaToolkit)
 	{
-		const USkeletalMesh* SkeletalMesh = GetMesh();
+		LayoutImpl = MakeShareable(new FNaniteSkeletalMeshLayoutImpl());
+
+		LayoutImpl->OnGetMesh = TDelegate<USkeletalMesh*()>::CreateLambda([this]
+		{
+			return PersonaToolkit->GetMesh();
+		});
+
+		LayoutImpl->OnRefreshTool = TDelegate<void()>::CreateLambda([this]
+		{
+			MeshDetails.RequestLayoutUpdate();
+		});
+
+		const USkeletalMesh* SkeletalMesh = LayoutImpl->GetMesh();
 		check(SkeletalMesh);
-		UpdateSettings(SkeletalMesh->NaniteSettings);
+		LayoutImpl->UpdateSettings(SkeletalMesh->NaniteSettings);
 	}
 
-	virtual ~FNaniteSettingsLayout()
+	~FNaniteSkeletalMeshLayout()
 	{
 	}
 
@@ -216,25 +225,26 @@ public:
 	{
 		const bool bInitiallyCollapsed = GIsNaniteSkeletalMeshSettingsInitiallyCollapsed != 0;
 
-		USkeletalMesh* SkeletalMesh = GetMesh();
+		USkeletalMesh* SkeletalMesh = LayoutImpl->GetMesh();
 		TWeakObjectPtr<USkeletalMesh> WeakSkeletalMesh = SkeletalMesh;
-		Super::AddToDetailsPanel(WeakSkeletalMesh, DetailBuilder, bInitiallyCollapsed);
+		LayoutImpl->AddToDetailsPanel(WeakSkeletalMesh, DetailBuilder, bInitiallyCollapsed);
 	}
 
-	virtual void RefreshTool() override
+	inline bool IsApplyNeeded() const
 	{
-		MeshDetails.RequestLayoutUpdate();
+		return LayoutImpl->IsApplyNeeded();
 	}
 
-private:
-	virtual MeshType* GetMesh() const override
+	inline void ApplyChanges()
 	{
-		return PersonaToolkit->GetMesh();
+		return LayoutImpl->ApplyChanges();
 	}
 
 private:
 	FPersonaMeshDetails& MeshDetails;
 	TSharedRef<IPersonaToolkit> PersonaToolkit;
+
+	TSharedPtr<FNaniteSkeletalMeshLayoutImpl> LayoutImpl;
 };
 
 // Container widget for LOD buttons
@@ -4520,7 +4530,7 @@ void FPersonaMeshDetails::CustomizeDetails( IDetailLayoutBuilder& DetailLayout )
 	TSharedRef<IPropertyHandle> NaniteSettingsProperty = DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(USkeletalMesh, NaniteSettings));
 	NaniteSettingsProperty->MarkHiddenByCustomization();
 
-	NaniteSettings = MakeShareable(new FNaniteSettingsLayout(*this, GetPersonaToolkit()));
+	NaniteSettings = MakeShareable(new FNaniteSkeletalMeshLayout(*this, GetPersonaToolkit()));
 	NaniteSettings->AddToDetailsPanel(DetailLayout);
 
 	FDetailWidgetRow& PostProcessRow = SkelMeshCategory.AddCustomRow(LOCTEXT("PostProcessFilterString", "Post Process Blueprint"));

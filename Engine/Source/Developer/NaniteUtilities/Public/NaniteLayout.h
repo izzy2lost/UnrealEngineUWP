@@ -119,7 +119,7 @@ public:
 		ResidencyOptions.Add(MakeShared<FString>(LOCTEXT("ResidencyFull", "Full").ToString()));
 	}
 
-	virtual ~FSettingsLayout()
+	~FSettingsLayout()
 	{
 	}
 
@@ -613,6 +613,7 @@ protected:
 		return FReply::Handled();
 	}
 
+public:
 	void AddToDetailsPanel(
 		TWeakObjectPtr<TMeshType> WeakMeshPtr,
 		IDetailLayoutBuilder& DetailBuilder,
@@ -1036,9 +1037,26 @@ protected:
 		}
 	}
 
-protected:
-	virtual MeshType* GetMesh() const = 0;
-	virtual void RefreshTool() = 0;
+	inline MeshType* GetMesh() const
+	{
+		if (OnGetMesh.IsBound())
+		{
+			return OnGetMesh.Execute();
+		}
+
+		return nullptr;
+	}
+
+	inline void RefreshTool()
+	{
+		if (OnRefreshTool.IsBound())
+		{
+			OnRefreshTool.Execute();
+		}
+	}
+
+	TDelegate<MeshType* ()> OnGetMesh;
+	TDelegate<void()> OnRefreshTool;
 
 protected:
 	TArray<TSharedPtr<FString>> PositionPrecisionOptions;
