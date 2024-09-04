@@ -456,8 +456,16 @@ void FToolBarBuilder::SetIsFocusable(bool bInIsFocusable)
 	MultiBox->bIsFocusable = bIsFocusable;
 }
 
-
-void FToolBarBuilder::AddToolBarButton(const TSharedPtr< const FUICommandInfo > InCommand, FName InExtensionHook, const TAttribute<FText>& InLabelOverride, const TAttribute<FText>& InToolTipOverride, const TAttribute<FSlateIcon>& InIconOverride, FName InTutorialHighlightName, FNewMenuDelegate InCustomMenuDelegate )
+void FToolBarBuilder::AddToolBarButton(
+	const TSharedPtr<const FUICommandInfo> InCommand,
+	FName InExtensionHook,
+	const TAttribute<FText>& InLabelOverride,
+	const TAttribute<FText>& InToolTipOverride,
+	const TAttribute<FSlateIcon>& InIconOverride,
+	FName InTutorialHighlightName,
+	FNewMenuDelegate InCustomMenuDelegate,
+	TAttribute<EVisibility> InVisibilityOverride
+)
 {
 	ApplySectionBeginning();
 
@@ -475,6 +483,7 @@ void FToolBarBuilder::AddToolBarButton(const TSharedPtr< const FUICommandInfo > 
 	NewToolBarButtonBlock->SetTutorialHighlightName(GenerateTutorialIdentifierName(TutorialHighlightName, InTutorialHighlightName, InCommand, MultiBox->GetBlocks().Num()));
 	NewToolBarButtonBlock->SetStyleNameOverride(CurrentStyleOverride);
 	NewToolBarButtonBlock->SetCustomMenuDelegate(InCustomMenuDelegate);
+	NewToolBarButtonBlock->SetVisibilityOverride(InVisibilityOverride);
 
 	MultiBox->AddMultiBlock( NewToolBarButtonBlock );
 
@@ -518,7 +527,16 @@ void FToolBarBuilder::AddToolBarButton(const FButtonArgs& Args)
 	ApplyHook(Args.ExtensionHook, EExtensionHook::After);
 }
 
-void FToolBarBuilder::AddToolBarButton(const FUIAction& InAction, FName InExtensionHook, const TAttribute<FText>& InLabelOverride, const TAttribute<FText>& InToolTipOverride, const TAttribute<FSlateIcon>& InIconOverride, const EUserInterfaceActionType UserInterfaceActionType, FName InTutorialHighlightName )
+void FToolBarBuilder::AddToolBarButton(
+	const FUIAction& InAction,
+	FName InExtensionHook,
+	const TAttribute<FText>& InLabelOverride,
+	const TAttribute<FText>& InToolTipOverride,
+	const TAttribute<FSlateIcon>& InIconOverride,
+	const EUserInterfaceActionType UserInterfaceActionType,
+	FName InTutorialHighlightName,
+	TAttribute<EVisibility> InVisibilityOverride
+)
 {
 	ApplySectionBeginning();
 
@@ -535,13 +553,23 @@ void FToolBarBuilder::AddToolBarButton(const FUIAction& InAction, FName InExtens
 	NewToolBarButtonBlock->SetForceSmallIcons(bForceSmallIcons);
 	NewToolBarButtonBlock->SetTutorialHighlightName(GenerateTutorialIdentifierName(TutorialHighlightName, InTutorialHighlightName, nullptr, MultiBox->GetBlocks().Num()));
 	NewToolBarButtonBlock->SetStyleNameOverride(CurrentStyleOverride);
+	NewToolBarButtonBlock->SetVisibilityOverride(InVisibilityOverride);
 
 	MultiBox->AddMultiBlock( NewToolBarButtonBlock );
 
 	ApplyHook(InExtensionHook, EExtensionHook::After);
 }
 
-void FToolBarBuilder::AddComboButton( const FUIAction& InAction, const FOnGetContent& InMenuContentGenerator, const TAttribute<FText>& InLabelOverride, const TAttribute<FText>& InToolTipOverride, const TAttribute<FSlateIcon>& InIconOverride, bool bInSimpleComboBox, FName InTutorialHighlightName )
+void FToolBarBuilder::AddComboButton(
+	const FUIAction& InAction,
+	const FOnGetContent& InMenuContentGenerator,
+	const TAttribute<FText>& InLabelOverride,
+	const TAttribute<FText>& InToolTipOverride,
+	const TAttribute<FSlateIcon>& InIconOverride,
+	bool bInSimpleComboBox,
+	FName InTutorialHighlightName,
+	TAttribute<EVisibility> InVisibilityOverride
+)
 {
 	ApplySectionBeginning();
 
@@ -555,6 +583,7 @@ void FToolBarBuilder::AddComboButton( const FUIAction& InAction, const FOnGetCon
 	NewToolBarComboButtonBlock->SetForceSmallIcons(bForceSmallIcons);
 	NewToolBarComboButtonBlock->SetTutorialHighlightName(GenerateTutorialIdentifierName(TutorialHighlightName, InTutorialHighlightName, nullptr, MultiBox->GetBlocks().Num()));
 	NewToolBarComboButtonBlock->SetStyleNameOverride(CurrentStyleOverride);
+	NewToolBarComboButtonBlock->SetVisibilityOverride(InVisibilityOverride);
 
 	MultiBox->AddMultiBlock( NewToolBarComboButtonBlock );
 }
@@ -628,15 +657,29 @@ void FToolBarBuilder::AddToolBarWidget( TSharedRef<SWidget> InWidget, const TAtt
 	NewWidgetBlock->SetSearchable(bSearchable);
 }
 
-void FToolBarBuilder::AddWidget( TSharedRef<SWidget> InWidget, FName InTutorialHighlightName, bool bSearchable, EHorizontalAlignment Alignment, FNewMenuDelegate InCustomMenuDelegate)
+void FToolBarBuilder::AddWidget(
+	TSharedRef<SWidget> InWidget,
+	FName InTutorialHighlightName,
+	bool bSearchable,
+	EHorizontalAlignment Alignment,
+	FNewMenuDelegate InCustomMenuDelegate,
+	TAttribute<EVisibility> InVisibilityOverride
+)
 {
 	FMenuEntryStyleParams StyleParams;
 	StyleParams.HorizontalAlignment = Alignment;
 
-	AddWidget(InWidget, StyleParams, InTutorialHighlightName, bSearchable, InCustomMenuDelegate);
+	AddWidget(InWidget, StyleParams, InTutorialHighlightName, bSearchable, InCustomMenuDelegate, InVisibilityOverride);
 }
 
-void FToolBarBuilder::AddWidget(TSharedRef<SWidget> InWidget, const FMenuEntryStyleParams& InStyleParams, FName InTutorialHighlightName, bool bInSearchable, FNewMenuDelegate InCustomMenuDelegate)
+void FToolBarBuilder::AddWidget(
+	TSharedRef<SWidget> InWidget,
+	const FMenuEntryStyleParams& InStyleParams,
+	FName InTutorialHighlightName,
+	bool bInSearchable,
+	FNewMenuDelegate InCustomMenuDelegate,
+	TAttribute<EVisibility> InVisibilityOverride
+)
 {
 	ApplySectionBeginning();
 
@@ -656,9 +699,10 @@ void FToolBarBuilder::AddWidget(TSharedRef<SWidget> InWidget, const FMenuEntrySt
 	MultiBox->AddMultiBlock( NewWidgetBlock );
 	NewWidgetBlock->SetSearchable(bInSearchable);
 	NewWidgetBlock->SetCustomMenuDelegate(InCustomMenuDelegate);
+	NewWidgetBlock->SetVisibilityOverride(InVisibilityOverride);
 }
 
-void FToolBarBuilder::AddSeparator(FName InExtensionHook)
+void FToolBarBuilder::AddSeparator(FName InExtensionHook, TAttribute<EVisibility> InVisibilityOverride)
 {
 	ApplySectionBeginning();
 
@@ -666,6 +710,7 @@ void FToolBarBuilder::AddSeparator(FName InExtensionHook)
 
 	TSharedRef<FToolBarSeparatorBlock> NewSeparatorBlock = MakeShared<FToolBarSeparatorBlock>(InExtensionHook);
 	NewSeparatorBlock->SetStyleNameOverride(CurrentStyleOverride);
+	NewSeparatorBlock->SetVisibilityOverride(InVisibilityOverride);
 
 	MultiBox->AddMultiBlock(NewSeparatorBlock);
 

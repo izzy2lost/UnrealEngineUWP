@@ -182,6 +182,8 @@ void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FNam
 			WidgetBlock->ContentWidget
 		]
 	];
+
+	SetVisibility(MultiBlock->GetVisibilityOverride());
 }
 
 TSharedRef<SWidget> SWidgetBlock::FindTextBlockWidget( TSharedRef<SWidget> Content )

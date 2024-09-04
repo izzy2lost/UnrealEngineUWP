@@ -557,7 +557,18 @@ bool SToolBarButtonBlock::IsEnabled() const
  */
 EVisibility SToolBarButtonBlock::GetBlockVisibility() const
 {
-	TSharedPtr< const FUICommandList > ActionList = MultiBlock->GetActionList();
+	// Let the visibility override take prescedence here.
+	// However, if it returns Visible, let the other methods have a chance to change that.
+	if (MultiBlock->GetVisibilityOverride().IsSet())
+	{
+		const EVisibility OverrideVisibility = MultiBlock->GetVisibilityOverride().Get();
+		if (OverrideVisibility != EVisibility::Visible)
+		{
+			return OverrideVisibility;
+		}
+	}
+
+	TSharedPtr<const FUICommandList> ActionList = MultiBlock->GetActionList();
 	const FUIAction& DirectActions = MultiBlock->GetDirectActions();
 	if( ActionList.IsValid() )
 	{

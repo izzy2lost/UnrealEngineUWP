@@ -263,6 +263,16 @@ bool FMultiBlock::GetSearchable() const
 	return bSearchable;
 }
 
+TAttribute<EVisibility> FMultiBlock::GetVisibilityOverride() const
+{
+	return VisibilityOverride;
+}
+
+void FMultiBlock::SetVisibilityOverride(TAttribute<EVisibility> InVisibilityOverride)
+{
+	VisibilityOverride = InVisibilityOverride;
+}
+
 /**
  * Constructor
  *

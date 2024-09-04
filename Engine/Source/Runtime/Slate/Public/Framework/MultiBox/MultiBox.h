@@ -245,6 +245,12 @@ public:
 	/** Gets the extension hook so users can see what hooks are where */
 	FName GetExtensionHook() const { return ExtensionHook; }
 
+	/** Get the visibility override for this block. */
+	TAttribute<EVisibility> GetVisibilityOverride() const;
+
+	/** Set the visibility override for this block. */
+	void SetVisibilityOverride(TAttribute<EVisibility> InVisibilityOverride);
+
 private:
 	/**
 	 * Allocates a widget for this type of MultiBlock.  Override this in derived classes.
@@ -301,6 +307,9 @@ private:
 
 	/** Whether this block is part of the heading blocks for a section */
 	bool bIsPartOfHeading;
+
+	/** Visibility override which, if set and returning anything but Visible, takes priority over other methods of determining visibility. */
+	TAttribute<EVisibility> VisibilityOverride;
 };
 
 

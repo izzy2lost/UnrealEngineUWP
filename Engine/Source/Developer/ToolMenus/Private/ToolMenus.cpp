@@ -1595,27 +1595,23 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 		ToolBarBuilder.BeginStyleOverride(OverrideStyleName);
 	}
 
-	FUIAction UIAction = UToolMenus::ConvertUIAction(Block, MenuData->Context);
+	TAttribute<EVisibility> VisibilityOverride;
 	if (bIsRaisingToTopLevel && Block.ShowInToolbarTopLevel.IsBound())
 	{
-		// Patch the IsVisible delegate with the top-level status of the menu entry.
-		UIAction.IsActionVisibleDelegate = FIsActionButtonVisible::CreateLambda(
-			[OriginalIsVisible = UIAction.IsActionVisibleDelegate, ShowInToolbarTopLevel = Block.ShowInToolbarTopLevel]() -> bool
+		VisibilityOverride = TAttribute<EVisibility>::CreateLambda(
+			[ShowInToolbarTopLevel = Block.ShowInToolbarTopLevel]() -> EVisibility
 			{
 				if (ShowInToolbarTopLevel.IsSet() && !ShowInToolbarTopLevel.Get())
 				{
-					return false;
+					return EVisibility::Collapsed;
 				}
 
-				if (OriginalIsVisible.IsBound())
-				{
-					return OriginalIsVisible.Execute();
-				}
-
-				return true;
+				return EVisibility::Visible;
 			}
 		);
 	}
+
+	const FUIAction UIAction = UToolMenus::ConvertUIAction(Block, MenuData->Context);
 
 	TAttribute<FText> Label;
 	{
@@ -1655,7 +1651,7 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 			}
 
 			ToolBarBuilder.AddToolBarButton(
-				Block.Command, Block.Name, Label, Block.ToolTip, Block.Icon, Block.TutorialHighlightName
+				Block.Command, Block.Name, Label, Block.ToolTip, Block.Icon, Block.TutorialHighlightName, FNewMenuDelegate(), VisibilityOverride
 			);
 
 			if (bPopCommandList)
@@ -1667,15 +1663,21 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 		{
 			UToolMenuEntryScript* ScriptObject = Block.ScriptObject;
 			TAttribute<FSlateIcon> Icon = ScriptObject->CreateIconAttribute(MenuData->Context);
-			ToolBarBuilder.AddToolBarButton(UIAction, ScriptObject->Data.Name,
+			ToolBarBuilder.AddToolBarButton(
+				UIAction,
+				ScriptObject->Data.Name,
 				ScriptObject->CreateLabelAttribute(MenuData->Context),
-				ScriptObject->CreateToolTipAttribute(MenuData->Context), Icon, Block.UserInterfaceActionType,
-				Block.TutorialHighlightName);
+				ScriptObject->CreateToolTipAttribute(MenuData->Context),
+				Icon,
+				Block.UserInterfaceActionType,
+				Block.TutorialHighlightName,
+				VisibilityOverride
+			);
 		}
 		else
 		{
 			ToolBarBuilder.AddToolBarButton(
-				UIAction, Block.Name, Label, Block.ToolTip, Block.Icon, Block.UserInterfaceActionType, Block.TutorialHighlightName
+				UIAction, Block.Name, Label, Block.ToolTip, Block.Icon, Block.UserInterfaceActionType, Block.TutorialHighlightName, VisibilityOverride
 			);
 		}
 
@@ -1690,7 +1692,8 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 				Block.ToolBarData.OptionsDropdownData->ToolTip,
 				Block.Icon,
 				true,
-				Block.TutorialHighlightName
+				Block.TutorialHighlightName,
+				VisibilityOverride
 			);
 		}
 	}
@@ -1708,7 +1711,8 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 				Block.ToolTip,
 				Block.Icon,
 				Block.ToolBarData.bSimpleComboBox,
-				Block.TutorialHighlightName
+				Block.TutorialHighlightName,
+				VisibilityOverride
 			);
 		}
 		else
@@ -1717,13 +1721,7 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 				this, &UToolMenus::GenerateToolbarComboButtonMenu, TWeakObjectPtr<UToolMenu>(MenuData), Block.Name);
 
 			ToolBarBuilder.AddComboButton(
-				UIAction,
-				Delegate,
-				Label,
-				Block.ToolTip,
-				Block.Icon,
-				Block.ToolBarData.bSimpleComboBox,
-				Block.TutorialHighlightName
+				UIAction, Delegate, Label, Block.ToolTip, Block.Icon, Block.ToolBarData.bSimpleComboBox, Block.TutorialHighlightName, VisibilityOverride
 			);
 
 			// Also add any top-level flagged children to the toolbar.
@@ -1759,7 +1757,7 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 		FMenuEntryStyleParams StyleParams = Block.WidgetData.StyleParams;
 		StyleParams.HorizontalAlignment = HAlign_Fill;
 
-		ToolBarBuilder.AddWidget(Widget.ToSharedRef(), StyleParams, Block.TutorialHighlightName, Block.WidgetData.bSearchable);
+		ToolBarBuilder.AddWidget(Widget.ToSharedRef(), StyleParams, Block.TutorialHighlightName, Block.WidgetData.bSearchable, FNewMenuDelegate(), VisibilityOverride);
 	}
 	else
 	{
