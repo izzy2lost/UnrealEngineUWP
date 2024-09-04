@@ -7,6 +7,9 @@
 # ispc CMakeLists.txt
 #
 cmake_minimum_required(VERSION 3.14)
+# Allow selection of the windows runtime library using CMAKE_MSVC_RUNTIME_LIBRARY.
+# We could have achieved the same effect by bumping the minimum version to 3.15, but it's a more targeted fix.
+cmake_policy(SET CMP0091 NEW)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
