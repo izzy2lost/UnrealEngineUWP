@@ -71,6 +71,14 @@ FAutoConsoleVariableRef CVarLightGridHZBCull(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+int32 GLightGridRefineRectLightBounds = 1;
+FAutoConsoleVariableRef CVarLightGridRefineRectLightBounds(
+	TEXT("r.Forward.LightGridDebug.RectLightBounds"),
+	GLightGridRefineRectLightBounds,
+	TEXT("Whether to refine rect light bounds (should only be disabled for debugging purposes)."),
+	ECVF_RenderThreadSafe
+);
+
 int32 GMaxCulledLightsPerCell = 32;
 FAutoConsoleVariableRef CVarMaxCulledLightsPerCell(
 	TEXT("r.Forward.MaxCulledLightsPerCell"),
@@ -470,39 +478,32 @@ static void CalculateRectLightCullingPlanes(const FRectLightSceneProxy* RectProx
 {
 	const float BarnMaxAngle = GetRectLightBarnDoorMaxAngle();
 	const float AngleRad = FMath::DegreesToRadians(FMath::Clamp(RectProxy->BarnDoorAngle, 0.f, BarnMaxAngle));
-	const float BarnDepth = FMath::Cos(AngleRad) * RectProxy->BarnDoorLength;
-	const float BarnExtent = FMath::Sin(AngleRad) * RectProxy->BarnDoorLength;
 
-	FVector Corners[8];
+	// horizontal barn doors
+	{
+		float HorizontalBarnExtent;
+		float HorizontalBarnDepth;
+		CalculateRectLightCullingBarnExtentAndDepth(RectProxy->SourceWidth, RectProxy->BarnDoorLength, AngleRad, RectProxy->Radius, HorizontalBarnExtent, HorizontalBarnDepth);
 
-	// corners position based on rect source size and barn door parameters (frustum shape)
-	Corners[0] = FVector(0.0f, +0.5f * RectProxy->SourceWidth, +0.5f * RectProxy->SourceHeight);
-	Corners[1] = FVector(0.0f, +0.5f * RectProxy->SourceWidth, -0.5f * RectProxy->SourceHeight);
-	Corners[2] = FVector(BarnDepth, +0.5f * RectProxy->SourceWidth + BarnExtent, +0.5f * RectProxy->SourceHeight + BarnExtent);
-	Corners[3] = FVector(BarnDepth, +0.5f * RectProxy->SourceWidth + BarnExtent, -0.5f * RectProxy->SourceHeight - BarnExtent);
-	Corners[4] = FVector(0.0f, -0.5f * RectProxy->SourceWidth, +0.5f * RectProxy->SourceHeight);
-	Corners[5] = FVector(0.0f, -0.5f * RectProxy->SourceWidth, -0.5f * RectProxy->SourceHeight);
-	Corners[6] = FVector(BarnDepth, -0.5f * RectProxy->SourceWidth - BarnExtent, +0.5f * RectProxy->SourceHeight + BarnExtent);
-	Corners[7] = FVector(BarnDepth, -0.5f * RectProxy->SourceWidth - BarnExtent, -0.5f * RectProxy->SourceHeight - BarnExtent);
+		TStaticArray<FVector, 8> Corners;
+		CalculateRectLightBarnCorners(RectProxy->SourceWidth, RectProxy->SourceHeight, HorizontalBarnExtent, HorizontalBarnDepth, Corners);
 
-	// adjust corners to account for penumbra
-	auto ApplyPenumbraAdjustment = [RectProxy](const FVector& A, FVector& B) -> FVector
-		{
-			FVector Tmp = B - A;
-			double Len = Tmp.Length();
-			Tmp.Normalize();
-			return A + Tmp * FMath::Max<double>(RectProxy->Radius, Len);
-		};
+		OutPlanes.Add(FPlane(Corners[1], Corners[0], Corners[3])); // right
+		OutPlanes.Add(FPlane(Corners[5], Corners[7], Corners[4])); // left
+	}
+	
+	// vertical barn doors
+	{
+		float VerticalBarnExtent;
+		float VerticalBarnDepth;
+		CalculateRectLightCullingBarnExtentAndDepth(RectProxy->SourceHeight, RectProxy->BarnDoorLength, AngleRad, RectProxy->Radius, VerticalBarnExtent, VerticalBarnDepth);
 
-	Corners[7] = ApplyPenumbraAdjustment(Corners[0], Corners[7]);
-	Corners[6] = ApplyPenumbraAdjustment(Corners[1], Corners[6]);
-	Corners[3] = ApplyPenumbraAdjustment(Corners[4], Corners[3]);
-	Corners[2] = ApplyPenumbraAdjustment(Corners[5], Corners[2]);
+		TStaticArray<FVector, 8> Corners;
+		CalculateRectLightBarnCorners(RectProxy->SourceWidth, RectProxy->SourceHeight, VerticalBarnExtent, VerticalBarnDepth, Corners);
 
-	OutPlanes.Add(FPlane(Corners[1], Corners[0], Corners[3])); // right
-	OutPlanes.Add(FPlane(Corners[5], Corners[7], Corners[4])); // left
-	OutPlanes.Add(FPlane(Corners[4], Corners[6], Corners[0])); // top
-	OutPlanes.Add(FPlane(Corners[1], Corners[3], Corners[5])); // bottom
+		OutPlanes.Add(FPlane(Corners[4], Corners[6], Corners[0])); // top
+		OutPlanes.Add(FPlane(Corners[1], Corners[3], Corners[5])); // bottom
+	}
 
 	check(OutPlanes.Num() == NUM_PLANES_PER_RECT_LIGHT);
 }
@@ -995,7 +996,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 
 			FLightGridInjectionCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FLightGridInjectionCS::FUseLinkedListDim>(GLightLinkedListCulling != 0);
-			PermutationVector.Set<FLightGridInjectionCS::FRefineRectLightBoundsDim>(bHasRectLights);
+			PermutationVector.Set<FLightGridInjectionCS::FRefineRectLightBoundsDim>(bHasRectLights && (GLightGridRefineRectLightBounds != 0));
 			PermutationVector.Set<FLightGridInjectionCS::FUseHZBCullDim>(GLightGridHZBCull != 0 && View.HZB != nullptr);
 			TShaderMapRef<FLightGridInjectionCS> ComputeShader(View.ShaderMap, PermutationVector);
 

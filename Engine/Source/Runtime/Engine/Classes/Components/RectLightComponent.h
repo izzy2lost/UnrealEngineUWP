@@ -11,6 +11,9 @@
 
 float ENGINE_API GetRectLightBarnDoorMaxAngle();
 
+void ENGINE_API CalculateRectLightCullingBarnExtentAndDepth(float Size, float Length, float AngleRad, float Radius, float& OutExtent, float& OutDepth);
+void ENGINE_API CalculateRectLightBarnCorners(float SourceWidth, float SourceHeight, float BarnExtent, float BarnDepth, TStaticArray<FVector, 8>& OutCorners);
+
 class FLightSceneProxy;
 
 /**

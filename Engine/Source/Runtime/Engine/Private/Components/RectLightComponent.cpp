@@ -22,6 +22,67 @@ float GetRectLightBarnDoorMaxAngle()
 	return 88.f;
 }
 
+static float SolveQuadraticEq(float A, float B, float C)
+{
+	float Disc = B * B - 4.0f * C * A;
+	if (Disc > UE_KINDA_SMALL_NUMBER)
+	{
+		Disc = FMath::Sqrt(Disc);
+		const float Denom = 1.0f / (2.0f * A);
+		float Root0 = (-B + Disc) * Denom;
+		float Root1 = (-B - Disc) * Denom;
+
+		return Root0;
+	}
+
+	return -1;
+}
+
+void CalculateRectLightCullingBarnExtentAndDepth(float Size, float Length, float AngleRad, float Radius, float& OutExtent, float& OutDepth)
+{
+	float T = Size / 2.0f;
+
+	// 1. calculate opposite side (law of cosines)
+	float A = Size;
+	float B = Length;
+	float C = FMath::Sqrt(A * A + B * B - 2 * A * B * FMath::Cos(AngleRad + UE_HALF_PI));
+
+	// 2. calculate angle between rect plane and shadow boundary (law of sines)
+	float AuxAngleRad = FMath::Asin(B * FMath::Sin(AngleRad + UE_HALF_PI) / C);
+
+	// 3. calculate shadow boundary line
+	float M = FMath::Tan(AuxAngleRad);
+	float K = M * T;
+
+	// 4. intersect shadow boundary line with circle
+	float X = SolveQuadraticEq(M * M + 1, 2 * M * K, K * K - Radius * Radius);
+	float Y = M * X + K;
+
+	if (FMath::Sqrt((X + T) * (X + T) + Y * Y) >= C)
+	{
+		OutExtent = X - T;
+		OutDepth = Y;
+	}
+	else
+	{
+		// if intersection is closer than regular barn doors, fallback to base extent / depth 
+		OutExtent = FMath::Sin(AngleRad) * Length;
+		OutDepth = FMath::Cos(AngleRad) * Length;
+	}
+}
+
+void CalculateRectLightBarnCorners(float SourceWidth, float SourceHeight, float BarnExtent, float BarnDepth, TStaticArray<FVector, 8>& OutCorners)
+{
+	OutCorners[0] = FVector(0.0f, +0.5f * SourceWidth, +0.5f * SourceHeight);
+	OutCorners[1] = FVector(0.0f, +0.5f * SourceWidth, -0.5f * SourceHeight);
+	OutCorners[2] = FVector(BarnDepth, +0.5f * SourceWidth + BarnExtent, +0.5f * SourceHeight + BarnExtent);
+	OutCorners[3] = FVector(BarnDepth, +0.5f * SourceWidth + BarnExtent, -0.5f * SourceHeight - BarnExtent);
+	OutCorners[4] = FVector(0.0f, -0.5f * SourceWidth, +0.5f * SourceHeight);
+	OutCorners[5] = FVector(0.0f, -0.5f * SourceWidth, -0.5f * SourceHeight);
+	OutCorners[6] = FVector(BarnDepth, -0.5f * SourceWidth - BarnExtent, +0.5f * SourceHeight + BarnExtent);
+	OutCorners[7] = FVector(BarnDepth, -0.5f * SourceWidth - BarnExtent, -0.5f * SourceHeight - BarnExtent);
+}
+
 URectLightComponent::URectLightComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, RayTracingData(new FRectLightRayTracingData())
