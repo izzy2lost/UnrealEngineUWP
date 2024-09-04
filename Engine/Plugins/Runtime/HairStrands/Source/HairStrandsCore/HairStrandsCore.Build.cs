@@ -17,13 +17,18 @@ namespace UnrealBuildTool.Rules
 					"MeshDescription",
 					"MovieScene",
 					"NiagaraCore",
-					"Niagara",
 					"NiagaraShader",
 					"RenderCore",
 					"Renderer",
 					"VectorVM",
 					"RHI",
 					"StaticMeshDescription"
+				});
+
+			PublicDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"Niagara"
 				});
 
 			PrivateIncludePathModuleNames.AddRange(
