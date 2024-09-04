@@ -19,6 +19,7 @@
 #include "Chaos/Levelset.h"
 #include "PhysicsEngine/TaperedCapsuleElem.h"
 #include "Chaos/WeightedLatticeImplicitObject.h"
+#include "AutoRTFM/AutoRTFM.h"
 #if INTEL_ISPC
 #include "KAggregateGeom.ispc.generated.h"
 #endif
@@ -350,16 +351,18 @@ FBox FKBoxElem::CalcAABB(const FTransform& BoneTM, float Scale) const
 	{
 #if INTEL_ISPC
 		FBox LocalBox(ForceInit);
-		ispc::BoxCalcAABB(
-			(ispc::FBox&)LocalBox,
-			(ispc::FTransform&)BoneTM,
-			Scale,
-			(ispc::FRotator&)Rotation,
-			(ispc::FVector&)Center,
-			X,
-			Y,
-			Z);
-
+		UE_AUTORTFM_OPEN2
+		{
+			ispc::BoxCalcAABB(
+				reinterpret_cast<ispc::FBox&>(LocalBox),
+				reinterpret_cast<const ispc::FTransform&>(BoneTM),
+				Scale,
+				reinterpret_cast<const ispc::FRotator&>(Rotation),
+				reinterpret_cast<const ispc::FVector&>(Center),
+				X,
+				Y,
+				Z);
+		};
 		return LocalBox;
 #endif
 	}
@@ -391,15 +394,17 @@ FBox FKSphylElem::CalcAABB(const FTransform& BoneTM, float Scale) const
 	{
 #if INTEL_ISPC
 		FBox Result(ForceInit);
-		ispc::SPhylCalcAABB(
-			(ispc::FBox&)Result,
-			(ispc::FTransform&)BoneTM,
-			Scale,
-			(ispc::FRotator&)Rotation,
-			(ispc::FVector&)Center,
-			Radius,
-			Length);
-
+		UE_AUTORTFM_OPEN2
+		{
+			ispc::SPhylCalcAABB(
+				reinterpret_cast<ispc::FBox&>(Result),
+				reinterpret_cast<const ispc::FTransform&>(BoneTM),
+				Scale,
+				reinterpret_cast<const ispc::FRotator&>(Rotation),
+				reinterpret_cast<const ispc::FVector&>(Center),
+				Radius,
+				Length);
+		};
 		return Result;
 #endif
 	}

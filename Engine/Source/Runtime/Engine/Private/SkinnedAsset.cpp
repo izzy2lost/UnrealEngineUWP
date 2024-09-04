@@ -9,6 +9,7 @@
 #include "Materials/MaterialInterface.h"
 #include "SkeletalRenderGPUSkin.h"
 #include "PSOPrecache.h"
+#include "AutoRTFM/AutoRTFM.h"
 #if WITH_EDITORONLY_DATA
 #include "Streaming/UVChannelDensity.h"
 #endif
@@ -468,14 +469,20 @@ void USkinnedAsset::FillComponentSpaceTransforms(const TArray<FTransform>& InBon
 	if (IsISPCEnabled())
 	{
 #if INTEL_ISPC
-		ispc::FillComponentSpaceTransforms(
-			(ispc::FTransform*)&ComponentSpaceData[0],
-			(ispc::FTransform*)&LocalTransformsData[0],
-			InFillComponentSpaceTransformsRequiredBones.GetData(),
-			(const uint8*)GetRefSkeleton().GetRefBoneInfo().GetData(),
-			sizeof(FMeshBoneInfo),
-			offsetof(FMeshBoneInfo, ParentIndex),
-			InFillComponentSpaceTransformsRequiredBones.Num());
+		UE_AUTORTFM_OPEN2
+		{
+			AutoRTFM::RecordOpenWrite(
+				ComponentSpaceData,
+				OutComponentSpaceTransforms.Num() * sizeof(FTransform));
+			ispc::FillComponentSpaceTransforms(
+				reinterpret_cast<ispc::FTransform*>(ComponentSpaceData),
+				reinterpret_cast<const ispc::FTransform*>(LocalTransformsData),
+				InFillComponentSpaceTransformsRequiredBones.GetData(),
+				reinterpret_cast<const uint8*>(GetRefSkeleton().GetRefBoneInfo().GetData()),
+				sizeof(FMeshBoneInfo),
+				offsetof(FMeshBoneInfo, ParentIndex),
+				InFillComponentSpaceTransformsRequiredBones.Num());
+		};
 #endif
 	}
 	else

@@ -19,6 +19,7 @@
 #include "Animation/MirrorDataTable.h"
 #include "Animation/SkeletonRemappingRegistry.h"
 #include "Animation/SkeletonRemapping.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 DEFINE_LOG_CATEGORY(LogAnimation);
 DEFINE_LOG_CATEGORY(LogRootMotion);
@@ -163,11 +164,17 @@ FORCEINLINE void BlendPose<ETransformBlendMode::Overwrite>(const FCompactPose& S
 #if INTEL_ISPC
 	if (bAnim_BlendPoseOverwrite_ISPC_Enabled)
 	{
-		ispc::BlendTransformOverwrite(
-			reinterpret_cast<const ispc::FTransform*>(SourcePose.GetBones().GetData()),
-			reinterpret_cast<ispc::FTransform*>(ResultPose.GetMutableBones().GetData()),
-			BlendWeight,
-			SourcePose.GetNumBones());
+		UE_AUTORTFM_OPEN2
+		{
+			AutoRTFM::RecordOpenWrite(
+				ResultPose.GetMutableBones().GetData(),
+				ResultPose.GetNumBones() * sizeof(FTransform));
+			ispc::BlendTransformOverwrite(
+				reinterpret_cast<const ispc::FTransform*>(SourcePose.GetBones().GetData()),
+				reinterpret_cast<ispc::FTransform*>(ResultPose.GetMutableBones().GetData()),
+				BlendWeight,
+				SourcePose.GetNumBones());
+		};
 	}
 	else
 #endif
@@ -185,11 +192,17 @@ FORCEINLINE void BlendPose<ETransformBlendMode::Accumulate>(const FCompactPose& 
 #if INTEL_ISPC
 	if (bAnim_BlendPoseAccumulate_ISPC_Enabled)
 	{
-		ispc::BlendTransformAccumulate(
-			reinterpret_cast<const ispc::FTransform*>(SourcePose.GetBones().GetData()),
-			reinterpret_cast<ispc::FTransform*>(ResultPose.GetMutableBones().GetData()),
-			BlendWeight,
-			SourcePose.GetNumBones());
+		UE_AUTORTFM_OPEN2
+		{
+			AutoRTFM::RecordOpenWrite(
+				ResultPose.GetMutableBones().GetData(),
+				ResultPose.GetNumBones() * sizeof(FTransform));
+			ispc::BlendTransformAccumulate(
+				reinterpret_cast<const ispc::FTransform*>(SourcePose.GetBones().GetData()),
+				reinterpret_cast<ispc::FTransform*>(ResultPose.GetMutableBones().GetData()),
+				BlendWeight,
+				SourcePose.GetNumBones());
+		};
 	}
 	else
 #endif
@@ -966,13 +979,18 @@ void FAnimationRuntime::LerpBoneTransforms(TArray<FTransform>& A, const TArray<F
 #if INTEL_ISPC
 	if (bAnim_LerpBoneTransforms_ISPC_Enabled)
 	{
-		ispc::LerpBoneTransforms(
-			reinterpret_cast<ispc::FTransform*>(A.GetData()),
-			reinterpret_cast<const ispc::FTransform*>(B.GetData()),
-			Alpha,
-			RequiredBonesArray.GetData(),
-			RequiredBonesArray.Num()
-		);
+		UE_AUTORTFM_OPEN2
+		{
+			AutoRTFM::RecordOpenWrite(
+				A.GetData(),
+				A.Num() * sizeof(FTransform));
+			ispc::LerpBoneTransforms(
+				reinterpret_cast<ispc::FTransform*>(A.GetData()),
+				reinterpret_cast<const ispc::FTransform*>(B.GetData()),
+				Alpha,
+				RequiredBonesArray.GetData(),
+				RequiredBonesArray.Num());
+		};
 	}
 	else
 #endif
@@ -1063,10 +1081,16 @@ void FAnimationRuntime::ConvertPoseToAdditive(FCompactPose& TargetPose, const FC
 #if INTEL_ISPC
 	if (bAnim_ConvertPoseToAdditive_ISPC_Enabled)
 	{
-		ispc::ConvertPoseToAdditive(
-			reinterpret_cast<ispc::FTransform*>(TargetPose.GetMutableBones().GetData()),
-			reinterpret_cast<const ispc::FTransform*>(BasePose.GetBones().GetData()),
-			BasePose.GetNumBones());
+		UE_AUTORTFM_OPEN2
+		{
+			AutoRTFM::RecordOpenWrite(
+				TargetPose.GetMutableBones().GetData(),
+				TargetPose.GetNumBones() * sizeof(FTransform));
+			ispc::ConvertPoseToAdditive(
+				reinterpret_cast<ispc::FTransform*>(TargetPose.GetMutableBones().GetData()),
+				reinterpret_cast<const ispc::FTransform*>(BasePose.GetBones().GetData()),
+				BasePose.GetNumBones());
+		};
 	}
 	else
 #endif
@@ -1088,10 +1112,16 @@ void FAnimationRuntime::ConvertPoseToMeshRotation(FCompactPose& LocalPose)
 #if INTEL_ISPC
 	if (bAnim_ConvertPoseToMeshRotation_ISPC_Enabled)
 	{
-		ispc::ConvertPoseToMeshRotation(
-			reinterpret_cast<ispc::FTransform*>(LocalPose.GetMutableBones().GetData()),
-			reinterpret_cast<const int32*>(LocalPose.GetBoneContainer().GetCompactPoseParentBoneArray().GetData()),
-			LocalPose.GetNumBones());
+		UE_AUTORTFM_OPEN2
+		{
+			AutoRTFM::RecordOpenWrite(
+				LocalPose.GetMutableBones().GetData(),
+				LocalPose.GetNumBones() * sizeof(FTransform));
+			ispc::ConvertPoseToMeshRotation(
+				reinterpret_cast<ispc::FTransform*>(LocalPose.GetMutableBones().GetData()),
+				reinterpret_cast<const int32*>(LocalPose.GetBoneContainer().GetCompactPoseParentBoneArray().GetData()),
+				LocalPose.GetNumBones());
+		};
 	}
 	else
 #endif
@@ -1113,10 +1143,16 @@ void FAnimationRuntime::ConvertMeshRotationPoseToLocalSpace(FCompactPose& Pose)
 #if INTEL_ISPC
 	if (bAnim_ConvertMeshRotationPoseToLocalSpace_ISPC_Enabled)
 	{
-		ispc::ConvertMeshRotationPoseToLocalSpace(
-			reinterpret_cast<ispc::FTransform*>(Pose.GetMutableBones().GetData()),
-			reinterpret_cast<const int32*>(Pose.GetBoneContainer().GetCompactPoseParentBoneArray().GetData()),
-			Pose.GetNumBones());
+		UE_AUTORTFM_OPEN2
+		{
+			AutoRTFM::RecordOpenWrite(
+				Pose.GetMutableBones().GetData(),
+				Pose.GetNumBones() * sizeof(FTransform));
+			ispc::ConvertMeshRotationPoseToLocalSpace(
+				reinterpret_cast<ispc::FTransform*>(Pose.GetMutableBones().GetData()),
+				reinterpret_cast<const int32*>(Pose.GetBoneContainer().GetCompactPoseParentBoneArray().GetData()),
+				Pose.GetNumBones());
+		};
 	}
 	else
 #endif
@@ -1199,11 +1235,17 @@ void FAnimationRuntime::AccumulateLocalSpaceAdditivePoseInternal(FCompactPose& B
 #if INTEL_ISPC
 			if (bAnim_AccumulateLocalSpaceAdditivePose_ISPC_Enabled)
 			{
-				ispc::AccumulateWithAdditiveScale(
-					reinterpret_cast<ispc::FTransform*>(BasePose.GetMutableBones().GetData()),
-					reinterpret_cast<const ispc::FTransform*>(AdditivePose.GetBones().GetData()),
-					Weight,
-					BasePose.GetNumBones());
+				UE_AUTORTFM_OPEN2
+				{
+					AutoRTFM::RecordOpenWrite(
+						BasePose.GetMutableBones().GetData(),
+						BasePose.GetNumBones() * sizeof(FTransform));
+					ispc::AccumulateWithAdditiveScale(
+						reinterpret_cast<ispc::FTransform*>(BasePose.GetMutableBones().GetData()),
+						reinterpret_cast<const ispc::FTransform*>(AdditivePose.GetBones().GetData()),
+						Weight,
+						BasePose.GetNumBones());
+				};
 			}
 			else
 #endif
@@ -1767,7 +1809,7 @@ void FAnimationRuntime::BlendPosesPerBoneFilter(
 void FAnimationRuntime::BlendPosesPerBoneFilter(FCompactPose& BasePose, const TArray<FCompactPose>& BlendPoses, FBlendedCurve& BaseCurve, const TArray<FBlendedCurve>& BlendedCurves,
 	UE::Anim::FStackAttributeContainer& BaseAttributes,
 	const TArray<UE::Anim::FStackAttributeContainer>& BlendAttributes,
-FAnimationPoseData& OutAnimationPoseData, TArray<FPerBoneBlendWeight>& BoneBlendWeights, EBlendPosesPerBoneFilterFlags BlendFlags, enum ECurveBlendOption::Type CurveBlendOption)
+	FAnimationPoseData& OutAnimationPoseData, TArray<FPerBoneBlendWeight>& BoneBlendWeights, EBlendPosesPerBoneFilterFlags BlendFlags, enum ECurveBlendOption::Type CurveBlendOption)
 {
 	SCOPE_CYCLE_COUNTER(STAT_BlendPosesPerBoneFilter);
 
@@ -1775,7 +1817,6 @@ FAnimationPoseData& OutAnimationPoseData, TArray<FPerBoneBlendWeight>& BoneBlend
 	FBlendedCurve& OutCurve = OutAnimationPoseData.GetCurve();
 	UE::Anim::FStackAttributeContainer& OutAttributes = OutAnimationPoseData.GetAttributes();
 
-	
 	// if no blendpose, outpose = basepose
 	if (BlendPoses.Num() == 0)
 	{
@@ -1886,20 +1927,28 @@ FAnimationPoseData& OutAnimationPoseData, TArray<FPerBoneBlendWeight>& BoneBlend
 #if INTEL_ISPC
 		if (bAnim_BlendPosesPerBoneFilter_ISPC_Enabled)
 		{
-			ispc::BlendPosesPerBoneFilterScaleRotation(
-				reinterpret_cast<ispc::FTransform*>(OutPose.GetMutableBones().GetData()),
-				reinterpret_cast<const ispc::FTransform*>(BasePose.GetBones().GetData()),
-				reinterpret_cast<const uint8*>(&BlendPoses),
-				reinterpret_cast<ispc::FVector4*>(SourceRotations.GetData()),
-				reinterpret_cast<ispc::FVector*>(SourceScales.GetData()),
-				reinterpret_cast<ispc::FVector4*>(TargetRotations.GetData()),
-				reinterpret_cast<ispc::FVector*>(TargetScales.GetData()),
-				reinterpret_cast<ispc::FVector4*>(BlendRotations.GetData()),
-				reinterpret_cast<ispc::FVector*>(BlendScales.GetData()),
-				MaxPoseWeights.GetData(),
-				reinterpret_cast<const ispc::FPerBoneBlendWeight*>(BoneBlendWeights.GetData()),
-				reinterpret_cast<const int32*>(BoneContainer.GetCompactPoseParentBoneArray().GetData()),
-				BasePose.GetNumBones());
+			UE_AUTORTFM_OPEN2
+			{
+				AutoRTFM::RecordOpenWrite(
+					OutPose.GetMutableBones().GetData(),
+					OutPose.GetNumBones() * sizeof(FTransform));
+				// AutoRTFM doesn't track writes to Source/Target/Blend arrays, since these are part of the Scratch Area;
+				// they are not visible to callers, and don't need to persist.
+				ispc::BlendPosesPerBoneFilterScaleRotation(
+					reinterpret_cast<ispc::FTransform*>(OutPose.GetMutableBones().GetData()),
+					reinterpret_cast<const ispc::FTransform*>(BasePose.GetBones().GetData()),
+					reinterpret_cast<const uint8*>(&BlendPoses),
+					reinterpret_cast<ispc::FVector4*>(SourceRotations.GetData()),
+					reinterpret_cast<ispc::FVector*>(SourceScales.GetData()),
+					reinterpret_cast<ispc::FVector4*>(TargetRotations.GetData()),
+					reinterpret_cast<ispc::FVector*>(TargetScales.GetData()),
+					reinterpret_cast<ispc::FVector4*>(BlendRotations.GetData()),
+					reinterpret_cast<ispc::FVector*>(BlendScales.GetData()),
+					MaxPoseWeights.GetData(),
+					reinterpret_cast<const ispc::FPerBoneBlendWeight*>(BoneBlendWeights.GetData()),
+					reinterpret_cast<const int32*>(BoneContainer.GetCompactPoseParentBoneArray().GetData()),
+					BasePose.GetNumBones());
+			};
 		}
 		else
 #endif
@@ -1964,17 +2013,25 @@ FAnimationPoseData& OutAnimationPoseData, TArray<FPerBoneBlendWeight>& BoneBlend
 #if INTEL_ISPC
 		if (bAnim_BlendPosesPerBoneFilter_ISPC_Enabled)
 		{
-			ispc::BlendPosesPerBoneFilterRotation(
-				reinterpret_cast<ispc::FTransform*>(OutPose.GetMutableBones().GetData()),
-				reinterpret_cast<const ispc::FTransform*>(BasePose.GetBones().GetData()),
-				reinterpret_cast<const uint8*>(&BlendPoses),
-				reinterpret_cast<ispc::FVector4*>(SourceRotations.GetData()),
-				reinterpret_cast<ispc::FVector4*>(TargetRotations.GetData()),
-				reinterpret_cast<ispc::FVector4*>(BlendRotations.GetData()),
-				MaxPoseWeights.GetData(),
-				reinterpret_cast<const ispc::FPerBoneBlendWeight*>(BoneBlendWeights.GetData()),
-				reinterpret_cast<const int32*>(BoneContainer.GetCompactPoseParentBoneArray().GetData()),
-				BasePose.GetNumBones());
+			UE_AUTORTFM_OPEN2
+			{
+				AutoRTFM::RecordOpenWrite(
+					OutPose.GetMutableBones().GetData(),
+					OutPose.GetNumBones() * sizeof(FTransform));
+				// AutoRTFM doesn't track writes to Source/Target/Blend arrays, since these are part of the Scratch Area;
+				// they are not visible to callers, and don't need to persist.
+				ispc::BlendPosesPerBoneFilterRotation(
+					reinterpret_cast<ispc::FTransform*>(OutPose.GetMutableBones().GetData()),
+					reinterpret_cast<const ispc::FTransform*>(BasePose.GetBones().GetData()),
+					reinterpret_cast<const uint8*>(&BlendPoses),
+					reinterpret_cast<ispc::FVector4*>(SourceRotations.GetData()),
+					reinterpret_cast<ispc::FVector4*>(TargetRotations.GetData()),
+					reinterpret_cast<ispc::FVector4*>(BlendRotations.GetData()),
+					MaxPoseWeights.GetData(),
+					reinterpret_cast<const ispc::FPerBoneBlendWeight*>(BoneBlendWeights.GetData()),
+					reinterpret_cast<const int32*>(BoneContainer.GetCompactPoseParentBoneArray().GetData()),
+					BasePose.GetNumBones());
+			};
 		}
 		else
 #endif
@@ -2033,17 +2090,25 @@ FAnimationPoseData& OutAnimationPoseData, TArray<FPerBoneBlendWeight>& BoneBlend
 #if INTEL_ISPC
 		if (bAnim_BlendPosesPerBoneFilter_ISPC_Enabled)
 		{
-			ispc::BlendPosesPerBoneFilterScale(
-				reinterpret_cast<ispc::FTransform*>(OutPose.GetMutableBones().GetData()),
-				reinterpret_cast<const ispc::FTransform*>(BasePose.GetBones().GetData()),
-				reinterpret_cast<const uint8*>(&BlendPoses),
-				reinterpret_cast<ispc::FVector*>(SourceScales.GetData()),
-				reinterpret_cast<ispc::FVector*>(TargetScales.GetData()),
-				reinterpret_cast<ispc::FVector*>(BlendScales.GetData()),
-				MaxPoseWeights.GetData(),
-				reinterpret_cast<const ispc::FPerBoneBlendWeight*>(BoneBlendWeights.GetData()),
-				reinterpret_cast<const int32*>(BoneContainer.GetCompactPoseParentBoneArray().GetData()),
-				BasePose.GetNumBones());
+			UE_AUTORTFM_OPEN2
+			{
+				AutoRTFM::RecordOpenWrite(
+					OutPose.GetMutableBones().GetData(),
+					OutPose.GetNumBones() * sizeof(FTransform));
+				// AutoRTFM doesn't track writes to Source/Target/Blend arrays, since these are part of the Scratch Area;
+				// they are not visible to callers, and don't need to persist.
+				ispc::BlendPosesPerBoneFilterScale(
+					reinterpret_cast<ispc::FTransform*>(OutPose.GetMutableBones().GetData()),
+					reinterpret_cast<const ispc::FTransform*>(BasePose.GetBones().GetData()),
+					reinterpret_cast<const uint8*>(&BlendPoses),
+					reinterpret_cast<ispc::FVector*>(SourceScales.GetData()),
+					reinterpret_cast<ispc::FVector*>(TargetScales.GetData()),
+					reinterpret_cast<ispc::FVector*>(BlendScales.GetData()),
+					MaxPoseWeights.GetData(),
+					reinterpret_cast<const ispc::FPerBoneBlendWeight*>(BoneBlendWeights.GetData()),
+					reinterpret_cast<const int32*>(BoneContainer.GetCompactPoseParentBoneArray().GetData()),
+					BasePose.GetNumBones());
+			};
 		}
 		else
 #endif
@@ -2102,14 +2167,20 @@ FAnimationPoseData& OutAnimationPoseData, TArray<FPerBoneBlendWeight>& BoneBlend
 #if INTEL_ISPC
 		if (bAnim_BlendPosesPerBoneFilter_ISPC_Enabled)
 		{
-			ispc::BlendPosesPerBoneFilter(
-				reinterpret_cast<ispc::FTransform*>(OutPose.GetMutableBones().GetData()),
-				reinterpret_cast<const ispc::FTransform*>(BasePose.GetBones().GetData()),
-				reinterpret_cast<const uint8*>(&BlendPoses),
-				MaxPoseWeights.GetData(),
-				reinterpret_cast<const ispc::FPerBoneBlendWeight*>(BoneBlendWeights.GetData()),
-				reinterpret_cast<const int32*>(BoneContainer.GetCompactPoseParentBoneArray().GetData()),
-				BasePose.GetNumBones());
+			UE_AUTORTFM_OPEN2
+			{
+				AutoRTFM::RecordOpenWrite(
+					OutPose.GetMutableBones().GetData(),
+					OutPose.GetNumBones() * sizeof(FTransform));
+				ispc::BlendPosesPerBoneFilter(
+					reinterpret_cast<ispc::FTransform*>(OutPose.GetMutableBones().GetData()),
+					reinterpret_cast<const ispc::FTransform*>(BasePose.GetBones().GetData()),
+					reinterpret_cast<const uint8*>(&BlendPoses),
+					MaxPoseWeights.GetData(),
+					reinterpret_cast<const ispc::FPerBoneBlendWeight*>(BoneBlendWeights.GetData()),
+					reinterpret_cast<const int32*>(BoneContainer.GetCompactPoseParentBoneArray().GetData()),
+					BasePose.GetNumBones());
+			};
 		}
 		else
 #endif

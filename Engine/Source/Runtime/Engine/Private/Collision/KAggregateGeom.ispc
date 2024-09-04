@@ -114,12 +114,12 @@ export void BoxCalcAABB(uniform FBox &LocalBox,
 }
 
 export void SPhylCalcAABB(uniform FBox &Result,
-						const uniform FTransform &BoneTM,
-						const uniform float Scale,
-						const uniform FRotator &Rotation,
-						const uniform FVector &Center,
-						const uniform float Radius,
-						const uniform float Length)
+						  const uniform FTransform &BoneTM,
+						  const uniform float Scale,
+						  const uniform FRotator &Rotation,
+						  const uniform FVector &Center,
+						  const uniform float Radius,
+						  const uniform float Length)
 {
 	uniform FTransform ElemTM;
 	ElemTM.Rotation = RotatorToQuaternion(Rotation);

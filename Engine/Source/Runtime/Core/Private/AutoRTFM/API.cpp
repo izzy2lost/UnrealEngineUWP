@@ -583,8 +583,10 @@ extern "C" void autortfm_record_open_write(void* Ptr, size_t Size)
 	{
 		return RTFM_autortfm_record_open_write(Ptr, Size);
 	}
-
-	FContext::Get()->RecordWrite(Ptr, Size);
+	if (FTransaction* CurrentTransaction = FContext::Get()->GetCurrentTransaction())
+	{
+		CurrentTransaction->RecordWrite(Ptr, Size);
+	}
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_register_open_function(void* OriginalFunction, void* NewFunction)
