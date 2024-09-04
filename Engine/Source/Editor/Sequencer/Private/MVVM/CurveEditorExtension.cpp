@@ -120,7 +120,7 @@ public:
 	{
 		if (TSharedPtr< FSequencer> Sequencer = WeakSequencer.Pin())
 		{
-			Sequencer->OnActivateSequence().AddRaw(this, &FSequencerCurveEditor::HandleSequenceActivated);
+			Sequencer->OnActivateSequence().RemoveAll(this);
 		}
 	}
 
