@@ -240,12 +240,15 @@ FTransform ExtractRootTransformFromAnimationAsset(const UAnimationAsset* Animati
 	bool bUseNormalizedRootMotionScale = false;
 
 	FTransform RootTransformRefPose = FTransform::Identity;
-	if (const USkeleton* MySkeleton = Animation->GetSkeleton())
+	if (Animation)
 	{
-		const FReferenceSkeleton& RefSkeleton = MySkeleton->GetReferenceSkeleton();
-		if (RefSkeleton.GetNum() > 0)
+		if (const USkeleton* MySkeleton = Animation->GetSkeleton())
 		{
-			RootTransformRefPose = RefSkeleton.GetRefBonePose()[0];
+			const FReferenceSkeleton& RefSkeleton = MySkeleton->GetReferenceSkeleton();
+			if (RefSkeleton.GetNum() > 0)
+			{
+				RootTransformRefPose = RefSkeleton.GetRefBonePose()[0];
+			}
 		}
 	}
 
@@ -274,7 +277,7 @@ FTransform ExtractRootTransformFromAnimationAsset(const UAnimationAsset* Animati
 		//Clear scale as it will muck up GetRelativeTransform
 		Result.SetScale3D(FVector(1.f));
 	}
-	else
+	else if (Animation)
 	{
 		if (Animation->IsValidAdditive())
 		{

@@ -22,6 +22,10 @@ enum class EOrientationWarpingSpace : uint8
 	CustomTransform
 };
 
+/**
+ * Maintains a look at direction for the upper body (orientation), while rotating the lower body to match capsule velocity direction
+ * Does nothing if the root motion velocity direction matches the desired / current capsule velocity direction
+ */
 USTRUCT(BlueprintInternalUseOnly)
 struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNode_SkeletalControlBase
 {
@@ -30,6 +34,19 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	// Orientation warping evaluation mode (Graph or Manual)
 	UPROPERTY(EditAnywhere, Category=Evaluation)
 	EWarpingEvaluationMode Mode = EWarpingEvaluationMode::Manual;
+
+	// Experimental. Orientation warping should do nothing if root motion velocity directions match capsule,
+	// however root motion can have multiple velocity directions. So we also check root motion
+	// direction 'TargetTime' in the future for matching direction to avoid temp orientation warps.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (PinShownByDefault))
+	float TargetTime = 0.8f;
+
+	// Experimental. A bias in which the future root motion is preferred, even if the current root motion is closer to the previous orientation.
+	// We compare the current / future root motion to our previous orientation for continuity. 
+	// By default the current root motion is used, so it will always win this comparision without some bias.
+	// Note: We default to 5 degrees which may seem large, but the animation itself being continuous should prevent popping.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (PinHiddenByDefault))
+	float TargetBiasAngle = 5.f;
 
 	// The desired orientation angle (in degrees) to warp by relative to the specified RotationAxis
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
@@ -76,6 +93,15 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	// IK Foot definitions
 	UPROPERTY(EditAnywhere, Category=Settings, meta=(DisplayName="IK Foot Bones"))
 	TArray<FBoneReference> IKFootBones;
+
+	// Experimental. Animation Asset for incorporating root motion data. If 'TargetTime' is set, and the animation has root motion rotation within the TargetTime, 
+	// then those rotations will be scaled to reach the TargetOrientation
+	UPROPERTY(EditAnywhere, Transient, BlueprintReadWrite, Category = Experimental, meta = (PinShownByDefault))
+	TObjectPtr<UAnimationAsset> CurrentAnimAsset;
+
+	// Experimental. Current playback time in seconds of the CurrentAnimAsset
+	UPROPERTY(EditAnywhere, Transient, BlueprintReadWrite, Category = Experimental, meta = (PinShownByDefault))
+	float CurrentAnimAssetTime = 0.f;
 
 	// Rotation axis used when rotating the character body
 	UPROPERTY(EditAnywhere, Category=Settings)
