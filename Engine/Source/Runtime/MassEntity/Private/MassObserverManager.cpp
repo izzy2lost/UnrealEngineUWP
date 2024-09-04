@@ -82,6 +82,15 @@ void FMassObserverManager::Initialize()
 	}
 }
 
+void FMassObserverManager::DeInitialize()
+{
+	for (int32 i = 0; i < (int32)EMassObservedOperation::MAX; ++i)
+	{
+		(*FragmentObservers[i]).Empty();
+		(*TagObservers[i]).Empty();
+	}
+}
+
 bool FMassObserverManager::OnPostEntitiesCreated(const FMassArchetypeEntityCollection& EntityCollection)
 {
 	return OnPostEntitiesCreated(MakeArrayView(&EntityCollection , 1));

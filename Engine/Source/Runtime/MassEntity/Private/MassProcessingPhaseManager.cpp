@@ -256,6 +256,8 @@ void FMassProcessingPhaseManager::Deinitialize()
 	{
 		Phase.PhaseProcessor = nullptr;
 	}
+
+	DynamicProcessors.Reset();
 }
 
 const FGraphEventRef& FMassProcessingPhaseManager::TriggerPhase(const EMassProcessingPhase Phase, const float DeltaTime, const FGraphEventRef& MyCompletionGraphEvent)

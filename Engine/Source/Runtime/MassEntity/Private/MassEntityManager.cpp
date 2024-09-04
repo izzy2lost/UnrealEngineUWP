@@ -402,6 +402,8 @@ void FMassEntityManager::Deinitialize()
 #endif // WITH_MASSENTITY_DEBUG
 
 		EntityStorage.Emplace<FEmptyVariantState>();
+
+		ObserverManager.DeInitialize();
 		
 		bInitialized = false;
 	}
