@@ -235,8 +235,8 @@ public:
 
 	/**
 	 *  Add all one-ring neighbors of current selection to set.
-	 *  On a large mesh this is quite expensive as we don't know the boundary,
-	 *  so we have to iterate over all selected triangles.
+	 *  On a large selection this is quite expensive as we don't know the boundary,
+	 *  so we have to iterate over all selected edges.
 	 *
 	 *  Return false from FilterF to prevent vertices from being included.
 	 */
