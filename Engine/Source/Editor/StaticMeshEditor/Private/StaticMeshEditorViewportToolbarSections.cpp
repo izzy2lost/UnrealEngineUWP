@@ -57,14 +57,14 @@ FToolMenuEntry UE::StaticMeshEditor::CreateLODSubmenu()
 					InDynamicSection.AddSubMenu(
 						"LOD",
 						Label,
-						LOCTEXT("LODSubmenuTooltip", ""),
+						FText(),
 						FNewToolMenuDelegate::CreateLambda(
 							[StaticMeshEditorViewportWeak](UToolMenu* Submenu) -> void
 							{
 								if (TSharedPtr<SStaticMeshEditorViewport> Viewport = StaticMeshEditorViewportWeak.Pin())
 								{
 									FToolMenuSection& UnnamedSection =
-										Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+										Submenu->FindOrAddSection("", FText());
 									TSharedRef<SWidget> LODMenuWidget =
 										UE::StaticMeshEditor::GenerateLODMenuWidget(Viewport);
 									FToolMenuEntry LODSubmenu = FToolMenuEntry::InitWidget("LOD", LODMenuWidget, FText());

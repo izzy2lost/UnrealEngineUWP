@@ -248,7 +248,7 @@ FText SFilterBarIsolateHideShow::GetShowAllTracksButtonTooltipText() const
 	}
 
 	const FText SummaryText = MakeLongDisplaySummaryText(*FilterBar);
-	TooltipText = FText::Format(LOCTEXT("IsolateTracksButtonToolTipExtendedWithTotal", "{0}\n\n{1}")
+	TooltipText = FText::Format(LOCTEXT("ShowAllTracksButtonToolTipExtendedWithSummary", "{0}\n\n{1}")
 		, TooltipText, SummaryText);
 
 	return TooltipText;

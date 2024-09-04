@@ -757,7 +757,7 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 				{
 					if (ComponentInfo->NodeComponentMesh)
 					{
-						FText Msg = FText::Format(LOCTEXT("NoReferenceMeshObjectTab", "Already exist a Component node with the same name in Customizable Object [{0}]"), FText::FromString(GetRootObject(*ComponentInfo->NodeComponentMesh)->GetName()));
+						FText Msg = FText::Format(LOCTEXT("ComponentNodeWithSameNameExists", "Already exist a Component node with the same name in Customizable Object [{0}]"), FText::FromString(GetRootObject(*ComponentInfo->NodeComponentMesh)->GetName()));
 						CompilerLog(Msg, Node, EMessageSeverity::Error);
 						return nullptr;
 					}

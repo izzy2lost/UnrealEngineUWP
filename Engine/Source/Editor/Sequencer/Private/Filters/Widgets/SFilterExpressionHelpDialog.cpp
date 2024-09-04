@@ -187,8 +187,8 @@ TSharedRef<SWidget> SFilterExpressionHelpDialog::ConstructKeysWidget(const TSet<
 
 TSharedRef<SWidget> SFilterExpressionHelpDialog::ConstructValueWidget(const ESequencerTextFilterValueType InValueType)
 {
-	static const FText LessThanText = LOCTEXT("Comma", "<");
-	static const FText GreaterThanText = LOCTEXT("Comma", ">");
+	static const FText LessThanText = LOCTEXT("CommaLT", "<");
+	static const FText GreaterThanText = LOCTEXT("CommaGT", ">");
 
 	const TSharedRef<SHorizontalBox> HorizontalBox = SNew(SHorizontalBox);
 

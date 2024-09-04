@@ -139,11 +139,11 @@ FText UCustomizableObjectNodeComponentPassthroughMesh::GetNodeTitle(ENodeTitleTy
 		FFormatNamedArguments Args;
 		Args.Add(TEXT("MeshName"), FText::FromString(SkeletalMesh->GetName()));
 
-		return FText::Format(LOCTEXT("ComponentMesh_Title", "{MeshName}\n Passthrough Mesh Component"), Args);
+		return FText::Format(LOCTEXT("ComponentPassthroughMesh_Title", "{MeshName}\n Passthrough Mesh Component"), Args);
 	}
 	else
 	{
-		return LOCTEXT("Component_Mesh", "Passthrough Mesh Component");
+		return LOCTEXT("ComponentPassthroughMesh", "Passthrough Mesh Component");
 	}
 }
 
@@ -196,7 +196,7 @@ FSkeletalMaterial* UCustomizableObjectNodeComponentPassthroughMesh::GetSkeletalM
 
 FText UCustomizableObjectNodeComponentPassthroughMesh::GetTooltipText() const
 {
-	return LOCTEXT("Component_Mesh_Tooltip", "Define a new object component based on a Skeletal Mesh.");
+	return LOCTEXT("ComponentPassthroughMesh_Tooltip", "Define a new object component based on a Skeletal Mesh.");
 }
 
 

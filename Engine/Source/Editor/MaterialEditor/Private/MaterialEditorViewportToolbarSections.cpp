@@ -53,7 +53,7 @@ FToolMenuEntry UE::MaterialEditor::CreateShowSubmenu(TWeakPtr<SMaterialEditor3DP
 					return;
 				}
 
-				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", FText());
 
 				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
 					"ShowMenuItems", UE::MaterialEditor::CreateShowMenuWidget(Viewport.ToSharedRef()), FText(), true
