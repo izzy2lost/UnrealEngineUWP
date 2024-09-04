@@ -374,7 +374,7 @@ namespace HordeServer.Tools
 				return Forbid(ToolAclAction.DownloadTool, id);
 			}
 
-			if (!locator.WithinFolder(tool.Id.Id.Text))
+			if (!locator.WithinFolder(tool.Id.Id.Text) && !tool.Bundled)
 			{
 				return BadRequest("Invalid blob id for tool");
 			}
