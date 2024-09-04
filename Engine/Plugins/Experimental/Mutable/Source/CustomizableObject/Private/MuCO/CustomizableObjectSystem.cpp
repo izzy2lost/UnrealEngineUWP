@@ -580,7 +580,7 @@ void UCustomizableObjectSystem::BeginDestroy()
 	if (Private)
 	{
 #if WITH_EDITOR
-		if (ICustomizableObjectEditorModule* EditorModule = ICustomizableObjectEditorModule::Get())
+		if (ICustomizableObjectEditorModule* EditorModule = FModuleManager::GetModulePtr<ICustomizableObjectEditorModule>("CustomizableObjectEditor"))
 		{
 			EditorModule->CancelCompileRequests();
 		}
