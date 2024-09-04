@@ -428,6 +428,7 @@ private:
 #endif
 	}
 
+	static void FlushRenderingCommandIfUsed(const UGroomBindingAsset* In);
 public:
 #if WITH_EDITORONLY_DATA
 	/** Build/rebuild a binding asset */
