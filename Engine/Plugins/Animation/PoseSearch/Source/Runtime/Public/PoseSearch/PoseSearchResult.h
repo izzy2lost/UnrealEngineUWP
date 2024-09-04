@@ -39,6 +39,17 @@ struct FSearchResult
 	POSESEARCH_API const FSearchIndexAsset* GetSearchIndexAsset(bool bMandatory = false) const;
 	
 	bool CanAdvance(float DeltaTime) const;
+
+	bool operator==(const FSearchResult& Other) const
+	{
+		// best cost of the currently selected PoseIdx (it could be equal to ContinuingPoseCost)
+		return	PoseCost == Other.PoseCost &&
+			PoseIdx == Other.PoseIdx &&
+			Database == Other.Database &&
+			AssetTime == Other.AssetTime &&
+			bIsContinuingPoseSearch == Other.bIsContinuingPoseSearch;
+	}
+
 };
 
 } // namespace UE::PoseSearch

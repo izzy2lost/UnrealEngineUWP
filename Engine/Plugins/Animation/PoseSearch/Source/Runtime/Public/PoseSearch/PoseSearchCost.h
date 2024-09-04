@@ -23,6 +23,7 @@ public:
 	bool IsValid() const { return IsCostValid(TotalCost); }
 	float GetTotalCost() const { return TotalCost; }
 	bool operator<(const FPoseSearchCost& Other) const { return TotalCost < Other.TotalCost; }
+	bool operator==(const FPoseSearchCost& Other) const { return TotalCost == Other.TotalCost; }
 
 protected:
 	UPROPERTY()

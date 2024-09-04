@@ -3,14 +3,13 @@
 #pragma once
 
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "PoseSearch/PoseSearchLibrary.h"
 #include "ChimeraLibrary.generated.h"
 
 // (CH)aracter (I)nteraction (M)atching (ERA) =):->
 // subsystem in charge of coordinating Characters availability for motion matched interactions,
 // scheduling motion matching searches and synchronizing animations playback
 
-struct FAnimNode_PoseSearchHistoryCollector_Base;
-class UPoseSearchDatabase;
 
 // input for ChimeraQuery_Pure: it declares that the associated character (AnimInstance) is willing to partecipate in an interction 
 // described by a UMultiAnimAsset (derived by UChimeraAsset) contained in the UPoseSearchDatabase Database
@@ -49,7 +48,7 @@ public:
 
 	// animation assigned to this character to partecipate in the interaction
 	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
-	TObjectPtr<const UObject> SelectedAnimation = nullptr;
+	TObjectPtr<UObject> SelectedAnimation = nullptr;
 	
 	// SelectedAnimation associated time
 	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
@@ -105,15 +104,20 @@ public:
 	// 
 	// if FChimeraBlueprintResult has a valid SelectedAnimation, this will be the animation assigned to this character to partecipate in this interaction.
 	// additional interaction properties, like assigned role, SelectedAnimation time, SearchCost, etc can be found within the result
+	// ContinuingProperties are used to figure out the continuing pose and bias it accordingly. ContinuingProperties can reference directly the UMultiAnimAsset
+	// or any of the roled UMultiAnimAsset::GetAnimationAsset, and the UChimeraSubsystem will figure out the related UMultiAnimAsset
 	// PoseHistoryName is the name of the pose history node used for the associated motion matching search
 	// if bValidateResultAgainstAvailabilities is true, the result will be invalidated if doesn't respect the new availabilities
 	UFUNCTION(BlueprintPure, Category = "Animation|Chimera", meta = (BlueprintThreadSafe))
-	static FChimeraBlueprintResult ChimeraQuery_Pure(TArray<FChimeraAvailability> Availabilities, UObject* AnimInstance, FName PoseHistoryName, bool bValidateResultAgainstAvailabilities);
+	static FChimeraBlueprintResult ChimeraQuery_Pure(TArray<FChimeraAvailability> Availabilities, UObject* AnimInstance, FPoseSearchContinuingProperties ContinuingProperties, FName PoseHistoryName, bool bValidateResultAgainstAvailabilities);
 
 	// BlueprintCallable version of ChimeraQuery_Pure
 	UFUNCTION(BlueprintCallable, Category = "Animation|Chimera", meta = (BlueprintThreadSafe))
-	static FChimeraBlueprintResult ChimeraQuery(TArray<FChimeraAvailability> Availabilities, UObject* AnimInstance, FName PoseHistoryName, bool bValidateResultAgainstAvailabilities);
+	static FChimeraBlueprintResult ChimeraQuery(TArray<FChimeraAvailability> Availabilities, UObject* AnimInstance, FPoseSearchContinuingProperties ContinuingProperties, FName PoseHistoryName, bool bValidateResultAgainstAvailabilities);
 
-	static FChimeraBlueprintResult ChimeraQuery(const TArrayView<const FChimeraAvailability> Availabilities, UObject* AnimInstance, const FAnimNode_PoseSearchHistoryCollector_Base* HistoryCollector, bool bValidateResultAgainstAvailabilities);
+	// version of ChimeraQuery_Pure referencing directly the HistoryCollector rather than looking for it by name
+	static FChimeraBlueprintResult ChimeraQuery(const TArrayView<const FChimeraAvailability> Availabilities, UObject* AnimInstance, const FPoseSearchContinuingProperties& ContinuingProperties, const FAnimNode_PoseSearchHistoryCollector_Base* HistoryCollector, bool bValidateResultAgainstAvailabilities);
 
+	UFUNCTION(BlueprintPure, Category = "Animation|Chimera", meta = (BlueprintThreadSafe))
+	static FPoseSearchContinuingProperties GetMontageContinuingProperties(UAnimInstance* AnimInstance);
 };

@@ -7,7 +7,7 @@
 #include "PoseSearch/PoseSearchRole.h"
 #include "ChimeraAsset.generated.h"
 
-USTRUCT(Experimental)
+USTRUCT()
 struct CHIMERA_API FChimeraAssetItem
 {
 	GENERATED_BODY()
@@ -37,7 +37,7 @@ struct CHIMERA_API FChimeraAssetItem
 	FTransform Origin = FTransform::Identity;
 };
 
-UCLASS(Experimental, BlueprintType, Category = "Animation|Chimera")
+UCLASS(BlueprintType, Category = "Animation|Chimera")
 class CHIMERA_API UChimeraAsset : public UMultiAnimAsset
 {
 	GENERATED_BODY()
@@ -82,7 +82,7 @@ public:
 	FTransform GetDebugWarpOrigin(const UE::PoseSearch::FRole& Role, bool bComposeWithDebugWarpOffset) const;
 #endif // WITH_EDITOR
 
-	void CalculateWarpTransforms(float Time, const TArrayView<const FTransform> ActorRootBoneTransforms, TArrayView<FTransform> FullAlignedActorRootBoneTransforms, const UWorld* DebugDrawWorld = nullptr) const;
+	virtual void CalculateWarpTransforms(float Time, const TArrayView<const FTransform> ActorRootBoneTransforms, TArrayView<FTransform> FullAlignedActorRootBoneTransforms, const UWorld* DebugDrawWorld = nullptr) const override;
 
 	FQuat FindReferenceOrientation(const TArrayView<const FTransform> Transforms, const TArrayView<int32> SortedByWarpingWeightRotationItemIndex) const;
 	FVector FindReferencePosition(const TArrayView<const FTransform> Transforms, const TArrayView<float> NormalizedWarpingWeightTranslation) const;

@@ -927,20 +927,40 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 				{
 					const FSearchIndexAsset& SearchIndexAsset = SearchIndex.Assets[AssetIndex];
 
-					bool bCanAdvance = true;
-					if (!SearchIndexAsset.IsLooping())
-					{
-						const float FirstSampleTime = SearchIndexAsset.GetFirstSampleTime(Database->Schema->SampleRate);
-						const float LastSampleTime = SearchIndexAsset.GetLastSampleTime(Database->Schema->SampleRate) - DeltaSeconds;
-						const float MaxTimeToBeAbleToContinuingPlayingAnimation = LastSampleTime - DeltaSeconds;
+					const float FirstSampleTime = SearchIndexAsset.GetFirstSampleTime(Database->Schema->SampleRate);
+					const float LastSampleTime = SearchIndexAsset.GetLastSampleTime(Database->Schema->SampleRate);
 
+					bool bCanAdvance = true;
+					if (SearchIndexAsset.IsLooping())
+					{
+						const float DeltaSampleTime = LastSampleTime - FirstSampleTime;
+						if (DeltaSampleTime < UE_SMALL_NUMBER)
+						{
+							ReconstructedPreviousSearchResult.AssetTime = FirstSampleTime;
+						}
+						else if (ContinuingProperties.PlayingAssetAccumulatedTime < FirstSampleTime)
+						{
+							ReconstructedPreviousSearchResult.AssetTime = FMath::Fmod(ContinuingProperties.PlayingAssetAccumulatedTime - FirstSampleTime, DeltaSampleTime) + DeltaSampleTime + FirstSampleTime;
+						}
+						else if (ContinuingProperties.PlayingAssetAccumulatedTime > LastSampleTime)
+						{
+							ReconstructedPreviousSearchResult.AssetTime = FMath::Fmod(ContinuingProperties.PlayingAssetAccumulatedTime - FirstSampleTime, DeltaSampleTime) + FirstSampleTime;
+						}
+						else
+						{
+							ReconstructedPreviousSearchResult.AssetTime = ContinuingProperties.PlayingAssetAccumulatedTime;
+						}
+					}
+					else
+					{
+						const float MaxTimeToBeAbleToContinuingPlayingAnimation = LastSampleTime - DeltaSeconds;
 						bCanAdvance = ContinuingProperties.PlayingAssetAccumulatedTime >= FirstSampleTime && ContinuingProperties.PlayingAssetAccumulatedTime < MaxTimeToBeAbleToContinuingPlayingAnimation;
+						ReconstructedPreviousSearchResult.AssetTime = ContinuingProperties.PlayingAssetAccumulatedTime;
 					}
 
 					if (bCanAdvance)
 					{
 						ReconstructedPreviousSearchResult.Database = Database;
-						ReconstructedPreviousSearchResult.AssetTime = ContinuingProperties.PlayingAssetAccumulatedTime;
 						ReconstructedPreviousSearchResult.PoseIdx = Database->GetPoseIndexFromTime(ContinuingProperties.PlayingAssetAccumulatedTime, SearchIndexAsset);
 						SearchContext.UpdateCurrentResultPoseVector();
 

@@ -6,7 +6,7 @@
 #include "Chimera/AnimNode_Chimera.h"
 #include "AnimGraphNode_Chimera.generated.h"
 
-UCLASS(Experimental)
+UCLASS()
 class CHIMERAEDITOR_API UAnimGraphNode_Chimera : public UAnimGraphNode_BlendStack_Base
 {
 	GENERATED_UCLASS_BODY()

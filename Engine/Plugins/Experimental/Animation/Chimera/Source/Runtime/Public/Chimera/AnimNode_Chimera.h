@@ -25,7 +25,7 @@ enum class EChimeraEvaluationMode
 	// UntilContinuingPoseIsValid,
 };
 
-USTRUCT(BlueprintInternalUseOnly, Experimental)
+USTRUCT(BlueprintInternalUseOnly)
 struct CHIMERA_API FAnimNode_Chimera : public FAnimNode_BlendStack
 {
 	GENERATED_BODY();
@@ -65,7 +65,10 @@ protected:
 	float BlendLerp = 0.f;
 	float TranslationWarpLerp = 0.f;
 	float RotationWarpLerp = 0.f;
-	bool bWasInteracting = false;
+	// if a search is successful InteractingRolesNum > 0. 
+	// if InteractingRolesNum == 1 it means that the search is a regular single character motion matching search
+	// if InteractingRolesNum > 1 it means this node is interacting with other actors via the ChimeraSubsystem
+	int32 InteractingRolesNum = 0;
 
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;

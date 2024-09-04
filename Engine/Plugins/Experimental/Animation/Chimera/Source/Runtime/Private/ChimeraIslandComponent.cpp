@@ -4,210 +4,268 @@
 #include "Animation/AnimClassInterface.h"
 #include "Animation/AnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Chimera/ChimeraAsset.h"
 #include "Chimera/ChimeraDefines.h"
 #include "Chimera/ChimeraLibrary.h"
 #include "DrawDebugHelpers.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "PoseSearch/AnimNode_PoseSearchHistoryCollector.h"
+#include "PoseSearch/MultiAnimAsset.h"
 #include "PoseSearch/PoseSearchLibrary.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchSchema.h"
 
 namespace UE::Chimera
 {
+
 #if ENABLE_ANIM_DEBUG
-	static TAutoConsoleVariable<bool> CVarChimeraShowIslands(TEXT("a.Chimera.ShowIslands"), false, TEXT("Show Chimera Islands"));
+static TAutoConsoleVariable<bool> CVarChimeraShowIslands(TEXT("a.Chimera.ShowIslands"), false, TEXT("Show Chimera Islands"));
 #endif
 
-	static UE::Chimera::FSearchResult InitSearchResult(const UE::PoseSearch::FSearchResult& SearchResult, int32 SearchIndex, const UE::Chimera::FSearchContext& SearchContext)
+// Utils functions
+///////////////////////////////////////////////////////////
+static FSearchResult InitSearchResult(const UE::PoseSearch::FSearchResult& SearchResult, int32 SearchIndex, const FSearchContext& SearchContext)
+{
+	FSearchResult ChimeraSearchResult;
+	static_cast<UE::PoseSearch::FSearchResult&>(ChimeraSearchResult) = SearchResult;
+	ChimeraSearchResult.SearchIndex = SearchIndex;
+
+	if (const UE::PoseSearch::FSearchIndexAsset* SearchIndexAsset = SearchResult.GetSearchIndexAsset())
 	{
-		UE::Chimera::FSearchResult ChimeraSearchResult;
-		static_cast<UE::PoseSearch::FSearchResult&>(ChimeraSearchResult) = SearchResult;
-		ChimeraSearchResult.SearchIndex = SearchIndex;
-
-		// @todo: WIP! calculating warping: currently supporting only UChimeraAsset(s), but we should generalize for UMultiAnimAsset(s)
-		if (const UE::PoseSearch::FSearchIndexAsset* SearchIndexAsset = SearchResult.GetSearchIndexAsset())
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = SearchResult.Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(*SearchIndexAsset))
 		{
-			if (const FPoseSearchDatabaseMultiAnimAsset* DatabaseMultiAnimAsset = SearchResult.Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseMultiAnimAsset>(*SearchIndexAsset))
+			if (const UMultiAnimAsset* MultiAnimAsset = Cast<UMultiAnimAsset>(DatabaseAnimationAssetBase->GetAnimationAsset()))
 			{
-				if (const UChimeraAsset* ChimeraAsset = Cast<UChimeraAsset>(DatabaseMultiAnimAsset->GetAnimationAsset()))
+				check(MultiAnimAsset->GetNumRoles() == SearchContext.AnimInstances.Num());
+				check(MultiAnimAsset->GetNumRoles() == SearchContext.HistoryCollectors.Num());
+				check(MultiAnimAsset->GetNumRoles() == SearchContext.Roles.Num());
+
+				UE::PoseSearch::FRoleToIndex SearchContextRoleToIndex;
+				SearchContextRoleToIndex.Reserve(SearchContext.Roles.Num());
+				for (int32 SearchContextRoleIndex = 0; SearchContextRoleIndex < SearchContext.Roles.Num(); ++SearchContextRoleIndex)
 				{
-					check(ChimeraAsset->GetNumRoles() == SearchContext.AnimInstances.Num());
-					check(ChimeraAsset->GetNumRoles() == SearchContext.HistoryCollectors.Num());
-					check(ChimeraAsset->GetNumRoles() == SearchContext.Roles.Num());
+					SearchContextRoleToIndex.Add(SearchContext.Roles[SearchContextRoleIndex]) = SearchContextRoleIndex;
+				}
 
-					UE::PoseSearch::FRoleToIndex SearchContextRoleToIndex;
-					SearchContextRoleToIndex.Reserve(SearchContext.Roles.Num());
-					for (int32 SearchContextRoleIndex = 0; SearchContextRoleIndex < SearchContext.Roles.Num(); ++SearchContextRoleIndex)
+				// mapping MultiAnimAsset Roles to SearchContext.* indexes
+				TArray<FTransform, TInlineAllocator<UE::PoseSearch::PreallocatedRolesNum>> ActorRootBoneTransforms;
+				const UWorld* DebugDrawWorld = nullptr;
+				for (int32 MultiAnimAssetRoleIndex = 0; MultiAnimAssetRoleIndex < MultiAnimAsset->GetNumRoles(); ++MultiAnimAssetRoleIndex)
+				{
+					const UE::PoseSearch::FRole& ChimeraAssetRole = MultiAnimAsset->GetRole(MultiAnimAssetRoleIndex);
+					const int32 SearchContextIndex = SearchContextRoleToIndex[ChimeraAssetRole];
+
+					if (UAnimInstance* AnimInstance = SearchContext.AnimInstances[SearchContextIndex].Get())
 					{
-						SearchContextRoleToIndex.Add(SearchContext.Roles[SearchContextRoleIndex]) = SearchContextRoleIndex;
+						const FTransform RootBoneTransform = AnimInstance->GetSkelMeshComponent()->GetBoneTransform(0);
+						ActorRootBoneTransforms.Add(RootBoneTransform);
+					
+						if (!DebugDrawWorld)
+						{
+							DebugDrawWorld = AnimInstance->GetWorld();
+						}
 					}
+				}
 
-					// mapping ChimeraAsset Roles to SearchContext.* indexes
-					TArray<FTransform, TInlineAllocator<UE::PoseSearch::PreallocatedRolesNum>> ActorRootBoneTransforms;
-					const UWorld* DebugDrawWorld = nullptr;
-					for (int32 ChimeraAssetRoleIndex = 0; ChimeraAssetRoleIndex < ChimeraAsset->GetNumRoles(); ++ChimeraAssetRoleIndex)
+				if (ActorRootBoneTransforms.Num() == MultiAnimAsset->GetNumRoles())
+				{
+					// FullAlignedActorRootBoneTransforms is mapped to the MultiAnimAsset roles:
+					// FullAlignedActorRootBoneTransforms[0] is for MultiAnimAsset->GetRole(0)
+					TArray<FTransform, TInlineAllocator<UE::PoseSearch::PreallocatedRolesNum>> FullAlignedActorRootBoneTransforms;
+					FullAlignedActorRootBoneTransforms.SetNum(MultiAnimAsset->GetNumRoles());
+
+					// @todo: should it be SearchResult.AssetTime + DeltaTime?
+					MultiAnimAsset->CalculateWarpTransforms(SearchResult.AssetTime, ActorRootBoneTransforms, FullAlignedActorRootBoneTransforms, DebugDrawWorld);
+					ChimeraSearchResult.FullAlignedActorRootBoneTransforms.SetNum(MultiAnimAsset->GetNumRoles());
+
+					for (int32 ChimeraAssetRoleIndex = 0; ChimeraAssetRoleIndex < MultiAnimAsset->GetNumRoles(); ++ChimeraAssetRoleIndex)
 					{
-						const UE::PoseSearch::FRole& ChimeraAssetRole = ChimeraAsset->GetRole(ChimeraAssetRoleIndex);
+						const UE::PoseSearch::FRole& ChimeraAssetRole = MultiAnimAsset->GetRole(ChimeraAssetRoleIndex);
 						const int32 SearchContextIndex = SearchContextRoleToIndex[ChimeraAssetRole];
 
-						if (UAnimInstance* AnimInstance = SearchContext.AnimInstances[SearchContextIndex].Get())
-						{
-							const FTransform RootBoneTransform = AnimInstance->GetSkelMeshComponent()->GetBoneTransform(0);
-							ActorRootBoneTransforms.Add(RootBoneTransform);
-					
-							if (!DebugDrawWorld)
-							{
-								DebugDrawWorld = AnimInstance->GetWorld();
-							}
-						}
-					}
-
-					if (ActorRootBoneTransforms.Num() == ChimeraAsset->GetNumRoles())
-					{
-						// FullAlignedActorRootBoneTransforms is mapped to the ChimeraAsset roles:
-						// FullAlignedActorRootBoneTransforms[0] is for ChimeraAsset->GetRole(0)
-						TArray<FTransform, TInlineAllocator<UE::PoseSearch::PreallocatedRolesNum>> FullAlignedActorRootBoneTransforms;
-						FullAlignedActorRootBoneTransforms.SetNum(ChimeraAsset->GetNumRoles());
-
-						ChimeraAsset->CalculateWarpTransforms(SearchResult.AssetTime, ActorRootBoneTransforms, FullAlignedActorRootBoneTransforms, DebugDrawWorld);
-						ChimeraSearchResult.FullAlignedActorRootBoneTransforms.SetNum(ChimeraAsset->GetNumRoles());
-
-						for (int32 ChimeraAssetRoleIndex = 0; ChimeraAssetRoleIndex < ChimeraAsset->GetNumRoles(); ++ChimeraAssetRoleIndex)
-						{
-							const UE::PoseSearch::FRole& ChimeraAssetRole = ChimeraAsset->GetRole(ChimeraAssetRoleIndex);
-							const int32 SearchContextIndex = SearchContextRoleToIndex[ChimeraAssetRole];
-
-							ChimeraSearchResult.FullAlignedActorRootBoneTransforms[SearchContextIndex] = FullAlignedActorRootBoneTransforms[ChimeraAssetRoleIndex];
-						}
+						ChimeraSearchResult.FullAlignedActorRootBoneTransforms[SearchContextIndex] = FullAlignedActorRootBoneTransforms[ChimeraAssetRoleIndex];
 					}
 				}
 			}
-		}
+			else
+			{
+				// support for non UMultiAnimAsset to be backward compatible with regular motion matching searches
+				check(SearchContext.AnimInstances.Num() == 1);
 
-		return ChimeraSearchResult;
+				if (UAnimInstance* AnimInstance = SearchContext.AnimInstances[0].Get())
+				{
+					const FTransform RootBoneTransform = AnimInstance->GetSkelMeshComponent()->GetBoneTransform(0);
+					ChimeraSearchResult.FullAlignedActorRootBoneTransforms.SetNum(1);
+					// @todo: should it be RootBoneTransform + root motion transform?
+					ChimeraSearchResult.FullAlignedActorRootBoneTransforms[0] = RootBoneTransform;
+				}
+			}
+		}
 	}
 
-	bool FSearchContext::IsValid() const
+	return ChimeraSearchResult;
+}
+
+static void InitSearchResults(TArray<FSearchResult>& SearchResults, TConstArrayView<UE::PoseSearch::FSearchResult> PoseSearchResults, TConstArrayView<FSearchContext> SearchContexts)
+{
+	// WIP!
+	// @todo: figure out multiple policies to use the most characters? right now only the best search is "valid" with the most characters
+	int32 BestSearchIndex = INDEX_NONE;
+	for (int32 SearchIndex = 0; SearchIndex < PoseSearchResults.Num(); ++SearchIndex)
 	{
-		if (Database == nullptr)
+		if (PoseSearchResults[SearchIndex].IsValid())
 		{
-			return false;
-		}
-
-		const int32 Num = AnimInstances.Num();
-		if (Num < 1)
-		{
-			return false;
-		}
-
-		if (Num != HistoryCollectors.Num())
-		{
-			return false;
-		}
-
-		if (Num != Roles.Num())
-		{
-			return false;
-		}
-
-		for (int32 IndexA = 0; IndexA < Num; ++IndexA)
-		{
-			if (AnimInstances[IndexA] == nullptr)
+			if (BestSearchIndex == INDEX_NONE)
 			{
-				return false;
+				BestSearchIndex = SearchIndex;
 			}
-
-			for (int32 IndexB = IndexA + 1; IndexB < Num; ++IndexB)
+			else if (SearchContexts[SearchIndex].Roles.Num() > SearchContexts[BestSearchIndex].Roles.Num())
 			{
-				if (AnimInstances[IndexA] == AnimInstances[IndexB])
-				{
-					return false;
-				}
+				BestSearchIndex = SearchIndex;
+			}
+			else if (SearchContexts[SearchIndex].Roles.Num() == SearchContexts[BestSearchIndex].Roles.Num() &&
+				PoseSearchResults[SearchIndex].PoseCost < PoseSearchResults[BestSearchIndex].PoseCost)
+			{
+				BestSearchIndex = SearchIndex;
 			}
 		}
-
-		for (int32 IndexA = 0; IndexA < Num; ++IndexA)
-		{
-			for (int32 IndexB = IndexA + 1; IndexB < Num; ++IndexB)
-			{
-				if (Roles[IndexA] == Roles[IndexB])
-				{
-					return false;
-				}
-			}
-		}
-
-		for (int32 IndexA = 0; IndexA < Num; ++IndexA)
-		{
-			if (HistoryCollectors[IndexA] == nullptr)
-			{
-				return false;
-			}
-
-			for (int32 IndexB = IndexA + 1; IndexB < Num; ++IndexB)
-			{
-				if (HistoryCollectors[IndexA] == HistoryCollectors[IndexB])
-				{
-					return false;
-				}
-			}
-		}
-
-		return true;
 	}
 
-	bool FSearchContext::IsEquivalent(const FSearchContext& Other) const
+	if (BestSearchIndex != INDEX_NONE)
 	{
-		if (Database != Other.Database)
-		{
-			return false;
-		}
-
-		const int32 Num = AnimInstances.Num();
-		if (Num != Other.AnimInstances.Num())
-		{
-			return false;
-		}
-
-		int32 CommonRoledAnimInstances = 0;
-		for (int32 IndexThis = 0; IndexThis < Num; ++IndexThis)
-		{
-			for (int32 IndexOther = 0; IndexOther < Num; ++IndexOther)
-			{
-				if (AnimInstances[IndexThis] == Other.AnimInstances[IndexOther] &&
-					HistoryCollectors[IndexThis] == Other.HistoryCollectors[IndexOther] &&
-					Roles[IndexThis] == Other.Roles[IndexOther])
-				{
-					++CommonRoledAnimInstances;
-				}
-			}
-		}
-
-		// using >= in case there are duplicated animinstances in this or Other (this->IsValid() should be false!)
-		if (CommonRoledAnimInstances >= Num)
-		{
-			return true;
-		}
-
-		return false;
+		SearchResults.SetNum(1);
+		SearchResults[0] = InitSearchResult(PoseSearchResults[BestSearchIndex], BestSearchIndex, SearchContexts[BestSearchIndex]);
 	}
 }
 
-void UChimeraIslandComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+// FSearchResult
+///////////////////////////////////////////////////////////
+bool FSearchContext::IsValid() const
+{
+	if (Database == nullptr)
+	{
+		return false;
+	}
+
+	const int32 Num = AnimInstances.Num();
+	if (Num < 1)
+	{
+		return false;
+	}
+
+	if (Num != HistoryCollectors.Num())
+	{
+		return false;
+	}
+
+	if (Num != Roles.Num())
+	{
+		return false;
+	}
+
+	for (int32 IndexA = 0; IndexA < Num; ++IndexA)
+	{
+		if (AnimInstances[IndexA] == nullptr)
+		{
+			return false;
+		}
+
+		for (int32 IndexB = IndexA + 1; IndexB < Num; ++IndexB)
+		{
+			if (AnimInstances[IndexA] == AnimInstances[IndexB])
+			{
+				return false;
+			}
+		}
+	}
+
+	for (int32 IndexA = 0; IndexA < Num; ++IndexA)
+	{
+		for (int32 IndexB = IndexA + 1; IndexB < Num; ++IndexB)
+		{
+			if (Roles[IndexA] == Roles[IndexB])
+			{
+				return false;
+			}
+		}
+	}
+
+	for (int32 IndexA = 0; IndexA < Num; ++IndexA)
+	{
+		if (HistoryCollectors[IndexA] == nullptr)
+		{
+			return false;
+		}
+
+		for (int32 IndexB = IndexA + 1; IndexB < Num; ++IndexB)
+		{
+			if (HistoryCollectors[IndexA] == HistoryCollectors[IndexB])
+			{
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+bool FSearchContext::IsEquivalent(const FSearchContext& Other) const
+{
+	if (Database != Other.Database)
+	{
+		return false;
+	}
+
+	const int32 Num = AnimInstances.Num();
+	if (Num != Other.AnimInstances.Num())
+	{
+		return false;
+	}
+
+	int32 CommonRoledAnimInstances = 0;
+	for (int32 IndexThis = 0; IndexThis < Num; ++IndexThis)
+	{
+		for (int32 IndexOther = 0; IndexOther < Num; ++IndexOther)
+		{
+			if (AnimInstances[IndexThis] == Other.AnimInstances[IndexOther] &&
+				HistoryCollectors[IndexThis] == Other.HistoryCollectors[IndexOther] &&
+				Roles[IndexThis] == Other.Roles[IndexOther])
+			{
+				++CommonRoledAnimInstances;
+			}
+		}
+	}
+
+	// using >= in case there are duplicated animinstances in this or Other (this->IsValid() should be false!)
+	if (CommonRoledAnimInstances >= Num)
+	{
+		return true;
+	}
+
+	return false;
+}
+
+// FSearchResult
+///////////////////////////////////////////////////////////
+bool FSearchResult::operator==(const FSearchResult& Other) const
+{
+	return static_cast<const UE::PoseSearch::FSearchResult&>(*this) == static_cast<const UE::PoseSearch::FSearchResult&>(Other) &&
+				FullAlignedActorRootBoneTransforms.Num() == Other.FullAlignedActorRootBoneTransforms.Num() &&
+				0 == FMemory::Memcmp(FullAlignedActorRootBoneTransforms.GetData(), Other.FullAlignedActorRootBoneTransforms.GetData(), FullAlignedActorRootBoneTransforms.Num() * sizeof(FTransform));
+}
+
+// FIslandPreTickFunction
+///////////////////////////////////////////////////////////
+void FIsland::FPreTickFunction::ExecuteTick(float DeltaTime, enum ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
 	// Called before any skeletal mesh component tick, when there aren't animation jobs flying. No need to FScopeLock Lock(&Mutex);
-	using namespace UE::Chimera;
-
 	// generating trajectories before running any of the skeletal mesh component ticks
-	for (FSearchContext& SearchContext : SearchContexts)
+	for (const FSearchContext& SearchContext : Island->SearchContexts)
 	{
 		for (int32 Index = 0; Index < SearchContext.AnimInstances.Num(); ++Index)
 		{
-			if (UAnimInstance* AnimInstance = SearchContext.AnimInstances[Index].Get())
+			if (const UAnimInstance* AnimInstance = SearchContext.AnimInstances[Index].Get())
 			{
-				// since UChimeraIslandComponent has a tick dependency with the USkeletalMeshComponent it's safe modify the FAnimNode_PoseSearchHistoryCollector_Base
+				// since FIsland has a tick dependency with the USkeletalMeshComponent it's safe modify the FAnimNode_PoseSearchHistoryCollector_Base
 				FAnimNode_PoseSearchHistoryCollector_Base* HistoryCollector = const_cast<FAnimNode_PoseSearchHistoryCollector_Base*>(SearchContext.HistoryCollectors[Index]);
 				check(HistoryCollector);
 				HistoryCollector->GenerateTrajectory(AnimInstance);
@@ -216,12 +274,43 @@ void UChimeraIslandComponent::TickComponent(float DeltaTime, enum ELevelTick Tic
 	}
 }
 
-void UChimeraIslandComponent::DebugDraw(const FColor& Color) const
+// FPostTickFunction
+///////////////////////////////////////////////////////////
+void FIsland::FPostTickFunction::ExecuteTick(float DeltaTime, enum ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+{
+	// do nothing
+}
+
+// FIsland
+///////////////////////////////////////////////////////////
+FIsland::FIsland(ULevel* Level)
+{
+	PreTickFunction.bCanEverTick = true;
+	PreTickFunction.bStartWithTickEnabled = true;
+	PreTickFunction.TickGroup = ETickingGroup::TG_PrePhysics;
+	PreTickFunction.Island = this;
+	PreTickFunction.SetTickFunctionEnable(true);
+	PreTickFunction.RegisterTickFunction(Level);
+
+	PostTickFunction.bCanEverTick = true;
+	PostTickFunction.bStartWithTickEnabled = true;
+	PostTickFunction.TickGroup = ETickingGroup::TG_PrePhysics;
+	PostTickFunction.SetTickFunctionEnable(true);
+	PostTickFunction.RegisterTickFunction(Level);
+}
+
+FIsland::~FIsland()
+{
+	PreTickFunction.UnRegisterTickFunction();
+	PostTickFunction.UnRegisterTickFunction();
+
+	Uninject();
+}
+
+void FIsland::DebugDraw(const FColor& Color) const
 {
 	// called only by UChimeraSubsystem::Tick so no need to lock SearchResultsMutex to protect the read of SearchContexts
 #if ENABLE_DRAW_DEBUG
-	using namespace UE::Chimera;
-
 	check(IsInGameThread());
 
 	if (CVarChimeraShowIslands.GetValueOnAnyThread())
@@ -234,7 +323,7 @@ void UChimeraIslandComponent::DebugDraw(const FColor& Color) const
 				{
 					const FVector Position = AnimInstance->GetSkelMeshComponent()->GetComponentLocation();
 					const float BroadPhaseRadius = SearchContext.BroadPhaseRadiuses[Index];
-					DrawDebugCircle(GetWorld(), Position, BroadPhaseRadius, 40, Color, false, 0.f, SDPG_Foreground, 0.f, FVector::XAxisVector, FVector::YAxisVector, false);
+					DrawDebugCircle(AnimInstance->GetWorld(), Position, BroadPhaseRadius, 40, Color, false, 0.f, SDPG_Foreground, 0.f, FVector::XAxisVector, FVector::YAxisVector, false);
 				}
 			}
 		}
@@ -242,7 +331,7 @@ void UChimeraIslandComponent::DebugDraw(const FColor& Color) const
 #endif // ENABLE_DRAW_DEBUG
 }
 
-void UChimeraIslandComponent::InjectToActor(AActor* Actor)
+void FIsland::InjectToActor(AActor* Actor)
 {
 	check(IsInGameThread());
 
@@ -253,24 +342,52 @@ void UChimeraIslandComponent::InjectToActor(AActor* Actor)
 		{
 			if (USkeletalMeshComponent* SkeletalMeshComponent = Actor->GetComponentByClass<USkeletalMeshComponent>())
 			{
-				// tick order: CharacterMovementComponent(s) -> ChimeraIslandComponent -> SkeletalMeshComponent(s)
+				const bool bIsFirstInjectedActor = IsUninjected();
+
+				//	tick order: 
+				//		CharacterMovementComponent(s) ->
+				//			Island.PreTickFunction ->
+				//				first injected actor SkeletalMeshComponent ->
+				//					Island.PostTickFunction ->
+				//						other SkeletalMeshComponent(s)
 				CharacterMovementComponents.AddUnique(CharacterMovementComponent);
 				SkeletalMeshComponents.AddUnique(SkeletalMeshComponent);
+	
+				// making sure that if we add a unique CharacterMovementComponent, we add as well a unique SkeletalMeshComponent
+				// (so we can remove them later on in a consistent fashion)
+				check(CharacterMovementComponents.Num() == SkeletalMeshComponents.Num());
 
-				AddTickPrerequisiteComponent(CharacterMovementComponent);
-				SkeletalMeshComponent->AddTickPrerequisiteComponent(this);
+				PreTickFunction.AddPrerequisite(Actor, CharacterMovementComponent->PrimaryComponentTick);
+				SkeletalMeshComponent->PrimaryComponentTick.AddPrerequisite(Actor, PreTickFunction);
+
+				if (bIsFirstInjectedActor)
+				{
+					PostTickFunction.AddPrerequisite(Actor, SkeletalMeshComponent->PrimaryComponentTick);
+				}
+				else 
+				{
+					SkeletalMeshComponent->PrimaryComponentTick.AddPrerequisite(Actor, PostTickFunction);
+				}
 			}
+			else
+			{
+				UE_LOG(LogChimera, Error, TEXT("FIsland::InjectToActor requires AActor %s to have a USkeletalMeshComponent to work!"), *Actor->GetName());
+			}
+		}
+		else
+		{
+			UE_LOG(LogChimera, Error, TEXT("FIsland::InjectToActor requires AActor %s to have a UCharacterMovementComponent to work!"), *Actor->GetName());
 		}
 	}
 }
 
-void UChimeraIslandComponent::AddSearchContext(const UE::Chimera::FSearchContext& SearchContext)
+void FIsland::AddSearchContext(const FSearchContext& SearchContext)
 {
 #if DO_CHECK
 	check(SearchContext.IsValid());
 	check(IsInGameThread());
 
-	for (const UE::Chimera::FSearchContext& ContainedSearchContext : SearchContexts)
+	for (const FSearchContext& ContainedSearchContext : SearchContexts)
 	{
 		check(!ContainedSearchContext.IsEquivalent(SearchContext));
 	}
@@ -278,19 +395,42 @@ void UChimeraIslandComponent::AddSearchContext(const UE::Chimera::FSearchContext
 	SearchContexts.Add(SearchContext);
 }
 
-void UChimeraIslandComponent::Uninject()
+void FIsland::Uninject()
 {
+	// Called by UChimeraSubsystem::Tick when there aren't animation jobs flying. No need to FScopeLock Lock(&Mutex);
 	check(IsInGameThread());
 
-	// Called by UChimeraSubsystem::Tick when there aren't animation jobs flying. No need to FScopeLock Lock(&Mutex);
-	for (TWeakObjectPtr<UCharacterMovementComponent>& CharacterMovementComponentPtr : CharacterMovementComponents)
-	{
-		RemoveTickPrerequisiteComponent(CharacterMovementComponentPtr.Get());
-	}
+	check(CharacterMovementComponents.Num() == SkeletalMeshComponents.Num());
 
-	for (TWeakObjectPtr<USkeletalMeshComponent>& SkeletalMeshComponentPtr : SkeletalMeshComponents)
+	for (int32 ActorIndex = 0; ActorIndex < CharacterMovementComponents.Num(); ++ActorIndex)
 	{
-		SkeletalMeshComponentPtr->RemoveTickPrerequisiteComponent(this);
+		UCharacterMovementComponent* CharacterMovementComponent = CharacterMovementComponents[ActorIndex].Get();
+		USkeletalMeshComponent* SkeletalMeshComponent = SkeletalMeshComponents[ActorIndex].Get();
+
+		if (CharacterMovementComponent)
+		{
+			check(SkeletalMeshComponent);
+
+			AActor* Actor = CharacterMovementComponent->GetOwner();
+			check(Actor);
+
+			PreTickFunction.RemovePrerequisite(Actor, CharacterMovementComponent->PrimaryComponentTick);
+			SkeletalMeshComponent->PrimaryComponentTick.RemovePrerequisite(Actor, PreTickFunction);
+
+			const bool bIsFirstInjectedActor = ActorIndex == 0;
+			if (bIsFirstInjectedActor)
+			{
+				PostTickFunction.RemovePrerequisite(Actor, SkeletalMeshComponent->PrimaryComponentTick);
+			}
+			else
+			{
+				SkeletalMeshComponent->PrimaryComponentTick.RemovePrerequisite(Actor, PostTickFunction);
+			}
+		}
+		else
+		{
+			check(!SkeletalMeshComponent);
+		}
 	}
 
 	CharacterMovementComponents.Reset();
@@ -301,15 +441,13 @@ void UChimeraIslandComponent::Uninject()
 	bSearchPerfomed = false;
 }
 
-bool UChimeraIslandComponent::IsUninjected()
+bool FIsland::IsUninjected() const
 {
 	return SkeletalMeshComponents.IsEmpty();
 }
 
-bool UChimeraIslandComponent::DoSearch_AnyThread(UObject* AnimInstance, FChimeraBlueprintResult& Result)
+bool FIsland::DoSearch_AnyThread(UObject* AnimInstance, const FPoseSearchContinuingProperties& ContinuingProperties, FChimeraBlueprintResult& Result)
 {
-	using namespace UE::Chimera;
-
 	bool bDoPerfomSearch = false;
 	{
 		// thread safety note!
@@ -317,8 +455,8 @@ bool UChimeraIslandComponent::DoSearch_AnyThread(UObject* AnimInstance, FChimera
 		// why:		UPoseSearchLibrary::MotionMatch could call via AnimInstance GetProxyOnAnyThread<FAnimInstanceProxy>() that, if on GameThread, 
 		//			could call UAnimInstance::HandleExistingParallelEvaluationTask 
 		// fix:		avoid UPoseSearchLibrary::MotionMatch calls wrapped by any lock, at the cost of eventually (by design should be NEVER) performing the searches twice
-		//			By design we should inject ticks dependencies (added by UChimeraIslandComponent::InjectToActor via AddTickPrerequisiteComponent), so concurrently 
-		//			fly of UChimeraIslandComponent within the same island that requires searches is forbidden
+		//			By design we should inject ticks dependencies (added by FIsland::InjectToActor via AddTickPrerequisiteComponent), so concurrently 
+		//			fly of FIsland within the same island that requires searches is forbidden
 		FScopeLock Lock(&SearchResultsMutex);
 		bDoPerfomSearch = !bSearchPerfomed;
 	}
@@ -340,13 +478,13 @@ bool UChimeraIslandComponent::DoSearch_AnyThread(UObject* AnimInstance, FChimera
 			const UPoseSearchDatabase* Database = SearchContext.Database.Get();
 			if (!Database)
 			{
-				UE_LOG(LogChimera, Error, TEXT("UChimeraIslandComponent::DoSearch_AnyThread invalid context database"));
+				UE_LOG(LogChimera, Error, TEXT("FIsland::DoSearch_AnyThread invalid context database"));
 				return false;
 			}
 
 			if (!Database->Schema)
 			{
-				UE_LOG(LogChimera, Error, TEXT("UChimeraIslandComponent::DoSearch_AnyThread invalid schema for context database %s"), *Database->GetName());
+				UE_LOG(LogChimera, Error, TEXT("FIsland::DoSearch_AnyThread invalid schema for context database %s"), *Database->GetName());
 				return false;
 			}
 
@@ -356,7 +494,7 @@ bool UChimeraIslandComponent::DoSearch_AnyThread(UObject* AnimInstance, FChimera
 				UAnimInstance* SearchContextAnimInstance = AnimInstancePtr.Get();
 				if (!SearchContextAnimInstance)
 				{
-					UE_LOG(LogChimera, Error, TEXT("UChimeraIslandComponent::DoSearch_AnyThread null anim instance"));
+					UE_LOG(LogChimera, Error, TEXT("FIsland::DoSearch_AnyThread null anim instance"));
 					return false;
 				}
 
@@ -372,9 +510,41 @@ bool UChimeraIslandComponent::DoSearch_AnyThread(UObject* AnimInstance, FChimera
 			const UObject* AssetsToSearch[] = { Database };
 			FPoseSearchFutureProperties PoseSearchFutureProperties;
 
+			FPoseSearchContinuingProperties ContinuingPropertiesToUse = SearchContext.ContinuingProperties;
+
+			// @todo: implemennt this carefully, since it'll cause thread safety concerns depending on which actors is calling the query first 
+			// and if their animations get integrated by different play rates
+			
+			//if (ContinuingProperties.PlayingAsset)
+			//{
+			//	if (const UMultiAnimAsset* MultiAnimAsset = Cast<UMultiAnimAsset>(ContinuingProperties.PlayingAsset))
+			//	{
+			//		// @todo: if they are compatible... etcetc MultiAnimAsset->GetNumRoles
+			//		ContinuingPropertiesToUse = ContinuingProperties;
+			//	}
+			//	else if (const UMultiAnimAsset* SearchContextMultiAnimAsset = Cast<UMultiAnimAsset>(SearchContext.ContinuingProperties.PlayingAsset))
+			//	{
+			//		for (int32 RoleIndex = 0; RoleIndex < SearchContextMultiAnimAsset->GetNumRoles(); ++RoleIndex)
+			//		{
+			//			if (SearchContextMultiAnimAsset->GetAnimationAsset(SearchContextMultiAnimAsset->GetRole(RoleIndex)) == ContinuingProperties.PlayingAsset)
+			//			{
+			//				ContinuingPropertiesToUse.PlayingAssetAccumulatedTime = ContinuingProperties.PlayingAssetAccumulatedTime;
+			//				break;
+			//			}
+			//		}
+			//	}
+			//	else if (!SearchContext.ContinuingProperties.PlayingAsset)
+			//	{
+			//		// @todo: should we scan all the database iterating over the UMultiAnimAsset to look for ContinuingProperties.PlayingAsset?
+			//	}
+			//	else
+			//	{
+			//	}
+			//}
+
 			// @todo: we could perform multiple UPoseSearchLibrary::MotionMatch in parallel!
 			const UE::PoseSearch::FSearchResult PoseSearchResult = UPoseSearchLibrary::MotionMatch(AnimInstances, SearchContext.Roles,
-				PoseHistories, AssetsToSearch, SearchContext.ContinuingProperties, PoseSearchFutureProperties);
+				PoseHistories, AssetsToSearch, ContinuingPropertiesToUse, PoseSearchFutureProperties);
 
 			if (PoseSearchResult.PoseCost.GetTotalCost() < SearchContext.MaxCost)
 			{
@@ -382,46 +552,31 @@ bool UChimeraIslandComponent::DoSearch_AnyThread(UObject* AnimInstance, FChimera
 			}
 		}
 
-		// making sure we called Uninject()
-		check(SearchResults.IsEmpty());
-
-		////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		// WIP!
-		// @todo: figure out multiple policies to use the most characters? right now only the best search is "valid" with the most characters
 		if (!PoseSearchResults.IsEmpty())
 		{
 			// locking to update SearchResults and bSearchPerfomed
 			FScopeLock Lock(&SearchResultsMutex);
 
-			int32 BestSearchIndex = INDEX_NONE;
-			for (int32 SearchIndex = 0; SearchIndex < PoseSearchResults.Num(); ++SearchIndex)
+			if (!bSearchPerfomed)
 			{
-				if (PoseSearchResults[SearchIndex].IsValid())
+				InitSearchResults(SearchResults, PoseSearchResults, SearchContexts);
+
+				bSearchPerfomed = true;
+			}
+			else
+			{
+				UE_LOG(LogChimera, Warning, TEXT("FIsland::DoSearch_AnyThread performance warning: performed duplicated search :("));
+				
+#if DO_CHECK
+				TArray<FSearchResult> CompareSearchResults;
+				InitSearchResults(CompareSearchResults, PoseSearchResults, SearchContexts);
+
+				if (CompareSearchResults != SearchResults)
 				{
-					if (BestSearchIndex == INDEX_NONE)
-					{
-						BestSearchIndex = SearchIndex;
-					}
-					else if (SearchContexts[SearchIndex].Roles.Num() > SearchContexts[BestSearchIndex].Roles.Num())
-					{
-						BestSearchIndex = SearchIndex;
-					}
-					else if (SearchContexts[SearchIndex].Roles.Num() == SearchContexts[BestSearchIndex].Roles.Num() &&
-						PoseSearchResults[SearchIndex].PoseCost < PoseSearchResults[BestSearchIndex].PoseCost)
-					{
-						BestSearchIndex = SearchIndex;
-					}
+					UE_LOG(LogChimera, Error, TEXT("FIsland::DoSearch_AnyThread duplicated search differs from original one. Searches are NOT deterministic!"));
 				}
+#endif // DO_CHECK
 			}
-
-			if (BestSearchIndex != INDEX_NONE)
-			{
-				SearchResults.SetNum(1);
-				SearchResults[0] = InitSearchResult(PoseSearchResults[BestSearchIndex], BestSearchIndex, SearchContexts[BestSearchIndex]);
-			}
-			////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-			bSearchPerfomed = true;
 	
 			// calling this funtion within this scope since we already locked SearchResultsMutex
 			return GetResult_AnyThread(AnimInstance, Result);
@@ -431,10 +586,8 @@ bool UChimeraIslandComponent::DoSearch_AnyThread(UObject* AnimInstance, FChimera
 	return GetResult_AnyThread(AnimInstance, Result);
 }
 
-bool UChimeraIslandComponent::GetResult_AnyThread(UObject* AnimInstance, FChimeraBlueprintResult& Result)
+bool FIsland::GetResult_AnyThread(UObject* AnimInstance, FChimeraBlueprintResult& Result)
 {
-	using namespace UE::Chimera;
-
 	// locking to read SearchResults
 	FScopeLock Lock(&SearchResultsMutex);
 
@@ -499,12 +652,10 @@ bool UChimeraIslandComponent::GetResult_AnyThread(UObject* AnimInstance, FChimer
 	return false;
 }
 
-const UE::Chimera::FSearchResult* UChimeraIslandComponent::FindSearchResult(const UE::Chimera::FSearchContext& SearchContext) const
+const FSearchResult* FIsland::FindSearchResult(const FSearchContext& SearchContext) const
 {
 	// called only by UChimeraSubsystem::Tick via UChimeraSubsystem::PopulateContinuingProperties so no need to lock SearchResultsMutex to protect the read of SearchResults
 	check(IsInGameThread());
-
-	using namespace UE::Chimera;
 
 	// searching for InSearchContext in all the SearchContexts referenced by valid active SearchResults
 	for (const FSearchResult& SearchResult : SearchResults)
@@ -519,3 +670,5 @@ const UE::Chimera::FSearchResult* UChimeraIslandComponent::FindSearchResult(cons
 	}
 	return nullptr;
 }
+
+} // namespace UE::Chimera

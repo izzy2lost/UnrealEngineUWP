@@ -230,39 +230,30 @@ namespace UE::Chimera
 
 FCriticalSection UChimeraSubsystem::RetrieveSubsystemMutex;
 
-UChimeraIslandComponent& UChimeraSubsystem::CreateIsland()
+UE::Chimera::FIsland& UChimeraSubsystem::CreateIsland()
 {
-	UChimeraIslandComponent& Island = *Islands.Add_GetRef(NewObject<UChimeraIslandComponent>()).Get();
-	Island.PrimaryComponentTick.bCanEverTick = true;
-	Island.PrimaryComponentTick.bStartWithTickEnabled = true;
-	Island.SetTickGroup(ETickingGroup::TG_PrePhysics);
-	Island.AddToRoot();
-	Island.RegisterComponentWithWorld(GetWorld());
-	return Island;
-}
-
-UChimeraIslandComponent& UChimeraSubsystem::GetAvailableIsland()
-{
-	for (TObjectPtr<UChimeraIslandComponent>& IslandPtr : Islands)
-	{
-		UChimeraIslandComponent& Island = *IslandPtr.Get();
-		if (Island.IsUninjected())
-		{
-			return Island;
-		}
-	}
-
-	return CreateIsland();
+	return *Islands.Add_GetRef(new UE::Chimera::FIsland(ToRawPtr(GetWorld()->PersistentLevel)));
 }
 
 void UChimeraSubsystem::DestroyIsland(int32 Index)
 {
-	UChimeraIslandComponent& Island = *Islands[Index].Get();
-	Island.Uninject();
-	Island.RemoveFromRoot();
-	Island.UnregisterComponent();
-	Island.DestroyComponent();
+	delete Islands[Index];
 	Islands.RemoveAt(Index);
+}
+
+UE::Chimera::FIsland& UChimeraSubsystem::GetAvailableIsland()
+{
+	using namespace UE::Chimera;
+
+	for (FIsland* Island : Islands)
+	{
+		if (Island->IsUninjected())
+		{
+			return *Island;
+		}
+	}
+
+	return CreateIsland();
 }
 
 void UChimeraSubsystem::DestroyAllIslands()
@@ -275,23 +266,26 @@ void UChimeraSubsystem::DestroyAllIslands()
 
 void UChimeraSubsystem::UninjectAllIslands()
 {
+	using namespace UE::Chimera;
+
 	check(IsInGameThread());
 
-	for (TObjectPtr<UChimeraIslandComponent>& IslandPtr : Islands)
+	for (FIsland* Island : Islands)
 	{
-		IslandPtr.Get()->Uninject();
+		Island->Uninject();
 	}
 }
 
 bool UChimeraSubsystem::ValidateAllIslands() const
 {
 #if DO_CHECK
+	using namespace UE::Chimera;
 
 	TSet<TWeakObjectPtr<UCharacterMovementComponent>> CharacterMovementComponents;
 	TSet<TWeakObjectPtr<USkeletalMeshComponent>> SkeletalMeshComponents;
 
 	bool bAlreadyInSet = false;
-	for (const TObjectPtr<UChimeraIslandComponent>& Island : Islands)
+	for (const FIsland* Island : Islands)
 	{
 		for (const TWeakObjectPtr<UCharacterMovementComponent>& CharacterMovementComponent : Island->GetCharacterMovementComponents())
 		{
@@ -317,12 +311,14 @@ bool UChimeraSubsystem::ValidateAllIslands() const
 
 void UChimeraSubsystem::PopulateContinuingProperties(UE::Chimera::FSearchContext& SearchContext, float DeltaSeconds) const
 {
+	using namespace UE::Chimera;
+
 	check(IsInGameThread());
 
 	// searching this SearchContext in all the islands to initialize its continuing pose
-	for (const UChimeraIslandComponent* Island : Islands)
+	for (const FIsland* Island : Islands)
 	{
-		if (const UE::Chimera::FSearchResult* SearchResult = Island->FindSearchResult(SearchContext))
+		if (const FSearchResult* SearchResult = Island->FindSearchResult(SearchContext))
 		{
 			// is still valid...
 			if (SearchResult->IsValid())
@@ -341,8 +337,10 @@ void UChimeraSubsystem::PopulateContinuingProperties(UE::Chimera::FSearchContext
 	}
 }
 
-UChimeraIslandComponent* UChimeraSubsystem::FindIsland(UObject* InAnimInstance)
+UE::Chimera::FIsland* UChimeraSubsystem::FindIsland(UObject* InAnimInstance)
 {
+	using namespace UE::Chimera;
+
 	if (InAnimInstance)
 	{
 		if (UAnimInstance* AnimInstance = Cast<UAnimInstance>(InAnimInstance))
@@ -351,13 +349,13 @@ UChimeraIslandComponent* UChimeraSubsystem::FindIsland(UObject* InAnimInstance)
 			{
 				if (USkeletalMeshComponent* SkeletalMeshComponent = Actor->GetComponentByClass<USkeletalMeshComponent>())
 				{
-					for (const TObjectPtr<UChimeraIslandComponent>& Island : Islands)
+					for (FIsland* Island : Islands)
 					{
 						for (const TWeakObjectPtr<USkeletalMeshComponent>& IslandSkeletalMeshComponent : Island->GetSkeletalMeshComponents())
 						{
 							if (IslandSkeletalMeshComponent.Get() == SkeletalMeshComponent)
 							{
-								return Island.Get();
+								return Island;
 							}
 						}
 					}
@@ -564,7 +562,7 @@ void UChimeraSubsystem::Tick(float DeltaSeconds)
 
 	for (const FSearchContextGroup& SearchContextGroup : SearchContextGroups)
 	{
-		UChimeraIslandComponent& Island = GetAvailableIsland();
+		UE::Chimera::FIsland& Island = GetAvailableIsland();
 
 		for (const UAnimInstance* AnimInstance : SearchContextGroup.AnimInstances)
 		{
@@ -587,7 +585,8 @@ TStatId UChimeraSubsystem::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(UChimeraSubsystem, STATGROUP_Tickables);
 }
 
-void UChimeraSubsystem::Query_AnyThread(const TArrayView<const FChimeraAvailability> Availabilities, UObject* AnimInstance, FChimeraBlueprintResult& Result,
+void UChimeraSubsystem::Query_AnyThread(const TArrayView<const FChimeraAvailability> Availabilities, UObject* AnimInstance, 
+	const FPoseSearchContinuingProperties& ContinuingProperties, FChimeraBlueprintResult& Result,
 	FName PoseHistoryName, const FAnimNode_PoseSearchHistoryCollector_Base* HistoryCollector, bool bValidateResultAgainstAvailabilities)
 {
 	using namespace UE::Chimera;
@@ -598,9 +597,9 @@ void UChimeraSubsystem::Query_AnyThread(const TArrayView<const FChimeraAvailabil
 	{
 		// if we find AnimInstance in an island, we perform ALL the Island motion matching searches.
 		// thread safety is ensured by the lock on Island->SearchResultsMutex in DoSearch_AnyThread
-		if (UChimeraIslandComponent* Island = FindIsland(AnimInstance))
+		if (FIsland* Island = FindIsland(AnimInstance))
 		{
-			Island->DoSearch_AnyThread(AnimInstance, Result);
+			Island->DoSearch_AnyThread(AnimInstance, ContinuingProperties, Result);
 
 			if (bValidateResultAgainstAvailabilities && Result.SelectedAnimation)
 			{
@@ -649,12 +648,11 @@ void UChimeraSubsystem::DebugDraw() const
 	static const int32 NumColors = sizeof(Colors) / sizeof(Colors[0]);
 	int32 CurrentColorIndex = 0;
 
-	for (const TObjectPtr<UChimeraIslandComponent>& IslandPtr : Islands)
+	for (const FIsland* Island : Islands)
 	{
-		UChimeraIslandComponent& Island = *IslandPtr.Get();
-		if (!Island.IsUninjected())
+		if (!Island->IsUninjected())
 		{
-			Island.DebugDraw(Colors[CurrentColorIndex]);
+			Island->DebugDraw(Colors[CurrentColorIndex]);
 			CurrentColorIndex = (CurrentColorIndex + 1) % NumColors;
 		}
 	}
@@ -672,14 +670,13 @@ void UChimeraSubsystem::DebugDraw() const
 			// looking for valid results for this AnimInstance
 			const UPoseSearchDatabase* ResultDatabase = nullptr;
 			UE::PoseSearch::FRole ResultRole;
-			for (const TObjectPtr<UChimeraIslandComponent>& IslandPtr : Islands)
+			for (const FIsland* Island : Islands)
 			{
-				UChimeraIslandComponent& Island = *IslandPtr.Get();
-				if (!Island.IsUninjected())
+				if (!Island->IsUninjected())
 				{
-					for (const FSearchResult& SearchResult : Island.GetSearchResults())
+					for (const FSearchResult& SearchResult : Island->GetSearchResults())
 					{
-						const FSearchContext& SearchContext = Island.GetSearchContexts()[SearchResult.SearchIndex];
+						const FSearchContext& SearchContext = Island->GetSearchContexts()[SearchResult.SearchIndex];
 						for (int32 AnimInstanceIndex = 0; AnimInstanceIndex < SearchContext.AnimInstances.Num(); ++AnimInstanceIndex)
 						{
 							if (SearchContext.AnimInstances[AnimInstanceIndex].Get() == AnimInstance)

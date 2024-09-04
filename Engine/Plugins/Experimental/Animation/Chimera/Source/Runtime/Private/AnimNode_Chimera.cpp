@@ -8,6 +8,7 @@
 #include "Chimera/ChimeraLibrary.h"
 #include "PoseSearch/PoseHistoryProvider.h"
 #include "PoseSearch/PoseSearchDatabase.h"
+#include "PoseSearch/PoseSearchLibrary.h"
 #include "PoseSearch/PoseSearchSchema.h"
 #include "HAL/IConsoleManager.h"
 
@@ -45,7 +46,7 @@ void FAnimNode_Chimera::Reset()
 	BlendLerp = 0.f;
 	TranslationWarpLerp = 0.f;
 	RotationWarpLerp = 0.f;
-	bWasInteracting = false;
+	InteractingRolesNum = 0;
 }
 
 void FAnimNode_Chimera::UpdateAssetPlayer(const FAnimationUpdateContext& Context)
@@ -63,7 +64,7 @@ void FAnimNode_Chimera::UpdateAssetPlayer(const FAnimationUpdateContext& Context
 
 	bool bBlendToExecuted = ConditionalBlendTo(Context);
 
-	bool bIsInteracting = false;
+	int32 NewInteractingRolesNum = 0;
 	const float DeltaTime = Context.GetDeltaTime();
 	FPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<FPoseHistoryProvider>();
 	if (!PoseHistoryProvider)
@@ -72,21 +73,33 @@ void FAnimNode_Chimera::UpdateAssetPlayer(const FAnimationUpdateContext& Context
 	}
 	else
 	{
-		check(Context.AnimInstanceProxy);
-		const FChimeraBlueprintResult Result = UChimeraLibrary::ChimeraQuery(Availabilities, Context.AnimInstanceProxy->GetAnimInstanceObject(), PoseHistoryProvider->GetHistoryCollector(), bValidateResultAgainstAvailabilities);
+		// we're NOT providing the UMultiAnimAsset here, relying on the Chimera subsystem to resolve the ContinuingProperties properly
+		FPoseSearchContinuingProperties ContinuingProperties;
+		ContinuingProperties.PlayingAsset = GetAnimAsset();
+		ContinuingProperties.PlayingAssetAccumulatedTime = GetAccumulatedTime();
 
+		check(Context.AnimInstanceProxy);
+		const FChimeraBlueprintResult Result = UChimeraLibrary::ChimeraQuery(Availabilities, Context.AnimInstanceProxy->GetAnimInstanceObject(), ContinuingProperties, PoseHistoryProvider->GetHistoryCollector(), bValidateResultAgainstAvailabilities);
+
+		UAnimationAsset* RoledAnimAsset = nullptr;
 		if (const UMultiAnimAsset* MultiAnimAsset = Cast<UMultiAnimAsset>(Result.SelectedAnimation))
 		{
 			check(Result.SelectedDatabase != nullptr);
 
-			UAnimationAsset* RoledAnimationAsset = MultiAnimAsset->GetAnimationAsset(Result.Role);
-			check(RoledAnimationAsset);
+			RoledAnimAsset = MultiAnimAsset->GetAnimationAsset(Result.Role);
+			NewInteractingRolesNum = MultiAnimAsset->GetNumRoles();
+		}
+		else if (UAnimationAsset* SingleAnimAsset = Cast<UAnimationAsset>(Result.SelectedAnimation))
+		{
+			RoledAnimAsset = SingleAnimAsset;
+			NewInteractingRolesNum = 1;
+		}
 
-			bIsInteracting = true;
-
+		if (RoledAnimAsset)
+		{
 			bool bExecuteBlendTo = false;
 			bool bUpdatePropertiesFromResult = false;
-			if (!bWasInteracting || AnimPlayers.IsEmpty())
+			if (InteractingRolesNum == 0 || AnimPlayers.IsEmpty())
 			{
 				bExecuteBlendTo = true;
 				bUpdatePropertiesFromResult = true;
@@ -94,9 +107,9 @@ void FAnimNode_Chimera::UpdateAssetPlayer(const FAnimationUpdateContext& Context
 			else if (EvaluationMode == EChimeraEvaluationMode::ContinuousReselection)
 			{
 				const FBlendStackAnimPlayer& MainAnimPlayer = AnimPlayers[0];
-				const UAnimationAsset* PlayingAnimationAsset = MainAnimPlayer.GetAnimationAsset();
+				const UAnimationAsset* PlayingAnimAsset = MainAnimPlayer.GetAnimationAsset();
 
-				if (RoledAnimationAsset != PlayingAnimationAsset ||
+				if (RoledAnimAsset != PlayingAnimAsset ||
 					Result.bIsMirrored != MainAnimPlayer.GetMirror() ||
 					Result.BlendParameters != MainAnimPlayer.GetBlendParameters() ||
 					!Result.bIsContinuingPoseSearch)
@@ -106,7 +119,7 @@ void FAnimNode_Chimera::UpdateAssetPlayer(const FAnimationUpdateContext& Context
 
 				bUpdatePropertiesFromResult = true;
 			}
-			else if (RoledAnimationAsset == AnimPlayers[0].GetAnimationAsset() && Result.bIsContinuingPoseSearch)
+			else if (RoledAnimAsset == AnimPlayers[0].GetAnimationAsset() && Result.bIsContinuingPoseSearch)
 			{
 				// we don't update FullAlignedActorRootBoneTransform since we're not planning to blend into the newly selected animation here
 				bUpdatePropertiesFromResult = true;
@@ -124,12 +137,11 @@ void FAnimNode_Chimera::UpdateAssetPlayer(const FAnimationUpdateContext& Context
 				const FPoseSearchRoledSkeleton* RoledSkeleton = Result.SelectedDatabase->Schema->GetRoledSkeleton(Result.Role);
 				check(RoledSkeleton);
 
-				BlendTo(Context, RoledAnimationAsset, Result.SelectedTime, Result.bLoop, Result.bIsMirrored, RoledSkeleton->MirrorDataTable.Get(),
+				BlendTo(Context, RoledAnimAsset, Result.SelectedTime, Result.bLoop, Result.bIsMirrored, RoledSkeleton->MirrorDataTable.Get(),
 					BlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, WantedPlayRate);
 
 				bBlendToExecuted = true;
 			}
-
 		}
 	}
 
@@ -140,18 +152,20 @@ void FAnimNode_Chimera::UpdateAssetPlayer(const FAnimationUpdateContext& Context
 	UpdateBlendspaceParameters(BlendspaceUpdateMode, BlendParameters);
 
 	// calculating the translation and rotation warp lerps, used to warp the root transform towards the last computed FullAlignedActorRootBoneTransform
-	const float Sign = bIsInteracting ? 1.f : -1.f;
 	if (BlendTime > UE_KINDA_SMALL_NUMBER)
 	{
-		BlendLerp = FMath::Clamp(BlendLerp + (Sign * DeltaTime / BlendTime), 0.f, 1.f);
+		const float BlendSign = NewInteractingRolesNum > 0 ? 1.f : -1.f;
+		BlendLerp = FMath::Clamp(BlendLerp + (BlendSign * DeltaTime / BlendTime), 0.f, 1.f);
 	}
+	
+	const float WarpSign = NewInteractingRolesNum > 1 ? 1.f : -1.f;
 	if (InitialTranslationWarpTime > UE_KINDA_SMALL_NUMBER)
 	{
-		TranslationWarpLerp = FMath::Clamp(TranslationWarpLerp + (Sign * DeltaTime / InitialTranslationWarpTime), 0.f, 1.f);
+		TranslationWarpLerp = FMath::Clamp(TranslationWarpLerp + (WarpSign * DeltaTime / InitialTranslationWarpTime), 0.f, 1.f);
 	}
 	if (InitialRotationWarpTime > UE_KINDA_SMALL_NUMBER)
 	{
-		RotationWarpLerp = FMath::Clamp(RotationWarpLerp + (Sign * DeltaTime / InitialRotationWarpTime), 0.f, 1.f);
+		RotationWarpLerp = FMath::Clamp(RotationWarpLerp + (WarpSign * DeltaTime / InitialRotationWarpTime), 0.f, 1.f);
 	}
 
 	// updating source
@@ -187,8 +201,8 @@ void FAnimNode_Chimera::UpdateAssetPlayer(const FAnimationUpdateContext& Context
 #if ENABLE_ANIM_DEBUG
 	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(AnimationChannel))
 	{
-		TRACE_ANIM_NODE_VALUE(Context, *FString("WasInteracting"), bWasInteracting);
-		TRACE_ANIM_NODE_VALUE(Context, *FString("IsInteracting"), bIsInteracting);
+		TRACE_ANIM_NODE_VALUE(Context, *FString("InteractingRolesNum"), InteractingRolesNum);
+		TRACE_ANIM_NODE_VALUE(Context, *FString("NewInteractingRolesNum"), NewInteractingRolesNum);
 		TRACE_ANIM_NODE_VALUE(Context, *FString("BlendToExecuted"), bBlendToExecuted);
 		TRACE_ANIM_NODE_VALUE(Context, *FString("BlendLerp"), BlendLerp);
 		TRACE_ANIM_NODE_VALUE(Context, *FString("TranslationWarpLerp"), TranslationWarpLerp);
@@ -196,7 +210,7 @@ void FAnimNode_Chimera::UpdateAssetPlayer(const FAnimationUpdateContext& Context
 	}
 #endif // ENABLE_ANIM_DEBUG
 
-	bWasInteracting |= bIsInteracting;
+	InteractingRolesNum = NewInteractingRolesNum;
 }
 
 void FAnimNode_Chimera::Evaluate_AnyThread(FPoseContext& Output)
@@ -216,8 +230,8 @@ void FAnimNode_Chimera::Evaluate_AnyThread(FPoseContext& Output)
 #if ENABLE_ANIM_DEBUG
 		if (CVarAnimNodeChimeraDebug.GetValueOnAnyThread())
 		{
-			Output.AnimInstanceProxy->AnimDrawDebugCoordinateSystem(FullAlignedActorRootBoneTransform.GetLocation(), FullAlignedActorRootBoneTransform.Rotator(), 10.0f, false, 0.f, 0.f, SDPG_Foreground);
-			Output.AnimInstanceProxy->AnimDrawDebugCoordinateSystem(ComponentTransform.GetLocation(), ComponentTransform.Rotator(), 10.0f, false, 0.f, 0.f, SDPG_Foreground);
+			Output.AnimInstanceProxy->AnimDrawDebugCoordinateSystem(FullAlignedActorRootBoneTransform.GetLocation(), FullAlignedActorRootBoneTransform.Rotator(), 15.f, false, 0.f, 0.f, SDPG_Foreground);
+			Output.AnimInstanceProxy->AnimDrawDebugCoordinateSystem(ComponentTransform.GetLocation(), ComponentTransform.Rotator(), 5.f, false, 0.f, 0.f, SDPG_Foreground);
 		}
 #endif // ENABLE_ANIM_DEBUG
 
