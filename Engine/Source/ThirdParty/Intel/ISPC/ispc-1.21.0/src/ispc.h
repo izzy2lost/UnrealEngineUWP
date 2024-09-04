@@ -163,13 +163,6 @@ enum class MCModel {
     Large,   /** large model */
 };
 
-/** PIC Level property in LLVM modules */
-enum class PICLevel {
-	NotPIC = 0,
-	Small,
-	Big
-};
-
 /** @brief Structure that defines a compilation target
 
     This structure defines a compilation target for the ispc compiler.
@@ -222,7 +215,7 @@ class Target {
     /** Initializes the given Target pointer for a target of the given
         name, if the name is a known target.  Returns true if the
         target was initialized and false if the name is unknown. */
-    Target(Arch arch, const char *cpu, ISPCTarget isa, bool pic, MCModel code_model, PICLevel pic_level, bool printTarget);
+    Target(Arch arch, const char *cpu, ISPCTarget isa, bool pic, MCModel code_model, bool printTarget);
 
     ~Target();
 
@@ -325,8 +318,6 @@ class Target {
     bool getGeneratePIC() const { return m_generatePIC; }
 
     MCModel getMCModel() const { return m_codeModel; }
-
-	PICLevel getPICLevel() const { return m_picLevel; }
 
     bool getMaskingIsFree() const { return m_maskingIsFree; }
 
@@ -431,9 +422,6 @@ class Target {
 
     /** Code model */
     MCModel m_codeModel;
-
-	/** PIC Level metadata property */
-	PICLevel m_picLevel;
 
     /** Is there overhead associated with masking on the target
         architecture; e.g. there is on SSE, due to extra blends and the

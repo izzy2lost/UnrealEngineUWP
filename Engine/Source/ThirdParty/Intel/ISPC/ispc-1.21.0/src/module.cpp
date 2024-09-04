@@ -210,23 +210,6 @@ static void lSetCodeModel(llvm::Module *module) {
     }
 }
 
-/** Set the PIC Level in the module's metadata, which is required by some platforms. 
- */
-static void lSetPICLevel(llvm::Module *module) {
-	PICLevel picLevel = g->target->getPICLevel();
-	switch (picLevel) {
-	case ispc::PICLevel::NotPIC:
-        /* We're leaving the default. There's a similar case in the LLVM frontend code where they don't set the level in NoPIC mode. */
-        break;
-    case ispc::PICLevel::Small:
-        module->setPICLevel(llvm::PICLevel::SmallPIC);
-        break;
-    case ispc::PICLevel::Big:
-        module->setPICLevel(llvm::PICLevel::BigPIC);
-        break;
-	}
-}
-
 ///////////////////////////////////////////////////////////////////////////
 // Module
 
@@ -248,7 +231,6 @@ Module::Module(const char *fn) : filename(fn) {
     // DataLayout information supposed to be managed in single place in Target class.
     module->setDataLayout(g->target->getDataLayout()->getStringRepresentation());
     lSetCodeModel(module);
-    lSetPICLevel(module);
 
     // Version strings.
     // Have ISPC details and LLVM details as two separate strings attached to !llvm.ident.
@@ -3083,7 +3065,6 @@ static llvm::Module *lInitDispatchModule() {
     AddBitcodeToModule(dispatch, module);
 
     lSetCodeModel(module);
-    lSetPICLevel(module);
 
     return module;
 }
@@ -3208,7 +3189,7 @@ int Module::CompileAndOutput(const char *srcFile, Arch arch, const char *cpu, st
         if (targets.size() == 1) {
             target = targets[0];
         }
-        g->target = new Target(arch, cpu, target, outputFlags.isPIC(), outputFlags.getMCModel(), outputFlags.getPICLevel(), g->printTarget);
+        g->target = new Target(arch, cpu, target, outputFlags.isPIC(), outputFlags.getMCModel(), g->printTarget);
         if (!g->target->isValid())
             return 1;
 
@@ -3335,7 +3316,7 @@ int Module::CompileAndOutput(const char *srcFile, Arch arch, const char *cpu, st
         std::vector<Module *> modules(targets.size());
         for (unsigned int i = 0; i < targets.size(); ++i) {
             g->target =
-                new Target(arch, cpu, targets[i], outputFlags.isPIC(), outputFlags.getMCModel(), outputFlags.getPICLevel(), g->printTarget);
+                new Target(arch, cpu, targets[i], outputFlags.isPIC(), outputFlags.getMCModel(), g->printTarget);
             if (!g->target->isValid())
                 return 1;
 
@@ -3430,7 +3411,7 @@ int Module::CompileAndOutput(const char *srcFile, Arch arch, const char *cpu, st
         Assert(strcmp(firstISA, "") != 0);
         Assert(firstTarget != ISPCTarget::none);
 
-        g->target = new Target(arch, cpu, firstTarget, outputFlags.isPIC(), outputFlags.getMCModel(), outputFlags.getPICLevel(), false);
+        g->target = new Target(arch, cpu, firstTarget, outputFlags.isPIC(), outputFlags.getMCModel(), false);
         llvm::TargetMachine *firstTargetMachine = g->target->GetTargetMachine();
         Assert(firstTargetMachine);
         if (!g->target->isValid()) {

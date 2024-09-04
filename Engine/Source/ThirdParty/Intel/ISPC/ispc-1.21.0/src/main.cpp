@@ -1113,8 +1113,6 @@ int main(int Argc, char *Argv[]) {
     // Default settings for PS4
     if (g->target_os == TargetOS::ps4 || g->target_os == TargetOS::ps5) {
         flags.setPIC();
-		// It corresponds to PIC Level == 2 needed starting with SDKs based on LLVM 17 (PS4 SDK 11.500, PS5 SDK 9.000).
-        flags.setPICLevel(PICLevel::Big);
         if (!cpu) {
             if (g->target_os == TargetOS::ps4) {
                 // Default for PS4 is btver2, but do not enforce it.
