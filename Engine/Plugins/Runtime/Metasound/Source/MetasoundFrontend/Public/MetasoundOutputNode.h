@@ -28,8 +28,8 @@ namespace Metasound
 	public:
 		FMissingOutputNodeInputReferenceError(const INode& InNode, const FText& InDataType)
 			: FBuildErrorBase(
-				"MetasoundMissingOutputDataReferenceError",
-				METASOUND_LOCTEXT_FORMAT("MissingOutputNodeInputReferenceError", "Missing required output node input reference for type {0}.", InDataType))
+				"MetasoundMissingOutputDataReferenceForTypeError",
+				METASOUND_LOCTEXT_FORMAT("MissingOutputNodeInputReferenceForTypeError", "Missing required output node input reference for type {0}.", InDataType))
 		{
 			AddNode(InNode);
 		}
