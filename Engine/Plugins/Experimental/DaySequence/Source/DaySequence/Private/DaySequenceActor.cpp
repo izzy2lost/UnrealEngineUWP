@@ -846,8 +846,11 @@ void ADaySequenceActor::OnSequencePlayerUpdate(const UDaySequencePlayer& Player,
 	const float CurrentHours = FrameTimeToDayHours(CurrentTime);
 	const float PreviousHours = FrameTimeToDayHours(PreviousTime);
 	SequencePlayerUpdated(CurrentHours, PreviousHours);
-	
-	OnDaySequenceUpdate.Broadcast();
+
+	if (IsPlaying())
+	{
+		OnDaySequenceUpdate.Broadcast();
+	}
 }
 
 void ADaySequenceActor::SequencePlayerUpdated(float CurrentTime, float PreviousTime)
