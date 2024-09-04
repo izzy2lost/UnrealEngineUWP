@@ -420,8 +420,6 @@ void Main(
 #endif
 }
 
-#if FEATURE_LEVEL >= FEATURE_LEVEL_SM4
-
 // .x:DepthBias, y: SlopeDepthBias, z: MaxSlopeDepthBias, 
 float3 PointLightDepthBias;
 
@@ -495,7 +493,11 @@ void MainOnePassPointLightPS(
 		const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(SVPos.xy, 0)));
 		const float3 WorldNormal = TopLayerData.WorldNormal;
 #else // SUBSTRATE_ENABLED
+	#if SHADING_PATH_MOBILE
+		FGBufferData GBufferData = MobileFetchAndDecodeGBuffer(ScreenUV, SVPos);
+	#else
 		FGBufferData GBufferData = GetGBufferData(ScreenUV);
+	#endif
 		const float3 WorldNormal = GBufferData.WorldNormal;
 #endif // SUBSTRATE_ENABLED
 
@@ -573,5 +575,3 @@ void MainOnePassPointLightPS(
 	OutColor.a = IsSubsurfaceProfile ? EncodeLightAttenuation(Thickness) : OutColor.b;
 #endif // USE_TRANSMISSION
 }
- 
-#endif
