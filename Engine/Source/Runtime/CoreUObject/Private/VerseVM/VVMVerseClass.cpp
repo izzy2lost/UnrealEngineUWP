@@ -34,7 +34,7 @@ UE::Core::FVersePath UVerseClass::GetVersePath() const
 		return {};
 	}
 
-	FString PackageVersePath = Verse::UnmangleCasedName(MangledPackageVersePath);
+	FString PackageVersePath = Verse::Names::UnmangleCasedName(MangledPackageVersePath);
 	FString VersePath = PackageRelativeVersePath.IsEmpty() ? PackageVersePath : PackageVersePath / PackageRelativeVersePath;
 	UE::Core::FVersePath Result;
 	ensure(UE::Core::FVersePath::TryMake(Result, MoveTemp(VersePath)));

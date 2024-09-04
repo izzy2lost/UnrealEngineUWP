@@ -3,7 +3,7 @@
 #pragma once
 #include "CoreMinimal.h"
 
-namespace Verse
+namespace Verse::Names
 {
 
 // The following method are intended to take a case sensitive name (which maybe already adorned with package information)
@@ -11,6 +11,14 @@ namespace Verse
 
 COREUOBJECT_API bool MangleCasedName(const FString& Name, FString& MangledName);
 COREUOBJECT_API bool MangleCasedNameCheck(const FString& Name, FName& MangledName);
+
+inline FName MangleCasedNameCheck(const FString& Name)
+{
+	FName MangledName;
+	MangleCasedNameCheck(Name, MangledName);
+	return MangledName;
+}
+
 COREUOBJECT_API FString UnmangleCasedName(const FName MaybeMangledName, bool* bOutNameWasMangled = nullptr);
 
-} // namespace Verse
+} // namespace Verse::Names

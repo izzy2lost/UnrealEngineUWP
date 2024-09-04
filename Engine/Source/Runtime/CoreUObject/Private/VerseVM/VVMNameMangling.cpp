@@ -2,7 +2,7 @@
 
 #include "VerseVM/VVMNameMangling.h"
 
-namespace Verse
+namespace Verse::Names
 {
 
 namespace Private
@@ -85,4 +85,4 @@ FString UnmangleCasedName(const FName MaybeMangledName, bool* bOutNameWasMangled
 
 #undef VERSE_MANGLED_PREFIX
 
-} // namespace Verse
+} // namespace Verse::Names
