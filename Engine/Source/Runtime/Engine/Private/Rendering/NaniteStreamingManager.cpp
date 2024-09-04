@@ -2517,7 +2517,7 @@ uint32 FStreamingManager::DetermineReadyPages(uint32& TotalPageSize)
 					FResources* Resources = GetResources(PendingPage.InstallKey.RuntimeResourceID);
 					if (Resources)
 					{
-						UE_LOG(LogNaniteStreaming, Error, TEXT("Nanite DDC retry succeeded for '%s' (Page %d) on %d attempt."), *Resources->ResourceName, PendingPage.InstallKey.PageIndex, PendingPage.RetryCount);
+						UE_LOG(LogNaniteStreaming, Log, TEXT("Nanite DDC retry succeeded for '%s' (Page %d) after %d attempts."), *Resources->ResourceName, PendingPage.InstallKey.PageIndex, PendingPage.RetryCount);
 					}
 				}
 			}
@@ -2536,7 +2536,7 @@ uint32 FStreamingManager::DetermineReadyPages(uint32& TotalPageSize)
 					
 					if(PendingPage.RetryCount == 0)	// Only warn on first retry to prevent spam
 					{
-						UE_LOG(LogNaniteStreaming, Error, TEXT("Nanite DDC request failed for '%s' (Page %d). Retrying..."), *Resources->ResourceName, PendingPage.InstallKey.PageIndex);
+						UE_LOG(LogNaniteStreaming, Log, TEXT("Nanite DDC request failed for '%s' (Page %d). Retrying..."), *Resources->ResourceName, PendingPage.InstallKey.PageIndex);
 					}
 
 					const FPageStreamingState& PageStreamingState = Resources->PageStreamingStates[PendingPage.InstallKey.PageIndex];
