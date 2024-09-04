@@ -4151,6 +4151,16 @@ const FAnimNode_AssetPlayerRelevancyBase* UAnimInstance::GetRelevantAssetPlayerI
 	return GetProxyOnAnyThread<FAnimInstanceProxy>().GetRelevantAssetPlayerInterfaceFromState(MachineIndex, StateIndex);
 }
 
+const UBlendProfile* UAnimInstance::GetBlendProfileByName(FName InBlendProfileName) const
+{
+	if (CurrentSkeleton)
+	{
+		return CurrentSkeleton->GetBlendProfile(InBlendProfileName);
+	}
+
+	return nullptr;
+}
+
 int32 UAnimInstance::GetStateMachineIndex(FName MachineName) const
 {
 	return GetProxyOnAnyThread<FAnimInstanceProxy>().GetStateMachineIndex(MachineName);

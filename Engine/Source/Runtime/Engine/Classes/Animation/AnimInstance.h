@@ -1140,6 +1140,11 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 
 public:
+	
+	/** Returns a blend profile by name from our current skeleton. Null if not found. */
+	UFUNCTION(BlueprintPure, Category="Animation|Skeleton", meta=(BlueprintThreadSafe))
+	ENGINE_API const UBlendProfile* GetBlendProfileByName(FName InBlendProfileName) const;
+	
 	/** Returns the value of a named curve. */
 	UFUNCTION(BlueprintPure, Category="Animation|Curves", meta=(BlueprintThreadSafe))
 	ENGINE_API float GetCurveValue(FName CurveName) const;
