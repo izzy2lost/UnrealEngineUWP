@@ -447,19 +447,24 @@ void FPortableObjectHeader::UpdateTimeStamp()
 FString FPortableObjectFormatDOM::ToString()
 {
 	FString Result;
+	ToString(Result);
+	return Result;
+}
+
+void FPortableObjectFormatDOM::ToString(FString& OutString)
+{
+	OutString.Reset();
 
 	Header.UpdateTimeStamp();
 
-	Result += Header.ToString();
-	Result += NewLineDelimiter;
+	OutString += Header.ToString();
+	OutString += NewLineDelimiter;
 
 	for( const auto& EntryPair : Entries )
 	{
-		Result += EntryPair.Value->ToString();
-		Result += NewLineDelimiter;
+		OutString += EntryPair.Value->ToString();
+		OutString += NewLineDelimiter;
 	}
-
-	return Result;
 }
 
 bool FPortableObjectFormatDOM::FromString( const FString& InStr, FText* OutErrorMsg )
