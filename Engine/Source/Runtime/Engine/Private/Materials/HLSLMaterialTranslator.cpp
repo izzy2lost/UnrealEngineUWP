@@ -7087,7 +7087,10 @@ int32 FHLSLMaterialTranslator::TextureSample(
 	{
 		if (Material->GetMaterialDomain() != MD_Surface && Material->GetMaterialDomain() != MD_DeferredDecal)
 		{
-			return Errorf(TEXT("Sampling a virtual texture is currently only supported for surface and decal materials."));
+			if (GetDefault<URendererSettings>()->bEnableVirtualTexturePostProcessing == false)
+			{
+				return Errorf(TEXT("Sampling a virtual texture is currently only supported for surface and decal materials."));
+			}
 		}
 	}
 

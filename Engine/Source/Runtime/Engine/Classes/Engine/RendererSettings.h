@@ -426,6 +426,12 @@ class URendererSettings : public UDeveloperSettings
 
 	UPROPERTY(config, EditAnywhere, Category = VirtualTextures, meta = (
 		EditCondition = "bVirtualTextures",
+		DisplayName = "Enable virtual textures for Post Processing Materials",
+		ToolTip = "Relax restriction on virtual textures being sampled in Post Processing Materials. There is no feedback from the Post Processing passes, so virtual textures will only have pages in the cache that are triggered by feedback in another pass."))
+		uint32 bEnableVirtualTexturePostProcessing : 1;
+
+	UPROPERTY(config, EditAnywhere, Category = VirtualTextures, meta = (
+		EditCondition = "bVirtualTextures",
 		ConsoleVariable = "r.VT.TileSize", DisplayName = "Tile size",
 		ToolTip = "Size in pixels for virtual texture tiles, will be rounded to next power-of-2. Changing this setting requires restarting the editor.",
 		ConfigRestartRequired = true))

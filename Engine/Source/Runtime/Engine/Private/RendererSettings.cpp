@@ -102,6 +102,7 @@ URendererSettings::URendererSettings(const FObjectInitializer& ObjectInitializer
 	WhiteChromaticityCoordinate = FVector2D::ZeroVector;
 	bUseLegacyLuminanceFactors = false;
 	bEnableVirtualTextureOpacityMask = false;
+	bEnableVirtualTexturePostProcessing = false;
 
 #if WITH_EDITOR
 	if (IsTemplate())
