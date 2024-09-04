@@ -183,7 +183,7 @@ namespace HordeAgent.Leases
 		protected static async Task<int> RunProcessAsync(string executable, IEnumerable<string> arguments, IReadOnlyDictionary<string, string>? environment, ILogger logger, CancellationToken cancellationToken)
 		{
 			string commandLine = CommandLineArguments.Join(arguments);
-			logger.LogInformation("Running child process with arguments: {CommandLine}", commandLine);
+			logger.LogInformation("Running child process: {Executable} {CommandLine}", CommandLineArguments.Quote(executable), commandLine);
 			try
 			{
 				using (ManagedProcessGroup processGroup = new ManagedProcessGroup())
