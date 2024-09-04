@@ -1118,7 +1118,6 @@ public:
 	}
 
 	TSharedRef<FEditPropertyChain> BuildPropertyChain( FProperty* PropertyAboutToChange ) const;
-	TArray<TMap<FString, int32>> BuildArrayIndices() const;
 	
 protected:
 	TSharedRef<FEditPropertyChain> BuildPropertyChain( FProperty* PropertyAboutToChange, const TSet<UObject*>& InAffectedArchetypeInstances ) const;
