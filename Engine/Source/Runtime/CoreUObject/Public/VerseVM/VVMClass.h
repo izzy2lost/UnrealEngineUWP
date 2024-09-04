@@ -156,6 +156,7 @@ private:
 public:
 	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
 	COREUOBJECT_API VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames, VCppClassInfo* CppClassInfo);
+	VEmergentType& GetOrCreateEmergentTypeForNativeStruct(FAllocationContext Context);
 
 	template <class SubTypeOfUStruct>
 	COREUOBJECT_API SubTypeOfUStruct* GetUStruct() const; // Fails if it's not there
@@ -171,24 +172,26 @@ public:
 	 * @param Scope         Containing package or null.
 	 * @param Name          Name or null.
 	 * @param UEMangledName Name to be used when creating the UE version of the class or the UE package.  Can be null.
-	 * @param ImportClass   The Unreal class/struct that is being reflected by this Verse VM type.
+	 * @param ImportStruct  The Unreal class/struct that is being reflected by this Verse VM type.
 	 * @param bNative       `true` if this represents a native class (i.e. defined in C++).
 	 * @param Kind          Class, Struct or Interface.
 	 * @param Inherited     An array of base classes, in order of inheritance.
 	 * @param Constructor   The sequence of fields and blocks in the class body.
 	 */
-	COREUOBJECT_API static VClass& New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, UClass* ImportClass, bool bNative, EKind Kind, const TArray<VClass*>& Inherited, VConstructor& Constructor);
+	COREUOBJECT_API static VClass& New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, UStruct* ImportStruct, bool bNative, EKind Kind, const TArray<VClass*>& Inherited, VConstructor& Constructor);
 
 private:
 	friend class ::FVerseVMEngineEnvironment;
 
-	VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VArray* InUEMangledName, UClass* InImportClass, bool bInNative, EKind InKind, const TArray<VClass*>& InInherited, VConstructor& InConstructor);
+	VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VArray* InUEMangledName, UStruct* InImportStruct, bool bInNative, EKind InKind, const TArray<VClass*>& InInherited, VConstructor& InConstructor);
 
 	/// Append to `Entries` those elements of `Base` which are not already overridden, indicated by `Fields`.
 	COREUOBJECT_API static void Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base);
 
 	/// Creates an associated UClass or UScriptStruct for this VClass
 	COREUOBJECT_API UStruct* CreateUStruct(FAllocationContext Context);
+
+	COREUOBJECT_API VEmergentType& GetOrCreateEmergentTypeForImportedNativeStruct(FAllocationContext Context);
 
 	/// Initialize an instance using the constructor
 	COREUOBJECT_API FOpResult InitInstance(FAllocationContext Context, VShape& Shape, void* Data) const;

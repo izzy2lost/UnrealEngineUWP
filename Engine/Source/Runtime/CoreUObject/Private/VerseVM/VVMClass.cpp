@@ -174,7 +174,7 @@ void VClass::VisitReferencesImpl(TVisitor& Visitor)
 	});
 }
 
-VClass::VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VArray* InUEMangledName, UClass* InImportClass, bool bInNative, EKind InKind, const TArray<VClass*>& InInherited, VConstructor& InConstructor)
+VClass::VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VArray* InUEMangledName, UStruct* InImportStruct, bool bInNative, EKind InKind, const TArray<VClass*>& InInherited, VConstructor& InConstructor)
 	: VType(Context, &GlobalTrivialEmergentType.Get(Context))
 	, Scope(Context, InScope)
 	, ClassName(Context, InName)
@@ -183,9 +183,9 @@ VClass::VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VA
 	, Kind(InKind)
 	, NumInherited(InInherited.Num())
 {
-	if (InImportClass != nullptr)
+	if (InImportStruct != nullptr)
 	{
-		AssociatedUStruct.Set(Context, InImportClass);
+		AssociatedUStruct.Set(Context, InImportStruct);
 	}
 
 	// NOTE: (yiliang.siew) If a class has no base class, we still want to set the scope accordingly for lambda captures,
@@ -394,9 +394,7 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 	// Limit archetype instantiation to VObject-derived types for now
 	V_DIE_UNLESS(!IsNativeStruct());
 
-	UE::FExternalMutex ExternalMutex(Mutex);
-	UE::TUniqueLock Lock(ExternalMutex);
-
+	// Note: We can look up the emergent type without locking our Mutex since this thread is the only one mutating the hash table
 	// TODO: This in the future shouldn't even require a hash table lookup when we introduce inline caching for this.
 	const uint32 ArcheTypeHash = GetTypeHash(ArchetypeFieldNames);
 	if (TWriteBarrier<VEmergentType>* ExistingEmergentType = EmergentTypesCache.FindByHash(ArcheTypeHash, ArchetypeFieldNames))
@@ -435,9 +433,39 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 	VEmergentType* NewEmergentType = VEmergentType::New(Context, NewShape, this, CppClassInfo);
 	V_DIE_IF(NewEmergentType == nullptr);
 
+	UE::FExternalMutex ExternalMutex(Mutex);
+	UE::TUniqueLock Lock(ExternalMutex);
+
 	// This new type will then be kept alive in the cache to re-vend if ever the exact same set of fields are used for
 	// archetype instantiation of a different object.
 	EmergentTypesCache.AddByHash(ArcheTypeHash, {Context, ArchetypeFieldNames}, {Context, *NewEmergentType});
+
+	return *NewEmergentType;
+}
+
+VEmergentType& VClass::GetOrCreateEmergentTypeForImportedNativeStruct(FAllocationContext Context)
+{
+	V_DIE_UNLESS(IsNativeStruct());
+
+	// Note: We can look up the emergent type without locking our Mutex since this thread is the only one mutating the hash table
+	const uint32 SingleHash = 0; // For native structs, we only ever store one emergent type, regardless of archetype
+	if (TWriteBarrier<VEmergentType>* ExistingEmergentType = EmergentTypesCache.FindByHash(SingleHash, TWriteBarrier<VUniqueStringSet>{}))
+	{
+		return *ExistingEmergentType->Get();
+	}
+
+	// Make sure alignment holds for this native struct
+	UScriptStruct::ICppStructOps* CppStructOps = GetUStruct<UScriptStruct>()->GetCppStructOps();
+	V_DIE_UNLESS(CppStructOps->GetAlignment() <= VObject::DataAlignment);
+
+	// Imported structs have no shape since their internals are opaque
+	VEmergentType* NewEmergentType = VEmergentType::New(Context, nullptr, this, &VNativeStruct::StaticCppClassInfo);
+
+	UE::FExternalMutex ExternalMutex(Mutex);
+	UE::TUniqueLock Lock(ExternalMutex);
+
+	// Keep alive in cache for future requests
+	EmergentTypesCache.AddByHash(SingleHash, {Context, nullptr}, {Context, NewEmergentType});
 
 	return *NewEmergentType;
 }

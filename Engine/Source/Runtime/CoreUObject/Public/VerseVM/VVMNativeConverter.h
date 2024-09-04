@@ -34,6 +34,8 @@ struct FVerseValue;
 struct FVerseFunction;
 template <typename FunctionType>
 struct TVerseFunction;
+template <typename InterfaceProxyType>
+struct TInterfaceInstance;
 
 namespace Verse
 {
@@ -95,6 +97,10 @@ struct TToVValue<TNonNullPtr<ObjectType>>
 	}
 };
 
+// Same for TInterfaceInstance
+template <typename InterfaceProxyType>
+struct TToVValue<TInterfaceInstance<InterfaceProxyType>>;
+
 // Out parameter for FromVValue - a default-constructible version of NativeType.
 template <typename NativeType, typename = void>
 struct TFromVValue
@@ -109,6 +115,10 @@ struct TFromVValue<TNonNullPtr<NativeType>>
 	NativeType* Value;
 	TNonNullPtr<NativeType> GetValue() { return Value; }
 };
+
+// Same for TInterfaceInstance
+template <typename InterfaceProxyType>
+struct TFromVValue<TInterfaceInstance<InterfaceProxyType>>;
 
 template <typename NativeType>
 struct TFromVValue<NativeType, typename TEnableIf<TIsNativeStruct<NativeType>::Value>::Type>
@@ -177,6 +187,9 @@ struct FNativeConverter
 	{
 		return ToVValue(Context, Object.Get());
 	}
+
+	template <class InterfaceProxyType>
+	static VValue ToVValue(FAllocationContext Context, TInterfaceInstance<InterfaceProxyType> Object);
 
 	template <class StructType, typename = typename TEnableIf<TIsNativeStruct<typename TDecay<StructType>::Type>::Value>::Type>
 	static VValue ToVValue(FAllocationContext Context, StructType&& Struct)
@@ -303,6 +316,9 @@ struct FNativeConverter
 		OutNative.Value = reinterpret_cast<ObjectType*>(Value.AsUObject());
 		return {FOpResult::Return};
 	}
+
+	template <class InterfaceProxyType>
+	static FOpResult FromVValue(FAllocationContext Context, const VValue Value, TFromVValue<TInterfaceInstance<InterfaceProxyType>>& OutNative);
 
 	template <class StructType, typename = typename TEnableIf<TIsNativeStruct<StructType>::Value>::Type>
 	static FOpResult FromVValue(FAllocationContext Context, const VValue Value, TFromVValue<StructType>& OutNative)

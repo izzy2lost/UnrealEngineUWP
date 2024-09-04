@@ -1618,8 +1618,8 @@ class FInterpreter
 			InheritedClasses.Add(&CurrentArg.StaticCast<VClass>());
 		}
 		VConstructor* Constructor = Op.Constructor.Get();
-		UClass* ImportClass = Op.ImportClass.Get() ? CastChecked<UClass>(Op.ImportClass.Get().AsUObject()) : nullptr;
-		VClass& NewClass = VClass::New(Context, Op.Package.Get(), Op.Name.Get(), Op.UEMangledName.Get(), ImportClass, Op.bNative, Op.ClassKind, InheritedClasses, *Constructor);
+		UStruct* ImportStruct = Op.ImportStruct.Get() ? CastChecked<UStruct>(Op.ImportStruct.Get().AsUObject()) : nullptr;
+		VClass& NewClass = VClass::New(Context, Op.Package.Get(), Op.Name.Get(), Op.UEMangledName.Get(), ImportStruct, Op.bNative, Op.ClassKind, InheritedClasses, *Constructor);
 		DEF(Op.Dest, NewClass);
 		return {FOpResult::Return};
 	}

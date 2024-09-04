@@ -104,11 +104,23 @@ inline VConstructor::VEntry VConstructor::VEntry::Block(FAllocationContext Conte
 template <class CppStructType>
 inline VNativeStruct& VClass::NewNativeStruct(FAllocationContext Context, CppStructType&& Struct)
 {
-	V_DIE_UNLESS(IsNativeStruct());
+	VEmergentType& EmergentType = GetOrCreateEmergentTypeForNativeStruct(Context);
+	return VNativeStruct::New(Context, EmergentType, Forward<CppStructType>(Struct));
+}
 
-	// Get or create the singleton emergent type for this native struct
-	VEmergentType& NewEmergentType = *GetUStruct<UVerseStruct>()->EmergentType;
-	return VNativeStruct::New(Context, NewEmergentType, Forward<CppStructType>(Struct));
+inline VEmergentType& VClass::GetOrCreateEmergentTypeForNativeStruct(FAllocationContext Context)
+{
+	V_DIE_UNLESS(IsNativeStruct());
+	V_DIE_UNLESS(AssociatedUStruct);
+
+	// Get the singleton emergent type for this native struct
+	if (UVerseStruct* VerseStruct = Cast<UVerseStruct>(AssociatedUStruct.Get().AsUObject()))
+	{
+		return *VerseStruct->EmergentType;
+	}
+
+	// None found, that means this is an imported native struct
+	return GetOrCreateEmergentTypeForImportedNativeStruct(Context);
 }
 
 inline VConstructor& VClass::GetConstructor() const
@@ -116,10 +128,10 @@ inline VConstructor& VClass::GetConstructor() const
 	return *Constructor.Get();
 }
 
-inline VClass& VClass::New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, UClass* ImportClass, bool bNative, EKind Kind, const TArray<VClass*>& Inherited, VConstructor& Constructor)
+inline VClass& VClass::New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, UStruct* ImportStruct, bool bNative, EKind Kind, const TArray<VClass*>& Inherited, VConstructor& Constructor)
 {
 	const size_t NumBytes = offsetof(VClass, Inherited) + Inherited.Num() * sizeof(Inherited[0]);
-	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, Scope, Name, UEMangledName, ImportClass, bNative, Kind, Inherited, Constructor);
+	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, Scope, Name, UEMangledName, ImportStruct, bNative, Kind, Inherited, Constructor);
 }
 
 } // namespace Verse
