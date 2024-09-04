@@ -535,6 +535,38 @@ TSharedRef<SWidget> CreateKeyEditor(const TMovieSceneChannelHandle<FMovieSceneTi
 	return SNew(KeyEditorType, KeyEditor);
 }
 
+template<typename ChannelType>
+void GetTypedChannels(ISequencer* Sequencer, const TSet<TWeakObjectPtr<UMovieSceneSection>>& WeakSections, TArray<ChannelType*>& Channels)
+{
+	// Get selected channels
+	TArray<const IKeyArea*> KeyAreas;
+	Sequencer->GetSelectedKeyAreas(KeyAreas);
+	for (const IKeyArea* KeyArea : KeyAreas)
+	{
+		FMovieSceneChannelHandle Handle = KeyArea->GetChannel();
+		if (Handle.GetChannelTypeName() == ChannelType::StaticStruct()->GetFName())
+		{
+			ChannelType* Channel = static_cast<ChannelType*>(Handle.Get());
+			Channels.Add(Channel);
+		}
+	}
+
+	// Otherwise, the channels of all the sections
+	if (Channels.Num() == 0)
+	{
+		for (TWeakObjectPtr<UMovieSceneSection> WeakSection : WeakSections)
+		{
+			if (UMovieSceneSection* Section = WeakSection.Get())
+			{
+				FMovieSceneChannelProxy& ChannelProxy = Section->GetChannelProxy();
+				for (ChannelType* Channel : ChannelProxy.GetChannels<ChannelType>())
+				{
+					Channels.Add(Channel);
+				}
+			}
+		}
+	}
+}
 
 /** Delegate used to set a class */
 DECLARE_DELEGATE_OneParam(FOnSetActorReferenceKey, FMovieSceneActorReferenceKey);
@@ -1370,6 +1402,22 @@ struct FCurveChannelSectionMenuExtension : TSharedFromThis<FCurveChannelSectionM
 						LOCTEXT("DisplayOptionsTooltip", "Display options"),
 						FNewMenuDelegate::CreateLambda([SharedThis](FMenuBuilder& SubMenuBuilder){ SharedThis->AddDisplayOptionsMenu(SubMenuBuilder); })
 						);
+
+				if (SharedThis->CanInterpolateLinearKeys())
+				{
+					SubMenuBuilder.AddMenuEntry(
+							LOCTEXT("InterpolateLinearKeys", "Interpolate Linear Keys"),
+							LOCTEXT("InterpolateLinearKeysTooltip", "Interpolate linear keys"),
+							FSlateIcon(),
+							FUIAction(
+								FExecuteAction::CreateLambda([SharedThis] { SharedThis->ToggleInterpolateLinearKeys(); }),
+								FCanExecuteAction(),
+								FGetActionCheckState::CreateLambda([SharedThis] { return SharedThis->IsInterpolateLinearKeys(); })
+							),
+							NAME_None,
+							EUserInterfaceActionType::ToggleButton
+						);
+				}
 			}));
 
 		return SharedThis;
@@ -1786,6 +1834,85 @@ struct FCurveChannelSectionMenuExtension : TSharedFromThis<FCurveChannelSectionM
 		}
 
 		return true;
+	}
+	
+	bool CanInterpolateLinearKeys() const
+	{
+		ISequencer* Sequencer = WeakSequencer.Pin().Get();
+		if (!Sequencer)
+		{
+			return false;
+		}
+
+		TArray<FMovieSceneIntegerChannel*> IntegerChannels;
+		GetTypedChannels<FMovieSceneIntegerChannel>(Sequencer, WeakSections, IntegerChannels);
+
+		return IntegerChannels.Num() > 0;
+	}
+
+	void ToggleInterpolateLinearKeys()
+	{
+		ISequencer* Sequencer = WeakSequencer.Pin().Get();
+		if (!Sequencer)
+		{
+			return;
+		}
+
+		TArray<FMovieSceneIntegerChannel*> IntegerChannels;
+		GetTypedChannels<FMovieSceneIntegerChannel>(Sequencer, WeakSections, IntegerChannels);
+
+		FScopedTransaction Transaction(LOCTEXT("ToggleInterpolateLinearKeys_Transaction", "Toggle Interpolate Linear Keys"));
+
+		bool bAnythingChanged = false;
+
+		// Modify all sections
+		for (TWeakObjectPtr<UMovieSceneSection> WeakSection : WeakSections)
+		{
+			if (UMovieSceneSection* Section = WeakSection.Get())
+			{
+				Section->Modify();
+			}
+		}
+
+		for (FMovieSceneIntegerChannel* Channel : IntegerChannels)
+		{
+			bAnythingChanged = true;
+			Channel->bInterpolateLinearKeys = !Channel->bInterpolateLinearKeys;
+		}
+
+		if (!bAnythingChanged)
+		{
+			Transaction.Cancel();
+		}
+	}
+
+	ECheckBoxState IsInterpolateLinearKeys()
+	{
+		ISequencer* Sequencer = WeakSequencer.Pin().Get();
+		if (!Sequencer)
+		{
+			return ECheckBoxState::Undetermined;
+		}
+
+		TArray<FMovieSceneIntegerChannel*> IntegerChannels;
+		GetTypedChannels<FMovieSceneIntegerChannel>(Sequencer, WeakSections, IntegerChannels);
+
+		int32 NumInterpolatedAndNotInterpolated[2] = { 0, 0 };
+
+		for (FMovieSceneIntegerChannel* Channel : IntegerChannels)
+		{
+			NumInterpolatedAndNotInterpolated[Channel->bInterpolateLinearKeys ? 0 : 1]++;
+		}
+
+		if (NumInterpolatedAndNotInterpolated[0] == 0 && NumInterpolatedAndNotInterpolated[1] > 0)  // No curve showed, some hidden
+		{
+			return ECheckBoxState::Unchecked;
+		}
+		else if (NumInterpolatedAndNotInterpolated[0] > 0 && NumInterpolatedAndNotInterpolated[1] == 0) // Some curves showed, none hidden
+		{
+			return ECheckBoxState::Checked;
+		}
+		return ECheckBoxState::Undetermined;  // Mixed states, or no curves
 	}
 
 	void ToggleShowCurve()
