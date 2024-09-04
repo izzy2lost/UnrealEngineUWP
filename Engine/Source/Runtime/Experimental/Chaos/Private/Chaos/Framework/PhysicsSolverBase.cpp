@@ -486,6 +486,12 @@ namespace Chaos
 			ExternalSteps = 0;
 		}
 
+		// If standalone solver we are not responsible to spawn tasks
+		if(IsStandaloneSolver())
+		{
+			return {};
+		}
+
 		// Ensures we block on any tasks generated from previous frames
 		FGraphEventRef BlockingTasks = PendingTasks;
 

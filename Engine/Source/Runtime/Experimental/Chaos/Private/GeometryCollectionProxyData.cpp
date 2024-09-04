@@ -107,7 +107,7 @@ void FTransformDynamicCollection::SetHasParent(int32 Index, bool Value)
 int32 FTransformDynamicCollection::GetParent(int32 Index) const 
 {
 	check(RestCollectionShared);
-	return HasParent[Index] ? RestCollectionShared->Parent[Index] : INDEX_NONE;
+	return (HasParent.IsValidIndex(Index) && HasParent[Index])  ? RestCollectionShared->Parent[Index] : INDEX_NONE;
 }
 
 bool FTransformDynamicCollection::HasChildren(int32 Index) const

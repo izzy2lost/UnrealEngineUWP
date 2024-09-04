@@ -184,6 +184,8 @@ protected:
 	UObject* Owner;
 
 private:
+	/** Get all the physics solvers with the same owner */
+	PHYSICSCORE_API TArray<Chaos::FPhysicsSolverBase*> GetPhysicsSolvers() const;
 
 	PHYSICSCORE_API void SetGravity(const Chaos::FVec3& Acceleration);
 

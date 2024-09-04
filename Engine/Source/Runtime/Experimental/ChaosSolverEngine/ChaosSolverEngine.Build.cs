@@ -14,8 +14,11 @@ namespace UnrealBuildTool.Rules
                     "Engine",
                     "RenderCore",
                     "RHI",
-					"DeveloperSettings"
-                }
+					"DeveloperSettings", 
+					"DataflowCore",
+					"DataflowEngine",
+					"DataflowSimulation"
+				}
 				);
 
 			SetupModulePhysicsSupport(Target);

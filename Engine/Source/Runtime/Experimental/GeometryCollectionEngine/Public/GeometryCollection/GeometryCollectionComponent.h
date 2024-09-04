@@ -29,6 +29,7 @@
 #include "Chaos/ChaosSolverComponentTypes.h"
 #include "Chaos/PBDRigidsEvolutionFwd.h"
 #include "EngineDefines.h"
+#include "Dataflow/Interfaces/DataflowPhysicsObject.h"
 #include "Math/MathFwd.h"
 
 #include "GeometryCollectionComponent.generated.h"
@@ -683,8 +684,10 @@ public:
 	//~ End UMeshComponent Interface.
 
 	/** Chaos RBD Solver override. Will use the world's default solver actor if null. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics", meta = (DisplayName = "Chaos Solver"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, BlueprintGetter=GetSolverActor, BlueprintSetter=SetSolverActor, Category = "ChaosPhysics", meta = (DisplayName = "Chaos Solver"))
 	TObjectPtr<AChaosSolverActor> ChaosSolverActor;
+
+	
 
 	/**
 	* Get local bounds of the geometry collection
@@ -1550,7 +1553,7 @@ protected:
 	/** Issue a field command for the physics thread */
 	GEOMETRYCOLLECTIONENGINE_API void DispatchFieldCommand(const FFieldSystemCommand& InCommand);
 
-	GEOMETRYCOLLECTIONENGINE_API Chaos::FPhysicsSolver* GetSolver(const UGeometryCollectionComponent& GeometryCollectionComponent);
+	GEOMETRYCOLLECTIONENGINE_API static Chaos::FPhysicsSolver* GetSolver(const UGeometryCollectionComponent& GeometryCollectionComponent);
 
 	UE_DEPRECATED(5.4, "CalculateLocalBounds is now Deprecated as it does not need to be called anymore, see ComponentSpaceBounds which replace LocalBounds")
 	GEOMETRYCOLLECTIONENGINE_API void CalculateLocalBounds() {};
@@ -1791,6 +1794,17 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API void RefreshRootProxies();
 
 private:
+
+	/** Return true if the simulation can be run in editor */
+	GEOMETRYCOLLECTIONENGINE_API bool CanRunSimulationInEditor() const;
+
+	/** BP internal function to get the solver actor */
+	UFUNCTION(BlueprintPure, BlueprintInternalUseOnly)
+	GEOMETRYCOLLECTIONENGINE_API AChaosSolverActor* GetSolverActor() const { return ChaosSolverActor; }
+
+	/** BP internal function to set the solver actor */
+	UFUNCTION(BlueprintCallable, BlueprintInternalUseOnly)
+	GEOMETRYCOLLECTIONENGINE_API void SetSolverActor(AChaosSolverActor* InSolverActor);
 
 	GEOMETRYCOLLECTIONENGINE_API void IncrementSleepTimer(float DeltaTime);
 	GEOMETRYCOLLECTIONENGINE_API void IncrementBreakTimer(float DeltaTime);

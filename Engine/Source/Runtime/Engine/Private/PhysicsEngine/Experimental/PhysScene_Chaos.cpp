@@ -2021,12 +2021,16 @@ float FPhysScene_Chaos::OnStartFrame(float InDeltaTime)
 	SCOPE_CYCLE_COUNTER(STAT_Scene_StartFrame);
 
 #if WITH_EDITOR
-	if (IsOwningWorldEditor())
+	if (IsOwningWorldEditor() && GetSolver())
 	{
 		// Ensure editor solver is enabled
 		GetSolver()->SetIsPaused_External(false);
 
-		UseDeltaTime = 0.0f;
+		// Only pause the solver if the solver is not a standalone one
+		if(!GetSolver()->IsStandaloneSolver())
+		{
+			UseDeltaTime = 0.0f;
+		}
 	}
 #endif
 	ensure(DeferredCreatePhysicsStateComponents.Num() == 0);

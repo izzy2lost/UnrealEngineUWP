@@ -370,23 +370,19 @@ void FChaosScene::StartFrame()
 		return;
 	}
 
-	const float UseDeltaTime = OnStartFrame(MDeltaTime);;
+	const float UseDeltaTime = OnStartFrame(MDeltaTime);
 
-	TArray<FPhysicsSolverBase*> SolverList;
-	ChaosModule->GetSolversMutable(Owner,SolverList);
-
-	if(FPhysicsSolver* Solver = GetSolver())
-	{
-		// Make sure our solver is in the list
-		SolverList.AddUnique(Solver);
-	}
-
-
+	TArray<FPhysicsSolverBase*> SolverList = GetPhysicsSolvers();
 	for(FPhysicsSolverBase* Solver : SolverList)
 	{
-		CompletionEvents.Add(Solver->AdvanceAndDispatch_External(UseDeltaTime));
+		if(FGraphEventRef SolverEvent = Solver->AdvanceAndDispatch_External(UseDeltaTime))
+		{
+			if(SolverEvent.IsValid())
+			{
+				CompletionEvents.Add(SolverEvent);
+			}
+		}
 	}
-
 }
 
 void FChaosScene::OnSyncBodies(Chaos::FPhysicsSolverBase* Solver)
@@ -481,6 +477,25 @@ void GetAABBTreeStats(Chaos::ISpatialAccelerationCollection<Chaos::FAcceleration
 	}
 }
 
+TArray<Chaos::FPhysicsSolverBase*> FChaosScene::GetPhysicsSolvers() const
+{
+	// Make a list of solvers to process. This is a list of all solvers registered to our world
+	// And our internal base scene solver.
+	TArray<Chaos::FPhysicsSolverBase*> SolverList;
+	if(const Chaos::FPhysicsSolver* Solver = GetSolver())
+	{
+		if(!Solver->IsStandaloneSolver())
+		{
+			// Get all the solvers with the same owner
+			ChaosModule->GetSolversMutable(Owner,SolverList);
+		}
+
+		// Make sure our solver is in the list
+		SolverList.AddUnique(GetSolver());
+	}
+	return SolverList;
+}
+
 void FChaosScene::EndFrame()
 {
 	using namespace Chaos;
@@ -532,13 +547,7 @@ void FChaosScene::EndFrame()
 
 	// Make a list of solvers to process. This is a list of all solvers registered to our world
 	// And our internal base scene solver.
-	TArray<FPhysicsSolverBase*> SolverList;
-	ChaosModule->GetSolversMutable(Owner,SolverList);
-
-	{
-		// Make sure our solver is in the list
-		SolverList.AddUnique(GetSolver());
-	}
+	TArray<FPhysicsSolverBase*> SolverList = GetPhysicsSolvers();
 
 	// Flip the buffers over to the game thread and sync
 	{

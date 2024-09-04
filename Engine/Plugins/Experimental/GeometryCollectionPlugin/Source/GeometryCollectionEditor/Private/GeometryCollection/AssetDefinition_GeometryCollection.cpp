@@ -75,8 +75,11 @@ EAssetCommandResult UAssetDefinition_GeometryCollection::OpenAssets(const FAsset
 			if (FDataflowEditorToolkit::HasDataflowAsset(GeometryCollection))
 			{
 				UAssetEditorSubsystem* const AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+				
 				UDataflowEditor* const AssetEditor = NewObject<UDataflowEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);
-				AssetEditor->Initialize({ GeometryCollection });
+				const TSubclassOf<AActor> ActorClass = StaticLoadClass(AActor::StaticClass(), nullptr,
+					TEXT("/GeometryCollectionPlugin/BP_GeometryCollectionPreview.BP_GeometryCollectionPreview_C"), nullptr, LOAD_None, nullptr);
+				AssetEditor->Initialize({ GeometryCollection }, ActorClass);
 				return EAssetCommandResult::Handled;
 			}
 

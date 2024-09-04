@@ -15,6 +15,7 @@
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "ChaosSolverConfiguration.h"
 #include "SolverEventFilters.h"
+#include "Dataflow/Interfaces/DataflowPhysicsSolver.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxyFwd.h"
 
 #include "ChaosSolverActor.generated.h"
@@ -71,8 +72,39 @@ struct FChaosDebugSubstepControl
 #endif
 };
 
+USTRUCT(BlueprintType)
+struct FDataflowRigidSolverProxy : public FDataflowPhysicsSolverProxy
+{
+	GENERATED_USTRUCT_BODY()
+
+	FDataflowRigidSolverProxy() : FDataflowPhysicsSolverProxy()
+	{}
+	virtual ~FDataflowRigidSolverProxy() override = default;
+
+	//~ Begin FPhysicsSolverInterface interface
+	virtual void AdvanceSolverDatas(const float DeltaTime) override;
+	virtual bool IsValid() const override { return Solver != nullptr;}
+	virtual const UScriptStruct* GetScriptStruct() const override
+	{
+		return StaticStruct();
+	}
+	//~ End FPhysicsSolverInterface interface
+
+	/** Chaos deformable solver that will be used in the component */
+	Chaos::FPhysicsSolver* Solver = nullptr;
+
+	/** List of push datas that will be used to advance the solver */
+	TArray<Chaos::FPushPhysicsData*> PushDatas = {};
+};
+
+template <>
+struct TStructOpsTypeTraits<FDataflowRigidSolverProxy> : public TStructOpsTypeTraitsBase2<FDataflowRigidSolverProxy>
+{
+	enum { WithCopy = false };
+};
+
 UCLASS(MinimalAPI)
-class AChaosSolverActor : public AActor
+class AChaosSolverActor : public AActor, public IDataflowPhysicsSolverInterface
 {
 	GENERATED_UCLASS_BODY()
 
@@ -130,6 +162,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
 	CHAOSSOLVERENGINE_API virtual void SetSolverActive(bool bActive);
 
+	//~ Begin IDataflowPhysicsSolverInterface interface
+	virtual FString GetSimulationName() const override {return GetName();};
+	virtual FDataflowSimulationAsset& GetSimulationAsset() override {return SimulationAsset;};
+	virtual const FDataflowSimulationAsset& GetSimulationAsset() const override {return SimulationAsset;};
+	virtual FDataflowSimulationProxy* GetSimulationProxy() override {return &RigidSolverProxy;}
+	virtual const FDataflowSimulationProxy* GetSimulationProxy() const  override {return &RigidSolverProxy;}
+	virtual void BuildSimulationProxy() override;
+	virtual void ResetSimulationProxy() override;
+	virtual void WriteToSimulation(const float DeltaTime, const bool bAsyncTask) override;
+	virtual void ReadFromSimulation(const float DeltaTime, const bool bAsyncTask) override;
+	//~ End IDataflowPhysicsSolverInterface interface
+
 	/*
 	* Display icon in the editor
 	*/
@@ -139,17 +183,19 @@ public:
 	UChaosGameplayEventDispatcher* GetGameplayEventDispatcher() const { return GameplayEventDispatcherComponent; };
 
 	TSharedPtr<FPhysScene_Chaos> GetPhysicsScene() const { return PhysScene; }
-	Chaos::FPhysicsSolver* GetSolver() const { return Solver; }
+	Chaos::FPhysicsSolver* GetSolver() const { return RigidSolverProxy.Solver; }
 
 	CHAOSSOLVERENGINE_API virtual void PostRegisterAllComponents() override;
 	CHAOSSOLVERENGINE_API virtual void PreInitializeComponents() override;
+	CHAOSSOLVERENGINE_API virtual void PostUnregisterAllComponents() override;
 	
 	CHAOSSOLVERENGINE_API virtual void BeginPlay() override;
 	CHAOSSOLVERENGINE_API virtual void EndPlay(const EEndPlayReason::Type ReasonEnd) override;
-
+	
 	/** UObject interface */
 #if WITH_EDITOR
 	CHAOSSOLVERENGINE_API virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+	CHAOSSOLVERENGINE_API virtual bool CanEditChange(const FProperty* InProperty) const override;
 #endif
 	CHAOSSOLVERENGINE_API void PostLoad() override;
 	CHAOSSOLVERENGINE_API void Serialize(FArchive& Ar) override;
@@ -158,11 +204,20 @@ public:
 
 private:
 
+	/* Solver dataflow asset used to advance in time */
+	UPROPERTY(EditAnywhere, Category = "Physics", meta=(EditConditionHides), AdvancedDisplay)
+	FDataflowSimulationAsset SimulationAsset;
+
 	/** If floor is enabled, make a particle to represent it */
 	CHAOSSOLVERENGINE_API void MakeFloor();
 
 	TSharedPtr<FPhysScene_Chaos> PhysScene;
-	Chaos::FPhysicsSolver* Solver;
+
+	/** Rigid solver proxy used in dataflow simulation */
+	FDataflowRigidSolverProxy RigidSolverProxy;
+
+	/** Migrate the solver onto the right owner (World vs Actor)*/
+	void MigrateSolver() const;
 
 	/** Component responsible for harvesting and triggering physics-related gameplay events (hits, breaks, etc) */
 	UPROPERTY()

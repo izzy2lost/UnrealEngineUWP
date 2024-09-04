@@ -760,7 +760,17 @@ namespace Chaos
 			return NetworkPhysicsPredictionInterpLerp;
 		}
 
+		/** Get the standalone solver flag */
+		bool IsStandaloneSolver() const { return bIsStandaloneSolver;}
+		
+		/** Set the standalone solver flag */
+		void SetStandaloneSolver(const bool bStandaloneSolver) {bIsStandaloneSolver = bStandaloneSolver;}
+
 	protected:
+
+		/** Boolean to check if the solver is a standalone solver responsible to spawn its own task */
+		bool bIsStandaloneSolver = false;
+		
 		/** Mode that the results buffers should be set to (single, double, triple) */
 		EMultiBufferMode BufferMode;
 		

@@ -3932,7 +3932,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 				FTransform3f NewParentSpaceTransform3f(ParentSpaceTransform);
 				if (!NewParentSpaceTransform3f.Equals(ParentSpaceTransform3f))
 				{
-					PhysicsThreadCollection.SetTransform(TransformGroupIndex, ParentSpaceTransform3f);
+					PhysicsThreadCollection.SetTransform(TransformGroupIndex, NewParentSpaceTransform3f);
 				}
 				IsObjectDynamic = true;
 			}

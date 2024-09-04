@@ -1891,6 +1891,15 @@ void UGeometryCollectionComponent::PostEditChangeProperty(FPropertyChangedEvent&
 	{
 		OnGeometryCollectionPropertyChanged.Broadcast();
 	}
+
+	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UGeometryCollectionComponent, ChaosSolverActor))
+	{
+		// Reset the dynamic collection 
+		ResetDynamicCollection();
+
+		// Recreate the dynamic state since the dynamic collection has been reset
+		RecreatePhysicsState();
+	}
 }
 #endif
 
@@ -3699,14 +3708,7 @@ void UGeometryCollectionComponent::ResetDynamicCollection()
 {
 	bool bCreateDynamicCollection = true;
 #if WITH_EDITOR
-	bCreateDynamicCollection = false;
-	if (UWorld* World = GetWorld())
-	{
-		if(World->IsGameWorld() || GeometryCollectionCreatePhysicsStateInEditor)
-		{
-			bCreateDynamicCollection = true;
-		}
-	}
+	bCreateDynamicCollection = CanRunSimulationInEditor();
 #endif
 	if (bCreateDynamicCollection && RestCollection && RestCollection->GetGeometryCollection())
 	{
@@ -3769,7 +3771,7 @@ void UGeometryCollectionComponent::OnCreatePhysicsState()
 			RestCollectionMutable->CreateSimulationDataIfNeeded();
 		}
 #endif
-		const bool bValidWorld = GetWorld() && (GetWorld()->IsGameWorld() || GetWorld()->IsPreviewWorld() || GeometryCollectionCreatePhysicsStateInEditor);
+		const bool bValidWorld = CanRunSimulationInEditor() || (GetWorld() && GetWorld()->IsPreviewWorld());
 		const bool bValidCollection = DynamicCollection && DynamicCollection->GetNumTransforms() > 0;
 		if (bValidWorld && bValidCollection)
 		{
@@ -3991,7 +3993,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	PhysicsProxy->SetPostPhysicsSyncCallback([this]() { OnPostPhysicsSync(); });
 	PhysicsProxy->SetPostParticlesCreatedCallback([this]() { OnPostCreateParticles(); });
 
-
+	
 	if (GetIsReplicated())
 	{
 		// using net mode and not local role because at this time in the initialization client and server both have an authority local role
@@ -5016,7 +5018,11 @@ void UGeometryCollectionComponent::SetRestCollection(const UGeometryCollection* 
 		// otherwise this may cause mismatch issues and make the geometry collection look wrong 
 		RestTransforms.Reset();
 
+		// Reset the dynamic collection
 		ResetDynamicCollection();
+
+		// Rebuild the physics state since the dynamic collection has changed
+		RecreatePhysicsState();
 
 		if (!IsEmbeddedGeometryValid())
 		{
@@ -5925,6 +5931,27 @@ AChaosSolverActor* UGeometryCollectionComponent::GetPhysicsSolverActor() const
 		FPhysScene_Chaos const* const Scene = GetInnerChaosScene();
 		return Scene ? Cast<AChaosSolverActor>(Scene->GetSolverActor()) : nullptr;
 	}
+}
+
+void UGeometryCollectionComponent::SetSolverActor(AChaosSolverActor* InSolverActor)
+{
+	ChaosSolverActor = InSolverActor;
+
+	// Reset the dynamic collection
+	ResetDynamicCollection();
+
+	// Rebuild the physics state since the proxy could now be registered to another actor
+	RecreatePhysicsState();
+}
+
+bool UGeometryCollectionComponent::CanRunSimulationInEditor() const
+{
+	if (UWorld* World = GetWorld())
+	{
+		Chaos::FPhysicsSolver* CurrSolver = GetSolver(*this);
+		return World->IsGameWorld() || GeometryCollectionCreatePhysicsStateInEditor || (CurrSolver && CurrSolver->IsStandaloneSolver());
+	}
+	return false;
 }
 
 #define GEOMETRY_COLLECTION_CHECK_FOR_NANS_IN_TRANSFORMS 0
