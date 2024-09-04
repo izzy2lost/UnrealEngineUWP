@@ -24,6 +24,7 @@ namespace UE::MultiUserClient::Replication
 
 	FOfflineClientManager::~FOfflineClientManager()
 	{
+		ClientInstance.GetWorkspace()->OnActivityAddedOrUpdated().RemoveAll(this);
 		OnlineClientManager.OnRemoteClientsChanged().RemoveAll(this);
 	}
 
