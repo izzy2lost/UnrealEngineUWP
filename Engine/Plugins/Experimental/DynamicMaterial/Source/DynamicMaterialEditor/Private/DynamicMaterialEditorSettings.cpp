@@ -134,7 +134,6 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 
 	bFollowSelection = true;
 	bUseLinearColorForVectors = true;
-	CustomTemplateFolders = {};
 
 	ResetAllLayoutSettings();
 
@@ -426,59 +425,6 @@ TArray<FDMMaterialEffectList> UDynamicMaterialEditorSettings::GetEffectList() co
 	}
 
 	return Effects;
-}
-
-TArray<FAssetData> UDynamicMaterialEditorSettings::GetTemplateList() const
-{
-	TArray<FAssetData> Templates;
-
-	IAssetRegistry* AssetRegistry = IAssetRegistry::Get();
-
-	if (!AssetRegistry)
-	{
-		return Templates;
-	}
-
-	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
-
-	if (!Plugin.IsValid())
-	{
-		return Templates;
-	}
-
-	const FString PluginEffectPath = Plugin->GetMountedAssetPath() / "Templates";
-
-	TArray<FName> AssetPaths = {*PluginEffectPath};
-	AssetPaths.Append(UDynamicMaterialEditorSettings::Get()->CustomTemplateFolders);
-
-	TArray<FAssetData> Assets;
-	AssetRegistry->GetAssetsByPaths(AssetPaths, Assets, /* bRecursive */ true, /* Only Assets on Disk */ true);
-
-	for (const FAssetData& Asset : Assets)
-	{
-		if (Asset.GetClass(EResolveClass::Yes) != UDynamicMaterialInstance::StaticClass())
-		{
-			continue;
-		}
-
-		UDynamicMaterialInstance* Instance = Cast<UDynamicMaterialInstance>(Asset.GetAsset());
-
-		if (!Instance)
-		{
-			continue;
-		}
-
-		UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(Instance->GetMaterialModelBase());
-
-		if (!MaterialModel)
-		{
-			continue;
-		}
-
-		Templates.Add(Asset);
-	}
-
-	return Templates;
 }
 
 const FDMDefaultMaterialPropertySlotValue& UDynamicMaterialEditorSettings::GetDefaultSlotValue(EDMMaterialPropertyType InProperty) const

@@ -5,18 +5,24 @@
 #include "Widgets/SCompoundWidget.h"
 
 #include "DMObjectMaterialProperty.h"
+#include "IAssetTypeActions.h"
 #include "Misc/Optional.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/NameTypes.h"
 #include "UObject/WeakObjectPtr.h"
 
+class FAssetTextFilter;
 class FAssetThumbnail;
+class SAssetSearchBox;
+class SAssetView;
 class SBox;
 class SDMMaterialDesigner;
+class SToolInputAssetPicker;
 class SWidget;
 class SWidgetSwitcher;
 class UDynamicMaterialModel;
 enum class ECheckBoxState : uint8;
+struct FContentBrowserItem;
 
 class SDMMaterialWizard : public SCompoundWidget
 {
@@ -40,17 +46,17 @@ public:
 	UDynamicMaterialModel* GetMaterialModel() const;
 
 protected:
-	static TArray<FAssetData> GetTemplateMaterials();
-
 	TWeakPtr<SDMMaterialDesigner> DesignerWidgetWeak;
 	FName CurrentPreset;
 	TSharedPtr<SBox> PresetChannelContainer;
 	TWeakObjectPtr<UDynamicMaterialModel> MaterialModelWeak;
 	TOptional<FDMObjectMaterialProperty> MaterialObjectProperty;
 	TSharedPtr<SWidgetSwitcher> Switcher;
-	TArray<TSharedRef<FAssetThumbnail>> Thumbnails;
-	TArray<FAssetData> Assets;
+	TSharedPtr<SAssetView> AssetView;
+	TSharedPtr<SAssetSearchBox> AssetSearchBox;
+	TSharedPtr<FAssetTextFilter> TextFilter;
 
+	/** Creation of widgets. */
 	TSharedRef<SWidget> CreateLayout();
 	TSharedRef<SWidget> CreateModeSelector();
 	TSharedRef<SWidget> CreateSelectPresetLayout();
@@ -58,8 +64,8 @@ protected:
 	TSharedRef<SWidget> CreateSelectPreset_ChannelList();
 	TSharedRef<SWidget> CreateSelectPreset_AcceptButton();
 	TSharedRef<SWidget> CreateTemplateListLayout();
-	TSharedRef<SWidget> CreateTemplateList_Entry(const FAssetData& InTemplateAsset);
 
+	/** Attributes and Events */
 	ECheckBoxState Preset_GetState(FName InPresetName) const;
 	void Preset_OnChange(ECheckBoxState InState, FName InPresetName);
 
@@ -73,7 +79,18 @@ protected:
 
 	void SetMode(ECheckBoxState InState, int32 InMode);
 
-	FReply OnTemplateMouseDown(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, int32 InAssetIndex);
+	void OnSearchBoxChanged(const FText& InSearchText);
+	void OnSearchBoxCommitted(const FText& InSearchText, ETextCommit::Type InCommitInfo);
+
+	FText GetSearchText() const;
+	void SetSearchText(const FText& InSearchText);
+
+	bool ShouldFilterOutAsset(const FAssetData& InAsset) const;
+
+	void OnAssetsActivated(TArrayView<const FContentBrowserItem> InSelectedItems, EAssetTypeActivationMethod::Type InActivationMethod);
+
+	/** Operations */
+	void SelectTemplate(UDynamicMaterialModel* InTemplateModel);
 
 	void CreateDynamicMaterialInInstance(UDynamicMaterialModel* InTemplateModel, UDynamicMaterialInstance* InToInstance);
 

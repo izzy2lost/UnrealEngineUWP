@@ -3,26 +3,31 @@
 #include "UI/Widgets/SDMMaterialWizard.h"
 
 #include "AssetRegistry/AssetData.h"
+#include "AssetTextFilter.h"
 #include "AssetThumbnail.h"
 #include "DMDefs.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "DynamicMaterialModule.h"
 #include "Engine/EngineTypes.h"
+#include "IContentBrowserSingleton.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Material/DynamicMaterialInstanceFactory.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "SAssetSearchBox.h"
+#include "SAssetView.h"
 #include "Styling/SlateTypes.h"
 #include "Styling/StyleColors.h"
-#include "ThumbnailRendering/ThumbnailManager.h"
 #include "UI/Widgets/SDMMaterialDesigner.h"
 #include "Utils/DMMaterialModelFunctionLibrary.h"
 #include "Utils/DMPrivate.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SExpandableArea.h"
+#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
@@ -98,7 +103,12 @@ void SDMMaterialWizard::Construct(const FArguments& InArgs, const TSharedRef<SDM
 
 	ChildSlot
 	[
-		CreateLayout()
+		SNew(SScrollBox)
+		+ SScrollBox::Slot()
+		.VAlign(EVerticalAlignment::VAlign_Fill)
+		[
+			CreateLayout()
+		]
 	];
 }
 
@@ -110,16 +120,6 @@ TSharedPtr<SDMMaterialDesigner> SDMMaterialWizard::GetDesignerWidget() const
 UDynamicMaterialModel* SDMMaterialWizard::GetMaterialModel() const
 {
 	return MaterialModelWeak.Get();
-}
-
-TArray<FAssetData> SDMMaterialWizard::GetTemplateMaterials()
-{
-	if (const UDynamicMaterialEditorSettings* Settings = GetDefault<UDynamicMaterialEditorSettings>())
-	{
-		return Settings->GetTemplateList();
-	}
-
-	return {};
 }
 
 TSharedRef<SWidget> SDMMaterialWizard::CreateLayout()
@@ -335,56 +335,99 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPreset_ChannelList()
 
 TSharedRef<SWidget> SDMMaterialWizard::CreateTemplateListLayout()
 {
-	TSharedRef<SWrapBox> WrapBox = SNew(SWrapBox)
-		.InnerSlotPadding(FVector2D(5.f))
-		.UseAllottedSize(true);
+	FAssetPickerConfig PickerConfig;
+	PickerConfig.SelectionMode = ESelectionMode::Single;
+	PickerConfig.Filter.ClassPaths.Add(FTopLevelAssetPath(UDynamicMaterialInstance::StaticClass()));
+	PickerConfig.Filter.bIncludeOnlyOnDiskAssets = true;
+	PickerConfig.ThumbnailLabel = EThumbnailLabel::AssetName;
+	PickerConfig.OnShouldFilterAsset.BindSP(this, &SDMMaterialWizard::ShouldFilterOutAsset);
+	PickerConfig.InitialAssetViewType = EAssetViewType::Tile;
+	PickerConfig.bAutohideSearchBar = false;
+	PickerConfig.bFocusSearchBoxWhenOpened = false;
+	PickerConfig.bShowBottomToolbar = false;
+	PickerConfig.bAllowDragging = false;
+	PickerConfig.bAllowRename = false;
+	PickerConfig.bCanShowClasses = false;
+	PickerConfig.bCanShowFolders = true;
+	PickerConfig.bCanShowReadOnlyFolders = true;
+	PickerConfig.bCanShowRealTimeThumbnails = true;
+	PickerConfig.bCanShowDevelopersFolder = true;
+	PickerConfig.bForceShowEngineContent = true;
+	PickerConfig.bForceShowPluginContent = true;
+	PickerConfig.bAddFilterUI = false;
 
-	TArray<FAssetData> Templates = GetTemplateMaterials();
+	PickerConfig.Filter.PackagePaths.Reset();
 
-	for (const FAssetData& Template : Templates)
-	{
-		WrapBox->AddSlot()
-			[
-				CreateTemplateList_Entry(Template)
-			];
-	}
+	TextFilter = MakeShared<FAssetTextFilter>();
+	TextFilter->SetIncludeClassName(true);
+	TextFilter->SetIncludeAssetPath(false);
+	TextFilter->SetIncludeCollectionNames(false);
 
-	return WrapBox;
-}
+	AssetView = SNew(SAssetView)
+		.InitialCategoryFilter(EContentBrowserItemCategoryFilter::IncludeAssets)
+		.SelectionMode(PickerConfig.SelectionMode)
+		.OnShouldFilterAsset(PickerConfig.OnShouldFilterAsset)
+		.OnItemsActivated(this, &SDMMaterialWizard::OnAssetsActivated)
+		.OnIsAssetValidForCustomToolTip(PickerConfig.OnIsAssetValidForCustomToolTip)
+		.OnGetCustomAssetToolTip(PickerConfig.OnGetCustomAssetToolTip)
+		.OnVisualizeAssetToolTip(PickerConfig.OnVisualizeAssetToolTip)
+		.OnAssetToolTipClosing(PickerConfig.OnAssetToolTipClosing)
+		.InitialSourcesData(FSourcesData())
+		.InitialBackendFilter(PickerConfig.Filter)
+		.InitialViewType(PickerConfig.InitialAssetViewType)
+		.InitialAssetSelection(PickerConfig.InitialAssetSelection)
+		.ShowBottomToolbar(PickerConfig.bShowBottomToolbar)
+		.OnAssetTagWantsToBeDisplayed(PickerConfig.OnAssetTagWantsToBeDisplayed)
+		.OnGetCustomSourceAssets(PickerConfig.OnGetCustomSourceAssets)
+		.AllowDragging(PickerConfig.bAllowDragging)
+		.CanShowClasses(PickerConfig.bCanShowClasses)
+		.CanShowFolders(PickerConfig.bCanShowFolders)
+		.CanShowReadOnlyFolders(PickerConfig.bCanShowReadOnlyFolders)
+		.ShowPathInColumnView(PickerConfig.bShowPathInColumnView)
+		.ShowTypeInColumnView(PickerConfig.bShowTypeInColumnView)
+		.ShowViewOptions(false)
+		.SortByPathInColumnView(PickerConfig.bSortByPathInColumnView)
+		.FilterRecursivelyWithBackendFilter(false)
+		.CanShowRealTimeThumbnails(PickerConfig.bCanShowRealTimeThumbnails)
+		.CanShowDevelopersFolder(PickerConfig.bCanShowDevelopersFolder)
+		.ForceShowEngineContent(PickerConfig.bForceShowEngineContent)
+		.ForceShowPluginContent(PickerConfig.bForceShowPluginContent)
+		.HighlightedText(TAttribute<FText>(this, &SDMMaterialWizard::GetSearchText))
+		.ThumbnailLabel(PickerConfig.ThumbnailLabel)
+		.AssetShowWarningText(PickerConfig.AssetShowWarningText)
+		.AllowFocusOnSync(false)
+		.HiddenColumnNames(PickerConfig.HiddenColumnNames)
+		.CustomColumns(PickerConfig.CustomColumns)
+		.InitialThumbnailSize(EThumbnailSize::Small)
+		.ShowTypeInTileView(false)
+		.TextFilter(TextFilter);
 
-TSharedRef<SWidget> SDMMaterialWizard::CreateTemplateList_Entry(const FAssetData& InTemplateAsset)
-{
-	Assets.Add(InTemplateAsset);
+	AssetView->RequestSlowFullListRefresh();
 
-	TSharedRef<FAssetThumbnail> Thumbnail = MakeShared<FAssetThumbnail>(InTemplateAsset, 100.f, 100.f, UThumbnailManager::Get().GetSharedThumbnailPool());
-	Thumbnails.Add(Thumbnail);
-
-	TSharedRef<SWidget> Entry = SNew(SBox)
-		.WidthOverride(100.f)
-		.HeightOverride(123.f)
-		.Cursor(EMouseCursor::Hand)
+	return SNew(SBorder)
+		.BorderImage(FAppStyle::Get().GetBrush("Menu.Background"))
+		.Padding(3.f, 3.f, 3.f, 3.f)
+		.VAlign(EVerticalAlignment::VAlign_Fill)
 		[
 			SNew(SVerticalBox)
+
 			+ SVerticalBox::Slot()
 			.AutoHeight()
+			.Padding(0.f, 0.f, 0.f, 3.f)
 			[
-				Thumbnail->MakeThumbnailWidget()
+				SAssignNew(AssetSearchBox, SAssetSearchBox)
+				.HintText(NSLOCTEXT("ContentBrowser", "SearchBoxHint", "Search Assets"))
+				.OnTextChanged(this, &SDMMaterialWizard::OnSearchBoxChanged)
+				.OnTextCommitted(this, &SDMMaterialWizard::OnSearchBoxCommitted)
+				.DelayChangeNotificationsWhileTyping(true)
 			]
+
 			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.f, 5.f, 0.f, 0.f)
+			.FillHeight(1.f)
 			[
-				SNew(STextBlock)
-				.WrapTextAt(100.f)
-				.WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping)
-				.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
-				.Text(FText::FromName(InTemplateAsset.AssetName))
+				AssetView.ToSharedRef()
 			]
 		];
-
-	Entry->SetOnMouseButtonDown(FPointerEventHandler::CreateSP(this, &SDMMaterialWizard::OnTemplateMouseDown, Assets.Num() - 1));
-
-	return Entry;
 }
 
 TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPreset_AcceptButton()
@@ -534,39 +577,101 @@ void SDMMaterialWizard::SetMode(ECheckBoxState InState, int32 InMode)
 	}
 }
 
-FReply SDMMaterialWizard::OnTemplateMouseDown(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, int32 InAssetIndex)
+void SDMMaterialWizard::OnSearchBoxChanged(const FText& InSearchText)
 {
-	if (!Assets.IsValidIndex(InAssetIndex))
+	SetSearchText(InSearchText);
+}
+
+void SDMMaterialWizard::OnSearchBoxCommitted(const FText& InSearchText, ETextCommit::Type InCommitInfo)
+{
+	SetSearchText(InSearchText);
+}
+
+FText SDMMaterialWizard::GetSearchText() const
+{
+	if (TextFilter.IsValid())
 	{
-		return FReply::Handled();
+		return TextFilter->GetRawFilterText();
 	}
 
+	return FText::GetEmpty();
+}
+
+void SDMMaterialWizard::SetSearchText(const FText& InSearchText)
+{
+	if (InSearchText.ToString().Equals(TextFilter->GetRawFilterText().ToString(), ESearchCase::CaseSensitive))
+	{
+		return;
+	}
+
+	TextFilter->SetRawFilterText(InSearchText);
+	AssetView->SetUserSearching(!InSearchText.IsEmpty());
+}
+
+bool SDMMaterialWizard::ShouldFilterOutAsset(const FAssetData& InAsset) const
+{
+	UDynamicMaterialInstance* Instance = Cast<UDynamicMaterialInstance>(InAsset.GetAsset());
+
+	if (!Instance)
+	{
+		return true;
+	}
+
+	UDynamicMaterialModelBase* MaterialModelBase = Instance->GetMaterialModelBase();
+
+	if (!MaterialModelBase)
+	{
+		return true;
+	}
+
+	return !MaterialModelBase->IsA<UDynamicMaterialModel>();
+}
+
+void SDMMaterialWizard::OnAssetsActivated(TArrayView<const FContentBrowserItem> InSelectedItems, EAssetTypeActivationMethod::Type InActivationMethod)
+{
+	if (InSelectedItems.IsEmpty() || InActivationMethod == EAssetTypeActivationMethod::Previewed)
+	{
+		return;
+	}
+
+	FAssetData AssetData;
+
+	if (!InSelectedItems[0].Legacy_TryGetAssetData(AssetData))
+	{
+		return;
+	}
+
+	UDynamicMaterialInstance* Instance = Cast<UDynamicMaterialInstance>(AssetData.GetAsset());
+
+	if (!Instance)
+	{
+		return;
+	}
+
+	UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(Instance->GetMaterialModelBase());
+
+	if (!MaterialModel)
+	{
+		return;
+	}
+
+	SelectTemplate(MaterialModel);
+}
+
+void SDMMaterialWizard::SelectTemplate(UDynamicMaterialModel* InTemplateModel)
+{
 	TSharedPtr<SDMMaterialDesigner> DesignerWidget = GetDesignerWidget();
 
 	if (!DesignerWidget.IsValid())
 	{
-		return FReply::Handled();
-	}
-
-	UDynamicMaterialInstance* TemplateInstance = Cast<UDynamicMaterialInstance>(Assets[InAssetIndex].GetAsset());
-
-	if (!TemplateInstance)
-	{
-		return FReply::Handled();
-	}
-
-	UDynamicMaterialModel* TemplateModel = Cast<UDynamicMaterialModel>(TemplateInstance->GetMaterialModelBase());
-
-	if (!TemplateModel)
-	{
-		return FReply::Handled();
+		return;
 	}
 
 	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
 	{
 		if (UDynamicMaterialInstance* Instance = MaterialModel->GetDynamicMaterialInstance())
 		{
-			CreateDynamicMaterialInInstance(TemplateModel, Instance);
+			CreateDynamicMaterialInInstance(InTemplateModel, Instance);
 		}
 		else
 		{
@@ -581,11 +686,11 @@ FReply SDMMaterialWizard::OnTemplateMouseDown(const FGeometry& InGeometry, const
 		{
 			if (UDynamicMaterialInstance* Instance = MaterialObjectProperty->GetMaterial())
 			{
-				CreateDynamicMaterialInInstance(TemplateModel, Instance);
+				CreateDynamicMaterialInInstance(InTemplateModel, Instance);
 			}
 			else
 			{
-				CreateNewDynamicInstanceInActor(TemplateModel, MaterialObjectProperty.GetValue());
+				CreateNewDynamicInstanceInActor(InTemplateModel, MaterialObjectProperty.GetValue());
 			}
 		}
 		else
@@ -601,8 +706,6 @@ FReply SDMMaterialWizard::OnTemplateMouseDown(const FGeometry& InGeometry, const
 
 		DesignerWidget->ShowSelectPrompt();
 	}
-
-	return FReply::Handled();
 }
 
 void SDMMaterialWizard::CreateDynamicMaterialInInstance(UDynamicMaterialModel* InTemplateModel, UDynamicMaterialInstance* InToInstance)
