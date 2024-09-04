@@ -11,7 +11,7 @@ namespace Chaos
 {
 	FClothingSimulationSkeletalMesh::FClothingSimulationSkeletalMesh(const UClothingAssetCommon* InAsset, const USkeletalMeshComponent* InSkeletalMeshComponent)
 		: FClothingSimulationMesh(InSkeletalMeshComponent->GetOwner() ?
-				FString::Format(TEXT("{0}|{1}"), { InSkeletalMeshComponent->GetOwner()->GetName(), InSkeletalMeshComponent->GetName() }) :
+				FString::Format(TEXT("{0}|{1}"), { InSkeletalMeshComponent->GetOwner()->GetActorNameOrLabel(), InSkeletalMeshComponent->GetName() }) :
 				InSkeletalMeshComponent->GetName())
 		, Asset(InAsset)
 		, SkeletalMeshComponent(InSkeletalMeshComponent)

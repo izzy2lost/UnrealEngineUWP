@@ -139,7 +139,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		FString DebugName;
 #if !UE_BUILD_SHIPPING
 		DebugName = ClothComponent.GetOwner() ?
-			FString::Format(TEXT("{0}|{1}"), { ClothComponent.GetOwner()->GetName(), ClothComponent.GetName() }) :
+			FString::Format(TEXT("{0}|{1}"), { ClothComponent.GetOwner()->GetActorNameOrLabel(), ClothComponent.GetName() }) :
 			ClothComponent.GetName();
 #endif
 		const int32 MeshIndex = Meshes.Emplace(MakeUnique<FClothSimulationMesh>(*ClothSimulationModel, *ClothSimulationContext, DebugName));
