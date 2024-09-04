@@ -30,6 +30,8 @@ public class TedsUI : ModuleRules
 				new string[]
 				{
 					"ToolWidgets",
+					"AppFramework",
+					"InputCore"
 				});
 
 			DynamicallyLoadedModuleNames.AddRange(new string[] {});

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Elements/Common/TypedElementCommonTypes.h"
+#include "Styling/SlateColor.h"
 #include "Templates/SharedPointer.h"
 
 #include "TypedElementSlateWidgetColumns.generated.h"
@@ -69,4 +70,17 @@ struct FDescriptionColumn final : public FEditorDataStorageColumn
 
 	UPROPERTY(meta = (Searchable))
 	FText Description;
+};
+
+/**
+ * A color for this row. Can be used by widget rows to determine widget color or non-widget rows to attach a logical color to their data
+ * (e.g asset colors)
+ */
+USTRUCT(meta = (DisplayName = "Color"))
+struct FSlateColorColumn final : public FEditorDataStorageColumn
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FSlateColor Color = FSlateColor::UseForeground();
 };

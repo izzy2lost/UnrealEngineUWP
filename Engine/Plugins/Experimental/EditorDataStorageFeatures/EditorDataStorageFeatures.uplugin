@@ -42,10 +42,13 @@
 		{
 			"Name": "TedsTableViewer",
 			"Type": "Editor"
-		}
-	,
+		},
 		{
 			"Name": "TedsContentBrowser",
+			"Type": "Editor"
+		},
+		{
+			"Name": "TedsStyling",
 			"Type": "Editor"
 		}
 	],
