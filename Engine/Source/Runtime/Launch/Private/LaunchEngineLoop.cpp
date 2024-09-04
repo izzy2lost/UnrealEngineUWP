@@ -6291,22 +6291,15 @@ void CleanUpPath(FString& InPath)
 
 bool DoesCurrentExecutableMatch(const FString& EditorTargetFileName)
 {
-	// Figure out the executable that we should be running
-	FString LaunchExecutableName;
 	FTargetReceipt Receipt;
 	if (!FPaths::FileExists(EditorTargetFileName) || !Receipt.Read(EditorTargetFileName))
 	{
 		return false;
 	}
-	LaunchExecutableName = Receipt.Launch;
-	CleanUpPath(LaunchExecutableName);
 
-	// Get the current executable name. Don't allow relaunching if we're running the console app.
-	FString CurrentExecutableName = FPlatformProcess::ExecutablePath();
-	CleanUpPath(CurrentExecutableName);
-
-	// Nothing to do if they're the same
-	return FPaths::IsSamePath(LaunchExecutableName, CurrentExecutableName);
+	// Returning false for -Cmd matches legacy behavior; do we want to change this?
+	const bool bCheckLaunch_true = true, bCheckCmd_false = false;
+	return Receipt.LaunchesCurrentExecutable(bCheckLaunch_true, bCheckCmd_false);
 }
 
 bool LaunchCorrectEditorExecutable(const FString& EditorTargetFileName)
@@ -6516,6 +6509,7 @@ bool FEngineLoop::AppInit( )
 				{
 					ScratchEditorTargetFileName = FTargetReceipt::GetDefaultPath(*FPaths::EngineDir(), *Target.Name, FPlatformProcess::GetBinariesSubdirectory(), FApp::GetBuildConfiguration(), nullptr);
 				}
+
 				if (DoesCurrentExecutableMatch(ScratchEditorTargetFileName))
 				{
 					EditorTargetFileName = MoveTemp(ScratchEditorTargetFileName);

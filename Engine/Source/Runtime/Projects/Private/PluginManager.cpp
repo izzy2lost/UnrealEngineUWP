@@ -1419,29 +1419,55 @@ bool FPluginManager::ConfigureEnabledPlugins()
 		FString DefaultEditorTarget;
 		GConfig->GetString(TEXT("/Script/BuildSettings.BuildSettings"), TEXT("DefaultEditorTarget"), DefaultEditorTarget, GEngineIni);
 
-		auto FindFirstMatchingTargetFile = [&DefaultEditorTarget](const FString& ReceiptWildcard) -> TUniquePtr<FTargetReceipt>
+		auto FindMatchingTargetFile = [&DefaultEditorTarget](const FString& ReceiptWildcard) -> TUniquePtr<FTargetReceipt>
 		{
 			TArray<FString> AllTargetFilesWithoutPath;
 			const FString ReceiptPath = FPaths::GetPath(ReceiptWildcard);
 			IFileManager::Get().FindFiles(AllTargetFilesWithoutPath, *ReceiptWildcard, true, false);
 
+			// Used as a fallback in lieu of an exact match (only for EBuildTargetType::Editor).
+			TPair<FString, TUniquePtr<FTargetReceipt>> BestMatch;
+
 			for (const FString& TargetFileWithoutPath : AllTargetFilesWithoutPath)
 			{
-				const FString TargetFile = FPaths::Combine(ReceiptPath, TargetFileWithoutPath);
+				FString TargetFile = FPaths::Combine(ReceiptPath, TargetFileWithoutPath);
 				TUniquePtr<FTargetReceipt> Receipt = MakeUnique<FTargetReceipt>();
 				if (Receipt->Read(TargetFile))
 				{
 					if (Receipt->TargetType == FApp::GetBuildTargetType() && Receipt->Configuration == FApp::GetBuildConfiguration())
 					{
-						bool bIsDefaultTarget = Receipt->TargetType != EBuildTargetType::Editor || (DefaultEditorTarget.Len() == 0) || (DefaultEditorTarget == Receipt->TargetName);
-						if (bIsDefaultTarget)
+						// Priority:
+						// - If we are non-editor, first non-editor receipt
+						// - Otherwise, first that matches the running executable
+						// - Otherwise, first corresponding to DefaultEditorTarget (if specified)
+						// - Otherwise, first editor receipt
+						if (Receipt->TargetType != EBuildTargetType::Editor || Receipt->LaunchesCurrentExecutable())
 						{
+							UE_LOG(LogPluginManager, Log, TEXT("Found matching target receipt: %s"), *TargetFile);
 							return Receipt;
+						}
+
+						const bool bIsDefaultTarget = (DefaultEditorTarget.Len() != 0) && (DefaultEditorTarget == Receipt->TargetName);
+						if (bIsDefaultTarget || !BestMatch.Value)
+						{
+							BestMatch = { MoveTemp(TargetFile), MoveTemp(Receipt) };
+							// `TargetFile` and `Receipt` are now invalidated by virtue of being moved-from.
 						}
 					}
 				}
 			}
-			return TUniquePtr<FTargetReceipt>();
+
+			if (BestMatch.Value)
+			{
+				UE_LOG(LogPluginManager, Log, TEXT("Found target receipt: %s"), *BestMatch.Key);
+			}
+			else
+			{
+				UE_LOG(LogPluginManager, Log, TEXT("Unable to find target receipt in path: %s"), *ReceiptWildcard);
+			}
+
+			// Might be null.
+			return MoveTemp(BestMatch.Value);
 		};
 #endif // READ_TARGET_ENABLED_PLUGINS_FROM_RECEIPT
 
@@ -1457,11 +1483,11 @@ bool FPluginManager::ConfigureEnabledPlugins()
 			SCOPED_BOOT_TIMING("ReadTargetBuildPluginsFromReceipt");
 
 			// Read the build plugins from the target file using the target receipt file. This controls which optional plugin references can be enabled.
-			auto ReadBuildPluginsFromFirstMatchingTargetFile = [&FindFirstMatchingTargetFile, &AllowedOptionalDependencies](const TCHAR* BaseDir) -> bool
+			auto ReadBuildPluginsFromFirstMatchingTargetFile = [&FindMatchingTargetFile, &AllowedOptionalDependencies](const TCHAR* BaseDir) -> bool
 			{
 				const FString ReceiptWildcard = FTargetReceipt::GetDefaultPath(BaseDir, TEXT("*"), FPlatformProcess::GetBinariesSubdirectory(), FApp::GetBuildConfiguration(), nullptr);
 
-				TUniquePtr<FTargetReceipt> Receipt = FindFirstMatchingTargetFile(ReceiptWildcard);
+				TUniquePtr<FTargetReceipt> Receipt = FindMatchingTargetFile(ReceiptWildcard);
 				if (Receipt.IsValid())
 				{
 					AllowedOptionalDependencies.Append(Receipt->BuildPlugins);
@@ -1470,6 +1496,7 @@ bool FPluginManager::ConfigureEnabledPlugins()
 				return false;
 			};
 
+			UE_LOG(LogPluginManager, Log, TEXT("Looking for build plugins target receipt"));
 			if (!ReadBuildPluginsFromFirstMatchingTargetFile(FPlatformMisc::ProjectDir()))
 			{
 				ReadBuildPluginsFromFirstMatchingTargetFile(FPlatformMisc::EngineDir());
@@ -1607,14 +1634,14 @@ bool FPluginManager::ConfigureEnabledPlugins()
 
 #if READ_TARGET_ENABLED_PLUGINS_FROM_RECEIPT
 			// Configure the plugins that were enabled or disabled from the target file using the target receipt file
-			auto ConfigurePluginsFromFirstMatchingTargetFile = [this, &FindFirstMatchingTargetFile, &ConfiguredPluginNames,
+			auto ConfigurePluginsFromFirstMatchingTargetFile = [this, &FindMatchingTargetFile, &ConfiguredPluginNames,
 				&EnabledPlugins, &AllowedOptionalDependencies, &bAllowEnginePluginsEnabledByDefault]
 				(const TCHAR* BaseDir, bool& bOutError) -> bool
 			{
 				const FString ReceiptWildcard = FTargetReceipt::GetDefaultPath(BaseDir, TEXT("*"), FPlatformProcess::GetBinariesSubdirectory(), FApp::GetBuildConfiguration(), nullptr);
 				FString SourceDescription = FString::Printf(TEXT("Receipt files %s"), *ReceiptWildcard);
 
-				TUniquePtr<FTargetReceipt> Receipt = FindFirstMatchingTargetFile(ReceiptWildcard);
+				TUniquePtr<FTargetReceipt> Receipt = FindMatchingTargetFile(ReceiptWildcard);
 				if (Receipt.IsValid())
 				{
 					FReceiptProperty* AllowDefaultProperty = Algo::FindByPredicate(Receipt->AdditionalProperties,
@@ -1648,6 +1675,7 @@ bool FPluginManager::ConfigureEnabledPlugins()
 
 			{
 				SCOPED_BOOT_TIMING("ConfigureTargetEnabledPluginsFromReceipt");
+				UE_LOG(LogPluginManager, Log, TEXT("Looking for enabled plugins target receipt"));
 				bool bErrorConfiguring = false;
 				if (!ConfigurePluginsFromFirstMatchingTargetFile(FPlatformMisc::ProjectDir(), bErrorConfiguring))
 				{

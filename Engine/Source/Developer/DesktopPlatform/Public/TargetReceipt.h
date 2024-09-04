@@ -8,6 +8,7 @@
 #include "CoreMinimal.h"
 #include "HAL/Platform.h"
 #include "HAL/PlatformMisc.h"
+#include "Misc/Optional.h"
 #include "Modules/BuildVersion.h"
 
 /**
@@ -75,8 +76,14 @@ struct DESKTOPPLATFORM_API FTargetReceipt
 	/** The version information for this target */
 	FBuildVersion Version;
 
-	/** The exectuable to launch for this target */
+	/**
+	 * The executable to launch for this target.
+	 * (NOTE: If the LaunchCmd field exists, but Launch does not, this will actually reflect LaunchCmd!)
+	 */
 	FString Launch;
+
+	/** The console subsystem executable for this target */
+	TOptional<FString> LaunchCmd;
 
 	/** The build products which are part of this target */
 	TArray<FBuildProduct> BuildProducts;
@@ -101,6 +108,15 @@ struct DESKTOPPLATFORM_API FTargetReceipt
 	 * @return True if the file was read successfully
 	 */
 	bool Read(const FString& FileName, bool bExpandVariables = true);
+
+	/**
+	 * Compares the running executable's path to the `Launch` and/or `LaunchCmd` paths.
+	 * 
+	 * @param bCheckLaunchField Return true if the current executable is the one referred to by the `Launch` field.
+	 * @param bCheckLaunchCmdField Return true if the current executable is the one referred to by the `LaunchCmd` field.
+	 * @return True if either specified check matches; otherwise, false.
+	 */
+	bool LaunchesCurrentExecutable(bool bCheckLaunchField = true, bool bCheckLaunchCmdField = true) const;
 
 	/**
 	 * Gets the default path for a target receipt
