@@ -1747,8 +1747,11 @@ void FRigVMEditor::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMG
 										}
 
 										// we are ok with not reacting to errors here
-										FRigVMPinDefaultValueImportErrorContext ErrorPipe;										
-										Property->ImportText_Direct(*DefaultValue, PropertyStorage, nullptr, PPF_None, &ErrorPipe);
+										if(Property && PropertyStorage)
+										{
+											FRigVMPinDefaultValueImportErrorContext ErrorPipe;										
+											Property->ImportText_Direct(*DefaultValue, PropertyStorage, nullptr, PPF_None, &ErrorPipe);
+										}
 									}
 								}
 							}
