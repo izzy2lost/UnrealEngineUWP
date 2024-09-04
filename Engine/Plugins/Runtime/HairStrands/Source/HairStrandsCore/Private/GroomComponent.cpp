@@ -4333,7 +4333,11 @@ FGroomComponentRecreateRenderStateContext::~FGroomComponentRecreateRenderStateCo
 			{
 				GroomComponent->InitResources();
 			}
-			GroomComponent->CreateRenderState_Concurrent(nullptr);
+
+			if (!GroomComponent->IsRenderStateCreated())
+			{
+				GroomComponent->CreateRenderState_Concurrent(nullptr);
+			}
 		}
 	}
 }
