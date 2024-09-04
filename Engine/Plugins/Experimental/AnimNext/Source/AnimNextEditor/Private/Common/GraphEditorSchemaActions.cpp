@@ -250,4 +250,67 @@ UEdGraphNode* FAnimNextSchemaAction_AddComment::PerformAction(UEdGraph* ParentGr
 	return FEdGraphSchemaAction_NewNode::SpawnNodeFromTemplate<UEdGraphNode_Comment>(ParentGraph, CommentTemplate, SpawnLocation, bSelectNewNode);
 }
 
+// *** Graph Function ***
+
+FAnimNextSchemaAction_Function::FAnimNextSchemaAction_Function(const FRigVMGraphFunctionHeader& InReferencedPublicFunctionHeader, const FText& InNodeCategory, const FText& InMenuDesc, const FText& InToolTip, const FText& InKeywords)
+	: FAnimNextSchemaAction(InNodeCategory, InMenuDesc, InToolTip, InKeywords)
+{
+	ReferencedPublicFunctionHeader = InReferencedPublicFunctionHeader;
+	NodeClass = UAnimNextEdGraphNode::StaticClass();
+	bIsLocalFunction = true;
+}
+
+FAnimNextSchemaAction_Function::FAnimNextSchemaAction_Function(const URigVMLibraryNode* InFunctionLibraryNode, const FText& InNodeCategory, const FText& InMenuDesc, const FText& InToolTip, const FText& InKeywords)
+	: FAnimNextSchemaAction(InNodeCategory, InMenuDesc, InToolTip, InKeywords)
+{
+	ReferencedPublicFunctionHeader = InFunctionLibraryNode->GetFunctionHeader();
+	NodeClass = UAnimNextEdGraphNode::StaticClass();
+	bIsLocalFunction = true;
+}
+
+const FSlateBrush* FAnimNextSchemaAction_Function::GetIconBrush() const
+{
+	return FAppStyle::GetBrush("GraphEditor.Function_16x");
+}
+
+UEdGraphNode* FAnimNextSchemaAction_Function::PerformAction(UEdGraph* ParentGraph, TArray<UEdGraphPin*>& FromPins, const FVector2D Location, bool bSelectNewNode)
+{
+	IRigVMClientHost* Host = ParentGraph->GetImplementingOuter<IRigVMClientHost>();
+	URigVMEdGraphNode* NewNode = nullptr;
+	URigVMEdGraph* EdGraph = Cast<URigVMEdGraph>(ParentGraph);
+
+	UEdGraphPin* FromPin = nullptr;
+	if (FromPins.Num() > 0)
+	{
+		FromPin = FromPins[0];
+	}
+
+	if (Host != nullptr && EdGraph != nullptr)
+	{
+		FName Name = UE::AnimNext::Editor::FUtils::ValidateName(Cast<UObject>(Host), ReferencedPublicFunctionHeader.Name.ToString());
+		URigVMController* Controller = EdGraph->GetController();
+
+		Controller->OpenUndoBracket(FString::Printf(TEXT("Add '%s' Node"), *Name.ToString()));
+
+		if (URigVMFunctionReferenceNode* ModelNode = Controller->AddFunctionReferenceNodeFromDescription(ReferencedPublicFunctionHeader, Location, Name.ToString(), true, true))
+		{
+			NewNode = Cast<URigVMEdGraphNode>(EdGraph->FindNodeForModelNodeName(ModelNode->GetFName()));
+			check(NewNode);
+
+			if (NewNode)
+			{
+				Controller->ClearNodeSelection(true);
+				Controller->SelectNode(ModelNode, true, true);
+			}
+			Controller->CloseUndoBracket();
+		}
+		else
+		{
+			Controller->CancelUndoBracket();
+		}
+	}
+
+	return NewNode;
+}
+
 #undef LOCTEXT_NAMESPACE

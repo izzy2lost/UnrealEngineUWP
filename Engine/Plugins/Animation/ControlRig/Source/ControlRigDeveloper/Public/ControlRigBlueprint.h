@@ -76,15 +76,17 @@ class CONTROLRIGDEVELOPER_API UControlRigBlueprint : public URigVMBlueprint, pub
 public:
 	UControlRigBlueprint();
 
-	// URigVMBlueprint interface
-	virtual UClass* GetRigVMBlueprintGeneratedClassPrototype() const override { return UControlRigBlueprintGeneratedClass::StaticClass(); }
+	//  --- IRigVMClientHost interface ---
 	virtual UClass* GetRigVMSchemaClass() const override { return UControlRigSchema::StaticClass(); }
 	virtual UScriptStruct* GetRigVMExecuteContextStruct() const override { return FControlRigExecuteContext::StaticStruct(); }
 	virtual UClass* GetRigVMEdGraphClass() const override;
 	virtual UClass* GetRigVMEdGraphNodeClass() const override;
 	virtual UClass* GetRigVMEdGraphSchemaClass() const override;
-	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName) override;
 	virtual UClass* GetRigVMEditorSettingsClass() const override;
+
+	// URigVMBlueprint interface
+	virtual UClass* GetRigVMBlueprintGeneratedClassPrototype() const override { return UControlRigBlueprintGeneratedClass::StaticClass(); }
+	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName) override;
 	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 #if WITH_EDITOR
 	virtual const FLazyName& GetPanelPinFactoryName() const override;

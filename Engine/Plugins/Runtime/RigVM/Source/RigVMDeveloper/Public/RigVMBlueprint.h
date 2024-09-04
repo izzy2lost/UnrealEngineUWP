@@ -236,24 +236,6 @@ public:
 	/** Returns the class used as the super class for all generated classes */
 	virtual UClass* GetRigVMBlueprintGeneratedClassPrototype() const { return URigVMBlueprintGeneratedClass::StaticClass(); }
 
-	/** Returns the expected schema class to use for this blueprint */
-	virtual UClass* GetRigVMSchemaClass() const { return URigVMSchema::StaticClass(); }
-
-	/** Returns the expected execute context struct to use for this blueprint */
-	virtual UScriptStruct* GetRigVMExecuteContextStruct() const { return FRigVMExecuteContext::StaticStruct(); }
-
-	/** Returns the expected ed graph class to use for this blueprint */
-	virtual UClass* GetRigVMEdGraphClass() const { return URigVMEdGraph::StaticClass(); }
-
-	/** Returns the expected ed graph node class to use for this blueprint */
-	virtual UClass* GetRigVMEdGraphNodeClass() const { return URigVMEdGraphNode::StaticClass(); }
-
-	/** Returns the expected ed graph schema class to use for this blueprint */
-	virtual UClass* GetRigVMEdGraphSchemaClass() const { return URigVMEdGraphSchema::StaticClass(); }
-
-	/** Returns the class of the settings to use */
-	virtual UClass* GetRigVMEditorSettingsClass() const { return URigVMEditorSettings::StaticClass(); }
-
 	/** Returns the settings defaults for this blueprint */
 	URigVMEditorSettings* GetRigVMEditorSettings() const;
 
@@ -322,6 +304,13 @@ public:
 	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 
 	//  --- IRigVMClientHost interface Start---
+	virtual FString GetAssetName() const override { return GetName(); }
+	virtual UClass* GetRigVMSchemaClass() const override { return URigVMSchema::StaticClass(); }
+	virtual UScriptStruct* GetRigVMExecuteContextStruct() const { return FRigVMExecuteContext::StaticStruct(); }
+	virtual UClass* GetRigVMEdGraphClass() const override { return URigVMEdGraph::StaticClass(); }
+	virtual UClass* GetRigVMEdGraphNodeClass() const override { return URigVMEdGraphNode::StaticClass(); }
+	virtual UClass* GetRigVMEdGraphSchemaClass() const override { return URigVMEdGraphSchema::StaticClass(); }
+	virtual UClass* GetRigVMEditorSettingsClass() const override { return URigVMEditorSettings::StaticClass(); }
 	virtual FRigVMClient* GetRigVMClient() override;
 	virtual const FRigVMClient* GetRigVMClient() const override;
 	virtual IRigVMGraphFunctionHost* GetRigVMGraphFunctionHost() override;
@@ -333,6 +322,7 @@ public:
 	virtual void HandleRigVMGraphRenamed(const FRigVMClient* InClient, const FString& InOldNodePath, const FString& InNewNodePath) override;
 	virtual void HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure) override;
 	virtual UObject* ResolveUserDefinedTypeById(const FString& InTypeName) const override;
+
 
 	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
 	virtual void RecompileVM() override;
@@ -406,6 +396,13 @@ public:
 
 	virtual void SetupPinRedirectorsForBackwardsCompatibility() override {};
 
+	virtual FRigVMGraphModifiedEvent& OnModified() override;
+
+	virtual bool IsFunctionPublic(const FName& InFunctionName) const override;
+	virtual void MarkFunctionPublic(const FName& InFunctionName, bool bIsPublic = true) override;
+
+	virtual void RenameGraph(const FString& InNodePath, const FName& InNewName) override;
+
 	//  --- IRigVMClientHost interface End ---
 
 	//  --- IRigVMExternalDependencyManager interface Start ---
@@ -439,9 +436,6 @@ public:
 	UPROPERTY()
 	TObjectPtr<URigVMEdGraph> FunctionLibraryEdGraph;
 #endif
-
-	bool IsFunctionPublic(const FName& InFunctionName) const;
-	void MarkFunctionPublic(const FName& InFunctionName, bool bIsPublic = true);
 
 	// Returns a list of dependencies of this blueprint.
 	// Dependencies are blueprints that contain functions used in this blueprint
@@ -534,7 +528,6 @@ public:
 
 	void RebuildGraphFromModel();
 
-	FRigVMGraphModifiedEvent& OnModified();
 	FOnRigVMCompiledEvent& OnVMCompiled();
 
 	UFUNCTION(BlueprintCallable, Category = "VM")
@@ -753,7 +746,6 @@ private:
 	UEdGraph* CreateEdGraph(URigVMGraph* InModel, bool bForce = false);
 	bool RemoveEdGraph(URigVMGraph* InModel);
 	void DestroyObject(UObject* InObject);
-	void RenameGraph(const FString& InNodePath, const FName& InNewName);
 	void CreateEdGraphForCollapseNodeIfNeeded(URigVMCollapseNode* InNode, bool bForce = false);
 	bool RemoveEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bNotify = false);
 	void HandleReportFromCompiler(EMessageSeverity::Type InSeverity, UObject* InSubject, const FString& InMessage);

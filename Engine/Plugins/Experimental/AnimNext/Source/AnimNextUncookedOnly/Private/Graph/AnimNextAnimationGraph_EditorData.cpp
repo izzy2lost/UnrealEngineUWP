@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/AnimNextAnimationGraph_EditorData.h"
 
@@ -466,8 +466,7 @@ void UAnimNextAnimationGraph_EditorData::RecompileVM()
 	// to call trait destructors etc
 	AnimationGraph->FreezeGraphInstances();
 
-	CachedExports = FAnimNextAssetRegistryExports();
-	FUtils::GetAssetVariables(this, CachedExports.GetValue());
+	CachedExports.Reset(); // asset variables and other tags will be updated at the end by AssetRegistry->AssetUpdateTags
 
 	bErrorsDuringCompilation = false;
 
@@ -673,6 +672,7 @@ void UAnimNextAnimationGraph_EditorData::RecompileVM()
 //	RefreshBreakpoints(EditorData);
 #endif
 
+	// Refresh CachedExports, also updates variables at UAnimNextRigVMAssetEditorData::GetAssetRegistryTags
 	if (IAssetRegistry* AssetRegistry = IAssetRegistry::Get())
 	{
 		AssetRegistry->AssetUpdateTags(GetTypedOuter<UAnimNextAnimationGraph>(), EAssetRegistryTagsCaller::Fast);

@@ -111,7 +111,7 @@ FRigVMNameValidator::FRigVMNameValidator(const UBlueprint* Blueprint, const UStr
 		FBlueprintEditorUtils::GetSCSVariableNameList(Blueprint, NamesTemp);
 		FBlueprintEditorUtils::GetImplementingBlueprintsFunctionNameList(Blueprint, NamesTemp);
 
-		for (FName & Name : NamesTemp)
+		for (FName& Name : NamesTemp)
 		{
 			Names.Add(Name.ToString());
 		}
@@ -1629,21 +1629,21 @@ bool URigVMEdGraphSchema::TryRenameGraph(UEdGraph* GraphToRename, const FName& I
 {
 	if (const URigVMEdGraph* RigGraph = Cast<URigVMEdGraph>(GraphToRename))
 	{
-		if (URigVMBlueprint* RigBlueprint = Cast<URigVMBlueprint>(FBlueprintEditorUtils::FindBlueprintForGraph(RigGraph)))
+		if (IRigVMClientHost* ClientHost = RigGraph->GetImplementingOuter<IRigVMClientHost>())
 		{
 			if (const URigVMGraph* Model = RigGraph->GetModel())
 			{
 				if(Model->IsRootGraph())
 				{
 					const FString NewName = FString::Printf(TEXT("%s %s"), FRigVMClient::RigVMModelPrefix, *InNewName.ToString()); 
-					RigBlueprint->RenameGraph(Model->GetNodePath(), *NewName);
+					ClientHost->RenameGraph(Model->GetNodePath(), *NewName);
 				}
 				else if (const URigVMGraph* RootModel = Model->GetRootGraph())
 				{
 					URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(RootModel->FindNode(RigGraph->ModelNodePath));
 					if (LibraryNode)
 					{
-						if (URigVMController* Controller = RigBlueprint->GetOrCreateController(LibraryNode->GetGraph()))
+						if (URigVMController* Controller = ClientHost->GetOrCreateController(LibraryNode->GetGraph()))
 						{
 							Controller->RenameNode(LibraryNode, InNewName, true, true);
 							return true;

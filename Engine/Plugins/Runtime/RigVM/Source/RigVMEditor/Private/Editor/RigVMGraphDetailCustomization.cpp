@@ -41,26 +41,26 @@
 static const FText RigVMGraphDetailCustomizationMultipleValues = LOCTEXT("MultipleValues", "Multiple Values");
 
 FRigVMFunctionArgumentGroupLayout::FRigVMFunctionArgumentGroupLayout(
-	URigVMGraph* InGraph, 
-	URigVMBlueprint* InBlueprint, 
-	TWeakPtr<FRigVMEditor> InEditor,
+	const TWeakObjectPtr<URigVMGraph>& InGraph,
+	const TWeakInterfacePtr<IRigVMClientHost>& InRigVMClientHost,
+	const TWeakPtr<FRigVMEditor>& InEditor,
 	bool bInputs)
 	: GraphPtr(InGraph)
-	, RigVMBlueprintPtr(InBlueprint)
+	, WeakRigVMClientHost(InRigVMClientHost)
 	, RigVMEditorPtr(InEditor)
 	, bIsInputGroup(bInputs)
 {
-	if (RigVMBlueprintPtr.IsValid())
+	if (WeakRigVMClientHost.IsValid())
 	{
-		RigVMBlueprintPtr.Get()->OnModified().AddRaw(this, &FRigVMFunctionArgumentGroupLayout::HandleModifiedEvent);
+		WeakRigVMClientHost->OnModified().AddRaw(this, &FRigVMFunctionArgumentGroupLayout::HandleModifiedEvent);
 	}
 }
 
 FRigVMFunctionArgumentGroupLayout::~FRigVMFunctionArgumentGroupLayout()
 {
-	if (RigVMBlueprintPtr.IsValid())
+	if (WeakRigVMClientHost.IsValid())
 	{
-		RigVMBlueprintPtr.Get()->OnModified().RemoveAll(this);
+		WeakRigVMClientHost->OnModified().RemoveAll(this);
 	}
 }
 
@@ -79,8 +79,8 @@ void FRigVMFunctionArgumentGroupLayout::GenerateChildContent(IDetailChildrenBuil
 				{
 					TSharedRef<class FRigVMFunctionArgumentLayout> ArgumentLayout = MakeShareable(new FRigVMFunctionArgumentLayout(
 						Pin,
-						Graph,
-						RigVMBlueprintPtr.Get(),
+						GraphPtr,
+						WeakRigVMClientHost,
 						RigVMEditorPtr
 					));
 					ChildrenBuilder.AddCustomBuilder(ArgumentLayout);
@@ -150,7 +150,7 @@ void FRigVMFunctionArgumentGroupLayout::HandleModifiedEvent(ERigVMGraphNotifType
 class FRigVMFunctionArgumentPinTypeSelectorFilter : public IPinTypeSelectorFilter
 {
 public:
-	FRigVMFunctionArgumentPinTypeSelectorFilter(TWeakPtr<FRigVMEditor> InRigVMEditor, TWeakObjectPtr<URigVMGraph> InGraph)
+	FRigVMFunctionArgumentPinTypeSelectorFilter(const TWeakPtr<FRigVMEditor>& InRigVMEditor, const TWeakObjectPtr<URigVMGraph>& InGraph)
 		: RigVMEditorPtr(InRigVMEditor), GraphPtr(InGraph)
 	{
 	}
@@ -326,13 +326,13 @@ void FRigVMFunctionArgumentLayout::GenerateChildContent(IDetailChildrenBuilder& 
 
 void FRigVMFunctionArgumentLayout::OnRemoveClicked()
 {
-	if (PinPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (PinPtr.IsValid() && WeakRigVMClientHost.IsValid())
 	{
 		URigVMPin* Pin = PinPtr.Get();
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
+		IRigVMClientHost* RigVMClientHost = WeakRigVMClientHost.Get();
 		if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Pin->GetNode()))
 		{
-			if (URigVMController* Controller = Blueprint->GetController(LibraryNode->GetContainedGraph()))
+			if (URigVMController* Controller = RigVMClientHost->GetController(LibraryNode->GetContainedGraph()))
 			{
 				Controller->RemoveExposedPin(Pin->GetFName(), true, true);
 			}
@@ -342,13 +342,13 @@ void FRigVMFunctionArgumentLayout::OnRemoveClicked()
 
 FReply FRigVMFunctionArgumentLayout::OnArgMoveUp()
 {
-	if (PinPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (PinPtr.IsValid() && WeakRigVMClientHost.IsValid())
 	{
 		URigVMPin* Pin = PinPtr.Get();
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
+		IRigVMClientHost* RigVMClientHost = WeakRigVMClientHost.Get();
 		if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Pin->GetNode()))
 		{
-			if (URigVMController* Controller = Blueprint->GetController(LibraryNode->GetContainedGraph()))
+			if (URigVMController* Controller = RigVMClientHost->GetController(LibraryNode->GetContainedGraph()))
 			{
 				bool bIsInput = Pin->GetDirection() == ERigVMPinDirection::Input || Pin->GetDirection() == ERigVMPinDirection::IO;
 				
@@ -385,13 +385,13 @@ FReply FRigVMFunctionArgumentLayout::OnArgMoveUp()
 
 FReply FRigVMFunctionArgumentLayout::OnArgMoveDown()
 {
-	if (PinPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (PinPtr.IsValid() && WeakRigVMClientHost.IsValid())
 	{
 		URigVMPin* Pin = PinPtr.Get();
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
+		IRigVMClientHost* RigVMClientHost = WeakRigVMClientHost.Get();
 		if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Pin->GetNode()))
 		{
-			if (URigVMController* Controller = Blueprint->GetController(LibraryNode->GetContainedGraph()))
+			if (URigVMController* Controller = RigVMClientHost->GetController(LibraryNode->GetContainedGraph()))
 			{
 				bool bIsInput = Pin->GetDirection() == ERigVMPinDirection::Input || Pin->GetDirection() == ERigVMPinDirection::IO;
 				
@@ -527,13 +527,13 @@ void FRigVMFunctionArgumentLayout::OnArgNameTextCommitted(const FText& NewText, 
 {
 	if (InTextCommit == ETextCommit::OnEnter)
 	{
-		if (!NewText.IsEmpty() && PinPtr.IsValid() && RigVMBlueprintPtr.IsValid() && !ShouldPinBeReadOnly())
+		if (!NewText.IsEmpty() && PinPtr.IsValid() && WeakRigVMClientHost.IsValid() && !ShouldPinBeReadOnly())
 		{
 			URigVMPin* Pin = PinPtr.Get();
-			URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
+			IRigVMClientHost* RigVMClientHost = WeakRigVMClientHost.Get();
 			if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Pin->GetNode()))
 			{
-				if (URigVMController* Controller = Blueprint->GetController(LibraryNode->GetContainedGraph()))
+				if (URigVMController* Controller = RigVMClientHost->GetController(LibraryNode->GetContainedGraph()))
 				{
 					const FString& NewName = NewText.ToString();
 					Controller->RenameExposedPin(Pin->GetFName(), *NewName, true, true);
@@ -554,13 +554,13 @@ FEdGraphPinType FRigVMFunctionArgumentLayout::OnGetPinInfo() const
 
 void FRigVMFunctionArgumentLayout::PinInfoChanged(const FEdGraphPinType& PinType)
 {
-	if (PinPtr.IsValid() && RigVMBlueprintPtr.IsValid() && FBlueprintEditorUtils::IsPinTypeValid(PinType))
+	if (PinPtr.IsValid() && WeakRigVMClientHost.IsValid() && FBlueprintEditorUtils::IsPinTypeValid(PinType))
 	{
 		URigVMPin* Pin = PinPtr.Get();
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
+		IRigVMClientHost* RigVMClientHost = WeakRigVMClientHost.Get();
 		if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Pin->GetNode()))
 		{
-			if (URigVMController* Controller = Blueprint->GetController(LibraryNode->GetContainedGraph()))
+			if (URigVMController* Controller = RigVMClientHost->GetController(LibraryNode->GetContainedGraph()))
 			{
 				FString CPPType;
 				FName CPPTypeObjectName = NAME_None;
@@ -586,19 +586,20 @@ void FRigVMFunctionArgumentLayout::OnPrePinInfoChange(const FEdGraphPinType& Pin
 }
 
 FRigVMFunctionArgumentDefaultNode::FRigVMFunctionArgumentDefaultNode(
-	URigVMGraph* InGraph,
-	URigVMBlueprint* InBlueprint
+	const TWeakObjectPtr<URigVMGraph>& InGraph,
+	const TWeakInterfacePtr<IRigVMClientHost>& InClientHost
 )
 	: GraphPtr(InGraph)
-	, RigVMBlueprintPtr(InBlueprint)
+	, WeakRigVMClientHost(InClientHost)
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (GraphPtr.IsValid() && WeakRigVMClientHost.IsValid())
 	{
-		RigVMBlueprintPtr.Get()->OnModified().AddRaw(this, &FRigVMFunctionArgumentDefaultNode::HandleModifiedEvent);
+		IRigVMClientHost* RigVMClientHost = WeakRigVMClientHost.Get();
+		RigVMClientHost->OnModified().AddRaw(this, &FRigVMFunctionArgumentDefaultNode::HandleModifiedEvent);
 
 		if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(GraphPtr->GetOuter()))
 		{
-			if (URigVMEdGraph* RigGraph = Cast<URigVMEdGraph>(RigVMBlueprintPtr->GetEdGraph(LibraryNode->GetGraph())))
+			if (URigVMEdGraph* RigGraph = Cast<URigVMEdGraph>(RigVMClientHost->GetEditorObjectForRigVMGraph(LibraryNode->GetGraph())))
 			{
 				EdGraphOuterPtr = RigGraph;
 				GraphChangedDelegateHandle = RigGraph->AddOnGraphChangedHandler(
@@ -612,9 +613,9 @@ FRigVMFunctionArgumentDefaultNode::FRigVMFunctionArgumentDefaultNode(
 
 FRigVMFunctionArgumentDefaultNode::~FRigVMFunctionArgumentDefaultNode()
 {
-	if (RigVMBlueprintPtr.IsValid())
+	if (WeakRigVMClientHost.IsValid())
 	{
-		RigVMBlueprintPtr.Get()->OnModified().RemoveAll(this);
+		WeakRigVMClientHost->OnModified().RemoveAll(this);
 	}
 	
 	if (EdGraphOuterPtr.IsValid())
@@ -628,17 +629,17 @@ FRigVMFunctionArgumentDefaultNode::~FRigVMFunctionArgumentDefaultNode()
 
 void FRigVMFunctionArgumentDefaultNode::GenerateChildContent(IDetailChildrenBuilder& ChildrenBuilder)
 {
-	if (!GraphPtr.IsValid() || !RigVMBlueprintPtr.IsValid())
+	if (!GraphPtr.IsValid() || !WeakRigVMClientHost.IsValid())
 	{
 		return;
 	}
 
-	URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
+	IRigVMClientHost* RigVMClientHost = WeakRigVMClientHost.Get();
 	URigVMGraph* Graph = GraphPtr.Get();
 	URigVMEdGraphNode* RigVMEdGraphNode = nullptr;
 	if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Graph->GetOuter()))
 	{
-		if (URigVMEdGraph* RigGraph = Cast<URigVMEdGraph>(Blueprint->GetEdGraph(LibraryNode->GetGraph())))
+		if (URigVMEdGraph* RigGraph = Cast<URigVMEdGraph>(RigVMClientHost->GetEditorObjectForRigVMGraph(LibraryNode->GetGraph())))
 		{
 			RigVMEdGraphNode = Cast<URigVMEdGraphNode>(RigGraph->FindNodeForModelNodeName(LibraryNode->GetFName()));
 		}
@@ -668,7 +669,7 @@ void FRigVMFunctionArgumentDefaultNode::GenerateChildContent(IDetailChildrenBuil
 
 void FRigVMFunctionArgumentDefaultNode::OnGraphChanged(const FEdGraphEditAction& InAction)
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (GraphPtr.IsValid() && WeakRigVMClientHost.IsValid())
 	{
 		OnRebuildChildren.ExecuteIfBound();
 	}
@@ -741,10 +742,15 @@ TSharedPtr<IDetailCustomization> FRigVMGraphDetailCustomization::MakeInstance(TS
 	return nullptr;
 }
 
+FRigVMGraphDetailCustomization::FRigVMGraphDetailCustomization(TSharedPtr<FRigVMEditor> RigVMigEditor, URigVMBlueprint* RigVMBlueprint)
+	: RigVMEditorPtr(RigVMigEditor)
+	, RigVMBlueprintPtr(RigVMBlueprint)
+	, RigVMGraphDetailCustomizationImpl(MakeShared<FRigVMGraphDetailCustomizationImpl>())
+{
+}
+
 void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
 {
-	bIsPickingColor = false;
-
 	TArray<TWeakObjectPtr<UObject>> Objects;
 	DetailLayout.GetObjectsBeingCustomized(Objects);
 
@@ -772,6 +778,24 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 		return;
 	}
 
+	RigVMGraphDetailCustomizationImpl->CustomizeDetails(DetailLayout, Model, Controller, Blueprint, RigVMEditorPtr);
+}
+
+void FRigVMGraphDetailCustomizationImpl::CustomizeDetails(IDetailLayoutBuilder& DetailLayout,
+	URigVMGraph* InModel,
+	URigVMController* InController,
+	IRigVMClientHost* InRigVMClientHost,
+	TWeakPtr<FRigVMEditor> InEditor)
+{
+	WeakModel = InModel;
+	WeakController = InController;
+	RigVMClientHost = InRigVMClientHost;
+	RigVMEditorPtr = InEditor;
+
+	bIsPickingColor = false;
+
+	URigVMGraph* Model = WeakModel.Get();
+
 	if (Model->IsTopLevelGraph())
 	{
 		IDetailCategoryBuilder& Category = DetailLayout.EditCategory("Graph", LOCTEXT("FunctionDetailsGraph", "Graph"));
@@ -795,9 +819,9 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 	}
 
 	IDetailCategoryBuilder& InputsCategory = DetailLayout.EditCategory("Inputs", LOCTEXT("FunctionDetailsInputs", "Inputs"));
-	TSharedRef<FRigVMFunctionArgumentGroupLayout> InputArgumentGroup = MakeShareable(new FRigVMFunctionArgumentGroupLayout(
-		Model, 
-		Blueprint,
+	TSharedRef<FRigVMFunctionArgumentGroupLayout> InputArgumentGroup = MakeShareable<FRigVMFunctionArgumentGroupLayout>(new FRigVMFunctionArgumentGroupLayout(
+		Model,
+		RigVMClientHost.Get(),
 		RigVMEditorPtr,
 		true));
 	InputsCategory.AddCustomBuilder(InputArgumentGroup);
@@ -812,13 +836,13 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 			SNew(SButton)
 			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
 			.ContentPadding(FMargin(10.f, 0))
-			.OnClicked(this, &FRigVMGraphDetailCustomization::OnAddNewInputClicked)
-			.Visibility(this, &FRigVMGraphDetailCustomization::GetAddNewInputOutputVisibility)
+			.OnClicked(this, &FRigVMGraphDetailCustomizationImpl::OnAddNewInputClicked)
+			.Visibility(this, &FRigVMGraphDetailCustomizationImpl::GetAddNewInputOutputVisibility)
 			.HAlign(HAlign_Right)
 			.ToolTipText(LOCTEXT("FunctionNewInputArgTooltip", "Create a new input argument"))
 			.VAlign(VAlign_Center)
 			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("FunctionNewInputArg")))
-			.IsEnabled(this, &FRigVMGraphDetailCustomization::IsAddNewInputOutputEnabled)
+			.IsEnabled(this, &FRigVMGraphDetailCustomizationImpl::IsAddNewInputOutputEnabled)
 			[
 				SNew(SImage)
 				.Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"))
@@ -830,8 +854,8 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 	
 	IDetailCategoryBuilder& OutputsCategory = DetailLayout.EditCategory("Outputs", LOCTEXT("FunctionDetailsOutputs", "Outputs"));
 	TSharedRef<FRigVMFunctionArgumentGroupLayout> OutputArgumentGroup = MakeShareable(new FRigVMFunctionArgumentGroupLayout(
-		Model, 
-		Blueprint,
+		Model,
+		RigVMClientHost,
 		RigVMEditorPtr,
 		false));
 	OutputsCategory.AddCustomBuilder(OutputArgumentGroup);
@@ -846,13 +870,13 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 			SNew(SButton)
 			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
 			.ContentPadding(FMargin(10.f, 0))
-			.OnClicked(this, &FRigVMGraphDetailCustomization::OnAddNewOutputClicked)
-			.Visibility(this, &FRigVMGraphDetailCustomization::GetAddNewInputOutputVisibility)
+			.OnClicked(this, &FRigVMGraphDetailCustomizationImpl::OnAddNewOutputClicked)
+			.Visibility(this, &FRigVMGraphDetailCustomizationImpl::GetAddNewInputOutputVisibility)
 			.HAlign(HAlign_Right)
 			.ToolTipText(LOCTEXT("FunctionNewOutputArgTooltip", "Create a new output argument"))
 			.VAlign(VAlign_Center)
 			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("FunctionNewOutputArg")))
-			.IsEnabled(this, &FRigVMGraphDetailCustomization::IsAddNewInputOutputEnabled)
+			.IsEnabled(this, &FRigVMGraphDetailCustomizationImpl::IsAddNewInputOutputEnabled)
 			[
 				SNew(SImage)
 				.Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"))
@@ -878,8 +902,8 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 		[
 			SNew(SEditableTextBox)
 			.Font(IDetailLayoutBuilder::GetDetailFont())
-			.Text(this, &FRigVMGraphDetailCustomization::GetNodeCategory)
-			.OnTextCommitted(this, &FRigVMGraphDetailCustomization::SetNodeCategory)
+			.Text(this, &FRigVMGraphDetailCustomizationImpl::GetNodeCategory)
+			.OnTextCommitted(this, &FRigVMGraphDetailCustomizationImpl::SetNodeCategory)
 			.OnVerifyTextChanged_Lambda([&](const FText& InNewText, FText& OutErrorMessage) -> bool
 			{
 				const FText NewText = FEditorCategoryUtils::GetCategoryDisplayString(InNewText);
@@ -889,11 +913,11 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 					return false;
 				}
 				
-				if (RigVMBlueprintPtr.IsValid())
+				if (RigVMClientHost.IsValid())
 				{
-					if (NewText.EqualTo(FText::FromString(RigVMBlueprintPtr.Get()->GetName())))
+					if (NewText.EqualTo(FText::FromString(RigVMClientHost->GetAssetName())))
 					{
-						OutErrorMessage = LOCTEXT("CategoryEqualsBlueprintName", "Cannot add a category with the same name as the blueprint.");
+						OutErrorMessage = LOCTEXT("CategoryEqualsBlueprintName", "Cannot add a category with the same name as the owner asset.");
 						return false;
 					}
 				}
@@ -913,8 +937,8 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 		[
 			SNew(SEditableTextBox)
 			.Font(IDetailLayoutBuilder::GetDetailFont())
-			.Text(this, &FRigVMGraphDetailCustomization::GetNodeKeywords)
-			.OnTextCommitted(this, &FRigVMGraphDetailCustomization::SetNodeKeywords)
+			.Text(this, &FRigVMGraphDetailCustomizationImpl::GetNodeKeywords)
+			.OnTextCommitted(this, &FRigVMGraphDetailCustomizationImpl::SetNodeKeywords)
 		];
 
 		// description
@@ -929,11 +953,11 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 		[
 			SNew(SMultiLineEditableText)
 			.Font(IDetailLayoutBuilder::GetDetailFont())
-			.Text(this, &FRigVMGraphDetailCustomization::GetNodeDescription)
-			.OnTextCommitted(this, &FRigVMGraphDetailCustomization::SetNodeDescription)
+			.Text(this, &FRigVMGraphDetailCustomizationImpl::GetNodeDescription)
+			.OnTextCommitted(this, &FRigVMGraphDetailCustomizationImpl::SetNodeDescription)
 		];
 
-		if(AccessSpecifierStrings.IsEmpty())
+		if (AccessSpecifierStrings.IsEmpty())
 		{
 			AccessSpecifierStrings.Add(TSharedPtr<FRigVMStringWithTag>(new FRigVMStringWithTag(TEXT("Public"))));
 			AccessSpecifierStrings.Add(TSharedPtr<FRigVMStringWithTag>(new FRigVMStringWithTag(TEXT("Private"))));
@@ -954,15 +978,15 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
             .ButtonContent()
             [
                 SNew(STextBlock)
-                    .Text(this, &FRigVMGraphDetailCustomization::GetCurrentAccessSpecifierName)
+                    .Text(this, &FRigVMGraphDetailCustomizationImpl::GetCurrentAccessSpecifierName)
                     .Font( IDetailLayoutBuilder::GetDetailFont() )
             ]
             .MenuContent()
             [
                 SNew(SListView<TSharedPtr<FRigVMStringWithTag> >)
                     .ListItemsSource( &AccessSpecifierStrings )
-                    .OnGenerateRow(this, &FRigVMGraphDetailCustomization::HandleGenerateRowAccessSpecifier)
-                    .OnSelectionChanged(this, &FRigVMGraphDetailCustomization::OnAccessSpecifierSelected)
+                    .OnGenerateRow(this, &FRigVMGraphDetailCustomizationImpl::HandleGenerateRowAccessSpecifier)
+                    .OnSelectionChanged(this, &FRigVMGraphDetailCustomizationImpl::OnAccessSpecifierSelected)
             ]
         ];
 
@@ -989,13 +1013,13 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 		[
 			SNew(SRigVMVariantWidget)
 			.Context(VariantContext)
-			.Variant(this, &FRigVMGraphDetailCustomization::GetVariant)
-			.VariantRefs(this, &FRigVMGraphDetailCustomization::GetVariantRefs)
-			.OnVariantChanged(this, &FRigVMGraphDetailCustomization::OnVariantChanged)
-			.OnBrowseVariantRef(this, &FRigVMGraphDetailCustomization::OnBrowseVariantRef)
-			.OnGetTags(this, &FRigVMGraphDetailCustomization::OnGetAssignedTags)
-			.OnAddTag(this, &FRigVMGraphDetailCustomization::OnAddAssignedTag)
-			.OnRemoveTag(this, &FRigVMGraphDetailCustomization::OnRemoveAssignedTag)
+			.Variant(this, &FRigVMGraphDetailCustomizationImpl::GetVariant)
+			.VariantRefs(this, &FRigVMGraphDetailCustomizationImpl::GetVariantRefs)
+			.OnVariantChanged(this, &FRigVMGraphDetailCustomizationImpl::OnVariantChanged)
+			.OnBrowseVariantRef(this, &FRigVMGraphDetailCustomizationImpl::OnBrowseVariantRef)
+			.OnGetTags(this, &FRigVMGraphDetailCustomizationImpl::OnGetAssignedTags)
+			.OnAddTag(this, &FRigVMGraphDetailCustomizationImpl::OnAddAssignedTag)
+			.OnRemoveTag(this, &FRigVMGraphDetailCustomizationImpl::OnRemoveAssignedTag)
 			.CanAddTags(true)
 			.EnableTagContextMenu(true)
 		];
@@ -1015,10 +1039,10 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 		[
 			SNew(SButton)
 			.ButtonStyle(FAppStyle::Get(), "Menu.Button")
-			.OnClicked(this, &FRigVMGraphDetailCustomization::OnNodeColorClicked)
+			.OnClicked(this, &FRigVMGraphDetailCustomizationImpl::OnNodeColorClicked)
 			[
 				SAssignNew(ColorBlock, SColorBlock)
-				.Color(this, &FRigVMGraphDetailCustomization::GetNodeColor)
+				.Color(this, &FRigVMGraphDetailCustomizationImpl::GetNodeColor)
 				.Size(FVector2D(77, 16))
 			]
 		];
@@ -1046,22 +1070,22 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 				.HAlign(HAlign_Fill)
 				[
 					SNew(SRigVMNodeLayoutWidget)
-					.OnGetUncategorizedPins(this, &FRigVMGraphDetailCustomization::GetUncategorizedPins)
-					.OnGetCategories(this, &FRigVMGraphDetailCustomization::GetPinCategories)
-					.OnGetElementCategory(this, &FRigVMGraphDetailCustomization::GetPinCategory)
-					.OnGetElementIndexInCategory(this, &FRigVMGraphDetailCustomization::GetPinIndexInCategory)
-					.OnGetElementLabel(this, &FRigVMGraphDetailCustomization::GetPinLabel)
-					.OnGetElementColor(this, &FRigVMGraphDetailCustomization::GetPinColor)
-					.OnGetElementIcon(this, &FRigVMGraphDetailCustomization::GetPinIcon)
-					.OnCategoryAdded(this, &FRigVMGraphDetailCustomization::HandleCategoryAdded)
-					.OnCategoryRemoved(this, &FRigVMGraphDetailCustomization::HandleCategoryRemoved)
-					.OnCategoryRenamed(this, &FRigVMGraphDetailCustomization::HandleCategoryRenamed)
-					.OnElementCategoryChanged(this, &FRigVMGraphDetailCustomization::HandlePinCategoryChanged)
-					.OnElementLabelChanged(this, &FRigVMGraphDetailCustomization::HandlePinLabelChanged)
-					.OnElementIndexInCategoryChanged(this, &FRigVMGraphDetailCustomization::HandlePinIndexInCategoryChanged)
-					.OnValidateCategoryName(this, &FRigVMGraphDetailCustomization::HandleValidateCategoryName)
-					.OnValidateElementName(this, &FRigVMGraphDetailCustomization::HandleValidatePinDisplayName)
-					.OnGetStructuralHash(this, &FRigVMGraphDetailCustomization::GetNodeLayoutHash)
+					.OnGetUncategorizedPins(this, &FRigVMGraphDetailCustomizationImpl::GetUncategorizedPins)
+					.OnGetCategories(this, &FRigVMGraphDetailCustomizationImpl::GetPinCategories)
+					.OnGetElementCategory(this, &FRigVMGraphDetailCustomizationImpl::GetPinCategory)
+					.OnGetElementIndexInCategory(this, &FRigVMGraphDetailCustomizationImpl::GetPinIndexInCategory)
+					.OnGetElementLabel(this, &FRigVMGraphDetailCustomizationImpl::GetPinLabel)
+					.OnGetElementColor(this, &FRigVMGraphDetailCustomizationImpl::GetPinColor)
+					.OnGetElementIcon(this, &FRigVMGraphDetailCustomizationImpl::GetPinIcon)
+					.OnCategoryAdded(this, &FRigVMGraphDetailCustomizationImpl::HandleCategoryAdded)
+					.OnCategoryRemoved(this, &FRigVMGraphDetailCustomizationImpl::HandleCategoryRemoved)
+					.OnCategoryRenamed(this, &FRigVMGraphDetailCustomizationImpl::HandleCategoryRenamed)
+					.OnElementCategoryChanged(this, &FRigVMGraphDetailCustomizationImpl::HandlePinCategoryChanged)
+					.OnElementLabelChanged(this, &FRigVMGraphDetailCustomizationImpl::HandlePinLabelChanged)
+					.OnElementIndexInCategoryChanged(this, &FRigVMGraphDetailCustomizationImpl::HandlePinIndexInCategoryChanged)
+					.OnValidateCategoryName(this, &FRigVMGraphDetailCustomizationImpl::HandleValidateCategoryName)
+					.OnValidateElementName(this, &FRigVMGraphDetailCustomizationImpl::HandleValidatePinDisplayName)
+					.OnGetStructuralHash(this, &FRigVMGraphDetailCustomizationImpl::GetNodeLayoutHash)
 				];
 			}
 		}
@@ -1070,34 +1094,32 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 	IDetailCategoryBuilder& DefaultsCategory = DetailLayout.EditCategory("NodeDefaults", LOCTEXT("FunctionDetailsNodeDefaults", "Node Defaults"));
 	TSharedRef<FRigVMFunctionArgumentDefaultNode> DefaultsArgumentNode = MakeShareable(new FRigVMFunctionArgumentDefaultNode(
 		Model,
-		Blueprint));
+		RigVMClientHost));
 	DefaultsCategory.AddCustomBuilder(DefaultsArgumentNode);
 }
 
-bool FRigVMGraphDetailCustomization::IsAddNewInputOutputEnabled() const
+bool FRigVMGraphDetailCustomizationImpl::IsAddNewInputOutputEnabled() const
 {
 	return true;
 }
 
-EVisibility FRigVMGraphDetailCustomization::GetAddNewInputOutputVisibility() const
+EVisibility FRigVMGraphDetailCustomizationImpl::GetAddNewInputOutputVisibility() const
 {
 	return EVisibility::Visible;
 }
 
-FReply FRigVMGraphDetailCustomization::OnAddNewInputClicked()
+FReply FRigVMGraphDetailCustomizationImpl::OnAddNewInputClicked()
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && WeakController.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get());
-		if (URigVMController* Controller = Blueprint->GetController(Model))
+		if (URigVMController* Controller = WeakController.Get())
 		{
 			FName ArgumentName = TEXT("Argument");
 			FString CPPType = TEXT("bool");
 			FName CPPTypeObjectPath = NAME_None;
 			FString DefaultValue = TEXT("False");
 
-			if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
+			if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(WeakModel->GetOuter()))
 			{
 				if (LibraryNode->GetPins().Num() > 0)
 				{
@@ -1138,13 +1160,11 @@ FReply FRigVMGraphDetailCustomization::OnAddNewInputClicked()
 	return FReply::Unhandled();
 }
 
-FReply FRigVMGraphDetailCustomization::OnAddNewOutputClicked()
+FReply FRigVMGraphDetailCustomizationImpl::OnAddNewOutputClicked()
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && WeakController.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get());
-		if (URigVMController* Controller = Blueprint->GetController(Model))
+		if (URigVMController* Controller = WeakController.Get())
 		{
 			FName ArgumentName = TEXT("Argument");
 			FString CPPType = TEXT("bool");
@@ -1158,12 +1178,11 @@ FReply FRigVMGraphDetailCustomization::OnAddNewOutputClicked()
 	return FReply::Unhandled();
 }
 
-FText FRigVMGraphDetailCustomization::GetNodeCategory() const
+FText FRigVMGraphDetailCustomizationImpl::GetNodeCategory() const
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && WeakController.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (URigVMGraph* Model = WeakModel.Get())
 		{
 			if (URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(Model->GetOuter()))
 			{
@@ -1175,21 +1194,20 @@ FText FRigVMGraphDetailCustomization::GetNodeCategory() const
 	return FText();
 }
 
-void FRigVMGraphDetailCustomization::SetNodeCategory(const FText& InNewText, ETextCommit::Type InCommitType)
+void FRigVMGraphDetailCustomizationImpl::SetNodeCategory(const FText& InNewText, ETextCommit::Type InCommitType)
 {
 	if(InCommitType == ETextCommit::OnCleared)
 	{
 		return;
 	}
 
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && WeakController.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (URigVMGraph* Model = WeakModel.Get())
 		{
 			if (URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(Model->GetOuter()))
 			{
-				if (URigVMController* Controller = Blueprint->GetOrCreateController(OuterNode->GetGraph()))
+				if (URigVMController* Controller = RigVMClientHost->GetOrCreateController(OuterNode->GetGraph()))
 				{
 					Controller->SetNodeCategory(OuterNode, InNewText.ToString(), true, false, true);
 				}
@@ -1198,12 +1216,11 @@ void FRigVMGraphDetailCustomization::SetNodeCategory(const FText& InNewText, ETe
 	}
 }
 
-FText FRigVMGraphDetailCustomization::GetNodeKeywords() const
+FText FRigVMGraphDetailCustomizationImpl::GetNodeKeywords() const
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && WeakController.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (URigVMGraph* Model = WeakModel.Get())
 		{
 			if (URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(Model->GetOuter()))
 			{
@@ -1215,21 +1232,20 @@ FText FRigVMGraphDetailCustomization::GetNodeKeywords() const
 	return FText();
 }
 
-void FRigVMGraphDetailCustomization::SetNodeKeywords(const FText& InNewText, ETextCommit::Type InCommitType)
+void FRigVMGraphDetailCustomizationImpl::SetNodeKeywords(const FText& InNewText, ETextCommit::Type InCommitType)
 {
 	if(InCommitType == ETextCommit::OnCleared)
 	{
 		return;
 	}
 
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && WeakController.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (URigVMGraph* Model = WeakModel.Get())
 		{
 			if (URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(Model->GetOuter()))
 			{
-				if (URigVMController* Controller = Blueprint->GetOrCreateController(OuterNode->GetGraph()))
+				if (URigVMController* Controller = RigVMClientHost->GetOrCreateController(OuterNode->GetGraph()))
 				{
 					Controller->SetNodeKeywords(OuterNode, InNewText.ToString(), true, false, true);
 				}
@@ -1238,12 +1254,11 @@ void FRigVMGraphDetailCustomization::SetNodeKeywords(const FText& InNewText, ETe
 	}
 }
 
-FText FRigVMGraphDetailCustomization::GetNodeDescription() const
+FText FRigVMGraphDetailCustomizationImpl::GetNodeDescription() const
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && WeakController.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (URigVMGraph* Model = WeakModel.Get())
 		{
 			if (URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(Model->GetOuter()))
 			{
@@ -1255,21 +1270,20 @@ FText FRigVMGraphDetailCustomization::GetNodeDescription() const
 	return FText();
 }
 
-void FRigVMGraphDetailCustomization::SetNodeDescription(const FText& InNewText, ETextCommit::Type InCommitType)
+void FRigVMGraphDetailCustomizationImpl::SetNodeDescription(const FText& InNewText, ETextCommit::Type InCommitType)
 {
-	if(InCommitType == ETextCommit::OnCleared)
+	if (InCommitType == ETextCommit::OnCleared)
 	{
 		return;
 	}
 
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && WeakController.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (URigVMGraph* Model = WeakModel.Get())
 		{
 			if (URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(Model->GetOuter()))
 			{
-				if (URigVMController* Controller = Blueprint->GetOrCreateController(OuterNode->GetGraph()))
+				if (URigVMController* Controller = RigVMClientHost->GetOrCreateController(OuterNode->GetGraph()))
 				{
 					Controller->SetNodeDescription(OuterNode, InNewText.ToString(), true, false, true);
 				}
@@ -1278,12 +1292,11 @@ void FRigVMGraphDetailCustomization::SetNodeDescription(const FText& InNewText, 
 	}
 }
 
-FLinearColor FRigVMGraphDetailCustomization::GetNodeColor() const
+FLinearColor FRigVMGraphDetailCustomizationImpl::GetNodeColor() const
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && WeakController.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (URigVMGraph* Model = WeakModel.Get())
 		{
 			if (URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(Model->GetOuter()))
 			{
@@ -1294,16 +1307,15 @@ FLinearColor FRigVMGraphDetailCustomization::GetNodeColor() const
 	return FLinearColor::White;
 }
 
-void FRigVMGraphDetailCustomization::SetNodeColor(FLinearColor InColor, bool bSetupUndoRedo)
+void FRigVMGraphDetailCustomizationImpl::SetNodeColor(FLinearColor InColor, bool bSetupUndoRedo)
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && WeakController.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (URigVMGraph* Model = WeakModel.Get())
 		{
 			if (URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(Model->GetOuter()))
 			{
-				if (URigVMController* Controller = Blueprint->GetOrCreateController(OuterNode->GetGraph()))
+				if (URigVMController* Controller = RigVMClientHost->GetOrCreateController(OuterNode->GetGraph()))
 				{
 					Controller->SetNodeColor(OuterNode, InColor, bSetupUndoRedo, bIsPickingColor, true);
 				}
@@ -1312,47 +1324,44 @@ void FRigVMGraphDetailCustomization::SetNodeColor(FLinearColor InColor, bool bSe
 	}
 }
 
-void FRigVMGraphDetailCustomization::OnNodeColorBegin()
+void FRigVMGraphDetailCustomizationImpl::OnNodeColorBegin()
 {
 	bIsPickingColor = true;
 }
-void FRigVMGraphDetailCustomization::OnNodeColorEnd()
-{ 
-	bIsPickingColor = false; 
+void FRigVMGraphDetailCustomizationImpl::OnNodeColorEnd()
+{
+	bIsPickingColor = false;
 }
 
-void FRigVMGraphDetailCustomization::OnNodeColorCancelled(FLinearColor OriginalColor)
+void FRigVMGraphDetailCustomizationImpl::OnNodeColorCancelled(FLinearColor OriginalColor)
 {
 	SetNodeColor(OriginalColor, true);
 }
 
-FReply FRigVMGraphDetailCustomization::OnNodeColorClicked()
+FReply FRigVMGraphDetailCustomizationImpl::OnNodeColorClicked()
 {
-	FColorPickerArgs PickerArgs = FColorPickerArgs(GetNodeColor(), FOnLinearColorValueChanged::CreateSP(this, &FRigVMGraphDetailCustomization::SetNodeColor, true));
+	FColorPickerArgs PickerArgs = FColorPickerArgs(GetNodeColor(), FOnLinearColorValueChanged::CreateSP(this, &FRigVMGraphDetailCustomizationImpl::SetNodeColor, true));
 	PickerArgs.ParentWidget = ColorBlock;
 	PickerArgs.bUseAlpha = false;
 	PickerArgs.DisplayGamma = false;
-	PickerArgs.OnInteractivePickBegin = FSimpleDelegate::CreateSP(this, &FRigVMGraphDetailCustomization::OnNodeColorBegin);
-	PickerArgs.OnInteractivePickEnd = FSimpleDelegate::CreateSP(this, &FRigVMGraphDetailCustomization::OnNodeColorEnd);
-	PickerArgs.OnColorPickerCancelled = FOnColorPickerCancelled::CreateSP(this, &FRigVMGraphDetailCustomization::OnNodeColorCancelled);
+	PickerArgs.OnInteractivePickBegin = FSimpleDelegate::CreateSP(this, &FRigVMGraphDetailCustomizationImpl::OnNodeColorBegin);
+	PickerArgs.OnInteractivePickEnd = FSimpleDelegate::CreateSP(this, &FRigVMGraphDetailCustomizationImpl::OnNodeColorEnd);
+	PickerArgs.OnColorPickerCancelled = FOnColorPickerCancelled::CreateSP(this, &FRigVMGraphDetailCustomizationImpl::OnNodeColorCancelled);
 	OpenColorPicker(PickerArgs);
 	return FReply::Handled();
 }
 
-TArray<TSharedPtr<FRigVMStringWithTag>> FRigVMGraphDetailCustomization::AccessSpecifierStrings;
+TArray<TSharedPtr<FRigVMStringWithTag>> FRigVMGraphDetailCustomizationImpl::AccessSpecifierStrings;
 
-FText FRigVMGraphDetailCustomization::GetCurrentAccessSpecifierName() const
+FText FRigVMGraphDetailCustomizationImpl::GetCurrentAccessSpecifierName() const
 {
-	if(RigVMBlueprintPtr.IsValid() && GraphPtr.IsValid())
+	if (WeakModel.IsValid() && WeakController.IsValid())
 	{
-		URigVMEdGraph* Graph = GraphPtr.Get();
-		URigVMBlueprint* RigVMBlueprint = RigVMBlueprintPtr.Get();
-
-		if (URigVMGraph* RigVMGraph = Graph->GetModel())
+		if (URigVMGraph* RigVMGraph = WeakModel.Get())
 		{
 			if (URigVMLibraryNode* LibraryNode = RigVMGraph->GetTypedOuter<URigVMLibraryNode>())
 			{
-				if(RigVMBlueprint->IsFunctionPublic(LibraryNode->GetFName()))
+				if(RigVMClientHost->GetLocalFunctionLibrary()->IsFunctionPublic(LibraryNode->GetFName()))
 				{
 					return FText::FromString(AccessSpecifierStrings[0]->GetString()); // public
 				}
@@ -1363,31 +1372,28 @@ FText FRigVMGraphDetailCustomization::GetCurrentAccessSpecifierName() const
 	return FText::FromString(AccessSpecifierStrings[1]->GetString()); // private
 }
 
-void FRigVMGraphDetailCustomization::OnAccessSpecifierSelected( TSharedPtr<FRigVMStringWithTag> SpecifierName, ESelectInfo::Type SelectInfo )
+void FRigVMGraphDetailCustomizationImpl::OnAccessSpecifierSelected(TSharedPtr<FRigVMStringWithTag> SpecifierName, ESelectInfo::Type SelectInfo)
 {
-	if(RigVMBlueprintPtr.IsValid() && GraphPtr.IsValid())
+	if(WeakModel.IsValid() && WeakController.IsValid())
 	{
-		URigVMEdGraph* Graph = GraphPtr.Get();
-		URigVMBlueprint* RigVMBlueprint = RigVMBlueprintPtr.Get();
-
-		if (URigVMGraph* RigVMGraph = Graph->GetModel())
+		if (URigVMGraph* RigVMGraph = WeakModel.Get())
 		{
 			if (URigVMLibraryNode* LibraryNode = RigVMGraph->GetTypedOuter<URigVMLibraryNode>())
 			{
 				if(SpecifierName->Equals(TEXT("Private")))
 				{
-					RigVMBlueprint->MarkFunctionPublic(LibraryNode->GetFName(), false);
+					RigVMClientHost->MarkFunctionPublic(LibraryNode->GetFName(), false);
 				}
 				else
 				{
-					RigVMBlueprint->MarkFunctionPublic(LibraryNode->GetFName(), true);
+					RigVMClientHost->MarkFunctionPublic(LibraryNode->GetFName(), true);
 				}
 			}
 		}
 	}
 }
 
-TSharedRef<ITableRow> FRigVMGraphDetailCustomization::HandleGenerateRowAccessSpecifier( TSharedPtr<FRigVMStringWithTag> SpecifierName, const TSharedRef<STableViewBase>& OwnerTable )
+TSharedRef<ITableRow> FRigVMGraphDetailCustomizationImpl::HandleGenerateRowAccessSpecifier(TSharedPtr<FRigVMStringWithTag> SpecifierName, const TSharedRef<STableViewBase>& OwnerTable)
 {
 	return SNew(STableRow< TSharedPtr<FRigVMStringWithTag> >, OwnerTable)
         .Content()
@@ -1397,48 +1403,45 @@ TSharedRef<ITableRow> FRigVMGraphDetailCustomization::HandleGenerateRowAccessSpe
         ];
 }
 
-bool FRigVMGraphDetailCustomization::IsValidFunction() const
+bool FRigVMGraphDetailCustomizationImpl::IsValidFunction() const
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && RigVMClientHost.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (const URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (const URigVMGraph* Model = WeakModel.Get())
 		{
 			if (const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
 			{
-				return LibraryNode->GetFunctionHeader(Blueprint->GetRigVMGraphFunctionHost()).IsValid(); 
+				return LibraryNode->GetFunctionHeader(RigVMClientHost->GetRigVMGraphFunctionHost()).IsValid();
 			}
 		}
 	}
 	return false;
 }
 
-FRigVMVariant FRigVMGraphDetailCustomization::GetVariant() const
+FRigVMVariant FRigVMGraphDetailCustomizationImpl::GetVariant() const
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && RigVMClientHost.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (const URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (const URigVMGraph* Model = WeakModel.Get())
 		{
 			if (const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
 			{
-				return LibraryNode->GetFunctionHeader(Blueprint->GetRigVMGraphFunctionHost()).Variant; 
+				return LibraryNode->GetFunctionHeader(RigVMClientHost->GetRigVMGraphFunctionHost()).Variant;
 			}
 		}
 	}
 	return FRigVMVariant();
 }
 
-TArray<FRigVMVariantRef> FRigVMGraphDetailCustomization::GetVariantRefs() const
+TArray<FRigVMVariantRef> FRigVMGraphDetailCustomizationImpl::GetVariantRefs() const
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && RigVMClientHost.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (const URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (const URigVMGraph* Model = WeakModel.Get())
 		{
 			if (const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
 			{
-				const FRigVMGraphFunctionHeader Header = LibraryNode->GetFunctionHeader(Blueprint->GetRigVMGraphFunctionHost());
+				const FRigVMGraphFunctionHeader Header = LibraryNode->GetFunctionHeader(RigVMClientHost->GetRigVMGraphFunctionHost());
 				return Header.LibraryPointer.GetVariants(false);
 			}
 		}
@@ -1446,12 +1449,12 @@ TArray<FRigVMVariantRef> FRigVMGraphDetailCustomization::GetVariantRefs() const
 	return TArray<FRigVMVariantRef>();
 }
 
-void FRigVMGraphDetailCustomization::OnVariantChanged(const FRigVMVariant& InVariant)
+void FRigVMGraphDetailCustomizationImpl::OnVariantChanged(const FRigVMVariant& InVariant)
 {
 	// todo: update the function's variant info
 }
 
-void FRigVMGraphDetailCustomization::OnBrowseVariantRef(const FRigVMVariantRef& InVariantRef)
+void FRigVMGraphDetailCustomizationImpl::OnBrowseVariantRef(const FRigVMVariantRef& InVariantRef)
 {
 	const FRigVMGraphFunctionHeader Header = FRigVMGraphFunctionHeader::FindGraphFunctionHeader(InVariantRef.ObjectPath);
 	if(Header.IsValid())
@@ -1483,24 +1486,23 @@ void FRigVMGraphDetailCustomization::OnBrowseVariantRef(const FRigVMVariantRef& 
 	}
 }
 
-TArray<FRigVMTag> FRigVMGraphDetailCustomization::OnGetAssignedTags() const
+TArray<FRigVMTag> FRigVMGraphDetailCustomizationImpl::OnGetAssignedTags() const
 {
 	return GetVariant().Tags;
 }
 
-void FRigVMGraphDetailCustomization::OnAddAssignedTag(const FName& InTagName)
+void FRigVMGraphDetailCustomizationImpl::OnAddAssignedTag(const FName& InTagName)
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && RigVMClientHost.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (const URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (const URigVMGraph* Model = WeakModel.Get())
 		{
-			if (URigVMGraph* FunctionLibrary = Blueprint->GetLocalFunctionLibrary())
+			if (URigVMGraph* FunctionLibrary = RigVMClientHost->GetLocalFunctionLibrary())
 			{
 				if (const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
 				{
 					const FString& FunctionName = LibraryNode->GetFunctionHeader().LibraryPointer.GetFunctionName();
-					URigVMController* FunctionLibraryController = Blueprint->GetOrCreateController(FunctionLibrary);
+					URigVMController* FunctionLibraryController = RigVMClientHost->GetOrCreateController(FunctionLibrary);
 					FunctionLibraryController->AddDefaultTagToFunctionVariant(*FunctionName, InTagName);
 				}
 			}
@@ -1508,19 +1510,18 @@ void FRigVMGraphDetailCustomization::OnAddAssignedTag(const FName& InTagName)
 	}
 }
 
-void FRigVMGraphDetailCustomization::OnRemoveAssignedTag(const FName& InTagName)
+void FRigVMGraphDetailCustomizationImpl::OnRemoveAssignedTag(const FName& InTagName)
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && RigVMClientHost.IsValid())
 	{
-		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (const URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (const URigVMGraph* Model = WeakModel.Get())
 		{
-			if (URigVMGraph* FunctionLibrary = Blueprint->GetLocalFunctionLibrary())
+			if (URigVMGraph* FunctionLibrary = RigVMClientHost->GetLocalFunctionLibrary())
 			{
 				if (const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
 				{
 					const FString& FunctionName = LibraryNode->GetFunctionHeader().LibraryPointer.GetFunctionName();
-					URigVMController* FunctionLibraryController = Blueprint->GetOrCreateController(FunctionLibrary);
+					URigVMController* FunctionLibraryController = RigVMClientHost->GetOrCreateController(FunctionLibrary);
 					FunctionLibraryController->RemoveTagFromFunctionVariant(*FunctionName, InTagName);
 				}
 			}
@@ -1528,14 +1529,13 @@ void FRigVMGraphDetailCustomization::OnRemoveAssignedTag(const FName& InTagName)
 	}
 }
 
-URigVMLibraryNode* FRigVMGraphDetailCustomization::GetLibraryNode() const
+URigVMLibraryNode* FRigVMGraphDetailCustomizationImpl::GetLibraryNode() const
 {
-	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	if (WeakModel.IsValid() && RigVMClientHost.IsValid())
 	{
-		const URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
-		if (const URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		if (const URigVMGraph* Model = WeakModel.Get())
 		{
-			if (const URigVMGraph* FunctionLibrary = Blueprint->GetLocalFunctionLibrary())
+			if (const URigVMGraph* FunctionLibrary = RigVMClientHost->GetLocalFunctionLibrary())
 			{
 				if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
 				{
@@ -1550,12 +1550,12 @@ URigVMLibraryNode* FRigVMGraphDetailCustomization::GetLibraryNode() const
 	return nullptr;
 }
 
-URigVMNode* FRigVMGraphDetailCustomization::GetNodeForLayout() const
+URigVMNode* FRigVMGraphDetailCustomizationImpl::GetNodeForLayout() const
 {
 	return GetLibraryNode();
 }
 
-const FRigVMNodeLayout* FRigVMGraphDetailCustomization::GetNodeLayout() const
+const FRigVMNodeLayout* FRigVMGraphDetailCustomizationImpl::GetNodeLayout() const
 {
 	if(const URigVMNode* Node = GetNodeForLayout())
 	{
@@ -1565,7 +1565,7 @@ const FRigVMNodeLayout* FRigVMGraphDetailCustomization::GetNodeLayout() const
 	return nullptr;
 }
 
-TArray<FString> FRigVMGraphDetailCustomization::GetUncategorizedPins() const
+TArray<FString> FRigVMGraphDetailCustomizationImpl::GetUncategorizedPins() const
 {
 	if(const URigVMNode* Node = GetNodeForLayout())
 	{
@@ -1594,7 +1594,7 @@ TArray<FString> FRigVMGraphDetailCustomization::GetUncategorizedPins() const
 	return TArray<FString>();
 }
 
-TArray<FRigVMPinCategory> FRigVMGraphDetailCustomization::GetPinCategories() const
+TArray<FRigVMPinCategory> FRigVMGraphDetailCustomizationImpl::GetPinCategories() const
 {
 	if (const FRigVMNodeLayout* NodeLayout = GetNodeLayout())
 	{
@@ -1603,9 +1603,9 @@ TArray<FRigVMPinCategory> FRigVMGraphDetailCustomization::GetPinCategories() con
 	return TArray<FRigVMPinCategory>();
 }
 
-FString FRigVMGraphDetailCustomization::GetPinCategory(FString InPinPath) const
+FString FRigVMGraphDetailCustomizationImpl::GetPinCategory(FString InPinPath) const
 {
-	if(RigVMBlueprintPtr.IsValid())
+	if(RigVMClientHost.IsValid())
 	{
 		if(const URigVMNode* Node = GetNodeForLayout())
 		{
@@ -1618,9 +1618,9 @@ FString FRigVMGraphDetailCustomization::GetPinCategory(FString InPinPath) const
 	return FString();
 }
 
-int32 FRigVMGraphDetailCustomization::GetPinIndexInCategory(FString InPinPath) const
+int32 FRigVMGraphDetailCustomizationImpl::GetPinIndexInCategory(FString InPinPath) const
 {
-	if(RigVMBlueprintPtr.IsValid())
+	if(RigVMClientHost.IsValid())
 	{
 		if(const URigVMNode* Node = GetNodeForLayout())
 		{
@@ -1633,7 +1633,7 @@ int32 FRigVMGraphDetailCustomization::GetPinIndexInCategory(FString InPinPath) c
 	return INDEX_NONE;
 }
 
-FString FRigVMGraphDetailCustomization::GetPinLabel(FString InPinPath) const
+FString FRigVMGraphDetailCustomizationImpl::GetPinLabel(FString InPinPath) const
 {
 	if (const FRigVMNodeLayout* NodeLayout = GetNodeLayout())
 	{
@@ -1645,15 +1645,15 @@ FString FRigVMGraphDetailCustomization::GetPinLabel(FString InPinPath) const
 	return FString();
 }
 
-FLinearColor FRigVMGraphDetailCustomization::GetPinColor(FString InPinPath) const
+FLinearColor FRigVMGraphDetailCustomizationImpl::GetPinColor(FString InPinPath) const
 {
-	if(RigVMBlueprintPtr.IsValid())
+	if(RigVMClientHost.IsValid())
 	{
 		if(const URigVMNode* Node = GetNodeForLayout())
 		{
 			if(const URigVMPin* Pin = Node->FindPin(InPinPath))
 			{
-				if(const URigVMEdGraphSchema* Schema = Cast<URigVMEdGraphSchema>(RigVMBlueprintPtr->GetRigVMEdGraphSchemaClass()->GetDefaultObject()))
+				if(const URigVMEdGraphSchema* Schema = Cast<URigVMEdGraphSchema>(RigVMClientHost->GetRigVMEdGraphSchemaClass()->GetDefaultObject()))
 				{
 					const FEdGraphPinType PinType = RigVMTypeUtils::PinTypeFromCPPType(*Pin->GetCPPType(), Pin->GetCPPTypeObject());
 					return Schema->GetPinTypeColor(PinType);
@@ -1664,9 +1664,9 @@ FLinearColor FRigVMGraphDetailCustomization::GetPinColor(FString InPinPath) cons
 	return FLinearColor::White;
 }
 
-const FSlateBrush* FRigVMGraphDetailCustomization::GetPinIcon(FString InPinPath) const
+const FSlateBrush* FRigVMGraphDetailCustomizationImpl::GetPinIcon(FString InPinPath) const
 {
-	if(RigVMBlueprintPtr.IsValid())
+	if(RigVMClientHost.IsValid())
 	{
 		if(const URigVMNode* Node = GetNodeForLayout())
 		{
@@ -1680,13 +1680,13 @@ const FSlateBrush* FRigVMGraphDetailCustomization::GetPinIcon(FString InPinPath)
 	return nullptr;
 }
 
-void FRigVMGraphDetailCustomization::HandleCategoryAdded(FString InCategory)
+void FRigVMGraphDetailCustomizationImpl::HandleCategoryAdded(FString InCategory)
 {
-	if(RigVMBlueprintPtr.IsValid())
+	if(RigVMClientHost.IsValid())
 	{
 		if(const URigVMNode* Node = GetNodeForLayout())
 		{
-			if(URigVMController* Controller = RigVMBlueprintPtr->GetController(Node->GetGraph()))
+			if(URigVMController* Controller = RigVMClientHost->GetController(Node->GetGraph()))
 			{
 				Controller->AddEmptyPinCategory(Node->GetFName(), InCategory);
 				CachedNodeLayout.Reset();
@@ -1695,13 +1695,13 @@ void FRigVMGraphDetailCustomization::HandleCategoryAdded(FString InCategory)
 	}
 }
 
-void FRigVMGraphDetailCustomization::HandleCategoryRemoved(FString InCategory)
+void FRigVMGraphDetailCustomizationImpl::HandleCategoryRemoved(FString InCategory)
 {
-	if(RigVMBlueprintPtr.IsValid())
+	if(RigVMClientHost.IsValid())
 	{
 		if(const URigVMNode* Node = GetNodeForLayout())
 		{
-			if(URigVMController* Controller = RigVMBlueprintPtr->GetController(Node->GetGraph()))
+			if(URigVMController* Controller = RigVMClientHost->GetController(Node->GetGraph()))
 			{
 				Controller->RemovePinCategory(Node->GetFName(), InCategory);
 				CachedNodeLayout.Reset();
@@ -1710,13 +1710,13 @@ void FRigVMGraphDetailCustomization::HandleCategoryRemoved(FString InCategory)
 	}
 }
 
-void FRigVMGraphDetailCustomization::HandleCategoryRenamed(FString InOldCategory, FString InNewCategory)
+void FRigVMGraphDetailCustomizationImpl::HandleCategoryRenamed(FString InOldCategory, FString InNewCategory)
 {
-	if(RigVMBlueprintPtr.IsValid())
+	if(RigVMClientHost.IsValid())
 	{
 		if(const URigVMNode* Node = GetNodeForLayout())
 		{
-			if(URigVMController* Controller = RigVMBlueprintPtr->GetController(Node->GetGraph()))
+			if(URigVMController* Controller = RigVMClientHost->GetController(Node->GetGraph()))
 			{
 				Controller->RenamePinCategory(Node->GetFName(), InOldCategory, InNewCategory);
 				CachedNodeLayout.Reset();
@@ -1725,15 +1725,15 @@ void FRigVMGraphDetailCustomization::HandleCategoryRenamed(FString InOldCategory
 	}
 }
 
-void FRigVMGraphDetailCustomization::HandlePinCategoryChanged(FString InPinPath, FString InCategory)
+void FRigVMGraphDetailCustomizationImpl::HandlePinCategoryChanged(FString InPinPath, FString InCategory)
 {
-	if(RigVMBlueprintPtr.IsValid())
+	if(RigVMClientHost.IsValid())
 	{
 		if (const URigVMLibraryNode* LibraryNode = GetLibraryNode())
 		{
 			if(const URigVMPin* Pin = LibraryNode->FindPin(InPinPath))
 			{
-				if(URigVMController* Controller = RigVMBlueprintPtr->GetController(LibraryNode->GetGraph()))
+				if(URigVMController* Controller = RigVMClientHost->GetController(LibraryNode->GetGraph()))
 				{
 					Controller->SetPinCategory(Pin->GetPinPath(), InCategory);
 					CachedNodeLayout.Reset();
@@ -1743,15 +1743,15 @@ void FRigVMGraphDetailCustomization::HandlePinCategoryChanged(FString InPinPath,
 	}
 }
 
-void FRigVMGraphDetailCustomization::HandlePinLabelChanged(FString InPinPath, FString InNewLabel)
+void FRigVMGraphDetailCustomizationImpl::HandlePinLabelChanged(FString InPinPath, FString InNewLabel)
 {
-	if(RigVMBlueprintPtr.IsValid())
+	if(RigVMClientHost.IsValid())
 	{
 		if (const URigVMLibraryNode* LibraryNode = GetLibraryNode())
 		{
 			if(const URigVMPin* Pin = LibraryNode->FindPin(InPinPath))
 			{
-				if(URigVMController* Controller = RigVMBlueprintPtr->GetController(LibraryNode->GetGraph()))
+				if(URigVMController* Controller = RigVMClientHost->GetController(LibraryNode->GetGraph()))
 				{
 					Controller->SetPinDisplayName(Pin->GetPinPath(), InNewLabel);
 					CachedNodeLayout.Reset();
@@ -1761,15 +1761,15 @@ void FRigVMGraphDetailCustomization::HandlePinLabelChanged(FString InPinPath, FS
 	}
 }
 
-void FRigVMGraphDetailCustomization::HandlePinIndexInCategoryChanged(FString InPinPath, int32 InIndexInCategory)
+void FRigVMGraphDetailCustomizationImpl::HandlePinIndexInCategoryChanged(FString InPinPath, int32 InIndexInCategory)
 {
-	if(RigVMBlueprintPtr.IsValid())
+	if(RigVMClientHost.IsValid())
 	{
 		if (const URigVMLibraryNode* LibraryNode = GetLibraryNode())
 		{
 			if(const URigVMPin* Pin = LibraryNode->FindPin(InPinPath))
 			{
-				if(URigVMController* Controller = RigVMBlueprintPtr->GetController(LibraryNode->GetGraph()))
+				if(URigVMController* Controller = RigVMClientHost->GetController(LibraryNode->GetGraph()))
 				{
 					Controller->SetPinIndexInCategory(Pin->GetPinPath(), InIndexInCategory);
 					CachedNodeLayout.Reset();
@@ -1779,7 +1779,7 @@ void FRigVMGraphDetailCustomization::HandlePinIndexInCategoryChanged(FString InP
 	}
 }
 
-bool FRigVMGraphDetailCustomization::ValidateName(FString InNewName, FText& OutErrorMessage)
+bool FRigVMGraphDetailCustomizationImpl::ValidateName(FString InNewName, FText& OutErrorMessage)
 {
 	if(InNewName.IsEmpty())
 	{
@@ -1818,7 +1818,7 @@ bool FRigVMGraphDetailCustomization::ValidateName(FString InNewName, FText& OutE
 	return true;
 }
 
-bool FRigVMGraphDetailCustomization::HandleValidateCategoryName(FString InCategoryPath, FString InNewName, FText& OutErrorMessage)
+bool FRigVMGraphDetailCustomizationImpl::HandleValidateCategoryName(FString InCategoryPath, FString InNewName, FText& OutErrorMessage)
 {
 	if(!ValidateName(InNewName, OutErrorMessage))
 	{
@@ -1844,7 +1844,7 @@ bool FRigVMGraphDetailCustomization::HandleValidateCategoryName(FString InCatego
 	return true;
 }
 
-bool FRigVMGraphDetailCustomization::HandleValidatePinDisplayName(FString InPinPath, FString InNewName, FText& OutErrorMessage)
+bool FRigVMGraphDetailCustomizationImpl::HandleValidatePinDisplayName(FString InPinPath, FString InNewName, FText& OutErrorMessage)
 {
 	if(!ValidateName(InNewName, OutErrorMessage))
 	{
@@ -1885,7 +1885,7 @@ bool FRigVMGraphDetailCustomization::HandleValidatePinDisplayName(FString InPinP
 	return true;
 }
 
-uint32 FRigVMGraphDetailCustomization::GetNodeLayoutHash() const
+uint32 FRigVMGraphDetailCustomizationImpl::GetNodeLayoutHash() const
 {
 	uint32 Hash = 0;
 	if(const FRigVMNodeLayout* Layout = GetNodeLayout())

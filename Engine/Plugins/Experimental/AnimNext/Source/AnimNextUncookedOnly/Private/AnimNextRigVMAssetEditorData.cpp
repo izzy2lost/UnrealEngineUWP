@@ -167,6 +167,7 @@ void UAnimNextRigVMAssetEditorData::PostLoad()
 	
 	PostLoadExternalPackages();
 	RefreshExternalModels();
+
 	Initialize(/*bRecompileVM*/false);
 	
 	GetRigVMClient()->RefreshAllModels(ERigVMLoadType::PostLoad, false, bIsCompiling);
@@ -175,6 +176,31 @@ void UAnimNextRigVMAssetEditorData::PostLoad()
 	TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader> OldHeaders;
 	TArray<FName> BackwardsCompatiblePublicFunctions;
 	GetRigVMClient()->PatchFunctionsOnLoad(this, BackwardsCompatiblePublicFunctions, OldHeaders);
+
+	// Register function references at RigVMBuildData
+	if (URigVMBuildData* BuildData = URigVMBuildData::Get())
+	{
+		TArray<FRigVMReferenceNodeData> ReferenceNodeDatas;
+		const TArray<URigVMGraph*> AllModels = GetAllModels();
+		for (URigVMGraph* ModelToVisit : AllModels)
+		{
+			for (URigVMNode* Node : ModelToVisit->GetNodes())
+			{
+				if (URigVMFunctionReferenceNode* ReferenceNode = Cast<URigVMFunctionReferenceNode>(Node))
+				{
+					ReferenceNodeDatas.Add(FRigVMReferenceNodeData(ReferenceNode));
+				}
+			}
+		}
+
+		// update the build data from the current function references
+		for (const FRigVMReferenceNodeData& ReferenceNodeData : ReferenceNodeDatas)
+		{
+			BuildData->RegisterFunctionReference(ReferenceNodeData);
+		}
+
+		BuildData->ClearInvalidReferences();
+	}
 
 	// delay compilation until the package has been loaded
 	FCoreUObjectDelegates::OnEndLoadPackage.AddUObject(this, &UAnimNextRigVMAssetEditorData::HandlePackageDone);
@@ -209,16 +235,36 @@ void UAnimNextRigVMAssetEditorData::GetAssetRegistryTags(FAssetRegistryTagsConte
 {
 	Super::GetAssetRegistryTags(Context);
 
-	// We may not have compiled yet, so cache exports if we havent already
-	if(!CachedExports.IsSet())
 	{
-		CachedExports = FAnimNextAssetRegistryExports();
-		UE::AnimNext::UncookedOnly::FUtils::GetAssetVariables(this, CachedExports.GetValue());
+		// We may not have compiled yet, so cache exports if we havent already
+		if(!CachedExports.IsSet())
+		{
+			CachedExports = FAnimNextAssetRegistryExports();
+			FAnimNextAssetRegistryExports& OutExports = CachedExports.GetValue();
+
+			UE::AnimNext::UncookedOnly::FUtils::GetAssetVariables(this, OutExports);
+		}
+
+		FString TagValue;
+		FAnimNextAssetRegistryExports::StaticStruct()->ExportText(TagValue, &CachedExports.GetValue(), nullptr, nullptr, PPF_None, nullptr);
+		Context.AddTag(FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));
 	}
 
-	FString TagValue;
-	FAnimNextAssetRegistryExports::StaticStruct()->ExportText(TagValue, &CachedExports.GetValue(), nullptr, nullptr, PPF_None, nullptr);
-	Context.AddTag(FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));
+	{
+		FRigVMGraphFunctionHeaderArray FunctionExports;
+		for (const FRigVMGraphFunctionData& FunctionData : GraphFunctionStore.PublicFunctions)
+		{
+			if (FunctionData.CompilationData.IsValid())
+			{
+				FunctionExports.Headers.Add(FunctionData.Header);
+			}
+		}
+
+		FString TagValue;
+		const FArrayProperty* HeadersProperty = CastField<FArrayProperty>(FRigVMGraphFunctionHeaderArray::StaticStruct()->FindPropertyByName(TEXT("Headers")));
+		HeadersProperty->ExportText_Direct(TagValue, &(FunctionExports.Headers), &(FunctionExports.Headers), nullptr, PPF_None, nullptr);
+		Context.AddTag(FAssetRegistryTag(UE::AnimNext::AnimNextPublicGraphFunctionsExportsRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));
+	}
 }
 
 bool UAnimNextRigVMAssetEditorData::Rename(const TCHAR* NewName, UObject* NewOuter, ERenameFlags Flags)
@@ -246,9 +292,9 @@ void UAnimNextRigVMAssetEditorData::HandlePackageDone()
 {
 	FCoreUObjectDelegates::OnEndLoadPackage.RemoveAll(this);
 
-	RecompileVM();
-
 	ReconstructAllNodes(); // If this is not executed on a node for whatever reason, it will appear transparent in the editor
+
+	RecompileVM();
 }
 
 void UAnimNextRigVMAssetEditorData::RefreshAllModels(ERigVMLoadType InLoadType)
@@ -357,6 +403,71 @@ void UAnimNextRigVMAssetEditorData::SetupPinRedirectorsForBackwardsCompatibility
 {
 }
 
+FRigVMGraphModifiedEvent& UAnimNextRigVMAssetEditorData::OnModified()
+{
+	return RigVMGraphModifiedEvent;
+}
+
+bool UAnimNextRigVMAssetEditorData::IsFunctionPublic(const FName& InFunctionName) const
+{
+	return GetLocalFunctionLibrary()->IsFunctionPublic(InFunctionName);
+}
+
+void UAnimNextRigVMAssetEditorData::MarkFunctionPublic(const FName& InFunctionName, bool bIsPublic)
+{
+	if (IsFunctionPublic(InFunctionName) == bIsPublic)
+	{
+		return;
+	}
+
+	URigVMController* Controller = RigVMClient.GetOrCreateController(GetLocalFunctionLibrary());
+	Controller->MarkFunctionAsPublic(InFunctionName, bIsPublic);
+}
+
+void UAnimNextRigVMAssetEditorData::RenameGraph(const FString& InNodePath, const FName& InNewName)
+{
+	if (URigVMGraph* ModelForNodePath = GetModel(InNodePath))
+	{
+		if (UEdGraph* EdGraph = Cast<UEdGraph>(GetEditorObjectForRigVMGraph(ModelForNodePath)))
+		{
+			FName OldName = NAME_None;
+			OldName = EdGraph->GetFName();
+
+			RigVMClient.RenameModel(InNodePath, InNewName, true);
+		}
+	}
+}
+
+UClass* UAnimNextRigVMAssetEditorData::GetRigVMSchemaClass() const
+{
+	return UAnimNextRigVMAssetSchema::StaticClass();
+}
+
+UScriptStruct* UAnimNextRigVMAssetEditorData::GetRigVMExecuteContextStruct() const 
+{
+	return FAnimNextExecuteContext::StaticStruct();
+}
+
+UClass* UAnimNextRigVMAssetEditorData::GetRigVMEdGraphClass() const 
+{
+	return UAnimNextEdGraph::StaticClass();
+}
+
+UClass* UAnimNextRigVMAssetEditorData::GetRigVMEdGraphNodeClass() const
+{
+	return UAnimNextEdGraphNode::StaticClass();
+}
+
+UClass* UAnimNextRigVMAssetEditorData::GetRigVMEdGraphSchemaClass() const
+{
+	return UAnimNextEdGraphSchema::StaticClass();
+}
+
+UClass* UAnimNextRigVMAssetEditorData::GetRigVMEditorSettingsClass() const
+{
+	return URigVMEditorSettings::StaticClass();
+}
+
 FRigVMClient* UAnimNextRigVMAssetEditorData::GetRigVMClient()
 {
 	return &RigVMClient;
@@ -426,6 +537,22 @@ void UAnimNextRigVMAssetEditorData::HandleRigVMGraphRemoved(const FRigVMClient* 
 	}
 }
 
+void UAnimNextRigVMAssetEditorData::HandleRigVMGraphRenamed(const FRigVMClient* InClient, const FString& InOldNodePath, const FString& InNewNodePath)
+{
+	if (InClient->GetModel(InNewNodePath))
+	{
+		TArray<UEdGraph*> EdGraphs = GetAllEdGraphs();
+		for (UEdGraph* EdGraph : EdGraphs)
+		{
+			if (URigVMEdGraph* RigGraph = Cast<URigVMEdGraph>(EdGraph))
+			{
+				RigGraph->HandleRigVMGraphRenamed(InOldNodePath, InNewNodePath);
+			}
+		}
+	}
+}
+
+
 void UAnimNextRigVMAssetEditorData::HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure)
 {
 	InControllerToConfigure->OnModified().AddUObject(this, &UAnimNextRigVMAssetEditorData::HandleModifiedEvent);
@@ -488,7 +615,7 @@ UObject* UAnimNextRigVMAssetEditorData::GetEditorObjectForRigVMGraph(URigVMGraph
 			{
 				if (URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(SubGraph))
 				{
-					if (RigVMEdGraph->ModelNodePath == SearchGraphNodePath)
+					if (RigVMEdGraph->GetRigVMNodePath() == SearchGraphNodePath)
 					{
 						return RigVMEdGraph;
 					}
@@ -570,7 +697,16 @@ TObjectPtr<URigVMGraph> UAnimNextRigVMAssetEditorData::CreateContainedGraphModel
 	check(CollapseNode);
 
 	TObjectPtr<URigVMGraph> Model = NewObject<URigVMGraph>(CollapseNode, Name);
-	Model->SetSchemaClass(RigVMClient.GetDefaultSchemaClass());
+
+	check(CollapseNode->GetGraph());
+	if (CollapseNode->GetGraph()->GetSchema() != nullptr)
+	{
+		Model->SetSchemaClass(CollapseNode->GetGraph()->GetSchema()->GetClass());
+	}
+	else
+	{
+		Model->SetSchemaClass(RigVMClient.GetDefaultSchemaClass());
+	}
 
 	URigVMGraph* CollapseNodeModelRootGraph = CollapseNode->GetRootGraph();
 	check(CollapseNodeModelRootGraph);
@@ -597,8 +733,7 @@ void UAnimNextRigVMAssetEditorData::RecompileVM()
 
 	UAnimNextRigVMAsset* Asset = FUtils::GetAsset<UAnimNextRigVMAsset>(this);
 
-	CachedExports = FAnimNextAssetRegistryExports();
-	FUtils::GetAssetVariables(this, CachedExports.GetValue());
+	CachedExports.Reset();  // asset variables and other tags will be updated at the end by AssetRegistry->AssetUpdateTags
 
 	bErrorsDuringCompilation = false;
 
@@ -683,6 +818,7 @@ void UAnimNextRigVMAssetEditorData::RecompileVM()
 //	RefreshBreakpoints(EditorData);
 #endif
 
+	// Refresh CachedExports
 	if (IAssetRegistry* AssetRegistry = IAssetRegistry::Get())
 	{
 		AssetRegistry->AssetUpdateTags(Asset, EAssetRegistryTagsCaller::Fast);
@@ -779,6 +915,28 @@ void UAnimNextRigVMAssetEditorData::HandleModifiedEvent(ERigVMGraphNotifType InN
 		RequestAutoVMRecompilation();
 		break;
 	}
+	case ERigVMGraphNotifType::NodeRenamed:
+	{
+		if (URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(InSubject))
+		{
+			FString NewNodePath = CollapseNode->GetNodePath(true /* recursive */);
+			FString Left, Right = NewNodePath;
+			URigVMNode::SplitNodePathAtEnd(NewNodePath, Left, Right);
+			FString OldNodePath = CollapseNode->GetPreviousFName().ToString();
+			if (!Left.IsEmpty())
+			{
+				OldNodePath = URigVMNode::JoinNodePath(Left, OldNodePath);
+			}
+
+			HandleRigVMGraphRenamed(GetRigVMClient(), OldNodePath, NewNodePath);
+
+			if (UEdGraph* ContainedEdGraph = Cast<UEdGraph>(GetEditorObjectForRigVMGraph(CollapseNode->GetContainedGraph())))
+			{
+				ContainedEdGraph->Rename(*CollapseNode->GetEditorSubGraphName(), nullptr);
+			}
+		}
+		break;
+	}
 	case ERigVMGraphNotifType::LinkAdded:
 	case ERigVMGraphNotifType::LinkRemoved:
 	case ERigVMGraphNotifType::PinArraySizeChanged:
@@ -843,12 +1001,15 @@ TArray<UEdGraph*> UAnimNextRigVMAssetEditorData::GetAllEdGraphs() const
 	{
 		if(IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
 		{
-			Graphs.Add(GraphInterface->GetEdGraph());
+			UEdGraph* EdGraph = GraphInterface->GetEdGraph();
+			Graphs.Add(EdGraph);
+			EdGraph->GetAllChildrenGraphs(Graphs);
 		}
 	}
 	for (URigVMEdGraph* RigVMEdGraph : FunctionEdGraphs)
 	{
 		Graphs.Add(RigVMEdGraph);
+		RigVMEdGraph->GetAllChildrenGraphs(Graphs);
 	}
 
 	return Graphs;

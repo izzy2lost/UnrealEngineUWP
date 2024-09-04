@@ -742,6 +742,48 @@ bool FUtils::GetExportedVariablesFromAssetRegistry(TMap<FAssetData, FAnimNextAss
 	return OutExports.Num() > 0;
 }
 
+bool FUtils::GetExportedFunctionsForAsset(const FAssetData& InAsset, FAnimNextAssetRegistryExports& OutExports)
+{
+	const FString TagValue = InAsset.GetTagValueRef<FString>(UE::AnimNext::ExportsAnimNextAssetRegistryTag);
+	
+	bool bContainsFunctions = false;
+	FAnimNextAssetRegistryExports AssetExports;
+	if (FAnimNextAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &AssetExports, nullptr, PPF_None, nullptr, FAnimNextAssetRegistryExports::StaticStruct()->GetName()) != nullptr)
+	{
+		if (AssetExports.PublicHeaders.Num() > 0)
+		{
+			OutExports = MoveTemp(AssetExports);
+			bContainsFunctions = true;
+		}
+	}
+
+	return bContainsFunctions;
+}
+
+bool FUtils::GetExportedFunctionsFromAssetRegistry(FName Tag, TMap<FAssetData, FRigVMGraphFunctionHeaderArray>& OutExports)
+{
+	TArray<FAssetData> AssetData;
+	IAssetRegistry::GetChecked().GetAssetsByTags({ Tag }, AssetData);
+
+	const FArrayProperty* HeadersProperty = CastField<FArrayProperty>(FRigVMGraphFunctionHeaderArray::StaticStruct()->FindPropertyByName(TEXT("Headers")));
+
+	for (const FAssetData& Asset : AssetData)
+	{
+		const FString TagValue = Asset.GetTagValueRef<FString>(Tag);
+		FRigVMGraphFunctionHeaderArray AssetExports;
+
+		if (HeadersProperty->ImportText_Direct(*TagValue, &AssetExports, nullptr, EPropertyPortFlags::PPF_None) != nullptr)
+		{
+			if (AssetExports.Headers.Num() > 0)
+			{
+				OutExports.Add(Asset, MoveTemp(AssetExports));
+			}
+		}
+	}
+
+	return OutExports.Num() > 0;
+}
+
 static void AddParamToSet(const FAnimNextAssetRegistryExportedVariable& InNewParam, TSet<FAnimNextAssetRegistryExportedVariable>& OutExports)
 {
 	if(FAnimNextAssetRegistryExportedVariable* ExistingEntry = OutExports.Find(InNewParam))
@@ -824,26 +866,34 @@ void FUtils::GetAssetOutlinerItems(const UAnimNextRigVMAssetEditorData* EditorDa
 		}
 	}
 
-	CreateFunctionLibraryOutlinerItemsRecursive(EditorData, OutExports, AssetIdentifier, EditorData->GetRigVMGraphFunctionStore()->PublicFunctions, EditorData->GetRigVMGraphFunctionStore()->PrivateFunctions);
+	//CreateFunctionLibraryOutlinerItemsRecursive(EditorData, OutExports, AssetIdentifier, EditorData->GetRigVMGraphFunctionStore()->PublicFunctions, EditorData->GetRigVMGraphFunctionStore()->PrivateFunctions);
 }
 
 void FUtils::CreateSubGraphsOutlinerItemsRecursive(const UAnimNextRigVMAssetEditorData* EditorData, FWorkspaceOutlinerItemExports& OutExports, FWorkspaceOutlinerItemExport& ParentExport, URigVMEdGraph* RigVMEdGraph)
 {
+	if (RigVMEdGraph == nullptr)
+	{
+		return;
+	}
+
 	// ---- Collapsed graphs ---
 	for (const TObjectPtr<UEdGraph>& SubGraph : RigVMEdGraph->SubGraphs)
 	{
 		URigVMEdGraph* EditorObject = Cast<URigVMEdGraph>(SubGraph);
 		if (IsValid(EditorObject))
 		{
-			URigVMCollapseNode* CollapseNode = CastChecked<URigVMCollapseNode>(EditorObject->GetModel()->GetOuter());
+			if(ensure(EditorObject->GetModel()))
+			{
+				URigVMCollapseNode* CollapseNode = CastChecked<URigVMCollapseNode>(EditorObject->GetModel()->GetOuter());
 
-			FWorkspaceOutlinerItemExport& Export = OutExports.Exports.Add_GetRef(FWorkspaceOutlinerItemExport(CollapseNode->GetFName(), ParentExport));
-			Export.GetData().InitializeAsScriptStruct(FAnimNextCollapseGraphOutlinerData::StaticStruct());
+				FWorkspaceOutlinerItemExport& Export = OutExports.Exports.Add_GetRef(FWorkspaceOutlinerItemExport(CollapseNode->GetFName(), ParentExport));
+				Export.GetData().InitializeAsScriptStruct(FAnimNextCollapseGraphOutlinerData::StaticStruct());
 			
-			FAnimNextCollapseGraphOutlinerData& FnGraphData = Export.GetData().GetMutable<FAnimNextCollapseGraphOutlinerData>();
-			FnGraphData.EditorObject = EditorObject;
+				FAnimNextCollapseGraphOutlinerData& FnGraphData = Export.GetData().GetMutable<FAnimNextCollapseGraphOutlinerData>();
+				FnGraphData.EditorObject = EditorObject;
 
-			CreateSubGraphsOutlinerItemsRecursive(EditorData, OutExports, Export, EditorObject);
+				CreateSubGraphsOutlinerItemsRecursive(EditorData, OutExports, Export, EditorObject);
+			}
 		}
 	}
 
@@ -851,21 +901,32 @@ void FUtils::CreateSubGraphsOutlinerItemsRecursive(const UAnimNextRigVMAssetEdit
 	TArray<URigVMEdGraphNode*> EdNodes;
 	RigVMEdGraph->GetNodesOfClass(EdNodes);
 
-	for (const URigVMEdGraphNode* EdNode : EdNodes)
+	for (URigVMEdGraphNode* EdNode : EdNodes)
 	{
 		if (URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(EdNode->GetModelNode()))
 		{
 			if (URigVMLibraryNode* ReferencedNode = Cast<URigVMLibraryNode>(FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer.GetNodeSoftPath().ResolveObject()))
 			{
-				FWorkspaceOutlinerItemExport& Export = OutExports.Exports.Add_GetRef(FWorkspaceOutlinerItemExport(ReferencedNode->GetFName(), ParentExport));
+				if (URigVMGraph* ContainedGraph = ReferencedNode->GetContainedGraph())
+				{
+					if (EditorData->GetEditorObjectForRigVMGraph(ContainedGraph) == nullptr)
+					{
+						continue; // Do not show references to other assets functions in the outliner
+					}
 
-				Export.GetData().InitializeAsScriptStruct(FAnimNextGraphFunctionOutlinerData::StaticStruct());
-				FAnimNextGraphFunctionOutlinerData& FnGraphData = Export.GetData().GetMutable<FAnimNextGraphFunctionOutlinerData>();
+					FWorkspaceOutlinerItemExport& Export = OutExports.Exports.Add_GetRef(FWorkspaceOutlinerItemExport(ReferencedNode->GetFName(), ParentExport));
 
-				URigVMEdGraph* ContainedGraph = Cast<URigVMEdGraph>(EditorData->GetEditorObjectForRigVMGraph(ReferencedNode->GetContainedGraph()));
-				FnGraphData.EditorObject = ContainedGraph;
+					Export.GetData().InitializeAsScriptStruct(FAnimNextGraphFunctionOutlinerData::StaticStruct());
+					FAnimNextGraphFunctionOutlinerData& FnGraphData = Export.GetData().GetMutable<FAnimNextGraphFunctionOutlinerData>();
 
-				CreateSubGraphsOutlinerItemsRecursive(EditorData, OutExports, Export, ContainedGraph);
+					if (URigVMEdGraph* ContainedEdGraph = Cast<URigVMEdGraph>(EditorData->GetEditorObjectForRigVMGraph(ContainedGraph)))
+					{
+						FnGraphData.EditorObject = ContainedEdGraph;
+						FnGraphData.EdGraphNode = EdNode;
+						
+						CreateSubGraphsOutlinerItemsRecursive(EditorData, OutExports, Export, ContainedEdGraph);
+					}
+				}
 			}
 		}
 	}

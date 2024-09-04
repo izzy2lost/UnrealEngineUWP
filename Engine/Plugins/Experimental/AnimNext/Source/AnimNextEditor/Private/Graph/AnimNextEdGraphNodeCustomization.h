@@ -10,6 +10,7 @@
 class URigVMPin;
 class IDetailCategoryBuilder;
 class UAnimNextEdGraphNode;
+class FRigVMGraphDetailCustomizationImpl;
 
 namespace UE::Workspace
 {
@@ -107,6 +108,8 @@ protected:
 
 	TWeakPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditorWeak;
 	TArray<TSharedPtr<FCategoryDetailsData>> CategoryDetailsData;
+
+	TSharedPtr<FRigVMGraphDetailCustomizationImpl> RigVMGraphDetailCustomizationImpl;
 };
 
 }

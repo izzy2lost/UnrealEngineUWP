@@ -31,45 +31,35 @@ void FAnimNextGraphItemDetails::HandleDoubleClick(const FToolMenuContext& ToolMe
 		if(const TSharedPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditor = StaticCastSharedPtr<UE::Workspace::IWorkspaceEditor>(AssetEditorContext->Toolkit.Pin()))
 		{
 			const TInstancedStruct<FWorkspaceOutlinerItemData>& Data = WorkspaceItemContext->SelectedExports[0].GetData();
-			if (Data.IsValid())
+			if (Data.IsValid() && Data.GetScriptStruct() == FAnimNextGraphOutlinerData::StaticStruct())
 			{
-				if (Data.GetScriptStruct() == FAnimNextGraphOutlinerData::StaticStruct())
+				const FAnimNextGraphOutlinerData& GraphData = Data.Get<FAnimNextGraphOutlinerData>();							
+				if (GraphData.GraphInterface)
 				{
-					const FAnimNextGraphOutlinerData& GraphData = Data.Get<FAnimNextGraphOutlinerData>();							
-					if (GraphData.GraphInterface)
+					if (URigVMGraph* RigVMGraph = GraphData.GraphInterface->GetRigVMGraph())
 					{
-						if (URigVMGraph* RigVMGraph = GraphData.GraphInterface->GetRigVMGraph())
+						if(const IRigVMClientHost* RigVMClientHost = RigVMGraph->GetImplementingOuter<IRigVMClientHost>())
 						{
-							if(const IRigVMClientHost* RigVMClientHost = RigVMGraph->GetImplementingOuter<IRigVMClientHost>())
+							if(UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(RigVMGraph))
 							{
-								if(UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(RigVMGraph))
-								{
-									WorkspaceEditor->OpenObjects({EditorObject});
-								}
+								WorkspaceEditor->OpenObjects({EditorObject});
 							}
 						}
-					}
-				}
-				else if (Data.GetScriptStruct() == FAnimNextGraphFunctionOutlinerData::StaticStruct())
-				{
-					const FAnimNextGraphFunctionOutlinerData& GraphFunctionData = Data.Get<FAnimNextGraphFunctionOutlinerData>();
-					if (GraphFunctionData.EditorObject.IsValid())
-					{
-						WorkspaceEditor->OpenObjects({ GraphFunctionData.EditorObject.Get()});
-					}
-				}
-				else if (Data.GetScriptStruct() == FAnimNextCollapseGraphOutlinerData::StaticStruct())
-				{
-					const FAnimNextCollapseGraphOutlinerData& CollapseGraphData = Data.Get<FAnimNextCollapseGraphOutlinerData>();
-					if (CollapseGraphData.EditorObject.IsValid())
-					{
-						UObject* EditorObject = CollapseGraphData.EditorObject.Get();
-						WorkspaceEditor->OpenObjects({ EditorObject });
 					}
 				}
 			}
 		}
 	}
+}
+
+bool FAnimNextGraphItemDetails::CanDelete(const FWorkspaceOutlinerItemExport& Export) const
+{
+	const TInstancedStruct<FWorkspaceOutlinerItemData>& Data = Export.GetData();
+	if (Data.IsValid() && Data.GetScriptStruct() == FAnimNextGraphOutlinerData::StaticStruct())
+	{
+		return true;
+	}
+	return false;
 }
 
 void FAnimNextGraphItemDetails::Delete(TConstArrayView<FWorkspaceOutlinerItemExport> Exports) const
@@ -81,6 +71,7 @@ void FAnimNextGraphItemDetails::Delete(TConstArrayView<FWorkspaceOutlinerItemExp
 		if (Data.IsValid() && Data.GetScriptStruct() == FAnimNextGraphOutlinerData::StaticStruct())
 		{
 			const FAnimNextGraphOutlinerData& GraphData = Export.GetData().Get<FAnimNextGraphOutlinerData>();
+
 			UAnimNextRigVMAssetEditorData* EditorData = GraphData.Entry->GetTypedOuter<UAnimNextRigVMAssetEditorData>();
 			if(EditorData == nullptr)
 			{
@@ -125,7 +116,7 @@ void FAnimNextGraphItemDetails::Rename(const FWorkspaceOutlinerItemExport& Expor
 		UAnimNextRigVMAssetEditorData* EditorData = GraphData.Entry->GetTypedOuter<UAnimNextRigVMAssetEditorData>();
 		FName NewName = FName(*InName.ToString());
 		UAnimNextRigVMAssetEntry* ExistingEntry = EditorData->FindEntry(NewName);
-		if(ExistingEntry == nullptr && GraphData.Entry->GetEntryName() != NewName)
+		if (ExistingEntry == nullptr && GraphData.Entry->GetEntryName() != NewName)
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetName", "Set Name"));
 			GraphData.Entry->SetEntryName(NewName);
@@ -146,40 +137,21 @@ bool FAnimNextGraphItemDetails::ValidateName(const FWorkspaceOutlinerItemExport&
 			OutErrorMessage = LOCTEXT("NameAlreadyExistsError", "Name already exists in this module");
 			return false;
 		}
-
-		return true;
 	}
+
+	OutErrorMessage = LOCTEXT("UnsupportedTypeRenameError", "Element type is not supported for rename");
 	return false;
 }
 
-UPackage* FAnimNextGraphItemDetails::GetPackage(const FWorkspaceOutlinerItemExport& Export) const 
+UPackage* FAnimNextGraphItemDetails::GetPackage(const FWorkspaceOutlinerItemExport& Export) const
 {
 	const TInstancedStruct<FWorkspaceOutlinerItemData>& Data = Export.GetData();
-	if (Data.IsValid())
+	if (Data.IsValid() && Data.GetScriptStruct() == FAnimNextGraphOutlinerData::StaticStruct())
 	{
-		if (Data.GetScriptStruct() == FAnimNextGraphOutlinerData::StaticStruct())
+		const FAnimNextGraphOutlinerData& GraphData = Data.Get<FAnimNextGraphOutlinerData>();
+		if (GraphData.GraphInterface)
 		{
-			const FAnimNextGraphOutlinerData& GraphData = Data.Get<FAnimNextGraphOutlinerData>();
-			if (GraphData.GraphInterface)
-			{
-				return GraphData.GraphInterface.GetObject()->GetExternalPackage();
-			}
-		}
-		else if(Data.GetScriptStruct() == FAnimNextGraphFunctionOutlinerData::StaticStruct())
-		{
-			const FAnimNextGraphFunctionOutlinerData& GraphFunctionData = Data.Get<FAnimNextGraphFunctionOutlinerData>();
-			if (GraphFunctionData.EditorObject.IsValid())
-			{
-				return GraphFunctionData.EditorObject->GetPackage();
-			}
-		}
-		else if (Data.GetScriptStruct() == FAnimNextCollapseGraphOutlinerData::StaticStruct())
-		{
-			const FAnimNextCollapseGraphOutlinerData& CollapseGraphData = Data.Get<FAnimNextCollapseGraphOutlinerData>();
-			if (CollapseGraphData.EditorObject.IsValid())
-			{
-				return CollapseGraphData.EditorObject->GetPackage();
-			}
+			return GraphData.GraphInterface.GetObject()->GetExternalPackage();
 		}
 	}
 	return nullptr;
@@ -192,12 +164,10 @@ const FSlateBrush* FAnimNextGraphItemDetails::GetItemIcon(const FWorkspaceOutlin
 
 void FAnimNextGraphItemDetails::RegisterToolMenuExtensions()
 {
-
 }
 
 void FAnimNextGraphItemDetails::UnregisterToolMenuExtensions()
 {
-
 }
 
 } // UE::AnimNext::Editor

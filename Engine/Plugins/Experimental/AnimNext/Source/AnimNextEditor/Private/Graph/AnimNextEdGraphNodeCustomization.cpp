@@ -5,11 +5,15 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "AnimNextEdGraphNode.h"
+#include "Editor/RigVMGraphDetailCustomization.h"
 #include "Graph/RigDecorator_AnimNextCppTrait.h"
 #include "Graph/TraitEditorTabSummoner.h"
 #include "Logging/LogScopedVerbosityOverride.h"
 #include "InstancedPropertyBagStructureDataProvider.h"
+#include "RigVMModel/Nodes/RigVMLibraryNode.h"
+#include "RigVMModel/Nodes/RigVMAggregateNode.h"
 #include "RigVMModel/RigVMController.h"
+#include "RigVMModel/RigVMFunctionLibrary.h"
 #include "IWorkspaceEditor.h"
 #include "STraitEditorView.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -27,6 +31,7 @@ FAnimNextEdGraphNodeCustomization::FAnimNextEdGraphNodeCustomization(const TWeak
 void FAnimNextEdGraphNodeCustomization::PendingDelete()
 {
 	CategoryDetailsData.Reset();
+	RigVMGraphDetailCustomizationImpl.Reset();
 
 	if (TSharedPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditor = WorkspaceEditorWeak.Pin())
 	{
@@ -45,6 +50,8 @@ void FAnimNextEdGraphNodeCustomization::CustomizeDetails(IDetailLayoutBuilder& D
 	TArray<TWeakObjectPtr<UObject>> Objects;
 	DetailBuilder.GetObjectsBeingCustomized(Objects);
 
+	RigVMGraphDetailCustomizationImpl.Reset();
+
 	if (Objects.IsEmpty())
 	{
 		return;
@@ -62,10 +69,55 @@ void FAnimNextEdGraphNodeCustomization::CustomizeObjects(IDetailLayoutBuilder& D
 		{
 			if (EdGraphNode->IsTraitStack())
 			{
+				RigVMGraphDetailCustomizationImpl.Reset();
 				GenerateTraitData(EdGraphNode, CategoryDetailsData);
 			}
-			else
+			else 
 			{
+				if (URigVMNode* ModelNode = EdGraphNode->GetModelNode())
+				{
+					bool bIsFunction = false;
+					bool bIsCollapseNode = false;
+					bool bIsAggregate = false;
+
+					if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(ModelNode))
+					{
+						if (URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(ModelNode))
+						{
+							if (URigVMLibraryNode* ReferencedNode = Cast<URigVMLibraryNode>(FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer.GetNodeSoftPath().ResolveObject()))
+							{
+								LibraryNode = ReferencedNode;
+								bIsFunction = true;
+							}
+						}
+						else if (URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(ModelNode))
+						{
+							bIsCollapseNode = true;
+						}
+						bIsAggregate = LibraryNode->IsA<URigVMAggregateNode>();
+
+						if (bIsFunction || bIsCollapseNode || bIsAggregate)
+						{
+							if (NumNodes > 1) // no multiselection of function / collapse nodes
+							{
+								continue;
+							}
+
+							TWeakPtr<FRigVMEditor> WeakEditor; // passing an empty RigVMEditor to FRigVMCollapseGraphLayout
+							IRigVMClientHost* RigVMClientHost = EdGraphNode->GetController()->GetClientHost();
+							check(RigVMClientHost);
+
+
+							RigVMGraphDetailCustomizationImpl = MakeShared<FRigVMGraphDetailCustomizationImpl>();
+							RigVMGraphDetailCustomizationImpl->CustomizeDetails(DetailBuilder
+								, LibraryNode->GetContainedGraph()
+								, RigVMClientHost->GetController(LibraryNode->GetContainedGraph())
+								, RigVMClientHost
+								, WeakEditor);
+						}
+					}
+				}
+
 				GenerateRigVMData(EdGraphNode, CategoryDetailsData);
 			}
 		}

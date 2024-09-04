@@ -9,6 +9,7 @@
 #include "Param/ParamType.h"
 #include "RigVMCore/RigVMTemplate.h"
 #include "StructUtils/InstancedStruct.h"
+#include "RigVMCore/RigVMGraphFunctionDefinition.h"
 #include "UncookedOnlyUtils.generated.h"
 
 struct FAnimNextVariableBindingData;
@@ -17,6 +18,7 @@ struct FWorkspaceOutlinerItemExports;
 struct FWorkspaceOutlinerItemExport;
 struct FRigVMGraphFunctionData;
 struct FRigVMCompileSettings;
+struct FRigVMGraphFunctionHeaderArray;
 class UAnimNextModule;
 class UAnimNextModule_EditorData;
 class UAnimNextEdGraph;
@@ -27,11 +29,14 @@ class UAnimNextRigVMAsset;
 class UAnimNextRigVMAssetEditorData;
 class UAnimNextRigVMAssetEntry;
 
+
 namespace UE
 {
 	namespace AnimNext
 	{
 		static const FLazyName ExportsAnimNextAssetRegistryTag = TEXT("AnimNextExports");
+		static const FLazyName AnimNextPublicGraphFunctionsExportsRegistryTag = TEXT("AnimNextPublicGraphFunctions");
+		static const FLazyName ControlRigAssetPublicGraphFunctionsExportsRegistryTag = TEXT("PublicGraphFunctions");
 	}
 }
 
@@ -93,6 +98,9 @@ struct FAnimNextAssetRegistryExports
 
 	UPROPERTY()
 	TArray<FAnimNextAssetRegistryExportedVariable> Variables;
+
+	UPROPERTY()
+	TArray<FRigVMGraphFunctionHeader> PublicHeaders;
 };
 
 namespace UE::AnimNext::UncookedOnly
@@ -157,6 +165,12 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 
 	// Gets all the variables that are exported to the asset registry
 	static bool GetExportedVariablesFromAssetRegistry(TMap<FAssetData, FAnimNextAssetRegistryExports>& OutExports);
+
+	// Gets the functions that are exported to the asset registry for an asset
+	static bool GetExportedFunctionsForAsset(const FAssetData& InAsset, FAnimNextAssetRegistryExports& OutExports);
+
+	// Gets all the functions that are exported to the asset registry for the specified Tag
+	static bool GetExportedFunctionsFromAssetRegistry(FName Tag, TMap<FAssetData, FRigVMGraphFunctionHeaderArray>& OutExports);
 
 	// Gets the exported variables that are used by a RigVM asset
 	static void GetAssetVariables(const UAnimNextRigVMAssetEditorData* EditorData, FAnimNextAssetRegistryExports& OutExports);

@@ -21,14 +21,15 @@
 #include "HAL/PlatformApplicationMisc.h"
 
 class IDetailLayoutBuilder;
+class FRigVMGraphDetailCustomizationImpl;
 
 class RIGVMEDITOR_API FRigVMFunctionArgumentGroupLayout : public IDetailCustomNodeBuilder, public TSharedFromThis<FRigVMFunctionArgumentGroupLayout>
 {
 public:
 	FRigVMFunctionArgumentGroupLayout(
-		URigVMGraph* InGraph, 
-		URigVMBlueprint* InBlueprint,
-		TWeakPtr<FRigVMEditor> InEditor,
+		const TWeakObjectPtr<URigVMGraph>& InGraph,
+		const TWeakInterfacePtr<IRigVMClientHost>& InRigVMClientHost,
+		const TWeakPtr<FRigVMEditor>& InEditor,
 		bool bInputs);
 	virtual ~FRigVMFunctionArgumentGroupLayout();
 
@@ -47,7 +48,7 @@ private:
 	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
 
 	TWeakObjectPtr<URigVMGraph> GraphPtr;
-	TWeakObjectPtr<URigVMBlueprint> RigVMBlueprintPtr;
+	TWeakInterfacePtr<IRigVMClientHost> WeakRigVMClientHost;
 	TWeakPtr<FRigVMEditor> RigVMEditorPtr;
 	bool bIsInputGroup;
 	FSimpleDelegate OnRebuildChildren;
@@ -58,15 +59,15 @@ class RIGVMEDITOR_API FRigVMFunctionArgumentLayout : public IDetailCustomNodeBui
 public:
 
 	FRigVMFunctionArgumentLayout(
-		URigVMPin* InPin, 
-		URigVMGraph* InGraph, 
-		URigVMBlueprint* InBlueprint,
-		TWeakPtr<FRigVMEditor> InEditor)
+		const TWeakObjectPtr<URigVMPin>& InPin,
+		const TWeakObjectPtr<URigVMGraph>& InGraph, 
+		const TWeakInterfacePtr<IRigVMClientHost>& InRigVMClientHost,
+		const TWeakPtr<FRigVMEditor>& InEditor)
 		: PinPtr(InPin)
 		, GraphPtr(InGraph)
-		, RigVMBlueprintPtr(InBlueprint)
+		, WeakRigVMClientHost(InRigVMClientHost)
 		, RigVMEditorPtr(InEditor)
-		, NameValidator(InBlueprint, InGraph, InPin->GetFName())
+		, NameValidator(nullptr, InGraph.Get(), InPin->GetFName()) // TODO check if missing Blueprint affects name validation
 	{}
 
 private:
@@ -111,8 +112,8 @@ private:
 	/** The target graph that this argument is on */
 	TWeakObjectPtr<URigVMGraph> GraphPtr;
 
-	/** The blueprint we are editing */
-	TWeakObjectPtr<URigVMBlueprint> RigVMBlueprintPtr;
+	/** The asset host we are editing */
+	TWeakInterfacePtr<IRigVMClientHost> WeakRigVMClientHost;
 
 	/** The editor we are editing */
 	TWeakPtr<FRigVMEditor> RigVMEditorPtr;
@@ -128,8 +129,8 @@ class RIGVMEDITOR_API FRigVMFunctionArgumentDefaultNode : public IDetailCustomNo
 {
 public:
 	FRigVMFunctionArgumentDefaultNode(
-		URigVMGraph* InGraph,
-		URigVMBlueprint* InBlueprint
+		const TWeakObjectPtr<URigVMGraph>& InGraph,
+		const TWeakInterfacePtr<IRigVMClientHost>& InClientHost
 	);
 	virtual ~FRigVMFunctionArgumentDefaultNode();
 
@@ -150,29 +151,47 @@ private:
 
 	TWeakObjectPtr<URigVMGraph> GraphPtr;
 	TWeakObjectPtr<URigVMEdGraph> EdGraphOuterPtr;
-	TWeakObjectPtr<URigVMBlueprint> RigVMBlueprintPtr;
+	TWeakInterfacePtr<IRigVMClientHost> WeakRigVMClientHost;
 	FSimpleDelegate OnRebuildChildren;
 	TSharedPtr<SRigVMGraphNode> OwnedNodeWidget;
 	FDelegateHandle GraphChangedDelegateHandle;
 };
 
-
 /** Customization for editing rig vm graphs */
 class RIGVMEDITOR_API FRigVMGraphDetailCustomization : public IDetailCustomization
 {
 public:
-
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */
 	static TSharedPtr<IDetailCustomization> MakeInstance(TSharedPtr<IBlueprintEditor> InBlueprintEditor, const UClass* InExpectedBlueprintClass);
 
-	FRigVMGraphDetailCustomization(TSharedPtr<FRigVMEditor> RigVMigEditor, URigVMBlueprint* RigVMBlueprint)
-		: RigVMEditorPtr(RigVMigEditor)
-		, RigVMBlueprintPtr(RigVMBlueprint)
-		, bIsPickingColor(false)
-	{}
+	FRigVMGraphDetailCustomization(TSharedPtr<FRigVMEditor> RigVMigEditor, URigVMBlueprint* RigVMBlueprint);
 
 	// IDetailCustomization interface
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
+
+private:
+	/** The Blueprint editor we are embedded in */
+	TWeakPtr<FRigVMEditor> RigVMEditorPtr;
+
+	/** The graph we are editing */
+	TWeakObjectPtr<URigVMEdGraph> GraphPtr;
+
+	/** The blueprint we are editing */
+	TWeakObjectPtr<URigVMBlueprint> RigVMBlueprintPtr;
+
+	TSharedPtr<FRigVMGraphDetailCustomizationImpl> RigVMGraphDetailCustomizationImpl;
+};
+
+class RIGVMEDITOR_API FRigVMGraphDetailCustomizationImpl : public TSharedFromThis<FRigVMGraphDetailCustomizationImpl>
+{
+public:
+	void CustomizeDetails(IDetailLayoutBuilder& DetailLayout,
+		URigVMGraph* Model,
+		URigVMController* Controller,
+		IRigVMClientHost* InRigVMClientHost,
+		TWeakPtr<FRigVMEditor> InEditor);
+
+private:
 
 	bool IsAddNewInputOutputEnabled() const;
 	EVisibility GetAddNewInputOutputVisibility() const;
@@ -221,20 +240,23 @@ private:
 	void HandlePinCategoryChanged(FString InPinPath, FString InCategory);
 	void HandlePinLabelChanged(FString InPinPath, FString InNewLabel);
 	void HandlePinIndexInCategoryChanged(FString InPinPath, int32 InIndexInCategory);
-	static bool ValidateName(FString InNewName, FText& OutErrorMessage); 
+	static bool ValidateName(FString InNewName, FText& OutErrorMessage);
 	bool HandleValidateCategoryName(FString InCategoryPath, FString InNewName, FText& OutErrorMessage);
 	bool HandleValidatePinDisplayName(FString InPinPath, FString InNewName, FText& OutErrorMessage);
 
 	uint32 GetNodeLayoutHash() const;
 
-	/** The Blueprint editor we are embedded in */
+	/** The graph we are editing */
+	TWeakObjectPtr<URigVMGraph> WeakModel;
+
+	/** The graph controller we are editing */
+	TWeakObjectPtr<URigVMController> WeakController;
+
+	/** The editor we are embedded in */
 	TWeakPtr<FRigVMEditor> RigVMEditorPtr;
 
-	/** The graph we are editing */
-	TWeakObjectPtr<URigVMEdGraph> GraphPtr;
-
-	/** The blueprint we are editing */
-	TWeakObjectPtr<URigVMBlueprint> RigVMBlueprintPtr;
+	/** The asset host we are editing */
+	TWeakInterfacePtr<IRigVMClientHost> RigVMClientHost;
 
 	/** The color block widget */
 	TSharedPtr<SColorBlock> ColorBlock;

@@ -31,7 +31,28 @@ class RIGVMDEVELOPER_API IRigVMClientHost
 	GENERATED_BODY()
 
 public:
-	
+
+	/** Returns the expected schema class to use for this blueprint */
+	virtual FString GetAssetName() const = 0;
+
+	/** Returns the expected schema class to use for this blueprint */
+	virtual UClass* GetRigVMSchemaClass() const = 0;
+
+	/** Returns the expected execute context struct to use for this blueprint */
+	virtual UScriptStruct* GetRigVMExecuteContextStruct() const = 0;
+
+	/** Returns the expected ed graph class to use for this blueprint */
+	virtual UClass* GetRigVMEdGraphClass() const = 0;
+
+	/** Returns the expected ed graph node class to use for this blueprint */
+	virtual UClass* GetRigVMEdGraphNodeClass() const = 0;
+
+	/** Returns the expected ed graph schema class to use for this blueprint */
+	virtual UClass* GetRigVMEdGraphSchemaClass() const = 0;
+
+	/** Returns the class of the settings to use */
+	virtual UClass* GetRigVMEditorSettingsClass() const = 0;
+
 	// Returns the rigvm client for this host
 	virtual FRigVMClient* GetRigVMClient() = 0;
 
@@ -109,7 +130,6 @@ public:
 
 	virtual bool RemoveModel(FString InName = TEXT("Rig Graph"), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true) = 0;
 
-
 	virtual FRigVMGetFocusedGraph& OnGetFocusedGraph() = 0;
 	virtual const FRigVMGetFocusedGraph& OnGetFocusedGraph() const = 0;
 
@@ -127,6 +147,13 @@ public:
 	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName)  = 0;
 
 	virtual void SetupPinRedirectorsForBackwardsCompatibility() = 0;
+
+	virtual FRigVMGraphModifiedEvent& OnModified() = 0;
+
+	virtual bool IsFunctionPublic(const FName& InFunctionName) const = 0;
+	virtual void MarkFunctionPublic(const FName& InFunctionName, bool bIsPublic = true) = 0;
+
+	virtual void RenameGraph(const FString& InNodePath, const FName& InNewName) = 0;
 };
 
 UINTERFACE()

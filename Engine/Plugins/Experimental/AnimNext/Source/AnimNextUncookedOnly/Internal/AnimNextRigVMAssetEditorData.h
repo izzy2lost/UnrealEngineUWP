@@ -33,6 +33,7 @@ namespace UE::AnimNext::Editor
 	class FWorkspaceEditor;
 	class FAnimNextAssetItemDetails;
 	class FAnimNextGraphItemDetails;
+	class FAnimNextFunctionItemDetails;
 	struct FVariablesOutlinerEntryItem;
 	class FVariablesOutlinerMode;
 	class FVariablesOutlinerHierarchy;
@@ -151,6 +152,7 @@ protected:
 	friend class UE::AnimNext::Editor::FVariableCustomization;
 	friend class UE::AnimNext::Editor::FAnimNextAssetItemDetails;
 	friend class UE::AnimNext::Editor::FAnimNextGraphItemDetails;
+	friend class UE::AnimNext::Editor::FAnimNextFunctionItemDetails;
 	friend struct UE::AnimNext::Editor::FVariablesOutlinerEntryItem;
 	friend class UE::AnimNext::Editor::FVariablesOutlinerMode;
 	friend class UE::AnimNext::Editor::FVariablesOutlinerHierarchy;
@@ -175,13 +177,20 @@ protected:
 	void HandlePackageDone();
 
 	// IRigVMClientHost interface
+	virtual FString GetAssetName() const override { return GetName(); }
+	virtual UClass* GetRigVMSchemaClass() const override;
+	virtual UScriptStruct* GetRigVMExecuteContextStruct() const override;
+	virtual UClass* GetRigVMEdGraphClass() const override;
+	virtual UClass* GetRigVMEdGraphNodeClass() const override;
+	virtual UClass* GetRigVMEdGraphSchemaClass() const override;
+	virtual UClass* GetRigVMEditorSettingsClass() const override;
 	virtual FRigVMClient* GetRigVMClient() override;
 	virtual const FRigVMClient* GetRigVMClient() const override;
 	virtual IRigVMGraphFunctionHost* GetRigVMGraphFunctionHost() override;
 	virtual const IRigVMGraphFunctionHost* GetRigVMGraphFunctionHost() const override;
 	virtual void HandleRigVMGraphAdded(const FRigVMClient* InClient, const FString& InNodePath) override;
 	virtual void HandleRigVMGraphRemoved(const FRigVMClient* InClient, const FString& InNodePath) override;
-	virtual void HandleRigVMGraphRenamed(const FRigVMClient* InClient, const FString& InOldNodePath, const FString& InNewNodePath) override {}
+	virtual void HandleRigVMGraphRenamed(const FRigVMClient* InClient, const FString& InOldNodePath, const FString& InNewNodePath) override;
 	virtual void HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure) override;
 	virtual UObject* GetEditorObjectForRigVMGraph(URigVMGraph* InVMGraph) const override;
 	virtual URigVMGraph* GetRigVMGraphForEditorObject(UObject* InObject) const override;
@@ -213,6 +222,11 @@ protected:
 	virtual URigVMController* GetOrCreateController(const UEdGraph* InGraph) override;
 	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName) override;
 	virtual void SetupPinRedirectorsForBackwardsCompatibility() override;
+	virtual FRigVMGraphModifiedEvent& OnModified() override;
+	virtual bool IsFunctionPublic(const FName& InFunctionName) const override;
+	virtual void MarkFunctionPublic(const FName& InFunctionName, bool bIsPublic = true) override;
+	virtual void RenameGraph(const FString& InNodePath, const FName& InNewName) override;
+
 
 	// IRigVMGraphFunctionHost interface
 	virtual FRigVMGraphFunctionStore* GetRigVMGraphFunctionStore() override;

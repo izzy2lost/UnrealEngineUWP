@@ -14,6 +14,8 @@
 #include "AnimNextAssetWorkspaceAssetUserData.generated.h"
 
 class UAnimNextRigVMAssetEntry;
+class URigVMEdGraphNode;
+
 // Base struct used to identify asset entries
 USTRUCT()
 struct FAnimNextRigVMAssetOutlinerData : public FWorkspaceOutlinerItemData
@@ -89,25 +91,33 @@ struct FAnimNextVariableOutlinerData : public FAnimNextAssetEntryOutlinerData
 };
 
 USTRUCT()
-struct FAnimNextCollapseGraphOutlinerData : public FWorkspaceOutlinerItemData
+struct FAnimNextCollapseGraphsOutlinerDataBase : public FWorkspaceOutlinerItemData
 {
 	GENERATED_BODY()
 	
-	FAnimNextCollapseGraphOutlinerData() = default;
+	FAnimNextCollapseGraphsOutlinerDataBase() = default;
 
 	UPROPERTY(VisibleAnywhere, Category=AnimNext)
 	TWeakObjectPtr<URigVMEdGraph> EditorObject;
 };
 
 USTRUCT()
-struct FAnimNextGraphFunctionOutlinerData : public FWorkspaceOutlinerItemData
+struct FAnimNextCollapseGraphOutlinerData : public FAnimNextCollapseGraphsOutlinerDataBase
+{
+	GENERATED_BODY()
+	
+	FAnimNextCollapseGraphOutlinerData() = default;
+};
+
+USTRUCT()
+struct FAnimNextGraphFunctionOutlinerData : public FAnimNextCollapseGraphsOutlinerDataBase
 {
 	GENERATED_BODY()
 	
 	FAnimNextGraphFunctionOutlinerData() = default;
 
 	UPROPERTY(VisibleAnywhere, Category=AnimNext)
-	TWeakObjectPtr<URigVMEdGraph> EditorObject;
+	TWeakObjectPtr<URigVMEdGraphNode> EdGraphNode;
 };
 
 USTRUCT()

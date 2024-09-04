@@ -605,7 +605,16 @@ TObjectPtr<URigVMGraph> FRigVMClient::CreateContainedGraphModel(URigVMCollapseNo
 	else
 	{
 		Model = NewObject<URigVMGraph>(CollapseNode, Name);
-		Model->SetSchemaClass(GetDefaultSchemaClass());
+
+		// keep schema from collapse node graph, if exists
+		if (CollapseNode->GetGraph() != nullptr && CollapseNode->GetGraph()->GetSchema() != nullptr)
+		{
+			Model->SetSchemaClass(CollapseNode->GetGraph()->GetSchema()->GetClass());
+		}
+		else
+		{
+			Model->SetSchemaClass(GetDefaultSchemaClass());
+		}
 	}
 
 	return Model;

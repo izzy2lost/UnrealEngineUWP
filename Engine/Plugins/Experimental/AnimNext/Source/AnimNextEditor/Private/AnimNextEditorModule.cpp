@@ -38,6 +38,8 @@
 #include "Variables/SAddVariablesDialog.h"
 #include "AnimNextAssetWorkspaceAssetUserData.h"
 #include "Graph/AnimNextGraphItemDetails.h"
+#include "Graph/AnimNextCollapseNodeItemDetails.h"
+#include "Graph/AnimNextFunctionItemDetails.h"
 #include "Param/AnimNextActorLocatorEditor.h"
 #include "IWorkspaceEditor.h"
 #include "Entries/AnimNextAnimationGraphEntry.h"
@@ -225,11 +227,13 @@ void FAnimNextEditorModule::StartupModule()
 	RegisterLocatorFragmentEditorType("AnimNextActor");
 
 	Workspace::IWorkspaceEditorModule& WorkspaceModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
-	const TSharedPtr<FAnimNextGraphItemDetails> GraphItemDetails = MakeShared<FAnimNextGraphItemDetails>();
-	WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphOutlinerData::StaticStruct()->GetFName()), GraphItemDetails);
-	WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextCollapseGraphOutlinerData::StaticStruct()->GetFName()), GraphItemDetails);
-	WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphFunctionOutlinerData::StaticStruct()->GetFName()), GraphItemDetails);
+	WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphOutlinerData::StaticStruct()->GetFName()), MakeShared<FAnimNextGraphItemDetails>());
+	WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextCollapseGraphOutlinerData::StaticStruct()->GetFName()), MakeShared<FAnimNextCollapseNodeItemDetails>());
+	WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphFunctionOutlinerData::StaticStruct()->GetFName()), MakeShared<FAnimNextFunctionItemDetails>());
+
 	FAnimNextGraphItemDetails::RegisterToolMenuExtensions();
+	FAnimNextCollapseNodeItemDetails::RegisterToolMenuExtensions();
+	FAnimNextFunctionItemDetails::RegisterToolMenuExtensions();
 
 	const TSharedPtr<FAnimNextAssetItemDetails> AssetItemDetails = MakeShared<FAnimNextAssetItemDetails>();
 	WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextModuleOutlinerData::StaticStruct()->GetFName()), AssetItemDetails);

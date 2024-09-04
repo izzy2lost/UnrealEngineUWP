@@ -16,6 +16,8 @@
 #include "RigVMModel/RigVMClient.h"
 #include "RigVMModel/RigVMSchema.h"
 #include "Units/RigUnit.h"
+#include "UncookedOnlyUtils.h"
+#include "RigVMBlueprintGeneratedClass.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditor"
 
@@ -108,14 +110,43 @@ void SActionMenu::CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuB
 		MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_DispatchFactory>(Template->GetNotation(), NodeCategory, MenuDesc, ToolTip));
 	};
 
-	TArray<FRigVMExternalVariable> ExternalVariables = RigVMHost->GetVM()->GetExternalVariables(RigVMHost->GetRigVMExtendedExecuteContext());
-	for (const FRigVMExternalVariable& ExternalVariable : ExternalVariables)
+	if (URigVMFunctionLibrary* LocalFunctionLibrary = RigVMClientHost->GetLocalFunctionLibrary())
 	{
-		MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_Variable>(ExternalVariable, true));
-		MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_Variable>(ExternalVariable, false));
+		const FSoftObjectPath LocalLibrarySoftPath = LocalFunctionLibrary->GetFunctionHostObjectPath();
+
+		TArray<URigVMLibraryNode*> Functions = LocalFunctionLibrary->GetFunctions();
+		for (URigVMLibraryNode* FunctionLibraryNode : Functions)
+		{
+			if (LocalFunctionLibrary->IsFunctionPublic(FunctionLibraryNode->GetFName()))	// Public functions will be added when processing asset registry exports
+			{
+				continue;
+			}
+			const FText NodeCategory = FText::FromString(FunctionLibraryNode->GetNodeCategory());
+			const FText MenuDesc = FText::FromString(FunctionLibraryNode->GetName());
+			const FText ToolTip = FunctionLibraryNode->GetToolTipText();
+
+			MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_Function>(FunctionLibraryNode, NodeCategory, MenuDesc, ToolTip));
+		}
 	}
 
-	MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_AddComment>());
+	TMap<FAssetData, FRigVMGraphFunctionHeaderArray> FunctionExports;
+	AnimNext::UncookedOnly::FUtils::GetExportedFunctionsFromAssetRegistry(UE::AnimNext::AnimNextPublicGraphFunctionsExportsRegistryTag, FunctionExports);
+	AnimNext::UncookedOnly::FUtils::GetExportedFunctionsFromAssetRegistry(UE::AnimNext::ControlRigAssetPublicGraphFunctionsExportsRegistryTag, FunctionExports);
+
+	for (const auto& Export : FunctionExports.Array())
+	{
+		for (const FRigVMGraphFunctionHeader& FunctionHeader : Export.Value.Headers)
+		{
+			if (FunctionHeader.LibraryPointer.IsValid())
+			{
+				const FText NodeCategory = FText::FromString(FunctionHeader.Category);
+				const FText MenuDesc = FText::FromString(FunctionHeader.NodeTitle);
+				const FText ToolTip = FunctionHeader.GetTooltip();
+
+				MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_Function>(FunctionHeader, NodeCategory, MenuDesc, ToolTip));
+			}
+		}
+	}
 
 	RigVMController->EnableReporting(true);
 }
