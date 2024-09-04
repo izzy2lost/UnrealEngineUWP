@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "AssetRegistry/AssetData.h"
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "IObjectChooser.h"
@@ -168,6 +169,9 @@ public:
 	UPROPERTY()
 	uint32 Version = 0;
 #endif
+
+	UFUNCTION()
+	bool ResultAssetFilter(const FAssetData& AssetData);
 	
 	UPROPERTY()
 	TArray<FInstancedStruct> CookedResults;

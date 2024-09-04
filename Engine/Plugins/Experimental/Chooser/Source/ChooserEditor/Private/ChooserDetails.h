@@ -15,6 +15,8 @@ class UChooserRowDetails : public UObject
 {
 	GENERATED_BODY()
 public:
+	UFUNCTION()
+	bool ResultAssetFilter(const FAssetData& AssetData); 
 
 	UPROPERTY(EditAnywhere, Category="Properties", meta=(FixedLayout, ShowOnlyInnerProperties))
     FInstancedPropertyBag Properties;

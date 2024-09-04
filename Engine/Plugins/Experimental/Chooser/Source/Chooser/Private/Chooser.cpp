@@ -388,6 +388,11 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 
 #endif
 
+bool UChooserTable::ResultAssetFilter(const FAssetData& AssetData)
+{
+	return !AssetData.IsInstanceOf(OutputObjectType);
+}
+
 FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvaluationContext& Context, const UChooserTable* Chooser, FObjectChooserBase::FObjectChooserIteratorCallback Callback)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(EvaluateChooser);

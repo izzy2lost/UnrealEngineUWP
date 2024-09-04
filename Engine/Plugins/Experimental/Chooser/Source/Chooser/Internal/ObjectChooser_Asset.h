@@ -19,7 +19,7 @@ struct CHOOSER_API FAssetChooser : public FObjectChooserBase
 	virtual UObject* GetReferencedObject() const override { return Asset; }
 #endif
 	
-	UPROPERTY(EditAnywhere, Category = "Parameters")
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (GetAssetFilter="ResultAssetFilter"))
 	TObjectPtr<UObject> Asset;
 };
 

@@ -6,6 +6,7 @@
 
 #include "Chooser.h"
 #include "ChooserEditorWidgets.h"
+#include "ChooserPropertyAccess.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "IDetailsView.h"
@@ -14,6 +15,15 @@
 #include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "ChooserDetails"
+
+bool UChooserRowDetails::ResultAssetFilter(const FAssetData& AssetData)
+{
+	if (Chooser)
+	{
+		return Chooser->ResultAssetFilter(AssetData);
+	}
+	return true;
+}
 
 namespace UE::ChooserEditor
 {
