@@ -72,7 +72,7 @@ bool UseHairStrandsForceAutoLOD()
 
 float GetHairStrandsAutoLODBias()
 {
-	return FMath::Clamp(GHairStrands_AutoLOD_Bias, 0.f, 1.f);
+	return FMath::Clamp(GHairStrands_AutoLOD_Bias, -1.f, 1.f);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2454,7 +2454,7 @@ static float ComputeActiveCurveRadiusScale(const FHairStrandsClusterResource* In
 static uint32 ComputeActiveCurveCount(float InScreenSize, float InAutoLODBias, uint32 InCurveCount, uint32 InClusterCount)
 {
 	const float Power = 1.f;  // This could be exposed per asset
-	const float ScreenSizeBias = FMath::Clamp(FMath::Max(InAutoLODBias, GetHairStrandsAutoLODBias()), 0.f, 1.f);
+	const float ScreenSizeBias = FMath::Clamp(InAutoLODBias + GetHairStrandsAutoLODBias(), -1.f, 1.f);
 	uint32 OutCurveCount = InCurveCount * FMath::Pow(FMath::Clamp(InScreenSize + ScreenSizeBias, 0.f, 1.0f), Power);
 	// Ensure there is at least 1 curve per cluster
 	OutCurveCount = FMath::Max(InClusterCount, OutCurveCount);
