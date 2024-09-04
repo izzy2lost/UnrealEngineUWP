@@ -14,7 +14,7 @@ class FBackgroundHttpNotificationObject
 {
 public:
 	BACKGROUNDHTTP_API FBackgroundHttpNotificationObject(FText InNotificationTitle, FText InNotificationBody, FText InNotificationAction, const FString& InNotificationActivationString, bool InNotifyOnlyOnFullSuccess);
-	BACKGROUNDHTTP_API FBackgroundHttpNotificationObject(FText InNotificationTitle, FText InNotificationBody, FText InNotificationAction, const FString& InNotificationActivationString, bool InNotifyOnlyOnFullSuccess, bool bOnlySendNotificationInBackground, int32 InIdOverride);
+	BACKGROUNDHTTP_API FBackgroundHttpNotificationObject(FText InNotificationTitle, FText InNotificationBody, FText InNotificationAction, const FString& InNotificationActivationString, bool InNotifyOnlyOnFullSuccess, bool bOnlySendNotificationInBackground, int32 InIdOverride, bool InRecordNotificationTimestamp = false);
 	BACKGROUNDHTTP_API ~FBackgroundHttpNotificationObject();
 
 	BACKGROUNDHTTP_API void NotifyOfDownloadResult(bool bWasSuccess);
@@ -31,7 +31,8 @@ private:
 
 	bool bOnlySendNotificationInBackground;
 	bool bNotifyOnlyOnFullSuccess;
-	
+	bool bRecordNotificationTimestamp;
+
 	volatile bool bIsInBackground;
 	volatile int32 NumFailedDownloads;
 

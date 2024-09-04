@@ -19,13 +19,14 @@ FBackgroundHttpNotificationObject::FBackgroundHttpNotificationObject(FText InNot
 {
 }
 
-FBackgroundHttpNotificationObject::FBackgroundHttpNotificationObject(FText InNotificationTitle, FText InNotificationBody, FText InNotificationAction, const FString& InNotificationActivationString, bool InNotifyOnlyOnFullSuccess, bool InbOnlySendNotificationInBackground, int32 InIdOverride)
+FBackgroundHttpNotificationObject::FBackgroundHttpNotificationObject(FText InNotificationTitle, FText InNotificationBody, FText InNotificationAction, const FString& InNotificationActivationString, bool InNotifyOnlyOnFullSuccess, bool InbOnlySendNotificationInBackground, int32 InIdOverride, bool InRecordNotificationTimestamp)
 	: NotificationTitle(InNotificationTitle)
     , NotificationAction(InNotificationAction)
     , NotificationBody(InNotificationBody)
 	, NotificationActivationString(InNotificationActivationString)
     , bOnlySendNotificationInBackground(InbOnlySendNotificationInBackground)
     , bNotifyOnlyOnFullSuccess(InNotifyOnlyOnFullSuccess)
+	, bRecordNotificationTimestamp(InRecordNotificationTimestamp)
 	, bIsInBackground(false)
 	, NumFailedDownloads(0)
 	, IdOverride(InIdOverride)
@@ -68,6 +69,12 @@ void FBackgroundHttpNotificationObject::OnApp_EnteringBackground()
 
 FBackgroundHttpNotificationObject::~FBackgroundHttpNotificationObject()
 {
+	if (bRecordNotificationTimestamp)
+	{
+		FString Timestamp = FDateTime::UtcNow().ToString();
+		FPlatformMisc::SetStoredValue(TEXT("Epic Games"), TEXT("UEBackgroundHTTPNotification"), TEXT("ScheduleTime"), Timestamp);
+	}
+
 	if (bOnlySendNotificationInBackground)
 	{
 		//These should only be registered if bOnlySendNotificationInBackground is set
