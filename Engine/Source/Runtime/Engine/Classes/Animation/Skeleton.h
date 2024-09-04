@@ -307,6 +307,10 @@ protected:
 	/** Reference skeleton poses in local space */
 	UPROPERTY()
 	TArray<FTransform> RefLocalPoses_DEPRECATED;
+
+	// Preview axis to consider as "forward" for the skeleton. Only used for preview purposes.
+	UPROPERTY(EditAnywhere, Category = Preview)
+	TEnumAsByte<EAxis::Type> ForwardAxis;
 #endif
 
 	/** Reference Skeleton */
@@ -345,6 +349,7 @@ public:
 #if WITH_EDITOR
 	ENGINE_API virtual void PreEditUndo() override;
 	ENGINE_API virtual void PostEditUndo() override;
+	ENGINE_API EAxis::Type GetForwardAxis() const { return ForwardAxis; }
 #endif
 	ENGINE_API virtual void BeginDestroy() override;
 

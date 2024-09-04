@@ -80,6 +80,20 @@ enum class EProcessRootMotionMode : uint8
 	LoopAndReset
 };
 
+/** Different modes for visualizing root motion */
+UENUM()
+enum class EVisualizeRootMotionMode : uint8
+{
+	/** Preview will not show root motion */
+	None,
+
+	/** Preview will show root motion path */
+	Trajectory,
+
+	/** Preview will show root motion path and orientation. */
+	TrajectoryAndOrientation
+};
+
 //////////////////////////////////////////////////////////////////////////
 // FDebugSkelMeshSceneProxy
 
@@ -238,10 +252,6 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	UPROPERTY(Transient)
 	uint32 bShowNotificationVisualizations:1;
 
-	/** Display Root motion visualizations in viewport */
-	UPROPERTY(Transient)
-	uint32 bShowRootMotionVisualizations:1;
-
 	/** Display Metadata visualizations in viewport */
 	UPROPERTY(Transient)
 	uint32 bShowAssetUserDataVisualizations:1;
@@ -267,6 +277,9 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	/** Process root motion mode */
 	UPROPERTY(transient)
 	EProcessRootMotionMode ProcessRootMotionMode;
+
+	UPROPERTY(transient)
+	EVisualizeRootMotionMode VisualizeRootMotionMode;
 
 	/** Playback time last time ConsumeRootmotion was called */
 	UPROPERTY(transient)
@@ -482,6 +495,11 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	/** Sets process root motion mode, the request may be ignored if current asset does not support the mode. Note: disabling root motion preview resets transform. */
 	UNREALED_API void SetProcessRootMotionMode(EProcessRootMotionMode Mode);
 
+	/** Sets how we visualize root motion in the viewport. See EVisualizeRootMotionMode for details. */
+	UNREALED_API void SetVisualizeRootMotionMode(EVisualizeRootMotionMode Mode) { VisualizeRootMotionMode = Mode; };
+	UNREALED_API bool IsVisualizeRootMotionMode(EVisualizeRootMotionMode Mode) const { return VisualizeRootMotionMode == Mode; };
+	UNREALED_API EVisualizeRootMotionMode GetVisualizeRootMotionMode() const { return VisualizeRootMotionMode; };
+
 	/** Whether the supplied root motion mode can be used for the current asset */
 	UNREALED_API bool CanUseProcessRootMotionMode(EProcessRootMotionMode Mode) const;
 
@@ -492,9 +510,9 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	UNREALED_API void SetShowNotificationVisualizations(const bool bShow) { bShowNotificationVisualizations = bShow; }
 	UNREALED_API bool IsNotificationVisualizationsEnabled() const { return bShowNotificationVisualizations; }
 
-	/** Sets flags whether we root motion visualization should be drawn in the viewport. */
-	UNREALED_API void SetShowRootMotionVisualizations(const bool bShow) { bShowRootMotionVisualizations = bShow; }
-	UNREALED_API bool IsRootMotionVisualizationsEnabled() const { return bShowRootMotionVisualizations; }
+	UE_DEPRECATED(5.5, "Use VisualizeRootMotionMode functions instead.")
+	UNREALED_API void SetShowRootMotionVisualizations(const bool bShow) { VisualizeRootMotionMode = bShow ? EVisualizeRootMotionMode::Trajectory : EVisualizeRootMotionMode::None; }
+	UNREALED_API bool IsRootMotionVisualizationsEnabled() const { return VisualizeRootMotionMode != EVisualizeRootMotionMode::None; }
 
 	/** Sets flags whether we AssetUserData visualizations should be drawn in the viewport. */
 	UNREALED_API void SetShowAssetUserDataVisualizations(const bool bShow) { bShowAssetUserDataVisualizations = bShow; }

@@ -47,6 +47,11 @@ public:
 	/** Option to set ProcessRootMotionMode to Loop (Preview mesh will consume root motion continually) */
 	TSharedPtr< FUICommandInfo > ProcessRootMotionLoop;
 
+	/** Visualize root motion mode */
+	TSharedPtr< FUICommandInfo > DoNotVisualizeRootMotion;
+	TSharedPtr< FUICommandInfo > VisualizeRootMotionTrajectory;
+	TSharedPtr< FUICommandInfo > VisualizeRootMotionTrajectoryAndOrientation;
+
 	/** Option to enable/disable post process anim blueprint evaluation */
 	TSharedPtr< FUICommandInfo > DisablePostProcessBlueprint;
 	
@@ -155,9 +160,6 @@ public:
 
 	/** Show Notification Visualizations */
 	TSharedPtr< FUICommandInfo > ShowNotificationVisualizations;
-
-	/** Show Root motion visualization */
-	TSharedPtr< FUICommandInfo > ShowRootMotionVisualization;
 
 	/** Show AssetUserData Visualizations */
 	TSharedPtr< FUICommandInfo > ShowAssetUserDataVisualizations;

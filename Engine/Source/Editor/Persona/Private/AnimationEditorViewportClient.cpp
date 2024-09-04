@@ -19,6 +19,9 @@
 #include "PersonaModule.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
+#include "DynamicMeshBuilder.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialRenderProxy.h"
 
 #include "SEditorViewport.h"
 #include "CanvasTypes.h"
@@ -79,6 +82,88 @@ namespace UE::Private
 			}
 		}
 		return true;
+	}
+
+	void DrawCoordinateSystem(FPrimitiveDrawInterface* PDI, const FTransform& Transform, const float Thickness, const float Length, const float DepthBias, const bool bScreenSpace, uint8 Alpha)
+	{
+		const FVector Location = Transform.GetLocation();
+		const FVector AxisX = Transform.GetUnitAxis(EAxis::X) * Length;
+		const FVector AxisY = Transform.GetUnitAxis(EAxis::Y) * Length;
+		const FVector AxisZ = Transform.GetUnitAxis(EAxis::Z) * Length;
+		PDI->DrawTranslucentLine(Location, Location + AxisX, FColor::Red.WithAlpha(Alpha), SDPG_World, 1.0f, DepthBias, bScreenSpace);
+		PDI->DrawTranslucentLine(Location, Location + AxisY, FColor::Green.WithAlpha(Alpha), SDPG_World, 1.0f, DepthBias, bScreenSpace);
+		PDI->DrawTranslucentLine(Location, Location + AxisZ, FColor::Blue.WithAlpha(Alpha), SDPG_World, 1.0f, DepthBias, bScreenSpace);
+	}
+
+	FColor GetColorForAxis(EAxis::Type InAxis)
+	{
+		// Just draw all forward-axis versions as black for now.
+		return FColor::Black;
+	}
+
+	void DrawFlatArrow(class FPrimitiveDrawInterface* PDI,const FVector& Base,const FVector& XAxis,const FVector& YAxis,FColor Color,float Length,int32 Width, const FMaterialRenderProxy* MaterialRenderProxy, uint8 DepthPriority, float Thickness = 0.0f)
+	{
+		float DistanceFromBaseToHead = Length/3.0f;
+		float DistanceFromBaseToTip = DistanceFromBaseToHead*2.0f;
+		float WidthOfBase = Width;
+		float WidthOfHead = 2*Width;
+
+		FVector ArrowPoints[7];
+		//base points
+		ArrowPoints[0] = Base - YAxis*(WidthOfBase*.5f);
+		ArrowPoints[1] = Base + YAxis*(WidthOfBase*.5f);
+		//inner head
+		ArrowPoints[2] = ArrowPoints[0] + XAxis*DistanceFromBaseToHead;
+		ArrowPoints[3] = ArrowPoints[1] + XAxis*DistanceFromBaseToHead;
+		//outer head
+		ArrowPoints[4] = ArrowPoints[2] - YAxis*(WidthOfBase*.5f);
+		ArrowPoints[5] = ArrowPoints[3] + YAxis*(WidthOfBase*.5f);
+		//tip
+		ArrowPoints[6] = Base + XAxis*Length;
+
+		//Draw lines
+		{
+			//base
+			PDI->DrawTranslucentLine(ArrowPoints[0], ArrowPoints[1], Color, DepthPriority, Thickness);
+			//base sides																 
+			PDI->DrawTranslucentLine(ArrowPoints[0], ArrowPoints[2], Color, DepthPriority, Thickness);
+			PDI->DrawTranslucentLine(ArrowPoints[1], ArrowPoints[3], Color, DepthPriority, Thickness);
+			//head base																	 
+			PDI->DrawTranslucentLine(ArrowPoints[2], ArrowPoints[4], Color, DepthPriority, Thickness);
+			PDI->DrawTranslucentLine(ArrowPoints[3], ArrowPoints[5], Color, DepthPriority, Thickness);
+			//head sides																 
+			PDI->DrawTranslucentLine(ArrowPoints[4], ArrowPoints[6], Color, DepthPriority, Thickness);
+			PDI->DrawTranslucentLine(ArrowPoints[5], ArrowPoints[6], Color, DepthPriority, Thickness);
+
+		}
+
+		if (MaterialRenderProxy != nullptr)
+		{
+			FDynamicMeshBuilder MeshBuilder(PDI->View->GetFeatureLevel());
+
+			//Compute vertices for base circle.
+			for(int32 i = 0; i< 7; ++i)
+			{
+				FDynamicMeshVertex MeshVertex;
+				MeshVertex.Position = (FVector3f)ArrowPoints[i];
+				MeshVertex.Color = Color;
+				MeshVertex.TextureCoordinate[0] = FVector2f(0.0f, 0.0f);;
+				MeshVertex.SetTangents(FVector3f(XAxis^YAxis), (FVector3f)YAxis, (FVector3f)XAxis);
+				MeshBuilder.AddVertex(MeshVertex); //Add bottom vertex
+			}
+
+			//Add triangles / double sided
+			{
+				MeshBuilder.AddTriangle(0, 2, 1); //base
+				MeshBuilder.AddTriangle(0, 1, 2); //base
+				MeshBuilder.AddTriangle(1, 2, 3); //base
+				MeshBuilder.AddTriangle(1, 3, 2); //base
+				MeshBuilder.AddTriangle(4, 5, 6); //head
+				MeshBuilder.AddTriangle(4, 6, 5); //head
+			}
+
+			MeshBuilder.Draw(PDI, FMatrix::Identity, MaterialRenderProxy, DepthPriority, 0.0f);
+		}
 	}
 }
 
@@ -1331,9 +1416,9 @@ FText FAnimationViewportClient::GetDisplayInfo(bool bDisplayAllInfo) const
 		TextValue = ConcatenateLine(TextValue, LOCTEXT("MeshMaterialHiddenWarning", "Mesh Materials Hidden"));
 	}
 
-	if (const UAnimSequence* AnimSequence = Cast<UAnimSequence>(GetAnimPreviewScene()->GetPreviewAnimationAsset()))
+	if (const UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(GetAnimPreviewScene()->GetPreviewAnimationAsset()))
 	{
-		TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("FramerateFormat", "Framerate: {0}"), AnimSequence->GetSamplingFrameRate().ToPrettyText()));
+		TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("FramerateFormat", "Framerate: {0}"), AnimSequenceBase->GetSamplingFrameRate().ToPrettyText()));
 	}
 
 	if (const UPoseAsset* PoseAsset = Cast<UPoseAsset>(GetAnimPreviewScene()->GetPreviewAnimationAsset()))
@@ -2018,10 +2103,12 @@ void FAnimationViewportClient::DrawRootMotionTrajectory(UDebugSkelMeshComponent*
 	constexpr bool bScreenSpace = true;
 
 	if (MeshComponent
-		&& MeshComponent->IsRootMotionVisualizationsEnabled()
+		&& !MeshComponent->IsVisualizeRootMotionMode(EVisualizeRootMotionMode::None)
 		&& MeshComponent->GetSkeletalMeshAsset()
 		&& MeshComponent->DoesCurrentAssetHaveRootMotion())
 	{
+		const EVisualizeRootMotionMode VisMode = MeshComponent->GetVisualizeRootMotionMode();
+
 		const FTransform& ReferenceTransform = MeshComponent->RootMotionReferenceTransform;
 		const UMirrorDataTable* MirrorTable = MeshComponent->PreviewInstance ? MeshComponent->PreviewInstance->GetMirrorDataTable() : nullptr;
 		
@@ -2030,19 +2117,39 @@ void FAnimationViewportClient::DrawRootMotionTrajectory(UDebugSkelMeshComponent*
 			// Draw root motion trajectory
 			const int32 NumFrames = AnimSequenceBase->GetNumberOfSampledKeys();
 			const FFrameRate FrameRate = AnimSequenceBase->GetSamplingFrameRate();
+			const float CurrentTime = MeshComponent->GetPosition();
+			const USkeleton* Skeleton = AnimSequenceBase->GetSkeleton();
+			check(Skeleton);
+			EAxis::Type SkeletonForwardAxis = Skeleton->GetForwardAxis();
 
 			const FColor TrajectoryColor = FColor::Black.WithAlpha(64);
 
 			FVector PrevLocation;
+			float PlayLength = AnimSequenceBase->GetPlayLength();
+			PlayLength = AnimSequenceBase->GetPlayLength();
 			for (int32 Frame = 0; Frame <= NumFrames; Frame++)
 			{
-				const double Time = FMath::Clamp(FrameRate.AsSeconds(Frame), 0., (double)AnimSequenceBase->GetPlayLength());
+				const double Time = FMath::Clamp(FrameRate.AsSeconds(Frame), 0., (double)PlayLength);
 				const FTransform Transform = UE::Anim::ExtractRootMotionFromAnimationAsset(AnimSequenceBase, MirrorTable, 0.0, Time) * ReferenceTransform;
 				const FVector Location = Transform.GetLocation();
 
 				const bool bFirstOrLastPoint = Frame == 0 || Frame == NumFrames;
-				PDI->DrawPoint(Location, TrajectoryColor, bFirstOrLastPoint ? 2.0f : 1.0f, SDPG_World);
-				
+
+				PDI->DrawPoint(Location, TrajectoryColor, bFirstOrLastPoint ? 2.5f : 1.25f, SDPG_World);
+
+				if (VisMode == EVisualizeRootMotionMode::TrajectoryAndOrientation)
+				{
+					if (bFirstOrLastPoint || (Frame % 3 == 0))
+					{
+						const FVector XAxis = Transform.GetUnitAxis(SkeletonForwardAxis);
+						const FColor AxisColor = UE::Private::GetColorForAxis(SkeletonForwardAxis);
+
+						FVector YAxis, ZAxis;
+						XAxis.FindBestAxisVectors(YAxis,ZAxis);
+						UE::Private::DrawFlatArrow(PDI, Transform.GetLocation(), XAxis, ZAxis, AxisColor.WithAlpha(64), 15.0f, 8, nullptr, SDPG_World, 1.0f);
+					}
+				}
+
 				if (Frame > 0)
 				{
 					PDI->DrawTranslucentLine(PrevLocation, Location, TrajectoryColor, SDPG_World, 1.0f, DepthBias, bScreenSpace);
@@ -2052,18 +2159,19 @@ void FAnimationViewportClient::DrawRootMotionTrajectory(UDebugSkelMeshComponent*
 
 			// Draw current location on the root motion.
 			{
-				const float CurrentTime = MeshComponent->GetPosition();
 				const FTransform Transform = UE::Anim::ExtractRootMotionFromAnimationAsset(AnimSequenceBase, MirrorTable, 0.0, CurrentTime) * ReferenceTransform;
 
-				constexpr double CurrentPosTickSize = 5.0;
+				const FVector XAxis = Transform.GetUnitAxis(SkeletonForwardAxis);
+				const FColor AxisColor = UE::Private::GetColorForAxis(SkeletonForwardAxis);
 
-				const FVector Location = Transform.GetLocation();
-				const FVector AxisX = Transform.GetUnitAxis(EAxis::X) * CurrentPosTickSize;
-				const FVector AxisY = Transform.GetUnitAxis(EAxis::Y) * CurrentPosTickSize;
-				const FVector AxisZ = Transform.GetUnitAxis(EAxis::Z) * CurrentPosTickSize;
-				PDI->DrawTranslucentLine(Location, Location + AxisX, FColor::Red.WithAlpha(128), SDPG_World, 1.0f, DepthBias, bScreenSpace);
-				PDI->DrawTranslucentLine(Location, Location + AxisY, FColor::Green.WithAlpha(128), SDPG_World, 1.0f, DepthBias, bScreenSpace);
-				PDI->DrawTranslucentLine(Location, Location + AxisZ, FColor::Blue.WithAlpha(128), SDPG_World, 1.0f, DepthBias, bScreenSpace);
+				FVector YAxis, ZAxis;
+				XAxis.FindBestAxisVectors(YAxis,ZAxis);
+
+				if (VisMode == EVisualizeRootMotionMode::TrajectoryAndOrientation)
+				{
+					UE::Private::DrawFlatArrow(PDI, Transform.GetLocation(), XAxis, ZAxis, AxisColor, 30.0f, 15, GEngine->ArrowMaterialYellow->GetRenderProxy(), SDPG_Foreground, 1.0f);
+				}
+				UE::Private::DrawCoordinateSystem(PDI, Transform, 10.0f, 20.0f, DepthBias, bScreenSpace, 200);
 			}			
 		}
 	}

@@ -526,11 +526,12 @@ private:
 	/** Whether the supplied mode can be used */
 	bool CanUseProcessRootMotionMode(EProcessRootMotionMode Mode) const;
 
+	void SetVisualizeRootMotionMode(EVisualizeRootMotionMode Mode);
+	bool IsVisualizeRootMotionModeSet(EVisualizeRootMotionMode Mode) const;
+	bool CanVisualizeRootMotion() const;
+
 	void ToggleNotificationVisualizations();
 	bool IsNotificationVisualizationsEnabled() const;
-
-	void ToggleRootMotionVisualizations();
-	bool IsRootMotionVisualizationsEnabled() const;
 
 	void ToggleAssetUserDataVisualizations();
 	bool IsAssetUserDataVisualizationsEnabled() const;

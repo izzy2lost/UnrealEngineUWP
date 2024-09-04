@@ -1113,16 +1113,28 @@ void SAnimationEditorViewportTabBody::BindCommands()
 		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsProcessRootMotionModeSet, EProcessRootMotionMode::Loop));
 
 	CommandList.MapAction(
+		ViewportShowMenuCommands.DoNotVisualizeRootMotion,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::SetVisualizeRootMotionMode, EVisualizeRootMotionMode::None),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::CanVisualizeRootMotion),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsVisualizeRootMotionModeSet, EVisualizeRootMotionMode::None));
+
+	CommandList.MapAction(
+		ViewportShowMenuCommands.VisualizeRootMotionTrajectory,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::SetVisualizeRootMotionMode, EVisualizeRootMotionMode::Trajectory),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::CanVisualizeRootMotion),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsVisualizeRootMotionModeSet, EVisualizeRootMotionMode::Trajectory));
+
+	CommandList.MapAction(
+		ViewportShowMenuCommands.VisualizeRootMotionTrajectoryAndOrientation,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::SetVisualizeRootMotionMode, EVisualizeRootMotionMode::TrajectoryAndOrientation),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::CanVisualizeRootMotion),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsVisualizeRootMotionModeSet, EVisualizeRootMotionMode::TrajectoryAndOrientation));
+
+	CommandList.MapAction(
 		ViewportShowMenuCommands.ShowNotificationVisualizations,
 		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::ToggleNotificationVisualizations),
 		FIsActionChecked(),
 		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsNotificationVisualizationsEnabled));
-
-	CommandList.MapAction(
-		ViewportShowMenuCommands.ShowRootMotionVisualization,
-		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::ToggleRootMotionVisualizations),
-		FIsActionChecked(),
-		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsRootMotionVisualizationsEnabled));
 
 	CommandList.MapAction(
 		ViewportShowMenuCommands.ShowAssetUserDataVisualizations,
@@ -2153,6 +2165,34 @@ bool SAnimationEditorViewportTabBody::CanUseProcessRootMotionMode(EProcessRootMo
 	return false;
 }
 
+void SAnimationEditorViewportTabBody::SetVisualizeRootMotionMode(EVisualizeRootMotionMode Mode)
+{
+	if(UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		return PreviewComponent->SetVisualizeRootMotionMode(Mode);
+	}
+}
+
+bool SAnimationEditorViewportTabBody::IsVisualizeRootMotionModeSet(EVisualizeRootMotionMode Mode) const
+{
+	if(const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		return PreviewComponent->IsVisualizeRootMotionMode(Mode);
+	}
+
+	return false;
+}
+
+bool SAnimationEditorViewportTabBody::CanVisualizeRootMotion() const
+{
+	if(const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		return PreviewComponent->DoesCurrentAssetHaveRootMotion();
+	}
+
+	return false;
+}
+
 void SAnimationEditorViewportTabBody::ToggleNotificationVisualizations()
 {
 	if (UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
@@ -2166,23 +2206,6 @@ bool SAnimationEditorViewportTabBody::IsNotificationVisualizationsEnabled() cons
 	if (const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
 	{
 		return PreviewComponent->IsNotificationVisualizationsEnabled();
-	}
-	return false;
-}
-
-void SAnimationEditorViewportTabBody::ToggleRootMotionVisualizations()
-{
-	if (UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
-	{
-		PreviewComponent->SetShowRootMotionVisualizations(!PreviewComponent->IsRootMotionVisualizationsEnabled());
-	}
-}
-
-bool SAnimationEditorViewportTabBody::IsRootMotionVisualizationsEnabled() const
-{
-	if (const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
-	{
-		return PreviewComponent->IsRootMotionVisualizationsEnabled();
 	}
 	return false;
 }

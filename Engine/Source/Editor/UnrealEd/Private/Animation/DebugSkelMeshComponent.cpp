@@ -43,7 +43,7 @@ UDebugSkelMeshComponent::UDebugSkelMeshComponent(const FObjectInitializer& Objec
 	bSkeletonSocketsVisible = true;
 
 	bShowNotificationVisualizations = true;
-	bShowRootMotionVisualizations = false;
+	VisualizeRootMotionMode = EVisualizeRootMotionMode::Trajectory;
 	bShowAssetUserDataVisualizations = true;
 
 	TurnTableSpeedScaling = 1.f;

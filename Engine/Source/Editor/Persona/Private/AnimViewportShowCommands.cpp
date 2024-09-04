@@ -19,6 +19,10 @@ void FAnimViewportShowCommands::RegisterCommands()
 	UI_COMMAND(ProcessRootMotionLoopAndReset, "Loop and Reset", "Preview mesh will consume root motion resetting the position back to the origin every time the animation loops", EUserInterfaceActionType::RadioButton, FInputChord());
 	UI_COMMAND(ProcessRootMotionLoop, "Loop", "Preview mesh will consume root motion continually", EUserInterfaceActionType::RadioButton, FInputChord());
 
+	UI_COMMAND(DoNotVisualizeRootMotion, "None", "Do not show root motion", EUserInterfaceActionType::RadioButton, FInputChord());
+	UI_COMMAND(VisualizeRootMotionTrajectory, "Visualize Trajectory", "Show root motion trajectory", EUserInterfaceActionType::RadioButton, FInputChord());
+	UI_COMMAND(VisualizeRootMotionTrajectoryAndOrientation, "Visualize Trajectory and Orientation", "Show root motion trajectory and orientation", EUserInterfaceActionType::RadioButton, FInputChord());
+
 	UI_COMMAND(DisablePostProcessBlueprint, "Disable Post Process", "Disable the evaluation of post process animation blueprints on the preview instance.", EUserInterfaceActionType::ToggleButton, FInputChord());
 
 	UI_COMMAND( ShowBound, "Bound", "Show bound on preview mesh", EUserInterfaceActionType::ToggleButton, FInputChord() );
@@ -73,7 +77,6 @@ void FAnimViewportShowCommands::RegisterCommands()
 	UI_COMMAND(HideOnlyClothSections, "Hide Only Cloth Sections", "Display all except cloth mapped sections", EUserInterfaceActionType::RadioButton, FInputChord());
 
 	UI_COMMAND(ShowNotificationVisualizations, "Show Notification", "Display animation notifications visualizations in viewport", EUserInterfaceActionType::ToggleButton, FInputChord());
-	UI_COMMAND(ShowRootMotionVisualization, "Show Root Motion", "Display root motion visualizations in viewport", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(ShowAssetUserDataVisualizations, "Show Meta Data", "Display animation meta data visualizations in viewport", EUserInterfaceActionType::ToggleButton, FInputChord());
 
 	UI_COMMAND(ShowTimecode, "Show Timecode", "Display timecode information associated with animation data (if exists).", EUserInterfaceActionType::ToggleButton, FInputChord());
