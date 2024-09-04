@@ -13,6 +13,7 @@
 
 #include <type_traits>
 
+struct FConcertSyncActivity;
 class IConcertClientWorkspace;
 class IConcertSyncClient;
 
@@ -78,6 +79,9 @@ namespace UE::MultiUserClient::Replication
 		FOfflineClientDelegate OnPostClientAddedDelegate;
 		/** Called just before an offline client is about to be removed. Called before OnClientsChanged. */
 		FOfflineClientDelegate OnPreClientRemovedDelegate;
+
+		/** Updates the list of known endpoints in response to an activity being added. */
+		void OnActivityAddedOrProduced(const FConcertClientInfo&, const FConcertSyncActivity&, const FStructOnScope&);
 		
 		/** Refreshes Clients based on which clients are online. */
 		void RefreshOfflineClients();

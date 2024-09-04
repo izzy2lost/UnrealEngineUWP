@@ -17,6 +17,7 @@ namespace UE::MultiUserClient::Replication
 		: ClientInstance(ClientInstance)
 		, OnlineClientManager(OnlineClientManager)
 	{
+		ClientInstance.GetWorkspace()->OnActivityAddedOrUpdated().AddRaw(this, &FOfflineClientManager::OnActivityAddedOrProduced);
 		OnlineClientManager.OnRemoteClientsChanged().AddRaw(this, &FOfflineClientManager::RefreshOfflineClients);
 		RefreshOfflineClients();
 	}
@@ -44,6 +45,13 @@ namespace UE::MultiUserClient::Replication
 		return const_cast<FOfflineClient*>(
 			const_cast<const FOfflineClientManager*>(this)->FindClient(EndpointId)
 			);
+	}
+
+	void FOfflineClientManager::OnActivityAddedOrProduced(const FConcertClientInfo&, const FConcertSyncActivity&, const FStructOnScope&)
+	{
+		const TSharedPtr<IConcertClientWorkspace> Workspace = ClientInstance.GetWorkspace();
+		check(Workspace);
+		EndpointCache.UpdateEndpoints(*Workspace);
 	}
 
 	void FOfflineClientManager::RefreshOfflineClients()
