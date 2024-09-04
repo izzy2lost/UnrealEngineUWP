@@ -523,7 +523,7 @@ namespace HordeServer.Agents
 				combinedConditions.Add(requirements.Condition);
 			}
 			combinedConditions.AddRange(conditions);
-			return MeetsRequirements(agent, poolId, combinedConditions, requirements.Resources, requirements.Exclusive, assignedResources);
+			return MeetsRequirements(agent, poolId, combinedConditions, requirements.Properties, requirements.Resources, requirements.Exclusive, assignedResources);
 		}
 
 		/// <summary>
@@ -532,11 +532,12 @@ namespace HordeServer.Agents
 		/// <param name="agent">The agent to create a lease for</param>
 		/// <param name="poolId">Pool to take the machine from</param>
 		/// <param name="conditions">Conditions to satisfy</param>
+		/// <param name="properties">Required properties to match</param>
 		/// <param name="resources">Resources required to execute</param>
 		/// <param name="exclusive">Whether the lease needs to be executed exclusively on the machine</param>
 		/// <param name="assignedResources">Resources allocated to the task</param>
 		/// <returns>True if the new lease can be granted</returns>
-		public static bool MeetsRequirements(this IAgent agent, PoolId? poolId, List<Condition> conditions, Dictionary<string, ResourceRequirements>? resources, bool exclusive, Dictionary<string, int> assignedResources)
+		public static bool MeetsRequirements(this IAgent agent, PoolId? poolId, List<Condition> conditions, IEnumerable<string>? properties, Dictionary<string, ResourceRequirements>? resources, bool exclusive, Dictionary<string, int> assignedResources)
 		{
 			if (!agent.Enabled || agent.Status != AgentStatus.Ok)
 			{
@@ -555,6 +556,10 @@ namespace HordeServer.Agents
 				return false;
 			}
 			if (conditions.Any(condition => !agent.SatisfiesCondition(condition)))
+			{
+				return false;
+			}
+			if (properties != null && properties.Any(property => !agent.HasProperty(property)))
 			{
 				return false;
 			}
