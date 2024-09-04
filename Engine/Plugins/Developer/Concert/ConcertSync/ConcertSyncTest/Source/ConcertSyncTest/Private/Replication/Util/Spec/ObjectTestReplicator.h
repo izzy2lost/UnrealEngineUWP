@@ -75,6 +75,7 @@ namespace UE::ConcertSyncTests::Replication
 		FObjectTestReplicator() = default;
 		explicit FObjectTestReplicator(UTestReflectionObject* TestObject) : TestObject(TestObject) {}
 		explicit FObjectTestReplicator(const FName BaseName) : TestObject(NewObject<UTestReflectionObject>(GetTransientPackage(), MakeUniqueObjectName(GetTransientPackage(), UTestReflectionObject::StaticClass(), BaseName))) {}
+		explicit FObjectTestReplicator(UPackage* Package) : TestObject(NewObject<UTestReflectionObject>(Package)) {}
 
 		/** Create a subobject of TestObject, assigns it to TestObject->InstancedSubobject, and returns a replicator for replicating it. */
 		TSharedRef<FObjectTestReplicator> CreateSubobjectReplicator(const FName BaseName = NAME_None) const;

@@ -37,6 +37,10 @@ namespace UE::ConcertSyncClient::Replication
 			CONCERT_TRACE_REPLICATION_OBJECT_SCOPE(SerializeReceivedObject, Args.ObjectInfo.ObjectId.Object, Args.ObjectInfo.SequenceId);
 			bAppliedData = true;
 
+			// We're technically modifying the package so mark it modified. This will make Concert / Multi-User revert the changes on leaving the session.
+			// This could be made faster by caching the package. For now leave it and possibly profile in future if needed.
+			Object->MarkPackageDirty();
+			
 			// TODO DP UE-193659: This is very hacky and leaves performance on the table... this is in case ApplyReplicationEvent updates the transform
 			if (USceneComponent* SceneComponent = Cast<USceneComponent>(Object))
 			{
