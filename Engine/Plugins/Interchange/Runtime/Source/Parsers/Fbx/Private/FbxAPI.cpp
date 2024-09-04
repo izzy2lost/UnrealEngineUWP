@@ -152,6 +152,13 @@ namespace UE
 
 				// Get The Creator of the FBX File.
 				FileDetails.FbxFileCreator = UTF8_TO_TCHAR(SDKImporter->GetFileHeaderInfo()->mCreator.Buffer());
+				{
+					//Example of creator file info string
+					//Blender (stable FBX IO) - 2.78 (sub 0) - 3.7.7
+					//Maya and Max use the same string where they specify the fbx sdk version, so we cannot know it is coming from which software
+					//We need blender creator when importing skeletal mesh containing the "armature" dummy node as the parent of the root joint. We want to remove this dummy "armature" node
+					bCreatorIsBlender = FileDetails.FbxFileCreator.StartsWith(TEXT("Blender"));
+				}
 
 				FbxDocumentInfo* DocInfo = SDKImporter->GetSceneInfo();
 				if (DocInfo)

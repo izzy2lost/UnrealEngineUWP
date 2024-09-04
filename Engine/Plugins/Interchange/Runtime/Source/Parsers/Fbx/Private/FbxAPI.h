@@ -106,6 +106,7 @@ namespace UE
 
 				double GetFrameRate() { return FrameRate; }
 
+				bool IsCreatorBlender() { return bCreatorIsBlender; }
 				/**
 				 * Critical section to avoid getting multiple payload in same time.
 				 * The FBX evaluator use a cache mechanism for evaluating global transform that is not thread safe.
@@ -136,6 +137,7 @@ namespace UE
 				bool bForceFrontXAxis = false;
 				bool bConvertSceneUnit = true;
 				bool bKeepFbxNamespace = false;
+				bool bCreatorIsBlender = false;
 
 				struct FileDetails
 				{

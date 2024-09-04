@@ -62,7 +62,13 @@ namespace UE
 					, UInterchangeBaseNodeContainer& NodeContainer
 					, TMap<FString, TSharedPtr<FPayloadContextBase, ESPMode::ThreadSafe>>& PayloadContexts);
 
+				FbxNode* Internal_GetRootSkeleton(FbxScene* SDKScene, FbxNode* Link);
+				void FindCommonJointRootNode(FbxScene* SDKScene, const TArray<FbxNode*>& ForceJointNodes);
+
 				void FindForceJointNode(FbxScene* SDKScene, TArray<FbxNode*>& ForceJointNodes);
+
+
+				TSet<FbxNode*> CommonJointRootNodes;
 
 				FFbxParser& Parser;
 			};
