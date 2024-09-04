@@ -177,6 +177,11 @@ namespace Metasound::Frontend
 		// Add outputs to parent graph and connect to wrapped graph node.
 		void AddAndConnectOutputs(const TArray<FMetasoundFrontendClassOutput>& InClassOutputs, FGraphHandle& InParentGraphHandle, FNodeHandle& InReferencedNode) const;
 
+#if WITH_EDITORONLY_DATA
+		using FMemberIDToMetadataMap = TMap<FGuid, TObjectPtr<UMetaSoundFrontendMemberMetadata>>;
+		void AddMemberMetadata(const FMemberIDToMetadataMap& InCachedMemberMetadata, FGraphHandle& InPresetGraphHandle, FMemberIDToMetadataMap& InOutMemberMetadata) const;
+#endif // WITH_EDITORONLY_DATA
+
 		FConstDocumentHandle ReferencedDocument = IDocumentController::GetInvalidHandle();
 	};
 

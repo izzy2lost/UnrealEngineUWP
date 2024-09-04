@@ -764,26 +764,10 @@ UObject* UMetaSoundBuilderBase::GetReferencedPresetAsset() const
 		return nullptr;
 	}
 
-	// Find the single external node which is the referenced preset asset, 
-	// and find the asset with its registry key 
-	auto FindExternalNode = [this](const FMetasoundFrontendNode& Node)
+	if (FMetasoundAssetBase* Asset = Builder.GetReferencedPresetAsset())
 	{
-		const FMetasoundFrontendClass* Class = Builder.FindDependency(Node.ClassID);
-		check(Class);
-		return Class->Metadata.GetType() == EMetasoundFrontendClassType::External;
-	};
-	const FMetasoundFrontendNode* Node = Builder.FindConstBuildGraphChecked().Nodes.FindByPredicate(FindExternalNode);
-	if (Node != nullptr)
-	{
-		const FMetasoundFrontendClass* NodeClass = Builder.FindDependency(Node->ClassID);
-		check(NodeClass);
-		const FNodeRegistryKey NodeClassRegistryKey = FNodeRegistryKey(NodeClass->Metadata);
-		if (FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().FindAsset(NodeClassRegistryKey))
-		{
-			return Asset->GetOwningAsset();
-		}
+		return Asset->GetOwningAsset();
 	}
-
 	return nullptr;
 }
 

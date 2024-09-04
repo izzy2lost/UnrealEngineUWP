@@ -293,6 +293,9 @@ public:
 	UE_DEPRECATED(5.5, "Use GetConstDocumentInterfaceChecked instead")
 	const IMetaSoundDocumentInterface& GetDocumentInterface() const;
 	FMetasoundAssetBase& GetMetasoundAsset() const;
+	
+	// Get the asset referenced by this builder's preset asset, nullptr if builder is not a preset.
+	FMetasoundAssetBase* GetReferencedPresetAsset() const;
 
 	int32 GetTransactionCount() const;
 

@@ -675,6 +675,11 @@ namespace Metasound
 			TArray<FMetasoundFrontendClassInput> ClassInputs = GenerateRequiredClassInputs(InDocument, PresetGraphHandle, InputsInheritingDefault);
 			TArray<FMetasoundFrontendClassOutput> ClassOutputs = GenerateRequiredClassOutputs(InDocument, PresetGraphHandle);
 
+#if WITH_EDITORONLY_DATA
+			// Cache off member metadata so it be can be readded if necessary after the graph is cleared 
+			const FMemberIDToMetadataMap CachedMemberMetadata = InDocument->GetMetadata()->MemberMetadata;
+#endif // WITH_EDITORONLY_DATA
+
 			FGuid PresetNodeID;
 			PresetGraphHandle->IterateConstNodes([InPresetNodeID = &PresetNodeID](FConstNodeHandle PresetNodeHandle)
 			{
@@ -723,6 +728,11 @@ namespace Metasound
 			AddAndConnectInputs(ClassInputs, PresetGraphHandle, ReferencedNodeHandle);
 			AddAndConnectOutputs(ClassOutputs, PresetGraphHandle, ReferencedNodeHandle);
 
+#if WITH_EDITORONLY_DATA
+			FMemberIDToMetadataMap& MemberMetadata = InDocument->GetMetadata()->MemberMetadata;
+			AddMemberMetadata(CachedMemberMetadata, PresetGraphHandle, MemberMetadata);
+#endif // WITH_EDITORONLY_DATA
+
 			return true;
 		}
 	
@@ -737,6 +747,24 @@ namespace Metasound
 			// TODO: Swap implementation to not use access pointers/controllers
 			return Transform(IDocumentController::CreateDocumentHandle(InDocument));
 		}
+
+#if WITH_EDITORONLY_DATA
+		void FRebuildPresetRootGraph::AddMemberMetadata(const FMemberIDToMetadataMap& InCachedMemberMetadata, FGraphHandle& InPresetGraphHandle, FMemberIDToMetadataMap& InOutMemberMetadata) const
+		{
+			// Add member metadata if a member with the corresponding node ID exists in the preset graph
+			if (!InCachedMemberMetadata.IsEmpty())
+			{
+				for (const TPair<FGuid, TObjectPtr<UMetaSoundFrontendMemberMetadata>>& MemberMetadataPair : InCachedMemberMetadata)
+				{
+					FConstNodeHandle FoundNodeHandle = InPresetGraphHandle->GetNodeWithID(MemberMetadataPair.Key);
+					if (FoundNodeHandle->IsValid())
+					{
+						InOutMemberMetadata.Add(MemberMetadataPair.Key, MemberMetadataPair.Value);
+					}
+				}
+			}
+		}
+#endif // WITH_EDITORONLY_DATA
 
 		void FRebuildPresetRootGraph::AddAndConnectInputs(const TArray<FMetasoundFrontendClassInput>& InClassInputs, FGraphHandle& InPresetGraphHandle, FNodeHandle& InReferencedNode) const
 		{

@@ -9,6 +9,8 @@
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorGraphSchema.h"
+#include "MetasoundEditorGraphMemberDefaults.h"
+#include "MetasoundEditorModule.h"
 #include "MetasoundEditorSettings.h"
 #include "MetasoundFactory.h"
 #include "MetasoundSettings.h"
@@ -116,17 +118,52 @@ TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundEditorSubsystem::BuildTo
 	return nullptr;
 }
 
+UMetasoundEditorGraphMemberDefaultLiteral* UMetaSoundEditorSubsystem::CreateMemberMetadata(
+	FMetaSoundFrontendDocumentBuilder& Builder,
+	FName InMemberName,
+	TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> LiteralClass) const
+{
+	using namespace Metasound::Engine;
+
+	// If preset and input inherits from default, copy member metadata from referenced graph
+	if (Builder.IsPreset())
+	{
+		const FMetasoundFrontendGraphClass& RootGraph = Builder.GetConstDocumentChecked().RootGraph;
+		const TSet<FName>& InputsInheritingDefault = RootGraph.PresetOptions.InputsInheritingDefault;
+		if (InputsInheritingDefault.Contains(InMemberName))
+		{
+			// Get referenced asset to inherit metadata from
+			FMetasoundAssetBase* ReferencedPresetAsset = Builder.GetReferencedPresetAsset();
+			check(ReferencedPresetAsset);
+
+			FMetaSoundFrontendDocumentBuilder& ReferencedBuilder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(ReferencedPresetAsset->GetOwningAsset());
+			const FMetasoundFrontendClassInput* ClassInput = ReferencedBuilder.FindGraphInput(InMemberName);
+			if (ClassInput)
+			{
+				if (UMetaSoundFrontendMemberMetadata* ReferencedMemberMetadata = ReferencedBuilder.FindMemberMetadata(ClassInput->NodeID))
+				{
+					return NewObject<UMetasoundEditorGraphMemberDefaultLiteral>(&Builder.CastDocumentObjectChecked<UObject>(), LiteralClass, FName(), RF_Transactional, ReferencedMemberMetadata);
+				}
+			}
+		}
+	}
+	// Otherwise, create brand new member metadata
+	return NewObject<UMetasoundEditorGraphMemberDefaultLiteral>(&Builder.CastDocumentObjectChecked<UObject>(), LiteralClass, FName(), RF_Transactional, nullptr);
+}
+
 bool UMetaSoundEditorSubsystem::BindMemberMetadata(
 	FMetaSoundFrontendDocumentBuilder& Builder,
 	UMetasoundEditorGraphMember& InMember,
 	TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> LiteralClass,
 	UMetasoundEditorGraphMemberDefaultLiteral* TemplateObject)
 {
+	UMetasoundEditorGraphMemberDefaultLiteral* NewLiteral = nullptr;
 	const FGuid& MemberID = InMember.GetMemberID();
 
 	if (TemplateObject)
 	{
 		Builder.ClearMemberMetadata(MemberID);
+		NewLiteral = NewObject<UMetasoundEditorGraphMemberDefaultLiteral>(&Builder.CastDocumentObjectChecked<UObject>(), LiteralClass, FName(), RF_Transactional, TemplateObject);
 	}
 	else
 	{
@@ -137,7 +174,9 @@ bool UMetaSoundEditorSubsystem::BindMemberMetadata(
 		}
 	}
 
-	if (UMetasoundEditorGraphMemberDefaultLiteral* NewLiteral = NewObject<UMetasoundEditorGraphMemberDefaultLiteral>(&Builder.CastDocumentObjectChecked<UObject>(), LiteralClass, FName(), RF_Transactional, TemplateObject))
+	NewLiteral = CreateMemberMetadata(Builder, InMember.GetMemberName(), LiteralClass);
+
+	if (NewLiteral)
 	{
 		NewLiteral->MemberID = MemberID;
 
@@ -158,6 +197,73 @@ UMetaSoundBuilderBase* UMetaSoundEditorSubsystem::FindOrBeginBuilding(TScriptInt
 	{
 		OutResult = EMetaSoundBuilderResult::Succeeded;
 		return &FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*Object);
+	}
+
+	OutResult = EMetaSoundBuilderResult::Failed;
+	return nullptr;
+}
+
+UMetaSoundFrontendMemberMetadata* UMetaSoundEditorSubsystem::FindOrCreateGraphInputMetadata(UMetaSoundBuilderBase* InBuilder, FName InputName, EMetaSoundBuilderResult& OutResult)
+{
+	using namespace Metasound::Editor;
+	using namespace Metasound::Frontend; 
+	
+	if (InBuilder)
+	{
+		FMetaSoundNodeHandle GraphInputNodeHandle = InBuilder->FindGraphInputNode(InputName, OutResult);
+		if (OutResult == EMetaSoundBuilderResult::Succeeded)
+		{
+			FMetaSoundFrontendDocumentBuilder& DocBuilder = InBuilder->GetBuilder();
+			// Look for existing metadata
+			if (UMetaSoundFrontendMemberMetadata* MemberMetadata = DocBuilder.FindMemberMetadata(GraphInputNodeHandle.NodeID))
+			{
+				OutResult = EMetaSoundBuilderResult::Succeeded;
+				return MemberMetadata;
+			}
+			// Create new metadata
+			else
+			{
+				// Get literal class
+				FDataTypeRegistryInfo DataTypeInfo;
+				IMetasoundEditorModule& EditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
+				const FName TypeName = DocBuilder.FindGraphInput(InputName)->TypeName;
+				IDataTypeRegistry::Get().GetDataTypeInfo(TypeName, DataTypeInfo);
+				const EMetasoundFrontendLiteralType LiteralType = static_cast<EMetasoundFrontendLiteralType>(DataTypeInfo.PreferredLiteralType);
+
+				TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> LiteralClass = EditorModule.FindDefaultLiteralClass(LiteralType);
+				if (!LiteralClass)
+				{
+					LiteralClass = UMetasoundEditorGraphMemberDefaultLiteral::StaticClass();
+				}
+
+
+				if (InBuilder->IsPreset())
+				{
+					// Ensure this MetaSound's dependencies are registered to lookup inherited metadata
+					// Needed in the case where this function is called from a BP,
+					// metadata wasn't created previously, and the MetaSound editor was never opened this session
+					UObject* MetaSound = InBuilder->GetConstBuilder().GetMetasoundAsset().GetOwningAsset();
+					check(MetaSound);
+					RegisterGraphWithFrontend(*MetaSound);
+				}
+
+				// Create new literal and setup
+				UMetasoundEditorGraphMemberDefaultLiteral* NewLiteral = CreateMemberMetadata(DocBuilder, InputName, LiteralClass);
+				if (NewLiteral)
+				{
+					NewLiteral->MemberID = GraphInputNodeHandle.NodeID;
+					NewLiteral->Initialize();
+					DocBuilder.SetMemberMetadata(*NewLiteral);
+					
+					OutResult = EMetaSoundBuilderResult::Succeeded;
+					return NewLiteral;
+				}
+			}
+		}
+		else
+		{
+			UE_LOG(LogMetaSound, Display, TEXT("Failed to find graph input node for input '%s' with builder '%s'."), *InputName.ToString(), *InBuilder->GetName());
+		}
 	}
 
 	OutResult = EMetaSoundBuilderResult::Failed;

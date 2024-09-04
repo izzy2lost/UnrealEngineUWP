@@ -4,6 +4,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "EditorSubsystem.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
+#include "MetasoundBuilderBase.h"
 #include "MetasoundDocumentInterface.h"
 #include "UObject/ScriptInterface.h"
 
@@ -50,10 +51,20 @@ public:
 		EMetaSoundBuilderResult& OutResult,
 		UPARAM(DisplayName = "Template SoundWave") const USoundWave* TemplateSoundWave = nullptr);
 
+	// Creates new member metadata for a member of a given builder, copying data from the referenced asset in the case of preset inherited inputs
+	UMetasoundEditorGraphMemberDefaultLiteral* CreateMemberMetadata(
+		FMetaSoundFrontendDocumentBuilder& Builder,
+		FName InMemberName,
+		TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> LiteralClass) const;
+
 	// Returns a builder for the given MetaSound asset. Returns null if provided a transient MetaSound. For finding builders for transient
 	// MetaSounds, use the UMetaSoundBuilderSubsystem's API (FindPatchBuilder, FindSourceBuilder, FindBuilderByName etc.)
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder|Editor", meta = (DisplayName = "Find Or Begin Building MetaSound Asset", ExpandEnumAsExecs = "OutResult"))
 	UPARAM(DisplayName = "Builder") UMetaSoundBuilderBase* FindOrBeginBuilding(TScriptInterface<IMetaSoundDocumentInterface> MetaSound, EMetaSoundBuilderResult& OutResult) const;
+	
+	// Find graph input metadata (which includes editor only range information for floats) for a given input. If the metadata does not exist, create it. 
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
+	UPARAM(DisplayName = "Input Metadata") UMetaSoundFrontendMemberMetadata* FindOrCreateGraphInputMetadata(UPARAM(DisplayName = "Builder") UMetaSoundBuilderBase* InBuilder, FName InputName, EMetaSoundBuilderResult& OutResult);
 
 	// Sets the visual location to InLocation of a given node InNode of a given builder's document.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder|Editor", meta = (ExpandEnumAsExecs = "OutResult"))

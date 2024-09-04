@@ -2216,6 +2216,33 @@ FMetasoundAssetBase& FMetaSoundFrontendDocumentBuilder::GetMetasoundAsset() cons
 	return *Asset;
 }
 
+FMetasoundAssetBase* FMetaSoundFrontendDocumentBuilder::GetReferencedPresetAsset() const
+{
+	using namespace Metasound::Frontend;
+	if (!IsPreset())
+	{
+		return nullptr;
+	}
+
+	// Find the single external node which is the referenced preset asset, 
+	// and find the asset with its registry key 
+	auto FindExternalNode = [this](const FMetasoundFrontendNode& Node)
+	{
+		const FMetasoundFrontendClass* Class = FindDependency(Node.ClassID);
+		check(Class);
+		return Class->Metadata.GetType() == EMetasoundFrontendClassType::External;
+	};
+	const FMetasoundFrontendNode* Node = FindConstBuildGraphChecked().Nodes.FindByPredicate(FindExternalNode);
+	if (Node != nullptr)
+	{
+		const FMetasoundFrontendClass* NodeClass = FindDependency(Node->ClassID);
+		check(NodeClass);
+		const FNodeRegistryKey NodeClassRegistryKey = FNodeRegistryKey(NodeClass->Metadata);
+		return IMetaSoundAssetManager::GetChecked().FindAsset(NodeClassRegistryKey);
+	}
+	return nullptr;
+}
+
 const FGuid& FMetaSoundFrontendDocumentBuilder::GetBuildPageID() const
 {
 	return BuildPageID;
