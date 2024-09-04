@@ -2432,18 +2432,29 @@ void UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::TryParse(const FSt
 		return;
 	}
 
-	// Ignore partial matches, such as METASOUND_PARAM_EXTERN when we're looking for METASOUND_PARAM
-	FString MacroName = GetToken();
+	// Ignore matches of the prefix, such as METASOUND_PARAM_EXTERN when we're looking for METASOUND_PARAM
 	int32 Pos = Text.Find(TEXT("("), ESearchCase::CaseSensitive);
 	if (Pos < 0)
 	{
 		return;
 	}
+	FString MacroName = GetToken();
 	FString MacroNameCurrent = Text.Mid(0, Pos);		// excludes bracket
 	MacroNameCurrent.TrimEndInline();
 	if (MacroNameCurrent != MacroName)
 	{
 		return;
+	}
+
+	// Ignore matches of the suffix, such as DECLARE_METASOUND_PARAM when we're looking for METASOUND_PARAM
+	Pos = Context.LineText.Find(MacroName, ESearchCase::CaseSensitive);
+	if (Pos > 0)
+	{
+		TCHAR Char = Context.LineText[Pos - 1];
+		if (!FText::IsWhitespace(Char) && Char != TCHAR('(') && Char != TCHAR('{'))
+		{
+			return;
+		}
 	}
 
 	// Parse outer macro values									MACRONAME("first", "second", "third")
