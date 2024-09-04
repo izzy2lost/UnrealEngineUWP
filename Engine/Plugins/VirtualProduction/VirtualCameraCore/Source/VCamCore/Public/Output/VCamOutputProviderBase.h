@@ -153,10 +153,11 @@ public:
 
 	/** @return Whether it is allowed to change the activation state into bRequestActiveState. */
 	bool IsActivationChangeAllowed(bool bRequestActiveState);
+	/** @return Whether it is allowed to change the activation state into bRequestActiveState. OutReason is only set if the return value is false. */
+	bool IsActivationChangeAllowedWithReason(bool bRequestActiveState, FText& OutReason);
 	/** @return Whether it is allowed to toggle (true -> false, false -> true) the activation state of this output provider. */
 	UFUNCTION(BlueprintPure, Category = "Output")
 	bool CanToggleActivation() { return IsActivationChangeAllowed(!bIsActive); }
-	
 
 	/** @return Whether this output provider is currently outputting (initialized, active, and owning VCam is enabled). */
 	bool IsOutputting() const { return IsActive() && IsInitialized() && IsOuterComponentEnabledAndInitialized(); }

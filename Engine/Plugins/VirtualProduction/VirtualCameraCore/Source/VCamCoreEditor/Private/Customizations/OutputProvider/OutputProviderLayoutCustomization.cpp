@@ -65,6 +65,78 @@ namespace UE::VCamCoreEditor
 			}
 			return TargetDisplayInfo;
 		}
+
+		static void SetToolTipForAllChildren(SWidget& Widget, const TAttribute<FText>& TooltipAttribute)
+		{
+			Widget.SetToolTipText(TooltipAttribute);
+			FChildren* Children = Widget.GetChildren();
+			if (!Children)
+			{
+				return;
+			}
+
+			Children->ForEachWidget([&TooltipAttribute](SWidget& ChildWidget)
+			{
+				SetToolTipForAllChildren(ChildWidget, TooltipAttribute);
+			});
+		}
+
+		static FText GetActivationNameTooltip(TSharedRef<IPropertyHandle> PropertyHandle, const TWeakObjectPtr<UVCamOutputProviderBase>& WeakOutputProvider)
+		{
+			FText ActivationReason;
+			if (UVCamOutputProviderBase* OutputProviderBase = WeakOutputProvider.Get();
+				OutputProviderBase && !OutputProviderBase->IsActivationChangeAllowedWithReason(!OutputProviderBase->IsActive(), ActivationReason))
+			{
+				return ActivationReason.IsEmpty() ? LOCTEXT("NotAllowed", "Cannot toggle activation") : ActivationReason;
+			}
+
+			const FProperty* Property = PropertyHandle->GetProperty();
+			return Property ? PropertyHandle->GetProperty()->GetToolTipText() : FText::GetEmpty();
+		}
+		
+		static FText GetActivationValueTooltip(TSharedRef<IPropertyHandle> PropertyHandle, const TWeakObjectPtr<UVCamOutputProviderBase>& WeakOutputProvider)
+		{
+			FText ActivationReason;
+			if (UVCamOutputProviderBase* OutputProviderBase = WeakOutputProvider.Get();
+				OutputProviderBase && !OutputProviderBase->IsActivationChangeAllowedWithReason(!OutputProviderBase->IsActive(), ActivationReason))
+			{
+				return ActivationReason.IsEmpty() ? LOCTEXT("NotAllowed", "Cannot toggle activation") : ActivationReason;
+			}
+				
+			FText TooltipText;
+			if( PropertyHandle->GetValueAsFormattedText(TooltipText) == FPropertyAccess::MultipleValues )
+			{
+				return LOCTEXT("MultipleValues", "Multiple Values");
+			}
+			return TooltipText;
+		}
+
+		static void OverrideIsActiveProperty(
+			IDetailLayoutBuilder& DetailBuilder,
+			IDetailCategoryBuilder& Category,
+			TWeakObjectPtr<UVCamOutputProviderBase> WeakOutputProvider
+			)
+		{
+			const TSharedRef<IPropertyHandle> PropertyHandle = DetailBuilder.GetProperty(UVCamOutputProviderBase::GetIsActivePropertyName());
+			const TSharedRef<SWidget> NameWidget = PropertyHandle->CreatePropertyNameWidget();
+			const TSharedRef<SWidget> ValueWidget = PropertyHandle->CreatePropertyValueWidget();
+			
+			const TAttribute<FText> NameTooltipTextAttr = TAttribute<FText>::CreateLambda([PropertyHandle, WeakOutputProvider]
+			{
+				return GetActivationNameTooltip(PropertyHandle, WeakOutputProvider);
+			});
+			const TAttribute<FText> ValueTooltipTextAttr = TAttribute<FText>::CreateLambda([PropertyHandle, WeakOutputProvider]
+			{
+				return GetActivationValueTooltip(PropertyHandle, WeakOutputProvider);
+			});
+			SetToolTipForAllChildren(*NameWidget, NameTooltipTextAttr);
+			SetToolTipForAllChildren(*ValueWidget, ValueTooltipTextAttr);
+			
+			Category.AddProperty(PropertyHandle)
+				.CustomWidget()
+				.NameContent() [ NameWidget ]
+				.ValueContent()[ ValueWidget ];
+		}
 	}
 	
 	TSharedRef<IDetailCustomization> FOutputProviderLayoutCustomization::MakeInstance()
@@ -105,7 +177,7 @@ namespace UE::VCamCoreEditor
 		// Important properties should show before widgets, then ...
 		IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(TEXT("Output"));
 		Category.SetSortOrder(0);
-		Category.AddProperty(DetailBuilder.GetProperty(UVCamOutputProviderBase::GetIsActivePropertyName()));
+		Private::OverrideIsActiveProperty(DetailBuilder, Category, CustomizedOutputProvider);
 		Category.AddProperty(DetailBuilder.GetProperty(UVCamOutputProviderBase::GetTargetViewportPropertyName()));
 		Category.AddProperty(DetailBuilder.GetProperty(UVCamOutputProviderBase::GetUMGClassPropertyName()));
 

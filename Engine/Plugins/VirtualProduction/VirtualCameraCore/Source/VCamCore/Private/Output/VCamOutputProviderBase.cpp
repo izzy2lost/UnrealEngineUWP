@@ -591,6 +591,12 @@ TWeakPtr<SWindow> UVCamOutputProviderBase::GetTargetInputWindow() const
 
 bool UVCamOutputProviderBase::IsActivationChangeAllowed(bool bRequestActiveState)
 {
+	FText Dummy;
+	return IsActivationChangeAllowedWithReason(bRequestActiveState, Dummy);
+}
+
+bool UVCamOutputProviderBase::IsActivationChangeAllowedWithReason(bool bRequestActiveState, FText& OutReason)
+{
 	// Deactivation is always allowed.
 	if (!bRequestActiveState)
 	{
@@ -599,7 +605,13 @@ bool UVCamOutputProviderBase::IsActivationChangeAllowed(bool bRequestActiveState
 	
 	using namespace UE::VCamCore;
 	const TOptional<FVCamCoreChangeActivationResult> Result = ExecuteUntilFailure(IVCamCoreModule::Get().OnCanActivateOutputProvider(), { this });
-	return !Result;
+	if (!Result || Result->bCanPerformOperation)
+	{
+		return true;
+	}
+	
+	OutReason = Result->Reason;
+	return false;
 }
 
 #if WITH_EDITOR

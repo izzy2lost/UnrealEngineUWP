@@ -28,6 +28,10 @@ struct FVCamCoreChangeActivationResult
 	/** Whether the activation change can take place */
 	UPROPERTY(BlueprintReadWrite, Category = "Virtual Camera")
 	bool bCanPerformOperation = true;
+
+	/** Optional reason to display if the operation is not valid. */
+	UPROPERTY(BlueprintReadWrite, Category = "Virtual Camera")
+	FText Reason = FText::GetEmpty();
 };
 
 DECLARE_DELEGATE_RetVal_OneParam(FVCamCoreChangeActivationResult, FCanChangeActiviationVCamDelegate, const FVCamCoreChangeActivationArgs&);
