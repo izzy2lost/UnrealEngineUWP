@@ -1514,6 +1514,41 @@ TEST_CASE("UECore.FString")
 
 		REQUIRE(String == "Foo 'Stuff' BAR");
 	}
+
+	SECTION("Returned From Open")
+	{
+		SECTION("Copied New")
+		{
+			FString String;
+
+			AutoRTFM::Commit([&]
+				{
+					String = AutoRTFM::Open([&]
+						{
+							return TEXT("WOW");
+						});
+				});
+
+			REQUIRE(String == "WOW");
+		}
+
+		SECTION("Copied Old")
+		{
+			FString Other = TEXT("WOW");
+			FString String;
+
+			AutoRTFM::Commit([&]
+				{
+					String = AutoRTFM::Open([&]
+						{
+							return Other;
+						});
+				});
+
+			REQUIRE(Other == "WOW");
+			REQUIRE(String == "WOW");
+		}
+	}
 }
 
 TEST_CASE("UECore.TQueue")

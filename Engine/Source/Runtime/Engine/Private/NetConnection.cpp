@@ -1316,8 +1316,16 @@ bool UNetConnection::HandleReceiveNetUpgrade(uint32 RemoteNetworkVersion, EEngin
 
 FString UNetConnection::Describe()
 {
+	// `LowLevelGetRemoteAddress` just returns a human readable description of the remote address
+	// and will, on some implementations, call into system stuff to do that (think getting the IP
+	// address or stuff like that). So we need to call this in the open as a result.
+	FString RemoteAddress = AutoRTFM::Open([&]
+		{
+			return LowLevelGetRemoteAddress(true);
+		});
+
 	return FString::Printf( TEXT( "[UNetConnection] RemoteAddr: %s, Name: %s, Driver: %s, IsServer: %s, PC: %s, Owner: %s, UniqueId: %s" ),
-			*LowLevelGetRemoteAddress( true ),
+			*RemoteAddress,
 			*GetName(),
 			Driver ? *Driver->GetDescription() : TEXT( "NULL" ),
 			Driver && Driver->IsServer() ? TEXT( "YES" ) : TEXT( "NO" ),
