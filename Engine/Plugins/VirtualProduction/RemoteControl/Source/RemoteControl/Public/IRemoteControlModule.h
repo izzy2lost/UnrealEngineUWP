@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
+#include "RCModifyOperationFlags.h"
 #include "RemoteControlField.h"
 #include "RemoteControlFieldPath.h"
 #include "UObject/StructOnScope.h"
@@ -314,9 +315,10 @@ public:
 
 	/**
 	 * Performs the given masking operation.
-	 * @param InMaskingOperation Masking operation to be performed.
+	 * @param InMaskingOperation	Masking operation to be performed.
+	 * @param ModifyOperationFlags	(optional) Flags that specify how the property is modified when the value is applied.
 	 */
-	virtual void PerformMasking(const TSharedRef<FRCMaskingOperation>& InMaskingOperation) = 0;
+	virtual void PerformMasking(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None) = 0;
 
 	/**
 	 * Register a masking factory to handle that masks the supported properties.
@@ -399,9 +401,10 @@ public:
 	 * @param InPayloadType the payload type archive.
 	 * @param InInterceptPayload the payload reference archive for the interception.
 	 * @param Operation the type of operation to perform when setting the value.
+	 * @param ModifyOperationFlags (optional) Flags that specify how the property is modified when the value is applied.
 	 * @return true if the deserialization succeeded
 	 */
-	virtual bool SetObjectProperties(const FRCObjectReference& ObjectAccess, IStructDeserializerBackend& Backend, ERCPayloadType InPayloadType = ERCPayloadType::Json, const TArray<uint8>& InInterceptPayload = TArray<uint8>(), ERCModifyOperation Operation = ERCModifyOperation::EQUAL) = 0;
+	virtual bool SetObjectProperties(const FRCObjectReference& ObjectAccess, IStructDeserializerBackend& Backend, ERCPayloadType InPayloadType = ERCPayloadType::Json, const TArray<uint8>& InInterceptPayload = TArray<uint8>(), ERCModifyOperation Operation = ERCModifyOperation::EQUAL, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None) = 0;
 
 	/**
 	 * Reset the property or the object the Object Reference is pointing to

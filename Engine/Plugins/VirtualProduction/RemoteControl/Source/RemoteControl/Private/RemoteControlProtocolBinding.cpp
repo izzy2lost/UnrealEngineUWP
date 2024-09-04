@@ -2,20 +2,18 @@
 
 #include "RemoteControlProtocolBinding.h"
 
+#include "Algo/MinElement.h"
+#include "Algo/Sort.h"
+#include "Backends/CborStructDeserializerBackend.h"
 #include "CborWriter.h"
 #include "Factories/IRemoteControlMaskingFactory.h"
 #include "IRemoteControlModule.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlSettings.h"
-#include "Algo/MinElement.h"
-#include "Algo/Sort.h"
-#include "Backends/CborStructDeserializerBackend.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 #include "UObject/StructOnScope.h"
 #include "UObject/TextProperty.h"
-
-#define LOCTEXT_NAMESPACE "RemoteControl"
 
 namespace EntityInterpolation
 {
@@ -637,7 +635,7 @@ const FString& FRemoteControlProtocolEntity::GetRangePropertyMaxValue() const
 	return Empty;
 }
 
-bool FRemoteControlProtocolEntity::ApplyProtocolValueToProperty(double InProtocolValue)
+bool FRemoteControlProtocolEntity::ApplyProtocolValueToProperty(const double InProtocolValue, const ERCModifyOperationFlags ModifyOperationFlags)
 {
 	if (Mappings.Num() <= 1)
 	{
@@ -709,18 +707,20 @@ bool FRemoteControlProtocolEntity::ApplyProtocolValueToProperty(double InProtoco
 		}
 
 		// Cache the values.
-		IRemoteControlModule::Get().PerformMasking(MaskingOperation.ToSharedRef());
+		IRemoteControlModule::Get().PerformMasking(MaskingOperation.ToSharedRef(), ModifyOperationFlags);
 
 		// Set properties after interpolation
 		TArray<uint8> InterpolatedBuffer;
 		if (GetInterpolatedPropertyBuffer(Property, InProtocolValue, InterpolatedBuffer))
 		{
+			constexpr ERCModifyOperation ModifyOperation = ERCModifyOperation::EQUAL;
+
 			FMemoryReader MemoryReader(InterpolatedBuffer);
 			FCborStructDeserializerBackend CborStructDeserializerBackend(MemoryReader);
-			bSuccess &= IRemoteControlModule::Get().SetObjectProperties(ObjectRef, CborStructDeserializerBackend, ERCPayloadType::Cbor, InterpolatedBuffer);
+			bSuccess &= IRemoteControlModule::Get().SetObjectProperties(ObjectRef, CborStructDeserializerBackend, ERCPayloadType::Cbor, InterpolatedBuffer, ModifyOperation, ModifyOperationFlags);
 
 			// Apply the masked the values.
-			IRemoteControlModule::Get().PerformMasking(MaskingOperation.ToSharedRef());
+			IRemoteControlModule::Get().PerformMasking(MaskingOperation.ToSharedRef(), ModifyOperationFlags);
 		}
 	}
 

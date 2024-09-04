@@ -273,8 +273,15 @@ public:
 	 * Disabling transactions improves performance but will prevent events from being transacted to Multi-User
 	 * unless using the Remote Control Interception feature.
 	 */
-	UPROPERTY(config, EditAnywhere, Category = "Remote Control")
-	bool bProtocolsGenerateTransactions = true;
+	UPROPERTY(config, EditAnywhere, AdvancedDisplay, Category = "Remote Control Protocol")
+	bool bProtocolsGenerateTransactions = false;
+
+	/** 
+	 * Experimental:  When set to true does not raise any property changed events when applying properties. Performance is greatly improved. 
+	 * Some properties may not update properly in this mode. Useful when controling many properties e.g. via DMX or OSC.
+	 */
+	UPROPERTY(config, EditAnywhere, AdvancedDisplay, Category = "Remote Control Protocol", meta = (DisplayName = "Protocol Performance Mode (Experimental)"))
+	bool bProtocolPerformanceMode = false;
 
 	/** The remote control web app bind address. */
 	UPROPERTY(config, EditAnywhere, Category = "Remote Control Web Interface", DisplayName = "Remote Control Web Interface bind address")

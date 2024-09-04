@@ -11,16 +11,16 @@
 #include "Factories/RCDefaultValueFactories.h"
 #include "Factories/RemoteControlMaskingFactories.h"
 #include "Features/IModularFeatures.h"
-#include "PropertyIdHandler/BasePropertyIdHandler.h"
-#include "PropertyIdHandler/EnumPropertyIdHandler.h"
-#include "PropertyIdHandler/ObjectPropertyIdHandler.h"
-#include "PropertyIdHandler/StructPropertyIdHandler.h"
 #include "IRemoteControlInterceptionFeature.h"
 #include "IRemoteControlModule.h"
 #include "IStructDeserializerBackend.h"
 #include "IStructSerializerBackend.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Misc/ScopeExit.h"
+#include "PropertyIdHandler/BasePropertyIdHandler.h"
+#include "PropertyIdHandler/EnumPropertyIdHandler.h"
+#include "PropertyIdHandler/ObjectPropertyIdHandler.h"
+#include "PropertyIdHandler/StructPropertyIdHandler.h"
 #include "RCPropertyUtilities.h"
 #include "RCVirtualProperty.h"
 #include "RCVirtualPropertyContainer.h"
@@ -1027,7 +1027,7 @@ void FRemoteControlModule::ResetToDefaultValue(UObject* InObject, FRCResetToDefa
 	}
 }
 
-void FRemoteControlModule::PerformMasking(const TSharedRef<FRCMaskingOperation>& InMaskingOperation)
+void FRemoteControlModule::PerformMasking(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, const ERCModifyOperationFlags ModifyOperationFlags)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRemoteControlModule::PerformMasking);
 
@@ -1050,7 +1050,7 @@ void FRemoteControlModule::PerformMasking(const TSharedRef<FRCMaskingOperation>&
 			{
 				constexpr bool bIsInteractive = true;
 
-				(*MaskingFactory)->ApplyMaskedValues(InMaskingOperation, bIsInteractive);
+				(*MaskingFactory)->ApplyMaskedValues(InMaskingOperation, bIsInteractive, ModifyOperationFlags);
 
 				ActiveMaskingOperations.Remove(InMaskingOperation);
 			}
@@ -1554,7 +1554,7 @@ void FRemoteControlModule::SnapshotOrEndTransaction(FRCObjectReference& ObjectRe
 }
 #endif
 
-bool FRemoteControlModule::SetObjectProperties(const FRCObjectReference& ObjectAccess, IStructDeserializerBackend& Backend, ERCPayloadType InPayloadType, const TArray<uint8>& InPayload, ERCModifyOperation Operation)
+bool FRemoteControlModule::SetObjectProperties(const FRCObjectReference& ObjectAccess, IStructDeserializerBackend& Backend, ERCPayloadType InPayloadType, const TArray<uint8>& InPayload, ERCModifyOperation Operation, const ERCModifyOperationFlags ModifyOperationFlags)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRemoteControlModule::SetObjectProperties);
 	UE_LOG(LogRemoteControl, VeryVerbose, TEXT("Set Object Properties"));
@@ -1675,8 +1675,11 @@ bool FRemoteControlModule::SetObjectProperties(const FRCObjectReference& ObjectA
 		FRCObjectReference MutableObjectReference = ObjectAccess;
 
 #if WITH_EDITOR
-		bool bGeneratedTransaction;
-		if (!StartPropertyTransaction(MutableObjectReference, LOCTEXT("RemoteSetPropertyTransaction", "Remote Set Object Property"), bGeneratedTransaction))
+		const bool bWithPropertyChangedEvents = !EnumHasAnyFlags(ModifyOperationFlags, ERCModifyOperationFlags::SkipPropertyChangeEvents);
+		
+		bool bGeneratedTransaction = false;
+		if (bWithPropertyChangedEvents &&
+			!StartPropertyTransaction(MutableObjectReference, LOCTEXT("RemoteSetPropertyTransaction", "Remote Set Object Property"), bGeneratedTransaction))
 		{
 			return false;
 		}
@@ -1738,7 +1741,10 @@ bool FRemoteControlModule::SetObjectProperties(const FRCObjectReference& ObjectA
 		}
 
 #if WITH_EDITOR
-		SnapshotOrEndTransaction(MutableObjectReference, bGeneratedTransaction);
+		if (bWithPropertyChangedEvents)
+		{
+			SnapshotOrEndTransaction(MutableObjectReference, bGeneratedTransaction);
+		}
 #endif
 
 		for (const TPair<FName, TSharedPtr<IRemoteControlPropertyFactory>>& EntityFactoryPair : EntityFactories)

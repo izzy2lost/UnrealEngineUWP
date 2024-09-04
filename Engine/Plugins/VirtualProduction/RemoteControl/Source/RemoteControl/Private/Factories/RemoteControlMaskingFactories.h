@@ -11,7 +11,7 @@ public:
 	static TSharedRef<IRemoteControlMaskingFactory> MakeInstance();
 
 	//~ Begin IRemoteControlMaskingFactory interface
-	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive) override;
+	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None) override;
 	virtual void CacheRawValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation) override;
 	virtual bool SupportsExposedEntity(UScriptStruct* ScriptStruct) const override;
 	//~ End IRemoteControlMaskingFactory interface
@@ -23,7 +23,7 @@ public:
 	static TSharedRef<IRemoteControlMaskingFactory> MakeInstance();
 
 	//~ Begin IRemoteControlMaskingFactory interface
-	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive) override;
+	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None) override;
 	virtual void CacheRawValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation) override;
 	virtual bool SupportsExposedEntity(UScriptStruct* ScriptStruct) const override;
 	//~ End IRemoteControlMaskingFactory interface
@@ -35,7 +35,7 @@ public:
 	static TSharedRef<IRemoteControlMaskingFactory> MakeInstance();
 
 	//~ Begin IRemoteControlMaskingFactory interface
-	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive) override;
+	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None) override;
 	virtual void CacheRawValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation) override;
 	virtual bool SupportsExposedEntity(UScriptStruct* ScriptStruct) const override;
 	//~ End IRemoteControlMaskingFactory interface
@@ -47,7 +47,7 @@ public:
 	static TSharedRef<IRemoteControlMaskingFactory> MakeInstance();
 
 	//~ Begin IRemoteControlMaskingFactory interface
-	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive) override;
+	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None) override;
 	virtual void CacheRawValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation) override;
 	virtual bool SupportsExposedEntity(UScriptStruct* ScriptStruct) const override;
 	//~ End IRemoteControlMaskingFactory interface
@@ -59,7 +59,7 @@ public:
 	static TSharedRef<IRemoteControlMaskingFactory> MakeInstance();
 
 	//~ Begin IRemoteControlMaskingFactory interface
-	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive) override;
+	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None) override;
 	virtual void CacheRawValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation) override;
 	virtual bool SupportsExposedEntity(UScriptStruct* ScriptStruct) const override;
 	//~ End IRemoteControlMaskingFactory interface
@@ -71,7 +71,7 @@ public:
 	static TSharedRef<IRemoteControlMaskingFactory> MakeInstance();
 
 	//~ Begin IRemoteControlMaskingFactory interface
-	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive) override;
+	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None) override;
 	virtual void CacheRawValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation) override;
 	virtual bool SupportsExposedEntity(UScriptStruct* ScriptStruct) const override;
 	//~ End IRemoteControlMaskingFactory interface
@@ -83,7 +83,7 @@ public:
 	static TSharedRef<IRemoteControlMaskingFactory> MakeInstance();
 
 	//~ Begin IRemoteControlMaskingFactory interface
-	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive) override;
+	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None) override;
 	virtual void CacheRawValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation) override;
 	virtual bool SupportsExposedEntity(UScriptStruct* ScriptStruct) const override;
 	//~ End IRemoteControlMaskingFactory interface

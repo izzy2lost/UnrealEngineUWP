@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "IRemoteControlModule.h"
+#include "RCModifyOperationFlags.h"
 
 /**
  * Reference to a UObject or one of its properties for the purpose of masking.
@@ -72,9 +73,12 @@ public:
 
 	/**
 	 * Applies masked values to the given struct property.
-	 * @param InMaskingOperation Shared reference of the masking operation to perform.
+	 * 
+	 * @param InMaskingOperation			Shared reference of the masking operation to perform.
+	 * @param bIsInteractive				If bWithPropertyChangedEvents, defined if the property changed events are interactive or not.
+	 * @param ModifyOperationFlags			(optional) Flags that specify how the property is modified when the value is applied.
 	 */
-	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive) = 0;
+	virtual void ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None) = 0;
 
 	/**
 	 * Caches premasking values from the given struct property.

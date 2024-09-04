@@ -4,10 +4,11 @@
 
 #include "CoreMinimal.h"
 
-#include "RemoteControlCommon.h"
+#include "Containers/UnrealString.h"
+#include "RCModifyOperationFlags.h"
 #include "RCPropertyUtilities.h"
 #include "RCTypeTraits.h"
-#include "Containers/UnrealString.h"
+#include "RemoteControlCommon.h"
 #include "UObject/Class.h"
 #include "UObject/StructOnScope.h"
 
@@ -385,10 +386,12 @@ public:
 
 	/**
 	 * Interpolate and apply protocol value to the property
-	 * @param InProtocolValue double value from the protocol
-	 * @return true of applied successfully
+	 * 
+	 * @param InProtocolValue				Double value from the protocol
+	 * @param ModifyOperationFlags			(optional) Flags that specify how the property is modified when the value is applied.
+	 * @return								True if the value was applied successfully
 	 */
-	bool ApplyProtocolValueToProperty(double InProtocolValue);
+	bool ApplyProtocolValueToProperty(const double InProtocolValue, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None);
 
 	/** 
 	 * Get bound range property. For example, the range could be bound to FFloatProperty or FIntProperty, etc.

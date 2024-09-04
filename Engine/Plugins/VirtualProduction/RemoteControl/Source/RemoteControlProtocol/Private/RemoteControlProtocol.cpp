@@ -2,12 +2,63 @@
 
 #include "RemoteControlProtocol.h"
 
+#include "GameFramework/Actor.h"
+#include "Misc/CoreDelegates.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlProtocolBinding.h"
 #include "RemoteControlProtocolModule.h"
-
-#include "Misc/CoreDelegates.h"
+#include "RemoteControlSettings.h"
 #include "UObject/StructOnScope.h"
+
+namespace UE::RemoteControl::Protocol::Private
+{
+	/** Struct that updates actors on scope, useful when applying protocol values in performance mode */
+	struct FRCScopedUpdateActors
+	{
+		FRCScopedUpdateActors(const TMap<const FRemoteControlProtocolEntityPtr, double>& EntityToValueMap)
+		{
+			for (const TPair<const FRemoteControlProtocolEntityPtr, double>& EntityValuesToApplyPair : EntityToValueMap)
+			{
+				if (EntityValuesToApplyPair.Key.IsValid() && EntityValuesToApplyPair.Key->IsValid())
+				{
+					FRemoteControlProtocolEntity* ProtocolEntity = EntityValuesToApplyPair.Key->Get();
+					URemoteControlPreset* Preset = ProtocolEntity->GetOwner().Get();
+					if (!Preset)
+					{
+						continue;
+					}
+
+					const TSharedPtr<FRemoteControlProperty> RemoteControlProperty = Preset->GetExposedEntity<FRemoteControlProperty>(ProtocolEntity->GetPropertyId()).Pin();
+					if (!RemoteControlProperty.IsValid())
+					{
+						continue;
+					}
+
+					for (UObject* Object : RemoteControlProperty->GetBoundObjects())
+					{
+						if (AActor* Actor = Object->GetTypedOuter<AActor>())
+						{
+							Actors.AddUnique(Actor);
+						}
+					}
+				}
+			}
+		}
+
+		~FRCScopedUpdateActors()
+		{
+			for (AActor* Actor : Actors)
+			{
+				Actor->UpdateComponentTransforms();
+				Actor->MarkComponentsRenderStateDirty();
+			}
+		}
+
+	private:
+		/** The actors which need update */
+		TArray<AActor*> Actors;
+	};
+}
 
 FRemoteControlProtocol::FRemoteControlProtocol(const FName InProtocolName)
 	: ProtocolName(InProtocolName)
@@ -45,6 +96,16 @@ void FRemoteControlProtocol::QueueValue(const FRemoteControlProtocolEntityPtr In
 
 void FRemoteControlProtocol::OnEndFrame()
 {
+	using namespace UE::RemoteControl::Protocol::Private;
+	
+	const bool bPerformancMode = GetDefault<URemoteControlSettings>()->bProtocolPerformanceMode;
+	TOptional<FRCScopedUpdateActors> OptionalScopedUpdateActors;
+	if (bPerformancMode)
+	{
+		OptionalScopedUpdateActors = FRCScopedUpdateActors(EntityValuesToApply);
+	}
+
+	const ERCModifyOperationFlags ModifyOperationFlags = bPerformancMode ? ERCModifyOperationFlags::SkipPropertyChangeEvents : ERCModifyOperationFlags::None;
 	for (const TPair<const FRemoteControlProtocolEntityPtr, double>& EntityValuesToApplyPair : EntityValuesToApply)
 	{
 		// Check is the Shared ptr and TStructOnScope is valid
@@ -57,7 +118,7 @@ void FRemoteControlProtocol::OnEndFrame()
 			// Check the value from previous frame
 			if (PreviousFrameValuePtr == nullptr || !FMath::IsNearlyEqual(ThisFrameValue, *PreviousFrameValuePtr))
 			{
-				if (!ProtocolEntity->ApplyProtocolValueToProperty(EntityValuesToApplyPair.Value))
+				if (!ProtocolEntity->ApplyProtocolValueToProperty(EntityValuesToApplyPair.Value, ModifyOperationFlags))
 				{
 					// Warn if the the value can't by applied
 					ensureMsgf(false, TEXT("Can't apply property for Protocol %s and PropertyId %s"),

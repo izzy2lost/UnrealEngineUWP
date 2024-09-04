@@ -10,16 +10,19 @@ TSharedRef<IRemoteControlMaskingFactory> FVectorMaskingFactory::MakeInstance()
 	return MakeShared<FVectorMaskingFactory>();
 }
 
-void FVectorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive)
+void FVectorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags)
 {
 	if (FStructProperty* ToStructProp = CastField<FStructProperty>(InMaskingOperation->ObjectRef.Property.Get()))
 	{
 		if (UObject* OwningObject = InMaskingOperation->ObjectRef.Object.Get())
 		{
 #if WITH_EDITOR
-			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
-#endif // WITH_EDITOR
+			const bool bWithPropertyChangedEvents = !EnumHasAnyFlags(ModifyOperationFlags, ERCModifyOperationFlags::SkipPropertyChangeEvents);
+			if (bWithPropertyChangedEvents)
+			{
+				OwningObject->PreEditChange(ToStructProp);
+			}
+#endif
 
 			if (const FVector* VectorProp = ToStructProp->ContainerPtrToValuePtr<FVector>(OwningObject))
 			{
@@ -33,9 +36,12 @@ void FVectorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperati
 			}
 
 #if WITH_EDITOR
-			FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
-			OwningObject->PostEditChangeProperty(ChangeEvent);
-#endif // WITH_EDITOR
+			if (bWithPropertyChangedEvents)
+			{
+				FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
+				OwningObject->PostEditChangeProperty(ChangeEvent);
+			}
+#endif
 		}
 	}
 }
@@ -69,15 +75,18 @@ TSharedRef<IRemoteControlMaskingFactory> FVector4MaskingFactory::MakeInstance()
 	return MakeShared<FVector4MaskingFactory>();
 }
 
-void FVector4MaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive)
+void FVector4MaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags)
 {
 	if (FStructProperty* ToStructProp = CastField<FStructProperty>(InMaskingOperation->ObjectRef.Property.Get()))
 	{
 		if (UObject* OwningObject = InMaskingOperation->ObjectRef.Object.Get())
 		{
 #if WITH_EDITOR
-			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
+			const bool bWithPropertyChangedEvents = !EnumHasAnyFlags(ModifyOperationFlags, ERCModifyOperationFlags::SkipPropertyChangeEvents);
+			if (bWithPropertyChangedEvents)
+			{
+				OwningObject->PreEditChange(ToStructProp);
+			}
 #endif // WITH_EDITOR
 
 			if (const FVector4* Vector4Prop = ToStructProp->ContainerPtrToValuePtr<FVector4>(OwningObject))
@@ -93,8 +102,11 @@ void FVector4MaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperat
 			}
 
 #if WITH_EDITOR
-			FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
-			OwningObject->PostEditChangeProperty(ChangeEvent);
+			if (bWithPropertyChangedEvents)
+			{
+				FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
+				OwningObject->PostEditChangeProperty(ChangeEvent);
+			}
 #endif // WITH_EDITOR
 		}
 	}
@@ -130,15 +142,18 @@ TSharedRef<IRemoteControlMaskingFactory> FIntVectorMaskingFactory::MakeInstance(
 	return MakeShared<FIntVectorMaskingFactory>();
 }
 
-void FIntVectorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive)
+void FIntVectorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags)
 {
 	if (FStructProperty* ToStructProp = CastField<FStructProperty>(InMaskingOperation->ObjectRef.Property.Get()))
 	{
 		if (UObject* OwningObject = InMaskingOperation->ObjectRef.Object.Get())
 		{
 #if WITH_EDITOR
-			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
+			const bool bWithPropertyChangedEvents = !EnumHasAnyFlags(ModifyOperationFlags, ERCModifyOperationFlags::SkipPropertyChangeEvents);
+			if (bWithPropertyChangedEvents)
+			{
+				OwningObject->PreEditChange(ToStructProp);
+			}
 #endif // WITH_EDITOR
 
 			if (const FIntVector* IntVectorProp = ToStructProp->ContainerPtrToValuePtr<FIntVector>(OwningObject))
@@ -153,8 +168,11 @@ void FIntVectorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOper
 			}
 
 #if WITH_EDITOR
-			FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
-			OwningObject->PostEditChangeProperty(ChangeEvent);
+			if (bWithPropertyChangedEvents)
+			{
+				FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
+				OwningObject->PostEditChangeProperty(ChangeEvent);
+			}
 #endif // WITH_EDITOR
 		}
 	}
@@ -189,15 +207,18 @@ TSharedRef<IRemoteControlMaskingFactory> FIntVector4MaskingFactory::MakeInstance
 	return MakeShared<FIntVector4MaskingFactory>();
 }
 
-void FIntVector4MaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive)
+void FIntVector4MaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags)
 {
 	if (FStructProperty* ToStructProp = CastField<FStructProperty>(InMaskingOperation->ObjectRef.Property.Get()))
 	{
 		if (UObject* OwningObject = InMaskingOperation->ObjectRef.Object.Get())
 		{
 #if WITH_EDITOR
-			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
+			const bool bWithPropertyChangedEvents = !EnumHasAnyFlags(ModifyOperationFlags, ERCModifyOperationFlags::SkipPropertyChangeEvents);
+			if (bWithPropertyChangedEvents)
+			{
+				OwningObject->PreEditChange(ToStructProp);
+			}
 #endif // WITH_EDITOR
 
 			if (const FIntVector4* IntVector4Prop = ToStructProp->ContainerPtrToValuePtr<FIntVector4>(OwningObject))
@@ -213,8 +234,11 @@ void FIntVector4MaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOpe
 			}
 
 #if WITH_EDITOR
-			FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
-			OwningObject->PostEditChangeProperty(ChangeEvent);
+			if (bWithPropertyChangedEvents)
+			{
+				FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
+				OwningObject->PostEditChangeProperty(ChangeEvent);
+			}
 #endif // WITH_EDITOR
 		}
 	}
@@ -250,15 +274,18 @@ TSharedRef<IRemoteControlMaskingFactory> FRotatorMaskingFactory::MakeInstance()
 	return MakeShared<FRotatorMaskingFactory>();
 }
 
-void FRotatorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive)
+void FRotatorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags)
 {
 	if (FStructProperty* ToStructProp = CastField<FStructProperty>(InMaskingOperation->ObjectRef.Property.Get()))
 	{
 		if (UObject* OwningObject = InMaskingOperation->ObjectRef.Object.Get())
 		{
 #if WITH_EDITOR
-			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
+			const bool bWithPropertyChangedEvents = !EnumHasAnyFlags(ModifyOperationFlags, ERCModifyOperationFlags::SkipPropertyChangeEvents);
+			if (bWithPropertyChangedEvents)
+			{
+				OwningObject->PreEditChange(ToStructProp);
+			}
 #endif // WITH_EDITOR
 
 			if (const FRotator* RotatorProp = ToStructProp->ContainerPtrToValuePtr<FRotator>(OwningObject))
@@ -272,9 +299,12 @@ void FRotatorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperat
 				ToStructProp->SetValue_InContainer(OwningObject, &MaskedRotator);
 			}
 
-#if WITH_EDITOR
-			FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
-			OwningObject->PostEditChangeProperty(ChangeEvent);
+#if WITH_EDITOR			
+			if (bWithPropertyChangedEvents)
+			{
+				FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
+				OwningObject->PostEditChangeProperty(ChangeEvent);
+			}
 #endif // WITH_EDITOR
 		}
 	}
@@ -309,15 +339,18 @@ TSharedRef<IRemoteControlMaskingFactory> FColorMaskingFactory::MakeInstance()
 	return MakeShared<FColorMaskingFactory>();
 }
 
-void FColorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive)
+void FColorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags)
 {
 	if (FStructProperty* ToStructProp = CastField<FStructProperty>(InMaskingOperation->ObjectRef.Property.Get()))
 	{
 		if (UObject* OwningObject = InMaskingOperation->ObjectRef.Object.Get())
 		{
 #if WITH_EDITOR
-			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
+			const bool bWithPropertyChangedEvents = !EnumHasAnyFlags(ModifyOperationFlags, ERCModifyOperationFlags::SkipPropertyChangeEvents);
+			if (bWithPropertyChangedEvents)
+			{
+				OwningObject->PreEditChange(ToStructProp);
+			}
 #endif // WITH_EDITOR
 
 			if (const FColor* ColorProp = ToStructProp->ContainerPtrToValuePtr<FColor>(OwningObject))
@@ -332,8 +365,11 @@ void FColorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperatio
 			}
 
 #if WITH_EDITOR
-			FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
-			OwningObject->PostEditChangeProperty(ChangeEvent);
+			if (bWithPropertyChangedEvents)
+			{
+				FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
+				OwningObject->PostEditChangeProperty(ChangeEvent);
+			}
 #endif // WITH_EDITOR
 		}
 	}
@@ -368,15 +404,18 @@ TSharedRef<IRemoteControlMaskingFactory> FLinearColorMaskingFactory::MakeInstanc
 	return MakeShared<FLinearColorMaskingFactory>();
 }
 
-void FLinearColorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive)
+void FLinearColorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, bool bIsInteractive, const ERCModifyOperationFlags ModifyOperationFlags)
 {
 	if (FStructProperty* ToStructProp = CastField<FStructProperty>(InMaskingOperation->ObjectRef.Property.Get()))
 	{
 		if (UObject* OwningObject = InMaskingOperation->ObjectRef.Object.Get())
 		{
 #if WITH_EDITOR
-			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
+			const bool bWithPropertyChangedEvents = !EnumHasAnyFlags(ModifyOperationFlags, ERCModifyOperationFlags::SkipPropertyChangeEvents);
+			if (bWithPropertyChangedEvents)
+			{
+				OwningObject->PreEditChange(ToStructProp);
+			}
 #endif // WITH_EDITOR
 
 			if (const FLinearColor* LinearColorProp = ToStructProp->ContainerPtrToValuePtr<FLinearColor>(OwningObject))
@@ -392,8 +431,11 @@ void FLinearColorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOp
 			}
 
 #if WITH_EDITOR
-			FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
-			OwningObject->PostEditChangeProperty(ChangeEvent);
+			if (bWithPropertyChangedEvents)
+			{
+				FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
+				OwningObject->PostEditChangeProperty(ChangeEvent);
+			}
 #endif // WITH_EDITOR
 		}
 	}
