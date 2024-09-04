@@ -826,9 +826,9 @@ namespace mu
 		// This can be optimized to apply the saturate after the swizzle, since it doesn't touch A
 		if (!at
 			&&
-			Sources[0]->GetOpType() == OP_TYPE::IM_SATURATE 
-			&&
 			Sources[0]
+			&&
+			Sources[0]->GetOpType() == OP_TYPE::IM_SATURATE 
 			&&
 			(Sources[0] == Sources[1]) && (Sources[0] == Sources[2])
 			&&
@@ -1028,9 +1028,19 @@ namespace mu
 			}
 		}
 
-		if (Sources[0].child())
+		int32 FirstValidSourceIndex = -1;
+		for (int32 SourceIndex = 0; SourceIndex < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++SourceIndex)
 		{
-			res = Sources[0]->GetImageDesc(returnBestOption, context);
+			if (Sources[SourceIndex].child())
+			{
+				FirstValidSourceIndex = SourceIndex;
+				break;	
+			}
+		}
+
+		if (FirstValidSourceIndex >= 0)
+		{
+			res = Sources[FirstValidSourceIndex]->GetImageDesc(returnBestOption, context);
 			res.m_format = Format;
 			check(res.m_format != EImageFormat::IF_NONE);
 		}

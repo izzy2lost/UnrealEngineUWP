@@ -1432,22 +1432,33 @@ namespace mu
 		MUTABLE_CPUPROFILER_SCOPE(FImageSwizzleTask_Prepare);
 		bOutFailed = false;
 
-		for (int i = 0; i < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++i)
+		int32 FirstValidSourceIndex = -1;
+		for (int32 SourceIndex = 0; SourceIndex < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++SourceIndex)
 		{
-			if (Args.sources[i])
+			if (Args.sources[SourceIndex])
 			{
-				Sources[i] = Runner->LoadImage({ Args.sources[i], Op.ExecutionIndex, Op.ExecutionOptions });
+				FirstValidSourceIndex = SourceIndex;
+				break;
+			}
+		}
+
+		for (int32 SourceIndex = 0; SourceIndex < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++SourceIndex)
+		{
+			if (Args.sources[SourceIndex])
+			{
+				Sources[SourceIndex] = Runner->LoadImage({ Args.sources[SourceIndex], Op.ExecutionIndex, Op.ExecutionOptions });
 			}
 		}
 
 		// Shortcuts
-		if (!Sources[0])
+		if (FirstValidSourceIndex < 0 || !Sources[FirstValidSourceIndex])
 		{
-			for (int i = 0; i < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++i)
+			for (int32 SourceIndex = 0; SourceIndex < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++SourceIndex)
 			{
-				Runner->Release(Sources[i]);
+				Runner->Release(Sources[SourceIndex]);
 			}
 			Runner->StoreImage(Op, nullptr);
+
 			return false;
 		}
 
@@ -1456,38 +1467,39 @@ namespace mu
 
 		FImageOperator ImOp = MakeImageOperator(Runner);
 
-		int32 ResultLODs = Sources[0]->GetLODCount();
+		int32 ResultLODs = Sources[FirstValidSourceIndex]->GetLODCount();
 
 		// Be defensive: ensure formats are uncompressed
-		for (int i = 0; i < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++i)
+		for (int32 SourceIndex = 0; SourceIndex < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++SourceIndex)
 		{
-			if (Sources[i] && Sources[i]->GetFormat()!=GetUncompressedFormat(Sources[i]->GetFormat()))
+			if (Sources[SourceIndex] && Sources[SourceIndex]->GetFormat() != GetUncompressedFormat(Sources[SourceIndex]->GetFormat()))
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ImageFormat_ForSwizzle);
 
-				EImageFormat UncompressedFormat = GetUncompressedFormat(Sources[i]->GetFormat());
-				Ptr<Image> Formatted = Runner->CreateImage(Sources[i]->GetSizeX(), Sources[i]->GetSizeY(), 1, UncompressedFormat, EInitializationType::NotInitialized);
+				EImageFormat UncompressedFormat = GetUncompressedFormat(Sources[SourceIndex]->GetFormat());
+				Ptr<Image> Formatted = Runner->CreateImage(Sources[SourceIndex]->GetSizeX(), Sources[SourceIndex]->GetSizeY(), 1, UncompressedFormat, EInitializationType::NotInitialized);
 				bool bSuccess = false;
 				int32 ImageCompressionQuality = 4; // TODO
-				ImOp.ImagePixelFormat(bSuccess, ImageCompressionQuality, Formatted.get(), Sources[i].get());
+				ImOp.ImagePixelFormat(bSuccess, ImageCompressionQuality, Formatted.get(), Sources[SourceIndex].get());
 				check(bSuccess); // Decompression cannot fail
-				Runner->Release(Sources[i]);
-				Sources[i] = Formatted;
+				Runner->Release(Sources[SourceIndex]);
+				Sources[SourceIndex] = Formatted;
 				ResultLODs = 1;
 			}
 		}
 
+		const FImageSize ResultSize = Sources[FirstValidSourceIndex]->GetSize();
 
 		// Be defensive: ensure image sizes match.
-		for (int i = 1; i < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++i)
+		for (int32 SourceIndex = FirstValidSourceIndex + 1; SourceIndex < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++SourceIndex)
 		{
-			if (Sources[i] && Sources[i]->GetSize() != Sources[0]->GetSize())
+			if (Sources[SourceIndex] && ResultSize != Sources[SourceIndex]->GetSize())
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ImageResize_ForSwizzle);
-				Ptr<Image> Resized = Runner->CreateImage(Sources[0]->GetSizeX(), Sources[0]->GetSizeY(), 1, Sources[i]->GetFormat(), EInitializationType::NotInitialized);
-				ImOp.ImageResizeLinear(Resized.get(), 0, Sources[i].get());
-				Runner->Release(Sources[i]);
-				Sources[i] = Resized;
+				Ptr<Image> Resized = Runner->CreateImage(ResultSize.X, ResultSize.Y, 1, Sources[SourceIndex]->GetFormat(), EInitializationType::NotInitialized);
+				ImOp.ImageResizeLinear(Resized.get(), 0, Sources[SourceIndex].get());
+				Runner->Release(Sources[SourceIndex]);
+				Sources[SourceIndex] = Resized;
 				ResultLODs = 1;
 			}
 		}
@@ -1501,7 +1513,7 @@ namespace mu
 			}
 		}
 
-		Result = Runner->CreateImage(Sources[0]->GetSizeX(), Sources[0]->GetSizeY(), ResultLODs, Args.format, EInitializationType::Black);
+		Result = Runner->CreateImage(ResultSize.X, ResultSize.Y, ResultLODs, Args.format, EInitializationType::Black);
 		return true;
 	}
 
@@ -1518,9 +1530,9 @@ namespace mu
 	bool FImageSwizzleTask::Complete(CodeRunner* Runner)
 	{
 		// This runs in the Runner thread
-		for (int i = 0; i < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++i)
+		for (int32 SourceIndex = 0; SourceIndex < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++SourceIndex)
 		{
-			Runner->Release(Sources[i]);
+			Runner->Release(Sources[SourceIndex]);
 		}
 
 		// \TODO: If Result LODs differ from Source[0]'s, rebuild mips?

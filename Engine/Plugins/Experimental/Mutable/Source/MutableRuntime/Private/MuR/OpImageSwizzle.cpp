@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MuR/ImagePrivate.h"
+#include "MuR/Operations.h"
 #include "Async/ParallelFor.h"
 
 namespace mu
@@ -8,11 +9,6 @@ namespace mu
 	void ImageSwizzle(Image* Result, const Ptr<const Image> Sources[], const uint8 Channels[])
 	{
 		MUTABLE_CPUPROFILER_SCOPE(ImageSwizzle);
-
-		if (!Sources[0])
-		{
-			return;
-		}
 
 		EImageFormat Format = Result->GetFormat();
 
@@ -222,16 +218,29 @@ namespace mu
 		}
 	}
 
-	Ptr<Image> FImageOperator::ImageSwizzle( EImageFormat Format, const Ptr<const Image> Sources[], const uint8 Channels[] )
+	Ptr<Image> FImageOperator::ImageSwizzle(EImageFormat Format, const Ptr<const Image> Sources[], const uint8 Channels[])
 	{
 		MUTABLE_CPUPROFILER_SCOPE(ImageSwizzle);
 
-		if (!Sources[0])
+		int32 FirstValidSourceIndex = -1;
+		for (int32 SourceIndex = 0; SourceIndex < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++SourceIndex)
+		{
+			if (Sources[SourceIndex])
+			{
+				FirstValidSourceIndex = SourceIndex;
+				break;
+			}
+		}
+
+		if (FirstValidSourceIndex < 0)
 		{
 			return nullptr;
 		}
 
-		Ptr<Image> Dest = CreateImage(Sources[0]->GetSizeX(), Sources[0]->GetSizeY(), Sources[0]->GetLODCount(), Format, EInitializationType::Black);
+		const FImageSize ResultSize = Sources[FirstValidSourceIndex]->GetSize();
+		const int32 ResultNumLODs = Sources[FirstValidSourceIndex]->GetLODCount();
+
+		Ptr<Image> Dest = CreateImage(ResultSize.X, ResultSize.Y, ResultNumLODs, Format, EInitializationType::Black);
 
 		mu::ImageSwizzle(Dest.get(), Sources, Channels);
 

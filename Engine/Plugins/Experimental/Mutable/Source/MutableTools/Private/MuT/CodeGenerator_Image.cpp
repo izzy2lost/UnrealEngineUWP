@@ -766,17 +766,17 @@ namespace mu
 
         // This node always produces a swizzle operation and sometimes it may produce a pixelformat
 		// operation to compress the Result
-        Ptr<ASTOpImageSwizzle> op = new ASTOpImageSwizzle();
+        Ptr<ASTOpImageSwizzle> SwizzleOp = new ASTOpImageSwizzle();
 
 		// Format
-		EImageFormat compressedFormat = EImageFormat::IF_NONE;
+		EImageFormat CompressedFormat = EImageFormat::IF_NONE;
 
 		switch (node.m_format)
 		{
         case EImageFormat::IF_BC1:
         case EImageFormat::IF_ASTC_4x4_RGB_LDR:
-            compressedFormat = node.m_format;
-            op->Format = node.m_sources[3] ? EImageFormat::IF_RGBA_UBYTE : EImageFormat::IF_RGB_UBYTE;
+            CompressedFormat = node.m_format;
+            SwizzleOp->Format = node.m_sources[3] ? EImageFormat::IF_RGBA_UBYTE : EImageFormat::IF_RGB_UBYTE;
 			break;
 
 		case EImageFormat::IF_BC2:
@@ -784,24 +784,24 @@ namespace mu
 		case EImageFormat::IF_BC6:
         case EImageFormat::IF_BC7:
         case EImageFormat::IF_ASTC_4x4_RGBA_LDR:
-            compressedFormat = node.m_format;
-             op->Format = EImageFormat::IF_RGBA_UBYTE;
+            CompressedFormat = node.m_format;
+            SwizzleOp->Format = EImageFormat::IF_RGBA_UBYTE;
 			break;
 
 		case EImageFormat::IF_BC4:
-			compressedFormat = node.m_format;
-            op->Format = EImageFormat::IF_L_UBYTE;
+			CompressedFormat = node.m_format;
+            SwizzleOp->Format = EImageFormat::IF_L_UBYTE;
 			break;
 
 		case EImageFormat::IF_BC5:
         case EImageFormat::IF_ASTC_4x4_RG_LDR:
-            compressedFormat = node.m_format;
+            CompressedFormat = node.m_format;
 			// TODO: Should be RG
-            op->Format = EImageFormat::IF_RGB_UBYTE;
+            SwizzleOp->Format = EImageFormat::IF_RGB_UBYTE;
 			break;
 
 		default:
-            op->Format = node.m_format;
+            SwizzleOp->Format = node.m_format;
 			break;
 
 		}
@@ -812,59 +812,63 @@ namespace mu
 		check(node.m_sources.Num() == node.m_sourceChannels.Num());
 
 		// First source, for reference in the size
-        Ptr<ASTOp> first;
-		FImageDesc FirstDesc;
-		for (int32 t = 0; t<node.m_sources.Num(); ++t)
+        Ptr<ASTOp> FirstValid;
+		FImageDesc FirstValidDesc;
+		int32 FirstValidSourceIndex = -1;
+
+		check(MUTABLE_OP_MAX_SWIZZLE_CHANNELS >= node.m_sources.Num());
+		for (int32 SourceIndex = 0; SourceIndex < node.m_sources.Num(); ++SourceIndex)
 		{
-			if (node.m_sources[t])
+			if (node.m_sources[SourceIndex])
 			{
 				FImageGenerationResult BaseResult;
-				GenerateImage(Options, BaseResult, node.m_sources[t]);
-                Ptr<ASTOp> source = BaseResult.op;
+				GenerateImage(Options, BaseResult, node.m_sources[SourceIndex]);
+                Ptr<ASTOp> Source = BaseResult.op;
 
-				source = GenerateImageUncompressed(source);
+				Source = GenerateImageUncompressed(Source);
 
-				if (!source)
+				if (!Source)
 				{
 					// TODO: Warn?
-					source = GenerateMissingImageCode(TEXT("Swizzle channel"), EImageFormat::IF_L_UBYTE, InNode->GetMessageContext(), Options);
+					Source = GenerateMissingImageCode(TEXT("Swizzle channel"), EImageFormat::IF_L_UBYTE, InNode->GetMessageContext(), Options);
 				}
 
-                Ptr<ASTOp> sizedSource;
-				if (first && FirstDesc.m_size[0])
+                Ptr<ASTOp> SizedSource;
+				if (FirstValid && FirstValidDesc.m_size[0])
 				{
-					sizedSource = GenerateImageSize(source, FIntVector2(FirstDesc.m_size));
+					SizedSource = GenerateImageSize(Source, FIntVector2(FirstValidDesc.m_size));
 				}
 				else
 				{
-					first = source;
-					sizedSource = source;
-					FirstDesc = first->GetImageDesc();
+					FirstValid = Source;
+					SizedSource = Source;
+					FirstValidDesc = FirstValid->GetImageDesc();
+					FirstValidSourceIndex = SourceIndex;
 				}
 
-                op->Sources[t] = sizedSource;
-                op->SourceChannels[t] = (uint8)node.m_sourceChannels[t];
+                SwizzleOp->Sources[SourceIndex] = SizedSource;
+                SwizzleOp->SourceChannels[SourceIndex] = (uint8)node.m_sourceChannels[SourceIndex];
 			}
 		}
 
-		// At least one source is required
-        if (!op->Sources[0])
+        if (FirstValidSourceIndex < 0)
 		{
-            Ptr<ASTOp> source = GenerateMissingImageCode(TEXT("First swizzle image"), EImageFormat::IF_RGBA_UBYTE, InNode->GetMessageContext(), Options);
-            op->Sources[0] = source;
+            Ptr<ASTOp> Source = GenerateMissingImageCode(TEXT("First swizzle image"), EImageFormat::IF_RGBA_UBYTE, InNode->GetMessageContext(), Options);
+            SwizzleOp->Sources[0] = Source;
+
 		}
 
-        Ptr<ASTOp> resultOp = op;
+        Ptr<ASTOp> ResultOp = SwizzleOp;
 
-		if (compressedFormat != EImageFormat::IF_NONE)
+		if (CompressedFormat != EImageFormat::IF_NONE)
 		{
-            Ptr<ASTOpImagePixelFormat> fop = new ASTOpImagePixelFormat();
-            fop->Source = resultOp;
-            fop->Format = compressedFormat;
-			resultOp = fop;
+            Ptr<ASTOpImagePixelFormat> FormatOp = new ASTOpImagePixelFormat();
+            FormatOp->Source = ResultOp;
+            FormatOp->Format = CompressedFormat;
+			ResultOp = FormatOp;
 		}
 
-        Result.op = resultOp;
+        Result.op = ResultOp;
 	}
 
 
