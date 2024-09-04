@@ -41,6 +41,7 @@ Texture2D<uint> LightSamples;
 Texture2D<uint> LightSampleUVTexture;
 Texture2D<float4> CompositeUpsampleWeights;
 
+float LightWasHiddenPDFWeightScale;
 uint UseShadingConfidence;
 int UseIESProfiles;
 int UseLightFunctionAtlas;
@@ -68,8 +69,8 @@ void AccumulateLightSample(uint2 SharedSampleCoord, uint LocalLightIndex, float 
 			{
 				if (LightSample.Weight * UpsampleWeight)
 				{
-					SampleWeightSum += LightSample.Weight * UpsampleWeight;
-					WeightRatioSum += (1.0f / LightSample.Weight) * UpsampleWeight * (LightSample.bPartiallyVisibleLight ? 0.25f : 1.0f);
+					SampleWeightSum += LightSample.Weight * UpsampleWeight * (LightSample.bGuidedAsVisible ? 1.0f : LightWasHiddenPDFWeightScale);
+					WeightRatioSum += (1.0f / LightSample.Weight) * UpsampleWeight * (LightSample.bGuidedAsPartiallyVisibleLight ? 0.25f : 1.0f);
 				}
 			}
 		}

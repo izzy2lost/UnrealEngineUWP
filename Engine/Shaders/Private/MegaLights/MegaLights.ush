@@ -96,7 +96,8 @@ struct FLightSample
 	float Weight;
 	bool bVisible;
 	bool bCompleted; // Whether tracing was completed
-	bool bPartiallyVisibleLight; // Whether light was partially visible last frame
+	bool bGuidedAsVisible;
+	bool bGuidedAsPartiallyVisibleLight;
 };
 
 FLightSample InitLightSample()
@@ -106,7 +107,8 @@ FLightSample InitLightSample()
 	LightSample.Weight = 0.0f;
 	LightSample.bVisible = false;
 	LightSample.bCompleted = true;
-	LightSample.bPartiallyVisibleLight = false;
+	LightSample.bGuidedAsVisible = true;
+	LightSample.bGuidedAsPartiallyVisibleLight = false;
 	return LightSample;
 }
 
@@ -115,7 +117,8 @@ uint PackLightSample(FLightSample LightSample)
 	uint PackedLightSample = LightSample.LocalLightIndex & 0x3FF;
 	PackedLightSample |= LightSample.bVisible ? 0x8000 : 0;
 	PackedLightSample |= LightSample.bCompleted ? 0x4000 : 0;
-	PackedLightSample |= LightSample.bPartiallyVisibleLight ? 0x2000 : 0;
+	PackedLightSample |= LightSample.bGuidedAsVisible ? 0x2000 : 0;
+	PackedLightSample |= LightSample.bGuidedAsPartiallyVisibleLight ? 0x1000 : 0;
 	PackedLightSample |= f32tof16(LightSample.Weight) << 16;
 	return PackedLightSample;
 }
@@ -126,7 +129,8 @@ FLightSample UnpackLightSample(uint PackedLightSample)
 	LightSample.LocalLightIndex = PackedLightSample & 0x3FF;
 	LightSample.bVisible = PackedLightSample & 0x8000 ? true : false;
 	LightSample.bCompleted = PackedLightSample & 0x4000 ? true : false;
-	LightSample.bPartiallyVisibleLight = PackedLightSample & 0x2000 ? true : false;
+	LightSample.bGuidedAsVisible = PackedLightSample & 0x2000 ? true : false;
+	LightSample.bGuidedAsPartiallyVisibleLight = PackedLightSample & 0x1000 ? true : false;
 	LightSample.Weight = f16tof32(PackedLightSample >> 16);
 	return LightSample;
 }

@@ -667,6 +667,7 @@ class FShadeLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSamples)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSampleUVTexture)
 		SHADER_PARAMETER(uint32, UseShadingConfidence)
+		SHADER_PARAMETER(float, LightWasHiddenPDFWeightScale)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static int32 GetGroupSize()
@@ -970,40 +971,35 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 
 			if (!View.bCameraCut 
 				&& !View.bPrevTransformsReset
-				&& !bResetHistory 
-				&& bTemporal)
+				&& !bResetHistory)
 			{
 				HistoryScreenPositionScaleBias = MegaLightsViewState.HistoryScreenPositionScaleBias;
 				HistoryUVMinMax = MegaLightsViewState.HistoryUVMinMax;
 				HistoryGatherUVMinMax = MegaLightsViewState.HistoryGatherUVMinMax;
 
-				if (MegaLightsViewState.DiffuseLightingAndSecondMomentHistory
+				if (StochasticLightingViewState.SceneDepthHistory
+					&& StochasticLightingViewState.SceneDepthHistory->GetDesc().Extent == SceneTextures.Depth.Resolve->Desc.Extent)
+				{
+					SceneDepthHistory = GraphBuilder.RegisterExternalTexture(StochasticLightingViewState.SceneDepthHistory);
+				}
+
+				if (bTemporal &&
+					MegaLightsViewState.DiffuseLightingAndSecondMomentHistory
 					&& MegaLightsViewState.SpecularLightingAndSecondMomentHistory
-					&& StochasticLightingViewState.SceneDepthHistory
 					&& MegaLightsViewState.NumFramesAccumulatedHistory
 					&& MegaLightsViewState.DiffuseLightingAndSecondMomentHistory->GetDesc().Extent == View.GetSceneTexturesConfig().Extent
-					&& MegaLightsViewState.SpecularLightingAndSecondMomentHistory->GetDesc().Extent == View.GetSceneTexturesConfig().Extent
-					&& StochasticLightingViewState.SceneDepthHistory->GetDesc().Extent == SceneTextures.Depth.Resolve->Desc.Extent)
+					&& MegaLightsViewState.SpecularLightingAndSecondMomentHistory->GetDesc().Extent == View.GetSceneTexturesConfig().Extent)
 				{
 					DiffuseLightingAndSecondMomentHistory = GraphBuilder.RegisterExternalTexture(MegaLightsViewState.DiffuseLightingAndSecondMomentHistory);
 					SpecularLightingAndSecondMomentHistory = GraphBuilder.RegisterExternalTexture(MegaLightsViewState.SpecularLightingAndSecondMomentHistory);
 					NumFramesAccumulatedHistory = GraphBuilder.RegisterExternalTexture(MegaLightsViewState.NumFramesAccumulatedHistory);
-					SceneDepthHistory = GraphBuilder.RegisterExternalTexture(StochasticLightingViewState.SceneDepthHistory);
 				}
-			}
 
-			if (!View.bCameraCut
-				&& !View.bPrevTransformsReset
-				&& !bResetHistory
-				&& bGuideByHistory)
-			{
-				if (MegaLightsViewState.VisibleLightHashHistory
-					&& StochasticLightingViewState.SceneDepthHistory
-					&& LightMaskBufferSize == MegaLightsViewState.HistoryLightMaskBufferSize
-					&& StochasticLightingViewState.SceneDepthHistory->GetDesc().Extent == SceneTextures.Depth.Resolve->Desc.Extent)
+				if (bGuideByHistory
+					&& MegaLightsViewState.VisibleLightHashHistory
+					&& LightMaskBufferSize == MegaLightsViewState.HistoryLightMaskBufferSize)
 				{
 					VisibleLightHashHistory = GraphBuilder.RegisterExternalBuffer(MegaLightsViewState.VisibleLightHashHistory);
-					SceneDepthHistory = GraphBuilder.RegisterExternalTexture(StochasticLightingViewState.SceneDepthHistory);
 				}
 			}
 		}
@@ -1407,6 +1403,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				PassParameters->LightSamples = LightSamples;
 				PassParameters->LightSampleUVTexture = LightSampleUV;
 				PassParameters->UseShadingConfidence = CVarMegaLightsShadingConfidence.GetValueOnRenderThread();
+				PassParameters->LightWasHiddenPDFWeightScale = CVarMegaLightsGuideByHistoryHiddenPDFWeightScale.GetValueOnRenderThread();
 
 				FShadeLightSamplesCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FShadeLightSamplesCS::FTileType>(TileType);

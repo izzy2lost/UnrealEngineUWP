@@ -52,6 +52,11 @@ void DenoiserSpatialCS(
 	
 			// Run spatial filter until we accumulate enough frames to estimated temporal variance
 			float NumFramesAccumulated = NumFramesAccumulatedTexture[ScreenCoord] * TemporalMaxFramesAccumulated;
+			float DisocclusionFactor = 0.0f;
+			if (TemporalMaxFramesAccumulated > 1)
+			{
+				DisocclusionFactor = 1.0f - saturate((NumFramesAccumulated - 1.0f) / min(3.0f, TemporalMaxFramesAccumulated - 1.0f));
+			}
 			CenterDiffuseStdDev = lerp(1.0f, CenterDiffuseStdDev, saturate(NumFramesAccumulated / min(5.0f, TemporalMaxFramesAccumulated)));
 
 			float3 DiffuseLightingSum = CenterDiffuseLightingAndSecondMoment.xyz;
@@ -165,6 +170,9 @@ void DenoiserSpatialCS(
 				Print(Context, TEXT("Filter: "));
 				Print(Context, bFilterDiffuse ? 1u : 0u);
 				Print(Context, bFilterSpecular ? 1u : 0u);
+				Newline(Context);
+				Print(Context, TEXT("DisocclusionFactor: "));
+				Print(Context, DisocclusionFactor);
 				Newline(Context);
 				Print(Context, TEXT("ShadingConfidence: "));
 				Print(Context, ShadingConfidence, Select(ShadingConfidence > 0.75f, FontYellow, Select(ShadingConfidence > 0.25f, FontWhite, FontGrey)));

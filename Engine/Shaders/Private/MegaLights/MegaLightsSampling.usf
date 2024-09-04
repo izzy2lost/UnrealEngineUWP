@@ -482,7 +482,7 @@ void GenerateLightSamplesCS(
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("Selected:"));
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("LightId | Weight  | PartiallyVis | UV"));
+					Print(Debug.Context, TEXT("LightId | Weight    | AsVis | AsPartiallyVis | UV"));
 				}
 				#endif
 
@@ -497,62 +497,67 @@ void GenerateLightSamplesCS(
 					float2 LightSampleUV = BlueNoiseVec2(SampleCoord, MegaLightsStateFrameIndex);
 
 					#if GUIDE_BY_HISTORY
-					if (GuideByHistoryMode == 2)
+					if (bHasValidHistory && LocalLightData.PrevLocalLightIndex >= 0)
 					{
-						uint VisibleInLastFrameMask = GetLightVisibilityMask(VisibleLightsHashMap, LocalLightData.PrevLocalLightIndex);
+						const uint VisibleInLastFrameMask = GetLightVisibilityMask(VisibleLightsHashMap, LocalLightData.PrevLocalLightIndex);
+						LightSample.bGuidedAsVisible = VisibleInLastFrameMask != 0;
 
-						// If entire light is fully visible or invisible then no need to guide samples towards the visible parts
-						const bool bAreaLight = LightData.SourceRadius > 0.0f || LightData.SourceLength > 0.0f;
-						if (VisibleInLastFrameMask != 0 && VisibleInLastFrameMask != 0xF && bAreaLight)
+						if (GuideByHistoryMode == 2)
 						{
-							// Probabilities of hitting of 2x2 light UV regions based on the visibility from the previous frame
-							const float Weight00 = VisibleInLastFrameMask & 0x1 ? 1.0f : LightWasHiddenPDFWeightScale;
-							const float Weight10 = VisibleInLastFrameMask & 0x2 ? 1.0f : LightWasHiddenPDFWeightScale;
-							const float Weight01 = VisibleInLastFrameMask & 0x4 ? 1.0f : LightWasHiddenPDFWeightScale;
-							const float Weight11 = VisibleInLastFrameMask & 0x8 ? 1.0f : LightWasHiddenPDFWeightScale;
+							// If entire light is fully visible or invisible then no need to guide samples towards the visible parts
+							const bool bAreaLight = LightData.SourceRadius > 0.0f || LightData.SourceLength > 0.0f;
+							if (VisibleInLastFrameMask != 0 && VisibleInLastFrameMask != 0xF && bAreaLight)
+							{
+								// Probabilities of hitting of 2x2 light UV regions based on the visibility from the previous frame
+								const float Weight00 = VisibleInLastFrameMask & 0x1 ? 1.0f : LightWasHiddenPDFWeightScale;
+								const float Weight10 = VisibleInLastFrameMask & 0x2 ? 1.0f : LightWasHiddenPDFWeightScale;
+								const float Weight01 = VisibleInLastFrameMask & 0x4 ? 1.0f : LightWasHiddenPDFWeightScale;
+								const float Weight11 = VisibleInLastFrameMask & 0x8 ? 1.0f : LightWasHiddenPDFWeightScale;
 
-							// Warp samples across Y to fit desired distribution
-							float SplitY = (Weight00 + Weight01) / (Weight00 + Weight10 + Weight01 + Weight11);
+								// Warp samples across Y to fit desired distribution
+								float SplitY = (Weight00 + Weight01) / (Weight00 + Weight10 + Weight01 + Weight11);
 
-							if (LightSampleUV.x < SplitY)
-							{
-								LightSampleUV.x = LightSampleUV.x / SplitY;
-								LightSampleUV.x *= 0.5f;
-							}
-							else
-							{
-								LightSampleUV.x = (LightSampleUV.x - SplitY) / (1.0f - SplitY);
-								LightSampleUV.x = LightSampleUV.x * 0.5f + 0.5f;
-							}
+								if (LightSampleUV.x < SplitY)
+								{
+									LightSampleUV.x = LightSampleUV.x / SplitY;
+									LightSampleUV.x *= 0.5f;
+								}
+								else
+								{
+									LightSampleUV.x = (LightSampleUV.x - SplitY) / (1.0f - SplitY);
+									LightSampleUV.x = LightSampleUV.x * 0.5f + 0.5f;
+								}
 
-							// Warp samples across X to fit desired distribution
-							float SplitX = LightSampleUV.x < 0.5f ? (Weight00 / (Weight00 + Weight01)) : (Weight10 / (Weight10 + Weight11));
-							if (LightSampleUV.y < SplitX)
-							{
-								LightSampleUV.y = LightSampleUV.y / SplitX;
-								LightSampleUV.y *= 0.5f;
-							}
-							else
-							{
-								LightSampleUV.y = (LightSampleUV.y - SplitX) / (1.0f - SplitX);
-								LightSampleUV.y = LightSampleUV.y * 0.5f + 0.5f;
-							}
+								// Warp samples across X to fit desired distribution
+								float SplitX = LightSampleUV.x < 0.5f ? (Weight00 / (Weight00 + Weight01)) : (Weight10 / (Weight10 + Weight11));
+								if (LightSampleUV.y < SplitX)
+								{
+									LightSampleUV.y = LightSampleUV.y / SplitX;
+									LightSampleUV.y *= 0.5f;
+								}
+								else
+								{
+									LightSampleUV.y = (LightSampleUV.y - SplitX) / (1.0f - SplitX);
+									LightSampleUV.y = LightSampleUV.y * 0.5f + 0.5f;
+								}
 
-							float SelectedWeight;
-							if (LightSampleUV.x < 0.5f)
-							{
-								SelectedWeight = LightSampleUV.y < 0.5f ? Weight00 : Weight01;
-							}
-							else
-							{
-								SelectedWeight = LightSampleUV.y < 0.5f ? Weight10 : Weight11;
-							}
+								float SelectedWeight;
+								if (LightSampleUV.x < 0.5f)
+								{
+									SelectedWeight = LightSampleUV.y < 0.5f ? Weight00 : Weight01;
+								}
+								else
+								{
+									SelectedWeight = LightSampleUV.y < 0.5f ? Weight10 : Weight11;
+								}
 
-							// Fixup weights to match new sample distribution
-							float PerLightWeightSum = Weight00 + Weight10 + Weight01 + Weight11;
-							float Normalization = LightSample.Weight / PerLightWeightSum;
-							LightSample.Weight = SelectedWeight * Normalization * 4.0f;
-							LightSample.bPartiallyVisibleLight = true;
+								// Fixup weights to match new sample distribution
+								float PerLightWeightSum = Weight00 + Weight10 + Weight01 + Weight11;
+								float Normalization = LightSample.Weight / PerLightWeightSum;
+								LightSample.Weight = SelectedWeight * Normalization * 4.0f;
+								LightSample.bGuidedAsVisible = SelectedWeight >= PerLightWeightSum / 4.0f;
+								LightSample.bGuidedAsPartiallyVisibleLight = true;
+							}
 						}
 					}
 					#endif
@@ -565,7 +570,8 @@ void GenerateLightSamplesCS(
 						Newline(Debug.Context);
 						Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
 						Print(Debug.Context, LightSample.Weight);
-						Print(Debug.Context, LightSample.bPartiallyVisibleLight ? 1u : 0u);
+						Print(Debug.Context, LightSample.bGuidedAsVisible ? 1u : 0u);
+						Print(Debug.Context, LightSample.bGuidedAsPartiallyVisibleLight ? 1u : 0u);
 						Print(Debug.Context, LightSampleUV);
 						if (DebugMode == DEBUG_MODE_VISUALIZE_SAMPLING)
 						{
@@ -579,7 +585,6 @@ void GenerateLightSamplesCS(
 					if (LightSample.LocalLightIndex != MAX_LOCAL_LIGHT_INDEX)
 					{
 						const bool bCastShadows = UnpackCastShadow(asuint(LocalLightData.LightDirectionAndShadowMask.w));
-
 						LightSample.bVisible = true;
 						LightSample.bCompleted = bCastShadows ? false : true;
 						LightSample.Weight = WeightSum / (NUM_SAMPLES_PER_PIXEL_1D * LightSample.Weight);
