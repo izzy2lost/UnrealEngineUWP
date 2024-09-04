@@ -337,7 +337,7 @@ struct FCompositeNavModifier : public FNavigationModifier
 		}
 	}
 
-	ENGINE_API void CreateAreaModifiers(const UPrimitiveComponent* PrimComp, const TSubclassOf<UNavAreaBase> AreaClass);
+	ENGINE_API void CreateAreaModifiers(const UPrimitiveComponent* PrimComp, const TSubclassOf<UNavAreaBase> AreaClass, const TSubclassOf<UNavAreaBase> AreaClassToReplace = {});
 	ENGINE_API void CreateAreaModifiers(const FCollisionShape& CollisionShape, const FTransform& LocalToWorld, const TSubclassOf<UNavAreaBase> AreaClass, const bool bIncludeAgentHeight = false);
 
 	FORCEINLINE const TArray<FAreaNavModifier>& GetAreas() const { return Areas; }

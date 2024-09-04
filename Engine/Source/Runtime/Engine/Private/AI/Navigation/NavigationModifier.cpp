@@ -922,7 +922,7 @@ FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const F
 	return Result;
 }
 
-void FCompositeNavModifier::CreateAreaModifiers(const UPrimitiveComponent* PrimComp, const TSubclassOf<UNavAreaBase> AreaClass)
+void FCompositeNavModifier::CreateAreaModifiers(const UPrimitiveComponent* PrimComp, const TSubclassOf<UNavAreaBase> AreaClass, const TSubclassOf<UNavAreaBase> AreaClassToReplace)
 {
 	UBodySetup* BodySetup = PrimComp ? ((UPrimitiveComponent*)PrimComp)->GetBodySetup() : nullptr;
 	if (BodySetup == nullptr)
@@ -936,6 +936,11 @@ void FCompositeNavModifier::CreateAreaModifiers(const UPrimitiveComponent* PrimC
 		const FBox BoxSize = BoxElem.CalcAABB(FTransform::Identity, 1.0f);
 
 		FAreaNavModifier AreaMod(BoxSize, PrimComp->GetComponentTransform(), AreaClass);
+		if (AreaClassToReplace)
+		{
+			AreaMod.SetAreaClassToReplace(AreaClassToReplace);
+			AreaMod.SetApplyMode(ENavigationAreaMode::Replace);
+		}
 		Add(AreaMod);
 	}
 
@@ -945,6 +950,11 @@ void FCompositeNavModifier::CreateAreaModifiers(const UPrimitiveComponent* PrimC
 		const FTransform AreaOffset(FVector(0, 0, -SphylElem.Length));
 
 		FAreaNavModifier AreaMod(SphylElem.Radius, SphylElem.Length * 2.0f, AreaOffset * PrimComp->GetComponentTransform(), AreaClass);
+		if (AreaClassToReplace)
+		{
+			AreaMod.SetAreaClassToReplace(AreaClassToReplace);
+			AreaMod.SetApplyMode(ENavigationAreaMode::Replace);
+		}
 		Add(AreaMod);
 	}
 
@@ -954,6 +964,11 @@ void FCompositeNavModifier::CreateAreaModifiers(const UPrimitiveComponent* PrimC
 		if (ConvexElem.VertexData.Num() > 0)
 		{
 			FAreaNavModifier AreaMod(UE::LWC::ConvertArrayType<FVector>(ConvexElem.VertexData), 0, ConvexElem.VertexData.Num(), ENavigationCoordSystem::Unreal, PrimComp->GetComponentTransform(), AreaClass);
+			if (AreaClassToReplace)
+			{
+				AreaMod.SetAreaClassToReplace(AreaClassToReplace);
+				AreaMod.SetApplyMode(ENavigationAreaMode::Replace);
+			}
 			Add(AreaMod);
 		}
 		else
@@ -968,6 +983,11 @@ void FCompositeNavModifier::CreateAreaModifiers(const UPrimitiveComponent* PrimC
 		const FTransform AreaOffset(FVector(0, 0, -SphereElem.Radius));
 
 		FAreaNavModifier AreaMod(SphereElem.Radius, SphereElem.Radius * 2.0f, AreaOffset * PrimComp->GetComponentTransform(), AreaClass);
+		if (AreaClassToReplace)
+		{
+			AreaMod.SetAreaClassToReplace(AreaClassToReplace);
+			AreaMod.SetApplyMode(ENavigationAreaMode::Replace);
+		}
 		Add(AreaMod);
 	}
 }

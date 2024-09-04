@@ -26,8 +26,13 @@ class ANavModifierVolume : public AVolume, public INavRelevantInterface
 	GENERATED_BODY()
 
 protected:
+	/** NavArea to apply inside the defined volume. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Default)
 	TSubclassOf<UNavArea> AreaClass;
+
+	/** When setting this value, the modifier volume behavior changes : it will now replace any surface marked by AreaClassToReplace in the volume and replace it with AreaClass. */ 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Default)
+	TSubclassOf<UNavArea> AreaClassToReplace;
 
 	/** Experimental: if set, the 2D space occupied by the volume box will ignore FillCollisionUnderneathForNavmesh */
 	UPROPERTY(EditAnywhere, Category = Default, AdvancedDisplay)
@@ -48,8 +53,11 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "AI|Navigation")
 	NAVIGATIONSYSTEM_API void SetAreaClass(TSubclassOf<UNavArea> NewAreaClass = nullptr);
+	UFUNCTION(BlueprintCallable, Category = "AI|Navigation")
+	NAVIGATIONSYSTEM_API void SetAreaClassToReplace(TSubclassOf<UNavArea> NewAreaClassToReplace = nullptr);
 
 	TSubclassOf<UNavArea> GetAreaClass() const { return AreaClass; }
+	TSubclassOf<UNavArea> GetAreaClassToReplace() const { return AreaClassToReplace; }
 
 	NAVIGATIONSYSTEM_API virtual void GetNavigationData(FNavigationRelevantData& Data) const override;
 	NAVIGATIONSYSTEM_API virtual FBox GetNavigationBounds() const override;
