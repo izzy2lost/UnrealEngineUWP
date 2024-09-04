@@ -1853,6 +1853,11 @@ public:
 		return Pairs.Num();
 	}
 
+	int32 NumUnchecked() const
+	{
+		return Pairs.NumUnchecked();
+	}
+
 	/** @return The max valid index of the elements in the sparse storage. */
 	int32 GetMaxIndex() const
 	{

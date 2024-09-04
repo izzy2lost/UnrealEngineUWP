@@ -43,6 +43,10 @@ public:
 		checkSlow(ArrayMax>=ArrayNum);
 		return ArrayNum;
 	}
+	FORCEINLINE int32 NumUnchecked() const
+	{
+		return ArrayNum;
+	}
 	void InsertZeroed( int32 Index, int32 Count, int32 NumBytesPerElement, uint32 AlignmentOfElement )
 	{
 		Insert( Index, Count, NumBytesPerElement, AlignmentOfElement );

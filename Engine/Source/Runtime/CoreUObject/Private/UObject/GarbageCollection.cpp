@@ -6411,6 +6411,24 @@ void FObjectProperty::EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder&
 	EmitReferenceInfo(Schema, BaseOffset, EncounteredStructProps, DebugPath);
 }
 
+void FArrayProperty::EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) 
+{
+	// Intrusive state looks like an empty container with a corrupted Max, but the GC doesn't touch the max so the default schema is sufficient
+	EmitReferenceInfo(Schema, BaseOffset, EncounteredStructProps, DebugPath);
+}
+
+void FMapProperty::EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) 
+{
+	// Intrusive state looks like an empty container with a corrupted Max, but the GC doesn't touch the max so the default schema is sufficient
+	EmitReferenceInfo(Schema, BaseOffset, EncounteredStructProps, DebugPath);
+}
+
+void FSetProperty::EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) 
+{
+	// Intrusive state looks like an empty container with a corrupted Max, but the GC doesn't touch the max so the default schema is sufficient
+	EmitReferenceInfo(Schema, BaseOffset, EncounteredStructProps, DebugPath);
+}
+
 void FArrayProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath)
 {
 	using namespace UE::GC;

@@ -1170,3 +1170,33 @@ void* FSetProperty::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInf
 
 	return nullptr;
 }
+
+bool FSetProperty::HasIntrusiveUnsetOptionalState() const
+{
+	return true;
+}
+
+void FSetProperty::InitializeIntrusiveUnsetOptionalValue(void* Data) const
+{
+	// FScriptSet's unset state constructor is good enough
+	Super::InitializeIntrusiveUnsetOptionalValue(Data);
+}
+
+bool FSetProperty::IsIntrusiveOptionalValueSet(const void* Data) const
+{
+	// FScriptSet's unset state comparison is good enough
+	return Super::IsIntrusiveOptionalValueSet(Data);
+}
+
+void FSetProperty::ClearIntrusiveOptionalValue(void* Data) const
+{
+	// Destroy any inner elements first, because FScriptSet's destructor will only free memory
+	if (IsIntrusiveOptionalValueSet(Data))
+	{
+		FScriptSetHelper SetHelper(this, Data);
+		SetHelper.EmptyElements();
+
+		// Call Super to actually reset the optional to the unset state, now that any elements have been destroyed
+		Super::ClearIntrusiveOptionalValue(Data);
+	}
+}

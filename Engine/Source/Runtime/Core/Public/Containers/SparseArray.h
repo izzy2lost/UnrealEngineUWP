@@ -91,13 +91,13 @@ public:
 	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
 	using IntrusiveUnsetOptionalStateType = TSparseArray;
 
-	explicit TSparseArray(FIntrusiveUnsetOptionalState)
-		: NumFreeIndices(-1)
+	explicit TSparseArray(FIntrusiveUnsetOptionalState Tag)
+		: Data(Tag)
 	{
 	}
-	bool operator==(FIntrusiveUnsetOptionalState) const
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
 	{
-		return NumFreeIndices == -1;
+		return Data == Tag;
 	}
 	///////////////////////////////////////////////////
 	// End - intrusive TOptional<TSparseArray> state //
@@ -1176,10 +1176,10 @@ private:
 	AllocationBitArrayType AllocationFlags;
 
 	/** The index of an unallocated element in the array that currently contains the head of the linked list of free elements. */
-	int32 FirstFreeIndex;
+	int32 FirstFreeIndex = -1;
 
 	/** The number of elements in the free list. */
-	int32 NumFreeIndices;
+	int32 NumFreeIndices = 0;
 
 public:
 	void WriteMemoryImage(FMemoryImageWriter& Writer) const
@@ -1348,13 +1348,13 @@ public:
 	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
 	using IntrusiveUnsetOptionalStateType = TScriptSparseArray;
 
-	explicit TScriptSparseArray(FIntrusiveUnsetOptionalState)
-		: NumFreeIndices(-1)
+	explicit TScriptSparseArray(FIntrusiveUnsetOptionalState Tag)
+		: Data(Tag)
 	{
 	}
-	bool operator==(FIntrusiveUnsetOptionalState) const
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
 	{
-		return NumFreeIndices == -1;
+		return Data == Tag;
 	}
 	///////////////////////////////////////////////////
 	// End - intrusive TOptional<TSparseArray> state //
@@ -1378,6 +1378,11 @@ public:
 	int32 Num() const
 	{
 		return Data.Num() - NumFreeIndices;
+	}
+
+	int32 NumUnchecked() const
+	{
+		return Data.NumUnchecked() - NumFreeIndices;
 	}
 
 	int32 GetMaxIndex() const
@@ -1477,8 +1482,8 @@ public:
 private:
 	TScriptArray   <typename AllocatorType::ElementAllocator>  Data;
 	TScriptBitArray<typename AllocatorType::BitArrayAllocator> AllocationFlags;
-	int32                                                      FirstFreeIndex;
-	int32                                                      NumFreeIndices;
+	int32                                                      FirstFreeIndex = -1;
+	int32                                                      NumFreeIndices = 0;
 
 	// This function isn't intended to be called, just to be compiled to validate the correctness of the type.
 	static void CheckConstraints()

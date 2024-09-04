@@ -456,6 +456,10 @@ void FOptionalProperty::InitializeValueInternal(void* Data) const
 void FOptionalProperty::DestroyValueInternal(void* Data) const
 {
 	MarkUnset(Data);
+	if (ValueProperty->HasIntrusiveUnsetOptionalState())
+	{
+		ValueProperty->DestroyValue(Data);
+	}
 }
 
 bool FOptionalProperty::ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const

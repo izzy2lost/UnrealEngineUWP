@@ -3564,6 +3564,12 @@ public:
 #if WITH_EDITORONLY_DATA
 	virtual void AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) const override;
 #endif
+
+	virtual bool HasIntrusiveUnsetOptionalState() const override;
+	virtual void InitializeIntrusiveUnsetOptionalValue(void* Data) const override;
+	virtual bool IsIntrusiveOptionalValueSet(const void* Data) const override;
+	virtual void ClearIntrusiveOptionalValue(void* Data) const override;
+	virtual void EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) override;
 };
 
 using FFreezableScriptMap = TScriptMap<FMemoryImageSetAllocator>;
@@ -3731,6 +3737,12 @@ public:
 #if WITH_EDITORONLY_DATA
 	virtual void AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) const override;
 #endif
+
+	virtual bool HasIntrusiveUnsetOptionalState() const override;
+	virtual void InitializeIntrusiveUnsetOptionalValue(void* Data) const override;
+	virtual bool IsIntrusiveOptionalValueSet(const void* Data) const override;
+	virtual void ClearIntrusiveOptionalValue(void* Data) const override;
+	virtual void EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) override;
 };
 
 class COREUOBJECT_API FSetProperty : public TProperty<FScriptSet, FProperty>
@@ -3858,6 +3870,12 @@ public:
 #if WITH_EDITORONLY_DATA
 	virtual void AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) const override;
 #endif
+
+	virtual bool HasIntrusiveUnsetOptionalState() const override;
+	virtual void InitializeIntrusiveUnsetOptionalValue(void* Data) const override;
+	virtual bool IsIntrusiveOptionalValueSet(const void* Data) const override;
+	virtual void ClearIntrusiveOptionalValue(void* Data) const override;
+	virtual void EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) override;
 };
 
 /**
@@ -3908,6 +3926,16 @@ public:
 	{
 		int32 Result = WithScriptArray([](auto* Array) { return Array->Num(); });
 		checkSlow(Result >= 0);
+		return Result;
+	}
+	/**
+	 *	Return the number of elements in the array without validating the state of the array.
+	 *	Needed to allow reading of the num when the array is 'invalid' during its intrusive unset state.
+	 *	@return	The number of elements in the array.
+	**/
+	FORCEINLINE int32 NumUnchecked() const
+	{
+		int32 Result = WithScriptArray([](auto* Array) { return Array->NumUnchecked(); });
 		return Result;
 	}
 	/**
@@ -4053,7 +4081,7 @@ public:
 	void EmptyValues(int32 Slack = 0)
 	{
 		checkSlow(Slack>=0);
-		const int32 OldNum = Num();
+		const int32 OldNum = NumUnchecked();
 		if (OldNum)
 		{
 			DestructItems(0, OldNum);
@@ -4424,6 +4452,18 @@ public:
 	}
 
 	/**
+	* Returns the number of elements in the map.
+	* Needed to allow reading of the num when the map is 'invalid' during its intrusive unset state.
+	* @return The number of elements in the map.
+	*/
+	FORCEINLINE int32 NumUnchecked() const
+	{
+		int32 Result = WithScriptMap([](auto* Map) { return Map->NumUnchecked(); });
+		checkSlow(Result >= 0); 
+		return Result;
+	}
+
+	/**
 	 * Returns the (non-inclusive) maximum index of elements in the map.
 	 *
 	 * @return The (non-inclusive) maximum index of elements in the map.
@@ -4694,7 +4734,7 @@ public:
 	{
 		checkSlow(Slack >= 0);
 
-		int32 OldNum = Num();
+		int32 OldNum = NumUnchecked();
 		if (OldNum)
 		{
 			DestructItems(0, OldNum);
@@ -5371,6 +5411,17 @@ public:
 	}
 
 	/**
+	* Returns the number of elements in the set.
+	*	Needed to allow reading of the num when the set is 'invalid' during its intrusive unset state.
+	* @return The number of elements in the set.
+	*/
+	FORCEINLINE int32 NumUnchecked() const
+	{
+		const int32 Result = Set->NumUnchecked();
+		return Result;
+	}
+
+	/**
 	* Returns the (non-inclusive) maximum index of elements in the set.
 	*
 	* @return The (non-inclusive) maximum index of elements in the set.
@@ -5509,7 +5560,7 @@ public:
 	{
 		checkSlow(Slack >= 0);
 
-		int32 OldNum = Num();
+		int32 OldNum = NumUnchecked();
 		if (OldNum)
 		{
 			DestructItems(0, OldNum);

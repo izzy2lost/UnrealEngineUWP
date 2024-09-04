@@ -1918,6 +1918,11 @@ public:
 		return Elements.Num();
 	}
 
+	int32 NumUnchecked() const
+	{
+		return Elements.NumUnchecked();
+	}
+
 	int32 GetMaxIndex() const
 	{
 		return Elements.GetMaxIndex();

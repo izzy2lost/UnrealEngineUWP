@@ -38,7 +38,7 @@ struct COREUOBJECT_API FOptionalPropertyLayout
 			if (!IsSet(Data))
 			{
 				// Need to destroy the value in its optional unset state first 
-				ValueProperty->ClearIntrusiveOptionalValue(Data);
+				ValueProperty->DestroyValue(Data);
 				ValueProperty->InitializeValue(Data);
 			}
 		}
