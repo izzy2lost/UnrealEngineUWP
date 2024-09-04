@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/AnimNextCompilerResultsTabSummoner.h"
+#include "IAnimNextEditorModule.h"
 #include "IWorkspaceEditor.h"
 #include "MessageLogModule.h"
 #include "Modules/ModuleManager.h"
@@ -9,8 +10,6 @@
 
 namespace UE::AnimNext::Editor
 {
-
-const FLazyName CompilerResultsTabName("CompilerResultsTab");
 
 // ***************************************************************************
 
@@ -36,9 +35,8 @@ void SAnimNextCompilerResultsWidget::CreateMessageLog(const TWeakPtr<UE::Workspa
 	if (const TSharedPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditorShared = InWorkspaceEditorWeak.Pin())
 	{
 		FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
-		const FName LogName("AnimNextCompilerResults");
-		check(MessageLogModule.IsRegisteredLogListing(LogName));
-		CompilerResultsListing = MessageLogModule.GetLogListing(LogName);
+		check(MessageLogModule.IsRegisteredLogListing(LogListingName));
+		CompilerResultsListing = MessageLogModule.GetLogListing(LogListingName);
 		CompilerResults = MessageLogModule.CreateLogListingWidget(CompilerResultsListing.ToSharedRef());
 	}
 }
@@ -46,7 +44,7 @@ void SAnimNextCompilerResultsWidget::CreateMessageLog(const TWeakPtr<UE::Workspa
 // ***************************************************************************
 
 FAnimNextCompilerResultsTabSummoner::FAnimNextCompilerResultsTabSummoner(TSharedPtr<UE::Workspace::IWorkspaceEditor> InHostingApp)
-	: FWorkflowTabFactory(CompilerResultsTabName, StaticCastSharedPtr<FAssetEditorToolkit>(InHostingApp))
+	: FWorkflowTabFactory(UE::AnimNext::Editor::CompilerResultsTabName, StaticCastSharedPtr<FAssetEditorToolkit>(InHostingApp))
 {
 	TabLabel = LOCTEXT("AnimNExtCompilerResultsTabLabel", "Compiler Results");
 	TabIcon = FSlateIcon("EditorStyle", "LevelEditor.Tabs.Outliner");

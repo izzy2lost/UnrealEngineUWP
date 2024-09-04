@@ -6,7 +6,21 @@ namespace UnrealBuildTool.Rules
 	{
 		public AnimNextStateTreeEditor(ReadOnlyTargetRules Target) : base(Target)
 		{
-			PrivateDependencyModuleNames.AddRange(new string[] { "AnimNextStateTree", "UnrealEd", "MessageLog" });
+			PrivateDependencyModuleNames.AddRange(
+				new string[]
+				{
+				    "AnimNextStateTree",
+				    "MessageLog",
+				    "EditorInteractiveToolsFramework",
+				    "InteractiveToolsFramework",
+				    "EditorFramework",
+				    "AnimNext",
+				    "UnrealEd",
+				    "AssetDefinition",
+				    "AnimNextAnimGraph",
+				    "RigVM"
+			    });
+
 			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
@@ -20,7 +34,9 @@ namespace UnrealBuildTool.Rules
 					"SlateCore",
 					"EditorSubsystem",
 					"Engine",
-					"Slate"
+					"Slate",
+					"RigVMDeveloper",
+					"AnimNextUncookedOnly"
 				}
 			);
 		}

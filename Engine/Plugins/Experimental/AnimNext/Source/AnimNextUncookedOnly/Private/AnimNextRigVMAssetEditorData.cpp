@@ -32,10 +32,6 @@
 #include "UObject/AssetRegistryTagsContext.h"
 #include "DataInterface/AnimNextDataInterface_EditorData.h"
 
-TAutoConsoleVariable<bool> CVarDumpProgrammaticGraphs(
-	TEXT("AnimNext.DumpProgrammaticGraphs"),
-	false,
-	TEXT("When true the transient programmatic graphs will be automatically opened for any that are generated."));
 
 void UAnimNextRigVMAssetEditorData::BroadcastModified(EAnimNextEditorDataNotifType InType, UObject* InSubject)
 {
@@ -156,9 +152,9 @@ void UAnimNextRigVMAssetEditorData::Initialize(bool bRecompileVM)
 
 	if (IInterface_AssetUserData* OuterUserData = Cast<IInterface_AssetUserData>(GetOuter()))
 	{
-		if(!OuterUserData->HasAssetUserDataOfClass(UAnimNextAssetWorkspaceAssetUserData::StaticClass()))
+		if(!OuterUserData->HasAssetUserDataOfClass(GetAssetUserDataClass()))
 		{
-			OuterUserData->AddAssetUserDataOfClass(UAnimNextAssetWorkspaceAssetUserData::StaticClass());
+			OuterUserData->AddAssetUserDataOfClass(GetAssetUserDataClass());
 		}
 	}
 }
@@ -679,34 +675,7 @@ void UAnimNextRigVMAssetEditorData::RecompileVM()
 	// Display programmatic graphs
 	if(CVarDumpProgrammaticGraphs.GetValueOnGameThread())
 	{
-		UE::Workspace::IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<UE::Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
-		if(UE::Workspace::IWorkspaceEditor* WorkspaceEditor = WorkspaceEditorModule.OpenWorkspaceForObject(Asset, UE::Workspace::EOpenWorkspaceMethod::Default))
-		{
-			TArray<UObject*> Graphs;
-			for(URigVMGraph* ProgrammaticGraph : ProgrammaticGraphs)
-			{
-				// Some explanation needed here!
-				// URigVMEdGraph caches its underlying model internally in GetModel depending on its outer if it is no attached to a RigVMClient
-				// So here we rename the graph into the transient package so we dont get any notifications
-				ProgrammaticGraph->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
-
-				// then create the graph (transient so it outers to the RigVMGraph)
-				URigVMEdGraph* EdGraph = CastChecked<URigVMEdGraph>(CreateEdGraph(ProgrammaticGraph, true));
-
-				// Then cache the model
-				EdGraph->GetModel();
-				Graphs.Add(EdGraph);
-
-				// Now rename into this asset again to be able to correctly create a controller (needed to view the graph and interact with it)
-				ProgrammaticGraph->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
-				URigVMController* TempController = GetOrCreateController(ProgrammaticGraph);
-
-				// Resend notifications to rebuild the EdGraph
-				TempController->ResendAllNotifications();
-			}
-
-			WorkspaceEditor->OpenObjects(Graphs);
-		}
+		FUtils::OpenProgrammaticGraphs(this, ProgrammaticGraphs);
 	}
 #endif
 
@@ -860,6 +829,11 @@ void UAnimNextRigVMAssetEditorData::HandleModifiedEvent(ERigVMGraphNotifType InN
 			RigVMGraphModifiedEvent.Broadcast(InNotifType, InGraph, InSubject);
 		}
 	}
+}
+
+TSubclassOf<UAssetUserData> UAnimNextRigVMAssetEditorData::GetAssetUserDataClass() const
+{
+	return UAnimNextAssetWorkspaceAssetUserData::StaticClass();
 }
 
 TArray<UEdGraph*> UAnimNextRigVMAssetEditorData::GetAllEdGraphs() const
@@ -1507,7 +1481,7 @@ UAnimNextAnimationGraphEntry* UAnimNextRigVMAssetEditorData::AddAnimationGraph(F
 			RefreshExternalModels();
 			RigVMClient.AddModel(NewRigVMGraphModel, true);
 			URigVMController* Controller = RigVMClient.GetController(NewRigVMGraphModel);
-			UE::AnimNext::UncookedOnly::FUtils::SetupAnimGraph(NewEntry, Controller);
+			UE::AnimNext::UncookedOnly::FUtils::SetupAnimGraph(NewEntry->GetEntryName(), Controller);
 		}
 	}
 

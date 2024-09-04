@@ -12,9 +12,6 @@ namespace UE::Workspace
 
 namespace UE::AnimNext::Editor
 {
-
-extern const FLazyName CompilerResultsTabName;
-
 class SAnimNextCompilerResultsWidget : public SCompoundWidget
 {
 public:
@@ -35,9 +32,6 @@ private:
 	TSharedPtr<class IMessageLogListing> CompilerResultsListing;
 	TSharedPtr<class SWidget> CompilerResults;
 };
-
-
-
 
 struct FAnimNextCompilerResultsTabSummoner : public FWorkflowTabFactory
 {

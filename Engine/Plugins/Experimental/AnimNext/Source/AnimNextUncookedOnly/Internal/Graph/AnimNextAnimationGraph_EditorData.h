@@ -26,8 +26,8 @@ namespace UE::AnimNext::Editor
 }
 
 /** Editor data for AnimNext animation graphs */
-UCLASS(MinimalAPI)
-class UAnimNextAnimationGraph_EditorData : public UAnimNextDataInterface_EditorData
+UCLASS()
+class ANIMNEXTUNCOOKEDONLY_API UAnimNextAnimationGraph_EditorData : public UAnimNextDataInterface_EditorData
 {
 	GENERATED_BODY()
 
@@ -44,7 +44,7 @@ class UAnimNextAnimationGraph_EditorData : public UAnimNextDataInterface_EditorD
 	friend class FAnimationAnimNextRuntimeTest_GraphExecute;
 	friend class FAnimationAnimNextRuntimeTest_GraphExecuteLatent;
 
-private:
+protected:
 	// IRigVMClientHost interface
 	virtual void RecompileVM() override;
 

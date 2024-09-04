@@ -6,7 +6,7 @@
 #include "AnimNextRigVMAssetSchema.h"
 #include "AnimNextAnimationGraphSchema.generated.h"
 
-UCLASS()
+UCLASS(MinimalAPI)
 class UAnimNextAnimationGraphSchema : public UAnimNextRigVMAssetSchema
 {
 	GENERATED_BODY()

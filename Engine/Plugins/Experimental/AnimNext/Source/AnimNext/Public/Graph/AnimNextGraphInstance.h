@@ -112,6 +112,7 @@ struct ANIMNEXT_API FAnimNextGraphInstance : public FAnimNextDataInterfaceInstan
 	// Get the hosting instance, if any, that owns us
 	FAnimNextDataInterfaceInstance* GetHost() const;
 
+	FInstancedPropertyBag& GetVariables() { return Variables; }
 private:
 	// Returns a pointer to the specified component, or nullptr if not found
 	UE::AnimNext::FGraphInstanceComponent* TryGetComponent(int32 ComponentNameHash, FName ComponentName) const;

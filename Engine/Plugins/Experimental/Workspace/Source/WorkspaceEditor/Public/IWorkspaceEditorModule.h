@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "EditorModes.h"
 #include "GraphEditor.h"
 #include "StructUtils/InstancedStruct.h"
 #include "WorkspaceFactory.h"
@@ -117,6 +118,9 @@ struct FObjectDocumentArgs
 
 	// Delegate called to get the bread crumb trail for this document tab
 	FOnGetDocumentBreadcrumbTrail OnGetDocumentBreadcrumbTrail;
+
+	// EditorMode ID to be associated with this asset, will be used to try and activate matching editor mode when this asset is focussed
+	FEditorModeID DocumentEditorMode = NAME_None;
 };
 
 

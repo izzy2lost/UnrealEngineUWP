@@ -11,6 +11,7 @@
 #include "TraitCore/TraitRegistry.h"
 #include "ObjectEditorUtils.h"
 #include "AnimNextEdGraphNode.h"
+#include "IAnimNextEditorModule.h"
 #include "STraitListView.h"
 #include "STraitStackView.h"
 #include "MessageLogModule.h"
@@ -298,7 +299,7 @@ void STraitEditorView::RefreshTraitStackTraitsStatus()
 					// Open tab to display errors
 					if (TSharedPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditor = WorkspaceEditorWeak.Pin())
 					{
-						WorkspaceEditor->GetTabManager()->TryInvokeTab(FTabId(CompilerResultsTabName));
+						WorkspaceEditor->GetTabManager()->TryInvokeTab(FTabId(UE::AnimNext::Editor::CompilerResultsTabName));
 					}
 				}
 			}

@@ -20,9 +20,7 @@ namespace UE::Workspace
 		virtual void Rebuild() override;
 		virtual TSharedPtr<SWidget> CreateContextMenu() override;		
 		virtual void OnItemDoubleClick(FSceneOutlinerTreeItemPtr Item) override;
-		virtual void OnItemClicked(FSceneOutlinerTreeItemPtr Item) override;
 		virtual FReply OnKeyDown(const FKeyEvent& InKeyEvent) override;
-		void HandleItemSelection(const FSceneOutlinerItemSelection& Selection);
 		virtual void OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection) override;
 		virtual bool CanCustomizeToolbar() const { return true; }
 		virtual ESelectionMode::Type GetSelectionMode() const { return ESelectionMode::Multi; }
@@ -34,6 +32,7 @@ namespace UE::Workspace
 		virtual TUniquePtr<ISceneOutlinerHierarchy> CreateHierarchy() override;		
 		// End ISceneOutlinerMode overrides
 
+		void HandleItemSelection(const FSceneOutlinerItemSelection& Selection);
 		void OnWorkspaceModified(UWorkspace* InWorkspace);
 		void ResetOutlinerSelection();
 

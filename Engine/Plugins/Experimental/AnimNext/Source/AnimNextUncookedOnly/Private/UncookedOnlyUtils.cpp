@@ -21,6 +21,8 @@
 #include "Graph/AnimNextAnimationGraphSchema.h"
 #include "Logging/StructuredLog.h"
 #include "AnimNextAssetWorkspaceAssetUserData.h"
+#include "IWorkspaceEditor.h"
+#include "IWorkspaceEditorModule.h"
 #include "Misc/EnumerateRange.h"
 #include "Module/RigUnit_AnimNextModuleEvents.h"
 #include "Variables/IVariableBindingType.h"
@@ -34,6 +36,11 @@
 
 namespace UE::AnimNext::UncookedOnly
 {
+
+TAutoConsoleVariable<bool> CVarDumpProgrammaticGraphs(
+	TEXT("AnimNext.DumpProgrammaticGraphs"),
+	false,
+	TEXT("When true the transient programmatic graphs will be automatically opened for any that are generated."));
 
 void FUtils::RecreateVM(UAnimNextRigVMAsset* InAsset)
 {
@@ -329,13 +336,13 @@ void FUtils::CompileVariableBindings(const FRigVMCompileSettings& InSettings, UA
 
 	FRigVMClient* VMClient = EditorData->GetRigVMClient();
 	URigVMController* Controller = VMClient->GetOrCreateController(BindingGraph);
-	URigVMNode* ExcecuteBindingsNode = Controller->AddUnitNode(FRigUnit_AnimNextExecuteBindings::StaticStruct(), FRigUnit_AnimNextExecuteBindings::GetMethodName(), FVector2D::ZeroVector, FString(), false);
-	if(ExcecuteBindingsNode == nullptr)
+	URigVMNode* ExecuteBindingsNode = Controller->AddUnitNode(FRigUnit_AnimNextExecuteBindings::StaticStruct(), FRigUnit_AnimNextExecuteBindings::GetMethodName(), FVector2D::ZeroVector, FString(), false);
+	if(ExecuteBindingsNode == nullptr)
 	{
 		InSettings.ReportError(TEXT("Could not spawn Execute Bindings node"));
 		return;
 	}
-	URigVMPin* ExecuteBindingsExecPin = ExcecuteBindingsNode->FindPin(FRigVMStruct::ExecuteContextName.ToString());
+	URigVMPin* ExecuteBindingsExecPin = ExecuteBindingsNode->FindPin(FRigVMStruct::ExecuteContextName.ToString());
 	if(ExecuteBindingsExecPin == nullptr)
 	{
 		InSettings.ReportError(TEXT("Could not find execute pin on Execute Bindings node"));
@@ -656,7 +663,7 @@ FRigVMTemplateArgumentType FUtils::GetRigVMArgTypeFromParamType(const FAnimNextP
 	return ArgType;
 }
 
-void FUtils::SetupAnimGraph(UAnimNextRigVMAssetEntry* InEntry, URigVMController* InController)
+void FUtils::SetupAnimGraph(const FName EntryName, URigVMController* InController)
 {
 	// Clear the graph
 	InController->RemoveNodes(InController->GetGraph()->GetNodes());
@@ -680,7 +687,7 @@ void FUtils::SetupAnimGraph(UAnimNextRigVMAssetEntry* InEntry, URigVMController*
 		return;
 	}
 
-	InController->SetPinDefaultValue(EntryPointPin->GetPinPath(), InEntry->GetEntryName().ToString());
+	InController->SetPinDefaultValue(EntryPointPin->GetPinPath(), EntryName.ToString());
 }
 
 void FUtils::SetupEventGraph(URigVMController* InController, UScriptStruct* InEventStruct)
@@ -902,6 +909,40 @@ const FText& FUtils::GetFunctionLibraryDisplayName()
 	return FunctionLibraryName;
 }
 
+#if WITH_EDITOR
+void FUtils::OpenProgrammaticGraphs(UAnimNextRigVMAssetEditorData* EditorData, const TArray<URigVMGraph*>& ProgrammaticGraphs)
+{
+	UAnimNextRigVMAsset* OwningAsset = FUtils::GetAsset(EditorData);
+	UE::Workspace::IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<UE::Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
+	if(UE::Workspace::IWorkspaceEditor* WorkspaceEditor = WorkspaceEditorModule.OpenWorkspaceForObject(OwningAsset, UE::Workspace::EOpenWorkspaceMethod::Default))
+	{
+		TArray<UObject*> Graphs;
+		for(URigVMGraph* ProgrammaticGraph : ProgrammaticGraphs)
+		{
+			// Some explanation needed here!
+			// URigVMEdGraph caches its underlying model internally in GetModel depending on its outer if it is no attached to a RigVMClient
+			// So here we rename the graph into the transient package so we dont get any notifications
+			ProgrammaticGraph->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+
+			// then create the graph (transient so it outers to the RigVMGraph)
+			URigVMEdGraph* EdGraph = CastChecked<URigVMEdGraph>(EditorData->CreateEdGraph(ProgrammaticGraph, true));
+
+			// Then cache the model
+			EdGraph->GetModel();
+			Graphs.Add(EdGraph);
+
+			// Now rename into this asset again to be able to correctly create a controller (needed to view the graph and interact with it)
+			ProgrammaticGraph->Rename(nullptr, EditorData, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			URigVMController* ProgrammaticController = EditorData->GetOrCreateController(ProgrammaticGraph);
+
+			// Resend notifications to rebuild the EdGraph
+			ProgrammaticController->ResendAllNotifications();
+		}
+
+		WorkspaceEditor->OpenObjects(Graphs);
+	}
+}
+#endif // WITH_EDITOR
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -23,8 +23,8 @@ namespace UE::AnimNext::UncookedOnly
 }
 
 /** Base class for all AnimNext assets that can host RigVM logic */
-UCLASS(MinimalAPI, Abstract)
-class UAnimNextRigVMAsset : public URigVMHost
+UCLASS(Abstract)
+class ANIMNEXT_API UAnimNextRigVMAsset : public URigVMHost
 {
 	GENERATED_BODY()
 

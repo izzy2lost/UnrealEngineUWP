@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "IAnimNextRigVMGraphInterface.h"
 #include "AssetRegistry/AssetData.h"
+#include "Misc/Build.h"
 #include "Param/ParamType.h"
 #include "RigVMCore/RigVMTemplate.h"
 #include "StructUtils/InstancedStruct.h"
@@ -97,6 +98,8 @@ struct FAnimNextAssetRegistryExports
 namespace UE::AnimNext::UncookedOnly
 {
 
+extern TAutoConsoleVariable<bool> CVarDumpProgrammaticGraphs;
+
 struct ANIMNEXTUNCOOKEDONLY_API FUtils
 {
 	static void CompileVariables(UAnimNextRigVMAsset* InAsset);
@@ -144,7 +147,7 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	static FRigVMTemplateArgumentType GetRigVMArgTypeFromParamType(const FAnimNextParamType& InParamType);
 
 	/** Set up a simple animation graph */
-	static void SetupAnimGraph(UAnimNextRigVMAssetEntry* InEntry, URigVMController* InController);
+	static void SetupAnimGraph(const FName EntryName, URigVMController* InController);
 	
 	/** Set up a simple event graph */
 	static void SetupEventGraph(URigVMController* InController, UScriptStruct* InEventStruct);
@@ -172,6 +175,10 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 
 	// Returns an user friendly name for the Function Library
 	static const FText& GetFunctionLibraryDisplayName();
+
+#if WITH_EDITOR
+	static void OpenProgrammaticGraphs(UAnimNextRigVMAssetEditorData* EditorData, const TArray<URigVMGraph*>& ProgrammaticGraphs);
+#endif // WITH_EDITOR
 };
 
 }

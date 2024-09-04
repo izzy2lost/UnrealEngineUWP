@@ -11,8 +11,8 @@
 class UAnimNextDataInterfaceFactory;
 
 /** Editor data for AnimNext data interfaces */
-UCLASS(MinimalAPI)
-class UAnimNextDataInterface_EditorData : public UAnimNextRigVMAssetEditorData
+UCLASS()
+class ANIMNEXTUNCOOKEDONLY_API UAnimNextDataInterface_EditorData : public UAnimNextRigVMAssetEditorData
 {
 	GENERATED_BODY()
 

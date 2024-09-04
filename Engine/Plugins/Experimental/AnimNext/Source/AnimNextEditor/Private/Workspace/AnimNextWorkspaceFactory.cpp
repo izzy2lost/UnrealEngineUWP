@@ -1,6 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AnimNextWorkspaceFactory.h"
+#include "Workspace/AnimNextWorkspaceFactory.h"
 #include "AnimNextWorkspaceSchema.h"
 #include "AssetTypeCategories.h"
 

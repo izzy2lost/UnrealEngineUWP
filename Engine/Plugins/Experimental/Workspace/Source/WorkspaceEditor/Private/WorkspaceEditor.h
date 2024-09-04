@@ -6,6 +6,7 @@
 #include "StructUtils/InstancedStruct.h"
 #include "IWorkspaceEditor.h"
 #include "WorkspaceAssetRegistryInfo.h"
+#include "WorkspaceEditorModeUILayer.h"
 #include "WorkflowOrientedApp/WorkflowTabManager.h"
 
 struct FWorkspaceDocumentState;
@@ -53,6 +54,7 @@ private:
 	friend struct FGraphDocumentSummoner;
 	friend struct FWorkspaceTabSummoner;
 	friend struct FAssetDocumentSummoner;
+	friend struct FWorkspaceEditorSelectionScope;
 
 	// FBaseAssetToolkit interface
 	virtual void RegisterTabSpawners(const TSharedRef<class FTabManager>& TabManager) override;
@@ -76,10 +78,10 @@ private:
 	virtual bool CanSaveAsset() const override;
 	virtual FText GetTabSuffix() const override;
 	virtual FText GetToolkitName() const override;
-	virtual FText GetToolkitToolTipText() const override;	
-	virtual bool IsFindInContentBrowserButtonVisible() const override { return true; }
+	virtual FText GetToolkitToolTipText() const override;
 	virtual void FindInContentBrowser_Execute() override;
-
+	virtual void OnToolkitHostingFinished(const TSharedRef<IToolkit>& Toolkit) override;
+	virtual void OnToolkitHostingStarted(const TSharedRef<IToolkit>& Toolkit) override;
 
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override
@@ -102,7 +104,10 @@ private:
 	virtual FOnOutlinerSelectionChanged& OnOutlinerSelectionChanged() override;
 	virtual void SetGlobalSelection(FGlobalSelectionId SelectionId, FOnClearGlobalSelection OnClearSelectionDelegate) override;
 	virtual void SetFocussedAsset(const TObjectPtr<UObject> InAsset) override;	
-	virtual const TObjectPtr<UObject> GetFocussedAssetOfClass(const TObjectPtr<UClass> AssetClass) const override;	
+	virtual const TObjectPtr<UObject> GetFocussedAssetOfClass(const TObjectPtr<UClass> AssetClass) const override;
+	virtual FOnFocussedAssetChanged& OnFocussedAssetChanged() override;
+	virtual TSharedPtr<IDetailsView> GetDetailsView() override;
+
 	void HandleOutlinerSelectionChanged(TConstArrayView<FWorkspaceOutlinerItemExport> InExports);
 
 	void BindCommands();
@@ -137,6 +142,9 @@ private:
 
 	TSharedPtr<SWorkspaceView> WorkspaceView;
 
+	TMap<FName, TSharedPtr<FWorkspaceEditorModeUILayer>> ModeUILayers;
+	TArray<TSharedPtr<class IToolkit>> HostedToolkits;
+
 	/** Tabs to be registered into the Workspace */
 	FWorkflowAllowedTabSet TabFactories;
 
@@ -145,10 +153,14 @@ private:
 	bool bSavingAssetEntries = false;
 	bool bClosingDown = false;
 
-	FGlobalSelectionId LastGlobalSelectionId = nullptr;
-	FOnClearGlobalSelection LastOnClearSelectionDelegate = nullptr;
+	TArray<TPair<FGlobalSelectionId, FOnClearGlobalSelection>> GlobalSelections;
 	FOnOutlinerSelectionChanged OnOutlinerSelectionChangedDelegate;
+	bool bSelectionScopeCleared = true;
+	int32 SelectionScopeDepth = 0;
+	
 	TArray<FWorkspaceOutlinerItemExport> LastSelectedExports;
+	FOnFocussedAssetChanged OnFocussedAssetChangedDelegate;
+	TSharedPtr<FWorkspaceItem> EditorMenuCategory;
 };
 
 }

@@ -6,10 +6,14 @@
 #include "Modules/ModuleManager.h"
 
 class SWidget;
+class IMessageLogListing;
 struct FTopLevelAssetPath;
 
 namespace UE::AnimNext::Editor
 {
+
+const FLazyName CompilerResultsTabName("CompilerResultsTab");
+const FLazyName LogListingName("AnimNextCompilerResults");
 
 struct FVariablePickerArgs;
 
@@ -27,6 +31,10 @@ public:
 	// Add a UClass path to the set of classes which can be opened within an AnimNext Workspace
 	// @param InClassAssetPath Asset path for to-be-registered Class 
 	virtual void AddWorkspaceSupportedAssetClass(const FTopLevelAssetPath& InClassAssetPath) = 0;
+	
+	// Remove a UClass path to the set of classes which can be opened within an AnimNext Workspace
+	// @param InClassAssetPath Asset path for to-be-unregistered Class 
+	virtual void RemoveWorkspaceSupportedAssetClass(const FTopLevelAssetPath& InClassAssetPath) = 0;
 };
 
 }

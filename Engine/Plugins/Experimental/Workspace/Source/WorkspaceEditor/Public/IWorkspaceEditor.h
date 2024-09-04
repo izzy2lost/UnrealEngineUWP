@@ -14,6 +14,17 @@ namespace UE::Workspace
 typedef TWeakPtr<SWidget> FGlobalSelectionId;
 using FOnClearGlobalSelection = FSimpleDelegate;
 
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnFocussedAssetChanged, TObjectPtr<UObject>);
+
+// RAII helper allowing for a multi-widget selection scope within a WorkspaceEditor instance
+struct WORKSPACEEDITOR_API FWorkspaceEditorSelectionScope
+{
+	FWorkspaceEditorSelectionScope(const TSharedPtr<class IWorkspaceEditor>& InWorkspaceEditor);	
+	~FWorkspaceEditorSelectionScope();
+
+	TWeakPtr<class IWorkspaceEditor> WeakWorkspaceEditor; 
+};
+
 class IWorkspaceEditor : public FBaseAssetToolkit
 {
 public:
@@ -44,8 +55,11 @@ public:
 	virtual const TObjectPtr<UObject> GetFocussedAssetOfClass(const TObjectPtr<UClass> InClass ) const = 0;
 	
 	template<typename AssetClass>
-	TObjectPtr<AssetClass> GetFocussedAsset() const { return GetFocussedAssetOfClass(AssetClass::StaticClass()); }
+	TObjectPtr<AssetClass> GetFocussedAsset() const { return Cast<AssetClass>(GetFocussedAssetOfClass(AssetClass::StaticClass())); }
 	TObjectPtr<UObject> GetFocussedAsset() const { return GetFocussedAssetOfClass(UObject::StaticClass()); }
+
+	// Multi-cast delegate broadcasted whenever the asset focussed inside of the WorkspaceEditor changes
+	virtual FOnFocussedAssetChanged& OnFocussedAssetChanged() = 0;
 
 	// Get the current single selection of the outliner.
 	// @return true if a single selection is active
@@ -54,6 +68,9 @@ public:
 	// Delegate fired when selection changes in the workspace outliner
 	using FOnOutlinerSelectionChanged = TMulticastDelegate<void(TConstArrayView<FWorkspaceOutlinerItemExport> InExports)>;
 	virtual FOnOutlinerSelectionChanged& OnOutlinerSelectionChanged() = 0;
+
+	// Retrieves the common DetailsView widget
+	virtual TSharedPtr<IDetailsView> GetDetailsView() = 0;
 };
 
 }

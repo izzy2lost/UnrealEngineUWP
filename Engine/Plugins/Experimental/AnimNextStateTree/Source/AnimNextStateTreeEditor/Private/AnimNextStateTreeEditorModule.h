@@ -8,8 +8,8 @@ namespace UE::AnimNext::StateTree
 {
 class FAnimNextStateTreeEditorModule : public IAnimNextStateTreeEditorModule
 {
-public:
-	virtual void ShutdownModule() override;
+public:	
 	virtual void StartupModule() override;
+	virtual void ShutdownModule() override;
 };
 }

@@ -22,11 +22,33 @@
 #include "AssetEditorModeManager.h"
 #include "Selection.h"
 #include "EditorModeManager.h"
+#include "EdModeInteractiveToolsContext.h"
+#include "ContextObjectStore.h"
 
 #define LOCTEXT_NAMESPACE "WorkspaceEditor"
 
 namespace UE::Workspace
 {
+
+FWorkspaceEditorSelectionScope::FWorkspaceEditorSelectionScope(const TSharedPtr< IWorkspaceEditor>& InWorkspaceEditor) : WeakWorkspaceEditor(InWorkspaceEditor)
+{
+	const TSharedPtr<FWorkspaceEditor> SharedWorkspaceEditor = StaticCastSharedPtr<FWorkspaceEditor>(InWorkspaceEditor);
+	++SharedWorkspaceEditor->SelectionScopeDepth;
+}
+
+FWorkspaceEditorSelectionScope::~FWorkspaceEditorSelectionScope()
+{
+	if (const TSharedPtr<FWorkspaceEditor> SharedWorkspaceEditor = StaticCastSharedPtr<FWorkspaceEditor>(WeakWorkspaceEditor.Pin()))
+	{
+		--SharedWorkspaceEditor->SelectionScopeDepth;
+		check(SharedWorkspaceEditor->SelectionScopeDepth >= 0);
+		
+		if (SharedWorkspaceEditor->SelectionScopeDepth == 0)
+		{
+			SharedWorkspaceEditor->bSelectionScopeCleared = false;
+		}
+	}
+}
 
 namespace WorkspaceModes
 {
@@ -185,6 +207,36 @@ void FWorkspaceEditor::PostInitAssetEditor()
 	RegenerateMenusAndToolbars();
 }
 
+void FWorkspaceEditor::OnToolkitHostingFinished(const TSharedRef<IToolkit>& Toolkit)
+{
+	TSharedPtr<FWorkspaceEditorModeUILayer> ModeUILayer; 
+	ModeUILayers.RemoveAndCopyValue(Toolkit->GetToolkitFName(), ModeUILayer);
+	if(ModeUILayer)
+	{
+		ModeUILayer->OnToolkitHostingFinished(Toolkit);
+	}
+		
+	UToolMenus::UnregisterOwner(&(*Toolkit));	
+	HostedToolkits.Remove( Toolkit );
+}
+
+void FWorkspaceEditor::OnToolkitHostingStarted(const TSharedRef<IToolkit>& Toolkit)
+{
+	ensure(!ModeUILayers.Contains(Toolkit->GetToolkitFName()));
+
+	TSharedPtr<FWorkspaceEditorModeUILayer> ModeUILayer = MakeShared<FWorkspaceEditorModeUILayer>(ToolkitHost.Pin().Get());
+	ModeUILayer->SetModeMenuCategory(EditorMenuCategory);
+
+	// Actually re-use the main toolbar rather than a secondary, which also requires appending the UI layer commands
+	ModeUILayer->SetSecondaryModeToolbarName(GetToolMenuToolbarName());	
+	ToolkitCommands->Append(ModeUILayer->GetModeCommands());
+
+	ModeUILayer->OnToolkitHostingStarted(Toolkit);
+
+	ModeUILayers.Add(Toolkit->GetToolkitFName(), ModeUILayer);	
+	HostedToolkits.Add(Toolkit);
+}
+
 void FWorkspaceEditor::RestoreEditedObjectState()
 {
 	UWorkspaceState* State = Workspace->GetState();
@@ -320,14 +372,24 @@ IWorkspaceEditor::FOnOutlinerSelectionChanged& FWorkspaceEditor::OnOutlinerSelec
 
 void FWorkspaceEditor::SetGlobalSelection(FGlobalSelectionId SelectionId, FOnClearGlobalSelection OnClearSelectionDelegate)
 {
-	// Only execute if widget is still valid, and it is not the same as the previous call 
-	if (LastGlobalSelectionId.IsValid() && SelectionId != LastGlobalSelectionId)
-	{		
-		LastOnClearSelectionDelegate.ExecuteIfBound();
+	if(SelectionScopeDepth == 0 || bSelectionScopeCleared == false)
+	{
+		TArray<TPair<FGlobalSelectionId, FOnClearGlobalSelection>> SelectionsCopy = GlobalSelections;
+		GlobalSelections.Empty();
+		
+		for (TPair<FGlobalSelectionId, FOnClearGlobalSelection>& Selection : SelectionsCopy)
+		{
+			// Only execute if widget is still valid, and it is not the same as the previous call 
+			if (Selection.Key.IsValid() && SelectionId != Selection.Key)
+			{
+				Selection.Value.ExecuteIfBound();
+			}
+		}
+		
+		bSelectionScopeCleared = true;
 	}
 
-	LastGlobalSelectionId = SelectionId;
-	LastOnClearSelectionDelegate = OnClearSelectionDelegate;
+	GlobalSelections.Add({ SelectionId, OnClearSelectionDelegate});
 }
 
 void FWorkspaceEditor::SetFocussedAsset(const TObjectPtr<UObject> InAsset)
@@ -338,7 +400,30 @@ void FWorkspaceEditor::SetFocussedAsset(const TObjectPtr<UObject> InAsset)
 	if (InAsset != nullptr)
 	{
 		ModeManager->GetSelectedObjects()->Select(InAsset);
+
+		FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
+		if (const FObjectDocumentArgs* Args = WorkspaceEditorModule.FindObjectDocumentType(InAsset))
+		{
+			const FEditorModeID NewEditorMode = Args->DocumentEditorMode;
+			if (NewEditorMode != NAME_None)
+			{
+				if(!ModeManager->IsModeActive(NewEditorMode))
+				{
+					ModeManager->ActivateMode(NewEditorMode);
+				}
+			}
+			else
+			{				
+				ModeManager->DeactivateAllModes();
+			}
+		}		
 	}
+	else
+	{
+		ModeManager->DeactivateAllModes();
+	}
+
+	OnFocussedAssetChangedDelegate.Broadcast(InAsset);
 }
 
 const TObjectPtr<UObject> FWorkspaceEditor::GetFocussedAssetOfClass(const TObjectPtr<UClass> AssetClass) const
@@ -355,6 +440,16 @@ const TObjectPtr<UObject> FWorkspaceEditor::GetFocussedAssetOfClass(const TObjec
 void FWorkspaceEditor::HandleOutlinerSelectionChanged(TConstArrayView<FWorkspaceOutlinerItemExport> InExports)
 {
 	LastSelectedExports = InExports;
+}
+
+FOnFocussedAssetChanged& FWorkspaceEditor::OnFocussedAssetChanged()
+{
+	return OnFocussedAssetChangedDelegate;
+}
+
+TSharedPtr<IDetailsView> FWorkspaceEditor::GetDetailsView()
+{
+	return DetailsView;
 }
 
 void FWorkspaceEditor::BindCommands()
@@ -398,6 +493,8 @@ void FWorkspaceEditor::ExtendToolbar()
 void FWorkspaceEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
 {
 	FBaseAssetToolkit::RegisterTabSpawners(InTabManager);
+	
+	EditorMenuCategory = InTabManager->AddLocalWorkspaceMenuCategory(LOCTEXT("WorkspaceMenu_WorkspaceEditor", "Workspace Editor"));    
 
 	InTabManager->RegisterTabSpawner(WorkspaceTabs::WorkspaceView, FOnSpawnTab::CreateLambda([this](const FSpawnTabArgs& Args) -> TSharedRef<SDockTab>
 	{
@@ -645,6 +742,14 @@ void FWorkspaceEditor::OnClose()
 	{
 		DetailsView->SetObject(nullptr);
 		DetailsView.Reset();
+	}
+
+	for (TSharedPtr<class IToolkit> Toolkit : HostedToolkits)
+	{
+		if (Toolkit.IsValid())
+		{
+			UToolMenus::UnregisterOwner(Toolkit.Get());
+		}
 	}
 
 	TabFactories.Clear();

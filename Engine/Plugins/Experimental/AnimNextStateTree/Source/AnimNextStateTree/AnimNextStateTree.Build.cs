@@ -9,17 +9,19 @@ namespace UnrealBuildTool.Rules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
-					"AnimNext", 
 					"AnimNextAnimGraph",
 					"RigVM"
 				});
+			
 			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
 					"Core",
 					"CoreUObject",
 					"StateTreeModule",
-					"Engine"
+					"Engine",
+					"Chooser",
+					"AnimNext", 
 				}
 			);
 		}

@@ -113,26 +113,26 @@ public:
 };
 
 /* Base class for all AnimNext editor data objects that use RigVM */
-UCLASS(MinimalAPI, Abstract)
-class UAnimNextRigVMAssetEditorData : public UObject, public IRigVMClientHost, public IRigVMGraphFunctionHost, public IRigVMClientExternalModelHost
+UCLASS(Abstract)
+class ANIMNEXTUNCOOKEDONLY_API UAnimNextRigVMAssetEditorData : public UObject, public IRigVMClientHost, public IRigVMGraphFunctionHost, public IRigVMClientExternalModelHost
 {
 	GENERATED_BODY()
 
 public:
 	/** Adds an animation graph to this asset */
-	ANIMNEXTUNCOOKEDONLY_API UAnimNextAnimationGraphEntry* AddAnimationGraph(FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	UAnimNextAnimationGraphEntry* AddAnimationGraph(FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	/** Adds a parameter to this asset */
-	ANIMNEXTUNCOOKEDONLY_API UAnimNextVariableEntry* AddVariable(FName InName, FAnimNextParamType InType, const FString& InDefaultValue = TEXT(""), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	UAnimNextVariableEntry* AddVariable(FName InName, FAnimNextParamType InType, const FString& InDefaultValue = TEXT(""), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	/** Adds an event graph to this asset */
-	ANIMNEXTUNCOOKEDONLY_API UAnimNextEventGraphEntry* AddEventGraph(FName InName, UScriptStruct* InEventStruct, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	UAnimNextEventGraphEntry* AddEventGraph(FName InName, UScriptStruct* InEventStruct, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	/** Adds a data interface to this asset */
-	ANIMNEXTUNCOOKEDONLY_API UAnimNextDataInterfaceEntry* AddDataInterface(UAnimNextDataInterface* InDataInterface, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	UAnimNextDataInterfaceEntry* AddDataInterface(UAnimNextDataInterface* InDataInterface, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	// Report an error to the user, typically used for scripting APIs
-	ANIMNEXTUNCOOKEDONLY_API static void ReportError(const TCHAR* InMessage);
+	static void ReportError(const TCHAR* InMessage);
 
 protected:
 	friend class UE::AnimNext::Editor::SRigVMAssetView;
@@ -246,6 +246,9 @@ protected:
 	// Handle RigVM modification events
 	virtual void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
 
+	// Class to use when instantiating AssetUserData for the EditorData instance
+	virtual TSubclassOf<UAssetUserData> GetAssetUserDataClass() const;
+
 	// Get all the kinds of entry for this asset
 	virtual TConstArrayView<TSubclassOf<UAnimNextRigVMAssetEntry>> GetEntryClasses() const PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::GetEntryClasses, return {};)
 
@@ -338,21 +341,21 @@ protected:
 	}
 	
 	// Find an entry by name
-	ANIMNEXTUNCOOKEDONLY_API UAnimNextRigVMAssetEntry* FindEntry(FName InName) const;
+	UAnimNextRigVMAssetEntry* FindEntry(FName InName) const;
 
 	// Remove an entry from the asset
 	// @return true if the item was removed
-	ANIMNEXTUNCOOKEDONLY_API bool RemoveEntry(UAnimNextRigVMAssetEntry* InEntry, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	bool RemoveEntry(UAnimNextRigVMAssetEntry* InEntry, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	// Remove a number of entries from the asset
 	// @return true if any items were removed
-	ANIMNEXTUNCOOKEDONLY_API bool RemoveEntries(TConstArrayView<UAnimNextRigVMAssetEntry*> InEntries, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	bool RemoveEntries(TConstArrayView<UAnimNextRigVMAssetEntry*> InEntries, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	// Remove all entries from the asset
 	// @return true if any items were removed
-	ANIMNEXTUNCOOKEDONLY_API bool RemoveAllEntries(bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	bool RemoveAllEntries(bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
-	ANIMNEXTUNCOOKEDONLY_API void BroadcastModified(EAnimNextEditorDataNotifType InType, UObject* InSubject);
+	void BroadcastModified(EAnimNextEditorDataNotifType InType, UObject* InSubject);
 
 	void ReconstructAllNodes();
 
@@ -424,7 +427,6 @@ protected:
 	// Collection of models gleaned from graphs
 	TArray<TObjectPtr<URigVMGraph>> GraphModels;
 
-
 	// Set of functions implemented for this graph
 	UPROPERTY()
 	TArray<TObjectPtr<URigVMEdGraph>> FunctionEdGraphs;
@@ -432,7 +434,6 @@ protected:
 	// Default FunctionLibrary EdGraph
 	UPROPERTY()
 	TObjectPtr<UAnimNextEdGraph> FunctionLibraryEdGraph;
-
 
 	bool bAutoRecompileVM = true;
 	bool bErrorsDuringCompilation = false;

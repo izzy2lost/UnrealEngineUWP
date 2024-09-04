@@ -16,6 +16,7 @@
 #include "ToolMenus.h"
 #include "WorkspaceEditorCommands.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "Algo/ForEach.h"
 
 #define LOCTEXT_NAMESPACE "FWorkspaceOutlinerMode"
 
@@ -220,12 +221,6 @@ void FWorkspaceOutlinerMode::OnItemDoubleClick(FSceneOutlinerTreeItemPtr Item)
 	OpenItems({Item} );
 }
 
-void FWorkspaceOutlinerMode::OnItemClicked(FSceneOutlinerTreeItemPtr Item)
-{
-	const FSceneOutlinerItemSelection& Selection = SceneOutliner->GetSelection();
-	HandleItemSelection(Selection);
-}
-
 FReply FWorkspaceOutlinerMode::OnKeyDown(const FKeyEvent& InKeyEvent)
 {
 	if (CommandList->ProcessCommandBindings(InKeyEvent))
@@ -240,24 +235,77 @@ void FWorkspaceOutlinerMode::HandleItemSelection(const FSceneOutlinerItemSelecti
 {
 	if (Selection.Num() > 0)
 	{
-		TArray<FSceneOutlinerTreeItemPtr> SelectedItems;
-		Selection.Get(SelectedItems);
-		
 		if (TSharedPtr<IWorkspaceEditor> SharedWorkspaceEditor = WeakWorkspaceEditor.Pin())
 		{
-			TArray<FWorkspaceOutlinerItemExport> Exports;
-			Exports.Reserve(SelectedItems.Num());
-			for(const FSceneOutlinerTreeItemPtr& SelectedItem : SelectedItems)
-			{
-				if(FWorkspaceOutlinerTreeItem* TreeItem = SelectedItem->CastTo<FWorkspaceOutlinerTreeItem>())
-				{
-					if(TreeItem->Export.GetData().IsValid())
+			UWorkspaceItemMenuContext* MenuContext = NewObject<UWorkspaceItemMenuContext>();
+			MenuContext->SelectedExports.Reserve(Selection.Num());
+			Algo::TransformIf(SceneOutliner->GetSelectedItems(), MenuContext->SelectedExports,
+					[](const FSceneOutlinerTreeItemPtr& InItem)
 					{
-						Exports.Add(TreeItem->Export);
+						if (FWorkspaceOutlinerTreeItem* TreeItem = InItem->CastTo<FWorkspaceOutlinerTreeItem>())
+						{
+							return TreeItem->Export.GetIdentifier() != NAME_None;
+						}
+					
+						return false;
+					},
+					[](const FSceneOutlinerTreeItemPtr& InItem)
+					{
+						return InItem->CastTo<FWorkspaceOutlinerTreeItem>()->Export;
+					});
+
+			// Singular item selected
+			if (MenuContext->SelectedExports.Num() == 1)
+			{
+				FWorkspaceOutlinerItemExport& SelectedExport = MenuContext->SelectedExports[0];
+
+				bool bHandled = false;
+
+				// Check whether item details should handle the selection
+				if (const TSharedPtr<IWorkspaceOutlinerItemDetails> SharedDetails = FWorkspaceEditorModule::GetOutlinerItemDetails(MakeOutlinerDetailsId(SelectedExport)))
+				{
+					FToolMenuContext Context(MenuContext);
+					WeakWorkspaceEditor.Pin()->InitToolMenuContext(Context);
+					bHandled = SharedDetails->HandleSelected(Context);
+				}
+				
+				if(!bHandled && SelectedExport.GetData().IsValid())
+				{
+					TSharedPtr<FStructOnScope> ExportDataView = MakeShared<FStructOnScope>(SelectedExport.GetData().GetScriptStruct(), SelectedExport.GetData().GetMutableMemory());
+					// TODO JDB handle struct selections
+					//SharedWorkspaceEditor->SetDetailsStruct(ExportDataView);
+				}
+
+				UObject* LoadedAsset = SelectedExport.GetAssetPath().ResolveObject();
+				if (!bHandled && LoadedAsset)
+				{
+					SharedWorkspaceEditor->SetDetailsObjects({LoadedAsset});
+				}
+			}
+			else
+			{
+				const UScriptStruct* DataType = MenuContext->SelectedExports[0].GetData().GetScriptStruct();
+				Algo::ForEach(MenuContext->SelectedExports, [&DataType](const FWorkspaceOutlinerItemExport& Export)
+				{
+					if (DataType != Export.GetData().GetScriptStruct())
+					{
+						DataType = nullptr;
+					}
+				});
+
+				const bool bSingleDataType = DataType != nullptr;
+				if (bSingleDataType)
+				{
+					if (const TSharedPtr<IWorkspaceOutlinerItemDetails> SharedDetails = FWorkspaceEditorModule::GetOutlinerItemDetails(DataType->GetFName()))
+					{
+						FToolMenuContext Context(MenuContext);
+						WeakWorkspaceEditor.Pin()->InitToolMenuContext(Context);
+						SharedDetails->HandleSelected(Context);
 					}
 				}
 			}
-			SharedWorkspaceEditor->OnOutlinerSelectionChanged().Broadcast(Exports);
+
+			SharedWorkspaceEditor->OnOutlinerSelectionChanged().Broadcast(MenuContext->SelectedExports);
 		}
 	}
 	else
@@ -271,11 +319,11 @@ void FWorkspaceOutlinerMode::HandleItemSelection(const FSceneOutlinerItemSelecti
 
 void FWorkspaceOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection)
 {
-	HandleItemSelection(Selection);
-
 	if (TSharedPtr<IWorkspaceEditor> SharedWorkspaceEditor = WeakWorkspaceEditor.Pin())
 	{
+		FWorkspaceEditorSelectionScope Scope(SharedWorkspaceEditor);		
 		SharedWorkspaceEditor->SetGlobalSelection(SceneOutliner->AsShared(), FOnClearGlobalSelection::CreateRaw(this, &FWorkspaceOutlinerMode::ResetOutlinerSelection));
+		HandleItemSelection(Selection);
 	}
 }
 

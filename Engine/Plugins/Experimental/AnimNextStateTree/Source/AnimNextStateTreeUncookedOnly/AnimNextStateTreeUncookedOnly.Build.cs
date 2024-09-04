@@ -6,7 +6,13 @@ namespace UnrealBuildTool.Rules
 	{
 		public AnimNextStateTreeUncookedOnly(ReadOnlyTargetRules Target) : base(Target)
 		{
-			PrivateDependencyModuleNames.AddRange(new string[] { "StateTreeEditorModule" });
+			PrivateDependencyModuleNames.AddRange(new string[] 
+			{
+				"StateTreeEditorModule",
+				"RigVM",
+				"RigVMDeveloper"
+			});
+			
 			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
@@ -14,7 +20,12 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"StateTreeModule",
 					"Engine",
-					"WorkspaceEditor"
+					"WorkspaceEditor",
+					"SlateCore",
+					"AnimNext",
+					"AnimNextUncookedOnly",
+					"AnimNextStateTree",
+					"AnimNextAnimGraph"
 				}
 			);
 		}

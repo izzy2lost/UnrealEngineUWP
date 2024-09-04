@@ -56,7 +56,18 @@ namespace UE::Workspace
 							
 							return FAppStyle::GetBrush(TEXT("ClassIcon.Default"));
 						})
-						.ColorAndOpacity(FSlateColor::UseForeground())
+						.ColorAndOpacity_Lambda([this]() -> FSlateColor
+						{
+							if (const TSharedPtr<FWorkspaceOutlinerTreeItem> SharedTreeItem = TreeItem.Pin())
+							{
+								if (SharedTreeItem->ItemDetails.IsValid())
+								{
+									return SharedTreeItem->ItemDetails->GetItemColor(SharedTreeItem->Export);
+								}
+							}
+							
+							return FSlateColor::UseForeground();
+						})
 					]
 				]
 				+ SHorizontalBox::Slot()

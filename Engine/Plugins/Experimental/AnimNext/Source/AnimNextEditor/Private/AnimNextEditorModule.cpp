@@ -8,7 +8,6 @@
 #include "IWorkspaceEditor.h"
 #include "ScopedTransaction.h"
 #include "SSimpleButton.h"
-#include "SSimpleComboButton.h"
 #include "UncookedOnlyUtils.h"
 #include "Common/SRigVMAssetView.h"
 #include "Editor/RigVMEditorTools.h"
@@ -28,9 +27,9 @@
 #include "Common/SActionMenu.h"
 #include "Entries/AnimNextRigVMAssetEntry.h"
 #include "Editor/RigVMGraphDetailCustomization.h"
-#include "EditorUtils.h"
 #include "FileHelpers.h"
 #include "IUniversalObjectLocatorEditorModule.h"
+#include "MessageLogModule.h"
 #include "Param/AnimNextComponentLocatorEditor.h"
 #include "Param/AnimNextLocatorContext.h"
 #include "Param/ObjectCastLocatorEditor.h"
@@ -316,6 +315,14 @@ void FAnimNextEditorModule::AddWorkspaceSupportedAssetClass(const FTopLevelAsset
 	if (InClassAssetPath.IsValid())
 	{
 		SupportedAssetClasses.AddUnique(InClassAssetPath);
+	}	
+}
+
+void FAnimNextEditorModule::RemoveWorkspaceSupportedAssetClass(const FTopLevelAssetPath& InClassAssetPath)
+{
+	if (InClassAssetPath.IsValid())
+	{
+		SupportedAssetClasses.Remove(InClassAssetPath);
 	}	
 }
 
