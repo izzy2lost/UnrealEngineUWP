@@ -238,6 +238,9 @@ public:
 
 	TSharedRef<SWidget> GetMainContent() const;
 
+	/** Rebuilds a drawer's content (unless it has been overriden). */
+	void RebuildDrawer(const FName InDrawerId, const bool bInOnlyIfOpen = true);
+
 private:
 	void OnTabDrawerButtonPressed(const TSharedRef<FSidebarDrawer>& InDrawer);
 	void OnDrawerTabPinToggled(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bIsPinned);

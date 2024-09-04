@@ -43,10 +43,6 @@ void FCurveChannelSectionSidebarExtension::AddSections(const TArray<TWeakObjectP
 
 TSharedPtr<ISidebarChannelExtension> FCurveChannelSectionSidebarExtension::ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu)
 {
-	AddExtrapolationMenu(MenuBuilder, true);
-	AddExtrapolationMenu(MenuBuilder, false);
-	AddDisplayOptionsMenu(MenuBuilder);
-
 	return SharedThis(this);
 }
 

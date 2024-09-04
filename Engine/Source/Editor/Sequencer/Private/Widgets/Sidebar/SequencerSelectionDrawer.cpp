@@ -2,31 +2,31 @@
 
 #include "SequencerSelectionDrawer.h"
 #include "DetailsViewArgs.h"
-#include "FrameNumberDetailsCustomization.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IKeyArea.h"
 #include "ISequencerSection.h"
-#include "IStructureDetailsView.h"
 #include "Menus/CurveChannelSectionSidebarExtension.h"
 #include "Modules/ModuleManager.h"
 #include "MovieScene.h"
-#include "MovieSceneMarkedFrame.h"
-#include "MovieSceneSequence.h"
+#include "MovieSceneFolder.h"
 #include "MVVM/Extensions/ITrackExtension.h"
 #include "MVVM/Selection/Selection.h"
 #include "MVVM/ViewModelPtr.h"
 #include "MVVM/ViewModels/CategoryModel.h"
-#include "MVVM/ViewModels/LayerBarModel.h"
+#include "MVVM/ViewModels/FolderModel.h"
 #include "MVVM/ViewModels/SectionModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/ViewModels/TrackRowModel.h"
 #include "PropertyEditorModule.h"
 #include "Sequencer.h"
 #include "SequencerCommonHelpers.h"
-#include "SequencerContextMenus.h"
+#include "SequencerUtilities.h"
 #include "SKeyEditInterface.h"
 #include "Styling/AppStyle.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Sidebar/SMarkedFrameDetails.h"
+#include "Widgets/Sidebar/STrackDetails.h"
 
 #define LOCTEXT_NAMESPACE "SequencerSelectionDrawer"
 
@@ -102,6 +102,15 @@ FSequencerSelectionDrawer::FSequencerSelectionDrawer(const TWeakPtr<FSequencer>&
 {
 }
 
+FSequencerSelectionDrawer::~FSequencerSelectionDrawer()
+{
+	if (const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
+	{
+		Sequencer->OnActorAddedToSequencer().RemoveAll(this);
+		Sequencer->OnMovieSceneDataChanged().RemoveAll(this);
+	}
+}
+
 FName FSequencerSelectionDrawer::GetUniqueId() const
 {
 	return UniqueId;
@@ -126,17 +135,25 @@ TSharedRef<SWidget> FSequencerSelectionDrawer::CreateContentWidget()
 				OnSequencerSelectionChanged();
 			});
 
+		Sequencer->OnMovieSceneDataChanged().AddLambda([this](const EMovieSceneDataChangeType InChangeType)
+			{
+				if (InChangeType == EMovieSceneDataChangeType::ActiveMovieSceneChanged)
+				{
+					OnSequencerSelectionChanged();
+				}
+			});
+
+		Sequencer->OnCloseEvent().AddLambda([this](const TSharedRef<ISequencer> InSequencer)
+			{
+				ResetContent();
+			});
+
 		if (const TSharedPtr<FSequencerSelection> SequencerSelection = Private::GetSelection(*Sequencer.Get()))
 		{
 			SequencerSelection->OnChanged.AddSP(this, &FSequencerSelectionDrawer::OnSequencerSelectionChanged);
 
 			OnSequencerSelectionChanged();
 		}
-
-		Sequencer->OnCloseEvent().AddLambda([this](const TSharedRef<ISequencer> InSequencer)
-			{
-				ResetContent();
-			});
 	}
 
 	return SNew(SBorder)
@@ -271,18 +288,6 @@ void FSequencerSelectionDrawer::BuildKeySelectionDetails(const TSharedRef<FSeque
 		MenuBuilder.AddWidget(CreateKeyFrameDetails(InSelection).ToSharedRef(), FText::GetEmpty(), /*bInNoIndent=*/true);
 	}
 	MenuBuilder.EndSection();
-
-	// Show the section for the keys if they are all part of the same section
-	TArray<TViewModelPtr<FChannelModel>> Channels;
-	for (const FKeyHandle KeyHandle : InSelection->KeySelection)
-	{
-		const TViewModelPtr<FChannelModel> Channel = InSelection->KeySelection.GetModelForKey(KeyHandle);
-		Channels.AddUnique(Channel);
-	}
-	if (Channels.Num() == 1)
-	{
-		FSectionContextMenu::BuildKeyEditMenu(MenuBuilder, Sequencer, Sequencer->GetLastEvaluatedLocalTime());
-	}
 }
 
 void FSequencerSelectionDrawer::BuildTrackAreaDetails(const TSharedRef<FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
@@ -291,26 +296,8 @@ void FSequencerSelectionDrawer::BuildTrackAreaDetails(const TSharedRef<FSequence
 
 	for (const FViewModelPtr TrackAreaItem : InSelection->TrackArea)
 	{
-		if (const TViewModelPtr<FLayerBarModel> LayerBarModel = TrackAreaItem.ImplicitCast())
+		if (const TViewModelPtr<FSectionModel> SectionModel = TrackAreaItem.ImplicitCast())
 		{
-			const TViewModelPtr<IOutlinerExtension> LinkedOutlinerItem = LayerBarModel->GetLinkedOutlinerItem();
-
-			if (const TViewModelPtr<FOutlinerItemModel> OutlinerItemModel = LinkedOutlinerItem.ImplicitCast())
-			{
-				OutlinerItemModel->BuildSidebarMenu(MenuBuilder);
-			}
-		}
-		else if (const TViewModelPtr<FSectionModel> SectionModel = TrackAreaItem.ImplicitCast())
-		{
-			if (InSelection->TrackArea.Num() == 1)
-			{
-				if (const TSharedPtr<ISequencerSection> SectionInterface = SectionModel->GetSectionInterface())
-				{
-					const TSharedPtr<IObjectBindingExtension> ObjectBinding = SectionModel->FindAncestorOfType<IObjectBindingExtension>();
-					SectionInterface->BuildSectionSidebarMenu(MenuBuilder, ObjectBinding.IsValid() ? ObjectBinding->GetObjectGuid() : FGuid());
-				}
-			}
-
 			AllSectionObjects.Add(SectionModel->GetSection());
 		}
 	}
@@ -334,90 +321,72 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(const TSharedRef<FSequencer
 		return;
 	}
 
+	TArray<TWeakObjectPtr<>> WeakFolderObjects;
+	TArray<TWeakObjectPtr<>> WeakSectionObjects;
+	TArray<TWeakObjectPtr<>> WeakTrackObjects;
+	TSet<TViewModelPtr<FObjectBindingModel>> ObjectBindings;
 	TSet<TViewModelPtr<FChannelGroupOutlinerModel>> ChannelGroups;
 
 	for (const FViewModelPtr OutlinerItem : InSelection->Outliner)
 	{
-		if (const TViewModelPtr<FOutlinerItemModel> OutlinerItemModel = OutlinerItem.ImplicitCast())
+		if (const TViewModelPtr<FTrackModel> TrackModel = OutlinerItem.ImplicitCast())
 		{
-			OutlinerItemModel->BuildSidebarMenu(MenuBuilder);
+			WeakSectionObjects.Append(TrackModel->GetSections());
+			WeakTrackObjects.Add(TrackModel->GetTrack());
+		}
+		else if (const TViewModelPtr<FTrackRowModel> TrackRowModel = OutlinerItem.ImplicitCast())
+		{
+			WeakSectionObjects.Append(TrackRowModel->GetSections());
+			WeakTrackObjects.Add(TrackRowModel->GetTrack());
+		}
+		else if (const TViewModelPtr<FObjectBindingModel> ObjectBindingModel = OutlinerItem.ImplicitCast())
+		{
+			ObjectBindings.Add(ObjectBindingModel);
+		}
+		else if (const TViewModelPtr<FFolderModel> FolderModel = OutlinerItem.ImplicitCast())
+		{
+			WeakFolderObjects.Add(FolderModel->GetFolder());
 		}
 		// Ex. "Location.X", "Rotation.Roll", "Color.R", etc.
         else if (const TViewModelPtr<FChannelGroupOutlinerModel> ChannelGroupOutlinerModel = OutlinerItem.ImplicitCast())
         {
-        	ChannelGroupOutlinerModel->BuildSidebarMenu(MenuBuilder);
         	ChannelGroups.Add(ChannelGroupOutlinerModel);
         }
 	}
 
+	if (!WeakFolderObjects.IsEmpty())
+	{
+		const TSharedRef<STrackDetails> TrackDetails = SNew(STrackDetails, WeakFolderObjects, Sequencer.ToSharedRef())
+			.NotifyMovieSceneDataChanged(true);
+		MenuBuilder.AddWidget(TrackDetails, FText::GetEmpty(), true);
+	}
+
+	if (!ObjectBindings.IsEmpty())
+	{
+		MenuBuilder.BeginSection(TEXT("Possessable"));
+		MenuBuilder.EndSection();
+
+		// Shows duplicate information as above?
+		//MenuBuilder.BeginSection(TEXT("CustomBinding"));
+		//MenuBuilder.EndSection();
+
+		MenuBuilder.BeginSection(TEXT("TrackRowMetadata"));
+		MenuBuilder.EndSection();
+	}
+
 	if (!ChannelGroups.IsEmpty())
 	{
-		const ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
-		const TSharedPtr<FExtensibilityManager> SidebarExtensibilityManager = SequencerModule.GetSidebarExtensibilityManager();
-		const TSharedPtr<FExtender> Extender = SidebarExtensibilityManager->GetAllExtenders();
+		BuildExtensionDetails(ChannelGroups, MenuBuilder);
+	}
 
-		TArray<FName> ChannelTypeNames;
-		TArray<ISequencerChannelInterface*> ChannelInterfaces;
-		TArray<FMovieSceneChannelHandle> ChannelHandles;
-		TArray<TWeakObjectPtr<UMovieSceneSection>> WeakSceneSections;
+	if (!WeakTrackObjects.IsEmpty())
+	{
+		SequencerHelpers::BuildEditTrackMenu(Sequencer, WeakTrackObjects, MenuBuilder, false);
+	}
 
-		for (const TViewModelPtr<FChannelGroupOutlinerModel>& ChannelModel : ChannelGroups)
-		{
-			for (const TSharedRef<IKeyArea>& KeyArea : ChannelModel->GetAllKeyAreas())
-			{
-				if (ISequencerChannelInterface* const SequencerChannelIterface = KeyArea->FindChannelEditorInterface())
-				{
-					const FMovieSceneChannelHandle& Channel = KeyArea->GetChannel();
-
-					ChannelTypeNames.Add(Channel.GetChannelTypeName());
-					ChannelInterfaces.Add(SequencerChannelIterface);
-					ChannelHandles.Add(Channel);
-					WeakSceneSections.Add(KeyArea->GetOwningSection());
-				}
-			}
-		}
-
-		// Need to make sure all channels are the same type to allow editing of multiple channels as one
-		bool bAllChannelNamesEqual = true;
-		if (!ChannelTypeNames.IsEmpty())
-		{
-			for (int32 Index = 0; Index < ChannelTypeNames.Num(); ++Index)
-			{
-				if (Index > 0 && ChannelTypeNames[Index] != ChannelTypeNames[0])
-				{
-					bAllChannelNamesEqual = false;
-					break;
-				}
-			}
-		}
-
-		// Channel Interface Extensions (Perlin Noise, Easing, Wave)
-		if (ChannelInterfaces.Num() > 0)
-		{
-			if (bAllChannelNamesEqual)
-			{
-				if (const TSharedPtr<ISidebarChannelExtension> ChannelExtension = ChannelInterfaces[0]->ExtendSidebarMenu_Raw(MenuBuilder, Extender, ChannelHandles, WeakSceneSections, WeakSequencer))
-				{
-					ChannelExtensions.Add(ChannelExtension);
-				}
-			}
-			else
-			{
-				// Display different channels separately and don't allow to edit "all-in-one"
-				for (int32 Index = 0; Index < ChannelInterfaces.Num(); ++Index)
-				{
-					if (const TSharedPtr<ISidebarChannelExtension> ChannelExtension = ChannelInterfaces[Index]->ExtendSidebarMenu_Raw(MenuBuilder, Extender, { ChannelHandles[Index] }, { WeakSceneSections[Index] }, WeakSequencer))
-					{
-						ChannelExtensions.Add(ChannelExtension);
-					}
-				}
-			}
-		}
-
-		// Curve Channel Options (Pre-Finity, Post-Finity, etc.)
-		CurveChannelExtension = MakeShared<FCurveChannelSectionSidebarExtension>(Sequencer);
-		CurveChannelExtension->AddSections(WeakSceneSections);
-		CurveChannelExtension->ExtendMenu(MenuBuilder, false);
+	if (!WeakSectionObjects.IsEmpty())
+	{
+		SequencerHelpers::BuildEditSectionMenu(WeakSequencer, WeakSectionObjects, MenuBuilder, false);
 	}
 }
 
@@ -429,13 +398,79 @@ void FSequencerSelectionDrawer::BuildMarkedFrameDetails(const TSharedRef<FSequen
 	}
 
 	MenuBuilder.BeginSection(TEXT("MarkedFrames"), LOCTEXT("MarkedFramesMenuSection", "Marked Frames"));
-	
+
 	for (const int32 MarkIndex : InSelection->MarkedFrames)
 	{
-		MenuBuilder.AddWidget(CreateMarkedFrameDetails(MarkIndex).ToSharedRef(), FText::GetEmpty(), /*bInNoIndent=*/true);
+		const TSharedRef<SMarkedFrameDetails> MarkedFrameDetails = SNew(SMarkedFrameDetails, MarkIndex, WeakSequencer);
+		MenuBuilder.AddWidget(MarkedFrameDetails, FText::GetEmpty(), /*bInNoIndent=*/true);
 	}
 
 	MenuBuilder.EndSection();
+}
+
+void FSequencerSelectionDrawer::BuildExtensionDetails(const TSet<TViewModelPtr<FChannelGroupOutlinerModel>>& InChannelGroups, FMenuBuilder& MenuBuilder)
+{
+	const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+	if (!Sequencer.IsValid())
+	{
+		return;
+	}
+
+	const ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
+	const TSharedPtr<FExtensibilityManager> SidebarExtensibilityManager = SequencerModule.GetSidebarExtensibilityManager();
+	const TSharedPtr<FExtender> Extender = SidebarExtensibilityManager->GetAllExtenders();
+
+	TArray<FName> ChannelTypeNames;
+	TArray<ISequencerChannelInterface*> ChannelInterfaces;
+	TArray<FMovieSceneChannelHandle> ChannelHandles;
+	TArray<TWeakObjectPtr<UMovieSceneSection>> WeakSceneSections;
+
+	for (const TViewModelPtr<FChannelGroupOutlinerModel>& ChannelModel : InChannelGroups)
+	{
+		for (const TSharedRef<IKeyArea>& KeyArea : ChannelModel->GetAllKeyAreas())
+		{
+			if (ISequencerChannelInterface* const SequencerChannelIterface = KeyArea->FindChannelEditorInterface())
+			{
+				const FMovieSceneChannelHandle& Channel = KeyArea->GetChannel();
+
+				ChannelTypeNames.Add(Channel.GetChannelTypeName());
+				ChannelInterfaces.Add(SequencerChannelIterface);
+				ChannelHandles.Add(Channel);
+				WeakSceneSections.Add(KeyArea->GetOwningSection());
+			}
+		}
+	}
+
+	// Need to make sure all channels are the same type to allow editing of multiple channels as one
+	bool bAllChannelNamesEqual = AreAllSameNames(ChannelTypeNames);
+
+	// Channel Interface Extensions (Perlin Noise, Easing, Wave)
+	if (ChannelInterfaces.Num() > 0)
+	{
+		if (bAllChannelNamesEqual)
+		{
+			if (const TSharedPtr<ISidebarChannelExtension> ChannelExtension = ChannelInterfaces[0]->ExtendSidebarMenu_Raw(MenuBuilder, Extender, ChannelHandles, WeakSceneSections, WeakSequencer))
+			{
+				ChannelExtensions.Add(ChannelExtension);
+			}
+		}
+		else
+		{
+			// Display different channels separately and don't allow to edit "all-in-one"
+			for (int32 Index = 0; Index < ChannelInterfaces.Num(); ++Index)
+			{
+				if (const TSharedPtr<ISidebarChannelExtension> ChannelExtension = ChannelInterfaces[Index]->ExtendSidebarMenu_Raw(MenuBuilder, Extender, { ChannelHandles[Index] }, { WeakSceneSections[Index] }, WeakSequencer))
+				{
+					ChannelExtensions.Add(ChannelExtension);
+				}
+			}
+		}
+	}
+
+	// Curve Channel Options (Pre-Finity, Post-Finity, etc.)
+	CurveChannelExtension = MakeShared<FCurveChannelSectionSidebarExtension>(Sequencer);
+	CurveChannelExtension->AddSections(WeakSceneSections);
+	CurveChannelExtension->ExtendMenu(MenuBuilder, false);
 }
 
 TSharedRef<SWidget> FSequencerSelectionDrawer::CreateHintText(const FText& InMessage)
@@ -490,110 +525,16 @@ TSharedPtr<SWidget> FSequencerSelectionDrawer::CreateKeyFrameDetails(const TShar
 	return CreateHintText(LOCTEXT("InvalidKeyCombination", "Selected keys must belong to the same section."));
 }
 
-TSharedPtr<SWidget> FSequencerSelectionDrawer::CreateMarkedFrameDetails(const int32 InMarkedFrameIndex)
+bool FSequencerSelectionDrawer::AreAllSameNames(const TArray<FName>& InNames) const
 {
-	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
-	if (!Sequencer.IsValid())
+	for (int32 Index = 0; Index < InNames.Num(); ++Index)
 	{
-		return nullptr;
+		if (Index > 0 && InNames[Index] != InNames[0])
+		{
+			return false;
+		}
 	}
-
-	const UMovieSceneSequence* const FocusedMovieSceneSequence = Sequencer->GetFocusedMovieSceneSequence();
-	if (!IsValid(FocusedMovieSceneSequence))
-	{
-		return nullptr;
-	}
-
-	UMovieScene* const FocusedMovieScene = FocusedMovieSceneSequence->GetMovieScene();
-	if (!IsValid(FocusedMovieScene))
-	{
-		return nullptr;
-	}
-
-	if (FocusedMovieScene->GetMarkedFrames().Num() == 0)
-	{
-		return nullptr;
-	}
-
-	class SMarkedFramePropertyWidget : public SCompoundWidget, public FNotifyHook
-	{
-	public:
-		SLATE_BEGIN_ARGS(SMarkedFramePropertyWidget) {}
-		SLATE_END_ARGS()
-
-		void Construct(const FArguments& InArgs, UMovieScene* const InMovieScene, const int32 InMarkedFrameIndex, const TWeakPtr<FSequencer>& InWeakSequencer)
-		{
-			MovieSceneToModify = InMovieScene;
-			WeakSequencer = InWeakSequencer;
-
-			FDetailsViewArgs DetailsViewArgs;
-			DetailsViewArgs.bAllowSearch = false;
-			DetailsViewArgs.bShowScrollBar = false;
-			DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
-			DetailsViewArgs.NotifyHook = this;
-
-			FStructureDetailsViewArgs StructureDetailsViewArgs;
-			StructureDetailsViewArgs.bShowObjects = true;
-			StructureDetailsViewArgs.bShowAssets = true;
-			StructureDetailsViewArgs.bShowClasses = true;
-			StructureDetailsViewArgs.bShowInterfaces = true;
-			
-			const TSharedPtr<FStructOnScope> StructOnScope = MakeShared<FStructOnScope>(FMovieSceneMarkedFrame::StaticStruct(), (uint8*)&InMovieScene->GetMarkedFrames()[InMarkedFrameIndex]);
-
-			FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
-
-			DetailsView = PropertyEditorModule.CreateStructureDetailView(DetailsViewArgs, StructureDetailsViewArgs, nullptr);
-			DetailsView->GetDetailsView()->RegisterInstancedCustomPropertyTypeLayout(TEXT("FrameNumber"), FOnGetPropertyTypeCustomizationInstance::CreateLambda([this]() {
-				return MakeShared<FFrameNumberDetailsCustomization>(WeakSequencer.Pin()->GetNumericTypeInterface()); }));
-			DetailsView->SetStructureData(StructOnScope);
-			
-			ChildSlot
-			[
-				DetailsView->GetWidget().ToSharedRef()
-			];
-		}
-
-		virtual void NotifyPreChange(FProperty* InPropertyAboutToChange) override
-		{
-			MovieSceneToModify->Modify();
-		}
-
-		virtual void NotifyPreChange(FEditPropertyChain* InPropertyAboutToChange) override
-		{
-			MovieSceneToModify->Modify();
-		}
-
-	private:
-		TObjectPtr<UMovieScene> MovieSceneToModify;
-		TSharedPtr<IStructureDetailsView> DetailsView;
-		TWeakPtr<FSequencer> WeakSequencer;
-	};
-
-	auto AreMarkedFramesLocked = [&Sequencer]() -> bool
-	{
-		if (Sequencer->IsReadOnly())
-		{
-			return true;
-		}
-
-		const UMovieSceneSequence* const FocusedMovieSceneSequence = Sequencer->GetFocusedMovieSceneSequence();
-		if (FocusedMovieSceneSequence != nullptr)
-		{
-			const UMovieScene* const MovieScene = FocusedMovieSceneSequence->GetMovieScene();
-			if (MovieScene->IsReadOnly())
-			{
-				return true;
-			}
-			return MovieScene->AreMarkedFramesLocked();
-		}
-
-		return false;
-	};
-
-	const TSharedRef<SMarkedFramePropertyWidget> Widget = SNew(SMarkedFramePropertyWidget, FocusedMovieScene, InMarkedFrameIndex, WeakSequencer);
-	Widget->SetEnabled(!AreMarkedFramesLocked());
-
-	return Widget;
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

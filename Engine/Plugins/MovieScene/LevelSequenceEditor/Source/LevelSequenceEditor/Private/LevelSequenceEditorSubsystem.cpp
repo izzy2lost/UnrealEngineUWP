@@ -630,12 +630,6 @@ void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 				}
 
 				AddBindingPropertiesSidebar(MenuBuilder);
-
-				FFormatNamedArguments Args;
-				MenuBuilder.AddSubMenu(
-					FText::Format(LOCTEXT("RebindComponent", "Rebind Component"), Args),
-					FText::Format(LOCTEXT("RebindComponentTooltip", "Rebind component by moving the tracks from one component to another component."), Args),
-					FNewMenuDelegate::CreateUObject(this, &ULevelSequenceEditorSubsystem::RebindComponentMenu));
 			}));
 
 	SidebarMenuExtender->AddMenuExtension(TEXT("CustomBinding"), EExtensionHook::First, CommandList,

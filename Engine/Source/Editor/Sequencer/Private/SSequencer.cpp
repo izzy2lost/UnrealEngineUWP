@@ -4173,6 +4173,11 @@ void SSequencer::ToggleSidebarVisible()
 
 void SSequencer::ToggleSidebarSelectionDrawerOpen()
 {
+	if (!DetailsSidebar.IsValid())
+	{
+		return;
+	}
+
 	if (DetailsSidebar->IsDrawerDocked(FSequencer::SelectionDrawerId))
 	{
 		DetailsSidebar->UndockAllDrawers();
@@ -4189,6 +4194,11 @@ void SSequencer::ToggleSidebarSelectionDrawerOpen()
 
 void SSequencer::ToggleSidebarDrawerDock()
 {
+	if (!DetailsSidebar.IsValid())
+	{
+		return;
+	}
+
 	const FName OpenedDrawerId = DetailsSidebar->GetOpenedDrawerId();
 	if (!OpenedDrawerId.IsNone())
 	{

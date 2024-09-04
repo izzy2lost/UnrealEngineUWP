@@ -71,8 +71,8 @@ bool SSidebar::RegisterDrawer(FSidebarDrawerConfig&& InDrawerConfig)
 	NewDrawer->bDisablePin = bDisablePin;
 	NewDrawer->bDisableDock = bDisableDock;
 	NewDrawer->ContentWidget = NewDrawer->Config.OverrideContentWidget.IsValid()
-		? NewDrawer->ContentWidget = NewDrawer->Config.OverrideContentWidget
-		: NewDrawer->ContentWidget = SNew(SSidebarDrawerContent, NewDrawer);
+		? NewDrawer->Config.OverrideContentWidget
+		: SNew(SSidebarDrawerContent, NewDrawer);
 
 	// Add tab button
 	TabButtonContainer->AddSlot()
@@ -637,6 +637,28 @@ ESidebarTabLocation SSidebar::GetTabLocation() const
 TSharedRef<SWidget> SSidebar::GetMainContent() const
 {
 	return OnGetContent.IsBound() ? OnGetContent.Execute() : SNullWidget::NullWidget;
+}
+
+void SSidebar::RebuildDrawer(const FName InDrawerId, const bool bInOnlyIfOpen)
+{
+	const TSharedPtr<FSidebarDrawer> Drawer = FindDrawer(InDrawerId);
+	if (!Drawer.IsValid() || Drawer->Config.OverrideContentWidget.IsValid())
+	{
+		return;
+	}
+
+	if (bInOnlyIfOpen && !IsDrawerOpened(InDrawerId))
+	{
+		return;
+	}
+
+	const TSharedPtr<SSidebarDrawerContent> DrawerContent = StaticCastSharedPtr<SSidebarDrawerContent>(Drawer->ContentWidget);
+	if (!DrawerContent.IsValid())
+	{
+		return;
+	}
+
+	DrawerContent->BuildContent();
 }
 
 const TArray<TSharedRef<FSidebarDrawer>>& SSidebar::GetAllDrawers() const

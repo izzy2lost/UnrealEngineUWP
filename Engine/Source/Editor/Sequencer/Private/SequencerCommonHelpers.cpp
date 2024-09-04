@@ -427,7 +427,7 @@ void SequencerHelpers::BuildEditSectionMenu(const TWeakPtr<FSequencer>& InWeakSe
 		DetailsNotifyWrapper->SetDetailsAndSequencer(DetailsView, InWeakSequencer);
 		DetailsNotifyWrapper->SetEnabled(!Sequencer->IsReadOnly());
 
-		LambdaMenuBuilder.BeginSection(TEXT("TrackSection"), NSLOCTEXT("Sequencer", "TrackSectionMenuSection", "Track Section"));
+		LambdaMenuBuilder.BeginSection(TEXT("TrackSection"));
         {
 			LambdaMenuBuilder.AddWidget(DetailsNotifyWrapper, FText::GetEmpty(), true);
         }
@@ -515,7 +515,7 @@ void SequencerHelpers::BuildEditTrackMenu(const TWeakPtr<FSequencer>& InWeakSequ
 		DetailsNotifyWrapper->SetDetailsAndSequencer(DetailsView, Sequencer);
 		DetailsNotifyWrapper->SetEnabled(!Sequencer->IsReadOnly());
 
-		LambdaMenuBuilder.BeginSection(TEXT("Track"), NSLOCTEXT("Sequencer", "TrackMenuSection", "Track"));
+		LambdaMenuBuilder.BeginSection(TEXT("Track"));
 		{
 			LambdaMenuBuilder.AddWidget(DetailsNotifyWrapper, FText::GetEmpty(), true);
 		}

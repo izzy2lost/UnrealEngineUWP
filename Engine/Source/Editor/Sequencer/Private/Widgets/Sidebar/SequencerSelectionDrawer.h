@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "MVVM/ViewModelPtr.h"
 #include "Sidebar/ISidebarDrawerContent.h"
 #include "Templates/SharedPointerFwd.h"
 
@@ -17,6 +18,7 @@ struct FKeyEditData;
 
 namespace UE::Sequencer
 {
+	class FChannelGroupOutlinerModel;
 	class FSequencerSelection;
 }
 
@@ -26,6 +28,7 @@ public:
 	static const FName UniqueId;
 
 	FSequencerSelectionDrawer(const TWeakPtr<FSequencer>& InWeakSequencer);
+	virtual ~FSequencerSelectionDrawer() override;
 
 	//~ Begin ISidebarDrawerContent
 	virtual FName GetUniqueId() const override;
@@ -42,6 +45,7 @@ protected:
 	void BuildTrackAreaDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
 	void BuildOutlinerDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
 	void BuildMarkedFrameDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
+	void BuildExtensionDetails(const TSet<UE::Sequencer::TViewModelPtr<UE::Sequencer::FChannelGroupOutlinerModel>>& InChannelGroups, FMenuBuilder& MenuBuilder);
 
 	TSharedRef<SWidget> CreateHintText(const FText& InMessage);
 	TSharedRef<SWidget> CreateNoSelectionHintText();
@@ -49,9 +53,10 @@ protected:
 	FKeyEditData GetKeyEditData() const;
 	
 	TSharedPtr<SWidget> CreateKeyFrameDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSequencerSelection);
-	TSharedPtr<SWidget> CreateMarkedFrameDetails(const int32 InMarkedFrameIndex);
 
 	void ResetContent();
+
+	bool AreAllSameNames(const TArray<FName>& InNames) const;
 
 	TWeakPtr<FSequencer> WeakSequencer;
 
