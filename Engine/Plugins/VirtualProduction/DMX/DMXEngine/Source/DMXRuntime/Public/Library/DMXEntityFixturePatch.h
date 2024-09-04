@@ -255,15 +255,15 @@ protected:
 	TObjectPtr<UDMXEntityFixtureType> ParentFixtureTypeTemplate;
 
 	/** The Index of the Mode in the Fixture Type the Patch uses */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (DisplayName = "Active Mode Index"), Category = "DMX|Fixture Patch")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (DisplayName = "Active Mode Index"), Category = "Fixture Patch")
 	int32 ActiveMode;
 
 	/** The MVR Fixture UUID */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (DisplayName = "MVR Fixture UUID"), Category = "DMX|Fixture Patch")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (DisplayName = "MVR Fixture UUID"), Category = "Fixture Patch")
 	FGuid MVRFixtureUUID;
 
 	/** The Fixture ID. Note, fixture patch much like some lighting consoles only supports numerical fixture IDs, and not a string as per MVR specs. */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "DMX|Fixture Patch")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Fixture Patch")
 	int32 FixtureID = 0;
 
 	/** Delegate broadcast when a Fixture Patch changed */
@@ -271,19 +271,19 @@ protected:
 
 public:
 	/** Custom tags for filtering patches  */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX|Fixture Patch")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fixture Patch")
 	TArray<FName> CustomTags;
 
 #if WITH_EDITORONLY_DATA
 	/** Color when displayed in the fixture patch editor */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX|Fixture Patch")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fixture Patch")
 	FLinearColor EditorColor;
 
 	/** 
 	 * If true, the patch receives dmx and raises the OnFixturePatchReceivedDMX event in editor. 
 	 * NOTE: If 'All Fixture Patches receive DMX in editor' is set to true in Project Settings -> Plugins -> DMX, this setting here is ignored.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX|Fixture Patch")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fixture Patch")
 	bool bReceiveDMXInEditor;
 #endif
 

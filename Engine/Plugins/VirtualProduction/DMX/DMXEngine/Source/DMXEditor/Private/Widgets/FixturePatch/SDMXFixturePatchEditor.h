@@ -2,21 +2,19 @@
 
 #pragma once
 
+#include "Engine/TimerHandle.h"
 #include "Widgets/SDMXEntityEditor.h"
-
-#include "CoreMinimal.h"
 
 class FDMXEditor;
 class FDMXFixturePatchSharedData;
+class IDetailsView;
 class SDMXFixturePatcher;
 class SDMXFixturePatchTree;
 class SDMXFixturePatchList;
-class UDMXEntityFixturePatch;
-
-struct FPropertyChangedEvent;
-class IDetailsView;
 class SSplitter;
-
+class UDMXEntityFixturePatch;
+class UDMXEntityFixtureType;
+struct FPropertyChangedEvent;
 
 /** Editor for Fixture Patches */
 class SDMXFixturePatchEditor final
@@ -52,14 +50,26 @@ public:
 	// ~End SDMXEntityEditorTab interface 
 
 private:
+	/** Generates a Detail View for the edited Fixture Patch */
+	TSharedRef<IDetailsView> GenerateFixturePatchDetailsView() const;
+	
 	/** Selects the patch */
 	void SelectUniverse(int32 UniverseID);
 
 	/** Called whewn Fixture Patches were selected in Fixture Patch Shared Data */
 	void OnFixturePatchesSelected();
 
-	/** Generates a Detail View for the edited Fixture Patch */
-	TSharedRef<IDetailsView> GenerateFixturePatchDetailsView() const;
+	/** Called when a Fixture Type changed */
+	void OnFixtureTypeChanged(const UDMXEntityFixtureType* ChangedFixtureType);
+
+	/** Called when a Fixture Patch changed */
+	void OnFixturePatchChanged(const UDMXEntityFixturePatch* ChangedFixturePatch);
+
+	/** Refreshes the Fixture Patch Details View on the next tick */
+	void RequestRefreshFixturePatchDetailsView();
+
+	/** Refreshes the Fixture Patch Details View */
+	void RefreshFixturePatchDetailsView();
 
 	/** List of Fixture Patches as MVR Fixtures */
 	TSharedPtr<SDMXFixturePatchList> FixturePatchList;
@@ -77,5 +87,8 @@ private:
 	TSharedPtr<FDMXFixturePatchSharedData> FixturePatchSharedData;
 
 	/** Pointer back to the DMXEditor tool that owns us */
-	TWeakPtr<FDMXEditor> DMXEditorPtr;
+	TWeakPtr<FDMXEditor> WeakDMXEditor;
+
+	/** Timer handle to refresh the fixture patch details view */
+	FTimerHandle RefreshFixturePatchDetailsViewTimerHandle;
 }; 

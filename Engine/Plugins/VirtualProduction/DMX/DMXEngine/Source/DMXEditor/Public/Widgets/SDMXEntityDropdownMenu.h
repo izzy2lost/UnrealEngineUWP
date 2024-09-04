@@ -2,31 +2,34 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-
-#include "Library/DMXLibrary.h"
+#include "Commands/DMXEditorCommands.h"
+#include "DMXEditor.h"
+#include "DMXEditorUtils.h"
 #include "Library/DMXEntity.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
-#include "Commands/DMXEditorCommands.h"
-#include "DMXEditorUtils.h"
-#include "DMXEditor.h"
-
+#include "Library/DMXLibrary.h"
+#include "PropertyCustomizationHelpers.h"
+#include "ScopedTransaction.h"
 #include "SListViewSelectorDropdownMenu.h"
-#include "Widgets/Views/SListView.h"
+#include "Styling/AppStyle.h"
+#include "Templates/SubclassOf.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/SToolTip.h"
-#include "Styling/AppStyle.h"
-#include "PropertyCustomizationHelpers.h"
-#include "Templates/SubclassOf.h"
+#include "Widgets/Views/SListView.h"
 
-class UDMXLibrary;
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "CoreMinimal.h"
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 
 class SSearchBox;
 class SToolTip;
+class UDMXLibrary;
+
+#define LOCTEXT_NAMESPACE "SDMXEntitySelectorDropdownMenu"
 
 enum class EEntityEntryType : uint8
 {
@@ -95,8 +98,6 @@ private:
 
 //////////////////////////////////////////////////////////////////////////
 
-#define LOCTEXT_NAMESPACE "SDMXEntitySelectorDropdownMenu"
-
 DECLARE_DELEGATE_OneParam(FOnEntitySelected, UDMXEntity*);
 DECLARE_DELEGATE(FOnCreateNewEntitySelected);
 
@@ -121,6 +122,7 @@ public:
 
 		/** If valid, enables the option to create a new entity. */
 		SLATE_ATTRIBUTE(TWeakPtr<FDMXEditor>, DMXEditor)
+
 		/** Needed to find existing Entities. Can be inferred from DMXEditor, if that's valid. */
 		SLATE_ATTRIBUTE(TWeakObjectPtr<UDMXLibrary>, DMXLibrary)
 
@@ -358,28 +360,31 @@ private:
 			}
 			else if (InItem->IsCreateNew())
 			{
-				if (OnCreateNewEntityDelegate.IsBound())
-				{
-					OnCreateNewEntityDelegate.ExecuteIfBound();
-				}
-
 				if (TSharedPtr<FDMXEditor> PinnedEditor = DMXEditor.Get().Pin())
 				{
 					const TSubclassOf<UDMXEntity>&& FilterClass = GetEntityFilterClass();
 
+					const FText TransactionText = FilterClass->IsChildOf(UDMXEntityFixtureType::StaticClass()) ?
+						LOCTEXT("AddFixtureTypeTransaction", "Add Fixture Type") :
+						LOCTEXT("AddFixturePatchTransaction", "Add Fixture Patch");
+
+					const FScopedTransaction AddEntityTransaction(TransactionText);
+
 					if (FilterClass->IsChildOf(UDMXEntityFixtureType::StaticClass()))
 					{
 						PinnedEditor->GetToolkitCommands()->ExecuteAction(FDMXEditorCommands::Get().AddNewEntityFixtureType.ToSharedRef());
+
 						PinnedEditor->InvokeEditorTabFromEntityType(UDMXEntityFixtureType::StaticClass());
-
-
 					}
 					else if (FilterClass->IsChildOf(UDMXEntityFixturePatch::StaticClass()))
 					{
 						PinnedEditor->GetToolkitCommands()->ExecuteAction(FDMXEditorCommands::Get().AddNewEntityFixturePatch.ToSharedRef());
+
 						PinnedEditor->InvokeEditorTabFromEntityType(UDMXEntityFixturePatch::StaticClass());
 					}
 				}
+
+				OnCreateNewEntityDelegate.ExecuteIfBound();
 			}
 		}
 		else if (InItem.IsValid() && SelectInfo != ESelectInfo::OnMouseClick)

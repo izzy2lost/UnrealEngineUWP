@@ -39,14 +39,55 @@ namespace UE::DMXEditor::FixturePatchEditor
 		WeakDMXEditor = InWeakDMXEditor;
 
 		SharedData = WeakDMXEditor.IsValid() ? WeakDMXEditor.Pin()->GetFixturePatchSharedData() : nullptr;
+		if (SharedData.IsValid())
+		{
+			UDMXLibrary::GetOnEntitiesAdded().AddSP(this, &SAddFixturePatchMenu::OnEntityAddedOrRemoved);
+			UDMXLibrary::GetOnEntitiesRemoved().AddSP(this, &SAddFixturePatchMenu::OnEntityAddedOrRemoved);
+
+			Refresh();
+		}
+	}
+
+	void SAddFixturePatchMenu::RequestRefresh()
+	{
+		RequestRefreshModeComboBoxTimerHandle.Invalidate();
+
+		if (!RequestRefreshModeComboBoxTimerHandle.IsValid())
+		{
+			RequestRefreshModeComboBoxTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SAddFixturePatchMenu::Refresh));
+		}
+	}
+
+	void SAddFixturePatchMenu::Refresh()
+	{
+		RequestRefreshModeComboBoxTimerHandle.Invalidate();
+
 		UDMXLibrary* DMXLibrary = WeakDMXEditor.IsValid() ? WeakDMXEditor.Pin()->GetDMXLibrary() : nullptr;
-		if (!SharedData.IsValid() || !DMXLibrary)
+		if (!DMXLibrary)
 		{
 			return;
 		}
 
-		const TArray<UDMXEntityFixtureType*> FixtureTypes = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixtureType>();
+
+		// Mend the fixture type
+		if (!WeakFixtureType.IsValid() && WeakDMXEditor.IsValid())
+		{
+			const TArray<UDMXEntityFixtureType*> FixtureTypes = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixtureType>();
+			WeakFixtureType = FixtureTypes.IsEmpty() ? nullptr : FixtureTypes[0];
+		}
+
+
+		// Mend the active mode index
 		UDMXAddFixturePatchMenuData* MenuData = GetMutableDefault<UDMXAddFixturePatchMenuData>();
+		if (WeakFixtureType.IsValid() && !WeakFixtureType->Modes.IsValidIndex(MenuData->ActiveModeIndex))
+		{
+			MenuData->ActiveModeIndex = 0;
+			MenuData->SaveConfig();
+		}
+
+
+		// Create the combo box source and an intial selection
+		const TArray<UDMXEntityFixtureType*> FixtureTypes = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixtureType>();
 		UDMXEntityFixtureType* const* SelectedFixtureTypePtr = Algo::FindByPredicate(FixtureTypes, [MenuData](const UDMXEntityFixtureType* FixtureType)
 			{
 				return FixtureType == MenuData->SoftFixtureType;
@@ -57,6 +98,8 @@ namespace UE::DMXEditor::FixturePatchEditor
 		}
 		WeakFixtureType = SelectedFixtureTypePtr ? *SelectedFixtureTypePtr : nullptr;
 
+
+		// Rebuild the widget
 		ChildSlot
 		[
 			SNew(SBorder)
@@ -156,21 +199,6 @@ namespace UE::DMXEditor::FixturePatchEditor
 				]
 			]
 		];
-
-		RequestRefresh();
-
-		UDMXLibrary::GetOnEntitiesAdded().AddSP(this, &SAddFixturePatchMenu::OnEntityAddedOrRemoved);
-		UDMXLibrary::GetOnEntitiesRemoved().AddSP(this, &SAddFixturePatchMenu::OnEntityAddedOrRemoved);
-	}
-
-	void SAddFixturePatchMenu::RequestRefresh()
-	{
-		RequestRefreshModeComboBoxTimerHandle.Invalidate();
-
-		if (!RequestRefreshModeComboBoxTimerHandle.IsValid())
-		{
-			RequestRefreshModeComboBoxTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SAddFixturePatchMenu::ForceRefresh));
-		}
 	}
 
 	TSharedRef<SWidget> SAddFixturePatchMenu::MakeFixtureTypeSelectWidget()
@@ -331,40 +359,6 @@ namespace UE::DMXEditor::FixturePatchEditor
 					}
 				})
 			.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")));
-	}
-
-	void SAddFixturePatchMenu::ForceRefresh()
-	{
-		RequestRefreshModeComboBoxTimerHandle.Invalidate();
-
-		// Mend the fixture type
-		if (!WeakFixtureType.IsValid() && WeakDMXEditor.IsValid())
-		{
-			if (UDMXLibrary* DMXLibrary = WeakDMXEditor.Pin()->GetDMXLibrary())
-			{
-				const TArray<UDMXEntityFixtureType*> FixtureTypes = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixtureType>();
-				WeakFixtureType = FixtureTypes.IsEmpty() ? nullptr : FixtureTypes[0];
-			}
-		}
-
-		// Mend the active mode index
-		UDMXAddFixturePatchMenuData* MenuData = GetMutableDefault<UDMXAddFixturePatchMenuData>();
-		if (WeakFixtureType.IsValid() && !WeakFixtureType->Modes.IsValidIndex(MenuData->ActiveModeIndex))
-		{
-			MenuData->ActiveModeIndex = 0;
-			MenuData->SaveConfig();
-		}
-
-		ModeSources.Reset();
-		if (UDMXEntityFixtureType* FixtureType = WeakFixtureType.Get())
-		{
-			for (int32 ModeIndex = 0; ModeIndex < FixtureType->Modes.Num(); ModeIndex++)
-			{
-				ModeSources.Add(MakeShared<uint32>(ModeIndex));
-			}
-		}
-
-		ModeComboBox->RefreshOptions();
 	}
 
 	void SAddFixturePatchMenu::OnEntityAddedOrRemoved(UDMXLibrary* DMXLibrary, TArray<UDMXEntity*> Entities)
@@ -554,7 +548,11 @@ namespace UE::DMXEditor::FixturePatchEditor
 
 			constexpr bool bMarkLibraryDirty = false;
 			UDMXEntityFixturePatch* NewFixturePatch = UDMXEntityFixturePatch::CreateFixturePatchInLibrary(FixturePatchConstructionParams, FixtureType->Name, bMarkLibraryDirty);
-			NewFixturePatches.Add(NewFixturePatch);
+			
+			if (NewFixturePatch)
+			{
+				NewFixturePatches.Add(NewFixturePatch);
+			}
 		}
 
 		// Align

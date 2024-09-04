@@ -20,6 +20,7 @@
 #include "Library/DMXLibrary.h"
 #include "Misc/MessageDialog.h"
 #include "Modes/DMXEditorApplicationMode.h"
+#include "ScopedTransaction.h"
 #include "Toolbars/DMXEditorToolbar.h"
 #include "Utils.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -244,8 +245,13 @@ void FDMXEditor::OnAddNewEntity(TSubclassOf<UDMXEntity> InEntityClass)
 				FDMXEntityFixturePatchConstructionParams FixturePatchConstructionParams;
 				FixturePatchConstructionParams.FixtureTypeRef = FDMXEntityFixtureTypeRef(LastAddedFixtureType);
 
+				const FScopedTransaction CreateFixtureTypeTransaction(LOCTEXT("CreateFixtureTypeTransaction", "Create DMX Fixture Type"));
+				DMXLibrary->PreEditChange(nullptr);
+
 				UDMXEntityFixturePatch* NewFixturePatch = UDMXEntityFixturePatch::CreateFixturePatchInLibrary(FixturePatchConstructionParams);
 				FixturePatchSharedData->SelectFixturePatch(NewFixturePatch);
+
+				DMXLibrary->PostEditChange();
 
 				return;
 			}
@@ -258,8 +264,13 @@ void FDMXEditor::OnAddNewEntity(TSubclassOf<UDMXEntity> InEntityClass)
 				FDMXEntityFixturePatchConstructionParams FixturePatchConstructionParams;
 				FixturePatchConstructionParams.FixtureTypeRef = FDMXEntityFixtureTypeRef(FixtureTypesInLibrary[0]);
 
+				const FScopedTransaction CreateFixtureTypeTransaction(LOCTEXT("CreateFixturePatchTransaction", "Create DMX Fixture Patch"));
+				DMXLibrary->PreEditChange(nullptr);
+
 				UDMXEntityFixturePatch* NewFixturePatch = UDMXEntityFixturePatch::CreateFixturePatchInLibrary(FixturePatchConstructionParams);
 				FixturePatchSharedData->SelectFixturePatch(NewFixturePatch);
+
+				DMXLibrary->PostEditChange();
 			}
 			else
 			{

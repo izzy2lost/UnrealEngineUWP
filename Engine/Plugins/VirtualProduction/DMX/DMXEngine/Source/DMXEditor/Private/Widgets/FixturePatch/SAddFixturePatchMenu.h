@@ -37,6 +37,9 @@ namespace UE::DMXEditor::FixturePatchEditor
 		void RequestRefresh();
 
 	private:
+		/** Refreshes the widget */
+		void Refresh();
+
 		/** Creates a widget to select a fixture type */
 		TSharedRef<SWidget> MakeFixtureTypeSelectWidget();
 
@@ -57,9 +60,6 @@ namespace UE::DMXEditor::FixturePatchEditor
 
 		/** Generates an entry in the mode combo box */
 		TSharedRef<SWidget> GenerateModeComboBoxEntry(const TSharedPtr<uint32> InMode) const;
-
-		/** Refreshes the widget */
-		void ForceRefresh();
 
 		/** Called when an entity was added or removed from the DMX Library */
 		void OnEntityAddedOrRemoved(UDMXLibrary* DMXLibrary, TArray<UDMXEntity*> Entities);

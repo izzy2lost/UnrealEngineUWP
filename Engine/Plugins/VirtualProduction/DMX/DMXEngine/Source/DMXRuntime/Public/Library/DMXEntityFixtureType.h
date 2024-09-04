@@ -401,17 +401,17 @@ public:
 	static FDMXOnFixtureTypeChangedDelegate& GetOnFixtureTypeChanged();
 
 	/** The Category of the Fixture, useful for Filtering */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX|Fixture Type", meta = (DisplayName = "DMX Category"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fixture Type", meta = (DisplayName = "DMX Category"))
 	FDMXFixtureCategory DMXCategory;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX|Fixture Type")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fixture Type")
 	TArray<FDMXFixtureMode> Modes;
 
 	/** 
 	 * Modulators applied right before a patch of this type is received. 
 	 * NOTE: Modulators only affect the patch's normalized values! Untouched values are still available when accesing raw values. 
 	 */
-	UPROPERTY(EditAnywhere, Instanced, Category = "DMX|Fixture Type", meta = (DisplayPriority = "50"))
+	UPROPERTY(EditAnywhere, Instanced, Category = "Fixture Type", meta = (DisplayPriority = "50"))
 	TArray<TObjectPtr<UDMXModulator>> InputModulators;
 
 private:
@@ -590,12 +590,12 @@ public:
 	static float BytesToNormalizedValue(EDMXFixtureSignalFormat InSignalFormat, bool bUseLSB, const uint8* InBytes);
 
 	/** The GDTF that initializes this Fixture Type. When changed, reinitializes with data from the GDTF. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX|Fixture Type", meta = (DisplayName = "GDTF Source"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fixture Type", meta = (DisplayName = "GDTF Source"))
 	TSoftObjectPtr<UDMXImportGDTF> GDTFSource;
 
 #if WITH_EDITORONLY_DATA
 	/** If checked, generates a new GDTF instead of exporting the imported GDTF. This adopts changes in editor but in most cases will result in data loss and is not recommended. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "DMX|Fixture Type", meta = (DisplayName = "Generate GDTF (not recommended)"))
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Fixture Type", meta = (DisplayName = "Generate GDTF (not recommended)"))
 	bool bExportGeneratedGDTF = false;
 
 	/** If true only shows latest GDTF mode revisions in editor */

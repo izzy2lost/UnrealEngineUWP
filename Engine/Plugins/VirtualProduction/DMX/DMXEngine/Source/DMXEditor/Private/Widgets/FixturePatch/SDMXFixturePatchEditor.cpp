@@ -7,6 +7,7 @@
 #include "DMXEditorSettings.h"
 #include "DMXFixturePatchSharedData.h"
 #include "DMXSubsystem.h"
+#include "Engine/TimerHandle.h"
 #include "IO/DMXOutputPort.h"
 #include "IO/DMXOutputPortReference.h"
 #include "IO/DMXPortManager.h"
@@ -33,12 +34,12 @@ void SDMXFixturePatchEditor::Construct(const FArguments& InArgs)
 {
 	SDMXEntityEditor::Construct(SDMXEntityEditor::FArguments());
 
-	DMXEditorPtr = InArgs._DMXEditor;
-	if (!DMXEditorPtr.IsValid())
+	WeakDMXEditor = InArgs._DMXEditor;
+	if (!WeakDMXEditor.IsValid())
 	{
 		return;
 	}
-	FixturePatchSharedData = DMXEditorPtr.Pin()->GetFixturePatchSharedData();
+	FixturePatchSharedData = WeakDMXEditor.Pin()->GetFixturePatchSharedData();
 
 	SetCanTick(false);
 
@@ -60,7 +61,7 @@ void SDMXFixturePatchEditor::Construct(const FArguments& InArgs)
 		+ SSplitter::Slot()	
 		.Value(LeftSideWidth)
 		[
-			SAssignNew(FixturePatchList, SDMXFixturePatchList, DMXEditorPtr)
+			SAssignNew(FixturePatchList, SDMXFixturePatchList, WeakDMXEditor)
 		]
 
 		// Right, Fixture Patcher and Details
@@ -75,7 +76,7 @@ void SDMXFixturePatchEditor::Construct(const FArguments& InArgs)
 			.Value(.618f)
 			[
 				SAssignNew(FixturePatcher, SDMXFixturePatcher)
-				.DMXEditor(DMXEditorPtr)
+				.DMXEditor(WeakDMXEditor)
 			]
 	
 			+SSplitter::Slot()
@@ -89,8 +90,12 @@ void SDMXFixturePatchEditor::Construct(const FArguments& InArgs)
 	// Adopt the selection
 	OnFixturePatchesSelected();
 
-	// Bind to selection changes
+	// Listen to selection changes
 	FixturePatchSharedData->OnFixturePatchSelectionChanged.AddSP(this, &SDMXFixturePatchEditor::OnFixturePatchesSelected);
+
+	// Listen to Fixture Patch and Fixture Type changes
+	UDMXEntityFixtureType::GetOnFixtureTypeChanged().AddSP(this, &SDMXFixturePatchEditor::OnFixtureTypeChanged);
+	UDMXEntityFixturePatch::GetOnFixturePatchChanged().AddSP(this, &SDMXFixturePatchEditor::OnFixturePatchChanged);
 }
 
 FReply SDMXFixturePatchEditor::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
@@ -142,6 +147,21 @@ TArray<UDMXEntity*> SDMXFixturePatchEditor::GetSelectedEntities() const
 	return SelectedEntities;
 }
 
+TSharedRef<IDetailsView> SDMXFixturePatchEditor::GenerateFixturePatchDetailsView() const
+{
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+	FDetailsViewArgs DetailsViewArgs;
+	DetailsViewArgs.bAllowSearch = true;
+	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	DetailsViewArgs.bHideSelectionTip = true;
+
+	TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+	DetailsView->RegisterInstancedCustomPropertyLayout(UDMXEntityFixturePatch::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FDMXEntityFixturePatchDetails::MakeInstance, WeakDMXEditor));
+
+	return DetailsView;
+}
+
 void SDMXFixturePatchEditor::SelectUniverse(int32 UniverseID)
 {
 	if (!ensureMsgf(UniverseID >= 0 && UniverseID <= DMX_MAX_UNIVERSE, TEXT("Invalid Universe when trying to select Universe %i."), UniverseID))
@@ -154,31 +174,61 @@ void SDMXFixturePatchEditor::SelectUniverse(int32 UniverseID)
 
 void SDMXFixturePatchEditor::OnFixturePatchesSelected()
 {
-	TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> SelectedFixturePatches = FixturePatchSharedData->GetSelectedFixturePatches();
-	TArray<UObject*> SelectedObjects;
-	for (TWeakObjectPtr<UDMXEntityFixturePatch> WeakSelectedFixturePatch : SelectedFixturePatches)
-	{
-		if (UDMXEntity* SelectedObject = WeakSelectedFixturePatch.Get())
-		{
-			SelectedObjects.Add(SelectedObject);
-		}
-	}
-	FixturePatchDetailsView->SetObjects(SelectedObjects);
+	RequestRefreshFixturePatchDetailsView();
 }
 
-TSharedRef<IDetailsView> SDMXFixturePatchEditor::GenerateFixturePatchDetailsView() const
+void SDMXFixturePatchEditor::OnFixtureTypeChanged(const UDMXEntityFixtureType* ChangedFixtureType)
 {
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	RequestRefreshFixturePatchDetailsView();
+}
 
-	FDetailsViewArgs DetailsViewArgs;
-	DetailsViewArgs.bAllowSearch = true;
-	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
-	DetailsViewArgs.bHideSelectionTip = true;
+void SDMXFixturePatchEditor::OnFixturePatchChanged(const UDMXEntityFixturePatch* ChangedFixturePatch)
+{
+	RequestRefreshFixturePatchDetailsView();
+}
 
-	TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-	DetailsView->RegisterInstancedCustomPropertyLayout(UDMXEntityFixturePatch::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FDMXEntityFixturePatchDetails::MakeInstance, DMXEditorPtr));
+void SDMXFixturePatchEditor::RequestRefreshFixturePatchDetailsView()
+{
+	if (!RefreshFixturePatchDetailsViewTimerHandle.IsValid())
+	{
+		RefreshFixturePatchDetailsViewTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SDMXFixturePatchEditor::RefreshFixturePatchDetailsView));
+	}
+}
 
-	return DetailsView;
+void SDMXFixturePatchEditor::RefreshFixturePatchDetailsView()
+{
+	const TSharedPtr<FDMXEditor> DMXEditor = WeakDMXEditor.Pin();
+	UDMXLibrary* DMXLibrary = DMXEditor.IsValid() ? DMXEditor->GetDMXLibrary() : nullptr;
+	
+	if (DMXLibrary && FixturePatchDetailsView.IsValid())
+	{
+		RefreshFixturePatchDetailsViewTimerHandle.Invalidate();
+
+		const TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> SelectedFixturePatches = FixturePatchSharedData->GetSelectedFixturePatches();
+		
+		// Try to make a valid selection if nothing is selected
+		if (SelectedFixturePatches.IsEmpty())
+		{		
+			const TArray<UDMXEntityFixturePatch*> FixturePatches = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
+			if (!FixturePatches.IsEmpty())
+			{
+				FixturePatchSharedData->SelectFixturePatch(FixturePatches[0]);
+			}
+		}
+
+		TArray<UObject*> SelectedObjects;
+		Algo::TransformIf(SelectedFixturePatches, SelectedObjects,
+			[](const TWeakObjectPtr<UDMXEntityFixturePatch>& WeakFixturePatch)
+			{
+				return WeakFixturePatch.IsValid();
+			},
+			[](const TWeakObjectPtr<UDMXEntityFixturePatch>& WeakFixturePatch)
+			{
+				return WeakFixturePatch.Get();
+			});
+
+		FixturePatchDetailsView->SetObjects(SelectedObjects);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
