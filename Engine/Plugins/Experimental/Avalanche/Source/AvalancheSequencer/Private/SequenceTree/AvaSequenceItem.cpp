@@ -2,13 +2,13 @@
 
 #include "AvaSequenceItem.h"
 #include "AvaSequence.h"
-#include "AvaSequenceActorFactory.h"
 #include "AvaSequencePlaybackObject.h"
 #include "AvaSequencePlayer.h"
 #include "AvaSequencer.h"
 #include "DragDropOps/AvaSequenceItemDragDropOp.h"
 #include "Editor.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "Player/AvaSequenceActorFactory.h"
 #include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "AvaSequenceItem"

@@ -25,10 +25,10 @@ UAvaSequencePlayer::UAvaSequencePlayer(const FObjectInitializer& InObjectInitial
 	}
 }
 
-void UAvaSequencePlayer::InitSequence(UAvaSequence* InSequence, IAvaSequencePlaybackObject* InPlaybackObject, ULevel* InLevel)
+void UAvaSequencePlayer::InitSequence(UAvaSequence* InSequence, IAvaSequencePlaybackObject* InPlaybackObject, ULevel* InLevel, const FLevelSequenceCameraSettings& InCameraSettings)
 {
 	check(InSequence);
-	Super::Initialize(InSequence, InLevel, FLevelSequenceCameraSettings());
+	Super::Initialize(InSequence, InLevel, InCameraSettings);
 	SequenceController = UAvaSequenceSubsystem::CreateSequenceController(*InSequence, InPlaybackObject);
 	PlaybackObjectWeak = InPlaybackObject;
 	PlaybackLevelWeak  = InLevel;

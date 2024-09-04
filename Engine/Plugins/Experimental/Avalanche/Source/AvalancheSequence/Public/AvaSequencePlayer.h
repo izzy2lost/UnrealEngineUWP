@@ -13,6 +13,7 @@ class IAvaSequenceController;
 class IAvaSequencePlaybackObject;
 class UAvaSequence;
 struct FAvaSequencePlayParams;
+struct FLevelSequenceCameraSettings;
 
 UCLASS(Transient, BlueprintType)
 class AVALANCHESEQUENCE_API UAvaSequencePlayer : public ULevelSequencePlayer
@@ -27,7 +28,7 @@ public:
 	static FOnSequenceEvent& OnSequencePaused() { return OnSequencePausedDelegate; }
 	static FOnSequenceEvent& OnSequenceFinished() { return OnSequenceFinishedDelegate; }
 
-	void InitSequence(UAvaSequence* InSequence, IAvaSequencePlaybackObject* InPlaybackObject, ULevel* InLevel);
+	void InitSequence(UAvaSequence* InSequence, IAvaSequencePlaybackObject* InPlaybackObject, ULevel* InLevel, const FLevelSequenceCameraSettings& InCameraSettings);
 
 	UAvaSequence* GetAvaSequence() const;
 

@@ -172,6 +172,7 @@ TSharedPtr<SWidget> SAvaSequenceTree::OnContextMenuOpening() const
 			, LOCTEXT("ApplyPresetTooltip", "Apply a Preset to the Selected Sequences")
 			, FNewToolMenuDelegate::CreateStatic(&UE::AvaSequencer::Private::GeneratePresetMenu));
 
+		Section.AddMenuEntry(SequencerCommands.SpawnSequencePlayer);
 		Section.AddMenuEntry(SequencerCommands.ExportSequence);
 		Section.AddMenuEntry(GenericCommands.Rename);
 		Section.AddMenuEntry(GenericCommands.Duplicate);
@@ -220,9 +221,11 @@ void SAvaSequenceTree::BindCommands(const TSharedRef<FAvaSequencer>& InSequencer
 
 	CommandList->MapAction(AvaSequencerCommands.ExportSequence
 		, FExecuteAction::CreateSP(InSequencer, &FAvaSequencer::ExportSequence_Execute)
-		, FCanExecuteAction::CreateSP(InSequencer, &FAvaSequencer::ExportSequence_CanExecute)
-		, FIsActionChecked()
-		, FIsActionButtonVisible::CreateSP(InSequencer, &FAvaSequencer::ExportSequence_IsVisible));
+		, FCanExecuteAction::CreateSP(InSequencer, &FAvaSequencer::ExportSequence_CanExecute));
+
+	CommandList->MapAction(AvaSequencerCommands.SpawnSequencePlayer
+		, FExecuteAction::CreateSP(InSequencer, &FAvaSequencer::SpawnPlayer_Execute)
+		, FCanExecuteAction::CreateSP(InSequencer, &FAvaSequencer::SpawnPlayer_CanExecute));
 }
 
 TSharedRef<ITableRow> SAvaSequenceTree::OnGenerateRow(FAvaSequenceItemPtr InListItem

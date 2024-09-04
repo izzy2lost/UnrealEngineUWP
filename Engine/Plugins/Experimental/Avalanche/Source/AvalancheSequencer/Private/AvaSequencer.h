@@ -132,9 +132,11 @@ public:
 	bool DuplicateSequence_CanExecute() const;
 	void DuplicateSequence_Execute();
 
-	bool ExportSequence_IsVisible() const;
 	bool ExportSequence_CanExecute() const;
 	void ExportSequence_Execute();
+
+	bool SpawnPlayer_CanExecute() const;
+	void SpawnPlayer_Execute();
 
 	bool DeleteSequence_CanExecute() const;
 	void DeleteSequence_Execute();
@@ -215,6 +217,8 @@ public:
 	// End of FEditorUndoClient
 
 private:
+	TArray<UAvaSequence*, TInlineAllocator<1>> GetSelectedSequences() const;
+
 	TSharedPtr<UE::Sequencer::SOutlinerView> GetOutlinerView() const;
 
 	void InitSequencerCommandList();

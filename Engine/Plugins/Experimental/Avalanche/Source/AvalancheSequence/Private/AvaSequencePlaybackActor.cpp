@@ -460,7 +460,7 @@ UAvaSequencePlayer* AAvaSequencePlaybackActor::GetOrAddSequencePlayer(UAvaSequen
 		{
 			PlayerToGet = NewObject<UAvaSequencePlayer>(this, NAME_None, RF_Transient);
 			ActiveSequencePlayers.Add(PlayerToGet);
-			PlayerToGet->InitSequence(InSequence, this, GetLevel());
+			PlayerToGet->InitSequence(InSequence, this, GetLevel(), FLevelSequenceCameraSettings());
 		}
 
 		return PlayerToGet;

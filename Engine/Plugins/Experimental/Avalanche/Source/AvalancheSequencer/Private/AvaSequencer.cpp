@@ -14,9 +14,9 @@
 #include "CoreGlobals.h"
 #include "DetailsView/SAvaMarkDetails.h"
 #include "DetailsView/Section/AvaSequencePlaybackDetails.h"
-#include "DetailsView/Section/AvaSequencerEaseCurveToolSection.h"
 #include "DetailsView/Section/AvaSequenceSettingsDetails.h"
 #include "DetailsView/Section/AvaSequenceTreeDetails.h"
+#include "DetailsView/Section/AvaSequencerEaseCurveToolSection.h"
 #include "EaseCurveTool/AvaEaseCurveTool.h"
 #include "EaseCurveTool/AvaEaseCurveToolCommands.h"
 #include "Editor/Sequencer/Private/Sequencer.h"
@@ -36,21 +36,22 @@
 #include "MovieScene.h"
 #include "Playback/AvaSequencerCleanView.h"
 #include "Playback/AvaSequencerController.h"
+#include "Player/AvaSequenceActor.h"
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
 #include "Selection/AvaEditorSelection.h"
-#include "SequencerCommands.h"
-#include "SequencerSettings.h"
-#include "SequencerUtilities.h"
 #include "SequenceTree/AvaSequenceItem.h"
 #include "SequenceTree/Columns/AvaSequenceNameColumn.h"
 #include "SequenceTree/Columns/AvaSequenceStatusColumn.h"
 #include "SequenceTree/Columns/IAvaSequenceColumn.h"
 #include "SequenceTree/Widgets/SAvaSequenceTree.h"
+#include "SequencerCommands.h"
+#include "SequencerSettings.h"
+#include "SequencerUtilities.h"
 #include "Settings/AvaSequencerSettings.h"
-#include "Sidebar/SidebarDrawerConfig.h"
 #include "Sidebar/SSidebar.h"
 #include "Sidebar/SSidebarContainer.h"
+#include "Sidebar/SidebarDrawerConfig.h"
 #include "ToolMenu.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
@@ -896,11 +897,6 @@ void FAvaSequencer::DuplicateSequence_Execute()
 	}
 }
 
-bool FAvaSequencer::ExportSequence_IsVisible() const
-{
-	return Provider.CanExportSequences();
-}
-
 bool FAvaSequencer::ExportSequence_CanExecute() const
 {
 	return SequenceTreeView.IsValid()
@@ -909,34 +905,43 @@ bool FAvaSequencer::ExportSequence_CanExecute() const
 
 void FAvaSequencer::ExportSequence_Execute()
 {
-	if (!Provider.CanExportSequences() || !SequenceTreeView.IsValid())
+	Provider.ExportSequences(GetSelectedSequences());
+}
+
+bool FAvaSequencer::SpawnPlayer_CanExecute() const
+{
+	return SequenceTreeView.IsValid()
+		&& !SequenceTreeView->GetSelectedItems().IsEmpty();
+}
+
+void FAvaSequencer::SpawnPlayer_Execute()
+{
+	if (!GEditor)
 	{
 		return;
 	}
 
-	const TArray<FAvaSequenceItemPtr> SelectedItems = SequenceTreeView->GetSelectedItems();
-	if (SelectedItems.IsEmpty())
+	UWorld* World = Provider.GetPlaybackContext()->GetWorld();
+	if (!World)
 	{
 		return;
 	}
 
-	TArray<UAvaSequence*> SequencesToExport;
-	SequencesToExport.Reserve(SelectedItems.Num());
-
-	for (const FAvaSequenceItemPtr& Item : SelectedItems)
+	UActorFactory* ActorFactory = GEditor->FindActorFactoryForActorClass(AAvaSequenceActor::StaticClass());
+	if (!ensure(ActorFactory))
 	{
-		if (!Item.IsValid())
-		{
-			continue;
-		}
-
-		if (UAvaSequence* Sequence = Item->GetSequence())
-		{
-			SequencesToExport.Add(Sequence);
-		}
+		return;
 	}
 
-	Provider.ExportSequences(SequencesToExport);
+	TArray<UAvaSequence*, TInlineAllocator<1>> Sequences = GetSelectedSequences();
+
+	FScopedTransaction Transaction(LOCTEXT("SpawnSequencePlayers", "Spawn Sequence Players"));
+
+	for (UAvaSequence* Sequence : Sequences)
+	{
+		check(Sequence);
+		GEditor->UseActorFactory(ActorFactory, FAssetData(Sequence), &FTransform::Identity);
+	}
 }
 
 bool FAvaSequencer::DeleteSequence_CanExecute() const
@@ -1680,6 +1685,38 @@ void FAvaSequencer::PostUndo(bool bSuccess)
 {
 	// A just-added sequence might be removed due to this undo, so refresh 
 	NotifyOnSequenceTreeChanged();
+}
+
+TArray<UAvaSequence*, TInlineAllocator<1>> FAvaSequencer::GetSelectedSequences() const
+{
+	if (!SequenceTreeView.IsValid())
+	{
+		return {};
+	}
+
+	const TArray<FAvaSequenceItemPtr> SelectedItems = SequenceTreeView->GetSelectedItems();
+	if (SelectedItems.IsEmpty())
+	{
+		return {};
+	}
+
+	TArray<UAvaSequence*, TInlineAllocator<1>> SelectedSequences;
+	SelectedSequences.Reserve(SelectedItems.Num());
+
+	for (const FAvaSequenceItemPtr& Item : SelectedItems)
+	{
+		if (!Item.IsValid())
+		{
+			continue;
+		}
+
+		if (UAvaSequence* Sequence = Item->GetSequence())
+		{
+			SelectedSequences.Add(Sequence);
+		}
+	}
+
+	return SelectedSequences;
 }
 
 TSharedPtr<UE::Sequencer::SOutlinerView> FAvaSequencer::GetOutlinerView() const

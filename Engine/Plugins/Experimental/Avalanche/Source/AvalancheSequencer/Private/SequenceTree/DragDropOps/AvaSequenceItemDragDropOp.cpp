@@ -2,7 +2,7 @@
 
 #include "AvaSequenceItemDragDropOp.h"
 #include "AvaSequence.h"
-#include "AvaSequenceActorFactory.h"
+#include "Player/AvaSequenceActorFactory.h"
 #include "SequenceTree/IAvaSequenceItem.h"
 
 TSharedRef<FAvaSequenceItemDragDropOp> FAvaSequenceItemDragDropOp::New(const FAvaSequenceItemPtr& InSequenceItem, UActorFactory* InActorFactory)

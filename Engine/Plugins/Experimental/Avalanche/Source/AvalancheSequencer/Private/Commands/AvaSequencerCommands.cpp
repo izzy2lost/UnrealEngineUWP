@@ -48,6 +48,12 @@ void FAvaSequencerCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord());
 
+	UI_COMMAND(SpawnSequencePlayer
+		, "Spawn Sequence Player"
+		, "Spawns a Sequence Player for the selected Sequence"
+		, EUserInterfaceActionType::Button
+		, FInputChord());
+
 	UI_COMMAND(StaggerLayerBars
 		, "Stagger Layer Bars"
 		, "Staggers the selected layer bars"

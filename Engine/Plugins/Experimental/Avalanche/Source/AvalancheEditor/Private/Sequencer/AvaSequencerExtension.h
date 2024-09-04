@@ -53,8 +53,7 @@ public:
 	virtual TSharedPtr<IToolkitHost> GetSequencerToolkitHost() const override;
 	virtual UObject* GetPlaybackContext() const override;
 	virtual bool CanEditOrPlaySequences() const override;
-	virtual bool CanExportSequences() const override { return true; }
-	virtual void ExportSequences(TConstArrayView<UAvaSequence*> InSequencesToExport);
+	virtual void ExportSequences(TConstArrayView<UAvaSequence*> InSequencesToExport) override;
 	//~ End IAvaSequencerProvider
 
 protected:
