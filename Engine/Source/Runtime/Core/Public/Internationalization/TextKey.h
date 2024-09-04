@@ -87,10 +87,8 @@ public:
 	{
 	}
 
-	/**
-	 * Get the underlying chars buffer this text key represents.
-	 * @note This function is due to be deprecated. Prefer ToString/AppendString for new code.
-	 */
+	/** Get the underlying chars buffer this text key represents */
+	UE_DEPRECATED(5.5, "GetChars is deprecated as FTextKey may now store its internal data as UTF-8. Use ToString/AppendString instead.")
 	CORE_API const TCHAR* GetChars() const;
 
 	/** Convert this text key back to its string representation */
