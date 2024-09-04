@@ -20,8 +20,13 @@ class UNavModifierComponent : public UNavRelevantComponent
 {
 	GENERATED_UCLASS_BODY()
 
+	/** NavArea to apply inside the defined volume. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Navigation)
 	TSubclassOf<UNavArea> AreaClass;
+
+	/** When setting this value, the modifier behavior changes : it will now replace any surface marked by AreaClassToReplace in the volume and replace it with AreaClass. */ 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Navigation)
+	TSubclassOf<UNavArea> AreaClassToReplace;
 
 	/** box extent used ONLY when owning actor doesn't have collision component */
 	UPROPERTY(EditAnywhere, Category = Navigation)
@@ -45,6 +50,8 @@ class UNavModifierComponent : public UNavRelevantComponent
 
 	UFUNCTION(BlueprintCallable, Category = "AI|Navigation")
 	NAVIGATIONSYSTEM_API void SetAreaClass(TSubclassOf<UNavArea> NewAreaClass);
+	UFUNCTION(BlueprintCallable, Category = "AI|Navigation")
+	NAVIGATIONSYSTEM_API void SetAreaClassToReplace(TSubclassOf<UNavArea> NewAreaClassToReplace);
 
 protected:
 	NAVIGATIONSYSTEM_API void OnTransformUpdated(USceneComponent* RootComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
