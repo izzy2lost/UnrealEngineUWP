@@ -41,20 +41,20 @@ extern "C" {
  * @return false if Swappy failed to initialize.
  * @see SwappyGL_destroy
  */
-SWAPPY_EXPORT bool SwappyGL_init(JNIEnv *env, jobject jactivity);
+bool SwappyGL_init(JNIEnv *env, jobject jactivity);
 
 /**
  * @brief Check if Swappy was successfully initialized.
  * @return false if either the `swappy.disable` system property is not `false`
  * or the required OpenGL extensions are not available for Swappy to work.
  */
-SWAPPY_EXPORT bool SwappyGL_isEnabled();
+bool SwappyGL_isEnabled();
 
 /**
  * @brief Destroy resources and stop all threads that Swappy has created.
  * @see SwappyGL_init
  */
-SWAPPY_EXPORT void SwappyGL_destroy();
+void SwappyGL_destroy();
 
 /**
  * @brief Tell Swappy which ANativeWindow to use when calling to ANativeWindow_*
@@ -62,7 +62,7 @@ SWAPPY_EXPORT void SwappyGL_destroy();
  * @param window ANativeWindow that was used to create the EGLSurface.
  * @return true on success, false if Swappy was not initialized.
  */
-SWAPPY_EXPORT bool SwappyGL_setWindow(ANativeWindow *window);
+bool SwappyGL_setWindow(ANativeWindow *window);
 
 /**
  * @brief Replace calls to eglSwapBuffers with this. Swappy will wait for the
@@ -72,11 +72,11 @@ SWAPPY_EXPORT bool SwappyGL_setWindow(ANativeWindow *window);
  * 1) Swappy is not initialized or 2) eglSwapBuffers did not return EGL_TRUE.
  * In the latter case, eglGetError can be used to get the error code.
  */
-SWAPPY_EXPORT bool SwappyGL_swap(EGLDisplay display, EGLSurface surface);
+bool SwappyGL_swap(EGLDisplay display, EGLSurface surface);
 
 // Paramter setters:
 
-SWAPPY_EXPORT void SwappyGL_setUseAffinity(bool tf);
+void SwappyGL_setUseAffinity(bool tf);
 
 /**
  * @brief Override the swap interval
@@ -98,38 +98,38 @@ SWAPPY_EXPORT void SwappyGL_setUseAffinity(bool tf);
  *
  * @param swap_ns The new swap interval value, in nanoseconds.
  */
-SWAPPY_EXPORT void SwappyGL_setSwapIntervalNS(uint64_t swap_ns);
+void SwappyGL_setSwapIntervalNS(uint64_t swap_ns);
 
 /**
  * @brief Set the fence timeout parameter, for devices with faulty
  * drivers. Its default value is 50,000,000ns (50ms).
  */
-SWAPPY_EXPORT void SwappyGL_setFenceTimeoutNS(uint64_t fence_timeout_ns);
+void SwappyGL_setFenceTimeoutNS(uint64_t fence_timeout_ns);
 
 // Parameter getters:
 
 /**
  * @brief Get the refresh period value, in nanoseconds.
  */
-SWAPPY_EXPORT uint64_t SwappyGL_getRefreshPeriodNanos();
+uint64_t SwappyGL_getRefreshPeriodNanos();
 
 /**
  * @brief Get the swap interval value, in nanoseconds.
  */
-SWAPPY_EXPORT uint64_t SwappyGL_getSwapIntervalNS();
+uint64_t SwappyGL_getSwapIntervalNS();
 
-SWAPPY_EXPORT bool SwappyGL_getUseAffinity();
+bool SwappyGL_getUseAffinity();
 
 /**
  * @brief Get the fence timeout value, in nanoseconds.
  */
-SWAPPY_EXPORT uint64_t SwappyGL_getFenceTimeoutNS();
+uint64_t SwappyGL_getFenceTimeoutNS();
 
 /**
  * @brief Set the number of bad frames to wait before applying a fix for buffer
  * stuffing. Set to zero in order to turn off this feature. Default value = 0.
  */
-SWAPPY_EXPORT void SwappyGL_setBufferStuffingFixWait(int32_t n_frames);
+void SwappyGL_setBufferStuffingFixWait(int32_t n_frames);
 
 /**
  * @brief Get the supported refresh periods of this device. Call once with
@@ -138,7 +138,7 @@ SWAPPY_EXPORT void SwappyGL_setBufferStuffingFixWait(int32_t n_frames);
  * an array of size equal to allocated_entries that will be filled with the
  * refresh periods.
  */
-SWAPPY_EXPORT int SwappyGL_getSupportedRefreshPeriodsNS(uint64_t *out_refreshrates,
+int SwappyGL_getSupportedRefreshPeriodsNS(uint64_t *out_refreshrates,
                                           int allocated_entries);
 
 #ifdef __cplusplus

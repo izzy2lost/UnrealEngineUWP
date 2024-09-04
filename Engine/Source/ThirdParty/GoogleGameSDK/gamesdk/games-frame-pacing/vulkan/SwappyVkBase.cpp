@@ -19,6 +19,7 @@
 #include "system_utils.h"
 
 #define LOG_TAG "SwappyVkBase"
+#include "SwappyLog.h"
 
 
 // Workaround Mali issue with VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT 
@@ -119,7 +120,7 @@ SwappyVkBase::SwappyVkBase(JNIEnv* env, jobject jactivity,
       mInitialized(false),
       mEnabled(false) {
     if (!mCommonBase.isValid()) {
-        ALOGE("SwappyCommon could not initialize correctly.");
+        SWAPPY_LOGE("SwappyCommon could not initialize correctly.");
         return;
     }
 
@@ -176,7 +177,7 @@ VkResult SwappyVkBase::initializeVkSyncObjects(VkQueue queue,
         mDevice, &cmd_pool_info, &AllocatorWorkaround::AllocationCallbacks,
                                        &mCommandPool[queue]);
     if (res) {
-        ALOGE("vkCreateCommandPool failed %d", res);
+        SWAPPY_LOGE("vkCreateCommandPool failed %d", res);
         return res;
     }
     const VkCommandBufferAllocateInfo present_cmd_info = {
@@ -194,7 +195,7 @@ VkResult SwappyVkBase::initializeVkSyncObjects(VkQueue queue,
             .flags = VK_FENCE_CREATE_SIGNALED_BIT};
         res = vkCreateFence(mDevice, &fence_ci, NULL, &sync.fence);
         if (res) {
-            ALOGE("failed to create fence: %d", res);
+            SWAPPY_LOGE("failed to create fence: %d", res);
             return res;
         }
 
@@ -204,14 +205,14 @@ VkResult SwappyVkBase::initializeVkSyncObjects(VkQueue queue,
             .flags = 0};
         res = vkCreateSemaphore(mDevice, &semaphore_ci, NULL, &sync.semaphore);
         if (res) {
-            ALOGE("failed to create semaphore: %d", res);
+            SWAPPY_LOGE("failed to create semaphore: %d", res);
             return res;
         }
 
         res =
             vkAllocateCommandBuffers(mDevice, &present_cmd_info, &sync.command);
         if (res) {
-            ALOGE("vkAllocateCommandBuffers failed %d", res);
+            SWAPPY_LOGE("vkAllocateCommandBuffers failed %d", res);
             return res;
         }
 
@@ -223,7 +224,7 @@ VkResult SwappyVkBase::initializeVkSyncObjects(VkQueue queue,
         };
         res = vkBeginCommandBuffer(sync.command, &cmd_buf_info);
         if (res) {
-            ALOGE("vkAllocateCommandBuffers failed %d", res);
+            SWAPPY_LOGE("vkAllocateCommandBuffers failed %d", res);
             return res;
         }
 
@@ -234,7 +235,7 @@ VkResult SwappyVkBase::initializeVkSyncObjects(VkQueue queue,
         };
         res = vkCreateEvent(mDevice, &event_info, NULL, &sync.event);
         if (res) {
-            ALOGE("vkCreateEvent failed %d", res);
+            SWAPPY_LOGE("vkCreateEvent failed %d", res);
             return res;
         }
 
@@ -243,7 +244,7 @@ VkResult SwappyVkBase::initializeVkSyncObjects(VkQueue queue,
 
         res = vkEndCommandBuffer(sync.command);
         if (res) {
-            ALOGE("vkCreateEvent failed %d", res);
+            SWAPPY_LOGE("vkCreateEvent failed %d", res);
             return res;
         }
 
@@ -422,7 +423,7 @@ void SwappyVkBase::waitForFenceThreadMain(ThreadContext& thread) {
                 vkWaitForFences(mDevice, 1, &sync.fence, VK_TRUE,
                                 mCommonBase.getFenceTimeout().count());
             if (result) {
-                ALOGW_ONCE("Failed to wait for fence %d", result);
+                SWAPPY_LOGW_ONCE("Failed to wait for fence %d", result);
             }
             mLastFenceTime = std::chrono::steady_clock::now() - startTime;
 
@@ -455,17 +456,27 @@ std::chrono::nanoseconds SwappyVkBase::getSwapInterval() {
 }
 
 void SwappyVkBase::addTracer(const SwappyTracer* tracer) {
-    if (tracer != nullptr) mCommonBase.addTracerCallbacks(*tracer);
+    mCommonBase.addTracerCallbacks(*tracer);
 }
 
 void SwappyVkBase::removeTracer(const SwappyTracer* tracer) {
-    if (tracer != nullptr) mCommonBase.removeTracerCallbacks(*tracer);
+    mCommonBase.removeTracerCallbacks(*tracer);
 }
 
 int SwappyVkBase::getSupportedRefreshPeriodsNS(uint64_t* out_refreshrates,
                                                int allocated_entries) {
     return mCommonBase.getSupportedRefreshPeriodsNS(out_refreshrates,
                                                     allocated_entries);
+}
+
+void SwappyVkBase::resetFramePacing() { mCommonBase.resetFramePacing(); }
+
+void SwappyVkBase::enableFramePacing(bool enable) {
+    mCommonBase.enableFramePacing(enable);
+}
+
+void SwappyVkBase::enableBlockingWait(bool enable) {
+    mCommonBase.enableBlockingWait(enable);
 }
 
 }  // namespace swappy

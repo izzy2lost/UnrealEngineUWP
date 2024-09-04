@@ -25,7 +25,9 @@
 #include "jni.h"
 #include "swappy_common.h"
 
+#ifndef VK_NO_PROTOTYPES
 #define VK_NO_PROTOTYPES 1
+#endif
 #include <vulkan/vulkan.h>
 
 #ifdef __cplusplus
@@ -68,7 +70,7 @@ extern "C" {
  *                    char* strings (i.e. the same as
  *                    VkDeviceCreateInfo::ppEnabledExtensionNames).
  */
-SWAPPY_EXPORT void SwappyVk_determineDeviceExtensions(
+void SwappyVk_determineDeviceExtensions(
     VkPhysicalDevice physicalDevice, uint32_t availableExtensionCount,
     VkExtensionProperties* pAvailableExtensions,
     uint32_t* pRequiredExtensionCount, char** pRequiredExtensions);
@@ -85,7 +87,7 @@ SWAPPY_EXPORT void SwappyVk_determineDeviceExtensions(
  * VkQueue.
  *
  */
-SWAPPY_EXPORT void SwappyVk_setQueueFamilyIndex(VkDevice device, VkQueue queue,
+void SwappyVk_setQueueFamilyIndex(VkDevice device, VkQueue queue,
                                   uint32_t queueFamilyIndex);
 
 // TBD: For now, SwappyVk assumes only one VkSwapchainKHR per VkDevice, and that
@@ -96,7 +98,7 @@ SWAPPY_EXPORT void SwappyVk_setQueueFamilyIndex(VkDevice device, VkQueue queue,
  * See SwappyVk_initAndGetRefreshCycleDuration instead.
  * @private
  */
-SWAPPY_EXPORT bool SwappyVk_initAndGetRefreshCycleDuration_internal(
+bool SwappyVk_initAndGetRefreshCycleDuration_internal(
     JNIEnv* env, jobject jactivity, VkPhysicalDevice physicalDevice,
     VkDevice device, VkSwapchainKHR swapchain, uint64_t* pRefreshDuration);
 
@@ -131,7 +133,7 @@ SWAPPY_EXPORT bool SwappyVk_initAndGetRefreshCycleDuration_internal(
  * @return bool            - true if the value returned by pRefreshDuration is
  * valid, otherwise false if an error.
  */
-SWAPPY_EXPORT bool SwappyVk_initAndGetRefreshCycleDuration(JNIEnv* env, jobject jactivity,
+bool SwappyVk_initAndGetRefreshCycleDuration(JNIEnv* env, jobject jactivity,
                                              VkPhysicalDevice physicalDevice,
                                              VkDevice device,
                                              VkSwapchainKHR swapchain,
@@ -146,7 +148,7 @@ SWAPPY_EXPORT bool SwappyVk_initAndGetRefreshCycleDuration(JNIEnv* env, jobject 
  * @param[in]  window    - The ANativeWindow that was used to create the
  * VkSwapchainKHR
  */
-SWAPPY_EXPORT void SwappyVk_setWindow(VkDevice device, VkSwapchainKHR swapchain,
+void SwappyVk_setWindow(VkDevice device, VkSwapchainKHR swapchain,
                         ANativeWindow* window);
 
 /**
@@ -162,7 +164,7 @@ SWAPPY_EXPORT void SwappyVk_setWindow(VkDevice device, VkSwapchainKHR swapchain,
  * @param[in]  swap_ns   - The duration of that each presented image should be
  *                    visible in nanoseconds
  */
-SWAPPY_EXPORT void SwappyVk_setSwapIntervalNS(VkDevice device, VkSwapchainKHR swapchain,
+void SwappyVk_setSwapIntervalNS(VkDevice device, VkSwapchainKHR swapchain,
                                 uint64_t swap_ns);
 
 /**
@@ -183,7 +185,7 @@ SWAPPY_EXPORT void SwappyVk_setSwapIntervalNS(VkDevice device, VkSwapchainKHR sw
  *                    information about what image(s) to present on which
  *                    swapchain(s).
  */
-SWAPPY_EXPORT VkResult SwappyVk_queuePresent(VkQueue queue,
+VkResult SwappyVk_queuePresent(VkQueue queue,
                                const VkPresentInfoKHR* pPresentInfo);
 
 /**
@@ -196,7 +198,7 @@ SWAPPY_EXPORT VkResult SwappyVk_queuePresent(VkQueue queue,
  * @param[in]  swapchain - The VkSwapchainKHR the application wants Swappy to
  * destroy
  */
-SWAPPY_EXPORT void SwappyVk_destroySwapchain(VkDevice device, VkSwapchainKHR swapchain);
+void SwappyVk_destroySwapchain(VkDevice device, VkSwapchainKHR swapchain);
 
 /**
  * @brief Destroy any swapchains associated with the device and clean up the
@@ -207,7 +209,7 @@ SWAPPY_EXPORT void SwappyVk_destroySwapchain(VkDevice device, VkSwapchainKHR swa
  *
  * @param[in]  device     - The VkDevice associated with SwappyVk
  */
-SWAPPY_EXPORT void SwappyVk_destroyDevice(VkDevice device);
+void SwappyVk_destroyDevice(VkDevice device);
 
 /**
  * @brief Enables Auto-Swap-Interval feature for all instances.
@@ -217,7 +219,7 @@ SWAPPY_EXPORT void SwappyVk_destroyDevice(VkDevice device);
  *
  * @param[in]  enabled - True means enable, false means disable
  */
-SWAPPY_EXPORT void SwappyVk_setAutoSwapInterval(bool enabled);
+void SwappyVk_setAutoSwapInterval(bool enabled);
 
 /**
  * @brief Enables Auto-Pipeline-Mode feature for all instances.
@@ -227,7 +229,7 @@ SWAPPY_EXPORT void SwappyVk_setAutoSwapInterval(bool enabled);
  *
  * @param[in]  enabled - True means enable, false means disable
  */
-SWAPPY_EXPORT void SwappyVk_setAutoPipelineMode(bool enabled);
+void SwappyVk_setAutoPipelineMode(bool enabled);
 
 /**
  * @brief Sets the maximal swap duration for all instances.
@@ -239,26 +241,38 @@ SWAPPY_EXPORT void SwappyVk_setAutoPipelineMode(bool enabled);
  *
  * @param[in]  max_swap_ns - maximal swap duration in milliseconds.
  */
-SWAPPY_EXPORT void SwappyVk_setMaxAutoSwapIntervalNS(uint64_t max_swap_ns);
+void SwappyVk_setMaxAutoSwapIntervalNS(uint64_t max_swap_ns);
 
 /**
  * @brief The fence timeout parameter can be set for devices with faulty
  * drivers. Its default value is 50,000,000.
  */
-SWAPPY_EXPORT void SwappyVk_setFenceTimeoutNS(uint64_t fence_timeout_ns);
+void SwappyVk_setFenceTimeoutNS(uint64_t fence_timeout_ns);
 
 /**
  * @brief Get the fence timeout parameter, for devices with faulty
  * drivers. Its default value is 50,000,000.
  */
-SWAPPY_EXPORT uint64_t SwappyVk_getFenceTimeoutNS();
+uint64_t SwappyVk_getFenceTimeoutNS();
 
 /**
  * @brief Inject callback functions to be called each frame.
  *
  * @param[in]  tracer - Collection of callback functions
  */
-SWAPPY_EXPORT void SwappyVk_injectTracer(const SwappyTracer* tracer);
+void SwappyVk_injectTracer(const SwappyTracer* tracer);
+
+/**
+ * @brief Remove callbacks that were previously added using
+ * SwappyVk_injectTracer.
+ *
+ * Only removes callbacks that were previously added using
+ * SwappyVK_injectTracer. If SwappyVK_injectTracker was not called with the
+ * tracer, then there is no effect.
+ *
+ * @param[in]  tracer - Collection of callback functions
+ */
+void SwappyVk_uninjectTracer(const SwappyTracer* tracer);
 
 /**
  * @brief A structure enabling you to provide your own Vulkan function wrappers
@@ -306,7 +320,7 @@ typedef struct SwappyVkFunctionProvider {
  *
  * @param[in] provider - provider object
  */
-SWAPPY_EXPORT void SwappyVk_setFunctionProvider(
+void SwappyVk_setFunctionProvider(
     const SwappyVkFunctionProvider* pSwappyVkFunctionProvider);
 
 /**
@@ -314,7 +328,7 @@ SWAPPY_EXPORT void SwappyVk_setFunctionProvider(
  *
  * @param[in] swapchain - the swapchain to query
  */
-SWAPPY_EXPORT uint64_t SwappyVk_getSwapIntervalNS(VkSwapchainKHR swapchain);
+uint64_t SwappyVk_getSwapIntervalNS(VkSwapchainKHR swapchain);
 
 /**
  * @brief Get the supported refresh periods of this device. Call once with
@@ -323,7 +337,7 @@ SWAPPY_EXPORT uint64_t SwappyVk_getSwapIntervalNS(VkSwapchainKHR swapchain);
  * an array of size equal to allocated_entries that will be filled with the
  * refresh periods.
  */
-SWAPPY_EXPORT int SwappyVk_getSupportedRefreshPeriodsNS(uint64_t* out_refreshrates,
+int SwappyVk_getSupportedRefreshPeriodsNS(uint64_t* out_refreshrates,
                                           int allocated_entries,
                                           VkSwapchainKHR swapchain);
 /**
@@ -332,7 +346,7 @@ SWAPPY_EXPORT int SwappyVk_getSupportedRefreshPeriodsNS(uint64_t* out_refreshrat
  * @return false if SwappyVk_initAndGetRefreshCycleDuration was not
  * called for the specified swapchain, true otherwise.
  */
-SWAPPY_EXPORT bool SwappyVk_isEnabled(VkSwapchainKHR swapchain, bool* isEnabled);
+bool SwappyVk_isEnabled(VkSwapchainKHR swapchain, bool* isEnabled);
 
 /**
  * @brief Toggle statistics collection on/off
@@ -344,11 +358,16 @@ SWAPPY_EXPORT bool SwappyVk_isEnabled(VkSwapchainKHR swapchain, bool* isEnabled)
  * related work. Stats will be logged to logcat with a 'FrameStatistics' tag. An
  * app can get the stats by calling ::SwappyVk_getStats.
  *
+ * SwappyVk_initAndGetRefreshCycleDuration must have been called successfully
+ * before for this swapchain, otherwise there is no effect in this call. Frame
+ * stats are only available if the platform supports VK_GOOGLE_display_timing
+ * extension.
+ *
  * @param[in]  swapchain - The swapchain for which frame stat collection is
  *                           configured.
  * @param      enabled   - Whether to enable/disable frame stat collection.
  */
-SWAPPY_EXPORT void SwappyVk_enableStats(VkSwapchainKHR swapchain, bool enabled);
+void SwappyVk_enableStats(VkSwapchainKHR swapchain, bool enabled);
 
 /**
  * @brief Should be called if stats have been enabled with SwappyVk_enableStats.
@@ -356,7 +375,8 @@ SWAPPY_EXPORT void SwappyVk_enableStats(VkSwapchainKHR swapchain, bool enabled);
  * When stats collection is enabled with SwappyVk_enableStats, the app is
  * expected to call this function for each frame before starting to do any CPU
  * related work. It is assumed that this function will be called after a
- * successful call to vkAcquireNextImageKHR.
+ * successful call to vkAcquireNextImageKHR. See ::SwappyVk_enableStats for more
+ * conditions.
  *
  * @param[in]  queue     - The VkQueue associated with the device and swapchain
  * @param[in]  swapchain - The swapchain where the frame is presented to.
@@ -364,17 +384,84 @@ SWAPPY_EXPORT void SwappyVk_enableStats(VkSwapchainKHR swapchain, bool enabled);
 
  * @see SwappyVk_enableStats.
  */
-SWAPPY_EXPORT void SwappyVk_recordFrameStart(VkQueue queue, VkSwapchainKHR swapchain, uint32_t image);
+void SwappyVk_recordFrameStart(VkQueue queue, VkSwapchainKHR swapchain, uint32_t image);
 
 /**
  * @brief Returns the stats collected, if statistics collection was toggled on.
  *
+ * Given that this API uses VkSwapchainKHR and the potential for this call to be
+ * done on different threads, all calls to ::SwappyVk_getStats
+ * must be externally synchronized with other SwappyVk calls. Unsynchronized
+ * calls may lead to undefined behavior. See ::SwappyVk_enableStats for more
+ * conditions.
+ *
  * @param[in]  swapchain   - The swapchain for which stats are being queried.
  * @param      swappyStats - Pointer to a SwappyStats that will be populated with
- *                             the collected stats.
+ *                             the collected stats. Cannot be NULL.
  * @see SwappyStats
  */
-SWAPPY_EXPORT void SwappyVk_getStats(VkSwapchainKHR swapchain, SwappyStats *swappyStats);
+void SwappyVk_getStats(VkSwapchainKHR swapchain, SwappyStats *swappyStats);
+
+/**
+ * @brief Clears the frame statistics collected so far.
+ *
+ * All the frame statistics collected are reset to 0, frame statistics are
+ * collected normally after this call. See ::SwappyVk_enableStats for more
+ * conditions.
+ *
+ * @param[in]  swapchain   - The swapchain for which stats are being cleared.
+ */
+void SwappyVk_clearStats(VkSwapchainKHR swapchain);
+
+/**
+ * @brief Reset the swappy pacing mechanism
+ *
+ * In cases where the frame timing history is irrelevant (for example during
+ * scene/level transitions or after loading screens), calling this would
+ * remove all the history for frame pacing. Calling this entry point
+ * would reset the frame rate to the initial state at the end of the current frame.
+ * Then swappy would just pace as normal with fresh state from next frame. There
+ * are no error conditions associated with this call.
+ *
+ * @param[in]  swapchain   - The swapchain for which frame pacing is reset.
+ */
+void SwappyVk_resetFramePacing(VkSwapchainKHR swapchain);
+
+/**
+ * @brief Enable/Disable the swappy pacing mechanism
+ *
+ * By default frame pacing is enabled when swappy is used, however it can be
+ * disabled at runtime by calling `SwappyVk_enableFramePacing(swapchain, false)`. When the
+ * frame pacing is disabled, ::SwappyVk_enableBlockingWait will control whether
+ * ::SwappyVk_queuePresent will return immediately, or will block until the previous
+ * frame's GPU work is completed. All enabling/disabling effects take place from
+ * next frame. Once disabled,
+ * `SwappyVk_enableFramePacing(swapchain, true)` will enable frame pacing again with a
+ * fresh frame time state - equivalent of calling ::SwappyVk_resetFramePacing().
+ *
+ * @param[in]  swapchain   - The swapchain for which stats are being queried.
+ * @param      enable      - If true, enables frame pacing otherwise disables it
+ */
+void SwappyVk_enableFramePacing(VkSwapchainKHR swapchain, bool enable);
+
+/**
+ * @brief Enable/Disable blocking wait when frame-pacing is disabled
+ *
+ * By default ::SwappyVk_queuePresent will do a blocking wait until previous frame's GPU
+ * work is completed. However when frame pacing is disabled, calling
+ * `SwappyVk_enableBlockingWait(swapchain, false)` will ensure that ::SwappyVk_queuePresent returns
+ * without waiting for previous frame's GPU work. This behaviour impacts the
+ * GPU time returned in the ::SwappyPostWaitCallback callback. If the last
+ * frame's GPU work is done by the time ::SwappyVk_queuePresent for this frame is
+ * called, then the previous frame's GPU time will be returned otherwise `-1`
+ * will be delivered in the callback for the frame. This setting has no impact
+ * when frame pacing is enabled.
+ *
+ * @param[in]  swapchain   - The swapchain for which stats are being queried.
+ * @param      enable      - If true, ::SwappyVk_queuePresent will block until the previous frame's
+ *                           GPU work is complete.
+ */
+void SwappyVk_enableBlockingWait(VkSwapchainKHR swapchain, bool enable);
 
 #ifdef __cplusplus
 }  // extern "C"

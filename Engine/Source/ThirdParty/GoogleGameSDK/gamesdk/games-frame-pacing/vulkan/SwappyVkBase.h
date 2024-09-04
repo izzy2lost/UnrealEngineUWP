@@ -57,7 +57,6 @@
 #include <mutex>
 
 #include "ChoreographerShim.h"
-#include "Log.h"
 #include "Settings.h"
 #include "SwappyCommon.h"
 #include "Trace.h"
@@ -149,6 +148,10 @@ class SwappyVkBase {
     virtual void getStats(SwappyStats* swappyStats) = 0;
     virtual void recordFrameStart(VkQueue queue, uint32_t image) = 0;
     virtual void clearStats() = 0;
+
+    void resetFramePacing();
+    void enableFramePacing(bool enable);
+    void enableBlockingWait(bool enable);
 
    protected:
     struct VkSync {

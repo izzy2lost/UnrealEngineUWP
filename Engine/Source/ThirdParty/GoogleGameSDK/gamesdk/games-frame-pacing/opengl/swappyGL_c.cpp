@@ -101,6 +101,8 @@ void SwappyGL_recordFrameStart(EGLDisplay display, EGLSurface surface) {
 
 void SwappyGL_getStats(SwappyStats *stats) { SwappyGL::getStats(stats); }
 
+void SwappyGL_clearStats() { SwappyGL::clearStats(); }
+
 bool SwappyGL_isEnabled() { return SwappyGL::isEnabled(); }
 
 void SwappyGL_setFenceTimeoutNS(uint64_t t) {
@@ -123,6 +125,16 @@ int SwappyGL_getSupportedRefreshPeriodsNS(uint64_t *out_refreshrates,
                                           int allocated_entries) {
     return SwappyGL::getSupportedRefreshPeriodsNS(out_refreshrates,
                                                   allocated_entries);
+}
+
+void SwappyGL_resetFramePacing() { SwappyGL::resetFramePacing(); }
+
+void SwappyGL_enableFramePacing(bool enable) {
+    SwappyGL::enableFramePacing(enable);
+}
+
+void SwappyGL_enableBlockingWait(bool enable) {
+    SwappyGL::enableBlockingWait(enable);
 }
 
 }  // extern "C" {

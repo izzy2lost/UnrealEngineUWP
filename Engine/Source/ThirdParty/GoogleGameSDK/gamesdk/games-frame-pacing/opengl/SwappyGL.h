@@ -80,6 +80,11 @@ class SwappyGL {
     static int getSupportedRefreshPeriodsNS(uint64_t *out_refreshrates,
                                             int allocated_entries);
 
+    static void resetFramePacing();
+
+    static void enableFramePacing(bool enable);
+    static void enableBlockingWait(bool enable);
+
    private:
     static SwappyGL *getInstance();
 
@@ -90,10 +95,6 @@ class SwappyGL {
     bool swapInternal(EGLDisplay display, EGLSurface surface);
 
     bool lastFrameIsComplete(EGLDisplay display);
-
-    // Destroys the previous sync fence (if any) and creates a new one for this
-    // frame
-    void resetSyncFence(EGLDisplay display);
 
     // Computes the desired presentation time based on the swap interval and
     // sets it using eglPresentationTimeANDROID

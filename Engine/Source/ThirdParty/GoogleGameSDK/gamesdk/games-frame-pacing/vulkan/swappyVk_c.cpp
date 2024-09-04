@@ -182,4 +182,22 @@ void SwappyVk_clearStats(VkSwapchainKHR swapchain) {
     swappy.clearStats(swapchain);
 }
 
+void SwappyVk_resetFramePacing(VkSwapchainKHR swapchain) {
+    TRACE_CALL();
+    swappy::SwappyVk& swappy = swappy::SwappyVk::getInstance();
+    swappy.resetFramePacing(swapchain);
+}
+
+void SwappyVk_enableFramePacing(VkSwapchainKHR swapchain, bool enable) {
+    TRACE_INT("enableFramePacing", (int)enable);
+    swappy::SwappyVk& swappy = swappy::SwappyVk::getInstance();
+    swappy.enableFramePacing(swapchain, enable);
+}
+
+void SwappyVk_enableBlockingWait(VkSwapchainKHR swapchain, bool enable) {
+    TRACE_INT("enableBlockingWait", (int)enable);
+    swappy::SwappyVk& swappy = swappy::SwappyVk::getInstance();
+    swappy.enableBlockingWait(swapchain, enable);
+}
+
 }  // extern "C"

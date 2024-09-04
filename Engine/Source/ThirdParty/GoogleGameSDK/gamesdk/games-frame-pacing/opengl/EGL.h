@@ -22,6 +22,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <list>
 #include <memory>
 #include <mutex>
 
@@ -48,16 +49,16 @@ class EGL {
 
     explicit EGL(std::chrono::nanoseconds fenceTimeout,
                  eglGetProcAddress_type getProcAddress, ConstructorTag)
-        : mFenceWaiter(fenceTimeout, getProcAddress) {}
+        : mFenceTimeout(fenceTimeout) {}
     ~EGL();
     static std::unique_ptr<EGL> create(std::chrono::nanoseconds fenceTimeout);
 
-    void resetSyncFence(EGLDisplay display);
-    bool lastFrameIsComplete(EGLDisplay display);
+    void insertSyncFence(EGLDisplay display);
+    bool lastFrameIsComplete(EGLDisplay display, bool pipelineMode);
     bool setPresentationTime(EGLDisplay display, EGLSurface surface,
                              std::chrono::steady_clock::time_point time);
     std::chrono::nanoseconds getFencePendingTime() const {
-        return mFenceWaiter.getFencePendingTime();
+        return mFencePendingTime.load();
     }
 
     // for stats
@@ -88,6 +89,10 @@ class EGL {
                                                     EGLint, EGLint *);
     eglGetSyncAttribKHR_type eglGetSyncAttribKHR = nullptr;
 
+    using eglClientWaitSyncKHR_type = EGLBoolean (*)(EGLDisplay, EGLSyncKHR,
+                                                     EGLint, EGLTimeKHR);
+    eglClientWaitSyncKHR_type eglClientWaitSyncKHR = nullptr;
+
     using eglGetError_type = EGLint (*)(void);
     eglGetError_type eglGetError = nullptr;
     using eglSurfaceAttrib_type = EGLBoolean (*)(EGLDisplay, EGLSurface, EGLint,
@@ -101,41 +106,27 @@ class EGL {
                        const EGLint *, EGLnsecsANDROID *);
     eglGetFrameTimestampsANDROID_type eglGetFrameTimestampsANDROID = nullptr;
 
-    std::mutex mSyncFenceMutex;
-    EGLSyncKHR mSyncFence = EGL_NO_SYNC_KHR;
+    std::chrono::nanoseconds mFenceTimeout;
 
-    class FenceWaiter {
-       public:
-        FenceWaiter(std::chrono::nanoseconds fenceTimeout,
-                    EGL::eglGetProcAddress_type getProcAddress);
-        ~FenceWaiter();
+    struct EGLSync {
+        EGLDisplay display;
+        EGLSyncKHR fence;
+    };
+    std::list<EGLSync> mWaitPendingSyncs;
+    std::atomic<std::chrono::nanoseconds> mFencePendingTime;
 
-        void onFenceCreation(EGLDisplay display, EGLSyncKHR syncFence);
-        // Wait and return true if the fence was signalled.
-        // The fence will NOT be destroyed in this case.
-        bool waitForIdle();
-        std::chrono::nanoseconds getFencePendingTime() const;
-
-       private:
-        using eglClientWaitSyncKHR_type = EGLBoolean (*)(EGLDisplay, EGLSyncKHR,
-                                                         EGLint, EGLTimeKHR);
-        eglClientWaitSyncKHR_type eglClientWaitSyncKHR = nullptr;
-        using eglDestroySyncKHR_type = EGLBoolean (*)(EGLDisplay, EGLSyncKHR);
-        eglDestroySyncKHR_type eglDestroySyncKHR = nullptr;
-
-        void threadMain();
-        Thread mFenceWaiter GUARDED_BY(mFenceWaiterLock);
-        std::mutex mFenceWaiterLock;
-        std::condition_variable_any mFenceWaiterCondition;
-        bool mFenceWaiterRunning GUARDED_BY(mFenceWaiterLock) = true;
-        bool mFenceWaiterPending GUARDED_BY(mFenceWaiterLock) = false;
-        std::atomic<std::chrono::nanoseconds> mFencePendingTime;
-        EGLDisplay mDisplay GUARDED_BY(mFenceWaiterLock);
-        EGLSyncKHR mSyncFence GUARDED_BY(mFenceWaiterLock) = EGL_NO_SYNC_KHR;
-        std::chrono::nanoseconds mFenceTimeout;
+    // Thread Context for the thread waiting on EGL fences
+    struct WaiterThreadContext {
+        WaiterThreadContext() {}
+        Thread thread;
+        std::mutex lock;
+        std::condition_variable_any condition;
+        bool running GUARDED_BY(lock) = true;
+        bool hasPendingWork GUARDED_BY(lock);
     };
 
-    FenceWaiter mFenceWaiter;
+    WaiterThreadContext mWaiterThreadContext;
+    void waitForFenceThreadMain();
 };
 
 }  // namespace swappy

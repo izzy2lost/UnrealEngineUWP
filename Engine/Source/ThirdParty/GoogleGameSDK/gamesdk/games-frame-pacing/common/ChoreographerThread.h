@@ -39,11 +39,14 @@ class ChoreographerThread {
     static const JNINativeMethod CTNativeMethods[];
     static constexpr int CTNativeMethodsSize = 1;
 
-    using Callback = std::function<void()>;
+    using RefreshRateChangedCallback = std::function<void()>;
+    using ChoreographerCallback = std::function<void(
+        std::optional<std::chrono::nanoseconds> sfToVsyncDelay)>;
 
     static std::unique_ptr<ChoreographerThread> createChoreographerThread(
-        Type type, JavaVM* vm, jobject jactivity, Callback onChoreographer,
-        Callback onRefreshRateChanged, SdkVersion sdkVersion);
+        Type type, JavaVM* vm, jobject jactivity,
+        ChoreographerCallback onChoreographer,
+        RefreshRateChangedCallback onRefreshRateChanged, SdkVersion sdkVersion);
 
     virtual ~ChoreographerThread() = 0;
 
@@ -52,13 +55,14 @@ class ChoreographerThread {
     bool isInitialized() { return mInitialized; }
 
    protected:
-    ChoreographerThread(Callback onChoreographer);
+    ChoreographerThread(ChoreographerCallback onChoreographer);
     virtual void scheduleNextFrameCallback() REQUIRES(mWaitingMutex) = 0;
-    virtual void onChoreographer();
+    virtual void onChoreographer(
+        std::optional<std::chrono::nanoseconds> sfToVsyncDelay);
 
     std::mutex mWaitingMutex;
     int mCallbacksBeforeIdle GUARDED_BY(mWaitingMutex) = 0;
-    Callback mCallback;
+    ChoreographerCallback mCallback;
     bool mInitialized = false;
 
     static constexpr int MAX_CALLBACKS_BEFORE_IDLE = 10;

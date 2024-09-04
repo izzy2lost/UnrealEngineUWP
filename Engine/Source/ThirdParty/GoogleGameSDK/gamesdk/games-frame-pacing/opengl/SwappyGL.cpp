@@ -15,17 +15,16 @@
  */
 
 #include "SwappyGL.h"
+#define LOG_TAG "SwappyGL"
 
 #include <cinttypes>
 #include <cmath>
 #include <cstdlib>
 
-#include "Log.h"
+#include "SwappyLog.h"
 #include "Thread.h"
 #include "Trace.h"
 #include "system_utils.h"
-
-#define LOG_TAG "Swappy"
 
 namespace swappy {
 
@@ -38,12 +37,12 @@ std::unique_ptr<SwappyGL> SwappyGL::sInstance;
 bool SwappyGL::init(JNIEnv *env, jobject jactivity) {
     std::lock_guard<std::mutex> lock(sInstanceMutex);
     if (sInstance) {
-        ALOGE("Attempted to initialize SwappyGL twice");
+        SWAPPY_LOGE("Attempted to initialize SwappyGL twice");
         return false;
     }
     sInstance = std::make_unique<SwappyGL>(env, jactivity, ConstructorTag{});
     if (!sInstance->mEnableSwappy) {
-        ALOGE("Failed to initialize SwappyGL");
+        SWAPPY_LOGE("Failed to initialize SwappyGL");
         return false;
     }
 
@@ -66,7 +65,7 @@ bool SwappyGL::setWindow(ANativeWindow *window) {
 
     SwappyGL *swappy = getInstance();
     if (!swappy) {
-        ALOGE("Failed to get SwappyGL instance in setWindow");
+        SWAPPY_LOGE("Failed to get SwappyGL instance in setWindow");
         return false;
     }
 
@@ -90,9 +89,11 @@ bool SwappyGL::swap(EGLDisplay display, EGLSurface surface) {
 }
 
 bool SwappyGL::lastFrameIsComplete(EGLDisplay display) {
-    if (!getEgl()->lastFrameIsComplete(display)) {
+    bool pipelineMode = (mCommonBase.getCurrentPipelineMode() ==
+                         SwappyCommon::PipelineMode::On);
+    if (!getEgl()->lastFrameIsComplete(display, pipelineMode)) {
         gamesdk::ScopedTrace trace("lastFrameIncomplete");
-        ALOGV("lastFrameIncomplete");
+        SWAPPY_LOGV("lastFrameIncomplete");
         return false;
     }
     return true;
@@ -105,6 +106,8 @@ bool SwappyGL::swapInternal(EGLDisplay display, EGLSurface surface) {
             [&]() { return getEgl()->getFencePendingTime(); },
     };
 
+    getEgl()->insertSyncFence(display);
+
     mCommonBase.onPreSwap(handlers);
 
     if (mCommonBase.needToSetPresentationTime()) {
@@ -113,8 +116,6 @@ bool SwappyGL::swapInternal(EGLDisplay display, EGLSurface surface) {
             return setPresentationTimeResult;
         }
     }
-
-    resetSyncFence(display);
 
     bool swapBuffersResult =
         (getEgl()->swapBuffers(display, surface) == EGL_TRUE);
@@ -270,14 +271,14 @@ SwappyGL::SwappyGL(JNIEnv *env, jobject jactivity, ConstructorTag)
         std::lock_guard<std::mutex> lock(mEglMutex);
         mEgl = EGL::create(mCommonBase.getFenceTimeout());
         if (!mEgl) {
-            ALOGE("Failed to load EGL functions");
+            SWAPPY_LOGE("Failed to load EGL functions");
             mEnableSwappy = false;
             return;
         }
     }
 
     if (!mCommonBase.isValid()) {
-        ALOGE("SwappyCommon could not initialize correctly.");
+        SWAPPY_LOGE("SwappyCommon could not initialize correctly.");
         mEnableSwappy = false;
         return;
     }
@@ -285,7 +286,7 @@ SwappyGL::SwappyGL(JNIEnv *env, jobject jactivity, ConstructorTag)
     mEnableSwappy =
         !gamesdk::GetSystemPropAsBool(SWAPPY_SYSTEM_PROP_KEY_DISABLE, false);
     if (!enabled()) {
-        ALOGI("Swappy is disabled");
+        SWAPPY_LOGI("Swappy is disabled");
         return;
     }
 
@@ -295,13 +296,9 @@ SwappyGL::SwappyGL(JNIEnv *env, jobject jactivity, ConstructorTag)
         mCommonBase.setLastLatencyRecordedCallback(
             [this]() { return this->mFrameStatistics->lastLatencyRecorded(); });
     } else {
-        ALOGI("stats are not suppored on this platform");
+        SWAPPY_LOGI("stats are not suppored on this platform");
     }
-    ALOGI("SwappyGL initialized successfully");
-}
-
-void SwappyGL::resetSyncFence(EGLDisplay display) {
-    getEgl()->resetSyncFence(display);
+    SWAPPY_LOGI("SwappyGL initialized successfully");
 }
 
 bool SwappyGL::setPresentationTime(EGLDisplay display, EGLSurface surface) {
@@ -337,6 +334,33 @@ int SwappyGL::getSupportedRefreshPeriodsNS(uint64_t *out_refreshrates,
     }
     return swappy->mCommonBase.getSupportedRefreshPeriodsNS(out_refreshrates,
                                                             allocated_entries);
+}
+
+void SwappyGL::resetFramePacing() {
+    TRACE_CALL();
+    SwappyGL *swappy = getInstance();
+    if (!swappy) {
+        return;
+    }
+    swappy->mCommonBase.resetFramePacing();
+}
+
+void SwappyGL::enableFramePacing(bool enable) {
+    TRACE_INT("enableFramePacing", (int)enable);
+    SwappyGL *swappy = getInstance();
+    if (!swappy) {
+        return;
+    }
+    swappy->mCommonBase.enableFramePacing(enable);
+}
+
+void SwappyGL::enableBlockingWait(bool enable) {
+    TRACE_INT("enableBlockingWait", (int)enable);
+    SwappyGL *swappy = getInstance();
+    if (!swappy) {
+        return;
+    }
+    swappy->mCommonBase.enableBlockingWait(enable);
 }
 
 }  // namespace swappy

@@ -20,12 +20,12 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "Log.h"
 #include "Settings.h"
 #include "Thread.h"
 #include "Trace.h"
 
 #define LOG_TAG "SwappyCommon"
+#include "SwappyLog.h"
 
 namespace swappy {
 
@@ -67,7 +67,8 @@ bool SwappyCommonSettings::getFromApp(JNIEnv* env, jobject jactivity,
                                       SwappyCommonSettings* out) {
     if (out == nullptr) return false;
 
-    ALOGI("Swappy version %d.%d", SWAPPY_MAJOR_VERSION, SWAPPY_MINOR_VERSION);
+    SWAPPY_LOGI("Swappy version %d.%d", SWAPPY_MAJOR_VERSION,
+                SWAPPY_MINOR_VERSION);
 
     out->sdkVersion = getSDKVersion(env);
 
@@ -95,7 +96,7 @@ bool SwappyCommonSettings::getFromApp(JNIEnv* env, jobject jactivity,
     // getAppVsyncOffsetNanos was only added in API 21.
     // Return gracefully if this device doesn't support it.
     if (getAppVsyncOffsetNanos == 0 || env->ExceptionOccurred()) {
-        ALOGE("Error while getting method: getAppVsyncOffsetNanos");
+        SWAPPY_LOGE("Error while getting method: getAppVsyncOffsetNanos");
         env->ExceptionClear();
         return false;
     }
@@ -106,7 +107,7 @@ bool SwappyCommonSettings::getFromApp(JNIEnv* env, jobject jactivity,
         env->GetMethodID(displayClass, "getPresentationDeadlineNanos", "()J");
 
     if (getPresentationDeadlineNanos == 0 || env->ExceptionOccurred()) {
-        ALOGE("Error while getting method: getPresentationDeadlineNanos");
+        SWAPPY_LOGE("Error while getting method: getPresentationDeadlineNanos");
         return false;
     }
 
@@ -136,13 +137,9 @@ SwappyCommon::SwappyCommon(JNIEnv* env, jobject jactivity)
       mValid(false) {
     mLibAndroid = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);
     if (mLibAndroid == nullptr) {
-        ALOGE("FATAL: cannot open libandroid.so: %s", strerror(errno));
+        SWAPPY_LOGE("FATAL: cannot open libandroid.so: %s", strerror(errno));
         return;
     }
-
-    mANativeWindow_setFrameRate =
-        reinterpret_cast<PFN_ANativeWindow_setFrameRate>(
-            dlsym(mLibAndroid, "ANativeWindow_setFrameRate"));
 
     if (!SwappyCommonSettings::getFromApp(env, mJactivity, &mCommonSettings))
         return;
@@ -150,21 +147,32 @@ SwappyCommon::SwappyCommon(JNIEnv* env, jobject jactivity)
     env->GetJavaVM(&mJVM);
 
     if (isDeviceUnsupported()) {
-        ALOGE("Device is unsupported");
+        SWAPPY_LOGE("Device is unsupported");
         return;
+    }
+
+    if (!SwappyDisplayManager::useSwappyDisplayManager(
+            mCommonSettings.sdkVersion)) {
+        mANativeWindow_setFrameRate =
+            reinterpret_cast<PFN_ANativeWindow_setFrameRate>(
+                dlsym(mLibAndroid, "ANativeWindow_setFrameRate"));
     }
 
     mChoreographerFilter = std::make_unique<ChoreographerFilter>(
         mCommonSettings.refreshPeriod,
         mCommonSettings.sfVsyncOffset - mCommonSettings.appVsyncOffset,
-        [this]() { return wakeClient(); });
+        [this](std::optional<std::chrono::nanoseconds> sfToVsyncDelay) {
+            return wakeClient(sfToVsyncDelay);
+        });
 
     mChoreographerThread = ChoreographerThread::createChoreographerThread(
         ChoreographerThread::Type::Swappy, mJVM, jactivity,
-        [this] { mChoreographerFilter->onChoreographer(); },
+        [this](std::optional<std::chrono::nanoseconds> sfToVsyncDelay) {
+            mChoreographerFilter->onChoreographer(sfToVsyncDelay);
+        },
         [this] { onRefreshRateChanged(); }, mCommonSettings.sdkVersion);
     if (!mChoreographerThread->isInitialized()) {
-        ALOGE("failed to initialize ChoreographerThread");
+        SWAPPY_LOGE("failed to initialize ChoreographerThread");
         return;
     }
     if (USE_DISPLAY_MANAGER &&
@@ -174,7 +182,7 @@ SwappyCommon::SwappyCommon(JNIEnv* env, jobject jactivity)
 
         if (!mDisplayManager->isInitialized()) {
             mDisplayManager = nullptr;
-            ALOGE("failed to initialize DisplayManager");
+            SWAPPY_LOGE("failed to initialize DisplayManager");
             return;
         }
     }
@@ -184,7 +192,8 @@ SwappyCommon::SwappyCommon(JNIEnv* env, jobject jactivity)
                                                 mCommonSettings.appVsyncOffset,
                                                 mCommonSettings.sfVsyncOffset});
 
-    ALOGI(
+    mInitialRefreshPeriod = mCommonSettings.refreshPeriod;
+    SWAPPY_LOGI(
         "Initialized Swappy with vsyncPeriod=%lld, appOffset=%lld, "
         "sfOffset=%lld",
         (long long)mCommonSettings.refreshPeriod.count(),
@@ -203,19 +212,24 @@ SwappyCommon::SwappyCommon(const SwappyCommonSettings& settings)
     mChoreographerFilter = std::make_unique<ChoreographerFilter>(
         mCommonSettings.refreshPeriod,
         mCommonSettings.sfVsyncOffset - mCommonSettings.appVsyncOffset,
-        [this]() { return wakeClient(); });
+        [this](std::optional<std::chrono::nanoseconds> sfToVsyncDelay) {
+            return wakeClient(sfToVsyncDelay);
+        });
     mUsingExternalChoreographer = true;
     mChoreographerThread = ChoreographerThread::createChoreographerThread(
         ChoreographerThread::Type::App, nullptr, nullptr,
-        [this] { mChoreographerFilter->onChoreographer(); }, [] {},
-        mCommonSettings.sdkVersion);
+        [this](std::optional<std::chrono::nanoseconds> sfToVsyncDelay) {
+            mChoreographerFilter->onChoreographer(sfToVsyncDelay);
+        },
+        [] {}, mCommonSettings.sdkVersion);
 
     Settings::getInstance()->addListener([this]() { onSettingsChanged(); });
     Settings::getInstance()->setDisplayTimings({mCommonSettings.refreshPeriod,
                                                 mCommonSettings.appVsyncOffset,
                                                 mCommonSettings.sfVsyncOffset});
 
-    ALOGI(
+    mInitialRefreshPeriod = mCommonSettings.refreshPeriod;
+    SWAPPY_LOGI(
         "Initialized Swappy with vsyncPeriod=%lld, appOffset=%lld, "
         "sfOffset=%lld",
         (long long)mCommonSettings.refreshPeriod.count(),
@@ -224,6 +238,9 @@ SwappyCommon::SwappyCommon(const SwappyCommonSettings& settings)
 }
 
 SwappyCommon::~SwappyCommon() {
+    // Remove the settings' listeners before destroying Choreographer objects
+    // because the listeners may contain references to the objects
+    Settings::getInstance()->removeAllListeners();
     // destroy all threads first before the other members of this class
     mChoreographerThread.reset();
     mChoreographerFilter.reset();
@@ -242,31 +259,33 @@ void SwappyCommon::onRefreshRateChanged() {
     JNIEnv* env;
     mJVM->AttachCurrentThread(&env, nullptr);
 
-    ALOGV("onRefreshRateChanged");
+    SWAPPY_LOGV("onRefreshRateChanged");
 
     SwappyCommonSettings settings;
     if (!SwappyCommonSettings::getFromApp(env, mJactivity, &settings)) {
-        ALOGE("failed to query display timings");
+        SWAPPY_LOGE("failed to query display timings");
         return;
     }
 
     Settings::getInstance()->setDisplayTimings({settings.refreshPeriod,
                                                 settings.appVsyncOffset,
                                                 settings.sfVsyncOffset});
-    ALOGV("onRefreshRateChanged: refresh rate: %.0fHz",
-          1e9f / settings.refreshPeriod.count());
+    SWAPPY_LOGV("onRefreshRateChanged: refresh rate: %.0fHz",
+                1e9f / settings.refreshPeriod.count());
 }
 
-nanoseconds SwappyCommon::wakeClient() {
+nanoseconds SwappyCommon::wakeClient(
+    std::optional<std::chrono::nanoseconds> sfToVsyncDelay) {
     std::lock_guard<std::mutex> lock(mWaitingMutex);
     ++mCurrentFrame;
-
     // We're attempting to align with SurfaceFlinger's vsync, but it's always
     // better to be a little late than a little early (since a little early
     // could cause our frame to be picked up prematurely), so we pad by an
     // additional millisecond.
     mCurrentFrameTimestamp =
         std::chrono::steady_clock::now() + mMeasuredSwapDuration.load() + 1ms;
+
+    mSfToVsyncDelay = sfToVsyncDelay;
     mWaitingCondition.notify_all();
     return mMeasuredSwapDuration;
 }
@@ -278,7 +297,9 @@ void SwappyCommon::onChoreographer(int64_t frameTimeNanos) {
         mUsingExternalChoreographer = true;
         mChoreographerThread = ChoreographerThread::createChoreographerThread(
             ChoreographerThread::Type::App, nullptr, nullptr,
-            [this] { mChoreographerFilter->onChoreographer(); },
+            [this](std::optional<std::chrono::nanoseconds> sfToVsyncDelay) {
+                mChoreographerFilter->onChoreographer(sfToVsyncDelay);
+            },
             [this] { onRefreshRateChanged(); }, mCommonSettings.sdkVersion);
     }
 
@@ -290,9 +311,14 @@ bool SwappyCommon::waitForNextFrame(const SwapHandlers& h) {
     bool presentationTimeIsNeeded;
 
     // We do not want to hold the mutex while waiting, so make a local copy of
-    // the flag.
+    // the flags.
     mMutex.lock();
     bool localAutoSwapIntervalEnabled = mAutoSwapIntervalEnabled;
+    bool localFramePacingEnabled = mFramePacingEnabled;
+
+    // We do the blocking wait when pacing or request by the app when not
+    // pacing.
+    bool localBlockingWaitEnabled = mBlockingWaitEnabled || mFramePacingEnabled;
     mMutex.unlock();
 
     const nanoseconds cpuTime =
@@ -309,22 +335,29 @@ bool SwappyCommon::waitForNextFrame(const SwapHandlers& h) {
     if (mCommonSettings.refreshPeriod * mAutoSwapInterval <=
             mAutoSwapIntervalThreshold.load() ||
         !localAutoSwapIntervalEnabled) {
-        waitUntilTargetFrame();
+        if (localFramePacingEnabled) waitUntilTargetFrame();
 
-        // wait for the previous frame to be rendered
-        while (!h.lastFrameIsComplete()) {
-            lateFrames++;
-            waitOneFrame();
+        if (localBlockingWaitEnabled) {
+            // wait for the previous frame to be rendered
+            while (!h.lastFrameIsComplete()) {
+                lateFrames++;
+                waitOneFrame();
+            }
         }
 
         mPresentationTime += lateFrames * mCommonSettings.refreshPeriod;
-        presentationTimeIsNeeded = true;
+        presentationTimeIsNeeded = localFramePacingEnabled;
     } else {
         presentationTimeIsNeeded = false;
     }
 
-    const nanoseconds gpuTime = h.getPrevFrameGpuTime();
-    addFrameDuration({cpuTime, gpuTime, mCurrentFrame > mTargetFrame});
+    // If last frame is not finished, return -1 for GPU time.
+    const nanoseconds gpuTime =
+        (h.lastFrameIsComplete()) ? h.getPrevFrameGpuTime() : -1ns;
+
+    // Keep track of durations only if frame pacing is enabled.
+    if (localFramePacingEnabled)
+        addFrameDuration({cpuTime, gpuTime, mCurrentFrame > mTargetFrame});
 
     postWaitCallbacks(cpuTime, gpuTime);
 
@@ -339,9 +372,25 @@ void SwappyCommon::updateDisplayTimings() {
     }
 
     std::lock_guard<std::mutex> lock(mMutex);
-    ALOGW_ONCE_IF(!mWindow,
-                  "ANativeWindow not configured, frame rate will not be "
-                  "reported to Android platform");
+    SWAPPY_LOGW_ONCE_IF(!mWindow,
+                        "ANativeWindow not configured, frame rate will not be "
+                        "reported to Android platform");
+
+    if (mFramePacingToggleRequested) {
+        // In case frame pacing is toggled, set the update here.
+        mFramePacingEnabled = !mFramePacingEnabled;
+        mFramePacingToggleRequested = false;
+    }
+    if (mFramePacingResetRequested) {
+        // In case of reset, just issue the update for setting refresh period.
+        setPreferredRefreshPeriod(mInitialRefreshPeriod);
+        mFramePacingResetRequested = false;
+        return;
+    }
+
+    if (!mFramePacingEnabled) {
+        return;
+    }
 
     if (!mTimingSettingsNeedUpdate && !mWindowChanged) {
         return;
@@ -497,9 +546,9 @@ void SwappyCommon::FrameDurations::clear() {
 }
 
 void SwappyCommon::addFrameDuration(FrameDuration duration) {
-    ALOGV("cpuTime = %.2f", duration.getCpuTime().count() / 1e6f);
-    ALOGV("gpuTime = %.2f", duration.getGpuTime().count() / 1e6f);
-    ALOGV("frame %s", duration.frameMiss() ? "MISS" : "on time");
+    SWAPPY_LOGV("cpuTime = %.2f", duration.getCpuTime().count() / 1e6f);
+    SWAPPY_LOGV("gpuTime = %.2f", duration.getGpuTime().count() / 1e6f);
+    SWAPPY_LOGV("frame %s", duration.frameMiss() ? "MISS" : "on time");
 
     std::lock_guard<std::mutex> lock(mMutex);
     mFrameDurations.add(duration);
@@ -509,7 +558,7 @@ bool SwappyCommon::swapSlower(const FrameDuration& averageFrameTime,
                               const nanoseconds& upperBound,
                               int newSwapInterval) {
     bool swappedSlower = false;
-    ALOGV("Rendering takes too much time for the given config");
+    SWAPPY_LOGV("Rendering takes too much time for the given config");
 
     const auto frameFitsUpperBound =
         averageFrameTime.getTime(PipelineMode::On) <= upperBound;
@@ -527,14 +576,14 @@ bool SwappyCommon::swapSlower(const FrameDuration& averageFrameTime,
             mAutoSwapInterval++;
         }
         if (mAutoSwapInterval != originalAutoSwapInterval) {
-            ALOGV("Changing Swap interval to %d from %d", mAutoSwapInterval,
-                  originalAutoSwapInterval);
+            SWAPPY_LOGV("Changing Swap interval to %d from %d",
+                        mAutoSwapInterval, originalAutoSwapInterval);
             swappedSlower = true;
         }
     }
 
     if (mPipelineMode == PipelineMode::Off) {
-        ALOGV("turning on pipelining");
+        SWAPPY_LOGV("turning on pipelining");
         mPipelineMode = PipelineMode::On;
     }
 
@@ -549,12 +598,12 @@ bool SwappyCommon::swapFaster(int newSwapInterval) {
     }
 
     if (mAutoSwapInterval != originalAutoSwapInterval) {
-        ALOGV("Rendering is much shorter for the given config");
-        ALOGV("Changing Swap interval to %d from %d", mAutoSwapInterval,
-              originalAutoSwapInterval);
+        SWAPPY_LOGV("Rendering is much shorter for the given config");
+        SWAPPY_LOGV("Changing Swap interval to %d from %d", mAutoSwapInterval,
+                    originalAutoSwapInterval);
         // since we changed the swap interval, we may need to turn on pipeline
         // mode
-        ALOGV("Turning on pipelining");
+        SWAPPY_LOGV("Turning on pipelining");
         mPipelineMode = PipelineMode::On;
         swappedFaster = true;
     }
@@ -564,6 +613,17 @@ bool SwappyCommon::swapFaster(int newSwapInterval) {
 
 bool SwappyCommon::updateSwapInterval() {
     std::lock_guard<std::mutex> lock(mMutex);
+
+    // A request to reset the frame-pacing is made, so reset the internal swap
+    // state to the initial state and clear the frame durations collected.
+    if (mFramePacingResetRequested) {
+        mAutoSwapInterval = 1;
+        mMeasuredSwapDuration = 0ns;
+        mSwapDuration = 0ns;
+        mCommonSettings.refreshPeriod = mInitialRefreshPeriod;
+        mFrameDurations.clear();
+        return true;
+    }
     if (!mAutoSwapIntervalEnabled) return false;
 
     if (!mFrameDurations.hasEnoughSamples()) return false;
@@ -587,17 +647,17 @@ bool SwappyCommon::updateSwapInterval() {
 
     const int missedFramesPercent = mFrameDurations.getMissedFramePercent();
 
-    ALOGV("mPipelineMode = %d", static_cast<int>(mPipelineMode));
-    ALOGV("Average cpu frame time = %.2f",
-          (averageFrameTime.getCpuTime().count()) / 1e6f);
-    ALOGV("Average gpu frame time = %.2f",
-          (averageFrameTime.getGpuTime().count()) / 1e6f);
-    ALOGV("upperBound = %.2f", upperBoundForThisRefresh.count() / 1e6f);
-    ALOGV("lowerBound = %.2f", lowerBoundForThisRefresh.count() / 1e6f);
-    ALOGV("frame missed = %d%%", missedFramesPercent);
+    SWAPPY_LOGV("mPipelineMode = %d", static_cast<int>(mPipelineMode));
+    SWAPPY_LOGV("Average cpu frame time = %.2f",
+                (averageFrameTime.getCpuTime().count()) / 1e6f);
+    SWAPPY_LOGV("Average gpu frame time = %.2f",
+                (averageFrameTime.getGpuTime().count()) / 1e6f);
+    SWAPPY_LOGV("upperBound = %.2f", upperBoundForThisRefresh.count() / 1e6f);
+    SWAPPY_LOGV("lowerBound = %.2f", lowerBoundForThisRefresh.count() / 1e6f);
+    SWAPPY_LOGV("frame missed = %d%%", missedFramesPercent);
 
     bool configChanged = false;
-    ALOGV("pipelineFrameTime = %.2f", pipelineFrameTime.count() / 1e6f);
+    SWAPPY_LOGV("pipelineFrameTime = %.2f", pipelineFrameTime.count() / 1e6f);
     const auto nonPipelinePercent = (100.f + NON_PIPELINE_PERCENT) / 100.f;
 
     // Make sure the frame time fits in the current config to avoid missing
@@ -623,7 +683,7 @@ bool SwappyCommon::updateSwapInterval() {
     else if (mPipelineModeAutoMode && mPipelineMode == PipelineMode::On &&
              nonPipelineFrameTime * nonPipelinePercent <
                  upperBoundForThisRefresh) {
-        ALOGV(
+        SWAPPY_LOGV(
             "Rendering time fits the current swap interval without pipelining");
         mPipelineMode = PipelineMode::Off;
         configChanged = true;
@@ -742,7 +802,7 @@ void SwappyCommon::setPreferredDisplayModeId(int modeId) {
 
     mNextModeId = modeId;
     mDisplayManager->setPreferredDisplayModeId(modeId);
-    ALOGV("setPreferredDisplayModeId set to %d", modeId);
+    SWAPPY_LOGV("setPreferredDisplayModeId set to %d", modeId);
 }
 
 int SwappyCommon::calculateSwapInterval(nanoseconds frameTime,
@@ -770,7 +830,7 @@ void SwappyCommon::setPreferredRefreshPeriod(nanoseconds frameTime) {
         if (std::abs(mLatestFrameRateVote - frameRate) >
             FRAME_RATE_VOTE_MARGIN) {
             mLatestFrameRateVote = frameRate;
-            ALOGV("ANativeWindow_setFrameRate(%.2f)", frameRate);
+            SWAPPY_LOGV("ANativeWindow_setFrameRate(%.2f)", frameRate);
             mANativeWindow_setFrameRate(
                 mWindow, frameRate,
                 ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT);
@@ -837,10 +897,12 @@ void SwappyCommon::startFrame() {
 
     int32_t currentFrame;
     std::chrono::steady_clock::time_point currentFrameTimestamp;
+    std::optional<std::chrono::nanoseconds> sfToVsyncDelay;
     {
         std::unique_lock<std::mutex> lock(mWaitingMutex);
         currentFrame = mCurrentFrame;
         currentFrameTimestamp = mCurrentFrameTimestamp;
+        sfToVsyncDelay = mSfToVsyncDelay;
     }
 
     // Whether to add a wait to fix buffer stuffing.
@@ -852,6 +914,9 @@ void SwappyCommon::startFrame() {
     if (mBufferStuffingFixWait > 0 && mLastLatencyRecorded) {
         int32_t lastLatency = mLastLatencyRecorded();
         int expectedLatency = mAutoSwapInterval * intervals;
+        if (sfToVsyncDelay) {
+            expectedLatency += *sfToVsyncDelay / mCommonSettings.refreshPeriod;
+        }
         TRACE_INT("ExpectedLatency", expectedLatency);
         if (mBufferStuffingFixCounter == 0) {
             if (lastLatency > expectedLatency) {
@@ -871,6 +936,14 @@ void SwappyCommon::startFrame() {
     }
     mTargetFrame = currentFrame + mAutoSwapInterval;
     if (waitFrame) mTargetFrame += 1;
+
+    // If available, use the SF to Vsync delay to target the specific
+    // vsync instead of guessing when the vsync is going to be
+    if (sfToVsyncDelay) {
+        currentFrameTimestamp += *sfToVsyncDelay -
+                                 mCommonSettings.refreshPeriod / 2 -
+                                 mMeasuredSwapDuration.load() - 1ms;
+    }
 
     // We compute the target time as now
     //   + the time the buffer will be on the GPU and in the queue to the
@@ -907,21 +980,21 @@ SdkVersion SwappyCommonSettings::getSDKVersion(JNIEnv* env) {
     const jclass buildClass = env->FindClass("android/os/Build$VERSION");
     if (env->ExceptionCheck()) {
         env->ExceptionClear();
-        ALOGE("Failed to get Build.VERSION class");
+        SWAPPY_LOGE("Failed to get Build.VERSION class");
         return SdkVersion{0, 0};
     }
 
     const jfieldID sdkInt = env->GetStaticFieldID(buildClass, "SDK_INT", "I");
     if (env->ExceptionCheck()) {
         env->ExceptionClear();
-        ALOGE("Failed to get Build.VERSION.SDK_INT field");
+        SWAPPY_LOGE("Failed to get Build.VERSION.SDK_INT field");
         return SdkVersion{0, 0};
     }
 
     const jint sdk = env->GetStaticIntField(buildClass, sdkInt);
     if (env->ExceptionCheck()) {
         env->ExceptionClear();
-        ALOGE("Failed to get SDK version");
+        SWAPPY_LOGE("Failed to get SDK version");
         return SdkVersion{0, 0};
     }
 
@@ -931,17 +1004,17 @@ SdkVersion SwappyCommonSettings::getSDKVersion(JNIEnv* env) {
             env->GetStaticFieldID(buildClass, "PREVIEW_SDK_INT", "I");
         if (env->ExceptionCheck()) {
             env->ExceptionClear();
-            ALOGE("Failed to get Build.VERSION.PREVIEW_SDK_INT field");
+            SWAPPY_LOGE("Failed to get Build.VERSION.PREVIEW_SDK_INT field");
         }
 
         sdkPreview = env->GetStaticIntField(buildClass, previewSdkInt);
         if (env->ExceptionCheck()) {
             env->ExceptionClear();
-            ALOGE("Failed to get preview SDK version");
+            SWAPPY_LOGE("Failed to get preview SDK version");
         }
     }
 
-    ALOGI("SDK version = %d preview = %d", sdk, sdkPreview);
+    SWAPPY_LOGI("SDK version = %d preview = %d", sdk, sdkPreview);
     return SdkVersion{sdk, sdkPreview};
 }
 
@@ -971,14 +1044,14 @@ static std::string GetStaticStringField(JNIEnv* env, jclass clz,
         env->GetStaticFieldID(clz, name, "Ljava/lang/String;");
     if (env->ExceptionCheck()) {
         env->ExceptionClear();
-        ALOGE("Failed to get string field %s", name);
+        SWAPPY_LOGE("Failed to get string field %s", name);
         return "";
     }
 
     const jstring jstr = (jstring)env->GetStaticObjectField(clz, fieldId);
     if (env->ExceptionCheck()) {
         env->ExceptionClear();
-        ALOGE("Failed to get string %s", name);
+        SWAPPY_LOGE("Failed to get string %s", name);
         return "";
     }
     auto cstr = env->GetStringUTFChars(jstr, nullptr);
@@ -1022,7 +1095,7 @@ bool SwappyCommon::isDeviceUnsupported() {
     const jclass buildClass = env->FindClass("android/os/Build");
     if (env->ExceptionCheck()) {
         env->ExceptionClear();
-        ALOGE("Failed to get Build class");
+        SWAPPY_LOGE("Failed to get Build class");
         return false;
     }
 
@@ -1044,6 +1117,11 @@ bool SwappyCommon::isDeviceUnsupported() {
 
 int SwappyCommon::getSupportedRefreshPeriodsNS(uint64_t* out_refreshrates,
                                                int allocated_entries) {
+    if (mDisplayManager) {
+        mSupportedRefreshPeriods =
+            mDisplayManager->getSupportedRefreshPeriods();
+    }
+
     if (!mSupportedRefreshPeriods) return 0;
     if (!out_refreshrates) return (*mSupportedRefreshPeriods).size();
 
@@ -1054,6 +1132,29 @@ int SwappyCommon::getSupportedRefreshPeriodsNS(uint64_t* out_refreshrates,
     }
 
     return (*mSupportedRefreshPeriods).size();
+}
+
+void SwappyCommon::resetFramePacing() {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    // Just set the flag here, we actually reset at the end of the frame.
+    mFramePacingResetRequested = true;
+}
+
+void SwappyCommon::enableFramePacing(bool enable) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    // Set flags that are applied at the end of the frame.
+    if (mFramePacingEnabled != enable) {
+        mFramePacingToggleRequested = true;
+        mFramePacingResetRequested = true;
+    }
+}
+
+void SwappyCommon::enableBlockingWait(bool enable) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    mBlockingWaitEnabled = enable;
 }
 
 }  // namespace swappy

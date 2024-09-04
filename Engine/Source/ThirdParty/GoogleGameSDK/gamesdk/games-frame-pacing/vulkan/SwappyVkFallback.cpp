@@ -17,6 +17,7 @@
 #include "SwappyVkFallback.h"
 
 #define LOG_TAG "SwappyVkFallback"
+#include "SwappyLog.h"
 
 namespace swappy {
 
@@ -29,7 +30,7 @@ SwappyVkFallback::SwappyVkFallback(JNIEnv* env, jobject jactivity,
 bool SwappyVkFallback::doGetRefreshCycleDuration(VkSwapchainKHR swapchain,
                                                  uint64_t* pRefreshDuration) {
     if (!isEnabled()) {
-        ALOGE("Swappy is disabled.");
+        SWAPPY_LOGE("Swappy is disabled.");
         return false;
     }
 
@@ -38,9 +39,10 @@ bool SwappyVkFallback::doGetRefreshCycleDuration(VkSwapchainKHR swapchain,
 
     *pRefreshDuration = mCommonBase.getRefreshPeriod().count();
 
-    double refreshRate = 1000000000.0 / *pRefreshDuration;
-    ALOGI("Returning refresh duration of %" PRIu64 " nsec (approx %f Hz)",
-          *pRefreshDuration, refreshRate);
+    // refreshRate is only used for logging, which maybe disabled.
+    [[maybe_unused]] double refreshRate = 1000000000.0 / *pRefreshDuration;
+    SWAPPY_LOGI("Returning refresh duration of %" PRIu64 " nsec (approx %f Hz)",
+                *pRefreshDuration, refreshRate);
 
     return true;
 }
@@ -49,7 +51,7 @@ VkResult SwappyVkFallback::doQueuePresent(
     VkQueue queue, uint32_t queueFamilyIndex,
     const VkPresentInfoKHR* pPresentInfo) {
     if (!isEnabled()) {
-        ALOGE("Swappy is disabled.");
+        SWAPPY_LOGE("Swappy is disabled.");
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
@@ -70,7 +72,7 @@ VkResult SwappyVkFallback::doQueuePresent(
     VkSemaphore semaphore;
     result = injectFence(queue, pPresentInfo, &semaphore);
     if (result) {
-        ALOGE("Failed to vkQueueSubmit %d", result);
+        SWAPPY_LOGE("Failed to vkQueueSubmit %d", result);
         return result;
     }
 
@@ -100,19 +102,19 @@ VkResult SwappyVkFallback::doQueuePresent(
 }
 
 void SwappyVkFallback::enableStats(bool enabled) {
-    ALOGE("Frame Statistics Unsupported - API ignored");
+    SWAPPY_LOGE("Frame Statistics Unsupported - API ignored");
 }
 
 void SwappyVkFallback::getStats(SwappyStats* swappyStats) {
-    ALOGE("Frame Statistics Unsupported - API ignored");
+    SWAPPY_LOGE("Frame Statistics Unsupported - API ignored");
 }
 
 void SwappyVkFallback::recordFrameStart(VkQueue queue, uint32_t image) {
-    ALOGE("Frame Statistics Unsupported - API ignored");
+    SWAPPY_LOGE("Frame Statistics Unsupported - API ignored");
 }
 
 void SwappyVkFallback::clearStats() {
-    ALOGE("Frame Statistics Unsupported - API ignored");
+    SWAPPY_LOGE("Frame Statistics Unsupported - API ignored");
 }
 
 }  // namespace swappy

@@ -9,6 +9,7 @@
 
 #include <dlfcn.h>
 
+
 #define APPLY_SWAPPY_FUNCTIONS(macro) \
 	macro(SwappyVk_determineDeviceExtensions) \
 	macro(SwappyVk_setQueueFamilyIndex) \
@@ -31,6 +32,11 @@
 	macro(SwappyVk_enableStats) \
 	macro(SwappyVk_recordFrameStart) \
 	macro(SwappyVk_getStats) \
+	macro(SwappyVk_uninjectTracer) \
+	macro(SwappyVk_clearStats) \
+	macro(SwappyVk_resetFramePacing) \
+	macro(SwappyVk_enableFramePacing) \
+	macro(SwappyVk_enableBlockingWait) \
 	macro(SwappyGL_init) \
 	macro(SwappyGL_isEnabled) \
 	macro(SwappyGL_destroy) \
@@ -54,6 +60,10 @@
 	macro(SwappyGL_recordFrameStart) \
 	macro(SwappyGL_getStats) \
 	macro(SwappyGL_uninjectTracer) \
+	macro(SwappyGL_clearStats) \
+	macro(SwappyGL_resetFramePacing) \
+	macro(SwappyGL_enableFramePacing) \
+	macro(SwappyGL_enableBlockingWait) \
 	macro(Swappy_version) \
 	macro(Swappy_setThreadFunctions) \
 	macro(Swappy_versionString)
@@ -204,6 +214,11 @@ void SwappyVk_injectTracer(const SwappyTracer* tracer)
 	fpSwappyVk_injectTracer(tracer);
 }
 
+void SwappyVk_uninjectTracer(const SwappyTracer* tracer)
+{
+	fpSwappyVk_uninjectTracer(tracer);
+}
+
 void SwappyVk_setFunctionProvider(
 	const SwappyVkFunctionProvider* pSwappyVkFunctionProvider)
 {
@@ -240,6 +255,26 @@ void SwappyVk_recordFrameStart(VkQueue queue, VkSwapchainKHR swapchain, uint32_t
 void SwappyVk_getStats(VkSwapchainKHR swapchain, SwappyStats* swappyStats)
 {
 	fpSwappyVk_getStats(swapchain, swappyStats);
+}
+
+void SwappyVk_clearStats(VkSwapchainKHR swapchain)
+{
+	fpSwappyVk_clearStats(swapchain);
+}
+
+void SwappyVk_resetFramePacing(VkSwapchainKHR swapchain)
+{
+	fpSwappyVk_resetFramePacing(swapchain);
+}
+
+void SwappyVk_enableFramePacing(VkSwapchainKHR swapchain, bool enable)
+{
+	fpSwappyVk_enableFramePacing(swapchain, enable);
+}
+
+void SwappyVk_enableBlockingWait(VkSwapchainKHR swapchain, bool enable)
+{
+	fpSwappyVk_enableBlockingWait(swapchain, enable);
 }
 
 bool SwappyGL_init(JNIEnv* env, jobject jactivity)

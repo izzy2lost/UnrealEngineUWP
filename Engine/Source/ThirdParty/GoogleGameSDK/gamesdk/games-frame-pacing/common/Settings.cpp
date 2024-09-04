@@ -16,10 +16,6 @@
 
 #include "Settings.h"
 
-#define LOG_TAG "Settings"
-
-#include "Log.h"
-
 namespace swappy {
 
 std::unique_ptr<Settings> Settings::instance;
@@ -36,6 +32,11 @@ void Settings::reset() { instance.reset(); }
 void Settings::addListener(Listener listener) {
     std::lock_guard<std::mutex> lock(mMutex);
     mListeners.emplace_back(std::move(listener));
+}
+
+void Settings::removeAllListeners() {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mListeners.clear();
 }
 
 void Settings::setDisplayTimings(const DisplayTimings& displayTimings) {

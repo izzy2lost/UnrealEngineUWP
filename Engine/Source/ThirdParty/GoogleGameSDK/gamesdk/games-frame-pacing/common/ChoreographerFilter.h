@@ -18,6 +18,7 @@
 
 #include <condition_variable>
 #include <mutex>
+#include <optional>
 #include <vector>
 
 #include "Settings.h"
@@ -27,14 +28,16 @@ namespace swappy {
 
 class ChoreographerFilter {
    public:
-    using Worker = std::function<std::chrono::nanoseconds()>;
+    using Worker = std::function<std::chrono::nanoseconds(
+        std::optional<std::chrono::nanoseconds>)>;
 
     explicit ChoreographerFilter(std::chrono::nanoseconds refreshPeriod,
                                  std::chrono::nanoseconds appToSfDelay,
                                  Worker doWork);
     ~ChoreographerFilter();
 
-    void onChoreographer();
+    void onChoreographer(
+        std::optional<std::chrono::nanoseconds> sfToVsyncDelay);
 
    private:
     void launchThreadsLocked();
@@ -53,6 +56,7 @@ class ChoreographerFilter {
     bool mIsRunning = true;
     int64_t mSequenceNumber = 0;
     std::chrono::steady_clock::time_point mLastTimestamp;
+    std::optional<std::chrono::nanoseconds> mSfToVsyncDelay;
 
     std::mutex mWorkMutex;
     std::chrono::steady_clock::time_point mLastWorkRun;
