@@ -3,9 +3,11 @@
 #pragma once
 
 #include "EOSShared.h"
+#include "EOSSharedTypes.h"
 #include "Framework/Application/IInputProcessor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/PlatformInput.h"
+#include "IEOSSDKManager.h"
 
 #include "eos_ui_types.h"
 
@@ -86,9 +88,13 @@ struct FEOSInputState : EOS_UI_ReportInputStateOptions
 	}
 };
 
-class FEOSOverlayInputProviderPreProcessor : public IInputProcessor
+class FEOSOverlayInputProviderPreProcessor
+	: public IInputProcessor
+	, public TSharedFromThis<FEOSOverlayInputProviderPreProcessor, ESPMode::ThreadSafe>
 {
 public:
+	void Initialize();
+
 	virtual void Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor) override;
 	virtual bool HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent) override;
 	virtual bool HandleKeyUpEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent) override;
@@ -102,13 +108,23 @@ public:
 	virtual bool HandleMotionDetectedEvent(FSlateApplication& SlateApp, const FMotionEvent& MotionEvent) override;
 
 private:
+	void OnPlatformCreated(const IEOSPlatformHandlePtr& PlatformHandlePtr);
+	void OnPreReleasePlatform(const EOS_HPlatform& PlatformHandle);
+
 	virtual void HandleInput(const FEOSInputState& NewInputState);
-	bool ShouldConsumeInput(FSlateApplication& SlateApp);
-	bool ProcessInputEvent(FSlateApplication& SlateApp, const FEOSInputState& NewInputState);
+	bool ProcessInputEvent(const FEOSInputState& NewInputState);
 	FEOSInputState& GetCurrentInputState(uint32_t GamepadIndex);
 	const TMap<FKey, EOS_UI_EInputStateButtonFlags>& GetUEKeyToEOSKeyMap();
 
 private:
+	typedef TEOSGlobalCallback<EOS_UI_OnDisplaySettingsUpdatedCallback, EOS_UI_OnDisplaySettingsUpdatedCallbackInfo, FEOSOverlayInputProviderPreProcessor> FOnDisplaySettingsUpdatedCallback;
+
+	TMap<EOS_HPlatform, EOS_NotificationId> DisplaySettingsUpdatedIdPerPlatform;
+	TUniquePtr<FOnDisplaySettingsUpdatedCallback> DisplaySettingsUpdatedCallback;
+
+	/** True if the EOS overlay is open in exclusive input mode */
+	bool bIsExclusiveInput = false;
+
 	/** False if we have received an EOS_NotImplemented from EOS_UI_ReportInputState */
 	bool bIsReportInputStateSupported = true;
 

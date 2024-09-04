@@ -61,6 +61,7 @@ bool FEOSOverlayInputProviderModule::IsRenderReady()
 		}
 
 		InputPreprocessor = MakeShared<FEOSOverlayInputProviderPreProcessor>();
+		InputPreprocessor->Initialize();
 
 		// Store a pointer to the processor in your module
 		FSlateApplication::Get().RegisterInputPreProcessor(InputPreprocessor, EInputPreProcessorType::Overlay);

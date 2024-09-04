@@ -2,8 +2,6 @@
 
 #include "EOSOverlayInputProviderPreProcessor.h"
 
-#include "IEOSSDKManager.h"
-
 #include "eos_sdk.h"
 #include "eos_ui.h"
 
@@ -35,9 +33,54 @@ const TMap<FKey, EOS_UI_EInputStateButtonFlags>& FEOSOverlayInputProviderPreProc
 	return UEKeyToEOSKeyMap;
 }
 
+void FEOSOverlayInputProviderPreProcessor::Initialize()
+{
+	// If we have not bound a DisplaySettingsUpdated delegate for each active platform, we do. It will tell us if we should be consuming input or not.
+	TArray<IEOSPlatformHandlePtr> ActivePlatforms = IEOSSDKManager::Get()->GetActivePlatforms();
+	for (const IEOSPlatformHandlePtr& ActivePlatform : ActivePlatforms)
+	{
+		OnPlatformCreated(ActivePlatform);
+	}
+
+	IEOSSDKManager::Get()->OnPlatformCreated.AddSP(this, &FEOSOverlayInputProviderPreProcessor::OnPlatformCreated);
+
+	IEOSSDKManager::Get()->OnPreReleasePlatform.AddSP(this, &FEOSOverlayInputProviderPreProcessor::OnPreReleasePlatform);
+}
+
+void FEOSOverlayInputProviderPreProcessor::OnPlatformCreated(const IEOSPlatformHandlePtr& PlatformHandlePtr)
+{
+	if (EOS_HUI UIHandle = EOS_Platform_GetUIInterface(*PlatformHandlePtr))
+	{
+		EOS_HPlatform PlatformHandle = *PlatformHandlePtr;
+
+		// Adding subscription to external ui display change event
+		EOS_UI_AddNotifyDisplaySettingsUpdatedOptions Options = {};
+		Options.ApiVersion = 1;
+		UE_EOS_CHECK_API_MISMATCH(EOS_UI_ADDNOTIFYDISPLAYSETTINGSUPDATED_API_LATEST, 1);
+
+		if (!DisplaySettingsUpdatedCallback.IsValid())
+		{
+			TUniquePtr<FOnDisplaySettingsUpdatedCallback> CallbackObj = MakeUnique<FOnDisplaySettingsUpdatedCallback>(AsWeak());
+			CallbackObj->CallbackLambda = [this](const EOS_UI_OnDisplaySettingsUpdatedCallbackInfo* Data)
+				{
+					bIsExclusiveInput = (bool)Data->bIsExclusiveInput;
+				};
+
+			DisplaySettingsUpdatedCallback = MoveTemp(CallbackObj);
+		}		
+
+		DisplaySettingsUpdatedIdPerPlatform.Emplace(PlatformHandle, EOS_UI_AddNotifyDisplaySettingsUpdated(UIHandle, &Options, DisplaySettingsUpdatedCallback.Get(), DisplaySettingsUpdatedCallback->GetCallbackPtr()));
+	}
+}
+
+void FEOSOverlayInputProviderPreProcessor::OnPreReleasePlatform(const EOS_HPlatform& PlatformHandle)
+{
+	DisplaySettingsUpdatedIdPerPlatform.Remove(PlatformHandle);
+}
+
 void FEOSOverlayInputProviderPreProcessor::Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor)
 {
-
+	
 }
 
 bool FEOSOverlayInputProviderPreProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
@@ -51,7 +94,7 @@ bool FEOSOverlayInputProviderPreProcessor::HandleKeyDownEvent(FSlateApplication&
 		NewInputState.ButtonDownFlags |= *ButtonFlag;
 	}
 
-	return ProcessInputEvent(SlateApp, NewInputState);
+	return ProcessInputEvent(NewInputState);
 }
 
 bool FEOSOverlayInputProviderPreProcessor::HandleKeyUpEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
@@ -65,7 +108,7 @@ bool FEOSOverlayInputProviderPreProcessor::HandleKeyUpEvent(FSlateApplication& S
 		NewInputState.ButtonDownFlags ^= *ButtonFlag;
 	}
 
-	return ProcessInputEvent(SlateApp, NewInputState);
+	return ProcessInputEvent(NewInputState);
 }
 
 bool FEOSOverlayInputProviderPreProcessor::HandleMouseButtonDownEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent)
@@ -79,9 +122,8 @@ bool FEOSOverlayInputProviderPreProcessor::HandleMouseButtonDownEvent(FSlateAppl
 		.WithMousePosX((uint32_t)MouseEvent.GetScreenSpacePosition().X)
 		.WithMousePosY((uint32_t)MouseEvent.GetScreenSpacePosition().Y);
 
-	return ProcessInputEvent(SlateApp, NewInputState);
+	return ProcessInputEvent(NewInputState);
 }
-
 
 bool FEOSOverlayInputProviderPreProcessor::HandleMouseButtonUpEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent)
 {
@@ -94,56 +136,41 @@ bool FEOSOverlayInputProviderPreProcessor::HandleMouseButtonUpEvent(FSlateApplic
 		.WithMousePosX((uint32_t)MouseEvent.GetScreenSpacePosition().X)
 		.WithMousePosY((uint32_t)MouseEvent.GetScreenSpacePosition().Y);
 
-	return ProcessInputEvent(SlateApp, NewInputState);
+	return ProcessInputEvent(NewInputState);
 }
 
 // We don't want any other type of input to be transmitted
 
 bool FEOSOverlayInputProviderPreProcessor::HandleAnalogInputEvent(FSlateApplication& SlateApp, const FAnalogInputEvent& InAnalogInputEvent)
 {
-	return ShouldConsumeInput(SlateApp);
+	return bIsExclusiveInput;
 }
 
 bool FEOSOverlayInputProviderPreProcessor::HandleMouseMoveEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent)
 {
-	return ShouldConsumeInput(SlateApp);
+	return bIsExclusiveInput;
 }
 
 bool FEOSOverlayInputProviderPreProcessor::HandleMouseButtonDoubleClickEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent)
 {
-	return ShouldConsumeInput(SlateApp);
+	return bIsExclusiveInput;
 }
 
 bool FEOSOverlayInputProviderPreProcessor::HandleMouseWheelOrGestureEvent(FSlateApplication& SlateApp, const FPointerEvent& InWheelEvent, const FPointerEvent* InGestureEvent)
 {
-	return ShouldConsumeInput(SlateApp);
+	return bIsExclusiveInput;
 }
 
 bool FEOSOverlayInputProviderPreProcessor::HandleMotionDetectedEvent(FSlateApplication& SlateApp, const FMotionEvent& MotionEvent)
 {
-	return ShouldConsumeInput(SlateApp);
+	return bIsExclusiveInput;
 }
 
-bool FEOSOverlayInputProviderPreProcessor::ShouldConsumeInput(FSlateApplication& SlateApp)
-{
-	// The EOS Overlay doesn't change the game focus state when it opens, but others do, so input won't even get here when other overlays open
-	if (SlateApp.IsExternalUIOpened())
-	{
-		// Consume input while the overlay is open
-		return true;
-	}
-	else
-	{
-		// Don't consume input when the overlay is closed
-		return false;
-	}
-}
-
-bool FEOSOverlayInputProviderPreProcessor::ProcessInputEvent(FSlateApplication& SlateApp, const FEOSInputState& NewInputState)
+bool FEOSOverlayInputProviderPreProcessor::ProcessInputEvent(const FEOSInputState& NewInputState)
 {
 	HandleInput(NewInputState);
 
-	return ShouldConsumeInput(SlateApp);
+	return bIsExclusiveInput;
 }
 
 FEOSInputState& FEOSOverlayInputProviderPreProcessor::GetCurrentInputState(uint32_t GamepadIndex)

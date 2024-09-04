@@ -628,6 +628,7 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(const FEOSSDKPlatformConfig
 	{
 		static_cast<FEOSPlatformHandle&>(*Result.Get()).ConfigName = PlatformConfig.Name;
 	}
+
 	return Result;
 }
 
@@ -667,6 +668,8 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(EOS_Platform_Options& Platf
 
 			// Tick the platform once to work around EOSSDK error logging that occurs if you create then immediately destroy a platform.
 			SharedPlatform->Tick();
+
+			OnPlatformCreated.Broadcast(SharedPlatform);
 		}
 		else
 		{
@@ -1046,6 +1049,8 @@ void FEOSSDKManager::ReleasePlatform(EOS_HPlatform PlatformHandle)
 
 		ReleasedPlatforms.Emplace(PlatformHandle);
 	}
+
+	OnPreReleasePlatform.Broadcast(PlatformHandle);
 }
 
 void FEOSSDKManager::ReleaseReleasedPlatforms()

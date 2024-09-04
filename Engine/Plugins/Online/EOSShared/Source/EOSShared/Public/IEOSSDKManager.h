@@ -76,6 +76,9 @@ protected:
 using IEOSPlatformHandlePtr = TSharedPtr<IEOSPlatformHandle, ESPMode::ThreadSafe>;
 using IEOSPlatformHandleWeakPtr = TWeakPtr<IEOSPlatformHandle, ESPMode::ThreadSafe>;
 
+DECLARE_MULTICAST_DELEGATE_OneParam(FEOSSDKManagerOnPlatformCreated, const IEOSPlatformHandlePtr& PlatformHandle);
+DECLARE_MULTICAST_DELEGATE_OneParam(FEOSSDKManagerOnPreReleasePlatform, const EOS_HPlatform& PlatformHandle);
+
 class IEOSSDKManager : public IModularFeature
 {
 public:
@@ -139,6 +142,8 @@ public:
 	FEOSSDKManagerOnDefaultPlatformConfigNameChanged OnDefaultPlatformConfigNameChanged;
 	FEOSSDKManagerOnPreCreateNamedPlatform OnPreCreateNamedPlatform;
 	FEOSSDKManagerOnPreCreatePlatform OnPreCreatePlatform;
+	FEOSSDKManagerOnPlatformCreated OnPlatformCreated;
+	FEOSSDKManagerOnPreReleasePlatform OnPreReleasePlatform;
 };
 
 #endif // WITH_EOS_SDK
