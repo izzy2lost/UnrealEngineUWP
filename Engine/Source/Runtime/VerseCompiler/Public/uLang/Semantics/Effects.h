@@ -9,6 +9,7 @@
 namespace uLang
 {
 
+// If you change this enum macro, you must keep things in sync with both VVMVerseEffectSet.h and MakeEffectSet
 #define VERSE_ENUM_EFFECTS(v) \
     v(suspends)     \
     v(decides)      \
