@@ -43,7 +43,7 @@ public:
 	virtual bool IsInitialized() const override { return bInitialized; }
 
 	virtual const FEOSSDKPlatformConfig* GetPlatformConfig(const FString& PlatformConfigName, bool bLoadIfMissing = false) override;
-	virtual bool AddPlatformConfig(const FEOSSDKPlatformConfig& PlatformConfig) override;
+	virtual bool AddPlatformConfig(const FEOSSDKPlatformConfig& PlatformConfig, bool bOverwriteExistingConfig = false) override;
 	virtual const FString& GetDefaultPlatformConfigName() override;
 	virtual void SetDefaultPlatformConfigName(const FString& PlatformConfigName) override;
 

@@ -104,7 +104,7 @@ public:
 	virtual bool IsInitialized() const = 0;
 
 	virtual const FEOSSDKPlatformConfig* GetPlatformConfig(const FString& PlatformConfigName, bool bLoadIfMissing = false) = 0;
-	virtual bool AddPlatformConfig(const FEOSSDKPlatformConfig& PlatformConfig) = 0;
+	virtual bool AddPlatformConfig(const FEOSSDKPlatformConfig& PlatformConfig, bool bOverwriteExistingConfig = false) = 0;
 	virtual const FString& GetDefaultPlatformConfigName() = 0;
 	virtual void SetDefaultPlatformConfigName(const FString& PlatformConfigName) = 0;
 

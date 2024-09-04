@@ -398,7 +398,7 @@ const FEOSSDKPlatformConfig* FEOSSDKManager::GetPlatformConfig(const FString& Pl
 	return PlatformConfig;
 }
 
-bool FEOSSDKManager::AddPlatformConfig(const FEOSSDKPlatformConfig& PlatformConfig)
+bool FEOSSDKManager::AddPlatformConfig(const FEOSSDKPlatformConfig& PlatformConfig, bool bOverwriteExistingConfig)
 {
 	if (PlatformConfig.Name.IsEmpty())
 	{
@@ -406,7 +406,7 @@ bool FEOSSDKManager::AddPlatformConfig(const FEOSSDKPlatformConfig& PlatformConf
 		return false;
 	}
 
-	if (PlatformConfigs.Find(PlatformConfig.Name))
+	if (PlatformConfigs.Find(PlatformConfig.Name) && !bOverwriteExistingConfig)
 	{
 		UE_LOG(LogEOSSDK, Warning, TEXT("Platform config already exists: %s"), *PlatformConfig.Name);
 		return false;
