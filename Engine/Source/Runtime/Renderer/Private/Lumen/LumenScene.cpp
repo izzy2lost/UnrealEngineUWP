@@ -52,14 +52,6 @@ static TAutoConsoleVariable<float> CVarLumenFarFieldReferencePosZ(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-int32 GLumenSceneUploadEveryFrame = 0;
-FAutoConsoleVariableRef CVarLumenSceneUploadEveryFrame(
-	TEXT("r.LumenScene.UploadEveryFrame"),
-	GLumenSceneUploadEveryFrame,
-	TEXT("Whether to upload the entire Lumen Scene's data every frame. Useful for debugging."),
-	ECVF_RenderThreadSafe
-);
-
 TAutoConsoleVariable<int32> CVarLumenSceneUpdateViewOrigin(
 	TEXT("r.LumenScene.UpdateViewOrigin"),
 	1,
@@ -426,7 +418,7 @@ void FLumenSceneData::UploadPageTable(FRDGBuilder& GraphBuilder, FLumenSceneFram
 	RDG_EVENT_SCOPE(GraphBuilder, "LumenUploadPageTable");
 	RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
-	if (GLumenSceneUploadEveryFrame != 0)
+	if (bReuploadSceneRequest)
 	{
 		PageTableIndicesToUpdateInBuffer.SetNum(PageTable.Num());
 

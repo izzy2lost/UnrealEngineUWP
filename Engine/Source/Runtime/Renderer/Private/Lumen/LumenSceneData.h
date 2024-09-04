@@ -743,6 +743,9 @@ public:
 	// Clear all cached state like surface cache atlas. Including extra state like final lighting. Used only for debugging.
 	bool bDebugClearAllCachedState = false;
 
+	// Whether we should re-upload entire Lumen Scene on next update
+	bool bReuploadSceneRequest = false;
+
 	TSparseSpanArray<FLumenCard> Cards;
 	FUniqueIndexList CardIndicesToUpdateInBuffer;
 	TRefCountPtr<FRDGPooledBuffer> CardBuffer;

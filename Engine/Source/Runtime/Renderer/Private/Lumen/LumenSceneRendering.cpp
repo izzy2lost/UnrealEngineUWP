@@ -231,6 +231,13 @@ static TAutoConsoleVariable<int32> CVarLumenSceneViewOriginDistanceThreshold(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarLumenSceneUploadEveryFrame(
+	TEXT("r.LumenScene.UploadEveryFrame"),
+	0,
+	TEXT("Whether to upload the entire Lumen Scene's data every frame. Useful for debugging."),
+	ECVF_RenderThreadSafe
+);
+
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
 DECLARE_LLM_MEMORY_STAT(TEXT("Lumen"), STAT_LumenLLM, STATGROUP_LLMFULL);
 DECLARE_LLM_MEMORY_STAT(TEXT("Lumen"), STAT_LumenSummaryLLM, STATGROUP_LLM);
@@ -2057,6 +2064,11 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 			ClearLumenSurfaceCacheAtlas(GraphBuilder, FrameTemporaries, Views[0].ShaderMap);
 		}
 
+		if (CVarLumenSceneUploadEveryFrame.GetValueOnRenderThread() != 0)
+		{
+			LumenSceneData.bReuploadSceneRequest = true;
+		}
+
 		UpdateLumenCardSceneUniformBuffer(GraphBuilder, Scene, *Scene->GetLumenSceneData(Views[0]), FrameTemporaries);
 
 		if (CardPagesToRender.Num())
@@ -2479,8 +2491,21 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 
 	UpdateLumenCardSceneUniformBuffer(GraphBuilder, Scene, *Scene->GetLumenSceneData(Views[0]), FrameTemporaries);
 
-	// Reset arrays, but keep allocated memory for 1024 elements
 	FLumenSceneData& LumenSceneData = *Scene->GetLumenSceneData(Views[0]);
+	if (!bAnyLumenActive)
+	{
+		// Refresh LumenScene if some updates were ignored due to Lumen being inactive
+		if (LumenSceneData.CardIndicesToUpdateInBuffer.Num() > 0
+			|| LumenSceneData.MeshCardsIndicesToUpdateInBuffer.Num() > 0
+			|| LumenSceneData.HeightfieldIndicesToUpdateInBuffer.Num() > 0
+			|| LumenSceneData.PrimitivesToUpdateMeshCards.Num() > 0
+			|| LumenSceneData.PrimitiveGroupIndicesToUpdateInBuffer.Num() > 0)
+		{
+			LumenSceneData.bReuploadSceneRequest = true;
+		}
+	}
+
+	// Reset arrays, but keep allocated memory for 1024 elements
 	LumenSceneData.CardIndicesToUpdateInBuffer.Empty(1024);
 	LumenSceneData.MeshCardsIndicesToUpdateInBuffer.Empty(1024);
 	LumenSceneData.HeightfieldIndicesToUpdateInBuffer.Empty(1024);
