@@ -1847,6 +1847,8 @@ void AddPostProcessingPasses(
 	{
 		// Draw debug stuff directly onto the back buffer
 
+		RDG_EVENT_SCOPE(GraphBuilder, "Debug Drawing");
+
 		if (EngineShowFlags.TestImage)
 		{
 			AddTestImagePass(GraphBuilder, View, SceneColor);
