@@ -917,7 +917,7 @@ UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToSkeletalMesh
 	// to root, since we can't verify that any current skin binding is valid.
 	TArray<int32> BoneRemapping;
 	const FDynamicMesh3& Mesh{FromDynamicMesh->GetMeshRef()}; 
-	if (Mesh.HasAttributes() && Mesh.Attributes()->HasBones())
+	if (Options.bRemapBoneIndicesToMatchAsset && Mesh.HasAttributes() && Mesh.Attributes()->HasBones())
 	{
 		const FDynamicMeshBoneNameAttribute* SrcBoneNames = Mesh.Attributes()->GetBoneNames();
 		TArray<FName> DstBoneNames = ToSkeletalMeshAsset->GetRefSkeleton().GetRawRefBoneNames();
@@ -948,23 +948,26 @@ UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToSkeletalMesh
 	{
 		Converter.Convert(&ReadMesh, *MeshDescription, !Options.bEnableRecomputeTangents);
 	});
-	
-	if (!BoneRemapping.IsEmpty())
-	{
-		FSkeletalMeshOperations::RemapBoneIndicesOnSkinWeightAttribute(*MeshDescription, BoneRemapping);
-	}
-	else
-	{
-		using namespace UE::AnimationCore;
-		FBoneWeight RootWeight(0, 1.0f);
-		FBoneWeights RootBinding = FBoneWeights::Create({RootWeight});
-		for (const FName AttributeName: MeshAttributes.GetSkinWeightProfileNames())
-		{
-			FSkinWeightsVertexAttributesRef SkinWeights(MeshAttributes.GetVertexSkinWeights(AttributeName));
 
-			for (FVertexID VertexID: MeshDescription->Vertices().GetElementIDs())
+	if (Options.bRemapBoneIndicesToMatchAsset)
+	{
+		if (!BoneRemapping.IsEmpty())
+		{
+			FSkeletalMeshOperations::RemapBoneIndicesOnSkinWeightAttribute(*MeshDescription, BoneRemapping);
+		}
+		else
+		{
+			using namespace UE::AnimationCore;
+			FBoneWeight RootWeight(0, 1.0f);
+			FBoneWeights RootBinding = FBoneWeights::Create({RootWeight});
+			for (const FName AttributeName: MeshAttributes.GetSkinWeightProfileNames())
 			{
-				SkinWeights.Set(VertexID, RootBinding);
+				FSkinWeightsVertexAttributesRef SkinWeights(MeshAttributes.GetVertexSkinWeights(AttributeName));
+
+				for (FVertexID VertexID: MeshDescription->Vertices().GetElementIDs())
+				{
+					SkinWeights.Set(VertexID, RootBinding);
+				}
 			}
 		}
 	}

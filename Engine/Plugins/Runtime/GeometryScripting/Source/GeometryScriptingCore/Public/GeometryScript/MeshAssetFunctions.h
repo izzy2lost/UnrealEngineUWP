@@ -72,6 +72,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bEnableRemoveDegenerates = false;
 
+	/** Remap the bone indices to match the asset. This requires the source mesh to have bone information present. If no bone information is present
+	 *  then all bone weights are mapped to the root.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bRemapBoneIndicesToMatchAsset = false;
+
 	// Whether to use the build scale on the target asset. If enabled, the inverse scale will be applied when saving to the asset, and the BuildScale will be preserved. Otherwise, BuildScale will be set to 1.0 on the asset BuildSettings.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bUseBuildScale = true;
