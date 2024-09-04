@@ -62,6 +62,9 @@ struct FLayeredMoveFinishVelocitySettings
 * are aggregated and applied to the overall attempted move.
 * Multiple layered moves can be active at any time, and may produce additive motion or motion that overrides
 * what the current Movement Mode may intend.
+* Layered moves can also set a preferred movement mode that only changes the movement mode at the start of
+* the move. Any movement mode changes that need to happen as part of the layered move after the start of the move
+* need to be queued through an Instant Effect or the QueueNextMode function
 */
 
 // Base class for all layered moves

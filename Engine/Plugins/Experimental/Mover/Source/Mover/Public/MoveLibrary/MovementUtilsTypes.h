@@ -31,22 +31,32 @@ struct MOVER_API FProposedMove
 		bHasDirIntent(false)
 	{}
 
+	// Determines how this move should resolve with other moves
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
-	EMoveMixMode MixMode = EMoveMixMode::AdditiveVelocity;		// Determines how this move should resolve with other moves
+	EMoveMixMode MixMode = EMoveMixMode::AdditiveVelocity;
 
+	/**
+	 * Indicates that we should switch to a particular movement mode before the next simulation step is performed.
+	 * Note: If this is set from a layered move the preferred mode will only be set at the beginning of the layered move, not continuously.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
-	FName	PreferredMode = NAME_None;					// Indicates that we should switch to a particular movement mode before the next simulation step is performed.
+	FName	PreferredMode = NAME_None;
 
+	// Signals whether there was any directional intent specified
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
-	uint8	 bHasDirIntent : 1;							// Signals whether there was any directional intent specified
+	uint8	 bHasDirIntent : 1;
 
+	// Directional, per-axis magnitude [-1, 1] in world space (length of 1 indicates max speed intent). Only valid if bHasDirIntent is set.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
-	FVector  DirectionIntent = FVector::ZeroVector;		// Directional, per-axis magnitude [-1, 1] in world space (length of 1 indicates max speed intent). Only valid if bHasDirIntent is set.
+	FVector  DirectionIntent = FVector::ZeroVector;
 
+	// Units per second, world space, possibly mapped onto walking surface
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
-	FVector  LinearVelocity = FVector::ZeroVector;		// Units per second, world space, possibly mapped onto walking surface
+	FVector  LinearVelocity = FVector::ZeroVector;
+	
+	// Degrees per second, local space
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
-	FRotator AngularVelocity = FRotator::ZeroRotator;	// Degrees per second, local space
+	FRotator AngularVelocity = FRotator::ZeroRotator;
 };
 
 

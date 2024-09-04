@@ -172,6 +172,7 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 		EffectParams.UpdatedComponent = UpdatedComponent;
 		EffectParams.UpdatedPrimitive = UpdatedPrimitive;
 		
+		bool bModeSetFromInstantEffect = false;
 		// Apply any instant effects that were queued up between ticks
 		if (ApplyInstantEffects(EffectParams, OutputState.SyncState))
 		{
@@ -186,6 +187,7 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 
 			if (CurrentModeName != OutputState.SyncState.MovementMode)
 			{
+				bModeSetFromInstantEffect = true;
 				SetModeImmediately(OutputState.SyncState.MovementMode);
 				SubstepStartData.SyncState.MovementMode = CurrentModeName;
 			}
@@ -218,12 +220,18 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 			FProposedMove MoveStep;
 			if (ActiveMove->GenerateMove(SubstepStartData, TimeStep, MoverComp, SimBlackboard, MoveStep))
 			{
+				// If this active move is already past it's first tick we don't need to set the preferred mode again
+				if (ActiveMove->StartSimTimeMs <= TimeStep.BaseSimTimeMs)
+				{
+					MoveStep.PreferredMode = NAME_None;
+				}
+				
 				bHasLayeredMoveContributions = true;
 				MoverComp->MovementMixer->MixLayeredMove(*ActiveMove, MoveStep, CombinedLayeredMove);
 			}
 		}
 
-		if (bHasLayeredMoveContributions && !CombinedLayeredMove.PreferredMode.IsNone())
+		if (bHasLayeredMoveContributions && !CombinedLayeredMove.PreferredMode.IsNone() && !bModeSetFromInstantEffect)
 		{
 			SetModeImmediately(CombinedLayeredMove.PreferredMode);
 			OutputState.SyncState.MovementMode = CurrentModeName;
