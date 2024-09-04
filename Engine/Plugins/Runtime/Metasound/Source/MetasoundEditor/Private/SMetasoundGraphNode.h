@@ -74,6 +74,9 @@ namespace Metasound::Editor
 		// Returns attribute that returns whether or not the input widget should be enabled.
 		TAttribute<bool> GetInputWidgetEnabled() const;
 
+		// Returns the input widget tooltip text.
+		FText GetInputWidgetTooltip() const;
+
 		// If this node represents a graph member node, returns corresponding member.
 		UMetasoundEditorGraphMember* GetMetaSoundMember();
 

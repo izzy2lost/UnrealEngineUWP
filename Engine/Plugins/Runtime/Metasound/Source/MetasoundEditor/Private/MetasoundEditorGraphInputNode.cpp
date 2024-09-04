@@ -19,6 +19,7 @@
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundPrimitives.h"
+#include "MetasoundSettings.h"
 #include "Misc/Guid.h"
 #include "Sound/SoundWave.h"
 #include "UObject/ObjectMacros.h"
@@ -138,18 +139,19 @@ void UMetasoundEditorGraphInputNode::GetPinHoverText(const UEdGraphPin& Pin, FSt
 	{
 		if (ensure(Input))
 		{
-			FConstNodeHandle InputNode = Input->GetConstNodeHandle();
-			OutHoverText = InputNode->GetDescription().ToString();
+			OutHoverText = Input->GetDescription().ToString();
 			if (ShowNodeDebugData())
 			{
-				FConstOutputHandle OutputHandle = FGraphBuilder::FindReroutedConstOutputHandleFromPin(&Pin);
-				OutHoverText = FString::Format(TEXT("{0}\nVertex Name: {1}\nDataType: {2}\nID: {3}"),
+				if (const FMetasoundFrontendClassVertex* Vertex = Input->GetFrontendClassVertex())
 				{
-					OutHoverText,
-					OutputHandle->GetName().ToString(),
-					OutputHandle->GetDataType().ToString(),
-					OutputHandle->GetID().ToString(),
-				});
+					OutHoverText = FString::Format(TEXT("{0}\nVertex Name: {1}\nDataType: {2}\nID: {3}"),
+					{
+						OutHoverText,
+						Vertex->Name.ToString(),
+						Vertex->TypeName.ToString(),
+						Vertex->NodeID.ToString(),
+					});
+				}
 			}
 		}
 	}
@@ -198,13 +200,61 @@ void UMetasoundEditorGraphInputNode::Validate(Metasound::Editor::FGraphNodeValid
 FText UMetasoundEditorGraphInputNode::GetTooltipText() const
 {
 	//If Constructor input
-	if (Input && Input->GetVertexAccessType() == EMetasoundFrontendVertexAccessType::Value)
+	if (Input)
 	{
-		UMetasoundEditorGraph* Graph = CastChecked<UMetasoundEditorGraph>(GetGraph());
-		if (Graph->IsPreviewing())
+		if (Input->GetVertexAccessType() == EMetasoundFrontendVertexAccessType::Value)
 		{
-			FText ToolTip = LOCTEXT("Metasound_ConstructorInputNodeDescription", "Editing constructor values is disabled while previewing.");
-			return ToolTip;
+			UMetasoundEditorGraph* Graph = CastChecked<UMetasoundEditorGraph>(GetGraph());
+			if (Graph->IsPreviewing())
+			{
+				FText ToolTip = LOCTEXT("Metasound_ConstructorInputNodeDescription", "Editing constructor values is disabled while previewing.");
+				return ToolTip;
+			}
+		}
+
+		if (UMetasoundEditorGraphMemberDefaultLiteral* Literal = Input->GetLiteral())
+		{
+			bool bPageDefaultImplemented = false;
+			const FMetaSoundFrontendDocumentBuilder& Builder = Input->GetFrontendBuilderChecked();
+			const FGuid& BuildPageID = Builder.GetBuildPageID();
+			Literal->IterateDefaults([&bPageDefaultImplemented, &BuildPageID](const FGuid& InDefaultPageID, FMetasoundFrontendLiteral)
+			{
+				bPageDefaultImplemented |= InDefaultPageID == BuildPageID;
+			});
+
+			if (!bPageDefaultImplemented)
+			{
+				const UMetaSoundSettings* MetaSoundSettings = GetDefault<UMetaSoundSettings>();
+				check(MetaSoundSettings);
+
+				const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
+				check(EditorSettings);
+
+				if (const FMetaSoundPageSettings* PageSettings = MetaSoundSettings->FindPageSettings(BuildPageID))
+				{
+					if (const FMetasoundFrontendClassInput* ClassInput = Builder.FindGraphInput(Input->GetMemberName()))
+					{
+						const FGuid FallbackPageID = EditorSettings->ResolveAuditionPage(*ClassInput, BuildPageID);
+						if (const FMetaSoundPageSettings* FallbackSettings = MetaSoundSettings->FindPageSettings(FallbackPageID))
+						{
+							return FText::Format(
+								LOCTEXT("DefaultPageValueDisabledNotImplemented",
+									"No '{0}' page default value implemented.\r\n"
+									"Showing platform/platform group '{1}' fallback '{2}'.\r\n"
+									"(See 'Audition' menu or 'MetaSound' Editor Preferences to change 'Audition Platform')."),
+								FText::FromName(PageSettings->Name),
+								FText::FromName(EditorSettings->AuditionPlatform),
+								FText::FromName(FallbackSettings->Name));
+						}
+					}
+				}
+			}
+		}
+
+		const FText InputDescription = Input->GetDescription();
+		if (!InputDescription.IsEmpty())
+		{
+			return InputDescription;
 		}
 	}
 

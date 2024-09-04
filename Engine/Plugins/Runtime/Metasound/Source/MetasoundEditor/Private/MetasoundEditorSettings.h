@@ -309,6 +309,12 @@ public:
 	const FAudioMaterialMeterStyle* GetMeterStyle() const;
 
 	Metasound::Engine::FPageResolutionEditorResults ResolveAuditionPage(const TArray<FGuid>& InPageIDs) const;
+	
+	/** Given the provided AuditionPageID, returns the resolved PageID from the provided array of values based on fallback logic. */
+	FGuid ResolveAuditionPage(const TArray<FGuid>& InPageIDs, const FGuid& InAuditionPageID) const;
+
+	/** Given the provided class input and AuditionPageID, returns the resolved PageID from the provided array of values based on fallback logic. */
+	FGuid ResolveAuditionPage(const FMetasoundFrontendClassInput& InClassInput, const FGuid& InAuditionPageID) const;
 
 	UFUNCTION()
 	static TArray<FName> GetAuditionPageNames();

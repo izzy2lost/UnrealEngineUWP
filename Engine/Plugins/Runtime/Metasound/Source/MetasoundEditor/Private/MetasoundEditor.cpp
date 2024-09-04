@@ -2009,8 +2009,11 @@ namespace Metasound
 			MenuBuilder.BeginSection("SetAuditionPageSectionHeader", LOCTEXT("SetAuditionPageDescription", "Audition Page"));
 			{
 				TSharedRef<FEditor> ThisShared = StaticCastSharedRef<FEditor>(AsShared());
-				const FText FocusPageTooltip = LOCTEXT("EnableAuditionFocusPageTooltip", "Sets audition page to focused graph page. "
-					"If page focus is modified and newly selected graph is not targetable, Editor will warn behavior is not reflected at runtime (see Project 'MetaSound Editor' Settings), ");
+				const FText FocusPageTooltip = LOCTEXT("EnableAuditionFocusPageTooltip",
+					"Synchronizes audition page to currently focused graph page.\r\n"
+					"If focused graph page is non-targetable for the selected audition\r\n"
+					"platform, will issue warning behavior is not reflected at runtime\r\n"
+					"(see 'MetaSound Editor' user settings).");
 				MenuBuilder.AddWidget(
 					SNew(SCheckBox)
 					.OnCheckStateChanged_Lambda([EditorPtr = TWeakPtr<FEditor>(ThisShared)](ECheckBoxState State)
@@ -2055,7 +2058,7 @@ namespace Metasound
 						return ECheckBoxState::Unchecked;
 					})
 					.ToolTipText(FocusPageTooltip),
-					LOCTEXT("EnableAuditionAndFocusGraphPageSync", "Sync Audition With Focused Graph Page"),
+					LOCTEXT("EnableAuditionAndFocusGraphPageSync", "Sync With Graph Page"),
 					true,
 					true,
 					FocusPageTooltip

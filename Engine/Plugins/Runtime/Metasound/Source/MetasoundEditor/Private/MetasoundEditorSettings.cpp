@@ -129,35 +129,54 @@ Metasound::Engine::FPageResolutionEditorResults UMetasoundEditorSettings::Resolv
 
 	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
 	{
-		if (const FMetaSoundPageSettings* TargetPageSettings = Settings->FindPageSettings(AuditionPage))
+		if (const FMetaSoundPageSettings* AuditionPageSettings = Settings->FindPageSettings(AuditionPage))
 		{
-			const FGuid& TargetPageID = TargetPageSettings->UniqueId;
-			constexpr bool bReverse = true;
-			bool bFoundMatch = false;
-			bool bPageSelected = false;
-			Settings->IteratePageSettings([&](const FMetaSoundPageSettings& PageSettings)
+			const FGuid& AuditionPageID = AuditionPageSettings->UniqueId;
+			PreviewInfo.PageID = ResolveAuditionPage(InPageIDs, AuditionPageID);
+		}
+	}
+	return PreviewInfo;
+
+}
+
+FGuid UMetasoundEditorSettings::ResolveAuditionPage(const FMetasoundFrontendClassInput& InClassInput, const FGuid& InAuditionPageID) const
+{
+	TArray<FGuid> PageIDs;
+	InClassInput.IterateDefaults([&PageIDs](const FGuid& PageID, const FMetasoundFrontendLiteral&)
+	{
+		PageIDs.Add(PageID);
+	});
+	return ResolveAuditionPage(PageIDs, InAuditionPageID);
+}
+
+FGuid UMetasoundEditorSettings::ResolveAuditionPage(const TArray<FGuid>& InPageIDs, const FGuid& InAuditionPageID) const
+{
+	FGuid ResolvedPageID = Metasound::Frontend::DefaultPageID;
+	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+	{
+		constexpr bool bReverse = true;
+		bool bFoundMatch = false;
+		bool bPageSelected = false;
+		Settings->IteratePageSettings([&](const FMetaSoundPageSettings& PageSettings)
 			{
 				if (!bPageSelected)
 				{
-					bFoundMatch |= PageSettings.UniqueId == TargetPageID;
+					bFoundMatch |= PageSettings.UniqueId == InAuditionPageID;
 					if (bFoundMatch)
 					{
 						if (InPageIDs.Contains(PageSettings.UniqueId))
 						{
-							if (AuditionPlatform == EditorAuditionPlatform || !PageSettings.GetExcludeFromCook(PreviewInfo.PlatformName))
+							if (AuditionPlatform == EditorAuditionPlatform || !PageSettings.GetExcludeFromCook(AuditionPlatform))
 							{
 								bPageSelected = true;
-								PreviewInfo.PageID = PageSettings.UniqueId;
+								ResolvedPageID = PageSettings.UniqueId;
 							}
 						}
 					}
 				}
 			}, bReverse);
-		}
 	}
-
-	return PreviewInfo;
-
+	return ResolvedPageID;
 }
 
 TArray<FName> UMetasoundEditorSettings::GetAuditionPlatformNames()

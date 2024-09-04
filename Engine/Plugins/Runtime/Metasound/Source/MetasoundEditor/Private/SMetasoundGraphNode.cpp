@@ -31,6 +31,7 @@
 #include "MetasoundEditorSubsystem.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendRegistries.h"
+#include "MetasoundSettings.h"
 #include "MetasoundTrace.h"
 #include "MetasoundTrigger.h"
 #include "NodeFactory.h"
@@ -758,6 +759,15 @@ namespace Metasound
 			});
 		}
 
+		FText SMetaSoundGraphNode::GetInputWidgetTooltip() const
+		{
+			if (const UMetasoundEditorGraphMemberNode* Node = GetMetaSoundMemberNode())
+			{
+				return Node->GetTooltipText();
+			}
+			return FText();
+		}
+
 		UMetasoundEditorGraphMemberNode* SMetaSoundGraphNode::GetMetaSoundMemberNode() const
 		{
 			return Cast<UMetasoundEditorGraphMemberNode>(&GetMetaSoundNode());
@@ -1051,14 +1061,14 @@ namespace Metasound
 				FGuid ResolvedPageID = Frontend::DefaultPageID;
 				if (ensure(ClassInput))
 				{
-					ResolvedPageID = Engine::FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(*ClassInput);
+					ResolvedPageID = EditorSettings->ResolveAuditionPage(*ClassInput, InBuilder.GetBuildPageID());
 				}
 
 				FloatInputWidget->SetOutputRange(DefaultFloat->GetRange());
 				FloatInputWidget->SetUnitsTextReadOnly(true);
 				FloatInputWidget->SetSliderValue(FloatInputWidget->GetSliderValue(DefaultFloat->GetDefaultAs<float>(ResolvedPageID)));
 				FloatInputWidget->SetEnabled(GetInputWidgetEnabled());
-
+				FloatInputWidget->SetToolTipText(GetInputWidgetTooltip());
 				// Setup & clear delegate if necessary (ex. if was just saved)
 				if (InputSliderOnValueChangedDelegateHandle.IsValid())
 				{
