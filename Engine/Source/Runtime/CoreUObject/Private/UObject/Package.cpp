@@ -408,7 +408,7 @@ void UPackage::SetSavedHash(const FIoHash& InSavedHash)
 
 #endif
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 
 void DeclareIntrinsicUPackageMembers()
 {
@@ -426,4 +426,4 @@ IMPLEMENT_CORE_INTRINSIC_CLASS(UPackage, UObject,
 	{
 	}
 );
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
