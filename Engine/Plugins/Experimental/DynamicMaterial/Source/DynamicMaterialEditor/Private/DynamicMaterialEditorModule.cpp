@@ -40,6 +40,7 @@
 #include "UI/PropertyGenerators/DMMaterialStageFunctionPropertyRowGenerator.h"
 #include "UI/PropertyGenerators/DMMaterialValueDynamicPropertyRowGenerator.h"
 #include "UI/PropertyGenerators/DMMaterialValuePropertyRowGenerator.h"
+#include "UI/PropertyGenerators/DMStagePropertyRowGenerator.h"
 #include "UI/PropertyGenerators/DMTextureUVDynamicPropertyRowGenerator.h"
 #include "UI/PropertyGenerators/DMTextureUVPropertyRowGenerator.h"
 #include "UI/PropertyGenerators/DMThroughputPropertyRowGenerator.h"
@@ -232,6 +233,7 @@ void FDynamicMaterialEditorModule::StartupModule()
 	FDMMaterialModelDefaults::RegisterDefaultsDelegates();
 
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialComponent,            FDMComponentPropertyRowGenerator>();
+	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialStage,                FDMStagePropertyRowGenerator>();
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialValue,                FDMMaterialValuePropertyRowGenerator>();
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialValueDynamic,         FDMMaterialValueDynamicPropertyRowGenerator>();
 	RegisterComponentPropertyRowGeneratorDelegate<UDMTextureUV,                    FDMTextureUVPropertyRowGenerator>();
