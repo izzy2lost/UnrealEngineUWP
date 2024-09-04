@@ -2421,6 +2421,14 @@ protected:
 	/** Gathers dynamic mesh elements for all shadows. */
 	void GatherShadowDynamicMeshElements(FDynamicShadowsTaskData& TaskData);
 
+	/** Renders capsule shadows for all per-object shadows using it for the given light. */
+	bool RenderCapsuleDirectShadows(
+		FRDGBuilder& GraphBuilder,
+		const FLightSceneInfo& LightSceneInfo,
+		FRDGTextureRef ScreenShadowMaskTexture,
+		TArrayView<const FProjectedShadowInfo* const> CapsuleShadows,
+		bool bProjectingForForwardShading) const;
+
 	/** Performs once per frame setup prior to visibility determination. */
 	void PreVisibilityFrameSetup(FRDGBuilder& GraphBuilder);
 

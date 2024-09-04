@@ -920,7 +920,7 @@ float ShadowConeTraceAgainstCulledDistanceFieldCasters(
 	return ConeVisibility;
 }
 
-void ApplySelfShadowingIntensityForDeferred(float2 ScreenUV, inout float Visibility)
+void ApplySelfShadowingIntensityForDeferred(float2 ScreenUV, inout float Visibility, float2 SVPos)
 {
 	BRANCH
 	if (View.IndirectCapsuleSelfShadowingIntensity < 1)
@@ -931,7 +931,11 @@ void ApplySelfShadowingIntensityForDeferred(float2 ScreenUV, inout float Visibil
 		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
 		const bool bHasDynamicIndirectShadowCasterRepresentation = SubstratePixelHeader.HasDynamicIndirectShadowCasterRepresentation();
 #else
-		FGBufferData GBufferData = GetGBufferData(ScreenUV);
+		#if SHADING_PATH_MOBILE
+			FGBufferData GBufferData = MobileFetchAndDecodeGBuffer(ScreenUV, SVPos);;
+		#else
+			FGBufferData GBufferData = GetGBufferData(ScreenUV);
+		#endif
 		const bool bHasDynamicIndirectShadowCasterRepresentation = HasDynamicIndirectShadowCasterRepresentation(GBufferData);
 #endif
 		// Reduce self shadowing intensity
@@ -963,7 +967,8 @@ void CapsuleShadowingCS(
 	float2 ScreenUV = float2((DispatchThreadId.xy * DownsampleFactor + ScissorRectMinAndSize.xy + .5f) * View.BufferSizeAndInvSize.zw);
 	float2 ScreenPosition = (ScreenUV.xy - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 
-#if LIGHT_SOURCE_MODE == LIGHT_SOURCE_FROM_RECEIVER
+// Mobile does not support bent normals
+#if LIGHT_SOURCE_MODE == LIGHT_SOURCE_FROM_RECEIVER && !SHADING_PATH_MOBILE
 	float4 ReceiverTextureValue = ReceiverBentNormalTexture.Load(DispatchThreadId.xyz);
 	float3 ReceiverBentNormal = ReceiverTextureValue.xyz;
 	float SceneDepth = ReceiverTextureValue.w;
@@ -1016,7 +1021,7 @@ void CapsuleShadowingCS(
 				float LightAngle = LightAngleAndNormalThreshold.x;
 
 			#endif
-		#elif LIGHT_SOURCE_MODE == LIGHT_SOURCE_FROM_RECEIVER
+		#elif LIGHT_SOURCE_MODE == LIGHT_SOURCE_FROM_RECEIVER && !SHADING_PATH_MOBILE
 			float3 TranslatedWorldRayStart = OpaqueTranslatedWorldPosition;
 			float BentNormalLength = length(ReceiverBentNormal);
 			float3 UnitRayDirection = ReceiverBentNormal / max(BentNormalLength, .00001f);
@@ -1098,7 +1103,8 @@ void CapsuleShadowingCS(
 		float3 ReceiverBentNormal = ReceiverBentNormalTexture.Load(DispatchThreadId.xyz).xyz;
 #endif
 	#if LIGHT_SOURCE_MODE == LIGHT_SOURCE_FROM_CAPSULE && !FORWARD_SHADING
-		ApplySelfShadowingIntensityForDeferred(ScreenUV, Visibility);
+		// The third param of this function is used only by mobile paths which do not support bent normals.
+		ApplySelfShadowingIntensityForDeferred(ScreenUV, Visibility, float2(0,0));
 	#endif
 	#if METAL_PROFILE 
 		// clamp max depth to avoid #inf
@@ -1172,7 +1178,7 @@ void CapsuleShadowingUpsamplePS(
 	{
 		#if !FORWARD_SHADING
 			// Self-shadowing determination is binary so apply at full res where possible
-			ApplySelfShadowingIntensityForDeferred(ScreenUV, Output);
+			ApplySelfShadowingIntensityForDeferred(ScreenUV, Output, SVPos.xy);
 		#endif
 
 		OutColor = Output;

@@ -242,7 +242,6 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 	GET_SECTION_BOOL_HELPER(bSupportsDistanceFields);
 	GET_SECTION_BOOL_HELPER(bSupportsDiaphragmDOF);
 	GET_SECTION_BOOL_HELPER(bSupportsRGBColorBuffer);
-	GET_SECTION_BOOL_HELPER(bSupportsCapsuleShadows);
 	GET_SECTION_BOOL_HELPER(bSupportsPercentageCloserShadows);
 	GET_SECTION_BOOL_HELPER(bSupportsIndexBufferUAVs);
 	GET_SECTION_BOOL_HELPER(bSupportsInstancedStereo);

@@ -35,7 +35,6 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 bSupportsDistanceFields : 1; // used for DFShadows and DFAO - since they had the same checks
 	uint32 bSupportsDiaphragmDOF : 1;
 	uint32 bSupportsRGBColorBuffer : 1;
-	uint32 bSupportsCapsuleShadows : 1;
 	uint32 bSupportsPercentageCloserShadows : 1;
 	uint32 bSupportsIndexBufferUAVs : 1;
 	uint32 bSupportsInstancedStereo : 1;
@@ -269,12 +268,6 @@ public:
 	{
 		check(IsValid(Platform));
 		return Infos[Platform].bSupportsRGBColorBuffer;
-	}
-
-	static FORCEINLINE_DEBUGGABLE const bool GetSupportsCapsuleShadows(const FStaticShaderPlatform Platform)
-	{
-		check(IsValid(Platform));
-		return Infos[Platform].bSupportsCapsuleShadows;
 	}
 
 	static FORCEINLINE_DEBUGGABLE const bool GetSupportsPercentageCloserShadows(const FStaticShaderPlatform Platform)
