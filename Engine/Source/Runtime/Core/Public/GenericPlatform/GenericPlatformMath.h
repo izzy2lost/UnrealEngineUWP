@@ -795,7 +795,16 @@ struct FGenericPlatformMath
 	 */
 	static constexpr FORCEINLINE uint8 ConstExprCeilLogTwo(SIZE_T Arg)
 	{
-		return Arg <= 1 ? 0 : (1 + ConstExprCeilLogTwo(Arg / 2));
+		if (Arg <= 1)
+		{
+			return 0;
+		}
+		// Integer overflow if we tried to add 1 to maximum value, so handle that case separately
+		if (Arg + 1 < Arg)
+		{
+			return sizeof(Arg) * 8;
+		}
+		return 1 + ConstExprCeilLogTwo((Arg + 1) / 2);
 	}
 
 	/** @return Rounds the given number up to the next highest power of two. */
