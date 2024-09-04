@@ -931,9 +931,6 @@ private:
 	/** Cached expansion state info */
 	mutable FParentsExpansionState CachedExpansionStateInfo;
 
-	/** Updates the expansion state of parent items after a repopulate */
-	void SetParentsExpansionState() const;
-
 private:
 
 	/** True if the outliner needs to be repopulated at the next appropriate opportunity, usually because our
