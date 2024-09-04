@@ -49,6 +49,7 @@ public class MetaHumanSDKEditor : ModuleRules
 				"UnrealEd",
 				"HairStrandsCore",
 				"RigLogicModule",
+				"RigVMDeveloper",
 				"ControlRig",
 				"ControlRigDeveloper",
 			}
