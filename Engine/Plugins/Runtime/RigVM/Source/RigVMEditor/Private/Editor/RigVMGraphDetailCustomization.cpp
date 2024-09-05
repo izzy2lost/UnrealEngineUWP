@@ -796,7 +796,7 @@ void FRigVMGraphDetailCustomizationImpl::CustomizeDetails(IDetailLayoutBuilder& 
 
 	URigVMGraph* Model = WeakModel.Get();
 
-	if (Model->IsTopLevelGraph())
+	if (Model != nullptr && Model->IsTopLevelGraph())
 	{
 		IDetailCategoryBuilder& Category = DetailLayout.EditCategory("Graph", LOCTEXT("FunctionDetailsGraph", "Graph"));
 		Category.AddCustomRow(FText::GetEmpty())
