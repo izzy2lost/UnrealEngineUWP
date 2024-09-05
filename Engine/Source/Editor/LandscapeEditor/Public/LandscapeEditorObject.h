@@ -699,13 +699,18 @@ public:
 	// Target Layer Settings:
 
 	// Limits painting to only the components that already have the selected layer
-	UPROPERTY(Category="Target Layers", EditAnywhere, NonTransactional, meta=(ShowForTargetTypes="Weightmap,Visibility"))
+	UPROPERTY(Category = "Target Layers", EditAnywhere, NonTransactional, meta=(ShowForTargetTypes="Weightmap,Visibility"))
 	ELandscapeLayerPaintingRestriction PaintingRestriction;
+
+	// This allows to hide layer names that do not match the filter
+	UPROPERTY(Transient)
+	FString TargetLayersFilterString;
 
 	// Display order of the targets
 	UPROPERTY(Category = "Target Layers", EditAnywhere)
 	ELandscapeLayerDisplayMode TargetDisplayOrder;
 
+	// Show layers that are not currently being painted anywhere
 	UPROPERTY(Category = "Target Layers", EditAnywhere)
 	bool ShowUnusedLayers;	
 
