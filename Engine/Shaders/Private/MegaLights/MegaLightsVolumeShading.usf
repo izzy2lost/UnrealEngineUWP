@@ -157,7 +157,10 @@ void VolumeShadeLightSamplesCS(
 		#endif
 
 		float SceneDepth2 = 0.0f;
+		float SceneDepth3 = 0.0f;
 		float CellRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(VolumeCoord + uint3(1, 1, 1), VolumeFrameJitterOffset, SceneDepth2));
+		float Cell2DRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(VolumeCoord + uint3(1, 1, 0), VolumeFrameJitterOffset, SceneDepth3));
+		float LightVolumetricSoftFadeDistance = LightSoftFading * Cell2DRadius;
 		// Bias the inverse squared light falloff based on voxel size to prevent aliasing near the light source
 		float DistanceBiasSqr = max(CellRadius * VolumeInverseSquaredLightDistanceBiasScale, 1);
 		DistanceBiasSqr *= DistanceBiasSqr;
@@ -237,7 +240,7 @@ void VolumeShadeLightSamplesCS(
 
 					if (SampleWeight > 0.01f)
 					{
-						LightScattering += GetMegaLightsVolumeLighting(TranslatedWorldPosition, CameraVector, DistanceBiasSqr, LocalLightData, LightData) * SampleWeight;
+						LightScattering += GetMegaLightsVolumeLighting(TranslatedWorldPosition, CameraVector, DistanceBiasSqr, LightVolumetricSoftFadeDistance, LocalLightData, LightData) * SampleWeight;
 					}
 				}
 			}

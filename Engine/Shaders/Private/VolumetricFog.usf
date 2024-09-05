@@ -49,10 +49,8 @@ RWTexture3D<float4> RWVBufferA;
 RWTexture3D<float4> RWVBufferB;
 #endif
 
-#ifndef USE_CLOUD_TRANSMITTANCE
-#define USE_CLOUD_TRANSMITTANCE 0
-#endif
-#if USE_CLOUD_TRANSMITTANCE
+#if !SHADING_PATH_MOBILE
+#define USE_CLOUD_TRANSMITTANCE 1
 #include "VolumetricCloudCommon.ush"
 #endif
 
@@ -384,6 +382,7 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 		NumSuperSamples = HistoryAlpha < .001f ? HistoryMissSuperSampleCount : 1;
 
 #endif
+		const bool bSoftFadeEnabled = VolumetricFog.LightSoftFading > 0;
 
 		for (uint SampleIndex = 0; SampleIndex < NumSuperSamples; SampleIndex++)
 		{
@@ -395,6 +394,8 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 			float3 CameraVector = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 
 			float CellRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(GridCoordinate + uint3(1, 1, 1), CellOffset));
+			float Cell2DRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(GridCoordinate + uint3(1, 1, 0), CellOffset));
+			float LightVolumetricSoftFadeDistance = VolumetricFog.LightSoftFading * Cell2DRadius;
 			// Bias the inverse squared light falloff based on voxel size to prevent aliasing near the light source
 			float DistanceBias = max(CellRadius * InverseSquaredLightDistanceBiasScale, 1);
 
@@ -406,7 +407,15 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 			{
 				FRect Rect = GetRect(ToLight, LightData);
 
-				Lighting = IntegrateLight(Rect);
+				float SoftFade = 1.0f;
+#if USE_LIGHT_SOFT_FADING
+				if (bSoftFadeEnabled)
+				{
+					SoftFade = GetRectLightVolumetricSoftFading(LightData, Rect, LightVolumetricSoftFadeDistance, ToLight);
+				}
+#endif // USE_LIGHT_SOFT_FADING
+
+				Lighting = SoftFade * IntegrateLight(Rect);
 
 #if USE_RECT_LIGHT_TEXTURE
 				if (IsRectVisible(Rect))
@@ -422,7 +431,15 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 				FCapsuleLight Capsule = GetCapsule(ToLight, LightData);
 				Capsule.DistBiasSqr = Pow2(DistanceBias);
 
-				Lighting = IntegrateLight(Capsule, LightData.bInverseSquared);
+				float SoftFade = 1.0f;
+#if USE_LIGHT_SOFT_FADING
+				if (LightData.bSpotLight && bSoftFadeEnabled)
+				{
+					SoftFade = GetSpotLightVolumetricSoftFading(LightData, LightVolumetricSoftFadeDistance, ToLight);
+				}
+#endif // USE_LIGHT_SOFT_FADING
+
+				Lighting = SoftFade * IntegrateLight(Capsule, LightData.bInverseSquared);
 			}
 
 			float CombinedAttenuation = Lighting * LightMask;
@@ -766,9 +783,12 @@ void LightScatteringCS(
 				ShadowFactor *= RaytracedShadowsVolume[GridCoordinate];
 #endif
 
-#if USE_CLOUD_TRANSMITTANCE
-				float OutOpticalDepth = 0.0f; 
-				ShadowFactor *= lerp(1.0f, GetCloudVolumetricShadow(TranslatedWorldPosition, CloudShadowmapTranslatedWorldToLightClipMatrix, CloudShadowmapFarDepthKm, CloudShadowmapTexture, CloudShadowmapSampler, OutOpticalDepth), CloudShadowmapStrength);
+#if !SHADING_PATH_MOBILE
+				if (CloudShadowmapStrength > 0.0f)
+				{
+					float OutOpticalDepth = 0.0f;
+					ShadowFactor *= lerp(1.0f, GetCloudVolumetricShadow(TranslatedWorldPosition, CloudShadowmapTranslatedWorldToLightClipMatrix, CloudShadowmapFarDepthKm, CloudShadowmapTexture, CloudShadowmapSampler, OutOpticalDepth), CloudShadowmapStrength);
+				}
 #endif
 			}
 
@@ -846,6 +866,8 @@ void LightScatteringCS(
 		const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, 0);
 
 		float CellRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(GridCoordinate + uint3(1, 1, 1), CellOffset));
+		float Cell2DRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(GridCoordinate + uint3(1, 1, 0), CellOffset));
+		float LightVolumetricSoftFadeDistance = VolumetricFog.LightSoftFading * Cell2DRadius;
 		// Bias the inverse squared light falloff based on voxel size to prevent aliasing near the light source
 		float DistanceBiasSqr = max(CellRadius * InverseSquaredLightDistanceBiasScale, 1);
 		DistanceBiasSqr *= DistanceBiasSqr;
@@ -870,6 +892,8 @@ void LightScatteringCS(
 
 			if (VolumetricScatteringIntensity > 0)
 			{
+				const bool bSoftFadeEnabled = VolumetricFog.LightSoftFading > 0;
+
 				const FDeferredLightData LightData = ConvertToDeferredLight(LocalLight);
 
 				float3 L = 0;
@@ -881,14 +905,30 @@ void LightScatteringCS(
 				{
 					FRect Rect = GetRect( ToLight, LightData );
 
-					Lighting = IntegrateLight(Rect);
+					float SofFade = 1.0f;
+#if USE_LIGHT_SOFT_FADING
+					if (bSoftFadeEnabled)
+					{
+						SofFade = GetRectLightVolumetricSoftFading(LightData, Rect, LightVolumetricSoftFadeDistance, ToLight);
+					}
+#endif // USE_LIGHT_SOFT_FADING
+
+					Lighting = SofFade * IntegrateLight(Rect);
 				}
 				else
 				{
 					FCapsuleLight Capsule = GetCapsule(ToLight, LightData);
 					Capsule.DistBiasSqr = DistanceBiasSqr;
 
-					Lighting = IntegrateLight(Capsule, LightData.bInverseSquared);
+					float SofFade = 1.0f;
+#if USE_LIGHT_SOFT_FADING
+					if (LightData.bSpotLight && bSoftFadeEnabled)
+					{
+						SofFade = GetSpotLightVolumetricSoftFading(LightData, LightVolumetricSoftFadeDistance, ToLight);
+					}
+#endif // USE_LIGHT_SOFT_FADING
+
+					Lighting = SofFade * IntegrateLight(Capsule, LightData.bInverseSquared);
 				}
 
 				float CombinedAttenuation = Lighting * LightMask;

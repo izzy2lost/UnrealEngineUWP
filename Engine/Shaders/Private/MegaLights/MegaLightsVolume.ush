@@ -42,6 +42,7 @@ float3 MegaLightsVolumeZParams;
 uint MegaLightsVolumePixelSize;
 uint MegaLightsVolumePixelSizeShift;
 uint3 VolumeViewSize;
+float LightSoftFading;
 
 float ComputeDepthFromZSlice(float ZSlice)
 {
@@ -73,6 +74,7 @@ float3 GetMegaLightsVolumeLighting(
 	float3 TranslatedWorldPosition,
 	float3 CameraVector,
 	float DistanceBiasSqr,
+	float LightVolumetricSoftFadeDistance,
 	FLocalLightData LocalLightData,
 	FDeferredLightData LightData)
 {
@@ -81,6 +83,8 @@ float3 GetMegaLightsVolumeLighting(
 	const float VolumetricScatteringIntensity = UnpackVolumetricScatteringIntensity(LocalLightData);
 	if (VolumetricScatteringIntensity > 0.0f)
 	{
+		const bool bSoftFadeEnabled = LightSoftFading > 0;
+
 		float3 L = 0;
 		float3 ToLight = 0;
 		float LightMask = GetLocalLightAttenuation(TranslatedWorldPosition, LightData, ToLight, L);
@@ -89,13 +93,31 @@ float3 GetMegaLightsVolumeLighting(
 		if (LightData.bRectLight)
 		{
 			FRect Rect = GetRect(ToLight, LightData);
-			Lighting = IntegrateLight(Rect);
+
+			float SoftFade = 1.0f;
+#if USE_LIGHT_SOFT_FADING
+			if (bSoftFadeEnabled)
+			{
+				SoftFade *= GetRectLightVolumetricSoftFading(LightData, Rect, LightVolumetricSoftFadeDistance, ToLight);
+			}
+#endif
+			Lighting = SoftFade * IntegrateLight(Rect);
 		}
 		else
 		{
 			FCapsuleLight Capsule = GetCapsule(ToLight, LightData);
 			Capsule.DistBiasSqr = DistanceBiasSqr;
-			Lighting = IntegrateLight(Capsule, LightData.bInverseSquared);
+
+			float SoftFade = 1.0f;
+#if USE_LIGHT_SOFT_FADING
+			if (LightData.bSpotLight && bSoftFadeEnabled)
+			{
+				SoftFade *= GetSpotLightVolumetricSoftFading(LightData, LightVolumetricSoftFadeDistance, ToLight);
+			}
+#endif
+
+			Lighting = SoftFade * IntegrateLight(Capsule, LightData.bInverseSquared);
+
 		}
 
 		float CombinedAttenuation = Lighting * LightMask;
