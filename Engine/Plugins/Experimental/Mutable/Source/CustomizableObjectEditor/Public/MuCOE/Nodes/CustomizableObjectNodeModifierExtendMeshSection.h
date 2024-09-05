@@ -27,7 +27,7 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeModifierExtendMeshSect
 public:
 
 	/** Tags enabled when the modifier is applied. Also used to decide what modifiers get applied to the data added by this node.  */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = AddedData)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EnableTags)
 	TArray<FString> Tags;
 
 public:

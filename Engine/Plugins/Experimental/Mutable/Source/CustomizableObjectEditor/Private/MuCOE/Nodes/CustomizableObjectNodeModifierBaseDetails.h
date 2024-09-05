@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CustomizableObjectNodeDetails.h"
+#include "MuCOE/SMutableTagListWidget.h"
 #include "MuCOE/SMutableSearchComboBox.h"
 #include "IDetailCustomization.h"
 #include "Types/SlateEnums.h"
@@ -16,9 +17,10 @@ namespace ESelectInfo { enum Type : int; }
 class FString;
 class IDetailLayoutBuilder;
 class IPropertyHandle;
+class UCustomizableObjectNode;
 class UCustomizableObjectNodeObject;
 
-
+/** */
 class FCustomizableObjectNodeModifierBaseDetails : public FCustomizableObjectNodeDetails
 {
 public:
@@ -40,20 +42,8 @@ private:
 	/** */
 	TSharedPtr<IPropertyHandle> RequiredTagsPropertyHandle;
 	TSharedPtr<IPropertyHandle> TagsPolicyPropertyHandle;
-	TSharedPtr<SMutableSearchComboBox> TagCombo;
-	TArray< TSharedPtr<FString> > TagComboOptionsSource;
-	void OnTagComboBoxSelectionChanged(const FText& NewText);
-
-	struct FTagUIData
-	{
-		FString Tag;
-		FString DisplayName;
-	};
-	TSharedPtr<SListView<TSharedPtr<FTagUIData>>> TagList;
-	TArray< TSharedPtr<FTagUIData> > CurrentTagsSource;
 
 	/** */
-	void RefreshTagOptions();
-	TSharedRef<ITableRow> GenerateTagMenuItemRow(TSharedPtr<FTagUIData> InItem, const TSharedRef<STableViewBase>& OwnerTable);
+	TSharedPtr<SMutableTagListWidget> TagListWidget;
 
 };

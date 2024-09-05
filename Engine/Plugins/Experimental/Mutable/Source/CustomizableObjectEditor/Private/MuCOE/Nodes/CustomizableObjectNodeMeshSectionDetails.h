@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "CustomizableObjectNodeModifierBaseDetails.h"
+#include "CustomizableObjectNodeDetails.h"
+#include "MuCOE/SMutableTagListWidget.h"
 #include "MuCOE/SMutableSearchComboBox.h"
 #include "IDetailCustomization.h"
 #include "Types/SlateEnums.h"
@@ -16,10 +17,11 @@ namespace ESelectInfo { enum Type : int; }
 class FString;
 class IDetailLayoutBuilder;
 class IPropertyHandle;
+class UCustomizableObjectNode;
 class UCustomizableObjectNodeObject;
 
-
-class FCustomizableObjectNodeModifierExtendMeshSectionDetails : public FCustomizableObjectNodeModifierBaseDetails
+/** */
+class FCustomizableObjectNodeMeshSectionDetails : public FCustomizableObjectNodeDetails
 {
 public:
 	// Makes a new instance of this detail layout class for a specific detail view requesting it 
@@ -28,19 +30,19 @@ public:
 	// ILayoutDetails interface
 	void CustomizeDetails( IDetailLayoutBuilder& DetailBuilder ) override;
 
-private:
-
-	class UCustomizableObjectNodeModifierExtendMeshSection* Node = nullptr;
-
-
-	/** */
-	TSharedPtr<IPropertyHandle> EnableTagsPropertyHandle;
-
-	/** */
-	TSharedPtr<SMutableTagListWidget> EnableTagListWidget;
+protected:
 
 	/** */
 	virtual void OnEnableTagsPropertyChanged();
 
+private:
+
+	class UCustomizableObjectNodeMaterial* Node = nullptr;
+
+	/** */
+	TSharedPtr<IPropertyHandle> TagsPropertyHandle;
+
+	/** */
+	TSharedPtr<SMutableTagListWidget> TagListWidget;
 
 };
