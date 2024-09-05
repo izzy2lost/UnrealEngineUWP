@@ -7,11 +7,15 @@
 namespace UE::Anim
 {
 
-void FSkinnedMeshComponentExtensions::CompleteAndDispatch(USkinnedMeshComponent* InComponent, TConstArrayView<FBoneIndexType> InParentIndices, TConstArrayView<FBoneIndexType> InRequiredBoneIndices, TConstArrayView<FTransform> InLocalSpaceTransforms)
+void FSkinnedMeshComponentExtensions::CompleteAndDispatch(
+	USkinnedMeshComponent* InComponent,
+	TConstArrayView<FBoneIndexType> InParentIndices,
+	TConstArrayView<FBoneIndexType> InRequiredBoneIndices,
+	TConstArrayView<FTransform> InLocalSpaceTransforms)
 {
 	// Fill the component space transform buffer
 	TArrayView<FTransform> ComponentSpaceTransforms = InComponent->GetEditableComponentSpaceTransforms();
-	if(ComponentSpaceTransforms.Num() > 0)
+	if (ComponentSpaceTransforms.Num() > 0)
 	{
 		UE::AnimNext::FGenerationTools::ConvertLocalSpaceToComponentSpace(InParentIndices, InLocalSpaceTransforms, InRequiredBoneIndices, ComponentSpaceTransforms);
 

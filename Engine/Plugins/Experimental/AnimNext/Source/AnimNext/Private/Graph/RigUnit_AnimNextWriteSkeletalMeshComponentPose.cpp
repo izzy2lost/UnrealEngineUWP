@@ -46,10 +46,15 @@ FRigUnit_AnimNextWriteSkeletalMeshComponentPose_Execute()
 	// Map LOD pose into local-space scratch buffer
 	FGenerationTools::RemapPose(Pose.LODPose, LocalSpaceTransforms);
 
+	SkeletalMeshComponent->AnimCurves.CopyFrom(Pose.Curves);
+
+	// Attributes require remapping since the indices are LOD indices and we want mesh indices
+	FGenerationTools::RemapAttributes(Pose.LODPose, Pose.Attributes, SkeletalMeshComponent->CustomAttributes);
+
 	// Convert and dispatch to renderer
 	UE::Anim::FSkinnedMeshComponentExtensions::CompleteAndDispatch(
 		SkeletalMeshComponent,
-		RefPose.GetParentIndices(),
+		RefPose.GetMeshBoneIndexToParentMeshBoneIndexMap(),
 		RefPose.GetLODBoneIndexToMeshBoneIndexMap(Pose.LODPose.LODLevel),
 		LocalSpaceTransforms);
 }

@@ -3,6 +3,7 @@
 #include "EvaluationVM/Tasks/PushAnimSequenceKeyframe.h"
 
 #include "Animation/AnimSequence.h"
+#include "Animation/AnimRootMotionProvider.h"
 #include "BonePose.h"
 #include "DecompressionTools.h"
 #include "EvaluationVM/EvaluationVM.h"
@@ -38,59 +39,39 @@ void FAnimNextAnimSequenceKeyframeTask::Execute(UE::AnimNext::FEvaluationVM& VM)
 		FDeltaTimeRecord DeltaTimeRecord;	// Not needed
 		const bool bExtractRootMotion = bExtractTrajectory;
 		const bool bLooping = false;		// Not needed
-		const bool bUseRawData = false;
 
 		const FAnimExtractContext ExtractionContext(SampleTime, bExtractRootMotion, DeltaTimeRecord, bLooping);
 
 		FKeyframeState Keyframe = VM.MakeUninitializedKeyframe(bIsAdditive);
 
+		const bool bUseRawData = FDecompressionTools::ShouldUseRawData(AnimSequencePtr, Keyframe.Pose);
+
 		if (EnumHasAnyFlags(VM.GetFlags(), EEvaluationFlags::Bones))
 		{
-			FDecompressionTools::GetAnimationPose(AnimSequencePtr, Keyframe.Pose, ExtractionContext);
+			FDecompressionTools::GetAnimationPose(AnimSequencePtr, ExtractionContext, Keyframe.Pose, bUseRawData);
 		}
 
 		if (EnumHasAnyFlags(VM.GetFlags(), EEvaluationFlags::Curves))
 		{
-			AnimSequencePtr->EvaluateCurveData(Keyframe.Curves, static_cast<float>(SampleTime), bUseRawData);
+			FDecompressionTools::GetAnimationCurves(AnimSequencePtr, ExtractionContext, Keyframe.Curves, bUseRawData);
 		}
 
 		if (EnumHasAnyFlags(VM.GetFlags(), EEvaluationFlags::Attributes))
 		{
-			// TODO: A few notes here:
-			// The attributes store a compact/lod bone index, this needs fixup if we feed the output into an AnimBP or whoever reads this later
-			// To be able to sample attributes, we need to sample bones as well, otherwise we'll have no refpose object
-			// We could assign the ref pose even if we don't sample bones, that would allow us to be more selective
+			FDecompressionTools::GetAnimationAttributes(AnimSequencePtr, ExtractionContext, Keyframe.Pose.GetRefPose(), Keyframe.Attributes, bUseRawData);
+		}
 
-			QUICK_SCOPE_CYCLE_COUNTER(STAT_EvaluateAttributes);
-
-#if WITH_EDITOR
-			if (bUseRawData)
+		// Trajectory is currently held as an attribute
+		if (EnumHasAnyFlags(VM.GetFlags(), EEvaluationFlags::Attributes | EEvaluationFlags::Trajectory))
+		{
+			// If the sequence has root motion enabled, allow sampling of a root motion delta into the custom attribute container of the outgoing pose
+			if (AnimSequence->HasRootMotion())
 			{
-				AnimSequencePtr->ValidateModel();
-
-				for (const FAnimatedBoneAttribute& Attribute : AnimSequencePtr->GetDataModel()->GetAttributes())
+				// TODO: We should cache the provider in the VM
+				// We have to grab two locks to get it and it won't change during graph evaluation
+				if (const UE::Anim::IAnimRootMotionProvider* RootMotionProvider = UE::Anim::IAnimRootMotionProvider::Get())
 				{
-					const int32 LODBoneIndex = Keyframe.Pose.GetRefPose().GetLODBoneIndexFromSkeletonBoneIndex(Attribute.Identifier.GetBoneIndex());
-					// Only add attribute if the bone its tied to exists in the currently evaluated set of bones
-					if (LODBoneIndex != INDEX_NONE)
-					{
-						UE::Anim::Attributes::GetAttributeValue(Keyframe.Attributes, FCompactPoseBoneIndex(LODBoneIndex), Attribute, ExtractionContext.CurrentTime);
-					}
-				}
-			}
-			else
-#endif // WITH_EDITOR
-			{
-				for (const TPair<FAnimationAttributeIdentifier, FAttributeCurve>& BakedAttribute : AnimSequencePtr->AttributeCurves)
-				{
-					const int32 LODBoneIndex = Keyframe.Pose.GetRefPose().GetLODBoneIndexFromSkeletonBoneIndex(BakedAttribute.Key.GetBoneIndex());
-					// Only add attribute if the bone its tied to exists in the currently evaluated set of bones
-					if (LODBoneIndex != INDEX_NONE)
-					{
-						UE::Anim::FAttributeId Info(BakedAttribute.Key.GetName(), FCompactPoseBoneIndex(LODBoneIndex));
-						uint8* AttributePtr = Keyframe.Attributes.FindOrAdd(BakedAttribute.Key.GetType(), Info);
-						BakedAttribute.Value.EvaluateToPtr(BakedAttribute.Key.GetType(), ExtractionContext.CurrentTime, AttributePtr);
-					}
+					RootMotionProvider->SampleRootMotion(ExtractionContext.DeltaTimeRecord, *AnimSequence, ExtractionContext.bLooping, Keyframe.Attributes);
 				}
 			}
 		}

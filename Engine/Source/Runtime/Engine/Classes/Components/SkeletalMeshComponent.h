@@ -308,6 +308,7 @@ class USkeletalMeshComponent : public USkinnedMeshComponent, public IInterface_C
 	friend struct FAnimNode_LinkedAnimLayer;
 	friend struct FLinkedInstancesAdapter;
 	friend struct FLinkedAnimLayerClassData;
+	friend struct FRigUnit_AnimNextWriteSkeletalMeshComponentPose;
 	
 #if WITH_EDITORONLY_DATA 
 private:

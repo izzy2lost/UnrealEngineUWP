@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -15,7 +15,11 @@ namespace UE::Anim
 struct FSkinnedMeshComponentExtensions
 {
 	// Converts local to component space, flips buffers, updates bounds and dispatches to renderer
-	static ANIMNEXT_API void CompleteAndDispatch(USkinnedMeshComponent* InComponent, TConstArrayView<FBoneIndexType> InParentIndices, TConstArrayView<FBoneIndexType> InRequiredBoneIndices, TConstArrayView<FTransform> InLocalSpaceTransforms);
+	static ANIMNEXT_API void CompleteAndDispatch(
+		USkinnedMeshComponent* InComponent,
+		TConstArrayView<FBoneIndexType> InParentIndices,
+		TConstArrayView<FBoneIndexType> InRequiredBoneIndices,
+		TConstArrayView<FTransform> InLocalSpaceTransforms);
 };
 
 }
