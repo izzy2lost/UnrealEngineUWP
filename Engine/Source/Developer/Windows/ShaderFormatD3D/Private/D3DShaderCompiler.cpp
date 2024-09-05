@@ -1322,13 +1322,29 @@ bool CompileAndProcessD3DShaderFXC(
 
 struct FD3DShaderParameterParserPlatformConfiguration : public FShaderParameterParser::FPlatformConfiguration
 {
-	FD3DShaderParameterParserPlatformConfiguration()
+	FD3DShaderParameterParserPlatformConfiguration(const FShaderCompilerInput& Input)
 		: FShaderParameterParser::FPlatformConfiguration(TEXTVIEW("cbuffer"), EShaderParameterParserConfigurationFlags::UseStableConstantBuffer|EShaderParameterParserConfigurationFlags::SupportsBindless)
+		, bIsRayTracingShader(Input.IsRayTracingShader())
+		, HitGroupSystemIndexBufferName(FShaderParameterParser::kBindlessSRVPrefix + FString(TEXT("HitGroupSystemIndexBuffer")))
+		, HitGroupSystemVertexBufferName(FShaderParameterParser::kBindlessSRVPrefix + FString(TEXT("HitGroupSystemVertexBuffer")))
 	{
 	}
 
 	virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView FullTypeString, FStringView ArrayNameOverride, FStringView IndexString) const final
 	{
+		if (bIsRayTracingShader && (BindlessType == EBindlessConversionType::SRV))
+		{
+			// Patch the HitGroupSystemIndexBuffer/HitGroupSystemVertexBuffer indices to use the ones contained in the shader record
+			if (IndexString == HitGroupSystemIndexBufferName)
+			{
+				IndexString = TEXTVIEW("D3DHitGroupSystemParameters.BindlessHitGroupSystemIndexBuffer");
+			}
+			else if (IndexString == HitGroupSystemVertexBufferName)
+			{
+				IndexString = TEXTVIEW("D3DHitGroupSystemParameters.BindlessHitGroupSystemVertexBuffer");
+			}
+		}
+
 		// GetResourceFromHeap(Type, Index) ResourceDescriptorHeap[Index]
 		// GetSamplerFromHeap(Type, Index)  SamplerDescriptorHeap[Index]
 
@@ -1339,6 +1355,10 @@ struct FD3DShaderParameterParserPlatformConfiguration : public FShaderParameterP
 			IndexString.Len(), IndexString.GetData()
 		);
 	}
+	
+	const bool bIsRayTracingShader;
+	const FString HitGroupSystemIndexBufferName;
+	const FString HitGroupSystemVertexBufferName;
 };
 
 void CompileD3DShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& InPreprocessOutput, FShaderCompilerOutput& Output, const FString& WorkingDirectory, ED3DShaderModel ShaderModel)
@@ -1356,7 +1376,7 @@ void CompileD3DShader(const FShaderCompilerInput& Input, const FShaderPreprocess
 	FString EntryPointName = Input.EntryPointName;
 	FString PreprocessedSource(InPreprocessOutput.GetSourceViewWide());
 
-	FD3DShaderParameterParserPlatformConfiguration PlatformConfiguration;
+	FD3DShaderParameterParserPlatformConfiguration PlatformConfiguration(Input);
 	FShaderParameterParser ShaderParameterParser(PlatformConfiguration);
 	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedSource))
 	{

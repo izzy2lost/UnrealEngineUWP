@@ -9,6 +9,7 @@
 #include "D3D12AmdExtensions.h"
 #include "D3D12RootSignatureDefinitions.h"
 #include "RayTracingBuiltInResources.h"
+#include "D3D12RayTracing.h"
 
 #ifndef FD3D12_ROOT_SIGNATURE_FLAG_GLOBAL_ROOT_SIGNATURE
 #define FD3D12_ROOT_SIGNATURE_FLAG_GLOBAL_ROOT_SIGNATURE D3D12_ROOT_SIGNATURE_FLAG_NONE
@@ -169,47 +170,66 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 	{
 		BindingSpace = UE_HLSL_SPACE_RAY_TRACING_LOCAL;
 
-		// Add standard root parameters for hit groups, as per FHitGroupSystemParameters declaration in D3D12RayTracing.cpp and RayTracingHitGroupCommon.ush:
-		//          Resources:
-		// 8 bytes: index buffer as root SRV (raw buffer)
-		// 8 bytes: vertex buffer as root SRV (raw buffer)
+		// Add standard root parameters for hit groups, as per FD3D12HitGroupSystemParameters declaration in D3D12Util.h 
+		// and RayTracingHitGroupCommon.ush (Non-Bindless) and D3DCommon.ush (Bindless):
 		//          FHitGroupSystemRootConstants:
 		// 4 bytes: index/vertex fetch configuration as root constant (bitfield defining index and vertex formats)
 		// 4 bytes: index buffer offset in bytes
 		// 4 bytes: first primitive of the segment (as set in FRayTracingGeometrySegment)
 		// 4 bytes: hit group user data
-		// 4 bytes: index of the first instance that belongs to the current batch.
-		// 4 bytes: unused padding to ensure the next parameter is aligned to 8-byte boundary
+		//          Non-Bindless Resources:
+		// 8 bytes: index buffer as root SRV (raw buffer)
+		// 8 bytes: vertex buffer as root SRV (raw buffer)
+		//          Bindless Resources:
+		// 4 bytes: index buffer bindless resource index (raw buffer)
+		// 4 bytes: vertex buffer bindless resource index (raw buffer)
+		// 8 bytes: union padding with non-bindless data
+
 		// -----------
-		// 40 bytes
+		// 32 bytes
 
 		check(RootParameterCount == 0 && RootParametersSize == 0); // We expect system RT parameters to come first
-
-		// Index buffer descriptor
-		{
+		
+		// Bindless FD3D12HitGroupSystemParameters structure
+		if (QBSS.bUseDirectlyIndexedResourceHeap)
+		{			
 			check(RootParameterCount < MaxRootParameters);
-			TableSlots[RootParameterCount].InitAsShaderResourceView(RAY_TRACING_SYSTEM_INDEXBUFFER_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
-			RootParameterCount++;
-			RootParametersSize += RootDescriptorCost;
-		}
+			static_assert(sizeof(FD3D12HitGroupSystemParameters) % 8 == 0, "FD3D12HitGroupSystemParameters structure must be 8-byte aligned");
 
-		// Vertex buffer descriptor
-		{
-			check(RootParameterCount < MaxRootParameters);
-			TableSlots[RootParameterCount].InitAsShaderResourceView(RAY_TRACING_SYSTEM_VERTEXBUFFER_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
-			RootParameterCount++;
-			RootParametersSize += RootDescriptorCost;
-		}
-
-		// FHitGroupSystemRootConstants structure
-		{
-			check(RootParameterCount < MaxRootParameters);
-			static_assert(sizeof(FHitGroupSystemRootConstants) % 8 == 0, "FHitGroupSystemRootConstants structure must be 8-byte aligned");
-			const uint32 NumConstants = sizeof(FHitGroupSystemRootConstants) / sizeof(uint32);
+			// Num constants could be 2 smaller if non-bindless data is removed (24 bytes instead of 32)
+			const uint32 NumConstants = sizeof(FD3D12HitGroupSystemParameters) / sizeof(uint32);
 			TableSlots[RootParameterCount].InitAsConstants(NumConstants, RAY_TRACING_SYSTEM_ROOTCONSTANT_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
 			RootParameterCount++;
 			RootParametersSize += NumConstants * RootConstantCost;
 		}
+		else
+		{
+			// FHitGroupSystemRootConstants structure
+			{
+				check(RootParameterCount < MaxRootParameters);
+				static_assert(sizeof(FHitGroupSystemRootConstants) % 8 == 0, "FHitGroupSystemRootConstants structure must be 8-byte aligned");
+				const uint32 NumConstants = sizeof(FHitGroupSystemRootConstants) / sizeof(uint32);
+				TableSlots[RootParameterCount].InitAsConstants(NumConstants, RAY_TRACING_SYSTEM_ROOTCONSTANT_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+				RootParameterCount++;
+				RootParametersSize += NumConstants * RootConstantCost;
+			}
+
+			// Index buffer descriptor
+			{
+				check(RootParameterCount < MaxRootParameters);
+				TableSlots[RootParameterCount].InitAsShaderResourceView(RAY_TRACING_SYSTEM_INDEXBUFFER_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+				RootParameterCount++;
+				RootParametersSize += RootDescriptorCost;
+			}
+
+			// Vertex buffer descriptor
+			{
+				check(RootParameterCount < MaxRootParameters);
+				TableSlots[RootParameterCount].InitAsShaderResourceView(RAY_TRACING_SYSTEM_VERTEXBUFFER_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+				RootParameterCount++;
+				RootParametersSize += RootDescriptorCost;
+			}
+		}	
 	}
 	else if (QBSS.RootSignatureType == RS_RayTracingGlobal)
 	{
