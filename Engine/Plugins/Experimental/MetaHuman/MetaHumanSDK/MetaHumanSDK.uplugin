@@ -4,7 +4,7 @@
 	"VersionName": "1.0",
 	"FriendlyName": "MetaHuman SDK",
 	"Description": "Utilities and tools for working with MetaHumans in Unreal Engine.",
-	"Category": "Editor",
+	"Category": "MetaHuman",
 	"CreatedBy": "Epic Games, Inc.",
 	"CreatedByURL": "https://epicgames.com",
 	"DocsURL": "",
