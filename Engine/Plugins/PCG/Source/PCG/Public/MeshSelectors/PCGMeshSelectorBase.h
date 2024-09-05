@@ -53,7 +53,7 @@ enum class EPCGMeshSelectorMaterialOverrideMode : uint8
 };
 
 /** Struct used to efficiently gather overrides and cache them during instance packing */
-struct FPCGMeshMaterialOverrideHelper
+struct PCG_API FPCGMeshMaterialOverrideHelper
 {
 	FPCGMeshMaterialOverrideHelper() = default;
 
