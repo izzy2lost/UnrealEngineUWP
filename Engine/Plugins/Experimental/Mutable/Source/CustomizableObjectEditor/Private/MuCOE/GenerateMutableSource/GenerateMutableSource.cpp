@@ -127,6 +127,9 @@ FMutableGraphGenerationContext::FMutableGraphGenerationContext(UCustomizableObje
 {
 	// Default flags for mesh generation nodes.
 	MeshGenerationFlags.Push(EMutableMeshConversionFlags::None);
+
+	// Default flags for mesh layout generation.
+	LayoutGenerationFlags.Push(FLayoutGenerationFlags());
 }
 
 FMutableGraphGenerationContext::~FMutableGraphGenerationContext() = default;
@@ -468,6 +471,7 @@ FGeneratedKey::FGeneratedKey(void* InFunctionAddress, const UEdGraphPin& InPin, 
 	if (UseMesh)
 	{
 		Flags = GenerationContext.MeshGenerationFlags.Last();
+		LayoutFlags = GenerationContext.LayoutGenerationFlags.Last();
 		MeshMorphStack = GenerationContext.MeshMorphStack;
 		bOnlyConnectedLOD = InbOnlyConnectedLOD;
 	}
@@ -480,6 +484,7 @@ bool FGeneratedKey::operator==(const FGeneratedKey& Other) const
 		Pin == Other.Pin &&
 		LOD == Other.LOD &&
 		Flags == Other.Flags &&
+		LayoutFlags == Other.LayoutFlags &&
 		MeshMorphStack == Other.MeshMorphStack &&
 		bOnlyConnectedLOD == Other.bOnlyConnectedLOD;
 }
@@ -491,6 +496,7 @@ uint32 GetTypeHash(const FGeneratedKey& Key)
 	Hash = HashCombine(Hash, GetTypeHash(Key.Pin));
 	Hash = HashCombine(Hash, GetTypeHash(Key.LOD));
 	Hash = HashCombine(Hash, GetTypeHash(Key.Flags));
+	//Hash = HashCombine(Hash, GetTypeHash(Key.LayoutFlags)); // Does not support array
 	//Hash = HashCombine(Hash, GetTypeHash(Key.MeshMorphStack)); // Does not support array
 	Hash = HashCombine(Hash, GetTypeHash(Key.bOnlyConnectedLOD));
 	

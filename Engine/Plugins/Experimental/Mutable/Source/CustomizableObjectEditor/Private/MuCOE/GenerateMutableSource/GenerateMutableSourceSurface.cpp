@@ -340,8 +340,31 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		{
 			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMat->GetMeshPin()))
 			{
+
+				// Flags to know which UV channels need layout
+				FLayoutGenerationFlags LayoutGenerationFlags;
+				
+				LayoutGenerationFlags.TexturePinModes.Init(EPinMode::Default, TEXSTREAM_MAX_NUM_UVCHANNELS);
+
+				const int32 NumImages = TypedNodeMat->GetNumParameters(EMaterialParameterType::Texture);
+				for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
+				{
+					if (TypedNodeMat->IsImageMutableMode(ImageIndex))
+					{
+						const int32 UVChannel = TypedNodeMat->GetImageUVLayout(ImageIndex);
+						if (LayoutGenerationFlags.TexturePinModes.IsValidIndex(UVChannel))
+						{
+							LayoutGenerationFlags.TexturePinModes[UVChannel] = EPinMode::Mutable;
+						}
+					}
+				}
+
+				GenerationContext.LayoutGenerationFlags.Push(LayoutGenerationFlags);
+
 				FMutableGraphMeshGenerationData MeshData;
 				MeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, MeshData, false, false);
+
+				GenerationContext.LayoutGenerationFlags.Pop();
 
 				if (MeshNode)
 				{

@@ -10,7 +10,7 @@
 class FString;
 class IDetailLayoutBuilder;
 class UCustomizableObjectNodeModifierRemoveMeshBlocks;
-class SCustomizableObjectNodeLayoutBlocksEditor;
+class SCustomizableObjectLayoutEditor;
 
 
 class FCustomizableObjectNodeModifierRemoveMeshBlocksDetails : public FCustomizableObjectNodeModifierBaseDetails
@@ -29,17 +29,15 @@ private:
 	UCustomizableObjectNodeModifierRemoveMeshBlocks* Node;
 
 	// Layout block editor widget
-	TSharedPtr<SCustomizableObjectNodeLayoutBlocksEditor> LayoutBlocksEditor;
+	TSharedPtr<SCustomizableObjectLayoutEditor> LayoutBlocksEditor;
 
 	/** List of available layout grid sizes. */
-	TArray< TSharedPtr< FString > > LayoutGridSizes;
-	TArray< TSharedPtr< FString > > UVChannelOptions;
+	TArray<TSharedPtr< FString>> UVChannelOptions;
 
 	/** Layout Options Callbacks */
-	void OnGridSizeChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
 	void OnUVChannelChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
 
 	/** Reset the layout in the widget to force a refresh. */
-	void UpdateLayout();
+	void OnPreUpdateLayout();
 
 };

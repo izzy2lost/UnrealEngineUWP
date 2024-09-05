@@ -9,7 +9,7 @@ class UEdGraphPin;
 struct FMutableGraphGenerationContext;
 
 
-extern mu::Ptr<mu::NodeLayout> GenerateMutableSourceLayout(const UEdGraphPin*, FMutableGraphGenerationContext&, bool bIgnoreLayoutWarning = false);
+extern mu::Ptr<mu::NodeLayout> CreateDefaultLayout();
 
 extern mu::Ptr<mu::NodeLayout> CreateMutableLayoutNode(FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectLayout*, bool bIgnoreLayoutWarnings, bool& bWasEmpty);
 

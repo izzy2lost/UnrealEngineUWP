@@ -290,7 +290,15 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 			FMutableGraphMeshGenerationData MeshData;
 			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeExt->AddMeshPin()))
 			{
+				// Flags to know which UV channels need layout
+				FLayoutGenerationFlags LayoutGenerationFlags;
+				LayoutGenerationFlags.TexturePinModes.Init(EPinMode::Mutable, TEXSTREAM_MAX_NUM_UVCHANNELS);
+
+				GenerationContext.LayoutGenerationFlags.Push(LayoutGenerationFlags);
+
 				AddMeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, MeshData, true, false);
+
+				GenerationContext.LayoutGenerationFlags.Pop();
 			}
 
 			if (AddMeshNode)

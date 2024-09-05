@@ -8,7 +8,7 @@
 #include "IDetailsView.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierRemoveMeshBlocks.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialBase.h"
-#include "MuCOE/SCustomizableObjectNodeLayoutBlocksEditor.h"
+#include "MuCOE/SCustomizableObjectLayoutEditor.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/STextComboBox.h"
@@ -40,7 +40,7 @@ void FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::CustomizeDetails(ID
 	// This property is not relevant for this node
 	DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeModifierWithMaterial, ReferenceMaterial), UCustomizableObjectNodeModifierWithMaterial::StaticClass());
 
-	IDetailCategoryBuilder& LayoutCategory = DetailBuilder.EditCategory("LayoutOptions");
+	IDetailCategoryBuilder& LayoutCategory = DetailBuilder.EditCategory("Layout Editor");
 	LayoutCategory.SetSortOrder(10000);
 
 	if (!Node)
@@ -69,12 +69,12 @@ void FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::CustomizeDetails(ID
 			}
 		}
 
-		IDetailGroup& LayoutOptionsGroup = LayoutCategory.AddGroup(TEXT("LayoutOptionsGroup"), LOCTEXT("LayoutGroup", "Layout Group"), false, true);
+		IDetailGroup& LayoutOptionsGroup = LayoutCategory.AddGroup(TEXT("LayoutOptionsGroup"), LOCTEXT("LayoutGroup", "Edit Layout"), false, true);
 		LayoutOptionsGroup.HeaderRow()
 			.NameContent()
 			[
 				SNew(STextBlock)
-					.Text(LOCTEXT("UVChannel", "UV Channel"))
+					.Text(LOCTEXT("UVChannel", "Edit UV Channel"))
 					.Font(DetailBuilder.GetDetailFont())
 			]
 			.ValueContent()
@@ -87,88 +87,45 @@ void FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::CustomizeDetails(ID
 			];
 	}
 
-	// Grid size combo
-	{
-		int32 MaxGridSize = 128;
-		LayoutGridSizes.Empty();
+	TArray<FLayoutEditorMeshSection> MeshLayoutsAndLayouts;
 
-		TSharedPtr<FString> CurrentSize;
-		for (int32 Size = 1; Size <= MaxGridSize; Size *= 2)
-		{
-			LayoutGridSizes.Add(MakeShareable(new FString(FString::Printf(TEXT("%d x %d"), Size, Size))));
+	FLayoutEditorMeshSection& MeshSection = MeshLayoutsAndLayouts.AddDefaulted_GetRef();
+	MeshSection.MeshName = MakeShareable(new FString("NameNone"));
+	MeshSection.Layouts.Add(Node->Layout);
 
-			if (Node->Layout->GetGridSize() == FIntPoint(Size))
-			{
-				CurrentSize = LayoutGridSizes.Last();
-			}
-		}
+	LayoutBlocksEditor = SNew(SCustomizableObjectLayoutEditor)
+		.Node(Node)
+		.MeshSections(MeshLayoutsAndLayouts)
+		.OnPreUpdateLayoutDelegate(this, &FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::OnPreUpdateLayout);
 
-		IDetailGroup& LayoutOptionsGroup = LayoutCategory.AddGroup(TEXT("LayoutOptionsGroup"), LOCTEXT("LayoutGroup", "Layout Group"), false, true);
-		LayoutOptionsGroup.HeaderRow()
-			.NameContent()
-			[
-				SNew(STextBlock)
-					.Text(LOCTEXT("LayoutGridSizeText", "Grid Size"))
-					.Font(DetailBuilder.GetDetailFont())
-			]
-			.ValueContent()
-			[
-				SNew(STextComboBox)
-					.InitiallySelectedItem(CurrentSize)
-					.OptionsSource(&LayoutGridSizes)
-					.OnSelectionChanged(this, &FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::OnGridSizeChanged)
-					.Font(DetailBuilder.GetDetailFont())
-			];
-	}
+	FCustomizableObjectLayoutEditorDetailsBuilder LayoutEditorBuilder;
+	LayoutEditorBuilder.LayoutEditor = LayoutBlocksEditor;
+	LayoutEditorBuilder.bShowGridSize = true;
 
-	// Block editor
-	LayoutBlocksEditor = SNew(SCustomizableObjectNodeLayoutBlocksEditor);
+	LayoutEditorBuilder.CustomizeDetails(DetailBuilder);
 
-	LayoutCategory.AddCustomRow(LOCTEXT("BlocksDetails_BlockInstructions", "BlockInstructions"))
-		[
-			SNew(SBox)
-				.HeightOverride(700.0f)
-				.WidthOverride(700.0f)
-				[
-					LayoutBlocksEditor.ToSharedRef()
-				]
-		];
-
-	UpdateLayout();
+	LayoutBlocksEditor->UpdateLayout(Node->Layout);
 }
 
 
 void FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::OnRequiredTagsPropertyChanged()
 {
 	FCustomizableObjectNodeModifierBaseDetails::OnRequiredTagsPropertyChanged();
-	UpdateLayout();
-}
 
-
-void FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::UpdateLayout()
-{
-	// Try to find the parent layout, because we want to show its UVs in the widget
-	UCustomizableObjectLayout* ParentLayout = Node->GetPossibleParentLayout();
-
-	LayoutBlocksEditor->SetCurrentLayout(Node->Layout, ParentLayout);
-
-}
-
-
-void FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::OnGridSizeChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
-{
-	if (!Node->Layout)
+	if (ensure(LayoutBlocksEditor))
 	{
-		return;
+		LayoutBlocksEditor->UpdateLayout(Node->Layout);
 	}
+}
 
-	int32 Size = 1 << LayoutGridSizes.Find(NewSelection);
 
-	if (Node->Layout->GetGridSize().X != Size || Node->Layout->GetGridSize().Y != Size)
+void FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::OnPreUpdateLayout()
+{
+	if (ensure(LayoutBlocksEditor))
 	{
-		Node->Layout->SetGridSize(FIntPoint(Size));
-		Node->MarkPackageDirty();
-		UpdateLayout();
+		// Try to find the parent layout, because we want to show its UVs in the widget
+		UCustomizableObjectLayout* ParentLayout = Node->GetPossibleParentLayout();
+		LayoutBlocksEditor->SetUVsOverride(ParentLayout);
 	}
 }
 
@@ -186,7 +143,8 @@ void FCustomizableObjectNodeModifierRemoveMeshBlocksDetails::OnUVChannelChanged(
 	{
 		Node->ParentLayoutIndex = Index;
 		Node->MarkPackageDirty();
-		UpdateLayout();
+
+		LayoutBlocksEditor->UpdateLayout(Node->Layout);
 	}
 }
 

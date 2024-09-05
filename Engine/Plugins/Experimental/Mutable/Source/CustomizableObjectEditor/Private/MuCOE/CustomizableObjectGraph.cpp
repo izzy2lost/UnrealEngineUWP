@@ -74,8 +74,10 @@ void UCustomizableObjectGraph::PostLoad()
 		}
 	}
 
+	NodesCopy = Nodes; // Copy to be able to remove nodes inside the PostBackwardsCompatibleFixup.
+
 	// Do any additional work which require nodes to be valid (i.e., have executed BackwardsCompatibleFixup).
-	for (UEdGraphNode* Node : Nodes)
+	for (UEdGraphNode* Node : NodesCopy)
 	{
 		if (UCustomizableObjectNode* CustomizableObjectNode = Cast<UCustomizableObjectNode>(Node))
 		{

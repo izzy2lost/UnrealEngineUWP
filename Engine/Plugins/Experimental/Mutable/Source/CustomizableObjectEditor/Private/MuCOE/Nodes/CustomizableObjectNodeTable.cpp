@@ -18,7 +18,6 @@
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/MutableUtils.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
-#include "MuCOE/SCustomizableObjectNodeLayoutBlocksEditor.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "Rendering/SkeletalMeshModel.h"
@@ -586,7 +585,7 @@ void UCustomizableObjectNodeTable::GenerateMeshPins(UObject* Mesh, const FString
 						{
 							PinData->Layouts.Add(Layout);
 
-							Layout->SetLayout(SkeletalMesh, LODIndex, MatIndex, LayoutIndex);
+							Layout->SetLayout(LODIndex, MatIndex, LayoutIndex);
 							Layout->SetLayoutName(LayoutName);
 						}
 					}
@@ -918,74 +917,23 @@ UTexture2D* UCustomizableObjectNodeTable::FindReferenceTextureParameter(const UE
 }
 
 
-void UCustomizableObjectNodeTable::GetUVChannel(const UCustomizableObjectLayout* CurrentLayout, TArray<FVector2f>& OutSegments) const
+UObject* UCustomizableObjectNodeTable::GetDefaultMeshForLayout(const UCustomizableObjectLayout* InLayout) const
 {
-	FString ColumnName;
-
 	for (const UEdGraphPin* Pin : Pins)
 	{
-		const UCustomizableObjectNodeTableMeshPinData* PinData = Cast<UCustomizableObjectNodeTableMeshPinData > (GetPinData(*Pin));
-		
-		if (!PinData)
+		if (const UCustomizableObjectNodeTableMeshPinData* MeshPinData = Cast<UCustomizableObjectNodeTableMeshPinData >(GetPinData(*Pin)))
 		{
-			continue;
-		}
-
-		bool bFound = false;
-
-		for (const UCustomizableObjectLayout* Layout : PinData->Layouts)
-		{
-			if (Layout == CurrentLayout)
+			for (const UCustomizableObjectLayout* Layout : MeshPinData->Layouts)
 			{
-				ColumnName = PinData->ColumnName;
-				bFound = true;
-				break;
-			}
-		}
-
-		if (bFound)
-		{
-			break;
-		}
-	}
-
-	const int32 LODIndex = CurrentLayout->GetLOD();
-	const int32 MaterialIndex = CurrentLayout->GetMaterial();
-	const int32 LayoutIndex = CurrentLayout->GetUVChannel();
-
-	if (const USkeletalMesh* SkeletalMesh = GetColumnDefaultAssetByType<USkeletalMesh>(ColumnName))
-	{
-		OutSegments = GetUV(*SkeletalMesh, LODIndex, MaterialIndex, LayoutIndex);
-	}
-	else if (const UStaticMesh* StaticMesh = GetColumnDefaultAssetByType<UStaticMesh>(ColumnName))
-	{
-		OutSegments = GetUV(*StaticMesh, LODIndex, MaterialIndex, LayoutIndex);
-	}
-}
-
-
-void UCustomizableObjectNodeTable::GetUVChannelForPin(const UEdGraphPin* Pin, TArray<FVector2f>& OutSegments, int32 UVChannel) const
-{
-	const UCustomizableObjectNodeTableMeshPinData* PinData = Cast<UCustomizableObjectNodeTableMeshPinData >(GetPinData(*Pin));
-
-	for (int32 LayoutIndex = 0; LayoutIndex < PinData->Layouts.Num(); ++LayoutIndex)
-	{
-		if (PinData->Layouts[LayoutIndex]->GetUVChannel() == UVChannel)
-		{
-			// Getting LOD and Mat index from Layouts
-			const uint32 LODIndex = PinData->Layouts[LayoutIndex]->GetLOD();
-			const uint32 MaterialIndex = PinData->Layouts[LayoutIndex]->GetMaterial();
-
-			if (const USkeletalMesh* SkeletalMesh = GetColumnDefaultAssetByType<USkeletalMesh>(PinData->ColumnName))
-			{
-				OutSegments.Append(GetUV(*SkeletalMesh, LODIndex, MaterialIndex, LayoutIndex));
-			}
-			else if (const UStaticMesh* StaticMesh = GetColumnDefaultAssetByType<UStaticMesh>(PinData->ColumnName))
-			{
-				OutSegments.Append(GetUV(*StaticMesh, LODIndex, MaterialIndex, LayoutIndex));
+				if (Layout == InLayout)
+				{
+					return GetColumnDefaultAssetByType<UObject>(MeshPinData->ColumnName);
+				}
 			}
 		}
 	}
+
+	return nullptr;
 }
 
 

@@ -8,8 +8,9 @@
 #include "MuCOE/CustomizableObjectCompiler.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceLayout.h"
 #include "MuCOE/GraphTraversal.h"
+#include "MuCOE/MutableUtils.h"
 #include "MuCOE/ICustomizableObjectEditor.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeLayoutBlocks.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeSkeletalMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTable.h"
 
@@ -20,17 +21,13 @@ UCustomizableObjectLayout::UCustomizableObjectLayout()
 	GridSize = FIntPoint(4, 4);
 	MaxGridSize = FIntPoint(4, 4);
 
-	FCustomizableObjectLayoutBlock Block(FIntPoint(0, 0), FIntPoint(4, 4));
-	Blocks.Add(Block);
-
 	PackingStrategy = ECustomizableObjectTextureLayoutPackingStrategy::Resizable;
 	BlockReductionMethod = ECustomizableObjectLayoutBlockReductionMethod::Halve;
 }
 
 
-void UCustomizableObjectLayout::SetLayout(UObject* InMesh, int32 LODIndex, int32 MatIndex, int32 UVIndex)
+void UCustomizableObjectLayout::SetLayout(int32 LODIndex, int32 MatIndex, int32 UVIndex)
 {
-	Mesh = InMesh;
 	LOD = LODIndex;
 	Material = MatIndex;
 	UVChannel = UVIndex;
@@ -84,6 +81,7 @@ void UCustomizableObjectLayout::SetLayoutName(FString Name)
 void UCustomizableObjectLayout::GenerateAutomaticBlocksFromUVs()
 {
 	UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(GetOuter());
+	const UObject* Mesh = GetMesh();
 
 	if (!Node || !Mesh)
 	{
@@ -171,23 +169,17 @@ void UCustomizableObjectLayout::ConsolidateAutomaticBlocks()
 }
 
 
-void UCustomizableObjectLayout::GetUVChannel(TArray<FVector2f>& UVs, int32 UVChannelIndex) const
+void UCustomizableObjectLayout::GetUVs(TArray<FVector2f>& UVs) const
 {
-	if (UObject* Node = GetOuter())
+	if(const UObject* Mesh = GetMesh())
 	{
-		if (const UCustomizableObjectNodeLayoutBlocks* TypedNodeLayout = Cast<UCustomizableObjectNodeLayoutBlocks>(Node))
+		if (const USkeletalMesh* SkeletalMesh = Cast<const USkeletalMesh>(Mesh))
 		{
-			if (const UEdGraphPin* ConnectedPin = FollowOutputPin(*TypedNodeLayout->OutputPin()))
-			{
-				if (const UCustomizableObjectNodeMesh* MeshNode = Cast<UCustomizableObjectNodeMesh>(ConnectedPin->GetOwningNode()))
-				{
-					MeshNode->GetUVChannelForPin(ConnectedPin, UVs, UVChannelIndex);
-				}
-			}
+			UVs = GetUV(*SkeletalMesh, LOD, Material, UVChannel);
 		}
-		else if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast<UCustomizableObjectNodeTable>(Node))
+		else if (const UStaticMesh* StaticMesh = Cast<const UStaticMesh>(Mesh))
 		{
-			TypedNodeTable->GetUVChannel(this, UVs);
+			UVs = GetUV(*StaticMesh, LOD, Material, UVChannel);
 		}
 	}
 }
@@ -216,6 +208,24 @@ void UCustomizableObjectLayout::SetIgnoreVertexLayoutWarnings(bool bValue)
 void UCustomizableObjectLayout::SetIgnoreWarningsLOD(int32 LODValue)
 {
 	FirstLODToIgnore = LODValue;
+}
+
+
+UObject* UCustomizableObjectLayout::GetMesh() const
+{
+	if (UObject* Node = GetOuter())
+	{
+		if (const UCustomizableObjectNodeSkeletalMesh* TypedNodeSkeletalMesh = Cast<UCustomizableObjectNodeSkeletalMesh>(Node))
+		{
+			return TypedNodeSkeletalMesh->GetMesh();
+		}
+		else if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast<UCustomizableObjectNodeTable>(Node))
+		{
+			return TypedNodeTable->GetDefaultMeshForLayout(this);
+		}
+	}
+
+	return nullptr;
 }
 
 

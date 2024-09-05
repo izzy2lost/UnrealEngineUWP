@@ -148,6 +148,10 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 
 		MaterialPinsRename, // Moved from "Material" to "Mesh Section"
 
+		MoveLayoutToNodeSkeletalMesh, // Move the layouts from the NodeLayout to the NodeSkeletalMesh
+
+		RemoveNodeLayout,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

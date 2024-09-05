@@ -252,24 +252,6 @@ UTexture2D* UCustomizableObjectNodeStaticMesh::FindTextureForPin(const UEdGraphP
 }
 
 
-void UCustomizableObjectNodeStaticMesh::GetUVChannelForPin(const UEdGraphPin* Pin, TArray<FVector2f>& OutSegments, int32 UVIndex) const
-{
-	check(Pin);
-	
-	if (!StaticMesh)
-	{
-		return;
-	}
-
-	int32 LODIndex;
-	int32 SectionIndex;
-	int32 LayoutIndex;
-	GetPinSection(*Pin, LODIndex, SectionIndex, LayoutIndex);
-	
-	OutSegments = GetUV(*StaticMesh, LODIndex, SectionIndex, UVIndex);
-}
-
-
 TArray<class UCustomizableObjectLayout*> UCustomizableObjectNodeStaticMesh::GetLayouts(const UEdGraphPin& OutPin) const
 {
 	TArray<class UCustomizableObjectLayout*> Result;
@@ -313,23 +295,6 @@ UEdGraphPin* UCustomizableObjectNodeStaticMesh::GetMeshPin(const int32 LODIndex,
 			SectionIndex < LOD.Materials.Num())
 		{
 			return LOD.Materials[SectionIndex].MeshPinRef.Get();
-		}
-	}
-
-	return nullptr;
-}
-
-
-UEdGraphPin* UCustomizableObjectNodeStaticMesh::GetLayoutPin(int32 LODIndex, int32 SectionIndex, int32 LayoutIndex) const
-{
-	check(LayoutIndex == 1); // Multiple UVs not supported on Static Mesh Node.
-
-	if (LODIndex < LODs.Num())
-	{
-		if (const FCustomizableObjectNodeStaticMeshLOD& LOD = LODs[LODIndex];
-			SectionIndex < LOD.Materials.Num())
-		{
-			return LOD.Materials[SectionIndex].LayoutPinRef.Get();
 		}
 	}
 

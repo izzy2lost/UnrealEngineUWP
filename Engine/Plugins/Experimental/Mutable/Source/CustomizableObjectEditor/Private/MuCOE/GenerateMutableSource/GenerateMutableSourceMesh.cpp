@@ -25,6 +25,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeAnimationPose.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeFloatConstant.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeFloatParameter.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshGeometryOperation.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshMorph.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshMorphStackApplication.h"
@@ -2460,7 +2461,7 @@ mu::Ptr<mu::Mesh> GenerateMutableMesh(UObject * Mesh, const TSoftClassPtr<UAnimI
 	EMutableMeshConversionFlags CurrentFlags = GenerationContext.MeshGenerationFlags.Last();
 
 	FMutableGraphGenerationContext::FGeneratedMeshData::FKey Key = { Mesh, LODIndex, GenerationContext.CurrentLOD, SectionIndex, CurrentFlags, UniqueTags, CurrentNode };
-	mu::Ptr<mu::Mesh> MutableMesh = GenerationContext.FindGeneratedMesh(Key);	
+	mu::Ptr<mu::Mesh> MutableMesh = GenerationContext.FindGeneratedMesh(Key);
 	if (MutableMesh)
 	{
 		return MutableMesh;
@@ -3301,27 +3302,6 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 	return Result;
 }
 
-/** Create a default layout. Used when no layout is found. */
-mu::Ptr<mu::NodeLayout> CreateDefaultLayout()
-{
-	constexpr int32 GridSize = 4;
-	
-	mu::Ptr<mu::NodeLayout> LayoutNode = new mu::NodeLayout();
-	LayoutNode->Size = { GridSize, GridSize };
-	LayoutNode->MaxSize = { GridSize, GridSize };
-	LayoutNode->Strategy = mu::EPackStrategy::Resizeable;
-	LayoutNode->ReductionMethod = mu::EReductionMethod::Halve;
-	LayoutNode->Blocks.SetNum(1);
-	LayoutNode->Blocks[0].Min = { 0, 0 };
-	LayoutNode->Blocks[0].Size = { GridSize, GridSize };
-	LayoutNode->Blocks[0].Priority = 0;
-	LayoutNode->Blocks[0].bReduceBothAxes = false;
-	LayoutNode->Blocks[0].bReduceByTwo = false;
-
-	return LayoutNode;
-}
-
-
 mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 	FMutableGraphGenerationContext& GenerationContext,
 	FMutableGraphMeshGenerationData& MeshData,
@@ -3558,28 +3538,28 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				const int32 NumLayouts = ImportedModel->LODModels[LODIndexLayout].NumTexCoords;
 				MeshNode->SetLayoutCount(NumLayouts);
 				
-				bool bAtLeastOneLayout = false;
+				const FLayoutGenerationFlags& LayoutFlags = GenerationContext.LayoutGenerationFlags.Last();
 
+				const TArray<UCustomizableObjectLayout*>& Layouts = TypedNodeSkel->GetLayouts(*Pin);
 				for (int32 LayoutIndex = 0; LayoutIndex < NumLayouts; ++LayoutIndex)
 				{
-					if (UEdGraphPin* LayoutPin = TypedNodeSkel->GetLayoutPin(LODIndexLayout, SectionIndexLayout, LayoutIndex))
+					if (!LayoutFlags.TexturePinModes.IsValidIndex(LayoutIndex) ||
+						LayoutFlags.TexturePinModes[LayoutIndex] != EPinMode::Mutable)
 					{
-						if (const UEdGraphPin* ConnectedPin = FollowInputPin(*LayoutPin))
-						{
-							mu::Ptr<mu::NodeLayout> LayoutNode = GenerateMutableSourceLayout(ConnectedPin, GenerationContext, bLinkedToExtendMaterial);
-							MeshNode->SetLayout(LayoutIndex, LayoutNode);
-							bAtLeastOneLayout = true;
-						}
+						MeshNode->SetLayout(LayoutIndex, CreateDefaultLayout());
+						// Ignore layout
+						continue;
 					}
-				}
 
-				if (!bAtLeastOneLayout)
-				{
-					MeshNode->SetLayoutCount(1);
+					const UCustomizableObjectLayout* Layout = Layouts.IsValidIndex(0) ? Layouts[0] : nullptr;
+					if (ensure(Layout))
+					{
+						bool bWasEmpty = false;
+						mu::Ptr<mu::NodeLayout> LayoutNode = CreateMutableLayoutNode(GenerationContext, Layout, bLinkedToExtendMaterial, bWasEmpty); // TODO PERE: Figure out
+						LayoutNode->SetMessageContext(Node);
 
-					mu::Ptr<mu::NodeLayout> LayoutNode = CreateDefaultLayout();
-					MeshNode->SetLayout(0, LayoutNode);
-					LayoutNode->SetMessageContext(Node); // We need it here because we create multiple nodes.
+						MeshNode->SetLayout(LayoutIndex, LayoutNode);
+					}
 				}
 			}
 
@@ -3649,17 +3629,29 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				// Layouts
 				MeshNode->SetLayoutCount(1);
 
-				if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeStatic->LODs[LODIndex].Materials[SectionIndex].LayoutPinRef.Get()))
+				mu::Ptr<mu::NodeLayout> LayoutNode;
+
+				const TArray<UCustomizableObjectLayout*>& Layouts = TypedNodeStatic->GetLayouts(*Pin);
+				const UCustomizableObjectLayout* Layout = Layouts.IsValidIndex(0) ? Layouts[0] : nullptr;
+				
+				if (Layout)
 				{
-					mu::Ptr<mu::NodeLayout> LayoutNode = GenerateMutableSourceLayout(ConnectedPin, GenerationContext);
-					MeshNode->SetLayout(0, LayoutNode);
+					bool bWasEmpty = false;
+					LayoutNode = CreateMutableLayoutNode(GenerationContext, Layout, false, bWasEmpty);
+					/*if (bWasEmpty)
+					{
+						FString msg = "Layout without any block found. A grid sized block will be used instead.";
+						GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Warning);
+					}*/
 				}
-				else
+
+				if (!LayoutNode)
 				{
-					mu::Ptr<mu::NodeLayout> LayoutNode = CreateDefaultLayout();
-					MeshNode->SetLayout(0, LayoutNode);
-					LayoutNode->SetMessageContext(Node);  // We need it here because we create multiple nodes.
+					LayoutNode = CreateDefaultLayout();
 				}
+
+				MeshNode->SetLayout(0, LayoutNode);
+				LayoutNode->SetMessageContext(Node);  // We need it here because we create multiple nodes.
 			}
 			else
 			{
@@ -4300,8 +4292,18 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 							if (Layouts.Num())
 							{
 								// Generating node Layouts
+								const FLayoutGenerationFlags& LayoutFlags = GenerationContext.LayoutGenerationFlags.Last();
+								
 								for (int32 i = 0; i < Layouts.Num(); ++i)
 								{
+									if (!LayoutFlags.TexturePinModes.IsValidIndex(i) ||
+										LayoutFlags.TexturePinModes[i] != EPinMode::Mutable)
+									{
+										MeshTableNode->SetLayout(i, CreateDefaultLayout());
+										// Ignore layouts
+										continue;
+									}
+
 									bool bWasEmpty = false;
 									// In tables, mimic the legacy behaviour and ignore all layout warnings beyond LOD 0.
 									bool bIgnoreLayoutWarnings = true;

@@ -266,8 +266,7 @@ public:
 	UTexture2D* FindReferenceTextureParameter(const UEdGraphPin* Pin, FString ParameterImageName) const;
 
 	// Methods to get the UVs of the skeletal mesh 
-	void GetUVChannel(const UCustomizableObjectLayout* CurrentLayout, TArray<FVector2f>& OutSegments) const;
-	void GetUVChannelForPin(const UEdGraphPin* Pin, TArray<FVector2f>& OutSegments, int32 UVChannel = 0) const;
+	UObject* GetDefaultMeshForLayout(const UCustomizableObjectLayout* Layout) const;
 
 	// Methods to provide the Layouts to the Layout block editors
 	TArray<UCustomizableObjectLayout*> GetLayouts(const UEdGraphPin* Pin) const;

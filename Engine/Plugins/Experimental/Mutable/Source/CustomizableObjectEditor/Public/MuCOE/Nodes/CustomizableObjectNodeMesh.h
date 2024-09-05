@@ -24,17 +24,12 @@ public:
 
 	virtual UTexture2D* FindTextureForPin(const UEdGraphPin* Pin) const PURE_VIRTUAL(UCustomizableObjectNodeMesh::FindTextureForPin, return {};);
 
-	virtual void GetUVChannelForPin(const UEdGraphPin* Pin, TArray<FVector2f>& OutSegments, int32 UVIndex) const PURE_VIRTUAL(UCustomizableObjectNodeMesh::GetUVChannelForPin, );
-
 	/** Returns the Unreal mesh (e.g., USkeletalMesh, UStaticMesh...). */
 	virtual UObject* GetMesh() const PURE_VIRTUAL(UCustomizableObjectNodeMesh::GetMesh, return {};);
 
 	/** Returns the output Mesh pin associated to the given LODIndex and SectionIndex. Override. */
 	virtual UEdGraphPin* GetMeshPin(int32 LOD, int32 SectionIndex) const PURE_VIRTUAL(UCustomizableObjectNodeMesh::GetMeshPin, return {};);
 
-	/** Returns the input Layout pin associated to the given LODIndex, SectionIndex and LayoutIndex. Override. */
-	virtual UEdGraphPin* GetLayoutPin(int32 LODIndex, int32 SectionIndex, int32 LayoutIndex) const PURE_VIRTUAL(UCustomizableObjectNodeMesh::GetLayoutPin, return {};);
-	
 	/** Given a pin, return the Section and Layout index.
 	 *
 	 * Will always return a valid result. The result can be valid but out of sync with respect the Unreal mesh asset.

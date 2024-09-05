@@ -14,7 +14,6 @@ class IDetailLayoutBuilder;
 class ISinglePropertyView;
 class FReply;
 class SButton;
-class SCustomizableObjectNodeLayoutBlocksEditor;
 class SSearchableComboBox;
 class STextBlock;
 class STextComboBox;
@@ -23,6 +22,7 @@ class UCustomizableObjectLayout;
 class UCustomizableObjectNodeTable;
 struct EVisibility;
 struct FSlateColor;
+struct FLayoutEditorMeshSection;
 
 enum class EAnimColumnType 
 {
@@ -48,6 +48,7 @@ private:
 	// Details -------------
 	// Generates Mesh columns combobox options
 	void GenerateMeshColumnComboBoxOptions();
+	void GenerateMeshSectionOptions(TArray<FLayoutEditorMeshSection>& OutMeshSections);
 	
 	// Function called when the table node has been refreshed
 	void OnNodePinValueChanged();
@@ -77,47 +78,6 @@ private:
 
 	// Callback to clear the animation combobox selections
 	void OnAnimCustomRowResetButtonClicked(EAnimColumnType ColumnType);
-
-
-	// Layout Category -------------
-	// OnComboBoxSelectionChanged Callback for Layout ComboBox
-	void OnLayoutMeshColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
-
-	// Callback to clear the mesh column to edit its layout properties
-	void OnLayoutMeshCustomRowResetButtonClicked();
-
-	// Layout options visibility
-	EVisibility LayoutOptionsVisibility() const;
-
-	/** Returns the visibility of the Fixed layout widgets */
-	EVisibility FixedStrategyOptionsVisibility() const;
-
-	/** Generates the Layout Packing Strategy text widgets of the ComboBox */
-	TSharedRef<SWidget> OnGenerateStrategyComboBox(TSharedPtr<FString> InItem) const;
-	
-	/** Generates the Layout Redutction Methods text widgets of the ComboBox*/
-	TSharedRef<SWidget> OnGenerateReductionMethodComboBox(TSharedPtr<FString> InItem) const;
-
-	/** Returns the selected Packing Strategy Name as a FText */
-	FText GetSelectedLayoutStrategyName() const;
-
-	/** Returns the selected Reduction Method Name as a FText */
-	FText GetSelectedLayoutReductionMethodName() const;
-
-	/** Returns the selected Packing Strategy Tooltip as a FText */
-	FText GetSelectedLayoutStrategyTooltip() const;
-
-	/** Returns the selected Reduction Method Tooltip as a FText */
-	FText GetSelectedLayoutReductionMethodTooltip() const;
-
-	/** Fills the combo box arrays sources */
-	void FillLayoutComboBoxOptions();
-
-	/** Layout Options Callbacks */
-	void OnGridSizeChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
-	void OnMaxGridSizeChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
-	void OnReductionMethodChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
-	void OnLayoutPackingStrategyChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
 
 
 	// Mutable UI Metadata Category -------------
@@ -198,40 +158,6 @@ private:
 
 	// Array with the name of the Animation Tags columns as combobox options
 	TArray<TSharedPtr<FString>> AnimTagsOptionNames;
-
-	// Layout -------------
-	// ComboBox widget to select a column from the NodeTable
-	TSharedPtr<STextComboBox> LayoutMeshColumnComboBox;
-	
-	// Array with the name of the table columns as combobox options
-	TArray<TSharedPtr<FString>> LayoutMeshColumnOptionNames;
-	
-	// Layout block editor widget
-	TSharedPtr<SCustomizableObjectNodeLayoutBlocksEditor> LayoutBlocksEditor;
-
-	// Weakpointer to the selected layout objet
-	TWeakObjectPtr<UCustomizableObjectLayout> SelectedLayout;
-
-	/** List of available layout grid sizes. */
-	TArray< TSharedPtr< FString > > LayoutGridSizes;
-
-	/** List of available layout packing strategies. */
-	TArray< TSharedPtr< FString > > LayoutPackingStrategies;
-	TArray<FText> LayoutPackingStrategiesTooltips;
-
-	/** List of available block reduction methods. */
-	TArray< TSharedPtr< FString > > BlockReductionMethods;
-	TArray<FText> BlockReductionMethodsTooltips;
-
-	// ComboBox widget to select a Grid Size from the Selected Layout
-	TSharedPtr<STextComboBox> GridSizeComboBox;
-	// ComboBox widget to select a Strategy from the Selected Layout. SSearchableComboBox allows us to set a custom tooltip per option.
-	TSharedPtr<SSearchableComboBox> StrategyComboBox;
-	// ComboBox widget to select a Max Grid Size from the Selected Layout
-	TSharedPtr<STextComboBox> MaxGridSizeComboBox;
-	// ComboBox widget to select a Reduction Method from the Selected Layout
-	TSharedPtr<SSearchableComboBox> ReductionMethodComboBox;
-
 
 	// Mutable UI Metadata -------------
 	// Array with the name of the MutableMetaData columns

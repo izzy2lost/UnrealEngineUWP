@@ -6,6 +6,7 @@
 #include "IDetailCustomization.h"
 
 class IDetailLayoutBuilder;
+struct FLayoutEditorMeshSection;
 
 
 class FCustomizableObjectNodeSkeletalMeshDetails : public FCustomizableObjectNodeDetails
@@ -18,6 +19,8 @@ public:
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 
 private:
+
+	void GenerateMeshSectionOptions(TArray<FLayoutEditorMeshSection>& OutMeshSections);
 
 	// Pointer to the node represented in this details
 	class UCustomizableObjectNodeSkeletalMesh* Node;

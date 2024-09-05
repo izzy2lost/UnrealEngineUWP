@@ -428,7 +428,6 @@ void UEdGraphSchema_CustomizableObject::GetGraphContextActions(FGraphContextMenu
 		{
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeSkeletalMesh>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeStaticMesh>(),
-			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeLayoutBlocks>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeMeshMorph>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeMeshSwitch>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeMeshVariation>(),

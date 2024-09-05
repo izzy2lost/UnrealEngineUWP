@@ -111,7 +111,7 @@ public:
 	UCustomizableObjectLayout();
 
 	// Sets the layout parameters
-	void SetLayout(UObject* InMesh, int32 LODIndex, int32 MatIndex, int32 UVIndex);
+	void SetLayout(int32 LODIndex, int32 MatIndex, int32 UVIndex);
 	void SetGridSize(FIntPoint Size);
 	void SetMaxGridSize(FIntPoint Size);
 	void SetLayoutName(FString Name);
@@ -122,14 +122,13 @@ public:
 	int32 GetMaterial() const { return Material; }
 	int32 GetUVChannel() const { return UVChannel; }
 	FString GetLayoutName() const { return LayoutName; }
-	UObject* GetMesh() const { return Mesh; }
+	UObject* GetMesh() const;
 	FIntPoint GetGridSize() const { return GridSize; }
 	FIntPoint GetMaxGridSize() const { return MaxGridSize; }
 	bool GetIgnoreVertexLayoutWarnings() const { return bIgnoreUnassignedVertexWarning; };
 	int32 GetFirstLODToIgnoreWarnings() const { return FirstLODToIgnore; };
 
-	// TODO: Remove the default channel index. Anywhere using the default is probably wrong.
-	void GetUVChannel(TArray<FVector2f>& UVs, int32 UVChannelIndex = 0) const;
+	void GetUVs(TArray<FVector2f>& UVs) const;
 
 	/** Get a block index in the array from its id.Return - 1 if not found. */
 	int32 FindBlock(const FGuid& InId) const;
@@ -164,9 +163,6 @@ public:
 	ECustomizableObjectLayoutBlockReductionMethod BlockReductionMethod = ECustomizableObjectLayoutBlockReductionMethod::Halve;
 
 private:
-
-	UPROPERTY()
-	TObjectPtr<UObject> Mesh = nullptr;
 
 	UPROPERTY()
 	int32 LOD;

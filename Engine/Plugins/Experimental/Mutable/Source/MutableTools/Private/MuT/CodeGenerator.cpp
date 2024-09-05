@@ -973,7 +973,7 @@ namespace mu
 								continue;
 							}
 
-							if (Data.GeneratedLayouts.Num() != MeshResults.GeneratedLayouts.Num())
+							if (Data.GeneratedLayouts.Num() < MeshResults.GeneratedLayouts.Num())
 							{
 								ErrorLog->GetPrivate()->Add(TEXT("Merged layout has been ignored because the number of layouts is different."), ELMT_ERROR, surfaceNode->GetMessageContext());
 							}

@@ -53,6 +53,7 @@ struct FMutableRefSkeletalMeshData;
 struct FMutableRefSocket;
 struct FMutableSkinWeightProfileInfo;
 struct FMorphTargetVertexData;
+enum class EPinMode;
 
 struct FGeneratedImageProperties
 {
@@ -105,6 +106,14 @@ enum class EMutableMeshConversionFlags : uint32
 
 ENUM_CLASS_FLAGS(EMutableMeshConversionFlags)
 
+struct FLayoutGenerationFlags
+{
+	bool operator==(const FLayoutGenerationFlags& Other) const = default;
+
+	// Texture pin mode per UV Channel
+	TArray<EPinMode> TexturePinModes;
+};
+
 /** 
 	Struct to store the necessary data to generate the morphs of a skeletal mesh 
 	This struct allows the stack morph nodes to use the same functions as the mesh morph nodes
@@ -154,6 +163,9 @@ private:
 
 	/** Active morphs at the time of mesh generation. */
 	TArray<FMorphNodeData> MeshMorphStack;
+
+	/** UV Layout modes */
+	FLayoutGenerationFlags LayoutFlags;
 
 	/** When caching a generated mesh, true if we force to generate the connected LOD when using Automatic LODs From Mesh. */
 	bool bOnlyConnectedLOD = false;
@@ -699,6 +711,9 @@ struct FMutableGraphGenerationContext
 	// Stack of mesh generation flags. The last one is the currently valid.
 	// The value is a bit mask of EMutableMeshConversionFlags
 	TArray<EMutableMeshConversionFlags> MeshGenerationFlags;
+
+	// Stack of Layout generation flags. The last one is the currently valid.
+	TArray<FLayoutGenerationFlags> LayoutGenerationFlags;
 
 	/** Find a mesh if already generated for a given source and flags. */
 	mu::Ptr<mu::Mesh> FindGeneratedMesh(const FGeneratedMeshData::FKey& Key);

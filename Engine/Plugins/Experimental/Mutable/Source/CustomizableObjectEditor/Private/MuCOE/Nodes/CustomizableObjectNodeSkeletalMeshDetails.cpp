@@ -8,6 +8,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeSkeletalMesh.h"
 #include "MuCOE/PinViewer/SPinViewer.h"
 #include "MuCOE/SCustomizableObjectNodeSkeletalMeshRTMorphSelector.h"
+#include "MuCOE/SCustomizableObjectLayoutEditor.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectNodeMaterialDetails"
 
@@ -51,6 +52,52 @@ void FCustomizableObjectNodeSkeletalMeshDetails::CustomizeDetails(IDetailLayoutB
 
 	TSharedRef<IPropertyHandle> SkeletalMeshProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeSkeletalMesh, SkeletalMesh));
 	SkeletalMeshProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(MorphSelector.Get(), &SCustomizableObjectNodeSkeletalMeshRTMorphSelector::UpdateWidget));
+
+	TArray<FLayoutEditorMeshSection> MeshSectionsAndLayouts;
+	GenerateMeshSectionOptions(MeshSectionsAndLayouts);
+
+	TSharedPtr<SCustomizableObjectLayoutEditor> LayoutBlocksEditor = SNew(SCustomizableObjectLayoutEditor)
+		.Node(Node)
+		.MeshSections(MeshSectionsAndLayouts);
+
+	FCustomizableObjectLayoutEditorDetailsBuilder LayoutEditorBuilder;
+	LayoutEditorBuilder.LayoutEditor = LayoutBlocksEditor;
+	LayoutEditorBuilder.bShowLayoutSelector = true;
+	LayoutEditorBuilder.bShowPackagingStrategy = true;
+	LayoutEditorBuilder.bShowAutomaticGenerationSettings = true;
+	LayoutEditorBuilder.bShowGridSize = true;
+	LayoutEditorBuilder.bShowMaxGridSize = true;
+	LayoutEditorBuilder.bShowReductionMethods = true;
+	LayoutEditorBuilder.bShowWarningSettings = true;
+
+	LayoutEditorBuilder.CustomizeDetails(DetailBuilder);
+
+	LayoutBlocksEditor->UpdateLayout(nullptr);
+}
+
+
+void FCustomizableObjectNodeSkeletalMeshDetails::GenerateMeshSectionOptions(TArray<FLayoutEditorMeshSection>& OutMeshSections)
+{
+	OutMeshSections.Empty();
+
+	if (!Node)
+	{
+		return;
+	}
+
+	for (const UEdGraphPin* Pin : Node->GetAllNonOrphanPins())
+	{
+		if (const UCustomizableObjectNodeSkeletalMeshPinDataMesh* PinData = Cast<UCustomizableObjectNodeSkeletalMeshPinDataMesh>(Node->GetPinData(*Pin)))
+		{
+			FLayoutEditorMeshSection& MeshSection = OutMeshSections.AddDefaulted_GetRef();
+			MeshSection.MeshName = MakeShareable(new FString(Pin->PinFriendlyName.ToString()));
+
+			for (UCustomizableObjectLayout* Layout : PinData->Layouts)
+			{
+				MeshSection.Layouts.Add(Layout);
+			}
+		}
+	}
 }
 
 

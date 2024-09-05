@@ -12,72 +12,23 @@
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
-
-mu::Ptr<mu::NodeLayout> GenerateMutableSourceLayout(const UEdGraphPin * Pin, FMutableGraphGenerationContext& GenerationContext, bool bIgnoreLayoutWarning)
+mu::Ptr<mu::NodeLayout> CreateDefaultLayout()
 {
-	check(Pin)
-	RETURN_ON_CYCLE(*Pin, GenerationContext)
+	constexpr int32 GridSize = 4;
 
-	CheckNumOutputs(*Pin, GenerationContext);
+	mu::Ptr<mu::NodeLayout> LayoutNode = new mu::NodeLayout();
+	LayoutNode->Size = { GridSize, GridSize };
+	LayoutNode->MaxSize = { GridSize, GridSize };
+	LayoutNode->Strategy = mu::EPackStrategy::Resizeable;
+	LayoutNode->ReductionMethod = mu::EReductionMethod::Halve;
+	LayoutNode->Blocks.SetNum(1);
+	LayoutNode->Blocks[0].Min = { 0, 0 };
+	LayoutNode->Blocks[0].Size = { GridSize, GridSize };
+	LayoutNode->Blocks[0].Priority = 0;
+	LayoutNode->Blocks[0].bReduceBothAxes = false;
+	LayoutNode->Blocks[0].bReduceByTwo = false;
 
-	UCustomizableObjectNode* Node = CastChecked<UCustomizableObjectNode>(Pin->GetOwningNode());
-
-	const FGeneratedKey Key(reinterpret_cast<void*>(&GenerateMutableSourceLayout), *Pin, *Node, GenerationContext, true);
-	if (const FGeneratedData* Generated = GenerationContext.Generated.Find(Key))
-	{
-		return static_cast<mu::NodeLayout*>(Generated->Node.get());
-	}
-
-	mu::Ptr<mu::NodeLayout> Result;
-	
-	if (const UCustomizableObjectNodeLayoutBlocks* TypedNodeBlocks = Cast<UCustomizableObjectNodeLayoutBlocks>(Node))
-	{
-		if (UCustomizableObjectNodeSkeletalMesh* SkeletalMeshNode = Cast<UCustomizableObjectNodeSkeletalMesh>(FollowOutputPin(*TypedNodeBlocks->OutputPin())->GetOwningNode()))
-		{
-			int32 LayoutIndex;
-			FString MaterialName;
-
-			if (!SkeletalMeshNode->CheckIsValidLayout(Pin, LayoutIndex, MaterialName))
-			{
-				FString msg = "Layouts ";
-				for (int32 i = 0; i < LayoutIndex; ++i)
-				{
-					msg += "UV" + FString::FromInt(i);
-					if (i < LayoutIndex - 1)
-					{
-						msg += ", ";
-					}
-				}
-				msg += " of " + MaterialName + " must be also connected to a Layout Blocks Node. ";
-				GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Error);
-				return nullptr;
-			}
-		}
-
-		bool bWasEmpty = false;
-		Result = CreateMutableLayoutNode(GenerationContext, TypedNodeBlocks->Layout, bIgnoreLayoutWarning,bWasEmpty);
-		if (bWasEmpty)
-		{
-			FString msg = "Layout without any block found. A grid sized block will be used instead.";
-			GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Warning);
-		}
-	}
-	
-	else
-	{
-		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
-	}
-
-	GenerationContext.Generated.Add(Key, FGeneratedData(Node, Result));
-	GenerationContext.GeneratedNodes.Add(Node);
-
-	
-	if (Result)
-	{
-		Result->SetMessageContext(Node);
-	}
-
-	return Result;
+	return LayoutNode;
 }
 
 
@@ -118,7 +69,7 @@ mu::Ptr<mu::NodeLayout> CreateMutableLayoutNode(FMutableGraphGenerationContext& 
 		PackingStrategy == ECustomizableObjectTextureLayoutPackingStrategy::Overlay)
  	{
 		// Legacy behavior
-		if (!UnrealLayout->Blocks.Num())
+		if (UnrealLayout->Blocks.IsEmpty())
 		{
 			bWasEmpty = true;
 			LayoutNode->Blocks.SetNum(1);
@@ -129,7 +80,7 @@ mu::Ptr<mu::NodeLayout> CreateMutableLayoutNode(FMutableGraphGenerationContext& 
 			LayoutNode->Blocks[0].bReduceByTwo = false;
 		}
 	}
-	else
+	else if (UnrealLayout->Blocks.IsEmpty())
 	{
 		// Convert the UE mesh in the layout into a Mutable mesh.
 		mu::Ptr<mu::Mesh> MutableMesh = nullptr;
