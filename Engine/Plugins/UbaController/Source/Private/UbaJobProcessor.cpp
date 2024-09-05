@@ -183,7 +183,6 @@ void FUbaJobProcessor::CalculateKnownInputs()
 
 	auto AddKnownInput = [&](const FString& file)
 		{
-			UE_LOG(LogUbaController, Display, TEXT("ADDING KNOWN FILE: %s"), *file);
 			#if PLATFORM_WINDOWS
 			auto& fileData = file.GetCharArray();
 			const uba::tchar* fileName = fileData.GetData();
