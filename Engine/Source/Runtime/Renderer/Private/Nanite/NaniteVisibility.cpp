@@ -235,7 +235,8 @@ static FORCEINLINE bool IsNanitePrimitiveVisible(const FNaniteVisibilityQuery* Q
 
 	if (bPrimitiveVisible && GNaniteMaterialVisibilityInstances != 0)
 	{
-		if (const FInstanceSceneDataBuffers *InstanceData = SceneInfo->GetInstanceSceneDataBuffers())
+		const FInstanceSceneDataBuffers *InstanceData = SceneInfo->GetInstanceSceneDataBuffers();
+		if (InstanceData && !InstanceData->IsInstanceDataGPUOnly())
 		{
 			bPrimitiveVisible = false;
 			for (int32 InstanceIndex = 0; InstanceIndex < InstanceData->GetNumInstances(); ++InstanceIndex)

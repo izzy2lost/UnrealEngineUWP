@@ -3869,6 +3869,8 @@ public:
 protected:
 
 private:
+	friend class FSceneComputeUpdates;
+	void UpdatePrimitiveInstancesFromCompute(FPrimitiveSceneInfo* PrimitiveSceneInfo, FGPUSceneWriteDelegate&& DataWriterGPU);
 
 	template<class T> 	
 	void BatchAddPrimitivesInternal(TArrayView<T*> InPrimitives);

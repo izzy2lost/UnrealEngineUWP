@@ -19,7 +19,7 @@ DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Random Data Instances"), STAT_InstanceHasRa
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Local Bounds Instances"), STAT_InstanceHasLocalBounds, STATGROUP_InstanceData);
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Hierarchy Offset Instances"), STAT_InstanceHasHierarchyOffset, STATGROUP_InstanceData);
 
-const FInstanceDataBufferHeader FInstanceDataBufferHeader::SinglePrimitiveHeader = { 1, 0, FInstanceDataFlags() };
+const FInstanceDataBufferHeader FInstanceDataBufferHeader::SinglePrimitiveHeader = { 1, 0, FInstanceDataFlags(), false };
 
 void FInstanceIdIndexMap::Reset(int32 InNumInstances)
 {
@@ -58,6 +58,15 @@ void FInstanceIdIndexMap::CreateExplicitIdentityMapping()
 		IndexToIdMap[Index] = FPrimitiveInstanceId{Index};
 		IdToIndexMap[Index] = Index;
 	}
+}
+
+FInstanceSceneDataBuffers::FInstanceSceneDataBuffers()
+{
+}
+
+FInstanceSceneDataBuffers::FInstanceSceneDataBuffers(bool InbInstanceDataIsGPUOnly)
+	: bInstanceDataIsGPUOnly(InbInstanceDataIsGPUOnly)
+{
 }
 
 uint32 FInstanceSceneDataBuffers::CalcPayloadDataStride(FInstanceDataFlags Flags, int32 InNumCustomDataFloats, int32 InNumPayloadExtensionFloat4s)
@@ -178,31 +187,31 @@ FInstanceDataBufferHeader FInstanceSceneDataBuffers::GetHeader(FAccessTag Access
 {
 	ValidateAccess(AccessTag);
 	// Bit ugly, only this way to keep FInstanceDataBufferHeader fwd-declarable...
-	return FInstanceDataBufferHeader{ GetNumInstances(), GetPayloadDataStride(), Flags };
+	return FInstanceDataBufferHeader{ GetNumInstances(), GetPayloadDataStride(), Flags, bInstanceDataIsGPUOnly };
 }
 
 template <typename ArrayType>
-static void ValidateArray(bool bFlag, const ArrayType &Array, int32 NumInstances, int32 ElementStride = 1)
+static void ValidateArray(bool bFlag, const ArrayType &Array, int32 NumInstances, bool bInstanceDataIsGPUOnly, int32 ElementStride = 1)
 {
-	check(bFlag || Array.IsEmpty());
-	check(!bFlag || Array.Num() == NumInstances * ElementStride);
+	const bool bDataShouldBePresent = bFlag && !bInstanceDataIsGPUOnly;
+	check(bDataShouldBePresent || Array.IsEmpty());
+	check(!bDataShouldBePresent || Array.Num() == NumInstances * ElementStride);
 }
 
 void FInstanceSceneDataBuffers::ValidateData() const
 {
-	ValidateArray(Flags.bHasPerInstanceCustomData, InstanceCustomData, GetNumInstances(), NumCustomDataFloats);
-	ValidateArray(Flags.bHasPerInstanceRandom, InstanceRandomIDs, GetNumInstances());
-	ValidateArray(Flags.bHasPerInstanceLMSMUVBias, InstanceLightShadowUVBias, GetNumInstances());
-	ValidateArray(Flags.bHasPerInstanceHierarchyOffset, InstanceHierarchyOffset, GetNumInstances());
-	ValidateArray(Flags.bHasPerInstanceDynamicData, PrevInstanceToPrimitiveRelative, GetNumInstances());
-	ValidateArray(Flags.bHasPerInstanceSkinningData, InstanceSkinningData, GetNumInstances());
-
+	ValidateArray(Flags.bHasPerInstanceCustomData, InstanceCustomData, GetNumInstances(), bInstanceDataIsGPUOnly, NumCustomDataFloats);
+	ValidateArray(Flags.bHasPerInstanceRandom, InstanceRandomIDs, GetNumInstances(), bInstanceDataIsGPUOnly);
+	ValidateArray(Flags.bHasPerInstanceLMSMUVBias, InstanceLightShadowUVBias, GetNumInstances(), bInstanceDataIsGPUOnly);
+	ValidateArray(Flags.bHasPerInstanceHierarchyOffset, InstanceHierarchyOffset, GetNumInstances(), bInstanceDataIsGPUOnly);
+	ValidateArray(Flags.bHasPerInstanceDynamicData, PrevInstanceToPrimitiveRelative, GetNumInstances(), bInstanceDataIsGPUOnly);
+	ValidateArray(Flags.bHasPerInstanceSkinningData, InstanceSkinningData, GetNumInstances(), bInstanceDataIsGPUOnly);
 #if WITH_EDITOR
-	ValidateArray(Flags.bHasPerInstanceEditorData, InstanceEditorData, GetNumInstances());
+	ValidateArray(Flags.bHasPerInstanceEditorData, InstanceEditorData, GetNumInstances(), bInstanceDataIsGPUOnly);
 #endif
 	// TODO: These don't follow the common pattern.
-	// ValidateArray(Flags.bHasPerInstanceLocalBounds, InstanceLocalBounds, GetNumInstances());
-	// ValidateArray(Flags.bHasPerInstancePayloadExtension, InstancePayloadExtension, GetNumInstances());
+	// ValidateArray(Flags.bHasPerInstanceLocalBounds, InstanceLocalBounds, GetNumInstances(), bInstanceDataIsGPUOnly);
+	// ValidateArray(Flags.bHasPerInstancePayloadExtension, InstancePayloadExtension, GetNumInstances(), bInstanceDataIsGPUOnly);
 }
 
 void FInstanceSceneDataBuffers::SetImmutable(FInstanceSceneDataImmutable &&ImmutableData, FAccessTag AccessTag)
@@ -234,6 +243,11 @@ void FInstanceDataUpdateTaskInfo::WaitForUpdateCompletion()
 }
 
 FInstanceDataSceneProxy::FInstanceDataSceneProxy()
+{
+}
+
+FInstanceDataSceneProxy::FInstanceDataSceneProxy(FInstanceSceneDataBuffers&& InInstanceSceneDataBuffers)
+	: InstanceSceneDataBuffers(MoveTemp(InInstanceSceneDataBuffers))
 {
 }
 

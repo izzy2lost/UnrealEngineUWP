@@ -1856,7 +1856,8 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 			const bool bCollectInstanceHitProxyIds = bSelectedInstancesOnly &&
 				NaniteProxy->HasSelectedInstances() &&
 				OutSelectedInstanceHitProxyIDs != nullptr &&
-				InstanceSceneDataBuffers != nullptr;
+				InstanceSceneDataBuffers != nullptr &&
+				!InstanceSceneDataBuffers->IsInstanceDataGPUOnly();
 			const bool bOverlaidDraws = OutOverlaidInstanceDraws &&
 				NaniteProxy->WantsEditorEffects() &&
 				!NaniteProxy->IsSelected();

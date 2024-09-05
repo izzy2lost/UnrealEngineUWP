@@ -119,6 +119,9 @@ class FInstanceSceneDataImmutable;
 class FInstanceSceneDataBuffers
 {
 public:
+	ENGINE_API FInstanceSceneDataBuffers();
+	ENGINE_API FInstanceSceneDataBuffers(bool InbInstanceDataIsGPUOnly);
+	ENGINE_API FInstanceSceneDataBuffers(FInstanceSceneDataBuffers&& Other) = default;
 
 	struct FAccessTag
 	{
@@ -136,7 +139,8 @@ public:
 
 	inline const FInstanceDataFlags& GetFlags() const { return Flags; }
 
-	inline int32 GetNumInstances(FAccessTag AccessTag = FAccessTag()) const { ValidateAccess(AccessTag); return InstanceToPrimitiveRelative.Num(); }
+	inline int32 GetNumInstances(FAccessTag AccessTag = FAccessTag()) const { ValidateAccess(AccessTag); return bInstanceDataIsGPUOnly ? NumInstancesGPUOnly : InstanceToPrimitiveRelative.Num(); }
+	inline int32 GetNumCustomDataFloats(FAccessTag AccessTag = FAccessTag()) const { ValidateAccess(AccessTag); return NumCustomDataFloats; }
 
 	ENGINE_API static uint32 CalcPayloadDataStride(FInstanceDataFlags Flags, int32 InNumCustomDataFloats, int32 InNumPayloadExtensionFloat4s);
 
@@ -164,6 +168,9 @@ public:
 	 */
 	ENGINE_API FMatrix GetInstanceToWorld(int32 InstanceIndex, FAccessTag AccessTag = FAccessTag()) const;
 
+	/** Whether instance data resides only in the GPU Scene, not backed by a copy in CPU memory. */
+	inline bool IsInstanceDataGPUOnly(FAccessTag AccessTag = FAccessTag()) const { ValidateAccess(AccessTag); return bInstanceDataIsGPUOnly; }
+
 	/**
 	 */
 	inline FRenderTransform GetInstanceToPrimitiveRelative(int32 InstanceIndex, FAccessTag AccessTag = FAccessTag()) const { ValidateAccess(AccessTag); return InstanceToPrimitiveRelative[InstanceIndex]; }
@@ -173,7 +180,7 @@ public:
 	inline FRenderTransform GetPrevInstanceToPrimitiveRelative(int32 InstanceIndex, FAccessTag AccessTag = FAccessTag()) const { ValidateAccess(AccessTag); return PrevInstanceToPrimitiveRelative.IsEmpty() ? InstanceToPrimitiveRelative[InstanceIndex] : PrevInstanceToPrimitiveRelative[InstanceIndex]; }
 	
 	/**
-	 * Get the offset for the primtive-relative space used for transforms and bounds.
+	 * Get the offset for the primitive-relative space used for transforms and bounds.
 	 */
 	inline const FVector &GetPrimitiveWorldSpaceOffset(FAccessTag AccessTag = FAccessTag()) const { ValidateAccess(AccessTag);return PrimitiveWorldSpaceOffset; }
 
@@ -187,7 +194,7 @@ public:
 
 	ENGINE_API FInstanceDataBufferHeader GetHeader(FAccessTag AccessTag = FAccessTag()) const;
 
-	void ValidateData() const;
+	ENGINE_API void ValidateData() const;
 
 	struct FCompressedSpatialHashItem
 	{
@@ -216,6 +223,7 @@ public:
 	#endif
 		TBitArray<> &VisibleInstances;
 
+		int32 &NumInstancesGPUOnly;
 		int32 &NumCustomDataFloats;
 		FInstanceDataFlags &Flags;
 	};
@@ -224,8 +232,8 @@ public:
 	{
 		check(AccessTag.Kind == FAccessTag::EKind::Writer && AccessTag.WriterTag != 0u);
 		uint32 PrevTagValue = 0u;
-		check(CurrentWriterTag.compare_exchange_strong(PrevTagValue, AccessTag.WriterTag));
-		return 	FWriteView
+		check(CurrentWriterTag.Value.compare_exchange_strong(PrevTagValue, AccessTag.WriterTag));
+		return FWriteView
 		{
 			AccessTag,
 			PrimitiveToRelativeWorld,
@@ -244,15 +252,17 @@ public:
 			SelectedInstances,
 		#endif
 			VisibleInstances,
+			NumInstancesGPUOnly,
 			NumCustomDataFloats,
 			Flags
 		};
 	}
 	void EndWriteAccess(FAccessTag AccessTag)
 	{
+		check(bInstanceDataIsGPUOnly ? InstanceToPrimitiveRelative.IsEmpty() : (NumInstancesGPUOnly == 0));
 		check(AccessTag.Kind == FAccessTag::EKind::Writer && AccessTag.WriterTag != 0u);
 		uint32 PrevTagValue = AccessTag.WriterTag;
-		check(CurrentWriterTag.compare_exchange_strong(PrevTagValue, 0U));
+		check(CurrentWriterTag.Value.compare_exchange_strong(PrevTagValue, 0U));
 	}
 
 
@@ -275,8 +285,10 @@ public:
 	#endif
 		const TBitArray<> &VisibleInstances;
 
+		int32 NumInstancesGPUOnly;
 		int32 NumCustomDataFloats;
 		FInstanceDataFlags Flags;
+		bool bInstanceDataIsGPUOnly;
 	};
 
 	FReadView GetReadView(FAccessTag AccessTag = FAccessTag()) const
@@ -301,8 +313,10 @@ public:
 			SelectedInstances,
 #endif
 			VisibleInstances,
+			NumInstancesGPUOnly,
 			NumCustomDataFloats,
-			Flags
+			Flags,
+			bInstanceDataIsGPUOnly
 		};
 	}
 
@@ -327,15 +341,30 @@ protected:
 #endif
 	TBitArray<> VisibleInstances;
 
+	int32 NumInstancesGPUOnly = 0;
 	int32 NumCustomDataFloats = 0;
 	FInstanceDataFlags Flags;
 
+	/** Instance data stored only in GPUScene, not stored in the above arrays in CPU memory. */
+	bool bInstanceDataIsGPUOnly : 1 = false;
+
 #if DO_CHECK
-	std::atomic<uint32> CurrentWriterTag = 0;
+	struct FCurrentWriterTag
+	{
+		FCurrentWriterTag() {}
+		FCurrentWriterTag(FCurrentWriterTag&& Other)
+		{
+			check(Other.Value == 0u);
+		}
+
+		std::atomic<uint32> Value = 0;
+	};
+	FCurrentWriterTag CurrentWriterTag;
+
 	inline void ValidateAccess(const FAccessTag& AccessTag) const
 	{
-		check(AccessTag.Kind == FAccessTag::EKind::Reader && CurrentWriterTag == 0u
-		|| AccessTag.Kind == FAccessTag::EKind::Writer && CurrentWriterTag == AccessTag.WriterTag);
+		check(AccessTag.Kind == FAccessTag::EKind::Reader && CurrentWriterTag.Value == 0u
+		|| AccessTag.Kind == FAccessTag::EKind::Writer && CurrentWriterTag.Value == AccessTag.WriterTag);
 	}
 #else
 	FORCEINLINE void ValidateAccess(const FAccessTag& AccessTag) const {}
@@ -399,6 +428,7 @@ class FInstanceDataSceneProxy
 {
 public:
 	ENGINE_API FInstanceDataSceneProxy();
+	ENGINE_API FInstanceDataSceneProxy(FInstanceSceneDataBuffers&& InInstanceSceneDataBuffers);
 	ENGINE_API virtual ~FInstanceDataSceneProxy();
 
 	ENGINE_API virtual const FInstanceSceneDataBuffers* GeInstanceSceneDataBuffers() const { return &InstanceSceneDataBuffers; }

@@ -84,6 +84,7 @@
 #include "ComputeWorkerInterface.h"
 #include "Nanite/NaniteMaterialsSceneExtension.h"
 #include "ObjectCacheContext.h"
+#include "SceneComputeUpdates.h"
 
 #if RHI_RAYTRACING
 #include "Nanite/NaniteRayTracing.h"
@@ -2217,6 +2218,31 @@ void FScene::UpdatePrimitiveInstances(UInstancedStaticMeshComponent* Primitive)
 	UpdateParams.StaticMeshBounds = Primitive->GetStaticMesh()->GetBounds();
 
 	UpdatePrimitiveInstances(UpdateParams);
+}
+
+void FScene::UpdatePrimitiveInstancesFromCompute(FPrimitiveSceneInfo* PrimitiveSceneInfo, FGPUSceneWriteDelegate&& DataWriterGPU)
+{
+	SCOPED_NAMED_EVENT(FScene_UpdatePrimitiveInstanceFromCompute, FColor::Yellow);
+	check(PrimitiveSceneInfo);
+
+	// Primitive must have a scene proxy already created in order to update it's instance data.
+	if (!ensureAlways(PrimitiveSceneInfo->Proxy != nullptr))
+	{
+		return;
+	}
+
+	// Only updates to GPU-only primitives are currently allowed.
+	if (!ensureAlways(PrimitiveSceneInfo->Proxy->IsInstanceDataGPUOnly()))
+	{
+		return;
+	}
+
+	FUpdateInstanceFromComputeCommand UpdateCommand;
+	UpdateCommand.PrimitiveSceneProxy = PrimitiveSceneInfo->Proxy;
+	UpdateCommand.GPUSceneWriter = MoveTemp(DataWriterGPU);
+
+	// This is already on the renderthread so queue directly.
+	PrimitiveUpdates.Enqueue(PrimitiveSceneInfo, MoveTemp(UpdateCommand));
 }
 
 void FScene::UpdatePrimitiveInstances(FInstancedStaticMeshSceneDesc* Primitive)
@@ -5375,6 +5401,19 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	Update(GraphBuilder, Parameters);
 }
 
+class FSceneComputeUpdates : public ISceneComputeUpdates
+{
+public:
+	FSceneComputeUpdates(FScene &InScene) : Scene(InScene) {}
+
+	virtual void EnqueueUpdateInternal(FPrimitiveSceneInfo* PrimitiveSceneInfo, FGPUSceneWriteDelegate&& DataWriterGPU) override
+	{
+		Scene.UpdatePrimitiveInstancesFromCompute(PrimitiveSceneInfo, MoveTemp(DataWriterGPU));
+	}
+
+	FScene &Scene;
+};
+
 void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Parameters)
 {
 	LLM_SCOPE(ELLMTag::SceneRender);
@@ -5393,12 +5432,24 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 		});
 	}
 
+	// Add interface to blackboard to receive scene updates from compute.
+	{
+		FSceneComputeUpdatesBlackboardEntry& BlackboardEntry = GraphBuilder.Blackboard.Create<FSceneComputeUpdatesBlackboardEntry>();
+		BlackboardEntry.SceneComputeUpdates = GraphBuilder.AllocObject<FSceneComputeUpdates>(*this);
+	}
+
 	for (IComputeTaskWorker* ComputeTaskWorker : ComputeTaskWorkers)
 	{
 		if (ComputeTaskWorker->HasWork(ComputeTaskExecutionGroup::EndOfFrameUpdate))
 		{
 			ComputeTaskWorker->SubmitWork(GraphBuilder, ComputeTaskExecutionGroup::EndOfFrameUpdate, FeatureLevel);
 		}
+	}
+
+	// Disable scene updates on this builder from this point onwards.
+	{
+		const FSceneComputeUpdatesBlackboardEntry& BlackboardEntry = GraphBuilder.Blackboard.GetChecked<FSceneComputeUpdatesBlackboardEntry>();
+		BlackboardEntry.SceneComputeUpdates->SetEnabled(false);
 	}
 
 	// Avoid overlapping prior scene render and async RDG execution tasks to simplify things as there are a lot of moving pieces.
@@ -6614,8 +6665,8 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 		FRDGExternalAccessQueue ExternalAccessQueue;
 
-		GPUScene.Update(GraphBuilder, SceneUB, ExternalAccessQueue, Parameters.GPUSceneUpdateTaskPrerequisites);
-	
+		GPUScene.Update(GraphBuilder, SceneUB, ExternalAccessQueue, SceneUpdateChangeSetStorage.PrimitiveUpdates.GetRangeView<FUpdateInstanceFromComputeCommand>(), Parameters.GPUSceneUpdateTaskPrerequisites);
+
 		ExternalAccessQueue.Submit(GraphBuilder);
 	}
 

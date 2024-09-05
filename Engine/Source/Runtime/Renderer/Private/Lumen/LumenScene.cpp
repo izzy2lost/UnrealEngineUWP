@@ -817,6 +817,10 @@ void UpdateLumenScenePrimitives(FRHIGPUMask GPUMask, FScene* Scene)
 
 			const int32 NumInstances = ScenePrimitiveInfo->GetNumInstanceSceneDataEntries();
 			const FInstanceSceneDataBuffers *InstanceData = ScenePrimitiveInfo->GetInstanceSceneDataBuffers();
+
+			// Instance data must be available on CPU.
+			check(!InstanceData || !InstanceData->IsInstanceDataGPUOnly());
+
 			bool bAnyInstanceValid = false;
 			{
 				const FMatrix& PrimitiveToWorld = SceneProxy->GetLocalToWorld();
@@ -1039,6 +1043,9 @@ void UpdateLumenScenePrimitives(FRHIGPUMask GPUMask, FScene* Scene)
 				const FMatrix& PrimitiveToWorld = PrimitiveSceneInfo->Proxy->GetLocalToWorld();
 
 				const FInstanceSceneDataBuffers *InstanceData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers();
+
+				// Instance data must be available on CPU.
+				check(!InstanceData || !InstanceData->IsInstanceDataGPUOnly());
 
 				for (int32 PrimitiveGroupIndex : PrimitiveSceneInfo->LumenPrimitiveGroupIndices)
 				{

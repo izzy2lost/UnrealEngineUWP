@@ -780,7 +780,10 @@ public:
 	ENGINE_API bool UseSingleSampleShadowFromStationaryLights() const;
 	inline bool StaticElementsAlwaysUseProxyPrimitiveUniformBuffer() const { return bStaticElementsAlwaysUseProxyPrimitiveUniformBuffer; }
 	inline bool DoesVFRequirePrimitiveUniformBuffer() const { return bVFRequiresPrimitiveUniformBuffer; }
-	
+
+	/** Whether instance data only exists in the GPU Scene (instance data not present in CPU memory). */
+	ENGINE_API bool IsInstanceDataGPUOnly() const;
+
 	/** 
 	 * Returns true to inform scene update that the mesh batches produced makes use of the (GPU)Scene instance count, and thus don't require recaching if the instance count changed. 
 	 * Defaults to false, the proxy should only opt in if the above condition is true (or risk GPU-crashes).

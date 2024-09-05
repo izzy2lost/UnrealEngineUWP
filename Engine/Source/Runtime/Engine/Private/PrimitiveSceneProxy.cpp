@@ -905,6 +905,7 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 		const FInstanceSceneDataBuffers* InstanceSceneDataBuffers = GetInstanceSceneDataBuffers();
 		if (GetInstanceDataHeader().NumInstances > 0)
 		{
+			// Getting the static mesh bounds from element 0 should always be valid, even if instance data is GPU-only.
 			Builder.InstanceLocalBounds(InstanceSceneDataBuffers->GetInstanceLocalBounds(0));
 		}
 	}
@@ -1006,6 +1007,11 @@ bool FPrimitiveSceneProxy::UseSingleSampleShadowFromStationaryLights() const
 	return bSingleSampleShadowFromStationaryLights 
 		|| CVarForceSingleSampleShadowingFromStationary.GetValueOnRenderThread() != 0
 		|| LightmapType == ELightmapType::ForceVolumetric; 
+}
+
+bool FPrimitiveSceneProxy::IsInstanceDataGPUOnly() const
+{
+	return GetInstanceDataHeader().bInstanceDataIsGPUOnly;
 }
 
 #if ENABLE_DRAW_DEBUG

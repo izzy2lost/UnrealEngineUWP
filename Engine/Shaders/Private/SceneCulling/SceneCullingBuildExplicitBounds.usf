@@ -70,7 +70,7 @@ void ComputeExplicitCellBounds(uint3 GroupId : SV_GroupID, uint GroupThreadIndex
 			uint InstanceFlags;
 			LoadInstancePrimitiveIdAndFlags(InstanceId, Scene.GPUScene.InstanceDataSOAStride, PrimitiveId, InstanceFlags);
 
-			if (PrimitiveId == INVALID_PRIMITIVE_ID)
+			if (PrimitiveId == INVALID_PRIMITIVE_ID || (InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HIDDEN) != 0u)
 			{
 				continue;
 			}

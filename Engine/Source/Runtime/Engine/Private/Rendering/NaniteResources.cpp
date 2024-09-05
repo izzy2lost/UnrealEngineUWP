@@ -652,7 +652,7 @@ bool FSceneProxyBase::SupportsAlwaysVisible() const
 #endif
 }
 
-FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshSceneProxyDesc& ProxyDesc, bool InbIsInstancedMesh)
+FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshSceneProxyDesc& ProxyDesc, const TSharedPtr<FInstanceDataSceneProxy, ESPMode::ThreadSafe>& InInstanceDataSceneProxy)
 : FSceneProxyBase(ProxyDesc)
 , MeshInfo(ProxyDesc)
 , RenderData(ProxyDesc.GetStaticMesh()->GetRenderData())
@@ -670,6 +670,14 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 #endif
 {
 	LLM_SCOPE_BYTAG(Nanite);
+
+	const bool bIsInstancedMesh = InInstanceDataSceneProxy.IsValid();
+	if (bIsInstancedMesh)
+	{
+		// Nanite supports the GPUScene instance data buffer.
+		InstanceDataSceneProxy = InInstanceDataSceneProxy;
+		SetupInstanceSceneDataBuffers(InstanceDataSceneProxy->GeInstanceSceneDataBuffers());
+	}
 
 	Resources = ProxyDesc.GetNaniteResources();
 
@@ -705,8 +713,6 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 	bEvaluateWorldPositionOffset = ProxyDesc.bEvaluateWorldPositionOffset;
 	
 	MaterialSections.SetNum(MeshSections.Num());
-
-	const bool bIsInstancedMesh = InbIsInstancedMesh;
 
 	for (int32 SectionIndex = 0; SectionIndex < MeshSections.Num(); ++SectionIndex)
 	{
@@ -836,7 +842,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 	}
 #endif
 
-	FilterFlags = EFilterFlags::StaticMesh;
+	FilterFlags = bIsInstancedMesh ? EFilterFlags::InstancedStaticMesh : EFilterFlags::StaticMesh;
 	FilterFlags |= ProxyDesc.Mobility == EComponentMobility::Static ? EFilterFlags::StaticMobility : EFilterFlags::NonStaticMobility;
 
 	bReverseCulling = ProxyDesc.bReverseCulling;
@@ -849,16 +855,12 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 }
 
 FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FInstancedStaticMeshSceneProxyDesc& InProxyDesc)
-	: FSceneProxy(MaterialAudit, InProxyDesc, true)
+	: FSceneProxy(MaterialAudit, InProxyDesc, InProxyDesc.InstanceDataSceneProxy)
 {
 	LLM_SCOPE_BYTAG(Nanite);
 
 	// Nanite meshes do not deform internally
 	bHasDeformableMesh = false;
-
-	// Nanite supports the GPUScene instance data buffer.
-	InstanceDataSceneProxy = InProxyDesc.InstanceDataSceneProxy;
-	SetupInstanceSceneDataBuffers(InstanceDataSceneProxy->GeInstanceSceneDataBuffers());
 
 #if WITH_EDITOR
 	const bool bSupportInstancePicking = HasPerInstanceHitProxies() && SMInstanceElementDataUtil::SMInstanceElementsEnabled();
@@ -877,13 +879,10 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FInstancedSt
 #endif
 
 	EndCullDistance = InProxyDesc.InstanceEndCullDistance;
-
-	FilterFlags = EFilterFlags::InstancedStaticMesh;
-	FilterFlags |= InProxyDesc.Mobility == EComponentMobility::Static ? EFilterFlags::StaticMobility : EFilterFlags::NonStaticMobility;
 }
 
-FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshComponent* Component)
-	: FSceneProxy(MaterialAudit, FStaticMeshSceneProxyDesc(Component))
+FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshComponent* Component, const TSharedPtr<FInstanceDataSceneProxy, ESPMode::ThreadSafe>& InInstanceDataSceneProxy)
+	: FSceneProxy(MaterialAudit, FStaticMeshSceneProxyDesc(Component), InInstanceDataSceneProxy)
 {
 }
 
@@ -1390,8 +1389,12 @@ void FSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views,
 			const bool bDrawSimpleWireframeCollision = (EngineShowFlags.Collision && IsCollisionEnabled() && CollisionTraceFlag != ECollisionTraceFlag::CTF_UseComplexAsSimple); 
 
 			const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = GetInstanceSceneDataBuffers();
-			// Note: this will return 1 for the non-instanced case.
-			const int32 InstanceCount = InstanceSceneDataBuffers ? InstanceSceneDataBuffers->GetNumInstances() : 1;
+
+			int32 InstanceCount = 1;
+			if (InstanceSceneDataBuffers)
+			{
+				InstanceCount = InstanceSceneDataBuffers->IsInstanceDataGPUOnly() ? 0 : InstanceSceneDataBuffers->GetNumInstances();
+			}
 
 			for (int32 InstanceIndex = 0; InstanceIndex < InstanceCount; InstanceIndex++)
 			{
