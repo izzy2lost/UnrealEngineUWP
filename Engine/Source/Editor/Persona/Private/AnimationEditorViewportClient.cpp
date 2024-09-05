@@ -2120,7 +2120,7 @@ void FAnimationViewportClient::DrawRootMotionTrajectory(UDebugSkelMeshComponent*
 			const float CurrentTime = MeshComponent->GetPosition();
 			const USkeleton* Skeleton = AnimSequenceBase->GetSkeleton();
 			check(Skeleton);
-			EAxis::Type SkeletonForwardAxis = Skeleton->GetForwardAxis();
+			EAxis::Type SkeletonForwardAxis = Skeleton->GetPreviewForwardAxis();
 
 			const FColor TrajectoryColor = FColor::Black.WithAlpha(64);
 

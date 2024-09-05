@@ -336,7 +336,7 @@ USkeleton::USkeleton(const FObjectInitializer& ObjectInitializer)
 	CachedSoftObjectPtr = TSoftObjectPtr<USkeleton>(this);
 
 #if WITH_EDITORONLY_DATA
-	ForwardAxis = EAxis::Y;
+	PreviewForwardAxis = EAxis::Y;
 #endif
 
 	if (HasAnyFlags(RF_ClassDefaultObject))

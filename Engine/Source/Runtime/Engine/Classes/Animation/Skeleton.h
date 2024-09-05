@@ -310,7 +310,7 @@ protected:
 
 	// Preview axis to consider as "forward" for the skeleton. Only used for preview purposes.
 	UPROPERTY(EditAnywhere, Category = Preview)
-	TEnumAsByte<EAxis::Type> ForwardAxis;
+	TEnumAsByte<EAxis::Type> PreviewForwardAxis;
 #endif
 
 	/** Reference Skeleton */
@@ -349,7 +349,7 @@ public:
 #if WITH_EDITOR
 	ENGINE_API virtual void PreEditUndo() override;
 	ENGINE_API virtual void PostEditUndo() override;
-	ENGINE_API EAxis::Type GetForwardAxis() const { return ForwardAxis; }
+	ENGINE_API EAxis::Type GetPreviewForwardAxis() const { return PreviewForwardAxis; }
 #endif
 	ENGINE_API virtual void BeginDestroy() override;
 
