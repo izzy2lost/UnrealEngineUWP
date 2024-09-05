@@ -36,6 +36,8 @@
 #include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Components/ChaosVDSolverJointConstraintDataComponent.h"
+#include "HAL/FileManager.h"
+#include "Settings/ChaosVDMiscSettings.h"
 #include "Styling/StyleColors.h"
 #include "Styling/ToolBarStyle.h"
 #include "TabSpawers/ChaosVDSceneQueryBrowserTab.h"
@@ -314,14 +316,9 @@ void SChaosVDMainTab::GenerateMainWindowMenu()
 	MenuBarBuilder.AddPullDownMenu(
 		LOCTEXT("FileMenuLabel", "File"),
 		FText::GetEmpty(),
-		FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+		FNewMenuDelegate::CreateSPLambda(this, [this](FMenuBuilder& MenuBuilder)
 		{
-			MenuBuilder.AddMenuEntry(LOCTEXT("OpenFileMenuLabel", "OpenFile"), FText(), FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateLambda([this]()
-				{
-					BrowseAndOpenChaosVDRecording();
-				})));
+			MenuBuilder.AddSubMenu(LOCTEXT("RecentFilesMenuLabel", "Recent Files"), LOCTEXT("RecentFilesMenuLabelToolTip", "Shows a list of recently used CVD Files"), FNewMenuDelegate::CreateSP(this, &SChaosVDMainTab::GenerateRecentFilesMenu));
 		}),
 		"File"
 	);
@@ -337,6 +334,22 @@ void SChaosVDMainTab::GenerateMainWindowMenu()
 
 	TabManager->SetAllowWindowMenuBar(true);
 	TabManager->SetMenuMultiBox(MenuBarBuilder.GetMultiBox(), MenuBarBuilder.MakeWidget());
+}
+
+void SChaosVDMainTab::GenerateRecentFilesMenu(FMenuBuilder& MenuBuilder)
+{
+	if (UChaosVDMiscSettings* MiscSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDMiscSettings>())
+	{
+		MiscSettings->RecentFiles.Sort(FChaosVDRecentFile::FRecentFilesSortPredicate());
+
+		for (const FChaosVDRecentFile& RecentFile : MiscSettings->RecentFiles)
+		{
+			const FText DisplayName = FText::FromString(FPaths::GetBaseFilename(*RecentFile.FileName));
+			const FText Tooltip = FText::FromString(IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*RecentFile.FileName) );
+			MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon(FChaosVDStyle::Get().GetStyleSetName(), "OpenFileIcon"), FUIAction(FExecuteAction::CreateSPLambda(this, [this, FileNameCopy = RecentFile.FileName](){ LoadCVDFile(FileNameCopy); })),
+					NAME_None, EUserInterfaceActionType::Button);
+		}
+	}
 }
 
 FReply SChaosVDMainTab::BrowseAndOpenChaosVDRecording()
@@ -427,6 +440,18 @@ TSharedRef<SWidget> SChaosVDMainTab::GenerateMainToolbarWidget()
 	return UToolMenus::Get()->GenerateWidget(MainToolBarName, MenuContext);
 }
 
+void SChaosVDMainTab::LoadCVDFile(const FString& InFilename)
+{
+	if (ensure(InFilename.EndsWith(TEXT("utrace"))))
+	{
+		GetChaosVDEngineInstance()->LoadRecording(InFilename);
+	}
+	else
+	{
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Invalid file extension | Only UTrace files are supported | Filename [%s]"), ANSI_TO_TCHAR(__FUNCTION__), *InFilename)			
+	}
+}
+
 void SChaosVDMainTab::BrowseChaosVDRecordingFromFolder(FStringView FolderPath)
 {
 	TArray<FString> OutOpenFilenames;
@@ -450,10 +475,7 @@ void SChaosVDMainTab::BrowseChaosVDRecordingFromFolder(FStringView FolderPath)
 
 	if (OutOpenFilenames.Num() > 0)
 	{
-		if (OutOpenFilenames[0].EndsWith(TEXT("utrace")))
-		{
-			GetChaosVDEngineInstance()->LoadRecording(OutOpenFilenames[0]);
-		}
+		LoadCVDFile(OutOpenFilenames[0]);
 	}
 }
 
@@ -465,7 +487,7 @@ bool SChaosVDMainTab::ConnectToLiveSession(int32 SessionID, const FString Sessio
 
 	bool bSuccess = false;
 
-	if (NewSessionFromFileDescriptor.SessionName.IsEmpty())
+	if (!NewSessionFromFileDescriptor.IsValid())
 	{
 		// If it failed we want to clean the current session name, so it is ok calling it either way
 		GetChaosVDEngineInstance()->SetCurrentSession(FChaosVDTraceSessionDescriptor());

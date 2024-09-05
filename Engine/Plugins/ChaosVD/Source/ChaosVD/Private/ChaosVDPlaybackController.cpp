@@ -53,7 +53,7 @@ FChaosVDPlaybackController::~FChaosVDPlaybackController()
 
 bool FChaosVDPlaybackController::LoadChaosVDRecordingFromTraceSession(const FChaosVDTraceSessionDescriptor& InSessionDescriptor)
 {
-	if (!ensure(!InSessionDescriptor.SessionName.IsEmpty()))
+	if (!ensure(InSessionDescriptor.IsValid()))
 	{
 		return false;
 	}

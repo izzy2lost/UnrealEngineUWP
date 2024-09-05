@@ -573,10 +573,23 @@ void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
 			{
 				SkySphere->SetActorLocation(SpawnPosition);
 				SkySphere->SetFolderPath(LightingFolderPath);
+				
 				if (SkySphere->Implements<UChaosVDSkySphereInterface>())
 				{
 					FEditorScriptExecutionGuard AllowEditorScriptGuard;
 					IChaosVDSkySphereInterface::Execute_SetDirectionalLightSource(SkySphere, DirectionalLightActor);
+				}
+
+				// Keep it dark to reduce visual noise.
+				// TODO: We should hide these components altogether when we switch to a unlit wireframe mode 
+				const TSet<UActorComponent*>& Components = SkySphere->GetComponents();
+				for (UActorComponent* Component : Components)
+				{
+					if (UStaticMeshComponent* AsStaticMeshComponent = Cast<UStaticMeshComponent>(Component))
+					{
+						AsStaticMeshComponent->bOverrideWireframeColor = true;
+						AsStaticMeshComponent->WireframeColorOverride = FColor::Black;
+					}
 				}
 			}
 		}

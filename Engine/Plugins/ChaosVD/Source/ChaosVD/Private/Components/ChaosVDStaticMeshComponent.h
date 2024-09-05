@@ -19,6 +19,8 @@ public:
 	{
 		SetCanEverAffectNavigation(false);
 		bNavigationRelevant = false;
+		bOverrideWireframeColor = true;
+		WireframeColorOverride = FColor::White;
 	}
 
 	// BEGIN IChaosVDGeometryDataComponent Interface

@@ -6,6 +6,8 @@
 #include "ChaosVDPlaybackController.h"
 #include "ChaosVDRuntimeModule.h"
 #include "ChaosVDScene.h"
+#include "ChaosVDSettingsManager.h"
+#include "Settings/ChaosVDMiscSettings.h"
 #include "Trace/ChaosVDTraceManager.h"
 
 void FChaosVDEngine::Initialize()
@@ -64,11 +66,45 @@ void FChaosVDEngine::DeInitialize()
 	bIsInitialized = false;
 }
 
+void FChaosVDEngine::UpdateRecentFilesList(const FString& InFilename)
+{
+	UChaosVDMiscSettings* MiscSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDMiscSettings>();
+	if (!MiscSettings)
+	{
+		return;
+	}
+
+	FDateTime CurrentTime = FDateTime::UtcNow();
+	if (FChaosVDRecentFile* RecentProject = MiscSettings->RecentFiles.FindByKey(InFilename))
+	{
+		RecentProject->LastOpenTime = CurrentTime;
+	}
+	else
+	{
+		FChaosVDRecentFile RecentFileEntry(InFilename, CurrentTime);
+		MiscSettings->RecentFiles.Emplace(RecentFileEntry);
+	}
+	
+	MiscSettings->RecentFiles.Sort(FChaosVDRecentFile::FRecentFilesSortPredicate());
+
+	if (MiscSettings->RecentFiles.Num() > MiscSettings->MaxRecentFilesNum)
+	{
+		MiscSettings->RecentFiles.SetNum(MiscSettings->MaxRecentFilesNum);
+	}
+
+	MiscSettings->SaveConfig();
+}
+
 void FChaosVDEngine::LoadRecording(const FString& FilePath)
 {
 	FChaosVDTraceSessionDescriptor NewSessionFromFileDescriptor;
 	NewSessionFromFileDescriptor.SessionName = FChaosVDModule::Get().GetTraceManager()->LoadTraceFile(FilePath);
 	NewSessionFromFileDescriptor.bIsLiveSession = false;
+
+	if (NewSessionFromFileDescriptor.IsValid())
+	{
+		UpdateRecentFilesList(FilePath);
+	}
 
 	SetCurrentSession(NewSessionFromFileDescriptor);
 }

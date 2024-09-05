@@ -72,6 +72,8 @@ public:
 	
 	bool ConnectToLiveSession(int32 SessionID, FString SessionAddress) const;
 
+	void LoadCVDFile(const FString& InFilename);
+
 private:
 	
 	void SetUpDisableCPUThrottlingDelegate();
@@ -90,6 +92,7 @@ private:
 	TSharedRef<FTabManager::FLayout> GenerateMainLayout();
 
 	void GenerateMainWindowMenu();
+	void GenerateRecentFilesMenu(FMenuBuilder& MenuBuilder);
 
 	FReply BrowseAndOpenChaosVDRecording();
 

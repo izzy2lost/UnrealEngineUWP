@@ -19,6 +19,9 @@ public:
 		SetRemoveSwap();
 		SetCanEverAffectNavigation(false);
 		bHasPerInstanceHitProxies = true;
+
+		bOverrideWireframeColor = true;
+		WireframeColorOverride = FColor::White;
 	}
 	
 	// BEGIN IChaosVDGeometryDataComponent Interface
