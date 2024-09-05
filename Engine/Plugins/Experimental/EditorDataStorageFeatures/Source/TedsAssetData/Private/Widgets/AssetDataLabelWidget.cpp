@@ -2,8 +2,12 @@
 
 #include "Widgets/AssetDataLabelWidget.h"
 
-#include "TedsAssetDataColumns.h"
+#include "AssetDefinition.h"
+#include "AssetDefinitionRegistry.h"
 #include "Elements/Framework/TypedElementAttributeBinding.h"
+#include "TedsAssetDataColumns.h"
+#include "Elements/Columns/TypedElementMiscColumns.h"
+#include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Text/STextBlock.h"
@@ -17,7 +21,7 @@ void UAssetDataLabelWidgetFactory::RegisterWidgetConstructors(ITypedElementDataS
 	using namespace UE::Editor::DataStorage::Queries;
 	DataStorageUi.RegisterWidgetFactory<FAssetDataLabelWidgetConstructor>(
 		TEXT("General.RowLabel"),
-		TColumn<FItemNameColumn_Experimental>() && TColumn<FAssetTag>());
+		TColumn<FNameColumn>() && (TColumn<FAssetTag>() || TColumn<FAssetPathColumn_Experimental>()));
 }
 
 FAssetDataLabelWidgetConstructor::FAssetDataLabelWidgetConstructor()
@@ -37,15 +41,37 @@ TSharedPtr<SWidget> FAssetDataLabelWidgetConstructor::CreateWidget(ITypedElement
 	if (DataStorage->IsRowAvailable(TargetRow))
 	{
 		UE::Editor::DataStorage::FAttributeBinder Binder(TargetRow, DataStorage);
-		
+
+		bool bIsAsset = DataStorage->HasColumns<FAssetDataColumn_Experimental>(TargetRow);
+
+		TAttribute<FSlateColor> ColorAndOpacityAttribute;
+
+		// For assets, grab the color from the asset definition
+		if(bIsAsset)
+		{
+			ColorAndOpacityAttribute = Binder.BindData(&FAssetDataColumn_Experimental::AssetData, [](const FAssetData& AssetData)
+			{
+				if(const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForAsset(AssetData))
+				{
+					return FSlateColor(AssetDefinition->GetAssetColor());
+				}
+
+				return FSlateColor::UseForeground();
+			});
+		}
+		// For folders, use the color column directly
+		else
+		{
+			ColorAndOpacityAttribute = Binder.BindData(&FSlateColorColumn::Color, FSlateColor::UseForeground());
+		}
+
 		return SNew(SHorizontalBox)
 			+SHorizontalBox::Slot()
 				.AutoWidth()
 			[
-				// TODO: Asset color in TEDS
 				SNew(SImage)
-					.Image(FAppStyle::GetBrush(FName(TEXT("ContentBrowser.ColumnViewAssetIcon"))))
-					.ColorAndOpacity(FSlateColor::UseForeground())
+					.Image(bIsAsset ? FAppStyle::GetBrush(FName(TEXT("ContentBrowser.ColumnViewAssetIcon"))) : FAppStyle::GetBrush(FName(TEXT("ContentBrowser.ColumnViewFolderIcon"))))
+					.ColorAndOpacity(ColorAndOpacityAttribute)
 			]
 			+SHorizontalBox::Slot()
 				.AutoWidth()
@@ -57,10 +83,10 @@ TSharedPtr<SWidget> FAssetDataLabelWidgetConstructor::CreateWidget(ITypedElement
 				.FillWidth(1.0f)
 			[
 				SNew(STextBlock)
-				.Text(Binder.BindText(&FItemNameColumn_Experimental::Name))
+				.Text(Binder.BindText(&FNameColumn::Name))
 				.ToolTipText_Lambda([DataStorage, DataRow = TargetRow]()
 					{
-						return FAssetDataLabelWidgetConstructor::ConstructToolTip(DataStorage, DataRow);
+						return ConstructToolTip(DataStorage, DataRow);
 					})
 			];
 	}
@@ -74,7 +100,7 @@ FText FAssetDataLabelWidgetConstructor::ConstructToolTip(
 	ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle DataRow)
 {
 	TStringBuilder<1024> ToolTip;
-	if (FItemNameColumn_Experimental* ItemName = DataStorage->GetColumn<FItemNameColumn_Experimental>(DataRow))
+	if (FNameColumn* ItemName = DataStorage->GetColumn<FNameColumn>(DataRow))
 	{
 		ToolTip.Append(ItemName->Name.ToString());
 		ToolTip.AppendChar(TEXT('\n'));

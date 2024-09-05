@@ -12,6 +12,7 @@
 #include "Modules/ModuleManager.h"
 #include "QueryStack/FQueryStackNode_RowView.h"
 #include "TedsAssetDataColumns.h"
+#include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Widgets/STedsTableViewer.h"
 #include "Widgets/Views/SListView.h"
 
@@ -134,7 +135,7 @@ namespace UE::Editor::ContentBrowser
 					.QueryStack(RowQueryStack)
 					.CellWidgetPurposes({TEXT("General.RowLabel"), TEXT("General.Cell")})
 					// Default list of columns to display
-					.Columns({ FItemNameColumn_Experimental::StaticStruct(), FAssetTag::StaticStruct(), FAssetPathColumn_Experimental::StaticStruct(),
+					.Columns({ FNameColumn::StaticStruct(), FAssetTag::StaticStruct(), FAssetPathColumn_Experimental::StaticStruct(),
 						FDiskSizeColumn::StaticStruct(), FVirtualPathColumn_Experimental::StaticStruct() })
 					.ListSelectionMode(ESelectionMode::Multi)
 					.OnSelectionChanged_Lambda([this](RowHandle Row)

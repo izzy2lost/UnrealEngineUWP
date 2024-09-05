@@ -16,7 +16,11 @@ class UTedsAssetDataFactory : public UTypedElementDataStorageFactory
 public:
 	~UTedsAssetDataFactory() override = default;
 
-	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) override;
+	virtual void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	virtual void PreRegister(ITypedElementDataStorageInterface& DataStorage) override;
+	virtual void PreShutdown(ITypedElementDataStorageInterface& DataStorage) override;
 
-private:
+protected:
+
+	void OnSetFolderColor(const FString& Path, ITypedElementDataStorageInterface* DataStorage);
 };

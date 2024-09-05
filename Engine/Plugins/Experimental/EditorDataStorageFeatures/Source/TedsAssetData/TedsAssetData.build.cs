@@ -30,6 +30,8 @@ public class TedsAssetData : ModuleRules
 					"TypedElementFramework",
 					"UnrealEd",
 					"UnrealEd",
+					"AssetDefinition",
+					"ContentBrowser"
 				});
 
 			PublicDependencyModuleNames.AddRange(
