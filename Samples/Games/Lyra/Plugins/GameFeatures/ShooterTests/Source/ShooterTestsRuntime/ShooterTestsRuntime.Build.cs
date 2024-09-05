@@ -27,7 +27,8 @@ public class ShooterTestsRuntime : ModuleRules
 				"Engine",
 				"InputCore",
 				"EnhancedInput",
-				"CQTest"
+				"CQTest",
+				"CQTestEnhancedInput",
 				// ... add private dependencies that you statically link with here ...	
 			}
 		);

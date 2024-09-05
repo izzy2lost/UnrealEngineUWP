@@ -64,18 +64,6 @@ public:
 	template <typename TExpected, typename TActual>
 	[[nodiscard]] bool AreEqual(const TExpected& Expected, const TActual& Actual, const FString& FailureMessage);
 
-	template <>
-	[[nodiscard]] bool AreEqual(const FString& Expected, const FString& Actual);
-
-	template <>
-	[[nodiscard]] bool AreEqual(const FString& Expected, const FString& Actual, const char* FailureMessage);
-
-	template <>
-	[[nodiscard]] bool AreEqual(const FString& Expected, const FString& Actual, const TCHAR* FailureMessage);
-
-	template<>
-	[[nodiscard]] bool AreEqual(const FString& Expected, const FString& Actual, const FString& FailureMessage);
-
 	[[nodiscard]] bool AreEqualIgnoreCase(const FString& Expected, const FString& Actual);
 
 	[[nodiscard]] bool AreEqualIgnoreCase(const FString& Expected, const FString& Actual, const char* FailureMessage);

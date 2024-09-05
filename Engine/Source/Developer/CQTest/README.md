@@ -45,7 +45,7 @@ With the spec tests, be careful about capturing state
 				TestEqual(TEXT("Class value should be set"), SomeValue, 3);
 			});
 			
-			xIt("Does not capture variables described inside of lambdas", [this]() 
+			It("Does not capture variables described inside of lambdas", [this]() 
 			{
 				TestEqual(TEXT("DescribeValue will now be garbage as it went out of scope"), describeValue, 42);
 			});
@@ -77,16 +77,7 @@ The inspiration for **CQTest** was to add the before/after test abilities, while
 
 # Installation
 
-Inside the project that you want to test, you'll need to change 2 things:
-In the .uproject file of the project you want to test, add the following to the Plugins section
-```json
-		{
-			"Name": "CQTest",
-			"Enabled": true
-		}
-```
-
-Then in the project's .Build.cs file, you'll want to add the following to the `PrivateDependencyModuleNames`.  Something like
+Inside the project's .Build.cs file, you'll want to add the following to the `PrivateDependencyModuleNames`.  Something like
 ```csharp
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
@@ -98,13 +89,21 @@ Then in the project's .Build.cs file, you'll want to add the following to the `P
 			);
 ```
 
-# Build
+CQTest also has a plugin available that provides a set of tests to validate and document the behavior.  To enable the test plugin navigate to the project's .uproject file and inside you'll need to add the following to the Plugins section
+```json
+		{
+			"Name": "CQTest",
+			"Enabled": true
+		}
+```
 
-No special steps are required to build the plugin project, it should build with the rest of the project.
+# Additional Plugin
+
+CQTest comes with an additonal CQTestEnhancedInput plugin that provides additional input handling functionality to help with testing.  Installation and use of this plugin follows similar steps outlined above for CQTest of adding the module to the list of `PrivateDependencyModuleNames` and adding the plugin to the project's .uproject file.  After installation of the plugin both the input components and input tests will be available to the project.
 
 # Test
 
-This plugin has a set of tests to validate and document the behavior.  To run tests in Unreal
+To run tests provided by the plugins within the Unreal Editor
 - Launch the editor
 - Find the Tools drop down and select Session Frontend
 - Navigate to the Automation tab
@@ -276,7 +275,7 @@ Instead, it is better to add the actions as a series of self-contained steps.
 
 # Extending the framework
 
-The framework has been designed to allow for extensions in a couple areas.  See _CQTestTests/Private/ExtensionTests.cpp_ for in-code examples.
+The framework has been designed to allow for extensions in a couple areas.  In-code examples can be found within the CQTest plugin used to test the framework. See _/Engine/Plugins/Tests/CQTest/Source/CQTestTests/Private/ExtensionTests.cpp_ for in-code examples.
 
 ## Test Components
 
@@ -291,7 +290,11 @@ This testing framework embraces composition over inheritence.  Creating new comp
  - `InputTestActions` - Allows tests to inject `InputActions` to the `Pawn`.
  - `CQTestSlateComponent` - Allows tests to get notified when the UI has been updated.
 
-### Deprecated Components
+### Notable Changes
+
+#### 5.5
+- **CQTest** - The core **CQTest** framework has been extracted out from the plugin and is now an Engine Module. While the plugin still exists and is used to test that the core functionality works; it is deprecated and not necessary to be included as part of the project. No action needs to be taken for existing projects to have the core **CQTest** framework available.
+- **CQTestEnhancedInput** - **BREAKING CHANGE** Due to the move of **CQTest** being a module, the components that used the **EnhancedInput** plugin had to be extracted out into a separate plugin. **EnhancedInput** is currently an Engine plugin, similar to what **CQTest** used to be. Because both were considered Engine plugins, they were able to reference each other. With the move of **CQTest** being in the Engine and cannot reference an Engine plugin, there is a need to add `CQTestEnhancedInput` to the project's Build.cs file, similar to how `CQTest` was added. This will only impact the project if the `InputTestAction` component was being used, but does not have an impact on the core **CQTest** framework.
 - `CQTestBlueprintHelper` - **DEPRECATED IN 5.5** Eases the ability for a test to spawn Blueprint objects, intended to be used with `MapTestSpawner`.
    - **NOTE:** Loading Blueprint assets is only intended to work within the Editor context.  Tests that make use of the `CQTestBlueprintHelper` should specify the `EAutomationTestFlags::EditorContext` flag.
 
@@ -315,7 +318,7 @@ The default implementation used is the `[[nodiscard]]` bool, with a helper macro
 
 You can use your own types within the `Assert.AreEqual` and `Assert.AreNotEqual` methods assuming you have the `==` and `!=` operators defined as needed.
 In addition, the error message will print out the string version of your type, assuming you have a `ToString` method defined as well.  The framework will complain if it doesn't know how to print your value.
-You can find examples of providing a string to the framework in _CQTestTests/Private/Assert/CQTestConvertTests.cpp_, but below is a simple example.
+Below is a simple example.
 ```cpp
 struct MyCustomType
 {
@@ -348,7 +351,6 @@ FString CQTestConvert::ToString(const MyCustomEnum&)
 ```
 
 You are able to customize the assertions which are available, and how they behave.
-See _CQTestTests/Private/ExtensionTests.cpp_ for an example
 Below is some untested example code to inspire ideas
 
 ```cpp

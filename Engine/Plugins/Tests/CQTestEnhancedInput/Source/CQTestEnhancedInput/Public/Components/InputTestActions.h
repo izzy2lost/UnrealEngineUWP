@@ -94,7 +94,7 @@ TEST_CLASS(MyFixtureName, "InputActions.Example")
 class APawn;
 
 /** Class for testing input of a Pawn by injecting InputActions */
-class CQTEST_API FTestAction
+class CQTESTENHANCEDINPUT_API FTestAction
 {
 public:
 	virtual ~FTestAction()
@@ -123,7 +123,7 @@ private:
 };
 
 /** Class for processing FTestAction objects */
-class CQTEST_API FInputTestActions
+class CQTESTENHANCEDINPUT_API FInputTestActions
 {
 public:
 	/**

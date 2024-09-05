@@ -184,31 +184,6 @@ template <typename TExpected, typename TActual>
 	return true;
 }
 
-template <>
-[[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreEqual(const FString& Expected, const FString& Actual)
-{
-	FString Message = FString::Printf(TEXT("Expected %s to equal %s"), *Expected, *Actual);
-	return AreEqual(Expected, Actual, Message);
-}
-
-template <>
-[[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreEqual(const FString& Expected, const FString& Actual, const char* FailureMessage)
-{
-	return AreEqual(Expected, Actual, FString(FailureMessage));
-}
-
-template <>
-[[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreEqual(const FString& Expected, const FString& Actual, const TCHAR* FailureMessage)
-{
-	return AreEqual(Expected, Actual, FString(FailureMessage));
-}
-
-template <>
-[[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreEqual(const FString& Expected, const FString& Actual, const FString& FailureMessage)
-{
-	return TestRunner.TestEqualSensitive(FailureMessage, *Actual, *Expected); //FAutomationTestBase expects Actual then Expected
-}
-
 template <typename TExpected, typename TActual>
 [[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreNotEqual(const TExpected& Expected, const TActual& Actual)
 {

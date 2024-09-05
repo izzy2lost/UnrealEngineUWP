@@ -7,8 +7,6 @@ public class CQTest : ModuleRules
 	public CQTest(ReadOnlyTargetRules Target)
 		: base(Target)
 	{
-		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-
 		PublicDependencyModuleNames.Add("DeveloperSettings");
 
 		PrivateDependencyModuleNames.AddRange(
@@ -16,7 +14,6 @@ public class CQTest : ModuleRules
 					"Core",
 					"CoreUObject",
 					"Engine",
-					"EnhancedInput",
 					"Slate"
 				 }
 			);

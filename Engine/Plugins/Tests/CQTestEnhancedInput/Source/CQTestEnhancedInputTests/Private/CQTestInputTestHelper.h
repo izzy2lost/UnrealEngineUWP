@@ -8,6 +8,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "UObject/StrongObjectPtr.h"
+
 #include "CQTestInputTestHelper.generated.h"
 
 class APawn;
