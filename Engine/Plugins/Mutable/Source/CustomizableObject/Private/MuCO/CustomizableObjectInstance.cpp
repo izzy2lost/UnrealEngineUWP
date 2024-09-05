@@ -2052,7 +2052,6 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 	TextureReuseCache.Empty(); // Sections may have changed, so invalidate the texture reuse cache because it's indexed by section
 
 	TMap<FName, TObjectPtr<USkeletalMesh>> OldSkeletalMeshes = SkeletalMeshes;
-	SkeletalMeshes.Reset();
 
 	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
@@ -2175,6 +2174,8 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 	{
 		return true;
 	}
+
+	SkeletalMeshes.Reset();
 	
 	const int32 NumInstanceComponents = OperationData->InstanceUpdateData.Components.Num();
 	for (int32 InstanceComponentIndex = 0; InstanceComponentIndex < NumInstanceComponents; ++InstanceComponentIndex)
