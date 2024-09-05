@@ -1651,7 +1651,7 @@ void FProjectedShadowInfo::RenderOnePassPointLightProjection(
 
 		// Project the point light shadow with some approximately bounding geometry, 
 		// So we can get speedups from depth testing and not processing pixels outside of the light's influence.
-		StencilingGeometry::DrawSphere(RHICmdList);
+		StencilingGeometry::DrawSphere(RHICmdList, View.GetStereoPassInstanceFactor());
 		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 	});
 }
@@ -2037,12 +2037,11 @@ void FSceneRenderer::RenderShadowProjections(
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
 		const FViewInfo& View = Views[ViewIndex];
-		const FExclusiveDepthStencil ExclusiveDepthStencil = FExclusiveDepthStencil::DepthRead_StencilWrite;
-
-		if (bSubPixelShadow && !HairStrands::HasViewHairStrandsData(View))
+		if (!View.ShouldRenderView() || (bSubPixelShadow && !HairStrands::HasViewHairStrandsData(View)))
 		{
 			continue;
 		}
+		const FExclusiveDepthStencil ExclusiveDepthStencil = FExclusiveDepthStencil::DepthRead_StencilWrite;
 
 		View.BeginRenderView();
 
@@ -2384,14 +2383,17 @@ void FMobileSceneRenderer::RenderModulatedShadowProjections(FRHICommandList& RHI
 	}
 }
 
-void InitMobileShadowProjectionOutputs(FRHICommandListImmediate& RHICmdList, const FIntPoint& Extent)
+void InitMobileShadowProjectionOutputs(FRHICommandListImmediate& RHICmdList, const FIntPoint& Extent, const bool bRequireMultiView)
 {
 	const FIntPoint& BufferSize = Extent;
 
 	if (!GScreenSpaceShadowMaskTextureMobileOutputs.IsValid() || GScreenSpaceShadowMaskTextureMobileOutputs.ScreenSpaceShadowMaskTextureMobile->GetDesc().Extent != BufferSize)
 	{
 		GScreenSpaceShadowMaskTextureMobileOutputs.ScreenSpaceShadowMaskTextureMobile.SafeRelease();
-		GRenderTargetPool.FindFreeElement(RHICmdList, FPooledRenderTargetDesc::Create2DDesc(BufferSize, PF_B8G8R8A8, FClearValueBinding::White, TexCreate_None, TexCreate_RenderTargetable | TexCreate_ShaderResource, false, 1, false), GScreenSpaceShadowMaskTextureMobileOutputs.ScreenSpaceShadowMaskTextureMobile, TEXT("ForwardScreenSpaceShadowMaskTextureTexture"));
+		FPooledRenderTargetDesc Desc = bRequireMultiView ? FPooledRenderTargetDesc::Create2DArrayDesc(BufferSize, PF_B8G8R8A8, FClearValueBinding::White, TexCreate_None, TexCreate_RenderTargetable | TexCreate_ShaderResource, false, 2, 1, false)
+			: FPooledRenderTargetDesc::Create2DDesc(BufferSize, PF_B8G8R8A8, FClearValueBinding::White, TexCreate_None, TexCreate_RenderTargetable | TexCreate_ShaderResource, false, 1, false);
+
+		GRenderTargetPool.FindFreeElement(RHICmdList, Desc, GScreenSpaceShadowMaskTextureMobileOutputs.ScreenSpaceShadowMaskTextureMobile, TEXT("ForwardScreenSpaceShadowMaskTextureTexture"));
 	}
 }
 

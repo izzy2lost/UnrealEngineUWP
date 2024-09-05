@@ -754,12 +754,17 @@ float GetLightFadeFactor(const FSceneView& View, const FLightSceneProxy* Proxy)
 	return SizeFade * DistanceFade;
 }
 
-void StencilingGeometry::DrawSphere(FRHICommandList& RHICmdList)
+void StencilingGeometry::DrawSphere(FRHICommandList& RHICmdList, uint32 InstanceCount)
 {
 	RHICmdList.SetStreamSource(0, StencilingGeometry::GStencilSphereVertexBuffer.VertexBufferRHI, 0);
 	RHICmdList.DrawIndexedPrimitive(StencilingGeometry::GStencilSphereIndexBuffer.IndexBufferRHI, 0, 0,
 		StencilingGeometry::GStencilSphereVertexBuffer.GetVertexCount(), 0,
-		StencilingGeometry::GStencilSphereIndexBuffer.GetIndexCount() / 3, 1);
+		StencilingGeometry::GStencilSphereIndexBuffer.GetIndexCount() / 3, InstanceCount);
+}
+
+void StencilingGeometry::DrawSphere(FRHICommandList& RHICmdList)
+{
+	DrawSphere(RHICmdList, 1);
 }
 
 void StencilingGeometry::DrawVectorSphere(FRHICommandList& RHICmdList)

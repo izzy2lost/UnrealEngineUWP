@@ -657,7 +657,9 @@ void FMobileSceneRenderer::InitViews(
 
 		if (bRequiresShadowProjections)
 		{
-			InitMobileShadowProjectionOutputs(RHICmdList, SceneTexturesConfig.Extent);
+			FViewInfo* MainView = Views.Num() > 0 ? &Views[0] : nullptr;
+			bool bIsMobileMultiView = SceneTexturesConfig.bRequireMultiView || (MainView && MainView->Aspects.IsMobileMultiViewEnabled());
+			InitMobileShadowProjectionOutputs(RHICmdList, SceneTexturesConfig.Extent, bIsMobileMultiView);
 		}
 		else
 		{

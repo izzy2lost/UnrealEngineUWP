@@ -874,7 +874,12 @@ void Main(
 
 	// Directional light
 #if !MATERIAL_SHADINGMODEL_UNLIT
-	AccumulateDirectionalLighting(GBuffer, MaterialParameters.WorldPosition_CamRelative, CameraVector, MaterialParameters.ScreenPosition, SvPosition, DynamicShadowFactors, DirectionalLightShadow, DirectLighting);
+#if MOBILE_MULTI_VIEW
+	const uint EyeIndex = BasePassInterpolants.MultiViewId;
+#else 
+	const uint EyeIndex = 0;
+#endif
+	AccumulateDirectionalLighting(GBuffer, MaterialParameters.WorldPosition_CamRelative, CameraVector, MaterialParameters.ScreenPosition, SvPosition, DynamicShadowFactors, DirectionalLightShadow, DirectLighting, EyeIndex);
 #endif
 
 	float2 LocalPosition = SvPosition.xy - ResolvedView.ViewRectMin.xy;

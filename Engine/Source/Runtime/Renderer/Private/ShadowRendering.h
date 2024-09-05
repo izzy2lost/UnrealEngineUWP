@@ -64,7 +64,7 @@ void OverrideWithDefaultMaterialForShadowDepth(
 	ERHIFeatureLevel::Type InFeatureLevel
 	);
 
-void InitMobileShadowProjectionOutputs(FRHICommandListImmediate& RHICmdList, const FIntPoint& Extent);
+void InitMobileShadowProjectionOutputs(FRHICommandListImmediate& RHICmdList, const FIntPoint& Extent, const bool bRequireMultiView);
 void ReleaseMobileShadowProjectionOutputs();
 
 enum EShadowDepthRenderMode
