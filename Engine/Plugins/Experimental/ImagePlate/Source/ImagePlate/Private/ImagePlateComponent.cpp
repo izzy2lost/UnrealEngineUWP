@@ -252,7 +252,7 @@ namespace
 
 		virtual bool HasRayTracingRepresentation() const override { return true; }
 
-		virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override final
+		virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override final
 		{
 			if (!CVarRayTracingImagePlate.GetValueOnRenderThread())
 			{
@@ -279,15 +279,15 @@ namespace
 				MeshBatch.Type = PT_TriangleList;
 				MeshBatch.DepthPriorityGroup = SDPG_World;
 				MeshBatch.bCanApplyViewModeOverrides = false;
-				MeshBatch.CastRayTracedShadow = IsShadowCast(Context.ReferenceView);
+				MeshBatch.CastRayTracedShadow = IsShadowCast(Collector.GetReferenceView());
 
 				FMeshBatchElement& BatchElement = MeshBatch.Elements[0];
 				BatchElement.IndexBuffer = &IndexBuffer;
 
-				FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
+				FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
 				FPrimitiveUniformShaderParametersBuilder Builder;
 				BuildUniformShaderParameters(Builder);
-				DynamicPrimitiveUniformBuffer.Set(Context.RayTracingMeshResourceCollector.GetRHICommandList(), Builder);
+				DynamicPrimitiveUniformBuffer.Set(Collector.GetRHICommandList(), Builder);
 
 				BatchElement.PrimitiveUniformBufferResource = &DynamicPrimitiveUniformBuffer.UniformBuffer;
 
@@ -298,7 +298,7 @@ namespace
 
 				RayTracingInstance.Materials.Add(MeshBatch);
 
-				OutRayTracingInstances.Add(RayTracingInstance);
+				Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 			}
 		}
 #endif // RHI_RAYTRACING

@@ -808,7 +808,7 @@ void FGeometryCollectionSceneProxy::GetDynamicMeshElements(const TArray<const FS
 }
 
 #if RHI_RAYTRACING
-void FGeometryCollectionSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances)
+void FGeometryCollectionSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (GRayTracingGeometryCollectionProxyMeshes == 0 || MeshDescription.NumVertices == 0)
 	{
@@ -822,8 +822,7 @@ void FGeometryCollectionSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 		
 	//Loose parameter needs to be updated every frame
 	FGeometryCollectionMeshCollectorResources* CollectorResources;
-	CollectorResources = &Context.RayTracingMeshResourceCollector.
-		AllocateOneFrameResource<FGeometryCollectionMeshCollectorResources>(GetScene().GetFeatureLevel());
+	CollectorResources = &Collector.AllocateOneFrameResource<FGeometryCollectionMeshCollectorResources>(GetScene().GetFeatureLevel());
 	FGeometryCollectionVertexFactory& GeometryCollectionVertexFactory = CollectorResources->GetVertexFactory();
 		
 	// Render dynamic objects
@@ -832,7 +831,7 @@ void FGeometryCollectionSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 		return;
 	}
 
-	SetupVertexFactory(Context.GraphBuilder.RHICmdList, GeometryCollectionVertexFactory);
+	SetupVertexFactory(Collector.GetRHICommandList(), GeometryCollectionVertexFactory);
 
 	// If not dynamic then use the section array with interior fracture surfaces removed.
 	const bool bRemoveInternalFaces = DynamicData != nullptr && !DynamicData->IsDynamic && MeshDescription.SectionsNoInternal.Num();
@@ -898,7 +897,7 @@ void FGeometryCollectionSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 		FRWBuffer* VertexBuffer = RayTracingDynamicVertexBuffer.NumBytes > 0 ? &RayTracingDynamicVertexBuffer : nullptr;
 
 		const uint32 VertexCount = MaxVertexIndex + 1;
-		Context.DynamicRayTracingGeometriesToUpdate.Add(
+		Collector.AddRayTracingGeometryUpdate(
 			FRayTracingDynamicGeometryUpdateParams
 			{
 				RayTracingInstance.Materials,
@@ -912,7 +911,7 @@ void FGeometryCollectionSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 			}
 		);
 
-		OutRayTracingInstances.Emplace(RayTracingInstance);
+		Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 	}
 }
 

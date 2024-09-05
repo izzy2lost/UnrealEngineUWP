@@ -2119,7 +2119,7 @@ ENUM_CLASS_FLAGS(FMeshElementCollector::ECommitFlags);
  * It is also the actual owner of the temporary, per-frame resources created for each mesh batch.
  * Mesh batches shall only weak-reference the resources located in the collector.
  */
-class FRayTracingMeshResourceCollector : public FMeshElementCollector
+class UE_DEPRECATED(5.5, "Use FRayTracingInstanceCollector instead.") FRayTracingMeshResourceCollector : public FMeshElementCollector
 {
 public:
 	// No MeshBatch should be allocated from an FRayTracingMeshResourceCollector.
@@ -2153,15 +2153,13 @@ struct FRayTracingDynamicGeometryUpdateParams
 	FMatrix44f WorldToInstance = FMatrix44f::Identity;
 };
 
-struct FRayTracingInstance;
-struct FRayTracingMaskAndFlags;
-
-struct FRayTracingMaterialGatheringContext
+struct UE_DEPRECATED(5.5, "Use FRayTracingInstanceCollector instead.") FRayTracingMaterialGatheringContext
 {
 	const class FScene* Scene;
 	const FSceneView* ReferenceView;
 	const FSceneViewFamily& ReferenceViewFamily;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRDGBuilder& GraphBuilder;
 	FRHICommandList& RHICmdList;
 	FRayTracingMeshResourceCollector& RayTracingMeshResourceCollector;
@@ -2180,6 +2178,7 @@ struct FRayTracingMaterialGatheringContext
 		FGlobalDynamicReadBuffer& InGlobalDynamicReadBuffer);
 
 	ENGINE_API virtual ~FRayTracingMaterialGatheringContext();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	ENGINE_API void SetPrimitive(const FPrimitiveSceneProxy* InPrimitiveSceneProxy);
 
@@ -2194,6 +2193,49 @@ private:
 
 	const bool bUsingReferenceBasedResidency;
 };
+
+namespace RayTracing
+{
+	class FDynamicRayTracingInstancesContext;
+}
+
+/**
+ * Collector used to gather ray tracing instances and related resources.
+ * It is also the actual owner of the temporary, per-frame resources created for each ray tracing instance.
+ */
+class FRayTracingInstanceCollector : public FMeshElementCollector
+{
+public:
+	// No MeshBatch should be allocated from an FRayTracingInstanceCollector.
+	inline FMeshBatch& AllocateMesh() = delete;
+	void RegisterOneFrameMaterialProxy(FMaterialRenderProxy* Proxy) = delete;
+
+	ENGINE_API const FSceneView* GetReferenceView() const { return ReferenceView; }
+
+	ENGINE_API void AddRayTracingInstance(struct FRayTracingInstance Instance);
+
+	ENGINE_API void AddReferencedGeometryGroup(RayTracing::GeometryGroupHandle GeometryGroup);
+
+	ENGINE_API void AddRayTracingGeometryUpdate(FRayTracingDynamicGeometryUpdateParams Params);
+
+private:
+
+	ENGINE_API FRayTracingInstanceCollector(
+		ERHIFeatureLevel::Type InFeatureLevel,
+		FSceneRenderingBulkObjectAllocator& InBulkAllocator,
+		const FSceneView* InReferenceView,
+		bool bInTrackReferencedGeometryGroups);
+
+	const FSceneView* ReferenceView;
+	TArray<FRayTracingInstance> RayTracingInstances;
+	TArray<FRayTracingDynamicGeometryUpdateParams> RayTracingGeometriesToUpdate;
+	TSet<RayTracing::GeometryGroupHandle> ReferencedGeometryGroups;
+
+	const bool bTrackReferencedGeometryGroups;
+
+	friend RayTracing::FDynamicRayTracingInstancesContext;
+};
+
 #endif
 
 class FDynamicPrimitiveUniformBuffer : public FOneFrameResource

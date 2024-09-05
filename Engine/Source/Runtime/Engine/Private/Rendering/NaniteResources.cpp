@@ -1739,7 +1739,7 @@ void FSceneProxy::ReleaseDynamicRayTracingGeometries()
 	DynamicRayTracingGeometries.Empty();
 }
 
-void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	check(!IsRayTracingStaticRelevant());
 
@@ -1770,7 +1770,7 @@ void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringCont
 	FRayTracingGeometry* DynamicGeometry = &DynamicRayTracingGeometries[ValidLODIndex];
 
 	// Setup a new instance
-	FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.Emplace_GetRef();
+	FRayTracingInstance RayTracingInstance;
 	RayTracingInstance.Geometry = DynamicGeometry;
 
 	const FInstanceSceneDataBuffers* InstanceSceneDataBuffers = GetInstanceSceneDataBuffers();
@@ -1803,10 +1803,12 @@ void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringCont
 
 	RayTracingInstance.MaterialsView = CachedRayTracingMaterials;
 
+	Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
+
 	// Use the shared vertex buffer - needs to be updated every frame
 	FRWBuffer* VertexBuffer = nullptr;
 
-	Context.DynamicRayTracingGeometriesToUpdate.Add(
+	Collector.AddRayTracingGeometryUpdate(
 		FRayTracingDynamicGeometryUpdateParams
 		{
 			CachedRayTracingMaterials,
@@ -2505,7 +2507,7 @@ void FSkinnedSceneProxy::DebugDrawSkeleton(int32 ViewIndex, FMeshElementCollecto
 }
 
 #if RHI_RAYTRACING
-void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances)
+void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (!CVarRayTracingNaniteSkinnedProxyMeshes.GetValueOnRenderThread())
 	{
@@ -2517,7 +2519,7 @@ void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGather
 		return;
 	}
 
-	MeshObject->QueuePendingRayTracingGeometryUpdate(Context.RHICmdList);
+	MeshObject->QueuePendingRayTracingGeometryUpdate(Collector.GetRHICommandList());
 
 	FRayTracingGeometry* RayTracingGeometry = MeshObject->GetRayTracingGeometry();
 
@@ -2531,7 +2533,7 @@ void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGather
 		check(LODData.RenderSections.Num() > 0);		
 		check(LODData.RenderSections.Num() == RayTracingGeometry->Initializer.Segments.Num());
 
-		FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.Emplace_GetRef();
+		FRayTracingInstance RayTracingInstance;
 		RayTracingInstance.Geometry = RayTracingGeometry;
 		RayTracingInstance.InstanceTransformsView = MakeArrayView(&GetLocalToWorld(), 1);
 		RayTracingInstance.NumTransforms = 1;
@@ -2565,7 +2567,7 @@ void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGather
 		/*
 		TODO: Support WPO
 
-		Context.DynamicRayTracingGeometriesToUpdate.Add(
+		Collector.AddRayTracingGeometryUpdate(
 			FRayTracingDynamicGeometryUpdateParams
 			{
 				RayTracingInstance.Materials,
@@ -2578,6 +2580,8 @@ void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGather
 				true
 			}
 		);*/
+
+		Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 	}
 }
 #endif

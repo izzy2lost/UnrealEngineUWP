@@ -10,7 +10,6 @@
 
 class FDynamicPrimitiveUniformBuffer;
 class FHitProxyId;
-struct FRayTracingMaterialGatheringContext;
 
 class FMeshElementCollector;
 struct FGeometryCacheMeshData;
@@ -314,7 +313,7 @@ public:
 	void ClearSections();
 
 #if RHI_RAYTRACING
-	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override final;
+	virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override final;
 	virtual bool IsRayTracingRelevant() const override { return true; }
 	virtual bool HasRayTracingRepresentation() const override { return true; }
 #endif

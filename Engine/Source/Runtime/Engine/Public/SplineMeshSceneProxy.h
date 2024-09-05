@@ -170,7 +170,7 @@ public:
 #if RHI_RAYTRACING
 	virtual bool HasRayTracingRepresentation() const override { return true; }
 	virtual bool IsRayTracingRelevant() const override { return true; }
-	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override;	
+	virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override;
 #endif // RHI_RAYTRACING
 	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
 
@@ -206,7 +206,7 @@ public:
 #if RHI_RAYTRACING
 	virtual bool IsRayTracingStaticRelevant() const override { return false; }
 	virtual ERayTracingPrimitiveFlags GetCachedRayTracingInstance(FRayTracingInstance& OutRayTracingInstance) override;
-	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override;
+	virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override;
 	virtual void SetupFallbackRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& OutMaterials) const override;
 #endif
 };

@@ -929,14 +929,14 @@ void FWaterMeshSceneProxy::SetupRayTracingInstances(FRHICommandListBase& RHICmdL
 	}
 }
 
-void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (!HasWaterData() || !FWaterUtils::IsWaterMeshRenderingEnabled(/*bIsRenderThread = */true) || !CVarRayTracingGeometryWater.GetValueOnRenderThread())
 	{
 		return;
 	}
 
-	const FSceneView& SceneView = *Context.ReferenceView;
+	const FSceneView& SceneView = *Collector.GetReferenceView();
 	const FVector ObserverPosition = SceneView.ViewMatrices.GetViewOrigin();
 
 	const int32 QuadTreeKey = FindBestQuadTreeForView(&SceneView);
@@ -985,7 +985,7 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGath
 			DensityInstanceCount += InstanceCount;
 		}
 
-		SetupRayTracingInstances(Context.GraphBuilder.RHICmdList, DensityInstanceCount, DensityIndex);
+		SetupRayTracingInstances(Collector.GetRHICommandList(), DensityInstanceCount, DensityIndex);
 	}
 
 	// Create per-bucket prefix sum and sort instance data so we can easily access per-instance data for each density
@@ -1049,7 +1049,7 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGath
 			for (int32 InstanceIndex = 0; InstanceIndex < InstanceCount; ++InstanceIndex)
 			{
 				using FWaterVertexFactoryUserDataWrapperType = TWaterVertexFactoryUserDataWrapper<WITH_WATER_SELECTION_SUPPORT>;
-				FWaterVertexFactoryUserDataWrapperType& UserDataWrapper = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FWaterVertexFactoryUserDataWrapperType>();
+				FWaterVertexFactoryUserDataWrapperType& UserDataWrapper = Collector.AllocateOneFrameResource<FWaterVertexFactoryUserDataWrapperType>();
 
 				const int32 InstanceDataIndex = BucketOffsets[BucketIndex] + InstanceIndex;
 				const FWaterQuadTree::FStagingInstanceData& InstanceData = WaterInstanceData.StagingInstanceData[InstanceDataIndex];
@@ -1071,9 +1071,8 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGath
 				RayTracingInstance.Geometry = &WaterInstanceRayTracingData.Geometry;
 				RayTracingInstance.InstanceTransforms.Add(GetLocalToWorld());
 				RayTracingInstance.Materials.Add(BaseMesh);
-				OutRayTracingInstances.Add(RayTracingInstance);
 
-				Context.DynamicRayTracingGeometriesToUpdate.Add(
+				Collector.AddRayTracingGeometryUpdate(
 					FRayTracingDynamicGeometryUpdateParams
 					{
 						RayTracingInstance.Materials,
@@ -1085,7 +1084,9 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGath
 						nullptr,
 						true
 					}
-				);				
+				);
+
+				Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 			}
 		}
 	}

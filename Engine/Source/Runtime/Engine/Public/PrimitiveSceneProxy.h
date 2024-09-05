@@ -403,6 +403,9 @@ public:
 	virtual bool HasRayTracingRepresentation() const { return false; }
 
 	/** Gathers dynamic ray tracing instances from this proxy. */
+	virtual void GetDynamicRayTracingInstances(class FRayTracingInstanceCollector& Collector) {}
+
+	UE_DEPRECATED(5.5, "Use FRayTracingInstanceCollector instead.")
 	virtual void GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances) {}
 
 	virtual TArray<FRayTracingGeometry*> GetStaticRayTracingGeometries() const { return {}; }

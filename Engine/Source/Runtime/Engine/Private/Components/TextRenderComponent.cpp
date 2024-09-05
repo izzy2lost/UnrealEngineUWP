@@ -602,7 +602,7 @@ public:
 	virtual uint32 GetMemoryFootprint() const override;
 	uint32 GetAllocatedSize() const;
 #if RHI_RAYTRACING
-	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override final;
+	virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override final;
 	virtual bool HasRayTracingRepresentation() const override { return true; }
 	virtual bool IsRayTracingRelevant() const override { return true; }
 	virtual bool IsRayTracingStaticRelevant() const override
@@ -888,7 +888,7 @@ uint32 FTextRenderSceneProxy::GetAllocatedSize() const
 }
 
 #if RHI_RAYTRACING
-void FTextRenderSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FTextRenderSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (CVarRayTracingTextMeshes.GetValueOnRenderThread() == 0 || !bSupportRayTracing)
 	{
@@ -899,7 +899,8 @@ void FTextRenderSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 	{
 		return;
 	}
-	FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.AddDefaulted_GetRef();
+
+	FRayTracingInstance RayTracingInstance;
 
 	if (bNeedsToUpdateRayTracingCache)
 	{
@@ -926,22 +927,21 @@ void FTextRenderSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 			Mesh.SegmentIndex = BatchIndex;
 			Mesh.MeshIdInPrimitive = 0;
 		}
-		RayTracingInstance.MaterialsView = MakeArrayView(CachedRayTracingMaterials);
 		bNeedsToUpdateRayTracingCache = false;
 	}
 	else
 	{
-		RayTracingInstance.MaterialsView = MakeArrayView(CachedRayTracingMaterials);
 		RayTracingInstance.bInstanceMaskAndFlagsDirty = false;
 	}
 
+	RayTracingInstance.MaterialsView = MakeArrayView(CachedRayTracingMaterials);
 	RayTracingInstance.Geometry = &RayTracingGeometry;
 	const FMatrix& ThisLocalToWorld = GetLocalToWorld();
 	RayTracingInstance.InstanceTransformsView = MakeArrayView(&ThisLocalToWorld, 1);
 
 	if (bRayTracingWithWPO && VertexFactory.GetType()->SupportsRayTracingDynamicGeometry())
 	{
-		Context.DynamicRayTracingGeometriesToUpdate.Add(
+		Collector.AddRayTracingGeometryUpdate(
 			FRayTracingDynamicGeometryUpdateParams
 			{
 				CachedRayTracingMaterials, // TODO: this copy can be avoided if FRayTracingDynamicGeometryUpdateParams supported array views
@@ -959,6 +959,8 @@ void FTextRenderSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 	checkf(RayTracingInstance.Geometry->Initializer.Segments.Num() == CachedRayTracingMaterials.Num(), TEXT("Segments/Materials mismatch. Number of segments: %d. Number of Materials: %d."),
 		RayTracingInstance.Geometry->Initializer.Segments.Num(),
 		CachedRayTracingMaterials.Num());
+
+	Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 
 }
 #endif // RHI_RAYTRACING
