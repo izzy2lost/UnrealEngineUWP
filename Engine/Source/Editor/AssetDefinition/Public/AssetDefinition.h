@@ -6,6 +6,7 @@
 #include "UObject/Object.h"
 #include "UObject/SoftObjectPtr.h"
 #include "AssetRegistry/AssetData.h"
+#include "Framework/SlateDelegates.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Toolkits/IToolkit.h"
 #include "Misc/AssetFilterData.h"
@@ -336,6 +337,14 @@ public:
 	TSharedPtr<SWidget> ActionButtonWidget;
 };
 
+struct FAssetButtonActionExtension
+{
+public:
+	TAttribute<FText> PickTooltipAttribute;
+	TAttribute<const FSlateBrush*> PickBrushAttribute;
+	FOnClicked OnClicked;
+};
+
 /**
  * Asset Definitions represent top level assets that are known to the editor.
  *
@@ -596,6 +605,9 @@ public:
 		return;
 	}
 #endif
+
+	/**Optionally adds custom Asset Picker buttons to the Property Editor for the selected AssetDefinition, using the provided extension data this function returns.*/
+	virtual void GetAssetActionButtonExtensions(const FAssetData& InAssetData, TArray<FAssetButtonActionExtension>& OutExtensions) const { };
 
 	/** Whether this asset has external packages associated with it (impacts saving and dirty-state behavior) */
 	virtual bool ShouldSaveExternalPackages() const
