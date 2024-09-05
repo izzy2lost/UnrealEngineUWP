@@ -123,6 +123,9 @@ protected:
 
 	EVisibility GetPropertyEditingVisibility() const;
 
+	/** Get the badge for the view options icon (if there are any options active */
+	const FSlateBrush* GetViewOptionsBadgeIcon() const;
+
 private:
 	TSharedPtr<IStructureDataProvider> StructProvider;
 	FRootPropertyNodeList RootNodes;
