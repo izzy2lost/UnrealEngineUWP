@@ -12,7 +12,6 @@ public class NNERuntimeORT : ModuleRules
 		{
 			"Core",
 			"CoreUObject",
-			"Engine",
 			"NNE",
 			"NNEOnnxruntime",
 			"Projects",

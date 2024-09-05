@@ -2,8 +2,6 @@
 
 #include "NNERuntimeORT.h"
 
-#include "EngineAnalytics.h"
-#include "Kismet/GameplayStatics.h"
 #include "Misc/SecureHash.h"
 #include "NNE.h"
 #include "NNEAttributeMap.h"
@@ -182,16 +180,6 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCpu::CreateModelCPU(const TObjectPt
 	UE::NNE::IModelCPU* IModel = static_cast<UE::NNE::IModelCPU*>(new UE::NNERuntimeORT::Private::FModelORTCpu(Environment.ToSharedRef(), SharedData));
 	check(IModel != nullptr);
 
-	if (FEngineAnalytics::IsAvailable())
-	{
-		TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
-			TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
-			TEXT("HashedRuntimeName"), FMD5::HashAnsiString(*GetRuntimeName()),
-			TEXT("ModelDataSize"), SharedData->GetView().Num()
-		);
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
-	}
-
 	return TSharedPtr<UE::NNE::IModelCPU>(IModel);
 }
 
@@ -281,16 +269,6 @@ TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTDml::CreateModelGPU(const TObjectPt
 	const TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
 	check(SharedData.IsValid());
 
-	if (FEngineAnalytics::IsAvailable())
-	{
-		TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
-			TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
-			TEXT("HashedRuntimeName"), FMD5::HashAnsiString(*GetRuntimeName()),
-			TEXT("ModelDataSize"), SharedData->GetView().Num()
-		);
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
-	}
-
 	return MakeShared<UE::NNERuntimeORT::Private::FModelORTDmlGPU>(Environment.ToSharedRef(), SharedData);
 #else // PLATFORM_WINDOWS
 	return TSharedPtr<UE::NNE::IModelGPU>();
@@ -314,16 +292,6 @@ TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeORTDml::CreateModelRDG(TObjectPtr<UNNE
 	}
 
 	const TSharedRef<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName()).ToSharedRef();
-
-	if (FEngineAnalytics::IsAvailable())
-	{
-		TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
-			TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
-			TEXT("HashedRuntimeName"), FMD5::HashAnsiString(*GetRuntimeName()),
-			TEXT("ModelDataSize"), SharedData->GetView().Num()
-		);
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
-	}
 
 	return MakeShared<UE::NNERuntimeORT::Private::FModelORTDmlRDG>(Environment.ToSharedRef(), SharedData);
 #else // PLATFORM_WINDOWS

@@ -3,8 +3,6 @@
 #include "NNEEditorModelDataFactory.h"
 
 #include "Editor.h"
-#include "EngineAnalytics.h"
-#include "Kismet/GameplayStatics.h"
 #include "NNEEditorOnnxFileLoaderHelper.h"
 #include "NNEModelData.h"
 #include "Misc/Paths.h"
@@ -39,16 +37,6 @@ UObject* UNNEModelDataFactory::FactoryCreateFile(UClass* InClass, UObject* InPar
 	}
 
 	GEditor->GetEditorSubsystem<UImportSubsystem>()->BroadcastAssetPostImport(this, ModelData);
-
-	if (FEngineAnalytics::IsAvailable())
-	{
-		TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
-			TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
-			TEXT("FactoryName"), TEXT("UNNEModelDataFactory"),
-			TEXT("ModelFileSize"), ModelFileSize
-		);
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.FactoryCreateBinary"), Attributes);
-	}
 
 	return ModelData;
 }

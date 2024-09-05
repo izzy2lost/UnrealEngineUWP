@@ -2,8 +2,6 @@
 
 #include "NNERuntimeRDGHlsl.h"
 
-#include "EngineAnalytics.h"
-#include "Kismet/GameplayStatics.h"
 #include "Misc/SecureHash.h"
 #include "NNE.h"
 #include "NNEAttributeMap.h"
@@ -245,16 +243,6 @@ TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeRDGHlslImpl::CreateModelRDG(const TObj
 	TSharedPtr<UE::NNE::FSharedModelData> Data = ModelData->GetModelData(GetRuntimeName());
 	check(Data.IsValid());
 	UE::NNERuntimeRDG::Private::Hlsl::FModel* Model = new UE::NNERuntimeRDG::Private::Hlsl::FModel(Data);
-
-	if (FEngineAnalytics::IsAvailable())
-	{
-		TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
-			TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
-			TEXT("HashedRuntimeName"), FMD5::HashAnsiString(*GetRuntimeName()),
-			TEXT("ModelDataSize"), Data->GetView().Num()
-		);
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
-	}
 
 	return TSharedPtr<UE::NNE::IModelRDG>(Model);
 }
