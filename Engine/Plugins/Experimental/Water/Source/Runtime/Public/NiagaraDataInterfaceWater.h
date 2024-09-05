@@ -55,7 +55,15 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Water")
 	bool bFindWaterBodyOnSpawn = false;
 
-	UPROPERTY(EditAnywhere, Category = "Water") 
+	/** When enabled the owning system instance position will be used to sample the depth of the water. */
+	UPROPERTY(EditAnywhere, Category = "Water")
+	bool bEvaluateSystemDepth = true;
+
+	/** If bEvaluateSystemDepth is enabled the depth will be updated each frame. */
+	UPROPERTY(EditAnywhere, Category = "Water", meta = (EditCondition = "bEvaluateSystemDepth"))
+	bool bEvaluateSystemDepthPerFrame = true;
+
+	UPROPERTY(EditAnywhere, Category = "Water")
 	TObjectPtr<UWaterBodyComponent> SourceBodyComponent;
 
 	uint32 SourceBodyChangeId = 0;
