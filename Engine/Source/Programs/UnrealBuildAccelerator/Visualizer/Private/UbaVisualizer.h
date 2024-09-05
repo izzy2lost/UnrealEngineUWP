@@ -212,10 +212,12 @@ namespace uba
 
 		Logger& m_logger;
 		VisualizerConfig m_config;
-		NetworkClient* m_client = nullptr;
 		TraceReader m_trace;
 		TraceView m_traceView;
-		
+
+		NetworkClient* m_client = nullptr;
+		Event m_clientDisconnect;
+
 		StringBuffer<256>m_listenChannel;
 		StringBuffer<256> m_newTraceName;
 		Event m_listenTimeout;
