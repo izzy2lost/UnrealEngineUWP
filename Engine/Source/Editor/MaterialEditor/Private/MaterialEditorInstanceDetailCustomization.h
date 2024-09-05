@@ -115,6 +115,7 @@ private:
 
 	EVisibility IsOverriddenAndVisible(TAttribute<bool> IsOverridden) const;
 	EVisibility IsOverriddenAndVisibleShadingModels(TAttribute<bool> IsOverridden) const;
+	EVisibility IsOverriddenAndVisibleSubstrateOnly(TAttribute<bool> IsOverridden) const;
 
 #define DECLARE_OVERRIDE_MEMBER_FUNCS(PropertyName) \
 	bool Override ## PropertyName ## Enabled() const; \
