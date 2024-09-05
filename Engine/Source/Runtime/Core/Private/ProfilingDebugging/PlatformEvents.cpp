@@ -109,11 +109,11 @@ void FPlatformEventsTrace::OnTraceChannelUpdated(const FString& ChannelName, boo
 
 void FPlatformEventsTrace::PostInit()
 {
-	if (TRACE_PRIVATE_CHANNELEXPR_IS_ENABLED(ContextSwitchChannel)) //-V517
+	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(ContextSwitchChannel)) //-V517
 	{
 		Enable(FPlatformEventsTrace::EEventType::ContextSwitch);
 	}
-	else if (TRACE_PRIVATE_CHANNELEXPR_IS_ENABLED(StackSamplingChannel))
+	else if (UE_TRACE_CHANNELEXPR_IS_ENABLED(StackSamplingChannel))
 	{
 		Enable(FPlatformEventsTrace::EEventType::StackSampling);
 	}

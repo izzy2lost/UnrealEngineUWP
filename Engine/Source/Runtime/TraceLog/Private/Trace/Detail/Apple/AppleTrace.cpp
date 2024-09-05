@@ -2,7 +2,7 @@
 
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED && PLATFORM_APPLE
+#if TRACE_PRIVATE_MINIMAL_ENABLED && PLATFORM_APPLE
 
 #include <arpa/inet.h>
 #include <string.h>
@@ -275,4 +275,4 @@ bool GetErrorMessage(char* OutBuffer, uint32 BufferSize, int32 ErrorCode)
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

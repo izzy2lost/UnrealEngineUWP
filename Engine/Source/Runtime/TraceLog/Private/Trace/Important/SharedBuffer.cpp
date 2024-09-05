@@ -2,7 +2,7 @@
 
 #include "Trace/Detail/Important/SharedBuffer.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED && TRACE_PRIVATE_ALLOW_IMPORTANTS
 
 #include "CoreTypes.h"
 #include "Misc/ScopeExit.h"
@@ -213,4 +213,4 @@ void Writer_ShutdownSharedBuffers()
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED && UE_TRACE_ALLOW_IMPORTANTS

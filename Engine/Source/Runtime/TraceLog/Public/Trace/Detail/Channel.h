@@ -5,7 +5,7 @@
 #include "Trace/Config.h"
 #include "Trace/Trace.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 #include "CoreTypes.h"
 
@@ -88,4 +88,11 @@ inline uint32 FChannel::GetName(const ANSICHAR** OutName) const
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#else
+
+// Since we use this type in macros we need
+// provide an empty definition when trace is
+// not enabled.
+namespace UE::Trace { class FChannel {}; }
+
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

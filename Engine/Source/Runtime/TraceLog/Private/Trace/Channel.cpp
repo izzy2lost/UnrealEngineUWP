@@ -9,7 +9,7 @@
 
 #include <ctype.h>
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 namespace UE {
 namespace Trace {
@@ -25,17 +25,17 @@ static FTraceChannel	TraceLogChannelDetail;
 FChannel&				TraceLogChannel			= TraceLogChannelDetail;
 
 ///////////////////////////////////////////////////////////////////////////////
-UE_TRACE_EVENT_BEGIN(Trace, ChannelAnnounce, NoSync|Important)
-	UE_TRACE_EVENT_FIELD(uint32, Id)
-	UE_TRACE_EVENT_FIELD(bool, IsEnabled)
-	UE_TRACE_EVENT_FIELD(bool, ReadOnly)
-	UE_TRACE_EVENT_FIELD(AnsiString, Name)
-UE_TRACE_EVENT_END()
+UE_TRACE_MINIMAL_EVENT_BEGIN(Trace, ChannelAnnounce, NoSync|Important)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint32, Id)
+	UE_TRACE_MINIMAL_EVENT_FIELD(bool, IsEnabled)
+	UE_TRACE_MINIMAL_EVENT_FIELD(bool, ReadOnly)
+	UE_TRACE_MINIMAL_EVENT_FIELD(AnsiString, Name)
+UE_TRACE_MINIMAL_EVENT_END()
 
-UE_TRACE_EVENT_BEGIN(Trace, ChannelToggle, NoSync|Important)
-	UE_TRACE_EVENT_FIELD(uint32, Id)
-	UE_TRACE_EVENT_FIELD(bool, IsEnabled)
-UE_TRACE_EVENT_END()
+UE_TRACE_MINIMAL_EVENT_BEGIN(Trace, ChannelToggle, NoSync|Important)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint32, Id)
+	UE_TRACE_MINIMAL_EVENT_FIELD(bool, IsEnabled)
+UE_TRACE_MINIMAL_EVENT_END()
 
 ///////////////////////////////////////////////////////////////////////////////
 static FChannel* volatile	GHeadChannel;			// = nullptr;
@@ -167,7 +167,7 @@ void FChannel::Setup(const ANSICHAR* InChannelName, const InitArgs& InArgs)
 ///////////////////////////////////////////////////////////////////////////////
 void FChannel::Announce() const
 {
-	UE_TRACE_LOG(Trace, ChannelAnnounce, TraceLogChannel, Name.Len * sizeof(ANSICHAR))
+	UE_TRACE_MINIMAL_LOG(Trace, ChannelAnnounce, TraceLogChannel, Name.Len * sizeof(ANSICHAR))
 		<< ChannelAnnounce.Id(Name.Hash)
 		<< ChannelAnnounce.IsEnabled(IsEnabled())
 		<< ChannelAnnounce.ReadOnly(Args.bReadOnly)
@@ -310,7 +310,7 @@ bool FChannel::Toggle(bool bEnabled)
 	using namespace Private;
 	AtomicStoreRelaxed(&Enabled, bEnabled ? 1 : -1);
 
-	UE_TRACE_LOG(Trace, ChannelToggle, TraceLogChannel)
+	UE_TRACE_MINIMAL_LOG(Trace, ChannelToggle, TraceLogChannel)
 		<< ChannelToggle.Id(Name.Hash)
 		<< ChannelToggle.IsEnabled(IsEnabled());
 
@@ -330,4 +330,4 @@ bool FChannel::Toggle(const ANSICHAR* ChannelName, bool bEnabled)
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

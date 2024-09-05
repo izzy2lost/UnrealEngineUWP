@@ -4,7 +4,7 @@
 
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 #include "Atomic.h"
 #include "EventNode.h"
@@ -334,4 +334,4 @@ struct FLogScope::FFieldSet<FieldMeta, TEventRef<DefinitionType>>
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED
