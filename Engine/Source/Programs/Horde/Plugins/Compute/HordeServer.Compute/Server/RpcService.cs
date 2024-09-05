@@ -188,6 +188,7 @@ namespace HordeServer.Server
 			}
 
 			AgentId agentId = new AgentId(request.Id);
+			_logger.LogInformation("Attempting to create session for agent {AgentId}", agentId);
 			using IDisposable? scope = _logger.BeginScope("CreateSession({AgentId})", agentId.ToString());
 
 			ComputeConfig computeConfig = _computeConfig.Value;
