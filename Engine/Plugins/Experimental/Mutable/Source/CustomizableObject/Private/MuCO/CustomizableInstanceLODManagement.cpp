@@ -359,12 +359,13 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 				{
 					COI->SetIsBeingUsedByComponentInPlay(true);
 
-					int32 ObjectComponentIndex = CustomizableObjectInstanceUsage->GetComponentIndex();
+					const FName& ComponentName = CustomizableObjectInstanceUsage->GetComponentName();
+					const int32 ObjectComponentIndex = COI->GetCustomizableObject()->GetPrivate()->GetModelResources().ComponentNames.IndexOfByKey(ComponentName);
 
 #if WITH_EDITOR
 					// If the instance is generated but the component doesn't have a mesh, set it.
 					// Can happen when duplicating instances in the editor.
-					const USkeletalMesh* SkeletalMesh = COI->GetSkeletalMesh(ObjectComponentIndex);
+					const USkeletalMesh* SkeletalMesh = COI->GetComponentMeshSkeletalMesh(ComponentName);
 					if (SkeletalMesh && !Parent->GetSkeletalMeshAsset())
 					{
 						// As the instance is already generated, this will be very fast and just set the mesh and call the delegates

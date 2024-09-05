@@ -141,27 +141,21 @@ FName FCustomizableObjectLODReductionSettings::GetSelectedBone(bool& bMultipleVa
 }
 
 
-const struct FReferenceSkeleton& FCustomizableObjectLODReductionSettings::GetReferenceSkeleton() const
+const FReferenceSkeleton& FCustomizableObjectLODReductionSettings::GetReferenceSkeleton() const
 {
 	static FReferenceSkeleton DummySkeleton;
-	USkeletalMesh* SkeletalMesh = nullptr;
 
-	if (NodeComponentMesh)
+	if (!NodeComponentMesh)
 	{
-		if (const UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(NodeComponentMesh->GetCustomizableObjectGraph()->GetOuter()))
-		{
-			if (const FMutableMeshComponentData* Component = CustomizableObject->GetPrivate()->MutableMeshComponents.FindByPredicate(
-				[&](const FMutableMeshComponentData& Component) 
-				{ 
-					return Component.Name == NodeComponentMesh->ComponentName; 
-				}))
-			{
-				SkeletalMesh = Component->ReferenceSkeletalMesh;
-			}
-		}
+		return DummySkeleton;
 	}
 
-	return SkeletalMesh ? SkeletalMesh->GetRefSkeleton() : DummySkeleton;
+	if (!NodeComponentMesh->ReferenceSkeletalMesh)
+	{
+		return DummySkeleton;
+	}
+
+	return NodeComponentMesh->ReferenceSkeletalMesh->GetRefSkeleton();
 }
 
 

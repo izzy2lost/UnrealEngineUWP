@@ -52,6 +52,7 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeComponentMesh : public
 public:
 	// UObject interface
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
 
 	// UEdGraphNode interface
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
@@ -59,6 +60,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = ComponentMesh)
 	FName ComponentName;
 	
+	UPROPERTY(EditAnywhere, Category = ComponentMesh)
+	TObjectPtr<USkeletalMesh> ReferenceSkeletalMesh;
+
 	UPROPERTY(EditAnywhere, Category = ComponentMesh)
 	TArray<FLODReductionSettings> LODReductionSettings;
 

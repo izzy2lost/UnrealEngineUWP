@@ -236,7 +236,7 @@ void FLogBenchmarkUtil::UpdateStats()
 			GEngine->AddOnScreenDebugMessage(MsgIndex++, .0f, FColor::Green, TEXT("Animation tags: ") + TagString);
 
 			check(Instance->GetPrivate() != nullptr);
-			FCustomizableInstanceComponentData* ComponentData = Instance->GetPrivate()->GetComponentData(CustomizableObjectInstanceUsage->GetComponentIndex());
+			FCustomizableInstanceComponentData* ComponentData = Instance->GetPrivate()->GetComponentData(CustomizableObjectInstanceUsage->GetComponentName());
 
 			if (ComponentData)
 			{

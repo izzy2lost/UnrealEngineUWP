@@ -2394,7 +2394,7 @@ void FCustomizableObjectEditor::CreatePreviewActor()
 
 	TArray<TWeakObjectPtr<UDebugSkelMeshComponent>> PreviewSkeletalMeshComponents;
 	
-	for (int32 ComponentIndex = 0; ComponentIndex < CustomizableObject->GetComponentCount(); ++ComponentIndex)
+	for (int32 ObjectComponentIndex = 0; ObjectComponentIndex < CustomizableObject->GetComponentCount(); ++ObjectComponentIndex)
 	{
 		UDebugSkelMeshComponent* DebugComponent = NewObject<UDebugSkelMeshComponent>(Actor.Get(), NAME_None, RF_Transient);
 		DebugComponent->bCastInsetShadow = true; // For better quality shadows in the editor previews, more similar to the in-game ones
@@ -2409,7 +2409,7 @@ void FCustomizableObjectEditor::CreatePreviewActor()
 		UCustomizableSkeletalComponent* CustomizableComponent = NewObject<UCustomizableSkeletalComponent>(DebugComponent);
 		CustomizableComponent->bSkipSetReferenceSkeletalMesh = true;
 		CustomizableComponent->CustomizableObjectInstance = PreviewInstance;
-		CustomizableComponent->ComponentIndex = ComponentIndex;
+		CustomizableComponent->SetComponentName(CustomizableObject->GetComponentName(ObjectComponentIndex));
 		CustomizableComponent->AttachToComponent(DebugComponent, FAttachmentTransformRules::KeepRelativeTransform);
 		CustomizableComponent->RegisterComponent();
 	}

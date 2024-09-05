@@ -43,11 +43,9 @@ void UCustomizableObjectGraph::PostLoad()
 	}
 
 	// Execute backwards compatible code for all nodes. It requires all nodes to be loaded.
-
-	TArray<TObjectPtr<UEdGraphNode>> NodesCopy = Nodes; // Copy to be able to remove nodes inside the BackwardsCompatibleFixup.
-
 	for (int32 Version = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID) + 1; Version <= FCustomizableObjectCustomVersion::LatestVersion; ++Version)
 	{
+		TArray<TObjectPtr<UEdGraphNode>> NodesCopy = Nodes; // Copy to be able to remove nodes inside the BackwardsCompatibleFixup.
 		for (UEdGraphNode* Node : NodesCopy)
 		{
 			if (UCustomizableObjectNode* CustomizableObjectNode = Cast<UCustomizableObjectNode>(Node))
@@ -74,9 +72,9 @@ void UCustomizableObjectGraph::PostLoad()
 		}
 	}
 
-	NodesCopy = Nodes; // Copy to be able to remove nodes inside the PostBackwardsCompatibleFixup.
 
 	// Do any additional work which require nodes to be valid (i.e., have executed BackwardsCompatibleFixup).
+	TArray<TObjectPtr<UEdGraphNode>> NodesCopy = Nodes; // Copy to be able to remove nodes inside the PostBackwardsCompatibleFixup.
 	for (UEdGraphNode* Node : NodesCopy)
 	{
 		if (UCustomizableObjectNode* CustomizableObjectNode = Cast<UCustomizableObjectNode>(Node))

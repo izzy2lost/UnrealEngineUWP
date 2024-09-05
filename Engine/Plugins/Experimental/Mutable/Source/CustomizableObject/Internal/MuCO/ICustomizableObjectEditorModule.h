@@ -13,6 +13,7 @@ class IToolkitHost;
 class UCustomizableObject;
 class UCustomizableObjectPrivate;
 class UCustomizableObjectInstance;
+class USkeletalMesh;
 class FExtensibilityManager;
 class FBakeOperationCompletedDelegate;
 struct FBakingConfiguration;
@@ -80,5 +81,6 @@ public:
 	/** Return the number of pending compilation requests. Ongoing requests included. */
 	virtual int32 GetNumCompileRequests() = 0;
 
+	virtual USkeletalMesh* GetReferenceSkeletalMesh(const UCustomizableObject& Object, const FName& Component) const = 0;
 };
  

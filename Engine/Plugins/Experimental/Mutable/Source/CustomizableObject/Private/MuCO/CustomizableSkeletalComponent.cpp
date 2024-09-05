@@ -81,6 +81,26 @@ USkeletalMesh* UCustomizableSkeletalComponent::GetAttachedSkeletalMesh() const
 }
 
 
+void UCustomizableSkeletalComponent::SetComponentName(const FName& Name)
+{
+	ComponentIndex = INDEX_NONE;
+	ComponentName = Name;
+}
+
+
+FName UCustomizableSkeletalComponent::GetComponentName() const
+{
+	if (ComponentIndex == INDEX_NONE)
+	{
+		return ComponentName;	
+	}
+	else
+	{
+		return FName(FString::FromInt(ComponentIndex));
+	}
+}
+
+
 void UCustomizableSkeletalComponent::UpdateSkeletalMeshAsync(bool bNeverSkipUpdate)
 {
 	if (CustomizableObjectInstanceUsage)

@@ -41,7 +41,13 @@ public:
 	// For now assume this is an *Object* component index (to index the array of all possible components in the CO) and not an *Instance* component index.
 	void SetComponentIndex(int32 ObjectComponentIndex);
 	int32 GetComponentIndex() const;
+	
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
+	void SetComponentName(const FName& Name);
 
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceUsage)
+	FName GetComponentName() const;
+	
 	void AttachTo(USkeletalMeshComponent* SkeletalMeshComponent);
 	USkeletalMeshComponent* GetAttachParent() const;
 
@@ -101,6 +107,10 @@ private:
 	// If no CustomizableSkeletalComponent is associated, this Index will be used
 	UPROPERTY()
 	int32 UsedComponentIndex;
+
+	/** Only used if the ComponentIndex is INDEX_NONE. */
+	UPROPERTY()
+	FName UsedComponentName;
 
 	// Used to replace the SkeletalMesh of the parent component by the ReferenceSkeletalMesh or the generated SkeletalMesh 
 	bool bUsedPendingSetSkeletalMesh = false;

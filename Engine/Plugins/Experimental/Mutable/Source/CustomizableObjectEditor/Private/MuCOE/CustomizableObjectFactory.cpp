@@ -33,8 +33,7 @@
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectFactory"
 
-static const FVector2D NewCOWindowsSize = FVector2D(300,340);
-static const FVector2D NewChildWindowsSize = FVector2D(300, 220);
+static const FVector2D NewCOWindowsSize = FVector2D(300, 230);
 
 UCustomizableObjectFactory::UCustomizableObjectFactory()
 	: Super()
@@ -104,9 +103,7 @@ UObject* UCustomizableObjectFactory::FactoryCreateNew(UClass* Class, UObject* In
 	{
 		return NewObj;
 	}
-
-	ObjectPrivate->MutableMeshComponents.SetNum(CreationSettings.NumMeshComponents);
-
+	
 	if (!CreationSettings.bEmptyObject)
 	{
 		if (CreationSettings.bIsChildObject && CreationSettings.ParentObject.IsValid())
@@ -128,16 +125,6 @@ UObject* UCustomizableObjectFactory::FactoryCreateNew(UClass* Class, UObject* In
 
 			ObjectPrivate->SetIsChildObject(true);
 		}
-		else
-		{
-			check(CreationSettings.ComponentsInfo.Num() == CreationSettings.NumMeshComponents);
-
-			for (int32 MeshIndex = 0; MeshIndex < CreationSettings.ComponentsInfo.Num(); ++MeshIndex)
-			{
-				ObjectPrivate->MutableMeshComponents[MeshIndex].Name = CreationSettings.ComponentsInfo[MeshIndex].ComponentName;
-				ObjectPrivate->MutableMeshComponents[MeshIndex].ReferenceSkeletalMesh = CreationSettings.ComponentsInfo[MeshIndex].ReferenceSkeletalMesh.LoadSynchronous();
-			}
-		}
 	}
 
 	return NewObj;
@@ -154,12 +141,7 @@ const FCustomizableObjectOptions FCustomizableObjectFactoryUI::ConstructFactoryU
 	
 	TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 	DetailsView->SetObject(nullptr);
-
-	// Default number of components for non-child objects
-	Options.NumMeshComponents = 1;
-	Options.ComponentsInfo.SetNum(1);
-	GenerateComponentOptions();
-
+	
 	// Settings window
 	COSettingsWindow = SNew(SWindow)
 	.Title(LOCTEXT("CustomizableObjectFactoryptions", "New Costumizable Object"))
@@ -207,6 +189,7 @@ const FCustomizableObjectOptions FCustomizableObjectFactoryUI::ConstructFactoryU
 			[
 				SNew(SBorder)
 				.Padding(5.0f, 10.0f, 0.0f, 10.0f)
+				.Visibility(this, &FCustomizableObjectFactoryUI::GetParentWidgetsVisibility)
 				.BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
 				.HAlign(HAlign_Fill)
 				[
@@ -216,7 +199,6 @@ const FCustomizableObjectOptions FCustomizableObjectFactoryUI::ConstructFactoryU
 					.HAlign(HAlign_Left)
 					[
 						SNew(STextBlock)
-						.Visibility(this, &FCustomizableObjectFactoryUI::GetParentWidgetsVisibility)
 						.Text(LOCTEXT("SelectedParent_Text", "Parent Object: "))
 						.Font(IDetailLayoutBuilder::GetDetailFont())
 					]
@@ -226,7 +208,6 @@ const FCustomizableObjectOptions FCustomizableObjectFactoryUI::ConstructFactoryU
 					.AutoHeight()
 					[
 						SNew(SObjectPropertyEntryBox)
-						.Visibility(this, &FCustomizableObjectFactoryUI::GetParentWidgetsVisibility)
 						.AllowedClass(UCustomizableObject::StaticClass())
 						.OnObjectChanged(this, &FCustomizableObjectFactoryUI::OnPickedCustomizableObjectParent)
 						.ObjectPath(this, &FCustomizableObjectFactoryUI::GetSelectedCustomizableObjectPath)
@@ -244,7 +225,6 @@ const FCustomizableObjectOptions FCustomizableObjectFactoryUI::ConstructFactoryU
 					.Padding(0.0f, 15.0f, 0.0f, 0.0f)
 					[
 						SNew(STextBlock)
-						.Visibility(this, &FCustomizableObjectFactoryUI::GetParentWidgetsVisibility)
 						.Text(LOCTEXT("SelecteGroup_Text", "Group Node: "))
 						.Font(IDetailLayoutBuilder::GetDetailFont())
 					]
@@ -254,110 +234,10 @@ const FCustomizableObjectOptions FCustomizableObjectFactoryUI::ConstructFactoryU
 					.AutoHeight()
 					[
 						SAssignNew(GroupSelector, STextComboBox)
-						.Visibility(this, &FCustomizableObjectFactoryUI::GetParentWidgetsVisibility)
 						.OptionsSource(&GroupOptions)
 						.IsEnabled(this, &FCustomizableObjectFactoryUI::IsNodeGroupSelectorEnabled)
 						.OnSelectionChanged(this, &FCustomizableObjectFactoryUI::OnSelectGroupComboBox)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-
-					// Component Selector Widgets
-					+ SVerticalBox::Slot()
-					.AutoHeight()
-					.HAlign(HAlign_Left)
-					[
-						SNew(STextBlock)
-						.Visibility(this, &FCustomizableObjectFactoryUI::GetComponentWidgetsVisibility)
-						.Text(LOCTEXT("NumberComponents_Text", "Num Mesh Components: "))
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-
-					+ SVerticalBox::Slot()
-					.AutoHeight()
-					.Padding(5.0f, 7.0f, 10.0f, 0.0f)
-					[
-						SNew(SSpinBox<int32>)
-						.Visibility(this, &FCustomizableObjectFactoryUI::GetComponentWidgetsVisibility)
-						.OnValueChanged(this, &FCustomizableObjectFactoryUI::OnNumComponentsChanged, ETextCommit::Type::Default)
-						.OnValueCommitted(this, &FCustomizableObjectFactoryUI::OnNumComponentsChanged)
-						.Value(this, &FCustomizableObjectFactoryUI::GetNumComponents)
-						.MinValue(1)
-						.MaxValue(255)
-						.MaxSliderValue(6)
-						.Delta(1)
-						.AlwaysUsesDeltaSnap(true)
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-
-					+SVerticalBox::Slot()
-					.Padding(0.0f, 15.0f, 0.0f, 0.0f)
-					[
-						SNew(STextBlock)
-						.Visibility(this, &FCustomizableObjectFactoryUI::GetComponentWidgetsVisibility)
-						.Text(LOCTEXT("SelectedComponent_Text", "Component: "))
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-
-					+SVerticalBox::Slot()
-					.AutoHeight()
-					.Padding(5.0f, 5.0f, 10.0f, 0.0f)
-					[
-						SAssignNew(ComponentSelector, STextComboBox)
-						.Visibility(this, &FCustomizableObjectFactoryUI::GetComponentWidgetsVisibility)
-						.ToolTipText(LOCTEXT("SelectedComponent_Tooltip", "Select a component to set its Reference Skeletal Mesh."))
-						.OptionsSource(&ComponentsOptions)
-						.InitiallySelectedItem(ComponentsOptions[0])
-						.IsEnabled(this, &FCustomizableObjectFactoryUI::IsComponentSelectorEnabled)
-						.OnSelectionChanged(this, &FCustomizableObjectFactoryUI::OnSelectComponentComboBox)
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-
-					+ SVerticalBox::Slot()
-					.Padding(0.0f, 15.0f, 0.0f, 0.0f)
-					.AutoHeight()
-					[
-						SNew(STextBlock)
-						.Visibility(this, &FCustomizableObjectFactoryUI::GetComponentWidgetsVisibility)
-						.Text(this, &FCustomizableObjectFactoryUI::GetSelectorWidgetText, true)
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-
-					+ SVerticalBox::Slot()
-					.Padding(5.0f, 10.0f, 10.0f, 0.0f)
-					.AutoHeight()
-					[
-						SNew(SEditableTextBox)
-						.Visibility(this, &FCustomizableObjectFactoryUI::GetComponentWidgetsVisibility)
-						.Text(this, &FCustomizableObjectFactoryUI::GetComponentName)
-						.OnTextCommitted(this, &FCustomizableObjectFactoryUI::OnTextCommited)
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-
-					+ SVerticalBox::Slot()
-					.Padding(0.0f, 15.0f, 0.0f, 0.0f)
-					[
-						SNew(STextBlock)
-						.Visibility(this, &FCustomizableObjectFactoryUI::GetComponentWidgetsVisibility)
-						.Text(this, &FCustomizableObjectFactoryUI::GetSelectorWidgetText, false)
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-
-					+SVerticalBox::Slot()
-					.AutoHeight()
-					.Padding(5.0f, 5.0f, 10.0f, 0.0f)
-					[
-						SNew(SObjectPropertyEntryBox)
-						.Visibility(this, &FCustomizableObjectFactoryUI::GetComponentWidgetsVisibility)
-						.IsEnabled(this, &FCustomizableObjectFactoryUI::IsComponentSelectorEnabled)
-						.AllowedClass(USkeletalMesh::StaticClass())
-						.OnObjectChanged(this, &FCustomizableObjectFactoryUI::OnPickedComponentSkeletalMesh)
-						.ObjectPath(this, &FCustomizableObjectFactoryUI::GetSelectedComponentSkeletalMeshPath)
-						.DisplayThumbnail(true)
-						.ThumbnailPool(UThumbnailManager::Get().GetSharedThumbnailPool())
-						.AllowClear(false)
-						.AllowCreate(false)
-						.DisplayBrowse(false)
-						.DisplayUseSelected(false)
 					]
 				]
 			]
@@ -427,13 +307,6 @@ void FCustomizableObjectFactoryUI::OnCheckBoxChanged(ECheckBoxState State)
 	// Reset settings
 	Options.ParentObject = nullptr;
 	Options.GroupNodeName.Empty();
-	Options.NumMeshComponents = Options.bIsChildObject ? 0 : 1;
-	Options.bIsChildObject ? Options.ComponentsInfo.Empty() : Options.ComponentsInfo.SetNum(1);
-
-	FVector2D ClientSize = Options.bIsChildObject ? NewChildWindowsSize : NewCOWindowsSize;
-	FVector2D WindowsSize = ClientSize * COSettingsWindow->GetDPIScaleFactor();
-	
-	COSettingsWindow->Resize(WindowsSize);
 }
 
 
@@ -495,19 +368,6 @@ bool FCustomizableObjectFactoryUI::IsConfigurationValid() const
 		{
 			return true;
 		}
-	}
-	else
-	{
-		// Check if all components have a valid Skeletal Mesh and name assigned
-		for (int32 CompIndex = 0; CompIndex < Options.NumMeshComponents; ++CompIndex)
-		{
-			if (!Options.ComponentsInfo.IsValidIndex(CompIndex) || Options.ComponentsInfo[CompIndex].ReferenceSkeletalMesh.IsNull() || Options.ComponentsInfo[CompIndex].ComponentName.IsNone())
-			{
-				return false;
-			}
-		}
-
-		return true;
 	}
 
 	return false;
@@ -591,50 +451,6 @@ EVisibility FCustomizableObjectFactoryUI::GetComponentWidgetsVisibility() const
 }
 
 
-int32 FCustomizableObjectFactoryUI::GetNumComponents() const
-{
-	return Options.NumMeshComponents;
-}
-
-
-void FCustomizableObjectFactoryUI::OnNumComponentsChanged(int32 Value, ETextCommit::Type CommitInfo)
-{
-	if (Options.NumMeshComponents != Value)
-	{
-		Options.NumMeshComponents = Value;
-		Options.ComponentsInfo.SetNum(Value);
-		GenerateComponentOptions();
-
-		if (Value > 0)
-		{
-			ComponentSelector->SetSelectedItem(ComponentsOptions[0]);
-		}
-		else
-		{
-			ComponentSelector->ClearSelection();
-		}
-	}
-}
-
-
-void FCustomizableObjectFactoryUI::GenerateComponentOptions()
-{
-	ComponentsOptions.Reset();
-
-	for (int32 ComponentIndex = 0; ComponentIndex < Options.NumMeshComponents; ++ComponentIndex)
-	{
-		FString ComponentName = "Component " + FString::FromInt(ComponentIndex);
-		ComponentsOptions.Add(MakeShareable(new FString(ComponentName)));
-	}
-}
-
-
-bool FCustomizableObjectFactoryUI::IsComponentSelectorEnabled() const
-{
-	return Options.NumMeshComponents > 0;
-}
-
-
 void FCustomizableObjectFactoryUI::OnSelectComponentComboBox(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo)
 {
 	if (Selection)
@@ -643,86 +459,5 @@ void FCustomizableObjectFactoryUI::OnSelectComponentComboBox(TSharedPtr<FString>
 	}
 }
 
-
-FText FCustomizableObjectFactoryUI::GetSelectorWidgetText(bool bIsName) const
-{
-	FString ComponentName;
-
-	if (ComponentSelector->GetSelectedItem().IsValid() && Options.NumMeshComponents)
-	{
-		ComponentName = *ComponentSelector->GetSelectedItem();
-	}
-
-	FString VariableName = bIsName ? " Name:" : " Skeletal Mesh:";
-	FString Message = "Select " + ComponentName + VariableName;
-
-	return FText::FromString(Message);
-}
-
-
-int32 FCustomizableObjectFactoryUI::GetSelectedComponentIndex() const
-{
-	for (int32 ComponentIndex = 0; ComponentIndex < ComponentsOptions.Num(); ++ComponentIndex)
-	{
-		if (ComponentSelector.IsValid() && ComponentSelector->GetSelectedItem().IsValid()
-			&& *ComponentsOptions[ComponentIndex] == *ComponentSelector->GetSelectedItem()
-			&& Options.ComponentsInfo.IsValidIndex(ComponentIndex))
-		{
-			return ComponentIndex;
-		}
-	}
-
-	return -1;
-}
-
-
-void FCustomizableObjectFactoryUI::OnPickedComponentSkeletalMesh(const FAssetData& SelectedAsset)
-{
-	int32 ComponentIndex = GetSelectedComponentIndex();
-	if (ComponentIndex != INDEX_NONE && SelectedAsset.IsValid())
-	{
-		if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(SelectedAsset.GetAsset()))
-		{
-			// we have to load the asset otherwise the asset thumbnail won't be visible
-			Options.ComponentsInfo[ComponentIndex].ReferenceSkeletalMesh = SkeletalMesh;
-		}
-	}
-}
-
-
-FString FCustomizableObjectFactoryUI::GetSelectedComponentSkeletalMeshPath() const
-{
-	int32 ComponentIndex = GetSelectedComponentIndex();
-	FString SkeletalMeshPath;
-
-	if (ComponentIndex != INDEX_NONE && !Options.ComponentsInfo[ComponentIndex].ReferenceSkeletalMesh.IsNull())
-	{
-		SkeletalMeshPath = Options.ComponentsInfo[ComponentIndex].ReferenceSkeletalMesh.ToSoftObjectPath().ToString();
-	}
-
-	return SkeletalMeshPath;
-}
-
-
-FText FCustomizableObjectFactoryUI::GetComponentName() const
-{
-	int32 ComponentIndex = GetSelectedComponentIndex();
-	if (ComponentIndex != INDEX_NONE)
-	{
-		return FText::FromName(Options.ComponentsInfo[ComponentIndex].ComponentName);
-	}
-
-	return FText();
-}
-
-
-void FCustomizableObjectFactoryUI::OnTextCommited(const FText& NewName, ETextCommit::Type CommitInfo)
-{
-	int32 ComponentIndex = GetSelectedComponentIndex();
-	if (ComponentIndex != INDEX_NONE)
-	{
-		Options.ComponentsInfo[ComponentIndex].ComponentName = FName(*NewName.ToString());
-	}
-}
 
 #undef LOCTEXT_NAMESPACE

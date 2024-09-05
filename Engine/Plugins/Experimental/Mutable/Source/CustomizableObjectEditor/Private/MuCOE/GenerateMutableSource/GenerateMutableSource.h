@@ -563,6 +563,9 @@ struct FMutableGraphGenerationContext
 	
 	UCustomizableObject* Object = nullptr;
 
+	/** Full hierarchy root. */
+	UCustomizableObjectNodeObject* Root = nullptr;
+	
 	// Non-owned reference to the compiler object
 	FCustomizableObjectCompiler* Compiler = nullptr;
 
@@ -753,8 +756,9 @@ struct FMutableGraphGenerationContext
 	//void CheckPhysicsAssetInSkeletalMesh(const USkeletalMesh* InSkeletalMesh);
 
 	/** Get the reference skeletal mesh associated to the current mesh component being generated */
-	FMutableComponentInfo& GetCurrentComponentInfo();
+	FMutableComponentInfo* GetCurrentComponentInfo();
 
+	TMap<FName, UCustomizableObjectNodeComponentMesh*> MeshComponents;
 
 	TArray<FMutableComponentInfo> ComponentInfos;
 	TArray<FMutableRefSkeletalMeshData> ReferenceSkeletalMeshesData;
@@ -818,9 +822,7 @@ struct FMutableGraphGenerationContext
 	mu::Ptr<mu::NodeMesh> ComponentMeshOverride;
 
 	uint8 NumLODsInRoot = 0;
-	uint8 NumMeshComponentsInRoot = 0;
-
-	uint8 NumPassthroughMeshComponents = 0;
+	uint8 NumComponents = 0;
 
 	uint8 FirstLODAvailable = MAX_MESH_LOD_COUNT;
 	uint8 NumMaxLODsToStream = MAX_MESH_LOD_COUNT;

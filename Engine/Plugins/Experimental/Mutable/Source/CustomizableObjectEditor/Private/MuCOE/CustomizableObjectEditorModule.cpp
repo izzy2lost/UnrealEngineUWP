@@ -77,6 +77,7 @@
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/CustomizableObjectInstanceBaker.h"
 #include "Editor.h"
+#include "Nodes/CustomizableObjectNodeComponentMeshDetails.h"
 
 class AActor;
 class FString;
@@ -690,6 +691,31 @@ void FCustomizableObjectEditorModule::BakeCustomizableObjectInstance(UCustomizab
 	
 	// Ask for the baking of the instance
 	InstanceBaker->BakeInstance(InTargetInstance, InBakingConfig, OnBakerFinishedWorkCallback);
+}
+
+
+USkeletalMesh* FCustomizableObjectEditorModule::GetReferenceSkeletalMesh(const UCustomizableObject& Object, const FName& ComponentName) const
+{
+	UCustomizableObject* RootObject = GetRootObject(const_cast<UCustomizableObject*>(&Object));
+
+	TSet<UCustomizableObject*> Objects;
+	GetAllObjectsInGraph(RootObject, Objects);
+	
+	for (const UCustomizableObject* CurrentObject : Objects)
+	{
+		for (UEdGraphNode* Node : CurrentObject->GetPrivate()->GetSource()->Nodes)
+		{
+			if (UCustomizableObjectNodeComponentMesh* NodeComponentMesh = Cast<UCustomizableObjectNodeComponentMesh>(Node))
+			{
+				if (NodeComponentMesh->ComponentName == ComponentName)
+				{
+					return NodeComponentMesh->ReferenceSkeletalMesh;
+				}
+			}
+		}	
+	}
+
+	return {};
 }
 
 

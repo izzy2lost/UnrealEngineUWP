@@ -2,7 +2,9 @@
 
 #include "MuCOE/Nodes/CustomizableObjectNodeComponentMesh.h"
 
+#include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
+#include "MuCOE/GraphTraversal.h"
 
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
@@ -23,6 +25,25 @@ void UCustomizableObjectNodeComponentMesh::PostEditChangeProperty(FPropertyChang
 		LODReductionSettings.SetNum(NumLODs);
 		
 		ReconstructNode();
+	}
+}
+
+
+void UCustomizableObjectNodeComponentMesh::BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion)
+{
+	Super::BackwardsCompatibleFixup(CustomizableObjectCustomVersion);
+	
+	if (CustomizableObjectCustomVersion == FCustomizableObjectCustomVersion::ComponentsArray)
+	{
+		UCustomizableObject* Object = GetRootObject(*this);
+
+		if (FMutableMeshComponentData* Result = Object->GetPrivate()->MutableMeshComponents_DEPRECATED.FindByPredicate([&](const FMutableMeshComponentData& ComponentData)
+		{
+			return ComponentData.Name == ComponentName;
+		}))
+		{
+			ReferenceSkeletalMesh = Result->ReferenceSkeletalMesh;
+		}
 	}
 }
 

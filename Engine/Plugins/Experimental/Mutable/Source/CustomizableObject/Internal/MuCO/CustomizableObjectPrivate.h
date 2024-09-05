@@ -1097,6 +1097,10 @@ struct FModelResources
 	UPROPERTY()
 	uint8 FirstLODAvailable = 0;
 
+	/** Name of all possible components. Index is the ObjectComponentIndex. */
+	UPROPERTY()
+	TArray<FName> ComponentNames;
+	
 #if WITH_EDITORONLY_DATA
 	void CUSTOMIZABLEOBJECT_API Serialize(FObjectAndNameAsStringProxyArchive& Ar, bool bIsCooking);
 	bool CUSTOMIZABLEOBJECT_API Unserialize(FObjectAndNameAsStringProxyArchive& Ar, UCustomizableObject& Outer, const ITargetPlatform* InTargetPlatform, bool bIsCooking);
@@ -1202,6 +1206,8 @@ public:
 	void SetModelStreamableBulkData(const TSharedPtr<FModelStreamableBulkData>& StreamableData, bool bIsCooking);
 #endif
 
+	USkeletalMesh* GetRefSkeletalMesh(const FName& ComponentName) const;
+	
 	TSharedPtr<FModelStreamableBulkData> GetModelStreamableBulkData(bool bIsCooking = false);
 
 	// See UCustomizableObjectSystem::LockObject()
@@ -1332,9 +1338,8 @@ public:
 
 #if WITH_EDITORONLY_DATA
 
-	/** Necessary information to generate each component of the Customizable Object. */
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	TArray<FMutableMeshComponentData> MutableMeshComponents;
+	UPROPERTY()
+	TArray<FMutableMeshComponentData> MutableMeshComponents_DEPRECATED;
 
 	/** Unique Identifier - Deterministic. Used to locate Model and Streamable data on disk. Should not be modified. */
 	FGuid Identifier;
@@ -1465,6 +1470,8 @@ public:
 
 		DerivedDataCache,
 
+		ComponentsArray,
+		
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
 	};

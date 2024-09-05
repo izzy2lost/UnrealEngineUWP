@@ -88,7 +88,7 @@ void FTestingCustomizableObject::StartTest(UCustomizableObject* CustomizableObje
 
 	Instance = CustomizableObject->CreateInstance();
 
-	const int32 NumComponents = CustomizableObject->GetPrivate()->MutableMeshComponents.Num();
+	const int32 NumComponents = CustomizableObject->GetComponentCount();
 	SkeletalMeshComponents.Reset(NumComponents);
 	CustomizableSkeletalComponents.Reset(NumComponents);
 

@@ -154,17 +154,53 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 	
 	if (const UCustomizableObjectNodeComponentMesh* TypedComponentMesh = Cast<UCustomizableObjectNodeComponentMesh>(Node))
 	{
-		int32 CurrentComponent = GenerationContext.Object->GetPrivate()->MutableMeshComponents.IndexOfByPredicate([&](const FMutableMeshComponentData& ComponentData)
-		{
-			return ComponentData.Name == TypedComponentMesh->ComponentName;
-		});
+		UCustomizableObjectNodeObject* ActualRoot = GenerationContext.Root;
+			
+		FName ComponentName = TypedComponentMesh->ComponentName;
 		
-		if (CurrentComponent == INDEX_NONE)
+		if (TypedComponentMesh->ComponentName.IsNone())
 		{
-			GenerationContext.Compiler->CompilerLog(FText::Format(LOCTEXT("ComponentNotDeclared", "Component {0} not declared in Object Properties tab."), FText::FromName(TypedComponentMesh->ComponentName)), Node, EMessageSeverity::Error);
-			return {};
+			GenerationContext.Compiler->CompilerLog(LOCTEXT("EmptyComponentNameError", "Error! Missing name in a component of the Customizable Object."), ActualRoot, EMessageSeverity::Error);
+			return nullptr;
 		}
 
+		if (GenerationContext.ComponentInfos.ContainsByPredicate([&](const FMutableComponentInfo& ComponentInfo)
+		{
+			return ComponentInfo.ComponentName == ComponentName;
+		}))
+		{
+			GenerationContext.Compiler->CompilerLog(FText::Format(LOCTEXT("RepeatedComponentName", "Error! Repeated name [{0}] used in more than one Component"),
+				FText::FromName(ComponentName)), ActualRoot, EMessageSeverity::Error);
+			return nullptr;
+		}
+			
+		USkeletalMesh* RefSkeletalMesh = TypedComponentMesh->ReferenceSkeletalMesh;
+		if (!RefSkeletalMesh)
+		{
+			GenerationContext.Compiler->CompilerLog(LOCTEXT("NoReferenceMeshObjectTab", "Error! Missing reference Skeletal Mesh"), ActualRoot, EMessageSeverity::Error);
+			return nullptr;
+		}
+
+		USkeleton* RefSkeleton = RefSkeletalMesh->GetSkeleton();
+		if(!RefSkeleton)
+		{
+			FText Msg = FText::Format(LOCTEXT("NoReferenceSkeleton", "Error! Missing skeleton in the reference mesh [{0}]"), FText::FromString(GenerationContext.CustomizableObjectWithCycle->GetPathName()));
+
+			GenerationContext.Compiler->CompilerLog(Msg, ActualRoot, EMessageSeverity::Error);
+			return nullptr;
+		}
+
+		// Add a new entry to the list of Component Infos
+		FMutableComponentInfo& ComponentInfo = GenerationContext.ComponentInfos.Add_GetRef(FMutableComponentInfo(ComponentName, RefSkeletalMesh));
+
+		ComponentInfo.AccumulateBonesToRemovePerLOD(TypedComponentMesh->LODReductionSettings, TypedComponentMesh->NumLODs);
+
+		// Make sure the Skeleton from the reference mesh is added to the list of referenced Skeletons.
+		GenerationContext.ReferencedSkeletons.Add(RefSkeleton);
+
+		// Add reference meshes to the participating objects
+		GenerationContext.AddParticipatingObject(*RefSkeletalMesh);
+		
 		// Ensure that the CO has a valid AutoLODStrategy on the ActualRoot.
 		if (TypedComponentMesh->AutoLODStrategy == ECustomizableObjectAutomaticLODStrategy::Inherited)
 		{
@@ -196,18 +232,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 			check(!GenerationContext.ComponentInfos.IsEmpty());
 
 			// NumLODsInRoot
-			int32 MaxRefMeshLODs = 1;
-			for (int32 MeshIndex = 0; MeshIndex < GenerationContext.ComponentInfos.Num(); ++MeshIndex)
-			{
-				const USkeletalMesh* RefSkeletalMesh = GenerationContext.ComponentInfos[MeshIndex].RefSkeletalMesh;
-				if (RefSkeletalMesh && RefSkeletalMesh->GetLODNum() > MaxRefMeshLODs)
-				{
-					MaxRefMeshLODs = RefSkeletalMesh->GetLODNum();
-				}
-	
-				GenerationContext.ComponentInfos[MeshIndex].AccumulateBonesToRemovePerLOD(TypedComponentMesh->LODReductionSettings, TypedComponentMesh->NumLODs);
-			}
-
+			int32 MaxRefMeshLODs = TypedComponentMesh->ReferenceSkeletalMesh->GetLODNum();
 			if (MaxRefMeshLODs < NumLODs)
 			{
 				FString Msg = FString::Printf(TEXT("The object has %d LODs but the reference mesh only %d. Resulting objects will have %d LODs."),
@@ -217,12 +242,9 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 			}
 			else
 			{
-				GenerationContext.NumLODsInRoot = NumLODs;
+				GenerationContext.NumLODsInRoot = FMath::Max(GenerationContext.NumLODsInRoot, static_cast<uint8>(NumLODs));
 			}
 		
-			USkeletalMesh* RefSkeletalMesh = GenerationContext.ComponentInfos[0].RefSkeletalMesh;
-			check(RefSkeletalMesh);
-
 			const FMutableLODSettings& LODSettings = GenerationContext.Object->LODSettings;
 
 			// Find the MinLOD available for the target platform
@@ -278,14 +300,8 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 			GenerationContext.NumMaxLODsToStream = FMath::Clamp(GenerationContext.NumMaxLODsToStream, 0, GenerationContext.NumLODsInRoot - 1);
 		}
 		
-		// Mesh components per instance
-		if (!GenerationContext.NumMeshComponentsInRoot)
-		{
-			GenerationContext.NumMeshComponentsInRoot = GenerationContext.Object->GetPrivate()->MutableMeshComponents.Num();
-		}
-		
 		mu::Ptr<mu::NodeComponentNew> NodeComponentNew = new mu::NodeComponentNew();
-		NodeComponentNew->Id = CurrentComponent;
+		NodeComponentNew->Id = GenerationContext.NumComponents++;
 		
 		NodeComponentNew->SetMessageContext(Node);
 		ObjectNode->Components.Add(NodeComponentNew);
@@ -298,13 +314,9 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 
 	else if (const UCustomizableObjectNodeComponentMeshAddTo* TypedComponentMeshExtend = Cast<UCustomizableObjectNodeComponentMeshAddTo>(Node))
 	{
-		if (const FMutableComponentInfo* ComponentInfo = GenerationContext.ComponentInfos.FindByPredicate([&TypedComponentMeshExtend](const FMutableComponentInfo& Element)
+		if (UCustomizableObjectNodeComponentMesh** FindResult = GenerationContext.MeshComponents.Find(TypedComponentMeshExtend->ParentComponentName))
 		{
-			return Element.ComponentName == TypedComponentMeshExtend->ParentComponentName &&
-				Element.NodeComponentMesh;
-		}))
-		{
-			UCustomizableObjectNodeComponentMesh* TypedParentComponentMesh = ComponentInfo->NodeComponentMesh;
+			UCustomizableObjectNodeComponentMesh* TypedParentComponentMesh = *FindResult;
 
 			if (TypedComponentMeshExtend->NumLODs > TypedParentComponentMesh->NumLODs)
 			{
@@ -337,8 +349,6 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 	
 	else if (const UCustomizableObjectNodeComponentPassthroughMesh* TypeComponentPassthroughMesh = Cast<UCustomizableObjectNodeComponentPassthroughMesh>(Node))
 	{
-		++GenerationContext.NumPassthroughMeshComponents;
-
 		GenerationContext.CurrentMeshComponent = TypeComponentPassthroughMesh->ComponentName;
 
 		if (TypeComponentPassthroughMesh->ComponentName.IsNone())
@@ -379,7 +389,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 
 		// Create the component node
 		mu::Ptr<mu::NodeComponentNew> ComponentNode = new mu::NodeComponentNew;
-		ComponentNode->Id = GenerationContext.NumMeshComponentsInRoot - 1 + GenerationContext.NumPassthroughMeshComponents; // Last root component id + Num explicit components
+		ComponentNode->Id = GenerationContext.NumComponents++;
 
 		// Create a LOD for each pass-through mesh LOD.
 		const FSkeletalMeshModel* Model = SkeletalMesh->GetImportedModel();

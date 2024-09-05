@@ -32,7 +32,7 @@ void UCustomizableObjectInstanceFactory::PostSpawnActor(UObject* Asset, AActor* 
 	UCustomizableObjectInstance* COInstance = Cast<UCustomizableObjectInstance>(Asset);
 	ACustomizableSkeletalMeshActor* NewCSMActor = CastChecked<ACustomizableSkeletalMeshActor>(NewActor);
 	if (NewCSMActor && COInstance)
-	{
+	{	
 		int32 NumComponents = COInstance->GetNumComponents();
 
 		for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
@@ -139,23 +139,26 @@ bool UCustomizableObjectInstanceFactory::CanCreateActorFrom(const FAssetData& As
 
 USkeletalMesh* UCustomizableObjectInstanceFactory::GetSkeletalMeshFromAsset(UObject* Asset, int32 ComponentIndex) const
 {
-    USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Asset);
     UCustomizableObjectInstance* CustomizableObjectInstance = Cast<UCustomizableObjectInstance>(Asset);
-
-    if (SkeletalMesh == nullptr && CustomizableObjectInstance != nullptr)
+    if (!CustomizableObjectInstance)
     {
-        SkeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex);
-        if (SkeletalMesh == nullptr)
-        {
-            if (UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject())
-            {
-                SkeletalMesh = CustomizableObject->GetRefSkeletalMesh(ComponentIndex);
-            }
-        }
+    	return nullptr;
     }
 
-    //check(SkeletalMesh != NULL);
-    return SkeletalMesh;
+	UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
+	if (!CustomizableObject)
+	{
+		return nullptr;
+	}
+	
+	const FName& ComponentName = CustomizableObject->GetComponentName(ComponentIndex);
+
+	if (USkeletalMesh* SkeletalMesh = CustomizableObjectInstance->GetComponentMeshSkeletalMesh(ComponentName))
+	{
+		return SkeletalMesh;
+	}
+    		
+	return CustomizableObject->GetComponentMeshReferenceSkeletalMesh(ComponentName);
 }
 
 

@@ -190,8 +190,8 @@ public:
 
 	/** The generated skeletal meshes for this Instance, one for each component in the Object component list which means that some may be null if the component hasn't been generated. */
 	UPROPERTY(Transient, VisibleAnywhere, Category = NoCategory, meta=(DisplayName = "Meshes"))
-	TArray<TObjectPtr<USkeletalMesh>> SkeletalMeshes;
-
+	TMap<FName, TObjectPtr<USkeletalMesh>> SkeletalMeshes;
+	
 	UPROPERTY(Transient, VisibleAnywhere, Category = NoCategory, meta=(DisplayName = "Materials"))
 	TArray<FGeneratedMaterial> GeneratedMaterials;
 
@@ -229,7 +229,10 @@ public:
 	/** Invalidates the previously generated data and retrieves information from the CObject after specific actions.
 	 *  It'll be called in the PostLoad, after Compiling the CO, and after changing the CO of the Instance. */
 	void InitCustomizableObjectData(const UCustomizableObject* InCustomizableObject);
-	
+
+	FCustomizableInstanceComponentData* GetComponentData(const FName& ComponentName);
+
+	// DEPRECATED
 	FCustomizableInstanceComponentData* GetComponentData(int32 ComponentIndex);
 	const FCustomizableInstanceComponentData* GetComponentData(int32 ComponentIndex) const;
 

@@ -159,15 +159,6 @@ void FCustomizableObjectDetails::CustomizeDetails( IDetailLayoutBuilder& DetailB
 			VersionStructProperty->MarkHiddenByCustomization();
 		}
 	}
-
-	// Add Private's components property.
-	if (CustomizableObject && !CustomizableObject->IsChildObject())
-	{
-		TArray<UObject*> Private;
-		Private.Add(CustomizableObject->GetPrivate());
-
-		CustomizableObjectCategory.AddExternalObjectProperty(Private, "MutableMeshComponents");
-	}
 }
 
 

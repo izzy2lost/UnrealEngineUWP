@@ -413,9 +413,9 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 				FString msg = FString::Printf(TEXT("The group projection node must have at least one option image connected to a texture or at least one valid element in Option Images Data Table."));
 				GenerationContext.Compiler->CompilerLog(FText::FromString(msg), ProjParamNode, EMessageSeverity::Error, true);
 				return false;
-			}			
-
-			if (GenerationContext.ComponentInfos.IsValidIndex(0))
+			}
+			
+			if (FMutableComponentInfo* CurrentComponentInfo = GenerationContext.GetCurrentComponentInfo())
 			{
 				// Poses will only affect component 0 of the CO,
 				// TODO UE-206803
@@ -441,7 +441,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 
 					check(GroupProjectorTempData.PoseBoneDataArray.Num() == PoseIndex);
 					GroupProjectorTempData.PoseBoneDataArray.AddDefaulted(1);
-					UCustomizableObjectNodeAnimationPose::StaticRetrievePoseInformation(PoseAsset, GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh,
+					UCustomizableObjectNodeAnimationPose::StaticRetrievePoseInformation(PoseAsset, CurrentComponentInfo->RefSkeletalMesh,
 						GroupProjectorTempData.PoseBoneDataArray[PoseIndex].ArrayBoneName, GroupProjectorTempData.PoseBoneDataArray[PoseIndex].ArrayTransform);
 				}
 

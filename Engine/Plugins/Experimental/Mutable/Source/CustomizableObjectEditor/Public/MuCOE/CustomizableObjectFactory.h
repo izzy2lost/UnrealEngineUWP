@@ -37,18 +37,6 @@ struct FCustomizableObjectOptions
 
 	// Name of the group node of the parent where this CO asset will be linked
 	FString GroupNodeName;
-
-	// Non-Child Object Settings
-	// Number of components
-	int32 NumMeshComponents = 1;
-
-	struct FComponentInfo 
-	{
-		TSoftObjectPtr<USkeletalMesh> ReferenceSkeletalMesh;
-		FName ComponentName;
-	};
-
-	TArray<FComponentInfo> ComponentsInfo;
 };
 
 
@@ -105,19 +93,7 @@ public:
 
 	// Component Selectior Widget methods
 	EVisibility GetComponentWidgetsVisibility() const;
-	FText GetSelectorWidgetText(bool bIsName) const;
-	FString GetSelectedComponentSkeletalMeshPath() const;
-	int32 GetNumComponents() const;
-	void OnNumComponentsChanged(int32 Value, ETextCommit::Type CommitInfo);
 	void OnSelectComponentComboBox(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
-	void OnPickedComponentSkeletalMesh(const FAssetData& SelectedAsset);
-	void GenerateComponentOptions();
-	bool IsComponentSelectorEnabled() const;
-
-	FText GetComponentName() const;
-	void OnTextCommited(const FText& NewName, ETextCommit::Type CommitInfo);
-
-	int32 GetSelectedComponentIndex() const;
 
 private:
 

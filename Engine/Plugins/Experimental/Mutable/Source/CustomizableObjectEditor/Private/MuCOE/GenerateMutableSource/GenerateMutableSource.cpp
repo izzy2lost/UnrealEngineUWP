@@ -443,22 +443,9 @@ mu::FBoneName FMutableGraphGenerationContext::GetBoneUnique(const FName& InBoneN
 //}
 
 
-FMutableComponentInfo& FMutableGraphGenerationContext::GetCurrentComponentInfo()
+FMutableComponentInfo* FMutableGraphGenerationContext::GetCurrentComponentInfo()
 {
-	FMutableComponentInfo* CurrentComponentInfo = ComponentInfos.FindByPredicate(
-		[this](const FMutableComponentInfo& Component) { return Component.ComponentName == CurrentMeshComponent; });
-	
-	// Temp workaround to the problem of modifiers that generate meshes (like ExtendMeshSection) not having a known component at generation time.
-	// TODO: Actually detect all possible components and change this query in GenerationContext state to accomodate a set of "current components" instead of one.
-	//check(CurrentComponentInfo);
-
-	if (!CurrentComponentInfo)
-	{
-		check(!ComponentInfos.IsEmpty());
-		CurrentComponentInfo = &ComponentInfos[0];
-	}
-
-	return *CurrentComponentInfo;
+	return ComponentInfos.FindByPredicate([this](const FMutableComponentInfo& Component) { return Component.ComponentName == CurrentMeshComponent; });
 }
 
 
@@ -1298,7 +1285,7 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 	const FString PlatformName = GenerationContext.Options.TargetPlatform->IniPlatformName();
 	
 	const uint32 LODCount = GenerationContext.NumLODsInRoot;
-	const uint32 ComponentCount = GenerationContext.NumMeshComponentsInRoot;
+	const uint32 ComponentCount = GenerationContext.NumComponents;
 
 	GenerationContext.ReferenceSkeletalMeshesData.AddDefaulted(ComponentCount);
 	for(uint32 ComponentIndex = 0; ComponentIndex < ComponentCount; ++ComponentIndex)

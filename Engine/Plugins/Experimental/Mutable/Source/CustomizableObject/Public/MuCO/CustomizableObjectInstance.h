@@ -275,10 +275,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void SetCurrentState(const FString& StateName);
 
-	/** Get the skeletal mesh generated for this instance. 
-	  * If the object has multiple components, an index of the component can be specified. */
+	// DEPRECATED
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	USkeletalMesh* GetSkeletalMesh(int32 ComponentIndex = 0) const;
+
+	/** Given a Mesh Component name, return its generated Skeletal Mesh. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	USkeletalMesh* GetComponentMeshSkeletalMesh(const FName& ComponentName) const;
 	
 	/** Return true if a skeletal mesh has been generated for any component of this instance. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)

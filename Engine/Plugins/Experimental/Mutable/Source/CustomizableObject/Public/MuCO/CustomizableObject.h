@@ -363,6 +363,11 @@ public:
 	/** Get the number of components this Customizable Object has. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	int32 GetComponentCount() const;
+
+	/** Return the name of the component.
+	 *  @return NAME_None if the component does not exist. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
+	FName GetComponentName(int32 ObjectComponentIndex) const;
 	
 	/** Get the number of parameters available in instances of this object. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
@@ -400,8 +405,13 @@ public:
 	int32 FindIntParameterValue( int32 ParamIndex, const FString& Value ) const;
 	FString FindIntParameterValueName(int32 ParamIndex, int32 ParamValue) const;
 
+	// DEPRECATED
 	USkeletalMesh* GetRefSkeletalMesh(int32 ObjectComponentIndex = 0) const;
 
+	/** Given a Mesh Component name, return its reference Skeletal Mesh. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
+	USkeletalMesh* GetComponentMeshReferenceSkeletalMesh(const FName& Name) const;
+	
 	/** Get the default value of a parameter of type Float.
 	  * @param InParameterName The name of the Float parameter to get the default value of.
 	  * @return The default value of the provided parameter name. */

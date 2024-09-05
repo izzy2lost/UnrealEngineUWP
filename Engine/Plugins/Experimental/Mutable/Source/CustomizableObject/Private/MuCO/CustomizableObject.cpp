@@ -336,7 +336,7 @@ void UCustomizableObject::PostLoad()
 
 	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NewComponentOptions)
 	{
-		if (GetPrivate()->MutableMeshComponents.IsEmpty())
+		if (GetPrivate()->MutableMeshComponents_DEPRECATED.IsEmpty())
 		{
 			for (int32 SkeletalMeshIndex = 0; SkeletalMeshIndex < ReferenceSkeletalMeshes_DEPRECATED.Num(); ++SkeletalMeshIndex)
 			{
@@ -344,7 +344,7 @@ void UCustomizableObject::PostLoad()
 				NewComponent.Name = FName(FString::FromInt(SkeletalMeshIndex));
 				NewComponent.ReferenceSkeletalMesh = ReferenceSkeletalMeshes_DEPRECATED[SkeletalMeshIndex];
 
-				GetPrivate()->MutableMeshComponents.Add(NewComponent);
+				GetPrivate()->MutableMeshComponents_DEPRECATED.Add(NewComponent);
 			}
 
 			ReferenceSkeletalMeshes_DEPRECATED.Empty();
@@ -743,6 +743,8 @@ void FModelResources::Serialize(FObjectAndNameAsStringProxyArchive& MemoryWriter
 	MemoryWriter << NumLODsToStream;
 	MemoryWriter << FirstLODAvailable;
 
+	MemoryWriter << ComponentNames;
+
 	// Editor Only data
 	if (!bIsCooking)
 	{
@@ -892,6 +894,8 @@ bool FModelResources::Unserialize(FObjectAndNameAsStringProxyArchive& MemoryRead
 	MemoryReader << NumLODs;
 	MemoryReader << NumLODsToStream;
 	MemoryReader << FirstLODAvailable;
+
+	MemoryReader << ComponentNames;
 
 	// Editor Only data
 	if (!bIsCooking)
@@ -1223,15 +1227,16 @@ void UCustomizableObjectPrivate::AddUncompiledCOWarning(const FString& Additiona
 }
 
 
-USkeletalMesh* UCustomizableObject::GetRefSkeletalMesh(int32 ObjectComponentIndex) const
+USkeletalMesh* UCustomizableObject::GetComponentMeshReferenceSkeletalMesh(const FName& ComponentName) const
 {
 #if WITH_EDITORONLY_DATA
-	if (GetPrivate()->MutableMeshComponents.IsValidIndex(ObjectComponentIndex))
+	if (const ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
 	{
-		return GetPrivate()->MutableMeshComponents[ObjectComponentIndex].ReferenceSkeletalMesh;
+		return Module->GetReferenceSkeletalMesh(*this, ComponentName);
 	}
 #else
 	const FModelResources& ModelResources = Private->GetModelResources();
+	int32 ObjectComponentIndex = ModelResources.ComponentNames.IndexOfByKey(ComponentName);
 	if (ModelResources.ReferenceSkeletalMeshesData.IsValidIndex(ObjectComponentIndex))
 	{
 		// Can be nullptr if RefSkeletalMeshes are not loaded yet.
@@ -1405,6 +1410,22 @@ int32 UCustomizableObject::GetComponentCount() const
 
 	return 0;
 }
+
+
+FName UCustomizableObject::GetComponentName(int32 ObjectComponentIndex) const
+{
+	if (IsCompiled())
+	{
+		const TArray<FName>& ComponentNames = GetPrivate()->GetModelResources().ComponentNames;
+		if (ComponentNames.IsValidIndex(ObjectComponentIndex))
+		{
+			return ComponentNames[ObjectComponentIndex];
+		}
+	}
+
+	return NAME_None;
+}
+
 
 int32 UCustomizableObject::GetParameterCount() const
 {
@@ -1688,6 +1709,12 @@ FString UCustomizableObject::FindIntParameterValueName(int32 ParamIndex, int32 P
 	}
 
 	return FString();
+}
+
+
+USkeletalMesh* UCustomizableObject::GetRefSkeletalMesh(int32 ObjectComponentIndex) const
+{
+	return GetComponentMeshReferenceSkeletalMesh(FName(FString::FromInt(ObjectComponentIndex)));
 }
 
 

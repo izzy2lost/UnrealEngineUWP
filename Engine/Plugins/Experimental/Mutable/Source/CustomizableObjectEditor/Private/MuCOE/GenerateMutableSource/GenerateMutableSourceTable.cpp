@@ -589,7 +589,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 
 				TArray<FName> ArrayBoneName;
 				TArray<FTransform> ArrayTransform;
-				UCustomizableObjectNodeAnimationPose::StaticRetrievePoseInformation(PoseAsset, GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh, ArrayBoneName, ArrayTransform);
+				UCustomizableObjectNodeAnimationPose::StaticRetrievePoseInformation(PoseAsset, GenerationContext.GetCurrentComponentInfo()->RefSkeletalMesh, ArrayBoneName, ArrayTransform);
 
 				mu::Ptr<mu::Mesh> MutableMesh = new mu::Mesh();
 				mu::Ptr<mu::Skeleton> MutableSkeleton = new mu::Skeleton;

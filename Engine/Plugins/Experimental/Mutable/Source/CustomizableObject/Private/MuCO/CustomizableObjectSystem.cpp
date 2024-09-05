@@ -954,19 +954,17 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 		bool bPhysicsAssetUpdated = false;	
 		
 		if (IsValid(CustomizableObjectInstanceUsage) &&
-			(CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == CustomizableObjectInstance) &&
-			CustomizableObjectInstancePrivateData->SkeletalMeshes.IsValidIndex(CustomizableObjectInstanceUsage->GetComponentIndex())
-		   )
+			CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == CustomizableObjectInstance)
 		{
 			MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_SetSkeletalMesh);
 
-			CustomizableObjectInstanceUsage->SetSkeletalMesh(CustomizableObjectInstancePrivateData->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()], &bSkeletalMeshUpdated, &bMaterialsUpdated);
+			USkeletalMesh* SkeletalMesh = CustomizableObjectInstance->GetComponentMeshSkeletalMesh(CustomizableObjectInstanceUsage->GetComponentName());
+			CustomizableObjectInstanceUsage->SetSkeletalMesh(SkeletalMesh, &bSkeletalMeshUpdated, &bMaterialsUpdated);
 
-			if (CustomizableObjectInstancePrivateData->HasCOInstanceFlags(ReplacePhysicsAssets))
+			if (CustomizableObjectInstancePrivateData->HasCOInstanceFlags(ReplacePhysicsAssets) &&
+				SkeletalMesh)
 			{
-				CustomizableObjectInstanceUsage->SetPhysicsAsset(
-					CustomizableObjectInstancePrivateData->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()] ?
-					CustomizableObjectInstancePrivateData->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()]->GetPhysicsAsset() : nullptr, &bPhysicsAssetUpdated);
+				CustomizableObjectInstanceUsage->SetPhysicsAsset(SkeletalMesh->GetPhysicsAsset(), &bPhysicsAssetUpdated);	
 			}
 		}
 

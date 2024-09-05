@@ -566,7 +566,8 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 	GenerationContext.RootVersionBridge = ActualRootObject->VersionBridge;
 
 	UCustomizableObjectNodeObject* ActualRoot = GetRootNode(ActualRootObject, bMultipleBaseObjectsFound);
-
+	GenerationContext.Root = ActualRoot;
+	
 	if (bMultipleBaseObjectsFound)
 	{
 		ErrorMsg = LOCTEXT("MultipleBaseActualRoot", "Multiple base object nodes found.");
@@ -658,60 +659,6 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 		}
 	}
 	
-	if (ActualRootObject->GetPrivate()->MutableMeshComponents.IsEmpty())
-	{
-		CompilerLog(LOCTEXT("NoComponentsError", "Error! There are no components defined in the Object Properties Tab."), ActualRoot, EMessageSeverity::Error);
-		return nullptr;
-	}
-
-	TArray<const FName> ComponentNames;
-
-	// Make sure we have a valid Name, Reference SkeletalMesh and Skeleton for each component
-	for (int32 ComponentIndex = 0; ComponentIndex < ActualRootObject->GetPrivate()->MutableMeshComponents.Num(); ++ComponentIndex)
-	{
-		FName ComponentName = ActualRootObject->GetPrivate()->MutableMeshComponents[ComponentIndex].Name;
-
-		if (ComponentName.IsNone())
-		{
-			CompilerLog(LOCTEXT("EmptyComponentNameError", "Error! Missing name in a component of the Customizable Object."), ActualRoot, EMessageSeverity::Error);
-			return nullptr;
-		}
-		else if (ComponentNames.Contains(ComponentName))
-		{
-			CompilerLog(FText::Format(LOCTEXT("RepeatedComponentName", "Error! Repeated name [{0}] used in more than one Component"),
-				FText::FromName(ComponentName)), ActualRoot, EMessageSeverity::Error);
-			return nullptr;
-		}
-
-		ComponentNames.Add(ComponentName);
-
-		USkeletalMesh* RefSkeletalMesh = ActualRootObject->GetRefSkeletalMesh(ComponentIndex);
-		if (!RefSkeletalMesh)
-		{
-			CompilerLog(LOCTEXT("NoReferenceMeshObjectTab", "Error! Missing reference mesh in the Object Properties Tab"), ActualRoot, EMessageSeverity::Error);
-			return nullptr;
-		}
-
-		USkeleton* RefSkeleton = RefSkeletalMesh->GetSkeleton();
-		if(!RefSkeleton)
-		{
-			FText Msg = FText::Format(LOCTEXT("NoReferenceSkeleton", "Error! Missing skeleton in the reference mesh [{0}]"),
-				FText::FromString(GenerationContext.CustomizableObjectWithCycle->GetPathName()));
-
-			CompilerLog(Msg, ActualRoot, EMessageSeverity::Error);
-			return nullptr;
-		}
-
-		// Add a new entry to the list of Component Infos
-		GenerationContext.ComponentInfos.Add(FMutableComponentInfo(ComponentName, RefSkeletalMesh));
-
-		// Make sure the Skeleton from the reference mesh is added to the list of referenced Skeletons.
-		GenerationContext.ReferencedSkeletons.Add(RefSkeleton);
-
-		// Add reference meshes to the participating objects
-		GenerationContext.AddParticipatingObject(*RefSkeletalMesh);
-	}
-
 	// Find all component nodes
 	TSet<UCustomizableObject*> ParticipatingObjects; // All COs participating in the hierarchy
 	{
@@ -748,29 +695,26 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 	{
 		for (UEdGraphNode* Node : ParticipatingObject->GetPrivate()->GetSource()->Nodes)
 		{
-			if (UCustomizableObjectNodeComponentMesh* NodeComponentMesh = Cast<UCustomizableObjectNodeComponentMesh>(Node))
+			UCustomizableObjectNodeComponentMesh* NodeComponentMesh = Cast<UCustomizableObjectNodeComponentMesh>(Node);
+			if (!NodeComponentMesh)
 			{
-				if (FMutableComponentInfo* ComponentInfo = GenerationContext.ComponentInfos.FindByPredicate([&](const FMutableComponentInfo& Element)
-				{
-					return Element.ComponentName == NodeComponentMesh->ComponentName;
-				}))
-				{
-					if (ComponentInfo->NodeComponentMesh)
-					{
-						FText Msg = FText::Format(LOCTEXT("ComponentNodeWithSameNameExists", "Already exist a Component node with the same name in Customizable Object [{0}]"), FText::FromString(GetRootObject(*ComponentInfo->NodeComponentMesh)->GetName()));
-						CompilerLog(Msg, Node, EMessageSeverity::Error);
-						return nullptr;
-					}
-
-					ComponentInfo->NodeComponentMesh = NodeComponentMesh;
-				}
+				continue;
 			}
+
+			if (UCustomizableObjectNodeComponentMesh** Result = GenerationContext.MeshComponents.Find(NodeComponentMesh->ComponentName))
+			{
+				UCustomizableObjectNodeComponentMesh* NodeMeshComponent = *Result;
+				check(NodeMeshComponent);
+				
+				FText Msg = FText::Format(LOCTEXT("ComponentNodeWithSameNameExists", "Already exists a Mesh Component node with the same name in Customizable Object [{0}]"), FText::FromString(GetRootObject(*NodeMeshComponent)->GetName()));
+				CompilerLog(Msg, Node, EMessageSeverity::Error);
+				return nullptr;
+			}
+
+			GenerationContext.MeshComponents.Add(NodeComponentMesh->ComponentName, NodeComponentMesh);
 		}
 	}
-
-	// Copy component data to the object being compiled
-	Object->GetPrivate()->MutableMeshComponents = ActualRootObject->GetPrivate()->MutableMeshComponents;
-
+	
     GenerationContext.RealTimeMorphTargetsOverrides = ActualRoot->RealTimeMorphSelectionOverrides;
     GenerationContext.RealTimeMorphTargetsOverrides.Reset();
 
@@ -1194,7 +1138,13 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 		ModelResources.CustomizableObjectPathMap = MoveTemp(GenerationContext.CustomizableObjectPathMap);
 #endif
 
-		ModelResources.NumComponents = GenerationContext.NumMeshComponentsInRoot + GenerationContext.NumPassthroughMeshComponents;
+		ModelResources.NumComponents = GenerationContext.NumComponents;
+
+		for (int32 Index = 0; Index <  GenerationContext.ComponentInfos.Num(); ++Index)
+		{
+			ModelResources.ComponentNames.Add(GenerationContext.ComponentInfos[Index].ComponentName);
+		}
+		
 		ModelResources.NumLODs = GenerationContext.NumLODsInRoot;
 		ModelResources.NumLODsToStream = GenerationContext.bEnableLODStreaming ? GenerationContext.NumMaxLODsToStream : 0;
 		ModelResources.FirstLODAvailable = GenerationContext.FirstLODAvailable;

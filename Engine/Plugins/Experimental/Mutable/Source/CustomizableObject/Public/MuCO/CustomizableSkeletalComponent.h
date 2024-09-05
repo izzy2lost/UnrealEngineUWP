@@ -24,6 +24,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = CustomizableSkeletalMesh)
 	int32 ComponentIndex;
 
+private:
+	/** Only used if the ComponentIndex is INDEX_NONE. */
+	UPROPERTY()
+	FName ComponentName;
+
+public:
 	// Used to replace the SkeletalMesh of the parent component by the ReferenceSkeletalMesh or the generated SkeletalMesh 
 	bool bPendingSetSkeletalMesh = false;
 
@@ -38,6 +44,12 @@ public:
 	USkeletalMesh* GetSkeletalMesh() const;
 	USkeletalMesh* GetAttachedSkeletalMesh() const;
 
+	UFUNCTION(BlueprintCallable, Category = CustomizableSkeletalMesh)
+	void SetComponentName(const FName& Name);
+
+	UFUNCTION(BlueprintCallable, Category = CustomizableSkeletalMesh)
+	FName GetComponentName() const;
+	
 	/** Update Skeletal Mesh asynchronously. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	void UpdateSkeletalMeshAsync(bool bNeverSkipUpdate = false);

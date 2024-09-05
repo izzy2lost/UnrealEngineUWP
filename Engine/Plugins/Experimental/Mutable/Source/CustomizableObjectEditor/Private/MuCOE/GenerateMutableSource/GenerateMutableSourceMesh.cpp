@@ -775,17 +775,22 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 
 		GenerationContext.AddParticipatingObject(*InSkeleton);
 
-		FMutableComponentInfo& MutComponentInfo = GenerationContext.GetCurrentComponentInfo();
-		USkeletalMesh* ComponentRefSkeletalMesh = MutComponentInfo.RefSkeletalMesh;
-		USkeleton* ComponentRefSkeleton = MutComponentInfo.RefSkeleton;
+		FMutableComponentInfo* MutComponentInfo = GenerationContext.GetCurrentComponentInfo();
+		if (!MutComponentInfo)
+		{
+			return {};
+		}
+
+		USkeletalMesh* ComponentRefSkeletalMesh = MutComponentInfo->RefSkeletalMesh;
+		USkeleton* ComponentRefSkeleton = MutComponentInfo->RefSkeleton;
 		check(ComponentRefSkeletalMesh);
 		check(ComponentRefSkeleton);
 
 		// Compatibility check
 		{
 			FString ErrorMessage;
-			const bool bCompatible = IsSkeletalMeshCompatibleWithRefSkeleton(MutComponentInfo, InSkeletalMesh, ErrorMessage);
-			MutComponentInfo.SkeletonCompatibility.Add(InSkeleton, bCompatible);
+			const bool bCompatible = IsSkeletalMeshCompatibleWithRefSkeleton(*MutComponentInfo, InSkeletalMesh, ErrorMessage);
+			MutComponentInfo->SkeletonCompatibility.Add(InSkeleton, bCompatible);
 
 			if (!bCompatible)
 			{
@@ -843,7 +848,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 
 		// Remove bones and build an array to remap indices of the BoneMap
 		TArray<FBoneIndexType> RemappedBones;
-		BuildRemappedBonesArray(MutComponentInfo, InSkeletalMesh, LODIndex, SourceRequiredBones, RemappedBones);
+		BuildRemappedBonesArray(*MutComponentInfo, InSkeletalMesh, LODIndex, SourceRequiredBones, RemappedBones);
 		
 		// Build RequiredBones array
 		TArray<FBoneIndexType> RequiredBones;
@@ -2855,7 +2860,7 @@ bool GetAndValidateReshapeBonesToDeform(
 	else if (SelectionMethod == EBoneDeformSelectionMethod::DEFORM_REF_SKELETON)
 	{
 		// Getting reference skeleton from the reference skeletal mesh of the current component
-		const FReferenceSkeleton RefSkeleton = GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh->GetRefSkeleton(); //GenerationContext.ComponentInfos[GenerationContext.CurrentMeshComponent].RefSkeletalMesh->GetRefSkeleton();
+		const FReferenceSkeleton RefSkeleton = GenerationContext.GetCurrentComponentInfo()->RefSkeletalMesh->GetRefSkeleton(); //GenerationContext.ComponentInfos[GenerationContext.CurrentMeshComponent].RefSkeletalMesh->GetRefSkeleton();
 		int32 NumBones = RefSkeleton.GetRawBoneNum();
 
 		for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
@@ -2870,7 +2875,7 @@ bool GetAndValidateReshapeBonesToDeform(
 	else if (SelectionMethod == EBoneDeformSelectionMethod::DEFORM_NONE_REF_SKELETON)
 	{
 		// Getting reference skeleton from the reference skeletal mesh of the current component
-		const FReferenceSkeleton RefSkeleton = GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh->GetRefSkeleton();
+		const FReferenceSkeleton RefSkeleton = GenerationContext.GetCurrentComponentInfo()->RefSkeletalMesh->GetRefSkeleton();
 
 		for (const MeshInfoType& Mesh : SkeletalMeshesInfo)
 		{
@@ -2968,7 +2973,7 @@ bool GetAndValidateReshapePhysicsToDeform(
 	if (bIsReferenceSkeletalMeshMethod)
 	{
 		const FReferenceSkeleton& RefSkeleton =
-			GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh->GetRefSkeleton();
+			GenerationContext.GetCurrentComponentInfo()->RefSkeletalMesh->GetRefSkeleton();
 
 		const int32 RefSkeletonNumBones = RefSkeleton.GetRawBoneNum();
 			BoneNames.SetNum(RefSkeletonNumBones);
@@ -2999,10 +3004,10 @@ bool GetAndValidateReshapePhysicsToDeform(
 
 	for (const PhysicsInfoType& PhysicsInfo : ContributingPhysicsAssetsInfo)
 	{
-		check(GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh);
+		check(GenerationContext.GetCurrentComponentInfo()->RefSkeletalMesh);
 
 		const FReferenceSkeleton& RefSkeleton = bIsReferenceSkeletalMeshMethod
-			? GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh->GetRefSkeleton()
+			? GenerationContext.GetCurrentComponentInfo()->RefSkeletalMesh->GetRefSkeleton()
 			: PhysicsInfo.Get<const FReferenceSkeleton&>();
 
 		UPhysicsAsset* PhysicsAsset = PhysicsInfo.Get<UPhysicsAsset*>();
@@ -4118,13 +4123,13 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 		{
 			mu::Ptr<mu::NodeMesh> InputMeshNode = GenerateMutableSourceMesh(InputMeshPin, GenerationContext, MeshData, false, bOnlyConnectedLOD);
 
-			if (GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh)
+			if (GenerationContext.GetCurrentComponentInfo()->RefSkeletalMesh)
 			{
 				if (TypedNode->PoseAsset)
 				{
 					TArray<FName> ArrayBoneName;
 					TArray<FTransform> ArrayTransform;
-					UCustomizableObjectNodeAnimationPose::StaticRetrievePoseInformation(TypedNode->PoseAsset, GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh, ArrayBoneName, ArrayTransform);
+					UCustomizableObjectNodeAnimationPose::StaticRetrievePoseInformation(TypedNode->PoseAsset, GenerationContext.GetCurrentComponentInfo()->RefSkeletalMesh, ArrayBoneName, ArrayTransform);
 					mu::NodeMeshApplyPosePtr NodeMeshApplyPose = CreateNodeMeshApplyPose(GenerationContext, InputMeshNode, ArrayBoneName, ArrayTransform);
 
 					if (NodeMeshApplyPose)

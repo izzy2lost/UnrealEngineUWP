@@ -42,7 +42,8 @@ public:
 	virtual bool IsRootObject(const UCustomizableObject& Object) const override;
 	virtual FString GetCurrentContentVersionForObject(const UCustomizableObject& Object) const override;
 	virtual void BakeCustomizableObjectInstance(UCustomizableObjectInstance* InTargetInstance, const FBakingConfiguration& InBakingConfig) override;
-
+	virtual USkeletalMesh* GetReferenceSkeletalMesh(const UCustomizableObject& Object, const FName& ComponentName) const override;
+	
 	/** Request for a given customizable object to be compiled. Async compile requests will be queued and processed sequentially. 
 	 * @param InCompilationRequest - Request to compile an object. 
 	 * @param bForceRequest - Queue request even if already in the pending list. */
