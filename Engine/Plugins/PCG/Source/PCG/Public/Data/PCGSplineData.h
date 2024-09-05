@@ -24,7 +24,7 @@ public:
 	void Initialize(const USplineComponent* InSpline);
 	void Initialize(const TArray<FSplinePoint>& InSplinePoints, bool bInClosedLoop, const FTransform& InTransform);
 	void Initialize(const FPCGSplineStruct& InSplineStruct);
-	void ApplyTo(USplineComponent* InSpline);
+	void ApplyTo(USplineComponent* InSpline) const;
 
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Spline; }
