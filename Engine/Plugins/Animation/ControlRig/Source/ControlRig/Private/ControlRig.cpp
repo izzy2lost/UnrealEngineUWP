@@ -970,6 +970,7 @@ bool UControlRig::Execute(const FName& InEventName)
 	}
 
 	bool bSuccess = true;
+	bool bPostConstructionEventWasRun = false;
 
 	// we'll special case the construction event here
 	if (bIsConstructionEvent)
@@ -1055,9 +1056,10 @@ bool UControlRig::Execute(const FName& InEventName)
 					
 				} // destroy FTransientControlScope
 
-				if(!bPostConstructionEventInQueue)
+				if(!bPostConstructionEventInQueue && !bPostConstructionEventWasRun)
 				{
 					RunPostConstructionEvent();
+					bPostConstructionEventWasRun = true;
 				}
 
 				// Reset the input pose after construction
@@ -1073,9 +1075,10 @@ bool UControlRig::Execute(const FName& InEventName)
 			
 		} // destroy DisableSelectionNotifications
 
-		if (bIsPostConstructionEvent || (bIsConstructionEvent && !bPostConstructionEventInQueue))
+		if ((bIsPostConstructionEvent || (bIsConstructionEvent && !bPostConstructionEventInQueue)) && !bPostConstructionEventWasRun)
 		{
 			RunPostConstructionEvent();
+			bPostConstructionEventWasRun = true;
 		}
 
 		if (bConstructionModeEnabled)
