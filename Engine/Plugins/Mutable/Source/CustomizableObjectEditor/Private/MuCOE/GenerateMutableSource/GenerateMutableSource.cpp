@@ -930,14 +930,16 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 					continue;
 				}
 
-				// Set it to "None" to indicate we don't care about component id.
-				FName OldCurrentMeshComponent = GenerationContext.CurrentMeshComponent;
-				GenerationContext.CurrentMeshComponent = FName();
-
+				// Temp hack
+				if (GenerationContext.ComponentInfos.Num())
+				{
+					GenerationContext.CurrentMeshComponent = GenerationContext.ComponentInfos[0].ComponentName;
+				}
+				
 				mu::Ptr<mu::NodeModifier> ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
 				ObjectNode->Modifiers.Add(ModifierNode);
 
-				GenerationContext.CurrentMeshComponent = OldCurrentMeshComponent;
+				GenerationContext.CurrentMeshComponent = FName();
 			}
 		}
 		

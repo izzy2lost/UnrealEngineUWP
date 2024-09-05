@@ -94,44 +94,20 @@ void GenerateMutableSourceComponentMesh(FMutableGraphGenerationContext& Generati
 				// Modifiers are shared for all components and are processed per LOD and not component.
 				if (Cast<UCustomizableObjectNodeModifierBase>(ChildNodePin->GetOwningNode()))
 				{
+					FString Msg = FString::Printf(TEXT("The object has legacy modifier connections that cannot be generated. Their connections should be updated."));
+					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), &TypedComponentMesh, EMessageSeverity::Warning);
 					continue;
 				}
 				
 				mu::Ptr<mu::NodeSurface> SurfaceNode = GenerateMutableSourceSurface(ChildNodePin, GenerationContext);
 				LODNode->Surfaces.Add(SurfaceNode);
 			}
-
-			// Process legacy modifiers.
-			for (UEdGraphPin* const ChildNodePin : ConnectedLODPins)
-			{
-				if (!Cast<UCustomizableObjectNodeModifierBase>(ChildNodePin->GetOwningNode()))
-				{
-					continue;
-				}
-
-				if (NodeObject)
-				{
-					// Warn about legacy modifier connection
-					FString Msg = FString::Printf(TEXT("The object has legacy modifier connections (to material pins?) that should be updated."));
-					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), &TypedComponentMesh, EMessageSeverity::Warning);
-
-					// Set it to "None" to indicate we don't care about component id.
-					FName OldCurrentMeshComponent = GenerationContext.CurrentMeshComponent;
-					GenerationContext.CurrentMeshComponent = FName();
-
-					mu::Ptr<mu::NodeModifier> ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
-					NodeObject->Modifiers.AddUnique(ModifierNode);
-
-					GenerationContext.CurrentMeshComponent = OldCurrentMeshComponent;
-				}
-				else
-				{
-					FString Msg = FString::Printf(TEXT("The object has legacy modifier connections that cannot be generated. Their connections should be updated."));
-					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), &TypedComponentMesh, EMessageSeverity::Warning);
-				}
-			}
 		}
 	}
+
+	// Clear the context state for LODs
+	GenerationContext.CurrentLOD = 0;
+	GenerationContext.FromLOD = 0;
 }
 
 

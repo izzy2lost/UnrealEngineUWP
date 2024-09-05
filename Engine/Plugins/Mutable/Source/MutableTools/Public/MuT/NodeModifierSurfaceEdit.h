@@ -22,18 +22,6 @@ namespace mu
 	{
 	public:
 
-		/** Mesh to remove from the modified surface. */
-		Ptr<NodeMesh> MeshRemove;
-
-		/** Mesh to add to the modified surface. */
-		Ptr<NodeMesh> MeshAdd;
-
-		/** Name of the morph to apply to the modified surface if it has it. */
-		FString MeshMorph;
-
-		/** Factor of the morph to apply. */
-		Ptr<NodeScalar> MorphFactor;
-
 		/** Data for every modified texture. */
 		struct FTexture
 		{
@@ -49,16 +37,32 @@ namespace mu
 			/** Rects in the parent layout homogeneous UV space to patch. */
 			TArray<FBox2f> PatchBlocks;
 
-			/** */
+			/** Type of patching operation. */
 			EBlendType PatchBlendType = EBlendType::BT_BLEND;
 
 			/** Patch alpha channel as well? */
 			bool bPatchApplyToAlpha = false;
-
 		};
 
-		/** Textures to modify. */
-		TArray<FTexture> Textures;
+		struct FLOD
+		{
+			/** Mesh to remove from the modified surface. */
+			Ptr<NodeMesh> MeshRemove;
+
+			/** Mesh to add to the modified surface. */
+			Ptr<NodeMesh> MeshAdd;
+
+			/** Textures to modify. */
+			TArray<FTexture> Textures;
+		};
+
+		TArray<FLOD> LODs;
+
+		/** Name of the morph to apply to the modified surface if it has it. */
+		FString MeshMorph;
+
+		/** Factor of the morph to apply. */
+		Ptr<NodeScalar> MorphFactor;
 
 	public:
 

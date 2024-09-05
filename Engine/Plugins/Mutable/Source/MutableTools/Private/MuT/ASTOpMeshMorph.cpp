@@ -129,7 +129,7 @@ namespace mu
 		}
 
 		// If not optimized yet
-		if (!NewOp)
+		if (!NewOp && Target)
 		{
 			// Target optimizations
 			OP_TYPE MorphType = Target.child()->GetOpType();

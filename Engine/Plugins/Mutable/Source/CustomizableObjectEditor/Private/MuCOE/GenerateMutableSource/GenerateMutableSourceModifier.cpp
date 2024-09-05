@@ -77,10 +77,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		ClipNode->SetVertexSelectionBone(GenerationContext.GetBoneUnique(TypedNodeClip->BoneName), TypedNodeClip->MaxEffectRadius);
 
 		ClipNode->MultipleTagsPolicy = TypedNodeClip->MultipleTagPolicy;
-		for (const FString& Tag : TypedNodeClip->RequiredTags)
-		{
-			 ClipNode->RequiredTags.Add(Tag);
-		}
+		ClipNode->RequiredTags = TypedNodeClip->RequiredTags;
 
 		GenerationContext.MeshGenerationFlags.Pop();
 	}
@@ -129,10 +126,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		}
 	
 		ClipNode->MultipleTagsPolicy = TypedNodeClipDeform->MultipleTagPolicy;
-		for (const FString& Tag : TypedNodeClipDeform->RequiredTags)
-		{
-			ClipNode->RequiredTags.Add(Tag);
-		}		
+		ClipNode->RequiredTags = TypedNodeClipDeform->RequiredTags;
 
 		GenerationContext.MeshGenerationFlags.Pop();
 	}
@@ -202,10 +196,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		}
 
 		ClipNode->MultipleTagsPolicy = TypedNodeClipMesh->MultipleTagPolicy;
-		for (const FString& Tag : TypedNodeClipMesh->RequiredTags)
-		{
-			 ClipNode->RequiredTags.Add(Tag);
-		}
+		ClipNode->RequiredTags = TypedNodeClipMesh->RequiredTags;
 
 		if (TypedNodeClipMesh->CustomizableObjectToClipWith != nullptr)
 		{
@@ -259,10 +250,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		ClipNode->LayoutIndex = TypedNodeClipUVMask->UVChannelForMask;
 
 		ClipNode->MultipleTagsPolicy = TypedNodeClipUVMask->MultipleTagPolicy;
-		for (const FString& Tag : TypedNodeClipUVMask->RequiredTags)
-		{
-			ClipNode->RequiredTags.Add(Tag);
-		}
+		ClipNode->RequiredTags = TypedNodeClipUVMask->RequiredTags;
 
 		GenerationContext.MeshGenerationFlags.Pop();
 	}
@@ -278,13 +266,17 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		// TODO: This was used in the non-modifier version for group projectors. It may affect the "drop projection from LOD" feature.
 		const int32 LOD = Node->IsAffectedByLOD() ? GenerationContext.CurrentLOD : 0;
 
-		[&] // Using a lambda so control flow is easier to manage.
+		SurfNode->MultipleTagsPolicy = TypedNodeExt->MultipleTagPolicy;
+		SurfNode->RequiredTags = TypedNodeExt->RequiredTags;
+
+		// Is this enough? Should we try to narrow down with potential mesh sections modified by this?
+		int32 LODCount = GenerationContext.NumLODsInRoot;
+		SurfNode->LODs.SetNum(LODCount);
+
+		for (int32 LODIndex=0; LODIndex<LODCount; ++LODIndex)
 		{
-			SurfNode->MultipleTagsPolicy = TypedNodeExt->MultipleTagPolicy;
-			for (const FString& Tag : TypedNodeExt->RequiredTags)
-			{
-				SurfNode->RequiredTags.Add(Tag);
-			}
+			GenerationContext.FromLOD = 0;
+			GenerationContext.CurrentLOD = LODIndex;
 
 			mu::Ptr<mu::NodeMesh> AddMeshNode;
 			FMutableGraphMeshGenerationData MeshData;
@@ -335,11 +327,11 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 
 				MeshFormat->SetSource(MeshPtr.get());
 
-				SurfNode->MeshAdd = MeshFormat;
+				SurfNode->LODs[LODIndex].MeshAdd = MeshFormat;
 			}
 
 			const int32 NumImages = TypedNodeExt->GetNumParameters(EMaterialParameterType::Texture);
-			SurfNode->Textures.SetNum(NumImages);
+			SurfNode->LODs[LODIndex].Textures.SetNum(NumImages);
 			for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
 			{
 				mu::NodeImagePtr ImageNode;
@@ -394,18 +386,17 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 
 				if (ImageNode)
 				{
-					SurfNode->Textures[ImageIndex].Extend = ImageNode;
+					SurfNode->LODs[LODIndex].Textures[ImageIndex].Extend = ImageNode;
 				}
-
 			}
+		}
 
-			for (const FString& Tag : TypedNodeExt->Tags)
-			{
-				SurfNode->EnableTags.Add(Tag);
-			}
-		}();
+		SurfNode->EnableTags = TypedNodeExt->Tags;
 
 		GenerationContext.MeshGenerationFlags.Pop();
+		GenerationContext.FromLOD = 0;
+		GenerationContext.CurrentLOD = 0;
+
 	}
 
 	else if (const UCustomizableObjectNodeModifierRemoveMesh* TypedNodeRem = Cast<UCustomizableObjectNodeModifierRemoveMesh>(Node))
@@ -419,22 +410,28 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		Result = SurfNode;
 
 		SurfNode->MultipleTagsPolicy = TypedNodeRem->MultipleTagPolicy;
-		for (const FString& Tag : TypedNodeRem->RequiredTags)
-		{
-			SurfNode->RequiredTags.Add(Tag);
-		}
-
-		mu::Ptr<mu::NodeMesh> RemoveMeshNode;
+		SurfNode->RequiredTags = TypedNodeRem->RequiredTags;
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeRem->RemoveMeshPin()))
 		{
-			FMutableGraphMeshGenerationData DummyMeshData;
-			RemoveMeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, DummyMeshData, false, true);
+			// Is this enough? Should we try to narrow down with potential mesh sections modified by this?
+			int32 LODCount = GenerationContext.NumLODsInRoot;
+			SurfNode->LODs.SetNum(LODCount);
+
+			for (int32 LODIndex = 0; LODIndex < LODCount; ++LODIndex)
+			{
+				GenerationContext.FromLOD = 0;
+				GenerationContext.CurrentLOD = LODIndex;
+
+				FMutableGraphMeshGenerationData DummyMeshData;
+				mu::Ptr<mu::NodeMesh> RemoveMeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, DummyMeshData, false, true);
+				SurfNode->LODs[LODIndex].MeshRemove = RemoveMeshNode;
+			}
 		}
 
-		SurfNode->MeshRemove = RemoveMeshNode;
-
 		GenerationContext.MeshGenerationFlags.Pop();
+		GenerationContext.FromLOD = 0;
+		GenerationContext.CurrentLOD = 0;
 	}
 
 	else if (const UCustomizableObjectNodeModifierRemoveMeshBlocks* TypedNodeRemBlocks = Cast<UCustomizableObjectNodeModifierRemoveMeshBlocks>(Node))
@@ -448,10 +445,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		Result = ClipNode;
 
 		ClipNode->MultipleTagsPolicy = TypedNodeRemBlocks->MultipleTagPolicy;
-		for (const FString& Tag : TypedNodeRemBlocks->RequiredTags)
-		{
-			ClipNode->RequiredTags.Add(Tag);
-		}
+		ClipNode->RequiredTags = TypedNodeRemBlocks->RequiredTags;
 
 		bool bWasEmpty = false;
 		mu::Ptr<mu::NodeLayout> SourceLayout = CreateMutableLayoutNode(GenerationContext, TypedNodeRemBlocks->Layout, true, bWasEmpty);
@@ -472,58 +466,68 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		Result = SurfNode;
 
 		SurfNode->MultipleTagsPolicy = TypedNodeEdit->MultipleTagPolicy;
-		for (const FString& Tag : TypedNodeEdit->RequiredTags)
-		{
-			SurfNode->RequiredTags.Add(Tag);
-		}
+		SurfNode->RequiredTags = TypedNodeEdit->RequiredTags;
 
-		const int32 NumImages = TypedNodeEdit->GetNumParameters(EMaterialParameterType::Texture);
-		SurfNode->Textures.SetNum(NumImages);
-		for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
-		{
-			const FNodeMaterialParameterId ImageId = TypedNodeEdit->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+		// Is this enough? Should we try to narrow down with potential mesh sections modified by this?
+		int32 LODCount = GenerationContext.NumLODsInRoot;
+		SurfNode->LODs.SetNum(LODCount);
 
-			if (TypedNodeEdit->UsesImage(ImageId))
+		for (int32 LODIndex = 0; LODIndex < LODCount; ++LODIndex)
+		{
+			GenerationContext.FromLOD = 0;
+			GenerationContext.CurrentLOD = LODIndex;
+
+
+			const int32 NumImages = TypedNodeEdit->GetNumParameters(EMaterialParameterType::Texture);
+			SurfNode->LODs[LODIndex].Textures.SetNum(NumImages);
+			for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
 			{
-				// TODO
-				//check(ParentMaterialNode->IsImageMutableMode(ImageIndex)); // Ensured at graph time. If it fails, something is wrong.
+				const FNodeMaterialParameterId ImageId = TypedNodeEdit->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
 
-				const UEdGraphPin* ConnectedImagePin = FollowInputPin(*TypedNodeEdit->GetUsedImagePin(ImageId));
-
-				mu::NodeModifierSurfaceEdit::FTexture& ImagePatch = SurfNode->Textures[ImageIndex];
-
-				// \todo: expose these two options?
-				ImagePatch.PatchBlendType = mu::EBlendType::BT_BLEND;
-				ImagePatch.bPatchApplyToAlpha = true;
-
-				// ReferenceTextureSize is used to limit the size of textures contributing to the final image.
-				const int32 ReferenceTextureSize = 0; //TODO GetBaseTextureSize(GenerationContext, ParentMaterialNode, ImageIndex);
-
-				ImagePatch.PatchImage = GenerateMutableSourceImage(ConnectedImagePin, GenerationContext, ReferenceTextureSize);
-
-				const UEdGraphPin* ImageMaskPin = TypedNodeEdit->GetUsedImageMaskPin(ImageId);
-				check(ImageMaskPin); // Ensured when reconstructing EditMaterial nodes. If it fails, something is wrong.
-
-				if (const UEdGraphPin* ConnectedMaskPin = FollowInputPin(*ImageMaskPin))
+				if (TypedNodeEdit->UsesImage(ImageId))
 				{
-					ImagePatch.PatchMask = GenerateMutableSourceImage(ConnectedMaskPin, GenerationContext, ReferenceTextureSize);
-				}
+					// TODO
+					//check(ParentMaterialNode->IsImageMutableMode(ImageIndex)); // Ensured at graph time. If it fails, something is wrong.
 
-				// Add the blocks to patch
-				FIntPoint GridSize = TypedNodeEdit->Layout->GetGridSize();
-				FVector2f GridSizeF = FVector2f(GridSize);
-				ImagePatch.PatchBlocks.Reserve(TypedNodeEdit->Layout->Blocks.Num());
-				for (const FCustomizableObjectLayoutBlock& LayoutBlock : TypedNodeEdit->Layout->Blocks)
-				{
-					FBox2f Rect;
-					Rect.Min = FVector2f(LayoutBlock.Min) / GridSizeF;
-					Rect.Max = FVector2f(LayoutBlock.Max) / GridSizeF;
-					ImagePatch.PatchBlocks.Add(Rect);
+					const UEdGraphPin* ConnectedImagePin = FollowInputPin(*TypedNodeEdit->GetUsedImagePin(ImageId));
+
+					mu::NodeModifierSurfaceEdit::FTexture& ImagePatch = SurfNode->LODs[LODIndex].Textures[ImageIndex];
+
+					// \todo: expose these two options?
+					ImagePatch.PatchBlendType = mu::EBlendType::BT_BLEND;
+					ImagePatch.bPatchApplyToAlpha = true;
+
+					// ReferenceTextureSize is used to limit the size of textures contributing to the final image.
+					const int32 ReferenceTextureSize = 0; //TODO GetBaseTextureSize(GenerationContext, ParentMaterialNode, ImageIndex);
+
+					ImagePatch.PatchImage = GenerateMutableSourceImage(ConnectedImagePin, GenerationContext, ReferenceTextureSize);
+
+					const UEdGraphPin* ImageMaskPin = TypedNodeEdit->GetUsedImageMaskPin(ImageId);
+					check(ImageMaskPin); // Ensured when reconstructing EditMaterial nodes. If it fails, something is wrong.
+
+					if (const UEdGraphPin* ConnectedMaskPin = FollowInputPin(*ImageMaskPin))
+					{
+						ImagePatch.PatchMask = GenerateMutableSourceImage(ConnectedMaskPin, GenerationContext, ReferenceTextureSize);
+					}
+
+					// Add the blocks to patch
+					FIntPoint GridSize = TypedNodeEdit->Layout->GetGridSize();
+					FVector2f GridSizeF = FVector2f(GridSize);
+					ImagePatch.PatchBlocks.Reserve(TypedNodeEdit->Layout->Blocks.Num());
+					for (const FCustomizableObjectLayoutBlock& LayoutBlock : TypedNodeEdit->Layout->Blocks)
+					{
+						FBox2f Rect;
+						Rect.Min = FVector2f(LayoutBlock.Min) / GridSizeF;
+						Rect.Max = FVector2f(LayoutBlock.Max) / GridSizeF;
+						ImagePatch.PatchBlocks.Add(Rect);
+					}
 				}
 			}
 		}
 
 		GenerationContext.MeshGenerationFlags.Pop();
+		GenerationContext.FromLOD = 0;
+		GenerationContext.CurrentLOD = 0;
 	}
 
 	else if (const UCustomizableObjectNodeModifierMorphMeshSection* TypedNodeMorph = Cast<UCustomizableObjectNodeModifierMorphMeshSection>(Node))
@@ -540,10 +544,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		SurfNode->bApplyBeforeNormalOperations = true;
 
 		SurfNode->MultipleTagsPolicy = TypedNodeMorph->MultipleTagPolicy;
-		for (const FString& Tag : TypedNodeMorph->RequiredTags)
-		{
-			SurfNode->RequiredTags.Add(Tag);
-		}
+		SurfNode->RequiredTags = TypedNodeMorph->RequiredTags;
 
 		SurfNode->MeshMorph = TypedNodeMorph->MorphTargetName;
 

@@ -1941,8 +1941,8 @@ namespace mu
 		// Apply mesh modifiers
 		TArray<FirstPassGenerator::FModifier> Modifiers;
 
-		int32 currentLOD = CurrentParents.Last().Lod;
-		GetModifiersFor(Options.ActiveTags, currentLOD, bModifiersForBeforeOperations, Modifiers);
+		int32 CurrentLOD = CurrentParents.Last().Lod;
+		GetModifiersFor(Options.ActiveTags, CurrentLOD, bModifiersForBeforeOperations, Modifiers);
 
 		Ptr<ASTOp> PreModifiersMesh = LastMeshOp;
 
@@ -1958,8 +1958,11 @@ namespace mu
 
 				BaseMeshResult.ExtraMeshLayouts.Emplace();
 
-				if (Ptr<NodeMesh> pAdd = Edit->MeshAdd)
+				bool bAffectsCurrentLOD = Edit->LODs.IsValidIndex(CurrentLOD);
+				if (bAffectsCurrentLOD && Edit->LODs[CurrentLOD].MeshAdd)
 				{
+					Ptr<NodeMesh> pAdd = Edit->LODs[CurrentLOD].MeshAdd;
+
 					// Store the data necessary to apply modifiers for the pre-normal operations stage.
 					ActiveTags.Push(Edit->EnableTags);
 
@@ -2026,12 +2029,16 @@ namespace mu
 			{
 				const NodeModifierSurfaceEdit* Edit = static_cast<const NodeModifierSurfaceEdit*>(m.Node);
 
+				bool bAffectsCurrentLOD = Edit->LODs.IsValidIndex(CurrentLOD);
+
 				// Apply mesh removes from child objects "edit surface" nodes.
 				// "Removes" need to come after "Adds" because some removes may refer to added meshes,
 				// and not the base.
 				// \TODO: Apply base removes first, and then "added meshes" removes here. It may have lower memory footprint during generation.
-				if (Ptr<NodeMesh> pRemove = Edit->MeshRemove)
+				if (bAffectsCurrentLOD && Edit->LODs[CurrentLOD].MeshRemove)
 				{
+					Ptr<NodeMesh> pRemove = Edit->LODs[CurrentLOD].MeshRemove;
+
 					FMeshGenerationResult removeResults;
 					FMeshGenerationOptions RemoveMeshOptions;
 					RemoveMeshOptions.bLayouts = false;
@@ -2407,8 +2414,8 @@ namespace mu
 		// Apply mesh modifiers
 		TArray<FirstPassGenerator::FModifier> Modifiers;
 
-		int32 currentLOD = CurrentParents.Last().Lod;
-		GetModifiersFor(Options.ActiveTags, currentLOD, bModifiersForBeforeOperations, Modifiers);
+		int32 CurrentLOD = CurrentParents.Last().Lod;
+		GetModifiersFor(Options.ActiveTags, CurrentLOD, bModifiersForBeforeOperations, Modifiers);
 
 		ActiveTags.Push({});
 
@@ -2419,13 +2426,14 @@ namespace mu
 			{
 				const NodeModifierSurfaceEdit* Edit = static_cast<const NodeModifierSurfaceEdit*>(m.Node);
 
+				bool bAffectsCurrentLOD = Edit->LODs.IsValidIndex(CurrentLOD);
 
-				if (ImageIndex >= Edit->Textures.Num())
+				if (!bAffectsCurrentLOD || ImageIndex >= Edit->LODs[CurrentLOD].Textures.Num())
 				{
 					continue;
 				}
 
-				const NodeModifierSurfaceEdit::FTexture& Patch = Edit->Textures[ImageIndex];
+				const NodeModifierSurfaceEdit::FTexture& Patch = Edit->LODs[CurrentLOD].Textures[ImageIndex];
 				if (Patch.PatchImage.get())
 				{
 					// Does the current block need to be patched? Find out by building a mask.
@@ -2477,8 +2485,8 @@ namespace mu
 		// Apply mesh modifiers
 		TArray<FirstPassGenerator::FModifier> Modifiers;
 
-		int32 currentLOD = CurrentParents.Last().Lod;
-		GetModifiersFor(Options.ActiveTags, currentLOD, bModifiersForBeforeOperations, Modifiers);
+		int32 CurrentLOD = CurrentParents.Last().Lod;
+		GetModifiersFor(Options.ActiveTags, CurrentLOD, bModifiersForBeforeOperations, Modifiers);
 
 		ActiveTags.Push({});
 
@@ -2493,12 +2501,18 @@ namespace mu
 				int32 ThisEditIndex = EditIndex;
 				++EditIndex;
 
-				if (ImageIndex >= Edit->Textures.Num())
+				bool bAffectsCurrentLOD = Edit->LODs.IsValidIndex(CurrentLOD);
+				if (!bAffectsCurrentLOD)
 				{
 					continue;
 				}
 
-				Ptr<NodeImage> pExtend = Edit->Textures[ImageIndex].Extend;
+				if (ImageIndex >= Edit->LODs[CurrentLOD].Textures.Num())
+				{
+					continue;
+				}
+
+				Ptr<NodeImage> pExtend = Edit->LODs[CurrentLOD].Textures[ImageIndex].Extend;
 				if (!pExtend)
 				{
 					continue;
