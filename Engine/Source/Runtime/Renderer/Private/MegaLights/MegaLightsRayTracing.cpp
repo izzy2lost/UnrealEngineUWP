@@ -1177,6 +1177,7 @@ void MegaLights::RayTraceLightSamples(
 				PassParameters->HairVoxelTraceParameters = HairVoxelTraceParameters;
 				PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
 				PassParameters->LightSampleRayDistance = LightSampleRayDistance;
+				PassParameters->LightSampleUVTexture = LightSampleUV;
 
 				FSoftwareRayTraceLightSamplesCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FSoftwareRayTraceLightSamplesCS::FHairVoxelTraces>(bHairVoxelTraces);
