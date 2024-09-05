@@ -137,7 +137,8 @@ TSharedRef<SWidget> FSequencerSelectionDrawer::CreateContentWidget()
 
 		Sequencer->OnMovieSceneDataChanged().AddLambda([this](const EMovieSceneDataChangeType InChangeType)
 			{
-				if (InChangeType == EMovieSceneDataChangeType::ActiveMovieSceneChanged)
+				// Update when a channel is overriden with a curve extension
+				if (InChangeType == EMovieSceneDataChangeType::MovieSceneStructureItemsChanged)
 				{
 					OnSequencerSelectionChanged();
 				}
