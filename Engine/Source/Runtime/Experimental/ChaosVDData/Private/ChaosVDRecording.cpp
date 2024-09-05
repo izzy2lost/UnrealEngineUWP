@@ -410,6 +410,9 @@ void FChaosVDRecording::CollapseSolverFramesRange_AssumesLocked(int32 SolverID, 
 				FChaosVDStepData CollapsedStepData;
 				CollapsedStepData.StepName = TEXT("Auto Generated Stage");
 
+				// Although this is a generated on load stage, is based on explicit stage data, therefore it needs to be treated as such
+				EnumAddFlags(CollapsedStepData.StageFlags, EChaosVDSolverStageFlags::ExplicitStage);
+
 				ParticlesOnCurrentGeneratedKeyframe.GenerateValueArray(CollapsedStepData.RecordedParticlesData);
 
 				ParticlesOnCurrentGeneratedKeyframe.Reset();
