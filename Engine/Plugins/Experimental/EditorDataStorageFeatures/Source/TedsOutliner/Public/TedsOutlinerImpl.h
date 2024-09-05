@@ -172,7 +172,6 @@ protected:
 	void ClearSelection() const;
 	void Tick();
 
-	void CreateLabelWidgetConstructors();
 	void CreateFilterQueries();
 
 	// Check if this row can be displayed in this table viewer
@@ -185,9 +184,6 @@ protected:
 	ITypedElementDataStorageCompatibilityInterface* StorageCompatibility{ nullptr };
 
 	FTedsOutlinerParams CreationParams;
-
-	// Widget constructor to create the label widget
-	TArray<TPair<DataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>> QueryToWidgetConstructorMap;
 
 	// Widget purposes this table viewer supports
 	TArray<FName> CellWidgetPurposes;
