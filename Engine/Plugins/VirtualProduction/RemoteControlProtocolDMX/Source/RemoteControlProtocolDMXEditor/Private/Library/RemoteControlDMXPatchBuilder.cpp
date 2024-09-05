@@ -289,16 +289,20 @@ namespace UE::RemoteControl::DMX
 						const FDMXFixtureFunction& Function = Mode.Functions[FunctionIndex];
 						const FRemoteControlDMXProtocolEntity* DMXEntity = DMXEntities.IsValidIndex(FunctionIndex) ? DMXEntities[FunctionIndex] : nullptr;
 
-						if (DMXEntity &&
-							DMXEntity->ExtraSetting.AttributeName == Function.Attribute.Name &&
-							DMXEntity->ExtraSetting.DataType == Function.DataType &&
-							DMXEntity->ExtraSetting.bUseLSB == Function.bUseLSBMode)
+						if (!DMXEntity)
 						{
-							return true;
+							continue;
+						}
+
+						if (DMXEntity->ExtraSetting.AttributeName != Function.Attribute.Name ||
+							DMXEntity->ExtraSetting.DataType != Function.DataType ||
+							DMXEntity->ExtraSetting.bUseLSB != Function.bUseLSBMode)
+						{
+							return false;
 						}
 					}
 
-					return false;
+					return true;
 				});
 
 			return FixtureTypePtr ? *FixtureTypePtr : nullptr;

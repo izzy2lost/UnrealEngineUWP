@@ -3,6 +3,7 @@
 #include "RemoteControlDMXPerPresetEditorSettings.h"
 
 #include "RemoteControlDMXUserData.h"
+#include "UI/RCPanelExposedEntitiesListSettingsData.h"
 
 URemoteControlDMXPerPresetEditorSettings* URemoteControlDMXPerPresetEditorSettings::GetOrCreatePerPresetEditorSettings(URemoteControlPreset* Preset)
 {
@@ -14,7 +15,15 @@ URemoteControlDMXPerPresetEditorSettings* URemoteControlDMXPerPresetEditorSettin
 	}
 	else
 	{
-		DMXUserData->PerPresetEditorSettings = NewObject<URemoteControlDMXPerPresetEditorSettings>(DMXUserData, NAME_None);
+		URemoteControlDMXPerPresetEditorSettings* NewSettings = NewObject<URemoteControlDMXPerPresetEditorSettings>(DMXUserData, NAME_None);
+		
+		// Set default settings for Remote Control DMX.
+		NewSettings->ExposedEntitiesListSettings.FieldGroupType = ERCFieldGroupType::Owner;
+		NewSettings->ExposedEntitiesListSettings.FieldGroupOrder = ERCFieldGroupOrder::Ascending;
+
+		// Store it in DMX User Data
+		DMXUserData->PerPresetEditorSettings = NewSettings;
+
 		return CastChecked<URemoteControlDMXPerPresetEditorSettings>(DMXUserData->PerPresetEditorSettings);
 	}
 }

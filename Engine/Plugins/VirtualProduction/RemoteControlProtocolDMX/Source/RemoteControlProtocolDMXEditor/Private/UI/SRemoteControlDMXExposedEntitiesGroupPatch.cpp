@@ -67,6 +67,18 @@ namespace UE::RemoteControl::DMX
 	{
 		RefreshTimerHandle.Invalidate();
 
+		// Only show the patch when grouped by owner
+		const URemoteControlDMXUserData* DMXUserData = GetDMXUserData();
+		if (!DMXUserData || DMXUserData->GetPatchGroupMode() != ERemoteControlDMXPatchGroupMode::GroupByOwner)
+		{
+			ChildSlot
+				[
+					SNullWidget::NullWidget
+				];
+
+			return;
+		}
+
 		// Update the fixture patches that can be used as primary for this patch
 		WeakFixturePatches.Reset();
 
@@ -93,7 +105,6 @@ namespace UE::RemoteControl::DMX
 				}
 			}
 		}
-
 
 		if (Entities.IsEmpty())
 		{

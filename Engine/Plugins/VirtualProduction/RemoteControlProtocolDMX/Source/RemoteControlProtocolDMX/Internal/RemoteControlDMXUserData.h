@@ -93,7 +93,7 @@ private:
 
 	/** Defines how DMX Protocol Entities should be patched  */
 	UPROPERTY()
-	ERemoteControlDMXPatchGroupMode PatchGroupMode;
+	ERemoteControlDMXPatchGroupMode PatchGroupMode = ERemoteControlDMXPatchGroupMode::GroupByOwner;
 
 	/** Proxy to handle the DMX Library */
 	UPROPERTY(Transient)

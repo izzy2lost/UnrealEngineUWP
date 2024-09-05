@@ -35,6 +35,9 @@ namespace UE::RemoteControl::DMX
 		/** Returns the fixture patch corresponding to this property patch */
 		UDMXEntityFixturePatch* GetFixturePatch() const;
 
+		/** Returns the owner object of this patch */
+		const UObject* GetOwnerObject() const;
+
 	private:
 #if WITH_EDITOR
 		/** Called when a fixture type changed. Useful to adopt changed properties from the fixture type. */

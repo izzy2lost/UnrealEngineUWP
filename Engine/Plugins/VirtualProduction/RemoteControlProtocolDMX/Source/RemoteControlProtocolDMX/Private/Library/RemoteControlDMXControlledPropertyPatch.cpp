@@ -35,6 +35,11 @@ namespace UE::RemoteControl::DMX
 		return DMXControlledProperties.IsEmpty() ? nullptr : DMXControlledProperties[0]->GetFixturePatch();
 	}
 
+	const UObject* FRemoteControlDMXControlledPropertyPatch::GetOwnerObject() const
+	{
+		return DMXControlledProperties.IsEmpty() ? nullptr : DMXControlledProperties[0]->GetOwnerObject();
+	}
+
 #if WITH_EDITOR
 	void FRemoteControlDMXControlledPropertyPatch::OnFixtureTypeChanged(const UDMXEntityFixtureType* ChangedFixtureType)
 	{
