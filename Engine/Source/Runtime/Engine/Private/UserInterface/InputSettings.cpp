@@ -27,7 +27,9 @@ UInputSettings::UInputSettings(const FObjectInitializer& ObjectInitializer)
 	, bEnableLegacyInputScales(true)
 	, bEnableMotionControls(true)
 	, bFilterInputByPlatformUser(false)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	, bEnableInputDeviceSubsystem(true)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	, bShouldFlushPressedKeysOnViewportFocusLost(true)
 	, bEnableDynamicComponentInputBinding(true)
 	, DefaultViewportMouseCaptureMode(EMouseCaptureMode::CapturePermanently_IncludingInitialMouseDown)
@@ -187,6 +189,14 @@ void UInputSettings::PostReloadConfig(FProperty* PropertyThatWasLoaded)
 	PopulateAxisConfigs();
 #endif
 	AddInternationalConsoleKey();
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (!bEnableInputDeviceSubsystem)
+	{
+		bEnableInputDeviceSubsystem = true;
+		UE_LOG(LogInput, Warning, TEXT("UInputSettings::bEnableInputDeviceSubsystem was detected as false from a config, but it is required to be true as of 5.5. Updating the value to be true."));
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 #if WITH_EDITOR

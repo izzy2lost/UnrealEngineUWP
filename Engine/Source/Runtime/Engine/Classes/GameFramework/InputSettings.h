@@ -84,7 +84,8 @@ class UInputSettings
 	 * 
 	 * @see UInputDeviceSubsystem
 	 */
-	UPROPERTY(config, EditAnywhere, Category = "Input")
+	UE_DEPRECATED(5.5, "bEnableInputDeviceSubsystem is deprecated, ths input device subsystem will now always be created.")
+	UPROPERTY(config, meta = (DeprecatedProperty, DeprecationMessage = "bEnableInputDeviceSubsystem is deprecated, ths input device subsystem will now always be created."))
 	uint8 bEnableInputDeviceSubsystem:1;
 
 	/**
