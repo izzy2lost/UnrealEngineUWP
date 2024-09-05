@@ -779,7 +779,7 @@ namespace UnrealBuildTool
 			// Compile ISPC files directly
 			if (InputFiles.ISPCFiles.Count > 0)
 			{
-				LinkInputFiles.AddRange(ToolChain.CompileISPCFiles(ModuleCompileEnvironment, InputFiles.ISPCFiles, IntermediateDirectory, Graph).ObjectFiles);
+				LinkInputFiles.AddRange(ToolChain.CompileAllISPCFiles(ModuleCompileEnvironment, InputFiles.ISPCFiles, IntermediateDirectory, Graph).ObjectFiles);
 			}
 
 			// Compile C files directly. Do not use a PCH here, because a C++ PCH is not compatible with C source files.
@@ -1872,7 +1872,7 @@ namespace UnrealBuildTool
 		/// <param name="Graph">List of actions to be executed. Additional actions will be added to this list.</param>
 		static void CreateHeadersForISPC(UEToolChain ToolChain, CppCompileEnvironment CompileEnvironment, List<FileItem> InputFiles, DirectoryReference IntermediateDirectory, IActionGraphBuilder Graph)
 		{
-			CPPOutput Output = ToolChain.GenerateISPCHeaders(CompileEnvironment, InputFiles, IntermediateDirectory, Graph);
+			CPPOutput Output = ToolChain.GenerateAllISPCHeaders(CompileEnvironment, InputFiles, IntermediateDirectory, Graph);
 
 			CompileEnvironment.AdditionalPrerequisites.AddRange(Output.GeneratedHeaderFiles);
 			CompileEnvironment.UserIncludePaths.Add(IntermediateDirectory);
