@@ -186,18 +186,23 @@ void APCGPartitionActor::PostRegisterAllComponents()
 	UpdateBoundsComponentExtents();
 #endif // WITH_EDITOR
 
+	RebuildOriginalToLocal();
+
+	// Make the Partition actor register itself to the PCG Subsystem. RuntimeGen components should only register in the PostCreation path.
+	if (PCGGridSize != InvalidPCGGridSizeValue && !IsRuntimeGenerated())
+	{
+		RegisterPCG();
+	}
+}
+
+void APCGPartitionActor::RebuildOriginalToLocal()
+{
 	// Reset the OriginalToLocal and build it from the local map
 	OriginalToLocal.Reset();
 	OriginalToLocal.Reserve(LocalToOriginal.Num());
 	for (const auto& It : LocalToOriginal)
 	{
 		OriginalToLocal.Add(It.Value.Get(), It.Key);
-	}
-
-	// Make the Partition actor register itself to the PCG Subsystem. RuntimeGen components should only register in the PostCreation path.
-	if (PCGGridSize != InvalidPCGGridSizeValue && !IsRuntimeGenerated())
-	{
-		RegisterPCG();
 	}
 }
 
@@ -287,6 +292,12 @@ void APCGPartitionActor::SetInvalidForPCG()
 		bIsInvalidForPCG = true;
 		SetActorLabel(TEXT("TO_DELETE_") + GetActorLabel());
 	}
+}
+
+TSoftObjectPtr<UPCGComponent> APCGPartitionActor::GetOriginalComponentSoftObjectPtr(UPCGComponent* LocalComponent) const
+{
+	const TSoftObjectPtr<UPCGComponent>* OriginalComponent = LocalToOriginal.Find(LocalComponent);
+	return OriginalComponent ? *OriginalComponent : TSoftObjectPtr<UPCGComponent>();
 }
 #endif
 
@@ -383,8 +394,22 @@ void APCGPartitionActor::GetActorBounds(bool bOnlyCollidingComponents, FVector& 
 
 UPCGComponent* APCGPartitionActor::GetLocalComponent(const UPCGComponent* OriginalComponent) const
 {
-	const TObjectPtr<UPCGComponent>* LocalComponent = OriginalToLocal.Find(OriginalComponent);
-	return LocalComponent ? *LocalComponent : nullptr;
+	return GetLocalComponent(OriginalComponent, /*bRebuildMappingOnNullEntries=*/true);
+}
+
+UPCGComponent* APCGPartitionActor::GetLocalComponent(const UPCGComponent* OriginalComponent, bool bRebuildMappingOnNullEntries) const
+{
+	if (const TObjectPtr<UPCGComponent>* LocalComponent = OriginalToLocal.Find(OriginalComponent))
+	{
+		return *LocalComponent;
+	}
+	else if (bRebuildMappingOnNullEntries && OriginalToLocal.Contains(nullptr))
+	{
+		const_cast<APCGPartitionActor*>(this)->RebuildOriginalToLocal();
+		return GetLocalComponent(OriginalComponent, /*bRebuildMappingOnNullEntries=*/false);
+	}
+
+	return nullptr;
 }
 
 UPCGComponent* APCGPartitionActor::GetOriginalComponent(const UPCGComponent* LocalComponent) const

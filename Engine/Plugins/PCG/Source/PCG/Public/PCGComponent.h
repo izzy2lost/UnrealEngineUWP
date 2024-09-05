@@ -87,6 +87,7 @@ class PCG_API UPCGComponent : public UActorComponent
 	friend class UPCGManagedActors;
 	friend class UPCGSubsystem;
 	friend class FPCGActorAndComponentMapping;
+	friend struct FPCGWorldPartitionBuilder;
 
 public:
 	/** ~Begin UObject interface */

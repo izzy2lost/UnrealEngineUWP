@@ -856,6 +856,16 @@ void FPCGActorAndComponentMapping::UpdateMappingPCGComponentPartitionActor(UPCGC
 	}
 }
 
+TSet<TObjectPtr<APCGPartitionActor>> FPCGActorAndComponentMapping::GetPCGComponentPartitionActorMappings(UPCGComponent* InComponent) const
+{
+	if (const TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = ComponentToPartitionActorsMap.Find(InComponent))
+	{
+		return *PartitionActorsPtr;
+	}
+
+	return TSet<TObjectPtr<APCGPartitionActor>>();
+}
+
 void FPCGActorAndComponentMapping::DeleteMappingPCGComponentPartitionActor(UPCGComponent* InComponent)
 {
 	check(InComponent);
