@@ -1226,6 +1226,11 @@ public:
 	/** Checks to see if an input property should be active, based on the state of the material */
 	ENGINE_API virtual bool IsPropertyActive(EMaterialProperty InProperty) const override;
 
+#if WITH_EDITORONLY_DATA
+	/** Return true if the material support shading model override */
+	ENGINE_API bool SupportsShadingModelOverride() const;
+#endif
+
 #if WITH_EDITOR
 	/** 
 	* Like IsPropertyActive(), but should be used in context of editor.

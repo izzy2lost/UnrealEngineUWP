@@ -6110,6 +6110,24 @@ void UMaterial::GetAllExpressionsForCustomInterpolators(TArray<class UMaterialEx
 		}
 	}
 }
+
+bool UMaterial::SupportsShadingModelOverride() const
+{
+	// If the material contains a Substrate's SubstrateShadingModels node, then we can support shading model override
+	bool Out = true;
+	if (Substrate::IsSubstrateEnabled())
+	{
+		for (UMaterialExpression* Expression : GetExpressions())
+		{		
+			if (UMaterialExpressionSubstrateShadingModels* ShadingModelNode = Cast<UMaterialExpressionSubstrateShadingModels>(Expression))
+			{
+				return true;
+			}
+		}
+		Out = false;
+	}
+	return Out;
+}
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR

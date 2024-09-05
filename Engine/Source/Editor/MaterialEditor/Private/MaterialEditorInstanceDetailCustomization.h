@@ -76,7 +76,7 @@ private:
 	/** Returns true if the refraction options should be displayed */
 	EVisibility ShouldShowMaterialRefractionSettings() const;
 
-	/** Returns true if the refraction options should be displayed */
+	/** Returns true if the Subsurface Profile options should be displayed */
 	EVisibility ShouldShowSubsurfaceProfile() const;
 
 	//Functions supporting copy/paste of entire parameter groups.
@@ -114,6 +114,7 @@ private:
 	void CreateBasePropertyOverrideWidgets(IDetailLayoutBuilder& DetailLayout, IDetailGroup& MaterialPropertyOverrideGroup);
 
 	EVisibility IsOverriddenAndVisible(TAttribute<bool> IsOverridden) const;
+	EVisibility IsOverriddenAndVisibleShadingModels(TAttribute<bool> IsOverridden) const;
 
 #define DECLARE_OVERRIDE_MEMBER_FUNCS(PropertyName) \
 	bool Override ## PropertyName ## Enabled() const; \
