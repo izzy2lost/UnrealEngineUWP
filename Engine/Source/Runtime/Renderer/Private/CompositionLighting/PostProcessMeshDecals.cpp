@@ -546,7 +546,7 @@ void DrawDecalMeshCommands(
 				RDG_EVENT_NAME("%s", GetMeshPassName(DecalMeshPassType)),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[&View, PassParameters, DecalMeshPassType](FRHICommandList& RHICmdList)
+				[&View, PassParameters, DecalMeshPassType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					FSceneRenderer::SetStereoViewport(RHICmdList, View, 1.0f);
 					View.ParallelMeshDrawCommandPasses[DecalMeshPassType].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);

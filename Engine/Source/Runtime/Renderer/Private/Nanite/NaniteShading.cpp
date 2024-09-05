@@ -1344,7 +1344,7 @@ void DispatchBasePass(
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
 			[ShadingPassParameters, &ShadingCommands, ShadingConfig, ShaderBundle, IndirectArgsStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect]
-			(FRHIComputeCommandList& RHICmdList)
+			(FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			TSharedPtr<FNaniteShadingPassIntermediates> Intermediates = CreateNaniteShadingPassIntermediates(ShadingPassParameters, ShadingCommands, VisibilityQuery, ViewRect);
 
@@ -1518,7 +1518,7 @@ FShadeBinning ShadeBinning(
 				RDG_EVENT_NAME("ShadingCount"),
 				PassParameters,
 				ERDGPassFlags::Compute,
-				[AlignedDispatchDim, ComputeShader, PassParameters, TargetCount = ValidClearTargets.Num(), bWriteSubTiles](FRHIComputeCommandList& RHICmdList)
+				[AlignedDispatchDim, ComputeShader, PassParameters, TargetCount = ValidClearTargets.Num(), bWriteSubTiles](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 				{
 					void* PlatformDataPtr = nullptr;
 					uint32 PlatformDataSize = 0;
@@ -1688,7 +1688,7 @@ FShadeBinning ShadeBinning(
 				RDG_EVENT_NAME("VisualizeFastClear"),
 				PassParameters,
 				ERDGPassFlags::Compute,
-				[InViewRect, ComputeShader, PassParameters](FRHIComputeCommandList& RHICmdList)
+				[InViewRect, ComputeShader, PassParameters](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 				{
 					void* PlatformDataPtr = nullptr;
 					uint32 PlatformDataSize = 0;
@@ -2595,7 +2595,7 @@ void DispatchLumenMeshCapturePass(
 		LumenCardPassParameters,
 		ERDGPassFlags::Compute,
 		[LumenCardPassParameters, SharedView, &ShadingCommands, &CapturePasses = CaptureContext.Passes]
-		(FRHIComputeCommandList& RHICmdList)
+		(FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			// This is processed within the RDG pass lambda, so the setup task should be complete by now.
 			check(ShadingCommands.BuildCommandsTask.IsCompleted());

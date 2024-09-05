@@ -431,7 +431,7 @@ static FRDGTextureRef AddClearLightSamplePass(
 		RDG_EVENT_NAME("HairStrands::LightSampleClearPS"),
 		ParametersPS,
 		ERDGPassFlags::Raster,
-		[ParametersPS, VertexShader, PixelShader, ViewportResolution](FRHICommandList& RHICmdList)
+		[ParametersPS, VertexShader, PixelShader, ViewportResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FHairLightSampleClearVS::FParameters ParametersVS;
 		ParametersVS.MaxViewportResolution = ParametersPS->MaxViewportResolution;
@@ -1910,7 +1910,7 @@ static void AddClearGraphicPass(
 		Forward<FRDGEventName>(PassName),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, TileVertexShader, PixelShader, Viewport, Resolution, TileType](FRHICommandList& RHICmdList)
+		[Parameters, TileVertexShader, PixelShader, Viewport, Resolution, TileType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FHairStrandsTilePassVS::FParameters ParametersVS = Parameters->TileData;
 
@@ -2364,7 +2364,7 @@ static FRDGTextureRef AddHairVisibilityFillOpaqueDepth(
 		RDG_EVENT_NAME("HairStrands::FillVisibilityDepth(Tile)"),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, TileVertexShader, PixelShader, Viewport, TileType](FRHICommandList& RHICmdList)
+		[Parameters, TileVertexShader, PixelShader, Viewport, TileType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FHairStrandsTilePassVS::FParameters ParametersVS = Parameters->TileData;
 
@@ -2663,7 +2663,7 @@ static void AddHairViewTransmittanceDepthPass(
 		RDG_EVENT_NAME("HairStrands::ViewTransmittanceDepth"),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, VertexShader, PixelShader, Viewport, Resolution](FRHICommandList& RHICmdList)
+		[Parameters, VertexShader, PixelShader, Viewport, Resolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;
 		RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -2818,7 +2818,7 @@ static void AddHairAuxilaryPass(
 		RDG_EVENT_NAME("HairStrands::AuxilaryPass(%s)", Method),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, TileVertexShader, PixelShader, Viewport, Resolution, bDepthTested, TileType](FRHICommandList& RHICmdList)
+		[Parameters, TileVertexShader, PixelShader, Viewport, Resolution, bDepthTested, TileType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FHairStrandsTilePassVS::FParameters ParametersVS = Parameters->TileData;
 
@@ -3870,7 +3870,7 @@ static FRasterComputeOutput AddVisibilityComputeRasterPass(
 					RDG_EVENT_NAME("HairStrands::VisibilityRasterHW"),
 					Parameters,
 					ERDGPassFlags::Raster,
-					[Parameters, VertexShaderRaster, bClassification, PixelShaderRaster, Viewport, Resolution, PointCount, DrawIndexedIndirectArgs](FRHICommandList &RHICmdList)
+					[Parameters, VertexShaderRaster, bClassification, PixelShaderRaster, Viewport, Resolution, PointCount, DrawIndexedIndirectArgs](FRDGAsyncTask, FRHICommandList &RHICmdList)
 					{
 						FGraphicsPipelineStateInitializer GraphicsPSOInit;
 						RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -4252,7 +4252,7 @@ void AddHairStrandsHitProxyIdPass(
 		RDG_EVENT_NAME("HairStrands::EmitHitProxyId(Tile)"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[PassParameters, TileVertexShader, PixelShader, Viewport, TileType](FRHICommandList& RHICmdList)
+		[PassParameters, TileVertexShader, PixelShader, Viewport, TileType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FHairStrandsTilePassVS::FParameters ParametersVS = PassParameters->TileData;
 

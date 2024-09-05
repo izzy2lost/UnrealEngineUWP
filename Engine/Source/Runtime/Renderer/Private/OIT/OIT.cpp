@@ -716,7 +716,7 @@ static void AddOITSortTriangleIndexPass(
 			RDG_EVENT_NAME("OIT::SortTriangleIndices(Scan)"),
 			Parameters,
 			ERDGPassFlags::Compute,
-			[Parameters, ComputeShader, DispatchCount, SortedIndexBufferRHI](FRHIComputeCommandList& RHICmdList)
+			[Parameters, ComputeShader, DispatchCount, SortedIndexBufferRHI](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				RHICmdList.Transition(FRHITransitionInfo(SortedIndexBufferRHI, ERHIAccess::VertexOrIndexBuffer, ERHIAccess::UAVCompute));
 				FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *Parameters, DispatchCount);
@@ -761,7 +761,7 @@ static void AddOITSortTriangleIndexPass(
 			RDG_EVENT_NAME("OIT::SortTriangleIndices(Write)"),
 			Parameters,
 			ERDGPassFlags::Compute,
-			[Parameters, ComputeShader, DispatchCount, SortedIndexBufferRHI](FRHIComputeCommandList& RHICmdList)
+			[Parameters, ComputeShader, DispatchCount, SortedIndexBufferRHI](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *Parameters, DispatchCount);
 

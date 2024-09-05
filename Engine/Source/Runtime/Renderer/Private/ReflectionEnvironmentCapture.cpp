@@ -291,7 +291,7 @@ public:
 						RDG_EVENT_NAME("Clear (Mip: %d, Face : %d)", MipIndex, CubeFace),
 						PassParameters,
 						ERDGPassFlags::Raster,
-						[](FRHICommandList&) {});
+						[](FRDGAsyncTask, FRHICommandList&) {});
 				}
 			}
 		}
@@ -590,7 +590,7 @@ void CaptureSceneToScratchCubemap(
 			RDG_EVENT_NAME("CopySceneToCubeFace"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[EffectiveSize, SceneTextureExtent, FeatureLevel, PassParameters](FRHICommandList& InRHICmdList)
+			[EffectiveSize, SceneTextureExtent, FeatureLevel, PassParameters](FRDGAsyncTask, FRHICommandList& InRHICmdList)
 		{
 			const FIntRect ViewRect(0, 0, EffectiveSize, EffectiveSize);
 			InRHICmdList.SetViewport(0.0f, 0.0f, 0.0f, (float)EffectiveSize, (float)EffectiveSize, 1.0f);

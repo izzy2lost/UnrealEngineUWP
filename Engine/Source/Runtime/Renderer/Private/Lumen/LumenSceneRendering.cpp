@@ -2265,7 +2265,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 							RDG_EVENT_NAME("CardPage Commands:%u", CardPageRenderData.NumMeshDrawCommands),
 							PassParameters,
 							ERDGPassFlags::Raster,
-							[this, Scene = Scene, PrimitiveIdVertexBuffer, &CardPageRenderData, PassParameters, InstanceCullingContext](FRHICommandList& RHICmdList)
+							[this, ShaderPlatform = Scene->GetShaderPlatform(), bGPUSceneEnabled = Scene->GPUScene.IsEnabled(), PrimitiveIdVertexBuffer, &CardPageRenderData, PassParameters, InstanceCullingContext](FRDGAsyncTask, FRHICommandList& RHICmdList)
 						{
 							QUICK_SCOPE_CYCLE_COUNTER(MeshPass);
 
@@ -2273,7 +2273,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 							RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
 
 							FGraphicsMinimalPipelineStateSet GraphicsMinimalPipelineStateSet;
-							if (Scene->GPUScene.IsEnabled())
+							if (bGPUSceneEnabled)
 							{
 								FInstanceCullingDrawParams& InstanceCullingDrawParams = PassParameters->InstanceCullingDrawParams;
 
@@ -2295,7 +2295,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 									LumenCardRenderer.MeshDrawCommands,
 									GraphicsMinimalPipelineStateSet,
 									SceneArgs,
-									FInstanceCullingContext::GetInstanceIdBufferStride(Scene->GetShaderPlatform()),
+									FInstanceCullingContext::GetInstanceIdBufferStride(ShaderPlatform),
 									false,
 									CardPageRenderData.StartMeshDrawCommandIndex,
 									CardPageRenderData.NumMeshDrawCommands,

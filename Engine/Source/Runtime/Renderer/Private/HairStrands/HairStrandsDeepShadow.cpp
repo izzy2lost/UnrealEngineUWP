@@ -115,7 +115,7 @@ void AddInjectHairVoxelShadowCaster(
 		RDG_EVENT_NAME("HairStrandsShadowDepthInjection"),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[ParametersVS, ParametersPS, VertexShader, PixelShader, AtlasResolution](FRHICommandList& RHICmdList)
+		[ParametersVS, ParametersPS, VertexShader, PixelShader, AtlasResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 
 			// Apply additive blending pipeline state.

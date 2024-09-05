@@ -177,7 +177,7 @@ FScreenPassTexture ISpatialUpscaler::AddDefaultUpscalePass(
 			Output.ViewRect.Width(), Output.ViewRect.Height()),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[&View, bApplyLensDistortion, PixelShader, PassParameters, InputViewport, OutputViewport](FRHICommandList& RHICmdList)
+		[&View, bApplyLensDistortion, PixelShader, PassParameters, InputViewport, OutputViewport](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		RHICmdList.SetViewport(OutputViewport.Rect.Min.X, OutputViewport.Rect.Min.Y, 0.0f, OutputViewport.Rect.Max.X, OutputViewport.Rect.Max.Y, 1.0f);
 

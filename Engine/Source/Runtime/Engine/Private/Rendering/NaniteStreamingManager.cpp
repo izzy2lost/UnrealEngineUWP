@@ -1104,7 +1104,7 @@ public:
 		FRDGBufferRef RDGRequestsBuffer = GraphBuilder.RegisterExternalBuffer(RequestsBuffer);
 
 		AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("Readback"), RDGRequestsBuffer,
-			[&GPUReadback = ReadbackBuffer.Buffer, RDGRequestsBuffer](FRHICommandList& RHICmdList)
+			[&GPUReadback = ReadbackBuffer.Buffer, RDGRequestsBuffer](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				GPUReadback->EnqueueCopy(RHICmdList, RDGRequestsBuffer->GetRHI(), 0u);
 			});

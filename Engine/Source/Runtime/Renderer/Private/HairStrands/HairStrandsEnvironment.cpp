@@ -193,7 +193,7 @@ static void AddHairStrandsEnvironmentAOPass(
 		RDG_EVENT_NAME("HairStrands::AO %dx%d", ViewRect.Width(), ViewRect.Height()),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[PassParameters, &View, PixelShader, ViewRect](FRHICommandList& InRHICmdList)
+		[PassParameters, &View, PixelShader, ViewRect](FRDGAsyncTask, FRHICommandList& InRHICmdList)
 	{
 		InRHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
 
@@ -467,7 +467,7 @@ static void AddHairStrandsEnvironmentLightingPassPS(
 		RDG_EVENT_NAME("HairStrands::EnvLightingPS(%s)", LightingType == EHairLightingSourceType::SceneColor ? TEXT("SceneScatter") : (LightingType == EHairLightingSourceType::Lumen ? TEXT("Lumen") : TEXT("ReflectionProbe")) ),
 		ParametersPS,
 		ERDGPassFlags::Raster,
-		[ParametersPS, VertexShader, PixelShader, ViewportResolution, CapturedView](FRHICommandList& RHICmdList)
+		[ParametersPS, VertexShader, PixelShader, ViewportResolution, CapturedView](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FHairEnvironmentLightingVS::FParameters ParametersVS;
 		ParametersVS.HairStrands = ParametersPS->HairStrands;

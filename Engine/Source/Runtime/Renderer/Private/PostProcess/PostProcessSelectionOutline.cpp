@@ -174,7 +174,7 @@ FScreenPassTexture AddSelectionOutlinePass(
 					RDG_EVENT_NAME("EditorSelectionDepth"),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[&View, DepthStencilViewport, PassParameters, ViewportScale](FRHICommandList& RHICmdList)
+					[&View, DepthStencilViewport, PassParameters, ViewportScale](FRDGAsyncTask, FRHICommandList& RHICmdList)
 					{
 						if (View.bIsInstancedStereoEnabled && View.StereoPass == EStereoscopicPass::eSSP_PRIMARY)
 						{
@@ -228,7 +228,7 @@ FScreenPassTexture AddSelectionOutlinePass(
 				RDG_EVENT_NAME("DrawOutlineBorder"),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[DepthStencilViewport](FRHICommandListImmediate& RHICmdList)
+				[DepthStencilViewport](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					RHICmdList.SetViewport(DepthStencilViewport.Rect.Min.X, DepthStencilViewport.Rect.Min.Y, 0.0f, DepthStencilViewport.Rect.Max.X, DepthStencilViewport.Rect.Max.Y, 1.0f);
 

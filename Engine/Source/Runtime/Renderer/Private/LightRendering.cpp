@@ -2080,7 +2080,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 									RDG_EVENT_NAME("ClearQuad"),
 									PassParameters,
 									ERDGPassFlags::Raster,
-									[this, &LightSceneProxy](FRHICommandList& RHICmdList)
+									[this, &LightSceneProxy](FRDGAsyncTask, FRHICommandList& RHICmdList)
 								{
 									for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 									{
@@ -2489,7 +2489,7 @@ static void InternalRenderLight(
 		RDG_EVENT_NAME("%s: %s", ShaderName, *LightProxy->GetOwnerNameOrLabel()),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[Scene, &View, PixelShader, LightSceneInfo, PassParameters, LightBounds, LightType, SubstrateTileMaterialType](FRHICommandList& RHICmdList)
+		[Scene, &View, PixelShader, LightSceneInfo, PassParameters, LightBounds, LightType, SubstrateTileMaterialType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 
 		const bool bIsRadial = LightType != LightType_Directional;
@@ -2619,8 +2619,8 @@ static void InternalRenderLight(
 			{
 				StencilingGeometry::DrawCone(RHICmdList);
 			}
-		}	
-	}); // RenderPass
+		}
+	});
 }
 
 
@@ -2934,7 +2934,7 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 		{},
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[this, VertexShader, PixelShader, PassParameters, SampleLightingViewportResolution](FRHICommandList& RHICmdList)
+		[this, VertexShader, PixelShader, PassParameters, SampleLightingViewportResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		RHICmdList.SetViewport(0, 0, 0.0f, SampleLightingViewportResolution.X, SampleLightingViewportResolution.Y, 1.0f);
 
@@ -3114,7 +3114,7 @@ static void InternalRenderSimpleLightsStandardDeferred(
 		RDG_EVENT_NAME("Light::DeferredSimpleLights(Substrate:%s,Tile:%s)", Substrate::IsSubstrateEnabled() ? TEXT("True") : TEXT("False"), Substrate::IsSubstrateEnabled() ? ToString(TileType) : TEXT("None")),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[&View, &SimpleLights, ViewIndex, NumViews, PassParameters, PixelShader, VertexShader, TileType](FRHICommandList& RHICmdList)
+		[&View, &SimpleLights, ViewIndex, NumViews, PassParameters, PixelShader, VertexShader, TileType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;
 		RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);

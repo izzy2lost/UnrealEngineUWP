@@ -517,7 +517,7 @@ FScreenPassTexture AddEditorPrimitivePass(
 				NumMSAASamples),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, &InstanceCullingManager, PassParameters, EditorView, EditorPrimitivesViewport, OutputViewportRect = Output.ViewRect, BasePassType, NumMSAASamples](FRHICommandListImmediate& RHICmdList)
+			[&View, &InstanceCullingManager, PassParameters, EditorView, EditorPrimitivesViewport, OutputViewportRect = Output.ViewRect, BasePassType, NumMSAASamples](FRHICommandList& RHICmdList)
 			{
 				RHICmdList.SetViewport(OutputViewportRect.Min.X, OutputViewportRect.Min.Y, 0.0f, OutputViewportRect.Max.X, OutputViewportRect.Max.Y, 1.0f);
 

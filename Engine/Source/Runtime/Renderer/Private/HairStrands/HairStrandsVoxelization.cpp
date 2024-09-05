@@ -1276,7 +1276,7 @@ static void AddVirtualVoxelGenerateMipPass(
 			RDG_EVENT_NAME("HairStrands::ComputeVoxelMip"),
 			Parameters,
 			ERDGPassFlags::Compute,
-			[Parameters, ComputeShader](FRHICommandList& RHICmdList)
+			[Parameters, ComputeShader](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *Parameters, Parameters->IndirectDispatchArgs->GetIndirectRHICallBuffer(), 0);
 		});

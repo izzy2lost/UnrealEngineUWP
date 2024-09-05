@@ -826,7 +826,7 @@ static void AddUpsampleResponsiveAAPass(
 			View.ViewRect.Width(), View.ViewRect.Height()),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[&View, PipelineState, PixelShader, PassParameters](FRHICommandList& RHICmdList)
+		[&View, PipelineState, PixelShader, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FScreenPassTextureViewport OutputViewport(PassParameters->RenderTargets.DepthStencil.GetTexture()->Desc.Extent, View.ViewRect);
 		DrawScreenPass(RHICmdList, View, OutputViewport, OutputViewport, PipelineState, EScreenPassDrawFlags::None, [&](FRHICommandList&)
@@ -1361,7 +1361,7 @@ static void RenderTranslucencyViewInner(
 					int32(View.ViewRect.Height() * ViewportScale)),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[&View, PassParameters, ViewportScale, TranslucencyPass, MeshPass](FRHICommandList& RHICmdList)
+				[&View, PassParameters, ViewportScale, TranslucencyPass, MeshPass](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FSceneRenderer::SetStereoViewport(RHICmdList, View, ViewportScale);
 				View.ParallelMeshDrawCommandPasses[MeshPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);

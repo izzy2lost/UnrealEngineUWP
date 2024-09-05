@@ -296,7 +296,7 @@ namespace VirtualTextureAdapter
 				RDG_EVENT_NAME("VirtualTextureAdapterCopyToOutput"),
 				Parameters,
 				ERDGPassFlags::Copy | ERDGPassFlags::NeverCull,
-				[bUseSourceTextureA, InputTextureA = InSourceSRV, InputTextureB = CurrentOutput, OutputTexture = InDestTexture, CopyInfo](FRHICommandList& RHICmdList)
+				[bUseSourceTextureA, InputTextureA = InSourceSRV, InputTextureB = CurrentOutput, OutputTexture = InDestTexture, CopyInfo](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					FRHITexture* InputTexture = bUseSourceTextureA ? InputTextureA->GetTexture() : InputTextureB->GetRHI();
 

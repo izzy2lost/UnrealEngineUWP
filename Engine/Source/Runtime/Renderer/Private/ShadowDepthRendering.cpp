@@ -235,7 +235,7 @@ void AddClearShadowDepthPass(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture)
 	// Clear atlas depth, but ignore stencil.
 	auto* PassParameters = GraphBuilder.AllocParameters<FRenderTargetParameters>();
 	PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(Texture, ERenderTargetLoadAction::EClear, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthWrite_StencilNop);
-	GraphBuilder.AddPass(RDG_EVENT_NAME("ClearShadowDepth"), PassParameters, ERDGPassFlags::Raster, [](FRHICommandList&) {});
+	GraphBuilder.AddPass(RDG_EVENT_NAME("ClearShadowDepth"), PassParameters, ERDGPassFlags::Raster, [](FRDGAsyncTask, FRHICommandList&) {});
 }
 
 void AddClearShadowDepthPass(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, const FProjectedShadowInfo* ProjectedShadowInfo)
@@ -243,7 +243,7 @@ void AddClearShadowDepthPass(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, 
 	// Clear atlas depth, but ignore stencil.
 	auto* PassParameters = GraphBuilder.AllocParameters<FRenderTargetParameters>();
 	PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(Texture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthWrite_StencilNop);
-	GraphBuilder.AddPass(RDG_EVENT_NAME("ClearShadowDepthTile"), PassParameters, ERDGPassFlags::Raster, [ProjectedShadowInfo](FRHICommandList& RHICmdList)
+	GraphBuilder.AddPass(RDG_EVENT_NAME("ClearShadowDepthTile"), PassParameters, ERDGPassFlags::Raster, [ProjectedShadowInfo](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		ProjectedShadowInfo->ClearDepth(RHICmdList);
 	});
@@ -898,7 +898,7 @@ void FProjectedShadowInfo::CopyCachedShadowMap(
 					RDG_EVENT_NAME("CopyCachedShadowMap"),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[this, ScreenVertexShader, PixelShader, GraphicsPSOInit, PassParameters, ShadowDepthExtent, InstanceCount, StencilRef](FRHICommandList& RHICmdList) mutable
+					[this, ScreenVertexShader, PixelShader, GraphicsPSOInit, PassParameters, ShadowDepthExtent, InstanceCount, StencilRef](FRDGAsyncTask, FRHICommandList& RHICmdList) mutable
 				{
 					SetStateForView(RHICmdList);
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -936,7 +936,7 @@ void FProjectedShadowInfo::CopyCachedShadowMap(
 					RDG_EVENT_NAME("CopyCachedShadowMap"),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[this, ScreenVertexShader, PixelShader, GraphicsPSOInit, PassParameters, ShadowDepthExtent, StencilRef](FRHICommandList& RHICmdList) mutable
+					[this, ScreenVertexShader, PixelShader, GraphicsPSOInit, PassParameters, ShadowDepthExtent, StencilRef](FRDGAsyncTask, FRHICommandList& RHICmdList) mutable
 				{
 					SetStateForView(RHICmdList);
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -986,7 +986,7 @@ void FProjectedShadowInfo::CopyCachedShadowMap(
 				RDG_EVENT_NAME("ScrollingCachedWholeSceneDirectionalShadowMap"),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[this, ScreenVertexShader, PixelShader, GraphicsPSOInit, PassParameters, ShadowDepthExtent, StencilRef](FRHICommandList& RHICmdList) mutable
+				[this, ScreenVertexShader, PixelShader, GraphicsPSOInit, PassParameters, ShadowDepthExtent, StencilRef](FRDGAsyncTask, FRHICommandList& RHICmdList) mutable
 			{
 				checkSlow(OverlappedUVOnCachedShadowMap != FVector4f(-1.0f, -1.0f, -1.0f, -1.0f));
 				checkSlow(OverlappedUVOnCurrentShadowMap != FVector4f(-1.0f, -1.0f, -1.0f, -1.0f));
@@ -1155,7 +1155,7 @@ void FProjectedShadowInfo::RenderDepth(
 			RDG_EVENT_NAME("ShadowDepthPass"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[this, PassParameters](FRHICommandList& RHICmdList)
+			[this, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			SetStateForView(RHICmdList);
 			ShadowDepthPass.Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
@@ -1169,7 +1169,7 @@ void FProjectedShadowInfo::RenderDepth(
 			RDG_EVENT_NAME("CopyCachedShadowMapCrossGPU"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[ShadowDepthTexture, GPUMask = GraphBuilder.RHICmdList.GetGPUMask()](FRHICommandList& RHICmdList)
+			[ShadowDepthTexture, GPUMask = GraphBuilder.RHICmdList.GetGPUMask()](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			CopyCachedShadowMapCrossGPU(RHICmdList, ShadowDepthTexture->GetRHI(), GPUMask);
 		});

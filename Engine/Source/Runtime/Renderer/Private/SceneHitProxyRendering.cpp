@@ -291,7 +291,7 @@ static void DoRenderHitProxies(
 			RDG_EVENT_NAME("HitProxies::Clear"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&Views, HitProxyTextureExtent](FRHICommandList& RHICmdList)
+			[&Views, HitProxyTextureExtent](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			// Clear color for each view.
 			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)

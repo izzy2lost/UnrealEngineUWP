@@ -268,6 +268,9 @@ void FLightFunctionAtlas::ClearEmptySceneFrame(FViewInfo* View, uint32 ViewIndex
 
 void FLightFunctionAtlas::BeginSceneFrame(const FViewFamilyInfo& ViewFamily, TArray<FViewInfo>& Views, FLightFunctionAtlasSceneData& LightFunctionAtlasSceneData, bool bShouldRenderVolumetricFog)
 {
+	// Sync any pending RDG async tasks prior to modifying the atlas, since we issue async RDG tasks.
+	FRDGBuilder::WaitForAsyncExecuteTask();
+
 	ClearEmptySceneFrame(nullptr, 0, &LightFunctionAtlasSceneData);
 
 	AtlasSetup = GetLightFunctionAtlasSetup();
@@ -717,7 +720,7 @@ void FLightFunctionAtlas::RenderAtlasSlots(FRDGBuilder& GraphBuilder, const TArr
 		RDG_EVENT_NAME("LightFunctionAtlas Generation"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[PassParameters, &Views, this](FRHICommandList& RHICmdList)
+		[PassParameters, &Views, this](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			const uint32 AtlasSlotResolution = AtlasSetup.SlotResolution;
 			const float AtlasEdgeSize = AtlasSetup.EdgeSize;

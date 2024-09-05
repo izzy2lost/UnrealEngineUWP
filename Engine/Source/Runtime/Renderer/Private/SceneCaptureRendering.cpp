@@ -301,7 +301,7 @@ void CopySceneCaptureComponentToTarget(
 			RDG_EVENT_NAME("View(%d)", ViewIndex),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PassParameters, GraphicsPSOInit, VertexShader, PixelShader, &View, ViewIndex, TargetSize] (FRHICommandList& RHICmdList)
+			[PassParameters, GraphicsPSOInit, VertexShader, PixelShader, &View, ViewIndex, TargetSize] (FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FGraphicsPipelineStateInitializer LocalGraphicsPSOInit = GraphicsPSOInit;
 			RHICmdList.ApplyCachedRenderTargets(LocalGraphicsPSOInit);

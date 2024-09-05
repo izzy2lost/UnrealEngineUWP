@@ -895,7 +895,7 @@ static void ClearGBufferAtMaxZ(
 			{},
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, VertexShader, PixelShader, ActiveTargetCount, ClearColor0](FRHICommandList& RHICmdList)
+			[&View, VertexShader, PixelShader, ActiveTargetCount, ClearColor0](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			const FLinearColor ClearColors[MaxSimultaneousRenderTargets] =
 			{
@@ -1129,7 +1129,7 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 		}
 
 		GraphBuilder.AddPass(RDG_EVENT_NAME("GBufferClear"), PassParameters, ERDGPassFlags::Raster,
-			[PassParameters, ColorLoadAction, SceneColorClearValue](FRHICommandList& RHICmdList)
+			[PassParameters, ColorLoadAction, SceneColorClearValue](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			// If no fast-clear action was used, we need to do an MRT shader clear.
 			if (ColorLoadAction == ERenderTargetLoadAction::ENoAction)
@@ -1175,7 +1175,7 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 		PassParameters->RenderTargets = GetRenderTargetBindings(ERenderTargetLoadAction::EClear, BasePassTexturesView);
 		PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(BasePassDepthTexture, ERenderTargetLoadAction::EClear, ERenderTargetLoadAction::EClear, ExclusiveDepthStencil);
 
-		GraphBuilder.AddPass(RDG_EVENT_NAME("WireframeClear"), PassParameters, ERDGPassFlags::Raster, [](FRHICommandList&) {});
+		GraphBuilder.AddPass(RDG_EVENT_NAME("WireframeClear"), PassParameters, ERDGPassFlags::Raster, [](FRDGAsyncTask, FRHICommandList&) {});
 	}
 #endif
 
@@ -1605,7 +1605,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 						RDG_EVENT_NAME("BasePass"),
 						PassParameters,
 						ERDGPassFlags::Raster,
-						[&View, PassParameters](FRHICommandList& RHICmdList)
+						[&View, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 						{
 							SetStereoViewport(RHICmdList, View, 1.0f);
 							View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
@@ -1644,7 +1644,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 						RDG_EVENT_NAME("SkyPass"),
 						SkyPassParameters,
 						ERDGPassFlags::Raster,
-						[&View, SkyPassParameters](FRHICommandList& RHICmdList)
+						[&View, SkyPassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 						{
 							SetStereoViewport(RHICmdList, View, 1.0f);
 							View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].Draw(RHICmdList, &SkyPassParameters->InstanceCullingDrawParams);

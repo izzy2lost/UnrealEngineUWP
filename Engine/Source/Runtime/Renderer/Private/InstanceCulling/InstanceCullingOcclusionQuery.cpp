@@ -609,7 +609,7 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 			RDG_EVENT_NAME("InstanceCullingOcclusionQueryRenderer_Setup"),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, DeferredContext, ComputeShader](FRHIComputeCommandList& RHICmdList)
+			[PassParameters, DeferredContext, ComputeShader](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			if (!DeferredContext->bValid)
 			{
@@ -653,7 +653,7 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("InstanceCullingOcclusionQueryRenderer_Draw"),
 			PassParameters, ERDGPassFlags::Raster | ERDGPassFlags::NeverCull,
-			[PassParameters, DeferredContext, bMultiView, &View](FRHICommandList& RHICmdList)
+			[PassParameters, DeferredContext, bMultiView, &View](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				if (!DeferredContext->bValid)
 				{
@@ -881,7 +881,7 @@ void FInstanceCullingOcclusionQueryRenderer::RenderDebug(FRDGBuilder& GraphBuild
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("InstanceCullingOcclusionQueryRenderer_Draw"),
 		PassParameters, ERDGPassFlags::Raster | ERDGPassFlags::NeverCull,
-		[PassParameters, NumInstances, &View](FRHICommandList& RHICmdList)
+		[PassParameters, NumInstances, &View](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RenderInstanceOcclusionCullingDebug(RHICmdList, View, PassParameters, NumInstances);
 		});

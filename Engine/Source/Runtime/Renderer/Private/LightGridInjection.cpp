@@ -522,7 +522,6 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 
-	TArray<FForwardLightData*, TInlineAllocator<4>> ForwardLightDataPerView;
 #if WITH_EDITOR
 	bool bMultipleDirLightsConflictForForwardShading = false;
 #endif
@@ -1190,7 +1189,7 @@ void FDeferredShadingSceneRenderer::RenderForwardShadowProjections(
 			OutForwardScreenSpaceShadowMaskSubPixel = ForwardScreenSpaceShadowMaskSubPixel.Target;
 		}
 
-		GraphBuilder.AddPass(RDG_EVENT_NAME("ResolveScreenSpaceShadowMask"), PassParameters, ERDGPassFlags::Raster, [](FRHICommandList&) {});
+		GraphBuilder.AddPass(RDG_EVENT_NAME("ResolveScreenSpaceShadowMask"), PassParameters, ERDGPassFlags::Raster, [](FRDGAsyncTask, FRHICommandList&) {});
 	}
 }
 

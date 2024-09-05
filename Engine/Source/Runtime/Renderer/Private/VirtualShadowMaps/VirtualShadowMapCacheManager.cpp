@@ -537,7 +537,7 @@ void FVirtualShadowMapFeedback::SubmitFeedbackBuffer(
 	Buffers[WriteIndex].Size = FeedbackBuffer->Desc.GetSize();
 
 	AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("Readback"), FeedbackBuffer,
-		[ReadbackBuffer, FeedbackBuffer](FRHICommandList& RHICmdList)
+		[ReadbackBuffer, FeedbackBuffer](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			ReadbackBuffer->EnqueueCopy(RHICmdList, FeedbackBuffer->GetRHI(), 0u);
 		});

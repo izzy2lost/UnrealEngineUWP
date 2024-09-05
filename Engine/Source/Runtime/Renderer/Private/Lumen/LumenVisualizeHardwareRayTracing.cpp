@@ -877,7 +877,7 @@ void LumenVisualize::VisualizeHardwareRayTracing(
 			RDG_EVENT_NAME("VisualizeHardwareRayTracing[retrace for hit-lighting] %ux%u", DispatchResolution.X, DispatchResolution.Y),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, &View, SceneUniformBuffer, RayGenerationShader, DispatchResolution](FRHICommandList& RHICmdList)
+			[PassParameters, &View, SceneUniformBuffer, RayGenerationShader, DispatchResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);

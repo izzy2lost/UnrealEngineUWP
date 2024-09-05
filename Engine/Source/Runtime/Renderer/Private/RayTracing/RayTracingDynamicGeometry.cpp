@@ -564,7 +564,7 @@ void FRayTracingDynamicGeometryCollection::AddDynamicGeometryUpdatePass(const FV
 	PassParams->DynamicGeometryScratchBuffer = OutDynamicGeometryScratchBuffer;	
 
 	GraphBuilder.AddPass(RDG_EVENT_NAME("RayTracingDynamicUpdate"), PassParams, ComputePassFlags | ERDGPassFlags::NeverCull,
-		[this, PassParams](FRHICommandList& RHICmdList)
+		[this, PassParams](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FRHIBuffer* DynamicGeometryScratchBuffer = PassParams->DynamicGeometryScratchBuffer ? PassParams->DynamicGeometryScratchBuffer->GetRHI() : nullptr;
 

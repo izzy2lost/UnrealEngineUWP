@@ -949,7 +949,7 @@ FPrevSceneColorMip ReducePrevSceneColorMip(
 				View.ViewRect.Width() / Divisor, View.ViewRect.Height() / Divisor),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, ComputeShader, &View, Divisor](FRHICommandList& RHICmdList)
+			[PassParameters, ComputeShader, &View, Divisor](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *PassParameters, FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), 8 * Divisor));
 		});
@@ -1137,7 +1137,7 @@ void RenderScreenSpaceReflections(
 			RDG_EVENT_NAME("SSR StencilSetup %dx%d", View.ViewRect.Width(), View.ViewRect.Height()),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PassParameters, &View, PixelShader](FRHICommandList& RHICmdList)
+			[PassParameters, &View, PixelShader](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 		
@@ -1280,7 +1280,7 @@ void RenderScreenSpaceReflections(
 					View.ViewRect.Width(), View.ViewRect.Height()),
 				PassParametersPS,
 				ERDGPassFlags::Raster,
-				[PassParametersPS, &View, PixelShader, SSRStencilPrePass](FRHICommandList& RHICmdList)
+				[PassParametersPS, &View, PixelShader, SSRStencilPrePass](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
@@ -1319,7 +1319,7 @@ void RenderScreenSpaceReflections(
 				View.ViewRect.Width(), View.ViewRect.Height()),
 			PassParametersPS,
 			ERDGPassFlags::Raster,
-			[PassParametersPS, &View, VertexShader, PixelShader, SSRStencilPrePass](FRHICommandList& RHICmdList)
+			[PassParametersPS, &View, VertexShader, PixelShader, SSRStencilPrePass](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
@@ -1371,7 +1371,7 @@ void RenderScreenSpaceReflections(
 				bDenoiser ? TEXT(" DenoiserOutput") : TEXT(""), View.ViewRect.Width(), View.ViewRect.Height()),
 			VisualizePassParameters,
 			ERDGPassFlags::Raster,
-			[VisualizePassParameters, &View, VertexShader, VisualizePixelShader, SSRStencilPrePass](FRHICommandList& RHICmdList)
+			[VisualizePassParameters, &View, VertexShader, VisualizePixelShader, SSRStencilPrePass](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 

@@ -1458,7 +1458,7 @@ void FDeferredShadingSceneRenderer::RenderOcclusion(
 			RDG_EVENT_NAME("BeginOcclusionTests"),
 			PassParameters,
 			ERDGPassFlags::Raster | ERDGPassFlags::NeverCull,
-			[this, &QueriesPerView, DownsampleFactor](FRHICommandList& RHICmdList)
+			[this, &QueriesPerView, DownsampleFactor](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				if (!QueriesPerView.IsEmpty())
 				{

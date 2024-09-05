@@ -1408,7 +1408,7 @@ void FInstanceCullingContext::AddClearIndirectArgInstanceCountPass(FRDGBuilder& 
 			ParametersMetadata,
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[ParametersMetadata, PassParameters, ComputeShader, NumIndirectArgsCallback = MoveTemp(NumIndirectArgsCallback)](FRHIComputeCommandList& RHICmdList)
+			[ParametersMetadata, PassParameters, ComputeShader, NumIndirectArgsCallback = MoveTemp(NumIndirectArgsCallback)](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			int32 NumIndirectArgs = NumIndirectArgsCallback();
 			PassParameters->NumIndirectArgs = NumIndirectArgs;

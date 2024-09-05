@@ -3290,7 +3290,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			RDG_EVENT_NAME("Path Tracer Init Sigma"),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, RayGenShader, &View](FRHICommandList& RHICmdList)
+			[PassParameters, RayGenShader, &View](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 				SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
@@ -3594,10 +3594,10 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 						RDG_EVENT_NAME("Path Tracing Cloud Build (%dx%dx%d)", CloudMap->Desc.GetSize().X, CloudMap->Desc.GetSize().Y, CloudMap->Desc.GetSize().Z),
 						PassParameters,
 						ERDGPassFlags::Compute,
-						[LocalScene = Scene, CloudVolumeMaterialProxy, MaterialResource, PassParameters, ComputeShader, GroupCount](FRHIComputeCommandList& RHICmdList)
+						[Scene = Scene, CloudVolumeMaterialProxy, MaterialResource, PassParameters, ComputeShader, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 						{
 							FMeshDrawShaderBindings ShaderBindings;
-							UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *CloudVolumeMaterialProxy, *MaterialResource, ShaderBindings);
+							UE::MeshPassUtils::SetupComputeBindings(ComputeShader, Scene, Scene->GetFeatureLevel(), nullptr, *CloudVolumeMaterialProxy, *MaterialResource, ShaderBindings);
 							UE::MeshPassUtils::Dispatch(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, GroupCount);
 						});
 					GraphBuilder.QueueTextureExtraction(CloudMap, &PathTracingState->CloudMap);
@@ -3624,10 +3624,10 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 						RDG_EVENT_NAME("Path Tracing Cloud Acceleration Map Build (Resolution=%u, NumSamples=%u)", Resolution, NumSamples),
 						PassParameters,
 						ERDGPassFlags::Compute,
-						[LocalScene = Scene, CloudVolumeMaterialProxy, MaterialResource, PassParameters, ComputeShader, GroupCount](FRHIComputeCommandList& RHICmdList)
+						[Scene = Scene, CloudVolumeMaterialProxy, MaterialResource, PassParameters, ComputeShader, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 						{
 							FMeshDrawShaderBindings ShaderBindings;
-							UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *CloudVolumeMaterialProxy, *MaterialResource, ShaderBindings);
+							UE::MeshPassUtils::SetupComputeBindings(ComputeShader, Scene, Scene->GetFeatureLevel(), nullptr, *CloudVolumeMaterialProxy, *MaterialResource, ShaderBindings);
 							UE::MeshPassUtils::Dispatch(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, GroupCount);
 						});
 					GraphBuilder.QueueTextureExtraction(CloudAccelerationMap, &PathTracingState->CloudAccelerationMap);
@@ -3874,7 +3874,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 								: RDG_EVENT_NAME("Path Tracer Sample=%d/%d NumLights=%d"              , PathTracingState->SampleIndex, MaxSPP, PassParameters->SceneLightCount),
 								PassParameters,
 								ERDGPassFlags::Compute,
-								[PassParameters, RayGenShader, DispatchSizeX, DispatchSizeYLocal, bUseIndirectDispatch, bUse1DDispatch, bFlushRenderingCommands, GPUIndex, &View](FRHICommandList& RHICmdList)
+								[PassParameters, RayGenShader, DispatchSizeX, DispatchSizeYLocal, bUseIndirectDispatch, bUse1DDispatch, bFlushRenderingCommands, GPUIndex, &View](FRDGAsyncTask, FRHICommandList& RHICmdList)
 								{
 									FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 									SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
@@ -3958,7 +3958,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 				GraphBuilder.AddPass(
 					RDG_EVENT_NAME("Path Tracer Cross-GPU Signal (%d GPUs)", NumGPUs),
 					ERDGPassFlags::None,
-					[this, LocalCopyFenceDatas = CopyTemp(CopyFenceDatas), SrcGPUMask](FRHICommandListImmediate& RHICmdList)
+					[this, LocalCopyFenceDatas = CopyTemp(CopyFenceDatas), SrcGPUMask](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					RHICmdList.TransferResourceSignal(LocalCopyFenceDatas, SrcGPUMask);
 				});
@@ -3977,7 +3977,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			Parameters->InputNormal = NormalTexture;
 			Parameters->InputDepth = DepthTexture;
 			GraphBuilder.AddPass(RDG_EVENT_NAME("Path Tracer Cross-GPU Transfer (%d GPUs)", NumGPUs), Parameters, ERDGPassFlags::Readback,
-				[Parameters, DispatchResX, DispatchResY, DispatchSize, GPUMask, MainGPUMask = View.GPUMask, LocalCopyFenceDatas = MoveTemp(CopyFenceDatas)](FRHICommandListImmediate& RHICmdList)
+				[Parameters, DispatchResX, DispatchResY, DispatchSize, GPUMask, MainGPUMask = View.GPUMask, CopyFenceDatas = MoveTemp(CopyFenceDatas)](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					const int32 FirstGPUIndex = MainGPUMask.GetFirstIndex();
 					const int32 NumGPUs = GPUMask.GetNumActive();
@@ -4018,10 +4018,10 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 					}
 
 					// Include the fences we need to wait on in our list of transfers
-					check(TransferParams.Num() >= LocalCopyFenceDatas.Num());
-					for (int32 FenceIndex = 0; FenceIndex < LocalCopyFenceDatas.Num(); FenceIndex++)
+					check(TransferParams.Num() >= CopyFenceDatas.Num());
+					for (int32 FenceIndex = 0; FenceIndex < CopyFenceDatas.Num(); FenceIndex++)
 					{
-						TransferParams[FenceIndex].PreTransferFence = LocalCopyFenceDatas[FenceIndex];
+						TransferParams[FenceIndex].PreTransferFence = CopyFenceDatas[FenceIndex];
 					}
 
 					RHICmdList.TransferResources(TransferParams);

@@ -2833,7 +2833,7 @@ static void AddRasterPass(
 		MoveTemp(PassName),
 		PassParameters,
 		ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-		[&MeshCommandPass, PassParameters, ViewRect](FRHICommandList& RHICmdList)
+		[&MeshCommandPass, PassParameters, ViewRect](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FRHIRenderPassInfo RPInfo;
 			RPInfo.ResolveRect = FResolveRect(ViewRect);
@@ -3266,7 +3266,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 					ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
 					[PassParameters, 
 					BatchedPassParameters=MoveTemp(BatchedPassParameters), 
-					BatchedVirtualSmMeshCommandPasses=MoveTemp(BatchedVirtualSmMeshCommandPasses)](FRHICommandList& RHICmdList)
+					BatchedVirtualSmMeshCommandPasses=MoveTemp(BatchedVirtualSmMeshCommandPasses)](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 						FIntRect ViewRect;
 						ViewRect.Min = FIntPoint(0, 0);

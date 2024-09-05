@@ -845,17 +845,6 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 	return true;
 }
 
-static void ReleaseRaytracingResources(FRDGBuilder& GraphBuilder, FRayTracingScene &RayTracingScene, bool bIsLastRenderer)
-{
-	// Keep mask the same as what's already set (which will be the view mask) if TLAS updates should be masked to the view
-	GraphBuilder.AddPostExecuteCallback([&RayTracingScene, bIsLastRenderer, &RHICmdList = GraphBuilder.RHICmdList]
-	{
-		if (RayTracingScene.IsCreated())
-		{
-		}
-	});
-}
-
 void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBuilder)
 {
 	check(bAnyRayTracingPassEnabled);
@@ -907,7 +896,9 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	PassParams->LightGridPacked = bIsPathTracing ? nullptr : ReferenceView.RayTracingLightGridUniformBuffer; // accessed by FRayTracingLightingMS // Is this needed for anything?
 	PassParams->LumenHardwareRayTracingUniformBuffer = ReferenceView.LumenHardwareRayTracingUniformBuffer;
 
-	if (ShouldRenderNanite())
+	const bool bShouldRenderNanite = ShouldRenderNanite();
+
+	if (bShouldRenderNanite)
 	{
 		PassParams->ClusterPageData = Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 		PassParams->HierarchyBuffer = Nanite::GStreamingManager.GetHierarchySRV(GraphBuilder);
@@ -922,11 +913,11 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 
 	const FRayTracingLightFunctionMap* RayTracingLightFunctionMap = GraphBuilder.Blackboard.Get<FRayTracingLightFunctionMap>();
 	GraphBuilder.AddPass(RDG_EVENT_NAME("SetRayTracingBindings"), PassParams, ERDGPassFlags::Copy | ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
-		[this, PassParams, bIsPathTracing, &ReferenceView, RayTracingLightFunctionMap](FRHICommandList& RHICmdList)
+		[this, PassParams, bIsPathTracing, &ReferenceView, RayTracingLightFunctionMap, bShouldRenderNanite](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(SetRayTracingBindings);
 
-		if (ShouldRenderNanite())
+		if (bShouldRenderNanite)
 		{
 			FNaniteRayTracingUniformParameters NaniteRayTracingUniformParams;
 			NaniteRayTracingUniformParams.PageConstants.X = Scene->GPUScene.InstanceSceneDataSOAStride;
@@ -3453,10 +3444,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		GEngine->GetPostRenderDelegateEx().Broadcast(GraphBuilder);
 		GetSceneExtensionsRenderers().PostRender(GraphBuilder);
-
-#if RHI_RAYTRACING
-		ReleaseRaytracingResources(GraphBuilder, Scene->RayTracingScene, bIsLastSceneRenderer);
-#endif //  RHI_RAYTRACING
 	}
 
 #if WITH_MGPU

@@ -1556,7 +1556,7 @@ void FLumenSceneData::UpdateGPUMask(FRDGBuilder& GraphBuilder, const FLumenScene
 			#undef ADD_LUMEN_FRAME_TEMPORARY
 
 			AddPass(GraphBuilder, RDG_EVENT_NAME("LumenCrossGPUTransfer"),
-				[LumenSceneData, LumenView = &LumenViewState, FrameTemporaryTextures, SourceGPUMask, DestGPUMask](FRHICommandListImmediate& RHICmdList)
+				[LumenSceneData, LumenView = &LumenViewState, FrameTemporaryTextures, SourceGPUMask, DestGPUMask](FRHICommandList& RHICmdList)
 			{
 				uint32 SourceGPUIndex = SourceGPUMask.GetFirstIndex();
 

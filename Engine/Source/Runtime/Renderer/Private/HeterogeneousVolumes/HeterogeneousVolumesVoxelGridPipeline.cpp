@@ -2122,8 +2122,7 @@ void RasterizeVolumesIntoFrustumVoxelGrid(
 				RDG_EVENT_NAME("FrustumGrid.RasterizeBottomLevelGrid"),
 				PassParameters,
 				ERDGPassFlags::Compute,
-				// Why is scene explicitly copied??
-				[PassParameters, LocalScene = Scene, &View, MaterialRenderProxy, &Material](FRHIComputeCommandList& RHICmdList)
+				[PassParameters, Scene, &View, MaterialRenderProxy, &Material](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 				{
 					FRasterizeBottomLevelFrustumGridCS::FPermutationDomain PermutationVector;
 					TShaderRef<FRasterizeBottomLevelFrustumGridCS> ComputeShader = Material.GetShader<FRasterizeBottomLevelFrustumGridCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
@@ -2133,7 +2132,7 @@ void RasterizeVolumesIntoFrustumVoxelGrid(
 						ClearUnusedGraphResources(ComputeShader, PassParameters);
 
 						FMeshDrawShaderBindings ShaderBindings;
-						UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
+						UE::MeshPassUtils::SetupComputeBindings(ComputeShader, Scene, Scene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
 
 						UE::MeshPassUtils::DispatchIndirect(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, PassParameters->IndirectArgs->GetIndirectRHICallBuffer(), 0);
 					}
@@ -2623,7 +2622,7 @@ void RasterizeVolumesIntoOrthoVoxelGrid(
 					PassParameters,
 					ERDGPassFlags::Compute,
 					// Why is scene explicitly copied?
-					[PassParameters, LocalScene = Scene, &View, MaterialRenderProxy, &Material](FRHIComputeCommandList& RHICmdList)
+					[PassParameters, Scene, &View, MaterialRenderProxy, &Material](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 					{
 						FRasterizeBottomLevelOrthoGridCS::FPermutationDomain PermutationVector;
 						PermutationVector.Set<FRasterizeBottomLevelOrthoGridCS::FEnableIndirectionGrid>(HeterogeneousVolumes::EnableIndirectionGrid());
@@ -2635,7 +2634,7 @@ void RasterizeVolumesIntoOrthoVoxelGrid(
 							ClearUnusedGraphResources(ComputeShader, PassParameters);
 
 							FMeshDrawShaderBindings ShaderBindings;
-							UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
+							UE::MeshPassUtils::SetupComputeBindings(ComputeShader, Scene, Scene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
 
 							UE::MeshPassUtils::DispatchIndirect(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, PassParameters->IndirectArgs->GetIndirectRHICallBuffer(), 0);
 						}

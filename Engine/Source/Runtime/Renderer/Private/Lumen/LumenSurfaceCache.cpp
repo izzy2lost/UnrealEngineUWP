@@ -385,7 +385,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenSurfaceCacheAtlas(
 					RDG_EVENT_NAME("CopyTempToSurfaceCache %s", LayerConfig.Name),
 					Parameters,
 					ERDGPassFlags::Copy,
-					[&CardPagesToRender, InputTexture = TempAtlas, OutputTexture = Pass.SurfaceCacheAtlas](FRHICommandList& RHICmdList)
+					[&CardPagesToRender, InputTexture = TempAtlas, OutputTexture = Pass.SurfaceCacheAtlas](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					for (int32 PageIndex = 0; PageIndex < CardPagesToRender.Num(); ++PageIndex)
 					{
@@ -638,7 +638,7 @@ void FDeferredShadingSceneRenderer::ClearLumenSurfaceCacheAtlas(
 					RDG_EVENT_NAME("CopyToSurfaceCache %s", LayerConfig.Name),
 					Parameters,
 					ERDGPassFlags::Copy,
-					[InputTexture = TempAtlas, PhysicalAtlasSize, TempAtlasSize, OutputTexture = Pass.SurfaceCacheAtlas](FRHICommandList& RHICmdList)
+					[InputTexture = TempAtlas, PhysicalAtlasSize, TempAtlasSize, OutputTexture = Pass.SurfaceCacheAtlas](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					const int32 NumTilesX = FMath::DivideAndRoundDown(PhysicalAtlasSize.X / 4, TempAtlasSize.X);
 					const int32 NumTilesY = FMath::DivideAndRoundDown(PhysicalAtlasSize.Y / 4, TempAtlasSize.Y);

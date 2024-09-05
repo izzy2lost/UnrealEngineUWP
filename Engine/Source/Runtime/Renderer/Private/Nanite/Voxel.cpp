@@ -347,7 +347,7 @@ void DrawVisibleBricks(
 				RDG_EVENT_NAME("Draw Bricks"),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[ VertexShader, PixelShader, PassParameters, bReverseCulling, &ViewRect ]( FRHICommandListImmediate& RHICmdList )
+				[ VertexShader, PixelShader, PassParameters, bReverseCulling, &ViewRect ]( FRDGAsyncTask, FRHICommandList& RHICmdList )
 				{
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.ApplyCachedRenderTargets( GraphicsPSOInit );

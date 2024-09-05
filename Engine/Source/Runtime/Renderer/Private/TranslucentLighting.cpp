@@ -619,7 +619,7 @@ void FProjectedShadowInfo::RenderTranslucencyDepths(FRDGBuilder& GraphBuilder, F
 		RDG_EVENT_NAME("%s", *EventName),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[this, SimpleMeshDrawCommandPass, PassParameters](FRHICommandList& RHICmdList)
+		[this, SimpleMeshDrawCommandPass, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FMeshPassProcessorRenderState DrawRenderState;
 
@@ -1025,7 +1025,7 @@ void InjectTranslucencyLightingVolumeAmbientCubemap(
 					RDG_EVENT_NAME("Cascade %d", VolumeCascadeIndex),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[&View, PassParameters, VolumeBounds, TranslucencyLightingVolumeDim](FRHICommandList& RHICmdList)
+					[&View, PassParameters, VolumeBounds, TranslucencyLightingVolumeDim](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					TShaderMapRef<FWriteToSliceVS> VertexShader(View.ShaderMap);
 					TOptionalShaderMapRef<FWriteToSliceGS> GeometryShader(View.ShaderMap);
@@ -1321,7 +1321,7 @@ static void InjectTranslucencyLightingVolumeBatch(
 			bSupportVirtualShadowMaps ? TEXT(",VirtualShadowMap") : TEXT("")),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[PassParameters, VertexShader, GeometryShader, PixelShader, VolumeCascadeIndex](FRHICommandList& RHICmdList)
+		[PassParameters, VertexShader, GeometryShader, PixelShader, VolumeCascadeIndex](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;
 
@@ -1476,7 +1476,7 @@ void InjectTranslucencyLightingVolume(
 						InjectionData.bApplyLightFunction ? TEXT(",LightFunction") : TEXT("")),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[PassParameters, VertexShader, GeometryShader, &View, &Renderer, &InjectionData, LightSceneInfo, bDirectionalLight, VolumeBounds, VolumeCascadeIndex](FRHICommandList& RHICmdList)
+					[PassParameters, VertexShader, GeometryShader, &View, &Renderer, &InjectionData, LightSceneInfo, bDirectionalLight, VolumeBounds, VolumeCascadeIndex](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 
@@ -1596,7 +1596,7 @@ void InjectSimpleTranslucencyLightingVolumeArray(
 							{},
 							PassParameters,
 							ERDGPassFlags::Raster,
-							[VertexShader, GeometryShader, PixelShader, PassParameters, VolumeBounds, TranslucencyLightingVolumeDim](FRHICommandList& RHICmdList)
+							[VertexShader, GeometryShader, PixelShader, PassParameters, VolumeBounds, TranslucencyLightingVolumeDim](FRDGAsyncTask, FRHICommandList& RHICmdList)
 						{
 							FGraphicsPipelineStateInitializer GraphicsPSOInit;
 							
@@ -1667,7 +1667,7 @@ void FilterTranslucencyLightingVolume(
 				RDG_EVENT_NAME("Cascade%d", VolumeCascadeIndex),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[VertexShader, GeometryShader, PixelShader, PassParameters, VolumeBounds, TranslucencyLightingVolumeDim](FRHICommandList& RHICmdList)
+				[VertexShader, GeometryShader, PixelShader, PassParameters, VolumeBounds, TranslucencyLightingVolumeDim](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
 				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);

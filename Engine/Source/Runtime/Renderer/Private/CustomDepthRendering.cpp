@@ -284,7 +284,7 @@ bool FSceneRenderer::RenderCustomDepthPass(
 				RDG_EVENT_NAME("CustomDepth"),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[this, &View, PassParameters](FRHICommandList& RHICmdList)
+				[&View, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				SetStereoViewport(RHICmdList, View, 1.0f);
 				View.ParallelMeshDrawCommandPasses[EMeshPass::CustomDepth].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
