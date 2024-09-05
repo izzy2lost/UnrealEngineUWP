@@ -93,7 +93,7 @@ void UHairStrandsMutableExtension::OnCustomizableObjectInstanceUsageUpdated(cons
 
 	for (const FGroomPinData& GroomPinData : InstanceData->Grooms)
 	{
-		if (GroomPinData.ComponentIndex != InstanceUsage->GetComponentIndex())
+		if (GroomPinData.ComponentName != InstanceUsage->GetComponentName())
 		{
 			continue;
 		}
