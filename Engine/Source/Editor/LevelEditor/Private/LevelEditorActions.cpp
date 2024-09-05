@@ -547,27 +547,34 @@ void FLevelEditorActionCallbacks::ImportScene_Clicked()
 	FEditorFileUtils::Import();
 }
 
-void FLevelEditorActionCallbacks::PreviewJson_Clicked(FName PlatformName, FName PreviewShaderPlatformName)
+void FLevelEditorActionCallbacks::PreviewJson_Clicked(FName PlatformName, FName PreviewShaderPlatformName, FString JsonFile)
 {
-	TArray<FString> OpenedFiles;
-	FString DefaultLocation(FEditorDirectories::Get().GetLastDirectory(ELastDirectory::PROJECT));
-
-	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
-	bool bOpened = false;
-	if (DesktopPlatform)
+	if (JsonFile.IsEmpty())
 	{
-		bOpened = DesktopPlatform->OpenFileDialog(
-			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
-			NSLOCTEXT("UnrealEd", "PreviewJson", "Preview Json").ToString(),
-			DefaultLocation,
-			TEXT(""),
-			TEXT("*.json"),
-			EFileDialogFlags::None,
-			OpenedFiles
-		);
+		TArray<FString> OpenedFiles;
+		FString DefaultLocation = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*(FPaths::ProjectSavedDir() / TEXT("PreviewJsonDevices") / PlatformName.ToString()));
+
+		IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
+		bool bOpened = false;
+		if (DesktopPlatform)
+		{
+			bOpened = DesktopPlatform->OpenFileDialog(
+				FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
+				NSLOCTEXT("UnrealEd", "PreviewJson", "Preview Json").ToString(),
+				DefaultLocation,
+				TEXT(""),
+				TEXT("*.json"),
+				EFileDialogFlags::None,
+				OpenedFiles
+			);
+		}
+		if (bOpened && OpenedFiles.Num() > 0 && OpenedFiles[0].IsEmpty() == false)
+		{
+			JsonFile = OpenedFiles[0];
+		}
 	}
 
-	if (bOpened && OpenedFiles.Num() > 0 && OpenedFiles[0].IsEmpty() == false)
+	if (!JsonFile.IsEmpty())
 	{
 		FConfigCacheIni* PlatformEngineIni = FConfigCacheIni::ForPlatform(*PlatformName.ToString());
 		FString DeviceProfileSelectionModule;
@@ -578,7 +585,7 @@ void FLevelEditorActionCallbacks::PreviewJson_Clicked(FName PlatformName, FName 
 				FString DevileProfileName;
 
 				TMap<FName, FString> DeviceParameters;
-				DPSelectorModule->GetDeviceParametersFromJson(OpenedFiles[0], DeviceParameters);
+				DPSelectorModule->GetDeviceParametersFromJson(JsonFile, DeviceParameters);
 				DPSelectorModule->SetSelectorProperties(DeviceParameters);
 
 				DevileProfileName = DPSelectorModule->GetDeviceProfileName();
@@ -632,16 +639,9 @@ bool FLevelEditorActionCallbacks::IsGeneratePreviewJsonVisible(FName PlatformNam
 
 void FLevelEditorActionCallbacks::GeneratePreviewJson_Clicked(FString PlatformName)
 {
-	FString DefaultLocation(FEditorDirectories::Get().GetLastDirectory(ELastDirectory::PROJECT));
-	FString OutputDirectory;
-	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
 
-	if (DesktopPlatform &&
-		DesktopPlatform->OpenDirectoryDialog(FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr), 
-		LOCTEXT("LocationToOutputJsons", "Location to Output Json Files").ToString(), 
-		DefaultLocation,
-		OutputDirectory)
-		)
+	FString AbsoluteDebugInfoDirectory = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*(FPaths::ProjectSavedDir() / TEXT("PreviewJsonDevices") / PlatformName));
+
 	{
 		FScopedSlowTask SlowTask(100.f, NSLOCTEXT("Engine", "GeneratePlatformJson", "Generate Platform Json"), true);
 		SlowTask.Visibility = ESlowTaskVisibility::ForceVisible;
@@ -655,7 +655,7 @@ void FLevelEditorActionCallbacks::GeneratePreviewJson_Clicked(FString PlatformNa
 		{
 			if (IDeviceProfileSelectorModule* DPSelectorModule = FModuleManager::LoadModulePtr<IDeviceProfileSelectorModule>(*DeviceProfileSelectionModule))
 			{
-				DPSelectorModule->ExportDeviceParametersToJson(OutputDirectory);
+				DPSelectorModule->ExportDeviceParametersToJson(AbsoluteDebugInfoDirectory);
 			}
 		}
 	}
@@ -4116,30 +4116,34 @@ void FLevelEditorCommands::RegisterCommands()
 
 	// Add preview platforms
 	TSet<FName> PreviewShaderPlatformNames;
-	TSet<FName> PlatformName;
 	for (const FPreviewPlatformMenuItem& Item : FDataDrivenPlatformInfoRegistry::GetAllPreviewPlatformMenuItems())
 	{
 		FTextBuilder FriendlyNameBuilder;
+		bool bIsDisablePreview = false;
 		if (!IsRunningCommandlet() && !GUsingNullRHI)
 		{
-			EShaderPlatform ShaderPlatform = FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.PreviewShaderPlatformName);
-			if (ShaderPlatform == SP_NumPlatforms)
+			if (FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.ShaderPlatformToPreview) == GMaxRHIShaderPlatform)
 			{
-				// if the shader platform isn't compiled in, we don't have a friendly name available, so use ugly name
-				FriendlyNameBuilder.AppendLine(FText::FromName(Item.PreviewShaderPlatformName));
-			}
-			else if (!Item.OptionalFriendlyNameOverride.IsEmpty())
-			{
-				FriendlyNameBuilder.AppendLine(Item.OptionalFriendlyNameOverride);
+				bIsDisablePreview = true;
+				FriendlyNameBuilder.AppendLine(NSLOCTEXT("PreviewPlatform", "PreviewMenuText_DisablePreview", "Disable Preview"));
 			}
 			else
 			{
-				FriendlyNameBuilder.AppendLine(FDataDrivenShaderPlatformInfo::GetFriendlyName(ShaderPlatform));
-				FPlatformMisc::LowLevelOutputDebugStringf(TEXT("MENU friendly name %s\n"), *FriendlyNameBuilder.ToText().ToString());
-			}
-			if (FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.ShaderPlatformToPreview) == GMaxRHIShaderPlatform)
-			{
-				FriendlyNameBuilder.AppendLine(NSLOCTEXT("PreviewPlatform", "PreviewMenuText_DisablePreview", "(Disable Preview)"));
+				EShaderPlatform ShaderPlatform = FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.PreviewShaderPlatformName);
+				if (ShaderPlatform == SP_NumPlatforms)
+				{
+					// if the shader platform isn't compiled in, we don't have a friendly name available, so use ugly name
+					FriendlyNameBuilder.AppendLine(FText::FromName(Item.PreviewShaderPlatformName));
+				}
+				else if (!Item.OptionalFriendlyNameOverride.IsEmpty())
+				{
+					FriendlyNameBuilder.AppendLine(Item.OptionalFriendlyNameOverride);
+				}
+				else
+				{
+					FriendlyNameBuilder.AppendLine(FDataDrivenShaderPlatformInfo::GetFriendlyName(ShaderPlatform));
+					FPlatformMisc::LowLevelOutputDebugStringf(TEXT("MENU friendly name %s\n"), *FriendlyNameBuilder.ToText().ToString());
+				}
 			}
 		}
 
@@ -4152,8 +4156,19 @@ void FLevelEditorCommands::RegisterCommands()
 			.UserInterfaceType(EUserInterfaceActionType::Check)
 			.DefaultChord(FInputChord())
 		);
-
-		PlatformToPreviewPlatformOverrides.FindOrAdd(Item.PlatformName).Add(PreviewPlatformOverrides.Last());
+		
+		FName SectionName = FDataDrivenShaderPlatformInfo::GetLanguage(FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.ShaderPlatformToPreview));
+		if (bIsDisablePreview)
+		{
+			DisablePlatformPreview = PreviewPlatformOverrides.Last();
+		}
+		else
+		{
+			FLevelEditorCommands::PreviewPlatformCommand PreviewPlatform;
+			PreviewPlatform.CommandInfo = PreviewPlatformOverrides.Last();
+			PreviewPlatform.SectionName = SectionName;
+			PlatformToPreviewPlatformOverrides.FindOrAdd(Item.PlatformName).Add(PreviewPlatform);
+		}
 
 		FConfigCacheIni* PlatformEngineIni = FConfigCacheIni::ForPlatform(*Item.PlatformName.ToString());
 		FString DeviceProfileSelectionModule;
@@ -4163,35 +4178,68 @@ void FLevelEditorCommands::RegisterCommands()
 			EShaderPlatform ShaderPlatform = FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.ShaderPlatformToPreview);
 			FText PlatformFriendlyName = FDataDrivenShaderPlatformInfo::GetFriendlyName(ShaderPlatform);
 
-			if (!PlatformName.Find(Item.PlatformName))
+			TArray<PreviewPlatformCommand>* PlatformToPreviewJsonPlatformOverridesValue = PlatformToPreviewJsonPlatformOverrides.Find(Item.PlatformName);
+			if (!PlatformToPreviewJsonPlatformOverridesValue)
 			{
-				GeneratePlatformJson.Add(
-					FUICommandInfoDecl(
-						this->AsShared(),
-						FName(*FString::Printf(TEXT("Generate Platform Json for %s"), *Item.PlatformName.ToString())),
-						NSLOCTEXT("GeneratePlatformJson", "Generate Platform Json", "Generate Platform Json"),
-						NSLOCTEXT("GeneratePlatformJsonDesc", "Generate Platform Json Desc", "Generate Platform Json Desc"))
+				FLevelEditorCommands::PreviewPlatformCommand GenerateJsonPlatform;
+				GenerateJsonPlatform.CommandInfo = FUICommandInfoDecl(
+					this->AsShared(),
+					FName(*FString::Printf(TEXT("Generate Platform Json for %s"), *Item.PlatformName.ToString())),
+					NSLOCTEXT("GeneratePlatformJson", "Generate Platform Json", "Generate Platform Json..."),
+					NSLOCTEXT("GeneratePlatformJsonDesc", "Generate Platform Json From Connected Devices", "Generate Platform Json From Connected Devices"))
 					.UserInterfaceType(EUserInterfaceActionType::Button)
-					.DefaultChord(FInputChord())
-				);
+					.DefaultChord(FInputChord());
+				GenerateJsonPlatform.bIsGeneratingJsonCommand = true;
 
-				PlatformToPreviewJsonPlatformOverrides.FindOrAdd(Item.PlatformName).Add(GeneratePlatformJson.Last());
-				PlatformName.Add(Item.PlatformName);
+				PlatformToPreviewJsonPlatformOverridesValue = &PlatformToPreviewJsonPlatformOverrides.Add(Item.PlatformName);
+				PlatformToPreviewJsonPlatformOverridesValue->Add(GenerateJsonPlatform);
 			}
 
+			check(PlatformToPreviewJsonPlatformOverridesValue != nullptr);
 			if (!PreviewShaderPlatformNames.Find(Item.PreviewShaderPlatformName))
 			{
-				PreviewPlatformFromJson.Add(
-					FUICommandInfoDecl(
-						this->AsShared(),
-						FName(*FString::Printf(TEXT("Preview %s with Json"), *Item.PreviewShaderPlatformName.ToString())),
-						FText::Format(NSLOCTEXT("PreviewJson", "Preview Json", "Preview {0} with Json"), PlatformFriendlyName),
-						NSLOCTEXT("PreviewJsonDesc", "Preview Json Desc", "Preview Json Desc"))
+				FLevelEditorCommands::PreviewPlatformCommand PreviewJsonPlatform;
+				PreviewJsonPlatform.CommandInfo = FUICommandInfoDecl(
+					this->AsShared(),
+					FName(*FString::Printf(TEXT("Preview via Json with %s"), *Item.PreviewShaderPlatformName.ToString())),
+					NSLOCTEXT("PreviewviaJson", "Preview via Json", "Preview via Json..."),
+					NSLOCTEXT("PreviewviaJsonDesc", "Preview via Json", "Preview via Json"))
 					.UserInterfaceType(EUserInterfaceActionType::Button)
-					.DefaultChord(FInputChord())
-				);
+					.DefaultChord(FInputChord());
+				PreviewJsonPlatform.bIsGeneratingJsonCommand = false;
+				PreviewJsonPlatform.SectionName = SectionName;
+				PlatformToPreviewJsonPlatformOverridesValue->Add(PreviewJsonPlatform);
 
-				PlatformToPreviewJsonPlatformOverrides.FindOrAdd(Item.PlatformName).Add(PreviewPlatformFromJson.Last());
+				TMap<FString, TArray<FString>> DirectoryToJsonFiles;
+				FString AbsoluteDebugInfoDirectory = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*(FPaths::ProjectSavedDir() / TEXT("PreviewJsonDevices") / Item.PlatformName.ToString()));
+				IFileManager::Get().FindFiles(DirectoryToJsonFiles.Add(AbsoluteDebugInfoDirectory), *AbsoluteDebugInfoDirectory, TEXT(".json"));
+				FString ProjectEditorJsonDir = FPaths::ProjectContentDir() / TEXT("Editor") / TEXT("PreviewJsonDevices") / Item.PlatformName.ToString();
+				IFileManager::Get().FindFiles(DirectoryToJsonFiles.Add(ProjectEditorJsonDir), *ProjectEditorJsonDir, TEXT(".json"));
+
+				TSet<FString> UniqueJsons;
+				for (auto Iter = DirectoryToJsonFiles.CreateConstIterator(); Iter; ++Iter)
+				{
+					FString DirectoryName = Iter.Key();
+					for (const FString& JsonFile : Iter.Value())
+					{
+						if (!UniqueJsons.Find(JsonFile))
+						{
+							FLevelEditorCommands::PreviewPlatformCommand PreviewJsonFilePlatform;
+							PreviewJsonFilePlatform.CommandInfo = FUICommandInfoDecl(
+								this->AsShared(),
+								FName(*FString::Printf(TEXT("Preview %s with Json %s"), *JsonFile, *Item.PreviewShaderPlatformName.ToString())),
+								FText::Format(NSLOCTEXT("PreviewJson", "Preview Json", "Preview {0}"), FText::FromString(FPaths::GetBaseFilename(JsonFile))),
+								FText::Format(NSLOCTEXT("PreviewJsonDesc", "Preview using Platform Json", "Preview {0}"), FText::FromString(FPaths::GetBaseFilename(JsonFile))))
+								.UserInterfaceType(EUserInterfaceActionType::Check)
+								.DefaultChord(FInputChord());
+							PreviewJsonFilePlatform.bIsGeneratingJsonCommand = false;
+							PreviewJsonFilePlatform.FilePath = DirectoryName / JsonFile;
+							PreviewJsonFilePlatform.SectionName = SectionName;
+							PlatformToPreviewJsonPlatformOverridesValue->Add(PreviewJsonFilePlatform);
+							UniqueJsons.Add(JsonFile);
+						}
+					}
+				}	
 				PreviewShaderPlatformNames.Add(Item.PreviewShaderPlatformName);
 			}
 		}

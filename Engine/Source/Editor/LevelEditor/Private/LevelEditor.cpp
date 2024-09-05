@@ -1797,8 +1797,6 @@ void FLevelEditorModule::BindGlobalLevelEditorCommands()
 	// We need one extra slot for the Disable Preview option
 	check(MenuItems.Num() == Commands.PreviewPlatformOverrides.Num());
 
-	TSet<FName> PreviewShaderPlatformNames;
-	TSet<FName> PlatformNames;
 	for (int32 Index=0; Index < MenuItems.Num(); Index++)
 	{
 		const FPreviewPlatformMenuItem& Item = MenuItems[Index];
@@ -1816,7 +1814,7 @@ void FLevelEditorModule::BindGlobalLevelEditorCommands()
 				}
 
 				const ERHIFeatureLevel::Type FeatureLevel = GetMaxSupportedFeatureLevel(ShaderPlatform);
-				return FPreviewPlatformInfo(FeatureLevel, ShaderPlatform, Item.PlatformName, Item.ShaderFormat, Item.DeviceProfileName, true, Item.PreviewShaderPlatformName);
+				return FPreviewPlatformInfo(FeatureLevel, ShaderPlatform, Item.PlatformName, Item.ShaderFormat, Item.DeviceProfileName, true, Item.PreviewShaderPlatformName, Item.OptionalFriendlyNameOverride);
 			};
 
 			FPreviewPlatformInfo PreviewFeatureLevelInfo = GetPreviewFeatureLevelInfo();
@@ -1831,24 +1829,27 @@ void FLevelEditorModule::BindGlobalLevelEditorCommands()
 			FString DeviceProfileSelectionModule;
 			if (PlatformEngineIni && PlatformEngineIni->GetString(TEXT("DeviceProfileManager"), TEXT("PreviewDeviceProfileSelectionModule"), DeviceProfileSelectionModule, GEngineIni))
 			{
-				if (!PlatformNames.Find(Item.PlatformName))
+				const TArray<FLevelEditorCommands::PreviewPlatformCommand>* CommandListJson = Commands.PlatformToPreviewJsonPlatformOverrides.Find(Item.PlatformName);
+
+				if (CommandListJson != nullptr)
 				{
-					FUIAction Action;
-					Action.ExecuteAction = FExecuteAction::CreateStatic(&FLevelEditorActionCallbacks::GeneratePreviewJson_Clicked, Item.PlatformName.ToString());
-					Action.IsActionVisibleDelegate = FIsActionButtonVisible::CreateStatic(&FLevelEditorActionCallbacks::IsGeneratePreviewJsonVisible, Item.PlatformName);
-
-					ActionList.MapAction(Commands.GeneratePlatformJson[PlatformNames.Num()], Action);
-					PlatformNames.Add(Item.PlatformName);
-				}
-
-				if (!PreviewShaderPlatformNames.Find(Item.PreviewShaderPlatformName))
-				{
-					FUIAction Action;
-					Action.ExecuteAction = FExecuteAction::CreateStatic(&FLevelEditorActionCallbacks::PreviewJson_Clicked, Item.PlatformName, Item.PreviewShaderPlatformName);
-					Action.IsActionVisibleDelegate = FIsActionButtonVisible::CreateStatic(&FLevelEditorActionCallbacks::IsPreviewJsonVisible, Item.PlatformName);
-
-					ActionList.MapAction(Commands.PreviewPlatformFromJson[PreviewShaderPlatformNames.Num()], Action);
-					PreviewShaderPlatformNames.Add(Item.PreviewShaderPlatformName);
+					for (const FLevelEditorCommands::PreviewPlatformCommand& PreviewJsonPlatform : *CommandListJson)
+					{
+						if (PreviewJsonPlatform.bIsGeneratingJsonCommand)
+						{
+							FUIAction Action;
+							Action.ExecuteAction = FExecuteAction::CreateStatic(&FLevelEditorActionCallbacks::GeneratePreviewJson_Clicked, Item.PlatformName.ToString());
+							Action.IsActionVisibleDelegate = FIsActionButtonVisible::CreateStatic(&FLevelEditorActionCallbacks::IsGeneratePreviewJsonVisible, Item.PlatformName);
+							ActionList.MapAction(PreviewJsonPlatform.CommandInfo, Action);
+						}
+						else
+						{
+							FUIAction ActionJsonFile;
+							ActionJsonFile.ExecuteAction = FExecuteAction::CreateStatic(&FLevelEditorActionCallbacks::PreviewJson_Clicked, Item.PlatformName, Item.PreviewShaderPlatformName, PreviewJsonPlatform.FilePath);
+							ActionJsonFile.IsActionVisibleDelegate = FIsActionButtonVisible::CreateStatic(&FLevelEditorActionCallbacks::IsPreviewJsonVisible, Item.PlatformName);
+							ActionList.MapAction(PreviewJsonPlatform.CommandInfo, ActionJsonFile);
+						}
+					}
 				}
 			}
 		}

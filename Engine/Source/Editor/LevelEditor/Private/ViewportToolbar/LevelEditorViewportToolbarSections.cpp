@@ -1496,12 +1496,15 @@ FToolMenuEntry CreateFeatureLevelPreviewSubmenu()
 			{
 				FToolMenuSection& Section =
 					InMenu->AddSection("EditorPreviewMode", LOCTEXT("EditorPreviewModePlatforms", "Preview Platforms"));
+				
+				Section.AddMenuEntry(FLevelEditorCommands::Get().DisablePlatformPreview);
+				Section.AddSeparator("DisablePlatformPreviewSeparator");
 
 				for (auto Iter = FLevelEditorCommands::Get().PlatformToPreviewPlatformOverrides.CreateConstIterator(); Iter; ++Iter)
 				{
 					FName PlatformName = Iter.Key();
-					const TArray<TSharedPtr<FUICommandInfo>>& CommandList = Iter.Value();
-					const TArray<TSharedPtr<FUICommandInfo>>* CommandListJson = FLevelEditorCommands::Get().PlatformToPreviewJsonPlatformOverrides.Find(PlatformName);
+					const TArray<FLevelEditorCommands::PreviewPlatformCommand>& CommandList = Iter.Value();
+					const TArray<FLevelEditorCommands::PreviewPlatformCommand>* CommandListJson = FLevelEditorCommands::Get().PlatformToPreviewJsonPlatformOverrides.Find(PlatformName);
 
 					Section.AddSubMenu(
 						FName(PlatformName), 
@@ -1510,28 +1513,47 @@ FToolMenuEntry CreateFeatureLevelPreviewSubmenu()
 						FNewToolMenuDelegate::CreateLambda(
 							[CommandList, CommandListJson](UToolMenu* InSubMenu)
 							{
-								FToolMenuSection& Section = InSubMenu->AddSection(NAME_None);
-								for (const TSharedPtr<FUICommandInfo>& Command : CommandList)
+								for (const FLevelEditorCommands::PreviewPlatformCommand& Command : CommandList)
 								{
-									Section.AddMenuEntry(Command);
+									FToolMenuSection& Section = InSubMenu->FindOrAddSection(Command.SectionName, FText::Format(LOCTEXT("PreviewJson", "{0}"), FText::FromName(Command.SectionName)));
+									Section.AddMenuEntry(Command.CommandInfo);
 								}
 
 								if (CommandListJson != nullptr)
 								{
-									Section.AddSubMenu(
-										"PreviewJson",
-										LOCTEXT("PreviewJson", "Preview Json"),
-										LOCTEXT("PreviewJson_ToolTip", "Preview Json"),
-										FNewToolMenuDelegate::CreateLambda(
-											[CommandListJson](UToolMenu* InSubMenu)
-											{
-												FToolMenuSection& Section = InSubMenu->AddSection(NAME_None);
-												for (const TSharedPtr<FUICommandInfo>& Command : *CommandListJson)
+									FToolMenuSection& SectionJson = InSubMenu->FindOrAddSection("PreviewWithJson", LOCTEXT("PreviewJson", "Preview With Json"));
+									TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> SectionNameToCommandList;
+									for (const FLevelEditorCommands::PreviewPlatformCommand& PreviewJsonPlatform : *CommandListJson)
+									{
+										if (PreviewJsonPlatform.bIsGeneratingJsonCommand)
+										{
+											SectionJson.AddMenuEntry(PreviewJsonPlatform.CommandInfo);
+										}
+										else
+										{
+											SectionNameToCommandList.FindOrAdd(PreviewJsonPlatform.SectionName).Add(PreviewJsonPlatform.CommandInfo);
+										}
+									}
+
+									for (auto Iter = SectionNameToCommandList.CreateConstIterator(); Iter; ++Iter)
+									{
+										FName SectionName = Iter.Key();
+										const TArray<TSharedPtr<FUICommandInfo>>& CommandListValue = Iter.Value();
+										SectionJson.AddSubMenu(
+											SectionName,
+											FText::Format(LOCTEXT("PreviewJson", "Preview {0}"), FText::FromName(SectionName)),
+											FText::Format(LOCTEXT("PreviewJson", "Preview {0}"), FText::FromName(SectionName)),
+											FNewToolMenuDelegate::CreateLambda(
+												[CommandListValue](UToolMenu* InSubMenu)
 												{
-													Section.AddMenuEntry(Command);
-												}
-											})
-									);
+													FToolMenuSection& Section = InSubMenu->AddSection(NAME_None);
+													for (const TSharedPtr<FUICommandInfo>& Command : CommandListValue)
+													{
+														Section.AddMenuEntry(Command);
+													}
+												})
+										);
+									}
 								}
 							})
 					);
