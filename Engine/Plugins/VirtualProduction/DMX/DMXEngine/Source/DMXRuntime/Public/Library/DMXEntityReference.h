@@ -90,7 +90,8 @@ private:
  * Represents a Controller from a DMX Library.
  * Used to store a reference to a Controller outside the DMX Library
  */
-USTRUCT(BlueprintType, meta = (DisplayName = "DMX Controller Ref"))
+struct 	UE_DEPRECATED(5.5, "Controllers are no longer used and deprecated in favor of the DMX Port System.") FDMXEntityControllerRef;
+USTRUCT(BlueprintType, meta = (Deprecated = "Controllers are no longer used and deprecated in favor of the DMX Port System."))
 struct DMXRUNTIME_API FDMXEntityControllerRef
 	: public FDMXEntityReference
 {
@@ -148,8 +149,10 @@ class DMXRUNTIME_API UDMXEntityReferenceConversions
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "ToController (ControllerReference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Utilities|DMX")
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS // FDMXEntityControllerRef used in args is deprecated. Leave it to that to raise deprecated warnings in C++.
+	UFUNCTION(BlueprintPure, meta = (DeprecatedFunction, DeprecationMessage = "Controllers are no longer used and deprecated in favor of the DMX Port System.", DisplayName = "ToController (ControllerReference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Utilities|DMX")
 	static UDMXEntityController* Conv_ControllerRefToObj(const FDMXEntityControllerRef& InControllerRef);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "ToFixtureType (FixtureTypeReference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Utilities|DMX")
 	static UDMXEntityFixtureType* Conv_FixtureTypeRefToObj(const FDMXEntityFixtureTypeRef& InFixtureTypeRef);
