@@ -576,7 +576,7 @@ FCanvasRenderThreadScope::~FCanvasRenderThreadScope()
 				ERenderTargetLoadAction::ELoad
 			);
 
-			GraphBuilder.AddPass(RDG_EVENT_NAME("MSAAResolveCanvas"), PassParameters, ERDGPassFlags::Raster, [](FRHICommandList&) {});
+			GraphBuilder.AddPass(RDG_EVENT_NAME("MSAAResolveCanvas"), PassParameters, ERDGPassFlags::Raster, [](FRDGAsyncTask, FRHICommandList&) {});
 		}
 
 		GraphBuilder.Execute();

@@ -1469,7 +1469,7 @@ void AddSlateDrawElementsPass(
 			LastPassParameters->RenderTargets[0].SetLoadAction(LoadAction);
 		}
 
-		FRDGPass* Pass = GraphBuilder.AddPass(RDG_EVENT_NAME("ElementBatch"), LastPassParameters, ERDGPassFlags::Raster, [Inputs = RenderBatchDrawInputs, RenderBatchHeadOp] (FRHICommandList& RHICmdList)
+		FRDGPass* Pass = GraphBuilder.AddPass(RDG_EVENT_NAME("ElementBatch"), LastPassParameters, ERDGPassFlags::Raster, [Inputs = RenderBatchDrawInputs, RenderBatchHeadOp] (FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(Inputs->ElementsViewRect.Min.X, Inputs->ElementsViewRect.Min.Y, 0.0f, Inputs->ElementsViewRect.Max.X, Inputs->ElementsViewRect.Max.Y, 1.0f);
 			RHICmdList.SetScissorRect(false, 0, 0, 0, 0);

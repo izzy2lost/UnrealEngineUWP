@@ -76,7 +76,7 @@ void FSlate3DRenderer::ReleaseDrawBuffer(FSlateDrawBuffer& InWindowDrawBuffer)
 	ENQUEUE_RENDER_COMMAND(SlateReleaseDrawBufferCommand)(
 		[DrawBuffer = &InWindowDrawBuffer](FRHICommandListImmediate& RHICmdList)
 	{
-		DrawBuffer->Unlock();
+		DrawBuffer->Unlock(FRDGBuilder::GetAsyncExecuteTask());
 	});
 }
 

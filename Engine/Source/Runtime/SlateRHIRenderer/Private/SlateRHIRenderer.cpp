@@ -336,7 +336,7 @@ void FSlateRHIRenderer::ReleaseDrawBuffer(FSlateDrawBuffer& WindowDrawBuffer)
 
 	ENQUEUE_RENDER_COMMAND(SlateReleaseDrawBufferCommand)([&WindowDrawBuffer](FRHICommandList& RHICmdList)
 	{
-		WindowDrawBuffer.Unlock();
+		WindowDrawBuffer.Unlock(FRDGBuilder::GetAsyncExecuteTask());
 	});
 }
 
@@ -1325,7 +1325,7 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 			DrawWindowPassOutputs.Reserve(DrawWindowsCommand->Windows.Num());
 
 			{
-				FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("Slate"));
+				FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("Slate"), ERDGBuilderFlags::ParallelSetup | ERDGBuilderFlags::ParallelExecute);
 
 				for (const FRenderThreadUpdateContext& DeferredUpdateContext : DrawWindowsCommand->DeferredUpdates)
 				{
@@ -1734,7 +1734,7 @@ void FSlateRHIRenderer::AddWidgetRendererUpdate(const FRenderThreadUpdateContext
 	{
 		ENQUEUE_RENDER_COMMAND(DrawWidgetRendererImmediate)([Context](FRHICommandListImmediate& RHICmdList)
 		{
-			FRDGBuilder GraphBuilder(RHICmdList);
+			FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("SlateWidgetRender"), ERDGBuilderFlags::ParallelSetup | ERDGBuilderFlags::ParallelExecute);
 			Context.Renderer->DrawWindowToTarget_RenderThread(GraphBuilder, Context);
 			GraphBuilder.Execute();
 		});

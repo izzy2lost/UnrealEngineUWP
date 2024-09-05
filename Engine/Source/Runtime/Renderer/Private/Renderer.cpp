@@ -402,6 +402,10 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 			PassParameters->RenderTargets[1] = FRenderTargetBinding(DepthAux, ERenderTargetLoadAction::EClear);
 		}
 
+		// Disable parallel setup tasks since we are only processing one mesh (not worth the task launch cost).
+		const bool bForceStereoInstancingOff = false;
+		const bool bForceParallelSetupOff = true;
+
 		// handle translucent material blend modes, not relevant in MaterialTexCoordScalesAnalysis since it outputs the scales.
 		if (ViewFamily->GetDebugViewShaderMode() == DVSM_OutputMaterialTextureScales)
 		{
@@ -414,21 +418,19 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 			{
 				PassParameters->DebugViewMode = CreateDebugViewModePassUniformBuffer(GraphBuilder, View, nullptr);
 
-				RenderContext.AddPass(RDG_EVENT_NAME("OutputMaterialTextureScales"), PassParameters,
-					[Scene, &View, &Mesh](FRHICommandList& RHICmdList)
+				AddDrawDynamicMeshPass(GraphBuilder, RDG_EVENT_NAME("OutputMaterialTextureScales"), PassParameters, View, View.ViewRect,
+					[Scene, &View, &Mesh](FMeshPassDrawListContext* InDrawListContext)
 				{
-					DrawDynamicMeshPass(View, RHICmdList, [&](FMeshPassDrawListContext* InDrawListContext)
-					{
-						FDebugViewModeMeshProcessor PassMeshProcessor(
-							Scene,
-							View.GetFeatureLevel(),
-							&View,
-							false,
-							InDrawListContext);
-						const uint64 DefaultBatchElementMask = ~0ull;
-						PassMeshProcessor.AddMeshBatch(Mesh, DefaultBatchElementMask, nullptr);
-					});
-				});
+					FDebugViewModeMeshProcessor PassMeshProcessor(
+						Scene,
+						View.GetFeatureLevel(),
+						&View,
+						false,
+						InDrawListContext);
+					const uint64 DefaultBatchElementMask = ~0ull;
+					PassMeshProcessor.AddMeshBatch(Mesh, DefaultBatchElementMask, nullptr);
+
+				}, bForceStereoInstancingOff, bForceParallelSetupOff);
 			}
 #endif // WITH_DEBUG_VIEW_MODES
 		}
@@ -438,48 +440,42 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 			{
 				PassParameters->TranslucentBasePass = CreateTranslucentBasePassUniformBuffer(GraphBuilder, Scene, View);
 
-				RenderContext.AddPass(RDG_EVENT_NAME("TranslucentDeferred"), PassParameters,
-					[Scene, &View, &Mesh, DrawRenderState, bUse128bitRT](FRHICommandList& RHICmdList)
+				AddDrawDynamicMeshPass(GraphBuilder, RDG_EVENT_NAME("TranslucentDeferred"), PassParameters, View, View.ViewRect,
+					[Scene, &View, &Mesh, DrawRenderState, bUse128bitRT](FMeshPassDrawListContext* DynamicMeshPassContext)
 				{
-					DrawDynamicMeshPass(View, RHICmdList, [&](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
-					{
-						FBasePassMeshProcessor PassMeshProcessor(
-							EMeshPass::BasePass,
-							Scene,
-							View.GetFeatureLevel(),
-							&View,
-							DrawRenderState,
-							DynamicMeshPassContext,
-							bUse128bitRT ? FBasePassMeshProcessor::EFlags::bRequires128bitRT : FBasePassMeshProcessor::EFlags::None,
-							ETranslucencyPass::TPT_AllTranslucency);
+					FBasePassMeshProcessor PassMeshProcessor(
+						EMeshPass::BasePass,
+						Scene,
+						View.GetFeatureLevel(),
+						&View,
+						DrawRenderState,
+						DynamicMeshPassContext,
+						bUse128bitRT ? FBasePassMeshProcessor::EFlags::bRequires128bitRT : FBasePassMeshProcessor::EFlags::None,
+						ETranslucencyPass::TPT_AllTranslucency);
 
-						const uint64 DefaultBatchElementMask = ~0ull;
-						PassMeshProcessor.AddMeshBatch(Mesh, DefaultBatchElementMask, nullptr);
-					});
-				});
+					const uint64 DefaultBatchElementMask = ~0ull;
+					PassMeshProcessor.AddMeshBatch(Mesh, DefaultBatchElementMask, nullptr);
+				}, bForceStereoInstancingOff, bForceParallelSetupOff);
 			}
 			else // Mobile
 			{
 				PassParameters->MobileBasePass = CreateMobileBasePassUniformBuffer(GraphBuilder, View, EMobileBasePass::Translucent, EMobileSceneTextureSetupMode::None);
 
-				RenderContext.AddPass(RDG_EVENT_NAME("TranslucentMobile"), PassParameters,
-					[Scene, &View, DrawRenderState, &Mesh](FRHICommandList& RHICmdList)
+				AddDrawDynamicMeshPass(GraphBuilder, RDG_EVENT_NAME("TranslucentMobile"), PassParameters, View, View.ViewRect,
+					[Scene, &View, DrawRenderState, &Mesh](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
 				{
-					DrawDynamicMeshPass(View, RHICmdList, [&](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
-					{
-						FMobileBasePassMeshProcessor PassMeshProcessor(
-							EMeshPass::TranslucencyAll,
-							Scene,
-							&View,
-							DrawRenderState,
-							DynamicMeshPassContext,
-							FMobileBasePassMeshProcessor::EFlags::None,
-							ETranslucencyPass::TPT_AllTranslucency);
+					FMobileBasePassMeshProcessor PassMeshProcessor(
+						EMeshPass::TranslucencyAll,
+						Scene,
+						&View,
+						DrawRenderState,
+						DynamicMeshPassContext,
+						FMobileBasePassMeshProcessor::EFlags::None,
+						ETranslucencyPass::TPT_AllTranslucency);
 
-						const uint64 DefaultBatchElementMask = ~0ull;
-						PassMeshProcessor.AddMeshBatch(Mesh, DefaultBatchElementMask, nullptr);
-					});
-				});
+					const uint64 DefaultBatchElementMask = ~0ull;
+					PassMeshProcessor.AddMeshBatch(Mesh, DefaultBatchElementMask, nullptr);
+				}, bForceStereoInstancingOff, bForceParallelSetupOff);
 			}
 		}
 		// handle opaque materials
@@ -494,22 +490,19 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 				ensureMsgf(HitProxyId == Mesh.BatchHitProxyId, TEXT("Only Mesh.BatchHitProxyId is used for hit testing."));
 
 #if WITH_EDITOR
-				RenderContext.AddPass(RDG_EVENT_NAME("HitTesting"), PassParameters,
-					[Scene, &View, DrawRenderState, &Mesh](FRHICommandList& RHICmdList)
+				AddDrawDynamicMeshPass(GraphBuilder, RDG_EVENT_NAME("HitTesting"), PassParameters, View, View.ViewRect,
+					[Scene, &View, DrawRenderState, &Mesh](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
 				{
-					DrawDynamicMeshPass(View, RHICmdList, [&](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
-					{
-						FHitProxyMeshProcessor PassMeshProcessor(
-							Scene,
-							&View,
-							false,
-							DrawRenderState,
-							DynamicMeshPassContext);
+					FHitProxyMeshProcessor PassMeshProcessor(
+						Scene,
+						&View,
+						false,
+						DrawRenderState,
+						DynamicMeshPassContext);
 
-						const uint64 DefaultBatchElementMask = ~0ull;
-						PassMeshProcessor.AddMeshBatch(Mesh, DefaultBatchElementMask, nullptr);
-					});
-				});
+					const uint64 DefaultBatchElementMask = ~0ull;
+					PassMeshProcessor.AddMeshBatch(Mesh, DefaultBatchElementMask, nullptr);
+				}, bForceStereoInstancingOff, bForceParallelSetupOff);
 #endif
 			}
 			else
@@ -518,47 +511,40 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 				{
 					PassParameters->OpaqueBasePass = CreateOpaqueBasePassUniformBuffer(GraphBuilder, View);
 
-					RenderContext.AddPass(RDG_EVENT_NAME("OpaqueDeferred"), PassParameters,
-						[Scene, &View, DrawRenderState, &Mesh, bUse128bitRT](FRHICommandList& RHICmdList)
+					AddDrawDynamicMeshPass(GraphBuilder, RDG_EVENT_NAME("OpaqueDeferred"), PassParameters, View, View.ViewRect,
+						[Scene, &View, DrawRenderState, &Mesh, bUse128bitRT](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
 					{
-						DrawDynamicMeshPass(View, RHICmdList,
-							[&](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
-						{
-							FBasePassMeshProcessor PassMeshProcessor(
-								EMeshPass::BasePass,
-								Scene,
-								View.GetFeatureLevel(),
-								&View,
-								DrawRenderState,
-								DynamicMeshPassContext,
-								bUse128bitRT ? FBasePassMeshProcessor::EFlags::bRequires128bitRT : FBasePassMeshProcessor::EFlags::None);
+						FBasePassMeshProcessor PassMeshProcessor(
+							EMeshPass::BasePass,
+							Scene,
+							View.GetFeatureLevel(),
+							&View,
+							DrawRenderState,
+							DynamicMeshPassContext,
+							bUse128bitRT ? FBasePassMeshProcessor::EFlags::bRequires128bitRT : FBasePassMeshProcessor::EFlags::None);
 
-							const uint64 DefaultBatchElementMask = ~0ull;
-							PassMeshProcessor.AddMeshBatch(Mesh, DefaultBatchElementMask, nullptr);
-						});
+						const uint64 DefaultBatchElementMask = ~0ull;
+						PassMeshProcessor.AddMeshBatch(Mesh, DefaultBatchElementMask, nullptr);
 					});
 				}
 				else // Mobile
 				{
 					PassParameters->MobileBasePass = CreateMobileBasePassUniformBuffer(GraphBuilder, View, EMobileBasePass::Opaque, EMobileSceneTextureSetupMode::None);
 
-					RenderContext.AddPass(RDG_EVENT_NAME("OpaqueMobile"), PassParameters,
-						[Scene, &View, DrawRenderState, &Mesh](FRHICommandList& RHICmdList)
+					AddDrawDynamicMeshPass(GraphBuilder, RDG_EVENT_NAME("OpaqueMobile"), PassParameters, View, View.ViewRect,
+						[Scene, &View, DrawRenderState, &Mesh](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
 					{
-						DrawDynamicMeshPass(View, RHICmdList, [&](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
-						{
-							FMobileBasePassMeshProcessor PassMeshProcessor(
-								EMeshPass::BasePass,
-								Scene,
-								&View,
-								DrawRenderState,
-								DynamicMeshPassContext,
-								FMobileBasePassMeshProcessor::EFlags::CanReceiveCSM | FMobileBasePassMeshProcessor::EFlags::ForcePassDrawRenderState);
+						FMobileBasePassMeshProcessor PassMeshProcessor(
+							EMeshPass::BasePass,
+							Scene,
+							&View,
+							DrawRenderState,
+							DynamicMeshPassContext,
+							FMobileBasePassMeshProcessor::EFlags::CanReceiveCSM | FMobileBasePassMeshProcessor::EFlags::ForcePassDrawRenderState);
 
-							const uint64 DefaultBatchElementMask = ~0ull;
-							PassMeshProcessor.AddMeshBatch(Mesh, DefaultBatchElementMask, nullptr);
-						});
-					});
+						const uint64 DefaultBatchElementMask = ~0ull;
+						PassMeshProcessor.AddMeshBatch(Mesh, DefaultBatchElementMask, nullptr);
+					}, bForceStereoInstancingOff, bForceParallelSetupOff);
 				}
 			}
 		}

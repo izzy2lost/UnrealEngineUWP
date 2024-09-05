@@ -262,7 +262,7 @@ void AddSlatePostProcessUpsamplePass(FRDGBuilder& GraphBuilder, const FSlatePost
 		RDG_EVENT_NAME("Upsample"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[OutputViewport, InputViewport, PipelineState, PixelShader, ClippingOp = Inputs.ClippingOp, PassParameters](FRHICommandList& RHICmdList)
+		[OutputViewport, InputViewport, PipelineState, PixelShader, ClippingOp = Inputs.ClippingOp, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		// Stencil clipping will issue its own draw calls.
 		SetSlateClipping(RHICmdList, ClippingOp, OutputViewport.Rect);

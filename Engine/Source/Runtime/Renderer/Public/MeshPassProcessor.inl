@@ -353,7 +353,8 @@ void AddDrawDynamicMeshPass(
 	const FSceneView& View,
 	FIntRect ViewRect,
 	const LambdaType& BuildPassProcessorLambda,
-	bool bForceStereoInstancingOff = false)
+	bool bForceStereoInstancingOff = false,
+	bool bForceParallelSetupOff = false)
 {
 	// We assume all dynamic passes are in stereo if it is enabled in the view, so we apply ISR to them
 	const uint32 InstanceFactor = (!bForceStereoInstancingOff && View.IsInstancedStereoPass()) ? 2 : 1;
@@ -373,13 +374,14 @@ void AddDrawDynamicMeshPass(
 		TRACE_CPUPROFILER_EVENT_SCOPE(SetupDynamicMeshPass);
 		FDynamicPassMeshDrawListContext DynamicMeshPassContext(Context.DynamicMeshDrawCommandStorage, Context.VisibleMeshDrawCommands, Context.GraphicsMinimalPipelineStateSet, Context.NeedsShaderInitialisation);
 		BuildPassProcessorLambda(&DynamicMeshPassContext);
-	});
+
+	}, !bForceParallelSetupOff);
 
 	GraphBuilder.AddPass(
 		MoveTemp(EventName),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[&Context, &View, ViewRect, InstanceFactor](FRHICommandList& RHICmdList)
+		[&Context, &View, ViewRect, InstanceFactor](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(SetupDynamicMeshPass);
 		RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
