@@ -570,6 +570,26 @@ class FakeReader : public Reader {
             return {};
         }
 
+        std::uint16_t getRBFPoseControlCount() const override {
+            return {};
+        }
+
+        StringView getRBFPoseControlName(std::uint16_t poseControlIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getRBFPoseInputControlIndices(std::uint16_t poseIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getRBFPoseOutputControlIndices(std::uint16_t poseIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<float> getRBFPoseOutputControlWeights(std::uint16_t poseIndex) const override {
+            return {};
+        }
+
         std::uint16_t getRBFSolverCount() const override {
             return {};
         }

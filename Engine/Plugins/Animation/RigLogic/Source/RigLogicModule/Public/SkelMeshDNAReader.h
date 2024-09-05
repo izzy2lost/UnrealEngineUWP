@@ -149,6 +149,11 @@ public:
 	TArrayView<const uint16> GetRBFPoseAnimatedMapOutputIndices(uint16 PoseIndex) const override;
 	TArrayView<const float> GetRBFPoseJointOutputValues(uint16 PoseIndex) const override;
 	float GetRBFPoseScale(uint16 PoseIndex) const override;
+	uint16 GetRBFPoseControlCount() const override;
+	FString GetRBFPoseControlName(uint16 PoseControlIndex) const override;
+	TArrayView<const uint16> GetRBFPoseInputControlIndices(uint16 PoseIndex) const override;
+	TArrayView<const uint16> GetRBFPoseOutputControlIndices(uint16 PoseIndex) const override;
+	TArrayView<const float> GetRBFPoseOutputControlWeights(uint16 PoseIndex) const override;
 	uint16 GetRBFSolverCount() const override;
 	uint16 GetRBFSolverIndexListCount() const override;
 	TArrayView<const uint16> GetRBFSolverIndicesForLOD(uint16 LOD) const override;

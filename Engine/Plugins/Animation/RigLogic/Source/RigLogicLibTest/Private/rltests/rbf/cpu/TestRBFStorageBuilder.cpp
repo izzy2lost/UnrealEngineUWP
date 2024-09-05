@@ -40,8 +40,12 @@ struct Evaluator<T, TF256, TF128>::Accessor {
             ASSERT_EQ(solver->getNormalizeMethod(), rltests::rbf::unoptimized::solverNormalizeMethods[si]);
             ASSERT_EQ(solver->getTwistAxis(), rltests::rbf::unoptimized::solverTwistAxis[si]);
 
-            ASSERT_EQ(result.solverRawControlInputIndices[si], rltests::rbf::optimized::solverRawControlInputIndices[si]);
-            ASSERT_EQ(result.solverRawControlOutputIndices[si], rltests::rbf::optimized::solverRawControlOutputIndices[si]);
+            ASSERT_EQ(result.solverPoseIndices[si], rltests::rbf::unoptimized::solverPoseIndices[si]);
+        }
+        for (std::uint16_t pi = {}; pi < rltests::rbf::unoptimized::poseScales.size(); ++pi) {
+            ASSERT_EQ(result.poseInputControlIndices[pi], rltests::rbf::unoptimized::poseInputControlIndices[pi]);
+            ASSERT_EQ(result.poseOutputControlIndices[pi], rltests::rbf::unoptimized::poseOutputControlIndices[pi]);
+            ASSERT_EQ(result.poseOutputControlWeights[pi], rltests::rbf::unoptimized::poseOutputControlWeights[pi]);
         }
     }
 

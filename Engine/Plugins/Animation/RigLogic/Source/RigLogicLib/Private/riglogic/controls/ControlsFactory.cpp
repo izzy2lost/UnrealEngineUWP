@@ -85,7 +85,7 @@ Controls::Pointer ControlsFactory::create(const Configuration& config, const dna
                                                  conditionals.getOutputCount(),
                                                  psds.getDistinctPSDCount(),
                                                  reader->getMLControlCount(),
-                                                 reader->getRBFPoseCount());
+                                                 reader->getRBFPoseControlCount());
 
     return UniqueInstance<Controls>::with(memRes).create(std::move(conditionals), std::move(psds), instanceFactory);
 }

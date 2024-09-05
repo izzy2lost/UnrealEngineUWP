@@ -11,8 +11,8 @@
 
 namespace dna {
 
-struct RawV22 {
-    static const unsigned char header[107];
+struct RawV25 {
+    static const unsigned char header[155];
     static const unsigned char descriptor[87];
     static const unsigned char definition[794];
     static const unsigned char controls[2];
@@ -22,64 +22,20 @@ struct RawV22 {
     static const unsigned char blendshapes[44];
     static const unsigned char animatedmaps[8];
     static const unsigned char geometry[1080];
-    static const unsigned char unknownLayer1[16];
-    static const unsigned char unknownLayer2[32];
+    static const unsigned char machineLearnedBehavior[762];
+    static const unsigned char rbfBehavior[327];
+    static const unsigned char rbfBehaviorExt[228];
+    static const unsigned char jointBehaviorMetadata[58];
+    static const unsigned char twistSwingBehavior[200];
 
     static std::vector<char> getBytes();
 };
 
-struct RawV22WithUnknownDataIgnoredAndDNARewritten {
-    static const unsigned char header[75];
-
+struct RawV24DowngradedFromV25 {
     static std::vector<char> getBytes();
 };
 
-struct RawV2xNewer {
-    static const unsigned char header[107];
-    static const unsigned char unknownDescriptor[16];
-    static const unsigned char unknownDefinition[16];
-    static const unsigned char unknownBehavior[32];
-    static const unsigned char unknownGeometry[32];
-    static const unsigned char unknownCustom1[16];
-    static const unsigned char unknownCustom2[32];
-
-    static std::vector<char> getBytes();
-};
-
-struct RawV2xNewerWithUnknownDataPreservedAndDNARewritten {
-    static const unsigned char header[251];
-    static const unsigned char descriptor[36];
-    static const unsigned char definition[92];
-    static const unsigned char behavior[86];
-    static const unsigned char geometry[4];
-    static const unsigned char machineLearnedBehavior[24];
-    static const unsigned char rbfBehavior[16];
-    static const unsigned char rbfBehaviorExt[8];
-    static const unsigned char jointBehaviorMetaData[4];
-    static const unsigned char twistSwingBehavior[8];
-
-    static std::vector<char> getBytes();
-};
-
-struct RawV2xNewerWithUnknownDataIgnoredAndDNARewritten {
-    static const unsigned char header[155];
-
-    static std::vector<char> getBytes();
-};
-
-struct RawV22Empty {
-    static const unsigned char header[75];
-
-    static std::vector<char> getBytes();
-};
-
-struct RawV22WithUnknownDataFromNewer2x {
-    static const unsigned char header[171];
-
-    static std::vector<char> getBytes();
-};
-
-struct DecodedV22 {
+struct DecodedV25 {
     using VectorOfCharStringMatrix = pma::Vector<pma::Matrix<pma::String<char> > >;
     using StringPair = std::pair<pma::String<char>, pma::String<char> >;
 
@@ -150,6 +106,60 @@ struct DecodedV22 {
     static const pma::Vector<pma::Matrix<std::uint16_t> > correctiveBlendShapeIndices;
     static const pma::Matrix<pma::Matrix<Vector3> > correctiveBlendShapeDeltas;
     static const pma::Matrix<pma::Matrix<std::uint32_t> > correctiveBlendShapeVertexIndices;
+
+    // Machine learned behavior
+    static const pma::Vector<pma::String<char> > mlControlNames;
+    static const VectorOfCharStringMatrix regionNames;
+    static const pma::Matrix<std::uint16_t> neuralNetworkIndicesPerLOD;
+    static const pma::Matrix<pma::Matrix<std::uint16_t> > neuralNetworkIndicesPerMeshRegion;
+    static const pma::Vector<pma::Matrix<std::uint16_t> > neuralNetworkInputIndices;
+    static const pma::Vector<pma::Matrix<std::uint16_t> > neuralNetworkOutputIndices;
+    static const pma::Matrix<std::uint16_t> neuralNetworkLayerCount;
+    static const pma::Vector<pma::Matrix<std::uint16_t> > neuralNetworkActivationFunction;
+    static const pma::Matrix<pma::Matrix<float> > neuralNetworkActivationFunctionParameters;
+    static const pma::Matrix<pma::Matrix<float> > neuralNetworkBiases;
+    static const pma::Matrix<pma::Matrix<float> > neuralNetworkWeights;
+
+    // RBF behavior
+    static const pma::Vector<pma::String<char> > poseNames;
+    static const pma::Vector<std::uint16_t> poseDistanceMethod;
+    static const pma::Vector<std::uint16_t> poseFunctionType;
+    static const pma::Vector<float> poseScale;
+
+    static const pma::Matrix<std::uint16_t> solverIndicesPerLOD;
+    static const pma::Vector<pma::String<char> > solverNames;
+    static const pma::Vector<float> solverRadius;
+    static const pma::Vector<float> solverWeightThreshold;
+    static const pma::Vector<std::uint16_t> solverType;
+    static const pma::Vector<std::uint16_t> solverAutomaticRadius;
+    static const pma::Vector<std::uint16_t> solverDistanceMethod;
+    static const pma::Vector<std::uint16_t> solverNormalizeMethod;
+    static const pma::Vector<std::uint16_t> solverFunctionType;
+    static const pma::Vector<std::uint16_t> solverTwistAxis;
+    static const pma::Matrix<std::uint16_t> solverRawControlIndices;
+    static const pma::Matrix<std::uint16_t> solverPoseIndices;
+    static const pma::Matrix<float> solverRawControlValues;
+
+    // RBF behavior ext
+    static const pma::Vector<pma::String<char> > poseControlNames;
+    static const pma::Matrix<std::uint16_t> poseInputControlIndices;
+    static const pma::Matrix<std::uint16_t> poseOutputControlIndices;
+    static const pma::Matrix<float> poseOutputControlWeights;
+
+    // Joint behavior metadata
+    static const pma::Matrix<TranslationRepresentation> jointTranslationRepresentation;
+    static const pma::Matrix<RotationRepresentation> jointRotationRepresentation;
+    static const pma::Matrix<ScaleRepresentation> jointScaleRepresentation;
+
+    // Twist swing setups
+    static const pma::Vector<pma::Matrix<std::uint16_t> > swingInputControlIndices;
+    static const pma::Vector<pma::Matrix<std::uint16_t> > swingOutputJointIndices;
+    static const pma::Vector<pma::Matrix<float> > swingBlendWeights;
+    static const pma::Matrix<TwistAxis> swingTwistAxes;
+    static const pma::Vector<pma::Matrix<std::uint16_t> > twistInputControlIndices;
+    static const pma::Vector<pma::Matrix<std::uint16_t> > twistOutputJointIndices;
+    static const pma::Vector<pma::Matrix<float> > twistBlendWeights;
+    static const pma::Matrix<TwistAxis> twistTwistAxes;
 
     static std::size_t lodConstraintToIndex(std::uint16_t maxLOD, std::uint16_t minLOD);
     static RawJoints getJoints(std::uint16_t currentMaxLOD, std::uint16_t currentMinLOD, pma::MemoryResource* memRes);

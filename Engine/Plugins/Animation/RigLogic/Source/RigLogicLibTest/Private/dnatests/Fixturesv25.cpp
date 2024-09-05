@@ -1,44 +1,59 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "dnatests/Fixturesv22.h"
+#include "dnatests/Fixturesv25.h"
 
 #include "dna/Reader.h"
+#include "pma/TypeDefs.h"
+
+#pragma warning(disable : 4503)
 
 namespace dna {
 
-const unsigned char RawV22::header[] = {
+const unsigned char RawV25::header[] = {
     0x44, 0x4e, 0x41,  // DNA signature
     0x00, 0x02,  // Generation
-    0x00, 0x02,  // Version
+    0x00, 0x05,  // Version
     // Index Table
-    0x00, 0x00, 0x00, 0x06,  // Index table entry count
+    0x00, 0x00, 0x00, 0x09,  // Index table entry count
     0x64, 0x65, 0x73, 0x63,  // Descriptor id
     0x00, 0x01, 0x00, 0x01,  // Descriptor version
-    0x00, 0x00, 0x00, 0x6b,  // Descriptor offset
+    0x00, 0x00, 0x00, 0x9b,  // Descriptor offset
     0x00, 0x00, 0x00, 0x57,  // Descriptor size
     0x64, 0x65, 0x66, 0x6e,  // Definition id
     0x00, 0x01, 0x00, 0x01,  // Definition version
-    0x00, 0x00, 0x00, 0xc2,  // Definition offset
+    0x00, 0x00, 0x00, 0xf2,  // Definition offset
     0x00, 0x00, 0x03, 0x1a,  // Definition size
     0x62, 0x68, 0x76, 0x72,  // Behavior id
     0x00, 0x01, 0x00, 0x01,  // Behavior version
-    0x00, 0x00, 0x03, 0xdc,  // Behavior offset
+    0x00, 0x00, 0x04, 0x0c,  // Behavior offset
     0x00, 0x00, 0x05, 0x46,  // Behavior size
     0x67, 0x65, 0x6f, 0x6d,  // Geometry id
     0x00, 0x01, 0x00, 0x01,  // Geometry version
-    0x00, 0x00, 0x09, 0x22,  // Geometry offset
+    0x00, 0x00, 0x09, 0x52,  // Geometry offset
     0x00, 0x00, 0x04, 0x38,  // Geometry size
-    0x75, 0x6e, 0x6b, 0x31,  // Unknown 1 id
-    0x00, 0x01, 0x00, 0x03,  // Unknown 1 version
-    0x00, 0x00, 0x0d, 0x5a,  // Unknown 1 offset
-    0x00, 0x00, 0x00, 0x10,  // Unknown 1 size
-    0x75, 0x6e, 0x6b, 0x32,  // Unknown 2 id
-    0x00, 0x01, 0x00, 0x02,  // Unknown 2 version
-    0x00, 0x00, 0x0d, 0x6a,  // Unknown 2 offset
-    0x00, 0x00, 0x00, 0x20  // Unknown 2 size
+    0x6d, 0x6c, 0x62, 0x68,  // Machine learned behavior id
+    0x00, 0x01, 0x00, 0x00,  // Machine learned behavior version
+    0x00, 0x00, 0x0d, 0x8a,  // Machine learned behavior offset
+    0x00, 0x00, 0x02, 0xfa,  // Machine learned behavior size
+    0x72, 0x62, 0x66, 0x62,  // RBF behavior id
+    0x00, 0x01, 0x00, 0x00,  // RBF behavior version
+    0x00, 0x00, 0x10, 0x84,  // RBF behavior offset
+    0x00, 0x00, 0x01, 0x47,  // RBF behavior size
+    0x72, 0x62, 0x66, 0x65,  // RBF behavior ext id
+    0x00, 0x01, 0x00, 0x00,  // RBF behavior ext version
+    0x00, 0x00, 0x11, 0xcb,  // RBF behavior ext offset
+    0x00, 0x00, 0x00, 0xe4,  // RBF behavior ext size
+    0x6a, 0x62, 0x6d, 0x64,  // Joint behavior metadata id
+    0x00, 0x01, 0x00, 0x00,  // Joint behavior metadata version
+    0x00, 0x00, 0x12, 0xaf,  // Joint behavior metadata offset
+    0x00, 0x00, 0x00, 0x3a,  // Joint behavior metadata size
+    0x74, 0x77, 0x73, 0x77,  // Twist swing setups id
+    0x00, 0x01, 0x00, 0x00,  // Twist swing setups version
+    0x00, 0x00, 0x12, 0xe9,  // Twist swing setups offset
+    0x00, 0x00, 0x00, 0xc8  // Twist swing setups size
 };
 
-const unsigned char RawV22::descriptor[] = {
+const unsigned char RawV25::descriptor[] = {
     0x00, 0x00, 0x00, 0x04,  // Name length
     0x74, 0x65, 0x73, 0x74,  // Name
     0x00, 0x05,  // Archetype
@@ -66,7 +81,7 @@ const unsigned char RawV22::descriptor[] = {
     0x74, 0x65, 0x73, 0x74, 0x44, 0x42  // Name
 };
 
-const unsigned char RawV22::definition[] = {
+const unsigned char RawV25::definition[] = {
     0x00, 0x00, 0x00, 0x02,  // Joint name indices lod to row mapping length
     0x00, 0x00,  // Map from LOD-0 to row 0 in below defined matrix
     0x00, 0x01,  // Map from LOD-1 to row 1 in below defined matrix
@@ -332,7 +347,7 @@ const unsigned char RawV22::definition[] = {
     0x41, 0x10, 0x00, 0x00  // 9.0f
 };
 
-const unsigned char RawV22::conditionals[] {
+const unsigned char RawV25::conditionals[] {
     // Input indices
     0x00, 0x00, 0x00, 0x0f,  // Input indices count
     0x00, 0x00,  // Index: 0      C1  L0  L1
@@ -437,7 +452,7 @@ const unsigned char RawV22::conditionals[] {
     0x3e, 0x4c, 0xcc, 0xcd  // 0.2f       C1  L0
 };
 
-const unsigned char RawV22::psds[] {
+const unsigned char RawV25::psds[] {
     // Rows
     0x00, 0x00, 0x00, 0x18,  // Row index count
     0x00, 0x08,  // Index:  8  C1
@@ -518,11 +533,11 @@ const unsigned char RawV22::psds[] {
     0x3f, 0x80, 0x00, 0x00  // 1.0f  C1
 };
 
-const unsigned char RawV22::controls[] = {
+const unsigned char RawV25::controls[] = {
     0x00, 0x0c  // PSD count
 };
 
-const unsigned char RawV22::joints[] = {
+const unsigned char RawV25::joints[] = {
     0x00, 0x51,  // Rows = 81
     0x00, 0x0a,  // Columns = 10
     // Joint groups
@@ -683,7 +698,7 @@ const unsigned char RawV22::joints[] = {
     0x00, 0x07  // Index: 7
 };
 
-const unsigned char RawV22::blendshapes[] = {
+const unsigned char RawV25::blendshapes[] = {
     0x00, 0x00, 0x00, 0x02,  // LOD count
     0x00, 0x07,  // LOD-0 row-count
     0x00, 0x04,  // LOD-1 row-count
@@ -705,14 +720,14 @@ const unsigned char RawV22::blendshapes[] = {
     0x00, 0x08  // Index: 8  C0  C1  L0
 };
 
-const unsigned char RawV22::animatedmaps[] = {
+const unsigned char RawV25::animatedmaps[] = {
     // LOD sizes
     0x00, 0x00, 0x00, 0x02,  // Row count per LOD
     0x00, 0x0f,  // LOD-0 row-count
     0x00, 0x06  // LOD-1 row-count
 };
 
-const unsigned char RawV22::geometry[] = {
+const unsigned char RawV25::geometry[] = {
     0x00, 0x00, 0x00, 0x03,  // Mesh count
     // Mesh-0
     0x00, 0x00, 0x01, 0x52,  // Mesh-0 size
@@ -1002,25 +1017,536 @@ const unsigned char RawV22::geometry[] = {
     0x00, 0x03  // Blend shape index in Definition
 };
 
-const unsigned char RawV22::unknownLayer1[] = {
-    0x01, 0x02, 0x03, 0x04,
-    0x05, 0x06, 0x07, 0x08,
-    0x09, 0x0a, 0x0b, 0x0c,
-    0x0d, 0x0e, 0x0f, 0x10
+const unsigned char RawV25::machineLearnedBehavior[] = {
+    0x00, 0x00, 0x00, 0x09,  // Raw control names length
+    0x00, 0x00, 0x00, 0x02,  // Raw control name 0 length
+    0x4d, 0x41,  // Raw control name 0 : MA
+    0x00, 0x00, 0x00, 0x02,  // Raw control name 1 length
+    0x4d, 0x42,  // Raw control name 1 : MB
+    0x00, 0x00, 0x00, 0x02,  // Raw control name 2 length
+    0x4d, 0x43,  // Raw control name 2 : MC
+    0x00, 0x00, 0x00, 0x02,  // Raw control name 3 length
+    0x4d, 0x44,  // Raw control name 3 : MD
+    0x00, 0x00, 0x00, 0x02,  // Raw control name 4 length
+    0x4d, 0x45,  // Raw control name 4 : ME
+    0x00, 0x00, 0x00, 0x02,  // Raw control name 5 length
+    0x4d, 0x46,  // Raw control name 5 : MF
+    0x00, 0x00, 0x00, 0x02,  // Raw control name 6 length
+    0x4d, 0x47,  // Raw control name 6 : MG
+    0x00, 0x00, 0x00, 0x02,  // Raw control name 7 length
+    0x4d, 0x48,  // Raw control name 7 : MH
+    0x00, 0x00, 0x00, 0x02,  // Raw control name 8 length
+    0x4d, 0x49,  // Raw control name 8 : MI
+    0x00, 0x00, 0x00, 0x02,  // Neural network indices lod to row mapping length
+    0x00, 0x00,  // Map from LOD-0 to row 0 in below defined matrix
+    0x00, 0x01,  // Map from LOD-1 to row 1 in below defined matrix
+    0x00, 0x00, 0x00, 0x02,  // Neural network indices per LOD row count
+    0x00, 0x00, 0x00, 0x04,  // Indices matrix row-0
+    0x00, 0x00,  // Neural network index: 0
+    0x00, 0x01,  // Neural network index: 1
+    0x00, 0x02,  // Neural network index: 2
+    0x00, 0x03,  // Neural network index: 3
+    0x00, 0x00, 0x00, 0x02,  // Indices matrix row-1
+    0x00, 0x04,  // Neural network index: 4
+    0x00, 0x05,  // Neural network index: 5
+    0x00, 0x00, 0x00, 0x03,  // Region names length
+    0x00, 0x00, 0x00, 0x02,  // Region names length for mesh 0
+    0x00, 0x00, 0x00, 0x02,  // Region name 0 length
+    0x52, 0x41,  // Region name 0 : RA
+    0x00, 0x00, 0x00, 0x02,  // Region name 1 length
+    0x52, 0x42,  // Region name 1 : RB
+    0x00, 0x00, 0x00, 0x02,  // Region names length for mesh 1
+    0x00, 0x00, 0x00, 0x02,  // Region name 0 length
+    0x52, 0x43,  // Region name 0 : RC
+    0x00, 0x00, 0x00, 0x02,  // Region name 1 length
+    0x52, 0x44,  // Region name 1 : RD
+    0x00, 0x00, 0x00, 0x02,  // Region names length for mesh 2
+    0x00, 0x00, 0x00, 0x02,  // Region name 0 length
+    0x52, 0x45,  // Region name 0 : RE
+    0x00, 0x00, 0x00, 0x02,  // Region name 1 length
+    0x52, 0x46,  // Region name 1 : RF
+    0x00, 0x00, 0x00, 0x03,  // Mesh count
+    0x00, 0x00, 0x00, 0x02,  // Region count for Mesh-0
+    0x00, 0x00, 0x00, 0x01,  // Neural network index count for Mesh-0 Region-0
+    0x00, 0x00,  // Neural network index: 0
+    0x00, 0x00, 0x00, 0x01,  // Neural network index count for Mesh-0 Region-1
+    0x00, 0x01,  // Neural network index: 1
+    0x00, 0x00, 0x00, 0x02,  // Region count for Mesh-1
+    0x00, 0x00, 0x00, 0x01,  // Neural network index count for Mesh-1 Region-0
+    0x00, 0x02,  // Neural network index: 2
+    0x00, 0x00, 0x00, 0x01,  // Neural network index count for Mesh-1 Region-1
+    0x00, 0x03,  // Neural network index: 3
+    0x00, 0x00, 0x00, 0x02,  // Region count for Mesh-2
+    0x00, 0x00, 0x00, 0x01,  // Neural network index count for Mesh-2 Region-0
+    0x00, 0x04,  // Neural network index: 4
+    0x00, 0x00, 0x00, 0x01,  // Neural network index count for Mesh-2 Region-1
+    0x00, 0x05,  // Neural network index: 5
+    0x00, 0x00, 0x00, 0x06,  // Neural network count
+    // Mesh-0 Region-0 neural network
+    0x00, 0x00, 0x00, 0x5a,  // Mesh-0 Region-0 neural network size
+    0x00, 0x00, 0x00, 0x01,  // Mesh-0 Region-0 neural network output index count
+    0x00, 0x09,  // Mesh-0 Region-0 neural network output index-9
+    0x00, 0x00, 0x00, 0x02,  // Mesh-0 Region-1 neural network input index count
+    0x00, 0x00,  // Mesh-0 Region-0 neural network input index-0
+    0x00, 0x01,  // Mesh-0 Region-0 neural network input index-1
+    0x00, 0x00, 0x00, 0x02,  // Mesh-0 Region-0 neural network layer count
+    0x00, 0x00, 0x00, 0x02,  // Mesh-0 Region-0 neural network layer-0 bias count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x00, 0x00, 0x04,  // Mesh-0 Region-0 neural network layer-0 weight count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x01,  // Mesh-0 Region-0 neural network layer-0 activation function ID
+    0x00, 0x00, 0x00, 0x01,  // Mesh-0 Region-0 neural network layer-1 activation function parameter count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x00, 0x00, 0x01,  // Mesh-0 Region-0 neural network layer-1 bias count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x00, 0x00, 0x02,  // Mesh-0 Region-0 neural network layer-1 weight count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x01,  // Mesh-0 Region-0 neural network layer-1 activation function ID
+    0x00, 0x00, 0x00, 0x01,  // Mesh-0 Region-0 neural network layer-1 activation function parameter count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    // Mesh-0 Region-1 neural network
+    0x00, 0x00, 0x00, 0x5a,  // Mesh-0 Region-1 neural network size
+    0x00, 0x00, 0x00, 0x01,  // Mesh-0 Region-1 neural network output index count
+    0x00, 0x0a,  // Mesh-0 Region-1 neural network output index-10
+    0x00, 0x00, 0x00, 0x02,  // Mesh-0 Region-1 neural network input index count
+    0x00, 0x02,  // Mesh-0 Region-1 neural network input index-2
+    0x00, 0x03,  // Mesh-0 Region-1 neural network input index-3
+    0x00, 0x00, 0x00, 0x02,  // Mesh-0 Region-1 neural network layer count
+    0x00, 0x00, 0x00, 0x02,  // Mesh-0 Region-1 neural network layer-0 bias count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x00, 0x00, 0x04,  // Mesh-0 Region-1 neural network layer-0 weight count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x01,  // Mesh-0 Region-1 neural network layer-0 activation function ID
+    0x00, 0x00, 0x00, 0x01,  // Mesh-0 Region-1 neural network layer-1 activation function parameter count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x00, 0x00, 0x01,  // Mesh-0 Region-1 neural network layer-1 bias count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x00, 0x00, 0x02,  // Mesh-0 Region-1 neural network layer-1 weight count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x01,  // Mesh-0 Region-1 neural network layer-1 activation function ID
+    0x00, 0x00, 0x00, 0x01,  // Mesh-0 Region-1 neural network layer-1 activation function parameter count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    // Mesh-1 Region-0 neural network
+    0x00, 0x00, 0x00, 0x5a,  // Mesh-1 Region-0 neural network size
+    0x00, 0x00, 0x00, 0x01,  // Mesh-1 Region-0 neural network output index count
+    0x00, 0x0b,  // Mesh-1 Region-0 neural network output index-11
+    0x00, 0x00, 0x00, 0x02,  // Mesh-1 Region-1 neural network input index count
+    0x00, 0x04,  // Mesh-1 Region-0 neural network input index-4
+    0x00, 0x05,  // Mesh-1 Region-0 neural network input index-5
+    0x00, 0x00, 0x00, 0x02,  // Mesh-1 Region-0 neural network layer count
+    0x00, 0x00, 0x00, 0x02,  // Mesh-1 Region-0 neural network layer-0 bias count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x00, 0x00, 0x04,  // Mesh-1 Region-0 neural network layer-0 weight count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x01,  // Mesh-1 Region-0 neural network layer-0 activation function ID
+    0x00, 0x00, 0x00, 0x01,  // Mesh-1 Region-0 neural network layer-1 activation function parameter count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x00, 0x00, 0x01,  // Mesh-1 Region-0 neural network layer-1 bias count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x00, 0x00, 0x02,  // Mesh-1 Region-0 neural network layer-1 weight count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x01,  // Mesh-1 Region-0 neural network layer-1 activation function ID
+    0x00, 0x00, 0x00, 0x01,  // Mesh-1 Region-0 neural network layer-1 activation function parameter count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    // Mesh-1 Region-1 neural network
+    0x00, 0x00, 0x00, 0x5a,  // Mesh-1 Region-1 neural network size
+    0x00, 0x00, 0x00, 0x01,  // Mesh-1 Region-1 neural network output index count
+    0x00, 0x0c,  // Mesh-1 Region-1 neural network output index-12
+    0x00, 0x00, 0x00, 0x02,  // Mesh-1 Region-1 neural network input index count
+    0x00, 0x06,  // Mesh-1 Region-1 neural network input index-6
+    0x00, 0x07,  // Mesh-1 Region-1 neural network input index-7
+    0x00, 0x00, 0x00, 0x02,  // Mesh-1 Region-1 neural network layer count
+    0x00, 0x00, 0x00, 0x02,  // Mesh-1 Region-1 neural network layer-0 bias count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x00, 0x00, 0x04,  // Mesh-1 Region-1 neural network layer-0 weight count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x01,  // Mesh-1 Region-1 neural network layer-0 activation function ID
+    0x00, 0x00, 0x00, 0x01,  // Mesh-1 Region-1 neural network layer-1 activation function parameter count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x00, 0x00, 0x01,  // Mesh-1 Region-1 neural network layer-1 bias count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x00, 0x00, 0x02,  // Mesh-1 Region-1 neural network layer-1 weight count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x01,  // Mesh-1 Region-1 neural network layer-1 activation function ID
+    0x00, 0x00, 0x00, 0x01,  // Mesh-1 Region-1 neural network layer-1 activation function parameter count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    // Mesh-2 Region-0 neural network
+    0x00, 0x00, 0x00, 0x5a,  // Mesh-2 Region-0 neural network size
+    0x00, 0x00, 0x00, 0x01,  // Mesh-2 Region-0 neural network output index count
+    0x00, 0x0d,  // Mesh-2 Region-0 neural network output index-13
+    0x00, 0x00, 0x00, 0x02,  // Mesh-2 Region-1 neural network input index count
+    0x00, 0x08,  // Mesh-2 Region-0 neural network input index-8
+    0x00, 0x00,  // Mesh-2 Region-0 neural network input index-0
+    0x00, 0x00, 0x00, 0x02,  // Mesh-2 Region-0 neural network layer count
+    0x00, 0x00, 0x00, 0x02,  // Mesh-2 Region-0 neural network layer-0 bias count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x00, 0x00, 0x04,  // Mesh-2 Region-0 neural network layer-0 weight count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x01,  // Mesh-2 Region-0 neural network layer-0 activation function ID
+    0x00, 0x00, 0x00, 0x01,  // Mesh-2 Region-0 neural network layer-1 activation function parameter count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x00, 0x00, 0x01,  // Mesh-2 Region-0 neural network layer-1 bias count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x00, 0x00, 0x02,  // Mesh-2 Region-0 neural network layer-1 weight count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x01,  // Mesh-2 Region-0 neural network layer-1 activation function ID
+    0x00, 0x00, 0x00, 0x01,  // Mesh-2 Region-0 neural network layer-1 activation function parameter count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    // Mesh-2 Region-1 neural network
+    0x00, 0x00, 0x00, 0x5a,  // Mesh-2 Region-1 neural network size
+    0x00, 0x00, 0x00, 0x01,  // Mesh-2 Region-1 neural network output index count
+    0x00, 0x0e,  // Mesh-2 Region-1 neural network output index-14
+    0x00, 0x00, 0x00, 0x02,  // Mesh-2 Region-1 neural network input index count
+    0x00, 0x04,  // Mesh-2 Region-1 neural network input index-4
+    0x00, 0x07,  // Mesh-2 Region-1 neural network input index-7
+    0x00, 0x00, 0x00, 0x02,  // Mesh-2 Region-1 neural network layer count
+    0x00, 0x00, 0x00, 0x02,  // Mesh-2 Region-1 neural network layer-0 bias count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x00, 0x00, 0x04,  // Mesh-2 Region-1 neural network layer-0 weight count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x01,  // Mesh-2 Region-1 neural network layer-0 activation function ID
+    0x00, 0x00, 0x00, 0x01,  // Mesh-2 Region-1 neural network layer-1 activation function parameter count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x00, 0x00, 0x01,  // Mesh-2 Region-1 neural network layer-1 bias count
+    0x3f, 0x00, 0x00, 0x00,  // 0.5f
+    0x00, 0x00, 0x00, 0x02,  // Mesh-2 Region-1 neural network layer-1 weight count
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x3f, 0x80, 0x00, 0x00,  // 1.0f
+    0x00, 0x01,  // Mesh-2 Region-1 neural network layer-1 activation function ID
+    0x00, 0x00, 0x00, 0x01,  // Mesh-2 Region-1 neural network layer-1 activation function parameter count
+    0x3f, 0x80, 0x00, 0x00  // 1.0f
 };
 
-const unsigned char RawV22::unknownLayer2[] = {
-    0x01, 0x02, 0x03, 0x04,
-    0x05, 0x06, 0x07, 0x08,
-    0x09, 0x0a, 0x0b, 0x0c,
-    0x0d, 0x0e, 0x0f, 0x10,
-    0x11, 0x12, 0x13, 0x14,
-    0x15, 0x16, 0x17, 0x18,
-    0x19, 0x1a, 0x1b, 0x1c,
-    0x1d, 0x1e, 0x1f, 0x20
+const unsigned char RawV25::rbfBehavior[] = {
+    0x00, 0x00, 0x00, 0x02,  // Solver LOD mapping lods length (2)
+    0x00, 0x00,  // Solver LOD mapping lod 0 (0)
+    0x00, 0x01,  // Solver LOD mapping lod 1 (1)
+    0x00, 0x00, 0x00, 0x02,  // Solver LOD mapping indices length (2)
+    0x00, 0x00, 0x00, 0x02,  // Solver LODs lod 0 indices length (2)
+    0x00, 0x00,  // Solver index 0 (0)
+    0x00, 0x01,  // Solver index 1 (1)
+    0x00, 0x00, 0x00, 0x02,  // Solver LODs lod 1 indices length (2)
+    0x00, 0x01,  // Solver index 0 (1)
+    0x00, 0x02,  // Solver index 1 (2)
+    0x00, 0x00, 0x00, 0x03,  // Solvers length (3)
+    // Solver 0
+    0x00, 0x00, 0x00, 0x49,  // Solver size (73)
+    0x00, 0x00, 0x00, 0x03,  // Solver name length (3)
+    0x52, 0x53, 0x41,  // Solver name (RSA)
+    0x00, 0x00, 0x00, 0x02,  // Raw control indices length (2)
+    0x00, 0x0b,  // Raw control index 0 (11)
+    0x00, 0x0c,  // Raw control index 1 (12)
+    0x00, 0x00, 0x00, 0x03,  // Solver pose indices length (3)
+    0x00, 0x00,  // Pose index 0 (0)
+    0x00, 0x01,  // Pose index 1 (1)
+    0x00, 0x02,  // Pose index 2 (2)
+    0x00, 0x00, 0x00, 0x06,  // Raw control values length (6)
+    0x40, 0x00, 0x00, 0x00,  // Pose 0 Raw control value 0 (2.0)
+    0x00, 0x00, 0x00, 0x00,  // Pose 0 Raw control value 1 (0.0)
+    0x3f, 0x80, 0x00, 0x00,  // Pose 1 Raw control value 0 (1.0)
+    0x3f, 0x80, 0x00, 0x00,  // Pose 1 Raw control value 1 (1.0)
+    0x40, 0x40, 0x00, 0x00,  // Pose 2 Raw control value 0 (3.0)
+    0xc0, 0x40, 0x00, 0x00,  // Pose 2 Raw control value 1 (-3.0)
+    0x3f, 0x80, 0x00, 0x00,  // Solver radius (1.0)
+    0x3f, 0x80, 0x00, 0x00,  // Solver weight threshold (1.0)
+    0x00, 0x00,  // Solver type (0)
+    0x00, 0x00,  // Solver automatic radius (0)
+    0x00, 0x01,  // Solver distance method (1)
+    0x00, 0x00,  // Solver normalize method (0)
+    0x00, 0x02,  // Solver function type (2)
+    0x00, 0x00,  // Solver TwistAxis method (0)
+    // Solver 1
+    0x00, 0x00, 0x00, 0x35,  // Solver size (53)
+    0x00, 0x00, 0x00, 0x03,  // Solver name length (3)
+    0x52, 0x53, 0x42,  // Solver name (RSB)
+    0x00, 0x00, 0x00, 0x01,  // Raw control indices length (1)
+    0x00, 0x03,  // Raw control index 0 (3)
+    0x00, 0x00, 0x00, 0x02,  // Solver pose indices length (2)
+    0x00, 0x03,  // Pose index 0 (3)
+    0x00, 0x04,  // Pose index 1 (4)
+    0x00, 0x00, 0x00, 0x02,  // Raw control values length (2)
+    0x00, 0x00, 0x00, 0x00,  // Pose 2 Raw control value 0 (0.0)
+    0x40, 0x80, 0x00, 0x00,  // Pose 3 Raw control value 1 (4.0)
+    0x40, 0x00, 0x00, 0x00,  // Solver radius 0 (2.0)
+    0x40, 0x00, 0x00, 0x00,  // Solver weight threshold 0 (2.0)
+    0x00, 0x01,  // Solver type (1)
+    0x00, 0x00,  // Solver automatic radius (0)
+    0x00, 0x03,  // Solver distance method (3)
+    0x00, 0x01,  // Solver normalize method (1)
+    0x00, 0x02,  // Solver function type (2)
+    0x00, 0x01,  // Solver TwistAxis method (1)
+    // Solver 2
+    0x00, 0x00, 0x00, 0x49,  // Solver size (73)
+    0x00, 0x00, 0x00, 0x03,  // Solver name length (3)
+    0x52, 0x53, 0x43,  // Solver name (RSC)
+    0x00, 0x00, 0x00, 0x02,  // Raw control indices length (2)
+    0x00, 0x16,  // Raw control index 0 (22)
+    0x00, 0x17,  // Raw control index 0 (23)
+    0x00, 0x00, 0x00, 0x03,  // Solver pose indices length (3)
+    0x00, 0x05,  // Pose index 0 (5)
+    0x00, 0x06,  // Pose index 1 (6)
+    0x00, 0x07,  // Pose index 2 (7)
+    0x00, 0x00, 0x00, 0x06,  // Raw control values length (6)
+    0x40, 0x00, 0x00, 0x00,  // Pose 5 Raw control value 0(2.0)
+    0x00, 0x00, 0x00, 0x00,  // Pose 5 Raw control value 1(0.0)
+    0x3f, 0x80, 0x00, 0x00,  // Pose 6 Raw control value 0(1.0)
+    0x3f, 0x80, 0x00, 0x00,  // Pose 6 Raw control value 1(1.0)
+    0x40, 0x40, 0x00, 0x00,  // Pose 7 Raw control value 0(3.0)
+    0xc0, 0x40, 0x00, 0x00,  // Pose 7 Raw control value 1(-3.0f)
+    0x3f, 0x80, 0x00, 0x00,  // Solver radius (1.0)
+    0x3f, 0x80, 0x00, 0x00,  // Solver weight threshold (0.5)
+    0x00, 0x00,  // Solver type (0)
+    0x00, 0x00,  // Solver automatic radius (0)
+    0x00, 0x01,  // Solver distance method (1)
+    0x00, 0x00,  // Solver normalize method (0)
+    0x00, 0x00,  // Solver function type (0)
+    0x00, 0x00,  // Solver TwistAxis method (0)
+    0x00, 0x00, 0x00, 0x08,  // Pose length (8)
+    // Pose 0
+    0x00, 0x00, 0x00, 0x02,  // pose name length (2)
+    0x52, 0x41,  // pose name (RA)
+    0x00, 0x00, 0x00, 0x00,  // Solver pose scale 0 (0.0)
+    // Pose 1
+    0x00, 0x00, 0x00, 0x02,  // pose name length (2)
+    0x52, 0x42,  // pose name (RB)
+    0x3f, 0x80, 0x00, 0x00,  // Solver pose scale (1.0)
+    // Pose 2
+    0x00, 0x00, 0x00, 0x02,  // pose name length (2)
+    0x52, 0x43,  // pose name (RC)
+    0x40, 0x00, 0x00, 0x00,  // Solver pose scale (2.0)
+    // Pose 3
+    0x00, 0x00, 0x00, 0x02,  // Pose name length (2)
+    0x52, 0x44,  // pose name (RD)
+    0x40, 0x00, 0x00, 0x00,  // Solver pose scale 0 (2.0)
+    // Pose 4
+    0x00, 0x00, 0x00, 0x02,  // pose name length (2)
+    0x52, 0x45,  // pose name(RE)
+    0x3f, 0x80, 0x00, 0x00,  // Solver pose scale (1.0)
+    // Pose 5
+    0x00, 0x00, 0x00, 0x02,  // pose name length (2)
+    0x52, 0x46,  // pose name(RF)
+    0x3f, 0x80, 0x00, 0x00,  // Solver scale 0 (1.0)
+    // Pose 6
+    0x00, 0x00, 0x00, 0x02,  // pose name ,length (2)
+    0x52, 0x47,  // pose name(RG)
+    0x3f, 0x80, 0x00, 0x00,  // Solver pose scale (1.0)
+    // Pose 7
+    0x00, 0x00, 0x00, 0x02,  // pose name length (2)
+    0x52, 0x48,  // pose name(RH)
+    0x3f, 0x00, 0x00, 0x00,  // Solver pose scale (0.5)
 };
 
-std::vector<char> RawV22::getBytes() {
+const unsigned char RawV25::rbfBehaviorExt[] = {
+    0x00, 0x00, 0x00, 0x09,  // Pose control name count
+    0x00, 0x00, 0x00, 0x02,  // Pose control name 0 length
+    0x50, 0x41,  // Pose control name 0 : PA
+    0x00, 0x00, 0x00, 0x02,  // Pose control name 1 length
+    0x50, 0x42,  // Pose control name 1 : PB
+    0x00, 0x00, 0x00, 0x02,  // Pose control name 2 length
+    0x50, 0x43,  // Pose control name 2 : PC
+    0x00, 0x00, 0x00, 0x02,  // Pose control name 3 length
+    0x50, 0x44,  // Pose control name 3 : PD
+    0x00, 0x00, 0x00, 0x02,  // Pose control name 4 length
+    0x50, 0x45,  // Pose control name 4 : PE
+    0x00, 0x00, 0x00, 0x02,  // Pose control name 5 length
+    0x50, 0x46,  // Pose control name 5 : PF
+    0x00, 0x00, 0x00, 0x02,  // Pose control name 6 length
+    0x50, 0x47,  // Pose control name 6 : PG
+    0x00, 0x00, 0x00, 0x02,  // Pose control name 7 length
+    0x50, 0x48,  // Pose control name 7 : PH
+    0x00, 0x00, 0x00, 0x02,  // Pose control name 8 length
+    0x50, 0x49,  // Pose control name 8 : PI
+    0x00, 0x00, 0x00, 0x08,  // Pose count
+    0x00, 0x00, 0x00, 0x01,  // Pose-0 input control index count
+    0x00, 0x00,  // Pose-0 input control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-0 output control index count
+    0x00, 0x08,  // Pose-0 output control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-0 output control weight count
+    0x3f, 0x80, 0x00, 0x00,  // Pose-0 output control weight-0 (1.0)
+    0x00, 0x00, 0x00, 0x01,  // Pose-1 input control index count
+    0x00, 0x01,  // Pose-1 input control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-1 output control index count
+    0x00, 0x09,  // Pose-1 output control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-1 output control weight count
+    0x3f, 0x80, 0x00, 0x00,  // Pose-1 output control weight-0 (1.0)
+    0x00, 0x00, 0x00, 0x01,  // Pose-2 input control index count
+    0x00, 0x02,  // Pose-2 input control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-2 output control index count
+    0x00, 0x0a,  // Pose-2 output control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-2 output control weight count
+    0x3f, 0x80, 0x00, 0x00,  // Pose-2 output control weight-0 (1.0)
+    0x00, 0x00, 0x00, 0x01,  // Pose-3 input control index count
+    0x00, 0x03,  // Pose-3 input control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-3 output control index count
+    0x00, 0x0b,  // Pose-3 output control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-3 output control weight count
+    0x3f, 0x80, 0x00, 0x00,  // Pose-3 output control weight-0 (1.0)
+    0x00, 0x00, 0x00, 0x01,  // Pose-4 input control index count
+    0x00, 0x04,  // Pose-4 input control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-4 output control index count
+    0x00, 0x0c,  // Pose-4 output control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-4 output control weight count
+    0x3f, 0x80, 0x00, 0x00,  // Pose-4 output control weight-0 (1.0)
+    0x00, 0x00, 0x00, 0x01,  // Pose-5 input control index count
+    0x00, 0x05,  // Pose-5 input control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-5 output control index count
+    0x00, 0x0d,  // Pose-5 output control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-5 output control weight count
+    0x3f, 0x80, 0x00, 0x00,  // Pose-5 output control weight-0 (1.0)
+    0x00, 0x00, 0x00, 0x01,  // Pose-6 input control index count
+    0x00, 0x06,  // Pose-6 input control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-6 output control index count
+    0x00, 0x0e,  // Pose-6 output control index-0
+    0x00, 0x00, 0x00, 0x01,  // Pose-6 output control weight count
+    0x3f, 0x80, 0x00, 0x00,  // Pose-6 output control weight-0 (1.0)
+    0x00, 0x00, 0x00, 0x01,  // Pose-7 input control index count
+    0x00, 0x07,  // Pose-7 input control index-0
+    0x00, 0x00, 0x00, 0x02,  // Pose-7 output control index count
+    0x00, 0x0f,  // Pose-7 output control index-0
+    0x00, 0x10,  // Pose-7 output control index-1
+    0x00, 0x00, 0x00, 0x02,  // Pose-7 output control weight count
+    0x3f, 0x00, 0x00, 0x00,  // Pose-7 output control weight-0 (0.5)
+    0x3f, 0x00, 0x00, 0x00  // Pose-7 output control weight-1 (0.5)
+};
+
+const unsigned char RawV25::jointBehaviorMetadata[] = {
+    0x00, 0x00, 0x00, 0x09,  // joint representations length (9)
+    0x00, 0x00,  // joint 0 translation (Vector)
+    0x00, 0x00,  // joint 0 rotation (EulerAngles)
+    0x00, 0x00,  // joint 0 scale (Vector)
+    0x00, 0x00,  // joint 1 translation (Vector)
+    0x00, 0x00,  // joint 1 rotation (EulerAngles)
+    0x00, 0x00,  // joint 1 scale (Vector)
+    0x00, 0x00,  // joint 2 translation (Vector)
+    0x00, 0x01,  // joint 2 rotation (Quaternion)
+    0x00, 0x00,  // joint 2 scale (Vector)
+    0x00, 0x00,  // joint 3 translation (Vector)
+    0x00, 0x01,  // joint 3 rotation (Quaternion)
+    0x00, 0x00,  // joint 3 scale (Vector)
+    0x00, 0x00,  // joint 4 translation (Vector)
+    0x00, 0x00,  // joint 4 rotation (EulerAngles)
+    0x00, 0x00,  // joint 4 scale (Vector)
+    0x00, 0x00,  // joint 5 translation (Vector)
+    0x00, 0x00,  // joint 5 rotation (EulerAngles)
+    0x00, 0x00,  // joint 5 scale (Vector)
+    0x00, 0x00,  // joint 6 translation (Vector)
+    0x00, 0x00,  // joint 6 rotation (EulerAngles)
+    0x00, 0x00,  // joint 6 scale (Vector)
+    0x00, 0x00,  // joint 7 translation (Vector)
+    0x00, 0x01,  // joint 7 rotation (Quaternion)
+    0x00, 0x00,  // joint 7 translation (Vector)
+    0x00, 0x00,  // joint 8 translation (Vector)
+    0x00, 0x00,  // joint 8 rotation (EulerAngles)
+    0x00, 0x00,  // joint 8 translation (Vector)
+};
+
+const unsigned char RawV25::twistSwingBehavior[] = {
+    0x00, 0x00, 0x00, 0x03,  // twist setups length (3)
+    0x00, 0x00, 0x00, 0x02,  // setup 0 twist blend weights length (2)
+    0x3f, 0x80, 0x00, 0x00,  // setup 0 blend weight 0 (1.0)
+    0x40, 0x00, 0x00, 0x00,  // setup 0 blend weight 1 (2.0)
+    0x00, 0x00, 0x00, 0x02,  // setup 0 twist output joint indices length (2)
+    0x00, 0x00,  // setup 0 twist output index 0 (0)
+    0x00, 0x01,  // setup 0 twist output index 1 (1)
+    0x00, 0x00, 0x00, 0x04,  // setup 0 twist input control indices length (4)
+    0x00, 0x05,  // setup 0 twist input index 0 (5)
+    0x00, 0x06,  // setup 0 twist input index 1 (6)
+    0x00, 0x07,  // setup 0 twist input index 2 (7)
+    0x00, 0x08,  // setup 0 twist input index 3 (8)
+    0x00, 0x00,  // setup 0 twist axis (X)
+    0x00, 0x00, 0x00, 0x02,  // setup 1 twist blend weights length (2)
+    0xc0, 0x00, 0x00, 0x00,  // setup 1 blend weight 0 (-2.0)
+    0xbf, 0x80, 0x00, 0x00,  // setup 1 blend weight 1 (-1.0)
+    0x00, 0x00, 0x00, 0x02,  // setup 1 twist output joint indices length (2)
+    0x00, 0x04,  // setup 1 twist output index 0 (4)
+    0x00, 0x06,  // setup 1 twist output index 1 (6)
+    0x00, 0x00, 0x00, 0x04,  // setup 1 twist input control indices length (4)
+    0x00, 0x0b,  // setup 1 twist input index 0 (11)
+    0x00, 0x0c,  // setup 1 twist input index 1 (12)
+    0x00, 0x0d,  // setup 1 twist input index 2 (13)
+    0x00, 0x0e,  // setup 1 twist input index 3 (14)
+    0x00, 0x01,  // setup 1 twist axis (Y)
+    0x00, 0x00, 0x00, 0x01,  // setup 2 twist blend weights length (1)
+    0x3f, 0x80, 0x00, 0x00,  // setup 2 blend weight 0 (1.0)
+    0x00, 0x00, 0x00, 0x01,  // setup 2 twist output joint indices length (1)
+    0x00, 0x05,  // setup 2 twist output index 5 (5)
+    0x00, 0x00, 0x00, 0x04,  // setup 2 twist input control indices length (4)
+    0x00, 0x1b,  // setup 2 twist input index 0 (27)
+    0x00, 0x1c,  // setup 2 twist input index 1 (28)
+    0x00, 0x1d,  // setup 2 twist input index 2 (29)
+    0x00, 0x1e,  // setup 2 twist input index 3 (30)
+    0x00, 0x02,  // setup 2 twist axis (Z)
+    0x00, 0x00, 0x00, 0x03,  // swing setups length (3)
+    0x00, 0x00, 0x00, 0x02,  // setup 0 swing blend weights length (2)
+    0x3f, 0x80, 0x00, 0x00,  // setup 0 blend weight 0 (1.0)
+    0x40, 0x00, 0x00, 0x00,  // setup 0 blend weight 1 (2.0)
+    0x00, 0x00, 0x00, 0x02,  // setup 0 swing output joint indices length (2)
+    0x00, 0x00,  // setup 0 swing output index 0 (0)
+    0x00, 0x01,  // setup 0 swing output index 1 (1)
+    0x00, 0x00, 0x00, 0x04,  // setup 0 swing input control indices length (4)
+    0x00, 0x05,  // setup 0 swing input index 0 (5)
+    0x00, 0x06,  // setup 0 swing input index 1 (6)
+    0x00, 0x07,  // setup 0 swing input index 2 (7)
+    0x00, 0x08,  // setup 0 swing input index 3 (8)
+    0x00, 0x00,  // setup 0 twist axis (X)
+    0x00, 0x00, 0x00, 0x02,  // setup 1 swing blend weights length (2)
+    0xc0, 0x00, 0x00, 0x00,  // setup 1 blend weight 0 (-2.0)
+    0xbf, 0x80, 0x00, 0x00,  // setup 1 blend weight 1 (-1.0)
+    0x00, 0x00, 0x00, 0x02,  // setup 1 swing output joint indices length (2)
+    0x00, 0x04,  // setup 1 swing output index 0 (4)
+    0x00, 0x06,  // setup 1 swing output index 1 (6)
+    0x00, 0x00, 0x00, 0x04,  // setup 1 swing input control indices length (4)
+    0x00, 0x0b,  // setup 1 swing input index 0 (11)
+    0x00, 0x0c,  // setup 1 swing input index 1 (12)
+    0x00, 0x0d,  // setup 1 swing input index 2 (13)
+    0x00, 0x0e,  // setup 1 swing input index 3 (14)
+    0x00, 0x01,  // setup 1 twist axis (Y)
+    0x00, 0x00, 0x00, 0x01,  // setup 2 swing blend weights length (1)
+    0x3f, 0x80, 0x00, 0x00,  // setup 2 blend weight 0 (1.0)
+    0x00, 0x00, 0x00, 0x01,  // setup 2 swing output joint indices length (1)
+    0x00, 0x05,  // setup 2 swing output index 5 (5)
+    0x00, 0x00, 0x00, 0x04,  // setup 2 swing input control indices length (4)
+    0x00, 0x1b,  // setup 2 swing input index 0 (27)
+    0x00, 0x1c,  // setup 2 swing input index 1 (28)
+    0x00, 0x1d,  // setup 2 swing input index 2 (29)
+    0x00, 0x1e,  // setup 2 swing input index 3 (30)
+    0x00, 0x02  // setup 2 twist axis (Z)
+};
+
+std::vector<char> RawV25::getBytes() {
+    #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wstringop-overflow"
+    #endif
     std::vector<char> bytes;
     // Header
     bytes.insert(bytes.end(), header, header + sizeof(header));
@@ -1042,554 +1568,26 @@ std::vector<char> RawV22::getBytes() {
     bytes.insert(bytes.end(), conditionals, conditionals + sizeof(conditionals));
     // Geometry
     bytes.insert(bytes.end(), geometry, geometry + sizeof(geometry));
-    // Unknown layer 1
-    bytes.insert(bytes.end(), unknownLayer1, unknownLayer1 + sizeof(unknownLayer1));
-    // Unknown layer 2
-    bytes.insert(bytes.end(), unknownLayer2, unknownLayer2 + sizeof(unknownLayer2));
-    return bytes;
-}
-
-const unsigned char RawV22WithUnknownDataIgnoredAndDNARewritten::header[] = {
-    0x44, 0x4e, 0x41,  // DNA signature
-    0x00, 0x02,  // Generation
-    0x00, 0x02,  // Version
-    // Index Table
-    0x00, 0x00, 0x00, 0x04,  // Index table entry count
-    0x64, 0x65, 0x73, 0x63,  // Descriptor id
-    0x00, 0x01, 0x00, 0x01,  // Descriptor version
-    0x00, 0x00, 0x00, 0x4b,  // Descriptor offset
-    0x00, 0x00, 0x00, 0x57,  // Descriptor size
-    0x64, 0x65, 0x66, 0x6e,  // Definition id
-    0x00, 0x01, 0x00, 0x01,  // Definition version
-    0x00, 0x00, 0x00, 0xa2,  // Definition offset
-    0x00, 0x00, 0x03, 0x1a,  // Definition size
-    0x62, 0x68, 0x76, 0x72,  // Behavior id
-    0x00, 0x01, 0x00, 0x01,  // Behavior version
-    0x00, 0x00, 0x03, 0xbc,  // Behavior offset
-    0x00, 0x00, 0x05, 0x46,  // Behavior size
-    0x67, 0x65, 0x6f, 0x6d,  // Geometry id
-    0x00, 0x01, 0x00, 0x01,  // Geometry version
-    0x00, 0x00, 0x09, 0x02,  // Geometry offset
-    0x00, 0x00, 0x04, 0x38  // Geometry size
-};
-
-std::vector<char> RawV22WithUnknownDataIgnoredAndDNARewritten::getBytes() {
-    std::vector<char> bytes;
-    // Header
-    bytes.insert(bytes.end(), header, header + sizeof(header));
-    // Descriptor
-    bytes.insert(bytes.end(), RawV22::descriptor, RawV22::descriptor + sizeof(RawV22::descriptor));
-    // Definition
-    bytes.insert(bytes.end(), RawV22::definition, RawV22::definition + sizeof(RawV22::definition));
-    // Behavior
-    // > Controls
-    bytes.insert(bytes.end(), RawV22::controls, RawV22::controls + sizeof(RawV22::controls));
-    bytes.insert(bytes.end(), RawV22::conditionals, RawV22::conditionals + sizeof(RawV22::conditionals));
-    bytes.insert(bytes.end(), RawV22::psds, RawV22::psds + sizeof(RawV22::psds));
-    // > Joints
-    bytes.insert(bytes.end(), RawV22::joints, RawV22::joints + sizeof(RawV22::joints));
-    // > BlendShapes
-    bytes.insert(bytes.end(), RawV22::blendshapes, RawV22::blendshapes + sizeof(RawV22::blendshapes));
-    // > AnimatedMaps
-    bytes.insert(bytes.end(), RawV22::animatedmaps, RawV22::animatedmaps + sizeof(RawV22::animatedmaps));
-    bytes.insert(bytes.end(), RawV22::conditionals, RawV22::conditionals + sizeof(RawV22::conditionals));
-    // Geometry
-    bytes.insert(bytes.end(), RawV22::geometry, RawV22::geometry + sizeof(RawV22::geometry));
-    return bytes;
-}
-
-const unsigned char RawV2xNewer::header[] = {
-    0x44, 0x4e, 0x41,  // DNA signature
-    0x00, 0x02,  // Generation
-    0xff, 0xff,  // Version
-    // Index Table
-    0x00, 0x00, 0x00, 0x06,  // Index table entry count
-    0x64, 0x65, 0x73, 0x63,  // Descriptor id
-    0x00, 0x01, 0x00, 0x02,  // Descriptor version
-    0x00, 0x00, 0x00, 0x6b,  // Descriptor offset
-    0x00, 0x00, 0x00, 0x10,  // Descriptor size
-    0x64, 0x65, 0x66, 0x6e,  // Definition id
-    0x00, 0x01, 0x00, 0x02,  // Definition version
-    0x00, 0x00, 0x00, 0x7b,  // Definition offset
-    0x00, 0x00, 0x00, 0x10,  // Definition size
-    0x62, 0x68, 0x76, 0x72,  // Behavior id
-    0x00, 0x01, 0x00, 0x02,  // Behavior version
-    0x00, 0x00, 0x00, 0x8b,  // Behavior offset
-    0x00, 0x00, 0x00, 0x20,  // Behavior size
-    0x67, 0x65, 0x6f, 0x6d,  // Geometry id
-    0x00, 0x01, 0x00, 0x02,  // Geometry version
-    0x00, 0x00, 0x00, 0xab,  // Geometry offset
-    0x00, 0x00, 0x00, 0x20,  // Geometry size
-    0x75, 0x6e, 0x6b, 0x31,  // Unknown 1 id
-    0x00, 0x01, 0x00, 0x03,  // Unknown 1 version
-    0x00, 0x00, 0x00, 0xcb,  // Unknown 1 offset
-    0x00, 0x00, 0x00, 0x10,  // Unknown 1 size
-    0x75, 0x6e, 0x6b, 0x32,  // Unknown 2 id
-    0x00, 0x01, 0x00, 0x02,  // Unknown 2 version
-    0x00, 0x00, 0x00, 0xdb,  // Unknown 2 offset
-    0x00, 0x00, 0x00, 0x20  // Unknown 2 size
-};
-
-const unsigned char RawV2xNewer::unknownDescriptor[] = {
-    0xfc, 0x9b, 0x3e, 0x11, 0x46, 0xcb, 0xf9, 0x77, 0x92, 0x46, 0x30, 0xa1, 0xb4, 0xfd, 0xe9, 0x5f
-};
-
-const unsigned char RawV2xNewer::unknownDefinition[] = {
-    0x67, 0x20, 0x3e, 0x13, 0xa7, 0xd3, 0x03, 0x3d, 0x78, 0xe0, 0xfd, 0xc3, 0xc5, 0xe3, 0xa4, 0x7a
-};
-
-const unsigned char RawV2xNewer::unknownBehavior[] = {
-    0x5c, 0xb9, 0xe1, 0x7e, 0x50, 0x2f, 0x3b, 0x8a, 0x72, 0x3c, 0xd9, 0xbf, 0x6f, 0x10, 0xcc, 0xee, 0xa4, 0xd8, 0x65, 0x98, 0xc0,
-    0xb2, 0xff, 0xa2, 0x0d, 0x4d, 0xc5, 0x79, 0x99, 0x3a, 0xef, 0xc8
-};
-
-const unsigned char RawV2xNewer::unknownGeometry[] = {
-    0x9e, 0x60, 0x76, 0xe8, 0x04, 0x15, 0x99, 0xda, 0x38, 0xdd, 0xc9, 0x4a, 0xe8, 0x86, 0x83, 0x42, 0x4b, 0x32, 0x59, 0x5d, 0xf8,
-    0x07, 0x33, 0x7c, 0x01, 0xa4, 0x05, 0x65, 0x22, 0x25, 0x57, 0x8e
-};
-
-const unsigned char RawV2xNewer::unknownCustom1[] = {
-    0x69, 0x11, 0x44, 0x0a, 0x36, 0x7a, 0x2c, 0xa8, 0x31, 0x64, 0xcb, 0x8f, 0x98, 0x50, 0x0a, 0x56
-};
-
-const unsigned char RawV2xNewer::unknownCustom2[] = {
-    0xf1, 0x12, 0xca, 0xcb, 0x29, 0x3f, 0xeb, 0x0d, 0x19, 0x3e, 0x86, 0x73, 0xd9, 0x6d, 0x76, 0xd3, 0xa7, 0x70, 0xfb, 0x06, 0x6a,
-    0xe1, 0x8e, 0x4b, 0xb9, 0x3d, 0xf9, 0xfe, 0x49, 0xc9, 0xbe, 0x3c
-};
-
-std::vector<char> RawV2xNewer::getBytes() {
-    std::vector<char> bytes;
-    // Header
-    bytes.insert(bytes.end(), header, header + sizeof(header));
-    // Unknown Descriptor
-    bytes.insert(bytes.end(), unknownDescriptor, unknownDescriptor + sizeof(unknownDescriptor));
-    // Unknown Definition
-    bytes.insert(bytes.end(), unknownDefinition, unknownDefinition + sizeof(unknownDefinition));
-    // Unknown Behavior
-    bytes.insert(bytes.end(), unknownBehavior, unknownBehavior + sizeof(unknownBehavior));
-    // Unknown Geometry
-    bytes.insert(bytes.end(), unknownGeometry, unknownGeometry + sizeof(unknownGeometry));
-    // Unknown layer 1
-    bytes.insert(bytes.end(), unknownCustom1, unknownCustom1 + sizeof(unknownCustom1));
-    // Unknown layer 2
-    bytes.insert(bytes.end(), unknownCustom2, unknownCustom2 + sizeof(unknownCustom2));
-    return bytes;
-}
-
-const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::header[] = {
-    0x44, 0x4e, 0x41,  // DNA signature
-    0x00, 0x02,  // Generation
-    0xff, 0xff,  // Version
-    // Index Table
-    0x00, 0x00, 0x00, 0x0f,  // Index table entry count
-    0x64, 0x65, 0x73, 0x63,  // Descriptor id
-    0x00, 0x01, 0x00, 0x02,  // Descriptor version
-    0x00, 0x00, 0x00, 0xfb,  // Descriptor offset
-    0x00, 0x00, 0x00, 0x10,  // Descriptor size
-    0x64, 0x65, 0x66, 0x6e,  // Definition id
-    0x00, 0x01, 0x00, 0x02,  // Definition version
-    0x00, 0x00, 0x01, 0x0b,  // Definition offset
-    0x00, 0x00, 0x00, 0x10,  // Definition size
-    0x62, 0x68, 0x76, 0x72,  // Behavior id
-    0x00, 0x01, 0x00, 0x02,  // Behavior version
-    0x00, 0x00, 0x01, 0x1b,  // Behavior offset
-    0x00, 0x00, 0x00, 0x20,  // Behavior size
-    0x67, 0x65, 0x6f, 0x6d,  // Geometry id
-    0x00, 0x01, 0x00, 0x02,  // Geometry version
-    0x00, 0x00, 0x01, 0x3b,  // Geometry offset
-    0x00, 0x00, 0x00, 0x20,  // Geometry size
-    0x75, 0x6e, 0x6b, 0x31,  // Unknown 1 id
-    0x00, 0x01, 0x00, 0x03,  // Unknown 1 version
-    0x00, 0x00, 0x01, 0x5b,  // Unknown 1 offset
-    0x00, 0x00, 0x00, 0x10,  // Unknown 1 size
-    0x75, 0x6e, 0x6b, 0x32,  // Unknown 2 id
-    0x00, 0x01, 0x00, 0x02,  // Unknown 2 version
-    0x00, 0x00, 0x01, 0x6b,  // Unknown 2 offset
-    0x00, 0x00, 0x00, 0x20,  // Unknown 2 size
-    0x64, 0x65, 0x73, 0x63,  // Descriptor id
-    0x00, 0x01, 0x00, 0x01,  // Descriptor version
-    0x00, 0x00, 0x01, 0x8b,  // Descriptor offset
-    0x00, 0x00, 0x00, 0x24,  // Descriptor size
-    0x64, 0x65, 0x66, 0x6e,  // Definition id
-    0x00, 0x01, 0x00, 0x01,  // Definition version
-    0x00, 0x00, 0x01, 0xaf,  // Definition offset
-    0x00, 0x00, 0x00, 0x5c,  // Definition size
-    0x62, 0x68, 0x76, 0x72,  // Behavior id
-    0x00, 0x01, 0x00, 0x01,  // Behavior version
-    0x00, 0x00, 0x02, 0x0b,  // Behavior offset
-    0x00, 0x00, 0x00, 0x56,  // Behavior size
-    0x67, 0x65, 0x6f, 0x6d,  // Geometry id
-    0x00, 0x01, 0x00, 0x01,  // Geometry version
-    0x00, 0x00, 0x02, 0x61,  // Geometry offset
-    0x00, 0x00, 0x00, 0x04,  // Geometry size
-    0x6d, 0x6c, 0x62, 0x68,  // Machine learned behavior id
-    0x00, 0x01, 0x00, 0x00,  // Machine learned behavior version
-    0x00, 0x00, 0x02, 0x65,  // Machine learned behavior offset
-    0x00, 0x00, 0x00, 0x18,  // Machine learned behavior size
-    0x72, 0x62, 0x66, 0x62,  // RBF behavior id
-    0x00, 0x01, 0x00, 0x00,  // RBF behavior version
-    0x00, 0x00, 0x02, 0x7d,  // RBF behavior offset
-    0x00, 0x00, 0x00, 0x10,  // RBF behavior size
-    0x72, 0x62, 0x66, 0x65,  // RBF behavior ext id
-    0x00, 0x01, 0x00, 0x00,  // RBF behavior ext version
-    0x00, 0x00, 0x02, 0x8d,  // RBF behavior ext offset
-    0x00, 0x00, 0x00, 0x08,  // RBF behavior ext size
-    0x6a, 0x62, 0x6d, 0x64,  // Joint behavior metadata id
-    0x00, 0x01, 0x00, 0x00,  // Joint behavior metadata version
-    0x00, 0x00, 0x02, 0x95,  // Joint behavior metadata offset
-    0x00, 0x00, 0x00, 0x04,  // Joint behavior metadata size
-    0x74, 0x77, 0x73, 0x77,  // Twist swing setups id
-    0x00, 0x01, 0x00, 0x00,  // Twist swing setups version
-    0x00, 0x00, 0x02, 0x99,  // Twist swing setups offset
-    0x00, 0x00, 0x00, 0x08  // Twist swing setups size
-};
-
-const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::descriptor[] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-};
-
-const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::definition[] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00
-};
-
-const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::behavior[] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-};
-
-const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::geometry[] = {
-    0x00, 0x00, 0x00, 0x00
-};
-
-const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::machineLearnedBehavior[] = {
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00
-};
-
-const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehavior[] = {
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00
-};
-
-const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehaviorExt[] = {
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00
-};
-
-const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::jointBehaviorMetaData[] = {
-    0x00, 0x00, 0x00, 0x00
-};
-
-const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::twistSwingBehavior[] {
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00
-};
-
-std::vector<char> RawV2xNewerWithUnknownDataPreservedAndDNARewritten::getBytes() {
-    std::vector<char> bytes;
-    // Header
-    bytes.insert(bytes.end(), header, header + sizeof(header));
-    // Unknown Descriptor
-    bytes.insert(bytes.end(), RawV2xNewer::unknownDescriptor,
-                 RawV2xNewer::unknownDescriptor + sizeof(RawV2xNewer::unknownDescriptor));
-    // Unknown Definition
-    bytes.insert(bytes.end(), RawV2xNewer::unknownDefinition,
-                 RawV2xNewer::unknownDefinition + sizeof(RawV2xNewer::unknownDefinition));
-    // Unknown Behavior
-    bytes.insert(bytes.end(), RawV2xNewer::unknownBehavior, RawV2xNewer::unknownBehavior + sizeof(RawV2xNewer::unknownBehavior));
-    // Unknown Geometry
-    bytes.insert(bytes.end(), RawV2xNewer::unknownGeometry, RawV2xNewer::unknownGeometry + sizeof(RawV2xNewer::unknownGeometry));
-    // Unknown layer 1
-    bytes.insert(bytes.end(), RawV2xNewer::unknownCustom1, RawV2xNewer::unknownCustom1 + sizeof(RawV2xNewer::unknownCustom1));
-    // Unknown layer 2
-    bytes.insert(bytes.end(), RawV2xNewer::unknownCustom2, RawV2xNewer::unknownCustom2 + sizeof(RawV2xNewer::unknownCustom2));
-    // Descriptor
-    bytes.insert(bytes.end(), descriptor, descriptor + sizeof(descriptor));
-    // Definition
-    bytes.insert(bytes.end(), definition, definition + sizeof(definition));
-    // Behavior
-    bytes.insert(bytes.end(), behavior, behavior + sizeof(behavior));
-    // Geometry
-    bytes.insert(bytes.end(), geometry, geometry + sizeof(geometry));
     // Machine learned behavior
     bytes.insert(bytes.end(), machineLearnedBehavior, machineLearnedBehavior + sizeof(machineLearnedBehavior));
     // RBF behavior
     bytes.insert(bytes.end(), rbfBehavior, rbfBehavior + sizeof(rbfBehavior));
     // RBF behavior ext
     bytes.insert(bytes.end(), rbfBehaviorExt, rbfBehaviorExt + sizeof(rbfBehaviorExt));
-    // Joint behavior metadata
-    bytes.insert(bytes.end(), jointBehaviorMetaData, jointBehaviorMetaData + sizeof(jointBehaviorMetaData));
+    // JointBehavior meta data
+    bytes.insert(bytes.end(), jointBehaviorMetadata, jointBehaviorMetadata + sizeof(jointBehaviorMetadata));
     // Twist swing behavior
     bytes.insert(bytes.end(), twistSwingBehavior, twistSwingBehavior + sizeof(twistSwingBehavior));
-
-    return bytes;
-}
-
-const unsigned char RawV2xNewerWithUnknownDataIgnoredAndDNARewritten::header[] = {
-    0x44, 0x4e, 0x41,  // DNA signature
-    0x00, 0x02,  // Generation
-    0xff, 0xff,  // Version
-    // Index Table
-    0x00, 0x00, 0x00, 0x09,  // Index table entry count
-    0x64, 0x65, 0x73, 0x63,  // Descriptor id
-    0x00, 0x01, 0x00, 0x01,  // Descriptor version
-    0x00, 0x00, 0x00, 0x9b,  // Descriptor offset
-    0x00, 0x00, 0x00, 0x24,  // Descriptor size
-    0x64, 0x65, 0x66, 0x6e,  // Definition id
-    0x00, 0x01, 0x00, 0x01,  // Definition version
-    0x00, 0x00, 0x00, 0xbf,  // Definition offset
-    0x00, 0x00, 0x00, 0x5c,  // Definition size
-    0x62, 0x68, 0x76, 0x72,  // Behavior id
-    0x00, 0x01, 0x00, 0x01,  // Behavior version
-    0x00, 0x00, 0x01, 0x1b,  // Behavior offset
-    0x00, 0x00, 0x00, 0x56,  // Behavior size
-    0x67, 0x65, 0x6f, 0x6d,  // Geometry id
-    0x00, 0x01, 0x00, 0x01,  // Geometry version
-    0x00, 0x00, 0x01, 0x71,  // Geometry offset
-    0x00, 0x00, 0x00, 0x04,  // Geometry size
-    0x6d, 0x6c, 0x62, 0x68,  // Machine learned behavior id
-    0x00, 0x01, 0x00, 0x00,  // Machine learned behavior version
-    0x00, 0x00, 0x01, 0x75,  // Machine learned behavior offset
-    0x00, 0x00, 0x00, 0x18,  // Machine learned behavior size
-    0x72, 0x62, 0x66, 0x62,  // RBF behavior id
-    0x00, 0x01, 0x00, 0x00,  // RBF behavior version
-    0x00, 0x00, 0x01, 0x8d,  // RBF behavior offset
-    0x00, 0x00, 0x00, 0x10,  // RBF behavior size
-    0x72, 0x62, 0x66, 0x65,  // RBF behavior ext id
-    0x00, 0x01, 0x00, 0x00,  // RBF behavior ext version
-    0x00, 0x00, 0x01, 0x9d,  // RBF behavior ext offset
-    0x00, 0x00, 0x00, 0x08,  // RBF behavior ext size
-    0x6a, 0x62, 0x6d, 0x64,  // Joint behavior metadata id
-    0x00, 0x01, 0x00, 0x00,  // Joint behavior metadata version
-    0x00, 0x00, 0x01, 0xa5,  // Joint behavior metadata offset
-    0x00, 0x00, 0x00, 0x04,  // Joint behavior metadata size
-    0x74, 0x77, 0x73, 0x77,  // Twist swing setups id
-    0x00, 0x01, 0x00, 0x00,  // Twist swing setups version
-    0x00, 0x00, 0x01, 0xa9,  // Twist swing setups offset
-    0x00, 0x00, 0x00, 0x08  // Twist swing setups size
-};
-
-std::vector<char> RawV2xNewerWithUnknownDataIgnoredAndDNARewritten::getBytes() {
-    std::vector<char> bytes;
-    // Header
-    bytes.insert(bytes.end(), header, header + sizeof(header));
-    // Descriptor
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::descriptor,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::descriptor +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::descriptor));
-    // Definition
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::definition,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::definition +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::definition));
-    // Behavior
-    bytes.insert(bytes.end(), RawV2xNewerWithUnknownDataPreservedAndDNARewritten::behavior,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::behavior +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::behavior));
-    // Geometry
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::geometry,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::geometry +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::geometry));
-    // Machine learned behavior
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::machineLearnedBehavior,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::machineLearnedBehavior +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::machineLearnedBehavior));
-    // RBF behavior
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehavior,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehavior +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehavior));
-    // RBF behavior ext
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehaviorExt,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehaviorExt +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehaviorExt));
-    // Joint behavior metadata
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::jointBehaviorMetaData,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::jointBehaviorMetaData +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::jointBehaviorMetaData));
-    // Twist swing behavior
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::twistSwingBehavior,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::twistSwingBehavior +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::twistSwingBehavior));
-    return bytes;
-}
-
-const unsigned char RawV22Empty::header[] = {
-    0x44, 0x4e, 0x41,  // DNA signature
-    0x00, 0x02,  // Generation
-    0x00, 0x02,  // Version
-    // Index Table
-    0x00, 0x00, 0x00, 0x04,  // Index table entry count
-    0x64, 0x65, 0x73, 0x63,  // Descriptor id
-    0x00, 0x01, 0x00, 0x01,  // Descriptor version
-    0x00, 0x00, 0x00, 0x4b,  // Descriptor offset
-    0x00, 0x00, 0x00, 0x24,  // Descriptor size
-    0x64, 0x65, 0x66, 0x6e,  // Definition id
-    0x00, 0x01, 0x00, 0x01,  // Definition version
-    0x00, 0x00, 0x00, 0x6f,  // Definition offset
-    0x00, 0x00, 0x00, 0x5c,  // Definition size
-    0x62, 0x68, 0x76, 0x72,  // Behavior id
-    0x00, 0x01, 0x00, 0x01,  // Behavior version
-    0x00, 0x00, 0x00, 0xcb,  // Behavior offset
-    0x00, 0x00, 0x00, 0x56,  // Behavior size
-    0x67, 0x65, 0x6f, 0x6d,  // Geometry id
-    0x00, 0x01, 0x00, 0x01,  // Geometry version
-    0x00, 0x00, 0x01, 0x21,  // Geometry offset
-    0x00, 0x00, 0x00, 0x04  // Geometry size
-};
-
-std::vector<char> RawV22Empty::getBytes() {
-    std::vector<char> bytes;
-    #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
-        #pragma GCC diagnostic push
-        #pragma GCC diagnostic ignored "-Wstringop-overflow"
-    #endif
-    // Header
-    bytes.insert(bytes.end(), header, header + sizeof(header));
-    // Descriptor
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::descriptor,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::descriptor +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::descriptor));
-    // Definition
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::definition,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::definition +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::definition));
-    // Behavior
-    bytes.insert(bytes.end(), RawV2xNewerWithUnknownDataPreservedAndDNARewritten::behavior,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::behavior +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::behavior));
-    // Geometry
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::geometry,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::geometry +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::geometry));
-
     return bytes;
     #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
         #pragma GCC diagnostic pop
     #endif
 }
 
-const unsigned char RawV22WithUnknownDataFromNewer2x::header[] = {
-    0x44, 0x4e, 0x41,  // DNA signature
-    0x00, 0x02,  // Generation
-    0x00, 0x02,  // Version
-    // Index Table
-    0x00, 0x00, 0x00, 0x0a,  // Index table entry count
-    0x64, 0x65, 0x73, 0x63,  // Descriptor id
-    0x00, 0x01, 0x00, 0x02,  // Descriptor version
-    0x00, 0x00, 0x00, 0xab,  // Descriptor offset
-    0x00, 0x00, 0x00, 0x10,  // Descriptor size
-    0x64, 0x65, 0x66, 0x6e,  // Definition id
-    0x00, 0x01, 0x00, 0x02,  // Definition version
-    0x00, 0x00, 0x00, 0xbb,  // Definition offset
-    0x00, 0x00, 0x00, 0x10,  // Definition size
-    0x62, 0x68, 0x76, 0x72,  // Behavior id
-    0x00, 0x01, 0x00, 0x02,  // Behavior version
-    0x00, 0x00, 0x00, 0xcb,  // Behavior offset
-    0x00, 0x00, 0x00, 0x20,  // Behavior size
-    0x67, 0x65, 0x6f, 0x6d,  // Geometry id
-    0x00, 0x01, 0x00, 0x02,  // Geometry version
-    0x00, 0x00, 0x00, 0xeb,  // Geometry offset
-    0x00, 0x00, 0x00, 0x20,  // Geometry size
-    0x75, 0x6e, 0x6b, 0x31,  // Unknown 1 id
-    0x00, 0x01, 0x00, 0x03,  // Unknown 1 version
-    0x00, 0x00, 0x01, 0x0b,  // Unknown 1 offset
-    0x00, 0x00, 0x00, 0x10,  // Unknown 1 size
-    0x75, 0x6e, 0x6b, 0x32,  // Unknown 2 id
-    0x00, 0x01, 0x00, 0x02,  // Unknown 2 version
-    0x00, 0x00, 0x01, 0x1b,  // Unknown 2 offset
-    0x00, 0x00, 0x00, 0x20,  // Unknown 2 size
-    0x64, 0x65, 0x73, 0x63,  // Descriptor id
-    0x00, 0x01, 0x00, 0x01,  // Descriptor version
-    0x00, 0x00, 0x01, 0x3b,  // Descriptor offset
-    0x00, 0x00, 0x00, 0x24,  // Descriptor size
-    0x64, 0x65, 0x66, 0x6e,  // Definition id
-    0x00, 0x01, 0x00, 0x01,  // Definition version
-    0x00, 0x00, 0x01, 0x5f,  // Definition offset
-    0x00, 0x00, 0x00, 0x5c,  // Definition size
-    0x62, 0x68, 0x76, 0x72,  // Behavior id
-    0x00, 0x01, 0x00, 0x01,  // Behavior version
-    0x00, 0x00, 0x01, 0xbb,  // Behavior offset
-    0x00, 0x00, 0x00, 0x56,  // Behavior size
-    0x67, 0x65, 0x6f, 0x6d,  // Geometry id
-    0x00, 0x01, 0x00, 0x01,  // Geometry version
-    0x00, 0x00, 0x02, 0x11,  // Geometry offset
-    0x00, 0x00, 0x00, 0x04  // Geometry size
-};
-
-std::vector<char> RawV22WithUnknownDataFromNewer2x::getBytes() {
-    std::vector<char> bytes;
-    // Header
-    bytes.insert(bytes.end(), header, header + sizeof(header));
-    // Unknown Descriptor
-    bytes.insert(bytes.end(), RawV2xNewer::unknownDescriptor,
-                 RawV2xNewer::unknownDescriptor + sizeof(RawV2xNewer::unknownDescriptor));
-    // Unknown Definition
-    bytes.insert(bytes.end(), RawV2xNewer::unknownDefinition,
-                 RawV2xNewer::unknownDefinition + sizeof(RawV2xNewer::unknownDefinition));
-    // Unknown Behavior
-    bytes.insert(bytes.end(), RawV2xNewer::unknownBehavior, RawV2xNewer::unknownBehavior + sizeof(RawV2xNewer::unknownBehavior));
-    // Unknown Geometry
-    bytes.insert(bytes.end(), RawV2xNewer::unknownGeometry, RawV2xNewer::unknownGeometry + sizeof(RawV2xNewer::unknownGeometry));
-    // Unknown layer 1
-    bytes.insert(bytes.end(), RawV2xNewer::unknownCustom1, RawV2xNewer::unknownCustom1 + sizeof(RawV2xNewer::unknownCustom1));
-    // Unknown layer 2
-    bytes.insert(bytes.end(), RawV2xNewer::unknownCustom2, RawV2xNewer::unknownCustom2 + sizeof(RawV2xNewer::unknownCustom2));
-    // Descriptor
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::descriptor,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::descriptor +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::descriptor));
-    // Definition
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::definition,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::definition +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::definition));
-    // Behavior
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::behavior,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::behavior +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::behavior));
-    // Geometry
-    bytes.insert(bytes.end(),
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::geometry,
-                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::geometry +
-                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::geometry));
+std::vector<char> RawV24DowngradedFromV25::getBytes() {
+    auto bytes = RawV25::getBytes();
+    bytes[5] = 0x00;
+    bytes[6] = 0x04;
     return bytes;
 }
 
@@ -1598,42 +1596,42 @@ std::vector<char> RawV22WithUnknownDataFromNewer2x::getBytes() {
     #pragma clang diagnostic ignored "-Wexit-time-destructors"
 #endif
 // Descriptor
-const pma::String<char> DecodedV22::name = "test";
-const Archetype DecodedV22::archetype = Archetype::other;
-const Gender DecodedV22::gender = Gender::other;
-const std::uint16_t DecodedV22::age = 42u;
-const pma::Vector<DecodedV22::StringPair> DecodedV22::metadata = {
+const pma::String<char> DecodedV25::name = "test";
+const Archetype DecodedV25::archetype = Archetype::other;
+const Gender DecodedV25::gender = Gender::other;
+const std::uint16_t DecodedV25::age = 42u;
+const pma::Vector<DecodedV25::StringPair> DecodedV25::metadata = {
     {"key-A", "value-A"},
     {"key-B", "value-B"}
 };
-const TranslationUnit DecodedV22::translationUnit = TranslationUnit::m;
-const RotationUnit DecodedV22::rotationUnit = RotationUnit::radians;
-const CoordinateSystem DecodedV22::coordinateSystem = {
+const TranslationUnit DecodedV25::translationUnit = TranslationUnit::m;
+const RotationUnit DecodedV25::rotationUnit = RotationUnit::radians;
+const CoordinateSystem DecodedV25::coordinateSystem = {
     Direction::right,
     Direction::up,
     Direction::front
 };
-const std::uint16_t DecodedV22::lodCount[] = {
+const std::uint16_t DecodedV25::lodCount[] = {
     2u,  // MaxLOD-0 - MinLOD-1
     1u,  // MaxLOD-1 - MinLOD-1
     1u  // MaxLOD-0 - MinLOD-0
 };
-const std::uint16_t DecodedV22::maxLODs[] = {
+const std::uint16_t DecodedV25::maxLODs[] = {
     0u,  // MaxLOD-0 - MinLOD-1
     1u,  // MaxLOD-1 - MinLOD-0
     0u  // MaxLOD-0 - MinLOD-0
 };
-const pma::String<char> DecodedV22::complexity = "A";
-const pma::String<char> DecodedV22::dbName = "testDB";
+const pma::String<char> DecodedV25::complexity = "A";
+const pma::String<char> DecodedV25::dbName = "testDB";
 
 // Definition
-const pma::Vector<pma::String<char> > DecodedV22::guiControlNames = {
+const pma::Vector<pma::String<char> > DecodedV25::guiControlNames = {
     "GA", "GB", "GC", "GD", "GE", "GF", "GG", "GH", "GI"
 };
-const pma::Vector<pma::String<char> > DecodedV22::rawControlNames = {
+const pma::Vector<pma::String<char> > DecodedV25::rawControlNames = {
     "RA", "RB", "RC", "RD", "RE", "RF", "RG", "RH", "RI"
 };
-const DecodedV22::VectorOfCharStringMatrix DecodedV22::jointNames = {
+const DecodedV25::VectorOfCharStringMatrix DecodedV25::jointNames = {
     {  // MaxLOD-0 - MinLOD-1
         {"JA", "JB", "JC", "JD", "JE", "JF", "JG", "JH", "JI"},
         {"JA", "JB", "JC", "JD", "JG", "JI"}
@@ -1645,7 +1643,7 @@ const DecodedV22::VectorOfCharStringMatrix DecodedV22::jointNames = {
         {"JA", "JB", "JC", "JD", "JE", "JF", "JG", "JH", "JI"},
     }
 };
-const DecodedV22::VectorOfCharStringMatrix DecodedV22::blendShapeNames = {
+const DecodedV25::VectorOfCharStringMatrix DecodedV25::blendShapeNames = {
     {  // MaxLOD-0 - MinLOD-1
         {"BA", "BB", "BC", "BD", "BE", "BF", "BG", "BH", "BI"},
         {"BC", "BF", "BH", "BI"}
@@ -1657,7 +1655,7 @@ const DecodedV22::VectorOfCharStringMatrix DecodedV22::blendShapeNames = {
         {"BA", "BB", "BC", "BD", "BE", "BF", "BG", "BH", "BI"},
     }
 };
-const DecodedV22::VectorOfCharStringMatrix DecodedV22::animatedMapNames = {
+const DecodedV25::VectorOfCharStringMatrix DecodedV25::animatedMapNames = {
     {  // MaxLOD-0 - MinLOD-1
         {"AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AI", "AJ"},
         {"AC", "AF", "AH", "AI"}
@@ -1669,7 +1667,7 @@ const DecodedV22::VectorOfCharStringMatrix DecodedV22::animatedMapNames = {
         {"AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AI", "AJ"},
     }
 };
-const DecodedV22::VectorOfCharStringMatrix DecodedV22::meshNames = {
+const DecodedV25::VectorOfCharStringMatrix DecodedV25::meshNames = {
     {  // MaxLOD-0 - MinLOD-1
         {"MA", "MB"},
         {"MC"}
@@ -1681,7 +1679,7 @@ const DecodedV22::VectorOfCharStringMatrix DecodedV22::meshNames = {
         {"MA", "MB"}
     }
 };
-const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::meshBlendShapeIndices = {
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::meshBlendShapeIndices = {
     {  // MaxLOD-0 - MinLOD-1
         {0, 1, 2, 3, 4, 5, 6},
         {7, 8}
@@ -1693,7 +1691,7 @@ const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::meshBlendShapeIndices
         {0, 1, 2, 3, 4, 5, 6},
     }
 };
-const pma::Matrix<std::uint16_t> DecodedV22::jointHierarchy = {
+const pma::Matrix<std::uint16_t> DecodedV25::jointHierarchy = {
     {  // MaxLOD-0 - MinLOD-1
         {0, 0, 0, 1, 1, 4, 2, 4, 2}
     },
@@ -1704,7 +1702,7 @@ const pma::Matrix<std::uint16_t> DecodedV22::jointHierarchy = {
         {0, 0, 0, 1, 1, 4, 2, 4, 2}
     }
 };
-const pma::Vector<pma::Matrix<Vector3> > DecodedV22::neutralJointTranslations = {
+const pma::Vector<pma::Matrix<Vector3> > DecodedV25::neutralJointTranslations = {
     {  // MaxLOD-0 - MinLOD-1
         {
             {1.0f, 1.0f, 1.0f},
@@ -1750,7 +1748,7 @@ const pma::Vector<pma::Matrix<Vector3> > DecodedV22::neutralJointTranslations = 
         }
     }
 };
-const pma::Vector<pma::Matrix<Vector3> > DecodedV22::neutralJointRotations = {
+const pma::Vector<pma::Matrix<Vector3> > DecodedV25::neutralJointRotations = {
     {  // MaxLOD-0 - MinLOD-1
         {
             {1.0f, 1.0f, 1.0f},
@@ -1798,11 +1796,11 @@ const pma::Vector<pma::Matrix<Vector3> > DecodedV22::neutralJointRotations = {
 };
 
 // Behavior
-const std::uint16_t DecodedV22::guiControlCount = 9u;
-const std::uint16_t DecodedV22::rawControlCount = 9u;
-const std::uint16_t DecodedV22::psdCount = 12u;
+const std::uint16_t DecodedV25::guiControlCount = 9u;
+const std::uint16_t DecodedV25::rawControlCount = 9u;
+const std::uint16_t DecodedV25::psdCount = 12u;
 // Behavior->Conditionals
-const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::conditionalInputIndices = {
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::conditionalInputIndices = {
     {  // MaxLOD-0 - MinLOD-1
         {0, 1, 1, 2, 3, 3, 4, 4, 4, 5, 6, 7, 7, 8, 8},
         {0, 1, 1, 2, 3, 3},
@@ -1814,7 +1812,7 @@ const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::conditionalInputIndic
         {0, 1, 1, 2, 3, 3, 4, 4, 4, 5, 6, 7, 7, 8, 8}
     }
 };
-const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::conditionalOutputIndices = {
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::conditionalOutputIndices = {
     {  // MaxLOD-0 - MinLOD-1
         {0, 1, 1, 2, 3, 3, 4, 4, 4, 5, 6, 7, 7, 8, 8},
         {0, 1, 1, 2, 3, 3},
@@ -1826,7 +1824,7 @@ const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::conditionalOutputIndi
         {0, 1, 1, 2, 3, 3, 4, 4, 4, 5, 6, 7, 7, 8, 8}
     }
 };
-const pma::Vector<pma::Matrix<float> > DecodedV22::conditionalFromValues = {
+const pma::Vector<pma::Matrix<float> > DecodedV25::conditionalFromValues = {
     {  // MaxLOD-0 - MinLOD-1
         {0.0f, 0.0f, 0.6f, 0.4f, 0.1f, 0.7f, 0.0f, 0.4f, 0.7f, 0.5f, 0.0f, 0.1f, 0.6f, 0.2f, 0.0f},
         {0.0f, 0.0f, 0.6f, 0.4f, 0.1f, 0.7f}
@@ -1838,7 +1836,7 @@ const pma::Vector<pma::Matrix<float> > DecodedV22::conditionalFromValues = {
         {0.0f, 0.0f, 0.6f, 0.4f, 0.1f, 0.7f, 0.0f, 0.4f, 0.7f, 0.5f, 0.0f, 0.1f, 0.6f, 0.2f, 0.0f}
     }
 };
-const pma::Vector<pma::Matrix<float> > DecodedV22::conditionalToValues = {
+const pma::Vector<pma::Matrix<float> > DecodedV25::conditionalToValues = {
     {  // MaxLOD-0 - MinLOD-1
         {1.0f, 0.6f, 1.0f, 0.9f, 0.7f, 1.0f, 0.4f, 0.7f, 1.0f, 1.0f, 1.0f, 0.6f, 1.0f, 0.8f, 1.0f},
         {1.0f, 0.6f, 1.0f, 0.9f, 0.7f, 1.0f}
@@ -1850,7 +1848,7 @@ const pma::Vector<pma::Matrix<float> > DecodedV22::conditionalToValues = {
         {1.0f, 0.6f, 1.0f, 0.9f, 0.7f, 1.0f, 0.4f, 0.7f, 1.0f, 1.0f, 1.0f, 0.6f, 1.0f, 0.8f, 1.0f}
     }
 };
-const pma::Vector<pma::Matrix<float> > DecodedV22::conditionalSlopeValues = {
+const pma::Vector<pma::Matrix<float> > DecodedV25::conditionalSlopeValues = {
     {  // MaxLOD-0 - MinLOD-1
         {1.0f, 0.9f, 0.9f, 0.8f, 0.7f, 0.7f, 0.6f, 0.6f, 0.6f, 0.5f, 0.6f, 0.7f, 0.7f, 0.8f, 0.9f},
         {1.0f, 0.9f, 0.9f, 0.8f, 0.7f, 0.7f}
@@ -1862,7 +1860,7 @@ const pma::Vector<pma::Matrix<float> > DecodedV22::conditionalSlopeValues = {
         {1.0f, 0.9f, 0.9f, 0.8f, 0.7f, 0.7f, 0.6f, 0.6f, 0.6f, 0.5f, 0.6f, 0.7f, 0.7f, 0.8f, 0.9f}
     }
 };
-const pma::Vector<pma::Matrix<float> > DecodedV22::conditionalCutValues = {
+const pma::Vector<pma::Matrix<float> > DecodedV25::conditionalCutValues = {
     {  // MaxLOD-0 - MinLOD-1
         {0.0f, 0.5f, 0.5f, 0.4f, 0.3f, 0.3f, 1.0f, 1.0f, 1.0f, 0.2f, 0.4f, 0.8f, 0.8f, 1.0f, 0.2f},
         {0.0f, 0.5f, 0.5f, 0.4f, 0.3f, 0.3f}
@@ -1875,36 +1873,36 @@ const pma::Vector<pma::Matrix<float> > DecodedV22::conditionalCutValues = {
     }
 };
 // Behavior->PSDs
-const pma::Vector<std::uint16_t> DecodedV22::psdRowIndices = {
+const pma::Vector<std::uint16_t> DecodedV25::psdRowIndices = {
     8, 8, 8, 9, 9, 10, 10, 10, 11, 12, 13, 13, 13, 14, 14, 15, 16, 18, 18, 18, 18, 19, 19, 20
 };
-const pma::Vector<std::uint16_t> DecodedV22::psdColumnIndices = {
+const pma::Vector<std::uint16_t> DecodedV25::psdColumnIndices = {
     0, 3, 6, 2, 5, 2, 3, 7, 3, 2, 0, 1, 2, 3, 6, 0, 4, 0, 3, 4, 5, 6, 7, 2
 };
-const pma::Vector<float> DecodedV22::psdValues = {
+const pma::Vector<float> DecodedV25::psdValues = {
     1.0f, 0.9f, 0.9f, 0.6f, 1.0f, 0.8f, 0.9f, 0.8f, 1.0f, 0.3f, 1.0f, 0.9f, 1.0f, 0.9f, 0.5f, 0.5f, 0.9f, 0.7f, 0.6f, 1.0f, 1.0f,
     1.0f, 0.6f, 1.0f
 };
 // Behavior->Joints
-const pma::Vector<std::uint16_t> DecodedV22::jointRowCount = {
+const pma::Vector<std::uint16_t> DecodedV25::jointRowCount = {
     81u,  // MaxLOD-0 - MinLOD-1
     54u,  // MaxLOD-1 - MinLOD-1
     81u  // MaxLOD-0 - MinLOD-0
 };
-const std::uint16_t DecodedV22::jointColumnCount = 10u;
-const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::jointVariableIndices = {
+const std::uint16_t DecodedV25::jointColumnCount = 10u;
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::jointVariableIndices = {
     {  // MaxLOD-0 - MinLOD-1
-        {2, 3, 5, 18, 20, 36, 38, 45, 46, 55, 56, 63, 71},
-        {2, 3, 5, 18, 20, 55, 56}
+        {2, 3, 4, 5, 12, 13, 14, 18, 20, 36, 38, 39, 40, 41, 45, 46, 48, 49, 50, 55, 56, 57, 58, 59, 63, 71},
+        {2, 3, 4, 5, 12, 13, 14, 18, 20, 39, 40, 41, 48, 49, 50, 55, 56, 57, 58, 59}
     },
     {  // MaxLOD-1 - MinLOD-1
-        {2, 3, 5, 18, 20, 37, 38}
+        {2, 3, 4, 5, 12, 13, 14, 18, 20, 37, 38, 39, 40, 41}
     },
     {  // MaxLOD-0 - MinLOD-0
-        {2, 3, 5, 18, 20, 36, 38, 45, 46, 55, 56, 63, 71}
+        {2, 3, 4, 5, 12, 13, 14, 18, 20, 36, 38, 39, 40, 41, 45, 46, 48, 49, 50, 55, 56, 57, 58, 59, 63, 71}
     }
 };
-const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::jointGroupLODs = {
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::jointGroupLODs = {
     {  // Joint Group 0
         {3, 3},  // MaxLOD-0 - MaxLOD-1
         {3},  // MaxLOD-1 - MaxLOD-1
@@ -1926,7 +1924,7 @@ const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::jointGroupLODs = {
         {3}  // MaxLOD-0 - MinLOD-0
     }
 };
-const pma::Vector<pma::Vector<pma::Matrix<std::uint16_t> > > DecodedV22::jointGroupInputIndices = {
+const pma::Vector<pma::Vector<pma::Matrix<std::uint16_t> > > DecodedV25::jointGroupInputIndices = {
     {  // Joint Group 0
         {  // MaxLOD-0 - MaxLOD-1
             {0, 1, 2, 3, 6, 7, 8},
@@ -1976,7 +1974,7 @@ const pma::Vector<pma::Vector<pma::Matrix<std::uint16_t> > > DecodedV22::jointGr
         }
     }
 };
-const pma::Vector<pma::Vector<pma::Matrix<std::uint16_t> > > DecodedV22::jointGroupOutputIndices = {
+const pma::Vector<pma::Vector<pma::Matrix<std::uint16_t> > > DecodedV25::jointGroupOutputIndices = {
     {  // Joint Group 0
         {  // MaxLOD-0 - MaxLOD-1
             {2, 3, 5},
@@ -2026,7 +2024,7 @@ const pma::Vector<pma::Vector<pma::Matrix<std::uint16_t> > > DecodedV22::jointGr
         }
     }
 };
-const pma::Vector<pma::Vector<pma::Matrix<float> > > DecodedV22::jointGroupValues = {
+const pma::Vector<pma::Vector<pma::Matrix<float> > > DecodedV25::jointGroupValues = {
     {  // Joint Group 0
         {  // MaxLOD-0 - MaxLOD-1
             {
@@ -2132,7 +2130,7 @@ const pma::Vector<pma::Vector<pma::Matrix<float> > > DecodedV22::jointGroupValue
         }
     }
 };
-const pma::Vector<pma::Vector<pma::Matrix<std::uint16_t> > > DecodedV22::jointGroupJointIndices = {
+const pma::Vector<pma::Vector<pma::Matrix<std::uint16_t> > > DecodedV25::jointGroupJointIndices = {
     {  // Joint Group 0
         {  // MaxLOD-0 - MaxLOD-1
             {0},
@@ -2183,14 +2181,14 @@ const pma::Vector<pma::Vector<pma::Matrix<std::uint16_t> > > DecodedV22::jointGr
     }
 };
 // Behavior->BlendShapes
-const pma::Matrix<std::uint16_t> DecodedV22::blendShapeLODs = {
+const pma::Matrix<std::uint16_t> DecodedV25::blendShapeLODs = {
     {
         {7, 4},  // MaxLOD-0 - MaxLOD-1
         {4},  // MaxLOD-1 - MinLOD-1
         {7}  // MaxLOD-0 - MinLOD-0
     }
 };
-const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::blendShapeInputIndices = {
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::blendShapeInputIndices = {
     {  // MaxLOD-0 - MaxLOD-1
         {0, 1, 2, 3, 6, 7, 8},
         {0, 1, 2, 3}
@@ -2202,7 +2200,7 @@ const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::blendShapeInputIndice
         {0, 1, 2, 3, 6, 7, 8}
     }
 };
-const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::blendShapeOutputIndices = {
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::blendShapeOutputIndices = {
     {  // MaxLOD-0 - MaxLOD-1
         {0, 1, 2, 3, 6, 7, 8},
         {0, 1, 2, 3}
@@ -2215,12 +2213,12 @@ const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::blendShapeOutputIndic
     }
 };
 // Behavior->AnimatedMaps
-const pma::Vector<std::uint16_t> DecodedV22::animatedMapCount = {
+const pma::Vector<std::uint16_t> DecodedV25::animatedMapCount = {
     10,  // MaxLOD-0 - MaxLOD-1
     4,  // MaxLOD-1 - MinLOD-1
     10  // MaxLOD-0 - MinLOD-0
 };
-const pma::Matrix<std::uint16_t> DecodedV22::animatedMapLODs = {
+const pma::Matrix<std::uint16_t> DecodedV25::animatedMapLODs = {
     {
         {15, 6},  // MaxLOD-0 - MaxLOD-1
         {6},  // MaxLOD-1 - MinLOD-1
@@ -2228,12 +2226,12 @@ const pma::Matrix<std::uint16_t> DecodedV22::animatedMapLODs = {
     }
 };
 // Geometry
-const pma::Vector<std::uint32_t> DecodedV22::meshCount = {
+const pma::Vector<std::uint32_t> DecodedV25::meshCount = {
     3u,  // MaxLOD-0 - MaxLOD-1
     1u,  // MaxLOD-1 - MinLOD-1
     2u  // MaxLOD-0 - MinLOD-0
 };
-const pma::Vector<pma::Matrix<Vector3> > DecodedV22::vertexPositions = {
+const pma::Vector<pma::Matrix<Vector3> > DecodedV25::vertexPositions = {
     {  // MaxLOD-0 - MaxLOD-1
         {  // Mesh-0
             {7.0f, 7.0f, 7.0f},
@@ -2271,7 +2269,7 @@ const pma::Vector<pma::Matrix<Vector3> > DecodedV22::vertexPositions = {
         }
     }
 };
-const pma::Vector<pma::Matrix<TextureCoordinate> > DecodedV22::vertexTextureCoordinates = {
+const pma::Vector<pma::Matrix<TextureCoordinate> > DecodedV25::vertexTextureCoordinates = {
     {  // MaxLOD-0 - MaxLOD-1
         {  // Mesh-0
             {7.0f, 7.0f},
@@ -2309,7 +2307,7 @@ const pma::Vector<pma::Matrix<TextureCoordinate> > DecodedV22::vertexTextureCoor
         }
     }
 };
-const pma::Vector<pma::Matrix<Vector3> > DecodedV22::vertexNormals = {
+const pma::Vector<pma::Matrix<Vector3> > DecodedV25::vertexNormals = {
     {  // MaxLOD-0 - MaxLOD-1
         {  // Mesh-0
             {7.0f, 7.0f, 7.0f},
@@ -2347,7 +2345,7 @@ const pma::Vector<pma::Matrix<Vector3> > DecodedV22::vertexNormals = {
         }
     }
 };
-const pma::Vector<pma::Matrix<VertexLayout> > DecodedV22::vertexLayouts = {
+const pma::Vector<pma::Matrix<VertexLayout> > DecodedV25::vertexLayouts = {
     {  // MaxLOD-0 - MaxLOD-1
         {  // Mesh-0
             {0, 0, 0},
@@ -2384,7 +2382,7 @@ const pma::Vector<pma::Matrix<VertexLayout> > DecodedV22::vertexLayouts = {
             {2, 2, 2}
         }
     }};
-const pma::Matrix<pma::Matrix<std::uint32_t> > DecodedV22::faces = {
+const pma::Matrix<pma::Matrix<std::uint32_t> > DecodedV25::faces = {
     {  // MaxLOD-0 - MaxLOD-1
         {  // Mesh-0
             {0, 1, 2}
@@ -2409,7 +2407,7 @@ const pma::Matrix<pma::Matrix<std::uint32_t> > DecodedV22::faces = {
             {0, 1, 2}
         }
     }};
-const pma::Matrix<std::uint16_t> DecodedV22::maxInfluencePerVertex = {
+const pma::Matrix<std::uint16_t> DecodedV25::maxInfluencePerVertex = {
     {  // MaxLOD-0 - MaxLOD-1
         8u,  // Mesh-0
         8u,  // Mesh-1
@@ -2423,7 +2421,7 @@ const pma::Matrix<std::uint16_t> DecodedV22::maxInfluencePerVertex = {
         8u  // Mesh-1
     }
 };
-const pma::Matrix<pma::Matrix<float> > DecodedV22::skinWeightsValues = {
+const pma::Matrix<pma::Matrix<float> > DecodedV25::skinWeightsValues = {
     {  // MaxLOD-0 - MinLOD-1
         {  // Mesh-0
             {0.7f, 0.1f, 0.2f},
@@ -2461,7 +2459,7 @@ const pma::Matrix<pma::Matrix<float> > DecodedV22::skinWeightsValues = {
         }
     }
 };
-const pma::Matrix<pma::Matrix<std::uint16_t> > DecodedV22::skinWeightsJointIndices = {
+const pma::Matrix<pma::Matrix<std::uint16_t> > DecodedV25::skinWeightsJointIndices = {
     {  // MaxLOD-0 - MaxLOD-1
         {  // Mesh-0
             {0, 1, 2},
@@ -2499,7 +2497,7 @@ const pma::Matrix<pma::Matrix<std::uint16_t> > DecodedV22::skinWeightsJointIndic
         }
     }
 };
-const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::correctiveBlendShapeIndices = {
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::correctiveBlendShapeIndices = {
     {  // MaxLOD-0 - MaxLOD-1
         {  // Mesh-0
             2
@@ -2525,7 +2523,7 @@ const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::correctiveBlendShapeI
         }
     }
 };
-const pma::Matrix<pma::Matrix<Vector3> > DecodedV22::correctiveBlendShapeDeltas = {
+const pma::Matrix<pma::Matrix<Vector3> > DecodedV25::correctiveBlendShapeDeltas = {
     {  // MaxLOD-0 - MaxLOD-1
         {  // Mesh-0
             {  // Blendshape-0
@@ -2579,7 +2577,7 @@ const pma::Matrix<pma::Matrix<Vector3> > DecodedV22::correctiveBlendShapeDeltas 
         }
     }
 };
-const pma::Matrix<pma::Matrix<std::uint32_t> > DecodedV22::correctiveBlendShapeVertexIndices = {
+const pma::Matrix<pma::Matrix<std::uint32_t> > DecodedV25::correctiveBlendShapeVertexIndices = {
     {  // MaxLOD-0 - MaxLOD-1
         {  // Mesh-0
             {0, 1, 2},  // Blendshape-0
@@ -2606,16 +2604,858 @@ const pma::Matrix<pma::Matrix<std::uint32_t> > DecodedV22::correctiveBlendShapeV
         }
     }
 };
+// Machine learned behavior
+const pma::Vector<pma::String<char> > DecodedV25::mlControlNames = {
+    "MA", "MB", "MC", "MD", "ME", "MF", "MG", "MH", "MI"
+};
+const pma::Matrix<std::uint16_t>  DecodedV25::neuralNetworkIndicesPerLOD = {
+    {  // MaxLOD-0 - MaxLOD-1
+        0,  // Mesh-0 Region-0
+        1,  // Mesh-0 Region-1
+        2,  // Mesh-1 Region-0
+        3,  // Mesh-1 Region-1
+        4,  // Mesh-2 Region-0
+        5  // Mesh-2 Region-1
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        0,  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-0
+        1  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-1
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        0,  // Mesh-0 Region-0
+        1,  // Mesh-0 Region-1
+        2,  // Mesh-1 Region-0
+        3  // Mesh-1 Region-1
+    }
+};
+const DecodedV25::VectorOfCharStringMatrix DecodedV25::regionNames = {
+    {  // MaxLOD-0 - MinLOD-1
+        {  // Mesh-0
+            "RA", "RB"
+        },
+        {  // Mesh-1
+            "RC", "RD"
+        },
+        {  // Mesh-2
+            "RE", "RF"
+        }
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        {  // Mesh-0 (Mesh-2 under MaxLOD-0)
+            "RE", "RF"
+        }
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {  // Mesh-0
+            "RA", "RB"
+        },
+        {  // Mesh-1
+            "RC", "RD"
+        }
+    }
+};
+const pma::Matrix<pma::Matrix<std::uint16_t> > DecodedV25::neuralNetworkIndicesPerMeshRegion = {
+    {  // MaxLOD-0 - MaxLOD-1
+        {  // Mesh-0
+            {  // Region-0
+                0
+            },
+            {  // Region-1
+                1
+            }
+        },
+        {  // Mesh-1
+            {  // Region-0
+                2
+            },
+            {  // Region-1
+                3
+            }
+        },
+        {  // Mesh-2
+            {  // Region-0
+                4
+            },
+            {  // Region-1
+                5
+            }
+        }
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        {  // Mesh-0 (Mesh-2 under MaxLOD-0)
+            {  // Region-0
+                0  // (4 under MaxLOD-0)
+            },
+            {  // Region-1
+                1  // (5 under MaxLOD-0)
+            }
+        }
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {  // Mesh-0
+            {  // Region-0
+                0
+            },
+            {  // Region-1
+                1
+            }
+        },
+        {  // Mesh-1
+            {  // Region-0
+                2
+            },
+            {  // Region-1
+                3
+            }
+        }
+    }
+};
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::neuralNetworkInputIndices = {
+    {  // MaxLOD-0 - MaxLOD-1
+        {  // Mesh-0 Region-0
+            0, 1
+        },
+        {  // Mesh-0 Region-1
+            2, 3
+        },
+        {  // Mesh-1 Region-0
+            4, 5
+        },
+        {  // Mesh-1 Region-1
+            6, 7
+        },
+        {  // Mesh-2 Region-0
+            8, 0
+        },
+        {  // Mesh-2 Region-1
+            4, 7
+        }
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        {  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-0
+            8, 0
+        },
+        {  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-1
+            4, 7
+        }
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {  // Mesh-0 Region-0
+            0, 1
+        },
+        {  // Mesh-0 Region-1
+            2, 3
+        },
+        {  // Mesh-1 Region-0
+            4, 5
+        },
+        {  // Mesh-1 Region-1
+            6, 7
+        }
+    }
+};
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::neuralNetworkOutputIndices = {
+    {  // MaxLOD-0 - MaxLOD-1
+        {  // Mesh-0 Region-0
+            9
+        },
+        {  // Mesh-0 Region-1
+            10
+        },
+        {  // Mesh-1 Region-0
+            11
+        },
+        {  // Mesh-1 Region-1
+            12
+        },
+        {  // Mesh-2 Region-0
+            13
+        },
+        {  // Mesh-2 Region-1
+            14
+        }
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        {  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-0
+            13
+        },
+        {  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-1
+            14
+        }
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {  // Mesh-0 Region-0
+            9
+        },
+        {  // Mesh-0 Region-1
+            10
+        },
+        {  // Mesh-1 Region-0
+            11
+        },
+        {  // Mesh-1 Region-1
+            12
+        }
+    }
+};
+const pma::Matrix<std::uint16_t> DecodedV25::neuralNetworkLayerCount = {
+    {  // MaxLOD-0 - MaxLOD-1
+        2,  // Mesh-0 Region-0
+        2,  // Mesh-0 Region-1
+        2,  // Mesh-1 Region-0
+        2,  // Mesh-1 Region-1
+        2,  // Mesh-2 Region-0
+        2  // Mesh-2 Region-1
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        2,  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-0
+        2  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-1
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        2,  // Mesh-0 Region-0
+        2,  // Mesh-0 Region-1
+        2,  // Mesh-1 Region-0
+        2  // Mesh-1 Region-1
+    }
+};
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::neuralNetworkActivationFunction = {
+    {  // MaxLOD-0 - MaxLOD-1
+        {  // Mesh-0 Region-0
+            1, 1
+        },
+        {  // Mesh-0 Region-1
+            1, 1
+        },
+        {  // Mesh-1  Region-0
+            1, 1
+        },
+        {  // Mesh-1 Region-1
+            1, 1
+        },
+        {  // Mesh-2 Region-0
+            1, 1
+        },
+        {  // Mesh-2 Region-1
+            1, 1
+        }
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        {  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-0
+            1, 1
+        },
+        {  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-1
+            1, 1
+        }
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {  // Mesh-0  Region-0
+            1, 1
+        },
+        {  // Mesh-0 Region-1
+            1, 1
+        },
+        {  // Mesh-1 Region-0
+            1, 1
+        },
+        {  // Mesh-1 Region-1
+            1, 1
+        }
+    }
+};
+const pma::Matrix<pma::Matrix<float> > DecodedV25::neuralNetworkActivationFunctionParameters = {
+    {  // MaxLOD-0 - MaxLOD-1
+        {  // Mesh-0  Region-0
+            {0.5f},  // Layer-0
+            {0.5f}  // Layer-1
+        },
+        {  // Mesh-0 Region-1
+            {1.0f},  // Layer-0
+            {1.0f}  // Layer-1
+        },
+        {  // Mesh-1 Region-0
+            {1.0f},  // Layer-0
+            {1.0f}  // Layer-1
+        },
+        {  // Mesh-1 Region-1
+            {0.5f},  // Layer-0
+            {0.5f}  // Layer-1
+        },
+        {  // Mesh-2 Region-0
+            {0.5f},  // Layer-0
+            {0.5f}  // Layer-1
+        },
+        {  // Mesh-2 Region-1
+            {1.0f},  // Layer-0
+            {1.0f}  // Layer-1
+        }
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        {  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-0
+            {0.5f},  // Layer-0
+            {0.5f}  // Layer-1
+        },
+        {  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-1
+            {1.0f},  // Layer-0
+            {1.0f}  // Layer-1
+        }
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {  // Mesh-0 Region-0
+            {0.5f},  // Layer-0
+            {0.5f}  // Layer-1
+        },
+        {  // Mesh-0 Region-1
+            {1.0f},  // Layer-0
+            {1.0f}  // Layer-1
+        },
+        {  // Mesh-1 Region-0
+            {1.0f},  // Layer-0
+            {1.0f}  // Layer-1
+        },
+        {  // Mesh-1 Region-1
+            {0.5f},  // Layer-0
+            {0.5f}  // Layer-1
+        }
+    }
+};
+const pma::Matrix<pma::Matrix<float> > DecodedV25::neuralNetworkBiases = {
+    {  // MaxLOD-0 - MaxLOD-1
+        {  // Mesh-0 Region-0
+            {1.0f, 1.0f},  // Layer-0
+            {1.0f}  // Layer-1
+        },
+        {  // Mesh-0 Region-1
+            {0.5f, 0.5f},  // Layer-0
+            {0.5f}  // Layer-1
+        },
+        {  // Mesh-1 Region-0
+            {0.5f, 0.5f},  // Layer-0
+            {0.5f}  // Layer-1
+        },
+        {  // Mesh-1 Region-1
+            {1.0f, 1.0f},  // Layer-0
+            {1.0f}  // Layer-1
+        },
+        {  // Mesh-2 Region-0
+            {1.0f, 1.0f},  // Layer-0
+            {1.0f}  // Layer-1
+        },
+        {  // Mesh-2 Region-1
+            {0.5f, 0.5f},  // Layer-0
+            {0.5f}  // Layer-1
+        }
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        {  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-0
+            {1.0f, 1.0f},  // Layer-0
+            {1.0f}  // Layer-1
+        },
+        {  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-1
+            {0.5f, 0.5f},  // Layer-0
+            {0.5f}  // Layer-1
+        }
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {  // Mesh-0 Region-0
+            {1.0f, 1.0f},  // Layer-0
+            {1.0f}  // Layer-1
+        },
+        {  // Mesh-0 Region-1
+            {0.5f, 0.5f},  // Layer-0
+            {0.5f}  // Layer-1
+        },
+        {  // Mesh-1 Region-0
+            {0.5f, 0.5f},  // Layer-0
+            {0.5f}  // Layer-1
+        },
+        {  // Mesh-1 Region-1
+            {1.0f, 1.0f},  // Layer-0
+            {1.0f}  // Layer-1
+        }
+    }
+};
+const pma::Matrix<pma::Matrix<float> > DecodedV25::neuralNetworkWeights = {
+    {  // MaxLOD-0 - MaxLOD-1
+        {  // Mesh-0 Region-0
+            {0.5f, 0.5f, 0.5f, 0.5f},  // Layer-0
+            {0.5f, 0.5f}  // Layer-1
+        },
+        {  // Mesh-0 Region-1
+            {1.0f, 1.0f, 1.0f, 1.0f},  // Layer-0
+            {1.0f, 1.0f}  // Layer-1
+        },
+        {  // Mesh-1 Region-0
+            {1.0f, 1.0f, 1.0f, 1.0f},  // Layer-0
+            {1.0f, 1.0f}  // Layer-1
+        },
+        {  // Mesh-1 Region-1
+            {0.5f, 0.5f, 0.5f, 0.5f},  // Layer-0
+            {0.5f, 0.5f}  // Layer-1
+        },
+        {  // Mesh-2 Region-0
+            {0.5f, 0.5f, 0.5f, 0.5f},  // Layer-0
+            {0.5f, 0.5f}  // Layer-1
+        },
+        {  // Mesh-2 Region-1
+            {1.0f, 1.0f, 1.0f, 1.0f},  // Layer-0
+            {1.0f, 1.0f}  // Layer-1
+        }
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        {  // Mesh-0 (Mesh-2 under MaxLOD-0) Region-0
+            {0.5f, 0.5f, 0.5f, 0.5f},  // Layer-0
+            {0.5f, 0.5f}  // Layer-1
+        },
+        {  // Mesh-0 Region-1
+            {1.0f, 1.0f, 1.0f, 1.0f},  // Layer-0
+            {1.0f, 1.0f}  // Layer-1
+        }
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {  // Mesh-0 Region-0
+            {0.5f, 0.5f, 0.5f, 0.5f},  // Layer-0
+            {0.5f, 0.5f}  // Layer-1
+        },
+        {  // Mesh-0 Region-1
+            {1.0f, 1.0f, 1.0f, 1.0f},  // Layer-0
+            {1.0f, 1.0f}  // Layer-1
+        },
+        {  // Mesh-1 Region-0
+            {1.0f, 1.0f, 1.0f, 1.0f},  // Layer-0
+            {1.0f, 1.0f}  // Layer-1
+        },
+        {  // Mesh-1 Region-1
+            {0.5f, 0.5f, 0.5f, 0.5f},  // Layer-0
+            {0.5f, 0.5f}  // Layer-1
+        }
+    }
+};
+
+const pma::Matrix<std::uint16_t> DecodedV25::solverIndicesPerLOD {
+    {  // MaxLOD-0 - MinLOD-1
+        0,
+        1,
+        2
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        1,
+        2
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        0,
+        1
+    }
+};
+
+const pma::Vector<pma::String<char> > DecodedV25::solverNames {
+    "RSA", "RSB", "RSC"
+};
+
+const pma::Matrix<std::uint16_t> DecodedV25::solverRawControlIndices {
+    // Solver 0
+    {11, 12},
+    // Solver 1
+    {3},
+    // Solver 2
+    {22, 23}
+};
+
+const pma::Matrix<std::uint16_t> DecodedV25::solverPoseIndices {
+    // Solver 0
+    {0, 1, 2},
+    // Solver 1
+    {3, 4},
+    // Solver 2
+    {5, 6, 7},
+};
+
+const pma::Vector<float> DecodedV25::solverRadius {
+    1.0f, 2.0f, 1.0f
+};
+
+const pma::Vector<float> DecodedV25::solverWeightThreshold {
+    1.0f, 2.0f, 1.0f
+};
+
+const pma::Vector<std::uint16_t> DecodedV25::solverType {
+    0, 1, 0
+};
+
+const pma::Vector<std::uint16_t> DecodedV25::solverAutomaticRadius {
+    0, 0, 0
+};
+
+const pma::Vector<std::uint16_t> DecodedV25::solverDistanceMethod {
+    1, 3, 1
+};
+
+const pma::Vector<std::uint16_t> DecodedV25::solverNormalizeMethod {
+    0, 1, 0
+};
+
+const pma::Vector<std::uint16_t> DecodedV25::solverFunctionType {
+    2, 2, 0
+};
+
+const pma::Vector<std::uint16_t> DecodedV25::solverTwistAxis {
+    0, 1, 0
+};
+
+const pma::Vector<pma::String<char> > DecodedV25::poseNames {
+    "RA", "RB", "RC", "RD", "RE", "RF", "RG", "RH"
+};
+
+const Vector<float> DecodedV25::poseScale {
+    0.0f,  // Pose 0 (RA)
+    1.0f,  // Pose 1 (RB)
+    2.0f,  // Pose 2 (RC)
+    2.0f,  // Pose 3 (RD)
+    1.0f,  // Pose 4 (RE)
+    1.0f,  // Pose 5 (RF)
+    1.0f,  // Pose 6 (RG)
+    0.5f  // Pose 7 (RH)
+};
+
+const pma::Vector<std::uint16_t> DecodedV25::poseDistanceMethod {
+    0,  // Pose 0 (RA)
+    1,  // Pose 1 (RB)
+    2,  // Pose 2 (RC)
+    3,  // Pose 0 (RD)
+    4,  // Pose 1 (RE)
+    1,  // Pose 0 (RF)
+    2,  // Pose 1 (RG)
+    2  // Pose 2 (RH)
+
+};
+
+const pma::Vector<std::uint16_t> DecodedV25::poseFunctionType {
+    5,  // Pose 0 (RA)
+    4,  // Pose 1 (RB)
+    3,  // Pose 2 (RC)
+    2,  // Pose 3 (RD)
+    1,  // Pose 4 (RE)
+    0,  // Pose 5 (RF)
+    1,  // Pose 6 (RG)
+    2  // Pose 7 (RH)
+};
+
+const Matrix<float> DecodedV25::solverRawControlValues {
+    {  // Solver 0
+        // Pose 0 (RA)
+        2.0f,  // Raw control index 11
+        0.0f,  // Raw control index 12
+        // Pose 1 (RB)
+        1.0f,  // Raw control index 11
+        1.0f,  // Raw control index 12
+        // Pose 2 (RC)
+        3.0f,  // Raw control index 11
+        -3.0f,  // Raw control index 12
+    },
+    {  // Solver 1
+        // Pose 0 (RD)
+        0.0f,  // Raw control index 3
+        // Pose 1 (RE)
+        4.0f,  // Raw control index 3
+    },
+    {  // Solver 2
+        // Pose 0 (RF)
+        2.0f,  // Raw control index 22
+        0.0f,  // Raw control index 23
+        // Pose 1 (RG)
+        1.0f,  // Raw control index 22
+        1.0f,  // Raw control index 23
+        // Pose 2 (RH)
+        3.0f,  // Raw control index 22
+        -3.0f,  // Raw control index 23
+    },
+};
+
+const pma::Vector<pma::String<char> > DecodedV25::poseControlNames = {
+    "PA", "PB", "PC", "PD", "PE", "PF", "PG", "PH", "PI"
+};
+
+const Matrix<std::uint16_t> DecodedV25::poseInputControlIndices = {
+    {0},
+    {1},
+    {2},
+    {3},
+    {4},
+    {5},
+    {6},
+    {7},
+};
+
+const Matrix<std::uint16_t> DecodedV25::poseOutputControlIndices = {
+    {8},
+    {9},
+    {10},
+    {11},
+    {12},
+    {13},
+    {14},
+    {15, 16},
+};
+
+const Matrix<float> DecodedV25::poseOutputControlWeights = {
+    {1.0f},
+    {1.0f},
+    {1.0f},
+    {1.0f},
+    {1.0f},
+    {1.0f},
+    {1.0f},
+    {0.5f, 0.5f}
+};
+
+const pma::Matrix<TranslationRepresentation> DecodedV25::jointTranslationRepresentation = {
+    {  // MaxLOD-0 - MinLOD-1
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector,
+        TranslationRepresentation::Vector
+    }
+};
+
+const pma::Matrix<RotationRepresentation> DecodedV25::jointRotationRepresentation = {
+    {  // MaxLOD-0 - MinLOD-1
+        RotationRepresentation::EulerAngles,  // JA
+        RotationRepresentation::EulerAngles,  // JB
+        RotationRepresentation::Quaternion,  // JC
+        RotationRepresentation::Quaternion,  // JD
+        RotationRepresentation::EulerAngles,  // JE
+        RotationRepresentation::EulerAngles,  // JF
+        RotationRepresentation::EulerAngles,  // JG
+        RotationRepresentation::Quaternion,  // JH
+        RotationRepresentation::EulerAngles  // JI
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        RotationRepresentation::EulerAngles,  // JA
+        RotationRepresentation::EulerAngles,  // JB
+        RotationRepresentation::Quaternion,  // JC
+        RotationRepresentation::Quaternion,  // JD
+        RotationRepresentation::EulerAngles,  // JG
+        RotationRepresentation::EulerAngles  // JI
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        RotationRepresentation::EulerAngles,  // JA
+        RotationRepresentation::EulerAngles,  // JB
+        RotationRepresentation::Quaternion,  // JC
+        RotationRepresentation::Quaternion,  // JD
+        RotationRepresentation::EulerAngles,  // JE
+        RotationRepresentation::EulerAngles,  // JF
+        RotationRepresentation::EulerAngles,  // JG
+        RotationRepresentation::Quaternion,  // JH
+        RotationRepresentation::EulerAngles  // JI
+    }
+};
+
+const pma::Matrix<ScaleRepresentation> DecodedV25::jointScaleRepresentation = {
+    {  // MaxLOD-0 - MinLOD-1
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector
+    },
+    {  // MaxLOD-1 - MinLOD-1
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector,
+        ScaleRepresentation::Vector
+    }
+};
+
+const pma::Vector<pma::Matrix<float> > DecodedV25::swingBlendWeights = {
+    {  // MaxLOD-0 - MinLOD-1
+        {1.0f, 2.0f},
+        {-2.0f, -1.0f},
+        {1.0f}
+    },
+    {  // MaxLOD-1 - MinLOD-0
+        {1.0f, 2.0f},
+        {-1.0f},
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {1.0f, 2.0f},
+        {-2.0f, -1.0f},
+        {1.0f}
+    }
+};
+
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::swingOutputJointIndices = {
+    {  // MaxLOD-0 - MinLOD-1
+        {0u, 1u},
+        {4u, 6u},
+        {5u}
+    },
+    {  // MaxLOD-1 - MinLOD-0
+        {0u, 1u},
+        {4u}
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {0u, 1u},
+        {4u, 6u},
+        {5u}
+    }
+};
+
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::swingInputControlIndices = {
+    {  // MaxLOD-0 - MinLOD-1
+        {5u, 6u, 7u, 8u},
+        {11u, 12u, 13u, 14u},
+        {27u, 28u, 29u, 30u}
+    },
+    {  // MaxLOD-1 - MinLOD-0
+        {5u, 6u, 7u, 8u},
+        {11u, 12u, 13u, 14u},
+        {27u, 28u, 29u, 30u}
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {5u, 6u, 7u, 8u},
+        {11u, 12u, 13u, 14u},
+        {27u, 28u, 29u, 30u}
+    }
+};
+
+const pma::Matrix<TwistAxis> DecodedV25::swingTwistAxes = {
+    {  // MaxLOD-0 - MinLOD-1
+        TwistAxis::X,
+        TwistAxis::Y,
+        TwistAxis::Z
+    },
+    {  // MaxLOD-1 - MinLOD-0
+        TwistAxis::X,
+        TwistAxis::Y,
+        TwistAxis::Z
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        TwistAxis::X,
+        TwistAxis::Y,
+        TwistAxis::Z
+    }
+};
+
+const pma::Vector<pma::Matrix<float> > DecodedV25::twistBlendWeights = {
+    {  // MaxLOD-0 - MinLOD-1
+        {1.0f, 2.0f},
+        {-2.0f, -1.0f},
+        {1.0f}
+    },
+    {  // MaxLOD-1 - MinLOD-0
+        {1.0f, 2.0f},
+        {-1.0f},
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {1.0f, 2.0f},
+        {-2.0f, -1.0f},
+        {1.0f}
+    }
+};
+
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::twistOutputJointIndices = {
+    {  // MaxLOD-0 - MinLOD-1
+        {0u, 1u},
+        {4u, 6u},
+        {5u}
+    },
+    {  // MaxLOD-1 - MinLOD-0
+        {0u, 1u},
+        {4u}
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {0u, 1u},
+        {4u, 6u},
+        {5u}
+    }
+};
+
+const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV25::twistInputControlIndices = {
+    {  // MaxLOD-0 - MinLOD-1
+        {5u, 6u, 7u, 8u},
+        {11u, 12u, 13u, 14u},
+        {27u, 28u, 29u, 30u}
+    },
+    {  // MaxLOD-1 - MinLOD-0
+        {5u, 6u, 7u, 8u},
+        {11u, 12u, 13u, 14u},
+        {27u, 28u, 29u, 30u}
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        {5u, 6u, 7u, 8u},
+        {11u, 12u, 13u, 14u},
+        {27u, 28u, 29u, 30u}
+    }
+};
+
+const pma::Matrix<TwistAxis> DecodedV25::twistTwistAxes = {
+    {  // MaxLOD-0 - MinLOD-1
+        TwistAxis::X,
+        TwistAxis::Y,
+        TwistAxis::Z
+    },
+    {  // MaxLOD-1 - MinLOD-0
+        TwistAxis::X,
+        TwistAxis::Y,
+        TwistAxis::Z
+    },
+    {  // MaxLOD-0 - MinLOD-0
+        TwistAxis::X,
+        TwistAxis::Y,
+        TwistAxis::Z
+    }
+};
+
 #ifdef __clang__
     #pragma clang diagnostic pop
 #endif
 
-std::size_t DecodedV22::lodConstraintToIndex(std::uint16_t maxLOD, std::uint16_t minLOD) {
+std::size_t DecodedV25::lodConstraintToIndex(std::uint16_t maxLOD, std::uint16_t minLOD) {
     // Relies on having only TWO available LODs (0, 1)
     return (minLOD == 1u ? maxLOD : 2ul);
 }
 
-RawJoints DecodedV22::getJoints(std::uint16_t currentMaxLOD, std::uint16_t currentMinLOD, pma::MemoryResource* memRes) {
+RawJoints DecodedV25::getJoints(std::uint16_t currentMaxLOD, std::uint16_t currentMinLOD, pma::MemoryResource* memRes) {
     const auto srcIndex = lodConstraintToIndex(currentMaxLOD, currentMinLOD);
     RawJoints joints{memRes};
     joints.rowCount = jointRowCount[srcIndex];
@@ -2638,7 +3478,7 @@ RawJoints DecodedV22::getJoints(std::uint16_t currentMaxLOD, std::uint16_t curre
     return joints;
 }
 
-RawBlendShapeChannels DecodedV22::getBlendShapes(std::uint16_t currentMaxLOD,
+RawBlendShapeChannels DecodedV25::getBlendShapes(std::uint16_t currentMaxLOD,
                                                  std::uint16_t currentMinLOD,
                                                  pma::MemoryResource* memRes) {
     RawBlendShapeChannels blendShapes{memRes};
@@ -2652,7 +3492,7 @@ RawBlendShapeChannels DecodedV22::getBlendShapes(std::uint16_t currentMaxLOD,
     return blendShapes;
 }
 
-RawConditionalTable DecodedV22::getConditionals(std::uint16_t currentMaxLOD,
+RawConditionalTable DecodedV25::getConditionals(std::uint16_t currentMaxLOD,
                                                 std::uint16_t currentMinLOD,
                                                 pma::MemoryResource* memRes) {
     RawConditionalTable conditionals{memRes};
@@ -2672,7 +3512,7 @@ RawConditionalTable DecodedV22::getConditionals(std::uint16_t currentMaxLOD,
     return conditionals;
 }
 
-RawAnimatedMaps DecodedV22::getAnimatedMaps(std::uint16_t currentMaxLOD, std::uint16_t currentMinLOD,
+RawAnimatedMaps DecodedV25::getAnimatedMaps(std::uint16_t currentMaxLOD, std::uint16_t currentMinLOD,
                                             pma::MemoryResource* memRes) {
     RawAnimatedMaps animatedMaps{memRes};
     const auto srcIndex = lodConstraintToIndex(currentMaxLOD, currentMinLOD);

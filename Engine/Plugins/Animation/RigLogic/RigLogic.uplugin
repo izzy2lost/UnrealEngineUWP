@@ -1,9 +1,9 @@
 {
 	"FileVersion": 3,
-	"Version": 10.1,
-	"VersionName": "10.1.4",
-	"FriendlyName": "RigLogic Plugin v10.1.4",
-	"Description": "3Lateral RigLogic Plugin for Facial Animation v10.1.4",
+	"Version": 10.2,
+	"VersionName": "10.2.0",
+	"FriendlyName": "RigLogic Plugin v10.2.0",
+	"Description": "3Lateral RigLogic Plugin for Facial Animation v10.2.0",
 	"Category": "Animation",
 	"CreatedBy": "3Lateral",
 	"CreatedByURL": "https://www.3lateral.com/",

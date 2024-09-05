@@ -78,6 +78,62 @@ class DNAAPI RBFBehaviorReader : public virtual BehaviorReader {
         */
         virtual float getRBFPoseScale(std::uint16_t poseIndex) const = 0;
         /**
+            @brief Number of distinct RBF controls.
+            @note
+                This is the number of unique output control indices for all RBF poses.
+            @see getRBFPoseOutputControlIndices
+        */
+        virtual std::uint16_t getRBFPoseControlCount() const = 0;
+        /**
+            @brief Name of the requested RBF pose control.
+            @param poseControlIndex
+                A name's position in the zero-indexed array of RBF pose control names.
+            @warning
+                The index must be less than the value returned by getRBFPoseControlCount.
+            @return View over the control name string.
+        */
+        virtual StringView getRBFPoseControlName(std::uint16_t poseControlIndex) const = 0;
+        /**
+            @brief List of control indices that additionally multiply the pose output (optional).
+            @note
+                When the final output weight of a pose is calculated (this is after it's already
+                multiplied by the weights from @getRBFPoseOutputControlWeights), it can optionally be
+                additionally multiplied by a list of input controls.
+            @param poseIndex
+                A poses's position in the zero-indexed array of poses.
+            @warning
+               poseIndex must be less than the value returned by getRBFPoseCount
+            @return View over the array of control indices.
+        */
+        virtual ConstArrayView<std::uint16_t> getRBFPoseInputControlIndices(std::uint16_t poseIndex) const = 0;
+        /**
+            @brief List of control indices that the specified pose drives.
+            @note
+                This is an additional level of indirection, through which a single RBF pose is able to
+                drive even multiple expressions (by providing multiple control indices for a pose).
+                The solver calculates the output weight for a pose, and that output weight is distributed
+                (and multiplied by the multiplier, @see getRBFPoseOutputControlWeights) to all the controls
+                that are specified in this array.
+            @param poseIndex
+                A poses's position in the zero-indexed array of poses.
+            @warning
+               poseIndex must be less than the value returned by getRBFPoseCount
+            @return View over the array of control indices.
+        */
+        virtual ConstArrayView<std::uint16_t> getRBFPoseOutputControlIndices(std::uint16_t poseIndex) const = 0;
+        /**
+            @brief List of weights that multiply the RBF outputs.
+            @note
+                When an RBF solver calculates the weights for each of its poses, those output weights are
+                additionally multiplied by this fixed list of multipliers (one weight per control is given).
+            @param poseIndex
+                A poses's position in the zero-indexed array of poses.
+            @warning
+               poseIndex must be less than the value returned by getRBFPoseCount
+            @return View over the array of output control multipliers.
+        */
+        virtual ConstArrayView<float> getRBFPoseOutputControlWeights(std::uint16_t poseIndex) const = 0;
+        /**
             @brief Number of RBF solvers.
         */
         virtual std::uint16_t getRBFSolverCount() const = 0;

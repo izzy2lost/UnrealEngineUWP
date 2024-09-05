@@ -179,6 +179,11 @@ class ReaderImpl : public TReaderBase, public virtual BaseImpl {
         ConstArrayView<std::uint16_t> getRBFPoseAnimatedMapOutputIndices(std::uint16_t poseIndex) const override;
         ConstArrayView<float> getRBFPoseJointOutputValues(std::uint16_t poseIndex) const override;
         float getRBFPoseScale(std::uint16_t poseIndex) const override;
+        std::uint16_t getRBFPoseControlCount() const override;
+        StringView getRBFPoseControlName(std::uint16_t poseControlIndex) const override;
+        ConstArrayView<std::uint16_t> getRBFPoseInputControlIndices(std::uint16_t poseIndex) const override;
+        ConstArrayView<std::uint16_t> getRBFPoseOutputControlIndices(std::uint16_t poseIndex) const override;
+        ConstArrayView<float> getRBFPoseOutputControlWeights(std::uint16_t poseIndex) const override;
         std::uint16_t getRBFSolverCount() const override;
         std::uint16_t getRBFSolverIndexListCount() const override;
         ConstArrayView<std::uint16_t> getRBFSolverIndicesForLOD(std::uint16_t lod) const override;
@@ -1235,6 +1240,47 @@ inline float ReaderImpl<TReaderBase>::getRBFPoseScale(std::uint16_t poseIndex) c
         return poses[poseIndex].scale;
     }
     return 0.0f;
+}
+
+template<class TReaderBase>
+inline std::uint16_t ReaderImpl<TReaderBase>::getRBFPoseControlCount() const {
+    return static_cast<std::uint16_t>(dna.rbfBehaviorExt.poseControlNames.size());
+}
+
+template<class TReaderBase>
+StringView ReaderImpl<TReaderBase>::getRBFPoseControlName(std::uint16_t poseControlIndex) const {
+    if (poseControlIndex < dna.rbfBehaviorExt.poseControlNames.size()) {
+        const auto& poseControlName = dna.rbfBehaviorExt.poseControlNames[poseControlIndex];
+        return {poseControlName.data(), poseControlName.size()};
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getRBFPoseInputControlIndices(std::uint16_t poseIndex) const {
+    const auto& poses = dna.rbfBehaviorExt.poses;
+    if (poseIndex < poses.size()) {
+        return poses[poseIndex].inputControlIndices;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getRBFPoseOutputControlIndices(std::uint16_t poseIndex) const {
+    const auto& poses = dna.rbfBehaviorExt.poses;
+    if (poseIndex < poses.size()) {
+        return poses[poseIndex].outputControlIndices;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<float> ReaderImpl<TReaderBase>::getRBFPoseOutputControlWeights(std::uint16_t poseIndex) const {
+    const auto& poses = dna.rbfBehaviorExt.poses;
+    if (poseIndex < poses.size()) {
+        return poses[poseIndex].outputControlWeights;
+    }
+    return {};
 }
 
 template<class TReaderBase>

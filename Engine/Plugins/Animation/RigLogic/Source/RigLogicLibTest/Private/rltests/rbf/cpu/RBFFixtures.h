@@ -28,11 +28,15 @@ namespace unoptimized {
 
 
 extern const std::uint16_t rawControlCount;
-extern const std::uint16_t rbfControlCount;
 extern const std::uint16_t lodCount;
 extern const pma::Matrix<std::uint16_t> solverIndicesPerLOD;
+extern const pma::Matrix<std::uint16_t> solverRawControlIndices;
 
 extern const pma::Vector<float> poseScales;
+extern const std::uint16_t poseControlCount;
+extern const Matrix<std::uint16_t> poseInputControlIndices;
+extern const Matrix<std::uint16_t> poseOutputControlIndices;
+extern const Matrix<float> poseOutputControlWeights;
 extern const pma::Vector<dna::RBFSolverType> solverTypes;
 extern const pma::Vector<dna::RBFDistanceMethod> solverDistanceMethods;
 extern const pma::Vector<dna::RBFFunctionType> solverFunctionType;
@@ -42,7 +46,6 @@ extern const pma::Vector<dna::AutomaticRadius> solverAutomaticRadius;
 extern const pma::Vector<float> solverRadius;
 extern const pma::Vector<float> solverWeightThreshold;
 extern const pma::Matrix<std::uint16_t> solverPoseIndices;
-extern const pma::Matrix<std::uint16_t> solverRawControlIndices;
 extern const pma::Matrix<float> solverRawControlValues;
 
 }  // namespace unoptimized
@@ -52,7 +55,6 @@ namespace optimized {
 
 extern const LODSpec<std::uint16_t> lods;
 extern const Matrix<std::uint16_t> solverRawControlInputIndices;
-extern const Matrix<std::uint16_t> solverRawControlOutputIndices;
 extern const std::uint16_t maximumInputCount;
 extern const std::uint16_t maxTargetCount;
 
@@ -149,6 +151,22 @@ class RBFReader : public dna::FakeReader {
 
         dna::TwistAxis getRBFSolverTwistAxis(std::uint16_t solverIndex) const override {
             return unoptimized::solverTwistAxis[solverIndex];
+        }
+
+        std::uint16_t getRBFPoseControlCount() const override {
+            return static_cast<std::uint16_t>(unoptimized::poseControlCount);
+        }
+
+        ConstArrayView<std::uint16_t> getRBFPoseInputControlIndices(std::uint16_t poseIndex) const override {
+            return unoptimized::poseInputControlIndices[poseIndex];
+        }
+
+        ConstArrayView<std::uint16_t> getRBFPoseOutputControlIndices(std::uint16_t poseIndex) const override {
+            return unoptimized::poseOutputControlIndices[poseIndex];
+        }
+
+        ConstArrayView<float> getRBFPoseOutputControlWeights(std::uint16_t poseIndex) const override {
+            return unoptimized::poseOutputControlWeights[poseIndex];
         }
 
 };

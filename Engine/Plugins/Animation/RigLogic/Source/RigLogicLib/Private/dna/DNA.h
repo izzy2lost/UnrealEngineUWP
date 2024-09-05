@@ -99,7 +99,8 @@ enum FileVersion : std::uint64_t {
     v22 = rev(2, 2),
     v23 = rev(2, 3),
     v24 = rev(2, 4),
-    latest = v24
+    v25 = rev(2, 5),
+    latest = v25
 };
 
 using Dispatch = Dispatcher<FileVersion, FileVersion::v21, FileVersion::v22, FileVersion::v23, FileVersion::v24>;
@@ -1317,6 +1318,29 @@ struct RawRBFPose {
 
 };
 
+struct RawRBFPoseExt {
+    DynArray<std::uint16_t> inputControlIndices;
+    DynArray<std::uint16_t> outputControlIndices;
+    DynArray<float> outputControlWeights;
+
+    explicit RawRBFPoseExt(MemoryResource* memRes) :
+        inputControlIndices{memRes},
+        outputControlIndices{memRes},
+        outputControlWeights{memRes} {
+    }
+
+    template<class Archive>
+    void serialize(Archive& archive) {
+        archive.label("inputControlIndices");
+        archive(inputControlIndices);
+        archive.label("outputControlIndices");
+        archive(outputControlIndices);
+        archive.label("outputControlWeights");
+        archive(outputControlWeights);
+    }
+
+};
+
 struct RawRBFSolver {
     terse::ArchiveSize<std::uint32_t, std::uint32_t> size;
     terse::Anchor<std::uint32_t> baseMarker;
@@ -1403,6 +1427,25 @@ struct RawRBFBehavior {
         archive(lodSolverMapping);
         archive.label("solvers");
         archive(solvers);
+        archive.label("poses");
+        archive(poses);
+    }
+
+};
+
+struct RawRBFBehaviorExt {
+    Vector<String<char> > poseControlNames;
+    Vector<RawRBFPoseExt> poses;
+
+    explicit RawRBFBehaviorExt(MemoryResource* memRes) :
+        poseControlNames{memRes},
+        poses{memRes} {
+    }
+
+    template<class Archive>
+    void serialize(Archive& archive) {
+        archive.label("poseControlNames");
+        archive(poseControlNames);
         archive.label("poses");
         archive(poses);
     }
@@ -1525,6 +1568,7 @@ struct DNA {
     Layer<sid4("geom"), rev(1, 1), RawGeometry, FileVersion::v22> geometry;
     Layer<sid4("mlbh"), rev(1, 0), RawMachineLearnedBehavior, FileVersion::v23> machineLearnedBehavior;
     Layer<sid4("rbfb"), rev(1, 0), RawRBFBehavior, FileVersion::v24> rbfBehavior;
+    Layer<sid4("rbfe"), rev(1, 0), RawRBFBehaviorExt, FileVersion::v25> rbfBehaviorExt;
     Layer<sid4("jbmd"), rev(1, 0), RawJointBehaviorMetadata, FileVersion::v24> jointBehaviorMetadata;
     Layer<sid4("twsw"), rev(1, 0), RawTwistSwingBehavior, FileVersion::v24> twistSwingBehavior;
 
@@ -1536,6 +1580,7 @@ struct DNA {
                        decltype(geometry),
                        decltype(machineLearnedBehavior),
                        decltype(rbfBehavior),
+                       decltype(rbfBehaviorExt),
                        decltype(jointBehaviorMetadata),
                        decltype(twistSwingBehavior)>;
     Layers layers;
@@ -1549,10 +1594,11 @@ struct DNA {
         geometry{memRes},
         machineLearnedBehavior{memRes},
         rbfBehavior{memRes},
+        rbfBehaviorExt{memRes},
         jointBehaviorMetadata{memRes},
         twistSwingBehavior{memRes},
         layers{unknownPolicy, upgradePolicy, memRes, &descriptor, &definition, &behavior, &geometry,
-               &machineLearnedBehavior, &rbfBehavior, &jointBehaviorMetadata, &twistSwingBehavior} {
+               &machineLearnedBehavior, &rbfBehavior, &rbfBehaviorExt, &jointBehaviorMetadata, &twistSwingBehavior} {
     }
 
     explicit DNA(MemoryResource* memRes_) : DNA{UnknownLayerPolicy::Preserve, UpgradeFormatPolicy::Allowed,
@@ -1629,6 +1675,8 @@ struct DNA {
         }
 
         context->data = nullptr;
+
+        postLoadActions();
     }
 
     template<class Archive, typename AnyVersion>
@@ -1644,6 +1692,23 @@ struct DNA {
         for (auto& index : indexTable.entries) {
             context->data = &index;
             archive(terse::transparent(layers));
+        }
+    }
+
+    void postLoadActions() {
+        if (rbfBehaviorExt.poses.empty() && !rbfBehavior.poses.empty()) {
+            rbfBehaviorExt.poses.resize(rbfBehavior.poses.size(), RawRBFPoseExt{memRes});
+            rbfBehaviorExt.poseControlNames.resize(rbfBehavior.poses.size());
+            const auto controlOffset = (definition.rawControlNames.size() +
+                                        behavior.controls.psdCount +
+                                        machineLearnedBehavior.mlControlNames.size());
+            for (std::size_t pi = {}; pi < rbfBehaviorExt.poses.size(); ++pi) {
+                rbfBehaviorExt.poseControlNames[pi] = rbfBehavior.poses[pi].name;
+                rbfBehaviorExt.poses[pi].outputControlIndices.resize(1ul);
+                rbfBehaviorExt.poses[pi].outputControlWeights.resize(1ul);
+                rbfBehaviorExt.poses[pi].outputControlIndices[0] = static_cast<std::uint16_t>(controlOffset + pi);
+                rbfBehaviorExt.poses[pi].outputControlWeights[0] = 1.0f;
+            }
         }
     }
 
@@ -1665,6 +1730,7 @@ struct DNA {
 
     void unloadRBFBehavior() {
         static_cast<RawRBFBehavior&>(rbfBehavior) = RawRBFBehavior{memRes};
+        static_cast<RawRBFBehaviorExt&>(rbfBehaviorExt) = RawRBFBehaviorExt{memRes};
     }
 
     void unloadJointBehaviorMetadata() {
