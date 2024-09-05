@@ -787,7 +787,7 @@ void LoadSymbolsForModule(HMODULE ModuleHandle, const FString& RemoteStorage)
 		{
 			TCHAR ErrorMsgBuffer[2048];
 			const TCHAR* ErrorMsg = FWindowsPlatformMisc::GetSystemErrorMessage(ErrorMsgBuffer, UE_ARRAY_COUNT(ErrorMsgBuffer), ErrorCode);
-			UE_LOG(LogWindows, Warning, TEXT("Failed to load module '%s' with SymLoadModuleExW. Error %d: %s"), ModuleName, ErrorCode, ErrorMsg);
+			UE_LOG(LogWindows, Verbose, TEXT("Failed to load module '%s' with SymLoadModuleExW. Error %d: %s"), ModuleName, ErrorCode, ErrorMsg);
 		}
 	}
 }
