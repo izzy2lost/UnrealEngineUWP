@@ -23,8 +23,14 @@ class ONLINESERVICESCOMMON_API FOnlineServicesCommon
 {
 public:
 	using Super = IOnlineServices;
+	
+	UE_DEPRECATED(5.5, "Please call the new method taking an FName InstanceConfigName")
+	FOnlineServicesCommon(const FString& InServiceConfigName, FName InInstanceName)
+		: FOnlineServicesCommon(InServiceConfigName, InInstanceName, NAME_None)
+	{
+	}
 
-	FOnlineServicesCommon(const FString& InServiceConfigName, FName InInstanceName, FName InInstanceConfigName = NAME_None);
+	FOnlineServicesCommon(const FString& InServiceConfigName, FName InInstanceName, FName InInstanceConfigName);
 	FOnlineServicesCommon(const FOnlineServicesCommon&) = delete;
 	FOnlineServicesCommon(FOnlineServicesCommon&&) = delete;
 	virtual ~FOnlineServicesCommon();
