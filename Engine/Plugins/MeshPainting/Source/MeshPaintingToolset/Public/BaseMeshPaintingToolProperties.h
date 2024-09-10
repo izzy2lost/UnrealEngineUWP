@@ -12,11 +12,11 @@ class MESHPAINTINGTOOLSET_API UMeshPaintingToolProperties : public UBrushBasePro
 
 public:
 	/** Color used for applying color painting */
-	UPROPERTY(EditAnywhere, Category = Brush)
+	UPROPERTY(EditAnywhere, Category = ColorPainting)
 	FLinearColor PaintColor = FLinearColor::White;
 
 	/** Color used for erasing color painting */
-	UPROPERTY(EditAnywhere, Category = Brush)
+	UPROPERTY(EditAnywhere, Category = ColorPainting)
 	FLinearColor EraseColor = FLinearColor::Black;
 
 	/** Enables "Flow" painting where paint is continually applied from the brush every tick */
