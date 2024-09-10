@@ -126,6 +126,7 @@
 #include "Bindings/MovieSceneSpawnableDirectorBlueprintBinding.h"
 #include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "MovieSceneDynamicBindingUtils.h"
+#include "EditModes/SubTrackEditorMode.h"
 #include "Kismet2/KismetEditorUtilities.h"
 
 #include "Conditions/MovieSceneDirectorBlueprintCondition.h"
@@ -302,6 +303,12 @@ void FMovieSceneToolsModule::StartupModule()
 		FSlateIcon(),
 		false);
 
+	FEditorModeRegistry::Get().RegisterMode<FSubTrackEditorMode>(
+		FSubTrackEditorMode::ModeName,
+		NSLOCTEXT("SubTrackEditorMode", "SubTrackEditMode", "Sub Track Mode"),
+		FSlateIcon(),
+		false);
+
 	// register UTransformableComponentHandle animatable interface
 	FConstraintChannelInterfaceRegistry& ConstraintChannelInterfaceRegistry = FConstraintChannelInterfaceRegistry::Get();
 	ConstraintChannelInterfaceRegistry.RegisterConstraintChannelInterface<UTransformableComponentHandle>(MakeUnique<FComponentConstraintChannelInterface>());
@@ -404,6 +411,7 @@ void FMovieSceneToolsModule::ShutdownModule()
 	}
 
 	FEditorModeRegistry::Get().UnregisterMode(FSkeletalAnimationTrackEditMode::ModeName);
+	FEditorModeRegistry::Get().UnregisterMode(FSubTrackEditorMode::ModeName);
 
 }
 

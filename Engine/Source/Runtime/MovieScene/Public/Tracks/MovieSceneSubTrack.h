@@ -65,6 +65,40 @@ public:
 	 * @return true if the sequence is in this track, false otherwise.
 	 */
 	MOVIESCENE_API bool ContainsSequence(const UMovieSceneSequence& Sequence, bool Recursively = false, const UMovieSceneSection* SectionToSkip = nullptr) const;
+	
+	/**
+	 * Finds all sections at the current time.
+	 *
+	 * @param Time The time relative to the owning movie scene where the sections should be
+	 * @return The found sections.
+	 */
+	MOVIESCENE_API TArray<UMovieSceneSection*, TInlineAllocator<4>> FindAllSections(FFrameNumber Time) const;
+
+	/**
+	 * Finds a section at the current time.
+	 *
+	 * @param Time The time relative to the owning movie scene where the section should be
+	 * @return The found section.
+	 */	
+	MOVIESCENE_API UMovieSceneSection* FindSection(FFrameNumber Time) const;
+	
+	/**
+	 * Finds a section at the current time or extends an existing one
+	 *
+	 * @param Time The time relative to the owning movie scene where the section should be
+	 * @param OutWeight The weight of the section if found
+	 * @return The found section.
+	 */
+	MOVIESCENE_API UMovieSceneSection* FindOrExtendSection(FFrameNumber Time, float& OutWeight);
+
+	/**
+	 * Finds a section at the current time, or adds one if no section is found.
+	 *
+	 * @param Time The time relative to the owning movie scene where the section should be
+	 * @param bSectionAdded Whether a section was added or not
+	 * @return The found section, or the new section.
+	 */
+	MOVIESCENE_API UMovieSceneSection* FindOrAddSection(FFrameNumber Time, bool& bSectionAdded);
 
 public:
 
@@ -83,6 +117,8 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	MOVIESCENE_API virtual FText GetDefaultDisplayName() const override;
+	MOVIESCENE_API virtual UMovieSceneSection* GetSectionToKey() const override { return SectionToKey; }
+	MOVIESCENE_API virtual void SetSectionToKey(UMovieSceneSection* Section) override;
 #endif
 
 protected:
@@ -116,6 +152,10 @@ private:
 	/** The height for each row of this track */
 	UPROPERTY()
 	int32 RowHeight;
+
+	/** Section we should Key */
+	UPROPERTY()
+	TObjectPtr<UMovieSceneSection> SectionToKey;
 
 #endif
 };

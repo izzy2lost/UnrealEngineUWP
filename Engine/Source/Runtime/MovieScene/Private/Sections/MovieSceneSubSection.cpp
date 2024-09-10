@@ -6,6 +6,8 @@
 #include "MovieSceneTrack.h"
 #include "MovieSceneSequence.h"
 #include "MovieSceneTimeHelpers.h"
+#include "MovieSceneTracksComponentTypes.h"
+#include "Channels/MovieSceneChannelProxy.h"
 #include "EntitySystem/BuiltInComponentTypes.h"
 #include "Evaluation/MovieSceneEvaluationTemplate.h"
 #include "Misc/FrameRate.h"
@@ -24,6 +26,99 @@
 
 float DeprecatedMagicNumber = TNumericLimits<float>::Lowest();
 
+#if WITH_EDITOR
+
+struct FSubSectionEditorData
+{
+
+	FText LocationGroup = NSLOCTEXT("MovieSceneSubSection", "Origin Override Location", "Origin Override Location");
+	FText RotationGroup = NSLOCTEXT("MovieSceneSubSection", "Origin Override Rotation", "Origin Override Rotation");
+	
+
+	FSubSectionEditorData(EMovieSceneTransformChannel Mask, UMovieSceneSubSection* SubSection)
+	{
+		MetaData[0].SetIdentifiers("Override.Location.X", FCommonChannelData::ChannelX, LocationGroup);
+		MetaData[0].SubPropertyPath = TEXT("Location.X");
+		MetaData[0].SortOrder = 0;
+		MetaData[0].bEnabled = EnumHasAllFlags(Mask, EMovieSceneTransformChannel::TranslationX);
+		MetaData[0].Color = FCommonChannelData::RedChannelColor;
+		MetaData[0].bCanCollapseToTrack = false;
+
+		MetaData[1].SetIdentifiers("Override.Location.Y", FCommonChannelData::ChannelY, LocationGroup);
+		MetaData[1].SubPropertyPath = TEXT("Location.Y");
+		MetaData[1].SortOrder = 1;
+		MetaData[1].bEnabled = EnumHasAllFlags(Mask, EMovieSceneTransformChannel::TranslationY);
+		MetaData[1].Color = FCommonChannelData::GreenChannelColor;
+		MetaData[1].bCanCollapseToTrack = false;
+		
+		MetaData[2].SetIdentifiers("Override.Location.Z", FCommonChannelData::ChannelZ, LocationGroup);
+		MetaData[2].SubPropertyPath = TEXT("Location.Z");
+		MetaData[2].SortOrder = 2;
+		MetaData[2].bEnabled = EnumHasAllFlags(Mask, EMovieSceneTransformChannel::TranslationZ);
+		MetaData[2].Color = FCommonChannelData::BlueChannelColor;
+		MetaData[2].bCanCollapseToTrack = false;
+
+		MetaData[3].SetIdentifiers("Override.Rotation.X", FCommonChannelData::ChannelX, RotationGroup);
+		MetaData[3].SubPropertyPath = TEXT("Rotation.X");
+		MetaData[3].SortOrder = 3;
+		MetaData[3].bEnabled = EnumHasAllFlags(Mask, EMovieSceneTransformChannel::RotationX);
+		MetaData[3].Color = FCommonChannelData::RedChannelColor;
+		MetaData[3].bCanCollapseToTrack = false;
+
+		MetaData[4].SetIdentifiers("Override.Rotation.Y", FCommonChannelData::ChannelY, RotationGroup);
+		MetaData[4].SubPropertyPath = TEXT("Rotation.Y");
+		MetaData[4].SortOrder = 4;
+		MetaData[4].bEnabled = EnumHasAllFlags(Mask, EMovieSceneTransformChannel::RotationY);
+		MetaData[4].Color = FCommonChannelData::GreenChannelColor;
+		MetaData[4].bCanCollapseToTrack = false;
+
+		MetaData[5].SetIdentifiers("Override.Rotation.Z", FCommonChannelData::ChannelZ, RotationGroup);
+		MetaData[5].SubPropertyPath = TEXT("Rotation.Z");
+		MetaData[5].SortOrder = 5;
+		MetaData[5].bEnabled = EnumHasAllFlags(Mask, EMovieSceneTransformChannel::RotationZ);
+		MetaData[5].Color = FCommonChannelData::BlueChannelColor;
+		MetaData[5].bCanCollapseToTrack = false;
+
+		ExternalValues[0].OnGetExternalValue = [SubSection](UObject& InObject, FTrackInstancePropertyBindings* Bindings) { return GetValue(SubSection, 0); };
+		ExternalValues[1].OnGetExternalValue = [SubSection](UObject& InObject, FTrackInstancePropertyBindings* Bindings) { return GetValue(SubSection, 1); };
+		ExternalValues[2].OnGetExternalValue = [SubSection](UObject& InObject, FTrackInstancePropertyBindings* Bindings) { return GetValue(SubSection, 2); };
+		ExternalValues[3].OnGetExternalValue = [SubSection](UObject& InObject, FTrackInstancePropertyBindings* Bindings) { return GetValue(SubSection, 3); };
+		ExternalValues[4].OnGetExternalValue = [SubSection](UObject& InObject, FTrackInstancePropertyBindings* Bindings) { return GetValue(SubSection, 4); };
+		ExternalValues[5].OnGetExternalValue = [SubSection](UObject& InObject, FTrackInstancePropertyBindings* Bindings) { return GetValue(SubSection, 5); };
+
+	}
+
+	static TOptional<double> GetValue(UMovieSceneSubSection* SubSection, int32 ChannelIndex)
+	{
+		if(!SubSection)
+		{
+			return TOptional<double>();
+		}
+
+		switch (ChannelIndex)
+		{
+		case 0:
+		case 1:
+		case 2:
+			return SubSection->GetKeyPreviewPosition().IsSet() ? SubSection->GetKeyPreviewPosition().GetValue()[ChannelIndex] : TOptional<double>();
+		case 3:
+			return SubSection->GetKeyPreviewRotation().IsSet() ? SubSection->GetKeyPreviewRotation().GetValue().Roll: TOptional<double>();
+		case 4:
+			return SubSection->GetKeyPreviewRotation().IsSet() ? SubSection->GetKeyPreviewRotation().GetValue().Pitch: TOptional<double>();
+		case 5:
+			return SubSection->GetKeyPreviewRotation().IsSet() ? SubSection->GetKeyPreviewRotation().GetValue().Yaw: TOptional<double>();
+		default:
+			return TOptional<double>();
+		}
+	}
+
+	FMovieSceneChannelMetaData MetaData[6];
+	TMovieSceneExternalValue<double> ExternalValues[6];
+};
+
+#endif
+
+
 /* UMovieSceneSubSection structors
  *****************************************************************************/
 
@@ -36,6 +131,12 @@ UMovieSceneSubSection::UMovieSceneSubSection(const FObjectInitializer& ObjInitia
 	NetworkMask = (uint8)(EMovieSceneServerClientMask::Server | EMovieSceneServerClientMask::Client);
 
 	SetBlendType(EMovieSceneBlendType::Absolute);
+	
+	OriginOverrideMask = EMovieSceneTransformChannel::AllTransform;
+
+#if WITH_EDITOR
+	ResetKeyPreviewRotationAndLocation();
+#endif
 }
 
 void UMovieSceneSubSection::DeleteChannels(TArrayView<const FName> ChannelNames)
@@ -70,6 +171,29 @@ EMovieSceneChannelProxyType UMovieSceneSubSection::CacheChannelProxy()
 			Curve->PopulateChannelProxy(Channels, UMovieSceneTimeWarpGetter::EAllowTopLevelChannels::No);
 		}
 	}
+
+#if WITH_EDITOR	
+
+	FSubSectionEditorData EditorData(OriginOverrideMask.GetChannels(), this);
+
+	Channels.Add(Translation[0], EditorData.MetaData[0], EditorData.ExternalValues[0]);
+	Channels.Add(Translation[1], EditorData.MetaData[1], EditorData.ExternalValues[1]);
+	Channels.Add(Translation[2], EditorData.MetaData[2], EditorData.ExternalValues[2]);
+	Channels.Add(Rotation[0], EditorData.MetaData[3], EditorData.ExternalValues[3]);
+	Channels.Add(Rotation[1], EditorData.MetaData[4], EditorData.ExternalValues[4]);
+	Channels.Add(Rotation[2], EditorData.MetaData[5], EditorData.ExternalValues[5]);
+
+#else
+
+	Channels.Add(Translation[0]);
+	Channels.Add(Translation[1]);
+	Channels.Add(Translation[2]);
+	Channels.Add(Rotation[0]);
+	Channels.Add(Rotation[1]);
+	Channels.Add(Rotation[2]);
+	
+#endif
+	
 
 	ChannelProxy = MakeShared<FMovieSceneChannelProxy>(MoveTemp(Channels));
 	return EMovieSceneChannelProxyType::Dynamic;
@@ -167,6 +291,45 @@ bool UMovieSceneSubSection::GetValidatedInnerPlaybackRange(TRange<FFrameNumber>&
 	}
 	return false;
 }
+
+FMovieSceneSubSectionOriginOverrideMask UMovieSceneSubSection::GetMask() const
+{
+	return OriginOverrideMask;
+}
+
+void UMovieSceneSubSection::SetMask(EMovieSceneTransformChannel NewMask)
+{
+	OriginOverrideMask = NewMask;
+
+	ChannelProxy = nullptr;
+}
+
+#if WITH_EDITOR
+
+void UMovieSceneSubSection::SetKeyPreviewPosition(TOptional<FVector> InPosition)
+{
+	if(InPosition.IsSet())
+	{
+		KeyPreviewPosition = InPosition.GetValue();
+	}
+	
+}
+
+void UMovieSceneSubSection::SetKeyPreviewRotation(TOptional<FRotator> InRotation)
+{
+	if(InRotation.IsSet())
+	{
+		KeyPreviewRotation = InRotation.GetValue();
+	}
+}
+
+void UMovieSceneSubSection::ResetKeyPreviewRotationAndLocation()
+{
+	KeyPreviewPosition.Reset();
+	KeyPreviewRotation.Reset();
+}
+
+#endif
 
 TRange<FFrameNumber> UMovieSceneSubSection::GetValidatedInnerPlaybackRange(const FMovieSceneSectionParameters& SubSectionParameters, const UMovieScene& InnerMovieScene)
 {
@@ -527,6 +690,20 @@ FFrameNumber UMovieSceneSubSection::MapTimeToSectionFrame(FFrameTime InPosition)
 	return LocalPosition;
 }
 
+bool UMovieSceneSubSection::HasAnyChannelData() const
+{
+	bool bHasAnyData = false;
+
+	bHasAnyData |= Translation[0].HasAnyData();
+	bHasAnyData |= Translation[1].HasAnyData();
+	bHasAnyData |= Translation[2].HasAnyData();
+	bHasAnyData |= Rotation[0].HasAnyData();
+	bHasAnyData |= Rotation[1].HasAnyData();
+	bHasAnyData |= Rotation[2].HasAnyData();
+
+	return bHasAnyData;
+}
+
 void UMovieSceneSubSection::BuildDefaultSubSectionComponents(UMovieSceneEntitySystemLinker* EntityLinker, const UE::MovieScene::FEntityImportParams& Params, UE::MovieScene::FImportedEntity* OutImportedEntity) const
 {
 	using namespace UE::MovieScene;
@@ -538,12 +715,51 @@ void UMovieSceneSubSection::BuildDefaultSubSectionComponents(UMovieSceneEntitySy
 	const FSubSequencePath PathToRoot = EntityLinker->GetInstanceRegistry()->GetInstance(Params.Sequence.InstanceHandle).GetSubSequencePath();
 	FMovieSceneSequenceID ResolvedSequenceID = PathToRoot.ResolveChildSequenceID(this->GetSequenceID());
 
+	EMovieSceneTransformChannel Channels = OriginOverrideMask.GetChannels();
+
+	const bool ActiveChannelsMask[] = {
+		EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::TranslationX) && Translation[0].HasAnyData(),
+		EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::TranslationY) && Translation[1].HasAnyData(),
+		EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::TranslationZ) && Translation[2].HasAnyData(),
+		EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::RotationX) && Rotation[0].HasAnyData(),
+		EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::RotationY) && Rotation[1].HasAnyData(),
+		EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::RotationZ) && Rotation[2].HasAnyData(),
+	};
+
+	bool bKeyPreviewPositionIsSet = false;
+	bool bKeyPreviewRotationIsSet = false;
+
+#if WITH_EDITOR
+	bKeyPreviewPositionIsSet = KeyPreviewPosition.IsSet();
+	bKeyPreviewRotationIsSet = KeyPreviewRotation.IsSet();
+#endif
+	
 	OutImportedEntity->AddBuilder(
 		FEntityBuilder()
 		.Add(Components->SequenceID, ResolvedSequenceID)
 		.AddTag(Components->Tags.SubInstance)
 		.AddConditional(Components->HierarchicalEasingProvider, ResolvedSequenceID, bHasEasing)
+		.AddConditional(Components->DoubleChannel[0], &Translation[0], ActiveChannelsMask[0] && !bKeyPreviewPositionIsSet)
+		.AddConditional(Components->DoubleChannel[1], &Translation[1], ActiveChannelsMask[1] && !bKeyPreviewPositionIsSet)
+		.AddConditional(Components->DoubleChannel[2], &Translation[2], ActiveChannelsMask[2] && !bKeyPreviewPositionIsSet)
+		.AddConditional(Components->DoubleChannel[3], &Rotation[0], ActiveChannelsMask[3] && !bKeyPreviewRotationIsSet)
+		.AddConditional(Components->DoubleChannel[4], &Rotation[1], ActiveChannelsMask[4] && !bKeyPreviewRotationIsSet)
+		.AddConditional(Components->DoubleChannel[5], &Rotation[2], ActiveChannelsMask[5] && !bKeyPreviewRotationIsSet)
 	);
+
+	// Build Key preview entity data. Since the channel data is not written when we have preview data, this data will be used in the transform origin system.
+#if WITH_EDITOR
+	OutImportedEntity->AddBuilder(
+		FEntityBuilder()
+		.AddConditional(Components->DoubleResult[0], KeyPreviewPosition.IsSet() ? KeyPreviewPosition.GetValue().X : 0.0f, EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::TranslationX) && KeyPreviewPosition.IsSet())
+		.AddConditional(Components->DoubleResult[1], KeyPreviewPosition.IsSet() ? KeyPreviewPosition.GetValue().Y : 0.0f, EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::TranslationY) && KeyPreviewPosition.IsSet())
+		.AddConditional(Components->DoubleResult[2], KeyPreviewPosition.IsSet() ? KeyPreviewPosition.GetValue().Z : 0.0f, EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::TranslationZ) && KeyPreviewPosition.IsSet())
+		.AddConditional(Components->DoubleResult[3], KeyPreviewPosition.IsSet() ? KeyPreviewRotation.GetValue().Roll : 0.0f, EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::RotationX) && KeyPreviewRotation.IsSet())
+		.AddConditional(Components->DoubleResult[4], KeyPreviewPosition.IsSet() ? KeyPreviewRotation.GetValue().Pitch : 0.0f, EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::RotationY) && KeyPreviewRotation.IsSet())
+		.AddConditional(Components->DoubleResult[5], KeyPreviewPosition.IsSet() ? KeyPreviewRotation.GetValue().Yaw : 0.0f, EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::RotationX) && KeyPreviewRotation.IsSet())
+	);
+#endif
+	
 }
 
 

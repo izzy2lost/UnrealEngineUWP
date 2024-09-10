@@ -132,6 +132,73 @@ bool UMovieSceneSubTrack::ContainsSequence(const UMovieSceneSequence& Sequence, 
 	return false;
 }
 
+TArray<UMovieSceneSection*, TInlineAllocator<4>> UMovieSceneSubTrack::FindAllSections(FFrameNumber Time) const
+{
+	TArray<UMovieSceneSection*, TInlineAllocator<4>> OverlappingSections;
+
+	for (UMovieSceneSection* Section : Sections)
+	{
+		if (MovieSceneHelpers::IsSectionKeyable(Section) && Section->GetRange().Contains(Time))
+		{
+			OverlappingSections.Add(Section);
+		}
+	}
+
+	Algo::Sort(OverlappingSections, MovieSceneHelpers::SortOverlappingSections);
+
+	return OverlappingSections;
+}
+
+#if WITH_EDITOR
+
+UMovieSceneSection* UMovieSceneSubTrack::FindSection(FFrameNumber Time) const
+{
+	TArray<UMovieSceneSection*, TInlineAllocator<4>> OverlappingSections = FindAllSections(Time);
+
+	if (OverlappingSections.Num())
+	{
+		if (SectionToKey && OverlappingSections.Contains(SectionToKey))
+		{
+			return SectionToKey;
+		}
+		else
+		{
+			return OverlappingSections[0];
+		}
+	}
+
+	return nullptr;
+}
+
+UMovieSceneSection* UMovieSceneSubTrack::FindOrExtendSection(FFrameNumber Time, float& OutWeight)
+{
+	return FindSection(Time);
+}
+
+UMovieSceneSection* UMovieSceneSubTrack::FindOrAddSection(FFrameNumber Time, bool& bSectionAdded)
+{
+	bSectionAdded = false;
+
+	UMovieSceneSection* FoundSection = FindSection(Time);
+	if (FoundSection)
+	{
+		return FoundSection;
+	}
+
+	// Add a new section that starts and ends at the same time
+	UMovieSceneSection* NewSection = CreateNewSection();
+	ensureAlwaysMsgf(NewSection->HasAnyFlags(RF_Transactional), TEXT("CreateNewSection must return an instance with RF_Transactional set! (pass RF_Transactional to NewObject)"));
+	NewSection->SetFlags(RF_Transactional);
+	NewSection->SetRange(TRange<FFrameNumber>::Inclusive(Time, Time));
+
+	Sections.Add(NewSection);
+	
+	bSectionAdded = true;
+
+	return NewSection;
+}
+
+#endif
 
 /* UMovieSceneTrack interface
  *****************************************************************************/
@@ -200,6 +267,11 @@ bool UMovieSceneSubTrack::SupportsMultipleRows() const
 FText UMovieSceneSubTrack::GetDefaultDisplayName() const
 {
 	return LOCTEXT("TrackName", "Subsequences");
+}
+
+void UMovieSceneSubTrack::SetSectionToKey(UMovieSceneSection* Section)
+{
+	SectionToKey = Section;
 }
 #endif
 

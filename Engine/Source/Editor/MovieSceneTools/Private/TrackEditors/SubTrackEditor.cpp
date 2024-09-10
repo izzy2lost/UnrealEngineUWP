@@ -36,10 +36,19 @@
 #include "Algo/Accumulate.h"
 #include "SequencerUtilities.h"
 #include "AssetToolsModule.h"
+#include "EditorModeManager.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "IDetailsView.h"
+#include "IKeyArea.h"
 #include "IStructureDetailsView.h"
 #include "PropertyEditorModule.h"
+#include "Compilation/MovieSceneCompiledDataManager.h"
+#include "EditModes/SubTrackEditorMode.h"
+#include "EntitySystem/BuiltInComponentTypes.h"
+#include "EntitySystem/MovieSceneEntitySystemTask.h"
+#include "MVVM/Selection/Selection.h"
+#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "Systems/MovieSceneTransformOriginSystem.h"
 
 #define LOCTEXT_NAMESPACE "FSubTrackEditor"
 
@@ -119,6 +128,82 @@ public:
 			);
 		}
 		MenuBuilder.EndSection();
+
+		auto MakeUIAction = [Section](EMovieSceneTransformChannel ChannelsToToggle, const TSharedPtr<ISequencer>& Sequencer)
+		{
+			return FUIAction(
+				FExecuteAction::CreateLambda([Section, ChannelsToToggle, Sequencer]
+					{
+						FScopedTransaction Transaction(LOCTEXT("SetActiveChannelsTransaction", "Set Active Channels"));
+						Section->Modify();
+						EMovieSceneTransformChannel Channels = Section->GetMask().GetChannels();
+
+						if (EnumHasAllFlags(Channels, ChannelsToToggle) || (Channels & ChannelsToToggle) == EMovieSceneTransformChannel::None)
+						{
+							Section->SetMask(Section->GetMask().GetChannels() ^ ChannelsToToggle);
+						}
+						else
+						{
+							Section->SetMask(Section->GetMask().GetChannels() | ChannelsToToggle);
+						}
+					
+						Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+					}
+				),
+				FCanExecuteAction(),
+				FGetActionCheckState::CreateLambda([Section, ChannelsToToggle]
+				{
+					EMovieSceneTransformChannel Channels = Section->GetMask().GetChannels();
+					if (EnumHasAllFlags(Channels, ChannelsToToggle))
+					{
+						return ECheckBoxState::Checked;
+					}
+					if (EnumHasAnyFlags(Channels, ChannelsToToggle))
+					{
+						return ECheckBoxState::Undetermined;
+					}
+					return ECheckBoxState::Unchecked;
+				})
+			);
+		};
+
+		TSharedPtr<ISequencer> Sequencer = GetSequencer();
+		
+		MenuBuilder.BeginSection(NAME_None, LOCTEXT("SequenceMenuText", "Active Channels"));
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("AllTranslation", "Translation"), LOCTEXT("AllTranslation_ToolTip", "Causes this section to affect the translation of the transform"),
+			FNewMenuDelegate::CreateLambda([Sequencer, MakeUIAction](FMenuBuilder& SubMenuBuilder){
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("TranslationX", "X"), LOCTEXT("TranslationX_ToolTip", "Causes this section to affect the X channel of the transform's translation"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::TranslationX, Sequencer), NAME_None, EUserInterfaceActionType::ToggleButton);
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("TranslationY", "Y"), LOCTEXT("TranslationY_ToolTip", "Causes this section to affect the Y channel of the transform's translation"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::TranslationY, Sequencer), NAME_None, EUserInterfaceActionType::ToggleButton);
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("TranslationZ", "Z"), LOCTEXT("TranslationZ_ToolTip", "Causes this section to affect the Z channel of the transform's translation"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::TranslationZ, Sequencer), NAME_None, EUserInterfaceActionType::ToggleButton);
+			}),
+			MakeUIAction(EMovieSceneTransformChannel::Translation, Sequencer),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton);
+
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("AllRotation", "Rotation"), LOCTEXT("AllRotation_ToolTip", "Causes this section to affect the rotation of the transform"),
+			FNewMenuDelegate::CreateLambda([Sequencer, MakeUIAction](FMenuBuilder& SubMenuBuilder){
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("RotationX", "Roll (X)"), LOCTEXT("RotationX_ToolTip", "Causes this section to affect the roll (X) channel the transform's rotation"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::RotationX, Sequencer), NAME_None, EUserInterfaceActionType::ToggleButton);
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("RotationY", "Pitch (Y)"), LOCTEXT("RotationY_ToolTip", "Causes this section to affect the pitch (Y) channel the transform's rotation"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::RotationY, Sequencer), NAME_None, EUserInterfaceActionType::ToggleButton);
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("RotationZ", "Yaw (Z)"), LOCTEXT("RotationZ_ToolTip", "Causes this section to affect the yaw (Z) channel the transform's rotation"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::RotationZ, Sequencer), NAME_None, EUserInterfaceActionType::ToggleButton);
+			}),
+			MakeUIAction(EMovieSceneTransformChannel::Rotation, Sequencer),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton);
+		MenuBuilder.EndSection();
 	}
 
 	void TogglePlayableDirectly()
@@ -197,7 +282,7 @@ private:
  *****************************************************************************/
 
 FSubTrackEditor::FSubTrackEditor(TSharedRef<ISequencer> InSequencer)
-	: FMovieSceneTrackEditor(InSequencer) 
+	: FKeyframeTrackEditor<UMovieSceneSubTrack>(InSequencer)
 { }
 
 
@@ -223,9 +308,138 @@ TSharedPtr<SWidget> FSubTrackEditor::BuildOutlinerEditWidget(const FGuid& Object
 }
 
 
+void FSubTrackEditor::GetOriginKeys(const FVector& CurrentPosition, const FRotator& CurrentRotation, UMovieSceneSection* Section, FGeneratedTrackKeys& OutGeneratedKeys)
+{
+	FMovieSceneChannelProxy& SectionChannelProxy = Section->GetChannelProxy();
+	TMovieSceneChannelHandle<FMovieSceneDoubleChannel> ChannelHandles[] = {
+		SectionChannelProxy.GetChannelByName<FMovieSceneDoubleChannel>("Override.Location.X"),
+		SectionChannelProxy.GetChannelByName<FMovieSceneDoubleChannel>("Override.Location.Y"),
+		SectionChannelProxy.GetChannelByName<FMovieSceneDoubleChannel>("Override.Location.Z"),
+		SectionChannelProxy.GetChannelByName<FMovieSceneDoubleChannel>("Override.Rotation.X"),
+		SectionChannelProxy.GetChannelByName<FMovieSceneDoubleChannel>("Override.Rotation.Y"),
+		SectionChannelProxy.GetChannelByName<FMovieSceneDoubleChannel>("Override.Rotation.Z")
+	};
+	
+	OutGeneratedKeys.Add(FMovieSceneChannelValueSetter::Create<FMovieSceneDoubleChannel>(ChannelHandles[0].GetChannelIndex(), CurrentPosition.X, true));
+	OutGeneratedKeys.Add(FMovieSceneChannelValueSetter::Create<FMovieSceneDoubleChannel>(ChannelHandles[1].GetChannelIndex(), CurrentPosition.Y, true));
+	OutGeneratedKeys.Add(FMovieSceneChannelValueSetter::Create<FMovieSceneDoubleChannel>(ChannelHandles[2].GetChannelIndex(), CurrentPosition.Z, true));
+	OutGeneratedKeys.Add(FMovieSceneChannelValueSetter::Create<FMovieSceneDoubleChannel>(ChannelHandles[3].GetChannelIndex(), CurrentRotation.Roll, true));
+	OutGeneratedKeys.Add(FMovieSceneChannelValueSetter::Create<FMovieSceneDoubleChannel>(ChannelHandles[4].GetChannelIndex(), CurrentRotation.Pitch, true));
+	OutGeneratedKeys.Add(FMovieSceneChannelValueSetter::Create<FMovieSceneDoubleChannel>(ChannelHandles[5].GetChannelIndex(), CurrentRotation.Yaw, true));
+}
+
 TSharedRef<ISequencerTrackEditor> FSubTrackEditor::CreateTrackEditor(TSharedRef<ISequencer> InSequencer)
 {
 	return MakeShareable(new FSubTrackEditor(InSequencer));
+}
+
+int32 FSubTrackEditor::GetPreviousKey(FMovieSceneDoubleChannel& Channel, FFrameNumber Time)
+{
+	TArray<FFrameNumber> KeyTimes;
+	TArray<FKeyHandle> KeyHandles;
+
+	TRange<FFrameNumber> Range;
+	Range.SetLowerBound(TRangeBound<FFrameNumber>::Open());
+	Range.SetUpperBound(TRangeBound<FFrameNumber>::Exclusive(Time));
+	Channel.GetData().GetKeys(Range, &KeyTimes, &KeyHandles);
+
+	if (KeyHandles.Num() <= 0)
+	{
+		return INDEX_NONE;
+	}
+
+	int32 Index = Channel.GetData().GetIndex(KeyHandles[KeyHandles.Num() - 1]);
+	return Index;
+}
+
+double FSubTrackEditor::UnwindChannel(const double& OldValue, double NewValue)
+{
+	while( NewValue - OldValue > 180.0f )
+	{
+		NewValue -= 360.0f;
+	}
+	while( NewValue - OldValue < -180.0f )
+	{
+		NewValue += 360.0f;
+	}
+	return NewValue;
+}
+
+void FSubTrackEditor::ProcessKeyOperation(FFrameNumber InKeyTime, const UE::Sequencer::FKeyOperation& Operation, ISequencer& InSequencer)
+{
+	auto Iterator = [this, InKeyTime, &InSequencer](UMovieSceneTrack* Track, TArrayView<const UE::Sequencer::FKeySectionOperation> Operations)
+	{
+		this->ProcessKeyOperationInternal(Operations, InSequencer, InKeyTime);
+	};
+
+	Operation.IterateOperations(Iterator);
+}
+void FSubTrackEditor::ProcessKeyOperationInternal(TArrayView<const UE::Sequencer::FKeySectionOperation> SectionsToKey, ISequencer& InSequencer, FFrameNumber KeyTime)
+{
+	for (int32 Index = 0; Index < SectionsToKey.Num(); ++Index)
+	{
+		for (TSharedPtr<IKeyArea> KeyArea : SectionsToKey[Index].KeyAreas)
+		{
+			UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(SectionsToKey[Index].Section->GetSectionObject());
+			FMovieSceneChannelHandle Handle = KeyArea->GetChannel();
+			if(Handle.GetChannelTypeName() == FMovieSceneDoubleChannel::StaticStruct()->GetFName() && SubSection)
+			{
+				FMovieSceneDoubleChannel* Channel = static_cast<FMovieSceneDoubleChannel*>(Handle.Get());
+
+				if (ensureAlwaysMsgf(Channel, TEXT("Channel: %s for Key Area %s does not exist. Keying may not function properly"), *Handle.GetChannelTypeName().ToString(), *KeyArea->GetName().ToString()))
+				{
+					double Value = 0.0;
+
+					FTransform RawTransformOrigin = GetTransformOriginDataForSubSection(SubSection);
+					TOptional<FVector> KeyPosition = SubSection->GetKeyPreviewPosition();
+					TOptional<FRotator> KeyRotation = SubSection->GetKeyPreviewRotation();
+;
+					switch (Handle.GetChannelIndex())
+					{
+					case 0:
+						Value = KeyPosition.IsSet() ? KeyPosition.GetValue().X : RawTransformOrigin.GetLocation().X;
+						break;
+					case 1:
+						Value = KeyPosition.IsSet() ? KeyPosition.GetValue().Y : RawTransformOrigin.GetLocation().Y;
+						break;
+					case 2:
+						Value = KeyPosition.IsSet() ? KeyPosition.GetValue().Z : RawTransformOrigin.GetLocation().Z;
+						break;
+					case 3:
+						Value = KeyRotation.IsSet() ? KeyRotation.GetValue().Roll : RawTransformOrigin.Rotator().Roll;
+						break;
+					case 4:
+						Value = KeyRotation.IsSet() ? KeyRotation.GetValue().Pitch : RawTransformOrigin.Rotator().Pitch;
+						break;
+					case 5:
+						Value = KeyRotation.IsSet() ? KeyRotation.GetValue().Yaw : RawTransformOrigin.Rotator().Yaw;
+						break;
+					default:
+						Value = 0.0;
+					}
+
+					if (KeyArea->GetName() == "Rotation.X" ||
+						KeyArea->GetName() == "Rotation.Y" ||
+						KeyArea->GetName() == "Rotation.Z")
+					{
+						int32 PreviousKey = GetPreviousKey(*Channel, KeyTime);
+						if (PreviousKey != INDEX_NONE && PreviousKey < Channel->GetData().GetValues().Num())
+						{
+							double OldValue = Channel->GetData().GetValues()[PreviousKey].Value;
+							Value = UnwindChannel(OldValue, Value);
+						}
+					}
+
+					EMovieSceneKeyInterpolation Interpolation = GetInterpolationMode(Channel, KeyTime, InSequencer.GetKeyInterpolation());
+					AddKeyToChannel(Channel, KeyTime, Value, Interpolation);
+				}
+			}
+			else
+			{
+				KeyArea->AddOrUpdateKey(KeyTime, FGuid(), InSequencer);
+			}
+		}
+	}
 }
 
 
@@ -430,6 +644,41 @@ FReply FSubTrackEditor::OnDrop(const FDragDropEvent& DragDropEvent, const FSeque
 bool FSubTrackEditor::IsResizable(UMovieSceneTrack* InTrack) const
 {
 	return true;
+}
+
+void FSubTrackEditor::OnInitialize()
+{
+	GLevelEditorModeTools().ActivateDefaultMode();
+
+	GLevelEditorModeTools().ActivateMode(FSubTrackEditorMode::ModeName);
+	FSubTrackEditorMode* EditorMode = static_cast<FSubTrackEditorMode*>(GLevelEditorModeTools().GetActiveMode(FSubTrackEditorMode::ModeName));
+	if(EditorMode)
+	{
+		EditorMode->SetSequencer(GetSequencer());
+		EditorMode->GetOnOriginValueChanged().RemoveAll(this);
+		EditorMode->GetOnOriginValueChanged().AddRaw(this, &FSubTrackEditor::UpdateOrigin);
+	}
+	GetSequencer()->GetViewModel()->GetSelection()->TrackArea.OnChanged.AddSP(this, &FSubTrackEditor::UpdateActiveMode);
+
+	SectionsWithPreviews.Empty();
+	GetSequencer()->OnPlayEvent().AddSP(this, &FSubTrackEditor::ResetSectionPreviews);
+	GetSequencer()->OnBeginScrubbingEvent().AddSP(this, &FSubTrackEditor::ResetSectionPreviews);
+	GetSequencer()->OnActivateSequence().AddSP(this, &FSubTrackEditor::ResetSectionPreviews);
+}
+
+void FSubTrackEditor::OnRelease()
+{
+	FSubTrackEditorMode* EditorMode = static_cast<FSubTrackEditorMode*>(GLevelEditorModeTools().GetActiveMode(FSubTrackEditorMode::ModeName));
+	if(EditorMode)
+	{
+		EditorMode->GetOnOriginValueChanged().RemoveAll(this);	
+	}
+	GetSequencer()->GetViewModel()->GetSelection()->TrackArea.OnChanged.RemoveAll(this);
+
+	SectionsWithPreviews.Empty();
+	GetSequencer()->OnPlayEvent().RemoveAll(this);
+	GetSequencer()->OnBeginScrubbingEvent().RemoveAll(this);
+	GetSequencer()->OnActivateSequence().RemoveAll(this);
 }
 
 void FSubTrackEditor::Resize(float NewSize, UMovieSceneTrack* InTrack)
@@ -764,6 +1013,35 @@ void FSubTrackEditor::EditMetaData(UMovieSceneSubSection* Section)
 	MetaDataWindow = ExistingWindow;
 }
 
+void FSubTrackEditor::UpdateActiveMode()
+{
+	TArray<UMovieSceneSection*> Sections;
+	GetSequencer()->GetSelectedSections(Sections);
+	
+	for(UMovieSceneSection* Section : Sections)
+	{
+		if(Section->IsA(UMovieSceneSubSection::StaticClass()))
+		{
+			GLevelEditorModeTools().ActivateDefaultMode();
+			GLevelEditorModeTools().ActivateMode(FSubTrackEditorMode::ModeName);
+			return;
+		}
+	}
+	
+	TArray<UMovieSceneTrack*> Tracks;
+	GetSequencer()->GetSelectedTracks(Tracks);
+
+	for(UMovieSceneTrack* Track : Tracks)
+	{
+		if(Track->IsA(UMovieSceneSubTrack::StaticClass()))
+		{
+			GLevelEditorModeTools().ActivateDefaultMode();
+			GLevelEditorModeTools().ActivateMode(FSubTrackEditorMode::ModeName);
+			return;
+		}
+	}
+}
+
 bool FSubTrackEditor::CanAddSubSequence(const UMovieSceneSequence& Sequence) const
 {
 	UMovieSceneSequence* FocusedSequence = GetSequencer()->GetFocusedMovieSceneSequence();
@@ -805,6 +1083,225 @@ FString FSubTrackEditor::GetDefaultSubsequenceDirectory() const
 TSubclassOf<UMovieSceneSubTrack> FSubTrackEditor::GetSubTrackClass() const
 {
 	return UMovieSceneSubTrack::StaticClass();
+}
+
+void FSubTrackEditor::UpdateOrigin(FVector InPosition, FRotator InRotation)
+{
+	if(!GetSequencer())
+	{
+		return;
+	}
+	
+	if(!GetSequencer()->IsAllowedToChange())
+	{
+		return;
+	}
+
+	UMovieSceneSequence* MovieSceneSequence = GetMovieSceneSequence();
+	if (!MovieSceneSequence)
+	{
+		return;
+	}
+	
+	// @todo Sequencer - The sequencer probably should have taken care of this
+	MovieSceneSequence->SetFlags(RF_Transactional);
+	
+	// Create a transaction record because we are about to add keys
+	const bool bShouldActuallyTransact = !GIsTransacting;		// Don't transact if we're recording in a PIE world.  That type of keyframe capture cannot be undone.
+	FScopedTransaction AutoKeyTransaction( NSLOCTEXT("AnimatablePropertyTool", "PropertyChanged", "Animatable Property Changed"), bShouldActuallyTransact);
+
+	TArray<UMovieSceneSubSection*> SectionsToKey;
+	
+	TArray<UMovieSceneSection*> SelectedSections;
+	GetSequencer()->GetSelectedSections(SelectedSections);
+
+	// Gather selected sections first, since they may be part of a track as well, and they may need to be removed if section to key is set.
+	for(UMovieSceneSection* Section : SelectedSections)
+	{
+		if(UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(Section))
+		{
+			SectionsToKey.AddUnique(SubSection);
+		}
+	}
+	
+	TArray<UMovieSceneTrack*> SelectedTracks;
+	GetSequencer()->GetSelectedTracks(SelectedTracks);
+	for (UMovieSceneTrack* Track : SelectedTracks)
+	{
+		if(UMovieSceneSubTrack* SubTrack = Cast<UMovieSceneSubTrack>(Track))
+		{
+			FGeneratedTrackKeys GeneratedTrackKeys;
+			UMovieSceneSubSection* SectionToKey = Cast<UMovieSceneSubSection>(SubTrack->GetSectionToKey());
+			if(SectionToKey)
+			{
+				// Remove other sections from this track, since section to key takes precedence.
+				for(UMovieSceneSection* Section : SubTrack->GetAllSections())
+				{
+					if(UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(Section))
+					{
+						SectionsToKey.Remove(SubSection);
+					}
+				}
+				SectionsToKey.AddUnique(SectionToKey);
+			}
+			else
+			{
+				for(UMovieSceneSection* Section : SubTrack->GetAllSections())
+				{
+					if(UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(Section))
+					{
+						SectionsToKey.AddUnique(SubSection);
+					}
+				}
+			}
+		}
+	}
+	
+	for(UMovieSceneSubSection* SubSection : SectionsToKey)
+	{
+		EMovieSceneTransformChannel ExistingChannels = SubSection->GetMask().GetChannels();
+
+		FTransform PreviousTransform = GetTransformOriginDataForSubSection(SubSection);
+		
+		// Default to dirtying the section, since we may be adding keys 
+		bool bShouldMarkDirty = true;
+		
+		FGeneratedTrackKeys GeneratedKeys;
+		GetOriginKeys(PreviousTransform.GetLocation() + InPosition, PreviousTransform.Rotator() + InRotation, SubSection, GeneratedKeys);
+		
+		FKeyPropertyResult KeyResults = AddKeysToSection(SubSection, GetTimeForKey(), GeneratedKeys, ESequencerKeyMode::AutoKey);
+
+		// If a key wasn't created, but there is keyframe data on this section, it's preview data needs to be set to visualize the origin position for manual keyframing.
+		if(!KeyResults.bKeyCreated && SubSection->HasAnyChannelData())
+		{
+			// Preview key data is transient, and should not dirty the sequence.
+			bShouldMarkDirty = false;
+			SubSection->SetKeyPreviewPosition(PreviousTransform.GetLocation() + InPosition);
+			SubSection->SetKeyPreviewRotation(PreviousTransform.Rotator() + InRotation);
+
+			// Preview data needs to be reverted when playing the sequence, scrubbing the sequence, or navigating to a different sequence
+			// This array keeps track of sections with preview data and reverts them in FSubTrackEditor::RevertSectionPreviews
+			SectionsWithPreviews.AddUnique(SubSection);
+			
+			// Manually mark as changed since modify will not call it if not marked as dirty.
+			SubSection->MarkAsChanged();
+		}
+		SubSection->Modify(bShouldMarkDirty);
+		GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
+	}
+	
+}
+
+void FSubTrackEditor::ResetSectionPreviews()
+{
+	bool bSectionReverted = false;
+
+	// Create a transaction record because we are about to add keys
+	const bool bShouldActuallyTransact = !GIsTransacting;		// Don't transact if we're recording in a PIE world.  That type of keyframe capture cannot be undone.
+	FScopedTransaction OriginPreviewResetTransaction( NSLOCTEXT("AnimatablePropertyTool", "PropertyChanged", "Animatable Property Changed"), bShouldActuallyTransact);
+	
+	for(UMovieSceneSubSection* SubSection : SectionsWithPreviews)
+	{
+		if(!SubSection)
+		{
+			continue;
+		}
+		SubSection->ResetKeyPreviewRotationAndLocation();
+		SubSection->Modify(false);
+		SubSection->MarkAsChanged();
+		bSectionReverted = true;
+	}
+
+	if(bSectionReverted)
+	{
+		GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);		
+	}
+
+}
+
+FTransform FSubTrackEditor::GetTransformOriginDataForSubSection(const UMovieSceneSubSection* SubSection) const
+{
+	FTransform TransformOrigin;
+
+	if(!GetSequencer())
+	{
+		return TransformOrigin;
+	}
+	const FMovieSceneRootEvaluationTemplateInstance& EvaluationTemplate = GetSequencer()->GetEvaluationTemplate();
+
+	UMovieSceneEntitySystemLinker* EntityLinker = EvaluationTemplate.GetEntitySystemLinker();
+	if(!EntityLinker)
+	{
+		return TransformOrigin;
+	}
+
+	const UMovieSceneTransformOriginSystem* TransformOriginSystem = EntityLinker->FindSystem<UMovieSceneTransformOriginSystem>();
+
+	if(TransformOriginSystem)
+	{
+		UE::MovieScene::FBuiltInComponentTypes* BuiltInComponentTypes = UE::MovieScene::FBuiltInComponentTypes::Get();
+	
+		UMovieSceneCompiledDataManager* CompiledDataManager = EvaluationTemplate.GetCompiledDataManager();
+		UMovieSceneSequence* RootSequence = EvaluationTemplate.GetSequence(GetSequencer()->GetRootTemplateID());
+		const FMovieSceneCompiledDataID DataID = CompiledDataManager->Compile(RootSequence);
+
+		const FMovieSceneSequenceHierarchy& Hierarchy = CompiledDataManager->GetHierarchyChecked(DataID);
+	
+		TArray<FMovieSceneSequenceID> SubSequenceHierarchy = GetSequencer()->GetSubSequenceHierarchy();
+
+		UE::MovieScene::FSubSequencePath Path;
+		const FMovieSceneSequenceID ParentSequenceID = SubSequenceHierarchy.Last();
+
+		Path.Reset(ParentSequenceID, &Hierarchy);
+
+		FMovieSceneSequenceID SequenceID = Path.ResolveChildSequenceID(SubSection->GetSequenceID());
+		
+		FVector OutLocation = FVector(0, 0, 0);
+		FRotator OutRotation = FRotator(0, 0, 0);
+
+		// Query the channel results directly. 
+		auto ReadSectionTransformOrigin = [&OutLocation, &OutRotation, SequenceID](const UE::MovieScene::FEntityAllocation* Allocation, UE::MovieScene::TRead<UE::MovieScene::FRootInstanceHandle> RootInstances, UE::MovieScene::TRead<FMovieSceneSequenceID> SequenceIDs,
+			UE::MovieScene::TReadOptional<double> LocationX, UE::MovieScene::TReadOptional<double> LocationY, UE::MovieScene::TReadOptional<double> LocationZ,
+			UE::MovieScene::TReadOptional<double> RotationX, UE::MovieScene::TReadOptional<double> RotationY, UE::MovieScene::TReadOptional<double> RotationZ)
+		{
+			const int32 Num = Allocation->Num();
+			
+			for(int32 Index = 0; Index < Num; ++Index)
+			{
+				if(SequenceID == SequenceIDs[Index]) 
+				{
+					OutLocation = FVector(LocationX ? LocationX[Index] : 0.0f, LocationY ? LocationY[Index] : 0.f, LocationZ ? LocationZ[Index] : 0.f);
+					OutRotation = FRotator(RotationY ? RotationY[Index] : 0.f, RotationZ ? RotationZ[Index] : 0.f, RotationX ? RotationX[Index] : 0.f);
+				}
+			}
+		};
+
+		UE::MovieScene::FEntityTaskBuilder()
+		.Read(BuiltInComponentTypes->RootInstanceHandle)
+		.Read(BuiltInComponentTypes->SequenceID)
+		.ReadOptional(BuiltInComponentTypes->DoubleResult[0])
+		.ReadOptional(BuiltInComponentTypes->DoubleResult[1])
+		.ReadOptional(BuiltInComponentTypes->DoubleResult[2])
+		.ReadOptional(BuiltInComponentTypes->DoubleResult[3])
+		.ReadOptional(BuiltInComponentTypes->DoubleResult[4])
+		.ReadOptional(BuiltInComponentTypes->DoubleResult[5])
+		.FilterAll({BuiltInComponentTypes->Tags.SubInstance})
+		.FilterNone({BuiltInComponentTypes->Tags.ImportedEntity})
+		.FilterAny(
+		{
+			BuiltInComponentTypes->DoubleResult[0],
+			BuiltInComponentTypes->DoubleResult[1],
+			BuiltInComponentTypes->DoubleResult[2],
+			BuiltInComponentTypes->DoubleResult[3],
+			BuiltInComponentTypes->DoubleResult[4],
+			BuiltInComponentTypes->DoubleResult[5]
+		})
+		.Iterate_PerAllocation(&EntityLinker->EntityManager, ReadSectionTransformOrigin);
+
+		TransformOrigin = FTransform(OutRotation, OutLocation);
+	}
+
+	return  TransformOrigin;
 }
 
 void FSubTrackEditor::GetSupportedSequenceClassPaths(TArray<FTopLevelAssetPath>& ClassPaths) const
