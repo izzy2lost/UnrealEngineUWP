@@ -24,6 +24,8 @@ enum class EMovieSceneBlendType : uint8
 	Relative			= 0x4,
 	/** Applies this value as an additive equal to the difference between the current value and the first value */
 	AdditiveFromBase    = 0x8,
+	/** The value will override the current value */
+	Override			= 0x10,
 
 	// If you add new blend types, don't forget to change:
 	// - All()
