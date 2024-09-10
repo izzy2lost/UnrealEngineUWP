@@ -112,6 +112,13 @@ public:
 	virtual void OnDestroySession() = 0;
 };
 
+struct FInputKeyOpenXRProperties
+{
+	FString InputKey;
+	FString InteractionProfile;
+	FString OpenXRPath;
+};
+
 class IOpenXRExtensionPlugin : public IModularFeature
 {
 public:
@@ -229,6 +236,16 @@ public:
 	 * If false is returned the bindings will be ignored.
 	 */
 	virtual bool GetSuggestedBindings(XrPath InInteractionProfile, TArray<XrActionSuggestedBinding>& OutBindings)
+	{
+		return false;
+	}
+
+	/**
+	 * Set the output parameter to explicitly define an interaction profile and path for the given key.
+	 * The same key can contain multiple entries if the key is relevant to multiple interaction profiles.
+	 * If false is returned the overrides will be ignored.
+	 */
+	virtual bool GetInputKeyOverrides(TArray<FInputKeyOpenXRProperties>& OutOverrides)
 	{
 		return false;
 	}

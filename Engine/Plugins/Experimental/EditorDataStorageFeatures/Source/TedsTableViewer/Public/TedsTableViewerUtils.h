@@ -14,8 +14,8 @@ namespace UE::Editor::DataStorage
 	class FMetaDataView;
 }
 
-class ITypedElementDataStorageInterface;
-class ITypedElementDataStorageUiInterface;
+class IEditorDataStorageProvider;
+class IEditorDataStorageUiProvider;
 struct FTypedElementWidgetConstructor;
 struct FSlateBrush;
 
@@ -28,7 +28,7 @@ namespace UE::Editor::DataStorage::TableViewerUtils
 	TEDSTABLEVIEWER_API FName FindLongestMatchingName(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, int32 DefaultNameIndex);
 
 	// Create a header widget constructor for the given columns
-	TEDSTABLEVIEWER_API TSharedPtr<FTypedElementWidgetConstructor> CreateHeaderWidgetConstructor(ITypedElementDataStorageUiInterface& StorageUi, 
+	TEDSTABLEVIEWER_API TSharedPtr<FTypedElementWidgetConstructor> CreateHeaderWidgetConstructor(IEditorDataStorageUiProvider& StorageUi, 
 	const UE::Editor::DataStorage::FMetaDataView& InMetaData, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
 	const TConstArrayView<FName> CellWidgetPurposes);
 
@@ -36,17 +36,17 @@ namespace UE::Editor::DataStorage::TableViewerUtils
 	TEDSTABLEVIEWER_API TArray<TWeakObjectPtr<const UScriptStruct>> CreateVerifiedColumnTypeArray(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes);
 	
 	// Scans the row for columns and tries to find the best matching icon.
-	TEDSTABLEVIEWER_API const FSlateBrush* GetIconForRow(ITypedElementDataStorageInterface* DataStorage, RowHandle Row);
+	TEDSTABLEVIEWER_API const FSlateBrush* GetIconForRow(IEditorDataStorageProvider* DataStorage, RowHandle Row);
 } // namespace UE::Editor::DataStorage::TableViewerUtils
 
 UCLASS()
-class UTypedElementTableViewerFactory : public UTypedElementDataStorageFactory
+class UTypedElementTableViewerFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UTypedElementTableViewerFactory() override = default;
 
-	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterTables(IEditorDataStorageProvider& DataStorage) override;
 };
 

@@ -17,6 +17,7 @@ public:
 	virtual bool ShouldUpdateOnTrackValueChanged() const override;
 	virtual FText GetDefaultToolTipText() const override;
 	virtual TSharedPtr<FUICommandInfo> GetToggleCommand() const override;
+	virtual void ActiveStateChanged(const bool bInActive) override;
 	//~ End FSequencerTrackFilter
 
 	//~ Begin FFilterBase
@@ -32,8 +33,13 @@ public:
 	void ToggleShowOnlySelectedTracks();
 
 protected:
+	void BindSelectionChanged();
+	void UnbindSelectionChanged();
+
 	TSharedPtr<ILevelEditor> GetLevelEditor() const;
 	FEditorModeTools* GetEditorModeManager() const;
 
 	void OnSelectionChanged(UObject* const InObject);
+
+	FDelegateHandle OnSelectionChangedHandle;
 };

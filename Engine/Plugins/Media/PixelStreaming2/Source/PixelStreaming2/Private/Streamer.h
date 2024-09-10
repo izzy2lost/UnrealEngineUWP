@@ -13,6 +13,8 @@
 #include "StreamerReconnectTimer.h"
 #include "EpicRtcManager.h"
 
+#include "epic_rtc/core/stats.h"
+
 class IPixelStreaming2Module;
 
 namespace UE::PixelStreaming2
@@ -30,13 +32,14 @@ namespace UE::PixelStreaming2
 		virtual int32 GetStreamFPS() override;
 		virtual void  SetCoupleFramerate(bool bCouple) override;
 
-		virtual void										  SetVideoProducer(TSharedPtr<IPixelStreaming2VideoProducer> Input) override;
+		virtual void									SetVideoProducer(TSharedPtr<IPixelStreaming2VideoProducer> Input) override;
 		virtual TWeakPtr<IPixelStreaming2VideoProducer> GetVideoProducer() override;
 
 		virtual void	SetSignallingServerURL(const FString& InSignallingServerURL) override;
 		virtual FString GetSignallingServerURL() override;
 
 		virtual FString GetId() override { return StreamerId; };
+		virtual bool	IsSignallingConnected() override { return bSignallingConnected; }
 		virtual void	StartStreaming() override;
 		virtual void	StopStreaming() override;
 		virtual bool	IsStreaming() const override { return bStreamingStarted; }
@@ -92,6 +95,7 @@ namespace UE::PixelStreaming2
 		void TriggerMouseLeave(FString InStreamerId);
 		void RemoveSession(bool bDisconnect);
 		void RemoveRoom();
+		void OnStatsReady(const FString& PlayerId, const EpicRtcConnectionStats& ConnectionStats);
 
 	private:
 		FString StreamerId;
@@ -104,6 +108,7 @@ namespace UE::PixelStreaming2
 		FString SFUPlayerId = INVALID_PLAYER_ID;
 		FString InputControllingId = INVALID_PLAYER_ID;
 
+		bool bSignallingConnected = false;
 		bool bStreamingStarted = false;
 
 		FPreConnectionEvent	   StreamingPreConnectionEvent;

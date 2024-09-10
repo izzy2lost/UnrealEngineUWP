@@ -355,8 +355,18 @@ public:
 	/** Adds a slot to SScrollBox */
 	SLATE_API FScopedWidgetSlotArguments AddSlot();
 
-	/** Removes a slot at the specified location */
-	SLATE_API void RemoveSlot( const TSharedRef<SWidget>& WidgetToRemove );
+	/** Insert a slot at a given position. */
+	SLATE_API FScopedWidgetSlotArguments InsertSlot(int32 Index);
+
+	/** Returns the slot at the given index. */
+	SLATE_API const FSlot& GetSlot(int32 SlotIndex) const;
+	SLATE_API FSlot& GetSlot(int32 SlotIndex);
+
+	/** Removes the corresponding widget from the set of slots if it exists. */
+	SLATE_API void RemoveSlot(const TSharedRef<SWidget>& WidgetToRemove);
+
+	/** @return the number of slots. */
+	SLATE_API int32 NumSlots() const;
 
 	/** Removes all children from the box */
 	SLATE_API void ClearChildren();
@@ -535,7 +545,7 @@ protected:
 	/** Scrolls or begins scrolling a widget into view, only valid to call when we have layout geometry. */
 	SLATE_API bool InternalScrollDescendantIntoView(const FGeometry& MyGeometry, const TSharedPtr<SWidget>& WidgetToFind, bool InAnimateScroll = true, EDescendantScrollDestination InDestination = EDescendantScrollDestination::IntoView, float Padding = 0);
 
-	/** returns widget that can receive keyboard focus or nullprt **/
+	/** returns widget that can receive keyboard focus or nullptr **/
 	SLATE_API TSharedPtr<SWidget> GetKeyboardFocusableWidget(TSharedPtr<SWidget> InWidget);
 
 	/** The panel which stacks the child slots */

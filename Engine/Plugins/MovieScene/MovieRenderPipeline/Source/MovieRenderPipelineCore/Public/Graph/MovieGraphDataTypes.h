@@ -50,6 +50,10 @@ struct FMovieGraphImagePreviewData
 	/** The identifier for the image, containing the branch name, renderer, etc. */
 	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
 	FMovieGraphRenderDataIdentifier Identifier;
+
+	/** If true, then there is more than one camera name being used (ie: multi-camera rendering) */
+	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
+	bool bMultipleCameraNames;
 };
 
 USTRUCT(BlueprintType)
@@ -235,13 +239,14 @@ public:
 	virtual void CacheDataPreJob(const FMovieGraphInitConfig& InInitConfig) {}
 	virtual void RestoreCachedDataPostJob() {}
 	virtual void UpdateShotList() {}
-	virtual void InitializeShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) {}
+	virtual void InitializeShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot, const FFrameTime& InEvalTime) {}
 	virtual void CacheHierarchyForShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) {}
 	virtual void RestoreHierarchyForShot(const TObjectPtr<UMoviePipelineExecutorShot> &InShot) {}
 	virtual void MuteShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) {}
 	virtual void UnmuteShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) {}
 	virtual void ExpandShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot, const int32 InLeftDeltaFrames, const int32 InLeftDeltaFramesUserPoV,
 		const int32 InRightDeltaFrames, const bool bInPrepass) {}
+	virtual TArray<FMinimalViewInfo> GetCameraInformation(UMoviePipelineExecutorShot* InShot, bool bIncludeSidecar) const { return TArray<FMinimalViewInfo>(); }
 
 	UMovieGraphPipeline* GetOwningGraph() const;
 };
@@ -283,7 +288,8 @@ struct FMovieGraphRenderPassLayerData
 {
 	FName BranchName;
 	FString LayerName;
-	FGuid CameraIdentifier;
+	int32 CameraIndex;
+	FString CameraName;
 	TWeakObjectPtr<class UMovieGraphRenderPassNode> RenderPassNode;
 };
 // ToDo: Both of these can probably go into the Default Renderer implementation.
@@ -420,6 +426,7 @@ namespace UE::MovieGraph
 		int32 BranchCount = 0;
 		int32 ActiveBranchRendererCount = 0;
 		int32 ActiveRendererSubresourceCount = 0;
+		int32 ActiveCameraCount = 0;
 	};
 
 	/**

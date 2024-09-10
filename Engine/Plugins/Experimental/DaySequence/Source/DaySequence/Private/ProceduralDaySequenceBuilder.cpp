@@ -2,21 +2,30 @@
 
 #include "ProceduralDaySequenceBuilder.h"
 
+#include "DaySequence.h"
 #include "DaySequenceActor.h"
 #include "DaySequenceTime.h"
-#include "MovieSceneCommonHelpers.h"
 
 #include "Sections/MovieSceneBoolSection.h"
 #include "Sections/MovieSceneDoubleSection.h"
 #include "Sections/MovieSceneFloatSection.h"
+#include "Sections/MovieSceneVectorSection.h"
+#include "Sections/MovieSceneColorSection.h"
+#include "Sections/MovieScenePrimitiveMaterialSection.h"
 
 #include "Tracks/MovieSceneBoolTrack.h"
 #include "Tracks/MovieSceneDoubleTrack.h"
 #include "Tracks/MovieSceneFloatTrack.h"
+#include "Tracks/MovieSceneVectorTrack.h"
 #include "Tracks/MovieScene3DTransformTrack.h"
+#include "Tracks/MovieSceneColorTrack.h"
+#include "Tracks/MovieScenePrimitiveMaterialTrack.h"
+#include "Tracks/MovieSceneVisibilityTrack.h"
 
+#include "Materials/MaterialInterface.h"
 #include "MovieScene.h"
-#include "DaySequence.h"
+#include "MovieSceneCommonHelpers.h"
+#include "Sections/MovieSceneVisibilitySection.h"
 
 #define LOCTEXT_NAMESPACE "ProceduralDaySequenceBuilder"
 
@@ -102,7 +111,7 @@ UDaySequence* UProceduralDaySequenceBuilder::Initialize(ADaySequenceActor* InAct
 
 		if (bClearInitialSequence)
 		{
-			ClearAllKeys();
+			ClearKeys();
 		}
 	}
 	else
@@ -156,30 +165,65 @@ void UProceduralDaySequenceBuilder::SetActiveBoundObject(UObject* InObject)
 	ActiveBinding = GetOrCreateProceduralBinding(InObject);
 }
 
-void UProceduralDaySequenceBuilder::ClearAllKeys()
+void UProceduralDaySequenceBuilder::AddBoolOverride(FName PropertyName, bool Value)
 {
-	if (!ProceduralDaySequence)
+	TPair<float, bool> A = {0.f, Value};
+	TPair<float, bool> B = {1.f, Value};
+
+	AddBoolKeys(PropertyName, {A, B});
+}
+
+void UProceduralDaySequenceBuilder::AddBoolKey(FName PropertyName, float Key, bool Value)
+{
+	AddBoolKey(PropertyName, TPair<float, bool>(Key, Value));
+}
+
+void UProceduralDaySequenceBuilder::AddBoolKey(FName PropertyName, const TPair<float, bool>& KeyValue)
+{
+	AddBoolKeys(PropertyName, TArray {KeyValue});
+}
+
+void UProceduralDaySequenceBuilder::AddBoolKeys(FName PropertyName, const TArray<TPair<float, bool>>& KeysAndValues)
+{
+	if (!IsInitialized())
 	{
+		FFrame::KismetExecutionMessage(TEXT("AddBoolKey(s) called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
 		return;
 	}
 	
-	if (UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene())
+	const UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
+	
+	FTrackInstancePropertyBindings Bindings(PropertyName, PropertyName.ToString());
+	FProperty* Property = Bindings.GetProperty(*ActiveBoundObject);
+	if (!UE::DaySequence::IsPropertyValid(ActiveBoundObject, Property))
 	{
-		for (const FMovieSceneBinding& Binding : MovieScene->GetBindings())
+		// Do nothing
+	}
+	else if (Property->IsA<FBoolProperty>())
+	{
+		UMovieSceneBoolSection* Section = CreateOrAddPropertyOverrideSection<UMovieSceneBoolTrack, UMovieSceneBoolSection>(PropertyName);
+		
+		for (const TPair<float, bool>& KeyValue : KeysAndValues)
 		{
-			// Inconvenient we have to do this but at least FindBinding is doing a binary search and we do this once per binding.
-			if (FMovieSceneBinding* MutableBinding = MovieScene->FindBinding(Binding.GetObjectGuid()))
-			{
-				// We have to copy the array here because we are mutating the internal array
-				for (TArray<UMovieSceneTrack*> Tracks = MutableBinding->GetTracks(); UMovieSceneTrack* Track : Tracks)
-				{
-					MutableBinding->RemoveTrack(*Track, MovieScene);
-				}
-			}
+			const FFrameNumber FrameNumber = UE::DaySequence::GetKeyFrameNumber(KeyValue.Key, MovieScene->GetPlaybackRange());
+			
+			Section->GetChannel().AddKeys(TArray {FrameNumber}, TArray {KeyValue.Value});
 		}
 
-		MovieScene->MarkAsChanged();
+		Section->MarkAsChanged();
 	}
+	else
+	{
+		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Unable to animate a %s property as a bool."), *Property->GetClass()->GetName()), ELogVerbosity::Error);
+	}
+}
+
+void UProceduralDaySequenceBuilder::AddScalarOverride(FName PropertyName, double Value)
+{
+	TPair<float, double> A = {0.f, Value};
+	TPair<float, double> B = {1.f, Value};
+
+	AddScalarKeys(PropertyName, {A, B}, RCIM_Linear);
 }
 
 void UProceduralDaySequenceBuilder::AddScalarKey(FName PropertyName, float Key, double Value, ERichCurveInterpMode InterpMode)
@@ -238,11 +282,29 @@ void UProceduralDaySequenceBuilder::AddScalarKeys(FName PropertyName, const TArr
 	}
 }
 
-void UProceduralDaySequenceBuilder::ClearScalarKeys(FName PropertyName)
+void UProceduralDaySequenceBuilder::AddVectorOverride(FName PropertyName, FVector Value)
+{
+	TPair<float, FVector> A = {0.f, Value};
+	TPair<float, FVector> B = {1.f, Value};
+
+	AddVectorKeys(PropertyName, {A, B}, RCIM_Linear);
+}
+
+void UProceduralDaySequenceBuilder::AddVectorKey(FName PropertyName, float Key, FVector Value, ERichCurveInterpMode InterpMode)
+{
+	AddVectorKey(PropertyName, TPair<float, FVector>(Key, Value), InterpMode);
+}
+
+void UProceduralDaySequenceBuilder::AddVectorKey(FName PropertyName, const TPair<float, FVector>& KeyValue, ERichCurveInterpMode InterpMode)
+{
+	AddVectorKeys(PropertyName, TArray {KeyValue}, InterpMode);
+}
+
+void UProceduralDaySequenceBuilder::AddVectorKeys(FName PropertyName, const TArray<TPair<float, FVector>>& KeysAndValues, ERichCurveInterpMode InterpMode)
 {
 	if (!IsInitialized())
 	{
-		FFrame::KismetExecutionMessage(TEXT("ClearScalarKeys called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
+		FFrame::KismetExecutionMessage(TEXT("AddVectorKey(s) called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
 		return;
 	}
 	
@@ -254,71 +316,75 @@ void UProceduralDaySequenceBuilder::ClearScalarKeys(FName PropertyName)
 	{
 		// Do nothing
 	}
-	else if (Property->IsA<FFloatProperty>())
+	else if (Property->IsA<FStructProperty>() && CastField<FStructProperty>(Property)->Struct == TBaseStructure<FVector>::Get())
 	{
-		UMovieSceneFloatSection* FloatSection = CreateOrAddPropertyOverrideSection<UMovieSceneFloatTrack, UMovieSceneFloatSection>(PropertyName);
-		
-		FloatSection->GetChannel().Reset();
+		UMovieSceneDoubleVectorSection* VectorSection = CreateOrAddPropertyOverrideSection<UMovieSceneDoubleVectorTrack, UMovieSceneDoubleVectorSection>(PropertyName);
+		VectorSection->SetChannelsUsed(3);
 
-		FloatSection->MarkAsChanged();
-	}
-	else if (Property->IsA<FDoubleProperty>())
-	{
-		UMovieSceneDoubleSection* DoubleSection = CreateOrAddPropertyOverrideSection<UMovieSceneDoubleTrack, UMovieSceneDoubleSection>(PropertyName);
+		FMovieSceneDoubleChannel* X = VectorSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(0);
+		FMovieSceneDoubleChannel* Y = VectorSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(1);
+		FMovieSceneDoubleChannel* Z = VectorSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(2);
 		
-		DoubleSection->GetChannel().Reset();
-		
-		DoubleSection->MarkAsChanged();
-	}
-	else
-	{
-		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property %s is not a scalar."), *Property->GetClass()->GetName()), ELogVerbosity::Error);
-	}
-}
-
-void UProceduralDaySequenceBuilder::AddBoolKey(FName PropertyName, float Key, bool Value)
-{
-	AddBoolKey(PropertyName, TPair<float, bool>(Key, Value));
-}
-
-void UProceduralDaySequenceBuilder::AddBoolKey(FName PropertyName, const TPair<float, bool>& KeyValue)
-{
-	AddBoolKeys(PropertyName, TArray {KeyValue});
-}
-
-void UProceduralDaySequenceBuilder::AddBoolKeys(FName PropertyName, const TArray<TPair<float, bool>>& KeysAndValues)
-{
-	if (!IsInitialized())
-	{
-		FFrame::KismetExecutionMessage(TEXT("AddBoolKey(s) called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
-		return;
-	}
-	
-	const UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
-	
-	FTrackInstancePropertyBindings Bindings(PropertyName, PropertyName.ToString());
-	FProperty* Property = Bindings.GetProperty(*ActiveBoundObject);
-	if (!UE::DaySequence::IsPropertyValid(ActiveBoundObject, Property))
-	{
-		// Do nothing
-	}
-	else if (Property->IsA<FBoolProperty>())
-	{
-		UMovieSceneBoolSection* Section = CreateOrAddPropertyOverrideSection<UMovieSceneBoolTrack, UMovieSceneBoolSection>(PropertyName);
-		
-		for (const TPair<float, bool>& KeyValue : KeysAndValues)
+		for (const TPair<float, FVector>& KeyValue : KeysAndValues)
 		{
 			const FFrameNumber FrameNumber = UE::DaySequence::GetKeyFrameNumber(KeyValue.Key, MovieScene->GetPlaybackRange());
 			
-			Section->GetChannel().AddKeys(TArray {FrameNumber}, TArray {KeyValue.Value});
+			UE::DaySequence::AddDoubleKey(FrameNumber, KeyValue.Value.X, X, InterpMode);
+			UE::DaySequence::AddDoubleKey(FrameNumber, KeyValue.Value.X, Y, InterpMode);
+			UE::DaySequence::AddDoubleKey(FrameNumber, KeyValue.Value.X, Z, InterpMode);
 		}
 
-		Section->MarkAsChanged();
+		VectorSection->MarkAsChanged();
 	}
-	else
+}
+
+void UProceduralDaySequenceBuilder::AddColorOverride(FName PropertyName, FLinearColor Value)
+{
+	TPair<float, FLinearColor> A = {0.f, Value};
+	TPair<float, FLinearColor> B = {1.f, Value};
+
+	AddColorKeys(PropertyName, {A, B}, RCIM_Linear);
+}
+
+void UProceduralDaySequenceBuilder::AddColorKeys(FName PropertyName, const TArray<TPair<float, FLinearColor>>& KeysAndValues, ERichCurveInterpMode InterpMode)
+{
+	if (!IsInitialized())
 	{
-		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Unable to animate a %s property as a bool."), *Property->GetClass()->GetName()), ELogVerbosity::Error);
+		FFrame::KismetExecutionMessage(TEXT("AddColorKey(s) called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
+		return;
 	}
+	
+	const UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
+
+	FTrackInstancePropertyBindings Bindings(PropertyName, PropertyName.ToString());
+	FProperty* Property = Bindings.GetProperty(*ActiveBoundObject);
+	if (!UE::DaySequence::IsPropertyValid(ActiveBoundObject, Property))
+	{
+		// Do nothing
+	}
+	else if (Property->IsA<FStructProperty>() && 
+		(CastField<FStructProperty>(Property)->Struct == TBaseStructure<FLinearColor>::Get() || CastField<FStructProperty>(Property)->Struct == TBaseStructure<FColor>::Get()) )
+	{
+		UMovieSceneColorSection* ColorSection = CreateOrAddPropertyOverrideSection<UMovieSceneColorTrack, UMovieSceneColorSection>(PropertyName);
+
+		for (const TPair<float, FLinearColor>& KeyValue : KeysAndValues)
+		{
+			const FFrameNumber FrameNumber = UE::DaySequence::GetKeyFrameNumber(KeyValue.Key, MovieScene->GetPlaybackRange());
+
+			UE::DaySequence::AddFloatKey(FrameNumber, KeyValue.Value.R, &ColorSection->GetRedChannel(), InterpMode);
+			UE::DaySequence::AddFloatKey(FrameNumber, KeyValue.Value.G, &ColorSection->GetGreenChannel(), InterpMode);
+			UE::DaySequence::AddFloatKey(FrameNumber, KeyValue.Value.B, &ColorSection->GetBlueChannel(), InterpMode);
+			UE::DaySequence::AddFloatKey(FrameNumber, KeyValue.Value.A, &ColorSection->GetAlphaChannel(), InterpMode);
+		}
+		
+		ColorSection->MarkAsChanged();
+	}
+}
+
+void UProceduralDaySequenceBuilder::AddTransformOverride(const FTransform& Value)
+{
+	AddTransformKey(0.f, Value, RCIM_Linear);
+	AddTransformKey(1.f, Value, RCIM_Linear);
 }
 
 void UProceduralDaySequenceBuilder::AddTransformKey(float Key, const FTransform& Value, ERichCurveInterpMode InterpMode)
@@ -393,17 +459,154 @@ void UProceduralDaySequenceBuilder::AddScaleKey(float Key, const FVector& Value,
 	AddDoubleKey(FrameNumber, Value.Z, TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(8), InterpMode);
 }
 
-void UProceduralDaySequenceBuilder::AddStaticTime(float StaticTime)
+void UProceduralDaySequenceBuilder::AddMaterialOverride(int32 MaterialIndex, UMaterialInterface* Value)
+{
+	if (!IsInitialized())
+    {
+    	FFrame::KismetExecutionMessage(TEXT("AddMaterialOverride called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
+    	return;
+    }
+	
+	UMovieScenePrimitiveMaterialTrack* MaterialTrack = CreateOrAddOverrideTrack<UMovieScenePrimitiveMaterialTrack>(FName());
+	MaterialTrack->SetMaterialInfo(FComponentMaterialInfo{ FName(), MaterialIndex, EComponentMaterialType::IndexedMaterial });
+
+	UMovieScenePrimitiveMaterialSection* Section = Cast<UMovieScenePrimitiveMaterialSection>(MaterialTrack->GetAllSections()[0]);
+	Section->MaterialChannel.SetDefault(Value);
+}
+
+void UProceduralDaySequenceBuilder::AddScalarMaterialParameterOverride(FName ParameterName, int32 MaterialIndex, float Value)
+{
+	TPair<float, float> A = {0.f, Value};
+	TPair<float, float> B = {1.f, Value};
+
+	AddScalarMaterialParameterKeys(ParameterName, MaterialIndex, {A, B});
+}
+
+void UProceduralDaySequenceBuilder::AddScalarMaterialParameterKeys(FName ParameterName, int32 MaterialIndex, const TArray<TPair<float, float>>& KeysAndValues)
 {
 	if (!IsInitialized())
 	{
-		FFrame::KismetExecutionMessage(TEXT("AddStaticTime called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
+		FFrame::KismetExecutionMessage(TEXT("AddScalarMaterialParameterKeys called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
 		return;
 	}
 	
-	UMovieSceneFloatSection* Section = CreateOrAddPropertyOverrideSection<UMovieSceneFloatTrack, UMovieSceneFloatSection>("StaticTimeOfDay");
-	Section->GetChannel().SetDefault(StaticTime);
+	const UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
+
+	// Material parameter tracks use the material index as the unique name
+	const FName IndexAsName(*FString::FromInt(MaterialIndex));
+	UMovieSceneComponentMaterialTrack* MaterialTrack = CreateOrAddOverrideTrack<UMovieSceneComponentMaterialTrack>(IndexAsName);
+	MaterialTrack->SetMaterialInfo(FComponentMaterialInfo{FName(), MaterialIndex, EComponentMaterialType::IndexedMaterial });
+
+	for (const TPair<float, float>& KeyValue : KeysAndValues)
+	{
+		const FFrameNumber FrameNumber = UE::DaySequence::GetKeyFrameNumber(KeyValue.Key, MovieScene->GetPlaybackRange());
+		
+		MaterialTrack->AddScalarParameterKey(ParameterName, FrameNumber, KeyValue.Value);
+	}
 }
+
+void UProceduralDaySequenceBuilder::AddColorMaterialParameterOverride(FName ParameterName, int32 MaterialIndex, FLinearColor Value)
+{
+	TPair<float, FLinearColor> A = {0.f, Value};
+	TPair<float, FLinearColor> B = {1.f, Value};
+
+	AddColorMaterialParameterKeys(ParameterName, MaterialIndex, {A, B});
+}
+
+void UProceduralDaySequenceBuilder::AddColorMaterialParameterKeys(FName ParameterName, int32 MaterialIndex, const TArray<TPair<float, FLinearColor>>& KeysAndValues)
+{
+	if (!IsInitialized())
+	{
+		FFrame::KismetExecutionMessage(TEXT("AddColorMaterialParameterKeys called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
+		return;
+	}
+	
+	const UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
+
+	// Material parameter tracks use the material index as the unique name
+	const FName IndexAsName(*FString::FromInt(MaterialIndex));
+	UMovieSceneComponentMaterialTrack* MaterialTrack = CreateOrAddOverrideTrack<UMovieSceneComponentMaterialTrack>(IndexAsName);
+	MaterialTrack->SetMaterialInfo(FComponentMaterialInfo{FName(), MaterialIndex, EComponentMaterialType::IndexedMaterial });
+
+	for (const TPair<float, FLinearColor>& KeyValue : KeysAndValues)
+	{
+		const FFrameNumber FrameNumber = UE::DaySequence::GetKeyFrameNumber(KeyValue.Key, MovieScene->GetPlaybackRange());
+		
+		MaterialTrack->AddColorParameterKey(ParameterName, FrameNumber, KeyValue.Value);
+	}
+}
+
+void UProceduralDaySequenceBuilder::AddVisibilityOverride(bool bValue)
+{
+	TPair<float, bool> A = {0.f, bValue};
+	TPair<float, bool> B = {1.f, bValue};
+
+	AddVisibilityKeys({A, B});
+}
+
+void UProceduralDaySequenceBuilder::AddVisibilityKeys(const TArray<TPair<float, bool>>& KeysAndValues)
+{
+	if (!IsInitialized())
+	{
+		FFrame::KismetExecutionMessage(TEXT("AddVisibilityKey(s) called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
+		return;
+	}
+	
+	const UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
+	
+	static const FName ActorVisibilityTrackName = TEXT("bHidden");
+	static const FName ComponentVisibilityTrackName = TEXT("bHiddenInGame");
+	
+	const bool bIsComponent = ActiveBoundObject->IsA<USceneComponent>();
+	const bool bIsActor     = ActiveBoundObject->IsA<AActor>();
+	
+	if (!bIsComponent && !bIsActor)
+	{
+		FFrame::KismetExecutionMessage(TEXT("AddVisibilityKey(s) called but ActiveBoundObject is neither an Actor nor a Scene Component!"), ELogVerbosity::Error);
+		return;
+	}
+
+	// We can check just bIsComponent because we early either if _both_ are false, so it must be one or the other.
+	const FName& TrackName = bIsComponent ? ComponentVisibilityTrackName : ActorVisibilityTrackName;
+	UMovieSceneVisibilitySection* VisibilitySection = CreateOrAddPropertyOverrideSection<UMovieSceneVisibilityTrack, UMovieSceneVisibilitySection>(TrackName);
+
+	for (const TPair<float, bool>& KeyValue : KeysAndValues)
+	{
+		const FFrameNumber FrameNumber = UE::DaySequence::GetKeyFrameNumber(KeyValue.Key, MovieScene->GetPlaybackRange());
+		
+		VisibilitySection->GetChannel().AddKeys(TArray {FrameNumber}, TArray {KeyValue.Value});
+	}
+	
+	VisibilitySection->MarkAsChanged();
+}
+
+void UProceduralDaySequenceBuilder::ClearKeys()
+{
+	if (!ProceduralDaySequence)
+	{
+		return;
+	}
+	
+	if (UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene())
+	{
+		for (const FMovieSceneBinding& Binding : MovieScene->GetBindings())
+		{
+			// Inconvenient we have to do this but at least FindBinding is doing a binary search and we do this once per binding.
+			if (FMovieSceneBinding* MutableBinding = MovieScene->FindBinding(Binding.GetObjectGuid()))
+			{
+				// We have to copy the array here because we are mutating the internal array
+				for (TArray<UMovieSceneTrack*> Tracks = MutableBinding->GetTracks(); UMovieSceneTrack* Track : Tracks)
+				{
+					MutableBinding->RemoveTrack(*Track, MovieScene);
+				}
+			}
+		}
+
+		MovieScene->MarkAsChanged();
+	}
+}
+
+
 
 FGuid UProceduralDaySequenceBuilder::GetOrCreateProceduralBinding(UObject* Object) const
 {

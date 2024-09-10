@@ -660,11 +660,11 @@ namespace AutomationScripts
 			}
 			else if (Params.RunAutomationTest != "")
 			{
-				TempCmdLine += "-execcmds=\"automation runtests " + Params.RunAutomationTest + ";quit\" ";
+				TempCmdLine += "-execcmds=\"automation runtests " + Params.RunAutomationTest + ";softquit\" ";
 			}
 			else if (Params.RunAutomationTests)
 			{
-				TempCmdLine += "-execcmds=\"automation runall;quit;\" ";
+				TempCmdLine += "-execcmds=\"automation runall;softquit;\" ";
 			}
 			if (SC.StageTargetPlatform.UseAbsLog)
 			{

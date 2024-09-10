@@ -97,9 +97,9 @@ void QuaternionJointsBuilder<TValue, TFVec256, TFVec128>::setOutputIndices(const
     #endif
     auto deduplicate = [this](Vector<std::uint16_t>& v) {
             UnorderedSet<std::uint16_t> deduplicator{memRes};
-            v.erase(std::remove_if(v.begin(), v.end(), [&](const std::uint16_t value) {
+            v.erase(v.rend().base(), std::remove_if(v.rbegin(), v.rend(), [&deduplicator](const std::uint16_t value) {
                 return !deduplicator.insert(value).second;
-            }), v.end());
+            }).base());
         };
     #if !defined(__clang__) && defined(__GNUC__)
         #pragma GCC diagnostic pop

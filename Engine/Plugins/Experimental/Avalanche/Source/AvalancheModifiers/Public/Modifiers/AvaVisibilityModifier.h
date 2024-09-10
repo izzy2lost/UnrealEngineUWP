@@ -63,6 +63,7 @@ protected:
 
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
+	virtual void OnModifiedActorTransformed() override;
 	virtual void Apply() override;
 	//~ End UActorModifierCoreBase
 

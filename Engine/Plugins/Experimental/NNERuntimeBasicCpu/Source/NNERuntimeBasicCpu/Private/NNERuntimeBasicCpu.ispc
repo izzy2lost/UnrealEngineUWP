@@ -16,6 +16,11 @@ inline float NNERuntimeBasicCPUGELU(const float X)
 	return X * NNERuntimeBasicCPUSigmoid(1.702f * X);
 }
 
+inline float NNERuntimeBasicCPUSquare(const float X)
+{
+	return X * X;
+}
+
 export void NNERuntimeBasicCPUOperatorNormalize(
 	uniform float Output[],
 	uniform const float Input[],
@@ -553,6 +558,40 @@ export void NNERuntimeBasicCPUOperatorScatter(
 		foreach (Idx = 0 ... InputOutputSize)
 		{
 			OutputBuffer[DstBatchIdx * OutputStride + Idx] = InputBuffer[BatchIndexIdx * InputStride + Idx];
+		}
+	}
+}
+
+export void NNERuntimeBasicCPUOperatorLayerNorm(
+	uniform float Output[],
+	uniform const float Input[],
+	uniform const float Offset[],
+	uniform const float Scale[],
+	uniform const float Epsilon,
+	uniform const int BatchNum,
+	uniform const int InputOutputNum,
+	uniform const int OutputStride,
+	uniform const int InputStride)
+{
+	for (uniform int BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
+	{
+		float MeanAccum = 0.0f;
+		foreach (Idx = 0 ... InputOutputNum)
+		{
+			MeanAccum += Input[BatchIdx * InputStride + Idx] / InputOutputNum;
+		}
+		uniform float Mean = reduce_add(MeanAccum);
+
+		float StdAccum = 0.0f;
+		foreach (Idx = 0 ... InputOutputNum)
+		{
+			StdAccum += NNERuntimeBasicCPUSquare(Input[BatchIdx * InputStride + Idx] - Mean) / InputOutputNum;
+		}
+		uniform float Std = sqrt(reduce_add(StdAccum) + Epsilon);
+
+		foreach (Idx = 0 ... InputOutputNum)
+		{
+			Output[BatchIdx * OutputStride + Idx] = ((Input[BatchIdx * InputStride + Idx] - Mean) / Std) * Scale[Idx] + Offset[Idx];
 		}
 	}
 }

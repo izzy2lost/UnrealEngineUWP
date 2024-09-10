@@ -44,7 +44,7 @@ namespace UE::Learning
 	{
 		if (IsRunning())
 		{
-			UE_LOG(LogLearning, Warning, TEXT("Terminating Subprocess..."));
+			UE_LOG(LogLearning, Display, TEXT("Terminating Subprocess..."));
 
 			FPlatformProcess::TerminateProc(ProcessHandle, true);
 		}

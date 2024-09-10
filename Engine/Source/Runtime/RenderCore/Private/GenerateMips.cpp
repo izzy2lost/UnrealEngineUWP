@@ -177,7 +177,7 @@ void FGenerateMips::ExecuteRaster(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::T
 				RDG_EVENT_NAME("GenerateMips DestMipLevel=%d Slice=%d", MipLevel, SliceIndex),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[VertexShader, PixelShader, PassParameters, DestTextureSize](FRHICommandList& RHICmdList)
+				[VertexShader, PixelShader, PassParameters, DestTextureSize](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				RHICmdList.SetViewport(0.0f, 0.0f, 0.0f, (float)DestTextureSize.X, (float)DestTextureSize.Y, 1.0f);
 
@@ -357,7 +357,7 @@ void FGenerateMips::Execute(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type Fe
 		PassParameters->Texture = Texture;
 
 		GraphBuilder.AddPass(RDG_EVENT_NAME("GenerateMips - OpenGL"), PassParameters, ERDGPassFlags::Copy,
-			[Texture](FRHICommandList& RHICmdList)
+			[Texture](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.EnqueueLambda(TEXT("GenerateMips - OpenGL"), [Texture = Texture->GetRHI()](FRHICommandList&)
 			{

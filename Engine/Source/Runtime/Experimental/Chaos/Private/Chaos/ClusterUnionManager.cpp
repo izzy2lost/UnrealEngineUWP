@@ -637,6 +637,9 @@ namespace Chaos
 		// Cluster uses MACD is any children require MACD (or it is already enabled on this cluster)
 		bool bIsMACD = Cluster->InternalCluster->MACDEnabled();
 
+		Private::FIterationSettings SolverIterationSettings = Cluster->InternalCluster->IterationSettings();
+
+
 		// Use the minimum sleep multiplier of all member particles
 		FRealSingle MinSleepThresholdMultiplier = TNumericLimits<FRealSingle>::Max();
 
@@ -660,6 +663,8 @@ namespace Chaos
 			bIsOneWayInteraction &= Particle->OneWayInteraction();
 			bIsMACD |= Particle->MACDEnabled();
 			MinSleepThresholdMultiplier = FMath::Min(MinSleepThresholdMultiplier, Particle->SleepThresholdMultiplier());
+
+			SolverIterationSettings = Private::FIterationSettings::Merge(SolverIterationSettings, Particle->IterationSettings());
 
 			if (!Cluster->ChildProperties.Contains(Particle))
 			{
@@ -732,6 +737,7 @@ namespace Chaos
 
 		Cluster->InternalCluster->SetOneWayInteraction(bIsOneWayInteraction);
 		Cluster->InternalCluster->SetMACDEnabled(bIsMACD);
+		Cluster->InternalCluster->SetIterationSettings(SolverIterationSettings);
 
 		if (MinSleepThresholdMultiplier != TNumericLimits<FRealSingle>::Max())
 		{

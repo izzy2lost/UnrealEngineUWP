@@ -4,11 +4,11 @@
 
 #include "ChaosVDParticleActor.h"
 #include "PropertyEditorModule.h"
-#include "SSubobjectEditor.h"
-#include "SSubobjectEditorModule.h"
+#include "SChaosVDMainTab.h"
 
-void SChaosVDDetailsView::Construct(const FArguments& InArgs)
+void SChaosVDDetailsView::Construct(const FArguments& InArgs, const TSharedRef<SChaosVDMainTab>& InMainTab)
 {
+	MainTabWeakPtr = InMainTab;
 	DetailsView = CreateObjectDetailsView();
 	StructDetailsView = CreateStructureDataDetailsView();
 
@@ -49,7 +49,12 @@ void SChaosVDDetailsView::SetSelectedStruct(const TSharedPtr<FStructOnScope>& Ne
 
 TSharedPtr<IDetailsView> SChaosVDDetailsView::CreateObjectDetailsView()
 {
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	TSharedPtr<SChaosVDMainTab> MainTabPtr = MainTabWeakPtr.Pin();
+	if (!MainTabPtr)
+	{
+		return nullptr;
+	}
+
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.bUpdatesFromSelection = false;
 	DetailsViewArgs.bLockable = true;
@@ -57,23 +62,27 @@ TSharedPtr<IDetailsView> SChaosVDDetailsView::CreateObjectDetailsView()
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 	DetailsViewArgs.bCustomFilterAreaLocation = false;
 	DetailsViewArgs.bShowSectionSelector = false;
-	DetailsViewArgs.bShowScrollBar = false;
+	DetailsViewArgs.bShowScrollBar = true;
 
-	return PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+	return MainTabPtr->CreateDetailsView(DetailsViewArgs);
 }
 
-TSharedPtr<IStructureDetailsView> SChaosVDDetailsView::CreateStructureDataDetailsView()
+TSharedPtr<IStructureDetailsView> SChaosVDDetailsView::CreateStructureDataDetailsView() const
 {
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	TSharedPtr<SChaosVDMainTab> MainTabPtr = MainTabWeakPtr.Pin();
+	if (!MainTabPtr)
+	{
+		return nullptr;
+	}
 
 	const FStructureDetailsViewArgs StructDetailsViewArgs;
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.bShowOptions = false;
 	DetailsViewArgs.bAllowFavoriteSystem = false;
 	DetailsViewArgs.bAllowSearch = false;
-	DetailsViewArgs.bShowScrollBar = false;
+	DetailsViewArgs.bShowScrollBar = true;
 
-	return PropertyEditorModule.CreateStructureDetailView(DetailsViewArgs,StructDetailsViewArgs, nullptr);
+	return MainTabPtr->CreateStructureDetailsView(DetailsViewArgs,StructDetailsViewArgs, nullptr);
 }
 
 EVisibility SChaosVDDetailsView::GetStructDetailsVisibility() const

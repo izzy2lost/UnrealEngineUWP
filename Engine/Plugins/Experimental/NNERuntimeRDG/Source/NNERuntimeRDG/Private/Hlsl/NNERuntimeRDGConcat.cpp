@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGConcat.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
 #include "NNERuntimeRDGHelperConcat.h"
@@ -66,7 +68,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				{
 					if (r != Axis && (OutputShapeData[r] != InputTensors[i]->GetShape().GetData()[r]))
 					{
-						UE_LOG(LogNNE, Warning, TEXT("Concat: all input tensors should have the same shape except on the concatenation axis"));
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Concat: All input tensors should have the same shape except on the concatenation axis"));
 						return false;
 					}
 				}
@@ -95,14 +97,14 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			{
 				if (InputsRank != InputTensorDescs[i].GetShape().Rank())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Concat: all input tensors should have the same rank"));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Concat: All input tensors should have the same rank"));
 					return false;
 				}
 			}
 			
 			if (Axis < -InputsRank || Axis >(InputsRank - 1))
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Axis should be in range [-r,r-1] however it is %d while inputs have rank %d."), Axis, InputsRank);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Concat: Axis should be in range [-r,r-1] however it is %d while inputs have rank %d."), Axis, InputsRank);
 				return false;
 			}
 			
@@ -154,19 +156,19 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		if (InputTypes.Num() == 0)
 		{
-			UE_LOG(LogNNE, Error, TEXT("Concat operator requires at least 1 input"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Concat: Operator requires at least 1 input"));
 			bIsValid = false;
 		}
 		for (int32 i = 0; i < InputTypes.Num(); ++i)
 		{
 			if (InputTypes[i] != ENNETensorDataType::Float && InputTypes[i] != ENNETensorDataType::Half)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Concat operator input '%d' of type '%d' is not supported, should be float or half at the moment."), i, int(InputTypes[i]));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Concat: Operator input '%d' of type '%d' is not supported, should be float or half at the moment."), i, int(InputTypes[i]));
 				bIsValid = false;
 			}
 			if (InputTypes[i] != InputTypes[0])
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Concat operator input '%d' of type '%d' does not match type '%d' of the first input."), i, int(InputTypes[i]), int(InputTypes[0]));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Concat: Operator input '%d' of type '%d' does not match type '%d' of the first input."), i, int(InputTypes[i]), int(InputTypes[0]));
 				bIsValid = false;
 			}
 		}

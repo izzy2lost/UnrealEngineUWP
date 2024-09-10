@@ -79,9 +79,7 @@ void FBoomArmCameraNodeEvaluator::OnBuild(const FCameraNodeEvaluatorBuildParams&
 
 void FBoomArmCameraNodeEvaluator::OnInitialize(const FCameraNodeEvaluatorInitializeParams& Params, FCameraNodeEvaluationResult& OutResult)
 {
-	SetNodeEvaluatorFlags(
-			ECameraNodeEvaluatorFlags::NeedsEvaluationUpdate |
-			ECameraNodeEvaluatorFlags::SupportsOperations);
+	AddNodeEvaluatorFlags(ECameraNodeEvaluatorFlags::SupportsOperations);
 
 	const UBoomArmCameraNode* BoomArmNode = GetCameraNodeAs<UBoomArmCameraNode>();
 	BoomOffsetReader.Initialize(BoomArmNode->BoomOffset);
@@ -139,7 +137,7 @@ void FBoomArmCameraNodeEvaluator::OnRun(const FCameraNodeEvaluationParams& Param
 	const double DefaultBoomLength = BoomOffset.Length();
 	if (BoomLengthInterpolator && DefaultBoomLength > 0)
 	{
-		if (!Params.bIsFirstFrame)
+		if (!Params.bIsFirstFrame && !OutResult.bIsCameraCut)
 		{
 			// The pull this frame is how much the base (pivot) of the boom arm has moved. We add that
 			// to our cumulative tally of the pull.

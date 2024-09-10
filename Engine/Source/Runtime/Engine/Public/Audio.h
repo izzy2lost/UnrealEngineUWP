@@ -92,7 +92,6 @@ struct FWaveInstance;
 struct FReverbSettings;
 struct FSampleLoop;
 struct FSoundWaveTimecodeInfo;
-
 enum ELoopingMode
 {
 	/** One shot sound */
@@ -300,6 +299,9 @@ private:
 public:
 	/** Whether or not to enable the low pass filter */
 	uint32 bEnableLowPassFilter:1;
+	
+	/** Whether or not to enable the high pass filter */
+	uint32 bEnableHighPassFilter:1;
 
 	/** Whether or not the sound is occluded. */
 	uint32 bIsOccluded:1;
@@ -351,6 +353,9 @@ public:
 
 	/** The low pass filter frequency to use */
 	float LowPassFilterFrequency;
+	
+	/** The high pass filter frequency to use */
+	float HighPassFilterFrequency;
 
 	/** The low pass filter frequency to use from sound class. */
 	float SoundClassFilterFrequency;

@@ -373,7 +373,7 @@ public:
 	/** Unbinds to the static events triggered by the ChaosVD Runtime module */
 	static void UnregisterEventHandlers();
 
-	static TSharedRef<FChaosVDSerializableNameTable>& GetNameTableInstance() { return CVDNameTable; }
+	static CHAOS_API TSharedRef<FChaosVDSerializableNameTable>& GetNameTableInstance();
 
 private:
 

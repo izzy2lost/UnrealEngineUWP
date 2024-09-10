@@ -219,9 +219,15 @@ AActor* UAvaInteractiveToolsToolBase::SpawnActor(TSubclassOf<AActor> InActorClas
 	{
 		if (FViewport* Viewport = ContextAPI->GetFocusedViewport())
 		{
-			if (TSharedPtr<IAvaViewportClient> AvaViewportClient = FAvaViewportUtils::GetAvaViewportClient(Viewport))
+			if (FEditorViewportClient* ViewportClient = FAvaViewportUtils::GetAsEditorViewportClient(Viewport))
 			{
-				const FVector2f ViewportSize = AvaViewportClient->GetViewportSize();
+				if (TSharedPtr<IAvaViewportClient> AvaViewportClient = FAvaViewportUtils::GetAsAvaViewportClient(ViewportClient))
+				{
+					const FVector2f ViewportSize = AvaViewportClient->GetViewportSize();
+					return SpawnActor(InActorClass, EAvaViewportStatus::Focused, ViewportSize * 0.5, bInPreview, InActorLabelOverride);
+				}
+
+				const FVector2f ViewportSize = Viewport->GetSizeXY();
 				return SpawnActor(InActorClass, EAvaViewportStatus::Focused, ViewportSize * 0.5, bInPreview, InActorLabelOverride);
 			}
 		}

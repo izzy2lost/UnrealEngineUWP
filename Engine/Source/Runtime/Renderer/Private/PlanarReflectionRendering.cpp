@@ -223,7 +223,7 @@ void PrefilterPlanarReflection(
 			RDG_EVENT_NAME("PrefilterPlanarReflections"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, VertexShader, PixelShader, PassParameters, SceneColorExtent](FRHICommandList& RHICmdList)
+			[&View, VertexShader, PixelShader, PassParameters, SceneColorExtent](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 

@@ -38,15 +38,15 @@ namespace EpicGames.Horde.Storage.Bundles
 	/// </summary>
 	class FlushedBundleHandle : BundleHandle
 	{
-		readonly BundleStorageClient _storageClient;
+		readonly BundleStorageNamespace _storageNamespace;
 		readonly BlobLocator _locator;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FlushedBundleHandle(BundleStorageClient storageClient, BlobLocator locator)
+		public FlushedBundleHandle(BundleStorageNamespace storageNamespace, BlobLocator locator)
 		{
-			_storageClient = storageClient;
+			_storageNamespace = storageNamespace;
 			_locator = locator;
 		}
 
@@ -55,11 +55,11 @@ namespace EpicGames.Horde.Storage.Bundles
 
 		/// <inheritdoc/>
 		public override Task<Stream> OpenAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
-			=> _storageClient.Backend.OpenBlobAsync(_locator, offset, length, cancellationToken);
+			=> _storageNamespace.Backend.OpenBlobAsync(_locator, offset, length, cancellationToken);
 
 		/// <inheritdoc/>
 		public override async ValueTask<IReadOnlyMemoryOwner<byte>> ReadAsync(int offset, int? length, CancellationToken cancellationToken = default)
-			=> await _storageClient.Backend.ReadBlobAsync(_locator, offset, length, cancellationToken);
+			=> await _storageNamespace.Backend.ReadBlobAsync(_locator, offset, length, cancellationToken);
 
 		/// <inheritdoc/>
 		public override bool TryGetLocator(out BlobLocator locator)

@@ -32,7 +32,7 @@ namespace HordeServer.Tests.Storage
 			globalConfig.Plugins.Add(new PluginName("storage"), storageConfig);
 			SetConfig(globalConfig);
 
-			IStorageClient store = StorageService.CreateClient(new NamespaceId("default"));
+			IStorageNamespace store = StorageService.GetNamespace(new NamespaceId("default"));
 
 			Random random = new Random(0);
 			IHashedBlobRef[] blobs = await CreateTestDataAsync(store, 30, 50, 30, 5, random);
@@ -61,14 +61,14 @@ namespace HordeServer.Tests.Storage
 			Assert.IsTrue(remaining.All(x => nodePaths.Contains(x)));
 		}
 
-		static async Task<HashSet<BlobLocator>> FindNodesAsync(IStorageClient store, IEnumerable<IBlobRef> roots)
+		static async Task<HashSet<BlobLocator>> FindNodesAsync(IStorageNamespace store, IEnumerable<IBlobRef> roots)
 		{
 			HashSet<BlobLocator> nodes = new HashSet<BlobLocator>();
 			await FindNodesAsync(store, roots, nodes);
 			return nodes;
 		}
 
-		static async Task FindNodesAsync(IStorageClient store, IEnumerable<IBlobRef> roots, HashSet<BlobLocator> nodes)
+		static async Task FindNodesAsync(IStorageNamespace store, IEnumerable<IBlobRef> roots, HashSet<BlobLocator> nodes)
 		{
 			foreach (IBlobRef root in roots)
 			{
@@ -81,7 +81,7 @@ namespace HordeServer.Tests.Storage
 			}
 		}
 
-		static async ValueTask<IHashedBlobRef[]> CreateTestDataAsync(IStorageClient store, int numRoots, int numInterior, int numLeaves, int avgChildren, Random random)
+		static async ValueTask<IHashedBlobRef[]> CreateTestDataAsync(IStorageNamespace store, int numRoots, int numInterior, int numLeaves, int avgChildren, Random random)
 		{
 			int firstRoot = 0;
 			int firstInterior = firstRoot + numRoots;

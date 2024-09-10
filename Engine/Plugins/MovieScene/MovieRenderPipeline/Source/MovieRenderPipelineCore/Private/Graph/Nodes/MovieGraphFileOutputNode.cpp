@@ -43,8 +43,12 @@ void UMovieGraphFileOutputNode::DisambiguateFilename(FString& InOutFilenameForma
 	{
 		UE::MoviePipeline::ConformOutputFormatStringToken(InOutFilenameFormatString, TEXT("{renderer_sub_name}"), InNodeName, InRenderData.Key.RootBranchName);
 	}
-	
-	// ToDo: Add {camera_name} validation once relevant
+
+	// We only add the camera name token if there are more than one cameras for the active branch
+	if (ValidationInfo.ActiveCameraCount > 1)
+	{
+		UE::MoviePipeline::ConformOutputFormatStringToken(InOutFilenameFormatString, TEXT("{camera_name}"), InNodeName, InRenderData.Key.RootBranchName);
+	}
 }
 
 TArray<FMovieGraphPassData> UMovieGraphFileOutputNode::GetCompositedPasses(UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData)

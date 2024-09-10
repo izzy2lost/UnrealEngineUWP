@@ -190,7 +190,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingPrimaryRaysView(
 		RDG_EVENT_NAME("RayTracingPrimaryRays %dx%d", RayTracingResolution.X, RayTracingResolution.Y),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[PassParameters, this, &View, SceneUniformBuffer, RayGenShader, RayTracingResolution](FRHICommandList& RHICmdList)
+		[PassParameters, this, &View, SceneUniformBuffer, RayGenShader, RayTracingResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 		FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;

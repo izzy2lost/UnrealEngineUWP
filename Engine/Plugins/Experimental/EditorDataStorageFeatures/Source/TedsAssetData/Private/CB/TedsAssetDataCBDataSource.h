@@ -13,7 +13,7 @@ class FAssetPackageData;
 class FAssetPropertyTagCache;
 class IAssetRegistry;
 class IPlugin;
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
 
 struct FAssetData;
 struct FAssetDataColumn_Experimental;
@@ -30,7 +30,7 @@ namespace UE::Editor::AssetData::Private
 class FTedsAssetDataCBDataSource
 {
 public:
-	explicit FTedsAssetDataCBDataSource(ITypedElementDataStorageInterface& InDatabase);
+	explicit FTedsAssetDataCBDataSource(IEditorDataStorageProvider& InDatabase);
 	~FTedsAssetDataCBDataSource();
 	
 	// Toggle the storage of the metadata from the asset registry into teds 
@@ -75,7 +75,7 @@ private:
 	void ProcessAssetDataAndPathUpdateQueryCallback(DataStorage::IQueryContext& Context, const DataStorage::RowHandle* Rows, const FAssetDataColumn_Experimental* AssetDataColumn) const;
 	void ProcessAssetDataUpdateQueryCallback(DataStorage::IQueryContext& Context, const DataStorage::RowHandle*Rows, const FAssetDataColumn_Experimental* AssetDataColumn) const;
 
-	ITypedElementDataStorageInterface& Database;
+	IEditorDataStorageProvider& Database;
 	DataStorage::QueryHandle ProcessPathQuery;
 	DataStorage::QueryHandle ProcessAssetDataPathUpdateQuery;
 	DataStorage::QueryHandle ProcessAssetDataAndPathUpdateQuery;

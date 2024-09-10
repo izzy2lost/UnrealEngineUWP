@@ -301,7 +301,7 @@ namespace UEPerf
 
 	public class EditorGauntletTestController : UnrealTestNode<EditorGauntletTestControllerConfig>
 	{
-		private int LastLogCount = 0;
+		private UnrealLogStreamParser LogReader = null;
 		private DateTime LastAutomationEntryTime = DateTime.MinValue;
 		private bool ValidateResolveMap = false;
 		private float IdleTimeoutSec = 5 * 60;
@@ -348,7 +348,7 @@ namespace UEPerf
 
 		public override bool StartTest(int Pass, int InNumPasses)
 		{
-			LastLogCount = 0;
+			LogReader = null;
 			EditorGauntletTestControllerConfig Config = GetConfiguration();
 			if (!string.IsNullOrEmpty(Config.Map))
 			{
@@ -370,10 +370,13 @@ namespace UEPerf
 			var App = InInstance.EditorApp;
 			if (App != null)
 			{
-				UnrealLogStreamParser Parser = new UnrealLogStreamParser();
-				LastLogCount += Parser.ReadStream(App.StdOut, LastLogCount);
+				if (LogReader == null)
+				{
+					LogReader = new UnrealLogStreamParser(App.GetLogBufferReader());
+				}
+				LogReader.ReadStream();
 
-				IEnumerable<string> ChannelEntries = Parser.GetLogFromShortNameChannels(UnrealLog.EditorBusyChannels.Append("Gauntlet"));
+				IEnumerable<string> ChannelEntries = LogReader.GetLogFromShortNameChannels(UnrealLog.EditorBusyChannels.Append("Gauntlet"));
 
 				// Any new entries?
 				if (ChannelEntries.Any())
@@ -404,7 +407,7 @@ namespace UEPerf
 				if (ValidateResolveMap)
 				{
 					string Map = GetConfiguration().Map;
-					string ResolvedMap = Parser.GetLogLinesContaining($"to resolve {Map}.").FirstOrDefault();
+					string ResolvedMap = LogReader.GetLogLinesContaining($"to resolve {Map}.").FirstOrDefault();
 
 					if (!string.IsNullOrEmpty(ResolvedMap))
 					{

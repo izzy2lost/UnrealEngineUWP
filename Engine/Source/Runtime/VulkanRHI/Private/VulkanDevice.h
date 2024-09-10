@@ -67,6 +67,7 @@ struct FOptionalVulkanDeviceExtensions
 			// Promoted to 1.1
 			uint64 HasKHRMultiview : 1;
 			uint64 HasKHR16bitStorage : 1;
+			uint64 HasKHRSamplerYcbcrConversion : 1;
 
 			// Promoted to 1.2
 			uint64 HasKHRRenderPass2 : 1;

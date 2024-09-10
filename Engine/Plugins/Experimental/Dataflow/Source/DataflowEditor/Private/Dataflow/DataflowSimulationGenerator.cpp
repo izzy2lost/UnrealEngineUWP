@@ -5,6 +5,7 @@
 #include "Dataflow/DataflowSimulationControls.h"
 #include "Dataflow/DataflowSimulationUtils.h"
 #include "Chaos/CacheManagerActor.h"
+#include "Chaos/CacheCollection.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
 #include "Misc/AsyncTaskNotification.h" 
@@ -17,7 +18,7 @@ namespace UE::Dataflow
 {
 void FDataflowSimulationTask::DoWork()
 {
-	const int32 StartFrame = bBackgroundTask ? 1 : 0;
+	const int32 StartFrame = bAsyncCaching ? 1 : 0;
 	const int32 NumFrames = (MaxTime-MinTime) / DeltaTime;
 	for (int32 FrameIndex = StartFrame; FrameIndex < NumFrames; ++FrameIndex)
 	{
@@ -26,7 +27,7 @@ void FDataflowSimulationTask::DoWork()
 			// Compute the simulation time that will be sent to the graph
 			const float SimulationTime = MinTime + (FrameIndex+1) * DeltaTime;
 
-			if(bBackgroundTask)
+			if(bAsyncCaching)
 			{
 				// Compute all the skelmesh animations at the simulation time
 				Dataflow::ComputeSkeletonAnimation(TaskManager->PreviewActor, SimulationTime);
@@ -63,7 +64,8 @@ void FDataflowSimulationTask::DoWork()
 }
 
 bool FDataflowTaskManager::AllocateSimulationResource(const FVector2f& TimeRange, const int32 FrameRate,
-		const TObjectPtr<UChaosCacheCollection>& CacheAsset, const TSubclassOf<AActor>& ActorClass, const TObjectPtr<UDataflowBaseContent>& DataflowContent)
+		const TObjectPtr<UChaosCacheCollection>& CacheAsset, const TSubclassOf<AActor>& ActorClass,
+		const TObjectPtr<UDataflowBaseContent>& DataflowContent, const FTransform& BlueprintTransform)
 {
 	SimulationWorld = UWorld::CreateWorld(EWorldType::Editor, false);
 	SimulationWorld->bPostTickComponentUpdate = false;
@@ -73,7 +75,7 @@ bool FDataflowTaskManager::AllocateSimulationResource(const FVector2f& TimeRange
 	
 	CacheManager = SimulationWorld->SpawnActor<AChaosCacheManager>();
 
-	PreviewActor = Dataflow::SpawnSimulatedActor(ActorClass, CacheManager, CacheAsset, true, DataflowContent);
+	PreviewActor = Dataflow::SpawnSimulatedActor(ActorClass, CacheManager, CacheAsset, true, DataflowContent, BlueprintTransform);
 	Dataflow::SetupSkeletonAnimation(PreviewActor);
 
 	// Init the cache manager
@@ -93,7 +95,7 @@ bool FDataflowTaskManager::AllocateSimulationResource(const FVector2f& TimeRange
 		SimulationTask->GetTask().DeltaTime = (TimeRange[1]-TimeRange[0]) / NumFrames;
 
 		UDataflowSimulationManager* DataflowManager = SimulationWorld->GetSubsystem<UDataflowSimulationManager>();
-		if(SimulationTask->GetTask().bBackgroundTask)
+		if(SimulationTask->GetTask().bAsyncCaching)
 		{
 			// Update all the skelmesh animations at the simulation time
 			Dataflow::UpdateSkeletonAnimation(PreviewActor, SimulationTask->GetTask().MinTime+SimulationTask->GetTask().DeltaTime);
@@ -104,7 +106,7 @@ bool FDataflowTaskManager::AllocateSimulationResource(const FVector2f& TimeRange
 			// Init simulation proxies from interface
 			DataflowManager->InitSimulationInterfaces();
 		}
-		DataflowManager->SetSimulationEnabled(!SimulationTask->GetTask().bBackgroundTask);
+		DataflowManager->SetSimulationEnabled(!SimulationTask->GetTask().bAsyncCaching);
 	}
 
 	return true;
@@ -116,7 +118,7 @@ void FDataflowTaskManager::FreeSimulationResource()
 	{
 		SimulationTask->EnsureCompletion();
 
-		if(SimulationTask->GetTask().bBackgroundTask)
+		if(SimulationTask->GetTask().bAsyncCaching)
 		{
 			UDataflowSimulationManager* DataflowManager = SimulationWorld->GetSubsystem<UDataflowSimulationManager>();
 			DataflowManager->ResetSimulationInterfaces();
@@ -186,11 +188,11 @@ void FDataflowSimulationGenerator::StartGenerateSimulation()
 
 	TaskManager->SimulationTask = MakeUnique<FAsyncTask<FDataflowSimulationTask>>();
 	TaskManager->SimulationTask->GetTask().TaskManager = TaskManager;
-	TaskManager->SimulationTask->GetTask().bBackgroundTask = CacheParams.bBackgroundTask;
+	TaskManager->SimulationTask->GetTask().bAsyncCaching = CacheParams.bAsyncCaching;
 	
-	TaskManager->AllocateSimulationResource(CacheParams.TimeRange, CacheParams.FrameRate, CacheAsset, BlueprintClass, DataflowContent);
+	TaskManager->AllocateSimulationResource(CacheParams.TimeRange, CacheParams.FrameRate, CacheAsset, BlueprintClass, DataflowContent, BlueprintTransform);
 
-	if(CacheParams.bBackgroundTask)
+	if(CacheParams.bAsyncCaching)
 	{
 		TaskManager->SimulationTask->StartBackgroundTask();
 	}
@@ -266,6 +268,11 @@ void FDataflowSimulationGenerator::SetBlueprintClass(const TSubclassOf<AActor>& 
 	BlueprintClass = InBlueprintClass;
 }
 
+void FDataflowSimulationGenerator::SetBlueprintTransform(const FTransform& InBlueprintTransform)
+{
+	BlueprintTransform = InBlueprintTransform;
+}
+
 void FDataflowSimulationGenerator::SetDataflowContent(const TObjectPtr<UDataflowBaseContent>& InDataflowContent)
 {
 	DataflowContent = InDataflowContent;
@@ -301,6 +308,7 @@ void FDataflowSimulationGenerator::FreeTaskResource(bool bCancelled)
 		TaskManager->AsyncNotification->SetComplete(true);
 	}
 	TaskManager.Reset();
+	CacheAsset->MarkPackageDirty();
 }
 };
 

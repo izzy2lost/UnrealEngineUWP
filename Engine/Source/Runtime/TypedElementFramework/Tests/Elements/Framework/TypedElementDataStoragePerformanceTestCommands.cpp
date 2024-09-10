@@ -24,7 +24,7 @@ namespace UE::Editor::DataStorage
 				int32 EntitiesToAdd;
 				LexFromString(EntitiesToAdd, *Args[0]);
 
-				ITypedElementDataStorageInterface* DataStorageInterface = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+				IEditorDataStorageProvider* DataStorageInterface = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 			
 				DataStorageInterface->BatchAddRow(Private::PerformanceTestCommandTable, EntitiesToAdd, [DataStorageInterface](RowHandle Row)
 					{
@@ -42,14 +42,14 @@ namespace UE::Editor::DataStorage
 		{
 			using namespace UE::Editor::DataStorage::Queries;
 
-			ITypedElementDataStorageInterface* DataStorageInterface = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+			IEditorDataStorageProvider* DataStorageInterface = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		
 			QueryHandle Query = DataStorageInterface->RegisterQuery(
 				Select().Where().All<FTest_PingPongPrePhys>().Compile());
 
 			TArray<RowHandle> RowsToDelete;
 
-			DataStorageInterface->RunQuery(Query, CreateDirectQueryCallbackBinding([&RowsToDelete](const ITypedElementDataStorageInterface::IDirectQueryContext& Context, const RowHandle* RowArray)
+			DataStorageInterface->RunQuery(Query, CreateDirectQueryCallbackBinding([&RowsToDelete](const IEditorDataStorageProvider::IDirectQueryContext& Context, const RowHandle* RowArray)
 			{
 				RowsToDelete.Insert(RowArray, Context.GetRowCount(), RowsToDelete.Num());
 			}));
@@ -64,7 +64,7 @@ namespace UE::Editor::DataStorage
 	));
 } // namespace UE::Editor::DataStorage
 
-void UTest_PingPongBetweenPhaseFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
+void UTest_PingPongBetweenPhaseFactory::RegisterTables(IEditorDataStorageProvider& DataStorage)
 {
 	UE::Editor::DataStorage::Private::PerformanceTestCommandTable = DataStorage.RegisterTable({FTest_PingPongPrePhys::StaticStruct()}, TEXT("Test_PingPongPrePhys"));
 }
@@ -74,7 +74,7 @@ void UTest_PingPongBetweenPhaseFactory::RegisterTables(ITypedElementDataStorageI
 // A is sensitive to tag PingPongPrePhys.  It adds a PingPongDurPhys tag and removes the PingPonPrePhys tag.  This causes the processed row
 // to then be processed by processor B.  Processor B does a similar thing to ensure it is processed by C.  C then ensures it is processed by A
 // the next time A is run.
-void UTest_PingPongBetweenPhaseFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTest_PingPongBetweenPhaseFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 

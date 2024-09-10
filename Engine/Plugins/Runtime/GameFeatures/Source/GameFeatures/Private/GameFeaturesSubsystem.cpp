@@ -968,6 +968,23 @@ void UGameFeaturesSubsystem::OnGameFeatureDownloading(const FString& PluginName,
 	CallbackObservers(EObserverCallback::Downloading, PluginIdentifier, &PluginName);
 }
 
+void UGameFeaturesSubsystem::OnGameFeatureDownloaded(const FGameFeaturePluginIdentifier& PluginIdentifier)
+{
+	if (UGameFeaturePluginStateMachine* GFPSM = FindGameFeaturePluginStateMachine(PluginIdentifier))
+	{
+		const FGameFeaturePluginStateMachineProperties& MachineProperties = GFPSM->GetProperties();
+		if (MachineProperties.GetPluginProtocol() == EGameFeaturePluginProtocol::InstallBundle)
+		{
+			const FInstallBundlePluginProtocolMetaData& MetaData = MachineProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>();
+			for (const FName& Bundle : MetaData.InstallBundles)
+			{
+				TSet<FString>& PluginsUsingBundle = DownloadedBundleToPlugin.FindOrAdd(Bundle);
+				PluginsUsingBundle.Add(FString(PluginIdentifier.GetPluginName()));
+			}
+		}
+	}
+}
+
 void UGameFeaturesSubsystem::OnGameFeatureReleasing(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
 {
 	CallbackObservers(EObserverCallback::Releasing, PluginIdentifier, &PluginName);
@@ -980,6 +997,20 @@ void UGameFeaturesSubsystem::OnGameFeaturePreMounting(const FString& PluginName,
 
 void UGameFeaturesSubsystem::OnGameFeaturePostMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePostMountingContext& Context)
 {
+	if (UGameFeaturePluginStateMachine* GFPSM = FindGameFeaturePluginStateMachine(PluginIdentifier))
+	{
+		const FGameFeaturePluginStateMachineProperties& MachineProperties = GFPSM->GetProperties();
+		if (MachineProperties.GetPluginProtocol() == EGameFeaturePluginProtocol::InstallBundle)
+		{
+			const FInstallBundlePluginProtocolMetaData& MetaData = MachineProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>();
+			for (const FName& Bundle : MetaData.InstallBundles)
+			{
+				TSet<FString>& PluginsUsingBundle = MountedBundleToPlugin.FindOrAdd(Bundle);
+				PluginsUsingBundle.Add(PluginName);
+			}
+		}
+	}
+
 	CallbackObservers(EObserverCallback::PostMounting, PluginIdentifier, &PluginName, /*GameFeatureData=*/nullptr, &Context);
 }
 
@@ -1891,6 +1922,7 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugin(const TSharedRef<IPlug
 				{
 					FInstallBundlePluginProtocolOptions InstallBundleOptions;
 					InstallBundleOptions.bAllowIniLoading = true;
+					InstallBundleOptions.ReleaseInstallBundleFlags = EInstallBundleReleaseRequestFlags::ExplicitRemoveList;
 					ProtocolOptions = FGameFeatureProtocolOptions(InstallBundleOptions);
 				}
 				ProtocolOptions.bForceSyncLoading = BehaviorOptions.bForceSyncLoading;
@@ -2398,6 +2430,47 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& 
 void UGameFeaturesSubsystem::PruneCachedGameFeaturePluginDetails(const FString& PluginURL, const FString& PluginDescriptorFilename) const
 {
 	CachedPluginDetailsByFilename.Remove(PluginDescriptorFilename);
+}
+
+TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> UGameFeaturesSubsystem::ReleaseBundle(const FString& PluginName, TArrayView<const FName> BundleNames, EInstallBundleReleaseRequestFlags Flags)
+{
+	TArray<FName> BundlesToRelease;
+	for (const FName& Bundle : BundleNames)
+	{
+		TSet<FString>& PluginsUsingBundle = DownloadedBundleToPlugin.FindOrAdd(Bundle);
+		PluginsUsingBundle.Remove(PluginName);
+		if (PluginsUsingBundle.Num() == 0)
+		{
+			UE_LOG(LogGameFeatures, Display, TEXT("Releasing bundle (%s) as final plugin released it (%s)"), *Bundle.ToString(), *PluginName);
+			BundlesToRelease.Add(Bundle);
+		}
+
+#if !UE_BUILD_SHIPPING
+		TSet<FString>& PluginsWithMountedBundle = MountedBundleToPlugin.FindOrAdd(Bundle);
+		ensureMsgf(!PluginsWithMountedBundle.Contains(PluginName), TEXT("Bundle (%s) is being released but still has GFPs with it mounted"), *Bundle.ToString());
+#endif
+	}
+	TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+	check(BundleManager.IsValid());
+	return BundleManager->RequestReleaseContent(BundlesToRelease, Flags);
+}
+
+TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> UGameFeaturesSubsystem::UnmountBundle(const FString& PluginName, TArrayView<const FName> BundleNames, EInstallBundleReleaseRequestFlags Flags)
+{
+	TArray<FName> BundlesToRelease;
+	for (const FName& Bundle : BundleNames)
+	{
+		TSet<FString>& PluginsUsingBundle = MountedBundleToPlugin.FindOrAdd(Bundle);
+		PluginsUsingBundle.Remove(PluginName);
+		if (PluginsUsingBundle.Num() == 0)
+		{
+			UE_LOG(LogGameFeatures, Display, TEXT("Unmounting bundle (%s) as final plugin released it (%s)"), *Bundle.ToString(), *PluginName);
+			BundlesToRelease.Add(Bundle);
+		}
+	}
+	TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+	check(BundleManager.IsValid());
+	return BundleManager->RequestReleaseContent(BundlesToRelease, Flags);
 }
 
 struct FGameFeaturePluginPredownloadContext : public FGameFeaturePluginPredownloadHandle
@@ -3458,4 +3531,3 @@ void UGameFeaturesSubsystem::SetExplanationForNotMountingPlugin(const FString& P
 	}
 #endif
 }
-

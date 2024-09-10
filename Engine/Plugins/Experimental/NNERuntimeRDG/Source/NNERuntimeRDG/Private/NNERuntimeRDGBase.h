@@ -4,11 +4,11 @@
 
 #include "NNEAttributeMap.h"
 #include "NNEAttributeValue.h"
-#include "NNETensor.h"
-#include "NNETypes.h"
-#include "NNE.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEModelOptimizerInterface.h"
 #include "NNERuntimeFormat.h"
+#include "NNETensor.h"
+#include "NNETypes.h"
 #include "RenderGraphResources.h"
 #include "Serialization/MemoryReader.h"
 #include "ShaderParameterUtils.h"
@@ -187,7 +187,7 @@ public:
 		const FOperatorFunctions* OperatorFunctions = OpFindFunctions(OpDesc);
 		if(OperatorFunctions == nullptr)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator: %s is not registered"), *OpDesc.GetFullName());
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Operator: %s is not registered"), *OpDesc.GetFullName());
 			return nullptr;
 		}
 
@@ -199,7 +199,7 @@ public:
 		const FOperatorFunctions* OperatorFunctions = OpFindFunctions(OpDesc);
 		if(OperatorFunctions == nullptr)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator: %s is not registered"), *OpDesc.GetFullName());
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Operator: %s is not registered"), *OpDesc.GetFullName());
 			return nullptr;
 		}
 
@@ -214,12 +214,12 @@ public:
 			const FOperatorFunctions* OperatorFunctions = VersionToFunctions->Find(OpDesc.Version);
 			if(OperatorFunctions != nullptr)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator is already registered: %s"), *OpDesc.GetFullName());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Operator is already registered: %s"), *OpDesc.GetFullName());
 				return false;
 			}
 			else if(!OpDesc.Version.IsSet() || VersionToFunctions->Find(TOptional<TOperatorVersionType>()) != nullptr)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator %s is unversioned, can't register a version of it"), *FOperatorDesc{{OpDesc}}.GetFullName());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Operator %s is unversioned, can't register a version of it"), *FOperatorDesc{{OpDesc}}.GetFullName());
 				return false;
 			}
 			VersionToFunctions->Add(OpDesc.Version, FOperatorFunctions{CreateFunc, ValidateFunc});
@@ -329,7 +329,7 @@ private:
 			}
 		}
 
-		UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator: %s is not registered"), *OpDesc.GetFullName());
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Operator: %s is not registered"), *OpDesc.GetFullName());
 		return nullptr;
 	}
 
@@ -358,7 +358,7 @@ public:
 		ENNEInferenceFormat FormatType = InputModel.Format;
 		if (FormatType != ENNEInferenceFormat::NNERT)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Unsupported format type for validator %s"), *GetName());
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Unsupported format type for validator %s"), *GetName());
 			return false;
 		}
 
@@ -392,13 +392,13 @@ public:
 
 			if (!ValidationFn)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("RDG MLOperatorRegistry failed to find validation for operator:%s"), *OpType);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("OperatorRegistry failed to find validation for operator:%s"), *OpType);
 				return false;
 			}
 			
 			if (!ValidationFn(AttributeMap, InputTensorTypes, InputTensorShapes))
 			{
-				UE_LOG(LogNNE, Warning, TEXT("RDG MLOperatorRegistry failed to validate operator:%s"), *OpType);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("OperatorRegistry failed to validate operator:%s"), *OpType);
 				return false;
 			}
 		}

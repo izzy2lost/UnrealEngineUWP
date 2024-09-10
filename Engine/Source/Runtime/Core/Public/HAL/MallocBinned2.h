@@ -52,6 +52,8 @@ struct FGenericMemoryStats;
 	extern int32 RecursionCounter;
 #endif
 
+extern int32 EnableLegacyCachedOSPageAllocatorFreeMemReporting;
+
 // Canary value used in FFreeBlock
 // A constant value unless we're compiled with fork support in which case there are two values identifying whether the page
 // was allocated pre- or post-fork
@@ -506,6 +508,15 @@ public:
 	CORE_API virtual void OnMallocInitialized() override;
 	CORE_API virtual void OnPreFork() override;
 	CORE_API virtual void OnPostFork() override;
+	virtual uint64 GetFreeCachedMemorySize() const
+	{
+		if (EnableLegacyCachedOSPageAllocatorFreeMemReporting)
+		{
+			return CachedOSPageAllocator.GetCachedFreeTotal();
+		}
+
+		return CachedOSPageAllocator.GetCachedImmediatelyFreeable();
+	}
 	// End FMalloc interface.
 
 	CORE_API void* MallocExternalSmall(SIZE_T Size, uint32 Alignment);

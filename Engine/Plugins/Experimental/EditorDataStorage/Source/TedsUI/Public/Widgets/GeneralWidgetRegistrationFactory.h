@@ -8,7 +8,7 @@
 #include "GeneralWidgetRegistrationFactory.generated.h"
 
 UCLASS()
-class TEDSUI_API UGeneralWidgetRegistrationFactory : public UTypedElementDataStorageFactory
+class TEDSUI_API UGeneralWidgetRegistrationFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
@@ -21,5 +21,5 @@ public:
 
 	~UGeneralWidgetRegistrationFactory() override = default;
 
-	void RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+	void RegisterWidgetPurposes(IEditorDataStorageUiProvider& DataStorageUi) const override;
 };

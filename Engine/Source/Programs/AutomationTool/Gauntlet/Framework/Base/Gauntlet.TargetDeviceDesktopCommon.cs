@@ -7,9 +7,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Linq;
+using System.Diagnostics;
 using UnrealBuildTool;
 using System.Text.RegularExpressions;
 using Gauntlet.Utils;
+using UnrealBuildBase;
 
 namespace Gauntlet
 {
@@ -311,6 +313,8 @@ namespace Gauntlet
 			CommandArguments += AdditionalCommandline;
 		}
 
+		public LongProcessResult.OutputFilterCallbackType FilterLoggingDelegate { get; set; }
+
 		public CommandUtils.ERunOptions RunOptions { get; set; }
 
 		public DesktopCommonAppInstall(string InName, string InProjectName, DesktopTargetDevice InDevice)
@@ -366,6 +370,7 @@ namespace Gauntlet
 			// Set commandline replace any InstallPath arguments with the path we use
 			CommandArguments = Regex.Replace(AppConfig.CommandLine, @"\$\(InstallPath\)", BuildDir, RegexOptions.IgnoreCase);
 			CanAlterCommandArgs = AppConfig.CanAlterCommandArgs;
+			FilterLoggingDelegate = AppConfig.FilterLoggingDelegate;
 
 			if (CanAlterCommandArgs)
 			{
@@ -435,7 +440,7 @@ namespace Gauntlet
 
 		protected DesktopAppInstall Install;
 
-		public DesktopCommonAppInstance(DesktopAppInstall InInstall, IProcessResult InProcess, string InProcessLogFile = null)
+		public DesktopCommonAppInstance(DesktopAppInstall InInstall, ILongProcessResult InProcess, string InProcessLogFile = null)
 			: base(InProcess, InInstall.CommandArguments, InProcessLogFile)
 		{
 			Install = InInstall;
@@ -444,19 +449,88 @@ namespace Gauntlet
 
 	public abstract class LocalAppProcess : IAppInstance
 	{
-		public IProcessResult ProcessResult { get; private set; }
+		public ILongProcessResult ProcessResult { get; private set; }
 
 		public bool HasExited { get { return ProcessResult.HasExited; } }
 
 		public bool WasKilled { get; protected set; }
 
-		public string StdOut { get { return string.IsNullOrEmpty(ProcessLogFile) ? ProcessResult.Output : ProcessLogOutput; } }
+		public string StdOut
+		{
+			get
+			{
+				if (string.IsNullOrEmpty(ProcessLogFile))
+				{
+					return ProcessResult.Output;
+				}
+
+				if (File.Exists(ProcessLogFile))
+				{
+					using (LogFileReader Stream = new LogFileReader(ProcessLogFile))
+					{
+						return Stream.GetContent();
+					}
+				}
+
+				return ProcessLogOutput.GetContent();
+			}
+		}
+
+		public ILogStreamReader GetLogReader()
+		{
+			if (string.IsNullOrEmpty(ProcessLogFile))
+			{
+				return ProcessResult.GetLogReader();
+			}
+
+			if (File.Exists(ProcessLogFile))
+			{
+				return new LogFileReader(ProcessLogFile);
+			}
+
+			return ProcessLogOutput.GetReader();
+		}
+
+		public ILogStreamReader GetLogBufferReader()
+		{
+			if (string.IsNullOrEmpty(ProcessLogFile))
+			{
+				return ProcessResult.GetLogBufferReader();
+			}
+
+			return ProcessLogOutput.GetReader();
+		}
+
+		public bool WriteOutputToFile(string FilePath)
+		{
+			if (string.IsNullOrEmpty(ProcessLogFile))
+			{
+				return ProcessResult.WriteOutputToFile(FilePath) != null;
+			}
+
+			if (File.Exists(ProcessLogFile) && HasExited)
+			{
+				ProcessUtils.CheckProcessLogReachedSizeLimit(new FileReference(ProcessLogFile));
+				File.Copy(ProcessLogFile, FilePath, true);
+			}
+			else
+			{
+				StreamWriter Writer = ProcessUtils.CreateWriterForProcessLog(FilePath, CommandLine);
+				foreach(string Line in ProcessLogOutput)
+				{
+					Writer.WriteLine(Line);
+				}
+				Writer.Close();
+			}
+
+			return true;
+		}
 
 		public int ExitCode { get { return ProcessResult.ExitCode; } }
 
 		public string CommandLine { get; private set; }
 
-		public LocalAppProcess(IProcessResult InProcess, string InCommandLine, string InProcessLogFile = null)
+		public LocalAppProcess(ILongProcessResult InProcess, string InCommandLine, string InProcessLogFile = null)
 		{
 			this.CommandLine = InCommandLine;
 			this.ProcessResult = InProcess;
@@ -465,6 +539,7 @@ namespace Gauntlet
 			// start reader thread if logging to a file
 			if (!string.IsNullOrEmpty(InProcessLogFile))
 			{
+				ProcessLogOutput = ProcessUtils.CreateLogBuffer();
 				new Thread(LogFileReaderThread).Start();
 			}
 		}
@@ -508,7 +583,7 @@ namespace Gauntlet
 			// Check whether the process exited before log file was created (this can happen for example if a server role exits and forces client to shutdown)
 			if (!File.Exists(ProcessLogFile))
 			{
-				ProcessLogOutput += "Process exited before log file created";
+				ProcessLogOutput.AppendLine("Process exited before log file created");
 				return;
 			}
 
@@ -528,7 +603,10 @@ namespace Gauntlet
 
 						if (!string.IsNullOrEmpty(Output))
 						{
-							ProcessLogOutput += Output;
+							foreach(string Line in Output.Split('\n'))
+							{
+								ProcessLogOutput.AppendLine(Line.TrimEnd('\r'));
+							}
 						}
 					}
 				}
@@ -546,6 +624,6 @@ namespace Gauntlet
 		public abstract ITargetDevice Device { get; }
 
 		string ProcessLogFile;
-		string ProcessLogOutput = "";
+		CircularLogBuffer ProcessLogOutput = null;
 	}
 }

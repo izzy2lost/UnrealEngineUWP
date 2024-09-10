@@ -346,6 +346,12 @@ public:
 		// nothing to do here because triangles did not change
 	}
 
+	void OnMergeVertices(const DynamicMeshInfo::FMergeVerticesInfo& MergeInfo) override
+	{
+		// This resolves as either an edge collapse, edge weld, or merge of disconnected vertices. 
+		//  The triangles either get removed or unchanged- nothing more to do here.
+	}
+
 	/** Update the overlay to reflect a vertex split in the parent */
 	void OnSplitVertex(const DynamicMeshInfo::FVertexSplitInfo& SplitInfo, const TArrayView<const int>& TrianglesToUpdate) override
 	{

@@ -16,16 +16,20 @@ static bool IsIdentifierHack(const CExpressionBase& AttributeExpression, const C
             !Identifier.Qualifier() &&
             Identifier._Symbol == Definition->GetName();
     }
-    if (AttributeExpression.GetNodeType() == EAstNodeType::Identifier_Class)
+
+    if (const CExprIdentifierClass* ClassIdentifier = AsNullable<CExprIdentifierClass>(&AttributeExpression))
     {
-        const CExprIdentifierClass& Identifier = static_cast<const CExprIdentifierClass&>(AttributeExpression);
-        return Identifier.GetClass(Program)->Definition() == Definition;
+        return ClassIdentifier->GetClass(Program)->Definition() == Definition;
     }
-    if (AttributeExpression.GetNodeType() == EAstNodeType::Identifier_Function)
+    if (const CExprIdentifierFunction* FunctionIdentifier = AsNullable<CExprIdentifierFunction>(&AttributeExpression))
     {
-        const CExprIdentifierFunction& Identifier = static_cast<const CExprIdentifierFunction&>(AttributeExpression);
-        return &Identifier._Function == Definition;
+        return &FunctionIdentifier->_Function == Definition;
     }
+    if (const CExprArchetypeInstantiation* ArchetypeIdentifier = AsNullable<CExprArchetypeInstantiation>(&AttributeExpression))
+    {
+        return ArchetypeIdentifier->GetClass(Program)->Definition() == Definition;
+    }
+
     return false;
 }
 bool IsAttributeHack(const SAttribute& Attribute, const CClass* AttributeClass, const CSemanticProgram& Program)
@@ -81,11 +85,11 @@ TOptional<int32_t> CAttributable::FindAttributeImpl(const CClass* AttributeClass
             const CClass* ClassType = nullptr;
 
             // @HACK: SOL-972, need better (fuller) support for attribute functions/ctors
-            if (const CTypeType* typeType = ResultType->GetNormalType().AsNullable<CTypeType>())
+            if (const CTypeType* TypeType = ResultType->GetNormalType().AsNullable<CTypeType>())
             {
-                if (const CTypeBase* positiveType = typeType->PositiveType())
+                if (const CTypeBase* PositiveType = TypeType->PositiveType())
                 {
-                    ClassType = positiveType->GetNormalType().AsNullable<CClass>();
+                    ClassType = PositiveType->GetNormalType().AsNullable<CClass>();
                 }
             }
 
@@ -94,12 +98,9 @@ TOptional<int32_t> CAttributable::FindAttributeImpl(const CClass* AttributeClass
                 ClassType = ResultType->GetNormalType().AsNullable<CClass>();
             }
 
-            if (ClassType != nullptr)
+            if (ClassType != nullptr && ClassType->IsClass(*AttributeClass))
             {
-                if (ClassType->IsClass(*AttributeClass))
-                {
-                    return Index;
-                }
+                return Index;
             }
         }
     }

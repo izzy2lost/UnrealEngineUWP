@@ -173,9 +173,9 @@ bool UMetaSoundEditorSubsystem::BindMemberMetadata(
 			InMember.Literal = CastChecked<UMetasoundEditorGraphMemberDefaultLiteral>(Literal);
 			return false;
 		}
-	}
 
-	NewLiteral = CreateMemberMetadata(Builder, InMember.GetMemberName(), LiteralClass);
+		NewLiteral = CreateMemberMetadata(Builder, InMember.GetMemberName(), LiteralClass);
+	}
 
 	if (NewLiteral)
 	{

@@ -928,9 +928,12 @@ bool UMeshPaintModeSubsystem::CanFixTextureColors(const TArray<UMeshComponent*>&
 		{
 			if (UTexture* Texture = StaticMeshComponent->GetMeshPaintTexture())
 			{
-				if (StaticMeshComponent->GetMeshPaintTextureResolution() != Texture->Source.GetSizeX())
+				if (StaticMeshComponent->CanMeshPaintTextureColors())
 				{
-					return true;
+					if (StaticMeshComponent->GetMeshPaintTextureResolution() != Texture->Source.GetSizeX())
+					{
+						return true;
+					}
 				}
 			}
 		}

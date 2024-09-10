@@ -51,7 +51,7 @@ void FTedsSettingsManager::Initialize()
 
 		auto OnDataStorage = [this, TypedElementRegistry]
 			{
-				ITypedElementDataStorageInterface* DataStorage = TypedElementRegistry->GetMutableDataStorage();
+				IEditorDataStorageProvider* DataStorage = TypedElementRegistry->GetMutableDataStorage();
 				check(DataStorage);
 
 				RegisterTables(*DataStorage);
@@ -83,7 +83,7 @@ void FTedsSettingsManager::Shutdown()
 
 		if (TypedElementRegistry->AreDataStorageInterfacesSet())
 		{
-			ITypedElementDataStorageInterface* DataStorage = TypedElementRegistry->GetMutableDataStorage();
+			IEditorDataStorageProvider* DataStorage = TypedElementRegistry->GetMutableDataStorage();
 			check(DataStorage);
 
 			UnregisterSettings();
@@ -94,7 +94,7 @@ void FTedsSettingsManager::Shutdown()
 	}
 }
 
-void FTedsSettingsManager::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
+void FTedsSettingsManager::RegisterTables(IEditorDataStorageProvider& DataStorage)
 {
 	if (SettingsContainerTable == UE::Editor::DataStorage::InvalidTableHandle)
 	{
@@ -111,7 +111,7 @@ void FTedsSettingsManager::RegisterTables(ITypedElementDataStorageInterface& Dat
 	}
 }
 
-void FTedsSettingsManager::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void FTedsSettingsManager::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 
@@ -126,7 +126,7 @@ void FTedsSettingsManager::RegisterQueries(ITypedElementDataStorageInterface& Da
 	}
 }
 
-void FTedsSettingsManager::UnregisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void FTedsSettingsManager::UnregisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	DataStorage.UnregisterQuery(SelectAllSettingsQuery);
 	SelectAllSettingsQuery = UE::Editor::DataStorage::InvalidQueryHandle;
@@ -162,7 +162,7 @@ void FTedsSettingsManager::RegisterSettingsContainer(const FName& ContainerName)
 	UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
 	check(TypedElementRegistry);
 
-	ITypedElementDataStorageInterface* DataStorage = TypedElementRegistry->GetMutableDataStorage();
+	IEditorDataStorageProvider* DataStorage = TypedElementRegistry->GetMutableDataStorage();
 	check(DataStorage);
 
 	UE_LOG(LogTedsSettings, Log, TEXT("Register Settings Container : '%s'"), *ContainerName.ToString());
@@ -215,10 +215,10 @@ void FTedsSettingsManager::UnregisterSettings()
 	UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
 	check(TypedElementRegistry);
 
-	ITypedElementDataStorageInterface* DataStorage = TypedElementRegistry->GetMutableDataStorage();
+	IEditorDataStorageProvider* DataStorage = TypedElementRegistry->GetMutableDataStorage();
 	check(DataStorage);
 
-	ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibility = TypedElementRegistry->GetMutableDataStorageCompatibility();
+	IEditorDataStorageCompatibilityProvider* DataStorageCompatibility = TypedElementRegistry->GetMutableDataStorageCompatibility();
 	check(DataStorageCompatibility);
 
 	SettingsModule->OnContainerAdded().RemoveAll(this);
@@ -286,10 +286,10 @@ void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> 
 	UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
 	check(TypedElementRegistry);
 
-	ITypedElementDataStorageInterface* DataStorage = TypedElementRegistry->GetMutableDataStorage();
+	IEditorDataStorageProvider* DataStorage = TypedElementRegistry->GetMutableDataStorage();
 	check(DataStorage);
 
-	ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibility = TypedElementRegistry->GetMutableDataStorageCompatibility();
+	IEditorDataStorageCompatibilityProvider* DataStorageCompatibility = TypedElementRegistry->GetMutableDataStorageCompatibility();
 	check(DataStorageCompatibility);
 
 	const FName& ContainerName = DataStorage->GetColumn<FNameColumn>(ContainerRow)->Name;

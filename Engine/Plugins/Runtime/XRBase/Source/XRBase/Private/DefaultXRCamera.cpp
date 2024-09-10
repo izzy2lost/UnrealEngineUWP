@@ -9,12 +9,37 @@
 #include "RenderGraphBuilder.h"
 #include "SceneView.h"
 
+static TAutoConsoleVariable<bool> CVarCameraSmoothing(
+	TEXT("xr.CinematicCameraSmoothing"),
+	false,
+	TEXT("Enable/disable cinematic camera smoothing for head mounted displays. Intended for trailer capture only, and likely to be disorienting in normal play.\n"),
+	ECVF_Default);
+
+static TAutoConsoleVariable<float> CVarCameraSmoothingRollDecay(
+	TEXT("xr.CinematicCameraSmoothing.RollDecay"),
+	1.0f,
+	TEXT("When cinematic camera smoothing is enabled, the difference between actual HMD roll and in-game camera roll is reduced by a factor of DeltaTime / RollDecay each frame.\n"),
+	ECVF_Default);
+
+static TAutoConsoleVariable<float> CVarCameraSmoothingPitchDecay(
+	TEXT("xr.CinematicCameraSmoothing.PitchDecay"),
+	0.18f,
+	TEXT("When cinematic camera smoothing is enabled, the difference between actual HMD pitch and in-game camera pitch is reduced by a factor of DeltaTime / PitchDecay each frame.\n"),
+	ECVF_Default);
+
+static TAutoConsoleVariable<float> CVarCameraSmoothingYawDecay(
+	TEXT("xr.CinematicCameraSmoothing.YawDecay"),
+	0.18f,
+	TEXT("When cinematic camera smoothing is enabled, the difference between actual HMD yaw and in-game camera yaw is reduced by a factor of DeltaTime / YawDecay each frame.\n"),
+	ECVF_Default);
+
 FDefaultXRCamera::FDefaultXRCamera(const FAutoRegister& AutoRegister, IXRTrackingSystem* InTrackingSystem, int32 InDeviceId)
 	: FHMDSceneViewExtension(AutoRegister)
 	, TrackingSystem(InTrackingSystem)
 	, DeviceId(InDeviceId)
 	, DeltaControlRotation(0, 0, 0)
 	, DeltaControlOrientation(FQuat::Identity)
+	, SmoothedCameraRotation(0, 0, 0)
 	, bUseImplicitHMDPosition(false)
 {
 }
@@ -39,7 +64,7 @@ void FDefaultXRCamera::ApplyHMDRotation(APlayerController* PC, FRotator& ViewRot
 	}
 }
 
-bool FDefaultXRCamera::UpdatePlayerCamera(FQuat& CurrentOrientation, FVector& CurrentPosition)
+bool FDefaultXRCamera::UpdatePlayerCamera(FQuat& CurrentOrientation, FVector& CurrentPosition, float DeltaTime)
 {
 	FQuat DeviceOrientation;
 	FVector DevicePosition;
@@ -56,6 +81,45 @@ bool FDefaultXRCamera::UpdatePlayerCamera(FQuat& CurrentOrientation, FVector& Cu
 
 	CurrentPosition = DevicePosition;
 	CurrentOrientation = DeviceOrientation;
+
+	if (CVarCameraSmoothing.GetValueOnAnyThread() == true)
+	{
+		FRotator CurrentRotation = CurrentOrientation.Rotator();
+		FRotator DeltaRotation = CurrentRotation - SmoothedCameraRotation;
+
+		const float RollDecay =		CVarCameraSmoothingRollDecay.GetValueOnAnyThread();
+		const float PitchDecay =	CVarCameraSmoothingPitchDecay.GetValueOnAnyThread();
+		const float YawDecay =		CVarCameraSmoothingYawDecay.GetValueOnAnyThread();
+		
+		if (RollDecay > UE_KINDA_SMALL_NUMBER)
+		{
+			SmoothedCameraRotation.Roll += DeltaRotation.Roll * (DeltaTime / RollDecay);
+		}
+		else
+		{
+			SmoothedCameraRotation.Roll = CurrentRotation.Roll;
+		}
+
+		if (PitchDecay > UE_KINDA_SMALL_NUMBER)
+		{
+			SmoothedCameraRotation.Pitch += DeltaRotation.Pitch * (DeltaTime / PitchDecay);
+		}
+		else
+		{
+			SmoothedCameraRotation.Pitch = CurrentRotation.Pitch;
+		}
+		
+		if (YawDecay > UE_KINDA_SMALL_NUMBER)
+		{
+			SmoothedCameraRotation.Yaw += DeltaRotation.Yaw * (DeltaTime / YawDecay);
+		}
+		else
+		{
+			SmoothedCameraRotation.Yaw = CurrentRotation.Yaw;
+		}
+		
+		CurrentOrientation = SmoothedCameraRotation.Quaternion();
+	}
 
 	return true;
 }

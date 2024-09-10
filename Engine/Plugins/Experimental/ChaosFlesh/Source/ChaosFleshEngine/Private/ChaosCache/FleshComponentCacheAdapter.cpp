@@ -16,6 +16,7 @@
 
 #include "ChaosCachingUSD/Operations.h"
 #include "USDConversionUtils.h" // for GetPrimPathForObject()
+#include "USDMemory.h"
 
 #endif // USE_USD_SDK && DO_USD_CACHING
 

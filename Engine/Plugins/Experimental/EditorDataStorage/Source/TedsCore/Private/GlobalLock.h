@@ -6,8 +6,6 @@
 #include "HAL/CriticalSection.h"
 #include "HAL/Platform.h"
 
-class UTypedElementDatabase;
-
 namespace UE::Editor::DataStorage
 {
 	enum class EGlobalLockStatus : uint8
@@ -46,7 +44,6 @@ namespace UE::Editor::DataStorage
 	 */
 	class FGlobalLock
 	{
-		friend class ::UTypedElementDatabase;
 	public:
 		static void SharedLock(EGlobalLockScope Scope);
 		static void ExclusiveLock(EGlobalLockScope Scope);

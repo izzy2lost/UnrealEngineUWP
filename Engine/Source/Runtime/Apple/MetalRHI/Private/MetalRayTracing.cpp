@@ -823,7 +823,7 @@ FRayTracingPipelineStateRHIRef FMetalDynamicRHI::RHICreateRayTracingPipelineStat
 	return nullptr;
 }
 
-FShaderBindingTableRHIRef FMetalDynamicRHI::RHICreateShaderBindingTable(const FRayTracingShaderBindingTableInitializer& Initializer)
+FShaderBindingTableRHIRef FMetalDynamicRHI::RHICreateShaderBindingTable(FRHICommandListBase& RHICmdList, const FRayTracingShaderBindingTableInitializer& Initializer)
 {
 	checkNoEntry();
 	return nullptr;

@@ -624,7 +624,7 @@ UObject* FSoftObjectPath::TryLoad(FUObjectSerializeContext* InLoadContext) const
 			}
 #endif
 
-			UE_AUTORTFM_OPEN2
+			UE_AUTORTFM_OPEN
 			{
 				LoadedObject = StaticLoadObject(UObject::StaticClass(), nullptr, *PathString, nullptr, LOAD_None, nullptr, true);
 			};
@@ -635,7 +635,7 @@ UObject* FSoftObjectPath::TryLoad(FUObjectSerializeContext* InLoadContext) const
 				FSoftObjectPath FixupObjectPath = *this;
 				if (FixupObjectPath.FixupCoreRedirects())
 				{
-					UE_AUTORTFM_OPEN2
+					UE_AUTORTFM_OPEN
 					{
 						LoadedObject = LoadObject<UObject>(nullptr, *FixupObjectPath.ToString());
 					};

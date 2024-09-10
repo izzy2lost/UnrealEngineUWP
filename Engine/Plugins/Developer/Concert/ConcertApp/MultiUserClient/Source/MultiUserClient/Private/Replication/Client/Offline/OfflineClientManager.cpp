@@ -91,11 +91,14 @@ namespace UE::MultiUserClient::Replication
 			else
 			{
 				bChanged = true;
-				
+
+				const FGuid LastId = EndpointCache.GetLastAssociatedEndpoint(i);
 				const int32 AddedIndex = Clients.Emplace(
-					MakeUnique<FOfflineClient>(Workspace, KnownEndpointInfo, EndpointCache.GetLastAssociatedEndpoint(i))
+					MakeUnique<FOfflineClient>(Workspace, KnownEndpointInfo, LastId)
 					);
-				OnPostClientAddedDelegate.Broadcast(*Clients[AddedIndex].Get());
+				FOfflineClient& Client = *Clients[AddedIndex].Get();
+				Client.OnStreamPredictionChanged().AddLambda([this, &Client]{ OnClientContentChangedDelegate.Broadcast(Client); });
+				OnPostClientAddedDelegate.Broadcast(Client);
 			}
 		}
 		return bChanged;

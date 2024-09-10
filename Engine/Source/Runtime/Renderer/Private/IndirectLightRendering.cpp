@@ -1497,7 +1497,7 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 						View.ViewRect.Width(), View.ViewRect.Height()), 
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[&View, PassParameters,PixelShader, BlendState, bUseDepthBounds](FRHICommandList& RHICmdList)
+					[&View, PassParameters,PixelShader, BlendState, bUseDepthBounds](FRDGAsyncTask, FRHICommandList& RHICmdList)
 					{
 						check(PixelShader.IsValid());
 						RHICmdList.SetViewport((float)View.ViewRect.Min.X, (float)View.ViewRect.Min.Y, 0.0f, (float)View.ViewRect.Max.X, (float)View.ViewRect.Max.Y, 1.0f);
@@ -1559,7 +1559,7 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 						View.ViewRect.Width(), View.ViewRect.Height()),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[&View, TileVertexShader, PixelShader, PassParameters, TileType, BlendState, PrimitiveType](FRHICommandList& RHICmdList)
+					[&View, TileVertexShader, PixelShader, PassParameters, TileType, BlendState, PrimitiveType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -1648,7 +1648,7 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 					RDG_EVENT_NAME("AmbientCubemapComposite(%dx%d%s%s)", View.ViewRect.Width(), View.ViewRect.Height(), bSubstrateEnabled ? TEXT(",") : TEXT(""), bSubstrateEnabled ? ToString(TileType) : TEXT("")),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[PassParameters, &View, FullScreenVertexShader, TileVertexShader, PixelShader, PrimitiveType, TileType, bSubstrateEnabled](FRHICommandList& RHICmdList)
+					[PassParameters, &View, FullScreenVertexShader, TileVertexShader, PixelShader, PrimitiveType, TileType, bSubstrateEnabled](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{				
 					RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 0.0);
 
@@ -1695,7 +1695,7 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 								EDRF_UseTriangleOptimization);
 						}
 					}
-				});				
+				});
 			};
 
 			if (Substrate::IsSubstrateEnabled())
@@ -1874,7 +1874,7 @@ static void AddSkyReflectionPass(
 		PassParameters,
 		ERDGPassFlags::Raster,
 		[PassParameters, &View, PixelShader, bCheckerboardSubsurfaceRendering, SubstrateTileMaterialType,
-		SubstrateTilePassVertexShader, bSubstrateEnabled, SubstrateTilePrimitiveType](FRHICommandList& InRHICmdList)
+		SubstrateTilePassVertexShader, bSubstrateEnabled, SubstrateTilePrimitiveType](FRDGAsyncTask, FRHICommandList& InRHICmdList)
 	{
 		InRHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 

@@ -1371,7 +1371,7 @@ namespace RuntimeVirtualTexture
 			RDG_EVENT_NAME("VirtualTextureCopy"),
 			Parameters,
 			ERDGPassFlags::Raster,
-			[VertexShader, PixelShader, Parameters, TextureSize](FRHICommandList& RHICmdList)
+			[VertexShader, PixelShader, Parameters, TextureSize](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FGraphicsPipelineStateInitializer GraphicsPSOInit;
 			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -1452,7 +1452,7 @@ namespace RuntimeVirtualTexture
 			RDG_EVENT_NAME("VirtualTextureCopyToOutput"),
 			Parameters,
 			ERDGPassFlags::Copy | ERDGPassFlags::NeverCull,
-			[InputTexture, OutputTexture, OutputTextureAccessBefore, OutputTextureAccessAfter, CopyInfo](FRHICommandList& RHICmdList)
+			[InputTexture, OutputTexture, OutputTextureAccessBefore, OutputTextureAccessAfter, CopyInfo](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				RHICmdList.Transition(FRHITransitionInfo(OutputTexture, OutputTextureAccessBefore, ERHIAccess::CopyDest));
 				RHICmdList.CopyTexture(InputTexture->GetRHI(), OutputTexture, CopyInfo);

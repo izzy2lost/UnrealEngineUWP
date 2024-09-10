@@ -39,9 +39,8 @@ public:
 	FOptimus_ComputeKernelResult CreateComputeKernel(
 		UObject* InKernelSourceOuter,
 		const FOptimusPinTraversalContext& InTraversalContext,
-		const FOptimus_KernelInputMap InKernelInputs,
-		const FOptimus_KernelOutputMap InKernelOutputs,
-		const TArray<const UOptimusNode*>& InValueNodes,
+		const FOptimus_KernelInputMap& InKernelInputs,
+		const FOptimus_KernelOutputMap& InKernelOutputs,
 		UComputeDataInterface* InOutKernelDataInterface,
 		FOptimus_InterfaceBindingMap& OutInputDataBindings,
 		FOptimus_InterfaceBindingMap& OutOutputDataBindings
@@ -102,7 +101,6 @@ private:
 		const UOptimusNodePin* InInputPin,
 		const FString& InGroupName,
 		const FOptimus_KernelInputMap& InKernelInputs,
-		const TArray<const UOptimusNode*>& InValueNodes,
 		UOptimusKernelSource* InKernelSource,
 		TArray<FString>& OutGeneratedFunctions,
 		FOptimus_InterfaceBindingMap& OutInputDataBindings

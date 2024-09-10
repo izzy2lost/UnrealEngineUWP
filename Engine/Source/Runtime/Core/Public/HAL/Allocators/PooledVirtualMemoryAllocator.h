@@ -76,7 +76,11 @@ struct FPooledVirtualMemoryAllocator
 	};
 
 	/** Returns free memory in the pools */
-	uint64 GetCachedFreeTotal();
+	uint64 GetCachedFreeTotal() const;
+	uint64 GetCachedImmediatelyFreeable() const
+	{
+		return GetCachedFreeTotal();
+	}
 
 	/** Refresh allocator if needed. (does nothing in that implementation) */
 	void Refresh() {}
@@ -134,7 +138,7 @@ private:
 	FPoolDescriptorBase* ClassesListHeads[Limits::NumAllocationSizeClasses];
 
 	/** Per-class locks */
-	FCriticalSection     ClassesLocks[Limits::NumAllocationSizeClasses];
+	mutable FCriticalSection ClassesLocks[Limits::NumAllocationSizeClasses];
 
 	/** Increases the number of pooled allocations next time we need a pool
 	 *

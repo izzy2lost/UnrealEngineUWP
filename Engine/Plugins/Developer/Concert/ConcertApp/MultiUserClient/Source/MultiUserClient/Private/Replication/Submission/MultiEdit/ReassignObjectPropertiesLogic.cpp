@@ -308,7 +308,7 @@ namespace UE::MultiUserClient::Replication
 		{
 			ReassignObjectProperties::EnumerateOwningOnlineClients(ClientManager, Objects[i],[&bOwnsAny, &TargetClientId](const FGuid& ClientId)
 			{
-				bOwnsAny = true;
+				bOwnsAny |= ClientId == TargetClientId;
 				return bOwnsAny ? EBreakBehavior::Break : EBreakBehavior::Continue;
 			});
 		}

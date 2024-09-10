@@ -96,7 +96,13 @@ bool FAdvancedRenamerObjectProvider::CanRename(int32 InIndex) const
 	return true;
 }
 
-bool FAdvancedRenamerObjectProvider::ExecuteRename(int32 InIndex, const FString& InNewName)
+bool FAdvancedRenamerObjectProvider::BeginRename()
+{
+	ObjectToNewNameList.Reserve(Num());
+	return true;
+}
+
+bool FAdvancedRenamerObjectProvider::PrepareRename(int32 InIndex, const FString& InNewName)
 {
 	UObject* Object = GetObject(InIndex);
 
@@ -105,11 +111,31 @@ bool FAdvancedRenamerObjectProvider::ExecuteRename(int32 InIndex, const FString&
 		return false;
 	}
 
-	if (Object->Rename(*InNewName, nullptr, REN_Test))
-	{
-		Object->Rename(*InNewName);
-		return true;
-	}
+	ObjectToNewNameList.Add({ Object, InNewName });
 
-	return false;
+	return true;
+}
+
+bool FAdvancedRenamerObjectProvider::ExecuteRename()
+{
+	bool bAllSuccess = true;
+	for (const TTuple<UObject*, FString>& ObjectToNewName : ObjectToNewNameList)
+	{
+		// We have to run the REN_Test here to prevent the other renamed objects from making this rename fail
+		if (ObjectToNewName.Key->Rename(*ObjectToNewName.Value, nullptr, REN_Test))
+		{
+			bAllSuccess &= ObjectToNewName.Key->Rename(*ObjectToNewName.Value);
+		}
+		else
+		{
+			bAllSuccess = false;
+		}
+	}
+	return bAllSuccess;
+}
+
+bool FAdvancedRenamerObjectProvider::EndRename()
+{
+	ObjectToNewNameList.Empty();
+	return true;
 }

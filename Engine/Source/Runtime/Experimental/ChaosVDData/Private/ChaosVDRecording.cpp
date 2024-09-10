@@ -438,6 +438,11 @@ bool FChaosVDRecording::IsEmpty() const
 	return GetAvailableSolversNumber_AssumesLocked() == 0 && GetAvailableGameFrames_AssumesLocked().Num() == 0 && ImplicitObjects.Num() == 0;
 }
 
+void FChaosVDRecording::SetCollisionChannelsInfoContainer(const TSharedPtr<FChaosVDCollisionChannelsInfoContainer>& InCollisionChannelsInfo)
+{
+	CollisionChannelsInfoContainer = InCollisionChannelsInfo;
+}
+
 void FChaosVDRecording::AddImplicitObject(const uint32 ID, const Chaos::FImplicitObject* InImplicitObject)
 {
 	FWriteScopeLock WriteLock(RecordingDataLock);

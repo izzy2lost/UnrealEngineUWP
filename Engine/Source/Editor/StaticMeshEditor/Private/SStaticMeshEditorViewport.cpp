@@ -871,6 +871,13 @@ TSharedPtr<SWidget> SStaticMeshEditorViewport::BuildViewportToolbar()
 				RightSection.AddEntry(ViewModesSubmenu);
 			}
 
+			// Add the "Show" sub menu
+			{
+				FToolMenuEntry ShowSubmenu = UE::StaticMeshEditor::CreateShowSubmenu();
+				ShowSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(ShowSubmenu);
+			}
+
 			// Add the "LOD" sub menu
 			{
 				FToolMenuEntry LODSubmenu = UE::StaticMeshEditor::CreateLODSubmenu();

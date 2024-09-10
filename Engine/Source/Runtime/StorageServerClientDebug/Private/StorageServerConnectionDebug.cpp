@@ -250,6 +250,12 @@ public:
 				StopThread();
 				StartTick();
 			});
+
+			// load the low-level network tracing module too, so we get platform bandwidth stats as well
+			if (FModuleManager::Get().ModuleExists(TEXT("LowLevelNetTrace")))
+			{
+				FModuleManager::Get().LoadModule(TEXT("LowLevelNetTrace"));
+			}
 		}
 	}
 

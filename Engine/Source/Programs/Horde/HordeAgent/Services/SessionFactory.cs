@@ -41,7 +41,7 @@ namespace HordeAgent.Services
 		/// <summary>
 		/// Horde client instance
 		/// </summary>
-		IHordeClient HordeClient { get; }
+		HordeClient HordeClient { get; }
 	}
 
 	/// <summary>
@@ -72,12 +72,12 @@ namespace HordeAgent.Services
 		public DirectoryReference WorkingDir { get; }
 
 		/// <inheritdoc/>
-		public IHordeClient HordeClient { get; }
+		public HordeClient HordeClient { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public Session(AgentId agentId, SessionId sessionId, DirectoryReference workingDir, IHordeClient hordeClient)
+		public Session(AgentId agentId, SessionId sessionId, DirectoryReference workingDir, HordeClient hordeClient)
 		{
 			AgentId = agentId;
 			SessionId = sessionId;
@@ -95,7 +95,7 @@ namespace HordeAgent.Services
 		/// <summary>
 		/// Creates a new agent session
 		/// </summary>
-		public static async Task<Session> CreateAsync(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, IOptions<AgentSettings> settings, IHordeClientFactory hordeClientFactory, ILogger logger, CancellationToken cancellationToken)
+		public static async Task<Session> CreateAsync(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, IOptions<AgentSettings> settings, HordeClientFactory hordeClientFactory, ILogger logger, CancellationToken cancellationToken)
 		{
 			AgentSettings currentSettings = settings.Value;
 
@@ -172,7 +172,7 @@ namespace HordeAgent.Services
 			statusService.Set(AgentStatusMessage.ConnectingToServer);
 
 			RpcCreateSessionResponse createSessionResponse;
-			await using (IHordeClient sessionClient = hordeClientFactory.Create(registrationInfo.Token))
+			await using (HordeClient sessionClient = hordeClientFactory.Create(accessToken: registrationInfo.Token))
 			{
 				HordeRpc.HordeRpcClient rpcClient = await sessionClient.CreateGrpcClientAsync<HordeRpc.HordeRpcClient>(cancellationToken);
 
@@ -202,7 +202,7 @@ namespace HordeAgent.Services
 
 			// Open a connection to the server
 #pragma warning disable CA2000 // False positive; ownership is transferred to new Session object.
-			IHordeClient client = hordeClientFactory.Create(createSessionResponse.Token);
+			HordeClient client = hordeClientFactory.Create(accessToken: createSessionResponse.Token);
 			return new Session(new AgentId(createSessionResponse.AgentId), SessionId.Parse(createSessionResponse.SessionId), workingDir, client);
 #pragma warning restore CA2000
 		}
@@ -332,14 +332,14 @@ namespace HordeAgent.Services
 		readonly CapabilitiesService _capabilitiesService;
 		readonly GrpcService _grpcService;
 		readonly StatusService _statusService;
-		readonly IHordeClientFactory _hordeClientFactory;
+		readonly HordeClientFactory _hordeClientFactory;
 		readonly IOptions<AgentSettings> _agentSettings;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public SessionFactory(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, IHordeClientFactory hordeClientFactory, IOptions<AgentSettings> agentSettings, ILogger<SessionFactory> logger)
+		public SessionFactory(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, HordeClientFactory hordeClientFactory, IOptions<AgentSettings> agentSettings, ILogger<SessionFactory> logger)
 		{
 			_capabilitiesService = capabilitiesService;
 			_grpcService = grpcService;

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Elements/PCGSplineMeshParams.h"
+#include "MeshSelectors/PCGISMDescriptor.h"
 
 #include "Engine/EngineTypes.h"
 #include "Engine/SplineMeshComponentDescriptor.h"
@@ -26,7 +27,7 @@ class UPCGManagedSplineMeshComponent;
 class UStaticMesh;
 class UWorld;
 
-struct FPCGISMCBuilderParameters
+struct UE_DEPRECATED(5.5, "Use FPCGISMComponentBuilderParams instead.") FPCGISMCBuilderParameters
 {
 	FISMComponentDescriptor Descriptor;
 	int32 NumCustomDataFloats = 0;
@@ -38,6 +39,29 @@ struct FPCGISMCBuilderParameters
 	}
 
 	inline bool operator==(const FPCGISMCBuilderParameters& Other) const { return Descriptor == Other.Descriptor && NumCustomDataFloats == Other.NumCustomDataFloats && bAllowDescriptorChanges == Other.bAllowDescriptorChanges; }
+};
+
+struct FPCGISMComponentBuilderParams
+{
+	FPCGISMComponentBuilderParams() = default;
+
+	FPCGSoftISMComponentDescriptor Descriptor;
+	int32 NumCustomDataFloats = 0;
+	bool bAllowDescriptorChanges = true;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	explicit FPCGISMComponentBuilderParams(const FPCGISMCBuilderParameters& Params)
+	: Descriptor(Params.Descriptor), NumCustomDataFloats(Params.NumCustomDataFloats), bAllowDescriptorChanges(Params.bAllowDescriptorChanges)
+	{
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	friend inline uint32 GetTypeHash(const FPCGISMComponentBuilderParams& Key)
+	{
+		return HashCombine(HashCombine(GetTypeHash(Key.Descriptor), 1 + Key.NumCustomDataFloats), (Key.bAllowDescriptorChanges ? 2 : 1));
+	}
+
+	inline bool operator==(const FPCGISMComponentBuilderParams& Other) const { return Descriptor == Other.Descriptor && NumCustomDataFloats == Other.NumCustomDataFloats && bAllowDescriptorChanges == Other.bAllowDescriptorChanges; }
 };
 
 struct FPCGSplineMeshComponentBuilderParameters
@@ -59,8 +83,13 @@ class PCG_API UPCGActorHelpers : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	static UInstancedStaticMeshComponent* GetOrCreateISMC(AActor* InTargetActor, UPCGComponent* SourceComponent, uint64 SettingsUID, const FPCGISMCBuilderParameters& Params);
 	static UPCGManagedISMComponent* GetOrCreateManagedISMC(AActor* InTargetActor, UPCGComponent* SourceComponent, uint64 SettingsUID, const FPCGISMCBuilderParameters& Params);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	static UInstancedStaticMeshComponent* GetOrCreateISMC(AActor* InTargetActor, UPCGComponent* SourceComponent, uint64 SettingsUID, const FPCGISMComponentBuilderParams& Params);
+	static UPCGManagedISMComponent* GetOrCreateManagedISMC(AActor* InTargetActor, UPCGComponent* SourceComponent, uint64 SettingsUID, const FPCGISMComponentBuilderParams& Params);
 	static USplineMeshComponent* GetOrCreateSplineMeshComponent(AActor* InTargetActor, UPCGComponent* SourceComponent, uint64 SettingsUID, const FPCGSplineMeshComponentBuilderParameters& Params);
 	static UPCGManagedSplineMeshComponent* GetOrCreateManagedSplineMeshComponent(AActor* InTargetActor, UPCGComponent* SourceComponent, uint64 SettingsUID, const FPCGSplineMeshComponentBuilderParameters& Params);
 	static bool DeleteActors(UWorld* World, const TArray<TSoftObjectPtr<AActor>>& ActorsToDelete);

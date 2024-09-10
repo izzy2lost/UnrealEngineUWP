@@ -97,6 +97,12 @@ namespace StencilingGeometry
 	* Note: The sphere will be of unit size unless transformed by the shader. 
 	*/
 	extern void DrawSphere(FRHICommandList& RHICmdList);
+	/**
+	* Draws a sphere using RHIDrawIndexedPrimitive, useful as approximate bounding geometry for deferred passes.
+	* Compatible with instanced rendering.
+	* Note: The sphere will be of unit size unless transformed by the shader.
+	*/
+	extern void DrawSphere(FRHICommandList& RHICmdList, uint32 InstanceCount);
 	/** Draws exactly the same as above, but uses FVector rather than FVector4f vertex data. */
 	extern void DrawVectorSphere(FRHICommandList& RHICmdList);
 	/** Renders a cone with a spherical cap, used for rendering spot lights in deferred passes. */

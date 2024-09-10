@@ -251,7 +251,7 @@ void UWorldPartitionRuntimeHashSet::FlushStreamingContent()
 
 bool UWorldPartitionRuntimeHashSet::IsValidGrid(FName GridName, const UClass* ActorClass) const
 {
-	return ResolveRuntimePartition(GridName) != nullptr;
+	return GridName.IsNone() || !!ResolveRuntimePartition(GridName);
 }
 #endif
 

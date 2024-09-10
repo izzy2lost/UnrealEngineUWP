@@ -169,9 +169,21 @@ namespace CSVStats
 			return defaultValue;
 		}
 
-		public bool GetBoolArg(string key)
+		public bool GetBoolArg(string key, bool defaultValue)
 		{
-			return CommandLineArgs.ContainsKey(key.ToLower());
+			if ( CommandLineArgs.ContainsKey(key.ToLower()) )
+			{
+				string value = CommandLineArgs[key.ToLower()];
+				if (value == "1")
+				{
+					return true;
+				}
+				if (value == "0")
+				{
+					return false;
+				}
+			}
+			return defaultValue;
 		}
 
 		public bool? GetOptionalBoolArg(string key)
@@ -265,9 +277,9 @@ namespace CSVStats
 			return commandLine.GetFloatArg(key, defaultValue);
 		}
 
-		protected bool GetBoolArg(string key)
+		protected bool GetBoolArg(string key, bool defaultValue=false)
         {
-			return commandLine.GetBoolArg(key);
+			return commandLine.GetBoolArg(key, defaultValue);
         }
 
 		protected bool? GetOptionalBoolArg(string key)

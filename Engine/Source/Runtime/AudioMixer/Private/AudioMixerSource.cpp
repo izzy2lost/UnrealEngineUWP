@@ -482,6 +482,22 @@ namespace Audio
 
 			return Settings;
 		}
+
+		FSoundModulationDefaultRoutingSettings UpdateRoutedModulation(const FWaveInstance& InWaveInstance, const USoundWave& InWaveData, FActiveSound* InActiveSound)
+		{
+			FSoundModulationDefaultRoutingSettings NewRouting;
+
+			if (InActiveSound)
+			{
+				NewRouting.VolumeModulationDestination = InitRoutedVolumeModulation(InWaveInstance, InWaveData, *InActiveSound);
+				NewRouting.PitchModulationDestination = InitRoutedPitchModulation(InWaveInstance, InWaveData, *InActiveSound);
+				NewRouting.HighpassModulationDestination = InitRoutedHighpassModulation(InWaveInstance, InWaveData, *InActiveSound);
+				NewRouting.LowpassModulationDestination = InitRoutedLowpassModulation(InWaveInstance, InWaveData, *InActiveSound);
+			}
+
+			return NewRouting;
+		}
+
 	} // namespace ModulationUtils
 
 	FMixerSource::FMixerSource(FAudioDevice* InAudioDevice)
@@ -1929,7 +1945,15 @@ namespace Audio
 
 		if (ActiveSound->bModulationRoutingUpdated)
 		{
-			MixerSourceVoice->SetModulationRouting(ActiveSound->ModulationRouting);
+			if (WaveInstance->WaveData)
+			{
+				FSoundModulationDefaultRoutingSettings UpdatedRouting = ModulationUtils::UpdateRoutedModulation(*WaveInstance, *(WaveInstance->WaveData), ActiveSound);
+				MixerSourceVoice->SetModulationRouting(UpdatedRouting);
+			}
+			else
+			{
+				MixerSourceVoice->SetModulationRouting(ActiveSound->ModulationRouting);
+			}
 		}
 
 		ActiveSound->bModulationRoutingUpdated = false;

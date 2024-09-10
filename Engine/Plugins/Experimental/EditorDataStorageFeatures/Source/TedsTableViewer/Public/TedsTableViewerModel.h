@@ -9,9 +9,9 @@
 #include "TypedElementUITypes.h"
 #include "UObject/NameTypes.h"
 
-class ITypedElementDataStorageCompatibilityInterface;
-class ITypedElementDataStorageUiInterface;
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageCompatibilityProvider;
+class IEditorDataStorageUiProvider;
+class IEditorDataStorageProvider;
 
 namespace UE::Editor::DataStorage
 {
@@ -59,7 +59,7 @@ namespace UE::Editor::DataStorage
 		// Add a custom column to display in the table viewer, that doesn't necessarily map to a Teds column
 		TEDSTABLEVIEWER_API void AddCustomColumn(const TSharedRef<FTedsTableViewerColumn>& InColumn);
 
-		TEDSTABLEVIEWER_API ITypedElementDataStorageInterface* GetDataStorageInterface() const;
+		TEDSTABLEVIEWER_API IEditorDataStorageProvider* GetDataStorageInterface() const;
 
 	protected:
 
@@ -105,8 +105,8 @@ namespace UE::Editor::DataStorage
 		FOnModelChanged OnModelChanged;
 		
 		// Teds Constructs
-		ITypedElementDataStorageInterface* Storage = nullptr;
-		ITypedElementDataStorageUiInterface* StorageUi = nullptr;
-		ITypedElementDataStorageCompatibilityInterface* StorageCompatibility = nullptr;
+		IEditorDataStorageProvider* Storage = nullptr;
+		IEditorDataStorageUiProvider* StorageUi = nullptr;
+		IEditorDataStorageCompatibilityProvider* StorageCompatibility = nullptr;
 	};
 } // namespace UE::Editor::DataStorage

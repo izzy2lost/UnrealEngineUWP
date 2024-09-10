@@ -205,7 +205,7 @@ ONLINESERVICESINTERFACE_API int32 GetBuildUniqueId();
  * @param InstanceName Name of the instance
  * @return true if the instance is loaded
  */
-ONLINESERVICESINTERFACE_API bool IsLoaded(EOnlineServices OnlineServices = EOnlineServices::Default, FName InstanceName = NAME_None);
+ONLINESERVICESINTERFACE_API bool IsLoaded(EOnlineServices OnlineServices = EOnlineServices::Default, FName InstanceName = NAME_None, FName InstanceConfigName = NAME_None);
 
 /**
  * Get an instance of the online service

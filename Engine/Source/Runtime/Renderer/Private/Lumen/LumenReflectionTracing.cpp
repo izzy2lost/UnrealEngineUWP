@@ -830,6 +830,7 @@ FLumenHZBScreenTraceParameters SetupHZBScreenTraceParameters(
 	FIntPoint ViewportOffset = View.ViewRect.Min;
 	FIntPoint ViewportExtent = View.ViewRect.Size();
 	FIntPoint PrevColorBufferSize = SceneTextures.Config.Extent;
+	int32 InputColorSliceIndex = INDEX_NONE;
 
 	if (View.PrevViewInfo.CustomSSRInput.IsValid())
 	{
@@ -844,6 +845,11 @@ FLumenHZBScreenTraceParameters SetupHZBScreenTraceParameters(
 		ViewportOffset = View.PrevViewInfo.TemporalAAHistory.ViewportRect.Min;
 		ViewportExtent = View.PrevViewInfo.TemporalAAHistory.ViewportRect.Size();
 		PrevColorBufferSize = InputColor->Desc.Extent;
+
+		if (InputColor->Desc.ArraySize > 1)
+		{
+			InputColorSliceIndex = View.PrevViewInfo.TemporalAAHistory.OutputSliceIndex;
+		}
 	}
 	else if (View.PrevViewInfo.ScreenSpaceRayTracingInput.IsValid())
 	{
@@ -899,7 +905,9 @@ FLumenHZBScreenTraceParameters SetupHZBScreenTraceParameters(
 
 	Parameters.PrevSceneColorPreExposureCorrection = InputColor != CurrentSceneColor ? View.PreExposure / View.PrevViewInfo.SceneColorPreExposure : 1.0f;
 
-	Parameters.PrevSceneColorTexture = InputColor;
+	Parameters.PrevSceneColorTexture = InputColorSliceIndex >= 0 ?
+		GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(InputColor, InputColorSliceIndex)) :
+		GraphBuilder.CreateSRV(InputColor);
 	Parameters.HistorySceneDepth = View.ViewState && View.ViewState->StochasticLighting.SceneDepthHistory ? GraphBuilder.RegisterExternalTexture(View.ViewState->StochasticLighting.SceneDepthHistory) : SceneTextures.Depth.Target;
 
 	checkf(View.ClosestHZB, TEXT("Lumen screen tracing: ClosestHZB was not setup, should have been setup by FDeferredShadingSceneRenderer::RenderHzb"));
@@ -965,7 +973,7 @@ void TraceReflections(
 		
 		PassParameters->SceneTextures = SceneTextureParameters;
 
-		if (PassParameters->HZBScreenTraceParameters.PrevSceneColorTexture == SceneTextures.Color.Resolve || !PassParameters->SceneTextures.GBufferVelocityTexture)
+		if (PassParameters->HZBScreenTraceParameters.PrevSceneColorTexture->GetParent() == SceneTextures.Color.Resolve || !PassParameters->SceneTextures.GBufferVelocityTexture)
 		{
 			PassParameters->SceneTextures.GBufferVelocityTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
 		}
@@ -1126,7 +1134,7 @@ void TraceReflections(
 			PassParameters->HZBScreenTraceParameters = SetupHZBScreenTraceParameters(GraphBuilder, View, SceneTextures);
 			PassParameters->SceneTextures = SceneTextureParameters;
 
-			if (PassParameters->HZBScreenTraceParameters.PrevSceneColorTexture == SceneTextures.Color.Resolve || !PassParameters->SceneTextures.GBufferVelocityTexture)
+			if (PassParameters->HZBScreenTraceParameters.PrevSceneColorTexture->GetParent() == SceneTextures.Color.Resolve || !PassParameters->SceneTextures.GBufferVelocityTexture)
 			{
 				PassParameters->SceneTextures.GBufferVelocityTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
 			}

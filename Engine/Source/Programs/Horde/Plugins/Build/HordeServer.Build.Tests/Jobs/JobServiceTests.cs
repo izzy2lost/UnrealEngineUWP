@@ -2,6 +2,7 @@
 
 using System.Text;
 using EpicGames.Core;
+using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
@@ -18,7 +19,6 @@ using HordeServer.Projects;
 using HordeServer.Server;
 using HordeServer.Streams;
 using HordeServer.Users;
-using Microsoft.CodeAnalysis;
 
 namespace HordeServer.Tests.Jobs
 {
@@ -246,7 +246,7 @@ namespace HordeServer.Tests.Jobs
 
 			// ----
 
-			IAgent? agent = await AgentService.CreateAgentAsync("TestAgent", false, "");
+			IAgent? agent = await AgentService.CreateAgentAsync(new CreateAgentOptions(new AgentId("TestAgent"), false, ""));
 			Assert.IsNotNull(agent);
 
 			agent = await agent.TryUpdateAsync(new UpdateAgentOptions { Enabled = true, ExplicitPools = new List<PoolId> { new PoolId("win") } });

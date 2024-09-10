@@ -3,6 +3,8 @@
 #include "RemoteControlDMXLibraryBuilder.h"
 
 #include "Algo/AnyOf.h"
+#include "Algo/MaxElement.h"
+#include "Editor.h"
 #include "RemoteControlDMXUserData.h"
 #include "RemoteControlPreset.h"
 #include "Library/DMXEntityFixturePatch.h"
@@ -13,6 +15,8 @@
 
 namespace UE::RemoteControl::DMX
 {
+	const FString FRemoteControlDMXLibraryBuilder::RCFixtureGroupTag = TEXT("RCGenerated_PatchGroup: ");
+
 	void FRemoteControlDMXLibraryBuilder::Register()
 	{
 		static TSharedRef<FRemoteControlDMXLibraryBuilder> Instance = MakeShared<FRemoteControlDMXLibraryBuilder>();
@@ -37,7 +41,9 @@ namespace UE::RemoteControl::DMX
 			Algo::TransformIf(PreEditChangePropertyPatches, PreviousFixturePatches,
 				[](const TSharedRef<FRemoteControlDMXControlledPropertyPatch>& PropertyPatch)
 				{
-					return PropertyPatch->GetFixturePatch();
+					return
+						PropertyPatch->GetOwnerActor() &&
+						PropertyPatch->GetFixturePatch();
 				},
 				[](const TSharedRef<FRemoteControlDMXControlledPropertyPatch>& PropertyPatch)
 				{
@@ -163,54 +169,166 @@ namespace UE::RemoteControl::DMX
 				return PropertyPatch->GetFixturePatch();
 			});
 
-		// Reset patch
+		// To retain auto-assign order for patches for properties in different worlds, use a group index.
+		const int32 GroupIndex = GetOrCreateGroupIndex(*DMXLibrary, FixturePatches);
+		const FName Tag = *(RCFixtureGroupTag + FString::FromInt(GroupIndex));
 		for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
 		{
-			FixturePatch->SetStartingChannel(1);
-			FixturePatch->SetUniverseID(1);
+			FixturePatch->CustomTags.AddUnique(Tag);
 		}
 
-		// Auto assign
-		for (const TSharedRef<FRemoteControlDMXControlledPropertyPatch>& PropertyPatch : PostEditChangePropertyPatches)
+		// Acquire all RC related patches
+		const TMap<int32, TArray<UDMXEntityFixturePatch*>> GroupIndexToRCFixturePatchesMap = GetGroupIndexToRCFixturePatchesMap(*DMXLibrary);
+
+		// Reset patches
+		for (const TTuple<int32, TArray<UDMXEntityFixturePatch*>>& GroupIndexToRCFixturePatchesPair : GroupIndexToRCFixturePatchesMap)
 		{
-			UDMXEntityFixturePatch* FixturePatch = PropertyPatch->GetFixturePatch();
+			for (UDMXEntityFixturePatch* FixturePatch : GroupIndexToRCFixturePatchesPair.Value)
+			{
+				FixturePatch->PreEditChange(nullptr);
+
+				FixturePatch->SetStartingChannel(1);
+				FixturePatch->SetUniverseID(1);
+			}
+		}
+
+		// Auto assign all RC related patches
+		UDMXEntityFixturePatch* PreviousFixturePatch = nullptr;
+		for (const TTuple<int32, TArray<UDMXEntityFixturePatch*>>& GroupIndexToRCFixturePatchesPair : GroupIndexToRCFixturePatchesMap)
+		{
+			for (UDMXEntityFixturePatch* FixturePatch : GroupIndexToRCFixturePatchesPair.Value)
+			{
+				const int32 AutoAssingFromUniverse = DMXUserData->GetAutoAssignFromUniverse();
+				const int32	DesiredAbsoluteStartingChannel = [PreviousFixturePatch, AutoAssingFromUniverse]()
+					{
+						if (PreviousFixturePatch && PreviousFixturePatch->GetUniverseID() >= AutoAssingFromUniverse)
+						{
+							return
+								(int64)PreviousFixturePatch->GetUniverseID() * DMX_UNIVERSE_SIZE +
+								PreviousFixturePatch->GetEndingChannel();
+						}
+						else
+						{
+							return (int64)AutoAssingFromUniverse * DMX_UNIVERSE_SIZE;
+						}
+					}();
+
+				const bool bFitsUniverse = DesiredAbsoluteStartingChannel % DMX_UNIVERSE_SIZE + FixturePatch->GetChannelSpan() <= DMX_UNIVERSE_SIZE;
+				const int64 AbsoluteStartingChannel = bFitsUniverse ? DesiredAbsoluteStartingChannel : (DesiredAbsoluteStartingChannel / DMX_UNIVERSE_SIZE + 1) * DMX_UNIVERSE_SIZE;
+
+				const int32 Universe = AbsoluteStartingChannel / DMX_UNIVERSE_SIZE;
+				const int32 Channel = AbsoluteStartingChannel % DMX_UNIVERSE_SIZE + 1;
+
+				FixturePatch->SetUniverseID(Universe);
+				FixturePatch->SetStartingChannel(Channel);
+
+				FixturePatch->PostEditChange();
+
+				PreviousFixturePatch = FixturePatch;
+			}
+		}
+	}
+
+	TMap<int32, TArray<UDMXEntityFixturePatch*>> FRemoteControlDMXLibraryBuilder::GetGroupIndexToRCFixturePatchesMap(const UDMXLibrary& DMXLibrary) const
+	{
+		TMap<int32, TArray<UDMXEntityFixturePatch*>> Result;
+
+		const TArray<UDMXEntityFixturePatch*> AllFixturePatchesInLibrary = DMXLibrary.GetEntitiesTypeCast<UDMXEntityFixturePatch>();
+		for (UDMXEntityFixturePatch* FixturePatch : AllFixturePatchesInLibrary)
+		{
 			if (!FixturePatch)
 			{
 				continue;
 			}
 
-			const int32 FixturePatchIndex = FixturePatches.IndexOfByKey(FixturePatch);
-			if (!ensureMsgf(FixturePatchIndex != INDEX_NONE, TEXT("Unexpected cannot find fixture patch in DMX Library. Cannot auto assign fixture patch.")))
+			const FName* GroupTagPtr = Algo::FindByPredicate(FixturePatch->CustomTags, [](const FName& Tag)
+				{
+					return Tag.ToString().StartsWith(RCFixtureGroupTag);
+				});
+
+			const int32 GroupIndex = GroupTagPtr ? ExtractGroupIndex(*GroupTagPtr) : INDEX_NONE;
+			if (GroupIndex != INDEX_NONE)
 			{
-				continue;
+				Result.FindOrAdd(GroupIndex).Add(FixturePatch);
+			}
+		}
+
+		Result.KeyStableSort([](const int32 GroupIndexA, const int32 GroupIndexB)
+			{
+				return GroupIndexA <= GroupIndexB;
+			});
+
+		return Result;
+	}
+
+	int32 FRemoteControlDMXLibraryBuilder::GetOrCreateGroupIndex(const UDMXLibrary& DMXLibrary, const TArray<UDMXEntityFixturePatch*>& FixturePatches) const
+	{
+		const FName* PreviouslySetTagPtr = [&FixturePatches]() -> const FName*
+			{
+				for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
+				{
+					const FName* GroupTagPtr = FixturePatch ?
+						Algo::FindByPredicate(FixturePatch->CustomTags, [](const FName& Tag)
+							{
+								return Tag.ToString().StartsWith(RCFixtureGroupTag);
+							}) :
+						nullptr;
+
+					if (GroupTagPtr)
+					{
+						return GroupTagPtr;
+					}
+				}
+				return nullptr;
+			}();
+
+
+		const int32 GroupIndex = PreviouslySetTagPtr ? ExtractGroupIndex(*PreviouslySetTagPtr) : INDEX_NONE;
+		if (GroupIndex != INDEX_NONE)
+		{
+			return GroupIndex;
+		}
+		else
+		{
+			// Return the next free group index
+			const TArray<UDMXEntityFixturePatch*> AllFixturePatchesInLibrary = DMXLibrary.GetEntitiesTypeCast<UDMXEntityFixturePatch>();
+			int32 NextGroupIndex = 0;
+
+			for (const UDMXEntityFixturePatch* FixturePatch : AllFixturePatchesInLibrary)
+			{
+				if (!FixturePatch || FixturePatches.Contains(FixturePatch))
+				{
+					continue;
+				}
+
+				const FName* OtherRCTagPtr = Algo::FindByPredicate(FixturePatch->CustomTags, [](const FName& Tag)
+					{
+						return Tag.ToString().StartsWith(RCFixtureGroupTag);
+					});
+
+				const int32 OtherGroupIndex = OtherRCTagPtr ? ExtractGroupIndex(*OtherRCTagPtr) : INDEX_NONE;
+				if (OtherGroupIndex != INDEX_NONE)
+				{
+					NextGroupIndex = FMath::Max(NextGroupIndex, OtherGroupIndex + 1);
+				}
 			}
 
-			const int32 AutoAssingFromUniverse = DMXUserData->GetAutoAssignFromUniverse();
-			const UDMXEntityFixturePatch* PreviousPatch = FixturePatches.IsValidIndex(FixturePatchIndex - 1) ? FixturePatches[FixturePatchIndex - 1] : nullptr;
-			const int64 DesiredAbsoluteStartingChannel = [PreviousPatch, AutoAssingFromUniverse]()
-				{
-					if (PreviousPatch && PreviousPatch->GetUniverseID() >= AutoAssingFromUniverse)
-					{
-						return (int64)PreviousPatch->GetUniverseID() * DMX_UNIVERSE_SIZE + PreviousPatch->GetEndingChannel();
-					}
-					else
-					{
-						return (int64)AutoAssingFromUniverse * DMX_UNIVERSE_SIZE;
-					}
-				}();
-
-			const bool bFitsUniverse = DesiredAbsoluteStartingChannel % DMX_UNIVERSE_SIZE + FixturePatch->GetChannelSpan() <= DMX_UNIVERSE_SIZE;
-			const int64 AbsoluteStartingChannel = bFitsUniverse ? DesiredAbsoluteStartingChannel : (DesiredAbsoluteStartingChannel / DMX_UNIVERSE_SIZE + 1) * DMX_UNIVERSE_SIZE;
-
-			const int32 Universe = AbsoluteStartingChannel / DMX_UNIVERSE_SIZE;
-			const int32 Channel = AbsoluteStartingChannel % DMX_UNIVERSE_SIZE + 1;
-
-			FixturePatch->PreEditChange(nullptr);
-
-			FixturePatch->SetUniverseID(Universe);
-			FixturePatch->SetStartingChannel(Channel);
-
-			FixturePatch->PostEditChange();
+			return NextGroupIndex;
 		}
+	}
+
+	int32 FRemoteControlDMXLibraryBuilder::ExtractGroupIndex(const FName& Tag) const
+	{
+		FString TagString = Tag.ToString();
+		if (TagString.RemoveFromStart(RCFixtureGroupTag))
+		{
+			int32 Result;
+			if (LexTryParseString(Result, *TagString))
+			{
+				return Result;
+			}
+		}
+
+		return INDEX_NONE;
 	}
 }

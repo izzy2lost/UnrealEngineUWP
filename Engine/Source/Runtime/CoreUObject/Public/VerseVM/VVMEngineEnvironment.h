@@ -45,7 +45,7 @@ public:
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	// Collect property information during code generation.
-	virtual VPropertyType* CollectPropertyInfo(FAllocationContext Context, CSymbolToResult* Environment, const uLang::CTypeBase* Type) = 0;
+	virtual VPropertyType* CollectPropertyInfo(FAllocationContext Context, CSymbolToResult* Environment, const uLang::CTypeBase* Type, VPackage* Scope) = 0;
 
 	// Bind a native module, class, or struct.
 	virtual void TryBindNativeAsset(FAllocationContext Context, const FTopLevelAssetPath& Path) = 0;

@@ -3942,6 +3942,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		SimulationParameters.UseInertiaConditioning = BodyInstance.IsInertiaConditioningEnabled();
 		SimulationParameters.UseCCD = BodyInstance.bUseCCD;
 		SimulationParameters.UseMACD = BodyInstance.GetUseMACD();
+		SimulationParameters.PositionSolverIterations = BodyInstance.GetPositionSolverIterationCount();
+		SimulationParameters.VelocitySolverIterations = BodyInstance.GetVelocitySolverIterationCount();
+		SimulationParameters.ProjectionSolverIterations = BodyInstance.GetProjectionSolverIterationCount();
 		SimulationParameters.LinearDamping = BodyInstance.LinearDamping;
 		SimulationParameters.AngularDamping = BodyInstance.AngularDamping;
 		SimulationParameters.InitialOverlapDepenetrationVelocity = BodyInstance.GetMaxDepenetrationVelocity();

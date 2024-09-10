@@ -477,7 +477,7 @@ int32 FUObjectArray::AllocateSerialNumber(int32 Index)
 	if (!SerialNumber)
 	{
 		// Open around PrimarySerialNumber as if we fail/abort a transaction we dont need to undo this, simply allow it to grow for the next use
-		UE_AUTORTFM_OPEN2{
+		UE_AUTORTFM_OPEN{
 			SerialNumber = PrimarySerialNumber.Increment();
 			UE_CLOG(SerialNumber <= START_SERIAL_NUMBER, LogUObjectArray, Fatal, TEXT("UObject serial numbers overflowed (trying to allocate serial number %d)."), SerialNumber);
 			int32 ValueWas = FPlatformAtomics::InterlockedCompareExchange((int32*)SerialNumberPtr, SerialNumber, 0);

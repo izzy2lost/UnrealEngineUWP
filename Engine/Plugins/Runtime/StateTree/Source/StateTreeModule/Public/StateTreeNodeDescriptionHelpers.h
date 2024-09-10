@@ -24,8 +24,14 @@ extern STATETREEMODULE_API FText GetInvertText(bool bInvert, EStateTreeNodeForma
 /** @return description of a boolean value. */
 extern STATETREEMODULE_API FText GetBoolText(bool bValue, EStateTreeNodeFormatting Formatting);
 
-/** @return description of being within a value range. */
-extern STATETREEMODULE_API FText GetWithinValueRangeText(float Min, float Max, EStateTreeNodeFormatting Formatting);
+/** @return description of a float interval. */
+extern STATETREEMODULE_API FText GetIntervalText(const FFloatInterval& Interval, EStateTreeNodeFormatting Formatting);
+
+/** @return description of a float interval. */
+extern STATETREEMODULE_API FText GetIntervalText(float Min, float Max, EStateTreeNodeFormatting Formatting);
+
+/** @return description of a float interval. */
+extern STATETREEMODULE_API FText GetIntervalText(const FText& MinValueText, const FText& MaxValueText, EStateTreeNodeFormatting Formatting);
 
 /** @return description for a Gameplay Tag Container. If the length of container description is longer than ApproxMaxLength, the it truncated and ... as added to the end. */
 extern STATETREEMODULE_API FText GetGameplayTagContainerAsText(const FGameplayTagContainer& TagContainer, const int ApproxMaxLength = 60);

@@ -97,9 +97,9 @@ namespace UE::PixelStreamingVCam
 		}
 
 		// Setup livelink source
-		UVCamPixelStreamingSubsystem::Get()->TryGetLiveLinkSource(This);
 		if (UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get())
 		{
+			PixelStreamingSubsystem->TryGetLiveLinkSource(This);
 			PixelStreamingSubsystem->RegisterActiveOutputProvider(This);
 			ConditionallySetLiveLinkSubjectToThis(This);
 		}
@@ -279,6 +279,16 @@ namespace UE::PixelStreamingVCam
 		return ResponsePromise.GetFuture();
 	}
 
+	void FVCamPixelStreamingSessionLogic::OnSerialize(DecoupledOutputProvider::IOutputProviderEvent& Args, FArchive& Ar)
+	{
+		IOutputProviderLogic::OnSerialize(Args, Ar);
+	}
+
+	void FVCamPixelStreamingSessionLogic::OnPostLoad(DecoupledOutputProvider::IOutputProviderEvent& Args)
+	{
+		IOutputProviderLogic::OnPostLoad(Args);
+	}
+
 	void FVCamPixelStreamingSessionLogic::OnPreEditChange(DecoupledOutputProvider::IOutputProviderEvent& Args, FProperty* PropertyAboutToChange)
 	{
 		IOutputProviderLogic::OnPreEditChange(Args, PropertyAboutToChange);
@@ -292,6 +302,10 @@ namespace UE::PixelStreamingVCam
 	void FVCamPixelStreamingSessionLogic::OnPostEditChangeProperty(DecoupledOutputProvider::IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent)
 	{
 		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
+		if (!This)
+		{
+			return;
+		}
 
 		FProperty* Property = PropertyChangedEvent.MemberProperty;
 		if (Property && PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
@@ -310,6 +324,18 @@ namespace UE::PixelStreamingVCam
 			{
 				OnEditStreamId(*This, StreamId_PreEditChange);
 			}
+		}
+
+		// Just in case our StreamerId changed, update the internal Live Link subject name.
+		// There used to be a bug in Multi-User:
+		//	- Repro: 1. Create VCam, 2. Leave session, 3. Join session > StreamerId and Live Link subject name are now out of sync.
+		//	- Sequence of events:
+		//		- OnActivate creates new StreamerId and sets the subject name to some value,
+		//		- PreEditChange is called, the original StreamerId is serialized into This, followed by PostEditChange.
+		//		- PostEditChange will now take the StreamerId MU serialized into us and object the Live Link subject name making sure they match.
+		if (UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get())
+		{
+			PixelStreamingSubsystem->UpdateLiveLinkSource(This);
 		}
 	}
 	

@@ -396,7 +396,7 @@ void RenderFrontLayerTranslucencyGBuffer(
 		RDG_EVENT_NAME("TranslucencyGBuffer"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[&View, &SceneRenderer, MeshPass, PassParameters, ViewportScale, GBufferViewRect](FRHICommandList& RHICmdList)
+		[&View, &SceneRenderer, MeshPass, PassParameters, ViewportScale, GBufferViewRect](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FSceneRenderer::SetStereoViewport(RHICmdList, View, ViewportScale);
 		View.ParallelMeshDrawCommandPasses[MeshPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);

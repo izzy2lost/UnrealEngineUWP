@@ -135,15 +135,8 @@ void UInterchangeDatasmithPipeline::AdjustSettingsForContext(const FInterchangeP
 	{
 		AnimationPipeline->AdjustSettingsForContext(ContextParams);
 	}
-}
 
-void UInterchangeDatasmithPipeline::PostDuplicate(bool bDuplicateForPIE)
-{
-	// Only adjust settings if there is anything cached.
-	if (CacheContextParam.ContextType != EInterchangePipelineContext::None)
-	{
-		AdjustSettingsForContext(CacheContextParam);
-	}
+	CacheContextParam = ContextParams;
 }
 
 void UInterchangeDatasmithPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas, const FString& ContentBasePath)
@@ -159,6 +152,7 @@ void UInterchangeDatasmithPipeline::ExecutePipeline(UInterchangeBaseNodeContaine
 	{
 		if (Pipeline)
 		{
+			Pipeline->AdjustSettingsForContext(CacheContextParam);
 			Pipeline->SetResultsContainer(this->Results);
 			Pipeline->ScriptedExecutePipeline(this->BaseNodeContainer, SourceDatas, ContentBasePath);
 		}

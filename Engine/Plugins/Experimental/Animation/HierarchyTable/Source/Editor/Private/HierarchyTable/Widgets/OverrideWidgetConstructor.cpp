@@ -23,8 +23,8 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor_Override::CreateWidget(
 }
 
 bool FTypedElementWidgetConstructor_Override::FinalizeWidget(
-	ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi,
+	IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi,
 	UE::Editor::DataStorage::RowHandle Row,
 	const TSharedPtr<SWidget>& Widget)
 {
@@ -52,8 +52,10 @@ bool FTypedElementWidgetConstructor_Override::FinalizeWidget(
 		return true;
 	}
 
-	const bool bHasParent = OverrideColumn->OwnerEntry->HasParent();
-	FHierarchyTableEntryData* EntryData = OverrideColumn->OwnerEntry; 
+	UHierarchyTable* HierarchyTable = OverrideColumn->OwnerTable;
+	const int32 EntryIndex = OverrideColumn->OwnerEntryIndex;
+
+	const bool bHasParent = HierarchyTable->TableData[EntryIndex].HasParent();
 
 	TSharedRef<SWidget> NewWidget = SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
@@ -62,19 +64,20 @@ bool FTypedElementWidgetConstructor_Override::FinalizeWidget(
 			SNew(SButton)
 			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
 			.IsEnabled(bHasParent)
-			.OnClicked_Lambda([EntryData]()
+			.OnClicked_Lambda([HierarchyTable, EntryIndex]()
 				{
-					EntryData->ToggleOverridden();
+					HierarchyTable->TableData[EntryIndex].ToggleOverridden();
 					return FReply::Handled();
 				})
 			.ContentPadding(0.0f)
 				[
 					SNew(SImage)
-					.Image_Lambda([EntryData]()
+					.Image_Lambda([HierarchyTable, EntryIndex]()
 						{
-							const bool bHasOverriddenChildren = EntryData->HasOverriddenChildren();
+							const FHierarchyTableEntryData& EntryData = HierarchyTable->TableData[EntryIndex];
+							const bool bHasOverriddenChildren = EntryData.HasOverriddenChildren();
 
-							if (EntryData->IsOverridden())
+							if (EntryData.IsOverridden())
 							{
 								if (bHasOverriddenChildren)
 								{

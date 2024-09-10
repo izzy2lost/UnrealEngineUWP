@@ -287,6 +287,7 @@ int32 FPoseHistoryEntry::Num() const
 
 void FPoseHistoryEntry::SetComponentSpaceTransform(int32 Index, const FTransform& Transform)
 {
+	check( Transform.IsRotationNormalized() );
 	ComponentSpaceRotations[Index] = FQuat4f(Transform.GetRotation());
 	ComponentSpacePositions[Index] = Transform.GetTranslation();
 	

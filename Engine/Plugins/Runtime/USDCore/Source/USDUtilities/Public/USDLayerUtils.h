@@ -4,7 +4,9 @@
 
 #if USE_USD_SDK
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "USDMemory.h"
+#endif	  // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "UsdWrappers/ForwardDeclarations.h"
 
 #include "USDIncludesStart.h"
@@ -12,6 +14,8 @@
 #include "USDIncludesEnd.h"
 
 class SWidget;
+template<typename UsdObjectType>
+class TUsdStore;
 
 PXR_NAMESPACE_OPEN_SCOPE
 	class SdfLayer;

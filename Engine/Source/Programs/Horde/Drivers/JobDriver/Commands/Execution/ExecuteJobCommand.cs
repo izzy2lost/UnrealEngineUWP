@@ -30,11 +30,11 @@ namespace JobDriver.Commands.Execution
 		[CommandLine("-WorkingDir=", Required = true)]
 		public DirectoryReference WorkingDir { get; set; } = null!;
 
-		readonly IHordeClientFactory _hordeClientFactory;
+		readonly HordeClientFactory _hordeClientFactory;
 		readonly IEnumerable<IJobExecutorFactory> _jobExecutorFactories;
 		readonly IOptions<DriverSettings> _driverSettings;
 
-		public ExecuteJobCommand(IHordeClientFactory hordeClientFactory, IEnumerable<IJobExecutorFactory> jobExecutorFactories, IOptions<DriverSettings> driverSettings)
+		public ExecuteJobCommand(HordeClientFactory hordeClientFactory, IEnumerable<IJobExecutorFactory> jobExecutorFactories, IOptions<DriverSettings> driverSettings)
 		{
 			_hordeClientFactory = hordeClientFactory;
 			_jobExecutorFactories = jobExecutorFactories;
@@ -47,7 +47,7 @@ namespace JobDriver.Commands.Execution
 
 			ExecuteJobTask executeTask = ExecuteJobTask.Parser.ParseFrom(Convert.FromBase64String(Task));
 
-			IHordeClient hordeClient = _hordeClientFactory.Create(executeTask.Token);
+			HordeClient hordeClient = _hordeClientFactory.Create(accessToken: executeTask.Token);
 
 			await JobExecutorHelpers.ExecuteAsync(hordeClient, WorkingDir, LeaseId, executeTask, _jobExecutorFactories, _driverSettings.Value, logger, CancellationToken.None);
 			return 0;

@@ -29,6 +29,13 @@ FDataflowConstructionScene::~FDataflowConstructionScene()
 	ResetDynamicMeshComponents();
 }
 
+TArray<TObjectPtr<UDynamicMeshComponent>> FDataflowConstructionScene::GetDynamicMeshComponents() const
+{
+	TArray<TObjectPtr<UDynamicMeshComponent>> OutValues;
+	DynamicMeshComponents.GenerateValueArray(OutValues);
+	return MoveTemp(OutValues);
+}
+
 /** Hide all or a single component */
 void FDataflowConstructionScene::SetVisibility(bool bVisibility, UActorComponent* InComponent)
 {

@@ -10,6 +10,7 @@
 #include "USDConversionUtils.h"
 #include "USDErrorUtils.h"
 #include "USDLog.h"
+#include "USDMemory.h"
 #include "USDShadeConversion.h"
 #include "USDTypesConversion.h"
 
@@ -192,11 +193,7 @@ void FMdlUsdShadeMaterialTranslator::CreateAssets()
 
 				// Rename the UMaterialInterface into the target UPackage the asset cache created for us.
 				// SanitizedName will already match it.
-				const bool bRenamed = ReferenceMaterial->Rename(
-					*SanitizedName.ToString(),
-					Outer,
-					REN_NonTransactional | REN_DontCreateRedirectors
-				);
+				const bool bRenamed = ReferenceMaterial->Rename(*SanitizedName.ToString(), Outer, REN_NonTransactional | REN_DontCreateRedirectors);
 				ensure(bRenamed);
 
 				// Let's not trust the flags the MDLImporter used and just use our own instead
@@ -306,11 +303,7 @@ void FMdlUsdShadeMaterialTranslator::CreateAssets()
 					{
 						// Rename the asset into the target UPackage the asset cache created for us.
 						// SanitizedName will already match it.
-						const bool bRenamed = Texture->Rename(
-							*SanitizedName.ToString(),
-							Outer,
-							REN_NonTransactional | REN_DontCreateRedirectors
-						);
+						const bool bRenamed = Texture->Rename(*SanitizedName.ToString(), Outer, REN_NonTransactional | REN_DontCreateRedirectors);
 						ensure(bRenamed);
 
 						// Let's not trust the flags the MDLImporter used and just use our own instead

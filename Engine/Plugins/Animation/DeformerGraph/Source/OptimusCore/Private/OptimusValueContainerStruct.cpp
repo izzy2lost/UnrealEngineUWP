@@ -17,18 +17,23 @@ void FOptimusValueContainerStruct::SetType(FOptimusDataTypeRef InDataType)
 	Value.AddProperty(ValuePropertyName, InDataType->CreateProperty(nullptr, ValuePropertyName));		
 }
 
+void FOptimusValueContainerStruct::SetValue(FOptimusDataTypeRef InDataType, TArrayView<const uint8> InValue)
+{
+	const FProperty* Property = GetValueProperty();
+
+	if (ensure(Property->SameType(InDataType->CreateProperty(nullptr, NAME_None))))
+	{
+		Property->CopyCompleteValue(Value.GetMutableValue().GetMemory(), InValue.GetData());
+	}
+}
+
 FShaderValueContainer FOptimusValueContainerStruct::GetShaderValue(FOptimusDataTypeRef InDataType) const
 {
-	check(Value.GetNumPropertiesInBag() == 1);
+	const FProperty* Property = GetValueProperty();
 
-	const UPropertyBag* BagStruct = Value.GetPropertyBagStruct();
-	TConstArrayView<FPropertyBagPropertyDesc> Descs = BagStruct->GetPropertyDescs();
-
-	const FPropertyBagPropertyDesc& ValueDesc = Descs[0];
-
-	if (ensure(InDataType.IsValid()) && ensure(ValueDesc.CachedProperty))
+	if (ensure(InDataType.IsValid()) && ensure(Property))
 	{
-		TArrayView<const uint8> ValueData(ValueDesc.CachedProperty->ContainerPtrToValuePtr<uint8>(Value.GetValue().GetMemory()), ValueDesc.CachedProperty->GetSize());
+		TArrayView<const uint8> ValueData(Property->ContainerPtrToValuePtr<uint8>(Value.GetValue().GetMemory()), Property->GetSize());
 		FShaderValueContainer ValueResult = InDataType->MakeShaderValue();
 		if (InDataType->ConvertPropertyValueToShader(ValueData, ValueResult))
 		{
@@ -36,6 +41,19 @@ FShaderValueContainer FOptimusValueContainerStruct::GetShaderValue(FOptimusDataT
 		}
 	}
 	
+	return {};
+}
+
+FString FOptimusValueContainerStruct::GetValueAsString() const
+{
+	if (const FProperty* Property = GetValueProperty())
+	{
+		FString ValueStr;
+		Property->ExportTextItem_InContainer(ValueStr, GetValueMemory(), nullptr, nullptr, PPF_None);
+
+		return ValueStr;
+	}
+
 	return {};
 }
 
@@ -56,7 +74,4 @@ const uint8* FOptimusValueContainerStruct::GetValueMemory() const
 	return Value.GetValue().GetMemory();
 }
 
-uint8* FOptimusValueContainerStruct::GetMutableValueMemory()
-{
-	return Value.GetMutableValue().GetMemory();
-}
+

@@ -112,7 +112,7 @@ FText UWidgetAnimation::GetDisplayName() const
 	return bHasDisplayLabel ? FText::FromString(DisplayLabel) : Super::GetDisplayName();
 }
 
-ETrackSupport UWidgetAnimation::IsTrackSupported(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
+ETrackSupport UWidgetAnimation::IsTrackSupportedImpl(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
 {
 	if (InTrackClass == UMovieSceneAudioTrack::StaticClass() ||
 		InTrackClass == UMovieSceneEventTrack::StaticClass() ||
@@ -121,7 +121,7 @@ ETrackSupport UWidgetAnimation::IsTrackSupported(TSubclassOf<class UMovieSceneTr
 		return ETrackSupport::Supported;
 	}
 
-	return Super::IsTrackSupported(InTrackClass);
+	return Super::IsTrackSupportedImpl(InTrackClass);
 }
 
 const FSlateBrush* UWidgetAnimation::GetCustomBrushForBinding(FGuid BindingID) const

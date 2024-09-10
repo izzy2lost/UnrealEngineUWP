@@ -32,7 +32,7 @@ namespace HordeServer.Storage
 	/// <summary>
 	/// Interface for the storage service
 	/// </summary>
-	public interface IStorageService : IStorageClientFactory
+	public interface IStorageService : IStorageClient
 	{
 	}
 
@@ -450,26 +450,26 @@ namespace HordeServer.Storage
 
 		internal static ObjectKey GetObjectKey(BlobLocator locator) => new ObjectKey($"{locator.Path}.blob");
 
-		class StorageClientFactory : IStorageClientFactory
+		class StorageClient : IStorageClient
 		{
 			readonly StorageService _storageService;
 			readonly StorageConfig _storageConfig;
 
-			public StorageClientFactory(StorageService storageService, StorageConfig storageConfig)
+			public StorageClient(StorageService storageService, StorageConfig storageConfig)
 			{
 				_storageService = storageService;
 				_storageConfig = storageConfig;
 			}
 
-			public IStorageClient? TryCreateClient(NamespaceId namespaceId)
+			public IStorageNamespace? TryGetNamespace(NamespaceId namespaceId)
 				=> _storageService.TryCreateClient(_storageConfig, namespaceId);
 		}
 
 		/// <summary>
-		/// Creates a new storage client factory using the current global config value
+		/// Creates a new storage namespace factory using the current global config value
 		/// </summary>
-		public IStorageClientFactory CreateStorageClientFactory(StorageConfig storageConfig)
-			=> new StorageClientFactory(this, storageConfig);
+		public IStorageClient CreateStorageClient(StorageConfig storageConfig)
+			=> new StorageClient(this, storageConfig);
 
 		/// <inheritdoc/>
 		public async Task StartAsync(CancellationToken cancellationToken)
@@ -505,17 +505,17 @@ namespace HordeServer.Storage
 		}
 
 		/// <inheritdoc/>
-		public IStorageClient? TryCreateClient(NamespaceId namespaceId)
+		public IStorageNamespace? TryGetNamespace(NamespaceId namespaceId)
 			=> TryCreateClient(namespaceId, null);
 
 		/// <inheritdoc/>
-		public IStorageClient? TryCreateClient(NamespaceId namespaceId, BundleOptions? bundleOptions = null)
+		public IStorageNamespace? TryCreateClient(NamespaceId namespaceId, BundleOptions? bundleOptions = null)
 			=> TryCreateClient(_storageConfig.CurrentValue, namespaceId, bundleOptions);
 
 		/// <inheritdoc/>
-		public IStorageClient? TryCreateClient(StorageConfig storageConfig, NamespaceId namespaceId, BundleOptions? bundleOptions = null)
+		public IStorageNamespace? TryCreateClient(StorageConfig storageConfig, NamespaceId namespaceId, BundleOptions? bundleOptions = null)
 		{
-#pragma warning disable CA2000 // Call dispose on backend; will be disposed by BundleStorageClient
+#pragma warning disable CA2000 // Call dispose on backend; will be disposed by BundleStorageNamespace
 			IStorageBackend? backend = TryCreateBackend(storageConfig, namespaceId);
 #pragma warning restore CA2000
 			if (backend == null)
@@ -524,7 +524,7 @@ namespace HordeServer.Storage
 			}
 			else
 			{
-				return new BundleStorageClient(backend, _bundleCache, bundleOptions, _logger);
+				return new BundleStorageNamespace(backend, _bundleCache, bundleOptions, _logger);
 			}
 		}
 
@@ -686,7 +686,7 @@ namespace HordeServer.Storage
 			// Get the current state of the storage system
 			State state = CreateState(_storageConfig.CurrentValue);
 
-			Dictionary<NamespaceId, BundleStorageClient> cachedClients = new();
+			Dictionary<NamespaceId, BundleStorageNamespace> cachedClients = new();
 
 			long ingestedCount = 0;
 
@@ -1071,7 +1071,7 @@ namespace HordeServer.Storage
 
 		async Task TickGcForNamespaceAsync(NamespaceInfo namespaceInfo, ObjectId lastImportBlobInfoId, DateTime utcNow, bool deleteObjects, CancellationToken cancellationToken)
 		{
-			IStorageClient client = this.CreateClient(namespaceInfo.Id);
+			IStorageNamespace client = this.GetNamespace(namespaceInfo.Id);
 
 			Stopwatch timer = Stopwatch.StartNew();
 			_logger.LogInformation("Running garbage collection for namespace {NamespaceId}...", namespaceInfo.Id);

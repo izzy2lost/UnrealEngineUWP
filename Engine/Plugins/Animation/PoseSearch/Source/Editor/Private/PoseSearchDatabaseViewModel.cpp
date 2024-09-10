@@ -37,8 +37,6 @@ static TAutoConsoleVariable<float> CVarDatabasePreviewDebugDrawSamplerTimeOffset
 static TAutoConsoleVariable<float> CVarDatabasePreviewDebugDrawSamplerRootAxisLength(TEXT("a.DatabasePreview.DebugDrawSamplerRootAxisLength"), 0.f, TEXT("Debug Draw Sampler Root Axis Length"));
 #endif
 
-constexpr float StepDeltaTime = 1.f / 30.f;
-
 // FDatabasePreviewActor
 bool FDatabasePreviewActor::SpawnPreviewActor(UWorld* World, const UPoseSearchDatabase* PoseSearchDatabase, int32 IndexAssetIdx, const FRole& Role, const FTransform& SamplerRootTransformOrigin, int32 PoseIdxForTimeOffset)
 {

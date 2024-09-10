@@ -396,3 +396,16 @@ UObject* UMovieSceneSequence::CreateDirectorInstance(IMovieScenePlayer& Player, 
 	return CreateDirectorInstance(Player.GetSharedPlaybackState(), SequenceID);
 }
 
+#if WITH_EDITOR
+
+ETrackSupport UMovieSceneSequence::IsTrackSupported(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
+{
+	if (!UMovieScene::IsTrackClassAllowed(InTrackClass))
+	{
+		return ETrackSupport::NotSupported;
+	}
+
+	return IsTrackSupportedImpl(InTrackClass); 
+}
+
+#endif

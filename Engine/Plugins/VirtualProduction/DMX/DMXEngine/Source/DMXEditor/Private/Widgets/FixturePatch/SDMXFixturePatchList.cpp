@@ -109,6 +109,7 @@ namespace UE::DMX::SDMXFixturePatchList::Private
 		ConstructionParams.ActiveMode = FixturePatchToDuplicate->GetActiveModeIndex();
 		ConstructionParams.UniverseID = FixturePatchToDuplicate->GetUniverseID();
 		ConstructionParams.StartingAddress = FixturePatchToDuplicate->GetStartingChannel();
+		ConstructionParams.DefaultTransform = FixturePatchToDuplicate->GetDefaultTransform();
 
 		constexpr bool bMarkLibraryDirty = false;
 		UDMXEntityFixturePatch* NewFixturePatch = UDMXEntityFixturePatch::CreateFixturePatchInLibrary(ConstructionParams, FixturePatchToDuplicate->Name, bMarkLibraryDirty);

@@ -31,7 +31,7 @@ public:
 		FProviderContext(
 			const TConstArrayView<FPrimitiveSceneInfo*> InPrimitives,
 			const TConstArrayView<FUintVector2> InIndirections,
-			const FGameTime& InGameTime,
+			float InDeltaTime,
 			FRDGBuilder& InGraphBuilder,
 			FRDGBufferRef InTransformBuffer
 		)
@@ -39,7 +39,7 @@ public:
 		, Indirections(InIndirections)
 		, GraphBuilder(InGraphBuilder)
 		, TransformBuffer(InTransformBuffer)
-		, GameTime(InGameTime)
+		, DeltaTime(InDeltaTime)
 		{
 		}
 
@@ -49,7 +49,7 @@ public:
 		FRDGBuilder& GraphBuilder;
 		FRDGBufferRef TransformBuffer;
 
-		FGameTime GameTime;
+		float DeltaTime = 0.0f;
 	};
 
 	DECLARE_DELEGATE_OneParam(FOnProvideTransforms, FProviderContext&);
@@ -93,3 +93,4 @@ private:
 };
 
 RENDERER_API const FSkinningTransformProvider::FProviderId& GetRefPoseProviderId();
+RENDERER_API const FSkinningTransformProvider::FProviderId& GetAnimRuntimeProviderId();

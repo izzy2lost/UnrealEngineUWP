@@ -9,6 +9,8 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SScrollBox.h"
 
 #define LOCTEXT_NAMESPACE "SFilterBarClippingHorizontalBox"
 
@@ -104,7 +106,6 @@ TSharedRef<SComboButton> SFilterBarClippingHorizontalBox::CreateWrapButton()
 		.ToolTipText(LOCTEXT("ExpandFilterBar", "Click to expand the filter bar"))
 		.OnGetMenuContent(OnWrapButtonClicked)
 		.Cursor(EMouseCursor::Default)
-		.OnMenuOpenChanged(this, &SFilterBarClippingHorizontalBox::OnWrapButtonOpenChanged)
 		.IsFocusable(true)
 		.ButtonContent()
 		[
@@ -116,38 +117,6 @@ TSharedRef<SComboButton> SFilterBarClippingHorizontalBox::CreateWrapButton()
 	WeakWrapButton = WrapButton;
 
 	return WrapButton;
-}
-
-void SFilterBarClippingHorizontalBox::OnWrapButtonOpenChanged(const bool bInIsOpen)
-{
-	if (bInIsOpen && !WrapButtonOpenTimer.IsValid())
-	{
-		WrapButtonOpenTimer = RegisterActiveTimer(0.0f, FWidgetActiveTimerDelegate::CreateSP(this, &SFilterBarClippingHorizontalBox::UpdateWrapButtonStatus));
-	}
-	else if(!bInIsOpen && WrapButtonOpenTimer.IsValid())
-	{
-		UnRegisterActiveTimer(WrapButtonOpenTimer.ToSharedRef());
-		WrapButtonOpenTimer.Reset();
-	}
-}
-
-EActiveTimerReturnType SFilterBarClippingHorizontalBox::UpdateWrapButtonStatus(const double InCurrentTime, const float InDeltaTime)
-{
-	const TSharedPtr<SComboButton> WrapButton = WeakWrapButton.Pin();
-	if (!WrapButton.IsValid())
-	{
-		return EActiveTimerReturnType::Stop;
-	}
-
-	if (LastClippedIndex != ClippedIndex || !WrapButton->IsOpen())
-	{
-		WrapButton->SetIsOpen(false);
-		WrapButtonOpenTimer.Reset();
-
-		return EActiveTimerReturnType::Stop;
-	}
-
-	return EActiveTimerReturnType::Continue;
 }
 
 TSharedRef<SWidget> SFilterBarClippingHorizontalBox::WrapVerticalListWithHeading(const TSharedRef<SWidget>& InWidget, const FPointerEventHandler InMouseButtonUpEvent)
@@ -173,7 +142,15 @@ TSharedRef<SWidget> SFilterBarClippingHorizontalBox::WrapVerticalListWithHeading
 		.FillHeight(1.f)
 		.VAlign(VAlign_Fill)
 		[
-			InWidget
+			SNew(SBox)
+			.MaxDesiredHeight(480.f)
+			[
+				SNew(SScrollBox)
+				+ SScrollBox::Slot()
+				[
+					InWidget
+				]
+			]
 		];
 }
 

@@ -75,9 +75,11 @@ void UMoviePipeline::SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* I
 	UMoviePipelineOutputSetting* OutputSettings = GetPipelinePrimaryConfig()->FindSetting<UMoviePipelineOutputSetting>();
 	check(OutputSettings);
 
-
+	// TODO: Not much support here for multi-camera, so simply get the player controller camera and use its overscan value
+	FMinimalViewInfo CameraViewInfo = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraCacheView();
+	
 	FIntPoint BackbufferTileCount = FIntPoint(HighResSettings->TileCount, HighResSettings->TileCount);
-	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipelinePrimaryConfig(), InShot);
+	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipelinePrimaryConfig(), InShot, CameraViewInfo.GetOverscan());
 
 	// Figure out how big each sub-region (tile) is.
 	FIntPoint BackbufferResolution = FIntPoint(
@@ -192,9 +194,12 @@ void UMoviePipeline::RenderFrame()
 	check(HighResSettings);
 	check(OutputSettings);
 
+	// TODO: Not much support here for multi-camera, so simply get the player controller camera and use its overscan value
+	FMinimalViewInfo CameraViewInfo = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraCacheView();
+	
 	FIntPoint TileCount = FIntPoint(HighResSettings->TileCount, HighResSettings->TileCount);
 	FIntPoint OriginalTileCount = TileCount;
-	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipelinePrimaryConfig(), ActiveShotList[CurrentShotIndex]);
+	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipelinePrimaryConfig(), ActiveShotList[CurrentShotIndex], CameraViewInfo.GetOverscan());
 
 	int32 NumSpatialSamples = AntiAliasingSettings->SpatialSampleCount;
 	int32 NumTemporalSamples = AntiAliasingSettings->TemporalSampleCount;
@@ -400,6 +405,7 @@ void UMoviePipeline::RenderFrame()
 				SampleState.TextureSharpnessBias = HighResSettings->TextureSharpnessBias;
 				SampleState.OCIOConfiguration = ColorSettings ? &ColorSettings->OCIOConfiguration : nullptr;
 				SampleState.GlobalScreenPercentageFraction = FLegacyScreenPercentageDriver::GetCVarResolutionFraction();
+				SampleState.bOverrideCameraOverscan = CameraSettings->bOverrideCameraOverscan;
 				SampleState.OverscanPercentage = FMath::Clamp(CameraSettings->OverscanPercentage, 0.0f, 1.0f);
 
 				if (FrameThrotteCount > 0)

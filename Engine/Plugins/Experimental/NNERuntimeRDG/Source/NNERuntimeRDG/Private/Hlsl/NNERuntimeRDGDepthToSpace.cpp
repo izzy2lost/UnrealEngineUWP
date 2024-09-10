@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGDepthToSpace.h"
+
 #include "NNERuntimeRDGHlslHelper.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersTransposeCS.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
@@ -59,7 +61,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if(InputShape.Num() != 4)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Hlsl DepthToSpace: input tensor (name: %s) doesn't have [N,C,H,W] format."), *X.GetName());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("DepthToSpace: input tensor (name: %s) doesn't have [N,C,H,W] format."), *X.GetName());
 				return false;
 			}
 
@@ -98,7 +100,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			const FNNEAttributeValue* BlockSizeAttr = Attributes.GetAttributeValue(TEXT("blocksize"));
 			if(BlockSizeAttr == nullptr)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Hlsl DepthToSpace: blocksize attribute is required."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("DepthToSpace: blocksize attribute is required."));
 				return false;
 			}
 
@@ -106,7 +108,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			Mode = ModeFromString(*Attributes.GetValueOrDefault<FString>(TEXT("mode"), TEXT("DCR")));
 			if(Mode == EMode::MAX)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Hlsl DepthToSpace: invalid mode."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("DepthToSpace: invalid mode."));
 				return false;
 			}
 

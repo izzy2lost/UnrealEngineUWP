@@ -56,19 +56,10 @@ TSharedRef<ISequencerTrackEditor> FCinematicShotTrackEditor::CreateTrackEditor(T
 	return MakeShareable(new FCinematicShotTrackEditor(InSequencer));
 }
 
-
-void FCinematicShotTrackEditor::OnInitialize()
+TWeakObjectPtr<AActor> FCinematicShotTrackEditor::GetCinematicShotCamera() const
 {
-	OnCameraCutHandle = GetSequencer()->OnCameraCut().AddSP(this, &FCinematicShotTrackEditor::OnUpdateCameraCut);
-}
-
-
-void FCinematicShotTrackEditor::OnRelease()
-{
-	if (OnCameraCutHandle.IsValid() && GetSequencer().IsValid())
-	{
-		GetSequencer()->OnCameraCut().Remove(OnCameraCutHandle);
-	}
+	const UCameraComponent* Camera = GetSequencer()->GetLastEvaluatedCameraCut().Get();
+	return Camera ? Camera->GetOwner() : nullptr;
 }
 
 
@@ -309,12 +300,6 @@ FText FCinematicShotTrackEditor::GetLockShotsToolTip() const
 	return AreShotsLocked() == ECheckBoxState::Checked ?
 		LOCTEXT("UnlockShots", "Unlock Viewport from Shots") :
 		LOCTEXT("LockShots", "Lock Viewport to Shots");
-}
-
-void FCinematicShotTrackEditor::OnUpdateCameraCut(UObject* CameraObject, bool bJumpCut)
-{
-	// Keep track of the camera when it switches so that the thumbnail can be drawn with the correct camera
-	CinematicShotCamera = Cast<AActor>(CameraObject);
 }
 
 UAutomatedLevelSequenceCapture* GetMovieSceneCapture()

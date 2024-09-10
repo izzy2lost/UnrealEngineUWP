@@ -111,7 +111,8 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 		const int32 LODLevel = Output.AnimInstanceProxy->GetLODLevel();
 
 		const UE::AnimNext::FReferencePose& RefPose = RefPoseHandle.GetRef<UE::AnimNext::FReferencePose>();
-		FAnimNextGraphLODPose ResultPose(FLODPoseHeap(RefPose, LODLevel, true, Output.ExpectsAdditivePose()));
+		FAnimNextGraphLODPose ResultPose;
+		ResultPose.LODPose = FLODPoseHeap(RefPose, LODLevel, true, Output.ExpectsAdditivePose());
 
 		{
 			const FEvaluationProgram EvaluationProgram = UE::AnimNext::EvaluateGraph(GraphInstance);
@@ -127,6 +128,8 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 				if (EvaluationVM.PopValue(KEYFRAME_STACK_NAME, EvaluatedKeyframe))
 				{
 					ResultPose.LODPose.CopyFrom(EvaluatedKeyframe->Pose);
+					ResultPose.Curves.CopyFrom(EvaluatedKeyframe->Curves);
+					ResultPose.Attributes.CopyFrom(EvaluatedKeyframe->Attributes);
 					bHasValidOutput = true;
 				}
 			}
@@ -136,10 +139,14 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 				// We need to output a valid pose, generate one
 				FKeyframeState ReferenceKeyframe = EvaluationVM.MakeReferenceKeyframe(Output.ExpectsAdditivePose());
 				ResultPose.LODPose.CopyFrom(ReferenceKeyframe.Pose);
+				ResultPose.Curves.CopyFrom(ReferenceKeyframe.Curves);
+				ResultPose.Attributes.CopyFrom(ReferenceKeyframe.Attributes);
 			}
 		}
 
 		FGenerationTools::RemapPose(ResultPose.LODPose, Output);
+		Output.Curve.CopyFrom(ResultPose.Curves);
+		FGenerationTools::RemapAttributes(ResultPose.LODPose, ResultPose.Attributes, Output);
 	}
 	else
 	{

@@ -8,11 +8,14 @@ namespace PCGLog::InputOutput
 {
 	namespace Format
 	{
+		const FText InvalidInputData = LOCTEXT("InvalidInputData", "Invalid input data.");
+
 		const FTextFormat TypedInputNotFound = LOCTEXT("TypedInputNotFound", "Data of type {0} not found on pin '{1}'.");
 		const FTextFormat FirstInputOnly = LOCTEXT("FirstInputOnly", "Multiple inputs found on single-input pin '{0}'. Only the first will be selected.");
-		const FText InvalidInputData = LOCTEXT("InvalidInputData", "Invalid input data.");
+		const FTextFormat InvalidCardinality = LOCTEXT("InvalidCardinality", "Invalid cardinality among pins '{0}' and '{1}'. They must match 1:1, N:1, or N:N.");
 	}
 
+	// Warnings
 	void LogTypedDataNotFoundWarning(EPCGDataType DataType, const FName PinLabel, const FPCGContext* InContext)
 	{
 		const UEnum* PCGDataTypeEnum = StaticEnum<EPCGDataType>();
@@ -25,9 +28,15 @@ namespace PCGLog::InputOutput
 		LogWarningOnGraph(FText::Format(Format::FirstInputOnly, FText::FromName(PinLabel)), InContext);
 	}
 
+	// Errors
 	void LogInvalidInputDataError(const FPCGContext* InContext)
 	{
 		LogErrorOnGraph(Format::InvalidInputData, InContext);
+	}
+
+	void LogInvalidCardinalityError(const FName SourcePinLabel, const FName TargetPinLabel, const FPCGContext* InContext)
+	{
+		LogErrorOnGraph(FText::Format(Format::InvalidCardinality, FText::FromName(SourcePinLabel), FText::FromName(TargetPinLabel)), InContext);
 	}
 }
 
@@ -40,6 +49,7 @@ namespace PCGLog::Metadata
 		const FTextFormat GetAttributeFailure = LOCTEXT("GetAttributeFailure", "Couldn't retrieve attribute '{0}' value. Expected type: {1}, Actual Type: {2}.");
 		const FTextFormat GetTypedAttributeFailure = LOCTEXT("GetTypedAttributeFailure", "Couldn't retrieve attribute '{0}' value. Expected type: {1}, Actual Type: {2}.");
 		const FTextFormat GetTypedAttributeFailureNoAccessor = LOCTEXT("GetTypedAttributeFailureNoAccessor", "Couldn't retrieve attribute '{0}' value of type: '{1}.");
+		const FTextFormat IncomparableTypesFailure = LOCTEXT("IncomparableTypesFailure", "Attributes '{0}' and '{1}' are incomparable. Ensure they are either of the same or compatible types.");
 	}
 
 	void LogFailToCreateAccessorError(const FPCGAttributePropertySelector& Selector, const FPCGContext* InContext)
@@ -60,6 +70,39 @@ namespace PCGLog::Metadata
 	void LogFailToGetAttributeError(const FPCGAttributePropertySelector& Selector, const FPCGContext* InContext)
 	{
 		LogErrorOnGraph(FText::Format(Format::GetAttributeFailure, Selector.GetDisplayText()), InContext);
+	}
+
+	void LogIncomparableAttributesError(const FPCGAttributePropertySelector& FirstSelector, const FPCGAttributePropertySelector& SecondSelector, const FPCGContext* InContext)
+	{
+		LogErrorOnGraph(FText::Format(Format::IncomparableTypesFailure, FirstSelector.GetDisplayText(), SecondSelector.GetDisplayText()), InContext);
+	}
+}
+
+namespace PCGLog::Parsing
+{
+	namespace Format
+	{
+		const FText EmptyExpression = LOCTEXT("EmptyExpression", "Empty expression in parsed string.");
+
+		const FTextFormat InvalidCharacter = LOCTEXT("InvalidCharacter", "Invalid character in parsed string: '{0}'.");
+		const FTextFormat InvalidExpression = LOCTEXT("InvalidExpression", "Invalid expression in parsed string: '{0}'.");
+	}
+
+	// Warnings
+	void LogEmptyExpressionWarning(const FPCGContext* InContext)
+	{
+		LogWarningOnGraph(Format::EmptyExpression, InContext);
+	}
+
+	// Errors
+	void LogInvalidCharacterInParsedStringError(const FStringView& ParsedString, const FPCGContext* InContext)
+	{
+		LogErrorOnGraph(FText::Format(Format::InvalidCharacter, FText::FromStringView(ParsedString)), InContext);
+	}
+
+	void LogInvalidExpressionInParsedStringError(const FStringView& ParsedString, const FPCGContext* InContext)
+	{
+		LogErrorOnGraph(FText::Format(Format::InvalidExpression, FText::FromStringView(ParsedString)), InContext);
 	}
 }
 

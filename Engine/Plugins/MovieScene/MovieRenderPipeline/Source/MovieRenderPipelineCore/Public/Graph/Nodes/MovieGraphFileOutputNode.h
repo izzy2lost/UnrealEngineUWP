@@ -74,7 +74,7 @@ public:
 	uint8 bOverride_FileNameFormat : 1;
 
 	/** What format string should the final files use? Can include folder prefixes, and format string ({shot_name}, etc.) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FileOutput", meta=(EditCondition="bOverride_FileNameFormat"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output", meta=(EditCondition="bOverride_FileNameFormat"))
 	FString FileNameFormat = "{sequence_name}.{layer_name}.{frame_number}";
 
 protected:

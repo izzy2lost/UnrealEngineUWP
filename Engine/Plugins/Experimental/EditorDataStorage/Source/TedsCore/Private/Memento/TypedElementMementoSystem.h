@@ -5,7 +5,7 @@
 #include "Containers/Array.h"
 #include "Elements/Common/TypedElementHandles.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
 class UTedsMementoTranslatorBase;
 
 namespace UE::Editor::DataStorage
@@ -13,7 +13,7 @@ namespace UE::Editor::DataStorage
 	class FMementoSystem
 	{
 	public:
-		explicit FMementoSystem(ITypedElementDataStorageInterface& InDataStorage);
+		explicit FMementoSystem(IEditorDataStorageProvider& InDataStorage);
 
 		RowHandle CreateMemento(RowHandle SourceRow);
 		void CreateMemento(RowHandle ReservedMementoRow, RowHandle SourceRow);
@@ -25,6 +25,6 @@ namespace UE::Editor::DataStorage
 
 		TArray<const UTedsMementoTranslatorBase*> MementoTranslators;
 		TableHandle MementoRowBaseTable;
-		ITypedElementDataStorageInterface& DataStorage;
+		IEditorDataStorageProvider& DataStorage;
 	};
 } // namespace UE::Editor::DataStorage

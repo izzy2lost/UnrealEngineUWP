@@ -1347,15 +1347,6 @@ TSharedRef<SWidget> SSequencer::ConstructSearchAndFilterRow()
 			.IsEnabled_Lambda([this]() { return !SequencerPtr.Pin()->IsReadOnly(); })
 		]
 
-		// Isolate / Hide / Show
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.VAlign(VAlign_Center)
-		.Padding(2.f, 0.f, 0.f, 0.f)
-		[
-			FilterBar->MakeIsolateHideShowPanel()
-		]
-
 		// Advanced Search Filter Combo Button
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
@@ -1373,24 +1364,13 @@ TSharedRef<SWidget> SSequencer::ConstructSearchAndFilterRow()
 			SearchBox.ToSharedRef()
 		]
 
-		// Create Folder Button
+		// Isolate / Hide / Show
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		.VAlign(VAlign_Center)
 		.Padding(2.f, 0.f, 0.f, 0.f)
 		[
-			SNew(SButton)
-			.ContentPadding(2.f)
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
-			.ToolTipText(LOCTEXT("CreateFolderToolTip", "Creates a new folder containing the current selection or adds a new root folder if there is no selection"))
-			.OnClicked(this, &SSequencer::HandleCreateFolderTrackClick)
-			[
-				SNew(SImage)
-				.ColorAndOpacity(FSlateColor::UseForeground())
-				.Image(FAppStyle::Get().GetBrush(TEXT("SceneOutliner.NewFolderIcon")))
-			]
+			FilterBar->MakeIsolateHideShowPanel()
 		]
 
 		// View Options Combo Button
@@ -4241,22 +4221,6 @@ void SSequencer::EnableCurveEditorPendingFocusOnHovering(const bool InEnabled) c
 	}
 	
 	CurveEditorPanel->EnablePendingFocusOnHovering(InEnabled);
-}
-
-FReply SSequencer::HandleCreateFolderTrackClick()
-{
-	if (const TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin())
-	{
-		if (Sequencer->GetSelectedNodesToMove().Num() > 0)
-		{
-			Sequencer->MoveSelectedNodesToNewFolder();
-		}
-		else
-		{
-			Sequencer->AddFolder();
-		}
-	}
-	return FReply::Handled();
 }
 
 TSharedPtr<FSequencerFilterBar> SSequencer::GetFilterBar() const

@@ -13,13 +13,13 @@
 
 #define LOCTEXT_NAMESPACE "TedsCore"
 
-void UActorLabelDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UActorLabelDataStorageFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	RegisterActorLabelToColumnQuery(DataStorage);
 	RegisterLabelColumnToActorQuery(DataStorage);
 }
 
-void UActorLabelDataStorageFactory::RegisterActorLabelToColumnQuery(ITypedElementDataStorageInterface& DataStorage) const
+void UActorLabelDataStorageFactory::RegisterActorLabelToColumnQuery(IEditorDataStorageProvider& DataStorage) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	
@@ -47,7 +47,7 @@ void UActorLabelDataStorageFactory::RegisterActorLabelToColumnQuery(ITypedElemen
 		.Compile());
 }
 
-void UActorLabelDataStorageFactory::RegisterLabelColumnToActorQuery(ITypedElementDataStorageInterface& DataStorage) const
+void UActorLabelDataStorageFactory::RegisterLabelColumnToActorQuery(IEditorDataStorageProvider& DataStorage) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	

@@ -11,8 +11,8 @@
 #include "StateTreePropertyRef.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
-#include "Widgets/Input/SEditableText.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "Widgets/Text/SRichTextBlock.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/SStateTreeNodeTypePicker.h"
@@ -538,12 +538,11 @@ void FStateTreeEditorNodeDetails::CustomizeHeader(TSharedRef<class IPropertyHand
 						]
 						+ SWidgetSwitcher::Slot()
 						[
-							SAssignNew(NameEdit, SEditableText)
-							.Style(&FStateTreeEditorStyle::Get().GetWidgetStyle<FEditableTextStyle>("StateTree.Node.Editable"))
+							SAssignNew(NameEdit, SInlineEditableTextBlock)
+							.Style(FStateTreeEditorStyle::Get(), "StateTree.Node.TitleInlineEditableText")
 							.Text(this, &FStateTreeEditorNodeDetails::GetName)
-							.OnTextCommitted(this, &FStateTreeEditorNodeDetails::OnNameCommitted)
-							.SelectAllTextWhenFocused(true)
-							.RevertTextOnEscape(true)
+							.OnTextCommitted(this, &FStateTreeEditorNodeDetails::HandleNameCommitted)
+							.OnVerifyTextChanged(this, &FStateTreeEditorNodeDetails::HandleVerifyNameChanged)
 							.Visibility(this, &FStateTreeEditorNodeDetails::IsNodeDescriptionVisible)
 						]
 					]
@@ -1337,6 +1336,7 @@ FReply FStateTreeEditorNodeDetails::OnDescriptionClicked(const FGeometry& MyGeom
 			// Focus on name edit.
 			FReply Reply = FReply::Handled();
 			Reply.SetUserFocus(NameEdit.ToSharedRef());
+			NameEdit->EnterEditingMode();
 			return Reply;
 		}
 	}
@@ -1465,49 +1465,62 @@ FText FStateTreeEditorNodeDetails::GetName() const
 	return LOCTEXT("MultipleSelected", "Multiple Selected");
 }
 
-void FStateTreeEditorNodeDetails::OnNameCommitted(const FText& NewText, ETextCommit::Type InTextCommit) const
+bool FStateTreeEditorNodeDetails::HandleVerifyNameChanged(const FText& InText, FText& OutErrorMessage) const
+{
+	const FString NewName = FText::TrimPrecedingAndTrailing(InText).ToString();
+	if (NewName.Len() >= NAME_SIZE)
+	{
+		OutErrorMessage = LOCTEXT("VerifyNodeLabelFailed_MaxLength", "Max length exceeded");
+		return false;
+	}
+	return NewName.Len() > 0 && FName::IsValidXName(NewName, INVALID_NAME_CHARACTERS, &OutErrorMessage);
+}
+
+void FStateTreeEditorNodeDetails::HandleNameCommitted(const FText& NewText, ETextCommit::Type InTextCommit) const
 {
 	check(StructProperty);
 
 	if (InTextCommit == ETextCommit::OnEnter || InTextCommit == ETextCommit::OnUserMovedFocus)
 	{
 		// Remove excess whitespace and prevent categories with just spaces
-		FString NewName = FText::TrimPrecedingAndTrailing(NewText).ToString();
-
-		if (GEditor)
+		const FString NewName = FText::TrimPrecedingAndTrailing(NewText).ToString();
+		if (NewName.Len() > 0 && FName::IsValidXName(NewName, INVALID_NAME_CHARACTERS) && NewName.Len() < NAME_SIZE)
 		{
-			GEditor->BeginTransaction(LOCTEXT("SetName", "Set Name"));
-		}
-		StructProperty->NotifyPreChange();
-
-		TArray<void*> RawNodeData;
-		StructProperty->AccessRawData(RawNodeData);
-		
-		for (void* Data : RawNodeData)
-		{
-			// Set Name
-			if (FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(Data))
+			if (GEditor)
 			{
-				if (FStateTreeNodeBase* BaseNode = Node->Node.GetMutablePtr<FStateTreeNodeBase>())
+				GEditor->BeginTransaction(LOCTEXT("SetName", "Set Name"));
+			}
+			StructProperty->NotifyPreChange();
+
+			TArray<void*> RawNodeData;
+			StructProperty->AccessRawData(RawNodeData);
+
+			for (void* Data : RawNodeData)
+			{
+				// Set Name
+				if (FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(Data))
 				{
-					BaseNode->Name = FName(NewName);
+					if (FStateTreeNodeBase* BaseNode = Node->Node.GetMutablePtr<FStateTreeNodeBase>())
+					{
+						BaseNode->Name = FName(NewName);
+					}
 				}
 			}
+
+			StructProperty->NotifyPostChange(EPropertyChangeType::ValueSet);
+
+			if (StateTree)
+			{
+				UE::StateTree::Delegates::OnIdentifierChanged.Broadcast(*StateTree);
+			}
+
+			if (GEditor)
+			{
+				GEditor->EndTransaction();
+			}
+
+			StructProperty->NotifyFinishedChangingProperties();
 		}
-
-		StructProperty->NotifyPostChange(EPropertyChangeType::ValueSet);
-
-		if (StateTree)
-		{
-			UE::StateTree::Delegates::OnIdentifierChanged.Broadcast(*StateTree);
-		}
-
-		if (GEditor)
-		{
-			GEditor->EndTransaction();
-		}
-
-		StructProperty->NotifyFinishedChangingProperties();
 	}
 
 	// Switch back to rich view.
@@ -1814,6 +1827,7 @@ void FStateTreeEditorNodeDetails::OnRenameNode() const
 
 			FSlateApplication::Get().SetKeyboardFocus(NameEdit);
 			FSlateApplication::Get().SetUserFocus(0, NameEdit);
+			NameEdit->EnterEditingMode();
 		}
 	}
 }

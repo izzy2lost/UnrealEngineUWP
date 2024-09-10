@@ -1116,9 +1116,13 @@ public:
 
 FRHIRayTracingPipelineState* GetRHIRayTracingPipelineState(FRayTracingPipelineState* PipelineState)
 {
-	ensure(PipelineState->RHIPipeline);
-	PipelineState->CompletionEvent = nullptr;
-	return PipelineState->RHIPipeline;
+	if (PipelineState)
+	{
+		ensure(PipelineState->RHIPipeline);
+		PipelineState->CompletionEvent = nullptr;
+		return PipelineState->RHIPipeline;
+	}
+	return nullptr;
 }
 
 int32 FindRayTracingHitGroupIndex(FRayTracingPipelineState* Pipeline, FRHIRayTracingShader* HitGroupShader, bool bRequired)

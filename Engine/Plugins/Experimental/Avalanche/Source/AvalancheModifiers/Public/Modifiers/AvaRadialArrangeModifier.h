@@ -40,12 +40,6 @@ class UAvaRadialArrangeModifier : public UAvaArrangeBaseModifier
 	GENERATED_BODY()
 
 public:
-	AVALANCHEMODIFIERS_API void SetPlane(EAvaRadialArrangePlane InPlane);
-	EAvaRadialArrangePlane GetPlane() const
-	{
-		return Plane;
-	}
-
 	/** Sets the number of child elements to use in the arrangement. Children whose index is greater than or equal to this value will be hidden. */
 	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|RadialArrange")
 	AVALANCHEMODIFIERS_API void SetCount(const int32 InCount);
@@ -156,6 +150,17 @@ public:
 		return OrientationAxis;
 	}
 
+	/** Sets the base rotation */
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|RadialArrange")
+	AVALANCHEMODIFIERS_API void SetBaseOrientation(const FRotator& InRotation);
+
+	/** Gets the base rotation */
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|RadialArrange")
+	const FRotator& GetBaseOrientation() const
+	{
+		return BaseOrientation;
+	}
+
 	/** If true, will flip the center orientation to face outwards. */
 	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|RadialArrange")
 	AVALANCHEMODIFIERS_API void SetFlipOrient(const bool bInFlipOrient);
@@ -177,12 +182,10 @@ protected:
 
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
+	virtual void OnModifierAdded(EActorModifierCoreEnableReason InReason) override;
+	virtual void OnModifiedActorTransformed() override;
 	virtual void Apply() override;
 	//~ End UActorModifierCoreBase
-
-	/** Base plane for the radial arrangement */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="RadialArrange", meta=(AllowPrivateAccess="true"))
-	EAvaRadialArrangePlane Plane = EAvaRadialArrangePlane::YZ;
 
 	/** The number of child elements to limit in the arrangement, or -1 if unlimited. Children whose index is greater than or equal to this value will be hidden. */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="RadialArrange", meta=(ClampMin="-1", UIMin="-1", AllowPrivateAccess="true"))
@@ -214,15 +217,19 @@ protected:
 
 	/** If true, will arrange the child elements starting from the outer radius and moving to the inner radius. Has no effect if only using one ring. */
 	UPROPERTY(EditInstanceOnly, Setter="SetStartFromOuterRadius", Getter="GetStartFromOuterRadius", Category="RadialArrange", meta=(AllowPrivateAccess="true"))
-	bool bStartFromOuterRadius;
+	bool bStartFromOuterRadius = false;
 
 	/** If true, will orient the selected axis torwards the center. */
 	UPROPERTY(EditInstanceOnly, Setter="SetOrient", Getter="GetOrient", Category="RadialArrange", meta=(AllowPrivateAccess="true"))
-	bool bOrient;
+	bool bOrient = false;
 
 	/** The axis to look at the center. */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="RadialArrange", meta=(EditCondition="bOrient", EditConditionHides, AllowPrivateAccess="true"))
 	EAvaModifiersAxis OrientationAxis = EAvaModifiersAxis::None;
+
+	/** Base rotation added on top of the orientation rotation computed */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="RadialArrange", meta=(EditCondition="bOrient", EditConditionHides, AllowPrivateAccess="true"))
+	FRotator BaseOrientation = FRotator::ZeroRotator;
 
 	UE_DEPRECATED(5.5, "Use OrientationAxis instead")
 	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use OrientationAxis instead"))
@@ -230,5 +237,5 @@ protected:
 
 	/** If true, will flip the orientation axis to the opposite direction. */
 	UPROPERTY(EditInstanceOnly, Setter="SetFlipOrient", Getter="GetFlipOrient", Category="RadialArrange", meta=(EditCondition="bOrient", EditConditionHides, AllowPrivateAccess="true"))
-	bool bFlipOrient;
+	bool bFlipOrient = false;
 };

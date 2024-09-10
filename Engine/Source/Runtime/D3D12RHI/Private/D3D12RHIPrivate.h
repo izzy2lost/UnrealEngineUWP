@@ -235,10 +235,15 @@ public:
 	// Called when the GPU has crashed. This function will not return.
 	void ProcessInterruptQueueOnGPUCrash();
 
-	using FD3D12TimingArray = TArray<TUniquePtr<FD3D12Timing>, TInlineAllocator<GD3D12MaxNumQueues>>;
+	struct FD3D12TimingArray : public TArray<TUniquePtr<FD3D12Timing>, TInlineAllocator<GD3D12MaxNumQueues>>
+	{
+		FD3D12Timing* CreateNew(FD3D12Queue& Queue)
+		{
+			return Emplace_GetRef(MakeUnique<FD3D12Timing>(Queue)).Get();
+		}
+	};
 
 	FD3D12TimingArray CurrentTimingPerQueue;
-	void FlushTiming(bool bCreateNew, const FRHIEndFrameArgs& Args);
 	void ProcessTimestamps(FD3D12TimingArray const& TimingPerQueue);
 
 	void InitializeSubmissionPipe();
@@ -469,7 +474,7 @@ public:
 	virtual FRayTracingShaderRHIRef RHICreateRayTracingShader(TArrayView<const uint8> Code, const FSHAHash& Hash, EShaderFrequency ShaderFrequency) final override;
 	virtual FRayTracingPipelineStateRHIRef RHICreateRayTracingPipelineState(const FRayTracingPipelineStateInitializer& Initializer) final override;
 
-	virtual FShaderBindingTableRHIRef RHICreateShaderBindingTable(const FRayTracingShaderBindingTableInitializer& Initializer) final override;
+	virtual FShaderBindingTableRHIRef RHICreateShaderBindingTable(FRHICommandListBase& RHICmdList, const FRayTracingShaderBindingTableInitializer& Initializer) final override;
 #endif //D3D12_RHI_RAYTRACING
 
 	virtual FShaderBundleRHIRef RHICreateShaderBundle(const FShaderBundleCreateInfo& CreateInfo) override;

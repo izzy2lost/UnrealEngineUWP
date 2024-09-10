@@ -29,16 +29,18 @@
 #include "UsdWrappers/UsdTyped.h"
 
 #include "Async/Async.h"
+#include "Async/ParallelFor.h"
 #include "HAL/IConsoleManager.h"
-#include "InterchangeManager.h"
 #include "InterchangeCameraNode.h"
 #include "InterchangeLightNode.h"
+#include "InterchangeManager.h"
 #include "InterchangeMaterialInstanceNode.h"
 #include "InterchangeMeshNode.h"
 #include "InterchangeSceneNode.h"
 #include "InterchangeShaderGraphNode.h"
 #include "InterchangeTexture2DNode.h"
 #include "InterchangeTranslatorHelper.h"
+#include "Mesh/InterchangeMeshPayload.h"
 #include "MovieSceneSection.h"
 #include "Rendering/SkeletalMeshLODImporterData.h"
 #include "StaticMeshAttributes.h"
@@ -128,8 +130,13 @@ namespace UE::InterchangeUsdTranslator::Private
 	{
 	public:
 
-		/** Add a material instance to the node container, otherwise it will add a material if it comes from a Translator (for example coming from MaterialX which cannot handle material instances) */
-		void AddMaterialNode(const UE::FUsdPrim& Prim, UInterchangeUsdTranslatorSettings* TranslatorSettings, UInterchangeBaseNodeContainer& NodeContainer);
+		/** Add a material instance to the node container, otherwise it will add a material if it comes from a Translator (for example coming from
+		 * MaterialX which cannot handle material instances) */
+		void AddMaterialNode(
+			const UE::FUsdPrim& Prim,
+			UInterchangeUsdTranslatorSettings* TranslatorSettings,
+			UInterchangeBaseNodeContainer& NodeContainer
+		);
 
 		void AddMeshNode(const UE::FUsdPrim& Prim, UInterchangeBaseNodeContainer& NodeContainer, const FTraversalInfo& Info);
 
@@ -156,7 +163,8 @@ namespace UE::InterchangeUsdTranslator::Private
 		// here for easy access when parsing the tracks
 		UInterchangeAnimationTrackSetNode* CurrentTrackSet = nullptr;
 
-		// Array of translators that we call in the GetTexturePayload, the key has no real meaning, it's just here to avoid having duplicates and calling several times the Translate function
+		// Array of translators that we call in the GetTexturePayload, the key has no real meaning, it's just here to avoid having duplicates and
+		// calling several times the Translate function
 		TMap<FString, UInterchangeTranslatorBase*> Translators;
 
 	private:
@@ -166,7 +174,7 @@ namespace UE::InterchangeUsdTranslator::Private
 			FString MaterialSlotName;
 			UInterchangeMeshNode* MeshNode;
 		};
-		TMap<FString, FString> PrimPathToMaterialPath; 
+		TMap<FString, FString> PrimPathToMaterialPath;
 		TMap<FString, TArray<FMaterialSlotMesh>> PrimPathToSlotMeshNodes;
 	};
 
@@ -713,13 +721,13 @@ namespace UE::InterchangeUsdTranslator::Private
 		auto SetMaterialSlotDependencies = [this, &NodeUid]()
 		{
 			// Now we need to check if we have to set the slot of the mesh nodes here
-			if(TArray<FMaterialSlotMesh>* SlotMeshes = PrimPathToSlotMeshNodes.Find(NodeUid))
+			if (TArray<FMaterialSlotMesh>* SlotMeshes = PrimPathToSlotMeshNodes.Find(NodeUid))
 			{
-				if(FString* NewMaterialUID = PrimPathToMaterialPath.Find(NodeUid))
+				if (FString* NewMaterialUID = PrimPathToMaterialPath.Find(NodeUid))
 				{
-					for(const FMaterialSlotMesh& MaterialSlotMesh : *SlotMeshes)
+					for (const FMaterialSlotMesh& MaterialSlotMesh : *SlotMeshes)
 					{
-						if(!MaterialSlotMesh.MeshNode->GetSlotMaterialDependencyUid(MaterialSlotMesh.MaterialSlotName, *NewMaterialUID))
+						if (!MaterialSlotMesh.MeshNode->GetSlotMaterialDependencyUid(MaterialSlotMesh.MaterialSlotName, *NewMaterialUID))
 						{
 							MaterialSlotMesh.MeshNode->SetSlotMaterialDependencyUid(MaterialSlotMesh.MaterialSlotName, *NewMaterialUID);
 						}
@@ -735,18 +743,17 @@ namespace UE::InterchangeUsdTranslator::Private
 		if(RenderContext == UnrealIdentifiers::MaterialXRenderContext)
 		{
 			TArray<FString> FilePaths = UsdUtils::GetMaterialXFilePaths(Prim);
-			for(const FString& File : FilePaths)
+			for (const FString& File : FilePaths)
 			{
 				// the file has already been handled no need to do a Translate again
-				if(!Translators.Find(File))
+				if (!Translators.Find(File))
 				{
-
 					UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
 					UInterchangeSourceData* SourceData = UInterchangeManager::CreateSourceData(File);
 
 					UInterchangeTranslatorBase* Translator = InterchangeManager.GetTranslatorForSourceData(SourceData);
-					//check on the Translator, it might return nullptr in case of reimport
-					if(Translator)
+					// check on the Translator, it might return nullptr in case of reimport
+					if (Translator)
 					{
 						Translator->Translate(NodeContainer);
 						Translators.Add(File, Translator);
@@ -759,7 +766,7 @@ namespace UE::InterchangeUsdTranslator::Private
 					[this, &NodeName, &NodeUid](const FString&, UInterchangeShaderGraphNode* ShaderGraphNode)
 					{
 						FString UID = ShaderGraphNode->GetUniqueID();
-						if(FPaths::GetBaseFilename(UID) == NodeName)
+						if (FPaths::GetBaseFilename(UID) == NodeName)
 						{
 							PrimPathToMaterialPath.Add(NodeUid, UID);
 							return true;
@@ -768,12 +775,13 @@ namespace UE::InterchangeUsdTranslator::Private
 						{
 							return false;
 						}
-					});
+					}
+				);
 			}
 
 			SetMaterialSlotDependencies();
 
-			if(!FilePaths.IsEmpty())
+			if (!FilePaths.IsEmpty())
 			{
 				return;
 			}
@@ -784,14 +792,13 @@ namespace UE::InterchangeUsdTranslator::Private
 		MaterialNode->InitializeNode(NodeUid, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
 		MaterialNode->SetAssetName(NodeName);
 		NodeContainer.AddNode(MaterialNode);
-		
+
 		// Set the material instance node to the correct mesh nodes
 		PrimPathToMaterialPath.Add(NodeUid, NodeUid);
 		SetMaterialSlotDependencies();
 
 		UsdToUnreal::FUsdPreviewSurfaceMaterialData MaterialData;
 		const bool bSuccess = UsdToUnreal::ConvertMaterial(Prim, MaterialData, TranslatorSettings ? *RenderContext : nullptr);
-
 
 		// Set all the parameter values to the interchange node
 		bool bHasUDIMTexture = false;
@@ -1198,20 +1205,25 @@ namespace UE::InterchangeUsdTranslator::Private
 				}
 
 				// if we found a match let's set the slot to the corresponding Material (the Material path could come from another translator)
-				if(FString* NewMaterialInstanceUid = PrimPathToMaterialPath.Find(MaterialInstanceUid))
+				if (FString* NewMaterialInstanceUid = PrimPathToMaterialPath.Find(MaterialInstanceUid))
 				{
 					MeshNode->SetSlotMaterialDependencyUid(SlotName, *NewMaterialInstanceUid);
 				}
-				else // otherwise it's up to the Material to attach itself to the mesh
+				else	// otherwise it's up to the Material to attach itself to the mesh
 				{
 					// one material can be attached to several meshes
-					if(TArray<FMaterialSlotMesh>* SlotsMeshes = PrimPathToSlotMeshNodes.Find(MaterialInstanceUid))
+					if (TArray<FMaterialSlotMesh>* SlotsMeshes = PrimPathToSlotMeshNodes.Find(MaterialInstanceUid))
 					{
-						SlotsMeshes->Add({ SlotName, MeshNode });
+						SlotsMeshes->Add({SlotName, MeshNode});
 					}
 					else
 					{
-						PrimPathToSlotMeshNodes.Add(MaterialInstanceUid, { { SlotName, MeshNode } });
+						PrimPathToSlotMeshNodes.Add(
+							MaterialInstanceUid,
+							{
+								{SlotName, MeshNode}
+						}
+						);
 					}
 				}
 			}
@@ -2382,10 +2394,16 @@ bool UInterchangeUSDTranslator::Translate(UInterchangeBaseNodeContainer& NodeCon
 	// Cache these so we don't have to keep converting these tokens over and over during translation
 	FUsdMeshConversionOptions& MeshOptions = ImplPtr->CachedMeshConversionOptions;
 	MeshOptions.PurposesToLoad = (EUsdPurpose)Settings->GeometryPurpose;
+
+	// TODO: Change FUsdMeshConversionOptions to not hold USD types directly, so we don't have to the conversion below everywhere.
+	// We can't use UsdToUnreal::ConvertToken() here because it returns a TUsdStore, and the template instantiation created in this module doesn't
+	// really do anything anyway as the module doesn't use IMPLEMENT_MODULE_USD!
+	// Luckily we can get around this here because pxr::TfToken doesn't allocate on its own: At most USD makes a copy of the string, which it should
+	// allocate/deallocate on its own allocator.
 	MeshOptions.RenderContext = Settings->RenderContext.IsNone() ? pxr::UsdShadeTokens->universalRenderContext
-																 : UnrealToUsd::ConvertToken(*Settings->RenderContext.ToString()).Get();
+																 : pxr::TfToken{TCHAR_TO_ANSI(*Settings->RenderContext.ToString())};
 	MeshOptions.MaterialPurpose = Settings->MaterialPurpose.IsNone() ? pxr::UsdShadeTokens->allPurpose
-																	 : UnrealToUsd::ConvertToken(*Settings->MaterialPurpose.ToString()).Get();
+																	 : pxr::TfToken{TCHAR_TO_ANSI(*Settings->MaterialPurpose.ToString())};
 
 	// Traverse stage and emit translated nodes
 	FTraversalInfo Info;
@@ -2466,79 +2484,70 @@ void UInterchangeUSDTranslator::SetSettings(const UInterchangeTranslatorSettings
 	}
 }
 
-TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeUSDTranslator::GetMeshPayloadData(
+TOptional<UE::Interchange::FMeshPayloadData> UInterchangeUSDTranslator::GetMeshPayloadData(
 	const FInterchangeMeshPayLoadKey& PayloadKey,
 	const FTransform& MeshGlobalTransform
 ) const
 {
 	using namespace UE::InterchangeUsdTranslator::Private;
-
-	return Async(
-		EAsyncExecution::TaskGraph,
-		[this, PayloadKey, MeshGlobalTransform]
-		{
-			TOptional<UE::Interchange::FMeshPayloadData> Result;
-
+	bool bSuccess = false;
+	TOptional<UE::Interchange::FMeshPayloadData> Result;
 #if USE_USD_SDK
-			UInterchangeUSDTranslatorImpl* ImplPtr = Impl.Get();
-			if (!ImplPtr)
-			{
-				return Result;
-			}
+	UInterchangeUSDTranslatorImpl* ImplPtr = Impl.Get();
+	if (!ImplPtr)
+	{
+		return Result;
+	}
 
-			UsdToUnreal::FUsdMeshConversionOptions OptionsCopy = ImplPtr->CachedMeshConversionOptions;
-			OptionsCopy.AdditionalTransform = MeshGlobalTransform;
+	UsdToUnreal::FUsdMeshConversionOptions OptionsCopy = ImplPtr->CachedMeshConversionOptions;
+	OptionsCopy.AdditionalTransform = MeshGlobalTransform;
 
-			bool bSuccess = false;
-			UE::Interchange::FMeshPayloadData MeshPayloadData;
-			switch (PayloadKey.Type)
-			{
-				case EInterchangeMeshPayLoadType::STATIC:
-				{
-					bSuccess = UE::InterchangeUsdTranslator::Private::GetStaticMeshPayloadData(
-						PayloadKey.UniqueId,
-						*ImplPtr,
-						OptionsCopy,
-						MeshPayloadData.MeshDescription
-					);
-					break;
-				}
-				case EInterchangeMeshPayLoadType::SKELETAL:
-				{
-					bSuccess = UE::InterchangeUsdTranslator::Private::GetSkeletalMeshPayloadData(
-						PayloadKey.UniqueId,
-						*ImplPtr,
-						OptionsCopy,
-						MeshPayloadData.MeshDescription,
-						MeshPayloadData.JointNames
-					);
-					break;
-				}
-				case EInterchangeMeshPayLoadType::MORPHTARGET:
-				{
-					bSuccess = UE::InterchangeUsdTranslator::Private::GetMorphTargetPayloadData(
-						PayloadKey.UniqueId,
-						*ImplPtr,
-						OptionsCopy,
-						MeshPayloadData.MeshDescription,
-						MeshPayloadData.MorphTargetName
-					);
-					break;
-				}
-				case EInterchangeMeshPayLoadType::NONE:	   // Fallthrough
-				default:
-					break;
-			}
-
-			if (bSuccess)
-			{
-				Result.Emplace(MeshPayloadData);
-			}
-#endif	  // USE_USD_SDK
-
-			return Result;
+	UE::Interchange::FMeshPayloadData MeshPayloadData;
+	switch (PayloadKey.Type)
+	{
+		case EInterchangeMeshPayLoadType::STATIC:
+		{
+			bSuccess = UE::InterchangeUsdTranslator::Private::GetStaticMeshPayloadData(
+				PayloadKey.UniqueId,
+				*ImplPtr,
+				OptionsCopy,
+				MeshPayloadData.MeshDescription
+			);
+			break;
 		}
-	);
+		case EInterchangeMeshPayLoadType::SKELETAL:
+		{
+			bSuccess = UE::InterchangeUsdTranslator::Private::GetSkeletalMeshPayloadData(
+				PayloadKey.UniqueId,
+				*ImplPtr,
+				OptionsCopy,
+				MeshPayloadData.MeshDescription,
+				MeshPayloadData.JointNames
+			);
+			break;
+		}
+		case EInterchangeMeshPayLoadType::MORPHTARGET:
+		{
+			bSuccess = UE::InterchangeUsdTranslator::Private::GetMorphTargetPayloadData(
+				PayloadKey.UniqueId,
+				*ImplPtr,
+				OptionsCopy,
+				MeshPayloadData.MeshDescription,
+				MeshPayloadData.MorphTargetName
+			);
+			break;
+		}
+		case EInterchangeMeshPayLoadType::NONE:	   // Fallthrough
+		default:
+			break;
+	}
+
+	if (bSuccess)
+	{
+		Result.Emplace(MeshPayloadData);
+	}
+#endif	  // USE_USD_SDK
+	return Result;
 }
 
 TOptional<UE::Interchange::FImportImage> UInterchangeUSDTranslator::GetTexturePayloadData(
@@ -2554,14 +2563,13 @@ TOptional<UE::Interchange::FImportImage> UInterchangeUSDTranslator::GetTexturePa
 	FString FilePath;
 	TextureGroup TextureGroup;
 	bool bDecoded = DecodeTexturePayloadKey(PayloadKey, FilePath, TextureGroup);
-	if(bDecoded)
+	if (bDecoded)
 	{
 		// Defer back to another translator to actually parse the texture raw data
 		UE::Interchange::Private::FScopedTranslator ScopedTranslator(FilePath, Results);
 		const IInterchangeTexturePayloadInterface* TextureTranslator = ScopedTranslator.GetPayLoadInterface<IInterchangeTexturePayloadInterface>();
-		if(ensure(TextureTranslator))
+		if (ensure(TextureTranslator))
 		{
-
 			AlternateTexturePath = FilePath;
 
 			// The texture translators don't use the payload key, and read the texture directly from the SourceData's file path
@@ -2579,14 +2587,14 @@ TOptional<UE::Interchange::FImportImage> UInterchangeUSDTranslator::GetTexturePa
 #endif	  // USE_USD_SDK
 
 	// We did not find a suitable Payload in USD Translator, let's find one in one of the Translators (MaterialX for the moment)
-	// The best way would be to have a direct association between the payload and the right Translator, but we don't have a suitable way of knowing which Payload belongs to which Translator
-	// So let's just loop over them all
-	for(const TPair<FString, UInterchangeTranslatorBase*> & Pair : Impl->Translators)
+	// The best way would be to have a direct association between the payload and the right Translator, but we don't have a suitable way of knowing
+	// which Payload belongs to which Translator So let's just loop over them all
+	for (const TPair<FString, UInterchangeTranslatorBase*>& Pair : Impl->Translators)
 	{
-		if(IInterchangeTexturePayloadInterface* TexturePayloadInterface = Cast<IInterchangeTexturePayloadInterface>(Pair.Value))
+		if (IInterchangeTexturePayloadInterface* TexturePayloadInterface = Cast<IInterchangeTexturePayloadInterface>(Pair.Value))
 		{
 			TexturePayloadData = TexturePayloadInterface->GetTexturePayloadData(PayloadKey, AlternateTexturePath);
-			if(TexturePayloadData)
+			if (TexturePayloadData)
 			{
 				break;
 			}
@@ -2692,102 +2700,154 @@ TArray<UE::Interchange::FAnimationPayloadData> UInterchangeUSDTranslator::GetAni
 {
 	using namespace UE::Interchange;
 	using namespace UE::InterchangeUsdTranslator::Private;
-
+	//This is the results we return
 	TArray<UE::Interchange::FAnimationPayloadData> AnimationPayloads;
 
-#if USE_USD_SDK
-	TMap<FString, TArray<const UE::Interchange::FAnimationPayloadQuery*>> BatchedBakeQueries;
-	BatchedBakeQueries.Reserve(PayloadQueries.Num());
-
-	// Inspect the queries we got
-	TArray<TFuture<TArray<UE::Interchange::FAnimationPayloadData>>> AnimationPayloadFutures;
-	for (const UE::Interchange::FAnimationPayloadQuery& PayloadQuery : PayloadQueries)
+	//Maps to help sorting the queries by payload type
+	TArray<int32> BakeQueryIndexes;
+	TArray<TArray<UE::Interchange::FAnimationPayloadData>> BakeAnimationPayloads;
+	TArray<int32> CurveQueryIndexes;
+	TArray<TArray<UE::Interchange::FAnimationPayloadData>> CurveAnimationPayloads;
+	
+	//Get all curves with a parallel for
+	int32 PayloadCount = PayloadQueries.Num();
+	for (int32 PayloadIndex = 0; PayloadIndex < PayloadCount; ++PayloadIndex)
 	{
-		switch (PayloadQuery.PayloadKey.Type)
+		const UE::Interchange::FAnimationPayloadQuery& PayloadQuery = PayloadQueries[PayloadIndex];
+		EInterchangeAnimationPayLoadType QueryType = PayloadQuery.PayloadKey.Type;
+		if (QueryType == EInterchangeAnimationPayLoadType::BAKED)
 		{
-			case EInterchangeAnimationPayLoadType::CURVE:	 // Fallthrough
-			case EInterchangeAnimationPayLoadType::STEPCURVE:
-			{
-				// Property track animation queries.
-				//
-				// We're fine handling these in isolation (currently GetAnimationPayloadData is called with
-				// a single query at a time for these): Emit a separate task for each right away
-				AnimationPayloadFutures.Add(Async(
-					EAsyncExecution::TaskGraph,
-					[this, &PayloadQuery]
-					{
-						TArray<FAnimationPayloadData> Result;
-						FAnimationPayloadData AnimationPayLoadData{PayloadQuery.SceneNodeUniqueID, PayloadQuery.PayloadKey};
-						if (GetPropertyAnimationCurvePayloadData(Impl->UsdStage, PayloadQuery.PayloadKey.UniqueId, AnimationPayLoadData))
-						{
-							Result.Emplace(AnimationPayLoadData);
-						}
-						return Result;
-					}
-				));
-				break;
-			}
-			case EInterchangeAnimationPayLoadType::BAKED:
-			{
-				// Joint transform animation queries.
-				//
-				// Currently we'll receive the PayloadQueries for all joints of a skeletal animation on the same GetAnimationPayloadData
-				// call. Unfortunately in USD we must compute all joint transforms every time, even if all we need is data for a single
-				// joint. For efficiency then, we group up all the queries for the separate joints of the same skeleton into one batch
-				// task that we can resolve in one pass
-				const FString BakedQueryHash = HashAnimPayloadQuery(PayloadQuery);
-				TArray<const UE::Interchange::FAnimationPayloadQuery*>& Queries = BatchedBakeQueries.FindOrAdd(BakedQueryHash);
-				Queries.Add(&PayloadQuery);
-				break;
-			}
-			case EInterchangeAnimationPayLoadType::MORPHTARGETCURVE:
-			{
-				// Morph target curve queries.
-				AnimationPayloadFutures.Add(Async(
-					EAsyncExecution::TaskGraph,
-					[this, &PayloadQuery]
-					{
-						TArray<FAnimationPayloadData> Result;
-						FAnimationPayloadData AnimationPayLoadData{PayloadQuery.SceneNodeUniqueID, PayloadQuery.PayloadKey};
-						if (GetMorphTargetAnimationCurvePayloadData(*Impl, PayloadQuery.PayloadKey.UniqueId, AnimationPayLoadData))
-						{
-							Result.Emplace(AnimationPayLoadData);
-						}
-						return Result;
-					}
-				));
-				break;
-			}
-			case EInterchangeAnimationPayLoadType::NONE:
-			default:
-			{
-				break;
-			}
+			BakeQueryIndexes.Add(PayloadIndex);
+		}
+		else
+		{
+			CurveQueryIndexes.Add(PayloadIndex);
 		}
 	}
 
-	// Emit the batched joint transform animation tasks
-	for (const TPair<FString, TArray<const UE::Interchange::FAnimationPayloadQuery*>>& BatchedBakedQueryPair : BatchedBakeQueries)
+	
+#if USE_USD_SDK
+
+	//Import the Baked curve payloads
+	if(BakeQueryIndexes.Num() > 0)
 	{
-		AnimationPayloadFutures.Add(Async(
-			EAsyncExecution::TaskGraph,
-			[this, &BatchedBakedQueryPair]
+		int32 BakePayloadCount = BakeQueryIndexes.Num();
+		TMap<FString, TArray<const UE::Interchange::FAnimationPayloadQuery*>> BatchedBakeQueries;
+		BatchedBakeQueries.Reserve(BakePayloadCount);
+		
+		//Get the BAKED transform synchronously, since there is some interchange task that parallel them
+		for (int32 BakePayloadIndex = 0; BakePayloadIndex < BakePayloadCount; ++BakePayloadIndex)
+		{
+			if (!ensure(BakeQueryIndexes.IsValidIndex(BakePayloadIndex)))
 			{
-				const TArray<const UE::Interchange::FAnimationPayloadQuery*>& Queries = BatchedBakedQueryPair.Value;
-				TArray<UE::Interchange::FAnimationPayloadData> Result;
-				if (GetJointAnimationCurvePayloadData(*Impl, Queries, Result))
-				{
-					return Result;
-				}
-				return TArray<UE::Interchange::FAnimationPayloadData>{};
+				continue;
 			}
-		));
+			int32 PayloadIndex = BakeQueryIndexes[BakePayloadIndex];
+			if (!PayloadQueries.IsValidIndex(PayloadIndex))
+			{
+				continue;
+			}
+			const UE::Interchange::FAnimationPayloadQuery& PayloadQuery = PayloadQueries[PayloadIndex];
+			check(PayloadQuery.PayloadKey.Type == EInterchangeAnimationPayLoadType::BAKED);
+			// Joint transform animation queries.
+			//
+			// Currently we'll receive the PayloadQueries for all joints of a skeletal animation on the same GetAnimationPayloadData
+			// call. Unfortunately in USD we must compute all joint transforms every time, even if all we need is data for a single
+			// joint. For efficiency then, we group up all the queries for the separate joints of the same skeleton into one batch
+			// task that we can resolve in one pass
+			const FString BakedQueryHash = HashAnimPayloadQuery(PayloadQuery);
+			TArray<const UE::Interchange::FAnimationPayloadQuery*>& Queries = BatchedBakeQueries.FindOrAdd(BakedQueryHash);
+			Queries.Add(&PayloadQuery);
+		}
+		// Emit the batched joint transform animation tasks
+		for (const TPair<FString, TArray<const UE::Interchange::FAnimationPayloadQuery*>>& BatchedBakedQueryPair : BatchedBakeQueries)
+		{
+			const TArray<const UE::Interchange::FAnimationPayloadQuery*>& Queries = BatchedBakedQueryPair.Value;
+			TArray<UE::Interchange::FAnimationPayloadData> Result;
+			GetJointAnimationCurvePayloadData(*Impl, Queries, Result);
+			BakeAnimationPayloads.Add(Result);
+		}
+
+		// Append the bake curves results
+		for (TArray<UE::Interchange::FAnimationPayloadData>& AnimationPayload : BakeAnimationPayloads)
+		{
+			AnimationPayloads.Append(AnimationPayload);
+		}
 	}
 
-	// Wait for all async tasks to complete and collect the results
-	for (TFuture<TArray<UE::Interchange::FAnimationPayloadData>>& AnimationPayloadFuture : AnimationPayloadFutures)
+	//Import normal curves
+	if(CurveQueryIndexes.Num() > 0)
 	{
-		AnimationPayloads.Append(AnimationPayloadFuture.Get());
+		auto GetAnimPayloadLambda = [&](int32 PayloadIndex)
+			{
+				if (!PayloadQueries.IsValidIndex(PayloadIndex))
+				{
+					return;
+				}
+				const UE::Interchange::FAnimationPayloadQuery& PayloadQuery = PayloadQueries[PayloadIndex];
+				EInterchangeAnimationPayLoadType PayloadType = PayloadQuery.PayloadKey.Type;
+				if(PayloadType == EInterchangeAnimationPayLoadType::CURVE
+					|| PayloadType == EInterchangeAnimationPayLoadType::STEPCURVE)
+				{
+					// Property track animation queries.
+					//
+					// We're fine handling these in isolation (currently GetAnimationPayloadData is called with
+					// a single query at a time for these): Emit a separate task for each right away
+					FAnimationPayloadData AnimationPayLoadData{ PayloadQuery.SceneNodeUniqueID, PayloadQuery.PayloadKey };
+					if (GetPropertyAnimationCurvePayloadData(Impl->UsdStage, PayloadQuery.PayloadKey.UniqueId, AnimationPayLoadData))
+					{
+						CurveAnimationPayloads[PayloadIndex].Emplace(AnimationPayLoadData);
+					}
+				}
+				else if(PayloadType == EInterchangeAnimationPayLoadType::MORPHTARGETCURVE)
+				{
+					// Morph target curve queries.
+					FAnimationPayloadData AnimationPayLoadData{ PayloadQuery.SceneNodeUniqueID, PayloadQuery.PayloadKey };
+					if (GetMorphTargetAnimationCurvePayloadData(*Impl, PayloadQuery.PayloadKey.UniqueId, AnimationPayLoadData))
+					{
+						CurveAnimationPayloads[PayloadIndex].Emplace(AnimationPayLoadData);
+					}
+				}
+			};
+
+		//Get all curves with a parallel for if there is many
+		int32 CurvePayloadCount = CurveQueryIndexes.Num();
+		CurveAnimationPayloads.AddDefaulted(CurvePayloadCount);
+		const int32 BatchSize = 10;
+		if (CurvePayloadCount > BatchSize)
+		{
+			const int32 NumBatches = (CurvePayloadCount / BatchSize) + 1;
+			ParallelFor(NumBatches, [&](int32 BatchIndex)
+				{
+					int32 PayloadIndexOffset = BatchIndex * BatchSize;
+					for (int32 PayloadIndex = PayloadIndexOffset; PayloadIndex < PayloadIndexOffset + BatchSize; ++PayloadIndex)
+					{
+						//The last batch can be incomplete
+						if (!CurveQueryIndexes.IsValidIndex(PayloadIndex))
+						{
+							break;
+						}
+						GetAnimPayloadLambda(CurveQueryIndexes[PayloadIndex]);
+					}
+				}, EParallelForFlags::BackgroundPriority);// ParallelFor
+		}
+		else
+		{
+			for (int32 PayloadIndex = 0; PayloadIndex < CurvePayloadCount; ++PayloadIndex)
+			{
+				int32 PayloadQueriesIndex = CurveQueryIndexes[PayloadIndex];
+				if (PayloadQueries.IsValidIndex(PayloadQueriesIndex))
+				{
+					GetAnimPayloadLambda(PayloadQueriesIndex);
+				}
+			}
+		}
+
+		// Append the curves results
+		for (TArray<UE::Interchange::FAnimationPayloadData>& AnimationPayload : CurveAnimationPayloads)
+		{
+			AnimationPayloads.Append(AnimationPayload);
+		}
 	}
 #endif	  // USE_USD_SDK
 

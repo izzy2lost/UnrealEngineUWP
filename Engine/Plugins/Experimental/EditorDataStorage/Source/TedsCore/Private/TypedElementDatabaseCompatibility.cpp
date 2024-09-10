@@ -99,7 +99,7 @@ void UEditorDataStorageCompatibility::Deinitialize()
 	
 	for (TPair<UWorld*, FDelegateHandle>& It : ActorDestroyedDelegateHandles)
 	{
-		It.Key->RemoveOnActorDestroyededHandler(It.Value);
+		It.Key->RemoveOnActorDestroyedHandler(It.Value);
 	}
 
 	FWorldDelegates::OnPreWorldFinishDestroy.Remove(PreWorldFinishDestroyDelegateHandle);
@@ -728,7 +728,7 @@ void UEditorDataStorageCompatibility::PendingRegistration<AddressType>::ForEachA
 }
 
 template<typename AddressType>
-void UEditorDataStorageCompatibility::PendingRegistration<AddressType>::ProcessEntries(ITypedElementDataStorageInterface& StorageInterface,
+void UEditorDataStorageCompatibility::PendingRegistration<AddressType>::ProcessEntries(IEditorDataStorageProvider& StorageInterface,
 	UEditorDataStorageCompatibility& Compatibility, const TFunctionRef<void(UE::Editor::DataStorage::RowHandle, const AddressType&)>& SetupRowCallback)
 {
 	// Thread-safe as it's only called from functions that already lock using.
@@ -897,7 +897,7 @@ void UEditorDataStorageCompatibility::TickPendingUObjectRegistration()
 		UObjectsPendingRegistration.ProcessEntries(*Storage, *this,
 			[this](UE::Editor::DataStorage::RowHandle Row, const TWeakObjectPtr<UObject>& Object)
 			{
-				ITypedElementDataStorageInterface* Interface = Storage;
+				IEditorDataStorageProvider* Interface = Storage;
 				Interface->AddColumn(Row, FTypedElementUObjectColumn{ .Object = Object });
 				Interface->AddColumn(Row, FTypedElementUObjectIdColumn
 					{ 
@@ -927,7 +927,7 @@ void UEditorDataStorageCompatibility::TickPendingExternalObjectRegistration()
 		ExternalObjectsPendingRegistration.ProcessEntries(*Storage, *this,
 			[this](UE::Editor::DataStorage::RowHandle Row, const ExternalObjectRegistration& Object)
 			{
-				ITypedElementDataStorageInterface* Interface = Storage;
+				IEditorDataStorageProvider* Interface = Storage;
 				Interface->AddColumn(Row, FTypedElementExternalObjectColumn{ .Object = Object.Object });
 				Interface->AddColumn(Row, FTypedElementScriptStructTypeInfoColumn{ .TypeInfo = Object.TypeInfo });
 				// Make sure the new row is tagged for update.
@@ -1183,7 +1183,7 @@ void UEditorDataStorageCompatibility::OnPreWorldFinishDestroy(UWorld* World)
 	FDelegateHandle Handle;
 	if (ActorDestroyedDelegateHandles.RemoveAndCopyValue(World, Handle))
 	{
-		World->RemoveOnActorDestroyededHandler(Handle);
+		World->RemoveOnActorDestroyedHandler(Handle);
 	}
 }
 
@@ -1265,7 +1265,7 @@ void UEditorDataStorageCompatibility::FRegistrationCommandChange::Revert(UObject
 	if (UObject* TargetRetrieved = TargetObject.Get(/*bEvenIfPendingKill=*/ true))
 	{
 		UEditorDataStorageCompatibility* DataStorageCompat = Owner.Get(); 
-		ITypedElementDataStorageInterface* DataStorage = DataStorageCompat->Storage;
+		IEditorDataStorageProvider* DataStorage = DataStorageCompat->Storage;
 			
 		RowHandle ObjectRow = DataStorageCompat->FindRowWithCompatibleObjectExplicit(TargetRetrieved);
 		if (DataStorage->IsRowAvailable(ObjectRow))
@@ -1301,7 +1301,7 @@ UEditorDataStorageCompatibility::FDeregistrationCommandChange::FDeregistrationCo
 {
 	using namespace UE::Editor::DataStorage;
 
-	ITypedElementDataStorageInterface* DataStorage = InOwner->Storage;
+	IEditorDataStorageProvider* DataStorage = InOwner->Storage;
 
 	RowHandle ObjectRow = InOwner->FindRowWithCompatibleObjectExplicit(InTargetObject);
 	if (DataStorage->IsRowAvailable(ObjectRow))

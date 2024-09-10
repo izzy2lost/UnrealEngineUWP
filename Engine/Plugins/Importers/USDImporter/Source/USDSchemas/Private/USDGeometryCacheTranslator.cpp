@@ -14,6 +14,7 @@
 #include "USDInfoCache.h"
 #include "USDIntegrationUtils.h"
 #include "USDLog.h"
+#include "USDMemory.h"
 #include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
 #include "USDTypesConversion.h"
@@ -448,12 +449,8 @@ namespace UsdGeometryCacheTranslatorImpl
 			ObjectFlags |= RF_Transient;
 		}
 
-		UGeometryCache* GeometryCache = Context->UsdAssetCache->GetOrCreateCachedAsset<UGeometryCache>(
-			PrefixedGeoCacheHash,
-			DesiredName,
-			ObjectFlags,
-			&bOutIsNew
-		);
+		UGeometryCache* GeometryCache = Context->UsdAssetCache
+											->GetOrCreateCachedAsset<UGeometryCache>(PrefixedGeoCacheHash, DesiredName, ObjectFlags, &bOutIsNew);
 
 		if (GeometryCache && bOutIsNew)
 		{
@@ -502,7 +499,8 @@ namespace UsdGeometryCacheTranslatorImpl
 						FillGeometryCacheTracks(RootPrimPath, MeshPaths, MaterialOffsets, Context, GeometryCache);
 
 						FinalizeGeometryCache(GeometryCache);
-					});
+					}
+				);
 			}
 			if (!bIsImporting)
 			{

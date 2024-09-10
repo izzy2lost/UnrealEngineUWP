@@ -16,7 +16,7 @@
 #include "TypedElementDataStorageSharedColumn.h"
 #include "UObject/UObjectGlobals.h"
 
-#define LOCTEXT_NAMESPACE "FTypedElementsDataStorageModule"
+#define LOCTEXT_NAMESPACE "FEditorDataStorageModule"
 
 // MASS uses CDO in a few places, making it a difficult to consistently register Type Element's Columns and Tags
 // as they may have not been set up to impersonate MASS' Fragments and Tags yet. There are currently no longer
@@ -66,7 +66,7 @@ void FEditorDataStorageModule::StartupModule()
 	}
 
 	// Load the dependent TypedElementFramework module (holding TypedElementRegistry) here so that it is guaranteed to be available in Shutdown
-	// and it is shutdown AFTER FTypedElementsDataStorageModule
+	// and it is shutdown AFTER FEditorDataStorageModule
 	FModuleManager::Get().LoadModule(TEXT("TypedElementFramework"));
 	
 	ImpersonateMassTagsAndFragments();
@@ -93,23 +93,23 @@ void FEditorDataStorageModule::StartupModule()
 				// Register the various DataStorage instances.
 				UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 				checkf(Registry, TEXT(
-					"FTypedElementsDataStorageModule tried to register itself, but there was no Typed Element Registry to register to."));
+					"FEditorDataStorageModule tried to register itself, but there was no Typed Element Registry to register to."));
 				Registry->SetDataStorage(DataStorage.Get());
 				Registry->SetDataStorageCompatibility(DataStorageCompatibility.Get());
 				Registry->SetDataStorageUi(DataStorageUi.Get());
 
 				// Allow any factories to register their content.
 				TArray<UClass*> FactoryClasses;
-				GetDerivedClasses(UTypedElementDataStorageFactory::StaticClass(), FactoryClasses);
+				GetDerivedClasses(UEditorDataStorageFactory::StaticClass(), FactoryClasses);
 
 				DataStorage->SetFactories(FactoryClasses);
-				TArray<UTypedElementDataStorageFactory*> Factories;
+				TArray<UEditorDataStorageFactory*> Factories;
 				Factories.Reserve(FactoryClasses.Num());
 
 				// First pass to call all registration without dependencies.
 				for (UEditorDataStorage::FactoryIterator Iterator = DataStorage->CreateFactoryIterator(); Iterator; ++Iterator)
 				{
-					UTypedElementDataStorageFactory* Factory = *Iterator;
+					UEditorDataStorageFactory* Factory = *Iterator;
 					
 					Factory->RegisterTables(*DataStorage);
 					Factory->RegisterTables(*DataStorage, *DataStorageCompatibility);
@@ -122,7 +122,7 @@ void FEditorDataStorageModule::StartupModule()
 				// Second pass to call all registration that would benefit or need the registration in the previous pass.
 				for (UEditorDataStorage::FactoryIterator Iterator = DataStorage->CreateFactoryIterator(); Iterator; ++Iterator)
 				{
-					UTypedElementDataStorageFactory* Factory = *Iterator;
+					UEditorDataStorageFactory* Factory = *Iterator;
 					
 					Factory->RegisterQueries(*DataStorage);
 					Factory->RegisterWidgetConstructors(*DataStorage, *DataStorageUi);

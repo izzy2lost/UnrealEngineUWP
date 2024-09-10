@@ -105,7 +105,7 @@ namespace Gauntlet
 				throw new AutomationException("Invalid install type!");
 			}
 
-			IProcessResult Result = null;
+			ILongProcessResult Result = null;
 
 			lock (Globals.MainLock)
 			{
@@ -115,8 +115,14 @@ namespace Gauntlet
 				Log.Info("Launching {0} on {1}", App.Name, ToString());
 				Log.Verbose("\t{0}", MacInstall.CommandArguments);
 
-				bool bAllowSpew = MacInstall.RunOptions.HasFlag(CommandUtils.ERunOptions.AllowSpew);
-				Result = CommandUtils.Run(GetExecutableIfBundle(MacInstall.ExecutablePath), MacInstall.CommandArguments, Options: MacInstall.RunOptions, SpewFilterCallback: new SpewFilterCallbackType(delegate (string M) { return bAllowSpew ? M : null; }) /* make sure stderr does not spew in the stdout */);
+				Result = new LongProcessResult(
+					GetExecutableIfBundle(MacInstall.ExecutablePath),
+					MacInstall.CommandArguments,
+					MacInstall.RunOptions,
+					OutputCallback: MacInstall.FilterLoggingDelegate,
+					WorkingDir: MacInstall.WorkingDirectory,
+					LocalCache: MacInstall.Device.LocalCachePath
+				);
 
 				if (Result.HasExited && Result.ExitCode != 0)
 				{
@@ -407,7 +413,7 @@ namespace Gauntlet
 
 	public class MacAppInstance : DesktopCommonAppInstance<MacAppInstall, TargetDeviceMac>
 	{
-		public MacAppInstance(MacAppInstall InInstall, IProcessResult InProcess, string ProcessLogFile = null)
+		public MacAppInstance(MacAppInstall InInstall, ILongProcessResult InProcess, string ProcessLogFile = null)
 			: base(InInstall, InProcess, ProcessLogFile)
 		{ }
 	}

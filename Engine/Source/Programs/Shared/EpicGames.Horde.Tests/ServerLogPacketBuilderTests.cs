@@ -214,11 +214,12 @@ namespace EpicGames.Horde.Tests
 		class FakeHordeClient : IHordeClient
 		{
 			public FakeLogRpcClient LogRpc { get; } = new FakeLogRpcClient();
-			public Dictionary<string, BundleStorageClient> StorageClients { get; } = new Dictionary<string, BundleStorageClient>();
+			public Dictionary<string, BundleStorageNamespace> StorageNamespaces { get; } = new Dictionary<string, BundleStorageNamespace>();
 
 			public Uri ServerUrl => throw new NotImplementedException();
 
 			public IArtifactCollection Artifacts => throw new NotImplementedException();
+			public IComputeClient Compute => throw new NotImplementedException();
 			public IProjectCollection Projects => throw new NotImplementedException();
 			public ISecretCollection Secrets => throw new NotImplementedException();
 			public IToolCollection Tools => throw new NotImplementedException();
@@ -229,23 +230,20 @@ namespace EpicGames.Horde.Tests
 			public HordeHttpClient CreateHttpClient()
 				=> throw new NotImplementedException();
 
-			public IComputeClient CreateComputeClient()
-				=> throw new NotImplementedException();
-
-			public IStorageClient CreateStorageClient(string relativePath, string? accessToken = null)
+			public IStorageNamespace GetStorageNamespace(string relativePath, string? accessToken = null)
 			{
-				BundleStorageClient? storageClient;
-				if (!StorageClients.TryGetValue(relativePath, out storageClient))
+				BundleStorageNamespace? storageNamespace;
+				if (!StorageNamespaces.TryGetValue(relativePath, out storageNamespace))
 				{
-					storageClient = BundleStorageClient.CreateInMemory(NullLogger.Instance);
-					StorageClients.Add(relativePath, storageClient);
+					storageNamespace = BundleStorageNamespace.CreateInMemory(NullLogger.Instance);
+					StorageNamespaces.Add(relativePath, storageNamespace);
 				}
-				return storageClient;
+				return storageNamespace;
 			}
 
 			public ValueTask DisposeAsync()
 			{
-				StorageClients.Clear();
+				StorageNamespaces.Clear();
 				return default;
 			}
 
@@ -289,8 +287,8 @@ namespace EpicGames.Horde.Tests
 			}
 
 			// Read the log
-			IStorageClient storageClient = hordeClient.CreateStorageClient(logId);
-			LogNode file = await storageClient.CreateBlobRef(hordeClient.LogRpc.Logs[logId]).ReadBlobAsync<LogNode>();
+			IStorageNamespace storageNamespace = hordeClient.GetStorageNamespace(logId);
+			LogNode file = await storageNamespace.CreateBlobRef(hordeClient.LogRpc.Logs[logId]).ReadBlobAsync<LogNode>();
 
 			// Check the index text
 			List<Utf8String> extractedIndexText = new List<Utf8String>();

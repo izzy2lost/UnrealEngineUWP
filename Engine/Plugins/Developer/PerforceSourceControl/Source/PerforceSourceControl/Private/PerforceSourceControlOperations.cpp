@@ -2037,7 +2037,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 			return;
 		}
 
-		ITypedElementDataStorageInterface* DataStorage = Registry->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = Registry->GetMutableDataStorage();
 		if (!DataStorage)
 		{
 			return;

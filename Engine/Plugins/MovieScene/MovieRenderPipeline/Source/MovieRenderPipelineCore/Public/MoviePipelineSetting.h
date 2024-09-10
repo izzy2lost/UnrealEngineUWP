@@ -8,6 +8,7 @@
 class UMoviePipeline;
 struct FSlateBrush;
 struct FMoviePipelineFormatArgs;
+struct FMoviePipelineShotRenderTelemetry;
 class UMoviePipelineExecutorJob;
 class UMoviePipelineExecutorShot;
 
@@ -76,6 +77,9 @@ public:
 	bool HasFinishedExporting() { return HasFinishedExportingImpl(); }
 	void BeginExport() { BeginExportImpl(); }
 	// ~Post Finalize Export
+
+	/** Updates telemetry data for this setting. Should only be used by settings that ship with Movie Render Queue. */
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const { }
 
 protected:
 	UMoviePipeline* GetPipeline() const;

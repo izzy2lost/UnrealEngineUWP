@@ -58,6 +58,7 @@ void FModule::SampleRootMotion(const FDeltaTimeRecord& SampleRange, const UAnimS
 
 bool FModule::SetRootMotion(const FTransform& RootMotionDelta, UE::Anim::FStackAttributeContainer& OutAttributes) const
 {
+	check(RootMotionDelta.IsRotationNormalized());
 	if (FTransformAnimationAttribute* RootMotionAttribute = OutAttributes.FindOrAdd<FTransformAnimationAttribute>(RootMotionAttributeId))
 	{
 		RootMotionAttribute->Value = RootMotionDelta;
@@ -69,6 +70,7 @@ bool FModule::SetRootMotion(const FTransform& RootMotionDelta, UE::Anim::FStackA
 
 bool FModule::OverrideRootMotion(const FTransform& RootMotionDelta, UE::Anim::FStackAttributeContainer& OutAttributes) const
 {
+	check(RootMotionDelta.IsRotationNormalized());
 	if (FTransformAnimationAttribute* RootMotionAttribute = OutAttributes.Find<FTransformAnimationAttribute>(RootMotionAttributeId))
 	{
 		RootMotionAttribute->Value = RootMotionDelta;

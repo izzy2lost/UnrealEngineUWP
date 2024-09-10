@@ -267,11 +267,15 @@ FLightAccumulator GetTranslucencySHLighting(FGBufferData GBuffer, FDeferredLight
 	Mobile Directional Light.
 ------------------------------------------------------------------------------*/
 
-FDeferredLightData GetDirectionalLightData(float4 ScreenPosition, float4 SvPosition, inout half4 OutDynamicShadowFactors, inout half OutDynamicShadowing)
+FDeferredLightData GetDirectionalLightData(float4 ScreenPosition, float4 SvPosition, inout half4 OutDynamicShadowFactors, inout half OutDynamicShadowing, uint EyeIndex)
 {
 #if USE_SHADOWMASKTEXTURE
 	half4 PreviewShadowMapChannelMask = half4(1.0f, 0.0f, 0.0f, 0.0f);
+#if MOBILE_MULTI_VIEW
+	OutDynamicShadowFactors = Texture2DArraySample(MobileBasePass.ScreenSpaceShadowMaskTextureArray, MobileBasePass.ScreenSpaceShadowMaskSampler, float3(SvPositionToBufferUV(SvPosition), EyeIndex));
+#else
 	OutDynamicShadowFactors = Texture2DSample(MobileBasePass.ScreenSpaceShadowMaskTexture, MobileBasePass.ScreenSpaceShadowMaskSampler, SvPositionToBufferUV(SvPosition));
+#endif
 	OutDynamicShadowFactors = DecodeLightAttenuation(OutDynamicShadowFactors);
 		
 	PreviewShadowMapChannelMask = UnpackShadowMapChannelMask(MobileDirectionalLight.DirectionalLightShadowMapChannelMask >> 4);
@@ -308,10 +312,10 @@ FDeferredLightData GetDirectionalLightData(float4 ScreenPosition, float4 SvPosit
 	return LightData;
 }
 
-void AccumulateDirectionalLighting(FGBufferData GBuffer, float3 TranslatedWorldPosition, half3 CameraVector, float4 ScreenPosition, float4 SvPosition, inout half4 DynamicShadowFactors, inout float OutDirectionalLightShadow, inout FLightAccumulator DirectLighting)
+void AccumulateDirectionalLighting(FGBufferData GBuffer, float3 TranslatedWorldPosition, half3 CameraVector, float4 ScreenPosition, float4 SvPosition, inout half4 DynamicShadowFactors, inout float OutDirectionalLightShadow, inout FLightAccumulator DirectLighting, uint EyeIndex)
 {
 	half DynamicShadowing = 1.0f;
-	FDeferredLightData LightData = GetDirectionalLightData(ScreenPosition, SvPosition, DynamicShadowFactors, DynamicShadowing);
+	FDeferredLightData LightData = GetDirectionalLightData(ScreenPosition, SvPosition, DynamicShadowFactors, DynamicShadowing, EyeIndex);
 	half4 LightAttenuation = half4(1, 1, DynamicShadowing, DynamicShadowing);
 
 #if TRANSLUCENCY_SH_LIGHTING

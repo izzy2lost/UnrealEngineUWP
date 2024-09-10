@@ -7,7 +7,7 @@
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 
-void UTypedElementHierarchyTableFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementHierarchyTableFactory::RegisterTables(IEditorDataStorageProvider& DataStorage)
 {
 	DataStorage.RegisterTable(
 		TTypedElementColumnTypeList<
@@ -15,6 +15,6 @@ void UTypedElementHierarchyTableFactory::RegisterTables(ITypedElementDataStorage
 		TEXT("Editor_HierarchyTableTable"));
 }
 
-void UTypedElementHierarchyTableFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementHierarchyTableFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 }

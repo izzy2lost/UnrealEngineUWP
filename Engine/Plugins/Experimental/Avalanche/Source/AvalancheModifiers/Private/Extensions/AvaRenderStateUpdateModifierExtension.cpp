@@ -3,6 +3,7 @@
 #include "Extensions/AvaRenderStateUpdateModifierExtension.h"
 
 #include "AvaModifiersActorUtils.h"
+#include "Components/PrimitiveComponent.h"
 #include "Containers/Ticker.h"
 #include "Modifiers/ActorModifierCoreBase.h"
 
@@ -94,6 +95,11 @@ void FAvaRenderStateUpdateModifierExtension::OnExtensionDisabled(EActorModifierC
 
 void FAvaRenderStateUpdateModifierExtension::OnRenderStateDirty(UActorComponent& InComponent)
 {
+	if (!InComponent.IsA<UPrimitiveComponent>())
+	{
+		return;
+	}
+
 	const AActor* ModifierActor = GetModifierActor();
 	AActor* ActorDirty = InComponent.GetOwner();
 

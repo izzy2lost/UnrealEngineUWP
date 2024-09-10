@@ -78,6 +78,8 @@ void UShallowWaterRiverComponent::PostLoad()
 	{
 		RiverSimSystem->Activate();
 	}
+
+	UpdateRenderState();
 }
 
 void UShallowWaterRiverComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -93,30 +95,14 @@ void UShallowWaterRiverComponent::TickComponent(float DeltaTime, ELevelTick Tick
 	{
 		RiverSimSystem->Activate();	
 	}
-
-	if (RenderState == EShallowWaterRenderState::WaterComponent)
-	{
-		for (AWaterBody* CurrWaterBody : AllWaterBodies)
-		{
-			TObjectPtr<UWaterBodyComponent> CurrWaterBodyComponent = CurrWaterBody->GetWaterBodyComponent();
-
-			if (CurrWaterBodyComponent != nullptr)
-			{
-				UMaterialInstanceDynamic* WaterMID = CurrWaterBodyComponent->GetWaterMaterialInstance();
-				// override materials on water bodies
-				if (WaterMID != nullptr)
-				{
-					WaterMID->SetTextureParameterValue("BakedWaterSimTex", BakedWaterSurfaceTexture);
-					WaterMID->SetVectorParameterValue("BakedWaterSimLocation", SystemPos);
-					WaterMID->SetVectorParameterValue("BakedWaterSimSize", FVector(WorldGridSize.X, WorldGridSize.Y, 1));
-
-					//FGuid BakedSimGuid;
-					//WaterMID->SetStaticSwitchParameterValueEditorOnly("UseBakedSim", true, BakedSimGuid);
-				}
-			}
-		}
-	}
 #endif
+}
+
+void UShallowWaterRiverComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	UpdateRenderState();
 }
 
 void UShallowWaterRiverComponent::OnUnregister()
@@ -140,8 +126,6 @@ void UShallowWaterRiverComponent::PostEditChangeProperty(FPropertyChangedEvent& 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UShallowWaterRiverComponent, RenderState) && RiverSimSystem != nullptr && RiverSimSystem->IsActive())
 	{
 		RiverSimSystem->SetVariableBool(FName("ReadCachedSim"), RenderState == EShallowWaterRenderState::BakedSim);
-
-		// hide/show all the water bodies
 	}
 	else
 	{
@@ -359,6 +343,16 @@ void UShallowWaterRiverComponent::Rebuild()
 				OnWaterInfoTextureArrayCreated(NewWaterInfoTexture);
 			}
 
+			const FVector2D ZoneLocation = FVector2D(WaterZone->GetDynamicWaterInfoCenter());
+
+			const FVector2D ZoneExtent = FVector2D(WaterZone->GetDynamicWaterInfoExtent());
+			const FVector2D WaterHeightExtents = FVector2D(WaterZone->GetWaterHeightExtents());
+			const float GroundZMin = WaterZone->GetGroundZMin();
+
+			RiverSimSystem->SetVariableVec2(FName("WaterZoneLocation"), ZoneLocation);
+			RiverSimSystem->SetVariableVec2(FName("WaterZoneExtent"), ZoneExtent);
+			RiverSimSystem->SetVariableInt(FName("WaterZoneIdx"), WaterZone->GetWaterZoneIndex());
+
 /*
 			// generate high res texture signed distance to water body
 			FVector2D::FReal CellSize = FMath::Max(WorldGridSize.X, WorldGridSize.Y) / ResolutionMaxAxis;
@@ -463,7 +457,7 @@ void UShallowWaterRiverComponent::Rebuild()
 	BakedWaterSurfaceRT = NewObject<UTextureRenderTarget2D>(this, NAME_None, RF_Transient);
 	BakedWaterSurfaceRT->InitAutoFormat(1, 1);
 	RiverSimSystem->SetVariableTextureRenderTarget(FName("SimGridRT"), BakedWaterSurfaceRT);
-	RiverSimSystem->SetVariableBool(FName("ReadCachedSim"), RenderState == EShallowWaterRenderState::BakedSim);
+	RiverSimSystem->SetVariableBool(FName("ReadCachedSim"), RenderState == EShallowWaterRenderState::BakedSim || RenderState == EShallowWaterRenderState::WaterComponentWithBakedSim);
 
 	if (BakedWaterSurfaceTexture != nullptr)
 	{
@@ -507,7 +501,7 @@ void UShallowWaterRiverComponent::Bake()
 	}
 
 	BakedSim = NewObject<UBakedShallowWaterSimulationComponent>(this, NAME_None, RF_Public);
-	BakedSim->SimulationData = FShallowWaterSimulationGrid(ShallowWaterSimArrayValues, FIntVector2(BakedWaterSurfaceRT->SizeX, BakedWaterSurfaceRT->SizeY), SystemPos, WorldGridSize);
+	BakedSim->SimulationData = FShallowWaterSimulationGrid(ShallowWaterSimArrayValues, BakedWaterSurfaceTexture, FIntVector2(BakedWaterSurfaceRT->SizeX, BakedWaterSurfaceRT->SizeY), SystemPos, WorldGridSize);
 	
 	// set the sim texture on each water body that is in the simulated river.  
 	for (TObjectPtr<AWaterBody > CurrWaterBody : AllWaterBodies)
@@ -571,29 +565,6 @@ bool UShallowWaterRiverComponent::QueryWaterAtSplinePoint(TObjectPtr<AWaterBody>
 	return true;
 }
 
-void UShallowWaterRiverComponent::UpdateRenderState()
-{
-	bool RenderWaterBody = RenderState == EShallowWaterRenderState::WaterComponent;
-
-	RiverSimSystem->SetVisibility(!RenderWaterBody);
-
-	for (AWaterBody* CurrWaterBody : AllWaterBodies)
-	{
-		TObjectPtr<UWaterBodyComponent> CurrWaterBodyComponent = CurrWaterBody->GetWaterBodyComponent();
-
-		if (CurrWaterBodyComponent != nullptr)
-		{
-			CurrWaterBodyComponent->SetVisibility(RenderWaterBody);
-
-			UMaterialInstanceDynamic* WaterMID = CurrWaterBodyComponent->GetWaterMaterialInstance();
-			// override materials on water bodies							
-			WaterMID->SetTextureParameterValue("BakedWaterSimTex", BakedWaterSurfaceTexture);
-			WaterMID->SetVectorParameterValue("BakedWaterSimLocation", SystemPos);
-			WaterMID->SetVectorParameterValue("BakedWaterSimSize", FVector(WorldGridSize.X, WorldGridSize.Y, 1));			
-		}
-	}
-}
-
 void UShallowWaterRiverComponent::OnWaterInfoTextureArrayCreated(const UTextureRenderTarget2DArray* InWaterInfoTexture)
 {
 	if (InWaterInfoTexture == nullptr)
@@ -622,6 +593,57 @@ void UShallowWaterRiverComponent::OnWaterInfoTextureArrayCreated(const UTextureR
 }
 
 #endif
+
+void UShallowWaterRiverComponent::UpdateRenderState()
+{
+	bool RenderWaterBody = RenderState == EShallowWaterRenderState::WaterComponent || RenderState == EShallowWaterRenderState::WaterComponentWithBakedSim;
+
+	RiverSimSystem->SetVisibility(!RenderWaterBody);
+
+	for (AWaterBody* CurrWaterBody : AllWaterBodies)
+	{
+		TObjectPtr<UWaterBodyComponent> CurrWaterBodyComponent = CurrWaterBody->GetWaterBodyComponent();
+
+		if (CurrWaterBodyComponent != nullptr)
+		{
+			CurrWaterBodyComponent->SetVisibility(RenderWaterBody);
+
+			UMaterialInstanceDynamic* WaterMID = CurrWaterBodyComponent->GetWaterMaterialInstance();
+			UMaterialInstanceDynamic* WaterInfoMID = CurrWaterBodyComponent->GetWaterInfoMaterialInstance();
+			if (RenderState == EShallowWaterRenderState::WaterComponentWithBakedSim)
+			{				
+				// override materials on water bodies							
+				WaterMID->SetTextureParameterValue("BakedWaterSimTex", BakedWaterSurfaceTexture);
+				WaterMID->SetVectorParameterValue("BakedWaterSimLocation", SystemPos);
+				WaterMID->SetVectorParameterValue("BakedWaterSimSize", FVector(WorldGridSize.X, WorldGridSize.Y, 1));
+
+				WaterInfoMID->SetTextureParameterValue("BakedWaterSimTex", BakedWaterSurfaceTexture);
+				WaterInfoMID->SetVectorParameterValue("BakedWaterSimLocation", SystemPos);
+				WaterInfoMID->SetVectorParameterValue("BakedWaterSimSize", FVector(WorldGridSize.X, WorldGridSize.Y, 1));
+			}
+
+			CurrWaterBodyComponent->SetUseBakedSimulationForQueriesAndPhysics(
+				RenderState == EShallowWaterRenderState::WaterComponentWithBakedSim || RenderState == EShallowWaterRenderState::BakedSim);
+
+			/*
+			#todo(dmp): I'd prefer if we could set an editor time only static switch to control using baked sims in the material or not
+			TArray<FMaterialParameterInfo> OutMaterialParameterInfos;
+			TArray<FGuid> Guids;
+			WaterMID->GetAllStaticSwitchParameterInfo(OutMaterialParameterInfos, Guids);
+
+			for (FMaterialParameterInfo& MaterialParameterInfo : OutMaterialParameterInfos)
+			{
+				if (MaterialParameterInfo.Name == "UseBakedSim")
+				{
+					WaterMID->SetStaticSwitchParameterValueEditorOnly(MaterialParameterInfo, RenderState == EShallowWaterRenderState::WaterComponentWithBakedSim);
+				}
+			}
+			*/
+
+			WaterMID->SetScalarParameterValue("UseBakedSimHack", RenderState == EShallowWaterRenderState::WaterComponentWithBakedSim ? 1 : 0);
+		}
+	}
+}
 
 AShallowWaterRiver::AShallowWaterRiver(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

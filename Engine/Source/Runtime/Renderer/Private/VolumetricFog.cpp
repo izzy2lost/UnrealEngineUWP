@@ -155,6 +155,12 @@ FAutoConsoleVariableRef CVarLightScatteringSampleJitterMultiplier(
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
+static TAutoConsoleVariable<float> CVarVolumetricFogLightSoftFading(
+	TEXT("r.VolumetricFog.LightSoftFading"),
+	0,
+	TEXT("Enabled when >0, controls the soft fading of spot and rect light edges in order to make them appear smoother, resulting in less flickering. A value of 1 is a good starting point and it means that fading will be applied over the size of 1 froxel on the screen."),
+	ECVF_RenderThreadSafe | ECVF_Scalability);
+
 static int32 GetVolumetricFogGridPixelSize()
 {
 	return FMath::Max(1, GVolumetricFogGridPixelSize);
@@ -193,6 +199,11 @@ FVector3f VolumetricFogTemporalRandom(uint32 FrameNumber)
 	}
 
 	return RandomOffsetValue;
+}
+
+float GetVolumetricFogLightSoftFading()
+{
+	return FMath::Max(0.0f, CVarVolumetricFogLightSoftFading.GetValueOnAnyThread());
 }
 
 void SetupVolumetricFogIntegrationParameters(
@@ -343,6 +354,7 @@ class FInjectShadowedLocalLightPS : public FGlobalShader
 	class FEnableShadows			: SHADER_PERMUTATION_BOOL("ENABLE_SHADOW_COMPUTATION");
 	class FVirtualShadowMap			: SHADER_PERMUTATION_BOOL("VIRTUAL_SHADOW_MAP");
 	class FRectLightTexture			: SHADER_PERMUTATION_BOOL("USE_RECT_LIGHT_TEXTURE");
+	class FLightSoftFading			: SHADER_PERMUTATION_BOOL("USE_LIGHT_SOFT_FADING");
 
 	using FPermutationDomain = TShaderPermutationDomain<
 		FDynamicallyShadowed,
@@ -350,7 +362,8 @@ class FInjectShadowedLocalLightPS : public FGlobalShader
 		FSampleLightFunctionAtlas,
 		FEnableShadows,
 		FVirtualShadowMap,
-		FRectLightTexture >;
+		FRectLightTexture,
+		FLightSoftFading>;
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
@@ -379,11 +392,13 @@ class FInjectShadowedLocalLightRGS : public FGlobalShader
 	class FTemporalReprojection		: SHADER_PERMUTATION_BOOL("USE_TEMPORAL_REPROJECTION");
 	class FSampleLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FRectLightTexture			: SHADER_PERMUTATION_BOOL("USE_RECT_LIGHT_TEXTURE");
+	class FLightSoftFading			: SHADER_PERMUTATION_BOOL("USE_LIGHT_SOFT_FADING");
 
 	using FPermutationDomain = TShaderPermutationDomain<
 		FTemporalReprojection,
 		FSampleLightFunctionAtlas,
-		FRectLightTexture >;
+		FRectLightTexture,
+		FLightSoftFading>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -460,6 +475,7 @@ static void RenderRaytracedDirectionalShadowVolume(
 	FRDGTextureRef& OutRaytracedShadowsVolume)
 {	
 	const bool bUseRaytracedShadows = IsRayTracingEnabled(Scene.GetShaderPlatform())
+		&& View.IsRayTracingAllowedForView()
 		&& GRHISupportsRayTracing
 		&& GRHISupportsRayTracingShaders
 		&& GVolumetricFogInjectRaytracedLights;
@@ -515,7 +531,7 @@ static void RenderRaytracedDirectionalShadowVolume(
 			RDG_EVENT_NAME("RayTracedShadowedDirectionalLight"),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[&View, SceneUniformBuffer, RayGenerationShader, PassParameters, DispatchSize](FRHICommandList& RHICmdList)
+			[&View, SceneUniformBuffer, RayGenerationShader, PassParameters, DispatchSize](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);				
@@ -529,7 +545,7 @@ static void RenderRaytracedDirectionalShadowVolume(
 
 void FDeferredShadingSceneRenderer::PrepareRayTracingVolumetricFogShadows(const FViewInfo& View, const FScene& Scene, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
-	const bool bEnabled = Scene.bHasLightsWithRayTracedShadows && ::ShouldRenderVolumetricFog(&Scene, *View.Family) && GVolumetricFogInjectRaytracedLights;
+	const bool bEnabled = Scene.bHasLightsWithRayTracedShadows && View.IsRayTracingAllowedForView() && ::ShouldRenderVolumetricFog(&Scene, *View.Family) && GVolumetricFogInjectRaytracedLights;
 	if (!bEnabled)
 	{
 		return;
@@ -584,7 +600,7 @@ bool LightHasRayTracedShadows(const FLightSceneInfo* LightSceneInfo, const FScen
 bool LightNeedsSeparateInjectionIntoVolumetricFogForOpaqueShadow(const FViewInfo& View, const FLightSceneInfo* LightSceneInfo, const FVisibleLightInfo& VisibleLightInfo, const FScene& InScene)
 {
 #if RHI_RAYTRACING
-	bool bTestRayTracedShadows = InScene.bHasLightsWithRayTracedShadows;
+	bool bTestRayTracedShadows = InScene.bHasLightsWithRayTracedShadows && View.IsRayTracingAllowedForView();
 #else
 	bool bTestRayTracedShadows = false;
 #endif
@@ -773,6 +789,7 @@ void FSceneRenderer::RenderLocalLightsForVolumetricFog(
 				PermutationVector.Set< FInjectShadowedLocalLightPS::FEnableShadows >(bIsShadowed);
 				PermutationVector.Set< FInjectShadowedLocalLightPS::FVirtualShadowMap >(bUseVSM);
 				PermutationVector.Set< FInjectShadowedLocalLightPS::FRectLightTexture >(bUsesRectLightTexture);
+				PermutationVector.Set< FInjectShadowedLocalLightPS::FLightSoftFading >(GetVolumetricFogLightSoftFading() > 0.0f);
 
 				auto VertexShader = View.ShaderMap->GetShader< FWriteToBoundingSphereVS >();
 				TOptionalShaderMapRef<FWriteToSliceGS> GeometryShader(View.ShaderMap);
@@ -788,7 +805,7 @@ void FSceneRenderer::RenderLocalLightsForVolumetricFog(
 					RDG_EVENT_NAME("ShadowedLights"),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[PassParameters, &View, this, VertexShader, GeometryShader, PixelShader, VolumeZBounds, LightBounds, VolumetricFogViewGridSize](FRHICommandList& RHICmdList)
+					[PassParameters, &View, this, VertexShader, GeometryShader, PixelShader, VolumeZBounds, LightBounds, VolumetricFogViewGridSize](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 						FGraphicsPipelineStateInitializer GraphicsPSOInit;
 						RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -878,6 +895,7 @@ void FSceneRenderer::RenderLocalLightsForVolumetricFog(
 				PermutationVector.Set< FInjectShadowedLocalLightRGS::FTemporalReprojection >(bUseTemporalReprojection);
 				PermutationVector.Set< FInjectShadowedLocalLightRGS::FSampleLightFunctionAtlas >(bUseLightFunctionAtlas);
 				PermutationVector.Set< FInjectShadowedLocalLightRGS::FRectLightTexture >(bUsesRectLightTexture);
+				PermutationVector.Set< FInjectShadowedLocalLightRGS::FLightSoftFading >(GetVolumetricFogLightSoftFading() > 0.0f);
 
 				TShaderMapRef<FInjectShadowedLocalLightRGS> RayGenerationShader(GetGlobalShaderMap(FeatureLevel), PermutationVector);
 
@@ -892,7 +910,7 @@ void FSceneRenderer::RenderLocalLightsForVolumetricFog(
 					RDG_EVENT_NAME("RayTracedShadowedLights"),
 					PassParameters,
 					ERDGPassFlags::Compute,
-					[this, &View, SceneUniformBuffer, RayGenerationShader, PassParameters, DispatchSize](FRHICommandList& RHICmdList)
+					[this, &View, SceneUniformBuffer, RayGenerationShader, PassParameters, DispatchSize](FRDGAsyncTask, FRHICommandList& RHICmdList)
 					{
 						FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 						SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);						
@@ -919,10 +937,10 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 	class FSuperSampleCount				: SHADER_PERMUTATION_SPARSE_INT("HISTORY_MISS_SUPER_SAMPLE_COUNT", 1, 4, 8, 16);
 	class FLumenGI						: SHADER_PERMUTATION_BOOL("LUMEN_GI");
 	class FVirtualShadowMap				: SHADER_PERMUTATION_BOOL("VIRTUAL_SHADOW_MAP");
-	class FCloudTransmittance			: SHADER_PERMUTATION_BOOL("USE_CLOUD_TRANSMITTANCE");
 	class FRaytracedShadowsVolume		: SHADER_PERMUTATION_BOOL("USE_RAYTRACED_SHADOWS_VOLUME");
 	class FSampleLightFunctionAtlas		: SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FMegaLights					: SHADER_PERMUTATION_BOOL("USE_MEGA_LIGHTS");
+	class FLightSoftFading				: SHADER_PERMUTATION_BOOL("USE_LIGHT_SOFT_FADING");
 
 	using FPermutationDomain = TShaderPermutationDomain<
 		FSuperSampleCount,
@@ -930,10 +948,10 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 		FDistanceFieldSkyOcclusion,
 		FLumenGI,
 		FVirtualShadowMap,
-		FCloudTransmittance,
 		FRaytracedShadowsVolume,
 		FSampleLightFunctionAtlas,
-		FMegaLights>;
+		FMegaLights,
+		FLightSoftFading>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
@@ -1011,7 +1029,6 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 		if (IsMobilePlatform(ShaderPlatform))
 		{
 			PermutationVector.Set<FDistanceFieldSkyOcclusion>(false);
-			PermutationVector.Set<FCloudTransmittance>(false);
 			PermutationVector.Set<FTemporalReprojection>(false);
 			PermutationVector.Set<FSampleLightFunctionAtlas>(false);
 			PermutationVector.Set<FMegaLights>(false);
@@ -1273,6 +1290,8 @@ void SetupVolumetricFogGlobalData(const FViewInfo& View, FVolumetricFogGlobalDat
 	{
 		Parameters.HeightFogDirectionalLightInscatteringColor = FVector3f(View.DirectionalInscatteringColor);
 	}
+
+	Parameters.LightSoftFading = GetVolumetricFogLightSoftFading();
 }
 
 void FViewInfo::SetupVolumetricFogUniformBufferParameters(FViewUniformShaderParameters& ViewUniformShaderParameters) const
@@ -1411,7 +1430,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 					if ((View.ViewMatrices.GetViewOrigin() - LightBounds.Center).SizeSquared() < (FogInfo.VolumetricFogDistance + LightBounds.W) * (FogInfo.VolumetricFogDistance + LightBounds.W))
 					{
 #if RHI_RAYTRACING
-						const bool bRayTracedLight = (Scene->bHasLightsWithRayTracedShadows) ? LightHasRayTracedShadows(LightSceneInfo, ViewFamily) : false;
+						const bool bRayTracedLight = (Scene->bHasLightsWithRayTracedShadows && View.IsRayTracingAllowedForView()) ? LightHasRayTracedShadows(LightSceneInfo, ViewFamily) : false;
 						if (bRayTracedLight)
 						{
 							LightsToInject.RayTracedLights.Add(LightSceneInfo);
@@ -1464,13 +1483,15 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 			IntegrationData.FrameJitterOffsetValues[FrameOffsetIndex] = VolumetricFogTemporalRandom(View.Family->FrameNumber - FrameOffsetIndex);
 		}
 
+		const bool bIsMobilePlatform = IsMobilePlatform(View.GetShaderPlatform());
+
 		// Mobile has limited capacities with SRV binding so do not enable atlas sampling on there.
-		const bool bUseLightFunctionAtlasEnabledAndSupported = LightFunctionAtlas::IsEnabled(*Scene, ELightFunctionAtlasSystem::VolumetricFog) && !IsMobilePlatform(View.GetShaderPlatform());
+		const bool bUseLightFunctionAtlasEnabledAndSupported = LightFunctionAtlas::IsEnabled(*Scene, ELightFunctionAtlasSystem::VolumetricFog) && !bIsMobilePlatform;
 
 		const bool bUseTemporalReprojection =
 			GVolumetricFogTemporalReprojection
 			&& View.ViewState
-			&& !IsMobilePlatform(View.GetShaderPlatform());
+			&& !bIsMobilePlatform;
 
 		IntegrationData.bTemporalHistoryIsValid =
 			bUseTemporalReprojection
@@ -1595,7 +1616,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 				RDG_EVENT_NAME("InitializeVolumeAttributes"),
 				PassParameters,
 				ERDGPassFlags::Compute,
-				[PassParameters, &View, VolumetricFogViewGridSize, IntegrationData, ComputeShader](FRHICommandList& RHICmdList)
+				[PassParameters, &View, VolumetricFogViewGridSize, IntegrationData, ComputeShader](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				const FIntVector NumGroups = FIntVector::DivideAndRoundUp(VolumetricFogViewGridSize, VolumetricFogGridInjectionGroupSize);
 
@@ -1731,7 +1752,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 			float CloudShadowmap_FarDepthKm = 0.0f;
 			float CloudShadowmap_Strength = 0.0f;
 			FRDGTexture* CloudShadowmap_RDGTexture = BlackDummyTexture;
-			if (CloudInfo && AtmosphericDirectionalLightIndex >= 0 && AtmosphereLightProxy)
+			if (CloudInfo && AtmosphericDirectionalLightIndex >= 0 && AtmosphereLightProxy && !bIsMobilePlatform)
 			{
 				CloudShadowmap_RDGTexture = GraphBuilder.RegisterExternalTexture(View.VolumetricCloudShadowExtractedRenderTarget[AtmosphericDirectionalLightIndex]);
 				CloudWorldToLightClipShadowMatrix = CloudInfo->GetVolumetricCloudCommonShaderParameters().CloudShadowmapTranslatedWorldToLightClipMatrix[AtmosphericDirectionalLightIndex];
@@ -1784,10 +1805,10 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 			PermutationVector.Set< FVolumetricFogLightScatteringCS::FSuperSampleCount >(SuperSampleCount);
 			PermutationVector.Set< FVolumetricFogLightScatteringCS::FLumenGI >(bUseLumenGI);
 			PermutationVector.Set< FVolumetricFogLightScatteringCS::FVirtualShadowMap >(VirtualShadowMapArray.IsAllocated() );
-			PermutationVector.Set< FVolumetricFogLightScatteringCS::FCloudTransmittance >(AtmosphericDirectionalLightIndex >= 0);
 			PermutationVector.Set< FVolumetricFogLightScatteringCS::FRaytracedShadowsVolume >(bUseRaytracedShadowsVolume);
 			PermutationVector.Set< FVolumetricFogLightScatteringCS::FSampleLightFunctionAtlas >(PassParameters->DirectionalApplyLightFunctionFromAtlas>1);
-			PermutationVector.Set<FVolumetricFogLightScatteringCS::FMegaLights>(bUseMegaLights);
+			PermutationVector.Set< FVolumetricFogLightScatteringCS::FMegaLights>(bUseMegaLights);
+			PermutationVector.Set< FVolumetricFogLightScatteringCS::FLightSoftFading >(GetVolumetricFogLightSoftFading() > 0.0f);
 
 			auto ComputeShader = View.ShaderMap->GetShader< FVolumetricFogLightScatteringCS >(PermutationVector);
 			ClearUnusedGraphResources(ComputeShader, PassParameters);
@@ -1803,7 +1824,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 					bUseLumenGI ? TEXT("Lumen") : TEXT("")),
 				PassParameters,
 				ERDGPassFlags::Compute,
-				[PassParameters, ComputeShader, &View, this, VolumetricFogViewGridSize](FRHICommandList& RHICmdList)
+				[PassParameters, ComputeShader, &View, this, VolumetricFogViewGridSize](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				const FIntVector NumGroups = FComputeShaderUtils::GetGroupCount(VolumetricFogViewGridSize, FVolumetricFogLightScatteringCS::GetGroupSize());
 
@@ -1830,7 +1851,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 				RDG_EVENT_NAME("FinalIntegration"),
 				PassParameters,
 				ERDGPassFlags::Compute,
-				[PassParameters, &View, VolumetricFogViewGridSize, IntegrationData, this](FRHICommandList& RHICmdList)
+				[PassParameters, &View, VolumetricFogViewGridSize, IntegrationData, this](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				const FIntVector NumGroups = FIntVector::DivideAndRoundUp(VolumetricFogViewGridSize, VolumetricFogIntegrationGroupSize);
 

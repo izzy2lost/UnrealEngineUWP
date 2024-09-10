@@ -149,7 +149,8 @@ namespace MegaLights
 				&& IsRayTracingEnabled()
 				&& CVarMegaLightsHardwareRayTracing.GetValueOnRenderThread() != 0
 				// HWRT does not support multiple views yet due to TLAS, but stereo views can be allowed as they reuse TLAS for View[0]
-				&& (ViewFamily.Views.Num() == 1 || (ViewFamily.Views.Num() == 2 && IStereoRendering::IsStereoEyeView(*ViewFamily.Views[0]))))
+				&& (ViewFamily.Views.Num() == 1 || (ViewFamily.Views.Num() == 2 && IStereoRendering::IsStereoEyeView(*ViewFamily.Views[0])))
+				&& ViewFamily.Views[0]->IsRayTracingAllowedForView())
 			{
 				return true;
 			}
@@ -739,7 +740,7 @@ namespace MegaLights
 		PassParameters->HitGroupData = View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer ? GraphBuilder.CreateSRV(View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer) : nullptr;
 		PassParameters->LumenHardwareRayTracingUniformBuffer = View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer;
 		checkf(View.RayTracingSceneInitTask.IsCompleted(), TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
-		PassParameters->RayTracingSceneMetadata = View.GetRayTracingSceneChecked(ERayTracingSceneLayer::Base)->GetOrCreateMetadataBufferSRV(GraphBuilder.RHICmdList);
+		PassParameters->RayTracingSceneMetadata = View.LumenHardwareRayTracingSBT ? View.LumenHardwareRayTracingSBT->GetOrCreateInlineBufferSRV(GraphBuilder.RHICmdList) : nullptr;
 	}
 
 	void SetHardwareRayTracingPassParameters(
@@ -766,7 +767,7 @@ namespace MegaLights
 		PassParameters->HitGroupData = View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer ? GraphBuilder.CreateSRV(View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer) : nullptr;
 		PassParameters->LumenHardwareRayTracingUniformBuffer = View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer;
 		checkf(View.RayTracingSceneInitTask.IsCompleted(), TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
-		PassParameters->RayTracingSceneMetadata = View.GetRayTracingSceneChecked(ERayTracingSceneLayer::Base)->GetOrCreateMetadataBufferSRV(GraphBuilder.RHICmdList);
+		PassParameters->RayTracingSceneMetadata = View.LumenHardwareRayTracingSBT ? View.LumenHardwareRayTracingSBT->GetOrCreateInlineBufferSRV(GraphBuilder.RHICmdList) : nullptr;
 	}
 }; // namespace MegaLights
 
@@ -1177,6 +1178,7 @@ void MegaLights::RayTraceLightSamples(
 				PassParameters->HairVoxelTraceParameters = HairVoxelTraceParameters;
 				PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
 				PassParameters->LightSampleRayDistance = LightSampleRayDistance;
+				PassParameters->LightSampleUVTexture = LightSampleUV;
 
 				FSoftwareRayTraceLightSamplesCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FSoftwareRayTraceLightSamplesCS::FHairVoxelTraces>(bHairVoxelTraces);

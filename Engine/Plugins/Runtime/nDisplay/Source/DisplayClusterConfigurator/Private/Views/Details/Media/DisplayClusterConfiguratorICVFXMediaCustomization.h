@@ -31,14 +31,14 @@ protected:
 
 private:
 
-	/** Builds setup button widget. */
-	void AddSetupButton(IDetailChildrenBuilder& ChildBuilder);
+	/** Builds the button widget for tiles configuration. */
+	void AddConfigureTilesButton(IDetailChildrenBuilder& ChildBuilder);
 
 	/** Builds reset button widget. */
 	void AddResetButton(IDetailChildrenBuilder& ChildBuilder);
 
-	/** Handles setup button clicks. */
-	FReply OnSetupButtonClicked();
+	/** Handles configure tiles button clicks. */
+	FReply OnConfigureTilesButtonClicked();
 
 	/** Handles reset button clicks. */
 	FReply OnResetButtonClicked();
@@ -50,9 +50,4 @@ private:
 
 	/** Marks package as dirty */
 	void MarkDirty();
-
-private:
-
-	/** Tiles layout property. */
-	TSharedPtr<IPropertyHandle> TilesLayoutHandle;
 };

@@ -584,6 +584,12 @@ public:
 	{
 		FCommitMeshDescriptionParams() {}
 
+		/** Ensure that there is a placeholder on the skeletal mesh to hold the morph target delta data prior to
+		 *  the mesh rebuild. Set this to off if the morph target placeholder creation is not necessary. If the
+		 *  UMorphTarget already exists, then nothing is done.
+		 */
+		bool bUpdateMorphTargets = true;
+		
 		/** Update the alternate skin weight profile list based on presence of non-default skin weight attributes in the  
 		 *  committed mesh. If a skin weight attribute exists on the mesh but not in the list of profiles, then the profile
 		 *  is added. Likewise, if a profile exists but there's no corresponding skin weight attribute then that profile
@@ -2651,7 +2657,7 @@ public:
 	ENGINE_API void UnregisterAllMorphTarget();
 
 	/** Initialize MorphSets look up table : MorphTargetIndexMap */
-	ENGINE_API void InitMorphTargets();
+	ENGINE_API void InitMorphTargets(bool bInKeepEmptyMorphTargets = false);
 
 #if WITH_EDITOR
 	/** Remove the morph targets with the specified names */

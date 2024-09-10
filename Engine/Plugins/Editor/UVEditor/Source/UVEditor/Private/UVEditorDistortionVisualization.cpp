@@ -17,7 +17,7 @@
 #include "Math/UnitConversion.h"
 #include "Parameterization/MeshUDIMClassifier.h"
 #include "UDIMUtilities.h"
-#include "Math/UVMetrics.h"
+#include "Parameterization/UVMetrics.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(UVEditorDistortionVisualization)
 

@@ -23,15 +23,9 @@ protected:
 	virtual bool IsValidOnShots() const override { return true; }
 	virtual bool IsValidOnPrimary() const override { return true; }
 	
-	virtual void GetFormatArguments(FMoviePipelineFormatArgs& InOutFormatArgs) const override
-	{
-		Super::GetFormatArguments(InOutFormatArgs);
+	virtual void GetFormatArguments(FMoviePipelineFormatArgs& InOutFormatArgs) const override;
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
 
-		InOutFormatArgs.FilenameArguments.Add(TEXT("shutter_timing"), StaticEnum<EMoviePipelineShutterTiming>()->GetNameStringByValue((int64)ShutterTiming));
-		InOutFormatArgs.FilenameArguments.Add(TEXT("overscan_percentage"), FString::SanitizeFloat(OverscanPercentage));
-		InOutFormatArgs.FileMetadata.Add(TEXT("unreal/camera/shutterTiming"), StaticEnum<EMoviePipelineShutterTiming>()->GetNameStringByValue((int64)ShutterTiming));
-		InOutFormatArgs.FileMetadata.Add(TEXT("unreal/camera/overscanPercentage"), FString::SanitizeFloat(OverscanPercentage));
-	}
 public:	
 	/**
 	* Shutter Timing allows you to bias the timing of your shutter angle to either be before, during, or after
@@ -44,6 +38,13 @@ public:
 	EMoviePipelineShutterTiming ShutterTiming;
 
 	/**
+	 * If true, the camera settings overscan value will override any overscan on the cameras when rendering;
+	 * otherwise, the overscan value on the cameras will be used.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Settings", meta = (InlineEditConditionToggle))
+	bool bOverrideCameraOverscan;
+	
+	/**
 	* Overscan percent allows to render additional pixels beyond the set resolution and can be used in conjunction 
 	* with EXR file output to add post-processing effects such as lens distortion.
 	* Please note that using this feature might affect the results due to auto-exposure and other camera settings.
@@ -51,7 +52,7 @@ public:
 	* in post production. For all other formats this will increase the final resolution and no pixels will be hidden 
 	* (ie: 1080p /w 0.1 overscan will make a 2112x1188 jpg, but a 1080p exr /w 96/54 pixels hidden on each side)
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "1"), Category = "Camera Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Overscan Percentage Override", UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "1", EditCondition = "bOverrideCameraOverscan"), Category = "Camera Settings")
 	float OverscanPercentage;
 	
 	/**

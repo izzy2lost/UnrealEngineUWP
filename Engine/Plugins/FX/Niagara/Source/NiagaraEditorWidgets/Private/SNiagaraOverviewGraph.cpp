@@ -238,8 +238,8 @@ FActionMenuContent SNiagaraOverviewGraph::OnCreateGraphActionMenu(UEdGraph* InGr
 		{
 			MenuBuilder.AddMenuEntry(FNiagaraEditorCommands::Get().OpenAddEmitterMenu);
 			MenuBuilder.AddMenuEntry(
-				LOCTEXT("EmptyEmitterLabel", "Add empty emitter"),
-				LOCTEXT("AddEmitterToolTip", "Adds an empty emitter without any modules or renderers."),
+				LOCTEXT("MinimalEmitterLabel", "Add minimal emitter"),
+				FNiagaraEditorUtilities::Tooltips::GetMinimalEmitterCreationTooltip(),
 				FSlateIcon(),
 				FExecuteAction::CreateSP(this, &SNiagaraOverviewGraph::OnCreateEmptyEmitter));
 			MenuBuilder.AddMenuEntry(
@@ -283,7 +283,7 @@ FActionMenuContent SNiagaraOverviewGraph::OnCreateGraphActionMenu(UEdGraph* InGr
 
 void SNiagaraOverviewGraph::OnCreateEmptyEmitter()
 {
-	ViewModel->GetSystemViewModel()->AddDefaultEmptyEmitter();
+	ViewModel->GetSystemViewModel()->AddMinimalEmitter();
 }
 
 void SNiagaraOverviewGraph::OnCreateStatelessEmitter()

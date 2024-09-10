@@ -624,6 +624,17 @@ FWaterBodyQueryResult UWaterBodyComponent::QueryWaterInfoClosestToWorldLocation(
 	const bool bFlatSurface = IsFlatSurface();
 	const UWaterSplineComponent* const WaterSpline = GetWaterSpline();
 
+	FVector ShallowWaterVelocity = { 0, 0, 0 };
+	float ShallowWaterHeight = 0;
+	float ShallowWaterDepth = 0;
+	const bool bUseShallowWaterValues = UseBakedSimulationForQueriesAndPhysics();
+
+	if (bUseShallowWaterValues)
+	{		
+		BakedShallowWaterSim->SimulationData.SampleShallowWaterSimulationAtPosition(InWorldLocation,
+			ShallowWaterVelocity, ShallowWaterHeight, ShallowWaterDepth);
+	}
+
 	// Compute water plane location :
 	if (EnumHasAnyFlags(Result.GetQueryFlags(), EWaterBodyQueryFlags::ComputeLocation))
 	{
@@ -633,7 +644,22 @@ FWaterBodyQueryResult UWaterBodyComponent::QueryWaterInfoClosestToWorldLocation(
 		//  If the user fails to do so, at least it allows immersion depth to be 0.0f, which means the query location is NOT in water :
 		if (!Result.IsInExclusionVolume())
 		{
-			WaterPlaneLocation.Z = (bFlatSurface || WaterSpline  == nullptr) ? GetComponentLocation().Z : WaterSpline->GetLocationAtSplineInputKey(Result.LazilyComputeSplineKey(*this, InWorldLocation), ESplineCoordinateSpace::World).Z;
+			float WaterPlaneHeight;
+
+			if (bFlatSurface || WaterSpline == nullptr)
+			{
+				WaterPlaneHeight = GetComponentLocation().Z;
+			}
+			else if (bUseShallowWaterValues)
+			{
+				WaterPlaneHeight = ShallowWaterHeight;
+			}
+			else
+			{
+				WaterPlaneHeight = WaterSpline->GetLocationAtSplineInputKey(Result.LazilyComputeSplineKey(*this, InWorldLocation), ESplineCoordinateSpace::World).Z;
+			}
+
+			WaterPlaneLocation.Z = WaterPlaneHeight;
 
 			// Apply body height offset if applicable (ocean)
 			if (IsHeightOffsetSupported())
@@ -655,8 +681,15 @@ FWaterBodyQueryResult UWaterBodyComponent::QueryWaterInfoClosestToWorldLocation(
 		// Default to Z up for the normal
 		if (!bFlatSurface && WaterSpline != nullptr)
 		{
-			// For rivers default to using spline up vector to account for sloping rivers
-			WaterPlaneNormal = WaterSpline->GetUpVectorAtSplineInputKey(Result.LazilyComputeSplineKey(*this, InWorldLocation), ESplineCoordinateSpace::World);
+			if (bUseShallowWaterValues)
+			{
+				WaterPlaneNormal = BakedShallowWaterSim->SimulationData.ComputeShallowWaterSimulationNormalAtPosition(InWorldLocation);
+			}
+			else
+			{
+				// For rivers default to using spline up vector to account for sloping rivers
+				WaterPlaneNormal = WaterSpline->GetUpVectorAtSplineInputKey(Result.LazilyComputeSplineKey(*this, InWorldLocation), ESplineCoordinateSpace::World);
+			}			
 		}
 
 		Result.SetWaterPlaneNormal(WaterPlaneNormal);
@@ -675,7 +708,12 @@ FWaterBodyQueryResult UWaterBodyComponent::QueryWaterInfoClosestToWorldLocation(
 
 		// The better option for computing water depth for ocean and lake is landscape : 
 		const bool bTryUseLandscape = (GetWaterBodyType() == EWaterBodyType::Ocean || GetWaterBodyType() == EWaterBodyType::Lake);
-		if (bTryUseLandscape)
+
+		if (bUseShallowWaterValues)
+		{
+			WaterPlaneDepth = ShallowWaterDepth;
+		}
+		else if (bTryUseLandscape)
 		{
 			TOptional<float> LandscapeHeightOptional;
 			if (ALandscapeProxy* LandscapePtr = FindLandscape())
@@ -775,7 +813,14 @@ FWaterBodyQueryResult UWaterBodyComponent::QueryWaterInfoClosestToWorldLocation(
 		FVector Velocity = FVector::ZeroVector;
 		if (!Result.IsInExclusionVolume())
 		{
-			Velocity = GetWaterVelocityVectorAtSplineInputKey(Result.LazilyComputeSplineKey(*this, InWorldLocation));
+			if (bUseShallowWaterValues)
+			{
+				Velocity = ShallowWaterVelocity;
+			}
+			else
+			{
+				Velocity = GetWaterVelocityVectorAtSplineInputKey(Result.LazilyComputeSplineKey(*this, InWorldLocation));
+			}
 		}
 
 		Result.SetVelocity(Velocity);

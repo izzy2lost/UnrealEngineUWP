@@ -259,9 +259,6 @@ public:
 	 */
 	void UpdateUnreferencedCacheEntries(FVirtualShadowMapArray& VirtualShadowMapArray);
 
-	// Must be called *after* calling UpdateUnreferencedCacheEntries - TODO: Perhaps merge the two to enforce
-	void UploadProjectionData(FRDGScatterUploadBuffer& Uploader) const;
-
 	/**
 	* Call at end of frame to extract resouces from the virtual SM array to preserve to next frame.
 	* 

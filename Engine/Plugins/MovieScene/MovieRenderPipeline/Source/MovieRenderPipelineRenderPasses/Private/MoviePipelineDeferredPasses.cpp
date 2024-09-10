@@ -35,6 +35,7 @@
 #include "Camera/CameraComponent.h"
 #include "CineCameraComponent.h"
 #include "Interfaces/Interface_PostProcessVolume.h"
+#include "MoviePipelineTelemetry.h"
 #include "MoviePipelineUtils.h"
 #include "WorldPartition/DataLayer/DataLayerAsset.h"
 #include "TextureResource.h"
@@ -91,7 +92,20 @@ FIntPoint UMoviePipelineDeferredPassBase::GetEffectiveOutputResolutionForCamera(
 	UMoviePipelinePrimaryConfig* PrimaryConfig = GetPipeline()->GetPipelinePrimaryConfig();
 	UMoviePipelineExecutorShot* CurrentShot = GetPipeline()->GetActiveShotList()[GetPipeline()->GetCurrentShotIndex()];
 
-	const FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(PrimaryConfig, CurrentShot);
+	// Get the camera view info to retrieve the camera's overscan, which is used when the settings to not override the overscan
+	FMinimalViewInfo CameraViewInfo;
+
+	if (GetNumCamerasToRender() == 1)
+	{
+		CameraViewInfo = GetPipeline()->GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraCacheView();
+	}
+	else
+	{
+		UCameraComponent* CameraComponent;
+		GetPipeline()->GetSidecarCameraData(CurrentShot, InCameraIndex, CameraViewInfo, &CameraComponent);
+	}
+	
+	const FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(PrimaryConfig, CurrentShot, CameraViewInfo.GetOverscan());
 
 	return OutputResolution;
 }
@@ -858,40 +872,9 @@ void UMoviePipelineDeferredPassBase::BlendPostProcessSettings(FSceneView* InView
 			return;
 		}
 
-		// For sidecar cameras we need to do the blending of PP volumes
+		// For sidecar cameras we need to do the blending of PP volumes and camera PP manually.
 		FVector ViewLocation = OutCamera->GetComponentLocation();
-		for (IInterface_PostProcessVolume* PPVolume : GetWorld()->PostProcessVolumes)
-		{
-			const FPostProcessVolumeProperties VolumeProperties = PPVolume->GetProperties();
-
-			// Skip any volumes which are disabled
-			if (!VolumeProperties.bIsEnabled)
-			{
-				continue;
-			}
-
-			float LocalWeight = FMath::Clamp(VolumeProperties.BlendWeight, 0.0f, 1.0f);
-
-			if (!VolumeProperties.bIsUnbound)
-			{
-				float DistanceToPoint = 0.0f;
-				PPVolume->EncompassesPoint(ViewLocation, 0.0f, &DistanceToPoint);
-
-				if (DistanceToPoint >= 0 && DistanceToPoint < VolumeProperties.BlendRadius)
-				{
-					LocalWeight *= FMath::Clamp(1.0f - DistanceToPoint / VolumeProperties.BlendRadius, 0.0f, 1.0f);
-				}
-				else
-				{
-					LocalWeight = 0.0f;
-				}
-			}
-
-			InView->OverridePostProcessSettings(*VolumeProperties.Settings, LocalWeight);
-		}
-
-		// After blending all post processing volumes, blend the camera's post process settings too
-		InView->OverridePostProcessSettings(OutViewInfo.PostProcessSettings, OutViewInfo.PostProcessBlendWeight);
+		UE::MoviePipeline::DoPostProcessBlend(ViewLocation, GetWorld(), OutViewInfo, InView);
 	}
 }
 
@@ -1088,6 +1071,21 @@ void UMoviePipelineDeferredPass_PathTracer::SetupImpl(const MoviePipeline::FMovi
 	Super::SetupImpl(InPassInitSettings);
 }
 
+TSharedPtr<FSceneViewFamilyContext> UMoviePipelineDeferredPass_PathTracer::CalculateViewFamily(FMoviePipelineRenderPassMetrics& InOutSampleState, IViewCalcPayload* OptPayload)
+{
+	// remove sub-pixel shift, since the path tracer does its own anti-aliasing
+	InOutSampleState.SpatialShiftX = 0;
+	InOutSampleState.SpatialShiftY = 0;
+	InOutSampleState.OverlappedSubpixelShift = FVector2d(0.5, 0.5);
+	return Super::CalculateViewFamily(InOutSampleState, OptPayload);
+}
+
+void UMoviePipelineDeferredPass_PathTracer::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesPathTracer = true;
+	InTelemetry->bUsesPPMs |= Algo::AnyOf(AdditionalPostProcessMaterials, [](const FMoviePipelinePostProcessPass& Pass) { return Pass.bEnabled; });
+}
+
 bool UMoviePipelineDeferredPassBase::IsUsingDataLayers() const
 {
 	int32 NumDataLayers = 0;
@@ -1200,3 +1198,8 @@ bool UMoviePipelineDeferredPassBase::IsActorInAnyStencilLayer(AActor* InActor) c
 	return bInLayer;
 }
 
+void UMoviePipelineDeferredPassBase::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesDeferred = true;
+	InTelemetry->bUsesPPMs |= Algo::AnyOf(AdditionalPostProcessMaterials, [](const FMoviePipelinePostProcessPass& Pass) { return Pass.bEnabled; });
+}

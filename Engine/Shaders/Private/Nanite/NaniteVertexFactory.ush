@@ -904,7 +904,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(float3 RayOrigin, float3 Ray
 
 	WorldGeoNormal = Result.TangentToWorld[2];
 
-	Result.TwoSidedSign = sign(dot(RayDirection, WorldGeoNormal));
+	Result.TwoSidedSign = -sign(dot(RayDirection, WorldGeoNormal));
 
 	return Result;
 }

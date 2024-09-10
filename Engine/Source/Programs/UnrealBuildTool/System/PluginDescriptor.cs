@@ -371,7 +371,16 @@ namespace UnrealBuildTool
 				Plugins = Array.ConvertAll(PluginsArray, x => PluginReferenceDescriptor.FromJsonObject(x)).ToList();
 			}
 
-			RawObject.TryGetStringArrayField("DisallowedPlugins", out DisallowedPlugins);
+			JsonObject[]? DisallowedPluginsArray;
+			if (RawObject.TryGetObjectArrayField("DisallowedPlugins", out DisallowedPluginsArray))
+			{
+				DisallowedPlugins = Array.ConvertAll(DisallowedPluginsArray, x => x.GetStringField("Name"));
+			}
+			else
+			{
+				// Backwards compatibility still check for a simple array.
+				RawObject.TryGetStringArrayField("DisallowedPlugins", out DisallowedPlugins);
+			}
 		}
 
 		/// <summary>

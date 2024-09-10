@@ -251,8 +251,8 @@ FInstanceDataObjectFixupPanel::~FInstanceDataObjectFixupPanel()
 	using namespace UE::Editor::DataStorage;
 
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-	ITypedElementDataStorageInterface* DataStorage = Registry ? Registry->GetMutableDataStorage() : nullptr;
-	ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibility = Registry ? Registry->GetMutableDataStorageCompatibility() : nullptr;
+	IEditorDataStorageProvider* DataStorage = Registry ? Registry->GetMutableDataStorage() : nullptr;
+	IEditorDataStorageCompatibilityProvider* DataStorageCompatibility = Registry ? Registry->GetMutableDataStorageCompatibility() : nullptr;
 
 	if (DataStorageCompatibility != nullptr && DataStorage != nullptr)
 	{

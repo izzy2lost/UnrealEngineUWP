@@ -5,6 +5,7 @@
 #include "uLang/Common/Text/UTF8StringBuilder.h"
 #include "uLang/Common/Text/UTF8StringView.h"
 
+// NOTE: This method is a duplicate of Verse::Names::Private::EncodeName.  This method can be eliminated when VNI compiler is eliminated.
 uLang::CUTF8String uLang::CppMangling::Mangle(const uLang::CUTF8StringView& StringView)
 {
     uLang::CUTF8StringBuilder ResultBuilder;
@@ -50,6 +51,7 @@ uLang::CUTF8String uLang::CppMangling::Mangle(const uLang::CUTF8StringView& Stri
     return ResultBuilder.MoveToString();
 }
 
+// NOTE: This method is a duplicate of Verse::Names::Private::DecodeName.  This method can be eliminated when VNI compiler is eliminated.
 uLang::CUTF8String uLang::CppMangling::Demangle(const uLang::CUTF8StringView& StringView)
 {
     uLang::CUTF8StringBuilder ResultBuilder;

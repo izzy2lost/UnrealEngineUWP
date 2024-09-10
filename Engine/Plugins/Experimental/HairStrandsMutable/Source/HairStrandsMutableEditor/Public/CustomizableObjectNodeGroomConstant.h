@@ -23,7 +23,8 @@ public:
 	/** UCustomizableObjectNode interface */
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual bool ShouldAddToContextMenu(FText& OutCategory) const override;
-
+	virtual bool IsExperimental() const override;
+	
 	/** ICustomizableObjectExtensionNode interface */
 	virtual mu::Ptr<mu::NodeExtensionData> GenerateMutableNode(FExtensionDataCompilerInterface& CompilerInterface) const override;
 

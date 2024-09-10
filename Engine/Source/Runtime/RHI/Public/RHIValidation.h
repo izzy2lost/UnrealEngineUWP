@@ -1231,9 +1231,9 @@ public:
 		return RHI->RHICalcRayTracingGeometrySize(Initializer);
 	}
 
-	virtual FShaderBindingTableRHIRef RHICreateShaderBindingTable(const FRayTracingShaderBindingTableInitializer& Initializer) override final
+	virtual FShaderBindingTableRHIRef RHICreateShaderBindingTable(FRHICommandListBase& RHICmdList, const FRayTracingShaderBindingTableInitializer& Initializer) override final
 	{
-		return RHI->RHICreateShaderBindingTable(Initializer);
+		return RHI->RHICreateShaderBindingTable(RHICmdList, Initializer);
 	}
 #endif // RHI_RAYTRACING
 

@@ -20,7 +20,7 @@ namespace UE::Editor::DataStorage
 	struct FExtendedQuery
 	{
 		FMassEntityQuery NativeQuery; // Used if there's no processor bound.
-		ITypedElementDataStorageInterface::FQueryDescription Description;
+		IEditorDataStorageProvider::FQueryDescription Description;
 		TStrongObjectPtr<UMassProcessor> Processor;
 	};
 
@@ -42,7 +42,7 @@ namespace UE::Editor::DataStorage
 
 		 /** Adds a new query to the store and initializes the query with the provided arguments. */
 		Handle RegisterQuery(
-			ITypedElementDataStorageInterface::FQueryDescription Query,
+			IEditorDataStorageProvider::FQueryDescription Query,
 			FEnvironment& Environment,
 			FMassEntityManager& EntityManager,
 			FMassProcessingPhaseManager& PhaseManager);
@@ -53,10 +53,10 @@ namespace UE::Editor::DataStorage
 		void Clear(FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager);
 
 		/** Register the defaults for a tick group. These will be applied on top of any settings provided with a query registration. */
-		void RegisterTickGroup(FName GroupName, ITypedElementDataStorageInterface::EQueryTickPhase Phase,
+		void RegisterTickGroup(FName GroupName, IEditorDataStorageProvider::EQueryTickPhase Phase,
 			FName BeforeGroup, FName AfterGroup, EExecutionMode ExecutionMode);
 		/** Removes a previously registered set of tick group defaults. */
-		void UnregisterTickGroup(FName GroupName, ITypedElementDataStorageInterface::EQueryTickPhase Phase);
+		void UnregisterTickGroup(FName GroupName, IEditorDataStorageProvider::EQueryTickPhase Phase);
 
 		/**
 		 * @section Retrieval
@@ -78,7 +78,7 @@ namespace UE::Editor::DataStorage
 		const FExtendedQuery& GetChecked(Handle Entry) const;
 
 		/** Gets the original description used to create an extended query or an empty default if the provided query isn't alive. */
-		const ITypedElementDataStorageInterface::FQueryDescription& GetQueryDescription(Handle Query) const;
+		const IEditorDataStorageProvider::FQueryDescription& GetQueryDescription(Handle Query) const;
 
 		/** Checks to see if a query is still available or has been removed. */
 		bool IsAlive(Handle Entry) const;
@@ -124,24 +124,24 @@ namespace UE::Editor::DataStorage
 		void RunPhasePreambleQueries(
 			FMassEntityManager& EntityManager,
 			FEnvironment& Environment,
-			ITypedElementDataStorageInterface::EQueryTickPhase Phase,
+			IEditorDataStorageProvider::EQueryTickPhase Phase,
 			float DeltaTime);
 		void RunPhasePostambleQueries(
 			FMassEntityManager& EntityManager,
 			FEnvironment& Environment,
-			ITypedElementDataStorageInterface::EQueryTickPhase Phase,
+			IEditorDataStorageProvider::EQueryTickPhase Phase,
 			float DeltaTime);
 
 		void DebugPrintQueryCallbacks(FOutputDevice& Output) const;
 
 	private:
-		using QueryTickPhaseType = std::underlying_type_t<ITypedElementDataStorageInterface::EQueryTickPhase>;
-		static constexpr QueryTickPhaseType MaxTickPhase = static_cast<QueryTickPhaseType>(ITypedElementDataStorageInterface::EQueryTickPhase::Max);
+		using QueryTickPhaseType = std::underlying_type_t<IEditorDataStorageProvider::EQueryTickPhase>;
+		static constexpr QueryTickPhaseType MaxTickPhase = static_cast<QueryTickPhaseType>(IEditorDataStorageProvider::EQueryTickPhase::Max);
 
 		struct FTickGroupId
 		{
 			FName Name;
-			ITypedElementDataStorageInterface::EQueryTickPhase Phase;
+			IEditorDataStorageProvider::EQueryTickPhase Phase;
 
 			friend inline uint32 GetTypeHash(const FTickGroupId& Id) { return HashCombine(GetTypeHash(Id.Name), GetTypeHash(Id.Phase)); }
 			friend inline bool operator==(const FTickGroupId& Lhs, const FTickGroupId& Rhs) { return Lhs.Phase == Rhs.Phase && Lhs.Name == Rhs.Name; }
@@ -164,30 +164,30 @@ namespace UE::Editor::DataStorage
 		EDirectQueryExecutionFlags ExecutionFlags,
 			CallbackReference Callback);
 
-		FMassEntityQuery& SetupNativeQuery(ITypedElementDataStorageInterface::FQueryDescription& Query, FExtendedQuery& StoredQuery);
-		bool SetupDynamicColumns(ITypedElementDataStorageInterface::FQueryDescription& Query, FEnvironment& Environment);
-		bool SetupSelectedColumns(ITypedElementDataStorageInterface::FQueryDescription& Query, FMassEntityQuery& NativeQuery);
-		bool SetupConditions(ITypedElementDataStorageInterface::FQueryDescription& Query, FMassEntityQuery& NativeQuery);
-		bool SetupChunkFilters(Handle QueryHandle, ITypedElementDataStorageInterface::FQueryDescription& Query, FEnvironment& Environment, FMassEntityQuery& NativeQuery);
-		bool SetupDependencies(ITypedElementDataStorageInterface::FQueryDescription& Query, FMassEntityQuery& NativeQuery);
-		bool SetupTickGroupDefaults(ITypedElementDataStorageInterface::FQueryDescription& Query);
+		FMassEntityQuery& SetupNativeQuery(IEditorDataStorageProvider::FQueryDescription& Query, FExtendedQuery& StoredQuery);
+		bool SetupDynamicColumns(IEditorDataStorageProvider::FQueryDescription& Query, FEnvironment& Environment);
+		bool SetupSelectedColumns(IEditorDataStorageProvider::FQueryDescription& Query, FMassEntityQuery& NativeQuery);
+		bool SetupConditions(IEditorDataStorageProvider::FQueryDescription& Query, FMassEntityQuery& NativeQuery);
+		bool SetupChunkFilters(Handle QueryHandle, IEditorDataStorageProvider::FQueryDescription& Query, FEnvironment& Environment, FMassEntityQuery& NativeQuery);
+		bool SetupDependencies(IEditorDataStorageProvider::FQueryDescription& Query, FMassEntityQuery& NativeQuery);
+		bool SetupTickGroupDefaults(IEditorDataStorageProvider::FQueryDescription& Query);
 		bool SetupProcessors(Handle QueryHandle, FExtendedQuery& StoredQuery, FEnvironment& Environment,
 			FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager);
-		bool SetupActivatable(Handle QueryHandle, ITypedElementDataStorageInterface::FQueryDescription& Query);
+		bool SetupActivatable(Handle QueryHandle, IEditorDataStorageProvider::FQueryDescription& Query);
 
-		EMassFragmentAccess ConvertToNativeAccessType(ITypedElementDataStorageInterface::EQueryAccessType AccessType);
-		EMassFragmentPresence ConvertToNativePresenceType(ITypedElementDataStorageInterface::EQueryAccessType AccessType);
+		EMassFragmentAccess ConvertToNativeAccessType(IEditorDataStorageProvider::EQueryAccessType AccessType);
+		EMassFragmentPresence ConvertToNativePresenceType(IEditorDataStorageProvider::EQueryAccessType AccessType);
 
-		void RegisterPreambleQuery(ITypedElementDataStorageInterface::EQueryTickPhase Phase, Handle Query);
-		void RegisterPostambleQuery(ITypedElementDataStorageInterface::EQueryTickPhase Phase, Handle Query);
-		void UnregisterPreambleQuery(ITypedElementDataStorageInterface::EQueryTickPhase Phase, Handle Query);
-		void UnregisterPostambleQuery(ITypedElementDataStorageInterface::EQueryTickPhase Phase, Handle Query);
+		void RegisterPreambleQuery(IEditorDataStorageProvider::EQueryTickPhase Phase, Handle Query);
+		void RegisterPostambleQuery(IEditorDataStorageProvider::EQueryTickPhase Phase, Handle Query);
+		void UnregisterPreambleQuery(IEditorDataStorageProvider::EQueryTickPhase Phase, Handle Query);
+		void UnregisterPostambleQuery(IEditorDataStorageProvider::EQueryTickPhase Phase, Handle Query);
 		void RunPhasePreOrPostAmbleQueries(FMassEntityManager& EntityManager, FEnvironment& Environment,
-			ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime, TArray<Handle>& QueryHandles);
+			IEditorDataStorageProvider::EQueryTickPhase Phase, float DeltaTime, TArray<Handle>& QueryHandles);
 
 		void UnregisterQueryData(Handle Query, FExtendedQuery& QueryData, FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager);
 
-		static const ITypedElementDataStorageInterface::FQueryDescription EmptyDescription;
+		static const IEditorDataStorageProvider::FQueryDescription EmptyDescription;
 
 		QueryStore Queries;
 		TMultiMap<FName, Handle> ActivatableMapping;

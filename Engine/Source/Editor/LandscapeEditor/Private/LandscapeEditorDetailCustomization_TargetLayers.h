@@ -61,6 +61,7 @@ protected:
 	TSharedRef<FAssetThumbnailPool> ThumbnailPool;
 	TSharedRef<IPropertyHandle> TargetDisplayOrderPropertyHandle;
 	TSharedRef<IPropertyHandle> TargetShowUnusedLayersPropertyHandle;
+	TSharedPtr<SSearchBox> LayersFilterSearchBox;
 
 	static class FEdModeLandscape* GetEditorMode();
 
@@ -115,6 +116,11 @@ protected:
 	void ShowUnusedLayers(bool Result);
 	bool ShouldShowUnusedLayers(bool Result) const;
 	EVisibility ShouldShowLayer(TSharedRef<FLandscapeTargetListInfo> Target) const;
+
+	void OnFilterTextChanged(const FText& InFilterText);
+	void OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
+	EVisibility GetLayersFilterVisibility() const;
+	FText GetLayersFilterText() const;
 };
 
 class SLandscapeEditorSelectableBorder : public SBorder

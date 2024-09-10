@@ -78,7 +78,12 @@ namespace HordeServer.Agents
 		/// Arbitrary comment for the agent (useful for disable reasons etc)
 		/// </summary>
 		public string? Comment { get; }
-
+		
+		/// <summary>
+		/// List of server-defined properties (will overwrite and merge with agent-reported properties)
+		/// </summary>
+		public IReadOnlyList<string> ServerDefinedProperties { get; }
+		
 		/// <summary>
 		/// List of properties for this agent
 		/// </summary>
@@ -284,8 +289,17 @@ namespace HordeServer.Agents
 	/// <summary>
 	/// Information for a new lease
 	/// </summary>
-	public record class CreateLeaseOptions(LeaseId Id, LeaseId? ParentId, string Name, StreamId? StreamId, PoolId? PoolId, LogId? LogId, IReadOnlyDictionary<string, int>? Resources, bool Exclusive, IMessage Payload);
-
+	public record CreateLeaseOptions(LeaseId Id, LeaseId? ParentId, string Name, StreamId? StreamId, PoolId? PoolId, LogId? LogId, IReadOnlyDictionary<string, int>? Resources, bool Exclusive, IMessage Payload);
+	
+	/// <summary>
+	/// Options for creating an agent
+	/// </summary>
+	/// <param name="Id">ID of the agent</param>
+	/// <param name="Ephemeral">Whether the agent is ephemeral or not</param>
+	/// <param name="EnrollmentKey">Key used to identify a unique enrollment for the agent with this ID</param>
+	/// <param name="ServerDefinedProperties">Server-defined properties</param>
+	public record CreateAgentOptions(AgentId Id, bool Ephemeral, string EnrollmentKey, IReadOnlyList<string>? ServerDefinedProperties = null);
+	
 	/// <summary>
 	/// Options for updating an agent
 	/// </summary>
@@ -298,7 +312,7 @@ namespace HordeServer.Agents
 	/// <param name="ShutdownReason">The reason for shutting down agent, ex. Autoscaler/Manual/Unexpected</param>
 	/// <param name="ExplicitPools">List of pools for the agent</param>
 	/// <param name="Comment">New comment</param>
-	public record class UpdateAgentOptions(bool? Enabled = null, bool? RequestConform = null, bool? RequestFullConform = null, bool? RequestRestart = null, bool? RequestShutdown = null, bool? RequestForceRestart = null, string? ShutdownReason = null, List<PoolId>? ExplicitPools = null, string? Comment = null);
+	public record UpdateAgentOptions(bool? Enabled = null, bool? RequestConform = null, bool? RequestFullConform = null, bool? RequestRestart = null, bool? RequestShutdown = null, bool? RequestForceRestart = null, string? ShutdownReason = null, List<PoolId>? ExplicitPools = null, string? Comment = null);
 
 	/// <summary>
 	/// Options for starting a new agent session
@@ -306,7 +320,7 @@ namespace HordeServer.Agents
 	/// <param name="Capabilities">Capabilities for the agent</param>
 	/// <param name="DynamicPools">New list of dynamic pools for the agent</param>
 	/// <param name="Version">Current version of the agent software</param>
-	public record class CreateSessionOptions(RpcAgentCapabilities Capabilities, IReadOnlyList<PoolId> DynamicPools, string? Version);
+	public record CreateSessionOptions(RpcAgentCapabilities Capabilities, IReadOnlyList<PoolId> DynamicPools, string? Version);
 
 	/// <summary>
 	/// Options for updating a new agent session
@@ -315,7 +329,7 @@ namespace HordeServer.Agents
 	/// <param name="Capabilities">Capbilities for the session</param>
 	/// <param name="DynamicPools">New list of dynamic pools for the agent</param>
 	/// <param name="Leases">New set of leases</param>
-	public record class UpdateSessionOptions(AgentStatus? Status = null, RpcAgentCapabilities? Capabilities = null, IReadOnlyList<PoolId>? DynamicPools = null, IEnumerable<RpcLease>? Leases = null);
+	public record UpdateSessionOptions(AgentStatus? Status = null, RpcAgentCapabilities? Capabilities = null, IReadOnlyList<PoolId>? DynamicPools = null, IEnumerable<RpcLease>? Leases = null);
 
 	/// <summary>
 	/// Extension methods for IAgent
@@ -342,6 +356,11 @@ namespace HordeServer.Agents
 		/// Tool ID for Mac-specific and self-contained agent software
 		/// </summary>
 		public static ToolId AgentMacX64ToolId { get; } = new("horde-agent-osx-x64");
+		
+		/// <summary>
+		/// Set of property names that can only be set by the server
+		/// </summary>
+		public static readonly HashSet<string> ServerDefinedPropertyNames = [KnownPropertyNames.Trusted];
 
 		/// <summary>
 		/// Gets the tool ID for the software the given agent should be running
@@ -451,7 +470,28 @@ namespace HordeServer.Agents
 		{
 			return agent.Properties.BinarySearch(property, StringComparer.OrdinalIgnoreCase) >= 0;
 		}
-
+		
+		/// <summary>
+		/// Check if a property name (incl value) is controlled by the server
+		/// Such properties are protected and cannot be set by the agent.
+		/// </summary>
+		/// <param name="propName">Name of the property</param>
+		/// <returns>True if controlled and enforced by the server</returns>
+		public static bool IsPropertyServerDefined(string propName)
+		{
+			return ServerDefinedPropertyNames.Contains(propName);
+		}
+		
+		/// <summary>
+		/// Filters a list of properties from server-defined properties
+		/// </summary>
+		/// <param name="properties">List to filter</param>
+		/// <returns>A new list with any server-defined property removed</returns>
+		public static IReadOnlyList<string> RemoveServerDefinedProperties(IReadOnlyList<string> properties)
+		{
+			return properties.Where(property => !IsPropertyServerDefined(property.Split('=', 2)[0])).ToList();
+		}
+		
 		/// <summary>
 		/// Finds property values from a sorted list of Name=Value pairs
 		/// </summary>

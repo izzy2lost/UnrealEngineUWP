@@ -25,6 +25,7 @@
 #include "MVVM/CurveEditorExtension.h"
 #include "MVVM/Selection/Selection.h"
 #include "MVVM/ViewModels/CategoryModel.h"
+#include "MVVM/Views/SOutlinerView.h"
 #include "Sequencer.h"
 #include "SequencerLog.h"
 #include "SSequencer.h"
@@ -78,6 +79,9 @@ FSequencerFilterBar::~FSequencerFilterBar()
     LevelFilter->OnChanged().RemoveAll(this);
     HideIsolateFilter->OnChanged().RemoveAll(this);
     SelectedFilter->OnChanged().RemoveAll(this);
+
+	CommonFilters.Reset();
+	InternalFilters.Reset();
 }
 
 TSharedPtr<ICustomTextFilter<FSequencerTrackFilterType>> FSequencerFilterBar::CreateTextFilter()
@@ -351,6 +355,16 @@ void FSequencerFilterBar::ShowAllTracks()
 {
 	HideIsolateFilter->ShowAllTracks();
 
+	if (const TSharedPtr<SSequencer> SequencerWidget = StaticCastSharedRef<SSequencer>(Sequencer.GetSequencerWidget()))
+	{
+		const TSharedPtr<FSequencerSelection> Selection = Sequencer.GetViewModel()->GetSelection();
+		const TArray<TWeakViewModelPtr<IOutlinerExtension>> SelectedTracks = Selection->Outliner.GetSelected().Array();
+		if (SelectedTracks.Num() > 0)
+		{
+			SequencerWidget->GetTreeView()->RequestScrollIntoView(SelectedTracks[0]);
+		}
+	}
+
 	RequestFilterUpdate();
 }
 
@@ -610,29 +624,39 @@ void FSequencerFilterBar::ActivateCommonFilters(const bool bInActivate
 
 	FSequencerFilterBarConfig& Config = SequencerSettings->FindOrAddTrackFilterBar(GetIdentifier(), false);
 
-	CommonFilters->ForEachFilter([this, bInActivate, &InExceptions, &Config]
+	bool bNeedsSave = false;
+
+	CommonFilters->ForEachFilter([this, bInActivate, &InExceptions, &Config, &bNeedsSave]
 		(const TSharedRef<FSequencerTrackFilter>& InFilter)
 		{
-			if (InExceptions.IsEmpty() || !InExceptions.Contains(InFilter))
+			if (InExceptions.Contains(InFilter))
 			{
-				const FString FilterName = InFilter->GetDisplayName().ToString();
-				if (Config.SetFilterActive(FilterName, bInActivate))
-				{
-					const ESequencerFilterChange FilterChangeType = bInActivate
-						? ESequencerFilterChange::Activate
-						: ESequencerFilterChange::Deactivate;
-					FiltersChangedEvent.Broadcast(FilterChangeType, InFilter);
-
-					InFilter->SetActive(bInActivate);
-					InFilter->ActiveStateChanged(bInActivate);
-				}
+				return true;
 			}
+
+			const FString FilterName = InFilter->GetDisplayName().ToString();
+			if (Config.SetFilterActive(FilterName, bInActivate))
+			{
+				const ESequencerFilterChange FilterChangeType = bInActivate
+					? ESequencerFilterChange::Activate
+					: ESequencerFilterChange::Deactivate;
+				FiltersChangedEvent.Broadcast(FilterChangeType, InFilter);
+
+				InFilter->SetActive(bInActivate);
+				InFilter->ActiveStateChanged(bInActivate);
+
+				bNeedsSave = true;
+			}
+
 			return true;
 		}
 		, true
 		, InMatchCategories);
 
-	SequencerSettings->SaveConfig();
+	if (bNeedsSave)
+	{
+		SequencerSettings->SaveConfig();
+	}
 
 	RequestFilterUpdate();
 }
@@ -1364,14 +1388,15 @@ bool FSequencerFilterBar::FilterNodesRecursive(const bool bInHasActiveFilter, co
 	const USequencerSettings* const SequencerSettings = Sequencer.GetSequencerSettings();
     check(IsValid(SequencerSettings));
 
-	const TSharedPtr<IPinnableExtension> Pinnable = InStartNode.AsModel()->FindAncestorOfType<IPinnableExtension>(true);
-	const bool bIsPinned = Pinnable && Pinnable->IsPinned();
-
 	// Pinning overrides all other filters
-	if (!SequencerSettings->GetIncludePinnedInFilter() && bIsPinned)
+	if (!SequencerSettings->GetIncludePinnedInFilter())
 	{
-		FilterData.FilterInParentChildNodes(InStartNode, true, true, true);
-		return true;
+		const TSharedPtr<IPinnableExtension> Pinnable = InStartNode.AsModel()->FindAncestorOfType<IPinnableExtension>(true);
+		if (Pinnable.IsValid() && Pinnable->IsPinned())
+		{
+			FilterData.FilterInParentChildNodes(InStartNode, true, true, true);
+			return true;
+		}
 	}
 
 	const bool bPassedTextFilter = !TextFilter->IsActive() || TextFilter->PassesFilter(InStartNode);
@@ -1435,49 +1460,6 @@ bool FSequencerFilterBar::HasSelectedTracks() const
 	return !GetSelectedTracksOrAll().IsEmpty();
 }
 
-void FSequencerFilterBar::AddCategoryGroupIsolatedTracks(const TSet<TWeakViewModelPtr<IOutlinerExtension>>& InTracks
-	, const TSet<FName>& InCategoryNames
-	, const bool bInAddToExisting) const
-{
-	TSharedPtr<FSequencerEditorViewModel> SequencerViewModel = GetSequencer().GetViewModel();
-	if (!SequencerViewModel.IsValid())
-	{
-		return;
-	}
-
-	if (!bInAddToExisting)
-	{
-		HideIsolateFilter->EmptyIsolatedTracks(false);
-	}
-
-	TSet<TWeakViewModelPtr<IOutlinerExtension>> TracksToIsolate;
-	TSet<TViewModelPtr<IOutlinerExtension>> TracksToExpand;
-
-	const FViewModelPtr RootModel = SequencerViewModel->GetRootModel();
-	const TParentFirstChildIterator<IOutlinerExtension> AllNodes = RootModel->GetDescendantsOfType<IOutlinerExtension>();
-	for (const TViewModelPtr<IOutlinerExtension>& Node : AllNodes)
-	{
-		if (const TViewModelPtr<FCategoryGroupModel> CategoryGroupModel = Node.ImplicitCast())
-		{
-			if (InCategoryNames.Contains(CategoryGroupModel->GetCategoryName()))
-			{
-				TracksToIsolate.Add(CategoryGroupModel);
-
-				const TParentModelIterator<IOutlinerExtension> Ancestors = CategoryGroupModel->GetAncestorsOfType<IOutlinerExtension>();
-				TracksToExpand.Append(Ancestors.ToArray());
-				TracksToExpand.Add(CategoryGroupModel);
-			}
-		}
-	}
-
-	HideIsolateFilter->IsolateTracks(TracksToIsolate, true);
-
-	for (const TViewModelPtr<IOutlinerExtension>& Track : TracksToExpand)
-	{
-		Track->SetExpansion(true);
-	}
-}
-
 void FSequencerFilterBar::HideSelectedTracks()
 {
 	const bool bAddToExisting = !FSlateApplication::Get().GetModifierKeys().AreModifersDown(EModifierKey::Shift);
@@ -1494,17 +1476,17 @@ void FSequencerFilterBar::IsolateSelectedTracks()
 
 void FSequencerFilterBar::ShowOnlyLocationCategoryGroups()
 {
-	AddCategoryGroupIsolatedTracks(GetSelectedTracksOrAll(), { TEXT("Location") }, true);
+	HideIsolateFilter->IsolateCategoryGroupTracks(GetSelectedTracksOrAll(), { TEXT("Location") }, false);
 }
 
 void FSequencerFilterBar::ShowOnlyRotationCategoryGroups()
 {
-	AddCategoryGroupIsolatedTracks(GetSelectedTracksOrAll(), { TEXT("Rotation") }, true);
+	HideIsolateFilter->IsolateCategoryGroupTracks(GetSelectedTracksOrAll(), { TEXT("Rotation") }, false);
 }
 
 void FSequencerFilterBar::ShowOnlyScaleCategoryGroups()
 {
-	AddCategoryGroupIsolatedTracks(GetSelectedTracksOrAll(), { TEXT("Scale") }, true);
+	HideIsolateFilter->IsolateCategoryGroupTracks(GetSelectedTracksOrAll(), { TEXT("Scale") }, false);
 }
 
 void FSequencerFilterBar::SetTrackParentsExpanded(const TViewModelPtr<IOutlinerExtension>& InNode, const bool bInExpanded)
@@ -1544,10 +1526,6 @@ TArray<TSharedRef<FSequencerTrackFilter>> FSequencerFilterBar::GetFilterList(con
 
 	AllFilters.Add(TextFilter);
 	AllFilters.Add(HideIsolateFilter);
-	AllFilters.Add(LevelFilter);
-	AllFilters.Add(GroupFilter);
-	AllFilters.Add(SelectedFilter);
-	AllFilters.Add(ModifiedFilter);
 
 	if (bInIncludeCustomTextFilters)
 	{
@@ -1562,11 +1540,16 @@ TArray<TSharedRef<FSequencerTrackFilter>> FSequencerFilterBar::GetFilterList(con
 
 bool FSequencerFilterBar::ShouldUpdateOnTrackValueChanged() const
 {
+	if (bFiltersMuted)
+	{
+		return false;
+	}
+
 	const TArray<TSharedRef<FSequencerTrackFilter>> AllFilters = GetFilterList();
 
 	for (const TSharedRef<FSequencerTrackFilter>& Filter : AllFilters)
 	{
-		if (Filter->ShouldUpdateOnTrackValueChanged())
+		if (Filter->ShouldUpdateOnTrackValueChanged() && IsFilterActive(Filter))
 		{
 			return true;
 		}

@@ -148,12 +148,26 @@ namespace HordeServer.Agents
 					byte[]? data = (byte[]?)await database.StringGetAsync(Keys.Sessions[session.SessionId].Capabilities.Inner).WaitAsync(cancellationToken);
 					if (data == null)
 					{
+						_logger.LogDebug("Missing capabilities key for session {SessionId}; can retry.", session.SessionId);
 						return null;
 					}
 
 					IoHash hash = IoHash.Compute(data);
 					if (session.CapabilitiesHash != hash)
 					{
+						ITransaction transaction = database.CreateTransaction();
+						transaction.AddCondition(Keys.Sessions[session.SessionId].State.StringEqual(session));
+						transaction.AddCondition(Condition.StringEqual(Keys.Sessions[session.SessionId].Capabilities.Inner, data));
+						_ = transaction.StringSetAsync(Keys.Sessions[session.SessionId].State, new RpcSession(session) { CapabilitiesHash = hash, UpdateTicks = session.UpdateTicks + 1 }, flags: CommandFlags.FireAndForget);
+
+						if (await transaction.ExecuteAsync())
+						{
+							_logger.LogWarning("Repaired mismatch between capabilities and session hash for agent {AgentId} session {SessionId}. Was {OldHash}, now {NewHash}.", session.AgentId, session.SessionId, session.CapabilitiesHash, hash);  
+						}
+						else
+						{
+							_logger.LogDebug("Hash mismatch for capabilities of session {SessionId}; can retry.", session.SessionId);
+						}
 						return null;
 					}
 
@@ -257,6 +271,7 @@ namespace HordeServer.Agents
 
 			if (!await transaction.ExecuteAsync().WaitAsync(cancellationToken))
 			{
+				_logger.LogDebug("Unable to create session {SessionId}; can retry", sessionId);
 				return null;
 			}
 
@@ -304,6 +319,8 @@ namespace HordeServer.Agents
 			if (newSession.Status == RpcAgentStatus.Stopped)
 			{
 				newSession.UpdateTicks = Math.Max(newSession.UpdateTicks + 1, Math.Min(newSession.UpdateTicks + RpcSession.ExpireAfterTime.Ticks, _clock.UtcNow.Ticks));
+
+				newSession.Leases.Clear(); // Need to ensure we remove items from the active set below
 
 				_ = transaction.HashDeleteAsync(Keys.Sessions.Current, newSession.SessionId, flags: CommandFlags.FireAndForget);
 				_ = transaction.KeyDeleteAsync(Keys.Sessions[sessionId].Capabilities, flags: CommandFlags.FireAndForget);
@@ -375,6 +392,7 @@ namespace HordeServer.Agents
 			// Execute the transaction
 			if (!await transaction.ExecuteAsync().WaitAsync(cancellationToken))
 			{
+				_logger.LogDebug("Transaction failed for update of session {SessionId}", sessionId);
 				return null;
 			}
 

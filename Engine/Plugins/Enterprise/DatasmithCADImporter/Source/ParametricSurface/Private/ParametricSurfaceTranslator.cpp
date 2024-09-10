@@ -40,6 +40,7 @@ void FParametricSurfaceTranslator::SetSceneImportOptions(const TArray<TObjectPtr
 		if (UDatasmithCommonTessellationOptions* TessellationOptionsObject = Cast<UDatasmithCommonTessellationOptions>(OptionPtr))
 		{
 			CommonTessellationOptions = TessellationOptionsObject->Options;
+			TessellationOptionsObject->SaveConfig(CPF_Config);
 		}
 	}
 }

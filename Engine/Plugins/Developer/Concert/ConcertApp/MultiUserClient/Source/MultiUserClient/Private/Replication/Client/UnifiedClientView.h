@@ -59,6 +59,7 @@ namespace UE::MultiUserClient::Replication
 
 		TArray<FGuid> GetClients() const;
 		TArray<FGuid> GetOnlineClients() const;
+		FGuid GetLocalClient() const;
 		
 		/** @return Client info associated with EndpointId. */
 		TOptional<FConcertClientInfo> GetClientInfoByEndpoint(const FGuid& EndpointId) const;

@@ -5,13 +5,44 @@
 #include "Detail/Trace.h"
 
 ////////////////////////////////////////////////////////////////////////////////
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 #	define UE_TRACE_IMPL(...)
 #	define UE_TRACE_API			TRACELOG_API
 #else
 #	define UE_TRACE_IMPL(...)	{ return __VA_ARGS__; }
 #	define UE_TRACE_API			inline
 #endif
+
+// msvc seems to have a strange behaviour when it comes to expanding macros.
+#if defined(_MSC_VER)
+
+#if TRACE_PRIVATE_FULL_ENABLED
+#	define TRACE_IMPL(Macro, ...)		TRACE_PRIVATE_EXPAND(TRACE_PRIVATE_##Macro(__VA_ARGS__))
+#else
+#	define TRACE_IMPL(Macro, ...)		TRACE_PRIVATE_EXPAND(TRACE_PRIVATE_NOP_##Macro(__VA_ARGS__))
+#endif
+
+#if TRACE_PRIVATE_MINIMAL_ENABLED
+#	define TRACE_IMPL_MINIMAL(Macro, ...)	TRACE_PRIVATE_EXPAND(TRACE_PRIVATE_##Macro(__VA_ARGS__))
+#else
+#	define TRACE_IMPL_MINIMAL(Macro, ...)	TRACE_PRIVATE_EXPAND(TRACE_PRIVATE_NOP_##Macro(__VA_ARGS__))
+#endif
+
+#else  // defined(_MSC_VER)
+
+#if TRACE_PRIVATE_FULL_ENABLED
+#	define TRACE_IMPL(Macro, ...)		TRACE_PRIVATE_EXPAND(TRACE_PRIVATE_##Macro)(__VA_ARGS__)
+#else
+#	define TRACE_IMPL(Macro, ...)		TRACE_PRIVATE_EXPAND(TRACE_PRIVATE_NOP_##Macro)(__VA_ARGS__)
+#endif
+
+#if TRACE_PRIVATE_MINIMAL_ENABLED
+#	define TRACE_IMPL_MINIMAL(Macro, ...)	TRACE_PRIVATE_EXPAND(TRACE_PRIVATE_##Macro)(__VA_ARGS__)
+#else
+#	define TRACE_IMPL_MINIMAL(Macro, ...)	TRACE_PRIVATE_EXPAND(TRACE_PRIVATE_NOP_##Macro)(__VA_ARGS__)
+#endif
+
+#endif // defined(_MSC_VER)
 
 ////////////////////////////////////////////////////////////////////////////////
 namespace UE {
@@ -193,23 +224,49 @@ UE_TRACE_API FChannel* FindChannel(FChannelId ChannelId) UE_TRACE_IMPL(nullptr);
 } // namespace Trace
 } // namespace UE
 
-////////////////////////////////////////////////////////////////////////////////
-#define UE_TRACE_EVENT_DEFINE(LoggerName, EventName)											TRACE_PRIVATE_EVENT_DEFINE(LoggerName, EventName)
-#define UE_TRACE_EVENT_BEGIN(LoggerName, EventName, ...)										TRACE_PRIVATE_EVENT_BEGIN(LoggerName, EventName, ##__VA_ARGS__)
-#define UE_TRACE_EVENT_BEGIN_EXTERN(LoggerName, EventName, ...)									TRACE_PRIVATE_EVENT_BEGIN_EXTERN(LoggerName, EventName, ##__VA_ARGS__)
-#define UE_TRACE_EVENT_FIELD(FieldType, FieldName)												TRACE_PRIVATE_EVENT_FIELD(FieldType, FieldName)
-#define UE_TRACE_EVENT_REFERENCE_FIELD(RefLogger, RefEvent, FieldName)							TRACE_PRIVATE_EVENT_REFFIELD(RefLogger, RefEvent, FieldName)
-#define UE_TRACE_EVENT_END()																	TRACE_PRIVATE_EVENT_END()
-#define UE_TRACE_LOG(LoggerName, EventName, ChannelsExpr, ...)									TRACE_PRIVATE_LOG(LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
-#define UE_TRACE_LOG_SCOPED(LoggerName, EventName, ChannelsExpr, ...)							TRACE_PRIVATE_LOG_SCOPED(LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
-#define UE_TRACE_LOG_SCOPED_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ...)	TRACE_PRIVATE_LOG_SCOPED_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ##__VA_ARGS__)
-#define UE_TRACE_LOG_SCOPED_T(LoggerName, EventName, ChannelsExpr, ...)							TRACE_PRIVATE_LOG_SCOPED_T(LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
-#define UE_TRACE_LOG_SCOPED_T_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ...)	TRACE_PRIVATE_LOG_SCOPED_T_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ##__VA_ARGS__)
-#define UE_TRACE_GET_DEFINITION_TYPE_ID(LoggerName, EventName)									TRACE_PRIVATE_GET_DEFINITION_TYPE_ID(LoggerName, EventName)
-#define UE_TRACE_LOG_DEFINITION(LoggerName, EventName, Id, ChannelsExpr, ...)					TRACE_PRIVATE_LOG_DEFINITION(LoggerName, EventName, Id, ChannelsExpr, ##__VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
-#define UE_TRACE_CHANNEL(ChannelName, ...)				TRACE_PRIVATE_CHANNEL(ChannelName, ##__VA_ARGS__)
-#define UE_TRACE_CHANNEL_EXTERN(ChannelName, ...)		TRACE_PRIVATE_CHANNEL_EXTERN(ChannelName, ##__VA_ARGS__)
-#define UE_TRACE_CHANNEL_DEFINE(ChannelName, ...)		TRACE_PRIVATE_CHANNEL_DEFINE(ChannelName, ##__VA_ARGS__)
-#define UE_TRACE_CHANNELEXPR_IS_ENABLED(ChannelsExpr)	TRACE_PRIVATE_CHANNELEXPR_IS_ENABLED(ChannelsExpr)
+/// Tracing macros
+/// Use these to define event types, channel and emit events.
+////////////////////////////////////////////////////////////////////////////////
+#define UE_TRACE_EVENT_DEFINE(LoggerName, EventName)											TRACE_IMPL(EVENT_DEFINE, LoggerName, EventName)
+#define UE_TRACE_EVENT_BEGIN(LoggerName, EventName, ...)										TRACE_IMPL(EVENT_BEGIN, LoggerName, EventName, ##__VA_ARGS__)
+#define UE_TRACE_EVENT_BEGIN_EXTERN(LoggerName, EventName, ...)									TRACE_IMPL(EVENT_BEGIN_EXTERN, LoggerName, EventName, ##__VA_ARGS__)
+#define UE_TRACE_EVENT_FIELD(FieldType, FieldName)												TRACE_IMPL(EVENT_FIELD, FieldType, FieldName)
+#define UE_TRACE_EVENT_REFERENCE_FIELD(RefLogger, RefEvent, FieldName)							TRACE_IMPL(EVENT_REFFIELD, RefLogger, RefEvent, FieldName)
+#define UE_TRACE_EVENT_END()																	TRACE_IMPL(EVENT_END)
+#define UE_TRACE_LOG(LoggerName, EventName, ChannelsExpr, ...)									TRACE_IMPL(LOG, LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
+#define UE_TRACE_LOG_SCOPED(LoggerName, EventName, ChannelsExpr, ...)							TRACE_IMPL(LOG_SCOPED, LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
+#define UE_TRACE_LOG_SCOPED_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ...)	TRACE_IMPL(LOG_SCOPED_CONDITIONAL, LoggerName, EventName, ChannelsExpr, Condition, ##__VA_ARGS__)
+#define UE_TRACE_LOG_SCOPED_T(LoggerName, EventName, ChannelsExpr, ...)							TRACE_IMPL(LOG_SCOPED_T, LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
+#define UE_TRACE_LOG_SCOPED_T_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ...)	TRACE_IMPL(LOG_SCOPED_T_CONDITIONAL, LoggerName, EventName, ChannelsExpr, Condition, ##__VA_ARGS__)
+#define UE_TRACE_GET_DEFINITION_TYPE_ID(LoggerName, EventName)									TRACE_IMPL(GET_DEFINITION_TYPE_ID, LoggerName, EventName)
+#define UE_TRACE_LOG_DEFINITION(LoggerName, EventName, Id, ChannelsExpr, ...)					TRACE_IMPL(LOG_DEFINITION, LoggerName, EventName, Id, ChannelsExpr, ##__VA_ARGS__)
+#define UE_TRACE_CHANNEL(ChannelName, ...)														TRACE_IMPL(CHANNEL, ChannelName, ##__VA_ARGS__)
+#define UE_TRACE_CHANNEL_EXTERN(ChannelName, ...)												TRACE_IMPL(CHANNEL_EXTERN, ChannelName, ##__VA_ARGS__)
+#define UE_TRACE_CHANNEL_DEFINE(ChannelName, ...)												TRACE_IMPL(CHANNEL_DEFINE, ChannelName, ##__VA_ARGS__)
+#define UE_TRACE_CHANNELEXPR_IS_ENABLED(ChannelsExpr)											TRACE_IMPL(CHANNELEXPR_IS_ENABLED, ChannelsExpr)
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Shipping variants of the macros.
+/// With these macros users can provide a subset of events that are available
+/// both in development and in shipping configurations (provided UE_TRACE_MINIMAL_ENABLED is set).
+////////////////////////////////////////////////////////////////////////////////
+#define UE_TRACE_MINIMAL_EVENT_DEFINE(LoggerName, EventName)											TRACE_IMPL_MINIMAL(EVENT_DEFINE, LoggerName, EventName)
+#define UE_TRACE_MINIMAL_EVENT_BEGIN(LoggerName, EventName, ...)										TRACE_IMPL_MINIMAL(EVENT_BEGIN, LoggerName, EventName, ##__VA_ARGS__)
+#define UE_TRACE_MINIMAL_EVENT_BEGIN_EXTERN(LoggerName, EventName, ...)									TRACE_IMPL_MINIMAL(EVENT_BEGIN_EXTERN, LoggerName, EventName, ##__VA_ARGS__)
+#define UE_TRACE_MINIMAL_EVENT_FIELD(FieldType, FieldName)												TRACE_IMPL_MINIMAL(EVENT_FIELD, FieldType, FieldName)
+#define UE_TRACE_MINIMAL_EVENT_REFERENCE_FIELD(RefLogger, RefEvent, FieldName)							TRACE_IMPL_MINIMAL(EVENT_REFFIELD, RefLogger, RefEvent, FieldName)
+#define UE_TRACE_MINIMAL_EVENT_END()																	TRACE_IMPL_MINIMAL(EVENT_END)
+#define UE_TRACE_MINIMAL_LOG(LoggerName, EventName, ChannelsExpr, ...)									TRACE_IMPL_MINIMAL(LOG, LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
+#define UE_TRACE_MINIMAL_LOG_SCOPED(LoggerName, EventName, ChannelsExpr, ...)							TRACE_IMPL_MINIMAL(LOG_SCOPED, LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
+#define UE_TRACE_MINIMAL_LOG_SCOPED_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ...)	TRACE_IMPL(LOG_SCOPED_CONDITIONAL, LoggerName, EventName, ChannelsExpr, Condition, ##__VA_ARGS__)
+#define UE_TRACE_MINIMAL_LOG_SCOPED_T(LoggerName, EventName, ChannelsExpr, ...)							TRACE_IMPL_MINIMAL(LOG_SCOPED_T, LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
+#define UE_TRACE_MINIMAL_LOG_SCOPED_T_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ...)	TRACE_IMPL(LOG_SCOPED_T_CONDITIONAL, LoggerName, EventName, ChannelsExpr, Condition, ##__VA_ARGS__)
+#define UE_TRACE_MINIMAL_GET_DEFINITION_TYPE_ID(LoggerName, EventName)									TRACE_IMPL_MINIMAL(GET_DEFINITION_TYPE_ID, LoggerName, EventName)
+#define UE_TRACE_MINIMAL_LOG_DEFINITION(LoggerName, EventName, Id, ChannelsExpr, ...)					TRACE_IMPL_MINIMAL(LOG_DEFINITION, LoggerName, EventName, Id, ChannelsExpr, ##__VA_ARGS__)
+#define UE_TRACE_MINIMAL_CHANNEL(ChannelName, ...)														TRACE_IMPL_MINIMAL(CHANNEL, ChannelName, ##__VA_ARGS__)
+#define UE_TRACE_MINIMAL_CHANNEL_EXTERN(ChannelName, ...)												TRACE_IMPL_MINIMAL(CHANNEL_EXTERN, ChannelName, ##__VA_ARGS__)
+#define UE_TRACE_MINIMAL_CHANNEL_DEFINE(ChannelName, ...)												TRACE_IMPL_MINIMAL(CHANNEL_DEFINE, ChannelName, ##__VA_ARGS__)
+#define UE_TRACE_MINIMAL_CHANNELEXPR_IS_ENABLED(ChannelsExpr)											TRACE_IMPL_MINIMAL(CHANNELEXPR_IS_ENABLED, ChannelsExpr)

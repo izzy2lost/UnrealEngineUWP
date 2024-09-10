@@ -96,6 +96,8 @@ namespace UnrealBuildTool
 
 		public UnrealTargetConfiguration UndecoratedConfiguration => Inner.UndecoratedConfiguration;
 
+		public string DecoratedSeparator => Inner.DecoratedSeparator;
+
 		public bool bAllowHotReload => Inner.bAllowHotReload;
 
 		public bool bBuildAllModules => Inner.bBuildAllModules;
@@ -548,6 +550,8 @@ namespace UnrealBuildTool
 		public IReadOnlyList<string> MergePlugins => Inner.MergePlugins;
 
 		public IReadOnlyDictionary<string, IEnumerable<string>> MergePluginsShared => Inner.MergePluginsShared.ToDictionary(k => k.Key, v => v.Value.AsEnumerable());
+
+		public IReadOnlyList<string> MergePluginsLaunch => Inner.MergePluginsLaunch;
 
 		public IReadOnlyList<string> GlobalDefinitions => Inner.GlobalDefinitions.AsReadOnly();
 

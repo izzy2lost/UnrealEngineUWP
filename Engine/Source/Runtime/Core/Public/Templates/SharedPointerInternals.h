@@ -81,7 +81,7 @@ namespace SharedPointerInternals
 
 				int32 Count = 0;
 
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 					{
 						// This reference count may be accessed by multiple threads
 						Count = SharedReferenceCount.load(std::memory_order_relaxed);
@@ -111,21 +111,21 @@ namespace SharedPointerInternals
 				// in response to the increment, so there's nothing to order with.
 
 #if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					// We do a regular SC increment here because it maps to an _InterlockedIncrement (lock inc).
 					// The codegen for a relaxed fetch_add is actually much worse under MSVC (lock xadd).
 					++SharedReferenceCount;
 				};
 #else
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					SharedReferenceCount.fetch_add(1, std::memory_order_relaxed);
 				};
 #endif
 
 				// If the transaction would abort, we need to undo adding the shared reference.
-				UE_AUTORTFM_ONABORT2(this)
+				UE_AUTORTFM_ONABORT(this)
 				{
 					ReleaseSharedReference();
 				};
@@ -147,7 +147,7 @@ namespace SharedPointerInternals
 			{
 				bool bSucceeded = false;
 
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					// See AddSharedReference for the same reasons that std::memory_order_relaxed is used in this function.
 
@@ -187,7 +187,7 @@ namespace SharedPointerInternals
 				// If we succeeded in taking a shared reference count, we need to undo that on an abort.
 				if (bSucceeded)
 				{
-					UE_AUTORTFM_ONABORT2(this)
+					UE_AUTORTFM_ONABORT(this)
 					{
 						ReleaseSharedReference();
 					};
@@ -213,7 +213,7 @@ namespace SharedPointerInternals
 		{
 			if constexpr (Mode == ESPMode::ThreadSafe)
 			{
-				UE_AUTORTFM_ONCOMMIT2(this)
+				UE_AUTORTFM_ONCOMMIT(this)
 				{
 					// std::memory_order_acq_rel is used here so that, if we do end up executing the destructor, it's not possible
 					// for side effects from executing the destructor end up being visible before we've determined that the shared
@@ -256,21 +256,21 @@ namespace SharedPointerInternals
 				// See AddSharedReference for the same reasons that std::memory_order_relaxed is used in this function.
 
 #if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 					{
 						// We do a regular SC increment here because it maps to an _InterlockedIncrement (lock inc).
 						// The codegen for a relaxed fetch_add is actually much worse under MSVC (lock xadd).
 						++WeakReferenceCount;
 					};
 #else
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 					{
 						WeakReferenceCount.fetch_add(1, std::memory_order_relaxed);
 					};
 #endif
 
 				// If the transaction would abort, we need to undo adding the reference.
-				UE_AUTORTFM_ONABORT2(this)
+				UE_AUTORTFM_ONABORT(this)
 					{
 						ReleaseWeakReference();
 					};
@@ -286,7 +286,7 @@ namespace SharedPointerInternals
 		{
 			if constexpr (Mode == ESPMode::ThreadSafe)
 			{
-				UE_AUTORTFM_ONCOMMIT2(this)
+				UE_AUTORTFM_ONCOMMIT(this)
 					{
 						// See ReleaseSharedReference for the same reasons that std::memory_order_acq_rel is used in this function.
 

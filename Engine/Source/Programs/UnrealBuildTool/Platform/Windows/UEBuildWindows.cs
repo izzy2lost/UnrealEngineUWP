@@ -1151,8 +1151,9 @@ namespace UnrealBuildTool
 					{
 						Target.DisablePlugins.AddRange(new string[]
 						{
-							// stamspi
+							// steamapi
 							"OnlineSubsystemSteam",
+							"SteamSockets",
 
 							// WebRTC / VPX
 							"VirtualCamera",
@@ -1173,17 +1174,18 @@ namespace UnrealBuildTool
 							"MediaIOFramework",
 							"Composure",
 
-							// OpenML
-							"NNE",
-							"MLDeformer",
-							"NNEDenoiser",
-
 							// Flite
 							"TextToSpeech",
 
-							// ICE in VS2022 14.34.31933 but not in 14.41.34120
-							"RigLogic",
+							// EOSSDK
+							"OnlineSubsystemEOS",
+							"OnlineServicesEOS",
+
+							// sce lib
+							"WinDualShock",
 						});
+
+						Target.bCompileCEF3 = false;
 					}
 
 					Target.DisablePlugins.AddRange(new string[]
@@ -1293,11 +1295,6 @@ namespace UnrealBuildTool
 			}
 
 			Target.bCompileISPC = true;
-
-			if (Platform == UnrealTargetPlatform.Win64 && !Target.Architecture.bIsX64)
-			{
-				Target.bCompileISPC = false; // The version of ISPC we currently use does not support Windows Aarch64
-			}
 
 			if (OperatingSystem.IsWindows())
 			{

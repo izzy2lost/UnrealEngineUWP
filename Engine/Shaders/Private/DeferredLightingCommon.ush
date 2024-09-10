@@ -577,3 +577,92 @@ float3 GetIrradianceForLight(FDeferredLightData LightData, float3 WorldNormal,	f
 
 	return LightColor * AreaLightFalloffColor * (CombinedAttenuation * NoL * LightData.DiffuseScale);
 }
+
+float GetSpotLightVolumetricSoftFading(in const FDeferredLightData LightData, float LightVolumetricSoftFadeDistance, in float3 ToLight)
+{
+	const float CosOuterCone = LightData.SpotAngles.x;
+	if (CosOuterCone > 0)
+	{
+		const float SinOuterCone = sqrt(1 - CosOuterCone * CosOuterCone);
+		const float TanOuterCone = SinOuterCone / CosOuterCone;
+
+		const float DistanceAlongSpotDir = dot(LightData.Direction, ToLight);
+		const float ApertureAtProjectedDistance = DistanceAlongSpotDir * TanOuterCone;
+		const float DistanceFromProjected = length(ToLight - LightData.Direction * DistanceAlongSpotDir);
+
+		const float Diff = ApertureAtProjectedDistance - DistanceFromProjected;
+		if (Diff < LightVolumetricSoftFadeDistance)
+		{
+			return saturate(Diff / LightVolumetricSoftFadeDistance);
+		}
+	}
+	return 1.0f;
+}
+
+float GetRectLightVolumetricSoftFading(in const FDeferredLightData LightData, in FRect Rect, in float LightVolumetricSoftFadeDistance, in float3 ToLight)
+{
+	const float LightVolumetricSoftFadeDistanceInv = 1.0f / LightVolumetricSoftFadeDistance;
+	float FinalFadeOut = 1.0f;
+
+	// Bias outward the rect light polygon to reduce alising if the voxel intersects the area light
+	const float DistanceToPlane = dot(LightData.Direction, ToLight);
+	FinalFadeOut *= saturate(DistanceToPlane * LightVolumetricSoftFadeDistanceInv);
+
+	float3 LocalToLight = mul(Rect.Axis, ToLight);
+
+	const float BarnLength = LightData.RectLightData.BarnLength;
+	const float CosTheta = LightData.RectLightData.BarnCosAngle;
+	const float SinTheta = sqrt(1.0f - CosTheta * CosTheta);
+	const float BarnLengthOrtho = BarnLength * CosTheta;
+
+	const float FadeFroxelCount = 4.0f;
+	if (DistanceToPlane < (BarnLengthOrtho + FadeFroxelCount * LightVolumetricSoftFadeDistance))
+	{
+		// Fade out progressively at barn door tip to avoid harsh transition
+		float BarnDoorTipFadeOut = saturate((DistanceToPlane - BarnLengthOrtho) / (FadeFroxelCount * LightVolumetricSoftFadeDistance));
+		// Fade out as barn door length get shorter
+		BarnDoorTipFadeOut = lerp(BarnDoorTipFadeOut, 1.0f, 1.0f - saturate(BarnLength * LightVolumetricSoftFadeDistanceInv));
+
+		const float2 Extent = float2(LightData.SourceRadius, LightData.SourceLength);
+		float BarnDoorFadeOut = 1.0f;
+		{
+			float3 PlaneO = float3(Extent.x, 0.0f, 0.0f);
+			float3 PlaneN = float3(-CosTheta, 0.0f, SinTheta);
+			float4 PlanePosX = float4(PlaneN, -dot(PlaneO, PlaneN));
+
+			float d = dot(PlanePosX, float4(LocalToLight, 1.0f));
+			BarnDoorFadeOut *= saturate(d * LightVolumetricSoftFadeDistanceInv);
+		}
+
+		{
+			float3 PlaneO = float3(-Extent.x, 0.0f, 0.0f);
+			float3 PlaneN = float3(CosTheta, 0.0f, SinTheta);
+			float4 PlaneNegX = float4(PlaneN, -dot(PlaneO, PlaneN));
+
+			float d = dot(PlaneNegX, float4(LocalToLight, 1.0f));
+			BarnDoorFadeOut *= saturate(d * LightVolumetricSoftFadeDistanceInv);
+		}
+
+		{
+			float3 PlaneO = float3(0.0f, Extent.y, 0.0f);
+			float3 PlaneN = float3(0.0f, -CosTheta, SinTheta);
+			float4 PlanePosY = float4(PlaneN, -dot(PlaneO, PlaneN));
+
+			float d = dot(PlanePosY, float4(LocalToLight, 1.0f));
+			BarnDoorFadeOut *= saturate(d * LightVolumetricSoftFadeDistanceInv);
+		}
+
+		{
+			float3 PlaneO = float3(0.0f, -Extent.y, 0.0f);
+			float3 PlaneN = float3(0.0f, CosTheta, SinTheta);
+			float4 PlaneNegY = float4(PlaneN, -dot(PlaneO, PlaneN));
+
+			float d = dot(PlaneNegY, float4(LocalToLight, 1.0f));
+			BarnDoorFadeOut *= saturate(d * LightVolumetricSoftFadeDistanceInv);
+		}
+
+		FinalFadeOut *= lerp(BarnDoorFadeOut, 1.0f, BarnDoorTipFadeOut);
+	}
+
+	return FinalFadeOut;
+}

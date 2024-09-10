@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Diagnostics;
 using AutomationTool;
 using System.Threading;
 using System.Text.RegularExpressions;
@@ -1964,4 +1965,1055 @@ namespace Gauntlet
 		}
 	}
 
+	public static class ProcessUtils
+	{
+		/// <summary>
+		/// Create a text file with a header listing Gauntlet Test and command line used.
+		/// Return the StreamWriter instance used to create the file.
+		/// Intended to be used for log file.
+		/// </summary>
+		/// <param name="FilePath"></param>
+		/// <param name="Commandline"></param>
+		/// <returns></returns>
+		static public StreamWriter CreateWriterForProcessLog(string FilePath, string Commandline)
+		{
+			StreamWriter Writer = File.CreateText(FilePath);
+			Writer.WriteLine("------ Gauntlet Test ------");
+			Writer.WriteLine($"Command Line: {Commandline}");
+			Writer.WriteLine("---------------------------");
+
+			return Writer;
+		}
+
+		/// <summary>
+		/// Write output log from IAppInstance if related instance log size is under size limit.
+		/// </summary>
+		/// <param name="AppInstance"></param>
+		/// <param name="FilePath"></param>
+		/// <param name="Commandline"></param>
+		/// <returns></returns>
+		static public bool WriteOutputLog(IAppInstance AppInstance, string FilePath, string Commandline)
+		{
+			CheckProcessLogReachedSizeLimit(AppInstance);
+			StreamWriter Writer = CreateWriterForProcessLog(FilePath, Commandline);
+			Writer.Write(AppInstance.StdOut);
+			Writer.Close();
+			return true;
+		}
+
+		/// <summary>
+		/// Get log size limit for log file in bytes. Return 0 if -NoMaxLogSize is used. 
+		/// </summary>
+		/// <returns></returns>
+		static public long GetProcessLogSizeLimit()
+		{
+			return Globals.Params.ParseParam("NoMaxLogSize") ? 0 : 1024 * 1024 * 1024;
+		}
+
+		static public void CheckProcessLogReachedSizeLimit(IAppInstance AppInstance)
+		{
+			long MaxLogSize = GetProcessLogSizeLimit();
+			if (MaxLogSize > 0)
+			{
+				long LogSize = AppInstance.StdOut.Length * sizeof(char);
+				if (LogSize > MaxLogSize)
+				{
+					throw new AutomationException("Log reached 1Gb size limit.");
+				}
+			}
+		}
+
+		/// <summary>
+		/// Check if LogFile size reached limit. Throw AutomationException if reached.
+		/// </summary>
+		/// <param name="LogFile"></param>
+		/// <exception cref="AutomationException"></exception>
+		static public void CheckProcessLogReachedSizeLimit(FileReference LogFile)
+		{
+			long MaxLogSize = GetProcessLogSizeLimit();
+			if (MaxLogSize > 0)
+			{
+				long LogSize = LogFile.ToFileInfo().Length;
+				if (LogSize > MaxLogSize)
+				{
+					throw new AutomationException("Log reached 1Gb size limit.");
+				}
+			}
+		}
+
+		/// <summary>
+		/// Get CircularLogBuffer line capacity limit.
+		/// </summary>
+		/// <returns></returns>
+		static public int GetCircularLogBufferCapacityLimit()
+		{
+			return Globals.Params.ParseValue("Gauntlet.LogBufferLineCapacity", 1024);
+		}
+
+		/// <summary>
+		/// Create CircularLogBuffer using Gauntlet default buffer line limit
+		/// </summary>
+		/// <returns></returns>
+		static public CircularLogBuffer CreateLogBuffer()
+		{
+			return new CircularLogBuffer(GetCircularLogBufferCapacityLimit());
+		}
+
+
+		/// <summary>
+		/// Try to get a log file. Return the available file path.
+		/// </summary>
+		/// <param name="AppName"></param>
+		/// <returns></returns>
+		static public string GetLogFilePath(string AppName, string LocalCache)
+		{
+			string LogFilenameBase = String.Format("{0}_{1}", AppName, DateTime.Now.ToString("yyyy.MM.dd-HH.mm.ss"));
+			for (int Attempt = 1; Attempt < 100; ++Attempt)
+			{
+				if (!Directory.Exists(LocalCache) && !Directory.CreateDirectory(LocalCache).Exists)
+				{
+					break;
+				}
+				string LogFilenameBaseToCreate = LogFilenameBase;
+				if (Attempt > 1)
+				{
+					LogFilenameBaseToCreate += "_" + Attempt;
+				}
+				LogFilenameBaseToCreate += ".log";
+				string LogFilenameToCreate = Path.Combine(LocalCache, LogFilenameBaseToCreate);
+				if (File.Exists(LogFilenameToCreate))
+				{
+					continue;
+				}
+
+				return LogFilenameToCreate;
+			}
+
+			return string.Empty;
+		}
+
+		/// <summary>
+		/// Local logs cache
+		/// </summary>
+		static public string LocalLogsPath => Path.Combine(Globals.TempDir, "DeviceCache", "Logs");
+	}
+
+	/// <summary>
+	/// Interface for stream reader used in context of log
+	/// </summary>
+	public interface ILogStreamReader
+	{
+		/// <summary>
+		/// Set desired line index to start reading line
+		/// </summary>
+		/// <param name="LineIndex"></param>
+		void SetLineIndex(int LineIndex);
+
+		/// <summary>
+		/// Get line index used to read next line
+		/// </summary>
+		/// <returns></returns>
+		int GetLineIndex();
+
+		/// <summary>
+		/// Get next line at line index and increment line index by one.
+		/// Return null if no line is available.
+		/// </summary>
+		/// <returns></returns>
+		string GetNextLine();
+
+		/// <summary>
+		/// Return full content of available underlying stream.
+		/// This is for backward compatibility. It is not efficient and defy the purpose of using a stream reader.
+		/// </summary>
+		/// <returns></returns>
+		string GetContent();
+
+		/// <summary>
+		/// Generate an enumerator that iterates all available lines from last line index (and update it).
+		/// </summary>
+		/// <returns></returns>
+		IEnumerable<string> EnumerateNextLines();
+
+		/// <summary>
+		/// Get available line count from the underlying stream
+		/// </summary>
+		/// <returns></returns>
+		int GetAvailableLineCount();
+
+		/// <summary>
+		/// Clone the stream reader including current line index
+		/// </summary>
+		/// <returns></returns>
+		ILogStreamReader Clone();
+	}
+
+	/// <summary>
+	/// Provide a ILogStreamReader from a string using a callback to pull that string dynamically.
+	/// Used in conjunction with IProcessResult to read process output.
+	/// </summary>
+	public class DynamicStringReader : ILogStreamReader
+	{
+		private Func<string> _getLog;
+		private int _lineIndex = 0;
+		private int _targetLineIndex = 0;
+		private int _contentCharIndex = 0;
+
+		public DynamicStringReader(Func<string> Callback)
+		{
+			_lineIndex = 0;
+			_targetLineIndex = 0;
+			_contentCharIndex = 0;
+			_getLog = Callback;
+		}
+
+		public void SetLineIndex(int LineIndex)
+		{
+			if (LineIndex < 0)
+			{
+				throw new AutomationException("DynamicStringReader does not support negative indexing.");
+			}
+
+			_targetLineIndex = LineIndex;
+		}
+
+		public int GetLineIndex() => _targetLineIndex;
+
+		public string GetNextLine()
+		{
+			string StdOut = _getLog();
+			if (_targetLineIndex != _lineIndex)
+			{
+				SkipToTargetIndex(StdOut);
+			}
+
+			if (_contentCharIndex >= StdOut.Length)
+			{
+				return null;
+			}
+
+			int EndIdx = StdOut.IndexOf('\n', _contentCharIndex);
+			if (EndIdx == -1)
+			{
+				EndIdx = StdOut.Length;
+			}
+			string Line = StdOut.Substring(_contentCharIndex, EndIdx - _contentCharIndex).TrimEnd('\r');
+			_contentCharIndex = EndIdx + 1;
+			_targetLineIndex = ++_lineIndex;
+			return Line;
+		}
+
+		private void SkipToTargetIndex(string StdOut)
+		{
+			// Check if _lineIndex needs to skip to _targetIndex
+			if (_targetLineIndex < _lineIndex)
+			{
+				_lineIndex = 0;
+				_contentCharIndex = 0;
+			}
+
+			while (_contentCharIndex < StdOut.Length && _lineIndex < _targetLineIndex)
+			{
+				int NextIdx = StdOut.IndexOf('\n', _contentCharIndex);
+				if (NextIdx == -1)
+				{
+					NextIdx = StdOut.Length;
+				}
+				_contentCharIndex = NextIdx + 1;
+				_lineIndex++;
+			}
+			_targetLineIndex = _lineIndex;
+		}
+
+		public IEnumerable<string> EnumerateNextLines()
+		{
+			string Line = GetNextLine();
+			while (Line != null)
+			{
+				yield return Line;
+				Line = GetNextLine();
+			}
+		}
+
+		public string GetContent() => _getLog();
+
+		public int GetAvailableLineCount() => _getLog().Count(C => C == '\n');
+
+		public ILogStreamReader Clone()
+		{
+			DynamicStringReader Clone = new DynamicStringReader(_getLog);
+			Clone.SetLineIndex(GetLineIndex());
+			return Clone;
+		}
+	}
+
+	/// <summary>
+	/// Provide a ILogStreamReader instance from a text file
+	/// </summary>
+	public class LogFileReader : ILogStreamReader, IDisposable
+	{
+		private string _filePath;
+		private StreamReader _stream;
+		private FileStream _file;
+		private int _lineIndex;
+		private int _targetLineIndex;
+
+		public LogFileReader(string FilePath)
+		{
+			_filePath = FilePath;
+			_file = File.Open(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+			_stream = new StreamReader(_file);
+			_lineIndex = 0;
+			_targetLineIndex = 0;
+		}
+
+		~LogFileReader()
+		{
+			Dispose();
+		}
+
+		public void Dispose()
+		{
+			_stream.Dispose();
+			_file.Dispose();
+		}
+
+		public void SetLineIndex(int Index)
+		{
+			_targetLineIndex = Index;
+		}
+
+		public int GetLineIndex() => _targetLineIndex;
+
+		public string GetNextLine()
+		{
+			if (_targetLineIndex < _lineIndex)
+			{
+				_stream.DiscardBufferedData();
+				_stream.BaseStream.Seek(0, SeekOrigin.Begin);
+				_lineIndex = 0;
+			}
+			while(_lineIndex < _targetLineIndex)
+			{
+				if (_stream.ReadLine() != null)
+				{
+					_lineIndex++;
+				}
+				else
+				{
+					_targetLineIndex = _lineIndex;
+				}
+			}
+			string Line = _stream.ReadLine();
+			if (Line != null)
+			{
+				_targetLineIndex = ++_lineIndex;
+			}
+			return Line;
+		}
+
+		public string GetContent()
+		{
+			long CurrentCharIndex = _stream.BaseStream.Position;
+			if (CurrentCharIndex != 0)
+			{
+				_stream.DiscardBufferedData();
+				_stream.BaseStream.Seek(0, SeekOrigin.Begin);
+			}
+			string Content = _stream.ReadToEnd();
+			_stream.DiscardBufferedData();
+			_stream.BaseStream.Seek(CurrentCharIndex, SeekOrigin.Begin);
+			return Content;
+		}
+
+		public IEnumerable<string> EnumerateNextLines()
+		{
+			string Line = GetNextLine();
+			while (Line != null)
+			{
+				yield return Line;
+				Line = GetNextLine();
+			}
+		}
+
+		public int GetAvailableLineCount()
+		{
+			long CurrentCharIndex = _stream.BaseStream.Position;
+			_stream.DiscardBufferedData();
+			_stream.BaseStream.Seek(0, SeekOrigin.Begin);
+			int LineCount = 0;
+			int Char = '\0';
+			do
+			{
+				Char = _stream.Read();
+				if (Char == '\n')
+				{
+					LineCount++;
+				}
+			} while (Char != -1);
+			_stream.DiscardBufferedData();
+			_stream.BaseStream.Seek(CurrentCharIndex, SeekOrigin.Begin);
+			return LineCount;
+		}
+
+		public ILogStreamReader Clone()
+		{
+			LogFileReader Clone = new LogFileReader(_filePath);
+			Clone.SetLineIndex(GetLineIndex());
+			return Clone;
+		}
+	}
+
+	/// <summary>
+	/// Provide a ILogStreamReader instance from a CircularLogBuffer
+	/// </summary>
+	public class LogBufferReader : ILogStreamReader
+	{
+		private int _lineIndex = 0;
+		private CircularLogBuffer _buffer;
+
+		public LogBufferReader(CircularLogBuffer Buffer)
+		{
+			_lineIndex = Buffer.GetFirstAvailableLineIndex();
+			_buffer = Buffer;
+		}
+
+		public void SetLineIndex(int LineIndex)
+		{
+			if (LineIndex < 0)
+			{
+				_lineIndex = _buffer.GetLastLineIndex() + 1 + LineIndex;
+			}
+			else
+			{
+				_lineIndex = Math.Min(LineIndex, _buffer.GetLastLineIndex() + 1);
+			}
+		}
+
+		public int GetLineIndex() => _lineIndex;
+
+		public string GetNextLine()
+		{
+			_lineIndex = Math.Max(_buffer.GetFirstAvailableLineIndex(), _lineIndex);
+			string Line = _buffer.GetLine(_lineIndex);
+			if (Line != null)
+			{
+				_lineIndex++;
+			}
+			return Line;
+		}
+
+		public IEnumerable<string> EnumerateNextLines()
+		{
+			string Line = GetNextLine();
+			while (Line != null)
+			{
+				yield return Line;
+				Line = GetNextLine();
+			}
+		}
+
+		public string GetContent() => _buffer.GetContent();
+
+		public int GetAvailableLineCount() => _buffer.GetAvailableLineCount();
+
+		public ILogStreamReader Clone()
+		{
+			LogBufferReader Clone = new LogBufferReader(_buffer);
+			Clone.SetLineIndex(GetLineIndex());
+			return Clone;
+		}
+	}
+
+	/// <summary>
+	/// Circular log buffer separating input as line. Capacity being based on lines.
+	/// </summary>
+	public class CircularLogBuffer : IEnumerable<string>
+	{
+		private string[] _list;
+		private int _capacity = 0;
+		private int _lineIndex = -1;
+		private ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
+
+		public CircularLogBuffer(int Capacity)
+		{
+			if (Capacity <= 0)
+			{
+				throw new AutomationException("CircularLogBuffer capacity must be larger than 0.");
+			}
+
+			_list = new string[Capacity];
+			_capacity = Capacity;
+			_lineIndex = -1;
+		}
+
+		/// <summary>
+		/// Allow to feed the log buffer with text content. The input is parsed and separated into lines.
+		/// </summary>
+		/// <param name="Content"></param>
+		/// <returns></returns>
+		public CircularLogBuffer Feed(string Content)
+		{
+			for (int BaseIdx = 0; BaseIdx < Content.Length;)
+			{
+				int EndIdx = Content.IndexOf('\n', BaseIdx);
+				if (EndIdx == -1)
+				{
+					EndIdx = Content.Length;
+				}
+				AppendLine(Content.Substring(BaseIdx, EndIdx - BaseIdx).TrimEnd('\r'));
+				BaseIdx = EndIdx + 1;
+			}
+
+			return this;
+		}
+
+		/// <summary>
+		/// Append input line to the log buffer
+		/// </summary>
+		/// <param name="Item"></param>
+		/// <returns></returns>
+		public CircularLogBuffer AppendLine(string Item)
+		{
+			_lock.EnterWriteLock();
+			try
+			{
+				_lineIndex++;
+				_list[_lineIndex % _capacity] = Item;
+			}
+			finally
+			{
+				_lock.ExitWriteLock();
+			}
+
+			return this;
+		}
+
+		/// <summary>
+		/// Get last line index input
+		/// </summary>
+		/// <returns></returns>
+		public int GetLastLineIndex()
+		{
+			return _lineIndex;
+		}
+
+		/// <summary>
+		/// Get the first/oldest available line index.
+		/// If the capacity was reached, the first lines are lost,
+		/// the returned line index will be that first available line
+		/// </summary>
+		/// <returns></returns>
+		public int GetFirstAvailableLineIndex()
+		{
+			return _lineIndex < _capacity ? 0 : _lineIndex - _capacity + 1;
+		}
+
+		/// <summary>
+		/// Available line count.
+		/// If the capacity was reached, the capacity will be returned.
+		/// </summary>
+		/// <returns></returns>
+		public int GetAvailableLineCount()
+		{
+			return _lineIndex < _capacity ? _lineIndex + 1 : _capacity;
+		}
+
+		/// <summary>
+		/// Get line at index
+		/// </summary>
+		/// <param name="LineIndex"></param>
+		/// <returns></returns>
+		public string GetLine(int LineIndex)
+		{
+			if (LineIndex < 0)
+			{
+				LineIndex = _lineIndex + 1 + LineIndex;
+			}
+
+			if (_lineIndex < 0 || LineIndex > _lineIndex || LineIndex < GetFirstAvailableLineIndex())
+			{
+				return null;
+			}
+
+			_lock.EnterReadLock();
+			try
+			{
+				return _list[LineIndex % _capacity];
+			}
+			finally
+			{
+				_lock.ExitReadLock();
+			}
+		}
+
+		/// <summary>
+		/// Return an instance of LogBufferReader
+		/// </summary>
+		/// <returns></returns>
+		public LogBufferReader GetReader()
+		{
+			return new LogBufferReader(this);
+		}
+
+		/// <summary>
+		/// Return an enumerator that iterate all available lines
+		/// </summary>
+		/// <returns></returns>
+		public IEnumerator<string> GetEnumerator()
+		{
+			if (_lineIndex == -1)
+			{
+				yield break;
+			}
+
+			int Cursor = _lineIndex < _capacity ? -1 : _lineIndex;
+			// If the circular buffer is at-capacity, we start at cursor index otherwise -1
+			// Then increment by 1, until circled back to the actual cursor index.
+			do
+			{
+				_lock.EnterReadLock();
+				try
+				{
+					Cursor = (Cursor + 1) % _capacity;
+					yield return _list[Cursor];
+				}
+				finally
+				{
+					_lock.ExitReadLock();
+				}
+			} while (Cursor != _lineIndex % _capacity);
+		}
+
+		/// <summary>
+		/// Return an enumerator that iterate all available lines
+		/// </summary>
+		/// <returns></returns>
+		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+		{
+			return this.GetEnumerator();
+		}
+
+		/// <summary>
+		/// Return the full available content as a string
+		/// </summary>
+		/// <returns></returns>
+		public string GetContent()
+		{
+			return string.Join('\n', this);
+		}
+	}
+
+	/// <summary>
+	/// Logger to file with interface to get a log reader
+	/// </summary>
+	public class FileLogger
+	{
+		private CircularLogBuffer _buffer;
+		private string _filepath;
+		private string _commandline;
+
+		public FileLogger(string FilePath, string CommandLine)
+		{
+			_buffer = ProcessUtils.CreateLogBuffer();
+			_filepath = FilePath;
+			_commandline = CommandLine;
+			try
+			{
+				ProcessUtils.CreateWriterForProcessLog(FilePath, CommandLine).Close();
+			}
+			catch (IOException Ex)
+			{
+				Log.Warning("Could not write log file '{Filename}'.\n {Exception}", _filepath, Ex);
+				_filepath = null;
+			}
+		}
+
+		public void AppendLine(string Data)
+		{
+			if (!string.IsNullOrEmpty(_filepath))
+			{
+				try
+				{
+					File.AppendAllText(_filepath, Data + '\n');
+				}
+				catch (Exception Ex)
+				{
+					Log.Warning("Could not write in log file '{Filename}'.\n {Exception}", _filepath, Ex);
+					_filepath = null;
+				}
+			}
+
+			foreach (string Line in Data.Split('\n'))
+			{
+				_buffer.AppendLine(Line.TrimEnd('\r'));
+			}
+		}
+
+		public ILogStreamReader GetReader()
+		{
+			if (string.IsNullOrEmpty(_filepath) || !File.Exists(_filepath))
+			{
+				return GetBufferReader();
+			}
+
+			return new LogFileReader(_filepath);
+		}
+
+		public ILogStreamReader GetBufferReader()
+		{
+			return _buffer.GetReader();
+		}
+
+		public void CopyFile(string FilePath)
+		{
+			FileReference NewFilePathRef = new FileReference(FilePath);
+			if (FilePath != _filepath)
+			{
+				if (!Directory.Exists(NewFilePathRef.Directory.FullName))
+				{
+					Directory.CreateDirectory(NewFilePathRef.Directory.FullName);
+				}
+				if (string.IsNullOrEmpty(_filepath))
+				{
+					StreamWriter Writer = ProcessUtils.CreateWriterForProcessLog(NewFilePathRef.FullName, _commandline);
+					foreach (string Line in _buffer)
+					{
+						Writer.WriteLine(Line);
+					}
+					Writer.Close();
+					_filepath = NewFilePathRef.FullName;
+				}
+				else
+				{
+					ProcessUtils.CheckProcessLogReachedSizeLimit(new FileReference(_filepath));
+					File.Copy(_filepath, NewFilePathRef.FullName, true);
+				}
+			}
+		}
+	}
+
+	/// <summary>
+	/// Extend IProcessResult to add log and buffer readers
+	/// </summary>
+	public interface ILongProcessResult : IProcessResult
+	{
+		/// <summary>
+		/// Return an ILogStreamReader using the log file as a source
+		/// </summary>
+		/// <returns></returns>
+		ILogStreamReader GetLogReader();
+
+		/// <summary>
+		/// Return an ILogStreamReader using the log buffer as a source
+		/// </summary>
+		/// <returns></returns>
+		ILogStreamReader GetLogBufferReader();
+
+		/// <summary>
+		/// Append string to the log output
+		/// </summary>
+		/// <param name="InData"></param>
+		/// <param name="IsStdErr"></param>
+		void AppendToOutput(string InData, bool IsStdErr);
+	}
+
+	/// <summary>
+	/// Represent a process running for a long time.
+	/// Output is redirected to a circular log buffer unless ERunOptions.NoStdOutRedirect is set in the options.
+	/// An output filter callback can be set to modify process output.
+	/// </summary>
+	public class LongProcessResult : ILongProcessResult
+	{
+		/// <summary>
+		/// Delegate to filter output. If the output is coming from StdErr, bIsStdErr is true.
+		/// If the return value is null, the line is skipped in the final output.
+		/// </summary>
+		/// <param name="Message"></param>
+		/// <param name="bIsStdErr"></param>
+		/// <returns></returns>
+		public delegate string OutputFilterCallbackType(string Message, bool bIsStdErr);
+
+		public int ExitCode { get; set; }
+
+		public bool bExitCodeSuccess => ExitCode == 0;
+
+		private Process LocalProcess { get; set; }
+
+		private string AppName { get; set; }
+
+		private string CommandLine { get; set; }
+
+		private FileLogger Logger { get; set; }
+
+		private string LocalCachePath { get; set; }
+
+		private bool bOutputToConsole { get; set; }
+
+		private object ProcSyncObject;
+		private object OutputSyncObject;
+
+		private AutoResetEvent StdOutCloseHandle = new AutoResetEvent(false);
+		private AutoResetEvent StdErrCloseHandle = new AutoResetEvent(false);
+
+		private OutputFilterCallbackType OutputFilterCallback;
+
+		public LongProcessResult(string Command, string Args, ERunOptions Options, OutputFilterCallbackType OutputCallback = null, string WorkingDir = null, string LocalCache = null)
+		{
+			ExitCode = -1;
+			Logger = null;
+			LocalCachePath = string.IsNullOrEmpty(LocalCache)? ProcessUtils.LocalLogsPath : Path.Combine(LocalCache, "Logs");
+			ProcSyncObject = new object();
+			OutputSyncObject = new object();
+			OutputFilterCallback = OutputCallback;
+			ProcessStartInfo StartInfo = new ProcessStartInfo(Command, Args);
+			if (WorkingDir != null)
+			{
+				StartInfo.WorkingDirectory = WorkingDir;
+			}
+			AppName = Path.GetFileNameWithoutExtension(StartInfo.FileName);
+			CommandLine = $"{Path.GetFileName(StartInfo.FileName)} {Args}";
+			if (!Options.HasFlag(ERunOptions.NoLoggingOfRunCommand))
+			{
+				Log.Info("Running: {CommandLine}", CommandLine);
+			}
+
+			LocalProcess = new Process();
+			LocalProcess.StartInfo = StartInfo;
+			bOutputToConsole = Options.HasFlag(ERunOptions.AllowSpew);
+			if (!Options.HasFlag(ERunOptions.NoStdOutRedirect))
+			{
+				TryCreateLogFile();
+				LocalProcess.StartInfo.RedirectStandardOutput = true;
+				LocalProcess.StartInfo.RedirectStandardError = true;
+				LocalProcess.StartInfo.StandardOutputEncoding = new UTF8Encoding(false, false);
+				LocalProcess.OutputDataReceived += StdOut;
+				LocalProcess.ErrorDataReceived += StdErr;
+			}
+
+			try
+			{
+				LocalProcess.Start();
+				if (!Options.HasFlag(ERunOptions.NoStdOutRedirect))
+				{
+					LocalProcess.BeginOutputReadLine();
+					LocalProcess.BeginErrorReadLine();
+				}
+			}
+			catch (Exception ex)
+			{
+				throw new AutomationException(ex, "Failed to start local process for action (\"{0}\"): {1} {2}", ex.Message, LocalProcess.StartInfo.FileName, LocalProcess.StartInfo.Arguments);
+			}
+
+			RegisterProcessExit();
+		}
+
+		private void TryCreateLogFile()
+		{
+			string LogFilename = ProcessUtils.GetLogFilePath(AppName, LocalCachePath);
+			if (!string.IsNullOrEmpty(LogFilename))
+			{
+				Logger = new FileLogger(LogFilename, CommandLine);
+			}
+		}
+
+		public void StdOut(object sender, DataReceivedEventArgs Args)
+		{
+			if (Args.Data != null)
+			{
+				AppendToOutput(Args.Data, false);
+			}
+			else
+			{
+				StdOutCloseHandle.Set();
+			}
+		}
+
+		public void StdErr(object sender, DataReceivedEventArgs Args)
+		{
+			if (Args.Data != null)
+			{
+				AppendToOutput(Args.Data, true);
+			}
+			else
+			{
+				StdErrCloseHandle.Set();
+			}
+		}
+
+		public void AppendToOutput(string InData, bool IsStdErr)
+		{
+			lock (OutputSyncObject)
+			{
+				string Data = OutputFilterCallback != null ? OutputFilterCallback(InData, IsStdErr) : InData;
+				if (Data != null)
+				{
+					Logger?.AppendLine(Data);
+					if(bOutputToConsole)
+					{
+						EpicGames.Core.Log.WriteLine(LogEventType.Console, Data);
+					}
+				}
+			}
+		}
+
+		public string Output => Logger?.GetReader().GetContent();
+
+		public ILogStreamReader GetLogReader() => Logger?.GetReader();
+
+		public ILogStreamReader GetLogBufferReader() => Logger?.GetBufferReader();
+
+		public FileReference WriteOutputToFile(string FilePath)
+		{
+			if (Logger == null)
+			{
+				return null;
+			}
+
+			Logger.CopyFile(FilePath);
+
+			return new FileReference(FilePath);
+		}
+
+		public bool HasExited
+		{
+			get
+			{
+				bool bHasExited = true;
+				lock (ProcSyncObject)
+				{
+					if (LocalProcess != null)
+					{
+						bHasExited = LocalProcess.HasExited;
+						if (bHasExited)
+						{
+							ExitCode = LocalProcess.ExitCode;
+						}
+					}
+				}
+				return bHasExited;
+			}
+		}
+
+		public Process ProcessObject
+		{
+			get { return LocalProcess; }
+		}
+
+		public void DisposeProcess()
+		{
+			if (LocalProcess != null)
+			{
+				LocalProcess.Dispose();
+				LocalProcess = null;
+			}
+		}
+
+		~LongProcessResult()
+		{
+			DisposeProcess();
+		}
+
+		public string GetProcessName()
+		{
+			if (LocalProcess != null)
+			{
+				return LocalProcess.ProcessName;
+			}
+
+			return AppName;
+		}
+
+		public void StopProcess(bool KillDescendants = true)
+		{
+			if (LocalProcess != null && !HasExited)
+			{
+				Process ProcToKill = null;
+				lock (ProcSyncObject)
+				{
+					ProcToKill = LocalProcess;
+					LocalProcess = null;
+				}
+				string ProcessName = ProcToKill.ProcessName;
+				try
+				{
+					ProcToKill.Kill(KillDescendants);
+					ProcToKill.WaitForExit(60000);
+					if (!ProcToKill.HasExited)
+					{
+						Log.Verbose("Process {ProcessName} failed to exit.", ProcessName);
+					}
+					else
+					{
+						ExitCode = ProcToKill.ExitCode;
+						Log.Verbose("Process {ProcessName} successfully exited.", ProcessName);
+						OnProcessExited();
+					}
+					ProcToKill.Close();
+				}
+				catch (Exception Ex)
+				{
+					Log.Warning("Exception while trying to kill process {ProcessName}:\n{Exception}", ProcessName, LogUtils.FormatException(Ex));
+				}
+			}
+		}
+
+		private void Kill(bool KillDescendants = true)
+		{
+			if (LocalProcess != null && !HasExited)
+			{
+				Process ProcToKill = null;
+				lock (ProcSyncObject)
+				{
+					ProcToKill = LocalProcess;
+					LocalProcess = null;
+				}
+				ProcToKill.Kill(KillDescendants);
+			}
+		}
+
+		private void ProcessExit(object sender, EventArgs e)
+		{
+			Kill();
+		}
+
+		public void OnProcessExited()
+		{
+			AppDomain Domain = AppDomain.CurrentDomain;
+			Domain.ProcessExit -= ProcessExit;
+			Domain.DomainUnload -= ProcessExit;
+		}
+
+		private void RegisterProcessExit()
+		{
+			AppDomain Domain = AppDomain.CurrentDomain;
+			Domain.ProcessExit += ProcessExit;
+			Domain.DomainUnload += ProcessExit;
+		}
+
+		public void WaitForExit()
+		{
+			if ((LocalProcess != null) && !LocalProcess.HasExited)
+			{
+				Process Proc = null;
+				lock (ProcSyncObject)
+				{
+					Proc = LocalProcess;
+				}
+				Proc.WaitForExit();
+				ExitCode = Proc.ExitCode;
+				lock (ProcSyncObject)
+				{
+					LocalProcess = null;
+				}
+			}
+
+			// Wait for outputs closure
+			int WaitTimeout = 10000;
+			if (!(StdOutCloseHandle.WaitOne(WaitTimeout) && StdErrCloseHandle.WaitOne(WaitTimeout)))
+			{
+				Log.Info("Outputs did not close in time after process {ProcessName} exited.", LocalProcess.ProcessName);
+			}
+		}
+	}
 }

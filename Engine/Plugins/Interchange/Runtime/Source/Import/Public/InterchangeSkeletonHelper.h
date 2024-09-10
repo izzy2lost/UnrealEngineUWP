@@ -42,7 +42,6 @@ namespace UE::Interchange::Private
 
 		static void RecursiveBoneHasBindPose(const UInterchangeBaseNodeContainer* NodeContainer, const FString& JointNodeId, bool& bHasBoneWithoutBindPose);
 
-	private:
 		static void RecursiveAddBones(const UInterchangeBaseNodeContainer* NodeContainer
 			, const FString& JointNodeId
 			, TArray <FJointInfo>& JointInfos
@@ -52,6 +51,7 @@ namespace UE::Interchange::Private
 			, bool& bOutDiffPose
 			, TArray<FString>& OutBoneNotBindNames);
 
+	private:
 		static FName SkeletalLodGetBoneName(const TArray<FMeshBoneInfo>& SkeletalLodRawInfos, int32 BoneIndex);
 		static int32 SkeletalLodFindBoneIndex(const TArray<FMeshBoneInfo>& SkeletalLodRawInfos, FName BoneName);
 		static int32 SkeletalLodGetParentIndex(const TArray<FMeshBoneInfo>& SkeletalLodRawInfos, int32 BoneIndex);

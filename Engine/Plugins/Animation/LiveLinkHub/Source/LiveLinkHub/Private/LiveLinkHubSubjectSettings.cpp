@@ -63,7 +63,7 @@ void ULiveLinkHubSubjectSettings::PostEditChangeProperty(FPropertyChangedEvent& 
 	{
 		if (PreviousOutboundName != *OutboundName)
 		{
-			if (OutboundName.IsEmpty())
+			if (!ValidateOutboundName(OutboundName))
 			{
 				OutboundName = PreviousOutboundName.ToString();
 			}
@@ -100,4 +100,22 @@ void ULiveLinkHubSubjectSettings::PostEditChangeProperty(FPropertyChangedEvent& 
 		FLiveLinkHubClient* LiveLinkClient = static_cast<FLiveLinkHubClient*>(&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
 		LiveLinkClient->CacheSubjectSettings(Key, this);
 	}
+}
+
+bool ULiveLinkHubSubjectSettings::ValidateOutboundName(const FString& InOutboundNameCandidate) const
+{
+	if (InOutboundNameCandidate.IsEmpty())
+	{
+		return false;
+	}
+
+	if (InOutboundNameCandidate == SubjectName)
+	{
+		return true;
+	}
+
+	FLiveLinkHubClient* LiveLinkClient = static_cast<FLiveLinkHubClient*>(&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
+
+	// Can't rename to an existing subject.
+	return !LiveLinkClient->IsSubjectValid(FLiveLinkSubjectName(*InOutboundNameCandidate));
 }

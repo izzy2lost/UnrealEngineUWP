@@ -4570,6 +4570,37 @@ void FWrapLayer::QueueSubmit2KHR(VkResult Result, VkQueue Queue, uint32_t Submit
 	}
 }
 
+void FWrapLayer::CreateSamplerYcbcrConversion(VkResult Result, VkDevice Device, const VkSamplerYcbcrConversionCreateInfo* CreateInfo, const VkAllocationCallbacks* Allocator, VkSamplerYcbcrConversion* YcbcrConversion)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBeginResult(FString::Printf(TEXT("CreateSamplerYcbcrConversion(Device=0x%p, CreateInfo=0x%p, Allocator=0x%p, YcbcrConversion=0x%p))"), Device, CreateInfo, Allocator, YcbcrConversion));
+#endif
+	}
+}
+
+void FWrapLayer::DestroySamplerYcbcrConversion(VkResult Result, VkDevice Device, VkSamplerYcbcrConversion YcbcrConversion, const VkAllocationCallbacks* Allocator)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBeginResult(FString::Printf(TEXT("DestroySamplerYcbcrConversion(Device=0x%p, YcbcrConversion=0x%p, Allocator=0x%p))"), Device, YcbcrConversion, Allocator));
+#endif
+	}
+}
+
+#if PLATFORM_ANDROID
+void FWrapLayer::GetAndroidHardwareBufferPropertiesANDROID(VkResult Result, VkDevice Device, const struct AHardwareBuffer* Buffer, VkAndroidHardwareBufferPropertiesANDROID* Properties)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBeginResult(FString::Printf(TEXT("GetAndroidHardwareBufferPropertiesANDROID(Device=0x%p, Buffer=0x%p, Properties=0x%p))"), Device, Buffer, Properties));
+#endif
+	}
+}
+#endif
 
 #if VULKAN_ENABLE_IMAGE_TRACKING_LAYER
 namespace VulkanRHI

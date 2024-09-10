@@ -541,37 +541,54 @@ bool WebRemoteControlInternalUtils::ValidateFunctionCall(const FRCCall& InRCCall
 	{
 		return false;
 	}
+
+	UFunction* ExecuteControlCommandMethod = UKismetSystemLibrary::StaticClass()->FindFunctionByName(GET_FUNCTION_NAME_CHECKED(UKismetSystemLibrary, ExecuteConsoleCommand));
 	
-	if (!GetDefault<URemoteControlSettings>()->bEnableRemotePythonExecution
-		&& InRCCall.CallRef.Object->IsA(UKismetSystemLibrary::StaticClass())
-		&& InRCCall.CallRef.Function == UKismetSystemLibrary::StaticClass()->FindFunctionByName(GET_FUNCTION_NAME_CHECKED(UKismetSystemLibrary, ExecuteConsoleCommand)))
+	if (InRCCall.CallRef.Function == ExecuteControlCommandMethod)
 	{
-		// Make sure python is not called through KismetSystemLibrary.
-		if (const FProperty* Property = InRCCall.CallRef.Function->FindPropertyByName("Command"))
+		if (!GetDefault<URemoteControlSettings>()->bAllowConsoleCommandRemoteExecution)
 		{
-			FString FullCommand;
-			Property->GetValue_InContainer(InRCCall.ParamStruct.GetStructMemory(), &FullCommand);
-
-			TArray<FString> SplitCommands;
-			FullCommand.ParseIntoArray(SplitCommands, TEXT("|"));
-
-			for (FString& Command : SplitCommands)
+			if (OutErrorText)
 			{
-				Command.TrimStartAndEndInline();
-				if (Command.StartsWith(TEXT("py ")) || Command.StartsWith(TEXT("python ")))
+				*OutErrorText = TEXT("Executing console commands remotely is not enabled in the remote control settings.");
+			}
+
+			return false;
+		}
+
+		// Make sure python is not called through KismetSystemLibrary.
+		if (!GetDefault<URemoteControlSettings>()->bEnableRemotePythonExecution)
+		{
+			if (const FProperty* Property = InRCCall.CallRef.Function->FindPropertyByName("Command"))
+			{
+				FString FullCommand;
+				Property->GetValue_InContainer(InRCCall.ParamStruct.GetStructMemory(), &FullCommand);
+
+				TArray<FString> SplitCommands;
+				FullCommand.ParseIntoArray(SplitCommands, TEXT("|"));
+
+				for (FString& Command : SplitCommands)
 				{
-					if (OutErrorText)
+					Command.TrimStartAndEndInline();
+					if (Command.StartsWith(TEXT("py ")) || Command.StartsWith(TEXT("python ")))
 					{
-						*OutErrorText = TEXT("Executing Python remotely is not enabled in the remote control settings.");
+						if (OutErrorText)
+						{
+							*OutErrorText = TEXT("Executing Python remotely is not enabled in the remote control settings.");
+						}
+						return false;
 					}
-					return false;
 				}
 			}
-		}
-		else
-		{
-			ensureMsgf(false, TEXT("Could not find the Command parameter on ExecuteConsoleCommand"));
-			return false;
+			else
+			{
+				if (OutErrorText)
+				{
+					*OutErrorText = TEXT("Could not find the Command parameter on ExecuteConsoleCommand");
+				}
+
+				return false;
+			}
 		}
 	}
 

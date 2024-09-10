@@ -158,14 +158,6 @@ public:
 	{
 		FSequencerFilterData& FilterData = FilterInterface.GetFilterData();
 
-		const TViewModelPtr<IOutlinerExtension> OutlinerExtension = InItem.AsModel()->FindAncestorOfType<IOutlinerExtension>();
-		if (!OutlinerExtension.IsValid())
-		{
-			return false;
-		}
-
-		const FString ControlTrackLabel = OutlinerExtension->GetLabel().ToString();
-
 		UMovieSceneTrack* const TrackObject = ResolveMovieSceneTrackObject(InItem, FilterData);
 		URigHierarchy* const ControlRigHierarchy = GetControlRigHierarchyFromTrackObject(TrackObject);
 
@@ -173,6 +165,14 @@ public:
 		{
 			return false;
 		}
+
+		const TViewModelPtr<IOutlinerExtension> OutlinerExtension = InItem.AsModel()->FindAncestorOfType<IOutlinerExtension>();
+		if (!OutlinerExtension.IsValid())
+		{
+			return false;
+		}
+
+		const FString ControlTrackLabel = OutlinerExtension->GetLabel().ToString();
 
 		const TArray<const FRigBaseElement*> BaseRigElements = ControlRigHierarchy->GetSelectedElements(ERigElementType::Control);
 		for (const FRigBaseElement* const BaseRigElement : BaseRigElements)

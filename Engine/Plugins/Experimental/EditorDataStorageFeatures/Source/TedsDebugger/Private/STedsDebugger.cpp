@@ -132,7 +132,7 @@ TSharedRef<SDockTab> STedsDebugger::SpawnQueryEditorTab(const FSpawnTabArgs& Arg
 
 		if (Registry && Registry->AreDataStorageInterfacesSet())
 		{
-			ITypedElementDataStorageInterface* DataStorageInterface = Registry->GetMutableDataStorage();
+			IEditorDataStorageProvider* DataStorageInterface = Registry->GetMutableDataStorage();
 			QueryEditorModel = MakeUnique<QueryEditor::FTedsQueryEditorModel>(*DataStorageInterface);
 		}
 	}

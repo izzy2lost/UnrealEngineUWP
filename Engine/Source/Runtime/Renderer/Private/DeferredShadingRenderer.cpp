@@ -580,7 +580,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FBuildAccelerationStructurePassParams, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, RayTracingDataBuffer)
 END_SHADER_PARAMETER_STRUCT()
 
-bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& GraphBuilder)
+bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStatesAndSBT(FRDGBuilder& GraphBuilder, bool bAnyLumenHardwareInlineRayTracingPassEnabled)
 {
 	if (!IsRayTracingEnabled() || Views.Num() == 0)
 	{
@@ -592,7 +592,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 		return false;
 	}	
 
-	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::SetupRayTracingPipelineStatesAndSBT);
 
 	const int32 ReferenceViewIndex = 0;
 	FViewInfo& ReferenceView = Views[ReferenceViewIndex];
@@ -674,7 +674,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 			CreateRayTracingMaterialPipeline(GraphBuilder, ReferenceView, RayGenShaders, MaxLocalBindingDataSize);
 			
 			const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
-			ReferenceView.RayTracingSBT = Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, MaxLocalBindingDataSize);
+			ReferenceView.RayTracingSBT = Scene->RayTracingSBT.AllocateRHI(GraphBuilder.RHICmdList, ERayTracingShaderBindingMode::RTPSO, ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, MaxLocalBindingDataSize);
 		}
 	}
 
@@ -704,14 +704,23 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 		}
 
 		DeduplicateRayGenerationShaders(LumenHardwareRayTracingRayGenShaders);
-
+		
+		uint32 MaxLocalBindingDataSize = 0;
+		ERayTracingShaderBindingMode ShaderBindingMode = (bAnyLumenHardwareInlineRayTracingPassEnabled && GRHIGlobals.RayTracing.RequiresInlineRayTracingSBT) ? 
+			ERayTracingShaderBindingMode::Inline : ERayTracingShaderBindingMode::Disabled;
 		if (LumenHardwareRayTracingRayGenShaders.Num())
 		{
-			uint32 MaxLocalBindingDataSize = 0;
 			CreateLumenHardwareRayTracingMaterialPipeline(GraphBuilder, ReferenceView, LumenHardwareRayTracingRayGenShaders, MaxLocalBindingDataSize);
-				
+			EnumAddFlags(ShaderBindingMode, ERayTracingShaderBindingMode::RTPSO);
+		}
+
+		if (ShaderBindingMode != ERayTracingShaderBindingMode::Disabled)
+		{
+			SetupLumenHardwareRaytracingHitGroupBindings(GraphBuilder, ReferenceView);
+
+			// Allocate the SBT if using hit shaders or the RHI requires an SBT for inline raytracing
 			const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
-			ReferenceView.LumenHardwareRayTracingSBT = Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, MaxLocalBindingDataSize);			
+			ReferenceView.LumenHardwareRayTracingSBT = Scene->RayTracingSBT.AllocateRHI(GraphBuilder.RHICmdList, ShaderBindingMode, ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, MaxLocalBindingDataSize);
 		}
 	}
 
@@ -845,17 +854,6 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 	return true;
 }
 
-static void ReleaseRaytracingResources(FRDGBuilder& GraphBuilder, FRayTracingScene &RayTracingScene, bool bIsLastRenderer)
-{
-	// Keep mask the same as what's already set (which will be the view mask) if TLAS updates should be masked to the view
-	GraphBuilder.AddPostExecuteCallback([&RayTracingScene, bIsLastRenderer, &RHICmdList = GraphBuilder.RHICmdList]
-	{
-		if (RayTracingScene.IsCreated())
-		{
-		}
-	});
-}
-
 void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBuilder)
 {
 	check(bAnyRayTracingPassEnabled);
@@ -881,9 +879,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 			View->LumenHardwareRayTracingUniformBuffer = ReferenceView.LumenHardwareRayTracingUniformBuffer;
 		}
 	}
-
-	SetupRayTracingPipelineStates(GraphBuilder);
-
+	
 	bool bAnyLumenHardwareInlineRayTracingPassEnabled = false;
 	for (const FViewInfo& View : Views)
 	{
@@ -894,6 +890,8 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 		}
 	}
 
+	SetupRayTracingPipelineStatesAndSBT(GraphBuilder, bAnyLumenHardwareInlineRayTracingPassEnabled);
+	
 	if (bAnyLumenHardwareInlineRayTracingPassEnabled)
 	{
 		SetupLumenHardwareRayTracingHitGroupBuffer(GraphBuilder, ReferenceView);
@@ -907,7 +905,9 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	PassParams->LightGridPacked = bIsPathTracing ? nullptr : ReferenceView.RayTracingLightGridUniformBuffer; // accessed by FRayTracingLightingMS // Is this needed for anything?
 	PassParams->LumenHardwareRayTracingUniformBuffer = ReferenceView.LumenHardwareRayTracingUniformBuffer;
 
-	if (ShouldRenderNanite())
+	const bool bShouldRenderNanite = ShouldRenderNanite();
+
+	if (bShouldRenderNanite)
 	{
 		PassParams->ClusterPageData = Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 		PassParams->HierarchyBuffer = Nanite::GStreamingManager.GetHierarchySRV(GraphBuilder);
@@ -922,11 +922,11 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 
 	const FRayTracingLightFunctionMap* RayTracingLightFunctionMap = GraphBuilder.Blackboard.Get<FRayTracingLightFunctionMap>();
 	GraphBuilder.AddPass(RDG_EVENT_NAME("SetRayTracingBindings"), PassParams, ERDGPassFlags::Copy | ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
-		[this, PassParams, bIsPathTracing, &ReferenceView, RayTracingLightFunctionMap](FRHICommandList& RHICmdList)
+		[this, PassParams, bIsPathTracing, &ReferenceView, RayTracingLightFunctionMap, bShouldRenderNanite](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(SetRayTracingBindings);
 
-		if (ShouldRenderNanite())
+		if (bShouldRenderNanite)
 		{
 			FNaniteRayTracingUniformParameters NaniteRayTracingUniformParams;
 			NaniteRayTracingUniformParams.PageConstants.X = Scene->GPUScene.InstanceSceneDataSOAStride;
@@ -972,8 +972,11 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 				if (ReferenceView.LumenHardwareRayTracingMaterialPipeline)
 				{
 					RHICmdList.SetRayTracingMissShader(ReferenceView.LumenHardwareRayTracingSBT, RAY_TRACING_MISS_SHADER_SLOT_DEFAULT, ReferenceView.LumenHardwareRayTracingMaterialPipeline, 0 /* MissShaderPipelineIndex */, 0, nullptr, 0);
-					BindLumenHardwareRayTracingMaterialPipeline(RHICmdList, ReferenceView);
+				}
 
+				if (ReferenceView.LumenHardwareRayTracingSBT)
+				{
+					BindLumenHardwareRayTracingMaterialPipeline(RHICmdList, ReferenceView);
 					RHICmdList.CommitShaderBindingTable(ReferenceView.LumenHardwareRayTracingSBT);
 				}
 			}
@@ -2803,7 +2806,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 #if RHI_RAYTRACING
 			// Only used by ray traced shadows
-			if (IsRayTracingEnabled() && Scene->bHasLightsWithRayTracedShadows)
+			if (IsRayTracingEnabled() && Scene->bHasLightsWithRayTracedShadows && Views[0].IsRayTracingAllowedForView())
 			{
 				RenderDitheredLODFadingOutMask(GraphBuilder, Views[0], SceneTextures.Depth.Target);
 			}
@@ -3453,10 +3456,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		GEngine->GetPostRenderDelegateEx().Broadcast(GraphBuilder);
 		GetSceneExtensionsRenderers().PostRender(GraphBuilder);
-
-#if RHI_RAYTRACING
-		ReleaseRaytracingResources(GraphBuilder, Scene->RayTracingScene, bIsLastSceneRenderer);
-#endif //  RHI_RAYTRACING
 	}
 
 #if WITH_MGPU
@@ -3510,6 +3509,17 @@ bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)
 		return false;
 	}
 
+	// Path tracer and ray tracing visualization debug modes force ray tracing on, regardless of what the view says
+	if (HasRayTracedOverlay(*View.Family))
+	{
+		return true;
+	}
+
+	if (!View.IsRayTracingAllowedForView())
+	{
+		return false;
+	}
+
 	return ShouldRenderRayTracingAmbientOcclusion(View)
 		|| ShouldRenderRayTracingTranslucency(View)
 		|| ShouldRenderRayTracingSkyLight(Scene->SkyLight, View.GetShaderPlatform())
@@ -3517,13 +3527,12 @@ bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)
 		|| Scene->bHasLightsWithRayTracedShadows
 		|| ShouldRenderPluginRayTracingGlobalIllumination(View)
         || Lumen::AnyLumenHardwareRayTracingPassEnabled(Scene, View)
-		|| MegaLights::UseHardwareRayTracing(*View.Family)
-		|| HasRayTracedOverlay(*View.Family);
+		|| MegaLights::UseHardwareRayTracing(*View.Family);
 }
 
 bool ShouldRenderRayTracingEffect(bool bEffectEnabled, ERayTracingPipelineCompatibilityFlags CompatibilityFlags, const FSceneView* View)
 {
-	if ((View && !IsRayTracingEnabled(View->GetShaderPlatform())) || (!View && !IsRayTracingEnabled()) || (View && !View->bAllowRayTracing))
+	if (View ? !IsRayTracingEnabled(View->GetShaderPlatform()) || !View->IsRayTracingAllowedForView() : !IsRayTracingEnabled())
 	{
 		return false;
 	}

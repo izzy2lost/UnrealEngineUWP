@@ -668,7 +668,7 @@ FSingleLayerWaterPrePassResult* FDeferredShadingSceneRenderer::RenderSingleLayer
 				RDG_EVENT_NAME("SingleLayerWaterDepthPrepass"),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[this, &View, PassParameters](FRHICommandList& RHICmdList)
+				[this, &View, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					SetStereoViewport(RHICmdList, View, 1.0f);
 					View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterDepthPrepass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
@@ -1116,7 +1116,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 					RDG_EVENT_NAME("SLW::Composite %dx%d", View.ViewRect.Width(), View.ViewRect.Height()),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[PassParameters, &View, TiledScreenSpaceReflection, VertexShader, PixelShader, bRunTiled](FRHICommandList& InRHICmdList)
+					[PassParameters, &View, TiledScreenSpaceReflection, VertexShader, PixelShader, bRunTiled](FRDGAsyncTask, FRHICommandList& InRHICmdList)
 				{
 					InRHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
@@ -1143,7 +1143,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 					RDG_EVENT_NAME("SLW::Composite %dx%d", View.ViewRect.Width(), View.ViewRect.Height()),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[PassParameters, &View, TiledScreenSpaceReflection, PixelShader, bRunTiled](FRHICommandList& InRHICmdList)
+					[PassParameters, &View, TiledScreenSpaceReflection, PixelShader, bRunTiled](FRDGAsyncTask, FRHICommandList& InRHICmdList)
 				{
 					InRHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
@@ -1363,7 +1363,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterInner(
 				RDG_EVENT_NAME("SingleLayerWater"),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[&View, PassParameters](FRHICommandList& RHICmdList)
+				[&View, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				SetStereoViewport(RHICmdList, View, 1.0f);
 				View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);

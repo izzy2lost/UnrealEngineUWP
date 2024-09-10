@@ -73,20 +73,15 @@ public:
 	FOnSelectedComponentsChangedDelegate& GetOnSelectedComponentsChangedDelegate() { return OnSelectedComponentsChangedDelegate; }
 
 public:
-	/** Default constructor */
 	FDMXPixelMappingToolkit();
+	~FDMXPixelMappingToolkit();
 
 	/**
-	 * Destructor.
-	 */
-	virtual ~FDMXPixelMappingToolkit();
-
-	/**
-	 * Edits the specified Texture object.
+	 * Initilaizes the pixel mapping editor.
 	 *
-	 * @param Mode The tool kit mode.
-	 * @param InitToolkitHost
-	 * @param ObjectToEdit The texture object to edit.
+	 * @param Mode				The Toolkit Mode.
+	 * @param					THe Toolkit Host.
+	 * @param UDMXPixelMapping	The Pixel Mapping object that is being edited.
 	 */
 	void InitPixelMappingEditor(const EToolkitMode::Type Mode, const TSharedPtr<class IToolkitHost>& InitToolkitHost, UDMXPixelMapping* InDMXPixelMapping);
 
@@ -248,6 +243,9 @@ private:
 	void ExtendToolbar();
 
 	void CreateInternalViews();
+
+	/** Called before any package was saved */
+	void PreSavePackage(class UPackage* Package, FObjectPreSaveContext Context);
 
 	/** Returns the check box state for the compared reset DMX mode */
 	ECheckBoxState GetEditorResetDMXModeCheckboxState(EDMXPixelMappingResetDMXMode CompareMode) const;

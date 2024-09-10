@@ -43,16 +43,16 @@ namespace HordeServer.Tests.Issues
 			readonly ILog _log;
 			readonly LogBuilder _builder;
 			readonly List<(LogLevel, ReadOnlyMemory<byte>)> _events = new List<(LogLevel, ReadOnlyMemory<byte>)>();
-			readonly IStorageClient _storageClient;
+			readonly IStorageNamespace _storageNamespace;
 			readonly LoggerScopeCollection _scopeCollection = new LoggerScopeCollection();
 
 			int _lineIndex;
 
-			public TestJsonLogger(ILog log, IStorageClient storageClient)
+			public TestJsonLogger(ILog log, IStorageNamespace storageNamespace)
 			{
 				_log = log;
 				_builder = new LogBuilder(LogFormat.Json, NullLogger.Instance);
-				_storageClient = storageClient;
+				_storageNamespace = storageNamespace;
 			}
 
 			public async ValueTask DisposeAsync()
@@ -65,10 +65,10 @@ namespace HordeServer.Tests.Issues
 					await WriteAsync(level, lineWithNewLine);
 				}
 
-				await using (IBlobWriter writer = _storageClient.CreateBlobWriter())
+				await using (IBlobWriter writer = _storageNamespace.CreateBlobWriter())
 				{
 					IHashedBlobRef<LogNode> handle = await _builder.FlushAsync(writer, true, CancellationToken.None);
-					await _storageClient.WriteRefAsync(_log.RefName, handle);
+					await _storageNamespace.WriteRefAsync(_log.RefName, handle);
 				}
 			}
 
@@ -347,14 +347,14 @@ namespace HordeServer.Tests.Issues
 
 			ILog log = (await LogCollection.GetAsync(logId, CancellationToken.None))!;
 
-			IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs);
-			await using (IBlobWriter writer = storageClient.CreateBlobWriter())
+			IStorageNamespace storageNamespace = StorageService.GetNamespace(Namespace.Logs);
+			await using (IBlobWriter writer = storageNamespace.CreateBlobWriter())
 			{
 				LogBuilder builder = new LogBuilder(LogFormat.Json, NullLogger.Instance);
 				builder.WriteData(data);
 
 				IHashedBlobRef<LogNode> handle = await builder.FlushAsync(writer, true, CancellationToken.None);
-				await storageClient.WriteRefAsync(log!.RefName, handle);
+				await storageNamespace.WriteRefAsync(log!.RefName, handle);
 			}
 
 			await log.AddEventsAsync(new List<NewLogEventData> { new NewLogEventData { LineIndex = 0, LineCount = 1, Severity = severity } }, CancellationToken.None);
@@ -363,10 +363,10 @@ namespace HordeServer.Tests.Issues
 		private async Task<TestJsonLogger> CreateLoggerAsync(IJob job, int batchIdx, int stepIdx)
 		{
 			LogId logId = job.Batches[batchIdx].Steps[stepIdx].LogId!.Value;
-			IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs);
+			IStorageNamespace storageNamespace = StorageService.GetNamespace(Namespace.Logs);
 			ILog? log = await LogCollection.GetAsync(logId)!;
 			Assert.IsNotNull(log);
-			return new TestJsonLogger(log, storageClient);
+			return new TestJsonLogger(log, storageNamespace);
 		}
 
 		private async Task ParseEventsAsync(IJob job, int batchIdx, int stepIdx, string[] lines)
@@ -390,8 +390,8 @@ namespace HordeServer.Tests.Issues
 			LogId logId = job.Batches[batchIdx].Steps[stepIdx].LogId!.Value;
 			ILog log = (await LogCollection.GetAsync(logId))!;
 
-			IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs);
-			await using (TestJsonLogger logger = new TestJsonLogger(log, storageClient))
+			IStorageNamespace storageNamespace = StorageService.GetNamespace(Namespace.Logs);
+			await using (TestJsonLogger logger = new TestJsonLogger(log, storageNamespace))
 			{
 				PerforceMetadataLogger perforceLogger = new PerforceMetadataLogger(logger);
 				perforceLogger.AddClientView(_autoSdkDir, "//depot/CarefullyRedist/...", 12345);

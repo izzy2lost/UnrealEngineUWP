@@ -214,6 +214,10 @@ public:
 		return AssetClassesRequiringDynamicTags.Contains(InName);
 	}
 	
+	FOnSetFolderColor& GetOnSetFolderColor()
+	{
+		return OnSetFolderColor;
+	}
 	
 
 private:
@@ -222,6 +226,9 @@ private:
 	
 	/** List of asset classes whose tags are dynamic and therefore we should union all asset's tags rather than grabbing the first available. */
 	TArray<FName> AssetClassesRequiringDynamicTags;
+
+	/** Called when a custom folder color is set on a folder */
+	FOnSetFolderColor OnSetFolderColor;
 
 private:
 	IContentBrowserSingleton* ContentBrowserSingleton;

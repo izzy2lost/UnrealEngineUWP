@@ -184,6 +184,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Symbols", "Symbols", "{24D4
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HordeServer.Symbols", "Plugins\Symbols\HordeServer.Symbols\HordeServer.Symbols.csproj", "{346F8FD4-6B29-4791-8472-C977A383BF82}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "InstallerCustomActions", "Installer\CustomActions\InstallerCustomActions.csproj", "{6D69FB65-1C64-4219-A297-7FB159AFBBB3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Analyze|Any CPU = Analyze|Any CPU
@@ -962,6 +964,18 @@ Global
 		{346F8FD4-6B29-4791-8472-C977A383BF82}.Release|Any CPU.Build.0 = Release|Any CPU
 		{346F8FD4-6B29-4791-8472-C977A383BF82}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
 		{346F8FD4-6B29-4791-8472-C977A383BF82}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
+		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.Analyze|Any CPU.ActiveCfg = Analyze|Any CPU
+		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.Analyze|Any CPU.Build.0 = Analyze|Any CPU
+		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.DebugAutoUpdate|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.DebugAutoUpdate|Any CPU.Build.0 = Debug|Any CPU
+		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.Development|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.Development|Any CPU.Build.0 = Debug|Any CPU
+		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
+		{6D69FB65-1C64-4219-A297-7FB159AFBBB3}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1034,6 +1048,7 @@ Global
 		{E4C41104-BC84-4EC6-BC32-FD7343F26EAC} = {A3FAA4A0-5DDA-4065-B8E5-6141980DFBB4}
 		{24D4526F-E649-4C8A-86F8-1A74C253F1E3} = {C0214E80-0A85-4432-834D-9DC48104AD26}
 		{346F8FD4-6B29-4791-8472-C977A383BF82} = {24D4526F-E649-4C8A-86F8-1A74C253F1E3}
+		{6D69FB65-1C64-4219-A297-7FB159AFBBB3} = {BEC23DA9-595D-4411-A12C-34A2F201B904}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F06D2583-1509-4254-BEE6-5921340022BF}

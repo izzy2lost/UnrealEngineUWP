@@ -5,6 +5,7 @@
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 #include "Widgets/SCompoundWidget.h"
 
+class SChaosVDMainTab;
 enum class EChaosVDPlaybackButtonsID : uint8;
 class SChaosVDTimelineWidget;
 struct FChaosVDSceneQuerySelectionHandle;
@@ -40,7 +41,7 @@ public:
 	virtual ~SChaosVDSceneQueryDataInspector() override;
 
 	/** Constructs this widget with InArgs */
-	void Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr, const TWeakPtr<FEditorModeTools>& InEditorModeTools);
+	void Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr, const TSharedRef<SChaosVDMainTab>& InMainTab);
 
 	/** Sets a new query data to be inspected */
 	void SetQueryDataToInspect(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InDataSelectionHandle);
@@ -62,7 +63,7 @@ protected:
 	FReply SelectQueryToInspectByID(int32 QueryID, int32 SolverID);
 	FReply SelectParentQuery();
 
-	static TSharedPtr<IStructureDetailsView> CreateDataDetailsView();
+	TSharedPtr<IStructureDetailsView> CreateDataDetailsView() const;
 	
 	void HandleSceneUpdated();
 	void HandleSubQueryNameSelected(TSharedPtr<FName> Name);
@@ -101,6 +102,8 @@ protected:
 	bool bIsUpToDate = true;
 
 	bool bListenToSelectionEvents = true;
+
+	TWeakPtr<SChaosVDMainTab> MainTabWeakPtr;
 
 	int32 GetCurrentMinSQVisitIndex() const;
 	int32 GetCurrentMaxSQVisitIndex() const;

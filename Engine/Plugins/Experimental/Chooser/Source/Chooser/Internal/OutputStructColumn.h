@@ -27,7 +27,7 @@ struct CHOOSER_API FStructContextProperty : public FChooserParameterStructBase
 #endif
 };
 
-USTRUCT()
+USTRUCT(DisplayName = "Output Struct", Meta = (Category = "Output", Tooltip = "A column which writes all elements of a Struct.\n The data for each row must be set in the details panel, and the table cells will display values which differ from the struct default."))
 struct CHOOSER_API FOutputStructColumn : public FChooserColumnBase
 {
 	GENERATED_BODY()
@@ -46,7 +46,18 @@ struct CHOOSER_API FOutputStructColumn : public FChooserColumnBase
 
 	virtual void AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
 	virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
+	virtual void CopyFallback(FChooserColumnBase& SourceColumn) override { FallbackValue = static_cast<FOutputStructColumn&>(SourceColumn).FallbackValue; }
 #endif
+	
+	FInstancedStruct& GetValueForIndex(int32 Index)
+	{
+		return Index == ChooserColumn_SpecialIndex_Fallback ? FallbackValue : RowValues[Index];
+	}
+	
+	const FInstancedStruct& GetValueForIndex(int32 Index) const
+	{
+		return Index == ChooserColumn_SpecialIndex_Fallback ? FallbackValue : RowValues[Index];
+	}
 	
 	// FallbackValue will be used as the output value if the all rows in the chooser fail, and the FallbackResult from the chooser is used.
 	UPROPERTY(EditAnywhere, Meta = (StructTypeConst), Category=Data);

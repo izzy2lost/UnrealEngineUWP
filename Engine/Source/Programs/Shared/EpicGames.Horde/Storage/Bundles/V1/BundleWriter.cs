@@ -87,7 +87,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	}
 
 	/// <summary>
-	/// Writes nodes of a tree to an <see cref="IStorageClient"/>, packed into bundles. Each <see cref="BundleWriter"/> instance is single threaded,
+	/// Writes nodes of a tree to an <see cref="IStorageNamespace"/>, packed into bundles. Each <see cref="BundleWriter"/> instance is single threaded,
 	/// but multiple instances may be written to in parallel.
 	/// </summary>
 	public sealed class BundleWriter : BlobWriter
@@ -425,7 +425,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			// Mark the bundle as complete
-			public async Task WriteAsync(BundleStorageClient store, string? basePath, ILogger? traceLogger)
+			public async Task WriteAsync(BundleStorageNamespace store, string? basePath, ILogger? traceLogger)
 			{
 				traceLogger?.LogInformation("Marking bundle {BundleId} as complete ({NumNodes} nodes); adding to write queue.", BundleId, _queue.Count);
 
@@ -584,7 +584,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		class WriteQueue
 		{
 			long _memoryFootprint;
-			readonly BundleStorageClient _store;
+			readonly BundleStorageNamespace _store;
 			readonly string? _basePath;
 			readonly long _maxMemoryFootprint;
 			readonly ILogger? _traceLogger;
@@ -592,7 +592,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			int _refCount;
 			readonly List<Task> _writeTasks = new List<Task>();
 
-			public WriteQueue(BundleStorageClient store, string? basePath, long maxMemoryFootprint, ILogger? traceLogger)
+			public WriteQueue(BundleStorageNamespace store, string? basePath, long maxMemoryFootprint, ILogger? traceLogger)
 			{
 				_store = store;
 				_basePath = basePath;
@@ -667,7 +667,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 
 		static readonly BundleOptions s_defaultOptions = new BundleOptions();
 
-		readonly BundleStorageClient _store;
+		readonly BundleStorageNamespace _store;
 		readonly BundleReader _reader;
 		readonly BundleOptions _bundleOptions;
 		readonly string? _basePath;
@@ -689,7 +689,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <param name="bundleOptions">Options for the writer</param>
 		/// <param name="blobSerializerOptions"></param>
 		/// <param name="traceLogger">Optional logger for trace information</param>
-		public BundleWriter(BundleStorageClient store, BundleReader reader, string? basePath, BundleOptions? bundleOptions = null, BlobSerializerOptions? blobSerializerOptions = null, ILogger? traceLogger = null)
+		public BundleWriter(BundleStorageNamespace store, BundleReader reader, string? basePath, BundleOptions? bundleOptions = null, BlobSerializerOptions? blobSerializerOptions = null, ILogger? traceLogger = null)
 			: this(store, reader, basePath, bundleOptions, null, blobSerializerOptions, traceLogger)
 		{
 		}
@@ -707,7 +707,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <summary>
 		/// Internal constructor
 		/// </summary>
-		private BundleWriter(BundleStorageClient store, BundleReader reader, string? basePath, BundleOptions? bundleOptions, WriteQueue? writeQueue, BlobSerializerOptions? blobSerializerOptions, ILogger? traceLogger = null)
+		private BundleWriter(BundleStorageNamespace store, BundleReader reader, string? basePath, BundleOptions? bundleOptions, WriteQueue? writeQueue, BlobSerializerOptions? blobSerializerOptions, ILogger? traceLogger = null)
 			: base(blobSerializerOptions)
 		{
 			_store = store;

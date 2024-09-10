@@ -4,7 +4,7 @@
 #include "Elements/Framework/TypedElementMetaData.h"
 #include "UObject/Class.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
 
 namespace UE::Editor::DataStorage::Debug::QueryEditor
 {
@@ -48,11 +48,11 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 	class FTedsQueryEditorModel
 	{
 	public:
-		explicit FTedsQueryEditorModel(ITypedElementDataStorageInterface& InTypedElementDataStorage);
+		explicit FTedsQueryEditorModel(IEditorDataStorageProvider& InDataStorageProvider);
 
 		void Reset();
-		ITypedElementDataStorageInterface& GetTedsInterface();
-		const ITypedElementDataStorageInterface& GetTedsInterface() const;
+		IEditorDataStorageProvider& GetTedsInterface();
+		const IEditorDataStorageProvider& GetTedsInterface() const;
 		
 		FQueryDescription GenerateQueryDescription();
 		// Special function to generate a description that puts the Select elements as All Conditions
@@ -105,7 +105,7 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 		FConditionEntryInternal* FindEntryByHandle(FConditionEntryHandle Handle);
 		const FConditionEntryInternal* FindEntryByHandle(FConditionEntryHandle Handle) const;
 
-		ITypedElementDataStorageInterface& TypedElementDataStorage;
+		IEditorDataStorageProvider& EditorDataStorageProvider;
 
 		int32 IdGenerator = 0;
 

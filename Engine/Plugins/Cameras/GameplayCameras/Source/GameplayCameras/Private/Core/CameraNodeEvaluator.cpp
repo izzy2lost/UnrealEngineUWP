@@ -3,6 +3,7 @@
 #include "Core/CameraNodeEvaluator.h"
 
 #include "Core/CameraNode.h"
+#include "Core/CameraNodeEvaluatorHierarchy.h"
 #include "Debug/CameraDebugBlockBuilder.h"
 #include "Debug/CameraNodeEvaluatorDebugBlock.h"
 #include "UObject/UObjectGlobals.h"
@@ -12,10 +13,16 @@ namespace UE::Cameras
 
 UE_GAMEPLAY_CAMERAS_DEFINE_RTTI(FCameraNodeEvaluator)
 
+FCameraNodeEvaluatorInitializeParams::FCameraNodeEvaluatorInitializeParams(FCameraNodeEvaluatorHierarchy* InHierarchy)
+	: Hierarchy(InHierarchy)
+{
+}
+
 void FCameraNodeEvaluationResult::Reset(bool bResetVariableTable)
 {
 	CameraPose.Reset();
 	CameraRigJoints.Reset();
+	PostProcessSettings.Reset();
 
 	if (bResetVariableTable)
 	{
@@ -26,10 +33,45 @@ void FCameraNodeEvaluationResult::Reset(bool bResetVariableTable)
 	bIsValid = false;
 }
 
+void FCameraNodeEvaluationResult::OverrideAll(const FCameraNodeEvaluationResult& OtherResult)
+{
+	CameraPose.OverrideAll(OtherResult.CameraPose);
+	VariableTable.OverrideAll(OtherResult.VariableTable);
+	CameraRigJoints.OverrideAll(OtherResult.CameraRigJoints);
+	PostProcessSettings.OverrideAll(OtherResult.PostProcessSettings);
+	bIsCameraCut = OtherResult.bIsCameraCut;
+	bIsValid = OtherResult.bIsValid;
+}
+
+void FCameraNodeEvaluationResult::LerpAll(const FCameraNodeEvaluationResult& ToResult, float BlendFactor)
+{
+	// Blend all properties.
+	CameraPose.LerpAll(ToResult.CameraPose, BlendFactor);
+	VariableTable.LerpAll(ToResult.VariableTable, BlendFactor);
+
+	// Merge/blend the joints.
+	CameraRigJoints.LerpAll(ToResult.CameraRigJoints, BlendFactor);
+
+	// Merge/blend the post-process settings.
+	PostProcessSettings.LerpAll(ToResult.PostProcessSettings, BlendFactor);
+
+	// If we have even a fraction of a camera cut, we need to make the
+	// whole result into a camera cut.
+	if (BlendFactor > 0.f && ToResult.bIsCameraCut)
+	{
+		bIsCameraCut = true;
+	}
+
+	// The blended result is valid if both input results are valid.
+	bIsValid = (bIsValid && ToResult.bIsValid);
+}
+
 void FCameraNodeEvaluationResult::Serialize(FArchive& Ar)
 {
 	CameraPose.SerializeWithFlags(Ar);
 	VariableTable.Serialize(Ar);
+	CameraRigJoints.Serialize(Ar);
+	PostProcessSettings.Serialize(Ar);
 	Ar << bIsCameraCut;
 	Ar << bIsValid;
 }
@@ -45,13 +87,14 @@ FCameraNodeEvaluator* FCameraNodeEvaluatorBuildParams::BuildEvaluator(const UCam
 	return nullptr;
 }
 
-FCameraNodeEvaluator::FCameraNodeEvaluator()
-{
-}
-
 void FCameraNodeEvaluator::SetPrivateCameraNode(TObjectPtr<const UCameraNode> InCameraNode)
 {
 	PrivateCameraNode = InCameraNode;
+}
+
+void FCameraNodeEvaluator::AddNodeEvaluatorFlags(ECameraNodeEvaluatorFlags InFlags)
+{
+	PrivateFlags |= InFlags;
 }
 
 void FCameraNodeEvaluator::SetNodeEvaluatorFlags(ECameraNodeEvaluatorFlags InFlags)
@@ -59,28 +102,25 @@ void FCameraNodeEvaluator::SetNodeEvaluatorFlags(ECameraNodeEvaluatorFlags InFla
 	PrivateFlags = InFlags;
 }
 
-FCameraNodeEvaluatorChildrenView FCameraNodeEvaluator::GetChildren()
+void FCameraNodeEvaluator::Build(const FCameraNodeEvaluatorBuildParams& Params)
 {
-	return OnGetChildren();
+	OnBuild(Params);
 }
 
-void FCameraNodeEvaluator::ExecuteOperation(const FCameraOperationParams& Params, FCameraOperation& Operation)
+void FCameraNodeEvaluator::Initialize(const FCameraNodeEvaluatorInitializeParams& Params, FCameraNodeEvaluationResult& OutResult)
 {
-	if (!PrivateCameraNode || PrivateCameraNode->bIsEnabled)
+	if (Params.Hierarchy)
 	{
-		if (EnumHasAnyFlags(PrivateFlags, ECameraNodeEvaluatorFlags::SupportsOperations))
+		Params.Hierarchy->AddEvaluator(this);
+	}
+
+	OnInitialize(Params, OutResult);
+
+	for (FCameraNodeEvaluator* Child : GetChildren())
+	{
+		if (Child)
 		{
-			OnExecuteOperation(Params, Operation);
-		}
-		else
-		{
-			for (FCameraNodeEvaluator* Child : GetChildren())
-			{
-				if (Child)
-				{
-					Child->ExecuteOperation(Params, Operation);
-				}
-			}
+			Child->Initialize(Params, OutResult);
 		}
 	}
 }
@@ -103,55 +143,16 @@ void FCameraNodeEvaluator::AddReferencedObjects(FReferenceCollector& Collector)
 	}
 }
 
-void FCameraNodeEvaluator::Serialize(const FCameraNodeEvaluatorSerializeParams& Params, FArchive& Ar)
+FCameraNodeEvaluatorChildrenView FCameraNodeEvaluator::GetChildren()
 {
-	OnSerialize(Params, Ar);
-
-	for (FCameraNodeEvaluator* Child : GetChildren())
-	{
-		if (Child)
-		{
-			Child->Serialize(Params, Ar);
-		}
-	}
-}
-
-void FCameraNodeEvaluator::Build(const FCameraNodeEvaluatorBuildParams& Params)
-{
-	OnBuild(Params);
-}
-
-void FCameraNodeEvaluator::Initialize(const FCameraNodeEvaluatorInitializeParams& Params, FCameraNodeEvaluationResult& OutResult)
-{
-	OnInitialize(Params, OutResult);
-
-	for (FCameraNodeEvaluator* Child : GetChildren())
-	{
-		if (Child)
-		{
-			Child->Initialize(Params, OutResult);
-		}
-	}
+	return OnGetChildren();
 }
 
 void FCameraNodeEvaluator::UpdateParameters(const FCameraBlendedParameterUpdateParams& Params, FCameraBlendedParameterUpdateResult& OutResult)
 {
 	if (!PrivateCameraNode || PrivateCameraNode->bIsEnabled)
 	{
-		if (EnumHasAnyFlags(PrivateFlags, ECameraNodeEvaluatorFlags::NeedsParameterUpdate))
-		{
-			OnUpdateParameters(Params, OutResult);
-		}
-		else
-		{
-			for (FCameraNodeEvaluator* Child : GetChildren())
-			{
-				if (Child)
-				{
-					Child->UpdateParameters(Params, OutResult);
-				}
-			}
-		}
+		OnUpdateParameters(Params, OutResult);
 	}
 }
 
@@ -159,21 +160,21 @@ void FCameraNodeEvaluator::Run(const FCameraNodeEvaluationParams& Params, FCamer
 {
 	if (!PrivateCameraNode || PrivateCameraNode->bIsEnabled)
 	{
-		if (EnumHasAnyFlags(PrivateFlags, ECameraNodeEvaluatorFlags::NeedsEvaluationUpdate))
-		{
-			OnRun(Params, OutResult);
-		}
-		else
-		{
-			for (FCameraNodeEvaluator* Child : GetChildren())
-			{
-				if (Child)
-				{
-					Child->Run(Params, OutResult);
-				}
-			}
-		}
+		OnRun(Params, OutResult);
 	}
+}
+
+void FCameraNodeEvaluator::ExecuteOperation(const FCameraOperationParams& Params, FCameraOperation& Operation)
+{
+	if (!PrivateCameraNode || PrivateCameraNode->bIsEnabled)
+	{
+		OnExecuteOperation(Params, Operation);
+	}
+}
+
+void FCameraNodeEvaluator::Serialize(const FCameraNodeEvaluatorSerializeParams& Params, FArchive& Ar)
+{
+	OnSerialize(Params, Ar);
 }
 
 #if UE_GAMEPLAY_CAMERAS_DEBUG

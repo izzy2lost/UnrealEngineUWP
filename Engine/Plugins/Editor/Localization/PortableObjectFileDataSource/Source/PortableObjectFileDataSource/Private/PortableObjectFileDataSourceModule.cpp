@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "IPortableObjectFileDataSourceModule.h"
+
 #include "ContentBrowserFileDataCore.h"
 #include "ContentBrowserFileDataSource.h"
 #include "LocalizationDelegates.h"
@@ -11,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "PortableObjectFileData"
 
-class FPortableObjectFileDataSourceModule : public FDefaultModuleImpl
+class FPortableObjectFileDataSourceModule : public IPortableObjectFileDataSourceModule
 {
 public:
 	virtual void StartupModule() override
@@ -69,6 +71,7 @@ public:
 				PoFileActions.CanCopy.BindStatic(PoCanCopyOrMove);
 				PoFileActions.CanMove.BindStatic(PoCanCopyOrMove);
 				PoFileActions.CanDuplicate.BindStatic(PoCanDeleteOrDuplicate);
+				PoFileActions.CanEdit.BindRaw(this, &FPortableObjectFileDataSourceModule::CanEditFile);
 				PoFileActions.PassesFilter.BindStatic(&ContentBrowserFileData::FDefaultFileActions::ItemPassesFilter, true);
 				PoFileActions.GetAttribute.BindStatic(&ContentBrowserFileData::FDefaultFileActions::GetItemAttribute);
 				PoFileConfig.RegisterFileActions(PoFileActions);
@@ -101,6 +104,26 @@ public:
 		LocalizationDelegates::OnLocalizationTargetDataUpdated.RemoveAll(this);
 			
 		PoFileDataSource.Reset();
+	}
+
+	virtual FDelegateHandle RegisterCanEditFileOverride(FCanEditFileDelegate&& Delegate) override
+	{
+		FDelegateHandle Handle(FDelegateHandle::GenerateNewHandle);
+		CanEditFileOverrides.Add(MakeTuple(Handle, MoveTemp(Delegate)));
+		return Handle;
+	}
+
+	virtual void UnregisterCanEditFileOverride(const FDelegateHandle& Handle) override
+	{
+		const int32 DelegateIndex = CanEditFileOverrides.IndexOfByPredicate([&Handle](const TTuple<FDelegateHandle, FCanEditFileDelegate>& DelegatePair)
+		{
+			return DelegatePair.Key == Handle;
+		});
+
+		if (DelegateIndex != INDEX_NONE)
+		{
+			CanEditFileOverrides.RemoveAt(DelegateIndex, EAllowShrinking::No);
+		}
 	}
 
 private:
@@ -144,7 +167,28 @@ private:
 		}
 	}
 
+	bool CanEditFile(const FName InFilePath, const FString& InFilename, FText* OutErrorMsg)
+	{
+		for (auto DelegateIt = CanEditFileOverrides.CreateIterator(); DelegateIt; ++DelegateIt)
+		{
+			if (!DelegateIt->Value.IsBound())
+			{
+				DelegateIt.RemoveCurrent();
+				continue;
+			}
+
+			if (!DelegateIt->Value.Execute(InFilePath, InFilename, OutErrorMsg))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	TStrongObjectPtr<UContentBrowserFileDataSource> PoFileDataSource;
+
+	TArray<TTuple<FDelegateHandle, FCanEditFileDelegate>> CanEditFileOverrides;
 };
 
 IMPLEMENT_MODULE(FPortableObjectFileDataSourceModule, PortableObjectFileDataSource);

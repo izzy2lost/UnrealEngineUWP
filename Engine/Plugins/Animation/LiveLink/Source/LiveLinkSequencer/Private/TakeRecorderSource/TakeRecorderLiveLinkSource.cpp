@@ -58,6 +58,10 @@ TArray<UTakeRecorderSource*> UTakeRecorderLiveLinkSource::PostRecording(class UL
 	if (TrackRecorder)
 	{
 		TrackRecorder->FinalizeTrack();
+		if (!bCancelled)
+		{
+			TrackRecorder->ProcessRecordedTimes(InSequence);
+		}
 	}
 	
 	TrackRecorder = nullptr;

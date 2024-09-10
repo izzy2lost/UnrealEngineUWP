@@ -49,22 +49,31 @@ void SClippingHorizontalBox::OnArrangeChildren( const FGeometry& AllottedGeometr
 		FArrangedWidget& ArrangedWrapButton = ArrangedChildren[ArrangedChildren.Num() - 1];
 		FGeometry& WrapButtonGeometry = ArrangedWrapButton.Geometry;
 
-		const FVector2D WrapButtonSize = FVector2D(WrapButtonWidth, WrapButtonGeometry.GetLocalSize().Y);
-		WrapButtonGeometry = AllottedGeometry.MakeChild(
-			WrapButtonSize,
-			FSlateLayoutTransform(AllottedGeometry.GetLocalSize() - WrapButtonSize));
-
-		const int32 WrapButtonXPosition = FMath::TruncToInt(WrapButtonGeometry.AbsolutePosition.X);
-
-		// Further remove any children that the wrap button overlaps with
-		for (int32 ChildIdx = IndexClippedAt - 1; ChildIdx >= 0; --ChildIdx)
+		if (const bool bHasSpaceForWrapButton = WrapButtonWidth <= AllottedGeometry.GetLocalSize().X)
 		{
-			const FArrangedWidget& CurWidget = ArrangedChildren[ChildIdx];
-			if (FMath::TruncToInt(CurWidget.Geometry.AbsolutePosition.X + CurWidget.Geometry.GetLocalSize().X * CurWidget.Geometry.Scale) > WrapButtonXPosition)
+			const float AdjustedWrapButtonWidth = FMath::Min(AllottedGeometry.GetLocalSize().X, WrapButtonWidth);
+
+			const FVector2D WrapButtonSize = FVector2D(AdjustedWrapButtonWidth, WrapButtonGeometry.GetLocalSize().Y);
+			WrapButtonGeometry = AllottedGeometry.MakeChild(
+				WrapButtonSize,
+				FSlateLayoutTransform(AllottedGeometry.GetLocalSize() - WrapButtonSize));
+
+			const int32 WrapButtonXPosition = FMath::TruncToInt(WrapButtonGeometry.AbsolutePosition.X);
+
+			// Further remove any children that the wrap button overlaps with
+			for (int32 ChildIdx = IndexClippedAt - 1; ChildIdx >= 0; --ChildIdx)
 			{
-				++NumClippedChildren;
-				ArrangedChildren.Remove(ChildIdx);
+				const FArrangedWidget& CurWidget = ArrangedChildren[ChildIdx];
+				if (FMath::TruncToInt(CurWidget.Geometry.AbsolutePosition.X + CurWidget.Geometry.GetLocalSize().X * CurWidget.Geometry.Scale) > WrapButtonXPosition)
+				{
+					++NumClippedChildren;
+					ArrangedChildren.Remove(ChildIdx);
+				}
 			}
+		}
+		else // No space left for anything including WrapButton
+		{
+			ArrangedChildren.Empty();
 		}
 	}
 

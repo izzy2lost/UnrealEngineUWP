@@ -2073,7 +2073,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				// hook up the Buildconfig that matches this info to this xcconfig file
 				XcconfigFile ConfigXcconfig = MatchedConfig.Xcconfig!;
 
-				string ExecutableName = AppleExports.MakeBinaryFileName(Config.ExeName, Platform, Config.BuildConfig, TargetRules.Architectures, TargetRules.UndecoratedConfiguration, null);
+				string ExecutableName = AppleExports.MakeBinaryFileName(Config.ExeName, TargetRules.DecoratedSeparator, Platform, Config.BuildConfig, TargetRules.Architectures, TargetRules.UndecoratedConfiguration, null);
 				string ExetuableSubPath = FileReference.Combine(ConfigBuildDir, ExecutableName).MakeRelativeTo(ConfigBuildDir);
 				string ExecutableKey = $"UE_{Platform.ToString().ToUpper()}_EXECUTABLE_NAME";
 
@@ -2087,7 +2087,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				// content only projects don't want UnrealGame, etc as the ProductName
 				if (UnrealData.bIsContentOnlyProject && TargetRules.Type != TargetType.Editor)
 				{
-					ProductName = AppleExports.MakeBinaryFileName(PerTargetTypeProductName, Platform, Config.BuildConfig, TargetRules.Architectures, TargetRules.UndecoratedConfiguration, null);
+					ProductName = AppleExports.MakeBinaryFileName(PerTargetTypeProductName, TargetRules.DecoratedSeparator, Platform, Config.BuildConfig, TargetRules.Architectures, TargetRules.UndecoratedConfiguration, null);
 				}
 
 				MetadataItem? EntitlementsMetadata = UnrealData.Metadata!.EntitlementsFiles[MetadataPlatform];

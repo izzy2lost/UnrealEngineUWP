@@ -87,11 +87,16 @@ namespace UE::MultiUserClient::Replication
 			AnalyzeHistory();
 		}
 	}
-
 	
 	void FRejoinStreamAndAuthorityPredictor::AnalyzeHistory()
 	{
-		Private::AnalyzeActivityHistory(Workspace, ClientInfo, PredictedStream, PredictedAuthority);
-		OnPredictionChangedDelegate.Broadcast();
+		FConcertBaseStreamInfo Prediction;
+		Private::AnalyzeActivityHistory(Workspace, ClientInfo, Prediction, PredictedAuthority);
+
+		if (Prediction != PredictedStream)
+		{
+			PredictedStream = MoveTemp(Prediction);
+			OnPredictionChangedDelegate.Broadcast();
+		}
 	}
 }

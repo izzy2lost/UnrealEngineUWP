@@ -14,6 +14,7 @@ class SHorizontalBox;
 class SVerticalBox;
 class UDMMaterialLayerObject;
 class UDMMaterialSlot;
+class UDMMaterialValueFloat1;
 class UDMTextureSet;
 class UMaterialFunctionInterface;
 class UTexture;
@@ -61,6 +62,12 @@ public:
 	bool CanDeleteSelectedLayer() const;
 	void DeleteSelectedLayer();
 
+	bool SelectLayer_CanExecute(int32 InIndex) const;
+	void SelectLayer_Execute(int32 InIndex);
+
+	bool SetOpacity_CanExecute();
+	void SetOpacity_Execute(float InOpacity);
+
 	/** Slots */
 	TSharedRef<SDMMaterialSlotLayerView> GetLayerView() const;
 
@@ -80,6 +87,7 @@ protected:
 	TDMWidgetSlot<SDMMaterialSlotLayerView> LayerViewSlot;
 	TDMWidgetSlot<SWidget> LayerSettingsSlot;
 
+	TWeakObjectPtr<UDMMaterialValueFloat1> LayerOpacityValueWeak;
 	TSharedPtr<ICustomDetailsViewItem> LayerOpacityItem;
 
 	TSharedRef<SWidget> CreateSlot_Container();

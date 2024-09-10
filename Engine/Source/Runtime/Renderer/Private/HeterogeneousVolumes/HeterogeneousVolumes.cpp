@@ -771,10 +771,11 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 	{
 		FVoxelGridBuildOptions BuildOptions;
 		BuildOptions.VoxelGridBuildMode = EVoxelGridBuildMode::Shadows;
-		BuildOptions.MinimumVoxelSizeOutsideFrustum = HeterogeneousVolumes::GetOutOfFrustumShadingRateForShadows();
-		BuildOptions.MinimumVoxelSizeInFrustum = HeterogeneousVolumes::GetShadingRateForShadows();
+		BuildOptions.ShadingRateInFrustum = HeterogeneousVolumes::GetShadingRateForShadows();
+		BuildOptions.ShadingRateOutOfFrustum = HeterogeneousVolumes::GetOutOfFrustumShadingRateForShadows();
 		BuildOptions.bBuildOrthoGrid = true;
 		BuildOptions.bBuildFrustumGrid = false;
+		BuildOptions.bUseProjectedPixelSizeForOrthoGrid = true;
 		BuildOptions.bJitter = HeterogeneousVolumes::EnableJitterForShadows();
 
 		BuildOrthoVoxelGrid(GraphBuilder, Scene, Views, VisibleLightInfos, BuildOptions, OrthoGridUniformBuffer);

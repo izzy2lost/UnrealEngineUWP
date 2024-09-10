@@ -2,15 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-
+#include <CoreMinimal.h>
+#include <Framework/Views/ITypedTableView.h>
 #include <Widgets/SCompoundWidget.h>
-#include <Widgets/Views/SListView.h>
 
 namespace UE::ImageWidgets
 {
-	class SImageCatalogItem;
-
 	/**
 	 * Contains all data for a catalog item.
 	 */
@@ -35,9 +32,9 @@ namespace UE::ImageWidgets
 	};
 
 	/**
-	 * Generic catalog widget for listing and selecting 2D image-like content.
+	 * Generic catalog widget for listing and interacting with 2D image-like content.
 	 * Each catalog item is represented by its own widget based on its @see FImageCatalogItemData.
-	 * Entries in the catalog can be split into regular and pinned items, with pinned items being displayed at the top.
+	 * Entries in the catalog can be assigned to customizable groups.
 	 */
 	class SImageCatalog : public SCompoundWidget
 	{
@@ -49,221 +46,329 @@ namespace UE::ImageWidgets
 		DECLARE_DELEGATE_OneParam(FOnItemSelected, const FGuid&)
 
 		/**
-		 * Delegate that gets called for creating a context menu for a set of selected items.
-		 * Return @see SWidget::NullWidget to not show a context menu.
+		 * Delegate that gets called for creating a context menu for a group.
+		 * Return @see SNullWidget::NullWidget to not show a context menu.
 		 */
-		DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<SWidget>, FOnGetContextMenu, const TArray<FGuid>&)
+		DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<SWidget>, FOnGetGroupContextMenu, FName)
+
+		/**
+		 * Delegate that gets called for creating a context menu for a set of selected items.
+		 * Return @see SNullWidget::NullWidget to not show a context menu.
+		 */
+		DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<SWidget>, FOnGetItemsContextMenu, const TArray<FGuid>&)
 
 		SLATE_BEGIN_ARGS(SImageCatalog)
-				: _SelectionMode(ESelectionMode::Multi)
+				: _DefaultGroupName(NAME_None)
+				, _DefaultGroupHeading(FText())
+				, _SelectionMode(ESelectionMode::Multi)
+				, _bAllowSelectionAcrossGroups(false)
+				, _bShowEmptyGroups(false)
 			{
 			}
 
-			/** Header text for regular items. */
-			SLATE_ATTRIBUTE(FText, ItemsHeading)
+			/** Name of the default group, i.e. the group that gets used when no group is explicitly specified. */
+			SLATE_ARGUMENT(FName, DefaultGroupName)
 
-			/** Header text for pinned items. */
-			SLATE_ATTRIBUTE(FText, PinnedItemsHeading)
-
-			/** Defines the selection behavior within an item list, e.g. only allow single item selection or do not allow any selection. */
-			SLATE_ARGUMENT(ESelectionMode::Type, SelectionMode)
+			/** Header text for the default group. */
+			SLATE_ARGUMENT(FText, DefaultGroupHeading)
 
 			/** Delegate that gets called when an item is selected in the catalog. */
 			SLATE_EVENT(FOnItemSelected, OnItemSelected)
 
+			/** Delegate that gets called for creating a context menu for a group. */
+			SLATE_EVENT(FOnGetGroupContextMenu, OnGetGroupContextMenu)
+
 			/** Delegate that gets called for creating a context menu for a set of selected items. */
-			SLATE_EVENT(FOnGetContextMenu, OnGetContextMenu)
+			SLATE_EVENT(FOnGetItemsContextMenu, OnGetItemsContextMenu)
+
+			/** Defines the selection behavior within an item list, e.g. only allow single item selection or do not allow any selection. */
+			SLATE_ARGUMENT(ESelectionMode::Type, SelectionMode)
+
+			/** When an item is selected, the selection in other groups will be cleared unless this flag is set to true. */
+			SLATE_ARGUMENT(bool, bAllowSelectionAcrossGroups)
+
+			/** Empty groups will be hidden unless this flag is set to true. */
+			SLATE_ARGUMENT(bool, bShowEmptyGroups)
 		SLATE_END_ARGS()
 
 		/**
 		 * Function used by Slate to construct the image catalog widget with the given arguments.
-		 * @param InArgs Slate arguments defined above
+		 * @param Args Slate arguments defined above
 		 */
-		IMAGEWIDGETS_API void Construct(const FArguments& InArgs);
+		IMAGEWIDGETS_API void Construct(const FArguments& Args);
 
 		/**
-		 * Adds a regular item to the catalog.
+		 * @returns The name of the default group.
+		 */
+		IMAGEWIDGETS_API FName GetDefaultGroupName() const;
+
+		/**
+		 * Add a custom group to the catalog.
+		 * @param Name Unique identifier for the group.
+		 * @param Heading Header text to be used for the group; no header will be shown if this is empty.
+		 * @returns False if a group with the given name already exits, otherwise true.
+		 */
+		IMAGEWIDGETS_API bool AddGroup(FName Name, const FText& Heading);
+
+		/**
+		 * Add a custom group to the catalog before an already existing group.
+		 * @param Name Unique identifier for the group.
+		 * @param Heading Header text to be used for the group; no header will be shown if this is empty.
+		 * @param BeforeGroupWithThisName Name of an already existing group before which the new custom group is going to be added.
+		 * @returns False if a group with the given name already exits or if the group before which the new group is supposed to be added does not exist,
+		 * otherwise true.
+		 */
+		IMAGEWIDGETS_API bool AddGroup(FName Name, const FText& Heading, FName BeforeGroupWithThisName);
+
+		/**
+		 * Set the header text for an existing group.
+		 * @param Name Unique identifier for the group.
+		 * @param Heading Header text to be used for the group; no header will be shown if this is empty.
+		 * @returns False if a group with the given name does not exist, otherwise true.
+		 */
+		IMAGEWIDGETS_API bool SetGroupHeading(FName Name, const FText& Heading);
+
+		/**
+		* Remove an existing group and any items in the group.
+		* @param Name Unique identifier of the group; must not be the default group name.
+		* @returns An empty value if a group with the given name does not exist, otherwise a list of unique identifiers for the items that were in the group
+		* and got removed from the catalog.
+		*/
+		IMAGEWIDGETS_API TOptional<TArray<FGuid>> RemoveGroup(FName Name);
+
+		/**
+		* Remove an existing group, and moves any items in the group into another group.
+		* Note that if the other group does not exist, the items get moved into the default group instead.
+		* @param Name Unique identifier of the group; must not be the default group name.
+		* @param GroupToMoveItemsInto Name of an already existing group in which the items from the removed group get moved into.
+		* @returns An empty value if a group with the given name does not exist, otherwise a list of unique identifiers for the items that were in the group
+		* and got moved into the other group.
+		*/
+		IMAGEWIDGETS_API TOptional<TArray<FGuid>> RemoveGroup(FName Name, FName GroupToMoveItemsInto);
+
+		/**
+		 * Return the number of groups in the catalog including the default group.
+		 * @returns The number of groups in the catalog.
+		 */
+		IMAGEWIDGETS_API int32 NumGroups() const;
+
+		/**
+		 * Return the name of the group at a given position.
+		 * @param Index Position of the group, with 0 being the first, and @see NumGroups() - 1 being the last.
+		 * @returns An empty value if the given position is invalid, otherwise the name of the group at that position.
+		 */
+		IMAGEWIDGETS_API TOptional<FName> GetGroupNameAt(int32 Index) const;
+
+		/**
+		 * Add an item to the default group.
 		 * @param Item Data for the item that is being added.
+		 * @returns True if the item was added successfully.
 		 */
 		IMAGEWIDGETS_API bool AddItem(const TSharedPtr<FImageCatalogItemData>& Item);
 
 		/**
-		 * Adds a regular item to the catalog right before another regular item.
-		 * If the unique identifier for the other item is invalid, the new item will be added at the end.
+		 * Add an item to the default group right before an existing item.
+		 * If the unique identifier for the other item is invalid or not in the default group, the item will be added at the end of the default group instead.
 		 * @param Item Data for the item that is being added.
-		 * @param BeforeItemWithThisGuid Unique identifier of the other item before which the new item should be added. 
+		 * @param BeforeItemWithThisGuid Unique identifier of the other item before which the new item should be added.
+		 * @returns True if the item was added successfully.
 		 */
 		IMAGEWIDGETS_API bool AddItem(const TSharedPtr<FImageCatalogItemData>& Item, const FGuid& BeforeItemWithThisGuid);
 
 		/**
-		 * Adds a pinned item to the catalog. Pinned items appear in a separate list above regular items.
-		 * @param Item Data for the item that is being added. 
+		 * Add an item to an existing group.
+		 * @param Item Data for the item that should be added.
+		 * @param Group Name of the existing group to which the item should be added. 
+		 * @returns False if a group with the given name does not exist, otherwise true.
 		 */
-		IMAGEWIDGETS_API bool AddPinnedItem(const TSharedPtr<FImageCatalogItemData>& Item);
+		IMAGEWIDGETS_API bool AddItem(const TSharedPtr<FImageCatalogItemData>& Item, FName Group);
 
 		/**
-		 * Adds a pinned item to the catalog right before another pinned item.
-		 * If the unique identifier for the other item is invalid, the new item will be added at the end.
-		 * @param Item Data for the item that is being added.
-		 * @param BeforeItemWithThisGuid Unique identifier of the other item before which the new item should be added. 
+		 * Add an item to an existing group right before an existing item.
+		 * If the unique identifier for the other item is invalid or not in the given group, the item will be added at the end of the group instead.
+		 * @param Item Data for the item that should be added.
+		 * @param Group Name of the existing group to which the item should be added.
+		 * @param BeforeItemWithThisGuid Unique identifier of the other item before which the new item should be added.
+		 * @returns False if a group with the given name does not exist, otherwise true.
 		 */
-		IMAGEWIDGETS_API bool AddPinnedItem(const TSharedPtr<FImageCatalogItemData>& Item, const FGuid& BeforeItemWithThisGuid);
+		IMAGEWIDGETS_API bool AddItem(const TSharedPtr<FImageCatalogItemData>& Item, FName Group, const FGuid& BeforeItemWithThisGuid);
 
 		/**
-		 * Remove an existing regular or pinned item.
-		 * Nothing happens if no item with the given unique identifier exists in the catalog.
+		 * Move an already existing item before another item within the same group.
+		 * @param Guid The unique identifier of the existing item that should be moved.
+		 * @param BeforeItemWithThisGuid Unique identifier of the other item before which the item should be moved.
+		 * @returns False if the item to be moved or the item before which it should be moved does not exist or if both are not in the same group,
+		 * otherwise true.
+		 */
+		IMAGEWIDGETS_API bool MoveItem(const FGuid& Guid, const FGuid& BeforeItemWithThisGuid);
+
+		/**
+		 * Move an already existing item to another group.
+		 * @param Guid The unique identifier of the existing item that should be moved.
+		 * @param Group Name of the existing group to which the item should be moved.
+		 * @returns False if an item with the given unique identifier does not exist, a group with the given name does not exist, or the item is already in the
+		 * given group, otherwise true.
+		 */
+		IMAGEWIDGETS_API bool MoveItem(const FGuid& Guid, FName Group);
+
+		/**
+		 * Move an already existing item to another group, before another item within that group.
+		 * @param Guid The unique identifier of the existing item that should be moved.
+		 * @param Group Name of the existing group to which the item should be moved.
+		 * @param BeforeItemWithThisGuid Unique identifier of the other item before which the item should be moved.
+		 * @returns False if an item with the given unique identifier does not exist, a group with the given name does not exist, or the item is already in the
+		 * given group, otherwise true.
+		 */
+		IMAGEWIDGETS_API bool MoveItem(const FGuid& Guid, FName Group, const FGuid& BeforeItemWithThisGuid);
+
+		/**
+		 * Remove an existing item.
 		 * @param Guid The unique identifier of the existing item.
+		 * @returns False if an item with the given unique identifier does not exist, otherwise true.
 		 */
 		IMAGEWIDGETS_API bool RemoveItem(const FGuid& Guid);
 
 		/**
-		 * Retrieves the existing item for a given unique identifier.
+		 * Return the total number of items in the catalog.
+		 * @returns The number of items in the catalog across all groups.
+		 */
+		IMAGEWIDGETS_API int32 NumItems() const;
+
+		/**
+		 * Return the number of items in a group.
+		 * @param Group Name of an existing group.
+		 * @returns The number of items in the given group.
+		 */
+		IMAGEWIDGETS_API int32 NumItems(FName Group) const;
+
+		/**
+		 * Retrieve the existing item for a given unique identifier.
 		 * @param Guid The unique identifier of the item.
 		 * @return The pointer to the item or an invalid pointer if no item with the given unique identifier exists.
 		 */
 		IMAGEWIDGETS_API TSharedPtr<const FImageCatalogItemData> GetItem(const FGuid& Guid) const;
 
 		/**
-		 * Returns if an existing item is a pinned or regular item as well as the index in the respective item list.
-		 * @param Guid The unique identifier of the item.
-		 * @return Tuple where the first value indicates if an item is pinned and the second value is the index in the respective item list or no tuple if no
-		 * item with the given unique identifier exists.
+		 * Return the group an existing item belongs to.
+		 * @param Guid The unique identifier of the existing item.
+		 * @returns An empty value if an item with the given unique identifier does not exist, otherwise the name of the group the item belongs to.
 		 */
-		IMAGEWIDGETS_API TOptional<TTuple<bool, int32>> GetItemIndex(const FGuid& Guid) const;
+		IMAGEWIDGETS_API TOptional<FName> GetItemGroupName(const FGuid& Guid) const;
 
 		/**
-		 * Retrieves the existing regular item for a given index within the regular item list.
-		 * @param Index Index of the regular item; should be at least 0 and less than @see NumItems.
-		 * @return The pointer to the item or an invalid pointer if the index is invalid.
+		 * Return the index of an existing item within the group it belongs to.
+		 * @param Guid The unique identifier of the existing item.
+		 * @returns An empty value if no item with the given unique identifier exists, otherwise index of the item in the group.
+		 */
+		IMAGEWIDGETS_API TOptional<int32> GetItemIndex(const FGuid& Guid) const;
+
+		/**
+		 * Return an existing item's group and the index within that group.
+		 * @param Guid The unique identifier of the existing item.
+		 * @returns An empty value if an item with the given unique identifier does not exist, otherwise the name of the group the item belongs to and
+		 * the index of the item in the group.
+		 */
+		IMAGEWIDGETS_API TOptional<TTuple<FName, int32>> GetItemGroupNameAndIndex(const FGuid& Guid) const;
+
+		/**
+		 * Retrieve the existing item for a given index within the default group.
+		 * @param Index Index of the item in the default group; should be at least 0 and less than @see NumItems(@see GetDefaultGroup()).
+		 * @returns The pointer to the item or an invalid pointer if the index is invalid.
 		 */
 		IMAGEWIDGETS_API TSharedPtr<const FImageCatalogItemData> GetItemAt(int32 Index) const;
 
 		/**
-		 * Retrieves the existing pinned item for a given index within the pinned item list.
-		 * @param Index Index of the pinned item; should be at least 0 and less than @see NumPinnedItems.
-		 * @return The pointer to the item or an invalid pointer if the index is invalid.
+		* Retrieve the existing item within a given group for a given index.
+		 * @param Index Index of the item in the given group; should be at least 0 and less than @see NumItems(Group).
+		 * @param Group Name of an existing group.
+		 * @returns The pointer to the item or an invalid pointer if the group does not exist or the index is invalid.
 		 */
-		IMAGEWIDGETS_API TSharedPtr<const FImageCatalogItemData> GetPinnedItemAt(int32 Index) const;
-		
+		IMAGEWIDGETS_API TSharedPtr<const FImageCatalogItemData> GetItemAt(int32 Index, FName Group) const;
+
 		/**
-		 * Returns the unique identifier of the item at the given index within the regular item list.
-		 * @param Index Index of the regular item; should be at least 0 and less than @see NumItems.
+		 * Retrieve the unique identifier of an existing item at the given index within the default group.
+		 * @param Index Index of the item in the default group; should be at least 0 and less than @see NumItems(@see GetDefaultGroup()).
 		 * @return Unique identifier of the item or no value if the index is invalid.
 		 */
 		IMAGEWIDGETS_API TOptional<FGuid> GetItemGuidAt(int32 Index) const;
 
 		/**
-		 * Returns the unique identifier of the item at the given index within the pinned item list.
-		 * @param Index Index of the pinned item; should be at least 0 and less than @see NumPinnedItems.
-		 * @return Unique identifier of the item or no value if the index is invalid.
+		 * Retrieve the unique identifier of an existing item at the given index within the given group.
+		 * @param Index Index of the item in the given group; should be at least 0 and less than @see NumItems(Group).
+		 * @param Group Name of an existing group.
+		 * @return Unique identifier of the item or no value if the group does not exist or the index is invalid.
 		 */
-		IMAGEWIDGETS_API TOptional<FGuid> GetPinnedItemGuidAt(int32 Index) const;
-		
-		/**
-		 * Returns the number of regular items in the catalog, i.e. items that are not pinned.
-		 */
-		IMAGEWIDGETS_API int32 NumItems() const;
+		IMAGEWIDGETS_API TOptional<FGuid> GetItemGuidAt(int32 Index, FName Group) const;
 
 		/**
-		 * Returns the number of pinned items in the catalog.
-		 */
-		IMAGEWIDGETS_API int32 NumPinnedItems() const;
-
-		/**
-		 * Returns the total number of items in the catalog, i.e. both regular items and pinned items.
-		 */
-		IMAGEWIDGETS_API int32 NumTotalItems() const;
-
-		/**
-		 * Check if an item is pinned.
-		 * @param Guid The unique identifier of the item.
-		 * @return True if the item exists and is pinned. 
-		 */
-		IMAGEWIDGETS_API bool ItemIsPinned(const FGuid& Guid) const;
-
-		/**
-		 * Pin an existing item.
-		 * @param Guid The unique identifier of the item.
-		 * @return True if the item exists and was not already pinned.
-		 */
-		IMAGEWIDGETS_API bool PinItem(const FGuid& Guid);
-
-		/**
-		 * Unpin an existing item.
-		 * @param Guid The unique identifier of the item.
-		 * @return True if the item exists and was not already unpinned.
-		 */
-		IMAGEWIDGETS_API bool UnpinItem(const FGuid& Guid);
-
-		/**
-		 * Select an existing regular or pinned item.
-		 * Nothing happens if no item with the given unique identifier exists in the catalog.
+		 * Select an existing item.
 		 * @param Guid The unique identifier of the existing item.
+		 * @returns False if an item with the given unique identifier does not exist, otherwise true.
 		 */
-		IMAGEWIDGETS_API void SelectItem(const FGuid& Guid);
+		IMAGEWIDGETS_API bool SelectItem(const FGuid& Guid);
 
 		/**
-		 * Update an existing regular or pinned item's data. The item data should contain the item's unique identifier.
-		 * Nothing happens if no item with the given unique identifier exists in the catalog.
-		 * @param Item Data for the item that is being updated, including the unique identifier of the existing item.
+		 * Deselect an existing item.
+		 * @param Guid The unique identifier of the existing item.
+		 * @returns False if an item with the given unique identifier does not exist, otherwise true.
 		 */
-		IMAGEWIDGETS_API void UpdateItem(const FImageCatalogItemData& Item);
+		IMAGEWIDGETS_API bool DeselectItem(const FGuid& Guid);
 
 		/**
-		 * Update the info text of an existing regular or pinned item.
-		 * Nothing happens if no item with the given unique identifier exists in the catalog.
+		 * Clear any selection in the catalog, i.e. across all groups.
+		 */
+		IMAGEWIDGETS_API void ClearSelection();
+
+		/**
+		 * Clear the selection for a given group; selections in other groups will be unchanged.
+		 * @param Group Name of an existing group.
+		 * @returns False if a group with the given name does not exist
+		 */
+		IMAGEWIDGETS_API bool ClearSelection(FName Group);
+
+		/**
+		 * Update an existing item's data. The item data needs to contain the item's unique identifier.
+		 * @param Item Data for the exiting item that should be updated, including its unique identifier.
+		 * @returns False if an item with the given unique identifier does not exist, otherwise true.
+		 */
+		IMAGEWIDGETS_API bool UpdateItem(const FImageCatalogItemData& Item);
+
+		/**
+		 * Update the info text of an existing item.
 		 * @param Guid The unique identifier of the existing item.
 		 * @param Info Text for the info label in the item's widget.
+		 * @returns False if an item with the given unique identifier does not exist, otherwise true.
 		 */
-		IMAGEWIDGETS_API void UpdateItemInfo(const FGuid& Guid, const FText& Info);
+		IMAGEWIDGETS_API bool UpdateItemInfo(const FGuid& Guid, const FText& Info);
 
 		/**
-		 * Update the info text of an existing regular or pinned item.
+		 * Update the info text of an existing item.
 		 * Nothing happens if no item with the given unique identifier exists in the catalog.
 		 * @param Guid The unique identifier of the existing item.
 		 * @param Name Text for the name label in the item's widget.
+		 * @returns False if an item with the given unique identifier does not exist, otherwise true.
 		 */
-		IMAGEWIDGETS_API void UpdateItemName(const FGuid& Guid, const FText& Name);
+		IMAGEWIDGETS_API bool UpdateItemName(const FGuid& Guid, const FText& Name);
 
 		/**
-		 * Update the thumbnail of an existing regular or pinned item.
+		 * Update the thumbnail of an existing item.
 		 * Nothing happens if no item with the given unique identifier exists in the catalog.
 		 * @param Guid The unique identifier of the existing item.
 		 * @param Thumbnail Brush used for the thumbnail in the item's widget.
+		 * @returns False if an item with the given unique identifier does not exist, otherwise true.
 		 */
-		IMAGEWIDGETS_API void UpdateItemThumbnail(const FGuid& Guid, const FSlateBrush& Thumbnail);
+		IMAGEWIDGETS_API bool UpdateItemThumbnail(const FGuid& Guid, const FSlateBrush& Thumbnail);
 
 		/**
-		 * Update the tooltip text of an existing regular or pinned item.
+		 * Update the tooltip text of an existing item.
 		 * Nothing happens if no item with the given unique identifier exists in the catalog.
 		 * @param Guid The unique identifier of the existing item.
 		 * @param ToolTip Text for the tooltip label in the item's widget.
+		 * @returns False if an item with the given unique identifier does not exist, otherwise true.
 		 */
-		IMAGEWIDGETS_API void UpdateItemToolTip(const FGuid& Guid, const FText& ToolTip);
+		IMAGEWIDGETS_API bool UpdateItemToolTip(const FGuid& Guid, const FText& ToolTip);
 
 	private:
-		/** Collects the selected items and triggers the callback to create the context menu. */
-		TSharedPtr<SWidget> OnContextMenuOpening() const;
-
-		/** Widget for listing all regular items. */
-		TSharedPtr<SListView<TSharedPtr<FImageCatalogItemData>>> ItemsListView;
-
-		/** Widget for listing all pinned items. */
-		TSharedPtr<SListView<TSharedPtr<FImageCatalogItemData>>> PinnedItemsListView;
-
-		/** Header text for regular items. */
-		TAttribute<FText> ItemsHeading;
-
-		/** Header text for pinned items. */
-		TAttribute<FText> PinnedItemsHeading;
-
-		/** Delegate that gets called when an item is selected. */
-		FOnItemSelected OnItemSelected;
-
-		/** Delegate that gets called to create a context menu for a set of selected items. */
-		FOnGetContextMenu OnGetContextMenu;
-
-		/** Internal item storage. */
-		TPimplPtr<class FItemModel> Model;
+		TPimplPtr<class FImpl> Impl;
 	};
 }

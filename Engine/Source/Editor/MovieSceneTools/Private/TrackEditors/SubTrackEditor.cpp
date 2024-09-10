@@ -17,10 +17,12 @@
 #include "Tracks/MovieSceneSubTrack.h"
 #include "Tracks/MovieSceneCinematicShotTrack.h"
 #include "IContentBrowserSingleton.h"
+#include "ISequencer.h"
 #include "ContentBrowserModule.h"
 #include "MVVM/Views/ViewUtilities.h"
 #include "MVVM/Extensions/ITrackExtension.h"
 #include "SequencerSectionPainter.h"
+#include "SequencerSettings.h"
 #include "TrackEditors/SubTrackEditorBase.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "MovieSceneMetaData.h"
@@ -882,8 +884,8 @@ TSharedRef<SWidget> FSubTrackEditor::HandleAddSubSequenceComboButtonGetMenuConte
 			FUIAction(FExecuteAction::CreateSP(this, &FSubTrackEditor::InsertSection, Track))
 		);
 
-
-		UMovieSceneSequence* Sequence = GetSequencer() ? GetSequencer()->GetFocusedMovieSceneSequence() : nullptr;
+		TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+		UMovieSceneSequence* Sequence = SequencerPtr.IsValid() ? SequencerPtr->GetFocusedMovieSceneSequence() : nullptr;
 		FAssetPickerConfig AssetPickerConfig;
 		{
 			AssetPickerConfig.OnAssetSelected = FOnAssetSelected::CreateRaw( this, &FSubTrackEditor::HandleAddSubSequenceComboButtonMenuEntryExecute, Track);
@@ -898,9 +900,12 @@ TSharedRef<SWidget> FSubTrackEditor::HandleAddSubSequenceComboButtonGetMenuConte
 
 		FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 
+		const float WidthOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+		const float HeightOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 		TSharedPtr<SBox> MenuEntry = SNew(SBox)
-			.WidthOverride(300.0f)
-			.HeightOverride(300.f)
+			.WidthOverride(WidthOverride)
+			.HeightOverride(HeightOverride)
 			[
 				ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig)
 			];

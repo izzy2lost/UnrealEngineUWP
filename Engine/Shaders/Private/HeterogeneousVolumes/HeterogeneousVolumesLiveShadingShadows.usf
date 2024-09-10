@@ -313,8 +313,8 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 	int PixelIndex = LinearIndex * MaxSampleCount;
 
 	// Generate a light ray
-	float2 ShadowUV = float2(PixelCoord + 0.5f) / float2(ShadowResolution);
-	//float2 ShadowUV = float2(PixelCoord + View.TemporalAAJitter.xy) / float2(ShadowResolution);
+	//float2 ShadowUV = float2(PixelCoord + 0.5f) / float2(ShadowResolution);
+	float2 ShadowUV = float2(PixelCoord + View.TemporalAAJitter.xy) / float2(ShadowResolution);
 
 	float WorldRayLength = GetMaxTraceDistance();
 #if USE_CAMERA_SCENE_DEPTH

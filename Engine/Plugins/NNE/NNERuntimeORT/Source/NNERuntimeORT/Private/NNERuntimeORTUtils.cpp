@@ -6,7 +6,7 @@
 #include "HAL/PlatformTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-#include "NNE.h"
+#include "NNERuntimeORT.h"
 #include "NNERuntimeORTEnv.h"
 
 #if PLATFORM_WINDOWS
@@ -214,14 +214,14 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 		Ort::ThrowOnError(Ort::GetApi().GetExecutionProviderApi("DML", ORT_API_VERSION, reinterpret_cast<const void**>(&DmlApi)));
 		if (!DmlApi)
 		{
-			UE_LOG(LogNNE, Error, TEXT("Ort DirectML Api not available!"));
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Ort DirectML Api not available!"));
 			return {};
 		}
 
 		OrtStatusPtr Status = DmlApi->SessionOptionsAppendExecutionProvider_DML(*SessionOptions.Get(), DeviceIndex);
 		if (Status)
 		{
-			UE_LOG(LogNNE, Error, TEXT("Failed to add DirectML execution provider to OnnxRuntime session options: %s"), ANSI_TO_TCHAR(Ort::GetApi().GetErrorMessage(Status)));
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to add DirectML execution provider to OnnxRuntime session options: %s"), ANSI_TO_TCHAR(Ort::GetApi().GetErrorMessage(Status)));
 			return {};
 		}
 
@@ -230,7 +230,7 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 
 	if (!GDynamicRHI)
 	{
-		UE_LOG(LogNNE, Error, TEXT("Error:No RHI found, could not initialize"));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("No RHI found, could not initialize"));
 		return {};
 	}
 
@@ -244,12 +244,12 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 	{
 		if (GDynamicRHI)
 		{
-			UE_LOG(LogNNE, Error, TEXT("Error:%s RHI is not supported by DirectML, please use D3D12."), GDynamicRHI->GetName());
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("%s RHI is not supported by DirectML, please use D3D12."), GDynamicRHI->GetName());
 			return {};
 		}
 		else
 		{
-			UE_LOG(LogNNE, Error, TEXT("Error:No RHI found"));
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("No RHI found"));
 			return {};
 		}
 	}
@@ -261,7 +261,7 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 
 	if (!D3D12Device)
 	{
-		UE_LOG(LogNNE, Error, TEXT("Failed to get D3D12 Device from RHI for device index %d"), DeviceIndex);
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to get D3D12 Device from RHI for device index %d"), DeviceIndex);
 		return {};
 	}
 
@@ -278,7 +278,7 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 
 	if (FAILED(Res) || !DmlDevice)
 	{
-		UE_LOG(LogNNE, Error, TEXT("Failed to create DirectML device, DMLCreateDevice error code :%x"), Res);
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to create DirectML device, DMLCreateDevice error code :%x"), Res);
 		return {};
 	}
 
@@ -289,7 +289,7 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 
 	if (!DmlApi)
 	{
-		UE_LOG(LogNNE, Error, TEXT("Ort DirectML Api not available!"));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Ort DirectML Api not available!"));
 		return {};
 	}
 
@@ -297,7 +297,7 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 
 	if (Status)
 	{
-		UE_LOG(LogNNE, Error, TEXT("Failed to add DirectML execution provider to OnnxRuntime session options: %s"), ANSI_TO_TCHAR(Ort::GetApi().GetErrorMessage(Status)));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to add DirectML execution provider to OnnxRuntime session options: %s"), ANSI_TO_TCHAR(Ort::GetApi().GetErrorMessage(Status)));
 		return {};
 	}
 
@@ -332,12 +332,12 @@ bool OptimizeModel(const TSharedRef<FEnvironment> &Environment, Ort::SessionOpti
 #if WITH_EDITOR
 	catch (const Ort::Exception& Exception)
 	{
-		UE_LOG(LogNNE, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("ORT Exception: %s"), UTF8_TO_TCHAR(Exception.what()));
 		return false;
 	}
 	catch (...)
 	{
-		UE_LOG(LogNNE, Error, TEXT("Unknown exception!"));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("ORT Exception: Unknown!"));
 		return false;
 	}
 #endif // WITH_EDITOR
@@ -443,6 +443,16 @@ TypeInfoORT TranslateTensorTypeORTToNNE(ONNXTensorElementDataType OrtDataType)
 	}
 
 	return TypeInfoORT{ DataType, ElementSize };
+}
+
+uint64 CalcRDGBufferSizeForDirectML(uint64 DataSize)
+{
+	uint64 MinimumImpliedSizeInBytes = DataSize;
+
+	// Round up to the nearest 4 bytes.
+	MinimumImpliedSizeInBytes = (MinimumImpliedSizeInBytes + 3) & ~3ull;
+
+	return MinimumImpliedSizeInBytes;
 }
 
 } // namespace UE::NNERuntimeORT::Private

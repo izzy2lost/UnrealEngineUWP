@@ -1871,6 +1871,268 @@ FVulkanTexture::FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateD
 	}
 }
 
+#if PLATFORM_ANDROID
+
+struct FVulkanAndroidTextureResources
+{
+	VkImage Image;
+	VkDeviceMemory DeviceMemory;
+	VkSamplerYcbcrConversion SamplerYcbcrConversion;
+	AHardwareBuffer* HardwareBuffer;
+};
+
+static void CleanupVulkanAndroidTextureResources(void* UserData)
+{
+	check(UserData);
+
+	FVulkanAndroidTextureResources* VulkanResources = static_cast<FVulkanAndroidTextureResources*>(UserData);
+
+	IVulkanDynamicRHI* RHI = GetIVulkanDynamicRHI();
+	VkDevice Device = RHI->RHIGetVkDevice();
+	const VkAllocationCallbacks* AllocationCallbacks = RHI->RHIGetVkAllocationCallbacks();
+
+	if (VulkanResources->SamplerYcbcrConversion != VK_NULL_HANDLE)
+	{
+		VulkanRHI::vkDestroySamplerYcbcrConversion(Device, VulkanResources->SamplerYcbcrConversion, AllocationCallbacks);
+	}
+
+	if (VulkanResources->DeviceMemory != VK_NULL_HANDLE)
+	{
+		VulkanRHI::vkFreeMemory(Device, VulkanResources->DeviceMemory, AllocationCallbacks);
+	}
+
+	if (VulkanResources->Image != VK_NULL_HANDLE)
+	{
+		VulkanRHI::vkDestroyImage(Device, VulkanResources->Image, AllocationCallbacks);
+	}
+
+	if (VulkanResources->HardwareBuffer)
+	{
+		AHardwareBuffer_release(VulkanResources->HardwareBuffer);
+	}
+
+	delete VulkanResources;
+}
+
+FVulkanTexture::FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateDesc& InCreateDesc, const AHardwareBuffer_Desc& HardwareBufferDesc, AHardwareBuffer* HardwareBuffer)
+	: FRHITexture(InCreateDesc)
+	, Device(&InDevice)
+	, ImageUsageFlags(0)
+	, StorageFormat(VK_FORMAT_UNDEFINED)
+	, ViewFormat(VK_FORMAT_UNDEFINED)
+	, MemProps(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+	, Tiling(VK_IMAGE_TILING_MAX_ENUM)	// Can be expanded to a per-platform definition
+	, FullAspectMask(0)
+	, PartialAspectMask(0)
+	, CpuReadbackBuffer(nullptr)
+	, DefaultLayout(VK_IMAGE_LAYOUT_UNDEFINED)
+	, ImageOwnerType(EImageOwnerType::ExternalOwner)
+{
+	VULKAN_TRACK_OBJECT_CREATE(FVulkanTexture, this);
+
+	check(HardwareBuffer);
+	AHardwareBuffer_acquire(HardwareBuffer);
+
+	IVulkanDynamicRHI* RHI = GetIVulkanDynamicRHI();
+	VkDevice VulkanDevice = InDevice.GetInstanceHandle();
+	const VkAllocationCallbacks* AllocationCallbacks = RHI->RHIGetVkAllocationCallbacks();
+
+	VkAndroidHardwareBufferFormatPropertiesANDROID HardwareBufferFormatProperties;
+	ZeroVulkanStruct(HardwareBufferFormatProperties, VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID);
+
+	VkAndroidHardwareBufferPropertiesANDROID HardwareBufferProperties;
+	ZeroVulkanStruct(HardwareBufferProperties, VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID);
+	HardwareBufferProperties.pNext = &HardwareBufferFormatProperties;
+
+	VERIFYVULKANRESULT(VulkanRHI::vkGetAndroidHardwareBufferPropertiesANDROID(VulkanDevice, HardwareBuffer, &HardwareBufferProperties));
+
+	VkExternalFormatANDROID ExternalFormat;
+	ZeroVulkanStruct(ExternalFormat, VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID);
+	ExternalFormat.externalFormat = HardwareBufferFormatProperties.externalFormat;
+
+	VkExternalMemoryImageCreateInfo ExternalMemoryImageCreateInfo;
+	ZeroVulkanStruct(ExternalMemoryImageCreateInfo, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO);
+	ExternalMemoryImageCreateInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
+	ExternalMemoryImageCreateInfo.pNext = &ExternalFormat;
+
+	VkImageCreateInfo ImageCreateInfo;
+	ZeroVulkanStruct(ImageCreateInfo, VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO);
+	ImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	ImageCreateInfo.format = VK_FORMAT_UNDEFINED;
+	ImageCreateInfo.extent.width = HardwareBufferDesc.width;
+	ImageCreateInfo.extent.height = HardwareBufferDesc.height;
+	ImageCreateInfo.extent.depth = 1;
+	ImageCreateInfo.mipLevels = 1;
+	ImageCreateInfo.arrayLayers = HardwareBufferDesc.layers;
+
+	ImageCreateInfo.flags = 0;
+	ImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+
+	ImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	ImageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+	ImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	ImageCreateInfo.queueFamilyIndexCount = 0;
+	ImageCreateInfo.pQueueFamilyIndices = nullptr;
+	ImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+	ImageCreateInfo.pNext = &ExternalMemoryImageCreateInfo;
+
+	VkImage VulkanImage;
+	VERIFYVULKANRESULT(VulkanRHI::vkCreateImage(VulkanDevice, &ImageCreateInfo, nullptr, &VulkanImage));
+
+	VkMemoryDedicatedAllocateInfo MemoryDedicatedAllocateInfo;
+	ZeroVulkanStruct(MemoryDedicatedAllocateInfo, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
+	MemoryDedicatedAllocateInfo.image = VulkanImage;
+	MemoryDedicatedAllocateInfo.buffer = VK_NULL_HANDLE;
+
+	VkImportAndroidHardwareBufferInfoANDROID ImportAndroidHardwareBufferInfo;
+	ZeroVulkanStruct(ImportAndroidHardwareBufferInfo, VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID);
+	ImportAndroidHardwareBufferInfo.buffer = HardwareBuffer;
+	ImportAndroidHardwareBufferInfo.pNext = &MemoryDedicatedAllocateInfo;
+
+	uint32 MemoryTypeBits = HardwareBufferProperties.memoryTypeBits;
+	check(MemoryTypeBits > 0); // No index available, this should never happen
+	uint32 MemoryTypeIndex = 0;
+	for (;(MemoryTypeBits & 1) != 1; ++MemoryTypeIndex)
+	{
+		MemoryTypeBits >>= 1;
+	}
+
+	VkMemoryAllocateInfo MemoryAllocateInfo;
+	ZeroVulkanStruct(MemoryAllocateInfo, VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
+	MemoryAllocateInfo.allocationSize = HardwareBufferProperties.allocationSize;
+	MemoryAllocateInfo.memoryTypeIndex = MemoryTypeIndex;
+	MemoryAllocateInfo.pNext = &ImportAndroidHardwareBufferInfo;
+
+	VkDeviceMemory VulkanDeviceMemory;
+	VERIFYVULKANRESULT(VulkanRHI::vkAllocateMemory(VulkanDevice, &MemoryAllocateInfo, AllocationCallbacks, &VulkanDeviceMemory));
+	VERIFYVULKANRESULT(VulkanRHI::vkBindImageMemory(VulkanDevice, VulkanImage, VulkanDeviceMemory, 0));
+
+	VkSamplerYcbcrConversionCreateInfo SamplerYcbcrConversionCreateInfo;
+	ZeroVulkanStruct(SamplerYcbcrConversionCreateInfo, VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO);
+	SamplerYcbcrConversionCreateInfo.format = VK_FORMAT_UNDEFINED;
+	SamplerYcbcrConversionCreateInfo.ycbcrModel = HardwareBufferFormatProperties.suggestedYcbcrModel;
+	SamplerYcbcrConversionCreateInfo.ycbcrRange = HardwareBufferFormatProperties.suggestedYcbcrRange;
+	SamplerYcbcrConversionCreateInfo.components = HardwareBufferFormatProperties.samplerYcbcrConversionComponents;
+	SamplerYcbcrConversionCreateInfo.xChromaOffset = HardwareBufferFormatProperties.suggestedXChromaOffset;
+	SamplerYcbcrConversionCreateInfo.yChromaOffset = HardwareBufferFormatProperties.suggestedYChromaOffset;
+	SamplerYcbcrConversionCreateInfo.chromaFilter = VK_FILTER_LINEAR;
+	SamplerYcbcrConversionCreateInfo.forceExplicitReconstruction = VK_FALSE;
+	SamplerYcbcrConversionCreateInfo.pNext = &ExternalFormat;
+
+	VkSamplerYcbcrConversion SamplerYcbcrConversion;
+	VERIFYVULKANRESULT(VulkanRHI::vkCreateSamplerYcbcrConversion(VulkanDevice, &SamplerYcbcrConversionCreateInfo, AllocationCallbacks, &SamplerYcbcrConversion));
+
+	FVulkanAndroidTextureResources* VulkanAndroidTextureResources = new FVulkanAndroidTextureResources{ VulkanImage, VulkanDeviceMemory, SamplerYcbcrConversion };
+	ExternalImageDeleteCallbackInfo =
+	{
+		VulkanAndroidTextureResources,
+		CleanupVulkanAndroidTextureResources
+	};
+
+	Image = VulkanImage;
+
+	// From here this is the same as the ctor that takes an VkImage, excepct for passing the SamplerYcbcrConversion to the view, 
+	// possibly some code could be shared.
+	{
+		StorageFormat = UEToVkTextureFormat(InCreateDesc.Format, false);
+
+		checkf(InCreateDesc.Format == PF_Unknown || StorageFormat != VK_FORMAT_UNDEFINED, TEXT("PixelFormat %d, is not supported for images"), (int32)InCreateDesc.Format);
+
+		ViewFormat = UEToVkTextureFormat(InCreateDesc.Format, EnumHasAllFlags(InCreateDesc.Flags, TexCreate_SRGB));
+		FullAspectMask = VulkanRHI::GetAspectMaskFromUEFormat(InCreateDesc.Format, true, true);
+		PartialAspectMask = VulkanRHI::GetAspectMaskFromUEFormat(InCreateDesc.Format, false, true);
+
+		// Purely informative patching, we know that "TexCreate_Presentable" uses optimal tiling
+		if (EnumHasAllFlags(InCreateDesc.Flags, TexCreate_Presentable) && GetTiling() == VK_IMAGE_TILING_MAX_ENUM)
+		{
+			Tiling = VK_IMAGE_TILING_OPTIMAL;
+		}
+
+		if (Image != VK_NULL_HANDLE)
+		{
+			ImageUsageFlags = GetUsageFlagsFromCreateFlags(InDevice, InCreateDesc.Flags);
+#if VULKAN_ENABLE_WRAP_LAYER
+			FWrapLayer::CreateImage(VK_SUCCESS, InDevice.GetInstanceHandle(), nullptr, &Image);
+#endif
+			VULKAN_SET_DEBUG_NAME(InDevice, VK_OBJECT_TYPE_IMAGE, Image, TEXT("%s:(FVulkanTexture*)0x%p"), InCreateDesc.DebugName ? InCreateDesc.DebugName : TEXT("?"), this);
+
+			const bool bRenderTarget = EnumHasAnyFlags(InCreateDesc.Flags, TexCreate_RenderTargetable | TexCreate_DepthStencilTargetable);
+			const VkImageLayout InitialLayout = GetInitialLayoutFromRHIAccess(InCreateDesc.InitialState, bRenderTarget && IsDepthOrStencilAspect(), SupportsSampling());
+			const bool bDoInitialClear = bRenderTarget;
+			const bool bOnlyAddToLayoutManager = !bRenderTarget;
+
+			DefaultLayout = InitialLayout;
+
+			FRHICommandList& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+			if (!IsInRenderingThread() || (RHICmdList.Bypass() || !IsRunningRHIInSeparateThread()))
+			{
+				FVulkanCommandListContext& Context = InDevice.GetImmediateContext();
+				if (bOnlyAddToLayoutManager)
+				{
+					FVulkanCmdBuffer* CmdBuffer = Context.GetCommandBufferManager()->GetActiveCmdBuffer();
+					CmdBuffer->GetLayoutManager().SetFullLayout(*this, InitialLayout, true);
+				}
+				else if (InitialLayout != VK_IMAGE_LAYOUT_UNDEFINED || bDoInitialClear)
+				{
+					SetInitialImageState(Context, InitialLayout, bDoInitialClear, InCreateDesc.ClearValue, false);
+				}
+			}
+			else
+			{
+				check(IsInRenderingThread());
+				ALLOC_COMMAND_CL(RHICmdList, FRHICommandSetInitialImageState)(this, InitialLayout, bOnlyAddToLayoutManager, bDoInitialClear, InCreateDesc.ClearValue, false);
+			}
+		}
+	}
+
+	const VkImageViewType ViewType = GetViewType();
+	const VkDescriptorType DescriptorType = SupportsSampling() ? VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE : VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	const bool bUseIdentitySwizzle = (DescriptorType != VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE) ||
+									(ViewFormat == VK_FORMAT_UNDEFINED); // External buffer textures also require identity swizzle
+
+	if (Image != VK_NULL_HANDLE)
+	{
+		DefaultView = (new FVulkanView(InDevice, DescriptorType))->InitAsTextureView(
+			Image
+			, ViewType
+			, GetFullAspectMask()
+			, InCreateDesc.Format
+			, ViewFormat
+			, 0
+			, FMath::Max(InCreateDesc.NumMips, (uint8)1u)
+			, 0
+			, GetNumberOfArrayLevels()
+			, bUseIdentitySwizzle
+			, 0
+			, SamplerYcbcrConversion
+		);
+	}
+
+	if (FullAspectMask == PartialAspectMask)
+	{
+		PartialView = DefaultView;
+	}
+	else
+	{
+		PartialView = (new FVulkanView(InDevice, DescriptorType))->InitAsTextureView(
+			Image
+			, ViewType
+			, PartialAspectMask
+			, InCreateDesc.Format
+			, ViewFormat
+			, 0
+			, FMath::Max(InCreateDesc.NumMips, (uint8)1u)
+			, 0
+			, GetNumberOfArrayLevels()
+			, false
+		);
+	}
+}
+
+#endif // PLATFORM_ANDROID
+
+
 FVulkanTexture::FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateDesc& InCreateDesc, FTextureRHIRef& SrcTextureRHI)
 	: FRHITexture(InCreateDesc)
 	, Device(&InDevice)

@@ -225,6 +225,16 @@ class WriterImpl : public TWriterBase, public virtual BaseImpl {
         void clearRBFPoses() override;
         void setRBFPoseName(std::uint16_t poseIndex, const char* name) override;
         void setRBFPoseScale(std::uint16_t poseIndex, float scale) override;
+        void clearRBFPoseControlNames() override;
+        void setRBFPoseControlName(std::uint16_t poseControlIndex, const char* name) override;
+        void setRBFPoseInputControlIndices(std::uint16_t poseIndex,
+                                           const std::uint16_t* controlIndices,
+                                           std::uint16_t controlIndexCount) override;
+        void setRBFPoseOutputControlIndices(std::uint16_t poseIndex,
+                                            const std::uint16_t* controlIndices,
+                                            std::uint16_t controlIndexCount) override;
+        void setRBFPoseOutputControlWeights(std::uint16_t poseIndex, const float* controlWeights,
+                                            std::uint16_t controlWeightCount) override;
         void clearRBFSolvers() override;
         void clearRBFSolverIndices() override;
         void setRBFSolverIndices(std::uint16_t index, const std::uint16_t* solverIndices, std::uint16_t count) override;
@@ -1002,6 +1012,7 @@ inline void WriterImpl<TWriterBase>::setNeuralNetworkLayerWeights(std::uint16_t 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::clearRBFPoses() {
     dna.rbfBehavior.poses.clear();
+    dna.rbfBehaviorExt.poses.clear();
 }
 
 template<class TWriterBase>
@@ -1014,6 +1025,40 @@ template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setRBFPoseScale(std::uint16_t poseIndex, float scale) {
     auto& pose = getAt(dna.rbfBehavior.poses, poseIndex);
     pose.scale = scale;
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::clearRBFPoseControlNames() {
+    dna.rbfBehaviorExt.poseControlNames.clear();
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFPoseControlName(std::uint16_t poseControlIndex, const char* name) {
+    setAt(dna.rbfBehaviorExt.poseControlNames, poseControlIndex, name);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFPoseInputControlIndices(std::uint16_t poseIndex,
+                                                                   const std::uint16_t* controlIndices,
+                                                                   std::uint16_t controlIndexCount) {
+    auto& pose = getAt(dna.rbfBehaviorExt.poses, poseIndex);
+    pose.inputControlIndices.assign(controlIndices, controlIndices + controlIndexCount);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFPoseOutputControlIndices(std::uint16_t poseIndex,
+                                                                    const std::uint16_t* controlIndices,
+                                                                    std::uint16_t controlIndexCount) {
+    auto& pose = getAt(dna.rbfBehaviorExt.poses, poseIndex);
+    pose.outputControlIndices.assign(controlIndices, controlIndices + controlIndexCount);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFPoseOutputControlWeights(std::uint16_t poseIndex,
+                                                                    const float* controlWeights,
+                                                                    std::uint16_t controlWeightCount) {
+    auto& pose = getAt(dna.rbfBehaviorExt.poses, poseIndex);
+    pose.outputControlWeights.assign(controlWeights, controlWeights + controlWeightCount);
 }
 
 template<class TWriterBase>

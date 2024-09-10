@@ -3,15 +3,20 @@
 #include "MovieSceneLiveLinkTrackRecorder.h"
 
 #include "Channels/MovieSceneChannelTraits.h"
-#include "TakeRecorderSettings.h"
 #include "Features/IModularFeatures.h"
 #include "HAL/IConsoleManager.h"
 #include "ILiveLinkClient.h"
+#include "LevelSequence.h"
 #include "LiveLinkRole.h"
 #include "LiveLinkSequencerPrivate.h"
 #include "Misc/App.h"
-#include "MovieSceneFolder.h"
+#include "Misc/QualifiedFrameTime.h"
 #include "MovieScene/MovieSceneLiveLinkTrack.h"
+#include "MovieSceneFolder.h"
+#include "MovieSceneTakeTrack.h"
+#include "TakeRecorderSettings.h"
+#include "TakeRecorderSourceHelpers.h"
+
 #include "Trace/Trace.inl"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneLiveLinkTrackRecorder)
@@ -43,6 +48,8 @@ void UMovieSceneLiveLinkTrackRecorder::CreateTrack(UMovieScene* InMovieScene, co
 	bSaveSubjectSettings = bInSaveSubjectSettings;
 	bUseSourceTimecode = bInAlwaysUseTimecode;
 	bDiscardSamplesBeforeStart = bInDiscardSamplesBeforeStart;
+	bRecordTimecode = GetDefault<UTakeRecorderProjectSettings>()->Settings.bRecordTimecode;
+
 	CreateTracks();
 }
 
@@ -69,6 +76,7 @@ void UMovieSceneLiveLinkTrackRecorder::CreateTracks()
 	MovieSceneSection.Reset();
 
 	FramesToProcess.Empty();
+	RecordedTimes.Empty();
 
 	IModularFeatures& ModularFeatures = IModularFeatures::Get();
 	ILiveLinkClient* LiveLinkClient = &ModularFeatures.GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
@@ -216,6 +224,23 @@ void UMovieSceneLiveLinkTrackRecorder::FinalizeTrackImpl()
 	}
 }
 
+void UMovieSceneLiveLinkTrackRecorder::ProcessRecordedTimes(ULevelSequence* InLevelSequence)
+{
+	if (!MovieSceneSection.IsValid() || !bRecordTimecode)
+	{
+		return;
+	}
+	check(InLevelSequence);
+
+	TOptional<TRange<FFrameNumber>> FrameRange = MovieSceneSection->GetRange();
+	UMovieSceneTakeTrack* TakeTrack = Cast<UMovieSceneTakeTrack>(MovieScene->FindTrack(UMovieSceneTakeTrack::StaticClass()));
+	if (!TakeTrack)
+	{
+		TakeTrack = Cast<UMovieSceneTakeTrack>(MovieScene->AddTrack(UMovieSceneTakeTrack::StaticClass()));
+	}
+	TakeRecorderSourceHelpers::ProcessRecordedTimes(InLevelSequence, TakeTrack, FrameRange, RecordedTimes);
+}
+
 void UMovieSceneLiveLinkTrackRecorder::RecordSampleImpl(const FQualifiedFrameTime& CurrentTime)
 {
 	FTakeRecorderParameters Parameters;
@@ -247,10 +272,10 @@ void UMovieSceneLiveLinkTrackRecorder::RecordSampleImpl(const FQualifiedFrameTim
 			for (const FLiveLinkFrameDataStruct& Frame : FramesToProcess)
 			{
 				FFrameNumber FrameNumber;
-
+				FQualifiedFrameTime LiveLinkFrameTime;
 				if (bSyncedOrForced && CurrentFrameTime.IsSet())
 				{
-					FQualifiedFrameTime LiveLinkFrameTime = Frame.GetBaseData()->MetaData.SceneTime;
+					LiveLinkFrameTime = bUseSourceTimecode ? Frame.GetBaseData()->MetaData.SceneTime : *CurrentFrameTime;
 
 					if (!Parameters.Project.bStartAtCurrentTimecode)
 					{
@@ -276,6 +301,7 @@ void UMovieSceneLiveLinkTrackRecorder::RecordSampleImpl(const FQualifiedFrameTim
 					FrameNumber = (Second * TickResolution).FloorToFrame();
 					FrameNumber += RecordStartFrame;
 
+					LiveLinkFrameTime = CurrentFrameTime ? *CurrentFrameTime : FQualifiedFrameTime(FrameNumber, CurrentFrameTime.IsSet() ? CurrentFrameTime->Rate : DisplayRate);
 					UE_LOG(LogLiveLinkSequencer, VeryVerbose, TEXT("LiveLinkFrameTime (Unsynced): %f, for subject '%s'."), Frame.GetBaseData()->WorldTime.GetOffsettedTime(), *(SubjectName.ToString()));
 				}
 
@@ -283,6 +309,9 @@ void UMovieSceneLiveLinkTrackRecorder::RecordSampleImpl(const FQualifiedFrameTim
 				if (FrameNumber >= MovieSceneSection->GetInclusiveStartFrame() || !bDiscardSamplesBeforeStart)
 				{
 					MovieSceneSection->RecordFrame(FrameNumber, Frame);
+					RecordedTimes.Add(TPair<FQualifiedFrameTime, FQualifiedFrameTime>(
+						FQualifiedFrameTime(FrameNumber, TickResolution),
+						LiveLinkFrameTime));
 				}
 				else
 				{

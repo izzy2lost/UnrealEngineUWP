@@ -294,6 +294,10 @@ const FText UCheckBox::GetPaletteCategory()
 
 #endif
 
+FWidgetStateBitfield UWidgetCheckedStateRegistration::Unchecked;
+FWidgetStateBitfield UWidgetCheckedStateRegistration::Checked;
+FWidgetStateBitfield UWidgetCheckedStateRegistration::Undetermined;
+
 FName UWidgetCheckedStateRegistration::GetStateName() const
 {
 	return StateName;

@@ -2599,6 +2599,9 @@ public:
 	/** Returns true if this actor is allowed to be attached from the given actor */
 	ENGINE_API virtual bool EditorCanAttachFrom(const AActor* InChild, FText& OutReason) const;
 
+	/** Returns true if this actor is allowed to be detached from the given actor */
+	ENGINE_API virtual bool EditorCanDetachFrom(const AActor* InParent, FText& OutReason) const { return true; }
+
 	/** Returns the actor attachement parent that should be used in editor */
 	ENGINE_API virtual AActor* GetSceneOutlinerParent() const;
 

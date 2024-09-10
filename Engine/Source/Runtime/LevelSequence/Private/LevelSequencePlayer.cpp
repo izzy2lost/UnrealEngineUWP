@@ -96,8 +96,6 @@ void ULevelSequencePlayer::Initialize(ULevelSequence* InLevelSequence, ULevel* I
 	Level = InLevel;
 	CameraSettings = InCameraSettings;
 
-	SpawnRegister = MakeShareable(new FLevelSequenceSpawnRegister);
-
 	UMovieSceneSequencePlayer::Initialize(InLevelSequence);
 
 	// The parent player class' root evaluation template may or may not have re-initialized itself.
@@ -268,6 +266,8 @@ void ULevelSequencePlayer::GetEventContexts(UWorld& InWorld, TArray<UObject*>& O
 void ULevelSequencePlayer::InitializeRootInstance(TSharedRef<UE::MovieScene::FSharedPlaybackState> NewSharedPlaybackState)
 {
 	using namespace UE::MovieScene;
+
+	SpawnRegister = MakeShareable(new FLevelSequenceSpawnRegister);
 
 	Super::InitializeRootInstance(NewSharedPlaybackState);
 

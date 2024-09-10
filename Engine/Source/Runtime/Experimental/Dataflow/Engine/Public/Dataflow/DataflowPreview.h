@@ -28,5 +28,5 @@ public :
 
 	/** Boolean to check if the caching will be done on an async thread (if yes no GT dependency) */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Caching")
-	bool bBackgroundTask = true;
+	bool bAsyncCaching = true;
 };

@@ -36,9 +36,13 @@ enum class EGPUSceneGPUWritePass : int8
 struct FGPUSceneWriteDelegateParams
 {
 	/** The ID of the primitive that writes must be limited to. */
-	uint32 PersistentPrimitiveId = INDEX_NONE;
+	uint32 PersistentPrimitiveId = (uint32)INDEX_NONE;
 	/** The ID of the first instance scene data of the primitive */
-	uint32 InstanceSceneDataOffset = INDEX_NONE;
+	uint32 InstanceSceneDataOffset = (uint32)INDEX_NONE;
+	/** Number of custom data floats in the instance payload data. */
+	uint32 NumCustomDataFloats = (uint32)INDEX_NONE;
+	/** Packed instance scene data flags suitable for writing to instance scene data. */
+	uint32 PackedInstanceSceneDataFlags = 0u;
 	/** The GPU Scene write pass that is currently executing. (NOTE: A value of None specifies that it is occurring on upload) */
 	EGPUSceneGPUWritePass GPUWritePass = EGPUSceneGPUWritePass::None;
 	/** The view for which this primitive belongs (for dynamic primitives) */

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Filters/SequencerFilterBarConfig.h"
+#include "Misc/SequencerThumbnailCaptureSettings.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "UObject/Package.h"
@@ -481,6 +482,21 @@ public:
 	/** Sets the saved view density */
 	void SetViewDensity(FName InViewDensity);
 
+	/** Gets the asset browser width */
+	float GetAssetBrowserWidth() const { return AssetBrowserWidth; }
+	/** Sets the asset browser width */
+	void SetAssetBrowserWidth(float InAssetBrowserWidth);
+
+	/** Gets the asset browser height */
+	float GetAssetBrowserHeight() const { return AssetBrowserHeight; }
+	/** Sets the asset browser width */
+	void SetAssetBrowserHeight(float InAssetBrowserHeight);
+
+	/** Gets whether the given track filter is enabled */
+	bool IsTrackFilterEnabled(const FString& TrackFilter) const;
+	/** Sets whether the track filter should be enabled/disabled */
+	void SetTrackFilterEnabled(const FString& TrackFilter, bool bEnabled);
+
 	/** Get outliner column visibility in display order */
 	TArray<FColumnVisibilitySetting> GetOutlinerColumnSettings() const { return ColumnVisibilitySettings; }
 	/** Sets the visibility of outliner columns in display order */
@@ -512,6 +528,11 @@ public:
 
 	float GetLastFilterBarSizeCoefficient() const;
 	void SetLastFilterBarSizeCoefficient(const float bInSizeCoefficient);
+	
+	/** Gets the settings that determine how the asset thumbnail is captured when the sequence is saved. */
+	const FSequencerThumbnailCaptureSettings& GetThumbnailCaptureSettings() const { return ThumbnailCaptureSettings; }
+	/** Sets how the asset thumbnail is captured when the sequence is saved.  */
+	void SetThumbnailCaptureSettings(const FSequencerThumbnailCaptureSettings& InNewValue);
 
 protected:
 
@@ -784,6 +805,18 @@ protected:
 	UPROPERTY(config, EditAnywhere, Category = General)
 	FName ViewDensity;
 
+	/** The width for the asset browsers in Sequencer */
+	UPROPERTY(config, EditAnywhere, Category = General)
+	float AssetBrowserWidth;
+
+	/** The height for the asset browsers in Sequencer */
+	UPROPERTY(config, EditAnywhere, Category = General)
+	float AssetBrowserHeight;
+
+	/** The track filters that are enabled */
+	UPROPERTY(config, EditAnywhere, Category = General)
+	TArray<FString> TrackFilters;
+
 	/** List of all columns and their visibility, in the order to be displayed in the outliner view */
 	UPROPERTY(config, EditAnywhere, Category = General)
 	TArray<FColumnVisibilitySetting> ColumnVisibilitySettings;
@@ -819,6 +852,13 @@ protected:
 	/** Last saved size of the filter bar to restore after closed */
 	UPROPERTY(config)
 	float LastFilterBarSizeCoefficient;
+
+	/** Controls how the thumbnail is captured when the sequence is saved. */
+	UPROPERTY(config, EditAnywhere, Category = General, meta = (EditCondition="ShouldShowThumbnailCaptureSettings()", EditConditionHides))
+	FSequencerThumbnailCaptureSettings ThumbnailCaptureSettings;
+
+	UFUNCTION()
+	static bool ShouldShowThumbnailCaptureSettings();
 
 	FOnEvaluateSubSequencesInIsolationChanged OnEvaluateSubSequencesInIsolationChangedEvent;
 	FOnShowSelectedNodesOnlyChanged OnShowSelectedNodesOnlyChangedEvent;

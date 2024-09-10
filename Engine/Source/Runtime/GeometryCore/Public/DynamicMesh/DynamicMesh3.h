@@ -116,6 +116,7 @@ public:
 	using FEdgeSplitInfo    = DynamicMeshInfo::FEdgeSplitInfo;
 	using FEdgeCollapseInfo = DynamicMeshInfo::FEdgeCollapseInfo;
 	using FMergeEdgesInfo   = DynamicMeshInfo::FMergeEdgesInfo;
+	using FMergeVerticesInfo = DynamicMeshInfo::FMergeVerticesInfo;
 	using FPokeTriangleInfo = DynamicMeshInfo::FPokeTriangleInfo;
 	using FVertexSplitInfo  = DynamicMeshInfo::FVertexSplitInfo;
 
@@ -1309,7 +1310,7 @@ public:
 	 */
 	GEOMETRYCORE_API virtual bool SplitVertexWouldLeaveIsolated(int VertexID, const TArrayView<const int>& TrianglesToUpdate);
 
-	struct FEdgeCollapseOptions
+	struct FCollapseEdgeOptions
 	{
 		/**
 		 * When false, collapse is disallowed if the edge is the boundary of a single triangle hole,
@@ -1324,15 +1325,15 @@ public:
 		 *  connected to boundary edges. In some circumstances this could create a bowtie. In other
 		 *  cases, it could disconnected parts of a mesh that were connected by a bowtie.
 		 */
-		bool bAllowCollapsingInternalEdgeWithExternalVertices = false;
+		bool bAllowCollapsingInternalEdgeWithBoundaryVertices = false;
 		/**
 		 * When false, collapse is disallowed if we are collapsing the side of a tetrahedron. Note
 		 *  that a base edge of an open-base tetrahedron could be collapsed even if bAllowTetrahedronCollapse
-		 *  is false if bAllowBorderVerticesWhenInternal is true.
+		 *  is false if bAllowHoleCollapse is true.
 		 */
 		bool bAllowTetrahedronCollapse = false;
 	};
-	GEOMETRYCORE_API virtual EMeshResult CanCollapseEdge(int vKeep, int vRemove, const FEdgeCollapseOptions& Options) const;
+	GEOMETRYCORE_API virtual EMeshResult CanCollapseEdge(int vKeep, int vRemove, const FCollapseEdgeOptions& Options) const;
 
 	/**
 	 * Tests whether collapsing the specified edge using the CollapseEdge function would succeed.
@@ -1354,13 +1355,13 @@ public:
 	 * @return Ok on success, or enum value indicates why operation cannot be applied. Mesh remains unmodified on error.
 	 */
 	GEOMETRYCORE_API virtual EMeshResult CollapseEdge(int KeepVertID, int RemoveVertID, double EdgeParameterT, 
-		const FEdgeCollapseOptions& Options, FEdgeCollapseInfo& CollapseInfo);
+		const FCollapseEdgeOptions& Options, FEdgeCollapseInfo& CollapseInfo);
 
 	/**
 	 * Collapse the edge between the two vertices, if topologically possible. Equivalent to
 	 *  using the other overload with 0 for EdgeParameterT.
 	 */
-	virtual EMeshResult CollapseEdge(int KeepVertID, int RemoveVertID, const FEdgeCollapseOptions& Options, FEdgeCollapseInfo& CollapseInfo)
+	virtual EMeshResult CollapseEdge(int KeepVertID, int RemoveVertID, const FCollapseEdgeOptions& Options, FEdgeCollapseInfo& CollapseInfo)
 	{
 		return CollapseEdge(KeepVertID, RemoveVertID, 0, Options, CollapseInfo);
 	}
@@ -1396,12 +1397,62 @@ public:
 	 *
 	 * @param KeepEdgeID index of the edge that should be kept
 	 * @param DiscardEdgeID index of the edge that should be removed
+	 * @param InterpolationT each kept vertex is moved to Lerp(KeptPos, RemovePos, InterpolationT)
 	 * @param MergeInfo returned information about new and modified mesh elements
-	 * @param CheckValidOrientation perform edge consistency orientation checks before merging.
+	 * @param CheckValidOrientation perform edge consistency orientation checks before merging. Specifically,
+	 *  check that each discarded vertex is closer to the vertex it is being collapsed to than the other
+	 *  kept vertex (where the pairing is determined by the adjoining triangle winding). 
 	 * @return Ok on success, or enum value indicates why operation cannot be applied. Mesh remains unmodified on error.
+	 */
+	GEOMETRYCORE_API virtual EMeshResult MergeEdges(int KeepEdgeID, int DiscardEdgeID, double InterpolationT, FMergeEdgesInfo& MergeInfo, bool bCheckValidOrientation = true);
+	
+	/**
+	 * Weld one edge to the other. Equivalent to calling the other overload with 0 for InterpolationT
+	 *  (i.e. the vertices stay at unmodified kept vertex positions).
 	 */
 	GEOMETRYCORE_API virtual EMeshResult MergeEdges(int KeepEdgeID, int DiscardEdgeID, FMergeEdgesInfo& MergeInfo, bool bCheckValidOrientation=true);
 
+	struct FMergeVerticesOptions
+	{
+		// If false, we disallow vertex merges that attempt to merge one non-boundary vert to a
+		//  a non-adjacent vert, even if this is possible through a bowtie. Note that merging
+		//  boundary verts to create a bowtie on the boundary is still allowed, as this is a 
+		//  common intermediate step when welding edges. 
+		bool bAllowNonBoundaryBowtieCreation = false;
+	};
+
+	/**
+	 * Weld DiscardVid to KeepVid, if topologically possible and options allow. If the vertices are connected 
+	 *  by an existing edge, this resolves as a collapse of that edge, and therefore calls OnCollapseEdge in
+	 *  overlays. If not, but the two vertices share a vertex neighbor, this resolves as a weld of the intervening 
+	 *  edges (failing if the edges are not boundary edges, since that would create non-manifold edge), and therefore
+	 *  calls OnMergeEdges in the overlays. Otherwise, the merge resolves as bowtie creation, and calls OnMergeVertices
+	 *  in the overlays.
+	 * @param KeepVid vertex ID of the kept vertex
+	 * @param DiscardVid vertex ID of the vertex whose triangles are reattached to the kept vertex
+	 * @param InterpolationT the kept vertex is moved to Lerp(KeptPos, RemovePos, InterpolationT)
+	 * @param Options set the options for the merge
+	 * @param MergeInfo returned information about new and modified mesh elements
+	 * @return Ok on success, or enum value indicates why operation cannot be applied. Mesh remains unmodified on error.
+	 */
+	GEOMETRYCORE_API virtual EMeshResult MergeVertices(int KeepVid, int DiscardVid, double InterpolationT, 
+		const FMergeVerticesOptions& Options, FMergeVerticesInfo& MergeInfo);
+
+	/**
+	 * Weld DiscardVid to KeepVid. Equivalent to calling the options overload with default options.
+	 */
+	GEOMETRYCORE_API virtual EMeshResult MergeVertices(int KeepVid, int DiscardVid, double InterpolationT, FMergeVerticesInfo& MergeInfo)
+	{
+		return MergeVertices(KeepVid, DiscardVid, InterpolationT, FMergeVerticesOptions(), MergeInfo);
+	}
+
+	/**
+	 * Weld DiscardVid to KeepVid. Equivalent to calling the options overload with default options and 0 for InterpolationT.
+	 */
+	GEOMETRYCORE_API virtual EMeshResult MergeVertices(int KeepVid, int DiscardVid, FMergeVerticesInfo& MergeInfo)
+	{
+		return MergeVertices(KeepVid, DiscardVid, 0, FMergeVerticesOptions(), MergeInfo);
+	}
 
 	/**
 	 * Insert a new vertex inside a triangle, ie do a 1 to 3 triangle split
@@ -1723,7 +1774,7 @@ protected:
 	virtual EMeshResult CanCollapseEdgeInternal(int vKeep, int vRemove, double collapse_t, FEdgeCollapseInfo* OutCollapseInfo) const;
 private:
 	virtual EMeshResult CanCollapseEdgeInternal(int vKeep, int vRemove, double collapse_t,
-		const FEdgeCollapseOptions& Options, FEdgeCollapseInfo* OutCollapseInfo) const;
+		const FCollapseEdgeOptions& Options, FEdgeCollapseInfo* OutCollapseInfo) const;
 };
 
 

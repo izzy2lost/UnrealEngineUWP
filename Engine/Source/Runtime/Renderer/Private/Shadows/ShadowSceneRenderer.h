@@ -104,6 +104,12 @@ public:
 	UE::Renderer::Private::IShadowInvalidatingInstances *GetInvalidatingInstancesInterface(const FSceneView *SceneView);
 
 private:
+	struct FViewData
+	{
+		float ClipToViewSizeScale = 0.0f;
+		float ClipToViewSizeBias = 0.0f;
+	};
+
 	UE::Tasks::FTask RendererSetupTask;
 
 	FVirtualShadowMapProjectionShaderData GetLocalLightProjectionShaderData(float ResolutionLODBiasLocal, const FProjectedShadowInfo* ProjectedShadowInfo, int32 MapIndex) const;
@@ -138,4 +144,5 @@ private:
 	FNaniteVisibilityQuery* NaniteVisibilityQuery = nullptr;
 	Nanite::FPackedViewArray* VirtualShadowMapViews = nullptr;
 	FSceneInstanceCullingQuery *SceneInstanceCullingQuery = nullptr;
+	TArray<FViewData, SceneRenderingAllocator> ViewDatas;
 };

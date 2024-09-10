@@ -5904,6 +5904,11 @@ FDelegateHandle UWorld::AddOnActorDestroyedHandler(const FOnActorDestroyed::FDel
 
 void UWorld::RemoveOnActorDestroyededHandler(FDelegateHandle InHandle) const
 {
+	RemoveOnActorDestroyedHandler(InHandle);
+}
+
+void UWorld::RemoveOnActorDestroyedHandler(FDelegateHandle InHandle) const
+{
 	OnActorDestroyed.Remove(InHandle);
 }
 

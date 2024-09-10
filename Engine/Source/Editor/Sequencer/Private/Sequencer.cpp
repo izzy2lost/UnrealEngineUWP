@@ -164,6 +164,7 @@
 #include "Editor/TransBuffer.h"
 #include "Sidebar/SidebarDrawerConfig.h"
 #include "Widgets/Sidebar/SequencerSelectionDrawer.h"
+#include "Misc/Thumbnail/ThumbnailCaptureUtils.h"
 
 #include "EngineModule.h"
 #include "IViewportSelectableObject.h"
@@ -722,6 +723,7 @@ void FSequencer::InitRootSequenceInstance()
 	if (ensure(SharedPlaybackState.IsValid()))
 	{
 		SharedPlaybackState->SetOrAddCapabilityRaw<FCameraCutPlaybackCapability>((FCameraCutPlaybackCapability*)this);
+		SharedPlaybackState->SetOrAddCapabilityRaw<FCameraCutViewTargetCacheCapability>((FCameraCutViewTargetCacheCapability*)this);
 	}
 }
 
@@ -2110,6 +2112,13 @@ void FSequencer::TransformSelectedKeysAndSections(FFrameTime InDeltaTime, float 
 				{
 					continue;
 				}
+
+				// Skip any locked sections
+				if (ChannelInfo.OwningSection->IsLocked())
+				{
+					continue;
+				}
+
 				TPair<TArray<FFrameNumber>, TArray<FKeyHandle>>& KeyTimesScratch = ChannelsAndKeyTimes.FindOrAdd(Channel);
 				const int32 NumKeys = ChannelInfo.KeyHandles.Num();
 				KeyTimesScratch.Key.Reset(NumKeys);
@@ -2167,6 +2176,12 @@ void FSequencer::TransformSelectedKeysAndSections(FFrameTime InDeltaTime, float 
 		// Dilate the sections
 		for (UMovieSceneSection* Section : SelectedSections)
 		{
+			// Skip any locked sections
+			if (Section->IsLocked())
+			{
+				continue;
+			}
+
 			TRangeBound<FFrameNumber> LowerBound = Section->GetRange().GetLowerBound();
 			TRangeBound<FFrameNumber> UpperBound = Section->GetRange().GetUpperBound();
 
@@ -5989,52 +6004,11 @@ bool FSequencer::GetCurveEditorIsVisible() const
 
 void FSequencer::SaveCurrentMovieScene()
 {
-	// Capture thumbnail
-	// Convert UObject* array to FAssetData array
-	TArray<FAssetData> AssetDataList;
-	AssetDataList.Add(FAssetData(GetCurrentAsset()));
-
-	FViewport* Viewport = GEditor->GetActiveViewport();
-
-	// If there's no active viewport, find any other viewport that allows cinematic preview.
-	if (Viewport == nullptr)
-	{
-		for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
-		{
-			if ((LevelVC == nullptr) || !LevelVC->AllowsCinematicControl())
-			{
-				continue;
-			}
-
-			Viewport = LevelVC->Viewport;
-		}
-	}
-
-	if (GCurrentLevelEditingViewportClient && Viewport)
-	{
-		bool bIsInGameView = GCurrentLevelEditingViewportClient->IsInGameView();
-		GCurrentLevelEditingViewportClient->SetGameView(true);
-
-		//have to re-render the requested viewport
-		FLevelEditorViewportClient* OldViewportClient = GCurrentLevelEditingViewportClient;
-		//remove selection box around client during render
-		GCurrentLevelEditingViewportClient = NULL;
-
-		Viewport->Draw();
-
-		IContentBrowserSingleton& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
-		ContentBrowser.CaptureThumbnailFromViewport(Viewport, AssetDataList);
-
-		//redraw viewport to have the yellow highlight again
-		GCurrentLevelEditingViewportClient = OldViewportClient;
-		GCurrentLevelEditingViewportClient->SetGameView(bIsInGameView);
-		//if turn off game view now need to make sure widget/gizmo is on
-		if (bIsInGameView == false)
-		{
-			GCurrentLevelEditingViewportClient->ShowWidget(true);
-		}
-		Viewport->Draw();
-	}
+	UE::Sequencer::CaptureThumbnailForAssetBlocking(
+		*GetCurrentAsset(),
+		*this,
+		Settings->GetThumbnailCaptureSettings()
+		);
 
 	OnPreSaveEvent.Broadcast(*this);
 
@@ -12106,6 +12080,7 @@ float FSequencer::GetCameraBlendPlayRate()
 
 void FSequencer::OnCameraCutUpdated(const UE::MovieScene::FOnCameraCutUpdatedParams& Params)
 {
+	LastViewTargetCamera = Params.ViewTargetCamera;
 	OnCameraCutEvent.Broadcast(Params.ViewTarget, Params.bIsJumpCut);
 }
 

@@ -316,17 +316,17 @@ namespace PerfReportTool
 			if (summaryTablesElement != null)
 			{
 				// Read the substitutions
-				Dictionary<string, string> substitutionsDict = null;
-				string[] substitutions = summaryTableXmlSubstStr.Split(',');
+				Dictionary<string, List<string>> substitutionsDict = null;
+				string[] substitutions = summaryTableXmlSubstStr.Split(';');
 				if (substitutions.Length>0)
 				{
-					substitutionsDict = new Dictionary<string, string>();
+					substitutionsDict = new Dictionary<string, List<string>>();
 					foreach (string substStr in substitutions)
 					{
 						string [] pair = substStr.Split('=');
 						if (pair.Length == 2)
 						{
-							substitutionsDict[pair[0]] = pair[1];
+							substitutionsDict[pair[0].ToLowerInvariant()] = pair[1].Split(",").ToList();
 						}
 					}
 				}

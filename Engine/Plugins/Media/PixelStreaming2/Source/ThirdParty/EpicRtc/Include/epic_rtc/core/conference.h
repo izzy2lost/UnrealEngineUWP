@@ -58,6 +58,12 @@ public:
      * (e.g. there is no call to EpicRtcAudioTrackInterface::PopFrame) this must be called every 10ms or less.
      */
     virtual EMRTC_API void TickAudio() = 0;
+
+    /**
+     * Process stats tasks (gathering and events)
+     * @return true if any tasks were processed, otherwise false
+     */
+    virtual EMRTC_API EpicRtcBool TickStats() = 0;
 };
 
 #pragma pack(pop)

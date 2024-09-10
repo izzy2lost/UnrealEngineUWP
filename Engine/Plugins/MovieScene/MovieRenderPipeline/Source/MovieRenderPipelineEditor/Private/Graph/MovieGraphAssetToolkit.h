@@ -53,6 +53,9 @@ private:
 	TSharedRef<SDockTab> SpawnTab_RenderGraphDetails(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_RenderGraphActiveRenderSettings(const FSpawnTabArgs& Args);
 
+	/** Register sections used by the graph's details panel. */
+	void RegisterDetailsViewSections();
+
 	/** Register commands used by the editor. */
 	void BindGraphCommands();
 

@@ -673,11 +673,11 @@ void FPCGSpawnActorElement::CollapseIntoTargetActor(FPCGSubgraphContext* Context
 	const UPCGSpawnActorSettings* Settings = Context->GetInputSettings<UPCGSpawnActorSettings>();
 	check(Settings);
 
-	TMap<FPCGISMCBuilderParameters, TArray<FTransform>> MeshDescriptorTransforms;
+	TMap<FPCGISMComponentBuilderParams, TArray<FTransform>> MeshDescriptorTransforms;
 
 	AActor::ForEachComponentOfActorClassDefault<UStaticMeshComponent>(TemplateActorClass, [&MeshDescriptorTransforms](const UStaticMeshComponent* StaticMeshComponent)
 	{
-		FPCGISMCBuilderParameters Params;
+		FPCGISMComponentBuilderParams Params;
 		Params.Descriptor.InitFrom(StaticMeshComponent);
 		// TODO: No custom data float support?
 
@@ -705,9 +705,9 @@ void FPCGSpawnActorElement::CollapseIntoTargetActor(FPCGSubgraphContext* Context
 		return true;
 	});
 
-	for (const TPair<FPCGISMCBuilderParameters, TArray<FTransform>>& ISMCBuilderTransforms : MeshDescriptorTransforms)
+	for (const TPair<FPCGISMComponentBuilderParams, TArray<FTransform>>& ISMCBuilderTransforms : MeshDescriptorTransforms)
 	{
-		const FPCGISMCBuilderParameters& ISMCParams = ISMCBuilderTransforms.Key;
+		const FPCGISMComponentBuilderParams& ISMCParams = ISMCBuilderTransforms.Key;
 
 		UPCGManagedISMComponent* MISMC = UPCGActorHelpers::GetOrCreateManagedISMC(TargetActor, Context->SourceComponent.Get(), Settings->UID, ISMCParams);
 		if (!MISMC)

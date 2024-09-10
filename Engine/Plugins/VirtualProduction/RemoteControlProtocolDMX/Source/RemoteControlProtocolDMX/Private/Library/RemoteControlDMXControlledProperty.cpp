@@ -28,7 +28,7 @@ namespace UE::RemoteControl::DMX
 		UnifyEntities();
 	}
 
-	const UObject* FRemoteControlDMXControlledProperty::GetOwnerObject() const
+	const UObject* FRemoteControlDMXControlledProperty::GetOwnerActor() const
 	{
 		const UObject* BoundObject = ExposedProperty->GetBoundObject();
 		if (!BoundObject)
@@ -80,11 +80,11 @@ namespace UE::RemoteControl::DMX
 					{
 						if (Entities.Num() == 1)
 						{
-							return FString::Printf(TEXT("%s.%s"), *GetSubobjectPath(), *ExposedProperty->FieldPathInfo.ToString());
+							return FString::Printf(TEXT("%s.%s"), *ExposedProperty->FieldPathInfo.ToString(), *GetSubobjectPath());
 						}
 						else
 						{
-							return FString::Printf(TEXT("%s.%s%i"), *GetSubobjectPath(), *ExposedProperty->FieldPathInfo.ToString(), EntityIndex + 1);
+							return FString::Printf(TEXT("%s.%s%i"), *ExposedProperty->FieldPathInfo.ToString(), *GetSubobjectPath(), EntityIndex + 1);
 						}
 					}();
 
@@ -117,8 +117,6 @@ namespace UE::RemoteControl::DMX
 			if (DMXEntity->ExtraSetting.FixturePatchReference.GetFixturePatch() != UnifiedFixturePatch ||
 				DMXEntity->ExtraSetting.bIsPrimaryPatch != bUnifiedIsPrimaryPatch)
 			{
-				ensureMsgf(0, TEXT("Found entities of the same property with differing properties. Adopting property from first entity to mend."));
-
 				DMXEntity->ExtraSetting.FixturePatchReference = UnifiedFixturePatch;
 				DMXEntity->ExtraSetting.bIsPrimaryPatch = bUnifiedIsPrimaryPatch;
 			}
@@ -127,7 +125,7 @@ namespace UE::RemoteControl::DMX
 
 	FString FRemoteControlDMXControlledProperty::GetSubobjectPath() const
 	{
-		if (const UObject* OwnerObject = GetOwnerObject())
+		if (const UObject* OwnerObject = GetOwnerActor())
 		{
 			const FString OwnerName = OwnerObject->GetFName().ToString();
 			const FString BindingPath = ExposedProperty->GetLastBindingPath().ToString();

@@ -10,8 +10,8 @@ namespace Horde.Commands.Vcs
 	[Command("vcs", "clone", "Initialize a directory for VCS-like operations", Advertise = false)]
 	class VcsClone : VcsCheckout
 	{
-		public VcsClone(IStorageClientFactory storageClientFactory)
-			: base(storageClientFactory)
+		public VcsClone(IStorageClient storageClient)
+			: base(storageClient)
 		{
 		}
 
@@ -25,9 +25,9 @@ namespace Horde.Commands.Vcs
 
 			RefName branchName = new RefName(Branch ?? "ue5-main");
 
-			IStorageClient storageClient = CreateStorageClient();
+			IStorageNamespace storageNamespace = GetStorageNamespace();
 
-			CommitNode? tip = await GetCommitAsync(storageClient, branchName, Change);
+			CommitNode? tip = await GetCommitAsync(storageNamespace, branchName, Change);
 			if (tip == null)
 			{
 				logger.LogError("Unable to find change {Change}", Change);

@@ -25,6 +25,7 @@ protected:
 	virtual bool HasFinishedProcessingImpl() override;
 	virtual void ValidateStateImpl() override;
 	virtual void BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const override;
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
 
 public:
 	/* File name format string override. If specified it will override the FileNameFormat from the Output setting. */

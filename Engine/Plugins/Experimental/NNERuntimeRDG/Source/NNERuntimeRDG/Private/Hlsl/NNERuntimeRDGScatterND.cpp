@@ -1,12 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGScatterND.h"
+
+#include "Algo/Compare.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersScatterNDCS.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
 #include "RenderGraphUtils.h"
-#include "Algo/Compare.h"
 
 namespace UE::NNERuntimeRDG::Private::Hlsl
 {
@@ -41,28 +43,28 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (IndicesShape.Last() > (uint32) InputShape.Num())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Last dimension in the shape of `indices` (%d) must be less than input rank (%d)."), IndicesShape.Last(), InputShape.Num());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ScatterND: Last dimension in the shape of `indices` (%d) must be less than input rank (%d)."), IndicesShape.Last(), InputShape.Num());
 				return -1;
 			}
 			if (UpdatesShape.Num() != (IndicesShape.Num() - 1) + (InputShape.Num() - IndicesShape.Last()))
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Rank of `updates` should equal (q - 1) + (r - k), with q rank of `indices`, r rank of `data` and `k` last dimension of `indices`' shape."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ScatterND: Rank of `updates` should equal (q - 1) + (r - k), with q rank of `indices`, r rank of `data` and `k` last dimension of `indices`' shape."));
 				return -1;
 			}
 			if (!Algo::Compare( UpdatesShape.Slice(0, IndicesShape.Num() - 1), IndicesShape.Slice(0, IndicesShape.Num() - 1) ))
 			{
-				UE_LOG(LogNNE, Warning, TEXT("updates.shape[0:q-1] should match indices.shape[0:q-1]."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ScatterND: Updates.shape[0:q-1] should match indices.shape[0:q-1]."));
 				return -1;
 			}
 			if (!Algo::Compare( UpdatesShape.RightChop(IndicesShape.Num() - 1), InputShape.RightChop(IndicesShape.Last()) ))
 			{
-				UE_LOG(LogNNE, Warning, TEXT("updates.shape[q-1:] should match data.shape[k:]."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ScatterND: Updates.shape[q-1:] should match data.shape[k:]."));
 				return -1;
 			}
 			//NOTE: we need to limit the volume of Input to the int32 maximum expressible value due to unavailability of int64 type in shaders.
 			if (Input.GetShape().Volume() > (uint64) MAX_int32)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("This implementation of ScatterND only supports input tensors up to a volume of %u."), MAX_int32);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ScatterND: Only supports input tensors up to a volume of %u."), MAX_int32);
 				return -1;
 			}
 

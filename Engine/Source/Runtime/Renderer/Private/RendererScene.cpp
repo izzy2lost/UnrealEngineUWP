@@ -83,7 +83,9 @@
 #include "InstanceCulling/InstanceCullingOcclusionQuery.h"
 #include "ComputeWorkerInterface.h"
 #include "Nanite/NaniteMaterialsSceneExtension.h"
+#include "Nanite/NaniteSkinningSceneExtension.h"
 #include "ObjectCacheContext.h"
+#include "SceneComputeUpdates.h"
 
 #if RHI_RAYTRACING
 #include "Nanite/NaniteRayTracing.h"
@@ -950,9 +952,11 @@ uint64 FLumenSceneData::GetGPUSizeBytes(bool bLogSizes) const
 uint64 FMegaLightsViewState::GetGPUSizeBytes(bool bLogSizes) const
 {
 	return
-		GetRenderTargetGPUSizeBytes(DiffuseLightingAndSecondMomentHistory, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(SpecularLightingAndSecondMomentHistory, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(NumFramesAccumulatedHistory, bLogSizes);
+		GetRenderTargetGPUSizeBytes(DiffuseLightingAndSecondMomentHistory, bLogSizes)
+		+ GetRenderTargetGPUSizeBytes(SpecularLightingAndSecondMomentHistory, bLogSizes)
+		+ GetRenderTargetGPUSizeBytes(NumFramesAccumulatedHistory, bLogSizes)
+		+ GetBufferGPUSizeBytes(VisibleLightHashHistory, bLogSizes)
+		+ GetBufferGPUSizeBytes(VisibleLightMaskHashHistory, bLogSizes);
 }
 
 uint64 FStochasticLightingViewState::GetGPUSizeBytes(bool bLogSizes) const
@@ -2219,6 +2223,31 @@ void FScene::UpdatePrimitiveInstances(UInstancedStaticMeshComponent* Primitive)
 	UpdatePrimitiveInstances(UpdateParams);
 }
 
+void FScene::UpdatePrimitiveInstancesFromCompute(FPrimitiveSceneInfo* PrimitiveSceneInfo, FGPUSceneWriteDelegate&& DataWriterGPU)
+{
+	SCOPED_NAMED_EVENT(FScene_UpdatePrimitiveInstanceFromCompute, FColor::Yellow);
+	check(PrimitiveSceneInfo);
+
+	// Primitive must have a scene proxy already created in order to update it's instance data.
+	if (!ensureAlways(PrimitiveSceneInfo->Proxy != nullptr))
+	{
+		return;
+	}
+
+	// Only updates to GPU-only primitives are currently allowed.
+	if (!ensureAlways(PrimitiveSceneInfo->Proxy->IsInstanceDataGPUOnly()))
+	{
+		return;
+	}
+
+	FUpdateInstanceFromComputeCommand UpdateCommand;
+	UpdateCommand.PrimitiveSceneProxy = PrimitiveSceneInfo->Proxy;
+	UpdateCommand.GPUSceneWriter = MoveTemp(DataWriterGPU);
+
+	// This is already on the renderthread so queue directly.
+	PrimitiveUpdates.Enqueue(PrimitiveSceneInfo, MoveTemp(UpdateCommand));
+}
+
 void FScene::UpdatePrimitiveInstances(FInstancedStaticMeshSceneDesc* Primitive)
 {
 	SCOPE_CYCLE_COUNTER(STAT_UpdatePrimitiveInstanceGT);
@@ -2959,7 +2988,17 @@ void FScene::BatchUpdateDecals(TArray<FDeferredDecalUpdateParams>&& UpdateParams
 				}
 
 				DecalUpdate.DecalProxy->SetTransformIncludingDecalSize(DecalUpdate.Transform, DecalUpdate.Bounds);
-				DecalUpdate.DecalProxy->InitializeFadingParameters(DecalUpdate.AbsSpawnTime, DecalUpdate.FadeDuration, DecalUpdate.FadeStartDelay, DecalUpdate.FadeInDuration, DecalUpdate.FadeInStartDelay);
+
+				// When FadeDuration is intentionally set to 0 the user expects the decal to not fade automatically
+				if (DecalUpdate.FadeDuration == 0.0f)
+				{
+					DecalUpdate.DecalProxy->InvFadeDuration = -1.0f;
+				}
+				else
+				{
+					DecalUpdate.DecalProxy->InitializeFadingParameters(DecalUpdate.AbsSpawnTime, DecalUpdate.FadeDuration, DecalUpdate.FadeStartDelay, DecalUpdate.FadeInDuration, DecalUpdate.FadeInStartDelay);
+				}
+
 				DecalUpdate.DecalProxy->FadeScreenSize = DecalUpdate.FadeScreenSize;
 				DecalUpdate.DecalProxy->SortOrder = DecalUpdate.SortOrder;
 				DecalUpdate.DecalProxy->DecalColor = DecalUpdate.DecalColor;
@@ -5375,6 +5414,19 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	Update(GraphBuilder, Parameters);
 }
 
+class FSceneComputeUpdates : public ISceneComputeUpdates
+{
+public:
+	FSceneComputeUpdates(FScene &InScene) : Scene(InScene) {}
+
+	virtual void EnqueueUpdateInternal(FPrimitiveSceneInfo* PrimitiveSceneInfo, FGPUSceneWriteDelegate&& DataWriterGPU) override
+	{
+		Scene.UpdatePrimitiveInstancesFromCompute(PrimitiveSceneInfo, MoveTemp(DataWriterGPU));
+	}
+
+	FScene &Scene;
+};
+
 void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Parameters)
 {
 	LLM_SCOPE(ELLMTag::SceneRender);
@@ -5393,12 +5445,24 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 		});
 	}
 
+	// Add interface to blackboard to receive scene updates from compute.
+	{
+		FSceneComputeUpdatesBlackboardEntry& BlackboardEntry = GraphBuilder.Blackboard.Create<FSceneComputeUpdatesBlackboardEntry>();
+		BlackboardEntry.SceneComputeUpdates = GraphBuilder.AllocObject<FSceneComputeUpdates>(*this);
+	}
+
 	for (IComputeTaskWorker* ComputeTaskWorker : ComputeTaskWorkers)
 	{
 		if (ComputeTaskWorker->HasWork(ComputeTaskExecutionGroup::EndOfFrameUpdate))
 		{
 			ComputeTaskWorker->SubmitWork(GraphBuilder, ComputeTaskExecutionGroup::EndOfFrameUpdate, FeatureLevel);
 		}
+	}
+
+	// Disable scene updates on this builder from this point onwards.
+	{
+		const FSceneComputeUpdatesBlackboardEntry& BlackboardEntry = GraphBuilder.Blackboard.GetChecked<FSceneComputeUpdatesBlackboardEntry>();
+		BlackboardEntry.SceneComputeUpdates->SetEnabled(false);
 	}
 
 	// Avoid overlapping prior scene render and async RDG execution tasks to simplify things as there are a lot of moving pieces.
@@ -6494,6 +6558,11 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	{
 		NaniteMaterialsUpdater->PostCacheNaniteMaterialBins(GraphBuilder, SceneInfosWithStaticDrawListUpdate);
 	}
+	
+	if (auto NaniteSkinningUpdater = SceneExtensionsUpdaters.GetUpdaterPtr<Nanite::FSkinningSceneExtension::FUpdater>())
+	{
+		NaniteSkinningUpdater->PostMeshUpdate(GraphBuilder, SceneInfosWithStaticDrawListUpdate);
+	}
 
 	for (FPrimitiveSceneInfo* PrimitiveSceneInfo : AddedPrimitiveSceneInfos)
 	{
@@ -6614,8 +6683,8 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 		FRDGExternalAccessQueue ExternalAccessQueue;
 
-		GPUScene.Update(GraphBuilder, SceneUB, ExternalAccessQueue, Parameters.GPUSceneUpdateTaskPrerequisites);
-	
+		GPUScene.Update(GraphBuilder, SceneUB, ExternalAccessQueue, SceneUpdateChangeSetStorage.PrimitiveUpdates.GetRangeView<FUpdateInstanceFromComputeCommand>(), Parameters.GPUSceneUpdateTaskPrerequisites);
+
 		ExternalAccessQueue.Submit(GraphBuilder);
 	}
 

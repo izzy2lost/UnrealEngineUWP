@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGSize.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
 
@@ -47,7 +49,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		virtual void Dispatch(FRDGBuilder& GraphBuilder, TConstArrayView<FTensorRDGRef> InputTensors, TConstArrayView<FTensorRDGRef> OutputTensors) override
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Size: Output should be constant and already uploaded to GPU memory. Dispatch should not need to be called."));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Size: Output should be constant and already uploaded to GPU memory. Dispatch should not need to be called."));
 		}
 	};
 

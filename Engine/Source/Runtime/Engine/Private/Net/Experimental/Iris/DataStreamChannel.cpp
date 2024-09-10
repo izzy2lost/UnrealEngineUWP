@@ -83,11 +83,13 @@ void UDataStreamChannel::ReInit()
 {
 	check(Connection);
 
+#if UE_WITH_IRIS
 	if (UReplicationSystem* ReplicationSystem = Connection->Driver->GetReplicationSystem())
 	{
 		bIsReadyToHandshake = 1U;
 		ReplicationSystem->InitDataStreams(Connection->GetConnectionId(), DataStreamManager);
 	}
+#endif
 }
 
 bool UDataStreamChannel::CleanUp(const bool bForDestroy, EChannelCloseReason CloseReason)
@@ -484,10 +486,12 @@ bool UDataStreamChannel::IsPacketWindowFull() const
 void UDataStreamChannel::AddReferencedObjects(UObject* Object, FReferenceCollector& Collector)
 {
 	UDataStreamChannel* Channel = CastChecked<UDataStreamChannel>(Object);
+#if UE_WITH_IRIS
 	if (Channel->DataStreamManager)
 	{
 		Collector.AddReferencedObject(Channel->DataStreamManager);
 	}
+#endif
 
 	Super::AddReferencedObjects(Channel, Collector);
 }
@@ -502,10 +506,12 @@ void UDataStreamChannel::AppendMustBeMappedGuids(FOutBunch* Bunch)
 
 bool UDataStreamChannel::HasAcknowledgedAllReliableData() const
 {
+#if UE_WITH_IRIS
 	if (DataStreamManager)
 	{
 		return DataStreamManager->HasAcknowledgedAllReliableData();
 	}
+#endif
 
 	return true;
 }

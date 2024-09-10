@@ -41,7 +41,6 @@ namespace PixelStreaming2StatNames
 	const FName FirCount				  = FName(TEXT("firCount"));
 	const FName PliCount				  = FName(TEXT("pliCount"));
 	const FName NackCount				  = FName(TEXT("nackCount"));
-	const FName SliCount				  = FName(TEXT("sliCount"));
 	const FName RetransmittedBytesSent	  = FName(TEXT("retransmittedBytesSent"));
 	const FName TargetBitrate			  = FName(TEXT("targetBitrate"));
 	const FName TotalEncodeBytesTarget	  = FName(TEXT("totalEncodedBytesTarget"));
@@ -57,6 +56,17 @@ namespace PixelStreaming2StatNames
 	const FName AvgSendDelay			  = FName(TEXT("packetSendDelay"));
 	const FName MessagesSent			  = FName(TEXT("messagesSent"));
 	const FName MessagesReceived		  = FName(TEXT("messagesReceived"));
+
+	const FName PacketsLost				  = FName(TEXT("packetsLost"));
+	const FName Jitter				      = FName(TEXT("jitter"));
+	const FName RoundTripTime			  = FName(TEXT("roundTripTime"));
+	const FName KeyFramesDecoded		  = FName(TEXT("keyFramesDecoded"));
+	const FName AudioLevel				  = FName(TEXT("audioLevel"));
+	const FName TotalSamplesDuration	  = FName(TEXT("totalSamplesDuration"));
+	const FName AvailableOutgoingBitrate  = FName(TEXT("availableOutgoingBitrate"));
+	const FName AvailableIncomingBitrate  = FName(TEXT("availableIncomingBitrate"));
+	const FName RetransmittedBytesReceived	  = FName(TEXT("retransmittedBytesReceived"));
+	const FName RetransmittedPacketsReceived  = FName(TEXT("retransmittedPacketsReceived"));
 
 	// Data-channel stats
 	const FName DataChannelBytesSent		  = FName(TEXT("data-channel-bytesSent"));

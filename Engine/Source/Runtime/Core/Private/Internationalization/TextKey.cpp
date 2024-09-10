@@ -60,7 +60,7 @@ public:
 
 		// Open around adding this in a cache, if we abort just leak the value in the cache
 		// as the cache takes ownership
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			FindOrAddImpl(InStr, StrHash, OutTextKey);
 		};
@@ -72,7 +72,7 @@ public:
 
 		// Open around adding this in a cache, if we abort just leak the value in the cache
 		// as the cache takes ownership
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			FindOrAddImpl(InStr, InStrHash, OutTextKey);
 		};
@@ -116,7 +116,7 @@ public:
 				// Open around adding this in a cache, if we abort just leak the value in the cache
 				// as the cache takes ownership
 				const TCHAR* AddedString = nullptr;
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					AddedString = *LegacyTCHARState.Add(InIndex, FString(KeyData.ToView()));
 				};

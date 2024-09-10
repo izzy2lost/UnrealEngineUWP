@@ -872,7 +872,7 @@ bool UNiagaraDataInterfaceRenderTargetVolume::SimCacheReadFrame(UObject* Storage
 							// Issues compute commands.
 							ERDGPassFlags::Compute,
 							// This is deferred until Execute. May execute in parallel with other passes.
-							[PassParameters, ComputeShader, NumThreadGroups](FRHIComputeCommandList& RHICmdList)
+							[PassParameters, ComputeShader, NumThreadGroups](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 							{
 								FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *PassParameters, NumThreadGroups);
 							});

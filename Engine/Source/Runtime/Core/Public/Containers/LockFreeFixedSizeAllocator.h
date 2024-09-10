@@ -200,7 +200,7 @@ public:
 	/** Destructor, returns all memory via FMemory::Free **/
 	~TLockFreeFixedSizeAllocator()
 	{
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			check(!NumUsed.GetValue());
 			Trim();
@@ -223,7 +223,7 @@ public:
 	 */
 	void* Allocate()
 	{
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			NumUsed.Increment();
 		};
@@ -260,7 +260,7 @@ public:
 	 */
 	void Free(void* Item)
 	{
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			NumUsed.Decrement();
 		};
@@ -289,7 +289,7 @@ public:
 	*/
 	void Trim()
 	{
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			while (void* Mem = FreeList.Pop())
 			{

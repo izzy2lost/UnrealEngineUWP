@@ -5,6 +5,7 @@
 #include "Editor/EditorPerProjectUserSettings.h"
 #include "MovieGraphObjectIdPass.h"
 #include "MoviePipelineObjectIdUtils.h"
+#include "MoviePipelineTelemetry.h"
 
 FUObjectAnnotationSparse<UE::MoviePipeline::FObjectIdAccelerationData, true>& UMovieGraphObjectIdNode::GetManifestAnnotation()
 {
@@ -53,6 +54,11 @@ FSlateIcon UMovieGraphObjectIdNode::GetIconAndTint(FLinearColor& OutColor) const
 	return DeferredRendererIcon;
 }
 #endif	// WITH_EDITOR
+
+void UMovieGraphObjectIdNode::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesObjectID = true;
+}
 
 TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> UMovieGraphObjectIdNode::CreateInstance() const
 {

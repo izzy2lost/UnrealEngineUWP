@@ -724,8 +724,10 @@ namespace UE::RHI::GPUProfiler
 		GetSinks().RemoveSingle(this);
 	}
 
-	void ProcessEvents(FQueue Queue, FEventStream const& EventStream)
+	void ProcessEvents(FQueue Queue, FEventStream EventStream)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UE::RHI::GPUProfiler::ProcessEvents);
+
 		if (!EventStream.IsEmpty())
 		{
 			for (FEventSink* Sink : GetSinks())
@@ -1005,6 +1007,20 @@ namespace UE::RHI::GPUProfiler
 					}
 					break;
 			#endif // WITH_RHI_BREADCRUMBS
+
+				case FEvent::EType::SignalFence:
+					{
+						check(!QueueState.bBusy);
+						FEvent::FSignalFence const& SignalFence = Event->Value.Get<FEvent::FSignalFence>();
+					}
+					break;
+
+				case FEvent::EType::WaitFence:
+					{
+						check(!QueueState.bBusy);
+						FEvent::FWaitFence const& WaitFence = Event->Value.Get<FEvent::FWaitFence>();
+					}
+					break;
 
 				case FEvent::EType::FrameBoundary:
 					{

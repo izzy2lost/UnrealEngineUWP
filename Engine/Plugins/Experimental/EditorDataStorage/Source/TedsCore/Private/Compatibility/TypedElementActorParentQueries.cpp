@@ -20,7 +20,7 @@ namespace UE::Editor::DataStorage::Queries::Private
 		TEXT("Mirror parent information for actors to TEDS (only works when set on startup)"));
 };
 
-void UActorParentDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UActorParentDataStorageFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	if(UE::Editor::DataStorage::Queries::Private::bAddParentColumnToActors)
 	{
@@ -29,7 +29,7 @@ void UActorParentDataStorageFactory::RegisterQueries(ITypedElementDataStorageInt
 	}
 }
 
-void UActorParentDataStorageFactory::RegisterAddParentColumn(ITypedElementDataStorageInterface& DataStorage) const
+void UActorParentDataStorageFactory::RegisterAddParentColumn(IEditorDataStorageProvider& DataStorage) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	
@@ -63,7 +63,7 @@ void UActorParentDataStorageFactory::RegisterAddParentColumn(ITypedElementDataSt
 		.Compile());
 }
 
-void UActorParentDataStorageFactory::RegisterUpdateOrRemoveParentColumn(ITypedElementDataStorageInterface& DataStorage) const
+void UActorParentDataStorageFactory::RegisterUpdateOrRemoveParentColumn(IEditorDataStorageProvider& DataStorage) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	

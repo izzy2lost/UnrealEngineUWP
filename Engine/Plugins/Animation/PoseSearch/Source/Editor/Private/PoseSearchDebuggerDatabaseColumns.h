@@ -641,6 +641,11 @@ struct FPoseCandidateFlags : ITextColumn
 				Sring.Append("S ");
 			}
 
+			if (EnumHasAnyFlags(Row->PoseCandidateFlags, EPoseCandidateFlags::DiscardedBy_AssetReselection))
+			{
+				Sring.Append("R ");
+			}
+
 			return FText::FromString(Sring);
 		}
 
@@ -682,6 +687,11 @@ struct FPoseCandidateFlags : ITextColumn
 			if (EnumHasAnyFlags(Row->PoseCandidateFlags, EPoseCandidateFlags::DiscardedBy_Search))
 			{
 				TextBuilder.AppendLine(LOCTEXT("DiscardedBy_Search_Tooltip", "(S) Search"));
+			}
+
+			if (EnumHasAnyFlags(Row->PoseCandidateFlags, EPoseCandidateFlags::DiscardedBy_AssetReselection))
+			{
+				TextBuilder.AppendLine(LOCTEXT("DiscardedBy_AssetReselection_Tooltip", "(R) Disable Reselection"));
 			}
 
 			return TextBuilder.ToText();

@@ -9,13 +9,13 @@
 #include "HierarchyTableTedsFactory.generated.h"
 
 UCLASS()
-class UTypedElementHierarchyTableFactory : public UTypedElementDataStorageFactory
+class UTypedElementHierarchyTableFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UTypedElementHierarchyTableFactory() override = default;
 
-	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) override;
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterTables(IEditorDataStorageProvider& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 };

@@ -18,6 +18,10 @@ public:
 	void IsolateTracks(const TSet<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>>& InTracks, const bool bInAddToExisting);
 	void UnisolateTracks(const TSet<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>>& InTracks);
 
+	void IsolateCategoryGroupTracks(const TSet<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>>& InTracks
+		, const TSet<FName>& InCategoryNames
+		, const bool bInAddToExisting);
+
 	void ShowAllTracks();
 
 	bool HasHiddenTracks() const;

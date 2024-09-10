@@ -14,11 +14,8 @@
 #include "Chaos/ChaosScene.h"
 #include "Chaos/ContactModification.h"
 #include "Chaos/Real.h"
+#include "Chaos/AsyncInitBodyHelper.h"
 #include "UObject/ObjectKey.h"
-
-#if UE_CHAOS_ASYNC_INITBODY_ENABLED
-#include "Misc/ScopeRWLock.h"
-#endif
 
 #ifndef CHAOS_WITH_PAUSABLE_SOLVER
 #define CHAOS_WITH_PAUSABLE_SOLVER 1
@@ -451,10 +448,8 @@ private:
 
 	TSet<UPrimitiveComponent*> DeferredCreatePhysicsStateComponents;
 
-#if UE_CHAOS_ASYNC_INITBODY_ENABLED
 	// RWLock for for thread safe access to PhysicsProxyToComponentMap and ComponentToPhysicsProxyMap.
 	mutable FRWLock PhysicsProxyComponentMapsLock;
-#endif
 
 	//Body Instances
 	TUniquePtr<Chaos::TArrayCollectionArray<FBodyInstance*>> BodyInstances;

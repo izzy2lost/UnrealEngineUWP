@@ -243,7 +243,7 @@ public:
 
 	//~ Begin IDynamicMaterialModelEditorOnlyDataInterface
 	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate() override;
-	DYNAMICMATERIALEDITOR_API virtual void RequestMaterialBuild() override;
+	DYNAMICMATERIALEDITOR_API virtual void RequestMaterialBuild(bool bInImmediate = false) override;
 	DYNAMICMATERIALEDITOR_API virtual void OnValueListUpdate() override;
 	DYNAMICMATERIALEDITOR_API virtual void OnValueUpdated(UDMMaterialValue* InValue, EDMUpdateType InUpdateType) override;
 	DYNAMICMATERIALEDITOR_API virtual void OnTextureUVUpdated(UDMTextureUV* InTextureUV) override;

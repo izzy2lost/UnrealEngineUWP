@@ -10,6 +10,8 @@
 
 #include "SChaosVDMainTab.generated.h"
 
+class IDetailsView;
+class IStructureDetailsView;
 class FComponentVisualizer;
 class FChaosVDEditorModeTools;
 class FChaosVDTabSpawnerBase;
@@ -20,8 +22,12 @@ class FChaosVDOutputLogTab;
 class FChaosVDPlaybackViewportTab;
 class FChaosVDObjectDetailsTab;
 class FChaosVDWorldOutlinerTab;
+class FStructOnScope;
 class SButton;
 class SDockTab;
+
+struct FDetailsViewArgs;
+struct FStructureDetailsViewArgs;
 
 UCLASS()
 class CHAOSVD_API UChaosVDMainToolbarMenuContext : public UObject
@@ -74,8 +80,14 @@ public:
 
 	void LoadCVDFile(const FString& InFilename);
 
+	TSharedRef<IDetailsView> CreateDetailsView(const FDetailsViewArgs& InDetailsViewArgs);
+
+	TSharedRef<IStructureDetailsView> CreateStructureDetailsView(const FDetailsViewArgs& InDetailsViewArgs, const FStructureDetailsViewArgs& InStructureDetailsViewArgs, const TSharedPtr<FStructOnScope>& InStructData = nullptr, const FText& CustomName = FText::GetEmpty());
+
 private:
-	
+
+	void SetCustomPropertyLayouts(IDetailsView* DetailsView);
+
 	void SetUpDisableCPUThrottlingDelegate();
 	void CleanUpDisableCPUThrottlingDelegate() const;
 

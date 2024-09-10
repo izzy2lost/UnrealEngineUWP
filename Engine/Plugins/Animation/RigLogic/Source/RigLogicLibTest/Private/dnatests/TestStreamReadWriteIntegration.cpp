@@ -10,6 +10,7 @@
 #include "dnatests/Fixturesv22.h"
 #include "dnatests/Fixturesv23.h"
 #include "dnatests/Fixturesv24.h"
+#include "dnatests/Fixturesv25.h"
 
 #include "dna/DataLayer.h"
 #include "dna/BinaryStreamReader.h"
@@ -427,6 +428,7 @@ static void verifyRBFBehavior(RBFBehaviorReader* reader) {
     ASSERT_EQ(solverCount, DecodedDNA::solverIndicesPerLOD[index].size());
 
     const auto poseCount = reader->getRBFPoseCount();
+    ASSERT_EQ(poseCount, DecodedDNA::poseScale.size());
     for (std::uint16_t pi = {}; pi < poseCount; ++pi) {
         ASSERT_EQ(reader->getRBFPoseName(pi), StringView{DecodedDNA::poseNames[pi]});
         ASSERT_EQ(reader->getRBFPoseScale(pi), DecodedDNA::poseScale[pi]);
@@ -458,14 +460,43 @@ static void verifyRBFBehavior(RBFBehaviorReader* reader) {
         auto solverPoseIndices = reader->getRBFSolverPoseIndices(si);
         const auto& expectedSolverPoseIndices = DecodedDNA::solverPoseIndices[esi];
         ASSERT_EQ(solverPoseIndices.size(), expectedSolverPoseIndices.size());
-        ASSERT_ELEMENTS_EQ(solverPoseIndices, expectedSolverPoseIndices, solverPoseIndices.size());
+        ASSERT_ELEMENTS_EQ(solverPoseIndices, expectedSolverPoseIndices, expectedSolverPoseIndices.size());
 
         auto solverRawControlValues = reader->getRBFSolverRawControlValues(si);
         const auto& expectedSolverRawControlValues = DecodedDNA::solverRawControlValues[esi];
         ASSERT_EQ(solverRawControlValues.size(), expectedSolverRawControlValues.size());
-        ASSERT_ELEMENTS_EQ(solverRawControlValues, expectedSolverRawControlValues, solverRawControlValues.size());
+        ASSERT_ELEMENTS_EQ(solverRawControlValues, expectedSolverRawControlValues, expectedSolverRawControlValues.size());
     }
 
+}
+
+template<class TAPICopyParameters>
+static void verifyRBFBehaviorExt(RBFBehaviorReader* reader) {
+    using DecodedDNA = typename TAPICopyParameters::DecodedData;
+
+    const auto poseControlCount = reader->getRBFPoseControlCount();
+    ASSERT_EQ(poseControlCount, DecodedDNA::poseControlNames.size());
+    for (std::uint16_t pci = {}; pci < poseControlCount; ++pci) {
+        ASSERT_EQ(reader->getRBFPoseControlName(pci), StringView{DecodedDNA::poseControlNames[pci]});
+    }
+
+    const auto poseCount = reader->getRBFPoseCount();
+    for (std::uint16_t pi = {}; pi < poseCount; ++pi) {
+        auto poseInputControlIndices = reader->getRBFPoseInputControlIndices(pi);
+        const auto& expectedPoseInputControlIndices = DecodedDNA::poseInputControlIndices[pi];
+        ASSERT_EQ(poseInputControlIndices.size(), expectedPoseInputControlIndices.size());
+        ASSERT_ELEMENTS_EQ(poseInputControlIndices, expectedPoseInputControlIndices, expectedPoseInputControlIndices.size());
+
+        auto poseOutputControlIndices = reader->getRBFPoseOutputControlIndices(pi);
+        const auto& expectedPoseOutputControlIndices = DecodedDNA::poseOutputControlIndices[pi];
+        ASSERT_EQ(poseOutputControlIndices.size(), expectedPoseOutputControlIndices.size());
+        ASSERT_ELEMENTS_EQ(poseOutputControlIndices, expectedPoseOutputControlIndices, expectedPoseOutputControlIndices.size());
+
+        auto poseOutputControlWeights = reader->getRBFPoseOutputControlWeights(pi);
+        const auto& expectedPoseOutputControlWeights = DecodedDNA::poseOutputControlWeights[pi];
+        ASSERT_EQ(poseOutputControlWeights.size(), expectedPoseOutputControlWeights.size());
+        ASSERT_ELEMENTS_EQ(poseOutputControlWeights, expectedPoseOutputControlWeights, expectedPoseOutputControlWeights.size());
+    }
 }
 
 template<class TAPICopyParameters>
@@ -578,6 +609,24 @@ struct ReaderDataVerifier<APICopyParameters<Reader, Writer, RawV24, DecodedV24, 
 
 };
 
+template<class Reader, class Writer, std::uint16_t MaxLOD, std::uint16_t MinLOD, std::uint16_t CurrentLOD>
+struct ReaderDataVerifier<APICopyParameters<Reader, Writer, RawV25, DecodedV25, MaxLOD, MinLOD, CurrentLOD> > {
+
+    static void assertHasAllData(Reader* reader) {
+        using TAPICopyParameters = APICopyParameters<Reader, Writer, RawV25, DecodedV25, MaxLOD, MinLOD, CurrentLOD>;
+        verifyDescriptor<TAPICopyParameters>(reader);
+        verifyDefinition<TAPICopyParameters>(reader);
+        verifyBehavior<TAPICopyParameters>(reader);
+        verifyGeometry<TAPICopyParameters>(reader);
+        verifyMachineLearnedBehavior<TAPICopyParameters>(reader);
+        verifyRBFBehavior<TAPICopyParameters>(reader);
+        verifyRBFBehaviorExt<TAPICopyParameters>(reader);
+        verifyJointBehaviorMetadata<TAPICopyParameters>(reader);
+        verifyTwistSwingBehavior<TAPICopyParameters>(reader);
+    }
+
+};
+
 using TAPICopyTestParameters = ::testing::Types<
     APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV21, DecodedV21, 0u, 1u, 0u>
     , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV21, DecodedV21, 0u, 1u, 1u>
@@ -595,11 +644,16 @@ using TAPICopyTestParameters = ::testing::Types<
     , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV24, DecodedV24, 0u, 1u, 1u>
     , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV24, DecodedV24, 0u, 0u, 0u>
     , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV24, DecodedV24, 1u, 1u, 0u>
+    , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV25, DecodedV25, 0u, 1u, 0u>
+    , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV25, DecodedV25, 0u, 1u, 1u>
+    , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV25, DecodedV25, 0u, 0u, 0u>
+    , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV25, DecodedV25, 1u, 1u, 0u>
     #ifdef DNA_BUILD_WITH_JSON_SUPPORT
         , APICopyParameters<dna::JSONStreamReader, dna::JSONStreamWriter, RawV21, DecodedV21, 0u, 1u, 0u>
         , APICopyParameters<dna::JSONStreamReader, dna::JSONStreamWriter, RawV22, DecodedV22, 0u, 1u, 0u>
         , APICopyParameters<dna::JSONStreamReader, dna::JSONStreamWriter, RawV23, DecodedV23, 0u, 1u, 0u>
         , APICopyParameters<dna::JSONStreamReader, dna::JSONStreamWriter, RawV24, DecodedV24, 0u, 1u, 0u>
+        , APICopyParameters<dna::JSONStreamReader, dna::JSONStreamWriter, RawV25, DecodedV25, 0u, 1u, 0u>
     #endif  // DNA_BUILD_WITH_JSON_SUPPORT
     >;
 TYPED_TEST_SUITE(StreamReadWriteAPICopyIntegrationTest, TAPICopyTestParameters, );
@@ -679,6 +733,8 @@ using TRawCopyTestParameters = ::testing::Types<
     RawCopyParameters<RawV23, RawV23, UnknownLayerPolicy::Ignore, 2, 3>,
     RawCopyParameters<RawV24, RawV24, UnknownLayerPolicy::Preserve, 2, 4>,
     RawCopyParameters<RawV24, RawV24, UnknownLayerPolicy::Ignore, 2, 4>,
+    RawCopyParameters<RawV25, RawV25, UnknownLayerPolicy::Preserve, 2, 5>,
+    RawCopyParameters<RawV25, RawV25, UnknownLayerPolicy::Ignore, 2, 5>,
     // File format conversion tests
     RawCopyParameters<RawV21, RawV22WithUnknownDataIgnoredAndDNARewritten, UnknownLayerPolicy::Preserve, 2, 2>,
     RawCopyParameters<RawV21, RawV22WithUnknownDataIgnoredAndDNARewritten, UnknownLayerPolicy::Ignore, 2, 2>,
@@ -691,7 +747,9 @@ using TRawCopyTestParameters = ::testing::Types<
     RawCopyParameters<RawV23, RawV22DowngradedFromV23, UnknownLayerPolicy::Preserve, 2, 2>,
     RawCopyParameters<RawV23, RawV22WithUnknownDataIgnoredAndDNARewritten, UnknownLayerPolicy::Ignore, 2, 2>,
     RawCopyParameters<RawV24, RawV23DowngradedFromV24, UnknownLayerPolicy::Preserve, 2, 3>,
-    RawCopyParameters<RawV24, RawV23, UnknownLayerPolicy::Ignore, 2, 3>
+    RawCopyParameters<RawV24, RawV23, UnknownLayerPolicy::Ignore, 2, 3>,
+    RawCopyParameters<RawV25, RawV24DowngradedFromV25, UnknownLayerPolicy::Preserve, 2, 4>,
+    RawCopyParameters<RawV25, RawV24, UnknownLayerPolicy::Ignore, 2, 4>
     >;
 TYPED_TEST_SUITE(StreamReadWriteRawCopyIntegrationTest, TRawCopyTestParameters, );
 
@@ -771,6 +829,7 @@ using TReadWriteMultipleParameters = ::testing::Types<
     ReadWriteMultipleParameters<RawV22>,
     ReadWriteMultipleParameters<RawV23>,
     ReadWriteMultipleParameters<RawV24>,
+    ReadWriteMultipleParameters<RawV25>,
     ReadWriteMultipleParameters<RawV22Empty>,
     ReadWriteMultipleParameters<RawV22WithUnknownDataIgnoredAndDNARewritten>,
     ReadWriteMultipleParameters<RawV2xNewerWithUnknownDataIgnoredAndDNARewritten>,
@@ -864,6 +923,32 @@ TYPED_TEST(StreamReadWriteMultipleIntegrationTest, ReadWriteTwoDNAsToSameStream)
 
     ASSERT_EQ(cloneSize, cloneRewrittenSize);
     ASSERT_EQ(copiedCloneBytes, copiedCloneRewrittenBytes);
+}
+
+TEST(StreamReadWriteMultipleIntegrationTest, DNAv25LayerIsBackFilledFromv24) {
+    const auto bytes = RawV24::getBytes();
+    auto source = pma::makeScoped<trio::MemoryStream>();
+    source->write(bytes.data(), bytes.size());
+    source->seek(0);
+    auto reader = pma::makeScoped<BinaryStreamReader>(source.get(),
+                                                      DataLayer::All,
+                                                      UnknownLayerPolicy::Preserve,
+                                                      static_cast<std::uint16_t>(0));
+    reader->read();
+
+    ASSERT_TRUE(dna::Status::isOk());
+    ASSERT_EQ(reader->getRBFPoseControlCount(), reader->getRBFPoseCount());
+    for (std::uint16_t pi = {}; pi < reader->getRBFPoseCount(); ++pi) {
+        const auto inputControlIndices = reader->getRBFPoseInputControlIndices(pi);
+        const auto outputControlIndices = reader->getRBFPoseOutputControlIndices(pi);
+        const auto outputControlWeights = reader->getRBFPoseOutputControlWeights(pi);
+        ASSERT_EQ(inputControlIndices.size(), 0ul);
+        ASSERT_EQ(outputControlIndices.size(), 1ul);
+        ASSERT_EQ(outputControlWeights.size(), 1ul);
+        const auto offset = reader->getRawControlCount() + reader->getPSDCount() + reader->getMLControlCount();
+        ASSERT_EQ(outputControlIndices[0], offset + pi);
+        ASSERT_EQ(outputControlWeights[0], 1.0f);
+    }
 }
 
 }  // namespace dna

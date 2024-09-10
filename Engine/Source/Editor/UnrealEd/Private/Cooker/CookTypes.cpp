@@ -51,6 +51,18 @@ const TCHAR* LexToString(EStateChangeReason Reason)
 	}
 }
 
+bool IsTerminalStateChange(EStateChangeReason Reason)
+{
+	switch (Reason)
+	{
+	case EStateChangeReason::Completed: return true;
+	case EStateChangeReason::SaveError: return true;
+	case EStateChangeReason::CookerShutdown: return true;
+	case EStateChangeReason::CookSuppressed: return true;
+	default: return false;
+	}
+}
+
 const TCHAR* LexToString(ESuppressCookReason Reason)
 {
 	switch (Reason)

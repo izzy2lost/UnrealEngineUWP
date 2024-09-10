@@ -16,6 +16,22 @@ FPCGSoftISMComponentDescriptor::FPCGSoftISMComponentDescriptor()
 	BodyInstance.SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 }
 
+FPCGSoftISMComponentDescriptor::FPCGSoftISMComponentDescriptor(const FISMComponentDescriptor& Other)
+	: Super(Other)
+{}
+
+void FPCGSoftISMComponentDescriptor::InitFrom(const UStaticMeshComponent* Component, bool bInitBodyInstance)
+{
+	ComponentTags = Component->ComponentTags;
+	Super::InitFrom(Component, bInitBodyInstance);
+}
+
+void FPCGSoftISMComponentDescriptor::InitComponent(UInstancedStaticMeshComponent* ISMComponent) const
+{
+	ISMComponent->ComponentTags = ComponentTags;
+	Super::InitComponent(ISMComponent);
+}
+
 bool FPCGSoftISMComponentDescriptor::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
 {
 	if (Tag.GetType().IsStruct(FSoftISMComponentDescriptor::StaticStruct()->GetFName()))

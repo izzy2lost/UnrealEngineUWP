@@ -20,6 +20,7 @@
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "Framework/PhysicsProxyBase.h"
+#include "Chaos/Evolution/IterationSettings.h"
 #include "PBDJointConstraintTypes.h"
 #include "PBDSuspensionConstraintTypes.h"
 
@@ -545,6 +546,12 @@ public:
 	bool MACDEnabled() const { return MControlFlags.GetMACDEnabled(); }
 	void SetMACDEnabled(bool bInCCDEnabled) { MControlFlags.SetMACDEnabled(bInCCDEnabled); }
 
+	void SetPositionSolverIterationCount(const int32 PositionSolverIterationCountIn) { MIterationSettings.SetNumPositionIterations(PositionSolverIterationCountIn); }
+	void SetVelocitySolverIterationCount(const int32 VelocitySolverIterationCountIn) { MIterationSettings.SetNumVelocityIterations(VelocitySolverIterationCountIn); }
+	void SetProjectionSolverIterationCount(const int32 ProjectionSolverIterationCountIn) { MIterationSettings.SetNumProjectionIterations(ProjectionSolverIterationCountIn); }
+	Private::FIterationSettings IterationSettings() const { return MIterationSettings; }
+	void SetIterationSettings(const Private::FIterationSettings& SolverIterationSettings) { MIterationSettings = SolverIterationSettings; }
+
 	bool Disabled() const { return bDisabled; }
 	void SetDisabled(bool bInDisabled) { bDisabled = bInDisabled; }
 
@@ -586,6 +593,8 @@ private:
 
 	uint32 MCollisionConstraintFlag = 0;
 	FRigidParticleControlFlags MControlFlags;
+
+	Chaos::Private::FIterationSettings MIterationSettings;
 
 	bool bDisabled;
 };

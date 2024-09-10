@@ -655,10 +655,7 @@ void UMeshTexturePaintingTool::FinishPainting()
 
 FPaintTexture2DData* UMeshTexturePaintingTool::GetPaintTargetData(const UTexture2D* InTexture)
 {
-	checkf(InTexture != nullptr, TEXT("Invalid Texture ptr"));
-	/** Retrieve target paint data for the given texture */
-	FPaintTexture2DData* TextureData = PaintTargetData.Find(InTexture);
-	return TextureData;
+	return PaintTargetData.Find(InTexture);
 }
 
 FPaintTexture2DData* UMeshTexturePaintingTool::AddPaintTargetData(UTexture2D* InTexture)
@@ -788,6 +785,8 @@ void UMeshTexturePaintingTool::StartPaintingTexture(UMeshComponent* InMeshCompon
 					TextureData->BrushMaskRenderTargetTexture->UpdateResourceImmediate();
 					TextureData->BrushMaskRenderTargetTexture->AddressX = TextureData->PaintRenderTargetTexture->AddressX;
 					TextureData->BrushMaskRenderTargetTexture->AddressY = TextureData->PaintRenderTargetTexture->AddressY;
+
+					TextureData->bGenerateSeamMask = true;
 				}
 
 				// Create the rendertarget used to store a texture seam mask
@@ -805,8 +804,6 @@ void UMeshTexturePaintingTool::StartPaintingTexture(UMeshComponent* InMeshCompon
 					TextureData->SeamMaskRenderTargetTexture->AddressX = TextureData->PaintRenderTargetTexture->AddressX;
 					TextureData->SeamMaskRenderTargetTexture->AddressY = TextureData->PaintRenderTargetTexture->AddressY;
 				}
-
-				TextureData->bGenerateSeamMask = true;
 			}
 
 			bStartedPainting = true;
@@ -869,7 +866,6 @@ void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, int3
 
 	check(GEditor && GEditor->GetEditorWorldContext().World());
 	const auto FeatureLevel = GEditor->GetEditorWorldContext().World()->GetFeatureLevel();
-
 
 	FPaintTexture2DData* TextureData = GetPaintTargetData(PaintingTexture2D);
 	check(TextureData != nullptr && TextureData->PaintRenderTargetTexture != nullptr);
@@ -1135,7 +1131,6 @@ void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, int3
 			// Create a canvas for the render target.
 			FCanvas Canvas3(RenderTargetResource, nullptr, FGameTime(), FeatureLevel);
 
-
 			TRefCountPtr< FMeshPaintDilateBatchedElementParameters > MeshPaintDilateBatchedElementParameters(new FMeshPaintDilateBatchedElementParameters());
 			{
 				MeshPaintDilateBatchedElementParameters->ShaderParams.Texture0 = TextureData->BrushRenderTargetTexture;
@@ -1143,7 +1138,6 @@ void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, int3
 				MeshPaintDilateBatchedElementParameters->ShaderParams.Texture2 = TextureData->BrushMaskRenderTargetTexture;
 				MeshPaintDilateBatchedElementParameters->ShaderParams.WidthPixelOffset = (float)(1.0f / TextureData->PaintRenderTargetTexture->GetSurfaceWidth());
 				MeshPaintDilateBatchedElementParameters->ShaderParams.HeightPixelOffset = (float)(1.0f / TextureData->PaintRenderTargetTexture->GetSurfaceHeight());
-
 			}
 
 			// Draw a quad to copy the texture over to the render target
@@ -1179,7 +1173,6 @@ void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, int3
 			TriItemList.BatchedElementParameters = MeshPaintDilateBatchedElementParameters;
 			TriItemList.BlendMode = SE_BLEND_Opaque;
 			Canvas3.DrawItem(TriItemList);
-
 
 			// Tell the rendering thread to draw any remaining batched elements
 			Canvas3.Flush_GameThread(true);
@@ -1360,6 +1353,20 @@ void UMeshTextureColorPaintingTool::Setup()
 {
 	Super::Setup();
 	ColorProperties = Cast<UMeshTextureColorPaintingToolProperties>(BrushProperties);
+
+	if (UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>())
+	{
+		// Create a dummy mesh paint virtual texture for the lifetime of the paint tool.
+		// This keeps at least one virtual texture alive during painting.
+		// Otherwise, if there is only one "real" virtual texture in the scene and we paint on it, 
+		// it will be deallocted for one or two frames during texture compilation after each paint stroke.
+		// For those frames there would be _no_ remainging allocated VTs to use for the FMeshPaintVirtualTextureSceneExtension
+		// and which would leave no page table bound for sampling the virtual texture adaptor that wraps the 
+		// painting render target. That would result in a flicker where the lack of page table means the mesh paint
+		// virtual texture gets its fallback color when sampling.
+		// Holding this dummy texture prevents that from happening.
+		MeshPaintDummyTexture = MeshPaintingSubsystem->CreateMeshPaintTexture(this, 1);
+	}
 
 	GetToolManager()->DisplayMessage(
 		LOCTEXT("OnStartTextureColorPaintTool", "Paint colors to the Mesh Paint Texture object stored on mesh components."),

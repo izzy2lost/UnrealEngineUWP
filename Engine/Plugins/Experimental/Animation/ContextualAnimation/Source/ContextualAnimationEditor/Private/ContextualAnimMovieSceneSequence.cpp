@@ -13,7 +13,7 @@ UContextualAnimMovieSceneSequence::UContextualAnimMovieSceneSequence(const FObje
 
 }
 
-ETrackSupport UContextualAnimMovieSceneSequence::IsTrackSupported(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
+ETrackSupport UContextualAnimMovieSceneSequence::IsTrackSupportedImpl(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
 { 
 	if (InTrackClass == UContextualAnimMovieSceneNotifyTrack::StaticClass() || 
 		InTrackClass == UContextualAnimMovieSceneTrack::StaticClass())
@@ -21,7 +21,7 @@ ETrackSupport UContextualAnimMovieSceneSequence::IsTrackSupported(TSubclassOf<cl
 		return ETrackSupport::Supported;
 	}
 	
-	return Super::IsTrackSupported(InTrackClass);
+	return Super::IsTrackSupportedImpl(InTrackClass);
 }
 
 void UContextualAnimMovieSceneSequence::Initialize(const TSharedRef<FContextualAnimViewModel>& ViewModelRef)

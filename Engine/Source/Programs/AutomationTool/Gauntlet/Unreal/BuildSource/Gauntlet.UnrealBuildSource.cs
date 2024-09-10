@@ -598,6 +598,14 @@ namespace Gauntlet
 				Config.CommandLineParams.Project = ProjectParam;
 			}
 
+			// Detect json log line output
+			if (Config.CommandLineParams.HasParam("JsonStdOut")
+				|| (Role.Platform == BuildHostPlatform.Current.Platform
+					&& !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("UE_LOG_JSON_TO_STDOUT"))))
+			{
+				Config.FilterLoggingDelegate = (string M, bool IsErr) => UnrealLogParser.SanitizeJsonOutputLine(M);
+			}
+
             if (Role.FilesToCopy != null)
             {
                 Config.FilesToCopy = Role.FilesToCopy;

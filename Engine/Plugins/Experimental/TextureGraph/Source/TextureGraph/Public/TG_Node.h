@@ -111,7 +111,7 @@ public:
 	// All the pins are stored packed in the <Pins> member
 	//////////////////////////////////////////////////////////////////////////
 
-    UPROPERTY(TextExportTransient)
+    UPROPERTY()
 	TArray<TObjectPtr<UTG_Pin>> Pins;
 
 	// Iterate through all the Input OR Output pins in this node, return the number traversed

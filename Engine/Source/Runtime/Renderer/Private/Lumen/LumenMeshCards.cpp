@@ -652,6 +652,9 @@ void BuildMeshCardsDataForMergedInstances(const FLumenPrimitiveGroup& PrimitiveG
 
 		if (const FInstanceSceneDataBuffers *InstanceSceneData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers())
 		{
+			// Instance data must be available on CPU.
+			check(!InstanceSceneData->IsInstanceDataGPUOnly());
+
 			for (int32 InstanceIndex = 0; InstanceIndex < InstanceSceneData->GetNumInstances(); ++InstanceIndex)
 			{
 				InstanceArea = BoxSurfaceArea((FVector)InstanceSceneData->GetInstanceLocalBounds(InstanceIndex).GetExtent());
@@ -683,6 +686,9 @@ void BuildMeshCardsDataForMergedInstances(const FLumenPrimitiveGroup& PrimitiveG
 
 			if (const FInstanceSceneDataBuffers *InstanceSceneData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers())
 			{
+				// Instance data must be available on CPU.
+				check(!InstanceSceneData->IsInstanceDataGPUOnly());
+
 				for (int32 InstanceIndex = 0; InstanceIndex < InstanceSceneData->GetNumInstances(); ++InstanceIndex)
 				{
 					FMatrix InstanceToWorld = InstanceSceneData->GetInstanceToWorld(InstanceIndex);
@@ -780,6 +786,9 @@ void FLumenSceneData::AddMeshCards(int32 PrimitiveGroupIndex)
 			FMatrix LocalToWorld = PrimitiveSceneInfo->Proxy->GetLocalToWorld();
 			if (const FInstanceSceneDataBuffers *InstanceData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers())
 			{
+				// Instance data must be available on CPU.
+				check(!InstanceData->IsInstanceDataGPUOnly());
+
 				const int32 PrimitiveInstanceIndex = FMath::Clamp(PrimitiveGroup.PrimitiveInstanceIndex, 0, InstanceData->GetNumInstances() - 1);
 				LocalToWorld = InstanceData->GetInstanceToWorld(PrimitiveInstanceIndex);
 			}

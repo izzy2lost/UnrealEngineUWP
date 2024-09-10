@@ -250,7 +250,12 @@ void UMeshPaintMode::Tick(FEditorViewportClient* ViewportClient, float DeltaTime
 		TargetTab = MeshPaintMode_TextureAsset;
 		CurrentActiveMode = EMeshPaintActiveMode::Texture;
 	}
-	if ( TargetTab != ActiveTab)
+	else if (ActiveTool == nullptr)
+	{
+		TargetTab = MeshPaintMode_VertexColor;
+		CurrentActiveMode = EMeshPaintActiveMode::VertexColor;
+	}
+	if (TargetTab != ActiveTab)
 	{
 		Toolkit->SetCurrentPalette(TargetTab);
 	}
@@ -1119,7 +1124,7 @@ void UMeshPaintMode::CopyMeshPaintTexture()
 bool UMeshPaintMode::CanCopyMeshPaintTexture() const
 {
 	const TArray<UStaticMeshComponent*> StaticMeshComponents = GetSelectedComponents<UStaticMeshComponent>();
-	if (StaticMeshComponents.Num() == 1 && StaticMeshComponents[0]->GetMeshPaintTexture() != nullptr)
+	if (StaticMeshComponents.Num() == 1 && StaticMeshComponents[0]->GetMeshPaintTexture() != nullptr && StaticMeshComponents[0]->CanMeshPaintTextureColors())
 	{
 		return true;
 	}
@@ -1171,17 +1176,20 @@ void UMeshPaintMode::PasteMeshPaintTexture()
 
 bool UMeshPaintMode::CanPasteMeshPaintTexture() const
 {
-	const TArray<UStaticMeshComponent*> StaticMeshComponents = GetSelectedComponents<UStaticMeshComponent>();
-	if (StaticMeshComponents.Num() == 0)
-	{
-		return false;
-	}
 	FImage const& Image = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->GetCopiedTexture();
 	if (Image.GetNumPixels() == 0)
 	{
 		return false;
 	}
-	return true;
+	const TArray<UStaticMeshComponent*> StaticMeshComponents = GetSelectedComponents<UStaticMeshComponent>();
+	for (UStaticMeshComponent* Component : StaticMeshComponents)
+	{
+		if (Component->CanMeshPaintTextureColors())
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void UMeshPaintMode::Paste()
@@ -1259,8 +1267,15 @@ void UMeshPaintMode::ImportMeshPaintTextureFromVertexColors()
 
 bool UMeshPaintMode::CanImportMeshPaintTextureFromVertexColors() const
 {
-	const TArray<UStaticMeshComponent*> MeshComponents = GetSelectedComponents<UStaticMeshComponent>();
-	return MeshComponents.Num() > 0;
+	const TArray<UStaticMeshComponent*> StaticMeshComponents = GetSelectedComponents<UStaticMeshComponent>();
+	for (UStaticMeshComponent* Component : StaticMeshComponents)
+	{
+		if (Component->CanMeshPaintTextureColors())
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void UMeshPaintMode::FixTextureColors()

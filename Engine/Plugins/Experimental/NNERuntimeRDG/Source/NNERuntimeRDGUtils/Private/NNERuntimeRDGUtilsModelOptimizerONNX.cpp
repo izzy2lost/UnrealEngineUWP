@@ -7,7 +7,7 @@
 #include "HAL/PlatformTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-#include "NNE.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEOnnxruntimeEditor.h"
 
 THIRD_PARTY_INCLUDES_START
@@ -37,7 +37,7 @@ public:
 	{
 		if (Model.Format != ENNEInferenceFormat::ONNX)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("%s is expecting a model in ONNX format but received %u."), *(GetName()), Model.Format);
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("%s is expecting a model in ONNX format but received %u."), *(GetName()), Model.Format);
 			return false;
 		}
 
@@ -45,7 +45,7 @@ public:
 		const bool result = ModelProto.ParseFromArray(Model.Data.GetData(), Model.Data.Num());
 		if (!result)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("%s could not parse the input model as a ModelProto."), *(GetName()));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("%s could not parse the input model as a ModelProto."), *(GetName()));
 			return false;
 		}
 
@@ -156,7 +156,7 @@ public:
 	{
 		if (Model.Format != ENNEInferenceFormat::ONNX)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("%s is expecting a model in ONNX format but received %u."), *(GetName()), Model.Format);
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("%s is expecting a model in ONNX format but received %u."), *(GetName()), Model.Format);
 			return false;
 		}
 
@@ -164,7 +164,7 @@ public:
 		const bool result = ModelProto.ParseFromArray(Model.Data.GetData(), Model.Data.Num());
 		if (!result)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("%s could not parse the input model as a ModelProto."), *(GetName()));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("%s could not parse the input model as a ModelProto."), *(GetName()));
 			return false;
 		}
 
@@ -214,7 +214,7 @@ public:
 	{
 		if (Model.Format != ENNEInferenceFormat::ONNX)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("%s is expecting a mNNEdel in ONNX format but received %u."), *(GetName()), Model.Format);
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("%s is expecting a mNNEdel in ONNX format but received %u."), *(GetName()), Model.Format);
 			return false;
 		}
 
@@ -222,12 +222,12 @@ public:
 		const bool result = ModelProto.ParseFromArray(Model.Data.GetData(), Model.Data.Num());
 		if (!result)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("%s could not parse the input model as a ModelProto."), *(GetName()));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("%s could not parse the input model as a ModelProto."), *(GetName()));
 			return false;
 		}
 
 #ifdef ONNX_NO_EXCEPTIONS
-		UE_LOG(LogNNE, Warning, TEXT("ONNX Shape inference can't be run as exception are disabled."));
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ONNX Shape inference can't be run as exception are disabled."));
 		return true;
 #else
 
@@ -239,7 +239,7 @@ public:
 		}
 		catch (onnx::InferenceError& e)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Shape inference failed with : %s."), ANSI_TO_TCHAR(e.what()));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Shape inference failed with : %s."), ANSI_TO_TCHAR(e.what()));
 		}
 #endif
 		

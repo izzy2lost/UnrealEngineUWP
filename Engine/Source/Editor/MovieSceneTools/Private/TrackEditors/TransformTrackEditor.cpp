@@ -19,10 +19,12 @@
 #include "ISectionLayoutBuilder.h"
 #include "IKeyArea.h"
 #include "IContentBrowserSingleton.h"
+#include "ISequencer.h"
 #include "ContentBrowserModule.h"
 #include "Editor.h"
 #include "Sections/TransformPropertySection.h"
 #include "SequencerUtilities.h"
+#include "SequencerSettings.h"
 #include "MVVM/Views/ViewUtilities.h"
 #include "MVVM/ViewModels/OutlinerColumns/OutlinerColumnTypes.h"
 #include "MVVM/ViewModels/ObjectBindingModel.h"
@@ -187,15 +189,15 @@ void F3DTransformTrackEditor::BuildTrackContextMenu( FMenuBuilder& MenuBuilder, 
 
 void F3DTransformTrackEditor::BuildAssetPickerSubMenu(FMenuBuilder& InMenuBuilder, UMovieScene3DTransformTrack* InTransformTrack)
 {
-	const TSharedPtr<ISequencer> TrackSequencer = GetSequencer();
-	if (!TrackSequencer.IsValid())
+	const TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+	if (!SequencerPtr.IsValid())
 	{
 		return;
 	}
 
 	TWeakObjectPtr<UMovieScene3DTransformTrack> TransformTrackWeak = InTransformTrack;
 
-	UMovieSceneSequence* Sequence = TrackSequencer->GetFocusedMovieSceneSequence();
+	UMovieSceneSequence* Sequence = SequencerPtr->GetFocusedMovieSceneSequence();
 
 	FAssetPickerConfig AssetPickerConfig;
 	AssetPickerConfig.bAddFilterUI = true;
@@ -216,10 +218,13 @@ void F3DTransformTrackEditor::BuildAssetPickerSubMenu(FMenuBuilder& InMenuBuilde
 
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 
+	const float WidthOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+	const float HeightOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 	InMenuBuilder.AddWidget(
 		SNew(SBox)
-		.WidthOverride(200.0f)
-		.HeightOverride(400.0f)
+		.WidthOverride(WidthOverride)
+		.HeightOverride(HeightOverride)
 		[
 			ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig)
 		], 
@@ -996,7 +1001,6 @@ void F3DTransformTrackEditor::AddTransformKeysForObject( UObject* Object, EMovie
 	}
 }
 
-
 void F3DTransformTrackEditor::AddTransformKeys( UObject* ObjectToKey, const TOptional<FTransformData>& LastTransform, const FTransformData& CurrentTransform, EMovieSceneTransformChannel ChannelsToKey, ESequencerKeyMode KeyMode )
 {
 	if (!GetSequencer()->IsAllowedToChange())
@@ -1040,7 +1044,6 @@ void F3DTransformTrackEditor::AddTransformKeys( UObject* ObjectToKey, const TOpt
 
 	AnimatablePropertyChanged( FOnKeyProperty::CreateLambda(OnKeyProperty) );
 }
-
 
 FTransformData F3DTransformTrackEditor::RecomposeTransform(const FTransformData& InTransformData, UObject* AnimatedObject, UMovieSceneSection* Section)
 {

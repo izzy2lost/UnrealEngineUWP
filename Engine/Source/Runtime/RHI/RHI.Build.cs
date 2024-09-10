@@ -2,6 +2,7 @@
 
 using UnrealBuildTool;
 using System;
+using EpicGames.Core;
 
 public class RHI : ModuleRules
 {
@@ -13,6 +14,8 @@ public class RHI : ModuleRules
 
 		// @todo - new gpu profiler. This is experimental.
 		PublicDefinitions.Add("RHI_NEW_GPU_PROFILER=0");
+
+		PublicDefinitions.AddDefinition("WITH_MGPU", Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) && Target.Platform.IsInGroup(UnrealPlatformGroup.Desktop));
 
 		if (Target.bCompileAgainstEngine)
 		{

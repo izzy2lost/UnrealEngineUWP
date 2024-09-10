@@ -166,20 +166,18 @@ void UDMXControlConsoleEditorPlayMenuModel::CreatePlayMenu(UToolMenu& InMenu)
 
 bool UDMXControlConsoleEditorPlayMenuModel::CanPlayDMX() const
 {
-	return ControlConsoleData && !IsPlayingDMX() && !bPaused;
+	return !IsPlayingDMX() && !IsPausedDMX();
 }
 
 bool UDMXControlConsoleEditorPlayMenuModel::CanResumeDMX() const
 {
-	return bPaused && !IsPlayingDMX();
+	return IsPausedDMX() && !IsPlayingDMX();
 }
 
 void UDMXControlConsoleEditorPlayMenuModel::PlayDMX()
 {
 	if (ControlConsoleData)
 	{
-		bPaused = false;
-
 		ControlConsoleData->StartSendingDMX();
 	}
 }
@@ -193,29 +191,19 @@ void UDMXControlConsoleEditorPlayMenuModel::PauseDMX()
 {
 	if (ControlConsoleData)
 	{
-		bPaused = true;
-
-		// When pausing, always use the stop mode that does not send DMX values
-		const EDMXControlConsoleStopDMXMode RestoreStopDMXMode = ControlConsoleData->GetStopDMXMode();
-		ControlConsoleData->SetStopDMXMode(EDMXControlConsoleStopDMXMode::DoNotSendValues);
-
-		ControlConsoleData->StopSendingDMX();
-
-		ControlConsoleData->SetStopDMXMode(RestoreStopDMXMode);
+		ControlConsoleData->PauseSendingDMX();
 	}
 }
 
 bool UDMXControlConsoleEditorPlayMenuModel::CanStopPlayingDMX() const
 {
-	return IsPlayingDMX() || bPaused;
+	return IsPlayingDMX() || IsPausedDMX();
 }
 
 void UDMXControlConsoleEditorPlayMenuModel::StopPlayingDMX()
 {
 	if (ControlConsoleData)
 	{
-		bPaused = false;
-
 		ControlConsoleData->StopSendingDMX();
 	}
 }
@@ -262,6 +250,11 @@ bool UDMXControlConsoleEditorPlayMenuModel::IsUsingStopDMXMode(EDMXControlConsol
 bool UDMXControlConsoleEditorPlayMenuModel::IsPlayingDMX() const
 {
 	return ControlConsoleData && ControlConsoleData->IsSendingDMX();
+}
+
+bool UDMXControlConsoleEditorPlayMenuModel::IsPausedDMX() const
+{
+	return ControlConsoleData && ControlConsoleData->IsPausedDMX();
 }
 
 #undef LOCTEXT_NAMESPACE

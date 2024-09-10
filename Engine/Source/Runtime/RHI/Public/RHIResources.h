@@ -3260,11 +3260,29 @@ enum class ERayTracingAccelerationStructureFlags
 };
 ENUM_CLASS_FLAGS(ERayTracingAccelerationStructureFlags);
 
+enum class ERayTracingShaderBindingMode
+{
+	Disabled	= 0,				//< No binding data at all
+	Inline		= 1 << 0,			//< Binding data for inline raytracing
+	RTPSO		= 1 << 1,			//< Binding data for raytracing using RTPSOs
+};
+ENUM_CLASS_FLAGS(ERayTracingShaderBindingMode);
+
+enum class ERayTracingHitGroupIndexingMode
+{
+	Allow,
+	Disallow,
+};
+ENUM_CLASS_FLAGS(ERayTracingHitGroupIndexingMode);
+
 struct FRayTracingShaderBindingTableInitializer
 {
-	// Allow indexing of the hit group shaders - if disabled then the SBT won't store any hit group data
-	bool bAllowHitGroupIndexing = true;
+	// Defines which types of binding data needs to be stored in the SBT (Inline and/or RTPSO)
+	ERayTracingShaderBindingMode ShaderBindingMode = ERayTracingShaderBindingMode::Disabled;
 	
+	// Allow indexing of the hit group shaders for RTPSO bindings - if disabled then the SBT won't store any hit group data
+	ERayTracingHitGroupIndexingMode HitGroupIndexingMode = ERayTracingHitGroupIndexingMode::Allow;
+
 	// Local binding data size used for each entry in the SBT (needs to be at least as big as the local binding data size of all shaders used in the SBT) 
 	uint32 LocalBindingDataSize = 0;
 
@@ -3398,9 +3416,7 @@ class FRHIRayTracingScene
 public:
 	virtual const FRayTracingSceneInitializer2& GetInitializer() const = 0;
 
-	// Returns a buffer view for RHI-specific system parameters associated with this scene.
-	// This may be needed to access ray tracing geometry data in shaders that use ray queries.
-	// Returns NULL if current RHI does not require this buffer.
+	UE_DEPRECATED(5.5, "Use GetOrCreateInlineBufferSRV on the FRHIShaderBindingTable instead of the Scene")
 	virtual FRHIShaderResourceView* GetOrCreateMetadataBufferSRV(FRHICommandListImmediate& RHICmdList)
 	{
 		return nullptr;
@@ -3432,6 +3448,14 @@ public:
 	const FRayTracingShaderBindingTableInitializer& GetInitializer() const
 	{
 		return Initializer;
+	}
+
+	// Returns a buffer view for RHI-specific system parameters associated with this SBT.
+	// This may be needed to access ray tracing geometry data in shaders that use ray queries.
+	// Returns NULL if current RHI does not require this buffer.
+	virtual FRHIShaderResourceView* GetOrCreateInlineBufferSRV(FRHICommandListBase& RHICmdList)
+	{
+		return nullptr;
 	}
 
 protected:

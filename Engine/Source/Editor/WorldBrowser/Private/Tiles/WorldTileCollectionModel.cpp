@@ -342,11 +342,17 @@ void FWorldTileCollectionModel::BuildWorldCompositionMenu(FMenuBuilder& InMenuBu
 			InMenuBuilder.AddMenuEntry(Commands.World_UnloadLevel);
 			InMenuBuilder.AddMenuEntry(Commands.World_SaveSelectedLevels);
 		
-			// Visibility commands
+			// Editor Visibility commands
 			InMenuBuilder.AddSubMenu( 
-				LOCTEXT("VisibilityHeader", "Visibility"),
-				LOCTEXT("VisibilitySubMenu_ToolTip", "Selected Level(s) visibility commands"),
-				FNewMenuDelegate::CreateSP(const_cast<FWorldTileCollectionModel*>(this), &FWorldTileCollectionModel::FillVisibilitySubMenu ) );
+				LOCTEXT("EditorVisibilityHeader", "Visibility in Editor"),
+				LOCTEXT("EditorVisibilitySubMenu_ToolTip", "Selected Level(s) visibility commands for editor worlds"),
+				FNewMenuDelegate::CreateSP(const_cast<FWorldTileCollectionModel*>(this), &FWorldTileCollectionModel::FillEditorVisibilitySubMenu ) );
+
+			// Game Visibility commands
+			InMenuBuilder.AddSubMenu( 
+				LOCTEXT("GameVisibilityHeader", "Visibility in Game"),
+				LOCTEXT("GameVisibilitySubMenu_ToolTip", "Selected Level(s) visibility commands for game worlds"),
+				FNewMenuDelegate::CreateSP(const_cast<FWorldTileCollectionModel*>(this), &FWorldTileCollectionModel::FillGameVisibilitySubMenu ) );
 
 			// Lock commands
 			InMenuBuilder.AddSubMenu( 
@@ -434,7 +440,7 @@ void FWorldTileCollectionModel::BuildWorldCompositionMenu(FMenuBuilder& InMenuBu
 	InMenuBuilder.EndSection();
 }
 
-void FWorldTileCollectionModel::BuildHierarchyMenu(FMenuBuilder& InMenuBuilder) const
+void FWorldTileCollectionModel::BuildHierarchyMenu(FMenuBuilder& InMenuBuilder, EBuildHierarchyMenuFlags Flags) const
 {
 	const FLevelCollectionCommands& Commands = FLevelCollectionCommands::Get();
 		
@@ -454,10 +460,19 @@ void FWorldTileCollectionModel::BuildHierarchyMenu(FMenuBuilder& InMenuBuilder) 
 				
 		// Visibility commands
 		InMenuBuilder.AddSubMenu( 
-			LOCTEXT("VisibilityHeader", "Visibility"),
-			LOCTEXT("VisibilitySubMenu_ToolTip", "Selected Level(s) visibility commands"),
-			FNewMenuDelegate::CreateSP(const_cast<FWorldTileCollectionModel*>(this), &FWorldTileCollectionModel::FillVisibilitySubMenu ) );
+			LOCTEXT("EditorVisibilityHeader", "Visibility in Editor"),
+			LOCTEXT("EditorVisibilitySubMenu_ToolTip", "Selected Level(s) visibility commands for editor worlds"),
+			FNewMenuDelegate::CreateSP(const_cast<FWorldTileCollectionModel*>(this), &FWorldTileCollectionModel::FillEditorVisibilitySubMenu ) );
 
+		// Game Visibility commands
+		if (EnumHasAnyFlags(Flags, EBuildHierarchyMenuFlags::ShowGameVisibility))
+		{
+			InMenuBuilder.AddSubMenu( 
+	            LOCTEXT("GameVisibilityHeader", "Visibility in Game"),
+	            LOCTEXT("GameVisibilitySubMenu_ToolTip", "Selected Level(s) visibility commands for game worlds"),
+	            FNewMenuDelegate::CreateSP(const_cast<FWorldTileCollectionModel*>(this), &FWorldTileCollectionModel::FillGameVisibilitySubMenu ) );
+		}
+		
 		// Lock commands
 		InMenuBuilder.AddSubMenu( 
 			LOCTEXT("LockHeader", "Lock"),
@@ -1425,7 +1440,7 @@ void FWorldTileCollectionModel::ClearParentLink_Executed()
 bool FWorldTileCollectionModel::CanAddLandscapeProxy(FWorldTileModel::EWorldDirections InWhere) const
 {
 	if (SelectedLevelsList.Num() == 1 &&
-		SelectedLevelsList[0]->IsVisible() &&
+		SelectedLevelsList[0]->IsVisibleInEditor() &&
 		StaticCastSharedPtr<FWorldTileModel>(SelectedLevelsList[0])->IsLandscapeBased())
 	{
 		return true;
@@ -1474,9 +1489,9 @@ void FWorldTileCollectionModel::AddLandscapeProxy_Executed(FWorldTileModel::EWor
 
 		ALandscapeProxy* SourceLandscape = LandscapeTileModel->GetLandscape();
 	
-		NewLevelModel->SetVisible(false);
+		NewLevelModel->SetVisibleInEditor(false);
 		NewLevelModel->CreateAdjacentLandscapeProxy(SourceLandscape, InWhere);
-		ShowLevels(Levels);
+		ShowLevelsInEditor(Levels);
 	}
 }
 
@@ -1683,7 +1698,7 @@ void FWorldTileCollectionModel::ImportTiledLandscape_Executed()
 					PopulateLevelsList();
 					TSharedPtr<FWorldTileModel> NewTileModel = StaticCastSharedPtr<FWorldTileModel>(FindLevelModel(NewWorld->GetOutermost()->GetFName()));
 					// Hide level, so we do not depend on a current world origin
-					NewTileModel->SetVisible(false);
+					NewTileModel->SetVisibleInEditor(false);
 
 					// Create landscape proxy in a new level
 					ALandscapeProxy* NewLandscape = NewTileModel->ImportLandscapeTile(TileImportSettings);
@@ -1749,10 +1764,10 @@ void FWorldTileCollectionModel::ReimportTiledLandscape_Executed(FName TargetLaye
 	// Hide all visible levels
 	for (auto LevelModel : AllLevelsList)
 	{
-		AllLevelsVisibilityState.Add(LevelModel->IsVisible());
+		AllLevelsVisibilityState.Add(LevelModel->IsVisibleInEditor());
 		if (!LevelModel->IsPersistent())
 		{
-			LevelModel->SetVisible(false);
+			LevelModel->SetVisibleInEditor(false);
 		}
 	}
 
@@ -1764,7 +1779,7 @@ void FWorldTileCollectionModel::ReimportTiledLandscape_Executed(FName TargetLaye
 	{
 		Progress.EnterProgressFrame();
 
-		TileModel->SetVisible(true);
+		TileModel->SetVisibleInEditor(true);
 
 		ALandscapeProxy* Landscape = TileModel->GetLandscape();
 		FIntRect LandscapeSize = Landscape->GetBoundingRect();
@@ -1807,7 +1822,7 @@ void FWorldTileCollectionModel::ReimportTiledLandscape_Executed(FName TargetLaye
 			}
 		}
 
-		TileModel->SetVisible(false);
+		TileModel->SetVisibleInEditor(false);
 	}
 
 	// Restore world origin tracking
@@ -1818,7 +1833,7 @@ void FWorldTileCollectionModel::ReimportTiledLandscape_Executed(FName TargetLaye
 	{
 		if (AllLevelsVisibilityState[LevelIdx])
 		{
-			AllLevelsList[LevelIdx]->SetVisible(true);
+			AllLevelsList[LevelIdx]->SetVisibleInEditor(true);
 		}
 	}
 }
@@ -1986,11 +2001,11 @@ bool FWorldTileCollectionModel::GenerateLODLevels(FLevelModelList InLevelList, i
 		}
 
 		// We have to make original level visible, to correctly export it
-		const bool bVisibleLevel = TileModel->IsVisible();
+		const bool bVisibleLevel = TileModel->IsVisibleInEditor();
 		if (!bVisibleLevel)
 		{
 			GetWorld()->WorldComposition->bTemporarilyDisableOriginTracking = true;
-			TileModel->SetVisible(true);
+			TileModel->SetVisibleInEditor(true);
 		}
 
 		FLevelSimplificationDetails SimplificationDetails = TileModel->GetLevelObject()->LevelSimplification[TargetLODIndex];
@@ -2200,7 +2215,7 @@ bool FWorldTileCollectionModel::GenerateLODLevels(FLevelModelList InLevelList, i
 		// Restore level original visibility
 		if (!bVisibleLevel)
 		{
-			TileModel->SetVisible(false);
+			TileModel->SetVisibleInEditor(false);
 			GetWorld()->WorldComposition->bTemporarilyDisableOriginTracking = false;
 		}
 	

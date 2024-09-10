@@ -224,7 +224,7 @@ float3 SubstrateMobileForwardLighting(
 				{
 					half DynamicShadowing = 1.0f;
 					half4 DynamicShadowFactors = 1.0f;
-					FDeferredLightData DirLightData = GetDirectionalLightData(MaterialParameters.ScreenPosition, SvPosition, DynamicShadowFactors, DynamicShadowing);
+					FDeferredLightData DirLightData = GetDirectionalLightData(MaterialParameters.ScreenPosition, SvPosition, DynamicShadowFactors, DynamicShadowing, EyeIndex);
 					half4 DirLightAttenuation = half4(1, 1, DynamicShadowing, DynamicShadowing);
 					uint DirLightingChannelMask = LIGHTING_CHANNEL_MASK;
 					float3 ToDirLight = DirLightData.Direction;	// Already normalized

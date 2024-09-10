@@ -3,6 +3,7 @@
 #include "ChooserFactory.h"
 #include "Chooser.h"
 #include "ChooserInitializer.h"
+#include "ChooserEditorSettings.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/SCompoundWidget.h"
@@ -89,6 +90,15 @@ public:
 	bool ConfigureProperties(TWeakObjectPtr<UChooserTableFactory> InChooserFactory)
 	{
 		ChooserFactory = InChooserFactory;
+		if (!UChooserEditorSettings::Get().DefaultCreateType.IsEmpty())
+		{
+			FTopLevelAssetPath StructPath(UChooserEditorSettings::Get().DefaultCreateType);
+			if (UScriptStruct* DefaultInitializer = FindObject<UScriptStruct>(StructPath))
+			{
+				ChooserFactory->ChooserInitializer.InitializeAs(DefaultInitializer);
+			}
+		}
+		
 		DetailsView->SetObject(ChooserFactory.Get());
 
 		Window = SNew(SWindow)
@@ -172,6 +182,7 @@ UObject* UChooserTableFactory::FactoryCreateNew(UClass* Class, UObject* InParent
 	if (ChooserInitializer.IsValid())
 	{
 		ChooserInitializer.Get<FChooserInitializer>().Initialize(NewChooser);
+		UChooserEditorSettings::Get().DefaultCreateType = ChooserInitializer.GetScriptStruct()->GetStructPathName().ToString();
 	}
 	return NewChooser;
 }

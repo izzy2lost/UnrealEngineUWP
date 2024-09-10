@@ -469,7 +469,7 @@ void USkinnedAsset::FillComponentSpaceTransforms(const TArray<FTransform>& InBon
 	if (IsISPCEnabled())
 	{
 #if INTEL_ISPC
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			AutoRTFM::RecordOpenWrite(
 				ComponentSpaceData,

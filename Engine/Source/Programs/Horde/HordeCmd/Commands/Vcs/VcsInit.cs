@@ -9,8 +9,8 @@ namespace Horde.Commands.Vcs
 	[Command("vcs", "init", "Initialize a directory for VCS-like operations", Advertise = false)]
 	class VcsInit : VcsBase
 	{
-		public VcsInit(IStorageClientFactory storageClientFactory)
-			: base(storageClientFactory)
+		public VcsInit(IStorageClient storageClient)
+			: base(storageClient)
 		{
 		}
 

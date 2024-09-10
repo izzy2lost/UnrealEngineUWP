@@ -177,6 +177,17 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 			.SetFont(DEFAULT_FONT("Regular", 11)));
 	}
 
+	// Diff tool
+	{
+		Set("DiffTools.Added", FLinearColor(0.3f, 1.f, 0.3f)); // green
+		Set("DiffTools.Removed", FLinearColor(1.0f, 0.2f, 0.3f)); // red
+		Set("DiffTools.Changed", FLinearColor(0.85f, 0.71f, 0.25f)); // yellow
+		Set("DiffTools.Moved", FLinearColor(0.5f, 0.8f, 1.f)); // light blue
+		Set("DiffTools.Enabled", FLinearColor(0.7f, 1.f, 0.7f)); // light green
+		Set("DiffTools.Disabled", FLinearColor(1.0f, 0.6f, 0.5f)); // light red
+		Set("DiffTools.Properties", FLinearColor(0.2f, 0.4f, 1.f)); // blue
+	}
+
 	// Debugger
 	{
 		Set("StateTreeDebugger.Element.Normal",
@@ -256,9 +267,15 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 		EditableTextStyle.Font.Size = 10.0f;
 		Set("StateTree.Node.Editable", EditableTextStyle);
 
-		Set("StateTree.Node.Normal", FTextBlockStyle(NormalText)
+		FEditableTextBoxStyle EditableTextBlockStyle = FEditableTextBoxStyle(FAppStyle::GetWidgetStyle<FEditableTextBoxStyle>("NormalEditableTextBox"));
+		EditableTextStyle.Font = FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont"));
+		EditableTextStyle.Font.Size = 10.0f;
+		Set("StateTree.Node.EditableTextBlock", EditableTextBlockStyle);
+
+		const FTextBlockStyle StateNodeNormalText = FTextBlockStyle(NormalText)
 			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-			.SetFontSize(10));
+			.SetFontSize(10);
+		Set("StateTree.Node.Normal", StateNodeNormalText);
 
 		Set("StateTree.Node.Bold", FTextBlockStyle(NormalText)
 			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.BoldFont")))
@@ -268,6 +285,10 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 			.SetColorAndOpacity(FSlateColor::UseSubduedForeground())
 			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 			.SetFontSize(10));
+
+		Set("StateTree.Node.TitleInlineEditableText", FInlineEditableTextBlockStyle()
+			.SetTextStyle(StateNodeNormalText)
+			.SetEditableTextBoxStyle(EditableTextBlockStyle));
 	}
 
 	

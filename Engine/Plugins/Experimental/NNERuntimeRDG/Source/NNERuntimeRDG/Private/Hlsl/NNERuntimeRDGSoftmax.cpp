@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGSoftmax.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersReduceCS.h"
 #include "NNEHlslShadersSoftmaxCS.h"
 #include "NNERuntimeRDGHlslHelper.h"
@@ -51,13 +53,13 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (Version <= 11 && InputDimensions < 2)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Input tensor should be at least 2-D (but got rank %d)"), InputDimensions);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Softmax: Input tensor should be at least 2-D (but got rank %d)"), InputDimensions);
 				return false;
 			}
 
 			if (InputTensorDescs[0].GetShape().Rank() != OutputTensorDescs[0].GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Softwax requires the output to have the same rank as the input."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Softwax: Output should have the same rank as the input."));
 				return false;
 			}
 
@@ -67,7 +69,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			Axis = Attributes.GetValueOrDefault<int32>(TEXT("axis"), Version <= 11 ? 1 : -1);
 			if (Axis < AxisLow || AxisHigh < Axis)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Invalid axis (should in the interval [%d, %d], but got %d)"), AxisLow, AxisHigh, Axis);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Softmax: Invalid axis (should in the interval [%d, %d], but got %d)"), AxisLow, AxisHigh, Axis);
 				return false;
 			}
 			if(Axis < 0)

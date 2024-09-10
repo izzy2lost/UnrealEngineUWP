@@ -4,7 +4,7 @@
 #include "TimeProfile/TimeProfileProxyColumn.h"
 #include "TimeProfile/TimeProfileWidgetConstructor.h"
 
-void UHierarchyTableTimeFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const
+void UHierarchyTableTimeFactory::RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage, IEditorDataStorageUiProvider& DataStorageUi) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 

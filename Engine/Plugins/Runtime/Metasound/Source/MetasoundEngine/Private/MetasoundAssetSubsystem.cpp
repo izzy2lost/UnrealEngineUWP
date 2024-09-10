@@ -6,9 +6,11 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Async/Async.h"
 #include "Engine/AssetManager.h"
+#include "HAL/CriticalSection.h"
 #include "Metasound.h"
 #include "MetasoundAssetBase.h"
 #include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundEngineAsset.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentBuilder.h"
@@ -85,10 +87,11 @@ namespace Metasound::Engine
 			return bSuccess;
 		}
 
-		bool RemovePath(TMap<Frontend::FAssetKey, TArray<FTopLevelAssetPath>>& InMap, const Frontend::FAssetKey& AssetKey, const FTopLevelAssetPath& AssetPath)
+		bool RemovePath(FCriticalSection* MapCritSec, TMap<Frontend::FAssetKey, TArray<FTopLevelAssetPath>>& Map, const Frontend::FAssetKey& AssetKey, const FTopLevelAssetPath& AssetPath)
 		{
-			check(IsInGameThread());
-			if (TArray<FTopLevelAssetPath>* MapAssetPaths = InMap.Find(AssetKey))
+			check(MapCritSec);
+			FScopeLock Lock(MapCritSec);
+			if (TArray<FTopLevelAssetPath>* MapAssetPaths = Map.Find(AssetKey))
 			{
 				auto ComparePaths = [&AssetPath](const FTopLevelAssetPath& Path) 
 				{
@@ -105,7 +108,7 @@ namespace Metasound::Engine
 				{
 					if (MapAssetPaths->IsEmpty())
 					{
-						InMap.Remove(AssetKey);
+						Map.Remove(AssetKey);
 					}
 					return true;
 				}
@@ -114,10 +117,11 @@ namespace Metasound::Engine
 			return false;
 		}
 
-		void AddPath(TMap<Frontend::FAssetKey, TArray<FTopLevelAssetPath>>& InMap, const Frontend::FAssetKey& AssetKey, const FTopLevelAssetPath& AssetPath)
+		void AddPath(FCriticalSection* MapCritSec, TMap<Frontend::FAssetKey, TArray<FTopLevelAssetPath>>& Map, const Frontend::FAssetKey& AssetKey, const FTopLevelAssetPath& AssetPath)
 		{
-			check(IsInGameThread());
-			TArray<FTopLevelAssetPath>& Paths = InMap.FindOrAdd(AssetKey);
+			check(MapCritSec);
+			FScopeLock Lock(MapCritSec);
+			TArray<FTopLevelAssetPath>& Paths = Map.FindOrAdd(AssetKey);
 			Paths.AddUnique(AssetPath);
 #if !NO_LOGGING
 			if (Paths.Num() > 1)
@@ -152,9 +156,13 @@ namespace Metasound::Engine
 
 		void RebuildDenyListCache(const UAssetManager& InAssetManager);
 		void RegisterAssetClassesInDirectories(const TArray<FMetaSoundAssetDirectory>& Directories);
+
+#if WITH_EDITOR
+		bool ReplaceReferencesInDirectory(const TArray<FMetaSoundAssetDirectory>& InDirectories, const Metasound::Frontend::FNodeRegistryKey& OldClassKey, const Metasound::Frontend::FNodeRegistryKey& NewClassKey) const;
+#endif // WITH_EDITOR
 		void RequestAsyncLoadReferencedAssets(FMetasoundAssetBase& InAssetBase);
 		void OnAssetScanComplete();
-		void SearchAndIterateDirectoryAssets(const TArray<FDirectoryPath>& InDirectories, TFunctionRef<void(const FAssetData&)> InFunction);
+		void SearchAndIterateDirectoryAssets(const TArray<FDirectoryPath>& InDirectories, TFunctionRef<void(const FAssetData&)> InFunction) const;
 		FMetasoundAssetBase* TryLoadAsset(const FSoftObjectPath& InObjectPath) const;
 		void UnregisterAssetClassesInDirectories(const TArray<FMetaSoundAssetDirectory>& Directories);
 
@@ -168,12 +176,13 @@ namespace Metasound::Engine
 		virtual bool ContainsKey(const FAssetKey& InKey) const override;
 		virtual FMetasoundAssetBase* FindAsset(const FAssetKey& InKey) const override;
 		virtual TScriptInterface<IMetaSoundDocumentInterface> FindAssetAsDocumentInterface(const Frontend::FAssetKey& InKey) const override;
-		virtual const FTopLevelAssetPath* FindAssetPath(const FAssetKey& InKey) const override;
-		virtual const TArray<FTopLevelAssetPath>* FindAssetPaths(const FAssetKey& InKey) const override;
+		virtual FTopLevelAssetPath FindAssetPath(const FAssetKey& InKey) const override;
+		virtual TArray<FTopLevelAssetPath> FindAssetPaths(const FAssetKey& InKey) const override;
 		virtual FMetasoundAssetBase* GetAsAsset(UObject& InObject) const override;
 		virtual const FMetasoundAssetBase* GetAsAsset(const UObject& InObject) const override;
 #if WITH_EDITOR
 		virtual TSet<FAssetInfo> GetReferencedAssetClasses(const FMetasoundAssetBase& InAssetBase) const override;
+		virtual bool ReassignClassName(TScriptInterface<IMetaSoundDocumentInterface> DocInterface) override;
 #endif // WITH_EDITOR
 		virtual void IterateAssets(TFunctionRef<void(const FAssetKey, const TArray<FTopLevelAssetPath>&)> Iter) const override;
 		virtual void ReloadMetaSoundAssets() const override;
@@ -206,26 +215,32 @@ namespace Metasound::Engine
 		std::atomic<bool> bIsInitialAssetScanComplete = false;
 		TMap<FAssetKey, TArray<FTopLevelAssetPath>> PathMap;
 
+		// Critical section primarily for allowing safe access of path map during async loading of MetaSound assets.
+		mutable FCriticalSection PathMapCriticalSection;
+
 		bool bLogActiveAssetsOnShutdown = true;
 	};
 
 	FMetaSoundAssetManager::~FMetaSoundAssetManager()
 	{
 #if !NO_LOGGING
-		if (!PathMap.IsEmpty())
+		if (bLogActiveAssetsOnShutdown)
 		{
-			if (bLogActiveAssetsOnShutdown)
+			TMap<FAssetKey, TArray<FTopLevelAssetPath>> PathsOnShutdown;
 			{
-				TSet<FAssetKey> Keys;
-				if (int32 NumKeys = PathMap.GetKeys(Keys); NumKeys > 0)
+				FScopeLock Lock(&PathMapCriticalSection);
+				PathsOnShutdown = MoveTemp(PathMap);
+				PathMap.Reset();
+			}
+
+			if (!PathsOnShutdown.IsEmpty())
+			{
+				UE_LOG(LogMetaSound, Display, TEXT("AssetManager is shutting down with the following %i assets active:"), PathsOnShutdown.Num());
+				for (const TPair<FAssetKey, TArray<FTopLevelAssetPath>>& Pair : PathsOnShutdown)
 				{
-					UE_LOG(LogMetaSound, Display, TEXT("AssetManager is shutting down with the following %i assets active:"), NumKeys);
-					for (const TPair<FAssetKey, TArray<FTopLevelAssetPath>>& Pair : PathMap)
+					for (const FTopLevelAssetPath& Path : Pair.Value)
 					{
-						for (const FTopLevelAssetPath& Path : Pair.Value)
-						{
-							UE_LOG(LogMetaSound, Display, TEXT("- %s"), *Path.ToString());
-						}
+						UE_LOG(LogMetaSound, Display, TEXT("- %s"), *Path.ToString());
 					}
 				}
 			}
@@ -324,7 +339,7 @@ namespace Metasound::Engine
 
 		if (AssetKey.IsValid())
 		{
-			AssetSubsystemPrivate::AddPath(PathMap, AssetKey, FTopLevelAssetPath(&InObject));
+			AssetSubsystemPrivate::AddPath(&PathMapCriticalSection, PathMap, AssetKey, FTopLevelAssetPath(&InObject));
 		}
 
 		return AssetKey;
@@ -368,7 +383,7 @@ namespace Metasound::Engine
 			const FAssetKey AssetKey = FAssetKey(ClassInfo.ClassName, ClassInfo.Version);
 			if (AssetKey.IsValid())
 			{
-				AssetSubsystemPrivate::AddPath(PathMap, AssetKey, ClassInfo.AssetPath);
+				AssetSubsystemPrivate::AddPath(&PathMapCriticalSection, PathMap, AssetKey, ClassInfo.AssetPath);
 			}
 
 			return AssetKey;
@@ -392,7 +407,7 @@ namespace Metasound::Engine
 
 	bool FMetaSoundAssetManager::ContainsKey(const Metasound::Frontend::FAssetKey& InKey) const
 	{
-		check(IsInGameThread());
+		FScopeLock Lock(&PathMapCriticalSection);
 		return PathMap.Contains(InKey);
 	}
 
@@ -418,9 +433,10 @@ namespace Metasound::Engine
 
 	FMetasoundAssetBase* FMetaSoundAssetManager::FindAsset(const Metasound::Frontend::FAssetKey& InKey) const
 	{
-		if (const FTopLevelAssetPath* AssetPath = FindAssetPath(InKey))
+		FTopLevelAssetPath AssetPath = FindAssetPath(InKey);
+		if (AssetPath.IsValid())
 		{
-			if (UObject* Object = FSoftObjectPath(*AssetPath, { }).ResolveObject())
+			if (UObject* Object = FSoftObjectPath(AssetPath, { }).ResolveObject())
 			{
 				return GetAsAsset(*Object);
 			}
@@ -431,9 +447,10 @@ namespace Metasound::Engine
 
 	TScriptInterface<IMetaSoundDocumentInterface> FMetaSoundAssetManager::FindAssetAsDocumentInterface(const Metasound::Frontend::FAssetKey& InKey) const
 	{
-		if (const FTopLevelAssetPath* AssetPath = FindAssetPath(InKey))
+		const FTopLevelAssetPath AssetPath = FindAssetPath(InKey);
+		if (AssetPath.IsValid())
 		{
-			if (UObject* Object = FSoftObjectPath(*AssetPath, { }).ResolveObject())
+			if (UObject* Object = FSoftObjectPath(AssetPath, { }).ResolveObject())
 			{
 				return TScriptInterface<IMetaSoundDocumentInterface>(Object);
 			}
@@ -442,26 +459,26 @@ namespace Metasound::Engine
 		return nullptr;
 	}
 
-	const FTopLevelAssetPath* FMetaSoundAssetManager::FindAssetPath(const Metasound::Frontend::FAssetKey& InKey) const
+	FTopLevelAssetPath FMetaSoundAssetManager::FindAssetPath(const Metasound::Frontend::FAssetKey& InKey) const
 	{
-		check(IsInGameThread());
+		FScopeLock Lock(&PathMapCriticalSection);
 		if (const TArray<FTopLevelAssetPath>* Paths = PathMap.Find(InKey))
 		{
 			if (!Paths->IsEmpty())
 			{
-				return &Paths->Last();
+				return Paths->Last();
 			}
 		}
 
 		return nullptr;
 	}
 
-	const TArray<FTopLevelAssetPath>* FMetaSoundAssetManager::FindAssetPaths(const Metasound::Frontend::FAssetKey& InKey) const
+	TArray<FTopLevelAssetPath> FMetaSoundAssetManager::FindAssetPaths(const Metasound::Frontend::FAssetKey& InKey) const
 	{
-		check(IsInGameThread());
+		FScopeLock Lock(&PathMapCriticalSection);
 		if (const TArray<FTopLevelAssetPath>* Paths = PathMap.Find(InKey))
 		{
-			return Paths;
+			return *Paths;
 		}
 
 		return { };
@@ -540,9 +557,10 @@ namespace Metasound::Engine
 			}
 
 			const FAssetKey AssetKey(Class.Metadata);
-			if (const FTopLevelAssetPath* ObjectPath = FindAssetPath(AssetKey))
+			FTopLevelAssetPath ObjectPath = FindAssetPath(AssetKey);
+			if (ObjectPath.IsValid())
 			{
-				FAssetInfo AssetInfo { FNodeRegistryKey(Class.Metadata), FSoftObjectPath(*ObjectPath) };
+				FAssetInfo AssetInfo { FNodeRegistryKey(Class.Metadata), FSoftObjectPath(ObjectPath) };
 				OutAssetInfos.Add(MoveTemp(AssetInfo));
 			}
 			else
@@ -587,6 +605,48 @@ namespace Metasound::Engine
 			}
 		}
 		return MoveTemp(OutAssetInfos);
+	}
+
+	bool FMetaSoundAssetManager::ReassignClassName(TScriptInterface<IMetaSoundDocumentInterface> DocInterface)
+	{
+#if WITH_EDITORONLY_DATA
+		UObject* MetaSoundObject = DocInterface.GetObject();
+		if (!MetaSoundObject)
+		{
+			return false;
+		}
+
+		FMetasoundAssetBase* AssetBase = GetAsAsset(*MetaSoundObject);
+		if (!AssetBase)
+		{
+			return false;
+		}
+
+		FMetaSoundFrontendDocumentBuilder& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(DocInterface);
+
+		const FMetasoundFrontendClassMetadata& ClassMetadata = Builder.GetConstDocumentChecked().RootGraph.Metadata;
+		const FTopLevelAssetPath Path(MetaSoundObject);
+
+		AssetBase->UnregisterGraphWithFrontend();
+
+		{
+			const FAssetKey OldAssetKey(ClassMetadata.GetClassName(), ClassMetadata.GetVersion());
+			AssetSubsystemPrivate::RemovePath(&PathMapCriticalSection, PathMap, OldAssetKey, Path);
+		}
+
+		Builder.GenerateNewClassName();
+
+		{
+			const FAssetKey NewAssetKey(ClassMetadata.GetClassName(), ClassMetadata.GetVersion());
+			AssetSubsystemPrivate::AddPath(&PathMapCriticalSection, PathMap, NewAssetKey, Path);
+		}
+
+		AssetBase->UpdateAndRegisterForExecution();
+		return true;
+
+#else // !WITH_EDITORONLY_DATA
+		return false;
+#endif // !WITH_EDITORONLY_DATA
 	}
 #endif // WITH_EDITOR
 
@@ -671,7 +731,7 @@ namespace Metasound::Engine
 		}
 
 		const FAssetKey AssetKey(Metadata.GetClassName(), Metadata.GetVersion());
-		AssetSubsystemPrivate::RemovePath(PathMap, AssetKey, AssetPath);
+		AssetSubsystemPrivate::RemovePath(&PathMapCriticalSection, PathMap, AssetKey, AssetPath);
 	}
 
 	void FMetaSoundAssetManager::RemoveAsset(const FAssetData& InAssetData)
@@ -689,7 +749,7 @@ namespace Metasound::Engine
 			}
 
 			const FAssetKey AssetKey(ClassInfo.ClassName, ClassInfo.Version);
-			AssetSubsystemPrivate::RemovePath(PathMap, AssetKey, AssetPath);
+			AssetSubsystemPrivate::RemovePath(&PathMapCriticalSection, PathMap, AssetKey, AssetPath);
 		}
 	}
 
@@ -714,17 +774,67 @@ namespace Metasound::Engine
 		{
 			const FAssetKey AssetKey(ClassInfo.ClassName, ClassInfo.Version);
 			const FTopLevelAssetPath OldPath(InOldObjectPath);
-			AssetSubsystemPrivate::RemovePath(PathMap, AssetKey, OldPath);
+			AssetSubsystemPrivate::RemovePath(&PathMapCriticalSection, PathMap, AssetKey, OldPath);
 
 			if (ClassInfo.AssetClassID.IsValid())
 			{
 				if (AssetKey.IsValid())
 				{
-					AssetSubsystemPrivate::AddPath(PathMap, AssetKey, ClassInfo.AssetPath);
+					AssetSubsystemPrivate::AddPath(&PathMapCriticalSection, PathMap, AssetKey, ClassInfo.AssetPath);
 				}
 			}
 		}
 	}
+
+#if WITH_EDITOR
+	bool FMetaSoundAssetManager::ReplaceReferencesInDirectory(const TArray<FMetaSoundAssetDirectory>& InDirectories, const Metasound::Frontend::FNodeRegistryKey& OldClassKey, const Metasound::Frontend::FNodeRegistryKey& NewClassKey) const
+	{
+		using namespace Frontend;
+
+		bool bReferencesReplaced = false;
+
+#if WITH_EDITORONLY_DATA
+		if (!NewClassKey.IsValid())
+		{
+			return bReferencesReplaced;
+		}
+
+		FMetasoundFrontendClass NewClass;
+		const bool bNewClassExists = ISearchEngine::Get().FindClassWithHighestVersion(NewClassKey.ClassName, NewClass);
+		if (bNewClassExists)
+		{
+			TArray<FDirectoryPath> Directories;
+			Algo::Transform(InDirectories, Directories, [](const FMetaSoundAssetDirectory& AssetDir) { return AssetDir.Directory; });
+
+			TMap<FNodeRegistryKey, FNodeRegistryKey> OldToNewReferenceKeys = { { OldClassKey, NewClassKey } };
+			SearchAndIterateDirectoryAssets(Directories, [this, &bReferencesReplaced, &OldToNewReferenceKeys](const FAssetData& AssetData)
+			{
+				if (UObject* MetaSoundObject = AssetData.GetAsset())
+				{
+					MetaSoundObject->Modify();
+					FMetaSoundFrontendDocumentBuilder& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(MetaSoundObject);
+					const bool bDependencyUpdated = Builder.UpdateDependencyRegistryData(OldToNewReferenceKeys);
+					if (bDependencyUpdated)
+					{
+						bReferencesReplaced = true;
+						Builder.RemoveUnusedDependencies();
+						if (FMetasoundAssetBase* AssetBase = GetAsAsset(*MetaSoundObject); ensure(AssetBase))
+						{
+							AssetBase->RebuildReferencedAssetClasses();
+						}
+					}
+				}
+			});
+		}
+		else
+		{
+			UE_LOG(LogMetaSound, Display, TEXT("Cannot replace references in MetaSound assets found in given directory/directories: NewClass '%s' does not exist"), *NewClassKey.ToString());
+		}
+#endif // WITH_EDITORONLY_DATA
+
+		return bReferencesReplaced;
+	}
+#endif // WITH_EDITOR
 
 	void FMetaSoundAssetManager::RequestAsyncLoadReferencedAssets(FMetasoundAssetBase& InAssetBase)
 	{
@@ -796,7 +906,7 @@ namespace Metasound::Engine
 		});
 	}
 
-	void FMetaSoundAssetManager::SearchAndIterateDirectoryAssets(const TArray<FDirectoryPath>& InDirectories, TFunctionRef<void(const FAssetData&)> InFunction)
+	void FMetaSoundAssetManager::SearchAndIterateDirectoryAssets(const TArray<FDirectoryPath>& InDirectories, TFunctionRef<void(const FAssetData&)> InFunction) const
 	{
 		if (InDirectories.IsEmpty())
 		{
@@ -830,9 +940,10 @@ namespace Metasound::Engine
 
 	FMetasoundAssetBase* FMetaSoundAssetManager::TryLoadAssetFromKey(const Metasound::Frontend::FAssetKey& InAssetKey) const
 	{
-		if (const FTopLevelAssetPath* ObjectPath = FindAssetPath(InAssetKey))
+		FTopLevelAssetPath ObjectPath = FindAssetPath(InAssetKey);
+		if (ObjectPath.IsValid())
 		{
-			const FSoftObjectPath SoftPath(*ObjectPath);
+			const FSoftObjectPath SoftPath(ObjectPath);
 			return TryLoadAsset(SoftPath);
 		}
 
@@ -906,7 +1017,7 @@ namespace Metasound::Engine
 						FMetasoundFrontendRegistryContainer::Get()->UnregisterNode(RegistryKey);
 						const FTopLevelAssetPath AssetPath(AssetData.PackageName, AssetData.AssetName);
 						const FAssetKey AssetKey(AssetClassInfo.ClassName, AssetClassInfo.Version);
-						AssetSubsystemPrivate::RemovePath(PathMap, AssetKey, AssetPath);
+						AssetSubsystemPrivate::RemovePath(&PathMapCriticalSection, PathMap, AssetKey, AssetPath);
 					}
 				}
 			}
@@ -1078,9 +1189,10 @@ const FSoftObjectPath* UMetaSoundAssetSubsystem::FindObjectPathFromKey(const Met
 	using namespace Metasound::Frontend;
 	static FSoftObjectPath TempPath;
 	TempPath.Reset();
-	if (const FTopLevelAssetPath* Path = IMetaSoundAssetManager::GetChecked().FindAssetPath(InRegistryKey))
+	const FTopLevelAssetPath Path = IMetaSoundAssetManager::GetChecked().FindAssetPath(InRegistryKey);
+	if (Path.IsValid())
 	{
-		TempPath = FSoftObjectPath(*Path);
+		TempPath = FSoftObjectPath(Path);
 	}
 	return &TempPath;
 }
@@ -1117,11 +1229,38 @@ UMetaSoundAssetSubsystem& UMetaSoundAssetSubsystem::GetChecked()
 	return *Subsystem;
 }
 
+#if WITH_EDITOR
+bool UMetaSoundAssetSubsystem::ReassignClassName(TScriptInterface<IMetaSoundDocumentInterface> DocInterface)
+{
+	using namespace Metasound::Engine;
+	return FMetaSoundAssetManager::GetChecked().ReassignClassName(DocInterface);
+}
+#endif // WITH_EDITOR
+
 void UMetaSoundAssetSubsystem::RegisterAssetClassesInDirectories(const TArray<FMetaSoundAssetDirectory>& InDirectories)
 {
 	using namespace Metasound::Engine;
 	FMetaSoundAssetManager::GetChecked().RegisterAssetClassesInDirectories(InDirectories);
 }
+
+#if WITH_EDITOR
+bool UMetaSoundAssetSubsystem::ReplaceReferencesInDirectory(
+	const TArray<FMetaSoundAssetDirectory>& InDirectories,
+	const FMetasoundFrontendClassName& OldClassName,
+	const FMetasoundFrontendClassName& NewClassName,
+	const FMetasoundFrontendVersionNumber OldVersion,
+	const FMetasoundFrontendVersionNumber NewVersion)
+{
+	using namespace Metasound::Engine;
+	using namespace Metasound::Frontend;
+
+	return FMetaSoundAssetManager::GetChecked().ReplaceReferencesInDirectory(
+		InDirectories,
+		FNodeRegistryKey(EMetasoundFrontendClassType::External, OldClassName, OldVersion),
+		FNodeRegistryKey(EMetasoundFrontendClassType::External, NewClassName, NewVersion)
+	);
+}
+#endif // WITH_EDITOR
 
 void UMetaSoundAssetSubsystem::UnregisterAssetClassesInDirectories(const TArray<FMetaSoundAssetDirectory>& InDirectories)
 {

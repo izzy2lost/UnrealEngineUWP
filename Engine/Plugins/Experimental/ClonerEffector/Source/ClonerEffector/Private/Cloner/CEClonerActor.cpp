@@ -69,6 +69,8 @@ ACEClonerActor::ACEClonerActor()
 		{
 			GEditor->GetSelectedActors()->SelectionChangedEvent.AddUObject(this, &ACEClonerActor::OnEditorSelectionChanged);
 		}
+
+		UCEClonerComponent::OnClonerMeshUpdated().AddUObject(this, &ACEClonerActor::SpawnDefaultActorAttached);
 #endif
 	}
 }
@@ -107,11 +109,6 @@ void ACEClonerActor::PostActorCreated()
 
 #if WITH_EDITOR
 	bSpawnDefaultActorAttached = true;
-
-	if (ClonerComponent->bClonerInitialized)
-	{
-		SpawnDefaultActorAttached();
-	}
 #endif
 }
 
@@ -363,12 +360,18 @@ void ACEClonerActor::MigrateDeprecatedProperties()
 }
 
 #if WITH_EDITOR
-void ACEClonerActor::SpawnDefaultActorAttached()
+void ACEClonerActor::SpawnDefaultActorAttached(UCEClonerComponent* InComponent)
 {
-	if (bSpawnDefaultActorAttached)
+	if (InComponent
+		&& InComponent == ClonerComponent
+		&& bSpawnDefaultActorAttached)
 	{
 		bSpawnDefaultActorAttached = false;
-		ClonerComponent->CreateDefaultActorAttached();
+
+		if (InComponent->GetAttachmentCount() == 0)
+		{
+			ClonerComponent->CreateDefaultActorAttached();
+		}
 	}
 }
 

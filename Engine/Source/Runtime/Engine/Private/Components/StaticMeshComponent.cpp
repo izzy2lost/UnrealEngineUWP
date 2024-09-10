@@ -3250,6 +3250,13 @@ bool UStaticMeshComponent::CanMeshPaintTextureColors() const
 	{
 		return false;
 	}
+	if (FSceneInterface* Scene = GetScene())
+	{
+		if (!MeshPaintVirtualTexture::IsSupported(Scene->GetShaderPlatform()))
+		{
+			return false;
+		}
+	}
 	return true;
 }
 

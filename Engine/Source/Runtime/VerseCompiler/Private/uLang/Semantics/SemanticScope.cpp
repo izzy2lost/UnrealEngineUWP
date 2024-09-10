@@ -3,6 +3,7 @@
 #include "uLang/Semantics/SemanticScope.h"
 
 #include "uLang/Common/Algo/AnyOf.h"
+#include "uLang/Semantics/AvailableAttributeUtils.h"
 #include "uLang/Semantics/ControlScope.h"
 #include "uLang/Semantics/MemberOrigin.h"
 #include "uLang/Semantics/ModuleAlias.h"
@@ -757,18 +758,9 @@ SmallDefinitionArray CLogicalScope::FindDefinitions(const CSymbol& Name, EMember
         {
             if (Qualifier.IsUnspecified() || Qualifier == Definition->GetImplicitQualifier())
             {
-                if (ContextPackage && ContextPackage->_UploadedAtFNVersion < 3100)
+                if (ContextPackage && !IsDefinitionAvailableAtVersion(*Definition, ContextPackage->_UploadedAtFNVersion, _Program))
                 {
-                    if (const CFunction* Function = Definition->AsNullable<CFunction>())
-                    {
-                        CUTF8String DecoratedName = Function->GetDecoratedName();
-                        if (DecoratedName == "(/Fortnite.com/Devices/hud_message_device:)Hide(:agent)"
-                            || DecoratedName == "(/Fortnite.com/Devices/item_granter_device:)GrantItemIndex(:agent,:int)"
-                            || DecoratedName == "(/Fortnite.com/Devices/item_granter_device:)GrantItemIndex(:int)")
-                        {
-                            continue;
-                        }
-                    }
+                    continue;
                 }
 
                 if (Definition->TryMarkOverriddenAndConstrainedDefinitionsVisited(VisitStamp))

@@ -39,12 +39,6 @@ public:
     virtual EMRTC_API void Leave() = 0;
 
     /**
-     * Placeholder for accessing WebRTC stats
-     */
-    // TODO(naz): stats interface
-    virtual EMRTC_API void GetStats() = 0;
-
-    /**
      * This is a temporary method to get the global connection in case we are running the MediaServer mode.
      * @return MediaServer EpicRtcConnectionInterface
      */

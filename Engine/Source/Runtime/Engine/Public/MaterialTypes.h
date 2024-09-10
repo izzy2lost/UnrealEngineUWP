@@ -252,7 +252,7 @@ enum class EMaterialSetParameterValueFlags : uint32
 };
 ENUM_CLASS_FLAGS(EMaterialSetParameterValueFlags);
 
-USTRUCT()
+USTRUCT(BlueprintType)
 struct FParameterChannelNames
 {
 	GENERATED_USTRUCT_BODY()

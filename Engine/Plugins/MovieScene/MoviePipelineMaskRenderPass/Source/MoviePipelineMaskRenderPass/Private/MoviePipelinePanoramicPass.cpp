@@ -12,6 +12,7 @@
 #include "MovieRenderOverlappedImage.h"
 #include "MoviePipelineOutputBuilder.h"
 #include "MoviePipelinePanoramicBlender.h"
+#include "MoviePipelineTelemetry.h"
 #include "OpenColorIODisplayExtension.h"
 #include "TextureResource.h"
 #include "SceneUtils.h"
@@ -553,8 +554,16 @@ void UMoviePipelinePanoramicPass::ScheduleReadbackAndAccumulation(const FMoviePi
 	ENQUEUE_RENDER_COMMAND(CanvasRenderTargetResolveCommand)(
 		[LocalSurfaceQueue, FramePayload, Callback, RenderTarget](FRHICommandListImmediate& RHICmdList) mutable
 		{
+			// Transition our render target from a render target view to a shader resource view to allow a shader to read from this Render Target.
+			RHICmdList.Transition(FRHITransitionInfo(RenderTarget->GetRenderTargetTexture(), ERHIAccess::RTV, ERHIAccess::SRVGraphicsPixel));
+
 			// Enqueue a encode for this frame onto our worker thread.
 			LocalSurfaceQueue->OnRenderTargetReady_RenderThread(RenderTarget->GetRenderTargetTexture(), FramePayload, MoveTemp(Callback));
 		});
 
+}
+
+void UMoviePipelinePanoramicPass::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesPanoramic = true;
 }

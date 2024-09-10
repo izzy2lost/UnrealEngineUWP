@@ -139,6 +139,8 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 
 	DefaultMask = TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture'")));
 
+	CustomPreviewMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Script/Engine.StaticMesh'/Engine/EngineMeshes/SM_MatPreviewMesh_01.SM_MatPreviewMesh_01'")));
+
 	FDMMaterialChannelListPreset Opaque;
 	Opaque.Name = TEXT("Opaque");
 	Opaque.bBaseColor = true;
@@ -304,7 +306,7 @@ void UDynamicMaterialEditorSettings::OpenEditorSettingsWindow() const
 
 void UDynamicMaterialEditorSettings::ResetAllLayoutSettings()
 {
-	Layout = EDMMaterialEditorLayout::Left;
+	Layout = EDMMaterialEditorLayout::Top;
 	bUseFullChannelNamesInTopSlimLayout = false;
 	SplitterLocation = 0.5;
 	PreviewSplitterLocation = 0.333;

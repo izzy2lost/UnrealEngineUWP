@@ -20,7 +20,7 @@ public class ElectraTextureSample
 {
 	private static final String TAG = "[ElectraTextureSample]";
 
-	class FImageResources
+	public class FImageResources
 	{
 		public void Release()
 		{

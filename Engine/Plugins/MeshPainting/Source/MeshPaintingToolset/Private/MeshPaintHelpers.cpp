@@ -79,6 +79,18 @@ void UMeshPaintingSubsystem::RemoveComponentInstanceVertexColors(UStaticMeshComp
 	}
 }
 
+UTexture* UMeshPaintingSubsystem::CreateMeshPaintTexture(UObject* Outer,  uint32 TextureSize)
+{
+	const uint32 AlignedTextureSize = MeshPaintVirtualTexture::GetAlignedTextureSize(TextureSize);
+	const uint32 TextureNumMips = FMath::FloorLog2(AlignedTextureSize) + 1;
+
+	UMeshPaintVirtualTexture* NewTexture = NewObject<UMeshPaintVirtualTexture>(Outer);
+	NewTexture->Source.Init(AlignedTextureSize, AlignedTextureSize, 1, TextureNumMips, TSF_BGRA8);
+	NewTexture->UpdateResource();
+
+	return NewTexture;
+}
+
 void UMeshPaintingSubsystem::CreateComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent)
 {
 	if (StaticMeshComponent != nullptr && StaticMeshComponent->GetMeshPaintTexture() == nullptr && StaticMeshComponent->CanMeshPaintTextureColors())

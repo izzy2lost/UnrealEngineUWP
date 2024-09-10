@@ -23,10 +23,10 @@ namespace UE::WorldHierarchy
 		 */
 		virtual bool IsColumnVisible(FName Column) const = 0;
 		/**
-		 * Sets whether Column is visible in the UI.
+		 * Sets whether Column is visible in the UI. Does not save this into the config though.
 		 * @see WorldHierarchyColumns.h for named columns.
 		 */
-		virtual void SetColumnVisible(FName Column, bool bVisible) const = 0;
+		virtual void SetColumnVisible(FName Column, bool bVisible) = 0;
 
 		virtual ~IWorldHierarchy() = default;
 	};

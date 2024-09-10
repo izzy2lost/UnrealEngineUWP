@@ -165,6 +165,12 @@ double FCameraPose::GetSensorAspectRatio(float SensorWidth, float SensorHeight)
 	return (SensorHeight > 0.f) ? (SensorWidth / SensorHeight) : 0.0;
 }
 
+void FCameraPose::GetDefaultSensorSize(float& OutSensorWidth, float& OutSensorHeight)
+{
+	OutSensorWidth = 24.89f;
+	OutSensorHeight = 18.67f;
+}
+
 FRay3d FCameraPose::GetAimRay() const
 {
 	const bool bDirectionIsNormalized = false;
@@ -344,7 +350,7 @@ void FCameraPose::InternalLerpChanged(const FCameraPose& ToPose, float Factor, c
 #define UE_CAMERA_POSE_FOR_PROPERTY(PropType, PropName)\
 		if ((!bInvertMask && InMask.PropName) || (bInvertMask && !InMask.PropName))\
 		{\
-			if (!bChangedOnly || ToPoseChangedFlags.PropName && Factor >= 0.5f)\
+			if ((!bChangedOnly || ToPoseChangedFlags.PropName) && Factor >= 0.5f)\
 			{\
 				ensureMsgf(ChangedFlags.PropName, TEXT("Interpolating " #PropName " from default value!"));\
 				Set##PropName(ToPose.Get##PropName());\

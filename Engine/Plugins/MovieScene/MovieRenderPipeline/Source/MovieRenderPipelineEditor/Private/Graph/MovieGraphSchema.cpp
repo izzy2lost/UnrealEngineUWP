@@ -212,6 +212,16 @@ void UMovieGraphSchema::InitMoviePipelineNodeClasses()
 	MoviePipelineNodeClasses.Sort();
 }
 
+const TArray<UClass*>& UMovieGraphSchema::GetNodeClasses()
+{
+	if (MoviePipelineNodeClasses.IsEmpty())
+	{
+		InitMoviePipelineNodeClasses();
+	}
+	
+	return MoviePipelineNodeClasses;
+}
+
 bool UMovieGraphSchema::IsConnectionToBranchAllowed(const UEdGraphPin* InputPin, const UEdGraphPin* OutputPin, FText& OutError) const
 {
 	const UMovieGraphPin* ToPin = UE::MovieGraph::Private::GetGraphPinFromEdPin(InputPin);

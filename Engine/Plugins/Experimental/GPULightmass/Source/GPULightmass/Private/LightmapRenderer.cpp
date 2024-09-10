@@ -1320,13 +1320,13 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 			FRHIRayTracingShader* MissTable[] = { GetGPULightmassDefaultMissShader(GlobalShaderMap) };
 			PSOInitializer.SetMissShaderTable(MissTable);
 
-			RayTracingPipelineState = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, PSOInitializer);
+			RayTracingPipelineState = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, PSOInitializer); 
 
 			RayTracingSBT.ResetStaticAllocationLock();
 
 			uint32 NumMissShaderSlots = 1;
 			uint32 NumCallableShaderSlots = 0;
-			SBT = RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Allow, NumMissShaderSlots, NumCallableShaderSlots, PSOInitializer.GetMaxLocalBindingDataSize());
+			SBT = RayTracingSBT.AllocateRHI(RHICmdList, ERayTracingShaderBindingMode::RTPSO, ERayTracingHitGroupIndexingMode::Allow, NumMissShaderSlots, NumCallableShaderSlots, PSOInitializer.GetMaxLocalBindingDataSize());
 
 			const int32 HiddenMaterialIndex = FindRayTracingHitGroupIndex(RayTracingPipelineState, HiddenMaterialShader, true);
 

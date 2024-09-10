@@ -1555,7 +1555,7 @@ void FPrimitiveSceneInfo::AllocateGPUSceneInstances(FScene* Scene, const TArrayV
 			SceneInfo->NumInstanceSceneDataEntries = InstanceDataHeader.NumInstances;
 				if (SceneInfo->NumInstanceSceneDataEntries > 0)
 				{
-					SceneInfo->InstanceSceneDataOffset = Scene->GPUScene.AllocateInstanceSceneDataSlots(SceneInfo->NumInstanceSceneDataEntries);
+					SceneInfo->InstanceSceneDataOffset = Scene->GPUScene.AllocateInstanceSceneDataSlots(SceneInfo->GetPersistentIndex(), SceneInfo->NumInstanceSceneDataEntries);
 					SceneInfo->InstancePayloadDataStride = InstanceDataHeader.PayloadDataStride;
 					if (SceneInfo->InstancePayloadDataStride > 0)
 					{

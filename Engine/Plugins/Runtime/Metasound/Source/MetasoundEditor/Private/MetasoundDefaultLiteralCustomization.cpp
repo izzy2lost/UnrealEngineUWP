@@ -334,10 +334,10 @@ namespace Metasound::Editor
 
 	void FMetasoundDefaultLiteralCustomizationBase::CustomizeDefaults(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout)
 	{
-		CustomizePageDefaultRows(InLiteral, InDetailLayout, nullptr);
+		CustomizePageDefaultRows(InLiteral, InDetailLayout);
 	}
 
-	void FMetasoundDefaultLiteralCustomizationBase::CustomizePageDefaultRows(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout, FOnDefaultPageRowAdded* OnDefaultPageRowAdded)
+	void FMetasoundDefaultLiteralCustomizationBase::CustomizePageDefaultRows(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout)
 	{
 		DefaultProperties.Reset();
 
@@ -373,12 +373,7 @@ namespace Metasound::Editor
 
 				for (uint32 Index = 0; Index < NumElements; ++Index)
 				{
-					TSharedPtr<IPropertyHandle> ElementProperty = DefaultValueArray->GetElement(Index);
-					if (!ElementProperty.IsValid())
-					{
-						continue;
-					}
-
+					TSharedRef<IPropertyHandle> ElementProperty = DefaultValueArray->GetElement(Index);
 					TSharedPtr<IPropertyHandle> ValueProperty = ElementProperty->GetChildHandle("Value");
 					if (!ValueProperty.IsValid())
 					{
@@ -394,7 +389,7 @@ namespace Metasound::Editor
 
 						(*ValueRow.CustomNameWidget())
 						[
-							BuildPageDefaultNameWidget(InLiteral, ElementProperty.ToSharedRef())
+							BuildPageDefaultNameWidget(InLiteral, ElementProperty)
 						];
 
 						ValueRow.ShowPropertyButtons(false);
@@ -404,12 +399,6 @@ namespace Metasound::Editor
 						];
 					}
 					ValueRow.IsEnabled(GetEnabled());
-
-					// TODO: Fix half-implemented array multi-add broken by page implementation
-// 					if (bIsPagedDefault && bShowPageModifiers && OnDefaultPageRowAdded)
-// 					{
-// 						(*OnDefaultPageRowAdded)(ValueRow, ElementProperty->AsShared());
-// 					}
 				}
 			}
 		}

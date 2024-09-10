@@ -7,9 +7,9 @@
 #include "UObject/NameTypes.h"
 #include "Widgets/Views/SHeaderRow.h"
 
-class ITypedElementDataStorageCompatibilityInterface;
-class ITypedElementDataStorageUiInterface;
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageCompatibilityProvider;
+class IEditorDataStorageUiProvider;
+class IEditorDataStorageProvider;
 struct FTypedElementWidgetConstructor;
 class SWidget;
 
@@ -70,9 +70,9 @@ namespace UE::Editor::DataStorage
 		FMetaDataView WidgetMetaData;
 
 		// TEDS Constructs
-		ITypedElementDataStorageInterface* Storage;
-		ITypedElementDataStorageUiInterface* StorageUi;
-		ITypedElementDataStorageCompatibilityInterface* StorageCompatibility;
+		IEditorDataStorageProvider* Storage;
+		IEditorDataStorageUiProvider* StorageUi;
+		IEditorDataStorageCompatibilityProvider* StorageCompatibility;
 
 		// Queries used to virtualize widgets when a column is added to/remove from a row
 		TArray<QueryHandle> InternalObserverQueries;

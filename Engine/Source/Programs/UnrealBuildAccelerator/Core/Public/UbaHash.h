@@ -203,7 +203,7 @@ namespace uba
 
 //template<> struct std::hash<uba::Guid> { size_t operator()(const uba::Guid& g) const { std::hash<uba::u64> hash; return hash(((uba::u64*)&g)[0]) ^ hash(((uba::u64*)&g)[1]); } };
 template<> struct std::hash<uba::StringKey> { size_t operator()(const uba::StringKey& g) const { return g.a; } };
-template<> struct std::hash<uba::CasKey> { size_t operator()(const uba::CasKey& g) const { return g.a ^ g.b ^ g.c; } };
+template<> struct std::hash<uba::CasKey> { size_t operator()(const uba::CasKey& g) const { return g.a; } };
 
 template <class Map> 
 void PrintMapInfo(const char* name, const Map& map)

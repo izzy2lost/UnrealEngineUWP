@@ -367,6 +367,7 @@ public:
 
 	/*
 	 * If the delegate is set, broadcasts any new PSOs that were encountered since the last time the delegate was broadcast.
+	 * The broadcast is scheduled to be run on the game thread.
 	 */
 	RHI_API static void BroadcastNewPSOsDelegate();
 	

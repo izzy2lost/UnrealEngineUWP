@@ -59,6 +59,16 @@ public:
 		, Type(InType)
 	{
 	}
+
+	bool operator==(const FInterchangeMeshPayLoadKey& Other) const
+	{
+		return UniqueId.Equals(Other.UniqueId) && Type == Other.Type;
+	}
+
+	friend uint32 GetTypeHash(const FInterchangeMeshPayLoadKey& InterchangeMeshPayLoadKey)
+	{
+		return GetTypeHash(InterchangeMeshPayLoadKey.UniqueId + FString::FromInt(static_cast<int32>(InterchangeMeshPayLoadKey.Type)));
+	}
 };
 
 

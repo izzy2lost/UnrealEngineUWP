@@ -281,11 +281,11 @@ public:
 		return *CastChecked<TObjectType>(Owner);
 	}
 
-	// Generates and returns new class name for the given builder's document. Should ONLY be called on new assets
-	// using transient frontend builder, as using a persistent builder registered with the DocumentBuilderRegistry
-	// may result in corrupt records keyed off of undefined class name being potentially generated over.  In addition,
-	// this can potentially leave existing node references in an abandoned state to this class causing MetaSound generator
-	// build errors.
+	// Generates and returns new class name for the given builder's document. Should be used with extreme caution
+	// (i.e. on new assets, when migrating assets, or upon generation of transient MetaSounds), as using a persistent
+	// builder registered with the DocumentBuilderRegistry may result in stale asset records keyed off of an undefined class
+	// name.  In addition, this can potentially leave existing node references in an abandoned state to this class causing
+	// asset validation errors.
 	FMetasoundFrontendClassName GenerateNewClassName();
 
 	Metasound::Frontend::FDocumentModifyDelegates& GetDocumentDelegates();
@@ -481,7 +481,13 @@ public:
 
 	bool SwapGraphInput(const FMetasoundFrontendClassVertex& InExistingInputVertex, const FMetasoundFrontendClassVertex& NewInputVertex);
 	bool SwapGraphOutput(const FMetasoundFrontendClassVertex& InExistingOutputVertex, const FMetasoundFrontendClassVertex& NewOutputVertex);
+
+#if WITH_EDITOR
+	UE_DEPRECATED(5.5, "Use 'UpdateDependencyRegistryData' instead and supply keys (comprised of name, version & node class type)")
 	bool UpdateDependencyClassNames(const TMap<FMetasoundFrontendClassName, FMetasoundFrontendClassName>& OldToNewReferencedClassNames);
+
+	bool UpdateDependencyRegistryData(const TMap<Metasound::Frontend::FNodeRegistryKey, Metasound::Frontend::FNodeRegistryKey>& OldToNewClassKeys);
+#endif // WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA
 	// Transforms template nodes within the given builder's document, which can include swapping associated edges and/or

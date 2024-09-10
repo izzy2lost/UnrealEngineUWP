@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "HAL/PlatformProcess.h"
 #include "ILiveLinkClient.h"
+#include "LiveLinkClient.h"
 #include "ILiveLinkModule.h"
 #include "LiveLinkHubMessages.h"
 #include "LiveLinkMessages.h"
@@ -69,6 +70,22 @@ void FLiveLinkHubMessageBusSource::SendClientInfoMessage()
 void FLiveLinkHubMessageBusSource::OnMapChanged(UWorld* World, EMapChangeType ChangeType)
 {
 	SendClientInfoMessage();
+}
+
+void FLiveLinkHubMessageBusSource::InitializeAndPushStaticData_AnyThread(FName SubjectName, TSubclassOf<ULiveLinkRole> SubjectRole, const FLiveLinkSubjectKey& SubjectKey, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context, UScriptStruct* MessageTypeInfo)
+{
+	check(MessageTypeInfo->IsChildOf(FLiveLinkBaseStaticData::StaticStruct()));
+
+	FLiveLinkStaticDataStruct DataStruct(MessageTypeInfo);
+	DataStruct.InitializeWith(MessageTypeInfo, reinterpret_cast<const FLiveLinkBaseStaticData*>(Context->GetMessage()));
+
+	FLiveLinkClient::FPendingSubjectStatic PendingStaticData;
+	PendingStaticData.Role = SubjectRole;
+	PendingStaticData.SubjectKey = SubjectKey;
+	PendingStaticData.StaticData = MoveTemp(DataStruct);
+	PendingStaticData.ExtraMetadata = Context->GetAnnotations();
+
+	static_cast<FLiveLinkClient*>(Client)->PushPendingSubject_AnyThread(MoveTemp(PendingStaticData));
 }
 
 void FLiveLinkHubMessageBusSource::InitializeMessageEndpoint(FMessageEndpointBuilder& EndpointBuilder)

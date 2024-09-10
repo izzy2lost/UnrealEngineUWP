@@ -38,19 +38,9 @@ namespace Nanite
 	struct FRasterResults;
 }
 
-// TODO: does this exist?
-constexpr uint32 ILog2Const(uint32 n)
+inline bool IsSinglePageVirtualShadowMap(int32 VirtualShadowMapId)
 {
-	return (n > 1) ? 1 + ILog2Const(n / 2) : 0;
-}
-
-// See CalcLevelOffsets in PageAccessCommon.ush for some details on this logic
-constexpr uint32 CalcVirtualShadowMapLevelOffsets(uint32 Level, uint32 Log2Level0DimPagesXY)
-{
-	uint32 NumBits = Level << 1;
-	uint32 StartBit = (2U * Log2Level0DimPagesXY + 2U) - NumBits;
-	uint32 Mask = ((1U << NumBits) - 1U) << StartBit;
-	return 0x55555555U & Mask;
+	return VirtualShadowMapId < int32(VSM_MAX_SINGLE_PAGE_SHADOW_MAPS);
 }
 
 bool DoesVSMWantFroxels(EShaderPlatform ShaderPlatform);
@@ -61,25 +51,22 @@ public:
 	// PageSize * Level0DimPagesXY defines the virtual address space, e.g., 128x128 = 16k
 
 	// 128x128 = 16k
-	static constexpr uint32 PageSize = 128U;
-	static constexpr uint32 Level0DimPagesXY = 128U;
+	static constexpr uint32 PageSize =  VSM_PAGE_SIZE;
+	static constexpr uint32 PageSizeMask =  VSM_PAGE_SIZE_MASK;
+	static constexpr uint32 Log2PageSize =  VSM_LOG2_PAGE_SIZE;
+	static constexpr uint32 Level0DimPagesXY =  VSM_LEVEL0_DIM_PAGES_XY;
+	static constexpr uint32 Log2Level0DimPagesXY =  VSM_LOG2_LEVEL0_DIM_PAGES_XY;
+	static constexpr uint32 MaxMipLevels =  VSM_MAX_MIP_LEVELS;
+	static constexpr uint32 VirtualMaxResolutionXY =  VSM_VIRTUAL_MAX_RESOLUTION_XY;
+	static constexpr uint32 RasterWindowPages = VSM_RASTER_WINDOW_PAGES;
+	static constexpr uint32 PageTableSize =  VSM_PAGE_TABLE_SIZE;
 
-	static constexpr uint32 PageSizeMask = PageSize - 1U;
-	static constexpr uint32 Log2PageSize = ILog2Const(PageSize);
-	static constexpr uint32 Log2Level0DimPagesXY = ILog2Const(Level0DimPagesXY);
-	static constexpr uint32 MaxMipLevels = Log2Level0DimPagesXY + 1U;
-
-	static constexpr uint32 PageTableSize = CalcVirtualShadowMapLevelOffsets(MaxMipLevels, Log2Level0DimPagesXY);
-
-	static constexpr uint32 VirtualMaxResolutionXY = Level0DimPagesXY * PageSize;
-	
 	static constexpr uint32 PhysicalPageAddressBits = 16U;
 	static constexpr uint32 MaxPhysicalTextureDimPages = 1U << PhysicalPageAddressBits;
 	static constexpr uint32 MaxPhysicalTextureDimTexels = MaxPhysicalTextureDimPages * PageSize;
 
 	static constexpr uint32 NumHZBLevels = Log2PageSize;
 
-	static constexpr uint32 RasterWindowPages = 4u;
 	
 	static_assert(MaxMipLevels <= 8, ">8 mips requires more PageFlags bits. See VSM_PAGE_FLAGS_BITS_PER_HMIP in PageAccessCommon.ush");
 
@@ -120,8 +107,8 @@ struct FVirtualShadowMapProjectionShaderData
 	float ClipmapLevelWPODistanceDisableThresholdSquared = 0.0f;
 	float TexelDitherScale;
 	
-	// Seems the FMatrix forces 16-byte alignment
-	float Padding;
+	uint32 MinMipLevel = 0u;
+	// Note: Seems the FMatrix forces 16-byte alignment so pad as needed.
 };
 static_assert(sizeof(FVirtualShadowMapProjectionShaderData) == (16*18), "FVirtualShadowMapProjectionShaderData does not match size in shader. See VirtualShadowMapProjectionStructs.ush.");
 
@@ -458,8 +445,6 @@ private:
 	void UpdateVisualizeLight(
 		const TConstArrayView<FViewInfo> &Views,
 		const TConstArrayView<FVisibleLightInfo>& VisibleLightInfos);
-
-	void UploadProjectionData(FRDGBuilder& GraphBuilder);
 
 	void AppendPhysicalPageList(FRDGBuilder& GraphBuilder, bool bEmptyToAvailable);
 

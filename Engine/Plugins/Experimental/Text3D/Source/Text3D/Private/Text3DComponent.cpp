@@ -1417,7 +1417,12 @@ void UText3DComponent::OnMaterialChanged()
 				continue;
 			}
 
-			StaticMeshComponent->SetMaterial(MaterialIndex, GetMaterial(static_cast<EText3DGroupType>(GroupIndex)));
+			UMaterialInterface* Material = GetMaterial(static_cast<EText3DGroupType>(GroupIndex));
+
+			if (Material != StaticMeshComponent->GetMaterial(MaterialIndex))
+			{
+				StaticMeshComponent->SetMaterial(MaterialIndex, Material);
+			}
 		}
 	}
 }

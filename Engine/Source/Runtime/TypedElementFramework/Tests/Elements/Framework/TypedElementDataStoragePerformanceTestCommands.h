@@ -46,13 +46,13 @@ struct FTest_PingPongPostPhys final : public FEditorDataStorageColumn
  *		3. Unnormalized rotation
  */
 UCLASS()
-class UTest_PingPongBetweenPhaseFactory : public UTypedElementDataStorageFactory
+class UTest_PingPongBetweenPhaseFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UTest_PingPongBetweenPhaseFactory() override = default;
 
-	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) override;
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterTables(IEditorDataStorageProvider& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 };

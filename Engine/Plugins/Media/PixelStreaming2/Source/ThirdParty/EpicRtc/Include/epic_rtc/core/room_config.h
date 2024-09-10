@@ -22,6 +22,11 @@ struct EpicRtcRoomConfig
     EpicRtcStringView _id;
 
     /**
+     * Namespace.
+     */
+    EpicRtcStringView _namespace;
+
+    /**
      * Underlying connection configuration.
      */
     EpicRtcConnectionConfig _connectionConfig;
@@ -38,6 +43,6 @@ struct EpicRtcRoomConfig
     EpicRtcVideoTrackObserverFactoryInterface* _videoTrackObserverFactory;
 };
 
-static_assert(sizeof(EpicRtcRoomConfig) == 16 + 64 + 16 + 8 + 8 + 8 + 8);  // Ensure EpicRtcRoomConfig is expected size on all platforms
+static_assert(sizeof(EpicRtcRoomConfig) == 16 + 16 + 64 + 16 + 8 + 8 + 8 + 8);  // Ensure EpicRtcRoomConfig is expected size on all platforms
 
 #pragma pack(pop)

@@ -123,25 +123,15 @@ void UCEClonerLayoutBase::LoadLayout()
 
 	UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout load requested %s - Template system %s - Package %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), *LayoutAssetPath, *CustomPackagePath.GetPackageFName().ToString())
 
-	TWeakObjectPtr<UCEClonerLayoutBase> ThisWeak(this);
-	Async(EAsyncExecution::ThreadPool, [ThisWeak, CustomPackagePath, LayoutPackagePath]()
-	{
-		UCEClonerLayoutBase* This = ThisWeak.Get();
+	FLoadPackageAsyncOptionalParams Params;
+	Params.PackagePriority = INT32_MAX;
+	Params.LoadFlags = LOAD_Async | LOAD_MemoryReader | LOAD_DisableCompileOnLoad;
+	Params.CustomPackageName = CustomPackagePath.GetPackageFName();
+	Params.CompletionDelegate = MakeUnique<FLoadPackageAsyncDelegate>(FLoadPackageAsyncDelegate::CreateUObject(this, &UCEClonerLayoutBase::OnSystemPackageLoaded));
 
-		if (!This)
-		{
-			return;
-		}
+	LoadRequestIdentifier = LoadPackageAsync(LayoutPackagePath, MoveTemp(Params));
 
-		FLoadPackageAsyncOptionalParams Params;
-		Params.PackagePriority = INT32_MAX;
-		Params.CustomPackageName = CustomPackagePath.GetPackageFName();
-		Params.CompletionDelegate = MakeUnique<FLoadPackageAsyncDelegate>(FLoadPackageAsyncDelegate::CreateUObject(This, &UCEClonerLayoutBase::OnSystemPackageLoaded));
-
-		This->LoadRequestIdentifier = LoadPackageAsync(LayoutPackagePath, MoveTemp(Params));
-
-		This->BindCleanupDelegates();
-	});
+	BindCleanupDelegates();
 }
 
 bool UCEClonerLayoutBase::UnloadLayout()
@@ -162,6 +152,8 @@ bool UCEClonerLayoutBase::UnloadLayout()
 #if WITH_EDITOR
 	NiagaraSystem->KillAllActiveCompilations();
 #endif
+
+	// Prevent GC Leak
 	UPackage* Package = NiagaraSystem->GetPackage();
 	Package->ClearFlags(RF_Standalone);
 	Package->MarkAsGarbage();
@@ -233,6 +225,10 @@ bool UCEClonerLayoutBase::DeactivateLayout()
 
 	ClonerComponent->GetOverrideParameters().Empty(/** ClearBindings */true);
 	ClonerComponent->SetAsset(nullptr);
+
+#if WITH_EDITOR
+	NiagaraSystem->KillAllActiveCompilations();
+#endif
 
 	UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout deactivated %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString())
 
@@ -312,60 +308,52 @@ void UCEClonerLayoutBase::OnSystemPackageLoaded(const FName& InName, UPackage* I
 		NiagaraSystem->RemoveFromRoot();
 		NiagaraSystem->ClearFlags(RF_Standalone);
 
-		TWeakObjectPtr<UCEClonerLayoutBase> ThisWeak(this);
-		Async(EAsyncExecution::TaskGraphMainThread, [ThisWeak, InName]()
-		{
-			UCEClonerLayoutBase* This = ThisWeak.Get();
+		CacheMeshRenderer();
+	}
 
-			if (!This)
-			{
-				return;
-			}
+	const bool bLayoutLoaded = IsLayoutLoaded();
 
-			This->NiagaraSystem->EnsureFullyLoaded();
+	if (bLayoutLoaded)
+	{
+		UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout loaded %s - Template system %s - Package %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), *LayoutAssetPath, *InName.ToString())
 
-#if WITH_EDITOR
-			This->NiagaraSystem->WaitForCompilationComplete(/** GPUShaders */true, /** ShowProgress */false);
-#endif
-
-			for (FNiagaraEmitterHandle& SystemEmitterHandle : This->NiagaraSystem->GetEmitterHandles())
-			{
-				if (const FVersionedNiagaraEmitterData* EmitterData = SystemEmitterHandle.GetEmitterData())
-				{
-					for (UNiagaraRendererProperties* EmitterRenderer : EmitterData->GetRenderers())
-					{
-						if (UNiagaraMeshRendererProperties* EmitterMeshRenderer = Cast<UNiagaraMeshRendererProperties>(EmitterRenderer))
-						{
-							EmitterMeshRenderer->Meshes.Empty();
-#if WITH_EDITOR
-							EmitterMeshRenderer->OnMeshChanged();
-#endif
-
-							This->MeshRenderer = EmitterMeshRenderer;
-
-							UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout loaded %s - Template system %s - Package %s"), *This->GetClonerActor()->GetActorNameOrLabel(), *This->LayoutName.ToString(), *This->LayoutAssetPath, *InName.ToString())
-						}
-					}
-				}
-			}
-
-			const bool bLayoutLoaded = This->IsLayoutLoaded();
-
-			if (bLayoutLoaded)
-			{
-				This->OnLayoutLoaded();
-			}
-
-			This->OnClonerLayoutLoadedDelegate.Broadcast(This, bLayoutLoaded);
-			This->OnClonerLayoutLoadedDelegate.Clear();
-		});
+		OnLayoutLoaded();
 	}
 	else
 	{
 		UE_LOG(LogCEClonerLayoutBase, Warning, TEXT("%s : Cloner layout load failed %s - Template system %s - Package %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), *LayoutAssetPath, *InName.ToString())
+	}
 
-		OnClonerLayoutLoadedDelegate.Broadcast(this, IsLayoutLoaded());
-		OnClonerLayoutLoadedDelegate.Clear();
+	OnClonerLayoutLoadedDelegate.Broadcast(this, bLayoutLoaded);
+	OnClonerLayoutLoadedDelegate.Clear();
+}
+
+void UCEClonerLayoutBase::CacheMeshRenderer()
+{
+	if (!NiagaraSystem)
+	{
+		return;
+	}
+
+	for (FNiagaraEmitterHandle& SystemEmitterHandle : NiagaraSystem->GetEmitterHandles())
+	{
+		if (const FVersionedNiagaraEmitterData* EmitterData = SystemEmitterHandle.GetEmitterData())
+		{
+			for (UNiagaraRendererProperties* EmitterRenderer : EmitterData->GetRenderers())
+			{
+				if (UNiagaraMeshRendererProperties* EmitterMeshRenderer = Cast<UNiagaraMeshRendererProperties>(EmitterRenderer))
+				{
+					EmitterMeshRenderer->Meshes.Empty();
+#if WITH_EDITOR
+					EmitterMeshRenderer->OnMeshChanged();
+#endif
+
+					MeshRenderer = EmitterMeshRenderer;
+
+					return;
+				}
+			}
+		}
 	}
 }
 
@@ -413,6 +401,7 @@ void UCEClonerLayoutBase::OnLevelCleanup()
 		UE_LOG(LogCEClonerLayoutBase, Log, TEXT("%s : Cloner layout cleanup %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString())
 
 		DeactivateLayout();
+
 		UnloadLayout();
 	}
 

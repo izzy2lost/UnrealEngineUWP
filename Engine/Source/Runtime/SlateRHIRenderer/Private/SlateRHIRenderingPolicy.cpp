@@ -986,6 +986,7 @@ struct FSlateRenderBatchOp
 	const FSlateClippingOp* ClippingStateOp;
 	FSlateDrawShaderBindings* VertexBindings;
 	FSlateDrawShaderBindings* PixelBindings;
+	FRHIBuffer* InstanceBuffer;
 	FRHIBlendState* BlendState;
 	ESlateShaderResource::Type ShaderResourceType;
 };
@@ -1237,6 +1238,7 @@ FSlateRenderBatchOp* CreateSlateRenderBatchOp(
 	RenderBatchOp->ShaderResourceType = ResourceType;
 	RenderBatchOp->VertexBindings     = VertexBindings;
 	RenderBatchOp->PixelBindings      = PixelBindings;
+	RenderBatchOp->InstanceBuffer     = bUseInstancing ? RenderBatch->InstanceData->GetRHI() : nullptr;
 	RenderBatchOp->BlendState         = BlendState;
 	RenderBatchOp->Next               = nullptr;
 	return RenderBatchOp;
@@ -1285,9 +1287,7 @@ void DrawSlateRenderBatch(
 
 	if (RenderBatchOp.ShaderResourceType == ESlateShaderResource::Material)
 	{
-		const bool bUseInstancing = RenderBatch.InstanceCount > 0 && RenderBatch.InstanceData != nullptr;
-
-		State.GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = bUseInstancing ? GSlateInstancedVertexDeclaration.VertexDeclarationRHI : GSlateVertexDeclaration.VertexDeclarationRHI;
+		State.GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = RenderBatchOp.InstanceBuffer ? GSlateInstancedVertexDeclaration.VertexDeclarationRHI : GSlateVertexDeclaration.VertexDeclarationRHI;
 		State.GraphicsPSOInit.BoundShaderState.VertexShaderRHI = RenderBatchOp.VertexBindings->Shader.GetVertexShader();
 		State.GraphicsPSOInit.BoundShaderState.PixelShaderRHI  = RenderBatchOp.PixelBindings->Shader.GetPixelShader();
 		State.GraphicsPSOInit.PrimitiveType = GetRHIPrimitiveType(RenderBatch.DrawPrimitiveType);
@@ -1297,16 +1297,15 @@ void DrawSlateRenderBatch(
 		RenderBatchOp.VertexBindings->SetOnCommandList(RHICmdList);
 		RenderBatchOp.PixelBindings->SetOnCommandList(RHICmdList);
 
-		if (bUseInstancing)
-		{
-			RenderBatch.InstanceData->BindStreamSource(RHICmdList, 1, RenderBatch.InstanceOffset);
+		RHICmdList.SetStreamSource(0, ElementsVertexBuffer, RenderBatch.VertexOffset * sizeof(FSlateVertex));
 
-			RHICmdList.SetStreamSource(0, ElementsVertexBuffer, RenderBatch.VertexOffset * sizeof(FSlateVertex));
+		if (RenderBatchOp.InstanceBuffer)
+		{
+			RHICmdList.SetStreamSource(1, RenderBatchOp.InstanceBuffer, RenderBatch.InstanceOffset * sizeof(FSlateInstanceBufferData::ElementType));
 			RHICmdList.DrawIndexedPrimitive(ElementsIndexBuffer, 0, 0, RenderBatch.NumVertices, RenderBatch.IndexOffset, PrimitiveCount, RenderBatch.InstanceCount);
 		}
 		else
 		{
-			RHICmdList.SetStreamSource(0, ElementsVertexBuffer, RenderBatch.VertexOffset * sizeof(FSlateVertex));
 			RHICmdList.SetStreamSource(1, nullptr, 0);
 			RHICmdList.DrawIndexedPrimitive(ElementsIndexBuffer, 0, 0, RenderBatch.NumVertices, RenderBatch.IndexOffset, PrimitiveCount, 1);
 		}

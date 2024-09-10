@@ -232,6 +232,8 @@ int32 UGenerateNaniteDisplacedMeshCommandlet::Main(const FString& CmdLineParams)
 			}
 
 			FString ExternalActorFolder(TEXT("/__ExternalActors__/"));
+			FString ExternalObjectFolder(TEXT("/__ExternalObjects__/"));
+			UE::AssetRegistry::FDependencyQuery WorkAroundQueryFlags;
 			/**
 			 * For all levels search their references for 1 level and then search their dependencies for 1 level.
 			 * Example: Level referenced by an possible the level instance actor that live in a content bundle.
@@ -244,7 +246,7 @@ int32 UGenerateNaniteDisplacedMeshCommandlet::Main(const FString& CmdLineParams)
 				}
 
 				TArray<FName> LevelReferencers;
-				AssetRegistry.GetReferencers(LevelAsset.PackageName, LevelReferencers, UE::AssetRegistry::EDependencyCategory::Package, QueryFlags);
+				AssetRegistry.GetReferencers(LevelAsset.PackageName, LevelReferencers, UE::AssetRegistry::EDependencyCategory::Package, WorkAroundQueryFlags);
 				for (const FName& LevelReference : LevelReferencers)
 				{
 					if (StopSearchAt.Contains(LevelReference))
@@ -260,13 +262,13 @@ int32 UGenerateNaniteDisplacedMeshCommandlet::Main(const FString& CmdLineParams)
 					}
 
 
-
 					bool bHasAddedLevelToDependenciesToProcess = false;
-					// Limit the references search to the external actor folders
-					if (LevelReference.ToString().Contains(ExternalActorFolder))
+					// Limit the references search to the external actors and objects
+					FString LevelReferenceAsString = LevelReference.ToString();
+					if (LevelReferenceAsString.Contains(ExternalActorFolder) || LevelReferenceAsString.Contains(ExternalObjectFolder))
 					{
 						TArray<FName> Dependencies;
-						AssetRegistry.GetDependencies(LevelReference, Dependencies, UE::AssetRegistry::EDependencyCategory::Package, QueryFlags);
+						AssetRegistry.GetDependencies(LevelReference, Dependencies, UE::AssetRegistry::EDependencyCategory::Package, WorkAroundQueryFlags);
 						for (const FName& Dependency : Dependencies)
 						{
 							// Check if the asset is refered in the original dependencies chain and that it is a level.

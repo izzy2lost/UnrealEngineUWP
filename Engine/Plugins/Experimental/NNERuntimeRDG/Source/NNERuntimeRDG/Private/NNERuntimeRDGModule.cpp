@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "HAL/IConsoleManager.h"
 #include "NNERuntimeRDGModule.h"
+
+#include "HAL/IConsoleManager.h"
 #include "NNE.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeRDGHlsl.h"
 #include "UObject/WeakInterfacePtr.h"
 #include "DataDrivenShaderPlatformInfo.h"
@@ -47,15 +49,15 @@ void FNNERuntimeRDGModule::StartupModule()
 			}
 			else
 			{
-				UE_LOG(LogNNE, Display, TEXT("FNNERuntimeRDGModule: not registering NNERuntimeRDGHlsl runtime because current hardware is incompatible, consider bypassing by setting the define NNE_FORCE_HARDWARE_SUPPORTS_HLSL."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Display, TEXT("Not registering runtime because current hardware is incompatible, consider bypassing by setting the define NNE_FORCE_HARDWARE_SUPPORTS_HLSL."));
 			}
 		}
 		else
 		{
-			UE_LOG(LogNNE, Display, TEXT("FNNERuntimeRDGModule: not registering NNERuntimeRDGHlsl runtime because current RHI shader platform is not enabled, consider setting the flag bSupportsNNEShaders in DataDrivenPlatformInfo."));
+			UE_LOG(LogNNERuntimeRDGHlsl, Display, TEXT("Not registering runtime because current RHI shader platform is not enabled, consider setting the flag bSupportsNNEShaders in DataDrivenPlatformInfo."));
 		}
 	#else
-		UE_LOG(LogNNE, Display, TEXT("FNNERuntimeRDGModule: not registering NNERuntimeRDGHlsl runtime as platform is not enabled, if needed set define WITH_NNE_RUNTIME_HLSL."));
+		UE_LOG(LogNNERuntimeRDGHlsl, Display, TEXT("Not registering runtime as platform is not enabled, if needed set define WITH_NNE_RUNTIME_HLSL."));
 	#endif
 #endif
 }

@@ -26,6 +26,57 @@ uint3 GetSampleCoord(uint3 DownsampledVolumeCoord, uint LightSampleIndex)
 	return DownsampledVolumeCoord * NumSamplesPerVoxel + uint3(LightSampleIndex % NUM_SAMPLES_PER_VOXEL_3D_X, LightSampleIndex / NUM_SAMPLES_PER_VOXEL_3D_X, 0);
 }
 
+struct FLightSampler
+{
+	float LightIndexRandom[NUM_SAMPLES_PER_VOXEL_1D];
+	FLightSample LightSamples[NUM_SAMPLES_PER_VOXEL_1D];
+	float WeightSum;
+};
+
+void SampleLight(float3 TranslatedWorldPosition, float3 CameraVector, float DistanceBiasSqr, float LightVolumetricSoftFadeDistance, uint LocalLightIndex, inout FLightSampler LightSampler, inout FDebug Debug)
+{
+	const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
+	const FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
+
+	checkSlow(LocalLightData.bMegaLightsSupported);
+		
+	float3 LightScattering = GetMegaLightsVolumeLighting(TranslatedWorldPosition, CameraVector, DistanceBiasSqr, LightVolumetricSoftFadeDistance, LocalLightData, LightData) * View.PreExposure;
+	float SampleWeight = log2(Luminance(LightScattering) + 1.0f);
+				
+	#if DEBUG_MODE
+	if (Debug.bActive)
+	{
+		Newline(Debug.Context);
+		Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
+		Print(Debug.Context, LocalLightIndex, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
+		Print(Debug.Context, SampleWeight);
+	}
+	#endif
+
+	if (SampleWeight > VolumeMinSampleWeight)
+	{
+		float Tau = LightSampler.WeightSum / (LightSampler.WeightSum + SampleWeight);
+		LightSampler.WeightSum += SampleWeight;
+
+		for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_VOXEL_1D; ++LightSampleIndex)
+		{
+			if (LightSampler.LightIndexRandom[LightSampleIndex] < Tau)
+			{
+				LightSampler.LightIndexRandom[LightSampleIndex] /= Tau;
+			}
+			else
+			{
+				// Select this sample
+				LightSampler.LightIndexRandom[LightSampleIndex] = (LightSampler.LightIndexRandom[LightSampleIndex] - Tau) / (1.0f - Tau);
+				LightSampler.LightSamples[LightSampleIndex].LocalLightIndex = LocalLightIndex;
+				LightSampler.LightSamples[LightSampleIndex].Weight = SampleWeight;
+			}
+
+			LightSampler.LightIndexRandom[LightSampleIndex] = clamp(LightSampler.LightIndexRandom[LightSampleIndex], 0, 0.9999f);
+		}
+	}
+}
+
 /**
  * Run one thread per sample and generate new light samples for tracing
  */
@@ -55,13 +106,13 @@ void VolumeGenerateLightSamplesCS(
 			const float3 CameraVector = normalize(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
 
 			float SceneDepth2 = 0.0f;
+			float SceneDepth3 = 0.0f;
 			float CellRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(VolumeCoord + uint3(1, 1, 1), VolumeFrameJitterOffset, SceneDepth2));
+			float Cell2DRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(VolumeCoord + uint3(1, 1, 0), VolumeFrameJitterOffset, SceneDepth3));
+			float LightVolumetricSoftFadeDistance = LightSoftFading * Cell2DRadius;
 			// Bias the inverse squared light falloff based on voxel size to prevent aliasing near the light source
 			float DistanceBiasSqr = max(CellRadius * VolumeInverseSquaredLightDistanceBiasScale, 1);
 			DistanceBiasSqr *= DistanceBiasSqr;
-
-			uint GridIndex = ComputeLightGridCellIndex(VolumeCoord.xy * MegaLightsVolumePixelSize, SceneDepth, 0);
-			const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, 0);
 
 			#if DEBUG_MODE
 			if (Debug.bActive)
@@ -84,20 +135,19 @@ void VolumeGenerateLightSamplesCS(
 			}
 			#endif
 
-			FLightSample LightSamples[NUM_SAMPLES_PER_VOXEL_1D];
+			FLightSampler LightSampler;
+			LightSampler.WeightSum = 0.0f;
 			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_VOXEL_1D; ++LightSampleIndex)
 			{
-				LightSamples[LightSampleIndex] = InitLightSample();
+				LightSampler.LightSamples[LightSampleIndex] = InitLightSample();
 			}
 
-			// Initialize random variables using spatiotemporal Blue Noise
-			float LightIndexRandom[NUM_SAMPLES_PER_VOXEL_1D];
+			// Initialize random variables using Fast Blue Noise
 			{
 				float RandomScalar = BlueNoiseScalar(VolumeCoordToNoiseCoord(DownsampledVolumeCoord), MegaLightsStateFrameIndex);
-
 				for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_VOXEL_1D; ++LightSampleIndex)
 				{
-					LightIndexRandom[LightSampleIndex] = (RandomScalar + LightSampleIndex) / NUM_SAMPLES_PER_VOXEL_1D;
+					LightSampler.LightIndexRandom[LightSampleIndex] = (RandomScalar + LightSampleIndex) / NUM_SAMPLES_PER_VOXEL_1D;
 				}
 			}
 
@@ -110,56 +160,51 @@ void VolumeGenerateLightSamplesCS(
 				Print(Debug.Context, DownsampledVolumeCoord);
 				Newline(Debug.Context);
 				Print(Debug.Context, VolumeCoordToNoiseCoord(DownsampledVolumeCoord));
-				Newline(Debug.Context);
-				Print(Debug.Context, TEXT("Random: "));
-				Print(Debug.Context, LightIndexRandom[0]);
 			}
 			#endif
 
-			float WeightSum = 0.0f;
+			const uint EyeIndex = 0;
+			const uint GridIndex = ComputeLightGridCellIndex(VolumeCoord.xy * MegaLightsVolumePixelSize, SceneDepth, EyeIndex);
+			const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
+			const uint NumLightsInGridCell = min(CulledLightsGridHeader.NumMegaLights, GetMaxLightsPerCell(EyeIndex));
 
-			LOOP
-			for (uint GridLightIndex = 0; GridLightIndex < CulledLightsGridHeader.NumMegaLights; ++GridLightIndex)
+			const uint ScalarGridIndex = WaveReadLaneFirst(GridIndex);
+			const bool bScalarGridCell = WaveActiveAllTrue(ScalarGridIndex == GridIndex);
+
+			if (bScalarGridCell)
 			{
-				const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightsGridHeader.MegaLightsDataStartIndex + GridLightIndex);
-				const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
-				const FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
+				const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(ScalarGridIndex, EyeIndex);
+				const uint NumLightsInGridCell = min(CulledLightsGridHeader.NumMegaLights, GetMaxLightsPerCell(EyeIndex));
 
-				checkSlow(LocalLightData.bMegaLightsSupported);
-		
-				float3 LightScattering = GetMegaLightsVolumeLighting(TranslatedWorldPosition, CameraVector, DistanceBiasSqr, LocalLightData, LightData) * View.PreExposure;
-				float SampleWeight = log2(Luminance(LightScattering) + 1.0f);
-				
-				#if DEBUG_MODE
-				if (Debug.bActive)
+				uint GridLightIndex = 0;
+				while(GridLightIndex < NumLightsInGridCell)
 				{
-					Newline(Debug.Context);
-					Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
-					Print(Debug.Context, LocalLightIndex, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
-					Print(Debug.Context, SampleWeight);
-				}
-				#endif
-
-				if (SampleWeight > VolumeMinSampleWeight)
-				{
-					float Tau = WeightSum / (WeightSum + SampleWeight);
-					WeightSum += SampleWeight;
-
-					for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_VOXEL_1D; ++LightSampleIndex)
+					uint LocalLightIndex = GetCulledLightDataGrid(CulledLightsGridHeader.MegaLightsDataStartIndex + GridLightIndex);
+					if (LocalLightIndex >= MAX_LOCAL_LIGHT_INDEX)
 					{
-						if (LightIndexRandom[LightSampleIndex] < Tau)
-						{
-							LightIndexRandom[LightSampleIndex] /= Tau;
-						}
-						else
-						{
-							// Select this sample
-							LightIndexRandom[LightSampleIndex] = (LightIndexRandom[LightSampleIndex] - Tau) / (1.0f - Tau);
-							LightSamples[LightSampleIndex].LocalLightIndex = LocalLightIndex;
-							LightSamples[LightSampleIndex].Weight = SampleWeight;
-						}
+						break;
+					}
+						
+					++GridLightIndex;
+					SampleLight(TranslatedWorldPosition, CameraVector, DistanceBiasSqr, LightVolumetricSoftFadeDistance, LocalLightIndex, LightSampler, Debug);
+				}
+			}
+			else
+			{
+				uint GridLightIndex = 0;
+				while(GridLightIndex < NumLightsInGridCell)
+				{
+					const uint VectorLocalLightIndex = GetCulledLightDataGrid(CulledLightsGridHeader.MegaLightsDataStartIndex + GridLightIndex);
+					if (VectorLocalLightIndex >= MAX_LOCAL_LIGHT_INDEX)
+					{
+						break;
+					}
 
-						LightIndexRandom[LightSampleIndex] = clamp(LightIndexRandom[LightSampleIndex], 0, 0.9999f);
+					uint LocalLightIndex = WaveActiveMin(VectorLocalLightIndex);
+					if (LocalLightIndex == VectorLocalLightIndex)
+					{
+						++GridLightIndex;
+						SampleLight(TranslatedWorldPosition, CameraVector, DistanceBiasSqr, LightVolumetricSoftFadeDistance, LocalLightIndex, LightSampler, Debug);
 					}
 				}
 			}
@@ -169,18 +214,17 @@ void VolumeGenerateLightSamplesCS(
 			{
 				Newline(Debug.Context);
 				Print(Debug.Context, TEXT("Weight sum: "));
-				Print(Debug.Context, WeightSum);
+				Print(Debug.Context, LightSampler.WeightSum);
 				Newline(Debug.Context);
 				Print(Debug.Context, TEXT("Selected lights: "));
 
 				for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_VOXEL_1D; ++LightSampleIndex)
 				{
-					FLightSample LightSample = LightSamples[LightSampleIndex];
+					FLightSample LightSample = LightSampler.LightSamples[LightSampleIndex];
 						
 					Newline(Debug.Context);
 					Print(Debug.Context, LightSample.LocalLightIndex); 
 					Print(Debug.Context, LightSample.Weight);
-					Print(Debug.Context, WeightSum /  LightSample.Weight);
 
 					if (VolumeDebugMode == DEBUG_MODE_VISUALIZE_SAMPLING)
 					{
@@ -198,7 +242,7 @@ void VolumeGenerateLightSamplesCS(
 
 			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_VOXEL_1D; ++LightSampleIndex)
 			{
-				FLightSample LightSample = LightSamples[LightSampleIndex];
+				FLightSample LightSample = LightSampler.LightSamples[LightSampleIndex];
 
 				if (LightSample.LocalLightIndex != MAX_LOCAL_LIGHT_INDEX)
 				{
@@ -207,7 +251,7 @@ void VolumeGenerateLightSamplesCS(
 
 					LightSample.bVisible = true;
 					LightSample.bCompleted = bCastShadows ? false : true;
-					LightSample.Weight = WeightSum / (NUM_SAMPLES_PER_VOXEL_1D * LightSample.Weight);
+					LightSample.Weight = LightSampler.WeightSum / (NUM_SAMPLES_PER_VOXEL_1D * LightSample.Weight);
 				}
 
 				RWVolumeLightSamples[GetSampleCoord(DownsampledVolumeCoord, LightSampleIndex)] = PackLightSample(LightSample);

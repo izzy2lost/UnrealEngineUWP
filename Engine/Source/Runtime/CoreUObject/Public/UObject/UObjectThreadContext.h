@@ -39,6 +39,11 @@ class COREUOBJECT_API FUObjectThreadContext : public TThreadSingleton<FUObjectTh
 
 	FUObjectThreadContext();
 	virtual ~FUObjectThreadContext();
+#if WITH_EDITORONLY_DATA
+	// Remove declaration of manual constructors after removing deprecated PackagesMarkedEditorOnlyByOtherPackage
+	FUObjectThreadContext(const FUObjectThreadContext& Other);
+	FUObjectThreadContext(FUObjectThreadContext&& Other);
+#endif
 
 	/** Stack of currently used FObjectInitializers for this thread */
 	TArray<FObjectInitializer*> InitializerStack;

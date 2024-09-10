@@ -416,7 +416,7 @@ static void WriteEnumConstantsAs(TArray64<uint8>& Out, TConstArrayView<uint64> C
 	{
 		Tmp.Add(IntCastChecked<IntType>(Constant));
 	}
-	WriteArray(Out, Constants);
+	WriteArray(Out, Tmp);
 }
 
 static void WriteEnumConstants(TArray64<uint8>& Out, ELeafWidth Width, TConstArrayView<uint64> Constants)

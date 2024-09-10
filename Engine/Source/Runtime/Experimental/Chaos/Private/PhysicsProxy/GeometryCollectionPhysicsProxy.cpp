@@ -516,6 +516,7 @@ FGeometryCollectionPhysicsProxy::FGeometryCollectionPhysicsProxy(
 	, IsObjectDynamic(false)
 	, IsObjectLoading(true)
 	, IsObjectDeleting(false)
+	, bSkipChildToParentUpdateWhenInClusterUnion(false)
 	, SimFilter(InSimFilter)
 	, QueryFilter(InQueryFilter)
 	, PhysicsThreadCollection(Parameters.RestCollectionShared)
@@ -1604,6 +1605,7 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 				Handle->SetGravityGroupIndex(Parameters.GravityGroupIndex);
 				Handle->SetCCDEnabled(Parameters.UseCCD);
 				Handle->SetMACDEnabled(Parameters.UseMACD);
+				Handle->SetIterationSettings(Chaos::Private::FIterationSettings(Parameters.PositionSolverIterations, Parameters.VelocitySolverIterations, Parameters.ProjectionSolverIterations));
 				Handle->SetOneWayInteraction(bIsOneWayInteraction);
 				Handle->SetInertiaConditioningEnabled(Parameters.UseInertiaConditioning);
 				Handle->SetLinearEtherDrag(Parameters.LinearDamping);
@@ -3188,10 +3190,13 @@ void FGeometryCollectionPhysicsProxy::SetWorldTransform_External(const FTransfor
 		PreviousWorldTransform_External = WorldTransform_External;
 		WorldTransform_External = WorldTransform;
 
+		// Because SetWorldTransform_Internal is running on the physics thread we need to capture this parameter 
+		// (it is transient and may changed after calling this function)
+		const bool bSkipChildToParentUpdate = GetSkipChildToParentUpdateWhenInClusterUnion();
 		ExecuteOnPhysicsThread(*this,
-			[this, WorldTransform]()
+			[this, WorldTransform, bSkipChildToParentUpdate]()
 			{	
-				SetWorldTransform_Internal(WorldTransform);
+				SetWorldTransform_Internal(WorldTransform, bSkipChildToParentUpdate);
 			});
 	}
 }
@@ -3219,7 +3224,7 @@ void FGeometryCollectionPhysicsProxy::ScaleClusterGeometry_Internal(const FVecto
 	}
 }
 
-void FGeometryCollectionPhysicsProxy::SetWorldTransform_Internal(const FTransform& InWorldTransform)
+void FGeometryCollectionPhysicsProxy::SetWorldTransform_Internal(const FTransform& InWorldTransform, bool bInSkipChildToParentUpdateWhenInClusterUnion)
 {
 	using namespace Chaos;
 
@@ -3301,7 +3306,10 @@ void FGeometryCollectionPhysicsProxy::SetWorldTransform_Internal(const FTransfor
 		// This should only happen on the server otherwise the client may override the replicated child to parent before it's even set.
 		if (bIsAuthority && ClusterUnionIndex != INDEX_NONE && !DeferredClusterUnionParticleUpdates.IsEmpty() && !DeferredClusterUnionChildToParentUpdates.IsEmpty())
 		{
-			ClusterUnionManager.UpdateClusterUnionParticlesChildToParent(ClusterUnionIndex, DeferredClusterUnionParticleUpdates, DeferredClusterUnionChildToParentUpdates, false);
+			if (!bInSkipChildToParentUpdateWhenInClusterUnion)
+			{
+				ClusterUnionManager.UpdateClusterUnionParticlesChildToParent(ClusterUnionIndex, DeferredClusterUnionParticleUpdates, DeferredClusterUnionChildToParentUpdates, false);
+			}
 		}
 	}
 	if (bGeometryCollectionScaleClusterGeometry)

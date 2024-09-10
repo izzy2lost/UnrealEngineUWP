@@ -3606,7 +3606,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 		else if (!bUseMaterialAttributes && !EditorOnly->FrontMaterial.IsConnected() && GetExpressions().IsEmpty())
 		{
 			// Empty material: Create by default a slab node
-			UMaterialFunction* DefaultMF = LoadObject<UMaterialFunction>(nullptr, TEXT("/Engine/Functions/Substrate/SMF_UE4Disney.SMF_UE4Disney"));
+			UMaterialFunction* DefaultMF = LoadObject<UMaterialFunction>(nullptr, TEXT("/Engine/Functions/Substrate/SMF_UE4Legacy.SMF_UE4Legacy")); 
 			if (DefaultMF)
 			{
 				DefaultMF->UpdateFromFunctionResource();
@@ -6110,6 +6110,24 @@ void UMaterial::GetAllExpressionsForCustomInterpolators(TArray<class UMaterialEx
 		}
 	}
 }
+
+bool UMaterial::SupportsShadingModelOverride() const
+{
+	// If the material contains a Substrate's SubstrateShadingModels node, then we can support shading model override
+	bool Out = true;
+	if (Substrate::IsSubstrateEnabled())
+	{
+		for (UMaterialExpression* Expression : GetExpressions())
+		{		
+			if (UMaterialExpressionSubstrateShadingModels* ShadingModelNode = Cast<UMaterialExpressionSubstrateShadingModels>(Expression))
+			{
+				return true;
+			}
+		}
+		Out = false;
+	}
+	return Out;
+}
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
@@ -6945,6 +6963,11 @@ bool UMaterial::IsPostProcessMaterialOutputingAlpha() const
 bool UMaterial::WritesToRuntimeVirtualTexture() const
 {
 	return GetCachedExpressionData().bHasRuntimeVirtualTextureOutput;
+}
+
+bool UMaterial::HasMeshPaintTexture() const
+{
+	return GetCachedExpressionData().bHasMeshPaintTexture;
 }
 
 bool UMaterial::HasVertexInterpolator() const

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGPad.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersPadCS.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "Helper/NNERuntimeRDGOperatorHelper.h"
@@ -43,7 +45,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				const NNE::Internal::FTensorRef PadsTensor = InputTensors[1];
 				if(!PadsTensor->IsConstant())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Pad input 'pads' (name: %s) should be constant."), *PadsTensor->GetName());
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Pad: Input 'pads' (name: %s) should be constant."), *PadsTensor->GetName());
 					return -1;
 				}
 
@@ -53,13 +55,13 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 					if(!ValueTensor.HasPreparedData())
 					{
-						UE_LOG(LogNNE, Warning, TEXT("Pad input 'constant_value' (name: %s) should be constant."), *ValueTensor.GetName());
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Pad: Input 'constant_value' (name: %s) should be constant."), *ValueTensor.GetName());
 						return -1;
 					}
 
 					if(ValueTensor.GetPreparedData<float>().Num() != 1)
 					{
-						UE_LOG(LogNNE, Warning, TEXT("Pad input 'constant_value' (name: %s) should be scalar, however it is not."), *ValueTensor.GetName());
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Pad: Input 'constant_value' (name: %s) should be scalar, however it is not."), *ValueTensor.GetName());
 						return -1;
 					}
 
@@ -72,7 +74,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 					if(!AxesTensor->IsConstant())
 					{
-						UE_LOG(LogNNE, Warning, TEXT("Pad input 'axes' (name: %s) should be constant."), *AxesTensor->GetName());
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Pad: Input 'axes' (name: %s) should be constant."), *AxesTensor->GetName());
 						return -1;
 					}
 
@@ -90,7 +92,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 					if (RelativePads.Num() != Axes.Num() * 2)
 					{
-						UE_LOG(LogNNE, Warning, TEXT("Pad input 'axes' (name: %s) has to have a size that is twice the size \
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Pad: Input 'axes' (name: %s) has to have a size that is twice the size \
 													  of pad input 'pads' (name: %s), but they have size %i and %i respectively."), 
 												*AxesTensor->GetName(), *PadsTensor->GetName(), Axes.Num(), RelativePads.Num());
 						return -1;
@@ -102,7 +104,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 						int32 Axis = Axes[AxesIndex];
 						if (Axis < -Rank || Axis >= Rank)
 						{
-							UE_LOG(LogNNE, Warning, TEXT("Pad input value at index %i of the 'axes' (name: %s) tensor \
+							UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Pad: Input value at index %i of the 'axes' (name: %s) tensor \
 														  needs to be in the range [-Rank, Rank - 1], but value is %i with a rank of %i."), 
 													AxesIndex, *AxesTensor->GetName(), Axis, Rank);
 							return -1;
@@ -119,7 +121,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				{
 					if (!PadsTensor->HasPreparedData())
 					{
-						UE_LOG(LogNNE, Warning, TEXT("pads attribute lenght (%d) should be twice the rank of input X (%d)."), 0, X.GetShape().Rank());
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Pad: 'pads' attribute lenght (%d) should be twice the rank of input X (%d)."), 0, X.GetShape().Rank());
 						return -1;
 					}
 					OperatorHelper::GetInt32ArrayFromConstTensor(Pads, PadsTensor);
@@ -128,7 +130,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if ((2*X.GetShape().Rank()) != Pads.Num())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("pads attribute lenght (%d) should be twice the rank of input X (%d)."), Pads.Num(), X.GetShape().Rank());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Pad: 'pads' attribute lenght (%d) should be twice the rank of input X (%d)."), Pads.Num(), X.GetShape().Rank());
 				return false;
 			}
 
@@ -140,7 +142,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				int32 OutputDim = PrePad + X.GetShape().GetData()[i] + PostPad;
 				if (OutputDim < 1)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Pads cannot reduce dimension below 1, but would for tensor (name:%s) at rank %d of size %d with prepad %d and postpad %d."), *X.GetName(), i, X.GetShape().GetData()[i], PrePad, PostPad);
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Pad: Cannot reduce dimension below 1, but would for tensor (name:%s) at rank %d of size %d with prepad %d and postpad %d."), *X.GetName(), i, X.GetShape().GetData()[i], PrePad, PostPad);
 					return -1;
 				}
 				OutputShapeData.Emplace(OutputDim);

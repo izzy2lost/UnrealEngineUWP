@@ -10,6 +10,7 @@
 enum class EMeshDeformerOutputBuffer : uint8;
 class UOptimusDeformer;
 class UOptimusNode;
+class UOptimusGraphDataInterface;
 
 UCLASS()
 class UOptimusComputeGraph :
@@ -31,5 +32,7 @@ protected:
 	UPROPERTY()
 	TArray<TWeakObjectPtr<const UOptimusNode>> KernelToNode;
 
+	UOptimusGraphDataInterface* GetGraphDataInterfaceForPostLoadFixUp();
+	
 	friend class UOptimusDeformer;
 };

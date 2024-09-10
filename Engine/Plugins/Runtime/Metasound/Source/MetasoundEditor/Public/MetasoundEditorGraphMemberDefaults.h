@@ -554,7 +554,7 @@ struct FMetasoundEditorMemberPageDefaultObjectRef : public FMetasoundEditorMembe
 	{
 	}
 
-	UPROPERTY(EditAnywhere, Category = DefaultValue, meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category = DefaultValue)
 	FMetasoundEditorGraphMemberDefaultObjectRef Value;
 };
 

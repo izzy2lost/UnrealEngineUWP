@@ -122,7 +122,8 @@ FVulkanView* FVulkanView::InitAsTextureView(
 	, uint32 ArraySliceIndex
 	, uint32 NumArraySlices
 	, bool bUseIdentitySwizzle
-	, VkImageUsageFlags ImageUsageFlags)
+	, VkImageUsageFlags ImageUsageFlags
+	, VkSamplerYcbcrConversion SamplerYcbcrConversion)
 {
 	// We will need a deferred update if the descriptor was already in use
 	const bool bImmediateUpdate = !IsInitialized();
@@ -149,6 +150,15 @@ FVulkanView* FVulkanView::InitAsTextureView(
 		ViewInfo.pNext = &DecodeMode;
 	}
 #endif
+
+	VkSamplerYcbcrConversionInfo SamplerYcbcrConversionInfo;
+	if (SamplerYcbcrConversion)
+	{
+		ZeroVulkanStruct(SamplerYcbcrConversionInfo, VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO);
+		SamplerYcbcrConversionInfo.conversion = SamplerYcbcrConversion;
+		SamplerYcbcrConversionInfo.pNext = ViewInfo.pNext;
+		ViewInfo.pNext = &SamplerYcbcrConversionInfo;
+	}
 
 	if (bUseIdentitySwizzle)
 	{

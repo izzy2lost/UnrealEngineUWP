@@ -130,7 +130,7 @@ void UStateTreeComponent::StartLogic()
 	{
 		const EStateTreeRunStatus PreviousRunStatus = Context.GetStateTreeRunStatus();
 		const EStateTreeRunStatus CurrentRunStatus = Context.Start(&StateTreeRef.GetParameters());
-		bIsRunning = true;
+		bIsRunning = CurrentRunStatus == EStateTreeRunStatus::Running;
 		
 		if (CurrentRunStatus != PreviousRunStatus)
 		{
@@ -154,7 +154,7 @@ void UStateTreeComponent::RestartLogic()
 	{
 		const EStateTreeRunStatus PreviousRunStatus = Context.GetStateTreeRunStatus();
 		const EStateTreeRunStatus CurrentRunStatus = Context.Start(&StateTreeRef.GetParameters());
-		bIsRunning = true;
+		bIsRunning = CurrentRunStatus == EStateTreeRunStatus::Running;
 		
 		if (CurrentRunStatus != PreviousRunStatus)
 		{

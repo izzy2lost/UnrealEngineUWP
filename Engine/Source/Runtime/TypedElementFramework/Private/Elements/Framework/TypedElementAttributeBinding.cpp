@@ -17,7 +17,7 @@ namespace UE::Editor::DataStorage
 	}
 
 	FAttributeBinder::FAttributeBinder(
-		RowHandle InTargetRow, ITypedElementDataStorageInterface* InDataStorage)
+		RowHandle InTargetRow, IEditorDataStorageProvider* InDataStorage)
 		: TargetRow(InTargetRow)
 		, DataStorage(InDataStorage)
 	{

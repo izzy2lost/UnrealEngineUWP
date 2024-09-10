@@ -587,7 +587,7 @@ uint GPUSceneFrameNumber;
 
 uint GetGPUSceneFrameNumber()
 {
-#if USE_GLOBAL_GPU_SCENE_DATA
+#if USE_GLOBAL_GPU_SCENE_DATA || USE_GLOBAL_GPU_SCENE_DATA_RW
 	return GPUSceneFrameNumber;
 #else
 	return Scene.GPUScene.GPUSceneFrameNumber;

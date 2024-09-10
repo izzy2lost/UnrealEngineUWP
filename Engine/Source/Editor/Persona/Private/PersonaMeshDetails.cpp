@@ -183,7 +183,7 @@ enum EButtonFlags
  * Window for Nanite settings.
  */
 
-bool GIsNaniteSkeletalMeshSettingsInitiallyCollapsed = 0;
+bool GIsNaniteSkeletalMeshSettingsInitiallyCollapsed = 1;
 static FAutoConsoleVariableRef CVarIsNaniteSkeletalMeshSettingsInitiallyCollapsed(
 	TEXT("r.Nanite.IsNaniteSkeletalMeshSettingsInitiallyCollapsed"),
 	GIsNaniteSkeletalMeshSettingsInitiallyCollapsed,
@@ -227,7 +227,8 @@ public:
 
 		USkeletalMesh* SkeletalMesh = LayoutImpl->GetMesh();
 		TWeakObjectPtr<USkeletalMesh> WeakSkeletalMesh = SkeletalMesh;
-		LayoutImpl->AddToDetailsPanel(WeakSkeletalMesh, DetailBuilder, bInitiallyCollapsed);
+		const int32 SortOrder = 0;
+		LayoutImpl->AddToDetailsPanel(WeakSkeletalMesh, DetailBuilder, SortOrder, bInitiallyCollapsed);
 	}
 
 	inline bool IsApplyNeeded() const
@@ -4527,7 +4528,8 @@ void FPersonaMeshDetails::CustomizeDetails( IDetailLayoutBuilder& DetailLayout )
 	PostProcessHandle->MarkHiddenByCustomization();
 
 	// Hide the existing NaniteSettings property so we can use the customization instead
-	TSharedRef<IPropertyHandle> NaniteSettingsProperty = DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(USkeletalMesh, NaniteSettings));
+	IDetailCategoryBuilder& MeshCategory = DetailLayout.EditCategory("Mesh");
+	TSharedRef<IPropertyHandle> NaniteSettingsProperty = DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(USkeletalMesh, NaniteSettings), USkeletalMesh::StaticClass());
 	NaniteSettingsProperty->MarkHiddenByCustomization();
 
 	NaniteSettings = MakeShareable(new FNaniteSkeletalMeshLayout(*this, GetPersonaToolkit()));
@@ -4605,6 +4607,46 @@ void FPersonaMeshDetails::CustomizeDetails( IDetailLayoutBuilder& DetailLayout )
 	CustomizeSkinWeightProfiles(DetailLayout);
 
 	HideUnnecessaryProperties(DetailLayout);
+
+	USkeletalMesh* SkelMesh = GetPersonaToolkit()->GetMesh();
+	const int32 SkelMeshLODCount = SkelMesh ? SkelMesh->GetLODNum() : 0;
+
+	auto CategorySorter = [SkelMeshLODCount](const TMap<FName, IDetailCategoryBuilder*>& Categories)
+	{
+		int32 Order = 0;
+		auto SafeSetOrder = [&Categories, &Order](const FName& CategoryName)
+		{
+			if (IDetailCategoryBuilder* const* Builder = Categories.Find(CategoryName))
+			{
+				(*Builder)->SetSortOrder(Order++);
+			}
+		};
+		
+		SafeSetOrder(FName("Material Slots"));
+
+		SafeSetOrder(FName("LODCustomMode"));
+
+		for (int32 LODIndex = 0; LODIndex < SkelMeshLODCount; ++LODIndex)
+		{
+			FString LODCategoryName = FString(TEXT("LOD"));
+			LODCategoryName.AppendInt(LODIndex);
+			SafeSetOrder(*LODCategoryName);
+		}
+
+		SafeSetOrder(FName("LodSettings"));
+		
+		SafeSetOrder(FName("Clothing"));
+		
+		SafeSetOrder(FName("SkeletalMesh"));
+		SafeSetOrder(FName("Mirroring"));
+		SafeSetOrder(FName("Mesh"));
+		SafeSetOrder(FName("SkinWeights"));
+		SafeSetOrder(FName("NaniteSettings"));
+		SafeSetOrder(FName("ImportSettings"));
+		
+	};
+	
+	DetailLayout.SortCategories(CategorySorter);
 }
 
 void FPersonaMeshDetails::OnInstancedFbxSkeletalMeshImportDataPropertyIteration(IDetailCategoryBuilder& BaseCategory, IDetailGroup* PropertyGroup, TSharedRef<IPropertyHandle>& Property) const

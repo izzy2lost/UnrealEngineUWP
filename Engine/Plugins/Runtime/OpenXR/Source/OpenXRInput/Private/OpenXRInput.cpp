@@ -390,6 +390,19 @@ bool FOpenXRInputPlugin::FOpenXRInput::BuildActions(XrSession Session)
 	Profiles.Add("OculusTouch", FInteractionProfile(FOpenXRPath("/interaction_profiles/oculus/touch_controller"), true));
 	Profiles.Add("ValveIndex", FInteractionProfile(FOpenXRPath("/interaction_profiles/valve/index_controller"), true));
 
+	// Query extension plugins for input key overrides
+	for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
+	{
+		TArray<FInputKeyOpenXRProperties> PluginInputOverrides;
+		if (Plugin->GetInputKeyOverrides(PluginInputOverrides))
+		{
+			for (const FInputKeyOpenXRProperties& PluginInputOverride : PluginInputOverrides)
+			{
+				InputsKeysToPropertiesMap.FindOrAdd(PluginInputOverride.InputKey).Add(PluginInputOverride);
+			}
+		}
+	}
+
 	// Query extension plugins for interaction profiles
 	{
 		TArray<FString> KeyPrefixes;
@@ -728,6 +741,22 @@ int32 FOpenXRInputPlugin::FOpenXRInput::SuggestBindings(TMap<FString, FInteracti
 
 bool FOpenXRInputPlugin::FOpenXRInput::SuggestBindingForKey(TMap<FString, FInteractionProfile>& Profiles, FOpenXRAction& Action, const FKey& InFKey, const TArray<UInputModifier*>& Modifiers, const TArray<UInputTrigger*>& Triggers)
 {
+	// Use profiles and path from overrides, if an entry exists for the key
+	FString InputKey = InFKey.ToString();
+	if (InputsKeysToPropertiesMap.Contains(InputKey))
+	{
+		for (const FInputKeyOpenXRProperties& InputProperties : InputsKeysToPropertiesMap[InputKey])
+		{
+			FInteractionProfile* Profile = Profiles.Find(InputProperties.InteractionProfile);
+			if (Profile == nullptr)
+			{
+				continue;
+			}
+			Profile->Bindings.Add(XrActionSuggestedBinding{ Action.Handle, FOpenXRPath(InputProperties.OpenXRPath) });
+		}
+		return true;
+	}
+
 	// Key names that are parseable into an OpenXR path have exactly 4 tokens
 	TArray<FString> Tokens;
 	if (InFKey.ToString().ParseIntoArray(Tokens, TEXT("_")) != EKeys::NUM_XR_KEY_TOKENS)

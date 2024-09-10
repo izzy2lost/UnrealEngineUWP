@@ -18,9 +18,9 @@ struct HAIRSTRANDSMUTABLE_API FGroomPinData
 	GENERATED_BODY()
 
 public:
-	/** The index of the mesh component this groom will be attached to */
+	/** Name of the mesh component this groom will be attached to */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	int32 ComponentIndex = 0;
+	FName ComponentName;
 
 	/** The groom asset to use. See UGroomComponent::GroomAsset. */
 	UPROPERTY(EditAnywhere, Category = Groom)

@@ -115,7 +115,7 @@ void UDMXMVRGeneralSceneDescription::WriteDMXLibrary(const UDMXLibrary& DMXLibra
 	{
 		if (FixturePatch)
 		{
-			WriteFixturePatch(*FixturePatch);
+			WriteFixturePatch(*FixturePatch, FixturePatch->GetDefaultTransform());
 		}
 	}
 	
@@ -146,13 +146,13 @@ void UDMXMVRGeneralSceneDescription::WriteDMXLibrary(const UDMXLibrary& DMXLibra
 				// Remember the MVR UUID of the first patch as multi patch UUID
 				MultiPatchUUID = FixturePatchInWorld->GetMVRFixtureUUID();
 
-				const TOptional<FTransform> OptionalTransform = WorldParams.bUseTransformsFromLevel ? Actor->GetTransform() : TOptional<FTransform>();
-				WriteFixturePatch(*FixturePatchInLibrary, OptionalTransform);
+				const FTransform Transform = WorldParams.bUseTransformsFromLevel ? Actor->GetTransform() : FixturePatchInLibrary->GetDefaultTransform();
+				WriteFixturePatch(*FixturePatchInLibrary, Transform);
 			}
 			else if (WorldParams.bCreateMultiPatchFixtures)
 			{
-				const TOptional<FTransform> OptionalTransform = WorldParams.bUseTransformsFromLevel ? Actor->GetTransform() : TOptional<FTransform>();
-				WriteFixturePatch(*FixturePatchInLibrary, OptionalTransform, MultiPatchUUID);
+				const FTransform Transform = WorldParams.bUseTransformsFromLevel ? Actor->GetTransform() : FixturePatchInLibrary->GetDefaultTransform();
+				WriteFixturePatch(*FixturePatchInLibrary, Transform, MultiPatchUUID);
 			}
 		}
 	}
@@ -230,7 +230,7 @@ TSharedPtr<FXmlFile> UDMXMVRGeneralSceneDescription::CreateXmlFile() const
 #endif // WITH_EDITOR
 
 #if WITH_EDITOR
-void UDMXMVRGeneralSceneDescription::WriteFixturePatch(const UDMXEntityFixturePatch& FixturePatch, const TOptional<FTransform>& OptionalTransform, const FGuid& MultiPatchUUID)
+void UDMXMVRGeneralSceneDescription::WriteFixturePatch(const UDMXEntityFixturePatch& FixturePatch, const FTransform& Transform, const FGuid& MultiPatchUUID)
 {
 	TArray<UDMXMVRFixtureNode*> FixtureNodes;
 	RootNode->GetFixtureNodes(FixtureNodes);
@@ -284,11 +284,7 @@ void UDMXMVRGeneralSceneDescription::WriteFixturePatch(const UDMXEntityFixturePa
 	}
 	check(MVRFixtureNode)
 
-	if(OptionalTransform.IsSet())
-	{
-		MVRFixtureNode->SetTransformAbsolute(OptionalTransform.GetValue());
-	}
-
+	MVRFixtureNode->SetTransformAbsolute(Transform);
 	MVRFixtureNode->SetUniverseID(FixturePatch.GetUniverseID());
 	MVRFixtureNode->SetStartingChannel(FixturePatch.GetStartingChannel());
 

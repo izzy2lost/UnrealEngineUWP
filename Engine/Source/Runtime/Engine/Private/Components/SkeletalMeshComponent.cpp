@@ -2317,16 +2317,17 @@ void USkeletalMeshComponent::UpdateClothSimulationContext(float InDeltaTime)
 
 	bool bMustUpdateClothTransform = bForceCollisionUpdate;
 
+	const bool bNeedsHardReset = ClothTeleportMode == EClothingTeleportMode::HardReset;
 	if (bPendingClothTransformUpdate)	//it's possible we want to update cloth collision based on a pending transform
 	{
 		bPendingClothTransformUpdate = false;
 		if (PendingTeleportType == ETeleportType::TeleportPhysics)	//If the pending transform came from a teleport, make sure to teleport the cloth in this upcoming simulation
 		{
-			ClothTeleportMode = (ClothTeleportMode == EClothingTeleportMode::TeleportAndReset) ? ClothTeleportMode : EClothingTeleportMode::Teleport;
+			ClothTeleportMode = (ClothTeleportMode > EClothingTeleportMode::Teleport) ? ClothTeleportMode : EClothingTeleportMode::Teleport;
 		}
 		else if (PendingTeleportType == ETeleportType::ResetPhysics)
 		{
-			ClothTeleportMode = EClothingTeleportMode::TeleportAndReset;
+			ClothTeleportMode = (ClothTeleportMode > EClothingTeleportMode::TeleportAndReset) ? ClothTeleportMode : EClothingTeleportMode::TeleportAndReset;
 		}
 		bMustUpdateClothTransform = true;
 	}
@@ -2343,6 +2344,11 @@ void USkeletalMeshComponent::UpdateClothSimulationContext(float InDeltaTime)
 
 		if(ClothingInteractor)
 		{
+			if (bNeedsHardReset)
+			{
+				ClothingInteractor->ClothConfigUpdated();
+			}
+
 			ClothingInteractor->Sync(ClothingSimulation, ClothingSimulationContext);
 		}
 	}

@@ -81,6 +81,7 @@
 #include "Editor/Sequencer/Private/SSequencer.h"
 #include "Slate/SceneViewport.h"
 #include "Tools/BakingHelper.h"
+#include "Sequencer/AnimLayers/AnimLayers.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigEditMode)
 
@@ -811,17 +812,15 @@ TSet<FName> FControlRigEditMode::GetActiveControlsFromSequencer(UControlRig* Con
 				{
 					if (ControlRigParameterTrack->GetControlRig() == ControlRig)
 					{
-						UMovieSceneControlRigParameterSection* ActiveSection = Cast<UMovieSceneControlRigParameterSection>(ControlRigParameterTrack->GetSectionToKey());
-						if (ActiveSection)
+						TArray<FRigControlElement*> Controls;
+						ControlRig->GetControlsInOrder(Controls);
+						int Index = 0;
+						for (FRigControlElement* ControlElement : Controls)
 						{
-							TArray<FRigControlElement*> Controls;
-							ControlRig->GetControlsInOrder(Controls);
-							TArray<bool> Mask = ActiveSection->GetControlsMask();
-
-							TArray<FName> Names;
-							int Index = 0;
-							for (FRigControlElement* ControlElement : Controls)
+							UMovieSceneControlRigParameterSection* ActiveSection = Cast<UMovieSceneControlRigParameterSection>(ControlRigParameterTrack->GetSectionToKey(ControlElement->GetFName()));
+							if (ActiveSection)
 							{
+								TArray<bool> Mask = ActiveSection->GetControlsMask();
 								if (Mask[Index])
 								{
 									ActiveControls.Add(ControlElement->GetFName());
@@ -3671,18 +3670,20 @@ bool FControlRigEditMode::MouseMove(FEditorViewportClient* InViewportClient, FVi
 	
 	if (HasAnyHoverableShapeActor())
 	{	
-		HActor* ActorHitProxy = HitProxyCast<HActor>(InViewport->GetHitProxy(InX, InY));
-		if (ActorHitProxy && ActorHitProxy->Actor)
+		const HActor* ActorHitProxy = HitProxyCast<HActor>(InViewport->GetHitProxy(InX, InY));
+		const AControlRigShapeActor* HitShape = ActorHitProxy && ActorHitProxy->Actor ? Cast<AControlRigShapeActor>(ActorHitProxy->Actor) : nullptr;
+		auto IsHovered = [HitShape](const AControlRigShapeActor* InShapeActor)
 		{
-			if (ActorHitProxy->Actor->IsA<AControlRigShapeActor>())
+			return HitShape ? InShapeActor == HitShape : false;
+		};
+
+		for (const auto& [ControlRig, Shapes] : ControlRigShapeActors)
+		{
+			for (AControlRigShapeActor* ShapeActor : Shapes)
 			{
-				for (auto& ShapeActors : ControlRigShapeActors)
+				if (ShapeActor)
 				{
-					for (AControlRigShapeActor* ShapeActor : ShapeActors.Value)
-					{
-						ShapeActor->SetHovered(ShapeActor == ActorHitProxy->Actor);
-						return false;
-					}
+					ShapeActor->SetHovered(IsHovered(ShapeActor));
 				}
 			}
 		}
@@ -5784,6 +5785,7 @@ bool FDetailKeyFrameCacheAndHandler::IsPropertyKeyable(const UClass* InObjectCla
 			}
 		}
 	}
+	
 
 	if (InObjectClass
 		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyTransform::StaticClass())
@@ -5795,6 +5797,11 @@ bool FDetailKeyFrameCacheAndHandler::IsPropertyKeyable(const UClass* InObjectCla
 		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyBool::StaticClass())
 		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyInteger::StaticClass())
 		)
+	{
+		return true;
+	}
+
+	if (InObjectClass && InObjectClass->IsChildOf(UAnimLayer::StaticClass()))
 	{
 		return true;
 	}
@@ -5902,10 +5909,13 @@ void FDetailKeyFrameCacheAndHandler::OnKeyPropertyClicked(const IPropertyHandle&
 	KeyedPropertyHandle.GetOuterObjects(Objects);
 	for (UObject* Object : Objects)
 	{
-		UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(Object);
-		if (Proxy)
+		if (UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(Object))
 		{
 			Proxy->SetKey(SequencerPtr, KeyedPropertyHandle);
+		}
+		else if (UAnimLayer* AnimLayer = (Object->GetTypedOuter<UAnimLayer>()))
+		{
+			AnimLayer->SetKey(SequencerPtr, KeyedPropertyHandle);
 		}
 	}
 }
@@ -5949,6 +5959,10 @@ EPropertyKeyedStatus FDetailKeyFrameCacheAndHandler::GetPropertyKeyedStatus(cons
 		if (UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(Object))
 		{
 			KeyedStatus = Proxy->GetPropertyKeyedStatus(SequencerPtr,PropertyHandle);
+		}
+		else if (UAnimLayer* AnimLayer = (Object->GetTypedOuter<UAnimLayer>()))
+		{
+			KeyedStatus = AnimLayer->GetPropertyKeyedStatus(SequencerPtr, PropertyHandle);
 		}
 		//else check to see if it's in sequencer
 	}

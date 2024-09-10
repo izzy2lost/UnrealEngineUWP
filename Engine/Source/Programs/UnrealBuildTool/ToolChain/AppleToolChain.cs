@@ -629,6 +629,7 @@ namespace UnrealBuildTool
 				}
 			}
 			Arguments.Add("-DUE_USE_SWIFT_UI_MAIN=" + (bUseSwiftUIMain ? "1" : "0"));
+					
 			return Output;
 		}
 
@@ -672,12 +673,16 @@ namespace UnrealBuildTool
 
 			Arguments.Add("-enable-objc-interop");
 			Arguments.Add("-cxx-interoperability-mode=default");
-			Arguments.Add($"-import-objc-header {Unreal.EngineDirectory}/Source/Runtime/Launch/Private/IOS/UECppToSwift.h");
+			Arguments.Add($"-import-objc-header \"{Unreal.EngineDirectory}/Source/Runtime/Launch/Private/IOS/UECppToSwift.h\"");
 			Arguments.Add($"-module-name Launch");
 
 			if (bUseSwiftUIMain)
 			{
 				Arguments.Add("-DUE_USE_SWIFT_UI_MAIN");
+				if (ToolChainSettings.Value.SDKVersionFloat < 2.0)
+				{
+					Arguments.Add("-DUE_SDK_VERSION_1");
+				}
 			}
 
 			Action CompileAction = Graph.CreateAction(ActionType.Compile);
@@ -713,7 +718,7 @@ namespace UnrealBuildTool
 
 				//Arguments.Add("-enable-objc-interop");
 				//Arguments.Add("-cxx-interoperability-mode=default");
-				Arguments.Add($"-import-objc-header {Unreal.EngineDirectory}/Source/Runtime/Launch/Private/IOS/UECppToSwift.h");
+				Arguments.Add($"-import-objc-header \"{Unreal.EngineDirectory}/Source/Runtime/Launch/Private/IOS/UECppToSwift.h\"");
 
 				// platform settings
 				Arguments.Add($"-target {ToolChainSettings.Value.GetTargetTuple(CompileEnvironment.Architecture)}");
@@ -726,7 +731,12 @@ namespace UnrealBuildTool
 				if (bUseSwiftUIMain)
 				{
 					Arguments.Add("-DUE_USE_SWIFT_UI_MAIN");
+					if (ToolChainSettings.Value.SDKVersionFloat < 2.0)
+					{
+						Arguments.Add("-DUE_SDK_VERSION_1");
+					}
 				}
+
 
 				// now make an action to export the swift code as a header Obj-C bridging
 				Action HeaderAction = Graph.CreateAction(ActionType.CompileModuleInterface);

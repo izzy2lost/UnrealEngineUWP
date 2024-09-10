@@ -3,7 +3,7 @@
 #pragma once
 
 #include "NNEOperator.h"
-#include "NNEHlslShaderBase.h"
+#include "NNEHlslShadersBase.h"
 #include "RenderGraphUtils.h"
 #include "ShaderParameterUtils.h"
 

@@ -15,8 +15,8 @@ namespace Horde.Commands.Vcs
 		[CommandLine("-Message=")]
 		public string? Message { get; set; }
 
-		public VcsCommit(IStorageClientFactory storageClientFactory)
-			: base(storageClientFactory)
+		public VcsCommit(IStorageClient storageClient)
+			: base(storageClient)
 		{
 		}
 

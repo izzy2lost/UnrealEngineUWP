@@ -225,7 +225,7 @@ namespace UE::Editor::DataStorage
 	// FPrepareCommands
 	//
 
-	FPrepareCommands::FPrepareCommands(ITypedElementDataStorageInterface& InStorage, UEditorDataStorageCompatibility& InStorageCompat,
+	FPrepareCommands::FPrepareCommands(IEditorDataStorageProvider& InStorage, UEditorDataStorageCompatibility& InStorageCompat,
 		CompatibilityCommandBuffer::FCollection& InCommands)
 		: Storage(InStorage)
 		, StorageCompat(InStorageCompat)
@@ -304,7 +304,7 @@ namespace UE::Editor::DataStorage
 		}
 	}
 
-	void FPrepareCommands::RunPreparation(ITypedElementDataStorageInterface& Storage, UEditorDataStorageCompatibility& StorageCompat,
+	void FPrepareCommands::RunPreparation(IEditorDataStorageProvider& Storage, UEditorDataStorageCompatibility& StorageCompat,
 		CompatibilityCommandBuffer::FCollection& Commands)
 	{
 		FPrepareCommands PrepareVisitor(Storage, StorageCompat, Commands);
@@ -490,7 +490,7 @@ namespace UE::Editor::DataStorage
 	// FCommandProcessor
 	//
 
-	FCommandProcessor::FCommandProcessor(ITypedElementDataStorageInterface& InStorage, UEditorDataStorageCompatibility& InStorageCompatibility)
+	FCommandProcessor::FCommandProcessor(IEditorDataStorageProvider& InStorage, UEditorDataStorageCompatibility& InStorageCompatibility)
 		: Storage(InStorage)
 		, StorageCompatibility(InStorageCompatibility)
 		, MementoSystem(InStorageCompatibility.Environment->GetMementoSystem())

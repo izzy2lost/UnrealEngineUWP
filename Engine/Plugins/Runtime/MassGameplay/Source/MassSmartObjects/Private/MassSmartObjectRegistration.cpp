@@ -179,7 +179,7 @@ void UMassActiveSmartObjectSignalProcessor::Initialize(UObject& Owner)
 	SubscribeToSignal(*SignalSubsystem, UE::Mass::Signals::SmartObjectActivationChanged);
 }
 
-void UMassActiveSmartObjectSignalProcessor::SignalEntities(FMassEntityManager& EntityManager, FMassExecutionContext& Context, FMassSignalNameLookup& EntitySignals)
+void UMassActiveSmartObjectSignalProcessor::SignalEntities(FMassEntityManager& EntityManager, FMassExecutionContext& Context, FMassSignalNameLookup&)
 {
 	// Process entities in active range
 	InsideSmartObjectActiveRangeQuery.ForEachEntityChunk(EntityManager, Context, [this](FMassExecutionContext& Context)

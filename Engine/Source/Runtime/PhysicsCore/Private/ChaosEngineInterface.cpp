@@ -548,6 +548,22 @@ void FChaosEngineInterface::SetMACDEnabled_AssumesLocked(const FPhysicsActorHand
 	InActorReference->GetGameThreadAPI().SetMACDEnabled(bIsMACDEnabled);
 }
 
+void FChaosEngineInterface::SetPositionSolverIterationCount_AssumesLocked(const FPhysicsActorHandle& InActorReference, uint8 PositionSolverIterationCount)
+{
+	InActorReference->GetGameThreadAPI().SetPositionSolverIterationCount(PositionSolverIterationCount);
+}
+
+void FChaosEngineInterface::SetVelocitySolverIterationCount_AssumesLocked(const FPhysicsActorHandle& InActorReference, uint8 VelocitySolverIterationCount)
+{
+	InActorReference->GetGameThreadAPI().SetVelocitySolverIterationCount(VelocitySolverIterationCount);
+}
+
+void FChaosEngineInterface::SetProjectionSolverIterationCount_AssumesLocked(const FPhysicsActorHandle& InActorReference, uint8 ProjectionSolverIterationCount)
+{
+	InActorReference->GetGameThreadAPI().SetProjectionSolverIterationCount(ProjectionSolverIterationCount);
+}
+
+
 void FChaosEngineInterface::SetIgnoreAnalyticCollisions_AssumesLocked(const FPhysicsActorHandle& InActorReference,bool bIgnoreAnalyticCollisions)
 {
 	InActorReference->GetGameThreadAPI().SetIgnoreAnalyticCollisions(bIgnoreAnalyticCollisions);
@@ -1266,27 +1282,24 @@ void FChaosEngineInterface::SetStabilizationEnergyThreshold_AssumesLocked(const 
 	// #todo : Implement
 }
 
-uint32 FChaosEngineInterface::GetSolverPositionIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle)
-{
-	// #todo : Implement
-	return 0;
-}
-
 void FChaosEngineInterface::SetSolverPositionIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle,uint32 InSolverIterationCount)
 {
-	// #todo : Implement
+	Chaos::FRigidBodyHandle_External& Body_External = InHandle->GetGameThreadAPI();
+	Body_External.SetPositionSolverIterationCount(InSolverIterationCount);
 }
 
-uint32 FChaosEngineInterface::GetSolverVelocityIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle)
+void FChaosEngineInterface::SetSolverVelocityIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle, uint32 InSolverIterationCount)
 {
-	// #todo : Implement
-	return 0;
+	Chaos::FRigidBodyHandle_External& Body_External = InHandle->GetGameThreadAPI();
+	Body_External.SetVelocitySolverIterationCount(InSolverIterationCount);
 }
 
-void FChaosEngineInterface::SetSolverVelocityIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle,uint32 InSolverIterationCount)
+void FChaosEngineInterface::SetSolverProjectionIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle, uint32 InSolverIterationCount)
 {
-	// #todo : Implement
+	Chaos::FRigidBodyHandle_External& Body_External = InHandle->GetGameThreadAPI();
+	Body_External.SetProjectionSolverIterationCount(InSolverIterationCount);
 }
+
 
 float FChaosEngineInterface::GetWakeCounter_AssumesLocked(const FPhysicsActorHandle& InHandle)
 {

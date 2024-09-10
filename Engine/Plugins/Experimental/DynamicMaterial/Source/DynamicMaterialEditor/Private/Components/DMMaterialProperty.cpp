@@ -344,7 +344,6 @@ void UDMMaterialProperty::GenerateExpressions(const TSharedRef<FDMMaterialBuildS
 	MaterialPropertyPtr->Expression = nullptr;
 	MaterialPropertyPtr->OutputIndex = 0;
 
-	UMaterialExpression* LastPropertyExpression = nullptr;
 	UDMMaterialSlot* Slot = EditorOnlyData->GetSlotForMaterialProperty(MaterialProperty);
 
 	if (!Slot || Slot->GetLayers().IsEmpty())
@@ -361,7 +360,7 @@ void UDMMaterialProperty::GenerateExpressions(const TSharedRef<FDMMaterialBuildS
 		return;
 	}
 
-	LastPropertyExpression = InBuildState->GetLastSlotPropertyExpression(Slot, MaterialProperty);
+	UMaterialExpression* LastPropertyExpression = InBuildState->GetLastSlotPropertyExpression(Slot, MaterialProperty);
 
 	if (!LastPropertyExpression)
 	{
@@ -612,7 +611,7 @@ void UDMMaterialProperty::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)
 	InPreviewMaterial->BlendMode = EBlendMode::BLEND_Translucent;
 
 	TSharedRef<FDMMaterialBuildState> BuildState = EditorOnlyData->CreateBuildState(InPreviewMaterial);
-	BuildState->SetPreviewMaterial();
+	BuildState->SetPreviewObject(this);
 
 	UE_LOG(LogDynamicMaterialEditor, Display, TEXT("Building Material Designer Property Preview (%s)..."), *GetName());
 

@@ -522,7 +522,6 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 
-	TArray<FForwardLightData*, TInlineAllocator<4>> ForwardLightDataPerView;
 #if WITH_EDITOR
 	bool bMultipleDirLightsConflictForForwardShading = false;
 #endif
@@ -1068,16 +1067,18 @@ FComputeLightGridOutput FDeferredShadingSceneRenderer::GatherLightsAndComputeLig
 
 	bool bAnyViewUsesForwardLighting = false;
 	bool bAnyViewUsesLumen = false;
+	bool bAnyViewUsesRayTracing = false;
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
 		const FViewInfo& View = Views[ViewIndex];
 		bAnyViewUsesForwardLighting |= View.bTranslucentSurfaceLighting || ShouldRenderVolumetricFog() || View.bHasSingleLayerWaterMaterial 
 			|| VolumetricCloudWantsToSampleLocalLights(Scene, ViewFamily.EngineShowFlags) || ShouldVisualizeLightGrid() || ShouldRenderLocalFogVolume(Scene, ViewFamily);
 		bAnyViewUsesLumen |= GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || GetViewPipelineState(View).ReflectionsMethod == EReflectionsMethod::Lumen;
+		bAnyViewUsesRayTracing |= IsRayTracingEnabled() && View.IsRayTracingAllowedForView();
 	}
 	
 	const bool bCullLightsToGrid = GLightCullingQuality 
-		&& (IsForwardShadingEnabled(ShaderPlatform) || bAnyViewUsesForwardLighting || IsRayTracingEnabled() || ShouldUseClusteredDeferredShading() ||
+		&& (IsForwardShadingEnabled(ShaderPlatform) || bAnyViewUsesForwardLighting || bAnyViewUsesRayTracing || ShouldUseClusteredDeferredShading() ||
 			bAnyViewUsesLumen || ViewFamily.EngineShowFlags.VisualizeMeshDistanceFields || VirtualShadowMapArray.IsEnabled() || MegaLights::IsEnabled(ViewFamily));
 
 	// Store this flag if lights are injected in the grids, check with 'AreLightsInLightGrid()'
@@ -1190,7 +1191,7 @@ void FDeferredShadingSceneRenderer::RenderForwardShadowProjections(
 			OutForwardScreenSpaceShadowMaskSubPixel = ForwardScreenSpaceShadowMaskSubPixel.Target;
 		}
 
-		GraphBuilder.AddPass(RDG_EVENT_NAME("ResolveScreenSpaceShadowMask"), PassParameters, ERDGPassFlags::Raster, [](FRHICommandList&) {});
+		GraphBuilder.AddPass(RDG_EVENT_NAME("ResolveScreenSpaceShadowMask"), PassParameters, ERDGPassFlags::Raster, [](FRDGAsyncTask, FRHICommandList&) {});
 	}
 }
 

@@ -201,9 +201,10 @@ namespace Metasound
 			// Pop off the interleaved data from the audio bus
 			int32 NumSamplesToPop = BlockSizeFrames * AudioBusChannels;
 			int32 SamplesPopped = AudioBusPatchOutput->PopAudio(InterleavedBuffer.GetData(), NumSamplesToPop, false);
-			if (SamplesPopped < NumSamplesToPop)
+			if (SamplesPopped < NumSamplesToPop && !bWasUnderrunReported)
 			{
 				UE_LOG(LogMetaSound, Warning, TEXT("Underrun detected in audio bus reader node."));
+				bWasUnderrunReported = true;
 			}
 
 			const uint32 MinChannels = FMath::Min(NumChannels, AudioBusChannels);
@@ -272,6 +273,7 @@ namespace Metasound
 			PatchInput.Reset();
 			AudioBusChannels = INDEX_NONE;
 			BlockSizeFrames = 0;
+			bWasUnderrunReported = false;
 
 			bool bHasEnvironmentVars = InParams.Environment.Contains<Audio::FDeviceId>(SourceInterface::Environment::DeviceID);
 			bHasEnvironmentVars &= InParams.Environment.Contains<int32>(SourceInterface::Environment::AudioMixerNumOutputFrames);
@@ -322,6 +324,7 @@ namespace Metasound
 		Audio::FPatchInput PatchInput;
 		uint32 AudioBusChannels = INDEX_NONE;
 		int32 BlockSizeFrames = 0;
+		bool bWasUnderrunReported = false;
 	};
 
 	template<uint32 NumChannels>

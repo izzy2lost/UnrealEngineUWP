@@ -419,8 +419,8 @@ void FPCGStaticMeshSpawnerElement::SpawnStaticMeshInstances(FPCGStaticMeshSpawne
 
 	const FPCGPackedCustomData& PackedCustomData = *InPackedCustomData;
 
-	FPCGISMCBuilderParameters Params;
-	Params.Descriptor = FISMComponentDescriptor(InstanceList.Descriptor);
+	FPCGISMComponentBuilderParams Params;
+	Params.Descriptor = InstanceList.Descriptor;
 	Params.NumCustomDataFloats = PackedCustomData.NumCustomDataFloats;
 
 	// If the root actor we're binding to is movable, then the ISMC should be movable by default

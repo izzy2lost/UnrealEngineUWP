@@ -52,7 +52,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task EmptyNodeTestAsync()
 		{
-			KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
+			KeyValueStorageNamespace store = KeyValueStorageNamespace.CreateInMemory();
 
 			const string RefName = "hello";
 			await using (IBlobWriter writer = store.CreateBlobWriter(RefName))
@@ -97,7 +97,7 @@ namespace EpicGames.Horde.Tests
 		{
 			using MemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 
-			KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
+			KeyValueStorageNamespace store = KeyValueStorageNamespace.CreateInMemory();
 
 			await using IBlobWriter writer = store.CreateBlobWriter();
 
@@ -176,7 +176,7 @@ namespace EpicGames.Horde.Tests
 			BlobSerializerOptions serializerOptions = new BlobSerializerOptions();
 			serializerOptions.Converters.Add(new InteriorChunkedDataNodeConverter(HordeApiVersion.Initial)); // Does not include length fields in interior nodes
 
-			KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
+			KeyValueStorageNamespace store = KeyValueStorageNamespace.CreateInMemory();
 
 			byte[] data = Encoding.UTF8.GetBytes("hello world");
 

@@ -3,11 +3,21 @@
 #include "ISequencer.h"
 
 #include "AnimatedRange.h"
+#include "Camera/CameraComponent.h"
+#include "Capabilities/CameraCutViewTargetCacheCapability.h"
 #include "Misc/AssertionMacros.h"
 #include "MovieScene.h"
 #include "MovieSceneSequence.h"
 #include "ITimeSlider.h"
 #include "SequencerUtilities.h"
+
+TWeakObjectPtr<UCameraComponent> ISequencer::GetLastEvaluatedCameraCut() const
+{
+	const TSharedPtr<const UE::MovieScene::FSharedPlaybackState> PlaybackState = FindSharedPlaybackState();
+	const UE::MovieScene::FCameraCutViewTargetCacheCapability* Capability = PlaybackState
+	   ? PlaybackState->FindCapability<UE::MovieScene::FCameraCutViewTargetCacheCapability>() : nullptr;
+	return Capability ? Capability->LastViewTargetCamera.Get() : nullptr;
+}
 
 FAnimatedRange ISequencer::GetViewRange() const
 {

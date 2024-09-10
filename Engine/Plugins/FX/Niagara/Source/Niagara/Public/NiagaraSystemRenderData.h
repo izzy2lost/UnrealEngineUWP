@@ -68,7 +68,11 @@ public:
 	/** Gets the dynamic mesh elements from all renderers */
 	void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector, const FNiagaraSceneProxy& SceneProxy);
 #if RHI_RAYTRACING
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "Use FRayTracingInstanceCollector instead.")
 	void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances, const FNiagaraSceneProxy& SceneProxy);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector, const FNiagaraSceneProxy& SceneProxy);
 #endif
 	void GatherSimpleLights(FSimpleLightArray& OutParticleLights) const;
 

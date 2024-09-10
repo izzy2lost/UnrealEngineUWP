@@ -89,6 +89,9 @@ namespace UE::RemoteControl::DMX
 			/** Returns the name of the owner object */
 			FString GetOwnerObjectName() const;
 
+			/** Returns the transform of the owner object or Identity if the owner object has no transform */
+			FTransform GetOwnerObjectTransform() const;
+
 			/** Cached data of the fixture patch to use if a patch needs to be regenerated */
 			FRCDMXFixturePatchData FixturePatchData;
 
@@ -289,16 +292,20 @@ namespace UE::RemoteControl::DMX
 						const FDMXFixtureFunction& Function = Mode.Functions[FunctionIndex];
 						const FRemoteControlDMXProtocolEntity* DMXEntity = DMXEntities.IsValidIndex(FunctionIndex) ? DMXEntities[FunctionIndex] : nullptr;
 
-						if (DMXEntity &&
-							DMXEntity->ExtraSetting.AttributeName == Function.Attribute.Name &&
-							DMXEntity->ExtraSetting.DataType == Function.DataType &&
-							DMXEntity->ExtraSetting.bUseLSB == Function.bUseLSBMode)
+						if (!DMXEntity)
 						{
-							return true;
+							continue;
+						}
+
+						if (DMXEntity->ExtraSetting.AttributeName != Function.Attribute.Name ||
+							DMXEntity->ExtraSetting.DataType != Function.DataType ||
+							DMXEntity->ExtraSetting.bUseLSB != Function.bUseLSBMode)
+						{
+							return false;
 						}
 					}
 
-					return false;
+					return true;
 				});
 
 			return FixtureTypePtr ? *FixtureTypePtr : nullptr;
@@ -405,6 +412,7 @@ namespace UE::RemoteControl::DMX
 				FixturePatchConstructionParams.FixtureTypeRef = FDMXEntityFixtureTypeRef(FixtureType);
 				FixturePatchConstructionParams.ActiveMode = 0;
 				FixturePatchConstructionParams.MVRFixtureUUID = UniqueMVRFixtureUUID;
+				FixturePatchConstructionParams.DefaultTransform = GetOwnerObjectTransform();
 
 				FixturePatch = UDMXEntityFixturePatch::CreateFixturePatchInLibrary(FixturePatchConstructionParams);
 				check(FixturePatch);
@@ -491,7 +499,7 @@ namespace UE::RemoteControl::DMX
 
 		FString FRCSinglePatchBuilder::GetOwnerObjectName() const
 		{
-			const UObject* OwnerObject = DMXControlledProperties.IsEmpty() ? nullptr : DMXControlledProperties[0]->GetOwnerObject();
+			const UObject* OwnerObject = DMXControlledProperties.IsEmpty() ? nullptr : DMXControlledProperties[0]->GetOwnerActor();
 			if (!OwnerObject)
 			{
 				return FText(LOCTEXT("ObjectNotLoadedInfo", "Object is not loaded")).ToString();
@@ -506,6 +514,37 @@ namespace UE::RemoteControl::DMX
 				return OwnerObject->GetName();
 			}
 		}
+
+		FTransform FRCSinglePatchBuilder::GetOwnerObjectTransform() const
+		{
+			const UObject* OwnerObject = DMXControlledProperties.IsEmpty() ? nullptr : DMXControlledProperties[0]->ExposedProperty->GetBoundObject();
+			if (!OwnerObject)
+			{
+				return FTransform::Identity;
+			}
+
+			if (const USceneComponent* SceneComponent = Cast<USceneComponent>(OwnerObject))
+			{
+				return SceneComponent->GetComponentTransform();
+			}
+			else if (const USceneComponent* OuterSceneComponent = OwnerObject->GetTypedOuter<USceneComponent>())
+			{
+				return OuterSceneComponent->GetComponentTransform();
+			}
+			else if (const AActor* Actor = Cast<AActor>(OwnerObject))
+			{
+				return Actor->GetTransform();
+			}
+			else if (const AActor* OuterActor = OwnerObject->GetTypedOuter<AActor>())
+			{
+				return OuterActor->GetTransform();
+			}
+			else
+			{
+				return FTransform::Identity;
+			}
+		}
+
 	}
 
 

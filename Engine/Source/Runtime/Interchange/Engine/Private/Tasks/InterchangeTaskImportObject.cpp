@@ -274,10 +274,11 @@ void UE::Interchange::FTaskImportObject_GameThread::Execute()
 	check(IsInGameThread());
 
 	// Create factory
-	UInterchangeFactoryBase* Factory = NewObject<UInterchangeFactoryBase>(GetTransientPackage(), FactoryClass);
-	Factory->SetResultsContainer(AsyncHelper->AssetImportResult->GetResults());
-
-	AsyncHelper->AddCreatedFactory(FactoryNode->GetUniqueID(), Factory);
+	UInterchangeFactoryBase* Factory = AsyncHelper->GetCreatedFactory(FactoryNode->GetUniqueID());
+	if (!ensure(Factory))
+	{
+		return;
+	}
 
 	UPackage* Pkg = nullptr;
 	FString PackageName;

@@ -56,7 +56,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		{
 			readonly object _lockObject = new object();
 
-			readonly BundleStorageClient _storageClient;
+			readonly BundleStorageNamespace _storageNamespace;
 			readonly string? _basePath;
 			readonly BundleCache _cache;
 			readonly BundleOptions _bundleOptions;
@@ -81,9 +81,9 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			/// </summary>
 			public int Length => _encodedPacketWriter?.Length ?? throw new InvalidOperationException("Bundle has been flushed");
 
-			public PendingBundleHandle(BundleStorageClient storageClient, string? basePath, BundleCache cache, BundleOptions bundleOptions)
+			public PendingBundleHandle(BundleStorageNamespace storageNamespace, string? basePath, BundleCache cache, BundleOptions bundleOptions)
 			{
-				_storageClient = storageClient;
+				_storageNamespace = storageNamespace;
 				_basePath = basePath;
 				_cache = cache;
 				_bundleOptions = bundleOptions;
@@ -175,7 +175,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 					// Point the packet handle to the encoded data
 					lock (_lockObject)
 					{
-						FlushedPacketHandle flushedPacketHandle = new FlushedPacketHandle(_storageClient, this, packetOffset, packetLength, _cache);
+						FlushedPacketHandle flushedPacketHandle = new FlushedPacketHandle(_storageNamespace, this, packetOffset, packetLength, _cache);
 						_packetHandle.CompletePacket(flushedPacketHandle);
 					}
 				}
@@ -211,8 +211,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				FlushedBundleHandle flushedHandle;
 				using (ReadOnlySequenceStream stream = new ReadOnlySequenceStream(_encodedPacketWriter.AsSequence()))
 				{
-					BlobLocator locator = await _storageClient.Backend.WriteBlobAsync(stream, _bundleImports, _basePath, cancellationToken);
-					flushedHandle = new FlushedBundleHandle(_storageClient, locator);
+					BlobLocator locator = await _storageNamespace.Backend.WriteBlobAsync(stream, _bundleImports, _basePath, cancellationToken);
+					flushedHandle = new FlushedBundleHandle(_storageNamespace, locator);
 				}
 
 				// Release all the intermediate data
@@ -230,7 +230,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				{
 					foreach ((ExportHandle exportHandle, AliasInfo aliasInfo) in pendingExportAliases)
 					{
-						await _storageClient.AddAliasAsync(aliasInfo.Name, exportHandle, aliasInfo.Rank, aliasInfo.Data, cancellationToken);
+						await _storageNamespace.AddAliasAsync(aliasInfo.Name, exportHandle, aliasInfo.Rank, aliasInfo.Data, cancellationToken);
 					}
 				}
 			}
@@ -280,7 +280,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			}
 		}
 
-		readonly BundleStorageClient _storageClient;
+		readonly BundleStorageNamespace _storageNamespace;
 		readonly string? _basePath;
 		readonly BundleOptions _bundleOptions;
 		readonly BundleCache _bundleCache;
@@ -290,15 +290,15 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// 
 		/// </summary>
-		public BundleWriter(BundleStorageClient storageClient, string? basePath, BundleCache bundleCache, BundleOptions bundleOptions, BlobSerializerOptions? blobOptions)
+		public BundleWriter(BundleStorageNamespace storageNamespace, string? basePath, BundleCache bundleCache, BundleOptions bundleOptions, BlobSerializerOptions? blobOptions)
 			: base(blobOptions)
 		{
-			_storageClient = storageClient;
+			_storageNamespace = storageNamespace;
 			_basePath = basePath;
 			_bundleOptions = bundleOptions;
 			_bundleCache = bundleCache;
 
-			_currentBundle = new PendingBundleHandle(storageClient, basePath, bundleCache, _bundleOptions);
+			_currentBundle = new PendingBundleHandle(storageNamespace, basePath, bundleCache, _bundleOptions);
 		}
 
 		/// <inheritdoc/>
@@ -313,12 +313,12 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		{
 			await _currentBundle.FlushAsync(cancellationToken);
 			_currentBundle.Dispose();
-			_currentBundle = new PendingBundleHandle(_storageClient, _basePath, _bundleCache, _bundleOptions);
+			_currentBundle = new PendingBundleHandle(_storageNamespace, _basePath, _bundleCache, _bundleOptions);
 		}
 
 		/// <inheritdoc/>
 		public override IBlobWriter Fork()
-			=> new BundleWriter(_storageClient, _basePath, _bundleCache, _bundleOptions, Options);
+			=> new BundleWriter(_storageNamespace, _basePath, _bundleCache, _bundleOptions, Options);
 
 		/// <inheritdoc/>
 		public override Memory<byte> GetOutputBuffer(int usedSize, int desiredSize)

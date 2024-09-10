@@ -169,7 +169,7 @@ public abstract class ApplePlatform : Platform
 
 		// find the most recent archive for this target (based on name of target, this ignores Development vs Shipping, but 
 		// since Distribution is meant only for Shipping it's ok
-		string ArchiveName = AppleExports.MakeBinaryFileName(TargetName, Target.Receipt.Platform, UnrealTargetConfiguration.Development,
+		string ArchiveName = AppleExports.MakeBinaryFileName(TargetName, "-", Target.Receipt.Platform, UnrealTargetConfiguration.Development,
 		 	Target.Receipt.Architectures, UnrealTargetConfiguration.Development, null);
 
 		if (ArchiveName != TargetName)
@@ -186,7 +186,7 @@ public abstract class ApplePlatform : Platform
 		// content only projects have to not use the executable, but make a path to a .app 
 		if (!SC.IsCodeBasedProject)
 		{
-			string AppBundleName = AppleExports.MakeBinaryFileName(SC.ShortProjectName, Target.Receipt.Platform, Target.Receipt.Configuration, 
+			string AppBundleName = AppleExports.MakeBinaryFileName(SC.ShortProjectName, "-", Target.Receipt.Platform, Target.Receipt.Configuration, 
 				Target.Receipt.Architectures, UnrealTargetConfiguration.Development, ".app");
 
 			return DirectoryReference.Combine(SC.ProjectRoot, "Binaries", Target.Receipt.Platform.ToString(), AppBundleName);

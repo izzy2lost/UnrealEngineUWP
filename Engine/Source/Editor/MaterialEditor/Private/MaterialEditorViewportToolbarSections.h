@@ -10,5 +10,6 @@ class SMaterialEditor3DPreviewViewport;
 namespace UE::MaterialEditor
 {
 TSharedRef<SWidget> CreateShowMenuWidget(const TSharedRef<SMaterialEditor3DPreviewViewport>& InMaterialEditorViewport, bool bInShowViewportStatsToggle = true);
-FToolMenuEntry CreateShowSubmenu(TWeakPtr<SMaterialEditor3DPreviewViewport> InViewport);
+FToolMenuEntry CreateShowSubmenu();
+void FillShowSubmenu(UToolMenu* InMenu, bool bInShowViewportStatsToggle = true);
 }

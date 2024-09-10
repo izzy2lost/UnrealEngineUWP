@@ -16,12 +16,11 @@ namespace UE::InstancedActors::Utils
 	{
 		// @todo Add support for non-replay NM_Standalone where we should use UServerInstancedActorsSpawnerSubsystem for 
 		// authoritative actor spawning.
-		if (World.GetNetMode() == NM_DedicatedServer)
+		if (World.GetNetMode() == NM_Client)
 		{
-			return GET_INSTANCEDACTORS_CONFIG_VALUE(GetServerActorSpawnerSubsystemClass());
-
+			return GET_INSTANCEDACTORS_CONFIG_VALUE(GetClientActorSpawnerSubsystemClass());
 		}
-		return GET_INSTANCEDACTORS_CONFIG_VALUE(GetClientActorSpawnerSubsystemClass());
+		return GET_INSTANCEDACTORS_CONFIG_VALUE(GetServerActorSpawnerSubsystemClass());
 	}
 
 	UServerInstancedActorsSpawnerSubsystem* GetServerInstancedActorsSpawnerSubsystem(const UWorld& World)
@@ -40,12 +39,11 @@ namespace UE::InstancedActors::Utils
 
 	UMassActorSpawnerSubsystem* GetActorSpawnerSubsystem(const UWorld& World)
 	{
-		if (World.GetNetMode() == NM_DedicatedServer)
+		if (World.GetNetMode() == NM_Client)
 		{
-			return GetServerInstancedActorsSpawnerSubsystem(World);
-
+			return GetClientInstancedActorsSpawnerSubsystem(World);
 		}
-		return GetClientInstancedActorsSpawnerSubsystem(World);
+		return GetServerInstancedActorsSpawnerSubsystem(World);
 	}
 
 	UInstancedActorsSubsystem* GetInstancedActorsSubsystem(const UWorld& World)

@@ -311,7 +311,7 @@ static void RenderVirtualShadowMapProjectionCommon(
 				bDebugOutput ? TEXT(",Debug") : TEXT("")),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, ComputeShader](FRHICommandList& RHICmdList)
+			[PassParameters, ComputeShader](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->IndirectDispatchArgs->GetIndirectRHICallBuffer(), 0);
 			});
@@ -564,7 +564,7 @@ void CompositeVirtualShadowMapMask(
 			RDG_EVENT_NAME("CompositeVirtualShadowMapMask(TileList)"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[BlendState, VertexShader, PixelShader, ScissorRect, PassParameters](FRHICommandList& RHICmdList)
+			[BlendState, VertexShader, PixelShader, ScissorRect, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				RHICmdList.SetViewport(ScissorRect.Min.X, ScissorRect.Min.Y, 0.0f, ScissorRect.Max.X, ScissorRect.Max.Y, 1.0f);
 				RHICmdList.SetScissorRect(true, ScissorRect.Min.X, ScissorRect.Min.Y, ScissorRect.Max.X, ScissorRect.Max.Y);

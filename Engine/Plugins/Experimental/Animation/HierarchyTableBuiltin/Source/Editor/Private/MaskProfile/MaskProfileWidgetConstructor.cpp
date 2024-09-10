@@ -5,19 +5,19 @@
 #include "MaskProfile/HierarchyTableTypeMask.h"
 #include "HierarchyTable.h"
 
-TSharedRef<SWidget> FHierarchyTableMaskWidgetConstructor_Value::CreateInternalWidget(FHierarchyTableEntryData* EntryData)
+TSharedRef<SWidget> FHierarchyTableMaskWidgetConstructor_Value::CreateInternalWidget(UHierarchyTable* HierarchyTable, int32 EntryIndex)
 {
 	return SNew(SSpinBox<float>)
-		.IsEnabled_Lambda([EntryData]() { return EntryData->IsOverridden(); })
+		.IsEnabled_Lambda([HierarchyTable, EntryIndex]() { return HierarchyTable->TableData[EntryIndex].IsOverridden(); })
 		.MinDesiredWidth(100.0f)
 		.MinValue(0.0f)
 		.MaxValue(1.0f)
-		.Value_Lambda([EntryData]()
+		.Value_Lambda([HierarchyTable, EntryIndex]()
 			{
-				return EntryData->GetValue<FHierarchyTableType_Mask>()->Value;
+				return HierarchyTable->TableData[EntryIndex].GetValue<FHierarchyTableType_Mask>()->Value;
 			})
-		.OnValueChanged_Lambda([EntryData](float NewValue)
+		.OnValueChanged_Lambda([HierarchyTable, EntryIndex](float NewValue)
 			{
-				EntryData->GetMutableValue<FHierarchyTableType_Mask>()->Value = NewValue;
+				HierarchyTable->TableData[EntryIndex].GetMutableValue<FHierarchyTableType_Mask>()->Value = NewValue;
 			});
 }

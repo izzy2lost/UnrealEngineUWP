@@ -14,6 +14,7 @@
 #include "KeyframeTrackEditor.h"
 #include "Sections/MovieScene3DTransformSection.h"
 #include "AcquiredResources.h"
+#include "ContentBrowserDelegates.h"
 #include "MovieSceneToolHelpers.h"
 #include "MovieSceneToolsModule.h"
 #include "Engine/EngineTypes.h"
@@ -35,6 +36,46 @@ struct FMovieSceneChannel;
 struct FKeyAddOrDeleteEventItem;
 struct FKeyMoveEventItem;
 struct FBakingAnimationKeySettings;
+class ISequencer;
+class UMovieSceneTrack;
+class IStructureDetailsView;
+
+//////////////////////////////////////////////////////////////
+/// SCollapseControlsWidget
+///////////////////////////////////////////////////////////
+DECLARE_DELEGATE_TwoParams(FCollapseControlsCB, TSharedPtr<ISequencer>& InSequencer, const FBakingAnimationKeySettings& InSettings);
+
+/** Widget allowing collapsing of controls */
+class SCollapseControlsWidget : public SCompoundWidget
+{
+public:
+
+	SLATE_BEGIN_ARGS(SCollapseControlsWidget)
+		: _Sequencer(nullptr)
+		{}
+		SLATE_ARGUMENT(TWeakPtr<ISequencer>, Sequencer)
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs);
+	virtual ~SCollapseControlsWidget() override {}
+
+	FReply OpenDialog(bool bModal = true);
+	void CloseDialog();
+
+	void SetCollapseCB(FCollapseControlsCB& InCB) { CollapseCB = InCB; }
+private:
+	void Collapse();
+
+	TWeakPtr<ISequencer> Sequencer;
+	//static to be reused
+	static TOptional<FBakingAnimationKeySettings> CollapseControlsSettings;
+	//structonscope for details panel
+	TSharedPtr < TStructOnScope<FBakingAnimationKeySettings>> Settings;
+	TWeakPtr<SWindow> DialogWindow;
+	TSharedPtr<IStructureDetailsView> DetailsView;
+	FCollapseControlsCB CollapseCB;
+};
+
 /**
  * Tools for animation tracks
  */
@@ -90,7 +131,6 @@ public:
 private:
 
 	void HandleAddTrackSubMenu(FMenuBuilder& MenuBuilder, TArray<FGuid> ObjectBindings, UMovieSceneTrack* Track);
-	void HandleAddControlRigSubMenu(FMenuBuilder& MenuBuilder, TArray<FGuid> ObjectBindings, UMovieSceneTrack* Track);
 
 	void ToggleIsAdditiveControlRig();
 	bool IsToggleIsAdditiveControlRig();
@@ -105,7 +145,12 @@ private:
 	/** Control Rig Picked */
 	void AddControlRig(UClass* InClass, UObject* BoundActor, FGuid ObjectBinding);
 	void AddControlRig(const UClass* InClass, UObject* BoundActor, FGuid ObjectBinding, UControlRig* InExistingControlRig);
+	void AddControlRig(const FAssetData& InAsset, UObject* BoundActor, FGuid ObjectBinding);
+	void AddControlRig(const TArray<FAssetData>& InAssets, UObject* BoundActor, FGuid ObjectBinding);
+	void AddFKControlRig(UObject* BoundActor, FGuid ObjectBinding);
 	void AddControlRigFromComponent(FGuid InGuid);
+
+	bool IsControlRigAllowed(const FAssetData& AssetData, TArray<UClass*> ExistingRigs, USkeleton* Skeleton);
 	
 	/** Delegate for Selection Changed Event */
 	void OnSelectionChanged(TArray<UMovieSceneTrack*> InTracks);
@@ -210,7 +255,6 @@ private:
 
 	/** Helper functions to iterate over UMovieSceneControlRigParameterTracks in the currently focussed MovieScene*/
 	void IterateTracks(TFunctionRef<bool(UMovieSceneControlRigParameterTrack*)> Callback) const;
-	void IterateTracksInMovieScene(UMovieScene& MovieScene, TFunctionRef<bool(UMovieSceneControlRigParameterTrack*)> Callback) const; 
 private:
 	/** Command Bindings added by the Transform Track Editor to Sequencer and curve editor. */
 	TSharedPtr<FUICommandList> CommandBindings;
@@ -291,6 +335,8 @@ private:
 
 	/** Whether or not we should check for Animatable Controls when filtering*/
 	bool bFilterAssetByAnimatableControls;
+
+	FRefreshAssetViewDelegate RefreshControlRigPickerDelegate;
 
 	/** Handle to help updating selection on tick tick to avoid too many flooded selections*/
 	FTimerHandle UpdateSelectionTimerHandle;

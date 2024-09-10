@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/RigUnit_AnimNextRunAnimationGraph.h"
 
@@ -105,7 +105,7 @@ FRigUnit_AnimNextRunAnimationGraph_Execute()
 
 	IAnimNextModuleInterface& AnimNextModule = IAnimNextModuleInterface::Get();
 	AnimNextModule.UpdateGraph(Instance, ExecuteContext.GetDeltaTime(), InputEventList, OutputEventList);
-	AnimNextModule.EvaluateGraph(Instance, RefPose, LOD, Result.LODPose);
+	AnimNextModule.EvaluateGraph(Instance, RefPose, LOD, Result);
 
 	// We might have appended new input/output events, append them
 	{

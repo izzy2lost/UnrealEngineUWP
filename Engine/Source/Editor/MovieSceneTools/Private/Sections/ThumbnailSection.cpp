@@ -22,6 +22,7 @@
 #include "IVREditorModule.h"
 #include "MovieScene.h"
 #include "MovieSceneTimeHelpers.h"
+#include "TrackEditorThumbnail/TrackThumbnailUtils.h"
 
 #define LOCTEXT_NAMESPACE "FThumbnailSection"
 
@@ -399,11 +400,7 @@ void FViewportThumbnailSection::PreDraw(FTrackEditorThumbnail& Thumbnail)
 	TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
 	if (Sequencer.IsValid())
 	{
-		Sequencer->EnterSilentMode();
-		SavedPlaybackStatus = Sequencer->GetPlaybackStatus();
-		Sequencer->SetPlaybackStatus(EMovieScenePlayerStatus::Jumping);
-		Sequencer->SetLocalTimeDirectly(Thumbnail.GetEvalPosition() * Sequencer->GetLocalTime().Rate );
-		Sequencer->ForceEvaluate();
+		UE::MoveSceneTools::PreDrawThumbnailSetupSequencer(*Sequencer, Thumbnail.GetEvalPosition());
 	}
 }
 
@@ -414,7 +411,7 @@ void FViewportThumbnailSection::PostDraw(FTrackEditorThumbnail& Thumbnail)
 	if (Sequencer.IsValid())
 	{
 		Thumbnail.SetupFade(Sequencer->GetSequencerWidget());
-		Sequencer->ExitSilentMode();
+		UE::MoveSceneTools::PostDrawThumbnailCleanupSequencer(*Sequencer);
 	}
 }
 

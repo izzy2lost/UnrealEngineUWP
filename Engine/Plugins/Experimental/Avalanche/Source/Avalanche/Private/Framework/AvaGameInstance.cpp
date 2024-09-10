@@ -366,6 +366,11 @@ void UAvaGameInstance::EndPlayWorld()
 	OnEndPlay.Broadcast(this, PlayingChannelName);
 	PlayingChannelName = NAME_None;
 
+	if (PlayWorld)
+	{
+		PlayWorld->EndPlay(EEndPlayReason::LevelTransition);
+	}
+
 	Viewport.Reset();
 	RenderTargetFence.Reset();
 	bIsRenderTargetReady = false;

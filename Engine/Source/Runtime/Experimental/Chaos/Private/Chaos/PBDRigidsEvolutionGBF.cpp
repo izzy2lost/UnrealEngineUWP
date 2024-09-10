@@ -1420,6 +1420,10 @@ void FPBDRigidsEvolutionGBF::SetParticleTransform(FGeometryParticleHandle* InPar
 
 	OnParticleMoved(InParticle, PrevX, PrevR, bIsTeleport);
 
+	// This is a bit overkill, if this becomes an issue we will need to look into adding support
+	// to record partial updates of particles, only the transform in this case
+	CVD_TRACE_PARTICLE(InParticle);
+
 #if CHAOS_EVOLUTION_COLLISION_TESTMODE
 	{
 		// Update the test mode cache so we can move particles in PIE to test collisions

@@ -3,6 +3,7 @@
 #include "USDTypesConversion.h"
 
 #include "USDConversionUtils.h"
+#include "USDMemory.h"
 
 #include "Containers/StringConv.h"
 

@@ -1894,7 +1894,7 @@ void FStarshipCoreStyle::SetupDockingStyles(TSharedRef<FStyle>& Style)
 	StatusBarToolBarStyle.SetBackground(FSlateNoResource());
 	StatusBarToolBarStyle.SetLabelPadding(FMargin(5, 5, 0, 5));
 	StatusBarToolBarStyle.SetIconSize(Icon16x16);
-	StatusBarToolBarStyle.SetBackgroundPadding(FMargin(4.f, 4.f, 0.f, 4.f));
+	StatusBarToolBarStyle.SetBackgroundPadding(FMargin(4.f, 4.f));
 
 	Style->Set("StatusBarToolBar", StatusBarToolBarStyle);
 
@@ -2140,7 +2140,7 @@ void FStarshipCoreStyle::SetupMultiboxStyles(TSharedRef<FStyle>& Style)
 		FToolBarStyle NormalToolbarStyle =
 			FToolBarStyle()
 			.SetBackground(FSlateColorBrush(FStyleColors::Panel))
-			.SetBackgroundPadding(FMargin(0.f, 4.f, 0.f, 4.f))
+			.SetBackgroundPadding(FMargin(0.f, 4.f))
 			.SetExpandBrush(IMAGE_BRUSH("Icons/toolbar_expand_16x", Icon16x16))
 			.SetComboButtonPadding(FMargin(4.0f, 0.0f))
 			.SetButtonPadding(FMargin(2.0f, 0.f))
@@ -2202,7 +2202,7 @@ void FStarshipCoreStyle::SetupMultiboxStyles(TSharedRef<FStyle>& Style)
 		FToolBarStyle SlimToolbarStyle =
 			FToolBarStyle()
 			.SetBackground(*SlimToolbarBackground)
-			.SetBackgroundPadding(FMargin(4.f, 6.f, 0.f, 6.f))
+			.SetBackgroundPadding(FMargin(4.f, 6.f))
 			.SetExpandBrush(IMAGE_BRUSH("Icons/toolbar_expand_16x", Icon16x16))
 			.SetComboButtonPadding(FMargin(0.0f, 0.0f))
 			.SetButtonPadding(FMargin(4.0f, 0.0f))

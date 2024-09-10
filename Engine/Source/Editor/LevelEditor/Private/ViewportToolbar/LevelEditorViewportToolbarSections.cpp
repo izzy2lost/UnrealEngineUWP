@@ -1315,79 +1315,115 @@ FToolMenuEntry CreateShowVolumesSubmenu()
 }
 
 #if STATS
-FToolMenuEntry CreateShowStatsSubmenu()
+FToolMenuEntry CreateShowStatsSubmenu(bool bInAddToggleStatsCheckbox, TAttribute<FText> InLabelOverride)
 {
-	return FToolMenuEntry::InitSubMenu(
-		"ShowStatsMenu",
-		LOCTEXT("ShowStatsMenu", "Stat"),
-		LOCTEXT("ShowStatsMenu_ToolTip", "Show Stat commands"),
-		FNewToolMenuDelegate::CreateLambda(
-			[](UToolMenu* InMenu) -> void
+	return FToolMenuEntry::InitDynamicEntry(
+		"DynamicShowStatsEntry",
+		FNewToolMenuSectionDelegate::CreateLambda(
+			[bInAddToggleStatsCheckbox, InLabelOverride](FToolMenuSection& InDynamicSection)
 			{
-				TArray<FLevelViewportCommands::FShowMenuCommand> HideStatsMenu;
-				HideStatsMenu.Add(FLevelViewportCommands::FShowMenuCommand(
-					FLevelViewportCommands::Get().HideAllStats, LOCTEXT("HideAllLabel", "Hide All")
-				));
-
-				UE::LevelEditor::Private::PopulateMenuWithCommands(InMenu, HideStatsMenu, 1);
-
-				FToolMenuSection& Section = InMenu->FindOrAddSection("Section");
-
-				// Separate out stats into two list, those with and without submenus
-				TArray<FLevelViewportCommands::FShowMenuCommand> SingleStatCommands;
-				TMap<FString, TArray<FLevelViewportCommands::FShowMenuCommand>> SubbedStatCommands;
-				for (auto StatCatIt = FLevelViewportCommands::Get().ShowStatCatCommands.CreateConstIterator(); StatCatIt;
-					 ++StatCatIt)
+				TWeakPtr<::SLevelViewport> WeakLevelViewport;
+				if (ULevelViewportContext* const LevelViewportContext =
+						InDynamicSection.FindContext<ULevelViewportContext>())
 				{
-					const TArray<FLevelViewportCommands::FShowMenuCommand>& ShowStatCommands = StatCatIt.Value();
-					const FString& CategoryName = StatCatIt.Key();
+					WeakLevelViewport = LevelViewportContext->LevelViewport;
+				}
 
-					// If no category is specified, or there's only one category, don't use submenus
-					FString NoCategory = FStatConstants::NAME_NoCategory.ToString();
-					NoCategory.RemoveFromStart(TEXT("STATCAT_"));
-					if (CategoryName == NoCategory || FLevelViewportCommands::Get().ShowStatCatCommands.Num() == 1)
+				FToolUIActionChoice CommandAction;
+				if (bInAddToggleStatsCheckbox)
+				{
+					if (TSharedPtr<::SLevelViewport> Viewport = WeakLevelViewport.Pin())
 					{
-						for (int32 StatIndex = 0; StatIndex < ShowStatCommands.Num(); ++StatIndex)
+						CommandAction =
+							FToolUIActionChoice(FEditorViewportCommands::Get().ToggleStats, *Viewport->GetCommandList());
+					}
+				}
+
+				const TAttribute<FText> Label = InLabelOverride.IsSet() ? InLabelOverride
+																		: LOCTEXT("ShowStatsMenu", "Stat");
+
+				InDynamicSection.AddSubMenu(
+					"ShowStatsMenu",
+					Label,
+					LOCTEXT("ShowStatsMenu_ToolTip", "Show Stat commands"),
+					FNewToolMenuDelegate::CreateLambda(
+						[](UToolMenu* InMenu) -> void
 						{
-							const FLevelViewportCommands::FShowMenuCommand& StatCommand = ShowStatCommands[StatIndex];
-							SingleStatCommands.Add(StatCommand);
+							TArray<FLevelViewportCommands::FShowMenuCommand> HideStatsMenu;
+							HideStatsMenu.Add(FLevelViewportCommands::FShowMenuCommand(
+								FLevelViewportCommands::Get().HideAllStats, LOCTEXT("HideAllLabel", "Hide All")
+							));
+
+							UE::LevelEditor::Private::PopulateMenuWithCommands(InMenu, HideStatsMenu, 1);
+
+							FToolMenuSection& Section = InMenu->FindOrAddSection("Section");
+
+							// Separate out stats into two list, those with and without submenus
+							TArray<FLevelViewportCommands::FShowMenuCommand> SingleStatCommands;
+							TMap<FString, TArray<FLevelViewportCommands::FShowMenuCommand>> SubbedStatCommands;
+							for (auto StatCatIt = FLevelViewportCommands::Get().ShowStatCatCommands.CreateConstIterator();
+								 StatCatIt;
+								 ++StatCatIt)
+							{
+								const TArray<FLevelViewportCommands::FShowMenuCommand>& ShowStatCommands =
+									StatCatIt.Value();
+								const FString& CategoryName = StatCatIt.Key();
+
+								// If no category is specified, or there's only one category, don't use submenus
+								FString NoCategory = FStatConstants::NAME_NoCategory.ToString();
+								NoCategory.RemoveFromStart(TEXT("STATCAT_"));
+								if (CategoryName == NoCategory
+									|| FLevelViewportCommands::Get().ShowStatCatCommands.Num() == 1)
+								{
+									for (int32 StatIndex = 0; StatIndex < ShowStatCommands.Num(); ++StatIndex)
+									{
+										const FLevelViewportCommands::FShowMenuCommand& StatCommand =
+											ShowStatCommands[StatIndex];
+										SingleStatCommands.Add(StatCommand);
+									}
+								}
+								else
+								{
+									SubbedStatCommands.Add(CategoryName, ShowStatCommands);
+								}
+							}
+
+							// First add all the stats that don't have a sub menu
+							for (auto StatCatIt = SingleStatCommands.CreateConstIterator(); StatCatIt; ++StatCatIt)
+							{
+								const FLevelViewportCommands::FShowMenuCommand& StatCommand = *StatCatIt;
+								Section.AddMenuEntry(NAME_None, StatCommand.ShowMenuItem, StatCommand.LabelOverride);
+							}
+
+							// Now add all the stats that have sub menus
+							for (auto StatCatIt = SubbedStatCommands.CreateConstIterator(); StatCatIt; ++StatCatIt)
+							{
+								const TArray<FLevelViewportCommands::FShowMenuCommand>& StatCommands = StatCatIt.Value();
+								const FText CategoryName = FText::FromString(StatCatIt.Key());
+
+								FFormatNamedArguments Args;
+								Args.Add(TEXT("StatCat"), CategoryName);
+								const FText CategoryDescription =
+									FText::Format(NSLOCTEXT("UICommands", "StatShowCatName", "Show {StatCat} stats"), Args);
+
+								Section.AddSubMenu(
+									NAME_None,
+									CategoryName,
+									CategoryDescription,
+									FNewToolMenuDelegate::CreateStatic(
+										&UE::LevelEditor::Private::PopulateMenuWithCommands, StatCommands, 0
+									)
+								);
+							}
 						}
-					}
-					else
-					{
-						SubbedStatCommands.Add(CategoryName, ShowStatCommands);
-					}
-				}
-
-				// First add all the stats that don't have a sub menu
-				for (auto StatCatIt = SingleStatCommands.CreateConstIterator(); StatCatIt; ++StatCatIt)
-				{
-					const FLevelViewportCommands::FShowMenuCommand& StatCommand = *StatCatIt;
-					Section.AddMenuEntry(NAME_None, StatCommand.ShowMenuItem, StatCommand.LabelOverride);
-				}
-
-				// Now add all the stats that have sub menus
-				for (auto StatCatIt = SubbedStatCommands.CreateConstIterator(); StatCatIt; ++StatCatIt)
-				{
-					const TArray<FLevelViewportCommands::FShowMenuCommand>& StatCommands = StatCatIt.Value();
-					const FText CategoryName = FText::FromString(StatCatIt.Key());
-
-					FFormatNamedArguments Args;
-					Args.Add(TEXT("StatCat"), CategoryName);
-					const FText CategoryDescription =
-						FText::Format(NSLOCTEXT("UICommands", "StatShowCatName", "Show {StatCat} stats"), Args);
-
-					Section.AddSubMenu(
-						NAME_None,
-						CategoryName,
-						CategoryDescription,
-						FNewToolMenuDelegate::CreateStatic(&UE::LevelEditor::Private::PopulateMenuWithCommands, StatCommands, 0)
-					);
-				}
+					),
+					CommandAction,
+					bInAddToggleStatsCheckbox ? EUserInterfaceActionType::ToggleButton : EUserInterfaceActionType::Button,
+					false,
+					FSlateIcon(FAppStyle::Get().GetStyleSetName(), "EditorViewport.SubMenu.Stats")
+				);
 			}
-		),
-		false,
-		FSlateIcon(FAppStyle::Get().GetStyleSetName(), "EditorViewport.SubMenu.Stats")
+		)
 	);
 }
 #endif
@@ -1410,11 +1446,9 @@ FToolMenuEntry CreateViewportToolbarShowSubmenu()
 
 #if STATS
 					// Override the label of the stats submenu for the new viewport toolbar.
-					{
-						FToolMenuEntry StatsSubmenu = UE::LevelEditor::CreateShowStatsSubmenu();
-						StatsSubmenu.Label = LOCTEXT("ViewportStatsLabel", "Viewport Stats");
-						UnnamedSection.AddEntry(StatsSubmenu);
-					}
+					UnnamedSection.AddEntry(
+						UE::LevelEditor::CreateShowStatsSubmenu(true, LOCTEXT("ViewportStatsLabel", "Viewport Stats"))
+					);
 #endif
 				}
 
@@ -1496,12 +1530,18 @@ FToolMenuEntry CreateFeatureLevelPreviewSubmenu()
 			{
 				FToolMenuSection& Section =
 					InMenu->AddSection("EditorPreviewMode", LOCTEXT("EditorPreviewModePlatforms", "Preview Platforms"));
+				
+				if (FLevelEditorCommands::Get().DisablePlatformPreview.IsValid())
+				{
+					Section.AddMenuEntry(FLevelEditorCommands::Get().DisablePlatformPreview);
+				}
+				Section.AddSeparator("DisablePlatformPreviewSeparator");
 
 				for (auto Iter = FLevelEditorCommands::Get().PlatformToPreviewPlatformOverrides.CreateConstIterator(); Iter; ++Iter)
 				{
 					FName PlatformName = Iter.Key();
-					const TArray<TSharedPtr<FUICommandInfo>>& CommandList = Iter.Value();
-					const TArray<TSharedPtr<FUICommandInfo>>* CommandListJson = FLevelEditorCommands::Get().PlatformToPreviewJsonPlatformOverrides.Find(PlatformName);
+					const TArray<FLevelEditorCommands::PreviewPlatformCommand>& CommandList = Iter.Value();
+					const TArray<FLevelEditorCommands::PreviewPlatformCommand>* CommandListJson = FLevelEditorCommands::Get().PlatformToPreviewJsonPlatformOverrides.Find(PlatformName);
 
 					Section.AddSubMenu(
 						FName(PlatformName), 
@@ -1510,28 +1550,47 @@ FToolMenuEntry CreateFeatureLevelPreviewSubmenu()
 						FNewToolMenuDelegate::CreateLambda(
 							[CommandList, CommandListJson](UToolMenu* InSubMenu)
 							{
-								FToolMenuSection& Section = InSubMenu->AddSection(NAME_None);
-								for (const TSharedPtr<FUICommandInfo>& Command : CommandList)
+								for (const FLevelEditorCommands::PreviewPlatformCommand& Command : CommandList)
 								{
-									Section.AddMenuEntry(Command);
+									FToolMenuSection& Section = InSubMenu->FindOrAddSection(Command.SectionName, FText::Format(LOCTEXT("PreviewJson", "{0}"), FText::FromName(Command.SectionName)));
+									Section.AddMenuEntry(Command.CommandInfo);
 								}
 
 								if (CommandListJson != nullptr)
 								{
-									Section.AddSubMenu(
-										"PreviewJson",
-										LOCTEXT("PreviewJson", "Preview Json"),
-										LOCTEXT("PreviewJson_ToolTip", "Preview Json"),
-										FNewToolMenuDelegate::CreateLambda(
-											[CommandListJson](UToolMenu* InSubMenu)
-											{
-												FToolMenuSection& Section = InSubMenu->AddSection(NAME_None);
-												for (const TSharedPtr<FUICommandInfo>& Command : *CommandListJson)
+									FToolMenuSection& SectionJson = InSubMenu->FindOrAddSection("PreviewWithJson", LOCTEXT("PreviewJson", "Preview With Json"));
+									TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> SectionNameToCommandList;
+									for (const FLevelEditorCommands::PreviewPlatformCommand& PreviewJsonPlatform : *CommandListJson)
+									{
+										if (PreviewJsonPlatform.bIsGeneratingJsonCommand)
+										{
+											SectionJson.AddMenuEntry(PreviewJsonPlatform.CommandInfo);
+										}
+										else
+										{
+											SectionNameToCommandList.FindOrAdd(PreviewJsonPlatform.SectionName).Add(PreviewJsonPlatform.CommandInfo);
+										}
+									}
+
+									for (auto Iter = SectionNameToCommandList.CreateConstIterator(); Iter; ++Iter)
+									{
+										FName SectionName = Iter.Key();
+										const TArray<TSharedPtr<FUICommandInfo>>& CommandListValue = Iter.Value();
+										SectionJson.AddSubMenu(
+											SectionName,
+											FText::Format(LOCTEXT("PreviewJson", "Preview {0}"), FText::FromName(SectionName)),
+											FText::Format(LOCTEXT("PreviewJson", "Preview {0}"), FText::FromName(SectionName)),
+											FNewToolMenuDelegate::CreateLambda(
+												[CommandListValue](UToolMenu* InSubMenu)
 												{
-													Section.AddMenuEntry(Command);
-												}
-											})
-									);
+													FToolMenuSection& Section = InSubMenu->AddSection(NAME_None);
+													for (const TSharedPtr<FUICommandInfo>& Command : CommandListValue)
+													{
+														Section.AddMenuEntry(Command);
+													}
+												})
+										);
+									}
 								}
 							})
 					);
@@ -2308,14 +2367,18 @@ void AddCameraActorSelectSection(UToolMenu* InMenu)
 	}
 
 	TArray<AActor*> LookThroughActors;
-	for (TActorIterator<ACameraActor> It(LevelViewport->GetWorld()); It; ++It)
-	{
-		LookThroughActors.Add(Cast<AActor>(*It));
-	}
 
-	for (TActorIterator<ASceneCapture> It(LevelViewport->GetWorld()); It; ++It)
+	if (UWorld* World = LevelViewport->GetWorld())
 	{
-		LookThroughActors.Add(Cast<AActor>(*It));
+		for (TActorIterator<ACameraActor> It(World); It; ++It)
+		{
+			LookThroughActors.Add(Cast<AActor>(*It));
+		}
+
+		for (TActorIterator<ASceneCapture> It(World); It; ++It)
+		{
+			LookThroughActors.Add(Cast<AActor>(*It));
+		}
 	}
 
 	FText CameraActorsHeading = LOCTEXT("CameraActorsHeading", "Cameras");

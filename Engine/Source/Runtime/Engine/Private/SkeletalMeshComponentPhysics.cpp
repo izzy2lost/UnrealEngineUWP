@@ -855,6 +855,11 @@ void USkeletalMeshComponent::InstantiatePhysicsAssetBodies_Internal(const UPhysi
 
 			BodyInst->bStartAwake = UseRootBodyIndex >= 0 ? BodyInstance.bStartAwake : true;	//We don't allow customization here. Just use whatever the component is set to
 
+			//Copying code from BodyInstance here, every body instance get same iteration count
+			BodyInst->PositionSolverIterationCount = BodyInstance.PositionSolverIterationCount;
+			BodyInst->VelocitySolverIterationCount = BodyInstance.VelocitySolverIterationCount;
+			BodyInst->ProjectionSolverIterationCount = BodyInstance.ProjectionSolverIterationCount;
+
 			if(BodyIdx == UseRootBodyIndex)
 			{
 				BodyInst->DOFMode = BodyInstance.DOFMode;

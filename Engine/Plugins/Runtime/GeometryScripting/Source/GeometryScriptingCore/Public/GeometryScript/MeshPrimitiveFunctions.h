@@ -61,6 +61,10 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	EGeometryScriptPrimitiveUVMode UVMode = EGeometryScriptPrimitiveUVMode::Uniform;
+
+	// Material ID to set on primitive mesh triangles
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int32 MaterialID = 0;
 };
 
 

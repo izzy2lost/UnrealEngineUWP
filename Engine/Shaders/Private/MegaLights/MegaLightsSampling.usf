@@ -86,6 +86,7 @@ uint2 NumSamplesPerPixel;
 int UseIESProfiles;
 int UseLightFunctionAtlas;
 int DebugMode;
+uint DebugVisualizeLight;
 uint DebugLightId;
 
 RWTexture2D<float> RWDownsampledSceneDepth;
@@ -98,14 +99,12 @@ float4 HistoryScreenPositionScaleBias;
 float4 HistoryUVMinMax;
 float4 HistoryGatherUVMinMax;
 
-groupshared uint SharedCandidateLightHiMask;
-groupshared uint SharedCandidateLightMask[SHARED_LIGHT_MASK_SIZE];
-
 StructuredBuffer<uint> DownsampledTileAllocator;
 StructuredBuffer<uint> DownsampledTileData;
 
 StructuredBuffer<uint> VisibleLightHashHistory;
-uint2 LightMaskSizeInTiles;
+StructuredBuffer<uint> VisibleLightMaskHashHistory;
+uint2 HistoryVisibleLightHashViewSizeInTiles;
 uint GuideByHistoryMode;
 float LightWasHiddenPDFWeightScale;
 
@@ -117,25 +116,117 @@ uint2 GetSampleCoord(uint2 DownsampledScreenCoord, uint LightSampleIndex)
 	return DownsampledScreenCoord * NumSamplesPerPixel + uint2(LightSampleIndex % NUM_SAMPLES_PER_PIXEL_2D_X, LightSampleIndex / NUM_SAMPLES_PER_PIXEL_2D_X);
 }
 
-void AppendVisibleLightsHashMap(uint2 TileCoordinate, int2 TileOffset, inout uint VisibleLightsHashMap[VISIBLE_LIGHT_HASH_SIZE])
+bool GetLightVisibility(uint VisibleLightHash[VISIBLE_LIGHT_HASH_SIZE], uint PrevLocalLightIndex)
 {
-	int2 LightMaskHistoryTileCoord = TileCoordinate + TileOffset;
-	uint VisibleInLastFrameMask = 0;
+	uint Hash = PCGHash(PrevLocalLightIndex);
+	uint WrappedLocalLightIndex = Hash % (4 * 32);
+	uint DWORDIndex = WrappedLocalLightIndex / 32;
+	uint BitMask = 1u << (WrappedLocalLightIndex % 32);
+	bool Test0 = (VisibleLightHash[DWORDIndex] & BitMask) != 0;
 
-	if (all(LightMaskHistoryTileCoord >= 0) && all(LightMaskHistoryTileCoord < (int2)LightMaskSizeInTiles))
-	{
-		uint LightMaskHistoryBase = VISIBLE_LIGHT_HASH_SIZE * (LightMaskHistoryTileCoord.y * LightMaskSizeInTiles.x + LightMaskHistoryTileCoord.x);
-		for (uint HashMapElementIndex = 0; HashMapElementIndex < VISIBLE_LIGHT_HASH_SIZE; ++HashMapElementIndex)
-		{
-			VisibleLightsHashMap[HashMapElementIndex] |= VisibleLightHashHistory[LightMaskHistoryBase + HashMapElementIndex];
-		}
-	}
+	WrappedLocalLightIndex = (Hash >> 8) % (4 * 32);
+	DWORDIndex = WrappedLocalLightIndex / 32;
+	BitMask = 1u << (WrappedLocalLightIndex % 32);
+	bool Test1 = (VisibleLightHash[DWORDIndex] & BitMask) != 0;
+
+	return Test0 && Test1;
 }
 
-uint GetLightVisibilityMask(uint VisibleLightsHashMap[VISIBLE_LIGHT_HASH_SIZE], uint PrevLocalLightIndex)
+uint GetLightVisibilityMask(uint VisibleLightMaskHash[VISIBLE_LIGHT_HASH_SIZE], uint PrevLocalLightIndex)
 {
-	uint VisibilityMask = (VisibleLightsHashMap[(PrevLocalLightIndex % 32) / 8] >> (4 * (PrevLocalLightIndex % 8))) & 0xF;
+	uint Hash = PCGHash(PrevLocalLightIndex);
+	uint WrappedLocalLightIndex = (Hash >> 16) % 32;
+	uint VisibilityMask = (VisibleLightMaskHash[WrappedLocalLightIndex / 8] >> (4 * (WrappedLocalLightIndex % 8))) & 0xF;
 	return VisibilityMask;
+}
+
+struct FLightSampler
+{
+	float LightIndexRandom[NUM_SAMPLES_PER_PIXEL_1D];
+	FLightSample LightSamples[NUM_SAMPLES_PER_PIXEL_1D];
+	float WeightSum;
+};
+
+void SampleLight(uint2 ScreenCoord, float3 TranslatedWorldPosition, const FMegaLightsMaterial Material, uint VisibleLightHash[VISIBLE_LIGHT_HASH_SIZE], bool bHasValidHistory, uint LocalLightIndex, inout FLightSampler LightSampler, inout FDebug Debug)
+{
+	const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
+	FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
+
+	if (UseLightFunctionAtlas == 0)
+	{
+		LightData.LightFunctionAtlasLightIndex = 0;
+	}
+
+	if (UseIESProfiles == 0)
+	{
+		LightData.IESAtlasIndex = -1;
+	}
+						
+	const bool bTileHasRect = TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT || TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED;
+	if (!bTileHasRect)
+	{
+		LightData.bRectLight = false;
+	}
+
+	const bool bTileHasTextured = TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED;
+	if (!bTileHasTextured)
+	{
+		LightData.RectLightData.AtlasData.AtlasMaxLevel = MAX_RECT_ATLAS_MIP;
+	}
+					
+	FLightTargetPDF LightTargetPDF = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, Material, ScreenCoord, Debug);
+
+	bool bWasVisibleInLastFrame = true;
+
+	#if GUIDE_BY_HISTORY
+	if (bHasValidHistory && LightTargetPDF.Weight > MinSampleWeight && LocalLightData.PrevLocalLightIndex >= 0)
+	{
+		bWasVisibleInLastFrame = GetLightVisibility(VisibleLightHash, LocalLightData.PrevLocalLightIndex);
+		LightTargetPDF.Weight *= bWasVisibleInLastFrame ? 1.0f : LightWasHiddenPDFWeightScale;
+	}
+	#endif
+
+	#if DEBUG_MODE
+	if (Debug.bActive)
+	{
+		Newline(Debug.Context);
+		Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
+		Print(Debug.Context, LocalLightIndex, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
+		Print(Debug.Context, LightTargetPDF.Weight);
+		Print(Debug.Context, LightData.LightFunctionAtlasLightIndex, Select(LightData.LightFunctionAtlasLightIndex != 0, FontWhite, FontGrey));
+		Print(Debug.Context, LightData.IESAtlasIndex, Select(LightData.IESAtlasIndex != -1, FontWhite, FontGrey));
+		Print(Debug.Context, bWasVisibleInLastFrame ? 1u : 0u, Select(bWasVisibleInLastFrame, FontWhite, FontGrey));
+
+		if (DebugVisualizeLight != 0 && LocalLightData.LightSceneId == DebugLightId)
+		{
+			AddSphereTWS(Debug.Context, LightData.TranslatedWorldPosition, 100.0f, float4(0, 1, 0, 1));
+			AddLineTWS(Debug.Context, TranslatedWorldPosition, LightData.TranslatedWorldPosition, float4(0, 1, 0, 1));
+		}
+	}
+	#endif
+
+	if (LightTargetPDF.Weight > MinSampleWeight)
+	{
+		float Tau = LightSampler.WeightSum / (LightSampler.WeightSum + LightTargetPDF.Weight);
+		LightSampler.WeightSum += LightTargetPDF.Weight;
+
+		for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
+		{
+			if (LightSampler.LightIndexRandom[LightSampleIndex] < Tau)
+			{
+				LightSampler.LightIndexRandom[LightSampleIndex] /= Tau;
+			}
+			else
+			{
+				// Select this sample
+				LightSampler.LightIndexRandom[LightSampleIndex] = (LightSampler.LightIndexRandom[LightSampleIndex] - Tau) / (1.0f - Tau);
+				LightSampler.LightSamples[LightSampleIndex].LocalLightIndex = LocalLightIndex;
+				LightSampler.LightSamples[LightSampleIndex].Weight = LightTargetPDF.Weight;
+			}
+
+			LightSampler.LightIndexRandom[LightSampleIndex] = clamp(LightSampler.LightIndexRandom[LightSampleIndex], 0, 0.9999f);
+		}
+	}
 }
 
 /**
@@ -148,19 +239,6 @@ void GenerateLightSamplesCS(
 	uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 	uint LinearThreadIndex = GroupThreadId.y * THREADGROUP_SIZE + GroupThreadId.x;
-
-	if (LinearThreadIndex == 0)
-	{
-		SharedCandidateLightHiMask = 0;
-	}
-
-	if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
-	{
-		SharedCandidateLightMask[LinearThreadIndex] = 0;
-	}
-
-	GroupMemoryBarrierWithGroupSync();
-
 	uint DownsampledTileIndex = GroupId.x;
 	if (DownsampledTileIndex < DownsampledTileAllocator[TILE_TYPE])
 	{
@@ -175,44 +253,6 @@ void GenerateLightSamplesCS(
 
 		if (all(DownsampledScreenCoord < DownsampledViewMin + DownsampledViewSize))
 		{
-			uint2 ScreenCoord = DownsampledScreenCoordToScreenCoord(DownsampledScreenCoord);	
-			const float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-			const FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, bForceSimpleShading);
-			const float SceneDepth = Material.Depth;
-
-			const uint EyeIndex = 0;
-			const uint GridIndex = ComputeLightGridCellIndex(ScreenCoord - View.ViewRectMin.xy, SceneDepth, EyeIndex);
-			const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
-			const uint NumLightsInGridCell = min(CulledLightGridHeader.NumMegaLights, GetMaxLightsPerCell(EyeIndex));
-
-			for (uint GridLightIndex = 0; GridLightIndex < NumLightsInGridCell; ++GridLightIndex)
-			{
-				const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightGridHeader.MegaLightsDataStartIndex + GridLightIndex);
-				const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
-				checkSlow(LocalLightData.bMegaLightsSupported);
-
-				if (LocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
-				{
-					uint DWORDIndex = LocalLightIndex / 32;
-					uint BitMask = 1u << (LocalLightIndex % 32);
-					InterlockedOr(SharedCandidateLightMask[DWORDIndex], BitMask);
-
-					uint HiBitMask = 1u << DWORDIndex;
-					LocalCandidateLightHiMask |= HiBitMask;
-				}
-			}
-		}
-
-		uint WaveHiMask = WaveActiveBitOr(LocalCandidateLightHiMask);
-		if (WaveIsFirstLane())
-		{
-			InterlockedOr(SharedCandidateLightHiMask, WaveHiMask);
-		}
-	
-		GroupMemoryBarrierWithGroupSync();
-
-		if (all(DownsampledScreenCoord < DownsampledViewMin + DownsampledViewSize))
-		{
 			uint2 ScreenCoord = DownsampledScreenCoordToScreenCoord(DownsampledScreenCoord);
 
 			FDebug Debug;
@@ -224,43 +264,42 @@ void GenerateLightSamplesCS(
 			}
 			#endif
 
-			FLightSample LightSamples[NUM_SAMPLES_PER_PIXEL_1D];
+			FLightSampler LightSampler;
+			LightSampler.WeightSum = 0.0f;
 			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 			{
-				LightSamples[LightSampleIndex] = InitLightSample();
+				LightSampler.LightSamples[LightSampleIndex] = InitLightSample();
+				LightSampler.LightIndexRandom[LightSampleIndex] = 0.0f;
 			}
 
 			const float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 			const FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, bForceSimpleShading);
 			const float SceneDepth = Material.Depth;
-			float WeightSum = 0.0f;
 
 			if (SceneDepth > 0)
 			{
-				float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);		
+				const float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);		
 
 				const uint EyeIndex = 0;
 				const uint GridIndex = ComputeLightGridCellIndex(ScreenCoord - View.ViewRectMin.xy, SceneDepth, EyeIndex);
-				const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
-				const uint NumLightsInGridCell = min(CulledLightGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
+				const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
+				const uint NumLightsInGridCell = min(CulledLightsGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
 				const uint NumLocalLights = GetNumLocalLights(EyeIndex);
 
-				// Initialize random variables using spatiotemporal Blue Noise
-				float LightIndexRandom[NUM_SAMPLES_PER_PIXEL_1D];
+				// Initialize random variables using Fast Blue Noise
 				{
 					float RandomScalar = BlueNoiseScalar(DownsampledScreenCoord, MegaLightsStateFrameIndex);
-
 					for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 					{
-						LightIndexRandom[LightSampleIndex] = (RandomScalar + LightSampleIndex) / NUM_SAMPLES_PER_PIXEL_1D;
+						LightSampler.LightIndexRandom[LightSampleIndex] = (RandomScalar + LightSampleIndex) / NUM_SAMPLES_PER_PIXEL_1D;
 					}
 				}
 
 				bool bHasValidHistory = true;
 				uint2 PrevScreenCoord = ScreenCoord;
 
-#define REPROJECT_HISTORY_FOR_GUIDING 1
-#if GUIDE_BY_HISTORY && REPROJECT_HISTORY_FOR_GUIDING
+				#define REPROJECT_HISTORY_FOR_GUIDING 1
+				#if GUIDE_BY_HISTORY && REPROJECT_HISTORY_FOR_GUIDING
 				{
 					bHasValidHistory = false;
 
@@ -295,7 +334,7 @@ void GenerateLightSamplesCS(
 						PrevScreenCoord = HistoryScreenCoord;
 					}
 				}
-#endif
+				#endif
 
 				#if DEBUG_MODE
 				if (Debug.bActive)
@@ -353,122 +392,67 @@ void GenerateLightSamplesCS(
 					Print(Debug.Context, NumLightsInGridCell);
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("NumLocalLights: "));
-					Print(Debug.Context, NumLocalLights, Select(NumLocalLights < MAX_LOCAL_LIGHT_INDEX, FontWhite, FontRed));
+					Print(Debug.Context, NumLocalLights, Select(NumLocalLights < MAX_LOCAL_LIGHT_INDEX + 1, FontWhite, FontRed));
 					AddCrossTWS(Debug.Context, TranslatedWorldPosition, 5.0f, float4(1, 1, 0, 1));
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("LightId | LocalLightId | Weight  | LFAtlas   | IESAtlas  | History"));
 				}
 				#endif
 
-#if GUIDE_BY_HISTORY
-				uint VisibleLightsHashMap[VISIBLE_LIGHT_HASH_SIZE];
-				for (uint HashMapElementIndex = 0; HashMapElementIndex < VISIBLE_LIGHT_HASH_SIZE; ++HashMapElementIndex)
+				uint VisibleLightHash[VISIBLE_LIGHT_HASH_SIZE];
+				uint VisibleLightMaskHash[VISIBLE_LIGHT_HASH_SIZE];
+				for (uint IndexInHash = 0; IndexInHash < VISIBLE_LIGHT_HASH_SIZE; ++IndexInHash)
 				{
-					VisibleLightsHashMap[HashMapElementIndex] = 0;
+					VisibleLightHash[IndexInHash] = 0xFFFFFFFF;
+					VisibleLightMaskHash[IndexInHash] = 0xFFFFFFFF;
+
+					#if GUIDE_BY_HISTORY
+					{
+						const uint2 PrevScreenTileCoord = min(PrevScreenCoord / TILE_SIZE, HistoryVisibleLightHashViewSizeInTiles - 1);
+						const uint HistoryBufferBase = VISIBLE_LIGHT_HASH_SIZE * (PrevScreenTileCoord.y * HistoryVisibleLightHashViewSizeInTiles.x + PrevScreenTileCoord.x);
+						VisibleLightHash[IndexInHash] = VisibleLightHashHistory[HistoryBufferBase + IndexInHash];
+						VisibleLightMaskHash[IndexInHash] = VisibleLightMaskHashHistory[HistoryBufferBase + IndexInHash];
+					}
+					#endif
 				}
 
-				uint2 PrevScreenTileCoord = PrevScreenCoord / TILE_SIZE;
-				AppendVisibleLightsHashMap(PrevScreenTileCoord, int2(0, 0), VisibleLightsHashMap);
-				AppendVisibleLightsHashMap(PrevScreenTileCoord, int2(+1, 0), VisibleLightsHashMap);
-				AppendVisibleLightsHashMap(PrevScreenTileCoord, int2(-1, 0), VisibleLightsHashMap);
-				AppendVisibleLightsHashMap(PrevScreenTileCoord, int2(0, +1), VisibleLightsHashMap);
-				AppendVisibleLightsHashMap(PrevScreenTileCoord, int2(0, -1), VisibleLightsHashMap);
-#endif
+				const uint ScalarGridIndex = WaveReadLaneFirst(GridIndex);
+				const bool bScalarGridCell = WaveActiveAllTrue(ScalarGridIndex == GridIndex);
 
-				uint CandidateLightHiMask = SharedCandidateLightHiMask;
-				while (CandidateLightHiMask != 0)
+				if (bScalarGridCell)
 				{
-					const uint NextHiBitIndex = firstbitlow(CandidateLightHiMask);
-					const uint NextHiBitMask = 1u << NextHiBitIndex;
-					CandidateLightHiMask ^= NextHiBitMask;
+					FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(ScalarGridIndex, EyeIndex);
+					uint NumLightsInGridCell = min(CulledLightsGridHeader.NumMegaLights, GetMaxLightsPerCell(EyeIndex));
 
-					const uint MaskIndex = NextHiBitIndex;
-					uint CandidateLightMask = SharedCandidateLightMask[MaskIndex];
-
-					while (CandidateLightMask != 0)
+					uint GridLightIndex = 0;
+					while(GridLightIndex < NumLightsInGridCell)
 					{
-						const uint NextBitIndex = firstbitlow(CandidateLightMask);
-						const uint NextBitMask = 1u << NextBitIndex;
-						CandidateLightMask ^= NextBitMask;
-
-						const uint LocalLightIndex = MaskIndex * 32 + NextBitIndex;
-						const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
-						FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
-
-						if (UseLightFunctionAtlas == 0)
+						uint LocalLightIndex = GetCulledLightDataGrid(CulledLightsGridHeader.MegaLightsDataStartIndex + GridLightIndex);
+						if (LocalLightIndex >= MAX_LOCAL_LIGHT_INDEX)
 						{
-							LightData.LightFunctionAtlasLightIndex = 0;
-						}
-
-						if (UseIESProfiles == 0)
-						{
-							LightData.IESAtlasIndex = -1;
+							break;
 						}
 						
-						const bool bTileHasRect = TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT || TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED;
-						if (!bTileHasRect)
+						++GridLightIndex;
+						SampleLight(ScreenCoord, TranslatedWorldPosition, Material, VisibleLightHash, bHasValidHistory, LocalLightIndex, LightSampler, Debug);
+					}
+				}
+				else
+				{
+					uint GridLightIndex = 0;
+					while(GridLightIndex < NumLightsInGridCell)
+					{
+						const uint VectorLocalLightIndex = GetCulledLightDataGrid(CulledLightsGridHeader.MegaLightsDataStartIndex + GridLightIndex);
+						if (VectorLocalLightIndex >= MAX_LOCAL_LIGHT_INDEX)
 						{
-							LightData.bRectLight = false;
+							break;
 						}
 
-						const bool bTileHasTextured = TILE_TYPE == TILE_MODE_SIMPLE_SHADING_RECT_TEXTURED || TILE_TYPE == TILE_MODE_COMPLEX_SHADING_RECT_TEXTURED;
-						if (!bTileHasTextured)
+						uint LocalLightIndex = WaveActiveMin(VectorLocalLightIndex);
+						if (LocalLightIndex == VectorLocalLightIndex)
 						{
-							LightData.RectLightData.AtlasData.AtlasMaxLevel = MAX_RECT_ATLAS_MIP;
-						}
-					
-						FLightTargetPDF LightTargetPDF = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, Material, ScreenCoord, Debug);
-
-						uint VisibleInLastFrameMask = 0;
-
-						#if GUIDE_BY_HISTORY
-						if (bHasValidHistory && LightTargetPDF.Weight > MinSampleWeight && LocalLightData.PrevLocalLightIndex >= 0)
-						{
-							VisibleInLastFrameMask = GetLightVisibilityMask(VisibleLightsHashMap, LocalLightData.PrevLocalLightIndex);
-							LightTargetPDF.Weight *= VisibleInLastFrameMask != 0 ? 1.0f : LightWasHiddenPDFWeightScale;
-						}
-						#endif
-
-						#if DEBUG_MODE
-						if (Debug.bActive)
-						{
-							Newline(Debug.Context);
-							Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
-							Print(Debug.Context, LocalLightIndex, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
-							Print(Debug.Context, LightTargetPDF.Weight);
-							Print(Debug.Context, LightData.LightFunctionAtlasLightIndex, Select(LightData.LightFunctionAtlasLightIndex != 0, FontWhite, FontGrey));
-							Print(Debug.Context, LightData.IESAtlasIndex, Select(LightData.IESAtlasIndex != -1, FontWhite, FontGrey));
-
-							uint VisibleInLastFrameMaskDebug = 0;
-							VisibleInLastFrameMaskDebug += VisibleInLastFrameMask & 0x1 ? 1 : 0;
-							VisibleInLastFrameMaskDebug += VisibleInLastFrameMask & 0x2 ? 10 : 0;
-							VisibleInLastFrameMaskDebug += VisibleInLastFrameMask & 0x4 ? 100 : 0;
-							VisibleInLastFrameMaskDebug += VisibleInLastFrameMask & 0x8 ? 1000 : 0;
-							Print(Debug.Context, VisibleInLastFrameMaskDebug, Select(VisibleInLastFrameMask != 0, FontWhite, FontGrey));
-						}
-						#endif
-
-						if (LightTargetPDF.Weight > MinSampleWeight)
-						{
-							float Tau = WeightSum / (WeightSum + LightTargetPDF.Weight);
-							WeightSum += LightTargetPDF.Weight;
-
-							for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
-							{
-								if (LightIndexRandom[LightSampleIndex] < Tau)
-								{
-									LightIndexRandom[LightSampleIndex] /= Tau;
-								}
-								else
-								{
-									// Select this sample
-									LightIndexRandom[LightSampleIndex] = (LightIndexRandom[LightSampleIndex] - Tau) / (1.0f - Tau);
-									LightSamples[LightSampleIndex].LocalLightIndex = LocalLightIndex;
-									LightSamples[LightSampleIndex].Weight = LightTargetPDF.Weight;
-								}
-
-								LightIndexRandom[LightSampleIndex] = clamp(LightIndexRandom[LightSampleIndex], 0, 0.9999f);
-							}
+							++GridLightIndex;
+							SampleLight(ScreenCoord, TranslatedWorldPosition, Material, VisibleLightHash, bHasValidHistory, LocalLightIndex, LightSampler, Debug);
 						}
 					}
 				}
@@ -478,18 +462,18 @@ void GenerateLightSamplesCS(
 				{
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("Weight sum: "));
-					Print(Debug.Context, WeightSum);
+					Print(Debug.Context, LightSampler.WeightSum);
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("Selected:"));
 					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("LightId | Weight    | AsVis | AsPartiallyVis | UV"));
+					Print(Debug.Context, TEXT("LightId | Weight    | History | AsVis | AsPartiallyVis | UV"));
 				}
 				#endif
 
 				// Finalize samples
 				for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 				{
-					FLightSample LightSample = LightSamples[LightSampleIndex];
+					FLightSample LightSample = LightSampler.LightSamples[LightSampleIndex];
 					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
 					FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 
@@ -499,14 +483,15 @@ void GenerateLightSamplesCS(
 					#if GUIDE_BY_HISTORY
 					if (bHasValidHistory && LocalLightData.PrevLocalLightIndex >= 0)
 					{
-						const uint VisibleInLastFrameMask = GetLightVisibilityMask(VisibleLightsHashMap, LocalLightData.PrevLocalLightIndex);
-						LightSample.bGuidedAsVisible = VisibleInLastFrameMask != 0;
+						bool bLightWasVisible = GetLightVisibility(VisibleLightHash, LocalLightData.PrevLocalLightIndex);
+						uint VisibleInLastFrameMask = GetLightVisibilityMask(VisibleLightMaskHash, LocalLightData.PrevLocalLightIndex);
+						LightSample.bGuidedAsVisible = bLightWasVisible;
 
 						if (GuideByHistoryMode == 2)
 						{
 							// If entire light is fully visible or invisible then no need to guide samples towards the visible parts
 							const bool bAreaLight = LightData.SourceRadius > 0.0f || LightData.SourceLength > 0.0f;
-							if (VisibleInLastFrameMask != 0 && VisibleInLastFrameMask != 0xF && bAreaLight)
+							if (bLightWasVisible && VisibleInLastFrameMask != 0 && VisibleInLastFrameMask != 0xF && bAreaLight)
 							{
 								// Probabilities of hitting of 2x2 light UV regions based on the visibility from the previous frame
 								const float Weight00 = VisibleInLastFrameMask & 0x1 ? 1.0f : LightWasHiddenPDFWeightScale;
@@ -570,6 +555,15 @@ void GenerateLightSamplesCS(
 						Newline(Debug.Context);
 						Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontYellow, FontWhite));
 						Print(Debug.Context, LightSample.Weight);
+
+						const uint VisibleInLastFrameMask = GetLightVisibilityMask(VisibleLightMaskHash, LocalLightData.PrevLocalLightIndex);
+						uint VisibleInLastFrameMaskDebug = 0;
+						VisibleInLastFrameMaskDebug += VisibleInLastFrameMask & 0x1 ? 1 : 0;
+						VisibleInLastFrameMaskDebug += VisibleInLastFrameMask & 0x2 ? 10 : 0;
+						VisibleInLastFrameMaskDebug += VisibleInLastFrameMask & 0x4 ? 100 : 0;
+						VisibleInLastFrameMaskDebug += VisibleInLastFrameMask & 0x8 ? 1000 : 0;
+						Print(Debug.Context, VisibleInLastFrameMaskDebug);
+
 						Print(Debug.Context, LightSample.bGuidedAsVisible ? 1u : 0u);
 						Print(Debug.Context, LightSample.bGuidedAsPartiallyVisibleLight ? 1u : 0u);
 						Print(Debug.Context, LightSampleUV);
@@ -587,7 +581,7 @@ void GenerateLightSamplesCS(
 						const bool bCastShadows = UnpackCastShadow(asuint(LocalLightData.LightDirectionAndShadowMask.w));
 						LightSample.bVisible = true;
 						LightSample.bCompleted = bCastShadows ? false : true;
-						LightSample.Weight = WeightSum / (NUM_SAMPLES_PER_PIXEL_1D * LightSample.Weight);
+						LightSample.Weight = LightSampler.WeightSum / (NUM_SAMPLES_PER_PIXEL_1D * LightSample.Weight);
 					}
 
 					RWLightSamples[GetSampleCoord(DownsampledScreenCoord, LightSampleIndex)] = PackLightSample(LightSample);

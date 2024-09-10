@@ -1794,6 +1794,10 @@ bool ULevelSequenceEditorSubsystem::BakeTransformWithSettings(const TArray<FMovi
 	TArray<FFrameNumber> AllFrames;
 	TotalFrameMap.GenerateKeyArray(AllFrames);
 
+	UWorld* PlaybackContext = Sequencer->GetPlaybackContext()->GetWorld();
+	ensure(PlaybackContext);
+	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(PlaybackContext);
+
 	for (FFrameNumber KeyTime: AllFrames)
 	{
 		TOptional<FFrameTime> NewGlobalTime = LocalToRootTransform.TryTransformTime(KeyTime);
@@ -1803,6 +1807,7 @@ bool ULevelSequenceEditorSubsystem::BakeTransformWithSettings(const TArray<FMovi
 		}
 
 		Sequencer->SetGlobalTime(NewGlobalTime.GetValue());
+		Controller.EvaluateAllConstraints();
 
 		for (const FMovieSceneBindingProxy& ObjectBinding : ObjectBindings)
 		{
@@ -2507,12 +2512,15 @@ void ULevelSequenceEditorSubsystem::AddAssignActorMenu(FMenuBuilder& MenuBuilder
 		InitOptions.Filters->AddFilterPredicate<FActorTreeItem>(FActorTreeItem::FFilterPredicate::CreateLambda( IsActorValidForAssignment ) );
 	}
 
+	const float WidthOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+	const float HeightOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 	// actor selector to allow the user to choose an actor
 	FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
 	TSharedRef< SWidget > MiniSceneOutliner =
 		SNew( SBox )
-		.MaxDesiredHeight(400.0f)
-		.WidthOverride(300.0f)
+		.WidthOverride(WidthOverride)
+		.HeightOverride(HeightOverride)
 		[
 			SceneOutlinerModule.CreateActorPicker(
 				InitOptions,

@@ -6,7 +6,7 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Misc/Attribute.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
 
 namespace UE::Editor::DataStorage
 {
@@ -31,7 +31,7 @@ namespace UE::Editor::DataStorage
 		TYPEDELEMENTFRAMEWORK_API FAttributeBinder(RowHandle InTargetRow);
 		
 		/* Create an attribute binder for a given row. */
-		TYPEDELEMENTFRAMEWORK_API FAttributeBinder(RowHandle InTargetRow, ITypedElementDataStorageInterface* InDataStorage);
+		TYPEDELEMENTFRAMEWORK_API FAttributeBinder(RowHandle InTargetRow, IEditorDataStorageProvider* InDataStorage);
 
 		/**
 		 * Bind a specific data member inside a TEDS column to an attribute of the same type as the data
@@ -110,7 +110,7 @@ namespace UE::Editor::DataStorage
 		RowHandle TargetRow;
 
 		// A ptr to the data storage for quick access
-		ITypedElementDataStorageInterface* DataStorage;
+		IEditorDataStorageProvider* DataStorage;
 	};
 } // namespace UE::Editor::DataStorage
 

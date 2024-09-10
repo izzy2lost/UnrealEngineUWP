@@ -124,7 +124,7 @@ namespace UE::Editor::DataStorage::Widgets::Private
 					ActionButton.SetOnClicked(FOnClicked::CreateLambda([RowWithAlertAction]()
 						{
 							UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-							const ITypedElementDataStorageInterface* DataStorage = Registry->GetDataStorage();
+							const IEditorDataStorageProvider* DataStorage = Registry->GetDataStorage();
 							if (const FTypedElementAlertActionColumn* Action =
 								DataStorage->GetColumn<FTypedElementAlertActionColumn>(RowWithAlertAction))
 							{
@@ -148,8 +148,8 @@ namespace UE::Editor::DataStorage::Widgets::Private
 //
 
 void UAlertWidgetFactory::RegisterWidgetConstructors(
-	ITypedElementDataStorageInterface& DataStorage,
-	ITypedElementDataStorageUiInterface& DataStorageUi) const
+	IEditorDataStorageProvider& DataStorage,
+	IEditorDataStorageUiProvider& DataStorageUi) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 
@@ -160,13 +160,13 @@ void UAlertWidgetFactory::RegisterWidgetConstructors(
 		TColumn<FTypedElementAlertColumn>() || TColumn<FTypedElementChildAlertColumn>());
 }
 
-void UAlertWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UAlertWidgetFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	RegisterAlertQueries(DataStorage);
 	RegisterAlertHeaderQueries(DataStorage);
 }
 
-void UAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStorageInterface& DataStorage)
+void UAlertWidgetFactory::RegisterAlertQueries(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	
@@ -247,7 +247,7 @@ void UAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStorageInterface
 		.Compile());
 }
 
-void UAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDataStorageInterface& DataStorage)
+void UAlertWidgetFactory::RegisterAlertHeaderQueries(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	
@@ -362,8 +362,8 @@ TConstArrayView<const UScriptStruct*> FAlertWidgetConstructor::GetAdditionalColu
 	return Columns;
 }
 
-bool FAlertWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
+bool FAlertWidgetConstructor::FinalizeWidget(IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	using namespace UE::Editor::DataStorage;
 
@@ -411,8 +411,8 @@ TConstArrayView<const UScriptStruct*> FAlertHeaderWidgetConstructor::GetAddition
 	return Columns;
 }
 
-bool FAlertHeaderWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, 
-	ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
+bool FAlertHeaderWidgetConstructor::FinalizeWidget(IEditorDataStorageProvider* DataStorage, 
+	IEditorDataStorageUiProvider* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	DataStorage->AddColumn(Row, FUIHeaderPropertiesColumn
 		{

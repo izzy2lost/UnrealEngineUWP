@@ -5,7 +5,7 @@
 #include "HAL/Platform.h"
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 #include "Field.h"
 
@@ -64,4 +64,11 @@ private:
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#else
+
+// Since we use this type in macros we need
+// provide an empty definition when trace is
+// not enabled.
+namespace UE::Trace::Private { struct FEventInfo {}; }
+
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

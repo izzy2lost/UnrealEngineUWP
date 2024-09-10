@@ -19,6 +19,7 @@ public class NNERuntimeRDGUtils : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"Projects",
+				"NNEHlslShaders",
 				"NNERuntimeRDGProtobufEditor",
 				"NNERuntimeRDGOnnxruntimeEditor",
 				"NNERuntimeRDGOnnxEditor"

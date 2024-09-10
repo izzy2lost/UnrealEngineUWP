@@ -62,6 +62,8 @@ namespace Electra
 
 	const FName OptionKeyResponseCacheMaxEntries(TEXT("httpcache_max_entries"));
 	const FName OptionKeyResponseCacheMaxByteSize(TEXT("httpcache_max_bytesize"));
+
+	const FName OptionKeyParseTimecodeInfo(TEXT("parse_timecode_info"));
 } // namespace Electra
 
 

@@ -23,11 +23,10 @@ void SFilterExpressionHelpDialog::Construct(const FArguments& InArgs)
 	SWindow::Construct(SWindow::FArguments()
 		.Title(InArgs._DialogTitle)
 		.AutoCenter(EAutoCenter::PrimaryWorkArea)
-		.SizingRule(ESizingRule::FixedSize)
+		.SizingRule(ESizingRule::Autosized)
 		.HasCloseButton(true)
 		.SupportsMaximize(false)
-		.SupportsMinimize(false)
-		.ClientSize(InArgs._DialogSize));
+		.SupportsMinimize(false));
 
 	const TSharedRef<SVerticalBox> ContentWidget =
 		SNew(SVerticalBox)
@@ -40,10 +39,15 @@ void SFilterExpressionHelpDialog::Construct(const FArguments& InArgs)
 		+ SVerticalBox::Slot()
 		.Padding(5.f)
 		[
-			SNew(SBorder)
-			.BorderImage(FAppStyle::Get().GetBrush(TEXT("Brushes.Panel")))
+			SNew(SBox)
+			.MaxDesiredWidth(MaxDesiredWidth)
+			.MaxDesiredHeight(MaxDesiredHeight)
 			[
-				ConstructExpressionWidgetList()
+				SNew(SBorder)
+				.BorderImage(FAppStyle::Get().GetBrush(TEXT("Brushes.Panel")))
+				[
+					ConstructExpressionWidgetList()
+				]
 			]
 		];
 
@@ -150,6 +154,7 @@ TSharedRef<SWidget> SFilterExpressionHelpDialog::ConstructExpressionWidget(const
 		.Padding(15.f, 0.f, 5.f, 5.f)
 		[
 			SNew(STextBlock)
+			.AutoWrapText(true)
 			.TextStyle(FAppStyle::Get(), TEXT("NormalText"))
 			.Text(InExpressionContext->GetDescription())
 		];

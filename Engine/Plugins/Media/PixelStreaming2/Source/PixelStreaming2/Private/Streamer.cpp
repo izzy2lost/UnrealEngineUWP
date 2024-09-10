@@ -69,6 +69,8 @@ namespace UE::PixelStreaming2
 		Streamer->EpicRtcManager->OnDataTrackState.AddSP(Streamer.ToSharedRef(), &FStreamer::OnDataTrackState);
 		Streamer->EpicRtcManager->OnDataTrackMessage.AddSP(Streamer.ToSharedRef(), &FStreamer::OnDataTrackMessage);
 
+		FPixelStreaming2Module::GetModule()->GetStatsCollector()->OnStatsReady.AddSP(Streamer.ToSharedRef(), &FStreamer::OnStatsReady);
+
 		return Streamer;
 	}
 
@@ -260,6 +262,22 @@ namespace UE::PixelStreaming2
 		EpicRtcManager->EpicRtcRoom = nullptr;
 	}
 
+	void FStreamer::OnStatsReady(const FString& PlayerId, const EpicRtcConnectionStats& ConnectionStats)
+	{
+		FPlayerContext* PlayerContext = Players->Find(PlayerId);
+		if (!PlayerContext)
+		{
+			return;
+		}
+
+		if (!PlayerContext->StatsCollector)
+		{
+			return;
+		}
+
+		PlayerContext->StatsCollector->Process(ConnectionStats);
+	}
+
 	IPixelStreaming2Streamer::FPreConnectionEvent& FStreamer::OnPreConnection()
 	{
 		return StreamingPreConnectionEvent;
@@ -339,7 +357,10 @@ namespace UE::PixelStreaming2
 
 	void FStreamer::KickPlayer(FString PlayerId)
 	{
-		// TODO (Migration) RTCP-7024 Delete player session?
+		if (FPlayerContext* PlayerContext = Players->Find(PlayerId))
+		{
+			PlayerContext->ParticipantInterface->Kick();
+		}
 	}
 
 	TArray<FString> FStreamer::GetConnectedPlayers()
@@ -437,19 +458,34 @@ namespace UE::PixelStreaming2
 
 	void FStreamer::PlayerRequestsBitrate(FString PlayerId, int MinBitrate, int MaxBitrate)
 	{
-		// TODO (Migration): Reimplement once RTCP-6957 lands. This should only set the bitrate of the streams of this player (easier said than done)
-		UPixelStreaming2PluginSettings::CVarWebRTCMinBitrate->Set(MinBitrate, ECVF_SetByCode);
-		UPixelStreaming2PluginSettings::CVarWebRTCMaxBitrate->Set(MaxBitrate, ECVF_SetByCode);
+		UPixelStreaming2PluginSettings::CVarWebRTCMinBitrate.AsVariable()->Set(MinBitrate);
+		UPixelStreaming2PluginSettings::CVarWebRTCMaxBitrate.AsVariable()->Set(MaxBitrate);
 	}
 
 	void FStreamer::RefreshStreamBitrate()
 	{
 		Players->Apply([this](FString PlayerId, FPlayerContext& PlayerContext) {
-			// TODO (Migration) Reimplement once RTCP-6957 lands
-			// if (PlayerContext.PeerConnection)
-			// {
-			// PlayerContext.PeerConnection->RefreshStreamBitrate();
-			// }
+			if (!PlayerContext.ParticipantInterface)
+			{
+				return;
+			}
+
+			TRefCountPtr<EpicRtcConnectionInterface> ConnectionInterface = PlayerContext.ParticipantInterface->GetConnection();
+			if (!ConnectionInterface)
+			{
+				return;
+			}
+
+			EpicRtcBitrate Bitrates = {
+				._minBitrateBps = UPixelStreaming2PluginSettings::CVarWebRTCMinBitrate.GetValueOnAnyThread(),
+				._hasMinBitrateBps = true,
+				._maxBitrateBps = UPixelStreaming2PluginSettings::CVarWebRTCMaxBitrate.GetValueOnAnyThread(),
+				._hasMaxBitrateBps = true,
+				._startBitrateBps = UPixelStreaming2PluginSettings::CVarWebRTCStartBitrate.GetValueOnAnyThread(),
+				._hasStartBitrateBps = true
+			};
+
+			ConnectionInterface->SetConnectionRates(Bitrates);
 		});
 	}
 
@@ -461,7 +497,6 @@ namespace UE::PixelStreaming2
 	void FStreamer::ConsumeStats(FString PlayerId, FName StatName, float StatValue)
 	{
 
-		
 		if (StatName != PixelStreaming2StatNames::MeanQPPerSecond)
 		{
 			return;
@@ -606,9 +641,9 @@ namespace UE::PixelStreaming2
 
 	void FStreamer::SendInitialSettings(FString PlayerId) const
 	{
-		const FString				   PixelStreaming2Payload = FString::Printf(TEXT("{ \"AllowPixelStreamingCommands\": %s, \"DisableLatencyTest\": %s }"),
-			 UPixelStreaming2PluginSettings::CVarInputAllowConsoleCommands.GetValueOnAnyThread() ? TEXT("true") : TEXT("false"),
-			 UPixelStreaming2PluginSettings::CVarDisableLatencyTester.GetValueOnAnyThread() ? TEXT("true") : TEXT("false"));
+		const FString PixelStreaming2Payload = FString::Printf(TEXT("{ \"AllowPixelStreamingCommands\": %s, \"DisableLatencyTest\": %s }"),
+			UPixelStreaming2PluginSettings::CVarInputAllowConsoleCommands.GetValueOnAnyThread() ? TEXT("true") : TEXT("false"),
+			UPixelStreaming2PluginSettings::CVarDisableLatencyTester.GetValueOnAnyThread() ? TEXT("true") : TEXT("false"));
 
 		const FString WebRTCPayload = FString::Printf(TEXT("{ \"FPS\": %d, \"MinBitrate\": %d, \"MaxBitrate\": %d }"),
 			UPixelStreaming2PluginSettings::CVarWebRTCFps.GetValueOnAnyThread(),
@@ -705,8 +740,8 @@ namespace UE::PixelStreaming2
 				FStats* Stats = FStats::Get();
 				if (Stats)
 				{
-					Stats->QueryPeerStat(PlayerId, RTCStatTypes::OutboundRTP, PixelStreaming2StatNames::MeanEncodeTime, EncodeMs);
-					Stats->QueryPeerStat(PlayerId, RTCStatTypes::OutboundRTP, PixelStreaming2StatNames::AvgSendDelay, CaptureToSendMs);
+					Stats->QueryPeerStat(PlayerId, RTCStatCategories::LocalVideoTrack, PixelStreaming2StatNames::MeanEncodeTime, EncodeMs);
+					Stats->QueryPeerStat(PlayerId, RTCStatCategories::LocalVideoTrack, PixelStreaming2StatNames::AvgSendDelay, CaptureToSendMs);
 				}
 
 				double TransmissionTimeMs = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64());
@@ -772,6 +807,13 @@ namespace UE::PixelStreaming2
 		{
 			case EpicRtcSessionState::Connected:
 			{
+				bSignallingConnected = true;
+				if (UPixelStreaming2Delegates* Delegates = UPixelStreaming2Delegates::Get())
+				{
+					Delegates->OnConnectedToSignallingServer.Broadcast(StreamerId);
+					Delegates->OnConnectedToSignallingServerNative.Broadcast(StreamerId);
+				}
+
 				UE_LOG(LogPixelStreaming2, VeryVerbose, TEXT("FStreamer::OnSessionStateUpdate State=Connected"));
 				EpicRtcBitrate Bitrate = {
 					._minBitrateBps = UPixelStreaming2PluginSettings::CVarWebRTCMinBitrate.GetValueOnAnyThread(),
@@ -832,6 +874,12 @@ namespace UE::PixelStreaming2
 				break;
 			case EpicRtcSessionState::Disconnected:
 				// Do something on `disconnected` session here
+				bSignallingConnected = false;
+				if (UPixelStreaming2Delegates* Delegates = UPixelStreaming2Delegates::Get())
+				{
+					Delegates->OnDisconnectedFromSignallingServer.Broadcast(StreamerId);
+					Delegates->OnDisconnectedFromSignallingServerNative.Broadcast(StreamerId);
+				}
 				UE_LOG(LogPixelStreaming2, VeryVerbose, TEXT("FStreamer::OnSessionStateUpdate State=Disconnected"));
 				RemoveSession(false);
 				StopStreaming();
@@ -839,6 +887,7 @@ namespace UE::PixelStreaming2
 				break;
 			case EpicRtcSessionState::Failed:
 				// Do something on `failed` session here
+				bSignallingConnected = false;
 				UE_LOG(LogPixelStreaming2, VeryVerbose, TEXT("FStreamer::OnSessionStateUpdate State=Failed"));
 				break;
 			case EpicRtcSessionState::Exiting:
@@ -895,6 +944,8 @@ namespace UE::PixelStreaming2
 		}
 
 		FPlayerContext& PlayerContext = Players->FindOrAdd(ParticipantId);
+		PlayerContext.ParticipantInterface = Participant;
+		PlayerContext.StatsCollector = FRTCStatsCollector::Create(ParticipantId);
 
 		TRefCountPtr<EpicRtcConnectionInterface> ParticipantConnection = Participant->GetConnection();
 		ParticipantConnection->SetManualNegotiation(true);
@@ -932,8 +983,23 @@ namespace UE::PixelStreaming2
 			ParticipantConnection->AddAudioSource(AudioSource);
 		}
 
-		const bool bTransmitUEVideo = !UPixelStreaming2PluginSettings::CVarWebRTCDisableTransmitVideo.GetValueOnAnyThread();
-		const bool bReceiveBrowserVideo = !UPixelStreaming2PluginSettings::CVarWebRTCDisableReceiveVideo.GetValueOnAnyThread();
+		const EVideoCodec SelectedCodec = GetEnumFromCVar<EVideoCodec>(UPixelStreaming2PluginSettings::CVarEncoderCodec);
+		const bool		  bNegotiateCodecs = UPixelStreaming2PluginSettings::CVarWebRTCNegotiateCodecs.GetValueOnAnyThread();
+		const bool		  bTransmitUEVideo = !UPixelStreaming2PluginSettings::CVarWebRTCDisableTransmitVideo.GetValueOnAnyThread();
+		bool			  bReceiveBrowserVideo = !UPixelStreaming2PluginSettings::CVarWebRTCDisableReceiveVideo.GetValueOnAnyThread();
+
+		// Check if the user has selected only H.264 on a AMD gpu and disable receiving video.
+		// WebRTC does not support using SendRecv if the encoding and decoding do not support the same codec.
+		// AMD GPUs currently have decoding disabled so WebRTC fails to create SDP codecs with SendRecv.
+		if (IsRHIDeviceAMD() && !bNegotiateCodecs && SelectedCodec == EVideoCodec::H264)
+		{
+			if (bReceiveBrowserVideo)
+			{
+				bReceiveBrowserVideo = false;
+				UE_LOGFMT(LogPixelStreaming2, Warning, "AMD GPUs do not support receiving H.264 video.");
+			}
+		}
+
 		if (bTransmitUEVideo || bReceiveBrowserVideo)
 		{
 			TArray<EpicRtcVideoEncodingConfig> VideoEncodingConfigs;
@@ -1012,6 +1078,17 @@ namespace UE::PixelStreaming2
 		};
 
 		ParticipantConnection->AddDataSource(DataSource);
+
+		EpicRtcBitrate Bitrates = {
+			._minBitrateBps = UPixelStreaming2PluginSettings::CVarWebRTCMinBitrate.GetValueOnAnyThread(),
+			._hasMinBitrateBps = true,
+			._maxBitrateBps = UPixelStreaming2PluginSettings::CVarWebRTCMaxBitrate.GetValueOnAnyThread(),
+			._hasMaxBitrateBps = true,
+			._startBitrateBps = UPixelStreaming2PluginSettings::CVarWebRTCStartBitrate.GetValueOnAnyThread(),
+			._hasStartBitrateBps = true
+		};
+
+		ParticipantConnection->SetConnectionRates(Bitrates);
 
 		ParticipantConnection->StartNegotiation();
 	}
@@ -1339,7 +1416,7 @@ namespace UE::PixelStreaming2
 			return;
 		}
 
-		const uint8_t								   Type = DataFrame->Data()[0];
+		const uint8_t							 Type = DataFrame->Data()[0];
 		TSharedPtr<IPixelStreaming2DataProtocol> ToStreamerProtocol = InputHandler->GetToStreamerProtocol();
 
 		if (Type == ToStreamerProtocol->Find(EPixelStreaming2ToStreamerMessage::LatencyTest)->GetID())

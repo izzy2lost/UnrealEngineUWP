@@ -361,7 +361,7 @@ bool FDeferredShadingSceneRenderer::RenderLightFunctionForMaterial(
 				RDG_EVENT_NAME("LightFunction Material=%s", *MaterialForRendering->GetFriendlyName()),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[&View, PassParameters, LightSceneInfo, LightSceneProxy, MaterialProxyForRendering, MaterialForRendering, MaterialShaders, bLightAttenuationCleared, bProjectingForForwardShading, bRenderingPreviewShadowsIndicator, bUseHairStrands](FRHICommandList& RHICmdList)
+				[&View, PassParameters, LightSceneInfo, LightSceneProxy, MaterialProxyForRendering, MaterialForRendering, MaterialShaders, bLightAttenuationCleared, bProjectingForForwardShading, bRenderingPreviewShadowsIndicator, bUseHairStrands](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FSphere LightBounds = LightSceneProxy->GetBoundingSphere();
 

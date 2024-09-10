@@ -3880,6 +3880,8 @@ FGuid FSequencerUtilities::AssignActor(TSharedRef<ISequencer> Sequencer, AActor*
 		{
 			ComponentNameToComponent.Add(Component->GetName(), Component);
 		}
+
+		TMap<FGuid, UActorComponent*> ComponentsToUpdate;
 		for (int32 i = 0; i < OwnerMovieScene->GetPossessableCount(); i++)
 		{
 			FMovieScenePossessable& OldPossessable = OwnerMovieScene->GetPossessable(i);
@@ -3888,9 +3890,14 @@ FGuid FSequencerUtilities::AssignActor(TSharedRef<ISequencer> Sequencer, AActor*
 				UActorComponent** ComponentPtr = ComponentNameToComponent.Find(OldPossessable.GetName());
 				if (ComponentPtr != nullptr)
 				{
-					UpdateComponent(OldPossessable.GetGuid(), *ComponentPtr, NewComponentGuids);
+					ComponentsToUpdate.Add(OldPossessable.GetGuid(), *ComponentPtr);
 				}
 			}
+		}
+
+		for (TPair<FGuid, UActorComponent*> ComponentToUpdate : ComponentsToUpdate)
+		{
+			UpdateComponent(ComponentToUpdate.Key, ComponentToUpdate.Value, NewComponentGuids);
 		}
 	}
 

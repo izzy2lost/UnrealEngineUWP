@@ -291,7 +291,7 @@ public:
 #if RHI_RAYTRACING
 	bool IsRayTracingRelevant() const override { return true; }
 	bool IsRayTracingStaticRelevant() const override { return false; }
-	void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances) override;
+	void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override;
 #endif
 
 protected:

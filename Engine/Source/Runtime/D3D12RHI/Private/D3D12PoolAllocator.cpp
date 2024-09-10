@@ -252,11 +252,13 @@ FD3D12PoolAllocator::~FD3D12PoolAllocator()
 
 bool FD3D12PoolAllocator::SupportsAllocation(D3D12_HEAP_TYPE InHeapType, D3D12_RESOURCE_FLAGS InResourceFlags, EBufferUsageFlags InBufferUsage, ED3D12ResourceStateMode InResourceStateMode, uint32 Alignment) const
 {
+#if WITH_MGPU
 	// NNE resources must be in heaps visible on GPU0 only.  Required by DirectML.
 	if (EnumHasAnyFlags(InBufferUsage, EBufferUsageFlags::NNE) && VisibilityMask != FRHIGPUMask::GPU0())
 	{
 		return false;
 	}
+#endif
 
 	FD3D12ResourceInitConfig InInitConfig = GetResourceAllocatorInitConfig(InHeapType, InResourceFlags, InBufferUsage);
 	EResourceAllocationStrategy InAllocationStrategy = GetResourceAllocationStrategy(InResourceFlags, InResourceStateMode, Alignment);

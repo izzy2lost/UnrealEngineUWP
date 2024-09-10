@@ -23,3 +23,11 @@ uint MurmurMix(uint Hash)
 	Hash ^= Hash >> 16;
 	return Hash;
 }
+
+// [Jarzynski 2020, "Hash Functions for GPU Rendering"]
+uint PCGHash(uint Input)
+{
+    uint State = Input * 747796405u + 2891336453u;
+    uint Word = ((State >> ((State >> 28u) + 4u)) ^ State) * 277803737u;
+    return (Word >> 22u) ^ Word;
+}

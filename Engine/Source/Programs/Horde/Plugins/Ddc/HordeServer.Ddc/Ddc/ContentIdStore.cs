@@ -7,11 +7,11 @@ namespace HordeServer.Ddc
 {
 	class ContentIdStore : IContentIdStore
 	{
-		readonly IStorageClientFactory _storageClientFactory;
+		readonly IStorageClient _storageClient;
 
-		public ContentIdStore(IStorageClientFactory storageService)
+		public ContentIdStore(IStorageClient storageClient)
 		{
-			_storageClientFactory = storageService;
+			_storageClient = storageClient;
 		}
 
 		static string GetAlias(BlobId blobId) => BlobService.GetAlias(blobId);
@@ -19,12 +19,12 @@ namespace HordeServer.Ddc
 
 		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId = false, CancellationToken cancellationToken = default)
 		{
-			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageNamespace storageNamespace = _storageClient.GetNamespace(ns);
 
-			BlobAlias? blobAlias = await storageClient.FindAliasAsync(GetAlias(contentId), cancellationToken);
+			BlobAlias? blobAlias = await storageNamespace.FindAliasAsync(GetAlias(contentId), cancellationToken);
 			if (blobAlias == null && !mustBeContentId)
 			{
-				blobAlias = await storageClient.FindAliasAsync(GetAlias(contentId.AsBlobIdentifier()), cancellationToken);
+				blobAlias = await storageNamespace.FindAliasAsync(GetAlias(contentId.AsBlobIdentifier()), cancellationToken);
 			}
 			if (blobAlias == null)
 			{
@@ -37,15 +37,15 @@ namespace HordeServer.Ddc
 
 		public async Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobId, int contentWeight, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageNamespace storageNamespace = _storageClient.GetNamespace(ns);
 
-			BlobAlias? blobAlias = await storageClient.FindAliasAsync(GetAlias(blobId), cancellationToken);
+			BlobAlias? blobAlias = await storageNamespace.FindAliasAsync(GetAlias(blobId), cancellationToken);
 			if (blobAlias == null)
 			{
 				throw new BlobNotFoundException(ns, blobId);
 			}
 
-			await storageClient.AddAliasAsync(GetAlias(contentId), blobAlias.Target, -contentWeight, blobAlias.Data, cancellationToken: cancellationToken);
+			await storageNamespace.AddAliasAsync(GetAlias(contentId), blobAlias.Target, -contentWeight, blobAlias.Data, cancellationToken: cancellationToken);
 		}
 	}
 }

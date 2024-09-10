@@ -14,7 +14,7 @@
 namespace UE::SlateColorWidget::Private
 {
 	FReply SummonColorPicker(const FGeometry& Geometry, const FPointerEvent& PointerEvent,
-		ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle TargetRow)
+		IEditorDataStorageProvider* DataStorage, UE::Editor::DataStorage::RowHandle TargetRow)
 	{
 		if (PointerEvent.GetEffectingButton() != EKeys::LeftMouseButton)
 		{
@@ -40,8 +40,8 @@ namespace UE::SlateColorWidget::Private
 	}
 }
 
-void USlateColorWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-														ITypedElementDataStorageUiInterface& DataStorageUi) const
+void USlateColorWidgetFactory::RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+														IEditorDataStorageUiProvider& DataStorageUi) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	DataStorageUi.RegisterWidgetFactory<FSlateColorWidgetConstructor>(TEXT("General.Cell"), TColumn<FSlateColorColumn>());
@@ -54,8 +54,8 @@ FSlateColorWidgetConstructor::FSlateColorWidgetConstructor()
 
 
 
-TSharedPtr<SWidget> FSlateColorWidgetConstructor::CreateWidget(ITypedElementDataStorageInterface* DataStorage,
-                                                               ITypedElementDataStorageUiInterface* DataStorageUi, RowHandle TargetRow, RowHandle WidgetRow,
+TSharedPtr<SWidget> FSlateColorWidgetConstructor::CreateWidget(IEditorDataStorageProvider* DataStorage,
+                                                               IEditorDataStorageUiProvider* DataStorageUi, RowHandle TargetRow, RowHandle WidgetRow,
                                                                const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	UE::Editor::DataStorage::FAttributeBinder Binder(TargetRow, DataStorage);

@@ -310,13 +310,34 @@ void SScrollBox::ConstructHorizontalLayout()
 /** Adds a slot to SScrollBox */
 SScrollBox::FScopedWidgetSlotArguments SScrollBox::AddSlot()
 {
-	return FScopedWidgetSlotArguments{ MakeUnique<FSlot>(), ScrollPanel->Children, INDEX_NONE };
+	return InsertSlot(INDEX_NONE);
 }
 
-/** Removes a slot at the specified location */
+SScrollBox::FScopedWidgetSlotArguments SScrollBox::InsertSlot(int32 Index)
+{
+	return FScopedWidgetSlotArguments{ MakeUnique<FSlot>(), ScrollPanel->Children, Index };
+}
+
+const SScrollBox::FSlot& SScrollBox::GetSlot(int32 SlotIndex) const
+{
+	check(ScrollPanel->Children.IsValidIndex(SlotIndex));
+	const FSlotBase& BaseSlot = static_cast<const FSlotBase&>(ScrollPanel->Children[SlotIndex]);
+	return static_cast<const FSlot&>(BaseSlot);
+}
+
+SScrollBox::FSlot& SScrollBox::GetSlot(int32 SlotIndex)
+{
+	return const_cast<FSlot&>(const_cast<const SScrollBox*>(this)->GetSlot(SlotIndex));
+}
+
 void SScrollBox::RemoveSlot( const TSharedRef<SWidget>& WidgetToRemove )
 {
 	ScrollPanel->Children.Remove(WidgetToRemove);
+}
+
+int32 SScrollBox::NumSlots() const
+{
+	return ScrollPanel->Children.Num();
 }
 
 void SScrollBox::ClearChildren()

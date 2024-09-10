@@ -9,12 +9,11 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using Grpc.Core;
-using JobDriver.Execution;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
+using JobDriver.Execution;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -61,7 +60,7 @@ namespace JobDriver.Tests
 			_serviceCollection.AddSingleton<BundleCache>();
 			_serviceCollection.AddSingleton<StorageBackendCache>();
 			_serviceCollection.AddSingleton<HttpStorageBackendFactory>();
-			_serviceCollection.AddSingleton<HttpStorageClientFactory>();
+			_serviceCollection.AddSingleton<HttpStorageClient>();
 
 			_serviceCollection.Configure<DriverSettings>(settings =>
 			{

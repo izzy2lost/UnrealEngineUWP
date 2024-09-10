@@ -35,9 +35,6 @@ protected:
 	virtual void OnArrangeChildren(const FGeometry& InAllottedGeometry, FArrangedChildren& ArrangedChildren) const override;
 	//~ End SPanel
 
-	void OnWrapButtonOpenChanged(const bool bInIsOpen);
-	EActiveTimerReturnType UpdateWrapButtonStatus(const double InCurrentTime, const float InDeltaTime);
-
 	/** The button that is displayed when a toolbar or menubar is clipped */
 	TWeakPtr<SComboButton> WeakWrapButton;
 

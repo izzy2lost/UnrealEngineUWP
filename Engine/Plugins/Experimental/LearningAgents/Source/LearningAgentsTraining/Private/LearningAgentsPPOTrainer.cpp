@@ -455,7 +455,7 @@ TSharedRef<FJsonObject> ULearningAgentsPPOTrainer::CreateConfig(const FLearningA
 void ULearningAgentsPPOTrainer::SendConfig(const TSharedRef<FJsonObject>& ConfigObject)
 {
 	UE::Learning::ETrainerResponse Response = UE::Learning::ETrainerResponse::Success;
-	Response = Trainer->SendConfig(ConfigObject);
+	Response = Trainer->SendConfig(ConfigObject, UE::Learning::ELogSetting::Normal);
 	
 	if (Response != UE::Learning::ETrainerResponse::Success)
 	{

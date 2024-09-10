@@ -424,7 +424,7 @@ void ComputeDistanceFieldNormal(
 			RDG_EVENT_NAME("ComputeNormal"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, PassParameters, DFAOViewSize](FRHICommandList& RHICmdList)
+			[&View, PassParameters, DFAOViewSize](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(0, 0, 0.0f, DFAOViewSize.X, DFAOViewSize.Y, 1.0f);
 

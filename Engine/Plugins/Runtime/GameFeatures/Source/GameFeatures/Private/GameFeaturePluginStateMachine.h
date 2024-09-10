@@ -552,6 +552,8 @@ public:
 	/** If the plugin is registered already, we will retrieve its game feature data */
 	UGameFeatureData* GetGameFeatureDataForRegisteredPlugin(bool bCheckForRegistering = false);
 
+	const FGameFeaturePluginStateMachineProperties& GetProperties() const;
+
 private:
 	/** Returns true if the specified state is not a transition state */
 	bool IsValidTransitionState(EGameFeaturePluginState InState) const;

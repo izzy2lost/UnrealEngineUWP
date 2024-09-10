@@ -65,7 +65,7 @@ bool FTedsAssetDataTest::RunTest(const FString& Parameters)
 
 
 	// Do a sanity check that the data from the asset registry exist in Teds
-	const ITypedElementDataStorageInterface* Database = UTypedElementRegistry::GetInstance()->GetDataStorage();
+	const IEditorDataStorageProvider* Database = UTypedElementRegistry::GetInstance()->GetDataStorage();
 	
 	for (const TPair<FName, int32>& PathAndAssetCount : AssetRegistryPathsAndAssetCount)
 	{

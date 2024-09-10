@@ -139,6 +139,11 @@ FIntPoint UDisplayClusterMoviePipelineViewportPassBase::GetEffectiveOutputResolu
 	return OutputResolution;
 }
 
+void UDisplayClusterMoviePipelineViewportPassBase::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesNDisplay = true;
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 UE::MoviePipeline::FImagePassCameraViewData UDisplayClusterMoviePipelineViewportPassBase::GetCameraInfo(FMoviePipelineRenderPassMetrics& InOutSampleState, IViewCalcPayload* OptPayload) const
 {

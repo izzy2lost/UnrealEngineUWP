@@ -333,8 +333,12 @@ void ProcessPrimitiveUpdate(
 	Proxy->GetDistanceFieldAtlasData(DistanceFieldData, SelfShadowBias);
 
 	TConstArrayView<FMatrix> InstanceLocalToWorldTransforms;
-	if (const FInstanceSceneDataBuffers *InstanceData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers())
+	const FInstanceSceneDataBuffers *InstanceData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers();
+	if (InstanceData)
 	{
+		// GPU-only instance data not currently supported - instances must be available on CPU.
+		check(!InstanceData->IsInstanceDataGPUOnly());
+
 		for (int32 InstanceIndex = 0; InstanceIndex < InstanceData->GetNumInstances(); ++InstanceIndex)
 		{
 			InstanceLocalToWorldTmpStorage.Add(InstanceData->GetInstanceToWorld(InstanceIndex));

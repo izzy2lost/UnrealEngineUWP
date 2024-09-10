@@ -775,6 +775,9 @@ bool FLinkerLoad::RegenerateBlueprintClass(UClass* LoadClass, UObject* ClassDefa
 			LoadClass->ClearFlags(RF_NeedPostLoad | RF_NeedPostLoadSubobjects);
 		}
 
+		// After regeneration, we can now notify placeholders that it's safe to create instances of our class.
+		FResolvingExportTracker::Get().ResolvePlaceholders(LoadClass);
+
 		return true;
 	}
 

@@ -4,6 +4,8 @@
 
 #include "ClassIconFinder.h"
 #include "ColorCorrectRegion.h"
+#include "ColorCorrectRegionCustomization.h"
+#include "ColorCorrectWindow.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "IDetailCustomization.h"
@@ -18,6 +20,11 @@
 
 #define LOCTEXT_NAMESPACE "FColorGradingDataModelGenerator_ColorCorrectRegion"
 
+const TArray<FName> VisibleCategories = {
+	TEXT("Region"),
+	TEXT("Color Grading")
+};
+
 TSharedRef<IColorGradingEditorDataModelGenerator> FColorGradingDataModelGenerator_ColorCorrectRegion::MakeInstance()
 {
 	return MakeShareable(new FColorGradingDataModelGenerator_ColorCorrectRegion());
@@ -28,12 +35,26 @@ class FColorCorrectRegionCustomization : public IDetailCustomization
 public:
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
 	{
+		// Hide any categories whose root isn't in our display list
 		TArray<FName> Categories;
 		DetailBuilder.GetCategoryNames(Categories);
 
 		for (const FName& Category : Categories)
 		{
-			if (Category != TEXT("Color Correction"))
+			const FString RawCategoryName = Category.ToString();
+			FName CategoryRootName;
+			
+			int32 SeparatorIndex;
+			if (RawCategoryName.FindChar('|', SeparatorIndex))
+			{
+				CategoryRootName = FName(RawCategoryName.Left(SeparatorIndex));
+			}
+			else
+			{
+				CategoryRootName = Category;
+			}
+
+			if (!VisibleCategories.Contains(CategoryRootName))
 			{
 				DetailBuilder.HideCategory(Category);
 			}
@@ -42,10 +63,20 @@ public:
 		// TransformCommon is a custom category that doesn't get returned by GetCategoryNames that also needs to be hidden
 		DetailBuilder.HideCategory(TEXT("TransformCommon"));
 
-		IDetailCategoryBuilder& CCCategoryBuilder = DetailBuilder.EditCategory(TEXT("Color Correction"));
+		// Hide CCR-specific properties if CCWs are present in the selection
+		const bool bHasCCWs = DetailBuilder.GetSelectedObjects().ContainsByPredicate([](const TWeakObjectPtr<UObject>& SelectedObject)
+		{
+			return SelectedObject.IsValid() && SelectedObject->IsA<AColorCorrectionWindow>();
+		});
 
-		TArray<TSharedRef<IPropertyHandle>> CCPropertyHandles;
-		CCCategoryBuilder.GetDefaultProperties(CCPropertyHandles);
+		if (bHasCCWs)
+		{
+			TSharedRef<IPropertyHandle> PriorityProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(AColorCorrectRegion, Priority));
+			DetailBuilder.HideProperty(PriorityProperty);
+
+			TSharedRef<IPropertyHandle> TypeProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(AColorCorrectRegion, Type));
+			DetailBuilder.HideProperty(TypeProperty);
+		}
 
 		IDetailCategoryBuilder& ColorGradingElementsCategory = DetailBuilder.EditCategory(FName("ColorGradingElements"));
 
@@ -99,7 +130,7 @@ void FColorGradingDataModelGenerator_ColorCorrectRegion::GenerateDataModel(IProp
 		const TSharedRef<IDetailTreeNode> ColorGradingElements = *ColorGradingElementsPtr;
 		FColorGradingEditorDataModel::FColorGradingGroup ColorGradingGroup;
 
-		ColorGradingGroup.DetailsViewCategories.Add(TEXT("Color Correction"));
+		ColorGradingGroup.DetailsViewCategories.Append(VisibleCategories);
 
 		TArray<TSharedRef<IDetailTreeNode>> ColorGradingPropertyNodes;
 		ColorGradingElements->GetChildren(ColorGradingPropertyNodes);
@@ -189,18 +220,6 @@ FColorGradingEditorDataModel::FColorGradingElement FColorGradingDataModelGenerat
 	}
 
 	return ColorGradingElement;
-}
-
-bool FColorGradingDataModelGenerator_ColorCorrectRegion::FilterDetailsViewProperties(const TSharedRef<IDetailTreeNode>& InDetailTreeNode)
-{
-	if (InDetailTreeNode->GetNodeType() == EDetailNodeType::Category)
-	{
-		return InDetailTreeNode->GetNodeName() == TEXT("Color Correction");
-	}
-	else
-	{
-		return true;
-	}
 }
 
 #undef LOCTEXT_NAMESPACE

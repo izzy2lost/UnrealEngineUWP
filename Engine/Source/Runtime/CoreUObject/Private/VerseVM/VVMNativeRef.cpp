@@ -9,6 +9,7 @@
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/Inline/VVMVarInline.h"
 #include "VerseVM/VVMNativeConverter.h"
+#include "VerseVM/VVMVerseEnum.h"
 #include "VerseVM/VVMVerseStruct.h"
 
 namespace Verse

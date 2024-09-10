@@ -5,6 +5,7 @@
 #include "Helper/NNERuntimeRDGLogHelper.h"
 #include "Helper/NNERuntimeRDGOperatorHelper.h"
 #include "NNEHlslShadersCastCS.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersTypeHelper.h"
 #include "NNERuntimeRDGHelperCast.h"
 #include "NNERuntimeRDGHlslHelper.h"
@@ -39,7 +40,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (!Output.HasPreparedData() && Has64BitDataType)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Cast: Output could not be computed as a constant tensor, however Cast doesn't support dynamic 64 bit tensor types."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Cast: Output could not be computed as a constant tensor, however Cast doesn't support dynamic 64 bit tensor types."));
 				return -1;
 			}
 
@@ -56,7 +57,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (ToFromAttribute != ToFromTensor)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Cast should output a tensor of type %d but was of type %d."), int(ToFromAttribute), int(ToFromTensor));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Cast: Should output a tensor of type %d but was of type %d."), int(ToFromAttribute), int(ToFromTensor));
 				return false;
 			}
 			
@@ -126,7 +127,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 					break;
 				default:
 					FString TargetType = LogHelper::GetTensorDataTypeName(To);
-					UE_LOG(LogNNE, Warning, TEXT("Cast: Target tensor data type %s not supported."), *TargetType);
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Cast: Target tensor data type %s not supported."), *TargetType);
 					bIsValid = false;
 			}
 		}

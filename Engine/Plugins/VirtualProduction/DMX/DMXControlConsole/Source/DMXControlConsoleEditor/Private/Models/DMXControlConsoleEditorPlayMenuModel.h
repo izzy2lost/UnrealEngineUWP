@@ -66,10 +66,10 @@ public:
 	/** Returns true if the console is playing DMX */
 	bool IsPlayingDMX() const;
 
-private:
-	/** True when sending DMX is paused */
-	bool bPaused = false;
+	/** Returns true if the console is paused sending DMX */
+	bool IsPausedDMX() const;
 
+private:
 	/** The control console data used with this model */
 	UPROPERTY(NonTransactional)
 	TObjectPtr<UDMXControlConsole> ControlConsole;

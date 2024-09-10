@@ -190,7 +190,7 @@ namespace HordeServer.Artifacts
 
 		IBlobRef<DirectoryNode> Open(Artifact artifact)
 		{
-			IStorageClient client = _storageService.CreateClient(artifact.Document.NamespaceId);
+			IStorageNamespace client = _storageService.GetNamespace(artifact.Document.NamespaceId);
 			return client.CreateBlobRef<DirectoryNode>(artifact.Document.RefName);
 		}
 
@@ -377,8 +377,8 @@ namespace HordeServer.Artifacts
 		{
 			_logger.LogInformation("Deleting {StreamId} artifact {ArtifactId}, ref {RefName} (created {CreateTime})", artifact.StreamId, artifact.Id, artifact.RefName, artifact.CreatedAtUtc);
 
-			IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
-			await storageClient.DeleteRefAsync(artifact.RefName, cancellationToken);
+			IStorageNamespace storageNamespace = _storageService.GetNamespace(artifact.NamespaceId);
+			await storageNamespace.DeleteRefAsync(artifact.RefName, cancellationToken);
 
 			FilterDefinition<ArtifactDocument> filter = Builders<ArtifactDocument>.Filter.Eq(x => x.Id, artifact.Id);
 			await _artifactCollection.DeleteOneAsync(filter, cancellationToken);
@@ -388,12 +388,12 @@ namespace HordeServer.Artifacts
 		{
 			foreach (IGrouping<NamespaceId, ArtifactDocument> artifactGroup in deleteArtifacts.GroupBy(x => x.NamespaceId))
 			{
-				IStorageClient storageClient = _storageService.CreateClient(artifactGroup.Key);
+				IStorageNamespace storageNamespace = _storageService.GetNamespace(artifactGroup.Key);
 				foreach (ArtifactDocument artifact in artifactGroup)
 				{
 					// Delete the ref allowing the storage service to expire this data
 					_logger.LogInformation("Expiring {StreamId} artifact {ArtifactId}, ref {RefName} (created {CreateTime})", artifact.StreamId, artifact.Id, artifact.RefName, artifact.CreatedAtUtc);
-					await storageClient.DeleteRefAsync(artifact.RefName, cancellationToken);
+					await storageNamespace.DeleteRefAsync(artifact.RefName, cancellationToken);
 				}
 
 				FilterDefinition<ArtifactDocument> filter = Builders<ArtifactDocument>.Filter.In(x => x.Id, artifactGroup.Select(x => x.Id));

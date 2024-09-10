@@ -158,7 +158,7 @@ namespace UE::PixelStreaming2Servers
 
 		// Add /Public
 		FWebSocketHttpMount PublicMount;
-		PublicMount.SetPathOnDisk(ServersDir / TEXT("Public"));
+		PublicMount.SetPathOnDisk(ServersDir / TEXT("www"));
 		PublicMount.SetWebPath(FString(TEXT("/")));
 		PublicMount.SetDefaultFile(FString(TEXT("player.html")));
 		MountsArr.Add(PublicMount);

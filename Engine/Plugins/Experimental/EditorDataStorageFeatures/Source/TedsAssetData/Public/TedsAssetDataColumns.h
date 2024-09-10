@@ -149,15 +149,6 @@ struct FVirtualPathColumn_Experimental : public FEditorDataStorageColumn
 	FName VirtualPath;
 };
 
-USTRUCT(meta = (DisplayName = "Name"))
-struct FItemNameColumn_Experimental : public FEditorDataStorageColumn
-{
-	GENERATED_BODY()
-
-	UPROPERTY(meta = (Searchable))
-	FName Name;
-};
-
 USTRUCT()
 struct FItemAttributeBaseColumn_Experimental : public FEditorDataStorageColumn
 {

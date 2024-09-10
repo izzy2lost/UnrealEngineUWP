@@ -17,7 +17,7 @@ public:
 	~FHierarchyTableTimeWidgetConstructor_StartTime() override = default;
 
 protected:
-	virtual TSharedRef<SWidget> CreateInternalWidget(FHierarchyTableEntryData* EntryData) override;
+	virtual TSharedRef<SWidget> CreateInternalWidget(UHierarchyTable* HierarchyTable, int32 EntryIndex) override;
 };
 
 USTRUCT()
@@ -30,7 +30,7 @@ public:
 	~FHierarchyTableTimeWidgetConstructor_EndTime() override = default;
 
 protected:
-	virtual TSharedRef<SWidget> CreateInternalWidget(FHierarchyTableEntryData* EntryData) override;
+	virtual TSharedRef<SWidget> CreateInternalWidget(UHierarchyTable* HierarchyTable, int32 EntryIndex) override;
 };
 
 USTRUCT()
@@ -43,7 +43,7 @@ public:
 	~FHierarchyTableTimeWidgetConstructor_TimeFactor() override = default;
 
 protected:
-	virtual TSharedRef<SWidget> CreateInternalWidget(FHierarchyTableEntryData* EntryData) override;
+	virtual TSharedRef<SWidget> CreateInternalWidget(UHierarchyTable* HierarchyTable, int32 EntryIndex) override;
 };
 
 USTRUCT()
@@ -56,5 +56,5 @@ public:
 	~FHierarchyTableTimeWidgetConstructor_Preview() override = default;
 
 protected:
-	virtual TSharedRef<SWidget> CreateInternalWidget(FHierarchyTableEntryData* EntryData) override;
+	virtual TSharedRef<SWidget> CreateInternalWidget(UHierarchyTable* HierarchyTable, int32 EntryIndex) override;
 };

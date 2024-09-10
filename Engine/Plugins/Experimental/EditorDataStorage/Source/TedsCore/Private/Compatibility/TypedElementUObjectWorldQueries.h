@@ -8,24 +8,24 @@
 #include "TypedElementUObjectWorldQueries.generated.h"
 
 UCLASS()
-class UObjectWorldDataStorageFactory : public UTypedElementDataStorageFactory
+class UObjectWorldDataStorageFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UObjectWorldDataStorageFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 
 private:
 	/**
 	 * Checks rows with UObjects that don't have a world column yet if one needs to be added whenever
 	 * the row is marked for updates.
 	 */
-	void RegisterAddWorldColumn(ITypedElementDataStorageInterface& DataStorage) const;
+	void RegisterAddWorldColumn(IEditorDataStorageProvider& DataStorage) const;
 	/**
 	 * Updates the world column with the world in the UObject or removes it if there's no world associated
 	 * with the UObject anymore.
 	 */
-	void RegisterUpdateOrRemoveWorldColumn(ITypedElementDataStorageInterface& DataStorage) const;
+	void RegisterUpdateOrRemoveWorldColumn(IEditorDataStorageProvider& DataStorage) const;
 };

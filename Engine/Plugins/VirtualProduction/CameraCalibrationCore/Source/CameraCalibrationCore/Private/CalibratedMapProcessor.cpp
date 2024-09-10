@@ -214,7 +214,7 @@ void FCalibratedMapProcessor::ExecuteJob(TSharedPtr<FDerivedDistortionDataJob> J
             			RDG_EVENT_NAME("LensFileSTMapConversion"),
             			Parameters,
             			ERDGPassFlags::Compute,
-            			[Parameters, ComputeShader](FRHICommandList& RHICmdList)
+            			[Parameters, ComputeShader](FRDGAsyncTask, FRHICommandList& RHICmdList)
 						{
             				const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(Parameters->TextureSize, FComputeShaderUtils::kGolden2DGroupSize);
             				FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *Parameters, GroupCount);

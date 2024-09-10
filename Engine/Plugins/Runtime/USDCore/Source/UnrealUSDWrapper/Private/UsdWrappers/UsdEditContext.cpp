@@ -2,6 +2,7 @@
 
 #include "UsdWrappers/UsdEditContext.h"
 
+#include "USDMemory.h"
 #include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/UsdStage.h"
 

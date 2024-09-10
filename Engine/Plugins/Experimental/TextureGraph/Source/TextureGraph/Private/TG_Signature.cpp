@@ -84,6 +84,17 @@ FTG_Hash FTG_Argument::Hash(const FTG_Argument& Argument)
 	return TG_Hash(v);
 }
 
+TArray<FName> TG_MakeArrayOfArgumentNames(const FTG_Arguments& InArguments)
+{
+	TArray<FName> Names;
+	Names.Empty(InArguments.Num());
+	for (auto& Arg : InArguments)
+	{
+		Names.Add(Arg.Name);
+	}
+	return Names;
+}
+
 FTG_Hash FTG_ArgumentSet::Hash(const FTG_ArgumentSet& Set)
 {
 	FTG_Hash v = 0;

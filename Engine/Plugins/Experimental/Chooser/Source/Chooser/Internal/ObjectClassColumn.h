@@ -34,7 +34,7 @@ struct FChooserObjectClassRowData
 	bool Evaluate(const UObject* LeftHandSide) const;
 };
 
-USTRUCT()
+USTRUCT(DisplayName = "Object Class", Meta = (Category = "Filter", Tooltip = "A column which filters rows using an Object reference variable, by checking if that object is of a certain Class."))
 struct CHOOSER_API FObjectClassColumn : public FChooserColumnBase
 {
 	GENERATED_BODY()

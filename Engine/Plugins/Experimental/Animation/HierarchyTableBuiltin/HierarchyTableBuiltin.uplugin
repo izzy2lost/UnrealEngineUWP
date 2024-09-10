@@ -25,6 +25,11 @@
 			"Name": "HierarchyTableBuiltinEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "HierarchyTableBuiltinUncookedOnly",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [

@@ -19,6 +19,7 @@ public:
 
 protected:
 	//~ Begin FLiveLinkMessageBusSource interface
+	virtual void InitializeAndPushStaticData_AnyThread(FName SubjectName, TSubclassOf<ULiveLinkRole> SubjectRole, const FLiveLinkSubjectKey& SubjectKey, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context, UScriptStruct* MessageTypeInfo) override;
 	virtual void InitializeMessageEndpoint(FMessageEndpointBuilder& EndpointBuilder);
 	virtual double GetDeadSourceTimeout() const override;
 	virtual void SendConnectMessage() override;

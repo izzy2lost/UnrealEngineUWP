@@ -175,6 +175,13 @@ namespace PCGGrammar
 			}
 		}
 
+		// Finally, validate that we're back on the root, otherwise we have an mismatched module (e.g. missing its end)
+		if (CurrentModule != &Result.Root)
+		{
+			Result.AddLog(LOCTEXT("UnclosedSubmodule", "Missing module end."), FPCGGrammarResult::ELogType::Error);
+			bParseOk = false;
+		}
+
 		return bParseOk;
 	}
 

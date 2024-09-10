@@ -1824,7 +1824,7 @@ RayTracing::GeometryGroupHandle FStaticMeshSceneProxy::GetRayTracingGeometryGrou
 	return RayTracingGeometryGroupHandle;
 }
 
-void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances )
+void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (DynamicRayTracingGeometries.IsEmpty() || CVarRayTracingStaticMeshes.GetValueOnRenderThread() == 0)
 	{
@@ -1847,7 +1847,7 @@ void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 
 	if (bEvaluateWPO && CVarRayTracingStaticMeshesWPOCulling.GetValueOnRenderThread() > 0)
 	{
-		const FVector ViewCenter = Context.ReferenceView->ViewMatrices.GetViewOrigin();
+		const FVector ViewCenter = Collector.GetReferenceView()->ViewMatrices.GetViewOrigin();
 		const FVector MeshCenter = GetBounds().Origin;
 		const float CullingRadius = CVarRayTracingStaticMeshesWPOCullingRadius.GetValueOnRenderThread();
 		const float BoundingRadius = GetBounds().SphereRadius;
@@ -1862,13 +1862,13 @@ void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 
 	const int32 NumLODs = RayTracingLODs.Num();
 
-	const int32 RayTracingMinLOD = RenderData->RayTracingProxy->bUsingRenderingLODs ? FMath::Max(GetLOD(Context.ReferenceView), (int32)GetCurrentFirstLODIdx_RenderThread()) : 0;
+	const int32 RayTracingMinLOD = RenderData->RayTracingProxy->bUsingRenderingLODs ? FMath::Max(GetLOD(Collector.GetReferenceView()), (int32)GetCurrentFirstLODIdx_RenderThread()) : 0;
 
 	int32 LODIndex = RayTracingMinLOD;
 
 	if (!bEvaluateWPO)
 	{
-		Context.AddReferencedGeometryGroup(RenderData->RayTracingGeometryGroupHandle);
+		Collector.AddReferencedGeometryGroup(RenderData->RayTracingGeometryGroupHandle);
 
 		// Select first LOD with valid ray tracing geometry
 		for (; LODIndex < NumLODs; LODIndex++)
@@ -1916,7 +1916,7 @@ void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 	}
 
 	{
-		FRayTracingInstance &RayTracingInstance = OutRayTracingInstances.AddDefaulted_GetRef();
+		FRayTracingInstance RayTracingInstance;
 	
 		const int32 NumBatches = GetNumMeshBatches();
 		const int32 NumRayTracingMaterialEntries = RayTracingLOD.Sections->Num() * NumBatches;
@@ -1969,7 +1969,7 @@ void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 			// Use the shared vertex buffer - needs to be updated every frame
 			FRWBuffer* VertexBuffer = nullptr;
 
-			Context.DynamicRayTracingGeometriesToUpdate.Add(
+			Collector.AddRayTracingGeometryUpdate(
 				FRayTracingDynamicGeometryUpdateParams
 				{
 					CachedRayTracingMaterials, // TODO: this copy can be avoided if FRayTracingDynamicGeometryUpdateParams supported array views
@@ -1989,6 +1989,8 @@ void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 			RayTracingInstance.Geometry->Initializer.Segments.Num(), 
 			CachedRayTracingMaterials.Num(), 
 			LODIndex);
+
+		Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 	}
 }
 #endif

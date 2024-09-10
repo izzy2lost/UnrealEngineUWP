@@ -13,6 +13,28 @@ class PIXELSTREAMING2_API UPixelStreaming2Delegates : public UObject
 
 public:
 	/**
+	 * A connection to the signalling server was made.
+	 */
+	// BP Delegate
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FConnectedToSignallingServer, FString, StreamerId);
+	UPROPERTY(BlueprintAssignable, Category = "Pixel Streaming Delegates")
+	FConnectedToSignallingServer OnConnectedToSignallingServer;
+	// C++ Delegate
+	DECLARE_MULTICAST_DELEGATE_OneParam(FConnectedToSignallingServerNative, FString /* StreamerId */);
+	FConnectedToSignallingServerNative OnConnectedToSignallingServerNative;
+
+	/**
+	 * A connection to the signalling server was lost.
+	 */
+	// BP Delegate
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDisconnectedFromSignallingServer, FString, StreamerId);
+	UPROPERTY(BlueprintAssignable, Category = "Pixel Streaming Delegates")
+	FDisconnectedFromSignallingServer OnDisconnectedFromSignallingServer;
+	// C++ Delegate
+	DECLARE_MULTICAST_DELEGATE_OneParam(FDisconnectedFromSignallingServerNative, FString /* StreamerId */);
+	FDisconnectedFromSignallingServerNative OnDisconnectedFromSignallingServerNative;
+
+	/**
 	 * A new connection has been made to the session.
 	 */
 	// BP Delegate

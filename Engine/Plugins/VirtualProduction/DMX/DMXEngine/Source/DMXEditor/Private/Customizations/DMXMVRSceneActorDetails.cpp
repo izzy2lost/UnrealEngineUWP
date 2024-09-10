@@ -2,24 +2,22 @@
 
 #include "Customizations/DMXMVRSceneActorDetails.h"
 
-#include "MVR/DMXMVRSceneActor.h"
-#include "Library/DMXEntityFixturePatch.h"
-#include "Library/DMXEntityFixtureType.h"
-#include "Library/DMXImportGDTF.h"
-#include "Library/DMXLibrary.h"
-
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
+#include "Game/DMXComponent.h"
 #include "IPropertyUtilities.h"
 #include "ISceneOutliner.h"
 #include "LevelEditor.h"
-#include "ScopedTransaction.h"
+#include "Library/DMXEntityFixturePatch.h"
+#include "Library/DMXEntityFixtureType.h"
+#include "Library/DMXLibrary.h"
 #include "Modules/ModuleManager.h"
+#include "MVR/DMXMVRSceneActor.h"
+#include "ScopedTransaction.h"
 #include "Subsystems/EditorActorSubsystem.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SWrapBox.h"
-
 
 #define LOCTEXT_NAMESPACE "DMXMVRSceneActorDetails"
 
@@ -42,8 +40,8 @@ void FDMXMVRSceneActorDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 		}
 	}
 
-	CreateRefreshMVRSceneSection(DetailBuilder);
-	CreateGDTFToActorClassSection(DetailBuilder);
+	CreateDMXLibrarySection(DetailBuilder);
+	CreateFixtureTypeToActorClassSection(DetailBuilder);
 
 	// Listen to map and actor changes
 	FEditorDelegates::MapChange.AddSP(this, &FDMXMVRSceneActorDetails::OnMapChange);
@@ -54,24 +52,47 @@ void FDMXMVRSceneActorDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 	}
 }
 
-void FDMXMVRSceneActorDetails::CreateRefreshMVRSceneSection(IDetailLayoutBuilder& DetailBuilder)
+void FDMXMVRSceneActorDetails::CreateDMXLibrarySection(IDetailLayoutBuilder& DetailBuilder)
 {
 	IDetailCategoryBuilder& MVRCategory = DetailBuilder.EditCategory("MVR");
-
+	
+	// DMX Library
 	MVRCategory.AddProperty(DetailBuilder.GetProperty(ADMXMVRSceneActor::GetDMXLibraryPropertyNameChecked()));
+
+	// Write Transforms to DMX Library button
+	MVRCategory.AddCustomRow(LOCTEXT("WriteTransformsFilterText", "Write Transforms to DMX Library"))
+		[
+			SNew(SBorder)
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Center)
+			.Padding(8.f, 1.f, 0.f, 1.f)
+			.BorderImage(FAppStyle::GetBrush("NoBorder"))
+			[
+				SNew(SButton)
+				.Text(LOCTEXT("WriteTransformsToDMXLibraryCaption", "Write Transforms to DMX Library"))
+				.ToolTipText(LOCTEXT("WriteTransformsToDMXLibraryTooltip", "Sets the transform of the Fixture Actors as Default Transforms for the Fixture Patches.\n\nThe transforms will be used when the DMX Library is spawned in another level.\nThe transforms will be used when the DMX Library is exported as MVR."))
+				.OnClicked(this, &FDMXMVRSceneActorDetails::OnWriteTransformsToDMXLibraryClicked)
+			]
+		];
+
+	// Refresh from DMX Library button
 	MVRCategory.AddCustomRow(LOCTEXT("RefreshSceneFilterText", "Refresh from DMX Library"))
 		.WholeRowContent()
 		[			
 			SNew(SBorder)
-			.Padding(8.f, 0.f, 0.f, 0.f)
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Center)
+			.Padding(8.f, 1.f, 0.f, 1.f)
 			.BorderImage(FAppStyle::GetBrush("NoBorder"))
 			[
 				SNew(SButton)
-				.Text(LOCTEXT("RefreshActorsFromDMXLibraryButtonCaption", "Update Actors from DMX Library"))
+				.Text(LOCTEXT("RefreshActorsFromDMXLibraryCaption", "Refresh Actors from DMX Library"))
+				.ToolTipText(LOCTEXT("RefreshActorsFromDMXLibraryTooltip", "Updates the MVR Scene to reflect the DMX Library, possibly respwaning deleted actors and reseting to default transforms according to options."))
 				.OnClicked(this, &FDMXMVRSceneActorDetails::OnRefreshActorsFromDMXLibraryClicked)
 			]
 		];
 
+	// Respawn Deleted Actors option
 	const TSharedRef<IPropertyHandle> RespawnDeletedActorHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ADMXMVRSceneActor, bRespawnDeletedActorsOnRefresh));
 	RespawnDeletedActorHandle->MarkHiddenByCustomization();
 	MVRCategory.AddCustomRow(LOCTEXT("RespawnDeletedActorsFilterText", "Respawn Deleted Actors"))
@@ -89,6 +110,7 @@ void FDMXMVRSceneActorDetails::CreateRefreshMVRSceneSection(IDetailLayoutBuilder
 			RespawnDeletedActorHandle->CreatePropertyValueWidget()
 		];
 	
+	// Reset Transforms option
 	const TSharedRef<IPropertyHandle> UpdateTransformHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ADMXMVRSceneActor, bUpdateTransformsOnRefresh));
 	UpdateTransformHandle->MarkHiddenByCustomization();
 	MVRCategory.AddCustomRow(LOCTEXT("ResetTransformsFilterText", "Reset Transforms"))
@@ -107,52 +129,57 @@ void FDMXMVRSceneActorDetails::CreateRefreshMVRSceneSection(IDetailLayoutBuilder
 		];
 }
 
-void FDMXMVRSceneActorDetails::CreateGDTFToActorClassSection(IDetailLayoutBuilder& DetailBuilder)
+void FDMXMVRSceneActorDetails::CreateFixtureTypeToActorClassSection(IDetailLayoutBuilder& DetailBuilder)
 {
-	IDetailCategoryBuilder& ActorTypeForGDTFCategory = DetailBuilder.EditCategory("GDTF to Spawned Actor");
-	ActorTypeForGDTFCategory.InitiallyCollapsed(false);
+	IDetailCategoryBuilder& ActorTypeForFixtureTypeCategory = DetailBuilder.EditCategory("Fixture Type to Spawned Actor");
+	ActorTypeForFixtureTypeCategory.InitiallyCollapsed(false);
 
-	const TSharedRef<IPropertyHandle> GDTFToDefaultActorClassesHandle = DetailBuilder.GetProperty(ADMXMVRSceneActor::GetGDTFToDefaultActorClassesPropertyNameChecked());
-	GDTFToDefaultActorClassesHandle->MarkHiddenByCustomization();
+	const TSharedRef<IPropertyHandle> FixtureTypeToActorClassesHandle = DetailBuilder.GetProperty(ADMXMVRSceneActor::GetFixtureTypeToActorClassesPropertyNameChecked());
+	FixtureTypeToActorClassesHandle->MarkHiddenByCustomization();
 
-	const TSharedPtr<IPropertyHandleArray> GDTFToDefaultActorClassHandleArray = GDTFToDefaultActorClassesHandle->AsArray();
-	FSimpleDelegate GDTFToDefaultActorClassArrayChangedDelegate = FSimpleDelegate::CreateSP(this, &FDMXMVRSceneActorDetails::RequestRefresh);
-	GDTFToDefaultActorClassHandleArray->SetOnNumElementsChanged(GDTFToDefaultActorClassArrayChangedDelegate);
+	const TSharedPtr<IPropertyHandleArray> FixtureTypeToActorClassesHandleArray = FixtureTypeToActorClassesHandle->AsArray();
+	FixtureTypeToActorClassesHandleArray->SetOnNumElementsChanged(FSimpleDelegate::CreateSP(this, &FDMXMVRSceneActorDetails::RequestRefresh));
 
-	uint32 NumGDTFToDefaultActorClassElements;
-	if (!ensure(GDTFToDefaultActorClassHandleArray->GetNumElements(NumGDTFToDefaultActorClassElements) == FPropertyAccess::Success))
+	uint32 NumFixtureTypeToActorClassElements;
+	if (!ensure(FixtureTypeToActorClassesHandleArray->GetNumElements(NumFixtureTypeToActorClassElements) == FPropertyAccess::Success))
 	{
 		return;
 	}
 
-	for (uint32 GDTFToDefaultActorClassElementIndex = 0; GDTFToDefaultActorClassElementIndex < NumGDTFToDefaultActorClassElements; GDTFToDefaultActorClassElementIndex++)
+	for (uint32 FixtureTypeToActorClassElementIndex = 0; FixtureTypeToActorClassElementIndex < NumFixtureTypeToActorClassElements; FixtureTypeToActorClassElementIndex++)
 	{
-		const TSharedPtr<IPropertyHandle> GDTFToDefaultActorClassHandle = GDTFToDefaultActorClassHandleArray->GetElement(GDTFToDefaultActorClassElementIndex);
-		const TSharedPtr<IPropertyHandle> GDTFHandle = GDTFToDefaultActorClassHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FDMXMVRSceneGDTFToActorClassPair, GDTF));
-		DefaultActorClassHandle = GDTFToDefaultActorClassHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FDMXMVRSceneGDTFToActorClassPair, ActorClass));
-		DefaultActorClassHandle->SetOnChildPropertyValuePreChange(FSimpleDelegate::CreateSP(this, &FDMXMVRSceneActorDetails::OnPreEditChangeActorClassInGDTFToActorClasses));
-		DefaultActorClassHandle->SetOnChildPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXMVRSceneActorDetails::OnPostEditChangeActorClassInGDTFToActorClasses));
+		const TSharedPtr<IPropertyHandle> FixtureTypeToActorClassHandle = FixtureTypeToActorClassesHandleArray->GetElement(FixtureTypeToActorClassElementIndex);
+		const TSharedPtr<IPropertyHandle> FixtureTypeHandle = FixtureTypeToActorClassHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FDMXMVRSceneFixtureTypeToActorClassPair, FixtureType));
+		TSharedPtr<IPropertyHandle> ActorClassHandle = FixtureTypeToActorClassHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FDMXMVRSceneFixtureTypeToActorClassPair, ActorClass));
+		ActorClassHandle->SetOnChildPropertyValuePreChange(FSimpleDelegate::CreateSP(this, &FDMXMVRSceneActorDetails::OnPreEditChangeActorClassInFixtureTypeToActorClasses));
+		ActorClassHandle->SetOnChildPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXMVRSceneActorDetails::OnPostEditChangeActorClassInFixtureTypeToActorClasses));
 
-		UObject* GDTFObject;
-		if (!GDTFHandle->GetValue(GDTFObject))
+		UObject* FixtureTypeObject = nullptr;
+		if (!FixtureTypeHandle->GetValue(FixtureTypeObject))
 		{
 			return;
 		}
-		UDMXImportGDTF* GDTF = Cast<UDMXImportGDTF>(GDTFObject);
-		if (!GDTF)
+
+		UDMXEntityFixtureType* FixtureType = Cast<UDMXEntityFixtureType>(FixtureTypeObject);
+		if (!FixtureType)
 		{
 			continue;
 		}
 
-		if (!IsAnyActorUsingGDTF(GDTF))
-		{
-			continue;
-		}
-
-		ActorTypeForGDTFCategory.AddCustomRow(LOCTEXT("GDTFToDefaultActorClassFilter", "GDTF"))
+		ActorTypeForFixtureTypeCategory.AddCustomRow(LOCTEXT("FixtureTypeToActorClassFilter", "Fixture Type to Spawned Actor"))
 		.NameContent()
 		[
-			GDTFHandle->CreatePropertyValueWidget()
+			SNew(STextBlock)
+			.Font(DetailBuilder.GetDetailFont())
+			.Text_Lambda([WeakFixtureType = TWeakObjectPtr<UDMXEntityFixtureType>(FixtureType)]()
+				{
+					if (WeakFixtureType.IsValid())
+					{
+						return FText::FromString(WeakFixtureType.Get()->Name);
+					}
+					
+					return LOCTEXT("InvalidFixtureTypeName", "Invalid Fixture Type");
+				})
 		]
 		.ValueContent()
 		[
@@ -160,14 +187,14 @@ void FDMXMVRSceneActorDetails::CreateGDTFToActorClassSection(IDetailLayoutBuilde
 
 			+ SWrapBox::Slot()
 			[
-				DefaultActorClassHandle->CreatePropertyValueWidget()
+				ActorClassHandle->CreatePropertyValueWidget()
 			]
 
 			+ SWrapBox::Slot()
 			[
 				SNew(SButton)
-				.OnClicked(this, &FDMXMVRSceneActorDetails::OnSelectGDTFToActorClassGroupClicked, GDTFObject)
-				.Text(LOCTEXT("SelectGDTFGroupButtonCaption", "Select"))
+				.OnClicked(this, &FDMXMVRSceneActorDetails::OnFixtureTypeToActorClassGroupSelected, FixtureTypeObject)
+				.Text(LOCTEXT("SelectFixtureTypeGroupButtonCaption", "Select"))
 			]
 		];
 	}
@@ -175,13 +202,21 @@ void FDMXMVRSceneActorDetails::CreateGDTFToActorClassSection(IDetailLayoutBuilde
 
 FReply FDMXMVRSceneActorDetails::OnRefreshActorsFromDMXLibraryClicked()
 {
-	const TArray<TWeakObjectPtr<UObject>> SelectedObjects = PropertyUtilities->GetSelectedObjects();
+	const FScopedTransaction RefreshActorsFromDMXLibraryTransaction(LOCTEXT("RefreshActorsFromDMXLibraryTransaction", "Update MVR Scene form DMX Library"));
 
-	for (TWeakObjectPtr<UObject> SelectedObject : SelectedObjects)
+	const TArray<TWeakObjectPtr<UObject>> SelectedObjects = PropertyUtilities->GetSelectedObjects();
+	
+	AActor* FirstActor = SelectedObjects.IsEmpty() ? nullptr : Cast<AActor>(SelectedObjects[0]);
+	UWorld* World = FirstActor ? FirstActor->GetWorld() : nullptr;
+	if (World)
+	{
+		World->PreEditChange(nullptr);
+	}
+	
+	for (const TWeakObjectPtr<UObject>& SelectedObject : SelectedObjects)
 	{
 		if (ADMXMVRSceneActor* MVRSceneActor = Cast<ADMXMVRSceneActor>(SelectedObject.Get()))
 		{
-			const FScopedTransaction RefreshActorsFromDMXLibraryTransaction(LOCTEXT("RefreshActorsFromDMXLibraryTransaction", "Update MVR Scene form DMX Library"));
 			MVRSceneActor->PreEditChange(ADMXMVRSceneActor::StaticClass()->FindPropertyByName(ADMXMVRSceneActor::GetRelatedAcctorsPropertyNameChecked()));
 
 			MVRSceneActor->RefreshFromDMXLibrary();
@@ -190,29 +225,90 @@ FReply FDMXMVRSceneActorDetails::OnRefreshActorsFromDMXLibraryClicked()
 		}
 	}
 
+	if (World)
+	{
+		World->PostEditChange();
+	}
+
+	RequestRefresh();
+
 	return FReply::Handled();
 }
 
-FReply FDMXMVRSceneActorDetails::OnSelectGDTFToActorClassGroupClicked(UObject* GDTFObject)
+FReply FDMXMVRSceneActorDetails::OnWriteTransformsToDMXLibraryClicked()
 {
-	UDMXImportGDTF* GDTF = Cast<UDMXImportGDTF>(GDTFObject);
-	if (!GDTF)
+	const FScopedTransaction WriteTransformsToDMXLibraryTransaction(LOCTEXT("WriteTransformsToDMXLibraryTransaction", "Write MVR Scene Transforms to DMX Library"));
+
+	const TArray<TWeakObjectPtr<UObject>> SelectedObjects = PropertyUtilities->GetSelectedObjects();
+	for (const TWeakObjectPtr<UObject>& SelectedObject : SelectedObjects)
+	{
+		ADMXMVRSceneActor* MVRSceneActor = Cast<ADMXMVRSceneActor>(SelectedObject.Get());
+		UDMXLibrary* DMXLibrary = MVRSceneActor ? MVRSceneActor->GetDMXLibrary() : nullptr;
+
+		if (!MVRSceneActor || !DMXLibrary)
+		{
+			continue;
+		}
+
+		const TArray<TSoftObjectPtr<AActor>> SoftRelatedActors = MVRSceneActor->GetRelatedActors();
+		for (const TSoftObjectPtr<AActor>& SoftRelatedActor : SoftRelatedActors)
+		{
+			if (!SoftRelatedActor.IsValid())
+			{
+				continue;
+			}
+			AActor* RelatedActor = SoftRelatedActor.Get();
+			UDMXEntityFixturePatch* FixturePatch = GetFixturePatchFromActor(RelatedActor);
+
+			if (FixturePatch)
+			{
+				FixturePatch->PreEditChange(nullptr);
+				FixturePatch->SetDefaultTransform(RelatedActor->GetTransform());
+				FixturePatch->PostEditChange();
+			}
+		}
+	}
+
+	RequestRefresh();
+
+	return FReply::Handled();
+}
+
+UDMXEntityFixturePatch* FDMXMVRSceneActorDetails::GetFixturePatchFromActor(AActor* Actor) const
+{
+	TArray<UDMXComponent*> DMXComponents;
+	Actor->GetComponents<UDMXComponent>(DMXComponents);
+	if (!ensureAlwaysMsgf(!DMXComponents.IsEmpty(), TEXT("Cannot find DMX component for Actor '%s'. Cannot get Fixture Patch from Actor."), *Actor->GetName()))
+	{
+		return nullptr;
+	}
+	ensureAlwaysMsgf(DMXComponents.Num() == 1, TEXT("Actor '%s' has more than one DMX component. A single DMX component is required to clearly identify the fixture. Cannot get Fixture Patch from Actor."), *Actor->GetName());
+
+	UDMXEntityFixturePatch* FixturePatch = DMXComponents[0]->GetFixturePatch();
+
+	return FixturePatch;
+}
+
+FReply FDMXMVRSceneActorDetails::OnFixtureTypeToActorClassGroupSelected(UObject* FixtureTypeObject)
+{
+	UDMXEntityFixtureType* FixtureType = Cast<UDMXEntityFixtureType>(FixtureTypeObject);
+	if (!FixtureType)
 	{
 		return FReply::Unhandled();
 	}
 
 	const TArray<TWeakObjectPtr<UObject>> SelectedObjects = PropertyUtilities->GetSelectedObjects();
 
-	for (TWeakObjectPtr<UObject> SelectedObject : SelectedObjects)
+	for (const TWeakObjectPtr<UObject>& SelectedObject : SelectedObjects)
 	{
 		if (ADMXMVRSceneActor* MVRSceneActor = Cast<ADMXMVRSceneActor>(SelectedObject.Get()))
 		{
-			const TArray<AActor*> ActorsForThisGDTF = MVRSceneActor->GetActorsSpawnedForGDTF(GDTF);
+			const TArray<AActor*> ActorsForThisFixtureType = MVRSceneActor->GetActorsSpawnedForFixtureType(FixtureType);
 			UEditorActorSubsystem* EditorActorSubsystem = GEditor->GetEditorSubsystem<UEditorActorSubsystem>();
 
 			if (EditorActorSubsystem)
 			{
-				EditorActorSubsystem->SetSelectedLevelActors(ActorsForThisGDTF);
+				EditorActorSubsystem->SetSelectedLevelActors(ActorsForThisFixtureType);
 			}
 		}
 	}
@@ -248,18 +344,18 @@ void FDMXMVRSceneActorDetails::OnActorDeleted(AActor* DeletedActor)
 	RequestRefresh();
 }
 
-void FDMXMVRSceneActorDetails::OnPreEditChangeActorClassInGDTFToActorClasses()
+void FDMXMVRSceneActorDetails::OnPreEditChangeActorClassInFixtureTypeToActorClasses()
 {
 	for (TWeakObjectPtr<ADMXMVRSceneActor> WeakMVRSceneActor : OuterSceneActors)
 	{
 		if (ADMXMVRSceneActor* MVRSceneActor = WeakMVRSceneActor.Get())
 		{
-			MVRSceneActor->PreEditChange(FDMXMVRSceneGDTFToActorClassPair::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FDMXMVRSceneGDTFToActorClassPair, ActorClass)));
+			MVRSceneActor->PreEditChange(FDMXMVRSceneFixtureTypeToActorClassPair::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FDMXMVRSceneFixtureTypeToActorClassPair, ActorClass)));
 		}
 	}
 }
 
-void FDMXMVRSceneActorDetails::OnPostEditChangeActorClassInGDTFToActorClasses()
+void FDMXMVRSceneActorDetails::OnPostEditChangeActorClassInFixtureTypeToActorClasses()
 {
 	for (TWeakObjectPtr<ADMXMVRSceneActor> WeakMVRSceneActor : OuterSceneActors)
 	{
@@ -268,19 +364,6 @@ void FDMXMVRSceneActorDetails::OnPostEditChangeActorClassInGDTFToActorClasses()
 			MVRSceneActor->PostEditChange();
 		}
 	}
-}
-
-bool FDMXMVRSceneActorDetails::IsAnyActorUsingGDTF(const UDMXImportGDTF* GDTF) const
-{
-	const TArray<TWeakObjectPtr<UObject>> SelectedObjects = PropertyUtilities->GetSelectedObjects();
-	for (TWeakObjectPtr<UObject> SelectedObject : SelectedObjects)
-	{
-		if (ADMXMVRSceneActor* MVRSceneActor = Cast<ADMXMVRSceneActor>(SelectedObject.Get()))
-		{
-			return !MVRSceneActor->GetActorsSpawnedForGDTF(GDTF).IsEmpty();
-		}
-	}
-	return false;
 }
 
 void FDMXMVRSceneActorDetails::RequestRefresh()

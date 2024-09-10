@@ -35,22 +35,22 @@ namespace HarmonixMetasound
 		FMidiVoiceId VoiceId;
 	};
 
-	class HARMONIXMETASOUND_API FMidiStream
+	class FMidiStream
 	{
 	public:
-		void SetClock(const FMidiClock& InClock);
-		void ResetClock();
-		TSharedPtr<const FMidiClock, ESPMode::NotThreadSafe> GetClock() const;
+		HARMONIXMETASOUND_API void SetClock(const FMidiClock& InClock);
+		HARMONIXMETASOUND_API void ResetClock();
+		HARMONIXMETASOUND_API TSharedPtr<const FMidiClock, ESPMode::NotThreadSafe> GetClock() const;
 
-		void PrepareBlock();
+		HARMONIXMETASOUND_API void PrepareBlock();
 
-		void AddMidiEvent(const FMidiStreamEvent& Event);
-		void InsertMidiEvent(const FMidiStreamEvent& Event);
-		void AddNoteOffEventOrCancelPendingNoteOn(const FMidiStreamEvent& Event);
-		void InsertNoteOffEventOrCancelPendingNoteOn(const FMidiStreamEvent& Event);
+		HARMONIXMETASOUND_API void AddMidiEvent(const FMidiStreamEvent& Event);
+		HARMONIXMETASOUND_API void InsertMidiEvent(const FMidiStreamEvent& Event);
+		HARMONIXMETASOUND_API void AddNoteOffEventOrCancelPendingNoteOn(const FMidiStreamEvent& Event);
+		HARMONIXMETASOUND_API void InsertNoteOffEventOrCancelPendingNoteOn(const FMidiStreamEvent& Event);
 
 		void SetMidiFile(const FMidiFileProxyPtr& MidiFile) { MidiFileSourceOfEvents = MidiFile; }
-		const FString* GetMidiTrackText(int32 TrackNumber, int32 TextIndex) const;
+		HARMONIXMETASOUND_API const FString* GetMidiTrackText(int32 TrackNumber, int32 TextIndex) const;
 
 
 		const TArray<FMidiStreamEvent>& GetEventsInBlock() const
@@ -67,26 +67,26 @@ namespace HarmonixMetasound
 		using FEventTransformer = TFunction<FMidiStreamEvent(const FMidiStreamEvent&)>;
 		inline static const FEventTransformer NoOpTransformer = [](const FMidiStreamEvent& Event) { return Event; };
 		
-		static void Copy(
+		static HARMONIXMETASOUND_API void Copy(
 			const FMidiStream& From,
 			FMidiStream& To,
 			const FEventFilter& Filter = NoOpFilter,
 			const FEventTransformer& Transformer = NoOpTransformer);
 
-		static void Merge(
+		static HARMONIXMETASOUND_API void Merge(
 			const FMidiStream& From,
 			FMidiStream& To,
 			const FEventFilter& Filter = NoOpFilter,
 			const FEventTransformer& Transformer = NoOpTransformer);
 		
-		static void Merge(
+		static HARMONIXMETASOUND_API void Merge(
 			const FMidiStream& FromA,
 			const FMidiStream& FromB,
 			FMidiStream& To,
 			const FEventFilter& Filter = NoOpFilter,
 			const FEventTransformer& Transformer = NoOpTransformer);
 
-		bool NoteIsActive(const FMidiStreamEvent& Event) const;
+		HARMONIXMETASOUND_API bool NoteIsActive(const FMidiStreamEvent& Event) const;
 
 	private:
 		FMidiFileProxyPtr MidiFileSourceOfEvents;

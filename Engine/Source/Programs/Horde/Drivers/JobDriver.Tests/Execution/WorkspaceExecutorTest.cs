@@ -28,7 +28,7 @@ using EpicGames.Horde.Tools;
 namespace JobDriver.Tests.Execution
 {
 	[TestClass]
-	public sealed class WorkspaceExecutorTest : IAsyncDisposable
+	public sealed class WorkspaceExecutorTest : IDisposable
 	{
 		class FakeHordeClient : IHordeClient
 		{
@@ -87,6 +87,7 @@ namespace JobDriver.Tests.Execution
 				=> new Uri("http://fake-horde-server");
 
 			public IArtifactCollection Artifacts => throw new NotImplementedException();
+			public IComputeClient Compute => throw new NotImplementedException();
 			public IProjectCollection Projects => throw new NotImplementedException();
 			public ISecretCollection Secrets => throw new NotImplementedException();
 			public IToolCollection Tools => throw new NotImplementedException();
@@ -112,11 +113,8 @@ namespace JobDriver.Tests.Execution
 			public IServerLogger CreateServerLogger(LogId logId, LogLevel minimumLevel = LogLevel.Information)
 				=> throw new NotImplementedException();
 
-			public IStorageClient CreateStorageClient(string relativePath, string? accessToken = null)
+			public IStorageNamespace GetStorageNamespace(string relativePath, string? accessToken = null)
 				=> throw new NotImplementedException();
-
-			public ValueTask DisposeAsync()
-				=> default;
 
 			public Task<string?> GetAccessTokenAsync(bool interactive, CancellationToken cancellationToken = default)
 				=> Task.FromResult<string?>("access-token");
@@ -163,10 +161,9 @@ namespace JobDriver.Tests.Execution
 			_executor = new(executorOptions, _workspace, null, NullLogger.Instance);
 		}
 
-		public async ValueTask DisposeAsync()
+		public void Dispose()
 		{
 			_executor.Dispose();
-			await _hordeClient.DisposeAsync();
 			_workspace.Dispose();
 			_autoSdkWorkspace.Dispose();
 		}

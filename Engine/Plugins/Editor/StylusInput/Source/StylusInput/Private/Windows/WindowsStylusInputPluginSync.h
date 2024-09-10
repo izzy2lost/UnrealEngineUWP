@@ -13,8 +13,8 @@ namespace UE::StylusInput::Private::Windows
 	class FWindowsStylusInputPluginSync final : public IStylusSyncPlugin, public FWindowsStylusInputPluginBase
 	{
 	public:
-		FWindowsStylusInputPluginSync(FGetWindowContextCallback&& GetWindowContext, FUpdateTabletContextsCallback&& UpdateTabletContextsCallback,
-		                              IStylusInputEventHandler* EventHandler);
+		FWindowsStylusInputPluginSync(IStylusInputInstance* Instance, FGetWindowContextCallback&& GetWindowContext,
+		                              FUpdateTabletContextsCallback&& UpdateTabletContextsCallback, IStylusInputEventHandler* EventHandler);
 		~FWindowsStylusInputPluginSync();
 		
 		HRESULT CreateFreeThreadMarshaler();

@@ -5,7 +5,7 @@
 #include "HierarchyTable/Widgets/OverrideWidgetConstructor.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 
-void UHierarchyTableOverrideFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const
+void UHierarchyTableOverrideFactory::RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage, IEditorDataStorageUiProvider& DataStorageUi) const
 {
 	using namespace UE::Editor::DataStorage::Queries;
 

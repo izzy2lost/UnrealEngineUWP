@@ -257,7 +257,7 @@ TSharedPtr<WorldHierarchy::FWorldBrowserDragDropOp> FStreamingLevelCollectionMod
 	}
 }
 
-void FStreamingLevelCollectionModel::BuildHierarchyMenu(FMenuBuilder& InMenuBuilder) const
+void FStreamingLevelCollectionModel::BuildHierarchyMenu(FMenuBuilder& InMenuBuilder, EBuildHierarchyMenuFlags Flags) const
 {
 	const FLevelCollectionCommands& Commands = FLevelCollectionCommands::Get();
 
@@ -281,11 +281,21 @@ void FStreamingLevelCollectionModel::BuildHierarchyMenu(FMenuBuilder& InMenuBuil
 			InMenuBuilder.AddMenuEntry( Commands.World_MakeLevelCurrent );
 		}
 		
-		// Visibility commands
+		// Editor Visibility commands
 		InMenuBuilder.AddSubMenu( 
-			LOCTEXT("VisibilityHeader", "Visibility"),
-			LOCTEXT("VisibilitySubMenu_ToolTip", "Selected Level(s) visibility commands"),
-			FNewMenuDelegate::CreateSP(const_cast<FStreamingLevelCollectionModel*>(this), &FStreamingLevelCollectionModel::FillVisibilitySubMenu ) );
+			LOCTEXT("EditorVisibilityHeader", "Visibility in Editor"),
+			LOCTEXT("EditorVisibilitySubMenu_ToolTip", "Selected Level(s) visibility commands for editor worlds"),
+			FNewMenuDelegate::CreateSP(const_cast<FStreamingLevelCollectionModel*>(this), &FStreamingLevelCollectionModel::FillEditorVisibilitySubMenu ) );
+		
+		// Game Visibility commands
+		if (EnumHasAnyFlags(Flags, EBuildHierarchyMenuFlags::ShowGameVisibility))
+		{
+			InMenuBuilder.AddSubMenu( 
+				LOCTEXT("GameVisibilityHeader", "Visibility in Game"),
+				LOCTEXT("GameVisibilitySubMenu_ToolTip", "Selected Level(s) visibility commands for game worlds"),
+				FNewMenuDelegate::CreateSP(const_cast<FStreamingLevelCollectionModel*>(this), &FStreamingLevelCollectionModel::FillGameVisibilitySubMenu ) );
+		}
+		
 
 		// Lock commands
 		InMenuBuilder.AddSubMenu( 
@@ -543,7 +553,8 @@ void FStreamingLevelCollectionModel::MergeSelectedLevels_Executed()
 	FLevelModelList SelectedLevelsCopy = SelectedLevelsList;
 
 	//make sure the selected levels are made visible (and thus fully loaded) before merging
-	ShowSelectedLevels_Executed();
+	ShowInEditorSelectedLevels_Executed();
+	ShowInGameSelectedLevels_Executed();
 
 	//restore the original selection and select all actors in the selected levels
 	SetSelectedLevels(SelectedLevelsCopy);

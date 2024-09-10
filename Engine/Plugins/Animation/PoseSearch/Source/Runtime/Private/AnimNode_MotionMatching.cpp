@@ -62,6 +62,7 @@ void FAnimNode_MotionMatching::Evaluate_AnyThread(FPoseContext& Output)
 		RootMotionProvider = nullptr;
 	}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// applying MotionMatchingState.ComponentDeltaYaw (considered as root bone delta yaw) to the root bone and the root motion delta transform
 	if (!FMath::IsNearlyZero(MotionMatchingState.ComponentDeltaYaw))
 	{
@@ -84,6 +85,7 @@ void FAnimNode_MotionMatching::Evaluate_AnyThread(FPoseContext& Output)
 	}
 
 	MotionMatchingState.AnimationDeltaYaw = FRotator(RootMotionTransformDelta.GetRotation()).Yaw;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& Context)

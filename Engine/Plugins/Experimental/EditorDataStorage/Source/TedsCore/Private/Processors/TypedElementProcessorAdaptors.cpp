@@ -70,7 +70,7 @@ namespace UE::Editor::DataStorage
 				for (int32 Index = 0; Index < TypeCount; ++Index)
 				{
 					checkf(ColumnTypes->IsValid(), TEXT("Attempting to retrieve a column that is not available."));
-					*RetrievedAddresses = *AccessTypes == ITypedElementDataStorageInterface::EQueryAccessType::ReadWrite
+					*RetrievedAddresses = *AccessTypes == IEditorDataStorageProvider::EQueryAccessType::ReadWrite
 						? reinterpret_cast<char*>(Context.GetMutableFragmentView(ColumnTypes->Get()).GetData())
 						: const_cast<char*>(reinterpret_cast<const char*>(Context.GetFragmentView(ColumnTypes->Get()).GetData()));
 
@@ -614,7 +614,7 @@ namespace UE::Editor::DataStorage
 			}
 		};
 
-		struct FMassDirectContextForwarder final : public ITypedElementDataStorageInterface::IDirectQueryContext
+		struct FMassDirectContextForwarder final : public IEditorDataStorageProvider::IDirectQueryContext
 		{
 			FMassDirectContextForwarder(FMassExecutionContext& InContext, FEnvironment& InEnvironment)
 				: Implementation(InContext, InEnvironment)
@@ -633,7 +633,7 @@ namespace UE::Editor::DataStorage
 			FMassContextCommon Implementation;
 		};
 
-		struct FMassSubqueryContextForwarder  : public ITypedElementDataStorageInterface::ISubqueryContext
+		struct FMassSubqueryContextForwarder  : public IEditorDataStorageProvider::ISubqueryContext
 		{
 			FMassSubqueryContextForwarder(FMassExecutionContext& InContext, FEnvironment& InEnvironment)
 				: Implementation(InContext, InEnvironment)
@@ -673,7 +673,7 @@ namespace UE::Editor::DataStorage
 		struct FMassQueryContextImplementation final : FMassWithEnvironmentContextCommon
 		{
 			FMassQueryContextImplementation(
-				ITypedElementDataStorageInterface::FQueryDescription& InQueryDescription,
+				IEditorDataStorageProvider::FQueryDescription& InQueryDescription,
 				FMassExecutionContext& InContext, 
 				FExtendedQueryStore& InQueryStore,
 				FEnvironment& InEnvironment)
@@ -697,7 +697,7 @@ namespace UE::Editor::DataStorage
 			}
 	
 			void GetDependencies(TArrayView<UObject*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UClass>> SubsystemTypes,
-				TConstArrayView<ITypedElementDataStorageInterface::EQueryAccessType> AccessTypes)
+				TConstArrayView<IEditorDataStorageProvider::EQueryAccessType> AccessTypes)
 			{
 				checkf(RetrievedAddresses.Num() == SubsystemTypes.Num(), TEXT("Unable to retrieve a batch of subsystem as the number of addresses "
 					"doesn't match the number of requested subsystem types."));
@@ -706,12 +706,12 @@ namespace UE::Editor::DataStorage
 			}
 
 			void GetDependenciesUnguarded(int32 SubsystemCount, UObject** RetrievedAddresses, const TWeakObjectPtr<const UClass>* DependencyTypes,
-				const ITypedElementDataStorageInterface::EQueryAccessType* AccessTypes)
+				const IEditorDataStorageProvider::EQueryAccessType* AccessTypes)
 			{
 				for (int32 Index = 0; Index < SubsystemCount; ++Index)
 				{
 					checkf(DependencyTypes->IsValid(), TEXT("Attempting to retrieve a subsystem that's no longer valid."));
-					*RetrievedAddresses = *AccessTypes == ITypedElementDataStorageInterface::EQueryAccessType::ReadWrite
+					*RetrievedAddresses = *AccessTypes == IEditorDataStorageProvider::EQueryAccessType::ReadWrite
 						? Context.GetMutableSubsystem<USubsystem>(const_cast<UClass*>(DependencyTypes->Get()))
 						: const_cast<USubsystem*>(Context.GetSubsystem<USubsystem>(const_cast<UClass*>(DependencyTypes->Get())));
 
@@ -772,14 +772,14 @@ namespace UE::Editor::DataStorage
 				}
 			}
 	
-			ITypedElementDataStorageInterface::FQueryDescription& QueryDescription;
+			IEditorDataStorageProvider::FQueryDescription& QueryDescription;
 			FExtendedQueryStore& QueryStore;
 		};
 
-		struct FMassContextForwarder final : public ITypedElementDataStorageInterface::IQueryContext
+		struct FMassContextForwarder final : public IEditorDataStorageProvider::IQueryContext
 		{
 			FMassContextForwarder(
-				ITypedElementDataStorageInterface::FQueryDescription& InQueryDescription,
+				IEditorDataStorageProvider::FQueryDescription& InQueryDescription,
 				FMassExecutionContext& InContext, 
 				FExtendedQueryStore& InQueryStore,
 				FEnvironment& InEnvironment)
@@ -840,11 +840,11 @@ namespace UE::Editor::DataStorage
 	}
 
 	void FPhasePreOrPostAmbleExecutor::ExecuteQuery(
-		ITypedElementDataStorageInterface::FQueryDescription& Description,
+		IEditorDataStorageProvider::FQueryDescription& Description,
 		FExtendedQueryStore& QueryStore,
 		FEnvironment& Environment,
 		FMassEntityQuery& NativeQuery,
-		ITypedElementDataStorageInterface::QueryCallbackRef Callback)
+		IEditorDataStorageProvider::QueryCallbackRef Callback)
 	{
 		if (Description.Callback.ActivationCount > 0)
 		{
@@ -917,17 +917,17 @@ bool FTypedElementQueryProcessorData::CommonQueryConfiguration(
 	return false;
 }
 
-EMassProcessingPhase FTypedElementQueryProcessorData::MapToMassProcessingPhase(ITypedElementDataStorageInterface::EQueryTickPhase Phase)
+EMassProcessingPhase FTypedElementQueryProcessorData::MapToMassProcessingPhase(IEditorDataStorageProvider::EQueryTickPhase Phase)
 {
 	switch(Phase)
 	{
-	case ITypedElementDataStorageInterface::EQueryTickPhase::PrePhysics:
+	case IEditorDataStorageProvider::EQueryTickPhase::PrePhysics:
 		return EMassProcessingPhase::PrePhysics;
-	case ITypedElementDataStorageInterface::EQueryTickPhase::DuringPhysics:
+	case IEditorDataStorageProvider::EQueryTickPhase::DuringPhysics:
 		return EMassProcessingPhase::DuringPhysics;
-	case ITypedElementDataStorageInterface::EQueryTickPhase::PostPhysics:
+	case IEditorDataStorageProvider::EQueryTickPhase::PostPhysics:
 		return EMassProcessingPhase::PostPhysics;
-	case ITypedElementDataStorageInterface::EQueryTickPhase::FrameEnd:
+	case IEditorDataStorageProvider::EQueryTickPhase::FrameEnd:
 		return EMassProcessingPhase::FrameEnd;
 	default:
 		checkf(false, TEXT("Query tick phase '%i' is unsupported."), static_cast<int>(Phase));
@@ -954,8 +954,8 @@ void FTypedElementQueryProcessorData::DebugOutputDescription(FOutputDevice& Ar, 
 
 	if (const FExtendedQuery* StoredQuery = QueryStore ? QueryStore->Get(ParentQuery) : nullptr)
 	{
-		const ITypedElementDataStorageInterface::FQueryDescription& Description = StoredQuery->Description;
-		const ITypedElementDataStorageInterface::FQueryDescription::FCallbackData& Callback = Description.Callback;
+		const IEditorDataStorageProvider::FQueryDescription& Description = StoredQuery->Description;
+		const IEditorDataStorageProvider::FQueryDescription::FCallbackData& Callback = Description.Callback;
 		
 		if (!Callback.Group.IsNone())
 		{
@@ -1013,20 +1013,20 @@ void FTypedElementQueryProcessorData::DebugOutputDescription(FOutputDevice& Ar, 
 }
 
 bool FTypedElementQueryProcessorData::PrepareCachedDependenciesOnQuery(
-	ITypedElementDataStorageInterface::FQueryDescription& Description, FMassExecutionContext& Context)
+	IEditorDataStorageProvider::FQueryDescription& Description, FMassExecutionContext& Context)
 {
 	const int32 DependencyCount = Description.DependencyTypes.Num();
 	const TWeakObjectPtr<const UClass>* Types = Description.DependencyTypes.GetData();
-	const ITypedElementDataStorageInterface::EQueryDependencyFlags* Flags = Description.DependencyFlags.GetData();
+	const IEditorDataStorageProvider::EQueryDependencyFlags* Flags = Description.DependencyFlags.GetData();
 	TWeakObjectPtr<UObject>* Caches = Description.CachedDependencies.GetData();
 
 	for (int32 Index = 0; Index < DependencyCount; ++Index)
 	{
 		checkf(Types->IsValid(), TEXT("Attempting to retrieve a dependency type that's no longer available."));
 		
-		if (EnumHasAnyFlags(*Flags, ITypedElementDataStorageInterface::EQueryDependencyFlags::AlwaysRefresh) || !Caches->IsValid())
+		if (EnumHasAnyFlags(*Flags, IEditorDataStorageProvider::EQueryDependencyFlags::AlwaysRefresh) || !Caches->IsValid())
 		{
-			*Caches = EnumHasAnyFlags(*Flags, ITypedElementDataStorageInterface::EQueryDependencyFlags::ReadOnly)
+			*Caches = EnumHasAnyFlags(*Flags, IEditorDataStorageProvider::EQueryDependencyFlags::ReadOnly)
 				? const_cast<USubsystem*>(Context.GetSubsystem<USubsystem>(const_cast<UClass*>(Types->Get())))
 				: Context.GetMutableSubsystem<USubsystem>(const_cast<UClass*>(Types->Get()));
 			if (*Caches != nullptr)
@@ -1097,8 +1097,8 @@ UE::Editor::DataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 {
 	using namespace UE::Editor::DataStorage;
 
-	ITypedElementDataStorageInterface::FQueryResult Result;
-	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
+	IEditorDataStorageProvider::FQueryResult Result;
+	Result.Completed = IEditorDataStorageProvider::FQueryResult::ECompletion::Fully;
 
 	if (Description.Callback.ActivationCount > 0)
 	{
@@ -1133,8 +1133,8 @@ UE::Editor::DataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 {
 	using namespace UE::Editor::DataStorage;
 
-	ITypedElementDataStorageInterface::FQueryResult Result;
-	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
+	IEditorDataStorageProvider::FQueryResult Result;
+	Result.Completed = IEditorDataStorageProvider::FQueryResult::ECompletion::Fully;
 
 	FMassEntityHandle NativeEntity = FMassEntityHandle::FromNumber(RowHandle);
 	if (Description.Callback.ActivationCount > 0 && EntityManager.IsEntityActive(NativeEntity))
@@ -1170,7 +1170,7 @@ void FTypedElementQueryProcessorData::Execute(FMassEntityManager& EntityManager,
 
 	checkf(StoredQuery, TEXT("A query callback was registered for execution without an associated query."));
 	
-	ITypedElementDataStorageInterface::FQueryDescription& Description = StoredQuery->Description;
+	IEditorDataStorageProvider::FQueryDescription& Description = StoredQuery->Description;
 	if (Description.Callback.ActivationCount > 0)
 	{
 		auto ExceteFunction = [this, &Description](FMassExecutionContext& Context)
@@ -1378,10 +1378,10 @@ bool UTypedElementQueryObserverCallbackAdapterProcessorBase::ConfigureQueryCallb
 	
 	switch (Query.Description.Callback.Type)
 	{
-	case ITypedElementDataStorageInterface::EQueryCallbackType::ObserveAdd:
+	case IEditorDataStorageProvider::EQueryCallbackType::ObserveAdd:
 		Operation = EMassObservedOperation::Add;
 		break;
-	case ITypedElementDataStorageInterface::EQueryCallbackType::ObserveRemove:
+	case IEditorDataStorageProvider::EQueryCallbackType::ObserveRemove:
 		Operation = EMassObservedOperation::Remove;
 		break;
 	default:

@@ -10,6 +10,7 @@
 
 #include "Compression/OodleDataCompressionUtil.h"
 #include "DataProcessors/ChaosVDAABBTreeDataProcessor.h"
+#include "DataProcessors/ChaosVDCollisionChannelsInfoDataProcessor.h"
 #include "DataProcessors/ChaosVDDebugDrawBoxDataProcessor.h"
 #include "DataProcessors/ChaosVDDebugDrawImplicitObjectDataProcessor.h"
 #include "DataProcessors/ChaosVDDebugDrawLineDataProcessor.h"
@@ -335,6 +336,10 @@ void FChaosVDTraceProvider::RegisterDefaultDataProcessorsIfNeeded()
 	TSharedPtr<FChaosVDDebugDrawImplicitObjectDataProcessor> DebugDrawImplicitObjectDataProcessor = MakeShared<FChaosVDDebugDrawImplicitObjectDataProcessor>();
 	DebugDrawImplicitObjectDataProcessor->SetTraceProvider(AsShared());
 	RegisterDataProcessor(DebugDrawImplicitObjectDataProcessor);
+	
+	TSharedPtr<FChaosVDCollisionChannelsInfoDataProcessor> CollisionChannelsInfoDataProcessor = MakeShared<FChaosVDCollisionChannelsInfoDataProcessor>();
+	CollisionChannelsInfoDataProcessor->SetTraceProvider(AsShared());
+	RegisterDataProcessor(CollisionChannelsInfoDataProcessor);
 
 	bDefaultDataProcessorsRegistered = true;
 }

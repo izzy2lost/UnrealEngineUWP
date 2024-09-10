@@ -12,7 +12,7 @@
 namespace UE::Editor::DataStorage::Tests
 {
 	BEGIN_DEFINE_SPEC(DynamicColumnTestFixture, "Editor.DataStorage.DynamicColumns", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-		ITypedElementDataStorageInterface* TedsInterface = nullptr;
+		IEditorDataStorageProvider* TedsInterface = nullptr;
 		const FName TestTableName = TEXT("TestTable_DynamicColumnsTest");
 
 		TableHandle TestTable;

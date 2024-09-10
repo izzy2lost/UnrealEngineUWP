@@ -309,7 +309,7 @@ void EmitDepthTargets(
 				RDG_EVENT_NAME("NaniteDepthDecompress"),
 				DecompressParams,
 				ERDGPassFlags::Copy | ERDGPassFlags::NeverCull,
-				[](FRHICommandList&) {}
+				[](FRDGAsyncTask, FRHICommandList&) {}
 			);
 		}
 
@@ -529,7 +529,7 @@ void EmitCustomDepthStencilTargets(
 				RDG_EVENT_NAME("NaniteCustomDepthDecompress"),
 				DecompressParams,
 				ERDGPassFlags::Copy | ERDGPassFlags::NeverCull,
-				[](FRHICommandList&) {}
+				[](FRDGAsyncTask, FRHICommandList&) {}
 			);
 		}
 

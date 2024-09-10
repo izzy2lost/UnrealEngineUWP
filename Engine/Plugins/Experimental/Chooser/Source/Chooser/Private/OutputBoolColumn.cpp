@@ -15,19 +15,13 @@ void FOutputBoolColumn::SetOutputs(FChooserEvaluationContext& Context, int RowIn
 {
 	if (InputValue.IsValid())
 	{
-		bool bOutputValue = bFallbackValue;
-		if (RowValues.IsValidIndex(RowIndex))
-		{
-			bOutputValue = RowValues[RowIndex];
-		}
-		
-		InputValue.Get<FChooserParameterBoolBase>().SetValue(Context, bOutputValue);
+		InputValue.Get<FChooserParameterBoolBase>().SetValue(Context, GetValueForIndex(RowIndex));
 	}
 	
 #if WITH_EDITOR
 	if (Context.DebuggingInfo.bCurrentDebugTarget)
 	{
-		TestValue = RowValues[RowIndex];
+		TestValue = GetValueForIndex(RowIndex);
 	}
 #endif
 }
@@ -41,7 +35,7 @@ void FOutputBoolColumn::SetOutputs(FChooserEvaluationContext& Context, int RowIn
 		FPropertyBagPropertyDesc PropertyDesc(PropertyName, EPropertyBagPropertyType::Bool);
 		PropertyDesc.MetaData.Add(FPropertyBagPropertyDescMetaData("DisplayName", DisplayName.ToString()));
 		PropertyBag.AddProperties({PropertyDesc});
-		PropertyBag.SetValueFloat(PropertyName, RowValues[RowIndex]);
+		PropertyBag.SetValueFloat(PropertyName, GetValueForIndex(RowIndex));
 	}
 
 	void FOutputBoolColumn::SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)
@@ -51,7 +45,7 @@ void FOutputBoolColumn::SetOutputs(FChooserEvaluationContext& Context, int RowIn
 		TValueOrError<bool, EPropertyBagResult> Result = PropertyBag.GetValueBool(PropertyName);
 		if (bool* Value = Result.TryGetValue())
 		{
-			RowValues[RowIndex] = *Value;
+			GetValueForIndex(RowIndex) = *Value;
 		}
 	} 
 

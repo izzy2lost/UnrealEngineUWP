@@ -20,6 +20,7 @@
 namespace UE::StylusInput
 {
 	class IStylusInputEventHandler;
+	class IStylusInputInstance;
 }
 
 namespace UE::StylusInput::Private::Windows
@@ -39,7 +40,8 @@ namespace UE::StylusInput::Private::Windows
 		float GetPacketsPerSecond() const { return PacketStats.GetPacketsPerSecond(); }
 
 	protected:
-		FWindowsStylusInputPluginBase(FGetWindowContextCallback&& GetWindowContextCallback, FUpdateTabletContextsCallback&& UpdateTabletContextsCallback);
+		FWindowsStylusInputPluginBase(IStylusInputInstance* Instance, FGetWindowContextCallback&& GetWindowContextCallback,
+		                              FUpdateTabletContextsCallback&& UpdateTabletContextsCallback);
 		~FWindowsStylusInputPluginBase() = default;
 
 		virtual FString GetName() const = 0;
@@ -58,13 +60,11 @@ namespace UE::StylusInput::Private::Windows
 		const FPacketProperty* GetPacketDescriptions(uint32 TabletContextId) const;
 		HRESULT UpdateTabletContexts(IRealTimeStylus* RealTimeStylus, uint32 TabletContextIDsNum, const TABLET_CONTEXT_ID* TabletContextIDs);
 
+		IStylusInputInstance *const Instance;
 		FPacketStats PacketStats;
-
 		FGetWindowContextCallback GetWindowContextCallback;
 		FUpdateTabletContextsCallback UpdateTabletContextsCallback;
-
 		FTabletContextContainer TabletContexts;
-
 		TArray<IStylusInputEventHandler*> EventHandlers;
 	};
 }

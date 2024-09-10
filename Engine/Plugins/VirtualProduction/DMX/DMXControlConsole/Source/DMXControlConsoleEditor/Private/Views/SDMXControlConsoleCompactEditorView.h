@@ -30,6 +30,8 @@ namespace UE::DMX::Private
 
 		SLATE_END_ARGS()
 
+		~SDMXControlConsoleCompactEditorView();
+
 		/** Constructs this widget */
 		void Construct(const FArguments& InArgs);
 
@@ -73,6 +75,9 @@ namespace UE::DMX::Private
 
 		/** The control console editor model this widget uses */
 		TObjectPtr<UDMXControlConsole> ControlConsole;
+
+		/** If true, stops sending DMX when this widget is destructed */
+		bool bStopSendingDMXOnDestruct = true;
 
 		/** The control console editor model this widget uses */
 		TObjectPtr<UDMXControlConsoleEditorModel> EditorModel;

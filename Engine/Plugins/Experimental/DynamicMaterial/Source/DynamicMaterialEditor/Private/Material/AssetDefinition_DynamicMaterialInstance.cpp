@@ -2,9 +2,11 @@
 
 #include "AssetDefinition_DynamicMaterialInstance.h"
 #include "AssetToolsModule.h"
+#include "DynamicMaterialEditorSettings.h"
 #include "IAssetTools.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Model/DynamicMaterialModel.h"
+#include "ThumbnailRendering/SceneThumbnailInfoWithPrimitive.h"
 
 #define LOCTEXT_NAMESPACE "AssetDefinition_DynamicMaterialInstance"
 
@@ -32,6 +34,25 @@ TConstArrayView<FAssetCategoryPath> UAssetDefinition_DynamicMaterialInstance::Ge
 {
 	static const TArray<FAssetCategoryPath> Categories = {EAssetCategoryPaths::Material};
 	return Categories;
+}
+
+UThumbnailInfo* UAssetDefinition_DynamicMaterialInstance::LoadThumbnailInfo(const FAssetData& InAsset) const
+{
+	const UDynamicMaterialEditorSettings* Settings = GetDefault<UDynamicMaterialEditorSettings>();
+
+	if (!Settings)
+	{
+		return nullptr;
+	}
+
+	UDynamicMaterialInstance* MaterialInstance = Cast<UDynamicMaterialInstance>(InAsset.GetAsset());
+
+	if (!MaterialInstance)
+	{
+		return nullptr;
+	}
+
+	return UE::Editor::FindOrCreateThumbnailInfo<USceneThumbnailInfoWithPrimitive>(MaterialInstance);
 }
 
 EAssetCommandResult UAssetDefinition_DynamicMaterialInstance::OpenAssets(const FAssetOpenArgs& InOpenArgs) const

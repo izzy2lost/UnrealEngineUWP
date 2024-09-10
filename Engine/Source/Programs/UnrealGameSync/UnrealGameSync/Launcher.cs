@@ -186,8 +186,8 @@ namespace UnrealGameSync
 						await SafeDeleteDirectoryContentsWithRetryAsync(applicationFolder, cancellationToken);
 
 						// Download and extract the data
-						IStorageClient storageClient = hordeClient.CreateStorageClient(toolId);
-						IBlobRef<DirectoryNode> handle = storageClient.CreateBlobRef<DirectoryNode>(deployment.Locator);
+						IStorageNamespace storageNamespace = hordeClient.GetStorageNamespace(toolId);
+						IBlobRef<DirectoryNode> handle = storageNamespace.CreateBlobRef<DirectoryNode>(deployment.Locator);
 
 						DirectoryNode rootNode = await handle.ReadBlobAsync(cancellationToken: cancellationToken);
 						await rootNode.ExtractAsync(new DirectoryInfo(applicationFolder), new ExtractStatsLogger(0, rootNode.Length, logger), TimeSpan.FromSeconds(5.0), logger, cancellationToken);

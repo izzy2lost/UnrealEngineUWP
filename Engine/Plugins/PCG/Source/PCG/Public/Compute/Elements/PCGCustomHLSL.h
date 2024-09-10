@@ -3,74 +3,11 @@
 #pragma once
 
 #include "PCGSettings.h"
+#include "Compute/PCGPinPropertiesGPU.h"
 
 #include "PCGCustomHLSL.generated.h"
 
 class UPCGPin;
-
-/** Method for computing the size of a pin on a GPU node. */
-UENUM()
-enum class EPCGPinBufferSizeMode : uint8
-{
-	FromFirstPin UMETA(DisplayName = "Match First Input Pin"),
-	FromProductOfInputPins UMETA(Tooltip = "Dispatches a thread per element in the product of one or more pins. So if there are 4 data elements in pin A and 6 data elements in pin B, 24 threads will be dispatched."),
-	FixedElementCount,
-};
-
-/** An extension of the pin properties that adds hints for GPU thread count / buffer size calculations. */
-USTRUCT(BlueprintType)
-struct PCG_API FPCGPinPropertiesGPU : public FPCGPinProperties
-{
-	GENERATED_BODY()
-
-public:
-	FPCGPinPropertiesGPU() = default;
-
-	explicit FPCGPinPropertiesGPU(const FName& InLabel, EPCGDataType InAllowedTypes)
-		: FPCGPinProperties(InLabel, InAllowedTypes)
-	{
-	}
-
-#if WITH_EDITOR
-	bool CanEditChange(const FEditPropertyChain& PropertyChain) const;
-#endif
-
-public:
-	/** Compute graphs use this to calculate the buffer size of output pins. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayAfter = "Tooltip", EditCondition = "bDisplayBufferSizeSettings", EditConditionHides, HideEditConditionToggle))
-	EPCGPinBufferSizeMode BufferSizeMode = EPCGPinBufferSizeMode::FromFirstPin;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayAfter = "BufferSizeMode", EditCondition = "(bDisplayBufferSizeSettings && BufferSizeMode == EPCGPinBufferSizeMode::FixedElementCount) || AllowedTypes == EPCGDataType::Param", EditConditionHides))
-	int FixedBufferElementCount = 4;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, DisplayName = "Buffer Size Input Pins", Category = Settings, meta = (DisplayAfter = "BufferSizeMode", EditCondition = "bDisplayBufferSizeSettings && BufferSizeMode == EPCGPinBufferSizeMode::FromProductOfInputPins", EditConditionHides, GetOptions = "GetInputPinNames"))
-	TArray<FName> BufferSizeInputPinLabels;
-
-	/** Select an input pin to copy attributes from. If left as 'None', this will be ignored. Note, this will copy attribute names only, not their values. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayAfter = "BufferSizeMode", EditCondition = "bAllowEditInitializationPin", EditConditionHides, HideEditConditionToggle, GetOptions = "GetInputPinNamesAndNone"))
-	FName InitializeFromPin = NAME_None;
-
-	/** Add entries to create new attributes on data emitted by this pin. */
-	UPROPERTY(EditAnywhere, DisplayName = "Attributes to Create", Category = Settings, meta = (DisplayAfter = "BufferSizeMode"))
-	TArray<FPCGKernelAttributeKey> CreatedKernelAttributeKeys;
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY(Transient)
-	bool bDisplayBufferSizeSettings = true;
-
-	UPROPERTY(Transient)
-	bool bAllowEditInitializationPin = false;
-#endif // WITH_EDITORONLY_DATA
-};
-
-template<>
-struct TStructOpsTypeTraits<FPCGPinPropertiesGPU> : public TStructOpsTypeTraitsBase2<FPCGPinPropertiesGPU>
-{
-	enum
-	{
-		WithCanEditChange = true,
-	};
-};
 
 /** Type of kernel allows us to make decisions about execution automatically, streamlining authoring. */
 UENUM()
@@ -132,6 +69,7 @@ public:
 
 protected:
 #if WITH_EDITOR
+	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override;
 #endif
@@ -195,6 +133,11 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
 	TArray<FPCGPinPropertiesGPU> OutputPins = { FPCGPinPropertiesGPU(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Point) };
+
+#if WITH_EDITOR
+	/** Holds input pin labels from PreEditChange, used in PostEditPropertyChange to update any references in output pin setup. */
+	TArray<FName> InputPinLabelsPreEditChange;
+#endif
 
 protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Source", meta = (MultiLine = true, Tooltip = ""))

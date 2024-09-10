@@ -3,6 +3,7 @@
 #pragma once
 
 #include "D3D12RHI.h"
+#include "D3D12RayTracingResources.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
 #include "Misc/EnumClassFlags.h"
@@ -467,11 +468,21 @@ namespace D3D12ShaderUtils
 
 		if (bLocalRootSignature)
 		{
-			Creator.AddShaderResourceViewParameter(RAY_TRACING_SYSTEM_INDEXBUFFER_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
-			Creator.AddShaderResourceViewParameter(RAY_TRACING_SYSTEM_VERTEXBUFFER_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+			if (Creator.HasFlags(EShaderBindingLayoutFlags::BindlessResources))
+			{
+				// Num constants could be 2 smaller if non-bindless data is removed (24 bytes instead of 32)
+				// (see notes in FD3D12RootSignatureDesc constructor)
+				uint32 NumConstants = sizeof(FD3D12HitGroupSystemParameters) / sizeof(uint32);
+				Creator.AddConstantsParameter(NumConstants, RAY_TRACING_SYSTEM_ROOTCONSTANT_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+			}
+			else
+			{
+				Creator.AddShaderResourceViewParameter(RAY_TRACING_SYSTEM_INDEXBUFFER_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+				Creator.AddShaderResourceViewParameter(RAY_TRACING_SYSTEM_VERTEXBUFFER_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
 
-			uint32 NumConstants = sizeof(FHitGroupSystemRootConstants) / sizeof(uint32);
-			Creator.AddConstantsParameter(NumConstants, RAY_TRACING_SYSTEM_ROOTCONSTANT_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+				uint32 NumConstants = sizeof(FHitGroupSystemRootConstants) / sizeof(uint32);
+				Creator.AddConstantsParameter(NumConstants, RAY_TRACING_SYSTEM_ROOTCONSTANT_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+			}
 		}
 
 		if (Creator.HasFlags(EShaderBindingLayoutFlags::BindlessResources))

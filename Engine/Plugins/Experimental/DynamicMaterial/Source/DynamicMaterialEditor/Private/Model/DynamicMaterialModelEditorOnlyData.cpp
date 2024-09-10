@@ -571,11 +571,18 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	OnMaterialBuiltDelegate.Broadcast(MaterialModel);
 }
 
-void UDynamicMaterialModelEditorOnlyData::RequestMaterialBuild()
+void UDynamicMaterialModelEditorOnlyData::RequestMaterialBuild(bool bInImmediate)
 {
 	if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{
-		FDynamicMaterialEditorModule::Get().AddBuildRequest(this, /* Dirty Packages */ !UE::GetIsEditorLoadingPackage());
+		if (bInImmediate)
+		{
+			BuildMaterial(/* Dirty Assets */ false);
+		}
+		else
+		{
+			FDynamicMaterialEditorModule::Get().AddBuildRequest(this, /* Dirty Packages */ !UE::GetIsEditorLoadingPackage());
+		}
 	}
 }
 

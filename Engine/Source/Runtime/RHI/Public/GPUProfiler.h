@@ -114,7 +114,7 @@ namespace UE::RHI::GPUProfiler
 	#if WITH_RHI_BREADCRUMBS
 		struct FBeginBreadcrumb
 		{
-			FRHIBreadcrumbNode* Breadcrumb;
+			FRHIBreadcrumbNode* const Breadcrumb;
 			uint64 GPUTimestampTOP = 0;
 
 			FBeginBreadcrumb(FRHIBreadcrumbNode* Breadcrumb)
@@ -124,7 +124,7 @@ namespace UE::RHI::GPUProfiler
 
 		struct FEndBreadcrumb
 		{
-			FRHIBreadcrumbNode* Breadcrumb;
+			FRHIBreadcrumbNode* const Breadcrumb;
 			uint64 GPUTimestampBOP = 0;
 
 			FEndBreadcrumb(FRHIBreadcrumbNode* Breadcrumb)
@@ -164,16 +164,47 @@ namespace UE::RHI::GPUProfiler
 			}
 		};
 
+		// Can only be inserted when the GPU is marked "idle", i.e. after an FEndWork event.
 		struct FSignalFence
 		{
+			//
+			// Timestamp when the fence signal was enqueued to the GPU/driver.
+			// 
+			// The signal on the GPU doesn't happen until after the previous FEndWork
+			// event's BOP timestamp, or this CPU timestamp, whichever is later.
+			//
 			uint64 CPUTimestamp;
+
+			// Unique ID of the fence signaled.
 			uint64 ID;
+
+			// The fence value signaled.
+			uint64 Value;
+
+			FSignalFence(uint64 CPUTimestamp, uint64 ID, uint64 Value)
+				: CPUTimestamp(CPUTimestamp)
+				, ID(ID)
+				, Value(Value)
+			{}
 		};
 
+		// Can only be inserted when the GPU is marked "idle", i.e. after an FEndWork event.
 		struct FWaitFence
 		{
+			// Timestamp when the fence wait was enqueued to the GPU/driver.
 			uint64 CPUTimestamp;
+
+			// Unique ID of the fence awaited.
 			uint64 ID;
+
+			// The fence value awaited.
+			uint64 Value;
+
+			FWaitFence(uint64 CPUTimestamp, uint64 ID, uint64 Value)
+				: CPUTimestamp(CPUTimestamp)
+				, ID(ID)
+				, Value(Value)
+			{}
 		};
 
 		struct FFlip
@@ -242,6 +273,10 @@ namespace UE::RHI::GPUProfiler
 			{
 				FChunk* Next = nullptr;
 				uint32 Num = 0;
+
+			#if WITH_RHI_BREADCRUMBS
+				FRHIBreadcrumbAllocatorArray BreadcrumbAllocators;
+			#endif
 			} Header;
 
 			static constexpr uint32 ChunkSizeInBytes = 16 * 1024;
@@ -275,7 +310,7 @@ namespace UE::RHI::GPUProfiler
 			}
 		};
 
-		static_assert(sizeof(FChunk) == FChunk::ChunkSizeInBytes, "Incorrect FChunk size.");
+		static_assert(sizeof(FChunk) <= FChunk::ChunkSizeInBytes, "Incorrect FChunk size.");
 
 		FChunk* First = nullptr;
 		FChunk* Current = nullptr;
@@ -305,7 +340,7 @@ namespace UE::RHI::GPUProfiler
 		template <typename TEventType, typename... TArgs>
 		TEventType& Emplace(TArgs&&... Args)
 		{
-			static_assert(TIsTrivial<TEventType>::Value, "Destructors are not called on GPU profiler events, so the types must be trivial.");
+			static_assert(std::is_trivially_destructible_v<TEventType>, "Destructors are not called on GPU profiler events, so the types must be trivially destructible.");
 
 			if (!Current)
 			{
@@ -326,7 +361,21 @@ namespace UE::RHI::GPUProfiler
 			FEvent* Event = Current->GetElement(Current->Header.Num++);
 			new (Event) FEvent(TEventType(Forward<TArgs>(Args)...));
 
-			return Event->Value.Get<TEventType>();
+			TEventType& Data = Event->Value.Get<TEventType>();
+
+		#if WITH_RHI_BREADCRUMBS
+			if constexpr (
+				std::is_same_v<UE::RHI::GPUProfiler::FEvent::FBeginBreadcrumb, TEventType> ||
+				std::is_same_v<UE::RHI::GPUProfiler::FEvent::FEndBreadcrumb  , TEventType>
+				)
+			{
+				// Attach the breadcrumb allocator for begin/end breadcrumb events.
+				// This keeps the breadcrumbs alive until the events have been consumed by the profilers.
+				Current->Header.BreadcrumbAllocators.AddUnique(Data.Breadcrumb->Allocator);
+			}
+		#endif
+
+			return Data;
 		}
 
 		bool IsEmpty() const
@@ -412,7 +461,7 @@ namespace UE::RHI::GPUProfiler
 		virtual void InitializeQueues(TConstArrayView<FQueue> Queues) = 0;
 	};
 
-	RHI_API void ProcessEvents(FQueue Queue, FEventStream const& EventStream);
+	RHI_API void ProcessEvents(FQueue Queue, FEventStream EventStream);
 	RHI_API void InitializeQueues(TConstArrayView<FQueue> Queues);
 }
 

@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGLayerNormalization.h"
+
 #include "NNEHlslShadersLayerNormalizationCS.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersReduceCS.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
@@ -38,14 +40,14 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			{
 				if (ScaleOrBias.Rank() > (Input.Rank() - Axis))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("LayerNormalization: Scale/bias tensor rank is invalid: %d"), ScaleOrBias.Rank());
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("LayerNormalization: Scale/bias tensor rank is invalid: %d"), ScaleOrBias.Rank());
 					return -1;
 				}
 				for(int DimIdx = 0; DimIdx < ScaleOrBias.Rank(); ++DimIdx)
 				{
 					if(Input.GetData()[DimIdx + Axis] != ScaleOrBias.GetData()[DimIdx] && ScaleOrBias.GetData()[DimIdx] != 1)
 					{
-						UE_LOG(LogNNE, Warning, TEXT("LayerNormalization: Scale/bias tensor shape not equal nor broadcastable to input's"));
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("LayerNormalization: Scale/bias tensor shape not equal nor broadcastable to input's"));
 						return -1;
 					}
 				}
@@ -113,7 +115,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (InputRank != OutputTensorDescs[0].GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("LayerNormalization requires the output to have the same rank as the input."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("LayerNormalization: Output should have the same rank as the input."));
 				return false;
 			}
 

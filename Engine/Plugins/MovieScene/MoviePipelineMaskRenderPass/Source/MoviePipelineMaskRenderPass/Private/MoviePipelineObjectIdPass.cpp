@@ -9,6 +9,7 @@
 #include "MoviePipelineSurfaceReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "MoviePipelineHashUtils.h"
+#include "MoviePipelineTelemetry.h"
 #include "EngineModule.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -50,6 +51,11 @@ UMoviePipelineObjectIdRenderPass::UMoviePipelineObjectIdRenderPass()
 	{
 		ExpectedPassIdentifiers.Add(FMoviePipelinePassIdentifier(PassIdentifier.Name + FString::Printf(TEXT("%02d"), Index)));
 	}
+}
+
+void UMoviePipelineObjectIdRenderPass::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesObjectID = true;
 }
 
 TWeakObjectPtr<UTextureRenderTarget2D> UMoviePipelineObjectIdRenderPass::CreateViewRenderTargetImpl(const FIntPoint& InSize, IViewCalcPayload* OptPayload) const
@@ -230,6 +236,9 @@ void UMoviePipelineObjectIdRenderPass::RenderSample_GameThreadImpl(const FMovieP
 		ENQUEUE_RENDER_COMMAND(CanvasRenderTargetResolveCommand)(
 			[LocalSurfaceQueue, FramePayload, Callback, RenderTarget](FRHICommandListImmediate& RHICmdList) mutable
 			{
+				// Transition our render target from a render target view to a shader resource view to allow a shader to read from this Render Target.
+				RHICmdList.Transition(FRHITransitionInfo(RenderTarget->GetRenderTargetTexture(), ERHIAccess::RTV, ERHIAccess::SRVGraphicsPixel));
+
 				// Enqueue a encode for this frame onto our worker thread.
 				LocalSurfaceQueue->OnRenderTargetReady_RenderThread(RenderTarget->GetRenderTargetTexture(), FramePayload, MoveTemp(Callback));
 			});

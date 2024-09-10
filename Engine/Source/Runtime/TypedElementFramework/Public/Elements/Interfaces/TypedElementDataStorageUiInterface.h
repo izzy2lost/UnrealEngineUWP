@@ -13,7 +13,7 @@
 
 #include "TypedElementDataStorageUiInterface.generated.h"
 
-class ITypedElementDataStorageUiInterface;
+class IEditorDataStorageUiProvider;
 class SWidget;
 
 /**
@@ -55,7 +55,7 @@ public:
 	 * Individual widget constructors can override this function with a name specific to them.
 	 */
 	TYPEDELEMENTFRAMEWORK_API virtual FString CreateWidgetDisplayName(
-		ITypedElementDataStorageInterface* DataStorage, RowHandle Row) const;
+		IEditorDataStorageProvider* DataStorage, RowHandle Row) const;
 	
 	/**
 	 *	Calls Construct() to create the internal widget, and then stores it in a container before returning.
@@ -67,8 +67,8 @@ public:
 	 */
 	TYPEDELEMENTFRAMEWORK_API TSharedPtr<SWidget> ConstructFinalWidget(
 		RowHandle Row, /** The row the widget will be stored in. */
-		ITypedElementDataStorageInterface* DataStorage,
-		ITypedElementDataStorageUiInterface* DataStorageUi,
+		IEditorDataStorageProvider* DataStorage,
+		IEditorDataStorageUiProvider* DataStorageUi,
 		const UE::Editor::DataStorage::FMetaDataView& Arguments);
 
 	/**
@@ -80,8 +80,8 @@ public:
 	 */
 	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> Construct(
 		RowHandle Row, /** The row the widget will be stored in. */
-		ITypedElementDataStorageInterface* DataStorage,
-		ITypedElementDataStorageUiInterface* DataStorageUi,
+		IEditorDataStorageProvider* DataStorage,
+		IEditorDataStorageUiProvider* DataStorageUi,
 		const UE::Editor::DataStorage::FMetaDataView& Arguments);
 
 protected:
@@ -89,13 +89,13 @@ protected:
 	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments);
 	/** Create a new instance of the target widget. This is a required function. */
 	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(
-		ITypedElementDataStorageInterface* DataStorage,
-		ITypedElementDataStorageUiInterface* DataStorageUi,
+		IEditorDataStorageProvider* DataStorage,
+		IEditorDataStorageUiProvider* DataStorageUi,
 		UE::Editor::DataStorage::RowHandle TargetRow,
 		UE::Editor::DataStorage::RowHandle WidgetRow, 
 		const UE::Editor::DataStorage::FMetaDataView& Arguments);
 	/** Set any values in columns if needed. The columns provided through GetAdditionalColumnsList() will have already been created. */
-	TYPEDELEMENTFRAMEWORK_API virtual bool SetColumns(ITypedElementDataStorageInterface* DataStorage, RowHandle Row);
+	TYPEDELEMENTFRAMEWORK_API virtual bool SetColumns(IEditorDataStorageProvider* DataStorage, RowHandle Row);
 	
 	/** Creates a (friendly) name for the provided column type. */
 	TYPEDELEMENTFRAMEWORK_API virtual FString DescribeColumnType(const UScriptStruct* ColumnType) const;
@@ -105,19 +105,19 @@ protected:
 	 * in columns.
 	 */
 	TYPEDELEMENTFRAMEWORK_API virtual bool FinalizeWidget(
-		ITypedElementDataStorageInterface* DataStorage,
-		ITypedElementDataStorageUiInterface* DataStorageUi,
+		IEditorDataStorageProvider* DataStorage,
+		IEditorDataStorageUiProvider* DataStorageUi,
 		RowHandle Row,
 		const TSharedPtr<SWidget>& Widget);
 
 	/** Add the default misc columns we want a widget row to have. */
-	TYPEDELEMENTFRAMEWORK_API void AddDefaultWidgetColumns(RowHandle Row, ITypedElementDataStorageInterface* DataStorage) const;
+	TYPEDELEMENTFRAMEWORK_API void AddDefaultWidgetColumns(RowHandle Row, IEditorDataStorageProvider* DataStorage) const;
 
 	/**
 	 * Helper function to get the actual target row with the data the widget is operating on (if applicable). Returns InvalidRowHandle if there is no
 	 * target row
 	 */
-	TYPEDELEMENTFRAMEWORK_API RowHandle GetTargetRow(ITypedElementDataStorageInterface* DataStorage, RowHandle WidgetRow) const;
+	TYPEDELEMENTFRAMEWORK_API RowHandle GetTargetRow(IEditorDataStorageProvider* DataStorage, RowHandle WidgetRow) const;
 
 protected:
 
@@ -153,8 +153,8 @@ struct FSimpleWidgetConstructor : public FTypedElementWidgetConstructor
 	 * @return The actual widget instance
 	 */
 	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(
-		ITypedElementDataStorageInterface* DataStorage,
-		ITypedElementDataStorageUiInterface* DataStorageUi,
+		IEditorDataStorageProvider* DataStorage,
+		IEditorDataStorageUiProvider* DataStorageUi,
 		UE::Editor::DataStorage::RowHandle TargetRow,
 		UE::Editor::DataStorage::RowHandle WidgetRow,
 		const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
@@ -166,7 +166,7 @@ struct FSimpleWidgetConstructor : public FTypedElementWidgetConstructor
 	 * @param WidgetRow The row that contains information about the widget itself
 	 * @return Whether any columns were added
 	 */
-	TYPEDELEMENTFRAMEWORK_API virtual bool SetColumns(ITypedElementDataStorageInterface* DataStorage, RowHandle WidgetRow) override;
+	TYPEDELEMENTFRAMEWORK_API virtual bool SetColumns(IEditorDataStorageProvider* DataStorage, RowHandle WidgetRow) override;
 
 protected:
 
@@ -177,8 +177,8 @@ protected:
 	 * Old function in the widget creation pipeline that isn't used anymore. All your logic should go in CreateWidget() itself
 	 */
 	TYPEDELEMENTFRAMEWORK_API virtual bool FinalizeWidget(
-		ITypedElementDataStorageInterface* DataStorage,
-		ITypedElementDataStorageUiInterface* DataStorageUi,
+		IEditorDataStorageProvider* DataStorage,
+		IEditorDataStorageUiProvider* DataStorageUi,
 		RowHandle Row,
 		const TSharedPtr<SWidget>& Widget) override final;
 	
@@ -187,8 +187,8 @@ protected:
 	 */
 	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> Construct(
 		RowHandle WidgetRow, 
-		ITypedElementDataStorageInterface* DataStorage,
-		ITypedElementDataStorageUiInterface* DataStorageUi,
+		IEditorDataStorageProvider* DataStorage,
+		IEditorDataStorageUiProvider* DataStorageUi,
 		const UE::Editor::DataStorage::FMetaDataView& Arguments) override final;
 };
 
@@ -203,12 +203,12 @@ struct TStructOpsTypeTraits<FTypedElementWidgetConstructor> : public TStructOpsT
 };
 
 UINTERFACE(MinimalAPI)
-class UTypedElementDataStorageUiInterface : public UInterface
+class UEditorDataStorageUiProvider : public UInterface
 {
 	GENERATED_BODY()
 };
 
-class ITypedElementDataStorageUiInterface
+class IEditorDataStorageUiProvider
 {
 	GENERATED_BODY()
 
@@ -361,13 +361,13 @@ public:
 //
 
 template<typename ConstructorType>
-bool ITypedElementDataStorageUiInterface::RegisterWidgetFactory(FName Purpose)
+bool IEditorDataStorageUiProvider::RegisterWidgetFactory(FName Purpose)
 {
 	return this->RegisterWidgetFactory(Purpose, ConstructorType::StaticStruct());
 }
 
 template<typename ConstructorType>
-bool ITypedElementDataStorageUiInterface::RegisterWidgetFactory(FName Purpose, UE::Editor::DataStorage::Queries::FConditions Columns)
+bool IEditorDataStorageUiProvider::RegisterWidgetFactory(FName Purpose, UE::Editor::DataStorage::Queries::FConditions Columns)
 {
 	return this->RegisterWidgetFactory(Purpose, ConstructorType::StaticStruct(), Columns);
 }

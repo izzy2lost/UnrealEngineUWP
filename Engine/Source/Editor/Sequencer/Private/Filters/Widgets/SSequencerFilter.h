@@ -32,9 +32,10 @@ protected:
 
 	void OnFilterToggled(const ECheckBoxState NewState);
 
-	FReply OnFilterMouseUp(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent);
-
-	FReply OnFilterDoubleClicked(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent);
+	void OnFilterCtrlClick();
+	void OnFilterAltClick();
+	void OnFilterMiddleButtonClick();
+	void OnFilterDoubleClick();
 
 	TSharedRef<SWidget> GetRightClickMenuContent();
 
@@ -49,6 +50,8 @@ protected:
 	FText GetFilterDisplayName() const;
 
 	bool IsButtonEnabled() const;
+
+	void ActivateAllButThis(const bool bInActive);
 
 	TWeakPtr<FSequencerFilterBar> WeakFilterBar;
 

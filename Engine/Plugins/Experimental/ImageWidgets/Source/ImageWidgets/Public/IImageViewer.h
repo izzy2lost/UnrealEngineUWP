@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Misc/TVariant.h"
+#include <CoreMinimal.h>
+#include <Misc/TVariant.h>
 
 class FCanvas;
 class FViewport;

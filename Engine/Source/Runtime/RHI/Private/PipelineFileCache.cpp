@@ -6,6 +6,7 @@ PipelineFileCache.cpp: Pipeline state cache implementation.
 
 #include "PipelineFileCache.h"
 #include "Containers/List.h"
+#include "Containers/Ticker.h"
 #include "PipelineStateCache.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/EngineVersion.h"
@@ -3533,12 +3534,19 @@ void FPipelineFileCacheManager::BroadcastNewPSOsDelegate()
 		NewPSOsToReport.Empty(32);
 	}
 
-	if (ReportNewPSOs() && PSOLoggedEvent.IsBound())
+	if (!PSOs.IsEmpty() && ReportNewPSOs())
 	{
-		for (FPipelineCacheFileFormatPSO& PSO : PSOs)
+		// It's not safe to touch UObjects-based delegates from the render thread.
+		ExecuteOnGameThread(TEXT("OnPipelineStateLoggedBroadcastGT"), [PSOs = MoveTemp(PSOs)]() mutable
 		{
-			PSOLoggedEvent.Broadcast(PSO);
-		}
+			if (PSOLoggedEvent.IsBound())
+			{
+				for (FPipelineCacheFileFormatPSO& PSO : PSOs)
+				{
+					PSOLoggedEvent.Broadcast(PSO);
+				}
+			}
+		});
 	}
 }
 

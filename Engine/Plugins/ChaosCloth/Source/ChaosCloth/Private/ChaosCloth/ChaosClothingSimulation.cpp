@@ -511,9 +511,9 @@ void FClothingSimulation::Simulate(IClothingSimulationContext* InContext)
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		const bool bNeedsReset = (ClothingSimulationConsole::Command && ClothingSimulationConsole::Command->MustReset(ResetCount)) ||
-			Context->TeleportMode == EClothingTeleportMode::TeleportAndReset || PrevSimulationTime == 0.f;
+			Context->TeleportMode >= EClothingTeleportMode::TeleportAndReset || PrevSimulationTime == 0.f;
 #else
-		const bool bNeedsReset = Context->TeleportMode == EClothingTeleportMode::TeleportAndReset || PrevSimulationTime == 0.f;
+		const bool bNeedsReset = Context->TeleportMode >= EClothingTeleportMode::TeleportAndReset || PrevSimulationTime == 0.f;
 #endif
 		const bool bNeedsTeleport = (Context->TeleportMode > EClothingTeleportMode::None);
 		bIsTeleported = bNeedsTeleport;
@@ -794,6 +794,9 @@ void FClothingSimulation::RefreshClothConfig(const IClothingSimulationContext* I
 	// Update new space location
 	const FClothingSimulationContext* const Context = static_cast<const FClothingSimulationContext*>(InContext);
 	static const bool bReset = true;
+	const FReal WorldToSolverScale = bUseLocalSpaceSimulation ? Context->SolverGeometryScale : 1.;
+	const FReal LocalSpaceScale = 1. / FMath::Max(WorldToSolverScale, UE_SMALL_NUMBER);
+	Solver->SetLocalSpaceScale(LocalSpaceScale, bReset);
 	Solver->SetLocalSpaceLocation(bUseLocalSpaceSimulation ? (FVec3)Context->ComponentToWorld.GetLocation() : FVec3(0), bReset);
 	Solver->SetLocalSpaceRotation(bUseLocalSpaceSimulation ? (FQuat)Context->ComponentToWorld.GetRotation() : FQuat::Identity);
 

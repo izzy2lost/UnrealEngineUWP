@@ -7,10 +7,10 @@
 #include "MaskProfileFactory.generated.h"
 
 UCLASS()
-class UHierarchyTableMaskFactory : public UTypedElementDataStorageFactory
+class UHierarchyTableMaskFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+	void RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage, IEditorDataStorageUiProvider& DataStorageUi) const override;
 };

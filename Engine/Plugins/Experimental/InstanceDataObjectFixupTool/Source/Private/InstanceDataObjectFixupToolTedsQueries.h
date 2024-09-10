@@ -9,14 +9,14 @@
 #include "InstanceDataObjectFixupToolTedsQueries.generated.h"
 
 UCLASS()
-class UInstanceDataObjectFixupToolTedsQueryFactory : public UTypedElementDataStorageFactory
+class UInstanceDataObjectFixupToolTedsQueryFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UInstanceDataObjectFixupToolTedsQueryFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 
 private:
 	static void ShowFixUpToolForPlaceholders(UE::Editor::DataStorage::RowHandle Row);

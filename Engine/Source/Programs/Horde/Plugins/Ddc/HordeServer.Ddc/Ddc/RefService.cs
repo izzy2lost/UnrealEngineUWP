@@ -8,13 +8,13 @@ namespace HordeServer.Ddc
 {
 	class RefService : IRefService
 	{
-		readonly IStorageClientFactory _storageClientFactory;
+		readonly IStorageClient _storageClient;
 		readonly IReferenceResolver _referenceResolver;
 		readonly IBlobService _blobService;
 
-		public RefService(IStorageClientFactory storageService, IReferenceResolver referenceResolver, IBlobService blobService)
+		public RefService(IStorageClient storageClient, IReferenceResolver referenceResolver, IBlobService blobService)
 		{
-			_storageClientFactory = storageService;
+			_storageClient = storageClient;
 			_referenceResolver = referenceResolver;
 			_blobService = blobService;
 		}
@@ -23,21 +23,21 @@ namespace HordeServer.Ddc
 
 		public async Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
-			return await storageClient.DeleteRefAsync(GetRefName(bucket, key), cancellationToken);
+			IStorageNamespace storageNamespace = _storageClient.GetNamespace(ns);
+			return await storageNamespace.DeleteRefAsync(GetRefName(bucket, key), cancellationToken);
 		}
 
 		public async Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
-			return await storageClient.RefExistsAsync(GetRefName(bucket, key), cancellationToken: cancellationToken);
+			IStorageNamespace storageNamespace = _storageClient.GetNamespace(ns);
+			return await storageNamespace.RefExistsAsync(GetRefName(bucket, key), cancellationToken: cancellationToken);
 		}
 
 		public async Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageNamespace storageNamespace = _storageClient.GetNamespace(ns);
 
-			BlobAlias? blobAlias = await storageClient.FindAliasAsync(BlobService.GetAlias(blobHash), cancellationToken);
+			BlobAlias? blobAlias = await storageNamespace.FindAliasAsync(BlobService.GetAlias(blobHash), cancellationToken);
 			if (blobAlias == null)
 			{
 				throw new BlobNotFoundException(ns, blobHash);
@@ -74,19 +74,19 @@ namespace HordeServer.Ddc
 				RefName refName = GetRefName(bucket, key);
 
 				IHashedBlobRef<DdcRefNode> refNodeRef;
-				await using (IBlobWriter writer = storageClient.CreateBlobWriter(refName))
+				await using (IBlobWriter writer = storageNamespace.CreateBlobWriter(refName))
 				{
 					DdcRefNode refNode = new DdcRefNode(blobHash.AsIoHash());
 					refNode.References.Add(HashedBlobRef.Create(blobHash.AsIoHash(), blobHandle));
 					foreach (BlobId referencedBlob in referencedBlobs)
 					{
-						BlobAlias? alias = await storageClient.FindAliasAsync(BlobService.GetAlias(referencedBlob), cancellationToken);
+						BlobAlias? alias = await storageNamespace.FindAliasAsync(BlobService.GetAlias(referencedBlob), cancellationToken);
 						refNode.References.Add(HashedBlobRef.Create(referencedBlob.AsIoHash(), alias!.Target));
 					}
 					refNodeRef = await writer.WriteBlobAsync(refNode, cancellationToken);
 				}
 
-				await storageClient.WriteRefAsync(refName, refNodeRef, cancellationToken: cancellationToken);
+				await storageNamespace.WriteRefAsync(refName, refNodeRef, cancellationToken: cancellationToken);
 			}
 
 			return (missingReferences, missingBlobs);
@@ -125,9 +125,9 @@ namespace HordeServer.Ddc
 
 		public async Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageNamespace storageNamespace = _storageClient.GetNamespace(ns);
 
-			DdcRefNode? node = await storageClient.TryReadRefTargetAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
+			DdcRefNode? node = await storageNamespace.TryReadRefTargetAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)
 			{
 				throw new RefNotFoundException(ns, bucket, key);
@@ -142,9 +142,9 @@ namespace HordeServer.Ddc
 
 		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageNamespace storageNamespace = _storageClient.GetNamespace(ns);
 
-			DdcRefNode? node = await storageClient.TryReadRefTargetAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
+			DdcRefNode? node = await storageNamespace.TryReadRefTargetAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)
 			{
 				throw new RefNotFoundException(ns, bucket, key);

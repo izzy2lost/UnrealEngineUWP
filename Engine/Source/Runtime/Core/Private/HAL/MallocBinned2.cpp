@@ -31,6 +31,12 @@ PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 #	define GBinned2MoveOSFreesOffTimeCriticalThreads	UE_DEFAULT_GBinned2MoveOSFreesOffTimeCriticalThreads
 #endif
 
+int32 EnableLegacyCachedOSPageAllocatorFreeMemReporting = 0;
+static FAutoConsoleVariableRef GEnableLegacyCachedOSPageAllocatorFreeMemReportingCVar(
+	TEXT("MallocBinned2.EnableLegacyCachedOSPageAllocatorFreeMemReporting"),
+	EnableLegacyCachedOSPageAllocatorFreeMemReporting,
+	TEXT("Temporary. Whether or not report full amount of cached memory in CachedOSPageAllocator (legacy) or report only the amount of memory immediately available to return to the OS")
+);
 
 #if UE_MB2_ALLOCATOR_STATS
 	std::atomic<int64> AllocatedOSSmallPoolMemory(0);
@@ -911,10 +917,6 @@ void FMallocBinned2::CanaryFail(const FFreeBlock* Block) const
 
 void FMallocBinned2::GetAllocatorStats( FGenericMemoryStats& OutStats )
 {
-	// Even if we have MB2 stats off, cached slack needs to be included as it might be needed by some platforms
-	const uint64 OSPageAllocatorCachedFreeSize = CachedOSPageAllocator.GetCachedFreeTotal();
-	OutStats.Add(TEXT("PageAllocatorFreeCacheSize"), OSPageAllocatorCachedFreeSize);
-
 #if UE_MB2_ALLOCATOR_STATS
 	const int64  TotalAllocatedSmallPoolMemory           = GetTotalAllocatedSmallPoolMemory();
 	const int64  LocalAllocatedOSSmallPoolMemory         = AllocatedOSSmallPoolMemory.load(std::memory_order_relaxed);
@@ -927,7 +929,7 @@ void FMallocBinned2::GetAllocatorStats( FGenericMemoryStats& OutStats )
 	OutStats.Add(TEXT("AllocatedLargePoolMemoryWAlignment"), LocalAllocatedLargePoolMemoryWAlignment);
 
 	const uint64 TotalAllocated = TotalAllocatedSmallPoolMemory + LocalAllocatedLargePoolMemory;
-	const uint64 TotalOSAllocated = LocalAllocatedOSSmallPoolMemory + LocalAllocatedLargePoolMemoryWAlignment + OSPageAllocatorCachedFreeSize;
+	const uint64 TotalOSAllocated = LocalAllocatedOSSmallPoolMemory + LocalAllocatedLargePoolMemoryWAlignment + CachedOSPageAllocator.GetCachedFreeTotal();
 
 	OutStats.Add(TEXT("TotalAllocated"), TotalAllocated);
 	OutStats.Add(TEXT("TotalOSAllocated"), TotalOSAllocated);
@@ -983,6 +985,7 @@ void FMallocBinned2::DumpAllocatorStats(class FOutputDevice& Ar)
 
 void FMallocBinned2::UpdateStats()
 {
+	//TODO: this will report total cached free memory in the COSPA, however a big chunk of that memory can be immediately freed to the OS
 	CSV_CUSTOM_STAT(FMemory, AllocatorCachedSlackMB, (int32)(CachedOSPageAllocator.GetCachedFreeTotal()/(1024*1024)), ECsvCustomStatOp::Set);
 
 	CachedOSPageAllocator.UpdateStats();

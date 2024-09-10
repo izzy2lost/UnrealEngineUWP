@@ -49,5 +49,8 @@ private:
 	FLiveLinkHubTicker Ticker;
 
 	/** Config-driven. True in LiveLink Hub standalone application, false in UE. */
-	bool bUseSubjectSettingsDetailsCustomization;
+	bool bUseSubjectSettingsDetailsCustomization = false;
+	
+	/** Overrides standard livelink settings customization. Config-driven. True in LiveLink Hub standalone application, false in UE. */
+	bool bUseSettingsDetailCustomization = false;
 };

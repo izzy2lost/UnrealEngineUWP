@@ -29,6 +29,7 @@ public:
 	TSharedPtr<FUICommandInfo> BeginSeamTool;
 	TSharedPtr<FUICommandInfo> BeginRecomputeUVsTool;
 	TSharedPtr<FUICommandInfo> BeginBrushSelectTool;
+	TSharedPtr<FUICommandInfo> BeginUVSnapshotTool;
 
 	TSharedPtr<FUICommandInfo> SewAction;
 	TSharedPtr<FUICommandInfo> SplitAction;

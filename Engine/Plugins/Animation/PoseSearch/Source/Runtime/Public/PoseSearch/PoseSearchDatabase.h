@@ -35,7 +35,8 @@ enum class EPoseSearchMode : int32
 	// Optimized search mode: the database projects the poses into a PCA space using only the most significant "NumberOfPrincipalComponents" dimensions, and construct a kdtree to facilitate the search.
 	PCAKDTree,
 
-	// Optimized search mode using a vantage point tree (Experimental)
+	// Optimized search mode using a vantage point tree
+	// Experimental, this feature might be removed without warning, not for production use
 	VPTree UMETA(DisplayName = "VPTree (Experimental)")
 };
 
@@ -488,7 +489,7 @@ private:
 	UE::PoseSearch::FSearchIndex SearchIndexPrivate;
 	
 	// CachedAssetMap is NOT serialized in operator<< but recalculated by UpdateCachedProperties every time SearchIndexPrivate changes
-	TMap<TObjectPtr<UObject>, TArray<int32>> CachedAssetMap;
+	TMap<TWeakObjectPtr<UObject>, TArray<int32>> CachedAssetMap;
 
 #if WITH_EDITOR
 	DECLARE_MULTICAST_DELEGATE(FOnDerivedDataRebuildMulticaster);

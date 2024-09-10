@@ -13,11 +13,12 @@ public:
 	TRefCountPtr<IPooledRenderTarget> SpecularLightingAndSecondMomentHistory;
 	TRefCountPtr<IPooledRenderTarget> NumFramesAccumulatedHistory;
 	TRefCountPtr<FRDGPooledBuffer> VisibleLightHashHistory;
+	TRefCountPtr<FRDGPooledBuffer> VisibleLightMaskHashHistory;
 
 	FVector4f HistoryScreenPositionScaleBias = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
 	FVector4f HistoryUVMinMax = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
 	FVector4f HistoryGatherUVMinMax = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
-	uint32 HistoryLightMaskBufferSize;
+	FIntPoint HistoryVisibleLightHashViewSizeInTiles = 0;
 
 	void SafeRelease()
 	{
@@ -25,6 +26,7 @@ public:
 		SpecularLightingAndSecondMomentHistory.SafeRelease();
 		NumFramesAccumulatedHistory.SafeRelease();
 		VisibleLightHashHistory.SafeRelease();
+		VisibleLightMaskHashHistory.SafeRelease();
 	}
 
 	uint64 GetGPUSizeBytes(bool bLogSizes) const;

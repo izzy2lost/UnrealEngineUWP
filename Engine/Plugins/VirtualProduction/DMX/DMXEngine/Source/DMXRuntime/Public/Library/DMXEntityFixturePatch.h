@@ -46,6 +46,15 @@ struct DMXRUNTIME_API FDMXEntityFixturePatchConstructionParams
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fixture Patch", meta = (DisplayName = "Starting Channel", UIMin = "1", UIMax = "512", ClampMin = "1", ClampMax = "512"))
 	int32 StartingAddress = 1;
 
+#if WITH_EDITOR
+	/**
+	 * The transform used when the DMX Library is spawned in a level.
+	 *
+	 * When the DMX Library is exported as an MVR file, this transform is used unless the 'Use Transforms from Level' export option is checked.
+	 */
+	FTransform DefaultTransform = FTransform::Identity;
+#endif 
+
 	/** 
 	 * When spawning the DMX Library as MVR Scene in Editor, each Fixture Patch has to correspond to a Fixture in the World (if it is desired to export the Scene as MVR later).
 	 * Mostly useful when importing an MVR into the DMX Library (see DMXLibraryFromMVRFactory). If left '00000000-00000000-00000000-00000000', a Unique ID will be generated for the patch. 
@@ -218,10 +227,25 @@ public:
 	bool FindFixtureID(int32& OutFixtureID) const;
 
 #if WITH_EDITOR
+	/**
+	 * Sets The transform used when the DMX Library is spawned in a level.
+	 *
+	 * When the DMX Library is exported as an MVR file, this transform is used unless the 'Use Transforms from Level' export option is checked.
+	 */
+	void SetDefaultTransform(const FTransform& NewDefaultTransform) { DefaultTransform = NewDefaultTransform; }
+
+	/**
+	 * Returns The transform used when the DMX Library is spawned in a level.
+	 *
+	 * When the DMX Library is exported as an MVR file, this transform is used unless the 'Use Transforms from Level' export option is checked.
+	 */
+	const FTransform& GetDefaultTransform() const { return DefaultTransform; }
+
 	/** Property name getters. When accessing the this way, use with care. The patch will need to update its cache after using property setters, use Pre/PostEditChanged events to achieve that. */
 	static FName GetUniverseIDPropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(UDMXEntityFixturePatch, UniverseID); }
 	static FName GetParentFixtureTypeTemplatePropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(UDMXEntityFixturePatch, ParentFixtureTypeTemplate); }
 	static FName GetActiveModePropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(UDMXEntityFixturePatch, ActiveMode); }
+	static FName GetDefaultTransformPropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(UDMXEntityFixturePatch, DefaultTransform); }
 	static FName GetMVRFixtureUUIDPropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(UDMXEntityFixturePatch, MVRFixtureUUID); }
 	static FName GetFixtureIDPropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(UDMXEntityFixturePatch, FixtureID); }
 	static FName GetStartingChannelPropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(UDMXEntityFixturePatch, StartingChannel); }
@@ -258,13 +282,23 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (DisplayName = "Active Mode Index"), Category = "Fixture Patch")
 	int32 ActiveMode;
 
-	/** The MVR Fixture UUID */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (DisplayName = "MVR Fixture UUID"), Category = "Fixture Patch")
-	FGuid MVRFixtureUUID;
+#if WITH_EDITORONLY_DATA
+	/** 
+	 * The transform used when the DMX Library is spawned in a level.
+	 * 
+	 * When the DMX Library is exported as an MVR file, this transform is used unless the 'Use Transforms from Level' export option is checked.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MVR")
+	FTransform DefaultTransform = FTransform::Identity;
+#endif // WITH_EDITORONLY_DATA
 
-	/** The Fixture ID. Note, fixture patch much like some lighting consoles only supports numerical fixture IDs, and not a string as per MVR specs. */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Fixture Patch")
+	/** The Fixture ID of this patch */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "MVR")
 	int32 FixtureID = 0;
+	
+	/** The MVR Fixture UUID */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (DisplayName = "MVR Fixture UUID"), Category = "MVR")
+	FGuid MVRFixtureUUID;
 
 	/** Delegate broadcast when a Fixture Patch changed */
 	static FDMXOnFixturePatchChangedDelegate OnFixturePatchChangedDelegate;

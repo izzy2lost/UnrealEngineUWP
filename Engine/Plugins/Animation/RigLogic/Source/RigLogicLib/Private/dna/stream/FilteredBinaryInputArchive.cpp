@@ -516,6 +516,19 @@ void FilteredBinaryInputArchive::process(RawRBFBehavior& dest) {
     process(dest.poses);
 }
 
+void FilteredBinaryInputArchive::process(RawRBFBehaviorExt& dest) {
+    if (malformed) {
+        return;
+    }
+
+    if (!contains(layerBitmask, DataLayerBitmask::RBFBehavior)) {
+        return;
+    }
+
+    process(dest.poseControlNames);
+    process(dest.poses);
+}
+
 void FilteredBinaryInputArchive::process(RawJointBehaviorMetadata& dest) {
     if (malformed) {
         return;

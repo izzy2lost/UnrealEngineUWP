@@ -182,6 +182,7 @@ void FDMXLibraryPortReferencesCustomization::CustomizeHeader(TSharedRef<IPropert
 	const FText DisplayToolTipOverride = LOCTEXT("HeaderToolTip", "The ports to be used with this Library.");
 
 	HeaderRow
+		.ShouldAutoExpand(true)
 		.NameContent()
 		[
 			SNullWidget::NullWidget

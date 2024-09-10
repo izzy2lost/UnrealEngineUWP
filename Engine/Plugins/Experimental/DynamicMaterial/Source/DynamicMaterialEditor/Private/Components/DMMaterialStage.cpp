@@ -516,7 +516,7 @@ void UDMMaterialStage::GenerateExpressions(const TSharedRef<FDMMaterialBuildStat
 		StageExpressions.Append(InBuildState->GetStageSourceExpressions(Source));		
 	}
 
-	if (InBuildState->IsPreviewMaterial())
+	if (InBuildState->GetPreviewObject() == this)
 	{
 		int32 OutputChannel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL;
 		int32 OutputIndex = 0;

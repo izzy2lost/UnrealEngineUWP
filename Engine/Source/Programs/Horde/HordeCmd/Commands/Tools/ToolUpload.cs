@@ -4,7 +4,6 @@ using System.ComponentModel;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Tools;
 using Microsoft.Extensions.Logging;
@@ -27,21 +26,21 @@ namespace Horde.Commands
 		public DirectoryReference InputDir { get; set; } = null!;
 
 		readonly HordeHttpClient _hordeHttpClient;
-		readonly HttpStorageClientFactory _httpStorageClientFactory;
+		readonly HttpStorageClient _storageClient;
 
-		public ToolUpload(HordeHttpClient httpClient, HttpStorageClientFactory httpStorageClientFactory)
+		public ToolUpload(HordeHttpClient httpClient, HttpStorageClient storageClient)
 		{
 			_hordeHttpClient = httpClient;
-			_httpStorageClientFactory = httpStorageClientFactory;
+			_storageClient = storageClient;
 		}
 
 		/// <inheritdoc/>
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			IStorageClient storageClient = _httpStorageClientFactory.CreateClientWithPath($"api/v1/tools/{ToolId}");
+			IStorageNamespace storageNamespace = _storageClient.GetNamespaceWithPath($"api/v1/tools/{ToolId}");
 
 			IHashedBlobRef<DirectoryNode> target;
-			await using (IBlobWriter writer = storageClient.CreateBlobWriter())
+			await using (IBlobWriter writer = storageNamespace.CreateBlobWriter())
 			{
 				target = await writer.WriteFilesAsync(InputDir);
 			}

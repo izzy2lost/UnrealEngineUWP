@@ -47,7 +47,7 @@ namespace UE::PixelStreaming2
 		UConsole::RegisterConsoleAutoCompleteEntries.AddRaw(this, &FStats::UpdateConsoleAutoComplete);
 	}
 
-	void FStats::StorePeerStat(FString PlayerId, FName StatCategory, FStatData Stat)
+	void FStats::StorePeerStat(const FString& PlayerId, FName StatCategory, FStatData Stat)
 	{
 		FName& StatName = Stat.Alias.IsSet() ? Stat.Alias.GetValue() : Stat.StatName;
 
@@ -78,7 +78,7 @@ namespace UE::PixelStreaming2
 		}
 	}
 
-	bool FStats::QueryPeerStat(FString PlayerId, FName StatCategory, FName StatToQuery, double& OutValue) const
+	bool FStats::QueryPeerStat(const FString& PlayerId, FName StatCategory, FName StatToQuery, double& OutValue) const
 	{
 		FScopeLock Lock(&PeerStatsCS);
 
@@ -90,7 +90,7 @@ namespace UE::PixelStreaming2
 		return false;
 	}
 
-	void FStats::RemovePeerStats(FString PlayerId)
+	void FStats::RemovePeerStats(const FString& PlayerId)
 	{
 		FScopeLock Lock(&PeerStatsCS);
 
@@ -197,7 +197,7 @@ namespace UE::PixelStreaming2
 		}
 	}
 
-	void FStats::FireStatChanged(FString PlayerId, FName StatName, float StatValue)
+	void FStats::FireStatChanged(const FString& PlayerId, FName StatName, float StatValue)
 	{
 		// firing off these delegates is not thread safe so we want to mutex this call.
 		FScopeLock Lock(&StatNotificationCS);

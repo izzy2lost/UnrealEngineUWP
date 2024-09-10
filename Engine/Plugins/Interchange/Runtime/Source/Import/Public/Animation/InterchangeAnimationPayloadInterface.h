@@ -27,6 +27,16 @@ class INTERCHANGEIMPORT_API IInterchangeAnimationPayloadInterface
 public:
 
 	/**
+	 * Return true if the translator want to import all bone animations in one query, false otherwise.
+	 * 
+	 * @Note - The fbx translator use the fbx sdk which cache the global transform but dirty the cache every time we evaluate at a different time. The goal is to evaluate all bones at the same time.
+	 */
+	virtual bool PreferGroupingBoneAnimationQueriesTogether() const
+	{
+		return false;
+	}
+
+	/**
 	 * Get animation payload data for the specified payload key.
 	 * It return an array of FRichCurve (Rich curve are float curve we can interpolate) or array of "Step" curve or an array of Baked Transformations, depending on Type
 	 *

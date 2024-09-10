@@ -197,9 +197,12 @@ void FMotionMatchingState::Reset(const FTransform& ComponentTransform)
 	ElapsedPoseSearchTime = std::numeric_limits<float>::infinity();
 	WantedPlayRate = 1.f;
 	bJumpedToPose = false;
+	
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	ComponentDeltaYaw = 0.f;
 	ComponentWorldYaw = FRotator(ComponentTransform.GetRotation()).Yaw;
 	AnimationDeltaYaw = 0.f;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	PoseIndicesHistory.Reset();
 }
@@ -664,34 +667,6 @@ void UPoseSearchLibrary::MotionMatch(
 
 	TArray<FName, TInlineAllocator<PreallocatedRolesNum, TMemStackAllocator<>>> Roles;
 	Roles.Add(UE::PoseSearch::DefaultRole);
-
-	TArray<const UObject*>& AssetsToSearchConst = reinterpret_cast<TArray<const UObject*>&>(AssetsToSearch);
-	MotionMatch(AnimInstances, Roles, AssetsToSearchConst, PoseHistoryName, ContinuingProperties, Future, Result);
-}
-
-void UPoseSearchLibrary::MotionMatchMulti(
-	TArray<ACharacter*> Characters,
-	TArray<FName> Roles,
-	TArray<UObject*> AssetsToSearch,
-	const FName PoseHistoryName,
-	const FPoseSearchContinuingProperties ContinuingProperties,
-	const FPoseSearchFutureProperties Future,
-	FPoseSearchBlueprintResult& Result)
-{
-	using namespace UE::PoseSearch;
-
-	FMemMark Mark(FMemStack::Get());
-
-	TArray<UAnimInstance*, TInlineAllocator<PreallocatedRolesNum, TMemStackAllocator<>>> AnimInstances;
-	for (ACharacter* Character : Characters)
-	{
-		UAnimInstance* AnimInstance = nullptr;
-		if (Character && Character->GetMesh())
-		{
-			AnimInstance = Character->GetMesh()->GetAnimInstance();
-		}
-		AnimInstances.Add(AnimInstance);
-	}
 
 	TArray<const UObject*>& AssetsToSearchConst = reinterpret_cast<TArray<const UObject*>&>(AssetsToSearch);
 	MotionMatch(AnimInstances, Roles, AssetsToSearchConst, PoseHistoryName, ContinuingProperties, Future, Result);

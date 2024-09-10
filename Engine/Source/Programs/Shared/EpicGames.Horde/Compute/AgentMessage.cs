@@ -725,7 +725,7 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="channel">Channel to write to</param>
 		/// <param name="message">The read request</param>
-		/// <param name="storage">Storage client to retrieve the blob from</param>
+		/// <param name="storage">Storage backend to retrieve the blob from</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static Task SendBlobDataAsync(this AgentMessageChannel channel, ReadBlobMessage message, IStorageBackend storage, CancellationToken cancellationToken = default)
 		{
@@ -739,7 +739,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="locator">Locator for the blob to send</param>
 		/// <param name="offset">Starting offset of the data</param>
 		/// <param name="length">Length of the data</param>
-		/// <param name="storage">Storage client to retrieve the blob from</param>
+		/// <param name="storage">Storage backend to retrieve the blob from</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static async Task SendBlobDataAsync(this AgentMessageChannel channel, BlobLocator locator, int offset, int length, IStorageBackend storage, CancellationToken cancellationToken = default)
 		{

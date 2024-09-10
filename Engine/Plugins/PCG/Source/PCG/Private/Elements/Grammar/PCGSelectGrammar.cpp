@@ -209,7 +209,7 @@ bool FPCGSelectGrammarElement::ExecuteInternal(FPCGContext* InContext) const
 				{
 					if (Criterion.FirstValue > Criterion.SecondValue)
 					{
-						PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("InvalidCriteriaRange", "Criteria range is inverted for criterion with Key->Grammar: '{0}'->'{1}'"), FText::FromName(Criterion.Key), FText::FromString(Criterion.Grammar)));
+						PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("InvalidCriteriaRange", "Criteria range is inverted for criterion with Key->Grammar: '{0}'->'{1}'"), FText::FromName(Criterion.Key), FText::FromString(Criterion.Grammar)), InContext);
 						return true;
 					}
 				}
@@ -253,14 +253,14 @@ bool FPCGSelectGrammarElement::ExecuteInternal(FPCGContext* InContext) const
 		TUniquePtr<const IPCGAttributeAccessorKeys> InputKeys = PCGAttributeAccessorHelpers::CreateConstKeys(InputPointData, KeySelector);
 		if (!InputKeyAccessor || !InputKeys)
 		{
-			PCGLog::Metadata::LogFailToCreateAccessorError(KeySelector);
+			PCGLog::Metadata::LogFailToCreateAccessorError(KeySelector, InContext);
 			continue;
 		}
 
 		TUniquePtr<const IPCGAttributeAccessor> ComparedValuesAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputPointData, ComparedValueSelector);
 		if (!ComparedValuesAccessor)
 		{
-			PCGLog::Metadata::LogFailToCreateAccessorError(ComparedValueSelector);
+			PCGLog::Metadata::LogFailToCreateAccessorError(ComparedValueSelector, InContext);
 			continue;
 		}
 
@@ -271,7 +271,7 @@ bool FPCGSelectGrammarElement::ExecuteInternal(FPCGContext* InContext) const
 		TUniquePtr<IPCGAttributeAccessorKeys> OutputKeys = PCGAttributeAccessorHelpers::CreateKeys(OutputPointData, OutputGrammarSelector);
 		if (!WriteGrammarAccessor || !OutputKeys)
 		{
-			PCGLog::Metadata::LogFailToCreateAccessorError(OutputGrammarSelector);
+			PCGLog::Metadata::LogFailToCreateAccessorError(OutputGrammarSelector, InContext);
 			continue;
 		}
 

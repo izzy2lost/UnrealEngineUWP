@@ -1,13 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGReduce.h"
+
+#include "Algo/Sort.h"
+#include "Helper/NNERuntimeRDGOperatorHelper.h"
+#include "Misc/EnumerateRange.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersReduceCS.h"
 #include "NNERuntimeRDGHlslHelper.h"
-#include "Helper/NNERuntimeRDGOperatorHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
-#include "Algo/Sort.h"
-#include "Misc/EnumerateRange.h"
 #include "RenderGraphUtils.h"
 
 namespace UE::NNERuntimeRDG::Private::Hlsl
@@ -50,7 +52,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 					const NNE::Internal::FTensorRef AxesTensor = InputTensors[1];
 					if(!AxesTensor->HasPreparedData())
 					{
-						UE_LOG(LogNNE, Warning, TEXT("Reduce tensor `axes` (name: %s) must be CPU constant."), *InputTensors[1]->GetName());
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Reduce: Tensor `axes` (name: %s) must be CPU constant."), *InputTensors[1]->GetName());
 						return false;
 					}
 					if(AxesTensor->GetVolume() != 0)
@@ -67,7 +69,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			{
 				if (Axis > InputRank || Axis  < -InputRank)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Reduce operators 'Axes' attribute should contain value be in the range [-r,r] with r being the rank of the input (name: %s) however got %d while rank is %d."), *InputTensors[0]->GetName(), Axis, InputRank);
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Reduce: 'Axes' attribute should contain value be in the range [-r,r] with r being the rank of the input (name: %s) however got %d while rank is %d."), *InputTensors[0]->GetName(), Axis, InputRank);
 					return false;
 				}
 
@@ -128,7 +130,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (!bAxesAsInput && Axes.Num() == 0)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Reduce attribute `axes` cannot be empty."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Reduce: Attribute `axes` cannot be empty."));
 				return false;
 			}
 

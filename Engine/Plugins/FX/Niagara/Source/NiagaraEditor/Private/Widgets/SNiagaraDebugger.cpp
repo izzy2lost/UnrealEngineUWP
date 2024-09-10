@@ -1449,6 +1449,17 @@ TSharedRef<SWidget> SNiagaraDebugger::MakeModeOptionsMenu()
 			NAME_None, EUserInterfaceActionType::ToggleButton);
 
 		MenuBuilder.AddMenuEntry(
+			LOCTEXT("OnlyShowFilteredSystems", "Show Filtered Systems Only in Overview"),
+			LOCTEXT("OnlyShowFilteredSystemsTooltip", "When enabled only the filtered systems will be shown in the overview."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([=]() {Settings->Data.bOverviewShowFilteredSystemOnly = !Settings->Data.bOverviewShowFilteredSystemOnly; Settings->NotifyPropertyChanged(); }),
+				FCanExecuteAction::CreateLambda([=]() { return Settings->Data.bHudRenderingEnabled && Settings->Data.bOverviewEnabled; }),
+				FIsActionChecked::CreateLambda([=]() { return Settings->Data.bOverviewShowFilteredSystemOnly; })
+			),
+			NAME_None, EUserInterfaceActionType::ToggleButton);
+
+		MenuBuilder.AddMenuEntry(
 			LOCTEXT("EnableValidation", "Data Validation"),
 			LOCTEXT("EnableValidationTooltip", "Will allow you to validate system and particle data buffers when enabled."),
 			FSlateIcon(),

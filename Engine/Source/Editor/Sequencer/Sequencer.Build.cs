@@ -51,6 +51,7 @@ public class Sequencer : ModuleRules
 				"TypedElementRuntime",
 				"UniversalObjectLocator",
 				"UniversalObjectLocatorEditor",
+				"RenderCore"
 				}
 			);
 

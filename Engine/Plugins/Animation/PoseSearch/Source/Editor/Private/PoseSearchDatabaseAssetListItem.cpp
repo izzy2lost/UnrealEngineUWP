@@ -266,7 +266,7 @@ namespace UE::PoseSearch
 									PreviewComponent->PreviewInstance->SetPlaying(false);
 									PreviewComponent->PreviewInstance->SetBlendSpacePosition(AnimationAssetBlendParameters);
 								}
-								else if (Editor->GetEditorName() == "ChimeraAssetEditor")
+								else if (Editor->GetEditorName() == "PoseSearchInteractionAssetEditor")
 								{
 									IMultiAnimAssetEditor* MultiAnimAssetEditor = static_cast<IMultiAnimAssetEditor*>(Editor);
 

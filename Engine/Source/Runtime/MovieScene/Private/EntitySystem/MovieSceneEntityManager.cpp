@@ -236,12 +236,12 @@ struct FEntityInitializer
 				else
 #endif
 				{
-					UE_AUTORTFM_OPEN2
+					UE_AUTORTFM_OPEN
 					{
 						new (Header) FComponentHeader();
 					};
 						
-					UE_AUTORTFM_ONABORT2(Header)
+					UE_AUTORTFM_ONABORT(Header)
 					{
 						Header->~FComponentHeader();
 					};

@@ -464,11 +464,11 @@ struct FNiagaraDebugHUDSettingsData
 	bool bHudRenderingEnabled = true;
 
 	/** Primary control for validation settings. */
-	UPROPERTY(VisibleAnywhere, Category = "Debug Overview")
+	UPROPERTY()
 	bool bValidationEnabled = false;
 
 	/** When enabled the overview display will be enabled. */
-	UPROPERTY(VisibleAnywhere, Category = "Debug Overview")
+	UPROPERTY()
 	bool bOverviewEnabled = false;
 
 	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (DisplayName = "Debug Overview Mode", EditCondition = "bOverviewEnabled"))
@@ -486,8 +486,8 @@ struct FNiagaraDebugHUDSettingsData
 	bool bShowRegisteredComponents = false;
 	
 	/** When enabled the overview will only show the filter system information. */
-	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (DisplayName = "Show only filtered system info", EditCondition = "bOverviewEnabled"))
-	bool bOverviewShowFilteredSystemOnly = false;
+	UPROPERTY()
+	bool bOverviewShowFilteredSystemOnly = true;
 
 	UPROPERTY(EditAnywhere, Category = "Debug Overview", AdvancedDisplay)
 	bool bShowGlobalBudgetInfo = false;
@@ -495,7 +495,7 @@ struct FNiagaraDebugHUDSettingsData
 	/**
 	If enabled, then only systems matching the filters will be considered by the debug hud
 	*/
-	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (DisplayName = "Filter displayed systems"))
+	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (DisplayName = "Filter Displayed Systems"))
 	bool bSystemFilterEnabled = false;
 
 	/**

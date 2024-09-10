@@ -72,7 +72,9 @@ void FRayTracingShaderBindingTable::ResetDynamicAllocationData()
 }
 
 FShaderBindingTableRHIRef FRayTracingShaderBindingTable::AllocateRHI(
-	ERayTracingHitGroupIndexingMode HitGroupIndexingMode, 
+	FRHICommandListBase& RHICmdList, 
+	ERayTracingShaderBindingMode ShaderBindingMode, 
+	ERayTracingHitGroupIndexingMode HitGroupIndexingMode,
 	uint32 NumMissShaderSlots, 
 	uint32 NumCallableShaderSlots, 
 	uint32 LocalBindingDataSize) const
@@ -80,14 +82,15 @@ FShaderBindingTableRHIRef FRayTracingShaderBindingTable::AllocateRHI(
 	uint32 AllocatedStaticSegmentSize = GetMaxAllocatedStaticSegmentCount();
 	
 	FRayTracingShaderBindingTableInitializer SBTInitializer;
-	SBTInitializer.bAllowHitGroupIndexing = HitGroupIndexingMode == ERayTracingHitGroupIndexingMode::Allow;
+	SBTInitializer.ShaderBindingMode = ShaderBindingMode;
+	SBTInitializer.HitGroupIndexingMode = HitGroupIndexingMode;
 	SBTInitializer.NumGeometrySegments = AllocatedStaticSegmentSize + NumDynamicGeometrySegments;
 	SBTInitializer.NumShaderSlotsPerGeometrySegment = NumShaderSlotsPerGeometrySegment;
 	SBTInitializer.NumMissShaderSlots = NumMissShaderSlots;
 	SBTInitializer.NumCallableShaderSlots = NumCallableShaderSlots;
 	SBTInitializer.LocalBindingDataSize = LocalBindingDataSize;
 	
-	return RHICreateShaderBindingTable(SBTInitializer);
+	return RHICmdList.CreateRayTracingShaderBindingTable(SBTInitializer);
 }
 
 uint32 FRayTracingShaderBindingTable::GetNumGeometrySegments() const

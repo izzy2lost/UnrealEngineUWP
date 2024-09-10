@@ -335,6 +335,37 @@ UDynamicMesh* UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshDisconnectF
 	return TargetMesh;
 }
 
+UDynamicMesh* UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshDisconnectFacesAlongEdges(
+	UDynamicMesh* TargetMesh,
+	FGeometryScriptMeshSelection Selection,
+	UGeometryScriptDebug* Debug)
+{
+	if (TargetMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("ApplyMeshDisconnectEdges_InvalidInput", "ApplyMeshDisconnectEdges: TargetMesh is Null"));
+		return TargetMesh;
+	}
+
+	TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh)
+	{
+		TArray<int32> Edges;
+		Selection.ConvertToMeshIndexArray(EditMesh, Edges, EGeometryScriptIndexType::Edge);
+		if (Edges.Num() == 0)
+		{
+			UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("ApplyMeshDisconnectFaces_NoEdges", "ApplyMeshDisconnectEdges: Selection contains no edges"));
+		}
+		else
+		{
+			FDynamicMeshEditor Editor(&EditMesh);
+			TSet<int32> EdgeSet(Edges);
+			Editor.DisconnectTrianglesAlongEdges(EdgeSet);
+		}
+
+	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);
+
+	return TargetMesh;
+}
+
 
 UDynamicMesh* UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshDuplicateFaces(
 	UDynamicMesh* TargetMesh,
@@ -837,7 +868,19 @@ UDynamicMesh* UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshInsetOutset
 }
 
 
-
+UDynamicMesh* UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshBevelEdgeSelection(
+	UDynamicMesh* TargetMesh,
+	FGeometryScriptMeshSelection Selection,
+	FGeometryScriptMeshBevelSelectionOptions BevelOptions,
+	UGeometryScriptDebug* Debug)
+{
+	return ApplyMeshBevelSelection(
+		TargetMesh,
+		Selection,
+		EGeometryScriptMeshBevelSelectionMode::SelectedEdges,
+		BevelOptions,
+		Debug);
+}
 
 UDynamicMesh* UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshBevelSelection(
 	UDynamicMesh* TargetMesh,
@@ -863,7 +906,26 @@ UDynamicMesh* UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshBevelSelect
 
 		TUniquePtr<FGroupTopology> GroupTopology;
 
-		if (BevelMode == EGeometryScriptMeshBevelSelectionMode::TriangleArea)
+		if (BevelMode == EGeometryScriptMeshBevelSelectionMode::SelectedEdges)
+		{
+			TArray<int32> Edges;
+			Selection.ConvertToMeshIndexArray(EditMesh, Edges, EGeometryScriptIndexType::Edge);
+			// Note: Using group junctions as corner vertices tends to help the bevel match the result of a similar polygroup bevel in the UI
+			// (though is often very similar to the no-corner bevel; necessary corners where more than 2 selected edges meet are automatically detected)
+			if (EditMesh.HasTriangleGroups())
+			{
+				Bevel.InitializeFromTriangleEdges(EditMesh, Edges, [&EditMesh](int32 VID)
+					{
+						return EditMesh.IsGroupJunctionVertex(VID);
+					});
+			}
+			else
+			{
+				Bevel.InitializeFromTriangleEdges(EditMesh, Edges, [](int32) {return false;});
+			}
+			
+		}
+		else if (BevelMode == EGeometryScriptMeshBevelSelectionMode::TriangleArea)
 		{
 			TArray<int32> Triangles;
 			Selection.ConvertToMeshIndexArray(EditMesh, Triangles, EGeometryScriptIndexType::Triangle);

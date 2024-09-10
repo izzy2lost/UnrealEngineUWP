@@ -20,6 +20,7 @@ public:
 
 	// UMovieGraphSettingNode Interface
 	virtual void BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const override;
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
 	// ~UMovieGraphSettingNode Interface
 
 	// UMovieGraphNode Interface

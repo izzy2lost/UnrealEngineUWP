@@ -1059,7 +1059,7 @@ bool FNiagaraRendererRibbons::IsMaterialValid(const UMaterialInterface* Mat)cons
 }
 
 #if RHI_RAYTRACING
-void FNiagaraRendererRibbons::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances, const FNiagaraSceneProxy* SceneProxy)
+void FNiagaraRendererRibbons::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector, const FNiagaraSceneProxy* SceneProxy)
 {
 	if (!CVarRayTracingNiagaraRibbons.GetValueOnRenderThread())
 	{
@@ -1069,7 +1069,7 @@ void FNiagaraRendererRibbons::GetDynamicRayTracingInstances(FRayTracingMaterialG
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraRenderRibbons);
 	check(SceneProxy);
 
-	FRHICommandListBase& RHICmdList = Context.RHICmdList;
+	FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
 	FNiagaraDynamicDataRibbon *DynamicDataRibbon = static_cast<FNiagaraDynamicDataRibbon*>(DynamicDataRender);
 	FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = SceneProxy->GetComputeDispatchInterface();
 	
@@ -1078,7 +1078,7 @@ void FNiagaraRendererRibbons::GetDynamicRayTracingInstances(FRayTracingMaterialG
 		return;
 	}
 
-	FNiagaraDataBuffer* SourceParticleData = DynamicDataRibbon->GetParticleDataToRender(Context.RHICmdList);
+	FNiagaraDataBuffer* SourceParticleData = DynamicDataRibbon->GetParticleDataToRender(RHICmdList);
 
 	if (GbEnableNiagaraRibbonRendering == 0 || SourceParticleData == nullptr)
 	{
@@ -1121,13 +1121,13 @@ void FNiagaraRendererRibbons::GetDynamicRayTracingInstances(FRayTracingMaterialG
 		}
 	}
 	
-	auto& View = Context.ReferenceView;
-	auto& ViewFamily = Context.ReferenceViewFamily;
+	auto View = Collector.GetReferenceView();
+	auto ViewFamily = View->Family;
 	// Setup material for our ray tracing instance
 	
 	const FVector ViewOriginForDistanceCulling = View->ViewMatrices.GetViewOrigin();
 	
-	FNiagaraRibbonMeshCollectorResources& RenderingResources = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FNiagaraRibbonMeshCollectorResources>();
+	FNiagaraRibbonMeshCollectorResources& RenderingResources = Collector.AllocateOneFrameResource<FNiagaraRibbonMeshCollectorResources>();
 	FNiagaraRibbonRenderingFrameViewResources* RenderingViewResources = RenderingResources.RibbonResources->ViewResources.Add_GetRef(MakeShared<FNiagaraRibbonRenderingFrameViewResources>()).Get();
 	RenderingViewResources->IndexGenerationSettings = CalculateIndexBufferConfiguration(DynamicDataRibbon->GenerationOutput, SourceParticleData, SceneProxy, View, ViewOriginForDistanceCulling, DynamicDataRibbon->bUseGPUInit, DynamicDataRibbon->bIsGPUSystem);
 	
@@ -1138,11 +1138,11 @@ void FNiagaraRendererRibbons::GetDynamicRayTracingInstances(FRayTracingMaterialG
 
 	FNiagaraGpuRibbonsDataManager& GpuRibbonDataManager = ComputeDispatchInterface->GetOrCreateDataManager<FNiagaraGpuRibbonsDataManager>();
 
-	InitializeVertexBuffersResources(RHICmdList, DynamicDataRibbon, SourceParticleData, Context.RayTracingMeshResourceCollector.GetDynamicReadBuffer(), RenderingResources.RibbonResources, DynamicDataRibbon->bUseGPUInit);
+	InitializeVertexBuffersResources(RHICmdList, DynamicDataRibbon, SourceParticleData, Collector.GetDynamicReadBuffer(), RenderingResources.RibbonResources, DynamicDataRibbon->bUseGPUInit);
 	
-	GenerateIndexBufferForView(RHICmdList, GpuRibbonDataManager, Context.RayTracingMeshResourceCollector, RenderingViewResources->IndexGenerationSettings, DynamicDataRibbon, RenderingViewResources, View, ViewOriginForDistanceCulling);
+	GenerateIndexBufferForView(RHICmdList, GpuRibbonDataManager, Collector, RenderingViewResources->IndexGenerationSettings, DynamicDataRibbon, RenderingViewResources, View, ViewOriginForDistanceCulling);
 			
-	SetupPerViewUniformBuffer(RenderingViewResources->IndexGenerationSettings, View, ViewFamily, SceneProxy, RenderingViewResources->UniformBuffer);
+	SetupPerViewUniformBuffer(RenderingViewResources->IndexGenerationSettings, View, *ViewFamily, SceneProxy, RenderingViewResources->UniformBuffer);
 	
 	if (RenderingViewResources->IndexGenerationSettings.TotalNumIndices <= 0)
 	{
@@ -1158,7 +1158,7 @@ void FNiagaraRendererRibbons::GetDynamicRayTracingInstances(FRayTracingMaterialG
 	
 	FMeshBatch MeshBatch;
 	
-	SetupMeshBatchAndCollectorResourceForView(RHICmdList, RenderingViewResources->IndexGenerationSettings, DynamicDataRibbon, SourceParticleData, View, ViewFamily, SceneProxy, RenderingResources.RibbonResources, RenderingViewResources, MeshBatch, DynamicDataRibbon->bUseGPUInit);
+	SetupMeshBatchAndCollectorResourceForView(RHICmdList, RenderingViewResources->IndexGenerationSettings, DynamicDataRibbon, SourceParticleData, View, *ViewFamily, SceneProxy, RenderingResources.RibbonResources, RenderingViewResources, MeshBatch, DynamicDataRibbon->bUseGPUInit);
 
 	RayTracingInstance.Materials.Add(MeshBatch);
 	
@@ -1169,7 +1169,7 @@ void FNiagaraRendererRibbons::GetDynamicRayTracingInstances(FRayTracingMaterialG
 	
 	const int32 MaxTriangleCount = RenderingViewResources->IndexGenerationSettings.MaxSegmentCount * RenderingViewResources->IndexGenerationSettings.SubSegmentCount * ShapeState.TrianglesPerSegment;
 	
-	Context.DynamicRayTracingGeometriesToUpdate.Add(
+	Collector.AddRayTracingGeometryUpdate(
 		FRayTracingDynamicGeometryUpdateParams
 		{
 			RayTracingInstance.Materials,
@@ -1183,7 +1183,7 @@ void FNiagaraRendererRibbons::GetDynamicRayTracingInstances(FRayTracingMaterialG
 		}
 	);
 	
-	OutRayTracingInstances.Add(RayTracingInstance);
+	Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 }
 #endif
 

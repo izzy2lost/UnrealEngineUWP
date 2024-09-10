@@ -34,11 +34,15 @@ public:
 	void SetSimulationScene(class FDataflowSimulationScene* SimulationScene);
 
 	/** Caching blueprint actor class to spawn */
-	UPROPERTY(EditAnywhere, Category = "Preview")
+	UPROPERTY(EditAnywhere, Category = "Scene")
 	TSubclassOf<AActor> BlueprintClass = nullptr;
 
+	/** Blueprint actor transform */
+	UPROPERTY(EditAnywhere, Category = "Scene")
+	FTransform BlueprintTransform = FTransform::Identity;
+
 	/** Caching asset to be used to record the simulation  */
-	UPROPERTY(EditAnywhere, Category="Caching")
+	UPROPERTY(EditAnywhere, Category="Caching", DisplayName="CacheCollection")
 	TObjectPtr<UChaosCacheCollection> CacheAsset = nullptr;
 
 	/** Caching params used to record the simulation */
@@ -46,15 +50,15 @@ public:
 	FDataflowPreviewCacheParams CacheParams;
 
 	/** Geometry cache asset used to extract skeletal mesh results from simulation */
-	UPROPERTY(EditAnywhere, Category = "Geometry Cache Conversion")
+	UPROPERTY(EditAnywhere, Category = "Geometry", DisplayName="GeometryCache", meta=(EditCondition = "CacheAsset != nullptr"))
 	TObjectPtr<UGeometryCache> GeometryCacheAsset = nullptr;
 
 	/** Interpolates and saves geometry cache from Chaos cache */
-	UFUNCTION(CallInEditor, Category = "Geometry Cache Conversion")
+	UFUNCTION(CallInEditor, Category = "Geometry")
 	void GenerateGeometryCache();
 
 	/** Creates a new geometry cache file */
-	UFUNCTION(CallInEditor, Category = "Geometry Cache Conversion")
+	UFUNCTION(CallInEditor, Category = "Geometry")
 	void NewGeometryCache();
 
 private:
@@ -83,6 +87,9 @@ public:
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	
 	virtual ~FDataflowSimulationScene();
+
+	/** Functions that will be triggered when objects will be reinstanced (BP compilation) */
+	void OnObjectsReinstanced(const TMap<UObject*, UObject*>& ObjectsMap);
 
 	/** Tick data flow scene */
 	virtual void TickDataflowScene(const float DeltaSeconds) override;
@@ -158,6 +165,9 @@ private:
 
 	/** Preview actor that will will be used to visualize the result of the simulation graph */
 	TObjectPtr<AActor> PreviewActor;
+
+	/** Handle for the delegate */
+	FDelegateHandle OnObjectsReinstancedHandle;
 };
 
 

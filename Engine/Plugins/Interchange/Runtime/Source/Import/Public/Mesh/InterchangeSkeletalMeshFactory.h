@@ -6,6 +6,8 @@
 #include "ClothingAsset.h"
 #include "CoreMinimal.h"
 #include "InterchangeFactoryBase.h"
+#include "InterchangeMeshNode.h"
+#include "Mesh/InterchangeMeshPayload.h"
 #include "Rendering/SkeletalMeshLODImporterData.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
@@ -53,6 +55,7 @@ public:
 
 	virtual UClass* GetFactoryClass() const override;
 	virtual EInterchangeFactoryAssetType GetFactoryAssetType() override { return EInterchangeFactoryAssetType::Meshes; }
+	virtual void CreatePayloadTasks(const FImportAssetObjectParams& Arguments, bool bAsync, TArray<TSharedPtr<UE::Interchange::FInterchangeTaskBase>>& PayloadTasks) override;
 	virtual FImportAssetResult BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments) override;
 	virtual FImportAssetResult ImportAsset_Async(const FImportAssetObjectParams& Arguments) override;
 	virtual FImportAssetResult EndImportAsset_GameThread(const FImportAssetObjectParams& Arguments) override;
@@ -69,8 +72,19 @@ public:
 
 	// Interchange factory base interface end
 	//////////////////////////////////////////////////////////////////////////
+
+	struct FLodPayloads
+	{
+		TMap<FInterchangeMeshPayLoadKey, TOptional<UE::Interchange::FMeshPayloadData>> MeshPayloadPerKey;
+		TMap<FInterchangeMeshPayLoadKey, TOptional<UE::Interchange::FMeshPayloadData>> MorphPayloadPerKey;
+	};
+
 private:
 	FEvent* SkeletalMeshLockPropertiesEvent = nullptr;
+
+	
+
+	TMap<int32, FLodPayloads> PayloadsPerLodIndex;
 
 	FImportAssetObjectData ImportAssetObjectData;
 };

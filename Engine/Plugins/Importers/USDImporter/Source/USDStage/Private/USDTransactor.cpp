@@ -6,11 +6,11 @@
 #include "USDLayerUtils.h"
 #include "USDListener.h"
 #include "USDLog.h"
+#include "USDMemory.h"
 #include "USDPrimConversion.h"
 #include "USDStageActor.h"
 #include "USDTypesConversion.h"
 #include "USDValueConversion.h"
-
 #include "UsdWrappers/SdfChangeBlock.h"
 #include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/SdfPath.h"

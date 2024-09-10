@@ -52,7 +52,7 @@ namespace UnrealBuildTool
 		readonly UBAExecutor _owner;
 		internal StatusUpdateAction? _updateStatus;
 
-		readonly BundleStorageClient _storage = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+		readonly BundleStorageNamespace _storage = BundleStorageNamespace.CreateInMemory(NullLogger.Instance);
 		BlobLocator _ubaAgentLocator;
 
 		readonly ServiceProvider _serviceProvider;
@@ -125,7 +125,6 @@ namespace UnrealBuildTool
 				_client = null;
 				// Set CPU resource need to zero (will also expire on the server if not updated)
 				await UpdateCpuCoreNeedAsync(0);
-				await client.DisposeAsync();
 			}
 
 			await _serviceProvider.DisposeAsync();
@@ -139,7 +138,7 @@ namespace UnrealBuildTool
 				throw new InvalidOperationException("Session has already been initialized");
 			}
 
-			_client = _serviceProvider.GetRequiredService<IHordeClient>().CreateComputeClient();
+			_client = _serviceProvider.GetRequiredService<IHordeClient>().Compute;
 			_hordeHttpClient = _serviceProvider.GetRequiredService<IHordeClient>().CreateHttpClient();
 			GetServerInfoResponse serverInfo = await _hordeHttpClient.GetServerInfoAsync(cancellationToken);
 			_logger.LogInformation("Horde server: {ServerVersion}, agent: {AgentVersion}", serverInfo.ServerVersion, serverInfo.AgentVersion);

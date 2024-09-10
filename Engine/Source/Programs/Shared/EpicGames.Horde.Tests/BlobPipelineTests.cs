@@ -20,7 +20,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task TestAsync()
 		{
-			BundleStorageClient client = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+			BundleStorageNamespace client = BundleStorageNamespace.CreateInMemory(NullLogger.Instance);
 
 			List<IHashedBlobRef> handles = new List<IHashedBlobRef>();
 			await using (IBlobWriter writer = client.CreateBlobWriter())

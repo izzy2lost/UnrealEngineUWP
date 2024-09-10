@@ -245,7 +245,7 @@ public:
 	NIAGARAEDITOR_API TSharedPtr<FNiagaraEmitterHandleViewModel> AddEmitter(const FVersionedNiagaraEmitter& Emitter);
 
 	/** Adds the default empty emitter to the system, or a truly empty emitter as a fallback. */
-	NIAGARAEDITOR_API TSharedPtr<FNiagaraEmitterHandleViewModel> AddDefaultEmptyEmitter();
+	NIAGARAEDITOR_API TSharedPtr<FNiagaraEmitterHandleViewModel> AddMinimalEmitter();
 
 	/** Adds a truly empty emitter to the system. */
 	NIAGARAEDITOR_API TSharedPtr<FNiagaraEmitterHandleViewModel> AddEmptyEmitter();

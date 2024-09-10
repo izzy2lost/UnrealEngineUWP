@@ -186,7 +186,7 @@ protected:
 
 			PopulateCultureList();
 
-			PackagingCategory.AddCustomRow(LOCTEXT("CulturesToStageLabel", "Cultures To Stage"), true)
+			PackagingCategory.AddCustomRow(LOCTEXT("CulturesToStageLabel", "Languages To Package"), true)
 				.NameContent()
 				.HAlign(HAlign_Fill)
 				.VAlign(VAlign_Top)
@@ -204,7 +204,7 @@ protected:
 					[
 						SNew(SImage)
 						.Image(FAppStyle::GetBrush(TEXT("Icons.Error")))
-						.ToolTipText(LOCTEXT("NoCulturesToStageSelectedError", "At least one culture must be selected or fatal errors may occur when launching games."))
+						.ToolTipText(LOCTEXT("NoCulturesToStageSelectedError", "At least one language must be selected or fatal errors may occur when launching games."))
 						.Visibility(this, &FProjectPackagingSettingsCustomization::HandleNoCulturesErrorIconVisibility)
 					]
 				]

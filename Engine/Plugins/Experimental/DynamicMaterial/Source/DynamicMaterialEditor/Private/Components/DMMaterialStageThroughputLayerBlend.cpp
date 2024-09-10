@@ -296,7 +296,9 @@ void UDMMaterialStageThroughputLayerBlend::GenerateExpressions(const TSharedRef<
 		return;
 	}
 
-	if (InBuildState->IsPreviewMaterial())
+	UObject* PreviewObject = InBuildState->GetPreviewObject();
+
+	if (PreviewObject == this || PreviewObject == GetStage())
 	{
 		GeneratePreviewExpressions(InBuildState);
 	}
@@ -581,7 +583,7 @@ bool UDMMaterialStageThroughputLayerBlend::GenerateStagePreviewMaterial(UDMMater
 	}
 
 	TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
-	BuildState->SetPreviewMaterial();
+	BuildState->SetPreviewObject(InStage);
 
 	UDMMaterialStageSource* PreviewSource = GetInputMask();
 
@@ -954,7 +956,7 @@ void UDMMaterialStageThroughputLayerBlend::GeneratePreviewMaterial(UMaterial* In
 	}
  
 	TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
-	BuildState->SetPreviewMaterial();
+	BuildState->SetPreviewObject(this);
 
 	if (ChannelInputs.IsEmpty())
 	{

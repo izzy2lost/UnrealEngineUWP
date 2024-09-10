@@ -13,6 +13,8 @@
 #include "PropertyEditorModule.h"
 #include "SAssetDropTarget.h"
 #include "SDMTextureSetBuilder.h"
+#include "Styling/StyleColors.h"
+#include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
@@ -123,7 +125,10 @@ void SDMTextureSetBuilderMaterialPropertyCell::Construct(const FArguments& InArg
 						SNew(STextBlock)
 						.Text(this, &SDMTextureSetBuilderMaterialPropertyCell::GetTextureName)
 						.WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping)
-						.WrapTextAt(90.f)
+						.WrapTextAt(110.f)
+						.Font(FAppStyle::GetFontStyle("TinyText"))
+						.HighlightText(this, &SDMTextureSetBuilderMaterialPropertyCell::GetTextureName)
+						.Visibility(this, &SDMTextureSetBuilderMaterialPropertyCell::GetTextureNameVisibility)
 					]
 				]
 			]
@@ -215,6 +220,13 @@ void SDMTextureSetBuilderMaterialPropertyCell::SetMaterialForChannelMask()
 		MIDObject->SetTextureParameterValue(Parameter_Texture, Texture.Get());
 		MaterialBrush.SetMaterial(MIDObject);
 	}
+}
+
+EVisibility SDMTextureSetBuilderMaterialPropertyCell::GetTextureNameVisibility() const
+{
+	return Texture.IsValid()
+		? EVisibility::Visible
+		: EVisibility::Collapsed;
 }
 
 #undef LOCTEXT_NAMESPACE

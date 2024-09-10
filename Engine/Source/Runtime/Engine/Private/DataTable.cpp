@@ -396,6 +396,22 @@ void UDataTable::ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistr
 		}
 	}
 }
+
+EDataValidationResult UDataTable::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = Super::IsDataValid(Context);
+
+	if (RowStruct && RowStruct->IsChildOf(FTableRowBase::StaticStruct()))
+	{
+		for (const TPair<FName, uint8*>& TableRowPair : RowMap)
+		{
+			const FTableRowBase* CurRow = reinterpret_cast<FTableRowBase*>(TableRowPair.Value);
+			Result = CombineDataValidationResults(Result, CurRow->IsDataValid(Context));
+		}
+	}
+	
+	return Result;
+}
 #endif // WITH_EDITOR
 
 UScriptStruct& UDataTable::GetEmptyUsingStruct() const

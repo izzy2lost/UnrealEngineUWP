@@ -25,13 +25,13 @@ uint8 UTypedElementBridgeDataStorageFactory::GetOrder() const
 	return 110;
 }
 
-void UTypedElementBridgeDataStorageFactory::PreRegister(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementBridgeDataStorageFactory::PreRegister(IEditorDataStorageProvider& DataStorage)
 {
 	Super::PreRegister(DataStorage);
 	DebugEnabledDelegateHandle = UE::Editor::DataStorage::Compatibility::Private::CVarBridgeEnabled->OnChangedDelegate().AddUObject(this, &UTypedElementBridgeDataStorageFactory::HandleOnEnabled);
 }
 
-void UTypedElementBridgeDataStorageFactory::PreShutdown(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementBridgeDataStorageFactory::PreShutdown(IEditorDataStorageProvider& DataStorage)
 {
 	UE::Editor::DataStorage::Compatibility::Private::CVarBridgeEnabled->OnChangedDelegate().Remove(DebugEnabledDelegateHandle);
 	DebugEnabledDelegateHandle.Reset();
@@ -40,7 +40,7 @@ void UTypedElementBridgeDataStorageFactory::PreShutdown(ITypedElementDataStorage
 	Super::PreShutdown(DataStorage);
 }
 
-void UTypedElementBridgeDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementBridgeDataStorageFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	Super::RegisterQueries(DataStorage);
 
@@ -55,7 +55,7 @@ bool UTypedElementBridgeDataStorageFactory::IsEnabled()
 	return UE::Editor::DataStorage::Compatibility::Private::CVarBridgeEnabled->GetBool();
 }
 
-void UTypedElementBridgeDataStorageFactory::RegisterQuery_NewUObject(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementBridgeDataStorageFactory::RegisterQuery_NewUObject(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 	
@@ -65,11 +65,11 @@ void UTypedElementBridgeDataStorageFactory::RegisterQuery_NewUObject(ITypedEleme
 		.Compile());
 }
 
-void UTypedElementBridgeDataStorageFactory::UnregisterQuery_NewUObject(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementBridgeDataStorageFactory::UnregisterQuery_NewUObject(IEditorDataStorageProvider& DataStorage)
 {
 }
 
-void UTypedElementBridgeDataStorageFactory::CleanupTypedElementColumns(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementBridgeDataStorageFactory::CleanupTypedElementColumns(IEditorDataStorageProvider& DataStorage)
 {
 	using namespace UE::Editor::DataStorage::Queries;
 
@@ -90,7 +90,7 @@ void UTypedElementBridgeDataStorageFactory::CleanupTypedElementColumns(ITypedEle
 
 void UTypedElementBridgeDataStorageFactory::HandleOnEnabled(IConsoleVariable* CVar)
 {
-	ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+	IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 	bool bIsEnabled = CVar->GetBool();
 
 	if (bIsEnabled)

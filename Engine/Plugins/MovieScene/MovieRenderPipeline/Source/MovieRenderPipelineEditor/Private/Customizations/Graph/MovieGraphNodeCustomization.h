@@ -54,6 +54,9 @@ protected:
 
 		// Collapse the Tags category by default because it's not used by most users.
 		DetailBuilder.EditCategory("Tags").InitiallyCollapsed(true).SetSortOrder(1000 * ECategoryPriority::Uncommon);
+
+		// The File Output category should be shown first in all output nodes that have this category.
+		DetailBuilder.EditCategory("File Output").SetSortOrder(ECategoryPriority::Important);
 	}
 	//~ End IDetailCustomization interface
 };

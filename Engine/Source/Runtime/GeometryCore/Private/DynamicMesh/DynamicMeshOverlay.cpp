@@ -1392,6 +1392,28 @@ void TDynamicMeshOverlay<RealType, ElementSize>::OnMergeEdges(const FDynamicMesh
 	}
 }
 
+template<typename RealType, int ElementSize>
+void TDynamicMeshOverlay<RealType, ElementSize>::OnMergeVertices(const FDynamicMesh3::FMergeVerticesInfo& MergeInfo)
+{
+	// Attributes don't change, but one of the vertices got removed, so any elements on that vertex
+	//  should be reparented to the kept vertex. We have to iterate around the kept vertex since
+	//  ParentMesh is already updated.
+	for (int Tid : ParentMesh->VtxTrianglesItr(MergeInfo.KeptVertex))
+	{
+		if (!IsSetTriangle(Tid))
+		{
+			continue;
+		}
+		FIndex3i Triangle = GetTriangle(Tid);
+		for (int j = 0; j < 3; ++j)
+		{
+			if (Triangle[j] != FDynamicMesh3::InvalidID && ParentVertices[Triangle[j]] == MergeInfo.RemovedVertex)
+			{
+				ParentVertices[Triangle[j]] = MergeInfo.KeptVertex;
+			}
+		}
+	}
+}
 
 
 template<typename RealType, int ElementSize>

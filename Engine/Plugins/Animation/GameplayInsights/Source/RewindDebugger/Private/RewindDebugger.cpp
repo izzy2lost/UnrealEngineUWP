@@ -185,7 +185,7 @@ void FRewindDebugger::OnPIEStarted(bool bSimulating)
 
 	if (ShouldAutoRecordOnPIE())
 	{
-		StartRecording();
+		bQueueStartRecording = true;
 	}
 }
 
@@ -1030,6 +1030,13 @@ const FObjectInfo* FRewindDebugger::FindOwningActorInfo(const IGameplayProvider*
 void FRewindDebugger::Tick(float DeltaTime)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick);
+
+
+	if (bQueueStartRecording)
+	{
+		StartRecording();
+		bQueueStartRecording = false;
+	}
 
 	if (const TraceServices::IAnalysisSession* Session = GetAnalysisSession())
 	{

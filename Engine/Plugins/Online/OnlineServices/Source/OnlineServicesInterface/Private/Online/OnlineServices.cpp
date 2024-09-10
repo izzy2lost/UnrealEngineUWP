@@ -65,9 +65,9 @@ int32 GetBuildUniqueId()
 	return BuildId;
 }
 
-bool IsLoaded(EOnlineServices OnlineServices, FName InstanceName)
+bool IsLoaded(EOnlineServices OnlineServices, FName InstanceName, FName InstanceConfigName)
 {
-	return FOnlineServicesRegistry::Get().IsLoaded(OnlineServices, InstanceName);
+	return FOnlineServicesRegistry::Get().IsLoaded(OnlineServices, InstanceName, InstanceConfigName);
 }
 
 TSharedPtr<IOnlineServices> GetServices(EOnlineServices OnlineServices, FName InstanceName, FName InstanceConfigName)

@@ -5,6 +5,7 @@
 #include "ChaosVDScene.h"
 #include "IStructureDetailsView.h"
 #include "PropertyEditorModule.h"
+#include "SChaosVDMainTab.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
 #include "Widgets/SChaosVDWarningMessageBox.h"
 #include "Modules/ModuleManager.h"
@@ -62,9 +63,10 @@ SChaosVDConstraintDataInspector::~SChaosVDConstraintDataInspector()
 	UnregisterSceneEvents();
 }
 
-void SChaosVDConstraintDataInspector::Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr)
+void SChaosVDConstraintDataInspector::Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr, const TSharedRef<SChaosVDMainTab>& InMainTab)
 {
 	SceneWeakPtr = InScenePtr;
+	MainTabWeakPtr = InMainTab;
 
 	RegisterSceneEvents();
 
@@ -336,9 +338,13 @@ const TSharedRef<FChaosVDSolverDataSelectionHandle>& SChaosVDConstraintDataInspe
 	return CurrentDataSelectionHandle;
 }
 
-TSharedPtr<IStructureDetailsView> SChaosVDConstraintDataInspector::CreateDataDetailsView()
+TSharedPtr<IStructureDetailsView> SChaosVDConstraintDataInspector::CreateDataDetailsView() const
 {
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	TSharedPtr<SChaosVDMainTab> MainTabPtr = MainTabWeakPtr.Pin();
+	if (!MainTabPtr)
+	{
+		return nullptr;
+	}
 
 	const FStructureDetailsViewArgs StructDetailsViewArgs;
 	FDetailsViewArgs DetailsViewArgs;
@@ -347,7 +353,7 @@ TSharedPtr<IStructureDetailsView> SChaosVDConstraintDataInspector::CreateDataDet
 	DetailsViewArgs.bAllowSearch = true;
 	DetailsViewArgs.bShowScrollBar = false;
 
-	return PropertyEditorModule.CreateStructureDetailView(DetailsViewArgs, StructDetailsViewArgs, nullptr);
+	return MainTabPtr->CreateStructureDetailsView(DetailsViewArgs, StructDetailsViewArgs, nullptr);
 }
 
 #undef LOCTEXT_NAMESPACE

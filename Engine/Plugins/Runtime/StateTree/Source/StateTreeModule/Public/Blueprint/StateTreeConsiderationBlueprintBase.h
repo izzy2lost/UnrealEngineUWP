@@ -20,15 +20,15 @@ class STATETREEMODULE_API UStateTreeConsiderationBlueprintBase : public UStateTr
 public:
 	UStateTreeConsiderationBlueprintBase(const FObjectInitializer& ObjectInitializer);
 
-	UFUNCTION(BlueprintImplementableEvent, meta = (DisplayName = "ComputeRawScore"))
-	float ReceiveComputeRawScore() const;
+	UFUNCTION(BlueprintImplementableEvent, meta = (DisplayName = "GetScore"))
+	float ReceiveGetScore() const;
 
 protected:
-	virtual float ComputeRawScore(FStateTreeExecutionContext& Context) const;
+	virtual float GetScore(FStateTreeExecutionContext& Context) const;
 
 	friend struct FStateTreeBlueprintConsiderationWrapper;
 
-	uint8 bHasComputeRawScore : 1;
+	uint8 bHasGetScore : 1;
 };
 
 /**
@@ -50,7 +50,7 @@ struct STATETREEMODULE_API FStateTreeBlueprintConsiderationWrapper : public FSta
 
 protected:
 	//~ Begin FStateTreeConsiderationBase Interface
-	virtual float ComputeRawScore(FStateTreeExecutionContext& Context) const override;
+	virtual float GetScore(FStateTreeExecutionContext& Context) const override;
 	//~ End FStateTreeConsiderationBase Interface
 
 public:

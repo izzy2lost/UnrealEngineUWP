@@ -748,6 +748,31 @@ float FSkelMeshDNAReader::GetRBFPoseScale(uint16 PoseIndex) const
 	return BehaviorReader->GetRBFPoseScale(PoseIndex);
 }
 
+uint16 FSkelMeshDNAReader::GetRBFPoseControlCount() const
+{
+	return BehaviorReader->GetRBFPoseControlCount();
+}
+
+FString FSkelMeshDNAReader::GetRBFPoseControlName(uint16 PoseControlIndex) const
+{
+	return BehaviorReader->GetRBFPoseControlName(PoseControlIndex);
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetRBFPoseInputControlIndices(uint16 PoseIndex) const
+{
+	return BehaviorReader->GetRBFPoseInputControlIndices(PoseIndex);
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetRBFPoseOutputControlIndices(uint16 PoseIndex) const
+{
+	return BehaviorReader->GetRBFPoseOutputControlIndices(PoseIndex);
+}
+
+TArrayView<const float> FSkelMeshDNAReader::GetRBFPoseOutputControlWeights(uint16 PoseIndex) const
+{
+	return BehaviorReader->GetRBFPoseOutputControlWeights(PoseIndex);
+}
+
 uint16 FSkelMeshDNAReader::GetRBFSolverCount() const
 {
 	return BehaviorReader->GetRBFSolverCount();

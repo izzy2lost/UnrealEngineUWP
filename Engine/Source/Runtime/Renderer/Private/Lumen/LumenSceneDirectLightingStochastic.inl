@@ -879,7 +879,7 @@ static void ComputeStochasticLighting(
 						RDG_EVENT_NAME("StandaloneLight::Evaluate(LF,%s)", *Light.Name),
 						PassParameters,
 						ComputePassFlags,
-						[PassParameters, ComputeShader, CardTilePerLightArgs, DispatchIndirectArgOffset, LightFunctionMaterialProxy, &Material, &View](FRHIComputeCommandList& RHICmdList)
+						[PassParameters, ComputeShader, CardTilePerLightArgs, DispatchIndirectArgOffset, LightFunctionMaterialProxy, &Material, &View](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 						{
 							CardTilePerLightArgs->MarkResourceAsUsed();
 							FComputeShaderUtils::ValidateIndirectArgsBuffer(CardTilePerLightArgs, DispatchIndirectArgOffset);

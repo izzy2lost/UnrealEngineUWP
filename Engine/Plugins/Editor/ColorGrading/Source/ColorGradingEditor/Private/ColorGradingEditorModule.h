@@ -16,10 +16,11 @@ class FLayoutExtender;
 class FColorGradingEditorModule : public IColorGradingEditor
 {
 public:
-	//~ IModuleInterface interface
+	//~ IColorGradingEditor interface
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
-	//~ End IModuleInterface interface
+	virtual FName GetColorGradingTabSpawnerId() const override { return ColorGradingPanelTabId; }
+	//~ End IColorGradingEditor interface
 
 private:
 	/** Called right before the engine starts ticking */

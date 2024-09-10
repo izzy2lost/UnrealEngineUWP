@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGGlobalPool.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersReduceCS.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
@@ -57,7 +59,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (InputTensorDescs[0].GetShape().Rank() != OutputTensorDescs[0].GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("GlobalPool operators requires the output to have the same rank as the input."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("GlobalPool: Operators requires the output to have the same rank as the input."));
 				return false;
 			}
 
@@ -65,7 +67,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (InputRank <= FirstReducedDimension)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("GlobalPool operators requires input tensor to be at least 3-D (but got rank %d)"), InputRank);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("GlobalPool: Operators requires input tensor to be at least 3-D (but got rank %d)"), InputRank);
 				return false;
 			}
 

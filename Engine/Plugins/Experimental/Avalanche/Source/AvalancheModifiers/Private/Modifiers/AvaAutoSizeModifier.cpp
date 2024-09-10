@@ -25,7 +25,18 @@ bool UAvaAutoSizeModifier::IsModifierDirtyable() const
 
 	const FBox ReferenceActorLocalBounds = FAvaModifiersActorUtils::GetActorsBounds(TrackedActor, bIncludeChildren, true);
 
-	if (ReferenceActorLocalBounds.Equals(CachedReferenceBounds, 0.01))
+	const FVector FollowAxisVector = FAvaModifiersActorUtils::GetVectorAxis(FollowedAxis);
+
+	// If we follow reference actor check bounds
+	if (!FollowAxisVector.IsNearlyZero())
+	{
+		if (ReferenceActorLocalBounds.Equals(CachedReferenceBounds, 0.01))
+		{
+			return Super::IsModifierDirtyable();
+		}
+	}
+	// If we don't follow reference actor check size
+	else if (ReferenceActorLocalBounds.GetSize().Equals(CachedReferenceBounds.GetSize(), 0.01))
 	{
 		return Super::IsModifierDirtyable();
 	}

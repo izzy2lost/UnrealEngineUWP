@@ -11,6 +11,8 @@
 #include "OptimusComponentSource.h"
 #include "OptimusDataDomain.h"
 #include "OptimusNodeSubGraph.h"
+#include "OptimusValueContainerStruct.h"
+#include "OptimusValue.h"
 
 #include "Animation/MeshDeformer.h"
 #include "Interfaces/Interface_PreviewMeshProvider.h"
@@ -34,11 +36,10 @@ enum class EOptimusDiagnosticLevel : uint8;
 struct FOptimusCompilerDiagnostic;
 struct FOptimusCompoundAction;
 
-
 DECLARE_MULTICAST_DELEGATE_OneParam(FOptimusCompileBegin, UOptimusDeformer *);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOptimusCompileEnd, UOptimusDeformer *);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOptimusGraphCompileMessageDelegate, FOptimusCompilerDiagnostic const&);
-DECLARE_MULTICAST_DELEGATE_TwoParams(FOptimusConstantValueUpdate, TSoftObjectPtr<UObject>, FShaderValueContainer const&);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOptimusConstantValueUpdate, TSoftObjectPtr<UObject>, FOptimusValueContainerStruct const&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOptimusSetAllInstancesCanbeActive, bool);
 
 UENUM()
@@ -64,6 +65,15 @@ struct FOptimusComputeGraphInfo
 
 	UPROPERTY()
 	TObjectPtr<UOptimusComputeGraph> ComputeGraph = nullptr;
+};
+
+struct FOptimusNodeGraphCompilationResult
+{
+	TArray<FOptimusComputeGraphInfo> ComputeGraphInfos;
+
+	TMap<TWeakObjectPtr<const UComputeDataInterface>, FOptimusDataInterfacePropertyOverrideInfo> DataInterfacePropertyOverrideMap;
+
+	TMap<FOptimusValueIdentifier, FOptimusValueDescription> ValueMap;	
 };
 
 /** A container class that owns component source bindings. This is used to ensure we don't end up
@@ -495,12 +505,19 @@ protected:
 	// The compute graphs to execute.
 	UPROPERTY()
 	TArray<FOptimusComputeGraphInfo> ComputeGraphs;
+	
+	UPROPERTY()
+	TMap<TWeakObjectPtr<const UComputeDataInterface>, FOptimusDataInterfacePropertyOverrideInfo> DataInterfacePropertyOverrideMap;
+	
+	UPROPERTY()
+	TMap<FOptimusValueIdentifier, FOptimusValueDescription> ValueMap;
 
 private:
 	void PostLoadFixupMissingComponentBindingsCompat();
 	void PostLoadFixupMismatchedResourceDataDomains();
 	void PostLoadRemoveDeprecatedExecutionNodes();
 	void PostLoadRemoveDeprecatedValueContainerGeneratorClass();
+	void PostLoadMoveValueFromGraphDataInterfaceToDeformerValueMap();
 
 	/** Find a compatible binding with the given data interface. Returns nullptr if no such binding exists */
 	UOptimusComponentSourceBinding* FindCompatibleBindingWithInterface(
@@ -514,7 +531,7 @@ private:
 	TArray<UOptimusNode*> GetAllNodesOfClass(UClass* InNodeClass) const;
 	
 	/// Compile a node graph to a compute graph. Returns one or two complete compute graphs if compilation succeeded. 
-	TArray<FOptimusComputeGraphInfo> CompileNodeGraphToComputeGraphs(
+	FOptimusNodeGraphCompilationResult CompileNodeGraphToComputeGraphs(
 		const UOptimusNodeGraph *InNodeGraph,
 		TFunction<void(EOptimusDiagnosticLevel, FText, const UObject*)> InErrorReporter
 		);

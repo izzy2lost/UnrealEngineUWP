@@ -293,6 +293,14 @@ public:
 	/** Consume any results from the gatherer and return its status */
 	Impl::EGatherStatus TickGatherer(Impl::FTickContext& TickContext);
 
+	/**
+	 * At some times during editor startup, depending on config settings, we might want to block
+	 * on the gather, and not tick the rest of the editor. When we want that to happen, we set
+	 * this flag. This function can be read outside of the lock (we need to do that during Tick).
+	 */
+	bool IsGameThreadTakeOverGatherEachTick() const;
+	void SetGameThreadTakeOverGatherEachTick(bool bValue);
+
 	/** Send a log message with the search statistics. 
 	 *  StartTime is used to report wall clock search time in the case of background scan
 	 */
@@ -648,6 +656,7 @@ private:
 	 * AssetRegistry's lock from another thread.
 	 */
 	uint32 BackgroundTickInterruptionsCount = 0;
+	std::atomic<bool> bGameThreadTakeOverGatherEachTick;
 
 	/** A map of per asset class dependency gatherer called in LoadCalculatedDependencies */
 	TMultiMap<FTopLevelAssetPath, UE::AssetDependencyGatherer::Private::FRegisteredAssetDependencyGatherer*> RegisteredDependencyGathererClasses;
@@ -861,6 +870,16 @@ void EnumerateMemoryAssets(const FARCompiledFilter& InFilter, TSet<FName>& OutPa
 inline uint32& FAssetRegistryImpl::GetBackgroundTickInterruptionsCount()
 {
 	return BackgroundTickInterruptionsCount;
+}
+
+inline bool FAssetRegistryImpl::IsGameThreadTakeOverGatherEachTick() const
+{
+	return bGameThreadTakeOverGatherEachTick.load(std::memory_order_relaxed);
+}
+
+inline void FAssetRegistryImpl::SetGameThreadTakeOverGatherEachTick(bool bValue)
+{
+	bGameThreadTakeOverGatherEachTick.store(bValue, std::memory_order_relaxed);
 }
 #endif
 

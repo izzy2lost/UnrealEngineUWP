@@ -29,8 +29,13 @@ protected:
 	virtual FString GetOriginalName(int32 InIndex) const override;
 	virtual bool RemoveIndex(int32 InIndex) override;
 	virtual bool CanRename(int32 InIndex) const override;
-	virtual bool ExecuteRename(int32 InIndex, const FString& InNewName) override;
+
+	virtual bool BeginRename() override;
+	virtual bool PrepareRename(int32 InIndex, const FString& InNewName) override;
+	virtual bool ExecuteRename() override;
+	virtual bool EndRename() override;
 	//~ End IAdvancedRenamerProvider
 
 	TArray<TWeakObjectPtr<AActor>> ActorList;
+	TArray<TTuple<AActor*, FString>> ActorToNewNameList;
 };

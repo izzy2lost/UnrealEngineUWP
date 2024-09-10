@@ -26,19 +26,19 @@ namespace UE::TedsStylingFactory::Local
 
 }
 
-void UTedsStylingFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
+void UTedsStylingFactory::RegisterTables(IEditorDataStorageProvider& DataStorage)
 {
 	DataStorage.RegisterTable(TTypedElementColumnTypeList<FNameColumn, FSlateStyleSetColumn, FSlateStyleTag>(), UE::TedsStylingFactory::Local::TableName);
 }
 
-void UTedsStylingFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTedsStylingFactory::RegisterQueries(IEditorDataStorageProvider& DataStorage)
 {
 	Super::RegisterQueries(DataStorage);
 }
 
 void UTedsStylingFactory::RegisterAllKnownStyles()
 {
-	ITypedElementDataStorageInterface* Interface = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+	IEditorDataStorageProvider* Interface = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 	auto RegisterBrushesForStyle = [Interface](const ISlateStyle& Style)
 	{
@@ -85,7 +85,7 @@ void UTedsStylingFactory::RegisterAllKnownStyles()
 	);
 }
 
-void UTedsStylingFactory::RegisterBrush(ITypedElementDataStorageInterface* DataStorage, const FName& StyleName, const FSlateBrush* Brush, const ISlateStyle& OwnerStyle)
+void UTedsStylingFactory::RegisterBrush(IEditorDataStorageProvider* DataStorage, const FName& StyleName, const FSlateBrush* Brush, const ISlateStyle& OwnerStyle)
 {
 	// We currently don't store the FSlateBrush* itself to avoid storing a raw pointer that we can query on demand anyways in case we want to support
 	// swapping brushes or unloading styles on demand in the future
@@ -104,7 +104,7 @@ void UTedsStylingFactory::RegisterBrush(ITypedElementDataStorageInterface* DataS
 	}
 }
 
-void UTedsStylingFactory::RegisterColor(ITypedElementDataStorageInterface* DataStorage, const FName& StyleName, const FSlateColor& Color,
+void UTedsStylingFactory::RegisterColor(IEditorDataStorageProvider* DataStorage, const FName& StyleName, const FSlateColor& Color,
 	const ISlateStyle& OwnerStyle)
 {
 	const UE::Editor::DataStorage::RowHandle Row = AddOrGetStyleRow(DataStorage, StyleName, OwnerStyle);
@@ -116,7 +116,7 @@ void UTedsStylingFactory::RegisterColor(ITypedElementDataStorageInterface* DataS
 
 }
 
-UE::Editor::DataStorage::RowHandle UTedsStylingFactory::AddOrGetStyleRow(ITypedElementDataStorageInterface* DataStorage,
+UE::Editor::DataStorage::RowHandle UTedsStylingFactory::AddOrGetStyleRow(IEditorDataStorageProvider* DataStorage,
 	const FName& StyleName, const ISlateStyle& OwnerStyle)
 {
 	const FName StyleSetName = OwnerStyle.GetStyleSetName();

@@ -178,8 +178,6 @@ namespace UE::Learning
 			const float InTimeout = Trainer::DefaultTimeout,
 			const ESubprocessFlags TrainingProcessFlags = ESubprocessFlags::None);
 
-		~FSharedMemoryTrainerServerProcess();
-
 		/** Check if the server process is still running. */
 		virtual bool IsRunning() const override final;
 
@@ -348,8 +346,6 @@ namespace UE::Learning
 			const float InTimeout = Trainer::DefaultTimeout,
 			const ESubprocessFlags TrainingProcessFlags = ESubprocessFlags::None,
 			const ELogSetting LogSettings = ELogSetting::Normal);
-
-		~FSocketTrainerServerProcess();
 
 		/**
 		* Check if the server process is still running

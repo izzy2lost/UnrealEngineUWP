@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "Containers/Array.h"
+#include "Containers/UnrealString.h"
+#include "Delegates/IDelegateInstance.h"
 #include "Misc/Fork.h"
 #include "Modules/ModuleInterface.h"
 

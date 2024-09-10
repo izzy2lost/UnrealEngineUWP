@@ -57,9 +57,9 @@ struct FDMMaterialBuildState : public IDMMaterialBuildStateInterface, public TSh
 	DYNAMICMATERIALEDITOR_API void SetIgnoreUVs();
 
 	/** Whether the build state is building a full material or a preview. */
-	bool IsPreviewMaterial() const { return bIsPreviewMaterial; }
+	UObject* GetPreviewObject() const { return PreviewObject; }
 
-	DYNAMICMATERIALEDITOR_API void SetPreviewMaterial();
+	DYNAMICMATERIALEDITOR_API void SetPreviewObject(UObject* InObject);
 
 	/** A handy set of tools for creating material expressions. */
 	DYNAMICMATERIALEDITOR_API virtual IDMMaterialBuildUtilsInterface& GetBuildUtils() const override;
@@ -158,7 +158,7 @@ private:
 	const UDMMaterialProperty* CurrentProperty = nullptr;
 	bool bDirtyAssets;
 	bool bIgnoreUVs;
-	bool bIsPreviewMaterial;
+	UObject* PreviewObject = nullptr;
 	TSharedRef<FDMMaterialBuildUtils> Utils;
 
 	TMap<const UDMMaterialValue*, TArray<UMaterialExpression*>> Values;

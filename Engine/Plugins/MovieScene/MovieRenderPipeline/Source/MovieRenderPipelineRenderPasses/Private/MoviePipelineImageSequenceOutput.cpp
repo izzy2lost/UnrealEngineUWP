@@ -242,6 +242,22 @@ void UMoviePipelineImageSequenceOutputBase::OnReceiveImageDataImpl(FMoviePipelin
 					continue;
 				}
 
+				// Check that the composite resolution matches the camera resolution to ensure the composite pass doesn't fail.
+				// This can happen if multiple cameras with different amounts of overscan are rendered, since composite passes
+				// don't support rendering at multiple resolutions
+				const FIntPoint CompositeResolution = CompositePass.PixelData->GetSize();
+				const FIntPoint CameraResolution = RenderPassData.Value->GetSize();
+				if (CompositeResolution != CameraResolution)
+				{
+					UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Composite resolution %dx%d does not match camera resolution %dx%d, skipping composite for %s on camera %s"),
+						CompositeResolution.X, CompositeResolution.Y,
+						CameraResolution.X, CameraResolution.Y,
+						*CompositePass.PassIdentifier.Name,
+						*RenderPassData.Key.CameraName);
+
+					continue;
+				}
+
 				// If there's more than one render pass, we need to copy the composite passes for the first render pass then move for the remaining ones
 				const bool bShouldCopyImageData = RenderPassCount > 1 && RenderPassIteration == 0;
 				TUniquePtr<FImagePixelData> PixelData = bShouldCopyImageData ? CompositePass.PixelData->CopyImageData() : CompositePass.PixelData->MoveImageDataToNew();

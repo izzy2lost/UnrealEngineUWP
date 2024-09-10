@@ -81,7 +81,7 @@ namespace UE::Editor::DataStorage
 			
 			for (const FName& Purpose : WidgetPurposes)
 			{
-				DataStorageUi->CreateWidgetConstructors(Purpose, ITypedElementDataStorageUiInterface::EMatchApproach::LongestMatch,
+				DataStorageUi->CreateWidgetConstructors(Purpose, IEditorDataStorageUiProvider::EMatchApproach::LongestMatch,
 					Columns, {}, [this, Row](
 						TUniquePtr<FTypedElementWidgetConstructor> Constructor, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> Columns)
 					{
@@ -130,8 +130,8 @@ namespace UE::Editor::DataStorage
 	//
 	// SRowDetailsRow
 	//
-	void SRowDetailsRow::Construct(const FArguments& Args, const TSharedRef<STableViewBase>& OwnerTableView,ITypedElementDataStorageInterface* InDataStorage,
-			ITypedElementDataStorageUiInterface* InDataStorageUi)
+	void SRowDetailsRow::Construct(const FArguments& Args, const TSharedRef<STableViewBase>& OwnerTableView,IEditorDataStorageProvider* InDataStorage,
+			IEditorDataStorageUiProvider* InDataStorageUi)
 	{
 		Item = Args._Item;
 

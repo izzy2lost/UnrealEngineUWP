@@ -16,15 +16,6 @@
 
 namespace UE::ChaosCachingUSD
 {
-	template <class TV>
-	pxr::VtArray<pxr::GfVec3f> ToVtVec3Array(const TArray<TV>& V3Array)
-	{
-		FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
-		pxr::VtArray<pxr::GfVec3f> RetVal(static_cast<size_t>(V3Array.Num()));
-		for (int32 i = 0; i < V3Array.Num(); i++) RetVal[i].Set(V3Array[i][0], V3Array[i][1], V3Array[i][2]);
-		return RetVal;
-	}
-
 	bool ValuesDiffer(const pxr::VtArray<pxr::GfVec3f>& A, const pxr::VtArray<pxr::GfVec3f>& B, const float Tolerance = 1.0e-8, const uint64 stride = 1)
 	{
 		if (A.size() != B.size()) return true;

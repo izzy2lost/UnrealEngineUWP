@@ -3391,7 +3391,6 @@ private:
                         ULANG_UNREACHABLE();
                         break;
                     }
-                    VerifyQualificationIsOk(QualifierType, *Definition, *DefinitionAst, ExprCtx);
                 });
         }
     }
@@ -4358,7 +4357,7 @@ private:
 
                     if (OverriddenMembers.Num() == 0)
                     {
-                        // if we are not overriding a member, we shouldn't have the @override attribute on ourselves
+                        // if we are not overriding a member, we shouldn't have the <override> attribute on ourselves
                         if (DataMember->HasAttributeClass(_Program->_overrideClass, *_Program))
                         {
                             AppendGlitch(
@@ -4373,7 +4372,7 @@ private:
                     {
                         const CDefinition* OverriddenMember = OverriddenMembers[0];
 
-                        // glitch if the data member doesn't have the @override attribute
+                        // glitch if the data member doesn't have the <override> attribute
                         if (!DataMember->HasAttributeClass(_Program->_overrideClass, *_Program))
                         {
                             AppendGlitch(
@@ -5887,7 +5886,7 @@ private:
     }
     
     //-------------------------------------------------------------------------------------------------
-    // This exists because we need to know if a function has the async or decides attribute at the time
+    // This exists because we need to know if a function has the suspends or decides attribute at the time
     // that we create the class or function's type. However, that runs during the types phase, which is before
     // the attributes phase.
     // If the same effect is decoded more than once, then bReportDuplicate should only be true for one calls to reduce redundant error messages.
@@ -7293,25 +7292,19 @@ private:
                 AttributePropagationTarget = &InnerInterface->_Interface;
             }
 
-            if (AttributePropagationTarget)
-            {
-                if (TOptional<SAttribute> Attribute = Function->FindAttribute(_Program->_nativeClass, *_Program))
-                {
-                    EnqueueDeferredTask(Deferred_PropagateAttributes, [this, Function, AttributePropagationTarget, Attribute = Move(Attribute)] () mutable
-                    {
-                        AttributePropagationTarget->AddAttribute(Move(*Attribute));
-                        Function->RemoveAttributeClass(_Program->_nativeClass, *_Program);
-                        ULANG_ASSERT(AttributePropagationTarget->IsNative());
-                        ULANG_ASSERT(!Function->IsNative());
-                    });
-                }
-            }
-
             // Push all our attributes from parametric functions to target class types
             if (AttributePropagationTarget)
             {
                 EnqueueDeferredTask(Deferred_PropagateAttributes, [this, Function, AttributePropagationTarget]() mutable
                 {
+                    if (TOptional<SAttribute> CustomAttribute = Function->FindAttribute(_Program->_nativeClass, *_Program))
+                    {
+                        AttributePropagationTarget->AddAttribute(Move(*CustomAttribute));
+                        Function->RemoveAttributeClass(_Program->_nativeClass, *_Program);
+                        ULANG_ASSERT(AttributePropagationTarget->IsNative());
+                        ULANG_ASSERT(!Function->IsNative());
+                    }
+
                     if (TOptional<SAttribute> CustomAttribute = Function->FindAttribute(_Program->_customAttributeHandler, *_Program))
                     {
                         AttributePropagationTarget->AddAttribute(Move(*CustomAttribute));
@@ -7335,7 +7328,6 @@ private:
             }
 
             if (!Function->HasImplementation()
-                && !SemanticTypeUtils::IsAttributeType(Function->_Signature.GetReturnType())
                 && _Context._Scope->GetKind() != CScope::EKind::Class
                 && _Context._Scope->GetKind() != CScope::EKind::Interface
                 && _Context._Scope->GetKind() != CScope::EKind::Type)
@@ -7347,7 +7339,6 @@ private:
         // Process `native` after function body analysis to make matching the body syntax simpler
         EnqueueDeferredTask(Deferred_FinalValidation, [this, DefVst, Function]
         {
-
             if (const TSPtr<CExpressionBase>& BodyAst = Function->GetBodyAst())
             {
                 // Does this assignment-type declaration have the <native> attribute?
@@ -7939,7 +7930,7 @@ private:
     {
         SExprCtx ExprCtx = SExprCtx::Default().WithResultIsUsedAsAttribute(_Program->_attributeClass);
 
-        for(int32_t AttributeIndex = 0; AttributeIndex < Attributes.Num(); ++AttributeIndex)
+        for (int32_t AttributeIndex = 0; AttributeIndex < Attributes.Num(); ++AttributeIndex)
         {
             // Analyze the attribute.
             if (TSPtr<CExpressionBase> NewAttributeExpr = AnalyzeExpressionAst(Attributes[AttributeIndex]._Expression, ExprCtx.With(EffectSets::Computes)))
@@ -7959,7 +7950,6 @@ private:
             {
                 // attribute with a single string argument
                 // example: @doc("Do the thing!")
-                // example: @editable_slider(int){args}
                 const CExpressionBase& AttrCalleeAst = *static_cast<CExprInvocation&>(AttributeExpr).GetCallee();
                 if (AttrCalleeAst.GetNodeType() == EAstNodeType::Identifier_Function)
                 {
@@ -7974,11 +7964,11 @@ private:
                     AttrType = _Program->GetDefaultUnknownType();
                 }
             }
-
             else if (AstNodeType == EAstNodeType::Invoke_ArchetypeInstantiation)
             {
                 // attribute with a class type and named fields
                 // example: @editable{ToolTip:="Some Text", MinValue:=123}
+                // example: @editable_slider(int){args}
                 AttrType = AttributeExpr.GetResultType(*_Program);
             }
             else
@@ -13597,6 +13587,85 @@ private:
         Definition->SetResultType(PositiveMemberValueType);
     }
 
+    void MaybeAppendUnsupportedAttributeValueErrors(const TSPtr<CExpressionBase>& Value)
+    {
+        switch (Value->GetNodeType())
+        {
+            case EAstNodeType::Literal_String:
+            case EAstNodeType::Literal_Number:
+            case EAstNodeType::Literal_Char:
+            case EAstNodeType::Literal_Logic:
+                return;
+
+            case EAstNodeType::Invoke_MakeArray:
+                for (const TSPtr<CExpressionBase>& Element : Value.As<CExprMakeArray>()->GetSubExprs())
+                {
+                    MaybeAppendUnsupportedAttributeValueErrors(Element);
+                }
+                return;
+
+            case EAstNodeType::Invoke_ArchetypeInstantiation:
+                for (const TSRef<CExpressionBase>& Argument : Value.As<CExprArchetypeInstantiation>()->Arguments())
+                {
+                    MaybeAppendUnsupportedAttributeValueErrors(Argument.As<CExprDefinition>()->Value().As<CExprInvokeType>()->_Argument);
+                }
+                return;
+
+            case EAstNodeType::Invoke_MakeOption:
+                if (const TSPtr<CExpressionBase>& Operand = Value.As<CExprMakeOption>()->Operand())
+                {
+                    MaybeAppendUnsupportedAttributeValueErrors(Operand);
+                }
+                return;
+
+            case EAstNodeType::Identifier_Data:
+            {
+                const TSPtr<CExprIdentifierData>& Identifier = Value.As<CExprIdentifierData>();
+
+                CClassDefinition* MessageClass = _Program->FindDefinitionByVersePath<CClassDefinition>("/Verse.org/Verse/message");
+                if (Identifier->_DataDefinition.GetType()->GetNormalType().AsNullable<CClass>() != MessageClass)
+                {
+                    break;
+                }
+
+                const CExprDataDefinition* Definition = static_cast<const CExprDataDefinition*>(Identifier->_DataDefinition.GetAstNode());
+                if (Definition == nullptr || Definition->Value()->GetNodeType() != EAstNodeType::Invoke_Type)
+                {
+                    break;
+                }
+
+                const TSPtr<CExprInvokeType>& InvokeType = Definition->Value().As<CExprInvokeType>();
+                if (InvokeType->_Argument->GetNodeType() != EAstNodeType::Invoke_Invocation)
+                {
+                    break;
+                }
+
+                const TSPtr<CExprInvocation>& Invocation = InvokeType->_Argument.As<CExprInvocation>();
+                if (Invocation->GetCallee()->GetNodeType() != EAstNodeType::Identifier_Function)
+                {
+                    break;
+                }
+
+                const TSPtr<CExprIdentifierFunction>& Function = Invocation->GetCallee().As<CExprIdentifierFunction>();
+                CFunction* MakeMessageInternal = _Program->FindDefinitionByVersePath<CFunction>("/Verse.org/Verse/MakeMessageInternal");
+                if (&Function->_Function != MakeMessageInternal)
+                {
+                    break;
+                }
+
+                return;
+            }
+
+            default:
+                break;
+        }
+
+        AppendGlitch(
+            Value->GetMappedVstNode(),
+            EDiagnostic::ErrAssembler_AttributeError,
+            CUTF8String("Unsupported attribute value expression: %s", Value->GetErrorDesc().AsCString()));
+    }
+
     void AnalyzeArchetypeInstantiation(CExprArchetypeInstantiation& InstantiationAst, const CClass& Class, SDataMemberIndex& DataMemberIndex, const SExprCtx& ExprCtx)
     {
         // Archetype instantiations are not really breakable, but the code
@@ -13615,12 +13684,27 @@ private:
             // Check that the expression is a definition: i.e. id := ...
             if (Expr->GetNodeType() == EAstNodeType::Definition)
             {
+                TSRef<CExprDefinition> &Definition = Expr.As<CExprDefinition>();
+
                 AnalyzeArchetypeDefinitionArgument(
                     InstantiationAst,
                     Class,
                     DataMemberIndex,
-                    Expr.As<CExprDefinition>(),
+                    Definition,
                     ExprCtx);
+
+                if (ExprCtx.ResultContext == ResultIsUsedAsAttribute)
+                {
+                    MaybeAppendUnsupportedAttributeValueErrors(Definition->Value().As<CExprInvokeType>()->_Argument);
+                }
+            }
+            else if (ExprCtx.ResultContext == ResultIsUsedAsAttribute)
+            {
+                AppendGlitch(
+                    *Expr,
+                    uLang::EDiagnostic::ErrAssembler_AttributeError,
+                    uLang::CUTF8String("Unsupported attribute value expression: %s", Expr->GetErrorDesc().AsCString()));
+                Expr = ReplaceNodeWithError(Expr);
             }
             else
             {
@@ -13727,8 +13811,15 @@ private:
             MappedVstNode->AddMapping(InstantiationAst);
         }
 
+        // Available attribute archetype-instances need to go a little earlier than other archetype instances because 
+        // instances of @available need to be processed already when we start doing symbol lookups. This presents a chicken
+        // and egg problem unless we force available attributes to process in an earlier phase. This isn't generally applicable 
+        // to all attribute types because they may be compositions of other unresolved types. We can ignore this problem in 
+        // this very limited case, however, if we can accept that @available will only be composed from intrinsic -data types.
+        EDeferredPri DeferredPriority = &Class == _Program->_availableClass ? Deferred_ValidateAttributes : Deferred_OpenFunctionBodyExpressions;
+
         // Defer the processing of the archetype body until after all types and data members have been analyzed.
-        EnqueueDeferredTask(Deferred_OpenFunctionBodyExpressions, [this, InstantiationAst, ExprCtx]()
+        EnqueueDeferredTask(DeferredPriority, [this, InstantiationAst, ExprCtx]()
         {
             const CClass* Class = InstantiationAst->GetClass(*_Program);
             if (!Class)
@@ -13757,27 +13848,24 @@ private:
                     EDiagnostic::ErrSemantic_Unimplemented,
                     CUTF8String("Constructing an instance of a class while initializing its defaults is not implemented."));
             }
-            else if (SemanticTypeUtils::IsAttributeType(Class))
+            else
             {
-                if (ExprCtx.ResultContext == ResultIsUsedAsAttribute)
+                if (ExprCtx.ResultContext != ResultIsUsedAsAttribute &&
+                    SemanticTypeUtils::IsAttributeType(Class))
                 {
-                    // Check that the class and its constructor are accessible.
-                    RequireConstructorAccessible(InstantiationAst->GetMappedVstNode(), *_Context._Scope, *Class->_Definition);
+                    EnqueueDeferredTask(Deferred_ValidateAttributes, [this, ExprCtx, InstantiationAst]
+                    {
+                        if (ExprCtx.ResultContext != ResultIsReturned ||
+                            !_Context._Function->HasAttributeClass(_Program->_constructorClass, *_Program))
+                        {
+                            AppendGlitch(
+                                *InstantiationAst,
+                                EDiagnostic::ErrSemantic_IncorrectUseOfAttributeType,
+                                CUTF8String("Attribute class types can only be used as attributes."));
+                        }
+                    });
+                }
 
-                    SDataMemberIndex DataMemberIndex = GetArchetypeInstantiationMemberIndex(*Class);
-                    SExprCtx NewExprCtx = ExprCtx.With(EffectSets::Transacts);
-                    AnalyzeArchetypeInstantiation(*InstantiationAst, *Class, DataMemberIndex, NewExprCtx);
-                }
-                else
-                {
-                    AppendGlitch(
-                        *InstantiationAst,
-                        EDiagnostic::ErrSemantic_IncorrectUseOfAttributeType,
-                        CUTF8String("Attribute class types can only be used as attributes."));
-                }
-            }
-            else if (!SemanticTypeUtils::IsAttributeType(Class))
-            {
                 // Check that the class and its constructor are accessible.
                 RequireConstructorAccessible(InstantiationAst->GetMappedVstNode(), *_Context._Scope, *Class->_Definition);
 
@@ -14822,61 +14910,55 @@ private:
         }
         const SQualifier QualifierType = AnalyzeQualifier(Qualifier, DefinitionAst, ExprCtx);
         Definition._Qualifier = QualifierType;
-        VerifyQualificationIsOk(QualifierType, Definition, DefinitionAst, ExprCtx);
-    }
-
-    //-------------------------------------------------------------------------------------------------
-    void VerifyQualificationIsOk(const SQualifier QualifierType, CDefinition& Definition, CExpressionBase& DefinitionAst, const SExprCtx& ExprCtx)
-    {
         switch (QualifierType._Type)
         {
-        case SQualifier::EType::NominalType:
-            EnqueueDeferredTask(Deferred_ValidateType,
-                [this, &Definition, &DefinitionAst]()
-                {
-                    const CNominalType* QualifiedType = Definition._Qualifier._Definition;
-                    const CScope* ParentScope = &Definition._EnclosingScope;
-                    if (ParentScope->IsModuleOrSnippet())
+            case SQualifier::EType::NominalType:
+                EnqueueDeferredTask(Deferred_ValidateType,
+                    [this, &Definition, &DefinitionAst]()
                     {
-                        if (QualifiedType != ParentScope->GetModule()->ScopeAsType())
+                        const CNominalType* QualifiedType = Definition._Qualifier._Definition;
+                        const CScope* ParentScope = &Definition._EnclosingScope;
+                        if (ParentScope->IsModuleOrSnippet())
                         {
-                            AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier, CUTF8String("Qualifier on definition in module must be the module itself."));
+                            if (QualifiedType != ParentScope->GetModule()->ScopeAsType())
+                            {
+                                AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier, CUTF8String("Qualifier on definition in module must be the module itself."));
+                            }
                         }
-                    }
-                    else if (const CTypeBase* EnclosingType = ParentScope->ScopeAsType(); EnclosingType && !IsSubtype(EnclosingType, QualifiedType))
-                    {
-                        AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier,
-                            CUTF8String("Qualifier on definition is invalid, `%s` doesn't inherit from or implement `%s`", EnclosingType->AsCode().AsCString(), Definition._Qualifier._Definition->AsCode().AsCString()));
-                    }
-                    // NOTE: (yiliang.siew) For qualifiers that refer to a class, we check if that class actually has a definition that matches.
-                    else if (QualifiedType->IsA<CClassDefinition>())
-                    {
-                        const CClassDefinition& ClassDefinition = QualifiedType->AsChecked<CClassDefinition>();
-                        const SmallDefinitionArray DefinitionsFound = ClassDefinition.FindDefinitions(Definition.GetName());
-                        if (DefinitionsFound.Num() == 0)
+                        else if (const CTypeBase* EnclosingType = ParentScope->ScopeAsType(); EnclosingType && !IsSubtype(EnclosingType, QualifiedType))
                         {
                             AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier,
-                                CUTF8String("Qualifier on definition is invalid; the class `%s` doesn't define `%s`.", ClassDefinition.GetName().AsCString(), Definition.GetName().AsCString()));
+                                CUTF8String("Qualifier on definition is invalid, `%s` doesn't inherit from or implement `%s`", EnclosingType->AsCode().AsCString(), Definition._Qualifier._Definition->AsCode().AsCString()));
                         }
-                    }
-                });
-            break;
-        case SQualifier::EType::Local:
-            EnqueueDeferredTask(Deferred_ValidateType,
-                [this, &Definition, &DefinitionAst]()
-                {
-                    if (!Definition._EnclosingScope.GetScopeOfKind(CScope::EKind::Function))
+                        // NOTE: (yiliang.siew) For qualifiers that refer to a class, we check if that class actually has a definition that matches.
+                        else if (QualifiedType->IsA<CClassDefinition>())
+                        {
+                            const CClassDefinition& ClassDefinition = QualifiedType->AsChecked<CClassDefinition>();
+                            const SmallDefinitionArray DefinitionsFound = ClassDefinition.FindDefinitions(Definition.GetName());
+                            if (DefinitionsFound.Num() == 0)
+                            {
+                                AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier,
+                                    CUTF8String("Qualifier on definition is invalid; the class `%s` doesn't define `%s`.", ClassDefinition.GetName().AsCString(), Definition.GetName().AsCString()));
+                            }
+                        }
+                    });
+                break;
+            case SQualifier::EType::Local:
+                EnqueueDeferredTask(Deferred_ValidateType,
+                    [this, &Definition, &DefinitionAst]()
                     {
-                        AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier, CUTF8String("The (%s:) qualifier should only be used on identifiers within functions.", _LocalName.AsCString()));
-                    }
-                });
-            break;
-        case SQualifier::EType::Unknown:
-            // Not a qualifier, nothing to do.
-            return;
-        default:
-            ULANG_UNREACHABLE();
-            break;
+                        if (!Definition._EnclosingScope.GetScopeOfKind(CScope::EKind::Function))
+                        {
+                            AppendGlitch(DefinitionAst, EDiagnostic::ErrSemantic_InvalidQualifier, CUTF8String("The (%s:) qualifier should only be used on identifiers within functions.", _LocalName.AsCString()));
+                        }
+                    });
+                break;
+            case SQualifier::EType::Unknown:
+                // Not a qualifier, nothing to do.
+                return;
+            default:
+                ULANG_UNREACHABLE();
+                break;
         }
     }
 
@@ -15237,6 +15319,8 @@ private:
         // Analyze the data's (right-hand-side) value expression (if it has one).
         if (DataDefAst->Value())
         {
+            DataDefinition->SetHasInitializer();
+
             SContext SavedContext = _Context;
             auto AnalyzeValueExpression = [this, DataDefAst, ExprCtx]
             {

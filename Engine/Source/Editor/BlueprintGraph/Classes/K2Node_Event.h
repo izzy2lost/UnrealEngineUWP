@@ -132,6 +132,9 @@ class UK2Node_Event : public UK2Node_EditablePinBase, public IK2Node_EventNodeIn
 	/** Helper function to identify if two Event nodes are the same */
 	static BLUEPRINTGRAPH_API bool AreEventNodesIdentical(const UK2Node_Event* InNodeA, const UK2Node_Event* InNodeB);
 
+	/** Accessor to the delegate pin **/
+	BLUEPRINTGRAPH_API UEdGraphPin* GetDelegatePin() const;
+
 protected:
 	void FixupEventReference(bool bForce = false);
 

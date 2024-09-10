@@ -6,7 +6,7 @@
 
 #include "OverrideColumn.generated.h"
 
-USTRUCT()
+USTRUCT(meta = (DisplayName = "Override"))
 struct FTypedElementOverrideColumn final : public FHierarchyTableProxyColumn
 {
 	GENERATED_BODY()

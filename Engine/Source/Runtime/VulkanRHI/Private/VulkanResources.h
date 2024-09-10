@@ -475,7 +475,8 @@ public:
 		, uint32 ArraySliceIndex
 		, uint32 NumArraySlices
 		, bool bUseIdentitySwizzle = false
-		, VkImageUsageFlags ImageUsageFlags = 0);
+		, VkImageUsageFlags ImageUsageFlags = 0
+		, VkSamplerYcbcrConversion SamplerYcbcrConversion = nullptr);
 
 	// NOTE: The InOffset applies to the FVulkanResourceMultiBuffer (it does not include any internal Allocation offsets that may exist)
 	FVulkanView* InitAsStructuredBufferView(
@@ -563,8 +564,12 @@ public:
 	{}
 
 	// Construct from external resource.
-	// FIXME: HUGE HACK: the bUnused argument is there to disambiguate this overload from the one above when passing nullptr, since nullptr is a valid VkImage. Get rid of this code smell when unifying FVulkanSurface and FVulkanTexture.
 	FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateDesc& InCreateDesc, VkImage InImage, const FVulkanRHIExternalImageDeleteCallbackInfo& InExternalImageDeleteCallbackInfo);
+
+#if PLATFORM_ANDROID
+	// Construct from Android Hardware buffer. HardwareBuffer_Desc could be extracted from HardwareBuffer, but adding it here makes the function signature unambigious
+	FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateDesc& InCreateDesc, const AHardwareBuffer_Desc& HardwareBufferDesc, AHardwareBuffer* HardwareBuffer);
+#endif
 
 	// Aliasing constructor.
 	FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateDesc& InCreateDesc, FTextureRHIRef& SrcTextureRHI);

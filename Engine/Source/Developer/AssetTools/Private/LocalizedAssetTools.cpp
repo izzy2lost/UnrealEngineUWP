@@ -223,7 +223,7 @@ void FLocalizedAssetTools::OpenFilesInRevisionControlRequiredDialog(const TArray
 
 void FLocalizedAssetTools::OpenLocalizedVariantsListMessageDialog(const FText& Header, const FText& Message, const TArray<FText>& FileList) const
 {
-	SFileListReportDialog::OpenDialog(Header, Message, FileList);
+	SFileListReportDialog::OpenDialog(Header, Message, FileList, true);
 }
 
 const FText& FLocalizedAssetTools::GetRevisionControlIsNotAvailableWarningText() const

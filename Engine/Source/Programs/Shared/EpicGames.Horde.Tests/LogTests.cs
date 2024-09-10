@@ -40,7 +40,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task IndexTestsAsync()
 		{
-			KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
+			KeyValueStorageNamespace store = KeyValueStorageNamespace.CreateInMemory();
 
 			// Write the test data to the log file in blocks
 			LogBuilder builder = new LogBuilder(LogFormat.Text, 1, 1, NullLogger.Instance);
@@ -101,7 +101,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task PartialTokenTestsAsync()
 		{
-			IStorageClient store = KeyValueStorageClient.CreateInMemory();
+			IStorageNamespace store = KeyValueStorageNamespace.CreateInMemory();
 
 			// Generate the test data
 			string[] lines =

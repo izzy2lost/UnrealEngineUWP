@@ -617,6 +617,7 @@ public:
 	void AddToDetailsPanel(
 		TWeakObjectPtr<TMeshType> WeakMeshPtr,
 		IDetailLayoutBuilder& DetailBuilder,
+		int32 SortOrder,
 		bool bInitiallyCollapsed
 	)
 	{
@@ -624,8 +625,8 @@ public:
 
 		const FText NaniteCategoryName = LOCTEXT("NaniteSettingsCategory", "Nanite Settings");
 
-		IDetailCategoryBuilder& NaniteSettingsCategory = DetailBuilder.EditCategory("NaniteSettings", NaniteCategoryName);
-		NaniteSettingsCategory.SetSortOrder(10);
+		IDetailCategoryBuilder& NaniteSettingsCategory = DetailBuilder.EditCategory("NaniteSettings", NaniteCategoryName, ECategoryPriority::Uncommon);
+		NaniteSettingsCategory.SetSortOrder(SortOrder);
 		NaniteSettingsCategory.InitiallyCollapsed(bInitiallyCollapsed);
 
 		auto CategoryContentLambda = [WeakMeshPtr]()

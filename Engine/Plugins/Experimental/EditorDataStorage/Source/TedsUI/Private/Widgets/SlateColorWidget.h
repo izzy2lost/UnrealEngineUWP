@@ -7,19 +7,20 @@
 
 #include "SlateColorWidget.generated.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
+class IEditorDataStorageUiProvider;
 class UScriptStruct;
 
 UCLASS()
-class USlateColorWidgetFactory : public UTypedElementDataStorageFactory
+class USlateColorWidgetFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~USlateColorWidgetFactory() override = default;
 
-	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+	void RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+		IEditorDataStorageUiProvider& DataStorageUi) const override;
 };
 
 // Widget to show and edit the color column in TEDS
@@ -33,8 +34,8 @@ public:
 	~FSlateColorWidgetConstructor() override = default;
 
 	virtual TSharedPtr<SWidget> CreateWidget(
-		ITypedElementDataStorageInterface* DataStorage,
-		ITypedElementDataStorageUiInterface* DataStorageUi,
+		IEditorDataStorageProvider* DataStorage,
+		IEditorDataStorageUiProvider* DataStorageUi,
 		RowHandle TargetRow,
 		RowHandle WidgetRow, 
 		const UE::Editor::DataStorage::FMetaDataView& Arguments) override;

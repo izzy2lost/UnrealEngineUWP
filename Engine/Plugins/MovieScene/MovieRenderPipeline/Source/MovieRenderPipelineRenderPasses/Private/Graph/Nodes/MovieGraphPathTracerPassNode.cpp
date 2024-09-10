@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/Nodes/MovieGraphPathTracerPassNode.h"
+
 #include "Graph/Renderers/MovieGraphPathTracerPass.h"
 #include "Engine/EngineBaseTypes.h"
+#include "MoviePipelineTelemetry.h"
 #include "RenderUtils.h"
 #include "ShowFlags.h"
 #include "PathTracingDenoiser.h"
@@ -225,4 +227,11 @@ FEngineShowFlags UMovieGraphPathTracerRenderPassNode::GetShowFlags() const
 	OutShowFlag.SetMotionBlur(!bEnableReferenceMotionBlur);
 
 	return OutShowFlag;
+}
+
+void UMovieGraphPathTracerRenderPassNode::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesPathTracer = true;
+	InTelemetry->bUsesPPMs |= Algo::AnyOf(AdditionalPostProcessMaterials, [](const FMoviePipelinePostProcessPass& Pass) { return Pass.bEnabled; });
+	InTelemetry->SpatialSampleCount = FMath::Max(InTelemetry->SpatialSampleCount, SpatialSampleCount);
 }

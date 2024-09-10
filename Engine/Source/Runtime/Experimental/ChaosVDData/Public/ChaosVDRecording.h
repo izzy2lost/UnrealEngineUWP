@@ -388,6 +388,10 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	/** Returns the last Platform Cycle on which this recording was updated (A new frame was added) */
 	uint64 GetLastUpdatedTimeAsCycle() { return LastUpdatedTimeAsCycle; }
 
+	TSharedPtr<FChaosVDCollisionChannelsInfoContainer> GetCollisionChannelsInfoContainer(){ return CollisionChannelsInfoContainer; }
+	
+	void SetCollisionChannelsInfoContainer(const TSharedPtr<FChaosVDCollisionChannelsInfoContainer>& InCollisionChannelsInfo);
+
 protected:
 
 	/** Adds an Implicit Object to the recording and takes ownership of it */
@@ -426,6 +430,8 @@ protected:
 	TMap<int32, TSharedPtr<FChaosVDParticleDataWrapper>> ParticlesOnCurrentGeneratedKeyframe;
 
 	Chaos::VisualDebugger::FChaosVDArchiveHeader HeaderData;
+
+	TSharedPtr<FChaosVDCollisionChannelsInfoContainer> CollisionChannelsInfoContainer;
 
 	friend class FChaosVDTraceProvider;
 	friend class FChaosVDTraceImplicitObjectProcessor;

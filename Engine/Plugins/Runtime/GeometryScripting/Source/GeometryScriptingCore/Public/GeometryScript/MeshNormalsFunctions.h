@@ -154,6 +154,26 @@ public:
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
+	 * Set or remove split normals (aka sharp normals) for all edges in the Selection
+	 * @param TargetMesh The mesh to update
+	 * @param Selection Which edges to operate on
+	 * @param bSplit Whether to split normals along the selected edges; if false, they will be merged instead
+	 * @param bRecalculateNormals Whether to recalculate normals along edges where they were split/merged
+	 * @param CalculateOptions Options for computing the normals, if bRecalculateNormals is true
+	 * @param bDeferChangeNotifications If true, no mesh change notification will be sent. Set to true if performing many changes in a loop.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Normals", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	SetSplitNormalsAlongSelectedEdges(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptMeshSelection Selection,
+		bool bSplit = true,
+		bool bRecalculateNormals = true,
+		FGeometryScriptCalculateNormalsOptions CalculateOptions = FGeometryScriptCalculateNormalsOptions(),
+		bool bDeferChangeNotifications = false,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
 	 * Set the triangle-vertex normals for the given TriangleID on the TargetMesh. This will
 	 * create unique triangle-vertex normals, ie it will create hard edges / split normals in 
 	 * the normal overlay for each edge of the triangle. 

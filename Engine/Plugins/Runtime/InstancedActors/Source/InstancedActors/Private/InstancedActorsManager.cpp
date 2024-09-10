@@ -738,6 +738,8 @@ UInstancedActorsData& AInstancedActorsManager::GetOrCreateActorInstanceData(TSub
 
 void AInstancedActorsManager::PreRegisterAllComponents()
 {
+	Super::PreRegisterAllComponents();
+
 	for (UInstancedActorsData* InstanceData : PerActorClassInstanceData)
 	{
 		// Modify the ISMCs here since the components might have been serialized before this change.

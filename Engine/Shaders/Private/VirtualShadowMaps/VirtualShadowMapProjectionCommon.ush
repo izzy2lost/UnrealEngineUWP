@@ -101,14 +101,14 @@ FVirtualShadowMapSample SampleVirtualShadowMapLevel(int VirtualShadowMapId, floa
 	return Result;
 }
 
-FVirtualShadowMapSample SampleVirtualShadowMap(int VirtualShadowMapId, float2 ShadowMapUV)
+FVirtualShadowMapSample SampleVirtualShadowMap(int VirtualShadowMapId, float2 ShadowMapUV, uint MinMipLevel)
 {
-	FShadowPageTranslationResult Page = ShadowVirtualToPhysicalUV(VirtualShadowMapId, ShadowMapUV);
+	FShadowPageTranslationResult Page = ShadowVirtualToPhysicalUV(VirtualShadowMapId, ShadowMapUV, MinMipLevel);
 	FVirtualShadowMapSample Result = InitVirtualShadowMapSample();
 	if (Page.bValid)
 	{
 		Result.bValid = true;
-		Result.MipLevel = Page.LODOffset;
+		Result.MipLevel = Page.LODOffset + MinMipLevel;
 		Result.VirtualShadowMapId = VirtualShadowMapId;
 		Result.VirtualTexelAddress = Page.VirtualTexelAddress;
 		Result.VirtualTexelAddressFloat = Page.VirtualTexelAddressFloat;
@@ -453,7 +453,7 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapLocal(
 	float4 ShadowUVz = mul(float4(ShadowTranslatedWorldPosition, 1.0f), ProjectionData.TranslatedWorldToShadowUVMatrix);
 	ShadowUVz.xyz /= ShadowUVz.w;
 
-	FVirtualShadowMapSample SmSample = SampleVirtualShadowMap(VirtualShadowMapId, ShadowUVz.xy);
+	FVirtualShadowMapSample SmSample = SampleVirtualShadowMap(VirtualShadowMapId, ShadowUVz.xy, ProjectionData.MinMipLevel);
 	if (SmSample.bValid)
 	{
 		FVirtualShadowMapSampleResult Result = InitVirtualShadowMapSampleResult();

@@ -556,7 +556,7 @@ void FDeferredShadingSceneRenderer::RenderPrePass(FRDGBuilder& GraphBuilder, TAr
 						bSecondStageDepthPass ? RDG_EVENT_NAME("SecondStageDepthPass") : RDG_EVENT_NAME("DepthPass"),
 						PassParameters,
 						ERDGPassFlags::Raster,
-						[&View, PassParameters, DepthMeshPass](FRHICommandList& RHICmdList)
+						[&View, PassParameters, DepthMeshPass](FRDGAsyncTask, FRHICommandList& RHICmdList)
 					{
 						SetStereoViewport(RHICmdList, View, 1.0f);
 						View.ParallelMeshDrawCommandPasses[DepthMeshPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
@@ -615,7 +615,7 @@ void FDeferredShadingSceneRenderer::RenderPrePass(FRDGBuilder& GraphBuilder, TAr
 			RDG_EVENT_NAME("DitherStencilClear"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[this, InViews](FRHICommandList& RHICmdList)
+			[this, InViews](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			if (InViews.Num() > 1)
 			{
@@ -689,7 +689,7 @@ void FDeferredShadingSceneRenderer::RenderPrePassHMD(FRDGBuilder& GraphBuilder, 
 				RDG_EVENT_NAME("HiddenAreaMask"),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[this, &View, HMDDevice](FRHICommandList& RHICmdList)
+				[this, &View, HMDDevice](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				extern TGlobalResource<FFilterVertexDeclaration, FRenderResource::EInitPhase::Pre> GFilterVertexDeclaration;
 

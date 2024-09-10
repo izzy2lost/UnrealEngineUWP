@@ -378,7 +378,7 @@ FAutoConsoleVariableRef CVarRDGParallelExecutePassMax(
 	TEXT("The maximum span of contiguous passes eligible for parallel execution for the span to be offloaded to a task."),
 	ECVF_RenderThreadSafe);
 
-int32 GRDGParallelExecutePassTaskModeThreshold = 0;
+int32 GRDGParallelExecutePassTaskModeThreshold = 2;
 FAutoConsoleVariableRef CVarRDGParallelExecutePassTaskModeThreshold(
 	TEXT("r.RDG.ParallelExecute.PassTaskModeThreshold"), GRDGParallelExecutePassTaskModeThreshold,
 	TEXT(" 0: A pass that is not marked async will mark the entire parallel pass set as awaited.")

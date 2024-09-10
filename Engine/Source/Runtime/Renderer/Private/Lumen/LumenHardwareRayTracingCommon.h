@@ -192,7 +192,7 @@ static void AddLumenRayTraceDispatchPass(
 		Forward<FRDGEventName>(PassName),
 		Parameters,
 		ERDGPassFlags::Compute,
-		[Parameters, &View, SceneUniformBuffer, RayGenerationShader, bUseMinimalPayload, Resolution](FRHICommandList& RHICmdList)
+		[Parameters, &View, SceneUniformBuffer, RayGenerationShader, bUseMinimalPayload, Resolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
@@ -232,7 +232,7 @@ static void AddLumenRayTraceDispatchIndirectPass(
 		Forward<FRDGEventName>(PassName),
 		Parameters,
 		ERDGPassFlags::Compute,
-		[Parameters, &View, SceneUniformBuffer, RayGenerationShader, bUseMinimalPayload, IndirectArgsBuffer, IndirectArgsOffset](FRHICommandList& RHICmdList)
+		[Parameters, &View, SceneUniformBuffer, RayGenerationShader, bUseMinimalPayload, IndirectArgsBuffer, IndirectArgsOffset](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			IndirectArgsBuffer->MarkResourceAsUsed();
 

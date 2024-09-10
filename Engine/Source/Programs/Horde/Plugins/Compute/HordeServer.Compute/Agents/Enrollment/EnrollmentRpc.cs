@@ -58,7 +58,7 @@ namespace HordeServer.Agents.Enrollment
 						return;
 					}
 
-					IAgent agent = await _agentService.CreateAgentAsync(agentId, false, request.Key, cancellationSource.Token);
+					IAgent agent = await _agentService.CreateAgentAsync(new CreateAgentOptions(agentId, false, request.Key), cancellationSource.Token);
 
 					List<AclClaimConfig> claims = new List<AclClaimConfig>();
 					claims.Add(new AclClaimConfig(HordeClaimTypes.Agent, agentId.ToString()));

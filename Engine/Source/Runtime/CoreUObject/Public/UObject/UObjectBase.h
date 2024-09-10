@@ -238,7 +238,7 @@ public:
 			return;
 		}
 
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			FPlatformAtomics::InterlockedOr((int32*)&ObjectFlags, FlagsToAdd);
 		};
@@ -271,7 +271,7 @@ public:
 			return;
 		}
 
-		UE_AUTORTFM_OPEN2 
+		UE_AUTORTFM_OPEN 
 		{
 			FPlatformAtomics::InterlockedAnd((int32*)&ObjectFlags, ~FlagsToClear);
 		};
@@ -298,7 +298,7 @@ private:
 
 		int32 Result = 0;
 
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			Result = FPlatformAtomics::AtomicRead_Relaxed((int32*)&ObjectFlags);
 		};

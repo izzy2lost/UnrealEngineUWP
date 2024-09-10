@@ -119,7 +119,7 @@ void FChaosVDScene::DeInitialize()
 
 	if (PhysicsVDWorld)
 	{
-		PhysicsVDWorld->RemoveOnActorDestroyededHandler(ActorDestroyedHandle);
+		PhysicsVDWorld->RemoveOnActorDestroyedHandler(ActorDestroyedHandle);
 
 		PhysicsVDWorld->DestroyWorld(true);
 		GEngine->DestroyWorldContext(PhysicsVDWorld);

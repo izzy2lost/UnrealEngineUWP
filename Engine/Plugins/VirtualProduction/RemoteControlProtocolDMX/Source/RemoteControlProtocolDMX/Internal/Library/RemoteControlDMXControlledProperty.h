@@ -23,7 +23,7 @@ namespace UE::RemoteControl::DMX
 		TArray<TSharedRef<TStructOnScope<FRemoteControlProtocolEntity>>> GetEntities() const { return Entities; }
 
 		/** Returns the owner object of this property */
-		const UObject* GetOwnerObject() const;
+		const UObject* GetOwnerActor() const;
 
 		/** Returns the fixture patch of this property */
 		UDMXEntityFixturePatch* GetFixturePatch() const;

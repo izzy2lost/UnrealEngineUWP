@@ -44,8 +44,9 @@ enum class EPoseCandidateFlags : uint32
 	DiscardedBy_PoseFilter = 1 << 6,
 	DiscardedBy_AssetIdxFilter = 1 << 7,
 	DiscardedBy_Search = 1 << 8,
+	DiscardedBy_AssetReselection = 1 << 9,
 
-	AnyDiscardedMask = DiscardedBy_PoseJumpThresholdTime | DiscardedBy_PoseReselectHistory | DiscardedBy_BlockTransition | DiscardedBy_PoseFilter | DiscardedBy_AssetIdxFilter | DiscardedBy_Search,
+	AnyDiscardedMask = DiscardedBy_PoseJumpThresholdTime | DiscardedBy_PoseReselectHistory | DiscardedBy_BlockTransition | DiscardedBy_PoseFilter | DiscardedBy_AssetIdxFilter | DiscardedBy_Search | DiscardedBy_AssetReselection,
 };
 ENUM_CLASS_FLAGS(EPoseCandidateFlags);
 

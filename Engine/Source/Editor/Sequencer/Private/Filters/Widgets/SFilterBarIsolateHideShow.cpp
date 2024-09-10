@@ -5,6 +5,8 @@
 #include "Filters/SequencerTrackFilterCommands.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Styling/StyleColors.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Images/SLayeredImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/SBoxPanel.h"
 
@@ -14,6 +16,9 @@ void SFilterBarIsolateHideShow::Construct(const FArguments& InArgs, const TShare
 {
 	WeakFilterBar = InFilterBar;
 
+	constexpr float ButtonContentPadding = 2.f;
+	constexpr float ButtonSpacing = 1.f;
+
 	ChildSlot
 	[
 		SNew(SHorizontalBox)
@@ -22,24 +27,19 @@ void SFilterBarIsolateHideShow::Construct(const FArguments& InArgs, const TShare
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		.VAlign(VAlign_Center)
-		.Padding(2.f, 0.f, 0.f, 0.f)
+		.Padding(0.f, 0.f, ButtonSpacing, 0.f)
 		[
-			SNew(SBox)
-			.WidthOverride(20.f)
+			SNew(SButton)
+			.ContentPadding(ButtonContentPadding)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
+			.ToolTipText(this, &SFilterBarIsolateHideShow::GetIsolateTracksButtonTooltipText)
+			.IsEnabled(this, &SFilterBarIsolateHideShow::AreFiltersMuted)
+			.OnClicked(this, &SFilterBarIsolateHideShow::HandleIsolateTracksClick)
 			[
-				SNew(SButton)
-				.ContentPadding(2.f)
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
-				.ToolTipText(this, &SFilterBarIsolateHideShow::GetIsolateTracksButtonTooltipText)
-				.IsEnabled(this, &SFilterBarIsolateHideShow::AreFiltersMuted)
-				.OnClicked(this, &SFilterBarIsolateHideShow::HandleIsolateTracksClick)
-				[
-					SNew(STextBlock)
-					.ColorAndOpacity(this, &SFilterBarIsolateHideShow::GetIsolateTracksButtonTextColor)
-					.Text(LOCTEXT("IsolateSelectedButtonText", "I"))
-				]
+				ConstructLayeredImage(TEXT("Sequencer.TrackIsolate")
+					, TAttribute<bool>::CreateSP(this, &SFilterBarIsolateHideShow::HasIsolatedTracks))
 			]
 		]
 
@@ -47,24 +47,19 @@ void SFilterBarIsolateHideShow::Construct(const FArguments& InArgs, const TShare
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		.VAlign(VAlign_Center)
-		.Padding(2.f, 0.f, 0.f, 0.f)
+		.Padding(0.f, 0.f, ButtonSpacing, 0.f)
 		[
-			SNew(SBox)
-			.WidthOverride(20.f)
+			SNew(SButton)
+			.ContentPadding(ButtonContentPadding)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
+			.ToolTipText(this, &SFilterBarIsolateHideShow::GetHideTracksButtonTooltipText)
+			.IsEnabled(this, &SFilterBarIsolateHideShow::AreFiltersMuted)
+			.OnClicked(this, &SFilterBarIsolateHideShow::HandleHideTracksClick)
 			[
-				SNew(SButton)
-				.ContentPadding(2.f)
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
-				.ToolTipText(this, &SFilterBarIsolateHideShow::GetHideTracksButtonTooltipText)
-				.IsEnabled(this, &SFilterBarIsolateHideShow::AreFiltersMuted)
-				.OnClicked(this, &SFilterBarIsolateHideShow::HandleHideTracksClick)
-				[
-					SNew(STextBlock)
-					.ColorAndOpacity(this, &SFilterBarIsolateHideShow::GetHideTracksButtonTextColor)
-					.Text(LOCTEXT("HideSelectedButtonText", "H"))
-				]
+				ConstructLayeredImage(TEXT("Sequencer.TrackHide")
+					, TAttribute<bool>::CreateSP(this, &SFilterBarIsolateHideShow::HasHiddenTracks))
 			]
 		]
 
@@ -72,27 +67,40 @@ void SFilterBarIsolateHideShow::Construct(const FArguments& InArgs, const TShare
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		.VAlign(VAlign_Center)
-		.Padding(2.f, 0.f, 0.f, 0.f)
+		.Padding(0.f, 0.f, 0.f, 0.f)
 		[
-			SNew(SBox)
-			.WidthOverride(20.f)
+			SNew(SButton)
+			.ContentPadding(ButtonContentPadding)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
+			.ToolTipText(this, &SFilterBarIsolateHideShow::GetShowAllTracksButtonTooltipText)
+			.IsEnabled(this, &SFilterBarIsolateHideShow::AreFiltersMuted)
+			.OnClicked(this, &SFilterBarIsolateHideShow::HandleShowAllTracksClick)
 			[
-				SNew(SButton)
-				.ContentPadding(2.f)
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
-				.ToolTipText(this, &SFilterBarIsolateHideShow::GetShowAllTracksButtonTooltipText)
-				.IsEnabled(this, &SFilterBarIsolateHideShow::AreFiltersMuted)
-				.OnClicked(this, &SFilterBarIsolateHideShow::HandleShowAllTracksClick)
-				[
-					SNew(STextBlock)
-					.ColorAndOpacity(this, &SFilterBarIsolateHideShow::GetShowAllTracksButtonTextColor)
-					.Text(LOCTEXT("ShowAllButtonText", "S"))
-				]
+				SNew(SImage)
+				.DesiredSizeOverride(FVector2D(16.f))
+				.ColorAndOpacity(this, &SFilterBarIsolateHideShow::GetShowAllTracksButtonTextColor)
+				.Image(FAppStyle::Get().GetBrush(TEXT("Sequencer.TrackShow")))
 			]
 		]
 	];
+}
+
+TSharedRef<SWidget> SFilterBarIsolateHideShow::ConstructLayeredImage(const FName InBaseImageName, const TAttribute<bool>& InShowBadge)
+{
+	const TSharedRef<SLayeredImage> LayeredImage = SNew(SLayeredImage)
+		.DesiredSizeOverride(FVector2D(16.f))
+		.Image(FAppStyle::Get().GetBrush(InBaseImageName));
+
+	LayeredImage->AddLayer(TAttribute<const FSlateBrush*>::CreateLambda([InShowBadge]() -> const FSlateBrush*
+		{
+			return InShowBadge.Get(false)
+				? FAppStyle::Get().GetBrush(TEXT("Icons.BadgeModified"))
+				: nullptr;
+		}));
+
+	return LayeredImage;
 }
 
 bool SFilterBarIsolateHideShow::AreFiltersMuted() const
@@ -157,16 +165,14 @@ FReply SFilterBarIsolateHideShow::HandleShowAllTracksClick()
 	return FReply::Handled();
 }
 
-FSlateColor SFilterBarIsolateHideShow::GetHideTracksButtonTextColor() const
+bool SFilterBarIsolateHideShow::HasIsolatedTracks() const
 {
-	return WeakFilterBar.IsValid() && WeakFilterBar.Pin()->GetHiddenTracks().Num() == 0
-		? FStyleColors::Foreground : FStyleColors::AccentYellow;
+	return WeakFilterBar.IsValid() && WeakFilterBar.Pin()->GetIsolatedTracks().Num() > 0;
 }
 
-FSlateColor SFilterBarIsolateHideShow::GetIsolateTracksButtonTextColor() const
+bool SFilterBarIsolateHideShow::HasHiddenTracks() const
 {
-	return WeakFilterBar.IsValid() && WeakFilterBar.Pin()->GetIsolatedTracks().Num() == 0
-		? FStyleColors::Foreground : FStyleColors::AccentBlue;
+	return WeakFilterBar.IsValid() && WeakFilterBar.Pin()->GetHiddenTracks().Num() > 0;
 }
 
 FSlateColor SFilterBarIsolateHideShow::GetShowAllTracksButtonTextColor() const
@@ -174,7 +180,7 @@ FSlateColor SFilterBarIsolateHideShow::GetShowAllTracksButtonTextColor() const
 	if (const TSharedPtr<FSequencerFilterBar> FilterBar = WeakFilterBar.Pin())
 	{
 		return (FilterBar->GetHiddenTracks().Num() == 0 && FilterBar->GetIsolatedTracks().Num() == 0)
-			? FStyleColors::Foreground : FStyleColors::AccentRed;
+			? FStyleColors::Foreground : FStyleColors::Warning;
 	}
 	return FStyleColors::Foreground;
 }

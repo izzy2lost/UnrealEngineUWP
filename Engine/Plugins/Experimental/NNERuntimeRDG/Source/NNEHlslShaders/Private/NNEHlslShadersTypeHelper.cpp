@@ -9,7 +9,11 @@ namespace UE::NNEHlslShaders::Internal
 		switch (ShaderType)
 		{
 			case ENNEShaderDataType::BOOL	 : return TEXT("bool");
+#if PLATFORM_MAC && HAS_METAL
+			case ENNEShaderDataType::FLOAT16 : return TEXT("half");
+#else
 			case ENNEShaderDataType::FLOAT16 : return TEXT("float16_t");
+#endif
 			case ENNEShaderDataType::FLOAT32 : return TEXT("float");
 			case ENNEShaderDataType::INT8	 : return TEXT("int8_t");
 			case ENNEShaderDataType::INT16	 : return TEXT("int16_t");

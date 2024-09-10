@@ -65,6 +65,11 @@ void UComputeGraph::PostLoad()
 {
 	Super::PostLoad();
 
+	for (UComputeDataInterface* DataInterface : DataInterfaces)
+	{
+		DataInterface->ConditionalPostLoad();
+	}
+	
 #if WITH_EDITOR
 	// PostLoad our kernel dependencies before any compiling.
 	for (UComputeKernel* Kernel : KernelInvocations)

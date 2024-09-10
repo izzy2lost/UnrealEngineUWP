@@ -32,6 +32,9 @@
 -keep class com.epicgames.unreal.ElectraTextureSample$FFrameUpdateInfo {
    public *;
 }
+-keep class com.epicgames.unreal.ElectraTextureSample$FImageResources {
+   public *;
+}
 		</insert>
 	</proguardAdditions>
 

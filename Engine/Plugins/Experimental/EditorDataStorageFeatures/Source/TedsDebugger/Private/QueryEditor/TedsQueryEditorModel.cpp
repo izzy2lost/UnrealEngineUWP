@@ -23,8 +23,8 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 		Id = INDEX_NONE;
 	}
 
-	FTedsQueryEditorModel::FTedsQueryEditorModel(ITypedElementDataStorageInterface& InTypedElementDataStorage)
-		: TypedElementDataStorage(InTypedElementDataStorage)
+	FTedsQueryEditorModel::FTedsQueryEditorModel(IEditorDataStorageProvider& InDataStorageProvider)
+		: EditorDataStorageProvider(InDataStorageProvider)
 	{
 	}
 
@@ -91,14 +91,14 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 		ModelChangedDelegate.Broadcast();
 	}
 
-	ITypedElementDataStorageInterface& FTedsQueryEditorModel::GetTedsInterface()
+	IEditorDataStorageProvider& FTedsQueryEditorModel::GetTedsInterface()
 	{
-		return TypedElementDataStorage;
+		return EditorDataStorageProvider;
 	}
 	
-	const ITypedElementDataStorageInterface& FTedsQueryEditorModel::GetTedsInterface() const
+	const IEditorDataStorageProvider& FTedsQueryEditorModel::GetTedsInterface() const
 	{
-		return TypedElementDataStorage;
+		return EditorDataStorageProvider;
 	}
 
 	FQueryDescription FTedsQueryEditorModel::GenerateQueryDescription()
@@ -141,21 +141,21 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 				}
 				else
 				{
-					ITypedElementDataStorageInterface::FQueryDescription::EOperatorType OperatorType = [](const FConditionEntryInternal& Entry)
+					IEditorDataStorageProvider::FQueryDescription::EOperatorType OperatorType = [](const FConditionEntryInternal& Entry)
 					{
 						switch(Entry.OperatorType)
 						{
 						case EOperatorType::All:
-							return ITypedElementDataStorageInterface::FQueryDescription::EOperatorType::SimpleAll;
+							return IEditorDataStorageProvider::FQueryDescription::EOperatorType::SimpleAll;
 						case EOperatorType::Any:
-							return ITypedElementDataStorageInterface::FQueryDescription::EOperatorType::SimpleAny;
+							return IEditorDataStorageProvider::FQueryDescription::EOperatorType::SimpleAny;
 						case EOperatorType::None:
-							return ITypedElementDataStorageInterface::FQueryDescription::EOperatorType::SimpleNone;
+							return IEditorDataStorageProvider::FQueryDescription::EOperatorType::SimpleNone;
 						case EOperatorType::Invalid:
 						case EOperatorType::Unset:
 						default:
 							check(false);
-							return ITypedElementDataStorageInterface::FQueryDescription::EOperatorType::Max;
+							return IEditorDataStorageProvider::FQueryDescription::EOperatorType::Max;
 						}
 					}(Entry);
 				
@@ -165,7 +165,7 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 			}
 		}
 
-		Description.Action = ITypedElementDataStorageInterface::FQueryDescription::EActionType::Select;
+		Description.Action = IEditorDataStorageProvider::FQueryDescription::EActionType::Select;
 
 		return Description;
 	}
@@ -180,14 +180,14 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 		for (int32 Index = 0; Index < SelectionTypeCount; ++Index)
 		{
 			Description.ConditionOperators.AddZeroed_GetRef().Type = Description.SelectionTypes[Index];
-			Description.ConditionTypes.Add(ITypedElementDataStorageInterface::FQueryDescription::EOperatorType::SimpleAll);
+			Description.ConditionTypes.Add(IEditorDataStorageProvider::FQueryDescription::EOperatorType::SimpleAll);
 		}
 
 		Description.SelectionTypes.Empty();
 		Description.SelectionMetaData.Empty();
 		Description.SelectionAccessTypes.Empty();
 
-		Description.Action = ITypedElementDataStorageInterface::FQueryDescription::EActionType::Count;
+		Description.Action = IEditorDataStorageProvider::FQueryDescription::EActionType::Count;
 
 		return Description;
 	}

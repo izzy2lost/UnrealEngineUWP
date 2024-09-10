@@ -575,12 +575,12 @@ namespace UE::StylusInput::DebugWidget
 		check(this->OnDebugEventCallback.IsBound());
 	}
 
-	void FDebugEventHandlerAsynchronous::OnPacket(const FStylusInputPacket& Packet)
+	void FDebugEventHandlerAsynchronous::OnPacket(const FStylusInputPacket& Packet, IStylusInputInstance*)
 	{
 		PacketQueue.Enqueue(Packet);
 	}
 
-	void FDebugEventHandlerAsynchronous::OnDebugEvent(const FString& Message)
+	void FDebugEventHandlerAsynchronous::OnDebugEvent(const FString& Message, IStylusInputInstance*)
 	{
 		DebugEventQueue.Enqueue(Message);
 	}
@@ -607,12 +607,12 @@ namespace UE::StylusInput::DebugWidget
 		check(this->OnDebugEventCallback.IsBound());
 	}
 
-	void FDebugEventHandlerOnGameThread::OnPacket(const FStylusInputPacket& Packet)
+	void FDebugEventHandlerOnGameThread::OnPacket(const FStylusInputPacket& Packet, IStylusInputInstance*)
 	{
 		OnPacketCallback.Execute(Packet);
 	}
 
-	void FDebugEventHandlerOnGameThread::OnDebugEvent(const FString& Message)
+	void FDebugEventHandlerOnGameThread::OnDebugEvent(const FString& Message, IStylusInputInstance*)
 	{
 		OnDebugEventCallback.Execute(Message);
 	}

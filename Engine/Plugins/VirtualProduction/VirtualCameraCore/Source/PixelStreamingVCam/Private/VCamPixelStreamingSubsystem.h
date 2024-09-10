@@ -28,10 +28,14 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 	//~ End USubsystem Interface
-	
+
+	/** Tracks this OutputProvider creating its Live Link subject. It is valid to call this multiple times doing so updates is subject. */
 	void RegisterActiveOutputProvider(UVCamPixelStreamingSession* OutputProvider);
+	/** Stops tracking this OutputProvider and clears the Live Link subject. */
 	void UnregisterActiveOutputProvider(UVCamPixelStreamingSession* OutputProvider);
-	
+
+	/** Updates the live link source possibly updating its name to match the StreamerId. */
+	void UpdateLiveLinkSource(UVCamPixelStreamingSession* OutputProvider);
 	/** Get the LiveLinkSource if it already exists or attempt to create one.*/
 	TSharedPtr<FPixelStreamingLiveLinkSource> TryGetLiveLinkSource(UVCamPixelStreamingSession* OutputProvider);
 

@@ -44,20 +44,6 @@
             "TargetDenyList": [ "Server" ]
 		},
 		{
-			"Name": "PixelStreaming2Blueprint",
-			"Type": "Runtime",
-			"LoadingPhase": "PreDefault",
-			"PlatformAllowList": [ "Win64", "Linux" ],
-			"TargetDenyList": [ "Server" ]
-		},
-		{
-			"Name": "PixelStreaming2BlueprintEditor",
-			"Type": "Editor",
-			"LoadingPhase": "PostEngineInit",
-			"PlatformAllowList": [ "Win64", "Linux" ],
-			"TargetDenyList": [ "Server" ]
-		},
-		{
 			"Name": "PixelStreaming2HMD",
 			"Type": "Runtime",
 			"LoadingPhase": "PreDefault",

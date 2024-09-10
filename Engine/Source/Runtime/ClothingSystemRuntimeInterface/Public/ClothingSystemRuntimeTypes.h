@@ -7,6 +7,7 @@
 #include "Math/Transform.h"
 #include "Math/UnrealMathSSE.h"
 #include "Math/Vector.h"
+#include "ClothingSystemRuntimeTypes.generated.h"
 
 
 // Data produced by a clothing simulation
@@ -35,6 +36,7 @@ struct FClothSimulData
 	int32 LODIndex;
 };
 
+UENUM()
 enum class EClothingTeleportMode : uint8
 {
 	// No teleport, simulate as normal
@@ -42,6 +44,8 @@ enum class EClothingTeleportMode : uint8
 	// Teleport the simulation, causing no intertial effects but keep the sim mesh shape
 	Teleport,
 	// Teleport the simulation, causing no intertial effects and reset the sim mesh shape
-	TeleportAndReset
+	TeleportAndReset,
+	// Hard reset the simulation by refreshing the cloth config
+	HardReset
 };
 

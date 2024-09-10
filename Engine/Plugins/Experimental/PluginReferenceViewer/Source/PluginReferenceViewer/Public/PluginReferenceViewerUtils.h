@@ -18,6 +18,12 @@ public:
 	/* Returns the list of plugins where the supplied gameplay tag is declated */
 	static TArray<TSharedRef<IPlugin>> FindGameplayTagSourcePlugins(FName TagName);
 
+	/*
+	 * Traces the path from one plugin to the ending plugin if one exists.
+	 * Returns true if a path exists.
+	 */
+	static bool TracePluginChain(const FString& StartingPlugin, const FString& EndingPlugin, FString& OutPathToEndPlugin);
+
 private:
 	FPluginReferenceViewerUtils() = delete;
 	FPluginReferenceViewerUtils(const FPluginReferenceViewerUtils&) = delete;

@@ -752,4 +752,32 @@ void MobileCustomResolve_MainPS(
 	OutColor.a = 1.0;
 }
 
-
+void AlphaInvert_MainPS(
+	in float4 SvPosition							: SV_POSITION, 
+	in noperspective float2 UV						: TEXCOORD0,
+	out				 float4 OutColor				: SV_Target0
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in nointerpolation uint EyeIndex				: VIEW_ID
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint MultiViewId : SV_ViewID
+#endif
+)
+{
+	uint ArrayIndex = 0;
+#if MOBILE_MULTI_VIEW
+	ArrayIndex = MultiViewId;
+#elif MOBILE_MULTI_VIEW_FALLBACK
+	ArrayIndex = EyeIndex;
+#else
+#endif
+	
+	half4 SceneColor;
+	#if MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK
+		SceneColor = Texture2DArraySample(ColorTexture, ColorSampler, float3(UV.xy,ArrayIndex));
+	#else
+		SceneColor = Texture2DSample(ColorTexture, ColorSampler, UV);
+	#endif
+	
+	OutColor.rgb = SceneColor.rgb;
+	OutColor.a = 1.0 - SceneColor.a;
+}

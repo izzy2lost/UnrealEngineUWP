@@ -2,6 +2,7 @@
 
 #include "USDSchemasModule.h"
 
+#include "USDMemory.h"
 #include "USDSchemaTranslator.h"
 #include "USDTypesConversion.h"
 
@@ -24,7 +25,6 @@
 #include "USDGroomTranslator.h"
 #include "USDLuxLightTranslator.h"
 #include "USDMediaSpatialAudioTranslator.h"
-#include "USDMemory.h"
 #include "USDShadeConversion.h"
 #include "USDShadeMaterialTranslator.h"
 #include "USDSkelSkeletonTranslator.h"

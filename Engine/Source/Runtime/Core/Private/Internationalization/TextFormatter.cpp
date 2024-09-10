@@ -382,7 +382,7 @@ public:
 	FORCEINLINE bool IsValid() const
 	{
 		bool bIsValid = false;
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			UE::TScopeLock Lock(CompiledDataMutex);
 			bIsValid = IsValid_NoLock();
@@ -403,7 +403,7 @@ public:
 	FORCEINLINE bool ValidatePattern(const FCulturePtr& InCulture, TArray<FString>& OutValidationErrors)
 	{
 		bool bIsValid = false;
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			UE::TScopeLock Lock(CompiledDataMutex);
 			bIsValid = ValidatePattern_NoLock(InCulture, OutValidationErrors);
@@ -418,7 +418,7 @@ public:
 	FORCEINLINE FString Format(const FPrivateTextFormatArguments& InFormatArgs)
 	{
 		FString RetString;
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			UE::TScopeLock Lock(CompiledDataMutex);
 			RetString = Format_NoLock(InFormatArgs);
@@ -432,7 +432,7 @@ public:
 	 */
 	FORCEINLINE void GetFormatArgumentNames(TArray<FString>& OutArgumentNames)
 	{
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			UE::TScopeLock Lock(CompiledDataMutex);
 			GetFormatArgumentNames_NoLock(OutArgumentNames);
@@ -463,7 +463,7 @@ public:
 	FORCEINLINE FTextFormat::EExpressionType GetExpressionType() const
 	{
 		FTextFormat::EExpressionType RetType = FTextFormat::EExpressionType::Invalid;
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			UE::TScopeLock Lock(CompiledDataMutex);
 			RetType = CompiledExpressionType;

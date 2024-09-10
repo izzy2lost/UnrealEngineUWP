@@ -5,6 +5,8 @@
 #include "Engine/NetDriver.h"
 #include "Engine/NetSerialization.h"
 #include "Net/Serialization/FastArraySerializer.h"
+#include "UObject/ObjectKey.h"
+#include "Templates/TypeCompatibleBytes.h"
 #include "GameplayPrediction.generated.h"
 
 class UAbilitySystemComponent;
@@ -355,12 +357,12 @@ struct GAMEPLAYABILITIES_API FPredictionKey
 	/** Was this PredictionKey received from a NetSerialize or created locally? */
 	bool WasReceived() const
 	{
-		return PredictiveConnectionKey != 0;
+		return PredictiveConnectionObjectKey != FObjectKey();
 	}
 
 	bool WasLocallyGenerated() const
 	{
-		return (Current > 0) && (PredictiveConnectionKey == 0);
+		return (Current > 0) && (PredictiveConnectionObjectKey == FObjectKey());
 	}
 
 	bool operator==(const FPredictionKey& Other) const
@@ -385,7 +387,7 @@ struct GAMEPLAYABILITIES_API FPredictionKey
 		return ((InKey.Current << 1) | (InKey.bIsServerInitiated & 1));
 	}
 
-	UPTRINT GetPredictiveConnectionKey() const { return PredictiveConnectionKey; }
+	uint64 GetPredictiveConnectionKey() const { return BitCast<uint64>(PredictiveConnectionObjectKey); }
 
 private:
 	friend UE::Net::FPredictionKeyNetSerializer;
@@ -399,7 +401,7 @@ private:
 	}
 
 	/** On the server, uniquely identifies network connection this was serialized on/from.  See NetSerialize for additional information. */
-	UPTRINT PredictiveConnectionKey = 0;
+	FObjectKey PredictiveConnectionObjectKey;
 };
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 

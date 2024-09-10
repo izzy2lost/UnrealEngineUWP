@@ -166,7 +166,7 @@ void FRenderTargetWriteMask::Decode(
 		RDG_EVENT_NAME("DecodeWriteMask[%d]", NumRenderTargets),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[DecodeCS, PassParameters, ShaderMap, RTWriteMaskDims](FRHIComputeCommandList& RHICmdList)
+		[DecodeCS, PassParameters, ShaderMap, RTWriteMaskDims](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 	{
 		FRHITexture* Texture0RHI = PassParameters->ReferenceInput->GetRHI();
 

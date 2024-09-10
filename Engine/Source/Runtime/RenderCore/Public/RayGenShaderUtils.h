@@ -32,7 +32,7 @@ struct FRayGenShaderUtils
 			Forward<FRDGEventName>(PassName),
 			Parameters,
 			ERDGPassFlags::Compute,
-			[RayGenerationShader, Parameters, Resolution](FRHICommandList& RHICmdList)
+			[RayGenerationShader, Parameters, Resolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);

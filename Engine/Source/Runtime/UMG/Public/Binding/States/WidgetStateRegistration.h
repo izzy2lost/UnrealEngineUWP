@@ -48,7 +48,7 @@ class UWidgetHoveredStateRegistration : public UWidgetBinaryStateRegistration
 public:
 
 	/** Post-load initialized bit corresponding to this binary state */
-	static UMG_API inline FWidgetStateBitfield Bit;
+	static UMG_API FWidgetStateBitfield Bit;
 
 	static const inline FName StateName = FName("Hovered");
 
@@ -73,7 +73,7 @@ class UWidgetPressedStateRegistration : public UWidgetBinaryStateRegistration
 public:
 
 	/** Post-load initialized bit corresponding to this binary state */
-	static UMG_API inline FWidgetStateBitfield Bit;
+	static UMG_API FWidgetStateBitfield Bit;
 
 	static const inline FName StateName = FName("Pressed");
 
@@ -98,7 +98,7 @@ class UWidgetDisabledStateRegistration : public UWidgetBinaryStateRegistration
 public:
 
 	/** Post-load initialized bit corresponding to this binary state */
-	static UMG_API inline FWidgetStateBitfield Bit;
+	static UMG_API FWidgetStateBitfield Bit;
 
 	static const inline FName StateName = FName("Disabled");
 
@@ -123,7 +123,7 @@ class UWidgetSelectedStateRegistration : public UWidgetBinaryStateRegistration
 public:
 
 	/** Post-load initialized bit corresponding to this binary state */
-	static UMG_API inline FWidgetStateBitfield Bit;
+	static UMG_API FWidgetStateBitfield Bit;
 
 	static const inline FName StateName = FName("Selected");
 

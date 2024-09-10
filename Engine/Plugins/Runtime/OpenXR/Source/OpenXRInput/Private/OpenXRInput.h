@@ -156,6 +156,7 @@ public:
 		TArray<FOpenXRAction> LegacyActions, EnhancedActions;
 		TMap<EControllerHand, FOpenXRController> Controllers;
 		TMap<FName, EControllerHand> MotionSourceToControllerHandMap;
+		TMap<FString, TArray<FInputKeyOpenXRProperties>> InputsKeysToPropertiesMap;
 
 		// Holds Enhanced Input Mapping Contexts pulled from the Enhanced Input Settings and mapped to their priority
 		// These will be converted into OpenXR action sets

@@ -785,6 +785,11 @@ void FPCGActorAndComponentMapping::UpdateMappingPCGComponentPartitionActor(UPCGC
 
 	check(InComponent);
 
+	if (!InComponent->GetGraph())
+	{
+		return;
+	}
+
 	// Get the bounds
 	FBox Bounds = PartitionedOctree.GetBounds(InComponent);
 
@@ -854,6 +859,16 @@ void FPCGActorAndComponentMapping::UpdateMappingPCGComponentPartitionActor(UPCGC
 
 		UpdateMapping();
 	}
+}
+
+TSet<TObjectPtr<APCGPartitionActor>> FPCGActorAndComponentMapping::GetPCGComponentPartitionActorMappings(UPCGComponent* InComponent) const
+{
+	if (const TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = ComponentToPartitionActorsMap.Find(InComponent))
+	{
+		return *PartitionActorsPtr;
+	}
+
+	return TSet<TObjectPtr<APCGPartitionActor>>();
 }
 
 void FPCGActorAndComponentMapping::DeleteMappingPCGComponentPartitionActor(UPCGComponent* InComponent)

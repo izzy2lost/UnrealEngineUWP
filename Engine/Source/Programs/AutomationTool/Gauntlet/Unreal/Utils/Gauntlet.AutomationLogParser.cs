@@ -79,7 +79,7 @@ namespace Gauntlet
 		/// </summary>
 		/// <param name="InLog"></param>
 		public AutomationLogParser(UnrealLog InLog)
-				: this(new UnrealLogParser(InLog))
+				: this(InLog.GetParser())
 		{
 		}
 

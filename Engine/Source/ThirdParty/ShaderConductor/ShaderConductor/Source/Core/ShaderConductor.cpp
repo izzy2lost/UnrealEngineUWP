@@ -1510,6 +1510,11 @@ namespace
 				}
             }
 
+			// UE Change Begin: Default precision is Highp
+			glslOpts.fragment.default_float_precision = spirv_cross::CompilerGLSL::Options::Precision::Highp;
+			glslOpts.fragment.default_int_precision = spirv_cross::CompilerGLSL::Options::Precision::Highp;
+			// UE Change End: Default precision is Highp
+
             // UE Change Begin: Allow remapping of variables in glsl
             remap(*glslCompiler, glslCompiler->get_shader_resources(), remaps);
             // UE Change End: Allow remapping of variables in glsl

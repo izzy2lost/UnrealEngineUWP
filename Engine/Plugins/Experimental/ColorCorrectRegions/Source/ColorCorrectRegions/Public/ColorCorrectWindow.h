@@ -27,7 +27,7 @@ public:
 	virtual ~AColorCorrectionWindow() override;
 
 	/** Region type. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Color Correction", Meta = (DisplayName = "Type"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Region", Meta = (DisplayName = "Type"))
 	EColorCorrectWindowType WindowType;
 
 #if WITH_EDITOR

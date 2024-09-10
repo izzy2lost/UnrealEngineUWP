@@ -46,6 +46,16 @@ public:
 		, Type(InType)
 	{
 	}
+
+	bool operator==(const FInterchangeAnimationPayLoadKey& Other) const
+	{
+		return UniqueId.Equals(Other.UniqueId) && Type == Other.Type;
+	}
+
+	friend uint32 GetTypeHash(const FInterchangeAnimationPayLoadKey& InterchangeAnimationPayLoadKey)
+	{
+		return GetTypeHash(InterchangeAnimationPayLoadKey.UniqueId + FString::FromInt(static_cast<int32>(InterchangeAnimationPayLoadKey.Type)));
+	}
 };
 
 //Interchange namespace

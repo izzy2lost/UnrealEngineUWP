@@ -38,6 +38,7 @@
 #include "UI/Menus/DMMaterialSlotLayerMenus.h"
 #include "UI/Utils/DMDropTargetPrivateSetter.h"
 #include "UI/Utils/DMWidgetStatics.h"
+#include "UI/Widgets/Editor/SDMMaterialComponentEditor.h"
 #include "UI/Widgets/Editor/SlotEditor/SDMMaterialSlotLayerView.h"
 #include "UI/Widgets/SDMMaterialEditor.h"
 #include "Utils/DMMaterialSlotFunctionLibrary.h"
@@ -361,6 +362,91 @@ void SDMMaterialSlotEditor::DeleteSelectedLayer()
 	Slot->RemoveLayer(SelectedLayer);
 }
 
+bool SDMMaterialSlotEditor::SelectLayer_CanExecute(int32 InIndex) const
+{
+	return LayerViewSlot.HasWidget() && LayerViewSlot->GetItems().IsValidIndex(InIndex);
+}
+
+void SDMMaterialSlotEditor::SelectLayer_Execute(int32 InIndex)
+{
+	if (!SelectLayer_CanExecute(InIndex))
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialEditor> EditorWidget = GetEditorWidget();
+
+	if (!EditorWidget.IsValid())
+	{
+		return;
+	}
+
+	UDMMaterialSlot* Slot = GetSlot();
+
+	if (!Slot)
+	{
+		return;
+	}
+
+	TArray<UDMMaterialLayerObject*> Layers = Slot->GetLayers();
+
+	// Layer order is reversed.
+	const int32 LayerIndex = Layers.Num() - 1 - InIndex;
+
+	if (!Layers.IsValidIndex(InIndex))
+	{
+		return;
+	}
+
+	UDMMaterialLayerObject* Layer = Layers[LayerIndex];
+
+	// Switch between stages
+	if (LayerViewSlot->GetSelectedLayer() == Layer)
+	{
+		if (TSharedPtr<SDMMaterialComponentEditor> ComponentEditorWidget = EditorWidget->GetComponentEditorWidget())
+		{
+			UDMMaterialStage* BaseStage = Layer->GetFirstEnabledStage(EDMMaterialLayerStage::Base);
+			UDMMaterialStage* MaskStage = Layer->GetFirstEnabledStage(EDMMaterialLayerStage::Mask);
+
+			if (MaskStage && ComponentEditorWidget->GetObject() == BaseStage)
+			{
+				EditorWidget->EditComponent(MaskStage);
+			}
+			else if (BaseStage && ComponentEditorWidget->GetObject() == MaskStage)
+			{
+				EditorWidget->EditComponent(BaseStage);
+			}
+		}
+	}
+	// Select new layer
+	else
+	{
+		LayerViewSlot->SetSelectedLayer(Layer);
+
+		if (UDMMaterialStage* Stage = Layer->GetFirstEnabledStage(EDMMaterialLayerStage::All))
+		{
+			EditorWidget->EditComponent(Stage, /* Force Refersh */ false);
+		}
+		else
+		{
+			EditorWidget->EditComponent(nullptr);
+		}
+	}
+}
+
+bool SDMMaterialSlotEditor::SetOpacity_CanExecute()
+{
+	return LayerOpacityValueWeak.IsValid();
+}
+
+void SDMMaterialSlotEditor::SetOpacity_Execute(float InOpacity)
+{
+	if (UDMMaterialValueFloat1* OpacityValue = LayerOpacityValueWeak.Get())
+	{
+		OpacityValue->SetValue(InOpacity);
+	}
+}
+
 TSharedRef<SDMMaterialSlotLayerView> SDMMaterialSlotEditor::GetLayerView() const
 {
 	return *LayerViewSlot;
@@ -539,6 +625,7 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_SlotSettings()
 
 TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_LayerOpacity()
 {
+	LayerOpacityValueWeak.Reset();
 	LayerOpacityItem = nullptr;
 
 	if (LayerViewSlot.IsValid())
@@ -551,6 +638,8 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_LayerOpacity()
 				{
 					if (UDMMaterialValueFloat1* OpacityValue = Cast<UDMMaterialValueFloat1>(SelectedOpacityStageInputValue->GetValue()))
 					{
+						LayerOpacityValueWeak = OpacityValue;
+
 						UWorld* World = OpacityValue->GetWorld();
 						TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = nullptr;
 

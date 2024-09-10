@@ -42,7 +42,7 @@ namespace UE::Editor
 			UpdateExportedTextWidget(FText::FromString(MoveTemp(Label)), Widget);
 		}
 		
-		static void UpdateExportedTextWidget(ITypedElementDataStorageInterface& DataStorage, FTypedElementSlateWidgetReferenceColumn& Widget,
+		static void UpdateExportedTextWidget(IEditorDataStorageProvider& DataStorage, FTypedElementSlateWidgetReferenceColumn& Widget,
 			const FTypedElementScriptStructTypeInfoColumn& TypeInfo, const FTypedElementRowReferenceColumn& ReferencedRow)
 		{
 			const UScriptStruct* StructType = TypeInfo.TypeInfo.Get();
@@ -52,7 +52,7 @@ namespace UE::Editor
 			}
 		}
 		
-		static DataStorage::RowHandle RegisterUpdateCallback(ITypedElementDataStorageInterface& DataStorage, const UScriptStruct* Target)
+		static DataStorage::RowHandle RegisterUpdateCallback(IEditorDataStorageProvider& DataStorage, const UScriptStruct* Target)
 		{
 			using namespace UE::Editor::DataStorage::Queries;
 
@@ -115,8 +115,8 @@ namespace UE::Editor
 	} // namespace DataStorage::UI::Private
 } // namespace UE::Editor
 
-void UExportedTextWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-	ITypedElementDataStorageUiInterface& DataStorageUi) const
+void UExportedTextWidgetFactory::RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+	IEditorDataStorageUiProvider& DataStorageUi) const
 {
 	DataStorageUi.RegisterWidgetFactory(FName(TEXT("General.Cell.Default")), FExportedTextWidgetConstructor::StaticStruct());
 }
@@ -145,7 +145,7 @@ const UE::Editor::DataStorage::Queries::FConditions* FExportedTextWidgetConstruc
 	return &MatchedColumn;
 }
 
-FString FExportedTextWidgetConstructor::CreateWidgetDisplayName(ITypedElementDataStorageInterface* DataStorage,
+FString FExportedTextWidgetConstructor::CreateWidgetDisplayName(IEditorDataStorageProvider* DataStorage,
 	UE::Editor::DataStorage::RowHandle Row) const
 {
 	if (FTypedElementScriptStructTypeInfoColumn* TypeInfoColumn = DataStorage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row))
@@ -164,8 +164,8 @@ TSharedPtr<SWidget> FExportedTextWidgetConstructor::CreateWidget(const UE::Edito
 }
 
 bool FExportedTextWidgetConstructor::FinalizeWidget(
-	ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi,
+	IEditorDataStorageProvider* DataStorage,
+	IEditorDataStorageUiProvider* DataStorageUi,
 	UE::Editor::DataStorage::RowHandle Row,
 	const TSharedPtr<SWidget>& Widget)
 {

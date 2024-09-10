@@ -391,7 +391,7 @@ void FScene::AllocateAndCaptureFrameSkyEnvMap(
 			RDG_EVENT_NAME("ClearSkyRenderTarget"),
 			Parameters,
 			ERDGPassFlags::Raster,
-			[Parameters, ClearColor](FRHICommandList& RHICmdList)
+			[Parameters, ClearColor](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				DrawClearQuad(RHICmdList, ClearColor);
 			});
@@ -699,7 +699,7 @@ void FScene::AllocateAndCaptureFrameSkyEnvMap(
 								RDG_EVENT_NAME("DistantHeightFog"),
 								PsPassParameters,
 								ERDGPassFlags::Raster,
-								[PsPassParameters, VertexShader, PixelShader, CubeWidth](FRHICommandList& RHICmdListLambda)
+								[PsPassParameters, VertexShader, PixelShader, CubeWidth](FRDGAsyncTask, FRHICommandList& RHICmdListLambda)
 								{
 									RHICmdListLambda.SetViewport(0.0f, 0.0f, 0.0f, CubeWidth, CubeWidth, 1.0f);
 
@@ -774,7 +774,7 @@ void FScene::AllocateAndCaptureFrameSkyEnvMap(
 						RDG_EVENT_NAME("ApplyLowerHemisphereColor"),
 						PsPassParameters,
 						ERDGPassFlags::Raster,
-						[PsPassParameters, VertexShader, PixelShader, CubeWidth](FRHICommandList& RHICmdListLambda)
+						[PsPassParameters, VertexShader, PixelShader, CubeWidth](FRDGAsyncTask, FRHICommandList& RHICmdListLambda)
 						{
 							RHICmdListLambda.SetViewport(0.0f, 0.0f, 0.0f, CubeWidth, CubeWidth, 1.0f);
 
@@ -849,7 +849,7 @@ void FScene::AllocateAndCaptureFrameSkyEnvMap(
 				Forward<FRDGEventName>(RDG_EVENT_NAME("MipGen")),
 				PassParameters,
 				ERDGPassFlags::Compute,
-			[PassParameters, ComputeShader, NumGroups](FRHICommandList& RHICmdList)
+			[PassParameters, ComputeShader, NumGroups](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *PassParameters, NumGroups);
 			});

@@ -118,6 +118,7 @@ public:
 	
 	SLATE_API void ShowTooltip(const TSharedRef<IToolTip>& InTooltip, const UE::Slate::FDeprecateVector2DParameter& InSpawnLocation);
 	SLATE_API void CloseTooltip();
+	SLATE_API FVector2f GetTooltipPosition() const;
 
 	const FGestureDetector& GetGestureDetector() const { return GestureDetector; }
 

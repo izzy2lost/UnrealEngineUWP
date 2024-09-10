@@ -132,6 +132,9 @@ void CIntrinsicSymbols::Initialize(CSymbolTable& Symbols)
     _NaN = Symbols.AddChecked("NaN");
     _ExtensionFieldPrefix = "operator'.";
     _ExtensionFieldSuffix = "'";
+
+    // @available
+    _MinUploadedAtFNVersion = Symbols.AddChecked("MinUploadedAtFNVersion");
 }
 
 CSymbol CIntrinsicSymbols::GetArithmeticOpName(CExprBinaryArithmetic::EOp Op) const
@@ -679,13 +682,6 @@ void CSemanticProgram::PopulateCoreAPI()
         TypeAlias->SetAccessLevel({SAccessLevel::EKind::Public});
         return TypeAlias;
     };
-    auto CreateGlobalClass = [&](const char* Name, CClass* SuperClass = nullptr, SAccessLevel AccessLevel = SAccessLevel::EKind::Public) -> CClassDefinition*
-    {
-        CClassDefinition* Class = &_BuiltinSnippet->CreateClass(_Symbols->AddChecked(Name), SuperClass);
-        Class->_bHasCyclesBroken = true;
-        Class->SetAccessLevel(AccessLevel);
-        return Class;
-    };
     _falseAlias = CreateGlobalTypeAlias(&_falseType);
     _trueAlias = CreateGlobalTypeAlias(&_trueType);
     _voidAlias = CreateGlobalTypeAlias(&_voidType);
@@ -709,31 +705,39 @@ void CSemanticProgram::PopulateCoreAPI()
     // TODO-Verse: Consider - C# attributes have `Attribute` suffix though allow just the root. So `nativeAttribute` class would allow `[native]`.
     // Could use prefix which would ensure starting with capital: `Attr_native`
     
-    _attributeClass  = CreateGlobalClass("attribute", nullptr, SAccessLevel::EKind::EpicInternal);
+    auto CreateAttributeClass = [&](const char* Name, CClass* SuperClass = nullptr, SAccessLevel AccessLevel = SAccessLevel::EKind::Public) -> CClassDefinition*
     {
-        _attributeScopeAttribute      = CreateGlobalClass("attribscope_attribute", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeSpecifier      = CreateGlobalClass("attribscope_specifier", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeModule         = CreateGlobalClass("attribscope_module", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeClass          = CreateGlobalClass("attribscope_class", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeStruct         = CreateGlobalClass("attribscope_struct", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeData           = CreateGlobalClass("attribscope_data", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeFunction       = CreateGlobalClass("attribscope_function", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeEnum           = CreateGlobalClass("attribscope_enum", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeEnumerator     = CreateGlobalClass("attribscope_enumerator", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeAttributeClass = CreateGlobalClass("attribscope_attribclass", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeInterface      = CreateGlobalClass("attribscope_interface", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeIdentifier     = CreateGlobalClass("attribscope_identifier", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeExpression     = CreateGlobalClass("attribscope_expression", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeClassMacro     = CreateGlobalClass("attribscope_classmacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeStructMacro    = CreateGlobalClass("attribscope_structmacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeInterfaceMacro = CreateGlobalClass("attribscope_interfacemacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeEnumMacro      = CreateGlobalClass("attribscope_enummacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeVar            = CreateGlobalClass("attribscope_var", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeName           = CreateGlobalClass("attribscope_name", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeEffect         = CreateGlobalClass("attribscope_effect", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeTypeDefinition = CreateGlobalClass("attribscope_typedefinition", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _attributeScopeScopedDefinition = CreateGlobalClass("attribscope_scopeddefinition", _attributeClass, SAccessLevel::EKind::EpicInternal);
-        _customAttributeHandler       = CreateGlobalClass("customattribhandler", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        CClassDefinition* Class = &_BuiltinSnippet->CreateClass(_Symbols->AddChecked(Name), SuperClass);
+        Class->_ConstructorEffects = EffectSets::Computes;
+        Class->_bHasCyclesBroken = true;
+        Class->SetAccessLevel(AccessLevel);
+        return Class;
+    };
+    _attributeClass  = CreateAttributeClass("attribute", nullptr, SAccessLevel::EKind::EpicInternal);
+    {
+        _attributeScopeAttribute      = CreateAttributeClass("attribscope_attribute", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeSpecifier      = CreateAttributeClass("attribscope_specifier", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeModule         = CreateAttributeClass("attribscope_module", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeClass          = CreateAttributeClass("attribscope_class", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeStruct         = CreateAttributeClass("attribscope_struct", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeData           = CreateAttributeClass("attribscope_data", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeFunction       = CreateAttributeClass("attribscope_function", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeEnum           = CreateAttributeClass("attribscope_enum", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeEnumerator     = CreateAttributeClass("attribscope_enumerator", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeAttributeClass = CreateAttributeClass("attribscope_attribclass", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeInterface      = CreateAttributeClass("attribscope_interface", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeIdentifier     = CreateAttributeClass("attribscope_identifier", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeExpression     = CreateAttributeClass("attribscope_expression", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeClassMacro     = CreateAttributeClass("attribscope_classmacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeStructMacro    = CreateAttributeClass("attribscope_structmacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeInterfaceMacro = CreateAttributeClass("attribscope_interfacemacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeEnumMacro      = CreateAttributeClass("attribscope_enummacro", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeVar            = CreateAttributeClass("attribscope_var", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeName           = CreateAttributeClass("attribscope_name", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeEffect         = CreateAttributeClass("attribscope_effect", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeTypeDefinition = CreateAttributeClass("attribscope_typedefinition", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _attributeScopeScopedDefinition = CreateAttributeClass("attribscope_scopeddefinition", _attributeClass, SAccessLevel::EKind::EpicInternal);
+        _customAttributeHandler       = CreateAttributeClass("customattribhandler", _attributeClass, SAccessLevel::EKind::EpicInternal);
 
         auto AddAttribScopeAttributes = [&](CClass* Class) -> void
         {
@@ -764,13 +768,13 @@ void CSemanticProgram::PopulateCoreAPI()
         AddAttribScopeAttributes(_attributeScopeScopedDefinition);
         AddAttribScopeAttributes(_customAttributeHandler);
     }
-    _abstractClass = CreateGlobalClass("abstract", _attributeClass);
+    _abstractClass = CreateAttributeClass("abstract", _attributeClass);
     {
         _abstractClass->_Definition->AddAttributeClass(_attributeScopeClassMacro);
         _abstractClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _abstractClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _finalClass      = CreateGlobalClass("final", _attributeClass);
+    _finalClass = CreateAttributeClass("final", _attributeClass);
     {
         // It's a bit of a hack that the classmacro scope needs to be used together with the name scope. This is to deal with the
         // fact that final is otherwise used with names.
@@ -781,29 +785,28 @@ void CSemanticProgram::PopulateCoreAPI()
         _finalClass->_Definition->AddAttributeClass(_attributeScopeName);
         _finalClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
+    _concreteClass = CreateAttributeClass("concrete", _attributeClass);
     {
-        CClassDefinition* ConcreteClass = CreateGlobalClass("concrete", _attributeClass);
-        ConcreteClass->AddAttributeClass(_attributeScopeClass);
-        ConcreteClass->AddAttributeClass(_attributeScopeClassMacro);
-        ConcreteClass->AddAttributeClass(_attributeScopeStruct);
-        ConcreteClass->AddAttributeClass(_attributeScopeStructMacro);
-        ConcreteClass->AddAttributeClass(_attributeScopeSpecifier);
-        _concreteClass = ConcreteClass;
+        _concreteClass->_Definition->AddAttributeClass(_attributeScopeClass);
+        _concreteClass->_Definition->AddAttributeClass(_attributeScopeClassMacro);
+        _concreteClass->_Definition->AddAttributeClass(_attributeScopeStruct);
+        _concreteClass->_Definition->AddAttributeClass(_attributeScopeStructMacro);
+        _concreteClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
+    _uniqueClass = CreateAttributeClass("unique", _attributeClass);
     {
-        CClassDefinition* UniqueClass = CreateGlobalClass("unique", _attributeClass);
-        UniqueClass->AddAttributeClass(_attributeScopeClass);
-        UniqueClass->AddAttributeClass(_attributeScopeClassMacro);
-        UniqueClass->AddAttributeClass(_attributeScopeInterface);
-        UniqueClass->AddAttributeClass(_attributeScopeInterfaceMacro);
-        _uniqueClass = UniqueClass;
+        _uniqueClass->_Definition->AddAttributeClass(_attributeScopeClass);
+        _uniqueClass->_Definition->AddAttributeClass(_attributeScopeClassMacro);
+        _uniqueClass->_Definition->AddAttributeClass(_attributeScopeInterface);
+        _uniqueClass->_Definition->AddAttributeClass(_attributeScopeInterfaceMacro);
+        _uniqueClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _intrinsicClass  = CreateGlobalClass("intrinsic", _attributeClass, SAccessLevel::EKind::Private);
+    _intrinsicClass = CreateAttributeClass("intrinsic", _attributeClass, SAccessLevel::EKind::Private);
     {
         _intrinsicClass->_Definition->AddAttributeClass(_attributeScopeFunction);
         _intrinsicClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _nativeClass     = CreateGlobalClass("native", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _nativeClass = CreateAttributeClass("native", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _nativeClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _nativeClass->_Definition->AddAttributeClass(_attributeScopeStruct);
@@ -817,21 +820,20 @@ void CSemanticProgram::PopulateCoreAPI()
         _nativeClass->_Definition->AddAttributeClass(_attributeScopeTypeDefinition);
         _nativeClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _nativeCallClass = CreateGlobalClass("native_callable", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _nativeCallClass = CreateAttributeClass("native_callable", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _nativeCallClass->_Definition->AddAttributeClass(_attributeScopeFunction);
         _nativeCallClass->_Definition->AddAttributeClass(_attributeScopeName);
         _nativeCallClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
+    _constructorClass = CreateAttributeClass("constructor", _attributeClass);
     {
-        CClassDefinition* ConstructorClass = CreateGlobalClass("constructor", _attributeClass);
-        ConstructorClass->AddAttributeClass(_attributeScopeFunction);
-        ConstructorClass->AddAttributeClass(_attributeScopeName);
-        ConstructorClass->AddAttributeClass(_attributeScopeIdentifier);
-        ConstructorClass->AddAttributeClass(_attributeScopeSpecifier);
-        _constructorClass = ConstructorClass;
+        _constructorClass->_Definition->AddAttributeClass(_attributeScopeFunction);
+        _constructorClass->_Definition->AddAttributeClass(_attributeScopeName);
+        _constructorClass->_Definition->AddAttributeClass(_attributeScopeIdentifier);
+        _constructorClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _overrideClass = CreateGlobalClass("override", _attributeClass);
+    _overrideClass = CreateAttributeClass("override", _attributeClass);
     {
         _overrideClass->_Definition->AddAttributeClass(_attributeScopeFunction);
         _overrideClass->_Definition->AddAttributeClass(_attributeScopeData);
@@ -841,7 +843,7 @@ void CSemanticProgram::PopulateCoreAPI()
 
     auto MakeEffectAttributeClass = [&](const char* Name) -> CClassDefinition*
     {
-        CClassDefinition* Result = CreateGlobalClass(Name, _attributeClass);
+        CClassDefinition* Result = CreateAttributeClass(Name, _attributeClass);
         Result->AddAttributeClass(_attributeScopeFunction);
         Result->AddAttributeClass(_attributeScopeClass);
         Result->AddAttributeClass(_attributeScopeStruct);
@@ -852,7 +854,7 @@ void CSemanticProgram::PopulateCoreAPI()
     };
     auto MakeAccessLevelAttributeClass = [&](const char* Name, SAccessLevel AccessLevel = SAccessLevel::EKind::Public) -> CClassDefinition*
     {
-        CClassDefinition* Result = CreateGlobalClass(Name, _attributeClass, AccessLevel);
+        CClassDefinition* Result = CreateAttributeClass(Name, _attributeClass, AccessLevel);
         AddStandardAccessLevelAttributes(Result);
         return Result;
     };
@@ -876,7 +878,7 @@ void CSemanticProgram::PopulateCoreAPI()
 
     PopulateEffectDescriptorTable();
 
-    _localizes = CreateGlobalClass("localizes", _attributeClass, SAccessLevel::EKind::Public);
+    _localizes = CreateAttributeClass("localizes", _attributeClass, SAccessLevel::EKind::Public);
     {
         _localizes->_Definition->AddAttributeClass(_attributeScopeName);
         _localizes->_Definition->AddAttributeClass(_attributeScopeData);
@@ -884,13 +886,35 @@ void CSemanticProgram::PopulateCoreAPI()
         _localizes->_Definition->AddAttributeClass(_attributeScopeFunction);
     }
 
-    _ignore_unreachable = CreateGlobalClass("ignore_unreachable", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _ignore_unreachable = CreateAttributeClass("ignore_unreachable", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _ignore_unreachable->_Definition->AddAttributeClass(_attributeScopeExpression);
         _ignore_unreachable->_Definition->AddAttributeClass(_attributeScopeAttribute);
     }
 
-    _deprecatedClass = CreateGlobalClass("deprecated", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _availableClass = CreateAttributeClass("available", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    {
+        _availableClass->_Definition->AddAttributeClass(_attributeScopeClass);
+        _availableClass->_Definition->AddAttributeClass(_attributeScopeStruct);
+        _availableClass->_Definition->AddAttributeClass(_attributeScopeData);
+        _availableClass->_Definition->AddAttributeClass(_attributeScopeFunction);
+        _availableClass->_Definition->AddAttributeClass(_attributeScopeEnum);
+        _availableClass->_Definition->AddAttributeClass(_attributeScopeEnumerator);
+        _availableClass->_Definition->AddAttributeClass(_attributeScopeInterface);
+        _availableClass->_Definition->AddAttributeClass(_attributeScopeAttribute);
+        _availableClass->_Definition->AddAttributeClass(_attributeScopeTypeDefinition);
+        // TODO: Modules are unique in that multiple modules with the same name are coalesced (CModulePart),
+        // TODO: but the attributes are not combined in a meaningful way. We can't support that until the 
+        // TODO: module-parts can retain their own @available versioning.
+        //_availableClass->_Definition->AddAttributeClass(_attributeScopeModule);
+
+        TSPtr<CDataDefinition> availableMinUploadedAtFNVersion = _availableClass->_Definition->CreateDataDefinition(_IntrinsicSymbols._MinUploadedAtFNVersion, _intType);
+        availableMinUploadedAtFNVersion->_NegativeType = _intType;
+        availableMinUploadedAtFNVersion->SetAccessLevel(SAccessLevel(SAccessLevel::EKind::Public));
+        availableMinUploadedAtFNVersion->SetHasInitializer();
+    }
+
+    _deprecatedClass = CreateAttributeClass("deprecated", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _deprecatedClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _deprecatedClass->_Definition->AddAttributeClass(_attributeScopeStruct);
@@ -903,7 +927,7 @@ void CSemanticProgram::PopulateCoreAPI()
         _deprecatedClass->_Definition->AddAttributeClass(_attributeScopeTypeDefinition);
     }
 
-    _experimentalClass = CreateGlobalClass("experimental", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _experimentalClass = CreateAttributeClass("experimental", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _experimentalClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _experimentalClass->_Definition->AddAttributeClass(_attributeScopeStruct);
@@ -916,7 +940,7 @@ void CSemanticProgram::PopulateCoreAPI()
         _experimentalClass->_Definition->AddAttributeClass(_attributeScopeAttribute);
     }
 
-    _persistentClass = CreateGlobalClass("persistent", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _persistentClass = CreateAttributeClass("persistent", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _persistentClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _persistentClass->_Definition->AddAttributeClass(_attributeScopeClassMacro);
@@ -925,7 +949,7 @@ void CSemanticProgram::PopulateCoreAPI()
         _persistentClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
 
-    _persistableClass = CreateGlobalClass("persistable", _attributeClass, SAccessLevel::EKind::Public);
+    _persistableClass = CreateAttributeClass("persistable", _attributeClass, SAccessLevel::EKind::Public);
     {
         _persistableClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _persistableClass->_Definition->AddAttributeClass(_attributeScopeClassMacro);
@@ -936,22 +960,24 @@ void CSemanticProgram::PopulateCoreAPI()
         _persistableClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
 
-    _moduleScopedVarWeakMapKeyClass = CreateGlobalClass("module_scoped_var_weak_map_key", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _moduleScopedVarWeakMapKeyClass = CreateAttributeClass("module_scoped_var_weak_map_key", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _moduleScopedVarWeakMapKeyClass->_Definition->AddAttributeClass(_attributeScopeClass);
         _moduleScopedVarWeakMapKeyClass->_Definition->AddAttributeClass(_attributeScopeClassMacro);
         _moduleScopedVarWeakMapKeyClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
 
-    _getterClass = CreateGlobalClass("getter_attribute", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _getterClass = CreateAttributeClass("getter_attribute", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _getterClass->_Definition->AddAttributeClass(_attributeScopeData);
         _getterClass->_Definition->AddAttributeClass(_attributeScopeName);
+        _getterClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
-    _setterClass = CreateGlobalClass("setter_attribute", _attributeClass, SAccessLevel::EKind::EpicInternal);
+    _setterClass = CreateAttributeClass("setter_attribute", _attributeClass, SAccessLevel::EKind::EpicInternal);
     {
         _setterClass->_Definition->AddAttributeClass(_attributeScopeData);
         _setterClass->_Definition->AddAttributeClass(_attributeScopeName);
+        _setterClass->_Definition->AddAttributeClass(_attributeScopeSpecifier);
     }
 
     // TODO-Verse: Likely future attributes:

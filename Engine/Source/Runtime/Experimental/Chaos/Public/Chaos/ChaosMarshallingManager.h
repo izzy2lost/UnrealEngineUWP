@@ -8,9 +8,7 @@
 #include "Chaos/ParallelFor.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxyFwd.h"
 #include "Chaos/SimCallbackObject.h"
-#if UE_CHAOS_ASYNC_INITBODY_ENABLED
-#include "Misc/ScopeRWLock.h"
-#endif
+#include "Chaos/AsyncInitBodyHelper.h"
 
 class FGeometryCollectionResults;
 
@@ -298,9 +296,7 @@ public:
 
 	const FDirtyProxiesBucketInfo& GetDirtyProxyBucketInfo_External()
 	{
-#if UE_CHAOS_ASYNC_INITBODY_ENABLED
-		ensureAlwaysMsgf(false, TEXT("This method is not safe when used with UE_CHAOS_ASYNC_INITBODY_ENABLED = 1"));
-#endif
+		ensureAlwaysMsgf(!Chaos::CVars::bEnableAsyncInitBody, TEXT("This method is not safe when p.Chaos.EnableAsyncInitBody is true"));
 		return ProducerData->DirtyProxiesDataBuffer.GetDirtyProxyBucketInfo();
 	}
 
@@ -403,10 +399,8 @@ public:
 	/** Return the size of the history queue */
 	int32 GetNumHistory_Internal() const {return HistoryQueue_Internal.Num();}
 
-#if UE_CHAOS_ASYNC_INITBODY_ENABLED
 	/** Used for multithreaded access */
 	CHAOS_API FRWLock& GetMarshallingManagerLock() { return MarshallingManagerLock; }
-#endif
 
 private:
 	std::atomic<FReal> ExternalTime_External;	//the global time external thread is currently at
@@ -434,9 +428,7 @@ private:
 	CHAOS_API void PrepareExternalQueue_External();
 	CHAOS_API void PreparePullData();
 
-#if UE_CHAOS_ASYNC_INITBODY_ENABLED
 	/** Used for multithreaded access */
 	FRWLock MarshallingManagerLock;
-#endif
 };
 }; // namespace Chaos

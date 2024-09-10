@@ -2,6 +2,7 @@
 
 #include "InterchangeManager.h"
 
+#include "AssetCompilingManager.h"
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetDataTagMap.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -651,6 +652,7 @@ TArray<uint64> UE::Interchange::FImportAsyncHelper::GetCompletionTaskGraphEvent(
 	UE::Interchange::FInterchangeTaskSystem::Get().WaitUntilTasksComplete(TasksToComplete);
 	TasksToComplete.Reset();
 
+	TasksToComplete.Append(ImportObjectQueryPayloadsTasks);
 	TasksToComplete.Append(BeginImportObjectTasks);
 	TasksToComplete.Append(ImportObjectTasks);
 	TasksToComplete.Append(FinalizeImportObjectTasks);
@@ -1022,8 +1024,15 @@ UInterchangeManager& UInterchangeManager::GetInterchangeManager()
 		//Make sure we have a valid editor utilities
 		InterchangeManager->SetEditorUtilities(UInterchangeEditorUtilitiesBase::StaticClass());
 
+		FDelegateHandle OnTaskSystemTickDelegateHandle = UE::Interchange::FInterchangeTaskSystem::Get().OnTaskSystemTickDelegate().AddLambda([]()
+			{
+				//Tick task graph game thread tasks
+				FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
+				//Tick the all compiling manager
+				FAssetCompilingManager::Get().ProcessAsyncTasks(true);
+			});
 		//We cancel any running task when we pre exit the engine
-		FCoreDelegates::OnEnginePreExit.AddLambda([]()
+		FCoreDelegates::OnEnginePreExit.AddLambda([OnTaskSystemTickDelegateHandle]()
 		{
 			//InterchangeManager should be valid at this point since this lambda is where the strong reference pointer get reset.
 			if (!ensure(InterchangeManager.IsValid()))
@@ -1031,6 +1040,8 @@ UInterchangeManager& UInterchangeManager::GetInterchangeManager()
 				InterchangeManagerScopeOfLifeEnded = true;
 				return;
 			}
+
+			UE::Interchange::FInterchangeTaskSystem::Get().OnTaskSystemTickDelegate().Remove(OnTaskSystemTickDelegateHandle);
 
 			if (IsInterchangeImportEnabled())
 			{

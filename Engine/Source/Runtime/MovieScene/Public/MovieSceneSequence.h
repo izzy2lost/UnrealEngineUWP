@@ -436,6 +436,10 @@ public:
 	/*
 	 * Sequences can determine whether they support a particular track type
 	 */
-	virtual ETrackSupport IsTrackSupported(TSubclassOf<UMovieSceneTrack> InTrackClass) const { return ETrackSupport::Default; }
+	MOVIESCENE_API ETrackSupport IsTrackSupported(TSubclassOf<UMovieSceneTrack> InTrackClass) const;
+
+	/** Subclasses can implement this to determine whether they support a particular track type */
+	virtual ETrackSupport IsTrackSupportedImpl(TSubclassOf<UMovieSceneTrack> InTrackClass) const { return ETrackSupport::Default; }
+
 #endif
 };

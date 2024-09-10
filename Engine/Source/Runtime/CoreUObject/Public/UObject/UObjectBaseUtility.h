@@ -180,7 +180,7 @@ public:
 
 		// only set these flags after we have finished our transaction
 		// GC should not happen during a transaction so delaying this wont cause GC issues
-		UE_AUTORTFM_ONCOMMIT2(this)
+		UE_AUTORTFM_ONCOMMIT(this)
 		{
 			AtomicallySetFlags(RF_MirroredGarbage);
 			GUObjectArray.IndexToObject(InternalIndex)->SetGarbage();

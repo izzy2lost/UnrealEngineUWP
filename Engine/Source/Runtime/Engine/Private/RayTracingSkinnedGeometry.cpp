@@ -333,7 +333,7 @@ void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRDGBuilder& GraphBuilder, ER
 			[
 				BuildRequests = MoveTemp(GeometryBuildRequests),
 				SharedScratchBuffer
-			](FRHICommandList& RHICmdList)
+			](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FRHIBufferRange ScratchBufferRange;
 				ScratchBufferRange.Buffer = SharedScratchBuffer->GetRHI();

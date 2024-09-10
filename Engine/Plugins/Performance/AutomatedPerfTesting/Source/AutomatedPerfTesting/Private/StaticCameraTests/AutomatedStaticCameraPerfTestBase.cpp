@@ -34,7 +34,7 @@ bool UAutomatedStaticCameraPerfTestProjectSettings::GetMapFromAssetName(FString 
 void UAutomatedStaticCameraPerfTestBase::SetupTest()
 {
 	// load up into the map defined in project settings
-	if(&CurrentMapPath != nullptr)
+	if(!CurrentMapPath.IsNull())
 	{
 		if(GetCurrentMap() == CurrentMapPath.GetAssetName())
 		{

@@ -30,13 +30,21 @@ namespace uba
 		class BitStreamReader;
 		bool ParseBlock(Logger& logger, BitStreamReader& reader, BlockInfo& blockInfo, u32 blockId, u32 indent);
 
+		enum DllStorage : u8
+		{
+			DllStorage_Export,
+			DllStorage_Import,
+			DllStorage_None,
+		};
+
 		struct BitStreamEntry
 		{
 			u64 pos;
 			u32 word;
 			u32 wordBits;
 			u32 code;
-			bool isExport;
+			DllStorage dllStorage;
+			u8 keepAsIs;
 			Vector<AbbrevOp> operands;
 		};
 

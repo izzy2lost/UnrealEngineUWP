@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -14,7 +15,7 @@ namespace EpicGames.Horde.Compute.Clients
 	/// <summary>
 	/// Implementation of <see cref="IComputeClient"/> which marshals data over a loopback connection to a method running on a background task in the same process.
 	/// </summary>
-	public sealed class LocalComputeClient : IComputeClient
+	public sealed class LocalComputeClient : IComputeClient, IAsyncDisposable
 	{
 		private static readonly ClusterId s_cluster = new ("_local");
 		

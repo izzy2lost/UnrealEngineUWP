@@ -18,34 +18,34 @@ namespace UE::AnimNext
 	 * 
 	 * This interface exposes hierarchy traversal information to navigate the graph.
 	 */
-	struct ANIMNEXT_API IHierarchy : ITraitInterface
+	struct IHierarchy : ITraitInterface
 	{
 		DECLARE_ANIM_TRAIT_INTERFACE(IHierarchy, 0x846d8a37)
 
 		// Returns the number of children of the trait implementation (not the whole stack)
 		// Includes inactive children
-		virtual uint32 GetNumChildren(const FExecutionContext& Context, const TTraitBinding<IHierarchy>& Binding) const;
+		ANIMNEXT_API virtual uint32 GetNumChildren(const FExecutionContext& Context, const TTraitBinding<IHierarchy>& Binding) const;
 
 		// Appends weak handles to any children we wish to traverse on the trait implementation (not the whole stack).
 		// Traits are responsible for allocating and releasing child instance data.
 		// Empty handles can be appended.
-		virtual void GetChildren(const FExecutionContext& Context, const TTraitBinding<IHierarchy>& Binding, FChildrenArray& Children) const;
+		ANIMNEXT_API virtual void GetChildren(const FExecutionContext& Context, const TTraitBinding<IHierarchy>& Binding, FChildrenArray& Children) const;
 
 		// Queries the trait stack and calls GetChildren for each trait, appending the result.
-		static void GetStackChildren(const FExecutionContext& Context, const FTraitStackBinding& Binding, FChildrenArray& Children);
+		ANIMNEXT_API static void GetStackChildren(const FExecutionContext& Context, const FTraitStackBinding& Binding, FChildrenArray& Children);
 
 		// Queries the trait stack of the specified binding and calls GetChildren for each trait, appending the result.
-		static void GetStackChildren(const FExecutionContext& Context, const FTraitBinding& Binding, FChildrenArray& Children);
+		ANIMNEXT_API static void GetStackChildren(const FExecutionContext& Context, const FTraitBinding& Binding, FChildrenArray& Children);
 
 		// Queries the trait stack and calls GetNumChildren for each trait, accumulating the result.
-		static uint32 GetNumStackChildren(const FExecutionContext& Context, const FTraitStackBinding& Binding);
+		ANIMNEXT_API static uint32 GetNumStackChildren(const FExecutionContext& Context, const FTraitStackBinding& Binding);
 
 		// Queries the trait stack of the specified binding and calls GetNumChildren for each trait, accumulating the result.
-		static uint32 GetNumStackChildren(const FExecutionContext& Context, const FTraitBinding& Binding);
+		ANIMNEXT_API static uint32 GetNumStackChildren(const FExecutionContext& Context, const FTraitBinding& Binding);
 
 #if WITH_EDITOR
-		virtual const FText& GetDisplayName() const override;
-		virtual const FText& GetDisplayShortName() const override;
+		ANIMNEXT_API virtual const FText& GetDisplayName() const override;
+		ANIMNEXT_API virtual const FText& GetDisplayShortName() const override;
 #endif // WITH_EDITOR
 	};
 

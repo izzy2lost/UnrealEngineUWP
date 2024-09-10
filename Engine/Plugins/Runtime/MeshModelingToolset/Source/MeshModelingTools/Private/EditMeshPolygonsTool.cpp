@@ -74,6 +74,15 @@ namespace EditMeshPolygonsToolLocals
 		"Hold Ctrl while translating or (in local mode) rotating to align to scene. Shift and Ctrl change marquee select "
 		"behavior. Ctrl+R toggles Gizmo Orientation Lock.");
 
+	FText WeldIncompleteMessage = LOCTEXT("OnWeldEdgesCompletedSeamsRemain", "Warning: welding incomplete because it would create "
+		"invalid geometry (attached non manifold edge or duplicate triangle). Seam still exists at weld "
+		"location. Modify attached triangles and retry, or undo.");
+
+	FText PartialCollapseFailureMessage = LOCTEXT("OnCollapseFailures", "Some edges could not be collapsed, "
+		"likely because adjoining edges would then have non manifold geometry (more than two faces), or "
+		"the mesh would end up empty.");
+	FText CollapseEdgeTransactionLabel = LOCTEXT("PolyMeshCollapseChange", "Collapse Edges");
+
 	FString GetPropertyCacheIdentifier(bool bTriangleMode)
 	{
 		return bTriangleMode ? TEXT("TriEditTool") : TEXT("PolyEditTool");
@@ -85,6 +94,14 @@ namespace EditMeshPolygonsToolLocals
 		TEXT("Maximal number of edges that PolyEd and TriEd support. Meshes that would require "
 			"more than this number of edges to be rendered in PolyEd or TriEd force the tools to "
 			"be disabled to avoid hanging the editor."));
+
+	bool bAllowBowtieWeldAtInternalVertex = false;
+	static FAutoConsoleVariableRef CVarAllowWeldInternalBowtie(
+		TEXT("modeling.PolyEdit.AllowWeldInternalBowtie"),
+		bAllowBowtieWeldAtInternalVertex,
+		TEXT("If true, \"Weld\" and \"Weld To\" operations on a pair of vertices will allow the creation "
+			"of non-boundary bowties. If false, then the vertices in these situations will not be welded, "
+			"and will instead be moved to the destination."));
 
 	// Allows undo/redo of addition of extra corners in the group topology based on user angle thresholds.
 	// Used after user-triggered topology corner changes where the mesh was not actually edited.
@@ -373,6 +390,34 @@ namespace EditMeshPolygonsToolLocals
 		}
 		return NumCompleted;
 	}//end RetriangulateGroups
+
+	// Helper that removes the triangles around an edge as long as they are not the last
+	//  ones in the mesh. Used to allow collapses of isolated triangles and quads, which
+	//  are not currently permitted by CollapseEdge.
+	// TODO: We should probably have a permissiveness option that does allow this in
+	//  CollapseEdge, though it should be noted that the kept vert may end up deleted
+	//  in that case.
+	bool RemoveEdgeTrisIfNotLast(FDynamicMesh3& Mesh, int32 Eid)
+	{
+		if (!Mesh.IsEdge(Eid))
+		{
+			return false;
+		}
+
+		FIndex2i EdgeTids = Mesh.GetEdgeT(Eid);
+
+		if (Mesh.TriangleCount() > 2
+			|| (Mesh.TriangleCount() > 1 && EdgeTids.B == IndexConstants::InvalidID))
+		{
+			Mesh.RemoveTriangle(EdgeTids.A);
+			if (EdgeTids.B != IndexConstants::InvalidID)
+			{
+				Mesh.RemoveTriangle(EdgeTids.B);
+			}
+			return true;
+		}
+		return false;
+	}
 }
 
 /*
@@ -1628,6 +1673,9 @@ void UEditMeshPolygonsTool::OnTick(float DeltaTime)
 		case EEditMeshPolygonsToolActions::WeldEdges:
 			ApplyWeldEdges();
 			break;
+		case EEditMeshPolygonsToolActions::WeldEdgesCentered:
+			ApplyWeldEdges(0.5);
+			break;
 		case EEditMeshPolygonsToolActions::StraightenEdge:
 			ApplyStraightenEdges();
 			break;
@@ -2250,6 +2298,11 @@ void UEditMeshPolygonsTool::ApplyCollapseSingleEdge()
 
 void UEditMeshPolygonsTool::ApplyWeldEdges()
 {
+	ApplyWeldEdges(0);
+}
+
+void UEditMeshPolygonsTool::ApplyWeldEdges(double InterpolationT)
+{
 	using namespace EditMeshPolygonsToolLocals;
 
 	FGroupTopologySelection CurrentSelection = SelectionMechanic->GetActiveSelection();
@@ -2257,7 +2310,20 @@ void UEditMeshPolygonsTool::ApplyWeldEdges()
 	TSet<int32> GroupEdges;
 	if (!CurrentSelection.SelectedCornerIDs.IsEmpty())
 	{
+		if (CurrentSelection.SelectedCornerIDs.Num() == 2)
+		{
+			ApplyWeldVertices(InterpolationT);
+			return;
+		}
 		ConvertCornerSelectionToGroupEdgeSelection(Topology.Get(), CurrentSelection.SelectedCornerIDs, GroupEdges);
+		if (GroupEdges.Num() < 2)
+		{
+			GetToolManager()->DisplayMessage(
+				LOCTEXT("OnWeldVerticesFailedInvalidCount", "Cannot Weld current selection, "
+					"selection must be either 2 vertices or convertible to at least 2 edges."),
+				EToolMessageLevel::UserWarning);
+			return;
+		}
 	}
 	else
 	{
@@ -2290,24 +2356,26 @@ void UEditMeshPolygonsTool::ApplyWeldEdges()
 	//  We reverse one of them so we can do our pairwise welding in the proper order.
 	Algo::Reverse(bShouldReverseA ? GroupEdgesA : GroupEdgesB);
 
-	// At the end, we're going to select the edges we keep.
-	// Note: this requires eids to stay constant across the mesh copy call further below. That seems to be the
-	//  case for dynamic mesh copies, otherwise we'd need to use tri-subidx pairs.
-	TArray<int32> KeptEids;
-	for (int32 GroupEdgeID : GroupEdgesB)
-	{
-		KeptEids.Append(Topology->GetGroupEdgeEdges(GroupEdgeID));
-	}
-
-	FText TransactionName = LOCTEXT("PolyMeshWeldEdgeChange", "Weld Edges");
-	GetToolManager()->BeginUndoTransaction(TransactionName);
 	FDynamicMeshChangeTracker ChangeTracker(Mesh);
 	ChangeTracker.BeginChange();
 
 	bool bAllSucceeded = true;
 	bool bHaveSeam = false;
 
-	auto WeldGroupEdges = [&ChangeTracker, Mesh, &bAllSucceeded, &bHaveSeam](FEdgeSpan& SpanA, FEdgeSpan& SpanB)
+	// Conceptually, we weld pairwise across group edges until we reach the last group edge
+	//  of the shorter sequence, and then weld that edge to remaining concatenated group edges
+	//  in the longer sequence. 
+	// However there are some pathological cases where welding of one edge could remove an edge
+	//  of an adjacent group edge, and these are best handled inside FWeldEdgeSequence if it 
+	//  knows all of the edges it needs to weld. So, we want to pass FWeldEdgeSequence the 
+	//  concatenated sequences, but we need to do the equalizing splits on a per-group-edge
+	//  basis so that we can make sure that group corners still get welded to other group corners.
+	
+	TArray<int32> ConcatenatedKeptEids;
+	TArray<int32> ConcatenatedDiscardEids;
+
+	auto PrepGroupEdgePair = [&ChangeTracker, Mesh, &bAllSucceeded, 
+		&ConcatenatedKeptEids, &ConcatenatedDiscardEids, bShouldReverseA](FEdgeSpan& SpanA, FEdgeSpan& SpanB)
 	{
 		// Save one ring tri's for vertices along both edges. The kept edge is necessary
 		//  because we might be splitting its triangles if needed.
@@ -2334,15 +2402,22 @@ void UEditMeshPolygonsTool::ApplyWeldEdges()
 			});
 		}
 
-		FWeldEdgeSequence EdgeWelder(Mesh, SpanA, SpanB);
-		EdgeWelder.bAllowIntermediateTriangleDeletion = true;
-		EdgeWelder.bAllowFailedMerge = true;
+		SpanA.SetCorrectOrientation();
+		SpanB.SetCorrectOrientation();
 
-		FWeldEdgeSequence::EWeldResult Result = EdgeWelder.Weld();
-		if (EdgeWelder.UnmergedEdgePairsOut.Num() != 0)
+		FWeldEdgeSequence::EWeldResult Result = FWeldEdgeSequence::SplitEdgesToEqualizeSpanLengths(*Mesh, SpanA, SpanB);
+		
+		if (bShouldReverseA)
 		{
-			bHaveSeam = true;
+			ConcatenatedDiscardEids.Insert(SpanA.Edges, 0);
+			ConcatenatedKeptEids.Append(SpanB.Edges);
 		}
+		else
+		{
+			ConcatenatedDiscardEids.Append(SpanA.Edges);
+			ConcatenatedKeptEids.Insert(SpanB.Edges, 0);
+		}
+
 		if (Result != FWeldEdgeSequence::EWeldResult::Ok)
 		{
 			bAllSucceeded = false;
@@ -2351,16 +2426,13 @@ void UEditMeshPolygonsTool::ApplyWeldEdges()
 		return true;
 	};
 
-	// Some number of edges will be welded normally. However if we have a mismatched number,
-	//  the last edge of the smaller sequence will have to be welded to the remainder of edges.
 	int32 NumMatched = GroupEdgesA.Num() == GroupEdgesB.Num() ? GroupEdgesA.Num()
 		: FMath::Min(GroupEdgesA.Num(), GroupEdgesB.Num()) - 1;
 	for (int32 i = 0; i < NumMatched; ++i)
 	{
-		FEdgeSpan SpanA;
-		SpanA.InitializeFromEdges(Mesh, Topology->Edges[GroupEdgesA[i]].Span.Edges);
+		FEdgeSpan& SpanA = Topology->Edges[GroupEdgesA[i]].Span;
 		FEdgeSpan& SpanB = Topology->Edges[GroupEdgesB[i]].Span;
-		WeldGroupEdges(SpanA, SpanB);
+		PrepGroupEdgePair(SpanA, SpanB);
 	}
 
 	// If there was a mismatched number of edges, we have set NumMatched to be one less than
@@ -2390,15 +2462,56 @@ void UEditMeshPolygonsTool::ApplyWeldEdges()
 		FEdgeSpan SpanB;
 		SpanB.InitializeFromEdges(Mesh, SpanBEids);
 
-		WeldGroupEdges(SpanA, SpanB);
+		PrepGroupEdgePair(SpanA, SpanB);
 	}
 
+	FEdgeSpan ConcatenatedKeptSpan(Mesh), ConcatenatedDiscardSpan(Mesh);
+	ConcatenatedKeptSpan.InitializeFromEdges(ConcatenatedKeptEids);
+	ConcatenatedDiscardSpan.InitializeFromEdges(ConcatenatedDiscardEids);
+
+	FWeldEdgeSequence EdgeWelder(Mesh, ConcatenatedDiscardSpan, ConcatenatedKeptSpan);
+	EdgeWelder.bAllowIntermediateTriangleDeletion = true;
+	EdgeWelder.bAllowFailedMerge = true;
+	EdgeWelder.InterpolationT = InterpolationT;
+
+	FWeldEdgeSequence::EWeldResult Result = EdgeWelder.Weld();
+	if (EdgeWelder.UnmergedEdgePairsOut.Num() != 0)
+	{
+		bHaveSeam = true;
+	}
+	if (Result != FWeldEdgeSequence::EWeldResult::Ok)
+	{
+		bAllSucceeded = false;
+	}
+
+	if (CurrentMesh->TriangleCount() == 0)
+	{
+		GetToolManager()->DisplayMessage(LOCTEXT("WeldEdgesWouldDeleteAll",
+			"Could not weld current selection because doing so would discard entire mesh."), 
+			EToolMessageLevel::UserWarning);
+
+		// Use our change tracker to undo what we've done
+		ChangeTracker.EndChange()->Apply(CurrentMesh.Get(), /*bRevert*/ true);
+		// Update so spatial doesn't complain about mismatched changestamps. 
+		UpdateFromCurrentMesh(false);
+		
+		// The topology didn't actually change, but unfortunately the eids it stores in its spans
+		//  are now invalid, and we need to update those. We do this update ourselves (rather than
+		//  passing true to UpdateFromCurrentMesh above) so that we can keep the same extra corners
+		//  and therefore same selection.
+		TSet<int32> ExtraCorners = Topology->GetCurrentExtraCornerVids();
+		Topology->RebuildTopologyWithSpecificExtraCorners(ExtraCorners);
+		return;
+	}
+
+	FText TransactionName = LOCTEXT("PolyMeshWeldEdgeChange", "Weld Edges");
+	GetToolManager()->BeginUndoTransaction(TransactionName);
 	EmitCurrentMeshChangeAndUpdate(TransactionName, ChangeTracker.EndChange(), FGroupTopologySelection());
 
 	// Now that the topology is updated, set the new selection
 	FGroupTopologySelection NewSelection;
 	TSet<int32> SelectedEids;
-	for (int32 Eid : KeptEids)
+	for (int32 Eid : ConcatenatedKeptEids)
 	{
 		if (Mesh->IsEdge(Eid) && !SelectedEids.Contains(Eid))
 		{
@@ -2411,7 +2524,7 @@ void UEditMeshPolygonsTool::ApplyWeldEdges()
 		}
 	}
 	// Seems possible to end up with an empty selection if we welded edges of the same group,
-	//  so the new edge is not a group boundary.
+	//  so the new edge is not a group boundary, or if we ended up collapsing things.
 	if (!NewSelection.IsEmpty())
 	{
 		SelectionMechanic->SetSelection(NewSelection);
@@ -2419,14 +2532,135 @@ void UEditMeshPolygonsTool::ApplyWeldEdges()
 
 	if (bHaveSeam)
 	{
-		GetToolManager()->DisplayMessage(LOCTEXT("OnWeldEdgesCompletedSeamsRemain", "Warning: welding incomplete because it would create "
-			"invalid geometry (attached non manifold edge or duplicate triangle). Seam still exists at weld "
-			"location. Modify attached triangles and retry, or undo."), EToolMessageLevel::UserWarning);
+		GetToolManager()->DisplayMessage(WeldIncompleteMessage, EToolMessageLevel::UserWarning);
 	}
 	else if (!bAllSucceeded)
 	{
 		GetToolManager()->DisplayMessage(LOCTEXT("OnWeldEdgesPartialFailure", 
 			"Warning: some edges could not be welded."), EToolMessageLevel::UserWarning);
+	}
+
+	GetToolManager()->EndUndoTransaction();
+}
+
+void UEditMeshPolygonsTool::ApplyWeldVertices(double InterpolationT)
+{
+	using namespace EditMeshPolygonsToolLocals;
+
+	FGroupTopologySelection CurrentSelection = SelectionMechanic->GetActiveSelection();
+
+	TArray<int32> CornerIDs = CurrentSelection.SelectedCornerIDs.Array();
+	if (CornerIDs.Num() != 2)
+	{
+		return;
+	}
+
+	FDynamicMeshChangeTracker ChangeTracker(CurrentMesh.Get());
+	ChangeTracker.BeginChange();
+
+	// See if there's a group edge between the two selected corners. If there is, the
+	//  user was probably expecting to collapse the group edge.
+	TSet<int32> GroupEdges;
+	ConvertCornerSelectionToGroupEdgeSelection(Topology.Get(), CurrentSelection.SelectedCornerIDs, GroupEdges);
+	if (GroupEdges.Num() != 0)
+	{
+		GetToolManager()->BeginUndoTransaction(CollapseEdgeTransactionLabel);
+		CollapseGroupEdges(GroupEdges, ChangeTracker);
+		GetToolManager()->EndUndoTransaction();
+		return;
+	}
+	// Othewise do the operation
+	
+	int32 KeptVid = Topology->GetCornerVertexID(CornerIDs[1]);
+	int32 DiscardedVid = Topology->GetCornerVertexID(CornerIDs[0]);
+
+	CurrentMesh->EnumerateVertexTriangles(DiscardedVid, [&ChangeTracker](int32 Tid)
+	{
+		ChangeTracker.SaveTriangle(Tid, true);
+	});
+	CurrentMesh->EnumerateVertexTriangles(KeptVid, [&ChangeTracker](int32 Tid)
+	{
+		ChangeTracker.SaveTriangle(Tid, true);
+	});
+
+	// Helper used when we can't weld, but choose to move the verts to the destination instead
+	auto MoveToDestination = [this, KeptVid, DiscardedVid, InterpolationT]()
+	{
+		FVector3d Destination = Lerp(CurrentMesh->GetVertex(KeptVid), CurrentMesh->GetVertex(DiscardedVid), InterpolationT);
+		CurrentMesh->SetVertex(DiscardedVid, Destination);
+		CurrentMesh->SetVertex(KeptVid, Destination);
+	};
+
+	FDynamicMesh3::FMergeVerticesInfo MergeInfo;
+	FDynamicMesh3::FMergeVerticesOptions Options;
+	Options.bAllowNonBoundaryBowtieCreation = bAllowBowtieWeldAtInternalVertex;
+	EMeshResult Result = CurrentMesh->MergeVertices(KeptVid, DiscardedVid, InterpolationT, Options, MergeInfo);
+
+	if (Result == EMeshResult::Failed_CollapseTriangle
+		|| Result == EMeshResult::Failed_CollapseQuad
+		|| Result == EMeshResult::Failed_FoundDuplicateTriangle)
+	{
+		bool bSuccessful = RemoveEdgeTrisIfNotLast(*CurrentMesh, CurrentMesh->FindEdge(KeptVid, DiscardedVid));
+		if (!bSuccessful)
+		{
+			GetToolManager()->DisplayMessage(LOCTEXT("WeldVerticesCannotDeleteAll",
+				"Could not weld vertices because it would delete remainder of mesh."), EToolMessageLevel::UserWarning);
+			return;
+		}
+	}
+	// Align with behavior in weld and collapse when we're unable to weld due to topology.
+	else if (Result == EMeshResult::Failed_InvalidNeighbourhood)
+	{
+		if (CurrentMesh->FindEdge(KeptVid, DiscardedVid) != IndexConstants::InvalidID)
+		{
+			// Collapse case: refuse to collapse
+			GetToolManager()->DisplayMessage(LOCTEXT("WeldVerticesCollapseInvalidTopology",
+				"Could not weld vertices because the collapse would create an edge with more than "
+				"two triangles (non-manifold geometry)."), EToolMessageLevel::UserWarning);
+			return;
+		}
+		else
+		{
+			// Weld case: move to destination and complain
+			MoveToDestination();
+			GetToolManager()->DisplayMessage(WeldIncompleteMessage, EToolMessageLevel::UserWarning);
+		}
+	}
+	else if (Result == EMeshResult::Failed_WouldCreateBowtie)
+	{
+		MoveToDestination();
+		GetToolManager()->DisplayMessage(LOCTEXT("WeldVerticesDisallowInternalBowtie",
+			"Could not weld vertices because it would create a non-boundary edge bowtie. Vertices "
+			"were moved to their destination without actually welding. Set "
+			"modeling.PolyEdit.AllowWeldInternalBowtie to true to allow a true weld."), 
+			EToolMessageLevel::UserWarning);
+	}
+	else if (Result == EMeshResult::Failed_NotABoundaryEdge)
+	{
+		// This happens if a user is trying to weld internal edges by successive internal vertices.
+		//  Handle this the same way as the other weld failure.
+		MoveToDestination();
+		GetToolManager()->DisplayMessage(WeldIncompleteMessage, EToolMessageLevel::UserWarning);
+	}
+	else if (!ensure(Result == EMeshResult::Ok))
+	{
+		GetToolManager()->DisplayMessage(LOCTEXT("WeldVerticesGenericFailure",
+			"Could not weld vertices."), EToolMessageLevel::UserWarning);
+		return;
+	}
+
+
+	FText TransactionName = LOCTEXT("PolyMeshWeldVerticesChange", "Weld Vertices");
+	GetToolManager()->BeginUndoTransaction(TransactionName);
+	EmitCurrentMeshChangeAndUpdate(TransactionName, ChangeTracker.EndChange(), FGroupTopologySelection());
+
+	// Now that the topology is updated, set the new selection
+	int32 RemainingCornerID = Topology->GetCornerIDFromVertexID(KeptVid);
+	if (RemainingCornerID != IndexConstants::InvalidID)
+	{
+		FGroupTopologySelection NewSelection;
+		NewSelection.SelectedCornerIDs.Add(RemainingCornerID);
+		SelectionMechanic->SetSelection(NewSelection);
 	}
 
 	GetToolManager()->EndUndoTransaction();
@@ -2897,13 +3131,6 @@ void UEditMeshPolygonsTool::ApplyCollapseEdge()
 {
 	using namespace EditMeshPolygonsToolLocals;
 
-	FText PartialCollapseFailure = LOCTEXT("OnCollapseFailures", "Some edges could not be collapsed");
-
-	FDynamicMesh3::FEdgeCollapseOptions CollapseOptions;
-	CollapseOptions.bAllowHoleCollapse = true;
-	CollapseOptions.bAllowCollapsingInternalEdgeWithExternalVertices = true;
-	CollapseOptions.bAllowTetrahedronCollapse = true;
-
 	FDynamicMesh3* Mesh = CurrentMesh.Get();
 	FGroupTopologySelection ActiveSelection = SelectionMechanic->GetActiveSelection();
 	if (ActiveSelection.IsEmpty())
@@ -2912,8 +3139,7 @@ void UEditMeshPolygonsTool::ApplyCollapseEdge()
 		return;
 	}
 
-	FText TransactionLabel = LOCTEXT("PolyMeshCollapseChange", "Collapse Edges");
-	GetToolManager()->BeginUndoTransaction(TransactionLabel);
+	GetToolManager()->BeginUndoTransaction(CollapseEdgeTransactionLabel);
 
 	FDynamicMeshChangeTracker ChangeTracker(Mesh);
 	ChangeTracker.BeginChange();
@@ -2927,9 +3153,12 @@ void UEditMeshPolygonsTool::ApplyCollapseEdge()
 		int32 NumCompleted = RetriangulateGroups(Mesh, Topology.Get(), ActiveSelection.SelectedGroupIDs, ChangeTracker);
 		if (NumCompleted != ActiveSelection.SelectedGroupIDs.Num())
 		{
-			GetToolManager()->DisplayMessage(PartialCollapseFailure, EToolMessageLevel::UserWarning);
+			GetToolManager()->DisplayMessage(PartialCollapseFailureMessage, EToolMessageLevel::UserWarning);
 			// continue on and try to collapse the boundary
 		}
+		// After retriangulation, our topology object may have incorrect eids (if the group was on the boundary,
+		//  so the edges got removed during triangle deletion and then recreated). So we have to update it.
+		Topology->RebuildTopology();
 
 		for (int32 GroupID : ActiveSelection.SelectedGroupIDs)
 		{
@@ -2943,6 +3172,23 @@ void UEditMeshPolygonsTool::ApplyCollapseEdge()
 	{
 		ConvertCornerSelectionToGroupEdgeSelection(Topology.Get(), ActiveSelection.SelectedCornerIDs, GroupEdgesToCollapse);
 	}
+
+	CollapseGroupEdges(GroupEdgesToCollapse, ChangeTracker);
+
+	GetToolManager()->EndUndoTransaction();
+}
+
+void UEditMeshPolygonsTool::CollapseGroupEdges(TSet<int32>& GroupEdgesToCollapse, 
+	UE::Geometry::FDynamicMeshChangeTracker& ChangeTracker)
+{
+	using namespace EditMeshPolygonsToolLocals;
+
+	FDynamicMesh3* Mesh = CurrentMesh.Get();
+
+	FDynamicMesh3::FCollapseEdgeOptions CollapseOptions;
+	CollapseOptions.bAllowHoleCollapse = true;
+	CollapseOptions.bAllowCollapsingInternalEdgeWithBoundaryVertices = true;
+	CollapseOptions.bAllowTetrahedronCollapse = true;
 
 	TSet<int32> EidsToCollapse;
 	for (int32 GroupEdgeID : GroupEdgesToCollapse)
@@ -2966,9 +3212,9 @@ void UEditMeshPolygonsTool::ApplyCollapseEdge()
 		ComponentEids.Add(Eid);
 		FMeshConnectedComponents::GrowToConnectedEdges(*Mesh, { Eid }, ComponentEids, &TempQueue,
 			[&EidsToCollapse](int32 CurrentEid, int32 NeighborEid)
-		{
-			return EidsToCollapse.Contains(NeighborEid);
-		});
+			{
+				return EidsToCollapse.Contains(NeighborEid);
+			});
 		PartitionedEids.Append(ComponentEids);
 	}
 
@@ -2986,7 +3232,7 @@ void UEditMeshPolygonsTool::ApplyCollapseEdge()
 
 		// Unfiltered because vids will disappear in subsequent collapses
 		TSet<int32> UnfilteredVidsToMove;
-		
+
 		for (int32 Eid : Component)
 		{
 			// Some edges might be collapsed away by other collapses
@@ -3000,8 +3246,20 @@ void UEditMeshPolygonsTool::ApplyCollapseEdge()
 			ChangeTracker.SaveVertexOneRingTriangles(EdgeVids.B, true);
 			FDynamicMesh3::FEdgeCollapseInfo CollapseInfo;
 			EMeshResult Result = Mesh->CollapseEdge(EdgeVids.A, EdgeVids.B, CollapseOptions, CollapseInfo);
-			
-			if (Result == EMeshResult::Ok)
+
+			// Certain collapses of isolated triangles/quads are not currently allowed by CollapseEdge,
+			//  but we allow them if the user asks for them.
+			if (Result == EMeshResult::Failed_CollapseTriangle
+				|| Result == EMeshResult::Failed_CollapseQuad
+				|| Result == EMeshResult::Failed_FoundDuplicateTriangle)
+			{
+				bAllCollapsesSuccessful = RemoveEdgeTrisIfNotLast(*CurrentMesh, Eid) && bAllCollapsesSuccessful;
+			}
+			// We could also check for EMeshResult::InvalidTopology and do the "move with seam"
+			//  approach we do for welding, but it seems like it would be harder to notice this
+			//  for collapses because the degenerate triangles are harder to find than open boundaries.
+			//  So for now we won't fake a collapse in that case.
+			else if (Result == EMeshResult::Ok)
 			{
 				UnfilteredVidsToMove.Add(CollapseInfo.KeptVertex);
 			}
@@ -3023,17 +3281,19 @@ void UEditMeshPolygonsTool::ApplyCollapseEdge()
 
 	if (!bAllCollapsesSuccessful)
 	{
-		GetToolManager()->DisplayMessage(PartialCollapseFailure, EToolMessageLevel::UserWarning);
+		GetToolManager()->DisplayMessage(PartialCollapseFailureMessage, EToolMessageLevel::UserWarning);
 	}
 
-	EmitCurrentMeshChangeAndUpdate(TransactionLabel, ChangeTracker.EndChange(), FGroupTopologySelection());
+	EmitCurrentMeshChangeAndUpdate(CollapseEdgeTransactionLabel, ChangeTracker.EndChange(), FGroupTopologySelection());
 
 	// Now that the topology is updated, we can get the new corner id's to
 	//  set the new selection.
 	FGroupTopologySelection NewSelection;
 	for (int32 Vid : NewSelectionVids)
 	{
-		if (!ensure(Mesh->IsVertex(Vid)))
+		// Even though we filtered each component, it's possible for one component's collapses to indirectly
+		//  destroy verts in another, hence the check here.
+		if (!Mesh->IsVertex(Vid))
 		{
 			continue;
 		}
@@ -3049,8 +3309,6 @@ void UEditMeshPolygonsTool::ApplyCollapseEdge()
 	{
 		SelectionMechanic->SetSelection(NewSelection);
 	}
-
-	GetToolManager()->EndUndoTransaction();
 }
 
 void UEditMeshPolygonsTool::ApplySplitSingleEdge()
@@ -3084,7 +3342,7 @@ void UEditMeshPolygonsTool::ApplySplitSingleEdge()
 				NewSelection.SelectedGroupIDs.Add(SplitInfo.NewTriangles.A);
 				if (SplitInfo.NewTriangles.B != FDynamicMesh3::InvalidID)
 				{
-					NewSelection.SelectedGroupIDs.Add(SplitInfo.NewTriangles.A);
+					NewSelection.SelectedGroupIDs.Add(SplitInfo.NewTriangles.B);
 				}
 			}
 		}

@@ -198,6 +198,12 @@ public:
 		return Infos[Platform].Language == LANGUAGE_Nintendo;
 	}
 
+	static FORCEINLINE_DEBUGGABLE const FName GetLanguage(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].Language;
+	}
+
 	static FORCEINLINE_DEBUGGABLE const ERHIFeatureLevel::Type GetMaxFeatureLevel(const FStaticShaderPlatform Platform)
 	{
 		check(IsValid(Platform));

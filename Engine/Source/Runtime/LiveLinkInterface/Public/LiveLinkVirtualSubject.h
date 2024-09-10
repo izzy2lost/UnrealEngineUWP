@@ -45,6 +45,7 @@ public:
 	virtual bool IsRebroadcasted() const override { return bRebroadcastSubject; }
 	virtual bool HasStaticDataBeenRebroadcasted() const override { return bHasStaticDataBeenRebroadcast; }
 	virtual void SetStaticDataAsRebroadcasted(const bool bInSent) override { bHasStaticDataBeenRebroadcast = bInSent; }
+
 protected:
 	virtual const FLiveLinkSubjectFrameData& GetFrameSnapshot() const override { return CurrentFrameSnapshot; }
 	//~ End ILiveLinkSubject Interface
@@ -56,6 +57,12 @@ protected:
 	LIVELINKINTERFACE_API bool HasValidFrameData() const;
 
 public:
+	//~ Begin UObject interface
+#if WITH_EDITOR
+	LIVELINKINTERFACE_API virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+	//~ End UObject interface
+
 	ILiveLinkClient* GetClient() const { return LiveLinkClient; }
 
 	/** Returns the live subjects associated with this virtual one */
@@ -69,6 +76,12 @@ public:
 
 	/** Returns true whether this virtual subject depends on the Subject named SubjectName */
 	LIVELINKINTERFACE_API virtual bool DependsOnSubject(FName SubjectName) const;
+	
+	/** Get display name for this subject. */
+	virtual FText GetDisplayName() const
+	{
+		return FText::FromName(SubjectKey.SubjectName);
+	}
 	
 protected:
 
@@ -123,6 +136,10 @@ protected:
 	 * while our snapshot is getting set
 	 */
 	mutable FCriticalSection SnapshotAccessCriticalSection;
+
+private:
+	/** Validate that the translators on this subject match its role. */
+	bool ValidateTranslators();
 
 private:
 	TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> CurrentFrameTranslators;

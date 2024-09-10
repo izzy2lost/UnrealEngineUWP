@@ -58,7 +58,7 @@ namespace UE::ChooserEditor
 					]
 				);
 		}
-		else if (RowIndex->RowIndex == SpecialIndex_Fallback)
+		else if (RowIndex->RowIndex == SpecialIndex_Fallback || RowIndex->RowIndex == SpecialIndex_AddRow )
 		{
 			SetContent(
 					SNew(SOverlay)
@@ -327,7 +327,11 @@ namespace UE::ChooserEditor
 			// on the row past the end, show an Add button in the result column
 			if (ColumnName == Result)
 			{
-				return Editor->GetCreateRowComboButton().ToSharedRef();
+				return SNew(SHorizontalBox)
+								+SHorizontalBox::Slot().AutoWidth()
+								[
+									Editor->GetCreateRowComboButton().ToSharedRef()
+								];
 			}
 		}
 

@@ -70,6 +70,12 @@ public:
 	virtual FString GetId() = 0;
 
 	/**
+	 * @brief Check if this streamer is currently connected to the signalling mechanism (e.g. websocket for signalling server).
+	 * @return True if the streamer is connected to the signalling mechanism.
+	 */
+	virtual bool IsSignallingConnected() = 0;
+
+	/**
 	 * @brief Start streaming this streamer
 	 */
 	virtual void StartStreaming() = 0;

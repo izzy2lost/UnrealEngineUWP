@@ -16,6 +16,7 @@
 #include "OptimusNode.h"
 #include "OptimusObjectVersion.h"
 #include "Animation/MeshDeformerInstance.h"
+#include "DataInterfaces/OptimusDataInterfaceGraph.h"
 #include "Misc/UObjectToken.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusComputeGraph)
@@ -151,6 +152,19 @@ EMeshDeformerOutputBuffer UOptimusComputeGraph::GetOutputBuffers() const
 	}
 
 	return Result;
+}
+
+UOptimusGraphDataInterface* UOptimusComputeGraph::GetGraphDataInterfaceForPostLoadFixUp()
+{
+	for (UComputeDataInterface* DataInterface : DataInterfaces)
+	{
+		if (UOptimusGraphDataInterface* GraphDataInterface = Cast<UOptimusGraphDataInterface>(DataInterface))
+		{
+			// There should be only one graph data interface
+			return GraphDataInterface;
+		}
+	}
+	return nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE

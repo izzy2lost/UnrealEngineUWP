@@ -25,7 +25,7 @@ namespace UE::PixelStreaming2
 		virtual void OnVideoTrackRemoved(EpicRtcVideoTrackInterface* VideoTrack) override;
 		virtual void OnVideoTrackState(EpicRtcVideoTrackInterface* VideoTrack, const EpicRtcTrackState State) override;
 		virtual void OnVideoTrackEncodedFrame(EpicRtcVideoTrackInterface*, const EpicRtcEncodedVideoFrame&) override {};
-		virtual bool Enabled() const override { return true; };
+		virtual EpicRtcBool Enabled() const override { return true; };
 		/* End EpicRtcVideoTrackObserverInterface */
 
 	public:

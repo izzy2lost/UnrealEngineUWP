@@ -148,10 +148,6 @@ struct FD3D12BatchedPayloadObjects
 	TArray<FD3D12QueryLocation> PipelineStatsQueries;
 	TMap<TRefCountPtr<FD3D12QueryHeap>, TArray<FD3D12QueryRange>> QueryRanges;
 
-#if WITH_RHI_BREADCRUMBS && RHI_NEW_GPU_PROFILER
-	TArray<TSharedPtr<FRHIBreadcrumbAllocatorArray>, TInlineAllocator<1>> BreadcrumbAllocators {};
-#endif
-
 	bool IsEmpty() const
 	{
 		return
@@ -159,11 +155,7 @@ struct FD3D12BatchedPayloadObjects
 			&& OcclusionQueries    .Num() == 0
 			&& PipelineStatsQueries.Num() == 0
 			&& QueryRanges         .Num() == 0
-#if WITH_RHI_BREADCRUMBS && RHI_NEW_GPU_PROFILER
-			&& BreadcrumbAllocators.Num() == 0
-#endif
 		;
-
 	}
 };
 
@@ -244,7 +236,9 @@ struct FD3D12PayloadBase : public FD3D12PayloadBaseFixLayout
 
 #if WITH_RHI_BREADCRUMBS
 	FRHIBreadcrumbRange BreadcrumbRange {};
+	TSharedPtr<FRHIBreadcrumbAllocatorArray> BreadcrumbAllocators {};
 #endif
+
 #if RHI_NEW_GPU_PROFILER
 	UE::RHI::GPUProfiler::FEventStream EventStream;
 #endif

@@ -186,11 +186,14 @@ void FRandomizeColumn::SetOutputs(FChooserEvaluationContext& Context, int RowInd
 
 	void FRandomizeColumn::AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)
 	{
-		FName PropertyName("RowData",ColumnIndex);
-		FPropertyBagPropertyDesc PropertyDesc(PropertyName, EPropertyBagPropertyType::Float);
-		PropertyDesc.MetaData.Add(FPropertyBagPropertyDescMetaData("DisplayName", "Randomize"));
-		PropertyBag.AddProperties({PropertyDesc});
-		PropertyBag.SetValueFloat(PropertyName, RowValues[RowIndex]);
+		if (RowValues.IsValidIndex(RowIndex))
+		{
+			FName PropertyName("RowData",ColumnIndex);
+			FPropertyBagPropertyDesc PropertyDesc(PropertyName, EPropertyBagPropertyType::Float);
+			PropertyDesc.MetaData.Add(FPropertyBagPropertyDescMetaData("DisplayName", "Randomize"));
+			PropertyBag.AddProperties({PropertyDesc});
+			PropertyBag.SetValueFloat(PropertyName, RowValues[RowIndex]);
+		}
 	}
 
 	void FRandomizeColumn::SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)

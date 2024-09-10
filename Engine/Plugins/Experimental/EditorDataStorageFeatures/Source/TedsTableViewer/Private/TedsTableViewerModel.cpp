@@ -137,14 +137,14 @@ namespace UE::Editor::DataStorage
 		ColumnsView.Insert(InColumn, 0);
 	}
 
-	ITypedElementDataStorageInterface* FTedsTableViewerModel::GetDataStorageInterface() const
+	IEditorDataStorageProvider* FTedsTableViewerModel::GetDataStorageInterface() const
 	{
 		return Storage;
 	}
 
 	void FTedsTableViewerModel::GenerateColumns()
 	{
-		using MatchApproach = ITypedElementDataStorageUiInterface::EMatchApproach;
+		using MatchApproach = IEditorDataStorageUiProvider::EMatchApproach;
 		int32 IndexOffset = 0;
 
 		ColumnsView.Empty();

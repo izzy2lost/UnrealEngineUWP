@@ -8,7 +8,7 @@ class FSequencerFilterBar;
 class SWidget;
 class UToolMenu;
 
-class FSequencerFilterBarContextMenu
+class FSequencerFilterBarContextMenu : public TSharedFromThis<FSequencerFilterBarContextMenu>
 {
 public:
 	TSharedRef<SWidget> CreateMenu(const TSharedRef<FSequencerFilterBar>& InFilterBar);

@@ -4,6 +4,7 @@
 #include "ScenePrivate.h"
 #include "RenderUtils.h"
 #include "SkeletalRenderPublic.h"
+#include "SkinningDefinitions.h"
 
 static TAutoConsoleVariable<int32> CVarNaniteTransformDataBufferMinSizeBytes(
 	TEXT("r.Nanite.SkinningBuffers.TransformDataMinSizeBytes"),
@@ -116,10 +117,8 @@ private:
 
 IMPLEMENT_GLOBAL_SHADER(FRefPoseTransformProviderCS, "/Engine/Private/Skinning/TransformProviders.usf", "RefPoseProviderCS", SF_Compute);
 
-static FGuid RefPoseProviderId(0x665207E7, 0x449A4FB1, 0xA298F7AD, 0x8F989B11);
-
-// TODO: Nanite-Skinning [Need to safely populate UpdateList - for now we can defrag and full re-upload to GPU scene every frame]
-#define NANITE_SKINNING_WIP 1
+static FGuid RefPoseProviderId(REF_POSE_TRANSFORM_PROVIDER_GUID);
+static FGuid AnimRuntimeProviderId(ANIM_RUNTIME_TRANSFORM_PROVIDER_GUID);
 
 namespace Nanite
 {
@@ -148,12 +147,17 @@ void FSkinningSceneExtension::InitExtension(FScene& InScene)
 	const bool bNaniteEnabled = UseNanite(GetFeatureLevelShaderPlatform(InScene.GetFeatureLevel()));
 	SetEnabled(bNaniteEnabled);
 
-	// Register reference pose transform provider
+	// Register animation runtime and reference pose transform providers
 	if (auto TransformProvider = Scene->GetExtensionPtr<FSkinningTransformProvider>())
 	{
 		TransformProvider->RegisterProvider(
 			GetRefPoseProviderId(),
-			FSkinningTransformProvider::FOnProvideTransforms::CreateRaw(this, &FSkinningSceneExtension::ProvideRefPoseTransforms)
+			FSkinningTransformProvider::FOnProvideTransforms::CreateStatic(&FSkinningSceneExtension::ProvideRefPoseTransforms)
+		);
+
+		TransformProvider->RegisterProvider(
+			GetAnimRuntimeProviderId(),
+			FSkinningTransformProvider::FOnProvideTransforms::CreateStatic(&FSkinningSceneExtension::ProvideAnimRuntimeTransforms)
 		);
 	}
 }
@@ -212,19 +216,19 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 	const uint32 MinHierarchyDataSize = HierarchyAllocator.GetMaxSize();
 	const uint32 MinObjectSpaceDataSize = ObjectSpaceAllocator.GetMaxSize();
 
+	// Sync on upload tasks
+	UE::Tasks::Wait(
+		MakeArrayView(
+			{
+				TaskHandles[UploadHeaderDataTask],
+				TaskHandles[UploadHierarchyDataTask],
+				TaskHandles[UploadTransformDataTask]
+			}
+		)
+	);
+
 	if (Uploader.IsValid())
 	{
-		// Sync on upload tasks
-		UE::Tasks::Wait(
-			MakeArrayView(
-				{
-					TaskHandles[UploadHeaderDataTask],
-					TaskHandles[UploadHierarchyDataTask],
-					TaskHandles[UploadTransformDataTask]
-				}
-			)
-		);
-
 		HeaderBuffer = Uploader->HeaderDataUploader.ResizeAndUploadTo(
 			GraphBuilder,
 			Buffers->HeaderDataBuffer,
@@ -258,6 +262,23 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 		BoneObjectSpaceBuffer	= Buffers->BoneObjectSpaceBuffer.ResizeBufferIfNeeded(GraphBuilder, MinObjectSpaceDataSize);
 		TransformBuffer			= Buffers->TransformDataBuffer.ResizeBufferIfNeeded(GraphBuilder, MinTransformDataSize);
 	}
+
+	if (OutParams != nullptr)
+	{
+		OutParams->SkinningHeaders	= GraphBuilder.CreateSRV(HeaderBuffer);
+		OutParams->BoneHierarchy	= GraphBuilder.CreateSRV(BoneHierarchyBuffer);
+		OutParams->BoneObjectSpace	= GraphBuilder.CreateSRV(BoneObjectSpaceBuffer);
+		OutParams->BoneTransforms	= GraphBuilder.CreateSRV(TransformBuffer);
+	}
+}
+
+void FSkinningSceneExtension::PerformSkinning(
+	FNaniteSkinningParameters& Parameters,
+	FRDGBuilder& GraphBuilder
+)
+{
+	const float CurrentDeltaTime = DeltaTime;
+	DeltaTime = 0.0f;
 
 	if (auto TransformProvider = Scene->GetExtensionPtr<FSkinningTransformProvider>())
 	{
@@ -337,26 +358,16 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 			TConstArrayView<FPrimitiveSceneInfo*> PrimitivesView(Primitives, PrimitiveCount);
 			TConstArrayView<FUintVector2> IndiciesView(PrimitiveIndices, IndirectionCount);
 
-			const FGameTime GameTime = Scene->GetWorld()->GetTime();
-
 			FSkinningTransformProvider::FProviderContext Context(
 				PrimitivesView,
 				IndiciesView,
-				GameTime,
+				CurrentDeltaTime,
 				GraphBuilder,
-				TransformBuffer
+ 				Parameters.BoneTransforms->GetParent()
 			);
 
 			TransformProvider->Broadcast(Ranges, Context);
 		}
-	}
-
-	if (OutParams != nullptr)
-	{
-		OutParams->SkinningHeaders	= GraphBuilder.CreateSRV(HeaderBuffer);
-		OutParams->BoneHierarchy	= GraphBuilder.CreateSRV(BoneHierarchyBuffer);
-		OutParams->BoneObjectSpace	= GraphBuilder.CreateSRV(BoneObjectSpaceBuffer);
-		OutParams->BoneTransforms	= GraphBuilder.CreateSRV(TransformBuffer);
 	}
 }
 
@@ -389,15 +400,11 @@ bool FSkinningSceneExtension::ProcessBufferDefragmentation()
 	}
 
 	// Check to force a defrag
-#if NANITE_SKINNING_WIP
-	const bool bForceDefrag = true;
-#else
 	const bool bForceDefrag = GNaniteTransformBufferForceDefrag != 0;
 	if (GNaniteTransformBufferForceDefrag == 1)
 	{
 		GNaniteTransformBufferForceDefrag = 0;
 	}
-#endif
 	
 	if (!bForceDefrag && (EffectiveMaxSize <= MinTransformBufferCount || UsedSize > LowWaterMark))
 	{
@@ -431,6 +438,49 @@ bool FSkinningSceneExtension::ProcessBufferDefragmentation()
 	}
 
 	return true;
+}
+
+void FSkinningSceneExtension::Tick(float InDeltaTime)
+{
+	FVector NewCameraLocation = FVector::ZeroVector;
+	if (UWorld* World = GetTickableGameObjectWorld())
+	{
+		if (auto PlayerController = World->GetFirstPlayerController<APlayerController>())
+		{
+			FRotator CameraRotation;
+			PlayerController->GetPlayerViewPoint(NewCameraLocation, CameraRotation);
+		}
+		else
+		{
+			FVector LocationSum = FVector::Zero();
+			if (World->ViewLocationsRenderedLastFrame.Num() > 0)
+			{
+				for (const auto& Location : World->ViewLocationsRenderedLastFrame)
+				{
+					LocationSum += Location;
+				}
+
+				NewCameraLocation = LocationSum / World->ViewLocationsRenderedLastFrame.Num();
+			}
+		}
+	}
+
+	ENQUEUE_RENDER_COMMAND(FTickSkinningSceneExtension)
+	([this, InDeltaTime, NewCameraLocation](FRHICommandListImmediate& RHICmdList)
+	{
+		DeltaTime += InDeltaTime;
+		CameraLocation = NewCameraLocation;
+	});
+}
+
+TStatId FSkinningSceneExtension::GetStatId() const
+{
+	RETURN_QUICK_DECLARE_CYCLE_STAT(FSkinningSceneExtension, STATGROUP_Tickables);
+}
+
+UWorld* FSkinningSceneExtension::GetTickableGameObjectWorld() const
+{
+	return Scene ? Scene->GetWorld() : nullptr;
 }
 
 FSkinningSceneExtension::FBuffers::FBuffers()
@@ -502,15 +552,11 @@ void FSkinningSceneExtension::FUpdater::PreSceneUpdate(FRDGBuilder& GraphBuilder
 
 			// Check to force a full upload by CVar
 			// NOTE: Doesn't currently discern which scene to affect
-		#if NANITE_SKINNING_WIP
-			bForceFullUpload = true;
-		#else
 			bForceFullUpload = GNaniteTransformBufferForceFullUpload != 0;
 			if (GNaniteTransformBufferForceFullUpload == 1)
 			{
 				GNaniteTransformBufferForceFullUpload = 0;
 			}
-		#endif
 
 			bDefragging = SceneData->ProcessBufferDefragmentation();
 			bForceFullUpload |= bDefragging;
@@ -551,9 +597,9 @@ void FSkinningSceneExtension::FUpdater::PostSceneUpdate(FRDGBuilder& GraphBuilde
 					}
 
 					auto* SkinnedProxy = static_cast<Nanite::FSkinnedSceneProxy*>(NaniteProxy);
-					
+
 					const int32 PersistentIndex = PrimitiveSceneInfo->GetPersistentIndex().Index;
-					
+
 					FHeaderData NewHeader;
 					NewHeader.PrimitiveSceneInfo = PrimitiveSceneInfo;
 					NewHeader.MaxTransformCount = SkinnedProxy->GetMaxBoneTransformCount();
@@ -562,7 +608,7 @@ void FSkinningSceneExtension::FUpdater::PostSceneUpdate(FRDGBuilder& GraphBuilde
 					NewHeader.bHasScale = SkinnedProxy->HasScale();
 
 					SceneData->HeaderData.EmplaceAt(PersistentIndex, NewHeader);
-	
+
 					if (!bForceFullUpload)
 					{
 						DirtyPrimitiveList.Add(PersistentIndex);
@@ -574,29 +620,32 @@ void FSkinningSceneExtension::FUpdater::PostSceneUpdate(FRDGBuilder& GraphBuilde
 			bEnableAsync
 		);
 	}
-
-	FinalizeSkinningUploads(GraphBuilder);
 }
 
-void FSkinningSceneExtension::FUpdater::RequestSkinningUpload(FPrimitiveSceneInfo* Primitive)
+static bool IsValidSkinnedSceneInfo(const FPrimitiveSceneInfo* SceneInfo)
 {
-	check(Primitive->Proxy->IsNaniteMesh());
-	check(static_cast<Nanite::FSceneProxyBase*>(Primitive->Proxy)->IsSkinnedMesh());
-	UpdateList.Add(Primitive);
+	if (SceneInfo == nullptr || SceneInfo->Proxy == nullptr)
+	{
+		return false;
+	}
+
+	if (!SceneInfo->Proxy->IsNaniteMesh() || !SceneInfo->Proxy->IsSkinnedMesh())
+	{
+		return false;
+	}
+
+	return true;
 }
 
-void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& GraphBuilder)
+void FSkinningSceneExtension::FUpdater::PostMeshUpdate(
+	FRDGBuilder& GraphBuilder,
+	const TConstArrayView<FPrimitiveSceneInfo*>& UpdatedSceneInfoList
+)
 {
+	UpdateList = UpdatedSceneInfoList;
+
 	if (SceneData->IsEnabled())
 	{
-		// TODO: Nanite-Skinning: Not thread safe
-		//UpdateList.Reset();
-
-		//for (const FHeaderData& Data : SceneData->HeaderData)
-		//{
-		//	UpdateList.Add(Data.PrimitiveSceneInfo);
-		//}
-
 		// Gets the information needed from the primitive for skinning and allocates the appropriate space in the buffer
 		// for the primitive's bone transforms
 		auto AllocSpaceForPrimitive = [this](FHeaderData& Data)
@@ -686,10 +735,12 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 					for (auto PrimitiveSceneInfo : UpdateList)
 					{
 						const int32 Index = PrimitiveSceneInfo->GetPersistentIndex().Index;
-						if (SceneData->HeaderData.IsValidIndex(Index))
+						if (!SceneData->HeaderData.IsValidIndex(Index))
 						{
-							AllocSpaceForPrimitive(SceneData->HeaderData[Index]);
+							// Primitive in update list is either non-Nanite and/or not skinned
+							continue;
 						}
+						AllocSpaceForPrimitive(SceneData->HeaderData[Index]);
 					}
 				}
 
@@ -805,40 +856,30 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 				return;
 			}
 
+			// NOTE: This path is purely for debugging now - should also set "r.Nanite.SkinningBuffers.ForceFullUpload 2" to avoid caching artifacts
+
 			check(SceneData->Uploader.IsValid());
 			auto UploadData = SceneData->Uploader->TransformDataUploader.AddMultiple_GetRef(
 				Data.TransformBufferOffset,
 				Data.TransformBufferCount
 			);
 
-			// Fetch bone transforms from Nanite mesh object and upload to GPU (3x4 transposed)
-			const TArray<FMatrix3x4>* SrcCurrentBoneTransforms = SkinnedProxy->GetMeshObject()->GetCurrentBoneTransforms();
-			check(SrcCurrentBoneTransforms);
+			check(Data.UniqueAnimationCount* Data.MaxTransformCount * 2u == Data.TransformBufferCount);
 
-			const TArray<FMatrix3x4>* SrcPreviousBoneTransforms = SkinnedProxy->GetMeshObject()->GetPreviousBoneTransforms();
-			check(SrcPreviousBoneTransforms);
-
-			check(Data.UniqueAnimationCount * Data.MaxTransformCount * 2u == Data.TransformBufferCount);
-			check(uint32(SrcCurrentBoneTransforms->Num() + SrcPreviousBoneTransforms->Num()) <= Data.TransformBufferCount);
-
-			FMatrix3x4*  DstCurrentBoneTransformsPtr = UploadData.GetData();
+			FMatrix3x4* DstCurrentBoneTransformsPtr = UploadData.GetData();
 			FMatrix3x4* DstPreviousBoneTransformsPtr = DstCurrentBoneTransformsPtr + Data.MaxTransformCount;
-
-			const FMatrix3x4*  SrcCurrentBoneTransformsPtr =  SrcCurrentBoneTransforms->GetData();
-			const FMatrix3x4* SrcPreviousBoneTransformsPtr = SrcPreviousBoneTransforms->GetData();
-
 			const uint32 StridedPtrStep = Data.MaxTransformCount * 2u;
 
 			for (int32 UniqueAnimation = 0; UniqueAnimation < Data.UniqueAnimationCount; ++UniqueAnimation)
 			{
-				FMemory::Memcpy( DstCurrentBoneTransformsPtr,  SrcCurrentBoneTransformsPtr, sizeof(FMatrix3x4) * Data.MaxTransformCount);
-				FMemory::Memcpy(DstPreviousBoneTransformsPtr, SrcPreviousBoneTransformsPtr, sizeof(FMatrix3x4) * Data.MaxTransformCount);
+				for (int32 TransformIndex = 0; TransformIndex < Data.MaxTransformCount; ++TransformIndex)
+				{
+					DstCurrentBoneTransformsPtr[TransformIndex].SetIdentity();
+					DstPreviousBoneTransformsPtr[TransformIndex].SetIdentity();
+				}
 
-				 DstCurrentBoneTransformsPtr += StridedPtrStep;
+				DstCurrentBoneTransformsPtr += StridedPtrStep;
 				DstPreviousBoneTransformsPtr += StridedPtrStep;
-
-				 SrcCurrentBoneTransformsPtr += Data.MaxTransformCount;
-				SrcPreviousBoneTransformsPtr += Data.MaxTransformCount;
 			}
 		};
 
@@ -858,6 +899,12 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 					for (auto PrimitiveSceneInfo : UpdateList)
 					{
 						const int32 PersistentIndex = PrimitiveSceneInfo->GetPersistentIndex().Index;
+						if (!SceneData->HeaderData.IsValidIndex(PersistentIndex))
+						{
+							// Primitive in update list is either non-Nanite and/or not skinned
+							continue;
+						}
+						check(IsValidSkinnedSceneInfo(PrimitiveSceneInfo));
 						UploadHierarchyData(SceneData->HeaderData[PersistentIndex]);
 					}
 				}
@@ -885,6 +932,12 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 					for (auto PrimitiveSceneInfo : UpdateList)
 					{
 						const int32 PersistentIndex = PrimitiveSceneInfo->GetPersistentIndex().Index;
+						if (!SceneData->HeaderData.IsValidIndex(PersistentIndex))
+						{
+							// Primitive in update list is either non-Nanite and/or not skinned
+							continue;
+						}
+						check(IsValidSkinnedSceneInfo(PrimitiveSceneInfo));
 						UploadTransformData(SceneData->HeaderData[PersistentIndex], bProvidersEnabled);
 					}
 				}
@@ -911,6 +964,7 @@ void FSkinningSceneExtension::FRenderer::UpdateSceneUniformBuffer(
 	FNaniteSkinningParameters Parameters;
 	SceneData->FinishSkinningBufferUpload(GraphBuilder, &Parameters);
 	SceneUniformBuffer.Set(SceneUB::NaniteSkinning, Parameters);
+	SceneData->PerformSkinning(Parameters, GraphBuilder);
 }
 
 void FSkinningSceneExtension::GetSkinnedPrimitives(TArray<FPrimitiveSceneInfo*>& OutPrimitives) const
@@ -934,6 +988,11 @@ void FSkinningSceneExtension::GetSkinnedPrimitives(TArray<FPrimitiveSceneInfo*>&
 const FSkinningTransformProvider::FProviderId& FSkinningSceneExtension::GetRefPoseProviderId()
 {
 	return RefPoseProviderId;
+}
+
+const FSkinningTransformProvider::FProviderId& FSkinningSceneExtension::GetAnimRuntimeProviderId()
+{
+	return AnimRuntimeProviderId;
 }
 
 void FSkinningSceneExtension::ProvideRefPoseTransforms(FSkinningTransformProvider::FProviderContext& Context)
@@ -1015,6 +1074,107 @@ void FSkinningSceneExtension::ProvideRefPoseTransforms(FSkinningTransformProvide
 		PassParameters,
 		FIntVector(BlockCount, 1, 1)
 	);
+}
+
+void FSkinningSceneExtension::ProvideAnimRuntimeTransforms(FSkinningTransformProvider::FProviderContext& Context)
+{
+	uint32 GlobalTransformCount = 0;
+
+	for (const FUintVector2& Indirection : Context.Indirections)
+	{
+		const FPrimitiveSceneInfo* Primitive = Context.Primitives[Indirection.X];
+		auto* SkinnedProxy = static_cast<Nanite::FSkinnedSceneProxy*>(Primitive->Proxy);
+		const uint32 TransformCount = SkinnedProxy->GetMaxBoneTransformCount();
+		const uint32 AnimationCount = SkinnedProxy->GetUniqueAnimationCount();
+		GlobalTransformCount += (TransformCount * AnimationCount) * 2; // Current and Previous
+	}
+
+	if (GlobalTransformCount == 0)
+	{
+		return;
+	}
+
+	FRDGBuilder& GraphBuilder = Context.GraphBuilder;
+	FMatrix3x4* Transforms = GraphBuilder.AllocPODArray<FMatrix3x4>(GlobalTransformCount);
+	uint32 TransformWrite = 0;
+
+	struct FCopyCommand
+	{
+		uint32 DstOffset	= 0;
+		uint32 SrcOffset	= 0;
+		uint32 NumBytes		= 0;
+	};
+
+	TArray<FCopyCommand, SceneRenderingAllocator> CopyCommands;
+	CopyCommands.Reserve(Context.Indirections.Num());
+
+	for (const FUintVector2& Indirection : Context.Indirections)
+	{
+		const FPrimitiveSceneInfo* Primitive = Context.Primitives[Indirection.X];
+		auto* SkinnedProxy = static_cast<Nanite::FSkinnedSceneProxy*>(Primitive->Proxy);
+
+		const uint32 TransformCount = SkinnedProxy->GetMaxBoneTransformCount();
+		const uint32 AnimationCount = SkinnedProxy->GetUniqueAnimationCount();
+		const uint32 TotalTransformCount = (TransformCount * AnimationCount) * 2; // Current and Previous
+
+		// Fetch bone transforms from Nanite mesh object and upload to GPU (3x4 transposed)
+		const TArray<FMatrix3x4>* SrcCurrentTransforms = SkinnedProxy->GetMeshObject()->GetCurrentBoneTransforms();
+		check(SrcCurrentTransforms);
+
+		const TArray<FMatrix3x4>* SrcPreviousTransforms = SkinnedProxy->GetMeshObject()->GetPreviousBoneTransforms();
+		check(SrcPreviousTransforms);
+
+		check(uint32(SrcCurrentTransforms->Num() + SrcPreviousTransforms->Num()) == TotalTransformCount);
+		const FMatrix3x4* SrcCurrentTransformsPtr  = SrcCurrentTransforms->GetData();
+		const FMatrix3x4* SrcPreviousTransformsPtr = SrcPreviousTransforms->GetData();
+
+		FMatrix3x4* DstCurrentTransforms  = Transforms + TransformWrite;
+		FMatrix3x4* DstPreviousTransforms = DstCurrentTransforms + TransformCount;
+
+		const uint32 StridedPtrStep = TransformCount * 2u;
+
+		for (uint32 UniqueAnimation = 0; UniqueAnimation < AnimationCount; ++UniqueAnimation)
+		{
+			FMemory::Memcpy(DstCurrentTransforms,  SrcCurrentTransformsPtr,  sizeof(FMatrix3x4) * TransformCount);
+			FMemory::Memcpy(DstPreviousTransforms, SrcPreviousTransformsPtr, sizeof(FMatrix3x4) * TransformCount);
+
+			 DstCurrentTransforms += StridedPtrStep;
+			DstPreviousTransforms += StridedPtrStep;
+
+			 SrcCurrentTransforms += TransformCount;
+			SrcPreviousTransforms += TransformCount;
+		}
+
+		FCopyCommand& Command = CopyCommands.Emplace_GetRef();
+		Command.SrcOffset = TransformWrite * sizeof(FMatrix3x4);
+		Command.DstOffset = Indirection.Y;
+		Command.NumBytes  = TotalTransformCount * sizeof(FMatrix3x4);
+
+		TransformWrite += TotalTransformCount;
+	}
+
+	FRDGBufferRef SrcTransformBuffer = CreateUploadBuffer(
+		GraphBuilder,
+		TEXT("Skinning.AnimTransforms"),
+		sizeof(FMatrix3x4),
+		GlobalTransformCount,
+		Transforms,
+		sizeof(FMatrix3x4) * GlobalTransformCount,
+		// The buffer data is allocated above on the RDG timeline
+		ERDGInitialDataFlags::NoCopy
+	);
+
+	for (const FCopyCommand& Command : CopyCommands)
+	{
+		AddCopyBufferPass(
+			GraphBuilder,
+			Context.TransformBuffer,
+			uint64(Command.DstOffset),
+			SrcTransformBuffer,
+			uint64(Command.SrcOffset),
+			uint64(Command.NumBytes)
+		);
+	}
 }
 
 } // Nanite

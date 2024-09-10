@@ -80,7 +80,7 @@ namespace Detail
 
 		if (ModelBuffer.Num() == 0)
 		{
-			UE_LOG(LogNNE, Error, TEXT("NNERuntimeORT::Private::Details::CreateSession(): Input model data is empty."));
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Cannot create ORT session: Input model data is empty."));
 			return false;
 		}
 
@@ -99,7 +99,7 @@ namespace Detail
 				if (!FFileHelper::SaveArrayToFile(ModelBuffer, *Filepath))
 				{
 					IFileManager::Get().DeleteDirectory(*TempDirForModelWithExternalData, false, true);
-					UE_LOG(LogNNE, Error, TEXT("Large models are an experimental feature at the moment. NNERuntimeORT::Private::Details::CreateSession() could not write model to disk at %s."), *Filepath);
+					UE_LOG(LogNNERuntimeORT, Error, TEXT("Large models are an experimental feature at the moment. Could not write model to disk at %s."), *Filepath);
 					return false;
 				}
 
@@ -111,7 +111,7 @@ namespace Detail
 					if (!FFileHelper::SaveArrayToFile(AdditionalDataBuffer, *AdditionalDataFilename))
 					{
 						IFileManager::Get().DeleteDirectory(*TempDirForModelWithExternalData, false, true);
-						UE_LOG(LogNNE, Error, TEXT("Large models are an experimental feature at the moment. NNERuntimeORT::Private::Details::CreateSession() could not write additional data to disk at %s."), *AdditionalDataFilename);
+						UE_LOG(LogNNERuntimeORT, Error, TEXT("Large models are an experimental feature at the moment. Could not write additional data to disk at %s."), *AdditionalDataFilename);
 						return false;
 					}
 				}
@@ -152,7 +152,7 @@ FModelInstanceORTBase<ModelInterface, TensorBinding>::~FModelInstanceORTBase()
 	{
 		if (!IFileManager::Get().DeleteDirectory(*TempDirForModelWithExternalData, false, true))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Large models are an experimental feature at the moment. FModelInstanceORTBase could not delete temp directy %s on model instance destruction."), *TempDirForModelWithExternalData);
+			UE_LOG(LogNNERuntimeORT, Warning, TEXT("Large models are an experimental feature at the moment. Could not delete temp directy %s on model instance destruction."), *TempDirForModelWithExternalData);
 		}
 	}
 }
@@ -166,36 +166,36 @@ bool FModelInstanceORTBase<ModelInterface, TensorBinding>::Init(TConstArrayView6
 	{
 		if (!InitializedAndConfigureMembers())
 		{
-			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::Init(): InitializedAndConfigureMembers failed."));
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("InitializedAndConfigureMembers failed."));
 			return false;
 		}
 
 		if (!Detail::CreateSession(ModelData, *SessionOptions, *Environment, Session, TempDirForModelWithExternalData))
 		{
-			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::Init(): Session creation failed."));
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Session creation failed."));
 			return false;
 		}
 
 		if (!ConfigureTensors(true))
 		{
-			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::Init(): Failed to configure Inputs tensors."));
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to configure Inputs tensors."));
 			return false;
 		}
 		if (!ConfigureTensors(false))
 		{
-			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::Init(): Failed to configure Outputs tensors."));
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to configure Outputs tensors."));
 			return false;
 		}
 	}
 #if WITH_EDITOR
 	catch (const Ort::Exception& Exception)
 	{
-		UE_LOG(LogNNE, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
 		return false;
 	}
 	catch (...)
 	{
-		UE_LOG(LogNNE, Error, TEXT("Unknown exception!"));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Unknown exception!"));
 		return false;
 	}
 #endif // WITH_EDITOR
@@ -319,14 +319,14 @@ typename ModelInterface::ERunSyncStatus FModelInstanceORTBase<ModelInterface, Te
 
 	if (!Session.IsValid())
 	{
-		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::RunSync(): Called without a Session, FModelInstanceORT::Init() should have been called."));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Called without a Session."));
 		return ModelInterface::ERunSyncStatus::Fail;
 	}
 
 	// Verify the model inputs were prepared
 	if (NNE::Internal::FModelInstanceBase<ModelInterface>::InputTensorShapes.IsEmpty())
 	{
-		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::RunSync(): Input shapes are not set, please call SetInputTensorShapes."));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Input shapes are not set, please call SetInputTensorShapes."));
 		return ModelInterface::ERunSyncStatus::Fail;
 	}
 
@@ -336,7 +336,7 @@ typename ModelInterface::ERunSyncStatus FModelInstanceORTBase<ModelInterface, Te
 
 	if (InInputBindings.Num() != InputTensors.Num())
 	{
-		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::RunSync(): Input bindings need to match input tensor descriptor count (got %d, expected %d)."), InInputBindings.Num(), InputTensors.Num());
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Input bindings need to match input tensor descriptor count (got %d, expected %d)."), InInputBindings.Num(), InputTensors.Num());
 		return ModelInterface::ERunSyncStatus::Fail;
 	}
 
@@ -344,7 +344,7 @@ typename ModelInterface::ERunSyncStatus FModelInstanceORTBase<ModelInterface, Te
 
 	if (!InOutputBindings.IsEmpty() && InOutputBindings.Num() != OutputTensorNames.Num())
 	{
-		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::RunSync(): Output binding can be empty or needs to match output tensor descriptor count (got %d, expected %d)."), InOutputBindings.Num(), OutputTensorNames.Num());
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Output binding can be empty or needs to match output tensor descriptor count (got %d, expected %d)."), InOutputBindings.Num(), OutputTensorNames.Num());
 		return ModelInterface::ERunSyncStatus::Fail;
 	}
 
@@ -360,13 +360,13 @@ typename ModelInterface::ERunSyncStatus FModelInstanceORTBase<ModelInterface, Te
 
 			if (!Binding.Data && Binding.SizeInBytes != 0)
 			{
-				UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::RunSync(): Binding input tensor %d is not set but given size is non-zero %d."), i, Binding.SizeInBytes);
+				UE_LOG(LogNNERuntimeORT, Error, TEXT("Binding input tensor %d is not set but given size is non-zero %d."), i, Binding.SizeInBytes);
 				return ModelInterface::ERunSyncStatus::Fail;
 			}
 
 			if (Binding.SizeInBytes != Tensor.GetDataSize())
 			{
-				UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::RunSync(): Binding input tensor %d size does not match size given by tensor descriptor (got %d, expected %d)."), i, Binding.SizeInBytes, Tensor.GetDataSize());
+				UE_LOG(LogNNERuntimeORT, Error, TEXT("Binding input tensor %d size does not match size given by tensor descriptor (got %d, expected %d)."), i, Binding.SizeInBytes, Tensor.GetDataSize());
 				return ModelInterface::ERunSyncStatus::Fail;
 			}
 
@@ -420,12 +420,12 @@ typename ModelInterface::ERunSyncStatus FModelInstanceORTBase<ModelInterface, Te
 #if WITH_EDITOR
 	catch (const Ort::Exception& Exception)
 	{
-		UE_LOG(LogNNE, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
 		return ModelInterface::ERunSyncStatus::Fail;
 	}
 	catch (...)
 	{
-		UE_LOG(LogNNE, Error, TEXT("Unknown exception!"));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Unknown exception!"));
 		return ModelInterface::ERunSyncStatus::Fail;
 	}
 #endif // WITH_EDITOR
@@ -544,7 +544,7 @@ FModelInstanceORTDmlRDG::~FModelInstanceORTDmlRDG()
 	{
 		if (!IFileManager::Get().DeleteDirectory(*TempDirForModelWithExternalData, false, true))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Large models are an experimental feature at the moment. FModelInstanceORTDmlRDG could not delete temp directy %s on model instance destruction."), *TempDirForModelWithExternalData);
+			UE_LOG(LogNNERuntimeORT, Warning, TEXT("Large models are an experimental feature at the moment. FModelInstanceORTDmlRDG could not delete temp directy %s on model instance destruction."), *TempDirForModelWithExternalData);
 		}
 	}
 }
@@ -560,7 +560,7 @@ bool FModelInstanceORTDmlRDG::Init()
 		SessionOptions = CreateSessionOptionsForDirectML(Environment);
 		if (!SessionOptions.IsValid())
 		{
-			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::Init(): Failed to configure session options for DirectML Execution Provider."));
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to configure session options for DirectML Execution Provider."));
 			return false;
 		}
 		
@@ -568,25 +568,25 @@ bool FModelInstanceORTDmlRDG::Init()
 
 		if (!Detail::CreateSession(ModelData->GetView(), *SessionOptions, *Environment, Session, TempDirForModelWithExternalData))
 		{
-			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::Init(): Session creation failed."));
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Session creation failed."));
 			return false;
 		}
 
 		if (!ConfigureTensors(*Session))
 		{
-			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::Init(): Failed to configure Inputs tensors."));
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to configure Inputs tensors."));
 			return false;
 		}
 	}
 #if WITH_EDITOR
 	catch (const Ort::Exception& Exception)
 	{
-		UE_LOG(LogNNE, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
 		return false;
 	}
 	catch (...)
 	{
-		UE_LOG(LogNNE, Error, TEXT("Unknown exception!"));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Unknown exception!"));
 		return false;
 	}
 #endif // WITH_EDITOR
@@ -598,12 +598,12 @@ bool FModelInstanceORTDmlRDG::ConfigureTensors(const Ort::Session& ActiveSession
 {
 	if (!ConfigureTensors(ActiveSession, true))
 	{
-		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::ConfigureTensors(): Failed to configure Inputs tensors."));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to configure Inputs tensors."));
 		return false;
 	}
 	if (!ConfigureTensors(ActiveSession, false))
 	{
-		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::ConfigureTensors(): Failed to configure Outputs tensors."));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to configure Outputs tensors."));
 		return false;
 	}
 
@@ -719,7 +719,7 @@ FModelInstanceORTDmlRDG::ESetInputTensorShapesStatus FModelInstanceORTDmlRDG::Se
 			}
 			else
 			{
-				UE_LOG(LogNNE, Warning, TEXT("One or more output tensors contain free dimensions, but input tensors are all concrete!"));
+				UE_LOG(LogNNERuntimeORT, Warning, TEXT("One or more output tensors contain free dimensions, but input tensors are all concrete!"));
 				return ESetInputTensorShapesStatus::Fail;
 			}
 		}
@@ -731,7 +731,7 @@ FModelInstanceORTDmlRDG::ESetInputTensorShapesStatus FModelInstanceORTDmlRDG::Se
 	SessionOptions = CreateSessionOptionsForDirectML(Environment);
 	if (!SessionOptions.IsValid())
 	{
-		UE_LOG(LogNNE, Error, TEXT("Failed to recreate session options!"));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to recreate session options!"));
 		return ESetInputTensorShapesStatus::Fail;
 	}
 
@@ -769,19 +769,19 @@ FModelInstanceORTDmlRDG::ESetInputTensorShapesStatus FModelInstanceORTDmlRDG::Se
 	{
 		if (!Detail::CreateSession(ModelData->GetView(), *SessionOptions, *Environment, Session, TempDirForModelWithExternalData))
 		{
-			UE_LOG(LogNNE, Error, TEXT("Failed to recreate session!"));
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to recreate session!"));
 			return ESetInputTensorShapesStatus::Fail;
 		}
 	}
 #if WITH_EDITOR
 	catch (const Ort::Exception& Exception)
 	{
-		UE_LOG(LogNNE, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
 		return ESetInputTensorShapesStatus::Fail;
 	}
 	catch (...)
 	{
-		UE_LOG(LogNNE, Error, TEXT("Unknown exception!"));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Unknown exception!"));
 		return ESetInputTensorShapesStatus::Fail;
 	}
 #endif // WITH_EDITOR
@@ -789,7 +789,7 @@ FModelInstanceORTDmlRDG::ESetInputTensorShapesStatus FModelInstanceORTDmlRDG::Se
 	// Need to configure output tensors with new session (to apply free dimension overrides)
 	if (!ConfigureTensors(*Session, false))
 	{
-		UE_LOG(LogNNE, Error, TEXT("Failed to configure tensors!"));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Failed to configure tensors!"));
 		return ESetInputTensorShapesStatus::Fail;
 	}
 
@@ -810,11 +810,11 @@ FModelInstanceORTDmlRDG::ESetInputTensorShapesStatus FModelInstanceORTDmlRDG::Se
 			{
 				if (SymbolicTensorDesc.GetShape().GetData()[j] < 0)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Tensor '%hs' has free dimension '%s'."), OutputTensorNames[i], *OutputSymbolicDimensionNames[i][j]);
+					UE_LOG(LogNNERuntimeORT, Warning, TEXT("Tensor '%hs' has free dimension '%s'."), OutputTensorNames[i], *OutputSymbolicDimensionNames[i][j]);
 				}
 			}
 
-			UE_LOG(LogNNE, Error, TEXT("One or more output tensors contain free dimensions!"));
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("One or more output tensors contain free dimensions!"));
 			return ESetInputTensorShapesStatus::Fail;
 		}
 	}
@@ -863,13 +863,13 @@ FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(F
 
 	if (!Session.IsValid())
 	{
-		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Called without a Session, FModelInstanceORTDmlRDG::Init() should have been called."));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Invalid Session, Init() should have been called."));
 		return EEnqueueRDGStatus::Fail;
 	}
 
 	if (InputTensorShapes.IsEmpty())
 	{
-		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Input shapes are not set, please call SetInputTensorShapes."));
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Input shapes are not set, please call SetInputTensorShapes."));
 		return EEnqueueRDGStatus::Fail;
 	}
 
@@ -879,7 +879,7 @@ FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(F
 
 	if (Inputs.Num() != InputTensors.Num())
 	{
-		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Input bindings need to match input tensor descriptor count (got %d, expected %d)."), Inputs.Num(), InputTensors.Num());
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Input bindings need to match input tensor descriptor count (got %d, expected %d)."), Inputs.Num(), InputTensors.Num());
 		return EEnqueueRDGStatus::Fail;
 	}
 
@@ -887,7 +887,7 @@ FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(F
 
 	if (!Outputs.IsEmpty() && Outputs.Num() != OutputTensorNames.Num())
 	{
-		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Output binding can be empty or needs to match output tensor descriptor count (got %d, expected %d)."), Outputs.Num(), OutputTensorNames.Num());
+		UE_LOG(LogNNERuntimeORT, Error, TEXT("Output binding can be empty or needs to match output tensor descriptor count (got %d, expected %d)."), Outputs.Num(), OutputTensorNames.Num());
 		return EEnqueueRDGStatus::Fail;
 	}
 
@@ -897,13 +897,14 @@ FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(F
 		const NNE::FTensorBindingRDG& Binding = Inputs[i];
 		if (!Binding.Buffer && InputTensors[i].GetDataSize() != 0)
 		{
-			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Binding input tensor %d is not set but given size by tensor descriptor is non-zero %d."), i, InputTensors[i].GetDataSize());
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Binding input tensor %d is not set but given size by tensor descriptor is non-zero %d."), i, InputTensors[i].GetDataSize());
 			return EEnqueueRDGStatus::Fail;
 		}
 
-		if (Binding.Buffer->Desc.GetSize() != InputTensors[i].GetDataSize())
+		const uint64 DmlImpliedSizeBytes = CalcRDGBufferSizeForDirectML(InputTensors[i].GetDataSize());
+		if (Binding.Buffer && Binding.Buffer->Desc.GetSize() != DmlImpliedSizeBytes)
 		{
-			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Binding input tensor %d size does not match size given by tensor descriptor (got %d, expected %d)."), i, Binding.Buffer->Desc.GetSize(), InputTensors[i].GetDataSize());
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Binding input tensor %d size does not match tensor buffer size required by DirectML (got %d, expected %d, data size was %d)."), i, Binding.Buffer->Desc.GetSize(), DmlImpliedSizeBytes, InputTensors[i].GetDataSize());
 			return EEnqueueRDGStatus::Fail;
 		}
 
@@ -915,11 +916,15 @@ FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(F
 	{
 		const NNE::FTensorBindingRDG& Binding = Outputs[i];
 
-		if (Binding.Buffer && Binding.Buffer->Desc.GetSize() >= OutputTensors[i].GetDataSize())
+		const uint64 DmlImpliedSizeBytes = CalcRDGBufferSizeForDirectML(OutputTensors[i].GetDataSize());
+		if (Binding.Buffer && Binding.Buffer->Desc.GetSize() != DmlImpliedSizeBytes)
 		{
-			PassParameters->OutputBuffers.Emplace(Binding.Buffer, ERHIAccess::CopyDest);
-			ValidOutputs.Add(i);
+			UE_LOG(LogNNERuntimeORT, Error, TEXT("Binding output tensor %d size does not match tensor buffer size required by DirectML (got %d, expected %d, data size was %d)."), i, Binding.Buffer->Desc.GetSize(), DmlImpliedSizeBytes, OutputTensors[i].GetDataSize());
+			return EEnqueueRDGStatus::Fail;
 		}
+
+		PassParameters->OutputBuffers.Emplace(Binding.Buffer, ERHIAccess::CopyDest);
+		ValidOutputs.Add(i);
 	}
 
 	RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNERuntimeORTDmlRDG, "FModelInstanceORTDmlRDG::EnqueueRDG");
@@ -989,11 +994,11 @@ FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(F
 #if WITH_EDITOR
 				catch (const Ort::Exception& Exception)
 				{
-					UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): %s"), UTF8_TO_TCHAR(Exception.what()));
+					UE_LOG(LogNNERuntimeORT, Error, TEXT("ORT Exception: %s"), UTF8_TO_TCHAR(Exception.what()));
 				}
 				catch (...)
 				{
-					UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Unknown exception!"));
+					UE_LOG(LogNNERuntimeORT, Error, TEXT("ORT Exception: Unknown!"));
 				}
 #endif // WITH_EDITOR
 			}, false);

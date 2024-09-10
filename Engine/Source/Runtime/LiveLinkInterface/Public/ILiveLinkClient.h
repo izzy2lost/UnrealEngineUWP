@@ -302,6 +302,12 @@ public:
 	 */
 	virtual UObject* GetSubjectSettings(const FLiveLinkSubjectKey& SubjectKey) const = 0;
 
+	/** Get the source name override for a given subject. Allows subjects to modify the source's display name in the UI when needed. */
+	virtual FText GetSourceNameOverride(const FLiveLinkSubjectKey& SubjectKey) const = 0;
+
+	/** Get the display name for a subject. Returns an empty text if the source is invalid. */
+	virtual FText GetSubjectDisplayName(const FLiveLinkSubjectKey& SubjectKey) const = 0;
+
 	/**
 	 * Utility method to grab a subject's static data. Used by the RecordingController when static data is missing from the recording. 
 	 */

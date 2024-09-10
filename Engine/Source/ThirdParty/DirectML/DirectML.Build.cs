@@ -11,6 +11,10 @@ public class DirectML : ModuleRules
 		Type = ModuleType.External;
 
 		string PlatformDir = Target.Platform.ToString();
+		if (Target.Platform == UnrealTargetPlatform.Win64 && Target.Architecture == UnrealArch.Arm64)
+		{
+			PlatformDir = "WinArm64";
+		}
 		string BinDirPath = Path.GetFullPath(Path.Combine(ModuleDirectory, "bin", PlatformDir));
 		string LibDirPath = Path.Combine(ModuleDirectory, "lib", PlatformDir);
 		string IncDirPath = Path.Combine(ModuleDirectory, "include/");

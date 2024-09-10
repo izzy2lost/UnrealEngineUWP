@@ -163,7 +163,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <summary>
 		/// Underlying storage object
 		/// </summary>
-		private IStorageClient? _store = null;
+		private IStorageNamespace? _store = null;
 
 		/// <summary>
 		/// Task used to wait on ready state
@@ -210,10 +210,9 @@ namespace UnrealBuildTool.Artifacts
 		/// <summary>
 		/// Create a memory only cache
 		/// </summary>
-		/// <returns>Storage client instance</returns>
 		public static IArtifactCache CreateMemoryCache(ILogger logger)
 		{
-			HordeStorageArtifactCache cache = new(BundleStorageClient.CreateInMemory(logger))
+			HordeStorageArtifactCache cache = new(BundleStorageNamespace.CreateInMemory(logger))
 			{
 				State = ArtifactCacheState.Available
 			};
@@ -227,7 +226,6 @@ namespace UnrealBuildTool.Artifacts
 		/// <param name="memoryMappedFileCache">Cache for memory mapped files</param>
 		/// <param name="logger">Logging object</param>
 		/// <param name="cleanDirectory">If true, clean the directory</param>
-		/// <returns>Storage client instance</returns>
 		public static IArtifactCache CreateFileCache(DirectoryReference directory, MemoryMappedFileCache memoryMappedFileCache, ILogger logger, bool cleanDirectory)
 		{
 			HordeStorageArtifactCache cache = new(null);
@@ -239,7 +237,7 @@ namespace UnrealBuildTool.Artifacts
 		/// Constructor
 		/// </summary>
 		/// <param name="storage">Storage object to use</param>
-		private HordeStorageArtifactCache(IStorageClient? storage)
+		private HordeStorageArtifactCache(IStorageNamespace? storage)
 		{
 			_store = storage;
 			_pendingWrites = new(MaxPendingSize);
@@ -512,7 +510,7 @@ namespace UnrealBuildTool.Artifacts
 				}
 				Directory.CreateDirectory(directory.FullName);
 
-				_store = BundleStorageClient.CreateFromDirectory(directory, BundleCache.None, memoryMappedFileCache, logger);
+				_store = BundleStorageNamespace.CreateFromDirectory(directory, BundleCache.None, memoryMappedFileCache, logger);
 
 				State = ArtifactCacheState.Available;
 				return State;

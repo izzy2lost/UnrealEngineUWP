@@ -2,7 +2,7 @@
 
 #include "NNERuntimeRDGUtilsModelOptimizerBase.h"
 
-#include "NNE.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeFormat.h"
 
 THIRD_PARTY_INCLUDES_START
@@ -38,7 +38,7 @@ bool FModelValidatorONNX::ValidateModel(const FNNEModelRaw& InputModel, const FO
 	}
 	catch (onnx::checker::ValidationError& e)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Input model is invalid : %s."), ANSI_TO_TCHAR(e.what()));
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Input model is invalid : %s."), ANSI_TO_TCHAR(e.what()));
 		return false;
 	}
 #endif
@@ -55,7 +55,7 @@ bool FModelOptimizerBase::IsModelValid(const FNNEModelRaw& ModelToValidate, cons
 		check(Validator.IsValid());
 		if (!Validator->ValidateModel(ModelToValidate, Options))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Model validator '%s' detected an error."), *(Validator->GetName()));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Model validator '%s' detected an error."), *(Validator->GetName()));
 			bIsModelValid = false;
 		}
 	}
@@ -66,7 +66,7 @@ bool FModelOptimizerBase::ApplyAllPassesAndValidations(FNNEModelRaw& OptimizedMo
 {
 	if (!IsModelValid(OptimizedModel, Options))
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Model is not valid."));
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Model is not valid."));
 		return false;
 	}
 		
@@ -79,7 +79,7 @@ bool FModelOptimizerBase::ApplyAllPassesAndValidations(FNNEModelRaw& OptimizedMo
 			
 		if (!Pass->ApplyPass(OptimizedModel, Options))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Error while executing model optimisation pass '%s'."), *(Pass->GetName()));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Error while executing model optimisation pass '%s'."), *(Pass->GetName()));
 			return false;
 		}
 
@@ -88,7 +88,7 @@ bool FModelOptimizerBase::ApplyAllPassesAndValidations(FNNEModelRaw& OptimizedMo
 
 		if (!IsModelValid(OptimizedModel, Options))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Model validation failed after optimisation pass '%s'."), *(Pass->GetName()));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Model validation failed after optimisation pass '%s'."), *(Pass->GetName()));
 			return false;
 		}
 	}

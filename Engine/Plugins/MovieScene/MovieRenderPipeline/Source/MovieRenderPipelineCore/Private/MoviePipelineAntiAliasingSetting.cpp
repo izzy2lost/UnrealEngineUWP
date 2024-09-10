@@ -2,6 +2,8 @@
 
 #include "MoviePipelineAntiAliasingSetting.h"
 
+#include "MoviePipelineTelemetry.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MoviePipelineAntiAliasingSetting)
 
 void UMoviePipelineAntiAliasingSetting::ValidateStateImpl()
@@ -52,4 +54,10 @@ void UMoviePipelineAntiAliasingSetting::GetFormatArguments(FMoviePipelineFormatA
 
 	InOutFormatArgs.FileMetadata.Add(TEXT("unreal/aa/temporalSampleCount"), FString::FromInt(TemporalSampleCount));
 	InOutFormatArgs.FileMetadata.Add(TEXT("unreal/aa/spatialSampleCount"), FString::FromInt(SpatialSampleCount));
+}
+
+void UMoviePipelineAntiAliasingSetting::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->TemporalSampleCount = FMath::Max(InTelemetry->TemporalSampleCount, TemporalSampleCount);
+	InTelemetry->SpatialSampleCount = FMath::Max(InTelemetry->SpatialSampleCount, SpatialSampleCount);
 }

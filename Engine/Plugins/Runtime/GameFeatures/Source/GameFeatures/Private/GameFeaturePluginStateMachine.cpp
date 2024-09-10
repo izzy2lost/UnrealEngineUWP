@@ -1006,12 +1006,8 @@ struct FBaseDataReleaseGameFeaturePluginState : public FGameFeaturePluginState
 			return;
 		}
 
-		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
-		check(BundleManager.IsValid());
-
 		EInstallBundleReleaseRequestFlags ReleaseFlags = GetReleaseRequestFlags();
-		TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> MaybeRequestInfo = BundleManager->RequestReleaseContent(GetInstallBundles(), ReleaseFlags);
-
+		TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> MaybeRequestInfo = UGameFeaturesSubsystem::Get().ReleaseBundle(StateProperties.PluginName, GetInstallBundles(), ReleaseFlags);
 		if (MaybeRequestInfo.HasError())
 		{
 			const FStringView ShortUrl = StateProperties.PluginIdentifier.GetIdentifyingString();
@@ -1492,7 +1488,8 @@ struct FBaseDownloadGameFeaturePluginState : public FGameFeaturePluginState
 		{
 			return;
 		}
-
+		
+		UGameFeaturesSubsystem::Get().OnGameFeatureDownloaded(StateProperties.PluginIdentifier);
 		const EGameFeaturePluginState SuccessState = GetSuccessTransitionState();
 		StateStatus.SetTransition(SuccessState);
 	}
@@ -1747,16 +1744,13 @@ struct FGameFeaturePluginState_Unmounting : public FGameFeaturePluginState
 			return;
 		}
 
-		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
-
 		const TArray<FName>& InstallBundles = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>().InstallBundles;
 
 		EInstallBundleReleaseRequestFlags ReleaseFlags = StateProperties.ProtocolOptions.GetSubtype<FInstallBundlePluginProtocolOptions>().ReleaseInstallBundleFlags;
 		ReleaseFlags |= EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly;
 		//Make sure we don't remove files here early, that should only be done in Uninstalling
 		ReleaseFlags &= ~(EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible);
-
-		TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> MaybeRequestInfo = BundleManager->RequestReleaseContent(InstallBundles, ReleaseFlags);
+		TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> MaybeRequestInfo = UGameFeaturesSubsystem::Get().UnmountBundle(StateProperties.PluginName, InstallBundles, ReleaseFlags);
 
 		if (MaybeRequestInfo.HasError())
 		{
@@ -3547,6 +3541,11 @@ UGameFeatureData* UGameFeaturePluginStateMachine::GetGameFeatureDataForRegistere
 	}
 
 	return nullptr;
+}
+
+const FGameFeaturePluginStateMachineProperties& UGameFeaturePluginStateMachine::GetProperties() const
+{
+	return StateProperties;
 }
 
 bool UGameFeaturePluginStateMachine::IsValidTransitionState(EGameFeaturePluginState InState) const

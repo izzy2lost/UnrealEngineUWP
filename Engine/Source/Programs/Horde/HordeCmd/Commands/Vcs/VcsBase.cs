@@ -149,14 +149,14 @@ namespace Horde.Commands.Vcs
 		const string DataDir = ".horde";
 		const string StateFileName = "state.dat";
 
-		readonly IStorageClientFactory _storageClientFactory;
+		readonly IStorageClient _storageClient;
 
-		protected VcsBase(IStorageClientFactory storageClientFactory)
+		protected VcsBase(IStorageClient storageClient)
 		{
-			_storageClientFactory = storageClientFactory;
+			_storageClient = storageClient;
 		}
 
-		protected IStorageClient CreateStorageClient() => _storageClientFactory.CreateClient(NamespaceId);
+		protected IStorageNamespace GetStorageNamespace() => _storageClient.GetNamespace(NamespaceId);
 
 		protected static async Task<WorkspaceState> ReadStateAsync(DirectoryReference rootDir)
 		{
@@ -340,9 +340,9 @@ namespace Horde.Commands.Vcs
 			}
 		}
 
-		protected static async Task<CommitNode?> GetCommitAsync(IStorageClient storageClient, RefName branchName, int change = 0)
+		protected static async Task<CommitNode?> GetCommitAsync(IStorageNamespace storageNamespace, RefName branchName, int change = 0)
 		{
-			CommitNode tip = await storageClient.ReadRefTargetAsync<CommitNode>(branchName);
+			CommitNode tip = await storageNamespace.ReadRefTargetAsync<CommitNode>(branchName);
 			if (change != 0)
 			{
 				while (tip.Number != change)

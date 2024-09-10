@@ -33,8 +33,8 @@ void UInstancedActorsVisualizationTrait::InitializeFromInstanceData(UInstancedAc
 
 	HighResTemplateActor = InstanceData->ActorClass;
 
-	const bool bIsDedicatedServer = InInstanceData.GetManagerChecked().IsNetMode(NM_DedicatedServer);
-	if (!bIsDedicatedServer)
+	const bool bIsClient = InInstanceData.GetManagerChecked().IsNetMode(NM_Client);
+	if (bIsClient)
 	{
 		// Don't attempt to spawn actors natively on clients. Instead, rely on bForceActorRepresentationForExternalActors to 
 		// switch to Actor representation once replicated actors are set explicitly in UInstancedActorsData::SetReplicatedActor 
@@ -54,7 +54,7 @@ void UInstancedActorsVisualizationTrait::InitializeFromInstanceData(UInstancedAc
 		ensure(InstanceData->GetDefaultVisualizationChecked().ISMComponents.IsEmpty());
 		Params.LODRepresentation[EMassLOD::Low] = EMassRepresentationType::None;
 
-		if (!bIsDedicatedServer)
+		if (bIsClient)
 		{
 			// Don't attempt to switch to ISMC representation on clients for no mesh classes (which would otherwise crash)
 			// Let the server spawn these actors and replicate them to clients.

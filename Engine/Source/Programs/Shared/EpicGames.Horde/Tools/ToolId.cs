@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.ComponentModel;
+using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Serialization;
 
@@ -12,6 +13,7 @@ namespace EpicGames.Horde.Tools
 	/// <param name="Id">Id to construct from</param>
 	[LogValueType]
 	[JsonSchemaString]
+	[JsonConverter(typeof(StringIdJsonConverter<ToolId, ToolIdConverter>))]
 	[TypeConverter(typeof(StringIdTypeConverter<ToolId, ToolIdConverter>))]
 	[StringIdConverter(typeof(ToolIdConverter))]
 	[CbConverter(typeof(StringIdCbConverter<ToolId, ToolIdConverter>))]

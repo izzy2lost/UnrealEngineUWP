@@ -27,17 +27,18 @@ void FPopBlendCameraNodeEvaluator::OnBlendParameters(const FCameraNodePreBlendPa
 {
 	const FCameraVariableTable& ChildVariableTable(Params.ChildVariableTable);
 	OutResult.VariableTable.Override(ChildVariableTable, ECameraVariableTableFilter::Input);
+
+	OutResult.bIsBlendFull = true;
+	OutResult.bIsBlendFinished = true;
 }
 
 void FPopBlendCameraNodeEvaluator::OnBlendResults(const FCameraNodeBlendParams& Params, FCameraNodeBlendResult& OutResult)
 {
 	const FCameraNodeEvaluationResult& ChildResult(Params.ChildResult);
 	FCameraNodeEvaluationResult& BlendedResult(OutResult.BlendedResult);
-	
-	BlendedResult.CameraPose.OverrideAll(ChildResult.CameraPose);
-	BlendedResult.VariableTable.OverrideAll(ChildResult.VariableTable);
-	BlendedResult.CameraRigJoints.OverrideAll(ChildResult.CameraRigJoints);
 
+	BlendedResult.OverrideAll(ChildResult);
+	
 	if (ChildResult.bIsCameraCut || Params.ChildParams.bIsFirstFrame)
 	{
 		BlendedResult.bIsCameraCut = true;

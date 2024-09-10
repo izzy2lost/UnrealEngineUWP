@@ -381,7 +381,7 @@ bool UCameraComponent::IsXRHeadTrackedCamera() const
 	return false;
 }
 
-void UCameraComponent::HandleXRCamera()
+void UCameraComponent::HandleXRCamera(float DeltaTime)
 {
 	IXRTrackingSystem* XRSystem = GEngine->XRSystem.Get();
 	auto XRCamera = XRSystem->GetXRCamera();
@@ -399,7 +399,7 @@ void UCameraComponent::HandleXRCamera()
 	{
 		FQuat Orientation;
 		FVector Position;
-		if (XRCamera->UpdatePlayerCamera(Orientation, Position))
+		if (XRCamera->UpdatePlayerCamera(Orientation, Position, DeltaTime))
 		{
 			SetRelativeTransform(FTransform(Orientation, Position));
 		}
@@ -416,7 +416,7 @@ void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& DesiredV
 {
 	if (IsXRHeadTrackedCamera())
 	{
-		HandleXRCamera();
+		HandleXRCamera(DeltaTime);
 	}
 
 	if (bUsePawnControlRotation)

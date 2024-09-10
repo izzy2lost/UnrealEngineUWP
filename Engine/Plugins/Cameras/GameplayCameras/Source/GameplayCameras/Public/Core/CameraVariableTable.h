@@ -26,17 +26,19 @@ struct TCameraVariableInterpolation;
 enum class ECameraVariableTableFilter
 {
 	None = 0,
-	/** Only include input variables. */
+	/** Include input variables. */
 	Input = 1 << 0,
-	/** Only include output variables (i.e. anything not an input). */
+	/** Include output variables (i.e. anything not an input). */
 	Output = 1 << 1,
-	/** Only include changed variables. */
+	/** Include private variables. */
+	Private = 1 << 3,
+	/** Include changed variables. */
 	ChangedOnly = 1 << 2,
 
 	/** All variables. */
-	All = Input | Output,
+	AllPublic = Input | Output,
 	/** All changed variables. */
-	AllChanged = Input | Output | ChangedOnly
+	AllPublicChanged = Input | Output | ChangedOnly
 };
 ENUM_CLASS_FLAGS(ECameraVariableTableFilter)
 
@@ -66,14 +68,14 @@ struct FCameraVariableTableFlags
  * a map of metadata keyed by variable ID. A variable ID can be anything, but will
  * generally be the hash of the variable name.
  */
-class FCameraVariableTable
+class GAMEPLAYCAMERAS_API FCameraVariableTable
 {
 public:
 
 	FCameraVariableTable();
 	FCameraVariableTable(FCameraVariableTable&& Other);
 	FCameraVariableTable& operator=(FCameraVariableTable&& Other);
-	GAMEPLAYCAMERAS_API ~FCameraVariableTable();
+	~FCameraVariableTable();
 
 	FCameraVariableTable(const FCameraVariableTable&) = delete;
 	FCameraVariableTable& operator=(const FCameraVariableTable&) = delete;
@@ -86,7 +88,7 @@ public:
 	 * This may re-allocate the internal memory buffer. It's recommended to pre-compute
 	 * the allocation information needed for a table, and initialize it once.
 	 */
-	GAMEPLAYCAMERAS_API void AddVariable(const FCameraVariableDefinition& VariableDefinition);
+	void AddVariable(const FCameraVariableDefinition& VariableDefinition);
 
 public:
 
@@ -101,8 +103,14 @@ public:
 	template<typename ValueType>
 	ValueType GetValue(FCameraVariableID VariableID, typename TCallTraits<ValueType>::ParamType DefaultValue) const;
 
+	template<typename VariableAssetType>
+	typename VariableAssetType::ValueType GetValue(const VariableAssetType* VariableAsset) const;
+
 	template<typename ValueType>
 	bool TryGetValue(FCameraVariableID VariableID, ValueType& OutValue) const;
+
+	template<typename VariableAssetType>
+	bool TryGetValue(const VariableAssetType* VariableAsset, typename VariableAssetType::ValueType& OutValue) const;
 
 	bool ContainsValue(FCameraVariableID VariableID) const;
 
@@ -169,8 +177,8 @@ private:
 
 	void ReallocateBuffer(uint32 MinRequired = 0);
 
-	GAMEPLAYCAMERAS_API FEntry* FindEntry(FCameraVariableID VariableID);
-	GAMEPLAYCAMERAS_API const FEntry* FindEntry(FCameraVariableID VariableID) const;
+	FEntry* FindEntry(FCameraVariableID VariableID);
+	const FEntry* FindEntry(FCameraVariableID VariableID) const;
 
 	void InternalOverride(const FCameraVariableTable& OtherTable, ECameraVariableTableFilter Filter, const FCameraVariableTableFlags* InMask, bool bInvertMask, FCameraVariableTableFlags* OutMask);
 	void InternalLerp(const FCameraVariableTable& ToTable, ECameraVariableTableFilter Filter, float Factor, const FCameraVariableTableFlags* InMask, bool bInvertMask, FCameraVariableTableFlags* OutMask);
@@ -264,6 +272,12 @@ ValueType FCameraVariableTable::GetValue(FCameraVariableID VariableID, typename 
 	return DefaultValue;
 }
 
+template<typename VariableAssetType>
+typename VariableAssetType::ValueType FCameraVariableTable::GetValue(const VariableAssetType* VariableAsset) const
+{
+	return GetValue(VariableAsset->GetVariableID(), VariableAsset->GetDefaultValue());
+}
+
 template<typename ValueType>
 bool FCameraVariableTable::TryGetValue(FCameraVariableID VariableID, ValueType& OutValue) const
 {
@@ -273,6 +287,12 @@ bool FCameraVariableTable::TryGetValue(FCameraVariableID VariableID, ValueType& 
 		return true;
 	}
 	return false;
+}
+
+template<typename VariableAssetType>
+bool FCameraVariableTable::TryGetValue(const VariableAssetType* VariableAsset, typename VariableAssetType::ValueType& OutValue) const
+{
+	return TryGetValue(VariableAsset->GetVariableID(), OutValue);
 }
 
 template<typename ValueType>

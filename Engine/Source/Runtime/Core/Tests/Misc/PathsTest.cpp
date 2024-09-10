@@ -172,6 +172,36 @@ TEST_CASE_NAMED(FPathTests, "System::Core::Misc::Paths", "[ApplicationContextMas
 	RunSplitTest(TEXT("C:\\Folder\\First.Last\\File.txt"), TEXT("C:\\Folder\\First.Last"), TEXT("File"), TEXT("txt"));
 	RunSplitTest(TEXT("C:\\Folder\\First.Last\\File.tar.gz"), TEXT("C:\\Folder\\First.Last"), TEXT("File.tar"), TEXT("gz"));
 
+	// ValidatePath
+	auto RunValidatePathTest = [](const TCHAR* Path, bool bExpectedValue)
+		{
+			bool bValue = FPaths::ValidatePath(FString(Path));
+			if (bValue != bExpectedValue)
+			{
+				FAIL_CHECK(FString::Printf(TEXT("ValidatePath(\"%s\") == %s, expected %s."),
+					Path, *LexToString(bValue), *LexToString(bExpectedValue)));
+			}
+		};
+	RunValidatePathTest(TEXT("C:/Path/Dir"), true);
+	RunValidatePathTest(TEXT("C:\\Path\\Dir"), true);
+	RunValidatePathTest(TEXT("//Path/Dir"), true);
+	RunValidatePathTest(TEXT("\\\\Path\\Dir"), true);
+	RunValidatePathTest(TEXT("/Path/Dir"), true);
+	RunValidatePathTest(TEXT("\\Path\\Dir"), true);
+	RunValidatePathTest(TEXT("Path/Dir"), true);
+	RunValidatePathTest(TEXT("Path\\Dir"), true);
+	RunValidatePathTest(TEXT("Path"), true);
+	RunValidatePathTest(TEXT("/Path/"), true);
+	RunValidatePathTest(TEXT("\\Path\\"), true);
+	// LongPaths on windows allow the otherwise illegal character ? at the beginning, in "\\?\"
+	RunValidatePathTest(TEXT("\\\\?\\K:\\myfolder\\myfile.fbx"), true);
+	// Otherwise ? is not allowed
+	RunValidatePathTest(TEXT("C:\\Path\\Dir?"), false);
+	// : is not allowed outside of a drive specifier at beginning
+	RunValidatePathTest(TEXT("C:\\Path\\Dir:"), false);
+	// A few other banned characters from FPaths::GetInvalidFileSystemChars
+	RunValidatePathTest(TEXT("C:\\Path\\Dir&"), false);
+	RunValidatePathTest(TEXT("C:\\Path\\Dir^"), false);
 }
 
 #endif //WITH_TESTS

@@ -213,7 +213,7 @@ namespace UnrealBuildTool
 			}
 
 			Target.bCompileRecast = true;
-			Target.bCompileISPC = false;
+			Target.bCompileISPC = true;
 
 			// disable plugins by architecture (if we are compiling for multiple architectures, we still need to disable the plugin for all architectures)
 			if (Target.Architectures.Contains(UnrealArch.Arm64) && Target.Name != "UnrealHeaderTool")

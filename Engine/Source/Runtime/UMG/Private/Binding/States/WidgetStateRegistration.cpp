@@ -20,6 +20,8 @@ void UWidgetBinaryStateRegistration::InitializeStaticBitfields() const
 {
 }
 
+FWidgetStateBitfield UWidgetHoveredStateRegistration::Bit;
+
 FName UWidgetHoveredStateRegistration::GetStateName() const
 {
 	return StateName;
@@ -34,6 +36,8 @@ void UWidgetHoveredStateRegistration::InitializeStaticBitfields() const
 {
 	Bit = FWidgetStateBitfield(GetStateName());
 }
+
+FWidgetStateBitfield UWidgetPressedStateRegistration::Bit;
 
 FName UWidgetPressedStateRegistration::GetStateName() const
 {
@@ -50,6 +54,8 @@ void UWidgetPressedStateRegistration::InitializeStaticBitfields() const
 	Bit = FWidgetStateBitfield(GetStateName());
 }
 
+FWidgetStateBitfield UWidgetDisabledStateRegistration::Bit;
+
 FName UWidgetDisabledStateRegistration::GetStateName() const
 {
 	return StateName;
@@ -64,6 +70,8 @@ void UWidgetDisabledStateRegistration::InitializeStaticBitfields() const
 {
 	Bit = FWidgetStateBitfield(GetStateName());
 }
+
+FWidgetStateBitfield UWidgetSelectedStateRegistration::Bit;
 
 FName UWidgetSelectedStateRegistration::GetStateName() const
 {

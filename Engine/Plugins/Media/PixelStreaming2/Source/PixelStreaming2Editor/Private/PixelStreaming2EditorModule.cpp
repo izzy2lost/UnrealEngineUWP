@@ -4,6 +4,7 @@
 
 #include "PixelStreaming2Style.h"
 #include "PixelStreaming2Toolbar.h"
+#include "AssetTypeActions_VideoProducer.h"
 
 #include "CoreUtils.h"
 #include "Editor/EditorPerformanceSettings.h"
@@ -31,6 +32,8 @@
 
 #define LOCTEXT_NAMESPACE "PixelStreaming2EditorModule"
 
+#define IMAGE_BRUSH_SVG(Style, RelativePath, ...) FSlateVectorImageBrush(Style.RootToContentDir(RelativePath, TEXT(".svg")), __VA_ARGS__)
+
 namespace UE::EditorPixelStreaming2
 {
 	/**
@@ -42,10 +45,26 @@ namespace UE::EditorPixelStreaming2
 		{
 			return;
 		}
-		
+
+		IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+		AssetTools.RegisterAssetTypeActions(MakeShared<FAssetTypeActions_VideoProducer>());
+
 		// Initialize the editor toolbar
 		FPixelStreaming2Style::Initialize();
+		FSlateStyleSet& StyleInstance = UE::EditorPixelStreaming2::FPixelStreaming2Style::Get();
+
+		const FVector2D Icon20x20(20.0f, 20.0f);
+		const FVector2D Icon64x64(64.0f, 64.0f);
+
+		StyleInstance.Set("ClassThumbnail.PixelStreaming2VideoProducerBackBuffer", new IMAGE_BRUSH_SVG(StyleInstance, "PixelStreaming2_64", Icon64x64));
+		StyleInstance.Set("ClassIcon.PixelStreaming2VideoProducerBackBuffer", new IMAGE_BRUSH_SVG(StyleInstance, "PixelStreaming2_20", Icon20x20));
+		StyleInstance.Set("ClassThumbnail.PixelStreaming2VideoProducerRenderTarget", new IMAGE_BRUSH_SVG(StyleInstance, "PixelStreaming2_64", Icon64x64));
+		StyleInstance.Set("ClassIcon.PixelStreaming2VideoProducerRenderTarget", new IMAGE_BRUSH_SVG(StyleInstance, "PixelStreaming2_20", Icon20x20));
+		StyleInstance.Set("ClassThumbnail.PixelStreaming2VideoProducerMediaCapture", new IMAGE_BRUSH_SVG(StyleInstance, "PixelStreaming2_64", Icon64x64));
+		StyleInstance.Set("ClassIcon.PixelStreaming2VideoProducerMediaCapture", new IMAGE_BRUSH_SVG(StyleInstance, "PixelStreaming2_20", Icon20x20));
+
 		FPixelStreaming2Style::ReloadTextures();
+
 		Toolbar = MakeShared<FPixelStreaming2Toolbar>();
 
 		if (UPixelStreaming2Delegates* Delegates = UPixelStreaming2Delegates::Get())
@@ -421,6 +440,9 @@ namespace UE::EditorPixelStreaming2
 		}
 	}
 } // namespace UE::EditorPixelStreaming2
+
+#undef IMAGE_BRUSH_SVG
+
 #undef LOCTEXT_NAMESPACE
 
 IMPLEMENT_MODULE(UE::EditorPixelStreaming2::FPixelStreaming2EditorModule, PixelStreaming2Editor)

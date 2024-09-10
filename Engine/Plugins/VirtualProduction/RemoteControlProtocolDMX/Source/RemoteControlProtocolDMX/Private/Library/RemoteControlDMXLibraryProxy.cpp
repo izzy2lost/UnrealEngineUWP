@@ -8,12 +8,14 @@
 #include "Library/DMXLibrary.h"
 #include "Library/RemoteControlDMXControlledProperty.h"
 #include "Library/RemoteControlDMXControlledPropertyPatch.h"
+#include "Library/RemoteControlDMXProtocolEntityObserver.h"
 #include "Misc/CoreDelegates.h"
 #include "RemoteControlDMXLog.h"
 #include "RemoteControlDMXUserData.h"
 #include "RemoteControlField.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlProtocolDMX.h"
+#include "UObject/UObjectGlobals.h"
 
 #if WITH_EDITOR
 FRemoteControlDMXPrePropertyPatchesChanged URemoteControlDMXLibraryProxy::OnPrePropertyPatchesChanged;
@@ -40,6 +42,8 @@ void URemoteControlDMXLibraryProxy::PostInitProperties()
 	Preset->OnEntityUnexposed().AddUObject(this, &URemoteControlDMXLibraryProxy::OnEntityExposedOrUnexposed);
 	Preset->OnEntityRebind().AddUObject(this, &URemoteControlDMXLibraryProxy::OnEntityRebind);
 	Preset->OnEntitiesUpdated().AddUObject(this, &URemoteControlDMXLibraryProxy::OnEntitiesUpdated);
+
+	FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &URemoteControlDMXLibraryProxy::OnPostLoadMapWithWorld);
 }
 
 void URemoteControlDMXLibraryProxy::PostLoad()
@@ -103,6 +107,9 @@ void URemoteControlDMXLibraryProxy::Refresh()
 		
 #if WITH_EDITOR
 		OnPostPropertyPatchesChanged.Broadcast();
+		
+		// Listen to DMX related property changes of entities in editor
+		UpdateEntitiesObserver();
 #endif 
 
 		BindOnFixturePatchesReceived();
@@ -111,9 +118,11 @@ void URemoteControlDMXLibraryProxy::Refresh()
 
 void URemoteControlDMXLibraryProxy::Reset()
 {
+	// Cancel any refresh requests
 	RefreshDelegateHandle.Reset();
 	FCoreDelegates::OnEndFrame.RemoveAll(this);
 
+	// Reset property patches
 	PropertyPatches.Reset();
 }
 
@@ -240,6 +249,22 @@ void URemoteControlDMXLibraryProxy::UnbindOnFixturePatchesReceived()
 	}
 }
 
+#if WITH_EDITOR
+void URemoteControlDMXLibraryProxy::UpdateEntitiesObserver()
+{
+	TArray<TSharedRef<TStructOnScope<FRemoteControlProtocolEntity>>> Entities;
+	for (const TSharedRef<FRemoteControlDMXControlledPropertyPatch>& PropertyPatch : PropertyPatches)
+	{
+		for (const TSharedRef<FRemoteControlDMXControlledProperty>& Property : PropertyPatch->GetDMXControlledProperties())
+		{
+			Entities.Append(Property->GetEntities());
+		}
+	}
+
+	EntitiesObserver = MakeShared<FRemoteControlDMXProtocolEntityObserver>(Entities);
+}
+#endif // WITH_EDITOR
+
 void URemoteControlDMXLibraryProxy::OnFixturePatchReceived(UDMXEntityFixturePatch* FixturePatch, const FDMXNormalizedAttributeValueMap& ValuePerAttribute)
 {
 	const TSharedPtr<IRemoteControlProtocol> DMXProtocol = IRemoteControlProtocolModule::Get().GetProtocolByName(FRemoteControlProtocolDMX::ProtocolName);
@@ -346,6 +371,11 @@ void URemoteControlDMXLibraryProxy::OnEntityRebind(const FGuid& EntityId)
 }
 
 void URemoteControlDMXLibraryProxy::OnEntitiesUpdated(URemoteControlPreset* Preset, const TSet<FGuid>& ModifiedEntities)
+{
+	RequestRefresh();
+}
+
+void URemoteControlDMXLibraryProxy::OnPostLoadMapWithWorld(UWorld* World)
 {
 	RequestRefresh();
 }

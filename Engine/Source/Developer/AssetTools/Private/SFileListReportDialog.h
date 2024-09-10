@@ -20,7 +20,7 @@ public:
 
 	void Construct(const FArguments& InArgs);
 
-	static void OpenDialog(const FText& InTitle, const FText& InHeader, const TArray<FText>& InFiles);
+	static void OpenDialog(const FText& InTitle, const FText& InHeader, const TArray<FText>& InFiles, bool bOpenAsModal = false);
 
 private:
 	TSharedRef<ITableRow> MakeListViewWidget(TSharedRef<FText> Item, const TSharedRef<STableViewBase>& OwnerTable);

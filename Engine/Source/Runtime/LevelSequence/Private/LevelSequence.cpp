@@ -137,13 +137,8 @@ bool ULevelSequence::CanAnimateObject(UObject& InObject) const
 
 #if WITH_EDITOR
 
-ETrackSupport ULevelSequence::IsTrackSupported(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
+ETrackSupport ULevelSequence::IsTrackSupportedImpl(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
 {
-	if (!UMovieScene::IsTrackClassAllowed(InTrackClass))
-	{
-		return ETrackSupport::NotSupported;
-	}
-
 	if (InTrackClass == UMovieScene3DAttachTrack::StaticClass() ||
 		InTrackClass == UMovieScene3DPathTrack::StaticClass() ||
 		InTrackClass == UMovieSceneAudioTrack::StaticClass() ||
@@ -164,7 +159,7 @@ ETrackSupport ULevelSequence::IsTrackSupported(TSubclassOf<class UMovieSceneTrac
 		return ETrackSupport::Supported;
 	}
 
-	return Super::IsTrackSupported(InTrackClass);
+	return Super::IsTrackSupportedImpl(InTrackClass);
 }
 
 void ULevelSequence::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const

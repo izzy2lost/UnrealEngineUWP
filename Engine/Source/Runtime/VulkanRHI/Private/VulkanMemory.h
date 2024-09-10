@@ -1118,6 +1118,43 @@ namespace VulkanRHI
 	};
 
 
+	// Simple temp allocation blocks used for volatile allocations
+	class FTempBlockAllocator : public FDeviceChild
+	{
+	public:
+		struct FTempMemoryBlock
+		{
+			FVulkanAllocation Allocation;
+			VkBuffer Buffer = 0;
+			uint8* MappedPointer = 0;
+			VkDeviceAddress BufferAddress = 0;
+
+			// Used by owners to suballocate
+			TMap<FVulkanCmdBuffer*, uint64> Fences;
+			std::atomic<uint32> CurrentOffset = 0;
+		};
+
+		FTempBlockAllocator(FVulkanDevice* InDevice, uint32 InBlockSize, uint32 InBlockAlignment, VkBufferUsageFlags InBufferUsage);
+		virtual ~FTempBlockAllocator();
+
+		uint8* Alloc(uint32 InSize, FVulkanCmdBuffer* CmdBuffer, VkDescriptorBufferBindingInfoEXT& OutBindingInfo, VkDeviceSize& OutOffset);
+
+		void UpdateBlocks();
+
+	protected:
+		FTempMemoryBlock* AllocBlock();
+
+		const uint32 BlockSize;
+		const uint32 BlockAlignment;
+		const VkBufferUsageFlags BufferUsage;
+
+		FTempMemoryBlock* CurrentBlock = nullptr;
+		TArray<FTempMemoryBlock*> BusyBlocks;
+		TArray<FTempMemoryBlock*> AvailableBlocks;
+		FRWLock RWLock;
+	};
+
+
 	// Simple tape allocation per frame for a VkBuffer, used for Volatile allocations
 	class FTempFrameAllocationBuffer : public FDeviceChild
 	{

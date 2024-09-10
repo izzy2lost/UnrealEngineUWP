@@ -62,12 +62,12 @@ namespace UE::ChooserEditor
 						SNew(SOverlay)
 							+ SOverlay::Slot()
 							[
-								SNew(SImage).Image(FChooserEditorStyle::Get().GetBrush("ChooserEditor.EyeOpened"))
+								SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.Visible"))
 								.Visibility_Lambda([Column]() { return Column->bDisabled ? EVisibility::Hidden : EVisibility::Visible; })
 							]
 							+ SOverlay::Slot()
 							[
-								SNew(SImage).Image(FChooserEditorStyle::Get().GetBrush("ChooserEditor.EyeClosed"))
+								SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.Hidden"))
 								.Visibility_Lambda([Column]() { return Column->bDisabled ? EVisibility::Visible : EVisibility::Hidden; })
 							]
 					]

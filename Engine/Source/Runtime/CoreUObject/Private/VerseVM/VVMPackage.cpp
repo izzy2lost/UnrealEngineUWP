@@ -11,6 +11,7 @@
 #include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMEngineEnvironment.h"
+#include "VerseVM/VVMTupleType.h"
 #include "VerseVM/VVMVerse.h"
 
 namespace Verse
@@ -38,6 +39,15 @@ UPackage* VPackage::GetOrCreateUPackage(FAllocationContext Context, const TCHAR*
 		UPackageMap.AddValue(Context, Utf8PackageName, VValue(Package));
 	}
 	return Package;
+}
+
+void VPackage::NotifyUsedTupleType(FAllocationContext Context, VTupleType* TupleType)
+{
+	if (!UsedTupleTypes)
+	{
+		UsedTupleTypes.Set(Context, VWeakCellMap::New(Context));
+	}
+	UsedTupleTypes->Add(Context, TupleType, TupleType);
 }
 
 void VPackage::SetStage(EPackageStage InPackageStage)
@@ -83,6 +93,7 @@ void VPackage::VisitReferencesImpl(TVisitor& Visitor)
 		Visitor.Visit(DigestVariant->Code, TEXT("PublicOnlyDigest.Code"));
 	}
 	Visitor.Visit(PackageName, TEXT("PackageName"));
+	Visitor.Visit(UsedTupleTypes, TEXT("UsedTupleTypes"));
 	UPackageMap.Visit(Visitor, TEXT("UPackageMap"));
 }
 

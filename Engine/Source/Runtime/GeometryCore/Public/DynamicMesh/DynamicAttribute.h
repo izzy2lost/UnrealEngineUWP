@@ -181,6 +181,14 @@ public:
 	{
 	}
 
+	/** 
+	 * Update to reflect a vertex merge that does not resolve as a collapse or edge merge (i.e. a
+	 *  vertex merge that resolves as bowtie creation).
+	 */
+	virtual void OnMergeVertices(const DynamicMeshInfo::FMergeVerticesInfo& MergeInfo)
+	{
+	}
+
 	/** Update to reflect an edge merge in the parent mesh */
 	virtual void OnSplitVertex(const DynamicMeshInfo::FVertexSplitInfo& SplitInfo, const TArrayView<const int>& TrianglesToUpdate)
 	{
@@ -364,6 +372,26 @@ public:
 		for (TDynamicAttributeBase<ParentType>* A : RegisteredAttributes)
 		{
 			A->OnMergeEdges(MergeInfo);
+		}
+	}
+	virtual void OnMergeVertices(const DynamicMeshInfo::FMergeVerticesInfo& MergeInfo)
+	{
+		if (!ensureMsgf(!MergeInfo.EdgeCollapseInfo.IsSet(), TEXT("Vertex merge that resolves as edge collapse "
+			"is expected to have called OnCollapseEdge, not OnMergeVertices.")))
+		{
+			OnCollapseEdge(MergeInfo.EdgeCollapseInfo.GetValue());
+			return;
+		}
+		if (!ensureMsgf(!MergeInfo.MergeEdgesInfo.IsSet(), TEXT("Vertex merge that resolves as edge merge "
+			"is expected to have called OnMergeEdges, not OnMergeVertices.")))
+		{
+			OnMergeEdges(MergeInfo.MergeEdgesInfo.GetValue());
+			return;
+		}
+
+		for (TDynamicAttributeBase<ParentType>* A : RegisteredAttributes)
+		{
+			A->OnMergeVertices(MergeInfo);
 		}
 	}
 	virtual void OnSplitVertex(const DynamicMeshInfo::FVertexSplitInfo& SplitInfo, const TArrayView<const int>& TrianglesToUpdate)

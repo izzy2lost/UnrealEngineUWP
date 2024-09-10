@@ -475,7 +475,19 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 		EOptimusDataTypeUsageFlags::PinType
 		);
 
-	
+	// Name
+	Registry.RegisterType(
+		*FNameProperty::StaticClass(),
+		FText::FromString(TEXT("Name")),
+		FShaderValueTypeHandle(),
+		[](FFieldVariant InScope, FName InName) {
+			FNameProperty* Property = new FNameProperty(InScope, InName, RF_Public);
+			return Property;
+		},
+		{},
+		FName(TEXT("name")), {},
+		EOptimusDataTypeUsageFlags::Property | EOptimusDataTypeUsageFlags::PinType);
+
 	Registry.TypeWithAtomicSupport = {FIntProperty::StaticClass()->GetFName()};
 	
 	// Scan available built-in types to see if we can create array type for them
@@ -889,7 +901,7 @@ bool FOptimusDataTypeRegistry::RegisterArrayTypeIfApplicable(FOptimusDataTypeHan
 {
 	check(InElementDataType.IsValid());
 	// For now only allow array type for variables
-	if (!EnumHasAnyFlags(InElementDataType->UsageFlags, EOptimusDataTypeUsageFlags::Variable))
+	if (!EnumHasAnyFlags(InElementDataType->UsageFlags, EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::Property))
 	{
 		return false;
 	}
@@ -908,59 +920,71 @@ bool FOptimusDataTypeRegistry::RegisterArrayTypeIfApplicable(FOptimusDataTypeHan
 		
 		return ArrayProperty;
 	};
-
-	// Making sure we are copying property value of a type into shader value of a equal or larger type, see comment for GetArrayElementDataTypeForStructuredBuffer
-	FOptimusDataTypeHandle InnerDataTypeForStructuredBuffer = GetArrayElementDataTypeForStructuredBuffer(InElementDataType);
-	// This should never happen theoretically, but somehow Linux complained about it, hope this helps the next time it complains
-	if (!ensureMsgf(InnerDataTypeForStructuredBuffer.IsValid(), TEXT("Cannot find matching element type for array type registration: %s"), *(InElementDataType->TypeName.ToString())))
-	{
-		return false;
-	}
-	check(InnerDataTypeForStructuredBuffer->ShaderValueSize >= InElementDataType->ShaderValueSize);
-	PropertyValueConvertFuncT ElementPropertyValueConvertFunc = FindPropertyValueConvertFunc(InnerDataTypeForStructuredBuffer->TypeName);
-	check(ElementPropertyValueConvertFunc);
-	int32 ElementShaderValueSize = InnerDataTypeForStructuredBuffer->ShaderValueSize;
-
-	// Nested array is not supported at the moment for array variables
-	check(InnerDataTypeForStructuredBuffer->GetNumArrays() == 0);
 	
-	PropertyValueConvertFuncT ArrayPropertyValueConvertFunc = [
-		ArrayPropertyCreateFunc,
-		ElementShaderValueSize,
-		ElementPropertyValueConvertFunc
-		] (
-		TArrayView<const uint8> InRawValue,
-		FShaderValueContainerView OutShaderValue
-		) -> bool
+	PropertyValueConvertFuncT ArrayPropertyValueConvertFunc;
+	TArray<FArrayMetadata> ArrayMetadata;
+	FShaderValueTypeHandle ArrayShaderType;
+	if (InElementDataType->ShaderValueType.IsValid())
 	{
-		const TUniquePtr<FArrayProperty> LocalArrayProperty(CastField<FArrayProperty>(ArrayPropertyCreateFunc(nullptr, NAME_None)));
-
-		const FArrayProperty* ArrayProperty = LocalArrayProperty.Get();
-		// Convert each element, store them in a separate buffer that is to be uploaded
-		FScriptArrayHelper ArrayHelper(ArrayProperty, InRawValue.GetData());
-		TArray<uint8>& Buffer = OutShaderValue.ArrayList[0].ArrayOfValues;
-		Buffer.AddZeroed(ElementShaderValueSize * ArrayHelper.Num());
-				
-		for (int32 Index = 0; Index < ArrayHelper.Num(); Index++)
+		// Making sure we are copying property value of a type into shader value of a equal or larger type, see comment for GetArrayElementDataTypeForStructuredBuffer
+		FOptimusDataTypeHandle InnerDataTypeForStructuredBuffer = GetArrayElementDataTypeForStructuredBuffer(InElementDataType);
+		// This should never happen theoretically, but somehow Linux complained about it, hope this helps the next time it complains
+		if (!ensureMsgf(InnerDataTypeForStructuredBuffer.IsValid(), TEXT("Cannot find matching element type for array type registration: %s"), *(InElementDataType->TypeName.ToString())))
 		{
-			uint8* ElementPtr = ArrayHelper.GetRawPtr(Index);
-			uint8* ShaderValuePtr = Buffer.GetData() + ElementShaderValueSize * Index;
+			return false;
+		}
+		check(InnerDataTypeForStructuredBuffer->ShaderValueSize >= InElementDataType->ShaderValueSize);
+		
+		ArrayShaderType = FShaderValueType::MakeDynamicArrayType(InnerDataTypeForStructuredBuffer->ShaderValueType);
+		
+		PropertyValueConvertFuncT ElementPropertyValueConvertFunc = FindPropertyValueConvertFunc(InnerDataTypeForStructuredBuffer->TypeName);
+		check(ElementPropertyValueConvertFunc);
+		int32 ElementShaderValueSize = InnerDataTypeForStructuredBuffer->ShaderValueSize;
 
-			// Nested buffer is not possible
-			TArray<FArrayShaderValue> DummyBufferList;
+		// Nested array is not supported at the moment for array variables
+		check(InnerDataTypeForStructuredBuffer->GetNumArrays() == 0);
+		
+		ArrayPropertyValueConvertFunc= [
+			ArrayPropertyCreateFunc,
+			ElementShaderValueSize,
+			ElementPropertyValueConvertFunc
+			] (
+			TArrayView<const uint8> InRawValue,
+			FShaderValueContainerView OutShaderValue
+			) -> bool
+		{
+			const TUniquePtr<FArrayProperty> LocalArrayProperty(CastField<FArrayProperty>(ArrayPropertyCreateFunc(nullptr, NAME_None)));
 
-			if (!ElementPropertyValueConvertFunc(
-					{ElementPtr, ArrayProperty->Inner->GetSize()},
-					{
-						{ShaderValuePtr, ElementShaderValueSize},
-						DummyBufferList
-					}))
+			const FArrayProperty* ArrayProperty = LocalArrayProperty.Get();
+			// Convert each element, store them in a separate buffer that is to be uploaded
+			FScriptArrayHelper ArrayHelper(ArrayProperty, InRawValue.GetData());
+			TArray<uint8>& Buffer = OutShaderValue.ArrayList[0].ArrayOfValues;
+			Buffer.AddZeroed(ElementShaderValueSize * ArrayHelper.Num());
+					
+			for (int32 Index = 0; Index < ArrayHelper.Num(); Index++)
 			{
-				return false;
-			}
-		}	
-		return true;
-	};
+				uint8* ElementPtr = ArrayHelper.GetRawPtr(Index);
+				uint8* ShaderValuePtr = Buffer.GetData() + ElementShaderValueSize * Index;
+
+				// Nested buffer is not possible
+				TArray<FArrayShaderValue> DummyBufferList;
+
+				if (!ElementPropertyValueConvertFunc(
+						{ElementPtr, ArrayProperty->Inner->GetSize()},
+						{
+							{ShaderValuePtr, ElementShaderValueSize},
+							DummyBufferList
+						}))
+				{
+					return false;
+				}
+			}	
+			return true;
+		};
+
+		ArrayMetadata = {{ElementShaderValueSize, 0}};
+	}
+	
 
 	TSharedRef<FOptimusDataType> ArrayDataType = MakeShared<FOptimusDataType>();
 	
@@ -969,14 +993,14 @@ bool FOptimusDataTypeRegistry::RegisterArrayTypeIfApplicable(FOptimusDataTypeHan
 		ArrayDataType,
 		ArrayPropertyCreateFunc,
 		ArrayPropertyValueConvertFunc,
-		{{ElementShaderValueSize, 0}}
+		ArrayMetadata
 	};
 
 	{
 		*ArrayDataType = *InElementDataType;
 		ArrayDataType->TypeName = GetArrayTypeName(InElementDataType->TypeName);
 		ArrayDataType->DisplayName = FText::FromString(InElementDataType->DisplayName.ToString() + TEXT(" Array"));
-		ArrayDataType->ShaderValueType = FShaderValueType::MakeDynamicArrayType(InnerDataTypeForStructuredBuffer->ShaderValueType);
+		ArrayDataType->ShaderValueType = ArrayShaderType;
 		
 		EnumRemoveFlags(ArrayDataType->UsageFlags, EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::PerBoneAnimAttribute);
 		
@@ -1016,7 +1040,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 		InDataType.TypeName = GetTypeName(InFieldType);
 		InDataType.DisplayName = InDisplayName;
 		InDataType.ShaderValueType = InShaderValueType;
-		InDataType.ShaderValueSize = InShaderValueType->GetResourceElementSize();
+		InDataType.ShaderValueSize = InShaderValueType.IsValid() ? InShaderValueType->GetResourceElementSize() : 0;
 		InDataType.TypeCategory = InPinCategory;
 		if (InPinColor.IsSet())
 		{
@@ -1426,6 +1450,11 @@ FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindType(const FProperty& InPro
 	{
 		const FName TypeName(*FString::Printf(TEXT("U%s"), *ObjectProperty->PropertyClass->GetName()));
 		return FindType(TypeName);
+	}
+	else if (const FArrayProperty* ArrayProperty = CastField<const FArrayProperty>(&InProperty))
+	{
+		const FProperty* PropertyForType = ArrayProperty->Inner;
+		return FindArrayType(*PropertyForType->GetClass());
 	}
 	else
 	{

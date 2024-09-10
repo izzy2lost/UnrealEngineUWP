@@ -3,7 +3,7 @@
 #include "Message.h"
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 #include "HAL/Platform.h" // for PLATFORM_BREAK
 #include "Platform.h"
@@ -27,9 +27,9 @@ extern FStatistics	GTraceStatistics;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-UE_TRACE_EVENT_BEGIN($Trace, ThreadTiming, NoSync)
-	UE_TRACE_EVENT_FIELD(uint64, BaseTimestamp)
-UE_TRACE_EVENT_END()
+UE_TRACE_MINIMAL_EVENT_BEGIN($Trace, ThreadTiming, NoSync)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint64, BaseTimestamp)
+UE_TRACE_MINIMAL_EVENT_END()
 
 
 
@@ -96,7 +96,7 @@ static FWriteBuffer* Writer_NextBufferInternal(FWriteBuffer* CurrentBuffer)
 		NextBuffer->ThreadId = uint16(Writer_GetThreadId());
 		NextBuffer->PrevTimestamp = TimeGetTimestamp();
 
-		UE_TRACE_LOG($Trace, ThreadTiming, TraceLogChannel)
+		UE_TRACE_MINIMAL_LOG($Trace, ThreadTiming, TraceLogChannel)
 			<< ThreadTiming.BaseTimestamp(NextBuffer->PrevTimestamp - GStartCycle);
 
 		// Add this next buffer to the active list.
@@ -326,4 +326,4 @@ void Writer_EndThreadBuffer()
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

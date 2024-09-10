@@ -21,7 +21,7 @@ namespace HordeServer.Tests.Storage
 			AddPlugin<StoragePlugin>();
 		}
 
-		IStorageClient CreateStorageClient()
+		IStorageNamespace GetStorageNamespace()
 		{
 			StorageConfig storageConfig = new StorageConfig();
 			storageConfig.Backends.Add(new BackendConfig { Id = new BackendId("default-backend"), Type = StorageBackendType.Memory });
@@ -31,7 +31,7 @@ namespace HordeServer.Tests.Storage
 			globalConfig.Plugins.Add(new PluginName("storage"), storageConfig);
 			SetConfig(globalConfig);
 
-			return StorageService.CreateClient(new NamespaceId("default"));
+			return StorageService.GetNamespace(new NamespaceId("default"));
 		}
 
 		static byte[] CreateTestData(int length, int seed)
@@ -57,7 +57,7 @@ namespace HordeServer.Tests.Storage
 			}
 		}
 
-		static async ValueTask<Blob> ReadBlobAsync(IStorageClient store, HashedBlobRefValue locator)
+		static async ValueTask<Blob> ReadBlobAsync(IStorageNamespace store, HashedBlobRefValue locator)
 		{
 			using (BlobData blobData = await store.CreateBlobRef(locator.Hash, locator.Locator).ReadBlobDataAsync())
 			{
@@ -75,7 +75,7 @@ namespace HordeServer.Tests.Storage
 			}
 		}
 
-		static async ValueTask<HashedBlobRefValue> WriteBlobAsync(IStorageClient store, Blob blob)
+		static async ValueTask<HashedBlobRefValue> WriteBlobAsync(IStorageNamespace store, Blob blob)
 		{
 			await using IBlobWriter writer = store.CreateBlobWriter();
 			writer.WriteVariableLengthBytes(blob.Data.Span);
@@ -94,7 +94,7 @@ namespace HordeServer.Tests.Storage
 		[TestMethod]
 		public async Task LeafTestAsync()
 		{
-			IStorageClient store = CreateStorageClient();
+			IStorageNamespace store = GetStorageNamespace();
 
 			byte[] input = CreateTestData(256, 0);
 
@@ -109,7 +109,7 @@ namespace HordeServer.Tests.Storage
 		[TestMethod]
 		public async Task ReferenceTestAsync()
 		{
-			IStorageClient store = CreateStorageClient();
+			IStorageNamespace store = GetStorageNamespace();
 
 			byte[] input1 = CreateTestData(256, 1);
 			HashedBlobRefValue locator1 = await WriteBlobAsync(store, new Blob(input1, Array.Empty<HashedBlobRefValue>()));
@@ -141,7 +141,7 @@ namespace HordeServer.Tests.Storage
 		[TestMethod]
 		public async Task RefExpiryTestAsync()
 		{
-			IStorageClient store = CreateStorageClient();
+			IStorageNamespace store = GetStorageNamespace();
 
 			Blob blob1 = new Blob(new byte[] { 1, 2, 3 }, Array.Empty<HashedBlobRefValue>());
 			HashedBlobRefValue target = await WriteBlobAsync(store, blob1);
@@ -173,7 +173,7 @@ namespace HordeServer.Tests.Storage
 			Assert.AreEqual(default, await TryReadRefValueAsync(store, "test-ref-3"));
 		}
 
-		static async Task<HashedBlobRefValue?> TryReadRefValueAsync(IStorageClient store, RefName name)
+		static async Task<HashedBlobRefValue?> TryReadRefValueAsync(IStorageNamespace store, RefName name)
 		{
 			IHashedBlobRef? handle = await store.TryReadRefAsync(name);
 			if (handle == null)

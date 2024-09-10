@@ -317,7 +317,7 @@ void FMobileSceneRenderer::RenderPixelProjectedReflection(FRDGBuilder& GraphBuil
 			RDG_EVENT_NAME("PixelProjectedReflection_Reflection %dx%d (PS)", ViewRect.Width(), ViewRect.Height()),
 			PSShaderParameters,
 			ERDGPassFlags::Raster | ERDGPassFlags::NeverCull,
-			[VertexShader, VSShaderParameters, PixelShader, PSShaderParameters, ViewRect](FRHICommandList& RHICmdList)
+			[VertexShader, VSShaderParameters, PixelShader, PSShaderParameters, ViewRect](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
 

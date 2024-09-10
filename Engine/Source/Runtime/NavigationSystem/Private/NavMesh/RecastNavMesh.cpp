@@ -1215,6 +1215,10 @@ void ARecastNavMesh::SetConfig(const FNavDataConfig& Src)
 {
 	// Step 1: set NavDataConfig
 	NavDataConfig = Src;
+
+	// Set the NavAgentProperties that are being used to configure navmmesh
+	SetNavAgentProperties(Src);
+
 	if (!Src.HasStepHeightOverride())
 	{
 		// If there is no override, use the navmesh value.
@@ -3145,6 +3149,11 @@ void ARecastNavMesh::DetachNavMeshDataChunk(URecastNavMeshDataChunk& NavDataChun
 
 bool ARecastNavMesh::AdjustLocationWithFilter(const FVector& StartLoc, FVector& OutAdjustedLocation, const FNavigationQueryFilter& Filter, const UObject* QueryOwner) const
 {
+	if (HasValidNavmesh() == false)
+	{
+		return false;
+	}
+
 	INITIALIZE_NAVQUERY(NavQuery, Filter.GetMaxSearchNodes());
 
 	const FVector NavExtent = GetModifiedQueryExtent(GetDefaultQueryExtent());

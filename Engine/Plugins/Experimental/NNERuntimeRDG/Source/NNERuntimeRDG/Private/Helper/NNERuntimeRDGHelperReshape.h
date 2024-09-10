@@ -6,7 +6,7 @@
 #include "Algo/Count.h"
 #include "CoreMinimal.h"
 #include "Misc/EnumerateRange.h"
-#include "NNE.h"
+#include "NNEHlslShadersLog.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
 
@@ -27,14 +27,14 @@ namespace UE::NNERuntimeRDG::Private::ShapeHelper::Reshape
 			// at most 1 dimension can be -1
 			if (Algo::Count(ReshapedShape, -1) > 1)
 			{
-				UE_LOG(LogNNE, Error, TEXT("Reshape: Shape tensor can't contain more than one '-1'."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Reshape: Shape tensor can't contain more than one '-1'."));
 				return false;
 			}
 			for (TEnumerateRef<DataType> Elem : EnumerateRange(ReshapedShape))
 			{
 				if (!(*Elem != 0 || InputTensorShape.Rank() > Elem.GetIndex()))
 				{
-					UE_LOG(LogNNE, Error, TEXT("Reshape: Shape tensor contains '0' in an invalid place."));
+					UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Reshape: Shape tensor contains '0' in an invalid place."));
 					return false;
 				}
 				*Elem =
@@ -49,7 +49,7 @@ namespace UE::NNERuntimeRDG::Private::ShapeHelper::Reshape
 			// no -1 is allowed if there is a 0
 			if (Algo::Count(ReshapedShape, 0) != 0 && Algo::Count(ReshapedShape, -1) != 0)
 			{
-				UE_LOG(LogNNE, Error, TEXT("Reshape: Shape tensor contains both '0' and '-1'. This is not allowed."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Reshape: Shape tensor contains both '0' and '-1'. This is not allowed."));
 				return false;
 			}
 		}

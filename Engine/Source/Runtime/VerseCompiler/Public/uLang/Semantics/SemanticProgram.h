@@ -201,6 +201,9 @@ public:
     CSymbol _Inf;
     CSymbol _NaN;
 
+    // @available symbols
+    CSymbol _MinUploadedAtFNVersion;
+
 private:
     CUTF8StringView _OperatorOpNamePrefix;
     CUTF8StringView _PrefixOpNamePrefix;
@@ -342,6 +345,8 @@ public:
     CClass* _attributeScopeTypeDefinition{nullptr}; // @attribscope_typedefinition - attribute which can be on type definitions
     CClass* _attributeScopeScopedDefinition{nullptr}; // @attribscope_scopeddefinition - attribute which can be on scoped access level definitions
     CClass* _customAttributeHandler{nullptr};       // @customattribhandler - attribute has a native custom handler to process
+
+    CClass* _availableClass{nullptr};             // @available - this definition is only available in certain versions
 
     // Cached references to some attributes that are defined in code, but commonly interpreted by the compiler.
     template<typename DefinitionType>

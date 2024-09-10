@@ -625,7 +625,7 @@ bool FBaseDynamicMeshSceneProxy::HasRayTracingRepresentation() const
 }
 
 
-void FBaseDynamicMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FBaseDynamicMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_BaseDynamicMeshSceneProxy_GetDynamicRayTracingInstances);
 
@@ -652,10 +652,10 @@ void FBaseDynamicMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMateri
 	bool bDrawSecondaryBuffers = ParentBaseComponent->GetSecondaryBuffersVisibility();
 
 	// is it safe to share this between primary and secondary raytracing batches?
-	FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
+	FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
 	FPrimitiveUniformShaderParametersBuilder Builder;
 	BuildUniformShaderParameters(Builder);
-	DynamicPrimitiveUniformBuffer.Set(Context.RayTracingMeshResourceCollector.GetRHICommandList(), Builder);
+	DynamicPrimitiveUniformBuffer.Set(Collector.GetRHICommandList(), Builder);
 
 	// Draw the active buffer sets
 	for (FMeshRenderBufferSet* BufferSet : Buffers)
@@ -688,7 +688,7 @@ void FBaseDynamicMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMateri
 			&& BufferSet->PrimaryRayTracingGeometry.IsValid())
 		{
 			ensure(BufferSet->PrimaryRayTracingGeometry.Initializer.IndexBuffer.IsValid());
-			DrawRayTracingBatch(Context, *BufferSet, BufferSet->IndexBuffer, BufferSet->PrimaryRayTracingGeometry, MaterialProxy, DepthPriority, DynamicPrimitiveUniformBuffer, OutRayTracingInstances);
+			DrawRayTracingBatch(Collector, *BufferSet, BufferSet->IndexBuffer, BufferSet->PrimaryRayTracingGeometry, MaterialProxy, DepthPriority, DynamicPrimitiveUniformBuffer);
 		}
 
 		// draw secondary index buffer if we have it, falling back to base material if we don't have the Secondary material
@@ -699,12 +699,12 @@ void FBaseDynamicMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMateri
 			&& BufferSet->SecondaryRayTracingGeometry.IsValid())
 		{
 			ensure(BufferSet->SecondaryRayTracingGeometry.Initializer.IndexBuffer.IsValid());
-			DrawRayTracingBatch(Context, *BufferSet, BufferSet->SecondaryIndexBuffer, BufferSet->SecondaryRayTracingGeometry, UseSecondaryMaterialProxy, DepthPriority, DynamicPrimitiveUniformBuffer, OutRayTracingInstances);
+			DrawRayTracingBatch(Collector, *BufferSet, BufferSet->SecondaryIndexBuffer, BufferSet->SecondaryRayTracingGeometry, UseSecondaryMaterialProxy, DepthPriority, DynamicPrimitiveUniformBuffer);
 		}
 	}
 }
 
-void FBaseDynamicMeshSceneProxy::DrawRayTracingBatch(FRayTracingMaterialGatheringContext& Context, const FMeshRenderBufferSet& RenderBuffers, const FDynamicMeshIndexBuffer32& IndexBuffer, FRayTracingGeometry& RayTracingGeometry, FMaterialRenderProxy* UseMaterialProxy, ESceneDepthPriorityGroup DepthPriority, FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer, TArray<FRayTracingInstance>& OutRayTracingInstances) const
+void FBaseDynamicMeshSceneProxy::DrawRayTracingBatch(FRayTracingInstanceCollector& Collector, const FMeshRenderBufferSet& RenderBuffers, const FDynamicMeshIndexBuffer32& IndexBuffer, FRayTracingGeometry& RayTracingGeometry, FMaterialRenderProxy* UseMaterialProxy, ESceneDepthPriorityGroup DepthPriority, FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer) const
 {
 	ensure(RayTracingGeometry.Initializer.IndexBuffer.IsValid());
 
@@ -721,7 +721,7 @@ void FBaseDynamicMeshSceneProxy::DrawRayTracingBatch(FRayTracingMaterialGatherin
 	MeshBatch.Type = PT_TriangleList;
 	MeshBatch.DepthPriorityGroup = DepthPriority;
 	MeshBatch.bCanApplyViewModeOverrides = this->bEnableViewModeOverrides;
-	MeshBatch.CastRayTracedShadow = IsShadowCast(Context.ReferenceView);
+	MeshBatch.CastRayTracedShadow = IsShadowCast(Collector.GetReferenceView());
 
 	FMeshBatchElement& BatchElement = MeshBatch.Elements[0];
 	BatchElement.IndexBuffer = &IndexBuffer;
@@ -733,7 +733,7 @@ void FBaseDynamicMeshSceneProxy::DrawRayTracingBatch(FRayTracingMaterialGatherin
 
 	RayTracingInstance.Materials.Add(MeshBatch);
 
-	OutRayTracingInstances.Add(RayTracingInstance);
+	Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 }
 
 #endif // RHI_RAYTRACING

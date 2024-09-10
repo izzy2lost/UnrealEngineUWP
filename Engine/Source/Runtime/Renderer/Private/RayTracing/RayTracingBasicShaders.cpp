@@ -45,7 +45,8 @@ FBasicRayTracingPipeline GetBasicRayTracingPipeline(FRHICommandList& RHICmdList,
 	PipelineInitializer.SetMissShaderTable(MissShaderTable);
 		
 	FRayTracingShaderBindingTableInitializer SBTInitializer;
-	SBTInitializer.bAllowHitGroupIndexing = false;
+	SBTInitializer.ShaderBindingMode = ERayTracingShaderBindingMode::RTPSO;
+	SBTInitializer.HitGroupIndexingMode = ERayTracingHitGroupIndexingMode::Disallow;
 	SBTInitializer.NumGeometrySegments = 1;
 	SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 	SBTInitializer.NumMissShaderSlots = 1;
@@ -55,7 +56,7 @@ FBasicRayTracingPipeline GetBasicRayTracingPipeline(FRHICommandList& RHICmdList,
 	FBasicRayTracingPipeline Result;
 
 	Result.PipelineState = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, PipelineInitializer);
-	Result.SBT = RHICreateShaderBindingTable(SBTInitializer);
+	Result.SBT = RHICmdList.CreateRayTracingShaderBindingTable(SBTInitializer);
 	Result.OcclusionRGS = OcclusionRGS;
 	Result.IntersectionRGS = IntersectionRGS;
 

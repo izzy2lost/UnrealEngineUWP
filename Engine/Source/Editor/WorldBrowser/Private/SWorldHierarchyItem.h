@@ -70,7 +70,8 @@ private:
 	bool IsSaveEnabled() const;
 	bool IsLightingScenarioEnabled() const;
 	bool IsLockEnabled() const;
-	bool IsVisibilityEnabled() const;
+	bool IsEditorVisibilityEnabled() const;
+	bool IsGameVisibilityEnabled() const;
 	bool IsKismetEnabled() const;
 
 	/** Get DrawColor for the level */
@@ -81,7 +82,8 @@ private:
 	 *
 	 *	@return	A reply that indicated whether this event was handled.
 	 */
-	FReply OnToggleVisibility();
+	FReply OnToggleEditorVisibility();
+	FReply OnToggleGameVisibility();
 
 	FReply OnToggleLightingScenario();
 
@@ -125,8 +127,11 @@ private:
 	/** Whether color button should be visible, depends on whether sub-level is loaded */
 	EVisibility GetColorButtonVisibility() const;
 	
-	/** Gets the tooltip for the visibility toggle */
-	FText GetVisibilityToolTip() const;
+	/** Gets the tooltip for the editor visibility toggle */
+	FText GetEditorVisibilityToolTip() const;
+	
+	/** Gets the tooltip for the game visibility toggle */
+	FText GetGameVisibilityToolTip() const;
 
 	/** Gets the tooltip for the save button */
 	FText GetSaveToolTip() const;
@@ -162,6 +167,7 @@ private:
 	 *	@return	The SlateBrush representing the Level's visibility state
 	 */
 	const FSlateBrush* GetLevelVisibilityBrush() const;
+	const FSlateBrush* GetGameVisibilityBrush() const;
 
 	const FSlateBrush* GetLightingScenarioBrush() const;
 
@@ -229,8 +235,11 @@ private:
 	/** True when this item has children and is expanded */
 	TAttribute<bool>				IsItemExpanded;
 
-	/**	The visibility button for the Level */
-	TSharedPtr<SButton>				VisibilityButton;
+	/**	The editor visibility button for the Level */
+	TSharedPtr<SButton>				EditorVisibilityButton;
+	
+	/**	The game visibility button for the Level */
+	TSharedPtr<SButton>				GameVisibilityButton;
 
 	/**	The lighting scenario button for the Level */
 	TSharedPtr<SButton>				LightingScenarioButton;

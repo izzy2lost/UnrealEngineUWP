@@ -602,7 +602,9 @@ void UPCGManagedComponentBase::MarkAsUsed()
 	{
 		if (GeneratedComponent.Get())
 		{
-			GeneratedComponent->ComponentTags.Remove(PCGHelpers::MarkedForCleanupPCGTag);
+			// Remove all non-default tags, including the "marked for cleanup" tag
+			GeneratedComponent->ComponentTags.Reset();
+			GeneratedComponent->ComponentTags.Add(PCGHelpers::DefaultPCGTag);
 		}
 	}
 }

@@ -22,6 +22,7 @@ namespace PCGSplineSlicerHelpers
 		TMap<FString, PCGGrammar::FTokenizedGrammar> CachedModules;
 		bool bAcceptIncompleteSlicing = false;
 		double ModuleHeight = 0.0;
+		int32 AdditionalSeed = 0;
 
 		const UPCGPolyLineData* PolyLineData = nullptr;
 		TArray<FPCGPoint>* OutPoints = nullptr;
@@ -105,7 +106,7 @@ namespace PCGSplineSlicerHelpers
 		 */
 		TArray<PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>> ModulesInstances;
 		double RemainingSubdivide;
-		if (!Subdivide(*CurrentTokenizedGrammar.ModuleGrammar, SplineLength, ModulesInstances, RemainingSubdivide, InOutParameters.Context))
+		if (!Subdivide(*CurrentTokenizedGrammar.ModuleGrammar, SplineLength, ModulesInstances, RemainingSubdivide, InOutParameters.Context, InOutParameters.AdditionalSeed))
 		{
 			return;
 		}
@@ -116,49 +117,134 @@ namespace PCGSplineSlicerHelpers
 			return;
 		}
 
+		// Since we're essentially mapping spline-space modules onto linear-space modules (they aren't deformed),
+		// Then we need to refit potentially, knowing that having scaled up some modules might make the total length too large.
+		// We'll do a few passes to converge to a better fit.
+		TArray<double> ModuleAlphas;
+		int LengthConvergencePass = 0;
+		const int MaxLengthConvergencePass = 10;
+
+		constexpr double OvershootToleranceFactor = 0.02; // 2%
+		constexpr double OvershootToleranceMax = 5.0; // 5 cm
+		double MinimumModuleSize = std::numeric_limits<double>::max();
+		for (const PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance : ModulesInstances)
+		{
+			const FName Symbol = ModuleInstance.Module->Descriptor->Symbol;
+			const FPCGSlicingSubmodule& SlicingSubmodule = InOutParameters.ModulesInfo[Symbol];
+			MinimumModuleSize = FMath::Min(MinimumModuleSize, SlicingSubmodule.Size);
+		}
+
+		const double OvershootTolerance = FMath::Min(MinimumModuleSize * OvershootToleranceFactor, OvershootToleranceMax);
+
+		for(;LengthConvergencePass < MaxLengthConvergencePass; ++LengthConvergencePass)
+		{
+			ModuleAlphas.Reset(ModulesInstances.Num() + 1);
+			ModuleAlphas.Emplace(0.0);
+
+			double ScaledLength = 0.0;
+			double OvershootDistance = 0.0;
+			bool bAtSplineEnd = false;
+
+			for (const PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance : ModulesInstances)
+			{
+				const FName Symbol = ModuleInstance.Module->Descriptor->Symbol;
+				const FPCGSlicingSubmodule& SlicingSubmodule = InOutParameters.ModulesInfo[Symbol];
+				const double SubmoduleSize = SlicingSubmodule.Size * (1.0 + ModuleInstance.ExtraScale);
+
+				// TODO: modules that can be deformed can also have extra scale, but the move in spline space (so their real length needs to be measured)
+				if (ModuleInstance.ExtraScale > 0)
+				{
+					ScaledLength += SlicingSubmodule.Size * ModuleInstance.ExtraScale;
+				}
+
+				if (!bAtSplineEnd)
+				{
+					const double PreviousAlpha = ModuleAlphas.Last();
+					const double CurrentAlpha = FindRootAtLinearDistance_Bisection(InOutParameters.PolyLineData, SubmoduleSize, PreviousAlpha);
+
+					ModuleAlphas.Add(CurrentAlpha);
+
+					if (FMath::IsNearlyEqual(CurrentAlpha, 1.0))
+					{
+						bAtSplineEnd = true;
+
+						// In this case, we know that the end of the module might be really after the end of the spline, so we need to compare the distance and add it to the overshoot.
+						const FVector SubmoduleStartPoint = InOutParameters.PolyLineData->GetLocationAtAlpha(ModuleAlphas.Last(1));
+						const FVector SplineEndPoint = InOutParameters.PolyLineData->GetLocationAtAlpha(ModuleAlphas.Last());
+
+						const double LastSegmentOvershoot = SubmoduleSize - (SplineEndPoint - SubmoduleStartPoint).Length();
+						if (LastSegmentOvershoot > 0)
+						{
+							OvershootDistance += LastSegmentOvershoot;
+						}
+					}
+				}
+				else
+				{
+					OvershootDistance += SubmoduleSize;
+				}
+			}
+
+			// Evaluate if we need another pass
+			if (LengthConvergencePass < MaxLengthConvergencePass && OvershootDistance > OvershootTolerance && ScaledLength > 0)
+			{
+				double UpdateExtraScaleFactor = 1.0;
+
+				// If the leeway we currently have (scaled length) is smaller than the overshoot distance, we are unlikely to converge, and in this instance it's probably best to set the scale to zero across the board.
+				if (OvershootDistance > ScaledLength)
+				{
+					UpdateExtraScaleFactor = 0.0;
+				}
+				// Otherwise, we want to move towards a better solution, but not too quickly lest we undershoot (which we don't detect here).
+				else
+				{
+					UpdateExtraScaleFactor = 0.25 * (3.0 + ((ScaledLength - OvershootDistance) / ScaledLength));
+					check(UpdateExtraScaleFactor >= 0.0 && UpdateExtraScaleFactor <= 1.0);
+				}
+
+				for (PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance : ModulesInstances)
+				{
+					if (ModuleInstance.ExtraScale > 0)
+					{
+						ModuleInstance.ExtraScale *= UpdateExtraScaleFactor;
+					}
+				}
+			}
+			else
+			{
+				// TODO: possibly log an error here, but it's subtle to get to a place where it's not too much
+				break;
+			}
+		}
+
 		const bool bHasMetadata = InOutParameters.SymbolAttribute || InOutParameters.DebugColorAttribute || InOutParameters.ModuleIndexAttribute || InOutParameters.IsFirstPointAttribute || InOutParameters.IsFinalPointAttribute;
 
-		int32 ModuleIndexCounter = 0; // Keep track for the output attribute
-		double SplineAlpha = 0.0; // Will be incremented as we progress through the spline
-		for (int32 ModuleInstanceIndex = 0; ModuleInstanceIndex < ModulesInstances.Num(); ModuleInstanceIndex++)
+		FVector PreviousSegmentEndPoint = (ModuleAlphas.IsEmpty() ? FVector::Zero() : InOutParameters.PolyLineData->GetLocationAtAlpha(ModuleAlphas[0]));
+		const int32 NumIterations = FMath::Min(ModulesInstances.Num(), ModuleAlphas.Num() - 1);
+		for (int32 ModuleInstanceIndex = 0; ModuleInstanceIndex < NumIterations; ModuleInstanceIndex++)
 		{
 			const PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance = ModulesInstances[ModuleInstanceIndex];
 			const FName Symbol = ModuleInstance.Module->Descriptor->Symbol;
 
 			const FPCGSlicingSubmodule& SlicingSubmodule = InOutParameters.ModulesInfo[Symbol];
-			const double SubmoduleSize = SlicingSubmodule.Size;
+			const double SubmoduleSize = SlicingSubmodule.Size * (1.0 + ModuleInstance.ExtraScale);
+
+			const double& PreviousAlpha = ModuleAlphas[ModuleInstanceIndex];
+			const double& SplineAlpha = ModuleAlphas[ModuleInstanceIndex + 1];
 
 			// Move to the next segment of the spline
-			const FVector SegmentStartPoint = InOutParameters.PolyLineData->GetLocationAtAlpha(SplineAlpha);
-			const double PreviousAlpha = SplineAlpha;
-
-			// Use a numerical method to find the root of where the module lands on the spline
-			SplineAlpha = FindRootAtLinearDistance_Bisection(InOutParameters.PolyLineData, SubmoduleSize, SplineAlpha);
-
+			const FVector SegmentStartPoint = PreviousSegmentEndPoint;
 			const FVector SegmentEndPoint = InOutParameters.PolyLineData->GetLocationAtAlpha(SplineAlpha);
+			PreviousSegmentEndPoint = SegmentEndPoint;
 			const FVector SliceVector = SegmentEndPoint - SegmentStartPoint;
 			const FVector SliceDirection = SliceVector.GetSafeNormal();
-
-			// At the end of the spline, truncate an unfinished submodule and end the process
-			if (FMath::IsNearlyEqual(SplineAlpha, 1))
-			{
-				if (SliceVector.Length() < SubmoduleSize)
-				{
-					if (InOutParameters.IsFinalPointAttribute && !InOutParameters.OutPoints->IsEmpty())
-					{
-						InOutParameters.IsFinalPointAttribute->SetValue(InOutParameters.OutPoints->Last().MetadataEntry, true);
-					}
-
-					return;
-				}
-			}
 
 			// Since its discretized, we won't take the transform's position, but we'll use the up vector--to create the module rotation--and the scale
 			FTransform CenterPointTransform = InOutParameters.PolyLineData->GetTransformAtAlpha((SplineAlpha + PreviousAlpha) * 0.5);
 
 			const FVector Position = SegmentStartPoint + (SliceVector * 0.5) + FVector(0, 0, InOutParameters.ModuleHeight * 0.5);
 			const FRotator Rotation = FRotationMatrix::MakeFromXZ(SliceDirection, CenterPointTransform.GetRotation().GetUpVector()).Rotator();
-			const FVector Scale = FVector::OneVector + (SliceDirection * ModuleInstance.ExtraScale);
+			const FVector Scale = FVector(1.0 + ModuleInstance.ExtraScale, 1.0, 1.0);
 
 			FPCGPoint& OutPoint = InOutParameters.OutPoints->Emplace_GetRef(FTransform(Rotation, Position, Scale), /*InDensity=*/1, PCGHelpers::ComputeSeedFromPosition(Position));
 
@@ -184,7 +270,7 @@ namespace PCGSplineSlicerHelpers
 
 			if (InOutParameters.ModuleIndexAttribute)
 			{
-				InOutParameters.ModuleIndexAttribute->SetValue(OutPoint.MetadataEntry, ModuleIndexCounter++);
+				InOutParameters.ModuleIndexAttribute->SetValue(OutPoint.MetadataEntry, ModuleInstanceIndex);
 			}
 
 			const bool bIsFirstModule = (ModuleInstanceIndex == 0);
@@ -193,7 +279,7 @@ namespace PCGSplineSlicerHelpers
 				InOutParameters.IsFirstPointAttribute->SetValue(OutPoint.MetadataEntry, true);
 			}
 
-			const bool bIsFinalModule = (ModuleInstanceIndex == ModulesInstances.Num() - 1);
+			const bool bIsFinalModule = (ModuleInstanceIndex == NumIterations - 1);
 			if (bIsFinalModule && InOutParameters.IsFinalPointAttribute)
 			{
 				InOutParameters.IsFinalPointAttribute->SetValue(OutPoint.MetadataEntry, true);
@@ -309,6 +395,24 @@ bool FPCGSplineSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 			|| !CreateAndValidateAttribute(Settings->IsFinalAttributeName, false, Settings->bOutputExtremityAttributes, Parameters.IsFinalPointAttribute))
 		{
 			continue;
+		}
+
+		// Set seed if required
+		Parameters.AdditionalSeed = 0;
+		if (Settings->bUseSeedAttribute)
+		{
+			const FPCGAttributePropertyInputSelector Selector = Settings->SeedAttribute.CopyAndFixLast(InputPolyLineData);
+			TUniquePtr<const IPCGAttributeAccessor> SeedAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputPolyLineData, Selector);
+
+			if (!SeedAccessor)
+			{
+				PCGLog::Metadata::LogFailToCreateAccessorError(Selector, InContext);
+			}
+			// Otherwise, get the value, if it fails, the attribute wasn't compatible
+			else if (!SeedAccessor->Get(Parameters.AdditionalSeed, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey), EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible))
+			{
+				PCGLog::Metadata::LogFailToGetAttributeError<int32>(Selector, SeedAccessor.Get(), InContext);
+			}
 		}
 
 		if (Settings->GrammarSelection.bGrammarAsAttribute)

@@ -371,7 +371,7 @@ void UBuoyancySubsystem::UpdateSplineData()
 					WaterBodyComponent->GetWaterBodyType(),
 					SplineMetadata ? SplineMetadata->RiverWidth : EmptyOptionalFloat,
 					SplineMetadata ? SplineMetadata->WaterVelocityScalar : EmptyOptionalFloat,
-					bUseShallowWaterSimulation && WaterBodyComponent->UseBakedShallowWaterSimulationForBuoyancy() ? BakedSim->SimulationData : EmptyOptionalSimGrid
+					bUseShallowWaterSimulation && WaterBodyComponent->UseBakedSimulationForQueriesAndPhysics() ? BakedSim->SimulationData : EmptyOptionalSimGrid
 				);
 
 				// Go over each physics object in each primitive component which was generated

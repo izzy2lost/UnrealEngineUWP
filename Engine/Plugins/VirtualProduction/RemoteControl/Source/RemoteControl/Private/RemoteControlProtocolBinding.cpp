@@ -994,5 +994,3 @@ uint32 GetTypeHash(const FRemoteControlProtocolBinding& InProtocolBinding)
 {
 	return GetTypeHash(InProtocolBinding.Id);
 }
-
-#undef LOCTEXT_NAMESPACE

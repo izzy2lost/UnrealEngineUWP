@@ -129,11 +129,11 @@ namespace HordeServer.Tools
 				return _collection.CreateToolObject(document);
 			}
 
-			public IStorageBackend CreateStorageBackend()
+			public IStorageBackend GetStorageBackend()
 				=> _collection.CreateStorageBackend(_config);
 
-			public IStorageClient CreateStorageClient()
-				=> _collection.CreateStorageClient(_config);
+			public IStorageNamespace GetStorageNamespace()
+				=> _collection.GetStorageNamespace(_config);
 		}
 
 		class ToolDeployment : IToolDeployment
@@ -150,6 +150,9 @@ namespace HordeServer.Tools
 			public TimeSpan Duration => _document.Duration;
 			public NamespaceId NamespaceId => _document.NamespaceId;
 			public RefName RefName => _document.RefName;
+
+			public IBlobRef<DirectoryNode> Content
+				=> _collection.Open(_tool.Config, _document);
 
 			public ToolDeployment(Tool tool, ToolCollection collection, ToolDeploymentDocument document, DateTime utcNow)
 			{
@@ -329,7 +332,7 @@ namespace HordeServer.Tools
 		{
 			ToolDeploymentId deploymentId = new ToolDeploymentId(BinaryIdUtils.CreateNew());
 
-			IStorageClient client = _storageService.CreateClient(toolConfig.NamespaceId);
+			IStorageNamespace client = _storageService.GetNamespace(toolConfig.NamespaceId);
 
 			IHashedBlobRef<DirectoryNode> nodeRef;
 			await using (IBlobWriter writer = client.CreateBlobWriter($"{tool.Id}/{deploymentId}"))
@@ -346,11 +349,11 @@ namespace HordeServer.Tools
 		{
 			ToolDeploymentId deploymentId = new ToolDeploymentId(BinaryIdUtils.CreateNew());
 
-			IStorageClient client = _storageService.CreateClient(toolConfig.NamespaceId);
+			IStorageNamespace client = _storageService.GetNamespace(toolConfig.NamespaceId);
 			return await CreateDeploymentInternalAsync(tool, toolConfig, deploymentId, options, client, client.CreateBlobRef(target), cancellationToken);
 		}
 
-		async Task<ToolDocument?> CreateDeploymentInternalAsync(ToolDocument tool, ToolConfig toolConfig, ToolDeploymentId deploymentId, ToolDeploymentConfig options, IStorageClient storageClient, IHashedBlobRef content, CancellationToken cancellationToken)
+		async Task<ToolDocument?> CreateDeploymentInternalAsync(ToolDocument tool, ToolConfig toolConfig, ToolDeploymentId deploymentId, ToolDeploymentConfig options, IStorageNamespace storageNamespace, IHashedBlobRef content, CancellationToken cancellationToken)
 		{
 			if (toolConfig is BundledToolConfig)
 			{
@@ -359,7 +362,7 @@ namespace HordeServer.Tools
 
 			// Write a ref for the deployment so the blobs aren't GC'd
 			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
-			await storageClient.WriteRefAsync(refName, content, cancellationToken: cancellationToken);
+			await storageNamespace.WriteRefAsync(refName, content, cancellationToken: cancellationToken);
 
 			// Create the new deployment object
 			ToolDeploymentDocument deployment = new ToolDeploymentDocument(deploymentId, options, toolConfig.NamespaceId, refName);
@@ -404,7 +407,7 @@ namespace HordeServer.Tools
 				}
 
 				ToolDeploymentDocument removeDeployment = tool.Deployments[0];
-				IStorageClient client = _storageService.CreateClient(removeDeployment.NamespaceId);
+				IStorageNamespace client = _storageService.GetNamespace(removeDeployment.NamespaceId);
 				await client.DeleteRefAsync(removeDeployment.RefName, cancellationToken);
 			}
 
@@ -456,24 +459,24 @@ namespace HordeServer.Tools
 		}
 
 		/// <summary>
-		/// Gets the storage client containing data for a particular tool
+		/// Gets the storage namespace containing data for a particular tool
 		/// </summary>
 		/// <param name="toolConfig">Identifier for the tool</param>
-		/// <returns>Storage client for the data</returns>
-		IStorageClient CreateStorageClient(ToolConfig toolConfig)
+		/// <returns>Storage namespace for the data</returns>
+		IStorageNamespace GetStorageNamespace(ToolConfig toolConfig)
 		{
 			if (toolConfig is BundledToolConfig bundledConfig)
 			{
-				return BundleStorageClient.CreateFromDirectory(DirectoryReference.Combine(_serverInfo.AppDir, bundledConfig.DataDir ?? "Tools"), _bundleCache, _memoryMappedFileCache, _logger);
+				return BundleStorageNamespace.CreateFromDirectory(DirectoryReference.Combine(_serverInfo.AppDir, bundledConfig.DataDir ?? "Tools"), _bundleCache, _memoryMappedFileCache, _logger);
 			}
 			else
 			{
-				return _storageService.CreateClient(toolConfig.NamespaceId);
+				return _storageService.GetNamespace(toolConfig.NamespaceId);
 			}
 		}
 
 		/// <summary>
-		/// Gets the storage client containing data for a particular tool
+		/// Gets the storage backend containing data for a particular tool
 		/// </summary>
 		/// <param name="toolConfig">Identifier for the tool</param>
 		/// <returns>Storage client for the data</returns>
@@ -489,6 +492,12 @@ namespace HordeServer.Tools
 			}
 		}
 
+		IBlobRef<DirectoryNode> Open(ToolConfig tool, ToolDeploymentDocument deployment)
+		{
+			IStorageNamespace client = GetStorageNamespace(tool);
+			return client.CreateBlobRef<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0));
+		}
+
 		/// <summary>
 		/// Opens a stream to the data for a particular deployment
 		/// </summary>
@@ -499,7 +508,7 @@ namespace HordeServer.Tools
 		async Task<Stream> GetDeploymentZipAsync(ToolConfig tool, ToolDeploymentDocument deployment, CancellationToken cancellationToken)
 		{
 #pragma warning disable CA2000
-			IStorageClient client = CreateStorageClient(tool);
+			IStorageNamespace client = GetStorageNamespace(tool);
 
 			IHashedBlobRef<DirectoryNode> nodeRef = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
 			return nodeRef.AsZipStream();

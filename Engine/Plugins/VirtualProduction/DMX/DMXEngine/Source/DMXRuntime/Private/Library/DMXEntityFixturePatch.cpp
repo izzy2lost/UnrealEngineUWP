@@ -66,7 +66,11 @@ UDMXEntityFixturePatch* UDMXEntityFixturePatch::CreateFixturePatchInLibrary(FDMX
 			NewFixturePatch->SetUniverseID(ConstructionParams.UniverseID);
 			NewFixturePatch->SetStartingChannel(ConstructionParams.StartingAddress);
 			NewFixturePatch->SetActiveModeIndex(ConstructionParams.ActiveMode);
-			
+
+#if WITH_EDITOR
+			NewFixturePatch->SetDefaultTransform(ConstructionParams.DefaultTransform);
+#endif 
+
 			if (ConstructionParams.MVRFixtureUUID.IsValid())
 			{
 				// Make sure the MVR UUID is truly unique across the DNX Library
@@ -196,30 +200,46 @@ void UDMXEntityFixturePatch::PostLoad()
 
 	if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{		
-		RebuildCache();
-		
-		// Upgrade Fixture ID and UUID from deprecated general scene description member in DMX Library
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		UDMXLibrary* DMXLibrary = GetParentLibrary();
-		UDMXMVRGeneralSceneDescription* GeneralSceneDescription = DMXLibrary ? DMXLibrary->GetLazyGeneralSceneDescription() : nullptr;
-		UDMXMVRFixtureNode* FixtureNode = GeneralSceneDescription ? GeneralSceneDescription->FindFixtureNode(MVRFixtureUUID) : nullptr;
-		if (FixtureNode)
-		{
-			MVRFixtureUUID = FixtureNode->UUID;
 
-			int32 IntegralMVRFixtureID;
-			if (LexTryParseString(IntegralMVRFixtureID, *FixtureNode->FixtureID))
+#if WITH_EDITOR	
+		// ~UE5.3, upgrade the patch to hold its fixture ID
+		if (GetLinkerCustomVersion(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXFixturePatchHasFixtureID)
+		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			UDMXLibrary* DMXLibrary = GetParentLibrary();
+			UDMXMVRGeneralSceneDescription* GeneralSceneDescription = DMXLibrary ? DMXLibrary->GetLazyGeneralSceneDescription() : nullptr;
+			UDMXMVRFixtureNode* FixtureNode = GeneralSceneDescription ? GeneralSceneDescription->FindFixtureNode(MVRFixtureUUID) : nullptr;
+			if (FixtureNode)
 			{
-				FixtureID = IntegralMVRFixtureID;
+				int32 IntegralMVRFixtureID;
+				if (LexTryParseString(IntegralMVRFixtureID, *FixtureNode->FixtureID))
+				{
+					FixtureID = IntegralMVRFixtureID;
+				}
+			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
+
+		// ~UE5.5, adopt the DefaultTransform property from the General Scene Description
+		if (GetLinkerCustomVersion(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXFixturePatchesHaveDefaultTransform)
+		{
+			UDMXLibrary* DMXLibrary = GetParentLibrary();
+			UDMXMVRGeneralSceneDescription* GeneralSceneDescription = DMXLibrary ? DMXLibrary->GetLazyGeneralSceneDescription() : nullptr;
+			UDMXMVRFixtureNode* FixtureNode = GeneralSceneDescription ? GeneralSceneDescription->FindFixtureNode(MVRFixtureUUID) : nullptr;
+			if (FixtureNode)
+			{
+				DefaultTransform = FixtureNode->GetTransformAbsolute();
 			}
 		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
 
 		// Mend invalid fixture IDs
 		if (FixtureID < 1)
 		{
 			GenerateFixtureID();
 		}
+
+		RebuildCache();
 	}
 }
 

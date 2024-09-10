@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "NNEHlslShaderBase.h"
+#include "NNEHlslShadersBase.h"
 #include "RenderGraphFwd.h"
 #include "RenderGraphUtils.h"
 #include "ShaderParameterUtils.h"

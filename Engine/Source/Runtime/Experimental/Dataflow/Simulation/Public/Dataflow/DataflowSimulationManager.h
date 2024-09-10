@@ -123,8 +123,8 @@ private :
 	/** static delegate for object property changed */
 	static FDelegateHandle OnObjectPropertyChangedHandle;
 
-	/** static delegate for end of frame update */
-	static FDelegateHandle OnWorldTickEndHandle;
+	/** static delegate for post actor tick */
+	static FDelegateHandle OnWorldPostActorTick;
 
 	/** static delegate for physics state creation */
 	static FDelegateHandle OnCreatePhysicsStateHandle;

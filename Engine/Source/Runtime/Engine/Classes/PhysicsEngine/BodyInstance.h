@@ -321,12 +321,16 @@ struct FBodyInstance : public FBodyInstanceCore
 	int16 InstanceBoneIndex;
 
 	/** [PhysX Only] This physics body's solver iteration count for position. Increasing this will be more CPU intensive, but better stabilized.  */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Physics)
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Physics, meta = (ClampMin = "1", UIMin = "1"))
 	uint8 PositionSolverIterationCount;
 
 	/** [PhysX Only] This physics body's solver iteration count for velocity. Increasing this will be more CPU intensive, but better stabilized. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Physics)
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Physics, meta = (ClampMin = "1", UIMin = "1"))
 	uint8 VelocitySolverIterationCount;
+
+	/** [PhysX Only] This physics body's solver iteration count for projection. Increasing this will be more CPU intensive, but better stabilized. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Physics, meta = (ClampMin = "1", UIMin = "1"))
+	uint8 ProjectionSolverIterationCount;
 
 private:
 	/** Enum indicating what type of object this should be considered as when it moves */
@@ -982,8 +986,18 @@ public:
 	 */
 	ENGINE_API void SetUseMACD(bool bInUseMACD);
 
+	ENGINE_API void SetPositionSolverIterationCount(uint8 PositionSolverIterationCountIn);
+
+	ENGINE_API void SetVelocitySolverIterationCount(uint8 VelocitySolverIterationCountIn);
+
+	ENGINE_API void SetProjectionSolverIterationCount(uint8 ProjectionSolverIterationCountIn);
+
 	/** [EXPERIMENTAL] Whether Motion-Aware Collision Detection is enabled */
 	bool GetUseMACD() const { return bUseMACD != 0; }
+
+	uint8 GetPositionSolverIterationCount() const { return PositionSolverIterationCount; }
+	uint8 GetVelocitySolverIterationCount() const { return VelocitySolverIterationCount; }
+	uint8 GetProjectionSolverIterationCount() const { return ProjectionSolverIterationCount; }
 
 	/** Disable/Re-Enable this body in the solver,  when disable, the body won't be part of the simulation ( regardless if it's dynamic or kinematic ) and no collision will occur 
 	* this can be used for performance control situation for example

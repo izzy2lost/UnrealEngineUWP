@@ -817,6 +817,10 @@ void UpdateLumenScenePrimitives(FRHIGPUMask GPUMask, FScene* Scene)
 
 			const int32 NumInstances = ScenePrimitiveInfo->GetNumInstanceSceneDataEntries();
 			const FInstanceSceneDataBuffers *InstanceData = ScenePrimitiveInfo->GetInstanceSceneDataBuffers();
+
+			// Instance data must be available on CPU.
+			check(!InstanceData || !InstanceData->IsInstanceDataGPUOnly());
+
 			bool bAnyInstanceValid = false;
 			{
 				const FMatrix& PrimitiveToWorld = SceneProxy->GetLocalToWorld();
@@ -1039,6 +1043,9 @@ void UpdateLumenScenePrimitives(FRHIGPUMask GPUMask, FScene* Scene)
 				const FMatrix& PrimitiveToWorld = PrimitiveSceneInfo->Proxy->GetLocalToWorld();
 
 				const FInstanceSceneDataBuffers *InstanceData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers();
+
+				// Instance data must be available on CPU.
+				check(!InstanceData || !InstanceData->IsInstanceDataGPUOnly());
 
 				for (int32 PrimitiveGroupIndex : PrimitiveSceneInfo->LumenPrimitiveGroupIndices)
 				{
@@ -1549,7 +1556,7 @@ void FLumenSceneData::UpdateGPUMask(FRDGBuilder& GraphBuilder, const FLumenScene
 			#undef ADD_LUMEN_FRAME_TEMPORARY
 
 			AddPass(GraphBuilder, RDG_EVENT_NAME("LumenCrossGPUTransfer"),
-				[LumenSceneData, LumenView = &LumenViewState, FrameTemporaryTextures, SourceGPUMask, DestGPUMask](FRHICommandListImmediate& RHICmdList)
+				[LumenSceneData, LumenView = &LumenViewState, FrameTemporaryTextures, SourceGPUMask, DestGPUMask](FRHICommandList& RHICmdList)
 			{
 				uint32 SourceGPUIndex = SourceGPUMask.GetFirstIndex();
 

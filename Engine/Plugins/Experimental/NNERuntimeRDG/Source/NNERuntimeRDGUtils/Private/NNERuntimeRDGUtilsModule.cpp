@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Modules/ModuleManager.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
-#include "NNE.h"
+#include "Modules/ModuleManager.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEOnnxruntimeEditor.h"
 
 class FNNERuntimeRDGUtilsModule : public IModuleInterface
@@ -18,14 +18,14 @@ public:
 		OrtDllHandle = FPlatformProcess::GetDllHandle(*OrtSharedLibPath);
 		if (!OrtDllHandle)
 		{
-			UE_LOG(LogNNE, Fatal, TEXT("Failed to load ONNX Runtime shared library!"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Fatal, TEXT("Failed to load ONNX Runtime shared library!"));
 			return;
 		}
 
 		TUniquePtr<UE::NNEOnnxruntime::OrtApiFunctions> OrtApiFunctions = UE::NNEOnnxruntime::LoadApiFunctions(OrtDllHandle);
 		if (!OrtApiFunctions.IsValid())
 		{
-			UE_LOG(LogNNE, Fatal, TEXT("Failed to load ONNX Runtime shared library functions!"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Fatal, TEXT("Failed to load ONNX Runtime shared library functions!"));
 			return;
 		}
 

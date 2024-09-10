@@ -13,8 +13,8 @@ namespace UE::StylusInput::Private::Windows
 	class FWindowsStylusInputPluginAsync final : public IStylusAsyncPlugin, public FWindowsStylusInputPluginBase
 	{
 	public:
-		FWindowsStylusInputPluginAsync(FGetWindowContextCallback&& GetWindowContext, FUpdateTabletContextsCallback&& UpdateTabletContextsCallback,
-		                               IStylusInputEventHandler* EventHandler);
+		FWindowsStylusInputPluginAsync(IStylusInputInstance* Instance, FGetWindowContextCallback&& GetWindowContext,
+		                               FUpdateTabletContextsCallback&& UpdateTabletContextsCallback, IStylusInputEventHandler* EventHandler);
 		~FWindowsStylusInputPluginAsync();
 
 		// IUnknown

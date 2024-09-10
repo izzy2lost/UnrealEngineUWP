@@ -21,16 +21,6 @@
 #include "Async/ParallelFor.h"
 #include <type_traits>
 
-static int32 GRayTracingSceneCaptures = -1;
-static FAutoConsoleVariableRef CVarRayTracingSceneCaptures(
-	TEXT("r.RayTracing.SceneCaptures"),
-	GRayTracingSceneCaptures,
-	TEXT("Enable ray tracing in scene captures.\n")
-	TEXT(" -1: Use scene capture settings (default) \n")
-	TEXT(" 0: off \n")
-	TEXT(" 1: on"),
-	ECVF_RenderThreadSafe);
-
 static int32 GRayTracingParallelMeshBatchSetup = 1;
 static FAutoConsoleVariableRef CRayTracingParallelMeshBatchSetup(
 	TEXT("r.RayTracing.ParallelMeshBatchSetup"),
@@ -466,6 +456,431 @@ namespace RayTracing
 			}));
 	};
 
+	struct FDynamicRayTracingPrimitive
+	{
+		int32 PrimitiveIndex;
+		TRange<int32> InstancesRange;
+		TRange<int32> GeometriesToUpdateRange;
+	};
+
+	class FDynamicRayTracingInstancesContext
+	{
+	public:
+		FDynamicRayTracingInstancesContext(FScene& Scene, FViewInfo& InView, FSceneRenderingBulkObjectAllocator& InBulkAllocator, const FSceneOptions& InSceneOptions);
+
+		void GatherDynamicRayTracingInstances(TConstArrayView<int32> InDynamicPrimitives);
+
+		void Finish(FRHICommandListImmediate& InRHICmdList);
+
+		void AddInstancesToScene(FRayTracingScene& RayTracingScene, FRayTracingShaderBindingTable& RayTracingSBT, int64 SharedBufferGenerationID);
+
+	private:
+
+		FScene& Scene;
+		FViewInfo& View;
+		FSceneRenderingBulkObjectAllocator& BulkAllocator;
+		const FSceneOptions& SceneOptions;
+
+		bool bTrackReferencedGeometryGroups;
+
+		FRHICommandList* RHICmdList;
+		FGlobalDynamicVertexBuffer DynamicVertexBuffer;
+		FGlobalDynamicIndexBuffer DynamicIndexBuffer;
+
+		FRayTracingInstanceCollector RayTracingInstanceCollector;
+
+		TArray<FDynamicRayTracingPrimitive> DynamicRayTracingPrimitives;
+	};
+
+	FDynamicRayTracingInstancesContext::FDynamicRayTracingInstancesContext(FScene& Scene, FViewInfo& InView, FSceneRenderingBulkObjectAllocator& InBulkAllocator, const FSceneOptions& InSceneOptions)
+		: Scene(Scene)
+		, View(InView)
+		, BulkAllocator(InBulkAllocator)
+		, SceneOptions(InSceneOptions)
+		, bTrackReferencedGeometryGroups(IsRayTracingUsingReferenceBasedResidency())
+		, RHICmdList(new FRHICommandList(FRHIGPUMask::All()))
+		, DynamicVertexBuffer(*RHICmdList)
+		, DynamicIndexBuffer(*RHICmdList)
+		, RayTracingInstanceCollector(Scene.GetFeatureLevel(), InBulkAllocator, &View, bTrackReferencedGeometryGroups)
+	{
+		RHICmdList->SwitchPipeline(ERHIPipeline::Graphics);
+
+		RayTracingInstanceCollector.Start(
+			*RHICmdList,
+			DynamicVertexBuffer,
+			DynamicIndexBuffer,
+			FSceneRenderer::DynamicReadBufferForRayTracing
+		);
+
+		RayTracingInstanceCollector.AddViewMeshArrays(
+			&View,
+			nullptr,
+			nullptr,
+			&View.RayTracingDynamicPrimitiveCollector
+#if UE_ENABLE_DEBUG_DRAWING
+			, nullptr
+#endif
+		);
+	}
+
+	void FDynamicRayTracingInstancesContext::GatherDynamicRayTracingInstances(TConstArrayView<int32> InDynamicPrimitives)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(RayTracing_GatherDynamicRayTracingInstances);
+
+		DynamicRayTracingPrimitives.Reserve(DynamicRayTracingPrimitives.Num() + InDynamicPrimitives.Num());
+
+		for (int32 PrimitiveIndex : InDynamicPrimitives)
+		{
+			FPrimitiveSceneProxy* SceneProxy = Scene.PrimitiveSceneProxies[PrimitiveIndex];
+			FPrimitiveSceneInfo* SceneInfo = Scene.Primitives[PrimitiveIndex];
+			const FPersistentPrimitiveIndex PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
+
+			RayTracingInstanceCollector.SetPrimitive(SceneProxy, FHitProxyId::InvisibleHitProxyId);
+
+			int32 BaseRayTracingInstance = RayTracingInstanceCollector.RayTracingInstances.Num();
+			int32 BaseGeometryToUpdate = RayTracingInstanceCollector.RayTracingGeometriesToUpdate.Num();
+
+			if (SceneOptions.bTranslucentGeometry || SceneProxy->IsOpaqueOrMasked())
+			{
+				SceneProxy->GetDynamicRayTracingInstances(RayTracingInstanceCollector);
+			}
+
+			FDynamicRayTracingPrimitive Tmp;
+			Tmp.PrimitiveIndex = PrimitiveIndex;
+			Tmp.InstancesRange = TRange<int32>(BaseRayTracingInstance, RayTracingInstanceCollector.RayTracingInstances.Num());
+			Tmp.GeometriesToUpdateRange = TRange<int32>(BaseGeometryToUpdate, RayTracingInstanceCollector.RayTracingGeometriesToUpdate.Num());
+
+			DynamicRayTracingPrimitives.Add(MoveTemp(Tmp));
+		}
+	}
+
+	void FDynamicRayTracingInstancesContext::Finish(FRHICommandListImmediate& InRHICmdList)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(RayTracing_GatherDynamicRayTracingInstances_Finish);
+
+		// TODO: Could process RayTracingGeometriesToUpdate in parallel thread after merging multiple tasks
+
+		// Can't use RayTracingGeometriesToUpdate directly because need SceneProxy and PersistentPrimitiveIndex
+		// TODO: Move those parameters into FRayTracingDynamicGeometryUpdateParams
+		for (const FDynamicRayTracingPrimitive& DynamicRayTracingPrimitive : DynamicRayTracingPrimitives)
+		{
+			FPrimitiveSceneProxy* SceneProxy = Scene.PrimitiveSceneProxies[DynamicRayTracingPrimitive.PrimitiveIndex];
+			FPrimitiveSceneInfo* SceneInfo = Scene.Primitives[DynamicRayTracingPrimitive.PrimitiveIndex];
+			const FPersistentPrimitiveIndex PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
+
+			for (int32 Index = DynamicRayTracingPrimitive.GeometriesToUpdateRange.GetLowerBoundValue(); Index < DynamicRayTracingPrimitive.GeometriesToUpdateRange.GetUpperBoundValue(); ++Index)
+			{
+				Scene.GetRayTracingDynamicGeometryCollection()->AddDynamicMeshBatchForGeometryUpdate(
+					*RHICmdList,
+					&Scene,
+					&View,
+					SceneProxy,
+					RayTracingInstanceCollector.RayTracingGeometriesToUpdate[Index],
+					PersistentPrimitiveIndex.Index
+				);
+			}
+		}
+
+		RayTracingInstanceCollector.RayTracingGeometriesToUpdate.Empty();
+
+		if (bTrackReferencedGeometryGroups)
+		{
+			// TODO: Could run in parallel thread if properly synchronized with static ray tracing instances tasks
+			((FRayTracingGeometryManager*)GRayTracingGeometryManager)->AddReferencedGeometryGroups(RayTracingInstanceCollector.ReferencedGeometryGroups);
+
+			RayTracingInstanceCollector.ReferencedGeometryGroups.Empty();
+		}
+		else
+		{
+			check(RayTracingInstanceCollector.ReferencedGeometryGroups.IsEmpty());
+		}
+
+		RayTracingInstanceCollector.Finish();
+
+		DynamicVertexBuffer.Commit();
+		DynamicIndexBuffer.Commit();
+		RHICmdList->FinishRecording();
+
+		FSceneRenderer::DynamicReadBufferForRayTracing.Commit(InRHICmdList);
+
+		InRHICmdList.QueueAsyncCommandListSubmit(RHICmdList);
+	}
+
+	void FDynamicRayTracingInstancesContext::AddInstancesToScene(FRayTracingScene& RayTracingScene, FRayTracingShaderBindingTable& RayTracingSBT, int64 SharedBufferGenerationID)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(RayTracing_AddInstancesToScene);
+
+		const float CurrentWorldTime = View.Family->Time.GetWorldTimeSeconds();
+
+		const bool bParallelMeshBatchSetup = GRayTracingParallelMeshBatchSetup && FApp::ShouldUseThreadingForPerformance();
+
+		FRayTracingMeshBatchTaskPage* MeshBatchTaskHead = nullptr;
+		FRayTracingMeshBatchTaskPage* MeshBatchTaskPage = nullptr;
+		uint32 NumPendingMeshBatches = 0;
+		const uint32 RayTracingParallelMeshBatchSize = GRayTracingParallelMeshBatchSize;
+
+		auto KickRayTracingMeshBatchTask = [this, &MeshBatchTaskHead, &MeshBatchTaskPage, &NumPendingMeshBatches]()
+			{
+				if (MeshBatchTaskHead)
+				{
+					DispatchRayTracingMeshBatchTask(BulkAllocator, Scene, View, MeshBatchTaskHead, NumPendingMeshBatches);
+				}
+
+				MeshBatchTaskHead = nullptr;
+				MeshBatchTaskPage = nullptr;
+				NumPendingMeshBatches = 0;
+			};
+
+		const int32 ViewDynamicPrimitiveId = View.RayTracingDynamicPrimitiveCollector.GetPrimitiveIdRange().GetLowerBoundValue();
+		const int32 ViewInstanceSceneDataOffset = View.RayTracingDynamicPrimitiveCollector.GetInstanceSceneDataOffset();
+
+		for (const FDynamicRayTracingPrimitive& DynamicRayTracingPrimitive : DynamicRayTracingPrimitives)
+		{
+			const int32 PrimitiveIndex = DynamicRayTracingPrimitive.PrimitiveIndex;
+			FPrimitiveSceneProxy* SceneProxy = Scene.PrimitiveSceneProxies[PrimitiveIndex];
+			FPrimitiveSceneInfo* SceneInfo = Scene.Primitives[PrimitiveIndex];
+			const FPersistentPrimitiveIndex PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
+
+			TArrayView<FRayTracingInstance> TempRayTracingInstances = MakeArrayView(
+				RayTracingInstanceCollector.RayTracingInstances.GetData() + DynamicRayTracingPrimitive.InstancesRange.GetLowerBoundValue(),
+				DynamicRayTracingPrimitive.InstancesRange.Size<int32>());
+
+			if (TempRayTracingInstances.Num() > 0)
+			{
+				for (FRayTracingInstance& Instance : TempRayTracingInstances)
+				{
+					const FRayTracingGeometry* Geometry = Instance.Geometry;
+
+					if (!ensureMsgf(Geometry->DynamicGeometrySharedBufferGenerationID == FRayTracingGeometry::NonSharedVertexBuffers
+						|| Geometry->DynamicGeometrySharedBufferGenerationID == SharedBufferGenerationID,
+						TEXT("GenerationID %lld, but expected to be %lld or %lld. Geometry debug name: '%s'. ")
+						TEXT("When shared vertex buffers are used, the contents is expected to be written every frame. ")
+						TEXT("Possibly AddDynamicMeshBatchForGeometryUpdate() was not called for this geometry."),
+						Geometry->DynamicGeometrySharedBufferGenerationID, SharedBufferGenerationID, FRayTracingGeometry::NonSharedVertexBuffers,
+						*Geometry->Initializer.DebugName.ToString()))
+					{
+						continue;
+					}
+
+					((FRayTracingGeometryManager*)GRayTracingGeometryManager)->AddReferencedGeometry(Geometry);
+
+					if (Geometry->IsEvicted())
+					{
+						continue;
+					}
+
+					// If geometry still has pending build request then add to list which requires a force build
+					if (Geometry->HasPendingBuildRequest())
+					{
+						RayTracingScene.GeometriesToBuild.Add(Geometry);
+					}
+
+					// Validate the material/segment counts
+					if (!ensureMsgf(Instance.GetMaterials().Num() == Geometry->Initializer.Segments.Num() ||
+						(Geometry->Initializer.Segments.Num() == 0 && Instance.GetMaterials().Num() == 1),
+						TEXT("Ray tracing material assignment validation failed for geometry '%s'. "
+							"Instance.GetMaterials().Num() = %d, Geometry->Initializer.Segments.Num() = %d."),
+						*Geometry->Initializer.DebugName.ToString(), Instance.GetMaterials().Num(),
+						Geometry->Initializer.Segments.Num()))
+					{
+						continue;
+					}
+
+					if (Instance.bInstanceMaskAndFlagsDirty || SceneInfo->bCachedRayTracingInstanceMaskAndFlagsDirty)
+					{
+						// Build InstanceMaskAndFlags since the data in SceneInfo is not up to date
+
+						FRayTracingMaskAndFlags InstanceMaskAndFlags;
+
+						if (Instance.GetMaterials().IsEmpty())
+						{
+							// If the material list is empty, explicitly set the mask to 0 so it will not be added in the raytracing scene
+							InstanceMaskAndFlags.Mask = 0;
+						}
+						else
+						{
+							InstanceMaskAndFlags = BuildRayTracingInstanceMaskAndFlags(Instance, *SceneProxy);
+						}
+
+						SceneInfo->UpdateCachedRayTracingInstanceMaskAndFlags(InstanceMaskAndFlags);
+					}
+
+					const bool bNeedMainInstance = !SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal;
+
+					// if primitive has mixed decal and non-decal segments we need to have two ray tracing instances
+					// one containing non-decal segments and the other with decal segments
+					// masking of segments is done using "hidden" hitgroups
+					// TODO: Debug Visualization to highlight primitives using this?
+					const bool bNeedDecalInstance = SceneInfo->bCachedRayTracingInstanceAnySegmentsDecal && !ShouldExcludeDecals();
+
+					if (ShouldExcludeDecals() && SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal)
+					{
+						continue;
+					}
+
+					int32 PrimitiveId = PersistentPrimitiveIndex.Index;
+					int32 InstanceSceneDataOffset = SceneInfo->GetInstanceSceneDataOffset();
+
+					if (Instance.Materials.Num() > 0 && Instance.Materials[0].Elements.Num() > 0 && Instance.Materials[0].Elements[0].DynamicPrimitiveData != nullptr)
+					{
+						check(Instance.NumTransforms == Instance.Materials[0].Elements[0].NumInstances);
+						PrimitiveId = ViewDynamicPrimitiveId + Instance.Materials[0].Elements[0].DynamicPrimitiveIndex;
+						InstanceSceneDataOffset = ViewInstanceSceneDataOffset + Instance.Materials[0].Elements[0].DynamicPrimitiveInstanceSceneDataOffset;
+					}
+
+					FRayTracingGeometryInstance RayTracingInstance;
+					RayTracingInstance.GeometryRHI = Geometry->GetRHI();
+					checkf(RayTracingInstance.GeometryRHI, TEXT("Ray tracing instance must have a valid geometry."));
+					RayTracingInstance.DefaultUserData = InstanceSceneDataOffset;
+					RayTracingInstance.bIncrementUserDataPerInstance = true;
+					RayTracingInstance.bApplyLocalBoundsTransform = Instance.bApplyLocalBoundsTransform;
+					RayTracingInstance.Mask = SceneInfo->GetCachedRayTracingInstance().Mask;
+					RayTracingInstance.Flags = SceneInfo->GetCachedRayTracingInstance().Flags;
+					AddDebugRayTracingInstanceFlags(RayTracingInstance.Flags);
+
+					if (!Instance.GetPrimitiveInstanceIndices().IsEmpty())
+					{
+						TConstArrayView<uint32> PrimitiveInstanceIndices = Instance.GetPrimitiveInstanceIndices();
+
+						// Convert from instance indices to InstanceSceneDataOffsets
+						TArrayView<uint32> InstanceSceneDataOffsets = RayTracingScene.Allocate<uint32>(PrimitiveInstanceIndices.Num());
+						for (int32 InstanceIndex = 0; InstanceIndex < PrimitiveInstanceIndices.Num(); ++InstanceIndex)
+						{
+							InstanceSceneDataOffsets[InstanceIndex] = SceneInfo->GetInstanceSceneDataOffset() + PrimitiveInstanceIndices[InstanceIndex];
+						}
+
+						RayTracingInstance.InstanceSceneDataOffsets = InstanceSceneDataOffsets;
+						RayTracingInstance.UserData = InstanceSceneDataOffsets;
+						RayTracingInstance.NumTransforms = PrimitiveInstanceIndices.Num();
+					}
+					else if (!Instance.GetTransforms().IsEmpty())
+					{
+						TConstArrayView<FMatrix> TransformsView;
+						if (Instance.OwnsTransforms())
+						{
+							// Slow path: copy transforms to the owned storage
+							checkf(Instance.InstanceTransformsView.Num() == 0, TEXT("InstanceTransformsView is expected to be empty if using InstanceTransforms"));
+							TArrayView<FMatrix> SceneOwnedTransforms = RayTracingScene.Allocate<FMatrix>(Instance.InstanceTransforms.Num());
+							FMemory::Memcpy(SceneOwnedTransforms.GetData(), Instance.InstanceTransforms.GetData(), Instance.InstanceTransforms.Num() * sizeof(RayTracingInstance.Transforms[0]));
+							static_assert(std::is_same_v<decltype(SceneOwnedTransforms[0]), decltype(Instance.InstanceTransforms[0])>, "Unexpected transform type");
+
+							TransformsView = SceneOwnedTransforms;
+						}
+						else
+						{
+							// Fast path: just reference persistently-allocated transforms and avoid a copy
+							checkf(Instance.InstanceTransforms.Num() == 0, TEXT("InstanceTransforms is expected to be empty if using InstanceTransformsView"));
+							TransformsView = Instance.InstanceTransformsView;
+						}
+
+						RayTracingInstance.NumTransforms = TransformsView.Num();
+						RayTracingInstance.Transforms = TransformsView;
+					}
+					else
+					{
+						// If array of transforms was not provided, get the instance transforms from GPU Scene
+						RayTracingInstance.NumTransforms = Instance.NumTransforms;
+						RayTracingInstance.BaseInstanceSceneDataOffset = InstanceSceneDataOffset;
+					}
+
+					ERayTracingSceneLayerMask ActiveLayers = ERayTracingSceneLayerMask::None;
+					if (bNeedMainInstance)
+					{
+						EnumAddFlags(ActiveLayers, ERayTracingSceneLayerMask::Base);
+					}
+					if (bNeedDecalInstance)
+					{
+						EnumAddFlags(ActiveLayers, ERayTracingSceneLayerMask::Decals);
+					}
+
+					FRayTracingSBTAllocation* SBTAllocation = RayTracingSBT.AllocateDynamicRange(ActiveLayers, Instance.GetMaterials().Num());
+					if (bNeedMainInstance)
+					{
+						RayTracingScene.NumSegments += Instance.GetMaterials().Num();
+
+						RayTracingInstance.InstanceContributionToHitGroupIndex = SBTAllocation->GetInstanceContributionToHitGroupIndex(ERayTracingSceneLayer::Base);
+						RayTracingScene.AddInstance(RayTracingInstance, ERayTracingSceneLayer::Base, SceneProxy, true);
+					}
+
+					if (bNeedDecalInstance)
+					{
+						RayTracingScene.NumSegments += Instance.GetMaterials().Num();
+
+						FRayTracingGeometryInstance DecalRayTracingInstance = RayTracingInstance;
+						DecalRayTracingInstance.InstanceContributionToHitGroupIndex = SBTAllocation->GetInstanceContributionToHitGroupIndex(ERayTracingSceneLayer::Decals);
+						RayTracingScene.AddInstance(MoveTemp(DecalRayTracingInstance), ERayTracingSceneLayer::Decals, SceneProxy, true);
+					}
+
+					if (bParallelMeshBatchSetup)
+					{
+						if (NumPendingMeshBatches >= RayTracingParallelMeshBatchSize)
+						{
+							KickRayTracingMeshBatchTask();
+						}
+
+						if (MeshBatchTaskPage == nullptr || MeshBatchTaskPage->NumWorkItems == FRayTracingMeshBatchTaskPage::MaxWorkItems)
+						{
+							FRayTracingMeshBatchTaskPage* NextPage = BulkAllocator.Create<FRayTracingMeshBatchTaskPage>();
+							if (MeshBatchTaskHead == nullptr)
+							{
+								MeshBatchTaskHead = NextPage;
+							}
+							if (MeshBatchTaskPage)
+							{
+								MeshBatchTaskPage->Next = NextPage;
+							}
+							MeshBatchTaskPage = NextPage;
+						}
+
+						FRayTracingMeshBatchWorkItem& WorkItem = MeshBatchTaskPage->WorkItems[MeshBatchTaskPage->NumWorkItems];
+						MeshBatchTaskPage->NumWorkItems++;
+
+						NumPendingMeshBatches += Instance.GetMaterials().Num();
+
+						if (Instance.OwnsMaterials())
+						{
+							Swap(WorkItem.MeshBatchesOwned, Instance.Materials);
+						}
+						else
+						{
+							WorkItem.MeshBatchesView = Instance.MaterialsView;
+						}
+
+						WorkItem.SceneProxy = SceneProxy;
+						WorkItem.RayTracingGeometry = Geometry->GetRHI();
+						WorkItem.SBTAllocation = SBTAllocation;
+					}
+					else
+					{
+						TArrayView<const FMeshBatch> InstanceMaterials = Instance.GetMaterials();
+						for (int32 SegmentIndex = 0; SegmentIndex < InstanceMaterials.Num(); SegmentIndex++)
+						{
+							const FMeshBatch& MeshBatch = InstanceMaterials[SegmentIndex];
+							FDynamicRayTracingMeshCommandContext CommandContext(View.DynamicRayTracingMeshCommandStorage, View.DirtyRayTracingShaderBindings, Geometry->GetRHI(), SegmentIndex, SBTAllocation);
+							FRayTracingMeshProcessor RayTracingMeshProcessor(&CommandContext, &Scene, &View, Scene.CachedRayTracingMeshCommandsMode);
+							RayTracingMeshProcessor.AddMeshBatch(MeshBatch, 1, SceneProxy);
+						}
+					}
+				}
+
+				if (CVarRayTracingDynamicGeometryLastRenderTimeUpdateDistance.GetValueOnRenderThread() > 0.0f)
+				{
+					if (FVector::Distance(SceneProxy->GetActorPosition(), View.ViewMatrices.GetViewOrigin()) < CVarRayTracingDynamicGeometryLastRenderTimeUpdateDistance.GetValueOnRenderThread())
+					{
+						// Update LastRenderTime for components so that visibility based ticking (like skeletal meshes) can get updated
+						// We are only doing this for dynamic geometries now
+						SceneInfo->LastRenderTime = CurrentWorldTime;
+						SceneInfo->UpdateComponentLastRenderTime(CurrentWorldTime, /*bUpdateLastRenderTimeOnScreen=*/true);
+					}
+				}
+			}
+		}
+
+		KickRayTracingMeshBatchTask();
+
+		RayTracingInstanceCollector.RayTracingInstances.Empty();
+	}
+
 	void GatherRelevantPrimitives(FGatherInstancesTaskData& TaskData, bool bUsingReferenceBasedResidency)
 	{
 		FScene& Scene = TaskData.Scene;
@@ -473,7 +888,7 @@ namespace RayTracing
 
 		const bool bGameView = View.bIsGameView || View.Family->EngineShowFlags.Game;
 
-		bool bPerformRayTracing = View.State != nullptr && !View.bIsReflectionCapture && View.bAllowRayTracing;
+		bool bPerformRayTracing = View.State != nullptr && !View.bIsReflectionCapture && View.IsRayTracingAllowedForView();
 		if (bPerformRayTracing)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(GatherRayTracingRelevantPrimitives);
@@ -510,10 +925,7 @@ namespace RayTracing
 				const FPrimitiveSceneInfo* SceneInfo = Scene.Primitives[PrimitiveIndex];
 
 				// #dxr_todo: ray tracing in scene captures should re-use the persistent RT scene. (UE-112448)
-				bool bShouldRayTraceSceneCapture = GRayTracingSceneCaptures > 0
-					|| (GRayTracingSceneCaptures == -1 && View.bSceneCaptureUsesRayTracing);
-
-				if (View.bIsSceneCapture && (!bShouldRayTraceSceneCapture || !SceneInfo->bIsVisibleInSceneCaptures))
+				if (View.bIsSceneCapture && !SceneInfo->bIsVisibleInSceneCaptures)
 				{
 					return;
 				}
@@ -1205,334 +1617,13 @@ namespace RayTracing
 
 		const int64 SharedBufferGenerationID = Scene.GetRayTracingDynamicGeometryCollection()->BeginUpdate();
 
-		FRayTracingMeshBatchTaskPage* MeshBatchTaskHead = nullptr;
-		FRayTracingMeshBatchTaskPage* MeshBatchTaskPage = nullptr;
-		uint32 NumPendingMeshBatches = 0;
-		const uint32 RayTracingParallelMeshBatchSize = GRayTracingParallelMeshBatchSize;
+		FDynamicRayTracingInstancesContext DynamicRayTracingInstancesContext(Scene, View, InBulkAllocator, SceneOptions);
+		DynamicRayTracingInstancesContext.GatherDynamicRayTracingInstances(DynamicPrimitives);
+		DynamicRayTracingInstancesContext.Finish(GraphBuilder.RHICmdList);
 
-		auto KickRayTracingMeshBatchTask = [&InBulkAllocator, &View, &Scene, &MeshBatchTaskHead, &MeshBatchTaskPage, &NumPendingMeshBatches]()
-			{
-				if (MeshBatchTaskHead)
-				{
-					DispatchRayTracingMeshBatchTask(InBulkAllocator, Scene, View, MeshBatchTaskHead, NumPendingMeshBatches);
-				}
+		Scene.GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, View, /*bRayTracing*/ true);
 
-				MeshBatchTaskHead = nullptr;
-				MeshBatchTaskPage = nullptr;
-				NumPendingMeshBatches = 0;
-			};
-
-		// Need to process dynamic primitives in 3 passes to support dynamic primitives/instances in GPU Scene
-		// 1 - gather all dynamic ray tracing instances
-		// 2 - upload dynamic primitive/instance data to GPU scene
-		// 3 - process dynamic ray tracing instances (primitive IDs and instance scene data offset of dynamic primitives is now valid)
-
-		// Local temporary array of instances used for GetDynamicRayTracingInstances()
-		TArray<FRayTracingInstance> DynamicRayTracingInstances;
-		TArray<TRange<int32>> PrimitivesDynamicRayTracingInstances;
-
-		{
-			FRayTracingMaterialGatheringContext MaterialGatheringContext
-			(
-				&Scene,
-				&View,
-				*View.Family,
-				GraphBuilder,
-				*View.RayTracingMeshResourceCollector,
-				View.RayTracingDynamicPrimitiveCollector,
-				InDynamicReadBuffer
-			);
-
-			for (int32 PrimitiveIndex : DynamicPrimitives)
-			{
-				check(MaterialGatheringContext.DynamicRayTracingGeometriesToUpdate.IsEmpty());
-
-				FPrimitiveSceneProxy* SceneProxy = Scene.PrimitiveSceneProxies[PrimitiveIndex];
-				FPrimitiveSceneInfo* SceneInfo = Scene.Primitives[PrimitiveIndex];
-				const FPersistentPrimitiveIndex PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
-
-				MaterialGatheringContext.SetPrimitive(SceneProxy);
-
-				int32 BaseRayTracingInstance = DynamicRayTracingInstances.Num();
-
-				if (SceneOptions.bTranslucentGeometry || SceneProxy->IsOpaqueOrMasked())
-				{
-					SceneProxy->GetDynamicRayTracingInstances(MaterialGatheringContext, DynamicRayTracingInstances);
-				}
-
-				for (const FRayTracingDynamicGeometryUpdateParams& DynamicRayTracingGeometryUpdate : MaterialGatheringContext.DynamicRayTracingGeometriesToUpdate)
-				{
-					Scene.GetRayTracingDynamicGeometryCollection()->AddDynamicMeshBatchForGeometryUpdate(
-						GraphBuilder.RHICmdList,
-						&Scene,
-						&View,
-						SceneProxy,
-						DynamicRayTracingGeometryUpdate,
-						PersistentPrimitiveIndex.Index
-					);
-				}
-
-				if (bUsingReferenceBasedResidency)
-				{
-					((FRayTracingGeometryManager*)GRayTracingGeometryManager)->AddReferencedGeometryGroups(MaterialGatheringContext.GetReferencedGeometryGroups());
-				}
-
-				MaterialGatheringContext.Reset();
-
-				PrimitivesDynamicRayTracingInstances.Add(TRange<int32>(BaseRayTracingInstance, DynamicRayTracingInstances.Num()));
-			}
-
-			// FRayTracingMaterialGatheringContext destructor handles committing dynamic mesh batches to GPU Scene
-		}
-
-		Scene.GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, View, true);
-
-		const int32 ViewDynamicPrimitiveId = View.RayTracingDynamicPrimitiveCollector.GetPrimitiveIdRange().GetLowerBoundValue();
-		const int32 ViewInstanceSceneDataOffset = View.RayTracingDynamicPrimitiveCollector.GetInstanceSceneDataOffset();
-
-		for (int32 Index = 0; Index < DynamicPrimitives.Num(); ++Index)
-		{
-			const int32 PrimitiveIndex = DynamicPrimitives[Index];
-			FPrimitiveSceneProxy* SceneProxy = Scene.PrimitiveSceneProxies[PrimitiveIndex];
-			FPrimitiveSceneInfo* SceneInfo = Scene.Primitives[PrimitiveIndex];
-			const FPersistentPrimitiveIndex PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
-
-			TArrayView<FRayTracingInstance> TempRayTracingInstances = MakeArrayView(
-				DynamicRayTracingInstances.GetData() + PrimitivesDynamicRayTracingInstances[Index].GetLowerBound().GetValue(),
-				PrimitivesDynamicRayTracingInstances[Index].Size<int32>());
-
-			if (TempRayTracingInstances.Num() > 0)
-			{
-				for (FRayTracingInstance& Instance : TempRayTracingInstances)
-				{
-					const FRayTracingGeometry* Geometry = Instance.Geometry;
-
-					if (!ensureMsgf(Geometry->DynamicGeometrySharedBufferGenerationID == FRayTracingGeometry::NonSharedVertexBuffers
-						|| Geometry->DynamicGeometrySharedBufferGenerationID == SharedBufferGenerationID,
-						TEXT("GenerationID %lld, but expected to be %lld or %lld. Geometry debug name: '%s'. ")
-						TEXT("When shared vertex buffers are used, the contents is expected to be written every frame. ")
-						TEXT("Possibly AddDynamicMeshBatchForGeometryUpdate() was not called for this geometry."),
-						Geometry->DynamicGeometrySharedBufferGenerationID, SharedBufferGenerationID, FRayTracingGeometry::NonSharedVertexBuffers,
-						*Geometry->Initializer.DebugName.ToString()))
-					{
-						continue;
-					}
-
-					((FRayTracingGeometryManager*)GRayTracingGeometryManager)->AddReferencedGeometry(Geometry);
-
-					if (Geometry->IsEvicted())
-					{
-						continue;
-					}
-
-					// If geometry still has pending build request then add to list which requires a force build
-					if (Geometry->HasPendingBuildRequest())
-					{
-						RayTracingScene.GeometriesToBuild.Add(Geometry);
-					}
-
-					// Validate the material/segment counts
-					if (!ensureMsgf(Instance.GetMaterials().Num() == Geometry->Initializer.Segments.Num() ||
-						(Geometry->Initializer.Segments.Num() == 0 && Instance.GetMaterials().Num() == 1),
-						TEXT("Ray tracing material assignment validation failed for geometry '%s'. "
-							"Instance.GetMaterials().Num() = %d, Geometry->Initializer.Segments.Num() = %d."),
-						*Geometry->Initializer.DebugName.ToString(), Instance.GetMaterials().Num(),
-						Geometry->Initializer.Segments.Num()))
-					{
-						continue;
-					}
-
-					if (Instance.bInstanceMaskAndFlagsDirty || SceneInfo->bCachedRayTracingInstanceMaskAndFlagsDirty)
-					{
-						// Build InstanceMaskAndFlags since the data in SceneInfo is not up to date
-
-						FRayTracingMaskAndFlags InstanceMaskAndFlags;
-
-						if (Instance.GetMaterials().IsEmpty())
-						{
-							// If the material list is empty, explicitly set the mask to 0 so it will not be added in the raytracing scene
-							InstanceMaskAndFlags.Mask = 0;
-						}
-						else
-						{
-							InstanceMaskAndFlags = BuildRayTracingInstanceMaskAndFlags(Instance, *SceneProxy);
-						}
-
-						SceneInfo->UpdateCachedRayTracingInstanceMaskAndFlags(InstanceMaskAndFlags);
-					}
-
-					const bool bNeedMainInstance = !SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal;
-
-					// if primitive has mixed decal and non-decal segments we need to have two ray tracing instances
-					// one containing non-decal segments and the other with decal segments
-					// masking of segments is done using "hidden" hitgroups
-					// TODO: Debug Visualization to highlight primitives using this?
-					const bool bNeedDecalInstance = SceneInfo->bCachedRayTracingInstanceAnySegmentsDecal && !ShouldExcludeDecals();
-
-					if (ShouldExcludeDecals() && SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal)
-					{
-						continue;
-					}
-
-					int32 PrimitiveId = PersistentPrimitiveIndex.Index;
-					int32 InstanceSceneDataOffset = SceneInfo->GetInstanceSceneDataOffset();
-
-					if (Instance.Materials.Num() > 0 && Instance.Materials[0].Elements.Num() > 0 && Instance.Materials[0].Elements[0].DynamicPrimitiveData != nullptr)
-					{
-						check(Instance.NumTransforms == Instance.Materials[0].Elements[0].NumInstances);
-						PrimitiveId = ViewDynamicPrimitiveId + Instance.Materials[0].Elements[0].DynamicPrimitiveIndex;
-						InstanceSceneDataOffset = ViewInstanceSceneDataOffset + Instance.Materials[0].Elements[0].DynamicPrimitiveInstanceSceneDataOffset;
-					}
-
-					FRayTracingGeometryInstance RayTracingInstance;
-					RayTracingInstance.GeometryRHI = Geometry->GetRHI();
-					checkf(RayTracingInstance.GeometryRHI, TEXT("Ray tracing instance must have a valid geometry."));
-					RayTracingInstance.DefaultUserData = InstanceSceneDataOffset;
-					RayTracingInstance.bIncrementUserDataPerInstance = true;
-					RayTracingInstance.bApplyLocalBoundsTransform = Instance.bApplyLocalBoundsTransform;
-					RayTracingInstance.Mask = SceneInfo->GetCachedRayTracingInstance().Mask;
-					RayTracingInstance.Flags = SceneInfo->GetCachedRayTracingInstance().Flags;
-					AddDebugRayTracingInstanceFlags(RayTracingInstance.Flags);
-
-					if (!Instance.GetPrimitiveInstanceIndices().IsEmpty())
-					{
-						TConstArrayView<uint32> PrimitiveInstanceIndices = Instance.GetPrimitiveInstanceIndices();
-
-						// Convert from instance indices to InstanceSceneDataOffsets
-						TArrayView<uint32> InstanceSceneDataOffsets = RayTracingScene.Allocate<uint32>(PrimitiveInstanceIndices.Num());
-						for (int32 InstanceIndex = 0; InstanceIndex < PrimitiveInstanceIndices.Num(); ++InstanceIndex)
-						{
-							InstanceSceneDataOffsets[InstanceIndex] = SceneInfo->GetInstanceSceneDataOffset() + PrimitiveInstanceIndices[InstanceIndex];
-						}
-
-						RayTracingInstance.InstanceSceneDataOffsets = InstanceSceneDataOffsets;
-						RayTracingInstance.UserData = InstanceSceneDataOffsets;
-						RayTracingInstance.NumTransforms = PrimitiveInstanceIndices.Num();
-					}
-					else if (!Instance.GetTransforms().IsEmpty())
-					{
-						TConstArrayView<FMatrix> TransformsView;
-						if (Instance.OwnsTransforms())
-						{
-							// Slow path: copy transforms to the owned storage
-							checkf(Instance.InstanceTransformsView.Num() == 0, TEXT("InstanceTransformsView is expected to be empty if using InstanceTransforms"));
-							TArrayView<FMatrix> SceneOwnedTransforms = RayTracingScene.Allocate<FMatrix>(Instance.InstanceTransforms.Num());
-							FMemory::Memcpy(SceneOwnedTransforms.GetData(), Instance.InstanceTransforms.GetData(), Instance.InstanceTransforms.Num() * sizeof(RayTracingInstance.Transforms[0]));
-							static_assert(std::is_same_v<decltype(SceneOwnedTransforms[0]), decltype(Instance.InstanceTransforms[0])>, "Unexpected transform type");
-
-							TransformsView = SceneOwnedTransforms;
-						}
-						else
-						{
-							// Fast path: just reference persistently-allocated transforms and avoid a copy
-							checkf(Instance.InstanceTransforms.Num() == 0, TEXT("InstanceTransforms is expected to be empty if using InstanceTransformsView"));
-							TransformsView = Instance.InstanceTransformsView;
-						}
-
-						RayTracingInstance.NumTransforms = TransformsView.Num();
-						RayTracingInstance.Transforms = TransformsView;
-					}
-					else
-					{
-						// If array of transforms was not provided, get the instance transforms from GPU Scene
-						RayTracingInstance.NumTransforms = Instance.NumTransforms;
-						RayTracingInstance.BaseInstanceSceneDataOffset = InstanceSceneDataOffset;
-					}
-
-					ERayTracingSceneLayerMask ActiveLayers = ERayTracingSceneLayerMask::None;
-					if (bNeedMainInstance)
-					{
-						EnumAddFlags(ActiveLayers, ERayTracingSceneLayerMask::Base);
-					}
-					if (bNeedDecalInstance)
-					{
-						EnumAddFlags(ActiveLayers, ERayTracingSceneLayerMask::Decals);
-					}
-
-					FRayTracingSBTAllocation* SBTAllocation = RayTracingSBT.AllocateDynamicRange(ActiveLayers, Instance.GetMaterials().Num());
-					if (bNeedMainInstance)
-					{
-						RayTracingScene.NumSegments += Instance.GetMaterials().Num();
-
-						RayTracingInstance.InstanceContributionToHitGroupIndex = SBTAllocation->GetInstanceContributionToHitGroupIndex(ERayTracingSceneLayer::Base);
-						RayTracingScene.AddInstance(RayTracingInstance, ERayTracingSceneLayer::Base, SceneProxy, true);
-					}
-
-					if (bNeedDecalInstance)
-					{
-						RayTracingScene.NumSegments += Instance.GetMaterials().Num();
-
-						FRayTracingGeometryInstance DecalRayTracingInstance = RayTracingInstance;
-						DecalRayTracingInstance.InstanceContributionToHitGroupIndex = SBTAllocation->GetInstanceContributionToHitGroupIndex(ERayTracingSceneLayer::Decals);
-						RayTracingScene.AddInstance(MoveTemp(DecalRayTracingInstance), ERayTracingSceneLayer::Decals, SceneProxy, true);
-					}
-
-					if (bParallelMeshBatchSetup)
-					{
-						if (NumPendingMeshBatches >= RayTracingParallelMeshBatchSize)
-						{
-							KickRayTracingMeshBatchTask();
-						}
-
-						if (MeshBatchTaskPage == nullptr || MeshBatchTaskPage->NumWorkItems == FRayTracingMeshBatchTaskPage::MaxWorkItems)
-						{
-							FRayTracingMeshBatchTaskPage* NextPage = InBulkAllocator.Create<FRayTracingMeshBatchTaskPage>();
-							if (MeshBatchTaskHead == nullptr)
-							{
-								MeshBatchTaskHead = NextPage;
-							}
-							if (MeshBatchTaskPage)
-							{
-								MeshBatchTaskPage->Next = NextPage;
-							}
-							MeshBatchTaskPage = NextPage;
-						}
-
-						FRayTracingMeshBatchWorkItem& WorkItem = MeshBatchTaskPage->WorkItems[MeshBatchTaskPage->NumWorkItems];
-						MeshBatchTaskPage->NumWorkItems++;
-
-						NumPendingMeshBatches += Instance.GetMaterials().Num();
-
-						if (Instance.OwnsMaterials())
-						{
-							Swap(WorkItem.MeshBatchesOwned, Instance.Materials);
-						}
-						else
-						{
-							WorkItem.MeshBatchesView = Instance.MaterialsView;
-						}
-
-						WorkItem.SceneProxy = SceneProxy;
-						WorkItem.RayTracingGeometry = Geometry->GetRHI();
-						WorkItem.SBTAllocation = SBTAllocation;
-					}
-					else
-					{
-						TArrayView<const FMeshBatch> InstanceMaterials = Instance.GetMaterials();
-						for (int32 SegmentIndex = 0; SegmentIndex < InstanceMaterials.Num(); SegmentIndex++)
-						{
-							const FMeshBatch& MeshBatch = InstanceMaterials[SegmentIndex];
-							FDynamicRayTracingMeshCommandContext CommandContext(View.DynamicRayTracingMeshCommandStorage, View.DirtyRayTracingShaderBindings, Geometry->GetRHI(), SegmentIndex, SBTAllocation);
-							FRayTracingMeshProcessor RayTracingMeshProcessor(&CommandContext, &Scene, &View, Scene.CachedRayTracingMeshCommandsMode);
-							RayTracingMeshProcessor.AddMeshBatch(MeshBatch, 1, SceneProxy);
-						}
-					}
-				}
-
-				if (CVarRayTracingDynamicGeometryLastRenderTimeUpdateDistance.GetValueOnRenderThread() > 0.0f)
-				{
-					if (FVector::Distance(SceneProxy->GetActorPosition(), View.ViewMatrices.GetViewOrigin()) < CVarRayTracingDynamicGeometryLastRenderTimeUpdateDistance.GetValueOnRenderThread())
-					{
-						// Update LastRenderTime for components so that visibility based ticking (like skeletal meshes) can get updated
-						// We are only doing this for dynamic geometries now
-						SceneInfo->LastRenderTime = CurrentWorldTime;
-						SceneInfo->UpdateComponentLastRenderTime(CurrentWorldTime, /*bUpdateLastRenderTimeOnScreen=*/true);
-					}
-				}
-			}
-		}
-
-		KickRayTracingMeshBatchTask();
+		DynamicRayTracingInstancesContext.AddInstancesToScene(RayTracingScene, RayTracingSBT, SharedBufferGenerationID);
 	}
 
 	void BeginGatherInstances(FGatherInstancesTaskData& TaskData, UE::Tasks::FTask FrustumCullTask)
@@ -1585,11 +1676,7 @@ namespace RayTracing
 		// is done on task threads, therefore all work must be done here up-front as UpdateUniformExpressionCacheIfNeeded is not free-threaded.
 		check(!FMaterialRenderProxy::HasDeferredUniformExpressionCacheRequests());
 
-		FGPUScenePrimitiveCollector DummyDynamicPrimitiveCollector;
-
 		View.DynamicRayTracingMeshCommandStorage.Reserve(Scene.Primitives.Num());
-		
-		View.RayTracingMeshResourceCollector = MakeUnique<FRayTracingMeshResourceCollector>(Scene.GetFeatureLevel(), InBulkAllocator);
 
 		RayTracingSBT.ResetDynamicAllocationData();
 

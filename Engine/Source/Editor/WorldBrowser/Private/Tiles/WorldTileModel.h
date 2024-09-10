@@ -83,7 +83,7 @@ public:
 	virtual void Update() override;
 	virtual void UpdateAsset(const FAssetData& AssetData) override;
 	virtual void LoadLevel() override;
-	virtual void SetVisible(bool bVisible) override;
+	virtual void SetVisibleInEditor(bool bVisible) override;
 	virtual FVector2D GetLevelPosition2D() const override;
 	virtual FVector2D GetLevelSize2D() const override;
 	virtual void OnDrop(const TSharedPtr<FLevelDragDropOp>& Op) override;

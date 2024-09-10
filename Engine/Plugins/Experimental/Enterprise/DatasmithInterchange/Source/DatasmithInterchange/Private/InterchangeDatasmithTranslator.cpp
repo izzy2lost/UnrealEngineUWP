@@ -39,6 +39,7 @@
 #include "InterchangeVariantSetNode.h"
 #include "StaticMeshOperations.h"
 
+#include "Async/ParallelFor.h"
 #include "HAL/ConsoleManager.h"
 #include "Misc/App.h"
 #include "Misc/PackageName.h"
@@ -720,16 +721,15 @@ TOptional<UE::Interchange::FImportLightProfile> UInterchangeDatasmithTranslator:
 	return TextureTranslator->GetLightProfilePayloadData(PayloadKey, AlternateTexturePath);
 }
 
-TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeDatasmithTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
+TOptional<UE::Interchange::FMeshPayloadData> UInterchangeDatasmithTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
 {
 	using namespace UE::DatasmithInterchange;
 
-	TPromise<TOptional<UE::Interchange::FMeshPayloadData>> EmptyPromise;
-	EmptyPromise.SetValue(TOptional<UE::Interchange::FMeshPayloadData>());
+	TOptional<UE::Interchange::FMeshPayloadData> EmptyPayload = TOptional<UE::Interchange::FMeshPayloadData>();
 
 	if (!LoadedExternalSource || !LoadedExternalSource->GetDatasmithScene())
 	{
-		return EmptyPromise.GetFuture();
+		return EmptyPayload;
 	}
 
 	int32 MeshIndex = 0;
@@ -737,59 +737,33 @@ TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeDatasmithTrans
 	TSharedPtr<IDatasmithScene> DatasmithScene = LoadedExternalSource->GetDatasmithScene();
 	if (MeshIndex < 0 || MeshIndex >= DatasmithScene->GetMeshesCount())
 	{
-		return EmptyPromise.GetFuture();
+		return EmptyPayload;
 	}
 
 	TSharedPtr<IDatasmithMeshElement> MeshElement = DatasmithScene->GetMesh(MeshIndex);
 	if (!MeshElement.IsValid())
 	{
-		return EmptyPromise.GetFuture();
+		return EmptyPayload;
 	}
 
-	// If on the GameThread and Datasmith translator cannot be parallelized
-	// just run it on the spot.
-	if (IsInGameThread() && AsyncMode == EAsyncExecution::TaskGraphMainThread)
+	UE::Interchange::FMeshPayloadData StaticMeshPayloadData;
+	if (GetMeshDescription(MeshElement, MeshGlobalTransform, StaticMeshPayloadData))
 	{
-		TOptional<UE::Interchange::FMeshPayloadData> Result;
-
-		UE::Interchange::FMeshPayloadData StaticMeshPayloadData;
-		if (GetMeshDescription(MeshElement, MeshGlobalTransform, StaticMeshPayloadData))
-		{
-			Result.Emplace(MoveTemp(StaticMeshPayloadData));
-
-			TPromise<TOptional<UE::Interchange::FMeshPayloadData>> Promise;
-			Promise.SetValue(Result);
-
-			return Promise.GetFuture();
-		}
-
-		return EmptyPromise.GetFuture();
+		TOptional<UE::Interchange::FMeshPayloadData> Payload;
+		Payload = MoveTemp(StaticMeshPayloadData);
+		return Payload;
 	}
 
-	return Async(AsyncMode, [this, MeshElement = MoveTemp(MeshElement), MeshGlobalTransform]
-		{
-			TOptional<UE::Interchange::FMeshPayloadData> Result;
-
-			UE::Interchange::FMeshPayloadData StaticMeshPayloadData;
-			if (GetMeshDescription(MeshElement, MeshGlobalTransform, StaticMeshPayloadData))
-			{
-				Result.Emplace(MoveTemp(StaticMeshPayloadData));
-			}
-
-			return Result;
-		}
-	);
+	return EmptyPayload;
 }
 
-TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeDatasmithTranslator::GetAnimationPayloadData(const UE::Interchange::FAnimationPayloadQuery& PayloadQuery) const
+TOptional<UE::Interchange::FAnimationPayloadData> UInterchangeDatasmithTranslator::GetAnimationPayloadData(const UE::Interchange::FAnimationPayloadQuery& PayloadQuery) const
 {
-	TPromise<TOptional<UE::Interchange::FAnimationPayloadData>> EmptyPromise;
-	EmptyPromise.SetValue(TOptional<UE::Interchange::FAnimationPayloadData>());
-	
+	TOptional<UE::Interchange::FAnimationPayloadData> Result;
 
 	if (!LoadedExternalSource || !LoadedExternalSource->GetDatasmithScene())
 	{
-		return EmptyPromise.GetFuture();
+		return Result;
 	}
 
 	TSharedPtr<IDatasmithBaseAnimationElement> AnimationElement;
@@ -800,7 +774,7 @@ TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeDatasmith
 		if (!ensure(AnimationElement))
 		{
 			// #ueent_logwarning:
-			return EmptyPromise.GetFuture();
+			return Result;
 		}
 
 		FrameRate = PayloadDescPtr->Key;
@@ -808,37 +782,53 @@ TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeDatasmith
 
 	if (PayloadQuery.PayloadKey.Type != EInterchangeAnimationPayLoadType::NONE)
 	{
-		return Async(EAsyncExecution::TaskGraph, [this, AnimationElement = MoveTemp(AnimationElement), FrameRate, PayloadQuery]
-			{
-
-				UE::Interchange::FAnimationPayloadData TransformPayloadData(PayloadQuery.SceneNodeUniqueID, PayloadQuery.PayloadKey);
-				TOptional<UE::Interchange::FAnimationPayloadData> Result;
-
-				if (UE::DatasmithInterchange::AnimUtils::GetAnimationPayloadData(*AnimationElement, FrameRate, PayloadQuery.PayloadKey.Type, TransformPayloadData))
-				{
-					Result.Emplace(MoveTemp(TransformPayloadData));
-				}
-
-				return Result;
-			}
-		);
+		UE::Interchange::FAnimationPayloadData TransformPayloadData(PayloadQuery.SceneNodeUniqueID, PayloadQuery.PayloadKey);
+		if (UE::DatasmithInterchange::AnimUtils::GetAnimationPayloadData(*AnimationElement, FrameRate, PayloadQuery.PayloadKey.Type, TransformPayloadData))
+		{
+			Result = MoveTemp(TransformPayloadData);
+		}
 	}
 
-	return EmptyPromise.GetFuture();
+	return Result;
 }
 
 TArray<UE::Interchange::FAnimationPayloadData> UInterchangeDatasmithTranslator::GetAnimationPayloadData(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries) const
 {
-	TArray<TFuture<TOptional<UE::Interchange::FAnimationPayloadData>>> AnimationPayloadFutures;
-	for (const UE::Interchange::FAnimationPayloadQuery& PayloadQuery : PayloadQueries)
+	TArray<TOptional<UE::Interchange::FAnimationPayloadData>> AnimationPayloadOptionals;
+	int32 PayloadCount = PayloadQueries.Num();
+	AnimationPayloadOptionals.AddDefaulted(PayloadCount);
+
+	const int32 BatchSize = 5;
+	if (PayloadQueries.Num() > BatchSize)
 	{
-		AnimationPayloadFutures.Add(GetAnimationPayloadData(PayloadQuery));
+		const int32 NumBatches = (PayloadCount / BatchSize) + 1;
+		ParallelFor(NumBatches, [&](int32 BatchIndex)
+			{
+				int32 PayloadIndexOffset = BatchIndex * BatchSize;
+				for (int32 PayloadIndex = PayloadIndexOffset; PayloadIndex < PayloadIndexOffset + BatchSize; ++PayloadIndex)
+				{
+					if (PayloadQueries.IsValidIndex(PayloadIndex))
+					{
+						AnimationPayloadOptionals[PayloadIndex] = GetAnimationPayloadData(PayloadQueries[PayloadIndex]);
+					}
+				}
+			}, EParallelForFlags::BackgroundPriority);// ParallelFor
+	}
+	else
+	{
+		for (int32 PayloadIndex = 0; PayloadIndex < PayloadCount; ++PayloadIndex)
+		{
+			if (PayloadQueries.IsValidIndex(PayloadIndex))
+			{
+				AnimationPayloadOptionals[PayloadIndex] = GetAnimationPayloadData(PayloadQueries[PayloadIndex]);
+			}
+		}
 	}
 
+
 	TArray<UE::Interchange::FAnimationPayloadData> AnimationPayloads;
-	for (TFuture<TOptional<UE::Interchange::FAnimationPayloadData>>& AnimationPayloadFuture : AnimationPayloadFutures)
+	for (TOptional<UE::Interchange::FAnimationPayloadData>& OptionalPayloadData : AnimationPayloadOptionals)
 	{
-		TOptional<UE::Interchange::FAnimationPayloadData> OptionalPayloadData = AnimationPayloadFuture.Get();
 		if (!OptionalPayloadData.IsSet())
 		{
 			continue;
@@ -849,17 +839,16 @@ TArray<UE::Interchange::FAnimationPayloadData> UInterchangeDatasmithTranslator::
 	return AnimationPayloads;
 }
 
-TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> UInterchangeDatasmithTranslator::GetVariantSetPayloadData(const FString& PayloadKey) const
+TOptional<UE::Interchange::FVariantSetPayloadData> UInterchangeDatasmithTranslator::GetVariantSetPayloadData(const FString& PayloadKey) const
 {
 	using namespace UE::Interchange;
 	using namespace UE::DatasmithInterchange;
 
-	TPromise<TOptional<FVariantSetPayloadData>> EmptyPromise;
-	EmptyPromise.SetValue(TOptional<FVariantSetPayloadData>());
+	TOptional<FVariantSetPayloadData> Result;
 
 	if (!LoadedExternalSource || !LoadedExternalSource->GetDatasmithScene())
 	{
-		return EmptyPromise.GetFuture();
+		return Result;
 	}
 
 	TSharedPtr<IDatasmithScene> DatasmithScene = LoadedExternalSource->GetDatasmithScene();
@@ -870,7 +859,7 @@ TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> UInterchangeDatasmit
 	if (2 != PayloadKey.ParseIntoArray(PayloadTokens, TEXT(";")))
 	{
 		// Invalid payload
-		return EmptyPromise.GetFuture();
+		return Result;
 	}
 
 	int32 LevelVariantSetIndex = FCString::Atoi(*PayloadTokens[0]);
@@ -882,23 +871,17 @@ TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> UInterchangeDatasmit
 		TSharedPtr<IDatasmithVariantSetElement> VariantSet = LevelVariantSetElement->GetVariantSet(VariantSetIndex);
 		if (ensure(VariantSet) && VariantSet->GetVariantsCount() > 0)
 		{
-			return Async(EAsyncExecution::TaskGraph, [this, VariantSet = MoveTemp(VariantSet)]
-					{
-						FVariantSetPayloadData PayloadData;
-						TOptional<FVariantSetPayloadData> Result;
-
-						if (VariantSetUtils::GetVariantSetPayloadData(*VariantSet, PayloadData))
-						{
-							Result.Emplace(MoveTemp(PayloadData));
-						}
-
-						return Result;
-					}
-				);
+			TSharedPtr<TPromise<TOptional<FVariantSetPayloadData>>> Promise = MakeShared<TPromise<TOptional<FVariantSetPayloadData>>>();
+			FVariantSetPayloadData PayloadData;
+			if (VariantSetUtils::GetVariantSetPayloadData(*VariantSet, PayloadData))
+			{
+				Result = MoveTemp(PayloadData);
+				return Result;
+			}
 		}
 	}
 
-	return EmptyPromise.GetFuture();
+	return Result;
 }
 
 void UInterchangeDatasmithTranslator::ImportFinish()

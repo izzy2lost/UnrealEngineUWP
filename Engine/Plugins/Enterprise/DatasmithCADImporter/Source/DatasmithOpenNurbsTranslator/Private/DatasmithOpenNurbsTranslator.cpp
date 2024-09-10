@@ -3341,6 +3341,7 @@ void FDatasmithOpenNurbsTranslator::SetSceneImportOptions(const TArray<TObjectPt
 		else if (UDatasmithOpenNurbsImportOptions* OpenNurbsOptionsObj = Cast<UDatasmithOpenNurbsImportOptions>(Option))
 		{
 			OpenNurbsOptions = OpenNurbsOptionsObj->Options;
+			OpenNurbsOptionsObj->SaveConfig(CPF_Config);
 		}
 	}
 

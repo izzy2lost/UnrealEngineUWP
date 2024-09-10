@@ -11,6 +11,7 @@ using System.Text;
 using System.Threading;
 using EpicGames.Core;
 using System.Diagnostics;
+using static AutomationTool.CommandUtils;
 
 namespace Gauntlet
 {
@@ -600,15 +601,7 @@ namespace Gauntlet
 		public static IProcessResult RunAdbGlobalCommand(string Args, bool Wait = true, bool bShouldLogCommand = false, bool bPauseErrorParsing = false)
 		{
 			CommandUtils.ERunOptions RunOptions = CommandUtils.ERunOptions.AppMustExist | CommandUtils.ERunOptions.NoWaitForExit | CommandUtils.ERunOptions.SpewIsVerbose;
-
-			if (Log.IsVeryVerbose)
-			{
-				RunOptions |= CommandUtils.ERunOptions.AllowSpew;
-			}
-			else
-			{
-				RunOptions |= CommandUtils.ERunOptions.NoLoggingOfRunCommand;
-			}
+			RunOptions |= Log.IsVeryVerbose? ERunOptions.AllowSpew : ERunOptions.NoLoggingOfRunCommand;
 
 			if (bShouldLogCommand)
 			{
@@ -628,6 +621,24 @@ namespace Gauntlet
 			}
 
 			return Process;
+		}
+
+		/// <summary>
+		/// Run Adb command without waiting for exit
+		/// </summary>
+		/// <param name="Args"></param>
+		/// <returns></returns>
+		public ILongProcessResult RunAdbCommandNoWait(string Args, string LocalCache)
+		{
+			if (string.IsNullOrEmpty(DeviceName) == false)
+			{
+				Args = string.Format("-s {0} {1}", DeviceName, Args);
+			}
+			CommandUtils.ERunOptions RunOptions = CommandUtils.ERunOptions.AppMustExist | CommandUtils.ERunOptions.NoWaitForExit | CommandUtils.ERunOptions.SpewIsVerbose;
+			RunOptions |= Log.IsVeryVerbose ? ERunOptions.AllowSpew : ERunOptions.NoLoggingOfRunCommand;
+
+			string AdbCommand = Environment.ExpandEnvironmentVariables("%ANDROID_HOME%/platform-tools/adb" + (RuntimePlatform.IsWindows ? ".exe" : ""));
+			return new LongProcessResult(AdbCommand, Args, RunOptions, LocalCache: LocalCache);
 		}
 
 		public static IProcessResult RunAFSGlobalCommand(string Args, bool Wait = true, bool bShouldLogCommand = false, bool bPauseErrorParsing = false)
@@ -1500,6 +1511,12 @@ namespace Gauntlet
 			}
 		}
 
+		public ILogStreamReader GetLogReader() => LogProcess.GetLogReader();
+
+		public ILogStreamReader GetLogBufferReader() => LogProcess.GetLogBufferReader();
+
+		public bool WriteOutputToFile(string FilePath) => LogProcess.WriteOutputToFile(FilePath) != null;
+
 		public string CommandLine => Install.CommandLine;
 
 		public ITargetDevice Device => AndroidDevice;
@@ -1510,7 +1527,7 @@ namespace Gauntlet
 
 		public IProcessResult LaunchProcess;
 
-		protected IProcessResult LogProcess;
+		protected ILongProcessResult LogProcess;
 
 		protected TargetDeviceAndroid AndroidDevice;
 
@@ -1529,7 +1546,7 @@ namespace Gauntlet
 			AndroidDevice = InDevice;
 			Install = InInstall;
 			LaunchProcess = InProcess;
-			LogProcess = AndroidDevice.RunAdbDeviceCommand($"logcat -s {Install.AppTag} debug Debug DEBUG -v raw", false, false);
+			LogProcess = AndroidDevice.RunAdbCommandNoWait($"logcat -s {Install.AppTag} debug Debug DEBUG -v raw", Install.Device.LocalCachePath);
 
 			if (Globals.Params.ParseParam("screenrecord"))
 			{

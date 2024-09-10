@@ -25,9 +25,21 @@ public:
 		TSharedPtr<FNiagaraDataSetCompiledData>		DataSetCompiledData;
 		FNiagaraDataSet								DataSet;
 		FNiagaraDataBufferRef						DataBuffer;
+	};
 
-		const NiagaraStateless::FEmitterInstance_RT* EmitterInstance = nullptr;
-		uint32										ActiveParticles = 0;
+	struct FStatelessDataGenerationRequest
+	{
+		FStatelessDataGenerationRequest() = default;
+		explicit FStatelessDataGenerationRequest(FNiagaraDataBuffer* InDestinationData, const NiagaraStateless::FEmitterInstance_RT* InEmitterInstance, uint32 InActiveParticles)
+			: DestinationData(InDestinationData)
+			, EmitterInstance(InEmitterInstance)
+			, ActiveParticles(InActiveParticles)
+		{
+		}
+
+		FNiagaraDataBufferRef							DestinationData;
+		const NiagaraStateless::FEmitterInstance_RT*	EmitterInstance = nullptr;
+		uint32											ActiveParticles = 0;
 	};
 
 public:
@@ -56,7 +68,7 @@ private:
 	TArray<TUniquePtr<FStatelessDataCache>>				FreeData;
 	TArray<uint32>										CountsToRelease;
 
-	TArray<FStatelessDataCache*>						GPUDataToGenerate;
+	TArray<FStatelessDataGenerationRequest>				GPUGenerationRequests;
 
 	UE::FMutex											GetDataBufferGuard;
 };

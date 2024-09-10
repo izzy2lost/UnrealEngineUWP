@@ -13,6 +13,7 @@
 #include "NNEHlslShadersConvWinogradMMMCS.h"
 #include "NNEHlslShadersConvWinogradOutputCS.h"
 #include "NNEHlslShadersConvWinogradWeightsCS.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersTypeHelper.h"
 #include "NNERuntimeRDGHelperTranspose.h"
 #include "NNERuntimeRDGHlslHelper.h"
@@ -98,7 +99,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			GroupSize = FConvCS::GetBiggestCompatibleGroupSize(Weights.GetData(), Dilations, Strides);
 			if(GroupSize == EConvGroupSize::MAX)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Hlsl Conv: kernel size, strides, dilations combination is not supported. Kernel tensor: %s."), *InputTensors[1]->GetName());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Conv: Kernel size, strides, dilations combination is not supported. Kernel tensor: %s."), *InputTensors[1]->GetName());
 				return -1;
 			}
 
@@ -127,17 +128,17 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			
 			if (Input.GetShape().Rank() < 2)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Conv first input should be at least of rank 2"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Conv: First input should be at least of rank 2"));
 				return false;
 			}
 			if (Weights.GetShape().Rank() != Input.GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Conv first and second inputs should be of same ranks"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Conv: First and second inputs should be of same ranks"));
 				return false;
 			}
 			if (Output.GetShape().Rank() != Input.GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Conv first and output should be of same ranks"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Conv: First and output should be of same ranks"));
 				return false;
 			}
 
@@ -160,7 +161,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			Strides = Attributes.GetValueOrDefault<TArray<int32>>(TEXT("strides"), DilationsOrStridesDefault);
 			if (Strides.Num() != NumDimensions)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Conv strides count doesn't match the number of spatial dimensions"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Conv: Strides count doesn't match the number of spatial dimensions"));
 				return false;
 			}
 			BufferPixelFormat = TensorDataTypeToPixelFormat(Input.GetDataType());
@@ -611,7 +612,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		{
 			if (InputType != ENNETensorDataType::None && InputType != InputTypes[0])
 			{
-				UE_LOG(LogNNE, Warning, TEXT("All input tensor data types have to match each other"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Conv: All input tensor data types have to match each other"));
 				return false;
 			}
 		}

@@ -185,6 +185,18 @@ public:
 	*/
 	MOVIESCENETRACKS_API void AddColorParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Position, int32 RowIndex, FLinearColor Value, const FString& InLayerName, const FString& InAssetName);
 
+	/**
+	* Adds a color parameter key to the track.
+	* @param ParameterInfo The material parameter info for the parameter you want to add a key for.
+	* @param Time The time to add the new key.
+	* @param RowIndex The preferred row index on which to look for sections.
+	* @param The value for the new key.
+	* @param InLayerName Optional layer name for use in UI.
+	* @param InAssetName Optional asset name for use in UI.
+	* @param InChannelNames Optional channel names for the 4 vector channels for use in the UI.
+	*/
+	MOVIESCENETRACKS_API void AddColorParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Position, int32 RowIndex, FLinearColor Value, const FString& InLayerName, const FString& InAssetName, const FParameterChannelNames& InChannelNames);
+
 private:
 
 	/** The sections owned by this track .*/

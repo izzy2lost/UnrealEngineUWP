@@ -5,6 +5,7 @@
 #include "Helper/NNERuntimeRDGLogHelper.h"
 #include "Helper/NNERuntimeRDGOperatorHelper.h"
 #include "NNEAttributeTensor.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
@@ -45,7 +46,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				{
 					if (Output.GetDataType() != ENNETensorDataType::Float)
 					{
-						UE_LOG(LogNNE, Warning, TEXT("Output data type %s does not match constant type of float"), 
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Constant: Output data type %s does not match constant type of float"), 
 							   					*LogHelper::GetTensorDataTypeName(Output.GetDataType()));
 						return -1;
 					}
@@ -59,7 +60,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				{
 					if (Output.GetDataType() != ENNETensorDataType::Float)
 					{
-						UE_LOG(LogNNE, Warning, TEXT("Output data type %s does not match constant type of float"), 
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Constant: Output data type %s does not match constant type of float"), 
 							   					*LogHelper::GetTensorDataTypeName(Output.GetDataType()));
 						return -1;
 					}
@@ -74,7 +75,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 					const FAttributeTensor AttributeTensor = Attribute.GetValue<FAttributeTensor>();
 					if (Output.GetDataType() != AttributeTensor.GetDataType())
 					{
-						UE_LOG(LogNNE, Warning, TEXT("Output data type %s does not match constant tensor data type %s"), 
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Constant: Output data type %s does not match constant tensor data type %s"), 
 							   					*LogHelper::GetTensorDataTypeName(Output.GetDataType()), 
 												*LogHelper::GetTensorDataTypeName(AttributeTensor.GetDataType()));
 						return -1;
@@ -121,7 +122,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		if (AttributeMap.Num() != 1)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Constant operator requires exacly one attribute, but '%d' attributes found."), AttributeMap.Num());
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Constant: Operator requires exacly one attribute, but '%d' attributes found."), AttributeMap.Num());
 			return false;
 		}
 

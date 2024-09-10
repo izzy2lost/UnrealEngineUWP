@@ -38,7 +38,7 @@ struct FCurveSnapMetrics
 	/** Snap the specified output value to the output snap interval if necessary */
 	FORCEINLINE double SnapOutput(double OutputValue)
 	{
-		return bSnapOutputValues ? *Algo::MinElement(AllGridLines, 
+		return bSnapOutputValues && !AllGridLines.IsEmpty() ? *Algo::MinElement(AllGridLines,
 			[OutputValue](double Val1, double Val2) { return FMath::Abs(Val1 - OutputValue) < FMath::Abs(Val2 - OutputValue); }
 		) : OutputValue;
 	}

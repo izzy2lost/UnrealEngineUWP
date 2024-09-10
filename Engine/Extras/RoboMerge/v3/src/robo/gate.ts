@@ -456,8 +456,7 @@ export class Gate {
 
 		const stream = await this.context.p4!.getStreamName(lastGoodCLPath);
 		if (typeof stream === 'string') {
-			const streams = await this.context.p4!.streams();
-			if (!streams.has(stream)) {
+			if (!(await this.context.p4!.stream(stream))) {
 				this.context.logger.error(`Unable to find stream '${stream}'`)
 				return null
 			}
@@ -483,7 +482,7 @@ export class Gate {
 		}
 	
 		const syncResult = await p4.sync(workspace, lastGoodCLPath, {opts:[P4_FORCE]})
-		if (syncResult.length != 1) {
+		if (!syncResult || syncResult.length != 1) {
 			this.context.logger.error(`Unable to sync ${lastGoodCLPath} in workspace ${workspace.name}`)
 			return null
 		}

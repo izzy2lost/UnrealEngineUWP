@@ -6,6 +6,7 @@ namespace UE::WorldHierarchy::HierarchyColumns
 {
 	const FName ColumnID_LevelLabel( "Level" );
 	const FName ColumnID_EditorVisibility( "EditorVisibility" );
+	const FName ColumnID_GameVisibility( "GameVisibility" );
 	const FName ColumnID_LightingScenario( "LightingScenario" );
 	const FName ColumnID_Lock( "Lock" );
 	const FName ColumnID_SCCStatus( "SCC_Status" );

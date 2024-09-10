@@ -19,11 +19,7 @@ enum class ECameraRigLayer : uint8
 	Base UMETA(DisplayName="Base Layer"),
 	Main UMETA(DisplayName="Main Layer"),
 	Global UMETA(DisplayName="Global Layer"),
-	Visual UMETA(DisplayName="Visual Layer"),
-	ScratchMain UMETA(DisplayName="Scratch Main Layer"),
-	User0,
-	User1,
-	User2
+	Visual UMETA(DisplayName="Visual Layer")
 };
 ENUM_CLASS_FLAGS(ECameraRigLayer)
 
@@ -49,9 +45,6 @@ struct FRootCameraNodeCameraRigEvent;
  */
 struct FActivateCameraRigParams
 {
-	/** The evaluator currently running.*/
-	FCameraSystemEvaluator* Evaluator = nullptr;
-
 	/** The evaluation context in which the camera rig runs. */
 	TSharedPtr<const FCameraEvaluationContext> EvaluationContext;
 
@@ -60,6 +53,33 @@ struct FActivateCameraRigParams
 
 	/** The evaluation layer on which to instantiate the camera rig. */
 	ECameraRigLayer Layer = ECameraRigLayer::Main;
+};
+
+/**
+ * Parameter structure for deaactivating a running camera rig.
+ */
+struct FDeactivateCameraRigParams
+{
+	/** The evaluation context in which the camera rig runs. */
+	TSharedPtr<const FCameraEvaluationContext> EvaluationContext;
+
+	/** The source camera rig asset that was instantiated. */
+	TObjectPtr<const UCameraRigAsset> CameraRig;
+
+	/** The evaluation layer on which the camera rig is running. */
+	ECameraRigLayer Layer = ECameraRigLayer::Main;
+};
+
+/**
+ * Parameter structure for building a single camera rig hierarchy.
+ */
+struct FSingleCameraRigHierarchyBuildParams
+{
+	/** The camera rig to build the hierachy for. */
+	FCameraRigEvaluationInfo CameraRigInfo;
+
+	/** The name of the range to tag for the camera rig's nodes. */
+	FName CameraRigRangeName = TEXT("ActiveCameraRig");
 };
 
 /**
@@ -86,6 +106,17 @@ public:
 	/** Activates a camera rig. */
 	void ActivateCameraRig(const FActivateCameraRigParams& Params);
 
+	/** Deactivates a camera rig. */
+	void DeactivateCameraRig(const FDeactivateCameraRigParams& Params);
+
+	/**
+	 * Builds the hierarchy of the system for a given single camera rig.
+	 * This is expected to return the nodes of all the layers, except for the main layer which
+	 * should only have the nodes of the given camera rig (i.e. it shouldn't have nodes of
+	 * other currently active camera rigs).
+	 */
+	void BuildSingleCameraRigHierarchy(const FSingleCameraRigHierarchyBuildParams& Params, FCameraNodeEvaluatorHierarchy& OutHierarchy);
+
 	/**
 	 * Evaluates a single camera rig.
 	 * This is expected to run all layers as usual, except for the main layer which should
@@ -105,6 +136,12 @@ protected:
 
 	/** Activates a camera rig. */
 	virtual void OnActivateCameraRig(const FActivateCameraRigParams& Params) {}
+	
+	/** Deactivates a camera rig. */
+	virtual void OnDeactivateCameraRig(const FDeactivateCameraRigParams& Params) {}
+
+	/* Builds the hierarchy of the system for a given single camera rig. */
+	virtual void OnBuildSingleCameraRigHierarchy(const FSingleCameraRigHierarchyBuildParams& Params, FCameraNodeEvaluatorHierarchy& OutHierarchy) {}
 
 	/** Evaluates a single camera rig. See comments on RunSingleCameraRig. */
 	virtual void OnRunSingleCameraRig(const FSingleCameraRigEvaluationParams& Params, FCameraNodeEvaluationResult& OutResult) {}

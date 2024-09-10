@@ -119,25 +119,6 @@ private:
 
 void FD3D12DynamicRHI::InitializeSubmissionPipe()
 {
-#if RHI_NEW_GPU_PROFILER
-	{
-		TArray<UE::RHI::GPUProfiler::FQueue> Queues;
-		ForEachQueue([&](FD3D12Queue& Queue)
-		{
-			if (Queue.QueueType == ED3D12QueueType::Copy)
-			{
-				// @todo dev-pr : Skip copy queues for now. We don't have copy queue support in RHI contexts,
-				// so it's not possible to insert frame boundary events in a way that is pipelined correctly.
-				return;
-			}
-
-			Queues.Add(Queue.GetProfilerQueue());
-		});
-
-		UE::RHI::GPUProfiler::InitializeQueues(Queues);
-	}
-#endif
-
 	if (FPlatformProcess::SupportsMultithreading())
 	{
 #if D3D12_USE_INTERRUPT_THREAD
@@ -162,33 +143,32 @@ void FD3D12DynamicRHI::InitializeSubmissionPipe()
 #endif
 	}
 
-#if WITH_RHI_BREADCRUMBS
-	TRHIPipelineArray<FRHIBreadcrumbNode*> GPUBreadcrumbs { InPlace, nullptr };
-	FRHIEndFrameArgs Args
+	// Initialize the timing structs in each queue, and the engine GPU profilers
 	{
-		.GPUBreadcrumbs = GPUBreadcrumbs
-	};
-#else
-	FRHIEndFrameArgs Args;
-#endif
-	
-	FlushTiming(true, Args);
+		TArray<FD3D12Payload*> Payloads;
+	#if RHI_NEW_GPU_PROFILER
+		TArray<UE::RHI::GPUProfiler::FQueue> ProfilerQueues;
+	#endif
+
+		ForEachQueue([&](FD3D12Queue& Queue)
+		{
+			FD3D12Payload* Payload = Payloads.Emplace_GetRef(new FD3D12Payload(Queue));
+			Payload->Timing = CurrentTimingPerQueue.CreateNew(Queue);
+
+		#if RHI_NEW_GPU_PROFILER
+			ProfilerQueues.Add(Queue.GetProfilerQueue());
+		#endif
+		});
+
+	#if RHI_NEW_GPU_PROFILER
+		UE::RHI::GPUProfiler::InitializeQueues(ProfilerQueues);
+	#endif
+		SubmitPayloads(MoveTemp(Payloads));
+	}
 }
 
 void FD3D12DynamicRHI::ShutdownSubmissionPipe()
 {
-#if WITH_RHI_BREADCRUMBS
-	TRHIPipelineArray<FRHIBreadcrumbNode*> GPUBreadcrumbs { InPlace, nullptr };
-	FRHIEndFrameArgs Args
-	{
-		.GPUBreadcrumbs = GPUBreadcrumbs
-	};
-#else
-	FRHIEndFrameArgs Args;
-#endif
-
-	FlushTiming(false, Args);
-
 	delete SubmissionThread;
 	SubmissionThread = nullptr;
 
@@ -271,7 +251,8 @@ void FD3D12DynamicRHI::SubmitCommands(TConstArrayView<FD3D12FinalizedCommands*> 
 			Payload->BreadcrumbRange = Payloads->BreadcrumbRange;
 			if (BreadcrumbAllocators.IsValid())
 			{
-				Payload->BatchedObjects.BreadcrumbAllocators.Add(BreadcrumbAllocators);
+				check(!Payload->BreadcrumbAllocators.IsValid());
+				Payload->BreadcrumbAllocators = BreadcrumbAllocators;
 			}
 		}
 	#endif
@@ -735,13 +716,6 @@ uint64 FD3D12Queue::FinalizePayload(bool bRequiresSignal, FPayloadArray& Payload
 
 	BarrierTimestamps.CloseAndReset(PayloadToSubmit->BatchedObjects.QueryRanges);
 
-#if WITH_RHI_BREADCRUMBS && RHI_NEW_GPU_PROFILER
-	if (PayloadToSubmit->BatchedObjects.BreadcrumbAllocators.Num())
-	{
-		BatchedObjects.BreadcrumbAllocators.Append(MoveTemp(PayloadToSubmit->BatchedObjects.BreadcrumbAllocators));
-	}
-#endif
-
 	// Gather query ranges from this payload, grouping by heap pointer
 	if (BatchedObjects.QueryRanges.Num())
 	{
@@ -882,6 +856,15 @@ void FD3D12DynamicRHI::FlushBatchedPayloads(FD3D12Queue::FPayloadArray& Payloads
 		// Wait for queue fences
 		for (auto& [LocalFence, Value] : Payload->QueueFencesToWait)
 		{
+		#if RHI_NEW_GPU_PROFILER
+			// Use the raw ID3D12Fence pointer as the fence's unique ID, since we never release these.
+			Payload->EventStream.Emplace<UE::RHI::GPUProfiler::FEvent::FWaitFence>(
+				  FPlatformTime::Cycles64()
+				, reinterpret_cast<uint64>(LocalFence.D3DFence.GetReference())
+				, Value
+			);
+		#endif
+
 			VERIFYD3D12RESULT(Queue.D3DCommandQueue->Wait(LocalFence.D3DFence, Value));
 		}
 
@@ -1023,6 +1006,15 @@ void FD3D12DynamicRHI::FlushBatchedPayloads(FD3D12Queue::FPayloadArray& Payloads
 		if (Payload->RequiresQueueFenceSignal())
 		{
 			check(Queue.Fence.LastSignaledValue < Payload->CompletionFenceValue);
+
+		#if RHI_NEW_GPU_PROFILER
+			// Use the raw ID3D12Fence pointer as the fence's unique ID, since we never release these.
+			Payload->EventStream.Emplace<UE::RHI::GPUProfiler::FEvent::FSignalFence>(
+				  FPlatformTime::Cycles64()
+				, reinterpret_cast<uint64>(Queue.Fence.D3DFence.GetReference())
+				, Payload->CompletionFenceValue
+			);
+		#endif
 
 			VERIFYD3D12RESULT(Queue.D3DCommandQueue->Signal(Queue.Fence.D3DFence, Payload->CompletionFenceValue));
 			Queue.Fence.LastSignaledValue.store(Payload->CompletionFenceValue, std::memory_order_release);
@@ -1373,7 +1365,7 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 							}
 							break;
 
-#if RHI_NEW_GPU_PROFILER
+					#if RHI_NEW_GPU_PROFILER
 						case ED3D12QueryType::ProfilerTimestampTOP:
 						case ED3D12QueryType::ProfilerTimestampBOP:
 							{
@@ -1386,7 +1378,7 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 								Target = CPUDelta + CurrentQueue.Timing->CPUTimestamp;
 							}
 							break;
-#else
+					#else
 						case ED3D12QueryType::CommandListBegin:
 						case ED3D12QueryType::CommandListEnd:
 						case ED3D12QueryType::IdleBegin:
@@ -1394,26 +1386,19 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 							check(CurrentQueue.Timing);
 							CurrentQueue.Timing->Timestamps.Add(Query.GetResult<uint64>());
 							break;
-
-#endif
+					#endif
 						}
 					}
 				}
 			}
 
-#if RHI_NEW_GPU_PROFILER && WITH_RHI_BREADCRUMBS
-			if (Payload->BatchedObjects.BreadcrumbAllocators.Num())
-			{
-				check(CurrentQueue.Timing);
-				CurrentQueue.Timing->BreadcrumbAllocators.Append(MoveTemp(Payload->BatchedObjects.BreadcrumbAllocators));
-			}
-
+		#if RHI_NEW_GPU_PROFILER
 			if (!Payload->EventStream.IsEmpty())
 			{
 				check(CurrentQueue.Timing);
 				CurrentQueue.Timing->EventStream.Append(MoveTemp(Payload->EventStream));
 			}
-#endif
+		#endif
 
 			if (Payload->Timing.IsSet())
 			{
@@ -1479,7 +1464,7 @@ void FD3D12DynamicRHI::ProcessTimestamps(FD3D12TimingArray const& TimingPerQueue
 
 	for (auto const& Timing : TimingPerQueue)
 	{
-		UE::RHI::GPUProfiler::ProcessEvents(Timing->Queue.GetProfilerQueue(), Timing->EventStream);
+		UE::RHI::GPUProfiler::ProcessEvents(Timing->Queue.GetProfilerQueue(), MoveTemp(Timing->EventStream));
 	}
 
 #else

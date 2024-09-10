@@ -263,6 +263,40 @@ public:
 		bool bInvert = false,
 		UPARAM(DisplayName = "Min Element Vertices") int MinNumTrianglePoints = 3);
 
+	/**
+	 * Create a new Selection, for the TargetMesh, of all 'sharp' edges where the edge's adjacent triangle normals differ by at least MinAngleDeg
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	SelectMeshSharpEdges(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptMeshSelection& Selection,
+		double MinAngleDeg = 20.0
+	);
+
+	/**
+	 * Create a new Selection, for the TargetMesh, of all mesh boundary edges
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	SelectMeshBoundaryEdges(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptMeshSelection& Selection
+	);
+
+	/**
+	 * Create a new BoundarySelection, for the TargetMesh, of the edges on the boundary of another Selection
+	 * @param bExcludeMeshBoundaryEdges If true, do not include Selection boundary edges if they are also mesh boundary edges
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	SelectSelectionBoundaryEdges(
+		UDynamicMesh* TargetMesh,
+		const FGeometryScriptMeshSelection& Selection,
+		FGeometryScriptMeshSelection& BoundarySelection,
+		bool bExcludeMeshBoundaryEdges = false
+	);
+
 
 	/**
 	* Create a new Mesh Selection of the SelectionType for the TargetMesh by finding all elements inside a second SelectionMesh

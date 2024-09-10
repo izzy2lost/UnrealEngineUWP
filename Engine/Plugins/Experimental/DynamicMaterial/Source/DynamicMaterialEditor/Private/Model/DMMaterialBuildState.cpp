@@ -26,7 +26,6 @@ FDMMaterialBuildState::FDMMaterialBuildState(UMaterial* InDynamicMaterial, UDyna
 	, MaterialModel(InMaterialModel)
 	, bDirtyAssets(bInDirtyAssets)
 	, bIgnoreUVs(false)
-	, bIsPreviewMaterial(false)
 	, Utils(MakeShared<FDMMaterialBuildUtils>(*this))
 {
 	check(InDynamicMaterial);
@@ -75,9 +74,9 @@ void FDMMaterialBuildState::SetIgnoreUVs()
 	bIgnoreUVs = true;
 }
 
-void FDMMaterialBuildState::SetPreviewMaterial()
+void FDMMaterialBuildState::SetPreviewObject(UObject* InObject)
 {
-	bIsPreviewMaterial = true;
+	PreviewObject = InObject;
 	DynamicMaterial->MaterialDomain = EMaterialDomain::MD_UI;
 
 	if (UDynamicMaterialEditorSettings::Get()->bPreviewImagesUseTextureUVs == false)

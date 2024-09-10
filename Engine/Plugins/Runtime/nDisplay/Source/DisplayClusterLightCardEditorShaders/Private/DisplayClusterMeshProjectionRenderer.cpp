@@ -1064,7 +1064,7 @@ void FDisplayClusterMeshProjectionRenderer::RenderColorOutput(FRDGBuilder& Graph
 			RDG_EVENT_NAME("MeshProjectionRenderer::CopyColorTexture"),
 			ScreenPassParameters,
 			ERDGPassFlags::Raster,
-			[View, ScreenPassVS, CopyPixelShader, RegionViewport, ScreenPassParameters, DefaultBlendState](FRHICommandList& RHICmdList)
+			[View, ScreenPassVS, CopyPixelShader, RegionViewport, ScreenPassParameters, DefaultBlendState](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			DrawScreenPass(
 				RHICmdList,
@@ -1121,7 +1121,7 @@ void FDisplayClusterMeshProjectionRenderer::RenderHitProxyOutput(FRDGBuilder& Gr
 			RDG_EVENT_NAME("MeshProjectionRenderer::CopyHitProxyTexture"),
 			ScreenPassParameters,
 			ERDGPassFlags::Raster,
-			[View, ScreenPassVS, CopyPixelShader, RegionViewport, ScreenPassParameters, DefaultBlendState](FRHICommandList& RHICmdList)
+			[View, ScreenPassVS, CopyPixelShader, RegionViewport, ScreenPassParameters, DefaultBlendState](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			DrawScreenPass(
 				RHICmdList,
@@ -1455,7 +1455,7 @@ void FDisplayClusterMeshProjectionRenderer::AddNormalsFilterPass(FRDGBuilder& Gr
 			RDG_EVENT_NAME("MeshProjectionRenderer::OutputNormals"),
 			ScreenPassParameters,
 			ERDGPassFlags::Raster,
-			[View, ScreenPassVS, OutputNormalsPS, InputViewport, OutputViewport, ScreenPassParameters, DefaultBlendState](FRHICommandList& RHICmdList)
+			[View, ScreenPassVS, OutputNormalsPS, InputViewport, OutputViewport, ScreenPassParameters, DefaultBlendState](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			DrawScreenPass(
 				RHICmdList,
@@ -1536,7 +1536,7 @@ void FDisplayClusterMeshProjectionRenderer::AddSelectionOutlineScreenPass(FRDGBu
 		RDG_EVENT_NAME("MeshProjectionRenderer::SelectionScreen"),
 		ScreenPassParameters,
 		ERDGPassFlags::Raster,
-		[View, ScreenPassVS, SelectionOutlinePS, OutputViewport, ScreenPassParameters, DefaultBlendState](FRHICommandList& RHICmdList)
+		[View, ScreenPassVS, SelectionOutlinePS, OutputViewport, ScreenPassParameters, DefaultBlendState](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		DrawScreenPass(
 			RHICmdList,
@@ -1962,7 +1962,7 @@ void FDisplayClusterMeshProjectionRenderer::RenderColorOutputs(FRDGBuilder& Grap
 			RDG_EVENT_NAME("MeshProjectionRenderer::CopyColorTexture"),
 			ScreenPassParameters,
 			ERDGPassFlags::Raster,
-			[View = Views[0], ScreenPassVS, CopyPixelShader, RegionViewport, ScreenPassParameters, DefaultBlendState](FRHICommandList& RHICmdList)
+			[View = Views[0], ScreenPassVS, CopyPixelShader, RegionViewport, ScreenPassParameters, DefaultBlendState](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				DrawScreenPass(
 					RHICmdList,

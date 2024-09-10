@@ -413,49 +413,6 @@ void FD3D12DynamicRHI::EnqueueEndOfPipeTask(TUniqueFunction<void()> TaskFunc, TU
 	);
 }
 
-void FD3D12DynamicRHI::FlushTiming(bool bCreateNew, const FRHIEndFrameArgs& Args)
-{
-	bool bHasTiming = !CurrentTimingPerQueue.IsEmpty();
-	auto Lambda = [this, OldTiming = MoveTemp(CurrentTimingPerQueue)]()
-	{
-		ProcessTimestamps(OldTiming);
-	};
-
-	EnqueueEndOfPipeTask(MoveTemp(Lambda), [&](FD3D12Payload& Payload)
-	{
-		if (bCreateNew)
-		{
-			TUniquePtr<FD3D12Timing> NewTiming = MakeUnique<FD3D12Timing>(Payload.Queue);
-			Payload.Timing = NewTiming.Get();
-			CurrentTimingPerQueue.Emplace(MoveTemp(NewTiming));
-		}
-		else
-		{
-			Payload.Timing = nullptr;
-		}
-
-#if RHI_NEW_GPU_PROFILER
-		if (bHasTiming && Payload.Queue.QueueType != ED3D12QueueType::Copy)
-		{
-			ERHIPipeline Pipeline;
-			switch (Payload.Queue.QueueType)
-			{
-			default: checkNoEntry(); [[fallthrough]];
-			case ED3D12QueueType::Direct: Pipeline = ERHIPipeline::Graphics; break;
-			case ED3D12QueueType::Async:  Pipeline = ERHIPipeline::AsyncCompute; break;
-			}
-
-			Payload.EventStream.Emplace<UE::RHI::GPUProfiler::FEvent::FFrameBoundary>(
-				Args.FrameNumber
-		#if WITH_RHI_BREADCRUMBS
-				, Args.GPUBreadcrumbs[Pipeline]
-		#endif
-			);
-		}
-#endif // RHI_NEW_GPU_PROFILER
-	});
-}
-
 void FD3D12DynamicRHI::RHIProcessDeleteQueue()
 {
 	ProcessDeferredDeletionQueue_Platform();
@@ -613,7 +570,40 @@ void FD3D12DynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 	UpdateMemoryStats();
 
 	// Close the previous frame's timing and start a new one
-	FlushTiming(true, Args);
+	auto Lambda = [this, OldTiming = MoveTemp(CurrentTimingPerQueue)]()
+	{
+		ProcessTimestamps(OldTiming);
+	};
+
+	EnqueueEndOfPipeTask(MoveTemp(Lambda), [&](FD3D12Payload& Payload)
+	{
+		// Modify the payloads the EOP task will submit to include
+		// a new timing struct and a frame boundary event.
+
+		Payload.Timing = CurrentTimingPerQueue.CreateNew(Payload.Queue);
+
+	#if RHI_NEW_GPU_PROFILER
+		ERHIPipeline Pipeline;
+		switch (Payload.Queue.QueueType)
+		{
+		default: checkNoEntry(); [[fallthrough]];
+		case ED3D12QueueType::Direct: Pipeline = ERHIPipeline::Graphics; break;
+		case ED3D12QueueType::Async:  Pipeline = ERHIPipeline::AsyncCompute; break;
+
+		case ED3D12QueueType::Copy:
+			// There is currently no high level RHI copy queue support
+			Pipeline = ERHIPipeline::None;
+			break;
+		}
+
+		Payload.EventStream.Emplace<UE::RHI::GPUProfiler::FEvent::FFrameBoundary>(
+			Args.FrameNumber
+		#if WITH_RHI_BREADCRUMBS
+			, (Pipeline != ERHIPipeline::None) ? Args.GPUBreadcrumbs[Pipeline] : nullptr
+		#endif
+		);
+	#endif
+	});
 
 	// Pump the interrupt queue to gather completed events
 	// (required if we're not using an interrupt thread).

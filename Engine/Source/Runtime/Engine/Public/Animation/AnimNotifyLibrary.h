@@ -63,4 +63,13 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Utilities|Animation|Notifies" , meta = (ScriptMethod))
 	static ENGINE_API float GetCurrentAnimationNotifyStateTimeRatio(const FAnimNotifyEventReference& EventReference);
+
+	/**
+	 * Gets whether this notify comes from a source that is blending out.
+	 *
+	 * @param EventReference		The event to inspect
+	 * @return  Whether this notify comes from a source that is blending out.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Utilities|Animation|Notifies" , meta = (ScriptMethod))
+	static ENGINE_API bool IsBlendingOut(const FAnimNotifyEventReference& EventReference);
 };

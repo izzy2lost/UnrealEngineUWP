@@ -78,7 +78,12 @@ FText GetBoolText(bool bValue, EStateTreeNodeFormatting Formatting)
 	return bValue ? LOCTEXT("True", "True") : LOCTEXT("False", "False");
 }
 
-FText GetWithinValueRangeText(float Min, float Max, EStateTreeNodeFormatting Formatting)
+FText GetIntervalText(const FFloatInterval& Interval, EStateTreeNodeFormatting Formatting)
+{
+	return GetIntervalText(Interval.Min, Interval.Max, Formatting);
+}
+
+FText GetIntervalText(float Min, float Max, EStateTreeNodeFormatting Formatting)
 {
 	FNumberFormattingOptions Options;
 	Options.MinimumFractionalDigits = 1;
@@ -87,21 +92,26 @@ FText GetWithinValueRangeText(float Min, float Max, EStateTreeNodeFormatting For
 	FText MinValueText = FText::AsNumber(Min, &Options);
 	FText MaxValueText = FText::AsNumber(Max, &Options);
 
-	FText WithinValueRangeText;
+	return GetIntervalText(MinValueText, MaxValueText, Formatting);
+}
+
+FText GetIntervalText(const FText& MinValueText, const FText& MaxValueText, EStateTreeNodeFormatting Formatting)
+{
+	FText IntervalText;
 	if (Formatting == EStateTreeNodeFormatting::RichText)
 	{
-		WithinValueRangeText = FText::Format(LOCTEXT("WithinValueRangeRich", "<s>in</> [{Min}<s>,</> {Max}]"),
-			MinValueText,
-			MaxValueText);
+		IntervalText = FText::FormatNamed(LOCTEXT("IntervalRich", "[{Min}<s>,</> {Max}]"),
+			TEXT("Min"), MinValueText,
+			TEXT("Max"), MaxValueText);
 	}
 	else //EStateTreeNodeFormatting::Text
 	{
-		WithinValueRangeText = FText::Format(LOCTEXT("WithinValueRange", "in [{Min}, {Max}]"),
-			MinValueText,
-			MaxValueText);
+		IntervalText = FText::FormatNamed(LOCTEXT("Interval", "[{Min}, {Max}]"),
+			TEXT("Min"), MinValueText,
+			TEXT("Max"), MaxValueText);
 	}
 
-	return WithinValueRangeText;
+	return IntervalText;
 }
 
 FText GetGameplayTagContainerAsText(const FGameplayTagContainer& TagContainer, const int ApproxMaxLength)
@@ -207,7 +217,6 @@ FText GetSingleParamFunctionText(const FText& FunctionText, const FText& ParamTe
 		TEXT("Function"), FunctionText,
 		TEXT("Input"), ParamText);
 }
-
 } // UE::StateTree::Helpers
 
 #undef LOCTEXT_NAMESPACE

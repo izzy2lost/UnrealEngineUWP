@@ -513,9 +513,11 @@ namespace UE::StylusInput::Private::Windows
 		return bWasRemoved;
 	}
 
-	FWindowsStylusInputPluginBase::FWindowsStylusInputPluginBase(FGetWindowContextCallback&& GetWindowContextCallback,
+	FWindowsStylusInputPluginBase::FWindowsStylusInputPluginBase(IStylusInputInstance* Instance,
+	                                                             FGetWindowContextCallback&& GetWindowContextCallback,
 	                                                             FUpdateTabletContextsCallback&& UpdateTabletContextsCallback)
-		: GetWindowContextCallback(MoveTemp(GetWindowContextCallback))
+		: Instance(Instance)
+		, GetWindowContextCallback(MoveTemp(GetWindowContextCallback))
 		, UpdateTabletContextsCallback(MoveTemp(UpdateTabletContextsCallback)) 
 	{
 		check(this->GetWindowContextCallback.IsBound());
@@ -526,7 +528,7 @@ namespace UE::StylusInput::Private::Windows
 	{
 		for (IStylusInputEventHandler* EventHandler : EventHandlers)
 		{
-			EventHandler->OnDebugEvent(Message);
+			EventHandler->OnDebugEvent(Message, Instance);
 		}
 	}
 
@@ -650,7 +652,7 @@ namespace UE::StylusInput::Private::Windows
 
 			for (IStylusInputEventHandler* EventHandler : EventHandlers)
 			{
-				EventHandler->OnPacket(Packet);
+				EventHandler->OnPacket(Packet, Instance);
 			}
 
 			PacketBuffer += PropertyCount;

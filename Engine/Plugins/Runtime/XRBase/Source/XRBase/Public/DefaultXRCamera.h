@@ -62,7 +62,7 @@ public:
 	/**
 	 * Apply the orientation and position of the headset to the Camera.
 	 */
-	virtual bool UpdatePlayerCamera(FQuat& CurrentOrientation, FVector& CurrentPosition) override;
+	virtual bool UpdatePlayerCamera(FQuat& CurrentOrientation, FVector& CurrentPosition, float DeltaTime) override;
 	
 	virtual void OverrideFOV(float& InOutFOV) override;
 
@@ -89,6 +89,9 @@ protected:
 
 	FRotator DeltaControlRotation;
 	FQuat DeltaControlOrientation;
+
+	FRotator SmoothedCameraRotation;
+
 private:
 	FLateUpdateManager LateUpdate;
 	bool bUseImplicitHMDPosition;

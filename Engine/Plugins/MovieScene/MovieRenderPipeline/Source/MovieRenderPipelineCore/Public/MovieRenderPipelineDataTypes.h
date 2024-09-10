@@ -999,6 +999,9 @@ public:
 	/** Use overscan percentage to extend render region beyond the set resolution.  */
 	float OverscanPercentage;
 
+	/** Whether to override the camera's overscan value when rendering */
+	bool bOverrideCameraOverscan;
+	
 	/** 
 	* The gamma space to apply accumulation in. During accumulation, pow(x,AccumulationGamma) is applied
 	* and pow(x,1/AccumulationGamma) is applied after accumulation is finished. 1.0 means no change."

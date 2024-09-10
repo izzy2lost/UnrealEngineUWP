@@ -71,7 +71,7 @@ void UPCGSplineData::Initialize(const FPCGSplineStruct& InSplineStruct)
 	CachedBounds = CachedBounds.TransformBy(SplineStruct.Transform);
 }
 
-void UPCGSplineData::ApplyTo(USplineComponent* InSplineComponent)
+void UPCGSplineData::ApplyTo(USplineComponent* InSplineComponent) const
 {
 	SplineStruct.ApplyTo(InSplineComponent);
 }

@@ -36,6 +36,7 @@
 #include "Engine/WorldComposition.h"
 #include "Misc/ScopeExit.h"
 #include "LevelUtils.h"
+#include "WorldTreeItemTypes.h"
 
 #define LOCTEXT_NAMESPACE "WorldBrowser"
 
@@ -159,28 +160,43 @@ void FLevelCollectionModel::BindCommands()
 		FExecuteAction::CreateSP(this, &FLevelCollectionModel::ConvertLevelToExternalActors_Executed, false),
 		FCanExecuteAction::CreateSP(this, &FLevelCollectionModel::CanConvertAnyLevelToExternalActors, false));
 
-	//visibility
-	ActionList.MapAction( Commands.World_ShowSelectedLevels,
-		FExecuteAction::CreateSP( this, &FLevelCollectionModel::ShowSelectedLevels_Executed  ),
+	//editor visibility
+	ActionList.MapAction( Commands.World_ShowInEditorSelectedLevels,
+		FExecuteAction::CreateSP( this, &FLevelCollectionModel::ShowInEditorSelectedLevels_Executed  ),
 		FCanExecuteAction::CreateSP( this, &FLevelCollectionModel::AreAnySelectedLevelsLoaded ) );
-	
-	ActionList.MapAction( Commands.World_HideSelectedLevels,
-		FExecuteAction::CreateSP( this, &FLevelCollectionModel::HideSelectedLevels_Executed  ),
+	ActionList.MapAction( Commands.World_HideInEditorSelectedLevels,
+		FExecuteAction::CreateSP( this, &FLevelCollectionModel::HideInEditorSelectedLevels_Executed  ),
 		FCanExecuteAction::CreateSP( this, &FLevelCollectionModel::AreAnySelectedLevelsLoaded ) );
-	
-	ActionList.MapAction( Commands.World_ShowOnlySelectedLevels,
-		FExecuteAction::CreateSP( this, &FLevelCollectionModel::ShowOnlySelectedLevels_Executed  ),
+	ActionList.MapAction( Commands.World_ShowInEditorOnlySelectedLevels,
+		FExecuteAction::CreateSP( this, &FLevelCollectionModel::ShowInEditorOnlySelectedLevels_Executed  ),
 		FCanExecuteAction::CreateSP( this, &FLevelCollectionModel::AreAnySelectedLevelsLoaded ) );
-
-	ActionList.MapAction(Commands.World_ShowAllButSelectedLevels,
-		FExecuteAction::CreateSP(this, &FLevelCollectionModel::ShowAllButSelectedLevels_Executed),
+	ActionList.MapAction(Commands.World_ShowInEditorAllButSelectedLevels,
+		FExecuteAction::CreateSP(this, &FLevelCollectionModel::ShowInEditorAllButSelectedLevels_Executed),
 		FCanExecuteAction::CreateSP(this, &FLevelCollectionModel::AreAnySelectedLevelsLoaded));
-
-	ActionList.MapAction(Commands.World_ShowAllLevels,
-		FExecuteAction::CreateSP(this, &FLevelCollectionModel::ShowAllLevels_Executed));
+	ActionList.MapAction(Commands.World_ShowInEditorAllLevels,
+		FExecuteAction::CreateSP(this, &FLevelCollectionModel::ShowInEditorAllLevels_Executed));
+	ActionList.MapAction(Commands.World_HideInEditorAllLevels,
+		FExecuteAction::CreateSP(this, &FLevelCollectionModel::HideInEditorAllLevels_Executed));
 	
-	ActionList.MapAction(Commands.World_HideAllLevels,
-		FExecuteAction::CreateSP(this, &FLevelCollectionModel::HideAllLevels_Executed));
+	//game visibility
+	ActionList.MapAction( Commands.World_ShowInGameSelectedLevels,
+		FExecuteAction::CreateSP( this, &FLevelCollectionModel::ShowInGameSelectedLevels_Executed  ),
+		FCanExecuteAction::CreateSP( this, &FLevelCollectionModel::CanExecuteGameVisibilityCommandsForSelectedLevels ) );
+	ActionList.MapAction( Commands.World_HideInGameSelectedLevels,
+		FExecuteAction::CreateSP( this, &FLevelCollectionModel::HideInGameSelectedLevels_Executed  ),
+		FCanExecuteAction::CreateSP( this, &FLevelCollectionModel::CanExecuteGameVisibilityCommandsForSelectedLevels ) );
+	ActionList.MapAction( Commands.World_ShowInGameOnlySelectedLevels,
+		FExecuteAction::CreateSP( this, &FLevelCollectionModel::ShowInGameOnlySelectedLevels_Executed  ),
+		FCanExecuteAction::CreateSP( this, &FLevelCollectionModel::CanExecuteGameVisibilityCommandsForSelectedLevels ) );
+	ActionList.MapAction(Commands.World_ShowInGameAllButSelectedLevels,
+		FExecuteAction::CreateSP(this, &FLevelCollectionModel::ShowInGameAllButSelectedLevels_Executed),
+		FCanExecuteAction::CreateSP(this, &FLevelCollectionModel::CanExecuteGameVisibilityCommandsForSelectedLevels));
+	ActionList.MapAction(Commands.World_ShowInGameAllLevels,
+		FExecuteAction::CreateSP(this, &FLevelCollectionModel::ShowInGameAllLevels_Executed),
+		FCanExecuteAction::CreateSP(this, &FLevelCollectionModel::CanExecuteGameVisibilityCommands));
+	ActionList.MapAction(Commands.World_HideInGameAllLevels,
+		FExecuteAction::CreateSP(this, &FLevelCollectionModel::HideInGameAllLevels_Executed),
+		FCanExecuteAction::CreateSP(this, &FLevelCollectionModel::CanExecuteGameVisibilityCommands));
 		
 	//lock
 	ActionList.MapAction( Commands.World_LockSelectedLevels,
@@ -463,7 +479,7 @@ void FLevelCollectionModel::IterateHierarchy(FLevelModelVisitor& Visitor)
 	}
 }
 
-void FLevelCollectionModel::HideLevels(const FLevelModelList& InLevelList)
+void FLevelCollectionModel::HideLevelsInEditor(const FLevelModelList& InLevelList)
 {
 	if (IsReadOnly())
 	{
@@ -493,12 +509,12 @@ void FLevelCollectionModel::HideLevels(const FLevelModelList& InLevelList)
 		LevelModels.Add(It->Get());
 		bVisible.Add(false);
 	}
-	FLevelModel::SetVisible(LevelModels, bVisible);
+	FLevelModel::SetVisibleInEditor(LevelModels, bVisible);
 
 	RequestUpdateAllLevels();
 }
 	
-void FLevelCollectionModel::ShowLevels(const FLevelModelList& InLevelList)
+void FLevelCollectionModel::ShowLevelsInEditor(const FLevelModelList& InLevelList)
 {
 	if (IsReadOnly())
 	{
@@ -530,19 +546,55 @@ void FLevelCollectionModel::ShowLevels(const FLevelModelList& InLevelList)
 		LevelModels.Add(It->Get());
 		bVisible.Add(true);
 	}
-	FLevelModel::SetVisible(LevelModels, bVisible);
+	FLevelModel::SetVisibleInEditor(LevelModels, bVisible);
 
 	RequestUpdateAllLevels();
 }
 
-void FLevelCollectionModel::ShowOnlySelectedLevels()
+void FLevelCollectionModel::ShowInEditorOnlySelectedLevels()
 {
-	ShowOnlySelectedLevels_Executed();
+	ShowInEditorOnlySelectedLevels_Executed();
 }
 
-void FLevelCollectionModel::ShowAllButSelectedLevels()
+void FLevelCollectionModel::ShowInEditorAllButSelectedLevels()
 {
-	ShowAllButSelectedLevels_Executed();
+	ShowInEditorAllButSelectedLevels_Executed();
+}
+
+void FLevelCollectionModel::HideLevelsInGame(const FLevelModelList& InLevelList)
+{
+	// For efficiency, set visibility of all levels at once
+	TArray<FLevelModel*> LevelModels;
+	TArray<bool> bVisible;
+	for (auto It = InLevelList.CreateConstIterator(); It; ++It)
+	{
+		LevelModels.Add(It->Get());
+		bVisible.Add(false);
+	}
+	FLevelModel::SetVisibleInGame(LevelModels, bVisible);
+}
+
+void FLevelCollectionModel::ShowLevelsInGame(const FLevelModelList& InLevelList)
+{
+	// For efficiency, set visibility of all levels at once
+	TArray<FLevelModel*> LevelModels;
+	TArray<bool> bVisible;
+	for (auto It = InLevelList.CreateConstIterator(); It; ++It)
+	{
+		LevelModels.Add(It->Get());
+		bVisible.Add(true);
+	}
+	FLevelModel::SetVisibleInGame(LevelModels, bVisible);
+}
+
+void FLevelCollectionModel::ShowInGameOnlySelectedLevels()
+{
+	ShowInGameOnlySelectedLevels_Executed();
+}
+
+void FLevelCollectionModel::ShowInGameAllButSelectedLevels()
+{
+	ShowInGameAllButSelectedLevels_Executed();
 }
 
 void FLevelCollectionModel::UnlockLevels(const FLevelModelList& InLevelList)
@@ -603,7 +655,7 @@ void FLevelCollectionModel::SaveLevels(const FLevelModelList& InLevelList)
 	{
 		if ((*It)->GetLevelObject())
 		{
-			if (!(*It)->IsVisible())
+			if (!(*It)->IsVisibleInEditor())
 			{
 				FMessageDialog::Open( EAppMsgType::Ok, NSLOCTEXT("UnrealEd", "UnableToSaveInvisibleLevels", "Save aborted.  Levels must be made visible before they can be saved.") );
 				return;
@@ -827,7 +879,7 @@ bool FLevelCollectionModel::PassesAllFilters(const FLevelModel& Item) const
 	return false;
 }
 
-void FLevelCollectionModel::BuildHierarchyMenu(FMenuBuilder& InMenuBuilder) const
+void FLevelCollectionModel::BuildHierarchyMenu(FMenuBuilder& InMenuBuilder, EBuildHierarchyMenuFlags Flags) const
 {
 }
 
@@ -1011,7 +1063,7 @@ bool FLevelCollectionModel::AreAllSelectedLevelsEditableAndVisible() const
 	for (auto It = SelectedLevelsList.CreateConstIterator(); It; ++It)
 	{
 		if ((*It)->IsEditable() == false ||
-			(*It)->IsVisible() == false)
+			(*It)->IsVisibleInEditor() == false)
 		{
 			return false;
 		}
@@ -1038,13 +1090,23 @@ bool FLevelCollectionModel::AreAnySelectedLevelsEditableAndVisible() const
 	for (auto It = SelectedLevelsList.CreateConstIterator(); It; ++It)
 	{
 		if ((*It)->IsEditable() == true && 
-			(*It)->IsVisible() == true)
+			(*It)->IsVisibleInEditor() == true)
 		{
 			return true;
 		}
 	}
 	
 	return false;
+}
+
+bool FLevelCollectionModel::CanExecuteGameVisibilityCommandsForSelectedLevels() const
+{
+	return AreAnySelectedLevelsLoaded() && CanExecuteGameVisibilityCommands();
+}
+
+bool FLevelCollectionModel::CanExecuteGameVisibilityCommands() const
+{
+	return !WorldHierarchy::IsInPie();
 }
 
 bool FLevelCollectionModel::IsSelectedLevelEditable() const
@@ -1485,7 +1547,7 @@ FBox FLevelCollectionModel::GetVisibleLevelsBoundingBox(const FLevelModelList& I
 			TotalBounds+= GetVisibleLevelsBoundingBox((*It)->GetChildren(), bIncludeChildren);
 		}
 		
-		if ((*It)->IsVisible())
+		if ((*It)->IsVisibleInEditor())
 		{
 			TotalBounds+= (*It)->GetLevelBounds();
 		}
@@ -1624,47 +1686,89 @@ void FLevelCollectionModel::InvertSelection_Executed()
 	SetSelectedLevels(InvertedLevels);
 }
 
-void FLevelCollectionModel::ShowSelectedLevels_Executed()
+void FLevelCollectionModel::ShowInEditorSelectedLevels_Executed()
 {
-	ShowLevels(GetSelectedLevels());
+	ShowLevelsInEditor(GetSelectedLevels());
 }
 
-void FLevelCollectionModel::HideSelectedLevels_Executed()
+void FLevelCollectionModel::HideInEditorSelectedLevels_Executed()
 {
-	HideLevels(GetSelectedLevels());
+	HideLevelsInEditor(GetSelectedLevels());
 }
 
-void FLevelCollectionModel::ShowOnlySelectedLevels_Executed()
+void FLevelCollectionModel::ShowInEditorOnlySelectedLevels_Executed()
 {
 	//stash off a copy of the original array, as setting visibility can destroy the selection
 	FLevelModelList SelectedLevelsCopy = GetSelectedLevels();
 	
 	InvertSelection_Executed();
-	HideSelectedLevels_Executed();
+	HideInEditorSelectedLevels_Executed();
 	SetSelectedLevels(SelectedLevelsCopy);
-	ShowSelectedLevels_Executed();
+	ShowInEditorSelectedLevels_Executed();
 }
 
-void FLevelCollectionModel::ShowAllButSelectedLevels_Executed()
+void FLevelCollectionModel::ShowInEditorAllButSelectedLevels_Executed()
 {
 	//stash off a copy of the original array, as setting visibility can destroy the selection
 	FLevelModelList SelectedLevelsCopy = GetSelectedLevels();
 
 	InvertSelection_Executed();
-	ShowSelectedLevels_Executed();
+	ShowInEditorSelectedLevels_Executed();
 	SetSelectedLevels(SelectedLevelsCopy);
-	HideSelectedLevels_Executed();
+	HideInEditorSelectedLevels_Executed();
 }
 
 
-void FLevelCollectionModel::ShowAllLevels_Executed()
+void FLevelCollectionModel::ShowInEditorAllLevels_Executed()
 {
-	ShowLevels(GetFilteredLevels());
+	ShowLevelsInEditor(GetFilteredLevels());
 }
 
-void FLevelCollectionModel::HideAllLevels_Executed()
+void FLevelCollectionModel::HideInEditorAllLevels_Executed()
 {
-	HideLevels(GetFilteredLevels());
+	HideLevelsInEditor(GetFilteredLevels());
+}
+
+void FLevelCollectionModel::ShowInGameSelectedLevels_Executed()
+{
+	ShowLevelsInGame(GetSelectedLevels());
+}
+
+void FLevelCollectionModel::HideInGameSelectedLevels_Executed()
+{
+	HideLevelsInGame(GetSelectedLevels());
+}
+
+void FLevelCollectionModel::ShowInGameOnlySelectedLevels_Executed()
+{
+	//stash off a copy of the original array, as setting visibility can destroy the selection
+	FLevelModelList SelectedLevelsCopy = GetSelectedLevels();
+	
+	InvertSelection_Executed();
+	HideInGameSelectedLevels_Executed();
+	SetSelectedLevels(SelectedLevelsCopy);
+	ShowInGameSelectedLevels_Executed();
+}
+
+void FLevelCollectionModel::ShowInGameAllButSelectedLevels_Executed()
+{
+	//stash off a copy of the original array, as setting visibility can destroy the selection
+	FLevelModelList SelectedLevelsCopy = GetSelectedLevels();
+
+	InvertSelection_Executed();
+	ShowInGameSelectedLevels_Executed();
+	SetSelectedLevels(SelectedLevelsCopy);
+	HideInGameSelectedLevels_Executed();
+}
+
+void FLevelCollectionModel::ShowInGameAllLevels_Executed()
+{
+	ShowLevelsInGame(GetFilteredLevels());
+}
+
+void FLevelCollectionModel::HideInGameAllLevels_Executed()
+{
+	HideLevelsInGame(GetFilteredLevels());
 }
 
 void FLevelCollectionModel::LockSelectedLevels_Executed()
@@ -1869,16 +1973,28 @@ void FLevelCollectionModel::FillLockSubMenu(FMenuBuilder& InMenuBuilder)
 	}
 }
 
-void FLevelCollectionModel::FillVisibilitySubMenu(FMenuBuilder& InMenuBuilder)
+void FLevelCollectionModel::FillEditorVisibilitySubMenu(FMenuBuilder& InMenuBuilder)
 {
 	const FLevelCollectionCommands& Commands = FLevelCollectionCommands::Get();
 
-	InMenuBuilder.AddMenuEntry( Commands.World_ShowSelectedLevels );
-	InMenuBuilder.AddMenuEntry( Commands.World_HideSelectedLevels );
-	InMenuBuilder.AddMenuEntry( Commands.World_ShowOnlySelectedLevels );
-	InMenuBuilder.AddMenuEntry( Commands.World_ShowAllButSelectedLevels );
-	InMenuBuilder.AddMenuEntry( Commands.World_ShowAllLevels );
-	InMenuBuilder.AddMenuEntry( Commands.World_HideAllLevels );
+	InMenuBuilder.AddMenuEntry( Commands.World_ShowInEditorSelectedLevels );
+	InMenuBuilder.AddMenuEntry( Commands.World_HideInEditorSelectedLevels );
+	InMenuBuilder.AddMenuEntry( Commands.World_ShowInEditorOnlySelectedLevels );
+	InMenuBuilder.AddMenuEntry( Commands.World_ShowInEditorAllButSelectedLevels );
+	InMenuBuilder.AddMenuEntry( Commands.World_ShowInEditorAllLevels );
+	InMenuBuilder.AddMenuEntry( Commands.World_HideInEditorAllLevels );
+}
+
+void FLevelCollectionModel::FillGameVisibilitySubMenu(FMenuBuilder& InMenuBuilder)
+{
+	const FLevelCollectionCommands& Commands = FLevelCollectionCommands::Get();
+
+	InMenuBuilder.AddMenuEntry( Commands.World_ShowInGameSelectedLevels );
+	InMenuBuilder.AddMenuEntry( Commands.World_HideInGameSelectedLevels );
+	InMenuBuilder.AddMenuEntry( Commands.World_ShowInGameOnlySelectedLevels );
+	InMenuBuilder.AddMenuEntry( Commands.World_ShowInGameAllButSelectedLevels );
+	InMenuBuilder.AddMenuEntry( Commands.World_ShowInGameAllLevels );
+	InMenuBuilder.AddMenuEntry( Commands.World_HideInGameAllLevels );
 }
 
 void FLevelCollectionModel::FillSourceControlSubMenu(FMenuBuilder& InMenuBuilder)

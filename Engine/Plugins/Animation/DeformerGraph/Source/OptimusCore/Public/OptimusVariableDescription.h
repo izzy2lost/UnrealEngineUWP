@@ -64,7 +64,7 @@ public:
 	FName VariableName;
 
 	/** The data type of the variable */
-	UPROPERTY(EditAnywhere, Category = VariableDefinition, meta=(UseInVariable))
+	UPROPERTY(EditAnywhere, Category = VariableDefinition, meta=(UseInVariable, UseInProperty))
 	FOptimusDataTypeRef DataType;
 
 	/** The default value for the variable. */

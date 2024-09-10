@@ -18,7 +18,6 @@
     #pragma warning(pop)
 #endif
 
-
 namespace dna {
 
 template<class Reader>
@@ -119,35 +118,28 @@ struct DenormalizedData {
         void populateRBFPoseJointOutputIndices(const Reader* source) {
             const std::uint16_t poseCount = source->getRBFPoseCount();
             rbfPoseJointOutputIndices.resize(poseCount);
-
-            const auto indexOf = [](ConstArrayView<std::uint16_t> container, std::uint16_t val) {
-                    const auto valIt = std::find(container.begin(), container.end(), val);
-                    return static_cast<size_t>(std::distance(container.begin(), valIt));
-                };
-            const std::uint16_t rawControlCount = source->getRawControlCount();
-            const std::uint16_t psdControlCount = source->getPSDCount();
-            const std::uint16_t mlControlCount = source->getMLControlCount();
-            auto rbfControlOffset = rawControlCount + psdControlCount + mlControlCount;
-
-            for (std::uint16_t gi = {}; gi < source->getJointGroupCount(); ++gi) {
-                const auto inputIndices = source->getJointGroupInputIndices(gi);
-                const auto columnCount = inputIndices.size();
-                for (const auto& inputIndex : inputIndices) {
-                    if (inputIndex >= rbfControlOffset) {
-                        const auto poseIndex = static_cast<std::uint16_t>(inputIndex - rbfControlOffset);
-                        const auto outputIndices = source->getJointGroupOutputIndices(gi);
-                        rbfPoseJointOutputIndices[poseIndex].reserve(outputIndices.size());
-                        const auto columnIndex = indexOf(inputIndices, inputIndex);
-                        const auto values = source->getJointGroupValues(gi);
-                        for (std::uint16_t oi = 0; oi < outputIndices.size(); ++oi) {
-                            if (std::abs(values[oi * columnCount + columnIndex]) > 0.0f) {
-                                rbfPoseJointOutputIndices[poseIndex].push_back(outputIndices[oi]);
+            for (std::uint16_t pi = {}; pi < poseCount; ++pi) {
+                const auto poseControlIndices = source->getRBFPoseOutputControlIndices(pi);
+                for (std::uint16_t gi = {}; gi < source->getJointGroupCount(); ++gi) {
+                    const auto inputIndices = source->getJointGroupInputIndices(gi);
+                    const auto outputIndices = source->getJointGroupOutputIndices(gi);
+                    const auto values = source->getJointGroupValues(gi);
+                    const auto columnCount = inputIndices.size();
+                    const auto rowCount = outputIndices.size();
+                    for (std::size_t columnIndex = {}; columnIndex < columnCount; ++columnIndex) {
+                        const auto inputIndex = inputIndices[columnIndex];
+                        if (std::find(poseControlIndices.begin(), poseControlIndices.end(),
+                                      inputIndex) != poseControlIndices.end()) {
+                            rbfPoseJointOutputIndices[pi].reserve(rbfPoseJointOutputIndices[pi].size() + rowCount);
+                            for (std::uint16_t rowIndex = {}; rowIndex < rowCount; ++rowIndex) {
+                                if (std::abs(values[rowIndex * columnCount + columnIndex]) > 0.0f) {
+                                    rbfPoseJointOutputIndices[pi].push_back(outputIndices[rowIndex]);
+                                }
                             }
                         }
                     }
                 }
             }
-
         }
 
         void populateRBFPoseJointOutputValues(const Reader* source) {
@@ -169,31 +161,30 @@ struct DenormalizedData {
                     const auto valIt = std::find(container.begin(), container.end(), val);
                     return static_cast<size_t>(std::distance(container.begin(), valIt));
                 };
-            const std::uint16_t rawControlCount = source->getRawControlCount();
-            const std::uint16_t psdControlCount = source->getPSDCount();
-            const std::uint16_t mlControlCount = source->getMLControlCount();
-            auto rbfControlOffset = rawControlCount + psdControlCount + mlControlCount;
+
             for (std::uint16_t pi = {}; pi < poseCount; ++pi) {
-                const auto inputIndex = static_cast<std::uint16_t>(rbfControlOffset + pi);
-                const auto jointOutputIndices = source->getRBFPoseJointOutputIndices(pi);
-                const auto jointOutputIndicesCount = jointOutputIndices.size();
-                rbfPoseJointOutputValues[pi].resize(jointOutputIndices.size(), 0.0f);
-                for (std::uint16_t oi = {}; oi < jointOutputIndicesCount; ++oi) {
-                    const auto outputIndex = jointOutputIndices[oi];
-                    const auto jointGroupIndex = findJointGroupIndex(outputIndex);
+                const auto poseControlIndices = source->getRBFPoseOutputControlIndices(pi);
+                for (const auto inputIndex : poseControlIndices) {
+                    const auto jointOutputIndices = source->getRBFPoseJointOutputIndices(pi);
+                    const auto jointOutputIndicesCount = jointOutputIndices.size();
+                    rbfPoseJointOutputValues[pi].resize(jointOutputIndices.size(), 0.0f);
+                    for (std::uint16_t oi = {}; oi < jointOutputIndicesCount; ++oi) {
+                        const auto outputIndex = jointOutputIndices[oi];
+                        const auto jointGroupIndex = findJointGroupIndex(outputIndex);
 
-                    const auto jointGroupOutputIndices = source->getJointGroupOutputIndices(jointGroupIndex);
-                    const auto rowCount = jointGroupOutputIndices.size();
+                        const auto jointGroupOutputIndices = source->getJointGroupOutputIndices(jointGroupIndex);
+                        const auto rowCount = jointGroupOutputIndices.size();
 
-                    const auto jointGroupInputIndices = source->getJointGroupInputIndices(jointGroupIndex);
-                    const auto columnCount = jointGroupInputIndices.size();
+                        const auto jointGroupInputIndices = source->getJointGroupInputIndices(jointGroupIndex);
+                        const auto columnCount = jointGroupInputIndices.size();
 
-                    const auto columnIndex = indexOf(jointGroupInputIndices, inputIndex);
-                    const auto rowIndex = indexOf(jointGroupOutputIndices, outputIndex);
+                        const auto columnIndex = indexOf(jointGroupInputIndices, inputIndex);
+                        const auto rowIndex = indexOf(jointGroupOutputIndices, outputIndex);
 
-                    if ((columnIndex < columnCount) && (rowIndex < rowCount)) {
-                        const auto values = source->getJointGroupValues(jointGroupIndex);
-                        rbfPoseJointOutputValues[pi][oi] = values[rowIndex * columnCount + columnIndex];
+                        if ((columnIndex < columnCount) && (rowIndex < rowCount)) {
+                            const auto values = source->getJointGroupValues(jointGroupIndex);
+                            rbfPoseJointOutputValues[pi][oi] = values[rowIndex * columnCount + columnIndex];
+                        }
                     }
                 }
             }
@@ -205,22 +196,18 @@ struct DenormalizedData {
             const auto bscInputIndices = source->getBlendShapeChannelInputIndices();
             const auto bscOutputIndices = source->getBlendShapeChannelOutputIndices();
             const auto bscCount = bscInputIndices.size();
-            const std::uint16_t rawControlCount = source->getRawControlCount();
-            const std::uint16_t psdControlCount = source->getPSDCount();
-            const std::uint16_t mlControlCount = source->getMLControlCount();
-            auto rbfControlOffset = rawControlCount + psdControlCount + mlControlCount;
-
             const auto poseCount = source->getRBFPoseCount();
             rbfBlendShapeChannelOutputIndices.resize(poseCount);
             for (std::uint16_t pi = {}; pi < poseCount; ++pi) {
-                const auto inputIndex = rbfControlOffset + pi;
-                for (std::uint16_t bi = {}; bi < bscCount; ++bi) {
-                    if (bscInputIndices[bi] == inputIndex) {
-                        rbfBlendShapeChannelOutputIndices[pi].push_back(bscOutputIndices[bi]);
+                const auto poseControlIndices = source->getRBFPoseOutputControlIndices(pi);
+                for (const auto inputIndex : poseControlIndices) {
+                    for (std::uint16_t bi = {}; bi < bscCount; ++bi) {
+                        if (bscInputIndices[bi] == inputIndex) {
+                            rbfBlendShapeChannelOutputIndices[pi].push_back(bscOutputIndices[bi]);
+                        }
                     }
                 }
             }
-
         }
 
         void populateRBFAnimatedMapOutputIndices(const Reader* source) {
@@ -229,21 +216,17 @@ struct DenormalizedData {
             const auto amInputIndices = source->getAnimatedMapInputIndices();
             const auto amOutputIndices = source->getAnimatedMapOutputIndices();
             const auto amCount = source->getAnimatedMapCount();
-            const std::uint16_t rawControlCount = source->getRawControlCount();
-            const std::uint16_t psdControlCount = source->getPSDCount();
-            const std::uint16_t mlControlCount = source->getMLControlCount();
-            auto rbfControlOffset = rawControlCount + psdControlCount + mlControlCount;
-
             const auto poseCount = source->getRBFPoseCount();
             for (std::uint16_t pi = {}; pi < poseCount; ++pi) {
-                const auto inputIndex = rbfControlOffset + pi;
-                for (std::uint16_t ai = {}; ai < amCount; ++ai) {
-                    if (amInputIndices[ai] == inputIndex) {
-                        rbfAnimatedMapOutputIndices[pi].push_back(amOutputIndices[ai]);
+                const auto poseControlIndices = source->getRBFPoseOutputControlIndices(pi);
+                for (const auto inputIndex : poseControlIndices) {
+                    for (std::uint16_t ai = {}; ai < amCount; ++ai) {
+                        if (amInputIndices[ai] == inputIndex) {
+                            rbfAnimatedMapOutputIndices[pi].push_back(amOutputIndices[ai]);
+                        }
                     }
                 }
             }
-
         }
 
 };

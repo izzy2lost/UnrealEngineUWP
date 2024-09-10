@@ -59,6 +59,8 @@ namespace UE::MultiUserClient::Replication
 		FOfflineClientDelegate& OnPostClientAdded() { return OnPostClientAddedDelegate; }
 		/** Called just before an offline client is about to be removed. Called before OnClientsChanged. */
 		FOfflineClientDelegate& OnPreClientRemoved() { return OnPreClientRemovedDelegate; }
+		/** Broadcasts after an offline client's stream content has changed. Also called after OnClientsChangedDelegate. */
+		FOfflineClientDelegate& OnClientContentChanged() { return OnClientContentChangedDelegate; }
 
 	private:
 
@@ -75,10 +77,12 @@ namespace UE::MultiUserClient::Replication
 
 		/** Broadcasts when Clients is changed. */
 		FOfflineClientsChanged OnClientsChangedDelegate;
-		/** Called just after an offline client is has been added. Called before OnClientsChanged. */
+		/** Broadcasts just after an offline client is has been added. Called before OnClientsChanged. */
 		FOfflineClientDelegate OnPostClientAddedDelegate;
-		/** Called just before an offline client is about to be removed. Called before OnClientsChanged. */
+		/** Broadcasts just before an offline client is about to be removed. Called before OnClientsChanged. */
 		FOfflineClientDelegate OnPreClientRemovedDelegate;
+		/** Broadcasts after an offline client's stream content has changed. Not called as part of OnPostClientAddedDelegate. */
+		FOfflineClientDelegate OnClientContentChangedDelegate;
 
 		/** Updates the list of known endpoints in response to an activity being added. */
 		void OnActivityAddedOrProduced(const FConcertClientInfo&, const FConcertSyncActivity&, const FStructOnScope&);

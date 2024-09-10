@@ -90,7 +90,7 @@ bool UChooserFindProperties::ShouldFilterOutAsset(const FAssetData& InAssetData,
 		}
 	}
 	
-	bOutIsOldAsset = false;
+	bOutIsOldAsset = true;
 	return true;
 }
 

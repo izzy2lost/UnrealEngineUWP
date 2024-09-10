@@ -8,6 +8,7 @@
 #include "Async/TaskGraphInterfaces.h"
 #include "Containers/Map.h"
 #include "Dataflow/Interfaces/DataflowPhysicsSolver.h"
+#include "ChaosDebugDraw/ChaosDDContext.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -39,11 +40,20 @@ namespace UE::Dataflow
 		class FDataflowSimulationTask
 		{
 		public:
+
+#if CHAOS_DEBUG_DRAW
 			FDataflowSimulationTask(const TObjectPtr<UDataflow>& InDataflowAsset, const TSharedPtr<FDataflowSimulationContext>& InSimulationContext,
-				const float InDeltaTime, const float InSimulationTime)
-				: DataflowAsset(InDataflowAsset), SimulationContext(InSimulationContext), DeltaTime(InDeltaTime), SimulationTime(InSimulationTime)
+				const float InDeltaTime, const float InSimulationTime, const ChaosDD::Private::FChaosDDTaskParentContext& InParentDDContext)
+				: DataflowAsset(InDataflowAsset), SimulationContext(InSimulationContext), DeltaTime(InDeltaTime), SimulationTime(InSimulationTime), ParentDDContext(InParentDDContext)
 			{
 			}
+#else
+			FDataflowSimulationTask(const TObjectPtr<UDataflow>& InDataflowAsset, const TSharedPtr<FDataflowSimulationContext>& InSimulationContext,
+							const float InDeltaTime, const float InSimulationTime)
+							: DataflowAsset(InDataflowAsset), SimulationContext(InSimulationContext), DeltaTime(InDeltaTime), SimulationTime(InSimulationTime)
+			{
+			}
+#endif
 
 			TStatId GetStatId() const
 			{
@@ -66,6 +76,9 @@ namespace UE::Dataflow
 
 			void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 			{
+#if CHAOS_DEBUG_DRAW
+				ChaosDD::Private::FChaosDDScopeTaskContext DDTaskContext(ParentDDContext);
+#endif
 				Dataflow::EvaluateSimulationGraph(DataflowAsset, SimulationContext, DeltaTime, SimulationTime);
 			}
 
@@ -81,6 +94,11 @@ namespace UE::Dataflow
 
 			/** World simulation time  */
 			float SimulationTime;
+
+#if CHAOS_DEBUG_DRAW
+			/** Parent debug draw context */
+			const ChaosDD::Private::FChaosDDTaskParentContext ParentDDContext;
+#endif
 		};
 
 		inline void PreSimulationTick(const TObjectPtr<UObject>& SimulationWorld, const float SimulationTime, const float DeltaTime)
@@ -154,7 +172,7 @@ namespace UE::Dataflow
 }
 
 FDelegateHandle UDataflowSimulationManager::OnObjectPropertyChangedHandle;
-FDelegateHandle UDataflowSimulationManager::OnWorldTickEndHandle;
+FDelegateHandle UDataflowSimulationManager::OnWorldPostActorTick;
 FDelegateHandle UDataflowSimulationManager::OnCreatePhysicsStateHandle;
 FDelegateHandle UDataflowSimulationManager::OnDestroyPhysicsStateHandle;
 
@@ -166,7 +184,7 @@ void UDataflowSimulationManager::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 	
 	check(IsInGameThread());
-	check(SimulationTasks.IsEmpty());
+	//check(SimulationTasks.IsEmpty());
 	
 	PreProcessSimulation(DeltaTime);
 	
@@ -203,7 +221,7 @@ void UDataflowSimulationManager::Tick(float DeltaTime)
 
 void UDataflowSimulationManager::OnStartup()
 {
-	OnWorldTickEndHandle = FWorldDelegates::OnWorldTickEnd.AddLambda(
+	OnWorldPostActorTick = FWorldDelegates::OnWorldPostActorTick.AddLambda(
 	[](const UWorld* SimulationWorld, ELevelTick LevelTick, const float DeltaSeconds)
 	{
 		if(SimulationWorld)
@@ -259,7 +277,7 @@ void UDataflowSimulationManager::OnShutdown()
 #if WITH_EDITOR
 	FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(OnObjectPropertyChangedHandle);
 #endif
-	FWorldDelegates::OnWorldTickEnd.Remove(OnWorldTickEndHandle);
+	FWorldDelegates::OnWorldPostActorTick.Remove(OnWorldPostActorTick);
 	UActorComponent::GlobalCreatePhysicsDelegate.Remove(OnCreatePhysicsStateHandle);
 	UActorComponent::GlobalDestroyPhysicsDelegate.Remove(OnDestroyPhysicsStateHandle);
 }
@@ -402,15 +420,29 @@ void UDataflowSimulationManager::AdvanceSimulationProxies(const float DeltaTime,
 void UDataflowSimulationManager::StartSimulationTasks(const float DeltaTime, const float SimulationTime)
 {
 	check(IsInGameThread());
+	
+	// Wait until all tasks are complete
+	CompleteSimulationTasks();
+	
 	check(SimulationTasks.IsEmpty());
+
+	// Parent debug draw context
+#if CHAOS_DEBUG_DRAW
+	const ChaosDD::Private::FChaosDDTaskParentContext ParentDDContext;
+#endif
 
 	for(TPair<TObjectPtr<UDataflow>, UE::Dataflow::Private::FDataflowSimulationData>& DataflowData : SimulationData)
 	{
 		if(!DataflowData.Value.IsEmpty())
 		{
 			// Add a simulation task linked to that solver
+#if CHAOS_DEBUG_DRAW
+			SimulationTasks.Add(TGraphTask<UE::Dataflow::Private::FDataflowSimulationTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(
+					DataflowData.Key, DataflowData.Value.SimulationContext, DeltaTime, SimulationTime, ParentDDContext));
+#else
 			SimulationTasks.Add(TGraphTask<UE::Dataflow::Private::FDataflowSimulationTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(
 					DataflowData.Key, DataflowData.Value.SimulationContext, DeltaTime, SimulationTime));
+#endif
 		}
 	}
 }

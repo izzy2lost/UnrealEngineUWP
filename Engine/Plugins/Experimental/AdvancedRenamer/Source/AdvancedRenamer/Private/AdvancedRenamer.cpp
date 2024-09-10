@@ -124,30 +124,21 @@ bool FAdvancedRenamer::Execute()
 	}
 
 	const int32 Count = Previews.Num();
-	bool bAllSuccess = true;
 
+	bool bAllSuccess = Provider->BeginRename();
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
-		if (!Previews[Index].IsValid())
+		if (!Previews[Index].IsValid()
+			|| !IsValidIndex(Index)
+			|| Previews[Index]->NewName.IsEmpty())
 		{
 			continue;
 		}
 
-		if (!IsValidIndex(Index))
-		{
-			continue;
-		}
-
-		if (Previews[Index]->NewName.IsEmpty())
-		{
-			continue;
-		}
-
-		if (!ExecuteRename(Index, Previews[Index]->NewName))
-		{
-			bAllSuccess = false;
-		}
+		bAllSuccess &= Provider->PrepareRename(Index, Previews[Index]->NewName);
 	}
+	bAllSuccess &= Provider->ExecuteRename();
+	bAllSuccess &= Provider->EndRename();
 
 	MarkClean();
 
@@ -217,7 +208,22 @@ bool FAdvancedRenamer::CanRename(int32 InIndex) const
 	return Provider->CanRename(InIndex);
 }
 
-bool FAdvancedRenamer::ExecuteRename(int32 InIndex, const FString& InNewName)
+bool FAdvancedRenamer::BeginRename()
 {
-	return Provider->ExecuteRename(InIndex, InNewName);
+	return Provider->BeginRename();
+}
+
+bool FAdvancedRenamer::PrepareRename(int32 InIndex, const FString& InNewName)
+{
+	return Provider->PrepareRename(InIndex, InNewName);
+}
+
+bool FAdvancedRenamer::ExecuteRename()
+{
+	return Provider->ExecuteRename();
+}
+
+bool FAdvancedRenamer::EndRename()
+{
+	return Provider->EndRename();
 }

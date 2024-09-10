@@ -541,10 +541,7 @@ namespace Chaos
 	
 	FPBDJointSolverSettings::FPBDJointSolverSettings(const FPBDJointSolverSettings& InSettings) = default;
 
-	FPBDJointSolverSettings FPBDJointSolverSettings::operator=(const FPBDJointSolverSettings Other)
-	{
-		return FPBDJointSolverSettings(Other);
-	}
+	FPBDJointSolverSettings& FPBDJointSolverSettings::operator=(const FPBDJointSolverSettings& Other) = default;
 	
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 

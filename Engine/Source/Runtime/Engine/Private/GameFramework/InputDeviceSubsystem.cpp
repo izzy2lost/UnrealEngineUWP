@@ -222,14 +222,18 @@ bool UInputDeviceSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 		return false;
 	}
 
+	// As of 5.5 this option is disabled. Some input interfaces depend on this subsystem to get info about
+	// the currently connected devices, so we are enforcing it as a requirement from now on.
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// There is a setting to turn off this subsystem entirely.
 	const bool bShouldCreate = GetDefault<UInputSettings>()->bEnableInputDeviceSubsystem;
 	if (!bShouldCreate)
 	{
-		UE_LOG(LogInputDeviceProperties, Log, TEXT("UInputSettings::bEnableInputDeviceSubsystem is false, the Input Device Subsystem will NOT be created!"));
+		UE_LOG(LogInputDeviceProperties, Error, TEXT("UInputSettings::bEnableInputDeviceSubsystem is false, but it is required to be true as of 5.5. Ignoring..."));
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
-	return bShouldCreate && Super::ShouldCreateSubsystem(Outer);
+	return Super::ShouldCreateSubsystem(Outer);
 }
 
 UWorld* UInputDeviceSubsystem::GetTickableGameObjectWorld() const
@@ -488,12 +492,22 @@ void UInputDeviceSubsystem::RemoveAllDeviceProperties()
 
 FHardwareDeviceIdentifier UInputDeviceSubsystem::GetMostRecentlyUsedHardwareDevice(const FPlatformUserId InUserId) const
 {
-	if (const FHardwareDeviceIdentifier* FoundDevice = LatestUserDeviceIdentifiers.Find(InUserId))
+	if (const FLatestInputDeviceData* FoundDevice = LatestUserDeviceIdentifiers.Find(InUserId))
 	{
-		return *FoundDevice;
+		return FoundDevice->HardwareDeviceId;
 	}
 		
 	return FHardwareDeviceIdentifier::Invalid;
+}
+
+FInputDeviceId UInputDeviceSubsystem::GetMostRecentlyUsedInputDeviceId(const FPlatformUserId InUserId) const
+{
+	if (const FLatestInputDeviceData* FoundDevice = LatestUserDeviceIdentifiers.Find(InUserId))
+	{
+		return FoundDevice->LatestDeviceId;
+	}
+		
+	return INPUTDEVICEID_NONE;
 }
 
 FHardwareDeviceIdentifier UInputDeviceSubsystem::GetInputDeviceHardwareIdentifier(const FInputDeviceId InputDevice) const
@@ -511,19 +525,22 @@ void UInputDeviceSubsystem::SetMostRecentlyUsedHardwareDevice(const FInputDevice
 	const FPlatformUserId OwningUserId = IPlatformInputDeviceMapper::Get().GetUserForInputDevice(InDeviceId);
 
 	// If this hardware is the same as what the platform user already has, then there is no need to fire this event
-	if (FHardwareDeviceIdentifier* ExistingDevice = LatestUserDeviceIdentifiers.Find(OwningUserId))
+	if (FLatestInputDeviceData* ExistingDevice = LatestUserDeviceIdentifiers.Find(OwningUserId))
 	{
+		// We always want to update the device ID
+		ExistingDevice->LatestDeviceId = InDeviceId;
+		
 		// If they are exactly the same, do nothing
-		if (InHardwareId == *ExistingDevice)
+		if (InHardwareId == ExistingDevice->HardwareDeviceId)
 		{
 			return;
 		}
 		// If they are the same device but different input API's, just update the data but don't broadcast the delegate
 		// This can happen if there are multiple input interfaces sending messages for the same device (such as a keyboard)
 		// Which your gameplay code doesn't really care about switching which API the input came from
-		else if (InHardwareId.HardwareDeviceIdentifier == ExistingDevice->HardwareDeviceIdentifier)
+		else if (InHardwareId.HardwareDeviceIdentifier == ExistingDevice->HardwareDeviceId.HardwareDeviceIdentifier)
 		{
-			*ExistingDevice = InHardwareId;
+			ExistingDevice->HardwareDeviceId = InHardwareId;
 			return;
 		}
 	}
@@ -532,7 +549,7 @@ void UInputDeviceSubsystem::SetMostRecentlyUsedHardwareDevice(const FInputDevice
 	LatestInputDeviceIdentifiers.Add(InDeviceId, InHardwareId);
 
 	// Keep a map to platform users so that we can easily get their most recent hardware
-	LatestUserDeviceIdentifiers.Add(OwningUserId, InHardwareId);
+	LatestUserDeviceIdentifiers.Add(OwningUserId, { .LatestDeviceId = InDeviceId, .HardwareDeviceId = InHardwareId });
 
 	if (OnInputHardwareDeviceChanged.IsBound())
 	{

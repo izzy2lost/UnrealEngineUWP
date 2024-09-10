@@ -729,6 +729,12 @@ namespace UnrealBuildTool
 		public UnrealTargetConfiguration UndecoratedConfiguration { get; set; } = UnrealTargetConfiguration.Development;
 
 		/// <summary>
+		/// Specifies the separator charcter for binary filenames.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		public string DecoratedSeparator { get; set; } = "-";
+
+		/// <summary>
 		/// Whether this target supports hot reload
 		/// </summary>
 		public bool bAllowHotReload
@@ -2531,9 +2537,14 @@ namespace UnrealBuildTool
 		public List<string> MergePlugins { get; } = new();
 
 		/// <summary>
-		/// Experimental: List of merged plugins to move common dependenceis to a shared library, requires MergePlugins. Can be chained
+		/// Experimental: List of merged plugins to move common dependencies to a shared library, requires MergePlugins. Can be chained
 		/// </summary>
 		public Dictionary<string, HashSet<string>> MergePluginsShared { get; } = new();
+
+		/// <summary>
+		/// Experimental: List of merged plugins to move to the main executable, requires MergePlugins. "Engine" for all shared engine modules and "Common" for shared project modules.
+		/// </summary>
+		public List<string> MergePluginsLaunch { get; } = new();
 
 		/// <summary>
 		/// Backing storage for the LinkType property.

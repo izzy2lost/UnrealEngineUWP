@@ -62,7 +62,7 @@ namespace UE::Editor::DataStorage
 	{
 		TedsWidget = SNew(STedsWidget);
 
-		if(ITypedElementDataStorageInterface* DataStorage = Model->GetDataStorageInterface())
+		if(IEditorDataStorageProvider* DataStorage = Model->GetDataStorageInterface())
 		{
 			const RowHandle WidgetRowHandle = TedsWidget->GetRowHandle();
 		

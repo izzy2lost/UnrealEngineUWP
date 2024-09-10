@@ -28,7 +28,7 @@ bool UClientInstancedActorsSpawnerSubsystem::ShouldCreateSubsystem(UObject* Oute
 	// @todo Add support for non-replay NM_Standalone where we should use UServerInstancedActorsSpawnerSubsystem for 
 	// authoritative actor spawning.
 	UWorld* World = Cast<UWorld>(Outer);
-	return (World != nullptr && World->GetNetMode() != NM_DedicatedServer);
+	return (World != nullptr && World->GetNetMode() == NM_Client);
 }
 
 ESpawnRequestStatus UClientInstancedActorsSpawnerSubsystem::SpawnActor(FConstStructView SpawnRequestView, TObjectPtr<AActor>& OutSpawnedActor, FActorSpawnParameters& InOutSpawnParameters) const

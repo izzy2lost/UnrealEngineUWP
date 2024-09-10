@@ -8,12 +8,12 @@
 #include "TypedElementActorIconOverrideQueries.generated.h"
 
 UCLASS()
-class UActorIconOverrideDataStorageFactory : public UTypedElementDataStorageFactory
+class UActorIconOverrideDataStorageFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	virtual ~UActorIconOverrideDataStorageFactory() override = default;
 
-	virtual void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	virtual void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 };

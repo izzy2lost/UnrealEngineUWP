@@ -20,8 +20,8 @@ struct FPCGStaticMeshSpawnerContext;
 
 class UStaticMesh;
 
-UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural), meta = (PrioritizeCategories = "Settings"))
-class UPCGStaticMeshSpawnerSettings : public UPCGSettings
+UCLASS(BlueprintType, ClassGroup = (Procedural), meta = (PrioritizeCategories = "Settings"))
+class PCG_API UPCGStaticMeshSpawnerSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -53,10 +53,10 @@ public:
 #endif
 
 	UFUNCTION(BlueprintCallable, Category = Settings)
-	PCG_API void SetMeshSelectorType(TSubclassOf<UPCGMeshSelectorBase> InMeshSelectorType);
+	void SetMeshSelectorType(TSubclassOf<UPCGMeshSelectorBase> InMeshSelectorType);
 
 	UFUNCTION(BlueprintCallable, Category = Settings)
-	PCG_API void SetInstancePackerType(TSubclassOf<UPCGInstanceDataPackerBase> InInstancePackerType);
+	void SetInstancePackerType(TSubclassOf<UPCGInstanceDataPackerBase> InInstancePackerType);
 
 public:
 	/** Defines the method of mesh selection per input data */
@@ -118,7 +118,7 @@ protected:
 	void RefreshInstancePacker();
 };
 
-class FPCGStaticMeshSpawnerElement : public IPCGElement
+class PCG_API FPCGStaticMeshSpawnerElement : public IPCGElement
 {
 public:
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override;

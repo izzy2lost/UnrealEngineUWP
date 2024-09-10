@@ -377,7 +377,7 @@ void AddHairStrandsDebugTilePass(
 			RDG_EVENT_NAME("HairStrands::TileDebugPass(%s)", ToString(TileType)),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PassParameters, VertexShader, PixelShader, Viewport, TileType](FRHICommandList& RHICmdList)
+			[PassParameters, VertexShader, PixelShader, Viewport, TileType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FHairStrandsTilePassVS::FParameters ParametersVS = PassParameters->TileParameters;
 

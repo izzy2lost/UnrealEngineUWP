@@ -13,6 +13,7 @@
 #include "AudioDevice.h"
 #include "AudioMixerDevice.h"
 #include "AudioThread.h"
+#include "MoviePipelineTelemetry.h"
 #include "MoviePipelineUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MoviePipelineWaveOutput)
@@ -219,3 +220,7 @@ void UMoviePipelineWaveOutput::BuildNewProcessCommandLineArgsImpl(TArray<FString
 	InOutCommandLineArgs.Add("-deterministicaudio");
 }
 
+void UMoviePipelineWaveOutput::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesAudio = true;
+}

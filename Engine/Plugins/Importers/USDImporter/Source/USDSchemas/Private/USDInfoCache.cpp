@@ -4,6 +4,7 @@
 
 #include "USDGeomMeshConversion.h"
 #include "USDLog.h"
+#include "USDMemory.h"
 #include "USDSchemasModule.h"
 #include "USDSchemaTranslator.h"
 #include "USDTypesConversion.h"

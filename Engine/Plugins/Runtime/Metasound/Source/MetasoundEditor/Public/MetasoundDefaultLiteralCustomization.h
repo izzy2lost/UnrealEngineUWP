@@ -46,7 +46,7 @@ namespace Metasound::Editor
 		virtual void SetResetOverride(const TOptional<FResetToDefaultOverride>& InResetOverride);
 
 	protected:
-		void CustomizePageDefaultRows(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout, FOnDefaultPageRowAdded* OnPageRowAdded = nullptr);
+		void CustomizePageDefaultRows(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout);
 
 		TArray<TSharedPtr<IPropertyHandle>> DefaultProperties;
 

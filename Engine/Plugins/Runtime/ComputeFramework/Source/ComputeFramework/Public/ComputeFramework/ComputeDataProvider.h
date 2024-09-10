@@ -124,6 +124,9 @@ public:
 	/** Data for any readbacks that should be performed. */
 	virtual void GetReadbackData(TArray<FReadbackData>& OutReadbackData) const {}
 
+	/** Called after graph dispatched. */
+	virtual void PostGraphDispatch(FRDGBuilder& GraphBuilder) const {}
+
 protected:
 	/** Helper for making an FStridedView over the FDispatchData. */
 	template <typename ElementType>

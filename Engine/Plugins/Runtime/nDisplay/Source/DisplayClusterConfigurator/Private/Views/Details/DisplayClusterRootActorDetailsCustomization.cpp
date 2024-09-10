@@ -16,6 +16,7 @@
 #include "IDetailGroup.h"
 #include "PropertyHandle.h"
 
+#include "ColorGradingEditorUtil.h"
 #include "EditorSupportDelegates.h"
 #include "SSearchableComboBox.h"
 #include "Widgets/Text/STextBlock.h"
@@ -77,6 +78,16 @@ FDisplayClusterRootActorDetailsCustomization::~FDisplayClusterRootActorDetailsCu
 void FDisplayClusterRootActorDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& InLayoutBuilder)
 {
 	FDisplayClusterConfiguratorBaseDetailCustomization::CustomizeDetails(InLayoutBuilder);
+
+	// Add the Color Grading button at the top of the relevant category
+	{
+		IDetailCategoryBuilder& ColorGradingCategory = InLayoutBuilder.EditCategory(DisplayClusterConfigurationStrings::categories::ColorGradingCategory, LOCTEXT("ColorGradingDetails", "Color Grading"));
+		ColorGradingCategory.AddCustomRow(NSLOCTEXT("ColorCorrectWindowDetails", "OpenColorGrading", "Open Color Grading"))
+			.RowTag("OpenColorGrading")
+			[
+				ColorGradingEditorUtil::MakeColorGradingLaunchButton()
+			];
+	}
 
 	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = InLayoutBuilder.GetSelectedObjects();
 	bMultipleObjectsSelected = SelectedObjects.Num() > 1;

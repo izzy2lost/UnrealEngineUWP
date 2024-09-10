@@ -746,7 +746,7 @@ void FSceneRenderer::VoxelizeFogVolumePrimitives(
 		const FIntRect ViewRect(0, 0, VolumetricFogViewGridSize.X, VolumetricFogViewGridSize.Y);
 
 		AddDrawDynamicMeshPass(GraphBuilder, RDG_EVENT_NAME("VoxelizeVolumePrimitives"), PassParameters, View, ViewRect,
-			[&View, VolumetricFogDistance, &VolumetricFogViewGridSize, &GridZParams](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
+			[&View, VolumetricFogDistance, VolumetricFogViewGridSize, GridZParams](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
 			{
 				FVoxelizeVolumeMeshProcessor PassMeshProcessor(
 					View.Family->Scene->GetRenderScene(),

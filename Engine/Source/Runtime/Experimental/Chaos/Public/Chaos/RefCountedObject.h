@@ -24,7 +24,7 @@ public:
 			// time during OnCommit. (If an ephemeral stack object is destroyed a non-zero refcount, this is user error;
 			// we might report this by check-failing here with a garbage value for its refcount, as its stack representation
 			// might already be overwritten.)
-			UE_AUTORTFM_ONCOMMIT2(this)
+			UE_AUTORTFM_ONCOMMIT(this)
 			{
 				check(GetRefCount() == 0);
 			};
@@ -37,11 +37,11 @@ public:
 	{
 		bool bIsFirstReference;
 
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			bIsFirstReference = (++NumRefs == 1);
 		};
-		UE_AUTORTFM_ONABORT2(=, this)
+		UE_AUTORTFM_ONABORT(=, this)
 		{
 			if (bIsFirstReference)
 			{
@@ -62,7 +62,7 @@ public:
 
 	uint32 Release() const
 	{
-		UE_AUTORTFM_ONCOMMIT2(this)
+		UE_AUTORTFM_ONCOMMIT(this)
 		{
 			if (--NumRefs == 0 && RefCountMode == ERCM_Transient)
 			{
@@ -76,7 +76,7 @@ public:
 	uint32 GetRefCount() const
 	{
 		uint32 Ret;
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			Ret = uint32(NumRefs.load());
 		};
@@ -87,11 +87,11 @@ public:
 	{
 		ERCM_RefCountMode OriginalMode = RefCountMode;
 
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			RefCountMode = ERCM_Persistent;
 		};
-		UE_AUTORTFM_ONABORT2(=, this)
+		UE_AUTORTFM_ONABORT(=, this)
 		{
 			RefCountMode = OriginalMode;
 		};

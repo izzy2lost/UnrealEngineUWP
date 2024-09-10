@@ -6,7 +6,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
 
@@ -20,7 +19,7 @@ namespace Horde.Commands.Bundles
 		public FileReference? File { get; set; }
 
 		[CommandLine("-Ref=")]
-		[Description("Name of a ref to read from the default storage client. -File=..., -Ref=..., or -Node=... must be specified.")]
+		[Description("Name of a ref to read from the default storage namespace. -File=..., -Ref=..., or -Node=... must be specified.")]
 		public string? Ref { get; set; }
 
 		[CommandLine("-Node=")]
@@ -39,8 +38,8 @@ namespace Horde.Commands.Bundles
 		[Description("If set, deletes the contents of the output directory before extraction.")]
 		public bool CleanOutput { get; set; }
 
-		public BundleExtract(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache)
-			: base(storageClientFactory, bundleCache)
+		public BundleExtract(HttpStorageClient storageClient, BundleCache bundleCache)
+			: base(storageClient, bundleCache)
 		{
 		}
 
@@ -55,19 +54,19 @@ namespace Horde.Commands.Bundles
 			if (File != null)
 			{
 				using MemoryMappedFileCache memoryMappedFileCache = new MemoryMappedFileCache();
-				IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleCache, memoryMappedFileCache, logger);
+				IStorageNamespace store = BundleStorageNamespace.CreateFromDirectory(File.Directory, BundleCache, memoryMappedFileCache, logger);
 				IBlobRef<DirectoryNode> handle = store.CreateBlobRef<DirectoryNode>(await FileStorageBackend.ReadRefAsync(File));
 				await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Ref != null)
 			{
-				IStorageClient store = CreateStorageClient();
+				IStorageNamespace store = GetStorageNamespace();
 				IBlobRef<DirectoryNode> handle = await store.ReadRefAsync<DirectoryNode>(new RefName(Ref));
 				await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Node != null)
 			{
-				IStorageClient store = CreateStorageClient();
+				IStorageNamespace store = GetStorageNamespace();
 				IBlobRef<DirectoryNode> handle = store.CreateBlobRef<DirectoryNode>(new BlobLocator(Node));
 				await ExecuteInternalAsync(store, handle, logger);
 			}
@@ -79,7 +78,7 @@ namespace Horde.Commands.Bundles
 			return 0;
 		}
 
-		protected async Task ExecuteInternalAsync(IStorageClient store, IBlobRef<DirectoryNode> handle, ILogger logger)
+		protected async Task ExecuteInternalAsync(IStorageNamespace store, IBlobRef<DirectoryNode> handle, ILogger logger)
 		{
 			Stopwatch timer = Stopwatch.StartNew();
 

@@ -525,7 +525,7 @@ public:
 		if (!(IsGarbageCollectingAndLockingUObjectHashTables() && IsInGameThread()))
 		{
 			Tables = &InTables;
-			UE_AUTORTFM_OPEN2{ InTables.Lock(); };
+			UE_AUTORTFM_OPEN{ InTables.Lock(); };
 			AutoRTFM::PushOnAbortHandler(this, [this](){ if (this->Tables){ this->Tables->Unlock(); }});
 		}
 		else
@@ -541,7 +541,7 @@ public:
 #if THREADSAFE_UOBJECTS
 		if (Tables)
 		{
-			UE_AUTORTFM_OPEN2{ Tables->Unlock(); };
+			UE_AUTORTFM_OPEN{ Tables->Unlock(); };
 			AutoRTFM::PopOnAbortHandler(this);
 		}
 #endif
@@ -852,7 +852,7 @@ UObject* StaticFindObjectFastInternal(const UClass* ObjectClass, const UObject* 
 	UObject* Result = nullptr;
 
 	// Transactionally, a static find operation has to occur in the open as it touches shared state.
-	UE_AUTORTFM_OPEN2
+	UE_AUTORTFM_OPEN
 	{
 		INC_DWORD_STAT(STAT_FindObjectFast);
 
@@ -871,7 +871,7 @@ UObject* StaticFindObjectFastInternal(const UClass* ObjectClass, const UObject* 
 	UObject* Result = nullptr;
 
 	// Transactionally, a static find operation has to occur in the open as it touches shared state.
-	UE_AUTORTFM_OPEN2
+	UE_AUTORTFM_OPEN
 	{
 		INC_DWORD_STAT(STAT_FindObjectFast);
 

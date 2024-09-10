@@ -40,7 +40,7 @@ void FDisplayClusterConfiguratorICVFXMediaCustomization::CustomizeChildren(TShar
 	check(SplitTypeHandle && SplitTypeHandle->IsValidHandle());
 
 	// Layout property
-	TilesLayoutHandle = GET_CHILD_HANDLE(FDisplayClusterConfigurationMediaICVFX, TiledSplitLayout);
+	TSharedPtr<IPropertyHandle> TilesLayoutHandle = GET_CHILD_HANDLE(FDisplayClusterConfigurationMediaICVFX, TiledSplitLayout);
 	check(TilesLayoutHandle && TilesLayoutHandle->IsValidHandle());
 
 	// Separate groups specific for every split type available
@@ -65,7 +65,7 @@ void FDisplayClusterConfiguratorICVFXMediaCustomization::CustomizeChildren(TShar
 	TSharedPtr<IPropertyUtilities> PropertyUtils = InCustomizationUtils.GetPropertyUtilities();
 	check(PropertyUtils);
 
-	// Setup details update on frustum type change
+	// Set details update request on frustum type change
 	SplitTypeHandle->SetOnPropertyValueChanged(
 		FSimpleDelegate::CreateLambda([PropertyUtils]()
 		{
@@ -100,20 +100,39 @@ void FDisplayClusterConfiguratorICVFXMediaCustomization::CustomizeChildren(TShar
 		}
 	}
 
-	// Create all the property widgets
-	FDisplayClusterConfiguratorBaseTypeCustomization::CustomizeChildren(InPropertyHandle, InChildBuilder, InCustomizationUtils);
-
-	// Create 'setup' button
-	if (SplitTypeValue == EDisplayClusterConfigurationMediaSplitType::UniformTiles)
+	// Finally, build the panel
+	if (ShouldShowChildren(InPropertyHandle))
 	{
-		AddSetupButton(InChildBuilder);
-	}
+		const bool bUsingTiles = (SplitTypeValue == EDisplayClusterConfigurationMediaSplitType::UniformTiles);
 
-	// Create 'reset' button at the bottom
-	AddResetButton(InChildBuilder);
+		uint32 NumChildren = 0;
+		InPropertyHandle->GetNumChildren(NumChildren);
+
+		// For each child property, build its own layout
+		for (uint32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
+		{
+			TSharedPtr<IPropertyHandle> ChildHandle = InPropertyHandle->GetChildHandle(ChildIndex);
+			if (ChildHandle && ChildHandle->IsValidHandle() && !ChildHandle->IsCustomized())
+			{
+				FText ChildTooltip = ApplySubstitutions(ChildHandle->GetToolTipText());
+				ChildHandle->SetToolTipText(ChildTooltip);
+
+				InChildBuilder.AddProperty(ChildHandle.ToSharedRef());
+
+				// Insert tile configuration button after the split type combobox
+				if (bUsingTiles && ChildHandle->IsSamePropertyNode(SplitTypeHandle))
+				{
+					AddConfigureTilesButton(InChildBuilder);
+				}
+			}
+		}
+
+		// Create 'reset' button at the bottom
+		AddResetButton(InChildBuilder);
+	}
 }
 
-void FDisplayClusterConfiguratorICVFXMediaCustomization::AddSetupButton(IDetailChildrenBuilder& InChildBuilder)
+void FDisplayClusterConfiguratorICVFXMediaCustomization::AddConfigureTilesButton(IDetailChildrenBuilder& InChildBuilder)
 {
 	InChildBuilder.AddCustomRow(FText::GetEmpty())
 		.WholeRowContent()
@@ -123,11 +142,11 @@ void FDisplayClusterConfiguratorICVFXMediaCustomization::AddSetupButton(IDetailC
 			[
 				SNew(SButton)
 				.HAlign(HAlign_Center)
-				.OnClicked(this, &FDisplayClusterConfiguratorICVFXMediaCustomization::OnSetupButtonClicked)
+				.OnClicked(this, &FDisplayClusterConfiguratorICVFXMediaCustomization::OnConfigureTilesButtonClicked)
 				[
 					SNew(STextBlock)
 					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-					.Text(LOCTEXT("SetupTilesButtonTitle", "Setup Tiles"))
+					.Text(LOCTEXT("ConfigureTilesButtonTitle", "Configure Tiles"))
 				]
 			]
 		];
@@ -147,13 +166,13 @@ void FDisplayClusterConfiguratorICVFXMediaCustomization::AddResetButton(IDetailC
 				[
 					SNew(STextBlock)
 					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-					.Text(LOCTEXT("ResetToDefaultsButtonTitle", "Reset To Defaults"))
+					.Text(LOCTEXT("ResetToDefaultButtonTitle", "Reset Media Input and Output to Default"))
 				]
 			]
 		];
 }
 
-FReply FDisplayClusterConfiguratorICVFXMediaCustomization::OnSetupButtonClicked()
+FReply FDisplayClusterConfiguratorICVFXMediaCustomization::OnConfigureTilesButtonClicked()
 {
 	// We're in camera tiles customization so let's get the camera component
 	UDisplayClusterICVFXCameraComponent* ICVFXCamera = Cast<UDisplayClusterICVFXCameraComponent>(EditingObject.Get());
@@ -172,7 +191,7 @@ FReply FDisplayClusterConfiguratorICVFXMediaCustomization::OnSetupButtonClicked(
 	// Nothing to do if no cluster nodes available
 	if (ConfigData->Cluster->Nodes.Num() < 1)
 	{
-		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("MessageNoClusterNodesAvailable", "There are no cluster nodes assigned. Can't setup media."));
+		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("MessageNoClusterNodesAvailable", "There are no cluster nodes assigned. Can't configure media."));
 		return FReply::Handled();
 	}
 

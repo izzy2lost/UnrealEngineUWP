@@ -15,6 +15,7 @@ namespace UE::RemoteControl::DMX
 { 
 	class FRemoteControlDMXControlledProperty; 
 	class FRemoteControlDMXControlledPropertyPatch;
+	class FRemoteControlDMXProtocolEntityObserver;
 }
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FRemoteControlDMXPrePropertyPatchesChanged, URemoteControlPreset* /** ChangedPreset */)
@@ -27,6 +28,7 @@ class REMOTECONTROLPROTOCOLDMX_API URemoteControlDMXLibraryProxy : public UObjec
 
 	using FRemoteControlDMXControlledProperty = UE::RemoteControl::DMX::FRemoteControlDMXControlledProperty;
 	using FRemoteControlDMXControlledPropertyPatch = UE::RemoteControl::DMX::FRemoteControlDMXControlledPropertyPatch;
+	using FRemoteControlDMXProtocolEntityObserver = UE::RemoteControl::DMX::FRemoteControlDMXProtocolEntityObserver;
 
 public:
 	//~ Begin UObject interface
@@ -70,6 +72,11 @@ private:
 	/** Unbinds from the OnFixturePatchReceived event for all patches in use */
 	void UnbindOnFixturePatchesReceived();
 
+#if WITH_EDITOR
+	/** Updates the Entities Observer */
+	void UpdateEntitiesObserver();
+#endif
+
 	/** Called when a fixture patch was received */
 	UFUNCTION()
 	void OnFixturePatchReceived(UDMXEntityFixturePatch* FixturePatch, const FDMXNormalizedAttributeValueMap& ValuePerAttribute);
@@ -98,6 +105,9 @@ private:
 	/** Called when entities changed */
 	void OnEntitiesUpdated(URemoteControlPreset* Preset, const TSet<FGuid>& ModifiedEntities);
 
+	/** Called when a map was fully loaded */
+	void OnPostLoadMapWithWorld(UWorld* World);
+
 	/** Current DMX controlled property patches */
 	TArray<TSharedRef<FRemoteControlDMXControlledPropertyPatch>> PropertyPatches;
 
@@ -105,6 +115,9 @@ private:
 	FDelegateHandle RefreshDelegateHandle;
 
 #if WITH_EDITOR
+	/** Observes entites for DMX specific property changes in editor */
+	TSharedPtr<FRemoteControlDMXProtocolEntityObserver> EntitiesObserver;
+
 	/** Delegate broadcast before property patches are being changed */
 	static FRemoteControlDMXPrePropertyPatchesChanged OnPrePropertyPatchesChanged;
 

@@ -331,6 +331,15 @@ public:
 
 	void SetDataflowContextObject(TObjectPtr<UDataflowContextObject> InDataflowContextObject);
 
+private:
+
+	// Initialization support
+	void InitializeSculptMeshFromTarget();
+	void UpdateShowHideProperties();
+
+	// Make sure things are set up correctly after initialization or re-initialization
+	void PostSetupCheck() const;
+
 public:
 
 
@@ -581,6 +590,7 @@ protected:
 	virtual bool ShowWorkPlane() const override { return false; }
 
 	friend class UClothEditorWeightMapPaintToolBuilder;
+	void NotifyTargetChanged();
 
 	bool bAnyChangeMade = false;
 

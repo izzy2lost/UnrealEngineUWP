@@ -2,6 +2,7 @@
 
 #include "PixelStreaming2Module.h"
 
+#include "Blueprints/PixelStreaming2InputComponent.h"
 #include "CoderUtils.h"
 #include "CoreMinimal.h"
 #include "CoreUtils.h"
@@ -12,7 +13,6 @@
 #include "Logging.h"
 #include "Modules/ModuleManager.h"
 #include "PixelStreaming2Delegates.h"
-#include "PixelStreaming2InputComponent.h"
 #include "PixelStreaming2Utils.h"
 #include "PixelStreaming2PluginSettings.h"
 #include "Slate/SceneViewport.h"
@@ -70,6 +70,28 @@ THIRD_PARTY_INCLUDES_END
 
 namespace UE::PixelStreaming2
 {
+	constexpr EpicRtcLogLevel UnrealLogToEpicRtcCategoryMap[] = {
+		EpicRtcLogLevel::Off,
+		EpicRtcLogLevel::Critical,
+		EpicRtcLogLevel::Error,
+		EpicRtcLogLevel::Warning,
+		EpicRtcLogLevel::Info,
+		EpicRtcLogLevel::Info,
+		EpicRtcLogLevel::Debug,
+		EpicRtcLogLevel::Trace,
+		EpicRtcLogLevel::Trace
+	};
+
+	static_assert(EpicRtcLogLevel::Off == UnrealLogToEpicRtcCategoryMap[ELogVerbosity::Type::NoLogging]);
+	static_assert(EpicRtcLogLevel::Critical == UnrealLogToEpicRtcCategoryMap[ELogVerbosity::Type::Fatal]);
+	static_assert(EpicRtcLogLevel::Error == UnrealLogToEpicRtcCategoryMap[ELogVerbosity::Type::Error]);
+	static_assert(EpicRtcLogLevel::Warning == UnrealLogToEpicRtcCategoryMap[ELogVerbosity::Type::Warning]);
+	static_assert(EpicRtcLogLevel::Info == UnrealLogToEpicRtcCategoryMap[ELogVerbosity::Type::Display]);
+	static_assert(EpicRtcLogLevel::Info == UnrealLogToEpicRtcCategoryMap[ELogVerbosity::Type::Log]);
+	static_assert(EpicRtcLogLevel::Debug == UnrealLogToEpicRtcCategoryMap[ELogVerbosity::Type::Verbose]);
+	static_assert(EpicRtcLogLevel::Trace == UnrealLogToEpicRtcCategoryMap[ELogVerbosity::Type::VeryVerbose]);
+	static_assert(EpicRtcLogLevel::Trace == UnrealLogToEpicRtcCategoryMap[ELogVerbosity::Type::All]);
+
 	FPixelStreaming2Module* FPixelStreaming2Module::PixelStreaming2Module = nullptr;
 
 	FUtf8String FPixelStreaming2Module::EpicRtcConferenceName("pixel_streaming_conference_instance");
@@ -115,7 +137,7 @@ namespace UE::PixelStreaming2
 		EpicRtcThread = MakeShared<FEpicRtcThread>();
 
 		// By calling InitDefaultStreamer post engine init we can use pixel streaming in standalone editor mode
-		FCoreDelegates::OnFEngineLoopInitComplete.AddLambda([this, RHIType]() {
+		FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddLambda([this, RHIType]() {
 			// Need to initialize after other modules have initialized such as NVCodec.
 			if (!InitializeEpicRtc())
 			{
@@ -173,7 +195,7 @@ namespace UE::PixelStreaming2
 		if (UPixelStreaming2PluginSettings::FDelegates* Delegates = UPixelStreaming2PluginSettings::Delegates())
 		{
 			Delegates->OnLogStatsChanged.AddLambda([this](IConsoleVariable* Var) {
-				bool							 bLogStats = Var->GetBool();
+				bool					   bLogStats = Var->GetBool();
 				UPixelStreaming2Delegates* Delegates = UPixelStreaming2Delegates::Get();
 				if (!Delegates)
 				{
@@ -341,7 +363,7 @@ namespace UE::PixelStreaming2
 	TSharedPtr<IPixelStreaming2Streamer> FPixelStreaming2Module::DeleteStreamer(const FString& StreamerId)
 	{
 		TSharedPtr<IPixelStreaming2Streamer> ToBeDeleted;
-		FScopeLock								   Lock(&StreamersCS);
+		FScopeLock							 Lock(&StreamersCS);
 		if (Streamers.Contains(StreamerId))
 		{
 			ToBeDeleted = Streamers[StreamerId].Pin();
@@ -429,7 +451,7 @@ namespace UE::PixelStreaming2
 			// default to the scene viewport if we have a game engine
 			if (UGameEngine* GameEngine = Cast<UGameEngine>(GEngine))
 			{
-				TSharedPtr<SWindow>							   TargetWindow = GameEngine->GameViewport->GetWindow();
+				TSharedPtr<SWindow>						 TargetWindow = GameEngine->GameViewport->GetWindow();
 				TSharedPtr<IPixelStreaming2InputHandler> InputHandler = DefaultStreamer->GetInputHandler().Pin();
 				if (TargetWindow.IsValid() && InputHandler.IsValid())
 				{
@@ -637,19 +659,11 @@ namespace UE::PixelStreaming2
 			return false;
 		}
 
-		static const EpicRtcLogLevel UnrealLogToEpicRtcCategoryMap[] = {
-			EpicRtcLogLevel::Trace,
-			EpicRtcLogLevel::Debug,
-			EpicRtcLogLevel::Info,
-			EpicRtcLogLevel::Warning,
-			EpicRtcLogLevel::Error,
-			EpicRtcLogLevel::Critical,
-			EpicRtcLogLevel::Off
-		};
-
 		FUtf8String EpicRtcFieldTrials(GetFieldTrials());
 
 		WebsocketFactory = MakeRefCount<FEpicRtcWebsocketFactory>();
+
+		StatsCollector = MakeRefCount<FEpicRtcStatsCollector>();
 
 		// clang-format off
 		EpicRtcConfig ConferenceConfig = {
@@ -685,6 +699,11 @@ namespace UE::PixelStreaming2
 				._level = UnrealLogToEpicRtcCategoryMap[LogPixelStreaming2EpicRtc.GetVerbosity()],
 				._levelWebRtc = UnrealLogToEpicRtcCategoryMap[LogPixelStreaming2EpicRtc.GetVerbosity()]
 #endif
+			},
+			._stats = {
+				._statsCollectorCallback = StatsCollector.GetReference(),
+				._statsCollectorInterval = 1000,
+				._jsonFormatOnly = false
 			}
 		};
 		// clang-format on

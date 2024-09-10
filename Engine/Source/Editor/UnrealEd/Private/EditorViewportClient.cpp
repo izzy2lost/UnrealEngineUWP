@@ -1471,7 +1471,7 @@ void FEditorViewportClient::Tick(float DeltaTime)
 			FQuat PlayerOrientation = GetViewRotation().Quaternion();
 			FVector PlayerLocation = GetViewLocation();
 				XRCamera->UseImplicitHMDPosition(false);
-				XRCamera->UpdatePlayerCamera(PlayerOrientation, PlayerLocation);
+				XRCamera->UpdatePlayerCamera(PlayerOrientation, PlayerLocation, DeltaTime);
 			}
 		}
 	}

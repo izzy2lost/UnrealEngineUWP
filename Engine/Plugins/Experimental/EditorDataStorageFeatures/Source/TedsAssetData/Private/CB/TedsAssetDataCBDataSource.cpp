@@ -18,6 +18,7 @@
 #include "Internationalization/Text.h"
 #include "Misc/PathViews.h"
 #include "PluginDescriptor.h"
+#include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Settings/ContentBrowserSettings.h"
 #include "TedsAssetDataModule.h"
 #include "Templates/Function.h"
@@ -46,7 +47,7 @@ TAutoConsoleVariable<bool> CVarTEDSAssetDataCBSourceIncludeTagsAndValues(TEXT("T
 		}
 	}));
 
-FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageInterface& InDatabase)
+FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(IEditorDataStorageProvider& InDatabase)
 	: Database(InDatabase)
 {
 	using namespace UE::Editor::DataStorage;
@@ -88,7 +89,6 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 			.All<FUpdatedPathTag>()
 			.None<FUpdatedAssetDataTag>()
 		.Compile());
-
 
 	ProcessAssetDataAndPathUpdateQuery = Database.RegisterQuery(
 		Select(
@@ -250,7 +250,7 @@ void FTedsAssetDataCBDataSource::AddAssetDataColumns(UE::Editor::DataStorage::IQ
 	AssetClassColumn.ClassPath = AssetData.AssetClassPath;
 	Context.AddColumn(Row, MoveTemp(AssetClassColumn));
 
-	FItemNameColumn_Experimental ItemNameColumn;
+	FNameColumn ItemNameColumn;
 	ItemNameColumn.Name = AssetData.AssetName;
 	Context.AddColumn(Row, MoveTemp(ItemNameColumn));
 

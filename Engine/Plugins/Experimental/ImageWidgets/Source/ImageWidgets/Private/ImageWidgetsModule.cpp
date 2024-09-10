@@ -57,7 +57,7 @@ namespace UE::ImageWidgets
 		.SetDisplayName(LOCTEXT("ColorViewerTitle", "Color Viewer Sample"))
 		.SetTooltipText(LOCTEXT("ColorViewerTooltipText", "Open the Color Viewer tab, a sample application for the ImageWidgets plugin."))
 		.SetGroup(WorkspaceMenu::GetMenuStructure().GetDeveloperToolsMiscCategory())
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Texture2D"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Color"));
 
 		if (WorkspaceGroup.IsValid())
 		{

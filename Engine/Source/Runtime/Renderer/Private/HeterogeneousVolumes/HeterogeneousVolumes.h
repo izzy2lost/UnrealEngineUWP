@@ -73,6 +73,8 @@ namespace HeterogeneousVolumes
 	float GetMaxStepCount();
 	float GetMinimumVoxelSizeInFrustum();
 	float GetMinimumVoxelSizeOutsideFrustum();
+	float GetShadingRateForFrustumGrid();
+	float GetShadingRateForOrthoGrid();
 
 	// Shadow generation
 	enum class EShadowMode
@@ -294,11 +296,12 @@ enum class EVoxelGridBuildMode
 struct FVoxelGridBuildOptions
 {
 	EVoxelGridBuildMode VoxelGridBuildMode = EVoxelGridBuildMode::PathTracing;
-	float MinimumVoxelSizeOutsideFrustum = HeterogeneousVolumes::GetMinimumVoxelSizeOutsideFrustum();
-	float MinimumVoxelSizeInFrustum = HeterogeneousVolumes::GetMinimumVoxelSizeInFrustum();
+	float ShadingRateInFrustum = HeterogeneousVolumes::GetShadingRateForFrustumGrid();
+	float ShadingRateOutOfFrustum = HeterogeneousVolumes::GetShadingRateForOrthoGrid();
 
 	bool bBuildOrthoGrid = true;
 	bool bBuildFrustumGrid = true;
+	bool bUseProjectedPixelSizeForOrthoGrid = false;
 	bool bJitter = HeterogeneousVolumes::ShouldJitter();
 };
 

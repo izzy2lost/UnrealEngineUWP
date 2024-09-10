@@ -25,6 +25,7 @@
 #include "GameFramework/SpectatorPawn.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Engine/AssetManager.h"
+#include "Engine/Texture2D.h"
 
 //UE_DISABLE_OPTIMIZATION_SHIP
 
@@ -515,6 +516,8 @@ void UShallowWaterSubsystem::UpdateGridMovement()
 
 	float BestDistanceSqr = FLT_MAX;
 	TOptional<FVector> BestWaterLocation;
+	
+	TWeakObjectPtr<AWaterBody> BestWaterBody;
 	for (TWeakObjectPtr<AWaterBody> WeakWaterBody : LastOverlappingWaterBodies_Internal)
 	{
 		if (const AWaterBody* WaterBody = WeakWaterBody.Get())
@@ -527,6 +530,7 @@ void UShallowWaterSubsystem::UpdateGridMovement()
 			{
 				BestDistanceSqr = ds;
 				BestWaterLocation = WaterLocation;
+				BestWaterBody = WeakWaterBody;
 			}
 		}
 	}
@@ -547,6 +551,29 @@ void UShallowWaterSubsystem::UpdateGridMovement()
 
 	ShallowWaterNiagaraSimulation->SetVariableBool(FName("UseDebugRender"), GSWDebugRender == 1);
 	ShallowWaterNiagaraSimulation->SetVariableBool(FName("UseWaterInfoTexture"), GSWUseWaterInfoTexture == 1);
+
+	bool UseBakedSim = false;
+	if (BestWaterBody != nullptr && BestWaterBody->GetWaterBodyComponent())
+	{
+		if (const UWaterBodyComponent* WaterBodyComp = BestWaterBody->GetWaterBodyComponent())
+		{
+			if (WaterBodyComp->UseBakedSimulationForQueriesAndPhysics())
+			{
+				UBakedShallowWaterSimulationComponent* BakedSim = WaterBodyComp->GetBakedShallowWaterSimulation();				
+				UTexture* BakedSimTex = Cast<UTexture>(BakedSim->SimulationData.BakedTexture.Get());
+
+				if (BakedSimTex != nullptr)
+				{
+					ShallowWaterNiagaraSimulation->SetVariableVec3(FName("BakedWaterSimLocation"), BakedSim->SimulationData.Position);
+					ShallowWaterNiagaraSimulation->SetVariableVec2(FName("BakedWaterSimSize"), BakedSim->SimulationData.Size);
+					ShallowWaterNiagaraSimulation->SetVariableTexture(FName("BakedWaterSimTexture"), BakedSimTex);
+
+					UseBakedSim = true;				
+				}
+			}
+		}
+	}
+	ShallowWaterNiagaraSimulation->SetVariableBool(FName("UseBakedSim"), UseBakedSim);
 
 #if ENABLE_DRAW_DEBUG
 	if (GSWDrawWaterSurfaceProjection)

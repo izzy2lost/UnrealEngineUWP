@@ -26,7 +26,7 @@ public:
 
 	NIAGARA_API void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector, const FNiagaraSceneProxy* SceneProxy) const;
 #if RHI_RAYTRACING
-	NIAGARA_API void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances, const FNiagaraSceneProxy* SceneProxy);
+	NIAGARA_API void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector, const FNiagaraSceneProxy* SceneProxy);
 #endif //RHI_RAYTRACING
 	//FNiagaraRenderer interface END
 

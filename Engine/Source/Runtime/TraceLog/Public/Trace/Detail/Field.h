@@ -4,7 +4,7 @@
 
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 #include "Atomic.h"
 #include "Protocol.h"
@@ -216,4 +216,4 @@ struct TField<InNumFields, InSize, EventProps>
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

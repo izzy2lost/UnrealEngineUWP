@@ -371,7 +371,6 @@ namespace UE::MLDeformer
 			TimeSlider->SetModel(WeakModel);
 		}
 
-		GEngine->ForceGarbageCollection(true);
 		DeformerAsset->Modify();
 	}
 

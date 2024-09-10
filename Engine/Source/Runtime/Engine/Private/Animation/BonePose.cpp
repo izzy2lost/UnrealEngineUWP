@@ -30,7 +30,7 @@ void FCompactPose::NormalizeRotations()
 	if (bAnim_BonePose_ISPC_Enabled)
 	{
 #if INTEL_ISPC
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			AutoRTFM::RecordOpenWrite(
 				this->Bones.GetData(),
@@ -56,7 +56,7 @@ void FCompactPose::ResetToAdditiveIdentity()
 	if (bAnim_BonePose_ISPC_Enabled)
 	{
 #if INTEL_ISPC
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			AutoRTFM::RecordOpenWrite(
 				this->Bones.GetData(),
@@ -82,7 +82,7 @@ void FCompactHeapPose::NormalizeRotations()
 	if (bAnim_BonePose_ISPC_Enabled)
 	{
 #if INTEL_ISPC
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			AutoRTFM::RecordOpenWrite(
 				this->Bones.GetData(),
@@ -108,7 +108,7 @@ void FCompactHeapPose::ResetToAdditiveIdentity()
 	if (bAnim_BonePose_ISPC_Enabled)
 	{
 #if INTEL_ISPC
-		UE_AUTORTFM_OPEN2
+		UE_AUTORTFM_OPEN
 		{
 			AutoRTFM::RecordOpenWrite(
 				this->Bones.GetData(),

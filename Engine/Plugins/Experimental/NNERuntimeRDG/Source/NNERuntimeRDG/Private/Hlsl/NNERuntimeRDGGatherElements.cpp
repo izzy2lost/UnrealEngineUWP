@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGGatherElements.h"
-#include "NNEHlslShadersGatherElementsCS.h"
-#include "NNERuntimeRDGHlslHelper.h"
+
 #include "Helper/NNERuntimeRDGOperatorHelper.h"
+#include "NNEHlslShadersGatherElementsCS.h"
+#include "NNEHlslShadersLog.h"
+#include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
 
@@ -47,7 +49,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			Axis = Attributes.GetValueOrDefault<int32>(TEXT("axis"), 0);
 			if (Axis < -Rank || Axis >= Rank)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("'axis' attribute needs to be in the range [-Rank, Rank - 1], but it is %i with a rank of %i."), Axis, Rank);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("GatherElement: 'axis' attribute needs to be in the range [-Rank, Rank - 1], but it is %i with a rank of %i."), Axis, Rank);
 				return false;
 			}
 			if (Axis < 0)

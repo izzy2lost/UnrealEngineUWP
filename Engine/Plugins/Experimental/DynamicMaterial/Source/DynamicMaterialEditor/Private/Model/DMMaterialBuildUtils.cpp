@@ -93,7 +93,7 @@ UMaterialExpression* FDMMaterialBuildUtils::CreateExpressionParameter(TSubclassO
 				}
 
 				// Error - fall back to hidden group
-				if (!BuildState.IsPreviewMaterial())
+				if (!BuildState.GetPreviewObject())
 				{
 					UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Missing property for group type."));
 				}

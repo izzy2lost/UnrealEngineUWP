@@ -108,6 +108,12 @@ struct FAnimNotifyEventReference
 		return CurrentAnimTime;
 	}
 
+	// Whether the context this notify was fired from is active or not (active == not blending out).
+	bool IsActiveContext() const
+	{
+		return bActiveContext;
+	}
+
 private:
 	// Context data gleaned from the tick record
 	TSharedPtr<TArray<TUniquePtr<const UE::Anim::IAnimNotifyEventContextDataInterface>>> ContextData;
@@ -123,6 +129,9 @@ private:
 
 	// The recorded time from the tick record that this notify event was fired at
 	float CurrentAnimTime = 0.0f;
+
+	// Whether the context this notify was fired from is active or not (active == not blending out).
+	bool bActiveContext = false;
 };
 
 USTRUCT()

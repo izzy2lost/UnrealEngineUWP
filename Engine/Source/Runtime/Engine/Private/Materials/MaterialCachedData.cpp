@@ -29,6 +29,7 @@
 #include "Materials/MaterialExpressionStaticBool.h"
 #include "Materials/MaterialExpressionLandscapeGrassOutput.h"
 #include "Materials/MaterialExpressionUserSceneTexture.h"
+#include "Materials/MaterialExpressionMeshPaintTextureObject.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Materials/MaterialParameterCollection.h"
 #include "MaterialHLSLTree.h"
@@ -61,6 +62,7 @@ FMaterialCachedExpressionData::FMaterialCachedExpressionData()
 	, bHasPerInstanceRandom(false)
 	, bHasVertexInterpolator(false)
 	, bHasCustomizedUVs(false)
+	, bHasMeshPaintTexture(false)
 {
 	QualityLevelsUsed.AddDefaulted(EMaterialQualityLevel::Num);
 #if WITH_EDITORONLY_DATA
@@ -475,6 +477,10 @@ void FMaterialCachedExpressionData::UpdateForExpressions(const FMaterialCachedEx
 		else if (Expression->IsA(UMaterialExpressionVertexInterpolator::StaticClass()))
 		{
 			bHasVertexInterpolator = true;
+		}
+		else if (Expression->IsA(UMaterialExpressionMeshPaintTextureObject::StaticClass()))
+		{
+			bHasMeshPaintTexture = true;
 		}
 		else if (UMaterialExpressionMaterialAttributeLayers* LayersExpression = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression))
 		{

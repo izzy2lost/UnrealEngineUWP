@@ -11,7 +11,7 @@
 namespace ElectraDecodersUtil
 {
 
-class ELECTRADECODERS_API FElectraBitstreamReader
+class FElectraBitstreamReader
 {
 public:
 	FElectraBitstreamReader() = default;

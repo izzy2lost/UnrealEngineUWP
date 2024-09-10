@@ -234,7 +234,7 @@ FRHIGPUBufferReadback* FMeshDrawCommandStatsManager::QueueDrawRDGIndirectArgsRea
 	// TODO: pool the readback buffers
 	FRHIGPUBufferReadback* GPUBufferReadback = new FRHIGPUBufferReadback(TEXT("InstanceCulling.StatsReadbackQuery"));
 	AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("ReadbackIndirectArgs"), DrawIndirectArgsRDG,
-		[GPUBufferReadback, DrawIndirectArgsRDG](FRHICommandList& RHICmdList)
+		[GPUBufferReadback, DrawIndirectArgsRDG](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			GPUBufferReadback->EnqueueCopy(RHICmdList, DrawIndirectArgsRDG->GetRHI(), 0u);
 		});

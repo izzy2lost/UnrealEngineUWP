@@ -90,6 +90,7 @@ DECLARE_MEMORY_STAT_EXTERN(TEXT("ImageOther"), STAT_VulkanAllocation_ImageOther,
 DECLARE_MEMORY_STAT_EXTERN(TEXT("BufferUAV"), STAT_VulkanAllocation_BufferUAV, STATGROUP_VulkanMemory, );
 DECLARE_MEMORY_STAT_EXTERN(TEXT("BufferStaging"), STAT_VulkanAllocation_BufferStaging, STATGROUP_VulkanMemory, );
 DECLARE_MEMORY_STAT_EXTERN(TEXT("BufferOther"), STAT_VulkanAllocation_BufferOther, STATGROUP_VulkanMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("TempBlocks"), STAT_VulkanAllocation_TempBlocks, STATGROUP_VulkanMemory, );
 DECLARE_MEMORY_STAT_EXTERN(TEXT("_Total"), STAT_VulkanAllocation_Allocated, STATGROUP_VulkanMemory, );
 
 DEFINE_STAT(STAT_VulkanAllocation_UniformBuffer);
@@ -101,6 +102,7 @@ DEFINE_STAT(STAT_VulkanAllocation_ImageOther);
 DEFINE_STAT(STAT_VulkanAllocation_BufferUAV);
 DEFINE_STAT(STAT_VulkanAllocation_BufferStaging);
 DEFINE_STAT(STAT_VulkanAllocation_BufferOther);
+DEFINE_STAT(STAT_VulkanAllocation_TempBlocks);
 DEFINE_STAT(STAT_VulkanAllocation_Allocated);
 
 int32 GVulkanLogDefrag = 0;
@@ -4892,6 +4894,178 @@ namespace VulkanRHI
 			}
 		}
 	}
+
+
+
+
+	FTempBlockAllocator::FTempBlockAllocator(FVulkanDevice* InDevice, uint32 InBlockSize, uint32 InBlockAlignment, VkBufferUsageFlags InBufferUsage)
+		: FDeviceChild(InDevice)
+		, BlockSize(InBlockSize)
+		, BlockAlignment(InBlockAlignment)
+		, BufferUsage(InBufferUsage)
+	{
+		CurrentBlock = AllocBlock();
+	}
+
+	FTempBlockAllocator::~FTempBlockAllocator()
+	{
+		auto FreeBlock = [](FVulkanDevice* InDevice, FTempMemoryBlock* Block)
+		{
+			VulkanRHI::vkDestroyBuffer(InDevice->GetInstanceHandle(), Block->Buffer, VULKAN_CPU_ALLOCATOR);
+			InDevice->GetMemoryManager().FreeVulkanAllocation(Block->Allocation, VulkanRHI::EVulkanFreeFlag_DontDefer);
+			delete Block;
+		};
+
+		for (FTempMemoryBlock* Block : AvailableBlocks)
+		{
+			FreeBlock(Device, Block);
+		}
+		AvailableBlocks.Empty();
+
+		for (FTempMemoryBlock* Block : BusyBlocks)
+		{
+			FreeBlock(Device, Block);
+		}
+		BusyBlocks.Empty();
+
+		FreeBlock(Device, CurrentBlock);
+		CurrentBlock = nullptr;
+	}
+
+	FTempBlockAllocator::FTempMemoryBlock* FTempBlockAllocator::AllocBlock()
+	{
+		FTempMemoryBlock* NewBlock = new FTempMemoryBlock;
+
+		// Create buffer
+		{
+			VkBufferCreateInfo BufferCreateInfo;
+			ZeroVulkanStruct(BufferCreateInfo, VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO);
+			BufferCreateInfo.size = BlockSize;
+			BufferCreateInfo.usage = BufferUsage;
+			VERIFYVULKANRESULT(VulkanRHI::vkCreateBuffer(Device->GetInstanceHandle(), &BufferCreateInfo, VULKAN_CPU_ALLOCATOR, &NewBlock->Buffer));
+		}
+
+		// Allocate memory
+		{
+			const VulkanRHI::EVulkanAllocationFlags AllocFlags =
+				VulkanRHI::EVulkanAllocationFlags::HostVisible |
+				VulkanRHI::EVulkanAllocationFlags::PreferBAR |
+				VulkanRHI::EVulkanAllocationFlags::AutoBind |
+				VulkanRHI::EVulkanAllocationFlags::Dedicated;
+			Device->GetMemoryManager().AllocateBufferMemory(NewBlock->Allocation, NewBlock->Buffer, AllocFlags, TEXT("FTempBlockAllocator"), BlockAlignment);
+
+			// Pull the stat of the generic "buffer other" to put it in the temp block bucket (will get cleaned up soon)
+			DEC_DWORD_STAT_BY(STAT_VulkanAllocation_BufferOther, NewBlock->Allocation.Size);
+			INC_DWORD_STAT_BY(STAT_VulkanAllocation_TempBlocks, NewBlock->Allocation.Size);
+
+			NewBlock->MappedPointer = (uint8*)NewBlock->Allocation.GetMappedPointer(Device);
+		}
+
+		// Get the device addr if needed
+		if (VKHasAllFlags(BufferUsage, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) && Device->GetOptionalExtensions().HasBufferDeviceAddress)
+		{
+			VkBufferDeviceAddressInfo BufferInfo;
+			ZeroVulkanStruct(BufferInfo, VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO);
+			BufferInfo.buffer = NewBlock->Buffer;
+			NewBlock->BufferAddress = VulkanRHI::vkGetBufferDeviceAddressKHR(Device->GetInstanceHandle(), &BufferInfo);
+		}
+
+		return NewBlock;
+	}
+
+	uint8* FTempBlockAllocator::Alloc(uint32 InSize, FVulkanCmdBuffer* CmdBuffer, VkDescriptorBufferBindingInfoEXT& OutBindingInfo, VkDeviceSize& OutOffset)
+	{
+		const uint32 AlignedSize = Align(InSize, BlockAlignment);
+		checkfSlow(BlockAlignment < BlockSize, TEXT("Requested size of %d (%d aligned) is too large for block size of %d"), InSize, AlignedSize, BlockSize);
+
+		auto ReturnAllocationFromBlock = [AlignedSize, BufferUsageFlags=BufferUsage, &OutBindingInfo, &OutOffset](FTempMemoryBlock* Block, uint32 Offset)
+		{
+			ZeroVulkanStruct(OutBindingInfo, VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT);
+			OutBindingInfo.address = Block->BufferAddress;
+			OutBindingInfo.usage = BufferUsageFlags;
+			OutOffset = Offset;
+			return Block->MappedPointer + Offset;
+		};
+
+		// Parallel scope: allocate in existing block from existing command buffer
+		{
+			FReadScopeLock ScopeLock(RWLock);
+
+			if (CurrentBlock->Fences.Contains(CmdBuffer))
+			{
+				CurrentBlock->Fences[CmdBuffer] = CmdBuffer->GetFenceSignaledCounter();
+
+				const uint32 AllocOffset = CurrentBlock->CurrentOffset.fetch_add(AlignedSize);
+				if (AllocOffset + InSize < BlockSize)
+				{
+					return ReturnAllocationFromBlock(CurrentBlock, AllocOffset);
+				}
+			}
+		}
+
+		// Locked path (allocate a new block or from a new command buffer)
+		{
+			FWriteScopeLock ScopeLock(RWLock);
+
+			// Make sure someone else didn't swap the block before it was our turn
+			uint32 AllocOffset = CurrentBlock->CurrentOffset.fetch_add(AlignedSize);
+			if (AllocOffset + InSize < BlockSize)
+			{
+				CurrentBlock->Fences.FindOrAdd(CmdBuffer) = CmdBuffer->GetFenceSignaledCounter();
+				return ReturnAllocationFromBlock(CurrentBlock, AllocOffset);
+			}
+
+			// Get a new block
+			BusyBlocks.Add(CurrentBlock);
+			if (AvailableBlocks.Num())
+			{
+				CurrentBlock = AvailableBlocks.Pop(EAllowShrinking::No);
+			}
+			else
+			{
+				CurrentBlock = AllocBlock();
+			}
+
+			CurrentBlock->Fences.FindOrAdd(CmdBuffer) = CmdBuffer->GetFenceSignaledCounter();
+
+			AllocOffset = CurrentBlock->CurrentOffset.fetch_add(AlignedSize);
+			checkSlow(AllocOffset == 0);
+			checkSlow(AllocOffset + InSize < BlockSize);
+			return ReturnAllocationFromBlock(CurrentBlock, AllocOffset);
+		}	
+	}
+
+	void FTempBlockAllocator::UpdateBlocks()
+	{
+		FWriteScopeLock ScopeLock(RWLock);
+
+		for (int32 Index = BusyBlocks.Num() - 1; Index >= 0; --Index)
+		{
+			FTempMemoryBlock* Block = BusyBlocks[Index];
+
+			bool BlockReady = true;
+			for (auto& Pair : Block->Fences)
+			{
+				FVulkanCmdBuffer* CmdBuffer = Pair.Key;
+				if (Pair.Value >= CmdBuffer->GetFenceSignaledCounter())
+				{
+					BlockReady = false;
+					break;
+				}
+			}
+
+			if (BlockReady)
+			{
+				Block->Fences.Empty();
+				Block->CurrentOffset = 0;
+				BusyBlocks.RemoveAtSwap(Index, EAllowShrinking::No);
+				AvailableBlocks.Add(Block);
+			}
+		}
+	}
+
+
+
 
 	FTempFrameAllocationBuffer::FTempFrameAllocationBuffer(FVulkanDevice* InDevice)
 		: FDeviceChild(InDevice)

@@ -10,6 +10,7 @@
 #include "EngineUtils.h"
 #include "Animation/AnimSingleNodeInstance.h"
 #include "AssetEditorModeManager.h"
+#include "AssetViewerSettings.h"
 #include "Engine/Selection.h"
 
 #include "Dataflow/Interfaces/DataflowInterfaceGeometryCachable.h"
@@ -45,8 +46,9 @@ FDataflowSimulationScene::FDataflowSimulationScene(FPreviewScene::ConstructionVa
 		if(const UDataflow* DataflowAsset = GetEditorContent()->GetDataflowAsset())
 		{
 			SceneDescription->CacheParams = DataflowAsset->PreviewCacheParams;
-			SceneDescription->CacheAsset = Cast<UChaosCacheCollection>(DataflowAsset->PreviewCacheAsset.Get());
-			SceneDescription->BlueprintClass = DataflowAsset->PreviewBlueprintClass; 
+			SceneDescription->CacheAsset = Cast<UChaosCacheCollection>(DataflowAsset->PreviewCacheAsset.LoadSynchronous());
+			SceneDescription->BlueprintClass = DataflowAsset->PreviewBlueprintClass;
+			SceneDescription->BlueprintTransform = DataflowAsset->PreviewBlueprintTransform; 
 		}
 		if(SceneDescription->BlueprintClass == nullptr)
 		{
@@ -55,12 +57,31 @@ FDataflowSimulationScene::FDataflowSimulationScene(FPreviewScene::ConstructionVa
 #endif
 	}
 
+#if WITH_EDITOR
+	OnObjectsReinstancedHandle = FCoreUObjectDelegates::OnObjectsReinstanced.AddRaw(this, &FDataflowSimulationScene::OnObjectsReinstanced);
+#endif
+
 	CreateSimulationScene();
+}
+
+void FDataflowSimulationScene::OnObjectsReinstanced(const TMap<UObject*, UObject*>& ObjectsMap)
+{
+	if(UObject* const* InstancedActor = ObjectsMap.Find(PreviewActor))
+	{
+		if(*InstancedActor)
+		{
+			PreviewActor = Cast<AActor>(*InstancedActor);
+		}
+	}
 }
 
 FDataflowSimulationScene::~FDataflowSimulationScene()
 {
 	ResetSimulationScene();
+
+#if WITH_EDITOR
+	FCoreUObjectDelegates::OnObjectsReinstanced.Remove(OnObjectsReinstancedHandle);
+#endif
 }
 
 void FDataflowSimulationScene::UnbindSceneSelection()
@@ -91,9 +112,8 @@ void FDataflowSimulationScene::ResetSimulationScene()
 	// Destroy the spawned root actor
 	if(PreviewActor && GetWorld())
 	{
-		GetWorld()->DestroyActor(PreviewActor);
-
 		GetWorld()->EditorDestroyActor(PreviewActor, true);
+			
 		// Since deletion can be delayed, rename to avoid future name collision
 		// Call UObject::Rename directly on actor to avoid AActor::Rename which unnecessarily sunregister and re-register components
 		PreviewActor->UObject::Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
@@ -168,13 +188,14 @@ void FDataflowSimulationScene::CreateSimulationScene()
 		SimulationGenerator->SetCacheParams(SceneDescription->CacheParams);
 		SimulationGenerator->SetCacheAsset(SceneDescription->CacheAsset);
 		SimulationGenerator->SetBlueprintClass(SceneDescription->BlueprintClass);
+		SimulationGenerator->SetBlueprintTransform(SceneDescription->BlueprintTransform);
 		SimulationGenerator->SetDataflowContent(GetEditorContent());
 
 		TimeRange = SceneDescription->CacheParams.TimeRange;
 		NumFrames = (TimeRange[1] > TimeRange[0]) ? FMath::Floor((TimeRange[1] - TimeRange[0]) * SceneDescription->CacheParams.FrameRate) : 0;
 		
 		PreviewActor = UE::Dataflow::SpawnSimulatedActor(SceneDescription->BlueprintClass, Cast<AChaosCacheManager>(RootSceneActor),
-			SceneDescription->CacheAsset, false, GetEditorContent());
+			SceneDescription->CacheAsset, false, GetEditorContent(), SceneDescription->BlueprintTransform);
 
 		// Setup all the skelmesh animations
 		UE::Dataflow::SetupSkeletonAnimation(PreviewActor);
@@ -196,8 +217,6 @@ void FDataflowSimulationScene::UpdateSimulationCache()
 
 void FDataflowSimulationScene::TickDataflowScene(const float DeltaSeconds)
 {
-	GetWorld()->Tick(ELevelTick::LEVELTICK_All, DeltaSeconds);
-
 	if(const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 	{
 		if(UE::Dataflow::ShouldResetWorld(EditorContent->GetDataflowAsset(), GetWorld(), LastTimeStamp) || EditorContent->IsSimulationDirty())
@@ -223,6 +242,7 @@ void FDataflowSimulationScene::TickDataflowScene(const float DeltaSeconds)
 			UE::Dataflow::UpdateSkeletonAnimation(PreviewActor, SimulationTime);
 		}
 	}
+	GetWorld()->Tick(ELevelTick::LEVELTICK_All, DeltaSeconds);
 }
 
 void FDataflowSimulationScene::AddReferencedObjects(FReferenceCollector& Collector)
@@ -255,6 +275,13 @@ void FDataflowSimulationScene::SceneDescriptionPropertyChanged(const FName& Prop
 			SimulationGenerator->SetBlueprintClass(SceneDescription->BlueprintClass);
 		}
 	}
+	else if(PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, BlueprintTransform))
+	{
+		if(SimulationGenerator)
+		{
+			SimulationGenerator->SetBlueprintTransform(SceneDescription->BlueprintTransform);
+		}
+	}
 	if(GetEditorContent())
 	{
 		if(UDataflow* DataflowAsset = GetEditorContent()->GetDataflowAsset())
@@ -263,6 +290,9 @@ void FDataflowSimulationScene::SceneDescriptionPropertyChanged(const FName& Prop
 			DataflowAsset->PreviewCacheParams = SceneDescription->CacheParams;
 			DataflowAsset->PreviewCacheAsset = SceneDescription->CacheAsset;
 			DataflowAsset->PreviewBlueprintClass = SceneDescription->BlueprintClass;
+			DataflowAsset->PreviewBlueprintTransform = SceneDescription->BlueprintTransform;
+			
+			DataflowAsset->MarkPackageDirty();
 #endif
 		}
 	}
@@ -294,7 +324,6 @@ void UDataflowSimulationSceneDescription::GenerateGeometryCache()
 		USkeletalMeshComponent* SkeletalComponent = nullptr;
 		for (UPrimitiveComponent* PrimComponent : PrimComponents)
 		{
-			
 			if (!GeometryCachable)
 			{
 				GeometryCachable = Cast<IDataflowGeometryCachable>(PrimComponent);

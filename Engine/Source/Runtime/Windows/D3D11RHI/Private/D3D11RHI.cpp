@@ -79,7 +79,7 @@ void FD3D11DynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 			PollQueryResults();
 
 			// Previous frame has completed and the data is available. Publish the profiler events.
-			UE::RHI::GPUProfiler::ProcessEvents(UE::RHI::GPUProfiler::FQueue(UE::RHI::GPUProfiler::FQueue::EType::Graphics, 0, 0), PreviousFrame->EventStream);
+			UE::RHI::GPUProfiler::ProcessEvents(UE::RHI::GPUProfiler::FQueue(UE::RHI::GPUProfiler::FQueue::EType::Graphics, 0, 0), MoveTemp(PreviousFrame->EventStream));
 
 			Profiler.EventPool.Push(MoveTemp(PreviousFrame->CompletionQuery));
 			Profiler.Pending.Pop();

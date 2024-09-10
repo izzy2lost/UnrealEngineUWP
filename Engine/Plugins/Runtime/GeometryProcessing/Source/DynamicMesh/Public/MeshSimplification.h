@@ -117,25 +117,25 @@ public:
 	 * Note that because triangles are removed in pairs, the resulting count may be TriangleCount-1
 	 * @param TriangleCount the target triangle count
 	 */
-	virtual void SimplifyToTriangleCount(int TriangleCount);
+	DYNAMICMESH_API virtual void SimplifyToTriangleCount(int TriangleCount);
 
 	/**
 	 * Simplify mesh until it has a specific vertex count
 	 * @param VertexCount the target vertex count
 	 */
-	virtual void SimplifyToVertexCount(int VertexCount);
+	DYNAMICMESH_API virtual void SimplifyToVertexCount(int VertexCount);
 
 	/**
 	 * Simplify mesh until no edges smaller than min length remain. This is not a great criteria.
 	 * @param MinEdgeLength collapse any edge longer than this
 	 */
-	virtual void SimplifyToEdgeLength(double MinEdgeLength);
+	DYNAMICMESH_API virtual void SimplifyToEdgeLength(double MinEdgeLength);
 
 	/**
 	 * Simplify mesh until the quadric error of an edge collapse exceeds the specified criteria.
 	 * @param MaxError collapse an edge if the corresponding quadric error exceeds this 
 	 */
-	virtual void SimplifyToMaxError(double MaxError);
+	DYNAMICMESH_API virtual void SimplifyToMaxError(double MaxError);
 
 	/**
 	 * Maximally collapse mesh in a way that does not change shape at all.
@@ -143,7 +143,7 @@ public:
 	 * @param AngleTolDeg two triangles are considered coplanar if their normals are within this angle tolerance
 	 * @param EdgeFilterPredicate only edges that pass this predicate will be considered for collapse. Default all true.
 	 */
-	virtual void SimplifyToMinimalPlanar(
+	DYNAMICMESH_API virtual void SimplifyToMinimalPlanar(
 		double CoplanarAngleTolDeg = 0.001,
 		TFunctionRef<bool(int32 EdgeID)> EdgeFilterPredicate = [](int32) { return true; }
 		);
@@ -157,7 +157,7 @@ public:
 	 * @param MeshIsClosedHint if you know the mesh is closed, this pass this true to avoid some precomputes
 	 * @param MinTriangleCount halt fast collapse if mesh falls below this triangle count
 	 */
-	virtual void FastCollapsePass(double MinEdgeLength, int Rounds = 1, bool bMeshIsClosedHint = false, uint32 MinTriangleCount = 0);
+	DYNAMICMESH_API virtual void FastCollapsePass(double MinEdgeLength, int Rounds = 1, bool bMeshIsClosedHint = false, uint32 MinTriangleCount = 0);
 
 	
 
@@ -185,7 +185,7 @@ protected:
 
 
 	/** Top-level function that does the simplification */
-	virtual void DoSimplify();
+	DYNAMICMESH_API virtual void DoSimplify();
 
 
 
@@ -214,14 +214,14 @@ protected:
 	double SeamEdgeWeight =  256.;
 
 	TArray<FQuadricErrorType> vertQuadrics;
-	virtual void InitializeVertexQuadrics();
+	DYNAMICMESH_API virtual void InitializeVertexQuadrics();
 
 	TMap<int, FSeamQuadricType> seamQuadrics;
-	virtual void InitializeSeamQuadrics();
+	DYNAMICMESH_API virtual void InitializeSeamQuadrics();
 
 	TArray<double> triAreas;
 	TArray<FQuadricErrorType> triQuadrics;
-	virtual void InitializeTriQuadrics();
+	DYNAMICMESH_API virtual void InitializeTriQuadrics();
 
 	FDynamicMeshNormalOverlay* NormalOverlay;
 
@@ -261,7 +261,7 @@ protected:
 		}
 	};
 
-	virtual void InitializeQueue();
+	DYNAMICMESH_API virtual void InitializeQueue();
 
 	// return point that minimizes quadric error for edge [ea,eb]
 	FVector3d OptimalPoint(int eid, const FQuadricErrorType& q, int ea, int eb);
@@ -277,7 +277,7 @@ protected:
 
 
 	// update queue weight for each edge in vertex one-ring and rebuild and quadrics necessary 
-	virtual void UpdateNeighborhood(const FDynamicMesh3::FEdgeCollapseInfo& collapseInfo);
+	DYNAMICMESH_API virtual void UpdateNeighborhood(const FDynamicMesh3::FEdgeCollapseInfo& collapseInfo);
 
 
 	virtual void Reproject() 
@@ -326,27 +326,21 @@ protected:
 	bool RemoveIsolatedTriangle(int tID);
 
 
-	// subclasses can override these to implement custom behavior...
-	virtual void OnEdgeCollapse(int edgeID, int va, int vb, const FDynamicMesh3::FEdgeCollapseInfo& collapseInfo)
-	{
-		// this is for subclasses...
-	}
+	// subclasses can override this to implement custom behavior...
+	DYNAMICMESH_API virtual void OnEdgeCollapse(int edgeID, int va, int vb, const FDynamicMesh3::FEdgeCollapseInfo& collapseInfo);
 
-	virtual void OnRemoveIsolatedTriangle(int tId)
-	{
-		// this is for subclasses
-	}
-
+	// subclasses can override this to implement custom behavior...
+	DYNAMICMESH_API virtual void OnRemoveIsolatedTriangle(int tId);
 
 	// Project vertices onto projection target. 
-	virtual void FullProjectionPass();
+	DYNAMICMESH_API virtual void FullProjectionPass();
 
-	virtual void ProjectVertex(int vID, IProjectionTarget* targetIn);
+	DYNAMICMESH_API virtual void ProjectVertex(int vID, IProjectionTarget* targetIn);
 
 	// used by collapse-edge to get projected position for new vertex
-	virtual FVector3d GetProjectedCollapsePosition(int vid, const FVector3d& vNewPos);
+	DYNAMICMESH_API virtual FVector3d GetProjectedCollapsePosition(int vid, const FVector3d& vNewPos);
 
-	virtual void ApplyToProjectVertices(const TFunction<void(int)>& apply_f);
+	DYNAMICMESH_API virtual void ApplyToProjectVertices(const TFunction<void(int)>& apply_f);
 
 
 	/**
@@ -442,9 +436,6 @@ protected:
 typedef TMeshSimplification< FAttrBasedQuadricErrord >  FAttrMeshSimplification;
 typedef TMeshSimplification < FVolPresQuadricErrord >   FVolPresMeshSimplification;
 typedef TMeshSimplification< FQuadricErrord >           FQEMSimplification;
-
-template<>
-void TMeshSimplification<FAttrBasedQuadricErrord>::OnEdgeCollapse(int edgeID, int va, int vb, const FDynamicMesh3::FEdgeCollapseInfo& collapseInfo);
 
 } // end namespace UE::Geometry
 } // end namespace UE

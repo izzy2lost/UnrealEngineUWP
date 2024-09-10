@@ -6,7 +6,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
 
@@ -41,8 +40,8 @@ namespace Horde.Commands.Workspace
 		[Description("Outputs stats for the extraction operation.")]
 		public bool Stats { get; set; }
 
-		public WorkspaceSync(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache)
-			: base(storageClientFactory, bundleCache)
+		public WorkspaceSync(HttpStorageClient storageClient, BundleCache bundleCache)
+			: base(storageClient, bundleCache)
 		{
 		}
 
@@ -51,19 +50,19 @@ namespace Horde.Commands.Workspace
 			if (File != null)
 			{
 				using MemoryMappedFileCache memoryMappedFileCache = new MemoryMappedFileCache();
-				IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleCache, memoryMappedFileCache, logger);
+				IStorageNamespace store = BundleStorageNamespace.CreateFromDirectory(File.Directory, BundleCache, memoryMappedFileCache, logger);
 				IBlobRef handle = store.CreateBlobRef(await FileStorageBackend.ReadRefAsync(File));
 				return await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Ref != null)
 			{
-				IStorageClient store = CreateStorageClient();
+				IStorageNamespace store = GetStorageNamespace();
 				IBlobRef handle = await store.ReadRefAsync(new RefName(Ref));
 				return await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Node != null)
 			{
-				IStorageClient store = CreateStorageClient();
+				IStorageNamespace store = GetStorageNamespace();
 				IBlobRef handle = store.CreateBlobRef(new BlobLocator(Node));
 				return await ExecuteInternalAsync(store, handle, logger);
 			}
@@ -73,7 +72,7 @@ namespace Horde.Commands.Workspace
 			}
 		}
 
-		async Task<int> ExecuteInternalAsync(IStorageClient store, IBlobRef handle, ILogger logger)
+		async Task<int> ExecuteInternalAsync(IStorageNamespace store, IBlobRef handle, ILogger logger)
 		{
 			RootDir ??= DirectoryReference.GetCurrentDirectory();
 			CancellationToken cancellationToken = CancellationToken.None;

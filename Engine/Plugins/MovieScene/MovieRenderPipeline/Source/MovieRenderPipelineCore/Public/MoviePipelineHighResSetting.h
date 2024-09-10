@@ -7,6 +7,8 @@
 #include "MoviePipelineQueue.h"
 #include "MoviePipelineOutputSetting.h"
 #include "MoviePipelineAntiAliasingSetting.h"
+#include "MoviePipelineTelemetry.h"
+
 #include "MoviePipelineHighResSetting.generated.h"
 
 UCLASS(Blueprintable)
@@ -61,6 +63,11 @@ public:
 		InOutFormatArgs.FilenameArguments.Add(TEXT("overlap_percent"), FString::SanitizeFloat(OverlapRatio));
 		InOutFormatArgs.FileMetadata.Add(TEXT("unreal/highres/tileCount"), FString::FromInt(TileCount));
 		InOutFormatArgs.FileMetadata.Add(TEXT("unreal/highres/overlapPercent"), FString::SanitizeFloat(OverlapRatio));
+	}
+
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override
+	{
+		InTelemetry->bUsesHighResTiling = true;
 	}
 
 #if WITH_EDITOR

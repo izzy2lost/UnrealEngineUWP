@@ -165,6 +165,10 @@ public:
 	/** Caching blueprint actor class to spawn */
 	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
 	TSubclassOf<AActor> PreviewBlueprintClass = nullptr;
+	
+	/** Caching blueprint actor transform to spawn */
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FTransform PreviewBlueprintTransform = FTransform::Identity;
 
 #endif
 

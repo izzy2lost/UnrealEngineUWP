@@ -36,41 +36,10 @@ void SStaticMeshEditorViewportToolbar::Construct(const FArguments& InArgs, TShar
 // SCommonEditorViewportToolbarBase interface
 TSharedRef<SWidget> SStaticMeshEditorViewportToolbar::GenerateShowMenu() const
 {
-	GetInfoProvider().OnFloatingButtonClicked();
+	TSharedRef<SEditorViewport> BaseViewportRef = GetInfoProvider().GetViewportWidget();
+	TSharedRef<SStaticMeshEditorViewport> ViewportRef = StaticCastSharedRef<SStaticMeshEditorViewport, SEditorViewport>(BaseViewportRef);
 
-	TSharedRef<SEditorViewport> ViewportRef = GetInfoProvider().GetViewportWidget();
-
-	const bool bInShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder ShowMenuBuilder(bInShouldCloseWindowAfterMenuSelection, ViewportRef->GetCommandList());
-	{
-		auto Commands = FStaticMeshEditorCommands::Get();
-
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowNaniteFallback);
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowDistanceField);
-
-		ShowMenuBuilder.BeginSection("MeshComponents", LOCTEXT("MeshComponments", "Mesh Components"));
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowSockets);
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowVertices);
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowVertexColor);
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowNormals);
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowTangents);
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowBinormals);
-		ShowMenuBuilder.AddMenuSeparator();
-
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowPivot);
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowGrid);
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowBounds);
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowSimpleCollision);
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowComplexCollision);
-		ShowMenuBuilder.AddMenuEntry(Commands.SetShowPhysicalMaterialMasks);
-
-
-
-		//ShowMenuBuilder.AddMenuSeparator();
-		//ShowMenuBuilder.AddMenuEntry(Commands.SetShowMeshEdges);
-	}
-
-	return ShowMenuBuilder.MakeWidget();
+	return UE::StaticMeshEditor::GenerateShowMenuWidget(ViewportRef);
 }
 
 // SCommonEditorViewportToolbarBase interface

@@ -25,6 +25,7 @@ namespace UE::PixelStreaming2
 		TSet<IPixelStreaming2AudioConsumer*> AudioConsumers;
 
 	private:
+		FCriticalSection AudioConsumersCS;
 		bool bIsMuted = false;
 	};
 } // namespace UE::PixelStreaming2

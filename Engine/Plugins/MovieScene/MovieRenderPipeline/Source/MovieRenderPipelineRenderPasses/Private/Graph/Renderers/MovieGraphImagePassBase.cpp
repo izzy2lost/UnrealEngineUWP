@@ -46,16 +46,10 @@ FSceneViewInitOptions FMovieGraphImagePassBase::CreateViewInitOptions(const UE::
 		FPlane(1, 0, 0, 0),
 		FPlane(0, 1, 0, 0),
 		FPlane(0, 0, 0, 1));
-	
-	float ViewFOV = InCameraInfo.ViewInfo.FOV;
-
-	// Inflate our FOV to support the overscan 
-	// ToDo: This is a duplicate of the logic in CalculateProjectionMatrix, should combine.
-	ViewFOV = 2.0f * FMath::RadiansToDegrees(FMath::Atan((1.0f + InCameraInfo.OverscanFraction) * FMath::Tan(FMath::DegreesToRadians( ViewFOV * 0.5f ))));
 
 	ViewInitOptions.SceneViewStateInterface = InViewStateRef.GetReference();
-	ViewInitOptions.FOV = ViewFOV;
-	ViewInitOptions.DesiredFOV = ViewFOV;
+	ViewInitOptions.FOV = InCameraInfo.ViewInfo.FOV;
+	ViewInitOptions.DesiredFOV = InCameraInfo.ViewInfo.FOV;
 	
 	return ViewInitOptions;
 }
@@ -69,7 +63,7 @@ FSceneView* FMovieGraphImagePassBase::CreateSceneView(const FSceneViewInitOption
 	InViewFamily->Views.Add(View);
 
 	View->StartFinalPostprocessSettings(InInitOptions.ViewLocation);
-	ApplyCameraManagerPostProcessBlends(View);
+	ApplyCameraManagerPostProcessBlends(View, InCameraInfo.ViewInfo, InCameraInfo.bUseCameraManagerPostProcess);
 
 	// Scaling sensor size inversely with the the projection matrix [0][0] should physically
 	// cause the circle of confusion to be unchanged.
@@ -96,7 +90,7 @@ DefaultRenderer::FRenderTargetInitParams FMovieGraphImagePassBase::GetRenderTarg
 	return InitParams;
 }
 
-void FMovieGraphImagePassBase::ApplyCameraManagerPostProcessBlends(FSceneView* InView) const
+void FMovieGraphImagePassBase::ApplyCameraManagerPostProcessBlends(FSceneView* InView, const FMinimalViewInfo& InViewInfo, bool bUseCameraManagerPostProcess) const
 {
 	check(InView);
 
@@ -106,33 +100,40 @@ void FMovieGraphImagePassBase::ApplyCameraManagerPostProcessBlends(FSceneView* I
 		return;
 	}
 
-	APlayerController* LocalPlayerController = GraphRenderer->GetWorld()->GetFirstPlayerController();
-	// CameraAnim override
-	if (LocalPlayerController->PlayerCameraManager)
+	if (bUseCameraManagerPostProcess)
 	{
-		TArray<FPostProcessSettings> const* CameraAnimPPSettings;
-		TArray<float> const* CameraAnimPPBlendWeights;
-		LocalPlayerController->PlayerCameraManager->GetCachedPostProcessBlends(CameraAnimPPSettings, CameraAnimPPBlendWeights);
-
-		if (LocalPlayerController->PlayerCameraManager->bEnableFading)
+		APlayerController* LocalPlayerController = GraphRenderer->GetWorld()->GetFirstPlayerController();
+		// CameraAnim override
+		if (LocalPlayerController->PlayerCameraManager)
 		{
-			InView->OverlayColor = LocalPlayerController->PlayerCameraManager->FadeColor;
-			InView->OverlayColor.A = FMath::Clamp(LocalPlayerController->PlayerCameraManager->FadeAmount, 0.f, 1.f);
-		}
+			TArray<FPostProcessSettings> const* CameraAnimPPSettings;
+			TArray<float> const* CameraAnimPPBlendWeights;
+			LocalPlayerController->PlayerCameraManager->GetCachedPostProcessBlends(CameraAnimPPSettings, CameraAnimPPBlendWeights);
 
-		if (LocalPlayerController->PlayerCameraManager->bEnableColorScaling)
-		{
-			FVector ColorScale = LocalPlayerController->PlayerCameraManager->ColorScale;
-			InView->ColorScale = FLinearColor(ColorScale.X, ColorScale.Y, ColorScale.Z);
-		}
+			if (LocalPlayerController->PlayerCameraManager->bEnableFading)
+			{
+				InView->OverlayColor = LocalPlayerController->PlayerCameraManager->FadeColor;
+				InView->OverlayColor.A = FMath::Clamp(LocalPlayerController->PlayerCameraManager->FadeAmount, 0.f, 1.f);
+			}
 
-		FMinimalViewInfo ViewInfo = LocalPlayerController->PlayerCameraManager->GetCameraCacheView();
-		for (int32 PPIdx = 0; PPIdx < CameraAnimPPBlendWeights->Num(); ++PPIdx)
-		{
-			InView->OverridePostProcessSettings((*CameraAnimPPSettings)[PPIdx], (*CameraAnimPPBlendWeights)[PPIdx]);
-		}
+			if (LocalPlayerController->PlayerCameraManager->bEnableColorScaling)
+			{
+				FVector ColorScale = LocalPlayerController->PlayerCameraManager->ColorScale;
+				InView->ColorScale = FLinearColor(ColorScale.X, ColorScale.Y, ColorScale.Z);
+			}
 
-		InView->OverridePostProcessSettings(ViewInfo.PostProcessSettings, ViewInfo.PostProcessBlendWeight);
+			FMinimalViewInfo ViewInfo = LocalPlayerController->PlayerCameraManager->GetCameraCacheView();
+			for (int32 PPIdx = 0; PPIdx < CameraAnimPPBlendWeights->Num(); ++PPIdx)
+			{
+				InView->OverridePostProcessSettings((*CameraAnimPPSettings)[PPIdx], (*CameraAnimPPBlendWeights)[PPIdx]);
+			}
+
+			InView->OverridePostProcessSettings(ViewInfo.PostProcessSettings, ViewInfo.PostProcessBlendWeight);
+		}
+	}
+	else
+	{
+		UE::MoviePipeline::DoPostProcessBlend(InViewInfo.Location, GraphRenderer->GetWorld(), InViewInfo, InView);
 	}
 }
 
@@ -298,17 +299,7 @@ void FMovieGraphImagePassBase::CalculateProjectionMatrix(UE::MovieGraph::Default
 
 	const float DestAspectRatio = ViewRectWidth / ViewRectHeight;
 	const float CameraAspectRatio = InOutCameraInfo.bAllowCameraAspectRatio ? InOutCameraInfo.ViewInfo.AspectRatio : DestAspectRatio;
-
-	float ViewFOV = InOutCameraInfo.ViewInfo.FOV;
-
-	// Inflate our FOV to support the overscan 
-	ViewFOV = 2.0f * FMath::RadiansToDegrees(FMath::Atan((1.0f + InOutCameraInfo.OverscanFraction) * FMath::Tan(FMath::DegreesToRadians(ViewFOV * 0.5f))));
-	InOutCameraInfo.ViewInfo.FOV = ViewFOV;
-	InOutCameraInfo.ViewInfo.DesiredFOV = ViewFOV;
-
-	// Overscan the Orthographic pass too.
-	InOutCameraInfo.ViewInfo.OrthoWidth *= 1.0f + InOutCameraInfo.OverscanFraction;
-
+	
 	const int TotalTileCount = InOutCameraInfo.TilingParams.TileCount.X * InOutCameraInfo.TilingParams.TileCount.Y;
 
 	// If they're using high-resolution tiling we can't support letterboxing (as the blended areas we would render with

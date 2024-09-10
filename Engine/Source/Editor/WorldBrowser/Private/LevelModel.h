@@ -117,8 +117,11 @@ public:
 	/** @return Whether level is in process of loading content */
 	bool IsLoading() const;
 
-	/**	@return Whether level is visible in the world */
-	bool IsVisible() const;
+	/**	@return Whether level is visible in editor worlds */
+	bool IsVisibleInEditor() const;
+
+	/**	@return Whether level is visible in game worlds */
+	bool IsVisibleInGame() const;
 
 	/**	@return Whether level is locked */
 	bool IsLocked() const;
@@ -136,10 +139,12 @@ public:
 	virtual void LoadLevel();
 
 	/** Sets the Level's visibility */
-	virtual void SetVisible(bool bVisible);
+	virtual void SetVisibleInEditor(bool bVisible);
 
 	/** Static function analog to the non-static SetVisible but applied to an TArray of FLevelModel elements */
-	static void SetVisible(TArray<FLevelModel*>& LevelModels, const TArray<bool>& bAreVisible);
+	static void SetVisibleInEditor(TArray<FLevelModel*>& LevelModels, const TArray<bool>& bAreVisible);
+
+	static void SetVisibleInGame(TArray<FLevelModel*>& LevelModels, const TArray<bool>& bAreVisible);
 
 	/** Sets the Level's locked/unlocked state */
 	void SetLocked(bool bLocked);

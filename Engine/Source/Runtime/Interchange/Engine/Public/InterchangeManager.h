@@ -247,6 +247,7 @@ namespace UE
 			TArray<uint64> WaitAssetCompilationTasks;
 			TArray<uint64> PostImportTasks;
 			uint64 ParsingTask;
+			TArray<uint64> ImportObjectQueryPayloadsTasks;
 			TArray<uint64> BeginImportObjectTasks;
 			TArray<uint64> ImportObjectTasks;
 			TArray<uint64> FinalizeImportObjectTasks;

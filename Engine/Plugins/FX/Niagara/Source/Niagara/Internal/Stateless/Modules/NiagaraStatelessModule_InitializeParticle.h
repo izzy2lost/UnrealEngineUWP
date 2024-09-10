@@ -136,6 +136,7 @@ public:
 		using namespace NiagaraStateless;
 
 		const FModuleBuiltData* ModuleBuiltData = ParticleSimulationContext.ReadBuiltData<FModuleBuiltData>();
+		const FParameters* ShaderParameters = ParticleSimulationContext.ReadParameterNestedStruct<FParameters>();
 
 		const bool bUniformSpriteSize = (ModuleBuiltData->ModuleFlags & EInitializeParticleModuleFlag_UniformSpriteSize) != 0;
 		const bool bUniformMeshScale  = (ModuleBuiltData->ModuleFlags & EInitializeParticleModuleFlag_UniformMeshScale) != 0;
@@ -145,11 +146,11 @@ public:
 			const FStatelessDistributionSampler<FVector3f> PositionSampler(ParticleSimulationContext, ModuleBuiltData->InitialPosition, i, 0);
 
 			const FVector3f		Position	= PositionSampler.GetValue(ParticleSimulationContext, 0.0f);
-			const FLinearColor	Color		= ParticleSimulationContext.RandomScaleBiasFloat(i, 1 ,ModuleBuiltData->ColorRange);
-			const float			RibbonWidth	= ParticleSimulationContext.RandomScaleBiasFloat(i, 2, ModuleBuiltData->RibbonWidthRange);
-			const FVector2f		SpriteSize	= ParticleSimulationContext.RandomScaleBiasFloat(i, 3, ModuleBuiltData->SpriteSizeRange, bUniformSpriteSize);
-			const float			SpriteRot	= ParticleSimulationContext.RandomScaleBiasFloat(i, 4, ModuleBuiltData->SpriteRotationRange);
-			const FVector3f		Scale		= ParticleSimulationContext.RandomScaleBiasFloat(i, 5, ModuleBuiltData->MeshScaleRange, bUniformMeshScale);
+			const FLinearColor	Color		= ParticleSimulationContext.RandomScaleBiasFloat(i, 1, ShaderParameters->InitializeParticle_ColorScale, ShaderParameters->InitializeParticle_ColorBias);
+			const float			RibbonWidth	= ParticleSimulationContext.RandomScaleBiasFloat(i, 2, ShaderParameters->InitializeParticle_RibbonWidthScale, ShaderParameters->InitializeParticle_RibbonWidthBias);
+			const FVector2f		SpriteSize	= ParticleSimulationContext.RandomScaleBiasFloat(i, 3, ShaderParameters->InitializeParticle_SpriteSizeScale, ShaderParameters->InitializeParticle_SpriteSizeBias, bUniformSpriteSize);
+			const float			SpriteRot	= ParticleSimulationContext.RandomScaleBiasFloat(i, 4, ShaderParameters->InitializeParticle_SpriteRotationScale, ShaderParameters->InitializeParticle_SpriteRotationBias);
+			const FVector3f		Scale		= ParticleSimulationContext.RandomScaleBiasFloat(i, 5, ShaderParameters->InitializeParticle_MeshScaleScale, ShaderParameters->InitializeParticle_MeshScaleBias, bUniformMeshScale);
 
 			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PositionVariableOffset,				i, Position);
 			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->ColorVariableOffset,					i, Color);

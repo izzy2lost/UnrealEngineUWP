@@ -2,7 +2,6 @@
 // uLang Compiler Public API
 
 #include "uLang/Semantics/SemanticFunction.h"
-#include "uLang/Common/Text/CppMangling.h"
 #include "uLang/Semantics/Definition.h"
 #include "uLang/Semantics/SemanticClass.h"
 #include "uLang/Semantics/SemanticInterface.h"
@@ -214,11 +213,6 @@ CUTF8String CFunction::GetDecoratedName(uint16_t StrFlags) const
         AppendParams();
     }
     return Builder.MoveToString();
-}
-
-CUTF8String CFunction::GetDecoratedAndMangledName() const
-{
-    return CppMangling::Mangle(GetDecoratedName());
 }
 
 bool CFunction::HasImplementation() const

@@ -24,7 +24,9 @@ public:
 	void ExtendToolbar();
 
 private:
-	void AddCurveEntry(const FName CurveName);
+	FString CreateRowLabel(const FName EntryIdentifier, const EHierarchyTableEntryType EntryType);
+
+	void AddEntry(const FName Identifier, const EHierarchyTableEntryType EntryType);
 
 	TSharedRef<SWidget> CreateTedsOutliner();
 

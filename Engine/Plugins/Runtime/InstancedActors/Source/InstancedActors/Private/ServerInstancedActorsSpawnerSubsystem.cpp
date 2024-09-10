@@ -20,7 +20,7 @@ bool UServerInstancedActorsSpawnerSubsystem::ShouldCreateSubsystem(UObject* Oute
 	// @todo Add support for non-replay NM_Standalone where we should use UServerInstancedActorsSpawnerSubsystem for 
 	// authoritative actor spawning.
 	UWorld* World = Cast<UWorld>(Outer);
-	return (World != nullptr && World->GetNetMode() == NM_DedicatedServer);
+	return (World != nullptr && World->GetNetMode() != NM_Client);
 }
 
 bool UServerInstancedActorsSpawnerSubsystem::ReleaseActorToPool(AActor* Actor)
@@ -50,7 +50,7 @@ ESpawnRequestStatus UServerInstancedActorsSpawnerSubsystem::SpawnActor(FConstStr
 
 	UWorld* World = GetWorld();
 	check(World);
-	check(World->GetNetMode() == NM_DedicatedServer);
+	check(World->GetNetMode() != NM_Client);
 
 	const FMassActorSpawnRequest& SpawnRequest = SpawnRequestView.Get<const FMassActorSpawnRequest>();
 	UInstancedActorsData* InstanceData = UInstancedActorsData::GetInstanceDataForEntity(*EntityManager, SpawnRequest.MassAgent);

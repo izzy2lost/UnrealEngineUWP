@@ -61,7 +61,7 @@ namespace EpicGames.Horde.Tests
 		static async Task<byte[]> CreateBundleNormalAsync()
 		{
 			MemoryStorageBackend memoryStore = new MemoryStorageBackend();
-			BundleStorageClient store = new BundleStorageClient(memoryStore, BundleCache.None, new BundleOptions { MaxVersion = BundleVersion.ImportHashes, CompressionFormat = BundleCompressionFormat.None }, NullLogger.Instance);
+			BundleStorageNamespace store = new BundleStorageNamespace(memoryStore, BundleCache.None, new BundleOptions { MaxVersion = BundleVersion.ImportHashes, CompressionFormat = BundleCompressionFormat.None }, NullLogger.Instance);
 			await using IBlobWriter writer = store.CreateBlobWriter();
 
 			TextNode node = new TextNode("Hello world");
@@ -101,7 +101,7 @@ namespace EpicGames.Horde.Tests
 			MemoryStorageBackend blobStore = new MemoryStorageBackend();
 
 			BundleOptions bundleOptions = new BundleOptions { MaxBlobSize = 1024 * 1024 };
-			BundleStorageClient bundleStore = new BundleStorageClient(blobStore, BundleCache.None, bundleOptions, NullLogger.Instance);
+			BundleStorageNamespace bundleStore = new BundleStorageNamespace(blobStore, BundleCache.None, bundleOptions, NullLogger.Instance);
 
 			await TestTreeAsync(bundleStore);
 
@@ -115,7 +115,7 @@ namespace EpicGames.Horde.Tests
 			MemoryStorageBackend blobStore = new MemoryStorageBackend();
 
 			BundleOptions bundleOptions = new BundleOptions { MaxBlobSize = 1 };
-			BundleStorageClient bundleStore = new BundleStorageClient(blobStore, BundleCache.None, bundleOptions, NullLogger.Instance);
+			BundleStorageNamespace bundleStore = new BundleStorageNamespace(blobStore, BundleCache.None, bundleOptions, NullLogger.Instance);
 
 			await TestTreeAsync(bundleStore);
 
@@ -155,7 +155,7 @@ namespace EpicGames.Horde.Tests
 			}
 		}
 
-		static async Task TestTreeAsync(BundleStorageClient store)
+		static async Task TestTreeAsync(BundleStorageNamespace store)
 		{
 			// Generate a tree
 			{
@@ -219,7 +219,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task SimpleNodeAsync()
 		{
-			KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
+			KeyValueStorageNamespace store = KeyValueStorageNamespace.CreateInMemory();
 
 			RefName refName = new RefName("test");
 
@@ -238,7 +238,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task DirectoryNodesAsync()
 		{
-			KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
+			KeyValueStorageNamespace store = KeyValueStorageNamespace.CreateInMemory();
 
 			// Generate a tree
 			{
@@ -285,7 +285,7 @@ namespace EpicGames.Horde.Tests
 		public async Task FileNodesAsync()
 		{
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
-			BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+			BundleStorageNamespace store = BundleStorageNamespace.CreateInMemory(NullLogger.Instance);
 			BundleReader reader = new BundleReader(store, BundleCache.None, NullLogger.Instance);
 
 			// Generate a tree
@@ -334,7 +334,7 @@ namespace EpicGames.Horde.Tests
 		public async Task StreamTestAsync()
 		{
 			BundleOptions bundleOptions = new BundleOptions { MaxBlobSize = 1024 };
-			BundleStorageClient store = BundleStorageClient.CreateInMemory(bundleOptions, NullLogger.Instance);
+			BundleStorageNamespace store = BundleStorageNamespace.CreateInMemory(bundleOptions, NullLogger.Instance);
 
 			const int Length = 4096;
 
@@ -374,7 +374,7 @@ namespace EpicGames.Horde.Tests
 		public async Task LargeFileTestAsync()
 		{
 			BundleOptions bundleOptions = new BundleOptions { MaxBlobSize = 1024 };
-			BundleStorageClient store = BundleStorageClient.CreateInMemory(bundleOptions, NullLogger.Instance);
+			BundleStorageNamespace store = BundleStorageNamespace.CreateInMemory(bundleOptions, NullLogger.Instance);
 
 			const int Length = 1024;
 			const int Copies = 4096;

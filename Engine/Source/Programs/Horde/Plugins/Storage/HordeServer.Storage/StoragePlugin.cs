@@ -40,7 +40,7 @@ namespace HordeServer.Storage
 		{
 			services.AddSingleton<StorageService>();
 			services.AddSingleton<IStorageService>(sp => sp.GetRequiredService<StorageService>());
-			services.AddScoped(sp => sp.GetRequiredService<StorageService>().CreateStorageClientFactory(sp.GetRequiredService<IOptionsSnapshot<StorageConfig>>().Value));
+			services.AddScoped(sp => sp.GetRequiredService<StorageService>().CreateStorageClient(sp.GetRequiredService<IOptionsSnapshot<StorageConfig>>().Value));
 
 			services.AddSingleton<IObjectStoreFactory, ObjectStoreFactory>();
 			services.AddSingleton<AwsObjectStoreFactory>();

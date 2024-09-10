@@ -277,7 +277,7 @@ void FNullApplication::SetWorkArea(const FPlatformRect& NewWorkArea)
 	WorkArea = NewWorkArea;
 }
 
-bool FNullApplication::Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar)
+bool FNullApplication::Exec_Dev(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar)
 {
 	// Ignore any execs that doesn't start with NullApp
 	if (!FParse::Command(&Cmd, TEXT("NullApp")))

@@ -26,7 +26,11 @@ public class SkeletalMeshModifiers : ModuleRules
 				"RenderCore",
 				"CoreUObject",
 				"Engine",
-				"ApplicationCore"
+				"ApplicationCore",
+				"SlateCore",
+				"Slate",
+				"UnrealEd",
+				"ToolWidgets"
 			}
 			);
 

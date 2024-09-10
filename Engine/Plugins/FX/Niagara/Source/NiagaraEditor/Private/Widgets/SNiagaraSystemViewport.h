@@ -16,6 +16,7 @@
 #include "NiagaraPerfBaseline.h"
 
 class FNiagaraSystemViewModel;
+class FPreviewProfileController;
 class UNiagaraComponent;
 class FNiagaraSystemEditorViewportClient;
 class FNiagaraSystemInstance;
@@ -141,6 +142,9 @@ private:
 	
 	/** Level viewport client */
 	TSharedPtr<class FNiagaraSystemViewportClient> SystemViewportClient;
+
+	/** Access to Preview Profiles */
+	TSharedPtr<FPreviewProfileController> PreviewProfileController;
 
 	uint32 DrawFlags = 0;
 

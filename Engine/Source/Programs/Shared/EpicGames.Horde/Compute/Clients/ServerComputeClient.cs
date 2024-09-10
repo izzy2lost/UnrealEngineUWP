@@ -107,7 +107,7 @@ namespace EpicGames.Horde.Compute.Clients
 	/// <summary>
 	/// Helper class to enlist remote resources to perform compute-intensive tasks.
 	/// </summary>
-	public sealed class ServerComputeClient : IComputeClient
+	public sealed class ServerComputeClient : IComputeClient, IDisposable
 	{
 		/// <summary>
 		/// Length of the nonce sent as part of handshaking between initiator and remote
@@ -207,13 +207,6 @@ namespace EpicGames.Horde.Compute.Clients
 		}
 
 		/// <inheritdoc/>
-		public ValueTask DisposeAsync()
-		{
-			Dispose();
-			return new ValueTask();
-		}
-
-		/// <inheritdoc/>
 		public void Dispose()
 		{
 			_cancellationSource.Dispose();
@@ -230,7 +223,7 @@ namespace EpicGames.Horde.Compute.Clients
 				Protocol = (int)ComputeProtocol.Latest
 			};
 			
-			using HttpResponseMessage httpResponse = await HordeHttpClient.PostAsync(_httpClient, "api/v2/compute/_cluster", request, _cancellationSource.Token);
+			using HttpResponseMessage httpResponse = await HordeHttpRequest.PostAsync(_httpClient, "api/v2/compute/_cluster", request, _cancellationSource.Token);
 			if (!httpResponse.IsSuccessStatusCode)
 			{
 				string body = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
@@ -270,7 +263,7 @@ namespace EpicGames.Horde.Compute.Clients
 		public async Task DeclareResourceNeedsAsync(ClusterId clusterId, string pool, Dictionary<string, int> resourceNeeds, CancellationToken cancellationToken = default)
 		{
 			ResourceNeedsMessage request = new() { SessionId = _sessionId, Pool = pool, ResourceNeeds = resourceNeeds };
-			using HttpResponseMessage response = await HordeHttpClient.PostAsync(_httpClient, $"api/v2/compute/{clusterId}/resource-needs", request, _cancellationSource.Token);
+			using HttpResponseMessage response = await HordeHttpRequest.PostAsync(_httpClient, $"api/v2/compute/{clusterId}/resource-needs", request, _cancellationSource.Token);
 			response.EnsureSuccessStatusCode();
 		}
 
@@ -292,7 +285,7 @@ namespace EpicGames.Horde.Compute.Clients
 
 			AssignComputeResponse? response;
 			string path = clusterId == null ? "api/v2/compute" : $"api/v2/compute/{clusterId}";
-			using (HttpResponseMessage httpResponse = await HordeHttpClient.PostAsync(_httpClient, path, request, _cancellationSource.Token))
+			using (HttpResponseMessage httpResponse = await HordeHttpRequest.PostAsync(_httpClient, path, request, _cancellationSource.Token))
 			{
 				if (httpResponse.StatusCode == HttpStatusCode.NotFound)
 				{

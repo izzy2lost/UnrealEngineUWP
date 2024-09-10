@@ -83,7 +83,7 @@ void AddBufferLockReadbackPass(FRDGBuilder& GraphBuilder, TRefCountPtr<FRDGPoole
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("BufferLockReadbackPass"),
 		ERDGPassFlags::None,
-		[ReadbackProcessingLambdaType=MoveTemp(ReadbackProcessingLambda), SourceBufferRHI, NumBytes](FRHICommandListImmediate& RHICmdList)
+		[ReadbackProcessingLambdaType=MoveTemp(ReadbackProcessingLambda), SourceBufferRHI, NumBytes](FRHICommandList& RHICmdList)
 	{
 		const void *GPUData = (uint32*)RHICmdList.LockBuffer(SourceBufferRHI, 0, NumBytes, RLM_ReadOnly);
 		ReadbackProcessingLambdaType(GPUData);

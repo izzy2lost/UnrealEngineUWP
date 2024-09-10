@@ -447,12 +447,18 @@ public:
 		// just blend the attributes?
 		if (MergeInfo.RemovedVerts.A != FDynamicMesh3::InvalidID)
 		{
-			SetBoneWeightsFromLerp(MergeInfo.KeptVerts.A, MergeInfo.KeptVerts.A, MergeInfo.RemovedVerts.A, .5);
+			SetBoneWeightsFromLerp(MergeInfo.KeptVerts.A, MergeInfo.KeptVerts.A, MergeInfo.RemovedVerts.A, MergeInfo.InterpolationT);
 		}
 		if (MergeInfo.RemovedVerts.B != FDynamicMesh3::InvalidID)
 		{
-			SetBoneWeightsFromLerp(MergeInfo.KeptVerts.B, MergeInfo.KeptVerts.B, MergeInfo.RemovedVerts.B, .5);
+			SetBoneWeightsFromLerp(MergeInfo.KeptVerts.B, MergeInfo.KeptVerts.B, MergeInfo.RemovedVerts.B, MergeInfo.InterpolationT);
 		}
+	}
+
+	/** Update the overlay to reflect a vertex merge in the parent */
+	void OnMergeVertices(const FDynamicMesh3::FMergeVerticesInfo& MergeInfo) override
+	{
+		SetBoneWeightsFromLerp(MergeInfo.KeptVertex, MergeInfo.KeptVertex, MergeInfo.RemovedVertex, MergeInfo.InterpolationT);
 	}
 
 	/** Update the overlay to reflect a vertex split in the parent */

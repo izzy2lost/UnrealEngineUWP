@@ -109,9 +109,14 @@ namespace VulkanBindless
 
 		BindlessAccelerationStructureSet,
 
-		BindlessSingleUseUniformBufferSet,  // Keep last
+		// Number of sets reserved for samplers/resources
 		NumBindlessSets,
-		MaxNumSets = NumBindlessSets
+
+		// Index of the descriptor set used for single use ub (like globals)
+		BindlessSingleUseUniformBufferSet = NumBindlessSets,
+
+		// Total number of descriptor sets used in a bindless pipeline
+		MaxNumSets = NumBindlessSets + 1
 	};
 };
 

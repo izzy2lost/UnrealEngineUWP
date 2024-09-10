@@ -104,6 +104,11 @@ namespace Gauntlet
 		void CleanArtifacts();
 
 		/// <summary>
+		/// Local cache path
+		/// </summary>
+		string LocalCachePath { get; }
+
+		/// <summary>
 		/// Installs a build to the device
 		/// </summary>
 		/// <param name="AppConfiguration">The configuration containing the build to install</param>

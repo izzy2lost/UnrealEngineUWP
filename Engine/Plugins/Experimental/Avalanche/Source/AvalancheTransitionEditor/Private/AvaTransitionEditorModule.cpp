@@ -14,6 +14,7 @@
 #include "Styling/AvaTransitionEditorStyle.h"
 #include "ToolMenu.h"
 #include "ToolMenuSection.h"
+#include "Settings/AvaTransitionEditorSettings.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
 #include "Widgets/Layout/SBox.h"
 
@@ -126,22 +127,34 @@ void FAvaTransitionEditorModule::ValidateStateTree(UAvaTransitionTree* InTransit
 	// Disable Tree by default if being set up for the first time
 	InTransitionTree->SetEnabled(false);
 
-	UAvaTransitionTreeEditorData* const EditorData = NewObject<UAvaTransitionTreeEditorData>(InTransitionTree, NAME_None, RF_Transactional);
-	check(EditorData);
+	UAvaTransitionTreeEditorData* EditorData;
 
-	EditorData->Schema = NewObject<UAvaTransitionTreeSchema>(EditorData);
+	const UAvaTransitionEditorSettings* TransitionEditorSettings = GetDefault<UAvaTransitionEditorSettings>();
+	check(TransitionEditorSettings);
 
-	InTransitionTree->EditorData = EditorData;
-
-	// Build the Default Tree
-	if (OnBuildDefaultTransitionTree.IsBound())
+	if (UAvaTransitionTreeEditorData* TemplateEditorData = TransitionEditorSettings->LoadDefaultTemplateEditorData())
 	{
-		OnBuildDefaultTransitionTree.Execute(*EditorData);
+		EditorData = DuplicateObject<UAvaTransitionTreeEditorData>(TemplateEditorData, InTransitionTree);
+		check(EditorData);
 	}
 	else
 	{
-		EditorData->AddRootState();	
+		EditorData = NewObject<UAvaTransitionTreeEditorData>(InTransitionTree, NAME_None, RF_Transactional);
+		check(EditorData);
+
+		EditorData->Schema = NewObject<UAvaTransitionTreeSchema>(EditorData);
+
+		if (OnBuildDefaultTransitionTree.IsBound())
+		{
+			OnBuildDefaultTransitionTree.Execute(*EditorData);
+		}
+		else
+		{
+			EditorData->AddRootState();	
+		}
 	}
+
+	InTransitionTree->EditorData = EditorData;
 
 	// Compile in Advanced Mode here so that no new nodes are generated from outside
 	FAvaTransitionCompiler Compiler;

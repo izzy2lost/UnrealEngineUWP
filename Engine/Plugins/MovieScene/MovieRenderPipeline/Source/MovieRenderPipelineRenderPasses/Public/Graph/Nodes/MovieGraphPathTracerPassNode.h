@@ -57,6 +57,8 @@ public:
 	virtual FEngineShowFlags GetShowFlags() const override;
 	// ~UMovieGraphImagePassBaseNode Interface
 
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
+
 protected:
 	// UMovieGraphRenderPassNode Interface
 	virtual FString GetRendererNameImpl() const override;

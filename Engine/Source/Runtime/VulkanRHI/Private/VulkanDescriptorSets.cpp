@@ -49,7 +49,7 @@ static FAutoConsoleVariableRef CVarVulkanBindlessMaxStorageTexelBufferCount(
 	ECVF_ReadOnly
 );
 
-int32 GVulkanBindlessMaxUniformBufferDescriptorCount = 768 * 1024;
+int32 GVulkanBindlessMaxUniformBufferDescriptorCount = 32 * 1024;
 static FAutoConsoleVariableRef CVarVulkanBindlessMaxUniformBufferCount(
 	TEXT("r.Vulkan.Bindless.MaxResourceUniformBufferCount"),
 	GVulkanBindlessMaxUniformBufferDescriptorCount,
@@ -73,21 +73,12 @@ static FAutoConsoleVariableRef CVarVulkanBindlessMaxAccelerationStructureCount(
 	ECVF_ReadOnly
 );
 
-int32 GVulkanBindlessRebindBuffers = 1;
-static FAutoConsoleVariableRef CVarVulkanBindlessRebindBuffers(
-	TEXT("r.Vulkan.Bindless.RebindBuffers"),
-	GVulkanBindlessRebindBuffers,
-	TEXT("Rebind buffers for every draw or dispatch.  Handy for debugging but not great for performance."),
+int32 GVulkanBindlessBlockSize = 1024 * 1024;
+static FAutoConsoleVariableRef CVarVulkanBindlessBlockSize(
+	TEXT("r.Vulkan.Bindless.BlockSize"),
+	GVulkanBindlessBlockSize,
+	TEXT("Block size to use for single use ub. (default: 1MB)"),
 	ECVF_RenderThreadSafe
-);
-
-int32 GVulkanBindlessBufferOffsetUpdates = 0;
-static FAutoConsoleVariableRef CVarVulkanBindlessBufferOffsetUpdates(
-	TEXT("r.Vulkan.Bindless.BufferOffsetUpdates"),
-	GVulkanBindlessBufferOffsetUpdates,
-	TEXT("0 to set all offsets for each draw/dispatch\n")\
-	TEXT("1 to set resource descriptor buffer offsets once, and only update for uniform buffer offsets on draw/dispatch\n"),
-	ECVF_ReadOnly
 );
 
 
@@ -116,7 +107,7 @@ DEFINE_STAT(STAT_VulkanBindlessPeakAccelerationStructure);
 DEFINE_STAT(STAT_VulkanBindlessWritePerFrame);
 
 
-static inline uint8 GetIndexForDescriptorType(VkDescriptorType DescriptorType)
+static constexpr uint8 GetIndexForDescriptorType(VkDescriptorType DescriptorType)
 {
 	switch (DescriptorType)
 	{
@@ -131,11 +122,11 @@ static inline uint8 GetIndexForDescriptorType(VkDescriptorType DescriptorType)
 	default: checkNoEntry();
 	}
 
-	return VulkanBindless::NumBindlessSets;
+	return VulkanBindless::MaxNumSets;
 }
 
 
-static inline VkDescriptorType GetDescriptorTypeForSetIndex(uint8 SetIndex)
+static constexpr VkDescriptorType GetDescriptorTypeForSetIndex(uint8 SetIndex)
 {
 	switch (SetIndex)
 	{
@@ -251,8 +242,8 @@ bool FVulkanBindlessDescriptorManager::VerifySupport(FVulkanDevice* Device)
 		if (bMeetsExtensionsRequirements)
 		{
 			const bool bMeetsPropertiesRequirements =
-				(GpuProps.limits.maxBoundDescriptorSets >= VulkanBindless::NumBindlessSets) &&
-				(DescriptorBufferProperties.maxDescriptorBufferBindings >= VulkanBindless::NumBindlessSets) &&
+				(GpuProps.limits.maxBoundDescriptorSets >= VulkanBindless::MaxNumSets) &&
+				(DescriptorBufferProperties.maxDescriptorBufferBindings >= VulkanBindless::MaxNumSets) &&
 				(DescriptorBufferProperties.maxResourceDescriptorBufferBindings >= VulkanBindless::NumBindlessSets) &&
 				(DescriptorBufferProperties.maxSamplerDescriptorBufferBindings >= 1) &&
 				Device->GetDeviceMemoryManager().SupportsMemoryType(GetDescriptorBufferMemoryType(Device));
@@ -298,7 +289,7 @@ FVulkanBindlessDescriptorManager::FVulkanBindlessDescriptorManager(FVulkanDevice
 	, bIsSupported(VerifySupport(InDevice))
 {
 	FMemory::Memzero(BufferBindingInfo);
-	for (uint32 Index = 0; Index < VulkanBindless::NumBindlessSets; Index++)
+	for (uint32 Index = 0; Index < VulkanBindless::MaxNumSets; Index++)
 	{
 		BufferIndices[Index] = Index;
 	}
@@ -332,16 +323,22 @@ void FVulkanBindlessDescriptorManager::Deinit()
 		};
 
 		for (uint32 SetIndex = 0; SetIndex < VulkanBindless::NumBindlessSets; ++SetIndex)
-	{
+		{
 			BindlessSetState& State = BindlessSetStates[SetIndex];
 			if (State.DescriptorType != VK_DESCRIPTOR_TYPE_MAX_ENUM)
 			{
 				DestroyBindlessState(State);
 			}
 		}
+		
+		VulkanRHI::vkDestroyDescriptorSetLayout(DeviceHandle, SingleUseUBDescriptorSetLayout, VULKAN_CPU_ALLOCATOR);
+		SingleUseUBDescriptorSetLayout = VK_NULL_HANDLE;
 
 		VulkanRHI::vkDestroyDescriptorSetLayout(DeviceHandle, EmptyDescriptorSetLayout, VULKAN_CPU_ALLOCATOR);
 		EmptyDescriptorSetLayout = VK_NULL_HANDLE;
+
+		delete SingleUseUBAllocator;
+		SingleUseUBAllocator = nullptr;
 	}
 }
 
@@ -354,6 +351,9 @@ void FVulkanBindlessDescriptorManager::Init()
 
 	const VkDevice DeviceHandle = Device->GetInstanceHandle();
 	const VkPhysicalDeviceDescriptorBufferPropertiesEXT& DescriptorBufferProperties = Device->GetOptionalExtensionProperties().DescriptorBufferProps;
+
+	const VkBufferUsageFlags BufferUsageFlags = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
+	SingleUseUBAllocator = new VulkanRHI::FTempBlockAllocator(Device, GVulkanBindlessBlockSize, DescriptorBufferProperties.descriptorBufferOffsetAlignment, BufferUsageFlags);
 
 	// Create the dummy layout for unsupported descriptor types
 	{
@@ -555,6 +555,11 @@ void FVulkanBindlessDescriptorManager::Init()
 			TotalResourceDescriptorBufferSize += CreateDescriptorBuffer(State, BufferBindingInfo[SetIndex], IsSingleUseUniformBufferSet);
 		}
 
+		// Fill in the state for single-use UB
+		{
+			SingleUseUBDescriptorSetLayout = CreateShaderStageUniformBufferLayout();
+		}
+
 		checkf(TotalResourceDescriptorBufferSize < DescriptorBufferProperties.resourceDescriptorBufferAddressSpaceSize,
 			TEXT("Combined resource descriptor buffer size of [%u] exceeded maximum [%llu]."),
 			TotalResourceDescriptorBufferSize, DescriptorBufferProperties.resourceDescriptorBufferAddressSpaceSize);
@@ -562,19 +567,20 @@ void FVulkanBindlessDescriptorManager::Init()
 
 	// Now create the single pipeline layout used by everything
 	{
-		VkDescriptorSetLayout DescriptorSetLayouts[VulkanBindless::NumBindlessSets ];
+		VkDescriptorSetLayout DescriptorSetLayouts[VulkanBindless::MaxNumSets];
 		for (int32 LayoutIndex = 0; LayoutIndex < VulkanBindless::NumBindlessSets; ++LayoutIndex)
 		{
 			const BindlessSetState& State = BindlessSetStates[LayoutIndex];
 			DescriptorSetLayouts[LayoutIndex] = State.DescriptorSetLayout;
 		}
+		DescriptorSetLayouts[VulkanBindless::BindlessSingleUseUniformBufferSet] = SingleUseUBDescriptorSetLayout;
 
 		VkPipelineLayoutCreateInfo PipelineLayoutCreateInfo;
 		ZeroVulkanStruct(PipelineLayoutCreateInfo, VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO);
-		PipelineLayoutCreateInfo.setLayoutCount = VulkanBindless::NumBindlessSets;
+		PipelineLayoutCreateInfo.setLayoutCount = VulkanBindless::MaxNumSets;
 		PipelineLayoutCreateInfo.pSetLayouts = DescriptorSetLayouts;
 		VERIFYVULKANRESULT(VulkanRHI::vkCreatePipelineLayout(DeviceHandle, &PipelineLayoutCreateInfo, VULKAN_CPU_ALLOCATOR, &BindlessPipelineLayout));
-		VULKAN_SET_DEBUG_NAME((*Device), VK_OBJECT_TYPE_PIPELINE_LAYOUT, BindlessPipelineLayout, TEXT("BindlessPipelineLayout(SetCount=%d)"), VulkanBindless::NumBindlessSets);
+		VULKAN_SET_DEBUG_NAME((*Device), VK_OBJECT_TYPE_PIPELINE_LAYOUT, BindlessPipelineLayout, TEXT("BindlessPipelineLayout(SetCount=%d)"), VulkanBindless::MaxNumSets);
 	}
 }
 
@@ -584,45 +590,39 @@ void FVulkanBindlessDescriptorManager::BindDescriptorBuffers(VkCommandBuffer Com
 
 	VulkanRHI::vkCmdBindDescriptorBuffersEXT(CommandBuffer, VulkanBindless::NumBindlessSets, BufferBindingInfo);
 
-	if (GVulkanBindlessBufferOffsetUpdates != 0)
+	VkDeviceSize BufferOffsets[VulkanBindless::NumBindlessSets];
+	FMemory::Memzero(BufferOffsets);
+	if (SupportedStages & VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
 	{
-		VkDeviceSize BufferOffsets[VulkanBindless::NumBindlessSets];
-		FMemory::Memzero(BufferOffsets);
-		if (SupportedStages & VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
-		{
-			VulkanRHI::vkCmdSetDescriptorBufferOffsetsEXT(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, BindlessPipelineLayout, 0, VulkanBindless::NumBindlessSets, BufferIndices, BufferOffsets);
-		}
-		if (SupportedStages & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT)
-		{
-			VulkanRHI::vkCmdSetDescriptorBufferOffsetsEXT(CommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, BindlessPipelineLayout, 0, VulkanBindless::NumBindlessSets, BufferIndices, BufferOffsets);
-		}
-		if (SupportedStages & VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR)
-		{
-			VulkanRHI::vkCmdSetDescriptorBufferOffsetsEXT(CommandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, BindlessPipelineLayout, 0, VulkanBindless::NumBindlessSets, BufferIndices, BufferOffsets);
-		}
+		VulkanRHI::vkCmdSetDescriptorBufferOffsetsEXT(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, BindlessPipelineLayout, 0, VulkanBindless::NumBindlessSets, BufferIndices, BufferOffsets);
+	}
+	if (SupportedStages & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT)
+	{
+		VulkanRHI::vkCmdSetDescriptorBufferOffsetsEXT(CommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, BindlessPipelineLayout, 0, VulkanBindless::NumBindlessSets, BufferIndices, BufferOffsets);
+	}
+	if (SupportedStages & VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR)
+	{
+		VulkanRHI::vkCmdSetDescriptorBufferOffsetsEXT(CommandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, BindlessPipelineLayout, 0, VulkanBindless::NumBindlessSets, BufferIndices, BufferOffsets);
 	}
 }
 
-void FVulkanBindlessDescriptorManager::RegisterUniformBuffers(VkCommandBuffer CommandBuffer, VkPipelineBindPoint BindPoint, const FUniformBufferDescriptorArrays& StageUBs)
+void FVulkanBindlessDescriptorManager::RegisterUniformBuffers(FVulkanCmdBuffer* CommandBuffer, VkPipelineBindPoint BindPoint, const FUniformBufferDescriptorArrays& StageUBs)
 {
 	checkf(bIsSupported, TEXT("Trying to RegisterUniformBuffers but bindless is not supported!"));
 
-	BindlessSetState& BindlessUniformBufferSetState = BindlessSetStates[VulkanBindless::BindlessSingleUseUniformBufferSet];
-
 	// :todo-jn: Current uniform buffer layout is a bit wasteful with all the skipped bindings...
+	const uint32 UBDescriptorSize = GetDescriptorTypeSize(Device, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 	const uint32 BlockDescriptorCount = VulkanBindless::MaxUniformBuffersPerStage * ShaderStage::MaxNumStages;
-	const uint32 BlockSize = BlockDescriptorCount * BindlessUniformBufferSetState.DescriptorSize;
-	// Leave the first block always zeroed for easier debugging
-	const uint32 FirstDescriptorIndex = BlockDescriptorCount + (CurrentUniformBufferDescriptorIndex.fetch_add(BlockDescriptorCount) % (BindlessUniformBufferSetState.MaxDescriptorCount - (2*BlockDescriptorCount)));
-	const VkDeviceSize FirstDescriptorByteOffset = FirstDescriptorIndex * BindlessUniformBufferSetState.DescriptorSize;
+	const uint32 BlockSize = BlockDescriptorCount * UBDescriptorSize;
 
-	VkDeviceSize BufferOffsets[VulkanBindless::NumBindlessSets];
+	VkDescriptorBufferBindingInfoEXT LocalBufferBindingInfo[VulkanBindless::MaxNumSets];
+	FMemory::Memcpy(LocalBufferBindingInfo, BufferBindingInfo, VulkanBindless::NumBindlessSets * sizeof(VkDescriptorBufferBindingInfoEXT));
+
+	VkDeviceSize BufferOffsets[VulkanBindless::MaxNumSets];
 	FMemory::Memzero(BufferOffsets);
-	BufferOffsets[VulkanBindless::BindlessSingleUseUniformBufferSet] = FirstDescriptorByteOffset;
-	checkSlow(FirstDescriptorByteOffset % Device->GetOptionalExtensionProperties().DescriptorBufferProps.descriptorBufferOffsetAlignment == 0);
 
-	// :todo-jn: Clear them for easier debugging for now
-	FMemory::Memzero(&BindlessUniformBufferSetState.DebugDescriptors[FirstDescriptorByteOffset], BlockSize);
+	uint8* MappedPointer = SingleUseUBAllocator->Alloc(BlockSize, CommandBuffer, 
+		LocalBufferBindingInfo[VulkanBindless::BindlessSingleUseUniformBufferSet], BufferOffsets[VulkanBindless::BindlessSingleUseUniformBufferSet]);
 
 	for (int32 StageIndex = 0; StageIndex < ShaderStage::MaxNumStages; ++StageIndex)
 	{
@@ -643,43 +643,24 @@ void FVulkanBindlessDescriptorManager::RegisterUniformBuffers(VkCommandBuffer Co
 				const int32 BindingIndex = StageOffset + DescriptorAddressInfoIndex;
 				VkDeviceSize BindingByteOffset = 0;
 #if UE_BUILD_DEBUG
-				VulkanRHI::vkGetDescriptorSetLayoutBindingOffsetEXT(Device->GetInstanceHandle(), BindlessUniformBufferSetState.DescriptorSetLayout, BindingIndex, &BindingByteOffset);
-				check(BindingByteOffset == BindingIndex * BindlessUniformBufferSetState.DescriptorSize);
+				VulkanRHI::vkGetDescriptorSetLayoutBindingOffsetEXT(Device->GetInstanceHandle(), SingleUseUBDescriptorSetLayout, BindingIndex, &BindingByteOffset);
+				check(BindingByteOffset == BindingIndex * UBDescriptorSize);
 #else
-				BindingByteOffset = (BindingIndex * BindlessUniformBufferSetState.DescriptorSize);
+				BindingByteOffset = (BindingIndex * UBDescriptorSize);
 #endif
 
 				VkDescriptorGetInfoEXT Info;
 				ZeroVulkanStruct(Info, VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT);
 				Info.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 				Info.data.pUniformBuffer = &DescriptorAddressInfo;
-				VulkanRHI::vkGetDescriptorEXT(Device->GetInstanceHandle(), &Info, BindlessUniformBufferSetState.DescriptorSize, &BindlessUniformBufferSetState.DebugDescriptors[FirstDescriptorByteOffset + BindingByteOffset]);
+				VulkanRHI::vkGetDescriptorEXT(Device->GetInstanceHandle(), &Info, UBDescriptorSize, &MappedPointer[BindingByteOffset]);
 			}
 		}
 	}
 
-	// Copy all of them at once
-	FMemory::Memcpy(&BindlessUniformBufferSetState.MappedPointer[FirstDescriptorByteOffset], &BindlessUniformBufferSetState.DebugDescriptors[FirstDescriptorByteOffset], BlockSize);
-
-	{
-		SCOPED_NAMED_EVENT(vkCmdSetDescriptorBufferOffsetsEXT, FColor::Purple);
-
-		if (GVulkanBindlessRebindBuffers)
-		{
-			VulkanRHI::vkCmdBindDescriptorBuffersEXT(CommandBuffer, VulkanBindless::NumBindlessSets, BufferBindingInfo);
-		}
-
-		const bool bSetAllOffsets = (GVulkanBindlessBufferOffsetUpdates == 0);
-		if (bSetAllOffsets)
-		{
-			VulkanRHI::vkCmdSetDescriptorBufferOffsetsEXT(CommandBuffer, BindPoint, BindlessPipelineLayout, 0u, VulkanBindless::NumBindlessSets, BufferIndices, BufferOffsets);
-		}
-		else
-		{
-			const uint8 SetIndex = VulkanBindless::BindlessSingleUseUniformBufferSet;
-			VulkanRHI::vkCmdSetDescriptorBufferOffsetsEXT(CommandBuffer, BindPoint, BindlessPipelineLayout, SetIndex, 1u, &BufferIndices[SetIndex], &BufferOffsets[SetIndex]);
-		}
-	}
+	// todo-jn: cache these states and only repeat when necessary
+	VulkanRHI::vkCmdBindDescriptorBuffersEXT(CommandBuffer->GetHandle(), VulkanBindless::MaxNumSets, LocalBufferBindingInfo);
+	VulkanRHI::vkCmdSetDescriptorBufferOffsetsEXT(CommandBuffer->GetHandle(), BindPoint, BindlessPipelineLayout, 0u, VulkanBindless::MaxNumSets, BufferIndices, BufferOffsets);
 }
 
 void FVulkanBindlessDescriptorManager::UpdateStatsForHandle(FRHIDescriptorHandle DescriptorHandle)
@@ -933,3 +914,10 @@ void FVulkanBindlessDescriptorManager::Unregister(FRHIDescriptorHandle Descripto
 	}
 }
 
+void FVulkanBindlessDescriptorManager::UpdateUBAllocator()
+{
+	if (bIsSupported && SingleUseUBAllocator)
+	{
+		SingleUseUBAllocator->UpdateBlocks();
+	}
+}

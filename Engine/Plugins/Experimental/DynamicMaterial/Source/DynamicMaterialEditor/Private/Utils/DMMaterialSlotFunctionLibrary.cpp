@@ -10,6 +10,7 @@
 #include "Components/DMMaterialStageFunction.h"
 #include "Components/DMMaterialStageGradient.h"
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
+#include "Components/DMMaterialSubStage.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialStageBlends/DMMSBNormal.h"
 #include "Components/MaterialStageExpressions/DMMSESceneTexture.h"
@@ -20,6 +21,7 @@
 #include "Components/MaterialStageInputs/DMMSISlot.h"
 #include "Components/MaterialStageInputs/DMMSITextureUV.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
+#include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "DMPrivate.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Utils/DMMaterialStageFunctionLibrary.h"
@@ -117,6 +119,93 @@ UDMMaterialLayerObject* UDMMaterialSlotFunctionLibrary::AddNewLayer(UDMMaterialS
 	{
 		Layer->Update(Layer, EDMUpdateType::Structure);
 	}
+
+	return Layer;
+}
+
+UDMMaterialLayerObject* UDMMaterialSlotFunctionLibrary::AddTextureLayer(UDMMaterialSlot* InSlot, UTexture* InTexture, 
+	EDMMaterialPropertyType InPropertyType, bool bInReplaceSlot)
+{
+	if (GUndo)
+	{
+		InSlot->Modify();
+	}
+
+	UDMMaterialLayerObject* Layer = nullptr;
+
+	const FDMUpdateGuard Guard;
+
+	Layer = InSlot->AddDefaultLayer(InPropertyType);
+
+	if (!ensure(Layer))
+	{
+		return nullptr;
+	}
+
+	bool bMadeChange = true;
+
+	UDMMaterialStage* Stage = Layer->GetStage(EDMMaterialLayerStage::Base);
+
+	if (!ensure(Stage))
+	{
+		return nullptr;
+	}
+
+	UDMMaterialStageInputExpression* NewExpression = UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+		Stage,
+		UDMMaterialStageExpressionTextureSample::StaticClass(),
+		UDMMaterialStageBlend::InputB,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		0,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
+
+	if (!ensure(NewExpression))
+	{
+		return nullptr;
+	}
+
+	UDMMaterialSubStage* SubStage = NewExpression->GetSubStage();
+
+	if (!ensure(SubStage))
+	{
+		return nullptr;
+	}
+
+	UDMMaterialStageInputValue* InputValue = UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+		SubStage,
+		0,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		EDMValueType::VT_Texture,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
+
+	if (ensure(InputValue))
+	{
+		UDMMaterialValueTexture* InputTexture = Cast<UDMMaterialValueTexture>(InputValue->GetValue());
+
+		if (ensure(InputTexture))
+		{
+			InputTexture->SetValue(InTexture);
+		}
+	}
+
+	if (bInReplaceSlot)
+	{
+		for (int32 Index = InSlot->GetLayers().Num() - 1; Index >= 0; --Index)
+		{
+			UDMMaterialLayerObject* LayerIter = InSlot->GetLayer(Index);
+
+			if (!LayerIter || LayerIter->GetStage(EDMMaterialLayerStage::Base) == Stage)
+			{
+				continue;
+			}
+
+			InSlot->RemoveLayer(LayerIter);
+		}
+	}
+
+	Layer->Update(Layer, EDMUpdateType::Structure);
 
 	return Layer;
 }

@@ -23,6 +23,7 @@ struct OPTIMUSCORE_API FOptimusObjectVersion
 		KernelParameterBindingToggleAtomic,
 		PropertyBagValueContainer,
 		SkinnedMeshWriteDIColorBufferManualFetchSwizzle,
+		PropertyPinSupport,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

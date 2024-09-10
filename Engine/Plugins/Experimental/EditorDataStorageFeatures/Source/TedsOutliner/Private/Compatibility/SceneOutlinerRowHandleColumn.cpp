@@ -21,7 +21,7 @@ FSceneOutlinerRowHandleColumn::FSceneOutlinerRowHandleColumn(ISceneOutliner& Sce
 	
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 	checkf(Registry, TEXT("FSceneOutlinerRowHandleColumn created before UTypedElementRegistry is available."));
-	ITypedElementDataStorageUiInterface* StorageUi = Registry->GetMutableDataStorageUi();
+	IEditorDataStorageUiProvider* StorageUi = Registry->GetMutableDataStorageUi();
 	checkf(StorageUi, TEXT("FSceneOutlinerRowHandleColumn created before data storage interfaces were initialized."))
 
 	StorageUi->CreateWidgetConstructors(TEXT("General.Cell.RowHandle"), UE::Editor::DataStorage::FMetaDataView(), AssignWidgetToColumn);

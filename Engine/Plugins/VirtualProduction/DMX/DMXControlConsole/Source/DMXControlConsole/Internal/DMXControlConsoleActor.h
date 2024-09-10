@@ -7,7 +7,6 @@
 #include "DMXControlConsoleActor.generated.h"
 
 class UDMXControlConsoleData;
-
 class USceneComponent;
 
 
@@ -28,15 +27,30 @@ public:
 	/** Returns the Control Console Data used for this actor */
 	UDMXControlConsoleData* GetControlConsoleData() const { return ControlConsoleData; }
 
-	/** Sets current DMX Control Console to start sending DMX data */
+	/** Sets the current DMX Control Console to start sending DMX data */
 	UFUNCTION(BlueprintCallable, Category = "DMX Control Console")
 	void StartSendingDMX();
 
-	/** Sets current DMX Control Console to stop sending DMX data */
+	/** Sets the current DMX Control Console to stop sending DMX data */
 	UFUNCTION(BlueprintCallable, Category = "DMX Control Console")
 	void StopSendingDMX();
 
+	/** Sets the current DMX Control Console to pause sending DMX data */
+	UFUNCTION(BlueprintCallable, Category = "DMX Control Console")
+	void PauseSendingDMX();
+
+	/** Resets all the faders in this Control Console to their default values */
+	UFUNCTION(BlueprintCallable, Category = "DMX Control Console")
+	void ResetToDefault();
+
+	/** Resets all the faders in this Control Console to zero */
+	UFUNCTION(BlueprintCallable, Category = "DMX Control Console")
+	void ResetToZero();
+
 #if WITH_EDITOR
+	/** Returns the delegate called when the Control Console has been reset */
+	static FSimpleMulticastDelegate& GetOnControlConsoleReset() { return OnControlConsoleReset; }
+
 	// Property name getters
 	static FName GetControlConsoleDataPropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(ADMXControlConsoleActor, ControlConsoleData); }
 	static FName GetAutoActivatePropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(ADMXControlConsoleActor, bAutoActivate); }
@@ -65,6 +79,9 @@ private:
 	/** True if the Control Console should send DMX data in Editor */
 	UPROPERTY(EditAnywhere, Category = "DMX Control Console", Meta = (DisplayName = "Send DMX in Editor"))
 	bool bSendDMXInEditor = false;
+
+	/** Called when the Control Console has been reset */
+	static FSimpleMulticastDelegate OnControlConsoleReset;
 #endif // WITH_EDITORONLY_DATA
 
 	/** Scene component to make the Actor easily visible in Editor */

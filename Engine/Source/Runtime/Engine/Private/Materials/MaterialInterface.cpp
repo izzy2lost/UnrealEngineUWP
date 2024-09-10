@@ -1436,6 +1436,11 @@ bool UMaterialInterface::WritesToRuntimeVirtualTexture() const
 	return false;
 }
 
+bool UMaterialInterface::HasMeshPaintTexture() const
+{
+	return false;
+}
+
 FMaterialShadingModelField UMaterialInterface::GetShadingModels() const
 {
 	return MSM_DefaultLit;

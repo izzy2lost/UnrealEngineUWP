@@ -28,7 +28,7 @@ namespace UE::Editor::DataStorage::Debug::ProcessorTests
 	{
 		using namespace UE::Editor::DataStorage::Queries;
 
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 		if (PrimaryTable == InvalidTableHandle)
 		{
@@ -122,7 +122,7 @@ namespace UE::Editor::DataStorage::Debug::ProcessorTests
 
 	void UnregisterProcessors()
 	{
-		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		for (const UE::Editor::DataStorage::QueryHandle& Handle : RegisteredQueries)
 		{
 			DataStorage->UnregisterQuery(Handle);
@@ -145,7 +145,7 @@ namespace UE::Editor::DataStorage::Debug::ProcessorTests
 				return;
 			}
 
-			ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+			IEditorDataStorageProvider* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 			DataStorage->BatchAddRow(PrimaryTable, RowsToCreate, [](UE::Editor::DataStorage::RowHandle Row)
 			{
 			});

@@ -55,6 +55,7 @@ class PCG_API UPCGSubsystem : public UTickableWorldSubsystem
 
 public:
 	friend FPCGActorAndComponentMapping;
+	friend struct FPCGWorldPartitionBuilder;
 
 	UPCGSubsystem();
 
@@ -351,6 +352,8 @@ private:
 	};
 
 	void CreatePartitionActorsWithinBounds(UPCGComponent* InComponent, const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes);
+	void UpdateMappingPCGComponentPartitionActor(UPCGComponent* InComponent);
+	TSet<TObjectPtr<APCGPartitionActor>> GetPCGComponentPartitionActorMappings(UPCGComponent* InComponent) const;
 
 	FPCGNodeVisualLogs NodeVisualLogs;
 #endif // WITH_EDITOR
@@ -376,6 +379,26 @@ private:
 		
 	using FConstructionScriptSourceComponents = TMap<FName, TObjectKey<UPCGComponent>>;
 	TMap<TObjectKey<AActor>, FConstructionScriptSourceComponents> PerActorConstructionScriptSourceComponents;
+
+	static TSet<UWorld*> DisablePartitionActorCreationForWorld;
+
+	// Used by UPCGWorldPartitonBuilder to disable PA creation while outside of a certain scope
+	static void SetDisablePartitionActorCreationForWorld(UWorld* InWorld, bool bDisable) 
+	{ 
+		if (bDisable)
+		{
+			DisablePartitionActorCreationForWorld.Add(InWorld);
+		}
+		else
+		{
+			DisablePartitionActorCreationForWorld.Remove(InWorld);
+		}
+	}
+
+	static bool IsPartitionActorCreationDisabledForWorld(UWorld* InWorld)
+	{
+		return DisablePartitionActorCreationForWorld.Contains(InWorld);
+	}
 #endif
 };
 

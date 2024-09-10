@@ -453,7 +453,7 @@ void FUVEditorToolkit::PostInitAssetEditor()
 	// the context store on Enter() to function properly.
 	UUVEditorMode::InitializeAssetEditorContexts(*EditorModeManager->GetInteractiveToolsContext()->ContextObjectStore, 
 		ObjectsToEdit, ObjectTransforms, *LivePreviewViewportClient, *LivePreviewEditorModeManager, 
-		*ViewportButtonsAPI, *UVTool2DViewportAPI);
+		*ViewportButtonsAPI, *UVTool2DViewportAPI, *EditorModeManager->GetInteractiveToolsContext());
 
 	// Currently, aside from setting up all the UI elements, the toolkit also kicks off the UV
 	// editor mode, which is the mode that the editor always works in (things are packaged into

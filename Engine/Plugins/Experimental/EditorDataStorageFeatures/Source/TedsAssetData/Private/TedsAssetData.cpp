@@ -8,6 +8,9 @@
 #include "Async/ParallelFor.h"
 #include "Containers/Array.h"
 #include "Containers/ChunkedArray.h"
+#include "Elements/Columns/TypedElementFolderColumns.h"
+#include "Elements/Columns/TypedElementMiscColumns.h"
+#include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Elements/Common/TypedElementQueryTypes.h"
 #include "Elements/Framework/TypedElementIndexHasher.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
@@ -33,7 +36,7 @@ struct FPopulateAssetDataRowArgs
 
 // Only safe if the GT is blocked during the operation
 template<typename TAssetData>
-FPopulateAssetDataRowArgs ThreadSafe_PopulateAssetDataTableRow(TAssetData&& InAssetData, const ITypedElementDataStorageInterface& Database)
+FPopulateAssetDataRowArgs ThreadSafe_PopulateAssetDataTableRow(TAssetData&& InAssetData, const IEditorDataStorageProvider& Database)
 {
 	FPopulateAssetDataRowArgs Output;
 	Output.ObjectPathHash = GenerateIndexHash(InAssetData.GetSoftObjectPath());
@@ -55,7 +58,7 @@ FPopulateAssetDataRowArgs ThreadSafe_PopulateAssetDataTableRow(TAssetData&& InAs
 }
 
 
-void PopulateAssetDataTableRow(FPopulateAssetDataRowArgs&& InAssetDataRowArgs, ITypedElementDataStorageInterface& Database, RowHandle RowHandle)
+void PopulateAssetDataTableRow(FPopulateAssetDataRowArgs&& InAssetDataRowArgs, IEditorDataStorageProvider& Database, RowHandle RowHandle)
 {
 	if (InAssetDataRowArgs.PathRow !=  InvalidRowHandle)
 	{
@@ -77,6 +80,7 @@ struct FPopulatePathRowArgs
 	FName AssetRegistryPath;
 	IndexHash AssetRegistryPathHash;
 	IndexHash ParentAssetRegistryPathHash;
+	FName AssetName;
 	uint32 PathDepth;
 
 	operator bool() const 
@@ -118,15 +122,18 @@ FPopulatePathRowArgs ThreadSafe_PopulatePathRowArgs(IndexHash AssetRegistryPathH
 	IndexHash ParentAssetRegistryPathHash = InvalidRowHandle;
 	int32 CharacterIndex;
 	uint32 Depth;
+	FString AssetName;
 	GetPathDepthAndParentFolderIndex(PathAsString, Depth, CharacterIndex);
 	if (CharacterIndex != INDEX_NONE)
 	{
 		FStringView ParentPath = PathAsString.Left(CharacterIndex);
 		ParentAssetRegistryPathHash = GenerateIndexHash(FName(ParentPath));
+		AssetName = PathAsString.RightChop(CharacterIndex);
 	}
 
 	FPopulatePathRowArgs Args;
 	Args.AssetRegistryPath = InAssetRegistryPath;
+	Args.AssetName = FName(AssetName);
 	Args.AssetRegistryPathHash = AssetRegistryPathHash;
 	Args.ParentAssetRegistryPathHash = ParentAssetRegistryPathHash;
 	Args.PathDepth = Depth;
@@ -134,7 +141,7 @@ FPopulatePathRowArgs ThreadSafe_PopulatePathRowArgs(IndexHash AssetRegistryPathH
 	return Args;
 }
 
-void PopulatePathDataTableRow(FPopulatePathRowArgs&& InPopulatePathRowArgs, ITypedElementDataStorageInterface& Database, RowHandle InRowHandle)
+void PopulatePathDataTableRow(FPopulatePathRowArgs&& InPopulatePathRowArgs, IEditorDataStorageProvider& Database, RowHandle InRowHandle)
 {
 	if (InPopulatePathRowArgs.ParentAssetRegistryPathHash != InvalidRowHandle)
 	{
@@ -154,10 +161,11 @@ void PopulatePathDataTableRow(FPopulatePathRowArgs&& InPopulatePathRowArgs, ITyp
 	}
 
 	Database.GetColumn<FAssetPathColumn_Experimental>(InRowHandle)->Path = InPopulatePathRowArgs.AssetRegistryPath;
+	Database.GetColumn<FNameColumn>(InRowHandle)->Name = InPopulatePathRowArgs.AssetName;
 }
 
 
-FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
+FTedsAssetData::FTedsAssetData(IEditorDataStorageProvider& InDatabase)
 	: Database(InDatabase)
 {
 	using namespace UE::Editor::DataStorage::Queries;
@@ -182,7 +190,7 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 	PathsTable = Database.FindTable(FName(TEXT("Editor_AssetRegistryPathsTable")));
 	if (PathsTable == InvalidTableHandle)
 	{
-		PathsTable = Database.RegisterTable<FAssetPathColumn_Experimental, FChildrenAssetPathColumn_Experimental, FParentAssetPathColumn_Experimental, FAssetsInPathColumn_Experimental, FUpdatedPathTag>(FName(TEXT("Editor_AssetRegistryPathsTable")));
+		PathsTable = Database.RegisterTable<FFolderTag, FAssetPathColumn_Experimental, FNameColumn, FUpdatedPathTag, FSlateColorColumn, FChildrenAssetPathColumn_Experimental, FParentAssetPathColumn_Experimental, FAssetsInPathColumn_Experimental>(FName(TEXT("Editor_AssetRegistryPathsTable")));
 	}
 
 	AssetsDataTable = Database.FindTable(FName(TEXT("Editor_AssetRegistryAssetDataTable")));

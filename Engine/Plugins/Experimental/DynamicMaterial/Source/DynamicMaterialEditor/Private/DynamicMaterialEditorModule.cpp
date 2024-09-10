@@ -34,6 +34,7 @@
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
+#include "ThumbnailRendering/ThumbnailManager.h"
 #include "UI/PropertyGenerators/DMComponentPropertyRowGenerator.h"
 #include "UI/PropertyGenerators/DMInputThroughputPropertyRowGenerator.h"
 #include "UI/PropertyGenerators/DMMaterialEffectFunctionPropertyRowGenerator.h"
@@ -44,6 +45,7 @@
 #include "UI/PropertyGenerators/DMTextureUVDynamicPropertyRowGenerator.h"
 #include "UI/PropertyGenerators/DMTextureUVPropertyRowGenerator.h"
 #include "UI/PropertyGenerators/DMThroughputPropertyRowGenerator.h"
+#include "UI/Utils/DynamicMaterialInstanceThumbnailRenderer.h"
 #include "UI/Widgets/SDMMaterialDesigner.h"
 
 DEFINE_LOG_CATEGORY(LogDynamicMaterialEditor);
@@ -258,6 +260,8 @@ void FDynamicMaterialEditorModule::StartupModule()
 		});
 
 	FDMValueDetailsRowExtensions::Get().RegisterRowExtensions();
+
+	UThumbnailManager::Get().RegisterCustomRenderer(UDynamicMaterialInstance::StaticClass(), UDynamicMaterialInstanceThumbnailRenderer::StaticClass());
 }
 
 void FDynamicMaterialEditorModule::ShutdownModule()
@@ -265,10 +269,15 @@ void FDynamicMaterialEditorModule::ShutdownModule()
 	FDynamicMaterialEditorCommands::Unregister();
 	FDMContentBrowserIntegration::Disintegrate();
 
-	if (FDynamicMaterialModule::AreUObjectsSafe() && FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
+	if (FDynamicMaterialModule::AreUObjectsSafe())
 	{
-		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-		PropertyModule.UnregisterCustomPropertyTypeLayout(UDynamicMaterialModelEditorOnlyData::StaticClass()->GetFName());
+		if (FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
+		{
+			FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+			PropertyModule.UnregisterCustomPropertyTypeLayout(UDynamicMaterialModelEditorOnlyData::StaticClass()->GetFName());
+		}
+
+		UThumbnailManager::Get().UnregisterCustomRenderer(UDynamicMaterialInstance::StaticClass());
 	}
 
 	using namespace UE::DynamicMaterialEditor::Private;

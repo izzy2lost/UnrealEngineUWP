@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGUnsqueeze.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
 #include "RenderGraphUtils.h"
@@ -57,12 +59,12 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			{
 				if (Axe < 0)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Unsqueeze operator does not support negative axes"));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Unsqueeze: Does not support negative axes"));
 					return false;
 				}
 				if (Axe >= InputTensorDescs[0].GetShape().Rank() + Axes.Num())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Unsqueeze operator does not support axes greater than the number of dimensions of the resulting tensor shape"));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Unsqueeze: Does not support axes greater than the number of dimensions of the resulting tensor shape"));
 					return false;
 				}
 			}

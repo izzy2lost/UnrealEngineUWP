@@ -37,30 +37,6 @@ CUTF8String CDataDefinition::GetScopePath(uLang::UTF8Char SeparatorChar, CScope:
     return CUTF8String("%s.%s", *EnclosingScopePath, AsNameCString());
 }
 
-bool CDataDefinition::HasInitializer() const
-{
-    const CExprDefinition* CurExpr = GetAstNode();
-    /*
-    NOTE: (YiLiangSiew) We guard against cases where the AST node is `nullptr`, for example, for the
-    following syntax:
-
-    Foo(ParamInt:int, stub{UnnamedParameter}:stub{ type }):void =
-        return
-
-    Bar():void =
-        Foo(5)
-        return
-
-    When `AnalyzeInvocation` is called to check for default parameters, the second parameter will not
-    have a valid AST node for it so this would crash otherwise.
-     */
-    if (CurExpr == nullptr)
-    {
-        return false;
-    }
-    return CurExpr->Value().IsValid();
-}
-
 bool CDataDefinition::IsVarWritableFrom(const CScope& Scope) const
 {
     const CDataDefinition& Definition = GetDefinitionVarAccessibilityRoot();

@@ -188,184 +188,189 @@ void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipelin
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipeline);
 	SCOPE_CYCLE_COUNTER(STAT_CreateLumenRayTracingPipeline);
 
-	// create RTPSO
+	FRHICommandList& RHICmdList = GraphBuilder.RHICmdList;
+
+	FRayTracingPipelineStateInitializer Initializer;
+
+	const FShaderBindingLayout* ShaderBindingLayout = RayTracing::GetShaderBindingLayout(ShaderPlatform);
+	if (ShaderBindingLayout)
 	{
-		FRHICommandList& RHICmdList = GraphBuilder.RHICmdList;
-
-		FRayTracingPipelineStateInitializer Initializer;
-
-		const FShaderBindingLayout* ShaderBindingLayout = RayTracing::GetShaderBindingLayout(ShaderPlatform);
-		if (ShaderBindingLayout)
-		{
-			Initializer.ShaderBindingLayout = &ShaderBindingLayout->RHILayout;
-		}
-
-		Initializer.SetRayGenShaderTable(RayGenShaderTable);
-
-		Initializer.MaxPayloadSizeInBytes = GetRayTracingPayloadTypeMaxSize(ERayTracingPayloadType::LumenMinimal);
-
-		// Get the ray tracing materials
-		FLumenHardwareRayTracingMaterialHitGroup::FPermutationDomain PermutationVector;
-
-		PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::Disabled);
-		PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(false);
-		auto HitGroupShader = View.ShaderMap->GetShader<FLumenHardwareRayTracingMaterialHitGroup>(PermutationVector);
-
-		PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::AHS);
-		PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(false);
-		auto HitGroupShaderWithAvoidSelfIntersections = View.ShaderMap->GetShader<FLumenHardwareRayTracingMaterialHitGroup>(PermutationVector);
-
-		PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::Disabled);
-		PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(true);
-		auto HitGroupShaderNaniteRT = View.ShaderMap->GetShader<FLumenHardwareRayTracingMaterialHitGroup>(PermutationVector);
-
-		PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::AHS);
-		PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(true);
-		auto HitGroupShaderNaniteRTWithAvoidSelfIntersections = View.ShaderMap->GetShader<FLumenHardwareRayTracingMaterialHitGroup>(PermutationVector);
-
-		FRHIRayTracingShader* HitShaderTable[] = {
-			HitGroupShader.GetRayTracingShader(),
-			HitGroupShaderWithAvoidSelfIntersections.GetRayTracingShader(),
-			HitGroupShaderNaniteRT.GetRayTracingShader(),
-			HitGroupShaderNaniteRTWithAvoidSelfIntersections.GetRayTracingShader()
-		};
-		Initializer.SetHitGroupTable(HitShaderTable);
-
-		auto MissShader = View.ShaderMap->GetShader<FLumenHardwareRayTracingMaterialMS>();
-		FRHIRayTracingShader* MissShaderTable[] = { MissShader.GetRayTracingShader() };
-		Initializer.SetMissShaderTable(MissShaderTable);
-				
-		OutMaxLocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
-
-		FRayTracingPipelineState* PipelineState = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
-
-		View.LumenHardwareRayTracingMaterialPipeline = PipelineState;
+		Initializer.ShaderBindingLayout = &ShaderBindingLayout->RHILayout;
 	}
 
-	// launch tasks to setup bindings
-	{
-		FRHIUniformBuffer* SceneUniformBuffer = GetSceneUniforms().GetBufferRHI(GraphBuilder);
-		FRHIUniformBuffer* LumenHardwareRayTracingUniformBuffer = View.LumenHardwareRayTracingUniformBuffer;
+	Initializer.SetRayGenShaderTable(RayGenShaderTable);
 
-		struct FBinding
+	Initializer.MaxPayloadSizeInBytes = GetRayTracingPayloadTypeMaxSize(ERayTracingPayloadType::LumenMinimal);
+
+	// Get the ray tracing materials
+	FLumenHardwareRayTracingMaterialHitGroup::FPermutationDomain PermutationVector;
+
+	PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::Disabled);
+	PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(false);
+	auto HitGroupShader = View.ShaderMap->GetShader<FLumenHardwareRayTracingMaterialHitGroup>(PermutationVector);
+
+	PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::AHS);
+	PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(false);
+	auto HitGroupShaderWithAvoidSelfIntersections = View.ShaderMap->GetShader<FLumenHardwareRayTracingMaterialHitGroup>(PermutationVector);
+
+	PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::Disabled);
+	PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(true);
+	auto HitGroupShaderNaniteRT = View.ShaderMap->GetShader<FLumenHardwareRayTracingMaterialHitGroup>(PermutationVector);
+
+	PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::AHS);
+	PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(true);
+	auto HitGroupShaderNaniteRTWithAvoidSelfIntersections = View.ShaderMap->GetShader<FLumenHardwareRayTracingMaterialHitGroup>(PermutationVector);
+
+	FRHIRayTracingShader* HitShaderTable[] = {
+		HitGroupShader.GetRayTracingShader(),
+		HitGroupShaderWithAvoidSelfIntersections.GetRayTracingShader(),
+		HitGroupShaderNaniteRT.GetRayTracingShader(),
+		HitGroupShaderNaniteRTWithAvoidSelfIntersections.GetRayTracingShader()
+	};
+	Initializer.SetHitGroupTable(HitShaderTable);
+
+	auto MissShader = View.ShaderMap->GetShader<FLumenHardwareRayTracingMaterialMS>();
+	FRHIRayTracingShader* MissShaderTable[] = { MissShader.GetRayTracingShader() };
+	Initializer.SetMissShaderTable(MissShaderTable);
+
+	OutMaxLocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
+
+	FRayTracingPipelineState* PipelineState = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
+
+	View.LumenHardwareRayTracingMaterialPipeline = PipelineState;
+}
+
+void FDeferredShadingSceneRenderer::SetupLumenHardwareRaytracingHitGroupBindings(FRDGBuilder& GraphBuilder, FViewInfo& View)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::SetupLumenHardwareRaytracingHitGroupBindings);
+
+	FRHIUniformBuffer* SceneUniformBuffer = GetSceneUniforms().GetBufferRHI(GraphBuilder);
+	FRHIUniformBuffer* LumenHardwareRayTracingUniformBuffer = View.LumenHardwareRayTracingUniformBuffer;
+
+	struct FBinding
+	{
+		int32 ShaderIndexInPipeline;
+		uint32 NumUniformBuffers;
+		FRHIUniformBuffer** UniformBufferArray;
+	};
+
+	auto SetupBinding = [&](FLumenHardwareRayTracingMaterialHitGroup::FPermutationDomain PermutationVector)
 		{
-			int32 ShaderIndexInPipeline;
-			uint32 NumUniformBuffers;
-			FRHIUniformBuffer** UniformBufferArray;
+			auto Shader = View.ShaderMap->GetShader<FLumenHardwareRayTracingMaterialHitGroup>(PermutationVector);
+			auto HitGroupShader = Shader.GetRayTracingShader();
+
+			FBinding Binding;
+			Binding.ShaderIndexInPipeline = FindRayTracingHitGroupIndex(View.LumenHardwareRayTracingMaterialPipeline, HitGroupShader, true);
+			Binding.NumUniformBuffers = Shader->ParameterMapInfo.UniformBuffers.Num();
+			Binding.UniformBufferArray = (FRHIUniformBuffer**)View.LumenRayTracingMaterialBindingsMemory.Alloc(sizeof(FRHIUniformBuffer*) * Binding.NumUniformBuffers, alignof(FRHIUniformBuffer*));
+
+			const auto& LumenHardwareRayTracingUniformBufferParameter = Shader->GetUniformBufferParameter<FLumenHardwareRayTracingUniformBufferParameters>();
+			const auto& ViewUniformBufferParameter = Shader->GetUniformBufferParameter<FViewUniformShaderParameters>();
+			const auto& SceneUniformBufferParameter = Shader->GetUniformBufferParameter<FSceneUniformParameters>();
+			const auto& NaniteUniformBufferParameter = Shader->GetUniformBufferParameter<FNaniteRayTracingUniformParameters>();
+
+			if (LumenHardwareRayTracingUniformBufferParameter.IsBound())
+			{
+				check(LumenHardwareRayTracingUniformBufferParameter.GetBaseIndex() < Binding.NumUniformBuffers);
+				Binding.UniformBufferArray[LumenHardwareRayTracingUniformBufferParameter.GetBaseIndex()] = LumenHardwareRayTracingUniformBuffer;
+			}
+
+			if (ViewUniformBufferParameter.IsBound())
+			{
+				check(ViewUniformBufferParameter.GetBaseIndex() < Binding.NumUniformBuffers);
+				Binding.UniformBufferArray[ViewUniformBufferParameter.GetBaseIndex()] = View.ViewUniformBuffer.GetReference();
+			}
+
+			if (SceneUniformBufferParameter.IsBound())
+			{
+				check(SceneUniformBufferParameter.GetBaseIndex() < Binding.NumUniformBuffers);
+				Binding.UniformBufferArray[SceneUniformBufferParameter.GetBaseIndex()] = SceneUniformBuffer;
+			}
+
+			if (NaniteUniformBufferParameter.IsBound())
+			{
+				check(NaniteUniformBufferParameter.GetBaseIndex() < Binding.NumUniformBuffers);
+				Binding.UniformBufferArray[NaniteUniformBufferParameter.GetBaseIndex()] = Nanite::GRayTracingManager.GetUniformBuffer().GetReference();
+			}
+
+			return Binding;
 		};
 
-		auto SetupBinding = [&](FLumenHardwareRayTracingMaterialHitGroup::FPermutationDomain PermutationVector)
-			{
-				auto Shader = View.ShaderMap->GetShader<FLumenHardwareRayTracingMaterialHitGroup>(PermutationVector);
-				auto HitGroupShader = Shader.GetRayTracingShader();
+	FBinding* ShaderBindings = (FBinding*)View.LumenRayTracingMaterialBindingsMemory.Alloc(sizeof(FBinding) * LumenHardwareRayTracing::NumHitGroups, alignof(FBinding));
+	FBinding* ShaderBindingsNaniteRT = (FBinding*)View.LumenRayTracingMaterialBindingsMemory.Alloc(sizeof(FBinding) * LumenHardwareRayTracing::NumHitGroups, alignof(FBinding));
 
-				FBinding Binding;
-				Binding.ShaderIndexInPipeline = FindRayTracingHitGroupIndex(View.LumenHardwareRayTracingMaterialPipeline, HitGroupShader, true);
-				Binding.NumUniformBuffers = Shader->ParameterMapInfo.UniformBuffers.Num();
-				Binding.UniformBufferArray = (FRHIUniformBuffer**)View.LumenRayTracingMaterialBindingsMemory.Alloc(sizeof(FRHIUniformBuffer*) * Binding.NumUniformBuffers, alignof(FRHIUniformBuffer*));
-
-				const auto& LumenHardwareRayTracingUniformBufferParameter = Shader->GetUniformBufferParameter<FLumenHardwareRayTracingUniformBufferParameters>();
-				const auto& ViewUniformBufferParameter = Shader->GetUniformBufferParameter<FViewUniformShaderParameters>();
-				const auto& SceneUniformBufferParameter = Shader->GetUniformBufferParameter<FSceneUniformParameters>();
-				const auto& NaniteUniformBufferParameter = Shader->GetUniformBufferParameter<FNaniteRayTracingUniformParameters>();
-
-				if (LumenHardwareRayTracingUniformBufferParameter.IsBound())
-				{
-					check(LumenHardwareRayTracingUniformBufferParameter.GetBaseIndex() < Binding.NumUniformBuffers);
-					Binding.UniformBufferArray[LumenHardwareRayTracingUniformBufferParameter.GetBaseIndex()] = LumenHardwareRayTracingUniformBuffer;
-				}
-
-				if (ViewUniformBufferParameter.IsBound())
-				{
-					check(ViewUniformBufferParameter.GetBaseIndex() < Binding.NumUniformBuffers);
-					Binding.UniformBufferArray[ViewUniformBufferParameter.GetBaseIndex()] = View.ViewUniformBuffer.GetReference();
-				}
-
-				if (SceneUniformBufferParameter.IsBound())
-				{
-					check(SceneUniformBufferParameter.GetBaseIndex() < Binding.NumUniformBuffers);
-					Binding.UniformBufferArray[SceneUniformBufferParameter.GetBaseIndex()] = SceneUniformBuffer;
-				}
-
-				if (NaniteUniformBufferParameter.IsBound())
-				{
-					check(NaniteUniformBufferParameter.GetBaseIndex() < Binding.NumUniformBuffers);
-					Binding.UniformBufferArray[NaniteUniformBufferParameter.GetBaseIndex()] = Nanite::GRayTracingManager.GetUniformBuffer().GetReference();
-				}
-
-				return Binding;
-			};
-
-		FBinding* ShaderBindings = (FBinding*)View.LumenRayTracingMaterialBindingsMemory.Alloc(sizeof(FBinding) * LumenHardwareRayTracing::NumHitGroups, alignof(FBinding));
-		FBinding* ShaderBindingsNaniteRT = (FBinding*)View.LumenRayTracingMaterialBindingsMemory.Alloc(sizeof(FBinding) * LumenHardwareRayTracing::NumHitGroups, alignof(FBinding));
+	// Only setup the actual bindings if there is a RTPSO (inline SBT doesn't need that)
+	bool bRequiresShaderBindings = View.RayTracingSBT && View.RayTracingSBT->GetInitializer().ShaderBindingMode == ERayTracingShaderBindingMode::RTPSO;
+	if (bRequiresShaderBindings)
+	{
+		FLumenHardwareRayTracingMaterialHitGroup::FPermutationDomain PermutationVector;
 
 		{
-			FLumenHardwareRayTracingMaterialHitGroup::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::Disabled);
+			PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(false);
+			ShaderBindings[0] = SetupBinding(PermutationVector);
 
-			{
-				PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::Disabled);
-				PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(false);
-				ShaderBindings[0] = SetupBinding(PermutationVector);
-
-				PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::AHS);
-				PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(false);
-				ShaderBindings[1] = SetupBinding(PermutationVector);
-			}
-
-			{
-				PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::Disabled);
-				PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(true);
-				ShaderBindingsNaniteRT[0] = SetupBinding(PermutationVector);
-
-				PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::AHS);
-				PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(true);
-				ShaderBindingsNaniteRT[1] = SetupBinding(PermutationVector);
-			}
+			PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::AHS);
+			PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(false);
+			ShaderBindings[1] = SetupBinding(PermutationVector);
 		}
 
 		{
-			const uint32 NumTotalDirtyBindings = View.DirtyRayTracingShaderBindings.Num();
-			const uint32 TargetBindingsPerTask = 1024;
-			const uint32 NumTasks = FMath::Max(1u, FMath::DivideAndRoundUp(NumTotalDirtyBindings, TargetBindingsPerTask));
-			const uint32 BindingsPerTask = FMath::DivideAndRoundUp(NumTotalDirtyBindings, NumTasks); // Evenly divide commands between tasks (avoiding potential short last task)
+			PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::Disabled);
+			PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(true);
+			ShaderBindingsNaniteRT[0] = SetupBinding(PermutationVector);
 
-			View.LumenRayTracingMaterialBindings.SetNum(NumTasks);
+			PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::AHS);
+			PermutationVector.Set<FLumenHardwareRayTracingMaterialHitGroup::FNaniteRayTracing>(true);
+			ShaderBindingsNaniteRT[1] = SetupBinding(PermutationVector);
+		}
+	}
 
-			for (uint32 TaskIndex = 0; TaskIndex < NumTasks; ++TaskIndex)
-			{
-				const uint32 FirstTaskBindingIndex = TaskIndex * BindingsPerTask;
-				const FRayTracingShaderBindingData* RTShaderBindings = View.DirtyRayTracingShaderBindings.GetData() + FirstTaskBindingIndex;
-				const uint32 NumBindings = FMath::Min(BindingsPerTask, NumTotalDirtyBindings - FirstTaskBindingIndex);
+	{
+		const uint32 NumTotalDirtyBindings = View.DirtyRayTracingShaderBindings.Num();
+		const uint32 TargetBindingsPerTask = 1024;
+		const uint32 NumTasks = FMath::Max(1u, FMath::DivideAndRoundUp(NumTotalDirtyBindings, TargetBindingsPerTask));
+		const uint32 BindingsPerTask = FMath::DivideAndRoundUp(NumTotalDirtyBindings, NumTasks); // Evenly divide commands between tasks (avoiding potential short last task)
 
-				FRayTracingLocalShaderBindingWriter* BindingWriter = new FRayTracingLocalShaderBindingWriter();
-				View.LumenRayTracingMaterialBindings[TaskIndex] = BindingWriter;
+		View.LumenRayTracingMaterialBindings.SetNum(NumTasks);
 
-				GraphBuilder.AddSetupTask(
-					[ShaderBindings, ShaderBindingsNaniteRT, BindingWriter, RTShaderBindings, NumBindings, TaskIndex]()
+		for (uint32 TaskIndex = 0; TaskIndex < NumTasks; ++TaskIndex)
+		{
+			const uint32 FirstTaskBindingIndex = TaskIndex * BindingsPerTask;
+			const FRayTracingShaderBindingData* RTShaderBindings = View.DirtyRayTracingShaderBindings.GetData() + FirstTaskBindingIndex;
+			const uint32 NumBindings = FMath::Min(BindingsPerTask, NumTotalDirtyBindings - FirstTaskBindingIndex);
+
+			FRayTracingLocalShaderBindingWriter* BindingWriter = new FRayTracingLocalShaderBindingWriter();
+			View.LumenRayTracingMaterialBindings[TaskIndex] = BindingWriter;
+
+			GraphBuilder.AddSetupTask(
+				[bRequiresShaderBindings, ShaderBindings, ShaderBindingsNaniteRT, BindingWriter, RTShaderBindings, NumBindings, TaskIndex]()
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(BuildLumenHardwareRayTracingMaterialBindingsTask);
+
+					for (uint32 BindingIndex = 0; BindingIndex < NumBindings; ++BindingIndex)
 					{
-						TRACE_CPUPROFILER_EVENT_SCOPE(BuildLumenHardwareRayTracingMaterialBindingsTask);
+						const FRayTracingShaderBindingData& RTShaderBindingData = RTShaderBindings[BindingIndex];
+						const FRayTracingMeshCommand& MeshCommand = *RTShaderBindingData.RayTracingMeshCommand;
 
-						for (uint32 BindingIndex = 0; BindingIndex < NumBindings; ++BindingIndex)
+						for (uint32 SlotIndex = 0; SlotIndex < LumenHardwareRayTracing::NumHitGroups; ++SlotIndex)
 						{
-							const FRayTracingShaderBindingData& RTShaderBindingData = RTShaderBindings[BindingIndex];
-							const FRayTracingMeshCommand& MeshCommand = *RTShaderBindingData.RayTracingMeshCommand;
+							FRayTracingLocalShaderBindings& Binding = BindingWriter->AddWithExternalParameters();
+							Binding.RecordIndex = RTShaderBindingData.SBTRecordIndex + SlotIndex;
+							Binding.Geometry = RTShaderBindingData.RayTracingGeometry;
+							Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
+							Binding.UserData = CalculateLumenHardwareRayTracingUserData(MeshCommand);
 
-							for (uint32 SlotIndex = 0; SlotIndex < LumenHardwareRayTracing::NumHitGroups; ++SlotIndex)
+							if (bRequiresShaderBindings)
 							{
 								const FBinding& LumenBinding = MeshCommand.IsUsingNaniteRayTracing() ? ShaderBindingsNaniteRT[SlotIndex] : ShaderBindings[SlotIndex];
-
-								FRayTracingLocalShaderBindings& Binding = BindingWriter->AddWithExternalParameters();
 								Binding.ShaderIndexInPipeline = LumenBinding.ShaderIndexInPipeline;
-								Binding.RecordIndex = RTShaderBindingData.SBTRecordIndex + SlotIndex;
-								Binding.Geometry = RTShaderBindingData.RayTracingGeometry;
-								Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
-								Binding.UserData = CalculateLumenHardwareRayTracingUserData(MeshCommand);
 								Binding.UniformBuffers = LumenBinding.UniformBufferArray;
 								Binding.NumUniformBuffers = LumenBinding.NumUniformBuffers;
 							}
 						}
-					});
-			}
+					}
+				});
 		}
 	}
 }

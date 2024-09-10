@@ -6,6 +6,9 @@
 #include "SEditorViewport.h"
 #include "SMaterialEditorViewport.h"
 #include "ToolMenu.h"
+#include "ToolMenus.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
+#include "ViewportToolbar/UnrealEdViewportToolbarContext.h"
 
 #define LOCTEXT_NAMESPACE "MaterialEditorViewportToolbarSections"
 
@@ -14,53 +17,87 @@ TSharedRef<SWidget> UE::MaterialEditor::CreateShowMenuWidget(const TSharedRef<SM
 {
 	InMaterialEditorViewport->OnFloatingButtonClicked();
 
-	constexpr bool bInShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder ShowMenuBuilder(bInShouldCloseWindowAfterMenuSelection, InMaterialEditorViewport->GetCommandList());
+	// We generate a menu via UToolMenus, so we can use FillShowSubmenu call from both old and new toolbar
+	FName OldShowMenuName = "MaterialEditor.OldViewportToolbar.Show";
+
+	if (!UToolMenus::Get()->IsMenuRegistered(OldShowMenuName))
 	{
-		FMaterialEditorCommands Commands = FMaterialEditorCommands::Get();
+		UToolMenu* Menu = UToolMenus::Get()->RegisterMenu(OldShowMenuName, NAME_None, EMultiBoxType::Menu, false);
+		Menu->AddDynamicSection(
+			"BaseSection",
+			FNewToolMenuDelegate::CreateLambda(
+				[ViewportWeak = InMaterialEditorViewport.ToWeakPtr(), bInShowViewportStatsToggle](UToolMenu* InMenu)
+				{
+					if (TSharedPtr<SMaterialEditor3DPreviewViewport> Viewport = ViewportWeak.Pin())
+					{
+						UUnrealEdViewportToolbarContext* const ContextObject = NewObject<UUnrealEdViewportToolbarContext>();
+						ContextObject->Viewport = ViewportWeak;
+						InMenu->Context.AddObject(ContextObject);
 
-		if (bInShowViewportStatsToggle)
-		{
-			ShowMenuBuilder.AddMenuEntry(
-				FEditorViewportCommands::Get().ToggleStats, "ViewportStats", LOCTEXT("ViewportStatsLabel", "Viewport Stats")
-			);
-
-			ShowMenuBuilder.AddMenuSeparator();
-		}
-
-		ShowMenuBuilder.AddMenuEntry(Commands.ToggleMaterialStats);
-
-		ShowMenuBuilder.AddMenuSeparator();
-
-		ShowMenuBuilder.AddMenuEntry(Commands.TogglePreviewBackground);
+						UE::MaterialEditor::FillShowSubmenu(InMenu, bInShowViewportStatsToggle);
+					}
+				}
+			)
+		);
 	}
 
-	return ShowMenuBuilder.MakeWidget();
+	FToolMenuContext MenuContext;
+	{
+		MenuContext.AppendCommandList(InMaterialEditorViewport->GetCommandList());
+
+		// Add the UnrealEd viewport toolbar context.
+		{
+			UUnrealEdViewportToolbarContext* const ContextObject =
+				UE::UnrealEd::CreateViewportToolbarDefaultContext(InMaterialEditorViewport);
+
+			MenuContext.AddObject(ContextObject);
+		}
+	}
+
+	return UToolMenus::Get()->GenerateWidget(OldShowMenuName, MenuContext);
 }
 
-FToolMenuEntry UE::MaterialEditor::CreateShowSubmenu(TWeakPtr<SMaterialEditor3DPreviewViewport> InViewport)
+FToolMenuEntry UE::MaterialEditor::CreateShowSubmenu()
 {
 	return FToolMenuEntry::InitSubMenu(
 		"Show",
 		LOCTEXT("ShowSubmenuLabel", "Show"),
 		LOCTEXT("ShowSubmenuTooltip", "Show options"),
 		FNewToolMenuDelegate::CreateLambda(
-			[InViewport](UToolMenu* Submenu) -> void
+			[](UToolMenu* Submenu) -> void
 			{
-				TSharedPtr<SMaterialEditor3DPreviewViewport> Viewport = InViewport.Pin();
-				if (!Viewport)
-				{
-					return;
-				}
-
-				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", FText());
-
-				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
-					"ShowMenuItems", UE::MaterialEditor::CreateShowMenuWidget(Viewport.ToSharedRef()), FText(), true
-				));
+				UE::MaterialEditor::FillShowSubmenu(Submenu);
 			}
 		)
 	);
+}
+
+void UE::MaterialEditor::FillShowSubmenu(UToolMenu* InMenu, bool bInShowViewportStatsToggle)
+{
+	if (UUnrealEdViewportToolbarContext* const EditorViewportContext =
+			InMenu->FindContext<UUnrealEdViewportToolbarContext>())
+	{
+		if (TSharedPtr<SMaterialEditor3DPreviewViewport> StaticMeshEditorViewport =
+				StaticCastSharedPtr<SMaterialEditor3DPreviewViewport>(EditorViewportContext->Viewport.Pin()))
+		{
+			FToolMenuSection& UnnamedSection = InMenu->FindOrAddSection(NAME_None);
+
+			if (bInShowViewportStatsToggle)
+			{
+				UnnamedSection.AddMenuEntry(
+					FEditorViewportCommands::Get().ToggleStats, LOCTEXT("ViewportStatsLabel", "Viewport Stats")
+				);
+
+				UnnamedSection.AddSeparator(NAME_None);
+			}
+
+			UnnamedSection.AddMenuEntry(FMaterialEditorCommands::Get().ToggleMaterialStats);
+
+			UnnamedSection.AddSeparator(NAME_None);
+
+			UnnamedSection.AddMenuEntry(FMaterialEditorCommands::Get().TogglePreviewBackground);
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

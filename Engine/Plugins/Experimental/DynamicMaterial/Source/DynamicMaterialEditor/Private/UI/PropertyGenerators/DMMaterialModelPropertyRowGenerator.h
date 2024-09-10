@@ -27,10 +27,6 @@ public:
 	static void AddMaterialModelProperties(const TSharedRef<SDMMaterialGlobalSettingsEditor>& InGlobalSettingEditorWidget, 
 		UDynamicMaterialModelBase* InMaterialModelBase, TArray<FDMPropertyHandle>& InOutPropertyRows);
 
-	static void AddGlobalMaterialParameterValue(EDMMaterialPropertyType InProperty, const TSharedRef<SDMMaterialGlobalSettingsEditor>& InGlobalSettingEditorWidget,
-		UDynamicMaterialModelBase* InMaterialModelBase, TArray<FDMPropertyHandle>& InOutPropertyRows,
-		UDynamicMaterialModelEditorOnlyData* InEditorOnlyData);
-
 	static void AddGlobalValue(const TSharedRef<SDMMaterialGlobalSettingsEditor>& InGlobalSettingEditorWidget,
 		UDynamicMaterialModelBase* InMaterialModelBase, TArray<FDMPropertyHandle>& InOutPropertyRows, UDMMaterialComponent* InComponent,
 		const FText& InNameOverride);

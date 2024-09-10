@@ -22,6 +22,16 @@ void FRootCameraNodeEvaluator::ActivateCameraRig(const FActivateCameraRigParams&
 	OnActivateCameraRig(Params);
 }
 
+void FRootCameraNodeEvaluator::DeactivateCameraRig(const FDeactivateCameraRigParams& Params)
+{
+	OnDeactivateCameraRig(Params);
+}
+
+void FRootCameraNodeEvaluator::BuildSingleCameraRigHierarchy(const FSingleCameraRigHierarchyBuildParams& Params, FCameraNodeEvaluatorHierarchy& OutHierarchy)
+{
+	OnBuildSingleCameraRigHierarchy(Params, OutHierarchy);
+}
+
 void FRootCameraNodeEvaluator::RunSingleCameraRig(const FSingleCameraRigEvaluationParams& Params, FCameraNodeEvaluationResult& OutResult)
 {
 	// Before we do the actual evaluation we need to ask the system to auto-reset

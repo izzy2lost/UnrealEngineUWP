@@ -54,6 +54,8 @@ public:
 	virtual int32 GetOutputFileSortingOrder() const override { return 2; }
 	virtual bool bIsEnabledWarpBlend() const { return true; }
 
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
+
 protected:
 	bool GetViewportId(int32 InViewportIndex, FString& OutViewportId) const;
 

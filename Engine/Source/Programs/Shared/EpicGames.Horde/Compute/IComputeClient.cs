@@ -11,7 +11,7 @@ namespace EpicGames.Horde.Compute
 	/// <summary>
 	/// Interface for uploading compute work to remote machines
 	/// </summary>
-	public interface IComputeClient : IAsyncDisposable
+	public interface IComputeClient
 	{
 		/// <summary>
 		/// Find the most suitable cluster to execute a given compute assignment request

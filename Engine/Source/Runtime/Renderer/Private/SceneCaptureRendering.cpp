@@ -64,6 +64,16 @@ static FAutoConsoleVariableRef CVarSceneCaptureCubeSinglePass(
 	TEXT("Whether to run all 6 faces of cube map capture in a single scene renderer pass."),
 	ECVF_Scalability);
 
+static int32 GRayTracingSceneCaptures = -1;
+static FAutoConsoleVariableRef CVarRayTracingSceneCaptures(
+	TEXT("r.RayTracing.SceneCaptures"),
+	GRayTracingSceneCaptures,
+	TEXT("Enable ray tracing in scene captures.\n")
+	TEXT(" -1: Use scene capture settings (default) \n")
+	TEXT(" 0: off \n")
+	TEXT(" 1: on"),
+	ECVF_Default);
+
 
 #if WITH_EDITOR
 // All scene captures on the given render thread frame will be dumped
@@ -301,7 +311,7 @@ void CopySceneCaptureComponentToTarget(
 			RDG_EVENT_NAME("View(%d)", ViewIndex),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PassParameters, GraphicsPSOInit, VertexShader, PixelShader, &View, ViewIndex, TargetSize] (FRHICommandList& RHICmdList)
+			[PassParameters, GraphicsPSOInit, VertexShader, PixelShader, &View, ViewIndex, TargetSize] (FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FGraphicsPipelineStateInitializer LocalGraphicsPSOInit = GraphicsPSOInit;
 			RHICmdList.ApplyCachedRenderTargets(LocalGraphicsPSOInit);
@@ -849,7 +859,7 @@ void SetupViewFamilyForSceneCapture(
 			ViewInitOptions.SceneViewStateInterface = SceneCaptureComponent->GetViewState((uint32)CubemapFaceIndex < CubeFace_MAX ? CubemapFaceIndex : ViewIndex);
 			ViewInitOptions.LODDistanceFactor = FMath::Clamp(SceneCaptureComponent->LODDistanceFactor, .01f, 100.0f);
 			ViewInitOptions.bIsSceneCaptureCube = SceneCaptureComponent->IsCube();
-			ViewInitOptions.bSceneCaptureUsesRayTracing = SceneCaptureComponent->bUseRayTracingIfEnabled;
+			ViewInitOptions.bSceneCaptureUsesRayTracing = GRayTracingSceneCaptures == -1 ? SceneCaptureComponent->bUseRayTracingIfEnabled : GRayTracingSceneCaptures > 0;
 		}
 
 		FSceneView* View = new FSceneView(ViewInitOptions);

@@ -164,115 +164,27 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
 	DAYSEQUENCE_API void DisableComponent();
-	
-	/**
-	 * Remove all the Sequencer tracks within our procedural Day Sequence
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void ResetOverrides();
 
-	/**
-	 * Add a new override for the static time of day on the day-sequence actor
-	 *
-	 * @param Hours         The static time of day in hours to use
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void AddStaticTimeOfDayOverride(ADaySequenceActor* Actor, float Hours);
-
-	/**
-	 * Add a new boolean override for the specified property
-	 *
-	 * @param Object        The object that contains the property we want to override. Must either be the ADaySequenceActor or one of its components
-	 * @param PropertyName  The name of the property to override
-	 * @param Value         The value to override
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void AddBoolOverride(UObject* Object, FName PropertyName, bool bValue);
-
-	/**
-	 * Add a new scalar override for the specified property
-	 *
-	 * @param Object        The object that contains the property we want to override. Must either be the ADaySequenceActor or one of its components
-	 * @param PropertyName  The name of the property to override
-	 * @param Value         The value to override
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void AddScalarOverride(UObject* Object, FName PropertyName, double Value);
-
-	/**
-	 * Add a new vector override for the specified property
-	 *
-	 * @param Object        The object that contains the property we want to override. Must either be the ADaySequenceActor or one of its components
-	 * @param PropertyName  The name of the property to override
-	 * @param Value         The value to override
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void AddVectorOverride(UObject* Object, FName PropertyName, FVector Value);
-
-	/**
-	 * Add a new color override for the specified property
-	 *
-	 * @param Object        The object that contains the property we want to override. Must either be the ADaySequenceActor or one of its components
-	 * @param PropertyName  The name of the property to override.
-	 * @param Value         The value to override
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void AddColorOverride(UObject* Object, FName PropertyName, FLinearColor Value);
-
-	/**
-	 * Add a new transform override for the specified property
-	 *
-	 * @param Object        The object that contains the property we want to override. Must either be the ADaySequenceActor or one of its components
-	 * @param Value         The value to override
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void AddTransformOverride(UObject* Object, FTransform Value);
-
-	/**
-	 * Add a new material override for the specified material element index
-	 *
-	 * @param Object          The object that contains the property we want to override. Must either be the ADaySequenceActor or one of its components
-	 * @param MaterialIndex   The index of the material element to override
-	 * @param Value           The material to assign
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void AddMaterialOverride(UObject* Object, int32 MaterialIndex, UMaterialInterface* Value);
-
-	/**
-	 * Add a new scalar material parameter override for the specified material element index and parameter name
-	 *
-	 * @param Object          The object that contains the material we want to override. Must either be the ADaySequenceActor or one of its components
-	 * @param MaterialIndex   The index of the material element to override
-	 * @param ParameterName   The name of the parameter to override
-	 * @param Value           The scalar value to assign to the material parameter
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void AddScalarMaterialParameterOverride(UObject* Object, int32 MaterialIndex, FName ParameterName, float Value);
-
-	/**
-	 * Add a new color material parameter override for the specified material element index and parameter name
-	 *
-	 * @param Object          The object that contains the material we want to override. Must either be the ADaySequenceActor or one of its components
-	 * @param MaterialIndex   The index of the material element to override
-	 * @param ParameterName   The name of the parameter to override
-	 * @param Value           The color value to assign to the material parameter
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void AddColorMaterialParameterOverride(UObject* Object, int32 MaterialIndex, FName ParameterName, FLinearColor Value);
-
-	/**
-	 * Add a new visibility override for the specified property
-	 *
-	 * @param Object        The object that contains the property we want to override. Must either be the ADaySequenceActor or one of its components
-	 * @param Value         The value to override
-	 */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void AddVisibilityOverride(UObject* Object, bool bValue);
-
-	/** Sets the user day sequence */
-	UFUNCTION(BlueprintCallable, Category="Day Sequence")
+	/** Sets the user day sequence. This must be a user created asset. */
+	UFUNCTION(BlueprintSetter, Category="Day Sequence")
 	DAYSEQUENCE_API void SetUserDaySequence(UDaySequence* InDaySequence);
 
+	UFUNCTION(BlueprintGetter, BlueprintPure, Category="Day Sequence")
+	DAYSEQUENCE_API UDaySequence* GetUserDaySequence();
+
+	/** Sets a user specified transient sequence. */
+	UFUNCTION(BlueprintSetter, Category="Day Sequence")
+	DAYSEQUENCE_API void SetTransientSequence(UDaySequence* InDaySequence);
+	
+	UFUNCTION(BlueprintGetter, BlueprintPure, Category="Day Sequence")
+	DAYSEQUENCE_API UDaySequence* GetTransientSequence();
+	
+	UFUNCTION(BlueprintCallable, Category="Day Sequence")
+	DAYSEQUENCE_API void SetDayNightCycle(EDayNightCycleMode NewMode);
+
+	UFUNCTION(BlueprintCallable, Category="Day Sequence")
+	DAYSEQUENCE_API void SetDayNightCycleTime(float Time);
+	
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
 	DAYSEQUENCE_API void SetMode(EDaySequenceModifierMode NewMode);
 
@@ -293,35 +205,25 @@ public:
 
 	void EmptyVolumeShapeComponents();
 	void AddVolumeShapeComponent(const FComponentReference& InShapeReference);
-
-	void InvalidateMuteStates() const;
-
-#if ENABLE_DRAW_DEBUG
-	bool ShouldShowDebugInfo() const;
-#endif
 	
 	/*~ Begin UActorComponent interface */
-	void BeginPlay() override;
-	void EndPlay(EEndPlayReason::Type Reason) override;
-	void OnRegister() override;
-	void OnUnregister() override;
+	virtual void BeginPlay() override;
+	virtual void EndPlay(EEndPlayReason::Type Reason) override;
+	virtual void OnRegister() override;
+	virtual void OnUnregister() override;
 	/*~ End UActorComponent interface */
-
-	/** Bound to delegate on the DaySequenceActor that allows all modifiers to do work at appropriate times at the specific actors tick interval. */
-	void DaySequenceUpdate();
 	
 #if WITH_EDITOR
 	/*~ Begin FTickableGameObject interface */
-	void UpdateEditorPreview(float DeltaTime) override;
-	TStatId GetStatId() const override;
-	ETickableTickType GetTickableTickType() const override;
-	bool IsTickableWhenPaused() const override { return true; }
-	bool IsTickableInEditor() const override { return true; }
-	bool IsTickable() const override { return true; }
+	virtual void UpdateEditorPreview(float DeltaTime) override;
+	virtual TStatId GetStatId() const override;
+	virtual ETickableTickType GetTickableTickType() const override;
+	virtual bool IsTickableWhenPaused() const override { return true; }
+	virtual bool IsTickableInEditor() const override { return true; }
+	virtual bool IsTickable() const override { return true; }
 	/*~ End FTickableGameObject interface */
 
-	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
 protected:
@@ -334,13 +236,13 @@ protected:
 	
 	bool CanBeEnabled() const;
 
-	UPROPERTY(Instanced, Transient)
-	TObjectPtr<UDaySequenceModifierEasingFunction> EasingFunction;
-
 	TArray<UShapeComponent*> GetVolumeShapeComponents() const;
 	
 	void SetInitialTimeOfDay();
 
+	/* Called to properly update the mute states of all managed subsections. */
+	void InvalidateMuteStates() const;
+	
 protected:
 
 	/** Non-serialized target actor we are currently bound to */
@@ -358,16 +260,20 @@ protected:
 	UPROPERTY(Transient)
 	TWeakObjectPtr<APlayerController> WeakBlendTarget;
 
-	/** An optional user-provided Day Sequence - used instead of our procedurally generated one if set */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence", meta=(EditCondition="!bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
+	/** The user provided Day Sequence. */
+	UPROPERTY(EditAnywhere, Category="Day Sequence", BlueprintGetter = GetUserDaySequence, BlueprintSetter = SetUserDaySequence, meta=(EditCondition="!bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
 	TObjectPtr<UDaySequence> UserDaySequence;
 
-	/** The procedurally generated sequence containing our override tracks. Owned by this component. */
-	UPROPERTY(Transient)
-	TObjectPtr<UDaySequence> ProceduralDaySequence;
-
+	/** The user provided Transient Day Sequence. */
+    UPROPERTY(Transient, Category="Day Sequence", BlueprintGetter = GetTransientSequence, BlueprintSetter = SetTransientSequence, meta=(EditCondition="!bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
+    TObjectPtr<UDaySequence> TransientSequence;
+	
+	/** The user provided collection. This is an alternative to UserDaySequence. */
 	UPROPERTY(EditAnywhere, Category="Day Sequence", meta=(EditCondition="bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
 	TObjectPtr<UDaySequenceCollectionAsset> DaySequenceCollection;
+
+	UPROPERTY(Instanced, Transient)
+	TObjectPtr<UDaySequenceModifierEasingFunction> EasingFunction;
 	
 	/** User-defined bias. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence", meta=(EditCondition="!bIgnoreBias"))
@@ -435,6 +341,12 @@ protected:
 private:
 	
 	/**
+	 * Bound to delegate on the DaySequenceActor that allows all modifiers to do work at appropriate times at the specific actors tick interval.
+	 * Effectively a 'tick' function.
+	 */
+	void DaySequenceUpdate();
+	
+	/**
 	 * Get the blend position (handles preview and game world).
 	 * @return Returns true if we have a valid blend position and InPosition was set, false if InPosition was not set.
 	 */
@@ -460,14 +372,12 @@ private:
 	void ReinitializeSubSequence(ADaySequenceActor::FSubSectionPreserveMap* SectionsToPreserve);
 	UMovieSceneSubSection* InitializeDaySequence(const FDaySequenceCollectionEntry& SequenceAsset);
 	void RemoveSubSequenceTrack();
-	FGuid GetOrCreateProceduralBinding(UObject* Object);
 
 	void UpdateCachedExternalShapes() const;
 	mutable TArray<TWeakObjectPtr<UShapeComponent>> CachedExternalShapes;
 	mutable bool bCachedExternalShapesInvalid = true;
 	
 	/*~ Transient state for active gameplay */
-	TWeakObjectPtr<UMovieSceneSubSection> WeakSubSection;
 	TArray<TWeakObjectPtr<UMovieSceneSubSection>> SubSections;
 
 	UE::DaySequence::FOnInvalidateMuteStates OnInvalidateMuteStates;
@@ -476,6 +386,7 @@ private:
 	const FName ShowDebug_ModifierCategory = "DaySequence_Modifiers";
 	
 	void OnDebugLevelChanged(int32 InDebugLevel);
+	bool ShouldShowDebugInfo() const;
 	
 	/** Determines whether or not the modifier will show debug info */
 	int32 DebugLevel;

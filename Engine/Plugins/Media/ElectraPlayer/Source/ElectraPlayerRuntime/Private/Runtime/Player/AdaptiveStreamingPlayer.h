@@ -84,6 +84,11 @@ public:
 	virtual void ModifyOptions(const FParamDict& InOptionsToSetOrChange, const FParamDict& InOptionsToClear) = 0;
 
 	/**
+	 * Returns a player option value.
+	 */
+	virtual FVariantValue GetMediaInfo(FName InKey) const = 0;
+	
+	/**
 	 * Sets the attributes for the stream to start buffering for and playing.
 	 * This must be set before calling SeekTo() or LoadManifest() to have an immediate effect.
 	 * A best effort to match a stream with the given attributes will be made.

@@ -745,6 +745,74 @@ bool UtilsMP4::FMP4RootBoxLocator::LocateRootBoxes(TArray<FBoxInfo>& OutBoxInfos
 	return bSuccess;
 }
 
+TSharedPtrTS<FWaitableBuffer> UtilsMP4::FMP4ChunkLoader::LoadChunk(const int64 InOffset, const int64 InSize, const TSharedPtrTS<IElectraHttpManager>& InHTTPManager, const TSharedPtrTS<IHTTPResponseCache>& InHttpResponseCache, const FString& InURL, FCancellationCheckDelegate InCheckCancellationDelegate)
+{
+	FMediaEvent ReadCompleted;
+	FString URL(InURL);
+	volatile bool bAbort = false;
+	FileSize = -1;
+	bHasErrored = false;
+	
+	TSharedPtrTS<IElectraHttpManager::FProgressListener> ProgressListener = MakeSharedTS<IElectraHttpManager::FProgressListener>();
+	ProgressListener->ProgressDelegate = IElectraHttpManager::FProgressListener::FProgressDelegate::CreateLambda([&](const IElectraHttpManager::FRequest* InRequest)->int32
+	{
+		bAbort = InCheckCancellationDelegate.Execute();
+		return bAbort ? 1 : 0;
+	});
+	ProgressListener->CompletionDelegate = IElectraHttpManager::FProgressListener::FCompletionDelegate::CreateLambda([&](const IElectraHttpManager::FRequest* InRequest)
+	{
+		const bool bFailed = InRequest->ConnectionInfo.StatusInfo.ErrorDetail.IsError();
+		ConnectionInfo = InRequest->ConnectionInfo;
+		if (!bFailed)
+		{
+			// Set the size of the resource if we don't have it yet.
+			if (FileSize < 0)
+			{
+				ElectraHTTPStream::FHttpRange crh;
+				if (crh.ParseFromContentRangeResponse(InRequest->ConnectionInfo.ContentRangeHeader))
+				{
+					FileSize = crh.GetDocumentSize();
+				}
+			}
+
+			if (ConnectionInfo.EffectiveURL.Len())
+			{
+				URL = ConnectionInfo.EffectiveURL;
+			}
+		}
+		bHasErrored = bFailed;
+		ReadCompleted.Signal();
+	});
+
+	auto CreateReadRequestAndBuffer = [&](TSharedPtrTS<FWaitableBuffer>& OutReceiveBuffer, int64 InFromOffset, int64 InNumBytes) -> TSharedPtrTS<IElectraHttpManager::FRequest>
+	{
+		TSharedPtrTS<IElectraHttpManager::FRequest> Req = MakeSharedTS<IElectraHttpManager::FRequest>();
+		Req->Parameters.URL = URL;
+		Req->Parameters.Range.SetStart(InFromOffset);
+		int64 LastByte = InFromOffset + InNumBytes - 1;
+		if (FileSize >= 0 && LastByte > FileSize-1)
+		{
+			LastByte = FileSize - 1;
+		}
+		Req->Parameters.Range.SetEndIncluding(LastByte);
+		Req->Parameters.ConnectTimeout = FTimeValue().SetFromMilliseconds(1000 * 8);
+		Req->Parameters.NoDataTimeout = FTimeValue().SetFromMilliseconds(1000 * 6);
+		OutReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
+		OutReceiveBuffer->Reserve(InNumBytes);
+		Req->ReceiveBuffer = OutReceiveBuffer;
+		Req->ProgressListener = ProgressListener;
+		Req->ResponseCache = InHttpResponseCache;
+		return Req;
+	};
+
+	TSharedPtrTS<FWaitableBuffer> ReceiveBuffer;
+	const TSharedPtrTS<IElectraHttpManager::FRequest> Request = CreateReadRequestAndBuffer(ReceiveBuffer, InOffset, InSize);
+	InHTTPManager->AddRequest(Request, false);
+	ReadCompleted.WaitAndReset();
+	InHTTPManager->RemoveRequest(Request, false);
+
+	return !(bAbort || bHasErrored) ? ReceiveBuffer : nullptr;
+}
 
 }
 

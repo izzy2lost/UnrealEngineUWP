@@ -33,6 +33,12 @@ public:
 	
 	static void InitMoviePipelineNodeClasses();
 
+	/**
+	 * Gets all node classes that the graph is aware of and are usable within the graph (including those from plugins).
+	 * Should only be called after all plugins that contain nodes have been loaded.
+	 */
+	static const TArray<UClass*>& GetNodeClasses();
+
 private:
 	/**
 	 * Determines if the connection between InputPin and OutputPin follows branch restriction rules. OutError is populated

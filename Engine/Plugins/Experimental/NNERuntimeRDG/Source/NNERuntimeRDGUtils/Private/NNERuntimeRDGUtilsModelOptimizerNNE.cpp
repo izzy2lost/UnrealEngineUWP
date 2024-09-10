@@ -3,13 +3,13 @@
 #include "NNERuntimeRDGUtilsModelOptimizerNNE.h"
 
 #include "Containers/ContainersFwd.h"
-#include "NNE.h"
+#include "NNEAttributeTensor.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeFormat.h"
 #include "NNERuntimeRDGUtilsModelBuilderNNE.h"
 #include "NNERuntimeRDGUtilsModelOptimizerONNX.h"
 #include "NNERuntimeRDGUtilsHelpers.h"
 #include "NNETensor.h"
-#include "NNEAttributeTensor.h"
 #include "NNETypes.h"
 
 THIRD_PARTY_INCLUDES_START
@@ -192,7 +192,7 @@ namespace ModelOptimizerNNEHelper
 		}
 		else if (Tensor.external_data().size()) 
 		{
-			UE_LOG(LogNNE, Warning, TEXT("GetTensorInfoFromONNXInitializer: External data not supported."));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("External data not supported."));
 			return false;
 		}
 		else if (Tensor.float_data().size())
@@ -262,12 +262,12 @@ namespace ModelOptimizerNNEHelper
 
 		if (!GetTensorInfoFromONNXInitializer(InTensor, Shape, DataType, Data))
 		{
-			UE_LOG(LogNNE, Error, TEXT("Tensor data could not be loaded"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Tensor data could not be loaded"));
 			return false;
 		}
 		if (Shape.Num() > FTensorShape::MaxRank)
 		{
-			UE_LOG(LogNNE, Error, TEXT("Tensor shape of rank %i exceeds MaxRank %i"), Shape.Num(), FTensorShape::MaxRank);
+			UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Tensor shape of rank %i exceeds MaxRank %i"), Shape.Num(), FTensorShape::MaxRank);
 			return false;
 		}
 		TArray<uint32, TInlineAllocator<FTensorShape::MaxRank>> UIntShape;
@@ -275,7 +275,7 @@ namespace ModelOptimizerNNEHelper
 		{
 			if (value < 0)
 			{
-				UE_LOG(LogNNE, Error, TEXT("Tensor shape has negative value"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Tensor shape has negative value"));
 				return false;
 			}
 			UIntShape.Add(value);
@@ -285,7 +285,7 @@ namespace ModelOptimizerNNEHelper
 		uint32 ExpectedDataSize = TensorShape.Volume() * UE::NNE::GetTensorDataTypeSizeInBytes(DataType);
 		if (ExpectedDataSize != DataView.NumBytes())
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Tensor data size %i doesn't match expected data size %i"), 
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Tensor data size %i doesn't match expected data size %i"), 
 				   					DataView.NumBytes(), ExpectedDataSize);
 			return false;
 		}
@@ -301,13 +301,13 @@ namespace ModelOptimizerNNEHelper
 		const bool result = ModelProto.ParseFromArray(ONNXData.GetData(), ONNXData.Num());
 		if (!result)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Could not parse the input model as a ModelProto."));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Could not parse the input model as a ModelProto."));
 			return false;
 		}
 
 		if (ModelProto.opset_import_size() < 1)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Could not read opset version from ONNX."));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Could not read opset version from ONNX."));
 			return false;
 		}
 
@@ -355,20 +355,20 @@ namespace ModelOptimizerNNEHelper
 
 				if (!GetTensorInfoFromONNXInitializer(*Initializer, InitializerShape, InitializerDataType, Data))
 				{
-					UE_LOG(LogNNE, Error, TEXT("Tensor data could not be loaded for weights of output node '%s'"), ANSI_TO_TCHAR(Output.name().c_str()));
+					UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Tensor data could not be loaded for weights of output node '%s'"), ANSI_TO_TCHAR(Output.name().c_str()));
 					return false;
 				}
 
 				if (DataType != InitializerDataType)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Initializer type does not match output type for output tensor %s."), ANSI_TO_TCHAR(Output.name().c_str()));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Initializer type does not match output type for output tensor %s."), ANSI_TO_TCHAR(Output.name().c_str()));
 					return false;
 				}
 
 
 				if (Shape != InitializerShape)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Initializer shape does not match output shape for output tensor %s."), ANSI_TO_TCHAR(Output.name().c_str()));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Initializer shape does not match output shape for output tensor %s."), ANSI_TO_TCHAR(Output.name().c_str()));
 					return false;
 				}
 
@@ -425,7 +425,7 @@ namespace ModelOptimizerNNEHelper
 						int64 ValueClamped = FMath::Clamp<int64>(Value64, MIN_int32, MAX_int32);
 						if (ValueClamped != Value64)
 						{
-							UE_LOG(LogNNE, Display, TEXT("Overflow detected when converting to int32 attribute '%s' in node '%s'"), *AttributeName, *NNEOpType);
+							UE_LOG(LogNNERuntimeRDGHlsl, Display, TEXT("Overflow detected when converting to int32 attribute '%s' in node '%s'"), *AttributeName, *NNEOpType);
 						}
 						
 						Values.Add((int32)ValueClamped);
@@ -466,7 +466,7 @@ namespace ModelOptimizerNNEHelper
 					FAttributeTensor Tensor;
 					if (!GetAttributeTensorFromONNXInitializer(Attribute.t(), Tensor))
 					{
-						UE_LOG(LogNNE, Error, TEXT("Failed to get data from attribute %s in operator %s"), *AttributeName, *NNEOpName);
+						UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Failed to get data from attribute %s in operator %s"), *AttributeName, *NNEOpName);
 						return false;
 					}
 					Builder->AddOperatorAttribute(Op, AttributeName, FNNEAttributeValue(Tensor));
@@ -483,7 +483,7 @@ namespace ModelOptimizerNNEHelper
 						FAttributeTensor Tensor;
 						if (!GetAttributeTensorFromONNXInitializer(Initializer, Tensor))
 						{
-							UE_LOG(LogNNE, Error, TEXT("Failed to get data from tensor at index %i of attribute %s in operator %s"), TensorIndex, *AttributeName, *NNEOpName);
+							UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Failed to get data from tensor at index %i of attribute %s in operator %s"), TensorIndex, *AttributeName, *NNEOpName);
 							return false;
 						}
 						Values.Add(Tensor);
@@ -494,7 +494,7 @@ namespace ModelOptimizerNNEHelper
 				else
 				{
 					//Note: Would be good to have better error reporting by adding type (example: sparse tensor)
-					UE_LOG(LogNNE, Warning, TEXT("Unsupported attribute type for attribute '%s' in node '%s' of type '%s'"), *AttributeName, *NNEOpName, *NNEOpType);
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Unsupported attribute type for attribute '%s' in node '%s' of type '%s'"), *AttributeName, *NNEOpName, *NNEOpType);
 				}
 			}
 
@@ -511,7 +511,7 @@ namespace ModelOptimizerNNEHelper
 				{
 					if (!GetTensorInfoFromONNXInitializer(*Initializer, Shape, DataType, Data))
 					{
-						UE_LOG(LogNNE, Error, TEXT("Tensor data could not be loaded for weight '%s' in node '%s' of type '%s'"), ANSI_TO_TCHAR(TensorName.c_str()), *NNEOpName, *NNEOpType);
+						UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Tensor data could not be loaded for weight '%s' in node '%s' of type '%s'"), ANSI_TO_TCHAR(TensorName.c_str()), *NNEOpName, *NNEOpType);
 						return false;
 					}
 					TConstArrayView<uint8> DataView = Data.GetArrayView();
@@ -522,7 +522,7 @@ namespace ModelOptimizerNNEHelper
 					const onnx::ValueInfoProto* ValueInfoProto = GetValueInfoProtoFromGraphProto(Graph, TensorName);
 					if (!ValueInfoProto)
 					{
-						UE_LOG(LogNNE, Error, TEXT("Could not find Tensor ValueInfoProto or Initializer in graph for input '%s' in node '%s' of type '%s'"), ANSI_TO_TCHAR(TensorName.c_str()), *NNEOpName, *NNEOpType);
+						UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Could not find Tensor ValueInfoProto or Initializer in graph for input '%s' in node '%s' of type '%s'"), ANSI_TO_TCHAR(TensorName.c_str()), *NNEOpName, *NNEOpType);
 						return false;
 					}
 
@@ -542,7 +542,7 @@ namespace ModelOptimizerNNEHelper
 				const onnx::ValueInfoProto* ValueInfoProto = GetValueInfoProtoFromGraphProto(Graph, TensorName);
 				if (!ValueInfoProto)
 				{
-					UE_LOG(LogNNE, Error, TEXT("Could not find Tensor ValueInfoProto in graph for output '%s' in node '%s' of type '%s'"), ANSI_TO_TCHAR(TensorName.c_str()), *NNEOpName, *NNEOpType);
+					UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Could not find Tensor ValueInfoProto in graph for output '%s' in node '%s' of type '%s'"), ANSI_TO_TCHAR(TensorName.c_str()), *NNEOpName, *NNEOpType);
 					return false;
 				}
 				ENNETensorDataType DataType;
@@ -569,13 +569,13 @@ bool FModelOptimizerONNXToNNERT::Optimize(const FNNEModelRaw& InputModel, FNNEMo
 
 	if (!ModelOptimizerONNXToONNX.Optimize(InputModel, OptimizedONNXModel, Options))
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Error while optimizing the ONNX model before convertion to NNERT format."));
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Error while optimizing the ONNX model before convertion to NNERT format."));
 		return false;
 	}
 
 	if (!ModelOptimizerNNEHelper::BuildNNEFormatFromONNX(OptimizedONNXModel.Data, OptimizedModel.Data))
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Error while building NNERT Model from ONNX."));
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Error while building NNERT Model from ONNX."));
 		return false;
 	}
 	OptimizedModel.Format = ENNEInferenceFormat::NNERT;

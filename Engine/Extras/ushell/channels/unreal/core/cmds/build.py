@@ -82,7 +82,7 @@ class _PrettyPrinter(prettyprinter.Printer):
     def __init__(self, logger):
         self._source_re = re.compile(r"^(\s+\[[0-9/]+\]\s+|)([^ ]+\.[a-z]+)")
         self._error_re = re.compile("([Ee]rror:|ERROR|Exception: |error LNK|error C)")
-        self._warning_re = re.compile("(warning C|[Ww]arning: |note:)")
+        self._warning_re = re.compile("(warning [CV]|[Ww]arning: |note:)")
         self._progress_re = re.compile(r"^\s*@progress\s+('([^']+)'|\w+)(\s+(\d+))?")
         self._for_target_re = re.compile(r"^\*\* For ([^\s]+) \*\*")
         self._percent = 0

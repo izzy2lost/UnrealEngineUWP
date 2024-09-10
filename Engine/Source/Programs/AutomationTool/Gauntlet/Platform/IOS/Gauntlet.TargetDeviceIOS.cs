@@ -693,7 +693,7 @@ namespace Gauntlet
 			Log.Info("Launching {0} on {1}", Install.Name, this);
 			Log.Verbose(IOSInstall.CommandLine);
 
-			IProcessResult AppProcess;
+			ILongProcessResult AppProcess;
 			if(UseDeviceCtl)
 			{
 				// device process launch	base command
@@ -701,7 +701,7 @@ namespace Gauntlet
 				// --console				pipe process stdout to devicectl, also holds onto the process until exit instead of immediate exit
 				// --device					device to run on
 				string LaunchCommand = string.Format("device process launch --terminate-existing --console --device {0} {1}", UUID, IOSInstall.PackageName);
-				AppProcess = ExecuteDevicectlCommand(LaunchCommand, 0, UseDeviceID: false, AdditionalOptions: ERunOptions.SpewIsVerbose);
+				AppProcess = ExecuteDevicectlCommandNoWait(LaunchCommand, AdditionalOptions: ERunOptions.SpewIsVerbose, LocalCache: IOSInstall.Device.LocalCachePath);
 			}
 			else
 			{
@@ -716,7 +716,7 @@ namespace Gauntlet
 				// -I		Non-interactive mode, just launch and end launch process when app process ends
 				// -b		path to bundle to run
 				string LaunchCommand = string.Format("-m -I -b \"{0}\"", IOSInstall.AppPath);
-				AppProcess = ExecuteIOSDeployCommand(LaunchCommand, 0);
+				AppProcess = ExecuteIOSDeployCommandNoWait(LaunchCommand, LocalCache: IOSInstall.Device.LocalCachePath);
 			}
 
 			if (AppProcess.HasExited)
@@ -736,6 +736,12 @@ namespace Gauntlet
 			}
 
 			return ExecuteDeploymentCommand(IOSDeploy, CommandLine, WaitTime, WarnOnTimeout, AdditionalOptions: AdditionalOptions);
+		}
+
+		public static ILongProcessResult ExecuteIOSDeployCommandNoWait(string CommandLine, ERunOptions AdditionalOptions = ERunOptions.None, string LocalCache = null)
+		{
+			string IOSDeploy = Path.Combine(Globals.UnrealRootDir, "Engine/Extras/ThirdPartyNotUE/ios-deploy/bin/ios-deploy");
+			return ExecuteDeploymentCommandNoWait(IOSDeploy, CommandLine, AdditionalOptions: AdditionalOptions, LocalCache: LocalCache);
 		}
 
 		public IProcessResult ExecuteIOSDeployCommand(string CommandLine, int WaitTime = 60, bool WarnOnTimeout = true, bool UseDeviceID = true, ERunOptions AdditionalOptions = ERunOptions.None)
@@ -761,6 +767,13 @@ namespace Gauntlet
 			}
 
 			return ExecuteDeploymentCommand(XCRun, CommandLine, WaitTime, WarnOnTimeout, AdditionalOptions: AdditionalOptions);
+		}
+
+		public static ILongProcessResult ExecuteDevicectlCommandNoWait(string CommandLine, ERunOptions AdditionalOptions = ERunOptions.None, string LocalCache = null)
+		{
+			CommandLine = string.Format("devicectl {0}", CommandLine);
+			string XCRun = "/usr/bin/xcrun";
+			return ExecuteDeploymentCommandNoWait(XCRun, CommandLine, AdditionalOptions: AdditionalOptions, LocalCache: LocalCache);
 		}
 
 		public IProcessResult ExecuteDevicectlCommand(string CommandLine, int WaitTime = 60, bool WarnOnTimeout = true, bool UseDeviceID = true, ERunOptions AdditionalOptions = ERunOptions.None)
@@ -821,6 +834,34 @@ namespace Gauntlet
 						}
 					}
 				}
+			}
+			catch (Exception Ex)
+			{
+				Log.Warning("Encountered an {ExceptionType} while running device command {Exception}", Ex.GetType().Name, Ex.Message);
+			}
+
+			return Result;
+		}
+
+		private static ILongProcessResult ExecuteDeploymentCommandNoWait(string Executable, string CommandLine, string WorkingDir = null, ERunOptions AdditionalOptions = ERunOptions.None, string LocalCache = null)
+		{
+			if (!AdditionalOptions.HasFlag(ERunOptions.UseShellExecute) && !File.Exists(Executable))
+			{
+				throw new AutomationException("Unable to find deployment binary at {0}", Executable);
+			}
+
+			Log.Info("{DeploymentExecutable} executing '{Command}'", Executable, CommandLine);
+
+			ERunOptions RunOptions = ERunOptions.NoWaitForExit | AdditionalOptions;
+			RunOptions |= Log.IsVeryVerbose
+				? ERunOptions.AllowSpew
+				: ERunOptions.NoLoggingOfRunCommand;
+
+
+			ILongProcessResult Result = null;
+			try
+			{
+				Result = new LongProcessResult(Executable, CommandLine, Options: RunOptions, WorkingDir: WorkingDir, LocalCache: LocalCache);
 			}
 			catch (Exception Ex)
 			{
@@ -1002,7 +1043,7 @@ namespace Gauntlet
 	{
 		public ITargetDevice Device => Install.Device;
 		public TargetDeviceIOS IOSDevice => Device as TargetDeviceIOS;
-		public IProcessResult LaunchProcess { get; private set; }
+		public ILongProcessResult LaunchProcess { get; private set; }
 		public string CommandLine { get; private set; }
 		public bool WasKilled { get; protected set; }
 		public int ExitCode => LaunchProcess.ExitCode;
@@ -1012,7 +1053,7 @@ namespace Gauntlet
 		{
 			get
 			{
-				if (bHaveSavedArtifacts == false)
+				if (!bHaveSavedArtifacts)
 				{
 					if (HasExited)
 					{
@@ -1029,28 +1070,42 @@ namespace Gauntlet
 		{
 			get
 			{
-				if (HasExited)
-				{
-					// The ios application is being run under lldb by ios-deploy
-					// lldb catches crashes and we have it setup to dump thread callstacks
-					// parse any crash dumps into Unreal crash format and append to output
-					string CrashLog = LLDBCrashParser.GenerateCrashLog(LaunchProcess.Output);
-
-					if (!string.IsNullOrEmpty(CrashLog))
-					{
-						return string.Format("{0}\n{1}", LaunchProcess.Output, CrashLog);
-					}
-				}
-
+				CheckGeneratedCrashLog();
 				return LaunchProcess.Output;
 			}
 		}
+		private void CheckGeneratedCrashLog()
+		{
+			// The ios application is being run under lldb by ios-deploy
+			// lldb catches crashes and we have it setup to dump thread callstacks
+			// parse any crash dumps into Unreal crash format and append to output
+			if (HasExited && !bWasCheckedForCrash)
+			{
+				bWasCheckedForCrash = true;
+				string CrashLog = LLDBCrashParser.GenerateCrashLog(LaunchProcess.GetLogReader());
+				if (!string.IsNullOrEmpty(CrashLog))
+				{
+					LaunchProcess.AppendToOutput(CrashLog, false);
+				}
+			}
+		}
+
+		public ILogStreamReader GetLogReader()
+		{
+			CheckGeneratedCrashLog();
+			return LaunchProcess.GetLogReader();
+		}
+
+		public ILogStreamReader GetLogBufferReader() => LaunchProcess.GetLogBufferReader();
+
+		public bool WriteOutputToFile(string FilePath) => LaunchProcess.WriteOutputToFile(FilePath) != null;
 
 		protected IOSAppInstall Install;
 
-		protected bool bHaveSavedArtifacts;
+		protected bool bHaveSavedArtifacts = false;
+		protected bool bWasCheckedForCrash = false;
 
-		public IOSAppInstance(IOSAppInstall InInstall, IProcessResult InProcess, string InCommandLine)
+		public IOSAppInstance(IOSAppInstall InInstall, ILongProcessResult InProcess, string InCommandLine)
 		{
 			Install = InInstall;
 			this.CommandLine = InCommandLine;
@@ -1170,13 +1225,13 @@ namespace Gauntlet
 		/// <summary>
 		/// Parse lldb thread crash dump to Unreal log format
 		/// </summary>
-		public static string GenerateCrashLog(string LogOutput)
+		public static string GenerateCrashLog(ILogStreamReader LogReader)
 		{
 			try
 			{
 				DateTime TimeStamp;
 				int Frame;
-				ThreadInfo Thread = ParseCallstack(LogOutput, out TimeStamp, out Frame);
+				ThreadInfo Thread = ParseCallstack(LogReader, out TimeStamp, out Frame);
 				if (Thread == null)
 				{
 					return null;
@@ -1198,7 +1253,7 @@ namespace Gauntlet
 
 		}
 
-		private static ThreadInfo ParseCallstack(string LogOutput, out DateTime Timestamp, out int FrameNum)
+		private static ThreadInfo ParseCallstack(ILogStreamReader LogReader, out DateTime Timestamp, out int FrameNum)
 		{
 			Timestamp = DateTime.UtcNow;
 			FrameNum = 0;
@@ -1209,16 +1264,11 @@ namespace Gauntlet
 			Regex SymbolicatedFrameRegex = new Regex(@"\*?\s#(?<framenum>\d+):\s0x(?<address>[\da-f]+)\s(?<module>.+)\`(?<symbol>.+)(\sat\s)(?<source>.+)\s\[opt\]");
 			Regex UnsymbolicatedFrameRegex = new Regex(@"\*?frame\s#(?<framenum>\d+):\s0x(?<address>[\da-f]+)\s(?<module>.+)\`(?<symbol>.+)(\s\+\s(?<offset>\d+))?");
 
-			LinkedList<string> CrashLog = new LinkedList<string>(Regex.Split(LogOutput, "\r\n|\r|\n"));
-
 			List<ThreadInfo> Threads = new List<ThreadInfo>();
 			ThreadInfo Thread = null;
 
-			var LineNode = CrashLog.First;
-			while (LineNode != null)
+			foreach(string Line in LogReader.EnumerateNextLines())
 			{
-				string Line = LineNode.Value.Trim();
-
 				// If Gauntlet marks the test as complete, ignore any thread dumps from forcing process to exit
 				if (Line.Contains("**** TEST COMPLETE. EXIT CODE: 0 ****"))
 				{
@@ -1242,7 +1292,6 @@ namespace Gauntlet
 						Timestamp = new DateTime(Year, Month, Day, Hour, Minute, Second);
 					}
 
-					LineNode = LineNode.Next;
 					continue;
 				}
 
@@ -1323,8 +1372,6 @@ namespace Gauntlet
 
 					}
 				}
-
-				LineNode = LineNode.Next;
 			}
 
 			if (Threads.Count(T => T.Current == true) > 1)
@@ -1347,7 +1394,6 @@ namespace Gauntlet
 			}
 
 			return Thread;
-
 		}
 	}
 

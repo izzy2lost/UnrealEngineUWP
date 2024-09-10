@@ -50,6 +50,11 @@ ULandscapeNaniteComponent::ULandscapeNaniteComponent(const FObjectInitializer& O
 	: Super(ObjectInitializer)
 	, bEnabled(true)
 {
+	// We don't want Nanite representation in ray tracing
+	bVisibleInRayTracing = false;
+
+	// We don't want WPO evaluation enabled on landscape meshes
+	bEvaluateWorldPositionOffset = false;
 }
 
 void ULandscapeNaniteComponent::PostLoad()
@@ -77,6 +82,15 @@ void ULandscapeNaniteComponent::PostLoad()
 	{
 		// Ensure that the component lighting and shadow settings matches the actor
 		UpdatedSharedPropertiesFromActor();
+	}
+
+	// Override settings that may have been serialized previously with the wrong values
+	{
+		// We don't want Nanite representation in ray tracing
+		bVisibleInRayTracing = false;
+
+		// We don't want WPO evaluation enabled on landscape meshes
+		bEvaluateWorldPositionOffset = false;
 	}
 }
 
@@ -127,12 +141,6 @@ void ULandscapeNaniteComponent::UpdatedSharedPropertiesFromActor()
 	LightingChannels = LandscapeProxy->LightingChannels;
 	bHoldout = LandscapeProxy->bHoldout;
 	ShadowCacheInvalidationBehavior = LandscapeProxy->ShadowCacheInvalidationBehavior;
-
-	// We don't want Nanite representation in ray tracing
-	bVisibleInRayTracing = false;
-
-	// We don't want WPO evaluation enabled on landscape meshes
-	bEvaluateWorldPositionOffset = false;
 }
 
 void ULandscapeNaniteComponent::SetEnabled(bool bValue)
@@ -161,6 +169,8 @@ bool ULandscapeNaniteComponent::IsHLODRelevant() const
 FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscapeProxy* Landscape, const FGuid& NewProxyContentId, bool bInIsAsync, const TArrayView<ULandscapeComponent*>& InComponentsToExport, int32 InNaniteComponentIndex)
 {
 	UE_LOG(LogLandscape, VeryVerbose, TEXT("InitializeForLandscapeAsync actor: '%s' package:'%s'"), *Landscape->GetActorNameOrLabel(), *Landscape->GetPackage()->GetName());
+
+	check(bVisibleInRayTracing == false);
 
 	UWorld* World = Landscape->GetWorld();
 	

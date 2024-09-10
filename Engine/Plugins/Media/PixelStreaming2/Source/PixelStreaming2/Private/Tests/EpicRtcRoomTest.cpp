@@ -12,7 +12,7 @@
 namespace UE::PixelStreaming2
 {
 	// Tests the creation and removal of a session
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcRoomLifetimeTest, "System.Plugins.PixelStreaming2.FEpicRtcRoomLifetimeTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcRoomLifetimeTest, "System.Plugins.PixelStreaming2.FPS2EpicRtcRoomLifetimeTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
 	bool FEpicRtcRoomLifetimeTest::RunTest(const FString& Parameters)
 	{
 		EpicRtcErrorCode Result;

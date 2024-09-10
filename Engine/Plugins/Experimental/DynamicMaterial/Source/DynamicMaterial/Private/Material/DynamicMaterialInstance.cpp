@@ -67,7 +67,7 @@ void UDynamicMaterialInstance::PostDuplicate(bool bInDuplicateForPIE)
 		{
 			if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = MaterialModel->GetEditorOnlyData())
 			{
-				ModelEditorOnlyData->RequestMaterialBuild();
+				ModelEditorOnlyData->RequestMaterialBuild(/* Immediate */ bInDuplicateForPIE);
 			}
 		}
 	}

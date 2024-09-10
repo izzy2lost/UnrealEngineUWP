@@ -154,14 +154,14 @@ public:
 
 void FLocalizationTargetEditorCommands::RegisterCommands() 
 {
-	UI_COMMAND(GatherText, "Gather Text", "Gather text for all cultures of this target.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(ImportTextAllCultures, "Import Text", "Import translations for all cultures of this target.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(ExportTextAllCultures, "Export Text", "Export translations for all cultures of this target.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(ImportDialogueScriptAllCultures, "Import Script", "Import dialogue scripts for all cultures of this target.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(ExportDialogueScriptAllCultures, "Export Script", "Export dialogue scripts for all cultures of this target.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(ImportDialogueAllCultures, "Import Dialogue", "Import dialogue WAV files for all cultures of this target.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(CountWords, "Count Words", "Count translations for all cultures of this target.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(CompileTextAllCultures, "Compile Text", "Compile translations for all cultures of this target.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(GatherText, "Gather Text", "Gather text for all languages of this target.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(ImportTextAllCultures, "Import Text", "Import translations for all languages of this target.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(ExportTextAllCultures, "Export Text", "Export translations for all languages of this target.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(ImportDialogueScriptAllCultures, "Import Script", "Import dialogue scripts for all languages of this target.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(ExportDialogueScriptAllCultures, "Export Script", "Export dialogue scripts for all languages of this target.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(ImportDialogueAllCultures, "Import Dialogue", "Import dialogue WAV files for all languages of this target.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(CountWords, "Count Words", "Count translations for all languages of this target.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(CompileTextAllCultures, "Compile Text", "Compile translations for all languages of this target.", EUserInterfaceActionType::Button, FInputChord());
 }
 
 void FLocalizationTargetDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
@@ -288,7 +288,7 @@ void FLocalizationTargetDetailCustomization::CustomizeDetails(IDetailLayoutBuild
 
 		TAttribute<FText> GatherToolTipTextAttribute = TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateLambda([this]() -> FText
 		{
-			return CanGatherText() ? FLocalizationTargetEditorCommands::Get().GatherText->GetDescription() : LOCTEXT("GatherDisabledToolTip", "Must have a native culture specified in order to gather.");
+			return CanGatherText() ? FLocalizationTargetEditorCommands::Get().GatherText->GetDescription() : LOCTEXT("GatherDisabledToolTip", "Must have a native language specified in order to gather.");
 		}));
 		CommandList->MapAction(FLocalizationTargetEditorCommands::Get().GatherText, FExecuteAction::CreateSP(this, &FLocalizationTargetDetailCustomization::GatherText), FCanExecuteAction::CreateSP(this, &FLocalizationTargetDetailCustomization::CanGatherText));
 		ToolBarBuilder.AddToolBarButton(FLocalizationTargetEditorCommands::Get().GatherText, NAME_None, TAttribute<FText>(), GatherToolTipTextAttribute, FSlateIcon(FAppStyle::GetAppStyleSetName(), "LocalizationTargetEditor.GatherText"));
@@ -348,7 +348,7 @@ void FLocalizationTargetDetailCustomization::CustomizeDetails(IDetailLayoutBuild
 						.VAlignCell(VAlign_Center)
 						.FillWidth(0.1f)
 						+SHeaderRow::Column("Culture")
-						.DefaultLabel( NSLOCTEXT("LocalizationCulture", "CultureColumnLabel", "Culture"))
+						.DefaultLabel( NSLOCTEXT("LocalizationCulture", "CultureColumnLabel", "Language"))
 						.HAlignHeader(HAlign_Fill)
 						.HAlignCell(HAlign_Fill)
 						.VAlignCell(VAlign_Center)
@@ -381,7 +381,7 @@ void FLocalizationTargetDetailCustomization::CustomizeDetails(IDetailLayoutBuild
 						.ButtonContent()
 						[
 							SNew(STextBlock)
-							.Text(NSLOCTEXT("LocalizationCulture", "AddNewCultureButtonLabel", "Add New Culture"))
+							.Text(NSLOCTEXT("LocalizationCulture", "AddNewCultureButtonLabel", "Add New Language"))
 						]
 						.MenuContent()
 							[
@@ -1211,7 +1211,7 @@ void FLocalizationTargetDetailCustomization::BuildListedCulturesList()
 		}
 		else
 		{
-			NoSupportedCulturesErrorText->SetError(LOCTEXT("NoSupportedCulturesError", "At least one supported culture must be specified."));
+			NoSupportedCulturesErrorText->SetError(LOCTEXT("NoSupportedCulturesError", "At least one supported language must be specified."));
 		}
 	}
 }

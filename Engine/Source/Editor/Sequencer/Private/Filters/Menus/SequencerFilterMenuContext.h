@@ -4,6 +4,7 @@
 
 #include "Filters/SequencerTrackFilterBase.h"
 #include "Filters/Widgets/SSequencerFilter.h"
+#include "SequencerFilterBarContext.h"
 #include "Templates/SharedPointer.h"
 #include "SequencerFilterMenuContext.generated.h"
 
@@ -27,6 +28,8 @@ public:
 	{
 		return WeakFilterWidget.IsValid() ? WeakFilterWidget.Pin()->GetFilter() : nullptr;
 	}
+
+	FOnPopulateFilterBarMenu OnPopulateFilterBarMenu;
 
 protected:
 	TWeakPtr<SSequencerFilter> WeakFilterWidget;

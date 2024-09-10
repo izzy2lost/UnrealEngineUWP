@@ -36,6 +36,8 @@ namespace UnrealBuildTool.Rules
 					"Slate",
 					"SlateCore",
 					"TakesCore",
+					"TakeMovieScene",
+					"TakeRecorderSources",
 					"TakeRecorder",
 					"TargetPlatform",
 					"EditorFramework",

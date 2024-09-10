@@ -227,6 +227,8 @@ public:
 	bool Identical(const FInstancedStructContainer* Other, uint32 PortFlags) const;
 	bool Serialize(FArchive& Ar);
 	void GetPreloadDependencies(TArray<UObject*>& OutDeps) const;
+	bool ExportTextItem(FString& ValueStr, FInstancedStructContainer const& DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const;
+	bool ImportTextItem(const TCHAR*& Buffer, int32 PortFlags, UObject* Parent, FOutputDevice* ErrorText, FArchive* InSerializingArchive = nullptr);
 
 private:
 
@@ -273,5 +275,7 @@ struct TStructOpsTypeTraits<FInstancedStructContainer> : public TStructOpsTypeTr
 		WithIdentical = true,
 		WithAddStructReferencedObjects = true,
 		WithGetPreloadDependencies = true,
+		WithExportTextItem = true,
+		WithImportTextItem = true,
 	};
 };

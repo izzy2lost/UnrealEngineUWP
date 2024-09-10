@@ -4,8 +4,8 @@
 
 #include "USDConversionUtils.h"
 #include "USDLog.h"
+#include "USDMemory.h"
 #include "USDTypesConversion.h"
-
 #include "UsdWrappers/UsdStage.h"
 #include "UsdWrappers/VtValue.h"
 
@@ -1464,14 +1464,14 @@ namespace UsdUtils
 		{
 			// If the string contains a double quote, use a single quote as a delimiter, or else the string
 			// will be impossible to tokenize into the source string later when unstringifying
-            if (Element.Contains(&DoubleQuoteTCHAR))
-            {
-                Result += FString::Printf(TEXT("'%s', "), *Element);
-            }
-            else
-            {
-                Result += FString::Printf(TEXT("\"%s\", "), *Element);
-            }
+			if (Element.Contains(&DoubleQuoteTCHAR))
+			{
+				Result += FString::Printf(TEXT("'%s', "), *Element);
+			}
+			else
+			{
+				Result += FString::Printf(TEXT("\"%s\", "), *Element);
+			}
 		}
 		Result.RemoveFromEnd(TEXT(", "));
 		Result += TEXT("]");
@@ -1518,14 +1518,14 @@ namespace UsdUtils
 		{
 			// If the string contains a double quote, use a single quote as a delimiter, or else the string
 			// will be impossible to tokenize into the source string later when unstringifying
-            if (Element.Contains(&DoubleQuoteTCHAR))
-            {
-                Result += FString::Printf(TEXT("'%s', "), *Element);
-            }
-            else
-            {
-                Result += FString::Printf(TEXT("\"%s\", "), *Element);
-            }
+			if (Element.Contains(&DoubleQuoteTCHAR))
+			{
+				Result += FString::Printf(TEXT("'%s', "), *Element);
+			}
+			else
+			{
+				Result += FString::Printf(TEXT("\"%s\", "), *Element);
+			}
 		}
 		Result.RemoveFromEnd(TEXT(", "));
 		Result += TEXT("])");
@@ -2349,7 +2349,7 @@ namespace UsdUtils
 
  // // Exotic types found in some scenarios
 			{TEXT("SdfListOp<TfToken>"), WrapInVtValue<pxr::SdfListOp<pxr::TfToken>, UnstringifyListOpTokens>}, // This is used for apiSchemas
-  // metadata
+	// metadata
 		};
 
 		if (const TFunction<bool(const FString&, pxr::VtValue&)>* FoundUnstringifier = Unstringifiers.Find(TypeName))

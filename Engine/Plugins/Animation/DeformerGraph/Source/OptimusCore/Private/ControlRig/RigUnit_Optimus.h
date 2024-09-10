@@ -36,6 +36,14 @@ struct OPTIMUSCORE_API FRigVMTrait_OptimusDeformerSettings: public FRigVMTrait
 	// Deformers are first sorted by execution group index, then by the order in which they are added
 	UPROPERTY(EditAnywhere, Category = "Trait", meta=(Input))
 	int32 ExecutionGroup = 1;
+
+	// Whether to apply the deformer to all child components as well
+	UPROPERTY(EditAnywhere, Category = "Trait", meta=(Input))
+	bool DeformChildComponents = true;
+
+	// Deformer won't be applied to child components that have the specified component tag
+	UPROPERTY(EditAnywhere, Category = "Trait", meta=(Input))
+	FName ExcludeChildComponentsWithTag = NAME_None;
 };
 
 /** Adds a deformer to the Skeletal Mesh Component*/
@@ -343,3 +351,46 @@ struct OPTIMUSCORE_API FRigVMTrait_SetDeformerTransformArrayVariable: public FRi
 	TArray<FTransform> Value;	
 };
 
+USTRUCT(BlueprintType)
+struct OPTIMUSCORE_API FRigVMTrait_SetDeformerNameVariable: public FRigVMTrait_OptimusVariableBase
+{
+	GENERATED_BODY()
+
+	void SetValue(UOptimusDeformerInstance* InInstance) const override;
+	
+	UPROPERTY(EditAnywhere, Category = "Trait")
+	FName Value = NAME_None;	
+};
+
+USTRUCT(BlueprintType)
+struct OPTIMUSCORE_API FRigVMTrait_SetDeformerNameArrayVariable: public FRigVMTrait_OptimusVariableBase
+{
+	GENERATED_BODY()
+
+	void SetValue(UOptimusDeformerInstance* InInstance) const override;
+	
+	UPROPERTY(EditAnywhere, Category = "Trait")
+	TArray<FName> Value;	
+};
+
+USTRUCT(BlueprintType)
+struct OPTIMUSCORE_API FRigVMTrait_SetDeformerBoolVariable: public FRigVMTrait_OptimusVariableBase
+{
+	GENERATED_BODY()
+
+	void SetValue(UOptimusDeformerInstance* InInstance) const override;
+	
+	UPROPERTY(EditAnywhere, Category = "Trait")
+	bool Value = false;	
+};
+
+USTRUCT(BlueprintType)
+struct OPTIMUSCORE_API FRigVMTrait_SetDeformerBoolArrayVariable: public FRigVMTrait_OptimusVariableBase
+{
+	GENERATED_BODY()
+
+	void SetValue(UOptimusDeformerInstance* InInstance) const override;
+	
+	UPROPERTY(EditAnywhere, Category = "Trait")
+	TArray<bool> Value;	
+};

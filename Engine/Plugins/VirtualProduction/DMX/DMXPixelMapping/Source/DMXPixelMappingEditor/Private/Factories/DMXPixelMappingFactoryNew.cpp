@@ -23,11 +23,6 @@ UDMXPixelMappingFactoryNew::UDMXPixelMappingFactoryNew()
 	bEditAfterNew = true;
 }
 
-FName UDMXPixelMappingFactoryNew::GetNewAssetThumbnailOverride() const
-{
-	return TEXT("ClassThumbnail.DMXPixelMapping");
-}
-
 UObject* UDMXPixelMappingFactoryNew::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
 	check(Class->IsChildOf(UDMXPixelMapping::StaticClass()));

@@ -300,7 +300,7 @@ void FLensDistortionSceneViewExtension::InvertDistortionMap_RenderThread(FRDGBui
 		RDG_EVENT_NAME("InvertDistortionDisplacementMap"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[PassParameters, Output](FRHICommandList& RHICmdList)
+		[PassParameters, Output](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			const int32 NumSquares = FMath::Clamp(CVarLensDistortionInvertGridDensity.GetValueOnRenderThread(), 64, 255);
 			const FIntPoint GridDimensions = FIntPoint(NumSquares);

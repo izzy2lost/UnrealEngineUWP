@@ -227,13 +227,6 @@ void UPropertyAnimatorCounter::PostEditChangeProperty(FPropertyChangedEvent& InP
 	}
 }
 
-void UPropertyAnimatorCounter::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
-{
-	Super::OnAnimatorRegistered(InMetadata);
-
-	InMetadata.Name = TEXT("Counter");
-}
-
 void UPropertyAnimatorCounter::OpenPropertyAnimatorSettings()
 {
 	if (const UPropertyAnimatorSettings* AnimatorSettings = GetDefault<UPropertyAnimatorSettings>())
@@ -258,6 +251,13 @@ void UPropertyAnimatorCounter::SaveCustomFormatAsPreset()
 	}
 }
 #endif
+
+void UPropertyAnimatorCounter::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
+{
+	Super::OnAnimatorRegistered(InMetadata);
+
+	InMetadata.Name = TEXT("Counter");
+}
 
 void UPropertyAnimatorCounter::EvaluateProperties(FInstancedPropertyBag& InParameters)
 {

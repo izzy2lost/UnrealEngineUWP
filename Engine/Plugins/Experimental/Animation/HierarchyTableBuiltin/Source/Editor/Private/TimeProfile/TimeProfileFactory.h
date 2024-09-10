@@ -6,10 +6,10 @@
 #include "TimeProfileFactory.generated.h"
 
 UCLASS()
-class UHierarchyTableTimeFactory : public UTypedElementDataStorageFactory
+class UHierarchyTableTimeFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+	void RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage, IEditorDataStorageUiProvider& DataStorageUi) const override;
 };

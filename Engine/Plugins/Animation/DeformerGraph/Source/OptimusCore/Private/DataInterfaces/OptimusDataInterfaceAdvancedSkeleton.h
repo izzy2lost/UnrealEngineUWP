@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "IOptimusDeformerInstanceAccessor.h"
 #include "OptimusComputeDataInterface.h"
 #include "OptimusDataType.h"
 #include "OptimusDataTypeRegistry.h"
@@ -116,6 +117,7 @@ public:
 	//~ Begin UOptimusComputeDataInterface Interface
 	FString GetDisplayName() const override;
 	TArray<FOptimusCDIPinDefinition> GetPinDefinitions() const override;
+	TArray<FOptimusCDIPropertyPinDefinition> GetPropertyPinDefinitions() const override;
 	TSubclassOf<UActorComponent> GetRequiredComponentClass() const override;
 
 	void Initialize() override;
@@ -153,6 +155,9 @@ public:
 	FOptimusAnimAttributeBufferArray AttributeBufferArray;
 
 private:
+	friend class UOptimusAdvancedSkeletonDataProvider;
+	static FName GetSkinWeightProfilePropertyName();
+	
 	FString GetUnusedAttributeName(int32 CurrentAttributeIndex ,const FString& InName) const;
 	void UpdateAttributePinNamesAndHlslIds();
 	TArray<FOptimusCDIPinDefinition> GetPinDefinitions_Internal(bool bGetAllPossiblePins = false, int32 AttributeIndexToExclude = INDEX_NONE) const;	
@@ -191,7 +196,7 @@ struct FOptimusBoneTransformBuffer
 	TArray<TArray<uint8>> BufferData;
 	TArray<int32> NumBones;
 
-	void SetData(FSkeletalMeshLODRenderData const* InLodRenderData, const TArray<FTransform>& InBoneTransforms);
+	void SetData(FSkeletalMeshLODRenderData const& InLodRenderData, const TArray<FTransform>& InBoneTransforms);
 	bool HasData() const;
 
 	void AllocateResources(FRDGBuilder& GraphBuilder);
@@ -199,11 +204,15 @@ struct FOptimusBoneTransformBuffer
 
 /** Compute Framework Data Provider for reading skeletal mesh. */
 UCLASS(BlueprintType, editinlinenew, Category = ComputeFramework)
-class UOptimusAdvancedSkeletonDataProvider : public UComputeDataProvider
+class UOptimusAdvancedSkeletonDataProvider :
+	public UComputeDataProvider,
+	public IOptimusDeformerInstanceAccessor
+
 {
 	GENERATED_BODY()
 
 public:
+	void SetDeformerInstance(UOptimusDeformerInstance* InInstance) override;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Binding)
 	TObjectPtr<USkeletalMeshComponent> SkeletalMesh = nullptr;
@@ -213,7 +222,6 @@ public:
 	int32 ParameterBufferSize = 0;
 
 	FName SkinWeightProfile = NAME_None;
-	bool bSkinWeightBufferReady = false;
 	
 	bool bEnableLayeredSkinning = true;
 	bool bIsLayeredSkinInitialized = false;
@@ -230,7 +238,12 @@ public:
 		USkeletalMeshComponent* InSkeletalMesh
 	);
 
-	void ComputeBoneTransformsForLayeredSkinning(FOptimusBoneTransformBuffer& OutBoneBuffer, FSkeletalMeshLODRenderData const* InLodRenderData, const FReferenceSkeleton& InRefSkeleton);
+	void ComputeBoneTransformsForLayeredSkinning(FOptimusBoneTransformBuffer& OutBoneBuffer, FSkeletalMeshLODRenderData const& InLodRenderData, const FReferenceSkeleton& InRefSkeleton);
+private:
+	UPROPERTY()
+	TObjectPtr<UOptimusDeformerInstance> DeformerInstance;
+
+	TWeakObjectPtr<const UOptimusAdvancedSkeletonDataInterface> WeakDataInterface;
 };
 
 class FOptimusAdvancedSkeletonDataProviderProxy : public FComputeDataProviderRenderProxy

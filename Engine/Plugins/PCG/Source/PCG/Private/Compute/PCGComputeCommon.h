@@ -5,8 +5,11 @@
 #include "PCGCommon.h"
 
 class UPCGData;
+class UPCGDataBinding;
 class UPCGSettings;
 struct FPCGContext;
+struct FPCGDataCollectionDesc;
+struct FPCGPinPropertiesGPU;
 
 #define PCG_KERNEL_LOGGING_ENABLED (!(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING)
 
@@ -53,6 +56,8 @@ namespace PCGComputeConstants
 
 	/** PCG data types supported in GPU data collections. */
 	constexpr EPCGDataType AllowedDataCollectionTypes = EPCGDataType::Point | EPCGDataType::Param;
+
+	constexpr uint32 KernelExecutedFlag = 1 << 31;
 }
 
 namespace PCGComputeHelpers
@@ -70,7 +75,13 @@ namespace PCGComputeHelpers
 	bool IsTypeAllowedInDataCollection(EPCGDataType Type);
 
 #if PCG_KERNEL_LOGGING_ENABLED
+	/** Logs a warning on a GPU node in the graph and console. */
 	void LogKernelWarning(const FPCGContext* Context, const UPCGSettings* Settings, const FText& InText);
+
+	/** Logs an error on a GPU node in the graph and console. */
 	void LogKernelError(const FPCGContext* Context, const UPCGSettings* Settings, const FText& InText);
 #endif
+
+	/** Computes a pin data description based on the given GPU pin properties. */
+	void ComputeOutputPinDataDesc(const FPCGPinPropertiesGPU& PinProperties, const UPCGSettings* Settings, const UPCGDataBinding* Binding, FPCGDataCollectionDesc& OutPinDesc);
 }

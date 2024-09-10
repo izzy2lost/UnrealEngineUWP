@@ -9,12 +9,14 @@
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMNameValueMap.h"
 #include "VerseVM/VVMNames.h"
+#include "VerseVM/VVMWeakCellMap.h"
 
 class UPackage;
 
 namespace Verse
 {
 struct VClass;
+struct VTupleType;
 
 enum class EPackageStage : uint8
 {
@@ -61,12 +63,16 @@ struct VPackage : VCell
 	COREUOBJECT_API UPackage* GetUPackage(const TCHAR* UEPackageName) const;
 	COREUOBJECT_API UPackage* GetOrCreateUPackage(FAllocationContext Context, const TCHAR* UEPackageName);
 
+	COREUOBJECT_API void NotifyUsedTupleType(FAllocationContext Context, VTupleType* TupleType);
+	template <typename FunctorType> // FunctorType is (VTupleType*) -> void
+	void ForEachUsedTupleType(FunctorType&& Functor);
+
 	EPackageStage GetStage() const { return PackageStage; }
 	COREUOBJECT_API void SetStage(EPackageStage InPackageStage);
 
 	static VPackage& New(FAllocationContext Context, VArray& Name, uint32 Capacity, EPackageStage InPackageStage = EPackageStage::Global)
 	{
-		return *new (Context.AllocateFastCell(sizeof(VPackage))) VPackage(Context, Name, Capacity, InPackageStage);
+		return *new (Context.Allocate(FHeap::DestructorAndCensusSpace, sizeof(VPackage))) VPackage(Context, Name, Capacity, InPackageStage);
 	}
 
 private:
@@ -83,6 +89,7 @@ private:
 	TWriteBarrier<VArray> PackageName;
 	VNameValueMap Map;
 	VNameValueMap UPackageMap;
+	TWriteBarrier<VWeakCellMap> UsedTupleTypes;
 	EPackageStage PackageStage;
 };
 } // namespace Verse

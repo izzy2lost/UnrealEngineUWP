@@ -268,6 +268,9 @@ void FLightFunctionAtlas::ClearEmptySceneFrame(FViewInfo* View, uint32 ViewIndex
 
 void FLightFunctionAtlas::BeginSceneFrame(const FViewFamilyInfo& ViewFamily, TArray<FViewInfo>& Views, FLightFunctionAtlasSceneData& LightFunctionAtlasSceneData, bool bShouldRenderVolumetricFog)
 {
+	// Sync any pending RDG async tasks prior to modifying the atlas, since we issue async RDG tasks.
+	FRDGBuilder::WaitForAsyncExecuteTask();
+
 	ClearEmptySceneFrame(nullptr, 0, &LightFunctionAtlasSceneData);
 
 	AtlasSetup = GetLightFunctionAtlasSetup();
@@ -647,8 +650,9 @@ void FLightFunctionAtlas::RenderLightFunctionAtlas(FRDGBuilder& GraphBuilder, TA
 			const uint32 PackedAtlasSlotMinV = uint32(round(AtlasSlot.MinV * 65536.0f));
 			const uint32 PackedAtlasSlotMinUV = (PackedAtlasSlotMinU | (PackedAtlasSlotMinV << 16));
 
-			ensure(FMath::IsNearlyEqual((PackedAtlasSlotMinUV & 0xFFFF) / 65536.0f, AtlasSlot.MinU));
-			ensure(FMath::IsNearlyEqual(((PackedAtlasSlotMinUV >> 16) & 0xFFFF) / 65536.0f, AtlasSlot.MinV));
+			const float IntegerUVTolerance = 0.5f / 65536.0f;
+			ensure(FMath::IsNearlyEqual((PackedAtlasSlotMinUV & 0xFFFF) / 65536.0f, AtlasSlot.MinU, IntegerUVTolerance));
+			ensure(FMath::IsNearlyEqual(((PackedAtlasSlotMinUV >> 16) & 0xFFFF) / 65536.0f, AtlasSlot.MinV, IntegerUVTolerance));
 
 			float TanOuterAngle = LightType == LightType_Spot ? FMath::Tan(LightSceneInfo->Proxy->GetOuterConeAngle()) : -1.0f;
 			if (LightType == LightType_Rect)
@@ -717,7 +721,7 @@ void FLightFunctionAtlas::RenderAtlasSlots(FRDGBuilder& GraphBuilder, const TArr
 		RDG_EVENT_NAME("LightFunctionAtlas Generation"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[PassParameters, &Views, this](FRHICommandList& RHICmdList)
+		[PassParameters, &Views, this](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			const uint32 AtlasSlotResolution = AtlasSetup.SlotResolution;
 			const float AtlasEdgeSize = AtlasSetup.EdgeSize;

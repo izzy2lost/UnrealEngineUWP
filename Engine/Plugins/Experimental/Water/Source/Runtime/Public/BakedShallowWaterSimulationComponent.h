@@ -13,11 +13,12 @@ struct WATER_API FShallowWaterSimulationGrid
 	GENERATED_BODY()
 
 public:
-	FShallowWaterSimulationGrid(const TArray<FVector4> &InArrayValues, const FIntVector2 &InNumCells, const FVector &InPosition, const FVector2D &InSize)
+	FShallowWaterSimulationGrid(const TArray<FVector4> &InArrayValues, TObjectPtr<UTexture2D> InBakedWaterTexture, const FIntVector2 &InNumCells, const FVector &InPosition, const FVector2D &InSize)
 		: ArrayValues(InArrayValues), 
 		NumCells(InNumCells), 
 		Position(InPosition), 
-		Size(InSize)
+		Size(InSize),
+		BakedTexture(InBakedWaterTexture)
 	{
 		Dx = Size / FVector2D(NumCells.X, NumCells.Y);
 	}
@@ -107,6 +108,10 @@ public:
 	/** World space grid cell size */
 	UPROPERTY()
 	FVector2D Dx;
+	
+	/** Texture for baked water sim data */
+	UPROPERTY()
+	TObjectPtr<UTexture2D> BakedTexture;
 };
 
 UCLASS(meta = (BlueprintSpawnableComponent), MinimalAPI)

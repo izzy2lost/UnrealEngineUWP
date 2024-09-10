@@ -70,9 +70,9 @@ private:
 
 	FTrackedFrameData* GetLastSubjectFrameData(const FName& SubjectName);
 
-	void SetLastSubjectStaticData(FName SubjectName, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData);
+	void SetLastSubjectStaticData(FName SubjectName, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData, TMap<FName, FString>&& Annotations);
 
-	void SetLastSubjectFrameData(FName SubjectName, FLiveLinkFrameDataStruct&& FrameData);
+	void SetLastSubjectFrameData(FName SubjectName, FLiveLinkFrameDataStruct&& FrameData, TMap<FName, FString>&& SubjectAnnotations);
 
 	// Clear a existing track subject
 	void ClearTrackedSubject(const FName& SubjectName);
@@ -186,7 +186,7 @@ public:
 
 	virtual void UpdateSubject(const FName& SubjectName, const TArray<FName>& BoneNames, const TArray<int32>& BoneParents);
 
-	virtual bool UpdateSubjectStaticData(const FName SubjectName, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData) override;
+	virtual bool UpdateSubjectStaticData(const FName SubjectName, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData, const TMap<FName, FString>& ExtraAnnotations = {}) override;
 
 	virtual void ClearSubject(const FName& SubjectName);
 
@@ -199,8 +199,8 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 									const FLiveLinkMetaData& MetaData, double Time);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	virtual bool UpdateSubjectFrameData(const FName SubjectName, FLiveLinkFrameDataStruct&& FrameData) override;
-	
+	virtual bool UpdateSubjectFrameData(const FName SubjectName, FLiveLinkFrameDataStruct&& FrameData, const TMap<FName, FString>& ExtraAnnotations = {}) override;
+
 	virtual bool HasConnection() const override;
 
 	virtual FDelegateHandle RegisterConnStatusChangedHandle(const FLiveLinkProviderConnectionStatusChanged::FDelegate& ConnStatusChanged) override;

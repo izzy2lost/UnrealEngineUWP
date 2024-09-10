@@ -433,6 +433,9 @@ struct FRHIGlobals
 
 		/** Whether or not the RHI supports inline ray tracing in compute shaders, without a full ray tracing pipeline. */
 		bool SupportsInlineRayTracing = false;
+		
+		/** Whether or not the RHI requires a SBT for inline ray tracing in compute shaders to fetch geometry information */
+		bool RequiresInlineRayTracingSBT = false;
 
 		/** Wether an extra uniform buffer parameter is required when loose parameters are present, or if they are stored directly in the shader record. */
 		bool SupportsLooseParamsInShaderRecord = false;

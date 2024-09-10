@@ -175,7 +175,7 @@ struct FPixelShaderUtils
 			Forward<FRDGEventName>(PassName),
 			Parameters,
 			PassFlags,
-			[Parameters, GlobalShaderMap, PixelShader, Viewport, BlendState, RasterizerState, DepthStencilState, StencilRef](FRHICommandList& RHICmdList)
+			[Parameters, GlobalShaderMap, PixelShader, Viewport, BlendState, RasterizerState, DepthStencilState, StencilRef](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FPixelShaderUtils::DrawFullscreenPixelShader(RHICmdList, GlobalShaderMap, PixelShader, *Parameters, Viewport,
 			BlendState, RasterizerState, DepthStencilState, StencilRef);
@@ -207,7 +207,7 @@ struct FPixelShaderUtils
 			Forward<FRDGEventName>(PassName),
 			Parameters,
 			PassFlags,
-			[Parameters, GlobalShaderMap, PixelShader, Viewports, BlendState, RasterizerState, DepthStencilState, StencilRef](FRHICommandList& RHICmdList)
+			[Parameters, GlobalShaderMap, PixelShader, Viewports, BlendState, RasterizerState, DepthStencilState, StencilRef](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FPixelShaderUtils::DrawFullscreenInstancedMultiViewportPixelShader(RHICmdList, GlobalShaderMap, PixelShader, *Parameters, Viewports,
 				BlendState, RasterizerState, DepthStencilState, StencilRef);
@@ -281,7 +281,7 @@ struct FPixelShaderUtils
 			Forward<FRDGEventName>(PassName),
 			Parameters,
 			PassFlags,
-			[Parameters, GlobalShaderMap, VertexShader, PixelShader, ViewportSize, BlendState, RasterizerState, DepthStencilState, StencilRef, bSkipRenderPass](FRHICommandList& RHICmdList)
+			[Parameters, GlobalShaderMap, VertexShader, PixelShader, ViewportSize, BlendState, RasterizerState, DepthStencilState, StencilRef, bSkipRenderPass](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			if (bSkipRenderPass)
 			{

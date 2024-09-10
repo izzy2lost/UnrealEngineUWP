@@ -2835,7 +2835,7 @@ void UNavigationSystemV1::UnregisterNavData(ANavigationData* NavData)
 		return;
 	}
 
-    AgentToNavDataMap.Remove(NavData->GetConfig());
+    AgentToNavDataMap.Remove(NavData->GetNavAgentProperties());
 
 	FScopeLock Lock(&NavDataRegistration);
 	NavDataRegistrationQueue.Remove(NavData);

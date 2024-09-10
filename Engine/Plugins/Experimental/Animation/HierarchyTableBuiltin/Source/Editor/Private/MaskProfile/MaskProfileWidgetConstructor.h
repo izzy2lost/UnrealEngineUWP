@@ -17,5 +17,5 @@ public:
 	~FHierarchyTableMaskWidgetConstructor_Value() override = default;
 
 protected:
-	virtual TSharedRef<SWidget> CreateInternalWidget(FHierarchyTableEntryData* EntryData) override;
+	virtual TSharedRef<SWidget> CreateInternalWidget(UHierarchyTable* HierarchyTable, int32 EntryIndex) override;
 };

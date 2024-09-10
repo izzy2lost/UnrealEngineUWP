@@ -62,6 +62,13 @@ bool FCameraIKAim::DoRun(const FCameraIKAimParams& Params, const FCameraRigEvalu
 	// Initialize our scratch result.
 	ScratchResult.VariableTable.Initialize(CameraRigInfo.CameraRig->AllocationInfo.VariableTableInfo);
 	ScratchResult.VariableTable.OverrideAll(CameraSystemEvaluator->GetEvaluatedResult().VariableTable);
+	ScratchResult.VariableTable.Override(CameraRigInfo.LastResult->VariableTable, ECameraVariableTableFilter::AllPublic | ECameraVariableTableFilter::Private);
+
+	// Initialize our hierarchy caches.
+	FRootCameraNodeEvaluator* CameraSystemRootEvaluator = CameraSystemEvaluator->GetRootNodeEvaluator();
+	FSingleCameraRigHierarchyBuildParams HierarchyParams;
+	HierarchyParams.CameraRigInfo = CameraRigInfo;
+	CameraSystemRootEvaluator->BuildSingleCameraRigHierarchy(HierarchyParams, CameraSystemHierarchy);
 
 	// Iterate on the solution.
 	FAimIterationInfo IterationInfo;
@@ -133,13 +140,12 @@ void FCameraIKAim::RunRootCameraNode(const FCameraIKAimParams& Params, const FCa
 	FRootCameraNodeEvaluator* RootEvaluator = Params.Evaluator->GetRootNodeEvaluator();
 
 	// Save the initial state of the camera rig.
-	// TODO: we could optimize this a bit by caching the list of nodes that want serialization.
 	{
 		EvaluatorSnapshot.Reset();
 
 		FCameraNodeEvaluatorSerializeParams SerializeParams;
 		FMemoryWriter Writer(EvaluatorSnapshot);
-		RootEvaluator->Serialize(SerializeParams, Writer);
+		CameraSystemHierarchy.CallSerialize(SerializeParams, Writer);
 	}
 
 	// Run the system.
@@ -158,7 +164,7 @@ void FCameraIKAim::RunRootCameraNode(const FCameraIKAimParams& Params, const FCa
 	{
 		FCameraNodeEvaluatorSerializeParams SerializeParams;
 		FMemoryReader Reader(EvaluatorSnapshot);
-		RootEvaluator->Serialize(SerializeParams, Reader);
+		CameraSystemHierarchy.CallSerialize(SerializeParams, Reader);
 	}
 }
 
@@ -244,7 +250,11 @@ void FCameraIKAim::AimTwoBonesCameraRig(const FCameraIKAimParams& Params, const 
 	Operation.Yaw = FConsumableDouble::Delta(Correction.Yaw);
 	Operation.Pitch = FConsumableDouble::Delta(Correction.Pitch);
 
-	CameraRigInfo.RootEvaluator->ExecuteOperation(OperationParams, Operation);
+	CameraSystemHierarchy.ForEachEvaluator(TEXT("ActiveCameraRig"), ECameraNodeEvaluatorFlags::SupportsOperations,
+			[&OperationParams, &Operation](FCameraNodeEvaluator* Evaluator)
+			{
+				Evaluator->ExecuteOperation(OperationParams, Operation);
+			});
 
 	if (Operation.Yaw.HasValue() || Operation.Pitch.HasValue())
 	{

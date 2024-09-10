@@ -54,6 +54,9 @@ public:
 	/** Hide all or a single component */
 	void SetVisibility(bool bVisible, UActorComponent* Component = nullptr);
 
+	/** Array of all DynamicMeshComponents in the scene */
+	TArray<TObjectPtr<UDynamicMeshComponent>> GetDynamicMeshComponents() const;
+
 private:
 
 	/** Reset the scene mesh visualizer */

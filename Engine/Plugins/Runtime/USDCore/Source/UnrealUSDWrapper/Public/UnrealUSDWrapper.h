@@ -8,7 +8,9 @@
 #include "Modules/ModuleInterface.h"
 #include "Templates/Tuple.h"
 #include "UObject/ObjectMacros.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "USDMemory.h"
+#endif	  // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 
 #include "UsdWrappers/ForwardDeclarations.h"
 

@@ -13,9 +13,9 @@
 #include "SceneOutlinerTedsBridge.generated.h"
 
 class ISceneOutliner;
-class ITypedElementDataStorageInterface;
-class ITypedElementDataStorageUiInterface;
-class ITypedElementDataStorageCompatibilityInterface;
+class IEditorDataStorageProvider;
+class IEditorDataStorageUiProvider;
+class IEditorDataStorageCompatibilityProvider;
 
 DECLARE_DELEGATE_RetVal_OneParam(FSceneOutlinerTreeItemID, FTreeItemIDDealiaser, UE::Editor::DataStorage::RowHandle);
 
@@ -61,20 +61,20 @@ private:
 	
 	TMap<TWeakPtr<ISceneOutliner>, TSharedPtr<FSceneOutlinerTedsBridge>> SceneOutliners;
 
-	ITypedElementDataStorageInterface* Storage{ nullptr };
-	ITypedElementDataStorageUiInterface* StorageUi{ nullptr };
-	ITypedElementDataStorageCompatibilityInterface* StorageCompatibility{ nullptr };
+	IEditorDataStorageProvider* Storage{ nullptr };
+	IEditorDataStorageUiProvider* StorageUi{ nullptr };
+	IEditorDataStorageCompatibilityProvider* StorageCompatibility{ nullptr };
 
 	TMap<TWeakObjectPtr<const UScriptStruct>, FName> TEDSToOutlinerDefaultColumnMapping;
 };
 
 UCLASS()
-class USceneOutlinerTedsBridgeFactory : public UTypedElementDataStorageFactory
+class USceneOutlinerTedsBridgeFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~USceneOutlinerTedsBridgeFactory() override = default;
 
-	void RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+	void RegisterWidgetPurposes(IEditorDataStorageUiProvider& DataStorageUi) const override;
 };

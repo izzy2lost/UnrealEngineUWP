@@ -47,6 +47,21 @@ void UOptimusGraphDataInterface::Init(TArray<FOptimusGraphVariableDescription> c
 	}
 }
 
+int32 UOptimusGraphDataInterface::FindFunctionIndex(const FOptimusValueIdentifier& InValueId) const
+{
+	for (int32 Index = 0 ; Index < Variables.Num(); Index++)
+	{
+		if (Variables[Index].ValueId == InValueId)
+		{
+			return Index;
+		}
+	}
+
+	return INDEX_NONE;
+}
+
+
+
 void UOptimusGraphDataInterface::GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const
 {
 	OutFunctions.Reserve(OutFunctions.Num() + Variables.Num());
@@ -112,9 +127,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (!VariableDescription.Value_DEPRECATED.IsEmpty())
 		{
 			FOptimusDataTypeHandle DataType = FOptimusDataTypeRegistry::Get().FindType(VariableDescription.ValueType);
-			VariableDescription.ShaderValue = DataType->MakeShaderValue();
-			check(VariableDescription.ShaderValue.ArrayList.Num() == 0);
-			VariableDescription.ShaderValue.ShaderValue = VariableDescription.Value_DEPRECATED;
+			VariableDescription.ShaderValue_DEPRECATED = DataType->MakeShaderValue();
+			check(VariableDescription.ShaderValue_DEPRECATED.ArrayList.Num() == 0);
+			VariableDescription.ShaderValue_DEPRECATED.ShaderValue = VariableDescription.Value_DEPRECATED;
 			VariableDescription.Value_DEPRECATED.Reset();
 		}
 	}
@@ -128,16 +143,6 @@ void UOptimusGraphDataProvider::Init(UMeshComponent* InMeshComponent, const TArr
 	Variables = InVariables;
 	ParameterBufferSize = InParameterBufferSize;
 
-	for (FOptimusGraphVariableDescription& Variable : Variables)
-	{
-		// When source object was introduced, we also appended a unique index to the value name provided by each value provider
-		// so instead of using the name directly, we need to do this extra step
-		if (!Variable.SourceObject.IsNull())
-		{
-			Variable.CachedSourceValueName = Optimus::ExtractSourceValueName(Variable.Name);
-		}
-	}
-	
 	int32 TotalNumArrays = 0;
 	for (FOptimusGraphVariableDescription& Variable : Variables)
 	{
@@ -160,21 +165,6 @@ void UOptimusGraphDataProvider::Init(UMeshComponent* InMeshComponent, const TArr
 			{
 				ParameterArrayMetadata[TopLevelArrayIndex].Offset = Variable.Offset + TypeArrayMetadata[ArrayIndex].ShaderValueOffset;
 				ParameterArrayMetadata[TopLevelArrayIndex].ElementSize = TypeArrayMetadata[ArrayIndex].ElementShaderValueSize;
-			}
-		}
-	}
-}
-
-void UOptimusGraphDataProvider::SetConstant(TSoftObjectPtr<UObject> InSourceObject, FShaderValueContainer const& InValue)
-{
-	for (int32 VariableIndex = 0; VariableIndex < Variables.Num(); ++VariableIndex)
-	{
-		if (Variables[VariableIndex].SourceObject == InSourceObject)
-		{
-			if (ensure(FShaderValueContainer::IsSameType(Variables[VariableIndex].ShaderValue, InValue)))
-			{
-				Variables[VariableIndex].ShaderValue = InValue;
-				break;
 			}
 		}
 	}
@@ -224,61 +214,12 @@ FOptimusGraphDataProviderProxy::FOptimusGraphDataProviderProxy(
     	}	
 	};
 
-	TArray<UOptimusVariableDescription*> const& VariableValues = DeformerInstance->GetVariables();
+	
 	for (FOptimusGraphVariableDescription const& Variable : Variables)
 	{
-		if (Variable.ShaderValue.IsValid())
-		{
-			// Use the constant value.
-			CopyVariableToBuffer(Variable.Offset, Variable.CachedArrayIndexStart, Variable.ShaderValue);
-		}
-		else
-		{
-			// Find value from variables on the deformer instance.
-			// todo[CF]: Use a map for more efficient look up? Or something even faster like having a fixed location per variable?
-			for (UOptimusVariableDescription const* VariableValue : VariableValues)
-			{
-				if (VariableValue != nullptr)
-				{
-					if (Variable.ValueType != VariableValue->DataType->ShaderValueType)
-					{
-						continue;
-					}
+		const FShaderValueContainer& ShaderValue = DeformerInstance->GetShaderValue(Variable.ValueId);
 
-					bool bNameMatch = false;
-					
-					// Once upon a time when these values had no source objects, they also just have simple names
-					// so we can directly use the name to find the matching variable
-					if (Variable.SourceObject.IsNull())
-					{
-						// Using GetPlainNameString here because back then variables in the graph data interface were
-						// also generated using GetPlainNameString. This certainly creates an issue where
-						// multiple variables were sharing the same name, but at least the first matching variable
-						// would still work
-						if (Variable.Name == VariableValue->VariableName.GetPlainNameString())
-						{
-							bNameMatch = true;
-						}	
-					}
-					else
-					{
-						// When source object was introduced, we also appended a unique index to the value name
-						// so instead of using the name directly we use the source value name
-						if (Variable.CachedSourceValueName == VariableValue->VariableName)
-						{
-							bNameMatch = true;
-						}	
-					}
-
-					if (bNameMatch)
-					{
-						CopyVariableToBuffer(Variable.Offset, Variable.CachedArrayIndexStart, VariableValue->CachedShaderValue);
-						
-						break;
-					}
-				}
-			}
-		}
+		CopyVariableToBuffer(Variable.Offset, Variable.CachedArrayIndexStart, ShaderValue);
 	}
 }
 

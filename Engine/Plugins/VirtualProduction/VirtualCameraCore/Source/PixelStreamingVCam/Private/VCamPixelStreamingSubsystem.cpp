@@ -8,6 +8,7 @@
 #include "Engine/Engine.h"
 #include "Features/IModularFeatures.h"
 #include "ILiveLinkClient.h"
+#include "PixelStreamingVCamLog.h"
 
 UVCamPixelStreamingSubsystem* UVCamPixelStreamingSubsystem::Get()
 {
@@ -43,13 +44,7 @@ void UVCamPixelStreamingSubsystem::RegisterActiveOutputProvider(UVCamPixelStream
 {
 	check(OutputProvider);
 	RegisteredSessions.AddUnique(OutputProvider);
-	
-	if (LiveLinkSource)
-	{
-		FName SubjectName = FName(OutputProvider->StreamerId);
-		LiveLinkSource->CreateSubject(SubjectName);
-		LiveLinkSource->PushTransformForSubject(SubjectName, FTransform::Identity);
-	}
+	UpdateLiveLinkSource(OutputProvider);
 }
 
 void UVCamPixelStreamingSubsystem::UnregisterActiveOutputProvider(UVCamPixelStreamingSession* OutputProvider)
@@ -59,34 +54,39 @@ void UVCamPixelStreamingSubsystem::UnregisterActiveOutputProvider(UVCamPixelStre
 	
 	if (LiveLinkSource)
 	{
-		FName SubjectName = FName(OutputProvider->StreamerId);
-		LiveLinkSource->RemoveSubject(SubjectName);
+		LiveLinkSource->RemoveSubject();
 	}
+}
+
+void UVCamPixelStreamingSubsystem::UpdateLiveLinkSource(UVCamPixelStreamingSession* OutputProvider)
+{
+	if (!IsValid(OutputProvider))
+	{
+		return;
+	}
+	
+	IModularFeatures& ModularFeatures = IModularFeatures::Get();
+	if (!ModularFeatures.IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
+	{
+		UE_LOG(LogPixelStreamingVCam, Warning, TEXT("Failed to create subobject. VCam's camera transform will not update."))
+		return;
+	}
+
+	ILiveLinkClient* LiveLinkClient = &ModularFeatures.GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+	if (!LiveLinkSource)
+	{
+		LiveLinkSource = MakeShared<FPixelStreamingLiveLinkSource>();
+		LiveLinkClient->AddSource(LiveLinkSource);
+	}
+	
+	// This will delete the old subject, if it exists, and create a new subject with the target name.
+	const FName SubjectName = FName(OutputProvider->StreamerId);
+	LiveLinkSource->CreateSubject(SubjectName);
+	LiveLinkSource->PushTransformForSubject(SubjectName, FTransform::Identity);
 }
 
 TSharedPtr<FPixelStreamingLiveLinkSource> UVCamPixelStreamingSubsystem::TryGetLiveLinkSource(UVCamPixelStreamingSession* OutputProvider)
 {
-	IModularFeatures& ModularFeatures = IModularFeatures::Get();
-	if (!ModularFeatures.IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
-	{
-		return nullptr;
-	}
-
-	ILiveLinkClient* LiveLinkClient = &ModularFeatures.GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-	if (!LiveLinkSource.IsValid()
-		// User can manually remove live link sources via UI
-		|| !LiveLinkClient->HasSourceBeenAdded(LiveLinkSource))
-	{
-		LiveLinkSource = MakeShared<FPixelStreamingLiveLinkSource>();
-		LiveLinkClient->AddSource(LiveLinkSource);
-
-		if (IsValid(OutputProvider))
-		{
-			FName SubjectName = FName(OutputProvider->StreamerId);
-			LiveLinkSource->CreateSubject(SubjectName);
-			LiveLinkSource->PushTransformForSubject(SubjectName, FTransform::Identity);
-		}
-	}
 	return LiveLinkSource;
 }
 

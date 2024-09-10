@@ -8,7 +8,9 @@
 #include "UObject/UObjectGlobals.h"
 
 #include "UnrealUSDWrapper.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "USDMemory.h"
+#endif	  // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "UsdWrappers/ForwardDeclarations.h"
 #include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/SdfPath.h"
@@ -55,6 +57,8 @@ enum class EUsdDrawMode : int32;
 enum class EUsdDuplicateType : uint8;
 enum class EUsdUpAxis : uint8;
 struct FUsdUnrealAssetInfo;
+template<typename UsdObjectType>
+class TUsdStore;
 
 namespace UE
 {

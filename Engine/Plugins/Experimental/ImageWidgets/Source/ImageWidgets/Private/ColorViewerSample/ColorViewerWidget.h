@@ -8,6 +8,7 @@
 
 #include <SImageCatalog.h>
 #include <SImageViewport.h>
+#include <Widgets/Layout/SSplitter.h>
 
 namespace UE::ImageWidgets::Sample
 {
@@ -43,8 +44,14 @@ namespace UE::ImageWidgets::Sample
 		/** Choose a random color for the current entry. */
 		void RandomizeColor();
 
+		/** Checks if the Randomize Color action is available. */
+		bool RandomizeColorEnabled() const;
+
+		/** Creates a context menu for a group. */
+		TSharedPtr<SWidget> GetGroupContextMenu(FName GroupName) const;
+
 		/** Creates a context menu for a set of selected guids. */
-		TSharedPtr<SWidget> GetContextMenu(const TArray<FGuid>& Guids) const;
+		TSharedPtr<SWidget> GetItemsContextMenu(const TArray<FGuid>& Guids) const;
 
 		/** The image viewer implementation that contains the image data and renders the image. */
 		TSharedPtr<FColorViewer> ColorViewer;
@@ -54,15 +61,16 @@ namespace UE::ImageWidgets::Sample
 
 		/** The image catalog that holds all currently available images. */
 		TSharedPtr<SImageCatalog> Catalog;
-		
+
 		/** The image viewport in which the current image gets displayed in. */
 		TSharedPtr<SImageViewport> Viewport;
 
 		/** The commands used by this sample widget. */
 		TSharedPtr<FUICommandList> CommandList;
 
-		/** Indicates that the catalog is still collapsed. This gets set to false as soon as a catalog entry is added, or it is manually expanded. */
-		bool bCatalogCollapsedOnInit = true;
+		/** Names for groups in the catalog. */
+		FName GroupColors;
+		FName GroupFavorites;
 	};
 }
 

@@ -15,7 +15,7 @@ struct PCG_API FPCGSplineStruct
 
 	void Initialize(const USplineComponent* InSplineComponent);
 	void Initialize(const TArray<FSplinePoint>& InSplinePoints, bool bIsClosedLoop, const FTransform& InTransform);
-	void ApplyTo(USplineComponent* InSplineComponent);
+	void ApplyTo(USplineComponent* InSplineComponent) const;
 
 	FTransform GetTransform() const { return Transform; }
 

@@ -80,7 +80,9 @@ private:
 
 	void WriteData(UE::Net::EDataStreamWriteMode WriteMode);
 
+#if UE_WITH_IRIS
 	TObjectPtr<UDataStreamManager> DataStreamManager = nullptr;
+#endif
 
 	TResizableCircularQueue<FDataStreamChannelRecord> WriteRecords;
 

@@ -2020,6 +2020,11 @@ bool UMaterialInstance::WritesToRuntimeVirtualTexture() const
 	return Parent ? Parent->WritesToRuntimeVirtualTexture() : false;
 }
 
+bool UMaterialInstance::HasMeshPaintTexture() const
+{
+	return Parent ? Parent->HasMeshPaintTexture() : false;
+}
+
 const FMaterialResource* UMaterialInstance::GetMaterialResource(ERHIFeatureLevel::Type InFeatureLevel, EMaterialQualityLevel::Type QualityLevel) const
 {
 	return const_cast<UMaterialInstance*>(this)->GetMaterialResource(InFeatureLevel, QualityLevel);

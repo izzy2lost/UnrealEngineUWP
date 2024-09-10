@@ -41,6 +41,7 @@ public:
 	FCachedOSVeryLargePageAllocator()
 		: bEnabled(true)
 		, CachedFree(0)
+		, ImmediatelyFreeable(0)
 	{
 		Init();
 	}
@@ -61,9 +62,14 @@ public:
 
 	void UpdateStats();
 
-	uint64 GetCachedFreeTotal()
+	uint64 GetCachedFreeTotal() const
 	{
 		return CachedFree + CachedOSPageAllocator.GetCachedFreeTotal();
+	}
+
+	uint64 GetCachedImmediatelyFreeable() const
+	{
+		return ImmediatelyFreeable + CachedOSPageAllocator.GetCachedImmediatelyFreeable();
 	}
 
 	FORCEINLINE bool IsSmallBlockAllocation(const void* Ptr) const
@@ -122,6 +128,7 @@ private:
 	uintptr_t	AddressSpaceReservedEndSmallPool;
 	uintptr_t	AddressSpaceReservedEnd;
 	uint64		CachedFree;
+	uint64		ImmediatelyFreeable;		// the amount of memory that can be immediately returned to the OS
 	int32		EmptyBackStoreCount[FMemory::AllocationHints::Max];
 	int32		CommittedLargePagesCount[FMemory::AllocationHints::Max];
 

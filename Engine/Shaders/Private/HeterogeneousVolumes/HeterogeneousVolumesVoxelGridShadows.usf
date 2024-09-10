@@ -8,6 +8,7 @@
 #include "HeterogeneousVolumesTracingUtils.ush"
 #include "HeterogeneousVolumesVoxelGridTraversal.ush"
 #include "HeterogeneousVolumesVoxelGridRenderingUtils.ush"
+#include "../BlueNoise.ush"
 
 #include "../PathTracing/Utilities/PathTracingRandomSequence.ush"
 
@@ -335,7 +336,8 @@ void RenderVolumetricShadowMapForLightWithVoxelGridCS(
 	uint LinearIndex = GetLinearIndex(Face, PixelCoord);
 
 	// Generate a light ray
-	float2 ShadowUV = float2(PixelCoord + 0.5f) / float2(ShadowResolution);
+	//float2 ShadowUV = float2(PixelCoord + 0.5f) / float2(ShadowResolution);
+	float2 ShadowUV = float2(PixelCoord + View.TemporalAAJitter.xy) / float2(ShadowResolution);
 	const float NearScreenZ = 1.0;
 	const float FarScreenZ = 0.0;
 
@@ -376,10 +378,9 @@ void RenderVolumetricShadowMapForLightWithVoxelGridCS(
 	int PixelIndex = LinearIndex * MaxSampleCount;
 
 	float HitSpan = RayHitT.y - RayHitT.x;
-	float Depth = 1.0;
 	if (HitSpan > 0.0)
 	{
-		float Jitter = bJitter ? InterleavedGradientNoise(PixelCoord, View.StateFrameIndexMod8) : 0.0;
+		float Jitter = bJitter ? BlueNoiseScalar(PixelCoord, View.StateFrameIndexMod8) : 0.0;
 
 		FRayMarchingContext RayMarchingContext = CreateRayMarchingContext(
 			// Local-space
@@ -422,7 +423,7 @@ void RenderVolumetricShadowMapForLightWithVoxelGridCS(
 			Transmittance *= exp(-Extinction * RayMarchingContext.StepSize);
 
 			bool bFirstEntry = (ElementIndex == 0);
-			if (bFirstEntry && any(Extinction > 0.0))
+			if (bFirstEntry)
 			{
 				FAVSMSampleData SampleData = AVSM_CreateSampleData(WorldHitT, Luminance(Transmittance));
 				AddSample(SampleData, PixelIndex, PrevElementIndex, ElementIndex);
@@ -431,7 +432,7 @@ void RenderVolumetricShadowMapForLightWithVoxelGridCS(
 				ExpectedExtinction = Extinction;
 				ExpectedTransmittance = Transmittance;
 			}
-			else if (ElementIndex > 0 && any(Extinction > 0.0))
+			else
 			{
 				// If extrapolated transmittance is beyond relative error tolerance
 				ExpectedTransmittance *= exp(-ExpectedExtinction * RayMarchingContext.StepSize);

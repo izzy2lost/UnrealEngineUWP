@@ -7705,6 +7705,40 @@ UE::Cook::EProcessType UCookOnTheFlyServer::GetProcessType()
 	}
 }
 
+bool UCookOnTheFlyServer::IsIterative()
+{
+	// TODO: For simplicity, we provide a single bool for all platforms in multiprocess cooks
+	// But it is not currently guaranteed that they all have the same value; add enforcement of
+	// that in CookByTheBookStarted.
+	if (!PlatformManager || PlatformManager->GetNumSessionPlatforms() == 0)
+	{
+		return false;
+	}
+	const ITargetPlatform* TargetPlatform = PlatformManager->GetSessionPlatforms()[0];
+	UE::Cook::FPlatformData* PlatformData = PlatformManager->GetPlatformData(TargetPlatform);
+	return !PlatformData->bFullBuild;
+}
+
+TArray<const ITargetPlatform*> UCookOnTheFlyServer::GetSessionPlatforms()
+{
+	return PlatformManager ? PlatformManager->GetSessionPlatforms() : TArray<const ITargetPlatform*>();
+}
+
+FString UCookOnTheFlyServer::GetCookOutputFolder(const ITargetPlatform* TargetPlatform)
+{
+	if (!SandboxFile || !PlatformManager || !TargetPlatform)
+	{
+		return FString();
+	}
+	if (!PlatformManager->GetSessionPlatforms().Contains(TargetPlatform))
+	{
+		return FString();
+	}
+	FString Result = SandboxFile->GetSandboxDirectory(TargetPlatform->PlatformName());
+	FPaths::MakeStandardFilename(Result);
+	return Result;
+}
+
 void UCookOnTheFlyServer::RegisterCollector(UE::Cook::IMPCollector* Collector, UE::Cook::EProcessType ProcessType)
 {
 	using namespace UE::Cook;

@@ -50,6 +50,8 @@ void SDMMaterialWizard::PrivateRegisterAttributes(FSlateAttributeDescriptor::FIn
 
 SDMMaterialWizard::~SDMMaterialWizard()
 {
+	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
+
 	if (!FDynamicMaterialModule::AreUObjectsSafe())
 	{
 		return;
@@ -71,6 +73,8 @@ void SDMMaterialWizard::Construct(const FArguments& InArgs, const TSharedRef<SDM
 	MaterialObjectProperty = InArgs._MaterialProperty;
 
 	SetCanTick(false);
+
+	FCoreDelegates::OnEnginePreExit.AddSP(this, &SDMMaterialWizard::OnEnginePreExit);
 
 	if (MaterialObjectProperty.IsSet())
 	{
@@ -154,11 +158,11 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateLayout()
 				SAssignNew(Switcher, SWidgetSwitcher)
 				+ SWidgetSwitcher::Slot()
 				[
-					CreateTemplateListLayout()
+					CreateNewTemplateLayout()
 				]
 				+ SWidgetSwitcher::Slot()
 				[
-					CreateSelectPresetLayout()
+					CreateNewInstanceLayout()
 				]
 			]
 		];
@@ -166,50 +170,78 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateLayout()
 
 TSharedRef<SWidget> SDMMaterialWizard::CreateModeSelector()
 {
-	return SNew(SHorizontalBox)
+	TSharedRef<SHorizontalBox> Container = SNew(SHorizontalBox);
 
-		+ SHorizontalBox::Slot()
-		.FillContentWidth(1.f)
-		.HAlign(EHorizontalAlignment::HAlign_Right)
-		.Padding(0.f, 0.f, 5.f, 0.f)
-		[
-			SNew(SCheckBox)
-			.Style(FAppStyle::Get(), "DetailsView.SectionButton")
-			.HAlign(EHorizontalAlignment::HAlign_Center)
-			.Padding(FMargin(10.f, 6.f))
-			.IsChecked(this, &SDMMaterialWizard::IsModeSelected, 0)
-			.OnCheckStateChanged(this, &SDMMaterialWizard::SetMode, 0)
-			.ToolTipText(LOCTEXT("TemplateModeToolTip", "Create a new Dynamic Material Instance based on a template."))
-			.Content()
-			[
-				SNew(STextBlock)
-				.TextStyle(FDynamicMaterialEditorStyle::Get(), "BoldFont")
-				.Text(LOCTEXT("TemplateMode", "New Instance"))
-			]
-		]
+	const TArray<EHorizontalAlignment> Alignments = {
+		EHorizontalAlignment::HAlign_Right,
+		EHorizontalAlignment::HAlign_Left
+	};
 
-		+ SHorizontalBox::Slot()
-		.FillContentWidth(1.f)
-		.HAlign(EHorizontalAlignment::HAlign_Left)
-		.Padding(5.f, 0.f, 0.f, 0.f)
-		[
-			SNew(SCheckBox)
-			.Style(FAppStyle::Get(), "DetailsView.SectionButton")
-			.HAlign(EHorizontalAlignment::HAlign_Center)
-			.Padding(FMargin(10.f, 6.f))
-			.IsChecked(this, &SDMMaterialWizard::IsModeSelected, 1)
-			.OnCheckStateChanged(this, &SDMMaterialWizard::SetMode, 1)
-			.ToolTipText(LOCTEXT("PresetModeToolTip", "Set up a new Material based on simple channel presets."))
-			.Content()
-			[
-				SNew(STextBlock)
-				.TextStyle(FDynamicMaterialEditorStyle::Get(), "BoldFont")
-				.Text(LOCTEXT("PresetMode", "New Template"))
-			]
-		];
+	const TArray<FMargin> Paddings = {
+		FMargin(0.f, 0.f, 5.f, 0.f),
+		FMargin(5.f, 0.f, 0.f, 0.f)
+	};
+
+	for (int32 SwitcherIndex = 0; SwitcherIndex < EDMMaterialWizardMode::Count; ++SwitcherIndex)
+	{
+		switch (SwitcherIndex)
+		{
+			case EDMMaterialWizardMode::Template:
+			{
+				Container->AddSlot()
+					.FillContentWidth(1.f)
+					.HAlign(Alignments[SwitcherIndex])
+					.Padding(Paddings[SwitcherIndex])
+					[
+						SNew(SCheckBox)
+						.Style(FAppStyle::Get(), "DetailsView.SectionButton")
+						.HAlign(EHorizontalAlignment::HAlign_Center)
+						.Padding(FMargin(10.f, 6.f))
+						.IsChecked(this, &SDMMaterialWizard::IsModeSelected, EDMMaterialWizardMode::Template)
+						.OnCheckStateChanged(this, &SDMMaterialWizard::SetMode, EDMMaterialWizardMode::Template)
+						.ToolTipText(LOCTEXT("PresetModeToolTip", "Set up a new Material based on simple channel presets."))
+						.Content()
+						[
+							SNew(STextBlock)
+							.TextStyle(FDynamicMaterialEditorStyle::Get(), "BoldFont")
+							.Text(LOCTEXT("PresetMode", "New Material"))
+						]
+					];
+
+				break;
+			}
+
+			case EDMMaterialWizardMode::Instance:
+			{
+				Container->AddSlot()
+					.FillContentWidth(1.f)
+					.HAlign(Alignments[SwitcherIndex])
+					.Padding(Paddings[SwitcherIndex])
+					[
+						SNew(SCheckBox)
+						.Style(FAppStyle::Get(), "DetailsView.SectionButton")
+						.HAlign(EHorizontalAlignment::HAlign_Center)
+						.Padding(FMargin(10.f, 6.f))
+						.IsChecked(this, &SDMMaterialWizard::IsModeSelected, EDMMaterialWizardMode::Instance)
+						.OnCheckStateChanged(this, &SDMMaterialWizard::SetMode, EDMMaterialWizardMode::Instance)
+						.ToolTipText(LOCTEXT("TemplateModeToolTip", "Create a new Dynamic Material Instance based on a template."))
+						.Content()
+						[
+							SNew(STextBlock)
+							.TextStyle(FDynamicMaterialEditorStyle::Get(), "BoldFont")
+							.Text(LOCTEXT("TemplateMode", "New Material Instance"))
+						]
+					];
+
+				break;
+			}
+		}
+	}
+
+	return Container;
 }
 
-TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPresetLayout()
+TSharedRef<SWidget> SDMMaterialWizard::CreateNewTemplateLayout()
 {
 	using namespace UE::DynamicMaterialDesigner::Private;
 
@@ -229,7 +261,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPresetLayout()
 		.HAlign(EHorizontalAlignment::HAlign_Fill)
 		.Padding(0.0f, 0.f, 0.0f, TitleContentDistance)
 		[
-			CreateSelectPreset_ChannelPresets()
+			CreateNewTemplate_ChannelPresets()
 		]
 
 		+ SVerticalBox::Slot()
@@ -249,7 +281,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPresetLayout()
 			SAssignNew(PresetChannelContainer, SBox)
 			.HAlign(EHorizontalAlignment::HAlign_Fill)
 			[
-				CreateSelectPreset_ChannelList()
+				CreateNewTemplate_ChannelList()
 			]
 		]
 
@@ -258,11 +290,11 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPresetLayout()
 		.HAlign(EHorizontalAlignment::HAlign_Fill)
 		.Padding(0.0f, SeparationDistance, 0.0f, 0.f)
 		[
-			CreateSelectPreset_AcceptButton()
+			CreateNewTemplate_AcceptButton()
 		];
 }
 
-TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPreset_ChannelPresets()
+TSharedRef<SWidget> SDMMaterialWizard::CreateNewTemplate_ChannelPresets()
 {
 	using namespace UE::DynamicMaterialDesigner::Private;
 
@@ -292,7 +324,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPreset_ChannelPresets()
 	return ChannelPresets;
 }
 
-TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPreset_ChannelList()
+TSharedRef<SWidget> SDMMaterialWizard::CreateNewTemplate_ChannelList()
 {
 	using namespace UE::DynamicMaterialDesigner::Private;
 
@@ -333,7 +365,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPreset_ChannelList()
 	return ChannelPresets;
 }
 
-TSharedRef<SWidget> SDMMaterialWizard::CreateTemplateListLayout()
+TSharedRef<SWidget> SDMMaterialWizard::CreateNewInstanceLayout()
 {
 	FAssetPickerConfig PickerConfig;
 	PickerConfig.SelectionMode = ESelectionMode::Single;
@@ -430,7 +462,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateTemplateListLayout()
 		];
 }
 
-TSharedRef<SWidget> SDMMaterialWizard::CreateSelectPreset_AcceptButton()
+TSharedRef<SWidget> SDMMaterialWizard::CreateNewTemplate_AcceptButton()
 {
 	using namespace UE::DynamicMaterialDesigner::Private;
 
@@ -464,7 +496,7 @@ void SDMMaterialWizard::Preset_OnChange(ECheckBoxState InState, FName InPresetNa
 
 		if (PresetChannelContainer.IsValid())
 		{
-			PresetChannelContainer->SetContent(CreateSelectPreset_ChannelList());
+			PresetChannelContainer->SetContent(CreateNewTemplate_ChannelList());
 		}
 	}
 }
@@ -559,7 +591,7 @@ void SDMMaterialWizard::OpenMaterialInEditor()
 	}
 }
 
-ECheckBoxState SDMMaterialWizard::IsModeSelected(int32 InMode) const
+ECheckBoxState SDMMaterialWizard::IsModeSelected(EDMMaterialWizardMode InMode) const
 {
 	if (Switcher.IsValid() && Switcher->GetActiveWidgetIndex() == InMode)
 	{
@@ -569,7 +601,7 @@ ECheckBoxState SDMMaterialWizard::IsModeSelected(int32 InMode) const
 	return ECheckBoxState::Unchecked;
 }
 
-void SDMMaterialWizard::SetMode(ECheckBoxState InState, int32 InMode)
+void SDMMaterialWizard::SetMode(ECheckBoxState InState, EDMMaterialWizardMode InMode)
 {
 	if (InState == ECheckBoxState::Checked && Switcher.IsValid())
 	{
@@ -610,21 +642,49 @@ void SDMMaterialWizard::SetSearchText(const FText& InSearchText)
 
 bool SDMMaterialWizard::ShouldFilterOutAsset(const FAssetData& InAsset) const
 {
-	UDynamicMaterialInstance* Instance = Cast<UDynamicMaterialInstance>(InAsset.GetAsset());
+	UDynamicMaterialInstance* MaterialInstance = Cast<UDynamicMaterialInstance>(InAsset.GetAsset());
 
-	if (!Instance)
+	if (!MaterialInstance)
 	{
 		return true;
 	}
 
-	UDynamicMaterialModelBase* MaterialModelBase = Instance->GetMaterialModelBase();
+	UDynamicMaterialModelBase* AssetMaterialModelBase = MaterialInstance->GetMaterialModelBase();
 
-	if (!MaterialModelBase)
+	if (!AssetMaterialModelBase)
 	{
 		return true;
 	}
 
-	return !MaterialModelBase->IsA<UDynamicMaterialModel>();
+	// Only non-dynamic models can be used as a basis.
+	if (!AssetMaterialModelBase->IsA<UDynamicMaterialModel>())
+	{
+		return true;
+	}
+
+	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
+	{
+		// Can't use it off ourselves
+		if (AssetMaterialModelBase == MaterialModel)
+		{
+			return true;
+		}
+	}
+
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(AssetMaterialModelBase);
+
+	if (!EditorOnlyData)
+	{
+		return true;
+	}
+
+	// Can't base it off things which also need a wizard.
+	if (EditorOnlyData->NeedsWizard())
+	{
+		return true;
+	}
+
+	return false;
 }
 
 void SDMMaterialWizard::OnAssetsActivated(TArrayView<const FContentBrowserItem> InSelectedItems, EAssetTypeActivationMethod::Type InActivationMethod)
@@ -656,6 +716,16 @@ void SDMMaterialWizard::OnAssetsActivated(TArrayView<const FContentBrowserItem> 
 	}
 
 	SelectTemplate(MaterialModel);
+}
+
+void SDMMaterialWizard::OnEnginePreExit()
+{
+	TextFilter.Reset();
+	AssetSearchBox.Reset();
+	AssetView.Reset();
+	Switcher.Reset();
+
+	ChildSlot.DetachWidget();
 }
 
 void SDMMaterialWizard::SelectTemplate(UDynamicMaterialModel* InTemplateModel)

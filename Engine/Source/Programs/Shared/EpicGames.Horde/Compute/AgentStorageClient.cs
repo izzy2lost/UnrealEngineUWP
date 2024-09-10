@@ -11,7 +11,7 @@ using EpicGames.Horde.Storage;
 namespace EpicGames.Horde.Compute
 {
 	/// <summary>
-	/// Storage client which can read bundles over a compute channel
+	/// Storage backend which can read bundles over a compute channel
 	/// </summary>
 	public sealed class AgentStorageBackend : IStorageBackend, IDisposable
 	{

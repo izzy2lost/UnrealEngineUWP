@@ -94,7 +94,7 @@ namespace UE::CoreUObject
 
 			void OnHandleRead(TArrayView<const UObject* const> Objects)
 			{
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					FLightweightReadScopeLock _(HandleLock);
 					for (auto&& Pair : ReadHandleCallbacks)
@@ -106,7 +106,7 @@ namespace UE::CoreUObject
 
 			void OnHandleRead(const UObject* Object)
 			{
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					FLightweightReadScopeLock _(HandleLock);
 					TArrayView<const UObject* const> Objects(&Object, 1);
@@ -119,7 +119,7 @@ namespace UE::CoreUObject
 
 			void OnClassReferenceResolved(const FObjectRef& ObjectRef, UPackage* Package, UClass* Class)
 			{
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					FLightweightReadScopeLock _(HandleLock);
 					for (auto&& Pair : ClassResolvedCallbacks)
@@ -131,7 +131,7 @@ namespace UE::CoreUObject
 
 			void OnReferenceResolved(const FObjectRef& ObjectRef, UPackage* Package, UObject* Object)
 			{
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					FLightweightReadScopeLock _(HandleLock);
 					for (auto&& Pair : HandleResolvedCallbacks)
@@ -143,7 +143,7 @@ namespace UE::CoreUObject
 
 			void OnReferenceLoaded(const FObjectRef& ObjectRef, UPackage* Package, UObject* Object)
 			{
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					FLightweightReadScopeLock _(HandleLock);
 					for (auto&& Pair : HandleLoadedCallbacks)
@@ -156,7 +156,7 @@ namespace UE::CoreUObject
 			FObjectHandleTrackingCallbackId AddObjectHandleReadCallback(FObjectHandleReadFunc Func)
 			{
 				FObjectHandleTrackingCallbackId Result;
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					HandleReadCallbackQuantity.fetch_add(1, std::memory_order_release);
 					FLightweightWriteScopeLock _(HandleLock);
@@ -169,7 +169,7 @@ namespace UE::CoreUObject
 
 			void RemoveObjectHandleReadCallback(FObjectHandleTrackingCallbackId Handle)
 			{
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					HandleReadCallbackQuantity.fetch_sub(1, std::memory_order_release);
 					FLightweightWriteScopeLock _(HandleLock);
@@ -187,7 +187,7 @@ namespace UE::CoreUObject
 			FObjectHandleTrackingCallbackId AddObjectHandleClassResolvedCallback(FObjectHandleClassResolvedFunc Func)
 			{
 				FObjectHandleTrackingCallbackId Result;
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					FLightweightWriteScopeLock _(HandleLock);
 					NextHandleId++;
@@ -199,7 +199,7 @@ namespace UE::CoreUObject
 
 			void RemoveObjectHandleClassResolvedCallback(FObjectHandleTrackingCallbackId Handle)
 			{
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					FLightweightWriteScopeLock _(HandleLock);
 					for (int32 i = ClassResolvedCallbacks.Num() - 1; i >= 0; --i)
@@ -216,7 +216,7 @@ namespace UE::CoreUObject
 			FObjectHandleTrackingCallbackId AddObjectHandleReferenceResolvedCallback(FObjectHandleReferenceResolvedFunc Func)
 			{
 				FObjectHandleTrackingCallbackId Result;
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					FLightweightWriteScopeLock _(HandleLock);
 					NextHandleId++;
@@ -228,7 +228,7 @@ namespace UE::CoreUObject
 
 			void RemoveObjectHandleReferenceResolvedCallback(FObjectHandleTrackingCallbackId Handle)
 			{
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					FLightweightWriteScopeLock _(HandleLock);
 					for (int32 i = HandleResolvedCallbacks.Num() - 1; i >= 0; --i)
@@ -245,7 +245,7 @@ namespace UE::CoreUObject
 			FObjectHandleTrackingCallbackId AddObjectHandleReferenceLoadedCallback(FObjectHandleReferenceLoadedFunc Func)
 			{
 				FObjectHandleTrackingCallbackId Result;
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					FLightweightWriteScopeLock _(HandleLock);
 					NextHandleId++;
@@ -257,7 +257,7 @@ namespace UE::CoreUObject
 
 			void RemoveObjectHandleReferenceLoadedCallback(FObjectHandleTrackingCallbackId Handle)
 			{
-				UE_AUTORTFM_OPEN2
+				UE_AUTORTFM_OPEN
 				{
 					FLightweightWriteScopeLock _(HandleLock);
 					for (int32 i = HandleLoadedCallbacks.Num() - 1; i >= 0; --i)

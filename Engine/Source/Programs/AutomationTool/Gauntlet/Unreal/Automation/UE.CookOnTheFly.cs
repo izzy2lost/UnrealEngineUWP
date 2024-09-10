@@ -24,9 +24,58 @@ namespace UE
 		bool ClientConnected = false;
 		bool CookingRequest = false;
 		bool CookOnTheFlyModeChange = false;
-		int LastEditorLogLine = 0;
-		int LastClientLogLine = 0;
-		IEnumerable<string> LogCategories = new string[] { "LogCookOnTheFly", "LogCook" };
+		bool CookingProcessStarted = false;
+		IEnumerable<string> LogCategories = new string[] { "CookOnTheFly", "Cook" };
+		public override IEnumerable<string> GetHeartbeatLogCategories() => LogCategories;
+		UnrealLogStreamParser EditorLogParser = null;
+		UnrealLogStreamParser ClientLogParser = null;
+		Checker ClientCookOnTheFlyCheckers = null;
+
+		/// <summary>
+		/// Object that allow to execute several callbacks until they return true.
+		/// </summary>
+		internal class Checker
+		{
+			private Dictionary<string, Func<bool>> ToValidate;
+
+			public Checker()
+			{
+				ToValidate = new();
+			}
+
+			/// <summary>
+			/// Register a callback to validate
+			/// </summary>
+			/// <param name="ToFound"></param>
+			/// <param name="Action"></param>
+			public void Validate(string ToFound, Func<bool> Action)
+			{
+				ToValidate.Add(ToFound, Action);
+			}
+
+			/// <summary>
+			/// Check all callbacks, return true if all passed.
+			/// </summary>
+			/// <returns></returns>
+			public bool CheckAll()
+			{
+				bool Aggregate = true;
+				foreach(var Item in ToValidate.ToArray())
+				{
+					if (Item.Value())
+					{
+						Log.Info($"Validated: {Item.Key}");
+						ToValidate.Remove(Item.Key);
+					}
+					else
+					{
+						Aggregate = false;
+					}
+				}
+
+				return Aggregate;
+			}
+		}
 
 		public CookOnTheFly(Gauntlet.UnrealTestContext InContext)
 			: base(InContext)
@@ -45,7 +94,7 @@ namespace UE
 
 		protected virtual string GetCookingRequestString()
 		{
-			return "Received cook request for unknown package";
+			return "Received cook request";
 		}
 
 		protected virtual string GetCookingProcessString()
@@ -71,11 +120,6 @@ namespace UE
 		protected virtual string GetReceivedPackagesCookedString()
 		{
 			return "Received 'PackagesCooked' message";
-		}
-
-		protected virtual string GetCreatedTransportString()
-		{
-			return "Created transport";
 		}
 
 		public override UnrealTestConfiguration GetConfiguration()
@@ -116,16 +160,53 @@ namespace UE
 				return false;
 			}
 
-			LastEditorLogLine = 0;
-			LastClientLogLine = 0;
 			StartTime = DateTime.Now;
 
 			return true;
 		}
 
+		private bool AttachToEditorLog()
+		{
+			if (TestInstance.EditorApp != null)
+			{
+				EditorLogParser = new(TestInstance.EditorApp.GetLogBufferReader());
+				return true;
+			}
+
+			return false;
+		}
+
+		private bool AttachToClientLog()
+		{
+			if (TestInstance.ClientApps.Any())
+			{
+				ClientLogParser = new(TestInstance.ClientApps.First().GetLogBufferReader());
+				ClientCookOnTheFlyCheckers = new();
+				ClientCookOnTheFlyCheckers.Validate(
+					"Client Engine initialization", new(() => ClientLogParser.GetLogLinesContaining(GetEngineInitializedString()).Any())
+				);
+				ClientCookOnTheFlyCheckers.Validate(
+					"Client Game started", new(() => ClientLogParser.GetLogLinesContaining(GetGameStartString()).Any())
+				);
+				ClientCookOnTheFlyCheckers.Validate(
+					"Client Received cooked packages", new(() => ClientLogParser.GetLogLinesContaining(GetReceivedPackagesCookedString()).Any())
+				);
+
+				return true;
+			}
+
+			// no client started yet.
+			return false;
+		}
+
 		public override void TickTest()
 		{
 			base.TickTest();
+
+			if (EditorLogParser == null && !AttachToEditorLog())
+			{
+				return;
+			}
 
 			const int TimeoutDuration = 5;
 			if ((DateTime.Now - StartTime).TotalMinutes > TimeoutDuration)
@@ -143,18 +224,10 @@ namespace UE
 				SetUnrealTestResult(Gauntlet.TestResult.Failed);
 			}
 
-			UnrealLogStreamParser EditorLogParser = new UnrealLogStreamParser();
-			LastEditorLogLine += EditorLogParser.ReadStream(EditorInstance.StdOut, LastEditorLogLine);
-			IEnumerable<string> EditorCookEntries = EditorLogParser.GetLogFromChannels(LogCategories);
-
-			if (EditorCookEntries.Any())
-			{
-				EditorCookEntries.ToList().ForEach(S => Log.Info("[Editor] " + S));
-			}
-			string CompletionString = GetStartedCookServerString();
-
+			EditorLogParser.ReadStream();
 			if (!ServerStarted)
 			{
+				string CompletionString = GetStartedCookServerString();
 				if (EditorLogParser.GetLogLinesContaining(CompletionString).Any())
 				{
 					Log.Info("Found '{0}'. Cook Server Started", CompletionString);
@@ -190,7 +263,7 @@ namespace UE
 				}
 			}
 
-			if (DeferredClientStarted && !ClientConnected)
+			if (!ClientConnected)
 			{
 				string ClientConnectedString = GetClientConnectedString();
 
@@ -201,7 +274,7 @@ namespace UE
 				}
 			}
 
-			if (ClientConnected && !CookingRequest)
+			if (!CookingRequest)
 			{
 				string CookingRequestString = GetCookingRequestString();
 
@@ -212,7 +285,12 @@ namespace UE
 				}
 			}
 
-			if (CookingRequest && !CookOnTheFlyModeChange)
+			if (!CookingProcessStarted)
+			{
+				CookingProcessStarted = EditorLogParser.GetLogLinesContaining(GetCookingProcessString()).Any();
+			}
+
+			if (CookingProcessStarted && !CookOnTheFlyModeChange && File.Exists(CookedSettingsFilePath))
 			{
 				string CookedSettingsFileText = File.ReadAllText(CookedSettingsFilePath);
 				string CookModeString = GetCookModeString();
@@ -246,49 +324,28 @@ namespace UE
 					SetUnrealTestResult(Gauntlet.TestResult.Failed);
 				}
 
-				UnrealLogStreamParser ClientLogParser = new UnrealLogStreamParser();
-				ClientLogParser.ReadStream(ClientInstance.StdOut);
-
-				string EngineInitializedString = GetEngineInitializedString();
-				if (ClientLogParser.GetLogLinesContaining(EngineInitializedString).Any())
+				if (ClientLogParser == null && !AttachToClientLog())
 				{
-					string GameStartedString = GetGameStartString();
-					string CookingProcessString = GetCookingProcessString();
-					string ReceivedPackagesCookedString = GetReceivedPackagesCookedString();
-					string TransportCreatedString = GetCreatedTransportString();
-					IEnumerable<string> ClientCookEntries = ClientLogParser.GetLogFromChannels(LogCategories);
+					return;
+				}
 
-					if (ClientCookEntries.Count() > LastClientLogLine)
-					{
-						ClientCookEntries.Skip(LastClientLogLine).ToList().ForEach(S => Log.Info("[Client] " + S));
-						LastClientLogLine = ClientCookEntries.Count();
-					}
-
-					if (ClientLogParser.GetLogLinesContaining(GameStartedString).Any()
-						&& EditorLogParser.GetLogLinesContaining(CookingProcessString).Any()
-						&& ClientCookEntries.Any()
-						&& ClientLogParser.GetLogLinesContaining(ReceivedPackagesCookedString).Any()
-						&& ClientLogParser.GetLogLinesContaining(TransportCreatedString).Any())
-					{
-						Log.Info("Found '{0}', '{1}', '{2}', '{3}'. The CookOnTheFly log channel is active. The cooking process is taking place.", GameStartedString, CookingProcessString, ReceivedPackagesCookedString, TransportCreatedString);
-						MarkTestComplete();
-						SetUnrealTestResult(Gauntlet.TestResult.Passed);
-					}
+				ClientLogParser.ReadStream();
+				if (ClientCookOnTheFlyCheckers.CheckAll() && CookingProcessStarted)
+				{
+					Log.Info("Found '{0}', '{1}', '{2}'. The CookOnTheFly log channel is active. The cooking process is taking place.", GetGameStartString(), GetCookingProcessString(), GetReceivedPackagesCookedString());
+					MarkTestComplete();
+					SetUnrealTestResult(Gauntlet.TestResult.Passed);
 				}
 			}
 		}
-	
+
 		protected override UnrealProcessResult GetExitCodeAndReason(StopReason InReason, UnrealLog InLog, UnrealRoleArtifacts InArtifacts, out string ExitReason, out int ExitCode)
 		{
-			UnrealProcessResult UnrealResult = base.GetExitCodeAndReason(InReason, InLog, InArtifacts, out ExitReason, out ExitCode);
-			// Rewriting the flags to handle the EngineInitialized error that appears if we run the editor with the -run=cook and -cookonthefly parameters.
-			if (!InLog.EngineInitialized && InArtifacts.SessionRole.RoleType == UnrealTargetRole.Editor && ServerStarted)
+			if (InArtifacts.SessionRole.RoleType == UnrealTargetRole.Editor)
 			{
-				InLog.EngineInitialized = true;
-				InLog.RequestedExit = true;
-				UnrealResult = base.GetExitCodeAndReason(InReason, InLog, InArtifacts, out ExitReason, out ExitCode);
+				InLog.EngineInitializedPattern = GetStartedCookServerString();
 			}
-			return UnrealResult;
+			return base.GetExitCodeAndReason(InReason, InLog, InArtifacts, out ExitReason, out ExitCode);
 		}
 	}
 }

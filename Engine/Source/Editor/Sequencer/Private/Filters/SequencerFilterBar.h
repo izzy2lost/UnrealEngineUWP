@@ -215,10 +215,6 @@ public:
 
 	TSet<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>> GetSelectedTracksOrAll() const;
 
-	void AddCategoryGroupIsolatedTracks(const TSet<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>>& InTracks
-		, const TSet<FName>& InCategoryNames
-		, const bool bInAddToExisting) const;
-
 	void SetTrackParentsExpanded(const UE::Sequencer::TViewModelPtr<UE::Sequencer::IOutlinerExtension>& InNode, const bool bInExpanded);
 
 	UWorld* GetWorld() const;
@@ -257,8 +253,8 @@ protected:
 	TSharedRef<FFilterCategory> MiscCategory;
 	TSharedRef<FFilterCategory> TransientCategory;
 
-	TSharedRef<FSequencerTrackFilterCollection> CommonFilters;
-	TSharedRef<FSequencerTrackFilterCollection> InternalFilters;
+	TSharedPtr<FSequencerTrackFilterCollection> CommonFilters;
+	TSharedPtr<FSequencerTrackFilterCollection> InternalFilters;
 
 	TSharedRef<FSequencerTrackFilter_Text> TextFilter;
 	TSharedRef<FSequencerTrackFilter_HideIsolate> HideIsolateFilter;

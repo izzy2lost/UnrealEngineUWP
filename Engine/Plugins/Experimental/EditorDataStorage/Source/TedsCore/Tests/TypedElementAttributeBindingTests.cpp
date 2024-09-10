@@ -7,44 +7,42 @@
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Misc/AutomationTest.h"
 
-namespace UE::Editor::DataStorage
-{
-namespace Tests
+namespace UE::Editor::DataStorage::Tests
 {
 	BEGIN_DEFINE_SPEC(TedsAttributeBindingTestsFixture, "Editor.DataStorage.AttributeBinding", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-		ITypedElementDataStorageInterface* TedsInterface = nullptr;
-		const FName TestTableName = TEXT("TestTable_AttributeBinding");
-		TableHandle TestTableHandle = InvalidTableHandle;
-		RowHandle TestRowHandle = InvalidRowHandle;
+	IEditorDataStorageProvider* TedsInterface = nullptr;
+	const FName TestTableName = TEXT("TestTable_AttributeBinding");
+	TableHandle TestTableHandle = InvalidTableHandle;
+	RowHandle TestRowHandle = InvalidRowHandle;
 
-		TableHandle RegisterTestTable() const
+	TableHandle RegisterTestTable() const
+	{
+		const TableHandle Table = TedsInterface->FindTable(TestTableName);
+		
+		if (Table != InvalidTableHandle)
 		{
-			const TableHandle Table = TedsInterface->FindTable(TestTableName);
-			
-			if (Table != InvalidTableHandle)
-			{
-				return Table;
-			}
-			
-			return TedsInterface->RegisterTable(
-			{
-				FTestColumnInt::StaticStruct(),
-				FTestColumnString::StaticStruct()
-			},
-			TestTableName);
+			return Table;
 		}
+		
+		return TedsInterface->RegisterTable(
+		{
+			FTestColumnInt::StaticStruct(),
+			FTestColumnString::StaticStruct()
+		},
+		TestTableName);
+	}
 	
-		RowHandle CreateTestRow(TableHandle InTableHandle) const
-		{
-			const RowHandle RowHandle = TedsInterface->AddRow(InTableHandle);
-			return RowHandle;
-		}
+	RowHandle CreateTestRow(TableHandle InTableHandle) const
+	{
+		const RowHandle RowHandle = TedsInterface->AddRow(InTableHandle);
+		return RowHandle;
+	}
 	
-		void CleanupTestRow(RowHandle InRowHandle) const
-		{
-			TedsInterface->RemoveRow(InRowHandle);
-		}
+	void CleanupTestRow(RowHandle InRowHandle) const
+	{
+		TedsInterface->RemoveRow(InRowHandle);
+	}
 	
 	END_DEFINE_SPEC(TedsAttributeBindingTestsFixture)
 
@@ -224,7 +222,6 @@ namespace Tests
 			TedsInterface = nullptr;
 		});
 	}
-} // namespace Tests
-} // namespace UE::Editor::DataStorage
+} // namespace UE::Editor::DataStorage::Tests
 
 #endif // WITH_TESTS

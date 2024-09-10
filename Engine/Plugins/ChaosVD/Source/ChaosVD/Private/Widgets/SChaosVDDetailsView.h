@@ -8,6 +8,7 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/SCompoundWidget.h"
 
+class SChaosVDMainTab;
 class IStructureDetailsView;
 class FSubobjectEditorTreeNode;
 class AActor;
@@ -29,7 +30,7 @@ public:
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */
-	void Construct(const FArguments& InArgs);
+	void Construct(const FArguments& InArgs, const TSharedRef<SChaosVDMainTab>& InMainTab);
 
 	/** Updates the current object this view details is viewing */
 	void SetSelectedObject(UObject* NewObject);
@@ -43,7 +44,7 @@ public:
 protected:
 
 	TSharedPtr<IDetailsView> CreateObjectDetailsView();
-	TSharedPtr<IStructureDetailsView> CreateStructureDataDetailsView();
+	TSharedPtr<IStructureDetailsView> CreateStructureDataDetailsView() const;
 
 	EVisibility GetStructDetailsVisibility() const;
 	EVisibility GetObjectDetailsVisibility() const;
@@ -55,6 +56,8 @@ protected:
 	TSharedPtr<IDetailsView> DetailsView;
 
 	TSharedPtr<IStructureDetailsView> StructDetailsView;
+
+	TWeakPtr<SChaosVDMainTab> MainTabWeakPtr;
 };
 
 template <typename TStruct>

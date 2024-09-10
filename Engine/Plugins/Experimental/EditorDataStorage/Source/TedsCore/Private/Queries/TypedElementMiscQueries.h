@@ -11,12 +11,12 @@
  * Removes all FTypedElementSyncBackToWorldTags at the end of an update cycle.
  */
 UCLASS()
-class UTypedElementRemoveSyncToWorldTagFactory : public UTypedElementDataStorageFactory
+class UTypedElementRemoveSyncToWorldTagFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UTypedElementRemoveSyncToWorldTagFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterQueries(IEditorDataStorageProvider& DataStorage) override;
 };

@@ -85,6 +85,7 @@ FActiveSound::FActiveSound()
 	, bWarnedAboutOrphanedLooping(false)
 #endif
 	, bEnableLowPassFilter(false)
+	, bEnableHighPassFilter(false)
 	, bUpdatePlayPercentage(false)
 	, bUpdateSingleEnvelopeValue(false)
 	, bUpdateMultiEnvelopeValue(false)
@@ -112,6 +113,7 @@ FActiveSound::FActiveSound()
 	, VolumeMultiplier(1.0f)
 	, PitchMultiplier(1.0f)
 	, LowPassFilterFrequency(MAX_FILTER_FREQUENCY)
+	, HighPassFilterFrequency(MIN_FILTER_FREQUENCY)
 	, CurrentOcclusionFilterFrequency(MAX_FILTER_FREQUENCY)
 	, CurrentOcclusionVolumeAttenuation(1.0f)
 	, SubtitlePriority(DEFAULT_SUBTITLE_PRIORITY)
@@ -515,7 +517,7 @@ void FActiveSound::SetNewModulationRouting(const FSoundModulationDefaultRoutingS
 	bModulationRoutingUpdated = true;
 }
 
-void FActiveSound::AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination, const bool bShouldModulationRoutingBeUpdated)
+void FActiveSound::AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination)
 {
 	switch (Destination)
 	{
@@ -543,7 +545,7 @@ void FActiveSound::AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBas
 		}
 	}
 	
-	bModulationRoutingUpdated = bShouldModulationRoutingBeUpdated;
+	bModulationRoutingUpdated = true;
 }
 
 void FActiveSound::RemoveModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination)
@@ -874,6 +876,8 @@ void FActiveSound::UpdateWaveInstances(TArray<FWaveInstance*> &InWaveInstances, 
 	ParseParams.Pitch *= GetPitch() * Sound->GetPitchMultiplier();
 	ParseParams.bEnableLowPassFilter = bEnableLowPassFilter;
 	ParseParams.LowPassFilterFrequency = LowPassFilterFrequency;
+	ParseParams.bEnableHighPassFilter = bEnableHighPassFilter;
+	ParseParams.HighPassFilterFrequency = HighPassFilterFrequency;
 	ParseParams.SoundClass = GetSoundClass();
 	ParseParams.bIsPaused = bIsPaused;
 

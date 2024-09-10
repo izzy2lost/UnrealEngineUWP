@@ -51,6 +51,7 @@
 #include "ChaosClothAsset/ClothComponent.h"
 #include "ChaosClothAsset/ClothAssetInteractor.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "MoviePipelineTelemetry.h"
 #include "MovieSceneCommonHelpers.h"
 
 #if WITH_EDITOR
@@ -1013,6 +1014,8 @@ void UMoviePipeline::InitializeShot(UMoviePipelineExecutorShot* InShot)
 
 	// Setup required rendering architecture for all passes in this shot.
 	SetupRenderingPipelineForShot(InShot);
+
+	FMoviePipelineTelemetry::SendBeginShotRenderTelemetry(InShot);
 }
 
 void UMoviePipeline::TeardownShot(UMoviePipelineExecutorShot* InShot)
@@ -1069,6 +1072,9 @@ void UMoviePipeline::TeardownShot(UMoviePipelineExecutorShot* InShot)
 
 	RestoreSkeletalMeshClothSubSteps();
 	ClothSimCache.Reset();
+
+	constexpr bool bIsGraph = false;
+	FMoviePipelineTelemetry::SendEndShotRenderTelemetry(bIsGraph, !bFatalError, bShutdownRequested);
 	
 	if (IsFlushDiskWritesPerShot())
 	{

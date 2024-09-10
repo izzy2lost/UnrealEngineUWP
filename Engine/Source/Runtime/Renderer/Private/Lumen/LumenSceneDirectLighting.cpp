@@ -574,7 +574,7 @@ void ClearLumenSceneDirectLighting(
 		RDG_EVENT_NAME("ClearDirectLighting"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[ViewportSize = LumenSceneData.GetPhysicalAtlasSize(), PassParameters, GlobalShaderMap = View.ShaderMap](FRHICommandList& RHICmdList)
+		[ViewportSize = LumenSceneData.GetPhysicalAtlasSize(), PassParameters, GlobalShaderMap = View.ShaderMap](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FClearLumenCardsPS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FClearLumenCardsPS::FNumTargets>(1);
@@ -1229,7 +1229,7 @@ static int32 ComputeShadowMaskFromLightAttenuation(
 				RDG_EVENT_NAME("ShadowMaskFromLightAttenuationPass(LF,%s)", *Light.Name),
 				PassParameters,
 				ComputePassFlags,
-				[PassParameters, ComputeShader, IndirectArgsBuffer, DispatchIndirectArgOffset, LightFunctionMaterialProxy, &Material, &View](FRHIComputeCommandList& RHICmdList)
+				[PassParameters, ComputeShader, IndirectArgsBuffer, DispatchIndirectArgOffset, LightFunctionMaterialProxy, &Material, &View](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 				{
 					IndirectArgsBuffer->MarkResourceAsUsed();
 					FComputeShaderUtils::ValidateIndirectArgsBuffer(IndirectArgsBuffer, DispatchIndirectArgOffset);
@@ -1304,7 +1304,7 @@ static int32 ComputeShadowMaskFromLightAttenuation(
 				RDG_EVENT_NAME("ShadowMaskFromLightAttenuationPass(LightType=%d,BatchedNum=%d)", LightTypeIndex, BatchedLightParameters.Num()),
 				PassParameters,
 				ComputePassFlags,
-				[PassParameters, ComputeShader, IndirectArgsBuffer, NumViews, ViewIndex, BatchedLightParameters](FRHIComputeCommandList& RHICmdList)
+				[PassParameters, ComputeShader, IndirectArgsBuffer, NumViews, ViewIndex, BatchedLightParameters](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 				{
 					// Marks the indirect draw parameter as used by the pass manually, given it can't be bound directly by any of the shader,
 					// meaning SetShaderParameters() won't be able to do it.
@@ -1501,7 +1501,7 @@ void TraceDistanceFieldShadows(
 				RDG_EVENT_NAME("DistanceFieldShadowPass LightType=%d BatchedNum=%d", LightTypeIndex, BatchedLightParameters.Num()),
 				PassParameters,
 				ComputePassFlags,
-				[PassParameters, ComputeShader, IndirectArgsBuffer, NumViews, ViewIndex, LocalBatchedLightParameters = MoveTemp(BatchedLightParameters)](FRHIComputeCommandList& RHICmdList) mutable
+				[PassParameters, ComputeShader, IndirectArgsBuffer, NumViews, ViewIndex, LocalBatchedLightParameters = MoveTemp(BatchedLightParameters)](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList) mutable
 				{
 					// Marks the indirect draw parameter as used by the pass manually, given it can't be bound directly by any of the shader,
 					// meaning SetShaderParameters() won't be able to do it.

@@ -53,7 +53,7 @@ private:
 	void MigrateDeprecatedProperties();
 
 #if WITH_EDITOR
-	void SpawnDefaultActorAttached();
+	void SpawnDefaultActorAttached(UCEClonerComponent* InComponent);
 
 	/** Hide outline selection when this cloner only is selected in viewport */
 	void OnEditorSelectionChanged(UObject* InSelection);

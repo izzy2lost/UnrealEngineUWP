@@ -28,10 +28,8 @@
 #include "PhysicsProxy/StaticMeshPhysicsProxy.h"
 #include "Chaos/PendingSpatialData.h"
 #include "Chaos/PhysicsSolverBaseImpl.h"
+#include "Chaos/AsyncInitBodyHelper.h"
 #include "Misc/CoreMisc.h"
-#if UE_CHAOS_ASYNC_INITBODY_ENABLED
-#include "Misc/ScopeRWLock.h"
-#endif
 
 #if WITH_EDITOR
 #include "Editor.h"

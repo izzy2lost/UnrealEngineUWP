@@ -13,6 +13,7 @@ class UChooserTableFactory : public UFactory
 {
 	GENERATED_BODY()
 
+public:
 	UChooserTableFactory();
 	
 	virtual bool ConfigureProperties() override;
@@ -23,7 +24,6 @@ class UChooserTableFactory : public UFactory
 	}
 	virtual FName GetNewAssetThumbnailOverride() const override { return "ChooserEditor.ChooserTableIconLarge"; }
 
-private:
 	UPROPERTY(EditAnywhere, DisplayName = "Chooser Type", NoClear, Category="Chooser Setup", meta = (ExcludeBaseStruct, BaseStruct = "/Script/ChooserEditor.ChooserInitializer"))
 	FInstancedStruct ChooserInitializer;
 };

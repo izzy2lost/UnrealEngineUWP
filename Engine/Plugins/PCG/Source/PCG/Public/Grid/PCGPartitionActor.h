@@ -126,10 +126,16 @@ private:
 #if WITH_EDITOR
 	void UpdateBoundsComponentExtents();
 	void SetInvalidForPCG();
+
+	friend struct FPCGWorldPartitionBuilder;
+	TSoftObjectPtr<UPCGComponent> GetOriginalComponentSoftObjectPtr(UPCGComponent* LocalComponent) const;
 #endif // WITH_EDITOR
 
+	void RebuildOriginalToLocal();
+	UPCGComponent* GetLocalComponent(const UPCGComponent* OriginalComponent, bool bRebuildMappingOnNullEntries) const;
+
 	// Note: this map is not a property and not serialized since we will rebuild it from the LocalToOriginal
-	TMap<TObjectPtr<UPCGComponent>, TObjectPtr<UPCGComponent>> OriginalToLocal;
+	mutable TMap<TObjectPtr<UPCGComponent>, TObjectPtr<UPCGComponent>> OriginalToLocal;
 
 	UPROPERTY(NonTransactional)
 	TMap<TObjectPtr<UPCGComponent>, TSoftObjectPtr<UPCGComponent>> LocalToOriginal;

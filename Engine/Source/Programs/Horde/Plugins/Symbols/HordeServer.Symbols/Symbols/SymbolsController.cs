@@ -51,8 +51,8 @@ namespace HordeServer.Tools
 				return Forbid(SymbolStoreAclAction.ReadSymbols, storeId);
 			}
 
-			IStorageClient storageClient = _storageService.CreateClient(symbolStoreConfig.NamespaceId);
-			BlobAlias? alias = await storageClient.FindAliasAsync($"sym:{path.ToUpperInvariant()}", cancellationToken);
+			IStorageNamespace storageNamespace = _storageService.GetNamespace(symbolStoreConfig.NamespaceId);
+			BlobAlias? alias = await storageNamespace.FindAliasAsync($"sym:{path.ToUpperInvariant()}", cancellationToken);
 			if (alias == null)
 			{
 				return NotFound();

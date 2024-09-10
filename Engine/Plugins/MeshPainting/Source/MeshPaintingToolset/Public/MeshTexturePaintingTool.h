@@ -264,6 +264,9 @@ protected:
 private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMeshTextureColorPaintingToolProperties> ColorProperties;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture> MeshPaintDummyTexture;
 };
 
 /**

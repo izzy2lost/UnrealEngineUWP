@@ -9,19 +9,19 @@
 
 #include "AssetDataLabelWidget.generated.h"
 
-class ITypedElementDataStorageInterface;
+class IEditorDataStorageProvider;
 class UScriptStruct;
 
 UCLASS()
-class UAssetDataLabelWidgetFactory : public UTypedElementDataStorageFactory
+class UAssetDataLabelWidgetFactory : public UEditorDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UAssetDataLabelWidgetFactory() override = default;
 
-	TEDSASSETDATA_API void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
-		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+	TEDSASSETDATA_API void RegisterWidgetConstructors(IEditorDataStorageProvider& DataStorage,
+		IEditorDataStorageUiProvider& DataStorageUi) const override;
 };
 
 // Label widget for assets in TEDS
@@ -36,13 +36,13 @@ public:
 	~FAssetDataLabelWidgetConstructor() override = default;
 
 	TEDSASSETDATA_API virtual TSharedPtr<SWidget> CreateWidget(
-		ITypedElementDataStorageInterface* DataStorage,
-		ITypedElementDataStorageUiInterface* DataStorageUi,
+		IEditorDataStorageProvider* DataStorage,
+		IEditorDataStorageUiProvider* DataStorageUi,
 		UE::Editor::DataStorage::RowHandle TargetRow,
 		UE::Editor::DataStorage::RowHandle WidgetRow, 
 		const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
 
 protected:
 	
-	static FText ConstructToolTip(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle DataRow);
+	static FText ConstructToolTip(IEditorDataStorageProvider* DataStorage, UE::Editor::DataStorage::RowHandle DataRow);
 };

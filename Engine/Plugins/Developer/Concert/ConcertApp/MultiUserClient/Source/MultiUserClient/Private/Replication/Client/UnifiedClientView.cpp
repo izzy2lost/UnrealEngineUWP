@@ -56,6 +56,11 @@ namespace UE::MultiUserClient::Replication
 		return Result;
 	}
 
+	FGuid FUnifiedClientView::GetLocalClient() const
+	{
+		return OnlineClientManager.GetLocalClient().GetEndpointId();
+	}
+
 	TOptional<FConcertClientInfo> FUnifiedClientView::GetClientInfoByEndpoint(const FGuid& EndpointId) const
 	{
 		FConcertClientInfo ClientInfo;

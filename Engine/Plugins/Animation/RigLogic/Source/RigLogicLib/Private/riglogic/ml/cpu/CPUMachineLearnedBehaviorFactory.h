@@ -71,7 +71,7 @@ class Factory {
             std::uint32_t inputCount = static_cast<std::uint32_t>(inputIndices.size());
 
             NeuralNet<T> neuralNet{memRes};
-            * maxLayerOutputCount = inputCount;
+            *maxLayerOutputCount = inputCount;
             neuralNet.layers.reserve(layerCount);
             for (std::uint16_t layerIdx = {}; layerIdx < layerCount; ++layerIdx) {
                 const auto weights = reader->getNeuralNetworkLayerWeights(neuralNetIdx, layerIdx);
@@ -89,7 +89,7 @@ class Factory {
                                                memRes);
                 // Keep track of the layer with the largest number of outputs
                 // In the next layer, the current output count becomes the input count
-                * maxLayerOutputCount = std::max(*maxLayerOutputCount, layer.weights.padded.rows);
+                *maxLayerOutputCount = std::max(*maxLayerOutputCount, layer.weights.padded.rows);
                 neuralNet.layers.push_back(std::move(layer));
                 inputCount = outputCount;
             }

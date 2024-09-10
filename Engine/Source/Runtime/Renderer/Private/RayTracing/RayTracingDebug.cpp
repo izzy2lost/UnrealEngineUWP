@@ -847,7 +847,7 @@ static FRDGBufferRef RayTracingPerformPicking(FRDGBuilder& GraphBuilder, const F
 
 	FRayTracingPipelineState* PickingPipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(GraphBuilder.RHICmdList, Initializer);
 		
-	FShaderBindingTableRHIRef PickingSBT = Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
+	FShaderBindingTableRHIRef PickingSBT = Scene->RayTracingSBT.AllocateRHI(GraphBuilder.RHICmdList, ERayTracingShaderBindingMode::RTPSO, ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
 	   
 	FRDGBufferDesc PickingBufferDesc = FRDGBufferDesc::CreateStructuredDesc(sizeof(FRayTracingPickingFeedback), 1);
 	PickingBufferDesc.Usage = EBufferUsageFlags(PickingBufferDesc.Usage | BUF_SourceCopy);
@@ -868,7 +868,7 @@ static FRDGBufferRef RayTracingPerformPicking(FRDGBuilder& GraphBuilder, const F
 		RDG_EVENT_NAME("RayTracingPicking"),
 		RayGenParameters,
 		ERDGPassFlags::Compute,
-		[RayGenParameters, RayGenShader, &View, SceneUniformBuffer, PickingSBT, PickingPipeline](FRHICommandList& RHICmdList)
+		[RayGenParameters, RayGenShader, &View, SceneUniformBuffer, PickingSBT, PickingPipeline](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
@@ -1098,7 +1098,7 @@ static FRDGBufferRef RayTracingPerformHitStatsPerPrimitive(FRDGBuilder& GraphBui
 
 	FRayTracingPipelineState* HitStatsPerPrimitivePipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(GraphBuilder.RHICmdList, Initializer);
 
-	FShaderBindingTableRHIRef HitStatsSBT = Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
+	FShaderBindingTableRHIRef HitStatsSBT = Scene->RayTracingSBT.AllocateRHI(GraphBuilder.RHICmdList, ERayTracingShaderBindingMode::RTPSO, ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
 
 	// TODO: Should check RayTracingScene for actual number of instances instead of max number in FRHIRayTracingScene initializer
 	const uint32 NumInstancesInTLAS = FMath::Max(RayTracingScene.GetRHIRayTracingSceneChecked(ERayTracingSceneLayer::Base)->GetInitializer().MaxNumInstances, (uint32)CVarRayTracingDebugHitCountTopKHits.GetValueOnRenderThread());
@@ -1126,7 +1126,7 @@ static FRDGBufferRef RayTracingPerformHitStatsPerPrimitive(FRDGBuilder& GraphBui
 		RDG_EVENT_NAME("RayTracingHitStats"),
 		RayGenParameters,
 		ERDGPassFlags::Compute,
-		[RayGenParameters, RayGenShader, &View, SceneUniformBuffer, HitStatsSBT, HitStatsPerPrimitivePipeline, ViewRect](FRHICommandList& RHICmdList)
+		[RayGenParameters, RayGenShader, &View, SceneUniformBuffer, HitStatsSBT, HitStatsPerPrimitivePipeline, ViewRect](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
@@ -1237,7 +1237,7 @@ static void RayTracingDrawInstances(FRDGBuilder& GraphBuilder, const FViewInfo& 
 		RDG_EVENT_NAME("RayTracingDebug::DrawInstances"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[&View, VertexShader, PixelShader, PassParameters, NumInstances, bWireframe](FRHICommandList& RHICmdList)
+		[&View, VertexShader, PixelShader, PassParameters, NumInstances, bWireframe](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FGraphicsPipelineStateInitializer GraphicsPSOInit;
 			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -1572,7 +1572,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 
 		Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(GraphBuilder.RHICmdList, Initializer);
 
-		SBT = Scene->RayTracingSBT.AllocateRHI(ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
+		SBT = Scene->RayTracingSBT.AllocateRHI(GraphBuilder.RHICmdList, ERayTracingShaderBindingMode::RTPSO, ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
 
 		bRequiresBindings = true;
 	}
@@ -1638,7 +1638,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 		RDG_EVENT_NAME("RayTracingDebug"),
 		RayGenParameters,
 		ERDGPassFlags::Compute,
-		[this, RayGenParameters, RayGenShader, &View, Pipeline, SceneUniformBuffer, SBT, ViewRect, bRequiresBindings](FRHICommandList& RHICmdList)
+		[this, RayGenParameters, RayGenShader, &View, Pipeline, SceneUniformBuffer, SBT, ViewRect, bRequiresBindings](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 		SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);

@@ -38,6 +38,7 @@ namespace UE::DMX::Private
 
 	public:
 		FDMXControlConsoleEditorToolkit();
+		~FDMXControlConsoleEditorToolkit();
 
 		/**
 		 * Edits the specified control console object.
@@ -160,6 +161,9 @@ namespace UE::DMX::Private
 
 		/** Extends the asset toolkit's toolbar */
 		void ExtendToolbar();
+
+		/** If true, stops the control console when this widget is destructed */
+		bool bStopSendingDMXOnDestruct = true;
 
 		/** True while switching to compact editor */
 		bool bSwitchingToCompactEditor = false;

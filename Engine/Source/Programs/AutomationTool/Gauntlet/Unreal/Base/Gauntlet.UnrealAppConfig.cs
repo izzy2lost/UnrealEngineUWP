@@ -64,6 +64,11 @@ namespace Gauntlet
 		public ContainerInfo ContainerInfo { get; set; }
 
 		/// <summary>
+		/// Delegate to filter logging output
+		/// </summary>
+		public LongProcessResult.OutputFilterCallbackType FilterLoggingDelegate { get; set; }
+
+		/// <summary>
 		/// Arguments for this instance
 		/// </summary>
 		public string CommandLine
@@ -120,6 +125,7 @@ namespace Gauntlet
 			CommandLine = "";
 			Configuration = UnrealTargetConfiguration.Development;
 			Sandbox = "Gauntlet";
+			FilterLoggingDelegate = null;
 		}
 	}
 }

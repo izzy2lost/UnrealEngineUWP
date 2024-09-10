@@ -32,21 +32,10 @@ void FOutputObjectColumn::Compile(IHasContextClass* Owner, bool bForce)
 
 void FOutputObjectColumn::SetOutputs(FChooserEvaluationContext& Context, int RowIndex) const
 {
-	if (RowValues.IsValidIndex(RowIndex))
+	if (const FObjectChooserBase* Value = GetValueForIndex(RowIndex).Value.GetPtr<FObjectChooserBase>())
 	{
-		if (const FObjectChooserBase* Value = RowValues[RowIndex].Value.GetPtr<FObjectChooserBase>())
-		{
-			UObject* Result = Value->ChooseObject(Context);
-			InputValue.Get<FChooserParameterObjectBase>().SetValue(Context, Result);
-		}
-	}
-	else
-	{
-		if (const FObjectChooserBase* Value = FallbackValue.Value.GetPtr<FObjectChooserBase>())
-		{
-			UObject* Result = Value->ChooseObject(Context);
-			InputValue.Get<FChooserParameterObjectBase>().SetValue(Context, Result);
-		}
+		UObject* Result = Value->ChooseObject(Context);
+		InputValue.Get<FChooserParameterObjectBase>().SetValue(Context, Result);
 	}
 }
 
@@ -59,7 +48,8 @@ void FOutputObjectColumn::SetOutputs(FChooserEvaluationContext& Context, int Row
 		FPropertyBagPropertyDesc PropertyDesc(PropertyName,  EPropertyBagPropertyType::Struct, FChooserOutputObjectRowData::StaticStruct());
 		PropertyDesc.MetaData.Add(FPropertyBagPropertyDescMetaData("DisplayName", DisplayName.ToString()));
 		PropertyBag.AddProperties({PropertyDesc});
-		PropertyBag.SetValueStruct(PropertyName, RowValues[RowIndex]);
+	
+		PropertyBag.SetValueStruct(PropertyName, GetValueForIndex(RowIndex));
 	}
 
 	void FOutputObjectColumn::SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)
@@ -69,7 +59,7 @@ void FOutputObjectColumn::SetOutputs(FChooserEvaluationContext& Context, int Row
 		TValueOrError<FStructView, EPropertyBagResult> Result = PropertyBag.GetValueStruct(PropertyName, FChooserOutputObjectRowData::StaticStruct());
 		if (FStructView* StructView = Result.TryGetValue())
 		{
-			RowValues[RowIndex] = StructView->Get<FChooserOutputObjectRowData>();
+			GetValueForIndex(RowIndex) = StructView->Get<FChooserOutputObjectRowData>();
 		}
 	}
 

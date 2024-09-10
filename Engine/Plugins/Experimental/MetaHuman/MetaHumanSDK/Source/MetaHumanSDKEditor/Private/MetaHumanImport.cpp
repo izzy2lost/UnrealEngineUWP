@@ -107,39 +107,6 @@ namespace UE::MetaHumanImport::Private
 		return IncompatibleCharacters;
 	}
 
-	void EnableMissingPlugins()
-	{
-		// TODO we should find a way to retrieve the required plugins from the metadata as RigLogic might not be the only one
-		static const TArray<FString> NeededPluginNames({TEXT("RigLogic")});
-
-		IPluginManager& PluginManager = IPluginManager::Get();
-		IProjectManager& ProjectManager = IProjectManager::Get();
-
-		for (const FString& PluginName : NeededPluginNames)
-		{
-			TSharedPtr<IPlugin> NeededPlugin = PluginManager.FindPlugin(PluginName);
-			if (NeededPlugin.IsValid() && !NeededPlugin->IsEnabled())
-			{
-				FText FailMessage;
-				bool bPluginEnabled = ProjectManager.SetPluginEnabled(NeededPlugin->GetName(), true, FailMessage);
-
-				if (bPluginEnabled && ProjectManager.IsCurrentProjectDirty())
-				{
-					bPluginEnabled = ProjectManager.SaveCurrentProjectToDisk(FailMessage);
-				}
-
-				if (bPluginEnabled)
-				{
-					PluginManager.MountNewlyCreatedPlugin(NeededPlugin->GetName());
-				}
-				else
-				{
-					FMessageDialog::Open(EAppMsgType::Ok, FailMessage);
-				}
-			}
-		}
-	}
-
 	TMap<FString, FMetaHumanAssetVersion> ParseVersionInfo(const FString& AssetVersionFilePath)
 	{
 		FString VersionInfoString;
@@ -288,31 +255,38 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 	// location. In UEFN we can request that instead of installing to /Game we install to the content folder of the
 	// project. Also, we can use project settings to override the destination paths for both cinematic and optimized
 	// MetaHumans
-	FString DefaultImportPath = ImportDescription.DestinationPath;
-	FString DestinationCommonAssetPath{DefaultImportPath / FImportPaths::CommonFolderName}; // At the moment this can not be changed
-	FString CharactersRootImportPath = DefaultImportPath; // This is the location we will look for other characters in the project
+	FString DestinationCommonAssetPath = ImportDescription.DestinationPath / FImportPaths::CommonFolderName; // At the moment this can not be changed
+	FString CharactersRootImportPath = ImportDescription.DestinationPath; // This is the location we will look for other characters in the project
 
-	// Get overrides from settings
-	const UMetaHumanSDKSettings* ProjectSettings = GetDefault<UMetaHumanSDKSettings>();
-	const FString CinematicOverridePath = ProjectSettings->CinematicImportPath.Path;
-	const FString OptimizedOverridePath = ProjectSettings->OptimizedImportPath.Path;
-
-	// Calculate the final effective destination paths
-
+	// If the ImportDescription does not target a specific location (i.e. not UEFN) then look for a project-based override
 	const FSourceMetaHuman SourceMetaHuman{ImportDescription.CharacterPath, ImportDescription.CommonPath, ImportDescription.CharacterName};
-	if (SourceMetaHuman.GetQualityLevel() == EMetaHumanQualityLevel::Cinematic)
+	if (ImportDescription.DestinationPath == FMetaHumanAssetImportDescription::DefaultDestinationPath)
 	{
-		if (!CinematicOverridePath.IsEmpty() && CinematicOverridePath != DefaultImportPath)
+		// Get overrides from settings
+		const UMetaHumanSDKSettings* ProjectSettings = GetDefault<UMetaHumanSDKSettings>();
+		if (SourceMetaHuman.GetQualityLevel() == EMetaHumanQualityLevel::Cinematic)
 		{
-			// Use the project-configured destination path for cinematic MHs
-			CharactersRootImportPath = CinematicOverridePath;
+			if (!ProjectSettings->CinematicImportPath.Path.IsEmpty())
+			{
+				// Use the project-configured destination path for cinematic MHs
+				CharactersRootImportPath = ProjectSettings->CinematicImportPath.Path;
+			}
+		}
+		else if (!ProjectSettings->OptimizedImportPath.Path.IsEmpty())
+		{
+			// Use the project-configured destination path for optimized MHs
+			CharactersRootImportPath = ProjectSettings->OptimizedImportPath.Path;
 		}
 	}
-	else if (!OptimizedOverridePath.IsEmpty() && OptimizedOverridePath != DefaultImportPath)
+
+	// Check we are trying to import to a valid content root
+	if (!(FPackageName::IsValidPath(DestinationCommonAssetPath) && FPackageName::IsValidPath(CharactersRootImportPath)))
 	{
-		// Use the project-configured destination path for optimized MHs
-		CharactersRootImportPath = OptimizedOverridePath;
+		FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, LOCTEXT("InvalidImportRootError", "Attempting to import to an invalid root location. Please check your Import Paths in the MetaHuman SDK Project Settings."));
+		UE_LOG(LogMetaHumanImport, Error, TEXT("Invalid import root. Common files import root: \"%s\", character files import root: \"%s\""),  *DestinationCommonAssetPath, *CharactersRootImportPath);
+		return;
 	}
+
 	// Calculate whether we need to fixup references in the assets after importing (which we need to do if the asset
 	// path has changed for any imported assets).
 	const bool bRequiresReferenceFixup = CharactersRootImportPath != ImportDescription.SourcePath;
@@ -325,6 +299,15 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 
 	// Helpers for managing source data
 	const FImportPaths ImportPaths(ImportDescription.CommonPath, ImportDescription.CharacterPath, DestinationCommonAssetPath, DestinationCharacterAssetPath);
+
+	// sanitize our import destination
+	const int MaxImportPathLength = FPlatformMisc::GetMaxPathLength() - 100; // longest asset path in a MetaHuman ~100 chars
+	if (ImportPaths.DestinationCharacterFilePath.Len() > MaxImportPathLength)
+	{
+		FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, LOCTEXT("ImportPathLengthError", "The requested import path is too long. Please set the Import Path in the MetaHuman SDK Project Settings to a shorter path, or move your project to a file location with a shorter path."));
+		UE_LOG(LogMetaHumanImport, Error, TEXT("Import path \"%s\", exceeds maximum length of %d"),  *ImportPaths.DestinationCharacterFilePath, MaxImportPathLength);
+		return;
+	}
 
 	// Determine what other MetaHumans are installed and if any are incompatible
 	const TArray<FInstalledMetaHuman> InstalledMetaHumans = FInstalledMetaHuman::GetInstalledMetaHumans(CharactersRootImportPath, ImportPaths.DestinationCommonFilePath);
@@ -341,7 +324,7 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 	const FString SourceAssetVersionFilePath = ImportPaths.SourceRootFilePath / TEXT("MHAssetVersions.txt");
 	if (!FileManager.FileExists(*SourceAssetVersionFilePath))
 	{
-		FMessageDialog::Open(EAppMsgType::Ok, FText(FText::FromString(TEXT("The downloaded MetaHuman is corrupted and can not be imported. Please re-generate and re-download the MetaHuman and try again."))));
+		FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, LOCTEXT("CorruptedDownloadError", "The downloaded MetaHuman is corrupted and can not be imported. Please re-generate and re-download the MetaHuman and try again."));
 		return;
 	}
 	const FAssetOperationPaths AssetOperations = DetermineAssetOperations(ParseVersionInfo(SourceAssetVersionFilePath), ImportPaths, ImportDescription.bForceUpdate);
@@ -414,13 +397,6 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 	TouchedAssets.Append(AssetOperations.Update);
 	TouchedAssets.Append(AssetOperations.Replace);
 	TouchedAssets.Append(AssetOperations.Add);
-
-	// TODO: Confirm this is still the case
-	// NOTE: the RigLogic plugin (and maybe others) must be loaded and added to the project before loading the asset
-	// otherwise we get rid of the RigLogic nodes, resulting in leaving the asset in an undefined state. In the context
-	// of ControlRig assets, graphs will remove the RigLogic nodes if the plugin is not enabled because the
-	// FRigUnit_RigLogic_Data won't be available
-	EnableMissingPlugins();
 
 	FText CharacterCopyMsgDialogMessage = FText::FromString((bIsNewCharacter ? TEXT("Importing : ") : TEXT("Re-Importing : ")) + ImportDescription.CharacterName);
 	FScopedSlowTask ImportProgress(bRequiresReferenceFixup ? 3.0f : 2.0f, CharacterCopyMsgDialogMessage, true);

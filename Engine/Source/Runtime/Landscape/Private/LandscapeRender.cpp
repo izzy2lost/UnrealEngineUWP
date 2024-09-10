@@ -3007,14 +3007,14 @@ void FLandscapeComponentSceneProxy::ApplyViewDependentMeshArguments(const FScene
 }
 
 #if RHI_RAYTRACING
-void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (!bRegistered || !CVarRayTracingLandscape.GetValueOnRenderThread())
 	{
 		return;
 	}
 
-	const FSceneView& SceneView = *Context.ReferenceView;
+	const FSceneView& SceneView = *Collector.GetReferenceView();
 	const FLandscapeRenderSystem& RenderSystem = *LandscapeRenderSystems.FindChecked(LandscapeKey);
 
 	if (!RayTracingImpl.IsValid())
@@ -3025,7 +3025,7 @@ void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 
 	int32 LODToRender = static_cast<int32>(RenderSystem.GetSectionLODValue(SceneView, RenderCoord));
 
-	FLandscapeElementParamArray& ParameterArray = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FLandscapeElementParamArray>();
+	FLandscapeElementParamArray& ParameterArray = Collector.AllocateOneFrameResource<FLandscapeElementParamArray>();
 	ParameterArray.ElementParams.AddDefaulted(NumSubsections * NumSubsections);
 
 	if (AvailableMaterials.Num() == 0)
@@ -3128,13 +3128,13 @@ void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 			if (GLandscapeRayTracingGeometryDetectTextureStreaming > 0)
 			{
 				const FMaterialRenderProxy* FallbackMaterialRenderProxyPtr = nullptr;
-				const FMaterial& Material = MeshBatch.MaterialRenderProxy->GetMaterialWithFallback(((FSceneInterface*)Context.Scene)->GetFeatureLevel(), FallbackMaterialRenderProxyPtr);
+				const FMaterial& Material = MeshBatch.MaterialRenderProxy->GetMaterialWithFallback(GetScene().GetFeatureLevel(), FallbackMaterialRenderProxyPtr);
 
 				if (Material.GetRenderingThreadShaderMap()->UsesWorldPositionOffset())
 				{
 					const FMaterialRenderProxy* MaterialRenderProxy = FallbackMaterialRenderProxyPtr ? FallbackMaterialRenderProxyPtr : MeshBatch.MaterialRenderProxy;
 
-					FMaterialRenderContext MaterialRenderContext(MaterialRenderProxy, Material, Context.ReferenceView);
+					FMaterialRenderContext MaterialRenderContext(MaterialRenderProxy, Material, Collector.GetReferenceView());
 
 					const FUniformExpressionSet& UniformExpressionSet = Material.GetRenderingThreadShaderMap()->GetUniformExpressionSet();
 					const uint32 Hash = UniformExpressionSet.GetReferencedTexture2DRHIHash(MaterialRenderContext);
@@ -3153,14 +3153,13 @@ void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 			RayTracingInstance.Geometry = &SectionRayTracingState.Geometry;
 			RayTracingInstance.InstanceTransforms.Add(GetLocalToWorld());
 			RayTracingInstance.Materials.Add(MeshBatch);
-			OutRayTracingInstances.Add(RayTracingInstance);
 
 			if (bNeedsRayTracingGeometryUpdate && VertexFactory->GetType()->SupportsRayTracingDynamicGeometry())
 			{
 				// Use the internal managed vertex buffer because landscape dynamic RT geometries are not updated every frame
 				// which is a requirement for the shared vertex buffer usage
 
-				Context.DynamicRayTracingGeometriesToUpdate.Add(
+				Collector.AddRayTracingGeometryUpdate(
 					FRayTracingDynamicGeometryUpdateParams
 					{
 						RayTracingInstance.Materials,
@@ -3174,6 +3173,8 @@ void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 					}
 				);
 			}
+
+			Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 		}
 	}
 }

@@ -358,7 +358,11 @@ namespace UE::Interchange::Private
 			//First bake the channel weight curves
 			FRichCurve& ChannelWeightCurve = Curves[0];
 #if WITH_EDITORONLY_DATA
-			ChannelWeightCurve.BakeCurve(1.0f / TargetSequence->ImportResampleFramerate);
+			//Cannot bake a curve with only one frame
+			if (ChannelWeightCurve.GetNumKeys() > 1)
+			{
+				ChannelWeightCurve.BakeCurve(1.0f / TargetSequence->ImportResampleFramerate);
+			}
 #endif
 
 			// use the primary curve to generate inbetween shape curves + a modified primary curve
@@ -926,6 +930,101 @@ UClass* UInterchangeAnimSequenceFactory::GetFactoryClass() const
 	return UAnimSequence::StaticClass();
 }
 
+void UInterchangeAnimSequenceFactory::CreatePayloadTasks(const FImportAssetObjectParams& Arguments, bool bAsync, TArray<TSharedPtr<UE::Interchange::FInterchangeTaskBase>>& PayloadTasks)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeAnimSequenceFactory::CreatePayloadTasks);
+	const IInterchangeAnimationPayloadInterface* AnimSequenceTranslatorPayloadInterface = Cast<IInterchangeAnimationPayloadInterface>(Arguments.Translator);
+	if (!AnimSequenceTranslatorPayloadInterface)
+	{
+		return;
+	}
+
+	UInterchangeAnimSequenceFactoryNode* AnimSequenceFactoryNode = Cast<UInterchangeAnimSequenceFactoryNode>(Arguments.AssetNode);
+	if (AnimSequenceFactoryNode == nullptr)
+	{
+		return;
+	}
+
+	bool bImportBoneTracks = false;
+	AnimSequenceFactoryNode->GetCustomImportBoneTracks(bImportBoneTracks);
+	if (bImportBoneTracks)
+	{
+		//Get the sample rate, default to 30Hz in case the attribute is missing
+		double SampleRate = 30.0;
+		AnimSequenceFactoryNode->GetCustomImportBoneTracksSampleRate(SampleRate);
+
+		double RangeStart = 0.0;
+		AnimSequenceFactoryNode->GetCustomImportBoneTracksRangeStart(RangeStart);
+
+		double RangeEnd = 1.0 / SampleRate; //One frame duration per default
+		AnimSequenceFactoryNode->GetCustomImportBoneTracksRangeStop(RangeEnd);
+
+
+		TMap<FString, FInterchangeAnimationPayLoadKey> PayloadKeys;
+		AnimSequenceFactoryNode->GetSceneNodeAnimationPayloadKeys(PayloadKeys);
+		BoneAnimationPayloadQueries.Empty(PayloadKeys.Num());
+		BoneAnimationPayloadResults.Empty(PayloadKeys.Num());
+
+		if (AnimSequenceTranslatorPayloadInterface->PreferGroupingBoneAnimationQueriesTogether())
+		{
+			//Create one task for all queries
+			for (const TTuple<FString, FInterchangeAnimationPayLoadKey>& SceneNodeUidAndPayloadKey : PayloadKeys)
+			{
+				UE::Interchange::FAnimationPayloadQuery AnimationPayloadQuery(SceneNodeUidAndPayloadKey.Key, SceneNodeUidAndPayloadKey.Value, SampleRate, RangeStart, RangeEnd);
+				BoneAnimationPayloadQueries.Add(SceneNodeUidAndPayloadKey, AnimationPayloadQuery);
+				//Allocate the results so we do not need any mutex
+				BoneAnimationPayloadResults.FindOrAdd(SceneNodeUidAndPayloadKey, UE::Interchange::FAnimationPayloadData(SceneNodeUidAndPayloadKey.Key, SceneNodeUidAndPayloadKey.Value));
+			}
+			
+			TSharedPtr<UE::Interchange::FInterchangeTaskLambda, ESPMode::ThreadSafe> TaskGetAnimationPayload = MakeShared<UE::Interchange::FInterchangeTaskLambda, ESPMode::ThreadSafe>(bAsync ? UE::Interchange::EInterchangeTaskThread::AsyncThread : UE::Interchange::EInterchangeTaskThread::GameThread
+				, [this, AnimSequenceTranslatorPayloadInterface]()
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeAnimSequenceFactory::GetAnimationPayloadMultipleQueries);
+					TArray<UE::Interchange::FAnimationPayloadQuery> TmpPayloadQueries;
+					BoneAnimationPayloadQueries.GenerateValueArray(TmpPayloadQueries);
+					TArray<UE::Interchange::FAnimationPayloadData> AnimationPayloads = AnimSequenceTranslatorPayloadInterface->GetAnimationPayloadData(TmpPayloadQueries);
+					if (ensure(AnimationPayloads.Num() == BoneAnimationPayloadQueries.Num()))
+					{
+						TArray<TTuple<FString, FInterchangeAnimationPayLoadKey>> TmpPayloadKeys;
+						BoneAnimationPayloadQueries.GenerateKeyArray(TmpPayloadKeys);
+						for (int32 AnimationIndex = 0; AnimationIndex < AnimationPayloads.Num(); ++AnimationIndex)
+						{
+							if (ensure(BoneAnimationPayloadResults.Contains(TmpPayloadKeys[AnimationIndex])))
+							{
+								BoneAnimationPayloadResults.FindChecked(TmpPayloadKeys[AnimationIndex]) = AnimationPayloads[AnimationIndex];
+							}
+						}
+					}
+				});
+			PayloadTasks.Add(TaskGetAnimationPayload);
+		}
+		else
+		{
+			//Create one task per query
+			for (const TTuple<FString, FInterchangeAnimationPayLoadKey>& SceneNodeUidAndPayloadKey : PayloadKeys)
+			{
+				UE::Interchange::FAnimationPayloadQuery AnimationPayloadQuery(SceneNodeUidAndPayloadKey.Key, SceneNodeUidAndPayloadKey.Value, SampleRate, RangeStart, RangeEnd);
+				BoneAnimationPayloadQueries.Add(SceneNodeUidAndPayloadKey, AnimationPayloadQuery);
+				//Allocate the results so we do not need any mutex
+				BoneAnimationPayloadResults.FindOrAdd(SceneNodeUidAndPayloadKey, UE::Interchange::FAnimationPayloadData(SceneNodeUidAndPayloadKey.Key, SceneNodeUidAndPayloadKey.Value));
+
+				TSharedPtr<UE::Interchange::FInterchangeTaskLambda, ESPMode::ThreadSafe> TaskGetAnimationPayload = MakeShared<UE::Interchange::FInterchangeTaskLambda, ESPMode::ThreadSafe>(bAsync ? UE::Interchange::EInterchangeTaskThread::AsyncThread : UE::Interchange::EInterchangeTaskThread::GameThread
+					, [this, SceneNodeUidAndPayloadKey, AnimSequenceTranslatorPayloadInterface]()
+					{
+						TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeAnimSequenceFactory::GetAnimationPayloadSingleQuery);
+						UE::Interchange::FAnimationPayloadQuery& AnimationQuery = BoneAnimationPayloadQueries.FindChecked(SceneNodeUidAndPayloadKey);
+						TArray<UE::Interchange::FAnimationPayloadData> AnimationPayloads = AnimSequenceTranslatorPayloadInterface->GetAnimationPayloadData({ AnimationQuery });
+						if (ensure(AnimationPayloads.IsValidIndex(0) && BoneAnimationPayloadResults.Contains(SceneNodeUidAndPayloadKey)))
+						{
+							BoneAnimationPayloadResults.FindChecked(SceneNodeUidAndPayloadKey) = AnimationPayloads[0];
+						}
+					});
+				PayloadTasks.Add(TaskGetAnimationPayload);
+			}
+		}
+	}
+}
+
 UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimSequenceFactory::BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeAnimSequenceFactory::BeginImportAsset_GameThread);
@@ -1101,24 +1200,20 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimSequenceFactory::Imp
 		double RangeEnd = 1.0 / SampleRate; //One frame duration per default
 		AnimSequenceFactoryNode->GetCustomImportBoneTracksRangeStop(RangeEnd);
 
-
 		TMap<FString, FInterchangeAnimationPayLoadKey> PayloadKeys;
 		AnimSequenceFactoryNode->GetSceneNodeAnimationPayloadKeys(PayloadKeys);
 
-		TArray<UE::Interchange::FAnimationPayloadQuery> PayloadQueries;
-
-		for (const TTuple<FString, FInterchangeAnimationPayLoadKey>& SceneNodeUidAndPayloadKey : PayloadKeys)
-		{
-			PayloadQueries.Add(UE::Interchange::FAnimationPayloadQuery(SceneNodeUidAndPayloadKey.Key, SceneNodeUidAndPayloadKey.Value, SampleRate, RangeStart, RangeEnd));
-		}
-
-		TArray<UE::Interchange::FAnimationPayloadData> AnimationPayloads = AnimSequenceTranslatorPayloadInterface->GetAnimationPayloadData(PayloadQueries);
-		
 		BoneTrackData.MergedRangeEnd = RangeEnd;
 		BoneTrackData.MergedRangeStart = RangeStart;
 		BoneTrackData.PreProcessedAnimationPayloads.Reset();
-		for (UE::Interchange::FAnimationPayloadData& AnimationPayload : AnimationPayloads)
+		for (const TTuple<FString, FInterchangeAnimationPayLoadKey>& SceneNodeUidAndPayloadKey : PayloadKeys)
 		{
+			if (!BoneAnimationPayloadResults.Contains(SceneNodeUidAndPayloadKey))
+			{
+				continue;
+			}
+			UE::Interchange::FAnimationPayloadData& AnimationPayload = BoneAnimationPayloadResults.FindChecked(SceneNodeUidAndPayloadKey);
+
 			const UInterchangeSceneNode* SkeletonSceneNode = Cast<UInterchangeSceneNode>(Arguments.NodeContainer->GetNode(AnimationPayload.SceneNodeUniqueID));
 			if (!SkeletonSceneNode)
 			{
@@ -1161,7 +1256,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimSequenceFactory::Imp
 		AnimSequenceFactoryNode->GetMorphTargetNodeAnimationPayloadKeys(MorphTargetNodeAnimationPayloads);
 
 		TArray<UE::Interchange::FAnimationPayloadQuery> PayloadQueries;
-		TMap<FString, TFuture<TOptional<UE::Interchange::FAnimationPayloadData>>> MorphTargetCurveWeightInstanceAnimationPayloads;
+		TMap<FString, TOptional<UE::Interchange::FAnimationPayloadData>> MorphTargetCurveWeightInstanceAnimationPayloads;
 
 		for (const TPair<FString, FInterchangeAnimationPayLoadKey>& MorphTargetNodeUidAnimationPayload : MorphTargetNodeAnimationPayloads)
 		{
@@ -1174,30 +1269,21 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimSequenceFactory::Imp
 			{
 				if (MorphTargetNodeUidAnimationPayload.Value.Type == EInterchangeAnimationPayLoadType::MORPHTARGETCURVEWEIGHTINSTANCE)
 				{
-					MorphTargetCurveWeightInstanceAnimationPayloads.Add(PayloadKey, Async(EAsyncExecution::TaskGraph, [&MorphTargetNodeUidAnimationPayload]
-						{
-							TOptional<UE::Interchange::FAnimationPayloadData> Result;
-							UE::Interchange::FAnimationPayloadData AnimationPayLoadData(MorphTargetNodeUidAnimationPayload.Key, MorphTargetNodeUidAnimationPayload.Value);
+					TOptional<UE::Interchange::FAnimationPayloadData>& Result = MorphTargetCurveWeightInstanceAnimationPayloads.FindOrAdd(PayloadKey);
+					UE::Interchange::FAnimationPayloadData AnimationPayLoadData(MorphTargetNodeUidAnimationPayload.Key, MorphTargetNodeUidAnimationPayload.Value);
+					TArray<FString> PayLoadKeys;
+					MorphTargetNodeUidAnimationPayload.Value.UniqueId.ParseIntoArray(PayLoadKeys, TEXT(":"));
+					if (PayLoadKeys.Num() == 2)
+					{
+						float Weight;
+						LexFromString(Weight, *PayLoadKeys[1]);
 
-							TArray<FString> PayLoadKeys;
-							MorphTargetNodeUidAnimationPayload.Value.UniqueId.ParseIntoArray(PayLoadKeys, TEXT(":"));
+						AnimationPayLoadData.Curves.SetNum(1);
+						FRichCurve& Curve = AnimationPayLoadData.Curves[0];
+						Curve.AddKey(0, Weight);
 
-							if (PayLoadKeys.Num() != 2)
-							{
-								return Result;
-							}
-
-							float Weight;
-							LexFromString(Weight, *PayLoadKeys[1]);
-
-							AnimationPayLoadData.Curves.SetNum(1);
-							FRichCurve& Curve = AnimationPayLoadData.Curves[0];
-							Curve.AddKey(0, Weight);
-
-							Result.Emplace(AnimationPayLoadData);
-
-							return Result;
-						}));
+						Result.Emplace(AnimationPayLoadData);
+					}
 				}
 				else
 				{
@@ -1215,9 +1301,9 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimSequenceFactory::Imp
 		}
 		AnimationCurvesPayloads.Empty();
 
-		for (TPair<FString, TFuture<TOptional<UE::Interchange::FAnimationPayloadData>>>& CurveNameAndPayload : MorphTargetCurveWeightInstanceAnimationPayloads)
+		for (TPair<FString, TOptional<UE::Interchange::FAnimationPayloadData>>& CurveNameAndPayload : MorphTargetCurveWeightInstanceAnimationPayloads)
 		{
-			TOptional<UE::Interchange::FAnimationPayloadData> AnimationCurvePayload = CurveNameAndPayload.Value.Get();
+			TOptional<UE::Interchange::FAnimationPayloadData> AnimationCurvePayload = CurveNameAndPayload.Value;
 			if (!AnimationCurvePayload.IsSet())
 			{
 				UE_LOG(LogInterchangeImport, Warning, TEXT("Invalid animation morph target curve payload key [%s] in AnimSequence asset %s."), *CurveNameAndPayload.Key, *Arguments.AssetName);

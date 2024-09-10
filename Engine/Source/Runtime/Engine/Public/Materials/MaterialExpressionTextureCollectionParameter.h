@@ -49,6 +49,7 @@ class UMaterialExpressionTextureCollectionParameter : public UMaterialExpression
 	//~ End UMaterialExpression Interface
 
 #if WITH_EDITOR
+	bool TextureCollectionIsValid(UTextureCollection* InTextureCollection, FString& OutMessage);
 	bool SetParameterValue(const FName& InParameterName, UTextureCollection* InValue, EMaterialExpressionSetParameterValueFlags Flags = EMaterialExpressionSetParameterValueFlags::None);
 #endif
 };

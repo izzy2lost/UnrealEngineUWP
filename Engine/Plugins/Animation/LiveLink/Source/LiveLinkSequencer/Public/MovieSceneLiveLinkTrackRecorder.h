@@ -18,6 +18,7 @@ class ULiveLinkComponent;
 class ULiveLinkSubjectProperties;
 class UMovieSceneLiveLinkSection;
 class UMovieSceneLiveLinkTrack;
+class ULevelSequence;
 
 
 UCLASS(BlueprintType)
@@ -46,6 +47,8 @@ public:
 	void AddContentsToFolder(UMovieSceneFolder* InFolder);
 	void SetReduceKeys(bool bInReduce) { bReduceKeys = bInReduce; }
 
+	/** Tell the recorder to write the take track using the recorded times. */
+	void ProcessRecordedTimes(ULevelSequence *InLevelSequence);
 private:
 
 	UMovieSceneLiveLinkTrack* DoesLiveLinkTrackExist(const FName& TrackName, const TSubclassOf<ULiveLinkRole>& InTrackRole);
@@ -96,11 +99,17 @@ private:
 	/** Whether the Subject is Virtual or not*/
 	bool bIsVirtualSubject = false;
 
+	/** Should we record timecode data. */
+	bool bRecordTimecode = false;
+
 	/** Delegates registered during recording to receive live link data as it comes in*/
 	FDelegateHandle OnStaticDataReceivedHandle;
 	FDelegateHandle OnFrameDataReceivedHandle;
 
 	TArray<FLiveLinkFrameDataStruct> FramesToProcess;
+
+	/** Pairs of recorded times with the corresponding timecode.*/
+	TArray<TPair<FQualifiedFrameTime, FQualifiedFrameTime>> RecordedTimes;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

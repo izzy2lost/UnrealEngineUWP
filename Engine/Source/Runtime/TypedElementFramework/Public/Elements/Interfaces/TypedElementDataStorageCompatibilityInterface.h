@@ -14,7 +14,7 @@
 #include "TypedElementDataStorageCompatibilityInterface.generated.h"
 
 UINTERFACE(MinimalAPI)
-class UTypedElementDataStorageCompatibilityInterface : public UInterface
+class UEditorDataStorageCompatibilityProvider : public UInterface
 {
 	GENERATED_BODY()
 };
@@ -23,13 +23,13 @@ class UTypedElementDataStorageCompatibilityInterface : public UInterface
  * Interface to provide compatibility with existing systems that don't directly
  * support the data storage.
  */
-class ITypedElementDataStorageCompatibilityInterface
+class IEditorDataStorageCompatibilityProvider
 {
 	GENERATED_BODY()
 
 public:
-	using ObjectRegistrationFilter = TFunction<bool(const ITypedElementDataStorageCompatibilityInterface&, const UObject*)>;
-	using ObjectToRowDealiaser = TFunction<UE::Editor::DataStorage::RowHandle(const ITypedElementDataStorageCompatibilityInterface&, const UObject*)>;
+	using ObjectRegistrationFilter = TFunction<bool(const IEditorDataStorageCompatibilityProvider&, const UObject*)>;
+	using ObjectToRowDealiaser = TFunction<UE::Editor::DataStorage::RowHandle(const IEditorDataStorageCompatibilityProvider&, const UObject*)>;
 	
 	/**
 	 * @section Type-agnostic functions
@@ -118,7 +118,7 @@ template<typename Type> Type* GetRawPointer(Type* Object)						{ return Object; 
 template<typename Type> Type* GetRawPointer(Type& Object)						{ return &Object; }
 
 template<typename ObjectType>
-UE::Editor::DataStorage::RowHandle ITypedElementDataStorageCompatibilityInterface::AddCompatibleObject(ObjectType&& Object)
+UE::Editor::DataStorage::RowHandle IEditorDataStorageCompatibilityProvider::AddCompatibleObject(ObjectType&& Object)
 {
 	auto RawPointer = GetRawPointer(Forward<ObjectType>(Object));
 	using BaseType = std::remove_cv_t<std::remove_pointer_t<decltype(RawPointer)>>;
@@ -134,13 +134,13 @@ UE::Editor::DataStorage::RowHandle ITypedElementDataStorageCompatibilityInterfac
 }
 
 template<typename ObjectType>
-void ITypedElementDataStorageCompatibilityInterface::RemoveCompatibleObject(ObjectType&& Object)
+void IEditorDataStorageCompatibilityProvider::RemoveCompatibleObject(ObjectType&& Object)
 {
 	RemoveCompatibleObjectExplicit(GetRawPointer(Forward<ObjectType>(Object)));
 }
 
 template<typename ObjectType>
-UE::Editor::DataStorage::RowHandle ITypedElementDataStorageCompatibilityInterface::FindRowWithCompatibleObject(ObjectType&& Object) const
+UE::Editor::DataStorage::RowHandle IEditorDataStorageCompatibilityProvider::FindRowWithCompatibleObject(ObjectType&& Object) const
 {
 	return FindRowWithCompatibleObjectExplicit(GetRawPointer(Forward<ObjectType>(Object)));
 }

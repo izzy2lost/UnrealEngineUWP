@@ -85,7 +85,10 @@ struct FChaosVDFRigidParticleControlFlags : public FChaosVDWrapperDataBase
 		  bOneWayInteractionEnabled(false),
 		  bInertiaConditioningEnabled(false), 
 		  GravityGroupIndex(0),
-		  bMACDEnabled(false)
+		  bMACDEnabled(false), 
+		  PositionSolverIterationCount(8),
+		  VelocitySolverIterationCount(1),
+		  ProjectionSolverIterationCount(1)
 	{
 	}
 
@@ -116,6 +119,12 @@ struct FChaosVDFRigidParticleControlFlags : public FChaosVDWrapperDataBase
 	int32 GravityGroupIndex;
 	UPROPERTY(VisibleAnywhere, Category = "Particle Control Flags")
 	bool bMACDEnabled;
+	UPROPERTY(VisibleAnywhere, Category = "Particle Control Flags")
+	uint8 PositionSolverIterationCount;
+	UPROPERTY(VisibleAnywhere, Category = "Particle Control Flags")
+	uint8 VelocitySolverIterationCount;
+	UPROPERTY(VisibleAnywhere, Category = "Particle Control Flags")
+	uint8 ProjectionSolverIterationCount;
 };
 
 inline FArchive& operator<<(FArchive& Ar, FChaosVDFRigidParticleControlFlags& Data)

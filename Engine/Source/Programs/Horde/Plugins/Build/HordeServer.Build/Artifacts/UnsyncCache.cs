@@ -207,9 +207,9 @@ namespace HordeServer.Artifacts
 		async Task<ArtifactInfo?> ReadArtifactAsync(IArtifact artifact, CancellationToken cancellationToken)
 		{
 			Stopwatch timer = Stopwatch.StartNew();
-			IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
+			IStorageNamespace storageNamespace = _storageService.GetNamespace(artifact.NamespaceId);
 
-			IHashedBlobRef<DirectoryNode>? target = await storageClient.TryReadRefAsync<DirectoryNode>(artifact.RefName, cancellationToken: cancellationToken);
+			IHashedBlobRef<DirectoryNode>? target = await storageNamespace.TryReadRefAsync<DirectoryNode>(artifact.RefName, cancellationToken: cancellationToken);
 			if (target == null)
 			{
 				return null;

@@ -128,7 +128,7 @@ void AddSubsurfaceTiledScreenPass(
 			Forward<FRDGEventName>(Name),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PassParameters, VertexShader, PixelShader, DepthStencilState, BlendState, Viewport = SceneViewport, TileType](FRHICommandList& RHICmdList)
+			[PassParameters, VertexShader, PixelShader, DepthStencilState, BlendState, Viewport = SceneViewport, TileType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				typename FSubsurfacePassVS::FParameters ParametersVS = PassParameters->TileParameters;
 

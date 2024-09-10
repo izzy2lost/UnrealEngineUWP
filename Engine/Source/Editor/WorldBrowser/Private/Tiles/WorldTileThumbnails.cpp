@@ -41,7 +41,7 @@ FSlateTextureDataPtr FTileThumbnail::UpdateThumbnail()
 	}
 	
 	// Load image from a package header
-	if (!TileModel.IsVisible() || TileModel.IsSimulating())
+	if (!TileModel.IsVisibleInEditor() || TileModel.IsSimulating())
 	{
 		const FName LevelAssetName = TileModel.GetAssetName();
 		TSet<FName> ObjectFullNames;

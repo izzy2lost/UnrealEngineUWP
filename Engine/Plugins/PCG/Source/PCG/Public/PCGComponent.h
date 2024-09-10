@@ -87,6 +87,7 @@ class PCG_API UPCGComponent : public UActorComponent
 	friend class UPCGManagedActors;
 	friend class UPCGSubsystem;
 	friend class FPCGActorAndComponentMapping;
+	friend struct FPCGWorldPartitionBuilder;
 
 public:
 	/** ~Begin UObject interface */
@@ -165,6 +166,7 @@ public:
 
 	FPCGTaskId GenerateLocalGetTaskId(bool bForce);
 	FPCGTaskId GenerateLocalGetTaskId(EPCGComponentGenerationTrigger RequestedGenerationTrigger, bool bForce, EPCGHiGenGrid Grid = EPCGHiGenGrid::Uninitialized);
+	FPCGTaskId GenerateLocalGetTaskId(EPCGComponentGenerationTrigger RequestedGenerationTrigger, bool bForce, EPCGHiGenGrid Grid, const TArray<FPCGTaskId>& Dependencies);
 
 	/** Cleans up the generation from a local (vs. remote) standpoint. Will not be replicated. Will be delayed. */
 	UFUNCTION(BlueprintCallable, Category = PCG)

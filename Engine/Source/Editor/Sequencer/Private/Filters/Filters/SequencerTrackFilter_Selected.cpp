@@ -13,17 +13,27 @@
 FSequencerTrackFilter_Selected::FSequencerTrackFilter_Selected(ISequencerTrackFilters& InFilterInterface, TSharedPtr<FFilterCategory> InCategory)
 	: FSequencerTrackFilter(InFilterInterface, MoveTemp(InCategory))
 {
-	if (const FEditorModeTools* const EditorMode = GetEditorModeManager())
-	{
-		EditorMode->GetSelectedObjects()->SelectionChangedEvent.AddRaw(this, &FSequencerTrackFilter_Selected::OnSelectionChanged);
-	}
 }
 
 FSequencerTrackFilter_Selected::~FSequencerTrackFilter_Selected()
 {
-	if (const FEditorModeTools* const EditorMode = GetEditorModeManager())
+	UnbindSelectionChanged();
+}
+
+void FSequencerTrackFilter_Selected::BindSelectionChanged()
+{
+	if (!OnSelectionChangedHandle.IsValid())
 	{
-		EditorMode->GetSelectedObjects()->SelectionChangedEvent.RemoveAll(this);
+		OnSelectionChangedHandle = USelection::SelectionChangedEvent.AddRaw(this, &FSequencerTrackFilter_Selected::OnSelectionChanged);
+	}
+}
+
+void FSequencerTrackFilter_Selected::UnbindSelectionChanged()
+{
+	if (OnSelectionChangedHandle.IsValid())
+	{
+		USelection::SelectionChangedEvent.Remove(OnSelectionChangedHandle);
+		OnSelectionChangedHandle.Reset();
 	}
 }
 
@@ -62,6 +72,20 @@ FText FSequencerTrackFilter_Selected::GetDefaultToolTipText() const
 TSharedPtr<FUICommandInfo> FSequencerTrackFilter_Selected::GetToggleCommand() const
 {
 	return FSequencerTrackFilterCommands::Get().ToggleFilter_Selected;
+}
+
+void FSequencerTrackFilter_Selected::ActiveStateChanged(const bool bInActive)
+{
+	FSequencerTrackFilter::ActiveStateChanged(bInActive);
+
+	if (bInActive)
+	{
+		BindSelectionChanged();
+	}
+	else
+	{
+		UnbindSelectionChanged();
+	}
 }
 
 FText FSequencerTrackFilter_Selected::GetDisplayName() const

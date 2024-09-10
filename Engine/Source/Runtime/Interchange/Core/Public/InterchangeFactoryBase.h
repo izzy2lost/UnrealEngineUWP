@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "InterchangeResultsContainer.h"
+#include "InterchangeTaskSystem.h"
 #include "Nodes/InterchangeFactoryBaseNode.h"
 #include "UObject/Class.h"
 #include "UObject/Object.h"
@@ -124,6 +125,11 @@ public:
 	virtual UObject* ImportAssetObject_GameThread(const FImportAssetObjectParams& Arguments)
 	{
 		return nullptr;
+	}
+
+	virtual void CreatePayloadTasks(const FImportAssetObjectParams& Arguments, bool bAsync, TArray<TSharedPtr<UE::Interchange::FInterchangeTaskBase>>& PayloadTasks)
+	{
+		return;
 	}
 
 	/**

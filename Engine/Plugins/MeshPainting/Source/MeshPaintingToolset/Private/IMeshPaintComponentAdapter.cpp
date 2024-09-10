@@ -8,7 +8,6 @@
 #include "Engine/World.h"
 #include "MaterialShared.h"
 #include "Materials/Material.h"
-#include "Materials/MaterialExpressionMeshPaintTextureObject.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionTextureSampleParameter.h"
 #include "Materials/MaterialInstance.h"
@@ -110,16 +109,6 @@ void IMeshPaintComponentAdapter::DefaultQueryPaintableTextures(int32 MaterialInd
 						OutDefaultIndex = TextureIndex;
 					}
 				}
-
-				// If material samples the primitive mesh paint texture, then add it here.
-				if (UMaterialExpressionMeshPaintTextureObject* MeshPaintTextureExpression = Cast<UMaterialExpressionMeshPaintTextureObject>(Expression))
-				{
-					if (UTexture* MeshPaintTexture = MeshComponent->GetMeshPaintTexture())
-					{
-						const int32 CoordinateIndex = MeshComponent->GetMeshPaintTextureCoordinateIndex();
-						InOutTextureList.AddUnique(FPaintableTexture(MeshPaintTexture, CoordinateIndex, true));
-					}
-				}
 			}
 		}
 		// Make sure to include all texture parameters, this will include all of the texture parameters from internal material functions
@@ -150,6 +139,13 @@ void IMeshPaintComponentAdapter::DefaultQueryPaintableTextures(int32 MaterialInd
 			// This prevents an infinite loop when `Material` isn't a material instance.
 			break;
 		}
+	}
+
+	// If the component has a mesh paint texture, then add it here.
+	if (UTexture* MeshPaintTexture = MeshComponent->GetMeshPaintTexture())
+	{
+		const int32 CoordinateIndex = MeshComponent->GetMeshPaintTextureCoordinateIndex();
+		InOutTextureList.AddUnique(FPaintableTexture(MeshPaintTexture, CoordinateIndex, true));
 	}
 }
 

@@ -50,25 +50,33 @@ TSharedRef<SDockTab> FChaosVDObjectDetailsTab::HandleTabSpawnRequest(const FSpaw
 			SolverDataSelectionObject->GetDataSelectionChangedDelegate().AddSP(this, &FChaosVDObjectDetailsTab::HandleSolverDataSelectionChange);
 		}
 
-		DetailsPanelTab->SetContent
-		(
-			SNew(SVerticalBox)
-			+SVerticalBox::Slot()
-			[
-				SAssignNew(DetailsPanelView, SChaosVDDetailsView)
-			]
-			+SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				GenerateShowCollisionDataButton().ToSharedRef()
-			]
-		);
-
-		// If we closed the tab and opened it again with an object already selected, try to restore the selected object view
-		if (DetailsPanelView.IsValid() && CurrentSelectedObject.IsValid())
+		if (const TSharedPtr<SChaosVDMainTab> MainTabPtr = OwningTabWidget.Pin())
 		{
-			DetailsPanelView->SetSelectedObject(CurrentSelectedObject.Get());
+			DetailsPanelTab->SetContent
+			(
+				SNew(SVerticalBox)
+				+SVerticalBox::Slot()
+				[
+					SAssignNew(DetailsPanelView, SChaosVDDetailsView, MainTabPtr.ToSharedRef())
+				]
+				+SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					GenerateShowCollisionDataButton().ToSharedRef()
+				]
+			);
+
+			// If we closed the tab and opened it again with an object already selected, try to restore the selected object view
+			if (DetailsPanelView.IsValid() && CurrentSelectedObject.IsValid())
+			{
+				DetailsPanelView->SetSelectedObject(CurrentSelectedObject.Get());
+			}
 		}
+		else
+		{
+			DetailsPanelTab->SetContent(GenerateErrorWidget());
+		}
+
 	}
 	else
 	{

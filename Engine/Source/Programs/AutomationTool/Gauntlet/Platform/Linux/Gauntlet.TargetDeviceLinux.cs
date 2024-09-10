@@ -45,7 +45,7 @@ namespace Gauntlet
 				throw new DeviceException("Specified path {0} not found!", LinuxApp.ExecutablePath);
 			}
 
-			IProcessResult Result = null;
+			ILongProcessResult Result = null;
 
 			lock (Globals.MainLock)
 			{
@@ -60,8 +60,6 @@ namespace Gauntlet
 
 				Log.Verbose("\t{0}", CmdLine);
 
-				bool bAllowSpew = LinuxApp.RunOptions.HasFlag(CommandUtils.ERunOptions.AllowSpew);
-
 				bool bAppContainerized = LinuxApp is IContainerized;
 
 				// Forward command to Docker container if running containerized
@@ -72,11 +70,14 @@ namespace Gauntlet
 					CmdLine = $"run --name {Container.ContainerName} {Container.ImageName} {Container.RunCommandPrepend} {ContainerApp} {CmdLine}";
 				}
 
-				Result = CommandUtils.Run(bAppContainerized ? "docker" : LinuxApp.ExecutablePath,
+				Result = new LongProcessResult(
+					bAppContainerized ? "docker" : LinuxApp.ExecutablePath,
 					CmdLine,
-					Options: LinuxApp.RunOptions,
-					SpewFilterCallback: new SpewFilterCallbackType(delegate (string M) { return bAllowSpew ? M : null; }) /* make sure stderr does not spew in the stdout */,
-					WorkingDir: LinuxApp.WorkingDirectory);
+					LinuxApp.RunOptions,
+					OutputCallback: LinuxApp.FilterLoggingDelegate,
+					WorkingDir: LinuxApp.WorkingDirectory,
+					LocalCache: LinuxApp.Device.LocalCachePath
+				);
 
 				if (Result.HasExited && Result.ExitCode != 0)
 				{
@@ -283,7 +284,7 @@ namespace Gauntlet
 
 	public class LinuxAppInstance : DesktopCommonAppInstance<LinuxAppInstall, TargetDeviceLinux>
 	{
-		public LinuxAppInstance(LinuxAppInstall InInstall, IProcessResult InProcess, string InProcessLogFile = null)
+		public LinuxAppInstance(LinuxAppInstall InInstall, ILongProcessResult InProcess, string InProcessLogFile = null)
 			: base(InInstall, InProcess, InProcessLogFile)
 		{ }
 	}

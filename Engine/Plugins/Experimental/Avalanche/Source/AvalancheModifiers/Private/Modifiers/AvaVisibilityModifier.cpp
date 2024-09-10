@@ -169,6 +169,11 @@ void UAvaVisibilityModifier::OnModifierCDOSetup(FActorModifierCoreMetadata& InMe
 #endif
 }
 
+void UAvaVisibilityModifier::OnModifiedActorTransformed()
+{
+	// Overwrite parent class behaviour don't do anything when moved
+}
+
 void UAvaVisibilityModifier::OnRenderStateUpdated(AActor* InActor, UActorComponent* InComponent)
 {
 	Super::OnRenderStateUpdated(InActor, InComponent);

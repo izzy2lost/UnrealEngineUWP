@@ -31,6 +31,7 @@ public:
 
 		FVector SlicingDirection;
 		FVector PerpendicularSlicingDirection;
+		int32 AdditionalSeed = 0;
 
 		const UPCGSegmentSlicerSettings* Settings = nullptr;
 		FPCGContext* Context = nullptr;
@@ -78,7 +79,7 @@ public:
 
 		TArray<PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>> ModulesInstances;
 		double RemainingSubdivide;
-		const bool bSubdivideSuccess = PCGSlicingBase::Subdivide(*CurrentTokenizedGrammar.ModuleGrammar, Size, ModulesInstances, RemainingSubdivide, InOutParameters.Context);
+		const bool bSubdivideSuccess = PCGSlicingBase::Subdivide(*CurrentTokenizedGrammar.ModuleGrammar, Size, ModulesInstances, RemainingSubdivide, InOutParameters.Context, InOutParameters.AdditionalSeed);
 
 		if (!bSubdivideSuccess)
 		{
@@ -251,7 +252,7 @@ bool FPCGSegmentSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 			Keys = PCGAttributeAccessorHelpers::CreateConstKeys(InputPointData, Selector);
 			if (!GrammarAccessor || !Keys)
 			{
-				PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("GrammarAccessor", "Attribute {0} was not found for the grammar."), Selector.GetDisplayText()), InContext);
+				PCGLog::Metadata::LogFailToCreateAccessorError(Selector, InContext);
 				continue;
 			}
 		}
@@ -267,7 +268,7 @@ bool FPCGSegmentSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 
 			if (!FlipAxisAccessor || !Keys)
 			{
-				PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("FlipAxisAccessor", "Attribute {0} was not found for the flip axis attribute."), Selector.GetDisplayText()), InContext);
+				PCGLog::Metadata::LogFailToCreateAccessorError(Selector, InContext);
 				continue;
 			}
 		}
@@ -306,6 +307,27 @@ bool FPCGSegmentSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 			continue;
 		}
 
+		// Set seed if required
+		Parameters.AdditionalSeed = 0;
+		if (Settings->bUseSeedAttribute)
+		{
+			const FPCGAttributePropertyInputSelector Selector = Settings->SeedAttribute.CopyAndFixLast(InputPointData);
+			TUniquePtr<const IPCGAttributeAccessor> SeedAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputPointData, Selector);
+			if (!Keys)
+			{
+				Keys = PCGAttributeAccessorHelpers::CreateConstKeys(InputPointData, Selector);
+			}
+
+			if (!SeedAccessor || !Keys)
+			{
+				PCGLog::Metadata::LogFailToCreateAccessorError(Selector, InContext);
+			}
+			// Otherwise, get the value, if it fails, the attribute wasn't compatible
+			else if (!SeedAccessor->Get(Parameters.AdditionalSeed, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey), EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible))
+			{
+				PCGLog::Metadata::LogFailToGetAttributeError<int32>(Selector, SeedAccessor.Get(), InContext);
+			}
+		}
 
 		if (Settings->GrammarSelection.bGrammarAsAttribute && Settings->bFlipAxisAsAttribute)
 		{

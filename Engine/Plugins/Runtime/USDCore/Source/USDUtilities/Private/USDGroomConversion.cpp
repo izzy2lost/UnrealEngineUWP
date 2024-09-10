@@ -6,6 +6,7 @@
 
 #include "GroomCacheData.h"
 #include "HairDescription.h"
+#include "USDMemory.h"
 #include "USDPrimConversion.h"
 #include "USDTypesConversion.h"
 #include "UsdWrappers/UsdPrim.h"

@@ -5,7 +5,7 @@ import * as p4util from '../common/p4util';
 
 import { ContextualLogger } from "../common/logger";
 import { Recipients } from "../common/mailer";
-import { Change, coercePerforceWorkspace, ConflictedResolveNFile, EditChangeOpts, EXCLUSIVE_CHECKOUT_REGEX, getRootDirectoryForBranch, IntegrationSource, IntegrationTarget, isExecP4Error, OpenedFileRecord, PerforceContext } from "../common/perforce";
+import { Change, coercePerforceWorkspace, ConflictedResolveNFile, EdgeServer, EditChangeOpts, EXCLUSIVE_CHECKOUT_REGEX, getPerforceUsername, getRootDirectoryForBranch, IntegrationSource, IntegrationTarget, isExecP4Error, OpenedFileRecord, PerforceContext } from "../common/perforce";
 import { VersionReader } from "../common/version";
 import { EdgeBotInterface, IPCControls, ReconsiderArgs } from "./bot-interfaces";
 import { AlreadyIntegrated, Branch, ChangeInfo, ConflictingFile, ExclusiveFile, Failure, MergeAction, PendingChange } from "./branch-interfaces";
@@ -298,7 +298,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		}
 
 		this.edgeBotLogger.info(`${logMessage}. Reverting ${pending.newCl}.`)
-		await this.revertAndDelete(coercePerforceWorkspace(this.targetBranch.workspace)!.name, pending.newCl)
+		await this.revertAndDelete(coercePerforceWorkspace(pending.change.targetWorkspace)!.name, pending.newCl)
 
 		let pauseDurationSeconds = FAILED_CHANGELIST_PAUSE_TIMEOUT_SECONDS
 		// if we have a target, make sure pause duration is at least 2x duration of failed integration
@@ -454,6 +454,73 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		this.sourceNode.queueEdgeUnblock(this.targetBranch.upperName)
 	}
 
+	public async getWorkspace(edgeServer?: EdgeServer) {
+
+		const edgeServerAddress: string | undefined = edgeServer && edgeServer.address
+
+		// name the workspace
+		let workspaceName = this.options.workspaceNameOverride || ['ROBOMERGE', this.targetBranch.parent.botname, this.targetBranch.name].join('_');
+		let fromName = `_FROM_${(this.targetBranch.parent == this.sourceBranch.parent ? '' : this.sourceBranch.parent.botname)}_${this.sourceBranch.name}`
+		if (this.incognitoMode) {
+			const hashCode = (s: string) => s.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0)
+			workspaceName += '_' + hashCode(fromName)
+		}
+		else {
+			workspaceName += fromName
+		}
+		const p4username = getPerforceUsername()
+		if (p4username !== 'robomerge') {
+			workspaceName = [p4username!.toUpperCase(), process.platform.toUpperCase(), workspaceName].join('_')
+		}
+		workspaceName = workspaceName.replace(/[\/\.-\s]/g, "_").replace(/_+/g,"_");
+		if (edgeServer) {
+			workspaceName += '_' + edgeServer.id.toUpperCase()
+		}
+
+		// ensure root directory exists (we set the root diretory to be the cwd)
+		const path = getRootDirectoryForBranch(workspaceName);
+		if (!fs.existsSync(path)) {
+			this.logger.info(`Making directory ${path}`);
+			fs.mkdirSync(path);
+		}
+
+		// do we already have a workspace?
+		const existingWorkspaceInfo = await this.p4.find_workspace_by_name(workspaceName, {edgeServerAddress, includeUnloaded: true})
+		if (existingWorkspaceInfo.length > 0) {
+			if (existingWorkspaceInfo[0].IsUnloaded) {
+				await this.p4.reloadWorkspace(workspaceName, edgeServerAddress)
+			}
+			await p4util.cleanWorkspaces(this.p4, [[workspaceName, this.targetBranch.rootPath]], edgeServerAddress)
+		}
+		else {
+			const params: any = {};
+			if (this.targetBranch.stream) {
+				params['Stream'] = this.targetBranch.stream;
+			}
+			else {
+				params['View'] = [
+					`${this.targetBranch.rootPath} //${workspaceName}/...`
+				];
+			}
+
+			await this.p4.newGraphBotWorkspace(workspaceName, params, edgeServer);
+
+			// if we're on linux, remove the directory whenever we create the workspace for the first time
+			if (process.platform === "linux") {
+				const dir = '/src/' + workspaceName;
+				this.logger.info(`Cleaning ${dir}...`);
+
+				// delete the directory contents (but not the directory)
+				require('child_process').execSync(`rm -rf ${dir}/*`);
+			}
+			else {
+				await this.p4.clean(workspaceName);
+			}
+		}
+		
+		return workspaceName
+	}
+
 	private async integrate(info: ChangeInfo, target: MergeAction) : Promise<EdgeIntegrationDetails> {
 		const to_integrate = info.cl
 		this._log_action(`Integrating CL ${to_integrate} to ${this.targetBranch.name}`)
@@ -461,45 +528,12 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		// if required, add author review here so they're not in target.description, which is used for shelf description in case of conflict
 		const desc = target.description! // target.description always ends in newline
 
-		info.targetWorkspaceOverride = coercePerforceWorkspace(this.targetBranch.workspace)!.name
-		const edgeServer = info.edgeServerToHostShelf
-		if (edgeServer) {
+		info.targetWorkspace = await this.getWorkspace(info.edgeServerToHostShelf)
 
-			info.targetWorkspaceOverride += '_' + edgeServer.id.toUpperCase()
-
-			// make sure target workspace/directory exists (always reset for now)
-
-			// ensure local directory exists (_initWorkspacesForGraphBot)
-			const path = getRootDirectoryForBranch(info.targetWorkspaceOverride);
-			if (!fs.existsSync(path)) {
-				this.edgeBotLogger.info(`Making directory ${path}`);
-				fs.mkdirSync(path);
-			}
-
-			// do we already have a workspace? (_initBranchWorkspacesForAllBots, _getExistingWorkspaces)
-			const existingWorkspaceInfos = await this.p4.find_workspaces(undefined, {edgeServerAddress: edgeServer.address, includeUnloaded: true})
-			const existingWorkspaceIndex = existingWorkspaceInfos.findIndex((ws) => ws.client == info.targetWorkspaceOverride)
-			if (existingWorkspaceIndex >= 0) {
-				if (existingWorkspaceInfos[existingWorkspaceIndex].IsUnloaded) {
-					await this.p4.reloadWorkspace(info.targetWorkspaceOverride, edgeServer.address)
-				}
-				await p4util.cleanWorkspaces(this.p4, [[info.targetWorkspaceOverride, target.branch.rootPath]], edgeServer.address)
-			}
-			else {
-				// create one 
-				if (!target.branch.stream) {
-					throw new Error('only stream workspaces supported on edge servers')
-				}
-				await this.p4.newGraphBotWorkspace(info.targetWorkspaceOverride, {Stream: target.branch.stream}, edgeServer)
-
-				// _initWorkspacesForGraphBot does clean-up stuff here, but I don't think it's necessary
-			}
-		}
-
-		const edgeServerAddress: string | undefined = edgeServer && edgeServer.address
+		const edgeServerAddress = info.edgeServerToHostShelf && info.edgeServerToHostShelf.address
 
 		// create a new CL
-		const changenum = await this.p4.new_cl(info.targetWorkspaceOverride, desc, undefined, edgeServerAddress)
+		const changenum = await this.p4.new_cl(info.targetWorkspace, desc, undefined, edgeServerAddress)
 
 		// try to integrate
 		const branchSpecToTarget = this.sourceBranch.branchspec.get(this.targetBranch.upperName)
@@ -524,8 +558,8 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		    || (!info.userRequest && !info.forceCreateAShelf && !target.flags.has('manual'))
 
 		this.currentIntegrationStartTimestamp = Date.now()
-		await this.p4.sync(info.targetWorkspaceOverride, this.targetBranch.rootPath + '#0', {edgeServerAddress})
-		const [mode, results] = await this.p4.integrate(info.targetWorkspaceOverride, source, changenum, integTarget, {edgeServerAddress, virtual: doVirtualMerge})
+		await this.p4.sync(info.targetWorkspace, this.targetBranch.rootPath + '#0', {edgeServerAddress})
+		const [mode, results] = await this.p4.integrate(info.targetWorkspace, source, changenum, integTarget, {edgeServerAddress, virtual: doVirtualMerge})
 
 		const pending: PendingChange = {change: info, action: target, newCl: changenum}
 
@@ -543,7 +577,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 
 				// integration not necessary
 				this.edgeBotLogger.info(msg)
-				await this.p4.deleteCl(info.targetWorkspaceOverride, changenum, edgeServerAddress)
+				await this.p4.deleteCl(info.targetWorkspace, changenum, edgeServerAddress)
 				return new EdgeIntegrationDetails('nothing to do', msg)
 			}
 		}
@@ -565,7 +599,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 
 		// Revert attempt
 		if (pending.newCl > 0) {
-			await this.revertAndDelete(info.targetWorkspaceOverride, pending.newCl, edgeServerAddress)
+			await this.revertAndDelete(info.targetWorkspace, pending.newCl, edgeServerAddress)
 			pending.newCl = -1
 		}
 		
@@ -612,7 +646,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 //		const detail: ResolveResultDetail = 'detailed'
 
 		const result = await this.p4.resolve(
-			pending.change.targetWorkspaceOverride || this.targetBranch.workspace,
+			pending.change.targetWorkspace,
 			pending.newCl,
 			pending.action.mergeMode,
 			false, // detail === 'quick',
@@ -709,7 +743,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		// try to submit
 		this._log_action(`Submitting CL ${changenum} by ${info.author}`)
 		const result = await this.p4.submit(
-			pending.change.targetWorkspaceOverride || this.targetBranch.workspace, 
+			pending.change.targetWorkspace, 
 			changenum,
 			pending.change.edgeServerToHostShelf && pending.change.edgeServerToHostShelf.address)
 			
@@ -744,7 +778,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 			// change owner, so users can edit change descriptions later for reconsideration
 			this.edgeBotLogger.info(`Setting owner of CL ${finalCl} to author of change: ${info.author}`);
 			try {
-				await this.p4.editOwner(this.targetBranch.workspace, finalCl, info.author, {changeSubmitted: true})
+				await this.p4.editOwner(info.targetWorkspace, finalCl, info.author, {changeSubmitted: true})
 			}
 			catch (reason) {
 				let errPreface = 'Error changing owner'
@@ -798,12 +832,8 @@ class EdgeBotImpl extends PerforceStatefulBot {
 			final_desc += pending.change.additionalDescriptionText
 		}
 
-		/*if (forApproval) {
-			final_desc += "\n#review"
-		}*/
-
 		const edgeServerAddress = pending.change.edgeServerToHostShelf && pending.change.edgeServerToHostShelf.address
-		const destRoboWorkspace = pending.change.targetWorkspaceOverride || this.targetBranch.workspace
+		const destRoboWorkspace = pending.change.targetWorkspace
 
 		// abort shelve if this is a buildmachine / robomerge change (unless we are forcing the shelf)
 		let failed = false
@@ -1101,6 +1131,10 @@ export class EdgeBot
 
 	queueUnblock() {
 		this.impl.queueUnblock()
+	}
+
+	getWorkspace(edgeServer?: EdgeServer) {
+		return this.impl.getWorkspace(edgeServer)
 	}
 
 	/* Mirrored Variables */

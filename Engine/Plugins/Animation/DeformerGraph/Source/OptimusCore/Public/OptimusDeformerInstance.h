@@ -5,6 +5,7 @@
 #include "Animation/MeshDeformerInstance.h"
 #include "ComputeFramework/ComputeGraphInstance.h"
 #include "Engine/EngineTypes.h"
+#include "OptimusValue.h"
 
 #include "OptimusDeformerInstance.generated.h"
 
@@ -20,28 +21,8 @@ class UOptimusVariableContainer;
 class UOptimusVariableDescription;
 class UOptimusComponentSourceBinding;
 struct FShaderValueContainer;
-
-
-struct FOptimusDeformerInstanceComponentLodContext
-{
-	TArray<int32> LodIndexPerComponent;
-
-	friend uint32 GetTypeHash(const FOptimusDeformerInstanceComponentLodContext& InContext)
-	{
-		uint32 Hash = GetTypeHash(InContext.LodIndexPerComponent.Num());
-		
-		for (int32 LodIndex : InContext.LodIndexPerComponent)
-		{
-			Hash = HashCombineFast(Hash, GetTypeHash(LodIndex));
-		}
-		return Hash;
-	}
-
-	bool operator==(const FOptimusDeformerInstanceComponentLodContext& InOther) const
-	{
-		return LodIndexPerComponent == InOther.LodIndexPerComponent;
-	}
-};
+struct FOptimusValueContainerStruct;
+class UComputeDataInterface;
 
 class FOptimusPersistentBufferPool
 {
@@ -214,6 +195,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Deformer", meta=(DisplayName="Set Variable (Boolean)"))
 	bool SetBoolVariable(FName InVariableName, bool InValue);
 
+	UFUNCTION(BlueprintCallable, Category="Deformer", meta=(DisplayName="Set Variable (Boolean Array)"))
+	bool SetBoolArrayVariable(FName InVariableName, const TArray<bool>& InValue);
+	
 	/** Set the value of an integer variable. */
 	UFUNCTION(BlueprintCallable, Category="Deformer", meta=(DisplayName="Set Variable (Integer)"))
 	bool SetIntVariable(FName InVariableName, int32 InValue);
@@ -296,22 +280,29 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Deformer", meta = (DisplayName = "Set Variable (Transform Array)"))
 	bool SetTransformArrayVariable(FName InVariableName, const TArray<FTransform>& InValue);
 	
-	/** Get an array containing all the variables. */
-	UFUNCTION(BlueprintGetter)
-	const TArray<UOptimusVariableDescription*>& GetVariables() const;
+	UFUNCTION(BlueprintCallable, Category = "Deformer", meta = (DisplayName = "Set Variable (Name)"))
+	bool SetNameVariable(FName InVariableName, const FName& InValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Deformer", meta = (DisplayName = "Set Variable (Name Array)"))
+	bool SetNameArrayVariable(FName InVariableName, const TArray<FName>& InValue);
 
 	/** Trigger a named trigger graph to run on the next tick */
 	UFUNCTION(BlueprintCallable, Category="Deformer")
 	bool EnqueueTriggerGraph(FName InTriggerGraphName);
 	
-	
-	
 	/** Directly set a graph constant value. */
-	void SetConstantValueDirect(TSoftObjectPtr<UObject> InSourceObject, FShaderValueContainer const& InValue);
+	void SetConstantValueDirect(TSoftObjectPtr<UObject> InSourceObject, FOptimusValueContainerStruct const& InValue);
 
 	FOptimusPersistentBufferPoolPtr GetBufferPool() const { return BufferPool; }
 
 	void SetCanBeActive(bool bInCanBeActive);
+
+	FOptimusValueContainerStruct GetDataInterfacePropertyOverride(
+		const UComputeDataInterface* DataInterface,
+		FName PinName
+		);
+
+	const FShaderValueContainer& GetShaderValue(const FOptimusValueIdentifier& InValueId) const;
 	
 	/** Making sure compute graphs belong to this instance does not run before instances before it */
 	int32 GraphSortPriorityOffset = 0;
@@ -341,14 +332,12 @@ private:
 	UPROPERTY()
 	TArray<FOptimusDeformerInstanceExecInfo> ComputeGraphExecInfos;
 
-	/** Storage for variable data. */
-	UPROPERTY()
-	TObjectPtr<UOptimusVariableContainer> Variables;
-
-	UPROPERTY()
+	TMap<FOptimusValueIdentifier, FOptimusValueDescription> ValueMap;
+	
+	TMap<TWeakObjectPtr<const UComputeDataInterface>, FOptimusDataInterfacePropertyOverrideInfo> DataInterfacePropertyOverrideMap;
+	
 	TArray<TWeakObjectPtr<UActorComponent>> WeakBoundComponents;
 	
-	UPROPERTY()
 	TArray<TWeakObjectPtr<const UOptimusComponentSource>> WeakComponentSources;
 	
 	// List of graphs that should be run on the next tick. 

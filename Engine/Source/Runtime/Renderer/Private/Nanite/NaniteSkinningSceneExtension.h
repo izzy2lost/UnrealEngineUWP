@@ -12,6 +12,7 @@
 #include "Matrix3x4.h"
 #include "Delegates/DelegateCombinations.h"
 #include "Delegates/Delegate.h"
+#include "Tickable.h"
 
 class FNaniteSkinningParameters;
 
@@ -19,7 +20,7 @@ namespace Nanite
 {
 
 class FSkinnedSceneProxy;
-class FSkinningSceneExtension : public ISceneExtension
+class FSkinningSceneExtension : public ISceneExtension, public FTickableGameObject
 {
 	DECLARE_SCENE_EXTENSION(RENDERER_API, FSkinningSceneExtension);
 
@@ -35,13 +36,12 @@ public:
 		virtual void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet, FSceneUniformBuffer& SceneUniforms) override;
 		virtual void PostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ChangeSet) override;
 		
-		void RequestSkinningUpload(FPrimitiveSceneInfo* Primitive);
-		void FinalizeSkinningUploads(FRDGBuilder& GraphBuilder);
+		void PostMeshUpdate(FRDGBuilder& GraphBuilder, const TConstArrayView<FPrimitiveSceneInfo*>& SceneInfosWithStaticDrawListUpdate);
 
 	private:
 		FSkinningSceneExtension* SceneData = nullptr;
 		TConstArrayView<FPrimitiveSceneInfo*> AddedList;
-		TArray<FPrimitiveSceneInfo*> UpdateList;
+		TConstArrayView<FPrimitiveSceneInfo*> UpdateList;
 		TArray<int32, FSceneRenderingArrayAllocator> DirtyPrimitiveList;
 		const bool bEnableAsync = true;
 		bool bForceFullUpload = false;
@@ -72,6 +72,7 @@ public:
 	RENDERER_API void GetSkinnedPrimitives(TArray<FPrimitiveSceneInfo*>& OutPrimitives) const;
 
 	RENDERER_API static const FSkinningTransformProvider::FProviderId& GetRefPoseProviderId();
+	RENDERER_API static const FSkinningTransformProvider::FProviderId& GetAnimRuntimeProviderId();
 
 private:
 	enum ETask : uint32
@@ -151,8 +152,22 @@ private:
 		FNaniteSkinningParameters* OutParams = nullptr
 	);
 
+	void PerformSkinning(
+		FNaniteSkinningParameters& Parameters,
+		FRDGBuilder& GraphBuilder
+	);
+
 	bool ProcessBufferDefragmentation();
 
+	// FTickableGameObject
+	virtual void Tick(float DeltaTime) override;
+	virtual TStatId GetStatId() const override;
+	virtual UWorld* GetTickableGameObjectWorld() const override;
+	virtual bool IsTickable() const override { return true; }
+	virtual bool IsTickableWhenPaused() const override { return true; }
+	virtual bool IsTickableInEditor() const override { return true; }
+
+private:
 	FScene* Scene = nullptr;
 	FSpanAllocator ObjectSpaceAllocator;
 	FSpanAllocator HierarchyAllocator;
@@ -162,7 +177,12 @@ private:
 	TUniquePtr<FUploader> Uploader;
 	TStaticArray<UE::Tasks::FTask, NumTasks> TaskHandles;
 
-	void ProvideRefPoseTransforms(FSkinningTransformProvider::FProviderContext& Context);
+	float DeltaTime = 0.0f;
+	FVector CameraLocation;
+
+public:
+	RENDERER_API static void ProvideRefPoseTransforms(FSkinningTransformProvider::FProviderContext& Context);
+	RENDERER_API static void ProvideAnimRuntimeTransforms(FSkinningTransformProvider::FProviderContext& Context);
 };
 
 } // namespace Nanite

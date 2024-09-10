@@ -640,6 +640,7 @@ void FRigVMEditorModule::GetNodeContextMenuActions(IRigVMClientHost* RigVMClient
 	GetNodeOrganizationContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeVariantContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeTestContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
+	GetNodeDisplayContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 }
 
 void FRigVMEditorModule::GetNodeWorkflowContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
@@ -1293,6 +1294,68 @@ void FRigVMEditorModule::GetNodeTestContextMenuActions(IRigVMClientHost* RigVMCl
 				TEXT("Trait"),
 				FString(), INDEX_NONE, true, true);
 		}))
+	);
+}
+
+void FRigVMEditorModule::GetNodeDisplayContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
+{
+	URigVMBlueprint* Blueprint = Cast<URigVMBlueprint>(RigVMClientHost);
+	if(Blueprint == nullptr)
+	{
+		return;
+	}
+	
+	FToolMenuSection& DisplaySection = Menu->AddSection("RigVMEditorContextMenuDisplay", LOCTEXT("DisplayHeader", "Display"));
+
+	DisplaySection.AddMenuEntry(
+		TEXT("EnableProfiler"),
+		LOCTEXT("EnableProfiler", "Enable Profiler"),
+		LOCTEXT("EnableProfiler_Tooltip", "Enables the heat map profiler"),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateLambda([Blueprint]()
+		{
+			FScopedTransaction Transaction(LOCTEXT("ToggleProfiler", "Toggle Profiler"));
+			Blueprint->Modify();
+			Blueprint->VMRuntimeSettings.bEnableProfiling = !Blueprint->VMRuntimeSettings.bEnableProfiling;
+			Blueprint->PropagateRuntimeSettingsFromBPToInstances();
+			Blueprint->RequestAutoVMRecompilation();
+		}),
+		FCanExecuteAction(),
+		FGetActionCheckState::CreateLambda([Blueprint]() -> ECheckBoxState
+		{
+			return Blueprint->VMRuntimeSettings.bEnableProfiling ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		})),
+		EUserInterfaceActionType::ToggleButton
+	);
+
+	DisplaySection.AddMenuEntry(
+		TEXT("ShowAllTags"),
+		LOCTEXT("ShowAllTags", "Show all tags"),
+		LOCTEXT("ShowAllTags_Tooltip", "Shows all of the tags on nodes. If turned off this will show the deprecation tags only."),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateLambda([Blueprint]()
+		{
+			FScopedTransaction Transaction(LOCTEXT("ToggleTagDisplayMode", "Toggle Tag Display Mode"));
+			Blueprint->Modify();
+
+			if(Blueprint->RigGraphDisplaySettings.TagDisplayMode == ERigVMTagDisplayMode::All)
+			{
+				Blueprint->RigGraphDisplaySettings.TagDisplayMode = ERigVMTagDisplayMode::DeprecationOnly;
+			}
+			else
+			{
+				Blueprint->RigGraphDisplaySettings.TagDisplayMode = ERigVMTagDisplayMode::All;
+			}
+
+			// this causes all nodes to refresh
+			Blueprint->PropagateRuntimeSettingsFromBPToInstances();
+		}),
+		FCanExecuteAction(),
+		FGetActionCheckState::CreateLambda([Blueprint]() -> ECheckBoxState
+		{
+			return Blueprint->RigGraphDisplaySettings.TagDisplayMode == ERigVMTagDisplayMode::All ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		})),
+		EUserInterfaceActionType::ToggleButton
 	);
 }
 

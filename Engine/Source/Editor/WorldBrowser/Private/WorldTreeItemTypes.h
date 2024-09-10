@@ -9,6 +9,9 @@ namespace WorldHierarchy
 	static const int32 FolderSortPriority = 10;
 	static const int32 LevelModelSortPriority = 0;
 
+	/** @return Whether currently playing in editor. */
+	bool IsInPie();
+
 	/** The tree item for the level models */
 	struct FLevelModelTreeItem : IWorldTreeItem
 	{
@@ -25,13 +28,10 @@ namespace WorldHierarchy
 		virtual FString GetDisplayString() const override;
 
 		virtual FText GetToolTipText() const override;
-
 		virtual FText GetLockToolTipText() const override;
-
-		virtual FText GetVisibilityToolTipText() const override;
-
+		virtual FText GetEditorVisibilityToolTipText() const override;
+		virtual FText GetGameVisibilityToolTipText() const override;
 		virtual FText GetSaveToolTipText() const override;
-
 		virtual FString GetPackageFileName() const override;
 
 		virtual FWorldTreeItemID GetParentID() const override;
@@ -48,7 +48,8 @@ namespace WorldHierarchy
 
 		virtual int32 GetSortPriority() const override { return LevelModelSortPriority; }
 
-		virtual bool IsVisible() const override;
+		virtual bool IsVisibleInEditor() const override;
+		virtual bool IsVisibleInGame() const override;
 		virtual bool IsLocked() const override;
 		virtual bool IsTransient() const override;
 		virtual bool IsReadOnly() const override;
@@ -57,7 +58,8 @@ namespace WorldHierarchy
 		virtual bool CanSave() const override;
 		virtual bool HasLightingControls() const override;
 		virtual bool HasLockControls() const override;
-		virtual bool HasVisibilityControls() const override;
+		virtual bool HasEditorVisibilityControls() const override;
+		virtual bool HasGameVisibilityControls() const override;
 		virtual bool HasColorButtonControls() const override;
 		virtual bool HasKismet() const override;
 
@@ -71,9 +73,12 @@ namespace WorldHierarchy
 		virtual FLinearColor GetDrawColor() const override;
 		virtual void SetDrawColor(const FLinearColor& Color) override;
 
-		virtual void OnToggleVisibility() override;
-		virtual void OnShowOnlySelected() override;
-		virtual void OnShowAllButSelected() override;
+		virtual void OnToggleEditorVisibility() override;
+		virtual void OnShowInEditorOnlySelected() override;
+		virtual void OnShowInEditorAllButSelected() override;
+		virtual void OnToggleGameVisibility() override;
+		virtual void OnShowInGameOnlySelected() override;
+		virtual void OnShowInGameAllButSelected() override;
 		virtual void PopulateLevelModelList(FLevelModelList& InModelList) override;
 		virtual void OnToggleLightingScenario() override;
 		virtual void OnToggleLock() override;
@@ -93,7 +98,8 @@ namespace WorldHierarchy
 		virtual FLevelModelTreeItem* GetAsLevelModelTreeItem() const override { return const_cast<FLevelModelTreeItem*>(this); }
 		virtual FFolderTreeItem* GetAsFolderTreeItem() const override { return nullptr; }
 
-		virtual void SetVisible(bool bVisible) override;
+		virtual void SetVisibleInEditor(bool bVisible) override;
+		virtual void SetVisibleInGame(bool bVisible) override;
 		virtual void SetLocked(bool bLocked) override;
 
 	public:
@@ -108,6 +114,10 @@ namespace WorldHierarchy
 	private:
 
 		FWorldTreeItemID ID;
+
+		void SetSelectedLevelsToPopulatedList();
+
+		bool IsPersistentLevel() const;
 	};
 
 
@@ -127,11 +137,9 @@ namespace WorldHierarchy
 		virtual FString GetDisplayString() const override;
 
 		virtual FText GetToolTipText() const override;
-
 		virtual FText GetLockToolTipText() const override;
-
-		virtual FText GetVisibilityToolTipText() const override;
-
+		virtual FText GetEditorVisibilityToolTipText() const override;
+		virtual FText GetGameVisibilityToolTipText() const override;
 		virtual FText GetSaveToolTipText() const override;
 
 		virtual FWorldTreeItemID GetParentID() const override;
@@ -144,18 +152,23 @@ namespace WorldHierarchy
 
 		virtual int32 GetSortPriority() const override { return FolderSortPriority; }
 
-		virtual bool IsVisible() const override;
+		virtual bool IsVisibleInEditor() const override;
+		virtual bool IsVisibleInGame() const override;
 		virtual bool IsLocked() const override;
 
 		virtual bool CanSave() const override;
 		virtual bool HasLockControls() const override;
-		virtual bool HasVisibilityControls() const override;
+		virtual bool HasEditorVisibilityControls() const override;
+		virtual bool HasGameVisibilityControls() const override;
 		virtual bool HasValidPackage() const override;
 		virtual bool IsDirty() const override;
 
-		virtual void OnToggleVisibility() override;
-		virtual void OnShowOnlySelected() override;
-		virtual void OnShowAllButSelected() override;
+		virtual void OnToggleEditorVisibility() override;
+		virtual void OnShowInEditorOnlySelected() override;
+		virtual void OnShowInEditorAllButSelected() override;
+		virtual void OnToggleGameVisibility() override;
+		virtual void OnShowInGameOnlySelected() override;
+		virtual void OnShowInGameAllButSelected() override;
 		virtual void PopulateLevelModelList(FLevelModelList& InModelList) override;
 		virtual void OnToggleLock() override;
 		virtual void OnLockOnlySelected() override;
@@ -177,7 +190,8 @@ namespace WorldHierarchy
 		FName GetFullPath() const { return Path; }
 		FName GetLeafName() const { return LeafName; }
 
-		virtual void SetVisible(bool bVisible) override;
+		virtual void SetVisibleInEditor(bool bVisible) override;
+		virtual void SetVisibleInGame(bool bVisible) override;
 		virtual void SetLocked(bool bLocked) override;
 	
 	public:
@@ -186,7 +200,10 @@ namespace WorldHierarchy
 		virtual void OnDrop(const FDragDropEvent& DragEvent, TSharedRef<SWorldHierarchyImpl> Hierarchy) override;
 
 	private:
+		
 		bool IsAnyChildLoaded() const;
+		
+		FLevelModelList SetSelectionToFolderChildren();
 
 	private:
 		FName Path;

@@ -52,6 +52,7 @@
 #include "IPropertyUtilities.h"
 #include "Engine/Texture.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "RenderUtils.h"
 
 #define LOCTEXT_NAMESPACE "MaterialInstanceEditor"
 
@@ -1458,7 +1459,8 @@ void FMaterialInstanceParameterDetails::CreateBasePropertyOverrideWidgets(IDetai
 		auto&& OverrideBoolEnabledMemberFn,
 		auto&& OverrideBoolChangedMemberFn,
 		auto&& IsResetPropertyVisibleLambda,
-		auto&& ResetPropertyHandlerLambda
+		auto&& ResetPropertyHandlerLambda,
+		auto&& OverrideAndVisibleMemberFn
 	)
 	{
 		TSharedPtr<IPropertyHandle> ValueProperty = BasePropertyOverridePropery->GetChildHandle(PropertyName);
@@ -1471,19 +1473,21 @@ void FMaterialInstanceParameterDetails::CreateBasePropertyOverrideWidgets(IDetai
 			.DisplayName(ValueProperty->GetPropertyDisplayName())
 			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : ValueProperty->GetToolTipText())
 			.EditCondition(OverrideBoolAttr, FOnBooleanValueChanged::CreateSP(this, OverrideBoolChangedMemberFn))
-			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, OverrideBoolAttr)))
+			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, OverrideAndVisibleMemberFn, OverrideBoolAttr)))
 			.OverrideResetToDefault(ResetPropertyOverride);
 	};
 
-#define CREATE_BASE_OVERRIDE_ROW_CUSTOM(PropertyName, PropertyVariableName, IsResetPropertyVisibleLambda, ResetPropertyHandlerLambda) \
+#define CREATE_BASE_OVERRIDE_ROW_CUSTOM(PropertyName, PropertyVariableName, IsResetPropertyVisibleLambda, ResetPropertyHandlerLambda, IsOverriddenAndVisibleFn) \
 	CreateBaseOverrideRow ( \
 		#PropertyVariableName, \
 		&FMaterialInstanceParameterDetails::Override ## PropertyName ## Enabled, \
 		&FMaterialInstanceParameterDetails::OnOverride ## PropertyName ## Changed, \
 		IsResetPropertyVisibleLambda, \
-		ResetPropertyHandlerLambda \
-	)
-#define CREATE_BASE_OVERRIDE_ROW(PropertyName, PropertyVariableName, ValueGetterName) \
+		ResetPropertyHandlerLambda, \
+		IsOverriddenAndVisibleFn \
+		)
+
+#define CREATE_BASE_OVERRIDE_ROW_OVERRIDEFN(PropertyName, PropertyVariableName, ValueGetterName, IsOverriddenAndVisibleFn) \
 	CREATE_BASE_OVERRIDE_ROW_CUSTOM( \
 		PropertyName, \
 		PropertyVariableName, \
@@ -1502,8 +1506,13 @@ void FMaterialInstanceParameterDetails::CreateBasePropertyOverrideWidgets(IDetai
 			{ \
 				MaterialEditorInstance->BasePropertyOverrides.PropertyVariableName = ParentMat->ValueGetterName(); \
 			} \
-		} \
+		}, \
+		IsOverriddenAndVisibleFn \
 	)
+
+#define CREATE_BASE_OVERRIDE_ROW(PropertyName, PropertyVariableName, ValueGetterName) \
+		CREATE_BASE_OVERRIDE_ROW_OVERRIDEFN(PropertyName, PropertyVariableName, ValueGetterName, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible)
+
 #define CREATE_BASE_OVERRIDE_ROW_BASIC(PropertyName) \
 	CREATE_BASE_OVERRIDE_ROW(PropertyName, PropertyName, Get ## PropertyName)
 #define CREATE_BASE_OVERRIDE_ROW_BOOL(PropertyName, GetterName) \
@@ -1543,10 +1552,11 @@ void FMaterialInstanceParameterDetails::CreateBasePropertyOverrideWidgets(IDetai
 					MaterialEditorInstance->BasePropertyOverrides.ShadingModel = ParentMat->GetShadingModels().GetFirstShadingModel();
 				}
 			}
-		}
+		},
+		&FMaterialInstanceParameterDetails::IsOverriddenAndVisibleShadingModels
 	);
 	CREATE_BASE_OVERRIDE_ROW(TwoSided, TwoSided, IsTwoSided);
-	CREATE_BASE_OVERRIDE_ROW_BASIC_BOOL(IsThinSurface);
+	CREATE_BASE_OVERRIDE_ROW_OVERRIDEFN(IsThinSurface, bIsThinSurface, IsThinSurface, &FMaterialInstanceParameterDetails::IsOverriddenAndVisibleSubstrateOnly);
 	CREATE_BASE_OVERRIDE_ROW(DitheredLODTransition, DitheredLODTransition, IsDitheredLODTransition);
 	CREATE_BASE_OVERRIDE_ROW_BOOL(OutputTranslucentVelocity, IsTranslucencyWritingVelocity);
 	CREATE_BASE_OVERRIDE_ROW_BASIC_BOOL(HasPixelAnimation);
@@ -1572,6 +1582,27 @@ EVisibility FMaterialInstanceParameterDetails::IsOverriddenAndVisible(TAttribute
 		bShouldBeVisible = IsOverridden.Get();
 	}
 	return bShouldBeVisible ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+EVisibility FMaterialInstanceParameterDetails::IsOverriddenAndVisibleShadingModels(TAttribute<bool> IsOverridden) const
+{
+	bool bShouldBeVisible = true;
+	if (MaterialEditorInstance->bShowOnlyOverrides)
+	{
+		bShouldBeVisible = IsOverridden.Get();
+	}
+	// If Substrate is enabled, only allows ShadingModel to be visible if the parent allows it
+	if (Substrate::IsSubstrateEnabled())
+	{
+		const UMaterial* ParentMaterial = MaterialEditorInstance->Parent ? MaterialEditorInstance->Parent->GetMaterial() : nullptr;
+		bShouldBeVisible = ParentMaterial ? ParentMaterial->SupportsShadingModelOverride() : false;
+	}
+	return bShouldBeVisible ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+EVisibility FMaterialInstanceParameterDetails::IsOverriddenAndVisibleSubstrateOnly(TAttribute<bool> IsOverridden) const
+{
+	return Substrate::IsSubstrateEnabled() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 /** Helper function used by some parameters to verify that they are allowed to be overridden. This

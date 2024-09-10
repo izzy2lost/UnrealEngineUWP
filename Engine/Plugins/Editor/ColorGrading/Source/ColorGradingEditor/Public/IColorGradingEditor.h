@@ -17,6 +17,9 @@ public:
 public:
 	virtual ~IColorGradingEditor() = default;
 
+	/** Get the ID of the main color grading tab */
+	virtual FName GetColorGradingTabSpawnerId() const = 0;
+
 	/**
 	* Singleton-like access to this module's interface.  This is just for convenience!
 	* Beware of calling this during the shutdown phase, though.  Your module might have been unloaded already.

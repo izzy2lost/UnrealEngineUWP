@@ -5,16 +5,18 @@
 #include "PoseSearchDebugger.h"
 #include "PoseSearchDatabaseEdMode.h"
 #include "PoseSearchDatabaseEditorCommands.h"
+#include "PoseSearchInteractionAssetEditor.h"
 
 #include "Animation/AnimSequence.h"
-#include "Modules/ModuleManager.h"
 #include "AssetToolsModule.h"
 #include "Editor.h"
-#include "PropertyEditorModule.h"
-#include "Subsystems/AssetEditorSubsystem.h"
 #include "IAnimationEditor.h"
 #include "IPersonaToolkit.h"
 #include "IPersonaPreviewScene.h"
+#include "Modules/ModuleManager.h"
+#include "PropertyEditorModule.h"
+#include "Subsystems/AssetEditorSubsystem.h"
+
 #include "Trace/PoseSearchTraceAnalyzer.h"
 #include "Trace/PoseSearchTraceModule.h"
 
@@ -67,8 +69,9 @@ void FEditorModule::StartupModule()
 		IModularFeatures::Get().RegisterModularFeature(FDebuggerTrackCreator::ModularFeatureName, DebuggerTrackCreator.Get());
 		IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, TraceModule.Get());
 		
-		// Register Ed Mode used by pose search database
+		// Register Ed Modes used by PoseSearchDatabase and PoseSearchInteractionAsset
 		FEditorModeRegistry::Get().RegisterMode<FDatabaseEdMode>(FDatabaseEdMode::EdModeId, LOCTEXT("PoseSearchDatabaseEdModeName", "PoseSearchDatabase"));
+		FEditorModeRegistry::Get().RegisterMode<FInteractionAssetEdMode>(FInteractionAssetEdMode::EdModeId, LOCTEXT("FPoseSearchInteractionAssetEdModeName", "PoseSearchInteractionAsset"));
 	}
 
 	RegisterPropertyTypeCustomizations();
@@ -85,9 +88,10 @@ void FEditorModule::ShutdownModule()
 	}
 	ConsoleCommands.Empty();
 
-	// Unregister Ed Mode
+	// Unregister Ed Modes
 	FEditorModeRegistry::Get().UnregisterMode(FDatabaseEdMode::EdModeId);
-	
+	FEditorModeRegistry::Get().UnregisterMode(FInteractionAssetEdMode::EdModeId);
+
 	UnregisterCustomizations();
 
 	// Unregister Asset Editor Commands

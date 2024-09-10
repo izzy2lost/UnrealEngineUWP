@@ -519,7 +519,7 @@ FORCEINLINE void AddDrawScreenPass(
 		Forward<FRDGEventName&&>(PassName),
 		PixelShaderParameters,
 		ERDGPassFlags::Raster,
-		[ViewInfo, OutputViewport, InputViewport, PipelineState, PixelShader, PixelShaderParameters, Flags](FRHICommandList& RHICmdList)
+		[ViewInfo, OutputViewport, InputViewport, PipelineState, PixelShader, PixelShaderParameters, Flags](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		DrawScreenPass(RHICmdList, ViewInfo, OutputViewport, InputViewport, PipelineState, Flags, [&](FRHICommandList&)
 		{
@@ -619,7 +619,7 @@ FORCEINLINE void AddDrawScreenPass(
 		Forward<FRDGEventName&&>(PassName),
 		PassParameterStruct,
 		ERDGPassFlags::Raster,
-		[ViewInfo, OutputViewport, InputViewport, PipelineState, SetupFunction, Flags] (FRHICommandList& RHICmdList)
+		[ViewInfo, OutputViewport, InputViewport, PipelineState, SetupFunction, Flags] (FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		DrawScreenPass(RHICmdList, ViewInfo, OutputViewport, InputViewport, PipelineState, Flags, SetupFunction);
 	});

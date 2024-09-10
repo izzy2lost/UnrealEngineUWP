@@ -24,7 +24,10 @@
 #include "WorldTreeItemTypes.h"
 #include "LevelFolders.h"
 #include "ScopedTransaction.h"
+#include "Templates/UnrealTemplate.h"
 #include "Editor.h"
+#include "WorldBrowserConfig.h"
+#include "WorldBrowserStyle.h"
 #include "WorldHierarchyColumns.h"
 #include "RevisionControlStyle/RevisionControlStyle.h"
 
@@ -287,8 +290,10 @@ TSharedRef<SHeaderRow> SWorldHierarchyImpl::CreateHeaderRow()
 {
 	using namespace UE::WorldHierarchy;
 	constexpr float IconWidth = 24.f;
-	return SAssignNew(HeaderRowWidget, SHeaderRow)
+
+	TSharedRef<SHeaderRow> HeaderRow = SAssignNew(HeaderRowWidget, SHeaderRow)
 		.CanSelectGeneratedColumn(true) // Lets the user choose which columns should be shown
+		.OnHiddenColumnsListChanged(this, &SWorldHierarchyImpl::SaveColumnVisibilitiesIntoConfig)
 
 		/** Level visibility column */
 		+ SHeaderRow::Column(HierarchyColumns::ColumnID_EditorVisibility)
@@ -301,6 +306,19 @@ TSharedRef<SHeaderRow> SWorldHierarchyImpl::CreateHeaderRow()
 			.Image(FAppStyle::Get().GetBrush("Level.VisibleIcon16x"))
 			.ColorAndOpacity(FSlateColor::UseForeground())
 			.ToolTipText(LOCTEXT("Column.Visibility.Tooltip", "Toggles the editor visibility"))
+		]
+
+		/** Level game visibility column */
+		+ SHeaderRow::Column(HierarchyColumns::ColumnID_GameVisibility)
+		.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
+		.DefaultLabel(LOCTEXT("Column.GameVisibility.DefaultLabel", "Game Visibility"))
+		.FixedWidth(IconWidth)
+		.HeaderContent()
+		[
+			SNew(SImage)
+			.Image(WorldBrowser::FWorldBrowserStyle::Get().GetBrush( "WorldBrowser.VisibleInGame" ))
+			.ColorAndOpacity(FSlateColor::UseForeground())
+			.ToolTipText(LOCTEXT("Column.GameVisibility.Tooltip", "Toggles the visibility in games"))
 		]
 
 		/** LevelName label column */
@@ -392,6 +410,62 @@ TSharedRef<SHeaderRow> SWorldHierarchyImpl::CreateHeaderRow()
 			.Image(FAppStyle::Get().GetBrush("Level.ColorIcon"))
 			.ToolTipText(LOCTEXT("Column.Color.Tooltip", "Color used for visualization of Level"))
 		];
+	
+	UWorldBrowserConfig::Initialize();
+	UWorldBrowserConfig* Config = UWorldBrowserConfig::Get();
+	for (const TPair<FName, bool>& VisibilityPair : Config->ColumnConfig.ColumnVisibilities)
+	{
+		const FName ColumnId = VisibilityPair.Key;
+		if (!IsRequiredColumn(ColumnId))
+		{
+			SetColumnVisible(ColumnId, VisibilityPair.Value);
+		}
+	}
+	
+	return HeaderRow;
+}
+
+void SWorldHierarchyImpl::SaveColumnVisibilitiesIntoConfig()
+{
+	if (bIsProgrammaticallyChangingColumnVisibility)
+	{
+		return;
+	}
+	
+	UWorldBrowserConfig::Initialize();
+	UWorldBrowserConfig* Config = UWorldBrowserConfig::Get();
+
+	TMap<FName, bool>& Visibilities = Config->ColumnConfig.ColumnVisibilities;
+	Visibilities.Empty();
+	for (const SHeaderRow::FColumn& Column : HeaderRowWidget->GetColumns())
+	{
+		const FName ColumnId = Column.ColumnId;
+		if (!IsRequiredColumn(ColumnId))
+		{
+			Visibilities.Add(ColumnId, IsColumnVisible(ColumnId));
+		}
+	}
+	
+	Config->SaveEditorConfig();
+}
+
+bool SWorldHierarchyImpl::IsRequiredColumn(FName ColumnId)
+{
+	return ColumnId == UE::WorldHierarchy::HierarchyColumns::ColumnID_LevelLabel;
+}
+
+bool SWorldHierarchyImpl::IsKnownColumn(FName ColumnId)
+{
+	using namespace UE::WorldHierarchy;
+	return ColumnId == HierarchyColumns::ColumnID_EditorVisibility
+		|| ColumnId == HierarchyColumns::ColumnID_GameVisibility
+		|| ColumnId == HierarchyColumns::ColumnID_LevelLabel
+		|| ColumnId == HierarchyColumns::ColumnID_LightingScenario
+		|| ColumnId == HierarchyColumns::ColumnID_Lock
+		|| ColumnId == HierarchyColumns::ColumnID_SCCStatus
+		|| ColumnId == HierarchyColumns::ColumnID_Save
+		|| ColumnId == HierarchyColumns::ColumnID_Color
+		|| ColumnId == HierarchyColumns::ColumnID_Kismet;
 }
 
 TSharedRef<ITableRow> SWorldHierarchyImpl::GenerateTreeRow(WorldHierarchy::FWorldTreeItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable)
@@ -501,7 +575,11 @@ TSharedPtr<SWidget> SWorldHierarchyImpl::ConstructLevelContextMenu() const
 
 		Menu->AddDynamicSection("HierarchyDynamicSection", FNewToolMenuDelegateLegacy::CreateLambda([this](FMenuBuilder& MenuBuilder, UToolMenu* Menu)
 		{
-			WorldModel->BuildHierarchyMenu(MenuBuilder);
+			const bool bIsGameVisibilityColumnVisible = IsColumnVisible(UE::WorldHierarchy::HierarchyColumns::ColumnID_GameVisibility);
+			WorldModel->BuildHierarchyMenu(
+				MenuBuilder,
+				bIsGameVisibilityColumnVisible ? EBuildHierarchyMenuFlags::ShowGameVisibility : EBuildHierarchyMenuFlags::None
+				);
 		}));
 
 		// Generate the "Move To" and "Select" submenus based on the current selection
@@ -724,9 +802,31 @@ bool SWorldHierarchyImpl::IsColumnVisible(FName ColumnId) const
 	return HeaderRowWidget->IsColumnVisible(ColumnId);
 }
 
-void SWorldHierarchyImpl::SetColumnVisible(FName ColumnId, bool bVisible) const
+void SWorldHierarchyImpl::SetColumnVisible(FName ColumnId, bool bVisible)
 {
-	HeaderRowWidget->SetShowGeneratedColumn(ColumnId, bVisible);
+	if (IsKnownColumn(ColumnId))
+	{
+		TGuardValue Guard(bIsProgrammaticallyChangingColumnVisibility, true);
+		HeaderRowWidget->SetShowGeneratedColumn(ColumnId, bVisible);
+	}
+}
+
+bool SWorldHierarchyImpl::IsVisibleInConfig(FName ColumnId)
+{
+	UWorldBrowserConfig::Initialize();
+	UWorldBrowserConfig* Config = UWorldBrowserConfig::Get();
+	const bool* bIsVisible = Config->ColumnConfig.ColumnVisibilities.Find(ColumnId);
+	return IsRequiredColumn(ColumnId) || !bIsVisible || *bIsVisible;
+}
+
+void SWorldHierarchyImpl::SetWillBeVisibleInConfigTransient(FName ColumnId, bool bIsVisible)
+{
+	if (!IsRequiredColumn(ColumnId) && IsKnownColumn(ColumnId))
+	{
+		UWorldBrowserConfig::Initialize();
+		UWorldBrowserConfig* Config = UWorldBrowserConfig::Get();
+		Config->ColumnConfig.ColumnVisibilities.Add(ColumnId, bIsVisible);
+	}
 }
 
 void SWorldHierarchyImpl::OnTreeItemScrolledIntoView( WorldHierarchy::FWorldTreeItemPtr Item, const TSharedPtr<ITableRow>& Widget )

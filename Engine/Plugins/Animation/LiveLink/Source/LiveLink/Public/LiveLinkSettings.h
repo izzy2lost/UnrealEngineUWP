@@ -168,4 +168,10 @@ public:
 	float GetMessageBusHeartbeatFrequency() const { return MessageBusHeartbeatFrequency; }
 	double GetMessageBusHeartbeatTimeout() const { return MessageBusHeartbeatTimeout; }
 	double GetMessageBusTimeBeforeRemovingDeadSource() const { return MessageBusTimeBeforeRemovingInactiveSource; }
+
+	/** Retrieve the name of the protected DefaultRoleSettings property. */
+	static FName GetDefaultRoleSettingsPropertyName()
+	{
+		return GET_MEMBER_NAME_CHECKED(ULiveLinkSettings, DefaultRoleSettings);
+	}
 };

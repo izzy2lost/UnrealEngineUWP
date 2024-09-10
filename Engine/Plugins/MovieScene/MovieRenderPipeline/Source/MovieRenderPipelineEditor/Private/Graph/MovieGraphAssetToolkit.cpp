@@ -36,6 +36,7 @@
 #include "Framework/Commands/GenericCommands.h"
 #include "GraphEditor.h"
 #include "IDetailRootObjectCustomization.h"
+#include "ObjectEditorUtils.h"
 #include "PropertyEditorModule.h"
 #include "Selection.h"
 #include "ToolMenus.h"
@@ -369,6 +370,9 @@ TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphDetails(const 
 	DetailsViewArgs.bAllowMultipleTopLevelObjects = true;
 	DetailsViewArgs.ViewIdentifier = "MovieGraphSettings";
 	DetailsViewArgs.bLockable = false;
+	DetailsViewArgs.bShowSectionSelector = true;
+
+	RegisterDetailsViewSections();
 
 	SelectedGraphObjectsDetailsWidget = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 	SelectedGraphObjectsDetailsWidget->SetRootObjectCustomizationInstance(
@@ -471,6 +475,34 @@ TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphActiveRenderSe
 			SAssignNew(ActiveRenderSettingsTabContent, SMovieGraphActiveRenderSettingsTabContent)
 			.Graph(InitialGraph)
 		];
+}
+
+void FMovieGraphAssetToolkit::RegisterDetailsViewSections()
+{
+	static const FName PropertyEditor("PropertyEditor");
+	static const FName CategoryMetadataKey("Category");
+	static const TArray<FString> CategoriesToExclude = { FString(TEXT("Tags")) };
+	
+	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditor);
+
+	// Do a 1:1 mapping of node categories to section names
+	for (const UClass* NodeClass : UMovieGraphSchema::GetNodeClasses())
+	{
+		for (TFieldIterator<FProperty> PropertyIt(NodeClass); PropertyIt; ++PropertyIt)
+		{
+			const FProperty* NodeProperty = *PropertyIt;
+
+			const FString* CategoryMetadata = NodeProperty->FindMetaData(CategoryMetadataKey);
+			if (CategoryMetadata && !CategoryMetadata->IsEmpty() && !CategoriesToExclude.Contains(*CategoryMetadata))
+			{
+				const FName SectionName = FName(*CategoryMetadata);
+				const FText LocalizedCategory = FObjectEditorUtils::GetCategoryText(NodeProperty);
+				
+				const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(NodeClass->GetFName(), SectionName, LocalizedCategory);
+				Section->AddCategory(SectionName);
+			}
+		}
+	}
 }
 
 void FMovieGraphAssetToolkit::BindGraphCommands()

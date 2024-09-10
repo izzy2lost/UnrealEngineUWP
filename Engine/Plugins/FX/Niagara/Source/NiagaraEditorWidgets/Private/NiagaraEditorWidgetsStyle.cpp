@@ -448,7 +448,7 @@ void FNiagaraEditorWidgetsStyle::InitToolbarStyles()
 {
 	FToolBarStyle SlimToolbarStyle = FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
 	SlimToolbarStyle
-		.SetBackgroundPadding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+		.SetBackgroundPadding(FMargin(4.0f, 0.0f))
 		.SetIconSize(Icon16x16);
 	SlimToolbarStyle.ToggleButton
 		.SetPadding(FMargin(8.0f, 2.0f));
@@ -463,7 +463,7 @@ void FNiagaraEditorWidgetsStyle::InitInlineDynamicInputBrushes()
 	Set("NiagaraEditor.Stack.InlineDynamicInput.GraphNode.Row.Bottom",			new BOX_BRUSH("Icons/MultiPartBorderRowBottom", FMargin(1.0f / 4.0f)));
 	Set("NiagaraEditor.Stack.InlineDynamicInput.GraphNode.Column.Left",			new BOX_BRUSH("Icons/MultiPartBorderColumnLeft", FMargin(1.0f / 4.0f)));
 	Set("NiagaraEditor.Stack.InlineDynamicInput.GraphNode.Column.Middle",		new BOX_BRUSH("Icons/MultiPartBorderColumnMiddle", FMargin(1.0f / 4.0f)));
-	Set("NiagaraEditor.Stack.InlineDynamicInput.GraphNode.Column.Right",			new BOX_BRUSH("Icons/MultiPartBorderColumnRight", FMargin(1.0f / 4.0f)));
+	Set("NiagaraEditor.Stack.InlineDynamicInput.GraphNode.Column.Right",		new BOX_BRUSH("Icons/MultiPartBorderColumnRight", FMargin(1.0f / 4.0f)));
 	Set("NiagaraEditor.Stack.InlineDynamicInput.GraphNode.Corner.BottomLeft",	new BOX_BRUSH("Icons/MultiPartBorderCornerBottomLeft", FMargin(1.0f / 4.0f)));
 	Set("NiagaraEditor.Stack.InlineDynamicInput.GraphNode.Corner.BottomRight",	new BOX_BRUSH("Icons/MultiPartBorderCornerBottomRight", FMargin(1.0f / 4.0f)));
 	Set("NiagaraEditor.Stack.InlineDynamicInput.GraphNode.Edge.Bottom",			new BOX_BRUSH("Icons/MultiPartBorderEdgeBottom", FMargin(1.0f / 4.0f)));

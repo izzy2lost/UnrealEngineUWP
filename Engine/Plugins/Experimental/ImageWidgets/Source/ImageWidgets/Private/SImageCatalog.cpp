@@ -2,11 +2,15 @@
 
 #include "SImageCatalog.h"
 
-#include "ImageWidgetsLogCategory.h"
+#include <Algo/Accumulate.h>
+#include <Brushes/SlateColorBrush.h>
+#include <Framework/Application/SlateApplication.h>
+#include <Styling/StyleColors.h>
+#include <Widgets/Layout/SScrollBox.h>
+#include <Widgets/Views/SListView.h>
+#include <Widgets/Input/SButton.h>
+
 #include "SImageCatalogItem.h"
-#include "Brushes/SlateColorBrush.h"
-#include "Styling/StyleColors.h"
-#include "Widgets/Layout/SSeparator.h"
 
 #define LOCTEXT_NAMESPACE "SImageViewerCatalog"
 
@@ -18,590 +22,965 @@ FImageCatalogItemData::FImageCatalogItemData(const FGuid Guid, const FSlateBrush
 }
 
 using FItemType = TSharedPtr<FImageCatalogItemData>;
-	
-class FItemModel
+
+struct FGroup
 {
-public:
+	FGroup(FName Name, FText Heading)
+		: Name(Name), Heading(MoveTemp(Heading))
+	{}
 
-	bool Add(const FItemType& Item, bool bIsPinned, const FGuid* BeforeThisGuid);
-	TTuple<bool, bool> Remove(const FGuid& Guid);
-
-	TTuple<const FItemType*, bool> GetItem(const FGuid& Guid) const;
-	const FItemType* GetItemAt(int32 Index, bool bIsPinned) const;
-	TOptional<TTuple<bool, int32>> GetItemIndex(const FGuid& Guid) const;
-	TOptional<FGuid> GetGuidAt(int32 Index, bool bIsPinned) const;
-	
-	bool IsPinned(const FGuid& Guid);
-	bool Pin(const FGuid& Guid);
-	bool Unpin(const FGuid& Guid);
-	
-	const TArray<FItemType>& GetPinnedItems() const { return PinnedItems; }
-	const TArray<FItemType>& GetUnpinnedItems() const { return UnpinnedItems; }
-	bool HasPinnedItems() const { return PinnedItems.Num() > 0; }
-	bool HasUnpinnedItems() const { return UnpinnedItems.Num() > 0; }
-	int32 NumPinnedItems() const { return PinnedItems.Num(); }
-	int32 NumUnpinnedItems() const { return UnpinnedItems.Num(); }
-
-	void SortSelection(TArray<FGuid>& Selection);
-
-private:
-
-	struct FLookupData
-	{
-		bool bIsPinned;	// Is this item pinned?
-		int32 Index;	// Index in the respective array.
-	};
-
-	const FLookupData* FindLookupData(const FGuid& Guid) const;
-	FLookupData* FindLookupData(const FGuid& Guid)
-	{
-		return const_cast<FLookupData*>(const_cast<const FItemModel*>(this)->FindLookupData(Guid));
-	}
-
-	const FItemType* GetItem(const FLookupData& LookupData) const;
-
-	void SwapBetweenPinnedAndUnpinned(FLookupData& LookupData);
-	void UpdateMappingIndices(const TArray<FItemType>& Container, int32 FirstIndex);
-
-	TArray<FItemType> PinnedItems;
-	TArray<FItemType> UnpinnedItems;
-	TMap<FGuid, FLookupData> GuidToLookupDataMapping;
+	FName Name;
+	FText Heading;
+	TSharedPtr<SListView<FItemType>> ListView;
+	TArray<FItemType> Items;
+	bool bIsExpanded = true;
 };
 
-bool FItemModel::Add(const FItemType& Item, const bool bIsPinned, const FGuid* BeforeThisGuid)
+struct FItemLookup
 {
-	if (!GuidToLookupDataMapping.Contains(Item->Guid))
-	{
-		TArray<FItemType>& Container = bIsPinned ? PinnedItems : UnpinnedItems;
+	int32 GroupIndex;
+	int32 ItemIndex;
+};
 
-		const int32 Index = [this, &Item, bIsPinned, BeforeThisGuid, &Container]
+class FImpl
+{
+public:
+	FImpl(FName DefaultGroupName, const FText& DefaultGroupHeading, ESelectionMode::Type SelectionMode, bool bAllowSelectionAcrossGroups, bool bShowEmptyGroups,
+	      const SImageCatalog::FOnItemSelected& OnItemSelected, const SImageCatalog::FOnGetGroupContextMenu& OnGetGroupContextMenu,
+	      const SImageCatalog::FOnGetItemsContextMenu& OnGetItemsContextMenu, TSharedPtr<SScrollBox> Layout);
+
+	FName GetDefaultGroupName() const { return DefaultGroupName; }
+	bool AddGroup(FName Name, const FText& Heading, const FName* BeforeGroupWithThisName);
+	TOptional<TArray<FGuid>> RemoveGroup(FName Name, const FName* GroupToMoveItemsInto);
+	int32 NumGroups() const;
+	bool SetGroupHeading(FName Name, const FText& Heading);
+	TOptional<FName> GetGroupNameAt(int32 Index) const;
+
+	bool AddItem(const FItemType& Item, const FName* GroupName, const FGuid* BeforeItemWithThisGuid);
+	bool MoveItem(const FGuid& Guid, const FName* GroupName, const FGuid* BeforeItemWithThisGuid);
+	bool RemoveItem(const FGuid& Guid);
+	TSharedPtr<const FImageCatalogItemData> GetItem(const FGuid& Guid) const;
+	TOptional<int32> GetItemIndex(const FGuid& Guid) const;
+	TOptional<TTuple<FName, int32>> GetItemGroupNameAndIndex(const FGuid& Guid) const;
+	TSharedPtr<const FImageCatalogItemData> GetItemAt(int32 Index, const FName* GroupName) const;
+	TOptional<FGuid> GetItemGuidAt(int32 Index, const FName* GroupName) const;
+	bool UpdateItem(const FGuid& Guid, const FSlateBrush* Thumbnail, const FText* Name, const FText* Info, const FText* ToolTip);
+
+	bool SelectItem(const FGuid& Guid, bool bSelected);
+	bool ClearSelection(const FName* GroupName);
+
+	int32 NumItems(const FName* GroupName) const;
+	TOptional<FName> GetItemGroupName(const FGuid& Guid) const;
+
+private:
+	bool AddGroup(FName Name, const FText& Heading, int32 Index);
+
+	const FGroup* FindGroup(FName Name) const;
+	FGroup* FindGroup(FName Name)
+	{
+		return const_cast<FGroup*>(const_cast<const FImpl*>(this)->FindGroup(Name));
+	}
+
+	const FItemLookup* FindLookup(const FGuid& Guid) const;
+	FItemLookup* FindLookup(const FGuid& Guid)
+	{
+		return const_cast<FItemLookup*>(const_cast<const FImpl*>(this)->FindLookup(Guid));
+	}
+
+	TSharedPtr<SWidget> OnGroupContextMenuOpening(FName Name) const;
+	TSharedPtr<SWidget> OnItemsContextMenuOpening() const;
+	void SortSelection(TArray<FGuid>& Selection) const;
+	void UpdateGroupMapping(int32 StartingIndex);
+	void UpdateItemMapping(TArray<FItemType>& Items, int32 StartingIndex);
+
+	const FName DefaultGroupName;
+	const FText DefaultGroupHeading;
+	const ESelectionMode::Type SelectionMode;
+	const bool bAllowSelectionAcrossGroups;
+	const bool bShowEmptyGroups;
+	SImageCatalog::FOnItemSelected OnItemSelected;
+	SImageCatalog::FOnGetGroupContextMenu OnGetGroupContextMenu;
+	SImageCatalog::FOnGetItemsContextMenu OnGetItemsContextMenu;
+	TSharedPtr<SScrollBox> Layout;
+	TArray<TUniquePtr<FGroup>> Groups;
+	TMap<FName, int32> GroupMapping;
+	TMap<FGuid, FItemLookup> ItemMapping;
+};
+
+FImpl::FImpl(const FName DefaultGroupName, const FText& DefaultGroupHeading, const ESelectionMode::Type SelectionMode, const bool bAllowSelectionAcrossGroups,
+             const bool bShowEmptyGroups, const SImageCatalog::FOnItemSelected& OnItemSelected,
+             const SImageCatalog::FOnGetGroupContextMenu& OnGetGroupContextMenu, const SImageCatalog::FOnGetItemsContextMenu& OnGetItemsContextMenu,
+             TSharedPtr<SScrollBox> Layout)
+	: DefaultGroupName(DefaultGroupName)
+	, DefaultGroupHeading(DefaultGroupHeading)
+	, SelectionMode(SelectionMode)
+	, bAllowSelectionAcrossGroups(bAllowSelectionAcrossGroups)
+	, bShowEmptyGroups(bShowEmptyGroups)
+	, OnItemSelected(OnItemSelected)
+	, OnGetGroupContextMenu(OnGetGroupContextMenu)
+	, OnGetItemsContextMenu(OnGetItemsContextMenu)
+	, Layout(MoveTemp(Layout))
+{
+	AddGroup(DefaultGroupName, DefaultGroupHeading, nullptr);
+}
+
+bool FImpl::AddGroup(const FName Name, const FText& Heading, const FName* BeforeGroupWithThisName)
+{
+	if (Layout.IsValid())
+	{
+		if (BeforeGroupWithThisName != nullptr)
 		{
-			if (BeforeThisGuid)
+			if (const int32 *const Index = GroupMapping.Find(*BeforeGroupWithThisName))
 			{
-				if (FLookupData *const LookupData = FindLookupData(*BeforeThisGuid))
+				return AddGroup(Name, Heading, *Index);
+			}
+		}
+
+		return AddGroup(Name, Heading, Groups.Num());
+	}
+	return false;
+}
+
+TOptional<TArray<FGuid>> FImpl::RemoveGroup(const FName Name, const FName* GroupToMoveItemsInto)
+{
+	if (Name == DefaultGroupName)
+	{
+		return {};
+	}
+
+	if (const int32* GroupIndex = GroupMapping.Find(Name))
+	{
+		check(0 <= *GroupIndex && *GroupIndex < Groups.Num());
+		FGroup& Group = *Groups[*GroupIndex];
+		TArray<FItemType>& GroupItems = Group.Items;
+
+		TArray<FGuid> AffectedGuids;
+		AffectedGuids.Reserve(GroupItems.Num());
+
+		const int32* NewGroupIndex = GroupToMoveItemsInto ? GroupMapping.Find(*GroupToMoveItemsInto) : nullptr;
+		if (NewGroupIndex)
+		{
+			check(0 <= *NewGroupIndex && *NewGroupIndex < Groups.Num());
+			FGroup& NewGroup = *Groups[*NewGroupIndex];
+			TArray<FItemType>& NewGroupItems = NewGroup.Items;
+
+			for (FItemType& Item : GroupItems)
+			{
+				AffectedGuids.Add(Item->Guid);
+
+				FItemLookup* const Lookup = FindLookup(Item->Guid);
+				check(Lookup);
+				Lookup->GroupIndex = *NewGroupIndex;
+				Lookup->ItemIndex = NewGroupItems.Num();
+
+				NewGroupItems.Emplace(MoveTemp(Item));
+			}
+
+			NewGroup.ListView->RequestListRefresh();
+		}
+		else
+		{
+			for (const FItemType& Item : GroupItems)
+			{
+				AffectedGuids.Add(Item->Guid);
+				ItemMapping.Remove(Item->Guid);
+			}
+		}
+
+		check(Layout->GetChildren() && *GroupIndex < Layout->NumSlots());
+		const TSharedRef<SWidget>& WidgetToRemove = Layout->GetSlot(*GroupIndex).GetWidget();
+		Layout->RemoveSlot(WidgetToRemove);
+		Groups.RemoveAt(*GroupIndex);
+		GroupMapping.Remove(Name);
+		UpdateGroupMapping(*GroupIndex);
+
+		return {AffectedGuids};
+	}
+
+	return {};
+}
+
+int32 FImpl::NumGroups() const
+{
+	return Groups.Num(); 
+}
+
+bool FImpl::SetGroupHeading(const FName Name, const FText& Heading)
+{
+	if (FGroup *const Group = FindGroup(Name))
+	{
+		Group->Heading = Heading;
+		return true;
+	}
+
+	return false;
+}
+
+TOptional<FName> FImpl::GetGroupNameAt(const int32 Index) const
+{
+	if (0 <= Index && Index < Groups.Num())
+	{
+		return {Groups[Index]->Name};
+	}
+
+	return {};
+}
+
+bool FImpl::AddItem(const FItemType& Item, const FName* GroupName, const FGuid* BeforeItemWithThisGuid)
+{
+	if (GroupName == nullptr)
+	{
+		GroupName = &DefaultGroupName;
+	}
+
+	if (const int32* GroupIndex = GroupMapping.Find(*GroupName))
+	{
+		check(0 <= *GroupIndex && *GroupIndex < Groups.Num());
+		FGroup& Group = *Groups[*GroupIndex];
+
+		const int32 ItemIndex = [&Item, BeforeItemWithThisGuid, &Group, this]
+		{
+			if (BeforeItemWithThisGuid)
+			{
+				if (FItemLookup* LookupData = FindLookup(*BeforeItemWithThisGuid))
 				{
-					if (LookupData->bIsPinned == bIsPinned)
+					if (Group.Name == Groups[LookupData->GroupIndex]->Name)
 					{
 						// Set index for added item.
-						const int32 NewIndex = LookupData->Index;
-
-						// Increase index for the item we push back.
-						++LookupData->Index;
+						const int32 Index = LookupData->ItemIndex;
 
 						// Add item at the new index.
-						Container.EmplaceAt(NewIndex, Item);
+						Group.Items.EmplaceAt(Index, Item);
+
+						// Increase index for the item we push back.
+						++LookupData->ItemIndex;
 
 						// Update all lookup data for items that come after the item we used to determine the insert location.
 						// This way we save the effort for finding the same lookup data again.
-						UpdateMappingIndices(Container, LookupData->Index + 1);
+						UpdateItemMapping(Group.Items, LookupData->ItemIndex + 1);
 
 						// Tell the outside where the new item was added.
-						return NewIndex;
+						return Index;
 					}
 				}
 			}
-			
-			return Container.Add(Item);
+
+			return Group.Items.Emplace(Item);
 		}();
 
-		GuidToLookupDataMapping.Add(Item->Guid, {bIsPinned, Index});
+		ItemMapping.Emplace(Item->Guid, {*GroupIndex, ItemIndex});
+
+		Group.ListView->RequestListRefresh();
+
 		return true;
 	}
 
 	return false;
 }
 
-TTuple<bool, bool> FItemModel::Remove(const FGuid& Guid)
+bool FImpl::MoveItem(const FGuid& Guid, const FName* GroupName, const FGuid* BeforeItemWithThisGuid)
 {
-	if (const FLookupData *const LookupData = FindLookupData(Guid))
+	// Do not try to move an item before itself.
+	if (BeforeItemWithThisGuid && *BeforeItemWithThisGuid == Guid)
 	{
-		const bool bIsPinned = LookupData->bIsPinned;
-		TArray<FItemType>& Container = bIsPinned ? PinnedItems : UnpinnedItems;
-		Container.RemoveAt(LookupData->Index, EAllowShrinking::No);
-		GuidToLookupDataMapping.Remove(Guid);
-		UpdateMappingIndices(Container, LookupData->Index);
-		return {true, bIsPinned};
+		return false;
 	}
 
-	return {false, false};
-}
-
-TTuple<const FItemType*, bool> FItemModel::GetItem(const FGuid& Guid) const
-{
-	if (const FLookupData *const LookupData = FindLookupData(Guid))
+	if (FItemLookup *const Lookup = FindLookup(Guid))
 	{
-		return {GetItem(*LookupData), LookupData->bIsPinned};
-	}
+		FGroup& GroupFrom = *Groups[Lookup->GroupIndex];
 
-	return {nullptr, false};
-}
-
-const FItemType* FItemModel::GetItemAt(const int32 Index, const bool bIsPinned) const
-{
-	const TArray<FItemType>& Container = bIsPinned ? PinnedItems : UnpinnedItems;
-	if (0 <= Index && Index < Container.Num())
-	{
-		return &Container[Index];
-	}
-
-	return nullptr;
-}
-
-TOptional<TTuple<bool, int32>> FItemModel::GetItemIndex(const FGuid& Guid) const
-{
-	if (const FLookupData *const LookupData = FindLookupData(Guid))
-	{
-		return {{LookupData->bIsPinned, LookupData->Index}};
-	}
-
-	return {};
-}
-
-TOptional<FGuid> FItemModel::GetGuidAt(const int32 Index, const bool bIsPinned) const
-{
-	const TArray<FItemType>& Container = bIsPinned ? PinnedItems : UnpinnedItems;
-	if (0 <= Index && Index < Container.Num())
-	{
-		return Container[Index]->Guid;
-	}
-
-	return {};
-}
-
-bool FItemModel::IsPinned(const FGuid& Guid)
-{
-	const FLookupData *const LookupData = FindLookupData(Guid);
-	return LookupData && LookupData->bIsPinned;
-}
-
-bool FItemModel::Pin(const FGuid& Guid)
-{
-	FLookupData *const LookupData = FindLookupData(Guid);
-	if (LookupData && !LookupData->bIsPinned)
-	{
-		SwapBetweenPinnedAndUnpinned(*LookupData);
-		return true;
-	}
-
-	return false;
-}
-
-bool FItemModel::Unpin(const FGuid& Guid)
-{
-	FLookupData *const LookupData = FindLookupData(Guid);
-	if (LookupData && LookupData->bIsPinned)
-	{
-		SwapBetweenPinnedAndUnpinned(*LookupData);
-		return true;
-	}
-
-	return false;
-}
-
-void FItemModel::SortSelection(TArray<FGuid>& Selection)
-{
-	Algo::Sort(Selection, [this, NumPinned = PinnedItems.Num()](const FGuid& A, const FGuid& B)
-	{
-		const FLookupData *const LookupDataA = FindLookupData(A);
-		const FLookupData *const LookupDataB = FindLookupData(B);
-
-		if (LookupDataA && !LookupDataB) return true;
-		if (!LookupDataA && LookupDataB) return false;
-		if (!LookupDataA && !LookupDataB) return true;
-
-		const int32 PositionA = (LookupDataA->bIsPinned ? 0 : NumPinned) + LookupDataA->Index;
-		const int32 PositionB = (LookupDataB->bIsPinned ? 0 : NumPinned) + LookupDataB->Index;
-		
-		return PositionA < PositionB;
-	});
-}
-
-const FItemModel::FLookupData* FItemModel::FindLookupData(const FGuid& Guid) const
-{
-	if (const FLookupData* LookupData = GuidToLookupDataMapping.Find(Guid))
-	{
-		return LookupData;
-	}
-
-	UE_LOG(LogImageWidgets, Warning, TEXT("Cannot find catalog item for guid '%s'."), *Guid.ToString());
-	return nullptr;
-}
-
-const FItemType* FItemModel::GetItem(const FLookupData& LookupData) const
-{
-	const TArray<FItemType> *const Container = LookupData.bIsPinned ? &PinnedItems : &UnpinnedItems;
-	check(0 <= LookupData.Index && LookupData.Index < Container->Num());
-	return &(*Container)[LookupData.Index];
-}
-
-void FItemModel::SwapBetweenPinnedAndUnpinned(FLookupData& LookupData)
-{
-	TArray<FItemType>& From = LookupData.bIsPinned ? PinnedItems : UnpinnedItems;
-	TArray<FItemType>& To = LookupData.bIsPinned ? UnpinnedItems : PinnedItems;
-	
-	const int32 NewIndex = To.Emplace(static_cast<FItemType&&>(From[LookupData.Index]));
-	From.RemoveAt(LookupData.Index, EAllowShrinking::No);
-
-	UpdateMappingIndices(From, LookupData.Index);
-
-	LookupData.Index = NewIndex;
-	LookupData.bIsPinned = !LookupData.bIsPinned;
-}
-
-void FItemModel::UpdateMappingIndices(const TArray<FItemType>& Container, const int32 FirstIndex)
-{
-	for (int32 Index = FirstIndex, Num = Container.Num(); Index < Num; ++Index)
-	{
-		FLookupData *const LookupData = GuidToLookupDataMapping.Find(Container[Index]->Guid);
-		check(LookupData);
-		LookupData->Index = Index;
-	}
-}
-
-void SImageCatalog::Construct(const FArguments& InArgs)
-{
-	Model = MakePimpl<FItemModel>();
-	
-	ItemsHeading = InArgs._ItemsHeading;
-	PinnedItemsHeading = InArgs._PinnedItemsHeading;
-	OnItemSelected = InArgs._OnItemSelected;
-	OnGetContextMenu = InArgs._OnGetContextMenu;
-
-	const auto GenerateItemRow = [](const FItemType& ItemData, const TSharedRef<STableViewBase>& OwnerTable)
-	{
-		static const FTableRowStyle TableRowStyle = []
+		const int32 *const GroupToIndex = GroupName == nullptr ? &Lookup->GroupIndex : GroupMapping.Find(*GroupName);
+		if (GroupToIndex)
 		{
-			FTableRowStyle Style = FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.Row");
-			Style.SetOddRowBackgroundBrush(FSlateColorBrush(FStyleColors::Background));
-			Style.SetOddRowBackgroundHoveredBrush(FSlateColorBrush(FStyleColors::SelectHover));
-			Style.SetEvenRowBackgroundBrush(FSlateColorBrush(FStyleColors::Recessed));
-			Style.SetEvenRowBackgroundHoveredBrush(FSlateColorBrush(FStyleColors::SelectHover));
-			return Style;
-		}();
+			check(0 <= *GroupToIndex && *GroupToIndex < Groups.Num());
+			FGroup& GroupTo = *Groups[*GroupToIndex];
 
-		TSharedPtr<SImageCatalogItem> ItemWidget;
-		SAssignNew(ItemWidget, SImageCatalogItem, ItemData);
-
-		return SNew(STableRow<FItemType>, OwnerTable)
-			.Style(&TableRowStyle)
-			.ShowSelection(true)
-			[
-				ItemWidget.ToSharedRef()
-			];
-	};
-
-	const auto GetPinnedItemsVisibility = [&Model = Model]
-	{
-		return Model->HasPinnedItems() ? EVisibility::Visible : EVisibility::Collapsed;
-	};
-
-	const auto GetItemsVisibility = [&Model = Model]
-	{
-		return Model->HasUnpinnedItems() ? EVisibility::Visible : EVisibility::Collapsed;
-	};
-
-	const auto PinnedItemsSelectionChanged = [this](const FItemType& Item, ESelectInfo::Type SelectInfo)
-	{
-		// Note that Item might be a nullptr since this callback is also executed when clearing the selection of the list.
-		if (Item.IsValid())
-		{
-			ItemsListView->ClearSelection();
-			OnItemSelected.ExecuteIfBound(Item->Guid);
-		}
-	};
-
-	const auto ItemsSelectionChanged = [this](const FItemType& Item, ESelectInfo::Type SelectInfo)
-	{
-		// Note that Item might be a nullptr since this callback is also executed when clearing the selection of the list.
-		if (Item.IsValid())
-		{
-			PinnedItemsListView->ClearSelection();
-			OnItemSelected.ExecuteIfBound(Item->Guid);
-		}
-	};
-
-	SAssignNew(PinnedItemsListView, SListView<FItemType>)
-					.ListItemsSource(&Model->GetPinnedItems())
-					.OnContextMenuOpening(this, &SImageCatalog::OnContextMenuOpening)
-					.OnGenerateRow_Lambda(GenerateItemRow)
-					.SelectionMode(InArgs._SelectionMode)
-					.OnSelectionChanged_Lambda(PinnedItemsSelectionChanged)
-					.ClearSelectionOnClick(false)
-					.Visibility_Lambda(GetPinnedItemsVisibility);
-
-	SAssignNew(ItemsListView, SListView<FItemType>)
-					.ListItemsSource(&Model->GetUnpinnedItems())
-					.OnContextMenuOpening(this, &SImageCatalog::OnContextMenuOpening)
-					.OnGenerateRow_Lambda(GenerateItemRow)
-					.SelectionMode(InArgs._SelectionMode)
-					.OnSelectionChanged_Lambda(ItemsSelectionChanged)
-					.ClearSelectionOnClick(false)
-					.ScrollbarVisibility(EVisibility::Visible);
-	
-	ChildSlot
-	[
-		SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(2.0f, 4.0f, 2.0f, 4.0f)
-			[
-				SNew(STextBlock)
-					.Text_Lambda([&PinnedItemsHeading = PinnedItemsHeading] { return PinnedItemsHeading.Get({}); })
-					.Visibility_Lambda([&PinnedItemsHeading = PinnedItemsHeading, GetPinnedItemsVisibility]
+			if (BeforeItemWithThisGuid)
+			{
+				if (FItemLookup *const LookupBefore = FindLookup(*BeforeItemWithThisGuid))
+				{
+					// Only move if BeforeItems is in the correct group and if item isn't already in the correct position.
+					if (*GroupToIndex == LookupBefore->GroupIndex &&
+						(Lookup->GroupIndex != LookupBefore->GroupIndex || Lookup->ItemIndex + 1 != LookupBefore->ItemIndex))
 					{
-						return PinnedItemsHeading.Get({}).IsEmpty() ? EVisibility::Collapsed : GetPinnedItemsVisibility();
-					})
-					.TextStyle(FAppStyle::Get(), "DetailsView.CategoryTextStyle")
-			]
-		+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				PinnedItemsListView.ToSharedRef()
-			]
-		+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				SNew(SSeparator)
-					.Thickness(6.0f)
-					.Visibility_Lambda(GetPinnedItemsVisibility)
-			]
-		+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(2.0f, 4.0f, 2.0f, 4.0f)
-			[
-				SNew(STextBlock)
-					.Text_Lambda([&ItemsHeading = ItemsHeading] { return ItemsHeading.Get({}); })
-					.Visibility_Lambda([&ItemsHeading = ItemsHeading, GetItemsVisibility]
-					{
-						return ItemsHeading.Get({}).IsEmpty() ? EVisibility::Collapsed : GetItemsVisibility();
-					})
-					.TextStyle(FAppStyle::Get(), "DetailsView.CategoryTextStyle")
-			]
-		+ SVerticalBox::Slot()
-			[
-				ItemsListView.ToSharedRef()
-			]
-	];
+						FItemType Item = MoveTemp(GroupFrom.Items[Lookup->ItemIndex]);
+
+						GroupFrom.Items.RemoveAt(Lookup->ItemIndex, EAllowShrinking::No);
+						UpdateItemMapping(GroupFrom.Items, Lookup->ItemIndex);
+
+						GroupTo.Items.EmplaceAt(LookupBefore->ItemIndex, MoveTemp(Item));
+						Lookup->GroupIndex = LookupBefore->GroupIndex;
+						Lookup->ItemIndex = LookupBefore->ItemIndex;
+						++LookupBefore->ItemIndex;
+						UpdateItemMapping(GroupTo.Items, LookupBefore->ItemIndex + 1);
+
+						return true;
+					}
+				}
+			}
+			else
+			{
+				// Only move if item is not already in the correct group.
+				if (*GroupToIndex != Lookup->GroupIndex)
+				{
+					FItemType Item = MoveTemp(GroupFrom.Items[Lookup->ItemIndex]);
+
+					GroupFrom.Items.RemoveAt(Lookup->ItemIndex, EAllowShrinking::No);
+					UpdateItemMapping(GroupFrom.Items, Lookup->ItemIndex);
+
+					Lookup->GroupIndex = *GroupToIndex;
+					Lookup->ItemIndex = GroupTo.Items.Emplace(MoveTemp(Item));
+
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
 }
 
-bool SImageCatalog::AddItem(const FItemType& Item)
+bool FImpl::RemoveItem(const FGuid& Guid)
 {
-	if (Model->Add(Item, false, nullptr))
+	if (const FItemLookup *const Lookup = FindLookup(Guid))
 	{
-		ItemsListView->RequestListRefresh();
+		FGroup& Group = *Groups[Lookup->GroupIndex];
+		Group.Items.RemoveAt(Lookup->ItemIndex, EAllowShrinking::No);
+
+		ItemMapping.Remove(Guid);
+		UpdateItemMapping(Group.Items, Lookup->ItemIndex);
+
+		Group.ListView->RequestListRefresh();
+
 		return true;
 	}
 
 	return false;
 }
 
-bool SImageCatalog::AddItem(const TSharedPtr<FImageCatalogItemData>& Item, const FGuid& BeforeItemWithThisGuid)
+TSharedPtr<const FImageCatalogItemData> FImpl::GetItem(const FGuid& Guid) const
 {
-	if (Model->Add(Item, false, &BeforeItemWithThisGuid))
+	if (const FItemLookup* Lookup = FindLookup(Guid))
 	{
-		ItemsListView->RequestListRefresh();
-		return true;
+		return Groups[Lookup->GroupIndex]->Items[Lookup->ItemIndex];
 	}
 
-	return false;
+	return {};
 }
 
-bool SImageCatalog::AddPinnedItem(const FItemType& Item)
+TOptional<int32> FImpl::GetItemIndex(const FGuid& Guid) const
 {
-	if (Model->Add(Item, true, nullptr))
+	if (const FItemLookup* Lookup = FindLookup(Guid))
 	{
-		PinnedItemsListView->RequestListRefresh();
-		return true;
+		return Lookup->ItemIndex;
 	}
 
-	return false;
+	return {};
 }
 
-bool SImageCatalog::AddPinnedItem(const TSharedPtr<FImageCatalogItemData>& Item, const FGuid& BeforeItemWithThisGuid)
+TOptional<TTuple<FName, int32>> FImpl::GetItemGroupNameAndIndex(const FGuid& Guid) const
 {
-	if (Model->Add(Item, true, &BeforeItemWithThisGuid))
+	if (const FItemLookup *const Lookup = FindLookup(Guid))
 	{
-		PinnedItemsListView->RequestListRefresh();
-		return true;
+		return {MakeTuple(Groups[Lookup->GroupIndex]->Name, Lookup->ItemIndex)};
 	}
 
-	return false;
+	return {};
 }
 
-bool SImageCatalog::RemoveItem(const FGuid& Guid)
+TSharedPtr<const FImageCatalogItemData> FImpl::GetItemAt(const int32 Index, const FName* GroupName) const
 {
-	const auto [bSuccess, bIsPinned] = Model->Remove(Guid);
-	if (bSuccess)
+	if (!GroupName)
 	{
-		const TSharedPtr<SListView<FItemType>>& ListView = bIsPinned ? PinnedItemsListView : ItemsListView;
-		ListView->RequestListRefresh();
-		return true;
+		GroupName = &DefaultGroupName;
 	}
 
-	return false;
-}
-
-TSharedPtr<const FImageCatalogItemData> SImageCatalog::GetItem(const FGuid& Guid) const
-{
-	if (const FItemType* ItemPtr = Model->GetItem(Guid).Get<0>())
+	if (const FGroup* const Group = FindGroup(*GroupName))
 	{
-		return *ItemPtr;
+		if (0 <= Index && Index < Group->Items.Num())
+		{
+			return {Group->Items[Index]};
+		}
 	}
 	return {};
 }
 
-TOptional<TTuple<bool, int32>> SImageCatalog::GetItemIndex(const FGuid& Guid) const
+TOptional<FGuid> FImpl::GetItemGuidAt(int32 Index, const FName* GroupName) const
 {
-	return Model->GetItemIndex(Guid);
-}
-
-TSharedPtr<const FImageCatalogItemData> SImageCatalog::GetItemAt(const int32 Index) const
-{
-	if (const FItemType* ItemPtr = Model->GetItemAt(Index, false))
+	if (!GroupName)
 	{
-		return *ItemPtr;
+		GroupName = &DefaultGroupName;
+	}
+
+	if (const FGroup* const Group = FindGroup(*GroupName))
+	{
+		if (0 <= Index && Index < Group->Items.Num())
+		{
+			return {Group->Items[Index]->Guid};
+		}
 	}
 	return {};
 }
 
-TSharedPtr<const FImageCatalogItemData> SImageCatalog::GetPinnedItemAt(const int32 Index) const
+bool FImpl::UpdateItem(const FGuid& Guid, const FSlateBrush* Thumbnail, const FText* Name, const FText* Info, const FText* ToolTip)
 {
-	if (const FItemType* ItemPtr = Model->GetItemAt(Index, true))
+	if (const FItemLookup* Lookup = FindLookup(Guid))
 	{
-		return *ItemPtr;
+		const FItemType& ItemPtr = Groups[Lookup->GroupIndex]->Items[Lookup->ItemIndex];
+		check(ItemPtr.IsValid());
+
+		FImageCatalogItemData& Item = *ItemPtr;
+
+		if (Thumbnail) Item.Thumbnail = *Thumbnail;
+		if (Name) Item.Name = *Name;
+		if (Info) Item.Info = *Info;
+		if (ToolTip) Item.ToolTip = *ToolTip;
+
+		return true;
 	}
+
+	return false;
+}
+
+bool FImpl::SelectItem(const FGuid& Guid, const bool bSelected)
+{
+	if (const FItemLookup *const Lookup = FindLookup(Guid))
+	{
+		const FGroup& Group = *Groups[Lookup->GroupIndex];
+		const FItemType& Item = Group.Items[Lookup->ItemIndex];
+		Group.ListView->SetItemSelection(Item, bSelected);
+
+		return true;
+	}
+
+	return false;
+}
+
+bool FImpl::ClearSelection(const FName* GroupName)
+{
+	if (GroupName)
+	{
+		if (const FGroup *const Group = FindGroup(*GroupName))
+		{
+			Group->ListView->ClearSelection();
+			return true;
+		}
+
+		return false;
+	}
+
+	for (const TUniquePtr<FGroup>& Group : Groups)
+	{
+		Group->ListView->ClearSelection();
+	}
+
+	return true;
+}
+
+int32 FImpl::NumItems(const FName* GroupName) const
+{
+	if (GroupName)
+	{
+		if (const FGroup* Group = FindGroup(*GroupName))
+		{
+			return Group->Items.Num();
+		}
+
+		return 0;
+	}
+
+	return Algo::Accumulate(Groups, 0, [](int32 Num, const TUniquePtr<FGroup>& Group) { return Num + Group->Items.Num(); });
+}
+
+TOptional<FName> FImpl::GetItemGroupName(const FGuid& Guid) const
+{
+	if (const FItemLookup* Lookup = FindLookup(Guid))
+	{
+		return { Groups[Lookup->GroupIndex]->Name };
+	}
+
 	return {};
 }
 
-TOptional<FGuid> SImageCatalog::GetItemGuidAt(const int32 Index) const
+TSharedPtr<SWidget> FImpl::OnGroupContextMenuOpening(FName Name) const
 {
-	return Model->GetGuidAt(Index, false);
-}
-
-TOptional<FGuid> SImageCatalog::GetPinnedItemGuidAt(const int32 Index) const 
-{
-	return Model->GetGuidAt(Index, true);
-}
-
-int32 SImageCatalog::NumItems() const
-{
-	return Model->NumUnpinnedItems();
-}
-
-int32 SImageCatalog::NumPinnedItems() const
-{
-	return Model->NumPinnedItems();
-}
-
-int32 SImageCatalog::NumTotalItems() const
-{
-	return NumItems() + NumPinnedItems();
-}
-
-bool SImageCatalog::ItemIsPinned(const FGuid& Guid) const
-{
-	return Model->IsPinned(Guid);
-}
-	
-bool SImageCatalog::PinItem(const FGuid& Guid)
-{
-	const bool bSuccess = Model->Pin(Guid);
-	if (bSuccess)
-	{
-		PinnedItemsListView->RequestListRefresh();
-		ItemsListView->RequestListRefresh();
-	}
-	return bSuccess;
-}
-
-bool SImageCatalog::UnpinItem(const FGuid& Guid)
-{
-	const bool bSuccess = Model->Unpin(Guid);
-	if (bSuccess)
-	{
-		PinnedItemsListView->RequestListRefresh();
-		ItemsListView->RequestListRefresh();
-	}
-	return bSuccess;
-}
-
-void SImageCatalog::SelectItem(const FGuid& Guid)
-{
-	const auto [ItemPtr, bIsPinned] = Model->GetItem(Guid);
-	if (ItemPtr)
-	{
-		ItemsListView->ClearSelection();
-		PinnedItemsListView->ClearSelection();
-
-		SListView<FItemType> *const ListView = bIsPinned ? PinnedItemsListView.Get() : ItemsListView.Get();
-		ListView->SetItemSelection(*ItemPtr, true);
-	}
-}
-
-TSharedPtr<SWidget> SImageCatalog::OnContextMenuOpening() const
-{
-	if (!OnGetContextMenu.IsBound())
+	if (!OnGetGroupContextMenu.IsBound())
 	{
 		return SNullWidget::NullWidget;
 	}
 
-	TArray<FGuid> SelectedGuids = [&PinnedItemsListView = PinnedItemsListView, &ItemsListView = ItemsListView]
+	return OnGetGroupContextMenu.Execute(Name);
+}
+
+TSharedPtr<SWidget> FImpl::OnItemsContextMenuOpening() const
+{
+	if (!OnGetItemsContextMenu.IsBound())
 	{
-		TArray<FGuid> Guids;
-		auto GetItemGuid = [](const FItemType& Item) { return Item->Guid; };
-		Algo::Transform(PinnedItemsListView->GetSelectedItems(), Guids, GetItemGuid);
-		Algo::Transform(ItemsListView->GetSelectedItems(), Guids, GetItemGuid);
-		return Guids;
-	}();
+		return SNullWidget::NullWidget;
+	}
+
+	TArray<FGuid> SelectedGuids;
+	for (const TUniquePtr<FGroup>& Group : Groups)
+	{
+		Algo::Transform(Group->ListView->GetSelectedItems(), SelectedGuids, [](const FItemType& Item) { return Item->Guid; });
+	}
 
 	if (SelectedGuids.IsEmpty())
 	{
 		return SNullWidget::NullWidget;
 	}
 
-	Model->SortSelection(SelectedGuids);
+	SortSelection(SelectedGuids);
 
-	return OnGetContextMenu.Execute(SelectedGuids);
+	return OnGetItemsContextMenu.Execute(SelectedGuids);
 }
 
-void SImageCatalog::UpdateItem(const FImageCatalogItemData& Item)
+bool FImpl::AddGroup(FName Name, const FText& Heading, const int32 Index)
 {
-	if (const TSharedPtr<FImageCatalogItemData>* const ItemPtr = Model->GetItem(Item.Guid).Get<0>())
+	check(0 <= Index && Index <= Groups.Num());
+
+	if (!GroupMapping.Contains(Name))
 	{
-		**ItemPtr = Item;
+		FGroup& Group = *Groups.EmplaceAt_GetRef(Index, MakeUnique<FGroup>(Name, Heading));
+		GroupMapping.Emplace(Name, Index);
+		UpdateGroupMapping(Index + 1);
+
+		const auto GetHeading = [&Group]
+		{
+			return Group.Heading;
+		};
+
+		const auto GetHeadingVisibility = [bShowEmptyGroups = bShowEmptyGroups, &Group]
+		{
+			return !Group.Heading.IsEmpty() && (bShowEmptyGroups || !Group.Items.IsEmpty()) ? EVisibility::Visible : EVisibility::Collapsed;
+		};
+
+		const auto GetHeadingHeight = [bShowEmptyGroups = bShowEmptyGroups, &Group]
+		{
+			return !Group.Heading.IsEmpty() && (bShowEmptyGroups || !Group.Items.IsEmpty()) ? 26.0f : 0.0f;
+		};
+
+		const auto GetVisibility = [bShowEmptyGroups = bShowEmptyGroups, &Group]
+		{
+			return bShowEmptyGroups || (Group.bIsExpanded && !Group.Items.IsEmpty()) ? EVisibility::Visible : EVisibility::Collapsed;
+		};
+
+		const auto GenerateItemRow = [](const FItemType& ItemData, const TSharedRef<STableViewBase>& OwnerTable)
+		{
+			static const FTableRowStyle TableRowStyle = []
+			{
+				FTableRowStyle Style = FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.Row");
+				Style.SetOddRowBackgroundBrush(FSlateColorBrush(FStyleColors::Background));
+				Style.SetOddRowBackgroundHoveredBrush(FSlateColorBrush(FStyleColors::SelectHover));
+				Style.SetEvenRowBackgroundBrush(FSlateColorBrush(FStyleColors::Recessed));
+				Style.SetEvenRowBackgroundHoveredBrush(FSlateColorBrush(FStyleColors::SelectHover));
+				return Style;
+			}();
+
+			TSharedPtr<SImageCatalogItem> ItemWidget;
+			SAssignNew(ItemWidget, SImageCatalogItem, ItemData);
+
+			return SNew(STableRow<FItemType>, OwnerTable)
+				.Style(&TableRowStyle)
+				.ShowSelection(true)
+				[
+					ItemWidget.ToSharedRef()
+				];
+		};
+
+		const auto SelectionChanged = [bAllowSelectionAcrossGroups = bAllowSelectionAcrossGroups, &GroupName = Group.Name, &Groups = Groups, &OnItemSelected = OnItemSelected](const FItemType& Item, ESelectInfo::Type)
+		{
+			// Note that Item might be a nullptr since this callback is also executed when clearing the selection of the list.
+			if (Item.IsValid())
+			{
+				if (!bAllowSelectionAcrossGroups)
+				{
+					for (const TUniquePtr<FGroup>& Group : Groups)
+					{
+						if (Group->Name != GroupName)
+						{
+							if (Group->ListView)
+							{
+								Group->ListView->ClearSelection();
+							}
+						}
+					}
+				}
+
+				OnItemSelected.ExecuteIfBound(Item->Guid);
+			}
+		};
+
+		const auto OpenItemsContextMenu = [this]
+		{
+			return OnItemsContextMenuOpening();
+		};
+
+		TSharedPtr<SWidget> GroupHeader;
+
+		Layout->InsertSlot(Index)
+		[
+			SNew(SBorder)
+			.BorderImage(FAppStyle::Get().GetBrush("DetailsView.GridLine"))
+			.Padding(0.0f, 0.0f, 0.0f, 1.0f)
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SAssignNew(GroupHeader, SBox)
+					.MinDesiredHeight_Lambda(GetHeadingHeight)
+					.Visibility_Lambda(GetHeadingVisibility)
+					[
+						SNew(SBorder)
+						.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryTop"))
+						.Padding(0.0f)
+						[
+							SNew(SHorizontalBox)
+							+ SHorizontalBox::Slot()
+							.HAlign(HAlign_Left)
+							.VAlign(VAlign_Center)
+							.Padding(2.0f, 0.0f, 0.0f, 0.0f)
+							.AutoWidth()
+							[
+								SNew(SButton)
+								.ButtonStyle(FCoreStyle::Get(), "NoBorder")
+								.VAlign(VAlign_Center)
+								.HAlign(HAlign_Center)
+								.ClickMethod(EButtonClickMethod::MouseDown)
+								.OnClicked_Lambda([&bIsExpanded = Group.bIsExpanded]()
+								{
+									bIsExpanded = !bIsExpanded;
+									return FReply::Handled();
+								})
+								.ContentPadding(0.0f)
+								.IsFocusable(false)
+								[
+									SNew(SImage)
+									.Image_Lambda([&bIsExpanded = Group.bIsExpanded]()
+									{
+										return FAppStyle::Get().GetBrush(bIsExpanded ? "TreeArrow_Expanded" : "TreeArrow_Collapsed");
+									})
+									.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+								]
+							]
+							+ SHorizontalBox::Slot()
+							.VAlign(VAlign_Center)
+							.FillWidth(1.0f)
+							.Padding(2.0f, 2.0f, 2.0f, 2.0f)
+							[
+								SNew(STextBlock)
+								.Text_Lambda(GetHeading)
+								.Font(FAppStyle::Get().GetFontStyle("DetailsView.CategoryFontStyle"))
+							]
+						]
+					]
+				]
+				+ SVerticalBox::Slot()
+				[
+					SAssignNew(Group.ListView, SListView<FItemType>)
+					.ListItemsSource(&Group.Items)
+					.Visibility_Lambda(GetVisibility)
+					.ScrollbarVisibility(EVisibility::Collapsed)
+					.OnGenerateRow_Lambda(GenerateItemRow)
+					.SelectionMode(SelectionMode)
+					.ClearSelectionOnClick(false)
+					.OnSelectionChanged_Lambda(SelectionChanged)
+					.OnContextMenuOpening_Lambda(OpenItemsContextMenu)
+				]
+			]
+		];
+
+		GroupHeader->SetOnMouseButtonUp(FPointerEventHandler::CreateLambda([this, Name, GroupHeader](const FGeometry& Geometry, const FPointerEvent& Event)
+		{
+			if (Event.GetEffectingButton() == EKeys::RightMouseButton)
+			{
+				TSharedPtr<SWidget> MenuContent = OnGroupContextMenuOpening(Name);
+
+				if (MenuContent.IsValid())
+				{
+					const FWidgetPath WidgetPath = Event.GetEventPath() != nullptr ? *Event.GetEventPath() : FWidgetPath();
+					FSlateApplication::Get().PushMenu(GroupHeader->AsShared(), WidgetPath, MenuContent.ToSharedRef(), Event.GetScreenSpacePosition(),
+					                                  FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
+				}
+
+				return FReply::Handled().ReleaseMouseCapture();
+			}
+
+			return FReply::Unhandled();
+		}));
+
+		return true;
+	}
+
+	return false;
+}
+
+const FGroup* FImpl::FindGroup(const FName Name) const
+{
+	if (const int32* Index = GroupMapping.Find(Name))
+	{
+		check(0 <= *Index && *Index < Groups.Num());
+		return Groups[*Index].Get();
+	}
+	return nullptr;
+}
+
+const FItemLookup* FImpl::FindLookup(const FGuid& Guid) const
+{
+	if (const FItemLookup* Lookup = ItemMapping.Find(Guid))
+	{
+		check(0 <= Lookup->GroupIndex && Lookup->GroupIndex < Groups.Num());
+		check(0 <= Lookup->ItemIndex && Lookup->ItemIndex < Groups[Lookup->GroupIndex]->Items.Num());
+
+		return Lookup;
+	}
+
+	return nullptr;
+}
+
+void FImpl::SortSelection(TArray<FGuid>& Selection) const
+{
+	TArray<int32> GroupOffsets;
+	GroupOffsets.Reserve(Groups.Num());
+	int32 Offset = 0;
+	for (const TUniquePtr<FGroup>& Group : Groups)
+	{
+		GroupOffsets.Add(Offset);
+		Offset += Group->Items.Num();
+	}
+
+	Algo::Sort(Selection, [&ItemMapping = ItemMapping, &GroupOffsets](const FGuid& A, const FGuid& B)
+	{
+		const FItemLookup *const LookupA = ItemMapping.Find(A);
+		const FItemLookup *const LookupB = ItemMapping.Find(B);
+
+		if (LookupA && !LookupB) return true;
+		if (!LookupA && LookupB) return false;
+		if (!LookupA && !LookupB) return true;
+
+		const int32 PositionA = GroupOffsets[LookupA->GroupIndex] + LookupA->ItemIndex;
+		const int32 PositionB = GroupOffsets[LookupB->GroupIndex] + LookupB->ItemIndex;
+
+		return PositionA < PositionB;
+	});
+}
+
+void FImpl::UpdateGroupMapping(const int32 StartingIndex)
+{
+	for (int32 GroupIndex = StartingIndex, NumGroups = Groups.Num(); GroupIndex < NumGroups; ++GroupIndex)
+	{
+		int32 *const GroupMappingIndex = GroupMapping.Find(Groups[GroupIndex]->Name);
+		check(GroupMappingIndex);
+		*GroupMappingIndex = GroupIndex;
+
+		const TArray<FItemType>& Items = Groups[GroupIndex]->Items;
+		for (int32 ItemIndex = 0, NumItems = Items.Num(); ItemIndex < NumItems; ++ItemIndex)
+		{
+			FItemLookup *const Lookup = ItemMapping.Find(Items[ItemIndex]->Guid);
+			check(Lookup);
+			Lookup->GroupIndex = GroupIndex;
+		}
 	}
 }
 
-void SImageCatalog::UpdateItemInfo(const FGuid& Guid, const FText& Info)
+void FImpl::UpdateItemMapping(TArray<FItemType>& Items, const int32 StartingIndex)
 {
-	if (const TSharedPtr<FImageCatalogItemData>* const ItemPtr = Model->GetItem(Guid).Get<0>())
+	for (int32 Index = StartingIndex, Num = Items.Num(); Index < Num; ++Index)
 	{
-		(*ItemPtr)->Info = Info;
+		FItemLookup *const Lookup = ItemMapping.Find(Items[Index]->Guid);
+		check(Lookup);
+		Lookup->ItemIndex = Index;
 	}
 }
 
-void SImageCatalog::UpdateItemName(const FGuid& Guid, const FText& Name)
+void SImageCatalog::Construct(const FArguments& Args)
 {
-	if (const TSharedPtr<FImageCatalogItemData>* const ItemPtr = Model->GetItem(Guid).Get<0>())
-	{
-		(*ItemPtr)->Name = Name;
-	}
+	TSharedPtr<SScrollBox> Layout;
+
+	ChildSlot
+	[
+		SAssignNew(Layout, SScrollBox)
+	];
+
+	Impl = MakePimpl<FImpl>(Args._DefaultGroupName, Args._DefaultGroupHeading, Args._SelectionMode, Args._bAllowSelectionAcrossGroups,
+	                        Args._bShowEmptyGroups, Args._OnItemSelected, Args._OnGetGroupContextMenu, Args._OnGetItemsContextMenu, Layout);
 }
 
-void SImageCatalog::UpdateItemThumbnail(const FGuid& Guid, const FSlateBrush& Thumbnail)
+FName SImageCatalog::GetDefaultGroupName() const
 {
-	if (const TSharedPtr<FImageCatalogItemData>* const ItemPtr = Model->GetItem(Guid).Get<0>())
-	{
-		(*ItemPtr)->Thumbnail = Thumbnail;
-	}
+	return Impl->GetDefaultGroupName();
 }
 
-void SImageCatalog::UpdateItemToolTip(const FGuid& Guid, const FText& ToolTip)
+bool SImageCatalog::AddGroup(const FName Name, const FText& Heading)
 {
-	if (const TSharedPtr<FImageCatalogItemData>* const ItemPtr = Model->GetItem(Guid).Get<0>())
-	{
-		(*ItemPtr)->ToolTip = ToolTip;
-	}
+	return Impl->AddGroup(Name, Heading, nullptr);
+}
+
+bool SImageCatalog::AddGroup(const FName Name, const FText& Heading, const FName BeforeGroupWithThisName)
+{
+	return Impl->AddGroup(Name, Heading, &BeforeGroupWithThisName);
+}
+
+TOptional<TArray<FGuid>> SImageCatalog::RemoveGroup(const FName Name)
+{
+	return Impl->RemoveGroup(Name, nullptr);
+}
+
+TOptional<TArray<FGuid>> SImageCatalog::RemoveGroup(const FName Name, const FName GroupToMoveItemsInto)
+{
+	return Impl->RemoveGroup(Name, &GroupToMoveItemsInto);
+}
+
+int32 SImageCatalog::NumGroups() const
+{
+	return Impl->NumGroups();
+}
+
+TOptional<FName> SImageCatalog::GetGroupNameAt(int32 Index) const
+{
+	return Impl->GetGroupNameAt(Index);
+}
+
+bool SImageCatalog::SetGroupHeading(const FName Name, const FText& Heading)
+{
+	return Impl->SetGroupHeading(Name, Heading);
+}
+
+bool SImageCatalog::AddItem(const FItemType& Item)
+{
+	return Impl->AddItem(Item, nullptr, nullptr);
+}
+
+bool SImageCatalog::AddItem(const FItemType& Item, const FGuid& BeforeItemWithThisGuid)
+{
+	return Impl->AddItem(Item, nullptr, &BeforeItemWithThisGuid);
+}
+
+bool SImageCatalog::AddItem(const TSharedPtr<FImageCatalogItemData>& Item, const FName Group)
+{
+	return Impl->AddItem(Item, &Group, nullptr);
+}
+
+bool SImageCatalog::AddItem(const TSharedPtr<FImageCatalogItemData>& Item, const FName Group, const FGuid& BeforeItemWithThisGuid)
+{
+	return Impl->AddItem(Item, &Group, &BeforeItemWithThisGuid);
+}
+
+bool SImageCatalog::MoveItem(const FGuid& Guid, const FGuid& BeforeItemWithThisGuid)
+{
+	return Impl->MoveItem(Guid, nullptr, &BeforeItemWithThisGuid);
+}
+
+bool SImageCatalog::MoveItem(const FGuid& Guid, FName Group)
+{
+	return Impl->MoveItem(Guid, &Group, nullptr);
+}
+
+bool SImageCatalog::MoveItem(const FGuid& Guid, FName Group, const FGuid& BeforeItemWithThisGuid)
+{
+	return Impl->MoveItem(Guid, &Group, &BeforeItemWithThisGuid);
+}
+
+bool SImageCatalog::RemoveItem(const FGuid& Guid)
+{
+	return Impl->RemoveItem(Guid);
+}
+
+TSharedPtr<const FImageCatalogItemData> SImageCatalog::GetItem(const FGuid& Guid) const
+{
+	return Impl->GetItem(Guid);
+}
+
+TOptional<int32> SImageCatalog::GetItemIndex(const FGuid& Guid) const
+{
+	return Impl->GetItemIndex(Guid);
+}
+
+TOptional<TTuple<FName, int32>> SImageCatalog::GetItemGroupNameAndIndex(const FGuid& Guid) const
+{
+	return Impl->GetItemGroupNameAndIndex(Guid);
+}
+
+TSharedPtr<const FImageCatalogItemData> SImageCatalog::GetItemAt(const int32 Index) const
+{
+	return Impl->GetItemAt(Index, nullptr);
+}
+
+TSharedPtr<const FImageCatalogItemData> SImageCatalog::GetItemAt(const int32 Index, const FName Group) const
+{
+	return Impl->GetItemAt(Index, &Group);
+}
+
+TOptional<FGuid> SImageCatalog::GetItemGuidAt(const int32 Index) const
+{
+	return Impl->GetItemGuidAt(Index, nullptr);
+}
+
+TOptional<FGuid> SImageCatalog::GetItemGuidAt(const int32 Index, const FName Group) const 
+{
+	return Impl->GetItemGuidAt(Index, &Group);
+}
+
+int32 SImageCatalog::NumItems() const
+{
+	return Impl->NumItems(nullptr);
+}
+
+int32 SImageCatalog::NumItems(FName Group) const
+{
+	return Impl->NumItems(&Group);
+}
+
+TOptional<FName> SImageCatalog::GetItemGroupName(const FGuid& Guid) const
+{
+	return Impl->GetItemGroupName(Guid);
+}
+
+bool SImageCatalog::SelectItem(const FGuid& Guid)
+{
+	return Impl->SelectItem(Guid, true);
+}
+
+bool SImageCatalog::DeselectItem(const FGuid& Guid)
+{
+	return Impl->SelectItem(Guid, false);
+}
+
+void SImageCatalog::ClearSelection()
+{
+	Impl->ClearSelection(nullptr);
+}
+
+bool SImageCatalog::ClearSelection(FName Group)
+{
+	return Impl->ClearSelection(&Group);
+}
+
+bool SImageCatalog::UpdateItem(const FImageCatalogItemData& Item)
+{
+	return Impl->UpdateItem(Item.Guid, &Item.Thumbnail, &Item.Name, &Item.Info, &Item.ToolTip);
+}
+
+bool SImageCatalog::UpdateItemInfo(const FGuid& Guid, const FText& Info)
+{
+	return Impl->UpdateItem(Guid, nullptr, nullptr, &Info, nullptr);
+}
+
+bool SImageCatalog::UpdateItemName(const FGuid& Guid, const FText& Name)
+{
+	return Impl->UpdateItem(Guid, nullptr, &Name, nullptr, nullptr);
+}
+
+bool SImageCatalog::UpdateItemThumbnail(const FGuid& Guid, const FSlateBrush& Thumbnail)
+{
+	return Impl->UpdateItem(Guid, &Thumbnail, nullptr, nullptr, nullptr);
+}
+
+bool SImageCatalog::UpdateItemToolTip(const FGuid& Guid, const FText& ToolTip)
+{
+	return Impl->UpdateItem(Guid, nullptr, nullptr, nullptr, &ToolTip);
 }
 }
 

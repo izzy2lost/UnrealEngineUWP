@@ -69,6 +69,18 @@ static void ApplyPrimitiveOptionsToMesh(
 			}
 		}
 	}
+	// if we have a valid non-zero MaterialID, set it on all triangles (0 is default)
+	if (PrimitiveOptions.MaterialID > 0)
+	{
+		// Make sure material IDs are enabled
+		Mesh.EnableAttributes();
+		Mesh.Attributes()->EnableMaterialID();
+		FDynamicMeshMaterialAttribute* MaterialIDs = Mesh.Attributes()->GetMaterialID();
+		for (int32 TID : Mesh.TriangleIndicesItr())
+		{
+			MaterialIDs->SetValue(TID, PrimitiveOptions.MaterialID);
+		}
+	}
 }
 
 static void AppendPrimitive(

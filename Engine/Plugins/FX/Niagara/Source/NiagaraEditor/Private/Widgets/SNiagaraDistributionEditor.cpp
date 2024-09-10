@@ -349,6 +349,7 @@ private:
 
 	TSharedRef<SWidget> ConstructVectorWidget(int32 ChannelCount, int32 ValueIndex)
 	{
+		const EUnit DisplayUnit = DistributionAdapter->GetDisplayUnit();
 		if (ChannelCount == 2)
 		{
 			return SNew(SBox)
@@ -366,6 +367,7 @@ private:
 					.OnYCommitted(this, &SNiagaraDistributionValueEditor::ValueCommitted, 1, ValueIndex)
 					.OnBeginSliderMovement(this, &SNiagaraDistributionValueEditor::BeginValueChange)
 					.OnEndSliderMovement(this, &SNiagaraDistributionValueEditor::EndValueChange)
+					.TypeInterface(MakeShareable(new TNumericUnitTypeInterface<float>(DisplayUnit)))
 				];
 		}
 		if (ChannelCount == 3)
@@ -388,6 +390,7 @@ private:
 					.OnZCommitted(this, &SNiagaraDistributionValueEditor::ValueCommitted, 2, ValueIndex)
 					.OnBeginSliderMovement(this, &SNiagaraDistributionValueEditor::BeginValueChange)
 					.OnEndSliderMovement(this, &SNiagaraDistributionValueEditor::EndValueChange)
+					.TypeInterface(MakeShareable(new TNumericUnitTypeInterface<float>(DisplayUnit)))
 				];
 		}
 		if (ChannelCount == 4)
@@ -413,6 +416,7 @@ private:
 					.OnWCommitted(this, &SNiagaraDistributionValueEditor::ValueCommitted, 3, ValueIndex)
 					.OnBeginSliderMovement(this, &SNiagaraDistributionValueEditor::BeginValueChange)
 					.OnEndSliderMovement(this, &SNiagaraDistributionValueEditor::EndValueChange)
+					.TypeInterface(MakeShareable(new TNumericUnitTypeInterface<float>(DisplayUnit)))
 				];
 		}
 		return SNullWidget::NullWidget;

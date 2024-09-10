@@ -10,7 +10,7 @@
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/UnrealType.h"
 #include "VerseVM/VVMEngineEnvironment.h"
-#include "VerseVM/VVMNameMangling.h"
+#include "VerseVM/VVMNames.h"
 #include "VerseVM/VVMVerse.h"
 #include "VerseVM/VVMVerseStruct.h"
 
@@ -34,7 +34,7 @@ UE::Core::FVersePath UVerseClass::GetVersePath() const
 		return {};
 	}
 
-	FString PackageVersePath = Verse::Names::UnmangleCasedName(MangledPackageVersePath);
+	FString PackageVersePath = Verse::Names::Private::UnmangleCasedName(MangledPackageVersePath);
 	FString VersePath = PackageRelativeVersePath.IsEmpty() ? PackageVersePath : PackageVersePath / PackageRelativeVersePath;
 	UE::Core::FVersePath Result;
 	ensure(UE::Core::FVersePath::TryMake(Result, MoveTemp(VersePath)));
@@ -282,6 +282,11 @@ FTopLevelAssetPath UVerseClass::GetReinstancedClassPathName_Impl() const
 #endif
 }
 #endif
+
+const TCHAR* UVerseClass::GetPrefixCPP() const
+{
+	return TEXT("");
+}
 
 void UVerseClass::AddPersistentVars(UObject* InObj)
 {
@@ -601,11 +606,11 @@ void UVerseClass::ForEachVerseFunction(UObject* Object, TFunctionRef<bool(FVerse
 		 Class != nullptr;
 		 Class = Cast<UVerseClass>(Class->GetSuperClass()))
 	{
-		for (const TPair<FName, FName>& DisplayToMangledName : Class->DisplayToMangledNameMap)
+		for (const TPair<FName, FName>& NamePair : Class->DisplayNameToUENameFunctionMap)
 		{
-			if (UFunction* VMFunc = Class->FindFunctionByName(DisplayToMangledName.Value))
+			if (UFunction* VMFunc = Class->FindFunctionByName(NamePair.Value))
 			{
-				FVerseFunctionDescriptor Descriptor(Object, VMFunc, DisplayToMangledName.Key, DisplayToMangledName.Value);
+				FVerseFunctionDescriptor Descriptor(Object, VMFunc, NamePair.Key, NamePair.Value);
 				if (!Operation(Descriptor))
 				{
 					break;
@@ -622,16 +627,17 @@ void UVerseClass::ForEachVerseFunction(UObject* Object, TFunctionRef<bool(FVerse
 }
 
 #if WITH_VERSE_BPVM
-FVerseFunctionDescriptor UVerseClass::FindVerseFunctionByDisplayName(UObject* Object, FName FunctionName, EFieldIterationFlags SearchFlags)
+FVerseFunctionDescriptor UVerseClass::FindVerseFunctionByDisplayName(UObject* Object, const FString& DisplayName, EFieldIterationFlags SearchFlags)
 {
+	FName DisplayFName(DisplayName);
 	checkf(Object, TEXT("Object instance must be provided when searching for Verse functions"));
 	for (UVerseClass* Class = Cast<UVerseClass>(Object->GetClass());
 		 Class != nullptr;
 		 Class = Cast<UVerseClass>(Class->GetSuperClass()))
 	{
-		if (FName* MangledName = Class->DisplayToMangledNameMap.Find(FunctionName))
+		if (FName* UEName = Class->DisplayNameToUENameFunctionMap.Find(DisplayFName))
 		{
-			return FVerseFunctionDescriptor(Object, nullptr, FunctionName, *MangledName);
+			return FVerseFunctionDescriptor(Object, nullptr, DisplayFName, *UEName);
 		}
 
 		if (!EnumHasAnyFlags(SearchFlags, EFieldIterationFlags::IncludeSuper))

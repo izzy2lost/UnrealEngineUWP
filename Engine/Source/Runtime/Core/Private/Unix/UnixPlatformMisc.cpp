@@ -1404,7 +1404,7 @@ bool FUnixPlatformMisc::IsDebuggerPresent()
 
 	int StatusFile = -1;
 	bool bDebugging = false;
-	UE_AUTORTFM_OPEN2
+	UE_AUTORTFM_OPEN
 	{
 		StatusFile = open("/proc/self/status", O_RDONLY);
 

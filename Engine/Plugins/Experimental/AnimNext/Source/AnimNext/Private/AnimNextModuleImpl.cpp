@@ -164,7 +164,7 @@ namespace UE::AnimNext
 		}
 	}
 
-	void FAnimNextModuleImpl::EvaluateGraph(const FAnimNextGraphInstancePtr& GraphInstance, const UE::AnimNext::FReferencePose& RefPose, int32 GraphLODLevel, FLODPoseHeap& OutputPose) const
+	void FAnimNextModuleImpl::EvaluateGraph(const FAnimNextGraphInstancePtr& GraphInstance, const UE::AnimNext::FReferencePose& RefPose, int32 GraphLODLevel, FAnimNextGraphLODPose& OutputPose) const
 	{
 		if (AnimGraphImpl != nullptr)
 		{

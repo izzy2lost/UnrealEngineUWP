@@ -11,24 +11,24 @@
 #include "Android/AndroidJava.h"
 #include "Android/AndroidApplication.h"
 
+#include "Containers/AnsiString.h"
+
 #include "RenderingThread.h"
 #include "RHIStaticStates.h"
 #include "PipelineStateCache.h"
 
 #include "RenderUtils.h"
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-#include <GLES3/gl31.h>
-#include "GLES2/gl2ext.h"
-#include "android/hardware_buffer.h"
-#include "android/hardware_buffer_jni.h"
-
 #include "VulkanCommon.h"
 #include "IVulkanDynamicRHI.h"
 
-#include "vulkan/vulkan_android.h"
-
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include <GLES3/gl31.h>
+#include <GLES2/gl2ext.h>
+#include <android/hardware_buffer.h>
+#include <android/hardware_buffer_jni.h>
+#include <vulkan/vulkan_android.h>
 
 DECLARE_GPU_STAT_NAMED(MediaAndroidDecoder_Convert, TEXT("MediaAndroidDecoder_Convert"));
 
@@ -69,49 +69,6 @@ static TAutoConsoleVariable<int32> CVarElectraAndroidUseGpuOutputPath(
 // ---------------------------------------------------------------------------------------------------------------------
 
 namespace {
-
-struct FElectraTextureSampleVulkanResources
-{
-	VkImage Image;
-	VkDeviceMemory DeviceMemory;
-};
-
-static void CleanupImageResourcesVulkan(void* UserData)
-{
-	check(UserData);
-
-	FElectraTextureSampleVulkanResources* VulkanResources = static_cast<FElectraTextureSampleVulkanResources*>(UserData);
-
-	IVulkanDynamicRHI* RHI = GetIVulkanDynamicRHI();
-	VkDevice Device = RHI->RHIGetVkDevice();
-	const VkAllocationCallbacks* AllocationCallbacks = RHI->RHIGetVkAllocationCallbacks();
-
-	if (VulkanResources->DeviceMemory != VK_NULL_HANDLE)
-	{
-		static PFN_vkFreeMemory VkFreeMemory = nullptr;
-		if (!VkFreeMemory)
-		{
-			VkFreeMemory = (PFN_vkFreeMemory)RHI->RHIGetVkInstanceProcAddr("vkFreeMemory");
-			check(VkFreeMemory);
-		}
-
-		VkFreeMemory(Device, VulkanResources->DeviceMemory, AllocationCallbacks);
-	}
-
-	if (VulkanResources->Image != VK_NULL_HANDLE)
-	{
-		static PFN_vkDestroyImage VkDestroyImage = nullptr;
-		if (!VkDestroyImage)
-		{
-			VkDestroyImage = (PFN_vkDestroyImage)RHI->RHIGetVkInstanceProcAddr("vkDestroyImage");
-			check(VkDestroyImage);
-		}
-
-		VkDestroyImage(Device, VulkanResources->Image, AllocationCallbacks);
-	}
-
-	delete VulkanResources;
-}
 
 static void CleanupImageResourcesJNI(jobject Resources, jmethodID ReleaseFN)
 {
@@ -183,9 +140,14 @@ public:
 	jobject ImageResources_GetHardwareBuffer(jobject ImageResources);
 	void ImageResources_GetScaleOffset(jobject ImageResources, FVector2f& OutScale, FVector2f& OutOffset);
 
-	const bool UseGpuOutputPath;
+	bool UseGpuOutputPath() const
+	{
+		return bUseGpuOutputPath;
+	}
 
 private:
+	bool bUseGpuOutputPath;
+
 	// Java methods
 	FJavaClassMethod	InitializeFN;
 	FJavaClassMethod	ReleaseFN;
@@ -255,7 +217,7 @@ private:
 
 FElectraTextureSampleSupport::FElectraTextureSampleSupport()
 	: FJavaClassObject(GetClassName(), "()V")
-	, UseGpuOutputPath(FAndroidMisc::ShouldUseVulkan() && (CVarElectraAndroidUseGpuOutputPath.GetValueOnAnyThread() != 0)) // GpuOutputPath is only available for Vulkan right now (and experimental)
+	, bUseGpuOutputPath(false)
 	, InitializeFN(GetClassMethod("Initialize", "(ZZJ)V"))
 	, ReleaseFN(GetClassMethod("Release", "()V"))
 	, GetCodecSurfaceFN(GetClassMethod("GetCodecSurface", "()Landroid/view/Surface;"))
@@ -265,6 +227,36 @@ FElectraTextureSampleSupport::FElectraTextureSampleSupport()
 	, CodecSurfaceToDelete(nullptr)
 	, CodecSurfaceReadEvent(nullptr)
 {
+	if (FAndroidMisc::ShouldUseVulkan()) // GpuOutputPath is only available for Vulkan right now (and experimental)
+	{
+		if (CVarElectraAndroidUseGpuOutputPath.GetValueOnAnyThread() == 0) 
+		{
+			UE_LOG(LogElectraSamples, Log, TEXT("Selecting CPU path because GPU path is disabled via Electra.AndroidUseGpuOutputPath = 0"));
+		}
+		else
+		{
+			IVulkanDynamicRHI* RHI = GetIVulkanDynamicRHI();
+			TArray<FAnsiString> LoadedDeviceExtensions = RHI->RHIGetLoadedDeviceExtensions();
+			if (!LoadedDeviceExtensions.Find(FAnsiString(VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME)))
+			{
+				UE_LOG(LogElectraSamples, Log, TEXT("Selecting CPU path because GPU extension '" VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME "' is not available!"));
+			}
+			else if (!LoadedDeviceExtensions.Find(FAnsiString(VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME)))
+			{
+				UE_LOG(LogElectraSamples, Log, TEXT("Selecting CPU path because GPU extension '" VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME "' is not available!"));
+			}
+			else
+			{
+				bUseGpuOutputPath = true;
+				UE_LOG(LogElectraSamples, Log, TEXT("Selecting GPU path because it is enabled via Electra.AndroidUseGpuOutputPath = 1"));
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogElectraSamples, Log, TEXT("Selecting CPU path because we are on OES"));
+	}
+
 	JNIEnv* JEnv = FAndroidApplication::GetJavaEnv();
 
 	// Get field IDs for FFrameUpdateInfo class members
@@ -334,7 +326,7 @@ FElectraTextureSampleSupport::FElectraTextureSampleSupport()
 				{
 					JNIEnv* JEnv = FAndroidApplication::GetJavaEnv();
 					// Setup Java side of things
-					JEnv->CallVoidMethod(Object, InitializeFN.Method, UseGpuOutputPath, FAndroidMisc::ShouldUseVulkan(), (jlong)this);
+					JEnv->CallVoidMethod(Object, InitializeFN.Method, UseGpuOutputPath(), FAndroidMisc::ShouldUseVulkan(), (jlong)this);
 					// Query surface to be used for decoder
 					jobject Surface = JEnv->CallObjectMethod(Object, GetCodecSurfaceFN.Method);
 					CodecSurface = JEnv->NewGlobalRef(Surface);
@@ -496,7 +488,7 @@ int32 FElectraTextureSampleSupport::GetFrameData(FElectraTextureSample* InTarget
 	{
 		if (InTargetSample)
 		{
-			if (UseGpuOutputPath)
+			if (UseGpuOutputPath())
 			{
 				jobject ImageResources = JEnv->GetObjectField(OutputInfo, FFrameUpdateInfo_ImageResources);
 				if (ImageResources)
@@ -612,7 +604,7 @@ void FElectraTextureSample::Initialize(FVideoDecoderOutput* InVideoDecoderOutput
 
 	ensure(VideoDecoderOutputAndroid->GetOutputType() == FVideoDecoderOutputAndroid::EOutputType::DirectToSurfaceAsQueue);
 
-	if (Support->UseGpuOutputPath)
+	if (Support->UseGpuOutputPath())
 	{
 		Support->GetFrameData(this);
 		Texture = nullptr;
@@ -742,133 +734,7 @@ FTextureRHIRef FElectraTextureSample::InitializeTextureVulkan(AHardwareBuffer* H
 	check(FAndroidMisc::ShouldUseVulkan());
 
 	IVulkanDynamicRHI* RHI = GetIVulkanDynamicRHI();
-	VkDevice Device = RHI->RHIGetVkDevice();
-	const VkAllocationCallbacks* AllocationCallbacks = RHI->RHIGetVkAllocationCallbacks();
-
-	AHardwareBuffer_Desc Desc;
-	AHardwareBuffer_describe(HardwareBuffer, &Desc);
-	check((Desc.usage & AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE) != 0);
-
-	uint32 SizeX = Desc.width;
-	uint32 SizeY = Desc.height;
-	uint32 NumMips = 1;
-	uint32 NumSamples = 1;
-
-	ETextureCreateFlags Flags = ETextureCreateFlags::External;
-	const FClearValueBinding& ClearValueBinding = FClearValueBinding::Transparent;
-
-	static PFN_vkGetAndroidHardwareBufferPropertiesANDROID VkGetAndroidHardwareBufferPropertiesANDROID = nullptr;
-	if (!VkGetAndroidHardwareBufferPropertiesANDROID)
-	{
-		VkGetAndroidHardwareBufferPropertiesANDROID = (PFN_vkGetAndroidHardwareBufferPropertiesANDROID)RHI->RHIGetVkInstanceProcAddr("vkGetAndroidHardwareBufferPropertiesANDROID");
-		check(VkGetAndroidHardwareBufferPropertiesANDROID);
-	}
-
-	VkAndroidHardwareBufferFormatPropertiesANDROID HardwareBufferFormatProperties;
-	ZeroVulkanStruct(HardwareBufferFormatProperties, VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID);
-
-	VkAndroidHardwareBufferPropertiesANDROID HardwareBufferProperties;
-	ZeroVulkanStruct(HardwareBufferProperties, VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID);
-	HardwareBufferProperties.pNext = &HardwareBufferFormatProperties;
-
-	VkResult Result = VkGetAndroidHardwareBufferPropertiesANDROID(Device, HardwareBuffer, &HardwareBufferProperties);
-	check(Result == VK_SUCCESS);
-
-	VkExternalFormatANDROID ExternalFormat;
-	ZeroVulkanStruct(ExternalFormat, VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID);
-	ExternalFormat.externalFormat = HardwareBufferFormatProperties.externalFormat;
-
-	VkExternalMemoryImageCreateInfo ExternalMemoryImageCreateInfo;
-	ZeroVulkanStruct(ExternalMemoryImageCreateInfo, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO);
-	ExternalMemoryImageCreateInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
-	ExternalMemoryImageCreateInfo.pNext = &ExternalFormat;
-
-	VkImageCreateInfo ImageCreateInfo;
-	ZeroVulkanStruct(ImageCreateInfo, VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO);
-	ImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-	ImageCreateInfo.format = VK_FORMAT_UNDEFINED;
-	ImageCreateInfo.extent.width = SizeX;
-	ImageCreateInfo.extent.height = SizeY;
-	ImageCreateInfo.extent.depth = 1;
-	ImageCreateInfo.mipLevels = NumMips;
-	ImageCreateInfo.arrayLayers = Desc.layers;
-
-	ImageCreateInfo.flags = 0;
-	ImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-
-	ImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	ImageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
-	ImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	ImageCreateInfo.queueFamilyIndexCount = 0;
-	ImageCreateInfo.pQueueFamilyIndices = nullptr;
-	ImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-	ImageCreateInfo.pNext = &ExternalMemoryImageCreateInfo;
-
-	static PFN_vkCreateImage VkCreateImage = nullptr;
-	if (!VkCreateImage)
-	{
-		VkCreateImage = (PFN_vkCreateImage)RHI->RHIGetVkInstanceProcAddr("vkCreateImage");
-		check(VkCreateImage);
-	}
-
-	VkImage VulkanImage;
-	Result = VkCreateImage(Device, &ImageCreateInfo, nullptr, &VulkanImage);
-	check(Result == VK_SUCCESS);
-
-	VkMemoryDedicatedAllocateInfo MemoryDedicatedAllocateInfo;
-	ZeroVulkanStruct(MemoryDedicatedAllocateInfo, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
-	MemoryDedicatedAllocateInfo.image = VulkanImage;
-	MemoryDedicatedAllocateInfo.buffer = VK_NULL_HANDLE;
-
-	VkImportAndroidHardwareBufferInfoANDROID ImportAndroidHardwareBufferInfo;
-	ZeroVulkanStruct(ImportAndroidHardwareBufferInfo, VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID);
-	ImportAndroidHardwareBufferInfo.buffer = HardwareBuffer;
-	ImportAndroidHardwareBufferInfo.pNext = &MemoryDedicatedAllocateInfo;
-
-	uint32 MemoryTypeBits = HardwareBufferProperties.memoryTypeBits;
-	check(MemoryTypeBits > 0); // No index available, this should never happen
-	uint32 MemoryTypeIndex = 0;
-	for (;(MemoryTypeBits & 1) != 1; ++MemoryTypeIndex)
-	{
-		MemoryTypeBits >>= 1;
-	}
-
-	VkMemoryAllocateInfo MemoryAllocateInfo;
-	ZeroVulkanStruct(MemoryAllocateInfo, VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
-	MemoryAllocateInfo.allocationSize = HardwareBufferProperties.allocationSize;
-	MemoryAllocateInfo.memoryTypeIndex = MemoryTypeIndex;
-	MemoryAllocateInfo.pNext = &ImportAndroidHardwareBufferInfo;
-
-	static PFN_vkAllocateMemory VkAllocateMemory = nullptr;
-	if (!VkAllocateMemory)
-	{
-		VkAllocateMemory = (PFN_vkAllocateMemory)RHI->RHIGetVkInstanceProcAddr("vkAllocateMemory");
-		check(VkAllocateMemory);
-	}
-
-	VkDeviceMemory VulkanDeviceMemory;
-	Result = VkAllocateMemory(Device, &MemoryAllocateInfo, AllocationCallbacks, &VulkanDeviceMemory);
-	check(Result == VK_SUCCESS);
-
-	static PFN_vkBindImageMemory VkBindImageMemory = nullptr;
-	if (!VkBindImageMemory)
-	{
-		VkBindImageMemory = (PFN_vkBindImageMemory)RHI->RHIGetVkInstanceProcAddr("vkBindImageMemory");
-		check(VkBindImageMemory);
-	}
-
-	Result = VkBindImageMemory(Device, VulkanImage, VulkanDeviceMemory, 0);
-	check(Result == VK_SUCCESS);
-
-	FElectraTextureSampleVulkanResources* ElectraTextureSampleVulkanResources = new FElectraTextureSampleVulkanResources{ VulkanImage, VulkanDeviceMemory };
-	FVulkanRHIExternalImageDeleteCallbackInfo ExternalImageDeleteCallbackInfo =
-	{
-		ElectraTextureSampleVulkanResources,
-		CleanupImageResourcesVulkan
-	};
-
-	return RHI->RHICreateTexture2DFromResource(PF_Unknown, SizeX, SizeY, NumMips, NumSamples, VulkanImage, Flags, ClearValueBinding, ExternalImageDeleteCallbackInfo);
+	return RHI->RHICreateTexture2DFromAndroidHardwareBuffer(HardwareBuffer);
 }
 
 
@@ -1126,7 +992,7 @@ void  FElectraTextureSample::CopyFromExternalTextureVulkan(FRHICommandListImmedi
 
 bool FElectraTextureSample::Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints)
 {
-	if (Support->UseGpuOutputPath)
+	if (Support->UseGpuOutputPath())
 		return ConvertGpuOutputPath(RHICmdList, InDstTexture, Hints);
 	else
 		return ConvertCpuOutputPath(RHICmdList, InDstTexture, Hints);

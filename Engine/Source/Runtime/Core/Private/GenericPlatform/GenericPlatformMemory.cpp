@@ -281,6 +281,11 @@ FPlatformMemoryStats FGenericPlatformMemory::GetStatsRaw()
 	return FPlatformMemory::GetStats();
 }
 
+uint64 FGenericPlatformMemory::GetMemoryUsedFast()
+{
+	return FPlatformMemory::GetStats().UsedPhysical;
+}
+
 void FGenericPlatformMemory::GetStatsForMallocProfiler( FGenericMemoryStats& out_Stats )
 {
 #if	STATS

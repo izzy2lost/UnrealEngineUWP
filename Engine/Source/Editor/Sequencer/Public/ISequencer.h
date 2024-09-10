@@ -51,6 +51,7 @@ class ISidebarDrawerContent;
 class ISequencerTrackEditor;
 class SWidget;
 class UActorFactory;
+class UCameraComponent;
 class UMovieSceneCinematicShotSection;
 class UMovieSceneFolder;
 class UMovieSceneSection;
@@ -469,6 +470,9 @@ public:
 
 	/** Forcefully reevaluate the sequence immediately */
 	virtual void ForceEvaluate() = 0;
+	
+	/** @return The camera cut that was last used by a camera cut; it is the view that the sequence should have at the current time. */
+	SEQUENCER_API TWeakObjectPtr<UCameraComponent> GetLastEvaluatedCameraCut() const;
 
 	/** Reset the timing manager to the clock source specified by the root movie scene */
 	virtual void ResetTimeController() = 0;
@@ -551,6 +555,9 @@ public:
 	 * Checks whether we're in silent mode or not
 	 */
 	virtual bool IsInSilentMode() const = 0;
+
+	/** Saves the sequence content to the asset registry. */
+	virtual void Save() = 0;
 
 	virtual FOnActorAddedToSequencer& OnActorAddedToSequencer() = 0;
 

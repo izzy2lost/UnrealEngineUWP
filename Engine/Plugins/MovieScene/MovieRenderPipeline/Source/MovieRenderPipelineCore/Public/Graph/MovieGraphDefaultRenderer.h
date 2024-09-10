@@ -47,9 +47,9 @@ namespace UE::MovieGraph::DefaultRenderer
 	{
 		FCameraInfo()
 			: ViewActor(nullptr)
-			, OverscanFraction(0.f)
 			, bAllowCameraAspectRatio(true)
 			, DoFSensorScale(1.0f)
+			, bUseCameraManagerPostProcess(true)
 		{}
 
 		/** Minimal view info describing the position and orientation in the world. */
@@ -60,9 +60,6 @@ namespace UE::MovieGraph::DefaultRenderer
 
 		/** The name to use for the {camera_name} token. Filled out by the renderer where possible. */
 		FString CameraName;
-
-		/** In the [0-1] Range. */
-		float OverscanFraction;
 
 		/** should we respect the camera's aspect ratio settings. */
 		bool bAllowCameraAspectRatio;
@@ -76,6 +73,10 @@ namespace UE::MovieGraph::DefaultRenderer
 
 		// Sub-pixel jitter this camera should use. Only applied when using no AA.
 		FVector2D ProjectionMatrixJitterAmount;
+
+		// If true, we use the Post Process data from the Camera Manager, instead of deriving it from the camera location. This should be
+		// false when rendering multiple cameras.
+		bool bUseCameraManagerPostProcess;
 
 	};
 
@@ -277,7 +278,8 @@ public:
 	// ~UObject Interface
 
 	void AddOutstandingRenderTask_AnyThread(UE::Tasks::FTask InTask);
-	UE::MovieGraph::DefaultRenderer::FCameraInfo GetCameraInfo(const FGuid& InCameraIdentifier) const;
+	/** Fetches information for the given camera index. Should be "-1" when not using multi-camera rendering, or [0, n] based on the shot's sidecar camera data when using multi-camera rendering. */
+	UE::MovieGraph::DefaultRenderer::FCameraInfo GetCameraInfo(UMovieGraphEvaluatedConfig* InConfig, const int32 InCameraIndex) const;
 	void SetHasRenderedFirstViewThisFrame(bool bInValue) { bHasRenderedFirstViewThisFrame = bInValue; }
 	bool GetHasRenderedFirstViewThisFrame() const { return bHasRenderedFirstViewThisFrame; }
 public:
@@ -303,7 +305,12 @@ public:
 protected:
 	TObjectPtr<UTextureRenderTarget2D> CreateViewRenderTarget(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams) const;
 	FMoviePipelineSurfaceQueuePtr CreateSurfaceQueue(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams) const;
-	void GetCameraLocationsForFrame(TArray<FVector>& OutLocations) const;
+	
+	/** 
+	* Gets the camera locations for the current frame to inform the grass system of where streaming is required. If bIncludeSidecar is false, only the primary camera location is considered,
+	* otherwise it'll provide all the camera locations for multi-camera streaming (which can increase resource requirements).
+	*/
+	void GetCameraLocationsForFrame(TArray<FVector>& OutLocations, UMoviePipelineExecutorShot* InShot, bool bIncludeSidecar = false) const;
 	void FlushAsyncEngineSystems(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const;
 
 protected:
