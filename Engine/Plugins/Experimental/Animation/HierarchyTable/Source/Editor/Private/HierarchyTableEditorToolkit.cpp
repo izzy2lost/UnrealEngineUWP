@@ -155,6 +155,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 		Params.QueryDescription = RowQueryDescription;
 		Params.CellWidgetPurposes = TArray<FName>{ TEXT("General.Cell") };
 		Params.HierarchyData = FTedsOutlinerHierarchyData::GetDefaultHierarchyData();
+		Params.bShowRowHandleColumn = false;
 	}
 
 	FTedsOutlinerModule& TedsOutlinerModule = FModuleManager::GetModuleChecked<FTedsOutlinerModule>("TedsOutliner");

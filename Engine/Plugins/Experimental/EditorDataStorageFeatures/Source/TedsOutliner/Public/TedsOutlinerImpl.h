@@ -73,6 +73,7 @@ struct FTedsOutlinerParams
 	: SceneOutliner(InSceneOutliner)
 	, QueryDescription()
 	, bUseDefaultTedsFilters(false)
+	, bShowRowHandleColumn(true)
 	, HierarchyData(FTedsOutlinerHierarchyData::GetDefaultHierarchyData())
 	, CellWidgetPurposes{TEXT("SceneOutliner.Cell"), TEXT("General.Cell")}
 	{}
@@ -89,6 +90,9 @@ struct FTedsOutlinerParams
 
 	// If true, this Outliner will automatically add all TEDS tags and columns as filters
 	bool bUseDefaultTedsFilters;
+
+	// If true, this Outliner will include a column for row handle
+	bool bShowRowHandleColumn;
 
 	// If specified, this is how the TEDS Outliner will handle hierarchies. If not specified - there will be no hierarchies shown as a
 	// parent-child relation in the tree view

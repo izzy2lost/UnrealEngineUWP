@@ -80,12 +80,15 @@ TSharedRef<ISceneOutliner> FTedsOutlinerModule::CreateTedsOutliner(const FSceneO
 	});
 
 	// Add the custom column that displays row handles
-	InitOptions.ColumnMap.Add(FSceneOutlinerRowHandleColumn::GetID(),
-		FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 2,
-			FCreateSceneOutlinerColumn::CreateLambda([](ISceneOutliner& InSceneOutliner)
-			{
-				return MakeShareable(new FSceneOutlinerRowHandleColumn(InSceneOutliner));
-			})));
+	if (InInitTedsOptions.bShowRowHandleColumn)
+	{
+		InitOptions.ColumnMap.Add(FSceneOutlinerRowHandleColumn::GetID(),
+			FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 2,
+				FCreateSceneOutlinerColumn::CreateLambda([](ISceneOutliner& InSceneOutliner)
+				{
+					return MakeShareable(new FSceneOutlinerRowHandleColumn(InSceneOutliner));
+				})));
+	}
 	
 	InitOptions.ColumnMap.Add(FSceneOutlinerBuiltInColumnTypes::Label(), FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 10));
 
