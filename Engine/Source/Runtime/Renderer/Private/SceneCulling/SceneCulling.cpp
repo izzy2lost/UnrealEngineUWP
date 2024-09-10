@@ -150,8 +150,8 @@ static TAutoConsoleVariable<float> CVarSceneCullingMaxCellSize(
 
 static TAutoConsoleVariable<int32> CVarTreatDynamicInstancedAsUncullable(
 	TEXT("r.SceneCulling.TreatInstancedDynamicAsUnCullable"), 
-	1, 
-	TEXT("If this is turned on (default), dynamic primitives with instances are treated as uncullable (not put into the hierarchy and instead brute-forced on the GPU).")
+	0, 
+	TEXT("If this is turned on, dynamic primitives with instances are treated as uncullable (not put into the hierarchy and instead brute-forced on the GPU).")
 	TEXT("  This significantly reduces the hierarchy update cost on the CPU and for scenes with a large proportion of static elements, does not increase the GPU cost."),
 	ECVF_RenderThreadSafe);
 
