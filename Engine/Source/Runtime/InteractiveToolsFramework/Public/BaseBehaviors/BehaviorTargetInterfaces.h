@@ -26,6 +26,24 @@ public:
 	}
 };
 
+/**
+ * IKeyInputBehaviorTarget is an interface that InputBehaviors can use to notify
+ * a target about keyboard buttons toggling states, such as pressed or released.
+ */
+class IKeyInputBehaviorTarget : public IModifierToggleBehaviorTarget
+{
+public:
+	virtual ~IKeyInputBehaviorTarget() {}
+
+	virtual void OnKeyPressed(const FKey& KeyID)
+	{
+	}
+
+	virtual void OnKeyReleased(const FKey& KeyID)
+	{
+	}
+};
+
 
 /**
  * Functions required to apply standard "Click" state machines to a target object.

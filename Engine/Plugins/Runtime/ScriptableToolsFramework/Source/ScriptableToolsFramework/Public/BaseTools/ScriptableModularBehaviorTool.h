@@ -15,6 +15,7 @@ class UScriptableToolSingleClickOrDragBehavior;
 class UScriptableToolMouseWheelBehavior;
 class UScriptableToolClickSequenceBehavior;
 class UScriptableToolMouseHoverBehavior;
+class UScriptableToolKeyInputBehavior;
 
 /**
  A Scriptable tool base blueprint class which provides support for user defined mouse interaction behaviors
@@ -225,6 +226,47 @@ public:
 		int CapturePriority = 100
 	);
 
+	/**
+	*	AddSingleKeyInputBehavior implements a generic keyboard key listener behavior
+	*	
+	*	@param OnKeyPressed Callback when the target key is pressed.
+	*	@param OnKeyReleased Callback when the target key is released
+	*	@param Key,Target key to watch for
+	*	@param CaptureCheck Only enable capture if returns true
+	*	@param CapturePriority The priority is used to resolve situations where multiple behaviors want the same capture
+	*/
+
+
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Input", meta = (AdvancedDisplay = "CaptureCheck, CapturePriority"))
+	void AddSingleKeyInputBehavior(
+		FOnKeyStateToggleDelegate OnKeyPressed,
+		FOnKeyStateToggleDelegate OnKeyReleased,
+		FKey Key,
+		const FMouseBehaviorModiferCheckDelegate CaptureCheck,
+		int CapturePriority
+	);
+
+	/**
+	*	AddMultiKeyInputBehavior implements a generic keyboard multi key listener behavior
+	*	
+	*	@param OnKeyPressed  Callback when the target key(s) is pressed. Only triggers once if bRequireAllKeys is true.
+	*	@param OnKeyReleased  Callback when the target key(s) is pressed. Only triggers once if bRequireAllKeys is true.
+	*	@param Keys Target keys to watch for
+	*	@param bRequireAllKeys If true, all target keys must be pressed simultaniously to recieve press/release events. Otherwise, any and all keys can trigger events.
+	*	@param CaptureCheck Only enable capture if returns true
+	*	@param CapturePriority The priority is used to resolve situations where multiple behaviors want the same capture
+	*/
+
+
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Input", meta = (AdvancedDisplay = "CaptureCheck, CapturePriority"))
+		void AddMultiKeyInputBehavior(
+			FOnKeyStateToggleDelegate OnKeyPressed,
+			FOnKeyStateToggleDelegate OnKeyReleased,
+			TArray<FKey> Keys,
+			bool bRequireAllKeys,
+			const FMouseBehaviorModiferCheckDelegate CaptureCheck,
+			int CapturePriority
+		);
 
 private:
 
@@ -248,6 +290,9 @@ private:
 
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
 	TArray< TObjectPtr<UScriptableToolMouseHoverBehavior> > MouseHoverBehaviors;
+
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
+	TArray< TObjectPtr<UScriptableToolKeyInputBehavior> > KeyInputBehaviors;
 
 
 	//
