@@ -12,7 +12,7 @@ class UAvaAttribute;
 class UAvaSceneSettings;
 struct FAvaTagHandle;
 
-/** Object providing State information of the Scene */
+/** Object providing attribute information of the Scene */
 UCLASS(MinimalAPI)
 class UAvaSceneState : public UObject
 {
@@ -22,13 +22,15 @@ public:
 	void Initialize(UAvaSceneSettings* InSceneSettings);
 
 	AVALANCHE_API bool AddTagAttribute(const FAvaTagHandle& InTagHandle);
-
 	AVALANCHE_API bool RemoveTagAttribute(const FAvaTagHandle& InTagHandle);
-
 	AVALANCHE_API bool ContainsTagAttribute(const FAvaTagHandle& InTagHandle) const;
 
+	AVALANCHE_API bool AddNameAttribute(FName InName);
+	AVALANCHE_API bool RemoveNameAttribute(FName InName);
+	AVALANCHE_API bool ContainsNameAttribute(FName InName) const;
+
 private:
-	/** In-play Scene Attributes. Starts as being the Scene Setting Attributes but can added to / removed from while in-play */
+	/** In-play Scene Attributes. Can be added to / removed from while in-play */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UAvaAttribute>> SceneAttributes;
 };
