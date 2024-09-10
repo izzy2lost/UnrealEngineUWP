@@ -520,6 +520,8 @@ public:
 			}
 
 			delete SrcModel;
+
+			SkeletalMesh->InvalidateDeriveDataCacheGUID();
 		}
 		else
 		{
