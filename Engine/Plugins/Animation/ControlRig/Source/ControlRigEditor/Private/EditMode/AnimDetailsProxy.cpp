@@ -133,7 +133,7 @@ static EAnimDetailSelectionState CachePropertySelection(TWeakPtr<FCurveEditor>& 
 									}
 									if (UMovieSceneControlRigParameterTrack* Track = Section->GetTypedOuter< UMovieSceneControlRigParameterTrack>())
 									{
-										if (Track->GetSectionToKey(ControlElement->GetFName()) != Section)
+										if (Track->GetSectionToKey() != Section)
 										{
 											continue;
 										}
@@ -3145,29 +3145,21 @@ UControlRigControlsProxy* UControlRigDetailPanelControlProxies::AddProxy(UObject
 				SequencerOnlyProxies.Add(InObject, NewProxies);
 			}
 		}
-		if (!Proxy)
+		if (Proxy)
 		{
-			return Proxy;
-		}
-		Proxy->Type = Type;
-		Proxy->OwnerObject = InObject;
-		Proxy->OwnerBindingAndTrack.WeakTrack = Track;
-		Proxy->OwnerBindingAndTrack.Binding = Binding;
-		Proxy->AddSequencerProxyItem(InObject, Proxy->OwnerBindingAndTrack.WeakTrack, Binding);
-		if (Type == ERigControlType::Transform || Type == ERigControlType::TransformNoScale || Type == ERigControlType::EulerTransform)
-		{
+			Proxy->Type = Type;
+			Proxy->OwnerObject = InObject;
+			Proxy->OwnerBindingAndTrack.WeakTrack = Track;
+			Proxy->OwnerBindingAndTrack.Binding = Binding;
+			Proxy->AddSequencerProxyItem(InObject, Proxy->OwnerBindingAndTrack.WeakTrack, Binding);
 			Proxy->bIsIndividual = false;
+			Proxy->SetFlags(RF_Transactional);
+			Proxy->Modify();
+			UWorld* World = GCurrentLevelEditingViewportClient ? GCurrentLevelEditingViewportClient->GetWorld() : nullptr;
+			const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
+			Controller.EvaluateAllConstraints();
+			Proxy->ValueChanged();
 		}
-		else
-		{
-			Proxy->bIsIndividual = true;
-		}			
-		Proxy->SetFlags(RF_Transactional);
-		Proxy->Modify();
-		UWorld* World = GCurrentLevelEditingViewportClient ? GCurrentLevelEditingViewportClient->GetWorld() : nullptr;
-		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
-		Controller.EvaluateAllConstraints();
-		Proxy->ValueChanged();
 	}
 	return Proxy;
 }
@@ -3707,7 +3699,7 @@ bool UControlRigDetailPanelControlProxies::SelectPropertyInternal(UControlRigCon
 									{
 										continue;
 									}
-									UMovieSceneSection* SectionToKey = Track->GetSectionToKey(ControlElement->GetFName()) ? Track->GetSectionToKey(ControlElement->GetFName()) : Track->GetAllSections()[0];
+									UMovieSceneSection* SectionToKey = Track->GetSectionToKey() ? Track->GetSectionToKey() : Track->GetAllSections()[0];
 									if (TViewModelPtr<FChannelGroupOutlinerModel> ChannelModel = CastViewModel<FChannelGroupOutlinerModel>(OutlinerExtenstionIt.GetCurrentItem()))
 									{
 										if (ChannelModel->GetChannel(SectionToKey) == nullptr) //if not section to key we also don't select it.
