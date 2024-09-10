@@ -40,6 +40,7 @@ enum class EPropertyBagContainerType : uint8
 {
 	None,
 	Array,
+	Set,
 
 	Count UMETA(Hidden)
 };
@@ -163,6 +164,7 @@ enum class EPropertyBagResult : uint8
 	TypeMismatch,		// Tried to access mismatching type (e.g. setting a struct to bool)
 	OutOfBounds,		// Tried to access an array property out of bounds.
 	PropertyNotFound,	// Could not find property of specified name.
+	DuplicatedValue,	// Tried to set an already existing Set Entry
 };
 
 USTRUCT()
@@ -338,6 +340,7 @@ struct COREUOBJECT_API FPropertyBagPropertyDesc
 
 class UPropertyBag;
 class FPropertyBagArrayRef;
+class FPropertyBagSetRef;
 
 USTRUCT()
 struct COREUOBJECT_API FInstancedPropertyBag
@@ -616,10 +619,17 @@ struct COREUOBJECT_API FInstancedPropertyBag
 
 	/**
 	 * Returns helper class to modify and access an array property.
-	 * Note: Note: The array reference is not valid after the layout of the referenced property bag has changed!
+	 * Note: The array reference is not valid after the layout of the referenced property bag has changed!
 	 * @returns helper class to modify and access arrays
 	*/
 	TValueOrError<const FPropertyBagArrayRef, EPropertyBagResult> GetArrayRef(const FName Name) const;
+
+	/**
+	 * Returns helper class to modify and access a set property.
+	 * Note: The set reference is not valid after the layout of the referenced property bag has changed!
+	 * @returns helper class to modify and access sets
+	*/
+	TValueOrError<const FPropertyBagSetRef, EPropertyBagResult> GetSetRef(const FName Name) const;
 
 	bool Identical(const FInstancedPropertyBag* Other, uint32 PortFlags) const;
 	bool Serialize(FArchive& Ar);
@@ -838,6 +848,138 @@ public:
 	}
 };
 
+/**
+ * A reference to a set in FInstancedPropertyBag
+ * Contains helper methods to get and set properties.
+ *
+ *		FInstancedPropertyBag Bag;
+ *		Bag.AddProperties({
+ *			{ SetName, EPropertyBagContainerType::Set, EPropertyBagPropertyType::Float }
+ *		});
+ *
+ *		if (auto FloatSetRes = Bag.GetSetRef(ArrayName); FloatSetRes.IsValid())
+ *		{
+ *			FPropertyBagSetRef& FloatSet = FloatSetRes.GetValue();
+ *			FloatSet.AddValueFloat(123.f);
+ *		}
+ * 
+ * Note: The set reference is not valid after the layout of the referenced property bag has changed! 
+ */
+class COREUOBJECT_API FPropertyBagSetRef : private FScriptSetHelper
+{
+public:	
+	FORCEINLINE FPropertyBagSetRef(const FPropertyBagPropertyDesc& InDesc, const void* InSet)
+		: FScriptSetHelper(CastField<FSetProperty>(InDesc.CachedProperty), InSet)
+	{
+		const FSetProperty* SetProperty = CastField<FSetProperty>(InDesc.CachedProperty);
+		check(SetProperty);
+		check(SetProperty->ElementProp);
+		// Create dummy desc for the inner property. 
+		ValueDesc.ValueType = InDesc.ValueType;
+		ValueDesc.ValueTypeObject = InDesc.ValueTypeObject;
+		ValueDesc.CachedProperty = SetProperty->ElementProp;
+		ValueDesc.ContainerTypes = InDesc.ContainerTypes;
+		ValueDesc.ContainerTypes.PopHead();
+	}
+
+	/** Add value to set. If value is already present, it will not be added */
+	EPropertyBagResult AddValueBool(const bool bInValue);
+	EPropertyBagResult AddValueByte(const uint8 InValue);
+	EPropertyBagResult AddValueInt32(const int32 InValue);
+	EPropertyBagResult AddValueUInt32(const uint32 InValue);
+	EPropertyBagResult AddValueInt64(const int64 InValue);
+	EPropertyBagResult AddValueUInt64(const uint64 InValue);
+	EPropertyBagResult AddValueFloat(const float InValue);
+	EPropertyBagResult AddValueDouble(const double InValue);
+	EPropertyBagResult AddValueName(const FName InValue);
+	EPropertyBagResult AddValueString(const FString& InValue);
+	EPropertyBagResult AddValueText(const FText& InValue);
+	EPropertyBagResult AddValueEnum(const int64 InValue, const UEnum* Enum);
+	EPropertyBagResult AddValueStruct(FConstStructView InValue);
+	EPropertyBagResult AddValueObject(UObject* InValue);
+	EPropertyBagResult AddValueClass(UClass* InValue);
+	EPropertyBagResult AddValueSoftPath(const FSoftObjectPath& InValue);
+
+	/** Adds enum value specified type. */
+	template <typename T>
+	EPropertyBagResult AddValueEnum(const T InValue)
+	{
+		static_assert(TIsEnum<T>::Value, "Should only call this with enum types");
+		return AddValueEnum(static_cast<uint8>(InValue), StaticEnum<T>());
+	}
+
+	/** Adds struct value specified type. */
+	template <typename T>
+	EPropertyBagResult AddValueStruct(const T& InValue)
+	{
+		return AddValueStruct(FConstStructView::Make(InValue));
+	}
+
+	/** Adds object pointer value specified type. */
+	template <typename T>
+	EPropertyBagResult AddValueObject(T* InValue)
+	{
+		static_assert(TIsDerivedFrom<T, UObject>::Value, "Should only call this with object types");
+		return AddValueObject(static_cast<UObject*>(InValue));
+	}
+
+
+	/** Removes value from set if found. */
+	template <typename T>
+	EPropertyBagResult Remove(const T& Value)
+	{
+		int32 ElementIndex = FindElementIndex(&Value);
+		
+		if (ElementIndex == INDEX_NONE)
+		{
+			return EPropertyBagResult::PropertyNotFound;
+		}
+
+		RemoveAt(ElementIndex);
+		return EPropertyBagResult::Success;
+	}
+
+	/** Returns a bool specifying if the element was found or not */
+	template <typename T>
+	TValueOrError<bool, EPropertyBagResult> Contains(const T& Value) const
+	{
+        if (ValueDesc.CachedProperty == nullptr)
+        {
+            return MakeError(EPropertyBagResult::PropertyNotFound);
+        }
+
+        return MakeValue(FindElementIndex(&Value) != INDEX_NONE);
+	}
+
+	/** Returns number of elements in set. */
+	FORCEINLINE int32 Num() const
+	{
+		return FScriptSetHelper::Num();
+	}
+
+private:
+
+	FPropertyBagPropertyDesc ValueDesc;
+
+	template <typename T>
+	EPropertyBagResult Add(const T& Value)
+	{
+		if (ValueDesc.CachedProperty == nullptr)
+		{
+			return EPropertyBagResult::PropertyNotFound;
+		}
+
+		int32 ElementIndex = FindElementIndex(&Value);
+
+		if (ElementIndex != INDEX_NONE)
+		{
+			return EPropertyBagResult::DuplicatedValue;
+		}
+
+		AddElement(&Value);
+		return EPropertyBagResult::Success;
+	}
+};
 
 /**
  * Dummy types used to mark up missing types when creating property bags. These are used in the UI to display error message.

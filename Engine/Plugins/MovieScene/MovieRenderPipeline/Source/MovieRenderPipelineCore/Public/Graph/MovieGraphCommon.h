@@ -44,6 +44,7 @@ enum class EMovieGraphContainerType : uint8
 {
 	None UMETA(Hidden),
 	Array,
+	Set,
 
 	Count UMETA(Hidden)
 };

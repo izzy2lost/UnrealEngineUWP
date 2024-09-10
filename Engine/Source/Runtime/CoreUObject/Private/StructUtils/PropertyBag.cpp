@@ -254,8 +254,19 @@ namespace UE::StructUtils::Private
 						ParentName = PropName;
 						break;
 					}
+				case EPropertyBagContainerType::Set:
+					{
+						// create a set property as a container for the tail
+						const FString PropName = ParentName.IsEmpty() ? Desc.Name.ToString() : ParentName + TEXT("_InnerSet");
+						FSetProperty* SetProperty = new FSetProperty(PropertyOwner, FName(PropName), RF_Public);
+						*ValuePropertyPtr = SetProperty;
+						ValuePropertyPtr = &SetProperty->ElementProp;
+						PropertyOwner = SetProperty;
+						ParentName = PropName;
+						break;
+					}
 				default:
-					ensureMsgf(false, TEXT("Unsuported container type %s"), *UEnum::GetValueAsString(BagContainerType));
+					ensureMsgf(false, TEXT("Unsupported container type %s"), *UEnum::GetValueAsString(BagContainerType));
 					break;
 				}
 			}
@@ -2199,6 +2210,29 @@ TValueOrError<const FPropertyBagArrayRef, EPropertyBagResult> FInstancedProperty
 	return MakeValue(FPropertyBagArrayRef(*Desc, Address));
 }
 
+TValueOrError<const FPropertyBagSetRef, EPropertyBagResult> FInstancedPropertyBag::GetSetRef(const FName Name) const
+{
+	const FPropertyBagPropertyDesc* Desc = FindPropertyDescByName(Name);
+	if (Desc == nullptr)
+	{
+		return MakeError(EPropertyBagResult::PropertyNotFound);
+	}
+	check(Desc->CachedProperty);
+
+	if (Desc->ContainerTypes.GetFirstContainerType() != EPropertyBagContainerType::Set)
+	{
+		return MakeError(EPropertyBagResult::TypeMismatch);
+	}
+
+	const void* Address = GetValueAddress(Desc);
+	if (Address == nullptr)
+	{
+		return MakeError(EPropertyBagResult::PropertyNotFound);
+	}
+	
+	return MakeValue(FPropertyBagSetRef(*Desc, Address));
+}
+
 bool FInstancedPropertyBag::Identical(const FInstancedPropertyBag* Other, const uint32 PortFlags) const
 {
 	return Other && Value.Identical(&Other->Value, PortFlags);
@@ -2716,6 +2750,163 @@ EPropertyBagResult FPropertyBagArrayRef::SetValueClass(const int32 Index, UClass
 EPropertyBagResult FPropertyBagArrayRef::SetValueSoftPath(const int32 Index, const FSoftObjectPath& InValue)
 {
 	return UE::StructUtils::Private::SetPropertyValueAsSoftPath(&ValueDesc, GetMutableAddress(Index), InValue);
+}
+
+//----------------------------------------------------------------//
+//  FPropertyBagSetRef
+//----------------------------------------------------------------//
+
+EPropertyBagResult FPropertyBagSetRef::AddValueBool(const bool bInValue)
+{
+	return ValueDesc.IsNumericType() ? Add(bInValue) : EPropertyBagResult::TypeMismatch;
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueByte(const uint8 InValue)
+{
+	return ValueDesc.IsNumericType() ? Add(InValue) : EPropertyBagResult::TypeMismatch;
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueInt32(const int32 InValue)
+{
+	return ValueDesc.IsNumericType() ? Add(InValue) : EPropertyBagResult::TypeMismatch;
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueUInt32(const uint32 InValue)
+{
+	return ValueDesc.IsNumericType() ? Add(InValue) : EPropertyBagResult::TypeMismatch;
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueInt64(const int64 InValue)
+{
+	return ValueDesc.IsNumericType() ? Add(InValue) : EPropertyBagResult::TypeMismatch;
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueUInt64(const uint64 InValue)
+{
+	return ValueDesc.IsNumericType() ? Add(InValue) : EPropertyBagResult::TypeMismatch;
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueFloat(const float InValue)
+{
+	return ValueDesc.IsNumericType() ? Add(InValue) : EPropertyBagResult::TypeMismatch;
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueDouble(const double InValue)
+{
+	return ValueDesc.IsNumericType() ? Add(InValue) : EPropertyBagResult::TypeMismatch;
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueName(const FName InValue)
+{
+	return ValueDesc.ValueType == EPropertyBagPropertyType::Name ? Add(InValue) : EPropertyBagResult::TypeMismatch;
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueString(const FString& InValue)
+{
+	return ValueDesc.ValueType == EPropertyBagPropertyType::String ? Add(InValue) : EPropertyBagResult::TypeMismatch;
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueText(const FText& InValue)
+{
+	return ValueDesc.ValueType == EPropertyBagPropertyType::Text ? Add(InValue) : EPropertyBagResult::TypeMismatch;
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueEnum(const int64 InValue, const UEnum* Enum)
+{
+	if (ValueDesc.ValueType != EPropertyBagPropertyType::Enum)
+	{
+		return EPropertyBagResult::TypeMismatch;
+	}
+
+	const FEnumProperty* EnumProperty = CastFieldChecked<FEnumProperty>(ValueDesc.CachedProperty);
+	const FNumericProperty* UnderlyingProperty = EnumProperty->GetUnderlyingProperty();
+	check(UnderlyingProperty);
+
+	if (Enum != EnumProperty->GetEnum())
+	{
+		return EPropertyBagResult::TypeMismatch;
+	}
+
+	return Add(InValue);
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueStruct(FConstStructView InValue)
+{
+	const FStructProperty* StructProperty = CastFieldChecked<FStructProperty>(ValueDesc.CachedProperty);
+	check(StructProperty->Struct);
+
+	if (InValue.IsValid())
+	{
+		if (InValue.GetScriptStruct() != StructProperty->Struct)
+		{
+			return EPropertyBagResult::TypeMismatch;
+		}
+	}
+
+	return Add(InValue.GetMemory());
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueObject(UObject* InValue)
+{
+	if (ValueDesc.ValueType != EPropertyBagPropertyType::Object
+		&& ValueDesc.ValueType != EPropertyBagPropertyType::SoftObject
+		&& ValueDesc.ValueType != EPropertyBagPropertyType::Class
+		&& ValueDesc.ValueType != EPropertyBagPropertyType::SoftClass)
+	{
+		return EPropertyBagResult::TypeMismatch;
+	}
+
+	const FObjectPropertyBase* ObjectProperty = CastFieldChecked<FObjectPropertyBase>(ValueDesc.CachedProperty);
+	check(ObjectProperty->PropertyClass);
+	check(ValueDesc.ValueTypeObject);
+
+	if (ValueDesc.ValueType == EPropertyBagPropertyType::Object
+		|| ValueDesc.ValueType == EPropertyBagPropertyType::SoftObject)
+	{
+		if (InValue && UE::StructUtils::Private::CanCastTo(InValue->GetClass(), ObjectProperty->PropertyClass) == false)
+		{
+			return EPropertyBagResult::TypeMismatch;
+		}
+	}
+	else
+	{
+		const UClass* Class = Cast<UClass>(InValue);
+		const UClass* PropClass = nullptr;
+
+		if (const FClassProperty* ClassProperty = CastFieldChecked<FClassProperty>(ValueDesc.CachedProperty))
+		{
+			PropClass = ClassProperty->MetaClass;
+		}
+		else if (const FSoftClassProperty* SoftClassProperty = CastFieldChecked<FSoftClassProperty>(ValueDesc.CachedProperty))
+		{
+			PropClass = SoftClassProperty->MetaClass;
+		}
+
+		if (!Class || !PropClass || !Class->IsChildOf(PropClass))
+		{
+			return EPropertyBagResult::TypeMismatch;
+		}
+	}
+
+	Add(InValue);
+
+	return EPropertyBagResult::Success;
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueClass(UClass* InValue)
+{
+	return AddValueObject(InValue);
+}
+
+EPropertyBagResult FPropertyBagSetRef::AddValueSoftPath(const FSoftObjectPath& InValue)
+{
+	if (ValueDesc.ValueType != EPropertyBagPropertyType::SoftObject &&
+		ValueDesc.ValueType != EPropertyBagPropertyType::SoftClass)
+	{
+		return EPropertyBagResult::TypeMismatch;
+	}
+
+	return Add(InValue);
 }
 
 //----------------------------------------------------------------//
