@@ -44,7 +44,7 @@ namespace Helpers
 
 namespace Cost
 {
-	double CalculateCost_EuclideanDistance(const double PreviousNodeCost, const double DistanceToPreviousNodeSquared)
+	double CalculateCost_EuclideanDistance(const double PreviousNodeCost, const FPCGPoint* PreviousNodePoint, const double DistanceToPreviousNodeSquared, const FPCGPoint* CurrentPoint)
 	{
 		return PreviousNodeCost + FMath::Sqrt(DistanceToPreviousNodeSquared);
 	}
@@ -91,56 +91,66 @@ bool ExecuteSearchIteration(const FSearchSettings& SearchSettings, FSearchState&
 	SearchState.OpenIndexList.HeapPop(CurrentNodeIndex, [&SearchState](int32 Index1, int32 Index2) { return Helpers::CompareNodes(SearchState.NodeList[Index1], SearchState.NodeList[Index2]); }, EAllowShrinking::No);
 	check(NodeList[CurrentNodeIndex].PCGPoint);
 
-	// Arrived at the goal. Add the goal to the path and return it. TODO: Will need to be updated when cost functions consider more than just distance.
-	if (FVector::DistSquared(NodeList[CurrentNodeIndex].PCGPoint->Transform.GetLocation(), SearchSettings.Goal) < SearchSettings.SearchDistance * SearchSettings.SearchDistance)
+	const double SquareDistanceToGoal = FVector::DistSquared(NodeList[CurrentNodeIndex].PCGPoint->Transform.GetLocation(), SearchSettings.Goal);
+
+	auto PerPointProcessing = [&NodeList, CurrentNodeIndex, &SearchSettings, &SearchState](const FPCGPoint* Point, const double DistanceToPointSquared)
 	{
-		const FPCGPoint GoalPoint(FTransform(SearchSettings.Goal), /*InDensity=*/1, PCGHelpers::ComputeSeedFromPosition(SearchSettings.Goal));
-		const FNode GoalNode(&GoalPoint, CurrentNodeIndex, NodeList[CurrentNodeIndex].EstimatedGoalCost, /*bInHeuristicCost=*/0);
-		Helpers::BuildFinalPath(SearchState, GoalNode, SearchSettings.bCopyOriginatingPoints, OutPath);
+		const bool bTrackedPoint = SearchState.PointToNodeIndexMap.Contains(Point);
+		// Node has already been ruled out.
+		if (bTrackedPoint && SearchState.ClosedIndexList.Contains(SearchState.PointToNodeIndexMap[Point]))
+		{
+			return;
+		}
+
+		const double TentativeNewLocalCost = SearchState.CostFunction(NodeList[CurrentNodeIndex].LocalCost, NodeList[CurrentNodeIndex].PCGPoint, DistanceToPointSquared, Point);
+
+		// Not tracking this point yet--add it to the node list and map it.
+		if (!bTrackedPoint)
+		{
+			const double HeuristicCost = SearchSettings.HeuristicWeight * SearchState.HeuristicFunction(Point->Transform.GetLocation(), SearchSettings.Goal);
+			NodeList.Emplace(Point, CurrentNodeIndex, TentativeNewLocalCost, TentativeNewLocalCost + HeuristicCost);
+			const int32 NewNodeIndex = NodeList.Num() - 1;
+			SearchState.OpenIndexList.HeapPush(NewNodeIndex, [&SearchState](int32 Index1, int32 Index2) { return Helpers::CompareNodes(SearchState.NodeList[Index1], SearchState.NodeList[Index2]); });
+			SearchState.PointToNodeIndexMap.Emplace(Point, NewNodeIndex);
+
+			return;
+		}
+
+		// Check if the path to this neighbor is a better path than its current one. If so, update accordingly.
+		const int32 NeighborIndex = SearchState.PointToNodeIndexMap[Point];
+		FNode& Neighbor = SearchState.NodeList[NeighborIndex];
+		if (TentativeNewLocalCost < Neighbor.LocalCost)
+		{
+			check(SearchState.OpenIndexList.Contains(NeighborIndex));
+
+			const double HeuristicCost = SearchSettings.HeuristicWeight * SearchState.HeuristicFunction(Point->Transform.GetLocation(), SearchSettings.Goal);
+			Neighbor.PreviousNodeIndex = CurrentNodeIndex;
+			Neighbor.LocalCost = TentativeNewLocalCost;
+			Neighbor.EstimatedGoalCost = TentativeNewLocalCost + HeuristicCost;
+		}
+	};
+
+	// Arrived at the goal.
+	if (FMath::IsNearlyZero(SquareDistanceToGoal))
+	{
+		Helpers::BuildFinalPath(SearchState, SearchState.NodeList[CurrentNodeIndex], SearchSettings.bCopyOriginatingPoints, OutPath);
 		return true;
+	}
+	// Close enough to the goal we need to add it as a possibility.
+	else if (SquareDistanceToGoal <= SearchSettings.SearchDistance * SearchSettings.SearchDistance)
+	{
+		PerPointProcessing(&SearchSettings.GoalPoint, SquareDistanceToGoal);
 	}
 
 	// Gather neighbors within the search radius.
 	UPCGOctreeQueries::ForEachPointInsideSphere(
-			SearchState.OriginatingPointData,
-			NodeList[CurrentNodeIndex].PCGPoint->Transform.GetLocation(),
-			SearchSettings.SearchDistance,
-			[&NodeList, CurrentNodeIndex, &SearchSettings, &SearchState](const FPCGPointRef& PointRef, const double DistanceToPointSquared)
-			{
-				const bool bTrackedPoint = SearchState.PointToNodeIndexMap.Contains(PointRef.Point);
-				// Node has already been ruled out.
-				if (bTrackedPoint && SearchState.ClosedIndexList.Contains(SearchState.PointToNodeIndexMap[PointRef.Point]))
-				{
-					return;
-				}
-
-				const double TentativeNewLocalCost = Cost::CalculateCost_EuclideanDistance(NodeList[CurrentNodeIndex].LocalCost, DistanceToPointSquared);
-
-				// Not tracking this point yet--add it to the node list and map it.
-				if (!bTrackedPoint)
-				{
-					const double HeuristicCost = SearchSettings.HeuristicWeight * Heuristic::CalculateHeuristic_EuclideanDistance(PointRef.Point->Transform.GetLocation(), SearchSettings.Goal);
-					NodeList.Emplace(PointRef.Point, CurrentNodeIndex, TentativeNewLocalCost, TentativeNewLocalCost + HeuristicCost);
-					const int32 NewNodeIndex = NodeList.Num() - 1;
-					SearchState.OpenIndexList.HeapPush(NewNodeIndex, [&SearchState](int32 Index1, int32 Index2) { return Helpers::CompareNodes(SearchState.NodeList[Index1], SearchState.NodeList[Index2]); });
-					SearchState.PointToNodeIndexMap.Emplace(PointRef.Point, NewNodeIndex);
-
-					return;
-				}
-
-				// Check if the path to this neighbor is a better path than its current one. If so, update accordingly.
-				const int32 NeighborIndex = SearchState.PointToNodeIndexMap[PointRef.Point];
-				FNode& Neighbor = SearchState.NodeList[NeighborIndex];
-				if (TentativeNewLocalCost < Neighbor.LocalCost)
-				{
-					check(SearchState.OpenIndexList.Contains(NeighborIndex));
-
-					const double HeuristicCost = SearchSettings.HeuristicWeight * Heuristic::CalculateHeuristic_EuclideanDistance(PointRef.Point->Transform.GetLocation(), SearchSettings.Goal);
-					Neighbor.PreviousNodeIndex = CurrentNodeIndex;
-					Neighbor.LocalCost = TentativeNewLocalCost;
-					Neighbor.EstimatedGoalCost = TentativeNewLocalCost + HeuristicCost;
-				}
-			});
+		SearchState.OriginatingPointData,
+		NodeList[CurrentNodeIndex].PCGPoint->Transform.GetLocation(),
+		SearchSettings.SearchDistance,
+		[&PerPointProcessing](const FPCGPointRef& PointRef, const double DistanceToPointSquared)
+		{
+			PerPointProcessing(PointRef.Point, DistanceToPointSquared);
+		});
 
 	// This node has been completely evaluated.
 	SearchState.ClosedIndexList.Add(CurrentNodeIndex);

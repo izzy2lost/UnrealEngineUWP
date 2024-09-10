@@ -11,11 +11,19 @@
 
 class UPCGPointData;
 
-UENUM(BlueprintType, Blueprintable)
+UENUM(BlueprintType)
 enum class EPCGPathfindingSplineMode : uint8
 {
 	Curve UMETA(Tooltip = "Interpret the spline as a continuous curve."),
 	Linear UMETA(Tooltip = "Interpret the spline as a conjunction of linear segments."),
+};
+
+UENUM(BlueprintType)
+enum class EPCGPathfindingCostFunctionMode : uint8
+{
+	Distance UMETA(Tooltip = "Pathfinding cost will be the distance only."),
+	FitnessScore UMETA(Tooltip = "Pathfinding cost will be driven by a fitness score (0-1 range), with a maximum penalty applied at fitness = 0."),
+	CostMultipler UMETA(Tooltip = "Pathfinding cost will be the distance multiplied by the provided factor. Note that multipliers below 1 will be clamped to 1.")
 };
 
 /** Finds the optimal path across the points of a given point cloud--should one exist--when provided a start and goal
@@ -46,7 +54,7 @@ protected:
 
 public:
 	/** The max distance from each point to search for the next viable point in the path. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin = "0.01", PCG_Overridable))
 	double SearchDistance = 1000;
 
 	/** The path's starting location. */
@@ -60,6 +68,18 @@ public:
 	/** The heuristic estimates a faster path to speed up processing. A lower heuristic weight can be faster, but it may cease being the optimal path. A weight of 0 is essentially flood fill. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (EditCondition = "Algorithm == EPCGPathfindingAlgorithm::AStar", PCG_Overridable))
 	double HeuristicWeight = 1.0;
+
+	/** Controls whether the cost function will use a given attribute as a scalar wrt to the distance. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
+	EPCGPathfindingCostFunctionMode CostFunctionMode = EPCGPathfindingCostFunctionMode::Distance;
+
+	/** Attribute to use as part of the cost function - it's meaning will depend on the cost function mode (fitness value, scalar multiplier, or else). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (EditCondition = "CostFunctionMode != EPCGPathfindingCostFunctionMode::Distance", EditConditionHides, PCG_Overridable))
+	FPCGAttributePropertyInputSelector CostAttribute;
+
+	/** Fitness penalty scalar (maximum penalty applied when fitness is zero.) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin = "1.0", EditCondition = "CostFunctionMode == EPCGPathfindingCostFunctionMode::FitnessScore", EditConditionHides, PCG_Overridable))
+	double MaximumFitnessPenaltyFactor = 10.0;
 
 	/** Even if the path is not complete, return the most optimal and viable partial path to the goal. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
