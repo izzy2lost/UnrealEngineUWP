@@ -88,7 +88,7 @@ public:
 	int32 LODIndex = 0;
 
 	/** Size of vertex points drawn when mesh painting is active. */
-	UPROPERTY(EditAnywhere, Category = "VertexPainting")
+	UPROPERTY(EditAnywhere, Category = VertexPainting, meta = (UIMin = "0", ClampMin = "0"))
 	float VertexPreviewSize;
 };
 
