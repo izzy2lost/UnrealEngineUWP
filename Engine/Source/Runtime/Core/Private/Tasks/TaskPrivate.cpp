@@ -5,7 +5,7 @@
 
 #include "Async/TaskGraphInterfaces.h"
 
-CORE_API bool GTaskGraphAlwaysWaitWithNamedThreadSupport = 1;
+CORE_API bool GTaskGraphAlwaysWaitWithNamedThreadSupport = 0;
 static FAutoConsoleVariableRef CVarTaskGraphAlwaysWaitWithNamedThreadSupport(
 	TEXT("TaskGraph.AlwaysWaitWithNamedThreadSupport"),
 	GTaskGraphAlwaysWaitWithNamedThreadSupport,
