@@ -130,6 +130,11 @@ void UMeshTopologySelectionMechanic::SetIsEnabled(bool bOn)
 	UpdateMarqueeEnabled();
 }
 
+void UMeshTopologySelectionMechanic::SetTransform(const FTransform3d& InTargetTransform)
+{
+	TargetTransform = InTargetTransform;
+}
+
 void UMeshTopologySelectionMechanic::SetMarqueeSelectionUpdateType(EMarqueeSelectionUpdateType InType)
 {
 	MarqueeSelectionUpdateType = InType;
@@ -162,6 +167,11 @@ TPair<FInputCapturePriority, FInputCapturePriority> UMeshTopologySelectionMechan
 
 void UMeshTopologySelectionMechanic::Render(IToolsContextRenderAPI* RenderAPI)
 {
+	if (!bIsEnabled)
+	{
+		return;
+	}
+	
 	MarqueeMechanic->Render(RenderAPI);
 
 	// Cache the view camera state so we can use for snapping/etc.
@@ -215,6 +225,11 @@ void UMeshTopologySelectionMechanic::Render(IToolsContextRenderAPI* RenderAPI)
 
 void UMeshTopologySelectionMechanic::DrawHUD(FCanvas* Canvas, IToolsContextRenderAPI* RenderAPI)
 {
+	if (!bIsEnabled)
+	{
+		return;
+	}
+	
 	MarqueeMechanic->DrawHUD(Canvas, RenderAPI);
 }
 
@@ -260,6 +275,11 @@ bool UMeshTopologySelectionMechanic::TopologyHitTest(const FRay& WorldRay, FHitR
 
 bool UMeshTopologySelectionMechanic::TopologyHitTest(const FRay& WorldRay, FHitResult& OutHit, FGroupTopologySelection& OutSelection, bool bUseOrthoSettings)
 {
+	if (!bIsEnabled)
+	{
+		return false;
+	}
+	
 	FRay3d LocalRay(TargetTransform.InverseTransformPosition((FVector3d)WorldRay.Origin),
 		TargetTransform.InverseTransformVector((FVector3d)WorldRay.Direction));
 	UE::Geometry::Normalize(LocalRay.Direction);
@@ -312,6 +332,11 @@ bool UMeshTopologySelectionMechanic::TopologyHitTest(const FRay& WorldRay, FHitR
 
 void UMeshTopologySelectionMechanic::HandleRectangleChanged(const FCameraRectangle& InRectangle)
 {
+	if (!bIsEnabled)
+	{
+		return;
+	}
+	
 	FGroupTopologySelection RectangleSelection;
 
 	TopoSelector->FindSelectedElement(PreDragTopoSelectorSettings, InRectangle, TargetTransform,
@@ -757,6 +782,36 @@ void UMeshTopologySelectionMechanic::FloodSelection()
 		}
 	}
 
+	SelectionTimestamp++;
+	OnSelectionChanged.Broadcast();
+	EndChangeAndEmitIfModified();
+	ParentTool->GetToolManager()->EndUndoTransaction();
+}
+
+void UMeshTopologySelectionMechanic::ConvertSelectionToBorder()
+{
+	// find all border vertices
+	// a "border" vertex is one that has a 1-ring neighbor that is not in the selection set
+	const FGroupTopologySelection& CurrentSelection = GetActiveSelection();
+	FGroupTopologySelection Selection;
+	for (const int32 SelectedVertex : CurrentSelection.SelectedCornerIDs)
+	{
+		for (const int32 NeighborIndex : Mesh->VtxVerticesItr(SelectedVertex))
+		{
+			if (!CurrentSelection.SelectedCornerIDs.Contains(NeighborIndex))
+			{
+				Selection.SelectedCornerIDs.Add(SelectedVertex);
+			}
+		}
+	}
+
+	ParentTool->GetToolManager()->BeginUndoTransaction(LOCTEXT("BorderSelectionChange", "Select Border"));
+	BeginChange();
+	
+	// select vertices
+	PersistentSelection = Selection;
+
+	// broadcast and end transaction
 	SelectionTimestamp++;
 	OnSelectionChanged.Broadcast();
 	EndChangeAndEmitIfModified();

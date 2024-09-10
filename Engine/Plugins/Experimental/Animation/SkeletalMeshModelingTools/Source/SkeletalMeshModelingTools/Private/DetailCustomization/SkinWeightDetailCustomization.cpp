@@ -141,23 +141,25 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 	IDetailCategoryBuilder& SkinWeightLayerCategory = DetailBuilder.EditCategory("SkinWeightLayer", FText::GetEmpty(), ECategoryPriority::Important);
 	SkinWeightLayerCategory.InitiallyCollapsed(true);
 
-	// hide all base brush properties that have been customized
-	const TSharedRef<IPropertyHandle> BrushModeHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, BrushMode));
-	DetailBuilder.HideProperty(BrushModeHandle);
-	const TSharedRef<IPropertyHandle> BrushSizeHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, BrushSize), UBrushBaseProperties::StaticClass());
-	DetailBuilder.HideProperty(BrushSizeHandle);
-	const TSharedRef<IPropertyHandle> BrushStrengthHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, BrushStrength), UBrushBaseProperties::StaticClass());
-	DetailBuilder.HideProperty(BrushStrengthHandle);
-	const TSharedRef<IPropertyHandle> BrushFalloffHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, BrushFalloffAmount), UBrushBaseProperties::StaticClass());
-	DetailBuilder.HideProperty(BrushFalloffHandle);
-	const TSharedRef<IPropertyHandle> BrushRadiusHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, BrushRadius), UBrushBaseProperties::StaticClass());
-	DetailBuilder.HideProperty(BrushRadiusHandle);
-	const TSharedRef<IPropertyHandle> SpecifyRadiusHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, bSpecifyRadius), UBrushBaseProperties::StaticClass());
-	DetailBuilder.HideProperty(SpecifyRadiusHandle);
-	const TSharedRef<IPropertyHandle> EditModePropHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, EditingMode));
-	DetailBuilder.HideProperty(EditModePropHandle);
-	const TSharedRef<IPropertyHandle> ColorModePropHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, ColorMode));
-	DetailBuilder.HideProperty(ColorModePropHandle);
+	// hide all properties that have been customized
+	TArray<FName> PropertiesToHide;
+	PropertiesToHide.Add(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, BrushMode));
+	PropertiesToHide.Add(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, BrushSize));
+	PropertiesToHide.Add(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, BrushStrength));
+	PropertiesToHide.Add(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, BrushFalloffAmount));
+	PropertiesToHide.Add(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, BrushRadius));
+	PropertiesToHide.Add(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, bSpecifyRadius));
+	PropertiesToHide.Add(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, EditingMode));
+	PropertiesToHide.Add(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, ColorMode));
+	PropertiesToHide.Add(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, MeshSelectMode));
+	PropertiesToHide.Add(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, SourceSkeletalMesh));
+	PropertiesToHide.Add(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, SourceLOD));
+	PropertiesToHide.Add(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, SourceSkinWeightProfile));
+	for (const FName PropertyToHide : PropertiesToHide)
+	{
+		TSharedRef<IPropertyHandle> Property = DetailBuilder.GetProperty(PropertyToHide);
+		DetailBuilder.HideProperty(Property);
+	}
 }
 
 void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuilder) const
@@ -322,7 +324,7 @@ void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuil
 
 void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& DetailBuilder) const
 {
-	// custom display of weight editing tools
+	// custom display of selection editing tools
 	IDetailCategoryBuilder& EditSelectionCategory = DetailBuilder.EditCategory("Edit Selection", FText::GetEmpty(), ECategoryPriority::Important);
 	EditSelectionCategory.InitiallyCollapsed(true);
 
@@ -375,7 +377,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	ToolbarBuilder.EndBlockGroup();
 	ToolbarBuilder.EndSection();
 
-	// GROW/SHRINK/FLOOD Selection category
+	// edit selection category
 	EditSelectionCategory.AddCustomRow(LOCTEXT("EditSelectionRow", "Edit Selection"), false)
 	.WholeRowContent()
 	[
@@ -385,6 +387,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 		[
 			SNew(SHorizontalBox)
 
+			// ISOLATE SELECTION
 			+SHorizontalBox::Slot()
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
@@ -405,10 +408,12 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 					.HAlign(HAlign_Center)
 					.ToolTipText(LOCTEXT("IsolateSelectedTooltip",
 							"Shows only the selected faces in the viewport.\n"
-							"Weight editing operations will not affect hidden vertices.\n "))
+							"Weight editing operations will not affect hidden vertices.\n"
+							"NOTE: This only works on the target (main) mesh."))
 					.IsEnabled_Lambda([this]()
 					{
-						const bool bHasSelection = Tool->IsAnyComponentSelected();
+						// isolated selection only available on main mesh (for now)
+						const bool bHasSelection = Tool->GetMainMeshSelector()->IsAnyComponentSelected();
 						const bool bAlreadyIsolatingSelection = Tool->IsSelectionIsolated();
 						return bHasSelection ||  bAlreadyIsolatingSelection;
 					})
@@ -434,7 +439,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 						{
 							if (Tool->IsSelectionIsolated())
 							{
-								return LOCTEXT("ShowAllButtonLabel", "Show All");
+								return LOCTEXT("ShowAllButtonLabel", "Show Full Mesh");
 							}
 								
 							return LOCTEXT("IsolateButtonLabel", "Isolate Selected");
@@ -444,6 +449,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 			]
 		]
 
+		// GROW / SHRINK / FLOOD
 		+SVerticalBox::Slot()
 		[
 			SNew(SHorizontalBox)
@@ -452,7 +458,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 			.Padding(2.f, WeightEditVerticalPadding)
 			[
 				SNew(SButton)
-				.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+				.IsEnabled_Lambda([this]{ return Tool->GetActiveMeshSelector()->IsAnyComponentSelected(); })
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Text(LOCTEXT("GrowSelectionButtonLabel", "Grow"))
@@ -460,7 +466,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 						"Grow the current selection by adding connected neighbors to current selection.\n"))
 				.OnClicked_Lambda([this]()
 				{
-					Tool->GrowSelection();
+					Tool->GetActiveMeshSelector()->GrowSelection();
 					return FReply::Handled();
 				})
 			]
@@ -469,7 +475,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 			.Padding(2.f, WeightEditVerticalPadding)
 			[
 				SNew(SButton)
-				.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+				.IsEnabled_Lambda([this]{ return Tool->GetActiveMeshSelector()->IsAnyComponentSelected(); })
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Text(LOCTEXT("ShrinkSelectionButtonLabel", "Shrink"))
@@ -477,7 +483,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 						"Shrink the current selection by removing components on the border of the current selection.\n"))
 				.OnClicked_Lambda([this]()
 				{
-					Tool->ShrinkSelection();
+					Tool->GetActiveMeshSelector()->ShrinkSelection();
 					return FReply::Handled();
 				})
 			]
@@ -486,7 +492,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 			.Padding(2.f, WeightEditVerticalPadding)
 			[
 				SNew(SButton)
-				.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+				.IsEnabled_Lambda([this]{ return Tool->GetActiveMeshSelector()->IsAnyComponentSelected(); })
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Text(LOCTEXT("FloodSelectionButtonLabel", "Flood"))
@@ -494,12 +500,13 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 						"Flood the current selection by adding all connected components to the current selection.\n"))
 				.OnClicked_Lambda([this]()
 				{
-					Tool->FloodSelection();
+					Tool->GetActiveMeshSelector()->FloodSelection();
 					return FReply::Handled();
 				})
 			]
 		]
 
+		// SELECT AFFECTED VERTICES
 		+SVerticalBox::Slot()
 		[
 			SNew(SHorizontalBox)
@@ -508,6 +515,11 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 			.Padding(2.f, WeightEditVerticalPadding)
 			[
 				SNew(SButton)
+				.IsEnabled_Lambda([this]
+				{
+					// only allow selecting affected vertices on the target/main mesh
+					return ToolSettings->MeshSelectMode == EMeshTransferOption::Target;
+				})
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Text(LOCTEXT("AffectedSelectionButtonLabel", "Affected"))
@@ -525,21 +537,20 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 			.Padding(2.f, WeightEditVerticalPadding)
 			[
 				SNew(SButton)
-				.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+				.IsEnabled_Lambda([this]{ return Tool->GetActiveMeshSelector()->IsAnyComponentSelected(); })
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Text(LOCTEXT("BorderSelectionButtonLabel", "Convert to Border"))
 				.ToolTipText(LOCTEXT("BorderSelectionTooltip", "Select vertices on the border of the current selection."))
 				.OnClicked_Lambda([this]()
 				{
-					Tool->SelectBorder();
+					Tool->GetActiveMeshSelector()->SelectBorder();
 					return FReply::Handled();
 				})
 			]
 		]
 	];
-
-	// custom display of weight editing tools
+	
 	IDetailCategoryBuilder& EditWeightsCategory = DetailBuilder.EditCategory("Edit Weights", FText::GetEmpty(), ECategoryPriority::Important);
 	EditWeightsCategory.InitiallyCollapsed(true);
 
@@ -550,11 +561,11 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 		SNew(STextBlock)
 		.Visibility_Lambda([this]()
 		{
-			return Tool->GetSelectedVertices().IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed;
+			return !Tool->HasActiveSelectionOnMainMesh() ? EVisibility::Visible : EVisibility::Collapsed;
 		})
 		.Text_Lambda([this]()
 		{
-			return LOCTEXT("NothingSelectedLabel", "Select vertices to edit weights...");
+			return LOCTEXT("NothingSelectedLabel", "Select vertices on target mesh to edit weights...");
 		})
 	];
 
@@ -564,7 +575,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SHorizontalBox)
-		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+		.IsEnabled_Lambda([this]{ return Tool->HasActiveSelectionOnMainMesh(); })
 
 		+SHorizontalBox::Slot()
 		[
@@ -642,7 +653,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 							Value,
 							0, // iterations
 							ToolSettings->DirectEditState.EditMode,
-							Tool->GetSelectedVertices(),
+							Tool->GetMainMeshSelector()->GetSelectedVertices(),
 							bShouldTransact);
 					}
 				})
@@ -656,7 +667,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 							NewValue,
 							0, // iterations
 							ToolSettings->DirectEditState.EditMode,
-							Tool->GetSelectedVertices(),
+							Tool->GetMainMeshSelector()->GetSelectedVertices(),
 							bShouldTransact);
 					}
 					ToolSettings->DirectEditState.bInTransaction = false;
@@ -699,7 +710,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SVerticalBox)
-		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+		.IsEnabled_Lambda([this]{ return Tool->HasActiveSelectionOnMainMesh(); })
 
 		+ SVerticalBox::Slot()
 		.Padding(WeightEditHorizontalPadding, WeightEditVerticalPadding)
@@ -723,7 +734,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 							ToolSettings->AddStrength,
 							0, // iterations 
 							EWeightEditOperation::Add,
-							Tool->GetSelectedVertices(),
+							Tool->GetMainMeshSelector()->GetSelectedVertices(),
 							bShouldTransact);
 						return FReply::Handled();
 					})
@@ -757,7 +768,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SVerticalBox)
-		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+		.IsEnabled_Lambda([this]{ return Tool->HasActiveSelectionOnMainMesh(); })
 
 		+ SVerticalBox::Slot()
 		.Padding(WeightEditHorizontalPadding, WeightEditVerticalPadding)
@@ -782,7 +793,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 							ToolSettings->ReplaceValue,
 							0, // iterations
 							EWeightEditOperation::Replace,
-							Tool->GetSelectedVertices(),
+							Tool->GetMainMeshSelector()->GetSelectedVertices(),
 							bShouldTransact);
 						return FReply::Handled();
 					})
@@ -816,7 +827,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SVerticalBox)
-		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+		.IsEnabled_Lambda([this]{ return Tool->HasActiveSelectionOnMainMesh(); })
 
 		+ SVerticalBox::Slot()
 		.Padding(WeightEditHorizontalPadding, WeightEditVerticalPadding)
@@ -867,7 +878,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SVerticalBox)
-		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+		.IsEnabled_Lambda([this]{ return Tool->HasActiveSelectionOnMainMesh(); })
 
 		+ SVerticalBox::Slot()
 		.Padding(WeightEditHorizontalPadding, WeightEditVerticalPadding)
@@ -892,7 +903,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 							ToolSettings->RelaxStrength,
 							DefaultRelaxIterations, 
 							EWeightEditOperation::Relax,
-							Tool->GetSelectedVertices(),
+							Tool->GetMainMeshSelector()->GetSelectedVertices(),
 							bShouldTransact);
 						return FReply::Handled();
 					})
@@ -925,7 +936,11 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	EditWeightsCategory.AddCustomRow(LOCTEXT("VertexEditorRow", "Component Editor"), false)
 	.WholeRowContent()
 	[
-		SNew(SVertexWeightEditor, ToolSettings->WeightTool)
+		SNew(SBox)
+		.IsEnabled_Lambda([this]{ return Tool->HasActiveSelectionOnMainMesh(); })
+		[
+			SNew(SVertexWeightEditor, ToolSettings->WeightTool)
+		]
 	];
 	
 	// MIRROR WEIGHTS category
@@ -933,7 +948,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SVerticalBox)
-		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+		.IsEnabled_Lambda([this]{ return Tool->HasActiveSelectionOnMainMesh(); })
 		
 		+ SVerticalBox::Slot()
 		.Padding(WeightEditHorizontalPadding, WeightEditVerticalPadding)
@@ -1022,7 +1037,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SHorizontalBox)
-		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+		.IsEnabled_Lambda([this]{ return Tool->HasActiveSelectionOnMainMesh(); })
 
 		+SHorizontalBox::Slot()
 		.Padding(2.f, WeightEditVerticalPadding)
@@ -1072,7 +1087,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SHorizontalBox)
-		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+		.IsEnabled_Lambda([this]{ return Tool->HasActiveSelectionOnMainMesh(); })
 
 		+SHorizontalBox::Slot()
 		.Padding(2.f, WeightEditVerticalPadding)
@@ -1118,7 +1133,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SHorizontalBox)
-		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+		.IsEnabled_Lambda([this]{ return Tool->HasActiveSelectionOnMainMesh(); })
 
 		+SHorizontalBox::Slot()
 		.Padding(2.f, WeightEditVerticalPadding)
@@ -1167,35 +1182,83 @@ void FSkinWeightDetailCustomization::AddTransferUI(IDetailLayoutBuilder& DetailB
 	IDetailCategoryBuilder& TransferWeightsCategory = DetailBuilder.EditCategory("WeightTransfer", FText::GetEmpty(), ECategoryPriority::Important);
 	TransferWeightsCategory.InitiallyCollapsed(true);
 
+	// TRANSFER BUTTON
 	TransferWeightsCategory.AddCustomRow(LOCTEXT("TransferWeightsRow", "Transfer Weights"), false)
 	.WholeRowContent()
 	[
-		SNew(SVerticalBox)
-
-		+SVerticalBox::Slot()
+		SNew(SBox)
 		.Padding(0.f, WeightEditVerticalPadding)
 		[
-			SNew(SBox)
-			[
-				SNew(SButton)
-				.HAlign(HAlign_Center)
-				.Text(LOCTEXT("TransferWeightsButtonLabel", "Transfer Weights"))
-				.ToolTipText(LOCTEXT("TransferButtonTooltip",
-					"Weights are transferred from the source skeletal mesh using in-painting.\n"
-					"If no source skeletal mesh is specified, weights can be transferred from the existing mesh between profiles and LODs.\n"
-					"This command can operate on selected components when in Mesh mode."))
-				.OnClicked_Lambda([this]()
-				{
-					Tool->TransferWeights();
-					return FReply::Handled();
-				})
-				.IsEnabled_Lambda([this]()
-				{
-					return Tool->CanTransferWeights();
-				})
-			]
+			SNew(SButton)
+			.HAlign(HAlign_Center)
+			.Text(LOCTEXT("TransferWeightsButtonLabel", "Transfer Weights"))
+			.ToolTipText(LOCTEXT("TransferButtonTooltip",
+						"Weights are transferred from the source skeletal mesh.\n"
+						"Vertices may be selected on the source and/or target mesh to filter which parts to copy from and which parts to copy to.\n"
+						"If either mesh has no vertices selected, the whole mesh is considered.\n"))
+			.OnClicked_Lambda([this]()
+			{
+				Tool->GetWeightTransferManager()->TransferWeights();
+				return FReply::Handled();
+			})
+			.IsEnabled_Lambda([this]()
+			{
+				return Tool->GetWeightTransferManager()->CanTransferWeights();
+			})
 		]
 	];
+
+	// SKELETAL MESH ASSET INPUT
+	const TSharedRef<IPropertyHandle> SourceSkeletalMeshHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, SourceSkeletalMesh), USkinWeightsPaintToolProperties::StaticClass());
+	TransferWeightsCategory.AddProperty(SourceSkeletalMeshHandle);
+	
+	// LOD
+	const TSharedRef<IPropertyHandle> LODHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, SourceLOD), USkinWeightsPaintToolProperties::StaticClass());
+	TransferWeightsCategory.AddProperty(LODHandle);
+
+	// PROFILE
+	const TSharedRef<IPropertyHandle> SourceProfileHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, SourceSkinWeightProfile), USkinWeightsPaintToolProperties::StaticClass());
+	TransferWeightsCategory.AddProperty(SourceProfileHandle);
+
+	// MESH SELECTION OPTION (SOURCE OR TARGET)
+	const TSharedRef<IPropertyHandle> TransferSelectModeHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, MeshSelectMode), USkinWeightsPaintToolProperties::StaticClass());
+	FDetailWidgetRow& TransferSelectModeRow = TransferWeightsCategory.AddCustomRow(LOCTEXT("SelectionModeRow", "Selection Mode"), false)
+	.NameContent()
+	[
+		TransferSelectModeHandle->CreatePropertyNameWidget()
+	]
+	.ValueContent()
+	[
+		SNew(SBox)
+		.Padding(2.0f)
+		.HAlign(HAlign_Center)
+		[
+			SNew(SSegmentedControl<EMeshTransferOption>)
+			.ToolTipText(LOCTEXT("SelectionSourceTooltip",
+					"Choose which mesh to select components on (vertices/edges/faces).\n"
+					"Weights will be transferred from selected components on the source to selected components on the target.\n"
+					"If no components are selected on either the source or target, the whole mesh will be considered.\n"
+					"Source: The mesh to copy weights FROM.\n"
+					"Target: The mesh to copy weights TO (the main mesh in the tool)."))
+			.Value_Lambda([this]()
+			{
+				return ToolSettings->MeshSelectMode;
+			})
+			.OnValueChanged_Lambda([this](EMeshTransferOption Mode)
+			{
+				ToolSettings->MeshSelectMode = Mode;
+				ToolSettings->WeightTool->GetWeightTransferManager()->UpdateSelectionAndVisibility();
+			})
+			+ SSegmentedControl<EMeshTransferOption>::Slot(EMeshTransferOption::Source)
+			.Text(LOCTEXT("SourceMode", "Source"))
+			+SSegmentedControl<EMeshTransferOption>::Slot(EMeshTransferOption::Target)
+			.Text(LOCTEXT("TargetMode", "Target"))
+		]
+	];
+
+	// PREVIEW OFFSET
+	const TSharedRef<IPropertyHandle> PreviewOffsetHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, SourcePreviewOffset), USkinWeightsPaintToolProperties::StaticClass());
+	TransferWeightsCategory.AddProperty(PreviewOffsetHandle);
 }
 
 void SVertexWeightItem::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& OwnerTableView)
@@ -1228,7 +1291,7 @@ TSharedRef<SWidget> SVertexWeightItem::GenerateWidgetForColumn(const FName& Colu
 				return ValueDuringSlide;
 			}
 			
-			return ParentTable->Tool->GetAverageWeightOnBone(Element->BoneIndex, ParentTable->Tool->GetSelectedVertices());
+			return ParentTable->Tool->GetAverageWeightOnBone(Element->BoneIndex, ParentTable->Tool->GetMainMeshSelector()->GetSelectedVertices());
 		})
 		.OnValueChanged_Lambda([this](float NewValue)
 		{
@@ -1246,7 +1309,7 @@ TSharedRef<SWidget> SVertexWeightItem::GenerateWidgetForColumn(const FName& Colu
 					RelativeScale,
 					0, // iterations
 					EWeightEditOperation::RelativeScale,
-					ParentTable->Tool->GetSelectedVertices(),
+					ParentTable->Tool->GetMainMeshSelector()->GetSelectedVertices(),
 					bShouldTransact);
 			}
 		})
@@ -1260,7 +1323,7 @@ TSharedRef<SWidget> SVertexWeightItem::GenerateWidgetForColumn(const FName& Colu
 					NewValue,
 					0, // iterations,
 					EWeightEditOperation::Replace,
-					ParentTable->Tool->GetSelectedVertices(),
+					ParentTable->Tool->GetMainMeshSelector()->GetSelectedVertices(),
 					bShouldTransact);
 			}
 			bInTransaction = false;
@@ -1268,7 +1331,7 @@ TSharedRef<SWidget> SVertexWeightItem::GenerateWidgetForColumn(const FName& Colu
 		.OnBeginSliderMovement_Lambda([this]()
 		{
 			ParentTable->Tool->BeginChange();
-			ValueAtStartOfSlide = ParentTable->Tool->GetAverageWeightOnBone(Element->BoneIndex, ParentTable->Tool->GetSelectedVertices());
+			ValueAtStartOfSlide = ParentTable->Tool->GetAverageWeightOnBone(Element->BoneIndex, ParentTable->Tool->GetMainMeshSelector()->GetSelectedVertices());
 			ValueDuringSlide = ValueAtStartOfSlide;
 			bInTransaction = true;
 		})
@@ -1335,7 +1398,7 @@ void SVertexWeightEditor::Construct(const FArguments& InArgs, USkinWeightsPaintT
 			SAssignNew( ListView, SWeightEditorListViewType )
 			.Visibility_Lambda([this]()
 			{
-				return Tool->GetSelectedVertices().IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible;
+				return Tool->GetMainMeshSelector()->GetSelectedVertices().IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible;
 			})
 			.SelectionMode(ESelectionMode::Single)
 			.ListItemsSource( &ListViewItems )
@@ -1375,7 +1438,7 @@ void SVertexWeightEditor::RefreshView()
 	
 	// get all bones affecting the selected vertices
 	TArray<int32> Influences;
-	Tool->GetInfluences(Tool->GetSelectedVertices(), Influences);
+	Tool->GetInfluences(Tool->GetMainMeshSelector()->GetSelectedVertices(), Influences);
 
 	// generate list view items
 	ListViewItems.Reset();
