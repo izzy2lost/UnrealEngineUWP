@@ -13,6 +13,7 @@
 class FShaderCommonCompileJob;
 class FShaderCompileJob;
 class FShaderPipelineCompileJob;
+struct FShaderCacheSerializeContext;
 
 namespace UE::DerivedData { class FRequestOwner; }
 
@@ -149,8 +150,11 @@ public:
 	/** Returns hash of all inputs for this job (needed for caching). */
 	virtual FShaderCompilerInputHash GetInputHash() { return FShaderCompilerInputHash(); }
 
-	/** Serializes (and deserializes) the output for caching purposes. */
+	UE_DEPRECATED(5.5, "Use overload accepting an FShaderCacheSerializeContext struct")
 	virtual void SerializeOutput(FArchive& Ar) {}
+
+	/** Serializes (and deserializes) the output for caching purposes. */
+	virtual void SerializeOutput(FShaderCacheSerializeContext& Ctx) {}
 
 	FShaderCompileJob* GetSingleShaderJob();
 	const FShaderCompileJob* GetSingleShaderJob() const;
@@ -253,7 +257,17 @@ public:
 	TMap<const FVertexFactoryType*, TArray<const FShaderPipelineType*>> SharingPipelines;
 
 	virtual RENDERCORE_API FShaderCompilerInputHash GetInputHash() override;
-	virtual RENDERCORE_API void SerializeOutput(FArchive& Ar) override;
+
+	UE_DEPRECATED(5.5, "Use overload accepting an FShaderCacheSerializeContext")
+	virtual RENDERCORE_API void SerializeOutput(FArchive& Ar) override
+	{
+	}
+
+	RENDERCORE_API void SerializeOutput(FShaderCacheSerializeContext& Ctx, int32 CodeIndex);
+	virtual void SerializeOutput(FShaderCacheSerializeContext& Ctx)
+	{
+		SerializeOutput(Ctx, 0);
+	}
 
 	virtual RENDERCORE_API void OnComplete() override;
 	
@@ -314,7 +328,14 @@ public:
 	TArray<TRefCountPtr<FShaderCompileJob>> StageJobs;
 
 	virtual RENDERCORE_API FShaderCompilerInputHash GetInputHash() override;
-	virtual RENDERCORE_API void SerializeOutput(FArchive& Ar) override;
+
+	UE_DEPRECATED(5.5, "Use overload accepting an FShaderCommonCompileJob::FSerializationContext")
+	virtual RENDERCORE_API void SerializeOutput(FArchive& Ar) override
+	{
+	}
+
+	virtual RENDERCORE_API void SerializeOutput(FShaderCacheSerializeContext& Ctx) override;
+
 	virtual RENDERCORE_API void OnComplete() override;
 	virtual RENDERCORE_API void AppendDebugName(FStringBuilderBase& OutName) const override;
 

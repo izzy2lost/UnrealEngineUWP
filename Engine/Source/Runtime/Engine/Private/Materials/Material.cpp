@@ -856,13 +856,13 @@ void ProcessSerializedInlineShaderMaps(UMaterialInterface* Owner, TArray<FMateri
 	}
 
 #if WITH_EDITORONLY_DATA
-	const bool bLoadedByCookedMaterial = FPlatformProperties::RequiresCookedData() || Owner->GetOutermost()->bIsCookedForEditor;
+	const bool bLoadingCooked = FPlatformProperties::RequiresCookedData() || Owner->GetOutermost()->bIsCookedForEditor;
 #else
-	const bool bLoadedByCookedMaterial = FPlatformProperties::RequiresCookedData();
+	const bool bLoadingCooked = FPlatformProperties::RequiresCookedData();
 #endif
 	for (FMaterialResource& Resource : LoadedResources)
 	{
-		Resource.RegisterInlineShaderMap(bLoadedByCookedMaterial);
+		Resource.RegisterInlineShaderMap(bLoadingCooked);
 	}
 
 	const bool bDiscardUnusedQualityLevels = CVarDiscardUnusedQualityLevels.GetValueOnAnyThread() != 0;

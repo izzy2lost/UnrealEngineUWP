@@ -33,7 +33,7 @@ typedef TSharedPtr<TArray<ANSICHAR>, ESPMode::ThreadSafe> FShaderSharedAnsiStrin
 // this is for the protocol, not the data, bump if FShaderCompilerInput/FShaderPreprocessOutput serialization, SerializeWorkerInput or ProcessInputFromArchive changes.
 inline const int32 ShaderCompileWorkerInputVersion = 28;
 // this is for the protocol, not the data, bump if FShaderCompilerOutput or WriteToOutputArchive changes.
-inline const int32 ShaderCompileWorkerOutputVersion = 23;
+inline const int32 ShaderCompileWorkerOutputVersion = 24;
 // this is for the protocol, not the data.
 inline const int32 ShaderCompileWorkerSingleJobHeader = 'S';
 // this is for the protocol, not the data.
@@ -41,7 +41,7 @@ inline const int32 ShaderCompileWorkerPipelineJobHeader = 'P';
 
 // Modify this to invalidate _just_ the cache/DDC entries for individual shaders (will not cause shadermaps to rebuild if they are not otherwise out-of-date).
 // This should be bumped for changes to the FShaderCompilerOutput data structure (in addition to ShaderCompileWorkerOutputVersion)
-inline static const FGuid UE_SHADER_CACHE_VERSION = FGuid("DB7CA032-63BC-4D95-8F65-64C6B39EF882");
+inline static const FGuid UE_SHADER_CACHE_VERSION = FGuid("55EB8969-BA75-4CBD-B7A1-84194D140CBD");
 
 namespace UE::ShaderCompiler
 {
@@ -566,11 +566,13 @@ struct FShaderCompilerOutput
 	,	bSucceeded(false)
 	,	bSupportsQueryingUsedAttributes(false)
 	,	bSerializeModifiedSource(false)
+	,	bSerializingForCache(false)
 	{
 	}
 
 	FShaderParameterMap ParameterMap;
 	TArray<FShaderCompilerError> Errors;
+	UE_DEPRECATED(5.5, "PragmaDirectives are now only accessible via the FShaderPreprocessOutput struct")
 	TArray<FString> PragmaDirectives;
 	FShaderTarget Target;
 	FShaderCode ShaderCode;
@@ -583,12 +585,13 @@ struct FShaderCompilerOutput
 	bool bSucceeded;
 	bool bSupportsQueryingUsedAttributes;
 	bool bSerializeModifiedSource;
+	bool bSerializingForCache;
 	TArray<FString> UsedAttributes;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// Explicitly-defaulted copy/move ctors & assignment operators are needed temporarily due to 
-	// deprecation of OptionalFinalShaderSource field. These can be removed once the deprecation
-	// window for said field ends.
+	// deprecation of OptionalFinalShaderSource and PragmaDirectives fields. These can be removed 
+	// once the deprecation window for said fields ends.
 	FShaderCompilerOutput(FShaderCompilerOutput&&) = default;
 	FShaderCompilerOutput(const FShaderCompilerOutput&) = default;
 	FShaderCompilerOutput& operator=(FShaderCompilerOutput&&) = default;
@@ -642,14 +645,35 @@ struct FShaderCompilerOutput
 		Stat.Flags = Flags;
 	}
 
+	FShaderCodeResource ConvertCodeToResource() const
+	{
+		return ShaderCode.ConvertToResource(Target.GetFrequency(), OutputHash);
+	}
+
+	void SetCodeFromResource(FShaderCodeResource&& Resource)
+	{
+		return ShaderCode.SetFromResource(MoveTemp(Resource));
+	}
+
 	// Bump ShaderCompileWorkerOutputVersion if FShaderCompilerOutput changes
 	friend FArchive& operator<<(FArchive& Ar, FShaderCompilerOutput& Output)
 	{
 		// Note: this serialize is used to pass between UE and the shader compile worker, recompile both when modifying
-		Ar << Output.ParameterMap << Output.Errors << Output.Target << Output.ShaderCode << Output.OutputHash << Output.NumInstructions << Output.NumTextureSamplers << Output.bSucceeded;
-		Ar << Output.bSupportsQueryingUsedAttributes << Output.UsedAttributes;
-		Ar << Output.CompileTime;
-		Ar << Output.PreprocessTime;
+		Ar << Output.ParameterMap;
+		Ar << Output.Errors;
+		Ar << Output.Target;
+		Ar << Output.bSerializingForCache;
+		if (!Output.bSerializingForCache)
+		{
+			// skip serializing these fields when saving to cache/DDC; only needed when reading back results from workers
+			Ar << Output.ShaderCode;
+			Ar << Output.ValidateInputHash;
+			Ar << Output.CompileTime;
+		}
+		Ar << Output.OutputHash;
+		Ar << Output.NumInstructions;
+		Ar << Output.NumTextureSamplers;
+		Ar << Output.bSucceeded;
 		Ar << Output.bSerializeModifiedSource;
 		if (Output.bSerializeModifiedSource)
 		{
@@ -658,7 +682,11 @@ struct FShaderCompilerOutput
 		}
 		Ar << Output.PlatformDebugData;
 		Ar << Output.ShaderStatistics;
-		Ar << Output.ValidateInputHash;
+
+		// note: intentionally never serializing the following fields:
+		// - PreprocessTime - it is always set in the cooker since we no longer run preprocessing in SCW
+		// - bSupportsQueryingUsedAttributes - only used when compiling pipelines by subsequent stage compile steps, these are always executed in order in a single SCW job invocation
+		// - UsedAttributes - as above
 
 		return Ar;
 	}

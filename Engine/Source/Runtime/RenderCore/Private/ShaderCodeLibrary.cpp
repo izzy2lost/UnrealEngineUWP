@@ -1417,7 +1417,7 @@ struct FEditorShaderCodeArchive
 
 		if (SerializedShaders.FindOrAddShaderMap(Code->ResourceHash, ShaderMapIndex, &AssociatedAssets))
 		{
-			const int32 NumShaders = Code->ShaderEntries.Num();
+			const int32 NumShaders = Code->ShaderCodeResources.Num();
 			FShaderMapEntry& ShaderMapEntry = SerializedShaders.ShaderMapEntries[ShaderMapIndex];
 			ShaderMapEntry.NumShaders = NumShaders;
 			ShaderMapEntry.ShaderIndicesOffset = SerializedShaders.ShaderIndices.AddZeroed(NumShaders);
@@ -1427,25 +1427,25 @@ struct FEditorShaderCodeArchive
 				int32 ShaderIndex = INDEX_NONE;
 				if (SerializedShaders.FindOrAddShader(Code->ShaderHashes[i], ShaderIndex))
 				{
-					const FShaderMapResourceCode::FShaderEntry& SourceShaderEntry = Code->ShaderEntries[i];
+					const FShaderCodeResource& SourceShaderResource = Code->ShaderCodeResources[i];
 					FShaderCodeEntry& SerializedShaderEntry = SerializedShaders.ShaderEntries[ShaderIndex];
-					SerializedShaderEntry.Frequency = SourceShaderEntry.Frequency;
-					SerializedShaderEntry.Size = SourceShaderEntry.Code.Num();
-					SerializedShaderEntry.UncompressedSize = SourceShaderEntry.UncompressedSize;
-					check(!SourceShaderEntry.Code.IsEmpty());
-					ShaderCode.Add(SourceShaderEntry.Code);
+					SerializedShaderEntry.Frequency = SourceShaderResource.Frequency;
+					SerializedShaderEntry.Size = SourceShaderResource.Code.Num();
+					SerializedShaderEntry.UncompressedSize = SourceShaderResource.UncompressedSize;
+					check(!SourceShaderResource.Code.IsEmpty());
+					ShaderCode.Add(SourceShaderResource.Code);
 					check(ShaderCode.Num() == SerializedShaders.ShaderEntries.Num());
 
 					CodeStats.NumUniqueShaders++;
-					CodeStats.ShadersUniqueSize += SourceShaderEntry.Code.Num();
+					CodeStats.ShadersUniqueSize += SourceShaderResource.Code.Num();
 				}
-				CodeStats.ShadersSize += Code->ShaderEntries[i].Code.Num();
+				CodeStats.ShadersSize += Code->ShaderCodeResources[i].Code.Num();
 				SerializedShaders.ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i] = ShaderIndex;
 			}
 
 			// for total shaders, only count shaders when we're adding a new shadermap. AddShaderCode() for the same shadermap can be called several times during
 			// the cook because of serialization path being reused for other purposes than actual saving, so counting them every time artificially inflates number of shaders.
-			CodeStats.NumShaders += Code->ShaderEntries.Num();
+			CodeStats.NumShaders += Code->ShaderCodeResources.Num();
 			CodeStats.NumShaderMaps++;
 		}
 		// always mark the shadermap dirty, because it might have gotten new asset associations

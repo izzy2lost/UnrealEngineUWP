@@ -344,7 +344,8 @@ void FNiagaraShaderScript::SerializeShaderMap(FArchive& Ar)
 				{
 					GameThreadShaderMap->AssociateWithAsset(BaseVMScript->GetOutermost()->GetFName());
 				}
-				GameThreadShaderMap->Serialize(Ar, FShaderMapBase::FSerializationContext{});
+				FShaderSerializeContext Ctx(Ar);
+				GameThreadShaderMap->Serialize(Ctx);
 			}
 			//else if (GameThreadShaderMap != nullptr && !GameThreadShaderMap->CompiledSuccessfully())
 			//{
@@ -361,7 +362,9 @@ void FNiagaraShaderScript::SerializeShaderMap(FArchive& Ar)
 			if (bValid)
 			{
 				FNiagaraShaderMapRef LoadedShaderMap = new FNiagaraShaderMap();
-				bool bLoaded = LoadedShaderMap->Serialize(Ar, FShaderMapBase::FSerializationContext{ /*bLoadedByCookedMaterial*/ true });
+				FShaderSerializeContext Ctx(Ar);
+				Ctx.bLoadingCooked = true;
+				bool bLoaded = LoadedShaderMap->Serialize(Ctx);
 
 				// Toss the loaded shader data if this is a server only instance
 				//@todo - don't cook it in the first place

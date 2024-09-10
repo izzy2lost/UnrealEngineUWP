@@ -1540,7 +1540,8 @@ void FMaterial::SerializeInlineShaderMap(FArchive& Ar, const FName& SerializingA
 
 			if (bValid)
 			{
-				GameThreadShaderMap->Serialize(Ar, FShaderMapBase::FSerializationContext{});
+				FShaderSerializeContext Ctx{ Ar };
+				GameThreadShaderMap->Serialize(Ctx);
 			}
 			else
 			{
@@ -1562,7 +1563,10 @@ void FMaterial::SerializeInlineShaderMap(FArchive& Ar, const FName& SerializingA
 			if (bValid)
 			{
 				TRefCountPtr<FMaterialShaderMap> LoadedShaderMap = new FMaterialShaderMap();
-				if (LoadedShaderMap->Serialize(Ar, FShaderMapBase::FSerializationContext{ bCooked && Ar.IsLoading(), SerializingAsset }))
+				FShaderSerializeContext Ctx(Ar);
+				Ctx.bLoadingCooked = bCooked && Ar.IsLoading();
+				Ctx.SerializingAsset = SerializingAsset;
+				if (LoadedShaderMap->Serialize(Ctx))
 				{
 					GameThreadShaderMap = MoveTemp(LoadedShaderMap);
 					GameThreadShaderMap->GetResource()->SetOwnerName(GetOwnerFName());
@@ -1579,7 +1583,7 @@ void FMaterial::SerializeInlineShaderMap(FArchive& Ar, const FName& SerializingA
 	}
 }
 
-void FMaterial::RegisterInlineShaderMap(bool bLoadedByCookedMaterial)
+void FMaterial::RegisterInlineShaderMap(bool bLoadingCooked)
 {
 	if (GameThreadShaderMap)
 	{

@@ -546,9 +546,9 @@ void FNiagaraShaderMap::LoadFromDerivedDataCache(const FNiagaraShaderScript* Scr
 				COOK_STAT(Timer.AddHit(CachedData.Num()));
 				InOutShaderMap = new FNiagaraShaderMap();
 				FMemoryReader Ar(CachedData, true);
-
+				FShaderSerializeContext Ctx(Ar);
 				// Deserialize from the cached data
-				if (InOutShaderMap->Serialize(Ar, FShaderMapBase::FSerializationContext{}))
+				if (InOutShaderMap->Serialize(Ctx))
 				{
 					check(InOutShaderMap->GetShaderMapId() == ShaderMapId);
 
@@ -578,7 +578,8 @@ void FNiagaraShaderMap::SaveToDerivedDataCache(const FNiagaraShaderScript* Scrip
 	COOK_STAT(auto Timer = NiagaraShaderCookStats::UsageStats.TimeSyncWork());
 	TArray<uint8> SaveData;
 	FMemoryWriter Ar(SaveData, true);
-	Serialize(Ar, FShaderMapBase::FSerializationContext{});
+	FShaderSerializeContext Ctx(Ar);
+	Serialize(Ctx);
 
 	GetDerivedDataCacheRef().Put(*GetNiagaraShaderMapKeyString(GetContent()->ShaderMapId, GetShaderPlatform()), SaveData, Script ? Script->GetFriendlyName() : TEXT(""));
 	COOK_STAT(Timer.AddMiss(SaveData.Num()));
@@ -1057,12 +1058,12 @@ FNiagaraShaderMap::~FNiagaraShaderMap()
 	check(!bRegistered);
 }
 
-bool FNiagaraShaderMap::Serialize(FArchive& Ar, const FShaderMapBase::FSerializationContext& Ctx)
+bool FNiagaraShaderMap::Serialize(FShaderSerializeContext& Ctx)
 {
 	// Note: This is saved to the DDC, not into packages (except when cooked)
 	// Backwards compatibility therefore will not work based on the version of Ar
 	// Instead, just bump NIAGARASHADERMAP_DERIVEDDATA_VER
-	return Super::Serialize(Ar, Ctx);
+	return Super::Serialize(Ctx);
 }
 
 #if WITH_EDITOR

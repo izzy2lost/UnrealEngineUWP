@@ -671,7 +671,8 @@ bool FComputeKernelShaderMap::Serialize(FArchive& Ar)
 	// Note: This is saved to the DDC, not into packages (except when cooked)
 	// Backwards compatibility therefore will not work based on the version of Ar
 	// Instead, just bump COMPUTEKERNEL_DERIVEDDATA_VER
-	return Super::Serialize(Ar, {});
+	FShaderSerializeContext Ctx(Ar);
+	return Super::Serialize(Ctx);
 }
 
 #if WITH_EDITOR

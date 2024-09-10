@@ -33,6 +33,9 @@ class FShaderUniformBufferParameter;
 class FVertexFactoryType;
 class ITargetPlatform;
 struct FShaderCompilerEnvironment;
+#if WITH_EDITOR
+struct FShaderCacheLoadContext;
+#endif
 
 /** Used to identify the global shader map in compile queues. */
 extern RENDERCORE_API const int32 GlobalShaderMapId;
@@ -180,7 +183,17 @@ class FGlobalShaderMapSection : public TShaderMap<FGlobalShaderMapContent, FShad
 public:
 	RENDERCORE_API static FGlobalShaderMapSection* CreateFromArchive(FArchive& Ar);
 
-	RENDERCORE_API bool Serialize(FArchive& Ar);
+#if WITH_EDITOR
+	RENDERCORE_API static FGlobalShaderMapSection* CreateFromCache(FShaderCacheLoadContext& Ctx);
+#endif
+
+	UE_DEPRECATED(5.5, "Use overload accepting a FShaderSerializeContext instead")
+	RENDERCORE_API bool Serialize(FArchive& Ar)
+	{
+		return false;
+	}
+
+	RENDERCORE_API bool Serialize(FShaderSerializeContext& Ctx);
 	RENDERCORE_API virtual void GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const override;
 	RENDERCORE_API virtual void GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const override;
 private:

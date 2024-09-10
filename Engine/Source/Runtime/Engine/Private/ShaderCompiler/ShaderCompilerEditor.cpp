@@ -24,6 +24,7 @@
 #include "ProfilingDebugging/StallDetector.h"
 #include "Serialization/NameAsStringProxyArchive.h"
 #include "ShaderDiagnostics.h"
+#include "ShaderSerialization.h"
 #include "UObject/Linker.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectIterator.h"
@@ -542,8 +543,7 @@ static void SaveGlobalShaderMapToDerivedDataCache(EShaderPlatform Platform)
 	COOK_STAT(auto Timer = GlobalShaderCookStats::UsageStats.TimeSyncWork());
 
 	const ITargetPlatform* TargetPlatform = GGlobalShaderTargetPlatform[Platform];
-	TArray<uint8> SaveData;
-
+	FShaderCacheSaveContext Ctx;
 	FGlobalShaderMapId ShaderMapId(Platform, TargetPlatform);
 	// caller should prevent incomplete shadermaps to be saved
 	FGlobalShaderMap* GlobalSM = GetGlobalShaderMap(Platform);
@@ -554,19 +554,19 @@ static void SaveGlobalShaderMapToDerivedDataCache(EShaderPlatform Platform)
 		{
 			Section->FinalizeContent();
 
-			SaveData.Reset();
-			FMemoryWriter Ar(SaveData, true);
-			Section->Serialize(Ar);
-			COOK_STAT(Timer.AddMiss(SaveData.Num()));
+			// reuse serialize context, internal allocations will be kept so this minimizes heap alloc churn
+			Ctx.Reset();
+
+			Section->Serialize(Ctx);
+			COOK_STAT(Timer.AddMiss(Ctx.GetSerializedSize()));
 
 			using namespace UE::DerivedData;
-			FCachePutValueRequest Request;
-			Request.Name = GetGlobalShaderMapName(ShaderMapId, Platform, ShaderFilenameDependencies.Key);
-			Request.Key = GetGlobalShaderMapKey(ShaderMapId, Platform, TargetPlatform, ShaderFilenameDependencies.Value);
-			Request.Value = FValue::Compress(MakeSharedBufferFromArray(MoveTemp(SaveData)));
+			UE::FSharedString Name = GetGlobalShaderMapName(ShaderMapId, Platform, ShaderFilenameDependencies.Key);
+			FCacheKey Key = GetGlobalShaderMapKey(ShaderMapId, Platform, TargetPlatform, ShaderFilenameDependencies.Value);
+
 			FRequestOwner AsyncOwner(EPriority::Normal);
 			FRequestBarrier AsyncBarrier(AsyncOwner);
-			GetCache().PutValue({ Request }, AsyncOwner);
+			GetCache().Put({ { Name, Ctx.BuildCacheRecord(Key) } }, AsyncOwner);
 			AsyncOwner.KeepAlive();
 		}
 	}

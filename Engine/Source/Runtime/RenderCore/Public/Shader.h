@@ -45,6 +45,7 @@
 #include "ShaderParameterMetadata.h"
 #include "ShaderParameters.h"
 #include "ShaderPermutation.h"
+#include "ShaderSerialization.h"
 #include "Templates/RefCounting.h"
 #include "Templates/TypeHash.h"
 #include "Templates/UniquePtr.h"
@@ -479,7 +480,7 @@ private:
 class FShaderMapResourceCode : public FThreadSafeRefCountedObject
 {
 public:
-	struct FShaderEntry
+	struct UE_DEPRECATED(5.5, "Use FShaderCodeResource") FShaderEntry
 	{
 		TArray<uint8> Code;
 		int32 UncompressedSize;
@@ -526,7 +527,15 @@ public:
 
 	RENDERCORE_API void Finalize();
 
-	RENDERCORE_API void Serialize(FArchive& Ar, bool bLoadedByCookedMaterial);
+	UE_DEPRECATED(5.5, "Use overload accepting an FShaderSerializeContext object")
+		void Serialize(FArchive& Ar, bool bLoadingCooked)
+	{
+		FShaderSerializeContext Ctx(Ar);
+		Ctx.bLoadingCooked = bLoadingCooked;
+		Serialize(Ctx);
+	}
+
+	RENDERCORE_API void Serialize(FShaderSerializeContext& Ctx);
 #if WITH_EDITORONLY_DATA
 	RENDERCORE_API void NotifyShadersCompiled(FName FormatName);
 #endif // WITH_EDITORONLY_DATA
@@ -549,7 +558,13 @@ public:
 	/** A hash describing the total contents of *this. Constructed from the contents of ShaderHashes during Finalize. */
 	FSHAHash ResourceHash;
 	TArray<FSHAHash> ShaderHashes;
+
+	UE_DEPRECATED(5.5, "Use ShaderCodeResources") 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TArray<FShaderEntry> ShaderEntries;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	TArray<FShaderCodeResource> ShaderCodeResources;
 #if WITH_EDITORONLY_DATA
 	// Optional array of editor-only data indexed in the same order as ShaderEntries (sorted by the shader hash)
 	// Empty in the cases where the editor-only data is not serialized.
@@ -566,7 +581,7 @@ class FShaderMapResource_InlineCode : public FShaderMapResource
 {
 public:
 	FShaderMapResource_InlineCode(EShaderPlatform InPlatform, FShaderMapResourceCode* InCode)
-		: FShaderMapResource(InPlatform, InCode->ShaderEntries.Num())
+		: FShaderMapResource(InPlatform, InCode->ShaderCodeResources.Num())
 		, Code(InCode)
 	{}
 
@@ -1617,7 +1632,7 @@ struct FShaderCompiledShaderInitializerType
 	const FShaderType* Type;
 	const FShaderType::FParameters* Parameters;
 	FShaderTarget Target;
-	const TArray<uint8>& Code;
+	TArrayView<const uint8> Code;
 	const FShaderParameterMap& ParameterMap;
 	const FSHAHash& OutputHash;
 	FSHAHash MaterialShaderMapHash;
@@ -2392,18 +2407,16 @@ public:
 
 	RENDERCORE_API void FinalizeContent();
 	RENDERCORE_API void UnfreezeContent();
-	UE_DEPRECATED(5.5, "Inlining of shader code into shadermaps is no longer supported. If you rely on this please reach out to the UE rendering team.")
-	RENDERCORE_API bool Serialize(FArchive& Ar, bool bInlineShaderResources, bool bLoadedByCookedMaterial, bool bInlineShaderCode = false, const FName& SerializingAsset = NAME_None)
+	UE_DEPRECATED(5.5, "Please use overload accepting an FShaderSerializeContext. Note that inlining of shader code into runtime shadermaps is no longer supported. If you rely on this please reach out to the UE rendering team.")
+	RENDERCORE_API bool Serialize(FArchive& Ar, bool bInlineShaderResources, bool bLoadingCooked, bool bInlineShaderCode = false, const FName& SerializingAsset = NAME_None)
 	{
-		return Serialize(Ar, { bLoadedByCookedMaterial, SerializingAsset });
+		FShaderSerializeContext Ctx(Ar);
+		Ctx.bLoadingCooked = bLoadingCooked;
+		Ctx.SerializingAsset = SerializingAsset;
+		return Serialize(Ctx);
 	}
 
-	struct FSerializationContext
-	{
-		bool bLoadedByCookedMaterial = false;
-		FName SerializingAsset = NAME_None;
-	};
-	RENDERCORE_API bool Serialize(FArchive& Ar, const FSerializationContext& Ctx);
+	RENDERCORE_API bool Serialize(FShaderSerializeContext& Ctx);
 
 	EShaderPermutationFlags GetPermutationFlags() const
 	{

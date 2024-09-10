@@ -235,8 +235,9 @@ void FShaderMapBase::UnfreezeContent()
 
 #define CHECK_SHADERMAP_DEPENDENCIES (WITH_EDITOR || !(UE_BUILD_SHIPPING || UE_BUILD_TEST))
 
-bool FShaderMapBase::Serialize(FArchive& Ar, const FSerializationContext& Ctx)
+bool FShaderMapBase::Serialize(FShaderSerializeContext& Ctx)
 {
+	FArchive& Ar = Ctx.GetMainArchive();
 	LLM_SCOPE(ELLMTag::Shaders);
 	if (Ar.IsSaving())
 	{
@@ -288,10 +289,10 @@ bool FShaderMapBase::Serialize(FArchive& Ar, const FSerializationContext& Ctx)
 			Ar << ResourceHash;
 			FShaderLibraryCooker::AddShaderCode(ShaderPlatform, Code, GetAssociatedAssets());
 		}
-		else
+		else 
 #endif // WITH_EDITOR
 		{
-			Code->Serialize(Ar, Ctx.bLoadedByCookedMaterial);
+			Code->Serialize(Ctx);
 		}
 	}
 	else
@@ -331,7 +332,7 @@ bool FShaderMapBase::Serialize(FArchive& Ar, const FSerializationContext& Ctx)
 		else
 		{
 			Code = new FShaderMapResourceCode();
-			Code->Serialize(Ar, Ctx.bLoadedByCookedMaterial);
+			Code->Serialize(Ctx);
 			Resource = new FShaderMapResource_InlineCode(ShaderPlatform, Code);
 		}
 
