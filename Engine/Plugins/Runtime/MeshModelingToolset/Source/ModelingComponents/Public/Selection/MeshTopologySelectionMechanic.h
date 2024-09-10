@@ -164,6 +164,11 @@ public:
 	void SetIsEnabled(bool bOn);
 
 	/**
+	 * Update the location of the mesh after Initialize()
+	 */
+	void SetTransform(const FTransform3d& InTargetTransform);
+
+	/**
 	 * Sets how/when the selection updates are handled.
 	 */
 	void SetMarqueeSelectionUpdateType(EMarqueeSelectionUpdateType InType);
@@ -277,6 +282,7 @@ public:
 	void GrowSelection();
 	void ShrinkSelection();
 	void FloodSelection();
+	void ConvertSelectionToBorder();
 
 	/** 
 	 * @return true if the current selection is non-empty 

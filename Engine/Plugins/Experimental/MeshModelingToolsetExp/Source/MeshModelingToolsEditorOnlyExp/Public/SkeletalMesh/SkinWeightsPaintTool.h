@@ -26,6 +26,7 @@ struct FMeshDescription;
 class USkinWeightsPaintTool;
 class UPolygonSelectionMechanic;
 class UPersonaEditorModeManagerContext;
+class FEditorViewportClient;
 
 namespace UE::Geometry 
 {
@@ -53,6 +54,14 @@ enum class EComponentSelectionMode : uint8
 	Vertices,
 	Edges,
 	Faces
+};
+
+// weight transfers happen between a source and target
+UENUM()
+enum class EMeshTransferOption : uint8
+{
+	Source,
+	Target,
 };
 
 // weight color mode
@@ -307,6 +316,8 @@ namespace SkinPaintTool
 		TMap<int32, int32> BoneMap;
 		TMap<int32, int32> VertexMap; // <Target, Source>
 	};
+
+	
 }
 
 UCLASS()
@@ -413,9 +424,9 @@ public:
 	FSkinWeightBrushConfig BrushConfigRelax;
 
 	// skin weight layer properties
-	UPROPERTY(EditAnywhere, Category = SkinWeightLayer, meta = (DisplayName = "Active LOD", GetOptions = GetLODsFunc))
+	UPROPERTY(EditAnywhere, Category = SkinWeightLayer, meta = (DisplayName = "Active LOD", GetOptions = GetTargetLODsFunc))
 	FName ActiveLOD = "LOD0";
-	UPROPERTY(EditAnywhere, Category = SkinWeightLayer, meta = (DisplayName = "Active Profile", GetOptions = GetSkinWeightProfilesFunc))
+	UPROPERTY(EditAnywhere, Category = SkinWeightLayer, meta = (DisplayName = "Active Profile", GetOptions = GetTargetSkinWeightProfilesFunc))
 	FName ActiveSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
 	
 	// new profile properties
@@ -436,29 +447,165 @@ public:
 	void SetBrushMode(EWeightEditOperation InBrushMode);
 
 	// transfer
-	UPROPERTY(EditAnywhere, Transient, Category = WeightTransfer)
+	UPROPERTY(EditAnywhere, Transient, Category = "WeightTransfer")
 	TWeakObjectPtr<USkeletalMesh> SourceSkeletalMesh;
-	
-	UPROPERTY(EditAnywhere, Category = "WeightTransfer|SkinWeightLayer", meta = (GetOptions = GetSourceLODsFunc))
+	UPROPERTY(EditAnywhere, Transient, Category = "WeightTransfer")
+	EMeshTransferOption MeshSelectMode = EMeshTransferOption::Target;
+	UPROPERTY(EditAnywhere, Category = "WeightTransfer", meta = (GetOptions = GetSourceLODsFunc))
 	FName SourceLOD = "LOD0";
-	
-	UPROPERTY(EditAnywhere, Category = "WeightTransfer|SkinWeightLayer", meta = (DisplayName = "Source Profile", GetOptions = GetSourceSkinWeightProfilesFunc))
+	UPROPERTY(EditAnywhere, Category = "WeightTransfer", meta = (DisplayName = "Source Profile", GetOptions = GetSourceSkinWeightProfilesFunc))
 	FName SourceSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
-	
-	UPROPERTY(EditAnywhere, Transient, Category = "WeightTransfer|Preview")
+	UPROPERTY(EditAnywhere, Transient, Category = "WeightTransfer")
 	FTransform SourcePreviewOffset = FTransform::Identity;
 	
 private:
-	
 	UFUNCTION()
-	TArray<FName> GetLODsFunc() const;
+	TArray<FName> GetTargetLODsFunc() const;
 	UFUNCTION()
-	TArray<FName> GetSkinWeightProfilesFunc() const;
-
+	TArray<FName> GetTargetSkinWeightProfilesFunc() const;
 	UFUNCTION()
 	TArray<FName> GetSourceLODsFunc() const;
 	UFUNCTION()
 	TArray<FName> GetSourceSkinWeightProfilesFunc() const;
+};
+
+// this class wraps the all the components to enable selection on a single mesh in the skin weights tool
+// this allows us to make selections on multiple different meshes
+// NOTE: at some point we may want to do component selections on multiple meshes in any/all viewports
+// at which time this class should be centralized and renamed to UMeshSelector or something like that.
+// But there will need to be some sort of centralized facility to manage that and make sure it interacts nicely with other tools.
+UCLASS()
+class MESHMODELINGTOOLSEDITORONLYEXP_API UWeightToolMeshSelector : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	// must be called during the Setup of the parent tool
+	void InitialSetup(
+		UWorld* InWorld,
+		UInteractiveTool* InParentTool,
+		FEditorViewportClient* InViewportClient,
+		TFunction<void()> OnSelectionChangedFunc);
+
+	// must be called AFTER InitialSetup, and any time the mesh is changed
+	// passing in a null preview mesh will disable the selector
+	void SetMesh(
+		UPreviewMesh* InMesh,
+		const FMeshDescription* InMeshDescription,
+		const FTransform3d& InMeshTransform);
+	
+	void UpdateAfterMeshDeformation();
+	
+	void Shutdown();
+
+	void SetIsEnabled(bool bIsEnabled);
+	void SetComponentSelectionMode(EComponentSelectionMode InMode);
+	void SetTransform(const FTransform3d& InTargetTransform);
+
+	// viewport 
+	void DrawHUD(FCanvas* Canvas, IToolsContextRenderAPI* RenderAPI);
+	void Render(IToolsContextRenderAPI* RenderAPI);
+
+	// get a list of currently selected vertices (converting edges and faces to vertices)
+	const TArray<int32>& GetSelectedVertices();
+	bool IsAnyComponentSelected() const;
+	void GetSelectedTriangles(TArray<int32>& OutTriangleIndices) const;
+
+	// edit selection
+	void GrowSelection() const;
+	void ShrinkSelection() const;
+	void FloodSelection() const;
+	void SelectBorder() const;
+
+	// get access to the selection mechanic
+	UPolygonSelectionMechanic* GetSelectionMechanic() { return PolygonSelectionMechanic; };
+
+private:
+
+	UPROPERTY()
+	TObjectPtr<UInteractiveTool> ParentTool;
+	UPROPERTY()
+	TObjectPtr<UWorld> World;
+	FEditorViewportClient* ViewportClient;
+	UPROPERTY()
+	TObjectPtr<UPreviewMesh> PreviewMesh;
+	FMeshDescription MeshDescription;
+	UPROPERTY()
+	TObjectPtr<UPolygonSelectionMechanic> PolygonSelectionMechanic;
+	
+	TUniquePtr<UE::Geometry::FDynamicMeshAABBTree3> MeshSpatial = nullptr;
+	TUniquePtr<UE::Geometry::FTriangleGroupTopology> SelectionTopology = nullptr;
+	
+	TArray<VertexIndex> SelectedVerticesInternal;
+};
+
+// this class wraps a source skeletal mesh used to transfer skin weights to the tool target mesh
+UCLASS()
+class MESHMODELINGTOOLSEDITORONLYEXP_API UWeightToolTransferManager : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	// this must be called from within the parent tool's Setup() so that the selection mechanics are registered for capturing input
+	void InitialSetup(USkinWeightsPaintTool* InWeightTool, FEditorViewportClient* InViewportClient);
+	
+	// called when the tool is shutdown
+	void Shutdown();
+
+	// render the selection mechanism
+	void Render(IToolsContextRenderAPI* RenderAPI);
+	void DrawHUD(FCanvas* Canvas, IToolsContextRenderAPI* RenderAPI);
+
+	// update the mesh we are transferring from
+	void SetSourceMesh(USkeletalMesh* InSkeletalMesh = nullptr);
+
+	// change which mesh we are selecting (either source or target) and update visibilty
+	void UpdateSelectionAndVisibility() const;
+
+	// run the weight transfer
+	void TransferWeights();
+
+	// returns true if everything is setup and ready to transfer
+	bool CanTransferWeights() const;
+	
+	// gets the tool target for the source mesh
+	UToolTarget* GetTarget() const { return SourceTarget; }
+
+	// get the preview mesh for the source mesh
+	UPreviewMesh* GetPreviewMesh() const { return SourcePreviewMesh; };
+	
+	// get the mesh selector for the source mesh
+	UWeightToolMeshSelector* GetMeshSelector() const { return MeshSelector; };
+	
+	// called when tool settings are modified
+	void OnPropertyModified(const USkinWeightsPaintToolProperties* WeightToolProperties, const FProperty* ModifiedProperty);
+
+private:
+	
+	// actually run the weight transfer to copy weights from the source to the target
+	void TransferWeightsFromOtherMesh();
+
+	// actually run the weight transfer to copy weights from the source to the target
+	void TransferWeightsFromSameMeshAndLOD();
+
+	void ApplyTranferredWeightsAsTransaction(
+		const UE::Geometry::FDynamicMeshVertexSkinWeightsAttribute* TransferredSkinWeights,
+		const TArray<int32>& VertexSubset,
+		FDynamicMesh3& TargetMesh);
+	
+	USkinWeightsPaintToolProperties* GetToolProperties() const;
+	
+	UPROPERTY()
+	TObjectPtr<UPreviewMesh> SourcePreviewMesh = nullptr;
+	UPROPERTY()
+	TObjectPtr<USkeletalMesh> SourceSkeletalMesh = nullptr;
+	UPROPERTY()
+	TObjectPtr<UToolTarget> SourceTarget = nullptr;
+	UPROPERTY()
+	TObjectPtr<UWeightToolMeshSelector> MeshSelector;
+	TWeakObjectPtr<USkinWeightsPaintTool> WeightTool;
 };
 
 // An interactive tool for painting and editing skin weights.
@@ -507,8 +654,6 @@ public:
 	void AverageWeights(const float Strength);
 	void NormalizeWeights();
 	void HammerWeights();
-	void TransferWeights();
-	bool CanTransferWeights() const;
 
 	// copy paste
 	void CopyWeights();
@@ -526,24 +671,20 @@ public:
 
 	// toggle brush / selection mode
 	void ToggleEditingMode();
+	void UpdateComponentSelectionMode() const;
 
-	// edit selection
-	void SetComponentSelectionMode(EComponentSelectionMode InMode);
-	void GrowSelection() const;
-	void ShrinkSelection() const;
-	void FloodSelection() const;
+	// get access to the mesh selector for the main mesh
+	UWeightToolMeshSelector* GetMainMeshSelector();
+	// get access to the currently active mesh selector (may be on the transfer source mesh)
+	UWeightToolMeshSelector* GetActiveMeshSelector();
+	// does the main mesh have an active selection ("active" meaning the selection is currently being rendered in the view and is editable)
+	bool HasActiveSelectionOnMainMesh();
+	// select all vertices affected by the currently selected bone(s)
 	void SelectAffected() const;
-	void SelectBorder() const;
+	
 	// isolate selection
-	bool IsAnyComponentSelected() const;
 	bool IsSelectionIsolated() const;
 	void SetIsolateSelected(const bool bIsolateSelection);
-
-	// get a list of currently selected vertices (converting edges and faces to vertices)
-	const TArray<int32>& GetSelectedVertices();
-	bool HasSelectedVertices() const { return !SelectedVerticesInternal.IsEmpty(); };
-	void GetVerticesAffectedByBone(BoneIndex IndexOfBone, TSet<int32>& OutVertexIndices) const;
-	void GetSelectedTriangles(TArray<int32>& OutTriangleIndices) const;
 
 	// get the average weight value of each influence on the given vertices
 	void GetInfluences(const TArray<int32>& VertexIndices, TArray<BoneIndex>& OutBoneIndices);
@@ -553,11 +694,25 @@ public:
 	FName GetBoneNameFromIndex(BoneIndex InIndex) const;
 	// get the currently selected bone
 	BoneIndex GetCurrentBoneIndex() const;
+	// get a list of vertices affected by the given bone
+	void GetVerticesAffectedByBone(BoneIndex IndexOfBone, TSet<int32>& OutVertexIndices) const;
 
 	// toggle the display of weights on the preview mesh (if false, uses the normal skeletal mesh material)
 	void SetDisplayVertexColors(bool bShowVertexColors=true);
 	// set focus back to viewport so that hotkeys are immediately detected while hovering
 	void SetFocusInViewport() const;
+
+	// get the target manager (cached from Setup)
+	UToolTargetManager* GetTargetManager() const { return TargetManager.Get(); };
+
+	// allows outside systems to access the weight data
+	SkinPaintTool::FSkinToolWeights& GetWeights() { return Weights; };
+
+	// get access to the weight tranfer system
+	UWeightToolTransferManager* GetWeightTransferManager() const { return TransferManager; };
+
+	// get the viewport this tool is operating in
+	FEditorViewportClient* GetViewportClient() const;
 
 	// HOW TO EDIT WEIGHTS WITH UNDO/REDO:
 	//
@@ -565,7 +720,7 @@ public:
 	// For multiple weight editing operations that need to be grouped into a single transaction, like dragging a slider or
 	// dragging a brush, you must call:
 	//  1. BeginChange()
-	//  2. ApplyWeightEditsToMeshMidChange() (this may be called multiple times)
+	//  2. ApplyWeightEditsWithoutTransaction() (this may be called multiple times)
 	//  2. EndChange()
 	// All the edits are stored into the "ActiveChange" and applied as a single transaction in EndChange().
 	// Deformations and vertex colors will be updated throughout the duration of the change.
@@ -584,9 +739,6 @@ public:
 	// called whenever the weights are modified
 	DECLARE_MULTICAST_DELEGATE(FOnWeightsChanged);
 	FOnWeightsChanged OnWeightsChanged;
-
-	// gets the current source target
-	UToolTarget* GetSourceTarget() const { return SourceTarget; }
 
 protected:
 
@@ -660,7 +812,7 @@ protected:
 	// isolate selection sub-meshes
 	UE::Geometry::FDynamicSubmesh3 PartialSubMesh;
 	UE::Geometry::FDynamicMesh3 FullDynamicMesh;
-	//
+	// convert to/from partial-isolated and full mesh vertex indices
 	int32 PartialToFullMeshVertexIndex(int32 PartialMeshVertexIndex) const;
 	int32 FullToPartialMeshVertexIndex(int32 FullMeshVertexIndex) const;
 
@@ -709,13 +861,9 @@ protected:
 	// ISkeletalMeshEditionInterface
 	virtual void HandleSkeletalMeshModified(const TArray<FName>& InBoneNames, const ESkeletalMeshNotifyType InNotifyType) override;
 
-	// polygon selection mechanic
+	// the selection system for the main mesh
 	UPROPERTY()
-	TObjectPtr<UPolygonSelectionMechanic> PolygonSelectionMechanic;
-	TUniquePtr<UE::Geometry::FDynamicMeshAABBTree3> MeshSpatial = nullptr;
-	TUniquePtr<UE::Geometry::FTriangleGroupTopology> SelectionTopology = nullptr;
-	void InitializeSelectionMechanic();
-	TArray<VertexIndex> SelectedVerticesInternal;
+	TObjectPtr<UWeightToolMeshSelector> MeshSelector;
 
 	// skin weight layer
 	void OnActiveLODChanged();
@@ -731,13 +879,9 @@ protected:
 	UPROPERTY()
 	TWeakObjectPtr<UToolTargetManager> TargetManager = nullptr;
 
-	// skin weights transfer properties
+	// manages transferring skin weights from a separate mesh
 	UPROPERTY()
-	TObjectPtr<UPreviewMesh> SourcePreviewMesh = nullptr;
-	UPROPERTY()
-	TObjectPtr<UToolTarget> SourceTarget = nullptr;
-
-	void ResetSourceForTransfer(USkeletalMesh* InSkeletalMesh = nullptr);
+	TObjectPtr<UWeightToolTransferManager> TransferManager = nullptr;
 	
 	// editor state to restore when exiting the paint tool
 	FString PreviewProfileToRestore;
