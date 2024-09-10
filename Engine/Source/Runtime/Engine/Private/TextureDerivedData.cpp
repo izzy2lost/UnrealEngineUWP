@@ -497,6 +497,13 @@ void GetTextureDerivedDataKeySuffix(const UTexture& Texture, const FTextureBuild
 		KeyBuilder.Appendf(TEXT("VT%s_"), TEXTURE_VT_DERIVEDDATA_VER);
 	}
 
+	if ( Texture.Source.GetNumBlocks() > 1 && Texture.Source.CalcMipOffset(0,0,0) != 0 )
+	{
+		// bug introduced in CL 32770500 4/5/2024 , incorrectly assumed CalcMipOffset(0,0,0) == 0
+		// fix 09/10/2024
+		KeyBuilder.Appendf(TEXT("UDIMOffsetBug_"));
+	}
+
 #if PLATFORM_CPU_ARM_FAMILY
 	// Separate out arm keys as x64 and arm64 clang do not generate the same data for a given
 	// input. Add the arm specifically so that a) we avoid rebuilding the current DDC and
