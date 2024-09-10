@@ -57,8 +57,7 @@ public class LiveLinkHubEditorTarget : TargetRules
 			"AppleARKitFaceSupport",
 			"XInputDevice",
 
-			"LiveLinkXR",
-			"OpenXRViveTracker",
+			"LiveLinkOpenVR",
 		});
 
 		if (bEnableCaptureManagerPlugin)
@@ -102,17 +101,21 @@ public class LiveLinkHubEditorTarget : TargetRules
 		}
 
 		// Copy the target receipt into the project binaries directory.
-		// Prevents "Would you like to build the editor?" prompt on startup
-		// when running with project context.
+		// Prevents "Would you like to build the editor?" prompt on startup when running with project context.
+		//
+		// TODO?: If instead we moved the .uproject out of Engine/Source/Programs and into Engine/Programs, UBT
+		// would correctly(?) pass `-Project=` in the build command. However, in addition to the .target file,
+		// this also results in the executable and a _subset_ of the dependent DLLs ending up ending up in the
+		// project Binaries directory. So for now, we'll keep splitting the difference like this.
 		DirectoryReference ReceiptSrcDir = Unreal.EngineDirectory;
 		DirectoryReference ReceiptDestDir = DirectoryReference.Combine(
 			Unreal.EngineDirectory, "Source", "Programs", "LiveLinkHubEditor");
 
 		FileReference ReceiptSrcPath = TargetReceipt.GetDefaultPath(ReceiptSrcDir, BaseExeName, Platform, Configuration, Architectures);
 		FileReference ReceiptDestPath = TargetReceipt.GetDefaultPath(ReceiptDestDir, BaseExeName, Platform, Configuration, Architectures);
+		DirectoryReference.CreateDirectory(ReceiptDestPath.Directory);
 
 		PostBuildSteps.Add($"echo Copying \"{ReceiptSrcPath}\" to \"{ReceiptDestPath}\"");
-		DirectoryReference.CreateDirectory(ReceiptDestPath.Directory);
 
 		if (Platform == UnrealTargetPlatform.Win64)
 		{
