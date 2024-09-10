@@ -33,4 +33,6 @@ private:
 	TMap<int32, UE::Editor::DataStorage::RowHandle> EntryIndexToHandleMap;
 
 	UE::Editor::DataStorage::QueryHandle InitialColumnQuery;
+
+	TSharedPtr<class ISceneOutliner> TedsOutlinerPtr;
 };
