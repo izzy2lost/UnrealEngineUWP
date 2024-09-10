@@ -859,12 +859,21 @@ void FCompressibleAnimData::FetchData(const ITargetPlatform* InPlatform)
 	{
 		return InLHS.GetName().LexicalLess(InRHS.GetName());
 	});
+
+	// High fidelity codecs wish to see the original raw data where possible
+	const bool bIsHighFidelity = BoneCompressionSettings->IsHighFidelity(*this);
 	
 	// Apply any key reduction if possible
 	if (RawAnimationData.Num())
 	{ 
-		UE::Anim::Compression::CompressAnimationDataTracks(Skeleton, TrackToSkeletonMapTable, RawAnimationData, NumberOfKeys, AnimSequence->GetFName(), -1.f, -1.f);
-		UE::Anim::Compression::CompressAnimationDataTracks(Skeleton, TrackToSkeletonMapTable, RawAnimationData, NumberOfKeys, AnimSequence->GetFName());
+		// Fixup broken data
+		UE::Anim::Compression::CompressAnimationDataTracks(Skeleton, TrackToSkeletonMapTable, RawAnimationData, NumberOfKeys, AnimSequence->GetFName(), -1.f, -1.f, -1.f);
+
+		if (!bIsHighFidelity)
+		{
+			// Low fidelity codecs need some help, sanitize the raw data
+			UE::Anim::Compression::CompressAnimationDataTracks(Skeleton, TrackToSkeletonMapTable, RawAnimationData, NumberOfKeys, AnimSequence->GetFName());
+		}
 	}
 
 	auto IsKeyArrayValidForRemoval = [](const auto& Keys, const auto& IdentityValue) -> bool
@@ -912,7 +921,9 @@ void FCompressibleAnimData::FetchData(const ITargetPlatform* InPlatform)
 			const int32 BoneIndex = RefSkeleton.FindBoneIndex(OriginalTrackNames[TrackIndex]);
 
 			const bool bValidBoneIndex = BoneIndex != INDEX_NONE;
-			const bool bValidAdditiveTrack = !IsRawTrackZeroAdditive(Track);
+
+			// Low fidelity codecs need some help, sanitize the raw data
+			const bool bValidAdditiveTrack = bIsHighFidelity || !IsRawTrackZeroAdditive(Track);
 
 			// Only include track if it contains valid (additive) data and its name corresponds to a bone on the skeleton
 			if ((!bIsAdditiveAnimation || bValidAdditiveTrack) && bValidBoneIndex)

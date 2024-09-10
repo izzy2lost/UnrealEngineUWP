@@ -37,6 +37,9 @@ class UAnimBoneCompressionCodec : public UObject
 	/** Returns whether or not we can use this codec to compress. */
 	virtual bool IsCodecValid() const { return true; }
 
+	/** Returns whether or not this codec is high fidelity. High fidelity codecs requires the original raw data without any sanitizing by the engine. */
+	ENGINE_API virtual bool IsHighFidelity(const FCompressibleAnimData& CompressibleAnimData) const { return false; }
+
 	/** Compresses the curve data from an animation sequence. */
 	ENGINE_API virtual bool Compress(const FCompressibleAnimData& CompressibleAnimData, FCompressibleAnimDataResult& OutResult) PURE_VIRTUAL(UAnimCurveCompressionCodec::Compress, return false;);
 

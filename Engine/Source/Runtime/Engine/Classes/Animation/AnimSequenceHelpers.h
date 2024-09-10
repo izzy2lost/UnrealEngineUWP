@@ -229,7 +229,7 @@ namespace Anim {
 		* @return Whether or not the operation was succesful
 		*/
 		UE_DEPRECATED(5.4, "CompressAnimationDataTracks has been deprecated use other signature with skeleton and bone mappings")
-		ENGINE_API bool CompressAnimationDataTracks(TArray<FRawAnimSequenceTrack>& RawAnimationData, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff = 0.0001f, float MaxAngleDiff = 0.0003f);
+		ENGINE_API bool CompressAnimationDataTracks(TArray<FRawAnimSequenceTrack>& RawAnimationData, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff = 0.0001f, float MaxAngleDiff = 0.0003f, float MaxScaleDiff = 0.0001f);
 
 		/**
 		* Compress the provided tracks using two methods.
@@ -244,7 +244,7 @@ namespace Anim {
 		*
 		* @return Whether or not the operation was succesful
 		*/
-		ENGINE_API bool CompressAnimationDataTracks(const USkeleton* Skeleton, const TArray<FTrackToSkeletonMap>& TrackToSkeleton,TArray<FRawAnimSequenceTrack>& RawAnimationData, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff = 0.0001f, float MaxAngleDiff = 0.0003f);
+		ENGINE_API bool CompressAnimationDataTracks(const USkeleton* Skeleton, const TArray<FTrackToSkeletonMap>& TrackToSkeleton,TArray<FRawAnimSequenceTrack>& RawAnimationData, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff = 0.0001f, float MaxAngleDiff = 0.0003f, float MaxScaleDiff = 0.0001f);
 
 		/**
 		* Compress the provided track by checking for uniform key data according to the provided error metrics
@@ -257,7 +257,22 @@ namespace Anim {
 		*
 		* @return Whether or not the operation was succesful
 		*/
+		UE_DEPRECATED(5.5, "CompressRawAnimSequenceTrack requires the MaxScaleDiff argument")
 		ENGINE_API bool CompressRawAnimSequenceTrack(FRawAnimSequenceTrack& RawTrack, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff, float MaxAngleDiff);
+
+		/**
+		* Compress the provided track by checking for uniform key data according to the provided error metrics
+		*
+		* @param	RawTrack			Individual track to apply the reduction to
+		* @param	NumberOfKeys		Expected number of keys for each component within the tracks
+		* @param	ErrorName			Identifier for outer callsite when failing to reduce the data
+		* @param	MaxPosDiff			Maximum positional delta when determining whether or not two positional keys are identical
+		* @param	MaxAngleDiff		Maximum rotational delta when determining whether or not two rotational keys are identical
+		* @param	MaxScaleDiff		Maximum scale delta when determining whether or not two scale keys are identical
+		*
+		* @return Whether or not the operation was succesful
+		*/
+		ENGINE_API bool CompressRawAnimSequenceTrack(FRawAnimSequenceTrack& RawTrack, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff, float MaxAngleDiff, float MaxScaleDiff);
 
 		/**
 		* Sanitize the provided track by snapping small scale values to 0, and normalizing any rotational keys

@@ -17,4 +17,9 @@ UCLASS()
 class UAnimCompress_LeastDestructive : public UAnimCompress_BitwiseCompressOnly
 {
 	GENERATED_UCLASS_BODY()
+
+#if WITH_EDITORONLY_DATA
+	// Least destructive is high fidelity
+	virtual bool IsHighFidelity(const FCompressibleAnimData& CompressibleAnimData) const override { return true; }
+#endif
 };

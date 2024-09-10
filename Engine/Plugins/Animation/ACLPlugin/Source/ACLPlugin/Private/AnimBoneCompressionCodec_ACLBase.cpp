@@ -76,6 +76,12 @@ UAnimBoneCompressionCodec_ACLBase::UAnimBoneCompressionCodec_ACLBase(const FObje
 }
 
 #if WITH_EDITORONLY_DATA
+bool UAnimBoneCompressionCodec_ACLBase::IsHighFidelity(const FCompressibleAnimData& CompressibleAnimData) const
+{
+	// ACL handles raw data sanitizing internally
+	return true;
+}
+
 static void AppendMaxVertexDistances(USkeletalMesh* OptimizationTarget, TMap<FName, float>& BoneMaxVertexDistanceMap)
 {
 #if (ENGINE_MAJOR_VERSION == 4 && ENGINE_MINOR_VERSION >= 27) || ENGINE_MAJOR_VERSION >= 5
@@ -439,7 +445,7 @@ void UAnimBoneCompressionCodec_ACLBase::PopulateDDCKey(const UE::Anim::Compressi
 {
 	Super::PopulateDDCKey(KeyArgs, Ar);
 
-	uint32 ForceRebuildVersion = 19;
+	uint32 ForceRebuildVersion = 20;
 
 	Ar << ForceRebuildVersion << DefaultVirtualVertexDistance << SafeVirtualVertexDistance << ErrorThreshold;
 	Ar << CompressionLevel;

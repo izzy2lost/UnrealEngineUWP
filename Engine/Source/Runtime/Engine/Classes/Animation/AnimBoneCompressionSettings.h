@@ -49,6 +49,9 @@ class UAnimBoneCompressionSettings : public UObject
 	/** Returns whether or not we can use these settings to compress. */
 	ENGINE_API bool AreSettingsValid() const;
 
+	/** Returns whether or not a codec within is high fidelity. @see UAnimBoneCompressionCodec::IsHighFidelity */
+	ENGINE_API bool IsHighFidelity(const FCompressibleAnimData& CompressibleAnimData) const;
+
 	/*
 	 * Compresses the animation bones inside the supplied sequence.
 	 * The resultant compressed data is applied to the OutCompressedData structure.
