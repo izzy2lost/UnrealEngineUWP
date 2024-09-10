@@ -2046,7 +2046,7 @@ void FControlRigParameterTrackEditor::AddControlRigFromComponent(FGuid InGuid)
 
 bool FControlRigParameterTrackEditor::HasTransformKeyOverridePriority() const
 {
-	return false;
+	return false; 
 }
 
 bool FControlRigParameterTrackEditor::CanAddTransformKeysForSelectedObjects() const
@@ -3636,7 +3636,7 @@ void FControlRigParameterTrackEditor::HandleControlSelected(UControlRig* Subject
 			//Just select in section to key, if deselecting makes sure deselected everywhere
 			if (bSelected == true)
 			{
-				UMovieSceneSection* Section = Track->GetSectionToKey(ControlElement->GetFName());
+				UMovieSceneSection* Section = Track->GetSectionToKey();
 				UMovieSceneControlRigParameterSection* ParamSection = Cast<UMovieSceneControlRigParameterSection>(Section);
 				SelectSequencerNodeInSection(ParamSection, ControlElement->GetFName(), bSelected);
 			}
@@ -4133,18 +4133,7 @@ FKeyPropertyResult FControlRigParameterTrackEditor::AddKeysToControlRigHandle(UO
 	{
 		float Weight = 1.0f;
 
-		UMovieSceneSection* SectionToKey = Track->GetSectionToKey(RigControlName);
-		if (SectionToKey)
-		{
-			if (SectionToKey->HasEndFrame() && SectionToKey->GetExclusiveEndFrame() < KeyTime)
-			{
-				SectionToKey->SetEndFrame(KeyTime);
-			}
-			else if(SectionToKey->HasStartFrame() && SectionToKey->GetInclusiveStartFrame() > KeyTime)
-			{
-				SectionToKey->SetStartFrame(KeyTime);
-			}
-		}
+		UMovieSceneSection* SectionToKey = bCreateSection ? Track->FindOrExtendSection(KeyTime, Weight) : Track->FindSection(KeyTime);
 
 		// If there's no overlapping section to key, create one only if a track was newly created. Otherwise, skip keying altogether
 		// so that the user is forced to create a section to key on.
@@ -4176,7 +4165,7 @@ FKeyPropertyResult FControlRigParameterTrackEditor::AddKeysToControlRigHandle(UO
 		//if we create a key then compensate
 		if (KeyPropertyResult.bKeyCreated)
 		{
-			UMovieSceneControlRigParameterSection* ParamSection = Cast<UMovieSceneControlRigParameterSection>(Track->GetSectionToKey(ControlRigName));
+			UMovieSceneControlRigParameterSection* ParamSection = Cast<UMovieSceneControlRigParameterSection>(Track->GetSectionToKey());
 			if (UControlRig* SectionControlRig = ParamSection ? ParamSection->GetControlRig() : nullptr)
 			{
 				TOptional<FFrameNumber> OptionalKeyTime = KeyTime;
@@ -4247,7 +4236,7 @@ void FControlRigParameterTrackEditor::AddControlKeys(
 			BeginKeying(LocalFrameTime.RoundToFrame());
 		}
 		const FFrameNumber FrameTime = GetTimeForKey();
-		UMovieSceneSection* Section = Track->GetSectionToKey(RigControlName);
+		UMovieSceneSection* Section = Track->FindSection(FrameTime);
 		ParamSection = Cast<UMovieSceneControlRigParameterSection>(Section);
 
 		if (ParamSection && ParamSection->GetDoNotKey())
@@ -4940,12 +4929,50 @@ void FControlRigParameterTrackEditor::SelectFKBonesToAnimate(UFKControlRig* Auto
 	//reconstruct all channel proxies TODO or not to do that is the question
 }
 
+//////////////////////////////////////////////////////////////
+/// SCollapseControlsWidget
+///////////////////////////////////////////////////////////
+
+/** Widget allowing collapsing of controls */
+class SCollapseControlsWidget : public SCompoundWidget
+{
+public:
+
+	SLATE_BEGIN_ARGS(SCollapseControlsWidget)
+		: _Sequencer(nullptr), _OwnerTrack(nullptr)
+	{}
+
+	SLATE_ARGUMENT(TWeakPtr<ISequencer>, Sequencer)
+	SLATE_ARGUMENT(UMovieSceneTrack*, OwnerTrack)
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs);
+	virtual ~SCollapseControlsWidget() override {}
+
+	FReply OpenDialog(bool bModal = true);
+	void CloseDialog();
+
+
+private:
+	void Collapse();
+
+	TWeakPtr<ISequencer> Sequencer;
+	TWeakObjectPtr<UMovieSceneTrack> OwnerTrack;
+	//static to be reused
+	static TOptional<FBakingAnimationKeySettings> CollapseControlsSettings;
+	//structonscope for details panel
+	TSharedPtr < TStructOnScope<FBakingAnimationKeySettings>> Settings;
+	TWeakPtr<SWindow> DialogWindow;
+	TSharedPtr<IStructureDetailsView> DetailsView;
+};
+
 
 TOptional<FBakingAnimationKeySettings> SCollapseControlsWidget::CollapseControlsSettings;
 
 void SCollapseControlsWidget::Construct(const FArguments& InArgs)
 {
 	Sequencer = InArgs._Sequencer;
+	OwnerTrack = InArgs._OwnerTrack;
 
 	if (CollapseControlsSettings.IsSet() == false)
 	{
@@ -5038,11 +5065,13 @@ void SCollapseControlsWidget::Construct(const FArguments& InArgs)
 		];
 }
 
+
 void  SCollapseControlsWidget::Collapse()
 {
 	FBakingAnimationKeySettings* BakeSettings = Settings->Get();
 	TSharedPtr<ISequencer> SequencerPtr = Sequencer.Pin();
-	CollapseCB.ExecuteIfBound(SequencerPtr, *BakeSettings);
+	FControlRigParameterTrackEditor::CollapseAllLayers(SequencerPtr, OwnerTrack.Get(), *BakeSettings);
+
 	CollapseControlsSettings = *BakeSettings;
 }
 
@@ -5279,20 +5308,16 @@ bool FControlRigParameterTrackEditor::CollapseAllLayers(TSharedPtr<ISequencer>&S
 
 void FControlRigParameterSection::CollapseAllLayers()
 {
+	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
 	if (UMovieSceneControlRigParameterSection* ParameterSection = CastChecked<UMovieSceneControlRigParameterSection>(WeakSection.Get()))
 	{
 		UMovieSceneTrack* OwnerTrack = ParameterSection->GetTypedOuter<UMovieSceneTrack>();
-		FCollapseControlsCB CollapseCB = FCollapseControlsCB::CreateLambda([this,OwnerTrack](TSharedPtr<ISequencer>& InSequencer, const FBakingAnimationKeySettings& InSettings)
-		{
-			FControlRigParameterTrackEditor::CollapseAllLayers(InSequencer, OwnerTrack, InSettings);
-		});
-
 		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 		TSharedRef<SCollapseControlsWidget> BakeWidget =
 			SNew(SCollapseControlsWidget)
-			.Sequencer(Sequencer);
+			.Sequencer(Sequencer)
+			.OwnerTrack(OwnerTrack);
 
-		BakeWidget->SetCollapseCB(CollapseCB);
 		BakeWidget->OpenDialog(false);
 	}
 }

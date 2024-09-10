@@ -36,46 +36,6 @@ struct FMovieSceneChannel;
 struct FKeyAddOrDeleteEventItem;
 struct FKeyMoveEventItem;
 struct FBakingAnimationKeySettings;
-class ISequencer;
-class UMovieSceneTrack;
-class IStructureDetailsView;
-
-//////////////////////////////////////////////////////////////
-/// SCollapseControlsWidget
-///////////////////////////////////////////////////////////
-DECLARE_DELEGATE_TwoParams(FCollapseControlsCB, TSharedPtr<ISequencer>& InSequencer, const FBakingAnimationKeySettings& InSettings);
-
-/** Widget allowing collapsing of controls */
-class SCollapseControlsWidget : public SCompoundWidget
-{
-public:
-
-	SLATE_BEGIN_ARGS(SCollapseControlsWidget)
-		: _Sequencer(nullptr)
-		{}
-		SLATE_ARGUMENT(TWeakPtr<ISequencer>, Sequencer)
-	SLATE_END_ARGS()
-
-	void Construct(const FArguments& InArgs);
-	virtual ~SCollapseControlsWidget() override {}
-
-	FReply OpenDialog(bool bModal = true);
-	void CloseDialog();
-
-	void SetCollapseCB(FCollapseControlsCB& InCB) { CollapseCB = InCB; }
-private:
-	void Collapse();
-
-	TWeakPtr<ISequencer> Sequencer;
-	//static to be reused
-	static TOptional<FBakingAnimationKeySettings> CollapseControlsSettings;
-	//structonscope for details panel
-	TSharedPtr < TStructOnScope<FBakingAnimationKeySettings>> Settings;
-	TWeakPtr<SWindow> DialogWindow;
-	TSharedPtr<IStructureDetailsView> DetailsView;
-	FCollapseControlsCB CollapseCB;
-};
-
 /**
  * Tools for animation tracks
  */
